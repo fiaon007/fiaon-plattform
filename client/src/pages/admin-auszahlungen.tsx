@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Banknote, Copy, ChevronRight, ScrollText } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import { akteLink } from "@/lib/akte-link";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /admin/auszahlungen — Provisions-Anforderungen des Teams
@@ -195,7 +196,7 @@ export default function AdminAuszahlungenPage() {
             {p.entries.map((en) => (
               <div key={en.id} className="px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[12px]"
                 style={{ boxShadow: "inset 0 -1px 0 rgba(226,232,240,.7)" }}>
-                <a href={`/admin/kunde/${encodeURIComponent(en.ref)}`} className="font-semibold" style={{ color: ACCENT }}>
+                <a href={akteLink(en.ref) ?? "#"} className="font-semibold" style={{ color: ACCENT }}>
                   {en.payment_reference || en.ref}
                 </a>
                 <span className="text-slate-400 truncate max-w-[40%]">{(en.pack_name || "").replace(/\n/g, " ")}</span>
@@ -317,7 +318,7 @@ export default function AdminAuszahlungenPage() {
                     {" · "}
                     {l.type === "note" ? "Notiz" : l.type === "email_sent" ? "Zahlungsdaten-Mail" : `Ergebnis: ${l.outcome || "—"}`}
                     {" · "}
-                    <a href={`/admin/kunde/${encodeURIComponent(l.ref)}`} className="text-slate-400 hover:text-slate-700">{l.ref}</a>
+                    <a href={akteLink(l.ref) ?? "#"} className="text-slate-400 hover:text-slate-700">{l.ref}</a>
                   </p>
                   {l.note && <p className="text-[11px] text-slate-500 truncate">{l.note}</p>}
                 </div>

@@ -136,6 +136,7 @@ import {
 } from "@shared/fiaon-mara-ton";
 export { mitAntragLuecke };
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
+import { raumPfad } from "@shared/fiaon-wa-raum";
 import { nennform, vornamenErsetzen, mitarbeiterVornameFunde, MITARBEITER_NAMEN_KURZ, type Nennform, type MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { mitarbeiterListe } from "./fiaon-mitarbeiter-namen";
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), giltZumSatz.
@@ -143,6 +144,7 @@ import { istJahresvertrag, giltZumSatz, tagDeutsch } from "@shared/fiaon-antrag-
 import { schweigen, abschlussSatz, istBestaetigung, msVon, type SchweigenUrteil } from "./fiaon-mara-schweigen";
 import { WA_VORLAGEN, AUSKUNFT_VORLAGE } from "@shared/fiaon-lead-texte";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
+import { berlinTagZeit } from "@shared/fiaon-auftrag-arten";
 import {
   AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS, auskunftWort, auskunfteienText, euroText,
   type AuskunftArt, type AuskunftLand,
@@ -2945,7 +2947,9 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         // E-275 Gegenprüfung (Wahrheit und Recht): unvollständiger Antrag — nach der Buchung kommt der Link NICHT direkt.
         ...(antragLuecke.length ? [`IN SEINEM ANTRAG FEHLT NOCH: ${antragLuecke.join(", ")}. Der Link unserer Partnerbank geht erst raus, wenn das eingetragen ist — nie „direkt nach der Buchung der Link“; sag es wie in DEIN ABSCHLUSS und bitte ihn um ${antragLuecke.length === 1 ? "diese Angabe" : "diese Angaben"}.`] : []),
         ...(vorabKarte && !vorabKarte.ok && vorabKarte.kartenArt === "ohne_mail" ? [`FÜR DEN LINK DER PARTNERBANK FEHLT SEINE E-MAIL-ADRESSE — frag ihn freundlich danach (dorthin geht der Link für seinen Kartenantrag); schickt er sie, setzt du mensch auf true (uebergabe: E-Mail-Adresse eintragen).`] : []),
-        ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass sich sein Betreuer wegen des Links bei ihm meldet; der Server gibt es weiter. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
+        // E-IT-B (08.10.2026): Adresse gesperrt — nichts ging raus; nach der richtigen Adresse fragen, der Mensch trägt sie ein.
+        ...(vorabKarte && !vorabKarte.ok && vorabKarte.kartenArt === "adresse_gesperrt" && vorabKarte.satz ? [`AN SEINE E-MAIL-ADRESSE KOMMT NICHTS AN — der Link ging NICHT raus: „${vorabKarte.satz}" — frag ihn nach seiner richtigen E-Mail-Adresse; der Server gibt es an seinen Betreuer weiter. Kein „Spam-Ordner“, keine Zusage, dass der Link schon da ist.`] : []),
+        ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail", "adresse_gesperrt"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass sich sein Betreuer wegen des Links bei ihm meldet; der Server gibt es weiter. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
       land: lage.land, stufe: lage.linkLage.stufe,
       // E-275: der Link der Partnerbank als Werkzeug — nur beim zahlenden Kunden, und nicht, wenn der Server ihn eben geschickt hat.
       kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte,
@@ -3545,7 +3549,12 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
       return { ergebnis: { ok: false, grund: `Der Tag ist nicht eindeutig (kein Monat genannt). Frag kurz nach, z. B. „Meinen Sie den ${vorschlag}?" — und halte ihn erst nach seinem Ja fest.` }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
     }
     const [alt] = (await sqlPool`SELECT promised_payment_date FROM fiaon_persons WHERE id = ${ctx.personId}`) as any[];
-    await sqlPool`UPDATE fiaon_persons SET promised_payment_date = ${datum}::date, updated_at = NOW() WHERE id = ${ctx.personId}`;
+    // E-IT-A (08.10.2026): Mit der Zusage kommt die Wiedervorlage der einen Regel
+    // (Werktag nach dem genannten Tag, shared/fiaon-wiedervorlage.ts) — vorher nur
+    // das Datum; der Mensch stand am Kalendertag danach (auch Sa/So) wieder oben.
+    const { naechsterVersuch } = await import("@shared/fiaon-wiedervorlage");
+    const wvZusage = naechsterVersuch({ ergebnis: "erreicht_zahlt_am", heute, zusageDatum: datum }).datum;
+    await sqlPool`UPDATE fiaon_persons SET promised_payment_date = ${datum}::date, follow_up_date = ${wvZusage}::date, updated_at = NOW() WHERE id = ${ctx.personId}`;
     const schoen = new Date(`${datum}T12:00:00Z`).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
     const vorher = alt?.promised_payment_date ? new Date(alt.promised_payment_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
     await mt.protokollieren({
@@ -3625,6 +3634,15 @@ async function kartenLinkSchicken(ctx: WerkzeugKontext): Promise<{ ergebnis: any
     return {
       ergebnis: { ok: false, art: r.aktion, so_schreiben: satz,
         hinweis: "Frag ihn genau nach diesen Angaben (so_schreiben). Schickt er sie, setzt du mensch auf true (uebergabe: Angaben für den Antrag eintragen, dann geht der Link automatisch raus)." },
+      aktion: { werkzeug: name, ok: false, zeiten: [], satz, kartenArt: r.aktion, intern: r.intern },
+    };
+  }
+  // E-IT-B (08.10.2026): An seine Adresse kommt nichts an (gesperrt, abgewiesen, Spam) — nichts ging raus, nichts wurde
+  // entsperrt (Justin, 08.10.). Mara fragt nach der richtigen Adresse; eintragen und erneut senden tut ein Mensch.
+  if (r.aktion === "adresse_gesperrt" && satz) {
+    return {
+      ergebnis: { ok: false, art: r.aktion, so_schreiben: satz,
+        hinweis: "An seine hinterlegte E-Mail-Adresse kommt nichts an — es ging nichts raus. Frag ihn nach seiner richtigen E-Mail-Adresse (so_schreiben). Nennt er eine, setzt du mensch auf true (uebergabe: E-Mail-Adresse ändern, dann in der Akte „E-Mail erneut senden“)." },
       aktion: { werkzeug: name, ok: false, zeiten: [], satz, kartenArt: r.aktion, intern: r.intern },
     };
   }
@@ -4620,16 +4638,27 @@ export async function aufgabeFuerMenschen(
     // Gilt die Abwesenheit nicht für den Kunden, aber für die Leitung selbst (nur einzelne abwesend): auch dann der Vertreter.
     if (!vt && leitung) vt = await abw.uebergabeVertretung(personId ? Number(personId) : null, leitung);
     const titel = `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
-    const text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
+    let text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
+    // E-IT-F (Fertigstellung 08.10., Gegenprüfung Fund 6): Ist die Tages-Aufgabe dieser Klasse schon ERLEDIGT und bittet der
+    // Kunde mit demselben Satz erneut (fester Satz „möchte mit jemandem aus dem Team sprechen“), wäre der Text nicht neu —
+    // auftragFuerKunden öffnet nur bei neuem Text wieder, die Bitte ginge still verloren. Die Zeit macht sie neu.
+    if (erstes && !still) {
+      const [zu] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel} AND status = 'erledigt' LIMIT 1`.catch(() => [])) as any[];
+      if (zu && String(zu.text || "").includes(text)) {
+        text = `${text} (erneut gemeldet ${berlinTagZeit(new Date())})`;
+      }
+    }
     // E-248: Der Schlüssel trägt jetzt die Grundklasse (wa-<person>-<klasse>-<tag>) — die Karte „Neu von Mara"
     // (fiaon-agent-aufgaben-popup.ts, personAusZeile) findet die Person deshalb über den Link.
     // Vertretung: Ohne Person führt der Link in den WhatsApp-Raum des Mitarbeiters statt ins Chefbüro.
-    const link = personId ? `/agent/kunden?person=${Number(personId)}` : vt?.anVertreter ? "/agent/whatsapp" : "/chef/s/whatsapp";
+    // E-IT-H (08.10.2026, Punkt 15): mit ?nummer= — der Raum öffnet genau dieses Gespräch (vorher nur den Raum).
+    const link = personId ? `/agent/kunden?person=${Number(personId)}` : raumPfad(vt?.anVertreter ? "agent" : "chef", nummer);
     const erg: any = await auftragFuerKunden({
       // E-264 + E-260: „An die Leitung“ geht an den Vertriebsleiter — AUSSER das Team ist abwesend
       // (dann der Vertreter bzw. das Board des Betreibers; leitungId() wäre Agent 8, abwesend).
       // E-272: betreiber — immer Justins Board.
-      ...(opt.betreiber ? { anBetreiber: true } : vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung } : { anBetreiber: true }) : { anBetreiber: false }),
+      // E-IT-F (Gegenprüfung 08.10.): „an die Leitung“ ist ausdrücklich (vorrang) — auch wenn ein alter Tages-Schlüssel beim Betreuer liegt.
+      ...(opt.betreiber ? { anBetreiber: true } : vt ? abw.uebergabeFelder(vt) : opt.leitung ? (leitung ? { agentId: leitung, vorrang: true } : { anBetreiber: true }) : { anBetreiber: false }),
       personId: personId ?? null, ref: null,
       titel, text,
       quelle: "mara-whatsapp", dringend,

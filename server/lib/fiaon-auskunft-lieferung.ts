@@ -50,6 +50,10 @@ import {
 
 // E-244 (Gesamtdurchsicht): die echten Wahl-Sätze aus EINER Quelle (fiaon-auskunft.ts — nur leichte Importe, kein Kreis).
 import { WIDERRUF_WAHL_SQL, WIDERRUF_WAHL_VERLANGT } from "./fiaon-auskunft";
+// E-IT-D (08.10.2026, 4a): Stufensätze, Wache und Verantwortung aus EINER Quelle.
+import {
+  BESCHAFFUNG_VERANTWORTLICH_SCHLUESSEL, wacheStufe, type BeschaffungAkte, type WacheStufe,
+} from "@shared/fiaon-auskunft-akte";
 
 // Die Marke des Beschaffungsauftrags steht in der gemeinsamen Quelle (25.09.2026, E-241) — hier
 // weitergereicht, damit Prüfstände und Chefbüro sie neben AUSKUNFT_VOLLMACHT_VERMERK finden.
@@ -1228,10 +1232,59 @@ const MODUS_TEXT: Record<AuskunftLiefermodus, string> = {
 const LAND_TEXT: Record<AuskunftLand, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
 
 /** Die Aufgabe für die Beschaffung schließen — nichts löschen, nur „erledigt" mit Grund (Muster fiaon-app-antraege.ts). */
-async function beschaffungsAufgabeSchliessen(ref: string, ergebnis: string, lauf: Lauf): Promise<void> {
-  await lauf`
-    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()), ergebnis = COALESCE(ergebnis, ${ergebnis}), updated_at = NOW()
-     WHERE schluessel = ${`auskunft-beschaffung:${ref}`} AND status <> 'erledigt'`.catch(() => {});
+async function beschaffungsAufgabeSchliessen(ref: string, ergebnis: string, lauf: Lauf, id?: number): Promise<void> {
+  // Querprüfung 08.10.2026: über den einen Weg (auftragErledigen) — mit Beitrag, „erledigt von“ und Ereignis.
+  await systemAufgabenErledigen([`auskunft-beschaffung:${ref}`], ergebnis, "Auskunft-Beschaffung", lauf).catch(() => 0);
+  // Nachprüfung 08.10.2026 (E-IT-D): auch die Aufgaben der Wache und „Datenkopie eingegangen“ zu diesem Auftrag.
+  // NIE die Klärung „Leistung klären (Erstattung)“ — Heikles schließt nur ein Mensch (Entscheidung zu Punkt 6–9).
+  if (id != null) {
+    const k = wacheSchluessel(id);
+    await wacheAufgabenSchliessen(id, [k.anruf, k.aufgabe, k.dringend, k.link_fehlt, k.datenkopie_da], ergebnis, lauf);
+  }
+}
+
+/** Die EINE Sammelaufgabe „Link nie zugestellt“ (Kunden mit Adresse — der Sammelknopf hilft allen). */
+export const SAMMEL_LINK_FEHLT_SCHLUESSEL = "auskunft-link-fehlt-sammel";
+
+/** Die Schlüssel der Aufgaben, die Wache, Sammelweg und eigener Upload zu EINEM Auftrag anlegen. */
+export function wacheSchluessel(id: number): Record<"anruf" | "aufgabe" | "dringend" | "link_fehlt" | "eigene" | "datenkopie_da", string> {
+  return {
+    anruf: `auskunft-bestaetigung-anruf:${id}`, aufgabe: `auskunft-liegezeit:${id}`, dringend: `auskunft-liegezeit-2:${id}`,
+    link_fehlt: `auskunft-link-fehlt:${id}`, eigene: `auskunft-eigene:${id}`, datenkopie_da: `auskunft-datenkopie-da:${id}`,
+  };
+}
+
+/**
+ * Aufgaben eines Auftrags automatisch erledigen (Nachprüfung 08.10.2026, Punkte 6–9: „automatische
+ * Erledigung über definierte Ereignisse“). Nur die eigenen System-Schlüssel — nichts, was ein Mensch
+ * angelegt hat; das Ergebnis sagt, wodurch. Gibt die Zahl der geschlossenen Aufgaben zurück.
+ */
+export async function wacheAufgabenSchliessen(id: number, schluessel: string[], grund: string, lauf: Lauf = sqlPool): Promise<number> {
+  void id;
+  return systemAufgabenErledigen(schluessel, grund, "Liegezeit-Wache", lauf).catch(() => 0);
+}
+
+/**
+ * Querprüfung 08.10.2026 (Strang d × f): Die Aufgaben der Wache und der Beschaffung schlossen sich mit einem direkten
+ * UPDATE — ohne Beitrag, ohne „erledigt von“, ohne Ereignis, und eine von Hand wieder geöffnete schloss der nächste
+ * Lauf (alle 6 Stunden) erneut. Jetzt über den einen Weg (auftragErledigen, Art „auto“, von = wer, Ereignis = Grund);
+ * was ein Mensch wieder geöffnet hat („von … wieder geöffnet“), bleibt offen — wie in durchEreignisRoh.
+ */
+async function systemAufgabenErledigen(schluessel: string[], grund: string, von: string, lauf: Lauf): Promise<number> {
+  if (!schluessel.length) return 0;
+  const { auftragErledigen, VON_HAND_WIEDER_OFFEN } = await import("./fiaon-auftraege");
+  const zeilen = (await lauf`SELECT id, wieder_offen_grund FROM fiaon_betreiber_todos
+                              WHERE schluessel = ANY(${schluessel}) AND status <> 'erledigt'`.catch(() => [])) as any[];
+  let n = 0;
+  for (const z of zeilen) {
+    if (VON_HAND_WIEDER_OFFEN.test(String(z.wieder_offen_grund || ""))) continue;
+    const zu = await auftragErledigen(Number(z.id), {
+      art: "auto", von, autorArt: "system", ereignis: grund,
+      ergebnis: `Automatisch erledigt: ${grund}`, beitragText: `Automatisch erledigt (${von}): ${grund}`,
+    }, lauf).catch(() => false);
+    if (zu) n++;
+  }
+  return n;
 }
 
 /**
@@ -1402,12 +1455,15 @@ export async function auftragLinkSenden(
   id: number, wer: { name: string; agentId: number | null }, opts: { nochmal?: boolean } = {}, lauf: Lauf = sqlPool,
 ): Promise<AuftragLinkErgebnis> {
   await ensureBeschaffungTabelle();
-  const [a] = (await lauf`SELECT id, ref, person_id, land, art, status, to_char(faellig_ab, 'YYYY-MM-DD') AS faellig_ab, vollmacht_link_am FROM fiaon_auskunft_beschaffung WHERE id = ${id}`) as any[];
+  const [a] = (await lauf`SELECT id, ref, person_id, land, art, status, quelle, modus, to_char(faellig_ab, 'YYYY-MM-DD') AS faellig_ab, vollmacht_link_am FROM fiaon_auskunft_beschaffung WHERE id = ${id}`) as any[];
   if (!a) return { ok: false, mail: "nicht_noetig", text: "Diesen Beschaffungsauftrag gibt es nicht." };
   if (a.status === "fertig") return { ok: false, mail: "nicht_noetig", text: "Der Auftrag ist fertig — kein Link mehr nötig." };
   const personId = Number(a.person_id);
   const einw = await auskunftEinwilligung(String(a.ref), personId, lauf);
   if (einw.quelle === "auftrag") return { ok: false, mail: "nicht_noetig", text: `Der Auftrag liegt schon vor: ${einw.text}` };
+  // E-IT-D (08.10.2026, 4a): Im Datenkopie-Weg deckt auch die Vollmacht zur Übermittlung die Anforderung — dann kein Link.
+  const datenkopie = String(a.modus ?? "") === "datenkopie";
+  if (datenkopie && einw.ja) return { ok: false, mail: "nicht_noetig", text: `Datenkopie-Weg: Die Einwilligung deckt die Anforderung schon (${einw.text})` };
   if (a.vollmacht_link_am && !opts.nochmal && Date.now() - new Date(a.vollmacht_link_am).getTime() < LINK_RUHE_MS) {
     const wann = new Date(a.vollmacht_link_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     return { ok: false, mail: "nicht_noetig", text: `Der Link ging schon am ${wann} Uhr raus. Noch einmal nur mit „nochmal“.` };
@@ -1433,8 +1489,10 @@ export async function auftragLinkSenden(
     anrede: html(anredeMail({ vorname, nachname })),
     auskunfteien: bei,
     auskunft_land: land,
-    auskunft_liefermodus: "einkauf",
-    ...schufaRequestedSaetze("einkauf", { art, wartenAb }),
+    // E-IT-D (08.10.2026, 4a): Im Datenkopie-Weg dieselbe Vorlage (Auftrag bestätigen), aber die Sätze der
+    // Datenkopie — ohne „kostenlos“, ohne „kostenpflichtig“ — und beim Rückstand mit der Entschuldigung.
+    auskunft_liefermodus: datenkopie ? "datenkopie" : "einkauf",
+    ...schufaRequestedSaetze("einkauf", { art, wartenAb, datenkopie, rueckstand: String(a.quelle ?? "") === "rueckstand" }),
     // Der Schlüssel heißt weiter unterschrift_url: Das Mail-Protokoll verbirgt ihn
     // (payloadSchwaerzen), und das Ereignis führt ihn als Pflichtfeld. Er trägt im
     // Einkauf den signierten Link zur Auftragsbestätigung.
@@ -1443,6 +1501,7 @@ export async function auftragLinkSenden(
   } as any).catch((e) => ({ ok: false, grund: String((e as Error)?.message || e) }));
   if (versand.ok) {
     await lauf`UPDATE fiaon_auskunft_beschaffung SET vollmacht_link_am = NOW(), vollmacht_link_anzahl = vollmacht_link_anzahl + 1, updated_at = NOW() WHERE id = ${id}`;
+    await wacheAufgabenSchliessen(id, [wacheSchluessel(id).link_fehlt], "Link zur Auftragsbestätigung ist zugestellt.", lauf);
   }
   await lauf`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
@@ -1634,11 +1693,16 @@ export async function rueckstandEinlesen(lauf: Lauf = sqlPool): Promise<number> 
   if (neu > 0) {
     try {
       const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      const { berlinTagZeit } = await import("../../shared/fiaon-auftrag-arten");
       await auftragFuerKunden({
         personId: null, ref: null, anBetreiber: true,
         titel: "Auskunft-Rückstand beschaffen",
+        // E-IT-F (Gegenprüfung 08.10.): Die Zeile „Neu übernommen …“ macht jede Meldung zu NEUEM Text — sonst
+        // öffnete auftragFuerKunden die erledigte Sammelaufgabe bei neuen Rückstandsfällen nie wieder (Anlass
+        // „neu“ hängt am neuen Text), und Justin erführe nichts.
         text: "Bezahlte Bonitätsauskünfte ohne Dokument stehen jetzt als Beschaffungsaufträge im Chefbüro unter „Auskunft-Beschaffung“ — "
-          + "die Kunden haben dafür keine Mail bekommen. Fehlt der Auftrag, dort „Auftragsbestätigung senden“; liegt er vor, beschaffen und hochladen.",
+          + "die Kunden haben dafür keine Mail bekommen. Fehlt der Auftrag, dort „Auftragsbestätigung senden“; liegt er vor, beschaffen und hochladen."
+          + `\nNeu übernommen: ${neu} ${neu === 1 ? "Fall" : "Fälle"} (${berlinTagZeit(new Date())}).`,
         schluessel: "auskunft-beschaffung-rueckstand", quelle: "bestellung", bereich: "pruefen",
         link: "/chef/s/auskunft-beschaffung", autorName: "Auskunft-Beschaffung",
         anlageText: "Angelegt, als der Rückstand in die Beschaffung übernommen wurde.",
@@ -1727,6 +1791,19 @@ export async function beschaffungHochladen(
     if (alt?.schufa_pdf && String(alt.dokument_ref) === traeger) {
       teile.unshift({ buffer: Buffer.isBuffer(alt.schufa_pdf) ? alt.schufa_pdf : Buffer.from(alt.schufa_pdf), name: "bisherige-lieferung.pdf" });
       angehaengt = true;
+    } else {
+      // E-IT-C (08.10.2026): Der Träger hat zwischen zwei Lieferungen gewechselt (z. B. Paket nach der Auskunft
+      // gekauft). Die frühere Lieferung liegt dann als Datei (Herkunft „beschaffung“) in der Unterlagen-Ablage —
+      // ohne sie ersetzte die Nachlieferung die frühere Lieferung in der Akte, statt sich anzuhängen.
+      const ablage = await import("./fiaon-unterlagen").then((m) => m.unterlagenBereit(lauf)).catch(() => false);
+      const [frueher] = ablage ? (await lauf`SELECT inhalt FROM fiaon_dokumente
+                                     WHERE person_id = ${a.personId} AND art = 'unterlage' AND kategorie = 'schufa' AND herkunft = 'beschaffung'
+                                       AND entfernt_am IS NULL AND geloescht_am IS NULL AND LENGTH(inhalt) > 0
+                                     ORDER BY hochgeladen_am DESC, id DESC LIMIT 1`) as any[] : [];
+      if (frueher?.inhalt) {
+        teile.unshift({ buffer: Buffer.isBuffer(frueher.inhalt) ? frueher.inhalt : Buffer.from(frueher.inhalt), name: "bisherige-lieferung.pdf" });
+        angehaengt = true;
+      }
     }
   }
   let pdf: Buffer;
@@ -1749,6 +1826,12 @@ export async function beschaffungHochladen(
   const { unterlageSichern } = await import("./fiaon-dokumente");
   await unterlageSichern(traeger, "schufa", lauf);
   await lauf`UPDATE fiaon_applications SET schufa_pdf = ${pdf}, documents_uploaded_at = NOW() WHERE ref = ${traeger}`;
+  // E-IT-C (08.10.2026): Die Unterlagen-Ablage (eine Datei = ein Datensatz) kennt diese Fassung jetzt als
+  // EINE Datei mit Herkunft „beschaffung“ — ein späteres Hinzufügen bindet an sie an statt sie zu überschreiben,
+  // und der Kunde lädt eigene Auskünfte unter „Weitere Unterlagen“ (server/lib/fiaon-unterlagen.ts).
+  await import("./fiaon-unterlagen")
+    .then((m) => m.akteFassungUebernehmen(a.personId, "schufa", { herkunft: "beschaffung", name: ein.wer.name, agentId: ein.wer.agentId }, lauf))
+    .catch((e) => console.error("[AUSKUNFT-BESCHAFFUNG] Unterlagen-Ablage:", String(e?.message || e).slice(0, 160)));
   await lauf`
     UPDATE fiaon_applications SET status = 'documents_submitted'
      WHERE ref = ${traeger} AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL AND status IN ('pending', 'documents_requested')`
@@ -1823,7 +1906,7 @@ async function nachLieferungStand(id: number, ref: string, mail: string, komplet
        SET status = ${status}, mail_status = ${mail}, mail_am = CASE WHEN ${mail} = 'gesendet' THEN NOW() ELSE mail_am END,
            fertig_am = CASE WHEN ${status} = 'fertig' THEN NOW() ELSE fertig_am END, updated_at = NOW()
      WHERE id = ${id}`;
-  if (status === "fertig") await beschaffungsAufgabeSchliessen(ref, "Auskunft beschafft, in der Akte, Kunde benachrichtigt.", lauf);
+  if (status === "fertig") await beschaffungsAufgabeSchliessen(ref, "Auskunft beschafft, in der Akte, Kunde benachrichtigt.", lauf, id);
   return status;
 }
 
@@ -1926,7 +2009,7 @@ export async function beschaffungAktion(
       UPDATE fiaon_auskunft_beschaffung
          SET status = 'fertig', fertig_am = NOW(), notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${`${stempel} (ohne Upload abgeschlossen)`}::text), updated_at = NOW()
        WHERE id = ${id}`;
-    await beschaffungsAufgabeSchliessen(String(a.ref), `Ohne Upload abgeschlossen: ${notiz}`, lauf);
+    await beschaffungsAufgabeSchliessen(String(a.ref), `Ohne Upload abgeschlossen: ${notiz}`, lauf, id);
     await vermerk(`Bonitätsauskunft: Beschaffung #${id} ohne Upload abgeschlossen (keine Mail an den Kunden): ${notiz}`);
     return { ok: true, text: "Abgeschlossen — ohne Mail an den Kunden." };
   }
@@ -1985,4 +2068,438 @@ export async function apiFaelligeAbrufen(lauf: Lauf = sqlPool): Promise<{ versuc
     if (!r.ok && /nicht angebunden/.test(r.text)) break;
   }
   return { versucht: texte.length, geliefert, texte };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER RÜCKSTAND WIRD GELIEFERT — DATENKOPIE-WEG, SAMMELKNOPF, WACHE
+// (E-IT-D, 08.10.2026, Punkt 4a des Team-Feedbacks)
+//
+// ── DER BEFUND (nur lesend, 08.10.2026) ───────────────────────────────────
+// 58 Menschen haben die Auskunft bezahlt (4.292 €), keiner hat sie bekommen.
+// Alle 61 Beschaffungsaufträge standen seit dem 29.09. auf „offen". Der
+// Engpass war nicht die Handarbeit, sondern die Einwilligung: Nur 1 von 61
+// Aufträgen hatte die Auftragsbestätigung; der Rückstand wurde absichtlich OHNE
+// Mail eingelesen, und den Link gab es nur je Auftrag von Hand (1× gesendet).
+// Aufgaben lagen ungelesen auf dem Betreiber-Brett — ohne Namen.
+//
+// ── JUSTINS ENTSCHEIDUNG ──────────────────────────────────────────────────
+// „Das Produkt für 74 € IST die Beschaffung der Datenkopie bei der Auskunftei
+// (Art. 15 DSGVO) samt FIAON-Auswertung — gegenüber Kunden NIE ‚kostenlose
+// Datenkopie' nennen. Rückstand über den Datenkopie-Weg liefern: Sammelknopf im
+// Mara-Steuerpult-Reiter ‚Bonitätsauskunft' über die bestehende Funktion,
+// Liefermodus für diese Fälle auf Datenkopie; Liegezeit-Wache mit benannter
+// Verantwortung; eigener Upload bei offenem Auftrag → ‚Leistung klären'.
+// KEINE Verkaufsbremse."
+//
+// ── WAS HIER STEHT ────────────────────────────────────────────────────────
+// · modus „datenkopie" je Auftrag (die globale Einstellung bleibt): FIAON
+//   fordert die Datenkopie im Namen des Kunden an. Dafür genügt die
+//   Auftragsbestätigung ODER die Vollmacht zur Übermittlung (einwilligungDeckt).
+// · auftragLinksAlleSenden: der Sammelknopf. Stellt offene, bezahlte Aufträge
+//   ohne deckende Einwilligung auf „datenkopie" und schickt je Auftrag den Link
+//   über auftragLinkSenden — höchstens einmal in 72 Stunden je Auftrag.
+// · beschaffungWache: alle 6 Stunden. Beschaffbar und seit 3 Werktagen fällig →
+//   Aufgabe an die benannte Verantwortung (dringend ab 10 Werktagen); Link seit
+//   3 Werktagen unbestätigt → Anruf-Aufgabe an den Betreuer. Je Stufe genau EINE
+//   Aufgabe (Schlüssel), nie eine Flut.
+// · beschaffungBeiEigenemUpload: Lädt der Kunde (oder ein Mitarbeiter in der
+//   Akte) eine Auskunft hoch, während ein Auftrag offen ist, geht der Auftrag
+//   auf „Problem" mit dem Satz „Kunde hat eigene Auskunft hochgeladen –
+//   Leistung klären" und einer Aufgabe — nicht still weiter beschaffen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+
+/** Deckt die Einwilligung den Weg dieses Auftrags? Auftragsbestätigung immer; im Datenkopie-Weg auch die Vollmacht. */
+export function einwilligungDeckt(a: { modus: string; einwilligung: { ja: boolean; quelle: string | null } }): boolean {
+  if (a.einwilligung.quelle === "auftrag") return true;
+  return a.modus === "datenkopie" && a.einwilligung.ja;
+}
+
+/** Die benannte Verantwortung der Beschaffung (Agent) — null = Leitung (Betreiber-Brett). */
+export async function beschaffungVerantwortlich(lauf: Lauf = sqlPool): Promise<{ id: number; name: string } | null> {
+  const [r] = (await lauf`
+    SELECT a.id, COALESCE(NULLIF(a.name, ''), TRIM(CONCAT_WS(' ', a.first_name, a.last_name))) AS name
+      FROM fiaon_settings s JOIN fiaon_agents a ON a.id = NULLIF(TRIM(s.value), '')::bigint
+     WHERE s.key = ${BESCHAFFUNG_VERANTWORTLICH_SCHLUESSEL} AND a.active AND COALESCE(a.is_test_account, FALSE) = FALSE
+     LIMIT 1`.catch(() => [])) as any[];
+  return r ? { id: Number(r.id), name: String(r.name || `#${r.id}`) } : null;
+}
+
+/** Wer als Verantwortung wählbar ist: aktive, echte Mitarbeiter der Leitung und Verwaltung. */
+export async function beschaffungVerantwortlichAuswahl(lauf: Lauf = sqlPool): Promise<{ id: number; name: string; rolle: string }[]> {
+  const { echteMitarbeiterSql } = await import("./fiaon-mitarbeiter-sicht");
+  const zeilen = (await lauf.unsafe(`
+    SELECT a.id, COALESCE(NULLIF(a.name, ''), TRIM(CONCAT_WS(' ', a.first_name, a.last_name))) AS name, COALESCE(a.rolle, 'agent') AS rolle
+      FROM fiaon_agents a
+     WHERE ${echteMitarbeiterSql("a")} AND COALESCE(a.rolle, 'agent') IN ('admin', 'vertriebsleiter', 'onboarding', 'trainer')
+     ORDER BY 2`).catch(() => [])) as any[];
+  return zeilen.map((z) => ({ id: Number(z.id), name: String(z.name), rolle: String(z.rolle) }));
+}
+
+/** Die Verantwortung setzen (null = Leitung). Nur Agenten aus der Auswahl. */
+export async function beschaffungVerantwortlichSetzen(agentId: number | null, lauf: Lauf = sqlPool): Promise<{ ok: boolean; text: string }> {
+  if (agentId == null) {
+    await lauf`DELETE FROM fiaon_settings WHERE key = ${BESCHAFFUNG_VERANTWORTLICH_SCHLUESSEL}`;
+    return { ok: true, text: "Verantwortung: Leitung (Betreiber-Brett)." };
+  }
+  const auswahl = await beschaffungVerantwortlichAuswahl(lauf);
+  const p = auswahl.find((x) => x.id === agentId);
+  if (!p) return { ok: false, text: "Diese Person ist nicht wählbar (aktiv, echte Leitung oder Verwaltung)." };
+  await lauf`
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${BESCHAFFUNG_VERANTWORTLICH_SCHLUESSEL}, ${String(agentId)}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+  return { ok: true, text: `Verantwortlich für die Beschaffung: ${p.name}.` };
+}
+
+/** Ab wann der Sammelknopf denselben Auftrag wieder anschreibt. */
+export const SAMMEL_LINK_RUHE_STUNDEN = 72;
+
+export interface SammelErgebnis {
+  gesendet: number;
+  fehlgeschlagen: number;
+  aufDatenkopie: number;
+  uebersprungen: { id: number; name: string; grund: string }[];
+  texte: string[];
+}
+
+/** Wer bekäme jetzt den Link (ohne zu senden) — dieselbe Auswahl wie der Sammelknopf. */
+export function sammelKandidat(a: BeschaffungAuftrag, jetzt = Date.now()): { ja: boolean; grund: string | null } {
+  if (a.status !== "offen" && a.status !== "in_arbeit") return { ja: false, grund: `Status ${a.status}` };
+  if (!a.bestellung.bezahlt) return { ja: false, grund: "nicht (mehr) bezahlt" };
+  if (a.dokumentDa) return { ja: false, grund: "Auskunft liegt schon in der Akte" };
+  if (einwilligungDeckt({ modus: "datenkopie", einwilligung: a.einwilligung })) return { ja: false, grund: "Einwilligung liegt vor" };
+  if (!a.kunde.email) return { ja: false, grund: "keine E-Mail-Adresse" };
+  if (a.vollmachtLinkAm && jetzt - new Date(a.vollmachtLinkAm).getTime() < SAMMEL_LINK_RUHE_STUNDEN * 3_600_000) {
+    return { ja: false, grund: `Link vor weniger als ${SAMMEL_LINK_RUHE_STUNDEN} Stunden gesendet` };
+  }
+  return { ja: true, grund: null };
+}
+
+/**
+ * Der Sammelknopf „Auftragsbestätigung an alle offenen senden": stellt jeden
+ * offenen, bezahlten Auftrag ohne deckende Einwilligung auf den Datenkopie-Weg
+ * und schickt ihm den Link (auftragLinkSenden — Mail ohne „kostenlos").
+ */
+/** Gehört der Auftrag auf den Datenkopie-Weg (offen, bezahlt, noch keine Auskunft, noch anderer Weg)? */
+export function datenkopieKandidat(a: BeschaffungAuftrag): boolean {
+  return (a.status === "offen" || a.status === "in_arbeit") && a.bestellung.bezahlt && !a.dokumentDa && a.modus !== "datenkopie";
+}
+
+/** Läuft der Sammelknopf gerade in diesem Prozess? (Nachprüfung 08.10.: zwei Klicks → keine doppelte Mail.) */
+let sammelLaeuft = false;
+
+export async function auftragLinksAlleSenden(wer: { name: string; agentId: number | null }, lauf: Lauf = sqlPool): Promise<SammelErgebnis> {
+  if (sammelLaeuft) return { gesendet: 0, fehlgeschlagen: 0, aufDatenkopie: 0, uebersprungen: [], texte: ["Der Sammelversand läuft schon — bitte warten, bis er fertig ist."] };
+  sammelLaeuft = true;
+  // Zusätzlich über Prozesse hinweg: eine Sitzungssperre in Postgres auf einer eigenen Verbindung.
+  let sperre: any = null;
+  try {
+    sperre = await (lauf as any).reserve?.();
+    if (sperre) {
+      const [g] = (await sperre`SELECT pg_try_advisory_lock(hashtext('fiaon_auskunft_sammelknopf')) AS ok`) as any[];
+      if (!g?.ok) {
+        return { gesendet: 0, fehlgeschlagen: 0, aufDatenkopie: 0, uebersprungen: [], texte: ["Der Sammelversand läuft schon (anderer Server) — bitte warten, bis er fertig ist."] };
+      }
+    }
+    return await sammelLauf(wer, lauf);
+  } finally {
+    if (sperre) {
+      await sperre`SELECT pg_advisory_unlock(hashtext('fiaon_auskunft_sammelknopf'))`.catch(() => {});
+      try { sperre.release(); } catch { /* Verbindung schon zu */ }
+    }
+    sammelLaeuft = false;
+  }
+}
+
+async function sammelLauf(wer: { name: string; agentId: number | null }, lauf: Lauf): Promise<SammelErgebnis> {
+  const liste = await beschaffungListe({}, lauf);
+  const erg: SammelErgebnis = { gesendet: 0, fehlgeschlagen: 0, aufDatenkopie: 0, uebersprungen: [], texte: [] };
+  for (const a of liste) {
+    if (a.status === "fertig") continue;
+    const k = sammelKandidat(a);
+    // Auch wer schon eine deckende Einwilligung hat (Vollmacht, Auftrag), kommt auf den Datenkopie-Weg — ohne neue Mail.
+    if (!k.ja && datenkopieKandidat(a)) {
+      await lauf`UPDATE fiaon_auskunft_beschaffung SET modus = 'datenkopie', updated_at = NOW() WHERE id = ${a.id} AND status IN ('offen', 'in_arbeit')`;
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${a.ref}, ${a.personId}, ${wer.agentId}, ${wer.name}, 'system',
+                ${`Bonitätsauskunft: Beschaffungsauftrag #${a.id} auf den Datenkopie-Weg gestellt (FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an; vorher ${a.modus}). Keine Mail: ${k.grund ?? "nicht nötig"}.`})`.catch(() => {});
+      erg.aufDatenkopie++;
+    }
+    if (!k.ja) { erg.uebersprungen.push({ id: a.id, name: a.kunde.name, grund: k.grund ?? "—" }); continue; }
+    if (a.modus !== "datenkopie") {
+      await lauf`UPDATE fiaon_auskunft_beschaffung SET modus = 'datenkopie', updated_at = NOW() WHERE id = ${a.id} AND status IN ('offen', 'in_arbeit')`;
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${a.ref}, ${a.personId}, ${wer.agentId}, ${wer.name}, 'system',
+                ${`Bonitätsauskunft: Beschaffungsauftrag #${a.id} auf den Datenkopie-Weg gestellt (FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an; vorher ${a.modus}).`})`.catch(() => {});
+      erg.aufDatenkopie++;
+    }
+    // Frisch gelesen je Auftrag: hat ein anderer Weg den Link eben geschickt, nicht noch einmal (72 Stunden Ruhe).
+    const [frisch] = (await lauf`SELECT vollmacht_link_am FROM fiaon_auskunft_beschaffung WHERE id = ${a.id}`) as any[];
+    if (frisch?.vollmacht_link_am && Date.now() - new Date(frisch.vollmacht_link_am).getTime() < SAMMEL_LINK_RUHE_STUNDEN * 3_600_000) {
+      erg.uebersprungen.push({ id: a.id, name: a.kunde.name, grund: `Link vor weniger als ${SAMMEL_LINK_RUHE_STUNDEN} Stunden gesendet` });
+      continue;
+    }
+    const r = await auftragLinkSenden(a.id, wer, { nochmal: true }, lauf)
+      .catch((e): AuftragLinkErgebnis => ({ ok: false, mail: "fehlgeschlagen", text: String((e as Error)?.message || e) }));
+    if (r.ok) erg.gesendet++;
+    else if (r.mail === "nicht_noetig") erg.uebersprungen.push({ id: a.id, name: a.kunde.name, grund: r.text });
+    else { erg.fehlgeschlagen++; erg.texte.push(`${a.kunde.name}: ${r.text}`); }
+  }
+  return erg;
+}
+
+/**
+ * Eine Auskunft kam auf anderem Weg in die Akte (Kunde im Bereich, Upload-Link,
+ * Mitarbeiter in der Akte), während ein Beschaffungsauftrag offen ist: Auftrag
+ * auf „Problem" mit Klärungssatz und eine Aufgabe an die Verantwortung. Gibt die
+ * Zahl der betroffenen Aufträge zurück. Idempotent (nur offene/in Arbeit).
+ */
+export async function beschaffungBeiEigenemUpload(
+  personId: number, wer: "kunde" | "mitarbeiter", name: string | null, lauf: Lauf = sqlPool,
+): Promise<number> {
+  const [t] = (await lauf`SELECT to_regclass('fiaon_auskunft_beschaffung') IS NOT NULL AS da`) as any[];
+  if (!t?.da) return 0;
+  // Nachprüfung 08.10.: auch Aufträge einer in diese Person zusammengeführten Dublette.
+  const { personFamilie } = await import("./fiaon-unterlagen-link");
+  const familie = await personFamilie(personId, lauf);
+  const offen = (await lauf`
+    SELECT id, ref, status, modus FROM fiaon_auskunft_beschaffung WHERE person_id = ANY(${familie}) AND status IN ('offen', 'in_arbeit')`) as any[];
+  if (!offen.length) return 0;
+  const satz = wer === "kunde"
+    ? "Kunde hat eigene Auskunft hochgeladen – Leistung klären (Auswertung erbracht / Erstattung)."
+    : `Auskunft von ${name ?? "einem Mitarbeiter"} in der Akte hochgeladen – prüfen: Ist das die Lieferung (dann „Abschließen“) oder eine eigene Auskunft des Kunden (dann Leistung klären: Auswertung erbracht / Erstattung).`;
+  const zeit = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const stempel = `[${zeit} System] ${satz}`;
+  const verantwortlich = await beschaffungVerantwortlich(lauf);
+  for (const a of offen) {
+    // ── NACHPRÜFUNG 08.10.2026: DER DATENKOPIE-WEG LIEFERT ÜBER DEN KUNDEN ──
+    // Hat FIAON die Datenkopie in seinem Namen angefordert (modus datenkopie, in Arbeit), schickt die
+    // Auskunftei sie per Post an den KUNDEN — sein Upload IST die Lieferung, kein Klärfall und kein
+    // Erstattungsgespräch. Der Auftrag bleibt in Arbeit; die Verantwortung prüft und schließt ab.
+    if (String(a.modus ?? "") === "datenkopie" && a.status === "in_arbeit") {
+      const lieferSatz = wer === "kunde"
+        ? "Datenkopie vom Kunden eingegangen (Brief der Auskunftei) – prüfen und abschließen."
+        : `Datenkopie von ${name ?? "einem Mitarbeiter"} in der Akte abgelegt – prüfen und abschließen.`;
+      await lauf`
+        UPDATE fiaon_auskunft_beschaffung SET notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${`[${zeit} System] ${lieferSatz}`}::text), updated_at = NOW()
+         WHERE id = ${a.id} AND status = 'in_arbeit'`;
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${a.ref}, ${personId}, NULL, 'Auskunft-Beschaffung', 'system', ${`Bonitätsauskunft: Beschaffungsauftrag #${a.id} — ${lieferSatz}`})`.catch(() => {});
+      try {
+        const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+        await auftragFuerKunden({
+          personId, ref: String(a.ref), schluessel: wacheSchluessel(Number(a.id)).datenkopie_da,
+          agentId: verantwortlich?.id ?? null, anBetreiber: !verantwortlich,
+          titel: "Datenkopie eingegangen — prüfen und abschließen",
+          text: `${lieferSatz}\n\nAuftrag #${a.id} (${a.ref}), Datenkopie-Weg. Die Auskunft liegt in der Akte, die Analyse läuft. Ist sie vollständig: Mara-Steuerpult › Bonitätsauskunft › Beschaffung „Abschließen“. Fehlt eine Auskunftei, mit dem Kunden klären.`,
+          quelle: "bestellung", bereich: "pruefen", link: "/chef/s/mara?reiter=auskunft&ansicht=beschaffung", autorName: "Auskunft-Beschaffung",
+          anlageText: "Angelegt, weil die angeforderte Datenkopie in die Akte kam.",
+        });
+      } catch (e) {
+        console.error("[AUSKUNFT-BESCHAFFUNG] Aufgabe Datenkopie:", String((e as Error)?.message || e).slice(0, 160));
+      }
+      continue;
+    }
+    await lauf`
+      UPDATE fiaon_auskunft_beschaffung SET status = 'problem', notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${stempel}::text), updated_at = NOW()
+       WHERE id = ${a.id} AND status IN ('offen', 'in_arbeit')`;
+    await lauf`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${a.ref}, ${personId}, NULL, 'Auskunft-Beschaffung', 'system', ${`Bonitätsauskunft: Beschaffungsauftrag #${a.id} angehalten — ${satz}`})`.catch(() => {});
+    // Der Auftrag liegt jetzt nicht mehr — die Liegezeit- und Anruf-Aufgaben sind damit erledigt.
+    await wacheAufgabenSchliessen(Number(a.id), [wacheSchluessel(Number(a.id)).aufgabe, wacheSchluessel(Number(a.id)).dringend, wacheSchluessel(Number(a.id)).anruf, wacheSchluessel(Number(a.id)).link_fehlt],
+      "eigene Auskunft in der Akte, Auftrag zur Klärung.", lauf);
+    try {
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId, ref: String(a.ref), schluessel: wacheSchluessel(Number(a.id)).eigene,
+        agentId: verantwortlich?.id ?? null, anBetreiber: !verantwortlich,
+        titel: "Auskunft liegt vor, Beschaffung offen — Leistung klären",
+        text: `${satz}\n\nAuftrag #${a.id} (${a.ref}) steht auf „Problem“. Mara-Steuerpult › Bonitätsauskunft › Beschaffung: prüfen und abschließen bzw. mit dem Kunden klären.`,
+        quelle: "bestellung", bereich: "pruefen", link: "/chef/s/mara?reiter=auskunft&ansicht=beschaffung", autorName: "Auskunft-Beschaffung",
+        anlageText: "Angelegt, weil eine Auskunft auf anderem Weg in die Akte kam.",
+      });
+    } catch (e) {
+      console.error("[AUSKUNFT-BESCHAFFUNG] Aufgabe eigene Auskunft:", String((e as Error)?.message || e).slice(0, 160));
+    }
+  }
+  return offen.length;
+}
+
+/** Der Stand der Beschaffung für die Akte (dokumentStand → auskunft.beschaffung). */
+export async function beschaffungFuerAkte(personId: number, lauf: Lauf = sqlPool): Promise<BeschaffungAkte | null> {
+  const [t] = (await lauf`SELECT to_regclass('fiaon_auskunft_beschaffung') IS NOT NULL AS da`) as any[];
+  if (!t?.da) return null;
+  const [b] = (await lauf`
+    SELECT b.id, b.ref, b.status, b.created_at, to_char(b.faellig_ab, 'YYYY-MM-DD') AS faellig_ab, b.modus, b.vollmacht_link_am,
+           b.bearbeiter, b.notiz, COALESCE(a.paid_at, a.updated_at) AS bezahlt_am
+      FROM fiaon_auskunft_beschaffung b LEFT JOIN fiaon_applications a ON a.ref = b.ref
+     WHERE b.person_id = ANY(${await import("./fiaon-unterlagen-link").then((m) => m.personFamilie(personId, lauf))})
+     ORDER BY (b.status <> 'fertig') DESC, b.created_at DESC LIMIT 1`) as any[];
+  if (!b) return null;
+  const e = await auskunftEinwilligung(String(b.ref), personId, lauf);
+  const notiz = String(b.notiz ?? "").trim().split("\n").filter(Boolean).pop() ?? null;
+  return {
+    id: Number(b.id), status: b.status, seit: new Date(b.created_at).toISOString(), faelligAb: String(b.faellig_ab),
+    modus: String(b.modus || "einkauf"), einwilligung: einwilligungDeckt({ modus: String(b.modus || "einkauf"), einwilligung: e }),
+    linkAm: b.vollmacht_link_am ? new Date(b.vollmacht_link_am).toISOString() : null,
+    bezahltAm: b.bezahlt_am ? new Date(b.bezahlt_am).toISOString() : null,
+    bearbeiter: b.bearbeiter ?? null, notiz: notiz ? notiz.replace(/^\[[^\]]*\]\s*/, "").slice(0, 200) : null,
+  };
+}
+
+export interface WacheErgebnis { geprueft: number; aufgaben: number; dringend: number; anrufe: number; linkFehlt: number; erledigt: number; texte: string[] }
+
+/** Die Stufe eines Auftrags für die Wache (aus der Liste des Arbeitsplatzes). */
+export function wacheStufeFuer(a: BeschaffungAuftrag, heuteIso: string): WacheStufe {
+  return wacheStufe({
+    status: a.status, einwilligung: einwilligungDeckt(a), faelligAb: a.faelligAb, linkAm: a.vollmachtLinkAm,
+    bezahlt: a.bestellung.bezahlt, dokumentDa: a.dokumentDa, angelegtAm: a.angelegtAm,
+  }, heuteIso);
+}
+
+/**
+ * Die Liegezeit-Wache (Takt alle 6 Stunden, routes.ts). Je Auftrag und Stufe
+ * genau EINE Aufgabe (Schlüssel) — gibt es sie schon (auch erledigt), entsteht
+ * keine zweite.
+ */
+export async function beschaffungWache(lauf: Lauf = sqlPool, opts: { heuteIso?: string } = {}): Promise<WacheErgebnis> {
+  const erg: WacheErgebnis = { geprueft: 0, aufgaben: 0, dringend: 0, anrufe: 0, linkFehlt: 0, erledigt: 0, texte: [] };
+  const [t] = (await lauf`SELECT to_regclass('fiaon_auskunft_beschaffung') IS NOT NULL AS da`) as any[];
+  if (!t?.da) return erg;
+  const heute = opts.heuteIso ?? heuteBerlin();
+  const alle = await beschaffungListe({}, lauf);
+  const liste = alle.filter((a) => a.status === "offen" || a.status === "in_arbeit");
+  const verantwortlich = await beschaffungVerantwortlich(lauf);
+  const { auftragFuerKunden, ensureTodoTabelle } = await import("../routes/fiaon-betreiber-todo");
+  await ensureTodoTabelle();
+  // ── NACHPRÜFUNG 08.10.2026: WAS SICH ERLEDIGT HAT, SCHLIESST DIE WACHE SELBST ──
+  // Bestätigt der Kunde am Tag 4, rief sonst der Betreuer einen Kunden an, der längst bestätigt
+  // hatte; Liegezeit-Aufgaben blieben offen, obwohl der Auftrag fertig war. Je Auftrag gilt: Eine
+  // Aufgabe der Wache, deren Stufe nicht mehr besteht, ist automatisch erledigt (mit Grund).
+  for (const a of alle) {
+    const stufe = a.status === "offen" || a.status === "in_arbeit" ? wacheStufeFuer(a, heute) : "keine";
+    const k = wacheSchluessel(a.id);
+    const zu: string[] = [];
+    if (stufe !== "anruf") zu.push(k.anruf);
+    if (stufe !== "link_fehlt") zu.push(k.link_fehlt);
+    if (stufe !== "aufgabe" && stufe !== "dringend") zu.push(k.aufgabe, k.dringend);
+    const grund = a.status === "fertig" ? "Auftrag fertig."
+      : a.dokumentDa ? "Die Auskunft liegt in der Akte."
+        : !a.bestellung.bezahlt ? "Bestellung nicht mehr bezahlt."
+          : a.status !== "offen" && a.status !== "in_arbeit" ? `Auftrag steht auf „${a.status}“.`
+            : einwilligungDeckt(a) ? "Die Einwilligung liegt vor." : "Der Link zur Auftragsbestätigung ist zugestellt.";
+    erg.erledigt += await wacheAufgabenSchliessen(a.id, zu, `${grund} (Liegezeit-Wache)`, lauf);
+  }
+  // „Link nie zugestellt“ bei Kunden MIT Adresse: EINE Sammelaufgabe (der Sammelknopf hilft allen auf einmal) —
+  // sonst kämen nach dem Deploy 56 Einzelaufgaben samt Mail an dieselbe Person. Ohne Adresse: je Auftrag.
+  const sammel: BeschaffungAuftrag[] = [];
+  for (const a of liste) {
+    erg.geprueft++;
+    const stufe = wacheStufeFuer(a, heute);
+    if (stufe === "keine") continue;
+    if (stufe === "link_fehlt" && a.kunde.email) { sammel.push(a); continue; }
+    const k = wacheSchluessel(a.id);
+    const schluessel = stufe === "anruf" ? k.anruf : stufe === "dringend" ? k.dringend : stufe === "link_fehlt" ? k.link_fehlt : k.aufgabe;
+    const [da] = (await lauf`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel} LIMIT 1`) as any[];
+    if (da) continue;
+    try {
+      if (stufe === "link_fehlt") {
+        // Bezahlt, keine Einwilligung, und der Link ging nie raus (nie gesendet, keine Adresse, Mail
+        // abgewiesen) — die Lage vom 29.09. An die benannte Verantwortung, mit Namen.
+        const ohneAdresse = !a.kunde.email;
+        await auftragFuerKunden({
+          personId: a.personId, ref: a.ref, schluessel, dringend: false,
+          agentId: verantwortlich?.id ?? null, anBetreiber: !verantwortlich,
+          titel: `Bestätigung fehlt — Link nie zugestellt: ${a.kunde.name}`,
+          text: `${a.kunde.name} hat die Bonitätsauskunft bezahlt (${a.ref}). Für die Anforderung in seinem Namen fehlt seine Bestätigung — und der Link dazu ging nie raus${ohneAdresse ? " (keine E-Mail-Adresse in der Akte)" : ""}.\n\n`
+            + (ohneAdresse
+              ? "Bitte anrufen: Adresse erfragen und in der Akte eintragen, dann im Mara-Steuerpult › Bonitätsauskunft › Beschaffung „Auftragsbestätigung senden“."
+              : "Mara-Steuerpult › Bonitätsauskunft › Beschaffung: „Auftragsbestätigung senden“ (oder der Sammelknopf). Scheitert die Mail, die Adresse mit dem Kunden prüfen bzw. anrufen."),
+          quelle: "bestellung", bereich: "pruefen", link: "/chef/s/mara?reiter=auskunft&ansicht=beschaffung", autorName: "Auskunft-Wache",
+          anlageText: "Angelegt von der Liegezeit-Wache (bezahlt, Link zur Auftragsbestätigung drei Werktage nie zugestellt).",
+        });
+        erg.linkFehlt++;
+      } else if (stufe === "anruf") {
+        await auftragFuerKunden({
+          personId: a.personId, ref: a.ref, schluessel, dringend: false,
+          titel: `Anrufen: Auftragsbestätigung für die bezahlte Auskunft — ${a.kunde.name}`,
+          text: `${a.kunde.name} hat die Bonitätsauskunft bezahlt. Damit FIAON sie in seinem Namen anfordern darf, fehlt seine Bestätigung — der Link ging am ${a.vollmachtLinkAm ? new Date(a.vollmachtLinkAm).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "—"} per Mail raus und ist unbestätigt.\n\n`
+            + "Bitte anrufen und um den Klick auf „Auftrag bestätigen“ in der Mail bitten (Betreff „Ihre Auskunft: Bitte bestätigen Sie kurz Ihren Auftrag“). Kam die Mail nicht an: Adresse in der Akte prüfen und im Mara-Steuerpult › Bonitätsauskunft › Beschaffung „Auftragsbestätigung senden“.",
+          quelle: "bestellung", bereich: "pruefen", autorName: "Auskunft-Wache",
+          anlageText: "Angelegt von der Liegezeit-Wache der Auskunft-Beschaffung (Link drei Werktage unbestätigt).",
+        });
+        erg.anrufe++;
+      } else {
+        await auftragFuerKunden({
+          personId: a.personId, ref: a.ref, schluessel, dringend: stufe === "dringend",
+          agentId: verantwortlich?.id ?? null, anBetreiber: !verantwortlich,
+          titel: `${stufe === "dringend" ? "DRINGEND: " : ""}Auskunft liegt seit ${stufe === "dringend" ? "zehn" : "drei"} Werktagen — ${a.kunde.name} beschaffen`,
+          text: `Bezahlte Bonitätsauskunft (${a.ref}), Einwilligung liegt vor, fällig seit ${isoDeutsch(a.faelligAb)} — beschaffbar, aber nicht beschafft.\n\n`
+            + `Weg: ${a.modus === "datenkopie" ? "Datenkopie nach Art. 15 DSGVO in seinem Namen anfordern" : "Auskunft beschaffen"} bei ${auskunfteienText(a.land)}. `
+            + "Mara-Steuerpult › Bonitätsauskunft › Beschaffung: übernehmen, anfordern, hochladen — die Akte, die Auswertung und die Mail an den Kunden folgen von selbst.",
+          quelle: "bestellung", bereich: "pruefen", link: "/chef/s/mara?reiter=auskunft&ansicht=beschaffung", autorName: "Auskunft-Wache",
+          anlageText: `Angelegt von der Liegezeit-Wache (${stufe === "dringend" ? "zehn" : "drei"} Werktage über der Frist).`,
+        });
+        if (stufe === "dringend") erg.dringend++; else erg.aufgaben++;
+      }
+      erg.texte.push(`${a.kunde.name}: ${stufe}`);
+    } catch (e) {
+      console.error(`[AUSKUNFT-WACHE] #${a.id}:`, String((e as Error)?.message || e).slice(0, 160));
+    }
+  }
+  // Die Sammelaufgabe „Link nie zugestellt“: anlegen bzw. wieder öffnen, solange es Fälle gibt; die Namensliste
+  // bleibt aktuell (ohne neue Meldung); gibt es keine Fälle mehr, ist sie automatisch erledigt.
+  const sammelText = sammel.length
+    ? `${sammel.length} bezahlte Bonitätsauskunft${sammel.length === 1 ? "" : "en"} ohne Auftragsbestätigung — der Link dazu ging nie raus (Stand ${isoDeutsch(heute)}):\n`
+      + sammel.slice(0, 30).map((a) => `· ${a.kunde.name} (${a.ref}, angelegt ${new Date(a.angelegtAm).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })})`).join("\n")
+      + (sammel.length > 30 ? `\n· … und ${sammel.length - 30} weitere` : "")
+      + "\n\nMara-Steuerpult › Bonitätsauskunft › Beschaffung: „Auftragsbestätigung an alle offenen senden“ (höchstens einmal in 72 Stunden je Auftrag). "
+      + "Scheitert eine Mail, steht der Grund im Ergebnis — dann die Adresse mit dem Kunden klären."
+    : "";
+  if (sammel.length) {
+    const [offenSammel] = (await lauf`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${SAMMEL_LINK_FEHLT_SCHLUESSEL} AND status <> 'erledigt' LIMIT 1`) as any[];
+    if (offenSammel) {
+      await lauf`UPDATE fiaon_betreiber_todos SET text = ${sammelText}, updated_at = NOW() WHERE id = ${offenSammel.id}`.catch(() => {});
+    } else {
+      try {
+        await auftragFuerKunden({
+          personId: null, ref: null, schluessel: SAMMEL_LINK_FEHLT_SCHLUESSEL, dringend: false,
+          agentId: verantwortlich?.id ?? null, anBetreiber: !verantwortlich,
+          titel: `Bonitätsauskunft: ${sammel.length} bezahlte Aufträge ohne zugestellten Bestätigungslink`,
+          text: sammelText, quelle: "bestellung", bereich: "pruefen", link: "/chef/s/mara?reiter=auskunft&ansicht=beschaffung", autorName: "Auskunft-Wache",
+          anlageText: "Angelegt von der Liegezeit-Wache (bezahlt, Link zur Auftragsbestätigung seit drei Werktagen nie zugestellt).",
+        });
+        erg.texte.push(`Sammelaufgabe „Link nie zugestellt“: ${sammel.length}`);
+      } catch (e) {
+        console.error("[AUSKUNFT-WACHE] Sammelaufgabe:", String((e as Error)?.message || e).slice(0, 160));
+      }
+    }
+    erg.linkFehlt += sammel.length;
+  } else {
+    erg.erledigt += await wacheAufgabenSchliessen(0, [SAMMEL_LINK_FEHLT_SCHLUESSEL], "Kein bezahlter Auftrag mehr ohne zugestellten Bestätigungslink. (Liegezeit-Wache)", lauf);
+  }
+  return erg;
+}
+
+/** Die Zahlen für das Band im Steuerpult — gezählt aus derselben Liste. */
+export async function beschaffungSammelStand(liste: BeschaffungAuftrag[], lauf: Lauf = sqlPool): Promise<{
+  ohneEinwilligung: number; linkJetzt: number; liegtUeberFrist: number; anrufFaellig: number; datenkopie: number; nochNichtDatenkopie: number;
+  verantwortlich: { id: number; name: string } | null; auswahl: { id: number; name: string; rolle: string }[];
+}> {
+  const heute = heuteBerlin();
+  const offen = liste.filter((a) => a.status === "offen" || a.status === "in_arbeit");
+  return {
+    ohneEinwilligung: offen.filter((a) => a.bestellung.bezahlt && !a.dokumentDa && !einwilligungDeckt(a)).length,
+    linkJetzt: offen.filter((a) => sammelKandidat(a).ja).length,
+    liegtUeberFrist: offen.filter((a) => { const s = wacheStufeFuer(a, heute); return s === "aufgabe" || s === "dringend"; }).length,
+    anrufFaellig: offen.filter((a) => wacheStufeFuer(a, heute) === "anruf").length,
+    datenkopie: offen.filter((a) => a.modus === "datenkopie").length,
+    nochNichtDatenkopie: offen.filter((a) => datenkopieKandidat(a)).length,
+    verantwortlich: await beschaffungVerantwortlich(lauf),
+    auswahl: await beschaffungVerantwortlichAuswahl(lauf),
+  };
 }

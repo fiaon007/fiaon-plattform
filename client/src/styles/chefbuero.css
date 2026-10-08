@@ -1144,3 +1144,20 @@ body:has(.cb-ruhig) .fi-raum{display:none}
 .kip-verlauf ol{margin:6px 0 0;padding-left:18px}
 .kip-verlauf time{font-variant-numeric:tabular-nums;opacity:.8}
 @media(max-width:640px){.kip-band,.kip-karte{padding:12px 14px}.kip-knopf{white-space:normal}}
+
+/* ═══ Die Vollfläche (E-IT-H, 08.10.2026, Punkt 15) ═══
+   Für Seiten mit `vollflaeche: true` in chef-seiten.tsx (heute /chef/s/whatsapp):
+   Höhe genau bis zum Fensterrand, die Seite selbst rollt nicht — gerollt wird nur
+   im Inhalt (Liste, Verlauf, Fall). Der Kopf der Seite wird schlanker (Raum
+   begann bei y ≈ 198 px). Bänder (KI-Pause, WhatsApp-Pause) behalten ihre Höhe.
+   Alle anderen Chef-Seiten bleiben, wie sie sind. */
+.cb.cb-voll{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column}
+.cb.cb-voll>*:not(.cb-grund){flex:none}
+.cb.cb-voll .cb-grund{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);padding:12px 16px}
+.cb.cb-voll .cb-leiste{position:relative;top:auto;max-height:100%}
+.cb.cb-voll .cb-inhalt{min-height:0;display:flex;flex-direction:column}
+.cb.cb-voll .cb-inhalt>*:not(.cbs-huelle){flex:none}
+.cb.cb-voll .cbs-huelle,.cb.cb-voll .cbs-eigen{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.cb.cb-voll .cbs-kopf.schlank{padding:2px 0 10px}
+#root:has(.cb.cb-voll)>.min-h-screen{min-height:0}
+@media(max-width:960px){.cb.cb-voll .cb-grund{padding:10px}}

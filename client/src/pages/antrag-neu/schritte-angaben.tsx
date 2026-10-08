@@ -7,6 +7,8 @@ import {
   type Beruf, type Eintraege, type Land, type Seit, type Wohnen,
 } from "@shared/fiaon-antrag-neu";
 import { messungsDaten, metaEreignis, META_EREIGNIS } from "@/lib/werbung";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumLesen } from "@shared/fiaon-geburtsdatum";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { Feld, Ico, Knopf, Lead, Seg, Tipp, Tippbar, Titel, Warum, useAntrag, useFehler } from "./bausteine";
 import { api } from "./api";
@@ -226,61 +228,54 @@ export function SchrittKontakt() {
 // 3 · Geburtsdatum
 // ═══════════════════════════════════════════════════════════════════════════
 export function SchrittGeburt() {
-  const { S, setze, weiter, speichern, weiterText } = useAntrag();
+  const { S, setze, weiter, speichern, weiterText, aktuell } = useAntrag();
   const f = useFehler("geburt");
-  const ids = ["gt", "gm", "gj"] as const;
-  const refs = { gt: useRef<HTMLInputElement>(null), gm: useRef<HTMLInputElement>(null), gj: useRef<HTMLInputElement>(null) };
-  const stand = geburtPruefen(S);
-  const ruecklesen = stand === "ok" ? `${Number(S.gt)}. ${MONATE[Number(S.gm) - 1]} ${S.gj}` : "";
+  // E-IT-G (08.10.2026): das gemeinsame Bauteil (Markup und Klassen wie bisher)
+  // und der eine Leser — „63“ wird jetzt zu 1963 statt zur Meldung „vier
+  // Ziffern“. Ergänzt wird IM Prüfer (auch beim Tippen auf „Weiter“ ohne das
+  // Jahresfeld zu verlassen), gespeichert wird immer vierstellig.
+  const teile = { tag: S.gt, monat: S.gm, jahr: S.gj };
+  const erg = geburtsdatumLesen(teile, "vertrag");
+  const jahrVoll = erg.jahrErgaenzt && erg.jahr ? String(erg.jahr) : S.gj;
+  const stand = geburtPruefen({ gt: S.gt, gm: S.gm, gj: jahrVoll });
+  const ruecklesen = stand === "ok" ? `${Number(S.gt)}. ${MONATE[Number(S.gm) - 1]} ${jahrVoll}` : "";
   const hinweis = stand === "ungueltig" ? "Diesen Tag gibt es nicht. Bitte prüfen Sie Tag und Monat."
     : stand === "jung" ? "Den Vertrag können Sie ab 18 Jahren schließen." : stand === "alt" ? "Bitte prüfen Sie das Jahr." : "";
 
-  const tippen = (id: typeof ids[number], i: number, roh: string) => {
-    let v = roh.replace(/\D/g, "");
-    if (id === "gt" && v.length === 1 && Number(v) > 3) v = `0${v}`;
-    if (id === "gm" && v.length === 1 && Number(v) > 1) v = `0${v}`;
-    v = v.slice(0, id === "gj" ? 4 : 2);
-    setze({ [id]: v } as any);
-    f.weg();
-    if (v.length >= (id === "gj" ? 4 : 2) && i < 2) refs[ids[i + 1]].current?.focus();
-  };
-  const einfuegen = (e: React.ClipboardEvent) => {
-    const t = e.clipboardData.getData("text");
-    const m = t.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{4})/);
-    if (m) { e.preventDefault(); setze({ gt: `0${m[1]}`.slice(-2), gm: `0${m[2]}`.slice(-2), gj: m[3] }); f.weg(); }
-  };
   const los = () => {
-    if (!S.gt) return f.zeigen("gt", "Bitte tragen Sie den Tag ein.");
-    if (!S.gm) return f.zeigen("gm", "Bitte tragen Sie den Monat ein.");
-    if (S.gj.length !== 4) return f.zeigen("gj", "Bitte tragen Sie das Jahr mit vier Ziffern ein.");
-    if (stand !== "ok") return f.zeigen("gj", hinweis || "Bitte prüfen Sie Ihr Geburtsdatum.");
+    // Der Stand im Zwischenspeicher, nicht der der letzten Darstellung (Enter kommt über die Panel-Taste).
+    const z = aktuell();
+    const e = geburtsdatumLesen({ tag: z.gt, monat: z.gm, jahr: z.gj }, "vertrag");
+    if (!z.gt) return f.zeigen("gt", "Bitte tragen Sie den Tag ein.");
+    if (!z.gm) return f.zeigen("gm", "Bitte tragen Sie den Monat ein.");
+    if (e.jahrErgaenzt && e.jahr) setze({ gj: String(e.jahr), gt: z.gt.padStart(2, "0"), gm: z.gm.padStart(2, "0") });
+    const gj = e.jahrErgaenzt && e.jahr ? String(e.jahr) : z.gj;
+    if (gj.length !== 4) return f.zeigen("gj", "Bitte tragen Sie das Jahr mit vier Ziffern ein.");
+    const st = geburtPruefen({ gt: z.gt, gm: z.gm, gj });
+    if (st !== "ok") {
+      const h = st === "ungueltig" ? "Diesen Tag gibt es nicht. Bitte prüfen Sie Tag und Monat."
+        : st === "jung" ? "Den Vertrag können Sie ab 18 Jahren schließen." : st === "alt" ? "Bitte prüfen Sie das Jahr." : "";
+      return f.zeigen("gj", h || "Bitte prüfen Sie Ihr Geburtsdatum.");
+    }
     void speichern("geburt");
     weiter();
   };
-  const feld = (id: typeof ids[number], i: number, label: string, ph: string, ac: string) => (
-    <div className="an-feld">
-      <label htmlFor={`an-${id}`}>{label}</label>
-      <input ref={refs[id]} className={`an-eingabe an-ziffer${f.fehler && (f.fehler.feld === id || (f.fehler.feld === "gj" && stand !== "ok" && stand !== "fehlt")) ? " an-fehlt" : ""}`}
-        id={`an-${id}`} inputMode="numeric" maxLength={id === "gj" ? 4 : 2} placeholder={ph} value={S[id]} autoComplete={ac}
-        onChange={(e) => tippen(id, i, e.target.value)} onPaste={einfuegen}
-        onKeyDown={(e) => {
-          // Enter läuft über die Panel-Taste (mit Sperre während des Wechsels) — hier nur Rückschritt.
-          if (e.key === "Backspace" && !S[id] && i > 0) refs[ids[i - 1]].current?.focus();
-        }} />
-    </div>
-  );
+  const fehlerFeld = f.fehler ? (f.fehler.feld === "gt" ? "tag" : f.fehler.feld === "gm" ? "monat" : f.fehler.feld === "gj" ? "jahr" : null) : null;
+  const alleRot = !!f.fehler && f.fehler.feld === "gj" && stand !== "ok" && stand !== "fehlt";
   return (
     <>
       <Titel text="Ihr Geburtsdatum" />
       <Lead>Tag, Monat, Jahr – die Felder springen von selbst weiter.</Lead>
-      <div className="an-ziffern">
-        {feld("gt", 0, "Tag", "TT", "bday-day")}<div className="an-punkt">.</div>
-        {feld("gm", 1, "Monat", "MM", "bday-month")}<div className="an-punkt">.</div>
-        {feld("gj", 2, "Jahr", "JJJJ", "bday-year")}
-      </div>
+      <GeburtsdatumFeld
+        variante="antrag" kontext="vertrag" ohneZeile
+        teile={teile}
+        onTeile={(t) => { setze({ gt: t.tag, gm: t.monat, gj: t.jahr }); f.weg(); }}
+        ids={{ tag: "an-gt", monat: "an-gm", jahr: "an-gj" }}
+        fehlerFeld={fehlerFeld} fehlerAlle={alleRot}
+      />
       <div className="an-ruecklesen" aria-live="polite">
         {f.fehler ? <span className="an-tipp" style={{ display: "inline-block" }}>{f.fehler.text}</span>
-          : hinweis && S.gj.length === 4 ? <span className="an-tipp" style={{ display: "inline-block" }}>{hinweis}</span> : ruecklesen}
+          : hinweis && jahrVoll.length === 4 ? <span className="an-tipp" style={{ display: "inline-block" }}>{hinweis}</span> : ruecklesen}
       </div>
       <Warum text="Den Vertrag können Sie ab 18 Jahren schließen. Ihr Geburtsdatum hilft außerdem, Sie eindeutig zu erkennen." />
       <Knopf text={weiterText("Weiter")} onClick={los} />

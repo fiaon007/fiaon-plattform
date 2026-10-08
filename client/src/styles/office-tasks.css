@@ -116,3 +116,59 @@
 .ta-strecke{margin:10px 0 4px;padding:10px 12px 10px 30px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);display:grid;gap:5px;font-size:12.5px;line-height:1.4;color:#cbd5e1}
 .ta-strecke li::marker{color:#60a5fa;font-weight:600}
 .ta-strecke li:last-child{color:#94a3b8}
+
+/* ── E-IT-F (08.10.2026): Aufträge als Liste Kunde · Art · Eingang · Status ──
+   VORHER Karten nach Priorität/Fälligkeit, ohne Eingang, oft ohne Namen.
+   NACHHER eine Zeile je Auftrag, ein Klick klappt auf; „Akte" und „Erledigt"
+   stehen in jeder Zeile. Am Handy zwei Zeilen je Auftrag, kein Querscrollen. */
+.ta-auf{display:grid;gap:10px}
+.ta-auf-leiste{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.ta-auf-zahl{font:500 14px/1.3 'Inter',sans-serif;color:#fff}
+.ta-auf-zahl small{font-weight:400;color:#9ca3af;font-size:12.5px}
+.ta-sort{display:inline-flex;padding:3px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.ta-sort button{min-height:34px;padding:0 13px;border-radius:999px;border:0;background:transparent;color:#cbd5e1;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.ta-sort button.an{background:rgba(59,130,246,.9);color:#fff}
+.ta-hinweis{margin:0;padding:9px 12px 9px 14px;border-radius:12px;background:rgba(16,185,129,.12);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.ta-hinweis button{border:0;background:none;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
+.ta-tabelle{display:grid;gap:8px}
+.ta-kopfzeile{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 176px;gap:12px;padding:0 18px;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+.ta-sp-aktion-kopf{text-align:right}
+.ta-zeile{display:grid;grid-template-columns:minmax(0,1fr) 176px;align-items:center;border-radius:16px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden}
+.ta-zeile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+.ta-zeile.dringend::before{background:#fbbf24}
+.ta-zeile.ton-frage::before,.ta-zeile.ton-wieder::before{background:#f59e0b}
+.ta-zeile.auf{border-color:rgba(96,165,250,.45)}
+.ta-zeile-knopf{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;width:100%;padding:13px 0 13px 18px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.ta-zeile-knopf:focus-visible{outline:2px solid #60a5fa;outline-offset:-2px;border-radius:14px}
+.ta-sp{display:grid;gap:3px;min-width:0}
+.ta-sp b{font:500 13.5px/1.3 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ta-sp small{font-size:12px;line-height:1.35;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ta-sp-eingang b{font-variant-numeric:tabular-nums;font-weight:400;color:#e5e7eb}
+.ta-sp-status b{display:inline-flex;align-items:center;gap:7px;font-size:12.5px}
+.ta-sp-status b i{width:7px;height:7px;border-radius:50%;background:#94a3b8;flex:0 0 auto}
+.ton-neu .ta-sp-status b i{background:#fbbf24}.ton-frage .ta-sp-status b i{background:#f59e0b}.ton-wieder .ta-sp-status b i{background:#f97316}
+.ton-arbeit .ta-sp-status b i{background:#60a5fa}.ton-wartet .ta-sp-status b i{background:#a78bfa}.ton-offen .ta-sp-status b i{background:#cbd5e1}
+.ta-sp-aktion{display:flex;gap:8px;justify-content:flex-end;padding:0 14px 0 8px}
+.ta-knopf.klein{min-height:36px;padding:0 13px;font-size:12.5px}
+.ta-zeile-fehler{grid-column:1/-1;margin:0 14px 12px}
+.ta-zeile-inhalt{grid-column:1/-1;padding:4px 18px 0;border-top:1px solid rgba(255,255,255,.08)}
+.ta-zeile-inhalt h3{margin:12px 0 0;font:400 15.5px/1.35 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ta-zeile-inhalt .ta-zeitleiste-knopf{margin:12px -18px 0;width:calc(100% + 36px)}
+.ta-zeile-inhalt .ta-zeitleiste{margin:0 -18px}
+.ta-kunde-zeile a{color:#93c5fd;text-decoration:none}
+.ta-abschnitt{margin:6px 0 0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+.ta-erl-kunde{color:#e5e7eb;font-weight:500}
+.ta-karte.erledigt .ta-text p .ta-erl-kunde{text-decoration:none}
+.ta-auftrag-erledigt .ta-text p{text-decoration:none;color:#cbd5e1}
+.ta-erl-ergebnis{margin:6px 0 0;font-size:12.5px;color:#9ca3af}
+.ta-kunde-fehler{margin:6px 0 0;font-size:12px;color:#fca5a5}
+@media(max-width:860px){
+  .ta-kopfzeile{display:none}
+  .ta-zeile{grid-template-columns:1fr}
+  .ta-zeile-knopf{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:13px 16px 6px;gap:10px 12px}
+  .ta-sp-aktion{justify-content:stretch;padding:0 16px 13px}
+  .ta-sp-aktion .ta-knopf{flex:1 1 0}
+  .ta-zeile-inhalt{padding:4px 16px 0}
+  .ta-zeile-inhalt .ta-zeitleiste-knopf{margin:12px -16px 0;width:calc(100% + 32px)}
+  .ta-zeile-inhalt .ta-zeitleiste{margin:0 -16px}
+}

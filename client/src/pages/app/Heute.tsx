@@ -16,6 +16,7 @@ import type { Bereich, Vorgang } from "./typen";
 import { Zielkarte } from "./Weg";
 import { api, eur, zeit } from "./Bausteine";
 import { LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
+import { FinanzauswertungKarte } from "@/components/finanzen/Finanzauswertung";
 
 interface BerichtKurz { monat: string; monatText: string; grosseZahlCents: number; grosseZahlText: string; gelesen: boolean }
 const DEMO_BERICHT: BerichtKurz = { monat: "2026-08", monatText: "August 2026", grosseZahlCents: 59742, grosseZahlText: "Im August für Sie geholt: 597,42 € im Monat.", gelesen: false };
@@ -72,6 +73,9 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
       ))}
 
       <Link href={`${basis}/weg`} className="ap-auf v1" style={{ textDecoration: "none", display: "block" }}><Zielkarte rw={rw} /></Link>
+
+      {/* E-IT-D (08.10.2026, 4b): eine neu freigegebene Finanz- und Bonitätsauswertung — bis der Kunde sie geöffnet hat. */}
+      <div className="ap-auf v1"><FinanzauswertungKarte kundeRef={b.kunde.ref} demo={demo} href={`${basis}/auswertung`} nurNeu /></div>
 
       {rw.jetzt && (
         <section className="ap-abschnitt ap-auf v2">

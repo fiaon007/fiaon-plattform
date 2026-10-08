@@ -169,6 +169,12 @@ export interface DokumentLageVoll {
     angebot: boolean;
     /** „kuerzlich_angeboten" (Integration 25.09.2026): die gemeinsame Bremse — ein Angebot in den letzten drei Tagen. */
     ohneAngebot: "werbesperre" | "paket_offen" | "kuerzlich_angeboten" | null;
+    /**
+     * E-IT-D (08.10.2026, 4a): der Stand der Beschaffung (fiaon_auskunft_beschaffung) — damit die Kachel
+     * „Bezahlt am … — Beschaffung wartet auf die Auftragsbestätigung" sagt statt „Kunde lädt hoch".
+     * Die Sätze je Stufe stehen in shared/fiaon-auskunft-akte.ts (auskunftStufenSatz).
+     */
+    beschaffung?: import("@shared/fiaon-auskunft-akte").BeschaffungAkte | null;
   } | null;
 }
 
@@ -185,10 +191,15 @@ async function auskunftFuerAkte(personId: number | null, lauf: Lauf): Promise<Do
     // verspräche der Knopf „Auskunft anbieten" ein Angebot, das der Server gerade weglässt.
     const { zuletztAngeboten } = await import("./fiaon-auskunft");
     const kuerzlich = lage.angebot && s.stufe === "nichts" && !s.dokumentDa ? await zuletztAngeboten(personId, {}, lauf) : null;
+    // E-IT-D (4a): bei bezahlter Auskunft ohne Datei der Stand der Beschaffung — eine Störung lässt die Kachel beim alten Satz.
+    const beschaffung = s.stufe === "bezahlt"
+      ? await import("./fiaon-auskunft-lieferung").then((m) => m.beschaffungFuerAkte(personId, lauf)).catch(() => null)
+      : null;
     return {
       stufe: s.stufe, preisText: s.preis.text, mitAbo: s.preis.mitAbo, wort: auskunftWort(s.land),
       offen: s.offen ? { betragText: euroText(s.offen.betragCents || s.preis.cents), gemeldet: s.offen.status === "claimed_paid" } : null,
       angebot: lage.angebot && !kuerzlich, ohneAngebot: kuerzlich ? "kuerzlich_angeboten" : lage.grund,
+      beschaffung,
     };
   } catch (e) {
     console.error("[DOK] Auskunft-Stand:", String(e).slice(0, 160));

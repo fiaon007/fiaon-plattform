@@ -208,15 +208,59 @@ async function endgueltigLoeschen(
     INSERT INTO fiaon_loeschungen (art, person_id, person_name, refs, grund, akteur, stapel)
     VALUES ('endgueltig', ${k.personId}, ${k.name}, ${k.refs.join(", ") || null}, ${grund}, ${akteur}, ${stapel})
   `;
+  // ── DIE GANZE PERSON: KOPF UND ZUSAMMENGEFÜHRTE DUBLETTEN (Querprüfung 08.10.2026) ──
+  // Seit E-IT-C ist jede hochgeladene Datei eine eigene Zeile in fiaon_dokumente (Ausweis, Kontoauszug,
+  // Auskunft — mit Inhalt), dazu das PDF der Finanzauswertung. Diese Zeilen haben keinen Fremdschlüssel
+  // und damit keine Kaskade: Die Löschung ließ sie mit vollem Inhalt stehen, während Bestellung und Person
+  // verschwanden. Die Zusammenführung hängt nur Bestellungen um — Dateien, Links und Vorgänge einer
+  // Dublette bleiben an ihr. Deshalb gilt alles für die Familie (personFamilie: Kopf zuerst).
+  const { personFamilie } = await import("./fiaon-unterlagen-link");
+  const familie = await personFamilie(k.personId, lauf);
   if (k.refs.length > 0) {
     await lauf`DELETE FROM fiaon_contact_log WHERE ref = ANY(${k.refs})`;
     await lauf`DELETE FROM fiaon_vermerke WHERE ref = ANY(${k.refs})`;
   }
-  await lauf`DELETE FROM fiaon_mail_log WHERE person_id = ${k.personId}`;
-  await lauf`DELETE FROM fiaon_termine WHERE person_id = ${k.personId}`;
-  await lauf`DELETE FROM fiaon_person_aliases WHERE person_id = ${k.personId}`;
+  await lauf`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${familie})`;
+  await lauf`DELETE FROM fiaon_termine WHERE person_id = ANY(${familie})`;
+  // E-IT-D (08.10.2026): Finanzauswertungen, Upload-Links, Anfragen, Sichtprüfungen — der ganzen Familie.
+  await import("./fiaon-finanzauswertung").then((m) => m.personDatenLoeschen(familie, { endgueltig: true }, lauf));
+  await kundenbereichZeilenLoeschen(familie, k.refs, lauf);
+  await lauf`DELETE FROM fiaon_person_aliases WHERE person_id = ANY(${familie})`;
   await lauf`DELETE FROM fiaon_applications WHERE person_id = ${k.personId}`;
+  // Die Wegweiser der Dubletten tragen noch Name und E-Mail — sie gehen mit, sofern an ihnen keine
+  // Bestellung mehr hängt (eine solche bliebe sonst ohne Person; die Einteilung oben sah nur den Kopf).
+  await lauf`
+    DELETE FROM fiaon_persons d
+     WHERE d.id = ANY(${familie}) AND d.id <> ${k.personId}
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = d.id)`;
   await lauf`DELETE FROM fiaon_persons WHERE id = ${k.personId}`;
+}
+
+/**
+ * Die Zeilen des Kundenbereichs ohne Fremdschlüssel (Querprüfung 08.10.2026): Dokumente (jede
+ * Unterlage, Archivfassungen, erzeugte Schreiben, Auswertungs-PDF), die gebundene Akte je Kategorie,
+ * Vorgänge samt Zeitleiste, Vollmachten, Ansprüche und Antworten. Erst leeren, dann löschen — bricht
+ * das Löschen ab, ist der Inhalt trotzdem weg. Fehlt eine Tabelle (Kundenbereich nie benutzt), ist
+ * dort nichts zu tun.
+ */
+async function kundenbereichZeilenLoeschen(familie: number[], refs: string[], lauf: Lauf): Promise<void> {
+  const [t] = (await lauf`
+    SELECT to_regclass('fiaon_dokumente') IS NOT NULL AS dok, to_regclass('fiaon_unterlagen_akte') IS NOT NULL AS akte,
+           to_regclass('fiaon_vorgaenge') IS NOT NULL AS vg, to_regclass('fiaon_vorgang_ereignisse') IS NOT NULL AS vge,
+           to_regclass('fiaon_vollmachten') IS NOT NULL AS vm, to_regclass('fiaon_ansprueche') IS NOT NULL AS an,
+           to_regclass('fiaon_anspruch_antworten') IS NOT NULL AS aa`) as any[];
+  if (t?.dok) {
+    await lauf`
+      UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
+       WHERE person_id = ANY(${familie}) OR ref = ANY(${refs}::text[])`;
+    await lauf`DELETE FROM fiaon_dokumente WHERE person_id = ANY(${familie}) OR ref = ANY(${refs}::text[])`;
+  }
+  if (t?.akte) await lauf`DELETE FROM fiaon_unterlagen_akte WHERE person_id = ANY(${familie})`;
+  if (t?.vge) await lauf`DELETE FROM fiaon_vorgang_ereignisse WHERE person_id = ANY(${familie})`;
+  if (t?.vg) await lauf`DELETE FROM fiaon_vorgaenge WHERE person_id = ANY(${familie})`;
+  if (t?.vm) await lauf`DELETE FROM fiaon_vollmachten WHERE person_id = ANY(${familie})`;
+  if (t?.an) await lauf`DELETE FROM fiaon_ansprueche WHERE person_id = ANY(${familie})`;
+  if (t?.aa) await lauf`DELETE FROM fiaon_anspruch_antworten WHERE person_id = ANY(${familie})`;
 }
 
 /**
@@ -263,10 +307,15 @@ async function anonymisieren(
   }
   // 18.09.2026: Archivierte Fassungen und Schreiben der Person (fiaon_dokumente)
   // gehören genauso zu „Unterlagen entfernt" — Inhalt leeren, Zeile als Spur.
+  // Querprüfung 08.10.2026: für die ganze Familie (Dateien einer zusammengeführten Dublette bleiben an ihr).
+  const { personFamilie } = await import("./fiaon-unterlagen-link");
+  const familie = await personFamilie(k.personId, lauf);
   await lauf`
     UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
-     WHERE person_id = ${k.personId}
+     WHERE person_id = ANY(${familie})
   `.catch(() => {});
+  // E-IT-D (08.10.2026): das Finanzprofil der Auswertung (Inhalt, Eingaben), Upload-Links und Anfragen.
+  await import("./fiaon-finanzauswertung").then((m) => m.personDatenLoeschen(familie, {}, lauf));
   // Die Person selbst: Kontaktdaten weg, Zeile bleibt als Anker für die
   // Bestellungen. Aus jeder Liste fällt sie über `gdpr_deleted_at`.
   await lauf`

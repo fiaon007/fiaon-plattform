@@ -158,7 +158,7 @@ export function raumErlaubt(raum: ChefRaum, stufe: ChefStufe): boolean {
   return RANG[stufe] >= RANG[raum.mindest];
 }
 
-export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false }: {
+export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
   onAbmelden: () => void; children: ReactNode;
   /** Anzeigetitel der Person (admin_titel) — ersetzt im Kopf den Stufennamen. */
@@ -172,6 +172,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
    * Alle anderen Seiten bleiben, wie sie sind.
    */
   ruhigeHuelle?: boolean;
+  /** E-IT-H (08.10.2026): Die offene Seite füllt das Fenster (Klasse `cb-voll`, chefbuero.css) — heute nur /chef/s/whatsapp. */
+  vollflaeche?: boolean;
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
@@ -222,7 +224,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   );
 
   return (
-    <div className={`cb${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}`}>
+    <div className={`cb${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum

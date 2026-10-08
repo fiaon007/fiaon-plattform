@@ -32,6 +32,17 @@
 // späteren Nummern bleiben. VI.3/VI.4 verweisen darauf, Stand auf 24.09. gesetzt.
 // Beschrieben ist, was der Code HEUTE tut — auch, dass der Server einen Widerruf im
 // Browser nicht erfährt (siehe VI a Nr. 7). ANWALT: VI a mit Controller Addendum prüfen.
+//
+// 08.10.2026 (IT-Etappe 1, Querprüfung): IV a neu — Unterlagen (Ausweis, Kontoauszug,
+// Auskunft, weitere), der Upload-Link ohne Anmeldung, das Auslesen mit einem KI-Dienst
+// (Anthropic oder OpenAI, USA — openaiFetch, KI-Weiche E-279), Art.-9-Maske nach dem
+// Lesen, die FIAON Finanz- und Bonitätsauswertung samt FIAON-Finanzwert (Profiling ohne
+// Entscheidung nach Art. 22) und die Speicherdauer entfernter Dateien (90 Tage). IV Nr. 3
+// sagte „kein Transfer dieser Analysedaten in Drittländer“ — für das Auslesen der
+// Kontoauszüge stimmt das nicht mehr; der Satz verweist jetzt auf IV a. Beschrieben ist,
+// was der Code tut. ANWALT + DSFA (Art. 35) vor dem Start: Rechtsgrundlage für das LESEN
+// von Art.-9-Daten im Auszug (maskiert wird erst danach), Garantien der Drittlandübermittlung,
+// Speicherdauer der Unterlagen (heute: bis zur Löschung auf Verlangen — keine feste Frist im Code).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -194,7 +205,7 @@ export default function PrivacyPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">3. EU-Hosting und Verschlüsselung</h3>
-                    <p className="text-sm">Sämtliche von Ihnen eingegebenen Profildaten werden nach höchsten Sicherheitsstandards (AES-256) verschlüsselt auf Servern gespeichert, die sich physisch ausschließlich innerhalb der Europäischen Union (EU) befinden. Ein Transfer dieser spezifischen Analysedaten in Drittländer findet nicht statt.</p>
+                    <p className="text-sm">Sämtliche von Ihnen eingegebenen Profildaten werden nach höchsten Sicherheitsstandards (AES-256) verschlüsselt auf Servern gespeichert, die sich physisch ausschließlich innerhalb der Europäischen Union (EU) befinden. Ein Transfer dieser Profildaten in Drittländer findet nicht statt. Für das Auslesen hochgeladener Kontoauszüge und Bonitätsauskünfte nutzen wir einen KI-Dienst mit Sitz in den USA — wie, steht in Abschnitt IV a.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">4. Kundenbereich „Mein FIAON“ (App-Ansicht)</h3>
@@ -203,6 +214,43 @@ export default function PrivacyPage() {
                   <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
                     <p className="text-sm font-semibold text-amber-900 mb-2">WICHTIGER HINWEIS (Keine SCHUFA-Abfrage):</p>
                     <p className="text-sm text-amber-800">Wir übermitteln diese eingegebenen Daten nicht an Auskunfteien (wie z. B. die SCHUFA Holding AG) und führen keine externen Bonitätsabfragen durch. Die Daten werden ausschließlich intern von unserer proprietären Engine verarbeitet, um Ihnen den vertraglich geschuldeten Strategie- und Analyse-Service bereitzustellen.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* IV a. Unterlagen, Auslesen mit KI, Finanz- und Bonitätsauswertung (08.10.2026) */}
+            <div id="unterlagen" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">IV a. Unterlagen, Auslesen mit KI und die FIAON Finanz- und Bonitätsauswertung</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Welche Unterlagen wir verarbeiten</h3>
+                    <p className="text-sm">Für Ihren Vertrag laden Sie (oder Ihr Ansprechpartner für Sie) Unterlagen hoch: Ihren Ausweis (Personalausweis oder Reisepass, gegebenenfalls Aufenthaltstitel), Kontoauszüge, Bonitätsauskünfte — etwa Ihre Datenkopie nach Art. 15 DSGVO — und weitere Nachweise. Das geht in Ihrem Kundenbereich oder über einen persönlichen Upload-Link ohne Anmeldung, den wir Ihnen auf Wunsch Ihres Ansprechpartners per E-Mail (im laufenden Chat auch per WhatsApp) schicken. Der Link gilt 14 Tage, nur für die angeforderten Unterlagen, und lässt sich jederzeit zurückziehen; die Seite zeigt nie den Inhalt vorhandener Dokumente. Jede Datei speichern wir einzeln in Ihrer Akte auf unseren Servern in der EU.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Zweck und Rechtsgrundlage</h3>
+                    <p className="text-sm">Wir verarbeiten die Unterlagen, um die vereinbarte Leistung zu erbringen: Ihre Identität festzustellen, Ihre finanzielle Lage auszuwerten und Schreiben für Sie vorzubereiten (Art. 6 Abs. 1 lit. b DSGVO). Die Feststellung der Identität dient zugleich dem Schutz vor Missbrauch (Art. 6 Abs. 1 lit. f DSGVO).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Auslesen mit einem KI-Dienst (Übermittlung in die USA)</h3>
+                    <p className="text-sm">Um die Buchungen Ihres Kontoauszugs und die Einträge einer Bonitätsauskunft zu lesen, übermitteln wir deren Inhalt — beim Kontoauszug einschließlich des Kopfes mit Name, Anschrift und Kontonummer, bei Fotos über eine Texterkennung — an einen KI-Dienstleister, der ausschließlich in unserem Auftrag arbeitet (Auftragsverarbeitung nach Art. 28 DSGVO): Anthropic PBC oder OpenAI, L.L.C., beide mit Sitz in den USA. Grundlage der Übermittlung sind die Standardvertragsklauseln der EU-Kommission (Art. 46 Abs. 2 lit. c DSGVO) und, soweit der Anbieter danach zertifiziert ist, das EU-U.S. Data Privacy Framework (Art. 45 DSGVO). Ausweisfotos geben wir an keine KI; enthält eine Ausweisdatei bereits Text, kann unsere Prüfung diesen Text nutzen, um die Art des Dokuments zu erkennen.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Besondere Kategorien von Daten (Art. 9 DSGVO)</h3>
+                    <p className="text-sm">Kontoauszüge können Rückschlüsse auf Gesundheit, religiöse Überzeugungen, Gewerkschafts- oder Parteizugehörigkeit oder das Sexualleben zulassen. Solche Buchungen machen wir unmittelbar nach dem Lesen unkenntlich: Sie werden weder einzeln bewertet noch in der Auswertung ausgewiesen und fließen ohne Empfänger und Verwendungszweck nur in die Summen ein.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">5. Die FIAON Finanz- und Bonitätsauswertung und der FIAON-Finanzwert</h3>
+                    <p className="text-sm">Aus Kontoauszug, Ausweis und — falls vorhanden — Ihrer Bonitätsauskunft erstellen wir eine Auswertung mit Ampeln je Bereich und dem FIAON-Finanzwert (100–999). Das ist eine Bewertung persönlicher Aspekte (Profiling, Art. 4 Nr. 4 DSGVO), die wir als Leistung für Sie erstellen. Zahlen, Ampeln und Wert entstehen nach festen Regeln auf unseren Servern; erläuternde Sätze können mit Unterstützung einer KI formuliert sein, die dafür nur ein Faktenblatt ohne Namen, Anschrift und Kontonummer erhält. Ein Mensch bei FIAON prüft jede Auswertung, bevor Sie sie erhalten. Wir treffen mit dem Wert keine Entscheidung über Sie, die Ihnen gegenüber rechtliche Wirkung entfaltet oder Sie in ähnlicher Weise erheblich beeinträchtigt (Art. 22 DSGVO); er ist kein Score einer Auskunftei und wird an niemanden weitergegeben.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">6. Speicherdauer</h3>
+                    <p className="text-sm">Ihre Unterlagen und Auswertungen bleiben in Ihrer Akte, bis Sie die Löschung verlangen (Art. 17 DSGVO); Rechnungen und Buchungsbelege bewahren wir nach § 147 AO zehn Jahre auf. Was Sie selbst wieder entfernen, löschen wir sofort; vermerkt bleibt nur, dass es die Datei gab (Name, Größe, Zeitpunkt). Entfernt Ihr Ansprechpartner eine Datei, weil sie nicht zu Ihnen gehört oder nicht benötigt wird, löschen wir ihren Inhalt ebenfalls sofort; eine veraltete oder ersetzte Datei spätestens 90 Tage nach dem Entfernen. Nach dem Vertragsende bleiben Ihre Unterlagen 90 Tage in Ihrem Bereich abrufbar (siehe auch Abschnitt IX).</p>
                   </div>
                 </div>
               </div>
@@ -493,7 +541,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 24. September 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 8. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

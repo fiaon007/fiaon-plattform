@@ -28,6 +28,8 @@ import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen
 import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
 // E-272 (02.10.2026): die eine Regel „Kunde von FIAON Global“ (fiaon-global-kunde.ts)
 import { istGlobalKunde } from "./fiaon-global-kunde";
+// Integration 08.10.2026 (offener Fund zu Strang f): dieselbe Heikel-Regel wie der Auftrags-Katalog.
+import { heikelArt } from "@shared/fiaon-auftrag-arten";
 
 /**
  * E-272 (02.10.2026): Ist der Absender ein Kunde von FIAON Global? Dann geht seine Mail an den
@@ -401,9 +403,18 @@ export interface UebergabeMail {
  *
  * `trifft` sagt, ob die Antwort zu dieser Aufgabe gehört — nur dann bekommt
  * eine offen bleibende Aufgabe einen Hinweis im Verlauf.
+ *
+ * Integration 08.10.2026 (offener Fund der Nachprüfung zu Strang f): Schritt 3 prüft jetzt auch den INHALT
+ * (Titel und Text der Aufgabe — Betreff, Zusammenfassung) mit derselben Heikel-Regel wie der Auftrags-Katalog
+ * (heikelArt, shared/fiaon-auftrag-arten.ts). Ein Grund, der „nur eine Antwort“ verlangt (Entwurf, Zentrale,
+ * dringend, Ansprechpartner), mit Anwalt, Beschwerde, Storno, Löschwunsch oder Widerruf im Betreff schloss sich
+ * sonst still, sobald Mara automatisch auf eine spätere, harmlose Mail im selben Faden antwortete —
+ * gegen Justins Regel „Heikles schließt nie das System“. Entfällt wie die Gründe nur mit menschEntscheidet.
  */
 export function uebergabeUrteil(ein: {
   text: string; gesendet: UebergabeMail; mails: UebergabeMail[]; menschEntscheidet?: boolean;
+  /** Titel der Aufgabe — Teil des Inhalts, den die Heikel-Regel liest. */
+  titel?: string | null;
 }): { schliessen: boolean; trifft: boolean; grund: string } {
   const bloecke = uebergabeBloecke(ein.text);
   if (!bloecke) return { schliessen: false, trifft: false, grund: "Aufgabentext nicht lesbar" };
@@ -427,6 +438,11 @@ export function uebergabeUrteil(ein: {
       if (zeilenGrund && !GRUENDE_NUR_ANTWORT.includes(zeilenGrund)) mehr.add(zeilenGrund);
     }
     if (mehr.size) return { schliessen: false, trifft: true, grund: `verlangt mehr als eine Antwort: ${Array.from(mehr).join(", ")}` };
+    const heikel = heikelArt(`${ein.titel ?? ""}\n${ein.text}`);
+    if (heikel) {
+      return { schliessen: false, trifft: true,
+        grund: `verlangt mehr als eine Antwort: heikler Inhalt (${heikel === "kuendigung" ? "Kündigung, Widerruf oder Storno" : "Beschwerde, Recht, Löschung oder Erstattung"})` };
+    }
   }
   // 4. Hat jede auslösende Mail eine Antwort?
   for (const b of bloecke) {
@@ -530,7 +546,7 @@ export async function uebergabeSchliessen(
   for (const k of schliessKandidaten(ein)) {
     try {
       const [t] = (await sqlPool`
-        SELECT t.id, t.text FROM fiaon_betreiber_todos t
+        SELECT t.id, t.text, t.titel FROM fiaon_betreiber_todos t
          WHERE t.schluessel = ${k.schluessel} AND t.status <> 'erledigt'
            AND (${k.nurOhneKunde}::boolean = FALSE OR t.link LIKE '/chef/s/postmeister%')
          LIMIT 1
@@ -559,7 +575,7 @@ export async function uebergabeSchliessen(
       }));
       const gesendet = mails.find((m) => m.id === ein.id);
       if (!gesendet) continue;
-      const urteil = uebergabeUrteil({ text, gesendet, mails, menschEntscheidet: !!opt.menschEntscheidet });
+      const urteil = uebergabeUrteil({ text, titel: t.titel ?? null, gesendet, mails, menschEntscheidet: !!opt.menschEntscheidet });
       if (!urteil.schliessen) {
         // Die Antwort gehört zu dieser Aufgabe, aber ihr Grund verlangt mehr —
         // der Betreuer soll sehen, dass die Mail raus ist und was noch fehlt.

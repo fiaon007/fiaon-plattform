@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
+import { ZUSTAND_WIEDER_OFFEN_TAGE } from "../../shared/fiaon-auftrag-arten";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, paketPreisEuro } from "@shared/fiaon-pakete";
@@ -49,6 +50,7 @@ import {
   isGlobalOrderRow,
   GLOBAL_LOGIN_HINWEIS,
 } from "../fiaon-login-logic";
+import { geburtsdatumLesen, geburtsdatumFuerSpeicher, geburtsdatumIso, geburtsdatumAnzeige, antragKorrigiertPerson } from "../../shared/fiaon-geburtsdatum";
 
 const router = Router();
 
@@ -60,32 +62,23 @@ setInterval(() => {
 }, 60_000);
 
 // Configure multer for KYC document uploads
+// ═══════════════════════════════════════════════════════════════════════════
+// E-IT-C (08.10.2026, Punkt 3 + 13): /upload-kyc ist nur noch die Hülle des
+// alten Wegs (/dashboard-alt, ältere Fassungen im Browser-Zwischenspeicher).
+// Jede Datei geht einzeln durch server/lib/fiaon-unterlagen.ts — sie wird
+// ANGEHÄNGT statt die Unterlage zu ersetzen, am Inhalt erkannt (HEIC, WEBP,
+// Passwort-PDF), Fotos verkleinert. Der Typfilter nach Browser-Angabe ist weg:
+// Er wies iPhone-Fotos ab und riet zu „Drucken → Als PDF sichern“ — genau das
+// erzeugte die übergroßen PDFs. 50 MB je Datei wie überall; neue Oberflächen
+// schicken eine Datei je Anfrage (POST /kunde/:ref/unterlagen/:kategorie).
+// ═══════════════════════════════════════════════════════════════════════════
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB max per file
+    fileSize: 50 * 1024 * 1024,
     // E-177 (11.09.2026): mehrere Dateien je Unterlage — höchstens zehn je
-    // Upload über alle Felder zusammen, wie im Betreuerportal (.array("datei", 10)).
+    // Upload über alle Felder zusammen.
     files: 10,
-  },
-  // 27.08.2026: Nahm bis heute AUSSCHLIESSLICH PDF an — der Kundenbereich
-  // verspricht daneben „PDF, JPG oder PNG, ein Handyfoto genügt". Jedes Foto
-  // scheiterte, und zwar mit einer englischen Meldung in einer deutschen
-  // Oberfläche. Bilder werden jetzt angenommen und vor dem Speichern in ein
-  // PDF gelegt (server/lib/fiaon-bild-zu-pdf.ts), damit alles Nachgelagerte
-  // weiterhin ein PDF vorfindet.
-  fileFilter: (req, file, cb) => {
-    const art = String(file.mimetype || "").toLowerCase();
-    if (art === "application/pdf" || art === "image/jpeg" || art === "image/jpg" || art === "image/png") {
-      cb(null, true);
-    } else if (art === "image/heic" || art === "image/heif") {
-      // iPhone-Standardformat. Es lässt sich hier nicht einbetten, deshalb ein
-      // Rat statt einer Fehlermeldung: Der Weg über „Teilen → Als PDF sichern"
-      // dauert zehn Sekunden und ist besser als ein Kunde, der aufgibt.
-      cb(new Error("Dieses Foto liegt im iPhone-Format HEIC vor. Bitte öffnen Sie es in der Fotos-App, tippen auf Teilen und wählen „Drucken\u201c \u2013 dort erzeugt „Als PDF sichern\u201c eine Datei, die wir lesen können. Oder stellen Sie in den iPhone-Einstellungen unter Kamera → Formate auf „Maximale Kompatibilität\u201c um."));
-    } else {
-      cb(new Error("Wir können PDF-Dateien sowie Fotos im Format JPG oder PNG lesen. Bitte laden Sie Ihre Unterlage in einem dieser Formate hoch."));
-    }
   },
 });
 
@@ -1236,7 +1229,11 @@ router.post("/payment-order", async (req, res) => {
           if (v) { personId = v.person_id ?? null; vorlage = v; }
         }
       }
-      const geburt = typeof b.birthDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate) ? b.birthDate : (vorlage?.birthdate ?? null);
+      // E-IT-G (08.10.2026): derselbe Prüfer wie überall (Kontext „vertrag“: ab 18,
+      // echter Kalendertag). Vorher nur die Form — ein 31.02. ging durch.
+      const geburtPruef = geburtsdatumFuerSpeicher(b.birthDate, "vertrag");
+      if (!geburtPruef.ok) return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geburtPruef.fehler}` });
+      const geburt = geburtPruef.aenderung === "setzen" ? geburtPruef.iso : (geburtsdatumIso(vorlage?.birthdate) ?? vorlage?.birthdate ?? null);
       // ── DER PREIS KOMMT VOM SERVER (24.09.2026, E-240) ───────────────────
       // Mit bezahltem, laufendem Paket 74 € (Firma 199 €), sonst 149 € (349 €).
       // Wer eine Auskunft schon offen hat, bekommt deren Zahlungslink statt einer
@@ -1538,12 +1535,14 @@ router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
 router.get("/admin/payments/:paymentRef/invoice.pdf", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`;
+    // E-IT-C (08.10.2026): ohne Anhang-Spalten — seit 50 MB je Datei kann die Akte-Fassung bis 120 MB je Unterlage groß sein.
+    const ohneAnhang = await antragsSpaltenOhneAnhaenge();
+    const rows = (await sqlPool.unsafe(`SELECT ${ohneAnhang} FROM fiaon_applications WHERE payment_reference = $1`, [req.params.paymentRef])) as any[];
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
     let row = rows[0];
     if (!row.invoice_number) {
       await ensureInvoiceNumber(sqlPool, row.ref);
-      row = (await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`)[0];
+      row = ((await sqlPool.unsafe(`SELECT ${ohneAnhang} FROM fiaon_applications WHERE payment_reference = $1`, [req.params.paymentRef])) as any[])[0];
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${row.invoice_number || "FIAON-Rechnung"}.pdf"`);
@@ -1629,7 +1628,8 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
       return res.status(403).json({ ok: false, error: "Link ungültig oder abgelaufen" });
     }
     await ensurePaymentColumns();
-    const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`;
+    // E-IT-C (08.10.2026): ohne Anhang-Spalten — seit 50 MB je Datei kann die Akte-Fassung bis 120 MB je Unterlage groß sein.
+    const rows = (await sqlPool.unsafe(`SELECT ${await antragsSpaltenOhneAnhaenge()} FROM fiaon_applications WHERE payment_reference = $1`, [req.params.paymentRef])) as any[];
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${rows[0].invoice_number || "FIAON-Rechnung"}.pdf"`);
@@ -2100,11 +2100,19 @@ async function erinnerungGezaehlt(ref: string): Promise<void> {
  * einmal je Bestellung an den Betreuer: Adresse klären oder anrufen. Der
  * Schlüssel macht es idempotent, der Lauf ist stündlich und billig.
  */
+/** Querprüfung 08.10.2026: Marke des Adress-Hinweises in der Klärungsaufgabe (Stufe A) — macht das Anhängen idempotent. */
+export const UNZUSTELLBAR_HINWEIS_MARKE = "Hinweis: E-Mail-Adresse unzustellbar";
+
 async function unzustellbareErstzahlungenMelden(): Promise<number> {
   const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
   await globalKundeBereit();
   const zeilen = (await sqlPool.unsafe(`
-    SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, ${zielMailSql("fa")} AS mail
+    SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, fa.payment_status, fa.claimed_paid_at, ${zielMailSql("fa")} AS mail,
+           -- Querprüfung 08.10.2026 (E-303 × E-184): Liegt zu diesem Menschen schon die Anrufaufgabe „Zahlung gemeldet, nicht da“,
+           -- bekommt SIE den Hinweis zur Adresse — keine zweite Anrufaufgabe zur selben Bestellung.
+           (SELECT k.schluessel FROM fiaon_betreiber_todos k WHERE k.status <> 'erledigt'
+              AND k.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id)
+            ORDER BY k.id DESC LIMIT 1) AS klaerung
       FROM fiaon_applications fa
       LEFT JOIN fiaon_persons pt ON pt.id = fa.person_id
      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
@@ -2121,26 +2129,52 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
        AND pt.ist_test_am IS NULL
        AND ${unzustellbarSql("fa")}
        AND ${zielMailSql("fa")} NOT ILIKE '%.test'
-       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar')
+       -- E-IT-F (08.10.2026): wie im Abo-Motor — nach ZUSTAND_WIEDER_OFFEN_TAGE erneut melden, wenn die Lage besteht.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar'
+                         AND (t.status <> 'erledigt' OR COALESCE(t.erledigt_am, NOW()) > NOW() - INTERVAL '${ZUSTAND_WIEDER_OFFEN_TAGE} days'))
+       -- Querprüfung 08.10.2026: Hat die offene Anrufaufgabe den Adress-Hinweis schon, ist nichts mehr zu tun.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos k2 WHERE k2.status <> 'erledigt'
+                         AND k2.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id)
+                         AND strpos(COALESCE(k2.text, ''), $1::text) > 0)
      ORDER BY fa.created_at DESC
-     LIMIT 50`)) as any[];
+     LIMIT 50`, [UNZUSTELLBAR_HINWEIS_MARKE])) as any[];
   if (zeilen.length === 0) return 0;
   const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
   let n = 0;
   for (const z of zeilen) {
     try {
+      if (z.klaerung) {
+        // Querprüfung 08.10.2026: EIN Anruf zur Bestellung — der Adress-Hinweis kommt in die offene Klärungsaufgabe.
+        await auftragFuerKunden({
+          personId: z.person_id ? Number(z.person_id) : null,
+          ref: String(z.ref),
+          titel: "Zahlung gemeldet, nicht da — anrufen und klären",
+          text: `${UNZUSTELLBAR_HINWEIS_MARKE}: Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung) — `
+            + "beim Anruf bitte auch die E-Mail-Adresse klären und in der Akte berichtigen.",
+          schluessel: String(z.klaerung),
+          quelle: "antrag",
+          bereich: "konten",
+          autorName: "Erinnerungsmaschine",
+        });
+        n++;
+        continue;
+      }
+      const gemeldet = String(z.payment_status) === "claimed_paid";
       await auftragFuerKunden({
         personId: z.person_id ? Number(z.person_id) : null,
         ref: String(z.ref),
         titel: "Erstzahlung: E-Mail unzustellbar — Adresse klären oder anrufen",
         text: `Die Zahlungserinnerung${z.pack_name ? ` für ${String(z.pack_name).split("\n")[0]}` : ""} kommt nicht an: `
           + `Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung). `
-          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Erinnerung raus. Bitte anrufen oder die Adresse berichtigen.",
+          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Erinnerung raus. Bitte anrufen oder die Adresse berichtigen."
+          // Querprüfung 08.10.2026: gemeldete Zahlung → dieser EINE Anruf klärt beides (keine zweite Anrufaufgabe, stufeAKlaerenSql).
+          + (gemeldet ? " Der Kunde hat die Zahlung als überwiesen gemeldet, sie ist aber nicht da — beim Anruf auch Überweisungsbeleg oder -datum erfragen." : ""),
         dringend: true,
         schluessel: `antrag:${z.ref}:unzustellbar`,
         quelle: "antrag",
         bereich: "konten",
         autorName: "Erinnerungsmaschine",
+        anlass: "zustand", // E-IT-F: eine Lage, kein neues Ereignis
       });
       n++;
     } catch (e) { console.error("[FIAON-PAYMENT] Aufgabe unzustellbar:", e); }
@@ -2735,6 +2769,19 @@ router.post("/admin/applications/:ref/gdpr-delete", async (req, res) => {
       RETURNING ref, invoice_number, payment_reference
     `;
     await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => {});
+    // ── E-IT-C (08.10.2026): AUCH DIE EINZELDATEIEN UND ARCHIVFASSUNGEN ────────
+    // Dieser Löschweg leerte nur die drei Spalten — fiaon_dokumente (Archiv seit
+    // 18.09., seit heute jede hochgeladene Datei) blieb stehen. Geleert wird, was
+    // an dieser Bestellung hängt, und alles der Person, wenn sie keine andere
+    // ungelöschte Bestellung mehr hat (wie fiaon-loeschen.ts).
+    const [pp] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${req.params.ref} LIMIT 1`) as any[];
+    await sqlPool`
+      UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
+       WHERE ref = ${req.params.ref}
+          OR (person_id = ${pp?.person_id ?? -1}
+              AND NOT EXISTS (SELECT 1 FROM fiaon_applications x
+                               WHERE x.person_id = ${pp?.person_id ?? -1} AND x.gdpr_deleted_at IS NULL AND x.ref <> ${req.params.ref}))`
+      .catch((e) => console.error("[FIAON-GDPR] Dokumente:", e?.message));
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${rows[0].ref}, NULL, 'Admin', 'system',
@@ -3045,8 +3092,9 @@ router.post("/admin/applications/:ref/contact", async (req, res) => {
   try {
     await ensurePaymentColumns();
     const { updateCustomerContact } = await import("./fiaon-agent");
-    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: null, name: "Admin" });
-    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+    // E-IT-G (08.10.2026): Verwaltung = Leitung — sie darf ein Geburtsdatum auch entfernen.
+    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: null, name: "Admin", darfGeburtLoeschen: true });
+    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg, rueckfrage: result.error.rueckfrage || undefined });
     res.json({ ok: true, changes: result.changes, duplicate: result.duplicate });
   } catch (err) {
     console.error("[FIAON-ADMIN-CONTACT]", err);
@@ -3111,7 +3159,18 @@ router.post("/application", async (req, res) => {
       return res.status(400).json({ ok: false, code: "NUR_DACH", error: NUR_DACH_MELDUNG });
     }
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
-    const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
+    // ── E-IT-G (08.10.2026), Punkt (14): DAS GEBURTSDATUM ÜBER DEN EINEN LESER ──
+    // VORHER wurde der Text ungeprüft zusammengesetzt („63-11-17“, ein 31.02.).
+    // NACHHER shared/fiaon-geburtsdatum.ts im Kontext „pruefung“ (echter
+    // Kalendertag, 1900 bis heute, zweistellige Jahre ergänzt). Die
+    // Altersregel (ab 18) prüfen das Formular und antragNeuLuecke. Ist die
+    // Angabe unvollständig oder ungültig, wird NICHTS überschrieben (COALESCE
+    // im UPDATE) — die Zwischenspeicherung wird dadurch nie blockiert.
+    const geburtGelesen = birthDay || birthMonth || birthYear
+      ? geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung")
+      : null;
+    const birthdate = geburtGelesen?.stand === "ok" ? geburtGelesen.iso : null;
+    if (geburtGelesen && !birthdate) console.warn(`[FIAON-APP] ${String(req.body?.ref ?? "neu")}: Geburtsdatum nicht übernommen (${geburtGelesen.stand}) — der gespeicherte Wert bleibt.`);
     const contactName = contactFirstName && contactLastName ? `${contactFirstName} ${contactLastName}` : contactFirstName || contactLastName || null;
 
     // Auto-run migration for new fields if they don't exist
@@ -3265,7 +3324,8 @@ router.post("/application", async (req, res) => {
           pack_name = ${values.packName ?? null},
           first_name = COALESCE(NULLIF(${values.firstName ?? ''}, ''), first_name),
           last_name = COALESCE(NULLIF(${values.lastName ?? ''}, ''), last_name),
-          birthdate = ${values.birthdate ?? null},
+          -- E-IT-G: leer oder ungültig heißt „alter Wert bleibt“ (vorher: jedes Speichern ohne Geburtsfelder löschte ihn).
+          birthdate = COALESCE(${values.birthdate ?? null}, birthdate),
           phone = ${values.phone ?? null},
           phone_country_code = ${values.phoneCountryCode ?? null},
           street = ${values.street ?? null},
@@ -3411,6 +3471,59 @@ router.post("/application", async (req, res) => {
     // war die Ursache des Login-Ausfalls.
     await bindePersonAnAntrag(ref).catch((e) =>
       console.error("[FIAON-PERSON] Zuordnung nach /application:", e));
+
+    // ── E-IT-G (08.10.2026): DAS ANTRAGSFORMULAR SCHREIBT NUR DIE EIGENE BESTELLUNG ──
+    // Gegenprüfung 08.10. (hoch): Eine erste Fassung schrieb eine geänderte
+    // Angabe über geburtsdatumSetzen an die Person UND an alle ihre lebenden
+    // Bestellungen. Die Person hängt aber nur über E-Mail- oder Telefon-Alias
+    // am Antrag (personFuerZeile, ohne Namensabgleich). Gemessen am 08.10.:
+    // 17 Personen tragen Bestellungen mit verschiedenen Vornamen. Bei einem Paar
+    // mit gemeinsamer Adresse hätte das öffentliche Formular ohne Anmeldung das
+    // Geburtsdatum des Partners überschrieben, auch an bezahlten Bestellungen.
+    // Dieses Datum ist ein Identifikationsmerkmal für Kündigung,
+    // Passwort-Reset und Auskunft.
+    // JETZT:
+    //   · Das Formular schreibt die eigene Bestellung (UPDATE/INSERT oben).
+    //   · Eine leere Person füllt wie bisher stammdatenErgaenzen. Seit E-IT-G
+    //     geschieht das nur, wenn der Name der Bestellung zur Person passt.
+    //   · Weicht die Angabe vom Datum der Person ab, ändert das Formular die
+    //     Person nur in EINEM Fall (shared antragKorrigiertPerson): Es ist die
+    //     einzige, noch unbezahlte Bestellung der Person, und der Name passt.
+    //     So landet die Korrektur eines Tippfehlers an der richtigen Stelle.
+    //   · In jedem anderen Fall bleibt die Akte stehen. Sie zeigt „Geburtsdatum
+    //     weicht ab“, ein Verlaufseintrag nennt den Wert, und der Mitarbeiter
+    //     wählt laut Ausweis.
+    if (birthdate && geburtsdatumIso(existing[0]?.birthdate) !== birthdate) {
+      try {
+        const [pp] = (await sqlPool`
+          SELECT p.birthdate, p.first_name AS p_vor, p.last_name AS p_nach,
+                 a.first_name, a.last_name, a.payment_status,
+                 (SELECT COUNT(*)::int FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL) AS lebende
+            FROM fiaon_persons p JOIN fiaon_applications a ON a.person_id = p.id
+           WHERE a.ref = ${ref} AND a.merged_into IS NULL
+        `) as any[];
+        const personWert = pp ? geburtsdatumIso(pp.birthdate) : null;
+        if (personWert && personWert !== birthdate) {
+          const { vollerNamePasst } = await import("../lib/fiaon-kuendigung-identitaet");
+          const darf = antragKorrigiertPerson({
+            lebendeBestellungen: Number(pp.lebende || 0),
+            bezahlt: pp.payment_status === "paid",
+            namePasst: vollerNamePasst({ first_name: pp.p_vor, last_name: pp.p_nach }, { firstName: pp.first_name, lastName: pp.last_name }),
+          });
+          if (darf) {
+            const { geburtsdatumSetzen } = await import("../lib/fiaon-geburtsdatum-akte");
+            await geburtsdatumSetzen(ref, birthdate, { id: null, name: "Kunde" }, { zusatz: "eigene Korrektur im Antragsformular, einzige Bestellung" });
+          } else {
+            const wer = [pp.first_name, pp.last_name].filter(Boolean).join(" ") || "ohne Namen";
+            await sqlPool`
+              INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+              VALUES (${ref}, NULL, 'System', 'system',
+                      ${`Im Antragsformular angegebenes Geburtsdatum (${wer}): ${geburtsdatumAnzeige(birthdate)} — an der Person steht ${geburtsdatumAnzeige(personWert)}. Die Akte bleibt unverändert; bitte laut Ausweis prüfen („Geburtsdatum weicht ab“).`})
+            `;
+          }
+        }
+      } catch (e) { console.error(`[FIAON-APP] ${ref}: Geburtsdatum-Abgleich mit der Person fehlgeschlagen:`, e); }
+    }
 
     // ── DER PERSÖNLICHE LINK (22.09.2026, E-210) ──────────────────────────
     // Kam der Mensch über fiaon.com/a/<code>, hängt dieser Antrag EXAKT an dem
@@ -3828,10 +3941,18 @@ router.post("/number-update/:token", async (req, res) => {
 });
 
 // Upload KYC documents
+// E-IT-C (08.10.2026): die Hülle — jede Datei einzeln über unterlageHinzufuegen (anhängen statt ersetzen).
+// E-IT-C Nachbesserung: Ohne Sitzung (Antragsweg, nur die Referenz ist bekannt) gedrosselt — höchstens
+// sechs Anfragen je zehn Minuten je Referenz und zwölf je Adresse (jede Anfrage bis zehn Dateien).
+let kycOhneSitzungDrossel: { ref: (s: string) => boolean; ip: (s: string) => boolean } | null = null;
 router.post("/upload-kyc", (req, res, next) => {
-  // E-177 (11.09.2026): je Unterlage mehrere Dateien — drei Monate Kontoauszug,
-  // Vorder- und Rückseite des Ausweises. Unten werden sie zu EINER PDF gebunden.
-  // Die Obergrenze über alle Felder (zehn) steht an `upload` oben.
+  // Eine Anfrage über 100 MB endet sonst bei Cloudflare mit einer HTML-Seite, und der Kunde liest
+  // „Der Upload hat nicht geklappt" statt eines Satzes. Mehrere große Dateien gehen einzeln.
+  const laenge = Number(req.headers["content-length"]);
+  if (Number.isFinite(laenge) && laenge > 95 * 1024 * 1024) {
+    res.setHeader("Connection", "close");
+    return res.status(413).json({ error: "Zusammen sind die Dateien zu groß für einen Upload. Bitte laden Sie sie einzeln hoch — jede Datei darf bis zu 50 MB groß sein." });
+  }
   upload.fields([
     { name: 'bankStatement', maxCount: 10 },
     { name: 'idCard', maxCount: 10 },
@@ -3839,7 +3960,7 @@ router.post("/upload-kyc", (req, res, next) => {
   ])(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: "Eine der gewählten Dateien ist größer als 25 MB. Bitte fotografieren Sie die Seite noch einmal mit geringerer Auflösung oder laden Sie eine kleinere PDF-Datei hoch." });
+        return res.status(400).json({ error: "Eine der gewählten Dateien ist größer als 50 MB. Bitte speichern Sie sie kleiner — zum Beispiel die Umsätze direkt als PDF aus dem Online-Banking statt eines Scans — oder laden Sie die Seiten einzeln hoch." });
       }
       if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
         return res.status(400).json({ error: "Bitte wählen Sie höchstens zehn Dateien auf einmal aus." });
@@ -3853,304 +3974,103 @@ router.post("/upload-kyc", (req, res, next) => {
     // ══════════════════════════════════════════════════════════════════════
     // WESSEN AKTE? (27.08.2026)
     //
-    // Die Referenz kam bisher ausschliesslich aus dem Formular. Wer eine
-    // fremde Referenz kennt — sie steht in Zahlungsreferenzen und in jeder
-    // Rechnung —, konnte Unterlagen in eine fremde Akte laden.
-    //
-    // Ganz zusperren geht nicht: Im Antragsweg lädt der Kunde hoch, BEVOR er
-    // ein Passwort hat; eine Anmeldepflicht hier würde den Weg abschneiden,
-    // über den das Geschäft entsteht. Deshalb die Regel: Ist eine
-    // Kundensitzung vorhanden, gilt IHRE Referenz — was im Formular steht,
-    // wird dann ignoriert. Ohne Sitzung bleibt der Antragsweg offen, aber
-    // jeder solche Upload wird vermerkt.
+    // Ist eine Kundensitzung vorhanden, gilt IHRE Referenz — was im Formular
+    // steht, wird dann ignoriert. Mit gültiger MITARBEITER-Sitzung gilt das
+    // Formular (Team-Punkt 4) — E-IT-C: aber nur für Kunden, an die der
+    // Mitarbeiter darf (darfAnKunde). Vorher konnte jeder Mitarbeiter per ref
+    // in fremde Akten schreiben. Ohne Sitzung bleibt der Antragsweg offen und
+    // wird vermerkt (laut Gegenprüfung ruft ihn heute keine Oberfläche mehr).
     // ══════════════════════════════════════════════════════════════════════
     const { kundeAusCookie } = await import("../lib/fiaon-kunde-session");
     const ausSitzung = kundeAusCookie(req as any);
     const ausFormular = String(req.body?.ref ?? "").trim();
-    // ── WER MITARBEITER IST, LAEDT FUER DEN KUNDEN AUS DEM FORMULAR HOCH ──
-    // (27.08.2026, Team-Punkt 4: „Dokument hochgeladen, danach nicht in der
-    // Kundenakte.") Die Kundensitzung schlug IMMER das Formular — richtig
-    // fuer den Kundenweg (niemand beschreibt per Formular-ref fremde Akten),
-    // aber toedlich fuer einen Mitarbeiter, der selbst Kunde ist oder eine
-    // Als-Kunde-Sitzung im Browser hatte: Sein eigenes Kunden-Cookie gewann,
-    // und der Kontoauszug von Kunde X landete kommentarlos in Akte Y.
-    // Mit gueltiger MITARBEITER-Sitzung gilt deshalb das Formular.
-    const { hasAgentToken } = await import("./fiaon-agent");
+    const { hasAgentToken, verifyAgentToken, AGENT_COOKIE_NAME } = await import("./fiaon-agent");
     const mitarbeiterLaedt = hasAgentToken(req as any) && !!ausFormular;
     const ref = mitarbeiterLaedt ? ausFormular : (ausSitzung || ausFormular);
-    if (mitarbeiterLaedt && ausSitzung && ausSitzung !== ausFormular) {
-      console.log(`[FIAON-KYC] Mitarbeiter-Upload: Formular-Ref ${ausFormular} gewinnt ueber Kundensitzung ${ausSitzung}.`);
-    }
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const files = (req.files || {}) as { [fieldname: string]: Express.Multer.File[] };
 
     if (!ref) {
       return res.status(400).json({ error: "Referenznummer fehlt" });
     }
-    if (ausSitzung && ausFormular && ausSitzung !== ausFormular) {
+    if (ausSitzung && ausFormular && ausSitzung !== ausFormular && !mitarbeiterLaedt) {
       console.warn(`[FIAON-KYC] Referenz im Formular (${ausFormular}) weicht von der Sitzung (${ausSitzung}) ab — es gilt die Sitzung.`);
     }
-    if (!ausSitzung) {
-      console.log(`[FIAON-KYC] Upload ohne Kundensitzung für ${ref} (Antragsweg) von ${String(req.headers["x-forwarded-for"] || req.ip || "?").split(",")[0]}`);
+    if (!ausSitzung && !mitarbeiterLaedt) {
+      const adresse = String(req.headers["x-forwarded-for"] || req.ip || "?").split(",")[0].trim();
+      console.log(`[FIAON-KYC] Upload ohne Kundensitzung für ${ref} (Antragsweg) von ${adresse}`);
+      if (!kycOhneSitzungDrossel) {
+        const { fensterDrossel } = await import("../lib/fiaon-global-bereich-regeln");
+        kycOhneSitzungDrossel = { ref: fensterDrossel(6, 10 * 60_000), ip: fensterDrossel(12, 10 * 60_000) };
+      }
+      if (kycOhneSitzungDrossel.ref(String(ref)) || kycOhneSitzungDrossel.ip(adresse)) {
+        return res.status(429).json({ error: "Das waren gerade sehr viele Uploads in kurzer Zeit. Bitte warten Sie einige Minuten — oder melden Sie sich in Ihrem Kundenbereich an und laden Sie die Unterlagen dort hoch." });
+      }
     }
-    
-    // Get application
-    const apps = await sqlPool`
-      SELECT * FROM fiaon_applications 
-      WHERE ref = ${ref}
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `;
-    
-    if (apps.length === 0) {
+
+    // Keine Anhang-Spalten in den Speicher laden — nur für die Ja/Nein-Fragen unten (bis ~75 MB je Zeile).
+    const [currentApp] = (await sqlPool`SELECT ref, person_id, kyc_status FROM fiaon_applications WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (!currentApp) {
       return res.status(404).json({ error: "Antrag nicht gefunden" });
     }
-    
-    // Prepare update values
-    const updates: string[] = [];
-    const values: any = {};
+    const { personZuRef, unterlageHinzufuegen } = await import("../lib/fiaon-unterlagen");
+    const personId = await personZuRef(String(ref));
+    if (!personId) return res.status(409).json({ error: "Ihre Akte wird gerade mit Ihrer Person verknüpft. Bitte versuchen Sie es in einigen Minuten noch einmal." });
 
-    // Ein Foto wird zum PDF, bevor es in eine Spalte namens `_pdf` geht.
-    // Schlägt die Wandlung fehl, bricht der ganze Upload ab: Ein halb
-    // gespeicherter Vorgang wäre schlimmer als eine ehrliche Fehlermeldung.
-    const { istBild, bildAlsPdf } = await import("../lib/fiaon-bild-zu-pdf");
-    const alsPdf = async (f: Express.Multer.File): Promise<Buffer> => {
-      if (!istBild(f.mimetype)) return f.buffer;
-      try {
-        const pdf = await bildAlsPdf(f.buffer, f.originalname || "Foto");
-        console.log(`[FIAON-KYC] Foto gewandelt: ${f.originalname} (${Math.round(f.size / 1024)} KB) → PDF ${Math.round(pdf.length / 1024)} KB`);
-        return pdf;
-      } catch (e) {
-        console.error("[FIAON-KYC] Wandlung fehlgeschlagen:", String(e).slice(0, 160));
-        // kundenText: Dieser Satz kommt beim Kunden an (catch am Ende der Route).
-        // Bis 11.09.2026 wurde er dort zu „Fehler beim Hochladen der Dokumente“.
-        const text = "Dieses Bild konnten wir nicht verarbeiten. Bitte versuchen Sie es mit einem anderen Foto oder laden Sie eine PDF-Datei hoch.";
-        throw Object.assign(new Error(text), { kundenText: f.originalname ? `„${f.originalname}“: ${text}` : text });
+    let wer: { art: "kunde" | "mitarbeiter"; name: string; agentId?: number | null } = { art: "kunde", name: "Kunde" };
+    if (mitarbeiterLaedt) {
+      const agent = verifyAgentToken((req as any).cookies?.[AGENT_COOKIE_NAME]) as any;
+      const agentId = Number(agent?.id);
+      // Wie requireAgent: aktiv, nicht gesperrt, Sitzung nicht zurückgesetzt — die Signatur allein genügt nicht.
+      const [a] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${Number.isFinite(agentId) ? agentId : -1} AND active
+                                   AND zugang_gesperrt_am IS NULL AND COALESCE(session_epoch, 0) = ${Number(agent?.epoch ?? -2)} LIMIT 1`.catch(() => [])) as any[];
+      const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      const rolle = a ? await rolleVon(agentId) : "";
+      if (!a || !(await darfAnKunde(agentId, rolle, personId))) {
+        return res.status(403).json({ error: "Dieser Kunde wird von jemand anderem betreut." });
       }
-    };
-
-    // ══════════════════════════════════════════════════════════════════════
-    // MEHRERE DATEIEN JE UNTERLAGE → EINE PDF (11.09.2026, E-177)
-    //
-    // Jedes Feld nahm genau eine Datei, und jeder Upload überschrieb die
-    // Spalte. Dogan Cengiz (FIAON-MT70UE7U-CK6B) lud am 10.09. um 10:20 den
-    // August und um 10:21 den Juni hoch — in der Akte liegt nur der Juni.
-    // Jetzt: erst jede Datei für sich zur PDF (Fotos wie bisher), dann in der
-    // gewählten Reihenfolge zu EINER Datei gebunden — mit derselben Funktion
-    // wie im Betreuerportal (server/lib/fiaon-pdf-binden.ts). Eine einzelne
-    // Datei geht unverändert durch, wie bisher.
-    //
-    // Gebunden wird VOR dem Speichern: Scheitert eine Datei (verschlüsselt,
-    // unlesbar), wird nichts geschrieben, und der Kunde erfährt, welche. Die
-    // automatische Prüfung weiter unten bekommt genau die gebundene PDF, die
-    // auch in der Spalte landet.
-    // ══════════════════════════════════════════════════════════════════════
-    const { zuEinerPdf } = await import("../lib/fiaon-pdf-binden");
-    type KycFeld = "bankStatement" | "idCard" | "schufaDoc";
-    const gebunden: Partial<Record<KycFeld, number>> = {};
-    const feldAlsPdf = async (feld: KycFeld): Promise<Buffer | null> => {
-      const liste = files?.[feld] ?? [];
-      if (liste.length === 0) return null;
-      if (liste.length === 1) return alsPdf(liste[0]);
-      const teile: { buffer: Buffer; name: string }[] = [];
-      for (const f of liste) teile.push({ buffer: await alsPdf(f), name: f.originalname || "Datei" });
-      const pdf = await zuEinerPdf(teile);
-      gebunden[feld] = liste.length;
-      console.log(`[FIAON-KYC] ${ref} ${feld}: ${liste.length} Dateien zu einer PDF gebunden (${Math.round(pdf.length / 1024)} KB)`);
-      return pdf;
-    };
-
-    const kontoauszugPdf = await feldAlsPdf("bankStatement");
-    if (kontoauszugPdf) {
-      updates.push('bank_statement_pdf = $bankStatementPdf');
-      values.bankStatementPdf = kontoauszugPdf;
-    }
-    
-    const ausweisPdf = await feldAlsPdf("idCard");
-    if (ausweisPdf) {
-      updates.push('id_card_pdf = $idCardPdf');
-      values.idCardPdf = ausweisPdf;
+      wer = { art: "mitarbeiter", name: String(a?.name || agent?.name || "Mitarbeiter"), agentId };
     }
 
-    const auskunftPdf = await feldAlsPdf("schufaDoc");
-    if (auskunftPdf) {
-      updates.push('schufa_pdf = $schufaPdf');
-      values.schufaPdf = auskunftPdf;
-    }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ error: "Keine Dokumente hochgeladen" });
-    }
-    
-    // Add timestamp
-    updates.push('documents_uploaded_at = NOW()');
-    
-    // Check if both documents are now present
-    const currentApp = apps[0];
-    const hasBankStatement = files.bankStatement || currentApp.bank_statement_pdf;
-    const hasIdCard = files.idCard || currentApp.id_card_pdf;
-    
-    if (hasBankStatement && hasIdCard) {
-      updates.push("status = 'documents_submitted'");
-    }
-
-    // Build dynamic SQL update
-    let sql = 'UPDATE fiaon_applications SET ';
-    const params: any[] = [];
-    let paramIndex = 1;
-    
-    if (values.bankStatementPdf) {
-      sql += `bank_statement_pdf = $${paramIndex++}, `;
-      params.push(values.bankStatementPdf);
-    }
-    
-    if (values.idCardPdf) {
-      sql += `id_card_pdf = $${paramIndex++}, `;
-      params.push(values.idCardPdf);
-    }
-
-    if (values.schufaPdf) {
-      sql += `schufa_pdf = $${paramIndex++}, `;
-      params.push(values.schufaPdf);
-    }
-    
-    sql += `documents_uploaded_at = NOW()`;
-    
-    if (hasBankStatement && hasIdCard) {
-      sql += `, status = 'documents_submitted'`;
-    }
-    
-    sql += ` WHERE ref = $${paramIndex}`;
-    params.push(ref);
-    
-    // 18.09.2026 (Team-Feedback, Priorität 1): Was ersetzt wird, geht nicht
-    // verloren — die bisherige Fassung wandert vorher ins Archiv.
-    const { unterlageSichern } = await import("../lib/fiaon-dokumente");
-    if (values.bankStatementPdf) await unterlageSichern(String(ref), "kontoauszug");
-    if (values.idCardPdf) await unterlageSichern(String(ref), "ausweis");
-    if (values.schufaPdf) await unterlageSichern(String(ref), "schufa");
-
-    // Execute update
-    await sqlPool.unsafe(sql, params);
-
-    // Reset reupload flags and kycStatus when re-uploading after changes_requested
-    let newKycStatus = currentApp.kyc_status;
-    if (currentApp.kyc_status === 'changes_requested') {
-      const newBankFlag = files.bankStatement ? false : !!(currentApp.reupload_bank_statement);
-      const newIdFlag   = files.idCard        ? false : !!(currentApp.reupload_id_card);
-      newKycStatus = (newBankFlag || newIdFlag) ? 'changes_requested' : 'pending';
-      await sqlPool`
-        UPDATE fiaon_applications SET
-          kyc_status              = ${newKycStatus},
-          reupload_bank_statement = ${newBankFlag},
-          reupload_id_card        = ${newIdFlag},
-          updated_at              = NOW()
-        WHERE ref = ${ref}
-      `.catch(() => {});
-    }
-
-    console.log(`[FIAON-KYC] Documents uploaded for ${ref}, kycStatus=${newKycStatus}`);
-
-    // ══════════════════════════════════════════════════════════════════════
-    // EIN UPLOAD IST EIN VORGANG, KEIN ABLEGEN (22.08.2026, Justins Kundentest)
-    //
-    // Justin lud als Kunde seinen Kontoauszug hoch — und nichts passierte:
-    // keine Bestätigung mit Frist, kein Eintrag in der Akte, keine Aufgabe im
-    // Haus. Die Datei lag in der Datenbank, und niemand wusste es. Jetzt:
-    // Akteneintrag (der Betreuer sieht es), Aufgabe an die Verwaltung (die
-    // prüft), und die Antwort nennt die Frist.
-    // ══════════════════════════════════════════════════════════════════════
-    // E-177: Wurden mehrere Dateien gebunden, stehen Zahl und Hinweis in der
-    // Akte (Verlauf, Aufgabe) und in der Antwort an den Kunden.
-    const mitZahl = (label: string, feld: KycFeld) =>
-      gebunden[feld] ? `${label} (${gebunden[feld]} Dateien zu einer PDF gebunden)` : label;
-    const was = [files.bankStatement ? mitZahl("Kontoauszug", "bankStatement") : null, files.idCard ? mitZahl("Ausweis", "idCard") : null, files.schufaDoc ? mitZahl("eigene Bonitätsauskunft", "schufaDoc") : null]
-      .filter(Boolean).join(", ");
-    const imDativ: Record<KycFeld, string> = { bankStatement: "zum Kontoauszug", idCard: "zum Ausweis", schufaDoc: "zur Bonitätsauskunft" };
-    const gebundenSatz = (Object.keys(gebunden) as KycFeld[])
-      .map((feld) => `Ihre ${gebunden[feld]} Dateien ${imDativ[feld]} liegen als ein Dokument in Ihrer Akte. `)
-      .join("");
-
-    // ── AUTOMATISCHE DOKUMENTPRÜFUNG (P9, 01.09.2026) ─────────────────────
-    // Synchron mit hartem Timeout: Der Kunde erfährt SOFORT, wenn die Datei
-    // nicht nach dem verlangten Dokument aussieht oder ein Zeitraum fehlt —
-    // statt Tage später bei der Handprüfung. Die Prüfung meldet nur; sie
-    // weist nie zurück und darf den Upload nie scheitern lassen.
-    const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
+    const FELDER: Array<[string, "kontoauszug" | "ausweis" | "schufa"]> = [["bankStatement", "kontoauszug"], ["idCard", "ausweis"], ["schufaDoc", "schufa"]];
+    const angekommen: string[] = [];
+    const saetze: string[] = [];
+    const fehler: string[] = [];
     const pruefungen: any[] = [];
-    const kundenSaetze: string[] = [];
-    const internWarnungen: string[] = [];
-    const zuPruefen: Array<[any, "kontoauszug" | "ausweis" | "schufa"]> = [];
-    if (files.bankStatement?.[0]) zuPruefen.push([values.bankStatementPdf, "kontoauszug"]);
-    if (files.idCard?.[0]) zuPruefen.push([values.idCardPdf, "ausweis"]);
-    if (files.schufaDoc?.[0]) zuPruefen.push([values.schufaPdf, "schufa"]);
-    for (const [pdf, art] of zuPruefen) {
-      const u = await pruefungAnstossen(String(ref), art, pdf as Buffer).catch(() => null);
-      if (!u) continue;
-      pruefungen.push(u);
-      if (u.hinweisKunde) kundenSaetze.push(u.hinweisKunde);
-      if (u.erkannt === false || u.vollstaendig === false) internWarnungen.push(u.hinweisIntern || `${art}: auffällig`);
+    for (const [feld, kategorie] of FELDER) {
+      for (const f of files[feld] ?? []) {
+        const erg = await unterlageHinzufuegen({
+          personId, kategorie, datei: { buffer: f.buffer, name: f.originalname || "Datei" }, wer,
+          herkunft: wer.art === "kunde" ? (ausSitzung ? "portal" : "antrag") : "mitarbeiter",
+        });
+        if (!erg.ok) { fehler.push(erg.satzKunde); continue; }
+        angekommen.push(kategorie);
+        if (erg.datei.satz) { saetze.push(erg.datei.satz); pruefungen.push({ art: kategorie, erkannt: false, hinweisKunde: erg.datei.satz }); }
+        if (erg.doppelt) saetze.push(erg.satzKunde);
+      }
+    }
+    if (angekommen.length === 0) {
+      return res.status(400).json({ error: fehler[0] || "Keine Dokumente hochgeladen" });
     }
 
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-      VALUES (${ref}, ${currentApp.person_id ?? null}, NULL, 'System', 'system',
-              ${`Kunde hat hochgeladen: ${was}. Prüfung durch die Verwaltung steht aus.${internWarnungen.length ? ` AUTOMATISCHE PRÜFUNG: ${internWarnungen.join(" · ")}` : ""}`}, NOW())
-    `.catch(() => {});
-    await sqlPool`
-      INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
-      VALUES ('aufgabe', ${ref},
-              ${`Unterlagen eingegangen (${was}) — bitte prüfen und freigeben (Verwaltung → Kunden → Prüfung). Der Kunde wurde informiert, dass die Prüfung bis zu zwei Werktage dauert.${internWarnungen.length ? ` ⚠ Automatische Prüfung meldet: ${internWarnungen.join(" · ")}` : ""}`},
-              'betreiber', TRUE, ${internWarnungen.length > 0}, 'offen', 'system', 'System',
-              ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
-    `.catch((e) => console.error("[FIAON-KYC] Aufgabe nicht angelegt:", e?.message));
-
-    // Die Auswertung läuft sofort los — der Kunde sieht sie in wenigen Minuten
-    // unter „Ihre Finanzen". Nicht awaited: Der Upload ist fertig, die Analyse
-    // ist ein Folgeschritt und darf die Antwort nicht aufhalten.
-    if (files.bankStatement) {
-      void import("../lib/fiaon-kontoauszug-analyse")
-        .then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(String(ref), { erzwingen: true }))
-        .catch((e) => console.error("[FIAON-KYC] Analyse:", e));
-    }
-    // ── DIE BONITAETSAUSKUNFT WIRD JETZT AUCH GELESEN (10.09.2026, E-174) ──
-    // Bis heute wurde eine hochgeladene Auskunft nur auf Echtheit beklopft und
-    // dann abgelegt. 56 Dokumente lagen so ungelesen in der Datenbank. Die
-    // Auswertung laeuft wie beim Kontoauszug sofort los und haelt die Antwort
-    // nicht auf.
-    if (files.schufaDoc) {
-      void import("../lib/fiaon-schufa-analyse")
-        .then(({ schufaAnalysieren }) => schufaAnalysieren(String(ref), { erzwingen: true }))
-        .catch((e) => console.error("[FIAON-KYC] SCHUFA-Analyse:", e));
-    }
-
-    const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
-    res.json({ 
-      ok: true, 
-      // P9: Steht ein Sofort-Befund an, führt ER die Meldung an — der Kunde
-      // soll die falsche Datei JETZT tauschen, nicht in zwei Werktagen.
-      // E-177: gebundenSatz sagt, dass mehrere Dateien als EIN Dokument ankamen.
-      message: (kundenSaetze.length ? `${kundenSaetze.join(" ")} ` : "") + "Eingegangen. " + gebundenSatz + (files.bankStatement
-        ? "Ihr Kontoauszug wird jetzt ausgewertet — in wenigen Minuten sehen Sie das Ergebnis unter „Ihre Finanzen“. Die Prüfung Ihrer Unterlagen dauert bis zu zwei Werktage."
-        : "Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns."),
+    const [stand] = (await sqlPool`
+      SELECT bool_or(LENGTH(bank_statement_pdf) > 0) AS k, bool_or(LENGTH(id_card_pdf) > 0) AS a, bool_or(LENGTH(schufa_pdf) > 0) AS s,
+             bool_or(COALESCE(reupload_bank_statement, FALSE)) AS re_k, bool_or(COALESCE(reupload_id_card, FALSE)) AS re_a,
+             (SELECT x.kyc_status FROM fiaon_applications x WHERE x.ref = ${ref}) AS kyc
+        FROM fiaon_applications WHERE person_id = ${personId} AND gdpr_deleted_at IS NULL`) as any[];
+    const hasBankStatement = !!stand?.k; const hasIdCard = !!stand?.a; const hasSchufa = !!stand?.s;
+    console.log(`[FIAON-KYC] ${angekommen.length} Datei(en) für ${ref} angehängt (${Array.from(new Set(angekommen)).join(", ")})${fehler.length ? `, ${fehler.length} abgewiesen` : ""}`);
+    res.json({
+      ok: true,
+      // P9: Steht ein Sofort-Befund an, führt ER die Meldung an. Abgewiesene Dateien stehen mit ihrem Satz dabei.
+      message: [...saetze, ...fehler, "Eingegangen — Ihre bisherigen Dateien bleiben erhalten. Wir lesen die Unterlagen jetzt; den Befund sehen Sie gleich in Ihrem Bereich unter „Unterlagen“."].join(" "),
       pruefungen,
-      hasBankStatement: !!hasBankStatement,
-      hasIdCard: !!hasIdCard,
-      hasSchufa,
-      allDocumentsUploaded: !!(hasBankStatement && hasIdCard),
-      kycStatus: newKycStatus,
-      reuploadBankStatement: files.bankStatement ? false : !!(currentApp.reupload_bank_statement),
-      reuploadIdCard: files.idCard ? false : !!(currentApp.reupload_id_card),
+      hasBankStatement, hasIdCard, hasSchufa,
+      allDocumentsUploaded: hasBankStatement && hasIdCard,
+      kycStatus: stand?.kyc ?? currentApp.kyc_status,
+      reuploadBankStatement: !!stand?.re_k,
+      reuploadIdCard: !!stand?.re_a,
     });
   } catch (err: any) {
-    // E-177: Sätze, die für den Kunden geschrieben sind, kommen bei ihm an.
-    // Bis 11.09.2026 wurde hier auch „Dieses Bild konnten wir nicht
-    // verarbeiten …“ zu „Fehler beim Hochladen der Dokumente“.
-    const { BindeFehler, bindeSatz } = await import("../lib/fiaon-pdf-binden");
-    if (err instanceof BindeFehler) {
-      console.warn(`[FIAON-KYC] Binden abgewiesen: ${err.message}`);
-      return res.status(400).json({ error: bindeSatz(err, "sie") });
-    }
-    if (err?.kundenText) return res.status(400).json({ error: String(err.kundenText) });
     console.error("[FIAON-KYC]", err);
     res.status(500).json({ error: "Fehler beim Hochladen der Dokumente" });
   }
@@ -4570,7 +4490,8 @@ router.get("/profile/:ref", requireKunde, async (req, res) => {
       ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE
     `.catch(() => {});
 
-    const apps = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`;
+    // E-IT-C (08.10.2026): ohne Anhang-Spalten — seit 50 MB je Datei kann die Akte-Fassung bis 120 MB je Unterlage groß sein.
+    const apps = (await sqlPool.unsafe(`SELECT ${await antragsSpaltenOhneAnhaenge()} FROM fiaon_applications WHERE ref = $1 LIMIT 1`, [ref])) as any[];
     if (apps.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
     const a = apps[0];
     res.json({
@@ -5501,7 +5422,7 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
 /** Eine Meldung für „E-Mail unbekannt" UND „Angaben passen nicht" — keine Auskunft
  *  darüber, ob eine E-Mail-Adresse bei uns existiert. */
 const VERIFY_NEUTRAL_MESSAGE =
-  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfe Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie du sie im Antrag angegeben hast.";
+  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfen Sie Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie Sie sie im Antrag angegeben haben.";
 
 // POST /api/fiaon/verify-identity — prüft Name + Geb. + Email, gibt Token zurück
 router.post("/verify-identity", async (req, res) => {
@@ -5514,7 +5435,9 @@ router.post("/verify-identity", async (req, res) => {
 
     await ensurePaymentColumns();
     const trimEmail = String(email).trim().toLowerCase();
-    const birthdate = `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`;
+    // E-IT-G (08.10.2026): derselbe Leser wie überall (Kontext „pruefung“ — keine
+    // Altersregel, der Mensch soll durchkommen; zweistellige Jahre ergänzt).
+    const birthdate = geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung").iso ?? "ungueltig";
 
     // Dieselbe Kontoauflösung wie im Login: die ganze Familie der E-Mail.
     const family = await loadLoginFamily(trimEmail);
@@ -5605,7 +5528,7 @@ router.post("/verify-identity", async (req, res) => {
       ok: false,
       code: `RESET-05-${incident}`,
       error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
-      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+      hint: `Bleibt das Problem, nennen Sie dem Support diesen Fehlercode: RESET-05-${incident}`,
     });
   }
 });
@@ -5695,8 +5618,8 @@ router.post("/reset-password-direct", async (req, res) => {
     return res.status(503).json({
       ok: false,
       code: `RESET-05-${incident}`,
-      error: "Technisches Problem — dein Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
-      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+      error: "Technisches Problem — Ihr Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
+      hint: `Bleibt das Problem, nennen Sie dem Support diesen Fehlercode: RESET-05-${incident}`,
     });
   }
 });

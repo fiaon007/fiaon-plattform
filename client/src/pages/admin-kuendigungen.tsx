@@ -14,6 +14,8 @@ type Cancellation = {
   email: string | null; phone: string | null; package_name: string | null;
   reason: string | null; cancellation_date: string | null; status: string;
   admin_note: string | null; created_at: string; processed_at: string | null;
+  /** Querprüfung 08.10.2026: ohne passendes Geburtsdatum angenommen, Prüfaufgabe offen → Bestätigen nur mit Vermerk. */
+  identitaet_offen?: boolean | null;
 };
 
 async function apiF(path: string, init?: RequestInit) {
@@ -30,8 +32,10 @@ const STATUS_BADGE: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
   confirmed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   rejected: "bg-rose-50 text-rose-700 border-rose-200",
+  // E-IT-B (08.10.2026): Die Rücknahme einer Kündigung schließt den offenen Antrag (kuendigungZuruecknehmen).
+  withdrawn: "bg-slate-100 text-slate-600 border-slate-200",
 };
-const STATUS_LABEL: Record<string, string> = { pending: "Ausstehend", confirmed: "Bestätigt", rejected: "Abgelehnt" };
+const STATUS_LABEL: Record<string, string> = { pending: "Ausstehend", confirmed: "Bestätigt", rejected: "Abgelehnt", withdrawn: "Zurückgenommen" };
 
 function fmtDate(d: string | null): string {
   return d ? new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }) : "—";
@@ -43,6 +47,7 @@ export default function AdminKuendigungen() {
   const [filter, setFilter] = useState<Filter>("pending");
   const [selected, setSelected] = useState<Cancellation | null>(null);
   const [note, setNote] = useState("");
+  const [identVermerk, setIdentVermerk] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [flash, setFlash] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
 
@@ -62,11 +67,11 @@ export default function AdminKuendigungen() {
     setActionBusy(true);
     const { ok, json } = await apiF(`/admin/cancellations/${selected.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status, adminNote: note.trim() || null }),
+      body: JSON.stringify({ status, adminNote: note.trim() || null, identitaetVermerk: identVermerk.trim() || null }),
     });
     if (ok) {
       setFlash({ text: status === "confirmed" ? "Kündigung bestätigt" : "Kündigung abgelehnt", kind: "ok" });
-      setSelected(null); setNote("");
+      setSelected(null); setNote(""); setIdentVermerk("");
       await load();
     } else setFlash({ text: `Fehler: ${json?.error || "Unbekannt"}`, kind: "err" });
     setActionBusy(false);
@@ -118,12 +123,13 @@ export default function AdminKuendigungen() {
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => (
-            <button key={c.id} onClick={() => { setSelected(c); setNote(c.admin_note || ""); }}
+            <button key={c.id} onClick={() => { setSelected(c); setNote(c.admin_note || ""); setIdentVermerk(""); }}
               className="w-full text-left bg-white border border-slate-200 rounded-xl px-4 py-3 hover:border-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[13.5px] font-semibold text-slate-900 truncate">{[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}</span>
                   <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${STATUS_BADGE[c.status] || "bg-slate-100 text-slate-600 border-slate-200"}`}>{STATUS_LABEL[c.status] || c.status}</span>
+                  {c.identitaet_offen && <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Identität prüfen</span>}
                 </div>
                 <div className="text-[11.5px] text-slate-500 flex flex-wrap gap-x-3 mt-0.5">
                   {c.email && <span className="inline-flex items-center gap-1"><Mail size={11} />{c.email}</span>}
@@ -161,6 +167,15 @@ export default function AdminKuendigungen() {
 
               {selected.status === "pending" ? (
                 <>
+                  {selected.identitaet_offen && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 text-[12.5px] text-amber-900">
+                      <b>Identität noch nicht geprüft.</b> Der Antrag kam ohne passendes Geburtsdatum (Aufgabe „Kündigung – Identität prüfen“ beim Betreuer).
+                      Bestätigen geht erst, wenn die Aufgabe erledigt ist — oder mit einem Satz, wie die Identität geprüft wurde.
+                      <input value={identVermerk} onChange={(e) => setIdentVermerk(e.target.value)} maxLength={300}
+                        className="mt-2 w-full text-[13px] rounded-lg border border-amber-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                        placeholder="Wie wurde die Identität geprüft? (steht im Verlauf)" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-[11px] font-semibold text-slate-600 block mb-1">Notiz (optional)</label>
                     <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
@@ -168,7 +183,7 @@ export default function AdminKuendigungen() {
                       placeholder="Interne Notiz zur Entscheidung…" />
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => act("confirmed")} disabled={actionBusy}
+                    <button onClick={() => act("confirmed")} disabled={actionBusy || (!!selected.identitaet_offen && identVermerk.trim().length < 10)}
                       className="flex-1 px-3.5 py-2.5 rounded-lg bg-emerald-600 text-white text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-emerald-700 disabled:opacity-50">
                       <Check size={15} /> Kündigung bestätigen
                     </button>

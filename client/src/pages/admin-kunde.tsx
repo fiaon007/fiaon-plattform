@@ -6,6 +6,7 @@ import {
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
 import { DokumenteSektion } from "@/components/DokumenteSektion";
+import { UnterlagenAkte } from "@/components/unterlagen/UnterlagenAkte";
 import { KontoauszugImDetail } from "@/components/finanzen/FinanzTiefe";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
@@ -14,6 +15,10 @@ import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
+import { AKTE_FEHLER_TITEL, umleitungText, type Umleitung } from "@shared/fiaon-akte-aufloesung";
+import { akteLink, imChefbuero } from "@/lib/akte-link";
+import { GeburtsdatumFeld, useGeburtsdatum } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumMitAlter, GEBURT_TEXTE } from "@shared/fiaon-geburtsdatum";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -208,6 +213,77 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder, an
   );
 }
 
+// ── Geburtsdatum (E-IT-G, 08.10.2026) ────────────────────────────────────────
+// VORHER ein Feld mit type=date: Enter speicherte sofort, aus „63“ wurde 0063,
+// und der Wert landete NUR an der Bestellung (Agentenakte zeigte weiter den
+// alten). NACHHER das gemeinsame Bauteil (TT · MM · JJJJ, „63“ → 1963), Speichern
+// nur, wenn das Datum stimmt (unter 18 oder ab 95 nach „Stimmt so“), und der
+// Server schreibt Person UND Bestellungen. Die Chef-Akte ist Leitung: Nur hier
+// gibt es „Geburtsdatum entfernen“.
+function GeburtFeldChef({ wert, abweichung, onSave }: {
+  wert: string; abweichung: { iso: string; anzeige: string; quellen: string[]; fremderName?: boolean }[] | null;
+  onSave: (body: Record<string, unknown>) => Promise<string | null>;
+}) {
+  const [edit, setEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [zeigeFehler, setZeigeFehler] = useState(false);
+  const geb = useGeburtsdatum(wert || null, "akte");
+  const { zuruecksetzen } = geb;
+  useEffect(() => { zuruecksetzen(wert || null); }, [wert]); // eslint-disable-line react-hooks/exhaustive-deps
+  const schicken = async (body: Record<string, unknown>) => {
+    setBusy(true); setErr(null);
+    const e = await onSave(body);
+    setBusy(false);
+    if (e) setErr(e); else { setEdit(false); setZeigeFehler(false); }
+  };
+  const speichern = async () => {
+    if (geb.leer) { setEdit(false); return; }
+    if (!geb.iso) { setZeigeFehler(true); return; }
+    if (!geb.geaendert && !abweichung) { setEdit(false); return; }
+    await schicken({ birthdate: geb.iso, ...(geb.bestaetigtMitsenden ? { geburtBestaetigt: true } : {}) });
+  };
+  const entfernen = async () => {
+    if (!confirm(`Geburtsdatum wirklich entfernen?\n\nBisher: ${geburtsdatumMitAlter(wert) || "—"}\n\nEs wird an der Person und an allen Bestellungen geleert und mit alt → neu protokolliert.`)) return;
+    await schicken({ birthdateEntfernen: true });
+  };
+  return (
+    <div className="ak-feld py-2 border-b border-slate-50 last:border-0" data-feld="geburtsdatum">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="ak-label text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Geburtsdatum</p>
+          {!edit ? (
+            <p className="ak-wert text-[13.5px] font-medium text-slate-800 break-words">{wert ? geburtsdatumMitAlter(wert) : <span className="text-slate-300">—</span>}</p>
+          ) : (
+            <div className="mt-1 grid gap-1.5">
+              <GeburtsdatumFeld teile={geb.teile} onTeile={(t) => { geb.setTeile(t); setErr(null); }} kontext="akte" ergebnis={geb.erg}
+                bestaetigt={geb.bestaetigt} onBestaetigen={geb.bestaetigen} variante="hell" zeigeFehler={zeigeFehler} autoFocus
+                onEnter={() => void speichern()} />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button type="button" onClick={() => void speichern()} disabled={busy} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[12px] font-semibold disabled:opacity-50" title="Speichern"><Check size={13} className="inline -mt-0.5" /> Speichern</button>
+                <button type="button" onClick={() => { zuruecksetzen(wert || null); setEdit(false); setErr(null); setZeigeFehler(false); }} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 text-[12px]" title="Abbrechen">Abbrechen</button>
+                {wert && <button type="button" onClick={() => void entfernen()} disabled={busy} className="ml-auto px-2.5 py-1 rounded-lg text-rose-600 text-[12px] hover:bg-rose-50">Geburtsdatum entfernen</button>}
+              </div>
+            </div>
+          )}
+          {abweichung && (
+            <p className="text-[11.5px] mt-1" style={{ color: "#b45309" }} data-geburt-abweichung>
+              Weicht ab: {abweichung.map((w) => `${w.anzeige} (${w.quellen.join(", ")})`).join(" · ")} — laut Ausweis prüfen; Speichern setzt das gewählte Datum überall.
+              {abweichung.some((w) => w.fremderName) && <><br /><b data-geburt-fremder-name>{GEBURT_TEXTE.fremderName}</b></>}
+            </p>
+          )}
+          {err && <p className="text-[11px] font-semibold text-rose-600 mt-1">{err}</p>}
+        </div>
+        {!edit && (
+          <button type="button" onClick={() => setEdit(true)} className="ak-stift p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 shrink-0" title="Geburtsdatum bearbeiten">
+            <Pencil size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   /** 21.09.2026 (E-201): Die Telefonkartei öffnet die Akte als Fenster auf derselben Seite. */
   akteId?: string;
@@ -227,7 +303,12 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // E-IT-E (08.10.2026): Ein Fehler trägt Titel UND Grund. Vorher stand bei
+  // JEDEM Status „Akte nicht gefunden" — auch bei abgelaufener Sitzung (403)
+  // oder einem Server-Fehler (500). Wer das liest, sucht einen Kunden, den es gibt.
+  const [error, setError] = useState<{ titel: string; text: string; status: number } | null>(null);
+  /** Wie die Akte gefunden wurde — das Band über der Akte (nie still umleiten). */
+  const [aufloesung, setAufloesung] = useState<{ kanonisch: string; eingabe: string; umleitungen: Umleitung[] } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -248,13 +329,60 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const r = await api(`/admin/kunden/akte?id=${encodeURIComponent(id)}`, undefined, "GET");
-    if (r.ok) { setData(r.json); setError(null); }
-    else setError(r.json?.error || `Fehler ${r.status}`);
+    let r: { status: number; ok: boolean; json: any };
+    try {
+      r = await api(`/admin/kunden/akte?id=${encodeURIComponent(id)}`, undefined, "GET");
+    } catch {
+      r = { status: 0, ok: false, json: null };
+    }
+    if (r.ok) {
+      setData(r.json); setError(null);
+      const neu = r.json?.aufloesung ?? null;
+      // Nach dem Umschreiben der Adresse auf die kanonische Kennung lädt die
+      // Akte ohne Umweg — das Band der ERSTEN Auflösung bleibt dann stehen.
+      setAufloesung((alt) => (alt && neu && alt.kanonisch === neu.kanonisch && !(neu.umleitungen?.length)) ? alt : neu);
+    } else {
+      // Nach VERURSACHER getrennt (AGENTS.md: „HTTP 400 heißt: WIR haben den Fehler"):
+      // 401/403 = Anmeldung, ab 500 = Server, 400/404 = die Kennung — mit Grund.
+      const st = r.status;
+      const serverText = r.json?.error ? String(r.json.error) : "";
+      if (st === 401 || st === 403) {
+        setError({ status: st, titel: AKTE_FEHLER_TITEL.sitzung,
+          text: `Die Anmeldung ist abgelaufen oder gilt für diesen Bereich nicht${serverText ? ` (${serverText})` : ""}. Nach dem Anmelden öffnet die Akte wieder.` });
+      } else if (st === 0 || st >= 500) {
+        setError({ status: st, titel: AKTE_FEHLER_TITEL.server,
+          text: st === 0 ? "Keine Verbindung zum Server." : `Der Server meldet: ${serverText || `Fehler ${st}`}.` });
+      } else {
+        const grund = r.json?.grund as keyof typeof AKTE_FEHLER_TITEL | undefined;
+        setError({ status: st, titel: r.json?.titel || (grund && AKTE_FEHLER_TITEL[grund]) || "Akte nicht gefunden",
+          text: serverText || `Fehler ${st}` });
+      }
+    }
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  // Wurde nur die Adresse auf die kanonische Kennung umgeschrieben (siehe unten),
+  // ist die Akte schon geladen — kein zweiter Abruf.
+  useEffect(() => {
+    if (id && data?.aufloesung?.kanonisch === id) return;
+    void load();
+  }, [load]);
+
+  // ── KANONISCHE ADRESSE (E-IT-E) ─────────────────────────────────────────
+  // „?id=13373" (zusammengeführt) oder „?id=13536" (Interessent) steht danach
+  // als „?id=FIAON-…" bzw. „?id=lead-…" in der Adresse — wer den Link kopiert,
+  // gibt die Akte ohne Umweg weiter. Im Fenster der Telefonkartei bleibt die
+  // Adresse unangetastet (sie gehört der Kartei).
+  useEffect(() => {
+    const kanon = data?.aufloesung?.kanonisch;
+    if (!kanon || eingebettet || akteId || kanon === id) return;
+    try {
+      const u = new URL(window.location.href);
+      if (ausAdresse) u.pathname = `/admin/kunde/${encodeURIComponent(kanon)}`;
+      else u.searchParams.set("id", kanon);
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* Adresse bleibt, wie sie ist — die Akte steht trotzdem */ }
+  }, [data, eingebettet, akteId, id, ausAdresse]);
   useEffect(() => {
     api("/admin/events/registry", undefined, "GET").then((r) => {
       if (r.ok) setEvents((r.json.events || []).filter((e: any) => e.customerBound && !e.deprecated));
@@ -267,6 +395,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   const stufenlage = data?.stufenlage;
   const ref = app?.ref;
   const payRef = app?.paymentReference;
+  /** E-IT-E: Bei einer Interessenten-Akte der Lead, auf dem sie steht (head.id = „lead-N"). */
+  const leadIdDerAkte: number | null = !app && typeof head?.id === "string" && /^lead-\d+$/.test(head.id)
+    ? Number(head.id.slice(5)) : null;
 
   // ── Aktionen (rufen die BESTEHENDEN Endpoints) ──────────────────────────────
   const act = async (key: string, fn: () => Promise<any>, okMsg: string) => {
@@ -384,6 +515,12 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     return () => { weg = true; };
   }, [ref]);
 
+  const saveGeburt = async (body: Record<string, unknown>): Promise<string | null> => {
+    const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/stammdaten`, body);
+    if (!r.ok) return r.json?.error || "Fehler";
+    load();
+    return null;
+  };
   const saveStammdaten = (field: string) => async (v: string): Promise<string | null> => {
     const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/stammdaten`, { [field]: v });
     if (!r.ok) return r.json?.error || "Fehler";
@@ -410,7 +547,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     act("note", async () => {
       const r = ref
         ? await api(`/admin/kunden/${encodeURIComponent(ref)}/note`, { note })
-        : await api(`/admin/leads/${data.leads[0]?.id}/notes`, { note });
+        : await api(`/admin/leads/${leadIdDerAkte ?? data.leads[0]?.id}/notes`, { note });
       if (r.ok) setNote("");
       return r;
     }, "✓ Notiz gespeichert.");
@@ -448,7 +585,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     if (r.ok) {
       setLastMergeBatch(r.json.batch || null);
       flash(`✓ Zusammengeführt in ${r.json.mergedInto} (${r.json.merged} Datensätze, umkehrbar).`);
-      if (winner !== id) { window.location.href = `/admin/kunde/${encodeURIComponent(winner)}`; return; }
+      if (winner !== id) { window.location.href = akteLink(winner) ?? `/admin/kunde/${encodeURIComponent(winner)}`; return; }
       load();
     } else flash(`Fehler: ${r.json?.error || r.status}`);
   };
@@ -462,17 +599,35 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     act(`attach-${leadId}`, () => api(`/admin/leads/${leadId}/attach-to-order`, { ref }), "✓ Lead mit dieser Akte verknüpft — kein Doppelanruf mehr.");
   };
 
+  // Rücksprung: im Chefbüro in die Chef-Kundenliste, sonst in die Verwaltung.
+  // Vorher führte „Zur Kundenliste" auch aus dem Chefbüro nach /admin/kunden.
+  const imChef = imChefbuero();
+  const listenZiel = imChef ? "/chef/kundenliste" : "/admin/kunden";
+
   if (!id) return <div className="min-h-screen bg-slate-50" />;
   if (loading && !data) {
     return <div className="min-h-screen bg-slate-50"><div className="max-w-5xl mx-auto px-4 py-16 text-center text-[13px] text-slate-400">Akte lädt …</div></div>;
   }
   if (error) {
+    const sitzung = error.status === 401 || error.status === 403;
+    const server = error.status === 0 || error.status >= 500;
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="max-w-5xl mx-auto px-4 py-16 text-center">
-          <p className="text-[14px] font-semibold text-slate-700 mb-2">Akte nicht gefunden</p>
-          <p className="text-[12px] text-slate-400 mb-4">{error}</p>
-          <Link href="/admin/kunden" className="text-[13px] font-semibold text-[#2563eb] hover:underline">← Zur Kundenliste</Link>
+        <div className="max-w-5xl mx-auto px-4 py-16 text-center" data-testid="akte-fehler" data-status={error.status}>
+          <p className="text-[14px] font-semibold text-slate-700 mb-2">{error.titel}</p>
+          <p className="text-[12px] text-slate-500 mb-4 max-w-xl mx-auto">{error.text}</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {server && (
+              <button type="button" onClick={() => void load()}
+                className="text-[13px] font-semibold text-[#2563eb] hover:underline">Neu laden</button>
+            )}
+            {sitzung && (
+              <a href={imChef ? "/chef" : "/admin"} className="text-[13px] font-semibold text-[#2563eb] hover:underline">Neu anmelden</a>
+            )}
+            {!eingebettet && (
+              <Link href={listenZiel} className="text-[13px] font-semibold text-[#2563eb] hover:underline">← Zur Kundenliste</Link>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -485,12 +640,24 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {!eingebettet && (
-          <Link href="/admin/kunden" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
+          <Link href={listenZiel} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
             <ArrowLeft size={13} /> Alle Kunden
           </Link>
         )}
 
         {msg && <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">{msg}</div>}
+
+        {/* ── WIE DIESE AKTE GEFUNDEN WURDE (E-IT-E, 08.10.2026) ───────────
+            Eine Umleitung wird NIE still gemacht: Nach einem falschen
+            Zusammenführen sähe man sonst die Daten des Gewinners und hielte
+            sie für die des Verlierers. Das Band nennt Verlierer, Datum und
+            wer zusammengeführt hat — bzw. dass es eine Interessenten-Akte ist. */}
+        {aufloesung && aufloesung.umleitungen.length > 0 && (
+          <div className="ak-umleitung mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-[12.5px] text-amber-800"
+               role="status" data-testid="akte-umleitung">
+            {aufloesung.umleitungen.map((u, i) => <p key={i} className={i > 0 ? "mt-1" : ""}>{umleitungText(u)}</p>)}
+          </div>
+        )}
 
         {/* ── KOPF ── */}
         <div className="ak-kopf bg-white border border-slate-200 rounded-2xl p-5 mb-4">
@@ -615,6 +782,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                     : "Onboarding-Pflicht aussetzen"}
                 </button>
               )}
+              {/* E-IT-E: Die Portal-Ansicht braucht eine Bestellung — eine
+                  Interessenten-Akte hat keine, der Knopf führte ins Leere. */}
+              {ref && (
               <button type="button" onClick={portalAnsehen} disabled={busy === "ansicht"}
                 className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-[12.5px] font-bold disabled:opacity-50">
                 {/* Der Vorname aus dem Namen — `head` liefert keinen eigenen.
@@ -624,6 +794,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 {busy === "ansicht" ? "…" : `Portal ansehen${
                   head.name ? ` als ${String(head.name).trim().split(/\s+/)[0]}` : ""}`}
               </button>
+              )}
               {payRef && (app.paymentStatus === "pending_payment" || app.paymentStatus === "claimed_paid") && (
                 <button type="button" onClick={markPaid} disabled={busy === "paid"}
                   className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[12.5px] font-bold disabled:opacity-50">
@@ -726,7 +897,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               <Field label="Straße" value={app.street || ""} onSave={saveStammdaten("street")} />
               <Field label="PLZ" value={app.zip || ""} onSave={saveStammdaten("zip")} />
               <Field label="Ort" value={app.city || ""} onSave={saveStammdaten("city")} />
-              <Field label="Geburtsdatum" value={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} onSave={saveStammdaten("birthdate")} type="date" anzeige={tagDe} />
+              <GeburtFeldChef wert={app.birthdate ? String(app.birthdate).slice(0, 10) : ""} abweichung={app.geburtsdatumAbweichung ?? null} onSave={saveGeburt} />
               </div>
               <div className="ak-konditionen mt-3 pt-3 border-t border-slate-100">
                 <p className="ak-zwischen text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Konditionen <span className="ak-hinweis font-normal normal-case tracking-normal">· Änderung nur mit Rückfrage</span></p>
@@ -1050,11 +1221,19 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
             {app?.ref ? (
               // Die Betreiberansicht liest über die REFERENZ — die steht immer
               // zur Verfügung. `personId` ist nur für „Anfordern" nötig.
-              <DokumenteSektion
-                personId={Number(app?.personId ?? 0) || 0}
-                kundenRef={app.ref}
-                adminSicht
-              />
+              <>
+                <DokumenteSektion
+                  personId={Number(app?.personId ?? 0) || 0}
+                  kundenRef={app.ref}
+                  adminSicht
+                />
+                {/* E-IT-C (08.10.2026): die Einzeldateien je Unterlage — Hinzufügen, Alles ersetzen,
+                    Entfernen mit Grund, Geprüft, Neu lesen (als „Verwaltung", hinter dem Admin-Code). */}
+                <div style={{ marginTop: 14 }}>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500" style={{ margin: "0 0 8px" }}>Dateien je Unterlage</p>
+                  <UnterlagenAkte adminRef={app.ref} ton="hell" />
+                </div>
+              </>
             ) : (
               <p className="text-[12.5px] text-slate-400">
                 Für einen Lead ohne Bestellung gibt es noch keine Unterlagen.
@@ -1074,7 +1253,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
           )}
 
           {/* ── ANRUFE ─────────────────────────────────────────────────── */}
-          {app?.personId && <AnrufeSektion personId={Number(app.personId)} />}
+          {(app?.personId ?? head?.personId) && <AnrufeSektion personId={Number(app?.personId ?? head.personId)} />}
 
           {/* ── E-MAIL-CENTER ── */}
           <Section title="E-Mail-Center — jedes Kunden-Event mit Vorschau" icon={Mail}>
@@ -1136,8 +1315,11 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               erst nach dem Scrollen durch Zahlungen und Dubletten. */}
           <VermerkTafel
             ziel={{
-              ref: data.head?.ref || (id.startsWith("lead-") ? null : id),
-              leadId: id.startsWith("lead-") ? Number(id.replace("lead-", "")) : null,
+              // E-IT-E: aus der aufgelösten Akte, nicht aus der Adresse. Vorher
+              // ging bei einem Link mit Personen-Nummer die NUMMER als „ref" an
+              // die Vermerke — die Tafel blieb leer.
+              ref: app?.ref ?? null,
+              leadId: !app && leadIdDerAkte ? leadIdDerAkte : null,
               name: head.name,
             }}
             onMeldung={flash}
@@ -1178,11 +1360,11 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Unsichere Namens-Treffer (zur Prüfung)</p>
                 {data.duplicates.nameSuspects.map((s: any) => (
                   <p key={s.ref} className="text-[12px] text-slate-600">
-                    <Link href={`/admin/kunde/${encodeURIComponent(s.ref)}`} className="font-semibold text-[#2563eb] hover:underline">{s.name}</Link>
+                    <Link href={akteLink(s.ref) ?? "#"} className="font-semibold text-[#2563eb] hover:underline">{s.name}</Link>
                     {" "}· {s.email || "keine E-Mail"} · <PayBadge status={s.payment_status} /> · {fmtD(s.created_at)}
                   </p>
                 ))}
-                <a href="/admin/dubletten" className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ Zur Dubletten-Prüfung</a>
+                <a href={imChefbuero() ? "/chef/s/dubletten" : "/admin/dubletten"} className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ Zur Dubletten-Prüfung</a>
               </div>
             )}
           </Section>

@@ -84,6 +84,187 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-IT-A (08.10.2026): Pipeline — eine Wiedervorlage-Regel, Rotation in „Wieder dran".
+    id: "2026-10-08-wiedervorlage-regel",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Pipeline: Wer gerade dran war, steht morgen nicht wieder oben",
+    summary:
+      "„Wieder dran“ rotiert jetzt: Vorn steht, wen am längsten niemand versucht hat. Jedes Ergebnis sagt dir, wann der "
+      + "Mensch wieder dran ist — nach einer Regel für alle, die du in der Akte auch von Hand übersteuern kannst.",
+    changes: [
+      "„Zahlt sofort“: Kommt kein Geld, ist der Kunde nach 3 Werktagen (Mo–Fr) wieder dran — „Zahlung prüfen“, nicht schon morgen.",
+      "„Zahlt am …“: am Werktag nach dem genannten Tag („Zusage prüfen“). Eine abgelaufene Zusage steht nur noch EINMAL oben, nicht jeden Tag.",
+      "„Nicht erreicht“ und „Mailbox“: Der Abstand wächst — 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause. Ab dem 9. ruht der Kunde wie bisher.",
+      "Frischer Antrag oder frische Zahlungsmeldung (bis 3 Tage): bis zum 5. Fehlversuch schon am nächsten Werktag wieder in der Liste — aber hinten, nicht oben.",
+      "Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage — auch von Hand; „1 Woche“ und „2 Wochen“ sind dort ausgegraut.",
+      "Stufe A ohne Geld nach 3 Werktagen: EINE Aufgabe „Zahlung gemeldet, nicht da — anrufen und klären“. Sie ist erledigt, sobald du den Kunden erreichst und das Ergebnis einträgst (auch aus der Pipeline) oder die Zahlung gebucht ist; ab dem 9. Fehlversuch übernimmt sie die Leitung.",
+      "Dieselbe Buchung zweimal (Telefon und Akte binnen 30 Minuten) zählt nur einmal als Fehlversuch.",
+      "Ratenkunden behalten ihre Wiedervorlage und Zusage — auch eine Zusage über WhatsApp oder Mara. Vorher waren sie nach höchstens 20 Minuten wieder fällig.",
+      "Ein Ergebnis nach der vereinbarten Rückrufzeit gilt als beantworteter Rückruf.",
+    ],
+    howto: [
+      "Nach jedem Ergebnis steht in der Meldung „Wieder dran am … · Grund“.",
+      "In der Akte unter „anderes Ergebnis“: „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ wählen, dann das Ergebnis — unter jedem Knopf steht das Datum.",
+      "Unter „Wieder dran“ auf „… pausiert“ tippen: Du siehst, wer gerade wartet, bis wann und warum. „Heute wieder dran“ holt ihn sofort zurück — auch oben in der Akte.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+  },
+  {
+    // E-IT-E (08.10.2026): Akte aus jeder Tür + Betreuer-Regel beim Zusammenführen.
+    id: "2026-10-08-akte-und-dubletten",
+    date: "2026-10-08",
+    category: "Behoben",
+    title: "Jede Akte geht auf — und Zusammenführen fragt nur noch, wenn es nötig ist",
+    summary:
+      "Interessenten ohne Bestellung und zusammengeführte Kunden öffnen jetzt ihre Akte statt „nicht gefunden“. "
+      + "Beim Zusammenführen von Dubletten wählst du den Betreuer nur noch, wenn beide Akten einen aktiven Betreuer haben.",
+    changes: [
+      "Öffnest du einen Kunden über einen alten Link (WhatsApp, Anruf, Termin), der inzwischen mit einer zweiten Akte zusammengeführt wurde, "
+        + "geht die gemeinsame Akte auf — oben steht, in welche Person er aufgegangen ist, wann und von wem.",
+      "Geht eine Akte wirklich nicht auf, steht der Grund da (zum Beispiel „gehört nicht zu deinem Bestand“ oder „Personen-Nummer gibt es nicht“).",
+      "„Dubletten zusammenführen“ (Leitung): Vor dem Klick steht, wer danach betreut. Hat nur eine Seite einen aktiven Betreuer, übernimmt er automatisch; "
+        + "ausgeschiedene, gesperrte oder Test-Konten zählen nicht.",
+      "Leitung › Ordnung › „Doppelte Menschen“ zeigt die Paare wieder (vorher stand dort immer „Keine Paare gefunden“).",
+    ],
+    howto: [
+      "Zwei Akten desselben Menschen: Akte öffnen → „Dubletten zusammenführen“ → den anderen suchen → wählen, welche Akte bleibt.",
+      "Steht „Wer betreut künftig?“ da, haben beide Akten einen aktiven Betreuer — dann wählst du ihn aus; die Wahl steht im Protokoll.",
+    ],
+  },
+  {
+    // E-IT-F (08.10.2026): Aufträge — eine Statuswahrheit, nächster Auftrag, Eingang, automatische Erledigung, Kundenname.
+    id: "2026-10-08-auftraege-neu",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Aufträge: Kunde, Eingang, ein Klick — und vieles erledigt sich selbst",
+    summary:
+      "Unter Tasks → Aufträge steht jeder offene Auftrag als Zeile mit Kunde, Art, Eingang und Status. „Erledigt“ geht mit einem Klick, "
+      + "danach öffnet sich der nächste. Erfasst du in der Akte ein Ergebnis, schließen sich die passenden Aufträge des Kunden von selbst.",
+    changes: [
+      "Der Kundenname steht jetzt bei fast jedem Auftrag (vorher fehlte er bei gut der Hälfte), dazu Nummer und Referenz. Gibt es keinen Kunden, steht „ohne Kundenbezug“ da.",
+      "Reihenfolge: dringend zuerst, darin die ältesten zuerst — oben rechts auf „Neueste zuerst“ umschaltbar. Der Eingang steht immer da („Eingang: 08.10. 14:32“).",
+      "„Ich mach das“ gibt es nicht mehr: „Erledigt“ schließt sofort; einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken.",
+      "Automatisch erledigt (mit „Automatisch erledigt durch …“ in der Zeitleiste): dein Gesprächsergebnis „erreicht“ oder „Rückruf vereinbart“, dein Rückruf, dein Termin, deine WhatsApp-Antwort (nicht bei einem Rückrufwunsch — der braucht ein Gespräch), die angeforderte oder erhaltene Unterlage (nur die, die im Auftrag steht), Kartenlink gesendet, Erstzahlung gebucht. Arbeitet ein Kollege an deinem Kunden (Gespräch, Kartenlink, Unterlage), steht bei dir nur ein Hinweis „… – bitte prüfen“. Heikles (Kündigung, Widerruf, Beschwerde, Bestreiten, Löschwunsch, Erstattung — auch in einer Mail-Übergabe), Geld, eine bezahlte Auskunft, „Rate: E-Mail unzustellbar“ und Vorgänge schließt nie das System. „Erledigt“ bei „Kunde hat geschrieben“ verwirft Maras wartenden Entwurf, wie „Übernommen“.",
+      "Kündigung, Widerruf, Beschwerde, Löschantrag und Eskalation stehen ganz oben — sie haben Fristen.",
+      "Erledigte Aufträge stehen im Reiter „Erledigt“ — mit „Wieder öffnen“. Öffnet das System einen Auftrag wieder, steht „Wieder offen“ mit Grund dabei.",
+      "„Akte“ öffnet den Kunden, ohne dass ein Gespräch abbricht. Unten steht dann eine Leiste mit diesem Auftrag: „Erledigt“ und „Nächster Auftrag →“.",
+    ],
+    howto: [
+      "Tasks → Aufträge: Zeile anklicken zum Aufklappen, „Akte“ zum Kunden, „Erledigt“ zum Abschließen.",
+      "In der Akte arbeiten wie immer — nach dem Ergebnis zeigt die Leiste unten „Automatisch erledigt“; mit „Nächster Auftrag →“ geht es weiter.",
+      "Bei „E-Mail unzustellbar“, „Einladung fehlt“, Kündigung, Widerruf, Beschwerde und Löschantrag bitte einen Satz schreiben, was geklärt ist.",
+    ],
+    link: { href: "/agent/aufgaben?reiter=auftraege", label: "Zu deinen Aufträgen" },
+    important: true,
+  },
+  {
+    // E-IT-G (08.10.2026), Punkt (14): Geburtsdatum in drei Feldern, eine Regel für alle Stellen.
+    id: "2026-10-08-geburtsdatum",
+    date: "2026-10-08",
+    category: "Behoben",
+    title: "Geburtsdatum: drei Felder, „63“ wird 1963",
+    summary:
+      "Das Geburtsdatum tippst du jetzt überall in drei Felder Tag · Monat · Jahr — kein Kalender mehr zum Zurückblättern, "
+      + "und ein zweistelliges Jahr wird sichtbar ergänzt („63“ → 1963). Die Akte zeigt es immer vierstellig mit Alter.",
+    changes: [
+      "„Kunde bearbeiten“ und „+ Kunde anlegen“: drei Felder, darunter zum Gegenlesen z. B. „17. November 1963 · 62 Jahre“. „17.11.1963“ am Stück tippen oder einfügen geht auch.",
+      "Wäre der Kunde danach unter 18 oder über 94, fragt die Akte „stimmt das?“ — nach „Stimmt so“ darfst du speichern.",
+      "Gespeichert wird nur, was du geändert hast. Klappt etwas nicht (z. B. eine Telefonnummer ohne Vorwahl), steht dort jetzt „Nicht gespeichert“ mit dem Grund — vorher kam manchmal „Gespeichert“, obwohl nichts gespeichert war.",
+      "Korrigierst du (oder die Leitung) das Geburtsdatum, gilt es an der Person UND an allen Bestellungen; Chefbüro-Akte und deine Akte zeigen dasselbe.",
+      "Gibt ein Kunde im Antragsformular ein anderes Geburtsdatum an, bleibt die Akte stehen (Ausnahme: seine einzige, noch unbezahlte Bestellung). Dann steht im Reiter „Daten“ „Geburtsdatum weicht ab“ und im Verlauf der neue Wert — laut Ausweis das richtige übernehmen.",
+      "Steht dort zusätzlich „Achtung: Eine Bestellung trägt einen anderen Namen“, hängen womöglich zwei Menschen an einer Person (gemeinsame E-Mail) — dann nicht vereinheitlichen, sondern erst klären.",
+      "Kündigungsseite: Passen Name und E-Mail, nimmt die Seite die Kündigung jetzt immer an — auch wenn bei uns kein oder ein anderes Geburtsdatum steht. Dann bekommst du als Betreuer die Aufgabe „Kündigung – Identität prüfen“, und im Verlauf steht, was der Kunde angegeben hat. Gebucht wird erst nach der Prüfung.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Daten“ → „Kunde bearbeiten“ (oder „Geburtsdatum fehlt – jetzt nachtragen“).",
+      "Tag, Monat, Jahr tippen — die Felder springen von selbst weiter. Zeile darunter lesen, dann „Speichern“.",
+      "Ein Geburtsdatum ganz entfernen kann nur die Leitung; ein halb gelöschtes Feld löscht nichts.",
+    ],
+  },
+  {
+    // E-IT-D (08.10.2026, Team-Feedback 4a/4b/4c): Auswertung, Anfordern mit einem Klick, ehrliche Auskunft-Kachel.
+    id: "2026-10-08-finanzauswertung",
+    date: "2026-10-08",
+    category: "Neu",
+    title: "FIAON Finanz- und Bonitätsauswertung — und fehlende Unterlagen mit einem Klick anfordern",
+    summary:
+      "In der Akte unter „Dokumente“ erzeugst du für den Kunden eine Auswertung mit Ampel je Bereich, FIAON-Finanzwert (eigene "
+      + "Berechnung, kein SCHUFA-Score), Plan und PDF. Fehlt Ausweis oder Kontoauszug, schickst du ihm mit einem Klick einen Upload-Link ohne Anmeldung.",
+    changes: [
+      "Der Knopf „Auswertung erzeugen“ wird aktiv, wenn Ausweis und Kontoauszug vollständig sind; sonst steht der genaue Grund dabei (z. B. „es fehlen August und September“).",
+      "„Beim Kunden anfordern“: Mail (und im offenen 24-Stunden-Fenster WhatsApp) mit Link — 14 Tage gültig, ohne Anmeldung, höchstens drei Anfragen am Tag.",
+      "Ein Ausweis als Foto lässt sich von Hand bestätigen (Reisepass, Personalausweis beidseitig, Aufenthaltstitel nur mit Reisepass).",
+      "Nach dem Erzeugen: Vorschau, dann „An den Kunden übergeben“. Rote Gesamtlage oder Vorbehalt: Freigabe nur durch die Leitung — sie bekommt dafür automatisch eine Aufgabe.",
+      "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht (z. B. „wartet auf die Auftragsbestätigung“). Der Haken im Antrag heißt „Einwilligung Datenübermittlung“ — das ist keine Bestellung.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Dokumente“ → Block „FIAON Finanz- und Bonitätsauswertung“.",
+      "Steht beim Kunden „wartet auf die Auftragsbestätigung“: im Gespräch um den Klick in der Mail „Bitte bestätigen Sie kurz Ihren Auftrag“ bitten.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+    important: true,
+  },
+  {
+    // E-IT-B (08.10.2026), Punkte (2) und (11) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-konto-karte-erneut",
+    date: "2026-10-08",
+    category: "Neu",
+    title: "Konto & Karte: Einladung mit einem Klick erneut senden — Gekündigte raus aus der Liste",
+    summary:
+      "In der Akte steht der Kasten „Konto & Karte“ mit dem ganzen Weg der Einladung. „E-Mail erneut senden“ schickt "
+      + "denselben Link noch einmal — ohne neuen Vorgang. Die Liste heißt jetzt „Konto & Karte nachfassen“ und zeigt keine Gekündigten mehr.",
+    changes: [
+      "Kasten „Konto & Karte“ (Überblick und „Sein Antrag“): wann die Einladung zuerst ging, wann zuletzt erneut und von wem, an welche Adresse, und ob sie zugestellt, geöffnet oder geklickt wurde.",
+      "„E-Mail erneut senden“: dieselbe Einladung mit demselben Link — höchstens drei am Tag, mindestens 15 Minuten Abstand; die 10 € bleiben, wem sie gehören.",
+      "Kommt an die Adresse nichts an, steht das rot da — erst die richtige Adresse eintragen, dann erneut senden.",
+      "„Wirksam gekündigt“ ist jetzt EINE Regel für alle Listen und Automatiken; eine gekündigte Bonitätsauskunft ist keine Vertragskündigung.",
+      "Ein Kündigungsantrag aus dem Formular, der noch nicht gebucht ist, steht als „liegt vor, ist aber nicht gebucht“ da — er zählt erst nach „Jetzt buchen“.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → Kasten „Konto & Karte“ → „E-Mail erneut senden“ (Adresse vorher mit dem Kunden abgleichen).",
+      "Bestand: Filter „Konto & Karte nachfassen“; auf dem Schreibtisch stehen die Fälle unten in „Jetzt dran“.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+  },
+  {
+    // E-IT-C (08.10.2026), Punkte (3) und (13) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-unterlagen-einzeln",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Unterlagen: jede Datei einzeln — Hinzufügen statt Ersetzen",
+    summary:
+      "Im Reiter „Dokumente“ siehst du je Unterlage den Stand (liegt vor, fehlt, wird geprüft, bitte neu) und jede Datei einzeln. "
+      + "Neue Dateien legen sich dazu, statt die alten zu ersetzen — beim Kunden genauso.",
+    changes: [
+      "„Hinzufügen“ legt den fehlenden Monat oder die Rückseite dazu; „Alles ersetzen“ tauscht nur mit Grund aus; „Entfernen“ nimmt eine falsche Datei heraus (sie bleibt im Archiv).",
+      "Neu: „Weitere Unterlagen“ (Aufenthaltstitel, Einkommensnachweis, Bescheide, Sonstiges); deine Notiz dort sieht der Kunde nicht.",
+      "Bis 50 MB je Datei, auch iPhone-Fotos (HEIC); eine passwortgeschützte, leere oder falsche Datei bekommt einen klaren Satz statt eines Fehlurteils.",
+      "„Geprüft“ setzt du, wenn du hingesehen hast — danach entfernt der Kunde dort nichts mehr selbst. Ausweisfotos liest keine KI: bitte selbst ansehen.",
+    ],
+    howto: [
+      "Akte öffnen → Reiter „Dokumente“ → bei der Unterlage „Hinzufügen“, „Entfernen“ oder „Geprüft“.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+  },
+  {
+    // E-IT-H (08.10.2026), Punkt (15) — Eintrag beim Zusammenführen der IT-Etappe nachgetragen.
+    id: "2026-10-08-whatsapp-raum-gross",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "WhatsApp-Raum: ganzer Bildschirm, größere Schrift, Suche über alle Gespräche",
+    summary:
+      "Der WhatsApp-Raum füllt jetzt den ganzen Bildschirm, die Schrift lässt sich vergrößern, und die Suche läuft über deine Gespräche statt nur über die geladene Liste.",
+    changes: [
+      "Nur Verlauf, Liste und Fall rollen; die Liste lässt sich mit « zur Schiene einklappen.",
+      "„Schrift größer“ vergrößert Nachrichten, Liste und Fall im ganzen Raum.",
+      "Die Liste startet mit „Mit Antwort“; die Suche schaut im Standardfilter in alle deine Gespräche.",
+      "Aus der Akte („Chat im WhatsApp-Raum öffnen“) und aus Maras Aufgaben springst du direkt in das richtige Gespräch.",
+      "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile.",
+    ],
+    link: { href: "/agent/whatsapp", label: "WhatsApp-Raum öffnen" },
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

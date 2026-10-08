@@ -230,6 +230,31 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     fussnote: "Nach Vertragsende bleiben Ihre Unterlagen und Schreiben 90 Tage in Ihrem Bereich einsehbar.",
   },
 
+  // ── EINGANGSBESTÄTIGUNG DER KÜNDIGUNGSSEITE (Querprüfung 08.10.2026) ────
+  // § 312k Abs. 4 BGB: Inhalt der Erklärung, Datum und Uhrzeit des Eingangs und der
+  // Zeitpunkt, zu dem gekündigt werden soll — sofort und in Textform. Die Werte kommen
+  // fertig aus kuendigungEingangInhalt (server/lib/fiaon-kuendigung-identitaet.ts).
+  // Kein Knopf: Es gibt nichts zu tun. Die Buchung mit Vertragsende und offener Rate
+  // bestätigt danach kuendigung_bestaetigt.
+  kuendigung_eingegangen: {
+    betreff: "Eingangsbestätigung: Ihre Kündigung ist bei uns eingegangen",
+    preheader: "Eingegangen am {{params.eingang_text}} — Ihre Kündigung gilt ab dem Eingang.",
+    titel: "Ihre Kündigung ist eingegangen",
+    marke: "Vertragspost",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, hiermit bestätigen wir den Eingang Ihrer Kündigung über unsere Kündigungsseite am {{params.eingang_text}}.",
+      "{{params.zeitpunkt_satz}} Ihre Kündigung gilt ab ihrem Eingang — Sie müssen nichts weiter tun.",
+      "Zu welchem Tag Ihr Vertrag endet und ob bis dahin noch eine Rate offen ist, bestätigen wir Ihnen in einer zweiten E-Mail, sobald wir die Kündigung in Ihrem Vertrag eingetragen haben. Haben Sie diese Kündigung nicht selbst abgeschickt, antworten Sie bitte auf diese E-Mail.",
+    ],
+    daten: [
+      { label: "Eingegangen am", wert: "{{params.eingang_text}}" },
+      { label: "Kündigung zum", wert: "{{params.zeitpunkt_text}}" },
+      { label: "Ihre Erklärung", wert: "{{params.erklaerung_text}}" },
+      { label: "Antragsnummer", wert: "{{params.antrag_nr}}" },
+    ],
+    fussnote: "Diese Nachricht ist keine Werbung, sondern die Eingangsbestätigung Ihrer Kündigung (§ 312k BGB).",
+  },
+
   vertrag_beendet: {
     betreff: "Ihr Vertrag ist beendet — danke für die Zeit",
     preheader: "Die letzte Rate ist da. Damit ist alles erledigt.",

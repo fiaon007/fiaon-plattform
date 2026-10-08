@@ -22,6 +22,7 @@ import { graph, MetaFehler } from "./fiaon-meta";
 import { WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
+import { geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
 import { waFehlerText, waFehlerCode, WA_CODE_WERBUNG_ABBESTELLT } from "./fiaon-wa-unzustellbar";
 import { waBremse, kontofehlerMelden } from "./fiaon-wa-bremse";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
@@ -1205,12 +1206,15 @@ async function angabeNachtragen(leadId: number | null, personId: number | null, 
     }
     const d = NUR_DATUM.exec(t);
     if (d) {
-      const jahr = Number(d[3]);
       // Ein Geburtsdatum, das kein Geburtsdatum sein kann, ist keins.
       // `fiaon_leads` führt kein Geburtsdatum — es gehört an den Menschen.
-      if (personId && jahr >= 1920 && jahr <= new Date().getFullYear() - 16) {
-        const iso = `${d[3]}-${String(d[2]).padStart(2, "0")}-${String(d[1]).padStart(2, "0")}`;
-        await lauf`UPDATE fiaon_persons SET birthdate = ${iso}, updated_at = NOW() WHERE id = ${personId} AND birthdate IS NULL`.catch(() => {});
+      // E-IT-G (08.10.2026): über den einen Leser — vorher prüfte diese Stelle weder
+      // Tag noch Monat („31.02.1990“ und „03/14/1990“ wären 1990-02-31 bzw. 1990-14-03
+      // geworden). Übernommen wird nur ein eindeutiges Datum (Kontext „akte“, Stand ok:
+      // 18 bis 94 Jahre); alles mit Rückfrage bleibt dem Menschen in der Akte.
+      const g = geburtsdatumLesen(t, "akte");
+      if (personId && g.stand === "ok" && g.iso && !g.jahrErgaenzt) {
+        await lauf`UPDATE fiaon_persons SET birthdate = ${g.iso}, updated_at = NOW() WHERE id = ${personId} AND birthdate IS NULL`.catch(() => {});
       }
       return;
     }

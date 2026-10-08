@@ -28,7 +28,7 @@ import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
-import { bildAlsPdf, istBild, istHeic } from "../lib/fiaon-bild-zu-pdf";
+import { bildAlsPdf } from "../lib/fiaon-bild-zu-pdf";
 import { personFuerRef, keinePerson, sauberName, berlinHeute, tag, werktageSpaeter, ensureAppTabellen, antraegeFreigeschaltet } from "./fiaon-app";
 import { auftragFuerKunden, todoMeldung } from "./fiaon-betreiber-todo";
 import { schreibenErzeugen, unterschriftHtml, unterschriftEinsetzen, schreibenAlsPdf, hashVon, fusszeileFuer, markenzeileFuer, datumPlusMonate, type SchreibenArt, type SchreibenDaten } from "../lib/fiaon-schreiben";
@@ -490,30 +490,11 @@ router.get("/kunde/:ref/app/vorgaenge/:id", requireKunde, async (req: KundeReque
 const bescheidUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024, files: 10, fields: 5 },
-  fileFilter: (_req, file, cb) => {
-    const art = String(file.mimetype || "").toLowerCase();
-    if (art === "application/pdf" || istBild(art)) cb(null, true);
-    else if (istHeic(art)) cb(new Error("Dieses Foto liegt im iPhone-Format HEIC vor. Bitte stellen Sie in den iPhone-Einstellungen unter Kamera → Formate auf „Maximale Kompatibilität“ und fotografieren Sie den Bescheid noch einmal."));
-    else cb(new Error("Wir können Fotos (JPG, PNG) und PDF-Dateien lesen. Bitte fotografieren Sie den Bescheid mit der Kamera."));
-  },
+  // E-IT-C (08.10.2026, Punkt 13): kein Filter nach Browser-Angabe mehr — den Typ bestimmt der Inhalt
+  // (server/lib/fiaon-datei-eingang.ts: HEIC → JPEG, Foto gedreht, ohne Metadaten, Passwort-PDF mit Satz).
 });
 
-const NUR_FOTO_PDF = "Wir können Fotos (JPG, PNG) und PDF-Dateien lesen. Bitte fotografieren Sie den Bescheid mit der Kamera.";
-/**
- * Passen die ersten Bytes zum gemeldeten Typ? Der Client-MIME-Typ ist nur eine
- * Behauptung — eine Fremddatei mit dem Etikett „application/pdf“ würde sonst als
- * PDF gespeichert und dem Mitarbeiter genau so ausgeliefert.
- */
-function dateiKopfPasst(mime: string, b: Buffer): boolean {
-  if (!b || b.length < 8) return false;
-  const art = String(mime || "").toLowerCase();
-  if (art === "application/pdf") return b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d; // %PDF-
-  if (art === "image/jpeg" || art === "image/jpg") return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
-  if (art === "image/png") return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
-  if (art === "image/webp") return b.subarray(0, 4).toString("ascii") === "RIFF" && b.subarray(8, 12).toString("ascii") === "WEBP";
-  return false;
-}
-
+const NUR_FOTO_PDF = "Wir können Fotos (JPG, PNG, iPhone-Fotos) und PDF-Dateien lesen. Bitte fotografieren Sie den Bescheid mit der Kamera.";
 /**
  * POST /kunde/:ref/app/vorgaenge/:id/bescheid (multipart: bescheid=Seiten, bis 10)
  * Die Antwort der Stelle kommt per Post zum Kunden — das Foto schließt den Kreis.
@@ -540,15 +521,23 @@ router.post("/kunde/:ref/app/vorgaenge/:id/bescheid", requireKunde, (req, res, n
     if (VOR_VERSAND.indexOf(String(v.stand)) !== -1 || String(v.stand) === "zurueckgezogen") return fehler(res, 409, "Zu diesem Vorgang ist noch nichts versandt – eine Antwort der Stelle kann daher noch nicht vorliegen.");
     const seiten = ((req as any).files as Express.Multer.File[] | undefined) ?? [];
     if (!seiten.length || !seiten[0]?.buffer?.length) return fehler(res, 400, "Es ist kein Foto angekommen. Bitte versuchen Sie es noch einmal.");
-    for (let i = 0; i < seiten.length; i++) if (!dateiKopfPasst(seiten[i].mimetype, seiten[i].buffer)) return fehler(res, 400, NUR_FOTO_PDF);
+    // E-IT-C: Eingangsprüfung je Seite (ersetzt den Abgleich Kopf ↔ Browser-Angabe, der iPhone-Fotos abwies).
+    const { dateiEingang } = await import("../lib/fiaon-datei-eingang");
+    const { lesefehlerSatz } = await import("@shared/fiaon-lesefehler");
+    const geprueft: { buffer: Buffer; typ: string; name: string }[] = [];
+    for (const f of seiten) {
+      const e = await dateiEingang(f.buffer, f.originalname);
+      if (!e.ok) return fehler(res, 400, e.klasse === "format" ? NUR_FOTO_PDF : lesefehlerSatz(e.klasse, "sie", { name: e.name, mb: 12 }));
+      geprueft.push({ buffer: e.datei.buffer, typ: e.datei.typ, name: e.datei.name });
+    }
     const id = Number(v.id);
     const az = String(v.aktenzeichen || aktenzeichenFuer(id));
     const datum = heuteText();
     const dokIds: number[] = [];
-    for (let i = 0; i < seiten.length; i++) {
-      const f = seiten[i];
+    for (let i = 0; i < geprueft.length; i++) {
+      const f = geprueft[i];
       let pdf: Buffer;
-      try { pdf = istBild(f.mimetype) ? await bildAlsPdf(f.buffer, sauberName(f.originalname, `bescheid-${i + 1}.jpg`)) : f.buffer; }
+      try { pdf = f.typ !== "pdf" ? await bildAlsPdf(f.buffer, sauberName(f.name, `bescheid-${i + 1}.jpg`)) : f.buffer; }
       catch (e: any) { console.error("[APP] bescheid bildAlsPdf:", e?.message || e); return fehler(res, 400, NUR_FOTO_PDF); }
       const hash = createHash("sha256").update(pdf).digest("hex");
       const [d] = (await sqlPool`

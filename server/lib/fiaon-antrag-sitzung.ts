@@ -25,6 +25,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import { requireKunde, type KundeRequest } from "./fiaon-kunde-session";
+import { geburtsdatumIso, geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
 
 const COOKIE = "fiaon_antrag";
 const STUNDEN = 48;
@@ -101,10 +102,11 @@ export function angabenPassen(
   if (!nachname || nachname !== n(body?.lastName)) return false;
   const email = n(bestand?.email);
   if (email && email === n(body?.email)) return true;
-  const geburt = String(bestand?.birthdate ?? "").slice(0, 10);
+  // E-IT-G (08.10.2026): beide Seiten über den einen Leser (zweistellige Jahre, „03“ = „3“).
+  const geburt = geburtsdatumIso(bestand?.birthdate);
   const imBody = body?.birthYear && body?.birthMonth && body?.birthDay
-    ? `${body.birthYear}-${String(body.birthMonth).padStart(2, "0")}-${String(body.birthDay).padStart(2, "0")}`
-    : "";
+    ? geburtsdatumLesen({ tag: body.birthDay, monat: body.birthMonth, jahr: body.birthYear }, "pruefung").iso
+    : null;
   return !!geburt && geburt === imBody;
 }
 

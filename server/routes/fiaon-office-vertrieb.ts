@@ -38,7 +38,7 @@ import { jetztErreichbarSql } from "@shared/fiaon-erreichbarkeit";
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
-import { KARTE_SQL, karte } from "./fiaon-agent-start";
+import { KARTE_SQL, karte, NAME_SQL } from "./fiaon-agent-start";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { wartetSql } from "../lib/fiaon-warten";
 import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
@@ -48,6 +48,20 @@ import { gesperrteFreigeben } from "../lib/fiaon-zuteilung";
 import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 import { globalKundeSql, globalKundeBereit } from "../lib/fiaon-global-kunde";
 import { limitStandText } from "@shared/fiaon-limit-gespraech";
+import {
+  RATE_FAELLIG_SQL, EREIGNIS_SQL, LETZTER_KONTAKT_SQL, LETZTER_VERSUCH_SQL, LETZTES_ERGEBNIS_SQL,
+  zusageOffenSql, rueckrufOffenSql, tagespauseSql, frischBandSql, frischUnbearbeitetSql, geradeBearbeitetSql,
+  kontaktZeileSql,
+} from "../lib/fiaon-pipeline-reihung";
+import {
+  GRUND_TEXT, grundAusLetztemErgebnis, wiederDranText, PAUSE_AB_FEHLVERSUCH,
+  type WiedervorlageGrund,
+} from "@shared/fiaon-wiedervorlage";
+import { berlinToday } from "../lib/fiaon-time";
+// E-IT-A (08.10.2026): RATE_FAELLIG_SQL und EREIGNIS_SQL wohnen jetzt in
+// server/lib/fiaon-pipeline-reihung.ts (tier.ts braucht sie und darf keine
+// Route laden). Die Telefonkartei liest sie weiter HIER (E-201) — unverändert.
+export { RATE_FAELLIG_SQL, EREIGNIS_SQL };
 
 const router = Router();
 
@@ -175,10 +189,34 @@ export interface KundenSituation {
    * Limit-Gespräch, bei Global-Kunden und wenn die Abfrage ausfiel.
    */
   limit?: { text: string; grund: string; buchbar: boolean; abIso: string | null } | null;
+  /**
+   * E-IT-A (08.10.2026): Wann ist der Mensch wieder in der Pipeline, und warum?
+   * Für den Chip im Akte-Kopf („Wieder dran am Mi 15.10. · Zahlung prüfen" mit
+   * „Heute wieder dran") und die Vorschau unter den Ergebnis-Knöpfen.
+   */
+  wiedervorlage?: {
+    am: string | null; grund: string; text: string | null; versuche: number;
+    stufeA: boolean; frisch: boolean; ruht: boolean; pausiert: boolean; letzterVersuch: string | null;
+  } | null;
 }
-export async function kundenSituation(personId: number): Promise<KundenSituation | null> {
-  const [z] = (await sqlPool`
+export async function kundenSituation(
+  personId: number,
+  /** E-IT-A: Verbindung oder Transaktion (Prüfstand); Vorgabe wie bisher der Pool. */
+  lauf: any = sqlPool,
+): Promise<KundenSituation | null> {
+  const [z] = (await lauf`
     SELECT p.priority_tier, p.promised_payment_date,
+      -- E-IT-A (08.10.2026): das Zusagedatum als TEXT. promised_payment_date kommt
+      -- aus postgres.js als Date-Objekt; String(Date).slice(0, 10) ergab „Thu Sep 24“,
+      -- und „Thu …“ < „2026-…“ ist nie wahr — die Lage „Zusage gebrochen“ (E-046)
+      -- erschien deshalb in KEINER Akte (gefunden vom Prüfstand pruef-it-a.ts).
+      to_char(p.promised_payment_date, 'YYYY-MM-DD') AS zusage_iso,
+      -- E-IT-A: Wiedervorlage, Zähler, letzter Versuch, letztes Ergebnis, Frische.
+      to_char(p.follow_up_date, 'YYYY-MM-DD') AS wieder_am, COALESCE(p.unreachable_count, 0) AS versuche_ne,
+      ${sqlPool.unsafe(ruhtSql("p"))} AS ruht,
+      NULLIF(${sqlPool.unsafe(LETZTER_VERSUCH_SQL)}, 'epoch'::timestamptz) AS letzter_versuch,
+      ${sqlPool.unsafe(LETZTES_ERGEBNIS_SQL)} AS letztes_ergebnis,
+      ${sqlPool.unsafe(frischBandSql())} AS frisch,
       (SELECT row_to_json(x) FROM (
          SELECT r.id, r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
                 ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage
@@ -253,7 +291,15 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     faelligAm: String(z.rate.faellig_am), tage: Number(z.rate.tage || 0),
     referenz: z.rate.zahlungsreferenz ?? null,
   } : null;
-  const zusageGebrochen = z.promised_payment_date && String(z.promised_payment_date).slice(0, 10) < heute;
+  // ── STUFE A: „ZAHLUNG GEMELDET" STATT „ZUSAGE NICHT GEHALTEN" (Gegenprüfung 08.10.2026) ──
+  // Mit dem korrigierten Textvergleich (oben, zusage_iso) griff „zusage_gebrochen"
+  // auch bei Stufe A: Eine Zahlungsmeldung löscht promised_payment_date nicht.
+  // Gemessen (Produktion, nur lesend): 29 Menschen auf Stufe A mit abgelaufener
+  // Zusage — ihre Akte hätte rot „Zusage nicht gehalten – fass nach" gezeigt,
+  // samt Leitfaden „frag, was dazwischenkam". Sie haben aber gemeldet, dass sie
+  // bezahlt haben; das richtige Gespräch ist „Zahlung gemeldet – Eingang prüfen".
+  // Für Stufe A gilt deshalb die Zahlungsmeldung vor der alten Zusage.
+  const zusageGebrochen = !!z.zusage_iso && String(z.zusage_iso) < heute && tier !== 1;
   const art: SituationsArt =
     rate ? "rate_ueberfaellig"
     : zusageGebrochen ? "zusage_gebrochen"
@@ -270,10 +316,18 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     .then((m) => m.limitAnspruchFuerPerson(personId))
     .catch((e) => { console.error("[VERTRIEB] Limit-Gespräch in der Situation:", e?.message || e); return null; });
   const limitText = limitStandText(limitStand);
+  const versucheNe = Number(z.versuche_ne || 0);
+  const wvGrund = grundAusLetztemErgebnis(z.letztes_ergebnis, versucheNe);
+  const wvAm = z.wieder_am ? String(z.wieder_am) : null;
   return {
     art, rate,
+    wiedervorlage: {
+      am: wvAm, grund: wvGrund, text: wvAm ? wiederDranText(wvAm, wvGrund, heute) : null,
+      versuche: versucheNe, stufeA: tier === 1, frisch: z.frisch === true, ruht: z.ruht === true,
+      pausiert: !!wvAm && wvAm > heute, letzterVersuch: z.letzter_versuch ?? null,
+    },
     limit: limitStand && limitText ? { text: limitText, grund: limitStand.grund, buchbar: limitStand.buchbar, abIso: limitStand.abIso } : null,
-    zusageAm: z.promised_payment_date ? String(z.promised_payment_date).slice(0, 10) : null,
+    zusageAm: z.zusage_iso ? String(z.zusage_iso) : null,
     rueckrufAm: z.rueckruf_am ?? null,
     terminAm: z.termin_am ?? null,
     terminFaelligAm: z.termin_faellig_am ?? null,
@@ -329,13 +383,19 @@ async function mandatsZahlen(agentId: number): Promise<{ anzahl: number; ids: nu
 // Uhrzeit JETZT hat — Einzelheiten bei SOFORT_SQL.
 // ═══════════════════════════════════════════════════════════════════════════
 const SLOTS = 6;
-/** Zusage fällig: der Kunde hat ein Zahlungsdatum genannt, das erreicht ist. */
-const ZUSAGE_SQL = `(p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE})`;
-/** Rückruf fällig: ein zugesagter Rückruf, dessen Zeitpunkt erreicht ist. */
-const RUECKRUF_SQL = `EXISTS (
-  SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
-  WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
-    AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW())`;
+// ── E-IT-A (08.10.2026): ZUSAGE UND RÜCKRUF SIND EINMAL DRINGEND, NICHT EWIG ──
+// VORHER: ZUSAGE_SQL = „promised_payment_date ≤ heute" — ohne Alter, ohne
+// „seither versucht". Gemessen am 07.10.: 77 Menschen belegten JEDEN Tag die
+// Plätze 1–26, 42 Zusagen älter als 30 Tage, bei 56 gab es seither einen
+// Kontakt. „Zahlt sofort" (Zusage = heute) stand am nächsten Tag auf Platz 1.
+// NACHHER: dringend nur, solange nach dem Zusagetag noch NIEMAND versucht hat
+// (zusageOffenSql). Dasselbe für den Rückruf (rueckrufOffenSql): Wer nach der
+// vereinbarten Zeit angerufen hat, hat ihn beantwortet. Die Zusage selbst
+// bleibt stehen — die Akte zeigt „Zusage gebrochen".
+/** Zusage fällig und seit dem Zusagetag noch nicht versucht. */
+const ZUSAGE_SQL = zusageOffenSql();
+/** Rückruf fällig und seit der vereinbarten Zeit noch nicht versucht. */
+const RUECKRUF_SQL = rueckrufOffenSql();
 /** Termin heute beim angemeldeten Mitarbeiter ($1). */
 const TERMIN_HEUTE_SQL = `EXISTS (
   SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
@@ -379,43 +439,25 @@ const RUECKRUF_JETZT_SQL = `EXISTS (
  */
 // Exportiert (21.09.2026, E-201): Die Telefonkartei im Chefbüro zieht „Rate offen" nach
 // GENAU dieser Regel — eine zweite Fassung würde andere Menschen zeigen als die Arbeitsliste.
-export const RATE_FAELLIG_SQL = `EXISTS (
-  SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
-   WHERE ar.person_id = p.id AND ar.merged_into IS NULL
-     AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= ${HEUTE})`;
-/** Die jüngste erreichte Fälligkeit — sie ist für diesen Menschen das Ereignis. */
-const RATE_FAELLIG_AM_SQL = `(
-  SELECT MAX(r2.faellig_am)::timestamptz FROM fiaon_abo_raten r2 JOIN fiaon_applications ar2 ON ar2.ref = r2.ref
-   WHERE ar2.person_id = p.id AND ar2.merged_into IS NULL
-     AND r2.status = 'offen' AND r2.storniert_am IS NULL AND r2.faellig_am <= ${HEUTE})`;
-/**
- * Das jüngste Ereignis: Antrag gestellt, Zahlung gemeldet oder eine Rate
- * fällig geworden (sonst Anlage der Person).
- *
- * 08.09.2026: Die Fälligkeit kam dazu. Ohne sie stünde ein Kunde, dessen Rate
- * gestern fällig wurde, mit dem Datum seines drei Monate alten Antrags in der
- * Reihung — also ganz unten. Die Reihung sortiert das jüngste Ereignis nach
- * oben, und das ist hier genau richtig: Eine frisch fällige Rate wird zu
- * 18,6 % bezahlt, eine in Mahnstufe 5 zu 3,4 %.
- */
-// Exportiert (E-201): dieselbe Frische-Reihung für die Telefonkartei.
-export const EREIGNIS_SQL = `GREATEST(
-  COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at),
-  COALESCE((SELECT MAX(a5.claimed_paid_at) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
-              AND a5.payment_status = 'claimed_paid'), p.created_at),
-  COALESCE(${RATE_FAELLIG_AM_SQL}, p.created_at),
-  p.created_at)`;
+// E-IT-A (08.10.2026): RATE_FAELLIG_SQL, die jüngste Fälligkeit und EREIGNIS_SQL
+// (Antrag, Zahlungsmeldung, Rate fällig — 08.09.2026, E-165) stehen wortgleich
+// in server/lib/fiaon-pipeline-reihung.ts; oben importiert und weitergereicht.
 /** Noch kein Gesprächsergebnis zu diesem Menschen — niemand hat ihn je angerufen. */
 // 08.09.2026, 15:20 (Störung: Pipeline lud bei Daniel und Nikita nicht): VORHER stand hier
 // EIN NOT EXISTS mit „cn.person_id = p.id OR cn.ref IN (…)“. Das ODER über zwei Spalten
 // lässt Postgres keinen Index nehmen — für jeden der 1.236 Kunden im Bestand wurde das
 // ganze Kontaktprotokoll (40.783 Zeilen) gelesen: 50 Millionen Zeilenprüfungen je Aufruf,
 // 10–14 Sekunden, Abbruch im Browser. NACHHER zwei NOT EXISTS, jedes über seinen Index.
+// Gegenprüfung 08.10.2026 (E-IT-A): Ein Tagesbericht-Nachtrag (Gespräch übers
+// eigene Telefon, E-216) ist ein Kontakt — er bleibt aber eine Systemzeile ohne
+// outcome, damit Leistung und Teamzahlen ihn nicht mitzählen. kontaktZeileSql
+// (fiaon-pipeline-reihung.ts) erkennt beides; vorher galt so ein Mensch als
+// „nie angerufen" und stand links unter „Neu für dich".
 const NIE_SQL = `(NOT EXISTS (
-  SELECT 1 FROM fiaon_contact_log cn WHERE cn.person_id = p.id AND cn.type = 'result' AND cn.voided_at IS NULL)
+  SELECT 1 FROM fiaon_contact_log cn WHERE cn.person_id = p.id AND ${kontaktZeileSql("cn")} AND cn.voided_at IS NULL)
   AND NOT EXISTS (
   SELECT 1 FROM fiaon_contact_log cr JOIN fiaon_applications an ON an.ref = cr.ref
-   WHERE an.person_id = p.id AND cr.type = 'result' AND cr.voided_at IS NULL))`;
+   WHERE an.person_id = p.id AND ${kontaktZeileSql("cr")} AND cr.voided_at IS NULL))`;
 // ═══════════════════════════════════════════════════════════════════════════
 // SEIT DEM LETZTEN ANRUF IST ETWAS PASSIERT (23.09.2026, E-212)
 //
@@ -446,11 +488,9 @@ const NIE_SQL = `(NOT EXISTS (
 // geteilt (person_id und ref getrennt); ein ODER über zwei Spalten hat die
 // Pipeline am 08.09. schon einmal zum Stehen gebracht.
 // ═══════════════════════════════════════════════════════════════════════════
-const LETZTER_KONTAKT_SQL = `GREATEST(
-  COALESCE((SELECT MAX(ck.created_at) FROM fiaon_contact_log ck
-              WHERE ck.person_id = p.id AND ck.type = 'result' AND ck.voided_at IS NULL), 'epoch'::timestamptz),
-  COALESCE((SELECT MAX(cm.created_at) FROM fiaon_contact_log cm JOIN fiaon_applications am ON am.ref = cm.ref
-              WHERE am.person_id = p.id AND cm.type = 'result' AND cm.voided_at IS NULL), 'epoch'::timestamptz))`;
+// LETZTER_KONTAKT_SQL (das jüngste Gesprächsergebnis, zwei indexfreundliche
+// Unterabfragen) steht seit E-IT-A in server/lib/fiaon-pipeline-reihung.ts —
+// die Einstufung (tier.ts) braucht ihn auch.
 /** Das jüngste eigene Zutun: Antrag abgeschickt oder Zahlung gemeldet. */
 // E-251 (28.09.2026): „abgeschickt" heißt submitted_at, nicht created_at. created_at ist der
 // Moment, in dem der Kunde Schritt 1 öffnet — wer um 9:50 beginnt, um 10:00 als Lead angerufen
@@ -613,6 +653,73 @@ const gruppeVon = (tier: number, rateFaellig = false) =>
 // ═══════════════════════════════════════════════════════════════════════════
 const KEIN_GLOBAL_KUNDE_SQL = `NOT ${globalKundeSql("p.id")}`;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE RECHTE SPALTE ROTIERT (E-IT-A, 08.10.2026 — Justin: „gerade bearbeitet →
+// nie am nächsten Tag wieder vorn; ältester Versuch zuerst innerhalb gleicher
+// Dringlichkeit")
+//
+// ── VORHER ──────────────────────────────────────────────────────────────
+// „Wieder dran" lief nach HITZE_ORDNUNG: nach dem Kalendertag des jüngsten
+// Ereignisses (meist dem Antrag). Wann wir den Menschen zuletzt versucht
+// hatten, kam nicht vor. Ein bearbeiteter Kunde kehrte nach 1–3 Tagen auf
+// seinen alten Platz zurück; wer hinten stand, kam nie dran.
+//
+// ── NACHHER — Bänder nach Dringlichkeit, darin Rotation ─────────────────
+//   0  feste Uhrzeit JETZT (Termin ±, Rückruf gerade fällig) — wie E-251
+//   1  Termin heute, Zusage fällig und seither nicht versucht („Zahlung/
+//      Zusage prüfen" — EINMAL, kein Dauerplatz mehr)
+//   2  Rückruf fällig und seither nicht versucht
+//   3  frisch: Stufe A/B oder Rate, Ereignis höchstens FRISCH_TAGE alt
+//      (der erste Tag entscheidet, E-162/E-251) — aber NICHT, wer gerade
+//      bearbeitet wurde (siehe unten)
+//   4  alle anderen (A, B, Rate gleichrangig)
+//   5  Stufe C (Lead ohne Antrag) — wie bisher zuletzt
+// Innerhalb jedes Bandes: erst wer NICHT gerade bearbeitet wurde, dann
+// passendes Wunschfenster (E-184), dann wer am LÄNGSTEN nicht versucht wurde
+// (Ergebnis oder echter Anruf, lv), dann das jüngere Ereignis. Jede Bearbeitung
+// setzt lv neu — der Mensch geht ans Ende seines Bandes; was heute nicht
+// geschafft wird, steht morgen vorn.
+// lv/ev kommen als Ausdruck herein (LATERAL, einmal je Zeile gerechnet).
+//
+// ── GEGENPRÜFUNG 08.10.2026: GERADE BEARBEITET NIE VORN ─────────────────
+// Ein frischer Kunde, gestern „nicht erreicht", hatte die Wiedervorlage auf
+// heute (Frische: nächster Werktag) — und Band 3 stellte ihn heute VOR das
+// ganze Band 4. Jetzt: Wer am vorigen Werktag oder heute versucht wurde
+// (geradeBearbeitetSql, fiaon-pipeline-reihung.ts), steht nie in Band 3 und
+// innerhalb jedes Bandes hinter allen anderen. Er ist da — aber hinten.
+// ═══════════════════════════════════════════════════════════════════════════
+function wiederOrdnung(lv: string, ev: string): string {
+  return `
+  CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0
+       WHEN ${TERMIN_HEUTE_SQL} OR ${zusageOffenSql(lv)} THEN 1
+       WHEN ${rueckrufOffenSql(lv)} THEN 2
+       WHEN ${frischUnbearbeitetSql(ev, lv)} THEN 3
+       WHEN p.priority_tier = 3 THEN 5
+       ELSE 4 END,
+  CASE WHEN ${geradeBearbeitetSql(lv)} THEN 1 ELSE 0 END,
+  ${FENSTER_ORDNUNG},
+  ${lv} ASC,
+  ${ev} DESC,
+  p.id DESC`;
+}
+/**
+ * PAUSIERT (E-IT-A): eigene Menschen, die die Wiedervorlage-Regel gerade
+ * zurückhält — Wiedervorlage in der Zukunft, nicht ruhend, nicht wartend, nicht
+ * seither selbst aktiv. Zähler am Spaltenkopf und Liste GET /agent/vertrieb/pausiert.
+ * Gegenprüfung 08.10.2026: NICHT, wen die Arbeitsliste aus einem ANDEREN Grund
+ * fernhält — eine Zusage ab heute oder ein gebuchter Termin an einem späteren
+ * Tag (dieselben Bedingungen wie basisTeile/basisWieder). Sonst zählte „Y pausiert"
+ * Menschen, die „Heute wieder dran" gar nicht zurückholen kann, und der Knopf
+ * wirkte kaputt.
+ */
+const PAUSIERT_SQL = `p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+  AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")} AND ${KEIN_GLOBAL_KUNDE_SQL}
+  AND p.follow_up_date > ${HEUTE} AND NOT ${FRISCH_SQL}
+  AND (p.promised_payment_date IS NULL OR p.promised_payment_date < ${HEUTE})
+  AND NOT EXISTS (SELECT 1 FROM fiaon_termine tzp WHERE tzp.person_id = p.id AND tzp.status = 'gebucht' AND tzp.abgesagt_am IS NULL
+                  AND (tzp.beginn AT TIME ZONE 'Europe/Berlin')::date > ${HEUTE})
+  AND (p.priority_tier BETWEEN 1 AND 3 OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))`;
+
 /**
  * Zieht Nachschub aus dem Kundenpool, wenn der Mitarbeiter in „Neu für dich"
  * weniger als SLOTS arbeitbare Menschen hat. Läuft vor jedem Aufbau der Liste.
@@ -686,6 +793,11 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
        -- E-272: nie einen Global-Kunden lösen (KEIN_GLOBAL_KUNDE_SQL oben).
        AND ${KEIN_GLOBAL_KUNDE_SQL}
        AND p.promised_payment_date IS NULL
+       -- E-IT-A (08.10.2026): Wer nach der Wiedervorlage-Regel PAUSIERT (bis zu
+       -- 14 Tage nach dem 6. Fehlversuch), ist nicht liegen gelassen. Bis eine
+       -- Woche nach seiner Wiedervorlage bleibt er beim Betreuer — sonst fiele
+       -- er in einen Pool, aus dem nachschubZiehen nie zieht (nur NIE_SQL).
+       AND (p.follow_up_date IS NULL OR p.follow_up_date < ${HEUTE} - 7)
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t2
                         WHERE t2.person_id = p.id AND t2.status = 'gebucht'
                           AND t2.abgesagt_am IS NULL AND t2.beginn > NOW())
@@ -801,6 +913,41 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // ══════════════════════════════════════════════════════════════════════
     await poolNachschub(me, req.agent!.is_test_account === true);
 
+    const liste = await arbeitslisteLesen(me);
+    const mandate = await mandatsZahlen(me);
+    res.json({
+      ok: true,
+      rolle: "agent",
+      ...liste,
+      mandate: { anzahl: mandate.anzahl, max: MANDATE_MAX },
+    });
+  } catch (err) {
+    console.error("[OFFICE-VERTRIEB] arbeitsliste:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ARBEITSLISTE LESEN — ohne Pool-Nachschub, mit wählbarer Verbindung
+// (E-IT-A, 08.10.2026). Vorher stand das alles im Rumpf der Route und war
+// deshalb nur über HTTP prüfbar. Jetzt ruft die Route diese Funktion, und
+// scripts/pruef-it-a.ts ruft sie in einer zurückgerollten Transaktion
+// (AGENTS.md: „Funktionen, die … brauchen einen lauf-Parameter").
+// ═══════════════════════════════════════════════════════════════════════════
+export async function arbeitslisteLesen(
+  me: number, lauf: any = sqlPool,
+  /** Gegenprüfung 08.10.2026: Der Prüfstand liest „Wieder dran" in voller Länge (Reihung über Platz 6 hinaus); die Route nimmt SLOTS. */
+  opts: { wiederBis?: number } = {},
+): Promise<{
+  wieder: { gruppe: string; kunde: any }[];
+  slots: { gruppe: string; kunde: any }[];
+  vorrat: { neu: number; wieder: number };
+  heute: { datum: string; erledigt: number; pausiert: number };
+}> {
+  // (Einrückung bewusst wie im früheren Routenrumpf — kleiner Unterschied für die Zusammenführung.)
+    // E-272: Die Regel liest fiaon_global_angebote — einmal je Prozess sichergestellt
+    // (memoisiert; die Route ruft es vorher schon, der Prüfstand ruft nur hier).
+    await globalKundeBereit();
     // Gemeinsame Ausschlüsse — dieselben Bausteine wie die große Liste, plus:
     // ein gebuchter Termin in der Zukunft heißt „Mandat angenommen“ — raus.
     const basisTeile = [
@@ -882,6 +1029,14 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
              = (NOW() AT TIME ZONE 'Europe/Berlin')::date)`,
     ];
     const basis = basisTeile.join(" AND ");
+    // ── E-IT-A (08.10.2026): WER STEHT LINKS, WER RECHTS — OHNE LÜCKE ─────────
+    // Links: nie angerufen oder seither selbst gehandelt, und (Zähler 0 oder
+    // frisch) — so wie basis es für die linke Spalte schon verlangt.
+    const LINKS_SQL = `(${NEU_FUER_DICH_SQL} AND (COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL}))`;
+    // Rechts nicht, wer in den letzten TAGESPAUSE_STUNDEN schon versucht wurde
+    // (Ergebnis oder echter Anruf, v.lv) — außer Termin heute oder offener Rückruf.
+    // Eine Wiedervorlage auf HEUTE (Übergabe, „Heute wieder dran") hebt die Pause auf.
+    const WIEDER_TAGESPAUSE = `(NOT ${tagespauseSql("v.lv")} OR ${TERMIN_HEUTE_SQL} OR ${rueckrufOffenSql("v.lv")})`;
     // ── DIE RECHTE SPALTE: WIEDER DRAN (07.09.2026, Justin) ─────────────────
     // „Links die neuen Kunden, rechts die nicht erreichten — sobald ich jemanden
     // abschließe, kommt der nächste. So ist gewährleistet, dass man auch frische
@@ -896,18 +1051,27 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       // oder ein bezahlter Kunde mit fälliger Rate. Wer „nicht erreicht" bekommt, hat
       // seit E-162 die Wiedervorlage auf morgen und verschwindet damit für heute.
       // E-212: dieselbe Wendung wie links, damit niemand in beiden Spalten steht.
-      .concat([`NOT ${NEU_FUER_DICH_SQL}`,
+      // E-IT-A (08.10.2026): „nicht links" heißt jetzt genau das Gegenteil der
+      // linken Spalte (LINKS_SQL). Vorher stand hier nur „nicht neu" — wer nie ein
+      // Gesprächsergebnis hatte, aber einen Zähler > 0 (Tagesbericht-Nachtrag,
+      // verpasster Termin), stand in KEINER Spalte (Gegenprüfung: 4 Menschen).
+      .concat([`NOT ${LINKS_SQL}`,
         // Ein Termin an einem SPÄTEREN Tag nimmt den Menschen aus beiden Spalten — heute nur, wer heute dran ist.
         `NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
-                     AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)`])
+                     AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)`,
+        // E-IT-A: höchstens ein Versuch am Tag (TAGESPAUSE_STUNDEN) — außer
+        // Termin heute oder ein offener Rückruf. v.lv = letzter Versuch (LATERAL).
+        WIEDER_TAGESPAUSE])
       .join(" AND ");
     const WIEDER_GRUND_SQL = `CASE
       WHEN EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
                    AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) THEN 'termin'
       WHEN EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
                    WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
-                     AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours') THEN 'rueckruf'
-      WHEN ${ZUSAGE_SQL} THEN 'zusage'
+                     AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours'
+                     -- E-IT-A: ein Rückruf, nach dessen Zeit schon versucht wurde, ist beantwortet.
+                     AND cl.scheduled_at > p.lv) THEN 'rueckruf'
+      WHEN ${zusageOffenSql("p.lv")} THEN 'zusage'
       WHEN COALESCE(p.unreachable_count, 0) > 0 THEN 'nicht_erreicht'
       WHEN COALESCE(p.priority_tier, 0) = 0 THEN 'rate'
       ELSE 'wiedervorlage' END AS wieder_grund`;
@@ -936,7 +1100,10 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // ═══════════════════════════════════════════════════════════════════
     // 07.09.2026 (E-162): Die Ordnung heißt jetzt Hitze und steht oben in
     // HITZE_ORDNUNG — Uhrzeit jetzt, Sofort-Spur (E-251), Zusage/Termin, Rückruf, jüngstes Ereignis; Stufe 3 zuletzt.
-    const ordnung = HITZE_ORDNUNG;
+    // E-IT-A (08.10.2026): Die LINKE Spalte bleibt bei HITZE_ORDNUNG (Sofort-Spur,
+    // Frische). Die RECHTE reiht nach WIEDER_ORDNUNG — Dringlichkeit, dann wer am
+    // längsten nicht versucht wurde (Rotation). Einzelheiten bei wiederOrdnung().
+    const ordnung = wiederOrdnung("v.lv", "v.ev");
 
     // §16: Vollständigkeit als Spalten direkt an der Karte — dieselbe Regel
     // wie kundeVollstaendig(), damit die 6 Slots keinen zweiten Weg brauchen.
@@ -951,7 +1118,6 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
        AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
          AND a.id_card_pdf IS NOT NULL)) AS voll_kunde`;
 
-    const mandate = await mandatsZahlen(me);
     // ── ZWEI STUFEN STATT EINER (08.09.2026, Störung) ─────────────────────
     // Die Hitze-Sortierung rechnet je Zeile mehrere Unterabfragen. Über Daniels
     // 1.236 Menschen war das zu viel. Stufe 3 (797 Leads ohne Antrag) steht in
@@ -976,14 +1142,14 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // Wochen als Lead am Telefon war. Genau das prüft NEU_FUER_DICH_SQL.
     const HEISS_SQL = NEU_FUER_DICH_SQL;
     const slotsHolen = async (): Promise<any[]> => {
-      const heiss = (await sqlPool.unsafe(
+      const heiss = (await lauf.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
            SELECT p.* FROM fiaon_persons p
             WHERE ${basis} AND ${HEISS_SQL}
             ORDER BY ${NEU_ORDNUNG} LIMIT ${SLOTS}) p`, [me],
       )) as any[];
       if (heiss.length >= SLOTS) return heiss;
-      const rest = (await sqlPool.unsafe(
+      const rest = (await lauf.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
            SELECT p.* FROM fiaon_persons p
             WHERE ${basis} AND p.priority_tier = 3 AND ${NIE_SQL}
@@ -1017,51 +1183,126 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     const basisGemeinsam = basisTeile
       .filter((t) => !t.includes("unreachable_count, 0) = 0") && !t.includes("tz.status = 'gebucht'"))
       .join(" AND ");
-    const [gSlots, zaehlerR, gWieder] = await Promise.all([
+    // E-IT-A: „heute erledigt" und „pausiert" stehen am Kopf der rechten Spalte.
+    // Pausiert = eigene Menschen, die die Wiedervorlage-Regel gerade zurückhält
+    // (Wiedervorlage in der Zukunft, nicht ruhend, nicht wartend). Mitternacht in
+    // Berlin, nicht in UTC (Zeit-Falle, AGENTS.md).
+    const BERLIN_MITTERNACHT = `(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')`;
+    const [gSlots, zaehlerR, gWieder, heuteR] = await Promise.all([
       slotsHolen(),
-      sqlPool.unsafe(
+      lauf.unsafe(
         `SELECT
            COUNT(*) FILTER (WHERE (COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL})
                               AND ${KEIN_TERMIN_ZUKUNFT} AND ${NEU_FUER_DICH_SQL})::int AS vorrat_neu,
-           COUNT(*) FILTER (WHERE NOT ${NEU_FUER_DICH_SQL}
+           COUNT(*) FILTER (WHERE NOT ${LINKS_SQL}
                               AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
                                     AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
                                     AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+                              AND ${WIEDER_TAGESPAUSE}
                               AND (p.priority_tier BETWEEN 1 AND 3
                                    OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})))::int AS vorrat_wieder
-         FROM fiaon_persons p WHERE ${basisGemeinsam}`, [me],
+         FROM fiaon_persons p CROSS JOIN LATERAL (SELECT ${LETZTER_VERSUCH_SQL} AS lv) v
+         WHERE ${basisGemeinsam}`, [me],
       ),
-      sqlPool.unsafe(
-        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL}
+      lauf.unsafe(
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL},
+                NULLIF(p.lv, 'epoch'::timestamptz) AS letzter_versuch, ${LETZTES_ERGEBNIS_SQL} AS letztes_ergebnis,
+                ${zusageOffenSql("p.lv")} AS zusage_offen
          FROM (
-           SELECT p.* FROM fiaon_persons p
+           SELECT p.*, v.lv FROM fiaon_persons p
+            CROSS JOIN LATERAL (SELECT ${LETZTER_VERSUCH_SQL} AS lv, ${EREIGNIS_SQL} AS ev) v
             WHERE ${basisWieder} AND (p.priority_tier BETWEEN 1 AND 3
                                       OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
-            ORDER BY ${ordnung} LIMIT ${SLOTS}) p`, [me],
+            ORDER BY ${ordnung} LIMIT ${Math.min(Math.max(Math.floor(opts.wiederBis ?? SLOTS), 1), 200)}) p`, [me],
+      ),
+      lauf.unsafe(
+        `SELECT
+           (SELECT COUNT(DISTINCT COALESCE(cl.person_id, a.person_id))::int
+              FROM fiaon_contact_log cl LEFT JOIN fiaon_applications a ON a.ref = cl.ref
+             WHERE cl.agent_id = $1 AND cl.type = 'result' AND cl.voided_at IS NULL
+               AND cl.created_at >= ${BERLIN_MITTERNACHT}) AS heute_erledigt,
+           (SELECT COUNT(*)::int FROM fiaon_persons p
+             WHERE ${PAUSIERT_SQL}) AS pausiert`, [me],
       ),
     ]);
-    const wieder = (gWieder as any[]).map((r) => ({
-      gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
-      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, wiederGrund: String(r.wieder_grund), versuche: Number(r.versuche || 0), hitze: hitzeVon(r) },
-    }));
+    const heute = berlinToday();
+    const wieder = (gWieder as any[]).map((r) => {
+      const versuche = Number(r.versuche || 0);
+      // E-IT-A: Der Grund in Worten — aus derselben Regel wie die Meldung nach dem Ergebnis.
+      // Stufe A (Zahlung gemeldet) mit fälliger Zusage: immer „Zahlung prüfen" (Gegenprüfung 08.10.2026).
+      const grund: WiedervorlageGrund = r.wieder_grund === "zusage"
+        ? (Number(r.priority_tier) === 1 || grundAusLetztemErgebnis(r.letztes_ergebnis, versuche) === "zahlung_pruefen" ? "zahlung_pruefen" : "zusage_pruefen")
+        : r.wieder_grund === "termin" ? "termin"
+        : r.wieder_grund === "rueckruf" ? "rueckruf"
+        : r.wieder_grund === "rate" ? "rate"
+        : grundAusLetztemErgebnis(r.letztes_ergebnis, versuche);
+      return {
+        gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
+        kunde: {
+          ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde,
+          wiederGrund: String(r.wieder_grund), versuche, hitze: hitzeVon(r),
+          letzterVersuch: r.letzter_versuch ?? null, wiederText: GRUND_TEXT[grund], zusageOffen: r.zusage_offen === true,
+        },
+      };
+    });
     const slots: { gruppe: string; kunde: any }[] = (gSlots as any[]).map((r) => ({
       gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
-      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r) },
+      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r), zusageOffen: r.zusage_faellig === true },
     }));
 
     const z = (zaehlerR as any[])[0] || {};
-    res.json({
+    const h = (heuteR as any[])[0] || {};
+    return {
       wieder,
-      ok: true,
-      rolle: "agent",
       slots,
       // E-212: der echte Vorrat hinter den beiden Spalten.
       vorrat: { neu: Number(z.vorrat_neu || 0), wieder: Number(z.vorrat_wieder || 0) },
-      mandate: { anzahl: mandate.anzahl, max: MANDATE_MAX },
+      // E-IT-A: Kopf der rechten Spalte — „heute erledigt X · Y pausiert".
+      heute: { datum: heute, erledigt: Number(h.heute_erledigt || 0), pausiert: Number(h.pausiert || 0) },
+    };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /agent/vertrieb/pausiert — WER GERADE PAUSIERT, BIS WANN, WARUM
+// (E-IT-A, 08.10.2026). Die Wiedervorlage-Regel hält Menschen bewusst zurück
+// (nach „zahlt sofort" 3 Werktage, ab dem 6. Fehlversuch 14 Tage …). Eine
+// Liste, die jemanden wortlos zurückhält, erzeugt den Anruf beim Chef („ich
+// finde den Kunden nicht mehr", Hans-Jürgen 27.08.). Deshalb steht am Kopf
+// der rechten Spalte „Y pausiert" — ein Klick öffnet diese Liste, und jeder
+// Mensch darin lässt sich mit „Heute wieder dran" sofort zurückholen
+// (POST /agent/crm/kunden/:id/wiedervorlage).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/vertrieb/pausiert", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await globalKundeBereit();
+    const zeilen = (await sqlPool.unsafe(`
+      SELECT p.id, ${NAME_SQL} AS name, p.priority_tier, to_char(p.follow_up_date, 'YYYY-MM-DD') AS wieder_am,
+             COALESCE(p.unreachable_count, 0) AS versuche,
+             NULLIF(${LETZTER_VERSUCH_SQL}, 'epoch'::timestamptz) AS letzter_versuch,
+             ${LETZTES_ERGEBNIS_SQL} AS letztes_ergebnis
+        FROM fiaon_persons p
+       WHERE ${PAUSIERT_SQL}
+       ORDER BY p.follow_up_date ASC, p.id DESC
+       LIMIT 200`, [req.agent!.id])) as any[];
+    const heute = berlinToday();
+    res.json({
+      ok: true, heute,
+      personen: zeilen.map((r) => {
+        const versuche = Number(r.versuche || 0);
+        const grund = grundAusLetztemErgebnis(r.letztes_ergebnis, versuche);
+        return {
+          personId: Number(r.id), name: String(r.name || ""), stufe: Number(r.priority_tier),
+          wiederAm: r.wieder_am ? String(r.wieder_am) : null, grund, grundText: GRUND_TEXT[grund],
+          text: r.wieder_am ? wiederDranText(String(r.wieder_am), grund, heute) : null,
+          versuche, letzterVersuch: r.letzter_versuch ?? null,
+          pausiertNachFehlversuchen: versuche >= PAUSE_AB_FEHLVERSUCH,
+        };
+      }),
     });
   } catch (err) {
-    console.error("[OFFICE-VERTRIEB] arbeitsliste:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+    console.error("[OFFICE-VERTRIEB] pausiert:", err);
+    res.status(500).json({ ok: false, error: "Die Liste „pausiert“ ließ sich nicht laden." });
   }
 });
 

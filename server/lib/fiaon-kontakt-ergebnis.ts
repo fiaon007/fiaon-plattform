@@ -22,6 +22,13 @@
 // dieser Regeln würde irgendwann abweichen — genau so ist der Fehler entstanden.
 //
 // DIE ZUORDNUNG (bewusst, nicht beliebig)
+// ── E-IT-A (08.10.2026): Die DATEN der Wiedervorlage stehen nicht mehr hier,
+// sondern in der einen Regel shared/fiaon-wiedervorlage.ts (naechsterVersuch):
+// zahlt sofort +3 Werktage, zahlt am X → Werktag nach X, Sonstiges +3 Werktage,
+// nicht erreicht/Mailbox nach Staffel (+2, +3, +5 Werktage, +7 Tage, ab dem
+// 6. Fehlversuch 14 Tage Pause, ab dem 9. ruhend; Stufe A höchstens
+// 3 Werktage). Die Liste unten bleibt als Begründung der ARTEN stehen; ihre
+// alten Tageszahlen gelten nicht mehr.
 //   erreicht_zahlt_gleich  Zusage = heute, Wiedervorlage = morgen.
 //                          Der Kunde sagt „ich zahle sofort" — morgen sieht man,
 //                          ob Geld kam. Ohne Wiedervorlage fällt der Fall raus.
@@ -50,7 +57,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { berlinPlusTage } from "./fiaon-time";
+import { berlinToday } from "./fiaon-time";
+import {
+  naechsterVersuch, nurIsoDatum, istFehlversuch, ENTPRELLUNG_MINUTEN,
+  type WiedervorlageGrund,
+} from "@shared/fiaon-wiedervorlage";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE LISTE STEHT IN `shared/` (19.08.2026)
@@ -100,6 +111,13 @@ export interface ErgebnisEingabe {
   terminDatum?: string | null;
   /** Frei gewählte Wiedervorlage (überschreibt die Vorgabe der Regel). */
   wiedervorlage?: string | null;
+  /**
+   * E-IT-A (Gegenprüfung 08.10.2026): Der Tag, an dem der Versuch WIRKLICH
+   * stattfand — nur der Tagesbericht-Nachtrag setzt ihn (Bericht für Montag,
+   * abgegeben am Dienstag). Die Regel rechnet dann ab diesem Tag; nie später
+   * als heute. Fehlt er, gilt heute.
+   */
+  amTag?: string | null;
 }
 
 export interface ErgebnisWirkung {
@@ -109,6 +127,12 @@ export interface ErgebnisWirkung {
   gesperrt: boolean;
   /** Kurzsatz, den die Oberfläche anzeigen kann. */
   meldung: string;
+  /** E-IT-A: Warum und wann wieder — aus der einen Regel (shared/fiaon-wiedervorlage.ts). */
+  grund?: WiedervorlageGrund;
+  /** E-IT-A: „Wieder dran am Mi 15.10. · Zahlung prüfen" */
+  text?: string;
+  /** E-IT-A: false, wenn derselbe Fehlversuch binnen 30 Minuten schon gezählt war. */
+  gezaehlt?: boolean;
   /**
    * Was die Nicht-erreicht-Automatik zusätzlich getan hat (Terminlink-Mail,
    * Ruhe-Pool). `null`, wenn nichts geschah — der Normalfall.
@@ -116,18 +140,17 @@ export interface ErgebnisWirkung {
   automatik?: import("./fiaon-nicht-erreicht").AutomatikWirkung | null;
 }
 
-// Die Rechnung selbst steht seit dem 10.08.2026 in fiaon-time.ts — dem Ort,
-// an dem laut Hausregel alle Berlin-Zeit-Arithmetik wohnt. Hier bleibt nur der
-// kurze Name, den die Regeln unten benutzen.
-const tagPlus = (n: number): string => berlinPlusTage(n);
-
+// ── DER DATUMSFEHLER BEI „ZAHLT AM" (E-IT-A, 08.10.2026) ──────────────────
+// Hier stand nurDatum(new Date(…).getTime() + 86_400_000) — eine ZAHL. Daraus
+// wurde kein Datum, sondern null: „Zahlt am" über Akte oder Softphone setzte
+// die Wiedervorlage auf NULL (gemessen: 8 von 9 Menschen). Verdeckt hat es nur
+// der Lesefilter „Zusage in der Zukunft". Die Rechnung macht jetzt die eine
+// Regel; nurDatum nimmt nur noch Text („JJJJ-MM-TT" oder ein Zeitstempel).
 function nurDatum(v: unknown): string | null {
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : berlinToday(v);
   const s = String(v ?? "").trim();
   if (!s) return null;
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (m) return m[1];
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  return nurIsoDatum(s);
 }
 
 /**
@@ -163,22 +186,54 @@ export async function ergebnisAnwenden(
   const zusageEingabe = nurDatum(e.zusageDatum);
   const terminEingabe = nurDatum(e.terminDatum);
   const gewaehlt = nurDatum(e.wiedervorlage);
+  const heuteEcht = berlinToday();
+  const amTag = nurDatum(e.amTag);
+  const heute = amTag && amTag < heuteEcht ? amTag : heuteEcht;
 
   let zusage: string | null | undefined;   // undefined = unverändert
   let wiedervorlage: string | null | undefined;
   let gesperrt = false;
-  let zaehlerHoch = false;
+  const zaehlerHoch = istFehlversuch(ergebnis);
+
+  // ── DER FEHLVERSUCH WIRD ZUERST GEZÄHLT (E-IT-A, 08.10.2026) ──────────────
+  // Die Staffel hängt am Zählerstand NACH diesem Versuch. Gezählt wird
+  // entprellt (fiaon-fehlversuch.ts): Ein zweiter Fehlversuch binnen
+  // 30 Minuten — Softphone UND Akte für denselben Anruf — zählt nicht noch
+  // einmal, und die Automatik läuft dann auch nicht ein zweites Mal.
+  let versuche = 0;
+  let gezaehlt = true;
+  let stufeA = false;
+  let frisch = false;
+  if (personId) {
+    const { fehlversuchZaehlen, wiedervorlageKontext } = await import("./fiaon-fehlversuch");
+    if (zaehlerHoch) {
+      const z = await fehlversuchZaehlen(personId, lauf);
+      versuche = z.versuche;
+      gezaehlt = z.gezaehlt;
+    }
+    // Stufe A und Frische für JEDES Ergebnis (Gegenprüfung 08.10.2026): Vorher
+    // nur bei Fehlversuchen — „Sonstiges" mit „in 2 Wochen" ließ einen Kunden
+    // auf Stufe A 14 Tage warten, weil die Regel die Stufe nicht kannte.
+    const k = await wiedervorlageKontext(personId, lauf);
+    stufeA = k.stufeA;
+    frisch = k.frisch;
+  }
+
+  // ── DIE EINE REGEL: WANN WIEDER? ──────────────────────────────────────────
+  const regel = naechsterVersuch({
+    ergebnis, heute, versucheNachher: versuche, stufeA, frisch,
+    zusageDatum: zusageEingabe, terminDatum: terminEingabe, gewaehlt,
+  });
+  wiedervorlage = regel.datum;
   let meldung = ERGEBNIS_TEXT[ergebnis];
 
   switch (ergebnis) {
     case "erreicht_zahlt_gleich":
-      zusage = tagPlus(0);
-      wiedervorlage = gewaehlt || tagPlus(1);
-      meldung = "Zahlt sofort — morgen prüfen wir den Eingang.";
+      zusage = heute;
+      meldung = "Zahlt sofort. Falls kein Geld kommt:";
       break;
     case "erreicht_zahlt_am":
       zusage = zusageEingabe;
-      wiedervorlage = gewaehlt || (zusageEingabe ? nurDatum(new Date(`${zusageEingabe}T12:00:00Z`).getTime() + 86_400_000) : tagPlus(1));
       meldung = zusageEingabe ? `Zusage für den ${zusageEingabe} gespeichert.` : "Zusage gespeichert.";
       break;
     case "erreicht_abgelehnt":
@@ -192,28 +247,21 @@ export async function ergebnisAnwenden(
     case "erreicht_sonstiges":
       // Erreicht heisst: der Zaehler „nicht erreicht" wird NICHT hochgezaehlt,
       // und der Ruhe-Pool bleibt aussen vor. Es war ja ein Gespraech.
-      //
-      // Drei Tage Wiedervorlage: Zwei waeren zu hektisch fuer ein Gespraech
-      // ohne Ergebnis, eine Woche zu lang, um den Faden zu halten.
-      wiedervorlage = gewaehlt || tagPlus(3);
-      meldung = "Gespraech festgehalten — in drei Tagen wieder auf der Liste.";
+      meldung = "Gespräch festgehalten.";
       break;
     case "nicht_erreicht":
-      zaehlerHoch = true;
-      wiedervorlage = gewaehlt || tagPlus(1);
-      meldung = `Nicht erreicht — morgen erneut${gewaehlt ? ` (Wiedervorlage ${gewaehlt})` : ""}.`;
-      break;
     case "mailbox":
-      zaehlerHoch = true;
-      wiedervorlage = gewaehlt || tagPlus(2);
-      meldung = "Mailbox besprochen — in zwei Tagen erneut, damit er zurückrufen kann.";
+      meldung = gezaehlt
+        ? `${ergebnis === "mailbox" ? "Mailbox besprochen" : "Nicht erreicht"} (${versuche}. Versuch).`
+        : `${ergebnis === "mailbox" ? "Mailbox" : "Nicht erreicht"} — derselbe Versuch war in den letzten ${ENTPRELLUNG_MINUTEN} Minuten schon gezählt, er zählt nicht doppelt.`;
+      // Ruhend (ab dem 9. Fehlversuch, nicht Stufe A) setzt die Automatik unten
+      // — mit Verlaufseintrag. Hier bleibt die Wiedervorlage bis dahin stehen.
+      if (regel.ruhend) wiedervorlage = undefined;
       break;
     case "rueckruf_termin":
-      wiedervorlage = terminEingabe || gewaehlt || tagPlus(1);
       meldung = terminEingabe ? `Rückruf am ${terminEingabe} vorgemerkt.` : "Rückruf vorgemerkt.";
       break;
     case "nummer_falsch":
-      wiedervorlage = gewaehlt || tagPlus(3);
       meldung = "Falsche Nummer notiert — der Kunde wird per E-Mail um seine Nummer gebeten.";
       break;
     case "nummer_blockiert":
@@ -221,9 +269,14 @@ export async function ergebnisAnwenden(
       // anrufen. Eine Wiedervorlage auf morgen würde den Kunden erst einmal
       // aus jeder Liste nehmen — und genau das ist bei einem Menschen, der
       // grundsätzlich rangeht, die teuerste Verzögerung.
-      wiedervorlage = gewaehlt || tagPlus(0);
       meldung = "Anrufer blockiert — der Kunde geht an einen Kollegen.";
       break;
+  }
+  // Die Meldung sagt, wann der Mensch wieder dran ist — aus derselben Regel,
+  // die das Datum gesetzt hat (Justin: „Kunde zahlt → am nächsten Tag wieder
+  // da" darf nie wieder eine Überraschung sein).
+  if (ergebnis !== "erreicht_abgelehnt" && ergebnis !== "nummer_blockiert" && !regel.ruhend) {
+    meldung = `${meldung} ${regel.text}.`;
   }
 
   // ── BESITZSCHUTZ: Betreuung festhalten ────────────────────────────────────
@@ -279,12 +332,20 @@ export async function ergebnisAnwenden(
                   NOW())`.catch(() => {});
       }
     }
-    // Der Zähler verweist auf sich selbst und geht deshalb nicht als Wert mit.
-    if (zaehlerHoch) {
-      await lauf`
-        UPDATE fiaon_persons SET unreachable_count = unreachable_count + 1 WHERE id = ${personId}
-      `;
-    }
+    // Der Zähler wurde oben schon gezählt (entprellt, fehlversuchZaehlen).
+
+    // ── EIN NEUES ERGEBNIS BEANTWORTET DEN ALTEN RÜCKRUF (E-IT-A) ──────────
+    // Rückrufe galten nur über den Kalender-Knopf als erledigt. Gemessen am
+    // 07.10.2026: 22 offene überfällige Rückrufe, 20 davon mit einem SPÄTEREN
+    // Ergebnis — sie hielten ihren Rang in der Arbeitsliste auf Dauer. Wer
+    // nach der vereinbarten Zeit ein Ergebnis bucht, hat den Rückruf geführt
+    // (oder versucht). Künftige Rückrufe bleiben unberührt.
+    await lauf`
+      UPDATE fiaon_contact_log SET done_at = NOW()
+       WHERE outcome = 'rueckruf_termin' AND done_at IS NULL AND voided_at IS NULL
+         AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()
+         AND (person_id = ${personId}
+              OR ref IN (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ${personId}))`;
   }
 
   // ── Bestellung: dieselbe Zusage, damit Verwaltung und Portal übereinstimmen ─
@@ -311,6 +372,9 @@ export async function ergebnisAnwenden(
   //     ab dem 9. Versuch  „Ruhend" — raus aus der Tagesliste
   // GRUND: Zwei Zahlen im Kommentar, zwei andere im Code — wer hier liest,
   // sucht den Fehler danach an der falschen Stelle.
+  // E-IT-A (08.10.2026): Die Abstände oben gelten nicht mehr — die Staffel
+  // steht in shared/fiaon-wiedervorlage.ts (+2/+3/+5 Werktage, +7 Tage, ab 6
+  // 14 Tage Pause). Mail bei 6 und Ruhe bei 9 bleiben.
   //
   // „Abgelehnt" setzt den Zähler ebenfalls zurück: Der Mensch war am Apparat,
   // er hat nur nein gesagt. Er ist gesperrt, nicht unerreichbar — und wenn er
@@ -322,10 +386,15 @@ export async function ergebnisAnwenden(
     if (istErreicht) {
       const { erreichtZuruecksetzen } = await import("./fiaon-nicht-erreicht");
       await erreichtZuruecksetzen(personId, lauf);
-    } else if (zaehlerHoch) {
+    } else if (zaehlerHoch && gezaehlt) {
+      // E-IT-A: Die Wiedervorlage hat die Regel oben gesetzt — die Automatik
+      // macht nur noch Mail (ab 6), Ruhe (ab 9) und Leitung (Stufe A ab 9).
       const { automatikNachFehlversuch } = await import("./fiaon-nicht-erreicht");
-      automatik = await automatikNachFehlversuch(personId, lauf);
-      if (automatik.wiedervorlage) wiedervorlage = automatik.wiedervorlage;
+      automatik = await automatikNachFehlversuch(personId, lauf, {
+        wiedervorlageGesetzt: true, wiedervorlage: regel.datum, frisch,
+      });
+      if (automatik.ruht) wiedervorlage = null;
+      else if (automatik.wiedervorlage) wiedervorlage = automatik.wiedervorlage;
       if (automatik.hinweis) meldung = `${meldung} ${automatik.hinweis}`;
     }
   }
@@ -336,6 +405,9 @@ export async function ergebnisAnwenden(
     gesperrt,
     meldung,
     automatik,
+    grund: regel.grund,
+    text: regel.text,
+    gezaehlt,
   };
 }
 
@@ -429,6 +501,22 @@ export async function ergebnisNachbereiten(
       UPDATE fiaon_persons SET follow_up_date = ${ein.wiedervorlage}::date, updated_at = NOW()
       WHERE id = ${ein.personId}
     `;
+  }
+
+  // ── 2b. AUFTRÄGE ZU DIESEM KUNDEN (E-IT-F, 08.10.2026) ────────────────
+  // Ein Gesprächsergebnis „erreicht"/„Rückruf vereinbart" erledigt die offenen
+  // Rückruf-, Hinweis- und WhatsApp-Aufträge dieses Menschen (Katalog in
+  // shared/fiaon-auftrag-arten.ts), ein erfolgloser Versuch steht nur im Verlauf.
+  // Akte, Telefon und Telefonkartei laufen alle durch diese Kette. Wirft nie.
+  if (ein.ergebnis) {
+    const { ereignisAusErgebnis, ereignisMelden } = await import("./fiaon-auftraege");
+    const ereignis = ereignisAusErgebnis(ein.ergebnis);
+    if (ereignis) {
+      await ereignisMelden({
+        ereignis, personId: ein.personId, ref: ein.ref, akteur: { id: ein.akteur.id, name: ein.akteur.name },
+        detail: ERGEBNIS_TEXT[ein.ergebnis] ?? ein.ergebnis,
+      }).catch(() => null);
+    }
   }
 
   // ── 3. „FALSCHE NUMMER" BITTET DEN KUNDEN UM SEINE NUMMER ─────────────

@@ -46,12 +46,17 @@
 // Keine neue Spalte an fiaon_persons (Sperre der meistgelesenen Tabelle, tier.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { FRISCH_TAGE as FRISCH_TAGE_REGEL, TAGESPAUSE_STUNDEN } from "@shared/fiaon-wiedervorlage";
+
 /** Ab so vielen Versuchen (gesamt) rutscht ein Mensch ans Ende — „nicht schon 10× angerufen". */
 export const ANRUFE_ENDE = 10;
+// E-IT-A (08.10.2026): Frische und Tagespause stehen jetzt EINMAL in der
+// Wiedervorlage-Regel (shared/fiaon-wiedervorlage.ts) — Telefonkartei und
+// Arbeitsliste lesen dieselben Werte. Die Namen hier bleiben (Telefonkartei).
 /** So alt darf das jüngste Ereignis sein, damit ein Mensch als frisch gilt (E-251: gezahlt wird binnen 3 Tagen). */
-export const FRISCH_TAGE = 3;
+export const FRISCH_TAGE = FRISCH_TAGE_REGEL;
 /** Wer in diesen Stunden versucht wurde, pausiert — er steht nicht gleich wieder oben. */
-export const PAUSE_STUNDEN = 20;
+export const PAUSE_STUNDEN = TAGESPAUSE_STUNDEN;
 
 /**
  * Ein Versuch gilt als erreicht, wenn das Ergebnis „erreicht_…", ein vereinbarter

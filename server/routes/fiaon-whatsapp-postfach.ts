@@ -29,6 +29,9 @@ import {
 import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
 import { istAutoantwort, stufeAusAntrag, persoenlicherLink, type LinkStufe } from "../../shared/fiaon-mara-ton";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
+// E-IT-H (08.10.2026, Punkt 15): Filter, Grenze und Suche der Liste — eine Quelle für Raum und Server.
+import { listenGrenze, sucheZerlegen, vorschauKuerzen, wirksamerFilter } from "../../shared/fiaon-wa-raum";
+import type { BetreuerMenge } from "../lib/fiaon-abwesenheit";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS DIE OBERFLÄCHE ZUSÄTZLICH BRAUCHT (28.09.2026, E-248)
@@ -298,22 +301,85 @@ async function sichtFuer(blick: Blick): Promise<(betreuerId: number | null | und
   return eigen;
 }
 
-/** Die Gespräche, die dieser Mensch sehen darf. */
-async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: string } = {}): Promise<any[]> {
-  const suche = String(opts.suche ?? "").trim().toLowerCase();
+/**
+ * E-IT-H (08.10.2026, Punkt 15): Dieselbe Sicht als MENGE für SQL — damit die
+ * Liste ZUERST nach Betreuer, Filter und Suche auswählt und DANN kappt. Bisher
+ * holte sie die 300 jüngsten Nummern des ganzen Hauses und filterte danach; nach
+ * Maras Vorlagenläufen sah ein Mitarbeiter so nur noch einen Bruchteil seiner
+ * Gespräche (Agent 505: 11 von 65), und die Suche fand ältere gar nicht.
+ * Die Regel selbst steht neben vertreterSiehtBetreuer (sichtbareBetreuer); ein
+ * Fehler beim Lesen der Abwesenheit wird geloggt, dann gelten nur die eigenen.
+ */
+async function sichtMenge(blick: Blick): Promise<BetreuerMenge> {
+  if (blick.alles) return { alle: true, ids: [], ohne: true };
+  try {
+    const m = await import("../lib/fiaon-abwesenheit");
+    return m.sichtbareBetreuer(await m.abwesenheitJetzt(), blick.agentId);
+  } catch (e) {
+    console.error("[WHATSAPP-RAUM] Abwesenheit nicht lesbar — nur die eigenen Gespräche:", e);
+    const id = Number(blick.agentId ?? 0);
+    return { alle: false, ids: id > 0 ? [id] : [], ohne: false };
+  }
+}
+
+/**
+ * Die Gespräche, die dieser Mensch sehen darf — Sicht, Filter und Suche in SQL,
+ * VOR der Grenze. Name- und Nummertreffer stehen vorn, dann der Rest nach Zeit.
+ * Gegenprobe: Jede Zeile läuft danach noch einmal durch sichtFuer (die alte,
+ * unabhängige Regel). Fällt dort eine heraus, ist das ein Fehler in der
+ * SQL-Fassung — sie wird nicht gezeigt und laut geloggt (Datenschutz zuerst).
+ */
+async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: string; grenze?: unknown } = {}): Promise<{ gespraeche: any[]; mehr: boolean }> {
+  const s = sucheZerlegen(opts.suche);
+  // E-IT-H (Gegenprüfung): Wer sucht, sucht in ALLEN eigenen Gesprächen — „Mit Antwort" gilt dann nicht (shared).
+  const filter = wirksamerFilter(opts.filter, s.text);
+  const grenze = listenGrenze(opts.grenze);
+  const m = await sichtMenge(blick);
+  const ids = m.ids.length ? m.ids : [0];
+  const muster = s.muster ?? "";
+  const z1 = s.ziffern[0] ?? "";
+  const z2 = s.ziffern[1] ?? z1;
   const zeilen = (await sqlPool`
     WITH letzte AS (
-      SELECT DISTINCT ON (w.nummer) w.nummer, w.id, w.richtung, w.text, w.vorlage, w.status, w.von, w.typ,
+      SELECT DISTINCT ON (w.nummer) w.nummer, w.id, w.richtung, w.text, w.vorlage, w.status, w.von, w.typ, w.auto_antwort,
              COALESCE(w.empfangen_am, w.gesendet_am, w.created_at) AS am, w.person_id, w.lead_id
         FROM fiaon_whatsapp w ORDER BY w.nummer, w.id DESC
+    ), auswahl AS (
+      SELECT l.*,
+             g.mara_an, g.gelesen_bis, g.bearbeiter_id, g.bearbeiter_seit, g.notiz,
+             p.id AS p_id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS p_name,
+             p.assigned_agent_id,
+             le.id AS l_id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS l_name, le.assigned_agent_id AS lead_agent,
+             COALESCE(p.assigned_agent_id, le.assigned_agent_id) AS betreuer_id,
+             (${s.muster !== null} AND (
+                TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) ILIKE ${muster}
+                OR TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) ILIKE ${muster}
+                OR (${z1 !== ""} AND (l.nummer LIKE ${`%${z1}%`} OR l.nummer LIKE ${`%${z2}%`})))) AS namenstreffer
+        FROM letzte l
+        LEFT JOIN fiaon_persons p ON p.id = l.person_id
+        LEFT JOIN fiaon_leads le ON le.id = l.lead_id
+        LEFT JOIN fiaon_whatsapp_gespraech g ON g.nummer = l.nummer
+       -- Wer darf: dieselbe Regel wie sichtFuer (eigene, in der Vertretung auch die der Abwesenden).
+       WHERE (${m.alle} OR COALESCE(p.assigned_agent_id, le.assigned_agent_id) = ANY(${ids}::int[])
+              OR (${m.ohne} AND COALESCE(p.assigned_agent_id, le.assigned_agent_id) IS NULL))
+         -- „Mit Antwort": Der Kunde hat in diesem Gespräch selbst geschrieben (Justin, 08.10.2026: Standard).
+         AND (${filter !== "antwort"} OR EXISTS (SELECT 1 FROM fiaon_whatsapp x WHERE x.nummer = l.nummer AND x.richtung = 'rein'))
+         AND (${filter !== "ungelesen"} OR EXISTS (SELECT 1 FROM fiaon_whatsapp x
+               WHERE x.nummer = l.nummer AND x.richtung = 'rein' AND x.id > COALESCE(g.gelesen_bis, 0)))
+         AND (${filter !== "offen"} OR EXISTS (SELECT 1 FROM fiaon_whatsapp x
+               WHERE x.nummer = l.nummer AND x.richtung = 'rein' AND x.empfangen_am > NOW() - INTERVAL '24 hours'))
+    ), treffer AS (
+      SELECT * FROM auswahl a
+       WHERE (${s.muster === null} OR a.namenstreffer
+              OR (${s.volltext} AND EXISTS (SELECT 1 FROM fiaon_whatsapp x WHERE x.nummer = a.nummer AND x.text ILIKE ${muster})))
+       -- id als letzter Schlüssel: gleiche Zeitpunkte (Vorlagenlauf) sortieren immer gleich — „Ältere laden" verschiebt nichts.
+       ORDER BY a.namenstreffer DESC, a.am DESC NULLS LAST, a.id DESC
+       LIMIT ${grenze + 1}
     )
-    SELECT l.*,
-           g.mara_an, g.gelesen_bis, g.bearbeiter_id, g.bearbeiter_seit, g.notiz,
+    SELECT t.*,
            (SELECT COUNT(*)::int FROM fiaon_whatsapp x
-             WHERE x.nummer = l.nummer AND x.richtung = 'rein' AND x.id > COALESCE(g.gelesen_bis, 0)) AS ungelesen,
-           (SELECT MAX(x.empfangen_am) FROM fiaon_whatsapp x WHERE x.nummer = l.nummer AND x.richtung = 'rein') AS letzte_eingehende,
-           p.id AS p_id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS p_name,
-           p.assigned_agent_id,
+             WHERE x.nummer = t.nummer AND x.richtung = 'rein' AND x.id > COALESCE(t.gelesen_bis, 0)) AS ungelesen,
+           (SELECT MAX(x.empfangen_am) FROM fiaon_whatsapp x WHERE x.nummer = t.nummer AND x.richtung = 'rein') AS letzte_eingehende,
            -- Die Stufe steht nirgends als Spalte, sie ergibt sich aus dem Antrag
            -- (Hausregel: A = Zahlung gemeldet, B = Antrag fertig, C = Lead).
            (SELECT CASE
@@ -326,31 +392,19 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
                      -- vom 29.09. stand deshalb als „Stufe B" da). EINE Regel: shared/fiaon-antrag-stand.ts.
                      WHEN bool_or(${sqlPool.unsafe(abgeschicktSql("a"))}) THEN 'B'
                      ELSE 'C' END
-              FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL) AS p_stufe,
-           le.id AS l_id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS l_name, le.assigned_agent_id AS lead_agent,
-           a.name AS betreuer
-      FROM letzte l
-      LEFT JOIN fiaon_persons p ON p.id = l.person_id
-      LEFT JOIN fiaon_leads le ON le.id = l.lead_id
-      LEFT JOIN fiaon_agents a ON a.id = COALESCE(p.assigned_agent_id, le.assigned_agent_id)
-      LEFT JOIN fiaon_whatsapp_gespraech g ON g.nummer = l.nummer
-     ORDER BY l.am DESC NULLS LAST
-     LIMIT 300`) as any[];
+              FROM fiaon_applications a WHERE a.person_id = t.p_id AND a.merged_into IS NULL) AS p_stufe,
+           ag.name AS betreuer
+      FROM treffer t
+      LEFT JOIN fiaon_agents ag ON ag.id = t.betreuer_id
+     ORDER BY t.namenstreffer DESC, t.am DESC NULLS LAST, t.id DESC`) as any[];
 
+  // Gegenprobe mit der alten, unabhängigen Regel — nie einen fremden Kunden zeigen.
   const sieht = await sichtFuer(blick);
-  return zeilen
-    .filter((z) => blick.alles || sieht(z.assigned_agent_id ?? z.lead_agent ?? null))
-    .filter((z) => {
-      if (opts.filter === "ungelesen") return Number(z.ungelesen || 0) > 0;
-      if (opts.filter === "offen") return !!z.letzte_eingehende && Date.now() - new Date(z.letzte_eingehende).getTime() < 24 * 3600_000;
-      return true;
-    })
-    .filter((z) => {
-      if (!suche) return true;
-      const heu = `${z.p_name ?? ""} ${z.l_name ?? ""} ${z.nummer} ${z.text ?? ""}`.toLowerCase();
-      return heu.includes(suche);
-    })
-    .map((z) => zeileAlsGespraech(z));
+  const erlaubt = zeilen.filter((z) => blick.alles || sieht(z.assigned_agent_id ?? z.lead_agent ?? null));
+  if (erlaubt.length !== zeilen.length) {
+    console.error(`[WHATSAPP-RAUM] Sicht-Abweichung: ${zeilen.length - erlaubt.length} Zeile(n) für Agent ${blick.agentId} verworfen (SQL-Menge ≠ sichtFuer).`);
+  }
+  return { gespraeche: erlaubt.slice(0, grenze).map((z) => zeileAlsGespraech(z)), mehr: zeilen.length > grenze };
 }
 
 function zeileAlsGespraech(z: any) {
@@ -366,7 +420,8 @@ function zeileAlsGespraech(z: any) {
     letzte: {
       // E-248: Der Text bleibt der Text; die Vorlage kommt mit Klartextnamen,
       // die Oberfläche setzt „Mara: " / „Florentine: " / „Vorlage · …" davor.
-      text: String(z.text ?? ""),
+      // E-IT-H: Die Liste zeigt EINE Zeile — gekürzt, damit bis zu 1.000 Zeilen im 8-s-Takt leicht bleiben.
+      text: vorschauKuerzen(z.text),
       vorlage: z.vorlage ?? null,
       vorlageName: vorlageKlartext(z.vorlage),
       richtung: z.richtung, am: z.am, status: z.status,
@@ -395,6 +450,10 @@ async function darfAnNummer(blick: Blick, nummer: string): Promise<boolean> {
   // Vertretung (01.10.2026): auch die Gespräche der Abwesenden (sichtFuer).
   return (await sichtFuer(blick))(z?.agent ?? null);
 }
+
+/** E-IT-H: Herrenlose Gespräche höchstens alle 30 s nachziehen (vorher bei jedem 8-s-Abruf jedes offenen Raums). */
+const VERWAIST_ABSTAND_MS = 30_000;
+let verwaistZuletzt = 0;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE ROUTEN — einmal geschrieben, von beiden Türen benutzt
@@ -432,12 +491,19 @@ function routen(hole: (req: any) => Blick) {
       // E-214: Herrenlose Gespräche bekommen ihren Lead, bevor die Liste
       // gebaut wird — sonst steht hier eine Zeile ohne Namen, die niemandem
       // gehört und die deshalb auch niemand anruft (gefunden an Sophia Handler).
-      const { verwaisteNachziehen } = await import("../lib/fiaon-whatsapp");
-      await verwaisteNachziehen().catch((e) => console.error("[WHATSAPP-RAUM] nachziehen:", e));
-      const gespraeche = await gespraecheLaden(blick, { suche: String(req.query.suche ?? ""), filter: String(req.query.filter ?? "") });
+      // E-IT-H: höchstens alle 30 s je Prozess — der Raum fragt alle 8 s, je offenem Fenster.
+      if (Date.now() - verwaistZuletzt >= VERWAIST_ABSTAND_MS) {
+        verwaistZuletzt = Date.now();
+        const { verwaisteNachziehen } = await import("../lib/fiaon-whatsapp");
+        await verwaisteNachziehen().catch((e) => console.error("[WHATSAPP-RAUM] nachziehen:", e));
+      }
+      // E-IT-H (08.10.2026): Sicht, Filter und Suche VOR der Grenze; „Ältere Gespräche laden" erhöht die Grenze.
+      const { gespraeche, mehr } = await gespraecheLaden(blick, {
+        suche: String(req.query.suche ?? ""), filter: String(req.query.filter ?? ""), grenze: req.query.limit,
+      });
       const k = waKonfig();
       res.json({
-        ok: true, gespraeche, zahlen: await waZahlen(),
+        ok: true, gespraeche, mehr, grenze: listenGrenze(req.query.limit), zahlen: await waZahlen(),
         nummer: k.nummer, bereit: k.bereit, ich: blick.agentId, alles: blick.alles,
       });
     } catch (err) {
@@ -453,7 +519,13 @@ function routen(hole: (req: any) => Blick) {
       const blick = hole(req);
       const nummer = waKanonisch(req.params.nummer);
       if (!nummer) return res.status(400).json({ ok: false, error: "Ungültige Nummer." });
-      if (!(await darfAnNummer(blick, nummer))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
+      if (!(await darfAnNummer(blick, nummer))) {
+        // E-IT-H (08.10.2026): Der Direktsprung aus der Akte (?nummer=…) trifft auch Nummern, mit denen es
+        // noch gar kein Gespräch gibt — dann ehrlich sagen statt „gehört einem anderen Betreuer".
+        const [da] = (await sqlPool`SELECT 1 AS da FROM fiaon_whatsapp WHERE nummer = ${nummer} LIMIT 1`) as any[];
+        if (!da) return res.status(404).json({ ok: false, error: "Mit dieser Nummer gibt es noch kein WhatsApp-Gespräch. Ein neues beginnst du über das Plus neben der Suche." });
+        return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
+      }
 
       const verlauf = (await waVerlauf({ nummer, hoechstens: 120 })).reverse();
       const [g] = (await sqlPool`SELECT * FROM fiaon_whatsapp_gespraech WHERE nummer = ${nummer}`) as any[];
@@ -653,6 +725,12 @@ function routen(hole: (req: any) => Blick) {
           ON CONFLICT (nummer) DO UPDATE SET updated_at = NOW()`;
       }
       console.log(`[WHATSAPP-RAUM] ${blick.name} hat an ${nummer} geschrieben (${vorlage || "Freitext"}${vorlage ? ", Mara bleibt an" : ", Mara aus"}).`);
+      // E-IT-F (08.10.2026): Eine eigene Antwort eines Menschen (Freitext, keine Vorlage) erledigt Maras
+      // WhatsApp-Aufträge zu diesem Menschen (Anliegen, Rückruf, Unsicher) — nie „heikel" oder „Geld".
+      if (!vorlage && w?.person_id) {
+        const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+        await ereignisMelden({ ereignis: "whatsapp_beantwortet", personId: Number(w.person_id), akteur: { id: blick.agentId ?? null, name: blick.name } });
+      }
       res.json({ ok: true, waId: erg.waId });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] senden:", err);
@@ -672,11 +750,16 @@ function routen(hole: (req: any) => Blick) {
       if (q.length < 2) return res.json({ ok: true, treffer: [] });
       const wie = `%${q.toLowerCase()}%`;
       const ziffern = q.replace(/[^\d]/g, "");
+      // E-IT-H (08.10.2026): Die Sicht gehört VOR die Grenze — vorher kappte LIMIT 40 erst und sichtFuer
+      // filterte danach (Suche „an": Agent 505 hatte 41 eigene Treffer, davon 0 unter den ersten 40).
+      const m = await sichtMenge(blick);
+      const ids = m.ids.length ? m.ids : [0];
       const personen = (await sqlPool`
         SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
                p.primary_phone AS phone, p.assigned_agent_id, a.name AS betreuer
           FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
          WHERE p.primary_phone IS NOT NULL AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+           AND (${m.alle} OR p.assigned_agent_id = ANY(${ids}::int[]) OR (${m.ohne} AND p.assigned_agent_id IS NULL))
            AND (LOWER(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,''))) LIKE ${wie}
                 OR LOWER(COALESCE(p.company_name,'')) LIKE ${wie}
                 OR LOWER(COALESCE(p.primary_email,'')) LIKE ${wie}
@@ -687,9 +770,10 @@ function routen(hole: (req: any) => Blick) {
                le.assigned_agent_id, le.person_id, a.name AS betreuer
           FROM fiaon_leads le LEFT JOIN fiaon_agents a ON a.id = le.assigned_agent_id
          WHERE le.telefon IS NOT NULL AND le.person_id IS NULL
+           AND (${m.alle} OR le.assigned_agent_id = ANY(${ids}::int[]) OR (${m.ohne} AND le.assigned_agent_id IS NULL))
            AND (LOWER(TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,''))) LIKE ${wie}
                 OR (${ziffern || null}::text IS NOT NULL AND regexp_replace(le.telefon, '[^0-9]', '', 'g') LIKE ${"%" + ziffern}))
-         ORDER BY le.erstellt_am DESC LIMIT 25`.catch(() => [])) as any[];
+         ORDER BY le.erstellt_am DESC LIMIT 25`.catch((e) => { console.error("[WHATSAPP-RAUM] suche leads:", e); return []; })) as any[];
 
       const sieht = await sichtFuer(blick);
       const treffer = [...personen.map((p) => ({ ...p, art: "person" })), ...leads.map((l) => ({ ...l, art: "lead" }))]
@@ -735,7 +819,7 @@ function routen(hole: (req: any) => Blick) {
           SELECT id FROM fiaon_persons
            WHERE merged_into_person_id IS NULL
              AND regexp_replace(COALESCE(primary_phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + letzte}
-           ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch(() => [])) as any[];
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch((e) => { console.error("[WHATSAPP-RAUM] starten, Person zur Nummer:", e); return []; })) as any[];
         if (p?.id) personId = Number(p.id);
       }
 
@@ -831,7 +915,7 @@ function routen(hole: (req: any) => Blick) {
 
       const [a] = (await sqlPool`
         SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
-         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+         ORDER BY created_at DESC LIMIT 1`.catch((e) => { console.error("[WHATSAPP-RAUM] ergebnis, Antrag:", e); return []; })) as any[];
       await ergebnisAnwenden({
         ref: a?.ref ?? null, personId, ergebnis: ergebnis as any,
         zusageDatum: /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.zusageDatum ?? "")) ? String(req.body.zusageDatum) : null,
@@ -840,8 +924,14 @@ function routen(hole: (req: any) => Blick) {
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
         VALUES (${a?.ref ?? null}, ${personId}, ${blick.agentId}, ${blick.name}, 'system',
-                ${`Ergebnis „${(ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis}" aus dem WhatsApp-Gespräch gebucht.`}, NOW())`.catch(() => {});
+                ${`Ergebnis „${(ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis}" aus dem WhatsApp-Gespräch gebucht.`}, NOW())`.catch((e) => console.error("[WHATSAPP-RAUM] ergebnis, Vermerk:", e));
       console.log(`[WHATSAPP-RAUM] ${blick.name} bucht ${ergebnis} für Person ${personId}.`);
+      // E-IT-F (08.10.2026): dasselbe Ereignis wie ein Ergebnis in der Akte.
+      {
+        const { ereignisAusErgebnis, ereignisMelden } = await import("../lib/fiaon-auftraege");
+        const ereignis = ereignisAusErgebnis(ergebnis);
+        if (ereignis) await ereignisMelden({ ereignis, personId, ref: a?.ref ?? null, akteur: { id: blick.agentId ?? null, name: blick.name }, detail: (ERGEBNIS_TEXT as Record<string, string>)[ergebnis] ?? ergebnis });
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error("[WHATSAPP-RAUM] ergebnis:", err);

@@ -76,6 +76,7 @@ export type MakeEventType =
   | "rueckhol_s5d"           // Dauerpflege (d): ein Eintrag weniger
   | "bankverbindung_neu"     // NOTFALL 02.09.2026: Konto gewechselt — neue IBAN an alle mit Bankdaten der letzten 24 h
   | "kuendigung_bestaetigt"  // E-092: Kündigung eingegangen — letzte Rate bleibt fällig
+  | "kuendigung_eingegangen" // Querprüfung 08.10.2026: Eingangsbestätigung der Kündigungsseite, sofort (§ 312k Abs. 4 BGB)
   | "vertrag_beendet"        // E-092: letzte Rate bezahlt — der Vertrag ist aus
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller
@@ -125,7 +126,9 @@ export type MakeEventType =
   // ── Der neue Privatantrag /antrag-neu (05.10.2026, E-282) — geht NIE über Make: Die Mail trägt das
   //    Vertrags-PDF als Anhang (dauerhafter Datenträger, § 312f BGB). Versand und Protokoll stehen in
   //    server/lib/fiaon-antrag-neu-bestaetigung.ts (direkt über den Motor, wie globalMailSenden).
-  | "vertrag_bestaetigung";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
+  | "vertrag_bestaetigung"
+  // E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich — nur über den Motor.
+  | "finanzauswertung_bereit";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
 
 export interface MakeWebhookPayload {
   email: string;
@@ -421,7 +424,13 @@ export async function sendMakeWebhookMitGrund(
   // E-240: die Nutzlast reist mit — die Bremse entscheidet an ihr, ob eine Unterlagen-Mail an eine
   // Werbesperre ein Kaufangebot trägt (sperrUrteil in fiaon-mail-frequenz.ts).
   const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true, nutzlast: payload as Record<string, unknown> });
-  if (frequenz.ok && frequenz.sperreAufheben) {
+  // E-IT-B Fertigstellung (08.10.2026, Befund 15): Die Konto-&-Karte-Einladung hebt NIE eine Brevo-Sperre auf
+  // (Justin, 08.10.: „KEIN automatisches Aufheben“ — die Leitung prüft sie von Hand). Die Zustellprüfung der Akte
+  // sieht nur diesen Menschen; die Bremse hier jeden Rückläufer an der ADRESSE — ohne diese Ausnahme hätte ein
+  // erneuter Versand dort still entsperrt. Die Mail geht trotzdem an Brevo; ist die Adresse gesperrt, steht
+  // „blockiert“ im Protokoll und in der Akte.
+  const ohneEntsperren = eventType === "konto_karte_einladung";
+  if (frequenz.ok && frequenz.sperreAufheben && !ohneEntsperren) {
     const { brevoSperreAufheben } = await import("./lib/fiaon-brevo");
     const aufgehoben = await brevoSperreAufheben(String(payload.email || ""));
     console.log(`[FREQUENZ] Handversand '${eventType}' an ${payload.email}: Brevo-Sperre ${aufgehoben ? "aufgehoben" : "nicht aufhebbar"}.`);
@@ -460,7 +469,7 @@ export async function sendMakeWebhookMitGrund(
   // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
   // 05.10.2026 (E-282): vertrag_bestaetigung ebenso — Make kennt sie nicht. Durch diese Tür kommt sie nur als
   // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung"].includes(eventType)
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -510,7 +519,8 @@ export async function sendMakeWebhookMitGrund(
   //
   // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
   protokollNebenbei(eventType, payload, erg);
-  if (erg.ok && frequenz.hinweis) erg.hinweis = frequenz.hinweis;
+  // Der Satz „Für deinen Versand ist die Sperre aufgehoben“ stimmt bei der Konto-&-Karte-Einladung nicht (oben).
+  if (erg.ok && frequenz.hinweis && !(ohneEntsperren && frequenz.sperreAufheben)) erg.hinweis = frequenz.hinweis;
   return erg;
 }
 
@@ -529,6 +539,8 @@ const PRIVATLINIE = new Set<string>([
   "auskunft_zahlung_erinnerung",
   // E-282 (05.10.2026): die Vertragsbestätigung des neuen Privatantrags — Stufenpaket, Kundenbereich, Monatsrate.
   "vertrag_bestaetigung",
+  // E-IT-D (08.10.2026): die Finanz- und Bonitätsauswertung ist eine Leistung des Privatpakets (Kundenbereich).
+  "finanzauswertung_bereit",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */

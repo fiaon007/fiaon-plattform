@@ -106,6 +106,7 @@ import {
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { KUENDIGUNG_WIRKSAM_SQL, KUENDIGUNG_BESTELLUNG_SQL, LAEUFT_UNGEKUENDIGT_SQL, AUSKUNFT_GEKUENDIGT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { KOPF_SQL, FAMILIE_SQL, POSTFACH_STOPP_ZEILE_SQL, WA_WIDERSPRUCH_TEXT_SQL } from "./fiaon-mail-frequenz";
 import { WHATSAPP_EINWILLIGUNG_SQL, WHATSAPP_MOEGLICH_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
@@ -517,10 +518,13 @@ export const OHNE_AUSKUNFT_SQL = (person: string) => `(
   AND ${person} NOT IN (${buendelWartendeSql()})
   AND NOT EXISTS (SELECT 1 FROM fiaon_dokumente ax_k WHERE ax_k.person_id = ${person} AND ax_k.geloescht_am IS NULL AND ax_k.art ILIKE '%schufa%'))`;
 
-/** Nicht gekündigt (Rücknahme hebt auf) — Gekündigte bekommen keine Werbung, E-213. */
-export const NICHT_GEKUENDIGT_SQL = (person: string) => `NOT EXISTS (
-  SELECT 1 FROM fiaon_applications ax_g WHERE ax_g.person_id = ${person} AND ax_g.merged_into IS NULL
-     AND ax_g.gekuendigt_am IS NOT NULL AND ax_g.kuendigung_zurueckgenommen_am IS NULL)`;
+/**
+ * Nicht gekündigt — Gekündigte bekommen keine Werbung, E-213. E-IT-B (08.10.2026): „gekündigt“ ist die EINE
+ * Regel (shared/fiaon-kuendigung-regel.ts); dazu, weil hier eine Auskunft verkauft wird, die gekündigte Auskunft
+ * selbst (ein Nein zu genau diesem Produkt). Gemessen 08.10.: dieselbe Menge wie vorher.
+ */
+export const NICHT_GEKUENDIGT_SQL = (person: string) =>
+  `(NOT ${KUENDIGUNG_WIRKSAM_SQL(person)} AND NOT ${AUSKUNFT_GEKUENDIGT_SQL(person)})`;
 
 /** FIAON Global spricht eine andere Sprache (Firma, Einmalpreis) — dort fasst der feste Ansprechpartner nach. */
 export const NICHT_GLOBAL_SQL = (person: string) => `NOT EXISTS (
@@ -621,7 +625,10 @@ WITH ax_antr AS (
          bool_or(${ECHTER_ANTRAG_SQL("a")} AND ${ABGESCHICKT_SQL("a")}) AS war_abgeschickt,
          bool_or(a.merged_into IS NULL AND NOT ${IST_AUSKUNFT("a")}) AS hat_antrag,
          bool_or(a.merged_into IS NULL AND ${produktkategorieSql("a")} = 'global') AS global,
-         bool_or(a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt,
+         -- E-IT-B (08.10.2026): die EINE Regel als Summe (Stufenpaket gekündigt, kein bezahltes ungekündigtes daneben)
+         -- oder die gekündigte Auskunft selbst — wie NICHT_GEKUENDIGT_SQL.
+         ((bool_or(${KUENDIGUNG_BESTELLUNG_SQL("a")}) AND NOT bool_or(${LAEUFT_UNGEKUENDIGT_SQL("a")}))
+          OR bool_or(a.merged_into IS NULL AND a.gekuendigt_am IS NOT NULL AND ${produktkategorieSql("a")} = 'auskunft')) AS gekuendigt,
          bool_or(a.gdpr_deleted_at IS NOT NULL) AS dsgvo,
          -- Vertrag vorbei wie in personSperren (fiaon-mail-frequenz.ts): ein Ende erreicht, kein Paket läuft, kein neuer Antrag danach
          MAX(a.vertrag_ende_am) FILTER (WHERE a.merged_into IS NULL AND a.vertrag_ende_am <= NOW() AND NOT ${IST_AUSKUNFT("a")}) AS ende_max,

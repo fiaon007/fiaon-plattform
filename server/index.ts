@@ -68,6 +68,8 @@ app.use((req, res, next) => {
         .replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…")
         // 25.09.2026 (E-241): die Auftragsbestätigung der Bonitätsauskunft (Token im Pfad, fiaon-auskunft-kauf.ts).
         .replace(/\/auskunft\/auftrag\/[^/?]+/, "/auskunft/auftrag/…")
+        // E-IT-D (08.10.2026, 4c): der Upload-Link ohne Anmeldung (Token im Pfad, fiaon-unterlagen-link.ts).
+        .replace(/\/unterlagen\/\d+\.\d+\.[^/?]+/, "/unterlagen/…")
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
         .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.

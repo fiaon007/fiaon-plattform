@@ -25,30 +25,52 @@
 //   VorlagenBlatt · FallSpalte · NeuesGespraech · wr-format
 //
 // MASSE: Die Breite entscheidet der PLATZ im Raum, nicht das Fenster
-// (Container Queries in whatsapp-raum.css; derselbe Schwellwert hier im
-// Rahmen, weil er entscheidet, WO der Fall steht und ob der Chat am Handy
-// als eigene Vollfläche kommt). Die Höhe ist „bis zum Fensterrand", gemessen
-// — das Office rechnet mit zoom .875, deshalb wird der Zoom aus dem Element
-// selbst gelesen statt vorausgesetzt. Unten bleibt Platz für Telefon- und
-// Rundgangknopf, sie liegen nie über dem Feld.
+// (Container Queries in whatsapp-raum.css; dieselben Schwellen hier im
+// Rahmen aus shared/fiaon-wa-raum.ts, weil sie entscheiden, WO der Fall steht
+// und ob der Chat am Handy als eigene Vollfläche kommt).
+//
+// ── E-IT-H (08.10.2026, Punkt 15): DER RAUM FÜLLT DEN BILDSCHIRM ──────────
+// Team: „viel zu klein und unübersichtlich". GEMESSEN: Die Office-Hülle
+// deckelte auf 1440 px (Chat 450 px bei Full HD), die Höhe wurde per JS
+// gemessen und ging an Telefon- und Rundgangknopf verloren, und sie wurde nur
+// zu festen Anlässen neu gemessen (die Terminleiste schob das Feld dann
+// 40 px unter den Rand). Jetzt:
+// · Die Hülle liefert die volle Fläche (Office: vollflaeche(true), Chefbüro:
+//   Seite mit `vollflaeche`) — der Raum füllt sie per CSS, ohne Messung.
+// · Liste und Fall lassen sich einklappen (Liste als Schiene, Fall über das
+//   (i) im Chat-Kopf); „Schrift größer" je Mitarbeiter. Der Browser merkt
+//   sich alle drei (fiaon_wa_ansicht, nur Ansicht, keine Personendaten).
+// · Der Rundgang startet über den Chip im Kopf — kein fester Knopf klebt
+//   mehr über dem Raum; nur der Telefonknopf hält seine Ecke frei.
+// · Die Liste startet mit „Mit Antwort", lädt 200 und auf Wunsch je 200
+//   ältere; Sicht, Filter und Suche laufen auf dem Server VOR der Grenze.
+// · Direktsprung: ?nummer=… öffnet das Gespräch (Akte, Aufgaben, Maras
+//   Übergaben); jede Wahl schreibt die Nummer in die Adresse.
+//   Gegenprüfung (08.10.2026): Der Raum HÖRT auf die Adresse (useSearch aus
+//   wouter), statt sie nur beim ersten Bild zu lesen. Vorher blieb Gespräch A
+//   offen, wenn „WhatsApp öffnen" an Maras Karte bei schon offenem Raum auf
+//   ?nummer=B sprang (gleicher Pfad → keine neue Seite), und Zurück im Browser
+//   tat nichts. Jetzt öffnet jede neue Adresse ihr Gespräch; eine Adresse ohne
+//   Nummer (Zurück, „WhatsApp" im Menü) führt zur Liste.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearch } from "wouter";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/whatsapp-raum.css";
-import { Gespraechsliste, type ListenFilter } from "./Gespraechsliste";
+import {
+  ANSICHT_SCHLUESSEL, LISTE_GRENZE, STANDARD_FILTER, ansichtLesen, listenEnde, nummerAusAdresse, raumAufteilung,
+  type ListenFilter, type RaumAnsicht,
+} from "@shared/fiaon-wa-raum";
+import { Gespraechsliste } from "./Gespraechsliste";
 import { ChatKopf } from "./ChatKopf";
 import { Verlauf } from "./Verlauf";
 import { Eingabe, TEXT_GRENZE } from "./Eingabe";
 import { FallSpalte } from "./FallSpalte";
 import { NeuesGespraech } from "./NeuesGespraech";
 import { eintraegeBauen, restZeit, type ChatDaten, type Gespraech, type Vorlage } from "./wr-format";
-
-type Modus = "breit" | "mittel" | "schmal";
-const BREIT_AB = 1100;
-const MITTEL_AB = 760;
 
 const ENTWURF_SCHLUESSEL = "fiaon_wa_entwuerfe";
 const SCHRITTE_SCHLUESSEL = "fiaon_wa_alle_schritte";
@@ -70,8 +92,17 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const [liste, setListe] = useState<Gespraech[] | null>(null);
   const [kopf, setKopf] = useState<{ nummer: string | null; bereit: boolean; ich: number | null; alles: boolean } | null>(null);
   const [suche, setSuche] = useState("");
-  const [filter, setFilter] = useState<ListenFilter>("alle");
-  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
+  // E-IT-H: Die Liste fragt erst 300 ms nach dem letzten Tastendruck (vorher bei jedem Zeichen).
+  const [sucheFest, setSucheFest] = useState("");
+  // Justin, 08.10.2026: Standard „Mit Antwort", „Alle" ist ein Klick.
+  const [filter, setFilter] = useState<ListenFilter>(STANDARD_FILTER);
+  const [grenze, setGrenze] = useState<number>(LISTE_GRENZE.start);
+  const [mehr, setMehr] = useState(false);
+  // E-IT-H: Direktsprung — ?nummer=… wählt das Gespräch schon beim ersten Bild (auch wenn die Hülle den Raum
+  // nach ihren Prüfungen neu aufbaut; ein Effekt käme dort zu spät, die Adresse wäre schon geleert).
+  const [gewaehlt, setGewaehlt] = useState<string | null>(() => (typeof window === "undefined" ? null : nummerAusAdresse(window.location.search)));
+  // … und danach jede neue Adresse (wouter meldet pushState, replaceState und Zurück/Vor).
+  const adresse = useSearch();
   const [chat, setChat] = useState<(ChatDaten & { nummer: string }) | null>(null);
   const [fallOffen, setFallOffen] = useState(false);
   const [notizEntwurf, setNotizEntwurf] = useState("");
@@ -86,24 +117,31 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const [alleSchritte, setAlleSchritte] = useState<boolean>(() => lesen(SCHRITTE_SCHLUESSEL, false));
   const [zumEnde, setZumEnde] = useState(0);
   const [fokus, setFokus] = useState(0);
-  const [modus, setModus] = useState<Modus>("breit");
+  // E-IT-H: Breite des Raums (CSS-px) → Modus und Aufteilung; die Ansicht wählt der Mitarbeiter.
+  const [breite, setBreite] = useState(1280);
+  const [ansicht, setAnsicht] = useState<RaumAnsicht>(() => ansichtLesen(lesen(ANSICHT_SCHLUESSEL, {})));
+  const rundgangStart = useRef<(() => void) | null>(null);
   // E-261 (29.09.2026): Steht die WhatsApp-Bremse (Pause oder Meta ROT)? Nur Anzeige — aktivieren kann nur der Inhaber im Chefbüro.
   const [bremse, setBremse] = useState<{ pause: boolean; art?: string | null; allesGestoppt: boolean; werbungGestoppt: boolean; qualitaet: string | null; satz: string | null } | null>(null);
   const wrRef = useRef<HTMLDivElement>(null);
-  const raumRef = useRef<HTMLDivElement>(null);
   const gewaehltRef = useRef<string | null>(null);
   gewaehltRef.current = gewaehlt;
+  // Nur die JÜNGSTE Listenanfrage zählt — sonst überschriebe ein später ankommender 8-s-Abruf
+  // mit dem alten Filter die Liste, die gerade zum neuen Filter geladen wurde.
+  const listenAnfrage = useRef(0);
 
   const melden = useCallback((t: string) => { setMeldung(t); window.setTimeout(() => setMeldung((m) => (m === t ? null : m)), 8000); }, []);
 
   // ── Laden ─────────────────────────────────────────────────────────────────
   const listeLaden = useCallback(async () => {
+    const nr = ++listenAnfrage.current;
     try {
-      const r = await fetch(`${API}/gespraeche?suche=${encodeURIComponent(suche)}&filter=${filter === "alle" ? "" : filter}`, { credentials: "include" });
+      const r = await fetch(`${API}/gespraeche?suche=${encodeURIComponent(sucheFest)}&filter=${filter}&limit=${grenze}`, { credentials: "include" });
       const j = await r.json();
-      if (j?.ok) { setListe(j.gespraeche); setKopf({ nummer: j.nummer, bereit: j.bereit, ich: j.ich, alles: j.alles }); }
+      if (nr !== listenAnfrage.current) return;
+      if (j?.ok) { setListe(j.gespraeche); setMehr(!!j.mehr); setKopf({ nummer: j.nummer, bereit: j.bereit, ich: j.ich, alles: j.alles }); }
     } catch { /* stiller Fehlschlag, der nächste Takt holt es */ }
-  }, [API, suche, filter]);
+  }, [API, sucheFest, filter, grenze]);
 
   const chatLaden = useCallback(async (nummer: string, leise = false) => {
     if (!leise) setChat(null);
@@ -121,11 +159,25 @@ export default function WhatsAppRaum({ basis, telefon }: {
           ereignisse: Array.isArray(j.ereignisse) ? j.ereignisse : [],
         });
         if (!leise) { setNotizEntwurf(j.notiz ?? ""); setFokus((f) => f + 1); }
-      } else melden(j?.error || "Das Gespräch ließ sich nicht laden.");
+      } else {
+        melden(j?.error || "Das Gespräch ließ sich nicht laden.");
+        // E-IT-H: Gehört das Gespräch einem anderen oder gibt es noch keins (Direktsprung aus Akte
+        // oder Aufgabe), steht nicht ewig „Lädt …" — der Raum geht zurück zur Liste.
+        if (!leise && (r.status === 403 || r.status === 404)) setGewaehlt((g) => (g === nummer ? null : g));
+      }
     } catch { melden("Keine Verbindung."); }
   }, [API, melden]);
 
   useEffect(() => { void listeLaden(); }, [listeLaden]);
+  // Neue Suche oder neuer Filter: wieder mit der ersten Seite beginnen (im selben Takt — eine Anfrage, nicht zwei).
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setSucheFest(suche.trim()); setGrenze(LISTE_GRENZE.start);
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [suche]);
+  const filterWaehlen = (f: ListenFilter) => { setFilter(f); setGrenze(LISTE_GRENZE.start); };
+  useEffect(() => { schreiben(ANSICHT_SCHLUESSEL, ansicht); }, [ansicht]);
   useEffect(() => {
     const laden = async () => {
       try {
@@ -158,16 +210,21 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const chatDa = !!chat && chat.nummer === gewaehlt;
   const name = (chatDa ? chat!.lage?.name : null) || aktuell?.name || (gewaehlt ? `+${gewaehlt}` : "");
 
-  // ── Maße: Modus nach dem Platz, Höhe bis zum Fensterrand ─────────────────
+  // ── Maße: Modus und Aufteilung nach dem Platz (keine Höhenmessung mehr) ──
   useLayoutEffect(() => {
     const el = wrRef.current; if (!el) return;
-    const setzen = (b: number) => setModus(b >= BREIT_AB ? "breit" : b >= MITTEL_AB ? "mittel" : "schmal");
+    // Breite 0 heißt „gerade nicht gelegt" (Umbau der Hülle, verborgener Tab) — nicht „Handy". Sonst
+    // blitzte am Rechner kurz die Handy-Vollfläche auf.
+    const setzen = (b: number) => { if (b > 0) setBreite(Math.round(b)); };
     setzen(el.clientWidth);
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((e) => setzen(e[0].contentRect.width));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const { modus, listeSchmal, fallSpalte } = raumAufteilung(breite, ansicht);
+  // Wechselt der Modus (Fenster schmaler/breiter), schließt eine offene Schublade.
+  useEffect(() => { setFallOffen(false); }, [modus]);
 
   const vollbild = modus === "schmal" && !!gewaehlt;
 
@@ -199,33 +256,23 @@ export default function WhatsAppRaum({ basis, telefon }: {
     };
   }, [vollbild]);
 
-  // Höhe des Raums: vom Raum-Anfang bis zum Fensterrand, minus Platz für die
-  // schwebenden Knöpfe (Telefon, Rundgang), wenn sie über dem Raum lägen.
-  useLayoutEffect(() => {
-    const messen = () => {
-      const raum = raumRef.current; if (!raum) return;
-      const r = raum.getBoundingClientRect();
-      const zoom = raum.offsetHeight > 0 && r.height > 0 ? r.height / raum.offsetHeight : 1;
-      const vh = window.innerHeight;
-      const oben = r.top + window.scrollY;
-      let luft = modus === "schmal" ? 10 : 18;
-      if (modus !== "schmal") {
-        for (const sel of [".fi-telefonknopf", ".ru-knopf"]) {
-          const b = document.querySelector(sel) as HTMLElement | null;
-          if (!b) continue;
-          const br = b.getBoundingClientRect();
-          if (br.width > 0 && br.left < r.right && br.top > vh / 2) luft = Math.max(luft, vh - br.top + 12);
-        }
-      }
-      const sichtbar = Math.max(380, vh - oben - luft);
-      const px = Math.round(sichtbar / (zoom || 1));
-      if (Math.abs(raum.offsetHeight - px) > 1) raum.style.setProperty("--wr-hoehe", `${px}px`);
-    };
-    messen();
-    const spaeter = [300, 1200, 3500].map((ms) => window.setTimeout(messen, ms));
-    window.addEventListener("resize", messen);
-    return () => { spaeter.forEach((t) => window.clearTimeout(t)); window.removeEventListener("resize", messen); };
-  }, [modus, gewaehlt, liste === null]);
+  // ── Direktsprung: die Adresse wählt das Gespräch — auch bei schon offenem Raum ──
+  // Ein Link auf denselben Pfad (Maras Karte „WhatsApp öffnen", „Chat im WhatsApp-Raum öffnen") baut die
+  // Seite nicht neu; ohne dieses Hören stand B in der Adresse und A blieb offen. Das eigene replaceState
+  // unten meldet wouter ebenfalls — dann ist die Nummer schon gewählt, es entsteht keine Schleife.
+  useEffect(() => {
+    const n = nummerAusAdresse(adresse);
+    if (n !== gewaehltRef.current) { setFallOffen(false); setGewaehlt(n); }
+  }, [adresse]);
+
+  // ── … und jede Wahl steht in der Adresse (Neuladen und Lesezeichen öffnen dasselbe Gespräch) ──
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (gewaehlt) u.searchParams.set("nummer", gewaehlt); else u.searchParams.delete("nummer");
+      if (u.href !== window.location.href) window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash);
+    } catch { /* Adresse bleibt, wie sie ist */ }
+  }, [gewaehlt]);
 
   // ── Handlungen ────────────────────────────────────────────────────────────
   const entwurf = gewaehlt ? entwuerfe[gewaehlt] ?? "" : "";
@@ -342,7 +389,7 @@ export default function WhatsAppRaum({ basis, telefon }: {
     </>
   ) : null;
 
-  const fallAlsSchublade = modus !== "breit";
+  const fallAlsSchublade = !fallSpalte;
   const fall = chatDa && chat!.lage ? (
     <FallSpalte chat={chat!} name={name} schublade={fallAlsSchublade} onZu={() => setFallOffen(false)}
       onAnrufen={anrufen} anrufenMoeglich={!!telefonNummer} sendet={sendet}
@@ -368,7 +415,9 @@ export default function WhatsAppRaum({ basis, telefon }: {
             onMara={() => void maraSchalten(!(chatDa ? chat!.maraAn : aktuell?.maraAn))}
             zurueck={modus === "schmal"} onZurueck={zurueck}
             onAnrufen={anrufen} anrufenMoeglich={!!telefonNummer}
-            fallKnopf={fallAlsSchublade && !!chat?.lage} fallOffen={fallOffen} onFall={() => setFallOffen(!fallOffen)}
+            fallKnopf={chatDa && !!chat!.lage}
+            fallOffen={modus === "breit" ? fallSpalte : fallOffen}
+            onFall={() => (modus === "breit" ? setAnsicht((a) => ({ ...a, fall: !fallSpalte })) : setFallOffen(!fallOffen))}
             schrittKnopf={modus !== "schmal"} alleSchritte={alleSchritte} onAlleSchritte={() => setAlleSchritte(!alleSchritte)}
           />
           <Verlauf nummer={gewaehlt} eintraege={chatDa ? eintraege : []} geladen={chatDa} alleSchritte={alleSchritte} zumEnde={zumEnde} />
@@ -386,9 +435,13 @@ export default function WhatsAppRaum({ basis, telefon }: {
     </section>
   );
 
+  const schriftKlasse = ansicht.schrift === "gross" ? " wr-schrift-gross" : "";
+  const mitFall = fallSpalte && !!gewaehlt && (!chatDa || !!chat!.lage);
+
   return (
-    <div ref={wrRef} className={`wr wr-${modus}${gewaehlt ? " wr-chat-offen" : ""}`}>
-      <Rundgang raum="whatsapp" titel={RUNDGAENGE.whatsapp.titel} schritte={RUNDGAENGE.whatsapp.schritte} />
+    <div ref={wrRef} className={`wr wr-${modus}${gewaehlt ? " wr-chat-offen" : ""}${schriftKlasse}`}>
+      {/* E-IT-H: kein fester Knopf unten rechts mehr — der Chip „Rundgang" im Kopf startet ihn. */}
+      <Rundgang raum="whatsapp" titel={RUNDGAENGE.whatsapp.titel} schritte={RUNDGAENGE.whatsapp.schritte} knopf="keiner" startRef={rundgangStart} />
       <header className="wr-kopf">
         <h1>WhatsApp</h1>
         <p className="wr-still">
@@ -396,6 +449,16 @@ export default function WhatsAppRaum({ basis, telefon }: {
             ? <>Unsere Nummer <b>{kopf?.nummer ?? "—"}</b> · {kopf?.alles ? "alle Gespräche" : "die Gespräche deiner Kunden"}</>
             : kopf ? "Noch nicht eingerichtet — die Zugangswerte fehlen." : " "}
         </p>
+        <div className="wr-kopf-knoepfe">
+          <button type="button" className="wr-klein wr-schrift-knopf" aria-pressed={ansicht.schrift === "gross"}
+            title="Schrift und Blasen im ganzen Raum größer oder wieder normal — der Browser merkt es sich"
+            onClick={() => setAnsicht((a) => ({ ...a, schrift: a.schrift === "gross" ? "normal" : "gross" }))}>
+            {ansicht.schrift === "gross" ? "Schrift normal" : "Schrift größer"}
+          </button>
+          <button type="button" className="wr-klein wr-rundgang-knopf" onClick={() => rundgangStart.current?.()} title="Der Raum erklärt sich Schritt für Schritt">
+            Rundgang
+          </button>
+        </div>
         {bremse && (bremse.pause || bremse.werbungGestoppt) ? (
           <p className="wr-bremse" role="status">
             {bremse.allesGestoppt
@@ -407,17 +470,21 @@ export default function WhatsAppRaum({ basis, telefon }: {
         ) : null}
       </header>
 
-      <div className="wr-raum" ref={raumRef}>
+      <div className={`wr-raum${listeSchmal ? " liste-schmal" : ""}${mitFall ? " mit-fall" : ""}`}>
         <Gespraechsliste liste={liste} gewaehlt={gewaehlt} onWaehlen={waehlen} suche={suche} setSuche={setSuche}
-          filter={filter} setFilter={setFilter} onNeu={() => setNeuOffen(true)} ich={kopf?.ich ?? null} />
+          filter={filter} setFilter={filterWaehlen} onNeu={() => setNeuOffen(true)} ich={kopf?.ich ?? null}
+          schmal={listeSchmal}
+          onSchmal={modus === "schmal" ? undefined : (an) => setAnsicht((a) => ({ ...a, liste: an ? "schmal" : "voll" }))}
+          mehr={listenEnde(mehr, grenze) === "mehr"} gekappt={listenEnde(mehr, grenze) === "gekappt"}
+          onMehr={() => setGrenze((g) => Math.min(LISTE_GRENZE.max, g + LISTE_GRENZE.schritt))} />
         {modus !== "schmal" && chatFlaeche}
-        {modus === "breit" && gewaehlt && fall}
+        {mitFall && (chatDa && chat!.lage ? fall : <aside className="wr-person" aria-label="Der Fall"><p className="wr-leer">Lädt …</p></aside>)}
       </div>
 
       {/* Am Handy ist der offene Chat eine eigene Vollfläche am Dokument — so
           liegt er über Office-Kopf und Leiste (deren Stapel-Kontext ein fixes
           Element innerhalb nicht verlassen könnte) und folgt der Tastatur. */}
-      {vollbild && createPortal(<div className="wr wr-schmal wr-vollflaeche">{chatFlaeche}</div>, document.body)}
+      {vollbild && createPortal(<div className={`wr wr-schmal wr-vollflaeche${schriftKlasse}`}>{chatFlaeche}</div>, document.body)}
 
       {neuOffen && (
         <NeuesGespraech api={API} onZu={() => setNeuOffen(false)} melden={melden}

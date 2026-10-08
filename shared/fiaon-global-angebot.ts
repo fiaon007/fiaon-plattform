@@ -99,6 +99,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
+import { geburtsdatumIso } from "./fiaon-geburtsdatum";
 
 export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
 /**
@@ -508,7 +509,7 @@ export function angebotPflichtFehlen(d: Pick<AngebotDaten, "buergin" | "pruefber
   if (d.buergin.unterzeichnetAm && !/^\d{4}-\d{2}-\d{2}$/.test(d.buergin.unterzeichnetAm)) fehlt.push("Bürgin: Datum der Unterschrift (JJJJ-MM-TT)");
   if (!d.buergin.bestaetigt) fehlt.push("Bürgin: Bundesstaat, Anschrift und Vertretung bestätigt (Haken)");
   if (!d.pruefbericht) fehlt.push("Anlage 2: Prüfbericht");
-  if (!angebotKundeName(d.kunde) || !d.kunde.strasse || !d.kunde.plz || !d.kunde.ort || !d.kunde.email || !/^\d{4}-\d{2}-\d{2}$/.test(d.kunde.geburtsdatum)) {
+  if (!angebotKundeName(d.kunde) || !d.kunde.strasse || !d.kunde.plz || !d.kunde.ort || !d.kunde.email || !geburtsdatumIso(d.kunde.geburtsdatum)) {
     fehlt.push("Kunde: Name, Anschrift, Geburtsdatum und E-Mail");
   }
   return fehlt;

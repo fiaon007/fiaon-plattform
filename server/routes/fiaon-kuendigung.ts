@@ -13,11 +13,14 @@
 import { Router, type Request, type Response } from "express";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { sqlPool } from "../lib/db-pool";
-import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, vertragsendeLesen, type KuendigungQuelle } from "../lib/fiaon-kuendigung";
+import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, vertragsendeLesen, type KuendigungQuelle,
+  offeneKuendigungsantraege, kuendigungsantragSchliessen, type OffenerAntrag } from "../lib/fiaon-kuendigung";
 import { absoluteUrl } from "../fiaon-base-url";
 // E-265 Nachbesserung 2 (01.10.2026): Vertragsart und Vertragsende aus denselben Regeln wie WhatsApp und Postfach.
 // E-265 (01.10.2026, Paket Recht): Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), nicht Kalendermonat.
 import { istJahresvertrag, abrechnungsmonatEnde, tagDeutsch, giltZumSatz } from "@shared/fiaon-antrag-stand";
+// Querprüfung 08.10.2026: dieselbe Regel „Identität offen“ wie im Sammellauf Altbestand (Strang b × g).
+import { KUENDIGUNG_IDENTITAET_OFFEN_SQL, identitaetVermerkGueltig, kuendigungIdentitaetSchluessel } from "@shared/fiaon-kuendigung-regel";
 // E-213: Die Urkunde zur Kündigung — Papier, Unterschrift, Prüfsumme.
 import { urkundeAusfertigen, urkundeVerwerfen, urkundeStand, rolleInWorten } from "../lib/fiaon-kuendigung-urkunde";
 
@@ -169,10 +172,13 @@ export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOpti
 
   // Der Antrag im Formular-Topf ist damit erledigt — sonst liegt er weiter
   // als „offen" in der Liste, obwohl der Vertrag längst gekündigt ist.
+  // E-IT-B (08.10.2026): auch Anträge, deren Bestellung in diese zusammengeführt ist (das Formular nimmt irgendeine
+  // Bestellung des Menschen) — sonst blieben sie nach der Buchung „offen“ (Gegenprüfung: #5, #48, #114).
   await sqlPool`
     UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
            admin_note = COALESCE(admin_note, '') || ${` [durch ${zeichner.name} bestätigt]`}
-     WHERE ref = ${ref} AND status = 'pending'`.catch(() => {});
+     WHERE status = 'pending'
+       AND (ref = ${ref} OR ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.merged_into = ${ref}))`.catch(() => {});
 
   if (opts.personId) {
     await sqlPool`
@@ -197,13 +203,20 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
     const schreiben = req.body?.schreiben === true;
     const mailSenden = req.body?.mail === true;
     const deckel = Math.min(300, Math.max(1, Number(req.body?.deckel) || 300));
-    const kandidaten = (await sqlPool`
-      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason
+    const alleKandidaten = (await sqlPool`
+      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason,
+             -- E-IT-G (08.10.2026): Ohne passendes Geburtsdatum angenommen (Kündigungsseite) → erst buchen,
+             -- wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist. Querprüfung 08.10.: derselbe Ausdruck
+             -- wie für Akte und Chefbüro (KUENDIGUNG_IDENTITAET_OFFEN_SQL, to_jsonb: läuft auch ohne Migration 103).
+             ${sqlPool.unsafe(KUENDIGUNG_IDENTITAET_OFFEN_SQL("c"))} AS identitaet_offen
         FROM cancellation_requests c
         JOIN fiaon_applications a ON a.ref = c.ref AND a.merged_into IS NULL
        WHERE c.status = 'pending' AND a.gekuendigt_am IS NULL
        ORDER BY c.ref, c.created_at ASC
     `) as any[];
+    // Zurückgehalten: Identität noch nicht geprüft — steht in der Vorschau getrennt.
+    const identitaetOffen = alleKandidaten.filter((k) => k.identitaet_offen === true).map((k) => String(k.ref));
+    const kandidaten = alleKandidaten.filter((k) => k.identitaet_offen !== true);
     const ergebnisse: any[] = [];
     let bleibtCents = 0, entfaelltCents = 0, mails = 0;
     for (const k of kandidaten.slice(0, deckel)) {
@@ -233,6 +246,7 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
     for (const e of ergebnisse) jeWeg[e.weg] = (jeWeg[e.weg] || 0) + 1;
     res.json({
       ok: true, schreiben, mailSenden, kandidaten: kandidaten.length, bearbeitet: ergebnisse.length, jeWeg,
+      identitaetOffen: identitaetOffen.length, identitaetOffenRefs: identitaetOffen.slice(0, 50),
       forderungBleibtEuro: Math.round(bleibtCents) / 100,
       forderungEntfaelltEuro: Math.round(entfaelltCents) / 100,
       mails, beispiele: ergebnisse.slice(0, 10),
@@ -304,6 +318,69 @@ async function bestellungFuerAgent(req: AgentRequest, res: Response): Promise<{ 
   return { ref: String(a.ref), personId };
 }
 
+/** Leitung im Sinne der Kündigungsanträge: Geschäftsführung (admin) und Vertriebsleitung. */
+const LEITUNG_ROLLEN = new Set(["admin", "vertriebsleiter"]);
+async function istLeitung(req: AgentRequest): Promise<boolean> {
+  const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+  return LEITUNG_ROLLEN.has(String(req.agent?.rolle || await rolleVon(req.agent!.id) || ""));
+}
+
+/**
+ * E-IT-B (08.10.2026, Gegenprüfung): einen nie gebuchten Kündigungsantrag
+ * buchen — EIN Weg für die Akte und das Chefbüro (PATCH /admin/cancellations).
+ * Auf die Bestellung aus antragZiel (shared/fiaon-kuendigung-regel.ts), zum
+ * EINGANGSTAG des Antrags, Quelle „formular“. Danach ist genau dieser Antrag
+ * bestätigt (kuendigungDurchfuehren schließt die Anträge der Zielbestellung;
+ * der Antrag kann an einer anderen Referenz hängen).
+ */
+export async function antragBuchen(antrag: OffenerAntrag, opts: {
+  grund: string; sofort?: boolean; personId: number | null;
+  unterzeichner: { name: string; rolle: string; agentId?: number | null };
+  /** true = die Leitung bucht auch, wo die Akte selbst nicht buchen darf (mit Ziel). */
+  alsLeitung?: boolean; mail?: boolean;
+  /**
+   * Querprüfung 08.10.2026 (Strang b × g): Ist die Identität des Antrags offen (ohne passendes Geburtsdatum
+   * angenommen, Aufgabe „Kündigung – Identität prüfen“ nicht erledigt), bucht nur, wer in einem Satz vermerkt,
+   * wie die Identität geprüft wurde (Rückruf, Ausweis …) — auch die Leitung. Der Vermerk steht im Verlauf und
+   * erledigt die Prüfaufgabe.
+   */
+  identitaetVermerk?: string | null;
+}): Promise<any> {
+  if (!antrag.ziel.ziel) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz };
+  if (!antrag.ziel.buchbar && !opts.alsLeitung) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz, leitung: true };
+  if (antrag.identitaetOffen && !identitaetVermerkGueltig(opts.identitaetVermerk)) {
+    const satz = `Identität erst prüfen (Aufgabe „Kündigung – Identität prüfen“, Antrag Nr. ${antrag.id}): Der Antrag kam ohne passendes Geburtsdatum. `
+      + "Bitte zuerst die Aufgabe erledigen — oder hier in einem Satz vermerken, wie die Identität geprüft wurde.";
+    return { ok: false, grund: satz, error: satz, identitaet: true };
+  }
+  if (antrag.identitaetOffen) {
+    const vermerk = String(opts.identitaetVermerk).trim().slice(0, 300);
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${antrag.ref || antrag.ziel.ziel}, ${opts.personId}, ${opts.unterzeichner.agentId ?? null}, ${opts.unterzeichner.name}, 'system',
+              ${`Identität zum Kündigungsantrag Nr. ${antrag.id} geprüft (${opts.unterzeichner.name}): ${vermerk}`}, NOW())`.catch(() => {});
+    const [t] = (await sqlPool`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${kuendigungIdentitaetSchluessel(antrag.id)} AND status <> 'erledigt' LIMIT 1`.catch(() => [])) as any[];
+    if (t?.id) {
+      const { auftragErledigen } = await import("../lib/fiaon-auftraege");
+      await auftragErledigen(Number(t.id), {
+        art: "hand", von: opts.unterzeichner.name, autorArt: opts.unterzeichner.agentId ? "agent" : "betreiber", autorAgentId: opts.unterzeichner.agentId ?? null,
+        ergebnis: `Identität geprüft: ${vermerk}`,
+      }).catch((e) => console.error("[KÜNDIGUNG] Prüfaufgabe erledigen:", e));
+    }
+  }
+  const erg = await kuendigungDurchfuehren(antrag.ziel.ziel, {
+    quelle: "formular", am: antrag.am, grund: opts.grund, sofort: opts.sofort === true,
+    personId: opts.personId, unterzeichner: opts.unterzeichner, mail: opts.mail,
+  });
+  if (erg?.ok) {
+    await sqlPool`
+      UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(), processed_by = ${opts.unterzeichner.name},
+             admin_note = COALESCE(admin_note, '') || ${` [gebucht auf ${antrag.ziel.ziel} zum Eingangstag — ${opts.unterzeichner.name}]`}
+       WHERE id = ${antrag.id} AND status = 'pending'`.catch(() => {});
+  }
+  return { ...erg, gebuchtAuf: antrag.ziel.ziel, gebuchtZum: antrag.am };
+}
+
 /** GET /agent/kunden/:personId/kuendigung — Stand des Vertrags für die Akte. */
 router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -314,7 +391,27 @@ router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agent
              (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = fiaon_applications.ref AND r.status = 'offen') AS offene_raten
       FROM fiaon_applications WHERE ref = ${b.ref} LIMIT 1`) as any[];
     const gekuendigt = !!a.gekuendigt_am;
+    // ── E-IT-B (08.10.2026): EIN ANTRAG, DER NIE GEBUCHT WURDE ────────────────
+    // Justin, 08.10.: Ein Kündigungsantrag aus dem Formular (cancellation_requests,
+    // offen) ohne gebuchte Kündigung zählt NICHT als wirksam — er wird über diesen
+    // Weg (E-213) nachgebucht. Die Akte sagt es jetzt, statt ihn zu verschweigen
+    // (gemessen 07.10.: 19 solche Anträge). Dieselbe Regel wie die Liste
+    // „Kündigung nicht gebucht“ (KUENDIGUNG_ANTRAEGE_SQL, shared/fiaon-kuendigung-regel.ts)
+    // — auf Personenebene, unabhängig davon, welche Bestellung die Akte oben zeigt.
+    const offenerAntrag = (await offeneKuendigungsantraege(b.personId).catch(() => [] as OffenerAntrag[]))[0] ?? null;
+    const leitung = await istLeitung(req).catch(() => false);
     res.json({
+      antragUngebucht: offenerAntrag ? {
+        id: offenerAntrag.id, am: offenerAntrag.am, grund: offenerAntrag.grund,
+        wunschDatum: offenerAntrag.wunsch, ref: offenerAntrag.ref,
+        ziel: offenerAntrag.ziel.ziel, paket: offenerAntrag.zielPaket, umgezogen: offenerAntrag.ziel.umgezogen,
+        satz: offenerAntrag.ziel.satz,
+        buchbar: offenerAntrag.ziel.buchbar, leitung: offenerAntrag.ziel.buchbar ? null : offenerAntrag.ziel.satz,
+        // Die Leitung bucht auch, wo die Akte nicht darf (mit Ziel), und schließt einen Antrag ohne Kündigung.
+        darfLeitung: leitung,
+        // Querprüfung 08.10.2026: ohne passendes Geburtsdatum angenommen, Prüfaufgabe offen → Buchen nur mit Vermerk.
+        identitaetOffen: offenerAntrag.identitaetOffen,
+      } : null,
       ok: true, ref: a.ref, bezahlt: String(a.payment_status) === "paid", paket: a.pack_name ? String(a.pack_name).split("\n")[0] : null,
       gekuendigt, gekuendigtAm: a.gekuendigt_am, quelle: a.kuendigung_quelle, grund: a.kuendigung_grund,
       letzteRateNr: a.letzte_rate_nr, vertragEndeAm: a.vertrag_ende_am, zurueckgenommenAm: a.kuendigung_zurueckgenommen_am,
@@ -336,6 +433,29 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
     const grund = String(req.body?.grund || "").trim();
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte den Grund in einem Satz — er steht dauerhaft am Kunden." });
     const sofort = req.body?.sofort === true;
+    // ── E-IT-B (08.10.2026, Gegenprüfung): „JETZT BUCHEN“ FÜR EINEN ANTRAG ────
+    // Vorher füllte der Knopf nur den Grund vor — gebucht wurde auf die Bestellung
+    // der Akte, mit HEUTIGEM Datum, Quelle „telefon“. Ein Antrag vom 06.07. am
+    // 08.10. gebucht verschob das Vertragsende um drei Monate (Fall 4510), und
+    // ein Antrag auf eine stornierte Bestellung stornierte die NEUE (Fall 12363).
+    // Jetzt: die Bestellung aus antragZiel (die des Antrags, sonst ihre Fortsetzung
+    // bzw. das eine Paket am Eingangstag), zum Eingangstag, Quelle „formular“. Kam
+    // danach ein neues Paket oder ist das Ziel nicht eindeutig, bucht nur die
+    // Leitung (alsLeitung) — ein Paket, das erst nach dem Antrag kam, nie.
+    if (req.body?.ausAntrag != null) {
+      const antragId = Number(req.body.ausAntrag);
+      if (!Number.isInteger(antragId) || antragId <= 0) return res.status(400).json({ ok: false, error: "Ungültiger Kündigungsantrag." });
+      const [antrag] = await offeneKuendigungsantraege(b.personId, antragId);
+      if (!antrag) return res.status(409).json({ ok: false, error: "Dieser Kündigungsantrag ist nicht mehr offen — bitte die Akte neu laden." });
+      const alsLeitung = req.body?.alsLeitung === true;
+      if (alsLeitung && !(await istLeitung(req))) return res.status(403).json({ ok: false, error: "Das entscheidet die Leitung." });
+      const erg = await antragBuchen(antrag, {
+        grund: `${grund} (${req.agent!.name})`, sofort, personId: b.personId, alsLeitung, identitaetVermerk: req.body?.identitaetVermerk ?? null,
+        unterzeichner: { name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id },
+      });
+      if (erg?.ok === false && (erg.leitung || erg.identitaet || !antrag.ziel.ziel)) return res.status(409).json({ ok: false, error: erg.error, identitaet: !!erg.identitaet });
+      return res.json(erg);
+    }
     // E-213: EIN Vorgang für alle vier Türen — siehe kuendigungDurchfuehren.
     const erg = await kuendigungDurchfuehren(b.ref, {
       quelle: "telefon",
@@ -347,6 +467,28 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
     res.json(erg);
   } catch (e: any) {
     console.error("[KÜNDIGUNG] agent setzen:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/kunden/:personId/kuendigung/antrag/:id/schliessen { grund } — E-IT-B (08.10.2026):
+ * einen nie gebuchten Kündigungsantrag OHNE Kündigung schließen (z. B. der Kunde
+ * kam danach mit einem neuen Paket wieder). Nur die Leitung — eine Kündigung
+ * nicht zu buchen ist eine Entscheidung gegen den erklärten Willen.
+ */
+router.post("/agent/kunden/:personId/kuendigung/antrag/:id/schliessen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = await bestellungFuerAgent(req, res); if (!b) return;
+    if (!(await istLeitung(req))) return res.status(403).json({ ok: false, error: "Einen Kündigungsantrag ohne Kündigung schließt nur die Leitung." });
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte in einem Satz, warum der Antrag ohne Kündigung erledigt ist." });
+    const [antrag] = await offeneKuendigungsantraege(b.personId, Number(req.params.id));
+    if (!antrag) return res.status(409).json({ ok: false, error: "Dieser Kündigungsantrag ist nicht mehr offen — bitte die Akte neu laden." });
+    const zu = await kuendigungsantragSchliessen(antrag.id, { von: req.agent!.name, grund, personId: b.personId });
+    res.json({ ok: zu, meldung: zu ? "Antrag ohne Kündigung geschlossen — steht im Verlauf." : "Der Antrag war schon erledigt." });
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] antrag schließen:", e);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

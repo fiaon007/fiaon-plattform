@@ -959,6 +959,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);
+  // 📎 Unterlagen (E-IT-C, 08.10.2026): eine Datei = ein Datensatz; Hinzufügen statt Ersetzen, 50 MB je Datei,
+  //    „Weitere Unterlagen", Stand liegt vor/fehlt/wird geprüft/bitte neu — Kunde (/kunde/:ref/unterlagen),
+  //    Office (/agent/unterlagen/:personId), Chefbüro-Akte (/admin/unterlagen/:ref, hinter dem Admin-Code).
+  //    Der entprellte Anstoß (Prüfung + Analyse + EINE Aufgabe je Stapel) holt der Takt unterlagen_anstoss nach.
+  const fiaonUnterlagen = await import('./routes/fiaon-unterlagen');
+  app.use('/api/fiaon', fiaonUnterlagen.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('unterlagen_anstoss', async () => await (await import('./lib/fiaon-unterlagen')).anstoesseNachholen(10), 2 * 60 * 1000, { beimStartNach: 60_000, nurMitErgebnis: true });
+    // Querprüfung 08.10.2026 (Art. 5 Abs. 1 lit. e DSGVO): Inhalt vom Team entfernter Dateien nach 90 Tagen leeren.
+    tageslauf('unterlagen_frist', async () => await (await import('./lib/fiaon-unterlagen')).entfernteInhalteLeeren(), 6 * 60 * 60 * 1000, { beimStartNach: 600_000, nurMitErgebnis: true });
+  });
+  // 📊 E-IT-D (08.10.2026): FIAON Finanz- und Bonitätsauswertung (Akte, Kunde) und der Upload-Link ohne
+  //    Anmeldung (/unterlagen/:token, signiert, 14 Tage) — server/routes/fiaon-finanzauswertung.ts.
+  app.use('/api/fiaon', (await import('./routes/fiaon-finanzauswertung')).default);
 
   // 📱 /APP — Serverseite des neuen Kundenbereichs (E-150, Scheibe 2): Anspruchs-
   // Check, Brief-Knopf, Post. Liest den Stand weiter aus fiaon-kunde-bereich.
@@ -1100,6 +1114,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 💶 E-244 (26.09.2026): Zahlungserinnerung an jede offene Auskunft-Bestellung — Tag 1/4/10/18, danach wöchentlich,
     //    Mo–So 07:00–20:30, je Lauf 10, je Tag auskunft_erinnerung_pro_tag (50). STANDARD AN; aus im Mara-Steuerpult.
     tageslauf('auskunft_erinnerung', async () => await (await import('./lib/fiaon-auskunft-erinnerung')).erinnerungLauf(), 30 * 60 * 1000, { beimStartNach: 480_000 });
+    // 🕒 E-IT-D (08.10.2026, 4a): Liegezeit-Wache der Auskunft-Beschaffung — alle 6 Stunden. Beschaffbar und seit
+    //    3 Werktagen fällig → Aufgabe an die benannte Verantwortung (10 Werktage: dringend); Link 3 Werktage
+    //    unbestätigt → Anruf-Aufgabe an den Betreuer. Je Auftrag und Stufe genau eine Aufgabe.
+    tageslauf('auskunft_liegezeit_wache', async () => await (await import('./lib/fiaon-auskunft-lieferung')).beschaffungWache(), 6 * 60 * 60 * 1000, { beimStartNach: 540_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

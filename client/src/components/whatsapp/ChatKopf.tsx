@@ -10,6 +10,10 @@
 // („Termin heute 20:00 · Florentine", am Handy in der Unterzeile); rechts
 // Mara-Schalter, Anrufen und — wenn die Fall-Spalte nicht daneben passt —
 // der Fall. Das Fenster steht über dem Eingabefeld, dort wird es gebraucht.
+//
+// E-IT-H (08.10.2026, Punkt 15): Das (i) gibt es jetzt in JEDER Breite. Ist
+// Platz für die Fall-Spalte, blendet es sie ein und aus (der Browser merkt
+// sich die Wahl); sonst öffnet es die Schublade über dem Verlauf.
 // ═══════════════════════════════════════════════════════════════════════════
 import { stufeText, terminText, vorname } from "./wr-format";
 
@@ -66,7 +70,8 @@ export function ChatKopf({
           </button>
         )}
         {fallKnopf && (
-          <button type="button" className={`wr-ikon${fallOffen ? " an" : ""}`} onClick={onFall} aria-pressed={fallOffen} aria-label="Der Fall" title="Der Fall: Stufe, Zahlung, Termin, Notiz">
+          <button type="button" className={`wr-ikon wr-fall-knopf${fallOffen ? " an" : ""}`} onClick={onFall} aria-pressed={fallOffen}
+            aria-label="Den Fall ein- oder ausblenden" title="Den Fall ein- oder ausblenden: Stufe, Zahlung, Termin, Notiz, Ergebnis buchen">
             <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M12 11v5.5M12 7.6v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
           </button>
         )}

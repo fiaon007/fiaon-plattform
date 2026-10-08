@@ -49,6 +49,8 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-mara.css";
 import "@/styles/chef-wa-zentrale.css";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
 interface GruppeInfo {
@@ -436,7 +438,7 @@ function MaraProtokoll() {
                         <div className="wz-mp-inhalt">
                           <div className="wz-mp-kopf">
                             <span className="wz-mp-kunde">
-                              {z.personId ? <a href={`/chef/s/akte?id=${z.personId}`}>{wer}</a> : wer}
+                              {z.personId ? <a href={akteLink(z.personId, "chef") ?? undefined}>{wer}</a> : wer}
                               {z.kunde && z.nummer ? <span className="mara-still"> · {nummerZeigen(z.nummer)}</span> : null}
                             </span>
                             <span className={`mara-pille${art.art ? ` ${art.art}` : ""}`}>{art.text}</span>
@@ -1211,7 +1213,7 @@ export default function ChefWhatsAppZentrale() {
                           return (
                             <div key={z.personId} className="wz-vorschau-zeile">
                               <div className="wz-vorschau-wer">
-                                <a href={`/chef/s/akte?id=${z.personId}`}>{z.name}</a>
+                                <a href={akteLink(z.personId, "chef") ?? undefined}>{z.name}</a>
                                 <span className="mara-still mara-klein">Tag {z.tage}{z.letzteVorlageAm ? ` · letzte Vorlage ${seit(z.letzteVorlageAm)}` : " · noch nie angeschrieben"}</span>
                                 {vorlage === "stufen" ? <span><span className="mara-pille akz">{vorlagenName(z.vorlage, d.vorlagen)}</span></span> : null}
                               </div>
@@ -1348,7 +1350,7 @@ export default function ChefWhatsAppZentrale() {
                           return (
                             <tr key={e.id} className={e.ok ? "" : "nicht"}>
                               <td className="c-zeit" data-l="Zeit">{tagZeitBerlin(e.am)}</td>
-                              <td className="c-mensch" data-l="Mensch">{e.personId ? <a href={`/chef/s/akte?id=${e.personId}`}>{e.name}</a> : e.name}</td>
+                              <td className="c-mensch" data-l="Mensch">{e.personId ? <a href={akteLink(e.personId, "chef") ?? undefined}>{e.name}</a> : e.name}</td>
                               <td className="c-gruppe" data-l="Gruppe">{GRUPPEN_KURZ[e.gruppe] ?? e.gruppe}</td>
                               <td className="c-vorlage" data-l="Vorlage">{vorlagenName(e.vorlage, d.vorlagen)}</td>
                               <td className="c-weg" data-l="Weg">{e.quelle === "verkaufstakt" ? "Auskunft-Takt" : e.quelle === "hand" ? "von Hand" : "Automatik"}</td>

@@ -71,6 +71,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
+import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumAnzeige, geburtsdatumLesen, geburtTeileAusText, geburtTextAusTeile } from "@shared/fiaon-geburtsdatum";
 import { landErkennen } from "@/lib/land-erkennen";
 import { appViewport } from "@/lib/app-viewport";
 import { messungsDaten } from "@/lib/werbung";
@@ -142,32 +144,16 @@ function telefonFehler(roh: string, land: AuskunftLand): string | null {
   return null;
 }
 
-/** TT.MM.JJJJ beim Tippen: Die Punkte kommen von selbst (am Handy hat die Zifferntastatur keinen). */
-function datumTippen(neu: string, alt: string): string {
-  let v = neu.replace(/,/g, ".").replace(/[^\d.]/g, "").replace(/\.{2,}/g, ".");
-  if (neu.length > alt.length && (/^\d{2}$/.test(v) || /^\d{1,2}\.\d{2}$/.test(v))) v += ".";
-  return v.slice(0, 10);
-}
-function datumIso(v: string): string | null {
-  const m = v.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (!m) return null;
-  const t = Number(m[1]), mo = Number(m[2]), j = Number(m[3]);
-  const d = new Date(Date.UTC(j, mo - 1, t));
-  if (d.getUTCFullYear() !== j || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== t) return null;
-  return `${j}-${String(mo).padStart(2, "0")}-${String(t).padStart(2, "0")}`;
-}
-function alterAm(iso: string): number {
-  const [j, m, t] = iso.split("-").map(Number);
-  const heute = new Date();
-  let a = heute.getFullYear() - j;
-  if (heute.getMonth() + 1 < m || (heute.getMonth() + 1 === m && heute.getDate() < t)) a -= 1;
-  return a;
-}
+// ── E-IT-G (08.10.2026): DAS GEBURTSDATUM ÜBER DAS GEMEINSAME BAUTEIL ────────
+// Vorher eine Textmaske mit eigenen Helfern (datumTippen/datumIso/alterAm/
+// datumAnzeige) — die vierte Fassung derselben Regel. Jetzt drei Felder
+// (GeburtsdatumFeld) und der eine Leser (shared/fiaon-geburtsdatum.ts).
+// `d.geburt` bleibt Text (JJJJ-MM-TT oder halb getippt „14.03.“), damit ein
+// gespeicherter Entwurf „TT.MM.JJJJ“ weiter passt.
+const geburtTeile = geburtTeileAusText;
 /** Das Geburtsdatum aus der Akte (Text, meist JJJJ-MM-TT) für die Anzeige. */
 function datumAnzeige(v: unknown): string {
-  const s = String(v ?? "").trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : s || "—";
+  return geburtsdatumAnzeige(v) || "—";
 }
 
 /** Ein Vorgabewert aus der Adresse (?art=firma, ?land=AT) — nur aus der erlaubten Liste. */
@@ -395,12 +381,12 @@ export default function BonitaetAntragPage() {
     if (!kunde) {
       if (!d.vorname.trim()) f.vorname = T.f.vorname;
       if (!d.nachname.trim()) f.nachname = T.f.nachname;
-      const iso = datumIso(d.geburt);
+      const geb = geburtsdatumLesen(geburtTeile(d.geburt), "vertrag");
       if (privat) {
-        if (!iso) f.geburt = T.f.geburtsdatum;
-        else if (alterAm(iso) < 18) f.geburt = T.f.geburtsdatumAlter;
-        else if (alterAm(iso) > 110) f.geburt = T.f.geburtsdatum;
-      } else if (d.geburt.trim() && !iso) f.geburt = T.f.geburtsdatumFirma;
+        if (geb.stand === "leer" || geb.stand === "unvollstaendig") f.geburt = T.f.geburtsdatum;
+        else if (geb.stand === "zu_jung") f.geburt = T.f.geburtsdatumAlter;
+        else if (geb.stand !== "ok") f.geburt = geb.meldung;
+      } else if (geb.stand !== "leer" && geb.stand !== "ok") f.geburt = T.f.geburtsdatumFirma;
       if (!d.strasse.trim()) f.strasse = T.f.strasse;
       else if (!/\d/.test(d.strasse)) f.strasse = T.f.hausnummer;
       if (!new RegExp(`^\\d{${PLZ_STELLEN[land]}}$`).test(d.plz.trim())) f.plz = T.f.plz(PLZ_STELLEN[land]);
@@ -458,7 +444,8 @@ export default function BonitaetAntragPage() {
       return;
     }
     setSenden("laeuft");
-    const geburtIso = datumIso(d.geburt);
+    const gebGelesen = geburtsdatumLesen(geburtTeile(d.geburt), "vertrag");
+    const geburtIso = gebGelesen.stand === "ok" ? gebGelesen.iso : null;
     // Was der Mensch gesehen und angekreuzt hat — Wortlaut, Fassung, Zeitpunkte.
     const zustimmungen = {
       fassung: BESTELL_FASSUNG,
@@ -726,8 +713,8 @@ export default function BonitaetAntragPage() {
                         <input id="ba-e-nachname" className="ba-eingabe" value={d.nachname} onChange={(e) => setze("nachname", e.target.value)} autoComplete="family-name" autoCapitalize="words" />
                       </Feld>
                       <Feld id="geburt" label={firma ? T.geburtsdatumFirma : T.geburtsdatum} pflicht={privat} fehler={fe("geburt")} hinweis={firma ? T.geburtsdatumFirmaHinweis : undefined} voll={firma}>
-                        <input id="ba-e-geburt" className="ba-eingabe" value={d.geburt} inputMode="numeric" autoComplete="bday" placeholder={T.geburtsdatumPlatz}
-                               onChange={(e) => setze("geburt", datumTippen(e.target.value, d.geburt))} style={firma ? { maxWidth: 260 } : undefined} />
+                        <GeburtsdatumFeld variante="kunde" kontext="vertrag" klasseEingabe="ba-eingabe" ids={{ tag: "ba-e-geburt" }}
+                          teile={geburtTeile(d.geburt)} onTeile={(t) => setze("geburt", geburtTextAusTeile(t))} />
                       </Feld>
                     </div>
                     <p className="ba-unter">{firma ? T.anschriftFirma : T.anschrift}</p>

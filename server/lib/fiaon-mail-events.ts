@@ -214,8 +214,11 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // drei Bedingungen (kartenStand().bereit) und an der Vormerkung für die 10 €
   // vorbei. Das Team sendet über den eigenen Knopf in der Akte; im allgemeinen
   // Menü steht sie nur noch für die Verwaltung (Nachversand, 05.09.).
+  // E-IT-B (08.10.2026): „inkasso“ dazu — erneut senden darf jeder, der an die Akte darf (darfAnKunde;
+  // Forderungsmanagement bei offener Rate). Das Menü bleibt bei „admin“ und geht über denselben Weg
+  // (karteEinladungErneut, fiaon-mail.ts) — der Knopf steht im Kasten „Konto & Karte“ der Akte.
   konto_karte_einladung: {
-    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
     klartext: "Der Weg zum kostenlosen Girokonto bei unserem Kooperationspartner — Voraussetzung für die Kreditkarte.",
     menueNur: ["admin"],
   },
@@ -281,6 +284,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // E-282 (05.10.2026): Die Vertragsbestätigung des neuen Antrags entsteht aus der Vertragsannahme und trägt
   // das Vertrags-PDF — aus einer Kundenakte oder dem Sende-Menü wäre sie eine Bestätigung ohne Vertrag. Die
   // Pflichtfelder kennt nur ihr eigener Weg (vertragBestaetigungSenden); jeder andere Weg lehnt damit ab.
+  // Querprüfung 08.10.2026: Eingangsbestätigung der Kündigungsseite — nur ihr eigener Auslöser kennt Eingang und Erklärung.
+  kuendigung_eingegangen: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["eingang_text", "zeitpunkt_text", "erklaerung_text"],
+    klartext: "Kündigungsseite: Eingangsbestätigung mit Datum und Uhrzeit, gewünschtem Zeitpunkt und der Erklärung — geht sofort nach jedem angenommenen Antrag (§ 312k BGB).",
+  },
   vertrag_bestaetigung: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
     vonHand: false, pflichtFelder: ["anrede_zeile", "angenommen_datum", "angenommen_uhrzeit", "beginn_satz"],
@@ -298,6 +307,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // schickt diese Mail — für jeden, der den Kunden betreut. Mit „admin" allein
   // lehnte mailSenden jeden Klick des Teams ab (gemessen: 1 Versand in 30 Tagen).
   // Den Hinweis, WAS fehlt, kennt nur dieser Auslöser — im Menü steht sie nicht.
+  // E-IT-D (08.10.2026, 4b): nach der Freigabe in der Akte — der Server sendet, kein Menü (vonHand: false).
+  finanzauswertung_bereit: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    vonHand: false, pflichtFelder: ["auswertung_url"],
+    klartext: "Die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich des Kunden — Knopf „Auswertung ansehen“, ohne Anhang, ohne Zahlen. Geht automatisch mit der Freigabe in der Akte.",
+  },
   documents_change_request: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
     klartext: "Bitte, ein Dokument im Bereich hochzuladen — mit dem Hinweis, was fehlt. Geht über „Anfordern“ an den Unterlagen.",

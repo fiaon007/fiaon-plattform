@@ -991,6 +991,8 @@ try {
     "server/lib/fiaon-wa-zentrale.ts": 1, "server/lib/fiaon-whatsapp-mara.ts": 1, "server/lib/fiaon-telefonkartei.ts": 1,
     "server/lib/fiaon-mara-auftrag.ts": 1, "server/lib/fiaon-lead-whatsapp.ts": 2, "server/routes/fiaon-vertrieb.ts": 1,
     "server/routes/fiaon-whatsapp-postfach.ts": 2,
+    // E-IT-D (08.10.2026, Punkt 4c): „Unterlagen anfordern“ — Freitext nur im offenen 24-Stunden-Fenster, über waSenden (Bremse inklusive).
+    "server/lib/fiaon-unterlagen-link.ts": 1,
   };
   const gefunden: Record<string, number> = {};
   for (const f of dateien) {
@@ -1001,7 +1003,7 @@ try {
     if (n) gefunden[rel(f)] = n;
   }
   const unbekannt = Object.keys(gefunden).filter((f) => AUFRUFER[f] !== gefunden[f]);
-  pruef(`Jeder waSenden-Aufrufer steht in der Liste (9 Aufrufe in 7 Dateien)${unbekannt.length ? ` — neu/anders: ${unbekannt.map((f) => `${f} (${gefunden[f]})`).join(", ")}` : ""}`,
+  pruef(`Jeder waSenden-Aufrufer steht in der Liste (10 Aufrufe in 8 Dateien)${unbekannt.length ? ` — neu/anders: ${unbekannt.map((f) => `${f} (${gefunden[f]})`).join(", ")}` : ""}`,
     unbekannt.length === 0 && Object.keys(AUFRUFER).every((f) => gefunden[f] === AUFRUFER[f]), gefunden);
   const waQ = readFileSync(join(wurzel, "server/lib/fiaon-whatsapp.ts"), "utf8");
   const senden = waQ.slice(waQ.indexOf("export async function waSenden("), waQ.indexOf("// EMPFANGEN"));

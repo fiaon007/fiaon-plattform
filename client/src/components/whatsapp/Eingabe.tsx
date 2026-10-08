@@ -10,6 +10,9 @@
 // Jetzt:
 // · [+] · Feld · Senden in einem Raster — das Feld hat immer den Rest (min. 60 %).
 // · Das Feld wächst von 1 bis 6 Zeilen, dann scrollt es. 16 px (iOS zoomt sonst).
+//   E-IT-H (08.10.2026, Punkt 15): Die Höchsthöhe ist 36 % der Chathöhe,
+//   höchstens 320 px (am großen Bildschirm rund zwölf Zeilen) — eine Quelle in
+//   shared/fiaon-wa-raum.ts; ohne Chathöhe bleibt es bei sechs Zeilen.
 // · Rechner: Enter sendet, Umschalt+Enter neue Zeile. Touch: Enter ist eine
 //   neue Zeile, der Knopf sendet. Während einer Wortbildung (IME) nie senden.
 // · Die Sperre gegen Doppelversand sitzt im Rahmen (ein Ref, kein State —
@@ -18,6 +21,7 @@
 // · Höchstens 4.096 Zeichen (Meta), Zähler ab 3.500.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { FELD_ANTEIL_CHAT, FELD_HOECHSTENS_PX } from "@shared/fiaon-wa-raum";
 import { VorlagenBlatt } from "./VorlagenBlatt";
 import type { RaumLinks, Vorlage } from "./wr-format";
 
@@ -47,13 +51,17 @@ export function Eingabe({
 }) {
   const feld = useRef<HTMLTextAreaElement>(null);
 
-  // Mitwachsen: 1 bis 6 Zeilen, dann scrollt das Feld selbst.
+  // Mitwachsen bis 36 % der Chathöhe (höchstens 320 px), dann scrollt das Feld selbst. Gerechnet wird
+  // hier — getComputedStyle lieferte min(36cqh, …) nicht immer aufgelöst (dann blieb es bei 150 px).
   useLayoutEffect(() => {
     const el = feld.current; if (!el) return;
     el.style.height = "auto";
-    const max = ZEILE_PX * MAX_ZEILEN + 18;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
-    el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
+    const chatHoehe = (el.closest(".wr-chat") as HTMLElement | null)?.clientHeight ?? 0;
+    const max = chatHoehe > 0
+      ? Math.max(ZEILE_PX * 2 + 18, Math.min(FELD_HOECHSTENS_PX, Math.round(chatHoehe * FELD_ANTEIL_CHAT)))
+      : ZEILE_PX * MAX_ZEILEN + 18;
+    el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
+    el.style.overflowY = el.scrollHeight + 2 > max ? "auto" : "hidden";
   }, [wert, nummer, fensterOffen]);
 
   // Fokus: am Rechner beim Öffnen und nach dem Senden. Am Handy nicht von

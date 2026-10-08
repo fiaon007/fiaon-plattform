@@ -91,6 +91,7 @@ import { abmeldeLinkPerson } from "../routes/fiaon-abmelden";
 import { BANK } from "@shared/fiaon-bank";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { KUENDIGUNG_BESTELLUNG_SQL } from "@shared/fiaon-kuendigung-regel";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 // Mara-Topsales 08.10.2026: die automatische Tür als SQL (Werbesperre an der Adresse, hart unzustellbar).
@@ -262,10 +263,11 @@ function grundmenge() {
        -- nach einer Kündigung NEU beantragt, bleibt drin — das ist neues Interesse. Die
        -- Werbesperre an einer ANDEREN Person mit derselben Adresse fängt die Tür
        -- (werbesperreAnAdresse in fiaon-mail-frequenz.ts).
+       -- E-IT-B (08.10.2026): „gekündigt“ nach der EINEN Regel (shared/fiaon-kuendigung-regel.ts) — die
+       -- Kündigung eines STUFENPAKETS; eine gekündigte Bonitätsauskunft ist keine Vertragskündigung.
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_applications g
-          WHERE g.person_id = a.person_id AND g.merged_into IS NULL
-            AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL
+          WHERE g.person_id = a.person_id AND ${sqlPool.unsafe(KUENDIGUNG_BESTELLUNG_SQL("g"))}
             AND g.gekuendigt_am >= a.created_at)
   `;
 }

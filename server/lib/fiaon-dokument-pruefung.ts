@@ -26,9 +26,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { pdfSeiten, pdfTextUndZeilen, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
+import { pdfSeiten, pdfTextUndZeilen, textBrauchbarFuer } from "./fiaon-pdf-lesen";
 import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
-import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
+import { openaiFetch, kiPausiert, istKiPause, kiLesenMoeglich, kiSchluessel } from "./fiaon-ki-pause";
+import { ausweisBewerten, type AusweisTextBefund, type UnterlagenKategorie } from "@shared/fiaon-unterlagen";
+import { istLeseFehler, lesefehlerSatz, type LeseKlasse } from "@shared/fiaon-lesefehler";
 
 /**
  * Der Text eines Dokuments — aus der Textschicht, sonst aus der Texterkennung
@@ -36,18 +38,30 @@ import { openaiFetch, kiPausiert, istKiPause } from "./fiaon-ki-pause";
  * „automatisch nicht prüfbar" — bei Ausweisen fast immer. Die Erkennung ist im
  * Prozess zwischengespeichert: Heuristik und KI-Urteil lesen dieselbe Datei
  * nur einmal.
+ *
+ * E-IT-C (08.10.2026, Punkt 13):
+ *   · Kontoauszüge zählen mit der Auszugsregel (Beträge), nicht mit der
+ *     Vokalregel — dieselbe Regel wie die Analyse (textBrauchbarFuer).
+ *   · Ausweise gehen NIE an die Texterkennung: ocrLesen liefert für „ausweis"
+ *     null (keine Ausweisbilder an eine KI, Entscheidung Justin 08.10.).
+ *   · `ohneOcr` — der Sofortblick beim Upload liest nur die Textschicht.
+ *   · Ein Fehler der Texterkennung kommt als Klasse zurück (`klasse`), nicht
+ *     als „unlesbar".
  */
-async function lesbarerText(pdf: Buffer, art: DokumentArt): Promise<{ seiten: string[]; zeilen: string[][]; ocr: string | null; pause?: boolean }> {
+async function lesbarerText(pdf: Buffer, art: DokumentArt, opt: { ohneOcr?: boolean } = {}): Promise<{ seiten: string[]; zeilen: string[][]; ocr: string | null; pause?: boolean; klasse?: LeseKlasse }> {
   const { seiten, zeilen } = await pdfTextUndZeilen(pdf);
   const eigen = ohneFotoVermerk(seiten.join("\n"));
-  if (eigen.length >= 40 && pdfTextBrauchbar(eigen)) return { seiten, zeilen, ocr: null };
+  if (eigen.length >= 40 && textBrauchbarFuer(art, eigen)) return { seiten, zeilen, ocr: null };
+  if (opt.ohneOcr || art === "ausweis") return { seiten, zeilen, ocr: null };
   try {
     const e = await ocrLesen(pdf, art);
-    if (e && pdfTextBrauchbar(e.seiten.join("\n"))) return { seiten: e.seiten, zeilen: ocrZeilen(e), ocr: e.modell };
+    if (e && textBrauchbarFuer(art, e.seiten.join("\n"))) return { seiten: e.seiten, zeilen: ocrZeilen(e), ocr: e.modell };
   } catch (err) {
     // E-246: In der KI-Pause hat niemand gelesen — das Urteil darf nicht „nicht lesbar" lauten.
     if (istKiPause(err)) return { seiten, zeilen, ocr: null, pause: true };
+    if (istLeseFehler(err)) return { seiten, zeilen, ocr: null, klasse: err.klasse };
     console.warn("[DOK-PRUEFUNG] Texterkennung:", String((err as Error)?.message || err).slice(0, 200));
+    return { seiten, zeilen, ocr: null, klasse: "technisch" };
   }
   return { seiten, zeilen, ocr: null };
 }
@@ -76,6 +90,12 @@ export interface DokumentUrteil {
    * KI-Urteil. pausePruefungenNachholen prüft es nach dem Aktivieren neu.
    */
   kiPause?: boolean;
+  /** E-IT-C: Die Heuristik ist sich SICHER (Reisepass, MRZ, beide Seiten, viele Treffer) — kein KI-Urteil überstimmt sie. */
+  eindeutig?: boolean;
+  /** E-IT-C: Klasse eines Lesefehlers (passwort, beschaedigt, technisch …) — shared/fiaon-lesefehler.ts. */
+  klasse?: LeseKlasse | null;
+  /** E-IT-C: Ausweis — welche Art erkannt bzw. gewählt wurde. */
+  ausweisArt?: string | null;
 }
 
 let tabelleBereit: Promise<void> | null = null;
@@ -265,42 +285,128 @@ export function auszugsZeitraum(zeilen: string[], jetzt: number = Date.now()): {
   return { von: null, bis: null, tage: 0, quelle: "keine" };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AUSWEIS AUS DER TEXTSCHICHT (E-IT-C, 08.10.2026, Punkt 13 D)
+//
+// Die maschinenlesbare Zone (MRZ) verrät die Art: „P<" ist ein Reisepass,
+// „I…"/„ID…"/„C…" die RÜCKSEITE eines Personalausweises (dort steht sie beim
+// deutschen Ausweis), „AR…" ein Aufenthaltstitel (eAT). Bisher hieß „<<" pauschal
+// „vollständig" — auch bei einer Rückseite ohne Vorderseite und bei einem
+// Aufenthaltstitel, der allein nicht genügt.
+// ═══════════════════════════════════════════════════════════════════════════
+const AUSWEIS_VORNE = ["personalausweis", "identity card", "geburtstag", "gültig bis", "staatsangehörigkeit", "nationality", "date of birth", "date of expiry"];
+const AUSWEIS_HINTEN = ["anschrift", "ausstellungsbehörde", "zugangsnummer", "authority", "address", "ausstellungsdatum", "augenfarbe", "körpergröße", "eye colour", "height"];
+const AUFENTHALT = /aufenthaltstitel|residence permit|aufenthaltserlaubnis|niederlassungserlaubnis|aufenthaltskarte|titre de s[ée]jour|daueraufenthalt/i;
+
+export function ausweisTextBefund(text: string): AusweisTextBefund {
+  const klein = text.toLowerCase();
+  const mrz = text.split(/\n/).map((z) => z.replace(/\s+/g, "").toUpperCase()).filter((z) => z.length >= 20 && z.includes("<<"));
+  const mrzPass = mrz.some((z) => /^P[A-Z<]/.test(z));
+  const mrzTitel = mrz.some((z) => /^A[R<]/.test(z));
+  const mrzAusweis = mrz.some((z) => /^(I[A-Z<]|C[A-Z<])/.test(z));
+  const titel = AUFENTHALT.test(text) || mrzTitel;
+  const pass = (/reisepass|passport|passeport/.test(klein) && !titel) || mrzPass;
+  const vorne = AUSWEIS_VORNE.filter((w) => klein.includes(w)).length >= 2;
+  const hinten = AUSWEIS_HINTEN.filter((w) => klein.includes(w)).length >= 1 || mrzAusweis;
+  return { pass, vorne: vorne && !pass, hinten: hinten && !pass, aufenthaltstitel: titel };
+}
+
+/**
+ * Der Sofortblick auf eine Textschicht — rein, ohne KI. Dieselbe Regel für die
+ * ganze Akte-Fassung (dokumentPruefen) und für jede einzelne Datei beim Upload
+ * (fiaon-unterlagen.ts): erkannt? sieht es aus wie etwas anderes? Zeitraum?
+ */
+export function textBefund(art: DokumentArt, text: string, zeilen: string[]): {
+  erkannt: boolean; treffer: number; aehnlich: DokumentArt | null;
+  zeitraumVon: string | null; zeitraumBis: string | null; tage: number; ausweis: AusweisTextBefund | null;
+} {
+  const klein = text.toLowerCase();
+  const treffer = PROFILE[art].woerter.filter((w) => klein.includes(w)).length;
+  const ausweis = art === "ausweis" ? ausweisTextBefund(text) : null;
+  const erkannt = treffer >= 2 || (art === "ausweis" && !!ausweis && (ausweis.pass || ausweis.aufenthaltstitel || (ausweis.vorne && ausweis.hinten)));
+  const aehnlich = erkannt ? null : ((Object.keys(PROFILE) as DokumentArt[])
+    .filter((a) => a !== art)
+    .find((a) => PROFILE[a].woerter.filter((w) => klein.includes(w)).length >= 2) ?? null);
+  const z = art === "kontoauszug" ? auszugsZeitraum(zeilen) : { von: null, bis: null, tage: 0 };
+  return { erkannt, treffer, aehnlich, zeitraumVon: z.von, zeitraumBis: z.bis, tage: z.tage, ausweis };
+}
+
+/** Was der Mensch je Ausweis-Datei gewählt hat — die Prüfung kennt nur die gebundene Akte-Fassung. */
+export interface PruefKontext {
+  /** Gewählte Ausweisart je aktiver Datei (null = nicht gewählt). */
+  erklaert?: (string | null)[];
+  aufenthaltstitelUnterWeitere?: boolean;
+  /** Sofortblick: nur Textschicht, keine Texterkennung. */
+  ohneOcr?: boolean;
+}
+
 /** Scheibe 1: das Heuristik-Urteil — schnell, deterministisch, ehrlich. */
-export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<DokumentUrteil> {
+export async function dokumentPruefen(art: DokumentArt, pdf: Buffer, ctx: PruefKontext = {}): Promise<DokumentUrteil> {
   const profil = PROFILE[art];
   const basis: DokumentUrteil = {
     art, pruefbar: false, erkannt: null, vollstaendig: null, fehlt: [],
     seiten: 0, hinweisKunde: null, hinweisIntern: null, quelle: "heuristik",
   };
   try {
-    basis.seiten = await pdfSeiten(pdf).catch(() => 0);
+    // E-IT-C: Ein Öffnungspasswort ist eine eigene Klasse — vorher endete es in
+    // „Prüfung fehlgeschlagen" (Prüfung) bzw. „zu unscharf" (Analyse).
+    let passwort = false;
+    basis.seiten = await pdfSeiten(pdf).catch((e: any) => { passwort = String(e?.name || "") === "PasswordException"; return 0; });
+    if (passwort) {
+      basis.klasse = "passwort";
+      basis.hinweisKunde = lesefehlerSatz("passwort", "sie");
+      basis.hinweisIntern = lesefehlerSatz("passwort", "du");
+      basis.vollstaendig = false;
+      return basis;
+    }
     // Ein Lesedurchgang für beides: den Text (Stichwortprofil) und die Zeilen
     // (Zeitraum des Kontoauszugs, E-179). `seitenTexte` ist derselbe Text wie
     // aus pdfTextJeSeite.
-    const { seiten: seitenTexte, zeilen, pause } = await lesbarerText(pdf, art);
+    const { seiten: seitenTexte, zeilen, pause, klasse } = await lesbarerText(pdf, art, { ohneOcr: ctx.ohneOcr });
     const text = seitenTexte.join("\n");
-    if (!pdfTextBrauchbar(text) && pause) {
+    const brauchbar = textBrauchbarFuer(art, ohneFotoVermerk(text));
+    // ── AUSWEIS ALS FOTO (E-IT-C) ──────────────────────────────────────────
+    // Ausweisbilder liest keine KI. Ohne Textschicht entscheidet die feste Regel
+    // aus der gewählten Art und der Seitenzahl — nie ein „unvollständig", das
+    // niemand gesehen hat.
+    if (art === "ausweis" && !brauchbar) {
+      const r = ausweisBewerten({ erklaert: ctx.erklaert ?? [], text: null, seiten: basis.seiten, aufenthaltstitelUnterWeitere: ctx.aufenthaltstitelUnterWeitere });
+      return { ...basis, erkannt: r.erkannt, vollstaendig: r.vollstaendig, fehlt: r.fehlt, hinweisKunde: r.hinweisKunde,
+        hinweisIntern: r.hinweisIntern, ausweisArt: r.art, klasse: "von_hand" };
+    }
+    if (!brauchbar && pause) {
       // Den Kunden NICHT um eine neue Datei bitten — die Prüfung holt sich das nach dem Aktivieren selbst.
       basis.hinweisIntern = `${profil.label}: Foto oder Scan — die Texterkennung wartet, weil die KI pausiert ist. Wird nach dem Aktivieren automatisch geprüft.`;
       basis.kiPause = true;
       return basis;
     }
-    if (!pdfTextBrauchbar(text)) {
+    if (!brauchbar) {
+      // E-IT-C: Ein Fehler der Technik (Zeitgrenze, zu große Seite, kaputte Datei)
+      // ist keine Schuld des Kunden — nur „unscharf" ist es, wenn wirklich gelesen wurde.
+      if (klasse && klasse !== "unscharf") {
+        basis.klasse = klasse;
+        basis.hinweisIntern = `${profil.label}: ${lesefehlerSatz(klasse, "du")}`;
+        if (klasse === "passwort" || klasse === "beschaedigt") { basis.hinweisKunde = lesefehlerSatz(klasse, "sie"); basis.vollstaendig = false; }
+        return basis;
+      }
       // Foto-PDF, und auch die Texterkennung fand nichts Lesbares.
+      basis.klasse = ctx.ohneOcr ? null : "unscharf";
       basis.hinweisIntern = `${profil.label}: auch mit Texterkennung nicht lesbar (unscharf, abgeschnitten oder leer) — bitte von Hand ansehen.`;
       return basis;
     }
     basis.pruefbar = true;
     const klein = text.toLowerCase();
-    const trefferzahl = profil.woerter.filter((w) => klein.includes(w)).length;
-    basis.erkannt = trefferzahl >= 2 || (trefferzahl >= 1 && basis.seiten >= 2);
+    const tb = textBefund(art, text, zeilen.flat());
+    const trefferzahl = tb.treffer;
+    basis.erkannt = tb.erkannt || (trefferzahl >= 1 && basis.seiten >= 2);
+    // Sicher: viele Treffer. Beim Ausweis entscheidet die Regel unten (Pass, MRZ, beide Seiten).
+    basis.eindeutig = trefferzahl >= 4;
 
     if (!basis.erkannt) {
       // Sieht es stattdessen wie eine ANDERE unserer Arten aus? Dann ist die
       // Meldung präziser („Sie haben vermutlich den Kontoauszug gewählt").
-      const andere = (Object.keys(PROFILE) as DokumentArt[])
-        .filter((a) => a !== art)
-        .find((a) => PROFILE[a].woerter.filter((w) => klein.includes(w)).length >= 2);
+      const andere = tb.aehnlich;
+      basis.klasse = "falsche_art";
       basis.vollstaendig = false;
       basis.fehlt = [`Das Dokument sieht nicht wie ${profil.label === "Ausweisdokument" ? "ein" : "eine"} ${profil.label} aus`];
       basis.hinweisKunde = andere
@@ -317,6 +423,7 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
       basis.zeitraumVon = zeitraum.von;
       basis.zeitraumBis = zeitraum.bis;
       const tage = zeitraum.tage;
+      basis.eindeutig = trefferzahl >= 3;
       // Verlangt sind die letzten drei Monate (Portal-Text) — 75 Tage Spanne
       // lassen Puffer für Monatsanfang/-ende, ohne Halbes durchzuwinken.
       if (tage >= 75) {
@@ -326,40 +433,35 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
         basis.vollstaendig = false;
         basis.fehlt = [tage > 0 ? `Der Auszug deckt nur rund ${Math.max(1, Math.round(tage / 30))} Monat(e) ab — benötigt sind die letzten drei Monate` : "Der Zeitraum ließ sich nicht erkennen"];
         basis.hinweisKunde = tage > 0
-          ? `Ihr Kontoauszug ist angekommen, deckt aber nur etwa ${Math.max(1, Math.round(tage / 30))} Monat(e) ab. Für die Analyse benötigen wir die letzten drei Monate — bitte laden Sie den vollständigen Zeitraum nach.`
+          // E-IT-C: „nachladen" führt jetzt zu einem Knopf, der ANHÄNGT — der Satz sagt es.
+          ? `Ihr Kontoauszug ist angekommen, deckt aber nur etwa ${Math.max(1, Math.round(tage / 30))} Monat(e) ab. Für die Auswertung brauchen wir die letzten drei Monate — laden Sie die fehlenden Monate einfach dazu, Ihre bisherigen Dateien bleiben.`
           : null;
         basis.hinweisIntern = `Kontoauszug erkannt, aber Zeitraum ${tage > 0 ? `nur ~${tage} Tage` : "unklar"} — drei Monate sind verlangt.`;
       }
     } else if (art === "ausweis") {
       // 07.09.2026 (Daniel, Feedback 4): „Dokument nicht vollständig. Bitte laden Sie die
-      // Rückseite hoch." — aber nur, wenn wir es WISSEN. Ein Reisepass hat eine Datenseite
-      // (maschinenlesbare Zone), da fehlt nichts. Beim Personalausweis verrät die Textschicht
-      // die Seite: vorn stehen Name/Geburtstag/gültig bis, hinten Anschrift/Ausstellungs-
-      // behörde/Zugangsnummer. Nur vorn ohne hinten → Rückseite fehlt. Foto-PDFs ohne Text
-      // kommen hier gar nicht an (oben „nicht prüfbar").
-      const mrz = text.includes("<<");
-      const pass = /reisepass|passport/.test(klein);
-      const vorne = ["personalausweis", "identity card", "geburtstag", "gültig bis", "staatsangehörigkeit", "nationality"].filter((w) => klein.includes(w)).length;
-      const hinten = ["anschrift", "ausstellungsbehörde", "zugangsnummer", "authority", "address", "ausstellungsdatum", "augenfarbe", "körpergröße"].filter((w) => klein.includes(w)).length;
-      if (pass || mrz) {
-        basis.vollstaendig = true;
-        basis.hinweisIntern = `Ausweisdokument erkannt (${pass ? "Reisepass" : "maschinenlesbare Zone"}, ${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}).`;
-      } else if (vorne >= 2 && hinten === 0) {
-        basis.vollstaendig = false;
-        basis.fehlt = ["Rückseite des Personalausweises fehlt"];
-        basis.hinweisKunde = "Dokument nicht vollständig. Bitte laden Sie auch die Rückseite Ihres Personalausweises hoch.";
-        basis.hinweisIntern = `Personalausweis: nur die Vorderseite erkannt (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}) — Rückseite fehlt.`;
-      } else if (vorne >= 1 && hinten >= 1) {
-        basis.vollstaendig = true;
-        basis.hinweisIntern = `Personalausweis erkannt, Vorder- und Rückseite (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}).`;
-      } else {
-        basis.vollstaendig = basis.seiten >= 2 ? true : null;
-        basis.hinweisIntern = `Ausweisdokument erkannt (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}) — Seiten nicht sicher zuzuordnen, bitte von Hand ansehen.`;
-        if (basis.seiten < 2) {
-          basis.fehlt = ["Möglicherweise fehlt die Rückseite"];
-          basis.hinweisKunde = "Ihr Ausweis ist angekommen. Falls die Rückseite auf einer eigenen Seite ist, laden Sie bitte beide Seiten hoch.";
-        }
-      }
+      // Rückseite hoch." — aber nur, wenn wir es WISSEN.
+      // E-IT-C (08.10.2026, Punkt 13 D): Die Regel steht jetzt EINMAL in
+      // shared/fiaon-unterlagen.ts (ausweisBewerten): Reisepass — Datenseite genügt;
+      // Personalausweis — Vorder- und Rückseite, gezählt über ALLE Dateien der Akte-
+      // Fassung (auch eine später angehängte Rückseite); Aufenthaltstitel nur mit
+      // Reisepass. Die gewählte Art je Datei (ctx.erklaert) zählt mit.
+      // E-IT-C Nachbesserung: je SEITE werten und vereinigen (wie je Datei in fiaon-unterlagen.ts) — über den
+      // ganzen Text verdeckte ein Aufenthaltstitel auf Seite 1 den Reisepass auf Seite 2 („Reisepass" zählt nur
+      // ohne Titel-Wort), und seit die bloße Wahl nicht mehr „vollständig" macht, stand die Fassung auf „von Hand".
+      const jeSeite = seitenTexte.filter((t) => t.trim()).map((t) => ausweisTextBefund(t));
+      const ab = jeSeite.length
+        ? jeSeite.reduce((x, y) => ({ pass: x.pass || y.pass, vorne: x.vorne || y.vorne, hinten: x.hinten || y.hinten, aufenthaltstitel: x.aufenthaltstitel || y.aufenthaltstitel }))
+        : (tb.ausweis ?? { pass: false, vorne: false, hinten: false, aufenthaltstitel: false });
+      const r = ausweisBewerten({ erklaert: ctx.erklaert ?? [], text: ab, seiten: basis.seiten, aufenthaltstitelUnterWeitere: ctx.aufenthaltstitelUnterWeitere });
+      basis.erkannt = r.erkannt ?? basis.erkannt;
+      basis.vollstaendig = r.vollstaendig;
+      basis.fehlt = r.fehlt;
+      basis.hinweisKunde = r.hinweisKunde;
+      basis.hinweisIntern = r.hinweisIntern;
+      basis.ausweisArt = r.art;
+      basis.eindeutig = ab.pass || ab.aufenthaltstitel || ab.vorne || ab.hinten;
+      if (r.vollstaendig === false) basis.klasse = "unvollstaendig";
     } else {
       basis.vollstaendig = basis.seiten >= 2 ? true : null;
       basis.hinweisIntern = `Bonitätsauskunft erkannt (${basis.seiten} Seiten).`;
@@ -447,11 +549,16 @@ export async function urteileLesen(refs: string[]): Promise<Record<string, Dokum
  * oder null, wenn nichts rechtzeitig fertig wurde.
  */
 export async function pruefungAnstossen(
-  ref: string, art: DokumentArt, pdf: Buffer, timeoutMs = 4000,
+  ref: string, art: DokumentArt, pdf: Buffer, timeoutMs = 4000, ctxEin?: PruefKontext,
 ): Promise<DokumentUrteil | null> {
   try {
+    // E-IT-C: Beim Ausweis zählt, was der Mensch je Datei gewählt hat (Personalausweis/Reisepass)
+    // und ob unter „Weitere Unterlagen" ein Aufenthaltstitel liegt — die Akte-Fassung allein weiß es nicht.
+    const ctx: PruefKontext = ctxEin ?? (art === "ausweis"
+      ? await import("./fiaon-unterlagen").then((m) => m.ausweisKontextFuerRef(ref)).catch(() => ({}))
+      : {});
     const urteil = await Promise.race([
-      dokumentPruefen(art, pdf),
+      dokumentPruefen(art, pdf, ctx),
       new Promise<null>((loese) => setTimeout(() => loese(null), timeoutMs)),
     ]);
     if (urteil) {
@@ -464,7 +571,7 @@ export async function pruefungAnstossen(
     // Timeout: die Prüfung läuft im Hintergrund zu Ende und speichert selbst.
     // 18.09.2026: Mit der Texterkennung ist das bei Fotos der Normalfall — das
     // KI-Urteil muss deshalb auch hier folgen, nicht nur im schnellen Weg.
-    void dokumentPruefen(art, pdf)
+    void dokumentPruefen(art, pdf, ctx)
       .then((u) => speichernUndVerfeinern(ref, art, pdf, u))
       .catch((e) => console.error("[DOK-PRUEFUNG] nachlauf:", e?.message));
     return null;
@@ -479,8 +586,22 @@ export async function pruefungAnstossen(
  * lassen. E-246: In der KI-Pause bleibt das Heuristik-Urteil stehen, markiert
  * mit kiPause — pausePruefungenNachholen holt das KI-Urteil nach dem Aktivieren.
  */
+/**
+ * Braucht dieses Urteil die KI? (E-IT-C, 08.10.2026, Punkt 13 D)
+ *   · Kontoauszug nie — er hat seine eigene, reichere Analyse.
+ *   · Ausweis nur, wenn die Heuristik ihn NICHT erkannt hat (Rettung) — die KI
+ *     sieht dabei nur Text, nie ein Bild, und entscheidet nie über die Seiten.
+ *   · Auskunft wie seit E-175: Die KI sagt, ob es eine Auskunft IST — außer die
+ *     Heuristik ist sich sicher.
+ */
+export function kiGefragt(art: DokumentArt, u: DokumentUrteil): boolean {
+  if (art === "kontoauszug" || !u.pruefbar) return false;
+  if (art === "ausweis") return u.erkannt === false;
+  return !u.eindeutig;
+}
+
 async function speichernUndVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, urteil: DokumentUrteil): Promise<void> {
-  const mitKi = art !== "kontoauszug" && urteil.pruefbar && !!process.env.OPENAI_API_KEY;
+  const mitKi = kiGefragt(art, urteil) && kiLesenMoeglich();
   if (mitKi && await kiPausiert()) urteil = { ...urteil, kiPause: true };
   await urteilSpeichern(ref, urteil);
   if (mitKi && !urteil.kiPause) await kiVerfeinern(ref, art, pdf, urteil);
@@ -522,7 +643,8 @@ export async function pausePruefungenNachholen(grenze = 10): Promise<{ geprueft:
       if (!d?.pdf) continue; // Datei weg — Markierung ist abgenommen, nichts zu prüfen
       const pdf: Buffer = Buffer.isBuffer(d.pdf) ? d.pdf : Buffer.from(d.pdf);
       try {
-        const u = await dokumentPruefen(art, pdf);
+        const ctx = art === "ausweis" ? await import("./fiaon-unterlagen").then((m) => m.ausweisKontextFuerRef(String(z.ref))).catch(() => ({})) : {};
+        const u = await dokumentPruefen(art, pdf, ctx);
         await speichernUndVerfeinern(String(z.ref), art, pdf, u);
         geprueft++;
       } catch (e) {
@@ -546,16 +668,60 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, vorher: 
     throw e;
   }
 }
+/**
+ * KI-Urteil und Heuristik zusammenführen — rein, für den Prüfstand exportiert
+ * (E-IT-C, 08.10.2026, Punkt 13 D).
+ *
+ * ── DER BEFUND ──────────────────────────────────────────────────────────────
+ * Beim Ausweis überschrieb das KI-Urteil `vollstaendig` und `hinweisKunde`. Das
+ * Modell bekam den OCR-Text ohne Seitenmarken und die Frage „Sind Vorder- und
+ * Rückseite enthalten?" — auch beim Reisepass. 34 von 34 KI-Urteilen sagten
+ * „unvollständig", 30-mal „Rückseite" (19-mal bei Dateien mit 2+ Seiten); ein
+ * Aufenthaltstitel hieß „reicht nicht aus", während die Heuristik ihn annahm.
+ * Dazu ging der freie KI-Satz (300 Zeichen) ungefiltert an den Kunden.
+ *
+ * ── DIE REGEL ───────────────────────────────────────────────────────────────
+ * Die KI steuert genau EINE Sache bei: ob das Dokument die verlangte Art IST.
+ * Vollständigkeit, „was fehlt" und der Kundensatz kommen immer aus der festen
+ * Regel. Ist die Heuristik eindeutig, überstimmt die KI auch „erkannt" nicht —
+ * ihr Zweifel steht dann nur intern. Rettet die KI ein „nicht erkannt", bleibt
+ * die Vollständigkeit offen (von Hand), und der Kunde bekommt keinen Satz.
+ * Bei der Auskunft galt das schon seit E-175 (10.09.2026): Die Prüfung sieht nur
+ * die ersten 60.000 Zeichen; ob Seiten fehlen, zählt die Heuristik gegen die
+ * Seitennummerierung („Seite 2 von 7"), was drinsteht, sagt die Analyse.
+ */
+export function kiUrteilZusammenfuehren(art: DokumentArt, vorher: DokumentUrteil, ki: { erkannt: boolean }, seiten: number): DokumentUrteil {
+  const label = PROFILE[art].label;
+  const sicher = vorher.eindeutig === true && vorher.erkannt === true;
+  if (sicher) {
+    return { ...vorher, quelle: "ki",
+      hinweisIntern: ki.erkannt ? vorher.hinweisIntern : `${vorher.hinweisIntern ?? label} · KI zweifelt, ob es ein${art === "ausweis" ? "" : "e"} ${label} ist — bitte kurz ansehen.` };
+  }
+  if (ki.erkannt && vorher.erkannt === false) {
+    // Gerettet: die Art stimmt, die Wortliste kannte das Dokument nicht. Die Seiten beurteilt ein Mensch.
+    return { ...vorher, quelle: "ki", erkannt: true, vollstaendig: art === "schufa" && vorher.vollstaendig === true ? true : null,
+      fehlt: [], hinweisKunde: null, klasse: null, seiten,
+      hinweisIntern: `${label} (KI): erkannt — ${art === "ausweis" ? "Seiten bitte von Hand ansehen" : (vorher.hinweisIntern || "bitte kurz ansehen")}.` };
+  }
+  if (!ki.erkannt) {
+    return { ...vorher, quelle: "ki", erkannt: false,
+      vollstaendig: vorher.vollstaendig === true ? null : vorher.vollstaendig,
+      hinweisIntern: `${label} (KI): NICHT erkannt — bitte von Hand ansehen.` };
+  }
+  return { ...vorher, quelle: "ki", erkannt: true, hinweisIntern: vorher.hinweisIntern || `${label} (KI): erkannt.` };
+}
+
 async function kiVerfeinernInnen(ref: string, art: DokumentArt, pdf: Buffer, vorher: DokumentUrteil): Promise<void> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return;
+  if (!kiLesenMoeglich()) return;
   if (await kiPausiert()) { await urteilSpeichern(ref, { ...vorher, kiPause: true }); return; } // E-246: das Urteil der Heuristik bleibt stehen
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const { seiten } = await lesbarerText(pdf, art);
-  const text = seiten.join("\n").slice(0, 60_000);
-  if (!pdfTextBrauchbar(text)) return;
+  // E-IT-C: Seitenmarken bleiben in jedem Text, den ein Modell sieht.
+  const text = seiten.map((t, i) => `=== Seite ${i + 1} ===\n${t}`).join("\n").slice(0, 60_000);
+  if (!textBrauchbarFuer(art, text)) return;
+  // E-IT-C: Nur noch die ART — nie die Seiten (die zählt die feste Regel, auch über mehrere Dateien).
   const frage = art === "ausweis"
-    ? "Ist das ein gültiges Ausweisdokument (Personalausweis/Reisepass)? Sind Vorder- und Rückseite bzw. alle nötigen Angaben (Name, Geburtsdatum, Gültigkeit) enthalten und lesbar?"
+    ? "Ist das ein Ausweisdokument (Personalausweis, Reisepass oder Aufenthaltstitel)? Beurteile NICHT, ob Seiten fehlen."
     // ── NUR NOCH DIE ART, NICHT DIE VOLLSTAENDIGKEIT (10.09.2026, E-175) ──
     // Hier stand zusaetzlich „Wirken alle Seiten/Abschnitte vollstaendig
     // (Stammdaten, Einträge, ggf. Score)?". Das Modell sieht 60.000 Zeichen —
@@ -565,47 +731,29 @@ async function kiVerfeinernInnen(ref: string, art: DokumentArt, pdf: Buffer, vor
     // Ob Seiten fehlen, weiss die Heuristik: Sie zaehlt die Seiten der Datei
     // gegen die Seitennummerierung im Bericht selbst („Seite 2 von 7").
     : "Ist das eine Bonitätsauskunft (SCHUFA/KSV1870/CRIF, z. B. Datenkopie nach Art. 15 DSGVO)?";
+  const start = Date.now();
   const r = await openaiFetch("dokument-pruefung", "/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${kiSchluessel()}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modell, temperature: 0, max_tokens: 400,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: `Du prüfst ein hochgeladenes Dokument für eine Bonitätsplattform. ${frage} Antworte NUR als JSON: {"erkannt": bool, "vollstaendig": bool, "fehlt": ["…"], "hinweis_kunde": "ein Satz in Sie-Form oder leer"}. Bei einer Bonitätsauskunft zählt nur "erkannt" — du siehst nur den Anfang des Dokuments und kannst Vollständigkeit nicht beurteilen. Keine Namen oder Daten aus dem Dokument in den Hinweis übernehmen.` },
+        { role: "system", content: `Du prüfst ein hochgeladenes Dokument für eine Bonitätsplattform. ${frage} Antworte NUR als JSON: {"erkannt": bool}. Es zählt nur, ob das Dokument diese Art IST — du siehst nur Text und kannst nicht beurteilen, ob Seiten fehlen. Gib keine Namen oder Daten aus dem Dokument wieder.` },
         { role: "user", content: `DOKUMENTTEXT:\n${text}` },
       ],
     }),
   });
   const j: any = await r.json().catch(() => null);
+  // E-IT-C: Kosten und Modell dieser Prüfung stehen in fiaon_ki_nutzung (vorher blind, Gegenprüfung Punkt 6).
+  void import("./fiaon-postmeister-schema").then(({ nutzungMerken }) => nutzungMerken({
+    dienst: "dokument-pruefung", modell: String(j?.model || modell), usage: j?.usage ?? null, dauerMs: Date.now() - start,
+    ok: r.ok, fehler: r.ok ? null : String(j?.error?.message || r.status).slice(0, 200),
+  })).catch(() => {});
   if (!r.ok) { console.error("[DOK-PRUEFUNG] KI", r.status, j?.error?.message); return; }
   let b: any = null; try { b = JSON.parse(String(j?.choices?.[0]?.message?.content || "{}")); } catch { return; }
   if (typeof b?.erkannt !== "boolean") return;
-  // Bei der Bonitätsauskunft behaelt das Urteil der Heuristik seine Kraft: Sie
-  // hat gezaehlt, das Modell hat geraten. Das Modell steuert genau eine Sache
-  // bei, die die Wortliste nicht kann — ob es wirklich eine Auskunft IST.
-  const istAuskunft = art === "schufa";
-  const urteil: DokumentUrteil = {
-    art, pruefbar: true, quelle: "ki",
-    erkannt: b.erkannt,
-    vollstaendig: istAuskunft ? vorher.vollstaendig : (typeof b.vollstaendig === "boolean" ? b.vollstaendig : null),
-    fehlt: istAuskunft ? vorher.fehlt : (Array.isArray(b.fehlt) ? b.fehlt.map(String).slice(0, 6) : []),
-    seiten: seiten.length,
-    hinweisKunde: istAuskunft ? vorher.hinweisKunde : (b.hinweis_kunde ? String(b.hinweis_kunde).slice(0, 300) : null),
-    // ── KEINE VOLLSTAENDIGKEITS-BEHAUPTUNG MEHR (10.09.2026, E-175) ────────
-    // Hier stand „erkannt, unvollstaendig — fehlt: Stammdaten, Score". Der
-    // Mitarbeiter las das als gelbe Warnung an einer Auskunft, die vollstaendig
-    // war. Diese Pruefung sieht nur die ersten 60.000 Zeichen und darf mit 400
-    // Token antworten; bei 38 Seiten ist das ein Bruchteil. Sie kann sagen, ob
-    // ein Dokument eine Bonitaetsauskunft IST — nicht, ob es vollstaendig ist.
-    // Was drinsteht, sagt die Analyse (fiaon-schufa-analyse.ts).
-    hinweisIntern: istAuskunft
-      ? (b.erkannt
-          ? (vorher.hinweisIntern || `Bonitätsauskunft erkannt (${seiten.length} Seiten).`)
-          : `Bonitätsauskunft (KI): NICHT erkannt — bitte von Hand ansehen.`)
-      : `${PROFILE[art].label} (KI): ${b.erkannt ? "erkannt" : "NICHT erkannt"}${
-          !b.erkannt && Array.isArray(b.fehlt) && b.fehlt.length ? ` — fehlt: ${b.fehlt.slice(0, 3).join(", ")}` : ""}`,
-  };
+  const urteil = kiUrteilZusammenfuehren(art, vorher, { erkannt: b.erkannt }, seiten.length);
   await urteilSpeichern(ref, urteil);
   console.log(`[DOK-PRUEFUNG] KI-Urteil ${ref}/${art}: erkannt=${urteil.erkannt} vollstaendig=${urteil.vollstaendig}`);
 }

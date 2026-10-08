@@ -38,6 +38,7 @@
 // einer anderen Entscheidung (Archiv, Teil 3).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { betreuerLageAus, type BetreuerLage, type BetreuerSeite } from "../../shared/fiaon-betreuer-lage";
 
 /** Ein laufender Transaktionskontext von postgres.js (oder der Pool selbst). */
 type Lauf = typeof sqlPool;
@@ -61,7 +62,10 @@ export const FELD_NAME: Record<string, string> = {
 export interface MergeEntscheidungen {
   /** Pro Feld: von welcher Seite der Wert stehen bleibt. Vorgabe: Gewinner. */
   felder?: Partial<Record<Stammfeld, "gewinner" | "verlierer">>;
-  /** Pflicht, wenn BEIDE Personen einen dokumentierten Betreuer haben. */
+  /**
+   * Pflicht NUR, wenn beide Personen einen VERSCHIEDENEN, AKTIVEN, ECHTEN
+   * Betreuer haben (E-IT-E, 08.10.2026 — Regel in shared/fiaon-betreuer-lage.ts).
+   */
   betreuer?: "gewinner" | "verlierer";
 }
 
@@ -89,7 +93,11 @@ export interface MergeErgebnis {
   bestellungenUebernommen: string[];
   gesicherteWerte: { feld: string; feldName: string; wert: string }[];
   uebernommeneFelder: { feld: string; feldName: string; von: string; nach: string }[];
-  betreuer: { agentId: number | null; quelle: "gewinner" | "verlierer" | "unstrittig" };
+  /**
+   * „keiner" (E-IT-E): keine Seite hat einen aktiven Betreuer — die Zuständigkeit
+   * des Gewinners bleibt, wie sie ist (auch leer). Nie wieder „Agent 0".
+   */
+  betreuer: { agentId: number | null; quelle: "gewinner" | "verlierer" | "unstrittig" | "keiner"; text: string; hinweise: string[] };
   zaehlprobe: Zaehlprobe;
   notizRef: string | null;
 }
@@ -156,6 +164,61 @@ async function zaehle(lauf: Lauf, personIds: number[]): Promise<Record<keyof Zae
 
 const leer = (v: unknown): boolean =>
   v == null || (typeof v === "string" && v.trim() === "");
+
+// ── Wer betreut danach? — EINE Quelle für Server, Liste und Oberfläche ─────
+//
+// E-IT-E (08.10.2026), Punkt 10. Hier wurde der Betreuer jeder Seite als
+// „Stempel betreuung_seit gesetzt → Zahl aus assigned_agent_id" gelesen — und
+// die Umwandlung von NULL in eine Zahl ergibt 0. Eine Pool-Person mit Stempel `betreuung_seit` (3.029
+// von 5.781 am 07.10.2026) galt damit als „von Agent 0 betreut" — gegen jeden
+// echten Betreuer hieß das „zwei Betreuer, bitte wählen", und wo keine Wahl
+// verlangt wurde, landete die 0 in `assigned_agent_id` (Person 13458).
+// Jetzt zählt nur ein AKTIVER, ECHTER Betreuer, und die Regel steht in
+// shared/fiaon-betreuer-lage.ts — dieselbe, mit der die Kandidatenliste den
+// Streit anzeigt. Oberfläche und Server können nicht mehr auseinanderlaufen.
+
+/** Die Betreuer-Seite einer Person aus ihrer Zeile und den Agenten-Zeilen. */
+function betreuerSeiteAus(person: any, agenten: Map<number, any>): BetreuerSeite {
+  const roh = person?.assigned_agent_id;
+  const id = roh == null ? null : Number(roh);
+  const ag = id != null && id > 0 ? agenten.get(id) : undefined;
+  return {
+    agentId: id,
+    agentName: ag?.name ?? null,
+    agentGibtEs: !!ag,
+    aktiv: ag?.active === true,
+    testkonto: ag?.is_test_account === true,
+    gesperrt: ag?.zugang_gesperrt_am != null,
+    mandatSeit: person?.mandat_seit ?? null,
+  };
+}
+
+/** Die Agenten-Zeilen beider Seiten — EIN Lookup, in der laufenden Transaktion. */
+async function agentenZeilen(personen: any[], lauf: Lauf): Promise<Map<number, any>> {
+  const ids = Array.from(new Set(personen
+    .map((p) => (p?.assigned_agent_id == null ? NaN : Number(p.assigned_agent_id)))
+    .filter((n) => Number.isFinite(n) && n > 0)));
+  const karte = new Map<number, any>();
+  if (ids.length === 0) return karte;
+  const zeilen = (await lauf`
+    SELECT id, name, active, is_test_account, zugang_gesperrt_am
+    FROM fiaon_agents WHERE id = ANY(${ids}::int[])
+  `) as any[];
+  for (const z of zeilen) karte.set(Number(z.id), z);
+  return karte;
+}
+
+/**
+ * Die Betreuer-Lage zweier Personen (Zeilen aus fiaon_persons). Wird vom Merge
+ * und von der Gegenüberstellung benutzt — eine Regel, ein Ergebnis.
+ */
+export async function betreuerLage(
+  gewinner: any, verlierer: any, lauf: Lauf = sqlPool, wahl?: "gewinner" | "verlierer" | null,
+): Promise<BetreuerLage & { seiten: { gewinner: BetreuerSeite; verlierer: BetreuerSeite } }> {
+  const agenten = await agentenZeilen([gewinner, verlierer], lauf);
+  const seiten = { gewinner: betreuerSeiteAus(gewinner, agenten), verlierer: betreuerSeiteAus(verlierer, agenten) };
+  return { ...betreuerLageAus(seiten.gewinner, seiten.verlierer, wahl ?? null), seiten };
+}
 
 /**
  * Zwei Personen zusammenführen.
@@ -228,35 +291,25 @@ async function fuehreAus(
       "Testeinträge gehören ins Archiv (Grund „Testeintrag“), nicht in eine Kundenakte.");
   }
 
-  // ── Zuständigkeit: Besitzschutz vor Bequemlichkeit ──────────────────────
-  // `betreuung_seit` ist der dokumentierte Betreuer. Hat nur eine Seite einen,
-  // gewinnt der — da ist nichts zu entscheiden. Haben beide VERSCHIEDENE, ist
-  // das eine Geldfrage (Provision folgt dem dokumentierten Kontakt), und die
-  // entscheidet ein Mensch, nicht diese Funktion.
-  const betreuungV = verlierer.betreuung_seit != null ? Number(verlierer.assigned_agent_id) : null;
-  const betreuungG = gewinner.betreuung_seit != null ? Number(gewinner.assigned_agent_id) : null;
-  let betreuerAgentId: number | null = gewinner.assigned_agent_id != null ? Number(gewinner.assigned_agent_id) : null;
-  let betreuerQuelle: "gewinner" | "verlierer" | "unstrittig" = "unstrittig";
-
-  if (betreuungV != null && betreuungG != null && betreuungV !== betreuungG) {
-    if (entscheidungen.betreuer !== "gewinner" && entscheidungen.betreuer !== "verlierer") {
-      throw new MergeVerboten("betreuer_entscheidung_fehlt",
-        `Beide Personen haben einen dokumentierten Betreuer (Agent ${betreuungG} und Agent ${betreuungV}). ` +
-        `Wer künftig zuständig ist, muss ausdrücklich gewählt werden — das ist eine Geldfrage und ` +
-        `keine Automatik.`);
-    }
-    betreuerQuelle = entscheidungen.betreuer;
-    betreuerAgentId = entscheidungen.betreuer === "verlierer" ? betreuungV : betreuungG;
-  } else if (betreuungG == null && betreuungV != null) {
-    betreuerAgentId = betreuungV;
-    betreuerQuelle = "verlierer";
-  } else if (betreuungG != null) {
-    betreuerQuelle = "gewinner";
-  } else if (betreuerAgentId == null && verlierer.assigned_agent_id != null) {
-    // Keiner dokumentiert, aber der Verlierer hat eine Zuweisung — sie ist besser
-    // als keine, und sie ist umkehrbar.
-    betreuerAgentId = Number(verlierer.assigned_agent_id);
-    betreuerQuelle = "verlierer";
+  // ── Zuständigkeit: nur ein AKTIVER Betreuer zählt (E-IT-E, 08.10.2026) ──
+  // Gewählt werden muss nur, wenn zwei verschiedene, aktive, echte Betreuer
+  // hinterlegt sind — eine Geldfrage (Provision folgt dem dokumentierten
+  // Kontakt), die ein Mensch entscheidet. Sonst übernimmt der eine lebende
+  // Betreuer automatisch; lebt keiner, bleibt der Gewinner, wie er ist.
+  // `betreuung_seit` entscheidet nicht mehr, WER betreut (siehe oben).
+  const lage = await betreuerLage(gewinner, verlierer, lauf, entscheidungen.betreuer ?? null);
+  if (lage.wahlNoetig) {
+    throw new MergeVerboten("betreuer_entscheidung_fehlt",
+      `${lage.text} Das ist eine Geldfrage (die Provision folgt dem dokumentierten Kontakt) ` +
+      "und keine Automatik — bitte ausdrücklich wählen.");
+  }
+  const betreuerAgentId: number | null = lage.agentId;
+  const betreuerQuelle = lage.quelle;
+  // Harte Wand: Nie wieder eine 0 (oder etwas anderes als eine echte Nummer)
+  // in assigned_agent_id — dieselbe Klasse wie Person 13458.
+  if (betreuerAgentId != null && !(Number.isInteger(betreuerAgentId) && betreuerAgentId > 0)) {
+    throw new MergeVerboten("betreuer_ungueltig",
+      `Ungültige Betreuer-Nummer „${betreuerAgentId}“ — es wurde nichts geändert.`);
   }
 
   // ── Zählprobe, Teil 1: der Stand VOR dem Merge ──────────────────────────
@@ -412,6 +465,17 @@ async function fuehreAus(
     await sichereAlias(lauf, gewinnerId, kind, norm, String(wert), verliererId);
   }
 
+  // ── Unterlagen: Bestand ohne Zeile zuerst sichern (E-IT-C, 08.10.2026) ──
+  // Nur was es gibt (Katalog, ohne Sperre) — ein Fehler hier bräche sonst die ganze Zusammenführung ab.
+  const [tab] = (await lauf`
+    SELECT to_regclass('public.fiaon_dokumente') IS NOT NULL AS dok,
+           to_regclass('public.fiaon_vorgaenge') IS NOT NULL AS vor,
+           to_regclass('public.fiaon_unterlagen_akte') IS NOT NULL AS akte,
+           EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'fiaon_dokumente' AND column_name = 'entfernt_am') AS neu`) as any[];
+  const unterlagen = tab?.dok && tab?.neu && tab?.akte ? await import("./fiaon-unterlagen") : null;
+  // Was bei einer Seite nur in einer Spalte liegt, wird Zeile, BEVOR die Bestellungen umhängen.
+  if (unterlagen) await unterlagen.vorZusammenfuehrung(gewinnerId, verliererId, lauf);
+
   // ── Bestellungen und Leads umhängen ────────────────────────────────────
   // Der Verlauf (fiaon_contact_log), die Provisionen (fiaon_commissions), die
   // Vermerke und die Login-Historie hängen an `ref` und wandern damit mit.
@@ -425,30 +489,114 @@ async function fuehreAus(
   await lauf`UPDATE fiaon_leads SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
   // Der Lead-Verlauf (fiaon_lead_log) hängt an lead_id und wandert mit dem Lead.
 
+  // ── UNTERLAGEN, ARCHIV UND VORGÄNGE WANDERN MIT (E-IT-C, 08.10.2026) ──────
+  // fiaon_dokumente (Einzeldateien, Archivfassungen, Schreiben) und fiaon_vorgaenge
+  // (Briefe, Vollmachten) blieben bisher beim Verlierer. Mit „eine Datei = ein
+  // Datensatz" wäre der Ausweis nach einer Zusammenführung aus der Akte
+  // verschwunden. Dieselbe Datei auf beiden Seiten bleibt einmal aktiv (die des
+  // Verlierers wird mit Grund entfernt, nicht gelöscht). Die gebundene Fassung
+  // stimmt danach nicht mehr mit fiaon_unterlagen_akte überein — die Akte des
+  // Gewinners wird deshalb unten (nach dem Wegweiser) EINMAL neu gebunden.
+  if (tab?.dok && tab?.neu) {
+    await lauf`
+      UPDATE fiaon_dokumente v SET entfernt_am = NOW(), entfernt_von = 'Zusammenführung', entfernt_grund = 'gleiche Datei liegt beim zusammengeführten Kunden'
+       WHERE v.person_id = ${verliererId} AND v.art = 'unterlage' AND v.entfernt_am IS NULL AND v.geloescht_am IS NULL
+         AND EXISTS (SELECT 1 FROM fiaon_dokumente g WHERE g.person_id = ${gewinnerId} AND g.art = 'unterlage' AND g.kategorie = v.kategorie
+                       AND g.doc_hash = v.doc_hash AND g.entfernt_am IS NULL AND g.geloescht_am IS NULL)`;
+  }
+  if (tab?.dok) await lauf`UPDATE fiaon_dokumente SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
+  if (tab?.vor) await lauf`UPDATE fiaon_vorgaenge SET person_id = ${gewinnerId} WHERE person_id = ${verliererId}`;
+
   // Zuständigkeit setzen — erst jetzt, damit der Trigger
   // (033_person_ownership_trigger) die Bestellungen in einem Zug nachzieht.
+  // Nur wenn ein lebender Betreuer feststeht; sonst bleibt der Gewinner, wie
+  // er ist (Fall „keiner" — kein Raten aus betreuung_seit, keine 0).
+  // assigned_at stempelt der BEFORE-Trigger (033) bei jedem Wechsel selbst.
+  const gewinnerAgent: number | null = gewinner.assigned_agent_id == null ? null : Number(gewinner.assigned_agent_id);
+  const wechsel = betreuerAgentId != null && gewinnerAgent !== betreuerAgentId;
+
   if (betreuerAgentId != null) {
+    // Der Besitzer-Trigger (033) schreibt jeden Wechsel als person_owner_changed
+    // mit Grund — ohne diese Zeile stand dort „unbekannt".
+    if (wechsel) {
+      await lauf`SELECT set_config('fiaon.reason', 'person_merge', true)`;
+      await lauf`SELECT set_config('fiaon.actor', ${`merge:${akteur.name}`.slice(0, 120)}, true)`;
+    }
     await lauf`
       UPDATE fiaon_persons SET
         assigned_agent_id = ${betreuerAgentId},
-        betreuung_seit = COALESCE(betreuung_seit,
-                                  ${verlierer.betreuung_seit ?? null},
-                                  CASE WHEN ${betreuerQuelle} = 'unstrittig' THEN NULL ELSE NOW() END),
         updated_at = NOW()
       WHERE id = ${gewinnerId}
     `;
   }
+  // Die Bestellungen folgen dem Betreuer wie in der Basis: Der Trigger (033)
+  // zieht sie bei einem Wechsel nach, der stündliche Lauf „betreuer-kopie-
+  // angleich" gleicht den Rest an. Der Merge schreibt an den Bestellungen
+  // selbst keinen Mitarbeiter um (Integrator 08.10.2026: Zuordnung von
+  // Bestellungen/Provision bleibt wie in der Basis).
 
-  // Beteiligte Agenten festhalten. Ein Konflikt wird markiert, nicht entschieden —
-  // außer ein Mensch hat oben ausdrücklich gewählt.
+  // Der Besitzschutz-Stempel bleibt erhalten (COALESCE), entscheidet aber
+  // nicht mehr, wer betreut. Neu gestempelt wird nur, wenn die Betreuung die
+  // Hand wechselt (übernommen oder ausdrücklich gewählt).
+  await lauf`
+    UPDATE fiaon_persons SET
+      betreuung_seit = COALESCE(betreuung_seit, ${verlierer.betreuung_seit ?? null}::timestamptz,
+                                CASE WHEN ${wechsel} THEN NOW() ELSE NULL END),
+      updated_at = NOW()
+    WHERE id = ${gewinnerId}
+  `;
+
+  // ── Was am Verlierer hängt und nicht verloren gehen darf (E-IT-E) ──────
+  // Gegenprüfung 07.10.2026: Der Merge übertrug die Werbesperre des Verlierers
+  // NICHT — 8 zusammengeführte Verlierer hatten eine, ihr Kopf nicht (UWG § 7,
+  // DSGVO Art. 21). Weil das Zusammenführen jetzt leichter geht, wandert sie
+  // in derselben Scheibe mit: die frühere Sperre gilt. Ebenso das
+  // Forderungsmanagement (inkasso_ab): Die überfälligen Raten des Verlierers
+  // hängen ab jetzt am Gewinner.
+  // Das Mandat (E-066) folgt der QUELLE der Betreuung, nie der Gewinner-Wahl
+  // (Gegenprüfung 08.10.2026): Sonst trüge ein Betreuer, der übernimmt oder
+  // gewählt wird, das Mandat der anderen Seite still mit.
+  //   gewinner   → Mandat des Gewinners      verlierer → Mandat des Verlierers (auch leer)
+  //   unstrittig → das frühere beider        keiner    → unverändert
+  // Ein Mandat, das nicht mitgeht, nennt der Hinweis (betreuer-lage); der alte
+  // Stempel steht im Protokoll (meta.mandat).
+  await lauf`
+    UPDATE fiaon_persons SET
+      werbung_gesperrt_am = CASE
+        WHEN werbung_gesperrt_am IS NULL THEN ${verlierer.werbung_gesperrt_am ?? null}::timestamptz
+        WHEN ${verlierer.werbung_gesperrt_am ?? null}::timestamptz IS NULL THEN werbung_gesperrt_am
+        ELSE LEAST(werbung_gesperrt_am, ${verlierer.werbung_gesperrt_am ?? null}::timestamptz) END,
+      inkasso_ab = COALESCE(inkasso_ab, ${verlierer.inkasso_ab ?? null}::timestamptz),
+      inkasso_von = CASE WHEN inkasso_ab IS NULL THEN ${verlierer.inkasso_von ?? null} ELSE inkasso_von END,
+      inkasso_grund = CASE WHEN inkasso_ab IS NULL THEN ${verlierer.inkasso_grund ?? null} ELSE inkasso_grund END,
+      mandat_seit = CASE ${betreuerQuelle}::text
+                         WHEN 'verlierer' THEN ${verlierer.mandat_seit ?? null}::timestamptz
+                         WHEN 'unstrittig' THEN LEAST(mandat_seit, ${verlierer.mandat_seit ?? null}::timestamptz)
+                         ELSE mandat_seit END,
+      updated_at = NOW()
+    WHERE id = ${gewinnerId}
+  `;
+
+  // Beteiligte Agenten festhalten — als Historie, auch ausgeschiedene. Eine
+  // Konfliktmarke entsteht nicht mehr: Zwei LEBENDE, verschiedene Betreuer
+  // verlangen oben eine Wahl, alles andere ist eindeutig entschieden. Eine
+  // SCHON BESTEHENDE Marke (agentPruefen, z. B. Lead eines anderen Agenten)
+  // bleibt stehen — der Merge entscheidet diesen Konflikt nicht (Gegenprüfung
+  // 08.10.2026: vorher setzte er sie still auf FALSE).
+  // `lauf.json` statt `JSON.stringify(...)::jsonb` (JSONB-Falle: Letzteres
+  // legt einen JSON-TEXT ab, und „objekt || text" wird zum Array). Ein
+  // Altbestand als Text wird dabei gelesen und als Objekt zurückgeschrieben.
   const agenten = Array.from(new Set(
-    [gewinner.assigned_agent_id, verlierer.assigned_agent_id].filter((v) => v != null).map(Number),
+    [gewinner.assigned_agent_id, verlierer.assigned_agent_id]
+      .filter((v) => v != null && Number(v) > 0).map(Number),
   ));
   if (agenten.length > 1) {
+    const alt = qualityFlagsLesen(gewinner.quality_flags);
+    const bisher = Array.isArray(alt.agents) ? alt.agents.map(Number).filter((n: number) => Number.isFinite(n) && n > 0) : [];
+    const neu = { ...alt, agents: Array.from(new Set([...bisher, ...agenten])) };
     await lauf`
       UPDATE fiaon_persons SET
-        agent_conflict = ${betreuerQuelle === "unstrittig"},
-        quality_flags = COALESCE(quality_flags, '{}'::jsonb) || ${JSON.stringify({ agents: agenten })}::jsonb,
+        quality_flags = ${lauf.json(neu as any)},
         updated_at = NOW()
       WHERE id = ${gewinnerId}
     `;
@@ -465,6 +613,11 @@ async function fuehreAus(
       updated_at = NOW()
     WHERE id = ${verliererId}
   `;
+
+  // ── Unterlagen: die Akte des Gewinners einmal neu binden (E-IT-C) ─────
+  // Erst jetzt — der Verlierer ist Wegweiser, seine gebundene Fassung erkennt die Ablage als
+  // durch Zeilen vertreten (nicht als „fremd"), und keine Seite wird doppelt gebunden.
+  if (unterlagen) await unterlagen.nachZusammenfuehrung(gewinnerId, verliererId, lauf);
 
   // ── Zählprobe, Teil 2: der Stand NACH dem Merge ────────────────────────
   const nachher = await zaehle(lauf, [gewinnerId]);
@@ -513,13 +666,15 @@ async function fuehreAus(
 
   // ── Protokoll: zweimal, für zwei verschiedene Leser ────────────────────
   const refs = (umgehaengt as any[]).map((r) => String(r.ref));
+  const hinweise = [...lage.hinweise];
   const meta = {
     verliererId, gewinnerId,
     verliererRef: verlierer.person_ref, gewinnerRef: gewinner.person_ref,
     bestellungen: refs,
     felder: uebernommeneFelder,
     gesichert: gesicherteWerte,
-    betreuer: { agentId: betreuerAgentId, quelle: betreuerQuelle },
+    betreuer: { agentId: betreuerAgentId, quelle: betreuerQuelle, fall: lage.fall, text: lage.text, hinweise },
+    mandat: { gewinnerVorher: gewinner.mandat_seit ?? null, verliererVorher: verlierer.mandat_seit ?? null },
     zaehlprobe,
     akteur: akteur.name,
   };
@@ -540,6 +695,8 @@ async function fuehreAus(
       gesicherteWerte.length
         ? `Abweichende Angaben gesichert (auffindbar über die Suche): ${gesicherteWerte.map((g) => `${g.feldName} „${g.wert}"`).join(", ")}`
         : "keine abweichenden Angaben",
+      `Betreuung: ${lage.text}`,
+      ...hinweise,
       `Entschieden von: ${akteur.name}`,
     ];
     await lauf`
@@ -553,9 +710,32 @@ async function fuehreAus(
     gewinnerId, verliererId,
     bestellungenUebernommen: refs,
     gesicherteWerte, uebernommeneFelder,
-    betreuer: { agentId: betreuerAgentId, quelle: betreuerQuelle },
+    betreuer: { agentId: betreuerAgentId, quelle: betreuerQuelle, text: lage.text, hinweise },
     zaehlprobe, notizRef,
   };
+}
+
+/**
+ * quality_flags tolerant lesen: Objekt, JSON-Text (Altbestand der JSONB-Falle)
+ * oder Array aus „objekt || text" — immer ein Objekt zurück, nie ein Fehler.
+ */
+function qualityFlagsLesen(q: unknown): Record<string, any> {
+  if (q == null) return {};
+  if (typeof q === "string") {
+    try { return qualityFlagsLesen(JSON.parse(q)); } catch { return {}; }
+  }
+  if (Array.isArray(q)) {
+    const raus: Record<string, any> = {};
+    const agents: number[] = [];
+    for (const teil of q) {
+      const o = qualityFlagsLesen(teil);
+      if (Array.isArray(o.agents)) agents.push(...o.agents);
+      Object.assign(raus, o);
+    }
+    if (agents.length) raus.agents = Array.from(new Set(agents.map(Number)));
+    return raus;
+  }
+  return typeof q === "object" ? { ...(q as Record<string, any>) } : {};
 }
 
 /** Einen abweichenden Wert sichern — der Kern des Versprechens „nichts geht verloren". */

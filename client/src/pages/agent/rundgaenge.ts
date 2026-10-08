@@ -41,7 +41,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Rückrufe und das frischeste Ereignis — Minuten schlagen Tage. Eine gestern fällige Rate steht deshalb neben einem "
       + "gestrigen Antrag, eine drei Wochen alte Rate hinter beiden. Das ist Absicht: Wird eine "
       + "Rate in den ersten Tagen angesprochen, zahlen 18,6 %; nach der fünften Mahnstufe nur "
-      + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
+      + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist. "
+      // E-IT-A (08.10.2026) mitgezogen: Rotation in „Wieder dran".
+      + "Rechts unter „Wieder dran“ rotiert die Liste: Innerhalb gleicher Dringlichkeit steht vorn, wen am längsten "
+      + "niemand versucht hat — wen du gerade bearbeitet hast (heute oder am vorigen Werktag), steht am nächsten Tag "
+      + "nicht wieder oben, auch nicht mit frischem Antrag — er rückt hinter alle, die nicht gerade dran waren. Nach vorn "
+      + "holt ihn nur eine feste Zeit: Termin heute, fälliger Rückruf, eine Zusage, deren Tag seither erreicht ist.",
     tipp: "Wer morgens die Pipeline leerarbeitet und erst danach in andere Räume geht, hat den besten Monat.",
   },
   {
@@ -119,6 +124,22 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Zwei Minuten, die sich beim nächsten Anruf auszahlen: Der Kunde muss nichts wiederholen, und du weißt vor dem Wählen, worüber ihr sprecht.",
   },
   {
+    // 08.10.2026 (E-IT-G, Punkt 14) mitgezogen: Geburtsdatum in drei Feldern, Speichern nur geänderter Felder,
+    // Hinweis bei zwei Geburtsdaten. Ohne `ziel` — das Formular steht nur in der geöffneten Akte.
+    titel: "Stammdaten: Geburtsdatum in drei Feldern, gespeichert wird nur, was du änderst.",
+    text: "Im Reiter „Daten“ öffnet „Kunde bearbeiten“ das Formular — auch über jedes „… fehlt – jetzt nachtragen“ und über die "
+      + "Vertragslücke. Das Geburtsdatum hat drei Felder: Tag · Monat · Jahr. Tipp einfach 17 11 63 — die Felder springen von selbst "
+      + "weiter, „63“ wird sichtbar zu 1963, und darunter steht zum Gegenlesen „17. November 1963 · 62 Jahre“. Du kannst auch "
+      + "„17.11.1963“ am Stück eintippen oder einfügen. Wäre der Kunde danach unter 18 oder über 94, fragt die Akte „stimmt das?“ — "
+      + "nach „Stimmt so“ darfst du speichern. Gespeichert wird nur, was du geändert hast; das Geburtsdatum landet an der Person UND "
+      + "an allen Bestellungen, mit altem und neuem Wert im Verlauf. Geht etwas nicht, sagt dir „Nicht gespeichert“ genau, warum.",
+    tipp: "Steht oben „Geburtsdatum weicht ab“, tragen Person und Bestellungen verschiedene Daten — etwa weil der Kunde im Antrag "
+      + "ein anderes angegeben hat (der Antrag überschreibt die Akte nicht). Lass dir den Ausweis zeigen und übernimm das richtige mit "
+      + "einem Klick. Steht dort „Eine Bestellung trägt einen anderen Namen“, erst klären — womöglich zwei Menschen. Ein halb "
+      + "gelöschtes Datum löscht nichts; ganz entfernen kann nur die Leitung. Auch „+ Kunde anlegen“ nimmt das Geburtsdatum in "
+      + "denselben drei Feldern.",
+  },
+  {
     // 21.09.2026 (E-202): die Boni-Ampel im Kopf der Akte. Ohne `ziel` — sie
     // steht nur in der geöffneten Akte, nicht auf der Pipeline selbst.
     titel: "Oben in der Akte: die Boni-Ampel.",
@@ -191,13 +212,32 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
-    // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = morgen rechts, nicht heute.
-    titel: "Wen du nicht erreichst, siehst du heute nicht wieder — morgen rechts unter „Wieder dran“.",
-    text: "Klickst du „nicht erreicht“, verschwindet der Mensch für heute aus der Pipeline, die Liste "
-      + "zieht frischen Nachschub, und seine Wiedervorlage steht auf morgen. Dann taucht er rechts "
-      + "unter „Wieder dran“ auf — mit Zahl der Versuche. Sobald du ihn erreichst (egal mit welchem "
-      + "Ergebnis), ist der Zähler zurück auf null.",
-    tipp: "Ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch — beides bleibt wie bisher.",
+    // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = nicht heute, später rechts.
+    // E-IT-A (08.10.2026, Justin) mitgezogen: die eine Wiedervorlage-Regel.
+    titel: "Jedes Ergebnis sagt dir, wann der Mensch wieder dran ist.",
+    text: "Nach dem Klick steht in der Meldung „Wieder dran am Mi 15.10. · Grund“. Die Regel ist für alle gleich: "
+      + "„Zahlt sofort“ — nach 3 Werktagen (Mo–Fr) „Zahlung prüfen“, falls kein Geld kam. „Zahlt am …“ — am Werktag "
+      + "danach „Zusage prüfen“. „Erreicht – Sonstiges“ — nach 3 Werktagen. „Nicht erreicht“ und „Mailbox“ — der "
+      + "Abstand wächst: 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause (mit Terminlink-Mail), "
+      + "ab dem 9. ruht der Mensch. Wer gerade einen Antrag oder eine Zahlungsmeldung geschickt hat (bis 3 Tage), kommt "
+      + "bis zum 5. Fehlversuch schon am nächsten Werktag wieder in die Liste — dort aber hinten, hinter allen, die länger "
+      + "niemand versucht hat. Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage, auch wenn du „in 1 Woche“ wählst; "
+      + "ab dem 9. Fehlversuch bekommt zusätzlich die Leitung eine Aufgabe. Ist nach 3 Werktagen kein Geld da, kommt "
+      + "dazu EINE Aufgabe „Zahlung gemeldet, nicht da — anrufen und klären“: Erreichst du den Kunden und trägst das "
+      + "Ergebnis ein (auch aus der Pipeline) oder ist die Zahlung gebucht, ist sie von selbst erledigt; ab dem 9. "
+      + "Fehlversuch übernimmt sie die Leitung. Buchst du denselben Anruf zweimal (Telefon "
+      + "und Akte), zählt er einmal.",
+    tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
+  },
+  {
+    // E-IT-A (08.10.2026): „heute erledigt · pausiert" am Kopf der rechten Spalte.
+    // Ohne `ziel`: Die Zeile erscheint erst, wenn die Liste geladen ist.
+    titel: "Wer pausiert, ist nicht verloren.",
+    text: "Unter „Wieder dran“ steht „heute erledigt X · Y pausiert“. Pausiert sind deine Menschen, die die Regel gerade "
+      + "bewusst zurückhält — nach „zahlt sofort“, nach Fehlversuchen, nach einer Zusage. Ein Klick auf „pausiert“ zeigt "
+      + "jeden mit Datum und Grund; „Heute wieder dran“ holt ihn sofort zurück. Dasselbe steht in der Akte oben als "
+      + "„Wieder dran am …“ mit demselben Knopf.",
+    tipp: "Ruft dich ein pausierter Kunde zurück oder willst du ihn heute sprechen: Akte öffnen, „Heute wieder dran“ — der Verlauf hält fest, wer es gesetzt hat.",
   },
   {
     // 07.09.2026 (Justin, abends): zwei Spalten.
@@ -205,14 +245,32 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     titel: "Links neu, rechts wieder dran.",
     text: "Unter deiner Fokus-Karte stehen zwei Reihen. Links „Neu für dich“: Menschen, die noch NIE "
       + "jemand angerufen hat — neuer Antrag, kein einziger Versuch. Rechts „Wieder dran“: alle, die "
-      + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zusage "
-      + "nicht gehalten, Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. Schließt du einen ab, "
+      + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zahlung "
+      + "oder Zusage prüfen (einmal, nicht jeden Tag), Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. "
+      + "Wer in den letzten 20 Stunden schon versucht wurde, steht dort nicht noch einmal. Schließt du einen ab, "
       + "rückt der nächste nach. Links steht zuerst, wer laut Antrag JETZT erreichbar sein will (8–12, 12–15, "
       + "15–18, 18–20 Uhr) — „Flexibel“ oder keine Angabe zählt immer. Wer außerhalb seines Fensters liegt, "
       + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten. Neue Anträge "
       + "erscheinen von selbst: Die Liste lädt jede Minute neu — nur nicht während eines Anrufs und nicht, "
       + "solange eine Akte offen ist.",
     tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt — und wann der Mensch angerufen werden will.",
+  },
+  {
+    // E-IT-B (08.10.2026): Konto & Karte erneut senden — der Kasten steht nur, wenn eine Einladung
+    // existiert, deshalb ohne `ziel` (Rundgang-Pflegepflicht: kein Scheinwerfer auf ein fehlendes Element).
+    titel: "Hat der Kunde den Link zur Karte nicht? Schick ihn erneut — mit einem Klick.",
+    text: "Im Überblick und im Reiter „Sein Antrag“ steht der Kasten „Konto & Karte“: wann die Einladung zuerst ging "
+      + "(meist automatisch nach der ersten Zahlung), wann zuletzt erneut und von wem, an welche Adresse und was daraus "
+      + "wurde — zugestellt, geöffnet, Link geklickt oder nicht angekommen. „E-Mail erneut senden“ schickt DIESELBE "
+      + "Einladung mit demselben Link noch einmal — es entsteht keine neue, und die 10 € bleiben, wem sie gehören. "
+      + "Bevor es rausgeht, fragt die Seite nach: Adresse mit dem Kunden abgeglichen? Höchstens drei am Tag, mindestens "
+      + "15 Minuten Abstand. Jeder Versand steht mit deinem Namen im Verlauf.",
+    tipp: "Steht dort rot „An diese Adresse kommt nichts an“, bringt ein erneuter Versand nichts: Frag nach der richtigen "
+      + "Adresse, ändere sie unter „Daten“ und sende dann erneut. Hat er sich nur abgemeldet und will die Post an DIESE "
+      + "Adresse, drück „An die Leitung: Sperre prüfen“ und schreib seinen Wunsch dazu — die Leitung hebt die Sperre von "
+      + "Hand auf, danach geht „erneut senden“. Automatisch heben wir nie etwas auf. Ein „vorübergehend abgewiesen“ "
+      + "(Postfach voll) ist kein Hindernis. Gekündigt mit laufendem Vertrag, Einstufung −1 oder Storno: nur auf "
+      + "ausdrücklichen Wunsch des Kunden — der Grund steht neben dem Knopf.",
   },
   {
     // 07.09.2026 (Justin): Kündigung in der Akte.
@@ -223,8 +281,28 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). War die Bestellung nie bezahlt, wird sie storniert — "
       + "mit allen offenen Raten, es bleibt keine Forderung. Überlegt er es sich im Gespräch anders, drückst du "
       + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter (Raten einer nie bezahlten "
-      + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich.",
+      + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich. "
+      // E-IT-B (08.10.2026): der nie gebuchte Antrag aus dem Kündigungsformular.
+      + "Steht dort „Kündigungsantrag vom … liegt vor, ist aber nicht gebucht“, hat der Kunde über das Formular "
+      + "gekündigt, gebucht ist es noch nicht — es zählt erst nach „Jetzt buchen“. Der Satz daneben sagt, welches Paket "
+      + "gebucht wird; gebucht wird immer zum Eingangstag des Antrags, nie zu heute. Kam nach dem Antrag ein neues Paket "
+      + "oder ist das Paket nicht eindeutig, entscheidet die Leitung (sie bucht oder schließt den Antrag ohne Kündigung). "
+      // Querprüfung 08.10.2026: Antrag ohne passendes Geburtsdatum (Strang b × g).
+      + "Kam der Antrag ohne passendes Geburtsdatum, steht „Identität noch nicht geprüft“ dabei: Gebucht wird erst, "
+      + "wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist — oder mit deinem Satz, wie du die Identität "
+      + "geprüft hast (Rückruf, Ausweis). Der Satz steht im Verlauf und erledigt die Aufgabe.",
     tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
+  },
+  {
+    // E-IT-E (08.10.2026): zusammengeführte Personen und der Dubletten-Knopf der Leitung.
+    // Kein „ziel": Band und Knopf erscheinen nur unter Bedingungen (Rundgang-Pflege, Regel 2).
+    titel: "Zwei Akten, ein Mensch — und wer danach betreut.",
+    text: "Öffnest du einen Kunden über einen alten Link (WhatsApp, Anruf, Termin) und er wurde inzwischen mit "
+      + "einer zweiten Akte zusammengeführt, geht die gemeinsame Akte auf — oben steht dann, in welche Person er "
+      + "aufgegangen ist, wann und von wem. Die Leitung führt Doppelte über „Dubletten zusammenführen“ zusammen: "
+      + "Vor dem Klick steht dort, wer danach betreut. Gefragt wird nur, wenn BEIDE Akten einen aktiven Betreuer "
+      + "haben; ist nur auf einer Seite jemand eingetragen, übernimmt er automatisch.",
+    tipp: "Ausgeschiedene, gesperrte oder Test-Konten zählen nicht als Betreuer — die Liste zeigt sie mit dem Zusatz in Klammern.",
   },
 ];
 
@@ -248,11 +326,12 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // 24.08.2026 nachgezogen: Mit „Bereit für Konto & Karte" sind es vier statt
     // drei. Ein Rundgang, der „drei Filter" sagt und vier zeigt, ist der
     // schnellste Weg, dass ihm niemand mehr glaubt (AGENTS.md).
-    titel: "Vier Filter, die dir den Tag sortieren.",
+    // E-IT-B (08.10.2026): „Bereit für Konto & Karte“ heißt jetzt „Konto & Karte nachfassen“.
+    titel: "Die Filter, die dir den Tag sortieren.",
     text: "„Überfällig“ zeigt dir, wo Geld fehlt. „Termin fällig“ zeigt, mit wem du heute sprichst. "
-      + "„Bereit für Konto & Karte“ zeigt die, bei denen alles zusammen ist — der Anruf, auf den die "
-      + "ganze Betreuung hinausläuft. „Alle“ ist dein ganzer Bestand. Mehr gibt es bewusst nicht: "
-      + "Wer zehn Filter hat, benutzt keinen.",
+      + "„Konto & Karte nachfassen“ zeigt die, bei denen die Einladung unserer Partnerbank nicht ankam oder "
+      + "nach fünf Tagen nicht geklickt ist — der Anruf, auf den die ganze Betreuung hinausläuft. Gekündigte und "
+      + "Gesperrte stehen dort nicht. „Alle“ ist dein ganzer Bestand.",
   },
   {
     ziel: ".be-karte",
@@ -273,8 +352,11 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Seit dem 21.09. bekommt jeder Kunde "
       + "die Einladung unserer Partnerbank automatisch, sobald seine erste Zahlung gebucht ist (Antrag "
       + "vollständig vorausgesetzt) — die Mail heißt „Ihr Link zur Karte ist da“. In der Antragszeit lädt er "
-      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. Der "
-      + "Knopf „Karte bestellen“ in der Akte bleibt für den Nachversand. Erst das Konto, dann die Karte: "
+      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. "
+      // E-IT-B (08.10.2026): erneut senden statt Nachversand über „Karte bestellen“.
+      + "Hat er den Link nicht, schickst du ihn in der Akte mit „E-Mail erneut senden“ noch einmal — derselbe Link, "
+      + "keine neue Einladung. Auf jeder Karte steht, wie es um seine Einladung steht (nicht angekommen, nicht "
+      + "geklickt, bereit, wartet auf die Widerrufsfrist). Erst das Konto, dann die Karte: "
       + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
     tipp: "Ruf nach der Einladung kurz an und begleite ihn durch den Antrag. Die 10 € je bestätigter Eröffnung bekommst du als sein Betreuer — auch wenn die Automatik die Mail geschickt hat.",
   },
@@ -290,6 +372,41 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "„Kontoauszug im Detail“ — jede Einkommensquelle mit Tag, alle Ausgaben bis zur einzelnen Buchung, "
       + "die größten Kostenpunkte und was sich sofort optimieren lässt.",
     tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht, wovon der Kunde lebt und an welchem Tag das Geld kommt, führt ein anderes Gespräch — und legt die Rate auf die Tage danach.",
+  },
+  {
+    // E-IT-C (08.10.2026): Unterlagen — eine Datei ist ein Datensatz. Hinzufügen statt Ersetzen,
+    // „Weitere Unterlagen“, Stand je Unterlage; Ausweisbilder liest keine KI.
+    ziel: '[data-fiaon="unterlagen-akte"]',
+    titel: "Unterlagen: jede Datei einzeln — nichts wird mehr ersetzt.",
+    text: "Je Unterlage siehst du den Stand (liegt vor, fehlt, wird geprüft, bitte neu) und jede Datei mit "
+      + "Seiten, Größe, Datum und was beim Lesen herauskam. „Hinzufügen“ legt dazu — der fehlende Monat, die "
+      + "Rückseite —, „Alles ersetzen“ tauscht mit Grund aus, „Entfernen“ nimmt eine Datei heraus und fragt nach dem "
+      // Querprüfung 08.10.2026: Grund-Art beim Entfernen, Frist, Leitungsknopf.
+      + "Grund: „falsche Person“ oder „nicht benötigt“ löscht den Inhalt sofort, „veraltet oder ersetzt“ hält die Datei "
+      + "90 Tage im Archiv, danach wird ihr Inhalt gelöscht. Die Leitung kann eine entfernte Datei vorher „endgültig "
+      + "löschen“. Was der Kunde selbst entfernt, ist sofort gelöscht. Bei Ausweis und „Weitere Unterlagen“ "
+      + "wählst du erst die Art. „Geprüft“ setzt du, wenn du hingesehen hast: Danach entfernt der Kunde dort nichts "
+      + "mehr selbst. Unterlagen aus der Zeit vor dem 08.10. stehen auf „liegt vor“ mit dem Hinweis, sie einmal "
+      + "anzusehen und „Geprüft“ zu setzen. „Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "
+      + "ausgewertete Auskunft wertet nur dieser Knopf neu aus. Bis 50 MB je Datei, auch iPhone-Fotos (HEIC). "
+      + "„Weitere Unterlagen“ nimmt Aufenthaltstitel, Einkommensnachweis, Bescheide und Sonstiges — deine Notiz dort ist intern, der Kunde sieht sie nicht.",
+    tipp: "Ausweisfotos liest keine KI — schau sie selbst an. Reisepass: die Datenseite genügt (ein nur gewählter Reisepass als Foto steht auf „wird geprüft“, bis du hingesehen hast). Personalausweis: vorn und hinten. Ein Aufenthaltstitel zählt nur zusammen mit dem Reisepass.",
+  },
+  {
+    // E-IT-D (08.10.2026, 4b/4c): Die Auswertung für den Kunden und das Anfordern mit einem Klick.
+    // Kein ziel: Der Block steht nur im Reiter „Dokumente“ — der Rundgang zeigt die Karte mittig.
+    titel: "Unter „Dokumente“: die FIAON Finanz- und Bonitätsauswertung.",
+    text: "Im Paket enthalten: eine Auswertung für den Kunden mit Ampel je Bereich, FIAON-Finanzwert (100–999, eigene "
+      + "Berechnung — kein SCHUFA-Score), Plan mit Euro-Wirkung und PDF. Der Knopf „Auswertung erzeugen“ wird aktiv, wenn "
+      + "Ausweis UND Kontoauszug vollständig sind. Fehlt etwas, steht der genaue Grund dabei („es fehlen August und "
+      + "September“) und „Beim Kunden anfordern“ schickt ihm mit einem Klick eine Mail (im offenen 24-Stunden-Fenster auch "
+      + "WhatsApp) mit einem Upload-Link ohne Anmeldung — 14 Tage gültig. Ging er an die falsche Adresse, macht ihn "
+      + "„Link zurückziehen“ sofort ungültig. Ein Foto vom Ausweis bestätigst du von Hand; war das ein Irrtum, "
+      + "nimmt „Bestätigung zurücknehmen“ sie mit Grund zurück. "
+      + "Nach dem Erzeugen: Vorschau ansehen, „An den Kunden übergeben“ — das darf der Betreuer des Kunden, und nur, solange "
+      + "der Entwurf nicht veraltet ist. Bei roter Gesamtlage oder Vorbehalt gibt nur die Leitung frei, und nicht, wer erzeugt hat — "
+      + "sie bekommt dafür automatisch die Aufgabe „Vier-Augen: Auswertung … freigeben“, die sich mit Freigabe oder Verwerfen von selbst erledigt.",
+    tipp: "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht („wartet auf die Auftragsbestätigung“) — im Gespräch um den Klick in der Mail bitten. Der Haken im Antrag heißt „Einwilligung Datenübermittlung“: Das ist keine Bestellung.",
   },
   {
     // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.
@@ -485,6 +602,15 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
     tipp: "Zugesagte Rückrufe sind Versprechen. Sie stehen deshalb bewusst vor allem anderen, was du dir selbst vorgenommen hast.",
   },
   {
+    // E-IT-B (08.10.2026): „Bereit für Konto & Karte“ → „Konto & Karte – nachfassen“. Die Gruppe steht nur,
+    // wenn es Fälle gibt — deshalb ohne `ziel`.
+    titel: "Konto & Karte – nachfassen.",
+    text: "Unten in „Jetzt dran“ stehen deine Kunden, bei denen die Einladung unserer Partnerbank nicht ankam "
+      + "(Adresse prüfen, dann in der Akte erneut senden) oder seit fünf Tagen nicht geklickt ist (anrufen und durch "
+      + "den Antrag begleiten). Gekündigte und Gesperrte stehen hier nicht — die bekommen keinen Link aus einer Liste. "
+      + "Die Kachel oben zählt genau diese Fälle.",
+  },
+  {
     // 24.09.2026 (E-236): Mara handelt selbst — der Block zeigt, was neu von ihr kommt.
     ziel: ".st-mara-block",
     titel: "Neu von Mara.",
@@ -512,10 +638,68 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Aufgabe von selbst, sobald die Antwort auf genau diese Mail draußen ist: wenn du sendest oder „Übernommen“ wählst, wenn die "
       + "Leitung sie im Postfach freigibt oder wenn Mara sie selbst sendet. Bei Rückrufwunsch, Beschwerde, bestrittener Forderung, "
       + "Widerruf, rechtlichen Fragen oder Zahlungsunfähigkeit bleibt sie offen („Antwort gesendet — bitte selbst nachfassen“). "
-      + "Schreibt der Kunde danach erneut, öffnet sie sich wieder.",
+      + "Schreibt der Kunde danach erneut, öffnet sie sich wieder."
+      // E-IT-F (08.10.2026): Öffnen führt in die Akte MIT der Leiste dieses Auftrags; Arbeit in der Akte erledigt ihn.
+      + " „Öffnen“ bringt dich in die Akte — unten steht dann eine schmale Leiste mit genau diesem Auftrag: „Erledigt“ "
+      + "schließt ihn, „Nächster Auftrag“ öffnet gleich den nächsten Kunden. Erfasst du in der Akte ein Gesprächsergebnis "
+      + "oder antwortest auf WhatsApp, erledigt sich der Auftrag meist von selbst — die Leiste zeigt es an.",
     // Gegenlesen 24.09.2026: Der Knopf zeigt den ZUSTAND („Ton an"), nicht die Handlung —
     // vorher verwies der Tipp auf einen Knopf „Ton aus", den man bei eingeschaltetem Ton nicht findet.
     tipp: "Trifft eine neue Aufgabe ein, während du arbeitest, klingt ein leiser Doppelton — nie während eines Gesprächs. Ein Tipp auf „Ton an“ unten in der Karte schaltet ihn ab.",
+  },
+];
+
+// ── /agent/aufgaben (E-IT-F, 08.10.2026) — Tasks mit der Auftragsliste ─────
+// Neu: Die Seite hatte bis heute keinen Rundgang. Seit E-IT-F stehen Aufträge als
+// Liste Kunde · Art · Eingang · Status da, „Erledigt" geht mit einem Klick, viele
+// Aufträge erledigen sich durch die Arbeit in der Akte selbst, und Erledigtes steht
+// im Reiter „Erledigt" (mit „Wieder öffnen"). Die Liste und ihre Knöpfe erscheinen
+// nur, wenn es Aufträge gibt — deshalb dort kein `ziel` (Rundgang-Pflegepflicht).
+export const RUNDGANG_TASKS: RundgangSchritt[] = [
+  {
+    titel: "Alles, was dir zugewiesen ist.",
+    text: "„Zu tun“ sind die Aufgaben der Verwaltung mit Frist. „Aufträge“ kommen von Justin und von Mara — "
+      + "aus Kundenmails, WhatsApp und dem System. „Hinweise“ sind nur zum Lesen. „Erledigt“ sammelt beides, "
+      + "was du oder das System abgeschlossen habt.",
+  },
+  {
+    ziel: '[data-reiter="auftraege"]',
+    titel: "Aufträge: nur, was wirklich offen ist.",
+    text: "Hier steht jeder offene Auftrag in einer Zeile: Kunde, Art, Eingang und Status. Dringende stehen oben, "
+      + "darin die ältesten zuerst — so kommt auch der Rückstand dran. Oben rechts schaltest du auf „Neueste zuerst“ um; "
+      + "die Wahl merkt sich dein Gerät.",
+    tipp: "Der Eingang steht immer dabei („Eingang: 08.10. 14:32“). Steht daneben „neue Nachricht …“, hat der Kunde inzwischen noch einmal geschrieben.",
+  },
+  {
+    titel: "Ein Klick auf die Zeile klappt den Auftrag auf.",
+    text: "Dann siehst du den ganzen Text, die Schritte („Strecke“), eine Frage von Justin und die Zeitleiste. "
+      + "Dort stellst du auch eine Rückfrage, schreibst eine Notiz oder gibst den Auftrag zurück. „Akte“ öffnet den Kunden "
+      + "direkt — ohne dass ein laufendes Gespräch abbricht.",
+  },
+  {
+    titel: "„Erledigt“ — ein Klick, dann der nächste.",
+    text: "„Erledigt“ in der Zeile schließt den Auftrag sofort; die Zeile verschwindet, und der nächste offene Auftrag "
+      + "klappt auf. Einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken. Pflicht ist er nur, wenn es "
+      + "eine Frage gab, bei Kündigung, Widerruf, Beschwerde oder Löschantrag und bei Lage-Aufträgen wie „E-Mail unzustellbar“ "
+      + "— dann öffnet sich das Feld von selbst.",
+  },
+  {
+    titel: "Viele Aufträge erledigen sich selbst.",
+    text: "Erfasst du in der Akte ein Gesprächsergebnis („erreicht“, „Rückruf vereinbart“), erledigst du einen Rückruf, "
+      + "führst einen Termin, antwortest selbst auf WhatsApp, forderst eine Unterlage an oder schickst den Kartenlink, "
+      + "schließt das System die passenden Aufträge dieses Kunden, die bei DIR liegen — mit dem Satz „Automatisch erledigt durch …“ in der "
+      + "Zeitleiste. Bei einer Unterlage nur der Auftrag, der genau diese Unterlage nennt. Ein Rückrufwunsch erledigt sich nur durch "
+      + "ein Gespräch, nicht durch eine WhatsApp-Zeile. Heikles (Kündigung, Widerruf, Beschwerde, Bestreiten, Löschwunsch, Erstattung — "
+      + "auch in einer Mail-Übergabe), Geld, eine bezahlte Auskunft, „Rate: E-Mail unzustellbar“ und Vorgänge schließt nie "
+      + "das System, nur du — mit einem Satz. „Erledigt“ bei „Kunde hat geschrieben“ verwirft Maras wartenden Entwurf (wie „Übernommen“).",
+    tipp: "„Nicht erreicht“ schließt nichts — der Versuch steht im Verlauf. Arbeitet ein Kollege an deinem Kunden (Gespräch, Kartenlink, Unterlage), steht bei dir nur ein Hinweis „… – bitte prüfen“.",
+  },
+  {
+    ziel: '[data-reiter="erledigt"]',
+    titel: "Erledigt — und wieder öffnen.",
+    text: "Hier stehen deine erledigten Aufgaben und die Aufträge der letzten 30 Tage, jeweils mit „von …“ oder "
+      + "„automatisch durch …“. War etwas zu früh zu, holt „Wieder öffnen“ den Auftrag zurück in die Liste. Öffnet das System "
+      + "einen Auftrag wieder — etwa weil der Kunde noch einmal schreibt —, steht er als „Wieder offen“ mit Grund in der Liste.",
   },
 ];
 
@@ -719,9 +903,10 @@ export const RUNDGANG_VERTRIEB: RundgangSchritt[] = [
   {
     titel: "Ordnung ist die Arbeit, die sonst liegen bleibt.",
     text: "Dubletten, Testeinträge und die Befunde der Bestandswache. Ein Mensch, der zweimal in "
-      + "der Kartei steht, bekommt zwei Rechnungen und zwei Anrufe. Zusammenführen ist NICHT "
-      + "umkehrbar — deshalb steht der Knopf dafür in der Akte, wo du beide Seiten vollständig "
-      + "siehst, und nicht in der Trefferliste.",
+      + "der Kartei steht, bekommt zwei Rechnungen und zwei Anrufe. „Jetzt suchen“ zeigt die Paare "
+      + "mit Grund und Betreuung beider Seiten. Zusammenführen ist NICHT umkehrbar — deshalb steht "
+      + "der Knopf dafür in der Akte, wo du beide Seiten vollständig siehst, und nicht in der Trefferliste. "
+      + "Eine Betreuer-Wahl verlangt das System nur bei zwei AKTIVEN Betreuern; sonst übernimmt der eine.",
     tipp: "Einmal die Woche reicht. Aber dann wirklich.",
   },
 ];
@@ -1048,7 +1233,8 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     text: "Ein persönliches Angebot für eine Person — Teil 1 „Gründung“ sofort fällig, Teil 2 „Kapital-Begleitung“ erst, wenn die "
       + "Gesellschaft eingetragen ist und das erste Kapital ausgezahlt oder die erste Karte freigeschaltet ist. Dazu die "
       + "Bürgschaftszusage der Schwarzott Global LLC und die Kreditgarantie (E-271): Erhält die Gesellschaft in der Frist nicht den "
-      + "Kreditrahmen und die Karten aus dem Angebot, erstattet FIAON alles, was der Kunde gezahlt hat. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person.",
+      + "Kreditrahmen und die Karten aus dem Angebot, erstattet FIAON alles, was der Kunde gezahlt hat. „Neues Individualangebot“ holt Name, Anschrift und Geburtsdatum aus dem jüngsten Antrag der Person "
+      + "(das Geburtsdatum steht in drei Feldern Tag · Monat · Jahr — seit 08.10. kein Tippen im Format JJJJ-MM-TT mehr).",
     tipp: "Angenommen wird nur vom Kunden über seinen Link. Öffnest du den Link aus dem Chefbüro, siehst du die Seite ohne Annahmeknopf.",
   },
   {
@@ -1400,6 +1586,10 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     text: "„Akte öffnen“ unten auf der Karte zeigt die ganze Akte in einem Fenster über der Kartei — schließen mit dem Kreuz oder der "
       + "Esc-Taste, und die Karte ist danach frisch. Ganz unten stehen zuerst deine Termine (gebucht über fiaon.com/justin und dein "
       + "Kalender, mit Anliegen), darunter aufklappbar alle Termine des Teams.",
+    // 08.10.2026 (E-IT-G, Punkt 14) mitgezogen: das Geburtsdatum in der Akte.
+    tipp: "Das Geburtsdatum korrigierst du in der Akte mit dem Stift: drei Felder Tag · Monat · Jahr, „63“ wird 1963, Speichern erst, "
+      + "wenn das Datum stimmt. Es gilt dann an der Person und an allen Bestellungen; „Weicht ab“ darunter heißt: laut Ausweis wählen. "
+      + "„Geburtsdatum entfernen“ gibt es nur für die Leitung – hier in der Chef-Akte und in der Akte unter „Kunde bearbeiten“.",
   },
   {
     titel: "Storniert ist nicht gelöscht.",
@@ -1570,6 +1760,27 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     titel: "Hier schreibst du mit deinen Kunden.",
     text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
       + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
+    // E-IT-H (08.10.2026): Der Raum füllt jetzt den ganzen Bildschirm; der Rundgang hat keinen festen Knopf mehr.
+    tipp: "Diesen Rundgang startest du jederzeit wieder über „Rundgang“ oben rechts im Raum.",
+  },
+  // E-IT-H (08.10.2026, Punkt 15): Ansicht je Mitarbeiter — die Knöpfe stehen im Kopf, in jeder Breite.
+  {
+    ziel: ".wr-kopf-knoepfe",
+    titel: "Schrift größer — und der Rundgang.",
+    text: "„Schrift größer“ macht Nachrichten, Liste und Fall im ganzen Raum größer; ein zweiter Klick („Schrift normal“) "
+      + "nimmt es zurück. Der Raum ist ohnehin größer gesetzt als der Rest des Office. Daneben startet „Rundgang“ diese "
+      + "Erklärung neu.",
+    tipp: "Dein Browser merkt sich die Einstellung — auch nach dem Neuladen gilt sie wieder, nur für dich.",
+  },
+  // E-IT-H: « und (i) gibt es am Handy nicht — deshalb ohne Ziel (Rundgang-Regel 2).
+  {
+    titel: "Mehr Platz für den Chat.",
+    text: "Der Raum füllt den ganzen Bildschirm, nur der Verlauf, die Liste und der Fall rollen. Das « oben in der Liste "
+      + "macht sie zur schmalen Leiste mit Bild, Ungelesen-Zahl und grünem Punkt, solange das Fenster offen ist (» klappt "
+      + "sie wieder auf). Das (i) rechts im Chat-Kopf blendet den Fall ein und aus — auf großen Bildschirmen steht er als "
+      + "eigene Spalte rechts, sonst als Schublade über dem Verlauf. Dein Browser merkt sich beides.",
+    tipp: "Am Laptop lohnt sich: Liste schmal und Fall aus — dann hat der Chat fast die ganze Breite. „Ergebnis buchen“ "
+      + "und die Notiz holst du dir mit dem (i) zurück.",
   },
   // E-261 (29.09.2026): Der Hinweis erscheint nur, solange die Bremse greift — deshalb ohne Ziel (Rundgang-Regel 2).
   {
@@ -1583,15 +1794,31 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
   {
     ziel: ".wr-liste",
     titel: "Links stehen die Gespräche.",
-    text: "Der blaue Punkt zählt ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
+    text: "Die Liste startet mit „Mit Antwort“: nur Gespräche, in denen der Kunde selbst geschrieben hat. „Alle“ zeigt mit "
+      + "einem Klick auch die, in denen bisher nur wir geschrieben haben (z. B. Maras Vorlagen). Der blaue Punkt zählt "
+      + "ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
       + "aus dem Team — oder gelb „Automatische Antwort“, wenn nur ein Anrufbeantworter geantwortet hat. „Fenster offen“ heißt: "
       + "Du darfst gerade frei schreiben. „Mara aus“ heißt: Hier antwortet die digitale Assistentin gerade nicht selbst.",
-    tipp: "Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr nicht doppelt.",
+    // E-IT-H (Gegenprüfung 08.10.2026): Beim Suchen gilt „Mit Antwort“ nicht — die Suche läuft über alle eigenen Gespräche.
+    tipp: "Die Suche findet Name und Nummer, ab vier Zeichen auch Wörter aus allen Nachrichten — und zwar in ALLEN deinen "
+      + "Gesprächen, auch in denen ohne Antwort und nicht nur in den geladenen. Solange du suchst, steht der Filter deshalb "
+      + "auf „Alle“. Findest du jemanden nicht, beginne erst dann ein neues Gespräch. Ganz unten holt „Ältere Gespräche "
+      + "laden“ weitere, bis 1.000 — noch ältere findest du über die Suche. Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr "
+      + "nicht doppelt.",
+  },
+  // E-IT-H: Direktsprung aus Akte und Aufgaben — ohne Ziel, der Knopf steht in der Akte.
+  {
+    titel: "Aus der Akte direkt ins Gespräch.",
+    text: "In der Kundenakte steht unter „WhatsApp schicken“ der Knopf „Chat im WhatsApp-Raum öffnen“ — er öffnet genau "
+      + "dieses Gespräch. Genauso führt „WhatsApp öffnen“ an Maras Aufgaben ohne Akte direkt zur richtigen Nummer — auch "
+      + "wenn du gerade schon im Raum sitzt; nach so einem Sprung bringt dich „Zurück“ im Browser zum Gespräch davor. Die "
+      + "Adresse oben im Browser trägt die Nummer mit: Neu laden oder als Lesezeichen behalten öffnet dasselbe Gespräch.",
   },
   {
     ziel: ".wr-eingabe",
     titel: "Schreiben wie im Handy — nur mit Sicherheitsnetz.",
-    text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Ein Doppelklick "
+    text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Das Feld "
+      + "wächst mit, bis gut ein Drittel der Chathöhe — längere Antworten siehst du beim Schreiben ganz. Ein Doppelklick "
       + "schickt nichts doppelt, und dein Entwurf bleibt beim Kunden, für den du ihn geschrieben hast — wechselst du das "
       + "Gespräch, wandert er nicht mit. Über dem Feld steht, wie lange das 24-Stunden-Fenster noch läuft. Ist es zu, "
       + "geht nur eine von Meta freigegebene Vorlage.",
@@ -1876,6 +2103,15 @@ export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
     titel: "Die Regeln der Beschaffung.",
     text: "Die Regeln der Beschaffung stehen links unten zum Aufklappen.",
   },
+  {
+    // E-IT-D (08.10.2026, 4a): Rückstand liefern, Wache, benannte Verantwortung.
+    ziel: "[data-akb-sammel]",
+    titel: "Den Rückstand liefern.",
+    text: "„Auftragsbestätigung an alle offenen senden“ stellt bezahlte Aufträge ohne Bestätigung auf den Datenkopie-Weg und schickt "
+      + "jedem Kunden den Link — höchstens einmal in 72 Stunden. Daneben: wer verantwortlich ist (bekommt die Aufgaben der "
+      + "Liegezeit-Wache, auch „Link nie zugestellt“) und die Wache von Hand. Was sich erledigt hat (Kunde bestätigt, "
+      + "Auskunft geliefert), schließt die Wache selbst.",
+  },
 ];
 
 // ── /chef/s/mara?reiter=social (06.10.2026, E-294) ──────────────────────────
@@ -2030,6 +2266,7 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   onboarding:  { titel: "Onboarding",   schritte: RUNDGANG_ONBOARDING },
   collections: { titel: "Collections",  schritte: RUNDGANG_COLLECTIONS },
   dashboard:   { titel: "Dashboard",    schritte: RUNDGANG_DASHBOARD },
+  tasks:       { titel: "Tasks",        schritte: RUNDGANG_TASKS },
   gehalt:      { titel: "Earnings",     schritte: RUNDGANG_GEHALT },
   wallet:      { titel: "Wallet",       schritte: RUNDGANG_WALLET },
   tickets:     { titel: "Tickets",      schritte: RUNDGANG_TICKETS },

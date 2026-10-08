@@ -108,9 +108,11 @@ import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
+import { raumPfad } from "@shared/fiaon-wa-raum";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
-import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play, CreditCard } from "lucide-react";
+import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
+import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
 import { statusMitZahlungswahrheit, type Stufe } from "@shared/fiaon-kundenstatus";
@@ -118,26 +120,40 @@ import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ } from "@shared/fiaon-bank-anleitung
 import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
 import { Schriftverkehr } from "@/components/agent/Schriftverkehr";
+import { UnterlagenAkte } from "@/components/unterlagen/UnterlagenAkte";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
+import { GeburtsdatumFeld, useGeburtsdatum } from "@/components/GeburtsdatumFeld";
+import { geburtsdatumAnzeige, geburtsdatumMitAlter, geburtsdatumLesen, GEBURT_TEXTE } from "@shared/fiaon-geburtsdatum";
 import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
+import { KontoKarteAkte, KontoKarteKurz } from "@/components/agent/KontoKarteAkte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
+// E-IT-D (08.10.2026, 4a/4b/4c): Auswertung + Anforderung in der Akte, Stufensätze der Auskunft aus EINER Quelle.
+import { FinanzauswertungAkte } from "@/components/finanzen/FinanzauswertungAkte";
+import { auskunftStufenSatz, EINWILLIGUNG_DATENUEBERMITTLUNG, EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS } from "@shared/fiaon-auskunft-akte";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
 import { schritteFuer } from "@shared/fiaon-gespraechs-schritte";
+// E-IT-A (08.10.2026): die eine Wiedervorlage-Regel — Wahl, Vorschau, Texte.
+import {
+  WiedervorlageWahl, vorschauFuer, vorschauMitDatum, wahlDatum, heuteBerlin, type WiedervorlageKontext,
+} from "@/components/agent/WiedervorlageWahl";
+import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
 // E-050: exportiert — bestand.tsx (Portfolio-Raum) nutzt dieselbe Form.
 export interface Kunde {
+  /** E-IT-E: Angefragt war eine zusammengeführte Person — der Server hat den Kopf geöffnet. */
+  aufgegangen?: { vonPersonId: number; text: string } | null;
   karte?: { status: string | null; text: string | null; am: string | null } | null;
   /** E-213: gekündigt — kommt aus KARTE_SQL und gilt damit in jeder Ansicht. */
   gekuendigtAm?: string | null;
@@ -210,6 +226,14 @@ export interface Kunde {
   vollstaendig?: boolean;
   /** E-162: warum dieser Mensch jetzt oben steht — Art, Alter des Ereignisses, noch ohne Anruf. */
   hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean; jetztErreichbar?: boolean; sofort?: boolean } | null;
+  /** E-IT-A: der letzte Versuch (Ergebnis oder echter Anruf) — nur an den Karten der Arbeitsliste. */
+  letzterVersuch?: string | null;
+  /** E-IT-A: der Grund in Worten („Zahlung prüfen", „Pause nach vielen Fehlversuchen" …). */
+  wiederText?: string | null;
+  /** E-IT-A: Zusage fällig UND seither nicht versucht — nur dann ist sie dringend. */
+  zusageOffen?: boolean;
+  wiederGrund?: string;
+  versuche?: number;
 }
 
 type Zaehler = Record<string, number>;
@@ -324,8 +348,21 @@ function hitzeText(k: Kunde): string | null {
 }
 function rueckrufFaellig(k: Kunde): boolean {
   if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return true;
+  // E-IT-A (08.10.2026): Eine abgelaufene Zusage, nach der schon versucht wurde,
+  // ist kein roter Fall mehr — der Server sagt es (zusageOffen), wo er es weiß.
+  if (k.zusageOffen === false) return false;
   const z = relativ(k.zusagedatum);
   return !!z?.dringend;
+}
+/** E-IT-A: „zuletzt versucht vor 23 Tagen" — Ergebnis ODER echter Anruf, sonst der letzte Kontakt. */
+function versuchText(k: Kunde): string {
+  const iso = k.letzterVersuch ?? null;
+  if (!iso) return wartezeit(k.letzterKontakt);
+  const t = kontaktTage(iso);
+  if (t == null) return "noch nie versucht";
+  if (t <= 0) return "heute versucht";
+  if (t === 1) return "gestern versucht";
+  return `zuletzt versucht vor ${t} Tagen`;
 }
 // ── 19.09.2026 (E-194): KEIN EINZUGS-GRUND MEHR AN DER RATE ────────────────
 // Hier stand eine Funktion, die jeder offenen Rate einen Grund gab: Abbuchung
@@ -449,7 +486,10 @@ function vergleich(a: Kunde, b: Kunde): number {
 function warumJetzt(k: Kunde): string {
   if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return `Rückruf war für ${terminText(k.rueckrufAm)} vereinbart – er wartet auf dich.`;
   const z = relativ(k.zusagedatum);
-  if (z?.dringend) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
+  // E-IT-A (Gegenprüfung 08.10.2026, G4): Auf Stufe A (Zahlung gemeldet) ist die
+  // alte Zusage nicht das Thema — der Kunde sagt, er habe bezahlt. Dann gilt der
+  // Satz „Eingang prüfen“ unten, wie in der Akte (kundenSituation), nicht „nachfassen“.
+  if (z?.dringend && k.tier !== 1) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
   const s = stufeVon(k);
   if (s === "rate") return `Rate${k.rateNr ? ` ${k.rateNr}` : ""} über ${k.rateCents ? eur(k.rateCents) : "—"} ist ${k.rateFaelligAm ? `seit ${dtag(k.rateFaelligAm)} ` : ""}überfällig. Weich einsteigen: vorstellen, entschuldigen, zuhören – kein Inkasso-Ton.`;
   if (s === "heiss" && k.tier === 0) return "Bezahlt, aber noch kein Termin. Willkommen heißen und den nächsten freien Termin vergeben.";
@@ -609,6 +649,10 @@ function PipelineInnen() {
   // VORHER wurden vier Stufen-Zähler geladen und nie angezeigt — der Verkäufer
   // sah sechs Karten und wusste nicht, dass 400 dahinter warten.
   const [vorrat, setVorrat] = useState<{ neu: number; wieder: number }>({ neu: 0, wieder: 0 });
+  // E-IT-A (08.10.2026): Kopf der rechten Spalte — „heute erledigt X · Y pausiert",
+  // und die Liste der Pausierten (ein Klick auf „Y pausiert").
+  const [heuteStand, setHeuteStand] = useState<{ erledigt: number; pausiert: number } | null>(null);
+  const [pausiertOffen, setPausiertOffen] = useState(false);
   const [slotsLaedt, setSlotsLaedt] = useState(true);
   const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
   const [fokusId, setFokusId] = useState<number | null>(null);
@@ -630,6 +674,8 @@ function PipelineInnen() {
   const [mandate, setMandate] = useState<{ anzahl: number; ids: Set<number> }>({ anzahl: 0, ids: new Set() });
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
+  // E-IT-E (08.10.2026): Warum die Akte nicht aufging — vom Server, mit Grund.
+  const [fremdFehler, setFremdFehler] = useState<{ titel: string; text: string } | null>(null);
   // Fokus-Karte eingeklappt? Sitzungsweit gemerkt (siehe Kommentar am Einbau).
   const [fokusZu, setFokusZuRoh] = useState(() => { try { return sessionStorage.getItem("fiaon_fokus_zu") === "1"; } catch { return false; } });
   const setFokusZu = (v: boolean) => { setFokusZuRoh(v); try { sessionStorage.setItem("fiaon_fokus_zu", v ? "1" : "0"); } catch { /* egal */ } };
@@ -684,6 +730,7 @@ function PipelineInnen() {
       setSlots(r.json.slots || []);
       setWieder(r.json.wieder || []);
       setVorrat({ neu: Number(r.json.vorrat?.neu || 0), wieder: Number(r.json.vorrat?.wieder || 0) });
+      setHeuteStand(r.json.heute ? { erledigt: Number(r.json.heute.erledigt || 0), pausiert: Number(r.json.heute.pausiert || 0) } : null);
       if (r.json.rolle) setRolle(r.json.rolle);
       if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
       setSlotsFehler(null);
@@ -815,7 +862,11 @@ function PipelineInnen() {
     if (!offen || laedt) { setFremd(null); return; }
     if (liste.some((k) => k.personId === offen) || slots.some((s) => s.kunde.personId === offen)) { setFremd(null); return; }
     let an = true;
-    api(`/agent/crm/kunden/${offen}`).then((r) => { if (an) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
+    api(`/agent/crm/kunden/${offen}`).then((r) => {
+      if (!an) return;
+      setFremd(r.ok && r.json?.kunde ? r.json.kunde : null);
+      setFremdFehler(r.ok && r.json?.kunde ? null : akteFehlerAus(r));
+    }).catch(() => { if (an) setFremdFehler(akteFehlerAus({ status: 0 })); });
     return () => { an = false; };
   }, [offen, laedt, liste, slots]);
 
@@ -991,6 +1042,17 @@ function PipelineInnen() {
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Wieder dran</b>
                 {vorrat.wieder > wiederOhneFokus.length && <span className="pi-vorrat">noch {vorrat.wieder}</span>}
                 <span className="linie" aria-hidden="true" /></div>
+              {/* E-IT-A (08.10.2026): Was heute geschafft ist und wer bewusst wartet.
+                  „Pausiert" heißt: Die Wiedervorlage-Regel hält ihn zurück (zahlt sofort
+                  3 Werktage, nicht erreicht mit wachsendem Abstand, ab dem 6. Versuch
+                  14 Tage). Ein Klick zeigt wen — und holt ihn auf Wunsch sofort zurück. */}
+              {heuteStand && (
+                <div className="pi-spalte-kopfzeile" data-fiaon="wieder-kopf">
+                  <span>heute erledigt {heuteStand.erledigt}</span><span aria-hidden="true">·</span>
+                  <button type="button" className="pi-link" data-fiaon="pausiert-oeffnen" aria-expanded={pausiertOffen}
+                          onClick={() => setPausiertOffen((v) => !v)}>{heuteStand.pausiert} pausiert</button>
+                </div>
+              )}
               {wiederOhneFokus.length === 0 ? <p className="pi-fussnote pi-spalte-leer">Niemand wartet auf einen zweiten Versuch — nicht erreicht, Rückrufe und heutige Termine erscheinen hier.</p> : (
               <KleinesKarussell kinder={wiederOhneFokus} geht={geht} gesperrt={offen != null} flach={ruhig}
                                 onFokus={(id) => setFokusId(id)}
@@ -998,6 +1060,10 @@ function PipelineInnen() {
                                 onEntfernen={(k) => void karteileiche(k)} />)}
               </div>
               </div>
+              {pausiertOffen && (
+                <PausiertListe onZu={() => setPausiertOffen(false)} onAkte={(id) => oeffnen(id)}
+                               onGeaendert={() => { void arbeitslisteLaden(true); }} />
+              )}
               </div>
             </section>
           )}
@@ -1024,9 +1090,9 @@ function PipelineInnen() {
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
               {/* E-049 Nr. 1: Kopf im selben sticky Glas-Block wie in der vollen Akte. */}
-              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : (fremdFehler?.titel ?? "Akte nicht gefunden")}</h2>
                 <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
-              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
+              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">{fremdFehler?.text ?? "Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht."}</p></div>}
             </aside>
           )}
         </>, document.body)
@@ -1095,7 +1161,8 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
     <div className="pi-fokus-buehne" ref={buehne} onMouseMove={neigen} onMouseLeave={geradeStellen}>
     <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
-        <span className="pi-pille">{faellig ? "Rückruf fällig" : (hitzeText(k) ?? "Jetzt anrufen")}</span>
+        {/* E-IT-A: Eine offene Zusage heißt „Zahlung/Zusage prüfen“ — nicht „Rückruf fällig“. */}
+        <span className="pi-pille">{faellig && k.wiederGrund === "zusage" ? (k.wiederText || "Zahlung prüfen") : faellig ? "Rückruf fällig" : (hitzeText(k) ?? "Jetzt anrufen")}</span>
         <button type="button" className="pi-link" style={{ color: "#64748b" }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </div>
       <h1>{k.name}</h1>
@@ -1106,7 +1173,7 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
         <span className="pi-marke">Wert: {preis ? euro0(wert) : "–"} · 12 Raten</span>
         <span className="pi-marke gut">Deine Provision: {preis ? euro0(Math.round(wert * satz)) : "–"}</span>
         {k.gekuendigtAm && <span className="pi-marke gekuendigt">{k.vertragBeendet ? "Vertrag beendet" : "Gekündigt"}</span>}
-        <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
+        <span className="pi-marke still">{versuchText(k)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}{k.wiederText && k.wiederGrund !== "nicht_erreicht" ? ` · ${k.wiederText}` : ""}</span>
         {/* E-184: Wann will der Kunde angerufen werden? Aus dem Antrag; „jetzt außerhalb“ heißt: sein Fenster ist gerade nicht. */}
         {k.erreichbarkeit && (
           <span className={`pi-marke${k.hitze?.jetztErreichbar === false ? " still" : " gut"}`} title="So hat der Kunde es im Antrag angegeben.">
@@ -1127,6 +1194,68 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PAUSIERT — WER BEWUSST WARTET (E-IT-A, 08.10.2026)
+//
+// Die Wiedervorlage-Regel hält Menschen zurück: nach „zahlt sofort" drei
+// Werktage, nach „nicht erreicht" mit wachsendem Abstand, ab dem 6. Fehlversuch
+// 14 Tage. Eine Liste, die jemanden wortlos zurückhält, lässt den Mitarbeiter
+// glauben, der Kunde sei verloren (Hans-Jürgen, 27.08.: „finde sie nicht mehr").
+// Hier steht, wer wartet, bis wann und warum — und „Heute wieder dran" holt
+// ihn mit einem Klick zurück (POST /agent/crm/kunden/:id/wiedervorlage).
+// ═══════════════════════════════════════════════════════════════════════════
+function PausiertListe({ onZu, onAkte, onGeaendert }: { onZu: () => void; onAkte: (id: number) => void; onGeaendert: () => void }) {
+  const [liste, setListe] = useState<{ personId: number; name: string; text: string | null; grundText: string; versuche: number; letzterVersuch: string | null }[] | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState<number | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  const laden = useCallback(async () => {
+    const r = await api("/agent/vertrieb/pausiert");
+    if (r.ok) { setListe(r.json.personen || []); setFehler(null); }
+    else setFehler(r.json?.error || "Die Liste „pausiert“ ließ sich nicht laden.");
+  }, []);
+  useEffect(() => { void laden(); }, [laden]);
+  const zurueckholen = async (id: number, name: string) => {
+    setLaeuft(id); setMeldung(null);
+    const r = await api(`/agent/crm/kunden/${id}/wiedervorlage`, { method: "POST", body: JSON.stringify({ wahl: "heute" }) });
+    setLaeuft(null);
+    if (!r.ok) { setMeldung({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return; }
+    setMeldung({ art: "gut", text: `${name}: ${r.json.meldung || "wieder dran."}` });
+    await laden();
+    onGeaendert();
+  };
+  return (
+    <div className="pi-pausiert" data-fiaon="pausiert-liste">
+      <div className="pi-pausiert-kopf">
+        <b>Pausiert — wartet nach der Wiedervorlage-Regel</b>
+        <button type="button" className="pi-link" onClick={onZu}>schließen</button>
+      </div>
+      <p className="pi-fussnote">Diese Menschen kommen von selbst zurück, sobald ihr Tag da ist. Willst du einen früher sprechen, hol ihn mit „Heute wieder dran“ sofort unter „Wieder dran“.</p>
+      {meldung && <p className={`pi-meldung${meldung.art === "gut" ? " gut" : ""}`}>{meldung.text}</p>}
+      {fehler && <p className="pi-fehler">{fehler}</p>}
+      {liste === null && !fehler ? <p className="pi-fussnote">Lade …</p>
+        : liste && liste.length === 0 ? <p className="pi-fussnote">Gerade pausiert niemand.</p>
+        : liste && (
+          <ul className="pi-pausiert-liste">
+            {liste.map((m) => (
+              <li key={m.personId} className="pi-pausiert-zeile">
+                <b>{m.name}</b>
+                <small>{m.text ?? m.grundText}{m.versuche > 0 ? ` · ${m.versuche}× nicht erreicht` : ""}{m.letzterVersuch ? ` · zuletzt versucht ${dtag(m.letzterVersuch)}` : ""}</small>
+                <span className="pi-pausiert-tun">
+                  <button type="button" className="pi-link" onClick={() => onAkte(m.personId)}>Akte</button>
+                  <button type="button" className="pi-knopf still klein" data-fiaon="heute-wieder-dran"
+                          disabled={laeuft === m.personId} onClick={() => void zurueckholen(m.personId, m.name)}>
+                    {laeuft === m.personId ? "…" : "Heute wieder dran"}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  );
+}
+
 /** Eine der 5 kleinen Karten der Arbeitsliste. */
 function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   k: Kunde; gruppe: string; geht: boolean; onFokus: () => void; onAkte: () => void; onEntfernen: () => void;
@@ -1137,16 +1266,17 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   return (
     <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
-        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig"
+        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig && k.wiederGrund === "zusage" ? (k.wiederText || "Zahlung prüfen")
+          : faellig ? "Rückruf fällig"
           : (k as any).wiederGrund === "termin" ? "Termin heute"
           : (k as any).wiederGrund === "rueckruf" ? "Rückruf vereinbart"
           : (k as any).wiederGrund === "nicht_erreicht" ? `Nicht erreicht · ${(k as any).versuche || 1}× versucht`
-          : (k as any).wiederGrund === "zusage" ? "Zusage nicht gehalten"
+          : (k as any).wiederGrund === "zusage" ? (k.wiederText || "Zusage prüfen")
           : (k as any).wiederGrund === "rate" ? "Rate fällig"
           : (k as any).wiederGrund === "wiedervorlage" ? (hitzeText(k) ?? "Wieder dran")
           : (hitzeText(k) ?? info.name)}</small></span>
         <b>{k.name}</b>
-        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
+        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {versuchText(k)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
       </button>
       <span className="pi-ak-tun">
         <button type="button" className="pi-knopf klein" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
@@ -1700,7 +1830,15 @@ function LeitungsZeile({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" 
 interface DublettenTreffer {
   id: number; personRef: string; name: string; email: string | null; telefon: string | null;
   geburtsdatum: string | null; ort: string | null; betreuer: string | null;
+  /** E-IT-E: „Name", „Name (gesperrt)" oder „ohne Betreuer" — dieselbe Regel wie der Merge. */
+  betreuerAnzeige?: string;
   stufe: number; bestellungen: number; bezahlt: boolean; angelegt: string;
+}
+
+/** Die Betreuer-Lage eines Paares, wie GET …/dubletten/paar/:a/:b sie liefert (shared/fiaon-betreuer-lage.ts). */
+interface PaarBetreuerLage {
+  fall: string; wahlNoetig: boolean; agentId: number | null; agentName: string | null;
+  quelle: string; text: string; hinweise: string[];
 }
 
 function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void }) {
@@ -1711,6 +1849,15 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
   const [wahl, setWahl] = useState<DublettenTreffer | null>(null);
   const [bleibt, setBleibt] = useState<"diese" | "gefundene">("diese");
   const [busy, setBusy] = useState(false);
+  // ── WER BETREUT DANACH? (E-IT-E, 08.10.2026) ─────────────────────────────
+  // Hier fehlte die Betreuer-Wahl ganz: Der Dialog schickte nur Gewinner und
+  // Verlierer, und der Server lehnte jede Pool-Person gegen einen betreuten
+  // Kunden ab („Agent 0"). Jetzt holt der Dialog die Lage vom Server (dieselbe
+  // Regel wie der Merge) und fragt NUR, wenn zwei aktive Betreuer da sind.
+  const [paar, setPaar] = useState<any | null>(null);
+  const [paarFehler, setPaarFehler] = useState<string | null>(null);
+  /** Personen-Nummer der Seite, deren Betreuer weitermacht (nur bei zwei aktiven). */
+  const [betreuerVon, setBetreuerVon] = useState<number | null>(null);
 
   // Beim Öffnen gleich mit dem Namen suchen — das ist der Normalfall.
   useEffect(() => {
@@ -1741,16 +1888,47 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
     setBleibt(t.bezahlt && !(k as any).bezahlt ? "gefundene" : "diese");
   };
 
+  // Die Gegenüberstellung samt Betreuer-Lage für beide möglichen Gewinner.
+  const paarLaden = async (andere: number) => {
+    setPaar(null); setPaarFehler(null); setBetreuerVon(null);
+    const r = await api(`/agent/vertrieb/dubletten/paar/${k.personId}/${andere}`).catch(() => null);
+    if (r?.ok) setPaar(r.json);
+    else setPaarFehler(r?.json?.error || "Wer danach betreut, ließ sich nicht laden — der Server entscheidet beim Zusammenführen.");
+  };
+  useEffect(() => {
+    if (!wahl) { setPaar(null); setPaarFehler(null); setBetreuerVon(null); return; }
+    void paarLaden(wahl.id);
+  }, [wahl?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Die Lage für den gerade gewählten Gewinner („diese" = linke Seite des Paares). */
+  const lage: PaarBetreuerLage | null = paar?.betreuerLage
+    ? (bleibt === "diese" ? paar.betreuerLage.wennLinksBleibt : paar.betreuerLage.wennRechtsBleibt)
+    : null;
+
   const zusammenfuehren = async () => {
     if (!wahl) return;
     const gewinnerId = bleibt === "diese" ? k.personId : wahl.id;
     const verliererId = bleibt === "diese" ? wahl.id : k.personId;
     const bleibtName = bleibt === "diese" ? k.name : wahl.name;
     const gehtName = bleibt === "diese" ? wahl.name : k.name;
-    if (!window.confirm(`Zusammenführen:\n\n„${gehtName}" (${verliererId}) geht in „${bleibtName}" (${gewinnerId}) auf.\n\nBestellungen, Verlauf und Unterlagen wandern mit. Das lässt sich nicht mit einem Klick rückgängig machen.`)) return;
+    if (lage?.wahlNoetig && betreuerVon == null) return;
+    const betreuer = lage?.wahlNoetig && betreuerVon != null
+      ? (betreuerVon === gewinnerId ? "gewinner" : "verlierer")
+      : undefined;
+    const betreuungSatz = lage?.wahlNoetig && betreuerVon != null
+      ? `Betreuung: ${(betreuerVon === k.personId ? paar?.links : paar?.rechts)?.betreuerAnzeige ?? "gewählt"} (ausdrücklich gewählt)`
+      : lage ? `Betreuung: ${lage.text}` : "";
+    if (!window.confirm(`Zusammenführen:\n\n„${gehtName}" (${verliererId}) geht in „${bleibtName}" (${gewinnerId}) auf.\n${betreuungSatz ? `${betreuungSatz}\n` : ""}\nBestellungen, Verlauf und Unterlagen wandern mit. Das lässt sich nicht mit einem Klick rückgängig machen.`)) return;
     setBusy(true);
-    const r = await api("/agent/vertrieb/dubletten/zusammenfuehren", { method: "POST", body: JSON.stringify({ gewinnerId, verliererId }) });
+    const r = await api("/agent/vertrieb/dubletten/zusammenfuehren", { method: "POST", body: JSON.stringify({ gewinnerId, verliererId, ...(betreuer ? { betreuer } : {}) }) });
     setBusy(false);
+    // Wettlauf: Hat inzwischen jemand einen zweiten Betreuer eingetragen, fragt
+    // der Dialog jetzt — statt nur „abgelehnt" zu melden.
+    if (!r.ok && r.json?.code === "betreuer_entscheidung_fehlt") {
+      await paarLaden(wahl.id);
+      melden("info", "Bitte wählen, wer betreut", r.json?.error || "Beide Akten haben einen aktiven Betreuer.");
+      return;
+    }
     if (!r.ok) { melden("schlecht", "Nicht zusammengeführt", r.json?.error || "Der Server hat abgelehnt — es wurde nichts geändert."); return; }
     melden("gut", "Zusammengeführt", `„${gehtName}" ist jetzt Teil von „${bleibtName}".`);
     setOffen(false); setWahl(null); onFrisch();
@@ -1783,11 +1961,11 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
                     <button type="button" className={`pi-dub-zeile${wahl?.id === t.id ? " gewaehlt" : ""}`} onClick={() => waehlen(t)}>
                       <span className="pi-dub-name">{t.name}{t.bezahlt && <em className="pi-dub-marke">bezahlt</em>}</span>
                       <span className="pi-dub-sub">
-                        {[t.email, t.telefon, t.ort, t.geburtsdatum ? dtag(t.geburtsdatum) : null].filter(Boolean).join(" · ") || t.personRef}
+                        {[t.email, t.telefon, t.ort, t.geburtsdatum ? geburtsdatumAnzeige(t.geburtsdatum) : null].filter(Boolean).join(" · ") || t.personRef}
                       </span>
                       <span className="pi-dub-sub leise">
                         {t.bestellungen === 1 ? "1 Bestellung" : `${t.bestellungen} Bestellungen`}
-                        {t.betreuer ? ` · ${t.betreuer}` : " · ohne Betreuer"} · {t.personRef}
+                        {` · ${t.betreuerAnzeige ?? (t.betreuer || "ohne Betreuer")}`} · {t.personRef}
                       </span>
                     </button>
                   </li>
@@ -1809,9 +1987,34 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
                 <p className="pi-dub-still">
                   Die andere Akte geht darin auf: Bestellungen, Verlauf und Unterlagen wandern mit, abweichende Angaben bleiben als frühere Werte erhalten.
                 </p>
-                <button type="button" className="pi-knopf gross" disabled={busy} onClick={() => void zusammenfuehren()}>
+                {/* E-IT-E: Wer betreut danach — vor dem Klick sichtbar. */}
+                {!paar && !paarFehler && <p className="pi-dub-still" data-testid="dub-betreuer-laedt">Prüft, wer danach betreut …</p>}
+                {paarFehler && <p className="pi-dub-still" data-testid="dub-betreuer-fehler">{paarFehler}</p>}
+                {lage && !lage.wahlNoetig && (
+                  <p className="pi-dub-still" data-testid="dub-betreuer-lage">
+                    <b>Betreuung:</b> {lage.text}
+                    {lage.hinweise.map((h, i) => <span key={i}><br />{h}</span>)}
+                  </p>
+                )}
+                {lage?.wahlNoetig && paar && (
+                  <div data-testid="dub-betreuer-wahl">
+                    <p className="pi-dub-frage">Wer betreut künftig?</p>
+                    <p className="pi-dub-still">Beide Akten haben einen aktiven Betreuer. Das ist eine Geldfrage: Ein Mandat bleibt nur auf der gewählten Seite — die Wahl steht im Protokoll.</p>
+                    <div className="pi-dub-wahl">
+                      {[paar.links, paar.rechts].map((seite: any) => (
+                        <button key={seite.id} type="button" className={betreuerVon === seite.id ? "an" : ""} onClick={() => setBetreuerVon(seite.id)}>
+                          <b>{seite.betreuerAnzeige}</b><span>{seite.id === k.personId ? "Betreuer dieser Akte" : `Betreuer von ${seite.name}`}{seite.mandatSeit ? ` · Mandat seit ${dtag(seite.mandatSeit)}` : ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button type="button" className="pi-knopf gross" disabled={busy || (!!lage?.wahlNoetig && betreuerVon == null)} onClick={() => void zusammenfuehren()}>
                   {busy ? "Führt zusammen …" : "Jetzt zusammenführen"}
                 </button>
+                {lage?.wahlNoetig && betreuerVon == null && (
+                  <p className="pi-dub-still">Erst oben wählen, wer den Kunden künftig betreut.</p>
+                )}
               </div>
             )}
           </div>
@@ -2069,6 +2272,9 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   // E-044/§16: Aktivität + Vollständigkeit (Kartenstatus-Weiche)
   const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean }; situation?: any } | null>(null);
   const [aktFehler, setAktFehler] = useState<string | null>(null);
+  // E-IT-A (08.10.2026): Nach einem Ergebnis oder „Heute wieder dran" lädt die
+  // Situation neu — sonst zeigt der Kopf die alte Wiedervorlage weiter.
+  const [aktStand, setAktStand] = useState(0);
   // ── E-046: Situations-Kopf (Justin: „auf 1 Blick sehen, auf 1 Klick handeln“) ──
   const [mehrOffen, setMehrOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
@@ -2094,13 +2300,18 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const [doku, setDoku] = useState<any | null | "fehlt">(null);
   // Welche Dokumentart lädt gerade hoch? (Justin 24.08.: Der Mitarbeiter soll
   // für den Kunden hochladen können, wenn der es selbst nicht schafft.)
-  const [laedtDoku, setLaedtDoku] = useState<string | null>(null);
   // Der ganze Antrag (24.08.2026). Kommt mit derselben Antwort wie die Akte —
   // kein zweiter Aufruf, kein Warten beim Reiterwechsel.
   const [antrag, setAntrag] = useState<any | null>(null);
+  // E-IT-G (08.10.2026): zwei verschiedene Geburtsdaten an Person und Bestellungen? (kommt mit der Akte)
+  const [geburtAbw, setGeburtAbw] = useState<GeburtAbweichung | null>(null);
   // E-282 (05.10.2026): persönliche FIAON-PIN — Kennung im Kopf, Prüffeld darunter.
   const [pinStand, setPinStand] = usePinStand(k.personId);
   const [pinOffen, setPinOffen] = useState(false);
+  // E-IT-E (08.10.2026): Das Band „aufgegangen" gilt für DIESES Öffnen. Die Akte
+  // lädt sich beim Öffnen selbst frisch (über die Nummer des Kopfs) — ohne den
+  // Merker verschwände das Band nach einer Sekunde wieder.
+  const [aufgegangenText] = useState<string | null>(() => k.aufgegangen?.text ?? null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -2116,11 +2327,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const frisch = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
     if (r.ok && r.json?.kunde) onNeu(r.json.kunde);
-    if (r.ok) { setVerlauf(r.json.verlauf ?? []); setAntrag(r.json.antrag ?? null); }
+    if (r.ok) { setVerlauf(r.json.verlauf ?? []); setAntrag(r.json.antrag ?? null); setGeburtAbw(r.json.geburtsdatumAbweichung ?? null); }
   };
   const verlaufNachladen = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
-    if (r.ok) setAntrag(r.json.antrag ?? null);
+    if (r.ok) { setAntrag(r.json.antrag ?? null); setGeburtAbw(r.json.geburtsdatumAbweichung ?? null); }
     if (r.ok) setVerlauf(r.json.verlauf ?? []);
   };
   useEffect(() => { void verlaufNachladen(); }, [k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2132,7 +2343,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
       else setAktFehler(r.json?.error || "Die Aktivität konnte nicht geladen werden.");
     });
     return () => { an = false; };
-  }, [k.personId]);
+  }, [k.personId, aktStand]);
   // Anrufe und Dokumente erst laden, wenn der Reiter sie braucht — und bei JEDEM
   // Öffnen des Reiters frisch (19.09.2026): Lädt der Kunde hoch, während die Akte
   // offen ist, steht es beim nächsten Blick auf „Dokumente" da. Bis dahin bleibt
@@ -2151,34 +2362,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
     if (reiter === "dokumente") void dokuLaden();
   }, [reiter, k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Dokument FÜR den Kunden hochladen ──────────────────────────────────────
-  // Bewusst mit `fetch` statt mit dem `api`-Helfer: Der setzt bei vorhandenem
-  // Body „Content-Type: application/json“, und genau dieser Kopf zerstört eine
-  // FormData-Sendung — der Browser muss die Grenzmarke selbst setzen dürfen.
-  // 25.08.2026: nimmt MEHRERE Dateien — drei Kontoauszüge in einem Rutsch.
-  // Der Server bindet sie zu einer PDF (Erklärung in fiaon-telefonie.ts).
-  async function dokuHochladen(art: string, gewaehlt: File[]) {
-    setLaedtDoku(art);
-    try {
-      const fd = new FormData();
-      for (const einzeln of gewaehlt) fd.append("datei", einzeln);
-      const res = await fetch(`/api/fiaon/agent/dokumente/${k.personId}/${art}/hochladen`, {
-        method: "POST", credentials: "include", body: fd,
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        melden("schlecht", "Hochladen fehlgeschlagen", json?.error || "Die Datei kam nicht an.");
-        return;
-      }
-      if (json.stand) setDoku(json.stand);
-      melden("gut", json.meldung || "Dokument liegt in der Akte", "Der Verlauf hält fest, dass du es hochgeladen hast.");
-      await frisch();
-    } catch {
-      melden("schlecht", "Hochladen fehlgeschlagen", "Keine Verbindung zum Server.");
-    } finally {
-      setLaedtDoku(null);
-    }
-  }
+  // E-IT-C (08.10.2026): Das Hochladen FÜR den Kunden wohnt in UnterlagenAkte
+  // (client/src/components/unterlagen/UnterlagenAkte.tsx) — eine Datei je Anfrage, mit Balken.
 
   // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
   const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
@@ -2354,8 +2539,21 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
     else if (r.json.kunde) { onNeu(r.json.kunde); onErledigt(); }
     else onErledigt();
     if (art === "notiz") await verlaufNachladen(); else void verlaufNachladen();
+    setAktStand((n) => n + 1);
     onZaehler();
     return true;
+  };
+  // ── E-IT-A (08.10.2026): „Heute wieder dran" — die Wiedervorlage von Hand auf heute ──
+  const heuteWiederDran = async () => {
+    setLaeuft("wiedervorlage");
+    const r = await api(`/agent/crm/kunden/${k.personId}/wiedervorlage`, { method: "POST", body: JSON.stringify({ wahl: "heute" }) });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden(r.json?.hinweis ? "info" : "gut", "Wiedervorlage auf heute", r.json?.meldung || undefined);
+    if (r.json?.kunde) onNeu(r.json.kunde);
+    setAktStand((n) => n + 1);
+    void verlaufNachladen();
+    onZaehler();
   };
 
   // ── Zahlungsbeleg (POST …/zahlungsbeleg, multipart) ─────────────────────
@@ -2586,8 +2784,25 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}
-            {zusage && <span className={`pi-marke${zusage.dringend ? " dringend" : ""}`}>Zusage {zusage.text}</span>}
+            {/* E-IT-A (Gegenprüfung 08.10.2026, G4): Auf Stufe A ist die alte Zusage nur noch Hinweis, nicht rot — der Kunde hat seine Zahlung gemeldet. */}
+            {zusage && <span className={`pi-marke${zusage.dringend && k.tier !== 1 ? " dringend" : ""}`}
+                             title={zusage.dringend && k.tier === 1 ? "Der Kunde hat seine Zahlung inzwischen gemeldet — Eingang prüfen." : undefined}>Zusage {zusage.text}</span>}
             {rueckruf && <span className={`pi-marke${rueckrufJetzt ? " dringend" : " warn"}`}>Rückruf {rueckruf.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} {rueckruf.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>}
+            {/* E-IT-A (08.10.2026): Wann ist er wieder in der Pipeline, und warum? Aus
+                derselben Regel wie die Meldung nach dem Ergebnis. „Heute wieder dran"
+                holt ihn sofort unter „Wieder dran" (Wiedervorlage von Hand, im Verlauf). */}
+            {sit?.wiedervorlage?.ruht && (
+              <span className="pi-marke still" data-fiaon="akte-ruhend" title="Ab dem 9. Fehlversuch ruht der Fall, bis der Kunde einen Termin bucht oder sich meldet.">
+                Ruhend · {sit.wiedervorlage.versuche}× nicht erreicht
+              </span>
+            )}
+            {sit?.wiedervorlage?.pausiert && !sit.wiedervorlage.ruht && sit.wiedervorlage.text && (
+              <>
+                <span className="pi-marke wieder" data-fiaon="akte-wieder-dran">{sit.wiedervorlage.text}</span>
+                <button type="button" className="pi-link" data-fiaon="akte-heute-wieder-dran" disabled={!!laeuft}
+                        onClick={() => void heuteWiederDran()}>{laeuft === "wiedervorlage" ? "…" : "Heute wieder dran"}</button>
+              </>
+            )}
           </div>
         </div>
         <div className="pi-lade-kopf-tun">
@@ -2614,6 +2829,9 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
       <div className="pi-lade-koerper">
         {imGespraech && <GespraechsModus art={akt?.situation?.art ?? null} aufReiter={setReiter} />}
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
+        {/* E-IT-E (08.10.2026): Die Akte einer zusammengeführten Person öffnet den
+            Kopf der Kette — und sagt es. Nie still umleiten. */}
+        {aufgegangenText && <p className="pi-meldung" data-testid="akte-aufgegangen">{aufgegangenText}</p>}
 
         {/* ═══ ÜBERBLICK — DER SITUATIONS-KOPF (E-046) ═══
             VORHER: „Nächster Schritt“-Text aus dem tier-Hinweis + eine Reihe
@@ -2969,7 +3187,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                 )}
               </div>
             )}
-            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />}
+            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen}
+                                                   kontext={sit?.wiedervorlage ? { versuche: Number(sit.wiedervorlage.versuche || 0), stufeA: sit.wiedervorlage.stufeA === true, frisch: sit.wiedervorlage.frisch === true } : null} />}
           </Sek>
 
           {/* E-046: Bei überfälliger Rate zeigt der Zahlungsbereich die RATE —
@@ -3046,6 +3265,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
               was im neuen Kundenbereich steht — Weg, Ansprüche, Girokonto.
               Genau daran scheiterten Rückfragen am Telefon. Die Karte lädt
               selbst und trägt den einen Knopf „Girokonto eröffnet“. */}
+          {/* E-IT-B (08.10.2026): Konto & Karte auch im Überblick — Stand der Einladung und „E-Mail erneut senden“. */}
+          <KontoKarteKurz personId={k.personId} melden={melden} onAkte={() => setReiter("antrag")} onDaten={() => setReiter("daten")} />
           <KundenbereichKarte personId={k.personId} />
         </>}
 
@@ -3181,56 +3402,16 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             {doku === "fehlt" && <p className="pi-sek-satz leise">Zu diesem Kunden liegt noch keine Bestellung mit Unterlagen vor.</p>}
             {doku && doku !== "fehlt" && (
               <>
-                {(doku.dokumente || []).map((d: any) => (
-                  <div key={d.art} className="pi-doku">
-                    <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
-                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small>
-                      {/* P9: Befund der automatischen Prüfung — nur wenn auffällig. */}
-                      {(d as any).pruefung && <small style={{ display: "block", color: "#fbbf24" }}>⚠ {(d as any).pruefung}</small>}
-                    </div>
-                    <div className="pi-doku-tun">
-                      {/* Justin 24.08.: „PRAXIS: Falls der Kunde es nicht schafft…“
-                          Das Feld liegt unsichtbar auf dem Etikett – so bleibt der
-                          Knopf im CI und trägt trotzdem den Dateidialog. */}
-                      <label className={`pi-knopf still klein${laedtDoku === d.art ? " laedt" : ""}`}>
-                        {laedtDoku === d.art ? "Lädt …" : d.vorhanden ? "Ersetzen" : "Hochladen"}
-                        <input
-                          type="file" accept="application/pdf,image/jpeg,image/png" hidden multiple
-                          disabled={laedtDoku !== null}
-                          onChange={(e) => {
-                            const fs = Array.from(e.target.files ?? []);
-                            e.target.value = "";           // damit dieselbe Datei erneut gewählt werden kann
-                            if (fs.length) void dokuHochladen(d.art, fs);
-                          }}
-                        />
-                      </label>
-                      {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
-                      {/* P12 (28.08.2026): Falsches Dokument löschen — mit Grund,
-                          der Grund steht danach im Verlauf. Ersetzen ging schon
-                          immer über „Ersetzen"; Löschen ist für den Fall, dass
-                          erst später das richtige Dokument kommt. */}
-                      {d.vorhanden && (
-                        <button type="button" className="pi-knopf still klein"
-                                disabled={laedtDoku !== null}
-                                onClick={() => {
-                                  const grund = window.prompt(`${d.label} wirklich löschen?\nKurz begründen (steht im Verlauf):`);
-                                  if (grund === null) return;
-                                  void (async () => {
-                                    const r = await api(`/agent/dokumente/${k.personId}/${d.art}/loeschen`, {
-                                      method: "POST", body: JSON.stringify({ grund }),
-                                    });
-                                    // 19.09.2026: neu laden statt nur leeren — `setDoku(null)` allein
-                                    // löste keinen Abruf aus, der Reiter blieb bei „Lade den Stand …".
-                                    if (r.ok && r.json?.ok) { melden("gut", "Dokument gelöscht", r.json.meldung); setDoku(null); void dokuLaden(); }
-                                    else melden("schlecht", "Nicht gelöscht", r.json?.error || "Bitte erneut versuchen.");
-                                  })();
-                                }}>
-                          Löschen
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {/* E-IT-C (08.10.2026): Je Unterlage die Dateiliste mit Lese-Befund — Hinzufügen, Alles
+                    ersetzen, Entfernen (mit Grund, bleibt im Archiv), Geprüft, Neu lesen. Vorher kannte die
+                    Akte nur „Ersetzen“ (alles neu wählen) und „Löschen“ (ohne Archiv). */}
+                <UnterlagenAkte personId={k.personId} ton="dunkel" melden={(t, titel, text) => melden(t, titel, text)}
+                                onGeaendert={() => { void dokuLaden(); void frisch(); }} />
+                {/* Integration E-IT-C × E-IT-D (08.10.2026, 4a): Fehlt die Auskunft, sagt die Akte ihre Stufe („Bezahlt am … —
+                    Beschaffung wartet auf …“) statt nur „fehlt“ — derselbe Satz wie vorher in der alten Dokumentliste. */}
+                {!(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && auskunftStufenSatz(doku.auskunft) && (
+                  <p className="pi-sek-satz leise" data-fiaon="auskunft-stufe" style={{ marginTop: 6 }}>Bonitätsauskunft: {auskunftStufenSatz(doku.auskunft)}</p>
+                )}
                 {/* 18.09.2026 (Team-Feedback Priorität 1): Nichts geht verloren — ersetzte Fassungen bleiben abrufbar. */}
                 {Array.isArray(doku.fruehere) && doku.fruehere.length > 0 && (
                   <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>
@@ -3247,6 +3428,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     })}
                   </p>
                 )}
+                {/* E-IT-D (08.10.2026, 4b/4c): FIAON Finanz- und Bonitätsauswertung — Voraussetzungen, Anfordern mit einem Klick, Entwurf, Freigabe. */}
+                <FinanzauswertungAkte personId={k.personId} melden={melden} onNeu={() => void dokuLaden()} />
                 {/* E-175: Was in der Auskunft STEHT — nicht nur, dass sie da ist. */}
                 {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
                   <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />
@@ -3273,7 +3456,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     <p className="pi-sek-satz leise">{AUSZUG_GRUNDSATZ}</p>
                   </div>
                 </details>
-                <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB — auch mehrere auf einmal, sie werden zu einer PDF gebunden. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
+                <p className="pi-sek-satz leise">PDF oder Foto (JPG, PNG, iPhone-HEIC) bis 50 MB je Datei, höchstens 20 je Unterlage — jede Datei wird angehängt, die Akte-Fassung bindet sie zusammen. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
                 <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
               </>
             )}
@@ -3281,7 +3464,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
         )}
 
         {/* ═══ SEIN ANTRAG ═══ */}
-        {reiter === "antrag" && <><KontoKarte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} /><AntragsBlatt antrag={antrag} name={k.name} personId={k.personId} melden={melden} onFrisch={frisch} /></>}
+        {reiter === "antrag" && <><KontoKarteAkte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} onDaten={() => setReiter("daten")} /><AntragsBlatt antrag={antrag} name={k.name} personId={k.personId} melden={melden} onFrisch={frisch} /></>}
 
         {/* ═══ AKTIVITÄT ═══ */}
         {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
@@ -3304,13 +3487,15 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             )}
             {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
             {bearbeiten && <KundeBearbeiten k={k} melden={melden} fokus={bearbeitenFokus} onProdukt={() => setProduktOffen(true)} onFertig={async () => { setBearbeiten(false); setBearbeitenFokus(null); await frisch(); }} />}
+            {geburtAbw && hatBestellung && <GeburtAbweichungHinweis k={k} abw={geburtAbw} melden={melden} onFertig={frisch} />}
             {/* E-047 Nr. 4, NEUE REGEL: Jeder „fehlt“-Hinweis ist klickbar und
                 öffnet das Formular MIT Fokus auf dem fehlenden Feld. */}
             <dl className="pi-dl">
               {([
                 ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null, "street"],
                 ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null, null],
-                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null, "birthdate"],
+                // E-IT-G (08.10.2026): VORHER dtag() mit zweistelligem Jahr („17.11.63“ — 1927 sah aus wie 2027).
+                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? geburtsdatumMitAlter(k.stammdaten.geburtsdatum) : null, "birthdate"],
                 ["E-Mail", k.email, "email"], ["Telefon", k.telefon, "phone"],
                 ["Verwendungszweck", k.zahlung?.referenz, null],
                 ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null, null],
@@ -3658,16 +3843,27 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
 // Datum, Termin, Notiz ab NOTIZ_MINDESTLAENGE Zeichen, Rückfrage bei Übergabe)
 // — nur die Oberfläche ist Office-Glas. Der Endpunkt bleibt der des Aufrufers.
 // ═══════════════════════════════════════════════════════════════════════════
-function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen }: {
-  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string }) => Promise<boolean>;
+function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen, kontext }: {
+  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string }) => Promise<boolean>;
   laeuft: string | null; kundeName: string; vorgabeDatum: string;
   fragen: ReturnType<typeof useFragen>;
+  /** E-IT-A: Zählerstand, Stufe A, Frische — für „→ Mi 15.10." unter jedem Knopf. */
+  kontext?: WiedervorlageKontext | null;
 }) {
   const [offen, setOffen] = useState<null | { art: string; braucht: "zusage" | "termin" | "notiz" }>(null);
   const [notiz, setNotiz] = useState("");
   const [datum, setDatum] = useState(vorgabeDatum);
   const [zeit, setZeit] = useState("10:00");
+  // E-IT-A (08.10.2026): Wann wieder dran — „nach Regel" oder von Hand (1 / 2 Wochen).
+  const [wahl, setWahl] = useState("regel");
   const fehlt = Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length);
+  const heute = heuteBerlin();
+  /** Die Wahl von Hand gilt nur, wo sie Sinn ergibt (zahlt sofort, nicht erreicht, Mailbox, Sonstiges, falsche Nummer). */
+  const mitWahl = <T extends Record<string, unknown>>(art: string, zusatz: T): T & { wiedervorlage?: string } => {
+    // Gegenprüfung 08.10.2026: Stufe A kennt kein „1/2 Wochen" (höchstens 3 Werktage).
+    const d = wahlDatum(wahl, heute, kontext?.stufeA === true);
+    return d && handwahlErlaubt(art) ? { ...zusatz, wiedervorlage: d } : zusatz;
+  };
 
   const anklicken = async (art: string) => {
     const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
@@ -3679,33 +3875,42 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
       folge: "Die Provision folgt dem, der den Abschluss dokumentiert.",
       ja: "Übergeben",
     }))) return;
-    if (await onErgebnis(art, {})) setOffen(null);
+    if (await onErgebnis(art, mitWahl(art, {}))) setOffen(null);
   };
   const speichern = async () => {
     if (!offen) return;
     const zusatz = offen.braucht === "zusage" ? { zusageDatum: datum }
       : offen.braucht === "termin" ? { terminDatum: datum, terminZeit: zeit }
       : { notiz: notiz.trim() };
-    if (await onErgebnis(offen.art, zusatz)) { setOffen(null); setNotiz(""); }
+    if (await onErgebnis(offen.art, mitWahl(offen.art, zusatz))) { setOffen(null); setNotiz(""); }
   };
 
   return (
     <div className="pi-ew">
+      <WiedervorlageWahl wahl={wahl} onWahl={setWahl} heute={heute} stufeA={kontext?.stufeA === true} rahmenKlasse="pi-wv-wahl"
+                         knopfKlasse={(an) => `pi-wv-knopf${an ? " an" : ""}`} />
       <div className="pi-reihe">
-        {ERGEBNIS_LISTE.map((e) => (
-          <button key={e.art} type="button" disabled={!!laeuft}
-                  className={`pi-knopf klein ${offen?.art === e.art ? "" : "still"}`}
-                  aria-expanded={offen?.art === e.art ? true : undefined}
-                  title={e.klartext}
-                  onClick={() => void anklicken(e.art)}>
-            {laeuft === e.art ? "…" : e.knopf}
-          </button>
-        ))}
+        {ERGEBNIS_LISTE.map((e) => {
+          // E-IT-A: Unter jedem Knopf steht, wann der Mensch danach wieder dran ist.
+          const wann = vorschauFuer(e.art, kontext, wahl, heute);
+          return (
+            <button key={e.art} type="button" disabled={!!laeuft}
+                    className={`pi-knopf klein pi-ew-knopf ${offen?.art === e.art ? "" : "still"}`}
+                    aria-expanded={offen?.art === e.art ? true : undefined}
+                    title={e.klartext}
+                    data-fiaon={`ergebnis-${e.art}`}
+                    onClick={() => void anklicken(e.art)}>
+              <span>{laeuft === e.art ? "…" : e.knopf}</span>
+              {wann && <small className="pi-ew-wann">{wann}</small>}
+            </button>
+          );
+        })}
       </div>
       {offen?.braucht === "zusage" && (
         <div className="pi-ew-feld">
           <label>Zahlt am<input type="date" className="pi-eingabe" value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} /></label>
           <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void speichern()}>Speichern</button>
+          {vorschauMitDatum(offen.art, datum, heute) && <small className="pi-ew-wann">{vorschauMitDatum(offen.art, datum, heute)} · Zusage prüfen</small>}
         </div>
       )}
       {offen?.braucht === "termin" && (
@@ -3848,206 +4053,11 @@ const AKT_FILTER: { key: string; label: string }[] = [
   { key: "mail", label: "Mails" },
 ];
 // ═══════════════════════════════════════════════════════════════════════════
-// KONTO UND KARTE
-//
-// Justin, 24.08.2026: „Der Kunde kommt ja mit der Erwartungshaltung: ‚Ich
-// brauche eine Kreditkarte' — das müssen wir nun auch erfüllen … Binde ÜBERALL
-// den Prozess ein, wo er notwendig ist und hingehört, es MUSS vermerkt werden,
-// also wenn alle Bedingungen bei einem Kunden erfüllt sind, muss es der
-// Mitarbeiter ja auch sehen!"
-//
-// Der Abschnitt ist NICHT als Sperre gebaut, sondern als Weg. Ein ausgegrauter
-// Knopf sagt „geht nicht" und lässt den Mitarbeiter ratlos zurück. Hier steht
-// stattdessen, WAS fehlt, WARUM es diese Bedingung gibt (in seinen Worten und
-// in denen für den Kunden) und WAS der nächste Schritt ist — anklickbar.
-//
-// Wortwahl bindend: KOOPERATIONSPARTNER, nie „Affiliate". Die Bank darf beim
-// Namen genannt werden (DKB) — ihre Vorteile sind das Argument.
+// KONTO UND KARTE — seit E-IT-B (08.10.2026) eine eigene Datei
+// (client/src/components/agent/KontoKarteAkte.tsx): Einladung, Zustellung,
+// Adresse und „E-Mail erneut senden“ für jeden berechtigten Mitarbeiter, dazu
+// die Zeile im Überblick (KontoKarteKurz).
 // ═══════════════════════════════════════════════════════════════════════════
-function KontoKarte({ personId, name, melden, onProdukt }: {
-  personId: number; name: string;
-  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
-  onProdukt: () => void;
-}) {
-  const [stand, setStand] = useState<any | null>(null);
-  const [laedt, setLaedt] = useState(true);
-  const [sendet, setSendet] = useState(false);
-  const [warum, setWarum] = useState<string | null>(null);
-
-  useEffect(() => {
-    let an = true;
-    api(`/agent/karte/${personId}`).then((r) => {
-      if (!an) return;
-      setStand(r.ok ? r.json.stand : null); setLaedt(false);
-    });
-    return () => { an = false; };
-  }, [personId]);
-
-  const senden = async (erneut = false) => {
-    setSendet(true);
-    const r = await api(`/agent/karte/${personId}/senden`, { method: "POST", body: JSON.stringify(erneut ? { erneut: true } : {}) });
-    setSendet(false);
-    // 04.09.2026, Daniel: „Hab auf ‚Karte bestellen' geklickt und er sagt, dass
-    // keine E-Mail angekommen ist." Die erste Mail war fünf Wochen alt. Wenn
-    // der Server sagt „bereits geschickt", wird nachgefragt und dann erneut
-    // gesendet — statt den Kunden ohne Mail sitzen zu lassen.
-    if (!r.ok && r.json?.code === "BEREITS_GESCHICKT" && !erneut) {
-      const nochmal = window.confirm(`${r.json.error}\n\nJetzt noch einmal schicken?`);
-      if (nochmal) return senden(true);
-      return;
-    }
-    if (!r.ok) { melden("schlecht", "Nicht geschickt", r.json?.error || "Bitte erneut versuchen."); return; }
-    setStand(r.json.stand ?? stand);
-    melden("gut", r.json.meldung || "Unterwegs", r.json.hinweis);
-  };
-
-  if (laedt) return <Sek titel="Konto & Karte" erklaer="Prüfe den Stand …"><p className="pi-sek-satz leise">Einen Moment.</p></Sek>;
-  if (!stand) return null;
-
-  const vorname = String(name).split(" ")[0] || "der Kunde";
-
-  return (
-    <Sek titel="Konto & Karte"
-         erklaer={`Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Über unsere Partnerbank können wir ihn einlösen — sobald ${vorname} so weit ist.`}>
-
-      {/* ── WELCHE BANK? (25.08.2026) ─────────────────────────────────────
-          Daniel und Florentine: „Auch intern ist nicht ersichtlich, welcher
-          Kunde seine Karte von welcher Bank erhält. Da diese Frage von Kunden
-          und Interessenten häufiger kommt …"
-          Sie steht jetzt oben in der Sektion, mit den Vorteilen zum Vorlesen —
-          nicht versteckt in einem Erklärtext. Die Angaben kommen vom Server
-          (PARTNERBANKEN), damit Akte, Mail und Academy dasselbe sagen. */}
-      {stand.bank && (
-        <div className="pi-kk-bank">
-          <div className="pi-kk-bank-kopf">
-            <small>Partnerbank</small>
-            <b>{stand.bank.name}</b>
-          </div>
-          <ul className="pi-kk-bank-liste">
-            {stand.bank.vorteile.map((v: string) => <li key={v}>{v}</li>)}
-          </ul>
-          <p className="pi-kk-bank-fuss">
-            Kreditkarte {stand.bank.kartePreisMonat} im Monat, zubuchbar aus dem fertigen Banking —
-            {" "}{stand.bank.aktion}.
-          </p>
-        </div>
-      )}
-
-
-      {/* Schon geschickt: dann zählt nur noch, was daraus geworden ist. */}
-      {stand.versand ? (
-        <div className="pi-kk-fertig">
-          <span className="pi-kk-haken"><Check size={17} strokeWidth={2.5} /></span>
-          <div>
-            <b>Der Weg ist geschickt</b>
-            <small>
-              Am {dtag(stand.versand.am)}{stand.versand.vonName ? ` von ${stand.versand.vonName}` : ""}.
-              {" "}{stand.versand.status === "bestaetigt"
-                ? `Der Partner hat die Eröffnung bestätigt – ${eur(stand.versand.bonusCents)} sind dir gutgeschrieben.`
-                : `${eur(stand.versand.bonusCents)} stehen als vorgemerkt in deinem Konto – auszahlbar, sobald der Partner die Eröffnung bestätigt.`}
-            </small>
-            <small className="pi-kk-nachfassen">
-              Ruf {vorname} in ein paar Tagen an und frag, ob es geklappt hat. Wer beim Video-Ident hängen bleibt,
-              bricht ab und sagt es niemandem.
-            </small>
-          </div>
-        </div>
-      ) : stand.bereit ? (
-        <>
-          <div className="pi-kk-bereit">
-            <div className="pi-kk-bereit-text">
-              <b>{vorname} erfüllt alle drei Bedingungen.</b>
-              <span>
-                Der Knopf schickt den Weg zum kostenlosen Girokonto. <b>Erst das Konto, dann die Karte</b> — die
-                Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus. Wer direkt zur Karte
-                geschickt wird, läuft in eine Ablehnung und schreibt sie uns zu.
-              </span>
-            </div>
-            <button type="button" className="pi-knopf riesig gut pi-kk-knopf" disabled={sendet} onClick={() => void senden()}>
-              <CreditCard size={18} strokeWidth={1.75} /> {sendet ? "Schickt …" : "Karte bestellen"}
-            </button>
-          </div>
-          <p className="pi-sek-satz leise">
-            Für dich: <b>10 € je bestätigter Kontoeröffnung.</b> Sie stehen sofort als vorgemerkt in deinem
-            Konto und werden auszahlbar, wenn der Partner die Eröffnung endgültig meldet — das dauert
-            einige Wochen und kann auch entfallen, deshalb erst dann.
-            {" "}<a href="/agent/academy/leitfaeden" className="pi-link" target="_blank" rel="noreferrer">
-              Leitfaden für dieses Gespräch
-            </a> — er sagt dir Satz für Satz, wie du es erklärst.
-          </p>
-        </>
-      ) : (
-        <div className="pi-kk-nochnicht">
-          <b>Noch nicht so weit.</b>
-          <span>{stand.esFehlt}. Sobald alles steht, erscheint hier der Knopf.</span>
-        </div>
-      )}
-
-      {/* Die drei Tore — immer sichtbar, auch wenn erfüllt: Der Mitarbeiter
-          soll dem Kunden sagen können, WARUM es sie gibt. */}
-      <div className="pi-kk-tore">
-        {stand.tore.map((t: any) => (
-          <div key={t.schluessel} className={`pi-kk-tor${t.erfuellt ? " ja" : ""}`}>
-            <span className="pi-kk-punkt">{t.erfuellt ? <Check size={13} strokeWidth={3} /> : <span className="pi-kk-offen" />}</span>
-            <div>
-              <b>{t.titel}</b>
-              {!t.erfuellt && t.fehlt && <small className="pi-kk-fehlt">{t.fehlt}</small>}
-              {!t.erfuellt && t.wieWeiter && <small className="pi-kk-weiter">{t.wieWeiter}</small>}
-              <button type="button" className="pi-link pi-kk-warum"
-                      onClick={() => setWarum(warum === t.schluessel ? null : t.schluessel)}>
-                {warum === t.schluessel ? "Begründung schließen" : "Warum diese Bedingung?"}
-              </button>
-              {warum === t.schluessel && (
-                <div className="pi-kk-grund">
-                  <p><b>Für dich:</b> {t.warumIntern}</p>
-                  <p><b>So sagst du es dem Kunden:</b> „{t.warumFuerKunden}“</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          WARUM NOCH KEINE RATE GELAUFEN IST — DIE WAHRE ANTWORT
-
-          Justin am 27.08.2026 zu einer Kundin: „Die Dame hat bereits
-          bezahlt." Er hatte recht. Hier stand pauschal „Ohne bezahltes Paket
-          beginnt die Zählung nicht" — bei einer Kundin, deren Paket
-          nachweislich bezahlt ist (79,99 EUR, Provision darauf gebucht).
-
-          Der Satz war für den Fall gedacht, dass es gar keine Bestellung
-          gibt. Gezeigt wurde er aber immer, wenn keine RATE bezahlt ist —
-          und das sind zwei ganz verschiedene Dinge. Ein Mitarbeiter, der das
-          liest, sagt dem Kunden am Telefon etwas Falsches.
-
-          Jetzt nennt jeder Fall seinen eigenen Grund.
-          ══════════════════════════════════════════════════════════════════ */}
-      {stand.zahlen.ratenBezahlt === 0 && (
-        <div className="pi-sackgasse" style={{ marginTop: 12 }}>
-          {!stand.zahlen.paketBezahlt ? (
-            <span>
-              <b>Noch keine Bestellung bezahlt</b>
-              Ohne bezahltes Paket beginnt die Zählung der Raten nicht.
-            </span>
-          ) : (
-            <span>
-              <b>Paket bezahlt, aber noch keine Rate</b>
-              Die Erstzahlung ist da. Für die Karte zählen die laufenden Raten —
-              {stand.zahlen.naechsteRateAm
-                ? ` die nächste ist am ${new Date(stand.zahlen.naechsteRateAm).toLocaleDateString("de-DE")} fällig.`
-                : " eine Ratenkette ist noch nicht angelegt."}
-            </span>
-          )}
-          <button type="button" className="pi-knopf klein" onClick={onProdukt}>
-            {stand.zahlen.paketBezahlt ? "Raten ansehen" : "Produkt ansehen"}
-          </button>
-        </div>
-      )}
-    </Sek>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // SEIN ANTRAG — alles, was der Mensch uns selbst geschrieben hat
 //
@@ -4250,6 +4260,10 @@ function WhatsAppSenden({ personId, name, melden }: {
       <span className="pi-fussnote">
         An {stand.nummer}{stand.fensterOffen ? " · Fenster offen, freier Text im WhatsApp-Raum möglich" : " · Fenster zu, nur Vorlagen"}
       </span>
+      {/* E-IT-H (08.10.2026, Punkt 15): aus der Akte direkt ins Gespräch — der Raum öffnet es über ?nummer=. */}
+      <Link href={raumPfad("agent", stand.nummer)} className="pi-knopf still klein pi-wa-raum" style={{ justifySelf: "start" }}>
+        Chat im WhatsApp-Raum öffnen
+      </Link>
       {nutzbare.length === 0 ? (
         <p className="pi-fussnote">
           Noch ist keine Vorlage von Meta freigegeben ({stand.vorlagen.length} eingereicht oder offen). Sobald die Freigabe da ist, erscheinen sie hier.
@@ -4324,10 +4338,17 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   personId: number; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void;
 }) {
   const [stand, setStand] = useState<any | null>(null);
-  const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck">("zu");
+  // E-IT-B (08.10.2026): „schliessen“ = einen nie gebuchten Antrag ohne Kündigung schließen (nur Leitung).
+  const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck" | "schliessen">("zu");
   const [grund, setGrund] = useState("");
   const [sofort, setSofort] = useState(false);
   const [busy, setBusy] = useState(false);
+  // E-IT-B (08.10.2026, Gegenprüfung): „Jetzt buchen“ bucht GENAU diesen Antrag — seine Bestellung, sein Eingangstag.
+  const [ausAntrag, setAusAntrag] = useState<number | null>(null);
+  // … und die Leitung bucht auch dort, wo die Akte selbst nicht darf (Ziel aus antragZiel, mit Grund).
+  const [alsLeitung, setAlsLeitung] = useState(false);
+  // Querprüfung 08.10.2026: Antrag ohne passendes Geburtsdatum → Buchen erst nach der Prüfaufgabe oder mit Vermerk.
+  const [identVermerk, setIdentVermerk] = useState("");
   const laden = useCallback(async () => {
     const r = await api(`/agent/kunden/${personId}/kuendigung`);
     setStand(r.ok ? r.json : { fehlt: true, error: r.json?.error });
@@ -4337,19 +4358,24 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   const tag = (x: any) => (x ? new Date(x).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : null);
   const senden = async () => {
     if (grund.trim().length < 5) { melden("schlecht", "Grund fehlt", "Ein Satz reicht — er steht dauerhaft am Kunden."); return; }
+    const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung`
+      : modus === "schliessen" ? `/agent/kunden/${personId}/kuendigung/antrag/${Number(stand.antragUngebucht?.id)}/schliessen`
+      : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
+    const identPflicht = modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen;
+    if (identPflicht && identVermerk.trim().length < 10) { melden("schlecht", "Identität erst prüfen", "Ohne passendes Geburtsdatum angenommen: Erledige zuerst die Aufgabe „Kündigung – Identität prüfen“ oder schreib in einem Satz, wie du die Identität geprüft hast."); return; }
     setBusy(true);
-    const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung` : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
-    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort }) });
+    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung, ...(identPflicht ? { identitaetVermerk: identVermerk.trim() } : {}) } : {}) }) });
     setBusy(false);
     if (!r.ok || r.json?.ok === false) { melden("schlecht", "Nicht möglich", r.json?.error || "Der Server hat abgelehnt."); return; }
-    if (modus === "kuendigen") {
+    if (modus === "schliessen") melden("gut", "Antrag geschlossen", String(r.json?.meldung || "Ohne Kündigung geschlossen."));
+    else if (modus === "kuendigen") {
       const w = String(r.json?.weg || "");
       const text = w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}`
         : w === "storno_unbezahlt" ? "Die unbezahlte Bestellung ist storniert — keine Erinnerungen mehr."
         : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
-      melden("gut", "Kündigung durchgesetzt", `${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
+      melden("gut", "Kündigung durchgesetzt", `${r.json?.gebuchtAuf ? `Gebucht auf ${r.json.gebuchtAuf} zum ${tag(r.json.gebuchtZum)} (Eingang des Antrags). ` : ""}${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
     } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
-    setModus("zu"); setGrund(""); setSofort(false);
+    setModus("zu"); setGrund(""); setSofort(false); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk("");
     await laden(); onFrisch();
   };
   return (
@@ -4363,7 +4389,7 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
         </small>
         {modus === "zu" && (stand.gekuendigt
           ? <button type="button" className="pi-knopf klein" onClick={() => setModus("zurueck")}>Kündigung zurücknehmen</button>
-          : <button type="button" className="pi-knopf still klein" onClick={() => setModus("kuendigen")}>Kündigung durchsetzen</button>)}
+          : <button type="button" className="pi-knopf still klein" onClick={() => { setAusAntrag(null); setAlsLeitung(false); setModus("kuendigen"); }}>Kündigung durchsetzen</button>)}
         {/* ── E-213: DIE URKUNDE ────────────────────────────────────────────
             Justin: „Kündigungsunterlagen, Unterschrift durch den Mitarbeiter."
             Der Knopf öffnet die gespeicherte Ausfertigung — nicht eine frisch
@@ -4376,6 +4402,36 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
           </a>
         )}
       </div>
+      {/* E-IT-B (08.10.2026): Ein Antrag aus dem Kündigungsformular, der NIE gebucht wurde, zählt nicht als
+          wirksame Kündigung (Justin, 08.10.) — hier steht er, damit ihn jemand bucht oder die Leitung entscheidet.
+          Worauf gebucht wird, sagt der Server (antragZiel, shared/fiaon-kuendigung-regel.ts): die Bestellung des
+          Antrags, sonst ihre Fortsetzung bzw. das eine Paket am Eingangstag — immer zum EINGANGSTAG, nie zu heute.
+          Ist das nicht eindeutig (neues Paket nach dem Antrag, mehrere Pakete), bucht oder schließt nur die Leitung. */}
+      {stand.antragUngebucht && (() => {
+        const au = stand.antragUngebucht;
+        const buchen = (leitung: boolean) => {
+          setModus("kuendigen"); setAusAntrag(Number(au.id)); setAlsLeitung(leitung);
+          setGrund(`Kündigungsantrag vom ${tag(au.am)} (Formular) nachgebucht${au.grund ? `: ${String(au.grund).slice(0, 160)}` : ""}`);
+        };
+        return (
+          <span className="pi-sek-satz warn" style={{ fontSize: 12.5 }}>
+            Kündigungsantrag vom {tag(au.am)} (Referenz {au.ref}) liegt vor
+            {au.wunschDatum ? ` (gewünscht zum ${tag(au.wunschDatum)})` : ""}, ist aber nicht gebucht.
+            {au.grund ? ` Grund laut Antrag: „${au.grund}“.` : ""}
+            {" "}{au.satz}
+            {au.identitaetOffen && " Achtung: Die Identität ist noch nicht geprüft — der Antrag kam ohne passendes Geburtsdatum (Aufgabe „Kündigung – Identität prüfen“). Gebucht wird erst nach dieser Prüfung oder mit einem Vermerk, wie du sie geprüft hast."}
+            {au.buchbar ? (
+              <>{` „Jetzt buchen“ bucht ihn zum ${tag(au.am)} (Eingang des Antrags).`}
+                {modus === "zu" && <>{" "}<button type="button" className="pi-link" onClick={() => buchen(false)}>Jetzt buchen</button></>}</>
+            ) : au.darfLeitung ? (
+              modus === "zu" && <>{" "}
+                {au.ziel && <button type="button" className="pi-link" onClick={() => buchen(true)}>Als Leitung auf {au.ziel} buchen</button>}
+                {au.ziel && " · "}
+                <button type="button" className="pi-link" onClick={() => { setModus("schliessen"); setGrund(""); }}>Antrag ohne Kündigung schließen</button></>
+            ) : " Bitte die Leitung entscheiden lassen — sie sieht den Antrag in der Kundenzentrale unter „Kündigung nicht gebucht“."}
+          </span>
+        );
+      })()}
       {stand.gekuendigt && stand.urkunde?.da && (
         <span className="pi-fussnote">
           Ausgefertigt von {stand.urkunde.von}{stand.urkunde.rolle ? ` · ${stand.urkunde.rolle}` : ""}
@@ -4386,7 +4442,13 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
       {modus !== "zu" && (
         <div style={{ display: "grid", gap: 8 }}>
           <input className="pi-eingabe" value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={300}
-                 placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)" : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
+                 placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)"
+                   : modus === "schliessen" ? "Warum ist der Antrag ohne Kündigung erledigt? (steht im Verlauf)"
+                   : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
+          {modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen && (
+            <input className="pi-eingabe" value={identVermerk} onChange={(e) => setIdentVermerk(e.target.value)} maxLength={300}
+                   placeholder="Wie hast du die Identität geprüft? (z. B. Rückruf unter der bekannten Nummer, Ausweis gesehen — steht im Verlauf)" />
+          )}
           {modus === "kuendigen" && (
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#94a3b8" }}>
               <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} />
@@ -4394,11 +4456,12 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
             </label>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? "Jetzt kündigen" : "Konto reaktivieren"}</button>
-            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); }}>Abbrechen</button>
+            <button type="button" className="pi-knopf klein" disabled={busy || (modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen && identVermerk.trim().length < 10)} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? (ausAntrag ? `Zum ${tag(stand.antragUngebucht?.am)} buchen` : "Jetzt kündigen") : modus === "schliessen" ? "Ohne Kündigung schließen" : "Konto reaktivieren"}</button>
+            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk(""); }}>Abbrechen</button>
           </div>
           <span className="pi-fussnote">{modus === "kuendigen"
             ? "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf."
+            : modus === "schliessen" ? "Der Antrag gilt dann als erledigt, ohne Kündigung — der Vertrag läuft weiter. Steht im Verlauf."
             : "Die Raten kommen zurück, Erinnerungen laufen wieder. Alles steht im Verlauf."}</span>
         </div>
       )}
@@ -4536,7 +4599,7 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
       <Sek titel="Zur Person" erklaer="Die Angaben aus dem Antrag. Stimmt etwas nicht mehr, änderst du es unter „Daten“.">
         <div className="pi-ab-liste">
           <Z was="Name laut Antrag" wert={[P.vorname, P.nachname].filter(Boolean).join(" ") || null} />
-          <Z was="Geburtsdatum" wert={P.geburtsdatum} />
+          <Z was="Geburtsdatum" wert={P.geburtsdatum ? geburtsdatumAnzeige(P.geburtsdatum) : null} />
           {/* Staatsangehörigkeit ist KEIN Hinweis auf die Sprache — siehe den
               Sprachvermerk weiter unten, der von Hand gesetzt wird. */}
           <Z was="Staatsangehörigkeit" wert={P.staatsangehoerigkeit} />
@@ -4612,8 +4675,10 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
           <Z was="Profil vervollständigt am" wert={antrag.profilFertigAm ? dtag(antrag.profilFertigAm) : null} />
         </div>
         <div className="pi-ab-haken">
-          {[["AGB", antrag.zustimmungen?.agb], ["Bonitätsauskunft", antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
-            <span key={String(w)} className={ja ? "ja" : "nein"}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
+          {/* E-IT-D (08.10.2026, 4a): Der Haken hieß „Bonitätsauskunft“ — er ist die Einwilligung in die Datenübermittlung
+              (consent_schufa), keine Bestellung. 272 Kunden ohne Bestellung sahen ihn grün und galten als „beantragt“. */}
+          {[["AGB", antrag.zustimmungen?.agb], [EINWILLIGUNG_DATENUEBERMITTLUNG, antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
+            <span key={String(w)} className={ja ? "ja" : "nein"} title={w === EINWILLIGUNG_DATENUEBERMITTLUNG ? EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS : undefined}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
           ))}
         </div>
       </Sek>
@@ -4871,13 +4936,32 @@ function Versandzentrum({ personId }: { personId: number }) {
 // E-047 Nr. 4: VORHER fehlten E-Mail und Geburtsdatum im Formular („Kunde
 // bearbeiten muss ALLE Felder haben“); der Server verarbeitet birthdate jetzt
 // (updateCustomerContact). `fokus` springt direkt ins fehlende Feld.
+//
+// ── E-IT-G (08.10.2026), Punkt (14) ─────────────────────────────────────────
+// 1) Das Geburtsdatum ist das gemeinsame Bauteil (TT · MM · JJJJ, „63“ → 1963,
+//    Gegenlesen „17. November 1963 · 62 Jahre“), nicht mehr type=date (aus
+//    1-7-1-1-6-3 wurde dort der 17.11.0063, und der Kalender verlangte 60 bis
+//    80 Jahre Zurückblättern). Unter 18 oder ab 95: Rückfrage „stimmt das?“,
+//    nach „Stimmt so“ darf gespeichert werden.
+// 2) GESCHICKT WIRD NUR, WAS SICH GEÄNDERT HAT. Vorher gingen bei jedem
+//    Speichern alle Felder mit: eine leere E-Mail ließ den Server mit „E-Mail-
+//    Format ungültig“ abbrechen (340 Akten, die Route meldete trotzdem
+//    „Gespeichert“), die Telefon-Anzeigeform wurde zu +49 umgeschrieben und
+//    mehrteilige Nachnamen am letzten Leerzeichen neu geteilt.
+// 3) Ein halb geleertes Geburtsdatum löscht nichts — Speichern sagt, was fehlt.
+//    Entfernen kann nur die Leitung (eigener Knopf, Server prüft die Rolle).
 function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void>; fokus?: string | null; onProdukt?: () => void }) {
-  const [f, setF] = useState({
+  const [anfang] = useState(() => ({
     firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
     email: k.email || "", phone: k.telefon || "",
     street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
-    birthdate: k.stammdaten?.geburtsdatum ? String(k.stammdaten.geburtsdatum).slice(0, 10) : "",
-  });
+  }));
+  const [f, setF] = useState(anfang);
+  const geb = useGeburtsdatum(k.stammdaten?.geburtsdatum ?? null, "akte");
+  const [geburtFehler, setGeburtFehler] = useState(false);
+  const [entfernen, setEntfernen] = useState(false);
+  const [leitung, setLeitung] = useState(false);
+  useEffect(() => { let an = true; void leitungsRechte().then((r) => { if (an) setLeitung(r.darf); }); return () => { an = false; }; }, []);
   const [busy, setBusy] = useState(false);
   const felderRef = useRef<Record<string, HTMLInputElement | null>>({});
   useEffect(() => {
@@ -4886,16 +4970,27 @@ function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; 
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); }
   }, [fokus]);
   const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
+  const geaenderteFelder = (Object.keys(f) as (keyof typeof f)[]).filter((key) => f[key].trim() !== anfang[key].trim());
   const speichern = async () => {
     // Justin 24.08.: VORHER endete der Weg hier mit einer roten Meldung —
     // NACHHER führt der Hinweis über dem Formular direkt zum Produkt-Anlegen;
     // diese Meldung ist nur noch der Rückfall, falls jemand doch hier landet.
     if (!ref) { melden("schlecht", "Keine Bestellung", "Leg oben mit einem Klick ein Produkt an – daran hängen die Stammdaten."); onProdukt?.(); return; }
+    const body: Record<string, unknown> = {};
+    for (const key of geaenderteFelder) body[key] = f[key];
+    if (entfernen) body.birthdateEntfernen = true;
+    // Gegenprüfung 08.10.: Ein UNVERÄNDERTES Altdatum (z. B. unter 18 oder ab 95) blockiert das Speichern anderer Felder nicht.
+    else if (!geb.leer && (geb.erg.iso !== geb.startIso || !geb.erg.iso)) {
+      if (!geb.iso) { setGeburtFehler(true); melden("schlecht", "Geburtsdatum prüfen", geb.sperrGrund || "Bitte Tag, Monat und Jahr eintragen."); return; }
+      if (geb.geaendert) { body.birthdate = geb.iso; if (geb.bestaetigtMitsenden) body.geburtBestaetigt = true; }
+    }
+    if (Object.keys(body).length === 0) { melden("info", "Nichts geändert", "Es gibt keine Änderung zum Speichern."); return; }
     setBusy(true);
-    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(f) });
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(body) });
     setBusy(false);
-    if (!r.ok) { melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
-    melden("gut", "Gespeichert", "Die Änderungen stehen mit altem und neuem Wert in der Akte.");
+    if (!r.ok) { if (r.json?.rueckfrage) setGeburtFehler(true); melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    const n = Array.isArray(r.json?.geaendert) ? r.json.geaendert.length : 0;
+    melden("gut", "Gespeichert", n ? `${n === 1 ? "Eine Änderung steht" : `${n} Änderungen stehen`} mit altem und neuem Wert in der Akte.` : "Die Akte war schon auf diesem Stand.");
     await onFertig();
   };
   const feld = (key: keyof typeof f, label: string, breit = false, typ = "text") => (
@@ -4908,13 +5003,63 @@ function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; 
         {feld("email", "E-Mail", true, "email")}
         {feld("phone", "Telefon", true)}{feld("street", "Straße", true)}
         {feld("zip", "PLZ")}{feld("city", "Ort")}
-        {feld("birthdate", "Geburtsdatum", true, "date")}
+        <div className="breit pi-geburt-gruppe">
+          <span>Geburtsdatum</span>
+          {entfernen ? (
+            <span className="pi-geburt-weg">Wird beim Speichern entfernt. <button type="button" className="pi-link" onClick={() => setEntfernen(false)}>Doch behalten</button></span>
+          ) : (
+            <GeburtsdatumFeld
+              teile={geb.teile} onTeile={(t) => { geb.setTeile(t); setGeburtFehler(false); }} kontext="akte" ergebnis={geb.erg}
+              bestaetigt={geb.bestaetigt} onBestaetigen={geb.bestaetigen} variante="office" zeigeFehler={geburtFehler}
+              feldRef={(el) => { felderRef.current.birthdate = el; }} onEnter={() => void speichern()}
+              zusatz={leitung && geb.startIso ? <button type="button" className="pi-link" onClick={() => setEntfernen(true)}>Geburtsdatum entfernen</button> : null}
+            />
+          )}
+        </div>
       </div>
       <div className="pi-reihe">
         <button type="button" className="pi-knopf klein" onClick={() => void speichern()} disabled={busy || !ref} title={ref ? undefined : "Erst ein Produkt anlegen – daran hängen die Stammdaten."}>{busy ? "Speichert …" : "Speichern"}</button>
         {!ref && onProdukt && <button type="button" className="pi-knopf klein still" onClick={onProdukt}>Produkt hinzufügen</button>}
-        <span className="pi-luecke">Das Land ändert die Vertriebsleitung.</span>
+        <span className="pi-luecke">Gespeichert wird nur, was du änderst. Das Land ändert die Vertriebsleitung.</span>
       </div>
+    </div>
+  );
+}
+
+// ── Geburtsdatum weicht ab (E-IT-G, 08.10.2026) ───────────────────────────────
+// Person und Bestellungen tragen verschiedene Geburtsdaten (gemessen 07.10.:
+// 15 Menschen, z. B. 15.11.2025 an der Person, 19.01.1947 an der Bestellung).
+// KEINE automatische Korrektur — der Mitarbeiter wählt laut Ausweis; der Klick
+// schreibt den Wert über denselben Stammdaten-Weg an Person UND alle
+// Bestellungen (ein Verlaufseintrag). Steht nur in der Akte, nie in Listen.
+type GeburtAbweichung = { werte: { iso: string; anzeige: string; quellen: string[]; fremderName?: boolean }[] };
+function GeburtAbweichungHinweis({ k, abw, melden, onFertig }: { k: Kunde; abw: GeburtAbweichung; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void> }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
+  if (!ref || abw.werte.length < 2) return null;
+  const nehmen = async (iso: string) => {
+    // Gegenprüfung 08.10.: Die Rückfrage (unter 18 / ab 95) gilt auch hier — „Stimmt so“ erst nach ausdrücklicher Bestätigung.
+    const e = geburtsdatumLesen(iso, "akte");
+    if (e.stand === "pruefen" && !window.confirm(`${e.meldung}\n\n${geburtsdatumAnzeige(iso)} an Person und allen Bestellungen übernehmen?`)) return;
+    setBusy(iso);
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify({ birthdate: iso, ...(e.stand === "pruefen" ? { geburtBestaetigt: true } : {}) }) });
+    setBusy(null);
+    if (!r.ok) { melden("schlecht", "Nicht übernommen", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden("gut", "Geburtsdatum vereinheitlicht", `${geburtsdatumAnzeige(iso)} steht jetzt an Person und allen Bestellungen.`);
+    await onFertig();
+  };
+  return (
+    <div className="pi-sackgasse" data-geburt-abweichung>
+      <span><b>Geburtsdatum weicht ab</b>{abw.werte.map((w) => `${w.anzeige} (${w.quellen.join(", ")})`).join(" · ")} — bitte laut Ausweis prüfen und das richtige übernehmen.
+        {/* Gegenprüfung 08.10.: verschiedene Namen an einer Person → erst klären, nicht blind vereinheitlichen. */}
+        {abw.werte.some((w) => w.fremderName) && <><br /><b data-geburt-fremder-name>{GEBURT_TEXTE.fremderName}</b></>}</span>
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {abw.werte.map((w) => (
+          <button key={w.iso} type="button" className="pi-knopf klein" disabled={!!busy} onClick={() => void nehmen(w.iso)}>
+            {busy === w.iso ? "Übernimmt …" : `${geburtsdatumMitAlter(w.iso)} übernehmen`}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }

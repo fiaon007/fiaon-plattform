@@ -27,7 +27,7 @@ import multer from "multer";
 import { createHash } from "crypto";
 import { sqlPool } from "../lib/db-pool";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
-import { bildAlsPdf, istBild, istHeic } from "../lib/fiaon-bild-zu-pdf";
+import { bildAlsPdf } from "../lib/fiaon-bild-zu-pdf";
 import { FRAGEN, REGELN, befunde, beantwortet, summeMonatlichCents, type Antworten, type Befund } from "@shared/fiaon-ansprueche";
 import { BANK } from "@shared/fiaon-bank";
 
@@ -252,12 +252,8 @@ const briefUpload = multer({
   // verkleinert vorher auf 2.000 px). 25 MB × 10 im Arbeitsspeicher wären 250 MB
   // je Anfrage — zu viel für den Render-Dienst.
   limits: { fileSize: 12 * 1024 * 1024, files: 10, fields: 5 },
-  fileFilter: (_req, file, cb) => {
-    const art = String(file.mimetype || "").toLowerCase();
-    if (art === "application/pdf" || istBild(art)) cb(null, true);
-    else if (istHeic(art)) cb(new Error("Dieses Foto liegt im iPhone-Format HEIC vor. Bitte stellen Sie in den iPhone-Einstellungen unter Kamera → Formate auf „Maximale Kompatibilität“ und fotografieren Sie den Brief noch einmal."));
-    else cb(new Error("Wir können Fotos (JPG, PNG) und PDF-Dateien lesen. Bitte fotografieren Sie den Brief mit der Kamera."));
-  },
+  // E-IT-C (08.10.2026, Punkt 13): kein Filter nach Browser-Angabe mehr — HEIC (iPhone), WEBP und PDFs
+  // mit falschem Mimetype flogen sonst raus. Den Typ bestimmt der Inhalt (server/lib/fiaon-datei-eingang.ts).
 });
 
 /**
@@ -281,6 +277,16 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
     if (!p) return keinePerson(res);
     const seiten = ((req as any).files as Express.Multer.File[] | undefined) ?? [];
     if (!seiten.length || !seiten[0]?.buffer?.length) return res.status(400).json({ ok: false, error: "Es ist kein Foto angekommen. Bitte versuchen Sie es noch einmal." });
+    // E-IT-C: Jede Seite durch die Eingangsprüfung — Typ am Inhalt, HEIC → JPEG, Foto gedreht und ohne
+    // Metadaten, Passwort-PDF mit klarem Satz. Erst wenn ALLE Seiten passen, entsteht ein Vorgang.
+    const { dateiEingang } = await import("../lib/fiaon-datei-eingang");
+    const { lesefehlerSatz } = await import("@shared/fiaon-lesefehler");
+    const geprueft: { buffer: Buffer; typ: string; name: string }[] = [];
+    for (const f of seiten) {
+      const e = await dateiEingang(f.buffer, f.originalname);
+      if (!e.ok) return res.status(400).json({ ok: false, error: lesefehlerSatz(e.klasse, "sie", { name: e.name, mb: 12 }) });
+      geprueft.push({ buffer: e.datei.buffer, typ: e.datei.typ, name: e.datei.name });
+    }
     // Schalter: Der Brief-Weg verspricht „binnen zwei Werktagen sagen wir, was wir
     // daraus machen" — das braucht Justins Freigabe (Bauvorlage 7.3). Bis dahin
     // steht der Weg nur in der Demo. fiaon_settings.app_brief_an = 'an' schaltet frei.
@@ -312,9 +318,9 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
 
     // Je Seite eine Zeile in fiaon_dokumente (Bilder werden zu PDF, PDF bleibt PDF).
     const dokIds: number[] = [];
-    for (let i = 0; i < seiten.length; i++) {
-      const f = seiten[i];
-      const pdf = istBild(f.mimetype) ? await bildAlsPdf(f.buffer, sauberName(f.originalname, `brief-${i + 1}.jpg`)) : f.buffer;
+    for (let i = 0; i < geprueft.length; i++) {
+      const f = geprueft[i];
+      const pdf = f.typ !== "pdf" ? await bildAlsPdf(f.buffer, sauberName(f.name, `brief-${i + 1}.jpg`)) : f.buffer;
       const hash = createHash("sha256").update(pdf).digest("hex");
       const [d] = (await sqlPool`
         INSERT INTO fiaon_dokumente (person_id, ref, vorgang_id, art, dateiname, mime, bytes, inhalt, quelle, aktenzeichen, doc_hash)
@@ -419,8 +425,16 @@ router.get("/kunde/:ref/app/dokument/:id", requireKunde, async (req: KundeReques
     if (!p) return res.status(404).end();
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(404).end();
-    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND person_id = ${p.personId} AND geloescht_am IS NULL LIMIT 1`) as any[];
-    if (!d) return res.status(404).end();
+    // E-IT-C Nachbesserung: Hier nur die Dokumente der Vorgänge (Briefe, Schreiben) — wie vor dem 08.10.
+    // Unterlagen öffnet der Kunde über /kunde/:ref/unterlagen/datei/:id (nur aktive). Sonst blieben eine
+    // vom Team entfernte Unterlage (z. B. „falsche Person“) oder eine Archivfassung (frueher_…) über
+    // eine erratene ID abrufbar.
+    // E-IT-D (Nachprüfung 08.10.2026): Auswertungs-PDFs nur über /kunde/:ref/finanzauswertung/:id/pdf — dort
+    // mit Freigabe-Prüfung. Hier läge sonst auch ein Entwurf oder ein verworfener (fortlaufende Ids).
+    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente
+                                WHERE id = ${id} AND person_id = ${p.personId} AND geloescht_am IS NULL
+                                  AND art <> 'unterlage' AND art NOT LIKE 'frueher\\_%' AND art <> 'finanzauswertung' LIMIT 1`) as any[];
+    if (!d || !d.inhalt || !Buffer.from(d.inhalt).length) return res.status(404).end();
     res.setHeader("Content-Type", d.mime || "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${sauberName(d.dateiname, "dokument.pdf")}"`);
     res.send(Buffer.from(d.inhalt));

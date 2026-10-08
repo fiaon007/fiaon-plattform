@@ -218,6 +218,21 @@ export function AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art: AuskunftArt): string {
     : `Ich beauftrage und bevollmächtige FIAON, meine Bonitätsauskunft bei den oben genannten Auskunfteien für mich anzufordern bzw. zu beschaffen ${kosten}`;
 }
 
+// ── DER DATENKOPIE-WEG (Querprüfung 08.10.2026, 74-€-Rückstand, Entscheidung 4a) ──────────────────────────
+// Im Datenkopie-Weg kauft FIAON keine Auskunft: Wir fordern die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an,
+// die Auskunftei schickt sie per Post an IHN, er lädt sie hoch, wir werten sie aus. Der allgemeine Haken („auch als
+// kostenpflichtige Auskunft; deren Kosten sind im Preis enthalten“) beschrieb dort etwas anderes. Eigener Wortlaut, ohne
+// „kostenlos“ und ohne „kostenpflichtig“, mit eigener Textfassung im Vermerk (höchstens 20 Zeichen).
+export const AUSKUNFT_DATENKOPIE_FASSUNG = "2026-10-08-dk";
+export function AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT(art: AuskunftArt): string {
+  const rest = "in meinem Namen anzufordern. Die Auskunfteien schicken sie per Post an mich; ich lade sie in meinem Bereich hoch, "
+    + "und FIAON wertet sie für mich aus. Diesen Auftrag kann ich bis zur Anforderung jederzeit widerrufen.";
+  return art === "firma"
+    ? "Ich beauftrage und bevollmächtige FIAON, die Auskünfte meines Unternehmens bei den Wirtschaftsauskunfteien und, sofern ich "
+      + "Inhaberin, Inhaber oder Geschäftsführung bin, meine persönliche Datenkopie nach Art. 15 DSGVO bei den oben genannten Auskunfteien " + rest
+    : "Ich beauftrage und bevollmächtige FIAON, meine Datenkopie nach Art. 15 DSGVO bei den oben genannten Auskunfteien " + rest;
+}
+
 /**
  * Die Marke im Verlauf der Bestellung (fiaon_contact_log, ref = die Auskunft-
  * Bestellung), an der die Beschaffung den Auftrag erkennt — wie

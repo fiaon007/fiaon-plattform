@@ -282,8 +282,9 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
              -- 18.09.2026: Unterlagen gehören der PERSON — sie können an einer anderen
              -- (auch zusammengeführten) Bestellung hängen. Vorher sah der Kunde „Fehlt"
              -- und wurde erneut zum Hochladen aufgefordert (Team-Feedback, Priorität 1).
-             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_kontoauszug,
-             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_ausweis,
+             -- E-IT-C (08.10.2026): LENGTH > 0 wie die Akte — eine 0-Byte-Spalte (2 Bestellungen) zählte hier als „liegt vor".
+             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND LENGTH(d.bank_statement_pdf) > 0 AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_kontoauszug,
+             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND LENGTH(d.id_card_pdf) > 0 AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_ausweis,
              a.reupload_bank_statement, a.reupload_id_card, a.profile_changes_requested, a.admin_profile_note,
              p.assigned_agent_id,
              (SELECT g.name FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_name,
@@ -486,18 +487,32 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     let kontoEroeffnung: { eroeffnet: boolean; am: string | null } | null = null;
     if (a.person_id) {
       try {
-        const { kartenStand, kontoEroeffnung: kontoLesen } = await import("../lib/fiaon-konto-karte");
+        const { kartenStand, kontoEroeffnung: kontoLesen, zustellLage, karteEmpfaenger } = await import("../lib/fiaon-konto-karte");
         // Der Kontostand ZUERST: `kontoEroeffnung` fängt selbst ab und wirft nie.
         // Stolperte `kartenStand` davor, verlöre der Weg seinen zehnten Schritt,
         // obwohl die Auskunft dafür längst dagewesen wäre.
         const k = await kontoLesen(Number(a.person_id));
         kontoEroeffnung = { eroeffnet: k.eroeffnet, am: k.am };
         const ks = await kartenStand(Number(a.person_id));
+        // Gegenprüfung 08.10.: „verschickt“ heißt nur „Einladung angelegt“ — kam an seiner Adresse zuletzt nichts an
+        // (gesperrt, Spam, endgültiger Rückläufer), sagt der Bereich das, statt „beantragt“ zu melden. Dieselbe Prüfung
+        // wie Akte und Knopf (zustellLage) — ein weicher Rückläufer oder eine aufgehobene Sperre ist kein Problem.
+        const zustellProblem = ks?.versand
+          ? !!(await zustellLage(Number(a.person_id), await karteEmpfaenger(Number(a.person_id)).catch(() => null)).catch(() => null))?.problem
+          : false;
         if (ks) {
+          // E-IT-B (08.10.2026): Für den Kunden zählt der Ausschluss der Automatik (gekündigt, Sperre …) — „bereit“
+          // hieße sonst „Ihr Ansprechpartner meldet sich“, obwohl niemand von selbst schickt. Der Satz für ihn
+          // kommt aus shared/fiaon-karten-weg.ts (KARTE_AUSSCHLUSS_KUNDE), nie der interne Grund.
           karte = {
-            bereit: ks.bereit,
-            esFehlt: ks.esFehlt,
+            bereit: ks.bereit && !ks.ausschlussAutomatik,
+            // Gegenprüfung 08.10.: „auf Wunsch“ nur, wo ein Mensch wirklich schicken darf (karteKundeSatz).
+            esFehlt: ks.ausschlussAutomatik ? (ks.kundeSatz ?? ks.ausschlussAutomatik.kundeText) : ks.esFehlt,
+            ausgeschlossen: !!ks.ausschlussAutomatik,
+            aufWunsch: !!ks.ausschlussAutomatik && !ks.ausschluss,
             verschickt: !!ks.versand,
+            verschicktAm: ks.versand?.am ?? null,
+            zustellProblem,
             tore: (ks.tore || []).map((t: any) => ({
               titel: t.titel, erfuellt: t.erfuellt, warum: t.warumFuerKunden ?? null,
             })),

@@ -700,7 +700,18 @@ function Ordnung({ wache, zeige, onAkte }: {
     setLaedt(true);
     const r = await api("/agent/vertrieb/dubletten?limit=50");
     setLaedt(false);
-    if (r.ok) setDubletten(r.json.paare || r.json.dubletten || []);
+    // E-IT-E (08.10.2026): Der Server liefert „kandidaten" mit links/rechts —
+    // hier wurde „paare"/„dubletten" gelesen, die Liste meldete deshalb IMMER
+    // „Keine Paare gefunden" (am 07.10.2026 lagen 4 offene Paare vor).
+    if (r.ok) {
+      setDubletten(((r.json.kandidaten ?? []) as any[]).map((k) => ({
+        a: { personId: k.links?.id, name: k.links?.name, email: k.links?.email || k.links?.telefon || "" },
+        b: { personId: k.rechts?.id, name: k.rechts?.name, email: k.rechts?.email || k.rechts?.telefon || "" },
+        grund: k.stufeText,
+        betreuer: `${k.links?.betreuerAnzeige ?? "—"} / ${k.rechts?.betreuerAnzeige ?? "—"}`,
+        streit: k.betreuerStreit === true,
+      })));
+    }
     else zeige("fehler", "Nicht geladen", r.json?.error || "");
   };
 
@@ -739,7 +750,8 @@ function Ordnung({ wache, zeige, onAkte }: {
                 <button type="button" className="lt-zeile-wer" onClick={() => onAkte(d.a?.personId ?? d.aId)}>
                   <b>{d.a?.name ?? d.aName ?? "—"}</b><small>{d.a?.email ?? d.aEmail ?? ""}</small>
                 </button>
-                <span className="lt-zeile-lage"><em>{d.grund || d.treffer || "ähnlich"}</em></span>
+                <span className="lt-zeile-lage"><em>{d.grund || d.treffer || "ähnlich"}</em>
+                  {d.betreuer && <small>{d.streit ? "Zwei aktive Betreuer: " : "Betreuung: "}{d.betreuer}</small>}</span>
                 <button type="button" className="lt-zeile-agent" onClick={() => onAkte(d.b?.personId ?? d.bId)}>
                   {d.b?.name ?? d.bName ?? "—"}
                   <small>{d.b?.email ?? d.bEmail ?? ""}</small>

@@ -518,6 +518,37 @@ export function vertreterSiehtBetreuer(ab: AktiveAbwesenheit | null, agentId: nu
   return istAbwesend(ab, Number(betreuerId));
 }
 
+/**
+ * E-IT-H (08.10.2026, Punkt 15): DIESELBE Sicht als MENGE — für Listen, die in
+ * SQL filtern müssen, BEVOR sie kappen. Der WhatsApp-Raum holte die 300
+ * jüngsten Nummern des ganzen Hauses und filterte erst danach je Betreuer; nach
+ * Maras Vorlagenläufen sahen Mitarbeiter so nur noch einen Bruchteil ihrer
+ * Gespräche. Gleichwertig zu „eigener Kunde ODER vertreterSiehtBetreuer" (der
+ * Prüfstand scripts/pruef-it-h.ts vergleicht beide über alle Fälle):
+ *   · kein Mitarbeiter                        → nichts
+ *   · nicht der Vertreter (oder keine Abw.)   → nur die eigenen
+ *   · Vertreter, ganzes Team weg (fuer leer)  → alle, auch ohne Betreuer
+ *   · Vertreter, einzelne weg                 → die eigenen + die der Abwesenden
+ * Rein; `ohne` = Kunden ohne Betreuer gehören dazu.
+ */
+export interface BetreuerMenge { alle: boolean; ids: number[]; ohne: boolean }
+
+export function sichtbareBetreuer(ab: AktiveAbwesenheit | null, agentId: number | null | undefined): BetreuerMenge {
+  const id = Number(agentId ?? 0);
+  if (!Number.isInteger(id) || id <= 0) return { alle: false, ids: [], ohne: false };
+  if (!ab || ab.vertreter.id !== id) return { alle: false, ids: [id], ohne: false };
+  if (ab.fuer.length === 0) return { alle: true, ids: [], ohne: true };
+  return { alle: false, ids: Array.from(new Set([id, ...ab.fuer.map(Number).filter((n) => Number.isInteger(n) && n > 0)])), ohne: false };
+}
+
+/** Gehört ein Betreuer zur Menge? Rein; das Gegenstück in SQL steht in fiaon-whatsapp-postfach.ts (mengeSql). */
+export function mengeEnthaelt(m: BetreuerMenge, betreuerId: number | null | undefined): boolean {
+  if (m.alle) return true;
+  const b = Number(betreuerId ?? 0);
+  if (!b) return m.ohne;
+  return m.ids.includes(b);
+}
+
 /** Darf dieser Mitarbeiter als Vertreter an diesen Kunden (Akte, Telefon, Mail)? Wirft nie. */
 export async function vertreterDarfAnKunde(agentId: number, personId: number, lauf: Lauf = sqlPool): Promise<boolean> {
   try {

@@ -519,9 +519,12 @@ async function main(): Promise<void> {
       );
       ok("Geburtsdatum-Tippfehler an EINER Stelle bleibt zusammenführbar", geburtTippfehler);
 
+      // Nur Buchstaben im Namen: Ziffern im Zeitstempel machten den Namen für
+      // namensGuete „unbrauchbar" — dann hing das Ergebnis an der Uhrzeit (E-IT-E, 08.10.2026).
+      const namensStempel = stempel.replace(/\d/g, (d) => "ABCDEFGHIJ"[Number(d)]);
       const nameWiderspruch = await verbunden(
-        { first_name: "Ana", last_name: `Weber${stempel}`, birthdate: "1980-05-05" },
-        { first_name: "Ana", last_name: `Nikoloudis${stempel}`, birthdate: "1980-05-05" },
+        { first_name: "Ana", last_name: `Weber${namensStempel}`, birthdate: "1980-05-05" },
+        { first_name: "Ana", last_name: `Nikoloudis${namensStempel}`, birthdate: "1980-05-05" },
         "NAME",
       );
       ok("Widersprechender Nachname verhindert die Zusammenführung", !nameWiderspruch);

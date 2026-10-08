@@ -51,8 +51,10 @@ titel("TEIL 1 — Die Akte baut sich je Person neu auf");
     /if \(reiter === "dokumente"\) void dokuLaden\(\);/.test(pipeline) && !/reiter === "dokumente" && doku === null/.test(pipeline));
   pruef("Ein Dokumentstand einer anderen Person wird verworfen",
     /const fremd = stand\?\.personId != null && Number\(stand\.personId\) !== Number\(k\.personId\);/.test(pipeline));
+  // E-IT-C (08.10.2026): Löschen/Entfernen wohnt jetzt in UnterlagenAkte — nach jeder Änderung lädt die Akte neu.
   pruef("Nach dem Löschen wird neu geladen (nicht nur geleert)",
-    /setDoku\(null\); void dokuLaden\(\);/.test(pipeline));
+    /setDoku\(null\); void dokuLaden\(\);/.test(pipeline)
+      || /<UnterlagenAkte[\s\S]{0,300}?onGeaendert=\{\(\) => \{ void dokuLaden\(\);/.test(pipeline));
   pruef("Die Anrufe laden bei jedem Öffnen des Reiters frisch",
     /if \(reiter === "gespraeche"\) \{\s*api\(`\/telefon\/person\/\$\{k\.personId\}\/anrufe`\)/.test(pipeline) && !/reiter === "gespraeche" && anrufe === null/.test(pipeline));
 

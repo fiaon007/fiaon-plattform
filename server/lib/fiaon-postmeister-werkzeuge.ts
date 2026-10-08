@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { KUENDIGUNG_WIRKSAM_SQL, AUSKUNFT_GEKUENDIGT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
   AUSKUNFT_LAGEN, AUSKUNFT_ANTWORT_LAGEN, KEIN_VERKAUF_FLAGS, auskunftLageErlaubt, fragtNachAuskunftSelbst, lehntAuskunftAb,
@@ -480,6 +481,9 @@ export const aufgabeAnBetreuer: Werkzeug = {
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe`,
       quelle: "postmeister", autorName: "Mara",
       agentId: zahlungGewollt ? null : vtUeb ? (vtUeb.anVertreter ? vtUeb.ab.vertreter.id : null) : (gewuenscht?.id ?? null),
+      // E-IT-F (Gegenprüfung 08.10.): Leitung oder vom Kunden genannt gilt auch gegen einen aktiven Betreuer,
+      // der den Auftrag des Kunden schon hat — sonst landet die Beschwerde beim Betreuer, die Leitung erfährt nichts.
+      vorrang: !zahlungGewollt && !vtUeb && !!gewuenscht?.id,
       anBetreiber: zahlungGewollt || (!!vtUeb && !vtUeb.anVertreter) || (globalKunde && !gewuenscht),
     });
     if (vtUeb?.anVertreter && (leitungGewollt || heikleUebergabe(`${titelMitName}\n${text}`))) {
@@ -1078,10 +1082,11 @@ export const auskunftAnbieten: Werkzeug = {
       if (lageA && !lageA.paketBezahlt) {
         return { ok: false, ergebnis: "", fehler: "Die erste Zahlung für das Paket ist noch nicht gebucht — beauftragen kann der Kunde die Auskunft erst danach. Biete sie jetzt nicht an; fragt er, sag in einem Satz, dass FIAON sie nach der ersten Zahlung für ihn holt." };
       }
+      // E-IT-B (08.10.2026): „gekündigt“ nach der EINEN Regel (shared/fiaon-kuendigung-regel.ts) — dazu die
+      // gekündigte Auskunft selbst (ein Nein zu genau diesem Produkt).
       const [gek] = (await sqlPool`
-        SELECT 1 AS ja FROM fiaon_applications
-         WHERE person_id = ${k.personId} AND merged_into IS NULL
-           AND gekuendigt_am IS NOT NULL AND kuendigung_zurueckgenommen_am IS NULL LIMIT 1
+        SELECT 1 AS ja WHERE ${sqlPool.unsafe(KUENDIGUNG_WIRKSAM_SQL(String(Number(k.personId))))}
+           OR ${sqlPool.unsafe(AUSKUNFT_GEKUENDIGT_SQL(String(Number(k.personId))))}
       `) as any[];
       if (gek) return { ok: false, ergebnis: "", fehler: "Der Kunde hat gekündigt — keine neue Leistung anbieten. Beantworte nur sein Anliegen." };
       // Integration 25.09.2026 (E-240): die gemeinsame Bremse (zuletztAngeboten, fiaon-auskunft.ts).
@@ -2003,6 +2008,17 @@ export const karteSenden: Werkzeug = {
     // Nichts gesendet, aber ein Satz für ihn (Angaben fehlen, Zahlung offen): das ist SEINE Antwort — kein Mensch nötig.
     if (!erg?.ok && aktion === "nicht_bereit" && satz) {
       return { ok: true, ergebnis: satz, daten: { gesendet: false, aktion, so_schreiben: satz, intern } };
+    }
+    // E-IT-B (08.10.2026): An seine Adresse kommt nichts an (bei unserem Mailversand gesperrt, abgewiesen, Spam) —
+    // es ging NICHTS raus und nichts wurde entsperrt (Justin, 08.10.). Kein „schauen Sie im Spam-Ordner“: Er soll
+    // seine richtige Adresse nennen; eintragen und erneut senden tut ein Mensch in der Akte.
+    if (!erg?.ok && aktion === "adresse_gesperrt" && satz) {
+      await protokoll(k, "karte_senden", `Karte (adresse_gesperrt): ${intern || "Adresse gesperrt"} — Anlass: ${anlass}.`, false);
+      return {
+        ok: true, ergebnis: satz,
+        daten: { gesendet: false, aktion, so_schreiben: satz, intern,
+          hinweis: "Nichts ging raus. Nennt er eine andere Adresse, gib sie mit notiz_an_betreuer weiter (Adresse unter „Daten“ ändern, dann in der Akte „E-Mail erneut senden“)." },
+      };
     }
     if (!erg?.ok) {
       // Ausschluss (Sperre, Kündigung, Global …) oder Versand gescheitert: ein Fall für das Team — dem Kunden nichts versprechen.

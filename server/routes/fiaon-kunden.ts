@@ -23,17 +23,16 @@ import { statusFuerPerson, statusFuerBestellungen } from "../lib/fiaon-kundensta
 import { produktstand, produktstandFuerBestellungen } from "../lib/fiaon-produktstand";
 import { PAKETE, paketPreisEuro } from "../../shared/fiaon-pakete";
 import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
+import { akteAufloesen, APP_PHONE_SQL } from "../lib/fiaon-akte-aufloesen";
+import { AKTE_FEHLER_TITEL, type Umleitung } from "../../shared/fiaon-akte-aufloesung";
 
 const router = Router();
 
 // ── Hilfen ───────────────────────────────────────────────────────────────────
 
-/** Telefon-Ziffern eines Antrags (Vorwahl+Nummer, sonst contact_phone). */
-const APP_PHONE_SQL = `
-  COALESCE(
-    NULLIF(regexp_replace(COALESCE(a.phone_country_code,'') || COALESCE(a.phone,''), '\\D', '', 'g'), ''),
-    NULLIF(regexp_replace(COALESCE(a.contact_phone,''), '\\D', '', 'g'), '')
-  )`;
+// Telefon-Ziffern eines Antrags (Vorwahl+Nummer, sonst contact_phone): steht seit
+// E-IT-E (08.10.2026) in server/lib/fiaon-akte-aufloesen.ts — die Auflösung der
+// Akte braucht dieselbe Regel, und zwei Fassungen wären zwei Familien.
 
 function digits(v: string | null | undefined): string {
   return String(v || "").replace(/\D/g, "");
@@ -304,72 +303,51 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════════════════════════════
 router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
   try {
-    let id = String(req.query.id || "").trim();
-    if (!id) return res.status(400).json({ ok: false, error: "id erforderlich (Antrags-ref, lead-<id> oder Personen-Nummer)" });
-
-    // ── EINE ZENTRALE AKTE (27.08.2026, Justins Auftrag) ──────────────────
-    // Gemeldet: Klick in der Chef-Kundenliste → „Akte nicht gefunden". Die
-    // Aufrufer uebergaben die PERSONEN-Nummer, die Akte kannte nur die
-    // Antrags-ref. Statt jeden Aufrufer zu jagen, loest die Akte die Person
-    // jetzt SELBST auf: beste Bestellung des Menschen (bezahlt vor neu).
-    // Damit fuehrt jeder Link im Haus — Lagezimmer, Kundenliste, Zahlungen —
-    // in dieselbe Akte, egal welche Kennung er in der Hand hatte.
-    if (/^(person-)?\d+$/i.test(id)) {
-      const personId = Number(id.replace(/^person-/i, ""));
-      const [beste] = (await sqlPool`
-        SELECT a.ref FROM fiaon_applications a
-         WHERE a.person_id = ${personId} AND a.merged_into IS NULL
-         ORDER BY (a.payment_status = 'paid') DESC,
-                  (a.ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
-                  a.created_at DESC
-         LIMIT 1`) as any[];
-      if (beste?.ref) {
-        id = String(beste.ref);
-      } else {
-        return res.status(404).json({
-          ok: false,
-          error: `Zur Person ${personId} liegt keine Bestellung vor — die Akte entsteht mit dem ersten Vorgang.`,
-        });
-      }
+    // ── EINE AUFLÖSUNG FÜR ALLE TÜREN (E-IT-E, 08.10.2026) ────────────────
+    // 27.08.2026 löste die Akte eine Personen-Nummer zum ersten Mal selbst
+    // auf — aber nur über BESTELLUNGEN. Gemessen am 07.10.2026 öffneten damit
+    // 3.024 von 5.781 Personen der Chef-Kundenliste keine Akte (reine
+    // Interessenten, leere Hüllen), dazu jede zusammengeführte Person aus
+    // WhatsApp, Anrufen und Terminen. Jetzt entscheidet EINE Funktion
+    // (server/lib/fiaon-akte-aufloesen.ts): Personen-Kopf, beste Bestellung,
+    // sonst Interessenten-Akte — und jede Umleitung kommt mit Grund zurück.
+    // Fehler tragen einen GRUND (kennung_leer, person_ohne_vorgang …), damit
+    // die Seite nicht für alles „nicht gefunden" sagt.
+    const aufloesung = await akteAufloesen(req.query.id);
+    if (!aufloesung.ok) {
+      console.warn(`[FIAON-KUNDEN] akte nicht auflösbar (${aufloesung.grund}): „${aufloesung.eingabe}“`);
+      return res.status(aufloesung.status).json({
+        ok: false, grund: aufloesung.grund, titel: AKTE_FEHLER_TITEL[aufloesung.grund], error: aufloesung.text,
+      });
     }
+    const ziel = aufloesung.ziel;
 
     let primaryApp: any = null;
     let primaryLead: any = null;
+    // Gegenprüfung 08.10.2026: Der Tausch auf die bezahlte Familien-Bestellung
+    // (unten) kann über gleiche E-Mail/Telefonnummer die Bestellung eines
+    // ANDEREN Menschen treffen. Dann nie still: Band „bitte prüfen", und die
+    // Adresse bleibt bei der aufgelösten Bestellung (kein Link auf die fremde Akte).
+    let familieFremd: Umleitung | null = null;
 
-    if (/^lead-\d+$/i.test(id)) {
-      const leadId = Number(id.replace(/^lead-/i, ""));
+    if (ziel.art === "lead") {
       const rows = await sqlPool`
         SELECT l.*, ag.name AS agent_name FROM fiaon_leads l
         LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
-        WHERE l.id = ${leadId}`;
-      if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+        WHERE l.id = ${ziel.leadId}`;
+      if (rows.length === 0) {
+        return res.status(404).json({ ok: false, grund: "lead_fehlt", titel: AKTE_FEHLER_TITEL.lead_fehlt, error: `Einen Interessenten-Eintrag lead-${ziel.leadId} gibt es nicht.` });
+      }
       primaryLead = rows[0];
-      // Hat der Lead doch schon eine Antrags-Schwester? → Akte am Antrag verankern.
-      if (primaryLead.converted_order_id) {
-        const app = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${primaryLead.converted_order_id}`;
-        if (app.length > 0) primaryApp = app[0];
-      }
-      if (!primaryApp) {
-        const em = normEmail(primaryLead.email);
-        const ph = digits(primaryLead.telefon);
-        const cand = await sqlPool.unsafe(`
-          SELECT a.* FROM fiaon_applications a
-          WHERE a.merged_into IS NULL AND (
-            ($1 <> '' AND LOWER(TRIM(a.email)) = $1)
-            OR ($2 <> '' AND LENGTH($2) >= 7 AND RIGHT(COALESCE(${APP_PHONE_SQL},''),9) = RIGHT($2,9))
-          )
-          ORDER BY (a.payment_status = 'paid') DESC, a.created_at ASC LIMIT 1`, [em, ph]);
-        if (cand.length > 0) primaryApp = cand[0];
-      }
+      // Die Bestellung dazu hat die Auflösung schon gesucht (nur am SELBEN
+      // Personen-Kopf) — hier wird NICHT mehr über E-Mail/Telefon verankert,
+      // sonst öffnete die Akte die Bestellung eines anderen Menschen.
     } else {
-      const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${id}`;
-      if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-      primaryApp = rows[0];
-      // Wurde dieser Datensatz gemergt? → auf den Gewinner umlenken (eine Akte).
-      if (primaryApp.merged_into) {
-        const winner = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${primaryApp.merged_into}`;
-        if (winner.length > 0) primaryApp = winner[0];
+      const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${ziel.ref}`;
+      if (rows.length === 0) {
+        return res.status(404).json({ ok: false, grund: "bestellung_fehlt", titel: AKTE_FEHLER_TITEL.bestellung_fehlt, error: "Kunde nicht gefunden" });
       }
+      primaryApp = rows[0];
     }
 
     // ── Bestell-Familie der Person (E-Mail ODER Telefon-Ziffern ≥ 7 + Merge-Ketten) ──
@@ -400,16 +378,30 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       // Primärsatz = bezahlter Gewinner der sichtbaren Familie, sonst wie geladen.
       const visible = family.filter((f) => !f.merged_into);
       const paidVisible = visible.find((f) => f.payment_status === "paid");
-      if (paidVisible && paidVisible.ref !== primaryApp.ref) primaryApp = paidVisible;
+      if (paidVisible && paidVisible.ref !== primaryApp.ref) {
+        const fremd = primaryApp.person_id != null && paidVisible.person_id != null
+          && Number(primaryApp.person_id) !== Number(paidVisible.person_id);
+        if (fremd) familieFremd = { grund: "familie_kontaktgleich", von: String(primaryApp.ref), nach: String(paidVisible.ref), am: null, wer: null };
+        primaryApp = paidVisible;
+      }
     }
     const familyRefs = family.map((f) => f.ref);
+
+    // Die Person dieser Akte (E-IT-E): bei einer Bestellung deren Person, bei
+    // einer Interessenten-Akte der Personen-Kopf aus der Auflösung. Ohne sie
+    // standen Sperre, Anrufe und die Leads der Person bei Interessenten leer.
+    const aktePersonId: number | null = primaryApp?.person_id != null
+      ? Number(primaryApp.person_id)
+      : (ziel.personId ?? (primaryLead?.person_id != null ? Number(primaryLead.person_id) : null));
 
     // ── Leads der Person ──
     let leads: any[] = [];
     {
       const em = normEmail(primaryApp ? appEmail(primaryApp) : primaryLead?.email);
       const ph = primaryApp ? appPhoneDigits(primaryApp) : digits(primaryLead?.telefon);
-      const leadIdParam = primaryLead ? Number(primaryLead.id) : -1;
+      const leadIdParam = primaryLead ? Number(primaryLead.id) : (aufloesung.eingabeLeadId ?? -1);
+      // E-IT-E: auch über die Personen-Nummer. Ein Lead, dessen Person eine
+      // Bestellung unter anderer Mail und Nummer hat, fehlte sonst in der Akte.
       leads = await sqlPool.unsafe(`
         SELECT l.*, ag.name AS agent_name FROM fiaon_leads l
         LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
@@ -417,8 +409,9 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
            OR ($2 <> '' AND LOWER(TRIM(COALESCE(l.email,''))) = $2)
            OR ($3 <> '' AND LENGTH($3) >= 7 AND RIGHT(regexp_replace(COALESCE(l.telefon,''),'\\D','','g'),9) = RIGHT($3,9))
            OR (l.converted_order_id = ANY($4))
+           OR ($5::int IS NOT NULL AND l.person_id = $5::int)
         ORDER BY l.erstellt_am ASC`,
-        [leadIdParam, em, ph, familyRefs.length ? familyRefs : ["__none__"]]);
+        [leadIdParam, em, ph, familyRefs.length ? familyRefs : ["__none__"], aktePersonId]);
     }
     const leadIds = leads.map((l) => Number(l.id));
 
@@ -634,7 +627,7 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
     // sperre `fiaon_persons.is_blocked` (kein Kontakt, keine Listen). Die Akte
     // nannte die Sperre nirgends. Jetzt steht sie im Kopf, mit dem Verlauf
     // aus dem Sperr-Protokoll (Trigger, fiaon-kunde-aktiv.ts) und einem Knopf.
-    const sperrPersonId = primaryApp?.person_id ? Number(primaryApp.person_id) : null;
+    const sperrPersonId = aktePersonId;
     let vertriebSperre: { personId: number; gesperrt: boolean; verlauf: any[] } | null = null;
     if (sperrPersonId) {
       const [sp] = (await sqlPool`SELECT is_blocked FROM fiaon_persons WHERE id = ${sperrPersonId}`.catch(() => [] as any[])) as any[];
@@ -656,6 +649,8 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
     // Kopf-Daten
     const head = {
       id: primaryApp ? primaryApp.ref : `lead-${primaryLead.id}`,
+      /** E-IT-E: die Person der Akte — auch bei Interessenten-Akten (Leads mit Personen-Nummer). */
+      personId: aktePersonId,
       name: primaryApp ? appName(primaryApp) : ([primaryLead.vorname, primaryLead.nachname].filter(Boolean).join(" ") || primaryLead.email || primaryLead.telefon || `Lead #${primaryLead.id}`),
       lifecycle: lifecycleOf(primaryApp, primaryLead || (leads.length ? leads[0] : null)),
       /** Produktstand in einer Zeile — Details darunter, einklappbar. */
@@ -762,9 +757,28 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       }
     }
 
+    // ── E-IT-G (08.10.2026): DAS GEBURTSDATUM WIE IN DER AGENTENAKTE ────────
+    // VORHER zeigte die Chef-Akte NUR das Datum der Bestellung, die Agentenakte
+    // das der Person — zwei Akten, zwei Geburtsdaten. NACHHER dieselbe Regel
+    // (Person zuerst, sonst jüngste Bestellung) und der Hinweis bei Abweichung.
+    let geburt: Awaited<ReturnType<typeof import("../lib/fiaon-geburtsdatum-akte").geburtStandAkte>> | null = null;
+    if (primaryApp?.person_id) {
+      const { geburtStandAkte } = await import("../lib/fiaon-geburtsdatum-akte");
+      geburt = await geburtStandAkte(Number(primaryApp.person_id)).catch(() => null);
+    }
+
     res.json({
       ok: true,
       head,
+      // E-IT-E (08.10.2026): Wie die Akte gefunden wurde. `kanonisch` ist die
+      // Kennung ohne Umweg (die Seite schreibt sie in die Adresse), jede
+      // Umleitung steht als Band über der Akte — nie still.
+      aufloesung: {
+        eingabe: aufloesung.eingabe,
+        kanonisch: familieFremd ? familieFremd.von : head.id,
+        ziel: aufloesung.ziel,
+        umleitungen: familieFremd ? [...aufloesung.umleitungen, familieFremd] : aufloesung.umleitungen,
+      },
       /** Die abgeleitete Stufe samt Ablauf-Stand — für Kopf und Leiste. */
       stufenlage,
       // Welche Felder aus einer Schwesterbestellung ergänzt wurden — die Akte
@@ -789,7 +803,8 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
             street: primaryApp.street,
             zip: primaryApp.zip,
             city: primaryApp.city,
-            birthdate: primaryApp.birthdate,
+            birthdate: geburt ? (geburt.wert ?? primaryApp.birthdate) : primaryApp.birthdate,
+            geburtsdatumAbweichung: geburt?.abweichend ? geburt.werte : null,
             packKey: primaryApp.pack_key,
             packName: primaryApp.pack_name,
             approvedLimit: primaryApp.approved_limit,
@@ -886,31 +901,23 @@ router.post("/admin/kunden/:ref/stammdaten", async (req: Request, res: Response)
     const body = req.body || {};
     const { updateCustomerContact } = await import("./fiaon-agent");
     // Kontakt-Felder über die bestehende, auditierte Engine
-    const contactKeys = ["firstName", "lastName", "email", "phone", "street", "zip", "city"];
+    // ── E-IT-G (08.10.2026), Punkt (14): DAS GEBURTSDATUM GEHT DENSELBEN WEG ──
+    // VORHER hatte das Geburtsdatum hier einen eigenen Block: nur die Form
+    // geprüft, NUR die Bestellung geschrieben — die Agentenakte (liest Person
+    // zuerst) zeigte danach weiter den alten Wert. NACHHER ist es ein Feld der
+    // Engine: shared-Prüfer, Person + alle lebenden Bestellungen in einer
+    // Transaktion, derselbe Verlaufseintrag. Die Chefbüro-Akte ist Leitung —
+    // sie darf ein Geburtsdatum auch entfernen (birthdateEntfernen: true).
+    const contactKeys = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate", "geburtBestaetigt", "birthdateEntfernen"];
     const contactBody: any = {};
     for (const k of contactKeys) if (body[k] !== undefined) contactBody[k] = body[k];
     let changes: Array<{ field: string; from: string; to: string }> = [];
     let duplicate: any = null;
     if (Object.keys(contactBody).length > 0) {
-      const result = await updateCustomerContact(ref, contactBody, { id: null, name: "Admin" });
-      if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+      const result = await updateCustomerContact(ref, contactBody, { id: null, name: "Admin", darfGeburtLoeschen: true });
+      if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg, rueckfrage: result.error.rueckfrage || undefined });
       changes = result.changes || [];
       duplicate = result.duplicate || null;
-    }
-    // Geburtsdatum (nicht Teil der Engine) — eigenes auditiertes Update
-    if (body.birthdate !== undefined) {
-      const bd = String(body.birthdate || "").trim();
-      if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
-        return res.status(400).json({ ok: false, error: "Geburtsdatum ungültig (JJJJ-MM-TT)" });
-      }
-      const cur = await sqlPool`SELECT birthdate FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL`;
-      if (cur.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-      const from = cur[0].birthdate ? String(cur[0].birthdate).slice(0, 10) : "—";
-      if (from !== (bd || "—")) {
-        await sqlPool`UPDATE fiaon_applications SET birthdate = ${bd || null}, updated_at = NOW() WHERE ref = ${ref}`;
-        await auditApp(ref, `Geburtsdatum korrigiert durch Admin: ${from} → ${bd || "—"}`);
-        changes.push({ field: "Geburtsdatum", from, to: bd || "—" });
-      }
     }
     res.json({ ok: true, changes, duplicate });
   } catch (err) {

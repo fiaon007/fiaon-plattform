@@ -132,6 +132,12 @@ export interface ChefSeite {
    * für Seiten, die es hier sagen; heute nur das Mara-Steuerpult.
    */
   ruhig?: boolean;
+  /**
+   * E-IT-H (08.10.2026, Punkt 15): Die Seite füllt das Fenster — Höhe bis zum
+   * Rand, die Seite selbst rollt nicht, gerollt wird nur im Inhalt (Klasse
+   * `cb-voll`, chefbuero.css). Heute nur der WhatsApp-Raum.
+   */
+  vollflaeche?: boolean;
 }
 
 export const CHEF_SEITEN: ChefSeite[] = [
@@ -200,7 +206,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "mailwerk", label: "Mailwerk", satz: "Alle 41 Mails sehen und steuern: Versandweg, Takte, Prüfversand.", Seite: Mailwerk, raum: "kommunikation", mindest: "geschaeftsfuehrung", auch: "mail email brevo make vorlage template versand automatik" },
   // Justins Zentrale (01.09.2026): „das soll nur meine Zentrale sein" — Stufe inhaber.
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
-  { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
+  { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, vollflaeche: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
   { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
   // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
   { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion, der Verkauf der Bonitätsauskunft und alle Termine, die Mara macht: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen, Termine abtelefonieren und „Team abwesend — Mara bucht bei mir“ schalten — dazu das Social-Studio: Posts prüfen, freigeben, Texte und Dateien holen, als veröffentlicht melden und sehen, wie Instagram aussieht.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },

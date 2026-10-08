@@ -36,7 +36,8 @@ import { Router, type Response } from "express";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
-import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
+import { parseBerlinInput, pruefeTerminZukunft, berlinToday } from "../lib/fiaon-time";
+import { handwahlDatum, handwahlPruefen, wiederDranText, stufeADeckeln, STUFE_A_HINWEIS } from "@shared/fiaon-wiedervorlage";
 import {
   ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisNachbereiten, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
@@ -459,12 +460,17 @@ router.get("/agent/crm/person-zu-ref/:ref", requireAgent, async (req: AgentReque
   try {
     const ref = String(req.params.ref || "").trim();
     if (!ref) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    const [z] = (await sqlPool`
-      SELECT a.person_id FROM fiaon_applications a
-      WHERE a.ref = ${ref} AND a.merged_into IS NULL
-      ORDER BY a.created_at DESC LIMIT 1`) as any[];
-    const personId = Number(z?.person_id || 0);
-    if (!personId) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // E-IT-E (08.10.2026): über die EINE Auflösung der Akte — zusammengeführte
+    // und ersetzte Bestellungen führen zu ihrem Kopf, die Person zu ihrem
+    // Personen-Kopf. Vorher kam bei einer gemergten Bestellung „nicht gefunden".
+    const { akteAufloesen, personKopf } = await import("../lib/fiaon-akte-aufloesen");
+    const aufl = await akteAufloesen(ref);
+    const rohPerson = aufl.ok ? Number(aufl.ziel.personId || 0) : 0;
+    const kopf = rohPerson ? await personKopf(rohPerson, sqlPool, false) : null;
+    const personId = kopf?.ok ? kopf.kopfId : 0;
+    if (!personId) {
+      return res.status(404).json({ ok: false, error: aufl.ok ? "Zu dieser Bestellung ist keine Person hinterlegt." : aufl.text });
+    }
 
     const meins = await meinePerson(personId, req.agent!.id);
     if (!meins) {
@@ -485,8 +491,24 @@ router.get("/agent/crm/person-zu-ref/:ref", requireAgent, async (req: AgentReque
 // ───────────────────────────────────────────────────────────────────────────
 router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    const personId = Number(req.params.personId);
-    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const angefragt = Number(req.params.personId);
+    if (!Number.isFinite(angefragt) || angefragt <= 0) {
+      return res.status(404).json({ ok: false, grund: "kennung_leer", error: "Der Link trägt keine Kundennummer — bitte über die Suche öffnen." });
+    }
+    // ── ZUSAMMENGEFÜHRTE PERSONEN ÖFFNEN DEN KOPF (E-IT-E, 08.10.2026) ────
+    // WhatsApp-Gespräche, Anrufe, Termine und Postmeister-Fälle behalten nach
+    // einem Merge die Nummer des Verlierers. Hier stand „Kunde nicht gefunden".
+    // Jetzt: erst den Kopf der Kette auflösen (dieselbe Funktion wie die
+    // Chef-Akte), DANN die Berechtigung am KOPF prüfen — die Umleitung darf den
+    // Zugriffsschutz nicht umgehen. Die Antwort sagt, dass umgeleitet wurde.
+    const { personKopf } = await import("../lib/fiaon-akte-aufloesen");
+    const kopf = await personKopf(angefragt);
+    if (!kopf.ok) return res.status(404).json({ ok: false, grund: kopf.grund, error: kopf.text });
+    const personId = kopf.kopfId;
+    const { umleitungText } = await import("../../shared/fiaon-akte-aufloesung");
+    const aufgegangen = kopf.umleitungen.length > 0
+      ? { vonPersonId: angefragt, text: kopf.umleitungen.map(umleitungText).join(" ") }
+      : null;
 
     let p = await meinePerson(personId, req.agent!.id);
     // ── E-045 (Justin 23.08., Plan §17): LESE-AKTE FÜR DIANA ──────────────
@@ -520,7 +542,14 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         p = frei ?? null;
       }
     }
-    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (!p) {
+      // Die Person gibt es (der Kopf ist aufgelöst) — es fehlt die Freigabe.
+      // Das ist eine andere Lage als „gibt es nicht" und bekommt einen anderen Satz.
+      return res.status(404).json({
+        ok: false, grund: "kein_zugriff",
+        error: "Diese Akte gehört nicht zu deinem Bestand. Die Leitung oder der Betreuer kann sie öffnen.",
+      });
+    }
 
     const verlauf = await sqlPool`
       SELECT c.id, c.created_at, c.type, c.outcome, c.note, c.promised_date,
@@ -672,10 +701,21 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       } : null,
     };
 
+    // ── E-IT-G (08.10.2026): ZWEI GEBURTSDATEN FÜR EINEN MENSCHEN? ─────────
+    // Person und Bestellungen können verschiedene Geburtsdaten tragen (gemessen
+    // 07.10.: 15 Menschen). Die Akte zeigt dann den Hinweis mit Übernehmen-
+    // Knöpfen (pipeline.tsx, GeburtAbweichungHinweis). Nur hier, nie in Listen.
+    const { geburtStandAkte } = await import("../lib/fiaon-geburtsdatum-akte");
+    const geburt = await geburtStandAkte(personId).catch(() => null);
+
     res.json({
       ok: true,
       antrag,
-      kunde: kartePayload(p, (verlauf as any[])[0]),
+      geburtsdatumAbweichung: geburt?.abweichend ? { werte: geburt.werte } : null,
+      // E-IT-E: „aufgegangen“ steht an der Karte, damit die Akte das Band zeigt,
+      // egal welcher Raum sie geöffnet hat (Pipeline, Bestand, Vertrieb, Kalender).
+      kunde: { ...kartePayload(p, (verlauf as any[])[0]), ...(aufgegangen ? { aufgegangen } : {}) },
+      umleitung: aufgegangen,
       verlauf: (verlauf as any[]).map((v) => ({
         id: v.id,
         am: v.created_at,
@@ -885,6 +925,13 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
     if (!schreibRef2) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     p.schreib_ref = schreibRef2;
 
+    // ── E-IT-A (08.10.2026): DIESELBE REGEL WIE JEDES ANDERE „ZAHLT AM" ──────
+    // Hier stand eine eigene Fassung: Zusage setzen, Wiedervorlage „Tag danach"
+    // (auch Samstag/Sonntag), ohne Betreuung, ohne Zählerrücksetzung, ohne
+    // Bestellung (promised_pay_date). Jetzt geht der Weg über ergebnisAnwenden —
+    // Wiedervorlage am Werktag nach der Zusage (shared/fiaon-wiedervorlage.ts).
+    const { ergebnisAnwenden } = await import("../lib/fiaon-kontakt-ergebnis");
+    let wirkungZusage: { meldung?: string } | null = null;
     await sqlPool.begin(async (tx) => {
       await tx`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, promised_date, created_at)
@@ -893,20 +940,93 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
                 ${req.body?.notiz ? String(req.body.notiz).trim() : null},
                 ${datum}::date, NOW())
       `;
-      // Die Wiedervorlage folgt der Zusage: einen Tag danach nachfassen.
-      await tx`
-        UPDATE fiaon_persons
-           SET promised_payment_date = ${datum}::date,
-               follow_up_date = ${datum}::date + 1,
-               updated_at = NOW()
-         WHERE id = ${personId}
-      `;
+      wirkungZusage = await ergebnisAnwenden({
+        ref: p.schreib_ref, personId, ergebnis: "erreicht_zahlt_am", zusageDatum: datum,
+      }, tx);
     });
 
     const neu = await meinePerson(personId, req.agent!.id);
-    res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)) });
+    res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)), meldung: (wirkungZusage as { meldung?: string } | null)?.meldung ?? null });
   } catch (err) {
     console.error("[AGENT-KUNDEN] zusage:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/kunden/:personId/wiedervorlage — WIEDER DRAN VON HAND
+// (E-IT-A, 08.10.2026)
+//
+// Die Regel (shared/fiaon-wiedervorlage.ts) entscheidet, wann ein Mensch
+// wieder in der Pipeline steht. Der Mitarbeiter kann es übersteuern:
+//   { wahl: "heute" }        → sofort wieder unter „Wieder dran"
+//   { wahl: "woche" }        → in 1 Woche (nächster Werktag)
+//   { wahl: "zwei_wochen" }  → in 2 Wochen
+//   { wahl: "datum", datum } → ein Tag ab heute, höchstens 60 Tage
+// Gebunden an DIESELBE Zugriffsregel wie jedes Ergebnis (meinePerson), mit
+// Vermerk im Verlauf — wer wann was gesetzt hat.
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/agent/crm/kunden/:personId/wiedervorlage", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const wahl = String(req.body?.wahl ?? "").trim();
+    const heute = berlinToday();
+    const gewuenscht = wahl === "datum" ? handwahlPruefen(req.body?.datum, heute) : handwahlDatum(wahl, heute);
+    if (!gewuenscht) {
+      return res.status(400).json({ ok: false, error: "Bitte „heute“, „in 1 Woche“, „in 2 Wochen“ oder einen Tag ab heute wählen (höchstens 60 Tage)." });
+    }
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // ── STUFE A: HÖCHSTENS 3 WERKTAGE, AUCH HIER (Gegenprüfung 08.10.2026) ──
+    // Dieselbe Regel wie nach jedem Ergebnis (shared/fiaon-wiedervorlage.ts,
+    // stufeADeckeln): „in 1 Woche", „in 2 Wochen" oder ein späterer Tag werden
+    // bei gemeldeter Zahlung auf den 3. Werktag gekürzt — und die Antwort sagt es.
+    const [stufeZeile] = (await sqlPool`SELECT priority_tier FROM fiaon_persons WHERE id = ${personId}`) as any[];
+    const deckel = stufeADeckeln(gewuenscht, heute, Number(stufeZeile?.priority_tier) === 1);
+    const datum = deckel.datum!;
+    const schreibRef = p.schreib_ref || (await sorgeFuerAkte(personId, req.agent!.id));
+    const text = deckel.gedeckelt
+      ? `${wiederDranText(datum, "von_hand", heute)} (${STUFE_A_HINWEIS})`
+      : wiederDranText(datum, "von_hand", heute);
+    await sqlPool.begin(async (tx) => {
+      await tx`UPDATE fiaon_persons SET follow_up_date = ${datum}::date, updated_at = NOW() WHERE id = ${personId}`;
+      // Der Verlauf braucht eine Akte (ref ist Pflicht) — sorgeFuerAkte legt sie
+      // auch für Leads ohne Bestellung an (25.08.2026, fiaon-akte-anker.ts).
+      if (schreibRef) {
+        await tx`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${schreibRef}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                  ${`Wiedervorlage von Hand gesetzt: ${text}.`}, NOW())`;
+      }
+    });
+    // Was den Menschen trotzdem zurückhält, sagt die Antwort — sonst sucht der
+    // Mitarbeiter ihn in der Liste und hält den Knopf für kaputt.
+    // Gegenprüfung 08.10.2026: auch ein Termin an einem späteren Tag und ein heute
+    // schon gebuchtes „erreicht" halten ihn aus der Liste (basisTeile der Arbeitsliste).
+    const [st] = (await sqlPool`
+      SELECT to_char(p.promised_payment_date, 'YYYY-MM-DD') AS zusage, COALESCE(p.unreachable_count, 0) AS versuche,
+             p.priority_tier, p.is_blocked,
+             (SELECT to_char(MIN(t.beginn) AT TIME ZONE 'Europe/Berlin', 'DD.MM.YYYY') FROM fiaon_termine t
+               WHERE t.person_id = p.id AND t.status = 'gebucht' AND t.abgesagt_am IS NULL
+                 AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS termin_am,
+             EXISTS (SELECT 1 FROM fiaon_contact_log clh JOIN fiaon_applications ah ON ah.ref = clh.ref
+               WHERE ah.person_id = p.id AND clh.type = 'result' AND clh.outcome LIKE 'erreicht%'
+                 AND (clh.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS heute_erreicht
+        FROM fiaon_persons p WHERE p.id = ${personId}`) as any[];
+    const hinweis = st?.is_blocked ? "Er ist gesperrt und steht deshalb in keiner Liste."
+      : st?.zusage && String(st.zusage) >= heute ? `Er hat eine Zahlungszusage für den ${st.zusage} — bis dahin bleibt er aus der Arbeitsliste.`
+      : st?.termin_am ? `Er hat einen Termin am ${st.termin_am} — bis dahin steht er in keiner Arbeitsliste.`
+      : Number(st?.versuche) >= 9 && Number(st?.priority_tier) !== 1 ? "Er ruht (9× nicht erreicht) und kommt erst zurück, wenn er sich meldet."
+      : st?.heute_erreicht === true ? "Er wurde heute schon erreicht — ab morgen steht er wieder in der Liste."
+      : null;
+    const neu = await meinePerson(personId, req.agent!.id);
+    res.json({
+      ok: true, wiedervorlage: datum, text, hinweis, gedeckelt: deckel.gedeckelt,
+      meldung: hinweis ? `${text}. ${hinweis}` : `${text}.`,
+      kunde: neu ? kartePayload(neu, await letzteAktivitaetVon(personId)) : null,
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] wiedervorlage:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -2017,14 +2137,97 @@ router.get("/agent/karte/:personId", requireAgent, async (req: AgentRequest, res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-IT-B (08.10.2026): DIE EINLADUNG IN DER AKTE — STAND UND ERNEUT SENDEN
+//
+// Justin, 08.10.: „Konto & Karte erneut senden: jeder berechtigte Mitarbeiter
+// in der Kundenakte; nur die bestehende Einladung (gleicher Link), kein neuer
+// Vorgang; protokolliert; Drossel max. 3 je Kunde und Tag, mindestens 15
+// Minuten Abstand; Adresse und letzter Zustellstatus sichtbar; KEIN
+// automatisches Aufheben einer Brevo-Sperre.“ Berechtigt ist, wer an die Akte
+// darf (darfAnKunde) — dieselbe Regel wie für die Akte selbst. Die Logik steht
+// in EINER Funktion (karteEinladungErneut, fiaon-konto-karte.ts), die auch
+// Mara und die Verwaltung nehmen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** HTTP-Status je Ergebnis des erneuten Versands. */
+const ERNEUT_STATUS: Record<string, number> = {
+  ERNEUT_GESENDET: 200, NICHT_GEFUNDEN: 404, KEINE_EINLADUNG: 409, KONTO_STEHT: 409, GESPERRT: 409,
+  OHNE_ADRESSE: 409, ADRESSE_GESPERRT: 409, TAGESGRENZE: 429, GERADE_ERST: 429, UNTERWEGS: 429, NICHT_GESENDET: 502,
+};
+
+/** GET /agent/karte/:personId/einladung — was mit der Einladung ist (Akte, Kasten „Konto & Karte“). */
+router.get("/agent/karte/:personId/einladung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteEinladungAkte } = await import("../lib/fiaon-konto-karte");
+    const einladung = await karteEinladungAkte(personId);
+    if (!einladung) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    res.json({ ok: true, einladung });
+  } catch (err) {
+    console.error("[KARTE] einladung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/karte/:personId/erneut — die bestehende Einladung erneut senden (gleicher Link, kein neuer Vorgang). */
+router.post("/agent/karte/:personId/erneut", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteEinladungErneut, karteEinladungAkte } = await import("../lib/fiaon-konto-karte");
+    const erg = await karteEinladungErneut(personId, { agentId: req.agent!.id, name: req.agent!.name, rolle, quelle: "akte" });
+    const einladung = await karteEinladungAkte(personId).catch(() => null);
+    res.status(ERNEUT_STATUS[erg.code] ?? 400).json({ ...erg, error: erg.ok ? undefined : erg.meldung, einladung });
+  } catch (err) {
+    console.error("[KARTE] erneut:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/karte/:personId/sperre-leitung { wunsch } — E-IT-B (08.10.2026, Gegenprüfung):
+ * Die Adresse ist bei unserem Mailversand gesperrt (abgemeldet, Spam, Sperre), der
+ * Kunde will die Post aber ausdrücklich dorthin. Legt eine Aufgabe für die Leitung
+ * an — nichts wird automatisch aufgehoben (Justin, 08.10.). Berechtigt wie die Akte.
+ */
+router.post("/agent/karte/:personId/sperre-leitung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { karteSperreAnLeitung } = await import("../lib/fiaon-konto-karte");
+    const erg = await karteSperreAnLeitung(personId, { agentId: req.agent!.id, name: req.agent!.name }, String(req.body?.wunsch ?? ""));
+    res.status(erg.ok ? 200 : 409).json({ ...erg, error: erg.ok ? undefined : erg.meldung });
+  } catch (err) {
+    console.error("[KARTE] sperre-leitung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * POST /agent/karte/:personId/senden — den Weg zum Girokonto schicken.
  *
  * Drei Wände hintereinander, absichtlich:
  *   1. Darf dieser Mitarbeiter überhaupt an diesen Kunden?
- *   2. Sind alle drei Bedingungen erfüllt? (nochmal, serverseitig)
- *   3. Wurde nicht schon geschickt? Ein zweiter Link an denselben Menschen
- *      wirkt wie eine Mahnung und kostet Vertrauen.
+ *   2. Sind alle Bedingungen erfüllt und greift kein Ausschluss? (nochmal, serverseitig)
+ *   3. Wurde nicht schon geschickt? Dann ist es ein ERNEUTER Versand — und der
+ *      geht seit E-IT-B (08.10.2026) nur über karteEinladungErneut: dieselbe
+ *      Zeile, derselbe Link, Drossel. Vorher legte dieser Zweig eine NEUE Zeile
+ *      mit 10 € an und baute den Link mit der Kennung des Klickenden.
  */
 router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -2037,51 +2240,79 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
     }
 
-    const { kartenStand, partnerLink, KARTEN_BONUS_CENTS, ensureKartenTabelle } =
-      await import("../lib/fiaon-konto-karte");
+    const { kartenStand, partnerLink, KARTEN_BONUS_CENTS, ensureKartenTabelle, karteEinladungErneut,
+      karteEmpfaenger, zustellLage, karteVersandSperre } = await import("../lib/fiaon-konto-karte");
     const stand = await kartenStand(personId);
     if (!stand) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    if (!stand.bereit) {
-      return res.status(400).json({
-        ok: false,
-        error: "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
-      });
-    }
     // 04.09.2026, Daniel im Chat: „Hab bei ihm auf ‚Karte bestellen' geklickt
     // und er sagt, dass keine E-Mail angekommen ist." Die Mail war am 29.07.
-    // rausgegangen — fünf Wochen vorher. Der zweite Klick wurde abgelehnt, der
-    // Kunde blieb ohne Mail. Mit `erneut: true` geht sie noch einmal raus,
-    // und der Verlauf hält fest, wer das warum ausgelöst hat.
-    if (stand.versand && req.body?.erneut !== true) {
-      return res.status(400).json({
-        ok: false,
-        code: "BEREITS_GESCHICKT",
-        error: "Der Weg wurde diesem Kunden bereits am "
-          + new Date(stand.versand.am).toLocaleDateString("de-DE") + " geschickt"
-          + (stand.versand.vonName ? " (von " + stand.versand.vonName + ")" : "")
-          + ". Sagt der Kunde, es kam nichts an, kannst du sie erneut schicken.",
-        erneutMoeglich: true,
+    // rausgegangen — fünf Wochen vorher. Der Erneut-Fall läuft seit E-IT-B über
+    // den einen Weg (Akte: Knopf „E-Mail erneut senden“, POST …/erneut).
+    if (stand.versand) {
+      if (req.body?.erneut !== true) {
+        return res.status(400).json({
+          ok: false,
+          code: "BEREITS_GESCHICKT",
+          error: "Der Weg wurde diesem Kunden bereits am "
+            + new Date(stand.versand.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) + " geschickt"
+            + ". Sagt der Kunde, es kam nichts an, nimm „E-Mail erneut senden“ im Kasten Konto & Karte.",
+          erneutMoeglich: true,
+        });
+      }
+      const erg = await karteEinladungErneut(personId, { agentId: req.agent!.id, name: req.agent!.name, rolle, quelle: "akte" });
+      return res.status(ERNEUT_STATUS[erg.code] ?? 400).json({
+        ...erg, error: erg.ok ? undefined : erg.meldung, hinweis: erg.ok ? erg.meldung : undefined, stand: await kartenStand(personId),
       });
     }
 
-    const link = partnerLink(personId, req.agent!.id);
-    const { mailSenden } = await import("../lib/fiaon-mail-senden");
-    const erg = await mailSenden({
-      event: "konto_karte_einladung",
-      personId,
-      zusatz: { partner_link: link },
-      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
-    });
-    if (!erg?.ok) {
-      return res.status(400).json({ ok: false, error: (erg as any)?.error || "Die Mail ging nicht raus." });
+    if (!stand.bereit) {
+      return res.status(stand.ausschluss ? 409 : 400).json({
+        ok: false,
+        code: stand.ausschluss ? "GESPERRT" : "NICHT_BEREIT",
+        error: stand.ausschluss ? `Kein Kartenlink: ${stand.ausschluss.text}.`
+          : "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
+      });
     }
 
-    await ensureKartenTabelle();
-    await sqlPool`
-      INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents)
-      VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS})
-    `;
+    // E-IT-B: Kam an seine Adresse zuletzt nichts an, geht nichts raus — und nichts wird entsperrt (Justin, 08.10.).
+    const an = await karteEmpfaenger(personId);
+    const lage = an ? await zustellLage(personId, an) : null;
+    if (lage?.problem) {
+      // Gegenprüfung 08.10.: Der Hinweis richtet sich nach Brevos Grund (abgemeldet → Leitung, Rückläufer → Adresse ändern).
+      return res.status(409).json({
+        ok: false, code: "ADRESSE_GESPERRT", zustell: lage,
+        error: `Nicht geschickt: An ${an} kam zuletzt nichts an (${lage.text}${lage.grund ? ` — ${lage.grund}` : ""}). ${lage.hinweis ?? ""}`.trim(),
+      });
+    }
+
+    // Doppelklick, zweites Fenster, Takt im selben Augenblick: nur EIN Erstversand.
+    const frei = karteVersandSperre(personId);
+    if (!frei) return res.status(429).json({ ok: false, code: "UNTERWEGS", error: "Die Einladung ist in diesem Augenblick schon unterwegs." });
+    try {
+      await ensureKartenTabelle();
+      const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_konto_karte WHERE person_id = ${personId} AND kanal <> 'gemeldet' LIMIT 1`) as any[];
+      if (schon) return res.status(409).json({ ok: false, code: "BEREITS_GESCHICKT", error: "Die Einladung ist eben schon rausgegangen.", erneutMoeglich: true });
+
+      const link = partnerLink(personId, req.agent!.id);
+      const { mailSenden } = await import("../lib/fiaon-mail-senden");
+      const erg = await mailSenden({
+        event: "konto_karte_einladung",
+        personId,
+        zusatz: { partner_link: link },
+        akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+      });
+      if (!erg?.ok) {
+        return res.status(400).json({ ok: false, error: (erg as any)?.grund || (erg as any)?.error || "Die Mail ging nicht raus." });
+      }
+
+      await sqlPool`
+        INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents)
+        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS})
+      `;
+    } finally {
+      frei();
+    }
 
     // Der Verlauf hält fest, WER geschickt hat. Ein Kunde, der später fragt
     // „von wem kam das?", bekommt eine Antwort.
@@ -2097,6 +2328,11 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
                 'Konto & Karte: Weg zum Girokonto beim Kooperationspartner geschickt.', ${ap.ref}, NOW())
       `.catch(() => {});
     }
+    // E-IT-F (08.10.2026): Der gesendete Kartenlink erledigt die Konto-&-Karte-Aufträge dieses Menschen.
+    {
+      const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+      await ereignisMelden({ ereignis: "kartenlink_gesendet", personId, ref: ap?.ref ?? null, akteur: { id: req.agent!.id, name: req.agent!.name } });
+    }
 
     res.json({
       ok: true,
@@ -2111,17 +2347,24 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
 });
 
 /**
- * GET /agent/karte/bereit/liste — wer ist bereit?
+ * GET /agent/karte/bereit/liste — Konto & Karte: wer braucht einen Menschen?
  *
  * Justin: „in die Tagesliste bitte bei den Mitarbeitern, die die Kunden
  * betreuen." Deshalb IMMER auf die eigenen Kunden eingegrenzt — die Leitung
  * sieht ihre eigenen, nicht die aller.
+ *
+ * E-IT-B (08.10.2026): Die Liste zeigt keine Ausgeschlossenen mehr (vorher
+ * 107 Gekündigte von 110) und heißt in der Oberfläche „Konto & Karte —
+ * nachfassen“: Mail kam nicht an · eingeladen, nicht geklickt · bereit ·
+ * wartet auf Widerrufsfrist (karteNachfassen). Die Adresse bleibt, damit
+ * Schreibtisch und Bestand ohne Umweg weiterlesen.
  */
 router.get("/agent/karte/bereit/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    const { bereiteKunden } = await import("../lib/fiaon-konto-karte");
-    const liste = await bereiteKunden({ agentId: req.agent!.id, ohneVersand: true, grenze: 100 });
-    res.json({ ok: true, anzahl: liste.length, kunden: liste });
+    const { karteNachfassen } = await import("../lib/fiaon-konto-karte");
+    // Gegenprüfung 08.10.2026: anzahl = die ECHTE Gesamtzahl; gezeigt werden höchstens 200 (dringend, dann älteste zuerst).
+    const { faelle, gesamt } = await karteNachfassen({ agentId: req.agent!.id, grenze: 200 });
+    res.json({ ok: true, anzahl: gesamt, gezeigt: faelle.length, kunden: faelle });
   } catch (err) {
     console.error("[KARTE] liste:", err);
     // Eine Liste, die klemmt, darf die Tagesliste nicht mitreissen.

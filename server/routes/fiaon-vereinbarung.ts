@@ -29,6 +29,7 @@
 import { Router, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import { sqlPool } from "../lib/db-pool";
+import { geburtsdatumAnzeige, geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
 
 const router = Router();
 
@@ -261,6 +262,13 @@ router.post("/vereinbarung/unterzeichnen", async (req: Request, res: Response) =
     if (fehlend.length) {
       return res.status(400).json({ ok: false, error: `Es fehlen noch: ${fehlend.join(", ")}.`, fehlend });
     }
+    // E-IT-G (08.10.2026): das Geburtsdatum über den einen Leser — vorher genügte „nicht leer“.
+    // Im Vertrag steht es einheitlich als TT.MM.JJJJ (auch die Prüfsumme rechnet mit dieser Form).
+    const geb = geburtsdatumFuerSpeicher((angaben as any).geburtsdatum, "mitarbeiter");
+    if (!geb.ok || geb.aenderung !== "setzen") {
+      return res.status(400).json({ ok: false, error: `Geburtsdatum: ${geb.ok ? "bitte als TT.MM.JJJJ eintragen." : geb.fehler}`, fehlend: ["Geburtsdatum"] });
+    }
+    (angaben as any).geburtsdatum = geburtsdatumAnzeige(geb.iso);
     // Die Reihenfolge ist Teil des Vertrags, nicht der Oberflaeche: Ohne
     // Gegenzeichnung der Geschaeftsfuehrung liegt kein Angebot vor, das
     // angenommen werden koennte.

@@ -34,9 +34,27 @@ import { KOPF_SQL, STOPP_KOEPFE_SQL, VERTRIEBSSPERRE_SQL, WERBESPERRE_FAMILIE_SQ
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { eingangOffenSql } from "./fiaon-zahlung-unverbucht";
+import { STUFE_A_HOECHSTENS_WERKTAGE } from "@shared/fiaon-wiedervorlage";
 
-/** Ab so vielen Werktagen (Mo–Fr, Berlin) nach der Meldung wird geklärt. Justin, IT-Feedback: höchstens 3. */
-export const KLAERUNG_AB_WERKTAGEN = 3;
+// ── ZUSAMMEN MIT DER PIPELINE-REGEL (Integration IT-Feedback Strang a × Mara-Topsales, 08.10.2026) ─────────────
+// Strang a (shared/fiaon-wiedervorlage.ts) lässt Stufe A in der Pipeline höchstens STUFE_A_HOECHSTENS_WERKTAGE
+// Werktage pausieren und gibt ab dem 9. Fehlversuch an die Vertriebsleitung (stufeAAnLeitung, fiaon-nicht-erreicht.ts).
+// Diese Datei legt ab demselben 3. Werktag die Anrufaufgabe an. Damit es EINE Regel bleibt und keine doppelten
+// Aufgaben entstehen:
+//   · derselbe Wert (STUFE_A_HOECHSTENS_WERKTAGE) — nicht eine zweite 3;
+//   · höchstens EINE offene Anrufaufgabe je Mensch (über alle seine Bestellungen), nie zweimal je Bestellung;
+//   · keine Anrufaufgabe, solange die Leitung über den Fall entscheidet (offene Aufgabe „Zahlung gemeldet,
+//     n× nicht erreicht — entscheiden“); entsteht diese später, übergibt stufeAAnLeitung die offene
+//     Anrufaufgabe an sie (klaerAufgabeAnLeitungUebergeben) — der Betreuer hat dann nicht zwei Zettel zum selben Fall;
+//   · die Aufgabe hat im Auftrags-Katalog eine eigene Art (stufe_a_klaeren, shared/fiaon-auftrag-arten.ts): Ein
+//     erreichtes Gespräch des Betreuers (auch aus der Pipeline) oder die gebuchte Zahlung erledigt sie automatisch.
+//   · „gekündigt“ nach der EINEN Regel aus Strang b (shared/fiaon-kuendigung-regel.ts): ein gesetztes gekuendigt_am
+//     IST die geltende Kündigung (die Rücknahme setzt es auf NULL) — nicht mehr „… oder zurückgenommen“.
+
+/** Ab so vielen Werktagen (Mo–Fr, Berlin) nach der Meldung wird geklärt. Justin, IT-Feedback: höchstens 3 — derselbe Wert wie die Pipeline. */
+export const KLAERUNG_AB_WERKTAGEN = STUFE_A_HOECHSTENS_WERKTAGE;
+/** Der Text der Leitungs-Aufgabe nach dem 9. Fehlversuch beginnt so (fiaon-nicht-erreicht.ts, LEITUNG_MARKE). */
+const LEITUNG_MARKE_SQL = "%Zahlung gemeldet, %nicht erreicht%";
 /**
  * So viele Anrufaufgaben legt ein Lauf höchstens an (stündlich, 08–20 Uhr) — der Altbestand (gemessen 08.10.: 103 Fälle)
  * verteilt sich so über einen Arbeitstag, statt die Betreuer mit hundert Aufgaben-Mails auf einmal zu fluten.
@@ -99,7 +117,7 @@ export function klaerungKern(ein: {
 
 // ── (a) DIE ANRUFAUFGABE ─────────────────────────────────────────────────────
 /** Die Fälle für eine Anrufaufgabe — eine Zeile je Person (die jüngste Meldung). Exportiert für Trockenzählung und Prüfstand. */
-export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: boolean } = {}): string {
+export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: boolean; mitLeitung?: boolean } = {}): string {
   return `
     SELECT f.* FROM (
       SELECT DISTINCT ON (fa.person_id) fa.ref, fa.person_id, fa.pack_name, fa.pack_key, fa.amount_due, fa.payment_reference,
@@ -114,7 +132,8 @@ export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: bo
         JOIN fiaon_persons p ON p.id = fa.person_id
        WHERE fa.payment_status = 'claimed_paid' AND fa.claimed_paid_at IS NOT NULL
          AND fa.merged_into IS NULL AND fa.archived_at IS NULL AND fa.gdpr_deleted_at IS NULL AND fa.cancelled_at IS NULL
-         AND (fa.gekuendigt_am IS NULL OR fa.kuendigung_zurueckgenommen_am IS NOT NULL)
+         -- Integration Strang b (08.10.2026): gesetztes gekuendigt_am = geltende Kündigung (shared/fiaon-kuendigung-regel.ts)
+         AND fa.gekuendigt_am IS NULL
          AND COALESCE(fa.type, '') <> 'schufa' AND COALESCE(fa.ref, '') NOT LIKE 'FIAON-SCHUFA-%'
          AND NOT (${produktkategorieSql("fa")} IN ('global', 'auskunft'))
          AND NOT ${globalKundeSql("fa.person_id")}
@@ -125,7 +144,18 @@ export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: bo
          -- der Bankabgleich zuerst: ein passender ungebuchter Eingang → buchen, nicht anrufen
          AND fa.person_id NOT IN (${eingangOffenSql()})
          AND ${werktageSeitSql("fa.claimed_paid_at")} >= ${KLAERUNG_AB_WERKTAGEN}
-         ${opt.nurOhneAufgabe === false ? "" : "AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':a-klaeren')"}
+         ${opt.nurOhneAufgabe === false ? "" : `AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':a-klaeren')
+         -- Integration Strang a (08.10.2026): höchstens EINE offene Anrufaufgabe je Mensch — auch über mehrere Bestellungen
+         AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t2 WHERE t2.status <> 'erledigt'
+                           AND t2.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id))
+         -- Querprüfung 08.10.2026 (E-303 × E-184): keine zweite Anrufaufgabe, solange „Erstzahlung: E-Mail unzustellbar“
+         -- zu diesem Menschen offen ist — dieser Auftrag nennt die gemeldete Zahlung mit (unzustellbareErstzahlungenMelden).
+         AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t3 WHERE t3.status <> 'erledigt'
+                           AND t3.schluessel IN (SELECT 'antrag:' || x.ref || ':unzustellbar' FROM fiaon_applications x WHERE x.person_id = fa.person_id))`}
+         ${opt.mitLeitung ? `-- … und keine, solange die Vertriebsleitung nach dem 9. Fehlversuch entscheidet (stufeAAnLeitung)
+         AND NOT EXISTS (SELECT 1 FROM fiaon_vermerke v WHERE v.art = 'aufgabe' AND v.status = 'offen' AND v.entfernt_am IS NULL
+                           AND v.text LIKE '${LEITUNG_MARKE_SQL}'
+                           AND v.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.person_id = fa.person_id))` : ""}
        ORDER BY fa.person_id, fa.claimed_paid_at DESC
     ) f
     ORDER BY f.claimed_paid_at DESC
@@ -167,7 +197,15 @@ export async function stufeAKlaerenMelden(opt: { trocken?: boolean; hoechstens?:
   await globalKundeBereit();
   const { ensureTodoTabelle, auftragFuerKunden, empfaengerNachId } = await import("../routes/fiaon-betreiber-todo");
   await ensureTodoTabelle();
-  const zeilen = (await sqlPool.unsafe(stufeAKlaerenSql({ hoechstens: opt.hoechstens }))) as any[];
+  // Integration 08.10.2026: Anrufaufgaben, die vor ihrer eigenen Art (stufe_a_klaeren) angelegt wurden, tragen „sonstiges“
+  // (nur von Hand) — sie werden hier einmal umgestellt, damit auch sie das erreichte Gespräch bzw. die Zahlung erledigt.
+  if (!opt.trocken) {
+    await sqlPool`UPDATE fiaon_betreiber_todos SET art = 'stufe_a_klaeren'
+                   WHERE art = 'sonstiges' AND schluessel LIKE 'antrag:%:a-klaeren'`.catch(() => {});
+  }
+  // Die Leitungs-Aufgaben (fiaon_vermerke) gibt es auf jedem Betriebsstand — auf einem frischen Prüfstand vielleicht nicht.
+  const [vt] = (await sqlPool`SELECT to_regclass('public.fiaon_vermerke') IS NOT NULL AS da`.catch(() => [])) as any[];
+  const zeilen = (await sqlPool.unsafe(stufeAKlaerenSql({ hoechstens: opt.hoechstens, mitLeitung: vt?.da === true }))) as any[];
   if (opt.trocken || !zeilen.length) return zeilen.length;
   let n = 0;
   for (const z of zeilen) {
@@ -196,4 +234,40 @@ export async function stufeAKlaerenMelden(opt: { trocken?: boolean; hoechstens?:
   }
   if (n) console.log(`[STUFE-A] ${n} Anrufaufgabe(n) „Zahlung gemeldet, nicht da“ angelegt.`);
   return n;
+}
+
+/**
+ * Integration Strang a × Mara-Topsales (08.10.2026): Geht ein Stufe-A-Fall nach dem 9. Fehlversuch an die
+ * Vertriebsleitung (stufeAAnLeitung), ist die offene Anrufaufgabe „Zahlung gemeldet, nicht da — anrufen und klären“
+ * damit übergeben: Sie wird mit einem Satz erledigt (Art „verwaltung“, im Verlauf sichtbar) — der Betreuer hat nicht
+ * zwei Zettel zum selben Fall, und die Leitung entscheidet. Läuft in einem Sicherungspunkt, wenn `lauf` eine Transaktion
+ * ist: Ein Fehler hier darf das Buchen des Ergebnisses nie abbrechen. Gibt die Zahl der übergebenen Aufgaben zurück.
+ */
+export async function klaerAufgabeAnLeitungUebergeben(personId: number, lauf: typeof sqlPool = sqlPool): Promise<number> {
+  const arbeit = async (tx: typeof sqlPool): Promise<number> => {
+    const [t] = (await tx`SELECT to_regclass('public.fiaon_betreiber_todos') IS NOT NULL AS todo,
+                                 to_regclass('public.fiaon_betreiber_todo_beitraege') IS NOT NULL AS beitrag`) as any[];
+    if (!t?.todo || !t?.beitrag) return 0;
+    const offen = (await tx`
+      SELECT id FROM fiaon_betreiber_todos
+       WHERE status <> 'erledigt'
+         AND schluessel IN (SELECT 'antrag:' || a.ref || ':a-klaeren' FROM fiaon_applications a WHERE a.person_id = ${personId})`) as any[];
+    if (!offen.length) return 0;
+    const { auftragErledigen } = await import("./fiaon-auftraege");
+    let n = 0;
+    for (const o of offen) {
+      const text = "An die Vertriebsleitung übergeben: 9× nicht erreicht bei gemeldeter Zahlung — dort liegt jetzt die Aufgabe "
+        + "„Zahlung gemeldet, … entscheiden“. Erreichst du den Kunden doch, trage das Ergebnis wie immer in die Akte ein.";
+      if (await auftragErledigen(Number(o.id), { art: "verwaltung", von: "Erinnerungsmaschine", autorArt: "system", ergebnis: text, beitragText: text }, tx)) n++;
+    }
+    return n;
+  };
+  try {
+    const sp = (lauf as any)?.savepoint;
+    if (lauf !== sqlPool && typeof sp === "function") return await (lauf as any).savepoint((tx: typeof sqlPool) => arbeit(tx));
+    return await arbeit(lauf);
+  } catch (e) {
+    console.error("[STUFE-A] Übergabe an die Leitung:", e instanceof Error ? e.message : e);
+    return 0;
+  }
 }

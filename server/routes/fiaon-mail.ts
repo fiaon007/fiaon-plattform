@@ -633,7 +633,26 @@ router.post("/agent/mail/:personId(\\d+)/frei", requireAgent, async (req: AgentR
   }
 });
 
-/** POST /agent/mail/:personId/:event — senden. */
+/**
+ * Konto & Karte aus einem Sende-Menü (E-IT-B, 08.10.2026): Liegt schon eine
+ * Einladung vor, ist es ein erneuter Versand (karteEinladungErneut) — sonst
+ * gibt es aus dem Menü keinen Erstversand (der hängt am Knopf „Karte bestellen“
+ * bzw. an der Automatik, wegen der 10 € und der Tore). Antwort in der Form der
+ * Menü-Routen (ok, status, grund, meldung).
+ */
+async function karteMenueVersand(personId: number, akteur: { agentId: number | null; name: string; rolle: string; quelle: "akte" | "verwaltung" }) {
+  const { karteEinladungErneut } = await import("../lib/fiaon-konto-karte");
+  const e = await karteEinladungErneut(personId, akteur);
+  if (e.code === "KEINE_EINLADUNG") {
+    const g = "Noch keine Einladung — sie geht nach der ersten Zahlung automatisch raus; von Hand über „Karte bestellen“ in der Akte (Reiter „Sein Antrag“).";
+    return { ok: false, status: "abgelehnt", grund: g, meldung: g };
+  }
+  return e.ok
+    ? { ok: true, status: "versandt", grund: null, meldung: e.meldung }
+    : { ok: false, status: "abgelehnt", grund: e.meldung, meldung: e.meldung };
+}
+
+/** POST /agent/mail/:personId/:event — senden. *//** POST /agent/mail/:personId/:event — senden. */
 router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
@@ -649,6 +668,11 @@ router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentReque
     const menue = def ? imMenue(def, rolle) : { ja: true, grund: null };
     if (!menue.ja) {
       return res.json({ ok: false, status: "abgelehnt", grund: menue.grund, meldung: menue.grund, historie: await versandHistorie(personId) });
+    }
+    // E-IT-B (08.10.2026): Konto & Karte erneut geht über den EINEN Weg (dieselbe Zeile, derselbe Link, Drossel).
+    if (String(req.params.event) === "konto_karte_einladung") {
+      const erg = await karteMenueVersand(personId, { agentId: req.agent!.id, name: req.agent!.name, rolle, quelle: "akte" });
+      return res.json({ ...erg, historie: await versandHistorie(personId) });
     }
     const erg = await mailSenden({
       event: String(req.params.event), personId,
@@ -682,6 +706,12 @@ router.post("/admin/mail/:personId/:event", async (req: Request, res: Response) 
     const menue = def ? imMenue(def, "admin") : { ja: true, grund: null };
     if (!menue.ja) {
       return res.status(400).json({ ok: false, status: "abgelehnt", grund: menue.grund, meldung: menue.grund, error: menue.grund, historie: await versandHistorie(personId) });
+    }
+    // E-IT-B (08.10.2026): Der Nachversand der Konto-&-Karte-Einladung ist ein ERNEUTER Versand derselben
+    // Einladung — dieselbe Zeile, derselbe Link (Kennung des ursprünglichen Mitarbeiters), dieselbe Drossel.
+    if (String(req.params.event) === "konto_karte_einladung") {
+      const erg = await karteMenueVersand(personId, { agentId: null, name: "Verwaltung", rolle: "admin", quelle: "verwaltung" });
+      return res.status(erg.ok ? 200 : 400).json({ ...erg, historie: await versandHistorie(personId) });
     }
     const erg = await mailSenden({
       event: String(req.params.event), personId,

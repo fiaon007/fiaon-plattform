@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { FRAGEN, befunde, beantwortet as anzahlBeantwortet, summeMonatlichCents, type Antworten, type Frage } from "@shared/fiaon-ansprueche";
 import type { Vorgang } from "./typen";
 import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/AuskunftKauf";
+import { UnterlagenListe } from "@/components/unterlagen/UnterlagenListe";
 import { demoStand, demoAlterTage, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
 import { limitZusatz, LIMIT_TEXTE, type LimitAnspruch } from "@shared/fiaon-limit-gespraech";
 
@@ -291,16 +292,19 @@ function Mehrfach({ frage, wert, onWeiter }: { frage: Frage; wert: string[]; onW
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// UNTERLAGEN — derselbe Endpunkt wie bisher (/upload-kyc), neue Oberfläche
+// UNTERLAGEN — EINE KOMPONENTE FÜR /app UND /dashboard (E-IT-C, 08.10.2026)
 //
-// 24.09.2026 (E-240): Die Bonitätsauskunft stand hier nur als „Eigene
-// Bonitätsauskunft (optional)" — ein Upload-Feld, kein Wort davon, dass FIAON
-// sie holt. Der Weg (shared/fiaon-rahmenweg.ts, Schritt 6) schickt mit
-// „Auskunft beauftragen" genau hierher. Jetzt steht über der Liste die Wahl:
+// Bis heute: je Unterlage EIN Feld, das verschwand, sobald etwas vorlag, und
+// /app übersah „erneut angefordert" der Verwaltung (rechnete nur mit `da`).
+// Jetzt zeichnet UnterlagenListe den Stand je Kategorie vom Server
+// (GET /kunde/:ref/unterlagen): liegt vor / fehlt / wird geprüft / bitte neu,
+// Dateiliste, „Datei hinzufügen" immer, „Weitere Unterlagen", Monatsleiste.
+//
+// 24.09.2026 (E-240): Über der Liste steht die Wahl für die Bonitätsauskunft:
 // FIAON holt sie (Preis vom Server, Auftrag nach § 312j BGB) — oder Sie laden
-// eine aktuelle selbst hoch (das Feld unten, als zweiter, kleiner Weg). Der
-// Block kommt als `u.auskunftKauf`, weil Bereich.tsx diesem Schirm nur
-// `b.unterlagen` reicht.
+// eine aktuelle selbst hoch (Karte „Eigene Bonitätsauskunft", Anker
+// #auskunft-hochladen). Der Block kommt als `u.auskunftKauf`, weil Bereich.tsx
+// diesem Schirm nur `b.unterlagen` reicht.
 // ═══════════════════════════════════════════════════════════════════════════
 export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { hinweise?: string[]; kontoauszug: boolean; ausweis: boolean; auskunft: boolean; auskunftKauf?: AuskunftKauf | null; kycStatus?: string }; basis?: string }) {
   const kauf = u.auskunftKauf ?? null;
@@ -308,39 +312,10 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
   // schickt mit „Auskunft beauftragen" hierher, und eine leere Stelle wäre eine Sackgasse.
   const kaufSperre = !!kauf && kauf.stufe === "nichts" && !!kauf.sperre;
   const kaufZeigen = !!kauf && !u.auskunft && (kauf.darfKaufen || kauf.stufe === "offen" || kauf.stufe === "bezahlt" || kaufSperre);
-  const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
-  const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
-  const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; titel: string; text: string; da: boolean; optional?: boolean }[] = [
-    { key: "bankStatement", titel: "Kontoauszug", text: "Die letzten drei Monate, alle Seiten. PDF aus der Bank-App oder ein lesbares Foto.", da: u.kontoauszug },
-    { key: "idCard", titel: "Ausweis oder Reisepass", text: "Vorderseite genügt, alle vier Ecken im Bild.", da: u.ausweis },
-    { key: "schufaDoc", titel: "Eigene Bonitätsauskunft", text: "Nur falls Sie schon eine haben: die vollständige Datenkopie nach Art. 15 DSGVO, alle Seiten. Ein Foto der Score-Anzeige aus einer App können wir nicht verwenden.", da: u.auskunft, optional: true },
-  ];
-  const offen = felder.filter((f) => !f.da);
-  const gewaehlt = Object.keys(dateien).filter((k) => (dateien as any)[k]).length;
-
-  const senden = async () => {
-    if (demo) { setMeldung({ ton: "gut", text: "In der Demo-Ansicht wird nichts hochgeladen." }); return; }
-    const fd = new FormData(); fd.append("ref", kundeRef);
-    let n = 0; for (const f of offen) { const d = dateien[f.key]; if (d) { fd.append(f.key, d); n++; } }
-    if (!n) return;
-    setLaeuft(true); setMeldung(null);
-    const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
-    const j = await r.json().catch(() => null); setLaeuft(false);
-    if (r.ok && j?.ok !== false) { setMeldung({ ton: "gut", text: j?.message || "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns." }); setDateien({}); }
-    else setMeldung({ ton: "fehler", text: j?.error || "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." });
-  };
 
   return (
     <>
-      {/* 07.09.2026 (Daniel, Feedback 4): Was die automatische Prüfung beim Upload gefunden hat, steht
-          hier dauerhaft — nicht nur in der Meldung direkt nach dem Hochladen. */}
-      {(u.hinweise ?? []).length > 0 && (
-        <div className="ap-karte ap-auf v1" style={{ borderColor: "rgba(248,113,113,.45)" }}>
-          {(u.hinweise ?? []).map((h, i) => <p key={i} className="ap-meldung fehler" role="status" style={{ margin: i ? "8px 0 0" : 0 }}>{h}</p>)}
-        </div>
-      )}
-      <h1 className="ap-gruss ap-auf">Unterlagen<small>{offen.filter((f) => !f.optional).length === 0 ? "Alles da. Wir prüfen und melden uns." : "Was noch fehlt – ein Handyfoto genügt, wenn alles lesbar ist."}</small></h1>
+      <h1 className="ap-gruss ap-auf">Unterlagen<small>{u.kontoauszug && u.ausweis ? "Alles da. Wir prüfen und melden uns — Sie können jederzeit etwas dazulegen." : "Was noch fehlt – ein Handyfoto genügt, wenn alles lesbar ist."}</small></h1>
       {!u.kontoauszug && (
         <Link href={`${basis}/unterlagen/konto`} className="ap-karte ap-auf v1" style={{ display: "block", textDecoration: "none" }}>
           <h3>Konto verbinden statt fotografieren</h3>
@@ -365,36 +340,7 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
           </div>
         </section>
       )}
-      <div className="ap-karte ap-auf v1">
-        <ol className="ap-etappen">
-          {felder.map((f) => (
-            <li key={f.key} id={f.key === "schufaDoc" ? "auskunft-hochladen" : undefined} className={`ap-etappe ${f.da ? "fertig" : "jetzt"}`}>
-              <span className={`ap-punkt ${f.da ? "fertig" : f.optional ? "" : "jetzt"}`}>{f.da ? "✓" : null}</span>
-              <div>
-                <b>{f.titel}{f.optional && !f.da ? " (optional)" : ""}</b>
-                <small>{f.da ? "Liegt vor." : f.text}</small>
-                {/* 18.09.2026: die eigene Unterlage öffnen (Team-Feedback, Priorität 1). */}
-                {f.da && !demo && (
-                  <a className="ap-link" style={{ display: "inline-block", marginTop: 4 }} target="_blank" rel="noopener noreferrer"
-                     href={`/api/fiaon/kunde/${encodeURIComponent(kundeRef)}/dokument/${f.key === "bankStatement" ? "kontoauszug" : f.key === "idCard" ? "ausweis" : "schufa"}`}>
-                    Ansehen
-                  </a>
-                )}
-                {!f.da && (
-                  <label className="ap-datei">
-                    <input type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => setDateien({ ...dateien, [f.key]: e.target.files?.[0] ?? undefined })} />
-                    <span className="ap-knopf still klein">{dateien[f.key] ? dateien[f.key]!.name : "Datei wählen oder fotografieren"}</span>
-                  </label>
-                )}
-              </div>
-              <span className="ap-stempel">{f.da ? "liegt vor" : ""}</span>
-            </li>
-          ))}
-        </ol>
-        {offen.length > 0 && <button type="button" className="ap-knopf" style={{ marginTop: 14 }} disabled={laeuft || gewaehlt === 0} onClick={senden}>{laeuft ? "Wird hochgeladen …" : gewaehlt > 1 ? `${gewaehlt} Dateien einreichen` : "Einreichen"}</button>}
-        {meldung && <div className={`ap-meldung ${meldung.ton}`} role="status">{meldung.text}</div>}
-        <p className="ap-fuss" style={{ marginTop: 12 }}>PDF, JPG oder PNG, bis 25 MB je Datei. iPhone-Fotos im Format HEIC können wir nicht lesen – stellen Sie in den Kamera-Einstellungen auf „Maximale Kompatibilität“.</p>
-      </div>
+      <UnterlagenListe kundeRef={kundeRef} demo={demo} variante="ap" />
     </>
   );
 }

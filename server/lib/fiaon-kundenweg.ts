@@ -277,15 +277,27 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     SELECT created_at, art, text, status, faellig_am, dringend, autor_name, erledigt_am FROM fiaon_vermerke
      WHERE ref = ANY(${refs}) AND entfernt_am IS NULL ORDER BY created_at DESC LIMIT 20` as unknown as Promise<any[]>) : [];
   for (const v of vermerke) add(v.created_at, v.art === "aufgabe" ? "aufgabe" : "notiz", `${v.art === "aufgabe" ? "Aufgabe" : "Notiz"} von ${v.autor_name || "—"}: ${kurz(v.text, 240)}${v.art === "aufgabe" ? ` (${v.status}${v.faellig_am ? `, fällig ${tag(v.faellig_am)}` : ""}${v.dringend ? ", dringend" : ""})` : ""}`);
+  // E-IT-F (08.10.2026): über person_id/ref (Migration 102) — VORHER „schluessel LIKE postmeister:<person>:%",
+  // das wegen der Mail-Kennung im selben Schlüsselraum auch Aufträge FREMDER Kunden traf und alle
+  // WhatsApp-Aufträge sowie Links /agent/kunden?person= übersah. Der Link bleibt als Rückfall für Zeilen,
+  // die der Zuordnungslauf noch nicht erreicht hat.
   const todos = (personId || refs.length) ? await quelle("todos", () => sqlPool`
     SELECT created_at, titel, status, faellig_am, zustaendig_name, quelle, ergebnis FROM fiaon_betreiber_todos
-     WHERE ${refs.length ? sqlPool`link LIKE ANY(${refs.map((r) => `%${r}%`)})` : sqlPool`FALSE`} OR schluessel LIKE ${`postmeister:${personId ?? "x"}:%`}
+     WHERE (${personId ?? null}::int IS NOT NULL AND person_id = ${personId ?? null}::int)
+        OR (${refs.length > 0} AND ref = ANY(${refs}::text[]))
+        OR (zugeordnet_am IS NULL AND ${refs.length ? sqlPool`link LIKE ANY(${refs.map((r) => `%${r}%`)})` : sqlPool`FALSE`})
      ORDER BY created_at DESC LIMIT 15` as unknown as Promise<any[]>) : [];
   for (const t of todos) add(t.created_at, "aufgabe", `Auftrag${t.zustaendig_name ? ` für ${t.zustaendig_name}` : ""}: „${kurz(t.titel, 90)}" — ${t.status}${t.faellig_am ? `, fällig ${tag(t.faellig_am)}` : ""}${t.ergebnis ? ` — Ergebnis: ${kurz(t.ergebnis, 160)}` : ""}`);
+  // E-IT-G (08.10.2026): identifiziert_ueber über to_jsonb gelesen — so bricht die Abfrage nicht, falls Migration 103 fehlt.
   const kuendAntraege = refs.length ? await quelle("cancellation_requests", () => sqlPool`
-    SELECT created_at, reason, cancellation_date, status, admin_note, processed_at FROM cancellation_requests WHERE ref = ANY(${refs}) ORDER BY created_at DESC LIMIT 5` as unknown as Promise<any[]>) : [];
+    SELECT c.created_at, c.reason, c.cancellation_date, c.status, c.admin_note, c.processed_at,
+           to_jsonb(c) ->> 'identifiziert_ueber' AS identifiziert_ueber
+      FROM cancellation_requests c WHERE c.ref = ANY(${refs}) ORDER BY c.created_at DESC LIMIT 5` as unknown as Promise<any[]>) : [];
   for (const k of kuendAntraege) {
-    add(k.created_at, "vertrag", `KÜNDIGUNGSANTRAG über das Portal: „${kurz(k.reason, 160)}"${k.cancellation_date ? `, gewünscht zum ${tag(k.cancellation_date)}` : ""} — Status ${k.status}`);
+    // Ohne passendes Geburtsdatum angenommen (Kündigungsseite, § 312k BGB) → das Team prüft die Identität.
+    const ident = k.identifiziert_ueber === "name_email" ? " (ohne Geburtsdatum angenommen – Identität prüfen)"
+      : k.identifiziert_ueber === "name_email_abweichend" ? " (Geburtsdatum passte nicht – Identität prüfen)" : "";
+    add(k.created_at, "vertrag", `KÜNDIGUNGSANTRAG über das Portal${ident}: „${kurz(k.reason, 160)}"${k.cancellation_date ? `, gewünscht zum ${tag(k.cancellation_date)}` : ""} — Status ${k.status}`);
     add(k.processed_at, "vertrag", `Kündigungsantrag bearbeitet: ${k.status}${k.admin_note ? ` — ${kurz(k.admin_note, 160)}` : ""}`);
   }
 

@@ -5,6 +5,75 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 — IT-Feedback Etappe 1: Punkte 1–15 (außer Ausweis-KI)
+
+Stand: in einem Zweig zusammengeführt und geprüft, **noch nicht live** — erst mit dem Deploy bedienbar. Punkt 12 (Ausweis an die KI)
+ist nicht dabei. Warum: die Befunde des Teams aus dem IT-Feedback vom 07.10.2026, je Punkt mit Zahlen aus der Produktion belegt.
+
+- **(1) Pipeline rotiert:** Wer gerade dran war, steht nicht morgen wieder oben — eine Regel für „wieder dran am“ (zahlt sofort →
+  nach 3 Werktagen prüfen, nicht erreicht → wachsender Abstand bis 14 Tage Pause, Stufe A höchstens 3 Werktage), von Hand „in 1/2
+  Wochen“, Liste „pausiert“ mit „Heute wieder dran“; doppelt gebuchte Anrufe zählen einmal. *Wo:* Office › Pipeline, Akte „anderes Ergebnis“.
+- **(2) Konto & Karte erneut senden:** Der Kasten „Konto & Karte“ in der Akte zeigt den Weg der Einladung, und „E-Mail erneut senden“
+  schickt denselben Link noch einmal, ohne neuen Vorgang. *Wo:* Akte › Überblick bzw. „Sein Antrag“.
+- **(3) Unterlagen hinzufügen statt ersetzen:** Kunde und Team legen Dateien dazu (bis 50 MB, „Weitere Unterlagen“), je Unterlage steht
+  „liegt vor / fehlt / wird geprüft / bitte neu“. *Wo:* Kundenbereich › Unterlagen, Akte › Dokumente.
+- **(4a) Fehlende Bonitätsauskünfte:** Die Akte sagt, wo eine bezahlte Auskunft steht („Bezahlt am … — Beschaffung wartet auf …“),
+  ein eigener Upload bei offenem Auftrag wird zur Klärung, eine Wache meldet liegengebliebene Aufträge, und der Haken heißt jetzt
+  „Einwilligung Datenübermittlung“. *Wo:* Akte › Dokumente; Chefbüro › Mara › Bonitätsauskunft › Beschaffung.
+- **(4b) FIAON Finanz- und Bonitätsauswertung:** „Auswertung erzeugen“ macht aus Ausweis und Kontoauszug eine Auswertung mit Ampel,
+  FIAON-Finanzwert (100–999, eigene Berechnung) und PDF; bei roter Lage oder Vorbehalt gibt nur die Leitung frei, und sie bekommt dafür
+  automatisch eine Aufgabe. *Wo:* Akte › Dokumente; für den Kunden nach der Freigabe unter /app/auswertung.
+- **(4c) Unterlagen mit einem Klick anfordern:** „Beim Kunden anfordern“ schickt eine Mail (im offenen Fenster auch WhatsApp) mit einem
+  Upload-Link ohne Anmeldung, 14 Tage gültig und widerrufbar. *Wo:* Akte › Dokumente; Kundenseite /unterlagen/….
+- **(5) Akte im Chefbüro geht immer auf:** auch für Interessenten ohne Bestellung und zusammengeführte Kunden, mit dem Hinweis, in wen
+  sie aufgegangen sind. *Wo:* Chefbüro › Kundenakte, Office-Akte.
+- **(6) Erledigt ist erledigt:** Ein erledigter Auftrag steht nicht mehr unter „offen“ — es gibt nur noch eine Statuswahrheit, und jedes
+  Wieder-Öffnen steht mit Grund im Verlauf. *Wo:* Office › Aufgaben › Aufträge, Board im Chefbüro.
+- **(7) Nächster Auftrag:** Nach „Erledigt“ kommt der nächste offene Auftrag, nicht noch einmal der gerade erledigte. *Wo:* Aufträge und
+  die Auftragsleiste in der Akte.
+- **(8) Eingang und automatisches Erledigen:** Aufträge stehen nach Eingang (älteste zuerst, umschaltbar) mit sichtbarer Zeit; ein
+  Gespräch, Termin, eine WhatsApp-Antwort, Unterlage oder Zahlung erledigt passende Aufträge selbst — Heikles (Kündigung, Widerruf,
+  Beschwerde, Anwalt, Löschwunsch) nie, auch nicht über eine automatisch gesendete Mail. *Wo:* Aufträge, Verlauf „Automatisch erledigt durch …“.
+- **(9) Kundenname:** Fast jeder Auftrag zeigt den Kunden, weil Person und Bestellung jetzt am Auftrag gespeichert sind. *Wo:* Aufträge,
+  Hinweis „Neu von Mara“.
+- **(10) Dubletten zusammenführen:** Gefragt wird nur noch, wer betreut, wenn beide Akten einen aktiven Betreuer haben; „Agent 0“ gibt es
+  nicht mehr, und Werbesperre sowie Forderungsmanagement wandern mit. *Wo:* Akte › „Dubletten zusammenführen“, Leitung › Ordnung.
+- **(11) Gekündigte raus aus „Konto & Karte“:** „Wirksam gekündigt“ ist eine Regel für alle Listen; die Liste heißt jetzt „Konto & Karte
+  nachfassen“, und ein nie gebuchter Kündigungsantrag zählt erst nach „Jetzt buchen“. *Wo:* Bestand-Filter, Schreibtisch „Jetzt dran“.
+- **(13) Dateien richtig erkannt:** Passwort-PDF, leere, beschädigte oder zu große Dateien bekommen einen klaren Satz, iPhone-Fotos (HEIC)
+  werden angenommen, und Ausweis-Hinweise folgen einer festen Regel statt falscher „Rückseite fehlt“-Urteile. *Wo:* Kundenbereich ›
+  Unterlagen, Akte › Dokumente.
+- **(14) Geburtsdatum:** überall drei Felder Tag · Monat · Jahr, „63“ wird sichtbar 1963, eine Prüfregel für alle Stellen und eine Wand in
+  der Datenbank; die Kündigungsseite nimmt bei passendem Namen und E-Mail an. *Wo:* Akte › Daten › „Kunde bearbeiten“, „+ Kunde anlegen“.
+- **(15) WhatsApp-Raum:** ganzer Bildschirm, „Schrift größer“, Liste mit Filter „Mit Antwort“ und Suche über die eigenen Gespräche, und
+  aus Akte oder Aufgabe direkt ins richtige Gespräch. *Wo:* Office › WhatsApp.
+- **Beim Zusammenführen abgestimmt:** Stufe A hat eine Regel (Pipeline höchstens 3 Werktage, ab dem 3. Werktag EINE Anrufaufgabe, die
+  ein erreichtes Gespräch oder die gebuchte Zahlung selbst erledigt und die nach dem 9. Fehlversuch an die Leitung übergeht); jeder
+  Upload-Weg (auch der Link ohne Anmeldung) landet in derselben Unterlagen-Ablage und meldet „Unterlage erhalten“.
+- **Für den Deploy:** Die Datenbank-Erweiterungen 097–103 laufen beim Start von selbst (nur hinzufügend, wiederholbar). Die Einmal-Läufe
+  `scripts/it-a-einmal.ts` bis `it-g-einmal.ts` laufen erst danach, zuerst als Trockenlauf und nur nach Justins Freigabe.
+- **Nachbesserung nach der Querprüfung (08.10., abends):** Die endgültige DSGVO-Löschung nimmt jetzt jede Datei, die Akte je Unterlage,
+  Vorgänge und die Daten zusammengeführter Dubletten mit — vorher blieben Ausweis, Kontoauszug und Auswertungs-PDF stehen. Eine Kündigung
+  ohne geprüfte Identität bucht weder die Akte noch die Leitung, außer mit einem Satz, wie geprüft wurde; der Stand steht in Akte und
+  Chefbüro. Die Kündigungsseite schickt sofort eine Eingangsbestätigung (Datum, Uhrzeit, Zeitpunkt), nennt bei „keine Übereinstimmung“ den
+  Weg über support@fiaon.com, und das Geburtsdatum ist freiwillig. Beim Entfernen einer Datei wählt das Team den Grund („falsche Person“
+  und „nicht benötigt“ löschen den Inhalt sofort, sonst nach 90 Tagen), die Leitung kann endgültig löschen. Die Datenschutzerklärung hat
+  einen Abschnitt zu Unterlagen, KI-Lesung (USA) und Finanzauswertung; die Upload-Seite verlinkt Datenschutz und Impressum. Abmeldungen und
+  Werbewidersprüche schließen nie automatisch. Kleinere Abgleiche: eine Anrufaufgabe je Bestellung bei unzustellbarer Adresse, die Zahlung
+  einer Auskunft schließt „Zahlung gemeldet, nicht da“ nicht mehr, Tagesbericht-Nachträge melden ihr Gespräch an die Aufträge, Migration 101
+  bricht bei einer „0“ sichtbar ab, ehrliche Sätze im Datenkopie-Weg und in der Auswertung. *Wo:* Kundenzentrale › Löschen, Akte ›
+  Kündigung und Dokumente, Chefbüro › Kündigungen, fiaon.com/abo-kuendigen, fiaon.com/datenschutz.
+
+**Wo (Technik):** shared/fiaon-wiedervorlage.ts, server/lib/fiaon-pipeline-reihung.ts (1); server/lib/fiaon-konto-karte.ts,
+client/src/components/agent/KontoKarteAkte.tsx, shared/fiaon-kuendigung-regel.ts (2, 11); server/lib/fiaon-unterlagen.ts,
+server/routes/fiaon-unterlagen.ts, shared/fiaon-lesefehler.ts (3, 13); server/lib/fiaon-auskunft-lieferung.ts,
+server/lib/fiaon-finanzauswertung.ts, server/lib/fiaon-unterlagen-link.ts (4a–4c); server/lib/fiaon-akte-aufloesen.ts,
+shared/fiaon-betreuer-lage.ts, server/lib/fiaon-person-merge.ts (5, 10); shared/fiaon-auftrag-arten.ts, server/lib/fiaon-auftraege.ts
+(6–9); shared/fiaon-geburtsdatum.ts (14); shared/fiaon-wa-raum.ts (15); server/lib/fiaon-stufe-a-klaeren.ts (Stufe A).
+Querprüfung: server/lib/fiaon-loeschen.ts (Löschung), server/routes/cancellation.ts und shared/fiaon-kuendigung-regel.ts (Kündigung),
+server/lib/fiaon-unterlagen.ts (Entfernen, Frist), client/src/pages/privacy.tsx (Datenschutz), shared/fiaon-auftrag-arten.ts (Widerspruch).
+Prüfstände `scripts/pruef-it-a.ts` bis `pruef-it-h.ts`.
+
 ## 08.10.2026 — E-303 Mara-Topsales: die Verkaufsketten laufen wieder (Diagnose mit Zahlen, Justin: „Mach Mara verkaufsfähig“)
 
 - **Abbruch-Kette repariert:** Wer den Antrag anfängt und nicht abschickt, bekam seit dem 28.08. keine einzige Erinnerung mehr

@@ -184,7 +184,8 @@ export const LEITFAEDEN: Leitfaden[] = [
           "„Rechnen Sie mit fünf Minuten. Halten Sie Ihren Ausweis bereit fürs Video-Ident — genau den, den Sie bei uns schon hinterlegt haben.“",
           "„Sagen Sie mir kurz, wenn die Mail da ist?“",
         ],
-        hinweis: "In der Akte unter „Sein Antrag“ → Konto & Karte → „Karte bestellen“. Der Knopf erscheint nur, wenn wirklich alle drei Bedingungen erfüllt sind. Für dich sind das 10 € — auszahlbar, sobald der Partner die Eröffnung bestätigt.",
+        // E-IT-B (08.10.2026): Die Einladung ist meist schon automatisch raus — dann „E-Mail erneut senden“.
+        hinweis: "Meist ist die Einladung schon automatisch nach der ersten Zahlung raus. Hat er sie nicht: in der Akte im Kasten „Konto & Karte“ (Überblick oder „Sein Antrag“) → „E-Mail erneut senden“ — derselbe Link, keine neue Einladung, höchstens drei am Tag. Steht dort „An diese Adresse kommt nichts an“, erst die Adresse mit ihm prüfen und unter „Daten“ ändern. Noch keine Einladung und alle Bedingungen erfüllt: „Karte bestellen“. Für dich sind das 10 € — auszahlbar, sobald der Partner die Eröffnung bestätigt.",
       },
       {
         titel: "5 · Rückruf verabreden",

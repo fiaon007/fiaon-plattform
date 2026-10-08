@@ -15,6 +15,7 @@
 // Kein Versprechen: Ein zulässig gemeldeter, richtiger Eintrag bleibt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
+import { geburtsdatumLesen } from "@shared/fiaon-geburtsdatum";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -32,6 +33,13 @@ const AUSKUNFTEIEN = [
 type Grund = "mahnung" | "bestritten" | "frist" | "falsch" | "";
 
 const heute = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+
+// E-IT-G (08.10.2026): das Geburtsdatum über den einen Leser in den Brief — „14.5.88“ wird 14.05.1988,
+// ein unmöglicher Tag (31.02.) bleibt als Platzhalter stehen, statt so an die Auskunftei zu gehen.
+function geburtBrief(roh: string): string {
+  const e = geburtsdatumLesen(roh, "pruefung");
+  return e.stand === "ok" ? e.anzeige : "[TT.MM.JJJJ]";
+}
 
 export default function Widerspruch() {
   const t = useWoerter(WZ_WIDERSPRUCH_WOERTER);
@@ -64,7 +72,7 @@ export default function Widerspruch() {
   const briefAuskunftei = useMemo(() => `${f.name || "[Vor- und Nachname]"}
 ${f.strasse || "[Straße und Hausnummer]"}
 ${f.plzOrt || "[PLZ Ort]"}
-${f.geburt ? `Geburtsdatum: ${f.geburt}` : "Geburtsdatum: [TT.MM.JJJJ]"}
+Geburtsdatum: ${geburtBrief(f.geburt)}
 
 ${a.name}
 ${a.adresse.join("\n")}

@@ -606,8 +606,18 @@ if (!LOKAL) {
     ok(f?.inhalt?.pruefvermerke.some((v: string) => /feste[nm]? Sätzen/.test(v)), "Prüfvermerk: Einordnung mit festen Sätzen");
     ok(!(await FL.freigeben(r.id!, { ...betreuer, rolle: "agent", zustaendig: true }, sqlPool, { mail: false })).ok, "Betreuer darf nicht freigeben");
     ok(!(await FL.freigeben(r.id!, { ...leitungA, rolle: "vertriebsleiter", zustaendig: true }, sqlPool, { mail: false })).ok, "Ersteller (Leitung) darf nicht freigeben");
+    // Integration 08.10.2026 (offener Fund der Nachprüfung): Der Vier-Augen-Entwurf erreicht die Leitung — EINE Aufgabe, idempotent.
+    const vaSchl = FL.VIER_AUGEN_SCHLUESSEL(r.id!);
+    const vaZeilen = async () => (await sqlPool`SELECT id, status, titel, zustaendig_art, zustaendig_agent_id, art FROM fiaon_betreiber_todos WHERE schluessel = ${vaSchl}`) as any[];
+    const va1 = await vaZeilen();
+    ok(va1.length === 1 && va1[0].status !== "erledigt" && /^Vier-Augen: Auswertung FA-/.test(va1[0].titel) && va1[0].art === "vier_augen",
+      `Vier-Augen-Entwurf → eine offene Aufgabe an die Leitung (${va1.map((z) => `${z.status}/${z.zustaendig_art}/${z.zustaendig_agent_id}`).join(", ")})`);
+    ok(va1.length === 1 && Number(va1[0].zustaendig_agent_id) !== leitungA.agentId, "… nie an den, der den Entwurf erzeugt hat");
+    await FL.vierAugenAufgabenAbgleichen(k.personId);
+    ok((await vaZeilen()).length === 1 && (await vaZeilen())[0].status !== "erledigt", "Abgleich zweimal → weiter genau eine offene Aufgabe");
     ok(!(await FL.verwerfen(r.id!, "x", leitungB)).ok, "Verwerfen ohne Grund abgelehnt");
     ok((await FL.verwerfen(r.id!, "Zahlen mit dem Kunden klären", leitungB)).ok && (await FL.fassungLesen(r.id!))?.status === "verworfen", "Verwerfen mit Grund");
+    ok((await vaZeilen())[0]?.status === "erledigt", "Verworfen → die Vier-Augen-Aufgabe ist von selbst erledigt");
     // Sichtprüfung
     const k2 = await kunde("C", { ausweisUrteil: { art: "ausweis", pruefbar: false, erkannt: null, vollstaendig: null, fehlt: [], seiten: 1, hinweisKunde: null, hinweisIntern: "Foto", quelle: "heuristik" } });
     let e = await FL.eingabenSammeln(k2.personId);

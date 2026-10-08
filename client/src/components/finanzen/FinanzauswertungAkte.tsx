@@ -247,7 +247,7 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
               </span>
             </div>
             <div style={{ fontSize: 11, opacity: .65, marginTop: 2 }}>{FINANZWERT_KURZ}</div>
-            {entwurf.vierAugen && <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 4 }}>Vier-Augen: {entwurf.vorbehalt ? "Vorbehalt" : "rote Gesamtlage"} — freigeben darf nur die Leitung, und nicht, wer die Auswertung erzeugt hat.</div>}
+            {entwurf.vierAugen && <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 4 }}>Vier-Augen: {entwurf.vorbehalt ? "Vorbehalt" : "rote Gesamtlage"} — freigeben darf nur die Leitung, und nicht, wer die Auswertung erzeugt hat. Die Leitung hat dafür die Aufgabe „Vier-Augen: Auswertung {entwurf.nummer} freigeben“.</div>}
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <button type="button" className="pi-knopf still klein" onClick={() => setVorschau((x) => (x === entwurf.id ? null : entwurf.id))}>{vorschau === entwurf.id ? "Vorschau schließen" : "Vorschau ansehen"}</button>
               <a className="pi-knopf still klein" href={`/api/fiaon/agent/kunden/${personId}/finanzauswertung/${entwurf.id}/pdf`} target="_blank" rel="noreferrer">PDF in neuem Fenster</a>

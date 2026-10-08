@@ -195,7 +195,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Der Knopf „Auswertung erzeugen“ wird aktiv, wenn Ausweis und Kontoauszug vollständig sind; sonst steht der genaue Grund dabei (z. B. „es fehlen August und September“).",
       "„Beim Kunden anfordern“: Mail (und im offenen 24-Stunden-Fenster WhatsApp) mit Link — 14 Tage gültig, ohne Anmeldung, höchstens drei Anfragen am Tag.",
       "Ein Ausweis als Foto lässt sich von Hand bestätigen (Reisepass, Personalausweis beidseitig, Aufenthaltstitel nur mit Reisepass).",
-      "Nach dem Erzeugen: Vorschau, dann „An den Kunden übergeben“. Rote Gesamtlage oder Vorbehalt: Freigabe nur durch die Leitung.",
+      "Nach dem Erzeugen: Vorschau, dann „An den Kunden übergeben“. Rote Gesamtlage oder Vorbehalt: Freigabe nur durch die Leitung — sie bekommt dafür automatisch eine Aufgabe.",
       "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht (z. B. „wartet auf die Auftragsbestätigung“). Der Haken im Antrag heißt „Einwilligung Datenübermittlung“ — das ist keine Bestellung.",
     ],
     howto: [

@@ -553,6 +553,103 @@ async function laufDurchfuehren(id: number, fassung: number, e: Eingaben, wer: {
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
     VALUES (${e.ref}, ${e.personId}, ${wer.agentId}, ${wer.name}, 'system',
             ${`Finanz- und Bonitätsauswertung ${inhalt.nummer} als Entwurf erzeugt (Gesamt ${inhalt.gesamt.ampel}, FIAON-Finanzwert ${inhalt.finanzwert.wert}${vorbehalt ? ", mit Vorbehalt" : ""}). Wartet auf Vorschau und Freigabe.`})`.catch(() => {});
+  // Vier-Augen-Entwurf → EINE Aufgabe an die Leitung; ältere Entwürfe geben ihre Aufgabe ab (Integration 08.10.2026).
+  await vierAugenAufgabenAbgleichen(e.personId, lauf);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// VIER AUGEN ERREICHEN DIE LEITUNG (Integration 08.10.2026 — offener Fund der Nachprüfung zu Strang d)
+//
+// Bei roter Gesamtlage oder Vorbehalt darf nur die Leitung freigeben (freigabeRegel) — der Betreuer sah aber nur
+// einen gesperrten Knopf, und die Leitung erfuhr nichts: Die im Paket enthaltene Auswertung blieb liegen
+// („erledigt heißt bedienbar“). Jetzt bekommt die Leitung EINE Aufgabe je Entwurf, wie die anderen
+// Leitungs-Aufgaben im Haus (auftragFuerKunden, Schlüssel → idempotent):
+//   · an eine Vertriebsleitung (aktiv, echt, offener Zugang) mit der kleinsten Last, die den Entwurf NICHT selbst
+//     erzeugt hat (Vier-Augen) — gibt es keine, aufs Board des Betreibers;
+//   · sie gehört dem System: Freigeben, Verwerfen oder eine neuere Fassung erledigen sie von selbst, mit Satz.
+// ───────────────────────────────────────────────────────────────────────────
+export const VIER_AUGEN_SCHLUESSEL = (fassungId: number): string => `finanzauswertung-freigabe:${fassungId}`;
+
+async function vierAugenLeitung(erstellerId: number | null, lauf: Lauf): Promise<number | null> {
+  const [l] = (await lauf`
+    SELECT ag.id,
+           (SELECT COUNT(*)::int FROM fiaon_betreiber_todos t WHERE t.zustaendig_agent_id = ag.id AND t.status <> 'erledigt') AS offene
+      FROM fiaon_agents ag
+     WHERE COALESCE(ag.active, TRUE) = TRUE AND ag.rolle = 'vertriebsleiter' AND COALESCE(ag.is_test_account, FALSE) = FALSE
+       AND ag.zugang_gesperrt_am IS NULL AND ag.id <> ${erstellerId ?? -1}
+     ORDER BY offene ASC, ag.id ASC LIMIT 1`.catch(() => [])) as any[];
+  return l?.id ? Number(l.id) : null;
+}
+
+/**
+ * Gleicht die Vier-Augen-Aufgaben einer Person (samt zusammengeführter Dubletten) mit ihren Fassungen ab: Der jüngste
+ * Entwurf mit Vier-Augen hat genau EINE offene Aufgabe; jede andere (freigegeben, verworfen, ersetzt, fehlerhaft oder
+ * durch eine neuere Fassung überholt) ist erledigt. Idempotent; wirft nie (die Auswertung selbst ist schon gebucht).
+ */
+export async function vierAugenAufgabenAbgleichen(personId: number, lauf: Lauf = sqlPool): Promise<{ angelegt: boolean; erledigt: number }> {
+  const erg = { angelegt: false, erledigt: 0 };
+  try {
+    const [tab] = (await lauf`SELECT to_regclass('public.fiaon_betreiber_todos') IS NOT NULL AS da`) as any[];
+    if (!tab?.da) return erg;
+    const { personFamilie } = await import("./fiaon-unterlagen-link");
+    const familie = await personFamilie(personId, lauf);
+    const fassungen = (await lauf`
+      SELECT id, person_id, ref, fassung, status, vier_augen, vorbehalt, gesamt, erstellt_von, erstellt_von_id, freigegeben_von, verworfen_von,
+             CASE WHEN jsonb_typeof(inhalt) = 'object' THEN inhalt->'vorbehalte' ELSE NULL END AS vorbehalte
+        FROM fiaon_finanzauswertungen WHERE person_id = ANY(${familie}) ORDER BY id DESC`) as any[];
+    if (!fassungen.length) return erg;
+    const juengste = fassungen.find((f) => f.status !== "laeuft") ?? null;
+    const nummer = (f: any) => auswertungNummer(Number(f.person_id), Number(f.fassung));
+
+    // 1. Offene Aufgaben, deren Entwurf nicht mehr auf die Leitung wartet, erledigen.
+    const offen = (await lauf`
+      SELECT id, schluessel FROM fiaon_betreiber_todos
+       WHERE status <> 'erledigt' AND schluessel = ANY(${fassungen.map((f) => VIER_AUGEN_SCHLUESSEL(Number(f.id)))}::text[])`) as any[];
+    if (offen.length) {
+      const { auftragErledigen } = await import("./fiaon-auftraege");
+      for (const t of offen) {
+        const f = fassungen.find((x) => VIER_AUGEN_SCHLUESSEL(Number(x.id)) === String(t.schluessel));
+        if (!f) continue;
+        const grund = f.status === "freigegeben" ? `von ${f.freigegeben_von ?? "der Leitung"} freigegeben`
+          : f.status === "verworfen" ? `von ${f.verworfen_von ?? "der Leitung"} verworfen`
+          : f.status === "ersetzt" ? "durch eine neuere Freigabe ersetzt"
+          : f.status === "fehler" ? "beim Erzeugen gescheitert"
+          : juengste && Number(juengste.id) !== Number(f.id) ? `durch die neuere Fassung ${nummer(juengste)} überholt`
+          : !f.vier_augen ? "braucht keine Vier-Augen-Freigabe mehr"
+          : null;
+        if (!grund) continue;
+        const text = `Erledigt: Auswertung ${nummer(f)} ${grund}.`;
+        if (await auftragErledigen(Number(t.id), { art: "auto", von: "Finanzauswertung", autorArt: "system", ereignis: text, ergebnis: text, beitragText: text }, lauf)) erg.erledigt++;
+      }
+    }
+
+    // 2. Der jüngste Entwurf mit Vier-Augen: EINE Aufgabe an die Leitung.
+    const f = juengste;
+    if (f && f.status === "entwurf" && f.vier_augen) {
+      const erstellerId = f.erstellt_von_id != null ? Number(f.erstellt_von_id) : null;
+      const leitung = await vierAugenLeitung(erstellerId, lauf);
+      const vorbehalte = Array.isArray(f.vorbehalte) ? f.vorbehalte.map(String).filter(Boolean) : [];
+      const warum = f.vorbehalt ? `mit Vorbehalt${vorbehalte.length ? ` (${vorbehalte.slice(0, 3).join(" · ")})` : ""}` : "rote Gesamtlage";
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      const r = await auftragFuerKunden({
+        personId: Number(f.person_id), ref: f.ref ? String(f.ref) : null,
+        schluessel: VIER_AUGEN_SCHLUESSEL(Number(f.id)),
+        titel: `Vier-Augen: Auswertung ${nummer(f)} freigeben`,
+        text: `Die FIAON Finanz- und Bonitätsauswertung ${nummer(f)} (${warum}) wartet auf die Freigabe der Leitung — `
+          + `erzeugt von ${f.erstellt_von ?? "einem Mitarbeiter"}, der sie selbst nicht freigeben darf. Akte → Reiter „Dokumente“ → `
+          + "„FIAON Finanz- und Bonitätsauswertung“: Vorschau ansehen, dann „An den Kunden übergeben“ oder „Verwerfen“ (mit Grund). "
+          + "Steht dort „veraltet“, erst eine neue Fassung erzeugen. Freigabe, Verwerfen oder eine neuere Fassung erledigen diese Aufgabe von selbst.",
+        quelle: "finanzauswertung", bereich: "pruefen", link: `/agent/kunden?person=${Number(f.person_id)}`,
+        autorName: "Finanzauswertung", anlageText: "Angelegt, weil der Entwurf nur von der Leitung freigegeben werden darf (Vier-Augen).",
+        faelligAm: new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
+        ...(leitung != null ? { agentId: leitung } : { anBetreiber: true as const }),
+      });
+      erg.angelegt = r.id != null;
+    }
+  } catch (e) {
+    console.error("[FINANZAUSWERTUNG] Vier-Augen-Aufgabe:", String((e as Error)?.message || e).slice(0, 200));
+  }
+  return erg;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -596,6 +693,8 @@ export async function freigeben(
     return z.length === 1;
   });
   if (!gelungen) return { ok: false, text: "Der Stand hat sich gerade geändert (schon freigegeben oder verworfen). Bitte die Akte neu laden." };
+  // Integration 08.10.2026: die Vier-Augen-Aufgabe der Leitung ist damit erledigt.
+  await vierAugenAufgabenAbgleichen(personId, lauf);
   const nummer = auswertungNummer(personId, Number(r.fassung));
   let mail = "aus";
   if (opts.mail !== false) {
@@ -627,6 +726,8 @@ export async function verwerfen(id: number, grund: string, wer: { name: string; 
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
     VALUES (${r[0].ref}, ${Number(r[0].person_id)}, ${wer.agentId}, ${wer.name}, 'system',
             ${`Finanz- und Bonitätsauswertung ${auswertungNummer(Number(r[0].person_id), Number(r[0].fassung))} verworfen: ${g}`})`.catch(() => {});
+  // Integration 08.10.2026: eine Vier-Augen-Aufgabe zu diesem Entwurf ist damit erledigt.
+  await vierAugenAufgabenAbgleichen(Number(r[0].person_id), lauf);
   return { ok: true, text: "Verworfen — der Kunde sieht diesen Entwurf nie." };
 }
 

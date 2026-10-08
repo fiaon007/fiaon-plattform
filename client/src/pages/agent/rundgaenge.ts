@@ -397,7 +397,8 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "„Link zurückziehen“ sofort ungültig. Ein Foto vom Ausweis bestätigst du von Hand; war das ein Irrtum, "
       + "nimmt „Bestätigung zurücknehmen“ sie mit Grund zurück. "
       + "Nach dem Erzeugen: Vorschau ansehen, „An den Kunden übergeben“ — das darf der Betreuer des Kunden, und nur, solange "
-      + "der Entwurf nicht veraltet ist. Bei roter Gesamtlage oder Vorbehalt gibt nur die Leitung frei, und nicht, wer erzeugt hat.",
+      + "der Entwurf nicht veraltet ist. Bei roter Gesamtlage oder Vorbehalt gibt nur die Leitung frei, und nicht, wer erzeugt hat — "
+      + "sie bekommt dafür automatisch die Aufgabe „Vier-Augen: Auswertung … freigeben“, die sich mit Freigabe oder Verwerfen von selbst erledigt.",
     tipp: "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht („wartet auf die Auftragsbestätigung“) — im Gespräch um den Klick in der Mail bitten. Der Haken im Antrag heißt „Einwilligung Datenübermittlung“: Das ist keine Bestellung.",
   },
   {

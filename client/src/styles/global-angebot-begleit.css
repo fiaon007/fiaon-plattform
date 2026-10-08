@@ -1,0 +1,145 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business/angebot/:token — DER BEGLEITVERTRAG FÜR BESTANDSKUNDEN, Register E-312
+
+   Baut auf global-angebot-firma.css (.gaf, Kanzlei-Papier, Navy + Gold) auf; hier nur die eigenen Teile mit dem
+   Präfix gab-: Hero mit Namenswahl und Live-Urkunde, Vergleich bisher/ab heute, Rechner, Jahresbetreuung,
+   Ansprechpartner, Namen in der Annahme. Kompakter als die Firmenseite (Justin: „kompakter, der Vertrag kommt noch“).
+   Am Handy (360–430 px) stapelt alles, kein seitliches Scrollen. Bewegung aus bei prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gab .gaf-abschnitt { padding-top:120px; }
+.gab .gaf-kopf { margin-bottom:44px; }
+@media (max-width:720px) { .gab .gaf-abschnitt { padding-top:80px; } .gab .gaf-kopf { margin-bottom:28px; } }
+
+/* ── Hero ──────────────────────────────────────────────────────────────── */
+.gab-hero { position:relative; padding:56px 0 24px;
+  background:radial-gradient(1200px 520px at 85% -10%, rgba(217,180,90,.16), transparent 60%), radial-gradient(900px 480px at -10% 10%, rgba(18,40,74,.07), transparent 60%); }
+.gab-hero-raster { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:56px; align-items:start; }
+.gab-hero .gaf-h1 { font-size:clamp(34px,4vw,56px); }
+.gab-lead { margin-top:20px; font-size:17px; line-height:1.7; color:var(--text); max-width:56ch; text-wrap:pretty; }
+.gab-nutzen { margin-top:26px; display:grid; gap:10px; }
+.gab-nutzen li { display:flex; align-items:center; gap:12px; font-size:15.5px; color:var(--tinte); font-weight:400; }
+.gab-nutzen li svg { flex:0 0 auto; padding:5px; box-sizing:content-box; border-radius:50%; color:var(--gold-tief); background:var(--elfenbein); border:1px solid var(--gold-3); }
+.gab-hero-kapital { margin-top:34px; padding-top:24px; border-top:1px solid var(--linie); container-type:inline-size; }
+.gab-hero-betrag { font-family:var(--serif); font-weight:300; font-size:min(72px, 15cqw); line-height:1; letter-spacing:-.03em;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.gab-hero-satz { margin-top:10px; font-size:14.5px; line-height:1.6; color:var(--leise); max-width:46ch; }
+
+.gab-hero-name { position:relative; padding:30px; border-radius:22px; background:rgba(255,255,255,.82); border:1px solid var(--linie);
+  box-shadow:0 30px 80px -40px rgba(12,26,46,.35), 0 1px 0 rgba(255,255,255,.9) inset; -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); scroll-margin-top:24px; }
+.gab-name-sub { margin-top:12px; font-size:14.5px; line-height:1.6; color:var(--leise); }
+.gab-hinweis { margin-top:14px; font-size:12.5px; line-height:1.6; color:var(--leise); }
+
+/* Die Urkunde — Elfenbein, Goldrand, Siegel; der Name erscheint beim Tippen */
+.gab-urkunde { margin-top:20px; padding:22px 24px 18px; border-radius:14px; background:var(--elfenbein); position:relative; overflow:hidden; container-type:inline-size;
+  border:1px solid var(--gold-3); box-shadow:0 0 0 5px var(--elfenbein), 0 0 0 6px rgba(184,137,46,.35); }
+.gab-urkunde::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.55) 48%, transparent 66%); transform:translateX(-120%); }
+.gab-urkunde:hover::after { transform:translateX(120%); transition:transform 1.4s var(--ease); }
+.gab-urkunde-kopf { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.gab-urkunde-auge { font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-tief); font-weight:500; }
+.gab-siegel { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; color:#fff; background:var(--gold-verlauf); box-shadow:0 6px 16px -6px rgba(138,100,32,.6); }
+.gab-urkunde-zeile { margin-top:16px; font-size:11.5px; color:var(--leise); letter-spacing:.04em; }
+.gab-urkunde-name { margin-top:6px; min-height:1.2em; font-family:var(--serif); font-weight:400; font-size:min(34px, 8.6cqw); line-height:1.15; letter-spacing:.01em; color:var(--navy); overflow-wrap:anywhere;
+  animation:gab-erscheinen .5s var(--ease); }
+.gab-urkunde-name.leer { color:#b9b2a0; }
+.gab-urkunde-fuss { margin-top:16px; padding-top:10px; border-top:1px dashed rgba(184,137,46,.45); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--leise); }
+@keyframes gab-erscheinen { from { opacity:.4; } to { opacity:1; } }
+
+/* Eingabefelder für die Namen */
+.gab-namen { margin-top:20px; display:grid; gap:12px; }
+.gab-namen-sub { margin-top:6px; font-size:12px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); }
+.gab-namen-zwei { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.gab-feld { display:grid; gap:6px; }
+.gab-feld-label { font-size:13px; color:var(--text); font-weight:400; }
+.gab-feld-eingabe { display:flex; align-items:center; border:1px solid var(--linie-2); border-radius:12px; background:#fff; transition:border-color .25s, box-shadow .25s; }
+.gab-feld-eingabe:focus-within { border-color:var(--navy); box-shadow:0 0 0 4px rgba(18,40,74,.08); }
+.gab-feld input { flex:1 1 auto; min-width:0; border:0; outline:0; background:transparent; padding:12px 14px; font:inherit; font-size:15px; color:var(--tinte); text-transform:uppercase; letter-spacing:.02em; }
+.gab-feld input::placeholder { text-transform:none; color:#9aa3b2; letter-spacing:0; }
+.gab-feld.gross input { padding:15px 16px; font-size:18px; }
+.gab-feld-llc { flex:0 0 auto; padding:0 14px; font-size:12.5px; font-weight:500; letter-spacing:.12em; color:var(--gold-tief); border-left:1px solid var(--linie); align-self:stretch; display:grid; place-items:center; }
+.gab-feld.fehlt .gab-feld-eingabe { border-color:#b42318; box-shadow:0 0 0 4px rgba(180,35,24,.08); }
+.gab-feld-fehler { font-size:12.5px; line-height:1.5; color:#b42318; }
+.gab .gaf-feld-hinweis { color:#b42318; }
+
+@media (max-width:980px) { .gab-hero-raster { grid-template-columns:1fr; gap:36px; } }
+@media (max-width:520px) {
+  .gab-hero { padding-top:36px; }
+  .gab-hero-name { padding:20px; border-radius:18px; }
+  .gab-urkunde { padding:18px 16px 14px; }
+  .gab-namen-zwei { grid-template-columns:1fr; }
+}
+
+/* ── Vergleich: bisher / ab heute ──────────────────────────────────────── */
+.gab-vergleich { border:1px solid var(--linie); border-radius:20px; background:#fff; overflow:hidden; }
+.gab-vergleich-kopf, .gab-vergleich-zeile { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,1fr); gap:20px; align-items:center; padding:18px 28px; }
+.gab-vergleich-kopf { background:var(--stein); font-size:11.5px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--leise); }
+.gab-vergleich-kopf span:last-child { color:var(--gold-tief); }
+.gab-vergleich-zeile + .gab-vergleich-zeile { border-top:1px solid var(--linie); }
+.gab-vergleich-titel b { display:block; font-family:var(--serif); font-weight:400; font-size:20px; color:var(--tinte); }
+.gab-vergleich-titel span { display:block; margin-top:4px; font-size:13.5px; line-height:1.55; color:var(--leise); }
+.gab-vorher { font-size:15px; color:var(--leise); text-decoration:line-through; text-decoration-color:rgba(180,35,24,.55); }
+.gab-jetzt { font-family:var(--serif); font-size:26px; line-height:1.1; color:var(--navy); }
+
+.gab-erledigt { margin-top:22px; padding:20px 24px; border-radius:16px; background:var(--elfenbein); border:1px solid var(--gold-3); }
+.gab-erledigt ul { margin-top:12px; display:grid; gap:8px; }
+.gab-erledigt li { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; font-size:14.5px; color:var(--text); }
+.gab-erledigt li svg { color:var(--gold-tief); }
+.gab-erledigt li b { color:var(--tinte); }
+@media (max-width:720px) {
+  .gab-vergleich-kopf { display:none; }
+  .gab-vergleich-zeile { grid-template-columns:1fr 1fr; gap:10px 16px; padding:18px 20px; }
+  .gab-vergleich-titel { grid-column:1 / -1; }
+  .gab-jetzt { font-size:22px; text-align:right; }
+}
+
+/* ── Rechner ───────────────────────────────────────────────────────────── */
+.gab-rechner { padding:30px; border-radius:22px; background:#fff; border:1px solid var(--linie); box-shadow:0 30px 70px -45px rgba(12,26,46,.35); }
+.gab-rechner-regler input { width:100%; appearance:none; -webkit-appearance:none; height:8px; border-radius:999px; outline-offset:6px;
+  background:linear-gradient(90deg, var(--gold-2) 0, var(--gold) var(--anteil), var(--stein) var(--anteil)); cursor:pointer; }
+.gab-rechner-regler input::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#fff; border:2px solid var(--gold); box-shadow:0 6px 16px -4px rgba(138,100,32,.55); }
+.gab-rechner-regler input::-moz-range-thumb { width:24px; height:24px; border-radius:50%; background:#fff; border:2px solid var(--gold); }
+.gab-rechner-werte { margin-top:26px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.gab-rechner-werte div { padding:16px 18px; border-radius:14px; background:var(--papier); container-type:inline-size; }
+.gab-rechner-werte dt { font-size:12.5px; color:var(--leise); }
+.gab-rechner-werte dd { margin:6px 0 0; font-family:var(--serif); font-size:min(28px, 13cqw); line-height:1.1; color:var(--tinte); }
+.gab-rechner-werte .bleibt { background:var(--navy); }
+.gab-rechner-werte .bleibt dt { color:#b9c6da; }
+.gab-rechner-werte .bleibt dd { color:#fff; }
+.gab-gold { background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent !important; }
+@media (max-width:620px) { .gab-rechner { padding:20px; } .gab-rechner-werte { grid-template-columns:1fr; } }
+
+/* ── Jahresbetreuung ───────────────────────────────────────────────────── */
+.gab-jahr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px 48px; padding:34px; border-radius:22px; background:#fff; border:1px solid var(--linie); }
+.gab-jahr-titel { margin-top:12px; font-size:28px; font-weight:300; }
+.gab-jahr ul { display:grid; gap:10px; align-content:start; }
+.gab-jahr li { display:flex; gap:10px; font-size:14.5px; line-height:1.55; color:var(--text); }
+.gab-jahr li svg { flex:0 0 auto; margin-top:2px; color:var(--gold-tief); }
+.gab-jahr-fein { grid-column:1 / -1; margin-top:0; }
+@media (max-width:820px) { .gab-jahr { grid-template-columns:1fr; padding:22px; } }
+
+/* ── Ansprechpartner ───────────────────────────────────────────────────── */
+.gab-personen { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+.gab-person { display:flex; gap:18px; align-items:center; padding:20px; border-radius:18px; background:#fff; border:1px solid var(--linie); }
+.gab-person-bild { flex:0 0 88px; width:88px; height:88px; }
+.gab-person-bild img, .gab-person-bild .gaf-person-mono { width:88px; height:88px; border-radius:50%; object-fit:cover; display:grid; place-items:center; font-size:30px; border:3px solid #fff; box-shadow:0 0 0 1px var(--linie); }
+.gab-person-text { display:grid; gap:4px; min-width:0; }
+.gab-person-text b { font-family:var(--serif); font-weight:400; font-size:21px; color:var(--tinte); }
+.gab-person-text > span { font-size:13px; color:var(--leise); }
+.gab-person-text a { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--navy); text-decoration:none; overflow-wrap:anywhere; }
+.gab-person-text a:hover span { text-decoration:underline; }
+
+/* ── Annahme ───────────────────────────────────────────────────────────── */
+.gab-annahme-namen .gab-namen { margin-top:14px; }
+.gab-annahme-namen.fehlt { border-radius:16px; box-shadow:0 0 0 2px rgba(180,35,24,.25); }
+.gab-annahme-vorschau { margin-top:14px; font-family:var(--serif); font-size:22px; color:var(--navy); overflow-wrap:anywhere; }
+.gab-unter { display:block; margin-top:6px; font-size:12.5px; line-height:1.55; color:var(--leise); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gab-urkunde-name { animation:none; }
+  .gab-urkunde::after { display:none; }
+}
+.gab .gaf-uebersicht + #gab-gelesen { margin-top:20px; }
+.gab-jetzt { background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; }
+/* Felder nie breiter als die Karte (ein input hat sonst eine Eigenbreite und schiebt das „LLC“ hinaus). */
+.gab-feld, .gab-feld-eingabe { min-width:0; }
+.gab-feld input { width:100%; }
+.gab-vergleich-fein { margin-top:14px; }

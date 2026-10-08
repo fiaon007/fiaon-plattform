@@ -643,7 +643,7 @@ const meldungKnoepfe = () => [{ text: "Alle Aufrufe ansehen", url: absoluteUrl(A
  * Mail an js@fiaon.com — zusätzlich zur Aufgabe auf dem Board, die allein keine Mail auslöst. Derselbe Weg wie die
  * Aufruf-Meldung (eigeneMailSenden). Wirft nie; Rückgabe ist der Satz fürs Protokoll.
  */
-export async function annahmeMelden(m: { ref: string; name: string; art: "Individualangebot" | "Firmenangebot"; betrag: string; zeilen: string[] }): Promise<string> {
+export async function annahmeMelden(m: { ref: string; name: string; art: "Individualangebot" | "Firmenangebot" | "Begleitvertrag"; betrag: string; zeilen: string[] }): Promise<string> {
   try {
     const { eigeneMailSenden } = await import("./fiaon-brevo");
     const text = [`${m.name} hat das ${m.art} ${m.ref} soeben angenommen. Erwartet: ${m.betrag}.`, ...m.zeilen.map((z) => String(z ?? "").trim()).filter(Boolean)].join("\n\n");

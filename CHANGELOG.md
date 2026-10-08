@@ -5,6 +5,21 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 nachts — E-312 Begleitvertrag für Bestandskunden (FIAON Global)
+- **Was:** Eine dritte Fassung des persönlichen Angebots unter `/business/angebot/<Link>` für Kunden aus dem alten Business-Konzept:
+  kein Abo mehr (die Mitgliedschaft endet mit der Annahme), Gründung der US-LLC zum Selbstkostenpreis (Spanne mit Höchstbetrag,
+  gesonderte Rechnung nach Einreichung), 5 % Erfolgshonorar nur auf Finanzierungen, die die Gesellschaft durch die Begleitung erhält,
+  Jahresbetreuung (699 € ab Jahr 2) als freiwilliger Haken. Alles steht offen auf der Seite und im Vertrag.
+- **Seite:** Glückwunsch, der Kunde tippt den Namen seiner LLC (mit Live-Vorschau der „Articles of Organization“ und zwei
+  Ausweichnamen), Vergleich „bisher / ab heute“, Rechner „Wir gewinnen nur, wenn Sie gewinnen“, Weg in fünf Etappen, Vertrag im
+  Leser, Annahme mit Unterschrift. Der Name wird auf dem Server geprüft (keine Umlaute, keine geschützten Wörter, keine Dopplung)
+  und steht im Annahmevermerk des PDF.
+- **Nach der Annahme:** dringende Aufgabe an Justin (Name der Gesellschaft, Beginn, Altabo stornieren, Gründungsrechnung, Honorar)
+  und eine Mail an js@. Keine Bestellung, keine automatische Kundenmail, kein automatisches Startgespräch.
+- **Wo:** shared/fiaon-global-angebot-begleit.ts (Texte, Vertrag), server/lib/fiaon-global-angebot-begleit.ts (Ablauf), Seite
+  client/src/pages/business-angebot-begleit.tsx, Chefbüro › Global-Aufträge › Angebote (eigener Block), Anlegen nur per Skript
+  scripts/angebot-begleit-anlegen.ts (Kundendaten in einer privaten Datei außerhalb des Repos). Prüfstand scripts/pruef-angebot-begleit.ts
+  115/0; Individual- und Firmenangebot unverändert (882/882, 432/0).
 ## 08.10.2026 — E-310: Zugang digital übergeben (Link + Code statt Übergabe-PDF)
 
 Stand: live seit 08.10.2026 abends. Warum: Bisher bekam ein neues Teammitglied ein Übergabe-PDF mit

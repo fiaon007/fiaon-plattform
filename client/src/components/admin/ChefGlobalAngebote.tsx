@@ -103,6 +103,42 @@ function StartgespraechZeile({ sg }: { sg: NonNullable<Angebot["startgespraech"]
   return null;
 }
 
+// ── E-312 (08.10.2026): DER BEGLEITVERTRAG FÜR BESTANDSKUNDEN — Anlegen nur per Skript (scripts/angebot-begleit-anlegen.ts) ──
+type BegleitAngebot = {
+  art: "begleit"; id: number; ref: string; status: Angebot["status"]; fassung: string; kundeName: string; gueltigBis: string;
+  link: string | null; vertragUrl: string; angenommenAm: string | null; ip: string | null; textHash: string | null; fehlt: string[];
+  kunde: { email: string; ort: string };
+  schalter: { sofortBeginn: boolean; jahresbetreuung: boolean } | null;
+  begleit: { llc: { wunsch: string; alternative1: string; alternative2: string } | null; zeile: string };
+  aufrufe: Aufrufe | null; verlauf: { am: string; wer: string; was: string }[];
+};
+function BegleitAngebotBlock({ a, kopieren }: { a: BegleitAngebot; kopieren: (t: string) => void }) {
+  const llc = a.begleit.llc;
+  return (
+    <section className={`cz-block cg-angebot cg-${a.status}`} data-angebot={a.ref} data-art="begleit">
+      <header className="cg-angebot-kopf">
+        <div>
+          <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Begleitvertrag (Bestandskunde)</span></h3>
+          <p className="cm-klartext">{a.begleit.zeile} · gültig bis {datum(a.gueltigBis)} · {a.kunde.email}</p>
+          {a.fehlt.length > 0 && <p className="cm-klartext cg-rot">Für die Annahme fehlt noch: {a.fehlt.join(" · ")}</p>}
+        </div>
+        <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
+      </header>
+      <div className="cg-links">
+        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer">Kundenseite öffnen (Vorschau, ohne Annahme)</a><button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button></span>}
+        <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertragsentwurf (PDF)"}</a>
+      </div>
+      {a.status === "angenommen" && (
+        <div className="cg-begleit-annahme">
+          <p className="cm-klartext"><b>Gesellschaft: {llc?.wunsch ?? "—"}</b>{llc && (llc.alternative1 || llc.alternative2) ? ` · Ausweichnamen: ${[llc.alternative1, llc.alternative2].filter(Boolean).join(" · ")}` : " · keine Ausweichnamen"}</p>
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Beginn {a.schalter?.sofortBeginn ? "sofort (verlangt)" : "nach der Widerrufsfrist"} · Jahresbetreuung {a.schalter?.jahresbetreuung ? "gewählt (699 €/Jahr ab Jahr 2)" : "nicht gewählt"}</p>
+        </div>
+      )}
+      <AufrufBlock x={a.aufrufe} />
+    </section>
+  );
+}
+
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 // E-IT-G (08.10.2026): „Geburtsdatum (JJJJ-MM-TT)“ als Freitext ist raus — es steht als eigenes Bauteil darunter.
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
@@ -516,6 +552,8 @@ export default function ChefGlobalAngebote() {
       {daten.angebote.length === 0 && <p className="cg-leer">Noch kein Individualangebot.</p>}
       {daten.angebote.map((a) => {
         // E-301: Firmenangebote haben ihren eigenen Block (Teile, Garantie, Beteiligungen, Kündigung).
+        // E-312: Begleitverträge für Bestandskunden — schlanker Block (LLC-Namen, Wahl, Link, Vertrag).
+        if ((a as unknown as { art?: string }).art === "begleit") return <BegleitAngebotBlock key={a.id} a={a as unknown as BegleitAngebot} kopieren={kopieren} />;
         if ((a as unknown as { art?: string }).art === "firma") return <FirmaAngebotBlock key={a.id} a={a as unknown as FirmaAngebot} aktion={aktion} busy={busy} kopieren={kopieren} buerginFelder={V.buerginFelder} />;
         const t1 = a.teile.find((t) => t.nr === 1); const t2 = a.teile.find((t) => t.nr === 2);
         return (

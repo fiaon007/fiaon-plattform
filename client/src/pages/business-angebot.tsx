@@ -63,6 +63,9 @@ import { portraitUrl, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-p
 import type { FirmaKundenSicht } from "@shared/fiaon-global-angebot-firma-typen";
 // E-301: Das OFFENE Firmenangebot (art „firma“) hat eine eigene Seite — eigener Chunk, three.js lädt erst dort.
 const BusinessAngebotFirma = lazy(() => import("@/pages/business-angebot-firma"));
+// E-312: Das OFFENE Begleit-Angebot für Bestandskunden (art „begleit“) — eigene Seite, eigener Chunk.
+const BusinessAngebotBegleit = lazy(() => import("@/pages/business-angebot-begleit"));
+import type { BegleitKundenSicht } from "@shared/fiaon-global-angebot-begleit";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -96,6 +99,8 @@ type Fertig = {
   teil1Bezahlt?: boolean; fertigZahlung?: string; fertigFuss?: string;
   /** E-273: das vom System gebuchte Startgespräch — oder der Satz, warum (noch) keins da ist. */
   startgespraech?: Startgespraech | null;
+  /** E-312: Begleitvertrag — die gewählten Namen der Gesellschaft. */
+  llc?: { wunsch: string; alternative1: string; alternative2: string } | null;
 };
 /** E-273 (02.10.2026): Was der Server über das Startgespräch schickt (startgespraechFuerKunde) — auch für „Mein Auftrag". */
 type Startgespraech = {
@@ -330,6 +335,8 @@ export default function BusinessAngebot() {
           </header>
           <div className="gs-blatt gia-fertig">
             <p className="gs-ref"><span>Angebot</span><b>{fertig.ref}</b></p>
+            {/* E-312: Begleitvertrag — der Name der Gesellschaft, wie der Kunde ihn gewählt hat. */}
+            {fertig.llc?.wunsch && <p className="gs-ref"><span>Ihre Gesellschaft</span><b>{fertig.llc.wunsch}</b></p>}
             <p className="gia-fertig-satz">{fertig.fertigZahlung}</p>
             <div className="gia-fertig-knoepfe">
               {fertig.zahlungsseite && !fertig.teil1Bezahlt && <a className="gs-knopf" href={fertig.zahlungsseite}>Zur Zahlungsseite</a>}
@@ -360,6 +367,16 @@ export default function BusinessAngebot() {
     return (
       <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
         <BusinessAngebotFirma sicht={firma} token={token}
+          onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
+          onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
+      </Suspense>
+    );
+  }
+  const begleit = sicht as unknown as BegleitKundenSicht;
+  if (begleit.art === "begleit" && begleit.status === "offen") {
+    return (
+      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+        <BusinessAngebotBegleit sicht={begleit} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
       </Suspense>

@@ -77,6 +77,8 @@
 .gv-schirm-text{display:grid;gap:3px;text-align:left;min-width:0}
 .gv-schirm-text b{font:400 19px/1.15 var(--serif);color:#fff}
 .gv-schirm-text small{font-size:11.5px;letter-spacing:.04em;color:#c4cfe2}
+/* KI-Kennzeichnung am Telefon (die Schleife zeigt den Darsteller ohne den Hinweis aus dem Film). */
+.gv-schirm-text i{font-style:normal;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#93a4c0;margin-top:2px}
 /* Glasspiegelung über dem Schirm */
 .gv-spiegel{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:linear-gradient(118deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.05) 22%,rgba(255,255,255,0) 38%)}
@@ -165,7 +167,7 @@
 .gv-kino-gross{position:absolute;left:50%;top:50%;width:78px;height:78px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.45);
   background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;display:grid;place-items:center;cursor:pointer}
 .gv-kino-gross svg{margin-left:4px}
-.gv-kino-leiste{width:max(var(--kb),min(440px,calc(100vw - 32px)));display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:10px}
+.gv-kino-leiste{width:max(var(--kb),min(440px,calc(100vw - 32px)));display:grid;grid-template-columns:auto minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;align-items:center;gap:10px}
 .gv-kino-knopf{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;
   display:grid;place-items:center;cursor:pointer;transition:background .2s}
 .gv-kino-knopf:hover{background:rgba(255,255,255,.14)}
@@ -186,6 +188,11 @@
 .gv-kino-wahl button{border:0;background:none;color:#b8c4d8;font:400 12.5px/1 var(--sans);padding:9px 14px;border-radius:999px;cursor:pointer}
 .gv-kino-wahl button.an{background:#fff;color:#0b1c36}
 .gv-kino :focus-visible{outline:2px solid #fff;outline-offset:2px}
+.gv-kino-ki{margin:0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8ea0bd}
+.gv-cc{font:600 11px/1 var(--sans);letter-spacing:.06em}
+.gv-cc.an{background:#fff;color:#0b1c36;border-color:#fff}
+/* Untertitel im Stil des Films: Inter, ruhig, auf leichtem Navy-Grund. */
+.gv-kino-bild video::cue{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;font-size:15px;line-height:1.4;color:#fff;background:rgba(6,14,30,.72)}
 
 /* ── Breiten ────────────────────────────────────────────────────────────── */
 @media(max-width:1120px){.gv-raster{column-gap:44px}.gv-mappe{grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:22px}}
@@ -196,6 +203,11 @@
   .gv-buehne{min-height:0;padding:12px 0 28px}
   .gv-buehne.zwei{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;justify-content:flex-start;padding:12px 24px 28px;margin:0 -24px;scrollbar-width:none}
   .gv-buehne.zwei::-webkit-scrollbar{display:none}
+  /* In der Wischreihe würde der Lichthof an der Kante des Scrollbereichs abgeschnitten — dort trägt der Grund allein. */
+  .gv-buehne.zwei::before,.gv-buehne.zwei::after{display:none}
+  /* Der Schatten der Telefone läuft innerhalb der Wischreihe aus, statt an ihrer Unterkante abzureißen. */
+  .gv-buehne.zwei{padding-bottom:72px;margin-bottom:-44px}
+  .gv-buehne.zwei .gv-geraet{box-shadow:inset 0 0 0 1.4px rgba(255,255,255,.22),inset 0 0 0 5px #08090b,0 34px 50px -30px rgba(0,0,0,.85),0 20px 44px -30px rgba(64,120,255,.5)}
   .gv-buehne.zwei .gv-telefon,.gv-buehne.zwei .gv-telefon.hinten{position:relative;left:auto;top:auto;flex:0 0 min(250px,64vw);filter:none;scroll-snap-align:center;
     transform:none}
   .gv-telefon{transform:rotateY(-8deg) rotateX(2deg)}
@@ -208,6 +220,11 @@
   .gv .gv-ansehen{width:100%}
   .gv-zeile{text-align:center}
   .gv-telefon{width:min(260px,70vw)}
+  .gv-schirm-fuss{gap:10px;padding:64px 14px 18px}
+  .gv-play{flex-basis:40px;width:40px;height:40px}
+  .gv-schirm-text b{font-size:16.5px;white-space:nowrap}
+  .gv-schirm-text small{font-size:10.5px;letter-spacing:.02em}
+  .gv-schirm-text i{font-size:8.5px;letter-spacing:.08em}
   .gv-buehne::before{width:380px;height:380px}
   .gv-mappe{grid-template-columns:minmax(0,1fr);gap:18px;padding:20px}
   .gv-stapel{max-width:300px;margin:18px auto 6px;width:calc(100% - 40px)}
@@ -215,7 +232,7 @@
   .gv-laden{justify-content:center}
   .gv-browser{text-align:center}
   .gv-nur-breit{display:none}
-  .gv-kino-leiste{grid-template-columns:auto minmax(0,1fr) auto auto}
+  .gv-kino-zeit{display:none}
 }
 @media(prefers-reduced-motion:reduce){
   .gv *,.gv-kino,.gv-kino *{animation:none!important;transition:none!important}

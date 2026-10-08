@@ -58,6 +58,7 @@ export default function GlobalVorfuehrraum() {
   const filme = GLOBAL_FILME;
   if (!filme.length) return null;
   const erster = filme[0];
+  const zwei = filme.length > 1;
 
   return (
     <section ref={ref} id="film" className="gv" style={{ scrollMarginTop: 72 }} aria-labelledby="gv-titel">
@@ -68,13 +69,13 @@ export default function GlobalVorfuehrraum() {
       <div className="fg-rahmen gv-raster">
         <div className="gv-text">
           <span className="fg-auge gv-auge">{t.auge}</span>
-          <h2 id="gv-titel" className="fg-h2 gv-h2">{t.h2} <em>{t.h2Kursiv}</em></h2>
-          <p className="fg-lead gv-lead">{t.lead}</p>
+          <h2 id="gv-titel" className="fg-h2 gv-h2">{zwei ? t.h2Zwei : t.h2} <em>{zwei ? t.h2KursivZwei : t.h2Kursiv}</em></h2>
+          <p className="fg-lead gv-lead">{zwei ? t.leadZwei : t.lead}</p>
           <div className="gv-knoepfe">
             <button type="button" className="fg-knopf gv-ansehen" onClick={() => setKino(0)}>
               <span className="gv-ansehen-zeichen"><Abspielen g={14} /></span>{t.ansehen}
             </button>
-            <span className="gv-zeile">{t.filmZeile(filmDauer(erster.dauerSek))}</span>
+            <span className="gv-zeile">{zwei ? t.filmZeileZwei(filme.map((f) => filmDauer(f.dauerSek))) : t.filmZeile(filmDauer(erster.dauerSek))}</span>
           </div>
         </div>
         <div className={`gv-buehne${filme.length > 1 ? " zwei" : ""}`}>
@@ -120,7 +121,7 @@ function Telefon({ film, index, t, sp, onOeffnen }: { film: GlobalFilm; index: n
           <span className="gv-insel" aria-hidden="true" />
           <span className="gv-schirm-fuss" aria-hidden="true">
             <span className="gv-play"><Abspielen g={16} /></span>
-            <span className="gv-schirm-text"><b>{film.titel[sp]}</b><small>{t.mitTon} · {dauer}</small></span>
+            <span className="gv-schirm-text"><b>{film.titel[sp]}</b><small>{t.mitTon} · {dauer}</small><i>{film.kiHinweis[sp]}</i></span>
           </span>
           <span className="gv-spiegel" aria-hidden="true" />
         </span>
@@ -170,6 +171,7 @@ function Kino({ filme, index, onWechsel, onZu, t, sp }: {
   const [stumm, setStumm] = useState(false);
   const [zeit, setZeit] = useState(0);
   const [dauer, setDauer] = useState(film.dauerSek);
+  const [untertitel, setUntertitel] = useState(false);
 
   // Öffnen als Modal; die Seite dahinter scrollt nicht mit.
   useEffect(() => {
@@ -213,6 +215,11 @@ function Kino({ filme, index, onWechsel, onZu, t, sp }: {
     if (el.paused) el.play().catch(() => {}); else el.pause();
   }, []);
   const ton = () => { const el = video.current; if (!el) return; el.muted = !el.muted; setStumm(el.muted); };
+  // Untertitel: die Spur hängt am Film; der Schalter bleibt beim Filmwechsel stehen.
+  useEffect(() => {
+    const spur = video.current?.textTracks?.[0];
+    if (spur) spur.mode = untertitel ? "showing" : "hidden";
+  }, [untertitel, film.schluessel]);
   const springenAuf = (sek: number) => {
     const el = video.current;
     if (!el) return;
@@ -263,12 +270,19 @@ function Kino({ filme, index, onWechsel, onZu, t, sp }: {
             aria-describedby="gv-kino-beschreibung" onClick={umschalten}
             onPlay={() => setSpielt(true)} onPause={() => setSpielt(false)} onEnded={() => setSpielt(false)}
             onTimeUpdate={(e) => setZeit(e.currentTarget.currentTime)}
-            onLoadedMetadata={(e) => { if (e.currentTarget.duration) setDauer(e.currentTarget.duration); }} />
+            onLoadedMetadata={(e) => {
+              if (e.currentTarget.duration) setDauer(e.currentTarget.duration);
+              const spur = e.currentTarget.textTracks?.[0];
+              if (spur) spur.mode = untertitel ? "showing" : "hidden";
+            }}>
+            {film.untertitel && <track kind="captions" srcLang="de" label="Deutsch" src={film.untertitel} />}
+          </video>
           {!spielt && (
             <button type="button" className="gv-kino-gross" onClick={umschalten} aria-label={t.abspielen}><Abspielen g={26} /></button>
           )}
         </div>
         <p id="gv-kino-beschreibung" className="gv-unsichtbar">{film.beschreibung[sp]}</p>
+        <p className="gv-kino-ki">{film.kiHinweis[sp]}</p>
         <div className="gv-kino-leiste">
           <button type="button" className="gv-kino-knopf" onClick={umschalten} aria-label={spielt ? t.anhalten : t.abspielen}>
             {spielt ? <Anhalten /> : <Abspielen />}
@@ -281,6 +295,10 @@ function Kino({ filme, index, onWechsel, onZu, t, sp }: {
           </div>
           <span className="gv-kino-zeit">{filmDauer(zeit)} / {filmDauer(dauer)}</span>
           <button type="button" className="gv-kino-knopf" onClick={ton} aria-label={stumm ? t.tonAn : t.tonAus}><Ton an={!stumm} /></button>
+          {film.untertitel && (
+            <button type="button" className={`gv-kino-knopf gv-cc${untertitel ? " an" : ""}`} onClick={() => setUntertitel((u) => !u)}
+              aria-pressed={untertitel} aria-label={untertitel ? t.untertitelAus : t.untertitelAn}>CC</button>
+          )}
           <button type="button" className="gv-kino-knopf gv-nur-breit" onClick={vollbild} aria-label={t.vollbild}><Vollbild /></button>
         </div>
       </div>

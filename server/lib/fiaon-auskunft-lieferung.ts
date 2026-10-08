@@ -1634,11 +1634,16 @@ export async function rueckstandEinlesen(lauf: Lauf = sqlPool): Promise<number> 
   if (neu > 0) {
     try {
       const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      const { berlinTagZeit } = await import("../../shared/fiaon-auftrag-arten");
       await auftragFuerKunden({
         personId: null, ref: null, anBetreiber: true,
         titel: "Auskunft-Rückstand beschaffen",
+        // E-IT-F (Gegenprüfung 08.10.): Die Zeile „Neu übernommen …“ macht jede Meldung zu NEUEM Text — sonst
+        // öffnete auftragFuerKunden die erledigte Sammelaufgabe bei neuen Rückstandsfällen nie wieder (Anlass
+        // „neu“ hängt am neuen Text), und Justin erführe nichts.
         text: "Bezahlte Bonitätsauskünfte ohne Dokument stehen jetzt als Beschaffungsaufträge im Chefbüro unter „Auskunft-Beschaffung“ — "
-          + "die Kunden haben dafür keine Mail bekommen. Fehlt der Auftrag, dort „Auftragsbestätigung senden“; liegt er vor, beschaffen und hochladen.",
+          + "die Kunden haben dafür keine Mail bekommen. Fehlt der Auftrag, dort „Auftragsbestätigung senden“; liegt er vor, beschaffen und hochladen."
+          + `\nNeu übernommen: ${neu} ${neu === 1 ? "Fall" : "Fälle"} (${berlinTagZeit(new Date())}).`,
         schluessel: "auskunft-beschaffung-rueckstand", quelle: "bestellung", bereich: "pruefen",
         link: "/chef/s/auskunft-beschaffung", autorName: "Auskunft-Beschaffung",
         anlageText: "Angelegt, als der Rückstand in die Beschaffung übernommen wurde.",

@@ -2320,6 +2320,11 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
                 'Konto & Karte: Weg zum Girokonto beim Kooperationspartner geschickt.', ${ap.ref}, NOW())
       `.catch(() => {});
     }
+    // E-IT-F (08.10.2026): Der gesendete Kartenlink erledigt die Konto-&-Karte-Aufträge dieses Menschen.
+    {
+      const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+      await ereignisMelden({ ereignis: "kartenlink_gesendet", personId, ref: ap?.ref ?? null, akteur: { id: req.agent!.id, name: req.agent!.name } });
+    }
 
     res.json({
       ok: true,

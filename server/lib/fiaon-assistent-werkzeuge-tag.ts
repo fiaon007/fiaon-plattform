@@ -166,7 +166,8 @@ async function fristenSammeln(kontext: WerkzeugKontext, tage: number): Promise<{
     const tag = a.faelligAm ? String(a.faelligAm).slice(0, 10) : null;
     if (!tag && !a.frageAnAgent) continue;
     if (tag && tag > grenze) continue;
-    fristen.push({ art: "auftrag", dringlichkeit: tag ? stufe(tag) : "heute", am: tag, amText: tag, personId: null, name: null, text: `Auftrag #${a.id}: ${a.titel}${a.frageAnAgent ? " · Rückfrage vom Betreiber wartet auf dich" : ""}` });
+    // E-IT-F (08.10.2026): Die Liste trägt jetzt den Kunden (person_id) — der Copilot nennt ihn mit.
+    fristen.push({ art: "auftrag", dringlichkeit: tag ? stufe(tag) : "heute", am: tag, amText: tag, personId: a.personId ?? null, name: a.kunde ?? null, text: `Auftrag #${a.id}: ${a.titel}${a.frageAnAgent ? " · Rückfrage vom Betreiber wartet auf dich" : ""}` });
   }
 
   const rang: Record<Frist["dringlichkeit"], number> = { ueberfaellig: 0, heute: 1, bald: 2 };
@@ -232,7 +233,8 @@ export const WERKZEUGE_TAG: Werkzeug[] = [
         },
         auftraege: {
           anzahl: offeneAuftraege.length,
-          erste: offeneAuftraege.slice(0, 8).map((a: any) => ({ id: a.id, titel: a.titel, faelligAm: a.faelligAm ?? null, status: a.status, rueckfrage: !!a.frageAnAgent, prioritaet: a.prioritaet })),
+          // E-IT-F: dieselbe Reihenfolge wie die Liste (dringend, dann Eingang), mit Kunde, Art und Eingang.
+          erste: offeneAuftraege.slice(0, 8).map((a: any) => ({ id: a.id, titel: a.titel, kunde: a.kundeAnzeige ?? a.kunde ?? null, personId: a.personId ?? null, art: a.artLabel ?? null, eingangAm: a.eingangAm ?? null, faelligAm: a.faelligAm ?? null, status: a.status, rueckfrage: !!a.frageAnAgent, prioritaet: a.prioritaet })),
         },
         posteingang: z ? { zuBeantworten: z.zuBeantworten, anliegen: z.anliegen, verpassteAnrufe: z.anrufe, rueckrufwuensche: z.rueckrufe, postKaputt: z.postKaputt, neu24h: z.neu24 } : null,
         kunden: k ? { arbeitslisteOffen: k.offen, zahlungGemeldet: k.tier1, rechnungOffen: k.tier2, leads: k.tier3, mitOffenerRate: k.rateOffen } : null,

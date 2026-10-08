@@ -1976,6 +1976,11 @@ router.post(
         console.error("[DOK] Prüfung:", String(e).slice(0, 160));
       }
 
+      // E-IT-F (08.10.2026): Unterlage erhalten → „Unterlage anfordern"/„Auskunft fehlt" dieses Menschen erledigt.
+      {
+        const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+        await ereignisMelden({ ereignis: "unterlage_erhalten", personId, ref: antragRef, akteur: { id: req.agent!.id, name: req.agent!.name }, detail: label });
+      }
       const stand = await dokumentStand({ personId, rolle, zustaendig: true }, sqlPool);
       res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.${pruefSatz}` });
     } catch (err) {
@@ -2177,6 +2182,11 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
         ? `${OHNE_ANGEBOT_TEXT[teil.ohneAngebot]}${teil.zuletzt ? ` Zuletzt ${teil.zuletzt}.` : ""}` : "",
       ausgelassen.length ? `Nicht angefordert: ${ausgelassen.map((a) => a.grund).join(" ")}` : "",
     ].filter(Boolean).join(" ");
+    // E-IT-F (08.10.2026): Die angeforderte Unterlage erledigt den Auftrag „Unterlage anfordern" dieses Menschen.
+    if (erg.ok) {
+      const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+      await ereignisMelden({ ereignis: "unterlage_angefordert", personId, akteur: { id: req.agent!.id, name: req.agent!.name }, detail: arten.map(label).join(", ") });
+    }
     res.json({
       ...erg,
       meldung: nachsatz ? `${erg.meldung} ${nachsatz}` : erg.meldung,

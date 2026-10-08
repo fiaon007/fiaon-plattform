@@ -501,6 +501,22 @@ export async function ergebnisNachbereiten(
     `;
   }
 
+  // ── 2b. AUFTRÄGE ZU DIESEM KUNDEN (E-IT-F, 08.10.2026) ────────────────
+  // Ein Gesprächsergebnis „erreicht"/„Rückruf vereinbart" erledigt die offenen
+  // Rückruf-, Hinweis- und WhatsApp-Aufträge dieses Menschen (Katalog in
+  // shared/fiaon-auftrag-arten.ts), ein erfolgloser Versuch steht nur im Verlauf.
+  // Akte, Telefon und Telefonkartei laufen alle durch diese Kette. Wirft nie.
+  if (ein.ergebnis) {
+    const { ereignisAusErgebnis, ereignisMelden } = await import("./fiaon-auftraege");
+    const ereignis = ereignisAusErgebnis(ein.ergebnis);
+    if (ereignis) {
+      await ereignisMelden({
+        ereignis, personId: ein.personId, ref: ein.ref, akteur: { id: ein.akteur.id, name: ein.akteur.name },
+        detail: ERGEBNIS_TEXT[ein.ergebnis] ?? ein.ergebnis,
+      }).catch(() => null);
+    }
+  }
+
   // ── 3. „FALSCHE NUMMER" BITTET DEN KUNDEN UM SEINE NUMMER ─────────────
   let nummerMail: { sent: boolean; reason?: string } | undefined;
   if (ein.ergebnis === "nummer_falsch") {

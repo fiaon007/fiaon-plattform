@@ -580,10 +580,68 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Aufgabe von selbst, sobald die Antwort auf genau diese Mail draußen ist: wenn du sendest oder „Übernommen“ wählst, wenn die "
       + "Leitung sie im Postfach freigibt oder wenn Mara sie selbst sendet. Bei Rückrufwunsch, Beschwerde, bestrittener Forderung, "
       + "Widerruf, rechtlichen Fragen oder Zahlungsunfähigkeit bleibt sie offen („Antwort gesendet — bitte selbst nachfassen“). "
-      + "Schreibt der Kunde danach erneut, öffnet sie sich wieder.",
+      + "Schreibt der Kunde danach erneut, öffnet sie sich wieder."
+      // E-IT-F (08.10.2026): Öffnen führt in die Akte MIT der Leiste dieses Auftrags; Arbeit in der Akte erledigt ihn.
+      + " „Öffnen“ bringt dich in die Akte — unten steht dann eine schmale Leiste mit genau diesem Auftrag: „Erledigt“ "
+      + "schließt ihn, „Nächster Auftrag“ öffnet gleich den nächsten Kunden. Erfasst du in der Akte ein Gesprächsergebnis "
+      + "oder antwortest auf WhatsApp, erledigt sich der Auftrag meist von selbst — die Leiste zeigt es an.",
     // Gegenlesen 24.09.2026: Der Knopf zeigt den ZUSTAND („Ton an"), nicht die Handlung —
     // vorher verwies der Tipp auf einen Knopf „Ton aus", den man bei eingeschaltetem Ton nicht findet.
     tipp: "Trifft eine neue Aufgabe ein, während du arbeitest, klingt ein leiser Doppelton — nie während eines Gesprächs. Ein Tipp auf „Ton an“ unten in der Karte schaltet ihn ab.",
+  },
+];
+
+// ── /agent/aufgaben (E-IT-F, 08.10.2026) — Tasks mit der Auftragsliste ─────
+// Neu: Die Seite hatte bis heute keinen Rundgang. Seit E-IT-F stehen Aufträge als
+// Liste Kunde · Art · Eingang · Status da, „Erledigt" geht mit einem Klick, viele
+// Aufträge erledigen sich durch die Arbeit in der Akte selbst, und Erledigtes steht
+// im Reiter „Erledigt" (mit „Wieder öffnen"). Die Liste und ihre Knöpfe erscheinen
+// nur, wenn es Aufträge gibt — deshalb dort kein `ziel` (Rundgang-Pflegepflicht).
+export const RUNDGANG_TASKS: RundgangSchritt[] = [
+  {
+    titel: "Alles, was dir zugewiesen ist.",
+    text: "„Zu tun“ sind die Aufgaben der Verwaltung mit Frist. „Aufträge“ kommen von Justin und von Mara — "
+      + "aus Kundenmails, WhatsApp und dem System. „Hinweise“ sind nur zum Lesen. „Erledigt“ sammelt beides, "
+      + "was du oder das System abgeschlossen habt.",
+  },
+  {
+    ziel: '[data-reiter="auftraege"]',
+    titel: "Aufträge: nur, was wirklich offen ist.",
+    text: "Hier steht jeder offene Auftrag in einer Zeile: Kunde, Art, Eingang und Status. Dringende stehen oben, "
+      + "darin die ältesten zuerst — so kommt auch der Rückstand dran. Oben rechts schaltest du auf „Neueste zuerst“ um; "
+      + "die Wahl merkt sich dein Gerät.",
+    tipp: "Der Eingang steht immer dabei („Eingang: 08.10. 14:32“). Steht daneben „neue Nachricht …“, hat der Kunde inzwischen noch einmal geschrieben.",
+  },
+  {
+    titel: "Ein Klick auf die Zeile klappt den Auftrag auf.",
+    text: "Dann siehst du den ganzen Text, die Schritte („Strecke“), eine Frage von Justin und die Zeitleiste. "
+      + "Dort stellst du auch eine Rückfrage, schreibst eine Notiz oder gibst den Auftrag zurück. „Akte“ öffnet den Kunden "
+      + "direkt — ohne dass ein laufendes Gespräch abbricht.",
+  },
+  {
+    titel: "„Erledigt“ — ein Klick, dann der nächste.",
+    text: "„Erledigt“ in der Zeile schließt den Auftrag sofort; die Zeile verschwindet, und der nächste offene Auftrag "
+      + "klappt auf. Einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken. Pflicht ist er nur, wenn es "
+      + "eine Frage gab, bei Kündigung, Widerruf, Beschwerde oder Löschantrag und bei Lage-Aufträgen wie „E-Mail unzustellbar“ "
+      + "— dann öffnet sich das Feld von selbst.",
+  },
+  {
+    titel: "Viele Aufträge erledigen sich selbst.",
+    text: "Erfasst du in der Akte ein Gesprächsergebnis („erreicht“, „Rückruf vereinbart“), erledigst du einen Rückruf, "
+      + "führst einen Termin, antwortest selbst auf WhatsApp, forderst eine Unterlage an oder schickst den Kartenlink, "
+      + "schließt das System die passenden Aufträge dieses Kunden, die bei DIR liegen — mit dem Satz „Automatisch erledigt durch …“ in der "
+      + "Zeitleiste. Bei einer Unterlage nur der Auftrag, der genau diese Unterlage nennt. Ein Rückrufwunsch erledigt sich nur durch "
+      + "ein Gespräch, nicht durch eine WhatsApp-Zeile. Heikles (Kündigung, Widerruf, Beschwerde, Bestreiten, Löschwunsch, Erstattung — "
+      + "auch in einer Mail-Übergabe), Geld, eine bezahlte Auskunft, „Rate: E-Mail unzustellbar“ und Vorgänge schließt nie "
+      + "das System, nur du — mit einem Satz. „Erledigt“ bei „Kunde hat geschrieben“ verwirft Maras wartenden Entwurf (wie „Übernommen“).",
+    tipp: "„Nicht erreicht“ schließt nichts — der Versuch steht im Verlauf. Arbeitet ein Kollege an deinem Kunden (Gespräch, Kartenlink, Unterlage), steht bei dir nur ein Hinweis „… – bitte prüfen“.",
+  },
+  {
+    ziel: '[data-reiter="erledigt"]',
+    titel: "Erledigt — und wieder öffnen.",
+    text: "Hier stehen deine erledigten Aufgaben und die Aufträge der letzten 30 Tage, jeweils mit „von …“ oder "
+      + "„automatisch durch …“. War etwas zu früh zu, holt „Wieder öffnen“ den Auftrag zurück in die Liste. Öffnet das System "
+      + "einen Auftrag wieder — etwa weil der Kunde noch einmal schreibt —, steht er als „Wieder offen“ mit Grund in der Liste.",
   },
 ];
 
@@ -2099,6 +2157,7 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   onboarding:  { titel: "Onboarding",   schritte: RUNDGANG_ONBOARDING },
   collections: { titel: "Collections",  schritte: RUNDGANG_COLLECTIONS },
   dashboard:   { titel: "Dashboard",    schritte: RUNDGANG_DASHBOARD },
+  tasks:       { titel: "Tasks",        schritte: RUNDGANG_TASKS },
   gehalt:      { titel: "Earnings",     schritte: RUNDGANG_GEHALT },
   wallet:      { titel: "Wallet",       schritte: RUNDGANG_WALLET },
   tickets:     { titel: "Tickets",      schritte: RUNDGANG_TICKETS },

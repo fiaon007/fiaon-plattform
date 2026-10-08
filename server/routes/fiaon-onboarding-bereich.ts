@@ -2059,6 +2059,9 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
         titel: `Einladung zum Startgespräch ging nicht raus — ${z.name}`,
         text: `Der Kunde hat bezahlt, hat keinen Termin und keine Einladung bekommen. Automatischer Versand gescheitert: ${grund}. Bitte den Kunden anrufen oder die Einladung aus der Akte schicken.`,
         dringend: true, schluessel: `einladung-nachholen:${z.ref}`, quelle: "system", autorName: "System",
+        // E-IT-F (08.10.2026): eine LAGE, kein neues Ereignis — ein erledigter Auftrag geht nicht bei jedem
+        // Lauf (alle 6 h und nach jedem Start) wieder auf (#966: fünfmal „Als erledigt gemeldet").
+        anlass: "zustand",
       }).catch(() => {});
       aufgaben += 1;
     }

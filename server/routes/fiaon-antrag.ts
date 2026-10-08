@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
+import { ZUSTAND_WIEDER_OFFEN_TAGE } from "../../shared/fiaon-auftrag-arten";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, paketPreisEuro } from "@shared/fiaon-pakete";
@@ -2119,7 +2120,9 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
        AND pt.ist_test_am IS NULL
        AND ${unzustellbarSql("fa")}
        AND ${zielMailSql("fa")} NOT ILIKE '%.test'
-       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar')
+       -- E-IT-F (08.10.2026): wie im Abo-Motor — nach ZUSTAND_WIEDER_OFFEN_TAGE erneut melden, wenn die Lage besteht.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar'
+                         AND (t.status <> 'erledigt' OR COALESCE(t.erledigt_am, NOW()) > NOW() - INTERVAL '${ZUSTAND_WIEDER_OFFEN_TAGE} days'))
      ORDER BY fa.created_at DESC
      LIMIT 50`)) as any[];
   if (zeilen.length === 0) return 0;
@@ -2139,6 +2142,7 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
         quelle: "antrag",
         bereich: "konten",
         autorName: "Erinnerungsmaschine",
+        anlass: "zustand", // E-IT-F: eine Lage, kein neues Ereignis
       });
       n++;
     } catch (e) { console.error("[FIAON-PAYMENT] Aufgabe unzustellbar:", e); }
@@ -4047,6 +4051,14 @@ router.post("/upload-kyc", (req, res, next) => {
     }
 
     console.log(`[FIAON-KYC] Documents uploaded for ${ref}, kycStatus=${newKycStatus}`);
+    // E-IT-F (08.10.2026): Unterlage erhalten → „Unterlage anfordern"/„Auskunft fehlt" dieses Menschen erledigt.
+    void import("../lib/fiaon-auftraege")
+      .then(({ ereignisMelden }) => ereignisMelden({
+        ereignis: "unterlage_erhalten", personId: currentApp.person_id ?? null, ref: String(ref),
+        akteur: { id: null, name: "Kunde (Upload)" },
+        detail: [files.bankStatement ? "Kontoauszug" : null, files.idCard ? "Ausweis" : null, files.schufaDoc ? "eigene Bonitätsauskunft" : null].filter(Boolean).join(", "),
+      }))
+      .catch(() => {});
 
     // ══════════════════════════════════════════════════════════════════════
     // EIN UPLOAD IST EIN VORGANG, KEIN ABLEGEN (22.08.2026, Justins Kundentest)

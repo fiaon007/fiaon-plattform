@@ -358,6 +358,14 @@ export async function ratenErgebnisAnwenden(
         VALUES (${rate.ref}, ${pid}, ${opts.agentId}, ${opts.agentName}, 'result', ${outcome},
                 ${`Rate ${rate.rate_nr}: ${meldung}${opts.notiz ? ` — ${String(opts.notiz).slice(0, 500)}` : ""}`},
                 ${opts.ergebnis === "zahlt_am" ? zusage : null}, NOW())`.catch((e: any) => console.error("[INKASSO] Verlauf:", e?.message || e));
+      // E-IT-F (08.10.2026): Ein Ratenergebnis ist ein Gespräch wie in der Akte — es erledigt die offenen
+      // Rückruf-/Hinweis-Aufträge dieses Menschen (Gegenprüfung: diese Ergebnisse liefen NICHT durch
+      // ergebnisNachbereiten). In einem Sicherungspunkt, falls `lauf` eine Transaktion ist.
+      const { ereignisAusRatenErgebnis, ereignisMelden } = await import("./fiaon-auftraege");
+      const ereignis = ereignisAusRatenErgebnis(opts.ergebnis);
+      if (ereignis) {
+        await ereignisMelden({ ereignis, personId: pid, ref: rate.ref, akteur: { id: opts.agentId, name: opts.agentName }, detail: `Rate ${rate.rate_nr}: ${RATEN_ERGEBNISSE.find((e) => e.art === opts.ergebnis)?.label ?? opts.ergebnis}` }, lauf);
+      }
     }
   }
   await lauf`

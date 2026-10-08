@@ -931,6 +931,11 @@ export async function ermittleProvisionsAnspruch(
  */
 export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
   await abschlussNachZahlung(ref, opts);
+  // E-IT-F (08.10.2026): Die Zahlung erledigt „Erstzahlung: E-Mail unzustellbar" dieser Bestellung.
+  // Nach der Buchung, entkoppelt — ein Fehler hier hält nie eine Buchung auf.
+  void import("../lib/fiaon-auftraege")
+    .then(({ ereignisMelden }) => ereignisMelden({ ereignis: "zahlung_gebucht", ref, akteur: { id: null, name: "System" }, detail: "Erstzahlung" }))
+    .catch(() => {});
   // ── MESSUNG AN META (22.09.2026, E-210) ──────────────────────────────────
   // Hier, weil JEDER Buchungsweg durch diese Funktion geht. Meta bekommt den
   // Kauf (Pixel + Conversions API, eine Kennung) und die Stufe des Leads
@@ -1311,6 +1316,11 @@ export async function onRatePaid(rateId: number): Promise<void> {
     FROM fiaon_abo_raten WHERE id = ${rateId}
   `;
   if (!rate || rate.status !== "bezahlt") return;
+  // E-IT-F (08.10.2026): Eine gebuchte Rate erledigt „Rate: E-Mail unzustellbar" dieser Bestellung —
+  // vor den Provisions-Ausstiegen unten, entkoppelt von der Buchung.
+  void import("../lib/fiaon-auftraege")
+    .then(({ ereignisMelden }) => ereignisMelden({ ereignis: "zahlung_gebucht", ref: String(rate.ref), akteur: { id: null, name: "System" }, detail: `Rate ${rate.rate_nr}` }))
+    .catch(() => {});
   if (!(Number(rate.rate_nr) >= 2)) return;
 
   const existing = await sqlPool`

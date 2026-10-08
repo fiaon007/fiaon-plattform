@@ -40,6 +40,13 @@
 // letzte_aktivitaet, delegiert_am, created_at), und nach demselben Zeitpunkt
 // entscheidet die Karte, ob seit „Später" etwas dazugekommen ist.
 //
+// E-IT-F (08.10.2026), Nachtrag: Die Spalte neu_seit (Migration 102) ersetzt
+// GREATEST(letzte_aktivitaet, delegiert_am, created_at). Sie bewegen nur echte
+// Neuigkeiten — Anlage, eine weitere Kundennachricht, Justins Übergabe. Ein
+// Übertrag in Masse, eine Systemzeile oder ein Versuchsvermerk bewegen sie nicht.
+// Ungelesen heißt: neu_seit liegt nach agent_gelesen_am. Der Kunde kommt aus
+// person_id — dieselbe Zuordnung wie in der Liste (keine zweite Rater-Fassung).
+//
 // ── BESITZSCHUTZ ───────────────────────────────────────────────────────────
 // Beide Routen sehen NUR Aufgaben, die bei genau diesem Mitarbeiter liegen
 // (zustaendig_art = 'agent' AND zustaendig_agent_id = seine Kennung). Eine
@@ -53,6 +60,9 @@ import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureTodoTabelle, refAusLink } from "./fiaon-betreiber-todo";
+// E-IT-F (08.10.2026): Herkunft, Kunde und Person aus EINER Quelle — dieselbe wie die Liste.
+import { auftragHerkunft, nameAusTitel } from "../../shared/fiaon-auftrag-arten";
+import { auftraegeZuordnen } from "../lib/fiaon-auftraege";
 
 const router = Router();
 
@@ -73,18 +83,8 @@ const HOECHSTENS = 5;
  * zählen als Mara — neue Mara-Werkzeuge (E-240) brauchen hier keinen Eintrag.
  */
 export function quelleVon(quelle: unknown): { vonMara: boolean; kanal: string | null } {
-  const q = String(quelle ?? "").trim().toLowerCase();
-  if (q === "postmeister") return { vonMara: true, kanal: "E-Mail" };
-  if (q.includes("whatsapp")) return { vonMara: q.startsWith("mara"), kanal: "WhatsApp" };
-  if (q.startsWith("mara")) return { vonMara: true, kanal: null };
-  const HAUS: Record<string, string> = {
-    antrag: "Antrag", abo: "Zahlungen", bonitaet: "Bonität", global: "FIAON Global",
-    website: "Website", hand: "Verwaltung", system: "System", meldung: "Meldung",
-    // Integration 25.09.2026 (E-240): die Auskunft-Lieferung (fiaon-auskunft-lieferung.ts) legt ihre
-    // Aufgaben mit quelle „bestellung" an — „Auskunft beschaffen", „Anschrift fehlt", „auswerten".
-    bestellung: "Bestellung",
-  };
-  return { vonMara: false, kanal: HAUS[q] ?? "Verwaltung" };
+  // E-IT-F: die Regel steht jetzt in shared/fiaon-auftrag-arten.ts (auftragHerkunft) — Liste und Popup gleich.
+  return auftragHerkunft(quelle);
 }
 
 /**
@@ -115,11 +115,13 @@ export function auszugVon(text: unknown, max = 180): string | null {
  * Links ins Chefbüro (/chef/s/…, /admin/…) sind für Mitarbeiter
  * verschlossen und werden nie weitergereicht.
  */
-export function zielVon(a: { link: string | null; personId: number | null; ref: string | null; kanal: string | null }): { href: string; text: string } {
+export function zielVon(a: { link: string | null; personId: number | null; ref: string | null; kanal: string | null; id?: number | null }): { href: string; text: string } {
   const link = String(a.link || "");
+  // E-IT-F: „&auftrag=<id>" — in der Akte steht dann die Leiste mit diesem Auftrag (Erledigt, Nächster).
+  const auftrag = a.id ? `&auftrag=${Number(a.id)}` : "";
   if (link.startsWith("/agent/") && !/^\/agent\/(kunden|pipeline)(\?|$)/.test(link)) return { href: link, text: "Akte öffnen" };
-  if (a.personId) return { href: `/agent/kunden?person=${a.personId}`, text: "Akte öffnen" };
-  if (a.ref) return { href: `/agent/kunden?ref=${encodeURIComponent(a.ref)}`, text: "Akte öffnen" };
+  if (a.personId) return { href: `/agent/kunden?person=${a.personId}${auftrag}`, text: "Akte öffnen" };
+  if (a.ref) return { href: `/agent/kunden?ref=${encodeURIComponent(a.ref)}${auftrag}`, text: "Akte öffnen" };
   if (a.kanal === "WhatsApp") return { href: "/agent/whatsapp", text: "WhatsApp öffnen" };
   return { href: "/agent/aufgaben", text: "Aufgabe öffnen" };
 }
@@ -158,63 +160,48 @@ export interface NeueAufgabe {
 /** Die neuesten ungelesenen offenen Aufgaben eines Mitarbeiters. Exportiert für den Prüfstand. */
 export async function neueAufgaben(agentId: number): Promise<{ gesamt: number; stand: string | null; aufgaben: NeueAufgabe[] }> {
   await ensureTodoTabelle();
+  // E-IT-F (08.10.2026): Kunde aus person_id (dieselbe Zuordnung wie die Liste) — neue Zeilen erst einordnen.
+  const ohne = (await sqlPool`
+    SELECT id FROM fiaon_betreiber_todos
+     WHERE zustaendig_art = 'agent' AND zustaendig_agent_id = ${agentId} AND status <> 'erledigt' AND zugeordnet_am IS NULL LIMIT 50`.catch(() => [])) as any[];
+  if (ohne.length) await auftraegeZuordnen({ ids: ohne.map((o: any) => Number(o.id)) }).catch(() => 0);
+  // E-IT-F: „neu" ist, was seit dem letzten Hinsehen eine ECHTE Neuigkeit hat (neu_seit: Anlage, neue
+  // Kundennachricht, Justins Übergabe). VORHER zählte GREATEST(letzte_aktivitaet, delegiert_am, created_at) —
+  // jede Systemzeile und jeder Übertrag machte Altfälle „neu" (07.10.: 251 ungelesen bei Daniel, 162 davon
+  // älter als 7 Tage, alle durch den Übertrag um 19:42).
   const zeilen = (await sqlPool`
     SELECT t.id, t.titel, t.text, t.prioritaet, t.quelle, t.link, t.schluessel, t.faellig_am::text AS faellig_am,
-           GREATEST(t.letzte_aktivitaet, t.delegiert_am, t.created_at) AS neu_seit,
+           COALESCE(t.neu_seit, t.created_at) AS neu_seit, t.ref AS t_ref,
+           kp.id AS kunde_person_id, kp.name AS kunde_name,
            COUNT(*) OVER ()::int AS gesamt
       FROM fiaon_betreiber_todos t
+      LEFT JOIN LATERAL (
+        SELECT p.id, COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), NULLIF(TRIM(p.company_name), '')) AS name
+          FROM fiaon_persons p0 JOIN fiaon_persons p ON p.id = COALESCE(p0.merged_into_person_id, p0.id)
+         WHERE p0.id = t.person_id) kp ON TRUE
      WHERE t.zustaendig_art = 'agent' AND t.zustaendig_agent_id = ${agentId}
-       AND t.status <> 'erledigt' AND t.agent_gelesen_am IS NULL
-       -- 25.09.2026: nur, was sich in den letzten 7 Tagen bewegt hat. Beim Start lagen
-       -- 165/130/90 nie geöffnete Altaufgaben je Mitarbeiter da (älteste 02.09.) — das Popup
-       -- soll Neues melden, nicht den Rückstand; der steht in /agent/aufgaben.
-       AND GREATEST(t.letzte_aktivitaet, t.delegiert_am, t.created_at) > NOW() - INTERVAL '7 days'
+       AND t.status <> 'erledigt'
+       AND COALESCE(t.neu_seit, t.created_at) > COALESCE(t.agent_gelesen_am, TIMESTAMPTZ 'epoch')
+       -- 25.09.2026: nur, was in den letzten 7 Tagen neu ist — das Popup meldet Neues, nicht den Rückstand.
+       AND COALESCE(t.neu_seit, t.created_at) > NOW() - INTERVAL '7 days'
      ORDER BY neu_seit DESC, t.id DESC
      LIMIT ${HOECHSTENS}
   `) as any[];
   if (!zeilen.length) return { gesamt: 0, stand: null, aufgaben: [] };
 
-  // Namen in zwei Läufen statt je Zeile: Personen direkt, Referenzen über den Antrag.
-  const personen = new Map<number, number | null>(zeilen.map((r) => [Number(r.id), personAusZeile(r)]));
-  const refs = new Map<number, string | null>(zeilen.map((r) => [Number(r.id), refAusLink(r.link)]));
-  const refListe = Array.from(new Set(Array.from(refs.values()).filter(Boolean))) as string[];
-  const nachRef = new Map<string, { personId: number | null; name: string | null }>();
-  if (refListe.length) {
-    const z = (await sqlPool`
-      SELECT a.ref, a.person_id,
-             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
-                      NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), p.company_name) AS name
-        FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
-       WHERE a.ref = ANY(${refListe})
-    `.catch(() => [] as any[])) as any[];
-    for (const k of z) nachRef.set(String(k.ref).toUpperCase(), { personId: k.person_id ? Number(k.person_id) : null, name: k.name ?? null });
-  }
-  for (const [id, ref] of Array.from(refs.entries())) {
-    if (!personen.get(id) && ref) personen.set(id, nachRef.get(ref)?.personId ?? null);
-  }
-  const personIds = Array.from(new Set(Array.from(personen.values()).filter((p): p is number => !!p)));
-  const namen = new Map<number, string | null>();
-  if (personIds.length) {
-    const z = (await sqlPool`
-      SELECT p.id, COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name) AS name
-        FROM fiaon_persons p WHERE p.id = ANY(${personIds})
-    `.catch(() => [] as any[])) as any[];
-    for (const k of z) namen.set(Number(k.id), k.name ?? null);
-  }
-
   const aufgaben = zeilen.map((r): NeueAufgabe => {
     const id = Number(r.id);
-    const personId = personen.get(id) ?? null;
-    const ref = refs.get(id) ?? null;
+    const personId = r.kunde_person_id ? Number(r.kunde_person_id) : personAusZeile(r);
+    const ref = r.t_ref ? String(r.t_ref) : refAusLink(r.link);
     const { vonMara, kanal } = quelleVon(r.quelle);
     const prioritaet = Number(r.prioritaet || 2);
     return {
       id, titel: String(r.titel || "Aufgabe"), auszug: auszugVon(r.text),
       prioritaet, dringend: prioritaet === 1,
       quelle: String(r.quelle || ""), vonMara, kanal,
-      kunde: (personId ? namen.get(personId) : null) ?? (ref ? nachRef.get(ref)?.name : null) ?? null,
+      kunde: (r.kunde_name ? String(r.kunde_name) : null) ?? nameAusTitel(r.titel) ?? null,
       personId, ref,
-      ziel: zielVon({ link: r.link ?? null, personId, ref, kanal }),
+      ziel: zielVon({ link: r.link ?? null, personId, ref, kanal, id }),
       faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
       neuSeit: new Date(r.neu_seit).toISOString(),
     };

@@ -160,6 +160,12 @@ export async function rueckrufErledigen(
     SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${von.name}, updated_at = NOW()
     WHERE art = 'aufgabe' AND status = 'offen' AND text LIKE ${`RÜCKRUF binnen%${String(r.anliegen).slice(0, 40)}%`}
   `.catch(() => {});
+  // E-IT-F (08.10.2026): Ein erledigter Rückruf erledigt auch die Rückruf-/Hinweis-Aufträge dieses
+  // Menschen (Katalog shared/fiaon-auftrag-arten.ts) — mit „Automatisch erledigt durch Rückruf erledigt".
+  if (r.person_id || r.ref) {
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({ ereignis: "rueckruf_erledigt", personId: r.person_id ?? null, ref: r.ref ?? null, akteur: { id: von.agentId, name: von.name } }, lauf);
+  }
   return { ok: true };
 }
 

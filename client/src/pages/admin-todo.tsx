@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X, Check, Undo2, Trash2, ExternalLink, Send, UserRound, MessageCircleQuestion, ArrowRightLeft } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
+import { eingangText } from "@shared/fiaon-auftrag-arten";
 
 type Spalte = "offen" | "team" | "rueckfrage" | "erledigt";
 interface Beitrag { id: number; autorArt: "betreiber" | "agent" | "system"; autorName: string; art: "kommentar" | "frage" | "antwort" | "ergebnis" | "status"; text: string; am: string }
@@ -26,6 +27,10 @@ interface Todo {
   // ist DEINE Frage an den Mitarbeiter, neuFuerBetreiber das, was er
   // geschrieben hat und du noch nicht gesehen hast.
   frageAnAgent: boolean; neuFuerBetreiber: number; neuFuerAgent: number; ergebnisPflicht: boolean;
+  // E-IT-F (08.10.2026): Kunde, Art und Eingang als Datenfeld — das Board zeigte bisher gar keinen Kunden.
+  kunde?: string | null; kundeAnzeige?: string; personId?: number | null; ref?: string | null; kundeTelefon?: string | null;
+  artLabel?: string; eingangAm?: string | null; erledigtArt?: string | null; erledigtEreignis?: string | null;
+  wiederOffenGrund?: string | null; wiederOffenZahl?: number;
 }
 interface Agent { id: number; name: string; rolle: string }
 
@@ -70,6 +75,7 @@ const CSS = `
 .td-karte::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--kante,#cbd5e1)}
 .td-karte+.td-karte{margin-top:8px}
 .td-titel{font-size:13.5px;font-weight:500;color:#0f172a;line-height:1.35}
+.td-kunde{margin-top:4px;font-size:11.5px;color:#475569;line-height:1.35;overflow-wrap:anywhere}
 .td-karte[data-fertig="1"] .td-titel{color:#94a3b8;text-decoration:line-through}
 .td-meta{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:8px;font-size:11px;color:#64748b;align-items:center}
 .td-chip{display:inline-flex;align-items:center;gap:5px;font-weight:500}
@@ -184,6 +190,8 @@ export default function AdminTodoPage() {
               return (
                 <div key={t.id} className="td-karte" data-an={offenId === t.id ? "1" : undefined} data-fertig={t.spalte === "erledigt" ? "1" : undefined} style={{ ["--kante" as any]: kante }} onClick={() => setOffenId(t.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setOffenId(t.id); }}>
                   <p className="td-titel">{t.titel}</p>
+                  {/* E-IT-F: Kunde · Art · Eingang auf jeder Karte. */}
+                  <p className="td-kunde">{t.kundeAnzeige || t.kunde || "ohne Kundenbezug"}{t.artLabel ? ` · ${t.artLabel}` : ""} · {eingangText(t.eingangAm ?? t.createdAt)}</p>
                   <div className="td-meta">
                     <span className="td-chip" style={{ ["--c" as any]: BEREICH[t.bereich]?.farbe }}><i />{BEREICH[t.bereich]?.label || t.bereich}</span>
                     {t.spalte !== "erledigt" && <span>P{t.prioritaet} · {PRIO[t.prioritaet]}</span>}
@@ -194,7 +202,8 @@ export default function AdminTodoPage() {
                     {t.frageAnAgent && <span className="td-wartet"><MessageCircleQuestion size={12} /> wartet auf Antwort</span>}
                     {/* E-029: zählt nur, was du noch nicht gesehen hast, und fällt beim Öffnen weg. */}
                     {t.neuFuerBetreiber > 0 && <span className="td-neu">{t.neuFuerBetreiber} neu</span>}
-                    {t.spalte === "erledigt" && <span style={{ color: "#059669", fontWeight: 600 }}>{t.erledigtVon || "erledigt"} · {tag(t.erledigtAm)}</span>}
+                    {t.spalte === "erledigt" && <span style={{ color: "#059669", fontWeight: 600 }}>{t.erledigtArt === "auto" ? "automatisch" : (t.erledigtVon || "erledigt")} · {tag(t.erledigtAm)}</span>}
+                    {t.spalte !== "erledigt" && (t.wiederOffenZahl ?? 0) > 0 && <span className="td-wartet" title={t.wiederOffenGrund || undefined}>wieder offen</span>}
                   </div>
                   {t.letzterBeitrag && t.letzterBeitrag.art !== "status" && (
                     <div className="td-letzt"><b>{t.letzterBeitrag.autor}:</b> {t.letzterBeitrag.text}</div>
@@ -302,11 +311,20 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
 
         <div className="td-lade-inhalt">
           {fehler && <div className="td-fehler">{fehler}</div>}
+          {/* E-IT-F: der Kunde und die eigene Akte (über die Referenz) — Mitarbeiter-Links (/agent/…) öffnen hier nicht. */}
+          <p className="text-[13px] text-slate-700 mb-3">
+            Kunde: <b>{t.kundeAnzeige || t.kunde || "ohne Kundenbezug"}</b>{t.kundeTelefon ? ` · ${t.kundeTelefon}` : ""}
+            {t.ref ? <> · <a href={`/admin/kunde/${t.ref}`} className="text-blue-700 font-medium">{t.ref}</a></> : null}
+            <span className="text-slate-500"> · {t.artLabel || "Sonstiges"} · {eingangText(t.eingangAm ?? t.createdAt)}</span>
+          </p>
+          {t.status !== "erledigt" && t.wiederOffenGrund && (t.wiederOffenZahl ?? 0) > 0 && (
+            <p className="text-[12.5px] text-amber-700 mb-3">Wieder offen ({t.wiederOffenZahl}×): {t.wiederOffenGrund}</p>
+          )}
           {t.text && <p className="text-[13.5px] text-slate-700 leading-relaxed whitespace-pre-wrap">{t.text}</p>}
           {t.link && <a href={t.link} target={t.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-medium text-blue-700"><ExternalLink size={13} /> Öffnen</a>}
           {t.ergebnis && (
             <div className="mt-4 p-3 rounded-xl" style={{ background: "#ecfdf5", border: "1px solid #a7f3d0" }}>
-              <p className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-emerald-700 mb-1">Ergebnis · {t.erledigtVon} · {zeit(t.erledigtAm)}</p>
+              <p className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-emerald-700 mb-1">{t.erledigtArt === "auto" ? "Automatisch erledigt" : "Ergebnis"} · {t.erledigtVon} · {zeit(t.erledigtAm)}</p>
               <p className="text-[13px] text-slate-800 whitespace-pre-wrap">{t.ergebnis}</p>
             </div>
           )}

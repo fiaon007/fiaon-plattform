@@ -51,6 +51,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { maraMarke } from "@shared/fiaon-mara-marke";
 import { agentSitzung, telefon } from "@/lib/office-zustand";
+import { AuftragLeiste } from "./AuftragLeiste";
 import "@/styles/office-aufgaben-erinnerung.css";
 
 interface NeueAufgabe {
@@ -123,6 +124,15 @@ const spaeterMerker = new Map<number, string>();
 /** War die Karte auf der vorigen Seite zu sehen? Dann fliegt sie nicht neu herein. */
 let zuletztGezeigt = false;
 
+// E-IT-F (08.10.2026): Wird irgendwo erledigt oder angenommen (Tasks, Akte-Leiste), ist die gemerkte
+// Lage veraltet — sie wird SOFORT verworfen, nicht erst mit der nächsten Antwort. Sonst zeigt die
+// nächste Seite einen Moment lang einen Auftrag, der schon erledigt ist. Dasselbe beim Zurück aus
+// dem Browser-Cache (pageshow mit persisted). Einmal je Modul angemeldet, unabhängig vom Rahmen.
+if (typeof window !== "undefined") {
+  window.addEventListener("agent-aufgaben-geaendert", () => { letzteLage = null; });
+  window.addEventListener("pageshow", (e) => { if ((e as PageTransitionEvent).persisted) letzteLage = null; });
+}
+
 function lageAusSpeicher(): Lage | null {
   const email = agentSitzung.lesen()?.email ?? null;
   return letzteLage && email && letzteLage.email === email ? letzteLage.lage : null;
@@ -188,7 +198,16 @@ function herkunftTitel(a: NeueAufgabe): string {
   return "Mara hat diese Aufgabe angelegt";
 }
 
+/**
+ * Der Rahmen: die Karte „Neu von Mara" und — in der Akte mit „?auftrag=" —
+ * die Auftrag-Leiste (E-IT-F, components/AuftragLeiste.tsx). Beide hängen am
+ * Office-Rahmen (pages/agent/shared.tsx), also auf jeder Seite.
+ */
 export function AufgabenErinnerung() {
+  return <><AuftragLeiste /><AufgabenKarte /></>;
+}
+
+function AufgabenKarte() {
   // Beim Aufbau sofort die Lage der vorigen Seite (dieselbe Sitzung) — der
   // Server bestätigt oder korrigiert sie mit der nächsten Antwort.
   const [lage, setLageRoh] = useState<Lage | null>(lageAusSpeicher);
@@ -218,12 +237,16 @@ export function AufgabenErinnerung() {
     const beiRueckkehr = () => { if (!document.hidden) void holen(); };
     // /agent/aufgaben meldet jede Änderung (annehmen, erledigen) — dann sofort neu zählen.
     const beiAenderung = () => void holen();
+    // E-IT-F: Zurück aus dem Browser-Cache — der Stand von jetzt, nicht der von damals.
+    const beiSeite = (e: PageTransitionEvent) => { if (e.persisted) void holen(); };
     document.addEventListener("visibilitychange", beiRueckkehr);
     window.addEventListener("agent-aufgaben-geaendert", beiAenderung);
+    window.addEventListener("pageshow", beiSeite);
     return () => {
       window.clearInterval(uhr);
       document.removeEventListener("visibilitychange", beiRueckkehr);
       window.removeEventListener("agent-aufgaben-geaendert", beiAenderung);
+      window.removeEventListener("pageshow", beiSeite);
     };
   }, [holen]);
 

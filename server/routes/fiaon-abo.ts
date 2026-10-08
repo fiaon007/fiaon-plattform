@@ -53,6 +53,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
+import { ZUSTAND_WIEDER_OFFEN_TAGE } from "../../shared/fiaon-auftrag-arten";
 import { sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { berlinToday } from "../lib/fiaon-time";
 import {
@@ -908,7 +909,11 @@ async function unzustellbareMelden(): Promise<number> {
        AND ($1::date IS NULL OR r.faellig_am >= $1::date)
        AND ${UNZUSTELLBAR_SQL}
        AND p.ist_test_am IS NULL AND ${ZIEL_MAIL_SQL} NOT ILIKE '%.test'
-       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'abo:' || r.ref || ':unzustellbar')
+       -- E-IT-F (08.10.2026): Ein offener oder frisch erledigter Auftrag reicht. Ist er länger als
+       -- ZUSTAND_WIEDER_OFFEN_TAGE erledigt und die Lage besteht weiter, meldet der Lauf erneut —
+       -- auftragFuerKunden (anlass 'zustand') öffnet ihn dann sichtbar wieder.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'abo:' || r.ref || ':unzustellbar'
+                         AND (t.status <> 'erledigt' OR COALESCE(t.erledigt_am, NOW()) > NOW() - INTERVAL '${ZUSTAND_WIEDER_OFFEN_TAGE} days'))
      ORDER BY r.ref, r.faellig_am ASC
      LIMIT 50`, [abStichtag])) as any[];
   if (zeilen.length === 0) return 0;
@@ -928,6 +933,7 @@ async function unzustellbareMelden(): Promise<number> {
         quelle: "abo",
         bereich: "konten",
         autorName: "Abo-Motor",
+        anlass: "zustand", // E-IT-F: eine Lage, kein neues Ereignis — öffnet erst nach ZUSTAND_WIEDER_OFFEN_TAGE wieder
       });
       n++;
     } catch (e) { console.error("[FIAON-ABO] unzustellbar melden:", e); }
@@ -1341,6 +1347,9 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
         quelle: "abo",
         bereich: "konten",
         autorName: "Abo-Motor",
+        // E-IT-F (08.10.2026): eine LAGE — der Motor meldet sie bei jedem gescheiterten Versand neu
+        // (#3154: stündlich); ein erledigter Auftrag öffnet sich erst nach 7 Tagen wieder, mit Grund.
+        anlass: "zustand",
       }))
       .catch((e) => console.error("[FIAON-ABO] Aufgabe unzustellbar:", e));
   }

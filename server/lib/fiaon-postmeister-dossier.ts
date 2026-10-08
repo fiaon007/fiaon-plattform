@@ -427,10 +427,16 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       FROM fiaon_postmeister WHERE person_id = ${personId} ORDER BY created_at DESC LIMIT 8
   `) as any[] : [];
 
+  // E-IT-F (08.10.2026): offene Aufgaben dieses Kunden über person_id/ref (Migration 102). VORHER nur
+  // status = 'offen' (Angenommene fehlten) und ein Nachnamen-ILIKE im Text — der zählte fremde Kunden mit
+  // demselben Nachnamen. Rückfall über den Link nur für Zeilen, die noch nicht zugeordnet sind.
   const [aufgaben] = personId || ref ? (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos
-     WHERE status = 'offen' AND (link LIKE ${'%' + (ref ?? '###') + '%'} OR text ILIKE ${'%' + (person?.last_name ?? '###') + '%'})
-  `) as any[] : [{ n: 0 }];
+     WHERE status <> 'erledigt'
+       AND ((${personId ?? null}::int IS NOT NULL AND person_id = ${personId ?? null}::int)
+         OR (${ref ?? null}::text IS NOT NULL AND ref = ${ref ?? null}::text)
+         OR (zugeordnet_am IS NULL AND link LIKE ${'%' + (ref ?? '###') + '%'}))
+  `.catch(() => [{ n: 0 }])) as any[] : [{ n: 0 }];
 
   const aktuelle = bestellungen.find((b) => b.ref === ref) ?? bestellungen[0] ?? null;
 

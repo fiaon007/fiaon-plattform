@@ -38,6 +38,13 @@ interface Bereich {
   /** Karten-Stand aus derselben Quelle wie die Mitarbeiteransicht (P.18). */
   karte?: {
     bereit: boolean; esFehlt: string | null; verschickt: boolean;
+    /** E-IT-B: Ausschluss (gekündigt …) — dann ist esFehlt sein Satz, kein „Noch offen“. */
+    ausgeschlossen?: boolean;
+    /** E-IT-B: Den Link schickt ein Mensch auf Wunsch (gekündigt, Vertrag läuft). */
+    aufWunsch?: boolean;
+    /** E-IT-B: wann die Einladung ging, und ob an der Adresse zuletzt nichts ankam. */
+    verschicktAm?: string | null;
+    zustellProblem?: boolean;
     tore: { titel: string; erfuellt: boolean; warum: string | null }[];
   } | null;
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null; profilRueckfrage: boolean; profilHinweis: string | null };
@@ -605,14 +612,22 @@ export default function MeinBereichPage() {
                     alte Satz stehen. */}
                 <article className="mb-kachel"><h4>Kreditkarte{d.paket.wunschlimit ? ` bis ${eur(d.paket.wunschlimit)}` : ""}</h4>
                   {d.karte ? (<>
+                    {/* E-IT-B (08.10.2026): Bei einem Ausschluss (gekündigt …) steht sein Satz da — nicht „Noch offen“
+                        neben „2 von 2 Schritten erfüllt“ (Widerspruch, Gegenprüfung 07.10.). */}
+                    {/* Gegenprüfung 08.10.: „verschickt“ heißt nur, dass die Einladung angelegt ist — nicht „beantragt“. */}
                     <p>{d.karte.verschickt
-                      ? "Ihre Karte ist beantragt und liegt beim Kartenpartner."
+                      ? (d.karte.zustellProblem
+                        ? "Unsere E-Mail mit dem Link unserer Partnerbank hat Sie nicht erreicht. Bitte prüfen Sie Ihre E-Mail-Adresse oder sprechen Sie uns an."
+                        : `Den Link unserer Partnerbank für Konto und Karte haben wir Ihnen${d.karte.verschicktAm ? ` am ${new Date(d.karte.verschicktAm).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}` : ""} per E-Mail geschickt.`)
                       : d.karte.bereit
                         ? "Alle Voraussetzungen sind erfüllt — Ihre Karte kann bestellt werden. Ihr Ansprechpartner meldet sich dazu."
-                        : `Noch offen: ${d.karte.esFehlt || "wenige Schritte"}.`}</p>
+                        : d.karte.ausgeschlossen
+                          ? String(d.karte.esFehlt || "")
+                          : `Noch offen: ${d.karte.esFehlt || "wenige Schritte"}.`}</p>
                     <div className="mb-kachel-fuss">
-                      <span className={`mb-lage ${d.karte.verschickt || d.karte.bereit ? "gut" : "bereit"}`}>
-                        {d.karte.verschickt ? "Beantragt" : d.karte.bereit ? "Bereit zur Bestellung"
+                      <span className={`mb-lage ${(d.karte.verschickt && !d.karte.zustellProblem) || d.karte.bereit ? "gut" : "bereit"}`}>
+                        {d.karte.verschickt ? (d.karte.zustellProblem ? "Mail kam nicht an" : "Link verschickt") : d.karte.bereit ? "Bereit zur Bestellung"
+                          : d.karte.ausgeschlossen ? (d.karte.aufWunsch ? "Über Ihren Ansprechpartner" : "Hinweis")
                           : `${d.karte.tore.filter((t: { erfuellt: boolean }) => t.erfuellt).length} von ${d.karte.tore.length} Schritten erfüllt`}
                       </span>
                     </div>

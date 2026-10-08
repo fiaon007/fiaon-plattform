@@ -159,6 +159,12 @@ function SchreibtischInnen() {
     api("/agent/karte/bereit/liste").then((r) => { if (an && r.ok) setKarteBereit(r.json.kunden || []); });
     return () => { an = false; };
   }, []);
+  // E-IT-B (08.10.2026): Arbeit sind „Mail kam nicht an“ und „eingeladen, nicht geklickt“; „bereit“ und
+  // „wartet auf Widerrufsfrist“ laufen von selbst und stehen nur zur Information in der Liste.
+  const karteArbeit = karteBereit.filter((k: any) => k.zustand === "nicht_angekommen" || k.zustand === "nicht_geklickt");
+  // Gemessen 08.10. (Produktion, nur lesend): je Betreuer bis zu 88 Fälle — „Jetzt dran“ zeigt die ersten acht
+  // (nicht angekommen zuerst, dann die am längsten Eingeladenen), der Rest steht im Bestand-Filter.
+  const KARTE_SICHTBAR = 8;
 
   return (
     <div className="st">
@@ -189,9 +195,12 @@ function SchreibtischInnen() {
         {/* Nur zeigen, wenn es etwas zu zeigen gibt: Eine Kachel mit 0 lehrt
             den Blick, sie zu überspringen — und dann sieht man auch die 3
             nicht mehr. */}
-        {karteBereit.length > 0 && (
+        {/* E-IT-B (08.10.2026): „Bereit für Konto & Karte“ zeigte fast nur Gekündigte (107 von 110) — die
+            Automatik lädt alle anderen binnen Minuten ein. Jetzt „nachfassen“: nur, wo ein Mensch etwas tun kann,
+            ohne Ausgeschlossene. Die Kachel zählt, was Arbeit ist (nicht die Fälle „wartet auf Widerrufsfrist“). */}
+        {karteArbeit.length > 0 && (
           <Link href="/agent/bestand?filter=karte" className="st-kachel karte">
-            <b>{karteBereit.length}</b><span>Bereit für Konto &amp; Karte</span>
+            <b>{karteArbeit.length}</b><span>Konto &amp; Karte nachfassen</span>
           </Link>
         )}
       </section>
@@ -281,21 +290,26 @@ function SchreibtischInnen() {
               Steht bewusst UNTER den zeitgebundenen Punkten: Wer heute seine
               zweite Rate bezahlt hat, soll heute den Anruf bekommen — aber
               erst, nachdem der 10-Uhr-Termin gelaufen ist. */}
-          {karteBereit.length > 0 && (
+          {karteArbeit.length > 0 && (
             <>
               <div className="st-gruppe-titel">
-                <b>Bereit für Konto &amp; Karte</b>
-                <small>Alle Bedingungen erfüllt – ein Anruf, dann der Weg zum Girokonto</small>
+                <b>Konto &amp; Karte – nachfassen</b>
+                <small>Die Einladung kam nicht an oder wurde nicht genutzt – Gekündigte und Gesperrte stehen hier nicht</small>
               </div>
-              {karteBereit.map((k: any) => (
-                <div key={`kk${k.personId}`} className="st-zeile karte">
-                  <div className="st-zeit"><b>Karte</b><small>bereit</small></div>
-                  <div className="st-wer"><b>{k.name}</b><small>Antrag, Zahlungen und Unterlagen stehen</small></div>
+              {karteArbeit.slice(0, KARTE_SICHTBAR).map((k: any) => (
+                <div key={`kk${k.personId}`} className={`st-zeile karte${k.zustand === "nicht_angekommen" ? " rueckruf" : ""}`}>
+                  <div className="st-zeit"><b>Karte</b><small>{k.zustand === "nicht_angekommen" ? "nicht angekommen" : "nicht geklickt"}</small></div>
+                  <div className="st-wer"><b>{k.name}</b><small>{k.satz}</small></div>
                   <div className="st-aktion">
                     <Link href={`/agent/kunden?person=${k.personId}`} className="st-knopf">Akte öffnen</Link>
                   </div>
                 </div>
               ))}
+              {karteArbeit.length > KARTE_SICHTBAR && (
+                <Link href="/agent/bestand?filter=karte" className="st-knopf still" style={{ justifySelf: "start", marginTop: 6 }}>
+                  Alle {karteArbeit.length} im Bestand ansehen
+                </Link>
+              )}
             </>
           )}
         </div>

@@ -97,6 +97,7 @@ import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, ka
 } from "@shared/fiaon-mara-ton";
 import type { MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
+import { KUENDIGUNG_BESTELLUNG_SQL } from "@shared/fiaon-kuendigung-regel";
 import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 // E-276 (02.10.2026): der unscharfe Abgleich mit ungebuchten Eingängen — eine Quelle für Schlange und Senden.
 import { eingangOffenSql, eingangOffenFuer } from "./fiaon-zahlung-unverbucht";
@@ -439,10 +440,10 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
        -- gekündigt hat, bekommt dafür keine Werbung (gekündigt ist der Mensch, E-213). Wer
        -- nach einer Kündigung NEU beantragt hat, bleibt drin — das ist neues Interesse.
        AND p.ist_test_am IS NULL
+       -- E-IT-B (08.10.2026): „gekündigt“ nach der EINEN Regel (shared/fiaon-kuendigung-regel.ts) — Stufenpaket.
        AND NOT EXISTS (
          SELECT 1 FROM fiaon_applications g
-          WHERE g.person_id = app.person_id AND g.merged_into IS NULL
-            AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL
+          WHERE g.person_id = app.person_id AND ${sqlPool.unsafe(KUENDIGUNG_BESTELLUNG_SQL("g"))}
             AND g.gekuendigt_am >= app.created_at)
        AND app.person_id NOT IN (SELECT person_id FROM bezahlt)
        -- E-272 (02.10.2026): kein GLOBAL-KUNDE. Wer ein Individualangebot oder einen Auftrag über

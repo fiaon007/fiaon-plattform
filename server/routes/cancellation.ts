@@ -132,16 +132,52 @@ router.patch("/admin/cancellations/:id", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Status muss 'confirmed' oder 'rejected' sein." });
     }
 
+    // ── E-IT-B (08.10.2026, Gegenprüfung): BESTÄTIGEN BUCHT AUF DAS RICHTIGE PAKET, ZUM EINGANGSTAG ──
+    // Das Formular hängt den Antrag an IRGENDEINE Bestellung des Menschen (oben, LIMIT 1 ohne Reihenfolge) —
+    // oft eine zusammengeführte Doppelbestellung, die kuendigungSetzen gar nicht findet: Der Antrag stand dann
+    // auf „Bestätigt“, gekündigt war nichts. Und gebucht wurde mit HEUTIGEM Datum statt zum Eingang. Jetzt
+    // derselbe Weg wie in der Akte (antragBuchen, Ziel aus antragZiel in shared/fiaon-kuendigung-regel.ts) —
+    // die Bestätigung im Chefbüro ist eine Entscheidung der Leitung. Ohne Ziel: nichts bestätigen, Grund nennen.
+    let vorgang: any = null;
+    let gebucht = false;
+    if (status === "confirmed") {
+      const { offeneKuendigungsantraege } = await import("../lib/fiaon-kuendigung");
+      const [offen] = await offeneKuendigungsantraege(null, Number(id)).catch(() => [] as any[]);
+      if (offen) {
+        if (!offen.ziel.ziel) {
+          return res.status(409).json({ ok: false, error: `${offen.ziel.satz} Bitte „Ablehnen“ (ohne Kündigung) oder in der Akte das richtige Paket kündigen.` });
+        }
+        const { antragBuchen } = await import("./fiaon-kuendigung");
+        vorgang = await antragBuchen(offen, {
+          grund: String(adminNote ?? offen.grund ?? "Kündigungsantrag bestätigt").slice(0, 300),
+          personId: offen.personId, alsLeitung: true,
+          unterzeichner: { name: String(processedBy ?? "FIAON LTD"), rolle: "Geschäftsführung" },
+        }).catch((e: any) => ({ ok: false, error: String(e?.message || e) }));
+        if (!vorgang?.ok) return res.status(409).json({ ok: false, error: `Nicht gebucht: ${vorgang?.grund || vorgang?.error || "unbekannt"}`, vertrag: vorgang });
+        gebucht = true;
+      } else {
+        // Kam NACH dem Antrag eine Rücknahme, ist der Kunde geblieben — „Bestätigen“ kündigte sonst einen zahlenden
+        // Kunden (Fall 11498, Antrag #85). Dann nur „Ablehnen“.
+        const [rz] = (await sqlPool`
+          SELECT EXISTS (SELECT 1 FROM fiaon_applications a JOIN fiaon_applications r ON r.person_id = a.person_id
+                          WHERE a.ref = c.ref AND r.kuendigung_zurueckgenommen_am >= c.created_at) AS zurueck
+            FROM cancellation_requests c WHERE c.id = ${Number(id)}`.catch(() => [])) as any[];
+        if (rz?.zurueck) {
+          return res.status(409).json({ ok: false, error: "Nach diesem Antrag wurde die Kündigung zurückgenommen — der Kunde ist geblieben. Bitte „Ablehnen“." });
+        }
+      }
+    }
+
     const [updated] = await sqlPool`
       UPDATE cancellation_requests
       SET
         status       = ${status},
-        admin_note   = ${adminNote ?? null},
+        admin_note   = COALESCE(${adminNote ?? null}, admin_note),
         processed_by = ${processedBy ?? "Admin"},
         processed_at = NOW(),
         updated_at   = NOW()
       WHERE id = ${id}
-      RETURNING *
+      RETURNING *, created_at::timestamptz AS eingang_tz
     `;
 
     if (!updated) {
@@ -161,14 +197,15 @@ router.patch("/admin/cancellations/:id", async (req, res) => {
     // Jetzt geht sie denselben Weg wie die drei anderen: kuendigungDurchfuehren
     // setzt die Wirkung, fertigt die Urkunde aus und schickt die Bestätigung.
     // ══════════════════════════════════════════════════════════════════════
-    let vorgang: any = null;
-    if (status === "confirmed" && updated.ref) {
+    if (status === "confirmed" && updated.ref && !gebucht) {
       const { kuendigungDurchfuehren } = await import("./fiaon-kuendigung");
       // `cancellation_requests` führt keine person_id — der Verlauf hängt aber
       // am Menschen. Also über die Bestellung nachschlagen.
       const [pz] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${String(updated.ref)} LIMIT 1`.catch(() => [])) as any[];
       vorgang = await kuendigungDurchfuehren(String(updated.ref), {
         quelle: "formular",
+        // E-IT-B (08.10.2026): zum Eingangstag des Antrags, nie zu heute.
+        am: updated.eingang_tz ? new Date(updated.eingang_tz).toISOString() : null,
         grund: String(adminNote ?? updated.reason ?? "Kündigungsantrag bestätigt").slice(0, 300),
         personId: pz?.person_id ?? null,
         unterzeichner: { name: String(processedBy ?? "FIAON LTD"), rolle: "Geschäftsführung" },

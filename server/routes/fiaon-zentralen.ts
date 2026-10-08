@@ -48,6 +48,7 @@ function filterAus(q: Record<string, any>): Filter {
     zahlungUnbestaetigt: ja(q.zahlungUnbestaetigt),
     anonyme: ja(q.anonyme),
     kuendigungen: ja(q.kuendigungen),
+    kuendigungUngebucht: ja(q.kuendigungUngebucht),
     kycOffen: ja(q.kycOffen),
     ruhend: ja(q.ruhend),
     tests: ja(q.tests),

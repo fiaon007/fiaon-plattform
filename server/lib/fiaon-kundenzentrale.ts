@@ -18,6 +18,8 @@
 
 import { sqlPool } from "./db-pool";
 import { echtePersonSql } from "./fiaon-bestand-filter";
+// E-IT-B (08.10.2026): „nie gebuchter Kündigungsantrag“ aus der einen Regel.
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 
 type Lauf = typeof sqlPool;
 
@@ -40,6 +42,12 @@ export interface Filter {
   zahlungUnbestaetigt?: boolean;
   anonyme?: boolean;
   kuendigungen?: boolean;
+  /**
+   * E-IT-B (08.10.2026): Kündigungsantrag eingegangen, aber NIE gebucht (Formular offen, die Bestellung trägt
+   * kein gekuendigt_am). Er zählt nicht als wirksam (Justin, 08.10.) — er muss über die Akte („Kündigung
+   * durchsetzen“, E-213) gebucht oder abgelehnt werden. Diese Liste ist die Arbeit dafür.
+   */
+  kuendigungUngebucht?: boolean;
   kycOffen?: boolean;
   ruhend?: boolean;
   /** Testeinträge NUR mit diesem Schalter. */
@@ -153,6 +161,9 @@ function bedingungen(f: Filter): { wo: string[]; werte: unknown[] } {
                       JOIN fiaon_applications a ON a.ref = c.ref
                       WHERE a.person_id = p.id AND c.status = 'pending')`);
   }
+  if (f.kuendigungUngebucht) {
+    wo.push(KUENDIGUNG_UNGEBUCHT_SQL("p.id"));
+  }
   if (f.kycOffen) {
     wo.push(`EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id
                        AND a.merged_into IS NULL AND a.documents_uploaded_at IS NOT NULL
@@ -264,7 +275,8 @@ export async function filterZahlen(lauf: Lauf = sqlPool): Promise<Record<string,
           AND a.documents_uploaded_at IS NOT NULL AND COALESCE(a.kyc_status, 'pending') = 'pending'))::int AS kyc_offen,
       COUNT(*) FILTER (WHERE EXISTS (
         SELECT 1 FROM cancellation_requests c JOIN fiaon_applications a ON a.ref = c.ref
-          WHERE a.person_id = p.id AND c.status = 'pending'))::int AS kuendigungen
+          WHERE a.person_id = p.id AND c.status = 'pending'))::int AS kuendigungen,
+      COUNT(*) FILTER (WHERE ${KUENDIGUNG_UNGEBUCHT_SQL("p.id")})::int AS kuendigung_ungebucht
     FROM fiaon_persons p WHERE ${basis}
   `, [])) as any[];
   const [t] = (await lauf`

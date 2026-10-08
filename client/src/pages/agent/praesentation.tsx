@@ -469,7 +469,7 @@ const KAPITEL: Kapitel[] = [
         titel: <>Jede Karte hat eine <V>Gesundheits-Ampel.</V></>,
         text: <>
           <p>Je Kunde: Ampel (läuft, Rate offen, überfällig seit X Tagen), Monatsrate, nächster Termin — oder gelb „lange kein Kontakt" nach 14 Tagen. Schnell-Aktionen: Anrufen, Akte, Senden.</p>
-          <p>Filter (etwa Überfällig, Termin fällig, Bereit für Konto & Karte), Suche und Sortierung halten auch 500 Karten bedienbar.</p>
+          <p>Filter (etwa Überfällig, Termin fällig, Konto & Karte nachfassen), Suche und Sortierung halten auch 500 Karten bedienbar.</p>
         </>,
         mini: MiniAmpeln,
         notizen: ["Rot/gelb zuerst abarbeiten — dafür sind die Filter da", "Akte ist dieselbe Lade wie in der Pipeline"],

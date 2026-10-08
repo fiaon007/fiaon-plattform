@@ -2945,7 +2945,9 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         // E-275 Gegenprüfung (Wahrheit und Recht): unvollständiger Antrag — nach der Buchung kommt der Link NICHT direkt.
         ...(antragLuecke.length ? [`IN SEINEM ANTRAG FEHLT NOCH: ${antragLuecke.join(", ")}. Der Link unserer Partnerbank geht erst raus, wenn das eingetragen ist — nie „direkt nach der Buchung der Link“; sag es wie in DEIN ABSCHLUSS und bitte ihn um ${antragLuecke.length === 1 ? "diese Angabe" : "diese Angaben"}.`] : []),
         ...(vorabKarte && !vorabKarte.ok && vorabKarte.kartenArt === "ohne_mail" ? [`FÜR DEN LINK DER PARTNERBANK FEHLT SEINE E-MAIL-ADRESSE — frag ihn freundlich danach (dorthin geht der Link für seinen Kartenantrag); schickt er sie, setzt du mensch auf true (uebergabe: E-Mail-Adresse eintragen).`] : []),
-        ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass sich sein Betreuer wegen des Links bei ihm meldet; der Server gibt es weiter. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
+        // E-IT-B (08.10.2026): Adresse gesperrt — nichts ging raus; nach der richtigen Adresse fragen, der Mensch trägt sie ein.
+        ...(vorabKarte && !vorabKarte.ok && vorabKarte.kartenArt === "adresse_gesperrt" && vorabKarte.satz ? [`AN SEINE E-MAIL-ADRESSE KOMMT NICHTS AN — der Link ging NICHT raus: „${vorabKarte.satz}" — frag ihn nach seiner richtigen E-Mail-Adresse; der Server gibt es an seinen Betreuer weiter. Kein „Spam-Ordner“, keine Zusage, dass der Link schon da ist.`] : []),
+        ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail", "adresse_gesperrt"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass sich sein Betreuer wegen des Links bei ihm meldet; der Server gibt es weiter. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
       land: lage.land, stufe: lage.linkLage.stufe,
       // E-275: der Link der Partnerbank als Werkzeug — nur beim zahlenden Kunden, und nicht, wenn der Server ihn eben geschickt hat.
       kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte,
@@ -3630,6 +3632,15 @@ async function kartenLinkSchicken(ctx: WerkzeugKontext): Promise<{ ergebnis: any
     return {
       ergebnis: { ok: false, art: r.aktion, so_schreiben: satz,
         hinweis: "Frag ihn genau nach diesen Angaben (so_schreiben). Schickt er sie, setzt du mensch auf true (uebergabe: Angaben für den Antrag eintragen, dann geht der Link automatisch raus)." },
+      aktion: { werkzeug: name, ok: false, zeiten: [], satz, kartenArt: r.aktion, intern: r.intern },
+    };
+  }
+  // E-IT-B (08.10.2026): An seine Adresse kommt nichts an (gesperrt, abgewiesen, Spam) — nichts ging raus, nichts wurde
+  // entsperrt (Justin, 08.10.). Mara fragt nach der richtigen Adresse; eintragen und erneut senden tut ein Mensch.
+  if (r.aktion === "adresse_gesperrt" && satz) {
+    return {
+      ergebnis: { ok: false, art: r.aktion, so_schreiben: satz,
+        hinweis: "An seine hinterlegte E-Mail-Adresse kommt nichts an — es ging nichts raus. Frag ihn nach seiner richtigen E-Mail-Adresse (so_schreiben). Nennt er eine, setzt du mensch auf true (uebergabe: E-Mail-Adresse ändern, dann in der Akte „E-Mail erneut senden“)." },
       aktion: { werkzeug: name, ok: false, zeiten: [], satz, kartenArt: r.aktion, intern: r.intern },
     };
   }

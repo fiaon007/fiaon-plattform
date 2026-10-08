@@ -96,6 +96,7 @@
 // Prüfstand: scripts/pruef-auskunft-erinnerung.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { KUENDIGUNG_WIRKSAM_SQL } from "@shared/fiaon-kuendigung-regel";
 import { berlinDatum, berlinZeitpunkt } from "./fiaon-time";
 import { unzustellbarSql, zielMailSql } from "./fiaon-empfaenger";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -446,8 +447,8 @@ export async function offeneBestellungen(lauf: Lauf = sqlPool, limit = 500, refs
            (p.werbung_gesperrt_am IS NOT NULL OR kopf.werbung_gesperrt_am IS NOT NULL) AS werbesperre,
            COALESCE(kopf.is_blocked, FALSE) AS vertriebssperre,
            ${unzustellbarSql("a")} AS unzustellbar,
-           EXISTS (SELECT 1 FROM fiaon_applications g WHERE g.person_id = a.person_id AND g.merged_into IS NULL
-                     AND g.gekuendigt_am IS NOT NULL AND g.kuendigung_zurueckgenommen_am IS NULL) AS gekuendigt,
+           -- E-IT-B (08.10.2026): „gekündigt“ nach der EINEN Regel (shared/fiaon-kuendigung-regel.ts).
+           ${KUENDIGUNG_WIRKSAM_SQL("a.person_id")} AS gekuendigt,
            (EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.person_id = a.person_id AND d.gdpr_deleted_at IS NULL AND d.schufa_pdf IS NOT NULL)
             OR EXISTS (SELECT 1 FROM fiaon_dokumente k WHERE k.person_id = a.person_id AND k.geloescht_am IS NULL AND k.art ILIKE '%schufa%')) AS dokument,
            -- Gesamtdurchsicht 26.09.2026: die EINE Erkennung, ob der Kunde die Bestellung selbst erklärt hat (fiaon-auskunft.ts).

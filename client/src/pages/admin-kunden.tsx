@@ -57,7 +57,7 @@ const STUFEN_KNOPF: { wert: string; titel: string; schluessel: string }[] = [
  * Adressen aller geteilten Links kaputtgehen.
  */
 const SPEZIAL_SCHLUESSEL = [
-  "ohneAgent", "kycOffen", "zahlungUnbestaetigt", "kuendigungen", "ruhend",
+  "ohneAgent", "kycOffen", "zahlungUnbestaetigt", "kuendigungen", "kuendigungUngebucht", "ruhend",
   "ohneTelefon", "dubletten", "anonyme", "tests", "archiv",
 ] as const;
 
@@ -66,6 +66,7 @@ const SPEZIAL_TITEL: Record<string, string> = {
   kycOffen: "KYC zu prüfen",
   zahlungUnbestaetigt: "Zahlung über 7 Tage offen",
   kuendigungen: "Kündigungen",
+  kuendigungUngebucht: "Kündigung nicht gebucht",
   ruhend: "Ruhend",
   ohneTelefon: "Ohne Telefon",
   dubletten: "Dubletten-Verdacht",
@@ -309,6 +310,9 @@ export default function AdminKundenZentrale() {
                     anzahl: zahlen.zahlung_unbestaetigt,
                     erklaerung: "Gemeldet, aber nicht gebucht." },
                   { schluessel: "kuendigungen", titel: "Kündigungen", anzahl: zahlen.kuendigungen },
+                  // E-IT-B (08.10.2026): Ein Antrag zählt erst, wenn er gebucht ist — hier liegen die ungebuchten.
+                  { schluessel: "kuendigungUngebucht", titel: "Kündigung nicht gebucht", anzahl: zahlen.kuendigung_ungebucht,
+                    erklaerung: "Antrag aus dem Formular liegt vor, die Kündigung ist nicht gebucht — Akte öffnen: „Jetzt buchen“ (zum Eingangstag), bei unklaren Fällen bucht oder schließt die Leitung." },
                   { schluessel: "ruhend", titel: "Ruhend", anzahl: zahlen.ruhend },
                 ],
               },

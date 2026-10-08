@@ -111,6 +111,81 @@ export async function brevoSperreAufheben(email: string): Promise<boolean> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WARUM IST EINE ADRESSE GESPERRT? — NUR LESEN, NIE AUFHEBEN (E-IT-B, 08.10.2026)
+//
+// 43 Kunden bekamen die Konto-&-Karte-Einladung nie, weil ihre Adresse bei
+// Brevo schon vorher gesperrt war — im Protokoll steht dann nur „blockiert“,
+// ohne Grund (zustellung_grund leer). Den Grund kennt nur Brevos Sperrliste
+// (GET /smtp/blockedContacts, reason.code: unsubscribedViaEmail, hardBounce,
+// contactFlaggedAsSpam, adminBlocked …). Justin, 08.10.: Eine Sperre wird NICHT
+// automatisch aufgehoben — der Grund steht in der Akte, der Mitarbeiter prüft
+// die Adresse mit dem Kunden.
+//
+// Die Schnittstelle filtert nicht nach Adresse; die Liste (rund 600) wird
+// deshalb seitenweise geholt und eine Stunde im Speicher gehalten — höchstens
+// sieben Abrufe je Stunde, nur wenn eine Akte einen gesperrten Fall zeigt.
+// Ohne Schlüssel oder bei einer Störung: null (die Akte sagt dann „Grund
+// unbekannt“), nie ein Fehler.
+// ═══════════════════════════════════════════════════════════════════════════
+let sperrListe: { am: number; je: Map<string, { code: string; text: string | null; am: string | null }>; echt?: boolean } | null = null;
+let sperrListeLaedt: Promise<void> | null = null;
+const SPERRLISTE_GUELTIG_MS = 60 * 60_000;
+
+async function sperrListeLaden(): Promise<void> {
+  const je = new Map<string, { code: string; text: string | null; am: string | null }>();
+  // „echt“ heißt: die Liste ist VOLLSTÄNDIG gelesen. Nur dann darf „nicht auf der Liste“ als „nicht gesperrt“ gelten
+  // (brevoGesperrt) — eine abgebrochene oder abgeschnittene Liste sagt darüber nichts (Nachbesserung 08.10.2026).
+  let vollstaendig = false;
+  for (let seite = 0; seite < 20; seite++) {
+    const r = await brevo<{ contacts?: any[]; count?: number }>(`/smtp/blockedContacts?limit=100&offset=${seite * 100}&sort=desc`);
+    if (!r.ok) {
+      if (seite === 0) throw new Error(r.grund);
+      break;
+    }
+    const kontakte = r.daten.contacts || [];
+    for (const k of kontakte) {
+      const mail = String(k?.email ?? "").trim().toLowerCase();
+      if (!mail || je.has(mail)) continue;
+      je.set(mail, {
+        code: String(k?.reason?.code ?? "unbekannt"),
+        text: k?.reason?.message ? String(k.reason.message) : null,
+        am: k?.blockedAt ? String(k.blockedAt) : null,
+      });
+    }
+    if (kontakte.length < 100) { vollstaendig = true; break; }
+  }
+  sperrListe = { am: Date.now(), je, echt: vollstaendig };
+}
+
+/** Brevos Sperrgrund für eine Adresse — null, wenn sie nicht gesperrt ist oder der Grund nicht lesbar ist. */
+export async function brevoSperrGrund(email: string): Promise<{ code: string; text: string | null; am: string | null } | null> {
+  const a = String(email || "").trim().toLowerCase();
+  if (!a || !brevoKonfiguriert()) return null;
+  if (!sperrListe || Date.now() - sperrListe.am > SPERRLISTE_GUELTIG_MS) {
+    sperrListeLaedt ??= sperrListeLaden().finally(() => { sperrListeLaedt = null; });
+    try { await sperrListeLaedt; } catch {
+      // Gestört (429, Schlüssel, Netz): zehn Minuten Ruhe statt bei jeder Akte ein neuer Versuch.
+      sperrListe = { am: Date.now() - SPERRLISTE_GUELTIG_MS + 10 * 60_000, je: new Map(), echt: false };
+      return null;
+    }
+  }
+  return sperrListe?.je.get(a) ?? null;
+}
+
+/**
+ * Steht die Adresse auf Brevos Sperrliste? true/false — null, wenn es nicht
+ * sicher lesbar ist (kein Schlüssel, Störung). Gegenprüfung 08.10.2026: Ein
+ * weicher Rückläufer gibt den erneuten Versand nur frei, wenn Brevo die Adresse
+ * NACHWEISLICH nicht sperrt — sonst höbe die Mail-Tür beim Handversand eine
+ * Sperre auf, und das geschieht nie automatisch (Justin, 08.10.).
+ */
+export async function brevoGesperrt(email: string): Promise<boolean | null> {
+  const g = await brevoSperrGrund(email);
+  if (g) return true;
+  return sperrListe?.echt === true ? false : null;
+}
+
 export async function vorlagen(): Promise<{ ok: boolean; liste: BrevoVorlage[]; grund?: string }> {
   const r = await brevo<{ templates?: any[] }>("/smtp/templates?limit=200&sort=asc");
   if (!r.ok) return { ok: false, liste: [], grund: r.grund };

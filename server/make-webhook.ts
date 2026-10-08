@@ -407,7 +407,13 @@ export async function sendMakeWebhookMitGrund(
   // E-240: die Nutzlast reist mit — die Bremse entscheidet an ihr, ob eine Unterlagen-Mail an eine
   // Werbesperre ein Kaufangebot trägt (sperrUrteil in fiaon-mail-frequenz.ts).
   const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true, nutzlast: payload as Record<string, unknown> });
-  if (frequenz.ok && frequenz.sperreAufheben) {
+  // E-IT-B Fertigstellung (08.10.2026, Befund 15): Die Konto-&-Karte-Einladung hebt NIE eine Brevo-Sperre auf
+  // (Justin, 08.10.: „KEIN automatisches Aufheben“ — die Leitung prüft sie von Hand). Die Zustellprüfung der Akte
+  // sieht nur diesen Menschen; die Bremse hier jeden Rückläufer an der ADRESSE — ohne diese Ausnahme hätte ein
+  // erneuter Versand dort still entsperrt. Die Mail geht trotzdem an Brevo; ist die Adresse gesperrt, steht
+  // „blockiert“ im Protokoll und in der Akte.
+  const ohneEntsperren = eventType === "konto_karte_einladung";
+  if (frequenz.ok && frequenz.sperreAufheben && !ohneEntsperren) {
     const { brevoSperreAufheben } = await import("./lib/fiaon-brevo");
     const aufgehoben = await brevoSperreAufheben(String(payload.email || ""));
     console.log(`[FREQUENZ] Handversand '${eventType}' an ${payload.email}: Brevo-Sperre ${aufgehoben ? "aufgehoben" : "nicht aufhebbar"}.`);
@@ -486,7 +492,8 @@ export async function sendMakeWebhookMitGrund(
   //
   // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
   protokollNebenbei(eventType, payload, erg);
-  if (erg.ok && frequenz.hinweis) erg.hinweis = frequenz.hinweis;
+  // Der Satz „Für deinen Versand ist die Sperre aufgehoben“ stimmt bei der Konto-&-Karte-Einladung nicht (oben).
+  if (erg.ok && frequenz.hinweis && !(ohneEntsperren && frequenz.sperreAufheben)) erg.hinweis = frequenz.hinweis;
   return erg;
 }
 

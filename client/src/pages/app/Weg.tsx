@@ -107,7 +107,11 @@ export function Weg({ b, rw, basis, onAktion }: { b: Bereich; rw: Rahmenweg; bas
         </section>
       )}
 
-      <p className="ap-fuss ap-auf v4">Ziel: Kreditkarte. Über Karte und Rahmen entscheidet die Bank.{b.karte?.verschickt ? " Der Antrag liegt beim Kartenpartner." : ""}<br />Ihr Weg geht nie zurück: Ein erledigter Schritt bleibt erledigt.</p>
+      <p className="ap-fuss ap-auf v4">Ziel: Kreditkarte. Über Karte und Rahmen entscheidet die Bank.{b.karte?.verschickt
+        ? (b.karte.zustellProblem
+          ? " Unsere E-Mail mit dem Link unserer Partnerbank hat Sie nicht erreicht — bitte prüfen Sie Ihre E-Mail-Adresse oder sprechen Sie uns an."
+          : " Den Link unserer Partnerbank für Konto und Karte haben wir Ihnen per E-Mail geschickt.")
+        : ""}<br />Ihr Weg geht nie zurück: Ein erledigter Schritt bleibt erledigt.</p>
     </>
   );
 }

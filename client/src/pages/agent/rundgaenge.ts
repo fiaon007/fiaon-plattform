@@ -237,6 +237,23 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt — und wann der Mensch angerufen werden will.",
   },
   {
+    // E-IT-B (08.10.2026): Konto & Karte erneut senden — der Kasten steht nur, wenn eine Einladung
+    // existiert, deshalb ohne `ziel` (Rundgang-Pflegepflicht: kein Scheinwerfer auf ein fehlendes Element).
+    titel: "Hat der Kunde den Link zur Karte nicht? Schick ihn erneut — mit einem Klick.",
+    text: "Im Überblick und im Reiter „Sein Antrag“ steht der Kasten „Konto & Karte“: wann die Einladung zuerst ging "
+      + "(meist automatisch nach der ersten Zahlung), wann zuletzt erneut und von wem, an welche Adresse und was daraus "
+      + "wurde — zugestellt, geöffnet, Link geklickt oder nicht angekommen. „E-Mail erneut senden“ schickt DIESELBE "
+      + "Einladung mit demselben Link noch einmal — es entsteht keine neue, und die 10 € bleiben, wem sie gehören. "
+      + "Bevor es rausgeht, fragt die Seite nach: Adresse mit dem Kunden abgeglichen? Höchstens drei am Tag, mindestens "
+      + "15 Minuten Abstand. Jeder Versand steht mit deinem Namen im Verlauf.",
+    tipp: "Steht dort rot „An diese Adresse kommt nichts an“, bringt ein erneuter Versand nichts: Frag nach der richtigen "
+      + "Adresse, ändere sie unter „Daten“ und sende dann erneut. Hat er sich nur abgemeldet und will die Post an DIESE "
+      + "Adresse, drück „An die Leitung: Sperre prüfen“ und schreib seinen Wunsch dazu — die Leitung hebt die Sperre von "
+      + "Hand auf, danach geht „erneut senden“. Automatisch heben wir nie etwas auf. Ein „vorübergehend abgewiesen“ "
+      + "(Postfach voll) ist kein Hindernis. Gekündigt mit laufendem Vertrag, Einstufung −1 oder Storno: nur auf "
+      + "ausdrücklichen Wunsch des Kunden — der Grund steht neben dem Knopf.",
+  },
+  {
     // 07.09.2026 (Justin): Kündigung in der Akte.
     // 27.09.2026 (E-245): Unbezahlte Bestellung — ihre offenen Raten fallen mit weg und kommen nicht zurück.
     titel: "Kündigen und reaktivieren kannst du selbst — im Reiter „Antrag“.",
@@ -245,7 +262,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). War die Bestellung nie bezahlt, wird sie storniert — "
       + "mit allen offenen Raten, es bleibt keine Forderung. Überlegt er es sich im Gespräch anders, drückst du "
       + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter (Raten einer nie bezahlten "
-      + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich.",
+      + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich. "
+      // E-IT-B (08.10.2026): der nie gebuchte Antrag aus dem Kündigungsformular.
+      + "Steht dort „Kündigungsantrag vom … liegt vor, ist aber nicht gebucht“, hat der Kunde über das Formular "
+      + "gekündigt, gebucht ist es noch nicht — es zählt erst nach „Jetzt buchen“. Der Satz daneben sagt, welches Paket "
+      + "gebucht wird; gebucht wird immer zum Eingangstag des Antrags, nie zu heute. Kam nach dem Antrag ein neues Paket "
+      + "oder ist das Paket nicht eindeutig, entscheidet die Leitung (sie bucht oder schließt den Antrag ohne Kündigung).",
     tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
   },
 ];
@@ -270,11 +292,12 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // 24.08.2026 nachgezogen: Mit „Bereit für Konto & Karte" sind es vier statt
     // drei. Ein Rundgang, der „drei Filter" sagt und vier zeigt, ist der
     // schnellste Weg, dass ihm niemand mehr glaubt (AGENTS.md).
-    titel: "Vier Filter, die dir den Tag sortieren.",
+    // E-IT-B (08.10.2026): „Bereit für Konto & Karte“ heißt jetzt „Konto & Karte nachfassen“.
+    titel: "Die Filter, die dir den Tag sortieren.",
     text: "„Überfällig“ zeigt dir, wo Geld fehlt. „Termin fällig“ zeigt, mit wem du heute sprichst. "
-      + "„Bereit für Konto & Karte“ zeigt die, bei denen alles zusammen ist — der Anruf, auf den die "
-      + "ganze Betreuung hinausläuft. „Alle“ ist dein ganzer Bestand. Mehr gibt es bewusst nicht: "
-      + "Wer zehn Filter hat, benutzt keinen.",
+      + "„Konto & Karte nachfassen“ zeigt die, bei denen die Einladung unserer Partnerbank nicht ankam oder "
+      + "nach fünf Tagen nicht geklickt ist — der Anruf, auf den die ganze Betreuung hinausläuft. Gekündigte und "
+      + "Gesperrte stehen dort nicht. „Alle“ ist dein ganzer Bestand.",
   },
   {
     ziel: ".be-karte",
@@ -295,8 +318,11 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Seit dem 21.09. bekommt jeder Kunde "
       + "die Einladung unserer Partnerbank automatisch, sobald seine erste Zahlung gebucht ist (Antrag "
       + "vollständig vorausgesetzt) — die Mail heißt „Ihr Link zur Karte ist da“. In der Antragszeit lädt er "
-      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. Der "
-      + "Knopf „Karte bestellen“ in der Akte bleibt für den Nachversand. Erst das Konto, dann die Karte: "
+      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. "
+      // E-IT-B (08.10.2026): erneut senden statt Nachversand über „Karte bestellen“.
+      + "Hat er den Link nicht, schickst du ihn in der Akte mit „E-Mail erneut senden“ noch einmal — derselbe Link, "
+      + "keine neue Einladung. Auf jeder Karte steht, wie es um seine Einladung steht (nicht angekommen, nicht "
+      + "geklickt, bereit, wartet auf die Widerrufsfrist). Erst das Konto, dann die Karte: "
       + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
     tipp: "Ruf nach der Einladung kurz an und begleite ihn durch den Antrag. Die 10 € je bestätigter Eröffnung bekommst du als sein Betreuer — auch wenn die Automatik die Mail geschickt hat.",
   },
@@ -505,6 +531,15 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
     text: "Zuerst die Termine von heute in ihrer Reihenfolge, danach die Rückrufe, die du zugesagt "
       + "hast. Wer diese Liste von oben nach unten abarbeitet, hat am Abend nichts vergessen.",
     tipp: "Zugesagte Rückrufe sind Versprechen. Sie stehen deshalb bewusst vor allem anderen, was du dir selbst vorgenommen hast.",
+  },
+  {
+    // E-IT-B (08.10.2026): „Bereit für Konto & Karte“ → „Konto & Karte – nachfassen“. Die Gruppe steht nur,
+    // wenn es Fälle gibt — deshalb ohne `ziel`.
+    titel: "Konto & Karte – nachfassen.",
+    text: "Unten in „Jetzt dran“ stehen deine Kunden, bei denen die Einladung unserer Partnerbank nicht ankam "
+      + "(Adresse prüfen, dann in der Akte erneut senden) oder seit fünf Tagen nicht geklickt ist (anrufen und durch "
+      + "den Antrag begleiten). Gekündigte und Gesperrte stehen hier nicht — die bekommen keinen Link aus einer Liste. "
+      + "Die Kachel oben zählt genau diese Fälle.",
   },
   {
     // 24.09.2026 (E-236): Mara handelt selbst — der Block zeigt, was neu von ihr kommt.

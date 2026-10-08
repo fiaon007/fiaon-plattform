@@ -214,8 +214,11 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // drei Bedingungen (kartenStand().bereit) und an der Vormerkung für die 10 €
   // vorbei. Das Team sendet über den eigenen Knopf in der Akte; im allgemeinen
   // Menü steht sie nur noch für die Verwaltung (Nachversand, 05.09.).
+  // E-IT-B (08.10.2026): „inkasso“ dazu — erneut senden darf jeder, der an die Akte darf (darfAnKunde;
+  // Forderungsmanagement bei offener Rate). Das Menü bleibt bei „admin“ und geht über denselben Weg
+  // (karteEinladungErneut, fiaon-mail.ts) — der Knopf steht im Kasten „Konto & Karte“ der Akte.
   konto_karte_einladung: {
-    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
     klartext: "Der Weg zum kostenlosen Girokonto bei unserem Kooperationspartner — Voraussetzung für die Kreditkarte.",
     menueNur: ["admin"],
   },

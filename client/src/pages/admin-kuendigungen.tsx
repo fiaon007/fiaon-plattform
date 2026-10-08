@@ -30,8 +30,10 @@ const STATUS_BADGE: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
   confirmed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   rejected: "bg-rose-50 text-rose-700 border-rose-200",
+  // E-IT-B (08.10.2026): Die Rücknahme einer Kündigung schließt den offenen Antrag (kuendigungZuruecknehmen).
+  withdrawn: "bg-slate-100 text-slate-600 border-slate-200",
 };
-const STATUS_LABEL: Record<string, string> = { pending: "Ausstehend", confirmed: "Bestätigt", rejected: "Abgelehnt" };
+const STATUS_LABEL: Record<string, string> = { pending: "Ausstehend", confirmed: "Bestätigt", rejected: "Abgelehnt", withdrawn: "Zurückgenommen" };
 
 function fmtDate(d: string | null): string {
   return d ? new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }) : "—";

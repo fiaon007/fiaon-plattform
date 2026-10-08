@@ -118,7 +118,9 @@ const FILTER: { key: string; label: string }[] = [
   // bei einem Kunden erfüllt sind, muss es der Mitarbeiter ja auch sehen!"
   // Ein eigener Filter, damit man die wenigen Bereiten nicht in 500 Karten
   // suchen muss.
-  { key: "karte", label: "Bereit für Konto & Karte" },
+  // E-IT-B (08.10.2026): Seit der Automatik (E-206) ist „bereit, noch ohne Einladung“ binnen Minuten leer —
+  // übrig blieben Gekündigte. Jetzt die Fälle, in denen ein Mensch etwas tun kann, ohne Ausgeschlossene.
+  { key: "karte", label: "Konto & Karte nachfassen" },
   // P17 (Team-Feedback 28.08.): Der Bestand nach Bearbeitungsstand — damit
   // aus der Liste direkt eine Anrufliste wird, ohne jeden Kunden zu öffnen.
   { key: "bezahlt_onb_offen", label: "Bezahlt · Startgespräch offen" },
@@ -212,10 +214,15 @@ function BestandInnen() {
   // Kunden, und 500 Einzelabfragen wären eine halbe Sekunde Wartezeit für
   // einen Hinweis. Der Server rechnet alle drei Bedingungen in einer Abfrage.
   const [kartenBereit, setKartenBereit] = useState<Set<number>>(new Set());
+  // E-IT-B (08.10.2026): je Mensch der Zustand (nicht angekommen · nicht geklickt · bereit · Widerrufsfrist) mit Satz.
+  const [kartenFall, setKartenFall] = useState<Map<number, { zustand: string; marke: string; satz: string }>>(new Map());
   useEffect(() => {
     let an = true;
     api("/agent/karte/bereit/liste").then((r) => {
-      if (an && r.ok) setKartenBereit(new Set((r.json.kunden || []).map((k: any) => Number(k.personId))));
+      if (!an || !r.ok) return;
+      const kunden = (r.json.kunden || []) as any[];
+      setKartenBereit(new Set(kunden.map((k: any) => Number(k.personId))));
+      setKartenFall(new Map(kunden.map((k: any) => [Number(k.personId), { zustand: String(k.zustand || "bereit"), marke: String(k.marke || ""), satz: String(k.satz || "") }])));
     });
     return () => { an = false; };
   }, []);
@@ -245,13 +252,17 @@ function BestandInnen() {
         const heuteNoch = kommt != null && kommt <= tagesende.getTime();
         if (faellig == null && !heuteNoch) return false;
       }
-      if (filter === "karte" && !kartenBereit.has(Number(m.kunde.personId))) return false;
+      // E-IT-B Fertigstellung (08.10.2026, Befund 7): Der Filter zeigt dieselben Fälle, die die Schreibtisch-Kachel zählt
+      // und auf die sie verlinkt — nur Arbeit (Mail kam nicht an · eingeladen, nicht geklickt). „Bereit“ und „wartet auf
+      // Widerrufsfrist“ laufen von selbst; sie stehen weiter als Hinweis auf der Karte („bereit“ auch unter „Girokonto möglich“).
+      if (filter === "karte" && !["nicht_angekommen", "nicht_geklickt"].includes(String(kartenFall.get(Number(m.kunde.personId))?.zustand ?? ""))) return false;
       // P17: Bearbeitungsstand-Filter — die Felder kommen vom Server.
       if (filter === "bezahlt_onb_offen" && !((m as any).bezahlt && !(m as any).onboardingErledigt)) return false;
       if (filter === "bezahlt_onb_da" && !((m as any).bezahlt && (m as any).onboardingErledigt)) return false;
       if (filter === "nicht_bezahlt" && (m as any).bezahlt) return false;
       if (filter === "giro_beantragt" && !(m.kunde as any).karte?.status) return false;
-      if (filter === "giro_moeglich" && !(kartenBereit.has(Number(m.kunde.personId)) && !(m.kunde as any).karte?.status)) return false;
+      // E-IT-B: „Girokonto möglich“ = in der Konto-&-Karte-Liste (ohne Ausgeschlossene), nicht in der Widerrufsfrist, keine Bank-Meldung.
+      if (filter === "giro_moeglich" && !(kartenBereit.has(Number(m.kunde.personId)) && kartenFall.get(Number(m.kunde.personId))?.zustand !== "frist" && !(m.kunde as any).karte?.status)) return false;
       if (q && !(`${m.kunde.name} ${m.kunde.email ?? ""} ${m.kunde.telefon ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });
@@ -268,7 +279,7 @@ function BestandInnen() {
     // dem ersten Aufbau vom Server. Ohne sie bliebe der Filter „Bereit für
     // Konto & Karte" beim ersten Klick leer, bis irgendetwas anderes die
     // Liste neu rechnet.
-  }, [mandate, filter, suche, sort, kartenBereit]);
+  }, [mandate, filter, suche, sort, kartenBereit, kartenFall]);
   useEffect(() => { if (aktiv > sichtbar.length - 1) setAktiv(Math.max(0, sichtbar.length - 1)); }, [sichtbar.length, aktiv]);
 
   // ── Akte (?person=) — DIESELBE Lade wie in der Pipeline ─────────────────
@@ -424,10 +435,11 @@ function BestandInnen() {
                     nicht direkt zum Versand: Vor dem Link steht ein Anruf, in
                     dem der Ablauf erklärt wird. Wer den Weg wortlos zuschickt,
                     bekommt einen Kunden, der beim Video-Ident abbricht. */}
-                {kartenBereit.has(Number(m.kunde.personId)) && (
+                {/* E-IT-B (08.10.2026): der Zustand aus der Liste „Konto & Karte nachfassen“ — mit Satz, was zu tun ist. */}
+                {kartenFall.has(Number(m.kunde.personId)) && (
                   <button type="button" className="be-karte-bereit" onClick={() => oeffnen(m.kunde.personId)}>
-                    <b>Bereit für Konto &amp; Karte</b>
-                    <span>Alle drei Bedingungen erfüllt – anrufen und den Weg zum Girokonto erklären.</span>
+                    <b>Konto &amp; Karte: {kartenFall.get(Number(m.kunde.personId))!.marke}</b>
+                    <span>{kartenFall.get(Number(m.kunde.personId))!.satz}</span>
                   </button>
                 )}
                 {/* 19.09.2026 (E-194): Hier stand der Knopf, der den Kunden um

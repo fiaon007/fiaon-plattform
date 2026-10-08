@@ -42,6 +42,8 @@ const STATUS: Record<string, string> = {
   beantwortet: "beantwortet", entwurf: "Entwurf wartet", auto_beantwortet: "beantwortet", geordnet: "erledigt",
   ignoriert: "abgelegt", vorgeordnet: "eingeordnet", versandt: "gesendet", zugestellt: "zugestellt",
   geoeffnet: "geöffnet", fehlgeschlagen: "nicht gesendet", gebounct: "zurückgekommen", spam: "als Spam gemeldet",
+  // E-IT-B (08.10.2026): „blockiert“ stand roh da — es heißt: unser Mailversand hat NICHT zugestellt (Adresse gesperrt).
+  blockiert: "gesperrt – nicht zugestellt", geklickt: "Link geklickt", angenommen: "angenommen",
   // (25.09.2026, E-240) Gegenlesen: WhatsApp-Zeilen tragen Metas Stand (fiaon_whatsapp.status) —
   // gemessen: read, delivered, gesendet, empfangen. Vorher stand „read" roh in der Akte.
   read: "gelesen", delivered: "zugestellt", sent: "gesendet", gesendet: "gesendet", empfangen: "empfangen",

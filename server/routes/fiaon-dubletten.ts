@@ -101,6 +101,21 @@ export async function fuehreMergeAus(
     return { status: 200, antwort: { ok: true, ergebnis } };
   } catch (err) {
     if (err instanceof MergeVerboten) {
+      // ── ABGELEHNTE MERGES SIND MESSBAR (E-IT-E, 08.10.2026) ────────────
+      // Bis heute stand eine Ablehnung nirgends. Ob Mitarbeiter am „Agent 0"
+      // gescheitert sind, ließ sich deshalb nicht belegen. Jetzt steht jede
+      // Ablehnung mit Grund im Protokoll (Aktivitätsansicht der Team-Zentrale).
+      // Außerhalb der zurückgerollten Transaktion — sie ist schon beendet.
+      try {
+        await sqlPool`
+          INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+          VALUES (${akteur.agentId ?? null}, 'person_merge_abgelehnt',
+                  ${JSON.stringify({ gewinnerId, verliererId, code: err.code, betreuer: body?.betreuer ?? null })},
+                  ${akteur.name}, ${`Zusammenführen ${verliererId} → ${gewinnerId} abgelehnt (${err.code}): ${err.message}`.slice(0, 900)})
+        `;
+      } catch (e) {
+        console.error("[FIAON-DUBLETTEN] Ablehnung nicht protokolliert:", (e as Error).message);
+      }
       return { status: 400, antwort: { ok: false, code: err.code, error: err.message } };
     }
     console.error("[FIAON-DUBLETTEN] merge:", err);

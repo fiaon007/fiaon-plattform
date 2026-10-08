@@ -110,6 +110,28 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
   },
   {
+    // E-IT-E (08.10.2026): Akte aus jeder Tür + Betreuer-Regel beim Zusammenführen.
+    id: "2026-10-08-akte-und-dubletten",
+    date: "2026-10-08",
+    category: "Behoben",
+    title: "Jede Akte geht auf — und Zusammenführen fragt nur noch, wenn es nötig ist",
+    summary:
+      "Interessenten ohne Bestellung und zusammengeführte Kunden öffnen jetzt ihre Akte statt „nicht gefunden“. "
+      + "Beim Zusammenführen von Dubletten wählst du den Betreuer nur noch, wenn beide Akten einen aktiven Betreuer haben.",
+    changes: [
+      "Öffnest du einen Kunden über einen alten Link (WhatsApp, Anruf, Termin), der inzwischen mit einer zweiten Akte zusammengeführt wurde, "
+        + "geht die gemeinsame Akte auf — oben steht, in welche Person er aufgegangen ist, wann und von wem.",
+      "Geht eine Akte wirklich nicht auf, steht der Grund da (zum Beispiel „gehört nicht zu deinem Bestand“ oder „Personen-Nummer gibt es nicht“).",
+      "„Dubletten zusammenführen“ (Leitung): Vor dem Klick steht, wer danach betreut. Hat nur eine Seite einen aktiven Betreuer, übernimmt er automatisch; "
+        + "ausgeschiedene, gesperrte oder Test-Konten zählen nicht.",
+      "Leitung › Ordnung › „Doppelte Menschen“ zeigt die Paare wieder (vorher stand dort immer „Keine Paare gefunden“).",
+    ],
+    howto: [
+      "Zwei Akten desselben Menschen: Akte öffnen → „Dubletten zusammenführen“ → den anderen suchen → wählen, welche Akte bleibt.",
+      "Steht „Wer betreut künftig?“ da, haben beide Akten einen aktiven Betreuer — dann wählst du ihn aus; die Wahl steht im Protokoll.",
+    ],
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

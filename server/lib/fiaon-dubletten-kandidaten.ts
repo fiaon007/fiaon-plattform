@@ -25,6 +25,9 @@
 // mit Blockbildung ist der Vergleich hier eine Sache von Millisekunden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import {
+  betreuerAnzeige, betreuerLageAus, betreuerStreitAus, lebenderBetreuer, type BetreuerSeite,
+} from "../../shared/fiaon-betreuer-lage";
 
 export type Stufe = "telefon" | "email" | "name_geburtsdatum" | "name";
 
@@ -51,6 +54,15 @@ export interface KandidatPerson {
   betreuerId: number | null;
   betreuerName: string | null;
   betreuungSeit: string | null;
+  /**
+   * E-IT-E (08.10.2026): Was über den Betreuer bekannt ist — die Regel, ob er
+   * zählt, steht in shared/fiaon-betreuer-lage.ts (aktiv, kein Testkonto,
+   * nicht gesperrt). `betreuerAnzeige` ist der Text für die Liste:
+   * „Name", „Name (gesperrt)" oder „ohne Betreuer".
+   */
+  betreuer: BetreuerSeite;
+  betreuerAnzeige: string;
+  betreuerLebend: boolean;
   bestellungen: number;
   bezahlteBestellungen: number;
   letzterKontakt: string | null;
@@ -67,8 +79,35 @@ export interface Kandidat {
   vorschlagGewinnerId: number;
   links: KandidatPerson;
   rechts: KandidatPerson;
-  /** Beide Seiten haben einen dokumentierten, VERSCHIEDENEN Betreuer. */
+  /**
+   * Beide Seiten haben einen AKTIVEN, ECHTEN, VERSCHIEDENEN Betreuer — dieselbe
+   * Regel wie der Merge (betreuerStreitAus, E-IT-E). Vorher prüfte die Liste
+   * hier eine eigene Formel und lief mit dem Server auseinander.
+   */
   betreuerStreit: boolean;
+}
+
+/**
+ * Die drei Betreuer-Felder einer KandidatPerson aus einer Zeile mit
+ * Agenten-Join (Spalten agent_da, agent_aktiv, agent_test, agent_gesperrt_am).
+ * Auch die Massen-Zusammenführung baut ihre Personen damit.
+ */
+export function betreuerFelderAusZeile(r: any): Pick<KandidatPerson, "betreuer" | "betreuerAnzeige" | "betreuerLebend"> {
+  const seite = betreuerSeiteAusZeile(r);
+  return { betreuer: seite, betreuerAnzeige: betreuerAnzeige(seite), betreuerLebend: lebenderBetreuer(seite).agentId != null };
+}
+
+/** Die Betreuer-Seite aus den Spalten einer Personen-Abfrage mit Agenten-Join. */
+export function betreuerSeiteAusZeile(r: any): BetreuerSeite {
+  return {
+    agentId: r.assigned_agent_id != null ? Number(r.assigned_agent_id) : null,
+    agentName: r.agent_name ?? null,
+    agentGibtEs: r.agent_da != null,
+    aktiv: r.agent_aktiv === true,
+    testkonto: r.agent_test === true,
+    gesperrt: r.agent_gesperrt_am != null,
+    mandatSeit: r.mandat_seit ?? null,
+  };
 }
 
 // ── Namensnormalisierung ───────────────────────────────────────────────────
@@ -189,8 +228,9 @@ export async function ladePersonen(): Promise<KandidatPerson[]> {
     )
     SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name, p.contact_name,
            p.primary_email, p.primary_phone, p.phone_key9, p.birthdate,
-           p.assigned_agent_id, p.betreuung_seit, p.created_at,
-           ag.name AS agent_name,
+           p.assigned_agent_id, p.betreuung_seit, p.created_at, p.mandat_seit,
+           ag.name AS agent_name, ag.id AS agent_da, ag.active AS agent_aktiv,
+           ag.is_test_account AS agent_test, ag.zugang_gesperrt_am AS agent_gesperrt_am,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email, p.person_ref) AS name,
            COALESCE(b.anzahl, 0) AS bestellungen,
@@ -215,6 +255,7 @@ export async function ladePersonen(): Promise<KandidatPerson[]> {
     betreuerId: r.assigned_agent_id != null ? Number(r.assigned_agent_id) : null,
     betreuerName: r.agent_name ?? null,
     betreuungSeit: r.betreuung_seit ?? null,
+    ...betreuerFelderAusZeile(r),
     bestellungen: Number(r.bestellungen ?? 0),
     bezahlteBestellungen: Number(r.bezahlte ?? 0),
     letzterKontakt: r.letzter_kontakt ?? null,
@@ -390,8 +431,10 @@ export async function findeKandidaten(opts: KandidatenOptionen = {}): Promise<Ka
   };
 
   /** Wie tragfähig ist eine Person als bleibende Seite? */
+  // E-IT-E: „mit Betreuer" heißt ein AKTIVER Betreuer — der Stempel
+  // betreuung_seit allein sagt nur, dass es einmal einen gab.
   const punkte = (p: KandidatPerson) =>
-    p.bezahlteBestellungen * 1000 + (p.betreuungSeit ? 100 : 0) + p.bestellungen * 10;
+    p.bezahlteBestellungen * 1000 + (p.betreuerLebend ? 100 : 0) + p.bestellungen * 10;
 
   /**
    * Eine Gruppe (gleiche Nummer, gleiche E-Mail) als KETTE, nicht als Kreuz.
@@ -553,9 +596,7 @@ export async function findeKandidaten(opts: KandidatenOptionen = {}): Promise<Ka
         : treffer.merkmal,
       vorschlagGewinnerId,
       links, rechts,
-      betreuerStreit: !!links.betreuungSeit && !!rechts.betreuungSeit
-        && links.betreuerId != null && rechts.betreuerId != null
-        && links.betreuerId !== rechts.betreuerId,
+      betreuerStreit: betreuerStreitAus(links.betreuer, rechts.betreuer),
     });
   }
 
@@ -595,7 +636,8 @@ export async function kandidatenZahlen(): Promise<{ gesamt: number; jeStufe: Rec
 export async function gegenueberstellung(idA: number, idB: number): Promise<any> {
   const seite = async (id: number) => {
     const [p] = await sqlPool`
-      SELECT p.*, ag.name AS agent_name,
+      SELECT p.*, ag.name AS agent_name, ag.id AS agent_da, ag.active AS agent_aktiv,
+             ag.is_test_account AS agent_test, ag.zugang_gesperrt_am AS agent_gesperrt_am,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email, p.person_ref) AS name
       FROM fiaon_persons p
@@ -636,6 +678,10 @@ export async function gegenueberstellung(idA: number, idB: number): Promise<any>
       betreuerId: p.assigned_agent_id != null ? Number(p.assigned_agent_id) : null,
       betreuerName: p.agent_name ?? null,
       betreuungSeit: p.betreuung_seit ?? null,
+      betreuer: betreuerSeiteAusZeile(p),
+      betreuerAnzeige: betreuerAnzeige(betreuerSeiteAusZeile(p)),
+      mandatSeit: p.mandat_seit ?? null,
+      werbesperre: p.werbung_gesperrt_am ?? null,
       zusage: p.promised_payment_date ?? null,
       wiedervorlage: p.follow_up_date ?? null,
       angelegt: p.created_at,
@@ -678,8 +724,13 @@ export async function gegenueberstellung(idA: number, idB: number): Promise<any>
   return {
     links, rechts, abweichungen,
     vorgabeSeite: jüngerLinks ? "links" : "rechts",
-    betreuerStreit: !!links.betreuungSeit && !!rechts.betreuungSeit
-      && links.betreuerId != null && rechts.betreuerId != null
-      && links.betreuerId !== rechts.betreuerId,
+    // E-IT-E (08.10.2026): dieselbe Regel wie der Merge. Die Oberfläche bekommt
+    // die Lage für BEIDE möglichen Gewinner — sie zeigt dann vor dem Klick,
+    // wer betreut („X übernimmt automatisch") oder fragt, wenn es zwei sind.
+    betreuerStreit: betreuerStreitAus(links.betreuer, rechts.betreuer),
+    betreuerLage: {
+      wennLinksBleibt: betreuerLageAus(links.betreuer, rechts.betreuer),
+      wennRechtsBleibt: betreuerLageAus(rechts.betreuer, links.betreuer),
+    },
   };
 }

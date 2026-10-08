@@ -39,6 +39,8 @@ type Person = {
   id: number; personRef: string; name: string;
   email: string | null; telefon: string | null; geburtsdatum: string | null;
   betreuerId: number | null; betreuerName: string | null; betreuungSeit: string | null;
+  /** E-IT-E: „Name", „Name (gesperrt)", „ohne Betreuer" — die Regel des Merges. */
+  betreuerAnzeige?: string;
   bestellungen: number; bezahlteBestellungen: number;
   letzterKontakt: string | null; angelegt: string | null;
 };
@@ -52,6 +54,7 @@ type Seite = {
   felder: Record<string, string | null>;
   kontoStatus: string | null; gesperrt: boolean;
   betreuerId: number | null; betreuerName: string | null; betreuungSeit: string | null;
+  betreuerAnzeige?: string; mandatSeit?: string | null; werbesperre?: string | null;
   zusage: string | null; wiedervorlage: string | null; angelegt: string | null;
   bestellungen: { ref: string; paket: string | null; status: string | null; betrag: string | null;
                   frist: string | null; angelegt: string | null; archiviertAm: string | null;
@@ -66,7 +69,10 @@ type Vergleich = {
   abweichungen: { feld: string; vorgabe: "links" | "rechts"; linksLeer: boolean; rechtsLeer: boolean }[];
   vorgabeSeite: "links" | "rechts";
   betreuerStreit: boolean;
+  /** E-IT-E: Wer danach betreut — je nachdem, welche Seite bleibt (shared/fiaon-betreuer-lage.ts). */
+  betreuerLage?: { wennLinksBleibt: BetreuerLage; wennRechtsBleibt: BetreuerLage };
 };
+type BetreuerLage = { fall: string; wahlNoetig: boolean; agentId: number | null; agentName: string | null; quelle: string; text: string; hinweise: string[] };
 
 const FELD_NAME: Record<string, string> = {
   first_name: "Vorname", last_name: "Nachname", company_name: "Firma",
@@ -129,7 +135,9 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
   const [vergleichLaedt, setVergleichLaedt] = useState(false);
   const [gewinner, setGewinner] = useState<number | null>(null);
   const [feldWahl, setFeldWahl] = useState<Record<string, "links" | "rechts">>({});
-  const [betreuerWahl, setBetreuerWahl] = useState<"gewinner" | "verlierer" | null>(null);
+  // E-IT-E: Gemerkt wird die PERSON, deren Betreuer weitermacht — vorher
+  // „gewinner"/„verlierer", und ein Tausch des Gewinners kehrte die Wahl still um.
+  const [betreuerVon, setBetreuerVon] = useState<number | null>(null);
   const [rueckfrage, setRueckfrage] = useState(false);
   const [beschaeftigt, setBeschaeftigt] = useState(false);
   const [meldung, setMeldung] = useState<{ text: string; art: "ok" | "fehler" } | null>(null);
@@ -151,7 +159,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
 
   const oeffnen = async (k: Kandidat) => {
     setOffen(k); setVergleich(null); setVergleichLaedt(true); setRueckfrage(false);
-    setGewinner(k.vorschlagGewinnerId); setBetreuerWahl(null);
+    setGewinner(k.vorschlagGewinnerId); setBetreuerVon(null);
     const pfad = pfade.paar.replace(":a", String(k.links.id)).replace(":b", String(k.rechts.id));
     const { ok, json } = await hole(pfad);
     if (ok) {
@@ -182,6 +190,12 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
     return raus;
   };
 
+  /** Die Betreuer-Lage für den gerade gewählten Gewinner — vom Server, dieselbe Regel wie der Merge. */
+  const betreuerLage: BetreuerLage | null = vergleich?.betreuerLage && gewinner != null
+    ? (vergleich.links.id === gewinner ? vergleich.betreuerLage.wennLinksBleibt : vergleich.betreuerLage.wennRechtsBleibt)
+    : null;
+  const betreuerWahlNoetig = !!(betreuerLage ? betreuerLage.wahlNoetig : vergleich?.betreuerStreit);
+
   const zusammenfuehren = async () => {
     if (!vergleich || gewinner == null) return;
     const verlierer = vergleich.links.id === gewinner ? vergleich.rechts.id : vergleich.links.id;
@@ -191,7 +205,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
       body: JSON.stringify({
         gewinnerId: gewinner, verliererId: verlierer,
         felder: felderFuerServer(),
-        ...(betreuerWahl ? { betreuer: betreuerWahl } : {}),
+        ...(betreuerWahlNoetig && betreuerVon != null ? { betreuer: betreuerVon === gewinner ? "gewinner" : "verlierer" } : {}),
       }),
     });
     setBeschaeftigt(false);
@@ -209,6 +223,13 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
     } else {
       setRueckfrage(false);
       setMeldung({ text: json?.error || "Zusammenführen fehlgeschlagen — es wurde nichts geändert.", art: "fehler" });
+      // E-IT-E: Hat sich die Lage inzwischen geändert (zweiter aktiver Betreuer),
+      // die Gegenüberstellung frisch holen — dann erscheint die Wahl.
+      if (json?.code === "betreuer_entscheidung_fehlt" && offen) {
+        const pfad = pfade.paar.replace(":a", String(offen.links.id)).replace(":b", String(offen.rechts.id));
+        const frisch = await hole(pfad);
+        if (frisch.ok) setVergleich(frisch.json as Vergleich);
+      }
     }
   };
 
@@ -292,7 +313,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                       )}
                       {k.betreuerStreit && (
                         <span className="px-1.5 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wide bg-rose-50 text-rose-700 border border-rose-200">
-                          Zwei Betreuer
+                          Zwei aktive Betreuer
                         </span>
                       )}
                     </div>
@@ -302,11 +323,11 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                     <p className="text-[11.5px] text-slate-500 mt-0.5">
                       #{k.links.id}: {k.links.bestellungen} Bestellung(en)
                       {k.links.bezahlteBestellungen > 0 ? `, ${k.links.bezahlteBestellungen} bezahlt` : ""}
-                      {k.links.betreuerName ? ` · ${k.links.betreuerName}` : " · ohne Betreuer"}
+                      {` · ${k.links.betreuerAnzeige ?? (k.links.betreuerName || "ohne Betreuer")}`}
                       {"   |   "}
                       #{k.rechts.id}: {k.rechts.bestellungen} Bestellung(en)
                       {k.rechts.bezahlteBestellungen > 0 ? `, ${k.rechts.bezahlteBestellungen} bezahlt` : ""}
-                      {k.rechts.betreuerName ? ` · ${k.rechts.betreuerName}` : " · ohne Betreuer"}
+                      {` · ${k.rechts.betreuerAnzeige ?? (k.rechts.betreuerName || "ohne Betreuer")}`}
                     </p>
                   </div>
                   <span className="shrink-0 text-[12px] font-semibold text-slate-500 self-center">Prüfen</span>
@@ -363,7 +384,8 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                             {s.letzterKontakt ? ` · letzter Kontakt ${datum(s.letzterKontakt)}` : " · kein Kontakt dokumentiert"}
                           </p>
                           <p className="text-[11.5px] text-slate-500">
-                            {s.betreuerName ? `Betreuer: ${s.betreuerName}${s.betreuungSeit ? " (dokumentiert)" : ""}` : "ohne Betreuer"}
+                            {`Betreuer: ${s.betreuerAnzeige ?? (s.betreuerName || "ohne Betreuer")}`}
+                            {s.mandatSeit ? " · Mandat" : ""}{s.werbesperre ? " · Werbesperre" : ""}
                           </p>
                           {an && <p className="text-[11px] font-semibold text-slate-700 mt-1.5">bleibt bestehen</p>}
                           {!an && <p className="text-[11px] text-slate-500 mt-1.5">geht in den anderen auf — bleibt als Wegweiser erhalten</p>}
@@ -373,29 +395,36 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                   </div>
                 </section>
 
-                {/* Betreuerstreit */}
-                {vergleich.betreuerStreit && (
-                  <section className="p-3.5 rounded-xl border border-rose-200 bg-rose-50">
-                    <h4 className="text-[13px] font-bold text-rose-900">Zwei dokumentierte Betreuer — bitte entscheiden</h4>
+                {/* Betreuer — E-IT-E (08.10.2026): Gefragt wird NUR bei zwei
+                    aktiven, verschiedenen Betreuern. Sonst steht hier, wer
+                    automatisch weitermacht — vor dem Klick, nicht danach. */}
+                {betreuerWahlNoetig ? (
+                  <section className="p-3.5 rounded-xl border border-rose-200 bg-rose-50" data-testid="dub-betreuer-wahl">
+                    <h4 className="text-[13px] font-bold text-rose-900">Zwei aktive Betreuer — bitte entscheiden</h4>
                     <p className="text-[12px] text-rose-800 mt-1 leading-snug">
-                      Beide Seiten haben einen belegten Betreuer. Wer künftig zuständig ist, ist eine Geldfrage
-                      (der Provisionsanspruch folgt dem dokumentierten Kontakt) — deshalb entscheidet das kein
-                      Automat. Die Wahl wird mit Namen protokolliert.
+                      Beide Seiten werden von einem aktiven Mitarbeiter betreut. Wer künftig zuständig ist, ist eine
+                      Geldfrage (der Provisionsanspruch folgt dem dokumentierten Kontakt) — deshalb entscheidet das
+                      kein Automat. Ein Mandat bleibt nur auf der gewählten Seite. Die Wahl wird mit Namen
+                      protokolliert.
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2.5">
-                      {([["gewinner", vergleich.links.id === gewinner ? vergleich.links : vergleich.rechts],
-                         ["verlierer", vergleich.links.id === gewinner ? vergleich.rechts : vergleich.links]] as const)
-                        .map(([wahl, seite]) => (
-                        <button key={wahl} type="button" onClick={() => setBetreuerWahl(wahl as any)}
-                          className={`px-3 py-1.5 rounded-lg text-[12.5px] font-semibold border ${betreuerWahl === wahl
+                      {[vergleich.links, vergleich.rechts].map((seite) => (
+                        <button key={seite.id} type="button" onClick={() => setBetreuerVon(seite.id)}
+                          className={`px-3 py-1.5 rounded-lg text-[12.5px] font-semibold border ${betreuerVon === seite.id
                             ? "bg-slate-900 text-white border-slate-900"
                             : "bg-white text-slate-700 border-slate-300"}`}>
-                          {seite.betreuerName || `Agent ${seite.betreuerId}`} übernimmt
+                          {seite.betreuerAnzeige ?? seite.betreuerName ?? `Mitarbeiter ${seite.betreuerId}`} übernimmt
                         </button>
                       ))}
                     </div>
                   </section>
-                )}
+                ) : betreuerLage ? (
+                  <section className="p-3.5 rounded-xl border border-slate-200 bg-slate-50" data-testid="dub-betreuer-lage">
+                    <h4 className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">Betreuung danach</h4>
+                    <p className="text-[12.5px] text-slate-700 mt-1">{betreuerLage.text}</p>
+                    {betreuerLage.hinweise.map((h, i) => <p key={i} className="text-[12px] text-slate-500 mt-0.5">{h}</p>)}
+                  </section>
+                ) : null}
 
                 {/* Felder nebeneinander */}
                 <section>
@@ -514,7 +543,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                 {/* Entscheidung */}
                 <section className="border-t border-slate-100 pt-4 flex flex-wrap gap-2.5">
                   <button type="button" onClick={() => setRueckfrage(true)}
-                    disabled={beschaeftigt || (vergleich.betreuerStreit && !betreuerWahl)}
+                    disabled={beschaeftigt || (betreuerWahlNoetig && betreuerVon == null)}
                     className="px-4 py-2.5 rounded-lg text-white text-[13px] font-semibold inline-flex items-center gap-2 disabled:opacity-50"
                     style={{ background: "#2563eb" }}>
                     <MarkeZusammenfuehren /> Zusammenführen
@@ -523,7 +552,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                     className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-[12.5px] font-semibold text-slate-600 hover:border-slate-300 disabled:opacity-50">
                     Keine Dublette
                   </button>
-                  {vergleich.betreuerStreit && !betreuerWahl && (
+                  {betreuerWahlNoetig && betreuerVon == null && (
                     <p className="text-[12px] text-rose-700 self-center">
                       Bitte oben festlegen, wer den Kunden künftig betreut.
                     </p>

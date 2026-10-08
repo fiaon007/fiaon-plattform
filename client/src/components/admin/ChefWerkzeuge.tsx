@@ -17,6 +17,8 @@ import {
   CheckCircle2, AlertTriangle, Play, ExternalLink, Loader2, Inbox,
 } from "lucide-react";
 import { API, eur, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung } from "./chef-teile";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Der Rahmen: ein aufklappbares Werkzeug
@@ -401,7 +403,7 @@ function SprungUndSicht() {
                 <em>{t.mitarbeiter || "im Pool"}</em>
               </span>
               <span className="cw-treffer-knoepfe">
-                <a className="cw-knopf klein" href={`/chef/s/akte?id=${t.id}`}>Akte</a>
+                <a className="cw-knopf klein" href={akteLink(t.id, "chef") ?? undefined}>Akte</a>
                 <button type="button" className="cw-knopf klein" onClick={() => alsKunde(t.ref)}>
                   als Kunde sehen
                 </button>

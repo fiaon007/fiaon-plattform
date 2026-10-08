@@ -41,6 +41,8 @@ import "@/styles/chef-wa-zentrale.css";
 import ChefWhatsAppZentrale from "./ChefWhatsAppZentrale";
 import { KiPauseKarte } from "./ChefKiPause";
 import { WaPauseKarte } from "./ChefWaPause";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 // E-243 (26.09.2026): Der Verkauf der Bonitätsauskunft wohnt hier, nicht auf einer eigenen Seite — erst beim Öffnen geladen.
 const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
@@ -648,7 +650,7 @@ function Schlange({ liste, onProbe, beschaeftigt }: { liste: Stand["schlange"]; 
         <li key={k.personId}>
           <span className={`mp-stufe ${k.stufe}`}>{k.stufe}</span>
           <div className="mp-schlange-wer">
-            <a className="mp-name" href={`/chef/s/akte?id=${k.personId}`} target="_blank" rel="noreferrer">{k.name}</a>
+            <a className="mp-name" href={akteLink(k.personId, "chef") ?? undefined} target="_blank" rel="noreferrer">{k.name}</a>
             {" "}<span className="mp-still">Mail {k.schritt} · {k.stufe === "A" ? "Zahlung gemeldet" : "Antrag"} {seit(k.ereignisAm)}{k.zuletztAm ? ` · letzte Mail ${seit(k.zuletztAm)}` : ""}</span>
             <div className="mp-still">{[k.paket, k.betragEuro != null ? euro(k.betragEuro) : null, k.wunschlimit ? `Wunschlimit ${k.wunschlimit.toLocaleString("de-DE")} €` : null].filter(Boolean).join(" · ")}</div>
           </div>
@@ -820,7 +822,7 @@ function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string, f
         )}
         <Denkprotokoll id={m.id} />
         <div className="mara-startreihe">
-          <a className="mara-knopf klein" href={`/chef/s/akte?id=${m.personId}`} target="_blank" rel="noreferrer">Akte öffnen</a>
+          <a className="mara-knopf klein" href={akteLink(m.personId, "chef") ?? undefined} target="_blank" rel="noreferrer">Akte öffnen</a>
           {m.ausgeschlossen
             ? <button type="button" className="mara-knopf klein" onClick={() => void aus(false)}>Wieder in die Aktion</button>
             : <button type="button" className="mara-knopf klein warn" onClick={() => void aus(true)}>Aus der Aktion nehmen</button>}

@@ -270,6 +270,17 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "oder ist das Paket nicht eindeutig, entscheidet die Leitung (sie bucht oder schließt den Antrag ohne Kündigung).",
     tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
   },
+  {
+    // E-IT-E (08.10.2026): zusammengeführte Personen und der Dubletten-Knopf der Leitung.
+    // Kein „ziel": Band und Knopf erscheinen nur unter Bedingungen (Rundgang-Pflege, Regel 2).
+    titel: "Zwei Akten, ein Mensch — und wer danach betreut.",
+    text: "Öffnest du einen Kunden über einen alten Link (WhatsApp, Anruf, Termin) und er wurde inzwischen mit "
+      + "einer zweiten Akte zusammengeführt, geht die gemeinsame Akte auf — oben steht dann, in welche Person er "
+      + "aufgegangen ist, wann und von wem. Die Leitung führt Doppelte über „Dubletten zusammenführen“ zusammen: "
+      + "Vor dem Klick steht dort, wer danach betreut. Gefragt wird nur, wenn BEIDE Akten einen aktiven Betreuer "
+      + "haben; ist nur auf einer Seite jemand eingetragen, übernimmt er automatisch.",
+    tipp: "Ausgeschiedene, gesperrte oder Test-Konten zählen nicht als Betreuer — die Liste zeigt sie mit dem Zusatz in Klammern.",
+  },
 ];
 
 export const RUNDGANG_BESTAND: RundgangSchritt[] = [
@@ -776,9 +787,10 @@ export const RUNDGANG_VERTRIEB: RundgangSchritt[] = [
   {
     titel: "Ordnung ist die Arbeit, die sonst liegen bleibt.",
     text: "Dubletten, Testeinträge und die Befunde der Bestandswache. Ein Mensch, der zweimal in "
-      + "der Kartei steht, bekommt zwei Rechnungen und zwei Anrufe. Zusammenführen ist NICHT "
-      + "umkehrbar — deshalb steht der Knopf dafür in der Akte, wo du beide Seiten vollständig "
-      + "siehst, und nicht in der Trefferliste.",
+      + "der Kartei steht, bekommt zwei Rechnungen und zwei Anrufe. „Jetzt suchen“ zeigt die Paare "
+      + "mit Grund und Betreuung beider Seiten. Zusammenführen ist NICHT umkehrbar — deshalb steht "
+      + "der Knopf dafür in der Akte, wo du beide Seiten vollständig siehst, und nicht in der Trefferliste. "
+      + "Eine Betreuer-Wahl verlangt das System nur bei zwei AKTIVEN Betreuern; sonst übernimmt der eine.",
     tipp: "Einmal die Woche reicht. Aber dann wirklich.",
   },
 ];

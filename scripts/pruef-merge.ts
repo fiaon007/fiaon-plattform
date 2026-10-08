@@ -371,26 +371,92 @@ async function main(): Promise<void> {
       await verboten("Merge Testkonto ↔ echter Kunde abgelehnt", "test_und_echt",
         () => personenZusammenfuehren(testPerson, echtePerson, {}, AKTEUR, { tx }));
 
-      // Zwei verschiedene dokumentierte Betreuer
-      const betreutA = await person({
-        first_name: "Prüf", last_name: "Betreut",
-        primary_email: `betreut-a-${stempel}@merge-pruef.invalid`,
-        phone_key9: "100000004", primary_phone: "+4915100000004",
-        assigned_agent_id: agentA, betreuung_seit: new Date(),
-      });
-      const betreutB = await person({
-        first_name: "Prüf", last_name: "Betreut",
-        primary_email: `betreut-b-${stempel}@merge-pruef.invalid`,
-        phone_key9: "100000004", primary_phone: "+4915100000004",
-        assigned_agent_id: agentB, betreuung_seit: new Date(),
-      });
-      await verboten("Zwei verschiedene Betreuer OHNE Entscheidung abgelehnt", "betreuer_entscheidung_fehlt",
+      // ── Zwei verschiedene AKTIVE Betreuer (E-IT-E, 08.10.2026) ─────────
+      // Seit Justins Regel vom 08.10.2026 zählt nur ein aktiver, ECHTER
+      // Betreuer (kein Testkonto, nicht gesperrt, nicht ausgeschieden — Regel:
+      // shared/fiaon-betreuer-lage.ts). agentA/agentB oben sind Testkonten und
+      // zählen deshalb NICHT mehr. Für den Streitfall braucht der Prüfstand
+      // zwei echte Konten — sie entstehen in DIESER Transaktion und werden mit
+      // ihr zurückgerollt; es gibt sie nie außerhalb des Laufs.
+      const echtesKonto = async (name: string): Promise<number> => {
+        const [r] = await tx`
+          INSERT INTO fiaon_agents ${tx({
+            name, email: `pm-${stempel}-${name.toLowerCase()}@merge-pruef.invalid`,
+            active: true, is_test_account: false,
+          } as any)} RETURNING id
+        `;
+        return Number(r.id);
+      };
+      const echtA = await echtesKonto("PruefEchtA");
+      const echtB = await echtesKonto("PruefEchtB");
+      const gesperrtesKonto = await echtesKonto("PruefGesperrt");
+      await tx`UPDATE fiaon_agents SET zugang_gesperrt_am = NOW() WHERE id = ${gesperrtesKonto}`;
+      const ausgeschieden = await echtesKonto("PruefAus");
+      await tx`UPDATE fiaon_agents SET active = FALSE WHERE id = ${ausgeschieden}`;
+      let telNr = 10;
+      const paarPerson = async (felder: Record<string, unknown>): Promise<number> => {
+        telNr++;
+        return person({
+          first_name: "Prüf", last_name: "Betreut",
+          primary_email: `betreut-${telNr}-${stempel}@merge-pruef.invalid`,
+          phone_key9: `1000000${telNr}`, primary_phone: `+49151000000${telNr}`,
+          ...felder,
+        });
+      };
+
+      const betreutA = await paarPerson({ assigned_agent_id: echtA, betreuung_seit: new Date() });
+      const betreutB = await paarPerson({ assigned_agent_id: echtB, betreuung_seit: new Date() });
+      await verboten("Zwei verschiedene AKTIVE Betreuer OHNE Entscheidung abgelehnt", "betreuer_entscheidung_fehlt",
         () => personenZusammenfuehren(betreutB, betreutA, {}, AKTEUR, { tx }));
 
       const mitWahl = await personenZusammenfuehren(betreutB, betreutA,
         { betreuer: "verlierer" }, AKTEUR, { tx });
-      gleich("Mit ausdrücklicher Wahl: Betreuer des Verlierers gewinnt", mitWahl.betreuer.agentId, agentB);
+      gleich("Mit ausdrücklicher Wahl: Betreuer des Verlierers gewinnt", mitWahl.betreuer.agentId, echtB);
       gleich("Die Wahl ist protokolliert", mitWahl.betreuer.quelle, "verlierer");
+
+      // (i) Pool-Person mit Stempel betreuung_seit, aber OHNE Agent („Agent 0")
+      //     gegen eine betreute Person: OHNE Wahl, in BEIDEN Richtungen.
+      for (const richtung of ["betreute Seite bleibt", "Pool-Seite bleibt"] as const) {
+        const betreut = await paarPerson({ assigned_agent_id: echtA, betreuung_seit: new Date() });
+        const pool = await paarPerson({ assigned_agent_id: null, betreuung_seit: new Date() });
+        const [g, v] = richtung === "betreute Seite bleibt" ? [betreut, pool] : [pool, betreut];
+        try {
+          const e = await personenZusammenfuehren(v, g, {}, AKTEUR, { tx });
+          gleich(`(i) ${richtung}: ohne Wahl, Betreuer bleibt/kommt mit`, e.betreuer.agentId, echtA);
+          gleich(`(i) ${richtung}: Quelle`, e.betreuer.quelle, richtung === "betreute Seite bleibt" ? "gewinner" : "verlierer");
+        } catch (err: any) {
+          ok(`(i) ${richtung}: ohne Wahl zusammengeführt`, false, `${err?.code}: ${err?.message}`);
+        }
+      }
+      // (ii) Aktiver gegen gesperrten bzw. ausgeschiedenen Betreuer → automatisch der aktive.
+      for (const [name, konto] of [["gesperrt", gesperrtesKonto], ["ausgeschieden", ausgeschieden]] as const) {
+        const g = await paarPerson({ assigned_agent_id: konto, betreuung_seit: new Date() });
+        const v = await paarPerson({ assigned_agent_id: echtA, betreuung_seit: new Date() });
+        try {
+          const e = await personenZusammenfuehren(v, g, {}, AKTEUR, { tx });
+          gleich(`(ii) gegen ${name}en Betreuer: automatisch der aktive`, e.betreuer.agentId, echtA);
+        } catch (err: any) {
+          ok(`(ii) gegen ${name}en Betreuer: zusammengeführt`, false, `${err?.code}: ${err?.message}`);
+        }
+      }
+      // (iv) Verlierer mit Stempel und NULL, Gewinner ohne alles → NULL, NIE 0 (Person 13458).
+      {
+        const g = await paarPerson({});
+        const v = await paarPerson({ assigned_agent_id: null, betreuung_seit: new Date() });
+        const e = await personenZusammenfuehren(v, g, {}, AKTEUR, { tx });
+        const [z] = await tx`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${g}`;
+        ok("(iv) assigned_agent_id bleibt NULL — nie 0", z.assigned_agent_id === null && e.betreuer.agentId === null,
+          JSON.stringify({ spalte: z.assigned_agent_id, ergebnis: e.betreuer }));
+      }
+      // (v) Keine Seite mit aktivem Agenten → assigned_agent_id des Gewinners unangetastet.
+      {
+        const g = await paarPerson({ assigned_agent_id: gesperrtesKonto });
+        const v = await paarPerson({ assigned_agent_id: null });
+        const e = await personenZusammenfuehren(v, g, {}, AKTEUR, { tx });
+        const [z] = await tx`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${g}`;
+        ok("(v) keiner aktiv: Gewinner bleibt, wie er ist", Number(z.assigned_agent_id) === gesperrtesKonto && e.betreuer.quelle === "keiner",
+          JSON.stringify({ spalte: z.assigned_agent_id, ergebnis: e.betreuer }));
+      }
 
       // ═══════════════════════════════════════════════════════════════════
       gruppe("5. Feldwahl: nichts wird überschrieben und vergessen");
@@ -698,8 +764,12 @@ async function main(): Promise<void> {
     "server/lib/fiaon-kundenlage.ts", /fristAbgelaufenSql/);
   enthaelt("Erinnerungs-Engine übergeht archivierte Bestellungen",
     "server/routes/fiaon-antrag.ts", /fa\.archived_at IS NULL/);
+  // E-IT-E: Die Abfrage trägt seit längerem den Tabellen-Alias „e." — dieselbe
+  // Bedingung, das Muster war veraltet (und meldete deshalb rot).
   enthaelt("Kandidatensuche unterdrückt nur verworfene Paare",
-    "server/lib/fiaon-dubletten-kandidaten.ts", /WHERE entscheidung = 'keine_dublette'/);
+    "server/lib/fiaon-dubletten-kandidaten.ts", /WHERE (e\.)?entscheidung = 'keine_dublette'/);
+  enthaelt("Kandidatensuche rechnet den Betreuer-Streit mit der EINEN Regel",
+    "server/lib/fiaon-dubletten-kandidaten.ts", /betreuerStreitAus\(links\.betreuer, rechts\.betreuer\)/);
   enthaelt("Kandidatensuche schließt Testdatensätze aus",
     "server/lib/fiaon-dubletten-kandidaten.ts", /istTestKandidat/);
 

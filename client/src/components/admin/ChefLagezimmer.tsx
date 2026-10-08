@@ -35,6 +35,8 @@ import {
   TrendingUp, TrendingDown, Users, Landmark, AlertTriangle, ArrowRight,
   Wallet, CalendarClock, Copy, PhoneOff, FileWarning, Sparkles,
 } from "lucide-react";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 const API = "/api/fiaon";
 
@@ -367,7 +369,7 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
               {l.letzteZahlungen.map((z, i) => (
                 <tr key={i}>
                   <td className="cl-zeit">{new Date(z.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
-                  <td>{z.personId ? <a href={`/chef/s/akte?id=${z.personId}`}>{z.kunde}</a> : z.kunde}</td>
+                  <td>{z.personId ? <a href={akteLink(z.personId, "chef") ?? undefined}>{z.kunde}</a> : z.kunde}</td>
                   <td className="cl-leise">{z.paket ?? "—"}</td>
                   <td className="cl-leise">{z.rateNr > 0 ? `${z.rateNr}.` : "—"}</td>
                   <td className="cl-leise">{z.betreuer ?? "—"}</td>

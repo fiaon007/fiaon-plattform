@@ -19,6 +19,8 @@
 import { useEffect, useState } from "react";
 import { Search, X, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import "@/styles/chef-zahlen.css";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 interface Zeile {
   am: string | null; cents: number; art: string; ref: string | null;
@@ -140,7 +142,7 @@ export default function ChefZahlungen() {
                     {z.unverbucht && <em className="czz-marke gelb">unverbucht</em>}
                   </td>
                   <td>{z.personId
-                    ? <a href={`/chef/s/akte?id=${z.personId}`}>{z.kunde}</a>
+                    ? <a href={akteLink(z.personId, "chef") ?? undefined}>{z.kunde}</a>
                     : z.kunde}</td>
                   <td className="leise">{sicht === "bankbuch" ? (z.paket ?? "—") : `${z.art}${z.paket ? ` · ${String(z.paket).split("\n")[0]}` : ""}`}</td>
                   <td className="leise">{z.zweck ?? "—"}</td>

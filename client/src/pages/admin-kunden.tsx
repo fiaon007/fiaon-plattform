@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { akteLink, imChefbuero } from "@/lib/akte-link";
 import { statusAusTierGrund, stufeAusTier } from "@shared/fiaon-kundenstatus";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import { FiaonFilter, FiaonFilterChips } from "@/components/FiaonFilter";
@@ -152,7 +153,10 @@ export default function AdminKundenZentrale() {
     // Jede Filteränderung springt auf Seite eins — sonst steht man auf Seite 7
     // einer Liste, die nur noch drei Seiten hat, und sieht nichts.
     if (!("offset" in aenderungen)) p.delete("offset");
-    navigate(`/admin/kunden${p.toString() ? `?${p}` : ""}`, { replace: true });
+    // E-IT-E: Im Chefbüro (/chef/s/kunden, /chef/s/leads …) bleibt der Filter
+    // auf derselben Seite — vorher sprang jeder Filterklick nach /admin/kunden.
+    const basis = imChefbuero() ? window.location.pathname : "/admin/kunden";
+    navigate(`${basis}${p.toString() ? `?${p}` : ""}`, { replace: true });
   }, [navigate, suche]);
 
   const laden = useCallback(async () => {
@@ -450,7 +454,12 @@ export default function AdminKundenZentrale() {
                            });
                          }} />
                 </label>
-                <button type="button" onClick={() => navigate(`/admin/kunde/${z.ref ?? z.person_id}`)}
+                {/* E-IT-E (08.10.2026): über den einen Akte-Link. Vorher ging die
+                    Personen-Nummer an /admin/kunde — für 3.024 von 3.369 Zeilen der
+                    „Kalten Leads" (Interessenten ohne Bestellung) kam „nicht gefunden",
+                    und der Klick verließ das Chefbüro. Jetzt öffnet jede Zeile ihre
+                    Akte, im Chefbüro unter /chef/s/akte. */}
+                <button type="button" onClick={() => { const ziel = akteLink(z.ref ?? z.person_id); if (ziel) navigate(ziel); }}
                         className="text-left min-w-0 block w-full lg:w-auto">
                   <span className="block text-[13.5px] font-bold text-slate-900 truncate">
                     {z.name}

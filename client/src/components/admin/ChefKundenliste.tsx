@@ -27,6 +27,8 @@ import {
   ShieldAlert, KeyRound, Clock, Landmark, X,
 } from "lucide-react";
 import { API, Karte, Hochzaehler, eur, zahl, datum, seit, Geruest, Fehlermeldung } from "./chef-teile";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 const FILTER = [
   { key: "alle", label: "Alle" },
@@ -56,6 +58,10 @@ interface Zeile {
   bezahlt_cents: string | number; offen_cents: string | number; ueberfaellig: number;
   letzte_zahlung: string | null; naechste_faellig: string | null; hoechste_mahnstufe: number | null;
   pakete: string | null; hat_zugang: boolean; ref: string | null;
+  /** E-IT-E: noch keine Bestellung — die Akte öffnet als Interessenten-Akte. */
+  nur_interessent?: boolean;
+  /** E-IT-E: Gibt es einen Interessenten-Eintrag? Ohne ihn und ohne Bestellung gibt es keine Akte. */
+  hat_lead?: boolean;
 }
 
 /** Der Name, wie ein Mensch ihn schreiben würde — mit Firma, falls vorhanden. */
@@ -207,7 +213,7 @@ export default function ChefKundenliste() {
           {zeilen.map((z) => {
             const zs = zeichen(z);
             return (
-              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} href={`/chef/s/akte?id=${z.id}`}>
+              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} href={akteLink(z.id, "chef") ?? undefined}>
                 <span className="ck-marke" aria-hidden="true" data-ton={zs[0]?.ton ?? ""} />
 
                 <span className="ck-wer">
@@ -219,7 +225,13 @@ export default function ChefKundenliste() {
                 </span>
 
                 <span className="ck-paket">
-                  {z.pakete ? <b title={z.pakete}>{z.pakete}</b> : <b className="leise">kein bezahltes Paket</b>}
+                  {/* E-IT-E (08.10.2026): Gut die Hälfte der Liste sind reine
+                      Interessenten (nur Lead). Die Marke sagt es VOR dem Klick —
+                      niemand soll eine Bezahl-Akte erwarten. */}
+                  {z.pakete ? <b title={z.pakete}>{z.pakete}</b>
+                    : z.nur_interessent && z.hat_lead ? <b className="leise" data-art="interessent">Interessent — noch keine Bestellung</b>
+                    : z.nur_interessent ? <b className="leise" data-art="ohne-vorgang">angelegt, ohne Antrag und ohne Interessenten-Eintrag</b>
+                    : <b className="leise">kein bezahltes Paket</b>}
                   <em>{z.mitarbeiter ? z.mitarbeiter : "im Pool"}{z.mandat_seit ? " · Mandat" : ""}</em>
                 </span>
 

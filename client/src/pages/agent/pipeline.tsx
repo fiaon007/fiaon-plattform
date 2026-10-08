@@ -111,6 +111,7 @@ import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
 import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
+import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
 import { statusMitZahlungswahrheit, type Stufe } from "@shared/fiaon-kundenstatus";
@@ -144,6 +145,8 @@ import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
 // E-050: exportiert — bestand.tsx (Portfolio-Raum) nutzt dieselbe Form.
 export interface Kunde {
+  /** E-IT-E: Angefragt war eine zusammengeführte Person — der Server hat den Kopf geöffnet. */
+  aufgegangen?: { vonPersonId: number; text: string } | null;
   karte?: { status: string | null; text: string | null; am: string | null } | null;
   /** E-213: gekündigt — kommt aus KARTE_SQL und gilt damit in jeder Ansicht. */
   gekuendigtAm?: string | null;
@@ -664,6 +667,8 @@ function PipelineInnen() {
   const [mandate, setMandate] = useState<{ anzahl: number; ids: Set<number> }>({ anzahl: 0, ids: new Set() });
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
+  // E-IT-E (08.10.2026): Warum die Akte nicht aufging — vom Server, mit Grund.
+  const [fremdFehler, setFremdFehler] = useState<{ titel: string; text: string } | null>(null);
   // Fokus-Karte eingeklappt? Sitzungsweit gemerkt (siehe Kommentar am Einbau).
   const [fokusZu, setFokusZuRoh] = useState(() => { try { return sessionStorage.getItem("fiaon_fokus_zu") === "1"; } catch { return false; } });
   const setFokusZu = (v: boolean) => { setFokusZuRoh(v); try { sessionStorage.setItem("fiaon_fokus_zu", v ? "1" : "0"); } catch { /* egal */ } };
@@ -850,7 +855,11 @@ function PipelineInnen() {
     if (!offen || laedt) { setFremd(null); return; }
     if (liste.some((k) => k.personId === offen) || slots.some((s) => s.kunde.personId === offen)) { setFremd(null); return; }
     let an = true;
-    api(`/agent/crm/kunden/${offen}`).then((r) => { if (an) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
+    api(`/agent/crm/kunden/${offen}`).then((r) => {
+      if (!an) return;
+      setFremd(r.ok && r.json?.kunde ? r.json.kunde : null);
+      setFremdFehler(r.ok && r.json?.kunde ? null : akteFehlerAus(r));
+    }).catch(() => { if (an) setFremdFehler(akteFehlerAus({ status: 0 })); });
     return () => { an = false; };
   }, [offen, laedt, liste, slots]);
 
@@ -1074,9 +1083,9 @@ function PipelineInnen() {
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
               {/* E-049 Nr. 1: Kopf im selben sticky Glas-Block wie in der vollen Akte. */}
-              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : (fremdFehler?.titel ?? "Akte nicht gefunden")}</h2>
                 <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
-              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
+              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">{fremdFehler?.text ?? "Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht."}</p></div>}
             </aside>
           )}
         </>, document.body)
@@ -1814,7 +1823,15 @@ function LeitungsZeile({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" 
 interface DublettenTreffer {
   id: number; personRef: string; name: string; email: string | null; telefon: string | null;
   geburtsdatum: string | null; ort: string | null; betreuer: string | null;
+  /** E-IT-E: „Name", „Name (gesperrt)" oder „ohne Betreuer" — dieselbe Regel wie der Merge. */
+  betreuerAnzeige?: string;
   stufe: number; bestellungen: number; bezahlt: boolean; angelegt: string;
+}
+
+/** Die Betreuer-Lage eines Paares, wie GET …/dubletten/paar/:a/:b sie liefert (shared/fiaon-betreuer-lage.ts). */
+interface PaarBetreuerLage {
+  fall: string; wahlNoetig: boolean; agentId: number | null; agentName: string | null;
+  quelle: string; text: string; hinweise: string[];
 }
 
 function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void }) {
@@ -1825,6 +1842,15 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
   const [wahl, setWahl] = useState<DublettenTreffer | null>(null);
   const [bleibt, setBleibt] = useState<"diese" | "gefundene">("diese");
   const [busy, setBusy] = useState(false);
+  // ── WER BETREUT DANACH? (E-IT-E, 08.10.2026) ─────────────────────────────
+  // Hier fehlte die Betreuer-Wahl ganz: Der Dialog schickte nur Gewinner und
+  // Verlierer, und der Server lehnte jede Pool-Person gegen einen betreuten
+  // Kunden ab („Agent 0"). Jetzt holt der Dialog die Lage vom Server (dieselbe
+  // Regel wie der Merge) und fragt NUR, wenn zwei aktive Betreuer da sind.
+  const [paar, setPaar] = useState<any | null>(null);
+  const [paarFehler, setPaarFehler] = useState<string | null>(null);
+  /** Personen-Nummer der Seite, deren Betreuer weitermacht (nur bei zwei aktiven). */
+  const [betreuerVon, setBetreuerVon] = useState<number | null>(null);
 
   // Beim Öffnen gleich mit dem Namen suchen — das ist der Normalfall.
   useEffect(() => {
@@ -1855,16 +1881,47 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
     setBleibt(t.bezahlt && !(k as any).bezahlt ? "gefundene" : "diese");
   };
 
+  // Die Gegenüberstellung samt Betreuer-Lage für beide möglichen Gewinner.
+  const paarLaden = async (andere: number) => {
+    setPaar(null); setPaarFehler(null); setBetreuerVon(null);
+    const r = await api(`/agent/vertrieb/dubletten/paar/${k.personId}/${andere}`).catch(() => null);
+    if (r?.ok) setPaar(r.json);
+    else setPaarFehler(r?.json?.error || "Wer danach betreut, ließ sich nicht laden — der Server entscheidet beim Zusammenführen.");
+  };
+  useEffect(() => {
+    if (!wahl) { setPaar(null); setPaarFehler(null); setBetreuerVon(null); return; }
+    void paarLaden(wahl.id);
+  }, [wahl?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Die Lage für den gerade gewählten Gewinner („diese" = linke Seite des Paares). */
+  const lage: PaarBetreuerLage | null = paar?.betreuerLage
+    ? (bleibt === "diese" ? paar.betreuerLage.wennLinksBleibt : paar.betreuerLage.wennRechtsBleibt)
+    : null;
+
   const zusammenfuehren = async () => {
     if (!wahl) return;
     const gewinnerId = bleibt === "diese" ? k.personId : wahl.id;
     const verliererId = bleibt === "diese" ? wahl.id : k.personId;
     const bleibtName = bleibt === "diese" ? k.name : wahl.name;
     const gehtName = bleibt === "diese" ? wahl.name : k.name;
-    if (!window.confirm(`Zusammenführen:\n\n„${gehtName}" (${verliererId}) geht in „${bleibtName}" (${gewinnerId}) auf.\n\nBestellungen, Verlauf und Unterlagen wandern mit. Das lässt sich nicht mit einem Klick rückgängig machen.`)) return;
+    if (lage?.wahlNoetig && betreuerVon == null) return;
+    const betreuer = lage?.wahlNoetig && betreuerVon != null
+      ? (betreuerVon === gewinnerId ? "gewinner" : "verlierer")
+      : undefined;
+    const betreuungSatz = lage?.wahlNoetig && betreuerVon != null
+      ? `Betreuung: ${(betreuerVon === k.personId ? paar?.links : paar?.rechts)?.betreuerAnzeige ?? "gewählt"} (ausdrücklich gewählt)`
+      : lage ? `Betreuung: ${lage.text}` : "";
+    if (!window.confirm(`Zusammenführen:\n\n„${gehtName}" (${verliererId}) geht in „${bleibtName}" (${gewinnerId}) auf.\n${betreuungSatz ? `${betreuungSatz}\n` : ""}\nBestellungen, Verlauf und Unterlagen wandern mit. Das lässt sich nicht mit einem Klick rückgängig machen.`)) return;
     setBusy(true);
-    const r = await api("/agent/vertrieb/dubletten/zusammenfuehren", { method: "POST", body: JSON.stringify({ gewinnerId, verliererId }) });
+    const r = await api("/agent/vertrieb/dubletten/zusammenfuehren", { method: "POST", body: JSON.stringify({ gewinnerId, verliererId, ...(betreuer ? { betreuer } : {}) }) });
     setBusy(false);
+    // Wettlauf: Hat inzwischen jemand einen zweiten Betreuer eingetragen, fragt
+    // der Dialog jetzt — statt nur „abgelehnt" zu melden.
+    if (!r.ok && r.json?.code === "betreuer_entscheidung_fehlt") {
+      await paarLaden(wahl.id);
+      melden("info", "Bitte wählen, wer betreut", r.json?.error || "Beide Akten haben einen aktiven Betreuer.");
+      return;
+    }
     if (!r.ok) { melden("schlecht", "Nicht zusammengeführt", r.json?.error || "Der Server hat abgelehnt — es wurde nichts geändert."); return; }
     melden("gut", "Zusammengeführt", `„${gehtName}" ist jetzt Teil von „${bleibtName}".`);
     setOffen(false); setWahl(null); onFrisch();
@@ -1901,7 +1958,7 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
                       </span>
                       <span className="pi-dub-sub leise">
                         {t.bestellungen === 1 ? "1 Bestellung" : `${t.bestellungen} Bestellungen`}
-                        {t.betreuer ? ` · ${t.betreuer}` : " · ohne Betreuer"} · {t.personRef}
+                        {` · ${t.betreuerAnzeige ?? (t.betreuer || "ohne Betreuer")}`} · {t.personRef}
                       </span>
                     </button>
                   </li>
@@ -1923,9 +1980,34 @@ function DublettenKnopf({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut"
                 <p className="pi-dub-still">
                   Die andere Akte geht darin auf: Bestellungen, Verlauf und Unterlagen wandern mit, abweichende Angaben bleiben als frühere Werte erhalten.
                 </p>
-                <button type="button" className="pi-knopf gross" disabled={busy} onClick={() => void zusammenfuehren()}>
+                {/* E-IT-E: Wer betreut danach — vor dem Klick sichtbar. */}
+                {!paar && !paarFehler && <p className="pi-dub-still" data-testid="dub-betreuer-laedt">Prüft, wer danach betreut …</p>}
+                {paarFehler && <p className="pi-dub-still" data-testid="dub-betreuer-fehler">{paarFehler}</p>}
+                {lage && !lage.wahlNoetig && (
+                  <p className="pi-dub-still" data-testid="dub-betreuer-lage">
+                    <b>Betreuung:</b> {lage.text}
+                    {lage.hinweise.map((h, i) => <span key={i}><br />{h}</span>)}
+                  </p>
+                )}
+                {lage?.wahlNoetig && paar && (
+                  <div data-testid="dub-betreuer-wahl">
+                    <p className="pi-dub-frage">Wer betreut künftig?</p>
+                    <p className="pi-dub-still">Beide Akten haben einen aktiven Betreuer. Das ist eine Geldfrage: Ein Mandat bleibt nur auf der gewählten Seite — die Wahl steht im Protokoll.</p>
+                    <div className="pi-dub-wahl">
+                      {[paar.links, paar.rechts].map((seite: any) => (
+                        <button key={seite.id} type="button" className={betreuerVon === seite.id ? "an" : ""} onClick={() => setBetreuerVon(seite.id)}>
+                          <b>{seite.betreuerAnzeige}</b><span>{seite.id === k.personId ? "Betreuer dieser Akte" : `Betreuer von ${seite.name}`}{seite.mandatSeit ? ` · Mandat seit ${dtag(seite.mandatSeit)}` : ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button type="button" className="pi-knopf gross" disabled={busy || (!!lage?.wahlNoetig && betreuerVon == null)} onClick={() => void zusammenfuehren()}>
                   {busy ? "Führt zusammen …" : "Jetzt zusammenführen"}
                 </button>
+                {lage?.wahlNoetig && betreuerVon == null && (
+                  <p className="pi-dub-still">Erst oben wählen, wer den Kunden künftig betreut.</p>
+                )}
               </div>
             )}
           </div>
@@ -2218,6 +2300,10 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   // E-282 (05.10.2026): persönliche FIAON-PIN — Kennung im Kopf, Prüffeld darunter.
   const [pinStand, setPinStand] = usePinStand(k.personId);
   const [pinOffen, setPinOffen] = useState(false);
+  // E-IT-E (08.10.2026): Das Band „aufgegangen" gilt für DIESES Öffnen. Die Akte
+  // lädt sich beim Öffnen selbst frisch (über die Nummer des Kopfs) — ohne den
+  // Merker verschwände das Band nach einer Sekunde wieder.
+  const [aufgegangenText] = useState<string | null>(() => k.aufgegangen?.text ?? null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -2761,6 +2847,9 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
       <div className="pi-lade-koerper">
         {imGespraech && <GespraechsModus art={akt?.situation?.art ?? null} aufReiter={setReiter} />}
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
+        {/* E-IT-E (08.10.2026): Die Akte einer zusammengeführten Person öffnet den
+            Kopf der Kette — und sagt es. Nie still umleiten. */}
+        {aufgegangenText && <p className="pi-meldung" data-testid="akte-aufgegangen">{aufgegangenText}</p>}
 
         {/* ═══ ÜBERBLICK — DER SITUATIONS-KOPF (E-046) ═══
             VORHER: „Nächster Schritt“-Text aus dem tier-Hinweis + eine Reihe

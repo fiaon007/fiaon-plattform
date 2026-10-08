@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Phone, FileText, Search, Send, RefreshCw, X } from "lucide-react";
 import { AgentShell, api } from "./shared";
+import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, eur } from "@/lib/fiaon-ui";
 import { Akte, Strom, type Kunde } from "./pipeline";
@@ -163,6 +164,8 @@ function BestandInnen() {
   const [aktiv, setAktiv] = useState(0);
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
+  // E-IT-E (08.10.2026): Warum die Akte nicht aufging — vom Server, mit Grund.
+  const [fremdFehler, setFremdFehler] = useState<{ titel: string; text: string } | null>(null);
   const [sendeAn, setSendeAn] = useState<number | null>(null);
   const handy = useMedia("(max-width: 700px)");
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
@@ -314,7 +317,11 @@ function BestandInnen() {
     if (!offen || laedt) { setFremd(null); return; }
     if (mandate.some((m) => m.kunde.personId === offen)) { setFremd(null); return; }
     let an = true;
-    api(`/agent/crm/kunden/${offen}`).then((r) => { if (an) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
+    api(`/agent/crm/kunden/${offen}`).then((r) => {
+      if (!an) return;
+      setFremd(r.ok && r.json?.kunde ? r.json.kunde : null);
+      setFremdFehler(r.ok && r.json?.kunde ? null : akteFehlerAus(r));
+    }).catch(() => { if (an) setFremdFehler(akteFehlerAus({ status: 0 })); });
     return () => { an = false; };
   }, [offen, laedt, mandate]);
   const geoeffnet = useMemo(
@@ -517,9 +524,9 @@ function BestandInnen() {
                   onZaehler={() => void laden(true)} />
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
-              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : (fremdFehler?.titel ?? "Akte nicht gefunden")}</h2>
                 <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
-              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
+              {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">{fremdFehler?.text ?? "Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht."}</p></div>}
             </aside>
           )}
         </>, document.body)

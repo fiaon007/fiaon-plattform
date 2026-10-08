@@ -67,6 +67,9 @@ export const KATALOG: Eintrag[] = [
   { typ: "antrag_archiviert", titel: "Antrag archiviert", schwere: "mittel", loeschung: true },
   { typ: "person_merge", titel: "Kunden zusammengeführt", schwere: "mittel", loeschung: true },
   { typ: "dubletten_verworfen", titel: "Dubletten verworfen", schwere: "notiz" },
+  // E-IT-E (08.10.2026): Ein abgelehnter Merge (z. B. zwei aktive Betreuer ohne
+  // Wahl) war bisher unsichtbar — jetzt zählt und zeigt die Aufsicht ihn.
+  { typ: "person_merge_abgelehnt", titel: "Zusammenführen abgelehnt", schwere: "notiz" },
   // ── DIE TELEFON-ANLAGE (25.08.2026) ─────────────────────────────────────
   // Ein Agent legt am Telefon einen Kunden an. Das ist keine Löschung und
   // nichts Heikles — aber es erzeugt eine Bestellung mit einem Preis, und wer

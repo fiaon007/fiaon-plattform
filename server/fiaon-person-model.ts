@@ -935,106 +935,12 @@ export async function bindePersonAnLead(
   return zuordnung;
 }
 
-/**
- * STILLGELEGT AM 08.08.2026 — wird nicht mehr aufgerufen.
- *
- * Diese Funktion war das automatische Zusammenführen bei mehrdeutigen Treffern
- * (siehe `aufloesen`). Sie bleibt als Beleg stehen, WIE es früher lief, und weil
- * ihre Sorgfalt (Aliase mitnehmen, nichts löschen) in die menschlich entschiedene
- * Nachfolgerin eingegangen ist: `server/lib/fiaon-person-merge.ts` mit
- * Transaktion, Zählprobe und Protokoll.
- *
- * Wer hier wieder einen automatischen Aufruf einbaut, hebt Teil A auf.
- *
- * ── Ursprüngliche Beschreibung ──────────────────────────────────────────────
- * Zwei Personen zusammenführen — der Sonderfall „Lead ohne E-Mail".
- *
- * NICHTS WIRD GELÖSCHT. Die unterlegene Person bleibt als Datensatz bestehen
- * und zeigt per `merged_into_person_id` auf die neue. Damit ist jede frühere
- * Verknüpfung nachvollziehbar, und ein falscher Zusammenschluss lässt sich
- * ohne Datenverlust wieder auflösen.
- *
- * Aliase wandern mit — das ist der Kern des Versprechens „beim Zusammenführen
- * geht nichts verloren". Wer später nach der alten Adresse sucht, findet die
- * Person weiterhin.
- */
-async function personenZusammenfuehren(zielId: number, verliererId: number, quelle: string): Promise<void> {
-  if (zielId === verliererId) return;
-
-  const [ziel] = await sqlPool`SELECT * FROM fiaon_persons WHERE id = ${zielId}`;
-  const [verlierer] = await sqlPool`SELECT * FROM fiaon_persons WHERE id = ${verliererId}`;
-  if (!ziel || !verlierer) return;
-
-  // Stammdaten: nur Lücken des Ziels füllen. Der Gewinner behält alles Eigene.
-  await sqlPool`
-    UPDATE fiaon_persons SET
-      first_name   = COALESCE(first_name,   ${verlierer.first_name}),
-      last_name    = COALESCE(last_name,    ${verlierer.last_name}),
-      company_name = COALESCE(company_name, ${verlierer.company_name}),
-      contact_name = COALESCE(contact_name, ${verlierer.contact_name}),
-      birthdate    = COALESCE(birthdate,    ${verlierer.birthdate}),
-      street       = COALESCE(street,       ${verlierer.street}),
-      zip          = COALESCE(zip,          ${verlierer.zip}),
-      city         = COALESCE(city,         ${verlierer.city}),
-      country      = COALESCE(country,      ${verlierer.country}),
-      nationality  = COALESCE(nationality,  ${verlierer.nationality}),
-      primary_email = COALESCE(primary_email, ${verlierer.primary_email}),
-      primary_phone = COALESCE(primary_phone, ${verlierer.primary_phone}),
-      phone_key9   = COALESCE(phone_key9,   ${verlierer.phone_key9}),
-      first_seen_at = LEAST(COALESCE(first_seen_at, ${verlierer.first_seen_at}), COALESCE(${verlierer.first_seen_at}, first_seen_at)),
-      account_status = CASE
-        WHEN account_status = 'suspended' OR ${verlierer.account_status} = 'suspended' THEN 'suspended'
-        WHEN account_status = 'active' OR ${verlierer.account_status} = 'active' THEN 'active'
-        ELSE account_status END,
-      updated_at = NOW()
-    WHERE id = ${zielId}
-  `;
-
-  // Aliase übernehmen — sie machen die Person unter jeder je genutzten Adresse
-  // auffindbar. Ohne diesen Schritt wäre das Zusammenführen ein Datenverlust.
-  await sqlPool`
-    UPDATE fiaon_person_aliases SET person_id = ${zielId}
-    WHERE person_id = ${verliererId}
-      AND NOT EXISTS (
-        SELECT 1 FROM fiaon_person_aliases x
-        WHERE x.person_id = ${zielId} AND x.kind = fiaon_person_aliases.kind
-          AND x.value_norm = fiaon_person_aliases.value_norm
-      )
-  `;
-
-  // Bestellungen und Leads zeigen ab jetzt auf den Gewinner.
-  await sqlPool`UPDATE fiaon_applications SET person_id = ${zielId} WHERE person_id = ${verliererId}`;
-  await sqlPool`UPDATE fiaon_leads SET person_id = ${zielId} WHERE person_id = ${verliererId}`;
-
-  // Zwei Agenten? Markieren, nicht entscheiden.
-  const agenten = Array.from(new Set(
-    [ziel.assigned_agent_id, verlierer.assigned_agent_id].filter((v) => v != null).map(Number),
-  ));
-  if (agenten.length > 1) {
-    await sqlPool`
-      UPDATE fiaon_persons SET
-        agent_conflict = TRUE,
-        quality_flags = COALESCE(quality_flags, '{}'::jsonb) || ${JSON.stringify({ agents: agenten })}::jsonb,
-        updated_at = NOW()
-      WHERE id = ${zielId}
-    `;
-  } else if (ziel.assigned_agent_id == null && verlierer.assigned_agent_id != null) {
-    await sqlPool`
-      UPDATE fiaon_persons SET assigned_agent_id = ${verlierer.assigned_agent_id}, betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
-      WHERE id = ${zielId}
-    `;
-  }
-
-  // Die unterlegene Person bleibt bestehen — als Wegweiser, nicht als Leiche.
-  await sqlPool`
-    UPDATE fiaon_persons SET
-      merged_into_person_id = ${zielId},
-      account_status = 'merged',
-      updated_at = NOW()
-    WHERE id = ${verliererId}
-  `;
-  console.log(
-    `[FIAON-PERSON] Person #${verliererId} in #${zielId} zusammengeführt (Auslöser: ${quelle}) — ` +
-    `Aliase übernommen, nichts gelöscht${agenten.length > 1 ? `, Agenten-Konflikt ${agenten.join("/")}` : ""}`,
-  );
-}
+// ── DIE ZWEITE MERGE-FASSUNG IST ENTFERNT (E-IT-E, 08.10.2026) ─────────────
+// Hier stand seit dem 08.08.2026 die stillgelegte `personenZusammenfuehren`
+// des automatischen Zusammenführens — nicht exportiert, nirgends aufgerufen,
+// aber mit EIGENER Betreuer-Regel (zwei Agenten → agent_conflict, ohne zu
+// prüfen, ob sie noch arbeiten). Eine zweite Regel für dasselbe Wort ist
+// schlimmer als keine (AGENTS.md: „Eine Definition, ein Ort"). Zusammengeführt
+// wird ausschließlich über server/lib/fiaon-person-merge.ts — Transaktion,
+// Zählprobe, Protokoll, Betreuer-Regel aus shared/fiaon-betreuer-lage.ts.
+// Wer die alte Fassung nachlesen will: git log -p -- server/fiaon-person-model.ts.

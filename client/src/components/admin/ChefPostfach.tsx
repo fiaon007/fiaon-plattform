@@ -24,6 +24,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/chef-postfach.css";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 type Ordner = "offen" | "gesendet" | "geordnet" | "kein_kunde" | "alle";
 
@@ -417,7 +419,7 @@ export default function ChefPostfach() {
                   <span>·</span><span>{datumZeit(E.empfangenAm)}</span>
                   {E.kundenlage && <><span>·</span><span>{LAGE_TEXT[E.kundenlage] ?? E.kundenlage}</span></>}
                   {A?.betreuer && <><span>·</span><span>Betreuung: <b>{A.betreuer}</b></span></>}
-                  {E.ref && <><span>·</span><a href={`/admin/kunde/${E.ref}`} target="_blank" rel="noreferrer">Akte öffnen</a></>}
+                  {E.ref && <><span>·</span><a href={akteLink(E.ref, "chef") ?? undefined} target="_blank" rel="noreferrer">Akte öffnen</a></>}
                 </div>
               </div>
 

@@ -915,7 +915,19 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // `assigned_agent_id = $1` steht unverändert davor, also sieht niemand
     // einen fremden Kunden.
     // ══════════════════════════════════════════════════════════════════════
-    const nurPerson = req.query.person ? Number(req.query.person) : null;
+    // E-IT-E (08.10.2026): Ein Sprung auf eine ZUSAMMENGEFÜHRTE Person (alte Links
+    // aus WhatsApp, Anrufen, Terminen) holte bisher deren Wegweiser-Karte — die
+    // Bedingung unten umgeht den Filter „merged_into_person_id IS NULL". Jetzt
+    // zeigt der Sprung den Kopf der Kette (dieselbe Auflösung wie die Akte).
+    // (Die Zuweisung von nurPerson aus req.query bleibt eine Zeile — der
+    // Prüfstand pruef-rueckstand.ts sucht sie.)
+    const kopfVon = async (nurPersonRoh: number): Promise<number> => {
+      if (!Number.isFinite(nurPersonRoh) || nurPersonRoh <= 0) return nurPersonRoh;
+      const { personKopf } = await import("../lib/fiaon-akte-aufloesen");
+      const kopf = await personKopf(nurPersonRoh, sqlPool, false).catch(() => null);
+      return kopf?.ok ? kopf.kopfId : nurPersonRoh;
+    };
+    const nurPerson = req.query.person ? await kopfVon(Number(req.query.person)) : null;
 
     // ══════════════════════════════════════════════════════════════════════
     // ONBOARDING IST NIE BETREUER — UND SAH DESHALB „0 KUNDEN" (20.08.2026)

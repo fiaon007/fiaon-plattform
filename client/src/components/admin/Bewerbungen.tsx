@@ -23,6 +23,7 @@ import { InviteModal } from "@/components/admin/TeamVerwaltung";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
+import { akteLink as akteLinkFuer } from "@/lib/akte-link";
 
 const API = "/api/fiaon";
 
@@ -168,10 +169,12 @@ export default function Bewerbungen() {
     await aktion(`notiz-${z.id}`, `/chef/bewerbungen/${z.id}/notiz`, { notiz }, "Notiz gespeichert.");
   };
 
+  // E-IT-E (08.10.2026): über den einen Helfer — im Chefbüro bleibt der Link
+  // im Chefbüro, ohne Kennung gibt es keinen Link. Die Akte löst Person UND
+  // Referenz selbst auf (auch Interessenten ohne Bestellung).
   const akteLink = (z: Zeile): string | null => {
     if (!z.istKunde) return null;
-    if (imChef) return z.person_id ? `/chef/s/akte?id=${z.person_id}` : null;
-    return z.ref ? `/admin/kunde/${z.ref}` : (z.person_id ? `/chef/s/akte?id=${z.person_id}` : null);
+    return imChef ? akteLinkFuer(z.person_id ?? z.ref, "chef") : akteLinkFuer(z.ref ?? z.person_id, "admin");
   };
 
   if (laedt && !d) return <p className="py-10 text-center text-[13px] text-slate-400">Bewerbungen werden geladen …</p>;

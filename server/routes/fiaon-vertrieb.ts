@@ -676,7 +676,12 @@ router.post("/agent/vertrieb/person/:id/sperre", requireAgent, leitungOderBetreu
 // ───────────────────────────────────────────────────────────────────────────
 router.get("/agent/vertrieb/person/:id", requireAgent, leitungOderOnboarding, async (req: AgentRequest, res: Response) => {
   try {
-    const id = Number(req.params.id);
+    // E-IT-E (08.10.2026): eine zusammengeführte Person öffnet ihren Kopf
+    // (dieselbe Auflösung wie Chef- und Agenten-Akte) statt „nicht gefunden".
+    const { personKopf } = await import("../lib/fiaon-akte-aufloesen");
+    const kopf = await personKopf(Number(req.params.id));
+    if (!kopf.ok) return res.status(404).json({ ok: false, grund: kopf.grund, error: kopf.text });
+    const id = kopf.kopfId;
     const [p] = await sqlPool.unsafe(`
       SELECT p.*, ${NAME_SQL} AS anzeige_name, ag.name AS agent_name
       FROM fiaon_persons p LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
@@ -1508,7 +1513,9 @@ router.get("/agent/vertrieb/dubletten/suche", requireAgent, nurLeitung, nurMitZu
     const zeilen = (await sqlPool`
       SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name, p.contact_name,
              p.primary_email, p.primary_phone, p.birthdate, p.city, p.created_at,
-             p.priority_tier, ag.name AS betreuer,
+             p.priority_tier, ag.name AS betreuer, p.assigned_agent_id, p.mandat_seit,
+             ag.id AS agent_da, ag.active AS agent_aktiv, ag.is_test_account AS agent_test,
+             ag.zugang_gesperrt_am AS agent_gesperrt_am,
              (SELECT COUNT(*)::int FROM fiaon_applications a
                WHERE a.person_id = p.id AND a.merged_into IS NULL AND NOT a.ist_entwurf) AS bestellungen,
              EXISTS (SELECT 1 FROM fiaon_applications a2
@@ -1526,6 +1533,16 @@ router.get("/agent/vertrieb/dubletten/suche", requireAgent, nurLeitung, nurMitZu
          )
        ORDER BY bezahlt DESC, bestellungen DESC, p.created_at DESC
        LIMIT 25`) as any[];
+    // E-IT-E (08.10.2026): Als Betreuer steht nur ein AKTIVER Mitarbeiter da —
+    // dieselbe Regel, nach der der Merge entscheidet (shared/fiaon-betreuer-lage.ts).
+    // Vorher stand hier „ohne Betreuer", während der Server einen „Agent 0"
+    // sah; die Anzeige stimmte mit der Ablehnung nicht überein.
+    const { betreuerAnzeige, lebenderBetreuer } = await import("../../shared/fiaon-betreuer-lage");
+    const seite = (p: any) => ({
+      agentId: p.assigned_agent_id != null ? Number(p.assigned_agent_id) : null,
+      agentName: p.betreuer ?? null, agentGibtEs: p.agent_da != null, aktiv: p.agent_aktiv === true,
+      testkonto: p.agent_test === true, gesperrt: p.agent_gesperrt_am != null, mandatSeit: p.mandat_seit ?? null,
+    });
     res.json({
       ok: true,
       treffer: zeilen.map((p) => ({
@@ -1533,7 +1550,9 @@ router.get("/agent/vertrieb/dubletten/suche", requireAgent, nurLeitung, nurMitZu
         name: [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.company_name || p.contact_name || p.primary_email || p.person_ref,
         email: p.primary_email ?? null, telefon: p.primary_phone ?? null,
         geburtsdatum: p.birthdate ?? null, ort: p.city ?? null,
-        betreuer: p.betreuer ?? null, stufe: Number(p.priority_tier ?? 3),
+        betreuer: lebenderBetreuer(seite(p)).agentId != null ? (p.betreuer ?? null) : null,
+        betreuerAnzeige: betreuerAnzeige(seite(p)),
+        stufe: Number(p.priority_tier ?? 3),
         bestellungen: Number(p.bestellungen || 0), bezahlt: p.bezahlt === true,
         angelegt: p.created_at,
       })),

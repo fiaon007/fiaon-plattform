@@ -72,6 +72,8 @@ import {
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-mara.css";
 import "@/styles/chef-auskunft.css";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 type Land = "DE" | "AT" | "CH";
 type Stufe = "angeschrieben" | "geklickt" | "bestellt" | "bezahlt" | "geliefert";
@@ -784,7 +786,7 @@ export default function ChefAuskunft() {
                             {liste.slice(0, 12).map((z) => (
                               <li key={`${k}-${z.personId}`}>
                                 <span>
-                                  <a href={`/chef/s/akte?id=${z.personId}`}>{z.name}</a>
+                                  <a href={akteLink(z.personId, "chef") ?? undefined}>{z.name}</a>
                                   <span className="mara-still"> · {(s.segmentText?.[z.segment] ?? z.segment).split(" · ")[0]} · {z.land}{z.art === "firma" ? " · Firma" : ""}</span>
                                 </span>
                                 <span className="ak-zahl-t">{z.preis}</span>
@@ -1124,7 +1126,7 @@ export default function ChefAuskunft() {
                       const ohneErklaerung = o.status === "pending_payment" && r?.fassung === "frage";
                       return [
                         <tr key={o.ref}>
-                          <td className="kopf">{o.personId ? <a href={`/chef/s/akte?id=${o.personId}`}>{o.name}</a> : o.name}<span className="mara-still"> · {o.land}{o.werbesperre ? " · Werbesperre" : ""}</span></td>
+                          <td className="kopf">{o.personId ? <a href={akteLink(o.personId, "chef") ?? undefined}>{o.name}</a> : o.name}<span className="mara-still"> · {o.land}{o.werbesperre ? " · Werbesperre" : ""}</span></td>
                           <td className="r ak-zahl-t" data-l="Betrag">{o.betrag ?? "—"}</td>
                           <td className="ak-nowrap" data-l="Bestellt">{seit(o.angelegt)}</td>
                           <td data-l="Stand">
@@ -1197,7 +1199,7 @@ export default function ChefAuskunft() {
                   <tbody>
                     {rueckListe.map((r) => [
                       <tr key={r.ref}>
-                        <td className="kopf"><a href={`/chef/s/akte?id=${r.personId}`}>{r.name}</a></td>
+                        <td className="kopf"><a href={akteLink(r.personId, "chef") ?? undefined}>{r.name}</a></td>
                         <td data-l="Bezahlt">{r.tageSeitKauf > 14 ? <span className="mara-pille warn">vor {r.tageSeitKauf} Tagen</span> : <span className="mara-still">{vorTagen(r.tageSeitKauf)}</span>}</td>
                         <td className="mara-still voll" data-l="Auskunfteien">{r.auskunfteien}</td>
                         <td className="r" data-l="Anfragen">{r.vorgaenge || "—"}</td>

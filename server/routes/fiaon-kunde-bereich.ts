@@ -1273,14 +1273,14 @@ router.post("/kunde/:ref/bonitaet/loeschantrag", requireKunde, async (req: Kunde
         + `Empfänger: ${stelle}\nGrundlage: ${analyse.auskunftei || "Auskunftei"}`
         + `${analyse.auskunftVom ? `, Auskunft vom ${analyse.auskunftVom.split("-").reverse().join(".")}` : ""}\n\n`
         + `Betroffene Posten:\n${posten}\n\n`
-        + `Das fertige Schreiben liegt unter /admin/kunde/${ref} als PDF bereit. `
+        + `Das fertige Schreiben liegt unter /akte/${ref} als PDF bereit. `
         + `Zu tun: ausdrucken, vom Kunden unterschreiben lassen oder mit Vollmacht versenden, `
         + `Versandweg in der Akte vermerken.`,
       dringend: false,
       schluessel: `bonitaet:${ref}:loeschantrag`,
       quelle: "bonitaet",
       bereich: "pruefen",
-      link: `/admin/kunde/${ref}`,
+      link: `/akte/${ref}`,
       autorName: "Kundenbereich",
     }).catch((e) => console.error("[KUNDE] loeschantrag auftrag:", e));
 

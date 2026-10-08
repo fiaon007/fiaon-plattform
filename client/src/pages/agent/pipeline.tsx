@@ -2183,6 +2183,14 @@ function GespraechsModus({ art, aufReiter }: { art: string | null; aufReiter: (r
 
 type AkteProps = {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
+  /** E-315: Im Chefbüro ist die Akte eine SEITE (/akte/<Kennung>), keine Lade — ohne Schließen-Kreuz, Esc bleibt frei. */
+  alsSeite?: boolean;
+  /** E-315: weitere Reiter hinter den Office-Reitern (im Chefbüro: „Verwaltung“). Eine Akte, nicht zwei. */
+  zusatzReiter?: { key: string; label: string; inhalt: ReactNode }[];
+  /** E-315: mit welchem Reiter die Akte aufgeht (Adresse ?reiter=…). */
+  startReiter?: string;
+  /** E-315: Reiterwechsel nach außen melden (die Seite schreibt ihn in die Adresse). */
+  onReiter?: (key: string) => void;
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2202,11 +2210,18 @@ type AkteProps = {
 // Komponente selbst, nicht bei jedem Aufrufer: Wer die Akte irgendwo einbaut,
 // bekommt das, ohne daran denken zu müssen. Prüfstand: scripts/pruef-akte-wechsel.ts.
 // ══════════════════════════════════════════════════════════════════════════
+/** E-315: Lade (Office) oder Seite (Chefbüro) — derselbe Inhalt. */
+function AkteWurzel({ alsSeite, name, children }: { alsSeite: boolean; name: string; children: ReactNode }) {
+  return alsSeite
+    ? <section className="pi-lade pi-als-seite" aria-label={`Akte ${name}`}>{children}</section>
+    : <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${name}`}>{children}</aside>;
+}
+
 export function Akte(props: AkteProps) {
   return <AkteEinesMenschen key={props.k.personId} {...props} />;
 }
 
-function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: AkteProps) {
+function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSeite = false, zusatzReiter, startReiter, onReiter }: AkteProps) {
   const fragen = useFragen();
   const { zeige } = useToast();
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -2215,7 +2230,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
     setMeldung({ art, text: text ? `${titel} – ${text}` : titel });
     zeige(art === "gut" ? "erfolg" : art === "schlecht" ? "fehler" : "info", titel, text);
   };
-  const [reiter, setReiter] = useState<AkteReiter>("ueberblick");
+  const [reiter, setReiterRoh] = useState<string>(() => {
+    const alle = [...AKTE_REITER.map((t) => t.key as string), ...(zusatzReiter ?? []).map((z) => z.key)];
+    return startReiter && alle.includes(startReiter) ? startReiter : "ueberblick";
+  });
+  const setReiter = (key: string) => { setReiterRoh(key); onReiter?.(key); };
   // Gesprächs-Modus: läuft gerade ein Anruf mit GENAU diesem Menschen?
   const [imGespraech, setImGespraech] = useState(false);
   useEffect(() => {
@@ -2319,10 +2338,10 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const termin = k.terminAm ? new Date(k.terminAm) : null;
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !bestaetigen && !sendeMenue && !blatt) onZu(); };
+    const h = (e: KeyboardEvent) => { if (!alsSeite && e.key === "Escape" && !bestaetigen && !sendeMenue && !blatt) onZu(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onZu, bestaetigen, sendeMenue, blatt]);
+  }, [onZu, bestaetigen, sendeMenue, blatt, alsSeite]);
 
   const frisch = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
@@ -2750,7 +2769,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   const hatBestellung = !!(k.zahlung?.ref || buchungen[0]?.ref);
 
   return (
-    <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`}>
+    <AkteWurzel alsSeite={alsSeite} name={k.name}>
       {/* E-049 Nr. 1 (Justin, Screenshot): VORHER verschwand der Akte-Kopf
           (Name, Status, Anrufen, Schließen) beim Scrollen — nur die Reiter
           blieben (alte sticky-Regel griff nur auf die Tabs). NACHHER: Die
@@ -2807,7 +2826,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
         </div>
         <div className="pi-lade-kopf-tun">
           {k.telefonWaehlbar && <button type="button" className="pi-knopf gross" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name, sitRate?.id ?? null)}><Phone size={16} strokeWidth={1.75} /> Anrufen</button>}
-          <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
+          {!alsSeite && <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>}
         </div>
       </div>
       {pinOffen && <PinPruefen personId={k.personId} name={k.name} stand={pinStand} onStand={setPinStand} onZu={() => setPinOffen(false)} />}
@@ -2821,6 +2840,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
         {AKTE_REITER.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={reiter === t.key} className={`pi-tab${reiter === t.key ? " an" : ""}`} onClick={() => setReiter(t.key)}>
             {t.label}{t.key === "aktivitaet" && akt ? <em>{akt.ereignisse.length}</em> : null}
+          </button>
+        ))}
+        {(zusatzReiter ?? []).map((z) => (
+          <button key={z.key} type="button" role="tab" aria-selected={reiter === z.key} className={`pi-tab pi-tab-zusatz${reiter === z.key ? " an" : ""}`} onClick={() => setReiter(z.key)}>
+            {z.label}
           </button>
         ))}
       </div>
@@ -3515,6 +3539,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
           </Sek>
         )}
+        {/* E-315: Zusatz-Reiter (im Chefbüro: „Verwaltung“) — Teil DERSELBEN Akte. */}
+        {(zusatzReiter ?? []).map((z) => reiter === z.key ? <div key={z.key} className="pi-zusatz-inhalt" data-reiter={z.key}>{z.inhalt}</div> : null)}
       </div>
 
       {/* E-052: VORHER öffnete hier das HELLE Versandzentrum über der dunklen
@@ -3527,7 +3553,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                               onAbbrechen={() => { setBestaetigen(false); setSendeFehler(null); }}
                               onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
       )}
-    </aside>
+    </AkteWurzel>
   );
 }
 

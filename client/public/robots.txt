@@ -7,6 +7,7 @@ Allow: /
 Disallow: /admin
 Disallow: /agent
 Disallow: /chef
+Disallow: /akte/
 Disallow: /dashboard
 Disallow: /mein-bereich
 Disallow: /app

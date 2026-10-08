@@ -126,7 +126,7 @@ function abbilden(r: any) {
     ref: r.ref || null,
     leadId: r.lead_id != null ? Number(r.lead_id) : null,
     kunde: r.kunde_name || null,
-    akte: r.ref ? `/admin/kunde/${encodeURIComponent(r.ref)}` : r.lead_id ? `/admin/kunde/lead-${r.lead_id}` : null,
+    akte: r.ref ? `/akte/${encodeURIComponent(r.ref)}` : r.lead_id ? `/akte/lead-${r.lead_id}` : null,
     text: r.text,
     sicht: r.sicht as VermerkSicht,
     sichtAgenten: Array.isArray(r.sicht_agenten) ? r.sicht_agenten.map((n: any) => Number(n)) : [],

@@ -1,0 +1,72 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE EINE AKTE IM CHEFBÜRO (E-315, 09.10.2026) — ZentraleAkte.tsx
+   Die Mitarbeiter-Akte (office-pipeline.css, .pi-lade) als Seite: keine Lade über der Seite, sondern die Fläche
+   selbst. Navy-Glas an EINER Stelle: der Aktenkopf (Name, Marken, Reiter) — er bleibt beim Scrollen stehen
+   (Justin E-049: „der Kopf verschwand beim Scrollen“). Darunter matt, dünne Schrift, viel Luft.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.za{display:grid;gap:18px;min-width:0}
+
+/* Seite statt Lade */
+.pi-lade.pi-als-seite{position:relative;inset:auto;top:auto;right:auto;bottom:auto;z-index:auto;width:100%;max-width:none;
+  overflow:visible;animation:za-ein .5s cubic-bezier(.2,.7,.2,1) both;border:1px solid rgba(156,203,255,.12);border-radius:24px;
+  background:linear-gradient(180deg,rgba(13,22,40,.62),rgba(9,16,32,.7));box-shadow:0 40px 90px -50px rgba(0,0,0,.9);
+  -webkit-backdrop-filter:none;backdrop-filter:none}
+@keyframes za-ein{from{opacity:0;transform:translateY(10px)}}
+
+/* Der Kopf: die eine Glasfläche — klebt unter der schwebenden Kopfleiste des Chefbüros. */
+.pi-als-seite .pi-lade-fest{top:92px;border-radius:24px 24px 0 0;
+  background:linear-gradient(180deg,rgba(26,48,92,.72),rgba(12,22,44,.84));
+  -webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 18px 40px -24px rgba(0,0,0,.8)}
+.pi-als-seite .pi-lade-kopf{padding:22px 26px 16px}
+.pi-als-seite .pi-lade-kopf h2{font-size:26px;font-weight:300;letter-spacing:-.015em}
+.pi-als-seite .pi-lade-tabs{padding:10px 22px;background:rgba(8,15,30,.35)}
+.pi-als-seite .pi-lade-tabs .pi-tab{min-height:40px;padding:0 16px;font-size:13px}
+/* Der Reiter „Verwaltung“ steht rechts abgesetzt — er gehört der Leitung, nicht dem Gespräch. */
+.pi-als-seite .pi-tab-zusatz{margin-left:auto;border:1px solid rgba(156,203,255,.22)}
+.pi-als-seite .pi-lade-koerper{padding:28px 30px 64px;gap:26px}
+
+/* Verwaltung: die Verwaltungsakte ohne eigene Fläche — sie sitzt in der Akte. */
+.za-verwaltung{display:grid;gap:14px}
+.za-verwaltung.akte-dunkel.cbs{background:transparent!important}
+.za-verwaltung-satz{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#9fb0c8;max-width:80ch}
+.za-verwaltung .max-w-6xl{padding:0!important;max-width:none!important}
+
+/* Ohne Office-Sitzung: die Anmeldung als ruhige Karte über der Verwaltungsakte. */
+.za-office{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px 28px;align-items:center;padding:20px 24px;border-radius:20px;
+  background:linear-gradient(180deg,rgba(26,48,92,.55),rgba(12,22,44,.7));border:1px solid rgba(156,203,255,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 24px 50px -30px rgba(0,0,0,.8);color:#e2e8f0}
+.za-office b{display:block;font:400 16px/1.3 'Inter',sans-serif;color:#fff}
+.za-office p{margin:6px 0 0;font:300 13px/1.55 'Inter',sans-serif;color:#a9b8cd;max-width:70ch}
+.za-office-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.za-office-form input{min-height:42px;width:200px;padding:0 14px;border-radius:12px;border:1px solid rgba(156,203,255,.2);background:rgba(4,10,22,.5);
+  color:#fff;font:400 14px/1 'Inter',sans-serif}
+.za-office-form input::placeholder{color:#7f8fa8}
+.za-office-form input:focus{outline:none;border-color:rgba(120,180,255,.6);box-shadow:0 0 0 3px rgba(40,141,250,.18)}
+.za-office-fehler{flex-basis:100%;text-align:right;margin:4px 0 0!important;color:#fca5a5!important}
+.za-voll{min-width:0}
+
+/* Laden: drei ruhige Balken statt eines Drehrads */
+.za-laden{display:grid;gap:12px;padding:28px;border-radius:24px;background:rgba(13,22,40,.5);border:1px solid rgba(156,203,255,.1)}
+.za-laden span{display:block;height:14px;border-radius:7px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.12),rgba(255,255,255,.05));
+  background-size:200% 100%;animation:za-schimmer 1.4s ease-in-out infinite}
+.za-laden span:nth-child(1){width:42%;height:22px}
+.za-laden span:nth-child(2){width:68%}
+.za-laden span:nth-child(3){width:55%}
+.za-laden.klein{padding:16px}
+.za-laden p{margin:6px 0 0;font:300 13px/1.4 'Inter',sans-serif;color:#8ea0bd}
+@keyframes za-schimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+
+@media(max-width:860px){
+  .pi-als-seite .pi-lade-fest{top:0;border-radius:20px 20px 0 0}
+  .pi-als-seite .pi-lade-kopf{padding:18px 18px 12px}
+  .pi-als-seite .pi-lade-kopf h2{font-size:21px}
+  .pi-als-seite .pi-lade-koerper{padding:20px 16px 48px}
+  .pi-als-seite .pi-tab-zusatz{margin-left:0}
+  .za-office{grid-template-columns:minmax(0,1fr)}
+  .za-office-form{justify-content:stretch}
+  .za-office-form input{flex:1 1 160px;width:auto}
+}
+@media(prefers-reduced-motion:reduce){.pi-lade.pi-als-seite{animation:none}.za-laden span{animation:none}}
+/* Der Name steht im Aktenkopf — in der Verwaltung nicht noch einmal (dort zählt der Ablauf der Bestellung). */
+.za-verwaltung .kk-name{display:none}

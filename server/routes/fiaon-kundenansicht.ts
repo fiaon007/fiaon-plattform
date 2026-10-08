@@ -185,7 +185,7 @@ router.get("/kundenansicht/stand", async (req: Request, res: Response) => {
       // Genau die Form, die der Login liefert (fiaon-antrag.ts POST /login).
       user: daten,
       name: [daten.firstName, daten.lastName].filter(Boolean).join(" ") || daten.ref,
-      zurueck: tok.art === "admin" ? `/admin/kunde/${tok.ref}` : "/agent/vertrieb",
+      zurueck: tok.art === "admin" ? `/akte/${tok.ref}` : "/agent/vertrieb",
     });
   } catch (err) {
     console.error("[KUNDENANSICHT] stand:", err);
@@ -217,7 +217,7 @@ router.post("/kundenansicht/beenden", async (req: Request, res: Response) => {
     res.json({
       ok: true,
       zurueck: tok?.art === "leitung" ? "/agent/vertrieb"
-        : tok ? `/admin/kunde/${tok.ref}` : "/admin/kunden",
+        : tok ? `/akte/${tok.ref}` : "/admin/kunden",
     });
   } catch (err) {
     console.error("[KUNDENANSICHT] beenden:", err);

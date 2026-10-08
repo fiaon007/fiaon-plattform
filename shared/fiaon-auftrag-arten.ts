@@ -484,7 +484,8 @@ export function kundeAusAuftrag(z: { link?: string | null; schluessel?: string |
   const k = String(z.schluessel || "");
   let personId: number | null = null;
   let personQuelle: KundeKandidat["personQuelle"] = null;
-  const lp = link.match(/[?&]person=(\d+)/);
+  // E-315: die EINE Adresse /akte/<Personen-Nummer> trägt die Person im Pfad.
+  const lp = link.match(/[?&]person=(\d+)/) || link.match(/^\/akte\/(?:person-)?(\d{1,9})(?:[/?#]|$)/);
   if (lp) { personId = Number(lp[1]); personQuelle = "link"; }
   if (!personId) {
     // Mara auf WhatsApp: „wa-<person>-<Grund>-<Tag>" bzw. „wa-auskunft-<person>-<Tag>".

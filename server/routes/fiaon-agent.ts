@@ -1987,6 +1987,23 @@ router.get("/agent/me", requireAgent, (req: AgentRequest, res) => {
   res.json({ ok: true, agent: req.agent });
 });
 
+// E-315 (09.10.2026): Die EINE Tür /akte/<Kennung> bringt Mitarbeiter in IHRE Akte (/agent/kunden?person=<Kopf>).
+// Hier wird nur aufgelöst (Referenz, lead-N, zusammengeführte Nummer → Personen-Kopf); was jemand sehen darf, prüft
+// die Akte selbst (darfAnKunde). Dieselbe Auflösung wie die Chef-Akte (fiaon-akte-aufloesen.ts).
+router.get("/agent/akte/aufloesen", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const { akteAufloesen } = await import("../lib/fiaon-akte-aufloesen");
+    const a = await akteAufloesen(req.query.id);
+    if (!a.ok) return res.status(a.status).json({ ok: false, grund: a.grund, error: a.text });
+    const personId = a.ziel.personId;
+    if (!personId) return res.status(404).json({ ok: false, grund: "person_fehlt", error: "Zu dieser Kennung gibt es noch keine Person — bitte über die Suche öffnen." });
+    res.json({ ok: true, personId });
+  } catch (e: any) {
+    console.error("[AGENT] akte/aufloesen:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Die Akte ließ sich nicht auflösen. Bitte gleich noch einmal versuchen." });
+  }
+});
+
 // F2: Einladungs-Token prüfen (Setup-Seite lädt Name zur Begrüßung)
 router.get("/agent/setup/validate", async (req, res) => {
   try {

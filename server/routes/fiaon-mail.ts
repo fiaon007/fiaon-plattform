@@ -1221,7 +1221,7 @@ router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
         personId: z.person_id != null ? Number(z.person_id) : null,
         ref: z.person_id != null ? refJePerson.get(Number(z.person_id)) ?? null : null,
         akte: z.person_id != null && refJePerson.has(Number(z.person_id))
-          ? `/admin/kunde/${encodeURIComponent(refJePerson.get(Number(z.person_id))!)}` : null,
+          ? `/akte/${encodeURIComponent(refJePerson.get(Number(z.person_id))!)}` : null,
         wann: z.created_at, ausgeloestVon: z.ausgeloest_von || null,
         betreff: z.betreff || null, art: z.art || null,
         zustellung: z.zustellung || null, zustellungGrund: z.zustellung_grund || null,

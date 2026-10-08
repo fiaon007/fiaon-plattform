@@ -20,7 +20,8 @@ import { useLocation } from "wouter";
 import { einwilligungLesen, einwilligungNoetig, einwilligungSetzen, messungStarten, metaSeitenwechsel } from "@/lib/werbung";
 import { istBusinessBereich, mitBereich } from "@/lib/bereich";
 
-const INTERN = /^\/(agent|admin|chef|Admindashboard|admindashboard|onboarding|inkasso|team-intern|buchhaltung|banking)(\/|$)/;
+// E-315: /akte/… ist die EINE Akte (Chefbüro/Office) — intern, ohne Messung und ohne Hinweis.
+const INTERN = /^\/(agent|admin|chef|akte|Admindashboard|admindashboard|onboarding|inkasso|team-intern|buchhaltung|banking)(\/|$)/;
 // Individualangebot (01.10.2026), Nachtrag d: Auf der persönlichen Vertragsseite gibt es KEINE Messung —
 // kein Pixel, kein Clarity, keine Analytics, und der Hinweis wird dort nicht gezeigt. Auch eine früher auf
 // anderen Seiten gegebene Einwilligung wird dort nicht angewendet (messungStarten bleibt aus).

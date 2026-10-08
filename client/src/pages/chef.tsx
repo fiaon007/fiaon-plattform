@@ -62,8 +62,11 @@ export default function ChefPage() {
   // Raum aus der URL: /chef → Lagezimmer, /chef/<raum> → dieser Raum,
   // /chef/s/<slug> → eine übernommene Seite innerhalb ihres Raums.
   const stuecke = location.split("?")[0].split("/").filter(Boolean);
-  const istSeite = stuecke[1] === "s";
-  const slug = istSeite ? (stuecke[2] || "") : "";
+  // E-315 (09.10.2026): Die EINE Akte hat die neutrale Adresse /akte/<Kennung> (Tür: pages/akte-tuer.tsx). Im Chefbüro
+  // ist sie die Seite „akte“ im Raum „Alle Kunden“ — das Menü markiert dort, nicht mehr das Lagezimmer.
+  const istAkte = stuecke[0] === "akte";
+  const istSeite = istAkte || stuecke[1] === "s";
+  const slug = istAkte ? "akte" : istSeite ? (stuecke[2] || "") : "";
   const seite = istSeite ? SEITE_NACH_SLUG.get(slug) : undefined;
   const teil = istSeite ? (seite?.raum ?? "") : (stuecke[1] || "");
   const raum = CHEF_RAEUME.find((r) => r.key === teil) ?? CHEF_RAEUME[0];

@@ -1545,7 +1545,7 @@ router.get("/admin/abo/raten", async (req, res) => {
         // Provisionsgeschichte, nicht der Verantwortliche fuer die Rate.
         vertrieb: r.vertrieb_name || null,
         notiz: r.notiz || null,
-        akte: `/admin/kunde/${encodeURIComponent(r.ref)}`,
+        akte: `/akte/${encodeURIComponent(r.ref)}`,
       })),
     });
   } catch (err) {

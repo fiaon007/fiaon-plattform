@@ -155,16 +155,74 @@ export function umleitungText(u: Umleitung): string {
  * Der Link in eine Akte. `null`, wenn keine Kennung da ist — dann zeigt der
  * Aufrufer den Namen ohne Link statt eines Links ins Leere.
  *
- * `ort`: „chef" bleibt im Chefbüro (/chef/s/akte?id=…), „admin" ist die
- * ältere Verwaltung (/admin/kunde/…). Beide öffnen dieselbe Seite.
+ * Seit E-315 (09.10.2026) führen beide Orte auf die EINE Adresse /akte/<Kennung> (akteAdresse unten); `ort` bleibt nur,
+ * damit bestehende Aufrufer unverändert weiterlaufen.
  */
-export function akteLinkFuer(kennung: unknown, ort: "chef" | "admin"): string | null {
+export function akteLinkFuer(kennung: unknown, _ort?: "chef" | "admin"): string | null {
   const k = kennungLesen(kennung);
   if (k.art === "leer") return null;
   const wert = k.art === "person" ? String(k.personId)
     : k.art === "lead" ? `lead-${k.leadId}`
     : k.wert;
-  return ort === "chef"
-    ? `/chef/s/akte?id=${encodeURIComponent(wert)}`
-    : `/admin/kunde/${encodeURIComponent(wert)}`;
+  return akteAdresse(wert);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE EINE ADRESSE: /akte/<Kennung>  (E-315, 09.10.2026 — Justin: „die EINE perfekte zentrale Akte“)
+//
+// Jeder Erzeuger (Server und Oberfläche) baut Akten-Links NUR noch mit akteAdresse() bzw. akteLinkFuer(). Die Tür /akte/… entscheidet nach der
+// Sitzung: Chefbüro → die zentrale Akte im Chefbüro; Office → die Akte der Mitarbeiter (/agent/kunden?person=). So
+// funktionieren dieselben Aufgaben-, Termin- und Mail-Links für Justin und fürs Team (Bestandsaufnahme 08.10.: 482 von
+// 816 offenen Aufgaben-Links führten den Inhaber nicht zur richtigen Stelle).
+//
+// Alte Formen bleiben gültig und werden übersetzt (akteKennungAusLink): /admin/kunde/<id>, /chef/s/akte?id=|?ref=,
+// /agent/kunden?person=|?ref=, /admin/kunden/akte?id=. Sie stecken in Aufgaben, vCards, Kalender-Abos und Mails.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Reiter der zentralen Akte — Kurzwort in der Adresse (?reiter=…). */
+export type AkteReiter =
+  | "ueberblick" | "geld" | "unterlagen" | "kontakt" | "termine" | "betreuung" | "vertrag" | "verlauf" | "global";
+
+/** Die EINE Adresse zur Akte. Kennung = Personen-Nummer (bevorzugt), person-N, lead-N, Referenz (FIAON-…). */
+export function akteAdresse(kennung: string | number | null | undefined, opts: { reiter?: AkteReiter | null } = {}): string {
+  const k = String(kennung ?? "").trim();
+  const basis = `/akte/${encodeURIComponent(k || "leer")}`;
+  return opts.reiter ? `${basis}?reiter=${opts.reiter}` : basis;
+}
+
+/**
+ * Aus einem alten oder neuen Akten-Link die Kennung lesen — oder null, wenn es kein Akten-Link ist.
+ * Rein (ohne Datenbank, ohne window): Server und Oberfläche nutzen dieselbe Regel.
+ */
+export function akteKennungAusLink(link: string | null | undefined): string | null {
+  const roh = String(link ?? "").trim();
+  if (!roh) return null;
+  let pfad = roh;
+  let suche = "";
+  try {
+    const u = new URL(roh, "https://fiaon.com");
+    if (!/(^|\.)fiaon\.com$|localhost|onrender\.com$/i.test(u.hostname)) return null;
+    pfad = u.pathname;
+    suche = u.search;
+  } catch {
+    return null;
+  }
+  const q = new URLSearchParams(suche);
+  const neu = pfad.match(/^\/akte\/([^/]+)\/?$/);
+  if (neu) return decodeURIComponent(neu[1]);
+  const admin = pfad.match(/^\/admin\/kunde\/([^/]+)\/?$/);
+  if (admin) return decodeURIComponent(admin[1]);
+  if (/^\/chef\/s\/akte\/?$/.test(pfad) || /^\/admin\/kunden\/akte\/?$/.test(pfad)) return q.get("id") || q.get("ref") || q.get("person") || null;
+  if (/^\/agent\/kunden\/?$/.test(pfad)) return q.get("person") || q.get("ref") || null;
+  return null;
+}
+
+/** Einen gespeicherten Link (Aufgabe, Mail, Termin) auf die EINE Adresse heben; andere Links bleiben, wie sie sind. */
+export function akteLinkHeben(link: string | null | undefined): string | null {
+  if (!link) return link ?? null;
+  const k = akteKennungAusLink(link);
+  if (!k) return link;
+  let reiter: string | null = null;
+  try { reiter = new URL(link, "https://fiaon.com").searchParams.get("reiter"); } catch { /* egal */ }
+  return akteAdresse(k, { reiter: (reiter as AkteReiter | null) ?? null });
 }

@@ -284,11 +284,16 @@ function GeburtFeldChef({ wert, abweichung, onSave }: {
   );
 }
 
-export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
+export default function AdminKundeAktePage({ akteId, eingebettet = false, modus = "voll" }: {
   /** 21.09.2026 (E-201): Die Telefonkartei öffnet die Akte als Fenster auf derselben Seite. */
   akteId?: string;
   /** Im Fenster: ohne „Alle Kunden"-Rücksprung, der die Seite verlassen würde. */
   eingebettet?: boolean;
+  /**
+   * E-315 (09.10.2026): „verwaltung“ = Reiter „Verwaltung“ der EINEN Akte (/akte/<Kennung>). Die Office-Reiter derselben
+   * Akte zeigen Kontakt, Unterlagen, Kontoauszug, Anrufe und Verlauf schon — hier steht nur, was allein die Verwaltung kann.
+   */
+  modus?: "voll" | "verwaltung";
 } = {}) {
   // Zwei Wege führen hierher (27.08.2026): die alte Adresse /admin/kunde/:id
   // und das Chefbüro unter /chef/s/akte?id=… . Beide sind gültig; der zweite
@@ -296,9 +301,11 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   // im Pfad belegt. Der dritte Weg (E-201) ist das Fenster der Telefonkartei.
   const [, params] = useRoute("/admin/kunde/:id");
   const ausAdresse = params?.id ? decodeURIComponent(params.id) : "";
+  // E-315: auch ?ref= (64 offene Postmeister-Aufgaben trugen /chef/s/akte?ref=FIAON-… und öffneten eine leere Akte).
   const ausSuche = typeof window !== "undefined"
-    ? (new URLSearchParams(window.location.search).get("id") || "")
+    ? (new URLSearchParams(window.location.search).get("id") || new URLSearchParams(window.location.search).get("ref") || "")
     : "";
+  const verwaltung = modus === "verwaltung";
   const id = akteId || ausAdresse || ausSuche;
 
   const [data, setData] = useState<any>(null);
@@ -585,7 +592,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     if (r.ok) {
       setLastMergeBatch(r.json.batch || null);
       flash(`✓ Zusammengeführt in ${r.json.mergedInto} (${r.json.merged} Datensätze, umkehrbar).`);
-      if (winner !== id) { window.location.href = akteLink(winner) ?? `/admin/kunde/${encodeURIComponent(winner)}`; return; }
+      // E-315: In der EINEN Akte (Reiter „Verwaltung“) bleibt die Person dieselbe — neu laden statt Seitenwechsel,
+      // dann bleibt auch „Letzten Merge rückgängig machen“ bedienbar.
+      if (winner !== id && !verwaltung) { window.location.href = akteLink(winner) ?? `/admin/kunde/${encodeURIComponent(winner)}`; return; }
       load();
     } else flash(`Fehler: ${r.json?.error || r.status}`);
   };
@@ -744,22 +753,22 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                   {head.vertriebSperre.verlauf[0].anwendung ? ` · ${head.vertriebSperre.verlauf[0].anwendung}` : ""}
                 </p>
               )}
-              <p className="text-[12.5px] text-slate-500">
+              {!verwaltung && <p className="text-[12.5px] text-slate-500">
                 {head.email || "keine E-Mail"} · {head.phone || "kein Telefon"} · seit {fmtD(head.seit)}
-              </p>
+              </p>}
               {/* ── ZWEI ZUSTÄNDIGKEITEN, BESCHRIFTET (30.08.2026) ───────────
                   Hier stand „· betreut von <b>Name</b>". Das Team meldete
                   „bei dem Kunden stehen Diana UND Nikita gleichzeitig" — beides
                   stimmte, aber ohne Beschriftung sah es wie ein Fehler aus.
                   Die Wörter stehen in shared/fiaon-zustaendigkeit-text.ts,
                   damit sie an allen Stellen dieselben sind. */}
-              <p className="text-[12.5px] text-slate-500">
+              {!verwaltung && <p className="text-[12.5px] text-slate-500">
                 <span className="text-slate-400">{LABEL_VERTRIEB}:</span>{" "}
                 <b className="text-slate-700">{zustaendigText(head.agentName)}</b>
                 {" · "}
                 <span className="text-slate-400">{LABEL_FORDERUNG}:</span>{" "}
                 <b className="text-slate-700">{zustaendigText(head.inkassoAgentName)}</b>
-              </p>
+              </p>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {/* ── PORTAL ANSEHEN (19.08.2026) ─────────────────────────────
@@ -986,7 +995,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 <p className="text-[12.5px] text-slate-500">Direktzahler — keine Provision (keine dokumentierte Betreuung vor Zahlung).</p>
               ) : app?.paymentStatus === "paid" ? (
                 <p className="text-[12.5px] text-amber-700">
-                  Bezahlt, aber keine Provision gebucht — <a href="/admin/team?tab=nachbuchung" className="font-semibold text-[#2563eb] hover:underline">im Nachbuchungs-Center prüfen</a>.
+                  Bezahlt, aber keine Provision gebucht — <a href="/chef/s/nachbuchung" className="font-semibold text-[#2563eb] hover:underline">im Nachbuchungs-Center prüfen</a>.
                 </p>
               ) : (
                 <p className="text-[12.5px] text-slate-400">Noch keine Provision (Bestellung nicht bezahlt).</p>
@@ -1207,7 +1216,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                     </p>
                   ))}
                 </div>
-                <a href="/admin/kontoabgleich" className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ Zum Kontoabgleich (verbuchen)</a>
+                <a href="/chef/zahlungen" className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ In der Zahlungszentrale verbuchen</a>
               </div>
             )}
           </Section>
@@ -1217,7 +1226,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               ein Ausweis vorliegt, stand nirgends — man musste raten oder im
               Kundenportal nachsehen. Eine Lücke sieht hier jetzt aus wie eine
               Lücke, mit Knopf zum Anfordern. */}
-          <Section title="Dokumente — Ausweis, Kontoauszug, Bonitätsauskunft" icon={FileText}>
+          {!verwaltung && <Section title="Dokumente — Ausweis, Kontoauszug, Bonitätsauskunft" icon={FileText}>
             {app?.ref ? (
               // Die Betreiberansicht liest über die REFERENZ — die steht immer
               // zur Verfügung. `personId` ist nur für „Anfordern" nötig.
@@ -1239,21 +1248,21 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 Für einen Lead ohne Bestellung gibt es noch keine Unterlagen.
               </p>
             )}
-          </Section>
+          </Section>}
 
           {/* ── KONTOAUSZUG IM DETAIL (21.09.2026, E-207) ────────────────────
               Justin: „Was verdient er wann? Wann gibt er wie viel und warum wo
               aus? Was sind seine höchsten Kostenpunkte? Was kann man sofort
               optimieren?" — gerechnet aus den gelesenen Buchungen, jede Zahl
               bis zur einzelnen Buchung aufklappbar. */}
-          {app?.ref && (
+          {app?.ref && !verwaltung && (
             <Section title="Kontoauszug im Detail — was reinkommt, was rausgeht, was sich sparen lässt" icon={FileText} breit>
               <KontoauszugImDetail kundenRef={app.ref} dunkel={eingebettet} />
             </Section>
           )}
 
           {/* ── ANRUFE ─────────────────────────────────────────────────── */}
-          {(app?.personId ?? head?.personId) && <AnrufeSektion personId={Number(app?.personId ?? head.personId)} />}
+          {!verwaltung && (app?.personId ?? head?.personId) && <AnrufeSektion personId={Number(app?.personId ?? head.personId)} />}
 
           {/* ── E-MAIL-CENTER ── */}
           <Section title="E-Mail-Center — jedes Kunden-Event mit Vorschau" icon={Mail}>
@@ -1370,8 +1379,8 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
           </Section>
         </div>
 
-        {/* ── NOTIZ + VERLAUF ── */}
-        <div className="ak-karte ak-verlauf mt-4 bg-white border border-slate-200 rounded-2xl p-5">
+        {/* ── NOTIZ + VERLAUF ── (E-315: in der EINEN Akte steht der Verlauf im Reiter „Aktivität“) */}
+        {!verwaltung && <div className="ak-karte ak-verlauf mt-4 bg-white border border-slate-200 rounded-2xl p-5">
           <h2 className="ak-titel flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
             <Clock size={15} className="text-slate-400" />
             <span className="min-w-0">Verlauf<span className="ak-unter font-normal text-slate-400"><span className="ak-strich"> — </span>alles chronologisch, Berliner Zeit</span></span>
@@ -1415,7 +1424,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               )}
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* ── Event-Vorschau (Bestätigungsdialog) ── */}

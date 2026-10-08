@@ -673,7 +673,8 @@ const FragenContext = createContext<(f: Frage) => Promise<boolean>>(
 );
 export function useFragen(): (f: Frage) => Promise<boolean> { return useContext(FragenContext); }
 
-function FragenAnbieter({ children }: { children: ReactNode }) {
+/** E-315: auch die Akte im Chefbüro stellt ihre Rückfragen im Office-Dialog (statt window.confirm). */
+export function FragenAnbieter({ children }: { children: ReactNode }) {
   const [offen, setOffen] = useState<(Frage & { antwort: (ja: boolean) => void }) | null>(null);
   const fragen = useCallback((f: Frage) => new Promise<boolean>((antwort) => setOffen({ ...f, antwort })), []);
   const schliessen = (ja: boolean) => { offen?.antwort(ja); setOffen(null); };

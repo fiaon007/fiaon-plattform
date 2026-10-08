@@ -381,7 +381,7 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         telefon: z.primary_phone ?? null,
         email: z.primary_email ?? null,
         ref: z.ref ?? null,
-        akte: z.ref ? `/admin/kunde/${encodeURIComponent(String(z.ref))}` : null,
+        akte: z.ref ? `/akte/${encodeURIComponent(String(z.ref))}` : null,
         erledigtAm: z.erledigt_am ?? null,
         abgesagtAm: z.abgesagt_am ?? null,
         // „storniert am … durch Kunde" — der Auftrag verlangt es ausdrücklich.
@@ -462,7 +462,7 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
           email: o.primary_email ?? null, telefon: o.primary_phone ?? null,
           agentName: o.agent_name ?? null,
           letzteEinladung: o.letzte_einladung ?? null,
-          akte: `/admin/kunde/${encodeURIComponent(String(o.ref))}`,
+          akte: `/akte/${encodeURIComponent(String(o.ref))}`,
         })),
       },
       quellen: QUELLE_TEXT,

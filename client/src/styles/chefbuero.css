@@ -1161,3 +1161,12 @@ body:has(.cb-ruhig) .fi-raum{display:none}
 .cb.cb-voll .cbs-kopf.schlank{padding:2px 0 10px}
 #root:has(.cb.cb-voll)>.min-h-screen{min-height:0}
 @media(max-width:960px){.cb.cb-voll .cb-grund{padding:10px}}
+
+/* ── Die Tür zur Akte (/akte/<Kennung>, E-315): nur sichtbar, solange geprüft wird oder niemand angemeldet ist ── */
+.akte-tuer{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(165deg,#0B1220 0%,#0F182B 40%,#1A2744 100%)}
+.akte-tuer-karte{width:min(420px,100%);display:grid;gap:12px;padding:28px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.1);
+  color:#e2e8f0;font:400 14px/1.6 'Inter',sans-serif;box-shadow:0 30px 70px rgba(2,6,23,.5)}
+.akte-tuer-karte b{font-size:18px;font-weight:500;color:#fff}
+.akte-tuer-karte p{margin:0;color:#94a3b8}
+.akte-tuer-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.akte-tuer .cw-knopf.hell{background:transparent;border:1px solid rgba(255,255,255,.25);color:#e2e8f0}

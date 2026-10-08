@@ -24,6 +24,7 @@ export function titelFuer(pfad: string): string | null {
   const KARTE: [RegExp, string][] = [
     // ── Verwaltung ──────────────────────────────────────────────────────
     [/^\/admin\/kunde\//, "Akte"],
+    [/^\/akte\//, "Akte"],
     [/^\/admin\/kunden/, "Kunden"],
     [/^\/admin\/team/, "Team"],
     [/^\/admin\/mail-zentrale/, "Mail"],

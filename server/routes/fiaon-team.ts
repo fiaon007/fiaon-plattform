@@ -2677,7 +2677,7 @@ router.get("/admin/team/anrufe-pruefen", async (_req: Request, res: Response) =>
         marke: z.marke, kunde: z.kunde, agent: z.agent,
         hatAufnahme: z.hat_aufnahme === true,
         personId: z.person_id != null ? Number(z.person_id) : null,
-        akte: z.ref ? `/admin/kunde/${encodeURIComponent(String(z.ref))}` : null,
+        akte: z.ref ? `/akte/${encodeURIComponent(String(z.ref))}` : null,
       })),
       hinweis: zeilen.length === 0
         ? "Kein Anruf braucht eine Klärung."

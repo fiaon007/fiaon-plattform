@@ -598,7 +598,7 @@ async function karteBauen(z: any): Promise<KarteiKarte> {
     terminLink: absoluteUrl(`/justin?k=${terminTokenErzeugen(Number(z.id))}`),
     akteId: aktenRef ?? (z.l_id != null ? `lead-${Number(z.l_id)}` : null),
     akteLink: aktenRef
-      ? `/chef/s/akte?id=${encodeURIComponent(aktenRef)}`
+      ? `/akte/${encodeURIComponent(aktenRef)}`
       : (z.l_id != null ? `/chef/s/akte?id=lead-${Number(z.l_id)}` : null),
     storno: z.storno_am ? { am: iso(z.storno_am)!, grund: text(z.storno_grund) || null, durch: text(z.storno_durch) || null } : null,
     rueckrufAm: iso(z.rr_am),

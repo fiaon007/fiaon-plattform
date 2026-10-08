@@ -10,6 +10,7 @@
 // „ich klicke und nichts passiert" darf es hier nicht mehr geben.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { akteLinkHeben } from "@shared/fiaon-akte-aufloesung";
 import { Plus, X, Check, Undo2, Trash2, ExternalLink, Send, UserRound, MessageCircleQuestion, ArrowRightLeft } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
 import { eingangText } from "@shared/fiaon-auftrag-arten";
@@ -321,7 +322,8 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
             <p className="text-[12.5px] text-amber-700 mb-3">Wieder offen ({t.wiederOffenZahl}×): {t.wiederOffenGrund}</p>
           )}
           {t.text && <p className="text-[13.5px] text-slate-700 leading-relaxed whitespace-pre-wrap">{t.text}</p>}
-          {t.link && <a href={t.link} target={t.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-medium text-blue-700"><ExternalLink size={13} /> Öffnen</a>}
+          {/* E-315: Gespeicherte Akten-Links (/admin/kunde/…, /chef/s/akte?id=|?ref=, /agent/kunden?person=) führen in die EINE Akte. */}
+          {t.link && (() => { const ziel = akteLinkHeben(t.link) || t.link; return <a href={ziel} target={ziel.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-medium text-blue-700"><ExternalLink size={13} /> Öffnen</a>; })()}
           {t.ergebnis && (
             <div className="mt-4 p-3 rounded-xl" style={{ background: "#ecfdf5", border: "1px solid #a7f3d0" }}>
               <p className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-emerald-700 mb-1">{t.erledigtArt === "auto" ? "Automatisch erledigt" : "Ergebnis"} · {t.erledigtVon} · {zeit(t.erledigtAm)}</p>

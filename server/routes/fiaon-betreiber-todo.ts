@@ -358,7 +358,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
     : new Date(heute.getTime() + (ein.dringend ? 0 : 2) * 864e5).toISOString().slice(0, 10);
   const prioritaet = ein.dringend ? 1 : 2;
   const bereich = ein.bereich && (TODO_BEREICHE as readonly string[]).includes(ein.bereich) ? ein.bereich : "postmeister";
-  const link = ein.link ?? (ein.ref ? `/admin/kunde/${ein.ref}` : null);
+  const link = ein.link ?? (ein.ref ? `/akte/${ein.ref}` : null);
   const quelle = ein.quelle ?? "postmeister";
   // Zahlungen prüft nur die Zahlungsstelle (Justin, Bankbuch). Florentine
   // (05.09.): „Kunde schreibt, er habe am 20.08. bezahlt, und die KI sagt, ich

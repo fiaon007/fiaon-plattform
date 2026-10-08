@@ -272,7 +272,7 @@ export async function lieferungStarten(ref: string, opts: { mail?: boolean; von?
     await todoMeldung(`auskunft-ohne-person:${ref}`, {
       titel: `Bezahlte Auskunft ohne Person (${ref})`,
       text: `Die Bonitätsauskunft ${ref} ist bezahlt, hängt aber an keiner Person. Ohne Person kann keine Anfrage angelegt werden. Bitte die Bestellung der richtigen Akte zuordnen und die Lieferung im Chefbüro neu starten.`,
-      bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(ref)}`,
+      bereich: "pruefen", link: `/akte/${encodeURIComponent(ref)}`,
     }, { name: "Auskunft-Lieferung", agentId: null }).catch((e: unknown) => console.error("[AUSKUNFT-LIEFERUNG] Meldung ohne Person:", e));
     return leer("ohne_person", `${ref} hängt an keiner Person.`);
   }

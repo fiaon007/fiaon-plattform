@@ -36,7 +36,8 @@ import { useLocation } from "wouter";
 import type { ChefStufe } from "./ChefShell";
 
 const Kunden = lazy(() => import("@/pages/admin-kunden"));
-const KundeAkte = lazy(() => import("@/pages/admin-kunde"));
+// E-315 (09.10.2026): DIE EINE Akte — Mitarbeiter-Akte als Seite + Reiter „Verwaltung“ (admin-kunde im Modus verwaltung).
+const KundeAkte = lazy(() => import("@/components/admin/ZentraleAkte"));
 const Zahlungen = lazy(() => import("@/pages/admin-zahlungen"));
 const Konto = lazy(() => import("@/components/admin/ChefKonto"));
 const Auszahlungen = lazy(() => import("@/pages/admin-auszahlungen"));
@@ -227,7 +228,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "recht", label: "Rechtstexte-Status", satz: "Der Prüfstand der Rechtstexte.", Seite: Recht, raum: "system" },
 
   // ── Einzelakte: Ziel jeder Suche, keine Kachel ──────────────────────────
-  { slug: "akte", label: "Kundenakte", satz: "Eine einzelne Person in ganzer Tiefe.", Seite: KundeAkte, raum: "" },
+  { slug: "akte", label: "Kundenakte", satz: "Ein Mensch, alles an einer Stelle: Lage, Geld, Unterlagen, Kontakt, Vertrag, Verwaltung.", Seite: KundeAkte, raum: "kundenliste", auch: "akte kunde person kundenakte zentrale akte" },
 ];
 
 export const SEITE_NACH_SLUG = new Map(CHEF_SEITEN.map((s) => [s.slug, s]));

@@ -5,6 +5,7 @@ import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 // Das Telefon des Office hängt an der App, nicht an der Seite (09.09.2026, E-169).
 import { SoftphoneHost } from "@/components/SoftphoneHost";
+import { bereichMerken } from "@/lib/akte-bereich";
 import { useSeitenTitel } from "@/lib/fiaon-titel";
 import { FiaonRaum } from "@/components/FiaonRaum";
 import { queryClient } from "./lib/queryClient";
@@ -25,7 +26,6 @@ const AntragNeuPage = lazy(() => import("@/pages/antrag-neu"));
 const Privacy = lazy(() => import("@/pages/privacy"));
 import NotFound from "@/pages/not-found";
 const AdminKundenPage = lazy(() => import("@/pages/admin-kunden"));
-const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
 const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
 const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
 const ZugangSetzenPage = lazy(() => import("@/pages/zugang-setzen"));
@@ -97,6 +97,7 @@ import "@/styles/office-rundgang.css";
 import "@/styles/whatsapp-raum.css";
 const AdminShell = lazy(() => import("@/components/admin/AdminShell"));
 const AgentPortalPage = lazy(() => import("@/pages/agent"));
+const AkteTuerPage = lazy(() => import("@/pages/akte-tuer"));
 const AgentSetupPage = lazy(() => import("@/pages/agent/setup"));
 const AgentPasswortPage = lazy(() => import("@/pages/agent/passwort"));
 const AgentProfilPage = lazy(() => import("@/pages/agent/profil"));
@@ -312,6 +313,13 @@ const DemoKundenbereich = lazy(() => import("@/pages/demo-kundenbereich"));
 // Die Admin-Seiten werden per `lazy` erst beim Aufruf geladen. Vorher lagen
 // alle 28 im Haupt-Bundle — ein Agent auf dem Handy hat damit den kompletten
 // Admin-Bereich mitgeladen, den er nie zu Gesicht bekommt.
+
+/** E-315: merkt je Tab, ob man zuletzt im Office oder im Chefbüro war — die Tür /akte/… bleibt dann im selben Bereich. */
+function BereichMerker() {
+  const [pfad] = useLocation();
+  useEffect(() => { bereichMerken(pfad); }, [pfad]);
+  return null;
+}
 function admin(Component: ComponentType) {
   return () => (
     <AdminShell>
@@ -546,7 +554,8 @@ function Router() {
           „KYC zu prüfen" zeigt genau die Arbeit, für die es die Seite gab. */}
       <Route path="/admin/database" component={() => <Umleitung nach="/admin/kunden?kycOffen=1" />} />
       <Route path="/admin/kunden" component={admin(AdminKundenPage)} />
-      <Route path="/admin/kunde/:id" component={admin(AdminKundeAktePage)} />
+      {/* E-315: Die alte Verwaltungsakte führt in die EINE Akte (Kennung reist mit). */}
+      <Route path="/admin/kunde/:id">{(p: { id?: string }) => <Redirect to={`/akte/${encodeURIComponent(decodeURIComponent(p?.id ?? ""))}`} replace />}</Route>
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       {/* Eigene Seite: Auszahlungen an Mitarbeiter waren vorher eine Sektion der
           Zahlungszentrale — zwei Geldrichtungen in einer Ansicht. */}
@@ -699,6 +708,8 @@ function Router() {
           Bewusst außerhalb von /chef und /agent — wer hier arbeitet, arbeitet am Geld. */}
       <Route path="/buchhaltung" component={BuchhaltungPage} />
       <Route path="/banking" component={BuchhaltungPage} />
+      {/* E-315 (09.10.2026): DIE EINE Akte — Tür nach Sitzung (Chefbüro / Office), shared/fiaon-akte-aufloesung.ts */}
+      <Route path="/akte/:kennung" component={AkteTuerPage} />
       <Route path="/chef" component={ChefPage} />
       <Route path="/chef/:raum" component={ChefPage} />
       {/* 27.08.2026: Jede übernommene Admin-Seite läuft unter /chef/s/<slug>
@@ -846,6 +857,7 @@ function Router() {
     {/* Außerhalb des Schalters: Ein Seitenwechsel im Office baut das Telefon
         nicht mehr ab — ein laufendes Gespräch bleibt stehen (E-169). */}
     <SoftphoneHost />
+    <BereichMerker />
     </>
   );
 }

@@ -628,7 +628,7 @@ async function aufgabeAndereRate(zeile: NachholZeile, anlass: string): Promise<s
         + `Bitte dem Kunden kurz erklären, welche Rate als bezahlt gilt und welche noch offen ist (Zahlungsseite in der Akte).`,
       schluessel: `bank-nachholen:andere-rate:${zeile.txnId}`,
       quelle: "bankbuch", bereich: "konten", autorName: anlass,
-      link: zeile.bestellung ? `/admin/kunde/${zeile.bestellung}` : null,
+      link: zeile.bestellung ? `/akte/${zeile.bestellung}` : null,
     });
     return erg.agentName ? `Aufgabe an ${erg.agentName}` : (erg.id ? "Aufgabe beim Betreiber (kein Betreuer)" : null);
   } catch (e: any) {
@@ -1189,7 +1189,7 @@ export async function bankeingangAufgabe(id: number, opts: { wer: string }): Pro
       personId: v.personId, ref: v.bestellung, titel, text,
       schluessel: `bank-nachholen:${v.art}:${zeile.txnId}`,
       quelle: "bankbuch", bereich: "konten", autorName: anlass,
-      link: `/admin/kunde/${v.bestellung}`,
+      link: `/akte/${v.bestellung}`,
       anBetreiber: v.art !== "teilzahlung",
     });
     await sqlPool`

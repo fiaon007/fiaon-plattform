@@ -1089,7 +1089,7 @@ router.get("/admin/hub/liste", async (req, res) => {
       status: r.payment_status || null,
       // Wie oft wurde schon erinnert? Nur bei der Erinnerungsliste gesetzt.
       erinnerungen: r.erinnerungen != null ? Number(r.erinnerungen) : null,
-      akte: `/admin/kunde/${encodeURIComponent(r.ref)}`,
+      akte: `/akte/${encodeURIComponent(r.ref)}`,
     }));
 
     res.json({
@@ -1231,14 +1231,14 @@ router.get("/admin/search", async (req, res) => {
         sub: `${c.payment_reference || c.ref}${c.email || c.contact_email ? ` · ${c.email || c.contact_email}` : ""}`
           + (c.archived_at ? " · archiviert" : ""),
         status: c.payment_status,
-        url: `/admin/kunde/${encodeURIComponent(c.ref)}`,
+        url: `/akte/${encodeURIComponent(c.ref)}`,
       })),
       ...leads.map((l: any) => ({
         type: "lead",
         label: [l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`,
         sub: `Lead · ${l.quelle || "—"}${l.email ? ` · ${l.email}` : ""}`,
         status: l.status,
-        url: `/admin/kunde/lead-${l.id}`,
+        url: `/akte/lead-${l.id}`,
       })),
       ...agents.map((a: any) => ({
         type: "agent",

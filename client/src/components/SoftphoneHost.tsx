@@ -27,7 +27,8 @@ const Softphone = lazy(() => import("@/components/Softphone").then((m) => ({ def
 export function SoftphoneHost() {
   const sitzung = useSyncExternalStore(agentSitzung.abonnieren, agentSitzung.lesen, agentSitzung.lesen);
   const [pfad] = useLocation();
-  // Nur im Office. /admin hat sein eigenes Telefon im AdminShell.
-  if (!sitzung || !/^\/agent(\/|$)/.test(pfad)) return null;
+  // Nur im Office — und in der EINEN Akte (/akte/…, E-315), sobald dort eine Office-Sitzung derselben Person besteht
+  // (ZentraleAkte setzt sie). /admin hat sein eigenes Telefon im AdminShell.
+  if (!sitzung || !/^\/(agent|akte)(\/|$)/.test(pfad)) return null;
   return <Suspense fallback={null}><Softphone /></Suspense>;
 }

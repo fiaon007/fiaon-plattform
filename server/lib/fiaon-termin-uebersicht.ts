@@ -279,7 +279,7 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
       } : null,
       telefonWaehlbar: tel.waehlbar ?? null,
       telefonAnzeige: tel.anzeige ?? null,
-      akteLink: karte?.akteLink ?? (z.ref ? `/chef/s/akte?id=${encodeURIComponent(String(z.ref))}` : `/chef/s/akte?id=${personId}`),
+      akteLink: karte?.akteLink ?? (z.ref ? `/akte/${encodeURIComponent(String(z.ref))}` : `/akte/${personId}`),
       gleichzeitigMit: [],
       abschliessbar: offen && !["onboarding_call", "global"].includes(String(z.quelle)),
       notiz: z.notiz ? String(z.notiz).slice(0, 240) : null,
@@ -316,7 +316,7 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
         personId: r.person_id != null ? Number(r.person_id) : null, ref: r.ref ? String(r.ref) : null,
         name: text(r.name) || "Ohne Namen", notiz: r.note ? String(r.note).slice(0, 200) : null,
         telefonWaehlbar: tel.waehlbar ?? null, telefonAnzeige: tel.anzeige ?? null,
-        akteLink: r.ref ? `/chef/s/akte?id=${encodeURIComponent(String(r.ref))}` : r.person_id != null ? `/chef/s/akte?id=${Number(r.person_id)}` : null,
+        akteLink: r.ref ? `/akte/${encodeURIComponent(String(r.ref))}` : r.person_id != null ? `/akte/${Number(r.person_id)}` : null,
       };
     });
   } catch (e) {

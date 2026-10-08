@@ -880,6 +880,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 01.10.2026 (E-268): Das Individualangebot trägt sein Token im Pfad — derselbe Schutz.
   // 08.10.2026: Die Empfängerseite „Zugang übergeben“ (Token im Anker, Passwort nach dem Code) — derselbe Schutz, und
   // sie wird nie vorgerendert (kein Eintrag in fiaon-seiten-seo, seitenHtml liefert für sie nichts).
+  // E-315 (09.10.2026): Die EINE Akte /akte/<Kennung> — intern, die Kennung steht in der Adresse: kein Index, kein Referer.
+  app.get(['/akte', '/akte/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
   app.get(['/zugang/uebergabe', '/zugang/uebergabe/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');

@@ -734,7 +734,7 @@ router.post("/kunde/:ref/app/nachricht", requireKunde, async (req: KundeRequest,
           titel: `${p?.name ?? ref}: DRINGEND – Post mit Frist: ${betreff}`.slice(0, 160),
           // Eine zweite dringende Nachricht am selben Tag öffnet denselben Auftrag — die frühere bleibt darunter stehen (TFO, 05.09.).
           text: await mitFrueherenNachrichten(schluessel, `Der Kunde hat sein Anliegen als dringend markiert (Frist, Gericht, Gerichtsvollzieher oder Inkasso). Anliegen #${id}.\n\nBetreff: ${betreff}\n\n${text}\n\nBitte heute lesen und dem Kunden antworten – im Anliegen oder per Telefon.`),
-          quelle: "kundenbereich", bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(ref)}`, autorName: "Kundenbereich",
+          quelle: "kundenbereich", bereich: "pruefen", link: `/akte/${encodeURIComponent(ref)}`, autorName: "Kundenbereich",
         });
         anWen = erg.kundenName ?? erg.agentName ?? null;
       } catch (e: any) { console.error("[APP] Auftrag dringende Nachricht:", e?.message || e); }

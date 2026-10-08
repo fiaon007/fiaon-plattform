@@ -86,11 +86,11 @@ function teil1(): void {
   for (const leer of [null, undefined, "", "null", "undefined", 0]) {
     gleich(`Link für ${JSON.stringify(leer)} ist null`, akteLinkFuer(leer, "chef"), null);
   }
-  gleich("Chef: Personen-Nummer", akteLinkFuer(13536, "chef"), "/chef/s/akte?id=13536");
-  gleich("Chef: Lead", akteLinkFuer("lead-4862", "chef"), "/chef/s/akte?id=lead-4862");
-  gleich("Admin: Referenz", akteLinkFuer("FIAON-ABC-123", "admin"), "/admin/kunde/FIAON-ABC-123");
-  gleich("Sonderzeichen werden kodiert", akteLinkFuer("A B&C", "chef"), "/chef/s/akte?id=A%20B%26C");
-  gleich("„person-12“ wird zur reinen Nummer", akteLinkFuer("person-12", "admin"), "/admin/kunde/12");
+  gleich("Chef: Personen-Nummer", akteLinkFuer(13536, "chef"), "/akte/13536");
+  gleich("Chef: Lead", akteLinkFuer("lead-4862", "chef"), "/akte/lead-4862");
+  gleich("Admin: Referenz", akteLinkFuer("FIAON-ABC-123", "admin"), "/akte/FIAON-ABC-123");
+  gleich("Sonderzeichen werden kodiert", akteLinkFuer("A B&C", "chef"), "/akte/A%20B%26C");
+  gleich("„person-12“ wird zur reinen Nummer", akteLinkFuer("person-12", "admin"), "/akte/12");
 
   titel("TEIL 1c — Umleitungstexte und Fehlertitel");
   const gruende: UmleitungsGrund[] = ["person_zusammengefuehrt", "person_ohne_bestellung", "lead_zur_person", "lead_konvertiert",

@@ -84,6 +84,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-IT-A (08.10.2026): Pipeline — eine Wiedervorlage-Regel, Rotation in „Wieder dran".
+    id: "2026-10-08-wiedervorlage-regel",
+    date: "2026-10-08",
+    category: "Verbessert",
+    title: "Pipeline: Wer gerade dran war, steht morgen nicht wieder oben",
+    summary:
+      "„Wieder dran“ rotiert jetzt: Vorn steht, wen am längsten niemand versucht hat. Jedes Ergebnis sagt dir, wann der "
+      + "Mensch wieder dran ist — nach einer Regel für alle, die du in der Akte auch von Hand übersteuern kannst.",
+    changes: [
+      "„Zahlt sofort“: Kommt kein Geld, ist der Kunde nach 3 Werktagen (Mo–Fr) wieder dran — „Zahlung prüfen“, nicht schon morgen.",
+      "„Zahlt am …“: am Werktag nach dem genannten Tag („Zusage prüfen“). Eine abgelaufene Zusage steht nur noch EINMAL oben, nicht jeden Tag.",
+      "„Nicht erreicht“ und „Mailbox“: Der Abstand wächst — 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause. Ab dem 9. ruht der Kunde wie bisher.",
+      "Frischer Antrag oder frische Zahlungsmeldung (bis 3 Tage): bis zum 5. Fehlversuch schon am nächsten Werktag wieder in der Liste — aber hinten, nicht oben.",
+      "Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage — auch von Hand; „1 Woche“ und „2 Wochen“ sind dort ausgegraut.",
+      "Dieselbe Buchung zweimal (Telefon und Akte binnen 30 Minuten) zählt nur einmal als Fehlversuch.",
+      "Ratenkunden behalten ihre Wiedervorlage und Zusage — auch eine Zusage über WhatsApp oder Mara. Vorher waren sie nach höchstens 20 Minuten wieder fällig.",
+      "Ein Ergebnis nach der vereinbarten Rückrufzeit gilt als beantworteter Rückruf.",
+    ],
+    howto: [
+      "Nach jedem Ergebnis steht in der Meldung „Wieder dran am … · Grund“.",
+      "In der Akte unter „anderes Ergebnis“: „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ wählen, dann das Ergebnis — unter jedem Knopf steht das Datum.",
+      "Unter „Wieder dran“ auf „… pausiert“ tippen: Du siehst, wer gerade wartet, bis wann und warum. „Heute wieder dran“ holt ihn sofort zurück — auch oben in der Akte.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+  },
+  {
     // E-286 (05./06.10.2026): neue Wortmarke überall.
     id: "2026-10-06-neues-logo",
     date: "2026-10-06",

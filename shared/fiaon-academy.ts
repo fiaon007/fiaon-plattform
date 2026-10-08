@@ -49,6 +49,8 @@
 //     Agenda-Text wandert von selbst mit, weil er aus derselben Datei kommt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { AGENDA } from "./fiaon-onboarding-agenda";
+// E-IT-A (08.10.2026): Die Kernbotschaft „ergebnis“ nennt die Abstände aus der einen Regel.
+import { ZAHLT_SOFORT_WERKTAGE } from "./fiaon-wiedervorlage";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE KERNBOTSCHAFT — DER WORTLAUT DER GESCHÄFTSFÜHRUNG
@@ -228,8 +230,9 @@ const VERTRIEB: Kapitel[] = [
     key: "ergebnis",
     was: "Nach dem Gespräch wird EIN Ergebnis geklickt — und das System zieht die Folgen.",
     wer: "agent",
-    text: "„Zahlt sofort“ legt eine Wiedervorlage auf morgen. „Zahlt am …“ merkt sich das "
-      + "Datum. „Abgelehnt“ nimmt den Kunden aus jeder Liste. Und „Erreicht — Sonstiges“ "
+    text: `„Zahlt sofort“ bringt den Kunden nach ${ZAHLT_SOFORT_WERKTAGE} Werktagen wieder („Zahlung prüfen“), `
+      + "falls bis dahin kein Geld kam. „Zahlt am …“ merkt sich das Datum und holt ihn am Werktag "
+      + "danach zurück. „Abgelehnt“ nimmt den Kunden aus jeder Liste. Und „Erreicht — Sonstiges“ "
       + "verlangt eine Notiz von mindestens zehn Zeichen.",
     warum: "„Sonstiges“ ohne Notiz ist ein verlorenes Gespräch: Der nächste Anrufer fängt "
       + "bei Null an und fragt dasselbe noch einmal. Die Pflicht steht seit dem 24.08. im "

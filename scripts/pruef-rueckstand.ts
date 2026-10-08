@@ -1431,10 +1431,14 @@ async function main(): Promise<void> {
     const j = q.indexOf('case "nicht_erreicht":', i);
     return i > 0 && j > i && !q.slice(i, j).includes("zaehlerHoch = true");
   })());
+  // E-IT-A (08.10.2026): Die Tage stehen jetzt in der einen Wiedervorlage-Regel
+  // (shared/fiaon-wiedervorlage.ts) — drei WERKTAGE, nicht mehr tagPlus(3) hier.
   ok("… mit Wiedervorlage in drei Tagen", (() => {
-    const q = datei("server/lib/fiaon-kontakt-ergebnis.ts");
+    const q = datei("shared/fiaon-wiedervorlage.ts");
     const i = q.indexOf('case "erreicht_sonstiges":');
-    return i > 0 && q.slice(i, i + 700).includes("tagPlus(3)");
+    return i > 0 && q.slice(i, i + 300).includes("plusWerktage(heute, SONSTIGES_WERKTAGE)")
+      && /export const SONSTIGES_WERKTAGE = 3;/.test(q)
+      && /naechsterVersuch\(\{/.test(datei("server/lib/fiaon-kontakt-ergebnis.ts"));
   })());
   ok("In der Kundenliste öffnet es die Notiz",
     /\{ art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", braucht: "notiz" \}/

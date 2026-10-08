@@ -34,6 +34,7 @@ import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
+import { zusageOffenSql } from "../lib/fiaon-pipeline-reihung";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
 import { landVorschlag } from "./fiaon-agent-kunden";
@@ -75,7 +76,8 @@ async function poolZahlen(): Promise<{ a: number; b: number; c: number }> {
        AND NOT is_blocked AND priority_tier IN (1,2,3)`) as any[];
   return { a: Number(z?.a ?? 0), b: Number(z?.b ?? 0), c: Number(z?.c ?? 0) };
 }
-const NAME_SQL = `COALESCE(
+// E-IT-A (08.10.2026): exportiert — die Liste „pausiert" der Pipeline nennt den Namen genauso.
+export const NAME_SQL = `COALESCE(
   NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
   NULLIF(TRIM(p.company_name), ''),
   NULLIF(TRIM(p.contact_name), ''),
@@ -671,7 +673,8 @@ const ORDNUNG_ONBOARDING = `
   END ASC NULLS LAST,
   q.termin_beginn DESC NULLS LAST`;
 
-const ORDNUNG: Record<Sortierung, string> = {
+// E-IT-A (08.10.2026): exportiert — scripts/pruef-it-a.ts prüft Rang 2 (Zusage einmal) in der Datenbank.
+export const ORDNUNG: Record<Sortierung, string> = {
   // Arbeitsreihenfolge — die fachliche Rangfolge, in SQL gegossen:
   //   1 Zusage heute oder überfällig   (ein gegebenes Wort hat ein Datum)
   //   2 Rückruf heute oder überfällig  (ein vereinbarter Termin)
@@ -688,7 +691,10 @@ const ORDNUNG: Record<Sortierung, string> = {
         WHERE t.person_id = p.id AND t.status = 'gebucht'
           AND t.beginn::date = ${HEUTE}
       ) THEN 1
-      WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE} THEN 2
+      -- E-IT-A (08.10.2026): Eine abgelaufene Zusage ist EINMAL dringend — bis zum
+      --   nächsten Versuch (zusageOffenSql, dieselbe Regel wie die Arbeitsliste).
+      --   Vorher hielt eine Zusage vom 16.07. hier jeden Tag Rang 2.
+      WHEN ${zusageOffenSql()} THEN 2
       WHEN EXISTS (
         SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
         WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL

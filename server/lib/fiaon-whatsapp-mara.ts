@@ -3545,7 +3545,12 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
       return { ergebnis: { ok: false, grund: `Der Tag ist nicht eindeutig (kein Monat genannt). Frag kurz nach, z. B. „Meinen Sie den ${vorschlag}?" — und halte ihn erst nach seinem Ja fest.` }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
     }
     const [alt] = (await sqlPool`SELECT promised_payment_date FROM fiaon_persons WHERE id = ${ctx.personId}`) as any[];
-    await sqlPool`UPDATE fiaon_persons SET promised_payment_date = ${datum}::date, updated_at = NOW() WHERE id = ${ctx.personId}`;
+    // E-IT-A (08.10.2026): Mit der Zusage kommt die Wiedervorlage der einen Regel
+    // (Werktag nach dem genannten Tag, shared/fiaon-wiedervorlage.ts) — vorher nur
+    // das Datum; der Mensch stand am Kalendertag danach (auch Sa/So) wieder oben.
+    const { naechsterVersuch } = await import("@shared/fiaon-wiedervorlage");
+    const wvZusage = naechsterVersuch({ ergebnis: "erreicht_zahlt_am", heute, zusageDatum: datum }).datum;
+    await sqlPool`UPDATE fiaon_persons SET promised_payment_date = ${datum}::date, follow_up_date = ${wvZusage}::date, updated_at = NOW() WHERE id = ${ctx.personId}`;
     const schoen = new Date(`${datum}T12:00:00Z`).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
     const vorher = alt?.promised_payment_date ? new Date(alt.promised_payment_date).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
     await mt.protokollieren({

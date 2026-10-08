@@ -69,6 +69,7 @@
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql } from "./fiaon-global-kunde";
+import { ratenArbeitAufraeumenSql } from "./fiaon-pipeline-reihung";
 
 /**
  * Abbruchstellen innerhalb von `payment_status = 'pending'`. Wer hier steht,
@@ -485,11 +486,14 @@ export async function personTierAktualisieren(
   `;
   // Zwei Schritte statt einer verschachtelten Bedingung: Das Löschen der
   // Arbeitsdaten ist eine eigene Entscheidung und soll auch so lesbar sein.
+  // E-IT-A (08.10.2026): Ein Ratenkunde (Stufe 0 mit fälliger Rate) behält
+  // Wiedervorlage und Zusage, wenn sie zur Raten-Arbeit gehören — nach der
+  // letzten Zahlung entstanden (ratenArbeitAufraeumenSql, fiaon-pipeline-reihung.ts;
+  // seit der Gegenprüfung je Feld und auch für Maras/WhatsApp-Zusagen, die kein
+  // Gesprächsergebnis schreiben). Vorher wurde ihm beides bei jeder Neueinstufung
+  // gelöscht — „zahlt am 20." war nach Minuten weg.
   if (Number(neu.priority_tier) <= 0) {
-    await sql`
-      UPDATE fiaon_persons SET promised_payment_date = NULL, follow_up_date = NULL, updated_at = NOW()
-      WHERE id = ${personId}
-    `;
+    await sql.unsafe(ratenArbeitAufraeumenSql(true), [personId]);
   }
 
   // ── SOFORT ZUTEILEN ─────────────────────────────────────────────────────
@@ -539,12 +543,15 @@ export async function alleTierAktualisieren(sql: any): Promise<{ geaendert: numb
         OR p.tier_reason   IS DISTINCT FROM t.tier_reason)`);
   const geaendert = Number((erg as any)?.count ?? 0);
   // Wer den Vertrieb verlassen hat, darf keine Arbeitsdaten mehr tragen.
-  await sql`
-    UPDATE fiaon_persons
-    SET promised_payment_date = NULL, follow_up_date = NULL, updated_at = NOW()
-    WHERE merged_into_person_id IS NULL AND priority_tier <= 0
-      AND (promised_payment_date IS NOT NULL OR follow_up_date IS NOT NULL)
-  `;
+  // ── AUSSER DER RATEN-ARBEIT (E-IT-A, 08.10.2026) ───────────────────────
+  // Dieser Lauf läuft alle 20 Minuten (fiaon-followup.ts). Er löschte bei JEDER
+  // Person auf Stufe ≤ 0 Zusage und Wiedervorlage — auch bei den Ratenkunden,
+  // die seit E-165 in der Pipeline ihres Betreuers stehen. Gemessen am
+  // 07.10.2026: 118 von 118 Ratenkunden mit Ergebnis in 21 Tagen ohne beides;
+  // „nicht erreicht" war nach höchstens 20 Minuten wieder fällig. Jetzt bleibt,
+  // was nach der letzten Zahlung an einer fälligen Rate vereinbart wurde — je
+  // Feld, auch ohne Gesprächsergebnis (Mara, WhatsApp-Raum; Gegenprüfung 08.10.2026).
+  await sql.unsafe(ratenArbeitAufraeumenSql(false));
   if (geaendert > 0) console.log(`[FIAON-TIER] Tageslauf: ${geaendert} Person(en) neu eingestuft`);
   return { geaendert };
 }

@@ -36,7 +36,8 @@ import { Router, type Response } from "express";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
-import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
+import { parseBerlinInput, pruefeTerminZukunft, berlinToday } from "../lib/fiaon-time";
+import { handwahlDatum, handwahlPruefen, wiederDranText, stufeADeckeln, STUFE_A_HINWEIS } from "@shared/fiaon-wiedervorlage";
 import {
   ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisNachbereiten, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
@@ -885,6 +886,13 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
     if (!schreibRef2) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     p.schreib_ref = schreibRef2;
 
+    // ── E-IT-A (08.10.2026): DIESELBE REGEL WIE JEDES ANDERE „ZAHLT AM" ──────
+    // Hier stand eine eigene Fassung: Zusage setzen, Wiedervorlage „Tag danach"
+    // (auch Samstag/Sonntag), ohne Betreuung, ohne Zählerrücksetzung, ohne
+    // Bestellung (promised_pay_date). Jetzt geht der Weg über ergebnisAnwenden —
+    // Wiedervorlage am Werktag nach der Zusage (shared/fiaon-wiedervorlage.ts).
+    const { ergebnisAnwenden } = await import("../lib/fiaon-kontakt-ergebnis");
+    let wirkungZusage: { meldung?: string } | null = null;
     await sqlPool.begin(async (tx) => {
       await tx`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, promised_date, created_at)
@@ -893,20 +901,93 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
                 ${req.body?.notiz ? String(req.body.notiz).trim() : null},
                 ${datum}::date, NOW())
       `;
-      // Die Wiedervorlage folgt der Zusage: einen Tag danach nachfassen.
-      await tx`
-        UPDATE fiaon_persons
-           SET promised_payment_date = ${datum}::date,
-               follow_up_date = ${datum}::date + 1,
-               updated_at = NOW()
-         WHERE id = ${personId}
-      `;
+      wirkungZusage = await ergebnisAnwenden({
+        ref: p.schreib_ref, personId, ergebnis: "erreicht_zahlt_am", zusageDatum: datum,
+      }, tx);
     });
 
     const neu = await meinePerson(personId, req.agent!.id);
-    res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)) });
+    res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)), meldung: (wirkungZusage as { meldung?: string } | null)?.meldung ?? null });
   } catch (err) {
     console.error("[AGENT-KUNDEN] zusage:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/kunden/:personId/wiedervorlage — WIEDER DRAN VON HAND
+// (E-IT-A, 08.10.2026)
+//
+// Die Regel (shared/fiaon-wiedervorlage.ts) entscheidet, wann ein Mensch
+// wieder in der Pipeline steht. Der Mitarbeiter kann es übersteuern:
+//   { wahl: "heute" }        → sofort wieder unter „Wieder dran"
+//   { wahl: "woche" }        → in 1 Woche (nächster Werktag)
+//   { wahl: "zwei_wochen" }  → in 2 Wochen
+//   { wahl: "datum", datum } → ein Tag ab heute, höchstens 60 Tage
+// Gebunden an DIESELBE Zugriffsregel wie jedes Ergebnis (meinePerson), mit
+// Vermerk im Verlauf — wer wann was gesetzt hat.
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/agent/crm/kunden/:personId/wiedervorlage", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const wahl = String(req.body?.wahl ?? "").trim();
+    const heute = berlinToday();
+    const gewuenscht = wahl === "datum" ? handwahlPruefen(req.body?.datum, heute) : handwahlDatum(wahl, heute);
+    if (!gewuenscht) {
+      return res.status(400).json({ ok: false, error: "Bitte „heute“, „in 1 Woche“, „in 2 Wochen“ oder einen Tag ab heute wählen (höchstens 60 Tage)." });
+    }
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // ── STUFE A: HÖCHSTENS 3 WERKTAGE, AUCH HIER (Gegenprüfung 08.10.2026) ──
+    // Dieselbe Regel wie nach jedem Ergebnis (shared/fiaon-wiedervorlage.ts,
+    // stufeADeckeln): „in 1 Woche", „in 2 Wochen" oder ein späterer Tag werden
+    // bei gemeldeter Zahlung auf den 3. Werktag gekürzt — und die Antwort sagt es.
+    const [stufeZeile] = (await sqlPool`SELECT priority_tier FROM fiaon_persons WHERE id = ${personId}`) as any[];
+    const deckel = stufeADeckeln(gewuenscht, heute, Number(stufeZeile?.priority_tier) === 1);
+    const datum = deckel.datum!;
+    const schreibRef = p.schreib_ref || (await sorgeFuerAkte(personId, req.agent!.id));
+    const text = deckel.gedeckelt
+      ? `${wiederDranText(datum, "von_hand", heute)} (${STUFE_A_HINWEIS})`
+      : wiederDranText(datum, "von_hand", heute);
+    await sqlPool.begin(async (tx) => {
+      await tx`UPDATE fiaon_persons SET follow_up_date = ${datum}::date, updated_at = NOW() WHERE id = ${personId}`;
+      // Der Verlauf braucht eine Akte (ref ist Pflicht) — sorgeFuerAkte legt sie
+      // auch für Leads ohne Bestellung an (25.08.2026, fiaon-akte-anker.ts).
+      if (schreibRef) {
+        await tx`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${schreibRef}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                  ${`Wiedervorlage von Hand gesetzt: ${text}.`}, NOW())`;
+      }
+    });
+    // Was den Menschen trotzdem zurückhält, sagt die Antwort — sonst sucht der
+    // Mitarbeiter ihn in der Liste und hält den Knopf für kaputt.
+    // Gegenprüfung 08.10.2026: auch ein Termin an einem späteren Tag und ein heute
+    // schon gebuchtes „erreicht" halten ihn aus der Liste (basisTeile der Arbeitsliste).
+    const [st] = (await sqlPool`
+      SELECT to_char(p.promised_payment_date, 'YYYY-MM-DD') AS zusage, COALESCE(p.unreachable_count, 0) AS versuche,
+             p.priority_tier, p.is_blocked,
+             (SELECT to_char(MIN(t.beginn) AT TIME ZONE 'Europe/Berlin', 'DD.MM.YYYY') FROM fiaon_termine t
+               WHERE t.person_id = p.id AND t.status = 'gebucht' AND t.abgesagt_am IS NULL
+                 AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS termin_am,
+             EXISTS (SELECT 1 FROM fiaon_contact_log clh JOIN fiaon_applications ah ON ah.ref = clh.ref
+               WHERE ah.person_id = p.id AND clh.type = 'result' AND clh.outcome LIKE 'erreicht%'
+                 AND (clh.created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS heute_erreicht
+        FROM fiaon_persons p WHERE p.id = ${personId}`) as any[];
+    const hinweis = st?.is_blocked ? "Er ist gesperrt und steht deshalb in keiner Liste."
+      : st?.zusage && String(st.zusage) >= heute ? `Er hat eine Zahlungszusage für den ${st.zusage} — bis dahin bleibt er aus der Arbeitsliste.`
+      : st?.termin_am ? `Er hat einen Termin am ${st.termin_am} — bis dahin steht er in keiner Arbeitsliste.`
+      : Number(st?.versuche) >= 9 && Number(st?.priority_tier) !== 1 ? "Er ruht (9× nicht erreicht) und kommt erst zurück, wenn er sich meldet."
+      : st?.heute_erreicht === true ? "Er wurde heute schon erreicht — ab morgen steht er wieder in der Liste."
+      : null;
+    const neu = await meinePerson(personId, req.agent!.id);
+    res.json({
+      ok: true, wiedervorlage: datum, text, hinweis, gedeckelt: deckel.gedeckelt,
+      meldung: hinweis ? `${text}. ${hinweis}` : `${text}.`,
+      kunde: neu ? kartePayload(neu, await letzteAktivitaetVon(personId)) : null,
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] wiedervorlage:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

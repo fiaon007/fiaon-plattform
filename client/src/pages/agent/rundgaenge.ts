@@ -41,7 +41,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Rückrufe und das frischeste Ereignis — Minuten schlagen Tage. Eine gestern fällige Rate steht deshalb neben einem "
       + "gestrigen Antrag, eine drei Wochen alte Rate hinter beiden. Das ist Absicht: Wird eine "
       + "Rate in den ersten Tagen angesprochen, zahlen 18,6 %; nach der fünften Mahnstufe nur "
-      + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
+      + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist. "
+      // E-IT-A (08.10.2026) mitgezogen: Rotation in „Wieder dran".
+      + "Rechts unter „Wieder dran“ rotiert die Liste: Innerhalb gleicher Dringlichkeit steht vorn, wen am längsten "
+      + "niemand versucht hat — wen du gerade bearbeitet hast (heute oder am vorigen Werktag), steht am nächsten Tag "
+      + "nicht wieder oben, auch nicht mit frischem Antrag — er rückt hinter alle, die nicht gerade dran waren. Nach vorn "
+      + "holt ihn nur eine feste Zeit: Termin heute, fälliger Rückruf, eine Zusage, deren Tag seither erreicht ist.",
     tipp: "Wer morgens die Pipeline leerarbeitet und erst danach in andere Räume geht, hat den besten Monat.",
   },
   {
@@ -191,13 +196,29 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
-    // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = morgen rechts, nicht heute.
-    titel: "Wen du nicht erreichst, siehst du heute nicht wieder — morgen rechts unter „Wieder dran“.",
-    text: "Klickst du „nicht erreicht“, verschwindet der Mensch für heute aus der Pipeline, die Liste "
-      + "zieht frischen Nachschub, und seine Wiedervorlage steht auf morgen. Dann taucht er rechts "
-      + "unter „Wieder dran“ auf — mit Zahl der Versuche. Sobald du ihn erreichst (egal mit welchem "
-      + "Ergebnis), ist der Zähler zurück auf null.",
-    tipp: "Ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch — beides bleibt wie bisher.",
+    // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = nicht heute, später rechts.
+    // E-IT-A (08.10.2026, Justin) mitgezogen: die eine Wiedervorlage-Regel.
+    titel: "Jedes Ergebnis sagt dir, wann der Mensch wieder dran ist.",
+    text: "Nach dem Klick steht in der Meldung „Wieder dran am Mi 15.10. · Grund“. Die Regel ist für alle gleich: "
+      + "„Zahlt sofort“ — nach 3 Werktagen (Mo–Fr) „Zahlung prüfen“, falls kein Geld kam. „Zahlt am …“ — am Werktag "
+      + "danach „Zusage prüfen“. „Erreicht – Sonstiges“ — nach 3 Werktagen. „Nicht erreicht“ und „Mailbox“ — der "
+      + "Abstand wächst: 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause (mit Terminlink-Mail), "
+      + "ab dem 9. ruht der Mensch. Wer gerade einen Antrag oder eine Zahlungsmeldung geschickt hat (bis 3 Tage), kommt "
+      + "bis zum 5. Fehlversuch schon am nächsten Werktag wieder in die Liste — dort aber hinten, hinter allen, die länger "
+      + "niemand versucht hat. Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage, auch wenn du „in 1 Woche“ wählst; "
+      + "ab dem 9. Fehlversuch bekommt zusätzlich die Leitung eine Aufgabe. Buchst du denselben Anruf zweimal (Telefon "
+      + "und Akte), zählt er einmal.",
+    tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
+  },
+  {
+    // E-IT-A (08.10.2026): „heute erledigt · pausiert" am Kopf der rechten Spalte.
+    // Ohne `ziel`: Die Zeile erscheint erst, wenn die Liste geladen ist.
+    titel: "Wer pausiert, ist nicht verloren.",
+    text: "Unter „Wieder dran“ steht „heute erledigt X · Y pausiert“. Pausiert sind deine Menschen, die die Regel gerade "
+      + "bewusst zurückhält — nach „zahlt sofort“, nach Fehlversuchen, nach einer Zusage. Ein Klick auf „pausiert“ zeigt "
+      + "jeden mit Datum und Grund; „Heute wieder dran“ holt ihn sofort zurück. Dasselbe steht in der Akte oben als "
+      + "„Wieder dran am …“ mit demselben Knopf.",
+    tipp: "Ruft dich ein pausierter Kunde zurück oder willst du ihn heute sprechen: Akte öffnen, „Heute wieder dran“ — der Verlauf hält fest, wer es gesetzt hat.",
   },
   {
     // 07.09.2026 (Justin, abends): zwei Spalten.
@@ -205,8 +226,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     titel: "Links neu, rechts wieder dran.",
     text: "Unter deiner Fokus-Karte stehen zwei Reihen. Links „Neu für dich“: Menschen, die noch NIE "
       + "jemand angerufen hat — neuer Antrag, kein einziger Versuch. Rechts „Wieder dran“: alle, die "
-      + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zusage "
-      + "nicht gehalten, Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. Schließt du einen ab, "
+      + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zahlung "
+      + "oder Zusage prüfen (einmal, nicht jeden Tag), Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. "
+      + "Wer in den letzten 20 Stunden schon versucht wurde, steht dort nicht noch einmal. Schließt du einen ab, "
       + "rückt der nächste nach. Links steht zuerst, wer laut Antrag JETZT erreichbar sein will (8–12, 12–15, "
       + "15–18, 18–20 Uhr) — „Flexibel“ oder keine Angabe zählt immer. Wer außerhalb seines Fensters liegt, "
       + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten. Neue Anträge "

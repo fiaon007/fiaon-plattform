@@ -34,6 +34,11 @@ import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { terminLink } from "./fiaon-termine";
 import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log";
 import { istGlobalKunde } from "./fiaon-global-kunde";
+import { berlinToday } from "./fiaon-time";
+import {
+  LEITUNG_AB_FEHLVERSUCH, RUHEND_AB_FEHLVERSUCH, STUFE_A_HOECHSTENS_WERKTAGE,
+  plusWerktage, staffelNachFehlversuch, stufeADeckeln,
+} from "@shared/fiaon-wiedervorlage";
 
 type Lauf = typeof sqlPool;
 
@@ -90,10 +95,14 @@ type Lauf = typeof sqlPool;
 
 /** Nach so vielen erfolglosen Versuchen geht der Terminlink raus. */
 export const SCHWELLE_MAIL = 6;
-/** Ab hier wird die Wiedervorlage gestreckt. */
+/**
+ * @deprecated E-IT-A (08.10.2026): Die Streckung steht jetzt als Staffel in
+ * shared/fiaon-wiedervorlage.ts (FEHLVERSUCH_STAFFEL) — sie beginnt mit dem
+ * ERSTEN Fehlversuch (+2 Werktage), nicht erst mit dem dritten.
+ */
 export const SCHWELLE_STRECKEN = 3;
-/** Ab hier ruht der Fall dauerhaft — raus aus der Tagesliste. */
-export const SCHWELLE_RUHEND = 9;
+/** Ab hier ruht der Fall dauerhaft — raus aus der Tagesliste. Wert: shared/fiaon-wiedervorlage.ts. */
+export const SCHWELLE_RUHEND = RUHEND_AB_FEHLVERSUCH;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STUFE A RUHT NIE — SIE WIRD ENTSCHIEDEN (19.08.2026, Betreiber)
@@ -103,6 +112,8 @@ export const SCHWELLE_RUHEND = 9;
 // geht es um Geld auf dem Weg zu uns; nach dem 9. Fehlversuch statt Ruhe:
 // Aufgabe an die Vertriebsleitung ‚Zahlung gemeldet, 9x nicht erreicht —
 // entscheiden' + Wiedervorlage +2 Tage."
+// E-IT-A (08.10.2026, Justin): Stufe A pausiert jetzt AUCH nach der Staffel —
+// aber höchstens 3 Werktage (vorher: jeden Tag fällig bis zum 9. Versuch).
 //
 // ── WARUM DAS DER RICHTIGE SCHNITT IST ────────────────────────────────────
 // Ein Kunde, der sagt „ich habe überwiesen", hat entweder bezahlt (dann fehlt
@@ -118,9 +129,13 @@ export const SCHWELLE_RUHEND = 9;
 // Schreibtisch, mit Frist.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Ab so vielen Fehlversuchen entscheidet die Vertriebsleitung über Stufe A. */
-export const SCHWELLE_LEITUNG = 9;
-/** Wiedervorlage für Stufe A nach der Meldung an die Leitung. */
+/** Ab so vielen Fehlversuchen entscheidet die Vertriebsleitung über Stufe A. Wert: shared/fiaon-wiedervorlage.ts. */
+export const SCHWELLE_LEITUNG = LEITUNG_AB_FEHLVERSUCH;
+/**
+ * @deprecated E-IT-A (08.10.2026): Vorher +2 Kalendertage. Stufe A pausiert
+ * jetzt nach derselben Staffel wie alle, aber HÖCHSTENS 3 Werktage
+ * (STUFE_A_HOECHSTENS_WERKTAGE) — auch nach der Meldung an die Leitung.
+ */
 export const LEITUNG_WIEDERVORLAGE_TAGE = 2;
 
 /**
@@ -134,9 +149,9 @@ export const LEITUNG_WIEDERVORLAGE_TAGE = 2;
 export function stufeASql(p = "p"): string {
   return `(COALESCE(${p}.priority_tier, 3) = 1)`;
 }
-/** Wiedervorlage ab dem 3. Versuch. */
+/** @deprecated E-IT-A (08.10.2026): ersetzt durch FEHLVERSUCH_STAFFEL (shared/fiaon-wiedervorlage.ts). */
 export const STRECKUNG_TAGE = 3;
-/** Wiedervorlage ab dem 6. Versuch. */
+/** @deprecated E-IT-A (08.10.2026): ab dem 6. Fehlversuch jetzt 14 Kalendertage Pause (PAUSE_KALENDERTAGE). */
 export const STRECKUNG_TAGE_LANG = 7;
 /** Frühestens so viele Tage nach der letzten Terminlink-Mail wieder eine. */
 export const MAIL_SPERRE_TAGE = 30;
@@ -163,12 +178,10 @@ export interface AutomatikWirkung {
 
 const LEER: AutomatikWirkung = { mail: null, ruht: false, wiedervorlage: null, hinweis: null };
 
-function tagPlus(n: number): string {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
+// E-IT-A (08.10.2026): Hier stand ein eigenes tagPlus mit SERVERZEIT (UTC) —
+// zwischen 0 und 2 Uhr Berliner Zeit lag es einen Tag daneben (Gegenprüfung).
+// Gerechnet wird jetzt nur noch auf dem Berliner Datum (berlinToday) mit den
+// Werktag-Funktionen der einen Regel.
 
 /**
  * Wird nach jedem erfolglosen Kontaktversuch aufgerufen — NACHDEM der Zähler
@@ -179,6 +192,14 @@ function tagPlus(n: number): string {
  */
 export async function automatikNachFehlversuch(
   personId: number, lauf: Lauf = sqlPool,
+  /**
+   * E-IT-A (08.10.2026): Kommt der Aufruf aus ergebnisAnwenden, hat die eine
+   * Regel (shared/fiaon-wiedervorlage.ts) die Wiedervorlage schon gesetzt —
+   * dann bleibt sie, und hier passiert nur, was die Regel nicht kann: Mail,
+   * Ruhe, Leitung. Die anderen Aufrufer (Termin verpasst, Startgespräch
+   * verpasst) zählen selbst hoch und lassen die Staffel hier setzen.
+   */
+  opts: { wiedervorlageGesetzt?: boolean; wiedervorlage?: string | null; frisch?: boolean } = {},
 ): Promise<AutomatikWirkung> {
   try {
     const [p] = (await lauf`
@@ -267,7 +288,7 @@ export async function automatikNachFehlversuch(
     // ── Schwelle 2a: STUFE A GEHT AN DIE VERTRIEBSLEITUNG ──────────────────
     // Gemeldete Zahlung: Hier ruht nichts. Es wird entschieden.
     if (versuche >= SCHWELLE_LEITUNG && istStufeA) {
-      const erg = await stufeAAnLeitung(personId, lauf);
+      const erg = await stufeAAnLeitung(personId, lauf, opts.wiedervorlage ?? null);
       wirkung.ruht = false;
       wirkung.wiedervorlage = erg.wiedervorlage;
       wirkung.hinweis = [wirkung.hinweis, erg.hinweis].filter(Boolean).join(" ");
@@ -304,34 +325,27 @@ export async function automatikNachFehlversuch(
                   NOW())
         `.catch((e) => console.error("[NICHT-ERREICHT] Verlaufseintrag Ruhend:", e));
       }
-    } else if (versuche >= SCHWELLE_STRECKEN && !istStufeA) {
-      // ── Die Wiedervorlage strecken (3.–8. Versuch, nicht Stufe A) ─────────
-      //
-      // Stufe A wird auch NICHT gestreckt. „Ruhen nie automatisch" heißt nicht
-      // nur „verschwinden nicht", sondern auch „werden nicht nach hinten
-      // geschoben": Bei einer gemeldeten Zahlung ist die offene Frage das Geld,
-      // nicht der Kontakt — und die Frage wird nicht dadurch kleiner, dass man
-      // sie um sieben Tage verlegt. Sie bleiben fällig, bis der 9. Versuch die
-      // Leitung einschaltet.
-      //
-      // Damit sagen Automatik und Bestandslauf dasselbe. Eine Regel, die im
-      // Lauf anders wirkt als im Betrieb, ist zwei Regeln.
-      // Nicht sperren, nur Abstand: Wer dreimal nicht dranging, ist nicht
-      // unerreichbar — aber morgen wieder anzurufen bringt nichts. Die
-      // Streckung wird NUR nach hinten verschoben, nie nach vorn, sonst zieht
-      // ein Lauf bestehende Zusagen zurück.
-      const tage = versuche >= SCHWELLE_MAIL ? STRECKUNG_TAGE_LANG : STRECKUNG_TAGE;
-      const bis = tagPlus(tage);
-      await lauf`
-        UPDATE fiaon_persons
-           SET follow_up_date = ${bis}::date, updated_at = NOW()
-         WHERE id = ${personId}
-           AND (follow_up_date IS NULL OR follow_up_date < ${bis}::date)
-      `;
-      wirkung.wiedervorlage = bis;
-      wirkung.hinweis = [wirkung.hinweis,
-        `${versuche}× nicht erreicht — Wiedervorlage auf ${bis} (+${tage} Tage).`]
-        .filter(Boolean).join(" ");
+    } else if (!opts.wiedervorlageGesetzt && versuche >= 1) {
+      // ── DIE STAFFEL FÜR DIE ANDEREN AUFRUFER (E-IT-A, 08.10.2026) ─────────
+      // Vorher: ab dem 3. Versuch +3 Tage, ab dem 6. +7 Tage, Stufe A nie.
+      // Jetzt dieselbe Staffel wie jedes Ergebnis (shared/fiaon-wiedervorlage.ts):
+      // 1 → +2 Werktage, 2 → +3, 3–4 → +5, 5 → +7 Tage, ab 6 → 14 Tage Pause;
+      // Stufe A höchstens 3 Werktage. Nur nach hinten verschieben, nie nach
+      // vorn — sonst zöge ein verpasster Termin eine bestehende Zusage zurück.
+      const s = staffelNachFehlversuch({ versuche, stufeA: istStufeA, frisch: opts.frisch === true, heute: berlinToday() });
+      const bis = s.datum;
+      if (bis) {
+        await lauf`
+          UPDATE fiaon_persons
+             SET follow_up_date = ${bis}::date, updated_at = NOW()
+           WHERE id = ${personId}
+             AND (follow_up_date IS NULL OR follow_up_date < ${bis}::date)
+        `;
+        wirkung.wiedervorlage = bis;
+        wirkung.hinweis = [wirkung.hinweis,
+          `${versuche}× nicht erreicht — Wiedervorlage auf ${bis} (${s.abstand}).`]
+          .filter(Boolean).join(" ");
+      }
     }
 
     return wirkung;
@@ -345,7 +359,8 @@ export async function automatikNachFehlversuch(
 // STUFE A AN DIE LEITUNG — ALS EIGENE FUNKTION, UND ZWAR AUS EINEM GRUND
 //
 // Der Bestandslauf muss dieselbe Wirkung erzeugen wie die Automatik: Marke weg,
-// Wiedervorlage +2 Tage, Aufgabe an die Leitung. Der naheliegende Weg wäre,
+// Wiedervorlage (seit E-IT-A, 08.10.2026: höchstens 3 Werktage statt +2 Tage),
+// Aufgabe an die Leitung. Der naheliegende Weg wäre,
 // `automatikNachFehlversuch` je Person aufzurufen.
 //
 // DAS WÄRE EIN FEHLER GEWESEN. Die Automatik verschickt ab dem 6. Fehlversuch
@@ -360,8 +375,14 @@ export async function automatikNachFehlversuch(
 // ═══════════════════════════════════════════════════════════════════════════
 export async function stufeAAnLeitung(
   personId: number, lauf: Lauf = sqlPool,
+  /** E-IT-A: von Hand gewählte Wiedervorlage (gewinnt); sonst höchstens 3 Werktage. */
+  gewaehlt: string | null = null,
 ): Promise<{ wiedervorlage: string; hinweis: string; aufgabe: boolean }> {
-  const bis = tagPlus(LEITUNG_WIEDERVORLAGE_TAGE);
+  // E-IT-A (08.10.2026): vorher +2 Kalendertage (Serverzeit). Jetzt die Regel:
+  // Stufe A pausiert höchstens STUFE_A_HOECHSTENS_WERKTAGE Werktage.
+  // Gegenprüfung 08.10.2026: Auch eine übergebene Wahl wird gedeckelt — nie
+  // später als 3 Werktage, auch nicht mit Aufgabe an die Leitung.
+  const bis = stufeADeckeln(gewaehlt, berlinToday(), true).datum || plusWerktage(berlinToday(), STUFE_A_HOECHSTENS_WERKTAGE);
   const [p] = (await lauf`
     SELECT p.unreachable_count,
            (SELECT a.ref FROM fiaon_applications a
@@ -384,7 +405,7 @@ export async function stufeAAnLeitung(
     aufgabe,
     hinweis: `${versuche}× nicht erreicht bei GEMELDETER Zahlung — der Fall ruht NICHT. `
       + (aufgabe ? "Die Vertriebsleitung hat eine Aufgabe „entscheiden“ bekommen. " : "")
-      + `Wiedervorlage in ${LEITUNG_WIEDERVORLAGE_TAGE} Tagen (${bis}).`,
+      + `Wiedervorlage am ${bis}.`,
   };
 }
 
@@ -511,6 +532,10 @@ export async function erreichtZuruecksetzen(personId: number, lauf: Lauf = sqlPo
     UPDATE fiaon_persons SET unreachable_count = 0, ruhe_seit = NULL, updated_at = NOW()
     WHERE id = ${personId} AND (unreachable_count > 0 OR ruhe_seit IS NOT NULL)
   `.catch(() => {});
+  // E-IT-A (08.10.2026): Die Entprellungs-Marke fällt mit — ein Fehlversuch
+  // NACH einem Gespräch ist ein neuer Versuch, keine Doppelbuchung.
+  const { fehlversuchMarkeZuruecksetzen } = await import("./fiaon-fehlversuch");
+  await fehlversuchMarkeZuruecksetzen(personId, lauf).catch(() => {});
 }
 
 /**

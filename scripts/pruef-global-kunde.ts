@@ -665,7 +665,11 @@ const zaehle = (text: string, muster: string) => text.split(muster).length - 1;
     f.includes("const KEIN_GLOBAL_KUNDE_SQL = `NOT ${globalKundeSql(\"p.id\")}`;"));
   pruef("… und steht in Rückfall (2×), Platzzählung, Pool-Zug und der Basis der Arbeitsliste (≥ 5 Stellen)",
     zaehle(f, "${KEIN_GLOBAL_KUNDE_SQL}") >= 4 && zaehle(f, "KEIN_GLOBAL_KUNDE_SQL,") >= 1, { stellen: zaehle(f, "KEIN_GLOBAL_KUNDE_SQL") - 1 });
-  pruef("… die Arbeitsliste stellt die Tabelle vorher sicher", vorher(rumpf(f, `router.get("/agent/vertrieb/arbeitsliste"`), "await globalKundeBereit()", "KEIN_GLOBAL_KUNDE_SQL,"));
+  // E-IT-A (08.10.2026): Die Abfragen der Arbeitsliste stehen jetzt in arbeitslisteLesen()
+  // (prüfbar mit lauf-Parameter); die Route ruft sie. Beide stellen die Tabelle vorher sicher.
+  pruef("… die Arbeitsliste stellt die Tabelle vorher sicher",
+    vorher(rumpf(f, `router.get("/agent/vertrieb/arbeitsliste"`), "await globalKundeBereit()", "await arbeitslisteLesen(")
+      && vorher(rumpf(f, "export async function arbeitslisteLesen("), "await globalKundeBereit()", "KEIN_GLOBAL_KUNDE_SQL,"));
 }
 {
   const f = quelle("server/routes/fiaon-followup.ts");

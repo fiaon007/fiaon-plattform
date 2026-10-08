@@ -114,9 +114,13 @@ export async function uebergabeAnNaechsten(
     // Grund und Akteur für den Protokoll-Trigger (Migration 033).
     await tx`SELECT set_config('fiaon.reason', 'anrufer_blockiert', true)`;
     await tx`SELECT set_config('fiaon.actor', ${`agent:${akteurId}`}, true)`;
+    // E-IT-A (08.10.2026): heute in BERLIN, nicht CURRENT_DATE (UTC). Eine
+    // Wiedervorlage auf heute hebt die Tagespause der Arbeitsliste auf — mit
+    // dem UTC-Datum lag sie zwischen 0 und 2 Uhr auf gestern, und der neue
+    // Betreuer hätte den Kunden erst 20 Stunden später gesehen.
     await tx`
       UPDATE fiaon_persons
-         SET assigned_agent_id = ${ziel.id}, follow_up_date = CURRENT_DATE, updated_at = NOW()
+         SET assigned_agent_id = ${ziel.id}, follow_up_date = (NOW() AT TIME ZONE 'Europe/Berlin')::date, updated_at = NOW()
        WHERE id = ${personId}
     `;
     // Die Bestellungen ziehen mit. Liefen sie auseinander, wäre der Kunde für

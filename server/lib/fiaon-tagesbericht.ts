@@ -228,6 +228,77 @@ export async function berichtFuer(agentId: number, tag: string): Promise<any | n
 }
 
 /**
+ * Die Nachträge eines Tagesberichts buchen (E-216; E-IT-A, Gegenprüfung 08.10.2026).
+ * Jeder Nachtrag geht den normalen Weg (ergebnisAnwenden — Wiedervorlage,
+ * Zähler, Betreuung) und hinterlässt EINE Systemzeile im Verlauf.
+ * `lauf`: Verbindung oder Transaktion (Prüfstand); Vorgabe der Pool.
+ */
+export async function nachtraegeBuchen(
+  agent: { id: number; name: string },
+  tag: string,
+  nachgetragen: BerichtEingabe["nachgetragen"],
+  zusagenEingabe: BerichtEingabe["zusagen"],
+  lauf: any = sqlPool,
+): Promise<{ gebucht: number; zusagen: number }> {
+  // ── NACHTRÄGE: KONTAKT FÜR DIE PIPELINE, KEIN SYSTEM-ERGEBNIS ───────────────
+  // (E-IT-A, Gegenprüfung 08.10.2026) In der ersten Fassung von E-IT-A wurden
+  // Nachträge als type 'result' mit created_at = NOW() geschrieben. Damit zählten
+  // Selbstangaben in Leistung, Teamzahlen, Chefbüro, aufzeichnungFuer und „heute
+  // erledigt" mit — E-216 legt aber fest: Systemzahl und Selbstangabe werden NIE
+  // addiert. Und sie trugen den Zeitpunkt der ABGABE: Wer den Montagsbericht
+  // Dienstag früh abgibt, hätte 30 Montagsgespräche als Dienstagsergebnisse.
+  // JETZT: Systemzeile ohne outcome (wie vor E-IT-A, nichts zählt sie mit), mit
+  // fester Marke am Anfang der Notiz (TAGESBERICHT_NACHTRAG_MARKE) — daran erkennt
+  // die Pipeline den Kontakt (kontaktZeileSql: Rotation, Tagespause, „nie
+  // angerufen"). Zeitpunkt: Mittag des Berichtstags (nie später als jetzt), und
+  // die Wiedervorlage rechnet ab dem Berichtstag (ergebnisAnwenden, amTag).
+  const { TAGESBERICHT_NACHTRAG_MARKE } = await import("./fiaon-pipeline-reihung");
+  const tagDe = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? tag.split("-").reverse().join(".") : tag;
+
+  let gebucht = 0;
+  for (const n of nachgetragen.slice(0, 200)) {
+    try {
+      const { ergebnisAnwenden, istErgebnis, ERGEBNIS_TEXT } = await import("./fiaon-kontakt-ergebnis");
+      if (!istErgebnis(n.ergebnis)) continue;
+      const [a] = (await lauf`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${n.personId} AND merged_into IS NULL
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      await ergebnisAnwenden({ ref: a?.ref ?? null, personId: n.personId, ergebnis: n.ergebnis as any, amTag: tag }, lauf);
+      // Der Grund gehört in den Verlauf — sonst steht dort ein Ergebnis ohne
+      // Anruf, und beim nächsten Blick fragt jemand, wo das Gespräch herkommt.
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${a?.ref ?? null}, ${n.personId}, ${agent.id}, ${agent.name}, 'system',
+                ${`${TAGESBERICHT_NACHTRAG_MARKE} vom ${tagDe}: über das eigene Telefon geführt — ${ERGEBNIS_TEXT[n.ergebnis as keyof typeof ERGEBNIS_TEXT] ?? n.ergebnis}.`},
+                LEAST(NOW(), (${tag}::date + TIME '12:00') AT TIME ZONE 'Europe/Berlin'))`.catch(() => {});
+      gebucht++;
+    } catch (err) { console.error("[TAGESBERICHT] Ergebnis nachtragen:", err); }
+  }
+
+  let zusagen = 0;
+  for (const z of zusagenEingabe.slice(0, 100)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(z.datum)) continue;
+    try {
+      // E-IT-A (08.10.2026): Eine Zusage ist ein „zahlt am" — dieselbe Regel wie
+      // überall (Wiedervorlage am Werktag nach dem Tag, Zähler zurück, Betreuung).
+      // Vorher setzte dieser Weg nur das Datum, ohne Wiedervorlage.
+      const { ergebnisAnwenden } = await import("./fiaon-kontakt-ergebnis");
+      const [az] = (await lauf`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${z.personId} AND merged_into IS NULL
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      await ergebnisAnwenden({ ref: az?.ref ?? null, personId: z.personId, ergebnis: "erreicht_zahlt_am", zusageDatum: z.datum, amTag: tag }, lauf);
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${az?.ref ?? null}, ${z.personId}, ${agent.id}, ${agent.name}, 'system',
+                ${`${TAGESBERICHT_NACHTRAG_MARKE} vom ${tagDe}: Zahlungszusage für den ${z.datum.split("-").reverse().join(".")}.`},
+                LEAST(NOW(), (${tag}::date + TIME '12:00') AT TIME ZONE 'Europe/Berlin'))`.catch(() => {});
+      zusagen++;
+    } catch (err) { console.error("[TAGESBERICHT] Zusage nachtragen:", err); }
+  }
+  return { gebucht, zusagen };
+}
+
+/**
  * Den Bericht abgeben. Alles Nachgetragene geht ZUSÄTZLICH den normalen Weg —
  * der Bericht ist ein Eingang, keine zweite Wahrheit.
  */
@@ -239,39 +310,9 @@ export async function berichtAbgeben(
   await tagesberichtTabelle();
   const aufzeichnung = await aufzeichnungFuer(agent.id, tag);
 
-  let gebucht = 0;
-  for (const n of e.nachgetragen.slice(0, 200)) {
-    try {
-      const { ergebnisAnwenden, istErgebnis } = await import("./fiaon-kontakt-ergebnis");
-      if (!istErgebnis(n.ergebnis)) continue;
-      const [a] = (await sqlPool`
-        SELECT ref FROM fiaon_applications WHERE person_id = ${n.personId} AND merged_into IS NULL
-         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
-      await ergebnisAnwenden({ ref: a?.ref ?? null, personId: n.personId, ergebnis: n.ergebnis as any });
-      // Der Grund gehört in den Verlauf — sonst steht dort ein Ergebnis ohne
-      // Anruf, und beim nächsten Blick fragt jemand, wo das Gespräch herkommt.
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-        VALUES (${a?.ref ?? null}, ${n.personId}, ${agent.id}, ${agent.name}, 'system',
-                ${`Über das eigene Telefon geführt, im Tagesbericht vom ${tag} nachgetragen.`}, NOW())`.catch(() => {});
-      gebucht++;
-    } catch (err) { console.error("[TAGESBERICHT] Ergebnis nachtragen:", err); }
-  }
-
-  let zusagen = 0;
-  for (const z of e.zusagen.slice(0, 100)) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(z.datum)) continue;
-    try {
-      await sqlPool`
-        UPDATE fiaon_persons SET promised_payment_date = ${z.datum}::date, updated_at = NOW()
-         WHERE id = ${z.personId}`;
-      await sqlPool`
-        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
-        VALUES (${z.personId}, ${agent.id}, ${agent.name}, 'system',
-                ${`Zahlungszusage für den ${z.datum} — im Tagesbericht vom ${tag} nachgetragen.`}, NOW())`.catch(() => {});
-      zusagen++;
-    } catch (err) { console.error("[TAGESBERICHT] Zusage nachtragen:", err); }
-  }
+  // E-IT-A (Gegenprüfung 08.10.2026): die Nachträge in eigener Funktion (mit
+  // lauf-Parameter, prüfbar in einer zurückgerollten Transaktion).
+  const { gebucht, zusagen } = await nachtraegeBuchen(agent, tag, e.nachgetragen, e.zusagen);
 
   // Der Verbesserungsvorschlag geht in den BESTEHENDEN Kanal. Ein zweiter Topf
   // wäre ein Topf, in den niemand schaut.

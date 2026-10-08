@@ -117,6 +117,9 @@ function main(): void {
     "client/src/pages/agent/leads.tsx": "Lead-Strecke, eigene Werte",
     "client/src/pages/admin-leads.tsx": "Lead-Strecke, eigene Werte",
     "server/routes/fiaon-leads.ts": "Lead-Strecke, eigene Werte",
+    // E-IT-A (08.10.2026): Die eine Wiedervorlage-Regel ordnet JEDEM Ergebnis
+    // seinen nächsten Tag und Grund zu — wie fiaon-kontakt-ergebnis.ts den Zustand.
+    "shared/fiaon-wiedervorlage.ts": "die Wiedervorlage-Regel je Ergebnis (wann wieder, warum) — muss jeden Wert nennen",
   };
   const neueFassung: string[] = [];
   for (const d of [...dateien("client/src"), ...dateien("server"), ...dateien("shared")]) {

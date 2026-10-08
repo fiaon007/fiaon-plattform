@@ -2145,6 +2145,7 @@ function KundenKarte({
           kundeName={k.name}
           heute={heuteIso()}
           vorgabeDatum={datumWert}
+          stufeA={k.tier === 1}
         />
         <p className="mt-1.5 text-[11.5px] fi-zahl" style={{ color: "var(--fi-text-still)" }}>
           {k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}

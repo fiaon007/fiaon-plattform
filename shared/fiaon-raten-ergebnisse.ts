@@ -34,7 +34,10 @@ export const RATEN_ERGEBNISSE: {
   },
   {
     art: "nicht_erreicht", label: "Nicht erreicht",
-    hinweis: "Zählt den Versuch und legt die Rate auf morgen.",
+    // E-IT-A (08.10.2026): Der Mensch folgt der einen Wiedervorlage-Regel
+    // (shared/fiaon-wiedervorlage.ts), nicht mehr „morgen".
+    hinweis: "Zählt den Versuch (doppelt gebucht zählt er einmal). Wieder dran nach der Regel: "
+      + "zuerst in 2 Werktagen, danach in wachsendem Abstand, ab dem 6. Versuch 14 Tage Pause.",
   },
   // ── DIE BLOCKIER-MARKE, JETZT AUCH HIER (30.08.2026) ────────────────────
   // Der Vertrieb hat sie seit Wochen, das Forderungsmanagement nicht — und

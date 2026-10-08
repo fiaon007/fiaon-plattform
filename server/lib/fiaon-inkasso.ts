@@ -154,9 +154,15 @@ export {
   RATEN_ERGEBNISSE, BLOCKIERT_RUHE_TAGE, istRatenErgebnis, type RatenErgebnis,
 } from "@shared/fiaon-raten-ergebnisse";
 import { RATEN_ERGEBNISSE, BLOCKIERT_RUHE_TAGE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
+import { naechsterVersuch, ratenErgebnisAlsKontakt } from "@shared/fiaon-wiedervorlage";
 
 
-/** Ab dem wievielten vergeblichen Versuch ruht eine Rate — und wie lange. */
+/**
+ * Ab dem wievielten vergeblichen Versuch ruht eine RATE — und wie lange.
+ * E-IT-A (08.10.2026): gilt nur noch für die Rate selbst (inkasso_wiedervorlage,
+ * Collections). Die PERSON folgt der einen Regel (shared/fiaon-wiedervorlage.ts)
+ * — vorher trug sie diese dritte Staffel seit E-168 mit.
+ */
 export const NICHT_ERREICHT_RUHE_AB = 5;
 export const NICHT_ERREICHT_RUHE_TAGE = 14;
 
@@ -236,7 +242,9 @@ export async function ratenErgebnisAnwenden(
           + "Die Mahnungen laufen weiter; der Anrufweg pausiert.";
       } else {
         wiedervorlage = berlinPlusTage(1);
-        meldung = `Nicht erreicht (${versucheDanach}. Versuch) — morgen erneut.`;
+        // E-IT-A: „morgen erneut" galt nur für die Rate (Collections). Wann der
+        // MENSCH wieder in der Pipeline steht, hängt die eine Regel unten an.
+        meldung = `Nicht erreicht (${versucheDanach}. Versuch an dieser Rate).`;
       }
       break;
     }
@@ -293,17 +301,51 @@ export async function ratenErgebnisAnwenden(
   // „Wieder dran". Jetzt trägt jedes Ratenergebnis die Person nach und schreibt
   // ein Gesprächsergebnis in den Verlauf (Akte und „heute erreicht" lesen
   // fiaon_contact_log, nicht fiaon_raten_arbeit).
+  // ── E-IT-A (08.10.2026): DIE PERSON FOLGT DER EINEN REGEL ───────────────
+  // Bis hierher trug die Person die Raten-Staffel (+1 Tag, ab 5 Versuchen
+  // 14 Tage) — eine dritte Staffel neben Vertrieb und Ergebnis-Standard. Jetzt:
+  //   · Die RATE behält ihre Frist (inkasso_wiedervorlage, Collections) —
+  //     die Variable `wiedervorlage` oben bleibt allein ihre.
+  //   · Die PERSON bekommt das Datum der einen Regel (shared/fiaon-wiedervorlage.ts),
+  //     abgebildet über ratenErgebnisAlsKontakt: zahlt am → Werktag nach X,
+  //     Beleg → 3 Werktage „Zahlung prüfen", nicht erreicht → Staffel.
+  //     „Nummer blockiert" und „Härtefall" übernehmen die Frist der Rate.
+  //   · Der Fehlversuch zählt entprellt (fiaon-fehlversuch.ts) — die Akte und
+  //     das Softphone buchen denselben Anruf sonst zweimal.
+  let gezaehlt = true;
   {
     const [pz] = (await lauf`SELECT person_id FROM fiaon_applications WHERE ref = ${rate.ref} LIMIT 1`) as any[];
     const pid = pz?.person_id ? Number(pz.person_id) : null;
     if (pid) {
       const erreicht = opts.ergebnis === "zahlt_am" || opts.ergebnis === "ueberwiesen_beleg" || opts.ergebnis === "eskalation" || opts.ergebnis === "ratenpause";
-      const zaehlerPlus = opts.ergebnis === "nicht_erreicht" ? 1 : 0;
+      const { fehlversuchZaehlen, fehlversuchMarkeZuruecksetzen, wiedervorlageKontext } = await import("./fiaon-fehlversuch");
+      let versucheNachher = 0;
+      if (opts.ergebnis === "nicht_erreicht") {
+        const z = await fehlversuchZaehlen(pid, lauf);
+        versucheNachher = z.versuche;
+        gezaehlt = z.gezaehlt;
+      } else if (erreicht) {
+        await fehlversuchMarkeZuruecksetzen(pid, lauf).catch(() => {});
+      }
+      let personWiedervorlage: string | null = wiedervorlage;
+      const kontaktArt = ratenErgebnisAlsKontakt(opts.ergebnis);
+      if (kontaktArt) {
+        const k = await wiedervorlageKontext(pid, lauf);
+        const regel = naechsterVersuch({
+          ergebnis: kontaktArt, heute: berlinToday(), versucheNachher,
+          stufeA: k.stufeA, frisch: k.frisch, zusageDatum: zusage,
+        });
+        personWiedervorlage = regel.ruhend ? null : regel.datum;
+        if (opts.ergebnis === "nicht_erreicht" && !gezaehlt) {
+          meldung = `${meldung} Derselbe Versuch war in den letzten Minuten schon gezählt — er zählt nicht doppelt.`;
+        }
+        meldung = `${meldung} ${regel.text}.`;
+      }
       await lauf`
         UPDATE fiaon_persons SET
-          follow_up_date = ${wiedervorlage},
+          follow_up_date = ${personWiedervorlage},
           promised_payment_date = CASE WHEN ${opts.ergebnis === "zahlt_am"} THEN ${zusage}::date ELSE promised_payment_date END,
-          unreachable_count = CASE WHEN ${erreicht} THEN 0 ELSE COALESCE(unreachable_count, 0) + ${zaehlerPlus} END,
+          unreachable_count = CASE WHEN ${erreicht} THEN 0 ELSE COALESCE(unreachable_count, 0) END,
           ruhe_seit = CASE WHEN ${erreicht} THEN NULL ELSE ruhe_seit END,
           updated_at = NOW()
         WHERE id = ${pid}`.catch((e: any) => console.error("[INKASSO] Person nachtragen:", e?.message || e));
@@ -328,7 +370,7 @@ export async function ratenErgebnisAnwenden(
     UPDATE fiaon_abo_raten SET
       inkasso_wiedervorlage = ${wiedervorlage},
       inkasso_zusage_am = ${opts.ergebnis === "zahlt_am" ? zusage : null},
-      inkasso_versuche = inkasso_versuche + ${opts.ergebnis === "nicht_erreicht" ? 1 : 0},
+      inkasso_versuche = inkasso_versuche + ${opts.ergebnis === "nicht_erreicht" && gezaehlt ? 1 : 0},
       inkasso_agent_id = ${opts.agentId},
       inkasso_letzte_arbeit = NOW(),
       eskaliert_am = ${eskaliert ? new Date() : null},

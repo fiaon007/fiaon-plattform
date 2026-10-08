@@ -133,6 +133,11 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
 import { schritteFuer } from "@shared/fiaon-gespraechs-schritte";
+// E-IT-A (08.10.2026): die eine Wiedervorlage-Regel — Wahl, Vorschau, Texte.
+import {
+  WiedervorlageWahl, vorschauFuer, vorschauMitDatum, wahlDatum, heuteBerlin, type WiedervorlageKontext,
+} from "@/components/agent/WiedervorlageWahl";
+import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
@@ -210,6 +215,14 @@ export interface Kunde {
   vollstaendig?: boolean;
   /** E-162: warum dieser Mensch jetzt oben steht — Art, Alter des Ereignisses, noch ohne Anruf. */
   hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean; jetztErreichbar?: boolean; sofort?: boolean } | null;
+  /** E-IT-A: der letzte Versuch (Ergebnis oder echter Anruf) — nur an den Karten der Arbeitsliste. */
+  letzterVersuch?: string | null;
+  /** E-IT-A: der Grund in Worten („Zahlung prüfen", „Pause nach vielen Fehlversuchen" …). */
+  wiederText?: string | null;
+  /** E-IT-A: Zusage fällig UND seither nicht versucht — nur dann ist sie dringend. */
+  zusageOffen?: boolean;
+  wiederGrund?: string;
+  versuche?: number;
 }
 
 type Zaehler = Record<string, number>;
@@ -324,8 +337,21 @@ function hitzeText(k: Kunde): string | null {
 }
 function rueckrufFaellig(k: Kunde): boolean {
   if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return true;
+  // E-IT-A (08.10.2026): Eine abgelaufene Zusage, nach der schon versucht wurde,
+  // ist kein roter Fall mehr — der Server sagt es (zusageOffen), wo er es weiß.
+  if (k.zusageOffen === false) return false;
   const z = relativ(k.zusagedatum);
   return !!z?.dringend;
+}
+/** E-IT-A: „zuletzt versucht vor 23 Tagen" — Ergebnis ODER echter Anruf, sonst der letzte Kontakt. */
+function versuchText(k: Kunde): string {
+  const iso = k.letzterVersuch ?? null;
+  if (!iso) return wartezeit(k.letzterKontakt);
+  const t = kontaktTage(iso);
+  if (t == null) return "noch nie versucht";
+  if (t <= 0) return "heute versucht";
+  if (t === 1) return "gestern versucht";
+  return `zuletzt versucht vor ${t} Tagen`;
 }
 // ── 19.09.2026 (E-194): KEIN EINZUGS-GRUND MEHR AN DER RATE ────────────────
 // Hier stand eine Funktion, die jeder offenen Rate einen Grund gab: Abbuchung
@@ -449,7 +475,10 @@ function vergleich(a: Kunde, b: Kunde): number {
 function warumJetzt(k: Kunde): string {
   if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return `Rückruf war für ${terminText(k.rueckrufAm)} vereinbart – er wartet auf dich.`;
   const z = relativ(k.zusagedatum);
-  if (z?.dringend) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
+  // E-IT-A (Gegenprüfung 08.10.2026, G4): Auf Stufe A (Zahlung gemeldet) ist die
+  // alte Zusage nicht das Thema — der Kunde sagt, er habe bezahlt. Dann gilt der
+  // Satz „Eingang prüfen“ unten, wie in der Akte (kundenSituation), nicht „nachfassen“.
+  if (z?.dringend && k.tier !== 1) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
   const s = stufeVon(k);
   if (s === "rate") return `Rate${k.rateNr ? ` ${k.rateNr}` : ""} über ${k.rateCents ? eur(k.rateCents) : "—"} ist ${k.rateFaelligAm ? `seit ${dtag(k.rateFaelligAm)} ` : ""}überfällig. Weich einsteigen: vorstellen, entschuldigen, zuhören – kein Inkasso-Ton.`;
   if (s === "heiss" && k.tier === 0) return "Bezahlt, aber noch kein Termin. Willkommen heißen und den nächsten freien Termin vergeben.";
@@ -609,6 +638,10 @@ function PipelineInnen() {
   // VORHER wurden vier Stufen-Zähler geladen und nie angezeigt — der Verkäufer
   // sah sechs Karten und wusste nicht, dass 400 dahinter warten.
   const [vorrat, setVorrat] = useState<{ neu: number; wieder: number }>({ neu: 0, wieder: 0 });
+  // E-IT-A (08.10.2026): Kopf der rechten Spalte — „heute erledigt X · Y pausiert",
+  // und die Liste der Pausierten (ein Klick auf „Y pausiert").
+  const [heuteStand, setHeuteStand] = useState<{ erledigt: number; pausiert: number } | null>(null);
+  const [pausiertOffen, setPausiertOffen] = useState(false);
   const [slotsLaedt, setSlotsLaedt] = useState(true);
   const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
   const [fokusId, setFokusId] = useState<number | null>(null);
@@ -684,6 +717,7 @@ function PipelineInnen() {
       setSlots(r.json.slots || []);
       setWieder(r.json.wieder || []);
       setVorrat({ neu: Number(r.json.vorrat?.neu || 0), wieder: Number(r.json.vorrat?.wieder || 0) });
+      setHeuteStand(r.json.heute ? { erledigt: Number(r.json.heute.erledigt || 0), pausiert: Number(r.json.heute.pausiert || 0) } : null);
       if (r.json.rolle) setRolle(r.json.rolle);
       if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
       setSlotsFehler(null);
@@ -991,6 +1025,17 @@ function PipelineInnen() {
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Wieder dran</b>
                 {vorrat.wieder > wiederOhneFokus.length && <span className="pi-vorrat">noch {vorrat.wieder}</span>}
                 <span className="linie" aria-hidden="true" /></div>
+              {/* E-IT-A (08.10.2026): Was heute geschafft ist und wer bewusst wartet.
+                  „Pausiert" heißt: Die Wiedervorlage-Regel hält ihn zurück (zahlt sofort
+                  3 Werktage, nicht erreicht mit wachsendem Abstand, ab dem 6. Versuch
+                  14 Tage). Ein Klick zeigt wen — und holt ihn auf Wunsch sofort zurück. */}
+              {heuteStand && (
+                <div className="pi-spalte-kopfzeile" data-fiaon="wieder-kopf">
+                  <span>heute erledigt {heuteStand.erledigt}</span><span aria-hidden="true">·</span>
+                  <button type="button" className="pi-link" data-fiaon="pausiert-oeffnen" aria-expanded={pausiertOffen}
+                          onClick={() => setPausiertOffen((v) => !v)}>{heuteStand.pausiert} pausiert</button>
+                </div>
+              )}
               {wiederOhneFokus.length === 0 ? <p className="pi-fussnote pi-spalte-leer">Niemand wartet auf einen zweiten Versuch — nicht erreicht, Rückrufe und heutige Termine erscheinen hier.</p> : (
               <KleinesKarussell kinder={wiederOhneFokus} geht={geht} gesperrt={offen != null} flach={ruhig}
                                 onFokus={(id) => setFokusId(id)}
@@ -998,6 +1043,10 @@ function PipelineInnen() {
                                 onEntfernen={(k) => void karteileiche(k)} />)}
               </div>
               </div>
+              {pausiertOffen && (
+                <PausiertListe onZu={() => setPausiertOffen(false)} onAkte={(id) => oeffnen(id)}
+                               onGeaendert={() => { void arbeitslisteLaden(true); }} />
+              )}
               </div>
             </section>
           )}
@@ -1095,7 +1144,8 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
     <div className="pi-fokus-buehne" ref={buehne} onMouseMove={neigen} onMouseLeave={geradeStellen}>
     <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
-        <span className="pi-pille">{faellig ? "Rückruf fällig" : (hitzeText(k) ?? "Jetzt anrufen")}</span>
+        {/* E-IT-A: Eine offene Zusage heißt „Zahlung/Zusage prüfen“ — nicht „Rückruf fällig“. */}
+        <span className="pi-pille">{faellig && k.wiederGrund === "zusage" ? (k.wiederText || "Zahlung prüfen") : faellig ? "Rückruf fällig" : (hitzeText(k) ?? "Jetzt anrufen")}</span>
         <button type="button" className="pi-link" style={{ color: "#64748b" }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </div>
       <h1>{k.name}</h1>
@@ -1106,7 +1156,7 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
         <span className="pi-marke">Wert: {preis ? euro0(wert) : "–"} · 12 Raten</span>
         <span className="pi-marke gut">Deine Provision: {preis ? euro0(Math.round(wert * satz)) : "–"}</span>
         {k.gekuendigtAm && <span className="pi-marke gekuendigt">{k.vertragBeendet ? "Vertrag beendet" : "Gekündigt"}</span>}
-        <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
+        <span className="pi-marke still">{versuchText(k)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}{k.wiederText && k.wiederGrund !== "nicht_erreicht" ? ` · ${k.wiederText}` : ""}</span>
         {/* E-184: Wann will der Kunde angerufen werden? Aus dem Antrag; „jetzt außerhalb“ heißt: sein Fenster ist gerade nicht. */}
         {k.erreichbarkeit && (
           <span className={`pi-marke${k.hitze?.jetztErreichbar === false ? " still" : " gut"}`} title="So hat der Kunde es im Antrag angegeben.">
@@ -1127,6 +1177,68 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PAUSIERT — WER BEWUSST WARTET (E-IT-A, 08.10.2026)
+//
+// Die Wiedervorlage-Regel hält Menschen zurück: nach „zahlt sofort" drei
+// Werktage, nach „nicht erreicht" mit wachsendem Abstand, ab dem 6. Fehlversuch
+// 14 Tage. Eine Liste, die jemanden wortlos zurückhält, lässt den Mitarbeiter
+// glauben, der Kunde sei verloren (Hans-Jürgen, 27.08.: „finde sie nicht mehr").
+// Hier steht, wer wartet, bis wann und warum — und „Heute wieder dran" holt
+// ihn mit einem Klick zurück (POST /agent/crm/kunden/:id/wiedervorlage).
+// ═══════════════════════════════════════════════════════════════════════════
+function PausiertListe({ onZu, onAkte, onGeaendert }: { onZu: () => void; onAkte: (id: number) => void; onGeaendert: () => void }) {
+  const [liste, setListe] = useState<{ personId: number; name: string; text: string | null; grundText: string; versuche: number; letzterVersuch: string | null }[] | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState<number | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  const laden = useCallback(async () => {
+    const r = await api("/agent/vertrieb/pausiert");
+    if (r.ok) { setListe(r.json.personen || []); setFehler(null); }
+    else setFehler(r.json?.error || "Die Liste „pausiert“ ließ sich nicht laden.");
+  }, []);
+  useEffect(() => { void laden(); }, [laden]);
+  const zurueckholen = async (id: number, name: string) => {
+    setLaeuft(id); setMeldung(null);
+    const r = await api(`/agent/crm/kunden/${id}/wiedervorlage`, { method: "POST", body: JSON.stringify({ wahl: "heute" }) });
+    setLaeuft(null);
+    if (!r.ok) { setMeldung({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return; }
+    setMeldung({ art: "gut", text: `${name}: ${r.json.meldung || "wieder dran."}` });
+    await laden();
+    onGeaendert();
+  };
+  return (
+    <div className="pi-pausiert" data-fiaon="pausiert-liste">
+      <div className="pi-pausiert-kopf">
+        <b>Pausiert — wartet nach der Wiedervorlage-Regel</b>
+        <button type="button" className="pi-link" onClick={onZu}>schließen</button>
+      </div>
+      <p className="pi-fussnote">Diese Menschen kommen von selbst zurück, sobald ihr Tag da ist. Willst du einen früher sprechen, hol ihn mit „Heute wieder dran“ sofort unter „Wieder dran“.</p>
+      {meldung && <p className={`pi-meldung${meldung.art === "gut" ? " gut" : ""}`}>{meldung.text}</p>}
+      {fehler && <p className="pi-fehler">{fehler}</p>}
+      {liste === null && !fehler ? <p className="pi-fussnote">Lade …</p>
+        : liste && liste.length === 0 ? <p className="pi-fussnote">Gerade pausiert niemand.</p>
+        : liste && (
+          <ul className="pi-pausiert-liste">
+            {liste.map((m) => (
+              <li key={m.personId} className="pi-pausiert-zeile">
+                <b>{m.name}</b>
+                <small>{m.text ?? m.grundText}{m.versuche > 0 ? ` · ${m.versuche}× nicht erreicht` : ""}{m.letzterVersuch ? ` · zuletzt versucht ${dtag(m.letzterVersuch)}` : ""}</small>
+                <span className="pi-pausiert-tun">
+                  <button type="button" className="pi-link" onClick={() => onAkte(m.personId)}>Akte</button>
+                  <button type="button" className="pi-knopf still klein" data-fiaon="heute-wieder-dran"
+                          disabled={laeuft === m.personId} onClick={() => void zurueckholen(m.personId, m.name)}>
+                    {laeuft === m.personId ? "…" : "Heute wieder dran"}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  );
+}
+
 /** Eine der 5 kleinen Karten der Arbeitsliste. */
 function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   k: Kunde; gruppe: string; geht: boolean; onFokus: () => void; onAkte: () => void; onEntfernen: () => void;
@@ -1137,16 +1249,17 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   return (
     <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
-        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig"
+        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig && k.wiederGrund === "zusage" ? (k.wiederText || "Zahlung prüfen")
+          : faellig ? "Rückruf fällig"
           : (k as any).wiederGrund === "termin" ? "Termin heute"
           : (k as any).wiederGrund === "rueckruf" ? "Rückruf vereinbart"
           : (k as any).wiederGrund === "nicht_erreicht" ? `Nicht erreicht · ${(k as any).versuche || 1}× versucht`
-          : (k as any).wiederGrund === "zusage" ? "Zusage nicht gehalten"
+          : (k as any).wiederGrund === "zusage" ? (k.wiederText || "Zusage prüfen")
           : (k as any).wiederGrund === "rate" ? "Rate fällig"
           : (k as any).wiederGrund === "wiedervorlage" ? (hitzeText(k) ?? "Wieder dran")
           : (hitzeText(k) ?? info.name)}</small></span>
         <b>{k.name}</b>
-        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
+        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {versuchText(k)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
       </button>
       <span className="pi-ak-tun">
         <button type="button" className="pi-knopf klein" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
@@ -2069,6 +2182,9 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
   // E-044/§16: Aktivität + Vollständigkeit (Kartenstatus-Weiche)
   const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean }; situation?: any } | null>(null);
   const [aktFehler, setAktFehler] = useState<string | null>(null);
+  // E-IT-A (08.10.2026): Nach einem Ergebnis oder „Heute wieder dran" lädt die
+  // Situation neu — sonst zeigt der Kopf die alte Wiedervorlage weiter.
+  const [aktStand, setAktStand] = useState(0);
   // ── E-046: Situations-Kopf (Justin: „auf 1 Blick sehen, auf 1 Klick handeln“) ──
   const [mehrOffen, setMehrOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
@@ -2132,7 +2248,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
       else setAktFehler(r.json?.error || "Die Aktivität konnte nicht geladen werden.");
     });
     return () => { an = false; };
-  }, [k.personId]);
+  }, [k.personId, aktStand]);
   // Anrufe und Dokumente erst laden, wenn der Reiter sie braucht — und bei JEDEM
   // Öffnen des Reiters frisch (19.09.2026): Lädt der Kunde hoch, während die Akte
   // offen ist, steht es beim nächsten Blick auf „Dokumente" da. Bis dahin bleibt
@@ -2354,8 +2470,21 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
     else if (r.json.kunde) { onNeu(r.json.kunde); onErledigt(); }
     else onErledigt();
     if (art === "notiz") await verlaufNachladen(); else void verlaufNachladen();
+    setAktStand((n) => n + 1);
     onZaehler();
     return true;
+  };
+  // ── E-IT-A (08.10.2026): „Heute wieder dran" — die Wiedervorlage von Hand auf heute ──
+  const heuteWiederDran = async () => {
+    setLaeuft("wiedervorlage");
+    const r = await api(`/agent/crm/kunden/${k.personId}/wiedervorlage`, { method: "POST", body: JSON.stringify({ wahl: "heute" }) });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden(r.json?.hinweis ? "info" : "gut", "Wiedervorlage auf heute", r.json?.meldung || undefined);
+    if (r.json?.kunde) onNeu(r.json.kunde);
+    setAktStand((n) => n + 1);
+    void verlaufNachladen();
+    onZaehler();
   };
 
   // ── Zahlungsbeleg (POST …/zahlungsbeleg, multipart) ─────────────────────
@@ -2586,8 +2715,25 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
             {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}
-            {zusage && <span className={`pi-marke${zusage.dringend ? " dringend" : ""}`}>Zusage {zusage.text}</span>}
+            {/* E-IT-A (Gegenprüfung 08.10.2026, G4): Auf Stufe A ist die alte Zusage nur noch Hinweis, nicht rot — der Kunde hat seine Zahlung gemeldet. */}
+            {zusage && <span className={`pi-marke${zusage.dringend && k.tier !== 1 ? " dringend" : ""}`}
+                             title={zusage.dringend && k.tier === 1 ? "Der Kunde hat seine Zahlung inzwischen gemeldet — Eingang prüfen." : undefined}>Zusage {zusage.text}</span>}
             {rueckruf && <span className={`pi-marke${rueckrufJetzt ? " dringend" : " warn"}`}>Rückruf {rueckruf.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} {rueckruf.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>}
+            {/* E-IT-A (08.10.2026): Wann ist er wieder in der Pipeline, und warum? Aus
+                derselben Regel wie die Meldung nach dem Ergebnis. „Heute wieder dran"
+                holt ihn sofort unter „Wieder dran" (Wiedervorlage von Hand, im Verlauf). */}
+            {sit?.wiedervorlage?.ruht && (
+              <span className="pi-marke still" data-fiaon="akte-ruhend" title="Ab dem 9. Fehlversuch ruht der Fall, bis der Kunde einen Termin bucht oder sich meldet.">
+                Ruhend · {sit.wiedervorlage.versuche}× nicht erreicht
+              </span>
+            )}
+            {sit?.wiedervorlage?.pausiert && !sit.wiedervorlage.ruht && sit.wiedervorlage.text && (
+              <>
+                <span className="pi-marke wieder" data-fiaon="akte-wieder-dran">{sit.wiedervorlage.text}</span>
+                <button type="button" className="pi-link" data-fiaon="akte-heute-wieder-dran" disabled={!!laeuft}
+                        onClick={() => void heuteWiederDran()}>{laeuft === "wiedervorlage" ? "…" : "Heute wieder dran"}</button>
+              </>
+            )}
           </div>
         </div>
         <div className="pi-lade-kopf-tun">
@@ -2969,7 +3115,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                 )}
               </div>
             )}
-            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />}
+            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen}
+                                                   kontext={sit?.wiedervorlage ? { versuche: Number(sit.wiedervorlage.versuche || 0), stufeA: sit.wiedervorlage.stufeA === true, frisch: sit.wiedervorlage.frisch === true } : null} />}
           </Sek>
 
           {/* E-046: Bei überfälliger Rate zeigt der Zahlungsbereich die RATE —
@@ -3658,16 +3805,27 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
 // Datum, Termin, Notiz ab NOTIZ_MINDESTLAENGE Zeichen, Rückfrage bei Übergabe)
 // — nur die Oberfläche ist Office-Glas. Der Endpunkt bleibt der des Aufrufers.
 // ═══════════════════════════════════════════════════════════════════════════
-function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen }: {
-  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string }) => Promise<boolean>;
+function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen, kontext }: {
+  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string }) => Promise<boolean>;
   laeuft: string | null; kundeName: string; vorgabeDatum: string;
   fragen: ReturnType<typeof useFragen>;
+  /** E-IT-A: Zählerstand, Stufe A, Frische — für „→ Mi 15.10." unter jedem Knopf. */
+  kontext?: WiedervorlageKontext | null;
 }) {
   const [offen, setOffen] = useState<null | { art: string; braucht: "zusage" | "termin" | "notiz" }>(null);
   const [notiz, setNotiz] = useState("");
   const [datum, setDatum] = useState(vorgabeDatum);
   const [zeit, setZeit] = useState("10:00");
+  // E-IT-A (08.10.2026): Wann wieder dran — „nach Regel" oder von Hand (1 / 2 Wochen).
+  const [wahl, setWahl] = useState("regel");
   const fehlt = Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length);
+  const heute = heuteBerlin();
+  /** Die Wahl von Hand gilt nur, wo sie Sinn ergibt (zahlt sofort, nicht erreicht, Mailbox, Sonstiges, falsche Nummer). */
+  const mitWahl = <T extends Record<string, unknown>>(art: string, zusatz: T): T & { wiedervorlage?: string } => {
+    // Gegenprüfung 08.10.2026: Stufe A kennt kein „1/2 Wochen" (höchstens 3 Werktage).
+    const d = wahlDatum(wahl, heute, kontext?.stufeA === true);
+    return d && handwahlErlaubt(art) ? { ...zusatz, wiedervorlage: d } : zusatz;
+  };
 
   const anklicken = async (art: string) => {
     const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
@@ -3679,33 +3837,42 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
       folge: "Die Provision folgt dem, der den Abschluss dokumentiert.",
       ja: "Übergeben",
     }))) return;
-    if (await onErgebnis(art, {})) setOffen(null);
+    if (await onErgebnis(art, mitWahl(art, {}))) setOffen(null);
   };
   const speichern = async () => {
     if (!offen) return;
     const zusatz = offen.braucht === "zusage" ? { zusageDatum: datum }
       : offen.braucht === "termin" ? { terminDatum: datum, terminZeit: zeit }
       : { notiz: notiz.trim() };
-    if (await onErgebnis(offen.art, zusatz)) { setOffen(null); setNotiz(""); }
+    if (await onErgebnis(offen.art, mitWahl(offen.art, zusatz))) { setOffen(null); setNotiz(""); }
   };
 
   return (
     <div className="pi-ew">
+      <WiedervorlageWahl wahl={wahl} onWahl={setWahl} heute={heute} stufeA={kontext?.stufeA === true} rahmenKlasse="pi-wv-wahl"
+                         knopfKlasse={(an) => `pi-wv-knopf${an ? " an" : ""}`} />
       <div className="pi-reihe">
-        {ERGEBNIS_LISTE.map((e) => (
-          <button key={e.art} type="button" disabled={!!laeuft}
-                  className={`pi-knopf klein ${offen?.art === e.art ? "" : "still"}`}
-                  aria-expanded={offen?.art === e.art ? true : undefined}
-                  title={e.klartext}
-                  onClick={() => void anklicken(e.art)}>
-            {laeuft === e.art ? "…" : e.knopf}
-          </button>
-        ))}
+        {ERGEBNIS_LISTE.map((e) => {
+          // E-IT-A: Unter jedem Knopf steht, wann der Mensch danach wieder dran ist.
+          const wann = vorschauFuer(e.art, kontext, wahl, heute);
+          return (
+            <button key={e.art} type="button" disabled={!!laeuft}
+                    className={`pi-knopf klein pi-ew-knopf ${offen?.art === e.art ? "" : "still"}`}
+                    aria-expanded={offen?.art === e.art ? true : undefined}
+                    title={e.klartext}
+                    data-fiaon={`ergebnis-${e.art}`}
+                    onClick={() => void anklicken(e.art)}>
+              <span>{laeuft === e.art ? "…" : e.knopf}</span>
+              {wann && <small className="pi-ew-wann">{wann}</small>}
+            </button>
+          );
+        })}
       </div>
       {offen?.braucht === "zusage" && (
         <div className="pi-ew-feld">
           <label>Zahlt am<input type="date" className="pi-eingabe" value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} /></label>
           <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void speichern()}>Speichern</button>
+          {vorschauMitDatum(offen.art, datum, heute) && <small className="pi-ew-wann">{vorschauMitDatum(offen.art, datum, heute)} · Zusage prüfen</small>}
         </div>
       )}
       {offen?.braucht === "termin" && (

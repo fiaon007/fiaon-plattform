@@ -40,6 +40,10 @@ ok(/AND GREATEST\(\s*\(SELECT MAX\(c3\.created_at\)[\s\S]*?p\.assigned_at\s*\) <
   "21 Tage zählen ab dem jüngsten Anlass: GREATEST(letzter Kontakt Person, letzter Kontakt Antrag, Zuteilung)");
 ok(!/AND COALESCE\(\s*\(SELECT MAX\(c3/.test(frist), "Kein COALESCE mehr in der 21-Tage-Frist (alter Anruf schlug frische Zuteilung)");
 ok(/const POOL_LIEGEN_TAGE = 21;/.test(q), "Frist bleibt 21 Tage");
+// E-IT-A (08.10.2026): Wer nach der Wiedervorlage-Regel pausiert (bis 14 Tage), ist nicht
+// „liegen gelassen" — bis eine Woche nach seiner Wiedervorlage bleibt er beim Betreuer.
+ok(/AND \(p\.follow_up_date IS NULL OR p\.follow_up_date < \$\{HEUTE\} - 7\)/.test(frist),
+  "Pausierte (Wiedervorlage bis vor 7 Tagen oder in der Zukunft) fallen nicht in den Pool");
 ok(/p\.mandat_seit IS NULL/.test(frist) && /t2\.beginn > NOW\(\)/.test(frist), "Mandat und künftiger Termin schützen weiter");
 
 // Die 3-Tage-Frist bleibt

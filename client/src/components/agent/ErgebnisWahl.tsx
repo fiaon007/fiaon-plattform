@@ -42,6 +42,9 @@ import {
   ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE, NOTIZ_VORLAGEN, pruefeNotiz,
   type Ergebnis,
 } from "@shared/fiaon-kontakt-ergebnis-liste";
+// E-IT-A (08.10.2026): „Wieder dran" — nach Regel oder von Hand (1 / 2 Wochen).
+import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
+import { WiedervorlageWahl, wahlDatum, heuteBerlin } from "@/components/agent/WiedervorlageWahl";
 
 /** Was ein Aufrufer zurückgibt, damit das Bauteil den Ausgang anzeigen kann. */
 export interface ErgebnisAusgang {
@@ -58,7 +61,7 @@ interface Props {
    */
   onErgebnis: (
     art: Ergebnis,
-    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string },
+    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string },
   ) => Promise<ErgebnisAusgang>;
   /** Läuft gerade ein Ergebnis? Dann sind alle Knöpfe gesperrt. */
   laeuft?: string | null;
@@ -70,10 +73,15 @@ interface Props {
   vorgabeDatum: string;
   /** Kompakte Reihe (Softphone) oder breite Reihe (Kundenkarte). */
   dicht?: boolean;
+  /**
+   * E-IT-A (Gegenprüfung 08.10.2026): Stufe A (Zahlung gemeldet) — „1/2 Wochen"
+   * sind dann ausgegraut, die Wiedervorlage liegt höchstens 3 Werktage entfernt.
+   */
+  stufeA?: boolean;
 }
 
 export function ErgebnisWahl({
-  onErgebnis, laeuft, kundeName, heute, vorgabeDatum, dicht,
+  onErgebnis, laeuft, kundeName, heute, vorgabeDatum, dicht, stufeA = false,
 }: Props) {
   // ── ALLE HAKEN STEHEN ÜBER DEM ERSTEN RETURN ────────────────────────────
   // AGENTS.md, zweimal in Softphone.tsx gelernt: „Rendered more hooks than
@@ -84,6 +92,8 @@ export function ErgebnisWahl({
   const [datum, setDatum] = useState(vorgabeDatum);
   const [zeit, setZeit] = useState("10:00");
   const [fehler, setFehler] = useState<string | null>(null);
+  // E-IT-A: die Wahl „wieder dran" — gilt für das nächste Ergebnis, wo sie Sinn ergibt.
+  const [wahl, setWahl] = useState("regel");
   const notizFeld = useRef<HTMLTextAreaElement | null>(null);
 
   // Das Feld bekommt den Schreibzeiger, sobald es aufgeht. Wer am Telefon
@@ -97,7 +107,8 @@ export function ErgebnisWahl({
 
   const speichern = async (art: Ergebnis, zusatz: Parameters<Props["onErgebnis"]>[1]) => {
     setFehler(null);
-    const a = await onErgebnis(art, zusatz);
+    const wv = wahlDatum(wahl, heuteBerlin(), stufeA);
+    const a = await onErgebnis(art, wv && handwahlErlaubt(art) ? { ...zusatz, wiedervorlage: wv } : zusatz);
     // ── JEDER AUSGANG IST SICHTBAR ────────────────────────────────────────
     // Auch der Fehlerfall: Ein `catch`, das nichts anzeigt, verwandelt einen
     // Serverfehler in „der Knopf geht nicht".
@@ -126,6 +137,12 @@ export function ErgebnisWahl({
 
   return (
     <div data-fiaon="ergebnis-wahl">
+      <WiedervorlageWahl wahl={wahl} onWahl={setWahl} stufeA={stufeA}
+                         rahmenKlasse={`flex flex-wrap items-center mb-2 ${dicht ? "gap-1" : "gap-1.5"}`}
+                         textKlasse="text-[11px] font-semibold mr-1"
+                         knopfKlasse={(an) => `px-2.5 py-1 rounded-full text-[11.5px] font-semibold border ${an
+                           ? "border-[color:var(--fi-primaer)] text-[color:var(--fi-primaer)] bg-white"
+                           : "border-[color:var(--fi-linie)] text-[color:var(--fi-text-leise)] bg-white"}`} />
       <div className={`flex flex-wrap items-center ${dicht ? "gap-1.5" : "gap-2"}`}>
         {ERGEBNIS_LISTE.map((e) => (
           <button key={e.art} type="button" disabled={!!laeuft}

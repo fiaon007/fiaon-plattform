@@ -1645,7 +1645,8 @@ interface StornoStand {
     id: number;
     vorher: { dismissed_at: string | null; dismissed_reason: string | null; dismissed_by: number | null; strecke_stopp: string | null; strecke_stopp_am: string | null; in_sequence: boolean | null };
   }[];
-  person: { is_blocked: boolean; werbung_gesperrt_am: string | null; gesperrt: boolean };
+  /** werbesperre_quelle: seit 08.10.2026 (Zahlungspost-Freigabe) — fehlt in älteren Storno-Zeilen. */
+  person: { is_blocked: boolean; werbung_gesperrt_am: string | null; gesperrt: boolean; werbesperre_quelle?: string | null };
   termine: number[];
   mails: string[];
 }
@@ -1675,7 +1676,7 @@ export interface StornoAntwort {
 export async function stornieren(personId: number, opts: { grund: string; kulanz: boolean; akteur: string; akteurId: number | null }): Promise<StornoAntwort> {
   await karteiTabellen();
   const [p] = (await sqlPool`
-    SELECT id, is_blocked, werbung_gesperrt_am FROM fiaon_persons
+    SELECT id, is_blocked, werbung_gesperrt_am, werbesperre_quelle FROM fiaon_persons
     WHERE id = ${personId} AND merged_into_person_id IS NULL`) as any[];
   if (!p) return { ok: false, meldung: "Kunde nicht gefunden.", punkte: [] };
   const [schon] = (await sqlPool`SELECT 1 AS da FROM fiaon_telefonkartei_storno WHERE person_id = ${personId} AND zurueck_am IS NULL`) as any[];
@@ -1698,7 +1699,7 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
   const globalKunde = await istGlobalKunde(personId);
   const stand: StornoStand = {
     bestellungen: [], leads: [],
-    person: { is_blocked: !!p.is_blocked, werbung_gesperrt_am: iso(p.werbung_gesperrt_am), gesperrt: false },
+    person: { is_blocked: !!p.is_blocked, werbung_gesperrt_am: iso(p.werbung_gesperrt_am), gesperrt: false, werbesperre_quelle: p.werbesperre_quelle ?? null },
     termine: [], mails: [],
   };
   // Zuerst die Zeile — bricht unterwegs etwas ab, steht der Mensch trotzdem in
@@ -1777,10 +1778,14 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
   const { istZahlenderKunde } = await import("./fiaon-kunde-aktiv");
   const zahlend = await istZahlenderKunde(personId);
   stand.person.gesperrt = !zahlend;
+  // Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): Der Storno ist der Wunsch des Menschen — werbesperre_quelle
+  // 'mensch', auch auf eine stehende Werbesperre der Freigabe (fiaon-mail-frequenz.ts, FREIGABE_WERBESPERRE_PERSONEN_SQL).
+  // Den Stand davor hält die Storno-Zeile; „Zurückholen" stellt ihn wieder her.
   await sqlPool`
     UPDATE fiaon_persons SET
       is_blocked = ${zahlend ? sqlPool`is_blocked` : sqlPool`TRUE`},
       werbung_gesperrt_am = ${globalKunde ? sqlPool`werbung_gesperrt_am` : sqlPool`COALESCE(werbung_gesperrt_am, NOW())`},
+      werbesperre_quelle = ${globalKunde ? sqlPool`werbesperre_quelle` : sqlPool`'mensch'`},
       follow_up_date = NULL, promised_payment_date = NULL, updated_at = NOW()
     WHERE id = ${personId}`;
   punkte.push(zahlend
@@ -1867,11 +1872,16 @@ export async function stornoZuruecknehmen(personId: number, akteur: string): Pro
     punkte.push(stand.leads.length === 1 ? "Lead wieder in den Listen" : `${stand.leads.length} Leads wieder in den Listen`);
   }
 
-  // Die Sperren nur zurücknehmen, wenn DER STORNO sie gesetzt hat.
+  // Die Sperren nur zurücknehmen, wenn DER STORNO sie gesetzt hat. Die Herkunft der Werbesperre (08.10.2026) wie vor dem
+  // Storno: ohne Werbesperre davor leer; mit einer davor die damalige Herkunft — fehlt sie (ältere Storno-Zeile), bleibt
+  // die jetzige ('mensch', im Zweifel die strengere Lesart).
+  const quelleVorher = !stand.person.werbung_gesperrt_am ? sqlPool`NULL`
+    : stand.person.werbesperre_quelle !== undefined ? sqlPool`${stand.person.werbesperre_quelle}` : sqlPool`werbesperre_quelle`;
   await sqlPool`
     UPDATE fiaon_persons SET
       is_blocked = ${stand.person.gesperrt && !stand.person.is_blocked ? sqlPool`FALSE` : sqlPool`is_blocked`},
       werbung_gesperrt_am = ${stand.person.werbung_gesperrt_am ? sqlPool`werbung_gesperrt_am` : sqlPool`NULL`},
+      werbesperre_quelle = ${quelleVorher},
       updated_at = NOW()
     WHERE id = ${personId}`;
 

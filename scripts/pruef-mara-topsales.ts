@@ -293,7 +293,9 @@ console.log("── Hebel 8 + 9: Sperren ─────────────
   ok(/sqlPool\.begin\("READ ONLY"/.test(pl) && !/\b(UPDATE|DELETE|INSERT)\b/.test(pl.replace(/\/\/.*$/gm, "")), "Prüfliste: nur lesen (READ ONLY, kein UPDATE/DELETE/INSERT)");
   ok(/person_id;stufe;offen_euro/.test(pl), "Prüfliste: person_id, Stufe, offener Betrag");
   const tn = MF.tuerNeinSql("adr", "payment_reminder");
-  ok(tn.includes(MF.WERBESPERRE_ADRESSEN_SQL) && tn.includes(MF.HART_UNZUSTELLBAR_ADRESSEN_SQL), "payment_reminder: Werbesperre an der Adresse + hart unzustellbar (wie die Tür)");
+  // 08.10.2026 (Zahlungspost-Freigabe, Justin: „Ja, Zahlungspost zustellen.“): für die Erstzahlung jede Werbesperre an der
+  // Adresse AUSSER der, die die Freigabe selbst gesetzt hat — dieselben sechs Wege (scripts/pruef-zahlungspost-entsperren.ts).
+  ok(tn.includes(MF.WERBESPERRE_ADRESSEN_OHNE_FREIGABE_SQL) && tn.includes(MF.HART_UNZUSTELLBAR_ADRESSEN_SQL), "payment_reminder: Werbesperre an der Adresse (ohne die aus der Zahlungspost-Freigabe) + hart unzustellbar (wie die Tür)");
   ok(!MF.tuerNeinSql("adr", "abo_payment_reminder").includes(MF.WERBESPERRE_ADRESSEN_SQL), "Zahlungspost (Rate): nur unzustellbar — die Werbesperre trifft sie nicht");
   const an = quelle("server/routes/fiaon-antrag.ts");
   const claim = an.slice(an.indexOf("async function claimReminderBatch("), an.indexOf("function reminderPayload("));

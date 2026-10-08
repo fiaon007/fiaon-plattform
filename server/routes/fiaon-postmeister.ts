@@ -390,8 +390,11 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
     if (urteil.kategorie === "abmeldung" && !opts.nurOrdnen) {
       if (kunde?.person_id) {
         await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbung_gesperrt_am TIMESTAMPTZ`.catch(() => {});
+        await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbesperre_quelle TEXT`.catch(() => {});
+        // Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): „Stopp" ist sein Wunsch — werbesperre_quelle 'mensch', auch
+        // auf eine stehende Werbesperre der Freigabe (fiaon-mail-frequenz.ts, FREIGABE_WERBESPERRE_PERSONEN_SQL).
         await sqlPool`
-          UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW())
+          UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), werbesperre_quelle = 'mensch'
           WHERE id = ${Number(kunde.person_id)}
         `.catch((e) => console.error("[POSTMEISTER] Werbesperre:", String(e).slice(0, 120)));
       }

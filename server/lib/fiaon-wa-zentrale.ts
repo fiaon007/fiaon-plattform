@@ -22,7 +22,9 @@
 //   · Abstand je Gruppe zur letzten Vorlage, höchstens acht Vorlagen je Person
 //     in 30 Tagen.
 //   · „STOPP" oder „Keine Nachrichten mehr" ist endgültig. Werbesperre,
-//     Sperre, Testkonto, zusammengeführte Personen: nie.
+//     Sperre, Testkonto, zusammengeführte Personen: nie. Einzige Ausnahme
+//     (08.10.2026): Die Werbesperre aus der Zahlungspost-Freigabe hält die
+//     Monatsrate nicht auf (BASIS und gruppenBedingung, unten).
 //   · Wer bezahlt oder eine Zahlung gemeldet hat, bekommt nichts von hier —
 //     außer den zwei benannten Gruppen „Monatsrate fällig" und „Auskunft fehlt".
 //   · Eine Rechnung nur mit echtem Betrag (Katalogpreis) und echter Referenz.
@@ -118,7 +120,7 @@ import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-w
 import { waBremse, waBremseLage, metaStandLesen, mitFaktor, wirksameQualitaet, type WaBremseErgebnis } from "./fiaon-wa-bremse";
 import { grundmengeIdsSql, waRangSql, tabellenBereit as verkaufTabellenBereit, WA_ANGEBOT_ABSTAND_TAGE } from "./fiaon-auskunft-verkauf";
 import { angebotSpurenSql } from "./fiaon-auskunft";
-import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
+import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { hostname } from "node:os";
@@ -314,11 +316,16 @@ export const BASIS = `
                  WHERE le.person_id = p.id AND le.whatsapp_erlaubt IS NOT NULL) AS whatsapp_erlaubt
       ) wx
      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
-       AND p.primary_phone IS NOT NULL AND TRIM(p.primary_phone) <> '' AND p.werbung_gesperrt_am IS NULL
+       AND p.primary_phone IS NOT NULL AND TRIM(p.primary_phone) <> ''
        -- E-253 (28.09.2026): die Werbesperre des MENSCHEN — auch an einer zusammengeführten Dublette,
        -- dieselbe Lesart wie die Tür in waSenden (menschSperre, fiaon-mail-frequenz.ts). Die
        -- Vertriebssperre zählt wie dort nur am Kopf, und p ist hier immer der Kopf.
-       AND p.id NOT IN ${WERBESPERRE_KOEPFE_SQL}
+       -- 08.10.2026 (Zahlungspost-Freigabe, Justin: „Ja, Zahlungspost zustellen.“): Hier steht nur die
+       -- Werbesperre, die NICHT aus der Freigabe stammt — sie gilt für jede Gruppe, wie bisher. Die Werbesperre
+       -- der Freigabe (eine bei Brevo abgemeldete Adresse bekommt nur noch Zahlungspost) hält die werblichen
+       -- Gruppen auf (gruppenBedingung), nicht die Monatsrate: Sonst tauschte die Freigabe die Raten-WhatsApp
+       -- gegen die Raten-Mail (gemessen 08.10., 14 Tage: 61 fiaon_kkb_rate an 33 Menschen dahinter).
+       AND p.id NOT IN ${WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL}
        AND ${WHATSAPP_MOEGLICH_SQL("wx")}
        -- E-244 (26.09.2026): Nummer unzustellbar (Meta 131026, seitdem kein Lebenszeichen) oder in der
        -- 131049-Pause — fiaon-wa-unzustellbar.ts. Bis dahin zählten gescheiterte Vorlagen hier nicht als
@@ -480,8 +487,11 @@ export function gruppenBedingung(g: Gruppe, ohneAbstand = false): string {
   // Die Monatsrate ist Vertragspost und bleibt ausgenommen (die Tür lässt sie durch).
   // E-261 (29.09.2026): Wer Werbung von uns in WhatsApp abbestellt hat (Meta #131050), bekommt keine
   // Werbe-Vorlage mehr — nur die Monatsrate (Service) bleibt (fiaon-wa-unzustellbar.ts).
+  // 08.10.2026 (Zahlungspost-Freigabe): JEDE Werbesperre der Familie — auch die aus der Freigabe — hält alle
+  // Gruppen außer der Monatsrate auf (die übrigen Werbesperren schließt schon die BASIS aus). Auch „Erste Zahlung
+  // offen" bleibt zu: fiaon_kk(b)_rechnung gilt als werblich (WA_NICHT_WERBLICH), die Tür in waSenden lehnte sie ab.
   return g === "rate_offen" ? kern
-    : `(${kern}) AND NOT ${OHNE_VERTRAG_SQL("b.person_id")} AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("b.telefon", "b.land")}`;
+    : `(${kern}) AND b.person_id NOT IN ${WERBESPERRE_KOEPFE_SQL} AND NOT ${OHNE_VERTRAG_SQL("b.person_id")} AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("b.telefon", "b.land")}`;
 }
 
 function gruppenKern(g: Gruppe, ohneAbstand = false): string {

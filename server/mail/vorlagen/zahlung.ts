@@ -86,7 +86,9 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
 knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Der Verwendungszweck ist wichtig: An ihm erkennt unser System Ihre Zahlung automatisch.",
-    karteZiel: true,
+    // 08.10.2026 (Justin: „Ja, Zahlungspost zustellen.“): KEIN Karten-Ziel-Block mehr. Die Erinnerung geht auch an
+    // Adressen, die Werbung abbestellt haben (server/lib/fiaon-zahlungspost-freigabe.ts) — reine Zahlungspost,
+    // Transaktionsmail ohne werbenden Teil. Dasselbe in abo_payment_reminder.
   },
 
   // Monatsrate fällig/überfällig, mit Mahnstufe und Ratenleiste.
@@ -111,7 +113,7 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.verwendungszweck}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
     knopf: { text: "Rate bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
     fussnote: "Gerade schwierig diesen Monat? Sagen Sie es uns einfach — gemeinsam findet sich fast immer eine Lösung, bevor etwas anbrennt.",
-    karteZiel: true,
+    // 08.10.2026: kein Karten-Ziel-Block — reine Zahlungspost (siehe payment_reminder).
   },
 
   // ── HIER STEHT BEWUSST KEIN ZAHLKNOPF UND KEIN QR-CODE ───────────────────

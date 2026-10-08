@@ -94,22 +94,100 @@ export interface BrevoVorlage {
  * Schickt ein Mitarbeiter von Hand, hat er meist gerade mit dem Kunden
  * gesprochen („ich habe nichts bekommen"). Dann muss die Mail ankommen können.
  * 204 = aufgehoben, 404 = war nicht gesperrt — beides ist Erfolg.
+ * true nur bei „aufgehoben" (brevoSperreAufhebenBefund, unten) — für den Handversand reicht das.
  */
 export async function brevoSperreAufheben(email: string): Promise<boolean> {
+  return (await brevoSperreAufhebenBefund(email)).ergebnis === "aufgehoben";
+}
+
+/**
+ * DREI ANTWORTEN STATT ZWEI (08.10.2026, Zahlungspost-Freigabe, zweite Prüfung). Vorher hieß jede Störung „false" —
+ * auch eine Zeitüberschreitung oder ein Netzfehler NACH dem Absenden. Hatte Brevo den DELETE doch ausgeführt, nahm
+ * die Freigabe die Werbesperre zurück, und die Adresse stand offen: ohne Werbesperre, ohne Vermerk.
+ *   · aufgehoben — 2xx oder 404 (war nicht gesperrt);
+ *   · abgelehnt  — Brevo hat EINDEUTIG nicht aufgehoben: 4xx mit Status (400, 401, 403, 429 …), oder es ging gar
+ *                  nichts raus (kein Schlüssel, keine Adresse: status null);
+ *   · unklar     — Zeitüberschreitung, Netzfehler, 5xx: Ob Brevo es getan hat, weiß niemand.
+ * Wirft nie.
+ */
+export type BrevoAufhebenBefund =
+  | { ergebnis: "aufgehoben"; status: number }
+  | { ergebnis: "abgelehnt"; status: number | null; grund: string }
+  | { ergebnis: "unklar"; grund: string };
+
+export async function brevoSperreAufhebenBefund(email: string): Promise<BrevoAufhebenBefund> {
   const key = process.env.BREVO_API_KEY;
   const adresse = String(email || "").trim();
-  if (!key || !adresse) return false;
+  if (!key) return { ergebnis: "abgelehnt", status: null, grund: "kein Brevo-Schlüssel — nichts gesendet" };
+  if (!adresse) return { ergebnis: "abgelehnt", status: null, grund: "keine Adresse — nichts gesendet" };
+  let res: Response;
   try {
-    const res = await fetch(`${BASIS}/smtp/blockedContacts/${encodeURIComponent(adresse)}`, {
+    res = await fetch(`${BASIS}/smtp/blockedContacts/${encodeURIComponent(adresse)}`, {
       method: "DELETE",
       headers: { "api-key": key, accept: "application/json" },
       signal: AbortSignal.timeout(10_000),
     });
-    return res.status === 204 || res.status === 404;
-  } catch {
-    return false;
+  } catch (err) {
+    // Die Anfrage kann Brevo erreicht haben — die Antwort fehlt. Nie die Adresse im Text (Fehlertexte landen im Protokoll).
+    const t = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    return { ergebnis: "unklar", grund: t.replace(/[^\s@]+@[^\s@]+/g, "…").slice(0, 160) };
   }
+  if (res.ok || res.status === 404) return { ergebnis: "aufgehoben", status: res.status };
+  if (res.status >= 400 && res.status < 500) return { ergebnis: "abgelehnt", status: res.status, grund: `Brevo lehnte ab (HTTP ${res.status})` };
+  return { ergebnis: "unklar", grund: `Brevo antwortete HTTP ${res.status} — ob aufgehoben, ist offen` };
 }
+
+/**
+ * WARUM steht eine Adresse auf Brevos Sperrliste für Transaktionsmails? (08.10.2026, Zahlungspost-Freigabe,
+ * server/lib/fiaon-zahlungspost-freigabe.ts)
+ *
+ * Brevo nennt je Eintrag einen Grund: unsubscribedViaEmail/-ViaMA/-ViaApi (abgemeldet), hardBounce,
+ * contactFlaggedAsSpam, adminBlocked. Die Liste hat keinen Adressfilter — sie wird seitenweise (100 je Seite)
+ * gelesen und 30 Minuten gemerkt; nach einem Fehler 5 Minuten lang nicht erneut gefragt (Brevo bremst mit 429).
+ * Eine Adresse kann mehrfach stehen (je Absender) — dann zählen ALLE Gründe. `codes` leer = nicht auf der Liste.
+ *
+ * NIE STILL ABGESCHNITTEN (zweite Prüfung, 08.10.2026): Gelesen werden höchstens SPERRLISTE_HOECHSTENS Einträge. Endet
+ * das Lesen ohne kurze (letzte) Seite oder nennt Brevo mehr Einträge (`count`), als gelesen wurden (etwa wenn Brevo die
+ * Seitengröße kürzt), gilt die Liste als NICHT lesbar — sonst hieße eine Adresse jenseits der Grenze „nicht (mehr)
+ * gesperrt", und ein Grund wie hardBounce ginge verloren. Dann bleibt jede Adresse gesperrt; neuer Versuch nach 30 Minuten
+ * (sofort wieder 50 Seiten zu lesen hülfe nicht und bremst nur Brevo).
+ */
+export const SPERRLISTE_HOECHSTENS = 5000;
+let sperrliste: { bis: number; gruende: Map<string, string[]> | null; fehler?: string } | null = null;
+
+export async function brevoSperrGruende(email: string): Promise<{ ok: boolean; codes: string[]; grund?: string }> {
+  const adresse = String(email || "").trim().toLowerCase();
+  if (!sperrliste || Date.now() >= sperrliste.bis) {
+    const gruende = new Map<string, string[]>();
+    let fehler: string | undefined;
+    let gelesen = 0, gesamt: number | null = null, ende = false;
+    for (let offset = 0; offset < SPERRLISTE_HOECHSTENS; offset += 100) {
+      const r = await brevo<{ contacts?: any[]; count?: unknown }>(`/smtp/blockedContacts?limit=100&offset=${offset}`);
+      if (!r.ok) { fehler = r.grund; break; }
+      const seite = Array.isArray(r.daten.contacts) ? r.daten.contacts : [];
+      if (r.daten.count != null && Number.isFinite(Number(r.daten.count))) gesamt = Number(r.daten.count);
+      gelesen += seite.length;
+      for (const c of seite) {
+        const e = String(c?.email ?? "").trim().toLowerCase();
+        if (e) gruende.set(e, [...(gruende.get(e) ?? []), String(c?.reason?.code ?? "") || "unbekannt"]);
+      }
+      if (seite.length < 100) { ende = true; break; }
+    }
+    const unvollstaendig = !fehler && (!ende || (gesamt != null && gesamt > gelesen));
+    if (unvollstaendig) {
+      fehler = `Sperrliste unvollständig gelesen (${gelesen} von ${gesamt ?? `mehr als ${SPERRLISTE_HOECHSTENS}`} Einträgen)`;
+      console.error(`[BREVO] ${fehler} — keine Adresse wird freigegeben, bis sie ganz lesbar ist.`);
+    }
+    sperrliste = fehler
+      ? { bis: Date.now() + (unvollstaendig ? 30 : 5) * 60_000, gruende: null, fehler }
+      : { bis: Date.now() + 30 * 60_000, gruende };
+  }
+  if (!sperrliste.gruende) return { ok: false, codes: [], grund: sperrliste.fehler };
+  return { ok: true, codes: sperrliste.gruende.get(adresse) ?? [] };
+}
+
+/** Für Prüfstände: die gemerkte Sperrliste vergessen. */
+export function brevoSperrlisteVergessen(): void { sperrliste = null; }
 
 export async function vorlagen(): Promise<{ ok: boolean; liste: BrevoVorlage[]; grund?: string }> {
   const r = await brevo<{ templates?: any[] }>("/smtp/templates?limit=200&sort=asc");

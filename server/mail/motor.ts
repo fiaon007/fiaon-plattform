@@ -175,6 +175,28 @@ export function hatVorlage(event: string): boolean {
 }
 
 /**
+ * KEIN WERBETEIL AN EINE WERBESPERRE (08.10.2026, Zahlungspost-Freigabe, nach der Prüfung)
+ *
+ * Der Karten-Block (karteZiel: Kartenbild + „Ihr Ziel …") und das große Kartenbild (heroKarte) werben für die Karte.
+ * Seit die Zahlungspost-Freigabe die Brevo-Sperre abgemeldeter Adressen aufhebt, kämen sie dort in jeder Mail an, die
+ * die Werbesperre durchlässt — Pflichtmails (welcome, payment_details, payment_confirmed, payment_reactivated, Termine)
+ * und die Leistungsmail konto_karte_einladung. Bisher verwarf Brevo all das an diesen Adressen. Jetzt: Trägt die
+ * Nutzlast `ohne_werbeteil: true` (die Tür setzt es bei einer Werbesperre an der Adresse, server/make-webhook.ts),
+ * entfallen beide — die Mail selbst (Zugang, Zahlungsdaten, Termin, der Link zur Karte) bleibt, wie sie ist.
+ * Ohne das Feld ändert sich an keiner Mail ein Byte.
+ */
+export const OHNE_WERBETEIL = "ohne_werbeteil";
+/** Ereignisse, deren Baustein erst aus der Nutzlast entsteht — vorsichtshalber prüfen. */
+const WERBETEIL_DYNAMISCH = new Set<string>([
+  "lead_followup", "auskunft_angebot", "payment_details", "payment_confirmed", "claim_received", "auskunft_zahlung_erinnerung", "schufa_requested",
+]);
+/** Kann die Mail dieses Ereignisses einen Werbeteil tragen? Nur dann fragt die Tür nach der Werbesperre. */
+export function werbeteilMoeglich(event: string): boolean {
+  const de = VORLAGEN[event], en = VORLAGEN_EN[event];
+  return !!(de?.karteZiel || de?.heroKarte || en?.karteZiel || en?.heroKarte) || WERBETEIL_DYNAMISCH.has(event);
+}
+
+/**
  * Die Hausbank — der Fallback für Zahlungsmails (Justins Auftrag 28.08.:
  * „Wenn wir den Kunden an die erste Rechnung, Abo, Schufa-Rechnung erinnern,
  * dann bitte in der E-Mail unsere Bankdaten einfügen.")
@@ -323,6 +345,10 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   if (event === "claim_received" && istAuskunftNutzlast(payload)) {
     vorlage = AUSKUNFT_ZAHLUNG_GEMELDET_VORLAGE;
     if (String((payload as any).auskunfteien ?? "").trim() === "") payload = { ...payload, auskunfteien: "den Auskunfteien Ihres Landes" };
+  }
+  // 08.10.2026: kein Werbeteil an eine Werbesperre (OHNE_WERBETEIL, oben) — nach der Wahl des Bausteins.
+  if ((payload as any)?.[OHNE_WERBETEIL] === true && (vorlage.karteZiel || vorlage.heroKarte)) {
+    vorlage = { ...vorlage, karteZiel: false, heroKarte: false };
   }
 
   const fehlend = new Set<string>();

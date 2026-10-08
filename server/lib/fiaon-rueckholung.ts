@@ -138,10 +138,15 @@ const STANDARD_AN: Record<Segment, boolean> = {
 const RUHE_BIS = 8, RUHE_AB = 20;
 
 let spaltenGeprueft = false;
-/** `werbung_gesperrt_am`: das eingelöste Stopp-Versprechen jeder Rückhol-Mail. */
+/**
+ * `werbung_gesperrt_am`: das eingelöste Stopp-Versprechen jeder Rückhol-Mail. `werbesperre_quelle` (08.10.2026,
+ * Zahlungspost-Freigabe): woher die Werbesperre stammt — 'zahlungspost_freigabe' oder 'mensch' (db/migrations/106,
+ * fiaon-mail-frequenz.ts). Läuft auch beim Start (server/routes.ts); die DDL-Wache sieht vorher im Katalog nach.
+ */
 export async function ensureRueckholSpalten(): Promise<void> {
   if (spaltenGeprueft) return;
   await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbung_gesperrt_am TIMESTAMPTZ`;
+  await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbesperre_quelle TEXT`;
   spaltenGeprueft = true;
 }
 

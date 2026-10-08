@@ -31,6 +31,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { ZAHLUNGSPOST_FREIGABE_EVENT } from "./fiaon-mail-frequenz";
 
 type Lauf = typeof sqlPool;
 
@@ -86,7 +87,8 @@ export async function markeAufgaben(lauf: Lauf = sqlPool): Promise<MarkenStand> 
 export async function markeZustellung(lauf: Lauf = sqlPool): Promise<MarkenStand> {
   const [z] = (await lauf`
     SELECT COUNT(*) FILTER (WHERE status = 'fehlgeschlagen')::int AS fehl,
-           COUNT(*) FILTER (WHERE status = 'uebersprungen')::int AS uebersprungen
+           -- 08.10.2026: Der Vermerk der Zahlungspost-Freigabe steht als „uebersprungen" da, ist aber keine Mail.
+           COUNT(*) FILTER (WHERE status = 'uebersprungen' AND event <> ${ZAHLUNGSPOST_FREIGABE_EVENT})::int AS uebersprungen
     FROM fiaon_mail_log
     WHERE created_at > NOW() - (${ZUSTELLUNG_TAGE} || ' days')::interval
   `) as any[];

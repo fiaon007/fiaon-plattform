@@ -7,6 +7,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { ZAHLUNGSPOST_FREIGABE_EVENT } from "../lib/fiaon-mail-frequenz";
 import { darfAnKunde, rolleVon } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
@@ -1160,7 +1161,8 @@ router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
       SELECT
         COUNT(*) FILTER (WHERE status = 'versandt')::int AS versandt,
         COUNT(*) FILTER (WHERE status = 'fehlgeschlagen')::int AS fehlgeschlagen,
-        COUNT(*) FILTER (WHERE status = 'uebersprungen')::int AS uebersprungen,
+        -- 08.10.2026: ohne den Vermerk der Zahlungspost-Freigabe (keine Mail; in der Liste bleibt er sichtbar).
+        COUNT(*) FILTER (WHERE status = 'uebersprungen' AND event <> ${ZAHLUNGSPOST_FREIGABE_EVENT})::int AS uebersprungen,
         COUNT(*) FILTER (WHERE status = 'ausstehend')::int AS ausstehend
       FROM fiaon_mail_log
       WHERE created_at > NOW() - (${tage}::int * INTERVAL '1 day')

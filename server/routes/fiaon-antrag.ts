@@ -2043,7 +2043,9 @@ async function claimReminderBatch(
         -- nur bis zur nächsten Zustellung). Jede davon war beansprucht, gezählt
         -- und stand als Fehlzeile im Protokoll. Jetzt fragt die Auswahl dieselben
         -- zwei Nein vorher — an der Zieladresse (Person) UND an der Adresse der
-        -- Bestellung. payment_reminder ist keine ZAHLUNGSPOST: die Werbesperre gilt.
+        -- Bestellung. payment_reminder ist keine ZAHLUNGSPOST: die Werbesperre gilt —
+        -- außer der, die die Zahlungspost-Freigabe selbst gesetzt hat (08.10.2026, Justin:
+        -- „Ja, Zahlungspost zustellen.“ — tuerNeinSql, server/lib/fiaon-zahlungspost-freigabe.ts).
         -- ════════════════════════════════════════════════════════════════
         AND NOT ${sqlPool.unsafe(tuerNeinSql(`LOWER(TRIM(${zielMailSql("fa")}))`, "payment_reminder"))}
         AND NOT ${sqlPool.unsafe(tuerNeinSql(`LOWER(TRIM(COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, ''))))`, "payment_reminder"))}

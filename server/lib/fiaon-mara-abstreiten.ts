@@ -8,7 +8,8 @@
 //   · abstreitenFolgen() — welche Art welche Folge hat (rein): Werbesperre ja/nein,
 //                         Aufgabe an wen, dringend.
 //   · werbesperreSetzen() — DERSELBE Weg wie werbesperre_setzen im Postfach und
-//                         der Abmeldelink (fiaon_persons.werbung_gesperrt_am).
+//                         der Abmeldelink (fiaon_persons.werbung_gesperrt_am,
+//                         seit 08.10.2026 mit werbesperre_quelle = 'mensch').
 //   · werbesperreBeiFreigabe() — per Mail erst, wenn ein Mensch den Entwurf freigibt.
 //   · leitungId()       — wer „die Leitung" ist: derselbe Weg wie
 //                         aufgabe_an_betreuer mit kollege „Leitung"
@@ -40,6 +41,7 @@ import { sqlPool } from "./db-pool";
 import { stufeAusAntrag, type AbstreitenArt, type Herkunft, type LinkStufe } from "@shared/fiaon-mara-ton";
 import { antragAbgeschickt } from "@shared/fiaon-antrag-stand";
 import { nennform } from "@shared/fiaon-mitarbeiter-name";
+import { WERBESPERRE_QUELLE_FREIGABE, WERBESPERRE_QUELLE_MENSCH } from "./fiaon-mail-frequenz";
 
 export interface AbstreitenLage {
   stufe: LinkStufe;
@@ -143,12 +145,36 @@ export function abstreitenFolgen(art: AbstreitenArt | "loeschen", abgeschickt: b
   return { werbesperre: false, an: "leitung", dringend: false };
 }
 
-/** Werbesperre setzen (bestehender Weg). true = sie war vorher nicht gesetzt. */
-export async function werbesperreSetzen(personId: number): Promise<boolean> {
-  const r = (await sqlPool`
-    UPDATE fiaon_persons SET werbung_gesperrt_am = NOW(), updated_at = NOW()
-     WHERE id = ${personId} AND werbung_gesperrt_am IS NULL RETURNING id`) as any[];
-  return r.length > 0;
+/**
+ * Werbesperre setzen (bestehender Weg) — auf Wunsch des MENSCHEN. true = sie war vorher nicht gesetzt.
+ *
+ * Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): Setzt IMMER werbesperre_quelle = 'mensch', auch wenn der Stempel
+ * schon steht. Vorher tat diese Funktion dann gar nichts — stand dort die Werbesperre der Zahlungspost-Freigabe, liefen
+ * Erstzahlungs-Erinnerung und Raten-WhatsApp weiter, obwohl der Mensch eben „in Ruhe lassen", „schreiben Sie mir nicht
+ * mehr" oder „löschen" gesagt hatte, und nichts davon stand im Kontaktprotokoll. Jetzt ist die Werbesperre ab da seine
+ * (FREIGABE_WERBESPERRE_PERSONEN_SQL, fiaon-mail-frequenz.ts), und der Wechsel steht im Kontaktprotokoll (`wer`).
+ * Eine schon als 'mensch' vermerkte Werbesperre bleibt unberührt (kein neues updated_at); eine von vor dem 08.10.
+ * (Herkunft leer, also die eines Menschen) bekommt den Vermerk nachgetragen.
+ */
+export async function werbesperreSetzen(personId: number, wer = "Mara"): Promise<boolean> {
+  const [r] = (await sqlPool`
+    WITH vorher AS (SELECT werbung_gesperrt_am AS stempel, werbesperre_quelle AS quelle FROM fiaon_persons WHERE id = ${personId}),
+         jetzt AS (
+           UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()),
+                  werbesperre_quelle = ${WERBESPERRE_QUELLE_MENSCH}, updated_at = NOW()
+            WHERE id = ${personId} AND (werbung_gesperrt_am IS NULL OR werbesperre_quelle IS DISTINCT FROM ${WERBESPERRE_QUELLE_MENSCH})
+           RETURNING id)
+    SELECT (v.stempel IS NULL) AS neu, (v.stempel IS NOT NULL AND v.quelle = ${WERBESPERRE_QUELLE_FREIGABE}) AS aus_freigabe
+      FROM vorher v, jetzt`) as any[];
+  if (r?.aus_freigabe) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      SELECT a.ref, ${personId}, NULL, ${wer}, 'system',
+             ${"Werbesperre jetzt auf seinen Wunsch (vorher nur aus der Zahlungspost-Freigabe): keine Erstzahlungs-Erinnerung und keine Raten-WhatsApp mehr. Die Raten-Mail läuft bis zu einem Mahnstopp weiter (E-182)."}
+        FROM fiaon_applications a WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+       ORDER BY a.created_at DESC LIMIT 1`.catch(() => {});
+  }
+  return !!r?.neu;
 }
 
 /** Der Merker in den Handlungen eines Postfach-Entwurfs: „Werbesperre mit der Freigabe setzen". */
@@ -164,7 +190,7 @@ export async function werbesperreBeiFreigabe(zeile: { id: number; person_id?: nu
   // Die Handlungen liegen als jsonb — auch doppelt als Text gespeichert (E-238-Falle); handlungenFlach kennt jede Form.
   const { handlungenFlach } = await import("./fiaon-postmeister-lauf");
   if (!handlungenFlach(zeile.handlungen).some((x: any) => x && x.werkzeug === WERBESPERRE_BEI_FREIGABE)) return false;
-  const neu = await werbesperreSetzen(Number(zeile.person_id)).catch(() => false);
+  const neu = await werbesperreSetzen(Number(zeile.person_id), "Postmeister").catch(() => false);
   if (neu) {
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)

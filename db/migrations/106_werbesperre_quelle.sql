@@ -1,0 +1,21 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HERKUNFT DER WERBESPERRE — 08.10.2026 (Zahlungspost-Freigabe, zweite Prüfung)
+--
+-- Justin: „Ja, Zahlungspost zustellen.“ Die Zahlungspost-Freigabe (server/lib/fiaon-zahlungspost-freigabe.ts)
+-- setzt an Menschen hinter einer bei Brevo abgemeldeten Adresse die Werbesperre und hebt dann die Brevo-Sperre
+-- auf. Diese Werbesperre darf die Zahlungspost nicht aufhalten (Erstzahlungs-Erinnerung, Raten-WhatsApp) —
+-- jede andere schon. Woher eine Werbesperre stammt, steht ab jetzt an der Person:
+--   · 'zahlungspost_freigabe' — gesetzt von der Freigabe im selben UPDATE wie werbung_gesperrt_am (nur bei
+--     leerem Stempel), also schon VOR dem Aufheben bei Brevo;
+--   · 'mensch' — jeder andere Setzweg (Mara, Postmeister, Abmeldelink, Lead-Abmeldung, Kontaktergebnis
+--     „abgelehnt“, Telefonkartei), auch auf eine schon stehende Werbesperre;
+--   · NULL bei gesetztem Stempel — eine Werbesperre von vor dem 08.10.2026: die eines Menschen.
+-- Gelesen von FREIGABE_WERBESPERRE_PERSONEN_SQL (server/lib/fiaon-mail-frequenz.ts).
+--
+-- ── SPERRARM, WIEDERHOLBAR ────────────────────────────────────────────────
+-- Nur ADD COLUMN IF NOT EXISTS, ohne Standardwert und ohne Bedingung: eine reine Katalogänderung, kein
+-- Umschreiben der Tabelle, kein Prüflauf über die Zeilen. Dieselbe Anweisung steht in ensureRueckholSpalten
+-- (server/lib/fiaon-rueckholung.ts), die beim Start läuft.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbesperre_quelle TEXT;

@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { werbesperreAusFreigabe, ZAHLUNGSPOST_FREIGABE_EVENT } from "./fiaon-mail-frequenz";
 
 export interface Ereignis {
   am: Date;
@@ -192,10 +193,17 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
            ruhe_seit, wiedereinstieg_am, terminlink_mail_am, startgespraech_mail_am, is_blocked, account_status, assigned_agent_id, betreuung_seit,
            inkasso_ab, inkasso_grund, promised_payment_date, follow_up_date, unreachable_count
       FROM fiaon_persons WHERE id = ${personId} LIMIT 1` as unknown as Promise<any[]>))[0] : null;
+  // 08.10.2026 (Zahlungspost-Freigabe): Stammt die Werbesperre aus der Freigabe (eine bei Brevo abgemeldete Adresse
+  // bekommt nur noch Zahlungspost), bleiben die Zahlungserinnerungen — sonst läse Mara „keine Erinnerungsmails mehr"
+  // und widerspräche der nächsten Raten-Mail. Lässt es sich nicht lesen, gilt der bisherige Satz.
+  const sperreAusFreigabe = person?.werbung_gesperrt_am && personId
+    ? await werbesperreAusFreigabe(Number(personId)).catch(() => false) : false;
   if (person) {
     add(person.created_at, "system", "Kunde im System angelegt");
     add(person.sprache_gesetzt_am, "notiz", `Sprachvermerk: ${person.sprache}${person.sprache_notiz ? ` — ${kurz(person.sprache_notiz, 100)}` : ""}`);
-    add(person.werbung_gesperrt_am, "system", "WERBESPERRE gesetzt (keine Werbe- und Erinnerungsmails mehr; Vertragspost bleibt)");
+    add(person.werbung_gesperrt_am, "system", sperreAusFreigabe
+      ? "WERBESPERRE gesetzt mit der Zahlungspost-Freigabe (Adresse war bei Brevo abgemeldet): keine Werbung mehr; Zahlungspost bleibt (Raten- und Zahlungserinnerungen, Monatsrate per WhatsApp), Vertragspost ebenso"
+      : "WERBESPERRE gesetzt (keine Werbe- und Erinnerungsmails mehr; Vertragspost bleibt)");
     add(person.ruhe_seit, "system", "In den Ruhe-Pool gelegt (nicht erreicht)");
     add(person.wiedereinstieg_am, "system", "Wiedereinstieg aus dem Ruhe-Pool");
     add(person.terminlink_mail_am, "mail_raus", "Terminlink-Mail gesendet");
@@ -206,7 +214,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
   }
   const mails = personId ? await quelle("mail_log", () => sqlPool`
     SELECT created_at, event, betreff, status, zustellung, zustellung_am, zustellung_grund FROM fiaon_mail_log
-     WHERE art = 'echt' AND event <> 'mara_aktion' AND (person_id = ${personId} OR (${person?.primary_email ?? null}::text IS NOT NULL AND LOWER(empfaenger) = LOWER(${person?.primary_email ?? ""})))
+     WHERE art = 'echt' AND event <> 'mara_aktion' AND event <> ${ZAHLUNGSPOST_FREIGABE_EVENT} AND (person_id = ${personId} OR (${person?.primary_email ?? null}::text IS NOT NULL AND LOWER(empfaenger) = LOWER(${person?.primary_email ?? ""})))
      ORDER BY created_at DESC LIMIT 40` as unknown as Promise<any[]>) : [];
   // ── GLEICHE AUTOMATIK-MAILS ZUSAMMENFASSEN (21.09.2026, Mara-Gedächtnis) ──
   // 14 Zahlungserinnerungen in einer Woche sind 14 Zeilen — und schoben beim
@@ -361,7 +369,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
   const kopf = [
     zustaendig ? `ZUSTÄNDIG: ${zustaendig.kundenName || zustaendig.name || "niemand eingetragen"} (${zustaendig.rolle === "inkasso" ? "Forderungsmanagement" : zustaendig.rolle === "onboarding" ? "Onboarding" : "Betreuung"}) — so nennst du ihn dem Kunden.` : null,
     person?.is_blocked ? "Anrufe gesperrt." : null,
-    person?.werbung_gesperrt_am ? "WERBESPERRE aktiv." : null,
+    person?.werbung_gesperrt_am ? (sperreAusFreigabe ? "WERBESPERRE aktiv (aus der Zahlungspost-Freigabe: keine Werbung, Zahlungspost bleibt)." : "WERBESPERRE aktiv.") : null,
     `ZAHLEN: ${zahlen}.`,
   ].filter(Boolean).join("\n");
 

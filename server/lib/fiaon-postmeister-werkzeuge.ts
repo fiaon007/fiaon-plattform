@@ -1755,8 +1755,10 @@ export const werbesperreSetzen: Werkzeug = {
     // E-275 Gegenprüfung (02.10.2026): kein Veto der Liste über seine eigenen Worte — werbesperreUrteil (Kopf oben).
     const nein = werbesperreUrteil(k.betreff ?? "", eigen, p.zitat);
     if (nein) return { ok: false, ergebnis: "", fehler: nein };
+    // Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): sein Wunsch — werbesperre_quelle 'mensch', auch auf eine
+    // stehende Werbesperre der Freigabe (fiaon-mail-frequenz.ts, FREIGABE_WERBESPERRE_PERSONEN_SQL).
     await sqlPool`
-      UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW()
+      UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), werbesperre_quelle = 'mensch', updated_at = NOW()
        WHERE id = ${k.personId}
     `;
     await protokoll(k, "werbesperre_setzen", `Kunde bittet um Stopp der Werbe- und Erinnerungsmails („${String(p.zitat).slice(0, 120)}") — Werbesperre gesetzt.`);

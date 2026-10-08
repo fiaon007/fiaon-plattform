@@ -398,6 +398,20 @@ export async function sendMakeWebhookMitGrund(
   // Pflichtmails (Zugang, Zahlungsbestätigung, Terminbestätigung) laufen ohne
   // Prüfung durch — die Liste steht in fiaon-mail-frequenz.ts. Bei einer
   // Störung lässt die Bremse durch, statt den Mailverkehr anzuhalten.
+  //
+  // ── ZAHLUNGSPOST TROTZ BREVO-ABMELDUNG (08.10.2026, Justin: „Ja, Zahlungspost zustellen.“) ──
+  // VOR der Bremse, weil die Bremse die Freigabe lesen muss (Erstzahlung trotz der Werbesperre, die die
+  // Freigabe selbst gesetzt hat). Steht die Adresse zuletzt als „blockiert“ im Protokoll und ist sie bei Brevo
+  // NUR abgemeldet, sperrt die Freigabe zuerst die Werbung der Person und hebt dann die Brevo-Sperre auf —
+  // einmal je Adresse, höchstens 30 am Tag, nur mit offener Rate oder Erstzahlung. Rückläufer, Spam, ein
+  // „Stopp“ und eine Lead-Abmeldung bleiben gesperrt. Kostet je Zahlungsmail EINE Abfrage (der jüngste
+  // Zustellbefund), alles Weitere nur bei „blockiert“. Wirft nie.
+  if (!payload.test) {
+    const fg = await import("./lib/fiaon-zahlungspost-freigabe")
+      .then((m) => m.zahlungspostFreigeben(String(payload.email || ""), eventType))
+      .catch(() => null);
+    if (fg) console.log(`[ZAHLUNGSPOST] '${eventType}' an ${payload.email}: ${fg.freigegeben ? fg.grund : `keine Freigabe — ${fg.grund}`}`);
+  }
   const { darfAnEmpfaenger, frequenzRuhe } = await import("./lib/fiaon-mail-frequenz");
   if (!opts.manuell) {
     // E-168: Schon einmal zurückgehalten? Dann ruhen — ohne neuen Protokolleintrag.
@@ -451,6 +465,16 @@ export async function sendMakeWebhookMitGrund(
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
     if (motor.hatVorlage(eventType)) {
+      // ── KEIN WERBETEIL AN EINE WERBESPERRE (08.10.2026, Zahlungspost-Freigabe, nach der Prüfung) ──
+      // Die Freigabe öffnet eine abgemeldete Adresse bei Brevo für jede Mail, die die Werbesperre durchlässt —
+      // auch für Pflicht- und Leistungsmails mit Karten-Block oder Kartenbild. Steht an der Adresse eine
+      // Werbesperre, gehen sie ohne beides raus (OHNE_WERBETEIL in server/mail/motor.ts). Lässt sich die
+      // Werbesperre nicht lesen, fällt der Werbeteil weg (er ist nie der Inhalt der Mail). Über Make (Notbremse
+      // mail_versandweg = „make") rendert Brevo seine eigene Vorlage — dort greift das nicht.
+      if (!payload.test && motor.werbeteilMoeglich(eventType)) {
+        const { werbesperreAnAdresse } = await import("./lib/fiaon-mail-frequenz");
+        if (await werbesperreAnAdresse(String(payload.email || "")).catch(() => true)) payload = { ...payload, [motor.OHNE_WERBETEIL]: true };
+      }
       const d = await motor.mailDirektSenden(eventType, payload as Record<string, unknown>);
       erg = d.ok
         ? { ok: true, grund: d.grund, brevoMessageId: d.messageId }

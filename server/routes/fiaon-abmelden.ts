@@ -46,10 +46,13 @@ async function sperren(personId: number): Promise<boolean> {
  * Mara-Topsales 08.10.2026 (Prüfung): exportiert — auch die Abmeldung aus einer LEAD-Mail (POST /abmelden/:schluessel,
  * fiaon-leads.ts) setzt sie jetzt an der verknüpften Person. Vorher stoppte sie nur die Lead-Strecke, und die Seite
  * versprach „Du bekommst keine weiteren E-Mails von uns.“ (gemessen 08.10.: 70 Menschen ohne Werbesperre).
+ * Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): Die Abmeldung ist der Wunsch des Menschen — werbesperre_quelle =
+ * 'mensch', auch auf eine stehende Werbesperre der Freigabe (dann enden Erstzahlungs-Erinnerung und Raten-WhatsApp, die
+ * sie durchließ; fiaon-mail-frequenz.ts, FREIGABE_WERBESPERRE_PERSONEN_SQL).
  */
 export async function werbesperreSetzen(personId: number, notiz: string): Promise<boolean> {
   const rows = (await sqlPool`
-    UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW()
+    UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), werbesperre_quelle = 'mensch', updated_at = NOW()
      WHERE id = ${personId} RETURNING id`) as any[];
   if (rows.length) {
     await sqlPool`

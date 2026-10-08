@@ -267,7 +267,9 @@ export async function ergebnisAnwenden(
          WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
            AND payment_status IN ('pending', 'pending_payment', 'claimed_paid', 'expired')
          RETURNING ref`) as any[];
-      await lauf`UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW() WHERE id = ${personId}`;
+      // Zahlungspost-Freigabe (zweite Prüfung, 08.10.2026): „abgelehnt" ist ein Nein des Menschen — werbesperre_quelle
+      // 'mensch', auch auf eine stehende Werbesperre der Freigabe (fiaon-mail-frequenz.ts, FREIGABE_WERBESPERRE_PERSONEN_SQL).
+      await lauf`UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), werbesperre_quelle = 'mensch', updated_at = NOW() WHERE id = ${personId}`;
       const refNote = e.ref || offen[0]?.ref || null;
       if (refNote) {
         await lauf`

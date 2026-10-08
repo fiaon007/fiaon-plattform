@@ -453,6 +453,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🔎 Sperr-Protokoll: jede Änderung von fiaon_persons.is_blocked mit dem
   //    auslösenden SQL festhalten (Fall Sapia, 05.09.2026).
   import('./lib/fiaon-kunde-aktiv').then((m) => m.ensureSperrProtokoll()).catch((e) => console.error('[SPERR-PROTOKOLL]', e));
+  // 🚫 Werbesperre: Stempel und Herkunft (werbesperre_quelle, 08.10.2026 — Zahlungspost-Freigabe; dieselbe DDL wie
+  //    db/migrations/106). Jeder Setzweg schreibt die Herkunft mit — die Spalte muss vor dem ersten Versand stehen.
+  import('./lib/fiaon-rueckholung').then((m) => m.ensureRueckholSpalten()).catch((e) => console.error('[WERBESPERRE] Spalten:', e));
 
   // ✍️ FIAON Zustimmung — der Kunde erteilt AGB-, SCHUFA- und
   //    Vertragszustimmung SELBST. Ein Mitarbeiter darf das nie; die Begruendung

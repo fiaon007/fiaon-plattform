@@ -17,6 +17,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
 import { mailEvents } from "../lib/fiaon-mail-events";
+import { ZAHLUNGSPOST_FREIGABE_EVENT } from "../lib/fiaon-mail-frequenz";
 
 const router = Router();
 
@@ -49,6 +50,8 @@ router.get("/chef/mailwerk", requireChef("geschaeftsfuehrung"), async (_req: Req
                MAX(created_at) AS letzter
         FROM fiaon_mail_log
         WHERE created_at > NOW() - INTERVAL '30 days'
+          -- 08.10.2026: Der Vermerk der Zahlungspost-Freigabe ist keine Mail — kein Ereignis, keine „Probleme".
+          AND event <> ${ZAHLUNGSPOST_FREIGABE_EVENT}
         GROUP BY event
       ` as Promise<any[]>,
       sqlPool`

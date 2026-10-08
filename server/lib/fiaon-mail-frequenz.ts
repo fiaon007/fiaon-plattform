@@ -121,6 +121,43 @@ const ZAHLUNGSPOST = new Set<string>([
   "auskunft_zahlung_erinnerung",
 ]);
 
+// ── ZAHLUNGSPOST-FREIGABE (08.10.2026, Justin: „Ja, Zahlungspost zustellen.") ──────────────────────────────
+// Brevo verwarf Zahlungserinnerungen an Adressen auf seiner Sperrliste (meist alte Abmeldungen von Werbung).
+// Die Freigabe (server/lib/fiaon-zahlungspost-freigabe.ts) sperrt dann zuerst die Werbung der Person (mit Herkunft
+// werbesperre_quelle = 'zahlungspost_freigabe'), hebt die Brevo-Sperre auf und vermerkt das als Zeile
+// `zahlungspost_freigabe` in fiaon_mail_log (Nachweis „einmal je Adresse", Tagesdeckel; Nutzlast werbesperre_neu und
+// brevo = aufgehoben/unklar). Wer vorher keine Werbesperre hatte, bekam die Erinnerung an die
+// ERSTZAHLUNG — das bleibt so: Die Werbesperre AUS DER FREIGABE hält die Erstzahlungs-Erinnerung nicht auf
+// (FREIGABE_WERBESPERRE_PERSONEN_SQL, unten). Jede andere Werbesperre hält sie weiter auf (Mara-Topsales 08.10.2026).
+//
+// NACH DER PRÜFUNG (08.10.2026): Die Ausnahme hing zuerst nur an der freigegebenen ADRESSE — dann hätte sie auch eine
+// ältere „Stopp"-Sperre oder ein späteres „abgelehnt" ausgehebelt, dauerhaft, bei zwei Erinnerungen am Tag. Jetzt
+// gilt sie nur für die Werbesperre, die die Freigabe selbst gesetzt hat (werbesperre_quelle, FREIGABE_WERBESPERRE_
+// PERSONEN_SQL unten), solange kein Mensch Nein gesagt hat (Stopp auf WhatsApp/im Postfach, Abmeldung über eine
+// Lead-Mail, jeder andere Setzweg der Werbesperre). Wer danach nicht mehr erinnert werden will: Mahnstopp an der
+// Bestellung (wie bei der Rate, E-182).
+export const ZAHLUNGSPOST_NACH_FREIGABE = new Set<string>(["payment_reminder"]);
+export const ZAHLUNGSPOST_FREIGABE_EVENT = "zahlungspost_freigabe";
+/**
+ * Zahlungspost im Sinne der Freigabe: die Raten- und Auskunft-Erinnerung und die Erstzahlung. NICHT die Firmenrechnung
+ * (global_zahlung_erinnerung, zweite Prüfung 08.10.): Sie geht über globalMailSenden direkt an den Motor
+ * (fiaon-global-auftrag.ts → mailDirektSenden), nie durch sendMakeWebhookMitGrund — die Freigabe sähe sie also nie, und
+ * ein Firmenkunde gehört nicht in die Privat-Abläufe (E-272). Sie in der Liste zu führen, versprach etwas, das nicht läuft.
+ */
+export function istZahlungspost(event: string): boolean {
+  if (event === "global_zahlung_erinnerung") return false;
+  return ZAHLUNGSPOST.has(event) || ZAHLUNGSPOST_NACH_FREIGABE.has(event);
+}
+/** Adressen mit einem Freigabe-Vermerk — der Nachweis, dass die Freigabe einer Adresse festgehalten ist. */
+export const ZAHLUNGSPOST_FREI_ADRESSEN_SQL = `(SELECT LOWER(TRIM(zf.empfaenger)) FROM fiaon_mail_log zf
+    WHERE zf.event = '${ZAHLUNGSPOST_FREIGABE_EVENT}' AND zf.empfaenger IS NOT NULL)`;
+export async function zahlungspostFrei(adresse: string): Promise<boolean> {
+  const a = String(adresse || "").trim().toLowerCase();
+  if (!a) return false;
+  const [r] = (await sqlPool.unsafe(`SELECT 1 AS frei FROM ${ZAHLUNGSPOST_FREI_ADRESSEN_SQL} f(adresse) WHERE f.adresse = $1 LIMIT 1`, [a])) as any[];
+  return !!r;
+}
+
 /** Der Hauptschalter der Bremse: fiaon_settings.frequenzbremse_an (Standard 1). */
 async function bremseAn(): Promise<boolean> {
   return (await zahl("frequenzbremse_an", 1)) === 1;
@@ -280,9 +317,14 @@ export async function darfAnEmpfaenger(
         COUNT(*) FILTER (WHERE werbend AND created_at > NOW() - INTERVAL '30 days')::int  AS monat,
         COUNT(*) FILTER (WHERE zustellung IN ('gebounct', 'spam'))::int       AS hart,
         COUNT(*) FILTER (WHERE zustellung = 'blockiert'
-                           AND created_at > NOW() - INTERVAL '14 days')::int  AS blockiert
+                           AND created_at > NOW() - INTERVAL '14 days'
+                           -- 08.10.2026: Blockaden VOR einer Zahlungspost-Freigabe dieser Adresse zählen nicht —
+                           -- die Freigabe hat ihren Grund (Brevo-Abmeldung) beseitigt.
+                           AND created_at > COALESCE(frei_seit, '-infinity'::timestamptz))::int  AS blockiert
       FROM (
         SELECT created_at, zustellung,
+               (SELECT MAX(zf.created_at) FROM fiaon_mail_log zf
+                 WHERE zf.event = ${ZAHLUNGSPOST_FREIGABE_EVENT} AND LOWER(TRIM(zf.empfaenger)) = ${adresse}) AS frei_seit,
                (created_at >= ${stichtag}::timestamptz
                 AND NOT (event = ANY(${pflicht}))
                 AND event NOT LIKE 'agent_%' AND event NOT LIKE 'aufgabe_%'
@@ -323,7 +365,9 @@ export async function darfAnEmpfaenger(
     // E-240: über werbesperreAnAdresse — kennt jetzt auch die Adresse aus dem
     // Lead-Formular und die einer zusammengeführten Person (Fall im Kopf der
     // Werbesperre unten: zwei lead_followup nach „Stopp“).
-    const gesperrt = await werbesperreAnAdresse(adresse);
+    // 08.10.2026 (Zahlungspost-Freigabe, oben): Für die Erstzahlungs-Erinnerung zählt die Werbesperre, die die
+    // Freigabe selbst gesetzt hat, nicht — jede andere schon (auch ein „Stopp" oder „abgelehnt" danach).
+    const gesperrt = await werbesperreAnAdresse(adresse, { ohneFreigabe: ZAHLUNGSPOST_NACH_FREIGABE.has(event) });
     if (gesperrt && !ZAHLUNGSPOST.has(event)) {
       return { ok: false, grund: "Werbesperre: Diese Person hat um keine weitere Post gebeten" };
     }
@@ -495,13 +539,16 @@ export async function personenAnAdresse(adresse: string): Promise<number[]> {
  * Hauptadresse, alle drei Adressen jeder Bestellung (auch zusammengeführter),
  * die Adresse aus dem Lead-Formular und die Hauptadresse zusammengeführter
  * Personen. Wirft bei einer Störung — der Aufrufer entscheidet.
+ * 08.10.2026: `ohneFreigabe` zählt die Werbesperre nicht mit, die die Zahlungspost-Freigabe selbst gesetzt hat
+ * (FREIGABE_WERBESPERRE_PERSONEN_SQL) — nur für die Erstzahlungs-Erinnerung (ZAHLUNGSPOST_NACH_FREIGABE).
  */
-export async function werbesperreAnAdresse(adresse: string): Promise<boolean> {
+export async function werbesperreAnAdresse(adresse: string, opts: { ohneFreigabe?: boolean } = {}): Promise<boolean> {
   const a = String(adresse || "").trim().toLowerCase();
   if (!a) return false;
   const [g] = (await sqlPool`
     SELECT 1 AS g FROM fiaon_persons p
      WHERE p.werbung_gesperrt_am IS NOT NULL
+       ${opts.ohneFreigabe ? sqlPool.unsafe(`AND p.id NOT IN ${FREIGABE_WERBESPERRE_PERSONEN_SQL}`) : sqlPool``}
        AND (
          LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${a}
          OR EXISTS (
@@ -546,10 +593,13 @@ export const HART_UNZUSTELLBAR_ADRESSEN_SQL = `(SELECT DISTINCT LOWER(TRIM(hu_m.
 /**
  * Würde die automatische Tür eine Mail `event` an die Adresse `adr` (SQL-Ausdruck, schon LOWER/TRIM) ablehnen?
  * Werbesperre (nicht bei Zahlungspost) oder hart unzustellbar. Für WHERE … AND NOT (…).
+ * 08.10.2026: Für die Erstzahlungs-Erinnerung (ZAHLUNGSPOST_NACH_FREIGABE) zählt die Werbesperre aus der
+ * Zahlungspost-Freigabe nicht (WERBESPERRE_ADRESSEN_OHNE_FREIGABE_SQL) — dieselbe Lesart wie die Tür.
  */
 export function tuerNeinSql(adr: string, event: string): string {
   const teile = [`(${adr}) IN ${HART_UNZUSTELLBAR_ADRESSEN_SQL}`];
-  if (!ZAHLUNGSPOST.has(event)) teile.unshift(`(${adr}) IN ${WERBESPERRE_ADRESSEN_SQL}`);
+  if (ZAHLUNGSPOST_NACH_FREIGABE.has(event)) teile.unshift(`(${adr}) IN ${WERBESPERRE_ADRESSEN_OHNE_FREIGABE_SQL}`);
+  else if (!ZAHLUNGSPOST.has(event)) teile.unshift(`(${adr}) IN ${WERBESPERRE_ADRESSEN_SQL}`);
   return `(${teile.join(" OR ")})`;
 }
 
@@ -732,6 +782,69 @@ export const STOPP_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_st.pid")} FRO
     SELECT e253_sp.person_id FROM fiaon_postmeister e253_sp WHERE e253_sp.person_id IS NOT NULL AND ${POSTFACH_STOPP_ZEILE_SQL("e253_sp")}
   ) e253_st)`;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WOHER DIE WERBESPERRE KAM: fiaon_persons.werbesperre_quelle (08.10.2026, Zahlungspost-Freigabe, zweite Prüfung)
+//
+// Die Freigabe (server/lib/fiaon-zahlungspost-freigabe.ts) setzt die Werbesperre, damit eine bei Brevo abgemeldete
+// Adresse nur noch Zahlungspost bekommt. Diese Werbesperre darf die ZAHLUNGSPOST nicht treffen, die der Mensch vorher
+// bekam — sonst tauscht die Freigabe einen Kanal gegen einen anderen (gemessen 08.10., 14 Tage: 61 Raten-WhatsApps an
+// 33 Menschen hinter den blockierten Adressen, die BASIS der WA-Zentrale hätte sie gestrichen). Jede ANDERE Werbesperre
+// gilt wie bisher.
+//
+// DIE HERKUNFT STEHT AN DER PERSON (Spalte werbesperre_quelle, db/migrations/106_werbesperre_quelle.sql):
+//   · 'zahlungspost_freigabe' — nur die Freigabe, im SELBEN UPDATE wie der Stempel und nur bei leerem Stempel. Damit
+//     steht die Herkunft schon VOR dem Aufheben bei Brevo: Bricht der Lauf danach ab (vor dem Vermerk), gilt die
+//     Werbesperre trotzdem als die der Freigabe — nicht als die eines Menschen.
+//   · 'mensch' — JEDER andere Setzweg, AUCH wenn der Stempel schon steht: Mara (Abstreiten, „in Ruhe lassen",
+//     Löschwunsch, „schreiben Sie mir nicht mehr"), Postmeister (Route, Werkzeug werbesperre_setzen, Freigabe eines
+//     Entwurfs), Abmeldelink, Abmeldung über eine Lead-Mail, Kontaktergebnis „abgelehnt", Telefonkartei-Storno. Sagt ein
+//     Mensch nach der Freigabe Nein, ist die Werbesperre ab da seine (vorher tat werbesperreSetzen bei stehendem
+//     Stempel gar nichts, und die Ausnahme lief weiter). Der Prüfstand sucht jedes UPDATE auf werbung_gesperrt_am.
+//   · leer bei gesetztem Stempel — eine Werbesperre von vor dem 08.10.2026: die eines Menschen.
+// Die Ausnahme (Erstzahlungs-Erinnerung an Tür und Auswahl, Raten-WhatsApp der WA-Zentrale) gilt NUR für
+// 'zahlungspost_freigabe' — und nur ohne „Stopp" (STOPP_KOEPFE_SQL) und ohne Abmeldung über eine Lead-Mail
+// (LEAD_ABGEMELDET_KOEPFE_SQL; die alten haben keine Werbesperre): beides über die ganze Familie, egal wann.
+// Die erste Fassung las dafür Vermerk, Stempelzeit und Wörter im Kontaktprotokoll — teuer und mit Lücken (Maras Nein
+// ohne Vermerk, die SQL-Stopp-Erkennung ist enger als Maras). Sie ist entfallen.
+// Einmal je Abfrage gebildet, ohne Bezug auf die äußere Abfrage; NOT IN-sicher (nie NULL).
+// ═══════════════════════════════════════════════════════════════════════════
+export const FREIGABE_AKTEUR = "Zahlungspost-Freigabe";
+/** werbesperre_quelle: von der Zahlungspost-Freigabe gesetzt. */
+export const WERBESPERRE_QUELLE_FREIGABE = "zahlungspost_freigabe";
+/** werbesperre_quelle: von einem Menschen gewünscht (jeder andere Setzweg). */
+export const WERBESPERRE_QUELLE_MENSCH = "mensch";
+export const FREIGABE_WERBESPERRE_PERSONEN_SQL = `(SELECT zfw_p.id FROM fiaon_persons zfw_p
+    WHERE zfw_p.werbung_gesperrt_am IS NOT NULL AND zfw_p.werbesperre_quelle = '${WERBESPERRE_QUELLE_FREIGABE}'
+      AND ${KOPF_SQL("zfw_p.id")} NOT IN ${STOPP_KOEPFE_SQL}
+      AND ${KOPF_SQL("zfw_p.id")} NOT IN ${LEAD_ABGEMELDET_KOEPFE_SQL})`;
+
+/** Die Köpfe, in deren Familie eine Werbesperre steht, die NICHT aus der Zahlungspost-Freigabe stammt. */
+export const WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_wo.id")} FROM fiaon_persons e253_wo
+    WHERE e253_wo.werbung_gesperrt_am IS NOT NULL AND e253_wo.id NOT IN ${FREIGABE_WERBESPERRE_PERSONEN_SQL})`;
+
+/**
+ * Die Adressen der Werbesperre wie WERBESPERRE_ADRESSEN_SQL (dieselben sechs Wege), aber ohne die Werbesperre aus der
+ * Zahlungspost-Freigabe — für die Auswahl der Erstzahlungs-Erinnerung (tuerNeinSql). Der Filter steht EINMAL außen.
+ */
+export const WERBESPERRE_ADRESSEN_OHNE_FREIGABE_SQL = `(SELECT wo_a.adresse FROM (
+    SELECT LOWER(TRIM(ws_p.primary_email)) AS adresse, ws_p.id AS pid FROM fiaon_persons ws_p WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.email)), ws_p.id FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.contact_email)), ws_p.id FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.billing_email)), ws_p.id FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_l.email)), ws_p.id FROM fiaon_leads ws_l JOIN fiaon_persons ws_p ON ws_p.id = ws_l.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_m.primary_email)), ws_p.id FROM fiaon_persons ws_m JOIN fiaon_persons ws_p ON ws_p.id = ws_m.merged_into_person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+  ) wo_a WHERE wo_a.adresse IS NOT NULL AND wo_a.adresse <> '' AND wo_a.pid NOT IN ${FREIGABE_WERBESPERRE_PERSONEN_SQL})`;
+
+/**
+ * Stammt die Werbesperre dieser Person aus der Zahlungspost-Freigabe (Regel oben)? Für Texte, die sagen, was die
+ * Werbesperre bedeutet (Kundenweg: „Zahlungspost bleibt"). Wirft bei einer Störung — der Aufrufer entscheidet.
+ */
+export async function werbesperreAusFreigabe(personId: number): Promise<boolean> {
+  if (!Number.isInteger(personId) || personId <= 0) return false;
+  const [r] = (await sqlPool.unsafe(`SELECT 1 AS ja WHERE $1::int IN ${FREIGABE_WERBESPERRE_PERSONEN_SQL}`, [personId])) as any[];
+  return !!r;
+}
+
 /**
  * Mara-Topsales 08.10.2026 (Justin): Ist beim Menschen `p` (SQL-Ausdruck für die Personen-ID) eine ABLEHNUNG
  * dokumentiert? Eine Quelle für das Zusammenführen (fiaon-person-merge.ts: ohne Vermerk eine Prüfaufgabe) und die
@@ -741,7 +854,8 @@ export const STOPP_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_st.pid")} FRO
  *     haben 274 gesperrte A/B-Menschen ein „erreicht_abgelehnt“ nur an der Bestellung; die Diagnose las nur die Person
  *     und kam so auf 102 A / 99 B „ohne Ablehnung“ — mit der Bestellung bleiben 8 A und 3 B),
  *   · ein Klick auf „Sperren“ im Vertrieb (fiaon_agent_events vertrieb_sperre, neu = true),
- *   · eine Werbesperre oder ein „Stopp“ (WhatsApp/Postfach) — wer keine Nachrichten will, will auch keinen Verkauf,
+ *   · eine Werbesperre oder ein „Stopp“ (WhatsApp/Postfach) — wer keine Nachrichten will, will auch keinen Verkauf
+ *     (nicht die Werbesperre der Zahlungspost-Freigabe: werbesperre_quelle 'zahlungspost_freigabe' — die hat er nie verlangt),
  *   · (nach der Prüfung, 08.10.) die bewusst gesetzte Sperre der Verwaltung („Vertriebssperre GESETZT durch die
  *     Verwaltung“, vertriebssperreAendern in fiaon-kunden.ts — schreibt nur diesen Vermerk) und, mit
  *     `sperrProtokoll: true`, jede Sperre im Sperr-Protokoll (neu = true), die NICHT aus einem Zusammenführen stammt.
@@ -763,7 +877,8 @@ export const ABLEHNUNG_DOKUMENTIERT_SQL = (p: string, opt: { sperrProtokoll?: bo
   OR EXISTS (SELECT 1 FROM fiaon_agent_events ad_e
               WHERE ad_e.type = 'vertrieb_sperre' AND ad_e.meta ~ ('"person_id":' || (${p})::text || '[,}]')
                 AND ad_e.meta LIKE '%"neu":true%')
-  OR EXISTS (SELECT 1 FROM fiaon_persons ad_w WHERE ad_w.id IN ${FAMILIE_SQL(KOPF_SQL(p))} AND ad_w.werbung_gesperrt_am IS NOT NULL)
+  OR EXISTS (SELECT 1 FROM fiaon_persons ad_w WHERE ad_w.id IN ${FAMILIE_SQL(KOPF_SQL(p))} AND ad_w.werbung_gesperrt_am IS NOT NULL
+               AND ad_w.werbesperre_quelle IS DISTINCT FROM '${WERBESPERRE_QUELLE_FREIGABE}')
   ${opt.sperrProtokoll ? `OR EXISTS (SELECT 1 FROM fiaon_sperr_protokoll ad_s
               WHERE ad_s.person_id IN ${FAMILIE_SQL(KOPF_SQL(p))} AND ad_s.neu IS TRUE
                 AND COALESCE(ad_s.anweisung, '') NOT ILIKE '%merged_into_person_id%'

@@ -67,6 +67,8 @@ const A = await import("../server/lib/fiaon-global-angebot");
 const { wandPruefen } = await import("../shared/fiaon-wortverbote");
 const { GLOBAL_SCHAERFER } = await import("../shared/fiaon-global-wortregeln");
 const { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK } = await import("../shared/fiaon-global");
+// E-309: Mail und Nummer der Gesellschafter stehen seit 08.10.2026 in shared/fiaon-visitenkarte.ts; Team.tsx liest von dort.
+const { visitenkarte } = await import("../shared/fiaon-visitenkarte");
 const { globalWiderrufsbelehrung } = await import("../shared/fiaon-global-widerruf");
 const { mailRendern } = await import("../server/mail/motor");
 const { GLOBAL_ANGEBOT_VORLAGEN } = await import("../server/mail/vorlagen/global-angebot");
@@ -227,7 +229,10 @@ titel("2b. „Kredit garantiert“ (E-271, Justin 01.10.2026 abends) und „Ihre
   ok(AP.map((p) => p.name).join("|") === "Florentine Lombardi|Daniel Stripling|Justin Schwarzott", "Ansprechpartner: Lombardi, Stripling, Schwarzott — in dieser Reihenfolge");
   const team = fs.readFileSync(new URL("../client/src/components/site/Team.tsx", import.meta.url), "utf8");
   for (const p of AP) {
-    ok(team.includes(`name: "${p.name}", rolle: "${p.rolle}"`) && team.includes(`email: "${p.email}", telefon: "${p.telefon}"`), `${p.name}: Rolle, E-Mail und Telefon wie auf /team`);
+    // Rolle steht in Team.tsx; Mail und Nummer liest Team.tsx seit E-309 aus der Visitenkarte — dieselbe Quelle wie die Terminkarte.
+    const karte = visitenkarte(p.kuerzel);
+    ok(team.includes(`name: "${p.name}", rolle: "${p.rolle}"`) && !!karte && karte.name === p.name && karte.email === p.email && karte.telefon === p.telefon
+      && team.includes(`email: VISITENKARTEN.${p.kuerzel}.email, telefon: VISITENKARTEN.${p.kuerzel}.telefon`), `${p.name}: Rolle, E-Mail und Telefon wie auf /team`);
     ok(fs.existsSync(new URL(`../client/public/portraits/${p.kuerzel}.jpg`, import.meta.url)), `${p.name}: Foto /portraits/${p.kuerzel}.jpg vorhanden`);
     ok(/^\+41 \d{2} \d{3} ?\d{2} ?\d{2}$/.test(p.telefon) && /^[a-z]+@fiaon\.com$/.test(p.email), `${p.name}: Nummer und Adresse wohlgeformt`, p);
   }

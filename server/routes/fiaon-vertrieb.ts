@@ -1752,6 +1752,8 @@ router.post("/agent/vertrieb/person/:id/loeschen", requireAgent, nurLeitung, nur
       UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
        WHERE person_id = ${id}
     `.catch(() => {});
+    // E-IT-D (08.10.2026): das Finanzprofil der Auswertung, Upload-Links und Anfragen gehören dazu.
+    await import("../lib/fiaon-finanzauswertung").then((m) => m.personDatenLoeschen(id, {})).catch((e) => console.error("[DSGVO] Auswertung:", e?.message || e));
 
     // Die Person selbst: anonymisiert und aus allen Arbeitslisten heraus.
     await sqlPool`

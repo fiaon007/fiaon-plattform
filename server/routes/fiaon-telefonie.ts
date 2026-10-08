@@ -2048,7 +2048,15 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
     const posten = arten.map((a) => (a === "schufa" && teil ? teil.posten : ANFORDERN_HINWEIS[a]));
     // Angebot oder Zahlungslink: dann ist das der Hauptknopf (bei Werbesperre gibt es keinen).
     const hauptweg = teil?.knopf ?? null;
-    const hochladen = absoluteUrl("/login");
+    // ── E-IT-D (08.10.2026, 4c): DER KNOPF FÜHRT AUF DEN UPLOAD-LINK OHNE ANMELDUNG ──
+    // Vorher /login bzw. „Noch kein Passwort? Hier festlegen“ — wer kein Passwort hatte, kam
+    // nicht an den Upload. Jetzt derselbe signierte Link wie aus der Mitarbeiter-Akte (14 Tage,
+    // mehrfach nutzbar, nur die angeforderten Arten; server/lib/fiaon-unterlagen-link.ts).
+    const { linkFuerAnfrage, vorgaengerWiderrufen } = await import("../lib/fiaon-unterlagen-link");
+    const { uploadSatz } = await import("@shared/fiaon-unterlagen-anfrage");
+    const upLink = await linkFuerAnfrage(personId, arten.filter((a) => a === "ausweis" || a === "kontoauszug" || a === "schufa") as ("ausweis" | "kontoauszug" | "schufa")[],
+      { name: req.agent!.name, agentId: req.agent!.id }).catch((e) => { console.error("[DOK] Upload-Link:", String(e?.message || e).slice(0, 160)); return null; });
+    const hochladen = upLink ? upLink.url : absoluteUrl("/login");
     const zusatz: Record<string, unknown> = {
       hinweis: notiz || unterlagenAufzaehlung(posten),
       // Wahlweiser Absatz: leer = er entfällt (Mail-Motor).
@@ -2059,8 +2067,11 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
       knopf_url: hauptweg ? hauptweg.url : hochladen,
       knopf2_text: hauptweg
         ? (arten.length > 1 ? "Unterlagen hochladen" : "Ich habe schon eine — hochladen")
-        : "Noch kein Passwort? Hier festlegen",
-      knopf2_url: hauptweg ? hochladen : absoluteUrl("/passwort-vergessen"),
+        : upLink ? "" : "Noch kein Passwort? Hier festlegen",
+      knopf2_url: hauptweg ? hochladen : upLink ? "" : absoluteUrl("/passwort-vergessen"),
+      upload_satz: upLink
+        ? uploadSatz(upLink.link.gueltigBis, hauptweg ? (arten.length > 1 ? "Unterlagen hochladen" : "Ich habe schon eine — hochladen") : null)
+        : "Unterlagen, die Sie schon haben oder selbst anfordern, laden Sie einfach in Ihrem Bereich hoch — als PDF, gut lesbar, alle vier Ecken im Bild.",
       // Gegenlesen 24.09.2026: Nur MIT Kaufangebot ist die Mail (auch) Werbung —
       // dann gehört der Widerspruchs-Hinweis hinein (§ 7 Abs. 3 Nr. 4 UWG). Leer = entfällt.
       widerspruch_text: teil?.modus === "angebot" ? WIDERSPRUCH_SATZ : "",
@@ -2085,6 +2096,18 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
       event: "documents_change_request", personId, zusatz,
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     });
+    // E-IT-D (4c): dasselbe Protokoll wie die Anforderung aus der Mitarbeiter-Akte — die Drossel zählt beide Knöpfe.
+    if (erg.ok && upLink) {
+      // Erst nach der Zustellung gelten ältere Links nicht mehr (scheitert die Mail, bleibt der alte gültig).
+      await vorgaengerWiderrufen(personId, upLink.link.id)
+        .catch((e) => console.error("[DOK] Upload-Link Vorgänger:", String(e?.message || e).slice(0, 160)));
+      const { empfaengerFuer } = await import("../lib/fiaon-massgebliche-bestellung");
+      const adresse = (await empfaengerFuer(personId).catch(() => ({ adresse: null }))).adresse;
+      await sqlPool`
+        INSERT INTO fiaon_unterlagen_anfragen (person_id, link_id, arten, quelle, mail_status, whatsapp_status, adresse, von, von_id)
+        VALUES (${personId}, ${upLink.link.id}, ${arten}, 'betreiber', 'gesendet', 'aus', ${adresse}, ${req.agent!.name}, ${req.agent!.id})`
+        .catch((e) => console.error("[DOK] Anfrage-Protokoll:", String(e?.message || e).slice(0, 160)));
+    }
     const nachsatz = [
       erg.ok && teil?.modus === "angebot" ? `Mit Angebot: Auskunft für ${teil.betragText}.` : "",
       erg.ok && teil?.modus === "zahlen" ? `Mit Link zur Zahlung der offenen Auskunft (${teil.betragText}).` : "",

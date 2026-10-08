@@ -9,6 +9,7 @@ import { BANK } from "@shared/fiaon-bank";
 import type { Rahmenweg } from "@shared/fiaon-rahmenweg";
 import type { Bereich } from "./typen";
 import { eur } from "./Bausteine";
+import { FinanzauswertungKarte } from "@/components/finanzen/Finanzauswertung";
 
 function Kopieren({ wert }: { wert: string }) {
   const [ok, setOk] = useState(false);
@@ -22,7 +23,7 @@ function Kopieren({ wert }: { wert: string }) {
 
 // `demo` bleibt Teil der Schnittstelle (App.tsx reicht es an alle Seiten weiter); seit der
 // Bankeinzug weg ist (19.09.2026, E-194), gibt es hier nichts mehr, was die Demo sperren müsste.
-export function Geld({ b, rw, kundeRef, basis }: { b: Bereich; rw: Rahmenweg; kundeRef: string; basis: string; demo: boolean }) {
+export function Geld({ b, rw, kundeRef, basis, demo }: { b: Bereich; rw: Rahmenweg; kundeRef: string; basis: string; demo: boolean }) {
   const n = b.abo?.naechste ?? null;
   const zweck = n?.referenz || b.paket.zahlungsreferenz || kundeRef;
   const ueberfaellig = rw.raten.ueberfaellig;
@@ -71,6 +72,9 @@ export function Geld({ b, rw, kundeRef, basis }: { b: Bereich; rw: Rahmenweg; ku
           </div>
         </section>
       )}
+
+      {/* E-IT-D (08.10.2026, 4b): die freigegebene Finanz- und Bonitätsauswertung — nur, wenn es eine gibt. */}
+      <div className="ap-auf v4"><FinanzauswertungKarte kundeRef={kundeRef} demo={demo} href={`${basis}/auswertung`} /></div>
 
       <section className="ap-abschnitt ap-auf v4">
         <h2 className="ap-abschnitt-titel">Ihre Berichte</h2>

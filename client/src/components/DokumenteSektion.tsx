@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+// E-IT-D (08.10.2026, 4a): Die Sätze je Stufe der Auskunft stehen in EINER Quelle — Betreiber- und Mitarbeiter-Akte lesen sie.
+import { auskunftStufenSatz, OHNE_ANGEBOT_TEXT, type BeschaffungAkte } from "@shared/fiaon-auskunft-akte";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DOKUMENTE — Ausweis, Kontoauszug, Bonitätsauskunft
@@ -41,14 +43,11 @@ interface AuskunftStand {
   /** Bietet die Mail die Auskunft an? Nein bei Werbesperre oder unbezahltem Paket — dann nur die Bitte. */
   angebot?: boolean;
   ohneAngebot?: "werbesperre" | "paket_offen" | "kuerzlich_angeboten" | null;
+  /** E-IT-D (4a): der Stand der Beschaffung bei bezahlter Auskunft ohne Datei. */
+  beschaffung?: BeschaffungAkte | null;
 }
 
-const OHNE_ANGEBOT: Record<string, string> = {
-  werbesperre: "Werbesperre",
-  paket_offen: "Paket noch nicht bezahlt",
-  // Integration 25.09.2026 (E-240): die gemeinsame Bremse — ein Angebot je Kunde in drei Tagen.
-  kuerzlich_angeboten: "in den letzten drei Tagen schon angeboten",
-};
+const OHNE_ANGEBOT: Record<string, string> = OHNE_ANGEBOT_TEXT;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER KNOPF JE UNTERLAGE (24.09.2026, E-240)
@@ -89,19 +88,13 @@ function anforderKnopf(d: Dokument, auskunft: AuskunftStand | null | undefined):
   return null;
 }
 
-/** Die kleine Zeile unter der Auskunft-Kachel: wo der Kunde steht. */
+/**
+ * Die kleine Zeile unter der Auskunft-Kachel: wo der Kunde steht.
+ * E-IT-D (08.10.2026, 4a): aus shared/fiaon-auskunft-akte.ts — derselbe Satz wie in der Mitarbeiter-Akte,
+ * bei bezahlter Auskunft mit dem Stand der Beschaffung („wartet auf die Auftragsbestätigung …“).
+ */
 function auskunftZeile(auskunft: AuskunftStand | null | undefined): string | null {
-  if (!auskunft) return null;
-  if (auskunft.stufe === "bezahlt") return "Bezahlt — wir holen die Auskunft ein.";
-  if (auskunft.stufe === "offen" && auskunft.offen?.gemeldet) return `Zahlung gemeldet (${auskunft.offen.betragText}) — wird geprüft.`;
-  if (auskunft.stufe === "offen" && auskunft.offen) {
-    return `Bestellt, Zahlung offen (${auskunft.offen.betragText})${auskunft.ohneAngebot === "werbesperre" ? " — Werbesperre: die Mail nennt keinen Zahlungslink" : ""}.`;
-  }
-  // Die Auskunft liegt an einer anderen Bestellung derselben Person — deshalb kein Knopf.
-  if (auskunft.stufe === "dokument") return "Liegt an einer anderen Bestellung dieser Person vor.";
-  if (auskunft.stufe === "nichts" && auskunft.angebot === false) return `Kein Angebot: ${OHNE_ANGEBOT[String(auskunft.ohneAngebot)] ?? "gesperrt"}.`;
-  if (auskunft.stufe === "nichts") return `Preis für diesen Kunden: ${auskunft.preisText}${auskunft.mitAbo ? " (mit Paket)" : " (einzeln)"}.`;
-  return null;
+  return auskunftStufenSatz(auskunft ?? null);
 }
 
 const KYC_TEXT: Record<string, { text: string; farbe: string }> = {

@@ -27,6 +27,7 @@ import { AuskunftKaufkarte, type AuskunftKauf } from "@/components/kunde/Auskunf
 import { UnterlagenListe } from "@/components/unterlagen/UnterlagenListe";
 import { auskunfteienText, auskunftLand } from "@shared/fiaon-auskunft";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
+import { FinanzauswertungAnsicht } from "@/components/finanzen/Finanzauswertung";
 
 // Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
 // Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
@@ -581,6 +582,9 @@ export default function MeinBereichPage() {
             <section id="finanzen">
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Finanzen</h2><p>Wohin Ihr Geld geht — nicht geschätzt, gezählt.</p></div></div>
               <FinanzAnalyse a={d.finanzen ?? null} hatAuszug={d.unterlagen.kontoauszug} />
+              {/* E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung — dieselbe Ansicht wie /app/auswertung. */}
+              <div className="mb-abschnitt-kopf" style={{ marginTop: 24 }}><div><h2>Ihre Finanz- und Bonitätsauswertung</h2><p>Ampel je Bereich, Ihr FIAON-Finanzwert und Ihr Plan — mit PDF.</p></div></div>
+              <FinanzauswertungAnsicht kundeRef={d.kunde.ref} demo={DEMO} />
               <Finanzkalender finanzen={d.finanzen ?? null} raten={d.abo.raten} paket={d.paket.name} />
                   <p style={{ margin: "14px 0 0", fontSize: 12, color: "var(--text-still)" }}>Sie möchten nicht weitermachen? <a href="/abo-kuendigen" style={{ color: "var(--text-leise)", textDecoration: "underline", textUnderlineOffset: 3 }}>Abo kündigen</a> – wir sagen Ihnen vorher ehrlich, was Sie verlieren.</p>
               {!d.finanzen && <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Kontoauszug vorliegt</b> (oder Ihr Konto verbunden ist), steht hier jede Buchung an ihrem Tag im Kalender: Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Betrag, Rhythmus und dem Tag, an dem sie abgehen. Dazu Ihr Ausgabenprofil nach Bereichen und Merksätze, die benennen, wo Spielraum ist.</div>}

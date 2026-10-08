@@ -134,6 +134,9 @@ import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
 import { KontoKarteAkte, KontoKarteKurz } from "@/components/agent/KontoKarteAkte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
+// E-IT-D (08.10.2026, 4a/4b/4c): Auswertung + Anforderung in der Akte, Stufensätze der Auskunft aus EINER Quelle.
+import { FinanzauswertungAkte } from "@/components/finanzen/FinanzauswertungAkte";
+import { auskunftStufenSatz, EINWILLIGUNG_DATENUEBERMITTLUNG, EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS } from "@shared/fiaon-auskunft-akte";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -3404,6 +3407,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     Akte nur „Ersetzen“ (alles neu wählen) und „Löschen“ (ohne Archiv). */}
                 <UnterlagenAkte personId={k.personId} ton="dunkel" melden={(t, titel, text) => melden(t, titel, text)}
                                 onGeaendert={() => { void dokuLaden(); void frisch(); }} />
+                {/* Integration E-IT-C × E-IT-D (08.10.2026, 4a): Fehlt die Auskunft, sagt die Akte ihre Stufe („Bezahlt am … —
+                    Beschaffung wartet auf …“) statt nur „fehlt“ — derselbe Satz wie vorher in der alten Dokumentliste. */}
+                {!(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && auskunftStufenSatz(doku.auskunft) && (
+                  <p className="pi-sek-satz leise" data-fiaon="auskunft-stufe" style={{ marginTop: 6 }}>Bonitätsauskunft: {auskunftStufenSatz(doku.auskunft)}</p>
+                )}
                 {/* 18.09.2026 (Team-Feedback Priorität 1): Nichts geht verloren — ersetzte Fassungen bleiben abrufbar. */}
                 {Array.isArray(doku.fruehere) && doku.fruehere.length > 0 && (
                   <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>
@@ -3420,6 +3428,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: Akt
                     })}
                   </p>
                 )}
+                {/* E-IT-D (08.10.2026, 4b/4c): FIAON Finanz- und Bonitätsauswertung — Voraussetzungen, Anfordern mit einem Klick, Entwurf, Freigabe. */}
+                <FinanzauswertungAkte personId={k.personId} melden={melden} onNeu={() => void dokuLaden()} />
                 {/* E-175: Was in der Auskunft STEHT — nicht nur, dass sie da ist. */}
                 {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
                   <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />
@@ -4656,8 +4666,10 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
           <Z was="Profil vervollständigt am" wert={antrag.profilFertigAm ? dtag(antrag.profilFertigAm) : null} />
         </div>
         <div className="pi-ab-haken">
-          {[["AGB", antrag.zustimmungen?.agb], ["Bonitätsauskunft", antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
-            <span key={String(w)} className={ja ? "ja" : "nein"}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
+          {/* E-IT-D (08.10.2026, 4a): Der Haken hieß „Bonitätsauskunft“ — er ist die Einwilligung in die Datenübermittlung
+              (consent_schufa), keine Bestellung. 272 Kunden ohne Bestellung sahen ihn grün und galten als „beantragt“. */}
+          {[["AGB", antrag.zustimmungen?.agb], [EINWILLIGUNG_DATENUEBERMITTLUNG, antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
+            <span key={String(w)} className={ja ? "ja" : "nein"} title={w === EINWILLIGUNG_DATENUEBERMITTLUNG ? EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS : undefined}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
           ))}
         </div>
       </Sek>

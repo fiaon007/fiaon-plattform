@@ -1,0 +1,55 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON FINANZ- UND BONITÄTSAUSWERTUNG — DIE ANSICHT DES KUNDEN (E-IT-D, 08.10.2026)
+   Hell, ruhig, eine dunkle Fläche (die Skala oben), Blau-Paar #288DFA → #1D4ED8.
+   Hover nur bei Maus. Keine eigene Dunkelfassung (Kundenbereich ist hell).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fa { --fa-navy: #0B1220; --fa-blau: #1D4ED8; --fa-hell: #288DFA; --fa-text: #22324A; --fa-still: #5B6B82; --fa-linie: #E1E8F2;
+      --fa-gruen: #0F9D6B; --fa-gelb: #D99A06; --fa-rot: #D93A3A; --fa-grau: #94A3B8;
+      color: var(--fa-text); font-size: 15px; line-height: 1.55; }
+.fa * { box-sizing: border-box; }
+.fa-buehne { border-radius: 20px; padding: 22px 18px 18px; color: #fff; text-align: center;
+             background: radial-gradient(120% 80% at 85% 0%, rgba(40,141,250,.30) 0%, rgba(40,141,250,0) 55%), linear-gradient(160deg, #0B1220 0%, #13203A 55%, #1A2744 100%); }
+.fa-buehne .fa-art { font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: rgba(255,255,255,.66); }
+.fa-skala { width: 100%; max-width: 340px; margin: 8px auto 0; display: block; }
+.fa-skala .fa-bogen { transition: stroke-dashoffset 1.2s cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) { .fa-skala .fa-bogen { transition: none; } }
+.fa-wert { font-size: 46px; font-weight: 300; line-height: 1; margin-top: -58px; font-variant-numeric: tabular-nums; }
+.fa-wert small { display: block; font-size: 11px; letter-spacing: .24em; text-transform: uppercase; color: rgba(255,255,255,.66); margin-top: 8px; }
+.fa-band { font-size: 18px; font-weight: 300; margin-top: 6px; }
+.fa-kenn { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.72); margin-top: 14px; text-align: left; border-top: 1px solid rgba(255,255,255,.18); padding-top: 10px; }
+.fa-pillen { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 14px; }
+.fa-pille { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--fa-linie); background: #fff; color: var(--fa-text); }
+.fa-buehne .fa-pille { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); color: #fff; }
+.fa-punkt { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.fa-karte { background: #fff; border: 1px solid var(--fa-linie); border-radius: 14px; padding: 16px; margin-top: 12px; }
+.fa-titel { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--fa-still); margin: 22px 0 6px; }
+.fa-kacheln { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+@media (min-width: 640px) { .fa-kacheln { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.fa-kachel { background: #fff; border: 1px solid var(--fa-linie); border-radius: 12px; padding: 12px; }
+.fa-kachel span { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--fa-still); }
+.fa-kachel b { display: block; font-size: 20px; font-weight: 400; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--fa-navy); }
+.fa-bereich { display: grid; grid-template-columns: 14px 1fr; gap: 10px; padding: 12px 0; border-top: 1px solid var(--fa-linie); }
+.fa-bereich:first-child { border-top: 0; }
+.fa-bereich .fa-punkt { margin-top: 6px; width: 12px; height: 12px; }
+.fa-bereich b { font-weight: 600; color: var(--fa-navy); }
+.fa-bereich p { margin: 3px 0 0; font-size: 14px; }
+.fa-still { color: var(--fa-still); font-size: 13px; }
+.fa-schritt { border: 1px solid var(--fa-linie); border-radius: 12px; padding: 12px 14px; margin-top: 8px; background: #fff; }
+.fa-schritt-kopf { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.fa-schritt-kopf b { color: var(--fa-navy); font-weight: 600; }
+.fa-wirkung { font-size: 13px; color: #0F7A55; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fa-wirkung.ruecklage { color: var(--fa-blau); }
+.fa-schritt ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+.fa-schritt li { margin: 3px 0; }
+.fa-frist { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--fa-blau); font-weight: 600; margin-top: 16px; }
+.fa-hinweis { background: #F3F7FD; border: 1px solid #D6E3F7; border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-size: 14px; }
+.fa-hinweis.vorbehalt { background: #FFF8E8; border-color: #F1D9A0; }
+.fa-knopf { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px; border-radius: 12px; border: 0;
+            background: var(--fa-blau); color: #fff; font-weight: 600; font-size: 16px; text-decoration: none; cursor: pointer; width: 100%; margin-top: 16px; }
+.fa-knopf.still { background: #fff; color: var(--fa-blau); border: 1px solid #C9D5E5; }
+@media (hover: hover) { .fa-knopf:hover { filter: brightness(1.06); } .fa-link:hover { text-decoration: underline; } }
+.fa-link { color: var(--fa-blau); text-decoration: none; font-weight: 500; }
+.fa-leer { text-align: center; padding: 28px 16px; }
+.fa-tabelle { width: 100%; border-collapse: collapse; font-size: 14px; }
+.fa-tabelle td { padding: 8px 0; border-top: 1px solid var(--fa-linie); vertical-align: top; }
+.fa-tabelle td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 10px; }

@@ -318,5 +318,40 @@ abschnitt("Einsatzort Prüfbericht (E-268)");
   ok(/Anlage 2 gibt FIAON nicht an Dritte weiter/.test(textQuelle), "Vertrag: Anlage 2 geht nicht an Dritte");
 }
 
+// ── EINSATZORT FINANZAUSWERTUNG (E-IT-D, 08.10.2026, Justin: „Ampel je Bereich + Score ‚FIAON-Finanzwert‘
+// 100–999 … im Kundenportal, ÜBERALL klar gekennzeichnet") ────────────────────────────────────────────
+// Ausdrückliche Ausnahme von „nie für Kunden" — aber nur so: gerechnet und EINGEFROREN auf dem Server
+// (shared/fiaon-finanzauswertung.ts, server/lib/fiaon-finanzauswertung.ts), das Portal zeigt nur den
+// freigegebenen Datensatz; kein BoniAmpel-Bauteil; Wert und Ampel nie in Mail- oder WhatsApp-Texten;
+// keine Route an Dritte; das Karten-Tor liest die Auswertung nie (sie ist keine Bonitätsauskunft).
+abschnitt("Einsatzort Finanzauswertung (E-IT-D)");
+{
+  const regeln = lies("shared/fiaon-finanzauswertung.ts");
+  ok(/kein SCHUFA-Score/.test(regeln) && /keine Kredit- oder Kartenzusage/.test(regeln) && /nicht an Dritte weitergegeben/.test(regeln), "Kennzeichnung des Finanzwerts an EINER Stelle");
+  const ohneKommentar = (t: string) => t.split("\n").filter((z) => !/^\s*(\/\/|\*|\/\*)/.test(z)).join("\n");
+  const kunde = ohneKommentar(lies("client/src/components/finanzen/Finanzauswertung.tsx"));
+  ok(!/BoniAmpel|fiaon-boni-ampel/.test(kunde), "Portal-Ansicht nutzt kein Ampel-Bauteil der Mitarbeiter");
+  ok(!/finanzwertRechnen|ampelnRechnen|faktenAus|schritteAus/.test(kunde), "Portal rechnet nichts selbst — nur der eingefrorene Datensatz");
+  ok(/FINANZWERT_KENNZEICHNUNG/.test(kunde), "Portal zeigt die Kennzeichnung neben dem Wert");
+  const vorlage = ohneKommentar(lies("server/mail/vorlagen/finanzauswertung.ts"));
+  ok(!/finanzwert|ampel|\{\{params\.(wert|band|gesamt|score)/i.test(vorlage.replace(/FIAON Finanz- und Bonitätsauswertung/g, "")), "Mail nennt keinen Wert, keine Ampel");
+  ok(!/finanzwert|ampel/i.test(lies("shared/fiaon-unterlagen-anfrage.ts")), "WhatsApp-Text nennt keinen Wert, keine Ampel");
+  ok(!/finanzauswertung/i.test(lies("server/lib/fiaon-konto-karte.ts")), "Karten-Tor liest die Finanzauswertung nie");
+  // Wer liest die Tabelle? Nur der eine Ablauf (und der Prüfstand).
+  const leser: string[] = [];
+  const lauf = (dir: string) => {
+    for (const f of fs.readdirSync(path.join(wurzel, dir), { withFileTypes: true })) {
+      const p = path.join(dir, f.name);
+      if (f.isDirectory()) lauf(p);
+      else if (/\.ts$/.test(f.name) && /fiaon_finanzauswertungen/.test(lies(p))) leser.push(p);
+    }
+  };
+  lauf("server");
+  ok(leser.sort().join(",") === "server/lib/fiaon-finanzauswertung.ts", `fiaon_finanzauswertungen nur im Ablauf gelesen (gefunden: ${leser.join(", ") || "—"})`);
+  const routen = lies("server/routes/fiaon-finanzauswertung.ts");
+  ok(/router\.get\("\/kunde\/:ref\/finanzauswertung", requireKunde/.test(routen), "Kunde sieht nur seine eigene Auswertung (requireKunde)");
+  ok(/requireAgent/.test(routen) && /darfAnKunde/.test(routen), "Akte: nur wer den Kunden betreut, und die Leitung");
+}
+
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

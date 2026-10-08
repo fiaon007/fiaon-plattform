@@ -839,6 +839,13 @@ function stellenText(a: BeschaffungAuftragT): string {
 
 /** Was nach der Bestätigung kommt — auf der Seite (`vorher`: „Nach Ihrer Bestätigung …") und auf der Dankeseite. */
 function danachSatz(a: BeschaffungAuftragT, vorher = false): string {
+  // E-IT-D (Nachprüfung 08.10.2026): Im Datenkopie-Weg kommt die Auskunft per Post zum Kunden — das steht hier ehrlich.
+  if (a.modus === "datenkopie") {
+    const wann = a.faellig
+      ? (vorher ? "Nach Ihrer Bestätigung fordern wir Ihre Datenkopie in Ihrem Namen an." : "Wir fordern Ihre Datenkopie jetzt in Ihrem Namen an.")
+      : `Wie bei Ihrer Beauftragung gewählt, fordern wir Ihre Datenkopie erst nach Ablauf der Widerrufsfrist an, ab dem ${isoDe(a.faelligAb)}.`;
+    return `${wann} Die Auskunfteien schicken sie in der Regel per Post an Ihre Anschrift. Laden Sie sie dann in Ihrem Bereich hoch — wir werten sie für Sie aus, mit der Erklärung jedes Eintrags, Ihrem Handlungsplan und fertigen Schreiben zur Freigabe.`;
+  }
   const wann = a.faellig
     ? (vorher ? "Nach Ihrer Bestätigung beschaffen wir Ihre Auskunft." : "Wir beschaffen Ihre Auskunft jetzt.")
     : `Wie bei Ihrer Beauftragung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist, ab dem ${isoDe(a.faelligAb)}.`;
@@ -898,6 +905,10 @@ router.post("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
           UPDATE fiaon_betreiber_todos SET text = CONCAT(COALESCE(text, ''), ${`\n\nNachtrag ${jetzt} Uhr: Der Kunde hat den Beschaffungsauftrag bestätigt — die Einwilligung liegt vor.`}::text), updated_at = NOW()
            WHERE schluessel = ${`auskunft-beschaffung:${a.ref}`} AND status <> 'erledigt'`.catch((e) => console.error("[AUSKUNFT-AUFTRAG] Nachtrag Aufgabe:", e));
         await sqlPool`UPDATE fiaon_auskunft_beschaffung SET updated_at = NOW() WHERE id = ${a.id}`.catch(() => {});
+        // E-IT-D (Nachprüfung 08.10.2026): Anruf- und „Link nie zugestellt“-Aufgabe der Wache sind damit erledigt.
+        const { wacheAufgabenSchliessen, wacheSchluessel } = await import("../lib/fiaon-auskunft-lieferung");
+        await wacheAufgabenSchliessen(a.id, [wacheSchluessel(a.id).anruf, wacheSchluessel(a.id).link_fehlt], "Kunde hat den Auftrag bestätigt.")
+          .catch((e) => console.error("[AUSKUNFT-AUFTRAG] Wache-Aufgaben:", e));
         // Über die API (angebunden, fällig): gleich abrufen — nie auf Kosten der Antwort.
         const L = await import("../lib/fiaon-auskunft-lieferung");
         const { auskunftApiAngebunden } = await import("../lib/fiaon-auskunft-quelle");

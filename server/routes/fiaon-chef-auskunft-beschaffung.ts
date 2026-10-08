@@ -29,6 +29,7 @@ import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugan
 import {
   LIEFERMODUS_SCHLUESSEL, BESCHAFFUNG_PDF_MAX, auskunftLiefermodus, istLiefermodus, beschaffungListe, rueckstandEinlesen,
   beschaffungAktion, beschaffungHochladen, beschaffungMailNachholen, auftragLinkSenden, apiFaelligeAbrufen,
+  auftragLinksAlleSenden, beschaffungSammelStand, beschaffungVerantwortlichSetzen, beschaffungWache,
   type BeschaffungAktion, type BeschaffungAuftrag,
 } from "../lib/fiaon-auskunft-lieferung";
 import { auskunftApiAngebunden } from "../lib/fiaon-auskunft-quelle";
@@ -88,6 +89,8 @@ router.get("/chef/auskunft-beschaffung", wache, async (_req: Request, res: Respo
       pdfMaxMb: Math.round(BESCHAFFUNG_PDF_MAX / 1024 / 1024),
       rueckstandNeu,
       zahlen: zahlen(liste),
+      // E-IT-D (08.10.2026, 4a): Sammelknopf, Wache und benannte Verantwortung.
+      sammel: await beschaffungSammelStand(liste),
       auftraege: liste,
     });
   } catch (err) {
@@ -210,6 +213,53 @@ router.post("/chef/auskunft-beschaffung/:id/mail", wache, async (req: ChefReques
     res.json({ ok: true, text: erg.text, status: erg.status });
   } catch (err) {
     console.error("[CHEF-BESCHAFFUNG] Mail:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// E-IT-D (08.10.2026, 4a): DER RÜCKSTAND WIRD GELIEFERT
+//   POST /auftrag-links-alle   „Auftragsbestätigung an alle offenen senden" — Datenkopie-Weg,
+//                              je Auftrag höchstens einmal in 72 Stunden (auftragLinksAlleSenden)
+//   POST /verantwortlich       {agentId | null} — wer die Aufgaben der Liegezeit-Wache bekommt
+//   POST /wache                die Liegezeit-Wache jetzt laufen lassen (sonst alle 6 Stunden)
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/chef/auskunft-beschaffung/auftrag-links-alle", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const erg = await auftragLinksAlleSenden(await wer(req));
+    await chefProtokoll(req, "auskunft-beschaffung:auftrag-links-alle",
+      `Sammelknopf: ${erg.gesendet} gesendet, ${erg.fehlgeschlagen} fehlgeschlagen, ${erg.aufDatenkopie} auf Datenkopie gestellt, ${erg.uebersprungen.length} übersprungen`);
+    res.json({ ok: true, ...erg, text: `${erg.gesendet} Auftragsbestätigungen verschickt${erg.aufDatenkopie ? `, ${erg.aufDatenkopie} Aufträge auf den Datenkopie-Weg gestellt` : ""}${erg.fehlgeschlagen ? `, ${erg.fehlgeschlagen} nicht zugestellt (${erg.texte.slice(0, 3).join(" · ")})` : ""}.` });
+  } catch (err) {
+    console.error("[CHEF-BESCHAFFUNG] Sammelknopf:", err);
+    res.status(500).json({ ok: false, error: "Der Sammelversand ist gescheitert." });
+  }
+});
+
+router.post("/chef/auskunft-beschaffung/verantwortlich", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const roh = req.body?.agentId;
+    const agentId = roh === null || roh === "" || roh === undefined ? null : Number(roh);
+    if (agentId != null && (!Number.isInteger(agentId) || agentId <= 0)) return res.status(400).json({ ok: false, error: "Unbekannte Person." });
+    const erg = await beschaffungVerantwortlichSetzen(agentId);
+    if (!erg.ok) return res.status(400).json({ ok: false, error: erg.text });
+    await chefProtokoll(req, "auskunft-beschaffung:verantwortlich", erg.text);
+    res.json({ ok: true, text: erg.text });
+  } catch (err) {
+    console.error("[CHEF-BESCHAFFUNG] Verantwortung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/chef/auskunft-beschaffung/wache", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const erg = await beschaffungWache();
+    await chefProtokoll(req, "auskunft-beschaffung:wache", `Wache von Hand: ${erg.aufgaben} Aufgaben, ${erg.dringend} dringend, ${erg.anrufe} Anrufe`);
+    res.json({ ok: true, ...erg, text: erg.aufgaben + erg.dringend + erg.anrufe
+      ? `${erg.aufgaben} Aufgaben, ${erg.dringend} dringende, ${erg.anrufe} Anruf-Aufgaben angelegt.`
+      : "Nichts liegt über der Frist — keine neue Aufgabe." });
+  } catch (err) {
+    console.error("[CHEF-BESCHAFFUNG] Wache:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -61,8 +61,14 @@ interface Auftrag {
   einwilligung: { ja: boolean; quelle: string | null; text: string };
   dokumentDa: boolean; vorgaengeLaufend: number; anschriftFehlt: boolean; betreuer: string | null;
 }
+/** E-IT-D (08.10.2026, 4a): Sammelknopf, Wache, benannte Verantwortung (beschaffungSammelStand). */
+interface Sammel {
+  ohneEinwilligung: number; linkJetzt: number; liegtUeberFrist: number; anrufFaellig: number; datenkopie: number; nochNichtDatenkopie: number;
+  verantwortlich: { id: number; name: string } | null; auswahl: { id: number; name: string; rolle: string }[];
+}
 interface Stand {
   stand: string; modus: Modus; apiAngebunden: boolean; unterschriftAn: boolean; pdfMaxMb: number; rueckstandNeu: number;
+  sammel?: Sammel;
   zahlen: { jetzt: number; einwilligungFehlt: number; wartet: number; mailFehlt: number; problem: number; offen: number; fertig30: number };
   auftraege: Auftrag[];
 }
@@ -293,6 +299,46 @@ export default function ChefAuskunftBeschaffung() {
             </div>
           )}
 
+          {/* ── E-IT-D (08.10.2026, 4a): DEN RÜCKSTAND LIEFERN ────────────────────────────────────────
+              Justin: „Rückstand über den Datenkopie-Weg liefern: Sammelknopf ‚Vollmacht/Auftragsbestätigung an
+              alle offenen senden‘ über die bestehende Funktion; Liegezeit-Wache mit benannter Verantwortung." */}
+          {s.sammel && (
+            <div className="mara-hinweise akb-sammel" data-akb-sammel>
+              <p className={`mara-hinweis ${s.sammel.ohneEinwilligung ? "warn" : ""}`}>
+                <span className={`mara-punkt ${s.sammel.ohneEinwilligung ? "warn" : "gut"}`} aria-hidden="true" />
+                <span>
+                  <b>Rückstand liefern (Datenkopie-Weg):</b> {zahl(s.sammel.ohneEinwilligung)} bezahlte Aufträge warten auf die Auftragsbestätigung des Kunden
+                  {" · "}{zahl(s.sammel.linkJetzt)} bekämen jetzt den Link{" · "}{zahl(s.sammel.liegtUeberFrist)} beschaffbar und über der Frist
+                  {" · "}{zahl(s.sammel.anrufFaellig)} Anrufe fällig{s.sammel.datenkopie ? ` · ${zahl(s.sammel.datenkopie)} schon auf Datenkopie` : ""}.
+                  {" "}Der Sammelknopf stellt alle offenen, bezahlten Aufträge auf den Datenkopie-Weg (FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an) und schickt jedem Kunden ohne Bestätigung die Mail „Bitte bestätigen Sie kurz Ihren Auftrag“ — ohne „kostenlos“, höchstens einmal in 72 Stunden je Auftrag.
+                </span>
+              </p>
+              <div className="mara-knoepfe">
+                <button type="button" className="mara-knopf haupt klein" disabled={(!s.sammel.linkJetzt && !s.sammel.nochNichtDatenkopie) || beschaeftigt === "sammel"}
+                  onClick={() => setFrage({
+                    text: `Auftragsbestätigung an ${s.sammel!.linkJetzt} Kunden senden?\n\nJeder bekommt eine Mail mit dem Knopf „Auftrag bestätigen“ (Datenkopie nach Art. 15 DSGVO, in seinem Namen angefordert). ${s.sammel!.nochNichtDatenkopie} offene Aufträge gehen dabei auf den Datenkopie-Weg (wer schon bestätigt hat, ohne Mail); Verlauf und Protokoll halten es fest.`,
+                    ja: "Ja, an alle senden",
+                    tat: () => void ausfuehren("sammel", async () => (await senden("/chef/auskunft-beschaffung/auftrag-links-alle")).text, "status"),
+                  })}>
+                  {beschaeftigt === "sammel" ? "Sendet …" : `Auftragsbestätigung an alle offenen senden (${zahl(s.sammel.linkJetzt)})`}
+                </button>
+                <button type="button" className="mara-knopf klein" disabled={beschaeftigt === "wache"}
+                  onClick={() => void ausfuehren("wache", async () => (await senden("/chef/auskunft-beschaffung/wache")).text, "status")}>
+                  {beschaeftigt === "wache" ? "Prüft …" : "Liegezeit-Wache jetzt prüfen"}
+                </button>
+                <label className="mara-klein" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                  Verantwortlich:
+                  <select className="mara-eingabe" style={{ minHeight: 32, width: "auto" }} value={s.sammel.verantwortlich?.id ?? ""} disabled={beschaeftigt === "verantwortlich"}
+                    onChange={(e) => { const v = e.target.value; void ausfuehren("verantwortlich", async () => (await senden("/chef/auskunft-beschaffung/verantwortlich", { agentId: v ? Number(v) : null })).text, "status"); }}>
+                    <option value="">Leitung (Betreiber-Brett)</option>
+                    {s.sammel.auswahl.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="mara-still mara-klein">Die Wache läuft alle sechs Stunden: beschaffbar und seit drei Werktagen fällig → Aufgabe an {s.sammel.verantwortlich?.name ?? "die Leitung"} (ab zehn Werktagen dringend); Link seit drei Werktagen unbestätigt → Anruf-Aufgabe an den Betreuer. Je Auftrag und Stufe genau eine Aufgabe.</p>
+            </div>
+          )}
+
           {/* Handy: erst die Liste (Antippen rollt zum Auftrag), dann das Glas — .wen-zuerst. */}
           <div className="mara-spalten wen-zuerst">
             <section className="mara-wen akb-wen" aria-labelledby="akb-wen-titel">
@@ -458,6 +504,8 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
           <span className="mara-pille">{LAND[a.land]}</span>
           {a.art === "firma" && <span className="mara-pille akz">Firma</span>}
           {a.quelle === "rueckstand" && <span className="mara-pille warn">Rückstand</span>}
+          {/* E-IT-D (4a): FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an. */}
+          {a.modus === "datenkopie" && <span className="mara-pille akz" title="FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an — dafür genügt auch die Vollmacht zur Übermittlung.">Datenkopie</span>}
           <span className={`mara-pille ${STATUS_TON[a.status]}`}>{STATUS_TEXT[a.status]}</span>
         </div>
         <span className="mara-still mara-klein">
@@ -468,7 +516,7 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
       <div className="akb-ampel">
         <div className={`akb-schritt ${a.einwilligung.ja ? "gut" : "halt"}`}>
           <span className="mara-etikett">Einwilligung</span>
-          <b>{auftragDa ? "Auftrag liegt vor" : a.einwilligung.ja ? "nur Datenkopie" : "fehlt"}</b>
+          <b>{auftragDa ? "Auftrag liegt vor" : a.einwilligung.ja ? (a.modus === "datenkopie" ? "genügt (Datenkopie)" : "nur Datenkopie") : "fehlt"}</b>
           <small>{a.einwilligung.ja ? a.einwilligung.text : a.vollmachtLinkAm ? `Link gesendet ${zeitText(a.vollmachtLinkAm)}${a.vollmachtLinkAnzahl > 1 ? ` (${a.vollmachtLinkAnzahl}×)` : ""} — wartet auf Bestätigung` : "noch kein Link gesendet"}</small>
           {!auftragDa && !fertig && (
             <button type="button" className={`mara-knopf klein${a.einwilligung.ja ? "" : " haupt"}`} disabled={beschaeftigt === `link:${a.id}`} onClick={linkSenden}>

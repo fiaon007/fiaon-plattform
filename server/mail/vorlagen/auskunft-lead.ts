@@ -47,6 +47,7 @@ import type { MailBaustein } from "../geruest";
 import {
   auskunftLand, auskunftLeistung, auskunftPreisZeile, auskunfteienText, type AuskunftArt,
 } from "@shared/fiaon-auskunft";
+import { RUECKSTAND_MAIL_SATZ } from "@shared/fiaon-auskunft-akte";
 import {
   AUSKUNFT_ANBIETER_ZEILE, AUSKUNFT_KEIN_WIDERRUF, AUSKUNFT_KONTAKT_ZEILE, AUSKUNFT_LAUFZEIT, AUSKUNFT_PREIS_STEUER,
   AUSKUNFT_VERTRAGSSPRACHE, AUSKUNFT_WIDERRUF, auskunftBeginnSatz, auskunftBeginnWahl, auskunftLeistungszeit,
@@ -346,7 +347,7 @@ export interface SchufaRequestedSaetze {
  * Widerrufsfrist nicht verlangt → ab diesem Tag (TT.MM.JJJJ).
  */
 export function schufaRequestedSaetze(
-  weg: AuskunftLieferweg, ein: { art?: AuskunftArt; wartenAb?: string | null } = {},
+  weg: AuskunftLieferweg, ein: { art?: AuskunftArt; wartenAb?: string | null; datenkopie?: boolean; rueckstand?: boolean } = {},
 ): SchufaRequestedSaetze {
   if (weg === "vollmacht") {
     return {
@@ -357,6 +358,30 @@ export function schufaRequestedSaetze(
     };
   }
   const ab = ein.wartenAb && DATUM_DE.test(ein.wartenAb) ? ein.wartenAb : null;
+  // ── DER DATENKOPIE-WEG (E-IT-D, 08.10.2026, Punkt 4a) ────────────────────
+  // Justin: „Das Produkt für 74 € IST die Beschaffung der Datenkopie bei der
+  // Auskunftei (Art. 15 DSGVO) samt FIAON-Auswertung — gegenüber Kunden NIE
+  // ‚kostenlose Datenkopie‘ nennen." Für den Rückstand (bezahlt, nie geliefert)
+  // fordert FIAON die Datenkopie in seinem Namen an; die Mail bittet um die
+  // Bestätigung (dieselbe Vorlage, derselbe Knopf) — ohne „kostenlos“ und ohne
+  // „kostenpflichtig“. Beim Rückstand steht die Entschuldigung dabei.
+  if (ein.datenkopie) {
+    const rueck = ein.rueckstand ? `${RUECKSTAND_MAIL_SATZ} ` : "";
+    return {
+      auftrag_anfang: ein.art === "firma"
+        ? "Wir fordern die Auskünfte Ihres Unternehmens und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung in Ihrem Namen an bei"
+        : "Wir fordern Ihre Bonitätsauskunft — Ihre Datenkopie nach Art. 15 DSGVO — in Ihrem Namen an bei",
+      auftrag_ende: ".",
+      unterschrift_satz: rueck + (ab ? `Wie bei der Beauftragung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist, ab dem ${ab}. ` : "")
+        + "Bitte bestätigen Sie kurz Ihren Auftrag — ein Klick auf den Knopf unten genügt.",
+      // Nachprüfung 08.10.2026: Die Auskunftei schickt die Datenkopie an die Anschrift des KUNDEN — der Satz
+      // sagt das und bittet um den Upload (vorher: „liegt dann in Ihrem Bereich“, als käme sie von selbst).
+      danach_satz: "Die Auskunfteien schicken Ihre Datenkopie in der Regel per Post an Ihre Anschrift. Laden Sie sie dann in Ihrem Bereich hoch — ein gut lesbares Foto jeder Seite genügt. "
+        + "Wir werten sie für Sie aus: mit der Erklärung jedes Eintrags, Ihrem Handlungsplan und fertigen Schreiben zur Freigabe.",
+      fuss_satz: "Mit Ihrem Auftrag fordern wir Ihre Auskunft bei den genannten Auskunfteien in Ihrem Namen an und werten sie für Sie aus. "
+        + "Bis zur Anforderung können Sie den Auftrag jederzeit widerrufen: Antworten Sie einfach auf diese E-Mail. Ist der Link abgelaufen, antworten Sie ebenfalls — dann bekommen Sie einen neuen.",
+    };
+  }
   // ── IM EINKAUF: DIE AUFTRAGSBESTÄTIGUNG (25.09.2026, E-241) ──────────────
   // Bis heute bat diese Mail im Einkauf um die „Vollmacht zur Übermittlung"
   // (/app/unterschrift). Die deckt nur die kostenlose Datenkopie, nicht den Kauf

@@ -429,9 +429,11 @@ router.get("/kunde/:ref/app/dokument/:id", requireKunde, async (req: KundeReques
     // Unterlagen öffnet der Kunde über /kunde/:ref/unterlagen/datei/:id (nur aktive). Sonst blieben eine
     // vom Team entfernte Unterlage (z. B. „falsche Person“) oder eine Archivfassung (frueher_…) über
     // eine erratene ID abrufbar.
+    // E-IT-D (Nachprüfung 08.10.2026): Auswertungs-PDFs nur über /kunde/:ref/finanzauswertung/:id/pdf — dort
+    // mit Freigabe-Prüfung. Hier läge sonst auch ein Entwurf oder ein verworfener (fortlaufende Ids).
     const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente
                                 WHERE id = ${id} AND person_id = ${p.personId} AND geloescht_am IS NULL
-                                  AND art <> 'unterlage' AND art NOT LIKE 'frueher\\_%' LIMIT 1`) as any[];
+                                  AND art <> 'unterlage' AND art NOT LIKE 'frueher\\_%' AND art <> 'finanzauswertung' LIMIT 1`) as any[];
     if (!d || !d.inhalt || !Buffer.from(d.inhalt).length) return res.status(404).end();
     res.setHeader("Content-Type", d.mime || "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${sauberName(d.dateiname, "dokument.pdf")}"`);

@@ -36,6 +36,8 @@ import { Mitteilungen } from "./Mitteilungen";
 import { Passwort } from "./Passwort";
 import { Pin } from "./Pin";
 import { Limit } from "./Limit";
+// E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung (Vollbild /app/auswertung).
+import { FinanzauswertungAnsicht } from "@/components/finanzen/Finanzauswertung";
 import "@/styles/app.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
@@ -43,7 +45,7 @@ const DEMO_REF = "FIAON-DEMO";
 const basisVon = (ort: string) => (ort === "/app/demo" || ort.startsWith("/app/demo/") ? "/app/demo" : "/app");
 
 type Reiter = "heute" | "weg" | "brief" | "geld" | "mehr";
-type Bildschirm = Reiter | "vorgaenge" | "ansprueche" | "unterlagen";
+type Bildschirm = Reiter | "vorgaenge" | "ansprueche" | "unterlagen" | "auswertung";
 const REITER: { key: Reiter; pfad: string; name: string; icon: JSX.Element }[] = [
   { key: "heute", pfad: "", name: "Heute", icon: <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /></svg> },
   { key: "weg", pfad: "/weg", name: "Weg", icon: <svg viewBox="0 0 24 24"><path d="M5 20V4" /><path d="M5 5h11l-2 3 2 3H5" /></svg> },
@@ -54,7 +56,7 @@ const REITER: { key: Reiter; pfad: string; name: string; icon: JSX.Element }[] =
 const bildschirmAus = (pfad: string, basis: string): { bildschirm: Bildschirm; rest: string[] } => {
   const teile = pfad.slice(basis.length).replace(/^\//, "").split("/").filter(Boolean);
   const k = teile[0] ?? "";
-  const alle: Bildschirm[] = ["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen"];
+  const alle: Bildschirm[] = ["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen", "auswertung"];
   return { bildschirm: (alle.indexOf(k as Bildschirm) !== -1 ? (k as Bildschirm) : "heute"), rest: teile.slice(1) };
 };
 const heuteIso = () => {
@@ -181,7 +183,7 @@ export default function AppBereich() {
   // Ereignisprotokoll (Bauvorlage 8.3, die Messlücke): nur Bildschirm und Zeit, keine Inhalte, nie in der Demo.
   useEffect(() => {
     if (demo || !ref) return;
-    const erlaubt = ["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen"];
+    const erlaubt = ["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen", "auswertung"];
     if (erlaubt.indexOf(bildschirm) === -1) return;
     const schirm = bildschirm === "geld" && rest[0] === "zahlen" ? "zahlen" : bildschirm === "geld" && rest[0] === "bericht" ? "bericht" : bildschirm === "mehr" && rest[0] ? rest[0] : bildschirm === "unterlagen" && rest[0] === "konto" ? "konto" : bildschirm;
     api(`/kunde/${encodeURIComponent(ref)}/app/ereignis`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bildschirm: schirm, ereignis: "geoeffnet" }) }).catch(() => {});
@@ -248,6 +250,7 @@ export default function AppBereich() {
         {b && bildschirm === "vorgaenge" && rest[0] && rest[0] !== "ansprueche" && <VorgangSeite kundeRef={ref} basis={basis} demo={demo} id={rest[0]} />}
         {b && bildschirm === "vorgaenge" && (!rest[0] || rest[0] === "ansprueche") && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
+        {b && bildschirm === "auswertung" && <FinanzauswertungAnsicht kundeRef={ref} demo={demo} zurueck={{ href: `${basis}/geld`, text: "Zurück zu Geld" }} />}
         {b && bildschirm === "unterlagen" && rest[0] === "konto" && <KontoVerbinden kundeRef={ref} basis={basis} demo={demo} verbunden={!!b.kontoVerbunden} />}
         {b && bildschirm === "unterlagen" && rest[0] !== "konto" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} basis={basis} />}
         {b && bildschirm === "mehr" && rest[0] === "hilfe" && <Hilfe kundeRef={ref} demo={demo} ansprechpartner={b.ansprechpartner} vorgang={new URLSearchParams(window.location.search).get("vorgang")} buchungsLink={termine?.buchungsLink ?? null} />}

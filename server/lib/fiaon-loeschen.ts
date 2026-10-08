@@ -214,6 +214,8 @@ async function endgueltigLoeschen(
   }
   await lauf`DELETE FROM fiaon_mail_log WHERE person_id = ${k.personId}`;
   await lauf`DELETE FROM fiaon_termine WHERE person_id = ${k.personId}`;
+  // E-IT-D (08.10.2026): Finanzauswertungen, Upload-Links, Anfragen, Sichtprüfungen der Person.
+  await import("./fiaon-finanzauswertung").then((m) => m.personDatenLoeschen(k.personId, { endgueltig: true }, lauf));
   await lauf`DELETE FROM fiaon_person_aliases WHERE person_id = ${k.personId}`;
   await lauf`DELETE FROM fiaon_applications WHERE person_id = ${k.personId}`;
   await lauf`DELETE FROM fiaon_persons WHERE id = ${k.personId}`;
@@ -267,6 +269,8 @@ async function anonymisieren(
     UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
      WHERE person_id = ${k.personId}
   `.catch(() => {});
+  // E-IT-D (08.10.2026): das Finanzprofil der Auswertung (Inhalt, Eingaben), Upload-Links und Anfragen.
+  await import("./fiaon-finanzauswertung").then((m) => m.personDatenLoeschen(k.personId, {}, lauf));
   // Die Person selbst: Kontaktdaten weg, Zeile bleibt als Anker für die
   // Bestellungen. Aus jeder Liste fällt sie über `gdpr_deleted_at`.
   await lauf`

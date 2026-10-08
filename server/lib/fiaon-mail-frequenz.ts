@@ -66,6 +66,7 @@ export const PFLICHTMAILS = new Set<string>([
   "kuendigung_bestaetigt",   // Vertragspost: Eingang der Kündigung und was noch offen ist.
   "vertrag_beendet",         // Vertragspost: der Vertrag ist beendet.
   "vertrag_bestaetigung",    // E-282 (05.10.2026): Vertragspost — Antwort auf die eben erklärte Annahme, mit dem Vertrag als PDF (§ 312f BGB).
+  "finanzauswertung_bereit", // E-IT-D (08.10.2026): Leistung aus dem Vertrag — die freigegebene Auswertung liegt im Bereich (ohne Anhang, ohne Zahlen).
   "termin_bestaetigung",
   "global_termin",           // E-188: Antwort auf die eben gebuchte Zeit (Erstgespräch FIAON Global).
   "termin_erinnerung",

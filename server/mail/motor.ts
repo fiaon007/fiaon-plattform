@@ -52,6 +52,8 @@ import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/
 import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/global-angebot";
 // 05.10.2026 (E-282): die Vertragsbestätigung des neuen Antrags /antrag-neu (mit Vertrags-PDF als Anhang).
 import { VERTRAG_VORLAGEN } from "./vorlagen/vertrag";
+// E-IT-D (08.10.2026, 4b): „Ihre Finanz- und Bonitätsauswertung liegt bereit" — ohne Anhang, ohne Zahlen.
+import { FINANZAUSWERTUNG_VORLAGEN } from "./vorlagen/finanzauswertung";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -71,6 +73,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...GLOBAL_BEREICH_VORLAGEN,
   ...GLOBAL_ANGEBOT_VORLAGEN,
   ...VERTRAG_VORLAGEN,
+  ...FINANZAUSWERTUNG_VORLAGEN,
 };
 
 /**
@@ -164,7 +167,10 @@ export const ABMELDEPFLICHT = new Set<string>([
 // nur ohne Antragsnummer (dann gibt es kein Token), und die Mail trägt ihren Hauptweg trotzdem.
 // 19.09.2026 (E-194): „sofort_url" ist raus — die Sofortzahlung per Bank-App lief über
 // GoCardless und ist beendet; keine Vorlage trägt den Knopf noch.
-export const KNOPF_DARF_FEHLEN = new Set<string>(["mein_auftrag_url"]);
+// E-IT-D (08.10.2026, 4c): Der zweite Knopf der Unterlagen-Mail (documents_change_request, einzige Vorlage
+// mit knopf2_url) entfällt, wenn der Hauptknopf schon der Upload-Link ohne Anmeldung ist — vorher führte er
+// zu „Noch kein Passwort? Hier festlegen", den braucht der Link nicht.
+export const KNOPF_DARF_FEHLEN = new Set<string>(["mein_auftrag_url", "knopf2_url"]);
 
 export function absenderFuer(event: string): { name: string; email: string } {
   return ABSENDER[ROLLE_JE_EVENT[event] ?? "welcome"];

@@ -902,3 +902,25 @@
   .fg-visitenkarte.mit-bild,.fg-visitenkarte.mit-bild::before,.fg-visitenkarte-bild,.fg-visitenkarte-bild img,.fg-visitenkarte-kontakt a{animation:none!important;transition:none!important}
   .fg-visitenkarte-bild::after{display:none}
 }
+
+/* ── Luft und Maßstab auf /business (E-311, 08.10.2026, Justin: „mehr Abstände bitte, das ist alles so eng oben und unten — und
+   vielleicht einmal alles rausskalieren um 5 %“). Nur .fg-neu (= /business); die 78 Unterseiten behalten ihre Maße. ─────────── */
+/* 5 % kleiner ab Laptop-Breite: zoom statt transform, damit Layout, Klickflächen und Messungen (HeroLinie, Etappenleiste,
+   Stern) im selben Maßstab bleiben. Am Handy bleibt die Schrift, wie sie ist (Lesbarkeit). */
+@media(min-width:1024px){.fg-neu{zoom:.95}}
+/* Abschnitte: oben und unten deutlich mehr Luft. */
+.fg-neu .fg-hero{padding-top:156px}
+.fg-neu .fg-vertrauensleiste{margin-top:64px}
+.fg-neu .fg-sek{padding:144px 0}
+.fg-neu .fg-sek.eng,.fg-neu .fg-jb-band-sek{padding:112px 0}
+.fg-neu .fg-stern-sek{padding:128px 0 120px}
+.fg-neu .fg-gespraech-sek,.fg-neu #fragen{padding:128px 0}
+.fg-neu .fg-schluss{padding:136px 0 140px}
+@media(max-width:720px){
+  .fg-neu .fg-hero{padding-top:108px}
+  .fg-neu .fg-vertrauensleiste{margin-top:32px}
+  .fg-neu .fg-sek{padding:96px 0}
+  .fg-neu .fg-sek.eng,.fg-neu .fg-jb-band-sek,.fg-neu .fg-stern-sek{padding:84px 0}
+  .fg-neu .fg-gespraech-sek,.fg-neu #fragen{padding:88px 0}
+  .fg-neu .fg-schluss.mit-bild{padding:0 0 96px}
+}

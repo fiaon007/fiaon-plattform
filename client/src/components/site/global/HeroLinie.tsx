@@ -40,9 +40,12 @@ export default function HeroLinie() {
       const r = el.getBoundingClientRect();
       const rr = rahmen.getBoundingClientRect();
       const w = fig.offsetWidth, h = fig.offsetHeight;
-      if (!w || !h) { setLage(null); return; }
+      if (!w || !h || !el.offsetWidth) { setLage(null); return; }
+      // E-311: /business steht ab 1.024 px unter `zoom: .95`. getBoundingClientRect misst dann im verkleinerten Bild,
+      // offset* und die SVG-Maße im eigenen Maßstab — k rechnet die Bildmaße zurück (ohne zoom ist k = 1).
+      const k = r.width / el.offsetWidth || 1;
       // Mitte der Urkunde (Drehpunkt) im Raster, dann das Siegel um sie gedreht.
-      const cx = rr.left - r.left + fig.offsetLeft + w / 2, cy = rr.top - r.top + fig.offsetTop + h / 2;
+      const cx = (rr.left - r.left) / k + fig.offsetLeft + w / 2, cy = (rr.top - r.top) / k + fig.offsetTop + h / 2;
       const { siegel } = GLOBAL_BILDER.urkunde;
       const ox = (parseFloat(siegel.x) / 100 - 0.5) * w, oy = (parseFloat(siegel.y) / 100 - 0.5) * h;
       const a = (DREHUNG * Math.PI) / 180;
@@ -52,12 +55,13 @@ export default function HeroLinie() {
       bereich.selectNodeContents(preis);
       const p = bereich.getBoundingClientRect();
       if (!p.width) { setLage(null); return; }
-      const ex = p.right - r.left + 16, ey = p.top - r.top + p.height / 2;
+      const ex = (p.right - r.left) / k + 16, ey = (p.top - r.top + p.height / 2) / k;
       const dx = sx - ex;
       if (dx < 80) { setLage(null); return; } // Urkunde steht nicht rechts vom Preis — keine Linie
       const z = (n: number) => n.toFixed(1);
       const d = `M${z(sx)} ${z(sy)} C${z(sx - dx * 0.45)} ${z(sy)} ${z(ex + dx * 0.45)} ${z(ey)} ${z(ex)} ${z(ey)}`;
-      setLage((alt) => (alt && alt.d === d && alt.w === r.width && alt.h === r.height ? alt : { w: r.width, h: r.height, d, ex, ey }));
+      const bw = el.offsetWidth, bh = el.offsetHeight;
+      setLage((alt) => (alt && alt.d === d && alt.w === bw && alt.h === bh ? alt : { w: bw, h: bh, d, ex, ey }));
     };
     messen();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(messen);

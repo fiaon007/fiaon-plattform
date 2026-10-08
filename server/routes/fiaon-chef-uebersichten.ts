@@ -127,6 +127,9 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
       ) g ON TRUE
       WHERE ${wo}`;
 
+    // E-IT-E (08.10.2026): „nur_interessent" — die Person hat noch keine
+    // Bestellung (52 % der Liste). Die Zeile trägt die Marke „Interessent", und
+    // die Akte öffnet als Interessenten-Akte statt „nicht gefunden".
     const [[zaehler], liste] = await Promise.all([
       sqlPool.unsafe(`SELECT COUNT(*)::int AS n FROM fiaon_persons p WHERE ${wo}`, werte) as Promise<any[]>,
       sqlPool.unsafe(`
@@ -146,7 +149,9 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
                           AND a7.password IS NOT NULL AND a7.password <> '') AS hat_zugang,
                (SELECT a8.ref FROM fiaon_applications a8
                  WHERE a8.person_id = p.id AND a8.merged_into IS NULL
-                 ORDER BY (a8.payment_status = 'paid') DESC, a8.created_at DESC LIMIT 1) AS ref
+                 ORDER BY (a8.payment_status = 'paid') DESC, a8.created_at DESC LIMIT 1) AS ref,
+               NOT EXISTS (SELECT 1 FROM fiaon_applications a9 WHERE a9.person_id = p.id) AS nur_interessent,
+               EXISTS (SELECT 1 FROM fiaon_leads l9 WHERE l9.person_id = p.id) AS hat_lead
         ${basis}
         ORDER BY ${sort}
         LIMIT ${proSeite} OFFSET ${(seite - 1) * proSeite}`, werte) as Promise<any[]>,

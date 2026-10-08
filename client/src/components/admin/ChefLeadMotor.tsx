@@ -14,6 +14,8 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-lead-motor.css";
+// E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
+import { akteLink } from "@/lib/akte-link";
 
 interface Pruefpunkt { key: string; titel: string; ok: boolean | null; text: string }
 interface Kaestchen { key?: string; text?: string; is_required?: boolean }
@@ -452,7 +454,7 @@ export default function ChefLeadMotor() {
                   <li key={l.id} className="lm-zeile">
                     <div className="lm-zeile-kopf">
                       {l.personId
-                        ? <a className="lm-name" href={`/chef/s/akte?id=${l.personId}`} target="_blank" rel="noreferrer">{l.name}</a>
+                        ? <a className="lm-name" href={akteLink(l.personId, "chef") ?? undefined} target="_blank" rel="noreferrer">{l.name}</a>
                         : <span className="lm-name">{l.name}</span>}
                       {l.nameUnbrauchbar && <span className="lm-chip gelb" title="Die Anrede lautet „Guten Tag,“ ohne Namen">Name unbrauchbar</span>}
                       <span className={`lm-chip${l.weg.startsWith("meta") ? " blau" : ""}`}>{l.wegText}</span>

@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useState } from "react";
 import { Clock, X, ListChecks, Play } from "lucide-react";
 import { AgentShell, api } from "./shared";
+import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter } from "@/lib/fiaon-ui";
 import { Akte, type Kunde } from "./pipeline";
@@ -124,6 +125,8 @@ function CollectionsInnen() {
   const [offen, setOffen] = useState<number | null>(null);
   const [akteKunde, setAkteKunde] = useState<Kunde | null>(null);
   const [akteLaedt, setAkteLaedt] = useState(false);
+  // E-IT-E (08.10.2026): Warum die Akte nicht aufging — vom Server, mit Grund.
+  const [akteFehler, setAkteFehler] = useState<{ titel: string; text: string } | null>(null);
 
   // P15 (01.09.2026): Kundensuche — 280 ms entprellt, gleiche Taktung wie in
   // der Kundenliste. Bei aktiver Suche hebt der Server die Wiedervorlage-
@@ -163,7 +166,8 @@ function CollectionsInnen() {
     void api(`/agent/crm/kunden/${offen}`).then((r) => {
       if (!an) return;
       setAkteLaedt(false);
-      if (!r.ok || !r.json?.kunde) { setAkteKunde(null); return; }
+      if (!r.ok || !r.json?.kunde) { setAkteKunde(null); setAkteFehler(akteFehlerAus(r)); return; }
+      setAkteFehler(null);
       const m = menschZu(offen);
       setAkteKunde(m ? { ...r.json.kunde, ...ratenFelder(m) } : r.json.kunde);
     });
@@ -390,9 +394,9 @@ function CollectionsInnen() {
                   onZaehler={() => void laden()} />
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
-              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{akteLaedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{akteLaedt ? "Lade …" : (akteFehler?.titel ?? "Akte nicht gefunden")}</h2>
                 <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
-              {!akteLaedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Diese Akte lässt sich mit deinem Zugang nicht öffnen. Melde dich beim Vorgesetzten – wir schauen uns den Fall gemeinsam an.</p></div>}
+              {!akteLaedt && <div className="pi-lade-koerper"><p className="pi-fussnote">{akteFehler?.text ?? "Diese Akte lässt sich mit deinem Zugang nicht öffnen. Melde dich beim Vorgesetzten – wir schauen uns den Fall gemeinsam an."}</p></div>}
             </aside>
           )}
         </>, document.body)

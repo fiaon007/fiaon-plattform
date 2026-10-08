@@ -14,6 +14,8 @@ import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
+import { AKTE_FEHLER_TITEL, umleitungText, type Umleitung } from "@shared/fiaon-akte-aufloesung";
+import { akteLink, imChefbuero } from "@/lib/akte-link";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -227,7 +229,12 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // E-IT-E (08.10.2026): Ein Fehler trägt Titel UND Grund. Vorher stand bei
+  // JEDEM Status „Akte nicht gefunden" — auch bei abgelaufener Sitzung (403)
+  // oder einem Server-Fehler (500). Wer das liest, sucht einen Kunden, den es gibt.
+  const [error, setError] = useState<{ titel: string; text: string; status: number } | null>(null);
+  /** Wie die Akte gefunden wurde — das Band über der Akte (nie still umleiten). */
+  const [aufloesung, setAufloesung] = useState<{ kanonisch: string; eingabe: string; umleitungen: Umleitung[] } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -248,13 +255,60 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const r = await api(`/admin/kunden/akte?id=${encodeURIComponent(id)}`, undefined, "GET");
-    if (r.ok) { setData(r.json); setError(null); }
-    else setError(r.json?.error || `Fehler ${r.status}`);
+    let r: { status: number; ok: boolean; json: any };
+    try {
+      r = await api(`/admin/kunden/akte?id=${encodeURIComponent(id)}`, undefined, "GET");
+    } catch {
+      r = { status: 0, ok: false, json: null };
+    }
+    if (r.ok) {
+      setData(r.json); setError(null);
+      const neu = r.json?.aufloesung ?? null;
+      // Nach dem Umschreiben der Adresse auf die kanonische Kennung lädt die
+      // Akte ohne Umweg — das Band der ERSTEN Auflösung bleibt dann stehen.
+      setAufloesung((alt) => (alt && neu && alt.kanonisch === neu.kanonisch && !(neu.umleitungen?.length)) ? alt : neu);
+    } else {
+      // Nach VERURSACHER getrennt (AGENTS.md: „HTTP 400 heißt: WIR haben den Fehler"):
+      // 401/403 = Anmeldung, ab 500 = Server, 400/404 = die Kennung — mit Grund.
+      const st = r.status;
+      const serverText = r.json?.error ? String(r.json.error) : "";
+      if (st === 401 || st === 403) {
+        setError({ status: st, titel: AKTE_FEHLER_TITEL.sitzung,
+          text: `Die Anmeldung ist abgelaufen oder gilt für diesen Bereich nicht${serverText ? ` (${serverText})` : ""}. Nach dem Anmelden öffnet die Akte wieder.` });
+      } else if (st === 0 || st >= 500) {
+        setError({ status: st, titel: AKTE_FEHLER_TITEL.server,
+          text: st === 0 ? "Keine Verbindung zum Server." : `Der Server meldet: ${serverText || `Fehler ${st}`}.` });
+      } else {
+        const grund = r.json?.grund as keyof typeof AKTE_FEHLER_TITEL | undefined;
+        setError({ status: st, titel: r.json?.titel || (grund && AKTE_FEHLER_TITEL[grund]) || "Akte nicht gefunden",
+          text: serverText || `Fehler ${st}` });
+      }
+    }
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  // Wurde nur die Adresse auf die kanonische Kennung umgeschrieben (siehe unten),
+  // ist die Akte schon geladen — kein zweiter Abruf.
+  useEffect(() => {
+    if (id && data?.aufloesung?.kanonisch === id) return;
+    void load();
+  }, [load]);
+
+  // ── KANONISCHE ADRESSE (E-IT-E) ─────────────────────────────────────────
+  // „?id=13373" (zusammengeführt) oder „?id=13536" (Interessent) steht danach
+  // als „?id=FIAON-…" bzw. „?id=lead-…" in der Adresse — wer den Link kopiert,
+  // gibt die Akte ohne Umweg weiter. Im Fenster der Telefonkartei bleibt die
+  // Adresse unangetastet (sie gehört der Kartei).
+  useEffect(() => {
+    const kanon = data?.aufloesung?.kanonisch;
+    if (!kanon || eingebettet || akteId || kanon === id) return;
+    try {
+      const u = new URL(window.location.href);
+      if (ausAdresse) u.pathname = `/admin/kunde/${encodeURIComponent(kanon)}`;
+      else u.searchParams.set("id", kanon);
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* Adresse bleibt, wie sie ist — die Akte steht trotzdem */ }
+  }, [data, eingebettet, akteId, id, ausAdresse]);
   useEffect(() => {
     api("/admin/events/registry", undefined, "GET").then((r) => {
       if (r.ok) setEvents((r.json.events || []).filter((e: any) => e.customerBound && !e.deprecated));
@@ -267,6 +321,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
   const stufenlage = data?.stufenlage;
   const ref = app?.ref;
   const payRef = app?.paymentReference;
+  /** E-IT-E: Bei einer Interessenten-Akte der Lead, auf dem sie steht (head.id = „lead-N"). */
+  const leadIdDerAkte: number | null = !app && typeof head?.id === "string" && /^lead-\d+$/.test(head.id)
+    ? Number(head.id.slice(5)) : null;
 
   // ── Aktionen (rufen die BESTEHENDEN Endpoints) ──────────────────────────────
   const act = async (key: string, fn: () => Promise<any>, okMsg: string) => {
@@ -410,7 +467,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     act("note", async () => {
       const r = ref
         ? await api(`/admin/kunden/${encodeURIComponent(ref)}/note`, { note })
-        : await api(`/admin/leads/${data.leads[0]?.id}/notes`, { note });
+        : await api(`/admin/leads/${leadIdDerAkte ?? data.leads[0]?.id}/notes`, { note });
       if (r.ok) setNote("");
       return r;
     }, "✓ Notiz gespeichert.");
@@ -448,7 +505,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     if (r.ok) {
       setLastMergeBatch(r.json.batch || null);
       flash(`✓ Zusammengeführt in ${r.json.mergedInto} (${r.json.merged} Datensätze, umkehrbar).`);
-      if (winner !== id) { window.location.href = `/admin/kunde/${encodeURIComponent(winner)}`; return; }
+      if (winner !== id) { window.location.href = akteLink(winner) ?? `/admin/kunde/${encodeURIComponent(winner)}`; return; }
       load();
     } else flash(`Fehler: ${r.json?.error || r.status}`);
   };
@@ -462,17 +519,35 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     act(`attach-${leadId}`, () => api(`/admin/leads/${leadId}/attach-to-order`, { ref }), "✓ Lead mit dieser Akte verknüpft — kein Doppelanruf mehr.");
   };
 
+  // Rücksprung: im Chefbüro in die Chef-Kundenliste, sonst in die Verwaltung.
+  // Vorher führte „Zur Kundenliste" auch aus dem Chefbüro nach /admin/kunden.
+  const imChef = imChefbuero();
+  const listenZiel = imChef ? "/chef/kundenliste" : "/admin/kunden";
+
   if (!id) return <div className="min-h-screen bg-slate-50" />;
   if (loading && !data) {
     return <div className="min-h-screen bg-slate-50"><div className="max-w-5xl mx-auto px-4 py-16 text-center text-[13px] text-slate-400">Akte lädt …</div></div>;
   }
   if (error) {
+    const sitzung = error.status === 401 || error.status === 403;
+    const server = error.status === 0 || error.status >= 500;
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="max-w-5xl mx-auto px-4 py-16 text-center">
-          <p className="text-[14px] font-semibold text-slate-700 mb-2">Akte nicht gefunden</p>
-          <p className="text-[12px] text-slate-400 mb-4">{error}</p>
-          <Link href="/admin/kunden" className="text-[13px] font-semibold text-[#2563eb] hover:underline">← Zur Kundenliste</Link>
+        <div className="max-w-5xl mx-auto px-4 py-16 text-center" data-testid="akte-fehler" data-status={error.status}>
+          <p className="text-[14px] font-semibold text-slate-700 mb-2">{error.titel}</p>
+          <p className="text-[12px] text-slate-500 mb-4 max-w-xl mx-auto">{error.text}</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {server && (
+              <button type="button" onClick={() => void load()}
+                className="text-[13px] font-semibold text-[#2563eb] hover:underline">Neu laden</button>
+            )}
+            {sitzung && (
+              <a href={imChef ? "/chef" : "/admin"} className="text-[13px] font-semibold text-[#2563eb] hover:underline">Neu anmelden</a>
+            )}
+            {!eingebettet && (
+              <Link href={listenZiel} className="text-[13px] font-semibold text-[#2563eb] hover:underline">← Zur Kundenliste</Link>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -485,12 +560,24 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {!eingebettet && (
-          <Link href="/admin/kunden" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
+          <Link href={listenZiel} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-600 mb-4">
             <ArrowLeft size={13} /> Alle Kunden
           </Link>
         )}
 
         {msg && <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">{msg}</div>}
+
+        {/* ── WIE DIESE AKTE GEFUNDEN WURDE (E-IT-E, 08.10.2026) ───────────
+            Eine Umleitung wird NIE still gemacht: Nach einem falschen
+            Zusammenführen sähe man sonst die Daten des Gewinners und hielte
+            sie für die des Verlierers. Das Band nennt Verlierer, Datum und
+            wer zusammengeführt hat — bzw. dass es eine Interessenten-Akte ist. */}
+        {aufloesung && aufloesung.umleitungen.length > 0 && (
+          <div className="ak-umleitung mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-[12.5px] text-amber-800"
+               role="status" data-testid="akte-umleitung">
+            {aufloesung.umleitungen.map((u, i) => <p key={i} className={i > 0 ? "mt-1" : ""}>{umleitungText(u)}</p>)}
+          </div>
+        )}
 
         {/* ── KOPF ── */}
         <div className="ak-kopf bg-white border border-slate-200 rounded-2xl p-5 mb-4">
@@ -615,6 +702,9 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                     : "Onboarding-Pflicht aussetzen"}
                 </button>
               )}
+              {/* E-IT-E: Die Portal-Ansicht braucht eine Bestellung — eine
+                  Interessenten-Akte hat keine, der Knopf führte ins Leere. */}
+              {ref && (
               <button type="button" onClick={portalAnsehen} disabled={busy === "ansicht"}
                 className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-[12.5px] font-bold disabled:opacity-50">
                 {/* Der Vorname aus dem Namen — `head` liefert keinen eigenen.
@@ -624,6 +714,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 {busy === "ansicht" ? "…" : `Portal ansehen${
                   head.name ? ` als ${String(head.name).trim().split(/\s+/)[0]}` : ""}`}
               </button>
+              )}
               {payRef && (app.paymentStatus === "pending_payment" || app.paymentStatus === "claimed_paid") && (
                 <button type="button" onClick={markPaid} disabled={busy === "paid"}
                   className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[12.5px] font-bold disabled:opacity-50">
@@ -1074,7 +1165,7 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
           )}
 
           {/* ── ANRUFE ─────────────────────────────────────────────────── */}
-          {app?.personId && <AnrufeSektion personId={Number(app.personId)} />}
+          {(app?.personId ?? head?.personId) && <AnrufeSektion personId={Number(app?.personId ?? head.personId)} />}
 
           {/* ── E-MAIL-CENTER ── */}
           <Section title="E-Mail-Center — jedes Kunden-Event mit Vorschau" icon={Mail}>
@@ -1136,8 +1227,11 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
               erst nach dem Scrollen durch Zahlungen und Dubletten. */}
           <VermerkTafel
             ziel={{
-              ref: data.head?.ref || (id.startsWith("lead-") ? null : id),
-              leadId: id.startsWith("lead-") ? Number(id.replace("lead-", "")) : null,
+              // E-IT-E: aus der aufgelösten Akte, nicht aus der Adresse. Vorher
+              // ging bei einem Link mit Personen-Nummer die NUMMER als „ref" an
+              // die Vermerke — die Tafel blieb leer.
+              ref: app?.ref ?? null,
+              leadId: !app && leadIdDerAkte ? leadIdDerAkte : null,
               name: head.name,
             }}
             onMeldung={flash}
@@ -1178,11 +1272,11 @@ export default function AdminKundeAktePage({ akteId, eingebettet = false }: {
                 <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Unsichere Namens-Treffer (zur Prüfung)</p>
                 {data.duplicates.nameSuspects.map((s: any) => (
                   <p key={s.ref} className="text-[12px] text-slate-600">
-                    <Link href={`/admin/kunde/${encodeURIComponent(s.ref)}`} className="font-semibold text-[#2563eb] hover:underline">{s.name}</Link>
+                    <Link href={akteLink(s.ref) ?? "#"} className="font-semibold text-[#2563eb] hover:underline">{s.name}</Link>
                     {" "}· {s.email || "keine E-Mail"} · <PayBadge status={s.payment_status} /> · {fmtD(s.created_at)}
                   </p>
                 ))}
-                <a href="/admin/dubletten" className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ Zur Dubletten-Prüfung</a>
+                <a href={imChefbuero() ? "/chef/s/dubletten" : "/admin/dubletten"} className="inline-block mt-1.5 text-[11.5px] font-semibold text-[#2563eb] hover:underline">→ Zur Dubletten-Prüfung</a>
               </div>
             )}
           </Section>

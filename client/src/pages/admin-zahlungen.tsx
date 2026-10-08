@@ -9,6 +9,7 @@ import VermerkTafel from "@/components/admin/VermerkTafel";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { LABEL_VERTRIEB, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 import { BANK } from "@shared/fiaon-bank";
+import { akteLink } from "@/lib/akte-link";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -1231,7 +1232,7 @@ export default function AdminZahlungenPage() {
                       onClick={(e) => { e.stopPropagation(); openDetail(r); }}>
                       Details
                     </button>
-                    <a href={`/admin/kunde/${encodeURIComponent(r.ref)}`} onClick={(e) => e.stopPropagation()}
+                    <a href={akteLink(r.ref) ?? "#"} onClick={(e) => e.stopPropagation()}
                       className="a3-knopf inline-flex">Akte</a>
                     <a href={`/api/fiaon/admin/payments/${encodeURIComponent(r.payment_reference)}/invoice.pdf`}
                       target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
@@ -1267,7 +1268,7 @@ export default function AdminZahlungenPage() {
                   {extra.map((c: any) => (
                     <a
                       key={c.ref}
-                      href={`/admin/kunde/${encodeURIComponent(c.ref)}`}
+                      href={akteLink(c.ref) ?? "#"}
                       className="w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/70 transition-colors"
                     >
                       <div className="min-w-0">
@@ -1326,7 +1327,7 @@ export default function AdminZahlungenPage() {
               {serverHits.leads.length > 0 && (
                 <div className="divide-y divide-slate-50 border border-slate-100 rounded-xl overflow-hidden">
                   {serverHits.leads.map((l: any) => (
-                    <a key={l.id} href={`/admin/kunde/lead-${l.id}`} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
+                    <a key={l.id} href={akteLink(`lead-${l.id}`) ?? "#"} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium text-slate-700 truncate">
                           {[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`}
@@ -1411,7 +1412,7 @@ export default function AdminZahlungenPage() {
                   </span>
                 )}
                 <a
-                  href={`/admin/kunde/${encodeURIComponent(detail.ref)}`}
+                  href={akteLink(detail.ref) ?? "#"}
                   className="ml-auto px-3 py-1.5 rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white text-[11.5px] font-bold transition-colors"
                   title="Die zentrale Kundenakte: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten"
                 >

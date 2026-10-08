@@ -459,12 +459,17 @@ router.get("/agent/crm/person-zu-ref/:ref", requireAgent, async (req: AgentReque
   try {
     const ref = String(req.params.ref || "").trim();
     if (!ref) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    const [z] = (await sqlPool`
-      SELECT a.person_id FROM fiaon_applications a
-      WHERE a.ref = ${ref} AND a.merged_into IS NULL
-      ORDER BY a.created_at DESC LIMIT 1`) as any[];
-    const personId = Number(z?.person_id || 0);
-    if (!personId) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // E-IT-E (08.10.2026): über die EINE Auflösung der Akte — zusammengeführte
+    // und ersetzte Bestellungen führen zu ihrem Kopf, die Person zu ihrem
+    // Personen-Kopf. Vorher kam bei einer gemergten Bestellung „nicht gefunden".
+    const { akteAufloesen, personKopf } = await import("../lib/fiaon-akte-aufloesen");
+    const aufl = await akteAufloesen(ref);
+    const rohPerson = aufl.ok ? Number(aufl.ziel.personId || 0) : 0;
+    const kopf = rohPerson ? await personKopf(rohPerson, sqlPool, false) : null;
+    const personId = kopf?.ok ? kopf.kopfId : 0;
+    if (!personId) {
+      return res.status(404).json({ ok: false, error: aufl.ok ? "Zu dieser Bestellung ist keine Person hinterlegt." : aufl.text });
+    }
 
     const meins = await meinePerson(personId, req.agent!.id);
     if (!meins) {
@@ -485,8 +490,24 @@ router.get("/agent/crm/person-zu-ref/:ref", requireAgent, async (req: AgentReque
 // ───────────────────────────────────────────────────────────────────────────
 router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    const personId = Number(req.params.personId);
-    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const angefragt = Number(req.params.personId);
+    if (!Number.isFinite(angefragt) || angefragt <= 0) {
+      return res.status(404).json({ ok: false, grund: "kennung_leer", error: "Der Link trägt keine Kundennummer — bitte über die Suche öffnen." });
+    }
+    // ── ZUSAMMENGEFÜHRTE PERSONEN ÖFFNEN DEN KOPF (E-IT-E, 08.10.2026) ────
+    // WhatsApp-Gespräche, Anrufe, Termine und Postmeister-Fälle behalten nach
+    // einem Merge die Nummer des Verlierers. Hier stand „Kunde nicht gefunden".
+    // Jetzt: erst den Kopf der Kette auflösen (dieselbe Funktion wie die
+    // Chef-Akte), DANN die Berechtigung am KOPF prüfen — die Umleitung darf den
+    // Zugriffsschutz nicht umgehen. Die Antwort sagt, dass umgeleitet wurde.
+    const { personKopf } = await import("../lib/fiaon-akte-aufloesen");
+    const kopf = await personKopf(angefragt);
+    if (!kopf.ok) return res.status(404).json({ ok: false, grund: kopf.grund, error: kopf.text });
+    const personId = kopf.kopfId;
+    const { umleitungText } = await import("../../shared/fiaon-akte-aufloesung");
+    const aufgegangen = kopf.umleitungen.length > 0
+      ? { vonPersonId: angefragt, text: kopf.umleitungen.map(umleitungText).join(" ") }
+      : null;
 
     let p = await meinePerson(personId, req.agent!.id);
     // ── E-045 (Justin 23.08., Plan §17): LESE-AKTE FÜR DIANA ──────────────
@@ -520,7 +541,14 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         p = frei ?? null;
       }
     }
-    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (!p) {
+      // Die Person gibt es (der Kopf ist aufgelöst) — es fehlt die Freigabe.
+      // Das ist eine andere Lage als „gibt es nicht" und bekommt einen anderen Satz.
+      return res.status(404).json({
+        ok: false, grund: "kein_zugriff",
+        error: "Diese Akte gehört nicht zu deinem Bestand. Die Leitung oder der Betreuer kann sie öffnen.",
+      });
+    }
 
     const verlauf = await sqlPool`
       SELECT c.id, c.created_at, c.type, c.outcome, c.note, c.promised_date,
@@ -675,7 +703,10 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
     res.json({
       ok: true,
       antrag,
-      kunde: kartePayload(p, (verlauf as any[])[0]),
+      // E-IT-E: „aufgegangen“ steht an der Karte, damit die Akte das Band zeigt,
+      // egal welcher Raum sie geöffnet hat (Pipeline, Bestand, Vertrieb, Kalender).
+      kunde: { ...kartePayload(p, (verlauf as any[])[0]), ...(aufgegangen ? { aufgegangen } : {}) },
+      umleitung: aufgegangen,
       verlauf: (verlauf as any[]).map((v) => ({
         id: v.id,
         am: v.created_at,

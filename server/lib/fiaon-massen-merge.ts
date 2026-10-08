@@ -38,7 +38,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  abstand, istAttrappenNummer, istTestKandidat, nameSchluessel,
+  abstand, betreuerFelderAusZeile, istAttrappenNummer, istTestKandidat, nameSchluessel,
   type KandidatPerson,
 } from "./fiaon-dubletten-kandidaten";
 
@@ -333,8 +333,9 @@ export async function ladeMassenPersonen(lauf: Lauf = sqlPool): Promise<MassenPe
     SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name, p.contact_name,
            p.primary_email, p.primary_phone, p.phone_key9, p.birthdate, p.account_status,
            p.street, p.zip,
-           p.assigned_agent_id, p.betreuung_seit, p.created_at,
-           ag.name AS agent_name,
+           p.assigned_agent_id, p.betreuung_seit, p.created_at, p.mandat_seit,
+           ag.name AS agent_name, ag.id AS agent_da, ag.active AS agent_aktiv,
+           ag.is_test_account AS agent_test, ag.zugang_gesperrt_am AS agent_gesperrt_am,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email, p.person_ref) AS name,
            COALESCE(b.anzahl, 0) AS bestellungen,
@@ -417,6 +418,8 @@ export async function ladeMassenPersonen(lauf: Lauf = sqlPool): Promise<MassenPe
       betreuerId: r.assigned_agent_id != null ? Number(r.assigned_agent_id) : null,
       betreuerName: r.agent_name ?? null,
       betreuungSeit: r.betreuung_seit ?? null,
+      // E-IT-E (08.10.2026): dieselben Betreuer-Felder wie die Kandidatenliste.
+      ...betreuerFelderAusZeile(r),
       bestellungen: Number(r.bestellungen ?? 0),
       bezahlteBestellungen: Number(r.bezahlte ?? 0),
       letzterKontakt: r.letzter_kontakt ?? null,

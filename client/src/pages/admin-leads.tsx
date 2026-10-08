@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity, Info, ChevronDown, HelpCircle, FlaskConical, Trash2, Radio, Clock, Plus } from "lucide-react";
 import ImportDialog from "./admin-leads-import";
 import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
+import { akteLink } from "@/lib/akte-link";
 
 type FlashKind = "ok" | "err" | "info";
 type Flash = { text: string; kind: FlashKind };
@@ -500,7 +501,7 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
             <p className="text-[11px] text-slate-400">{STATUS[lead.status]} · Quelle {lead.quelle || "—"}{lead.kampagne ? ` · ${lead.kampagne}` : ""}</p></div>
           {/* PROMPT 1/2: jede Person verlinkt in DIE Akte — keine abweichende Detail-Wahrheit */}
           <a
-            href={lead.converted_order_id ? `/admin/kunde/${encodeURIComponent(lead.converted_order_id)}` : `/admin/kunde/lead-${lead.id}`}
+            href={akteLink(lead.converted_order_id ?? `lead-${lead.id}`) ?? "#"}
             className="shrink-0 px-3 py-1.5 rounded-lg text-white text-[11.5px] font-bold"
             style={{ background: ACCENT }}
             title="Die zentrale Kundenakte: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten"

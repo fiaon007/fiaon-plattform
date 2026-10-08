@@ -638,6 +638,22 @@ async function meldungNachfuehren(angebotId: number, melden: boolean, aufrufId: 
 
 const meldungKnoepfe = () => [{ text: "Alle Aufrufe ansehen", url: absoluteUrl(AUFRUF_CHEF_PFAD) }];
 
+/**
+ * Justin 08.10.2026 („Hildbrand hat angenommen — warum hab ich keine Mail bekommen?"): Jede ANNAHME meldet sich sofort per
+ * Mail an js@fiaon.com — zusätzlich zur Aufgabe auf dem Board, die allein keine Mail auslöst. Derselbe Weg wie die
+ * Aufruf-Meldung (eigeneMailSenden). Wirft nie; Rückgabe ist der Satz fürs Protokoll.
+ */
+export async function annahmeMelden(m: { ref: string; name: string; art: "Individualangebot" | "Firmenangebot"; betrag: string; zeilen: string[] }): Promise<string> {
+  try {
+    const { eigeneMailSenden } = await import("./fiaon-brevo");
+    const text = [`${m.name} hat das ${m.art} ${m.ref} soeben angenommen. Erwartet: ${m.betrag}.`, ...m.zeilen.map((z) => String(z ?? "").trim()).filter(Boolean)].join("\n\n");
+    const v = await eigeneMailSenden({ an: AUFRUF_MELDUNG_AN, name: "Justin", betreff: `Angenommen: ${m.name} — ${m.art} ${m.ref}`, text, knoepfe: meldungKnoepfe() });
+    return v.ok ? `Mail an ${AUFRUF_MELDUNG_AN} gesendet` : `Mail an ${AUFRUF_MELDUNG_AN} nicht gesendet (${String(v.grund || "unbekannt").slice(0, 160)})`;
+  } catch (e) {
+    return `Mail an ${AUFRUF_MELDUNG_AN} nicht gesendet (${(e instanceof Error ? e.message : String(e)).slice(0, 160)})`;
+  }
+}
+
 /** Für Prüfstand und Vorschau: Titel, Aufgabentext und die Mail (Betreff, Text, HTML im FIAON-Rahmen) — ohne zu senden. */
 export async function aufrufMeldungVorschau(angebotId: number): Promise<{ titel: string; aufgabe: string; betreff: string; text: string; html: string } | null> {
   const m = await meldungLage(angebotId);

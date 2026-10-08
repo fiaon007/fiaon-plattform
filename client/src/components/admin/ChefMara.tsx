@@ -381,7 +381,9 @@ function StZahl({ wert, titel, unter }: { wert: string; titel: string; unter?: s
 const SO_ARBEITET_MARA = (
   <ul>
     <li><b>Wen:</b> jeden mit offener Rechnung — A (Zahlung gemeldet, Geld nicht da) vor B (Antrag fertig). Heißeste zuerst: das jüngste Ereignis.</li>
-    <li><b>Wann:</b> erste Mail 24 Stunden nach Antrag bzw. Zahlungsmeldung, dann nach 2, 4 und 7 Tagen, danach alle 14 Tage — bis er zahlt. Rund um die Uhr.</li>
+    {/* Mara-Topsales 08.10.2026 (Justin): wöchentlich am festen Wochentag statt alle 14 Tage, nur 8–21 Uhr, Klärung bei A. */}
+    <li><b>Wann:</b> erste Mail 24 Stunden nach Antrag bzw. Zahlungsmeldung, dann nach 2, 4 und 7 Tagen, danach wöchentlich an seinem festen Wochentag — bis er zahlt. Von 8 bis 21 Uhr.</li>
+    <li><b>Stufe A:</b> ab dem 3. Werktag ohne Eingang einmal eine Klärung (höchstens 20 am Tag) — „keine Zahlungserinnerung“, erst auf dem Kontoauszug nachsehen, dann Beleg oder Überweisungsdatum als Antwort, sonst mit seinem Verwendungszweck überweisen. Keine Mahnung. Dazu bekommt sein Betreuer eine Anrufaufgabe (steht „abgelehnt“ am Vorgang: die Leitung).</li>
     <li><b>Wie:</b> jede Mail aus seiner Akte, seinem ganzen Weg und ihrem Gedächtnis geschrieben — nie zweimal dieselbe. Knopf zur Zahlungsseite, Karte positiv, keine Zusage, keine Frist.</li>
     <li><b>Rücksicht:</b> Schreibt der Kunde selbst, antwortet Mara im Postfach und die Aktion wartet 7 Tage. Hat ein Mitarbeiter in den letzten 12 Stunden mit ihm gesprochen oder ging vor weniger als 6 Stunden eine andere Mail raus, wartet sie.</li>
     <li><b>Nie:</b> bei Werbesperre, Vertriebssperre, „Stopp“, Storno, Kündigung, Zustellproblem — oder wenn du ihn hier aus der Aktion nimmst.</li>
@@ -512,8 +514,8 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
             <section className="mara-wen mp-wen" aria-labelledby="mp-wen-titel">
               <div className="mara-wen-kopf">
                 <h2 id="mp-wen-titel">Wen Mara anschreibt</h2>
-                <p className="mara-still mara-klein" title={`Schreibt rund um die Uhr jeden an, der noch nichts bezahlt hat — ${e.stufen.join(" vor ")} zuerst, heißeste zuerst.`}>
-                  rund um die Uhr jeden, der noch nichts bezahlt hat · {e.stufen.length ? e.stufen.join(" vor ") : "keine Stufe gewählt"} · heißeste zuerst
+                <p className="mara-still mara-klein" title={`Schreibt von 8 bis 21 Uhr jeden an, der noch nichts bezahlt hat — ${e.stufen.join(" vor ")} zuerst, heißeste zuerst.`}>
+                  8 bis 21 Uhr jeden, der noch nichts bezahlt hat · {e.stufen.length ? e.stufen.join(" vor ") : "keine Stufe gewählt"} · heißeste zuerst
                 </p>
               </div>
               <div className="mp-stufen">
@@ -556,12 +558,13 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               <div className="mara-feldgitter">
                 <div className="mara-feld breit">
                   <label htmlFor="mp-stunde">Mails je Stunde{takt > 0 ? <> <b>{takt}</b></> : null}</label>
-                  <input id="mp-stunde" type="range" min={0} max={500} step={10} value={takt}
+                  {/* Mara-Topsales 08.10.2026 (Prüfung): höchstens 60 je Stunde (AKTION_HOECHSTENS_JE_STUNDE) — 300/h lösten am 03.10. die KI-Sperre aus. */}
+                  <input id="mp-stunde" type="range" min={0} max={60} step={5} value={takt}
                     onChange={(ev) => setTaktZiehen(Number(ev.target.value))}
                     onMouseUp={(ev) => taktSpeichern((ev.target as HTMLInputElement).value)}
                     onTouchEnd={(ev) => taktSpeichern((ev.target as HTMLInputElement).value)}
                     onKeyUp={(ev) => taktSpeichern((ev.target as HTMLInputElement).value)} />
-                  <small>{takt > 0 ? `${(takt * 24).toLocaleString("de-DE")} am Tag` : "der Takt steht still"} · 0 bis 500</small>
+                  <small>{takt > 0 ? `${(takt * 24).toLocaleString("de-DE")} am Tag` : "der Takt steht still"} · 0 bis 60</small>
                 </div>
                 <div className="mara-feld">
                   <label htmlFor="mp-euro">Kostendeckel je Tag</label>

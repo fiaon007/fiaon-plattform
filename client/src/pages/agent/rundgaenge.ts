@@ -1485,14 +1485,15 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
     ziel: "[data-mara-runde]",
     titel: "Die Runde: jeder offene Erstzahler einmal.",
+    // Mara-Topsales 08.10.2026 (Justin): Runde höchstens 60 je Stunde, Versand 8–21 Uhr, bei A die eine Klärung ab dem 3. Werktag.
     text: "„Runde jetzt starten“ schreibt jedem mit offener erster Zahlung (A und B) einmal — ohne die Pausen des Takts, "
-      + "im Tempo des Takts, 24 Stunden lang. Gesperrte, „Stopp“, Global-Kunden und wer womöglich schon ungebucht gezahlt hat, "
-      + "bleiben draußen. B liest „Zahlen Sie jetzt die Aktivierung …“, A nie eine Zahlungsbitte; kein Termin.",
+      + "im Tempo des Takts (höchstens 60 je Stunde, nur 8–21 Uhr), 24 Stunden lang. Gesperrte, „Stopp“, Global-Kunden und wer womöglich schon ungebucht gezahlt hat, "
+      + "bleiben draußen. B liest „Zahlen Sie jetzt die Aktivierung …“, A keine Zahlungsbitte — außer der einen Klärung ab dem 3. Werktag (höchstens 20 am Tag); kein Termin.",
   },
   {
     ziel: ".mp-steuer",
     titel: "Wie Mara schreibt: Takt, Deckel, Stil.",
-    text: "Rechts: Takt (0 bis 500 Mails je Stunde), Kostendeckel, Stil — die Probe zeigt die nächste Mail, ohne zu senden.",
+    text: "Rechts: Takt (0 bis 60 Mails je Stunde, Vorgabe 60; versendet wird von 8 bis 21 Uhr), Kostendeckel, Stil — die Probe zeigt die nächste Mail, ohne zu senden.",
   },
   {
     ziel: ".mp-reiter",

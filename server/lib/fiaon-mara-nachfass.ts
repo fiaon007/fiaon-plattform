@@ -9,8 +9,12 @@
 //
 // WAS GILT
 //   · Ein Gespräch, in dem MARA das letzte Wort hatte (kein Mensch, keine Vorlage
-//     danach), dessen letzte Kundennachricht 16 bis 23 Stunden alt ist — das
+//     danach), dessen letzte Kundennachricht 4 bis 23 Stunden alt ist — das
 //     Fenster ist also noch offen, und die Nachricht ist kostenlos.
+//     Mara-Topsales 08.10.2026 (Justin): ab 4 statt ab 16 Stunden. Gemessen (Diagnose 08.10.): Mit dem schmalen
+//     Fenster 16–23 h brachte der Nachfass rund EINEN am Tag — die 16–23 h nach einer Nachricht vom Tag fallen
+//     großteils in die Nacht, außerhalb von 08:00–20:30. Mit 4 Stunden fasst Mara am selben Tag nach. Weiterhin
+//     höchstens einmal in sieben Tagen, nur 08:00–20:30 Uhr, alle Ausschlüsse unverändert.
 //   · Nur Antrag offen (B: erste Zahlung offen, C: Antrag angefangen, Lead ohne
 //     Antrag). Nie bei Folgeraten (WhatsApp verbietet Inkasso), nie bei gemeldeter
 //     Zahlung, Kunden, Kündigung, Global-Kunden.
@@ -35,8 +39,8 @@ export const NACHFASS_SCHALTER = "mara_wa_nachfass";
 export const NACHFASS_TAG_SCHLUESSEL = "mara_wa_nachfass_tag";
 export const NACHFASS_TAG_VORGABE = 40;
 export const NACHFASS_MARKE = "(Nachfass)";
-/** Ab wann und bis wann nach seiner letzten Nachricht (Stunden) — das Fenster schließt nach 24. */
-export const NACHFASS_AB_STUNDEN = 16;
+/** Ab wann und bis wann nach seiner letzten Nachricht (Stunden) — das Fenster schließt nach 24. Mara-Topsales 08.10.2026: 4 statt 16. */
+export const NACHFASS_AB_STUNDEN = 4;
 export const NACHFASS_BIS_STUNDEN = 23;
 
 /** Was in den letzten drei Tagen kam und ein Nachfassen ausschließt. */
@@ -78,7 +82,7 @@ export function nachfassZeitOk(jetzt: Date = new Date()): boolean {
 }
 
 /**
- * Die Kandidaten: letzte Kundennachricht 16–23 h alt, danach nur Mara (frei, kein Fehler), keine Vorlage und kein
+ * Die Kandidaten: letzte Kundennachricht 4–23 h alt (Mara-Topsales 08.10.2026; vorher 16–23 h), danach nur Mara (frei, kein Fehler), keine Vorlage und kein
  * Mensch, kein Nachfassen in sieben Tagen, nie gestoppt, Mara nicht abgeschaltet, keine vorbereitete Antwort.
  */
 export const nachfassKandidatenSql = (abStunden: number = NACHFASS_AB_STUNDEN): string => `
@@ -178,7 +182,7 @@ export async function nachfassLauf(opt: { trocken?: boolean; jetzt?: Date; /** n
       if (!s.ok) { weg(s.pausiert ? "bremse" : "senden"); if (s.pausiert) break; continue; }
       erg.gesendet++;
       frei--;
-      if (personId) await wa.maraWaVermerk(personId, { kunde: "(keine Antwort seit gestern)", mara: text, handlung: "Mara hat einmal nachgefasst (E-299)." }).catch(() => {});
+      if (personId) await wa.maraWaVermerk(personId, { kunde: "(keine Antwort seit einigen Stunden)", mara: text, handlung: "Mara hat einmal nachgefasst (E-299)." }).catch(() => {});
     }
     if (erg.gesendet || Object.keys(erg.uebersprungen).length) {
       console.log(`[MARA-NACHFASS] ${opt.trocken ? "Probe" : "Lauf"}: ${erg.kandidaten} Kandidaten, ${erg.gesendet} ${opt.trocken ? "würden gesendet" : "gesendet"}, übersprungen ${JSON.stringify(erg.uebersprungen)}`);

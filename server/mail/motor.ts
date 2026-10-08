@@ -151,6 +151,8 @@ export const ABMELDEPFLICHT = new Set<string>([
   // E-240 (24.09.2026): Das Angebot der Bonitätsauskunft geht an Bestandskunden —
   // Werbung nach § 7 Abs. 3 UWG, also nur mit Abmeldelink und Widerspruchshinweis.
   "auskunft_angebot",
+  // Mara-Topsales 08.10.2026 (Justin): die Abbruch-Kette (E-023) geht an Menschen ohne Vertrag — Werbung, also nur mit Ausgang.
+  "antrag_erinnerung",
 ]);
 
 /**

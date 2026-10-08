@@ -343,7 +343,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-230: Jedes Gespräch, dessen letzte Nachricht vom Kunden ist und das keine Antwort bekam, wird nachgeholt.
     tageslauf('mara_wa_nachholen', async () => { await (await import('./lib/fiaon-whatsapp-mara')).nachholLauf(); }, 60 * 1000, { beimStartNach: 60_000 });
     // E-299 (07.10.2026): Mara fasst einmal nach — im offenen 24-h-Fenster, wenn er nach ihrer Antwort verstummt ist.
-    tageslauf('mara_wa_nachfass', async () => { await (await import('./lib/fiaon-mara-nachfass')).nachfassLauf(); }, 10 * 60 * 1000, { beimStartNach: 330_000 });
+    // Mara-Topsales 08.10.2026: das Ergebnis zurückgeben — die Historie schreibt es als Meldung (laufMeldung), der Wächter liest „versandt“.
+    tageslauf('mara_wa_nachfass', async () => await (await import('./lib/fiaon-mara-nachfass')).nachfassLauf(), 10 * 60 * 1000, { beimStartNach: 330_000 });
     // E-236: Der Kreislauf — jede von Mara gebuchte Rückruf-Zeit wird alle 5 Minuten nachgeprüft
     // (steht der Termin, Arbeitszeit, Überschneidung, Mail raus, Kunde hat die Uhrzeit).
     tageslauf('mara_termine_pruefen', async () => { await (await import('./lib/fiaon-mara-termin')).maraTermineNachpruefen(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });
@@ -505,7 +506,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonWaZentraleRoutes = await import('./routes/fiaon-wa-zentrale');
   app.use('/api/fiaon', fiaonWaZentraleRoutes.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('wa_zentrale_takt', async () => { await (await import('./lib/fiaon-wa-zentrale')).automatikTakt(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });
+    // Mara-Topsales 08.10.2026: das Ergebnis zurückgeben (Meldung in der Historie, Wächter der Verkaufsläufe).
+    tageslauf('wa_zentrale_takt', async () => await (await import('./lib/fiaon-wa-zentrale')).automatikTakt(), 5 * 60 * 1000, { beimStartNach: 240_000 });
     // E-253 (28.09.2026): Ein Versand von Hand übersteht jetzt einen Deploy — der Lauf steht in fiaon_wa_lauf,
     // der alte Prozess übergibt bei SIGTERM, und dieser Takt setzt ihn fort (atomar, ohne Doppelversand).
     // Nur im Betrieb (tageslauf): Ein lokaler Server gegen die Produktions-DB übernimmt nie einen Lauf.

@@ -38,13 +38,23 @@ function pruefen(token: string): number | null {
 }
 
 async function sperren(personId: number): Promise<boolean> {
+  return werbesperreSetzen(personId, "Abmeldelink geklickt — Werbesperre gesetzt. Keine werbenden Mails mehr.");
+}
+
+/**
+ * Die Werbesperre der Person setzen (einmal; ein späterer Klick ändert den Zeitpunkt nicht) und im Verlauf vermerken.
+ * Mara-Topsales 08.10.2026 (Prüfung): exportiert — auch die Abmeldung aus einer LEAD-Mail (POST /abmelden/:schluessel,
+ * fiaon-leads.ts) setzt sie jetzt an der verknüpften Person. Vorher stoppte sie nur die Lead-Strecke, und die Seite
+ * versprach „Du bekommst keine weiteren E-Mails von uns.“ (gemessen 08.10.: 70 Menschen ohne Werbesperre).
+ */
+export async function werbesperreSetzen(personId: number, notiz: string): Promise<boolean> {
   const rows = (await sqlPool`
     UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW()
      WHERE id = ${personId} RETURNING id`) as any[];
   if (rows.length) {
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-      SELECT a.ref, ${personId}, NULL, 'System', 'system', 'Abmeldelink geklickt — Werbesperre gesetzt. Keine werbenden Mails mehr.'
+      SELECT a.ref, ${personId}, NULL, 'System', 'system', ${notiz}
         FROM fiaon_applications a WHERE a.person_id = ${personId} AND a.merged_into IS NULL
        ORDER BY a.created_at DESC LIMIT 1`.catch(() => {});
   }

@@ -313,6 +313,33 @@ export function faelligNachTagen(stufe: number): number {
   return KADENZ_TAGE[KADENZ_TAGE.length - 1] + ueber * MONATS_ABSTAND_TAGE;
 }
 
+/**
+ * Mara-Topsales 08.10.2026 (Justin): dieselbe Fälligkeit als SQL-Ausdruck (Tage) für die Stufe `stufe` — gebaut aus
+ * KADENZ_TAGE und MONATS_ABSTAND_TAGE, also keine zweite Fassung der Regel. Der Prüfstand vergleicht beide.
+ */
+export function faelligNachTagenSql(stufe: string): string {
+  const n = KADENZ_TAGE.length;
+  const letzte = KADENZ_TAGE[n - 1];
+  return `(CASE WHEN (${stufe}) < ${n} THEN (ARRAY[${KADENZ_TAGE.join(", ")}])[(${stufe}) + 1]`
+    + ` ELSE ${letzte} + ((${stufe}) - ${n} + 1) * ${MONATS_ABSTAND_TAGE} END)`;
+}
+
+/**
+ * Mara-Topsales 08.10.2026 (Justin): die NACHHOL-REGEL. Ein Lead, bei dem schon die ÜBERNÄCHSTE Stufe fällig ist,
+ * hat mindestens eine Mail verpasst (gemessen 08.10.: rund 830 Leads seit drei bis vier Wochen — die Auswahl las nur
+ * die 2.000 neuesten). Er bekommt EINE Mail und springt danach auf die Monatsstufe: die erste Stufe im
+ * Monatsrhythmus, die mindestens NACHHOL_MIN_ABSTAND_TAGE nach heute liegt — kein Nachholen von fünf Mails an fünf
+ * Tagen. Pünktliche Leads steigen wie bisher um eins. Rein.
+ */
+export const NACHHOL_MIN_ABSTAND_TAGE = 14;
+export function naechsteStufe(stufe: number, tageSeitStart: number): number {
+  const normal = stufe + 1;
+  if (tageSeitStart < faelligNachTagen(normal)) return normal; // pünktlich: nichts verpasst
+  let s = Math.max(normal, KADENZ_TAGE.length);
+  while (faelligNachTagen(s) < tageSeitStart + NACHHOL_MIN_ABSTAND_TAGE) s++;
+  return s;
+}
+
 /** Der Klartext der Kadenz — für die Admin-Ansicht. */
 export function kadenzText(): string {
   return `T+${KADENZ_TAGE.join(", T+")}, danach alle ${MONATS_ABSTAND_TAGE} Tage — ohne Ende.`;

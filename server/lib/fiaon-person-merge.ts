@@ -341,6 +341,24 @@ async function fuehreAus(
     `;
   }
 
+  // ── Mara-Topsales 08.10.2026 (Justin, nach der Prüfung): DIE SPERRE GEHT MIT — OHNE VERMERK EINE PRÜFAUFGABE ──────
+  // `is_blocked OR verlierer.is_blocked` trägt jede Sperre des Verlierers in den Gewinner — auch eine ohne Vermerk (wer
+  // sie gesetzt hat, ist vor dem Sperr-Protokoll vom 05.09. oft nicht nachvollziehbar; gemessen 08.10., nur lesend: 755
+  // gesperrte Köpfe ohne Testkonten, davon 20 ohne jeden Vermerk). Eine erste Fassung vererbte sie nur MIT Vermerk — damit wäre jede solche Sperre
+  // beim Zusammenführen automatisch und ohne Einzelprüfung gefallen (DSGVO Art. 21: wer am Telefon widersprach, ohne
+  // dass es vermerkt wurde, bekäme wieder Werbung). Deshalb: Die Sperre geht IMMER mit. Fehlt beim Verlierer UND beim
+  // Gewinner ein Vermerk (ABLEHNUNG_DOKUMENTIERT_SQL, fiaon-mail-frequenz.ts), entsteht EINE Betreiber-Aufgabe „Sperre
+  // ohne Vermerk — prüfen“: Wer den Fall prüft und kein Nein findet, hebt sie über den Knopf „Sperre aufheben“ auf.
+  let sperreOhneVermerk = false;
+  if (verlierer.is_blocked && !gewinner.is_blocked) {
+    const { ABLEHNUNG_DOKUMENTIERT_SQL } = await import("./fiaon-mail-frequenz");
+    // Das Sperr-Protokoll kann auf einem frischen Stand fehlen — ein Fehler hier bräche die ganze Zusammenführung ab.
+    const [t] = (await lauf`SELECT to_regclass('fiaon_sperr_protokoll') IS NOT NULL AS da, to_regclass('fiaon_betreiber_todos') IS NOT NULL AS todo`) as any[];
+    const doku = (id: string) => ABLEHNUNG_DOKUMENTIERT_SQL(id, { sperrProtokoll: t?.da === true });
+    const [d] = (await lauf.unsafe(`SELECT (${doku("$1::int")} OR ${doku("$2::int")}) AS ja`, [verliererId, gewinnerId])) as any[];
+    sperreOhneVermerk = d?.ja !== true && t?.todo === true;
+  }
+
   // Kontostand: 'active' schlägt 'pending'. Eine Sperre bleibt eine Sperre —
   // ein Merge ist keine Entscheidung über ein Konto (Teil 0).
   await lauf`
@@ -365,10 +383,24 @@ async function fuehreAus(
       invoice_sent_count = GREATEST(COALESCE(invoice_sent_count, 0), ${Number(verlierer.invoice_sent_count || 0)}),
       -- Eine Sperre durch einen Agenten („Kunde will nicht") gilt weiter, egal
       -- auf welcher der beiden Seiten sie dokumentiert wurde.
+      -- Mara-Topsales 08.10.2026 (nach der Prüfung): immer — ohne Vermerk zusätzlich eine Prüfaufgabe (unten).
       is_blocked = (is_blocked OR ${!!verlierer.is_blocked}),
       updated_at = NOW()
     WHERE id = ${gewinnerId}
   `;
+  if (sperreOhneVermerk) {
+    // In derselben Transaktion: scheitert das Zusammenführen, gibt es auch keine Aufgabe. Einmal je Gewinner (Schlüssel).
+    await lauf`
+      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, link, quelle)
+      VALUES (${`merge:${gewinnerId}:sperre-ohne-vermerk`}, 'Vertriebssperre ohne Vermerk — bitte prüfen',
+              ${`Beim Zusammenführen (Person ${verliererId} → ${gewinnerId}) ging eine Vertriebssperre mit, zu der kein Nein vermerkt ist `
+                + "(kein „abgelehnt“/„kein Interesse“ im Verlauf, kein „Sperren“-Klick, keine Werbesperre, kein „Stopp“). "
+                + "Bitte den Verlauf und die Gespräche lesen. Findet sich kein Nein, die Sperre über den Knopf „Sperre aufheben“ aufheben; "
+                + "sonst den Grund im Kontaktprotokoll vermerken. Nie pauschal — DSGVO Art. 21."},
+              'pruefen', 2, (NOW() AT TIME ZONE 'Europe/Berlin')::date, ${`/agent/kunden?person=${gewinnerId}`}, 'zusammenfuehren')
+      ON CONFLICT (schluessel) DO NOTHING
+    `;
+  }
 
   // Primäradressen des Verlierers als Alias sichern, falls sie noch nicht drin sind.
   for (const [kind, wert] of [["email", verlierer.primary_email], ["phone", verlierer.primary_phone]] as const) {

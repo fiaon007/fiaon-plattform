@@ -391,13 +391,15 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "antrag_erinnerung",
     label: "Antrag abgebrochen — Erinnerung mit Wiedereinstiegs-Link",
     description:
-      "Feuert nach E-023: 10 Minuten nach dem letzten Schritt, dann in den Tagesfenstern 16:30 und 19:00 Uhr, am Folgetag 07:30, 15:00, 16:30 und 19:00 Uhr (Europe/Berlin) — bis zu sieben Mails, solange der Kunde nicht weitermacht und keine Zahlungsbestellung existiert. Vorgesetzten-TODO: Make-Zweig 'antrag_erinnerung' + Brevo-Template in Sie-Form (Variablen: vorname, paket, schritt_text, weiter_link, erinnerung_nr). Der weiter_link führt genau an den abgebrochenen Schritt (14 Tage gültig).",
+      "Feuert nach E-023: 10 Minuten nach dem letzten Schritt (Abbruch in der Nacht: im ersten Tagesfenster), dann in den Tagesfenstern 12:00, 13:30, 17:30 und 20:00 Uhr (Europe/Berlin, E-164) — bis zu sieben Mails, solange der Kunde nicht weitermacht, nichts abgeschickt, bezahlt oder gemeldet hat (Mara-Topsales 08.10.2026: mit Abmeldelink abmelde_url). Vorgesetzten-TODO: Make-Zweig 'antrag_erinnerung' + Brevo-Template in Sie-Form (Variablen: vorname, paket, schritt_text, weiter_link, erinnerung_nr). Der weiter_link führt genau an den abgebrochenen Schritt (14 Tage gültig).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com", vorname: "Max", nachname: "Mustermann", antrag_id: "FIAON-ABC123-XY9Z",
       paket: "FIAON Pro (Standard)", pack_key: "pro", schritt: 2, schritt_text: "Schritt 2 von 5 — Beruf & Finanzen",
       weiter_link: "https://www.fiaon.com/antrag?weiter=FIAON-ABC123-XY9Z.1756...abcd", erinnerung_nr: 1,
       portal_url: "https://www.fiaon.com/antrag",
+      // Mara-Topsales 08.10.2026: Werbung mit Abmeldepflicht (motor.ts, ABMELDEPFLICHT).
+      abmelde_url: "https://www.fiaon.com/api/fiaon/abmelden/p/4711.0f3a9b7c2e4d",
     },
   },
   {

@@ -384,7 +384,7 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     fuss: "FIAON LTD · Fragen? Einfach hier antworten",
     kategorie: "UTILITY",
     zweck: "Erinnerung an eine fällige, unbezahlte Monatsrate eines Bestandskunden — Knopf zur Zahlungsseite genau dieser Rate.",
-    wann: "Nur über die WhatsApp-Zentrale, Gruppe „Monatsrate fällig“: bezahlte Bestellung, Rate offen und fällig, nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, höchstens zweimal je Rate.",
+    wann: "Nur über die WhatsApp-Zentrale, Gruppe „Monatsrate fällig“: bezahlte Bestellung, Rate offen und fällig, nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, höchstens dreimal je Rate (Mara-Topsales 08.10.2026).",
     text: "Hallo {{1}}, eine kurze Erinnerung von FIAON: Ihre Monatsrate über {{2}} € war am {{3}} fällig — Verwendungszweck {{4}}. "
       + "Über den Knopf öffnen Sie Ihre Zahlungsseite mit dem QR-Code für Ihre Banking-App; Empfänger, Betrag und Verwendungszweck sind dort schon ausgefüllt. "
       + "Schon überwiesen? Dann hat sich diese Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun. "

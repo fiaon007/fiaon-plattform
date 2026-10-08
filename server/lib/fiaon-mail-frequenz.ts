@@ -515,6 +515,44 @@ export async function werbesperreAnAdresse(adresse: string): Promise<boolean> {
   return !!g;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Mara-Topsales 08.10.2026 (Justin): DIE AUTOMATISCHE TÜR ALS SQL — FÜR AUSWAHLABFRAGEN
+//
+// Gemessen (nur lesend, 14 Tage bis 08.10.): 199 payment_reminder und 186 Rückhol-Mails scheiterten an der Tür
+// (Werbesperre an der Adresse, hart unzustellbar) — vorher von der Auswahl beansprucht, gezählt (reminder_count)
+// und bei S1–S3 sogar mit Mahnstopp belegt, ohne dass eine Mail ankam. Die Auswahl fragt jetzt dieselben zwei
+// automatischen Nein der Tür (darfAnEmpfaenger: werbesperreAnAdresse, hart = Rückläufer/Spam in 30 Tagen) VORHER:
+//   · WERBESPERRE_ADRESSEN_SQL — jede Adresse, hinter der irgendein Mensch eine Werbesperre hat (Hauptadresse,
+//     die drei Adressen jeder Bestellung, Lead-Formular, Hauptadresse zusammengeführter Personen) — dieselben vier
+//     Wege wie werbesperreAnAdresse, als Menge (einmal je Abfrage gebildet; NOT IN-sicher, nie NULL).
+//   · HART_UNZUSTELLBAR_ADRESSEN_SQL — dieselbe Zählung wie `hart` in darfAnEmpfaenger.
+// Zahlungspost (ZAHLUNGSPOST) trifft die Werbesperre nicht — der Aufrufer nimmt sie dann nicht dazu.
+// Der Prüfstand (scripts/pruef-mara-topsales.ts) vergleicht die SQL-Menge mit werbesperreAnAdresse.
+// ═══════════════════════════════════════════════════════════════════════════
+export const WERBESPERRE_ADRESSEN_SQL = `(SELECT ws_a.adresse FROM (
+    SELECT LOWER(TRIM(ws_p.primary_email)) AS adresse FROM fiaon_persons ws_p WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.email)) FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.contact_email)) FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_x.billing_email)) FROM fiaon_applications ws_x JOIN fiaon_persons ws_p ON ws_p.id = ws_x.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_l.email)) FROM fiaon_leads ws_l JOIN fiaon_persons ws_p ON ws_p.id = ws_l.person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+    UNION SELECT LOWER(TRIM(ws_m.primary_email)) FROM fiaon_persons ws_m JOIN fiaon_persons ws_p ON ws_p.id = ws_m.merged_into_person_id WHERE ws_p.werbung_gesperrt_am IS NOT NULL
+  ) ws_a WHERE ws_a.adresse IS NOT NULL AND ws_a.adresse <> '')`;
+
+/** Adressen, die die Tür als hart unzustellbar ablehnt: Rückläufer oder Spam-Meldung in 30 Tagen (wie `hart` oben). */
+export const HART_UNZUSTELLBAR_ADRESSEN_SQL = `(SELECT DISTINCT LOWER(TRIM(hu_m.empfaenger)) FROM fiaon_mail_log hu_m
+    WHERE hu_m.status = 'versandt' AND hu_m.art = 'echt' AND hu_m.zustellung IN ('gebounct', 'spam')
+      AND hu_m.created_at > NOW() - INTERVAL '30 days' AND hu_m.empfaenger IS NOT NULL)`;
+
+/**
+ * Würde die automatische Tür eine Mail `event` an die Adresse `adr` (SQL-Ausdruck, schon LOWER/TRIM) ablehnen?
+ * Werbesperre (nicht bei Zahlungspost) oder hart unzustellbar. Für WHERE … AND NOT (…).
+ */
+export function tuerNeinSql(adr: string, event: string): string {
+  const teile = [`(${adr}) IN ${HART_UNZUSTELLBAR_ADRESSEN_SQL}`];
+  if (!ZAHLUNGSPOST.has(event)) teile.unshift(`(${adr}) IN ${WERBESPERRE_ADRESSEN_SQL}`);
+  return `(${teile.join(" OR ")})`;
+}
+
 const istAuskunftZeile = (z: any) => String(z?.typ ?? "") === "schufa" || String(z?.ref ?? "").startsWith("FIAON-SCHUFA-");
 
 /** Der Stand mehrerer Menschen in EINER Abfrage — die Regeln stehen in JavaScript (istAboPaket). */
@@ -645,6 +683,19 @@ export const WERBESPERRE_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_wk.id")
 /** Werbesperre des Menschen: an irgendeiner Person seiner Familie. Für viele Zeilen geeignet (eine Kopf-Suche je Zeile). */
 export const WERBESPERRE_FAMILIE_SQL = (p: string) => `(${KOPF_SQL(p)} IN ${WERBESPERRE_KOEPFE_SQL})`;
 
+/**
+ * Mara-Topsales 08.10.2026 (Prüfung): ABGEMELDET ÜBER DEN LINK EINER LEAD-MAIL (fiaon_leads.abgemeldet_am). Die Seite sagt
+ * „Du bekommst keine weiteren E-Mails von uns.“ — bis heute setzte die Abmeldung nur den Lead-Stempel, keine Werbesperre an
+ * der Person (gemessen 08.10.: 70 Menschen). Als Mengen, einmal je Abfrage gebildet, NOT IN-sicher (nie NULL):
+ *   · LEAD_ABGEMELDET_KOEPFE_SQL — die Köpfe der Menschen, an deren Familie ein abgemeldeter Lead hängt,
+ *   · LEAD_ABGEMELDET_ADRESSEN_SQL — die Adressen abgemeldeter Leads (auch ohne verknüpfte Person).
+ * Gelesen von der Abbruch-Kette (abbrecherSql). Neue Abmeldungen setzen seit heute zusätzlich werbung_gesperrt_am.
+ */
+export const LEAD_ABGEMELDET_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("la_l.person_id")} FROM fiaon_leads la_l
+    WHERE la_l.abgemeldet_am IS NOT NULL AND la_l.person_id IS NOT NULL)`;
+export const LEAD_ABGEMELDET_ADRESSEN_SQL = `(SELECT DISTINCT LOWER(TRIM(la_a.email)) FROM fiaon_leads la_a
+    WHERE la_a.abgemeldet_am IS NOT NULL AND la_a.email IS NOT NULL AND TRIM(la_a.email) <> '')`;
+
 // ── „STOPP" DES MENSCHEN (E-253, Nachtrag nach der Gegenprüfung) ─────────────
 // Zwei Wege, auf denen ein Mensch „keine Nachrichten mehr" sagt — beide
 // endgültig, egal wann, egal an welcher Person der Familie:
@@ -680,6 +731,44 @@ export const STOPP_KOEPFE_SQL = `(SELECT DISTINCT ${KOPF_SQL("e253_st.pid")} FRO
     UNION
     SELECT e253_sp.person_id FROM fiaon_postmeister e253_sp WHERE e253_sp.person_id IS NOT NULL AND ${POSTFACH_STOPP_ZEILE_SQL("e253_sp")}
   ) e253_st)`;
+
+/**
+ * Mara-Topsales 08.10.2026 (Justin): Ist beim Menschen `p` (SQL-Ausdruck für die Personen-ID) eine ABLEHNUNG
+ * dokumentiert? Eine Quelle für das Zusammenführen (fiaon-person-merge.ts: ohne Vermerk eine Prüfaufgabe) und die
+ * Prüfliste der Sperren (scripts/mara-sperren-pruefliste.ts). Dokumentiert heißt — an seiner Familie (Kopf + Dubletten):
+ *   · ein Vermerk im Kontaktprotokoll mit Ergebnis/Notiz „abgelehnt“, „kein Interesse“, „not_interested“, DSGVO/Löschung —
+ *     an der Person ODER an einer ihrer Bestellungen (ältere Vermerke tragen nur die Bestellnummer: Nachgezählt am 08.10.
+ *     haben 274 gesperrte A/B-Menschen ein „erreicht_abgelehnt“ nur an der Bestellung; die Diagnose las nur die Person
+ *     und kam so auf 102 A / 99 B „ohne Ablehnung“ — mit der Bestellung bleiben 8 A und 3 B),
+ *   · ein Klick auf „Sperren“ im Vertrieb (fiaon_agent_events vertrieb_sperre, neu = true),
+ *   · eine Werbesperre oder ein „Stopp“ (WhatsApp/Postfach) — wer keine Nachrichten will, will auch keinen Verkauf,
+ *   · (nach der Prüfung, 08.10.) die bewusst gesetzte Sperre der Verwaltung („Vertriebssperre GESETZT durch die
+ *     Verwaltung“, vertriebssperreAendern in fiaon-kunden.ts — schreibt nur diesen Vermerk) und, mit
+ *     `sperrProtokoll: true`, jede Sperre im Sperr-Protokoll (neu = true), die NICHT aus einem Zusammenführen stammt.
+ *     Das Protokoll kann auf einem frischen Stand fehlen — der Aufrufer prüft to_regclass vorher.
+ * Gemessen (Diagnose 08.10.): Die meisten Sperren der A/B-Menschen stammen aus Zusammenführungen und sind älter als das
+ * Sperr-Protokoll (05.09.).
+ *
+ * WAS DARAUS FOLGT (nach der Prüfung, 08.10.): NICHTS WIRD AUFGEHOBEN. Beim Zusammenführen geht die Sperre des Verlierers
+ * weiter mit (fiaon-person-merge.ts); fehlt ein Vermerk, entsteht EINE Betreiber-Aufgabe zur Einzelprüfung. Die Prüfliste
+ * listet dieselben Fälle für das Team.
+ */
+export const ABLEHNUNG_DOKUMENTIERT_SQL = (p: string, opt: { sperrProtokoll?: boolean } = {}) => `(EXISTS (
+    SELECT 1 FROM fiaon_contact_log ad_c
+     WHERE ad_c.voided_at IS NULL
+       AND (ad_c.person_id IN ${FAMILIE_SQL(KOPF_SQL(p))}
+            OR ad_c.ref IN (SELECT ad_a.ref FROM fiaon_applications ad_a WHERE ad_a.person_id IN ${FAMILIE_SQL(KOPF_SQL(p))}))
+       AND (COALESCE(ad_c.outcome, '') ~* '(abgelehnt|kein_interesse|kein interesse|not_interested|dsgvo|loesch)'
+            OR COALESCE(ad_c.note, '') ~* '(abgelehnt|kein interesse|vertriebssperre gesetzt)'))
+  OR EXISTS (SELECT 1 FROM fiaon_agent_events ad_e
+              WHERE ad_e.type = 'vertrieb_sperre' AND ad_e.meta ~ ('"person_id":' || (${p})::text || '[,}]')
+                AND ad_e.meta LIKE '%"neu":true%')
+  OR EXISTS (SELECT 1 FROM fiaon_persons ad_w WHERE ad_w.id IN ${FAMILIE_SQL(KOPF_SQL(p))} AND ad_w.werbung_gesperrt_am IS NOT NULL)
+  ${opt.sperrProtokoll ? `OR EXISTS (SELECT 1 FROM fiaon_sperr_protokoll ad_s
+              WHERE ad_s.person_id IN ${FAMILIE_SQL(KOPF_SQL(p))} AND ad_s.neu IS TRUE
+                AND COALESCE(ad_s.anweisung, '') NOT ILIKE '%merged_into_person_id%'
+                AND COALESCE(ad_s.anweisung, '') NOT ILIKE '%account_status = CASE%')` : ""}
+  OR ${KOPF_SQL(p)} IN ${STOPP_KOEPFE_SQL})`;
 
 // „Kündigung oder Vertragsende, und kein laufendes, ungekündigtes Paket" — genau
 // wie personSperren/werbungVerboten, nur in SQL (für die Gruppen der WA-Zentrale:

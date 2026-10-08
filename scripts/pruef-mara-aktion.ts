@@ -78,7 +78,8 @@ for (const [muster, satz] of [
   [/INTERVAL '12 hours'/, "Mitarbeiter gerade dran → Pause"],
   [/INTERVAL '6 hours'/, "Andere Mail gerade raus → Pause"],
   [/'gebounct', 'blockiert', 'spam'/, "Zustellproblem stoppt"],
-  [/INTERVAL '2 days' WHEN 2 THEN INTERVAL '4 days' WHEN 3 THEN INTERVAL '7 days' ELSE INTERVAL '14 days'/, "Takt 2 / 4 / 7 / 14 Tage"],
+  // Mara-Topsales 08.10.2026 (Justin): 2 / 4 / 7 Tage, danach wöchentlich an seinem Wochentag (person_id % 7) statt alle 14 Tage.
+  [/aktionTaktSql\("l\.n", "l\.am", "app\.person_id"\)/, "Takt aus aktionTaktSql (2 / 4 / 7, dann wöchentlich je Wochentag)"],
   // Der Anlauf 200/400/800 ist am 22.09.2026 entfallen (fiaon-mara-aktion.ts) — geprüft wird, dass er weg bleibt.
   [/Kein Anlauf mehr/, "Kein Anlauf mehr (seit 22.09.2026)"],
   [/x === "A" \|\| x === "B"/, "Stufe C lässt sich nicht einschalten"],
@@ -172,7 +173,9 @@ if (MIT_DB) {
       await sql`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${ids})`.catch(() => {});
     }
     await sql`DELETE FROM fiaon_bank_txns WHERE txn_id LIKE 'PRUEF276-%'`;
-    await sql`DELETE FROM fiaon_applications WHERE ref LIKE 'FIAON-P276%'`;
+    // Mara-Topsales 08.10.2026: auch E1 (Bestellnummer ohne P276-Vorsilbe) — sonst blieb die Zeile liegen, und der zweite Lauf
+    // auf derselben Test-DB brach am eindeutigen Index ab.
+    await sql`DELETE FROM fiaon_applications WHERE ref LIKE 'FIAON-P276%' OR ref = 'FIAON-Q7X2K9AB-Z3BT'`;
     await sql`DELETE FROM fiaon_persons WHERE person_ref LIKE 'PRUEF276A-%'`;
     await sql`DELETE FROM fiaon_settings WHERE key LIKE 'mara_aktion_%'`;
     for (const z of einstVorher) await sql`INSERT INTO fiaon_settings (key, value) VALUES (${z.key}, ${z.value}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
@@ -191,7 +194,7 @@ if (MIT_DB) {
     const antrag = async (kurz: string, o: { ref: string; zweck: string; stufe: "A" | "B"; vorStunden: number; vor?: string; nach?: string }) => {
       const pid = personen[kurz];
       await sql`INSERT INTO fiaon_applications (ref, person_id, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, first_name, last_name, email, created_at, submitted_at, claimed_paid_at)
-        VALUES (${o.ref}, ${pid}, 'private', 'submitted', 'pro', 'FIAON Pro', ${o.zweck}, ${o.stufe === "A" ? "claimed_paid" : "pending_payment"}, 99.99,
+        VALUES (${o.ref}, ${pid}, 'private', 'submitted', 'pro', 'FIAON Pro', ${o.zweck}, ${o.stufe === "A" ? "claimed_paid" : "pending_payment"}, 59.99 /* Mara-Topsales 08.10.2026: Katalogpreis Pro — der Preis-Trigger der Test-DB lehnt 99,99 ab */,
                 ${o.vor ?? "Max"}, ${o.nach ?? `Prüfer${kurz}`}, ${`pruef276a-${kurz.toLowerCase()}@kunde.invalid`},
                 NOW() - make_interval(hours => ${o.vorStunden}), NOW() - make_interval(hours => ${o.vorStunden}),
                 ${o.stufe === "A" ? sql`NOW() - make_interval(hours => ${o.vorStunden})` : null})`;
@@ -259,9 +262,10 @@ if (MIT_DB) {
       return { id: `pruef-${n}`, threadId: `pruef-t-${n}` };
     };
     // Zwei Durchgänge zugleich: der zweite wartet nicht, er sagt „läuft schon“ — danach ein dritter, der nichts mehr findet.
-    const [r1, r2] = await Promise.all([A276.maraAktionLauf({ schreiben, senden }), A276.maraAktionLauf({ schreiben, senden })]);
+    // Mara-Topsales 08.10.2026: das Sendefenster (08–21 Uhr) — der Prüfstand läuft um 12 Uhr, egal wann er gestartet wird.
+    const [r1, r2] = await Promise.all([A276.maraAktionLauf({ schreiben, senden, stunde: 12 }), A276.maraAktionLauf({ schreiben, senden, stunde: 12 })]);
     ok(r2.grund === "läuft schon" || r1.grund === "läuft schon", "Zweiter gleichzeitiger Durchgang im selben Prozess: „läuft schon“");
-    const r3 = await A276.maraAktionLauf({ schreiben, senden });
+    const r3 = await A276.maraAktionLauf({ schreiben, senden, stunde: 12 });
     ok((gesendetAn[personen.B1] ?? 0) === 1 && (gesendetAn[personen.B2] ?? 0) === 1 && (gesendetAn[personen.A1] ?? 0) === 1, "B1, B2, A1 bekommen genau EINE Mail (Doppel-Durchgang → eine Mail)");
     ok(r3.gesendet === 0, "Dritter Durchgang in derselben Runde schreibt niemandem ein zweites Mal");
     for (const w of ["W1", "W2", "W3", "E1", "E2", "E3"]) ok(!gesendetAn[personen[w]], `${w}: keine Mail`);
@@ -290,7 +294,7 @@ if (MIT_DB) {
     await eingang(4, { zweck: "FIAON-P276B2 danke" });
     ok(await U.eingangOffenFuer(personen.B2), "Der neue Eingang „FIAON-P276B2 danke“ gehört zu B2");
     const vorB2 = gesendetAn[personen.B2] ?? 0;
-    await A276.maraAktionLauf({ schreiben, senden });
+    await A276.maraAktionLauf({ schreiben, senden, stunde: 12 });
     ok((gesendetAn[personen.B2] ?? 0) === vorB2, "B2: keine Mail, solange sein Eingang ungebucht ist");
     ok((gesendetAn[personen.B1] ?? 0) === 2, "B1: in der neuen Runde wieder genau eine Mail");
 

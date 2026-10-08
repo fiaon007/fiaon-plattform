@@ -42,7 +42,8 @@ async function main() {
   const um = (h: number, m: number) => new Date(Date.UTC(2026, 9, 8, h - 2, m)); // Berlin = UTC+2 im Oktober
   ok(!nf.nachfassZeitOk(um(7, 59)) && nf.nachfassZeitOk(um(8, 0)) && nf.nachfassZeitOk(um(20, 30)) && !nf.nachfassZeitOk(um(20, 31)), "nur 08:00–20:30 Uhr (Berlin)");
   const q = nf.nachfassKandidatenSql();
-  ok(/INTERVAL '23 hours'/.test(q) && /INTERVAL '16 hours'/.test(q), "Fenster 16–23 Stunden nach seiner letzten Nachricht");
+  // Mara-Topsales 08.10.2026 (Justin): ab 4 statt ab 16 Stunden — Fenster 4–23 h nach seiner letzten Nachricht.
+  ok(/INTERVAL '23 hours'/.test(q) && /INTERVAL '4 hours'/.test(q) && nf.NACHFASS_AB_STUNDEN === 4, "Fenster 4–23 Stunden nach seiner letzten Nachricht (Mara-Topsales 08.10.2026)");
   ok(q.includes("ILIKE '%stopp%'") && q.includes("kein(e|en)?\\s+interesse"), "STOPP und Widerspruch (WA_STOPP_ZEILE_SQL) schließen aus");
   ok(/vorlage IS NOT NULL OR COALESCE\(o\.von, ''\) NOT ILIKE 'Mara%'/.test(q), "nach einem Menschen oder einer Vorlage kein Nachfassen");
   ok(/LIKE '%\(Nachfass\)' AND o\.created_at > NOW\(\) - INTERVAL '7 days'/.test(q), "höchstens einmal in sieben Tagen");

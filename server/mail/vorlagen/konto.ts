@@ -157,6 +157,8 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     knopf: { text: "Antrag fortsetzen", url: "{{params.weiter_link}}" },
     fussnote: "Dauert keine fünf Minuten. Bei Fragen: einfach auf diese E-Mail antworten.",
     karteZiel: true,
+    // Mara-Topsales 08.10.2026 (Justin): Werbung (WERBUNG_IMMER) — mit Abmeldelink wie Rückholung und Lead-Strecke.
+    abmeldeUrl: "{{params.abmelde_url}}",
   },
 
   // ══════════════════════════════════════════════════════════════════════════

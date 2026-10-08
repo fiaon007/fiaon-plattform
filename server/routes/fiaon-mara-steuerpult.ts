@@ -16,7 +16,7 @@ import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
 import {
   aktionTabellen, aktionZaehler, einstellungenLesen, einstellungSetzen, kandidatenLaden, mailSchreiben, maraAktionLauf, rundeStand,
-  AKTION_SCHLUESSEL, DIENST,
+  AKTION_SCHLUESSEL, DIENST, AKTION_HOECHSTENS_JE_STUNDE,
 } from "../lib/fiaon-mara-aktion";
 import { gedaechtnisLesen, gedaechtnisLoeschen } from "../lib/fiaon-mara-gedaechtnis";
 import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BEREICHE, BEREICH_TEXT, MAX_ZEICHEN, type Bereich } from "../lib/fiaon-mara-anweisung";
@@ -297,8 +297,10 @@ router.post("/chef/mara/einstellung", wache, async (req: ChefRequest, res: Respo
   if (!AKTION_SCHLUESSEL.includes(schluessel)) return res.status(400).json({ ok: false, error: "Diese Einstellung gibt es nicht." });
   if (schluessel === "mara_aktion_an" || schluessel === "mara_aktion_emojis") wert = wert === "an" ? "an" : "aus";
   // 22.09.2026 (Justin): kein Anlauf, kein 50er-Deckel mehr — die Grenzen sind
-  // dieselben wie in fiaon-mara-aktion.ts (500 je Stunde, 500 € am Tag).
-  if (schluessel === "mara_aktion_je_stunde") wert = String(Math.max(0, Math.min(500, Math.round(Number(wert) || 0))));
+  // dieselben wie in fiaon-mara-aktion.ts (500 € am Tag).
+  // Mara-Topsales 08.10.2026 (Prüfung): je Stunde höchstens AKTION_HOECHSTENS_JE_STUNDE (60) — am 03.10. führten 300 je
+  // Stunde zur Sperre beim KI-Anbieter; der Lauf klemmt ohnehin darauf, gespeichert wird, was gilt.
+  if (schluessel === "mara_aktion_je_stunde") wert = String(Math.max(0, Math.min(AKTION_HOECHSTENS_JE_STUNDE, Math.round(Number(wert) || 0))));
   if (schluessel === "mara_aktion_tag_euro") wert = String(Math.max(0, Math.min(500, Math.round(Number(wert) || 0))));
   if (schluessel === "mara_aktion_stufen") wert = wert.toUpperCase().split(",").map((x) => x.trim()).filter((x) => x === "A" || x === "B").join(",");
   if (schluessel === "mara_aktion_postfach" && !["support@fiaon.com", "welcome@fiaon.com"].includes(wert)) return res.status(400).json({ ok: false, error: "Nur support@ oder welcome@." });

@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.10.2026 — E-303 Mara-Topsales: die Verkaufsketten laufen wieder (Diagnose mit Zahlen, Justin: „Mach Mara verkaufsfähig“)
+
+- **Abbruch-Kette repariert:** Wer den Antrag anfängt und nicht abschickt, bekam seit dem 28.08. keine einzige Erinnerung mehr
+  (jeder Antrag hat sofort einen Verwendungszweck, die Kette verlangte keinen). Jetzt: bis zu 7 Erinnerungen, höchstens eine am Tag,
+  erste Mail im Tagesfenster ab 12 Uhr, mit Abmeldelink; beim ersten Lauf nur Abbrüche der letzten 48 Stunden (kein Stoß).
+- **Lead-Strecke:** erst fällig, dann begrenzt — kein Formular-Lead fällt mehr still hinter der 2.000er-Grenze heraus; Importe ohne
+  gespeicherte Einwilligung bleiben draußen; Tagesdeckel je Berliner Tag.
+- **Mara-Aktion gleichmäßig:** nach 2, 4 und 7 Tagen, danach wöchentlich an einem festen Wochentag je Mensch statt alle 14 Tage in
+  einer Welle; nur 08–21 Uhr; höchstens 60 je Stunde (auch wenn mehr eingestellt ist).
+- **„Bezahlt geklickt“, Geld fehlt (Stufe A):** nach 3 Werktagen EINE Anrufaufgabe je Bestellung und EINE Klärungsmail von Mara
+  (Beleg oder Überweisungsdatum, Verwendungszweck) — vorher Bankabgleich; keine Mahnung.
+- **Monatsraten:** höchstens drei WhatsApp je fällige Rate (bisher zwei), über die Woche verteilt; Service, läuft auch bei ROT.
+- **Mara-Nachfass:** schon 4 statt 16 Stunden nach der letzten Nachricht (einmal je 7 Tage, 08:00–20:30).
+- **Lauf-Wächter:** jeder Takt speichert sein Ergebnis; schickt ein Verkaufslauf 24 Stunden lang nichts, kommt eine Aufgabe.
+- **Sperren beim Zusammenführen:** ohne dokumentierte Ablehnung wird die Vertriebssperre geprüft statt still vererbt (Aufgabe); Prüfliste
+  `scripts/mara-sperren-pruefliste.ts` (nur lesen).
+- **Saubere Zählung:** Erinnerung und Rückholung prüfen Werbesperre und Unzustellbarkeit vor dem Versuch; `reminder_count` zählt nur echten Versand.
+- Prüfstand `scripts/pruef-mara-topsales.ts` 118/118 offline, 172/172 mit Test-DB; pruef-mara-aktion 77/77, pruef-e299 78/78, pruef-mara-e298 48/48.
+
 ## 08.10.2026 — E-301 Runde 3: Firmenangebot, Endfassung zum Versand (Fassung D)
 
 - **Kapital vorne:** Nach dem Glückwunsch steht im Kopf der Seite zuerst die große Zahl der ersten Runde in Gold, daneben Justins

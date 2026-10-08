@@ -19,8 +19,11 @@
 //   (gemessen, E-162: 36 % der Zahlungsmelder zahlen am ersten Tag, die
 //   Frische entscheidet).
 // · Takt je Kunde: erste Mail 24 h nach Antrag bzw. Zahlungsmeldung, dann
-//   nach 2, 4, 7 und danach alle 14 Tage — nie dieselbe Mail zweimal, jede mit
-//   einem neuen Gedanken. Kein Ende: „so lange, bis er Kunde wird".
+//   nach 2, 4, 7 und danach WÖCHENTLICH an seinem festen Wochentag (Mara-Topsales
+//   08.10.2026, vorher alle 14 Tage — siehe aktionTaktSql) — nie dieselbe Mail
+//   zweimal, jede mit einem neuen Gedanken. Kein Ende: „so lange, bis er Kunde wird".
+// · Versand nur 08:00–21:00 Uhr Berlin (Mara-Topsales 08.10.2026, AKTION_FENSTER).
+// · Stufe A ab dem 3. Werktag: EINE Klärungs-Mail mit Zahlungsdaten (fiaon-stufe-a-klaeren.ts).
 // · Stopp: bezahlt, storniert, gekündigt, Werbesperre, Vertriebssperre,
 //   „Stopp"-Antwort, Zustellproblem an die Adresse, aus der Aktion genommen.
 // · Rücksicht: Schreibt der Kunde selbst, antwortet Mara im Postfach — die
@@ -97,6 +100,8 @@ import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 // E-276 (02.10.2026): der unscharfe Abgleich mit ungebuchten Eingängen — eine Quelle für Schlange und Senden.
 import { eingangOffenSql, eingangOffenFuer } from "./fiaon-zahlung-unverbucht";
+// Mara-Topsales 08.10.2026 (Justin): Stufe A klären — ab dem 3. Werktag EINE Klärungs-Mail (fester Text, keine KI).
+import { KLAERUNG_AB_WERKTAGEN, KLAERUNG_BETREFF, klaerungKern, werktageSeitSql } from "./fiaon-stufe-a-klaeren";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
@@ -119,7 +124,9 @@ export interface AktionEinstellungen {
 }
 const VORGABE: Record<string, string> = {
   mara_aktion_an: "an",
-  mara_aktion_je_stunde: "50",
+  // Mara-Topsales 08.10.2026 (Justin): Vorgabe 60 je Stunde (vorher 50); die Einstellung bleibt änderbar. Am 03.10. führten
+  // 300 je Stunde (224 Aufrufe in 22 Minuten) zur Sperre beim KI-Anbieter und 73 Stunden Stillstand.
+  mara_aktion_je_stunde: "60",
   mara_aktion_tag_euro: "15",
   mara_aktion_stufen: "A,B",
   mara_aktion_emojis: "aus",
@@ -144,6 +151,77 @@ export const AKTION_SCHLUESSEL = Object.keys(VORGABE);
 // (oder mit leerem Wert) gelten die alten Regeln von selbst — eine vergessene Runde legt
 // den Takt nicht dauerhaft still.
 export const RUNDE_STUNDEN = 24;
+/**
+ * Mara-Topsales 08.10.2026 (Justin, Diagnose plan.nicht): die Aktion schreibt nie mehr als 60 je Stunde — egal, was
+ * eingestellt ist. Am 03.10. führten 300 je Stunde (224 KI-Aufrufe in 22 Minuten) zur Sperre beim KI-Anbieter und 73
+ * Stunden Stillstand. Eine erste Fassung deckelte nur die RUNDE; nach der Prüfung gilt es immer: In der Produktion steht
+ * mara_aktion_je_stunde = 190 ausdrücklich gespeichert — die 83 einmaligen Klärungen und ab dem 10.10. die 60–76
+ * Wochenslot-Mails gingen sonst jeden Morgen in 20–40 Minuten über ein Postfach raus. Lesen, Setzen (Steuerpult) und
+ * Lauf klemmen auf diesen Wert.
+ */
+export const AKTION_HOECHSTENS_JE_STUNDE = 60;
+/** Älterer Name (eine Runde) — derselbe Deckel. */
+export const RUNDE_HOECHSTENS_JE_STUNDE = AKTION_HOECHSTENS_JE_STUNDE;
+/**
+ * Mara-Topsales 08.10.2026 (Prüfung): höchstens so viele KLÄRUNGEN der Stufe A je Berliner Tag. Gemessen 08.10.: 83
+ * Klärungen wären am ersten Tag auf einmal fällig — fast alle an Menschen, denen die Rückholung mit S2 „Wir haben diese
+ * Erinnerungen gestoppt“ geschrieben hat. Verteilt auf rund vier Tage; danach kommen 1–2 am Tag neu dazu.
+ */
+export const KLAERUNG_JE_TAG = 20;
+
+// ── Mara-Topsales 08.10.2026 (Justin): VERSAND NUR 08:00–21:00 UHR (Berlin) ─────────────────
+// Bis heute lief die Aktion rund um die Uhr (21.09.: „auch nachts“). Gemessen (E-164): 7 Uhr 1,5 % geöffnet, die
+// Abendstunden bis 20 Uhr am stärksten; eine Mail um drei Uhr nachts liegt am Morgen unter allen anderen.
+export const AKTION_FENSTER = { von: 8, bis: 21 } as const;
+/** Darf die Aktion zu dieser Berliner Stunde schreiben? Rein. */
+export function imAktionsFenster(stunde: number): boolean {
+  return stunde >= AKTION_FENSTER.von && stunde < AKTION_FENSTER.bis;
+}
+
+// ── Mara-Topsales 08.10.2026 (Justin): DER TAKT — 2, 4, 7 TAGE, DANN WÖCHENTLICH AN SEINEM WOCHENTAG ──────
+// Gemessen (nur lesend, 08.10.): Nach der Runde vom 03.10. hatten 458 von 510 erreichbaren A/B-Menschen vier oder mehr
+// Aktionsmails — rund 431 waren erst am 17.10. wieder fällig (alle 14 Tage), seit dem 04.10. gingen 0–34 am Tag raus,
+// und am 17.10. käme alles auf einmal. Jetzt: ab der fünften Mail wöchentlich statt alle 14 Tage, und der Tag ist
+// sein fester Wochentag — person_id % 7. So ist an jedem Tag rund ein Siebtel fällig, keine Welle.
+// Erste Mail 24 h nach Antrag/Meldung, dann nach 2, 4 und 7 Tagen — unverändert.
+export const TAKT_TAGE = [2, 4, 7] as const;
+export const WOCHE_TAGE = 7;
+/** Ein Montag als Bezug für den Wochentag (beliebig, fest). */
+const WOCHE_BEZUG = "2026-01-05";
+
+/** Der Berliner Kalendertag (YYYY-MM-DD) eines Zeitpunkts. Rein. */
+function berlinKalendertag(d: Date): string {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+/**
+ * Der Tag, ab dem die nächste Mail fällig ist, wenn er schon `n` ≥ 4 Aktionsmails hat: der erste Tag ab „letzte + 7“,
+ * der auf seinen Wochentag fällt (Tagesnummer seit WOCHE_BEZUG mod 7 = personId mod 7). Rein — SQL: aktionTaktSql.
+ */
+export function wochenslotTag(letzteAm: Date, personId: number): string {
+  const d0 = new Date(`${berlinKalendertag(letzteAm)}T12:00:00Z`);
+  d0.setUTCDate(d0.getUTCDate() + WOCHE_TAGE);
+  const idx = ((Math.round((d0.getTime() - Date.parse(`${WOCHE_BEZUG}T12:00:00Z`)) / 86_400_000) % 7) + 7) % 7;
+  const off = ((((personId % 7) + 7) % 7) - idx + 7) % 7;
+  d0.setUTCDate(d0.getUTCDate() + off);
+  return d0.toISOString().slice(0, 10);
+}
+/**
+ * Fällig nach dem Takt? (n = bisher gesendete Aktionsmails, am = die letzte.) Rein — dieselbe Regel wie aktionTaktSql.
+ */
+export function aktionTaktFaellig(n: number, am: Date | null, personId: number, jetzt: Date = new Date()): boolean {
+  if (!am || n <= 0) return true;
+  if (n < 4) return jetzt.getTime() - am.getTime() > TAKT_TAGE[Math.min(n, 3) - 1] * 86_400_000;
+  return berlinKalendertag(jetzt) >= wochenslotTag(am, personId);
+}
+/** Der Takt als SQL — `n` und `am` aus der Menge „letzte“, `person` die Personen-ID. */
+export function aktionTaktSql(n: string, am: string, person: string): string {
+  const d0 = `(((${am}) AT TIME ZONE 'Europe/Berlin')::date + ${WOCHE_TAGE})`;
+  const idx = `((((${d0} - DATE '${WOCHE_BEZUG}') % 7) + 7) % 7)`;
+  const slot = `(${d0} + ((((${person}) % 7) - ${idx} + 7) % 7))`;
+  return `((${am}) IS NULL
+    OR ((${n}) < 4 AND (${am}) < NOW() - (CASE (${n}) WHEN 1 THEN INTERVAL '${TAKT_TAGE[0]} days' WHEN 2 THEN INTERVAL '${TAKT_TAGE[1]} days' ELSE INTERVAL '${TAKT_TAGE[2]} days' END))
+    OR ((${n}) >= 4 AND (NOW() AT TIME ZONE 'Europe/Berlin')::date >= ${slot}))`;
+}
 
 /** Die laufende Runde als ISO-Zeit — null ohne Wert, mit unlesbarem Wert, in der Zukunft oder nach RUNDE_STUNDEN. Rein. */
 export function rundeAktiv(wert: string | null | undefined, jetzt: number = Date.now()): string | null {
@@ -158,7 +236,8 @@ export async function einstellungenLesen(): Promise<AktionEinstellungen> {
   const zahl = (k: string, min: number, max: number) => Math.max(min, Math.min(max, Number(w(k)) || 0));
   return {
     an: w("mara_aktion_an") === "an",
-    jeStunde: zahl("mara_aktion_je_stunde", 0, 500),
+    // Mara-Topsales 08.10.2026 (Prüfung): nie über AKTION_HOECHSTENS_JE_STUNDE (60), auch wenn mehr gespeichert ist.
+    jeStunde: zahl("mara_aktion_je_stunde", 0, AKTION_HOECHSTENS_JE_STUNDE),
     tagEuro: zahl("mara_aktion_tag_euro", 0, 500),
     // C bleibt gesperrt, bis die Einwilligung geprüft ist — auch wenn jemand „C" einträgt.
     stufen: w("mara_aktion_stufen").split(",").map((x) => x.trim().toUpperCase()).filter((x) => x === "A" || x === "B"),
@@ -235,6 +314,8 @@ export interface Kandidat {
   zahlungsreferenz: string | null; ereignisAm: string; zuletztAm: string | null;
   /** E-265: der Paketschlüssel — für den Rahmen des Pakets (Kartenziel). */
   paketKey?: string | null;
+  /** Mara-Topsales 08.10.2026: Stufe A ab dem 3. Werktag ohne Eingang, noch keine Klärung zu dieser Bestellung → diese Mail ist die Klärung. */
+  klaerung?: boolean;
 }
 
 /**
@@ -259,9 +340,25 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
   // Sperrmenge EINMAL gebildet und per Anti-Join abgezogen: 44 ms, dieselben 567 Menschen.
   // NOT IN verlangt Mengen ohne NULL — deshalb steht an jeder „person_id IS NOT NULL“.
   const zeilen = (await sqlPool`
-    WITH app AS (
+    WITH
+    -- Mara-Topsales 08.10.2026: zu diesen Bestellungen ging die eine Klärungs-Mail (Stufe A) schon raus.
+    -- (Prüfung 08.10.: auch „klaerungEntfaellt“ — in einer anderen Sprache schreibt Mara ohne Klärung; dann ist die Klärung zu
+    -- dieser Bestellung erledigt, sonst hielte die 2-Tage-Ausnahme unten den Wochentakt für immer offen.)
+    klaerung_raus AS (SELECT DISTINCT ref FROM fiaon_mara_aktion
+                       WHERE status = 'gesendet' AND ref IS NOT NULL
+                         AND (COALESCE(pruefung->'wissen'->>'klaerung', '') = 'true' OR COALESCE(pruefung->'wissen'->>'klaerungEntfaellt', '') = 'true')),
+    -- Mara-Topsales 08.10.2026 (Prüfung): Klärungen, die heute (Berlin) schon raus sind — höchstens KLAERUNG_JE_TAG.
+    klaerung_heute AS (SELECT COUNT(*)::int AS n FROM fiaon_mara_aktion
+                        WHERE status = 'gesendet' AND COALESCE(pruefung->'wissen'->>'klaerung', '') = 'true'
+                          AND gesendet_am >= ((NOW() AT TIME ZONE 'Europe/Berlin')::date::timestamp AT TIME ZONE 'Europe/Berlin')),
+    app AS (
       SELECT DISTINCT ON (a.person_id) a.person_id, a.ref, a.payment_status, a.claimed_paid_at, a.created_at, a.pack_name, a.pack_key,
-             a.amount_due, a.wanted_limit, a.payment_reference, a.email, a.first_name, a.last_name
+             a.amount_due, a.wanted_limit, a.payment_reference, a.email, a.first_name, a.last_name,
+             -- Mara-Topsales 08.10.2026 (Justin, IT-Feedback „Stufe A pausiert höchstens 3 Werktage“): die Klärung ist fällig.
+             (a.payment_status = 'claimed_paid' AND a.claimed_paid_at IS NOT NULL
+              AND ${sqlPool.unsafe(werktageSeitSql("a.claimed_paid_at"))} >= ${KLAERUNG_AB_WERKTAGEN}
+              AND a.ref NOT IN (SELECT ref FROM klaerung_raus)
+              AND (SELECT n FROM klaerung_heute) < ${KLAERUNG_JE_TAG}) AS klaerung_faellig
         FROM fiaon_applications a
        WHERE a.gdpr_deleted_at IS NULL AND a.merged_into IS NULL AND a.person_id IS NOT NULL
          AND a.payment_status = ANY(${status}) AND a.pack_key = ANY(${PAKETE_PRIVAT})
@@ -372,8 +469,10 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
          AND app.person_id NOT IN (SELECT person_id FROM mail)
          -- erste Mail frühestens 24 h nach Antrag bzw. Zahlungsmeldung
          AND (CASE WHEN app.payment_status = 'claimed_paid' THEN COALESCE(app.claimed_paid_at, app.created_at) ELSE app.created_at END) < NOW() - INTERVAL '24 hours'
-         -- Takt: 2, 4, 7, dann 14 Tage
-         AND (l.am IS NULL OR l.am < NOW() - (CASE LEAST(l.n, 4) WHEN 1 THEN INTERVAL '2 days' WHEN 2 THEN INTERVAL '4 days' WHEN 3 THEN INTERVAL '7 days' ELSE INTERVAL '14 days' END))))
+         -- Takt (Mara-Topsales 08.10.2026): 2, 4, 7 Tage, danach wöchentlich an seinem Wochentag (person_id % 7, aktionTaktSql) —
+         -- oder bei Stufe A die eine Klärung ab dem 3. Werktag, frühestens 2 Tage nach der letzten Aktionsmail.
+         AND (${sqlPool.unsafe(aktionTaktSql("l.n", "l.am", "app.person_id"))}
+              OR (app.klaerung_faellig AND l.am < NOW() - INTERVAL '2 days'))))
        -- ── E-276 RUNDE: statt Takt und Rücksicht — einmal je Mensch seit Rundenstart ──
        AND (NOT ${runde}::boolean OR (
              app.person_id NOT IN (SELECT person_id FROM runde_raus)
@@ -396,6 +495,7 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
     zahlungsreferenz: z.payment_reference ?? null,
     ereignisAm: new Date(z.payment_status === "claimed_paid" ? (z.claimed_paid_at ?? z.created_at) : z.created_at).toISOString(),
     zuletztAm: z.zuletzt ? new Date(z.zuletzt).toISOString() : null,
+    klaerung: z.klaerung_faellig === true,
   }));
 }
 
@@ -601,6 +701,11 @@ export function aktionPruefen(betreff: string, text: string, opt: {
   kundeNamen?: readonly (string | null | undefined)[];
   /** E-276 (02.10.2026): A = Zahlung gemeldet (nie eine erneute Zahlungsbitte), B = Aktivierung offen. Ohne Angabe: B. */
   stufe?: "A" | "B";
+  /**
+   * Mara-Topsales 08.10.2026: die eine KLÄRUNGS-Mail der Stufe A (fiaon-stufe-a-klaeren.ts) — sie darf den einen Satz
+   * „Wurde die Überweisung nicht ausgeführt, überweisen Sie bitte mit diesem Verwendungszweck …“ tragen. Alles andere gilt.
+   */
+  klaerung?: boolean;
 } = {}): string[] {
   const maengel: string[] = [];
   const land = String(opt.land || "").toUpperCase();
@@ -632,11 +737,17 @@ export function aktionPruefen(betreff: string, text: string, opt: {
   else if (e275.anruf) maengel.push(`Anruf/Termin angeboten („${e275.anruf.trim().slice(0, 70)}“) — kein Termin als Ziel (E-276)`);
   if (e275.abgabe) maengel.push(`Verweis auf einen Kollegen („${e275.abgabe.trim().slice(0, 70)}“) — du erledigst es selbst (E-276)`);
   if (opt.stufe === "A") {
-    const z = fordertZahlung(text);
+    // Mara-Topsales 08.10.2026: Die Klärung (ab dem 3. Werktag, einmal je Bestellung) darf genau den bedingten Satz
+    // „Wurde die Überweisung nicht ausgeführt, überweisen Sie bitte mit …“ tragen — jede ANDERE Zahlungsbitte bleibt ein Mangel.
+    const pruefText = opt.klaerung ? text.replace(KLAERUNG_ERLAUBT, "") : text;
+    const z = fordertZahlung(pruefText);
     if (z) maengel.push(`Erneute Zahlungsaufforderung („${z.trim().slice(0, 60)}“) — er hat seine Zahlung schon gemeldet (E-276)`);
   }
   return maengel;
 }
+
+/** Mara-Topsales 08.10.2026: der eine erlaubte Satz der Klärung (bedingt: nur „wurde die Überweisung nicht ausgeführt“). */
+export const KLAERUNG_ERLAUBT = /Wurde die Überweisung nicht ausgeführt, überweisen Sie bitte mit [^.]*?(?:\.(?=\s|$)|$)/;
 
 /** E-276: weiche Regeln aus tonPruefung, die in der Aktion hart zählen. */
 export const AKTION_HART: readonly string[] = ["karte_versand", "sofort_ohne_zweck", "keine_bank"];
@@ -701,6 +812,56 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   // Abschluss es und verspricht den Link der Partnerbank erst danach (mitAntragLuecke).
   const luecke: string[] = Array.isArray((akte as any)?.karte?.fehlendeAngaben) ? (akte as any).karte.fehlendeAngaben.map(String) : [];
   const abschluss = aktionAbschluss({ stufe: k.stufe, ziel: kartenziel, betrag: eur(k.betragEuro), verwendungszweck: k.zahlungsreferenz, luecke });
+
+  // E-248: Land des Kunden — in Österreich und der Schweiz nie „SCHUFA". (Mara-Topsales 08.10.2026: vor die KI gezogen,
+  // damit die Klärung dieselbe Prüfung bekommt.)
+  const land = (akte as any)?.auskunft?.land ?? (akte as any)?.vertrag?.land ?? null;
+  const landKurz = /^(at|österreich|oesterreich|austria)$/i.test(String(land || "").trim()) ? "AT" : /^(ch|schweiz|switzerland)$/i.test(String(land || "").trim()) ? "CH" : null;
+  // E-265: mit der Mitarbeiterliste (Vorname allein = Mangel) und seinen Namen (sein Vorname ist keiner).
+  const mitarbeiter = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
+  const kundeNamen = [k.vorname, k.nachname, [k.vorname, k.nachname].filter(Boolean).join(" ")].filter(Boolean) as string[];
+  const pOpt = { land: landKurz, mitarbeiter, kundeNamen, stufe: k.stufe };
+
+  /** Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß. */
+  const zusammensetzen = async (betreffFertig: string, kernText: string) => {
+    const anrede = await anredeBestimmen(k.personId, k.vorname, k.nachname, sprache);
+    const url = absoluteUrl(`/zahlung/${k.zahlungsreferenz || k.ref}`);
+    const gruss = `${grussMitAgent(postfachGruss(ein.postfach), namen.voll)}\n\nMöchten Sie keine Nachrichten mehr von mir, genügt eine kurze Antwort mit „Stopp“.`;
+    const kern = absaetzeFassen(kernText);
+    const fertig = antwortBauen({
+      anrede: anrede.zeile, kern, gruss, betreff: betreffFertig,
+      schritt: { art: "zahlung" as any, url, text: k.stufe === "A" ? A_KNOPF_TEXT : "Rechnung ansehen und bezahlen" },
+      sprache, agentName: namen.voll,
+      // E-276: Stufe A hat schon überwiesen — der Knopf zeigt Verwendungszweck und Zahlungsdaten, fordert nicht zum Zahlen auf.
+      knopfText: k.stufe === "A" && !fremdeSprache(sprache) ? A_KNOPF_TEXT : null,
+    });
+    return { kern, fertig };
+  };
+
+  // ── Mara-Topsales 08.10.2026 (Justin): DIE KLÄRUNG DER STUFE A — FESTER TEXT, KEINE KI ─────────────────
+  // Ab dem 3. Werktag ohne Eingang EINE Mail je Bestellung (kandidatenLaden: klaerung_faellig): „Wir konnten Ihre
+  // Überweisung noch nicht zuordnen — Beleg oder Überweisungsdatum, oder mit diesem Verwendungszweck überweisen“, mit
+  // den Zahlungsdaten. Keine Mahnung (S2-Zusage der Rückholung betrifft die automatischen Erinnerungen). Nur Deutsch —
+  // in einer anderen Sprache schreibt Mara wie bisher (ohne Klärung). Der Bankabgleich lief davor (Schlange und Lauf).
+  if (k.klaerung && k.stufe === "A" && !fremdeSprache(sprache)) {
+    const abschlussA = mitAntragLuecke(bausteinAbschluss({ kanal: "mail", art: "a", ziel: kartenziel, betrag: eur(k.betragEuro) }), luecke);
+    let kernK = klaerungKern({
+      name: namen.voll, gemeldetAm: tagDe(k.ereignisAm), betrag: eur(k.betragEuro), verwendungszweck: k.zahlungsreferenz,
+      abschluss: abschlussA, wunsch: wunschZurTageszeit(tageszeit()),
+    });
+    kernK = bankSatzNurWennGefragt(ohneLimitUndBankSatz(kernK), "");
+    const wissenK = {
+      stufe: k.stufe, schritt: k.schritt, klaerung: true, abGruppe: maraGruppe(k.personId),
+      betreuer: weg?.zustaendig?.kundenName ?? null, luecke, fruehereMails: bisher.length, gedaechtnis: String(gedaechtnis || "").slice(0, 400),
+    };
+    const maengelK = aktionPruefen(KLAERUNG_BETREFF, kernK, { ...pOpt, klaerung: true });
+    if (maengelK.length) {
+      return { ...leer, betreff: KLAERUNG_BETREFF, kern: kernK, maengel: maengelK, auftrag: "(Klärung der Stufe A — fester Text)", wissen: wissenK, grund: `Prüfung (Klärung): ${maengelK.slice(0, 2).join("; ")}` };
+    }
+    const { kern, fertig } = await zusammensetzen(KLAERUNG_BETREFF, kernK);
+    return { ok: true, grund: null, betreff: KLAERUNG_BETREFF, text: fertig.text, html: fertig.html, kern, kostenCents: 0, maengel: [], auftrag: "(Klärung der Stufe A — fester Text)", wissen: wissenK };
+  }
+
   const auftrag = aktionsPrompt({
       kartenziel,
       abschluss, luecke,
@@ -727,6 +888,10 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
     luecke,
     zweiterEntwurf: false as boolean,
     ersatz: null as string[] | null,
+    // Mara-Topsales 08.10.2026 (Prüfung): Die Klärung war fällig, aber er schreibt nicht Deutsch — Mara schreibt wie bisher
+    // (ohne Klärung). Mit dieser Marke gilt die Klärung zu dieser Bestellung als erledigt (klaerung_raus); sonst bliebe
+    // klaerung_faellig wahr, und die 2-Tage-Ausnahme schickte ihm alle zwei Tage eine Mail, ohne Ende.
+    ...(k.klaerung ? { klaerungEntfaellt: true } : {}),
   };
   const nachrichten: any[] = [
     { role: "system", content: auftrag },
@@ -750,13 +915,6 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   const saeubern = (t: string) => (ein.emojis ? String(t || "") : ohneEmojis(String(t || ""))).trim();
   let betreff = saeubern(roh?.betreff).replace(/[!]+/g, "").slice(0, 90);
   let text = saeubern(roh?.text);
-  // E-248: Land des Kunden — in Österreich und der Schweiz nie „SCHUFA".
-  const land = (akte as any)?.auskunft?.land ?? (akte as any)?.vertrag?.land ?? null;
-  const landKurz = /^(at|österreich|oesterreich|austria)$/i.test(String(land || "").trim()) ? "AT" : /^(ch|schweiz|switzerland)$/i.test(String(land || "").trim()) ? "CH" : null;
-  // E-265: mit der Mitarbeiterliste (Vorname allein = Mangel) und seinen Namen (sein Vorname ist keiner).
-  const mitarbeiter = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
-  const kundeNamen = [k.vorname, k.nachname, [k.vorname, k.nachname].filter(Boolean).join(" ")].filter(Boolean) as string[];
-  const pOpt = { land: landKurz, mitarbeiter, kundeNamen, stufe: k.stufe };
   let maengel = aktionPruefen(betreff, text, pOpt);
   let hinweise = aktionHinweise(betreff, text, { stufe: k.stufe, land: landKurz });
   // E-276 (02.10.2026): ein zweiter Entwurf auch bei weichen Befunden (E-275-Ton) — gewählt wird der mit weniger harten,
@@ -793,18 +951,9 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   text = bankSatzNurWennGefragt(text, "");
   betreff = bankSatzNurWennGefragt(betreff, "");
 
-  // Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß.
-  const anrede = await anredeBestimmen(k.personId, k.vorname, k.nachname, sprache);
-  const url = absoluteUrl(`/zahlung/${k.zahlungsreferenz || k.ref}`);
-  const gruss = `${grussMitAgent(postfachGruss(ein.postfach), namen.voll)}\n\nMöchten Sie keine Nachrichten mehr von mir, genügt eine kurze Antwort mit „Stopp“.`;
-  text = absaetzeFassen(text);
-  const fertig = antwortBauen({
-    anrede: anrede.zeile, kern: text, gruss, betreff,
-    schritt: { art: "zahlung" as any, url, text: k.stufe === "A" ? A_KNOPF_TEXT : "Rechnung ansehen und bezahlen" },
-    sprache, agentName: namen.voll,
-    // E-276: Stufe A hat schon überwiesen — der Knopf zeigt Verwendungszweck und Zahlungsdaten, fordert nicht zum Zahlen auf.
-    knopfText: k.stufe === "A" && !fremdeSprache(sprache) ? A_KNOPF_TEXT : null,
-  });
+  // Zusammensetzen wie jede Mara-Mail: Anrede · Kern · Knopf · Gruß (Mara-Topsales 08.10.2026: eine Funktion für KI-Mail und Klärung).
+  const { kern: kernFertig, fertig } = await zusammensetzen(betreff, text);
+  text = kernFertig;
   return { ok: true, grund: null, betreff, text: fertig.text, html: fertig.html, kern: text, kostenCents: kosten, maengel: hinweise, auftrag, wissen };
 }
 
@@ -841,8 +990,16 @@ export async function aktionZaehler(ein?: AktionEinstellungen): Promise<{
            COUNT(*) FILTER (WHERE gesendet_am > date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')::int AS heute
       FROM fiaon_mara_aktion WHERE status = 'gesendet' AND gesendet_am > NOW() - INTERVAL '2 days'`) as any[];
   // Kein Anlauf mehr (22.09.2026): der Tag ist genau 24 Stunden Takt.
-  const tagesDeckel = e.jeStunde * 24;
+  const tagesDeckel = Math.min(e.jeStunde, AKTION_HOECHSTENS_JE_STUNDE) * 24;
   return { letzteStunde: Number(z?.stunde || 0), heute: Number(z?.heute || 0), tagesDeckel, kostenHeuteEuro: await kostenHeute(DIENST).catch(() => 0) };
+}
+
+/** Mara-Topsales 08.10.2026 (Prüfung): Klärungen der Stufe A, die heute (Berlin) schon raus sind. */
+export async function klaerungenHeute(): Promise<number> {
+  const [z] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mara_aktion
+     WHERE status = 'gesendet' AND COALESCE(pruefung->'wissen'->>'klaerung', '') = 'true'
+       AND gesendet_am >= ((NOW() AT TIME ZONE 'Europe/Berlin')::date::timestamp AT TIME ZONE 'Europe/Berlin')`.catch(() => [{ n: 0 }])) as any[];
+  return Number(z?.n || 0);
 }
 
 /**
@@ -870,6 +1027,8 @@ export async function maraAktionLauf(opt: {
   /** Nur Prüfstand (pruef-mara-aktion --db): statt Modell und Gmail. Der Takt und das Steuerpult rufen ohne Angabe. */
   schreiben?: (k: Kandidat, e: AktionEinstellungen) => Promise<Entwurf>;
   senden?: (postfach: string, m: { vonName: string; an: string; betreff: string; text: string; html: string; abmelden: string }) => Promise<{ id: string; threadId: string }>;
+  /** Nur Prüfstand: die Berliner Stunde für das Sendefenster (Mara-Topsales 08.10.2026, AKTION_FENSTER). */
+  stunde?: number;
 } = {}): Promise<{ gesendet: number; abgelehnt: number; fehler: number; grund?: string }> {
   if (laeuft) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "läuft schon" };
   laeuft = true;
@@ -881,10 +1040,13 @@ export async function maraAktionLauf(opt: {
     const e = await einstellungenLesen();
     if (!e.an) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "aus" };
     if (await kiPausiert()) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "KI pausiert" }; // E-246
+    // Mara-Topsales 08.10.2026 (Justin): nur 08:00–21:00 Uhr Berlin — auch in einer Runde.
+    if (!imAktionsFenster(opt.stunde ?? berlinStunde())) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Nachtruhe (${AKTION_FENSTER.von}–${AKTION_FENSTER.bis} Uhr)` };
     const z = await aktionZaehler(e);
     if (z.kostenHeuteEuro >= e.tagEuro) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Kostendeckel (${z.kostenHeuteEuro.toFixed(2)} € von ${e.tagEuro} €)` };
     // Der Durchgang läuft alle 10 Minuten — je Durchgang also ein Sechstel der Stunde.
-    const stundenRate = e.jeStunde;
+    // Mara-Topsales 08.10.2026 (Prüfung): nie über AKTION_HOECHSTENS_JE_STUNDE (60) — in einer Runde UND im Takt.
+    const stundenRate = Math.min(e.jeStunde, AKTION_HOECHSTENS_JE_STUNDE);
     const erlaubt = Math.max(0, Math.min(Math.ceil(stundenRate / 6), stundenRate - z.letzteStunde, z.tagesDeckel - z.heute));
     if (!erlaubt) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: "Takt erfüllt" };
     // E-276: der Beginn dieses Durchgangs — wer SEITDEM eine Aktionsmail bekommen hat (ein anderer Durchgang), wird übersprungen.
@@ -895,6 +1057,9 @@ export async function maraAktionLauf(opt: {
     const { vonName } = { vonName: (await agentNamen()).voll };
     let gesendet = 0, abgelehnt = 0, fehler = 0, uebersprungen = 0, unterwegs = 0, naechster = 0;
     let pausiert = false, gestoppt: string | null = null;
+    // Mara-Topsales 08.10.2026 (Prüfung): Klärungen dieses Durchgangs — höchstens bis KLAERUNG_JE_TAG am Tag (die Schlange
+    // prüft den Tag beim Laden; ein Durchgang mit zehn Kandidaten könnte ihn sonst um neun überschreiten).
+    let klaerungFrei = KLAERUNG_JE_TAG - (await klaerungenHeute());
 
     /** Eine Zeile des Anspruchs abschließen (nur solange sie noch „in_arbeit“ ist). */
     const abschluss = async (id: number, status: "abgelehnt" | "fehler", f: { grund: string | null; betreff?: string | null; text?: string | null; kostenCents?: number; pruefung?: unknown }) => {
@@ -974,7 +1139,7 @@ export async function maraAktionLauf(opt: {
         await sqlPool`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, betreff, art, ausgeloest_von)
           VALUES ('mara_aktion', ${k.personId}, ${k.email}, 'gesendet', ${m.betreff}, 'echt', 'Mara (Aktion)')`.catch(() => {});
         await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-          VALUES (${k.ref}, ${k.personId}, NULL, ${vonName}, 'system', ${`Mara hat geschrieben (Aktion, Stufe ${k.stufe}, Mail ${k.schritt}): „${m.betreff}" — ${kurz}`})`.catch(() => {});
+          VALUES (${k.ref}, ${k.personId}, NULL, ${vonName}, 'system', ${`Mara hat geschrieben (Aktion, Stufe ${k.stufe}${(m.wissen as any)?.klaerung ? ", Klärung der gemeldeten Zahlung" : ""}, Mail ${k.schritt}): „${m.betreff}" — ${kurz}`})`.catch(() => {});
       } catch (err: any) {
         // Unerwartet (Datenbank): Ist die Mail schon raus, zählt sie als gesendet — sonst bekäme er sie nach dem Abbruch
         // ein zweites Mal. Sonst „fehler“ (zählt wie ein Fehlversuch).
@@ -989,6 +1154,11 @@ export async function maraAktionLauf(opt: {
         if (gesendet + unterwegs >= erlaubt) return;
         const k = kandidaten[naechster++];
         if (!k) return;
+        // Mara-Topsales 08.10.2026 (Prüfung): Klärungs-Deckel des Tages — synchron vor jedem await, also ohne Wettlauf.
+        if (k.klaerung) {
+          if (klaerungFrei <= 0) { uebersprungen++; continue; }
+          klaerungFrei--;
+        }
         unterwegs++;
         try {
           if ((await kostenHeute(DIENST).catch(() => 0)) >= e.tagEuro) { gestoppt = "Kostendeckel"; return; }

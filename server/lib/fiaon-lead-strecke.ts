@@ -44,7 +44,7 @@ import { VERTRIEBSSPERRE_SQL, WERBESPERRE_FAMILIE_SQL } from "./fiaon-mail-frequ
 // E-272 (02.10.2026): die eine Regel „Kunde von FIAON Global“ (fiaon-global-kunde.ts)
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import {
-  MINDESTABSTAND_STUNDEN, faelligNachTagen, streckenKnopf, varianteFuer,
+  MINDESTABSTAND_STUNDEN, faelligNachTagen, faelligNachTagenSql, naechsteStufe, streckenKnopf, varianteFuer,
 } from "../../shared/fiaon-lead-strecke";
 
 type Lauf = typeof sqlPool;
@@ -181,63 +181,79 @@ export async function abmeldeLink(leadId: number, lauf: Lauf = sqlPool): Promise
 /**
  * Wer ist heute dran?
  *
- * Reihenfolge: JÜNGSTE zuerst. Ein Lead von gestern reagiert wahrscheinlicher
- * als einer von vor einem Jahr, und die Staffelung ist begrenzt — also sollen
- * die Wahrscheinlichsten zuerst dran sein.
+ * ── Mara-Topsales 08.10.2026 (Justin): ERST FÄLLIG, DANN BEGRENZT ──────────
+ * Bis heute lud die Abfrage die 2.000 NEUESTEN Leads (ORDER BY erstellt_am DESC LIMIT 2000) und prüfte erst danach,
+ * wer fällig ist. Gemessen (nur lesend, 08.10.): von den 2.000 neuesten waren 26 fällig, von den übrigen 928 aber 871 —
+ * nachgezählt fast alle aus dem Import vom 13.07. (der bleibt ausgeschlossen, unten). Die Formular-Leads passten am
+ * 08.10. gerade noch unter die Grenze (30 fällig, alle in der alten Auswahl); ab rund 2.000 aktiven Formular-Leads wäre
+ * mit jedem neuen Lead der älteste auf der Monatsstufe still herausgefallen.
+ * Jetzt rechnet die Abfrage die Fälligkeit selbst (faelligNachTagenSql — aus derselben Kadenz in shared/) und begrenzt
+ * DANACH: wer noch nie eine Mail bekam zuerst (die frischesten vorn), dann wer am längsten wartet
+ * (strecke_letzte_am ASC NULLS FIRST). Die Prüfung in TypeScript bleibt als zweiter Boden.
+ *
+ * DER IMPORT OHNE EINWILLIGUNG BLEIBT DRAUSSEN: Die Liste vom 13.07.2026 (1.736 Leads mit import_id, Einwilligung
+ * leer) lief bisher nur aus Versehen nicht — weil sie hinter der Grenze lag. Ohne gespeicherte Einwilligung ist eine
+ * Werbemail an sie ein Risiko nach § 7 UWG und DSGVO (Diagnose 08.10., plan.nicht). Ausgeschlossen ist jeder
+ * importierte Lead ohne Einwilligung; mit gespeicherter Einwilligung (fiaon_leads.einwilligung) läuft er mit.
  */
+export const IMPORT_OHNE_EINWILLIGUNG_SQL = (le: string) => `(${le}.import_id IS NOT NULL AND ${le}.einwilligung IS NULL)`;
+
 export async function faellige(
   hoechstens: number, lauf: Lauf = sqlPool,
 ): Promise<{ id: number; email: string; vorname: string | null; nachname: string | null;
-             anrede?: string | null; stufe: number; erstellt_am: any; person_id: number | null }[]> {
-  // Die Fälligkeit rechnet sich aus Stufe und Einstiegsdatum. Als SQL, weil
-  // sonst 2.700 Zeilen geladen und in TypeScript gefiltert werden müssten.
-  //
+             anrede?: string | null; stufe: number; erstellt_am: any; person_id: number | null; start: any }[]> {
   // `strecke_seit` ist der Einstieg. Fehlt er (Lead noch nicht eingereiht),
   // gilt `erstellt_am` — so wird ein alter Lead nicht künstlich jung.
   await globalKundeBereit(); // E-272: die Auswahl liest fiaon_global_angebote
+  const grenze = Math.max(0, Math.min(5_000, Math.round(hoechstens)));
+  if (!grenze) return [];
   const zeilen = (await lauf`
-    SELECT le.id, le.email, le.vorname, le.nachname, le.person_id,
-           (SELECT p.anrede FROM fiaon_persons p WHERE p.id = le.person_id) AS anrede,
-           COALESCE(le.strecke_stufe, 0) AS stufe,
-           COALESCE(le.strecke_seit, le.erstellt_am) AS start,
-           le.erstellt_am
-    FROM fiaon_leads le
-    WHERE le.strecke_stopp IS NULL
-      AND le.abgemeldet_am IS NULL
-      AND le.bounce_am IS NULL
-      AND le.status NOT IN ('konvertiert', 'kein_interesse', 'tot')
-      AND NULLIF(TRIM(COALESCE(le.email, '')), '') IS NOT NULL
-      -- Mindestabstand: Sicherheitsnetz gegen Doppelläufe.
-      AND (le.strecke_letzte_am IS NULL
-        OR le.strecke_letzte_am < NOW() - (${MINDESTABSTAND_STUNDEN} || ' hours')::interval)
-      -- Kein Antrag (sonst Stufe B) und kein Kunde.
-      AND NOT EXISTS (
-        SELECT 1 FROM fiaon_applications a
-        WHERE a.merged_into IS NULL
-          AND (a.person_id = le.person_id
-            OR LOWER(TRIM(COALESCE(a.email, ''))) = LOWER(TRIM(le.email))))
-      -- Gelöschte Person (DSGVO entfernt die Zeile) und Testeinträge raus.
-      AND (le.person_id IS NULL OR EXISTS (
-        SELECT 1 FROM fiaon_persons p WHERE p.id = le.person_id AND p.ist_test_am IS NULL))
-      -- E-272 (02.10.2026): Kunden von FIAON Global nie (Regel: fiaon-global-kunde.ts). Wer nur ein
-      -- Individualangebot hat, hat keine Bestellzeile — die Bedingung darüber ließ ihn durch, erst die
-      -- Mail-Tür hielt die Mail auf (lead_followup), und der Lead kam nach dem Mindestabstand wieder.
-      -- Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben.“ Ohne Person FALSCH.
-      AND NOT ${sqlPool.unsafe(globalKundeSql("le.person_id"))}
-    ORDER BY le.erstellt_am DESC
-    LIMIT 2000
+    SELECT k.* FROM (
+      SELECT le.id, le.email, le.vorname, le.nachname, le.person_id,
+             (SELECT p.anrede FROM fiaon_persons p WHERE p.id = le.person_id) AS anrede,
+             COALESCE(le.strecke_stufe, 0) AS stufe,
+             COALESCE(le.strecke_seit, le.erstellt_am) AS start,
+             le.erstellt_am, le.strecke_letzte_am
+      FROM fiaon_leads le
+      WHERE le.strecke_stopp IS NULL
+        AND le.abgemeldet_am IS NULL
+        AND le.bounce_am IS NULL
+        AND le.status NOT IN ('konvertiert', 'kein_interesse', 'tot')
+        AND NULLIF(TRIM(COALESCE(le.email, '')), '') IS NOT NULL
+        -- Mara-Topsales 08.10.2026: kein Import ohne gespeicherte Einwilligung (Liste vom 13.07.2026).
+        AND NOT ${sqlPool.unsafe(IMPORT_OHNE_EINWILLIGUNG_SQL("le"))}
+        -- Mindestabstand: Sicherheitsnetz gegen Doppelläufe.
+        AND (le.strecke_letzte_am IS NULL
+          OR le.strecke_letzte_am < NOW() - (${MINDESTABSTAND_STUNDEN} || ' hours')::interval)
+        -- Kein Antrag (sonst Stufe B) und kein Kunde.
+        AND NOT EXISTS (
+          SELECT 1 FROM fiaon_applications a
+          WHERE a.merged_into IS NULL
+            AND (a.person_id = le.person_id
+              OR LOWER(TRIM(COALESCE(a.email, ''))) = LOWER(TRIM(le.email))))
+        -- Gelöschte Person (DSGVO entfernt die Zeile) und Testeinträge raus.
+        AND (le.person_id IS NULL OR EXISTS (
+          SELECT 1 FROM fiaon_persons p WHERE p.id = le.person_id AND p.ist_test_am IS NULL))
+        -- E-272 (02.10.2026): Kunden von FIAON Global nie (Regel: fiaon-global-kunde.ts). Wer nur ein
+        -- Individualangebot hat, hat keine Bestellzeile — die Bedingung darüber ließ ihn durch, erst die
+        -- Mail-Tür hielt die Mail auf (lead_followup), und der Lead kam nach dem Mindestabstand wieder.
+        -- Justin: „nehme ihn bitte komplett aus den Workflows … Er soll Global bleiben.“ Ohne Person FALSCH.
+        AND NOT ${sqlPool.unsafe(globalKundeSql("le.person_id"))}
+    ) k
+    -- Mara-Topsales 08.10.2026: ERST die Fälligkeit (dieselbe Kadenz wie faelligNachTagen), DANN die Grenze.
+    WHERE k.start + make_interval(days => ${sqlPool.unsafe(faelligNachTagenSql("k.stufe"))}) <= NOW()
+    ORDER BY k.strecke_letzte_am ASC NULLS FIRST, k.erstellt_am DESC
+    LIMIT ${grenze}
   `) as any[];
 
-  // Die Fälligkeit je Stufe in TypeScript: `faelligNachTagen` ist die eine
-  // Definition, und sie steht in shared/. Sie in SQL nachzubauen wäre die
-  // zweite Fassung derselben Regel.
+  // Der zweite Boden: dieselbe Regel in TypeScript (faelligNachTagen ist die eine Definition in shared/).
   const jetzt = Date.now();
   const dran = zeilen.filter((l) => {
     const start = new Date(l.start).getTime();
     const tage = (jetzt - start) / 86_400_000;
     return tage >= faelligNachTagen(Number(l.stufe));
   });
-  return dran.slice(0, hoechstens) as any;
+  return dran as any;
 }
 
 /**
@@ -393,7 +409,21 @@ export async function streckeTageslauf(opts: {
     RETURNING le.id
   `) as any[];
 
-  const dran = await faellige(grenze, lauf);
+  // ── Mara-Topsales 08.10.2026 (Justin): DER TAGESDECKEL IST EIN TAGESDECKEL ────────────────
+  // Der Lauf kommt je Slot (lead_followup_times, heute zwei am Tag) — die Grenze galt bisher JE LAUF, also bis zu
+  // zweimal am Tag. Seit die Auswahl die Überfälligen findet, wäre das ein Stoß. Jetzt zählt, was heute (Berlin)
+  // schon raus ist; nur ein Handlauf mit ausdrücklicher Menge (opts.hoechstens) bleibt, wie er bestellt ist.
+  let frei = grenze;
+  if (opts.hoechstens == null) {
+    const [heute] = (await lauf`
+      SELECT COUNT(*)::int AS n FROM fiaon_lead_strecke_log
+       WHERE status = 'versandt'
+         AND (gesendet_am AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+    `.catch(() => [{ n: 0 }])) as any[];
+    frei = Math.max(0, grenze - Number(heute?.n || 0));
+  }
+
+  const dran = frei > 0 ? await faellige(frei, lauf) : [];
   let versandt = 0;
   let fehlgeschlagen = 0;
   // E-240: von der Mail-Tür abgewiesen (kein Versand, kein Rückfall über Brevo).
@@ -416,9 +446,13 @@ export async function streckeTageslauf(opts: {
     // Dieselbe Lehre wie bei den Termin-Erinnerungen (17.08.2026): Wer die
     // Marke vor dem Versand setzt, verbraucht sie auch, wenn nichts rausging.
     if (erg.status === "versandt") {
+      // Mara-Topsales 08.10.2026: die Nachhol-Regel (shared/fiaon-lead-strecke.ts, naechsteStufe) — wer eine Stufe
+      // verpasst hat, springt nach dieser EINEN Mail auf die Monatsstufe statt fünf Mails an fünf Tagen nachzuholen.
+      const tage = (Date.now() - new Date((l as any).start ?? l.erstellt_am).getTime()) / 86_400_000;
+      const neueStufe = naechsteStufe(Number(l.stufe), tage);
       await lauf`
         UPDATE fiaon_leads
-        SET strecke_stufe = ${stufe},
+        SET strecke_stufe = ${neueStufe},
             strecke_letzte_am = NOW(),
             strecke_letzte_variante = ${erg.variante},
             strecke_seit = COALESCE(strecke_seit, erstellt_am),
@@ -460,7 +494,7 @@ export async function streckeTageslauf(opts: {
     + (zurueckgehalten ? `, ${zurueckgehalten} von der Mail-Tür zurückgehalten` : "")
     + (gestoppt.length ? `, ${gestoppt.length} Strecke(n) beendet (Antrag/Kunde)` : "")
     + (einzelStopps ? `, ${einzelStopps} Strecke(n) beendet (Einzelprüfung: Werbesperre, Abmeldung, Rückläufer u. a.)` : "")
-    + `. Grenze: ${grenze}/Tag.`;
+    + `. Grenze: ${grenze}/Tag${opts.hoechstens == null ? ` (heute noch frei vor dem Lauf: ${frei})` : ""}.`;
   if (versandt || fehlgeschlagen || zurueckgehalten || gestoppt.length || einzelStopps) console.log(`[LEAD-STRECKE] ${hinweis}`);
   return { versandt, fehlgeschlagen, gestoppt: gestoppt.length + einzelStopps, zurueckgehalten, hinweis };
 }

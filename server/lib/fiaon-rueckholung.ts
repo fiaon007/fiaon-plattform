@@ -93,6 +93,8 @@ import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
+// Mara-Topsales 08.10.2026: die automatische Tür als SQL (Werbesperre an der Adresse, hart unzustellbar).
+import { tuerNeinSql } from "./fiaon-mail-frequenz";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -470,6 +472,8 @@ async function dauerpflegeKandidaten(limit: number): Promise<RueckholFall[]> {
   const abstand = await dauerpflegeAbstandTage();
   const zeilen = (await sqlPool`
     SELECT d.* FROM (${dauerpflegeMenge(abstand)}) d
+     -- Mara-Topsales 08.10.2026: dieselbe Sperrprüfung wie die Tür (wie rueckholKandidaten).
+     WHERE NOT ${sqlPool.unsafe(tuerNeinSql("LOWER(TRIM(d.email))", "rueckhol_s5"))}
      ORDER BY d.letzte_rueckhol ASC NULLS FIRST, d.amount_due DESC NULLS LAST, d.ref ASC
      LIMIT ${limit}
   `) as any[];
@@ -501,6 +505,11 @@ export async function rueckholKandidaten(segment: Segment, limit: number): Promi
       LEFT JOIN bisher x ON x.person_id = b.person_id
      WHERE b.segment = ${segment}
        AND b.email IS NOT NULL
+       -- Mara-Topsales 08.10.2026 (Justin): dieselbe Sperrprüfung wie die Tür (tuerNeinSql, fiaon-mail-frequenz.ts) —
+       -- Werbesperre an der Adresse und hart unzustellbar. Gemessen 14 Tage bis 08.10.: 186 Rückhol-Versuche scheiterten
+       -- dort; bei S1–S3 setzte der Lauf VOR dem Versuch den Mahnstopp — die Zahlungserinnerung endete ohne die Mail,
+       -- die den Stopp ankündigt.
+       AND NOT ${sqlPool.unsafe(tuerNeinSql("LOWER(TRIM(b.email))", event))}
        AND COALESCE(x.n, 0) < ${hoechstens}
        AND (x.letzte IS NULL OR x.letzte < NOW() - INTERVAL '4 days')
        -- Doppelpost-Sperre (Prüfung 02.09.): Wer heute aus IRGENDEINEM Rückhol-

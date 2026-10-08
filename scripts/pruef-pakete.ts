@@ -301,7 +301,9 @@ ok("Zahlungserinnerung (payment_reminder, Einzel- UND Sammelversand) lässt FIAO
   funktion(datei("server/routes/fiaon-antrag.ts"), "async function claimReminderBatch").includes("AND NOT (${sqlPool.unsafe(produktkategorieSql(\"fa\"))} = 'global')")
   && (datei("server/routes/fiaon-antrag.ts").match(/claimReminderBatch\(/g) ?? []).length === 3);
 ok("Rückholung (S1–S5, Dauerpflege) lässt FIAON Global aus", funktion(datei("server/lib/fiaon-rueckholung.ts"), "function grundmenge").includes("AND NOT (${sqlPool.unsafe(produktkategorieSql(\"a\"))} = 'global')"));
-ok("Abbruch-Erinnerung (antrag_erinnerung) lässt FIAON Global aus", funktion(datei("server/lib/fiaon-antrag-erinnerung.ts"), "export async function antragErinnerungenLauf").includes("AND NOT (${sqlPool.unsafe(produktkategorieSql(\"a\"))} = 'global')"));
+// Mara-Topsales 08.10.2026: Die Auswahl der Abbruch-Kette steht jetzt in abbrecherSql (der Lauf ruft sie auf).
+ok("Abbruch-Erinnerung (antrag_erinnerung) lässt FIAON Global aus", funktion(datei("server/lib/fiaon-antrag-erinnerung.ts"), "export function abbrecherSql").includes("AND NOT (${produktkategorieSql(\"a\")} = 'global')")
+  && funktion(datei("server/lib/fiaon-antrag-erinnerung.ts"), "export async function antragErinnerungenLauf").includes("abbrecherSql("));
 ok("Stilllegen nur innerhalb der Kategorie (auskunft | global | konto)", funktion(datei("server/routes/fiaon-antrag.ts"), "export async function supersedeSisterOrders").includes("${sqlPool.unsafe(produktkategorieSql())} = ${kategorieSchluessel}::text"));
 
 // ═══════════════════════════════════════════════════════════════════════════

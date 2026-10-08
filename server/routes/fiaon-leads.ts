@@ -271,23 +271,27 @@ function nextRunLabel(settings: Record<string, string>): string | null {
   return null;
 }
 
-/** Prüft, ob JETZT ein konfigurierter Sendezeitpunkt fällig ist (an aktivem Wochentag, ohne Doppellauf). */
-async function maybeRunScheduledFollowups(): Promise<void> {
+/**
+ * Prüft, ob JETZT ein konfigurierter Sendezeitpunkt fällig ist (an aktivem Wochentag, ohne Doppellauf).
+ * Mara-Topsales 08.10.2026: gibt das Ergebnis des Slot-Laufs zurück (sonst null) — die Lauf-Historie schreibt es als
+ * Meldung, der Wächter der Verkaufsläufe (fiaon-crons.ts) liest daraus „versandt“.
+ */
+async function maybeRunScheduledFollowups(): Promise<{ sent: number; markedDead: number; skippedWindow: boolean } | null> {
   const s = await getSettings();
-  if (s.lead_followup_enabled !== "1") return;
+  if (s.lead_followup_enabled !== "1") return null;
   const now = berlinNow();
-  if (!parseWeekdays(s.lead_followup_weekdays).includes(isoWeekday(now))) return;
+  if (!parseWeekdays(s.lead_followup_weekdays).includes(isoWeekday(now))) return null;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const due = parseTimes(s.lead_followup_times).find((t) => {
     const tm = t.h * 60 + t.m;
     return nowMin >= tm && nowMin < tm + SCHEDULE_TICK_MIN;
   });
-  if (!due) return;
+  if (!due) return null;
   const slotKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${due.key}`;
-  if (s.lead_followup_last_run_slot === slotKey) return; // schon gelaufen für diesen Zeitpunkt
+  if (s.lead_followup_last_run_slot === slotKey) return null; // schon gelaufen für diesen Zeitpunkt
   await setSetting("lead_followup_last_run_slot", slotKey);
   console.log(`[FIAON-LEADS] Geplanter Nachfass-Lauf (${slotKey}) startet`);
-  await runLeadFollowups({ force: true });
+  return await runLeadFollowups({ force: true });
 }
 /** Nachfass-Plan (Tage nach Lead-Anlage) aus Einstellungen, aufsteigend, sanitisiert. */
 function followupDays(settings: Record<string, string>): number[] {
@@ -689,8 +693,10 @@ tageslauf("lead-whatsapp-kette", async () => {
 tageslauf("lead-nachfass-und-verteilung", async () => {
   // Kein `.catch()` mehr: Der Fehler gehört in die Lauf-Historie, nicht nur
   // ins Konsolenfenster. Siehe fiaon-crons.ts, „Warum hier kein catch steht".
-  await maybeRunScheduledFollowups();
+  const erg = await maybeRunScheduledFollowups();
   await distributeUnassignedLeads();
+  // Mara-Topsales 08.10.2026: das Slot-Ergebnis als Meldung (null zwischen den Slots).
+  return erg;
 }, SCHEDULE_TICK_MIN * 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2454,11 +2460,22 @@ router.post("/abmelden/:schluessel", async (req: Request, res: Response) => {
         in_sequence = FALSE,
         updated_at = NOW()
       WHERE abmelde_schluessel = ${schluessel}
-      RETURNING id, email
+      RETURNING id, email, person_id
     `) as any[];
     if (zeilen.length === 0) {
       // Auch hier: keine Auskunft darüber, ob der Schlüssel existiert.
       return res.json({ ok: true });
+    }
+    // ── Mara-Topsales 08.10.2026 (Prüfung): DIE ABMELDUNG GILT FÜR DEN MENSCHEN, NICHT NUR FÜR DIE STRECKE ──────────
+    // Die Seite verspricht „Du bekommst keine weiteren E-Mails von uns.“ Bis heute stoppte der Klick nur die Lead-Strecke;
+    // Abbruch-Kette, Mara-Aktion, Rückholung und Tür lesen aber die Werbesperre der Person (werbung_gesperrt_am). Jetzt
+    // setzt die Abmeldung sie an der verknüpften Person (Widerspruch, § 7 Abs. 3 Nr. 3 UWG, Art. 21 DSGVO). Zahlungspost
+    // zu einer laufenden Bestellung bleibt (wie beim Abmeldelink je Person). Den Bestand (gemessen 08.10.: 70 Menschen)
+    // zieht das nicht nach — das entscheidet Justin; die Abbruch-Kette liest den Lead-Stempel ohnehin selbst.
+    if (zeilen[0].person_id != null) {
+      const { werbesperreSetzen } = await import("./fiaon-abmelden");
+      await werbesperreSetzen(Number(zeilen[0].person_id), "Abmeldung über den Link einer Lead-Mail — Werbesperre gesetzt. Keine werbenden Mails mehr.")
+        .catch((e) => console.error("[LEAD-STRECKE] Werbesperre nach Abmeldung:", e instanceof Error ? e.message : e));
     }
     await logLead(zeilen[0].id, { id: null, name: "System" }, "system", {
       note: `Abmeldung über den Link in der E-Mail${grund ? `: ${grund}` : ""}. Strecke beendet.`,

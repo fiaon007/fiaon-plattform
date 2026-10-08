@@ -111,13 +111,18 @@ export function tageslauf(
   // nicht gesetzt — sie laufen wie bisher bei jedem Takt, hinterlassen aber
   // eine Spur. Ohne die Spur ist keine Ampel möglich, und ohne Ampel wiederholt
   // sich der 15-Tage-Ausfall vom August.
+  // ── Mara-Topsales 08.10.2026 (Justin): DAS ERGEBNIS WIRD GESCHRIEBEN ─────────────────────────
+  // Bis heute verwarf diese Hülle, was der Lauf zurückgab: Von 22.236 Historienzeilen in 48 h trugen 3 eine Meldung,
+  // alles stand auf „erfolg“ — auch die Abbruch-Kette, die 47 Tage lang keine einzige Mail verschickte, und Mara an
+  // Tagen mit 0–2 Mails. Jetzt steht das Ergebnis kurz und ohne Personendaten in `meldung` (laufMeldung), bei den
+  // Verkaufsläufen mit der Zahl „versandt“ — daraus alarmiert verkaufsLaeufeWachen.
   const sicher = opts.nurMitErgebnis
     ? () => { void stillerLauf(name, fn).catch((err) => console.error(`[CRONS] ${name}:`, err)); }
     : () => {
       void laufMitHistorie(
         name,
-        async () => { await fn(); },
-        { alleXStunden: opts.alleXStunden },
+        async () => await fn(),
+        { alleXStunden: opts.alleXStunden, meldung: (e) => laufMeldung(name, e) },
       ).catch((err) => console.error(`[CRONS] ${name}:`, err));
     };
   if (opts.beimStartNach && opts.beimStartNach > 0) setTimeout(sicher, opts.beimStartNach);
@@ -267,7 +272,7 @@ export async function laufStand(name: string): Promise<{
 export async function laufMitHistorie<T>(
   name: string,
   fn: () => Promise<T>,
-  opts: { alleXStunden?: number; meldung?: (e: T) => string; sperreMinuten?: number } = {},
+  opts: { alleXStunden?: number; meldung?: (e: T) => string | null; sperreMinuten?: number } = {},
 ): Promise<{ gelaufen: boolean; grund?: string; ergebnis?: T }> {
   const { sqlPool } = await import("./db-pool");
 
@@ -326,10 +331,13 @@ export async function laufMitHistorie<T>(
     const ergebnis = await fn();
     const dauer = Date.now() - start;
     if (id) {
+      // Mara-Topsales 08.10.2026: Eine Meldung, die nichts zu sagen hat (null), bleibt leer — nicht der Text „null“.
+      let meldung: string | null = null;
+      try { const m = opts.meldung ? opts.meldung(ergebnis) : null; meldung = m == null ? null : String(m).slice(0, 2000); } catch { meldung = null; }
       await sqlPool`
         UPDATE fiaon_lauf_historie
         SET ergebnis = 'erfolg', beendet = NOW(), dauer_ms = ${dauer},
-            meldung = ${opts.meldung ? String(opts.meldung(ergebnis)).slice(0, 2000) : null}
+            meldung = ${meldung}
         WHERE id = ${id}
       `.catch(() => {});
     }
@@ -488,7 +496,138 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Bestellte Auskünfte werden nicht bezahlt, und niemand erinnert — die Paket-Mahnmaschine nimmt sie seit E-244 nicht mehr.",
     fenster: 24,
   },
+  // ── Mara-Topsales 08.10.2026 (Justin): DIE VERKAUFSLÄUFE GEHÖREN IN DEN KATALOG ──────────────────
+  // Keiner der fünf stand hier — die Ampel sah sie nicht, und ein Ausfall fiel niemandem auf (die Abbruch-Kette war
+  // 47 Tage tot). Dazu prüft verkaufsLaeufeWachen, ob sie in 24 h überhaupt etwas verschickt haben.
+  "antrag-erinnerungen": {
+    zweck: "Abbruch-Kette (E-023): bis zu sieben Erinnerungen an Menschen, die den Antrag begonnen und nicht abgeschickt haben",
+    folge: "Die wärmste Gruppe nach A/B — rund zehn neue Abbrecher am Tag — hört nichts mehr von uns und bleibt beim halben Antrag stehen.",
+    fenster: 2,
+  },
+  mara_aktion: {
+    zweck: "Maras Aktion: persönliche Mails an Stufe A (Klärung der Meldung) und B (Aktivierung offen), 08–21 Uhr",
+    folge: "Menschen mit fertigem Antrag und offener erster Rate bekommen keine persönliche Mail mehr — der größte Geldhebel steht.",
+    fenster: 2,
+  },
+  wa_zentrale_takt: {
+    zweck: "WhatsApp-Automatik: Vorlagen an die freigegebenen Gruppen, bei ROT nur die Monatsrate (Service)",
+    folge: "Fällige Monatsraten werden nicht per WhatsApp erinnert, neue Leads nicht begrüßt.",
+    fenster: 2,
+  },
+  rueckholung: {
+    zweck: "Rückholung: Klärmails S1–S4 und Dauerpflege an offene Bestellungen (mit Mahnstopp)",
+    folge: "Gemeldete und offene Zahlungen werden nicht mehr geklärt — die Dauerpflege bleibt stehen.",
+    fenster: 2,
+  },
+  mara_wa_nachfass: {
+    zweck: "Mara fasst auf WhatsApp einmal nach (4–23 h nach seiner letzten Nachricht, im offenen 24-Stunden-Fenster)",
+    folge: "Gespräche, die mit „mache ich später“ enden, verlaufen im Sand — die kostenlose Nachricht im offenen Fenster bleibt ungenutzt.",
+    fenster: 2,
+  },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Mara-Topsales 08.10.2026 (Justin): DIE MELDUNG JE LAUF UND DER WÄCHTER DER VERKAUFSLÄUFE
+//
+// laufMeldung macht aus dem Rückgabewert eines Laufs eine kurze Zeile (JSON, höchstens 400 Zeichen) — nur Zahlen,
+// Wahrheitswerte und die Felder grund/hinweis (Adressen und lange Ziffernfolgen geschwärzt). Keine Personendaten.
+// Bei den Verkaufsläufen (VERKAUFSLAEUFE) steht dazu "versandt": n und, wenn der Lauf abgeschaltet ist, "aus": true.
+//
+// verkaufsLaeufeWachen (aus laeufeUeberwachen, alle 20 Minuten): Hat ein Verkaufslauf in den letzten 24 Stunden
+// gelaufen (mindestens eine Meldung mit "versandt", die erste vor über 20 Stunden), aber zusammen 0 verschickt, und
+// war er dabei nicht abgeschaltet, entsteht EINE Betreiber-Aufgabe je Lauf und Tag (Schlüssel lauf:<name>:null-versand:<Tag>).
+// ═══════════════════════════════════════════════════════════════════════════
+type Zahl = number | null;
+const zahl0 = (v: unknown): Zahl => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** Wie viel ein Verkaufslauf verschickt hat — und ob er abgeschaltet war. Der Lauf-Name aus tageslauf(…). */
+export const VERKAUFSLAEUFE: Record<string, (e: any) => { versandt: Zahl; aus: boolean }> = {
+  mara_aktion: (e) => ({ versandt: zahl0(e?.gesendet), aus: e?.grund === "aus" }),
+  wa_zentrale_takt: (e) => ({ versandt: zahl0(e?.gesendet), aus: e?.grund === "aus" }),
+  rueckholung: (e) => (Array.isArray(e)
+    ? { versandt: e.reduce((n: number, x: any) => n + (Number(x?.verschickt) || 0), 0), aus: e.length > 0 && e.every((x: any) => /abgeschaltet/.test(String(x?.grund ?? ""))) }
+    : { versandt: null, aus: false }),
+  "antrag-erinnerungen": (e) => ({ versandt: zahl0(e), aus: false }),
+  // Die Lead-Strecke läuft nur zu ihren Slots — dazwischen gibt der Takt null zurück (kein „versandt“, zählt nicht als gelaufen).
+  "lead-nachfass-und-verteilung": (e) => ({ versandt: e && typeof e === "object" ? zahl0(e.sent) : null, aus: !!e?.skippedWindow && zahl0(e?.sent) === 0 }),
+  mara_wa_nachfass: (e) => ({ versandt: zahl0(e?.gesendet), aus: !!e?.uebersprungen?.schalter_aus }),
+};
+
+/** Schlüssel, die eine Person oder einen Vorgang benennen können — sie stehen nie in der Meldung (auch nicht als Summe). */
+const KENNUNG_SCHLUESSEL = /(^id$|_id$|Id$|person|^ref|_ref$|nummer|telefon|phone|email|adresse|iban|name)/i;
+
+function schwaerzen(t: string): string {
+  return t.replace(/[^\s@]+@[^\s@]+/g, "…@…").replace(/\+?\d[\d\s/-]{5,}\d/g, "…").slice(0, 80);
+}
+
+/** Das Ergebnis eines Laufs als kurze Meldung — ohne Personendaten. null = nichts zu sagen. Rein. */
+export function laufMeldung(name: string, erg: unknown): string | null {
+  const aus: Record<string, unknown> = {};
+  const nimm = (k: string, v: unknown, tiefe = 0) => {
+    if (Object.keys(aus).length >= 14 || KENNUNG_SCHLUESSEL.test(k.split(".").pop() ?? k)) return;
+    if (typeof v === "number" && Number.isFinite(v)) aus[k] = v;
+    else if (typeof v === "boolean") aus[k] = v;
+    else if (typeof v === "string" && /(^|\.)(grund|hinweis)$/.test(k)) aus[k] = schwaerzen(v);
+    else if (v && typeof v === "object" && !Array.isArray(v) && tiefe < 1) for (const [k2, v2] of Object.entries(v)) nimm(`${k}.${k2}`, v2, tiefe + 1);
+  };
+  if (typeof erg === "number" || typeof erg === "boolean") aus.wert = erg;
+  else if (Array.isArray(erg)) {
+    aus.anzahl = erg.length;
+    for (const x of erg) if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) {
+      if (typeof v === "number" && Number.isFinite(v) && !KENNUNG_SCHLUESSEL.test(k) && (k in aus || Object.keys(aus).length < 14)) aus[k] = (Number(aus[k]) || 0) + v;
+    }
+  } else if (erg && typeof erg === "object") for (const [k, v] of Object.entries(erg)) nimm(k, v);
+  const verkauf = VERKAUFSLAEUFE[name];
+  if (verkauf) {
+    const v = verkauf(erg);
+    if (v.versandt != null) aus.versandt = v.versandt;
+    if (v.aus) aus.aus = true;
+  }
+  if (!Object.keys(aus).length) return null;
+  return JSON.stringify(aus).slice(0, 400);
+}
+
+/** Wie viele Stunden ein Verkaufslauf vollständig gelaufen sein muss, bevor „0 verschickt“ zählt. */
+export const VERKAUF_STUMM_STUNDEN = 24;
+
+/**
+ * Der Wächter der Verkaufsläufe. Gibt die Namen der stummen Läufe zurück; `nichtSenden` legt keine Aufgabe an (Prüfstand).
+ */
+export async function verkaufsLaeufeWachen(opts: { nichtSenden?: boolean } = {}): Promise<string[]> {
+  const { sqlPool } = await import("./db-pool");
+  const stumm: string[] = [];
+  for (const name of Object.keys(VERKAUFSLAEUFE)) {
+    const [z] = (await sqlPool`
+      SELECT COUNT(*)::int AS liefen,
+             COALESCE(SUM((substring(meldung from '"versandt":([0-9]+)'))::int), 0)::int AS versandt,
+             MIN(begonnen) AS erster
+        FROM fiaon_lauf_historie
+       WHERE name = ${name} AND ergebnis = 'erfolg'
+         AND begonnen > NOW() - make_interval(hours => ${VERKAUF_STUMM_STUNDEN})
+         AND meldung LIKE '%"versandt":%' AND meldung NOT LIKE '%"aus":true%'
+    `.catch(() => [])) as any[];
+    const liefen = Number(z?.liefen || 0);
+    const erster = z?.erster ? new Date(z.erster).getTime() : null;
+    if (!liefen || Number(z?.versandt || 0) > 0 || erster == null || Date.now() - erster < (VERKAUF_STUMM_STUNDEN - 4) * 3_600_000) continue;
+    stumm.push(name);
+    if (opts.nichtSenden) continue;
+    const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    try {
+      const { todoAnlegen } = await import("../routes/fiaon-betreiber-todo");
+      await todoAnlegen(`lauf:${name}:null-versand:${tag}`, {
+        titel: `Verkaufslauf „${name}“: seit 24 Stunden nichts verschickt`,
+        text: `Der Lauf „${name}“ lief in den letzten 24 Stunden ${liefen}-mal ohne Fehler, hat aber keine einzige Nachricht verschickt. `
+          + `Zweck: ${LAUF_FOLGEN[name]?.zweck ?? name}. Was ausfällt: ${LAUF_FOLGEN[name]?.folge ?? "—"} `
+          + "Bitte prüfen: Schalter, KI-Pause, Deckel, WhatsApp-Bremse, Auswahl (Meldungen in fiaon_lauf_historie, Stand unter /admin/hub).",
+        bereich: "technik", prioritaet: 1, link: "/admin/hub", quelle: "lauf-waechter",
+      });
+      console.warn(`[CRONS] Verkaufslauf ${name}: 24 h ohne Versand — Betreiber-Aufgabe angelegt.`);
+    } catch (e) {
+      console.error(`[CRONS] Wächter ${name}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return stumm;
+}
 
 /** Die Ampel eines Laufs — dieselbe Rechnung für Karte, Warnung und Prüfstand. */
 export type Ampel = "gruen" | "gelb" | "rot" | "unbekannt";
@@ -556,7 +695,7 @@ export async function alleLaufAmpeln(): Promise<LaufAmpel[]> {
  */
 export async function laeufeUeberwachen(
   opts: { nichtSenden?: boolean } = {},
-): Promise<{ geprueft: number; ueberfaellig: LaufAmpel[]; gewarnt: string[] }> {
+): Promise<{ geprueft: number; ueberfaellig: LaufAmpel[]; gewarnt: string[]; stumm: string[] }> {
   const { sqlPool } = await import("./db-pool");
   const ampeln = await alleLaufAmpeln();
   // „unbekannt" heißt: noch nie gelaufen, seit es die Historie gibt. Am ersten
@@ -629,5 +768,7 @@ export async function laeufeUeberwachen(
     console.warn(`[CRONS] ${ueberfaellig.length} Lauf/Läufe überfällig: `
       + ueberfaellig.map((a) => `${a.name} (${a.stundenHer} h)`).join(", "));
   }
-  return { geprueft: ampeln.length, ueberfaellig, gewarnt };
+  // Mara-Topsales 08.10.2026: dazu die Verkaufsläufe, die laufen, aber nichts verschicken.
+  const stumm = await verkaufsLaeufeWachen({ nichtSenden: opts.nichtSenden }).catch(() => [] as string[]);
+  return { geprueft: ampeln.length, ueberfaellig, gewarnt, stumm };
 }

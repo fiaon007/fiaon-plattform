@@ -16,6 +16,8 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { kundenSitzungSetzen, requireKunde, istGehasht, passwortHashen, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { antragPasst } from "../lib/fiaon-antrag-sitzung";
+// Mara-Topsales 08.10.2026 (Prüfung): „abgeschickt“ nach der EINEN Regel (Weiter-Link und Hinweis „schon begonnen“).
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 const router = Router();
 
@@ -66,9 +68,13 @@ router.get("/antrag/email-bekannt", async (req: Request, res: Response) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return res.json({ ok: true, bekannt: false });
     // E-210: den Antrag, der gerade ausgefüllt wird, nicht als „schon bekannt" melden.
     const ohne = String(req.query.ohne || "").trim().slice(0, 80);
-    const [r] = (await sqlPool`SELECT (password IS NOT NULL AND password <> '') AS pw, status, payment_reference, payment_status, current_step FROM fiaon_applications
+    // Mara-Topsales 08.10.2026 (Prüfung): „unfertig“ nach der EINEN Regel (shared/fiaon-antrag-stand.ts) — vorher
+    // `!payment_reference`, die ein Trigger (Migration 037) jedem Antrag beim ersten Speichern gibt: Der Knopf
+    // „Weitermachen, wo ich aufgehört habe“ erschien so nie (gemessen 08.10.: 0 angeforderte Weiter-Links).
+    const [r] = (await sqlPool`SELECT (password IS NOT NULL AND password <> '') AS pw, status, payment_reference, payment_status, current_step,
+             ${sqlPool.unsafe(abgeschicktSql("fiaon_applications"))} AS abgeschickt FROM fiaon_applications
       WHERE lower(email) = ${email} AND merged_into IS NULL AND ref <> ${ohne} ORDER BY created_at DESC LIMIT 1`) as any[];
-    const unfertig = !!r && !r.payment_reference && r.payment_status !== "paid" && !r.pw;
+    const unfertig = !!r && r.abgeschickt !== true && !["paid", "claimed_paid"].includes(String(r.payment_status ?? "")) && !r.pw;
     res.json({ ok: true, bekannt: !!r, hatPasswort: !!r?.pw, unfertig, schritt: unfertig ? Number(r.current_step || 1) : null });
   } catch (err) { console.error("[EMAIL-BEKANNT]", err); res.json({ ok: true, bekannt: false }); }
 });
@@ -84,18 +90,25 @@ router.post("/antrag/weiter-link", async (req: Request, res: Response) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return res.status(400).json({ ok: false, error: "Bitte eine gültige E-Mail-Adresse angeben." });
     const jetzt = Date.now(); const z = weiterZaehler.get(email);
     if (!z || z.bis < jetzt) weiterZaehler.set(email, { n: 1, bis: jetzt + 3600000 }); else if (z.n++ >= 3) return res.status(429).json({ ok: false, error: "Wir haben Ihnen den Link bereits geschickt – bitte schauen Sie auch im Spam-Ordner nach." });
-    const [a] = (await sqlPool`SELECT ref, first_name, last_name, current_step, pack_key, pack_name, payment_reference, payment_status, antrag_weg
+    const [a] = (await sqlPool`SELECT ref, person_id, first_name, last_name, current_step, pack_key, pack_name, payment_reference, payment_status, antrag_weg,
+             ${sqlPool.unsafe(abgeschicktSql("fiaon_applications"))} AS abgeschickt
       FROM fiaon_applications WHERE lower(email) = ${email} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
     // Immer dieselbe Antwort — ob es den Antrag gibt, verrät diese Route nicht.
-    if (!a || a.payment_reference || a.payment_status === "paid") return res.json({ ok: true, gesendet: true });
+    // Mara-Topsales 08.10.2026 (Prüfung): abgeschickt/bezahlt nach der EINEN Regel — vorher `payment_reference`, die jeder
+    // Antrag trägt (Trigger, Migration 037): Die Route brach bei JEDEM Antrag ab.
+    if (!a || a.abgeschickt === true || ["paid", "claimed_paid"].includes(String(a.payment_status ?? ""))) return res.json({ ok: true, gesendet: true });
     const { weiterLink, schrittText } = await import("../lib/fiaon-antrag-erinnerung");
     const { sendMakeWebhook } = await import("../make-webhook");
     const { absoluteUrl } = await import("../fiaon-base-url");
+    const { abmeldeLinkPerson } = await import("./fiaon-abmelden");
     const schritt = Number(a.current_step || 1);
     const ok = await sendMakeWebhook("antrag_erinnerung", {
       email, vorname: a.first_name || null, nachname: a.last_name || null, antrag_id: a.ref, paket: a.pack_name || null, pack_key: a.pack_key || null,
       // E-283: ein Antrag aus /antrag-neu nennt seinen Schritt in Worten (der neue Weg zählt anders).
       schritt, schritt_text: a.antrag_weg === "neu" ? schrittText(schritt, "neu") : `Schritt ${schritt}`, weiter_link: weiterLink(String(a.ref)), erinnerung_nr: 0, portal_url: absoluteUrl("/antrag"),
+      // Mara-Topsales 08.10.2026 (Prüfung): antrag_erinnerung steht in ABMELDEPFLICHT (motor.ts) — ohne Abmeldelink weist die
+      // Tür sie ab. Der Kunde hat diese Mail selbst angefordert; der Link schadet nicht und hält die eine Regel der Tür.
+      ...(a.person_id != null ? { person_id: Number(a.person_id), abmelde_url: abmeldeLinkPerson(Number(a.person_id)) } : {}),
     } as any).catch(() => false);
     await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
       VALUES (${a.ref}, NULL, 'System', 'system', ${`Kunde hat im Antrag den Weiter-Link angefordert — ${ok ? "verschickt" : "NICHT verschickt (Make)"}.`}, NOW())`.catch(() => {});

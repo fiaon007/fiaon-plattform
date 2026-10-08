@@ -597,8 +597,10 @@ const zaehle = (text: string, muster: string) => text.split(muster).length - 1;
 }
 {
   const f = rumpf(quelle("server/lib/fiaon-antrag-erinnerung.ts"), "export async function antragErinnerungenLauf(");
+  // Mara-Topsales 08.10.2026: Die Auswahl steht jetzt in abbrecherSql (der Lauf ruft sie nach globalKundeBereit auf).
+  const fa = rumpf(quelle("server/lib/fiaon-antrag-erinnerung.ts"), "export function abbrecherSql(");
   pruef("Antrag-Erinnerung (antragErinnerungenLauf): Regel an a.person_id vor der Auswahl",
-    f.includes(`AND NOT \${sqlPool.unsafe(globalKundeSql("a.person_id"))}`) && vorher(f, "await globalKundeBereit()", "const kandidaten"));
+    fa.includes(`AND NOT \${globalKundeSql("a.person_id")}`) && f.includes("abbrecherSql(") && vorher(f, "await globalKundeBereit()", "const kandidaten"));
 }
 {
   const f = quelle("server/lib/fiaon-lead-whatsapp.ts");

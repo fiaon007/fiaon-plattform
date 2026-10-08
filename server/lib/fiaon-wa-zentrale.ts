@@ -39,7 +39,8 @@
 // wann fällig, welcher Verwendungszweck, Knopf zur Zahlungsseite genau dieser
 // Rate. Gruppe „Monatsrate fällig": bezahlte Bestellung, Rate offen und fällig,
 // nicht gekündigt, kein Abo-/Mahnstopp, keine Zahlungszusage offen, nicht
-// eskaliert; höchstens alle 7 Tage und zweimal je Rate. Anfangs nur von Hand —
+// eskaliert; höchstens alle 7 Tage und dreimal je Rate (Mara-Topsales 08.10.2026, vorher zweimal; die dritte nur an
+// seinem festen Wochentag, RATE_WOCHENTAG_SQL). Anfangs nur von Hand —
 // die Automatik nimmt die Gruppe erst, wenn Justin sie dazuschaltet.
 //
 // ── DIE AUSKUNFT FEHLT (24.09.2026, E-240) ─────────────────────────────────
@@ -169,7 +170,7 @@ export const GRUPPEN: Record<Gruppe, GruppenRegel> = {
   },
   rate_offen: {
     titel: "Monatsrate fällig",
-    satz: "Bestandskunden mit fälliger, unbezahlter Monatsrate — nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, zweimal je Rate.",
+    satz: "Bestandskunden mit fälliger, unbezahlter Monatsrate — nicht gekündigt, kein Abo- oder Mahnstopp. Höchstens alle 7 Tage, dreimal je Rate — die dritte nur an seinem festen Wochentag.",
     vorlagen: ["fiaon_kk_rate"],
     standard: "fiaon_kk_rate",
     abstandTage: 7,
@@ -361,15 +362,52 @@ const VOR_DER_ZAHLUNG = `b.created_at > NOW() - INTERVAL '120 days'
 /**
  * Eine Rate, an die erinnert werden darf. `r` ist fiaon_abo_raten, `a` die
  * Bestellung, `person` der Ausdruck für die Personen-ID. Gruppe UND Auswahl der
- * Rate nutzen genau diesen Baustein — sonst liefen „höchstens zweimal je Rate"
+ * Rate nutzen genau diesen Baustein — sonst liefen „höchstens dreimal je Rate"
  * und die gewählte Rate auseinander (E-230-Durchsicht).
  */
+/**
+ * Mara-Topsales 08.10.2026 (Justin): höchstens DREI WhatsApp je fälliger Monatsrate (vorher zwei). Gemessen (nur lesend,
+ * 08.10.): 121 offene Raten über 7.663 € hatten die zwei ausgeschöpft — die Automatik fand an dem Tag 6 Kandidaten.
+ * Die Raten-Vorlage ist Service (läuft auch bei ROT), ihre STOPP-Quote lag bei 1,9 %. Der Abstand von 7 Tagen
+ * (GRUPPEN.rate_offen.abstandTage), der Deckel von 8 Vorlagen in 30 Tagen und alle Sperren bleiben.
+ *
+ * NACH DER PRÜFUNG (08.10.): DIE DRITTE NUR AN SEINEM FESTEN WOCHENTAG. Einfach freigegeben, wären die 95 neu
+ * Erinnerbaren fast alle am selben Tag dran gewesen — ihre zweite Vorlage kam aus dem Stoß vom 06.10., der 7-Tage-Abstand
+ * endet für alle am 13.10. Nachgezählt: 78 neue + 36 alte = 114 Vorlagen an einem Dienstag, bei ROT in rund 4,5 Stunden
+ * (ROT kam jedes Mal 3–8 h nach Stößen dieser Größe). Jetzt darf die dritte nur an dem Tag raus, an dem
+ * person_id % 7 = Tagesnummer % 7 (RATE_WOCHENTAG_SQL — dieselbe Rechnung wie der Wochentakt der Mara-Aktion): Jeder
+ * Mensch hat genau einen Tag in der Woche, und die Welle verteilt sich auf sieben Tage. Die erste und zweite bleiben, wie
+ * sie waren.
+ */
+export const RATE_WA_HOECHSTENS = 3;
+/** Ein Montag als Bezug für den festen Wochentag (wie WOCHE_BEZUG der Mara-Aktion). */
+export const RATE_WOCHE_BEZUG = "2026-01-05";
+/** Ist heute (Berlin) der feste Wochentag dieses Menschen für die dritte Raten-WhatsApp? Rein — SQL: RATE_WOCHENTAG_SQL. */
+export function rateWochentagHeute(personId: number, jetzt: Date = new Date()): boolean {
+  const tag = jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const n = Math.round((Date.parse(`${tag}T12:00:00Z`) - Date.parse(`${RATE_WOCHE_BEZUG}T12:00:00Z`)) / 86_400_000);
+  return ((n % 7) + 7) % 7 === ((personId % 7) + 7) % 7;
+}
+/** Der erste Berliner Tag ab `ab` (YYYY-MM-DD), an dem die dritte Raten-WhatsApp dieses Menschen raus darf. Rein. */
+export function dritteRateWaTag(ab: string, personId: number): string {
+  const d = new Date(`${ab}T12:00:00Z`);
+  for (let i = 0; i < 7; i++) {
+    if (rateWochentagHeute(personId, d)) break;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+}
+export const RATE_WOCHENTAG_SQL = (person: string) =>
+  `(MOD((${person})::bigint, 7) = MOD((((NOW() AT TIME ZONE 'Europe/Berlin')::date - DATE '${RATE_WOCHE_BEZUG}') % 7) + 7, 7))`;
+
 export const RATE_ERINNERBAR = (r: string, a: string, person: string) => `(
   ${RATE_OFFEN_FAELLIG(r)}
-  -- höchstens zwei WhatsApp je Rate
+  -- höchstens RATE_WA_HOECHSTENS (3) WhatsApp je Rate (Mara-Topsales 08.10.2026; vorher 2) — die dritte nur an seinem
+  -- festen Wochentag (RATE_WOCHENTAG_SQL), sonst verteilt sich eine Welle nicht
   AND (SELECT COUNT(*) FROM fiaon_whatsapp wr WHERE wr.person_id = ${person} AND wr.richtung = 'raus'
          AND wr.vorlage IN ('fiaon_kk_rate', 'fiaon_kkb_rate') AND wr.status <> 'fehler'
-         AND wr.text LIKE '%' || ${r}.zahlungsreferenz || '%') < 2
+         AND wr.text LIKE '%' || ${r}.zahlungsreferenz || '%')
+      < (CASE WHEN ${RATE_WOCHENTAG_SQL(person)} THEN ${RATE_WA_HOECHSTENS} ELSE ${RATE_WA_HOECHSTENS - 1} END)
   -- keine Erinnerung, wenn ein passender Eingang unverbucht im Bankbuch liegt (Regel der Rückholung)
   AND NOT EXISTS (
     SELECT 1 FROM fiaon_bank_txns t
@@ -481,7 +519,7 @@ function gruppenKern(g: Gruppe, ohneAbstand = false): string {
       return `${VOR_DER_ZAHLUNG} AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = b.person_id AND ${RECHNUNG_OFFEN("a")})
               AND ${abstand} AND ${deckel}`;
     case "rate_offen":
-      // Höchstens zwei WhatsApp je Rate: Erinnerung, kein Dauermahnen (die Mail erinnert ohnehin, E-182).
+      // Höchstens drei WhatsApp je Rate (Mara-Topsales 08.10.2026, vorher zwei): Erinnerung, kein Dauermahnen (die Mail erinnert ohnehin, E-182).
       return `EXISTS (SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
                        WHERE a.person_id = b.person_id AND ${BESTAND("a")} AND ${RATE_ERINNERBAR("r", "a", "b.person_id")})
               AND ${abstand} AND ${deckel}`;

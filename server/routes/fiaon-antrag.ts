@@ -1952,9 +1952,14 @@ async function claimReminderBatch(
   // sicherstellen, dass es sie gibt. Geladen wie in den Zählungen des Sammelversands (unten).
   const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
   await globalKundeBereit();
+  // Mara-Topsales 08.10.2026 (Justin): dieselbe Sperrprüfung wie die Tür (tuerNeinSql, fiaon-mail-frequenz.ts).
+  const { tuerNeinSql } = await import("../lib/fiaon-mail-frequenz");
   return sqlPool`
     UPDATE fiaon_applications
-    SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
+    -- Mara-Topsales 08.10.2026: Der Anspruch stempelt nur noch den Zeitpunkt (Schutz gegen Doppelversand).
+    -- reminder_count zählt erst nach einem ECHTEN Versand (erinnerungGezaehlt) — bisher zählte jeder Anspruch,
+    -- auch wenn die Tür ablehnte, und die Zahl im Mailwerk stimmte nicht.
+    SET last_reminder_at = NOW(), updated_at = NOW()
     WHERE ref IN (
       SELECT fa.ref FROM fiaon_applications fa
       WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
@@ -2029,6 +2034,19 @@ async function claimReminderBatch(
         -- mehr in jedem Takt erneut „erinnert" — 42 Adressen je Lauf, Zähler wuchs, nichts kam an.
         -- Dieselbe Definition wie im Abo-Motor (fiaon-empfaenger.ts unzustellbarSql).
         AND NOT ${sqlPool.unsafe(unzustellbarSql("fa"))}
+        -- ════════════════════════════════════════════════════════════════
+        -- DIESELBE SPERRPRÜFUNG WIE DIE TÜR (Mara-Topsales 08.10.2026, Justin)
+        --
+        -- Gemessen (nur lesend, 14 Tage bis 08.10.): 945 Erinnerungen raus, 199
+        -- an der Tür gescheitert — 114 Werbesperre an der Adresse, 84 hart
+        -- unzustellbar (die Tür zählt Rückläufer/Spam 30 Tage, unzustellbarSql
+        -- nur bis zur nächsten Zustellung). Jede davon war beansprucht, gezählt
+        -- und stand als Fehlzeile im Protokoll. Jetzt fragt die Auswahl dieselben
+        -- zwei Nein vorher — an der Zieladresse (Person) UND an der Adresse der
+        -- Bestellung. payment_reminder ist keine ZAHLUNGSPOST: die Werbesperre gilt.
+        -- ════════════════════════════════════════════════════════════════
+        AND NOT ${sqlPool.unsafe(tuerNeinSql(`LOWER(TRIM(${zielMailSql("fa")}))`, "payment_reminder"))}
+        AND NOT ${sqlPool.unsafe(tuerNeinSql(`LOWER(TRIM(COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, ''))))`, "payment_reminder"))}
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - make_interval(hours => ${abstand}))
         AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')
         AND (${opts.maxReminders == null} OR COALESCE(fa.reminder_count, 0) < ${opts.maxReminders ?? 0})
@@ -2063,8 +2081,15 @@ function reminderPayload(r: any) {
   return {
     ...makePayloadFromRow(r),
     invoice_url: r.payment_reference ? signInvoiceUrl(r.payment_reference) : null,
-    reminder_number: Number(r.reminder_count || 1),
+    // Mara-Topsales 08.10.2026: Der Anspruch zählt nicht mehr hoch — die Nummer dieser Mail ist der Stand + 1.
+    reminder_number: Number(r.reminder_count || 0) + 1,
   };
+}
+
+/** Mara-Topsales 08.10.2026 (Justin): reminder_count nur nach einem ECHTEN Versand erhöhen. */
+async function erinnerungGezaehlt(ref: string): Promise<void> {
+  await sqlPool`UPDATE fiaon_applications SET reminder_count = COALESCE(reminder_count, 0) + 1 WHERE ref = ${ref}`
+    .catch((e) => console.error("[FIAON-PAYMENT] reminder_count:", e));
 }
 
 /**
@@ -2152,6 +2177,16 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
     console.log(`[FIAON-PAYMENT] Frist abgelaufen (Etikett, kein Zustand): ${result.fristAbgelaufen} Bestellung(en) — bleiben in Arbeits- und Zahlungslisten`);
   }
 
+  // Mara-Topsales 08.10.2026 (Justin, IT-Feedback: „Stufe A pausiert höchstens 3 Werktage“): ab dem 3. Werktag ohne
+  // Eingang EINE Anrufaufgabe je gemeldeter Zahlung — an den Betreuer, sonst an den Betreiber (fiaon-stufe-a-klaeren.ts).
+  // Bewusst VOR Not-Aus und Mail-Fenster der Erinnerungen: Die Aufgabe ist keine Kundenmail, sie soll stündlich im
+  // Arbeitsfenster (08–20 Uhr) entstehen — auch wenn die Erinnerung auf 17 Uhr gelegt ist.
+  if (withinHardWindow()) {
+    await import("../lib/fiaon-stufe-a-klaeren")
+      .then((m) => m.stufeAKlaerenMelden())
+      .catch((e) => console.error("[FIAON-PAYMENT] Stufe A klären:", e));
+  }
+
   // 2) Tägliche Reminder-Engine (Not-Aus + Versandfenster aus Admin-Einstellungen)
   const { getSettings } = await import("./fiaon-agent");
   const settings = await getSettings();
@@ -2190,7 +2225,7 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
     if (batch.length === 0) break;
     for (const r of batch) {
       // E-184: Ein Fehlschlag zählte bisher als „versendet" — jetzt getrennt.
-      if (await sendMakeWebhook("payment_reminder", reminderPayload(r))) result.remindersSent++;
+      if (await sendMakeWebhook("payment_reminder", reminderPayload(r))) { result.remindersSent++; await erinnerungGezaehlt(String(r.ref)); }
       else result.remindersFailed++;
     }
     if (batch.length < REMINDER_BATCH) break;
@@ -2506,7 +2541,7 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
           if (batch.length === 0) break;
           for (const r of batch) {
             const ok = await sendMakeWebhook("payment_reminder", reminderPayload(r));
-            if (ok) job.sent++;
+            if (ok) { job.sent++; await erinnerungGezaehlt(String(r.ref)); }
             else job.errors++;
           }
           if (batch.length < BULK_BATCH) break;

@@ -20,6 +20,7 @@
 
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { BANK } from "@shared/fiaon-bank";
+import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { sqlPool } from "./db-pool";
 import { nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { mailEvent, type MailEvent, type Rolle } from "./fiaon-mail-events";
@@ -423,8 +424,9 @@ async function linkBaustein(
     // und der zugewiesene Betreuer war es womöglich nicht.
     setze("agent_name", String(opts.akteurName || "").trim() || "uns");
   }
-  if (eventType === "lead_followup") {
-    setze("antrag_url", absoluteUrl("/antrag"));
+  if (eventType === "lead_followup" || eventType === "antrag_erinnerung") {
+    // Mara-Topsales 08.10.2026: auch die Abbruch-Erinnerung ist Werbung mit Abmeldepflicht (motor.ts, ABMELDEPFLICHT).
+    if (eventType === "lead_followup") setze("antrag_url", absoluteUrl("/antrag"));
     if (!hat("abmelde_url")) {
       const { abmeldeLinkPerson } = await import("../routes/fiaon-abmelden");
       links.abmelde_url = abmeldeLinkPerson(personId);
@@ -442,8 +444,9 @@ async function linkBaustein(
       SELECT ref, current_step, pack_name, antrag_weg FROM fiaon_applications
        WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
          AND gdpr_deleted_at IS NULL
-         AND COALESCE(payment_status, 'pending') = 'pending'
-         AND status NOT IN ('submitted', 'completed', 'payment_completed', 'documents_submitted', 'approved', 'processing')
+         -- Mara-Topsales 08.10.2026: dieselbe Regel wie der Lauf (abbrecherSql) — nicht abgeschickt, nichts bezahlt/gemeldet.
+         AND COALESCE(payment_status, '') NOT IN ('paid', 'claimed_paid')
+         AND NOT ${lauf.unsafe(abgeschicktSql(""))}
          AND COALESCE(current_step, 0) BETWEEN 1 AND 7
        ORDER BY created_at DESC LIMIT 1
     `) as any[];

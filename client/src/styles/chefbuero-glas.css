@@ -1,0 +1,219 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO IM GLAS-DESIGN (Justin 08.10.2026): „blaues Glas, schwebendes Seitenmenü, brutal hochwertig“ — Vorlage
+   „Dashboard V10“ (Video), in FIAON-CI. „Die Weltkugel weg – clean, Glas, modern, animiert.“
+   Eine SCHICHT über chefbuero.css, chefbuero-seiten.css und den Raum-Stilen (chef-*.css): Sie ändert keine Funktion und
+   kein Layout der Räume, nur Fläche, Licht und Bewegung. Aktiv über die Klasse .cb-glas an der Chef-Hülle (ChefShell).
+   Spezifität: immer „.cb.cb-glas …“ (zwei Klassen), damit die später geladenen Raum-Stile nicht gewinnen.
+   Bühne: STATISCHES Kristallbild (Higgsfield, 08_Medien_Higgsfield/2026-10-08_Chefbuero_Glas) — hinter backdrop-filter
+   läuft nichts (sonst Lüfter). Bewegung nur in den Glasflächen: einmal beim Erscheinen, bei Hover, leiser Statuspuls.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cb.cb-glas {
+  --gl-kante: rgba(156, 203, 255, .16);
+  --gl-kante-hell: rgba(156, 203, 255, .32);
+  --gl-licht: inset 0 1px 0 rgba(255, 255, 255, .11), inset 0 0 0 1px rgba(255, 255, 255, .012);
+  --gl-karte: linear-gradient(165deg, rgba(120, 170, 255, .085) 0%, rgba(255, 255, 255, .035) 40%, rgba(255, 255, 255, .02) 100%);
+  --gl-blau: linear-gradient(180deg, rgba(30, 58, 110, .46), rgba(12, 22, 44, .62));
+  --gl-tiefe: 0 26px 64px -34px rgba(0, 0, 0, .95), 0 0 46px -30px rgba(40, 141, 250, .38);
+  background:
+    linear-gradient(180deg, rgba(4, 7, 14, .52), rgba(4, 7, 14, .28) 40%, rgba(4, 7, 14, .64)),
+    radial-gradient(1200px 700px at 85% -10%, rgba(40, 141, 250, .15), rgba(40, 141, 250, 0) 60%),
+    url("../assets/admin/buehne-kristall.webp") center / cover no-repeat fixed,
+    #05080F;
+}
+/* Zeiger-Licht: ChefShell setzt --mx/--my an der Glaskarte unter der Maus. Nicht vererbt — verschachtelte Karten
+   bekommen kein Licht in fremden Koordinaten. Ohne Zeiger liegt der Fleck weit über der Karte (unsichtbar). */
+@property --mx { syntax: "<length-percentage>"; inherits: false; initial-value: 50%; }
+@property --my { syntax: "<length-percentage>"; inherits: false; initial-value: -400px; }
+/* Der Abstand über der schwebenden Kopfleiste (margin-top) fiel sonst durch die Hülle hindurch und legte oben einen
+   14 px hellen Streifen der Seite frei — flow-root hält ihn in der Hülle. */
+.cb.cb-glas { display: flow-root; }
+/* Die alte Foto-Bühne tritt zurück — das Kristall trägt. */
+.cb.cb-glas .cb-buehne { display: none; }
+
+/* ── Kopfleiste: schwebendes Glas ─────────────────────────────────────── */
+.cb.cb-glas .cb-kopf {
+  top: 14px; margin: 14px 14px 0; border-radius: 20px;
+  background: linear-gradient(180deg, rgba(26, 48, 92, .44), rgba(10, 18, 36, .58));
+  border: 1px solid var(--gl-kante);
+  box-shadow: var(--gl-licht), 0 22px 54px -30px rgba(0, 0, 0, .9);
+  -webkit-backdrop-filter: blur(26px) saturate(165%); backdrop-filter: blur(26px) saturate(165%);
+}
+
+/* ── Seitenmenü: schwebendes Blauglas mit Lichtkante und Aura ─────────── */
+/* Abstand und Höhe nur, wenn die Leiste klebt — im Vollflächen-Modus (.cb-voll, WhatsApp/Telefon) ist sie relativ und füllt
+   die Höhe; auf den offenen Seiten (.cb-ruhig, E-252) läuft sie mit der Seite, ohne eigenen Scrollbereich. */
+.cb.cb-glas:not(.cb-voll):not(.cb-ruhig) .cb-leiste { top: 92px; max-height: calc(100vh - 108px); }
+.cb.cb-glas .cb-leiste {
+  overflow-y: auto; border-radius: 24px; padding: 12px;
+  background: var(--gl-blau);
+  border: 1px solid var(--gl-kante);
+  box-shadow: var(--gl-licht), 0 40px 90px -36px rgba(0, 0, 0, .95), 0 0 70px -30px rgba(40, 141, 250, .45);
+  -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
+}
+.cb.cb-glas .cb-punkt { color: #B3C3DA; border-radius: 14px; }
+.cb.cb-glas .cb-punkt i { color: #8FA6C6; }
+.cb.cb-glas .cb-punkt:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.cb.cb-glas .cb-punkt.an {
+  background: linear-gradient(90deg, rgba(40, 141, 250, .36), rgba(29, 78, 216, .16));
+  box-shadow: inset 0 0 0 1px rgba(120, 180, 255, .40), inset 0 1px 0 rgba(255, 255, 255, .14), 0 10px 26px -14px rgba(40, 141, 250, .85);
+  color: #fff;
+}
+.cb.cb-glas .cb-punkt.an i { color: #D6EAFF; filter: drop-shadow(0 0 6px rgba(40, 141, 250, .85)); }
+
+/* ── Glaskarten in allen Räumen ───────────────────────────────────────── */
+.cb.cb-glas .lm-kopf,
+.cb.cb-glas .lm-alarm,
+.cb.cb-glas .lm-zeile,
+.cb.cb-glas .lm-vorlage,
+.cb.cb-glas .cm-takt,
+.cb.cb-glas .mara-glas,
+.cb.cb-glas .pm-tafel,
+.cb.cb-glas .pv-meldung,
+.cb.cb-glas .cr-stapel,
+.cb.cb-glas .cr-segment,
+.cb.cb-glas .so-insel,
+.cb.cb-glas .so-schalter,
+.cb.cb-glas .tk-suche,
+.cb.cb-glas .tk-email,
+.cb.cb-glas .tk-nb-fall,
+.cb.cb-glas .tk-ki-wunsch,
+.cb.cb-glas .tk-ki-text,
+.cb.cb-glas .tk-mail-text,
+.cb.cb-glas .tk-mail-anhang,
+.cb.cb-glas .tk-mail-fertig,
+.cb.cb-glas .tk-rueckrufe,
+.cb.cb-glas .tk-deine,
+.cb.cb-glas .tk-akte,
+.cb.cb-glas .tk-blatt,
+.cb.cb-glas .tk-meldung,
+.cb.cb-glas .cz-hero,
+.cb.cb-glas .cz-block,
+.cb.cb-glas .cz-karte,
+.cb.cb-glas .cb-kachel,
+.cb.cb-glas .cb-hinweis,
+.cb.cb-glas .cl-karte,
+.cb.cb-glas .cl-klemmer,
+.cb.cb-glas .cl-verlauf,
+.cb.cb-glas .cl-team,
+.cb.cb-glas .cl-tab-huelle,
+.cb.cb-glas .cl-fehler,
+.cb.cb-glas .cw-werkzeug,
+.cb.cb-glas .cw-meldung,
+.cb.cb-glas .cw-tabelle-rahmen,
+.cb.cb-glas .cw-pruefung,
+.cb.cb-glas .ck-suche,
+.cb.cb-glas .cw-stapel,
+.cb.cb-glas .cbes-aergerkarte,
+.cb.cb-glas .cb-rang,
+.cb.cb-glas .cb-gratulation,
+.cb.cb-glas .kip-karte,
+.cb.cb-glas .sv-gruppe {
+  background: radial-gradient(420px 260px at var(--mx, 50%) var(--my, -400px), rgba(40, 141, 250, .13), rgba(40, 141, 250, 0) 70%), var(--gl-karte) !important;
+  border: 1px solid var(--gl-kante) !important;
+  box-shadow: var(--gl-licht), var(--gl-tiefe) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cb.cb-glas :is(.lm-kopf, .lm-alarm, .lm-zeile, .lm-vorlage, .cm-takt, .mara-glas, .pm-tafel, .pv-meldung, .cr-stapel, .cr-segment, .so-insel, .so-schalter, .tk-suche, .tk-email, .tk-nb-fall, .tk-ki-wunsch, .tk-ki-text, .tk-mail-text, .tk-mail-anhang, .tk-mail-fertig, .tk-rueckrufe, .tk-deine, .tk-akte, .tk-blatt, .tk-meldung, .cz-hero, .cz-block, .cz-karte, .cb-kachel, .cb-hinweis, .cl-karte, .cl-klemmer, .cl-verlauf, .cl-team, .cl-tab-huelle, .cl-fehler, .cw-werkzeug, .cw-meldung, .cw-tabelle-rahmen, .cw-pruefung, .ck-suche, .cw-stapel, .cbes-aergerkarte, .cb-rang, .cb-gratulation, .kip-karte, .sv-gruppe):hover { border-color: var(--gl-kante-hell) !important; }
+}
+/* Fenster (Dialoge) bleiben gut lesbar: dichteres Glas. */
+.cb.cb-glas .lm-fenster,
+.cb.cb-glas .cm-fenster,
+.cb.cb-glas .mp-fenster,
+.cb.cb-glas .cr-fenster,
+.cb.cb-glas .tk-ki-fenster,
+.cb.cb-glas .tk-akte-zu {
+  background: linear-gradient(180deg, rgba(16, 28, 54, .94), rgba(8, 14, 28, .96)) !important;
+  border: 1px solid var(--gl-kante) !important;
+  box-shadow: var(--gl-licht), 0 50px 120px -40px rgba(0, 0, 0, .95), 0 0 80px -40px rgba(40, 141, 250, .45) !important;
+}
+
+/* ── Eingebettete Fachseiten (/chef/s/…): aus Navy-Fläche wird Blauglas ── */
+.cb.cb-glas .cbs .bg-white.rounded-2xl, .cb.cb-glas .cbs .bg-white.rounded-xl, .cb.cb-glas .cbs .bg-white.rounded-lg {
+  background: var(--gl-karte) !important; background-color: transparent !important;
+  border-color: var(--gl-kante) !important;
+  box-shadow: var(--gl-licht), var(--gl-tiefe) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* ── Bewegung: einmal beim Erscheinen, gestaffelt; leiser Lichtstreif über der ersten großen Fläche ── */
+@keyframes gl-auf { from { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes gl-streif { from { transform: translateX(-120%); } to { transform: translateX(260%); } }
+.cb.cb-glas .cb-inhalt :is(.lm-kopf, .lm-alarm, .lm-zeile, .lm-vorlage, .cm-takt, .mara-glas, .pm-tafel, .pv-meldung, .cr-stapel, .cr-segment, .so-insel, .so-schalter, .tk-suche, .tk-email, .tk-nb-fall, .tk-ki-wunsch, .tk-ki-text, .tk-mail-text, .tk-mail-anhang, .tk-mail-fertig, .tk-rueckrufe, .tk-deine, .tk-akte, .tk-blatt, .tk-meldung, .cz-hero, .cz-block, .cz-karte, .cb-kachel, .cb-hinweis, .cl-karte, .cl-klemmer, .cl-verlauf, .cl-team, .cl-tab-huelle, .cl-fehler, .cw-werkzeug, .cw-meldung, .cw-tabelle-rahmen, .cw-pruefung) { animation: gl-auf 620ms cubic-bezier(.2, .8, .2, 1) both; }
+.cb.cb-glas .cb-inhalt :is(.cl-karte, .cz-karte, .cb-kachel):nth-child(2) { animation-delay: 70ms; }
+.cb.cb-glas .cb-inhalt :is(.cl-karte, .cz-karte, .cb-kachel):nth-child(3) { animation-delay: 140ms; }
+.cb.cb-glas .cb-inhalt :is(.cl-karte, .cz-karte, .cb-kachel):nth-child(4) { animation-delay: 210ms; }
+.cb.cb-glas .cb-inhalt :is(.cl-karte, .cz-karte, .cb-kachel):nth-child(n+5) { animation-delay: 280ms; }
+.cb.cb-glas :is(.cz-hero, .cl-verlauf) { position: relative; overflow: hidden; }
+.cb.cb-glas :is(.cz-hero, .cl-verlauf)::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 38%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(156, 203, 255, .09) 45%, rgba(255, 255, 255, .14) 50%, rgba(156, 203, 255, .09) 55%, transparent);
+  transform: translateX(-120%); animation: gl-streif 1600ms cubic-bezier(.25, .7, .2, 1) 450ms 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb.cb-glas * { animation: none !important; }
+}
+
+/* ── WhatsApp-Raum im Chefbüro: Liste und Chat als dunkles Glas (Lesbarkeit vor Durchsicht) ── */
+.cb.cb-glas .wr { --wr-flaeche: rgba(9, 16, 32, .64); --wr-linie: rgba(156, 203, 255, .14); }
+.cb.cb-glas .wr-liste,
+.cb.cb-glas .wr-chat {
+  border-radius: 20px; border-color: var(--gl-kante);
+  box-shadow: var(--gl-licht), var(--gl-tiefe);
+  -webkit-backdrop-filter: blur(26px) saturate(150%); backdrop-filter: blur(26px) saturate(150%);
+}
+
+/* ── Akte als eigene Seite (/chef/s/akte): „Nächster Schritt“ und „fehlt“ trugen Inline-Farben für Weiß
+   (dunkelblau/dunkelrot auf dunklem Glas, kaum lesbar). Gleiche Lösung wie .akte-dunkel in der Telefonkartei. ── */
+.cb.cb-glas .cbs .ns-box {
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(40, 141, 250, .14), rgba(29, 78, 216, .07)) !important;
+  box-shadow: inset 0 0 0 1px rgba(120, 180, 255, .28), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+.cb.cb-glas .cbs .ns-label { color: #93c5fd !important; }
+.cb.cb-glas .cbs .ns-text { color: #dbeafe !important; }
+.cb.cb-glas .cbs .ua-status.fehlt { color: #fca5a5 !important; }
+
+/* ── Lesbarkeit (Scan 08.10.2026 über alle 68 Chef-Seiten): Farben, die für Weiß gebaut sind ──────────────
+   Altfehler, die schon vor dem Glas so live waren — hier in der Schicht gelöst, die Seiten bleiben unangetastet. */
+/* Leise Beschriftungen (#475569) sind auf Glas zu schwach: eine Stufe heller, bleibt erkennbar leiser als Text. */
+.cb.cb-glas .cbs-ort,
+.cb.cb-glas .cl-stand,
+.cb.cb-glas .cl-tab th,
+.cb.cb-glas .cl-teamzahl em,
+.cb.cb-glas .cw-nr,
+.cb.cb-glas .leise { color: #8a9bb3 !important; }
+/* Meine Liste (admin-todo.tsx, eigener Stil): Titel waren #0f172a auf dunkler Karte. */
+.cb.cb-glas .cbs .td-titel { color: #eef2f8 !important; }
+.cb.cb-glas .cbs .td-karte[data-fertig="1"] .td-titel { color: #7d8ba1 !important; }
+.cb.cb-glas .cbs .td-kunde { color: #9aa8bd !important; }
+/* Space (fiaon-design.css: Text-Tokens für Weiß) — nur die Text-Tokens, Flächen regelt chefbuero-seiten.css. */
+.cb.cb-glas .cbs [class*="fi-sp-"] { --fi-text: #f1f5f9; --fi-text-leise: #cbd5e1; --fi-text-still: #94a3b8; }
+/* Inline-Farben (style={{ color }}) in Tagesübersicht, Termin-Zentrale, E-Mail-Events u. a. — wie der Hinweiskasten-Fix
+   in chefbuero-seiten.css über den Stil-Text. Ausgenommen: Elemente mit eigenem hellem Grund (rgb(2xx …) bleiben dunkel. */
+.cb.cb-glas .cbs [style*="color: rgb(146, 64, 14)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #fcd34d !important; }
+.cb.cb-glas .cbs [style*="color: rgb(30, 58, 138)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #bfdbfe !important; }
+.cb.cb-glas .cbs [style*="color: rgb(30, 64, 175)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #93c5fd !important; }
+.cb.cb-glas .cbs [style*="color: rgb(15, 23, 42)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #f1f5f9 !important; }
+.cb.cb-glas .cbs [style*="color: rgb(109, 40, 217)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #c4b5fd !important; }
+.cb.cb-glas .cbs [style*="color: rgb(120, 53, 15)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #fcd34d !important; }
+.cb.cb-glas .cbs [style*="color: rgb(71, 85, 105)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #a3b1c6 !important; }
+.cb.cb-glas .cbs .fi-knopf-glas { color: #cbd5e1 !important; }
+.cb.cb-glas .cbs [style*="color: var(--fi-text)"] { color: #f1f5f9 !important; }
+.cb.cb-glas .cbs [style*="color: var(--fi-text-leise)"] { color: #cbd5e1 !important; }
+.cb.cb-glas .cbs [style*="color: var(--fi-text-still)"] { color: #94a3b8 !important; }
+
+/* ── Akte als eigene Seite: Dokument-Kacheln (Ausweis, Kontoauszug, Bonität) waren weiße Inseln — wie .akte-dunkel
+   in der Telefonkartei (akte-dunkel.css), damit beide Akten gleich aussehen. ── */
+.cb.cb-glas .cbs .dk-kachel { border-radius: 14px !important; background: rgba(148, 163, 184, .055) !important; border: 1px dashed rgba(148, 163, 184, .24) !important; }
+.cb.cb-glas .cbs .dk-kachel[data-vorhanden="1"] { background: rgba(40, 141, 250, .07) !important; border: 1px solid rgba(96, 165, 250, .22) !important; }
+.cb.cb-glas .cbs .dk-titel { color: #e7ecf4 !important; }
+.cb.cb-glas .cbs .dk-zeichen { color: #7cb8ff !important; }
+.cb.cb-glas .cbs .dk-kachel[data-vorhanden="0"] .dk-zeichen { color: #5d6c83 !important; }
+.cb.cb-glas .cbs .dk-fehlt { color: #8292a8 !important; }
+.cb.cb-glas .cbs .dk-fehlt[data-benoetigt="1"] { color: #fcd34d !important; }
+.cb.cb-glas .cbs .dk-knopf:not(.haupt) { background: rgba(255, 255, 255, .05) !important; border: 1px solid rgba(148, 163, 184, .16) !important; color: #e7ecf4 !important; }
+.cb.cb-glas .cbs .dk-knopf.haupt { background: linear-gradient(135deg, #1d4ed8, #288dfa) !important; border-color: transparent !important; color: #fff !important; }
+.cb.cb-glas .cbs .dk-meldung { background: rgba(40, 141, 250, .1) !important; color: #bfdbfe !important; }
+/* Buchhaltung: helle Tabellen-Kopfzeile. */
+.cb.cb-glas .cbs tr[style*="background: rgb(248, 249, 251)"], .cb.cb-glas .cbs thead tr { background: rgba(255, 255, 255, .04) !important; }

@@ -31,7 +31,19 @@ import { KiPauseBand } from "./ChefKiPause";
 import { WaPauseBand } from "./ChefWaPause";
 import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
+// 08.10.2026 (Justin): Glas-Design — eine Schicht über allen Raum-Stilen, aktiv über .cb-glas (chefbuero-glas.css).
+import "@/styles/chefbuero-glas.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
+
+/** Glaskarten mit Zeiger-Licht — dieselbe Liste wie die Glaskarten-Regel in chefbuero-glas.css. */
+const GLAS_LICHT_KARTEN = [
+  ".lm-kopf", ".lm-alarm", ".lm-zeile", ".lm-vorlage", ".cm-takt", ".mara-glas", ".pm-tafel", ".pv-meldung", ".cr-stapel",
+  ".cr-segment", ".so-insel", ".so-schalter", ".tk-suche", ".tk-email", ".tk-nb-fall", ".tk-ki-wunsch", ".tk-ki-text",
+  ".tk-mail-text", ".tk-mail-anhang", ".tk-mail-fertig", ".tk-rueckrufe", ".tk-deine", ".tk-akte", ".tk-blatt", ".tk-meldung",
+  ".cz-hero", ".cz-block", ".cz-karte", ".cb-kachel", ".cb-hinweis", ".cl-karte", ".cl-klemmer", ".cl-verlauf", ".cl-team",
+  ".cl-tab-huelle", ".cl-fehler", ".cw-werkzeug", ".cw-meldung", ".cw-tabelle-rahmen", ".cw-pruefung", ".ck-suche", ".cw-stapel",
+  ".cbes-aergerkarte", ".cb-rang", ".cb-gratulation", ".kip-karte", ".sv-gruppe",
+].join(", ");
 
 export type ChefStufe = "inhaber" | "geschaeftsfuehrung" | "leitung";
 const RANG: Record<ChefStufe, number> = { inhaber: 3, geschaeftsfuehrung: 2, leitung: 1 };
@@ -193,6 +205,31 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   // Wer Bewegung abgestellt hat, bekommt ein Standbild statt des Films.
   const ruhig = typeof window !== "undefined"
     && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  // 08.10.2026 Glas-Design: Ein leiser Lichtfleck folgt dem Zeiger über die Glaskarte darunter (--mx/--my, chefbuero-glas.css).
+  // Nur mit Maus und nur, wenn Bewegung erlaubt ist; ein Hörer, höchstens einmal je Bild.
+  useEffect(() => {
+    if (ruhig || !window.matchMedia?.("(hover: hover) and (pointer: fine)").matches) return;
+    let karte: HTMLElement | null = null;
+    let ziel: Element | null = null;
+    let bild = 0, x = 0, y = 0;
+    const loesen = () => { karte?.style.removeProperty("--mx"); karte?.style.removeProperty("--my"); };
+    const zeichnen = () => {
+      bild = 0;
+      const neu = (ziel?.closest?.(GLAS_LICHT_KARTEN) as HTMLElement | null) ?? null;
+      if (karte !== neu) loesen();
+      karte = neu;
+      if (!karte) return;
+      const r = karte.getBoundingClientRect();
+      karte.style.setProperty("--mx", `${Math.round(x - r.left)}px`);
+      karte.style.setProperty("--my", `${Math.round(y - r.top)}px`);
+    };
+    const bewegt = (e: PointerEvent) => {
+      x = e.clientX; y = e.clientY; ziel = e.target as Element;
+      if (!bild) bild = requestAnimationFrame(zeichnen);
+    };
+    document.addEventListener("pointermove", bewegt, { passive: true });
+    return () => { document.removeEventListener("pointermove", bewegt); if (bild) cancelAnimationFrame(bild); loesen(); };
+  }, [ruhig]);
   const vorname = String(name || "").split(" ")[0];
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
@@ -224,7 +261,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   );
 
   return (
-    <div className={`cb${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
+    <div className={`cb cb-glas${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum

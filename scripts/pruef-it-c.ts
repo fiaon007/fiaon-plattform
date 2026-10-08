@@ -336,6 +336,31 @@ ok(duForm === 0, "Kundentexte durchgehend Sie-Form");
 ok(["technisch", "ki_pause", "zu_gross_fuer_ki"].every((k) => lese.istTechnisch(k) && !/unscharf|Schuld|falsch/.test(lese.lesefehlerSatz(k as any, "sie"))), "Technische Klassen: beim Kunden nur „wird geprüft“");
 ok(lese.lesefehlerSatz("technisch", "du", { versuch: 3 }).includes("von Hand"), "Office sieht nach dem dritten Versuch „bitte von Hand ansehen“");
 
+// ── Querprüfung 08.10.2026: Was das Team entfernt — Grund, Frist, Leitung (Art. 5 Abs. 1 lit. c/e, Art. 17 DSGVO) ──
+console.log("\n8b · Querprüfung: Entfernen durch das Team (Grund, Frist, Leitung)");
+{
+  const lies = (d: string) => fs.readFileSync(path.resolve(d), "utf8");
+  const g = shared.ENTFERN_GRUENDE.map((x) => x.wert).join(",");
+  ok(g === "falsche_person,nicht_benoetigt,veraltet" && shared.ENTFERNT_AUFBEWAHRUNG_TAGE === 90, `Drei Gründe, 90 Tage Archiv (${g})`);
+  ok(shared.entfernenLeertSofort("falsche_person") && shared.entfernenLeertSofort("nicht_benoetigt") && !shared.entfernenLeertSofort("veraltet") && !shared.entfernenLeertSofort(undefined),
+    "„Falsche Person“ und „nicht benötigt“ leeren sofort; „veraltet“ und alter Client ohne Angabe → Archiv mit Frist");
+  const lib = lies("server/lib/fiaon-unterlagen.ts");
+  const ent = lib.slice(lib.indexOf("export async function unterlageEntfernen"), lib.indexOf("export async function unterlageEndgueltigLoeschen"));
+  ok(/const leeren = vomKunden \|\| entfernenLeertSofort\(opt\.grundArt\)/.test(ent) && /inhalt = CASE WHEN \$\{leeren\}/.test(ent), "unterlageEntfernen: der Grund entscheidet über den Inhalt (Kunde immer leer)");
+  const leer = lib.slice(lib.indexOf("export async function kategorieLeeren"), lib.indexOf("// Eine Datei lesen"));
+  ok(/if \(!leeren\) \{[\s\S]{0,200}unterlageSichern/.test(leer) && /art = \$\{`frueher_\$\{k\}`\} AND doc_hash = ANY/.test(leer), "kategorieLeeren: ohne Archiv bei „falsche Person“; sonst trägt die Archivfassung den Entfernt-Vermerk (Frist)");
+  ok(/export async function entfernteInhalteLeeren/.test(lib) && /entfernt_am < NOW\(\) - make_interval\(days => \$\{tage\}::int\)/.test(lib), "Takt-Funktion leert Inhalte nach der Frist");
+  ok(/tageslauf\('unterlagen_frist', async \(\) => await \(await import\('\.\/lib\/fiaon-unterlagen'\)\)\.entfernteInhalteLeeren\(\)/.test(lies("server/routes.ts")), "Takt unterlagen_frist ist eingetragen");
+  const r = lies("server/routes/fiaon-unterlagen.ts");
+  ok((r.match(/grundArt: req\.body\?\.grundArt \?\? null/g) ?? []).length === 2 && /datei\/:id\/endgueltig", requireAgent[\s\S]{0,300}istLeitungsRolle\(z\.rolle\)/.test(r) && /\/admin\/unterlagen\/:ref\/datei\/:id\/endgueltig"/.test(r),
+    "Routen: Grund-Art in Office und Chefbüro, „endgültig löschen“ nur Leitung (Office) bzw. hinter dem Admin-Code");
+  ok(/grundArt: req\.body\?\.grundArt \?\? null \}\)/.test(lies("server/routes/fiaon-telefonie.ts")) && /octet_length\(inhalt\) > 0/.test(lies("server/routes/fiaon-telefonie.ts")), "Alter Knopf „Löschen“ kennt die Grund-Art; Archiv öffnet keine geleerte Fassung");
+  const ui = lies("client/src/components/unterlagen/UnterlagenAkte.tsx");
+  ok(/ENTFERN_GRUENDE\.map/.test(ui) && /grundArt: weg\.art/.test(ui) && /Endgültig löschen<\/button>/.test(ui) && /stand\.darfEndgueltig/.test(ui) && !/die Datei bleibt im Archiv\):`\)/.test(ui),
+    "Akte: Grund wählen statt Prompt, Leitungsknopf „Endgültig löschen“ in „Entfernt“");
+  ok(/„falsche Person“ oder „nicht benötigt“ löscht den Inhalt sofort/.test(lies("client/src/pages/agent/rundgaenge.ts")), "Rundgang nachgezogen");
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // TEIL 2 — LOKALE DATENBANK
 // ═════════════════════════════════════════════════════════════════════════════
@@ -517,6 +542,47 @@ if (!echteDb) {
   const [nachL] = (await lauf`SELECT id_card_pdf IS NULL AS leer FROM fiaon_applications WHERE ref = ${paketB}`) as any[];
   const [archL] = (await lauf`SELECT count(*)::int AS n FROM fiaon_dokumente WHERE person_id = ${personB} AND art = 'frueher_ausweis'`) as any[];
   ok2(leer.ok && nachL.leer && Number(archL.n) === 1, "Löschen: Spalte leer, Fassung im Archiv, Dateien mit Grund entfernt");
+  const [archLe] = (await lauf`SELECT entfernt_am IS NOT NULL AS markiert FROM fiaon_dokumente WHERE person_id = ${personB} AND art = 'frueher_ausweis' LIMIT 1`) as any[];
+  ok2(archLe?.markiert === true, "Querprüfung: die Archivfassung aus „Löschen“ trägt den Entfernt-Vermerk (die Frist erfasst sie)");
+
+  // ── Querprüfung 08.10.2026: Grund-Art beim Entfernen, Frist, Leitung, „Löschen“ ohne Archiv ──
+  const personG = await neuePerson("G");
+  const paketG = `FIAON-${kennung}-G`;
+  await neueBestellung(personG, paketG, true);
+  const idVon = async (name: string) => Number(((await lauf`SELECT id FROM fiaon_dokumente WHERE person_id = ${personG} AND dateiname = ${name} ORDER BY id DESC LIMIT 1`) as any[])[0]?.id);
+  for (const n of ["dritter.pdf", "alt.pdf", "neu.pdf", "frisch.pdf"]) {
+    await U.unterlageHinzufuegen({ personId: personG, kategorie: "weitere", unterart: "sonstiges", datei: { buffer: await textPdf([`Beleg ${n} ${kennung}`]), name: n }, wer: team, herkunft: "mitarbeiter" });
+  }
+  const wDritter = await U.unterlageEntfernen(personG, await idVon("dritter.pdf"), team, "Ausweis der Schwester, gehört nicht hierher", lauf, { grundArt: "falsche_person" });
+  const [zDritter] = (await lauf`SELECT octet_length(inhalt) AS n, entfernt_grund FROM fiaon_dokumente WHERE id = ${await idVon("dritter.pdf")}`) as any[];
+  ok2(wDritter.ok && Number(zDritter.n) === 0 && /^Falsche Person: /.test(String(zDritter.entfernt_grund)) && (await U.dateiLesen(personG, await idVon("dritter.pdf"))) === null,
+    "Querprüfung: Team entfernt „falsche Person“ → Inhalt sofort gelöscht, auch das Office öffnet nichts mehr");
+  await U.unterlageEntfernen(personG, await idVon("alt.pdf"), team, "durch neue Fassung ersetzt", lauf, { grundArt: "veraltet" });
+  await U.unterlageEntfernen(personG, await idVon("neu.pdf"), team, "durch neue Fassung ersetzt", lauf, { grundArt: "veraltet" });
+  await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW() - INTERVAL '91 days' WHERE id = ${await idVon("alt.pdf")}`;
+  await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW() - INTERVAL '10 days' WHERE id = ${await idVon("neu.pdf")}`;
+  const geleert = await U.entfernteInhalteLeeren(lauf);
+  const [zAlt] = (await lauf`SELECT octet_length(inhalt) AS n, entfernt_grund FROM fiaon_dokumente WHERE id = ${await idVon("alt.pdf")}`) as any[];
+  const [zNeu] = (await lauf`SELECT octet_length(inhalt) AS n FROM fiaon_dokumente WHERE id = ${await idVon("neu.pdf")}`) as any[];
+  ok2(geleert >= 1 && Number(zAlt.n) === 0 && /Inhalt nach 90 Tagen gelöscht/.test(String(zAlt.entfernt_grund)) && Number(zNeu.n) > 0,
+    `Querprüfung: Frist — nach 91 Tagen geleert, nach 10 Tagen noch im Archiv (${geleert} geleert)`);
+  const vorAktiv = await U.unterlageEndgueltigLoeschen(personG, await idVon("frisch.pdf"), team, "Leitung: weg damit");
+  ok2(!vorAktiv.ok && vorAktiv.status === 409, "Querprüfung: „endgültig löschen“ nicht an einer aktiven Datei (erst entfernen)");
+  const endg = await U.unterlageEndgueltigLoeschen(personG, await idVon("neu.pdf"), { art: "mitarbeiter", name: "Prüfstand Leitung", agentId: null }, "Kunde verlangt Löschung");
+  const [zEndg] = (await lauf`SELECT octet_length(inhalt) AS n, entfernt_grund FROM fiaon_dokumente WHERE id = ${await idVon("neu.pdf")}`) as any[];
+  const [vEndg] = (await lauf`SELECT note FROM fiaon_contact_log WHERE ref = ${paketG} AND note LIKE '%endgültig gelöscht (von Prüfstand Leitung)%' LIMIT 1`) as any[];
+  ok2(endg.ok && Number(zEndg.n) === 0 && /endgültig gelöscht von Prüfstand Leitung/.test(String(zEndg.entfernt_grund)) && !!vEndg,
+    "Querprüfung: Leitung löscht eine entfernte Datei endgültig — Inhalt weg, Vermerk und Verlaufseintrag bleiben");
+  const stG = (await U.unterlagenStand(personG, "office")).kategorien.find((k) => k.kategorie === "weitere")!;
+  ok2((stG.entfernte ?? []).filter((d) => d.inhaltGeloescht).length === 3, "Querprüfung: die Akte zeigt die drei geleerten Dateien als „Inhalt gelöscht“");
+  // „Löschen“ (ganze Kategorie) mit „falsche Person“: keine Archivfassung, Inhalt leer.
+  await U.unterlageHinzufuegen({ personId: personG, kategorie: "ausweis", unterart: "reisepass", datei: { buffer: await textPdf(["Reisepass Passport", `P<D<<DRITTE<<PERSON ${kennung}`]), name: "pass-dritter.pdf" }, wer: team, herkunft: "mitarbeiter" });
+  await U.akteFassungBinden(personG, "ausweis");
+  const leerG = await U.kategorieLeeren(personG, "ausweis", team, "Pass einer anderen Person", lauf, { grundArt: "falsche_person" });
+  const [archG] = (await lauf`SELECT count(*)::int AS n FROM fiaon_dokumente WHERE person_id = ${personG} AND art = 'frueher_ausweis'`) as any[];
+  const [inhG] = (await lauf`SELECT COALESCE(sum(octet_length(inhalt)), 0)::int AS n FROM fiaon_dokumente WHERE person_id = ${personG} AND art = 'unterlage' AND kategorie = 'ausweis'`) as any[];
+  const [spG] = (await lauf`SELECT id_card_pdf IS NULL AS leer FROM fiaon_applications WHERE ref = ${paketG}`) as any[];
+  ok2(leerG.ok && Number(archG.n) === 0 && Number(inhG.n) === 0 && spG.leer === true, `Querprüfung: „Löschen“ mit „falsche Person“ — keine Archivfassung, kein Inhalt, Spalte leer (${archG.n}/${inhG.n})`);
 
   // 0-Byte-Spalte zählt nicht als „liegt vor“
   const personC = await neuePerson("C");
@@ -664,7 +730,7 @@ if (!echteDb) {
     `Nachlieferung nach Trägerwechsel hängt sich an die frühere Lieferung an — SCHUFA + CRIF in der Akte (${l1.ok ? "" : l1.text}${l2.ok ? "" : l2.text}${aktivF.length} aktiv)`);
 
   // Aufräumen: nur die eigenen Prüfstand-Zeilen
-  const personen = [person, personB, personC, personD, personE, personF, f1.g, f1.v, f2.g, f2.v];
+  const personen = [person, personB, personC, personD, personE, personF, personG, f1.g, f1.v, f2.g, f2.v];
   await lauf`DELETE FROM fiaon_auskunft_beschaffung WHERE ref LIKE ${`%${kennung}%`}`;
   await lauf`DELETE FROM fiaon_dokumente WHERE person_id = ANY(${personen})`;
   await lauf`DELETE FROM fiaon_unterlagen_akte WHERE person_id = ANY(${personen})`;

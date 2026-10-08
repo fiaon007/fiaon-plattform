@@ -9,7 +9,8 @@
 //   · Stand (liegt vor / fehlt / wird geprüft / bitte neu) mit dem internen Satz,
 //     beim Ausweis das Urteil der festen Regel, beim Kontoauszug die Monatsleiste;
 //   · Dateiliste mit Lese-Befund („Text, 12 Seiten“, „Foto (aus HEIC)“ …),
-//     Öffnen, Entfernen (mit Grund — die Datei bleibt im Archiv);
+//     Öffnen, Entfernen (mit Grund — Querprüfung 08.10.2026: „falsche Person“/„nicht benötigt“ löschen den
+//     Inhalt sofort, „veraltet/ersetzt“ hält ihn 90 Tage im Archiv; die Leitung kann vorher endgültig löschen);
 //   · „Hinzufügen“ (mehrere, nacheinander, mit Balken), „Alles ersetzen“ (mit
 //     Grund), „Geprüft“ (danach entfernt der Kunde dort nichts mehr selbst),
 //     „Neu lesen“ (Prüfung + Analyse jetzt);
@@ -19,7 +20,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "@/styles/unterlagen.css";
 import {
-  AUSWEIS_ARTEN, WEITERE_UNTERARTEN, UNTERLAGEN_GRENZEN,
+  AUSWEIS_ARTEN, WEITERE_UNTERARTEN, UNTERLAGEN_GRENZEN, ENTFERN_GRUENDE, ENTFERNT_AUFBEWAHRUNG_TAGE,
   type KategorieStand, type UnterlagenDatei, type UnterlagenKategorie, type UnterlagenStand,
 } from "@shared/fiaon-unterlagen";
 import { amText, dateiSenden, fuerUploadVorbereiten, tagText, zuGross } from "@/lib/unterlagen-hochladen";
@@ -45,6 +46,8 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
   // eine weitere Unterlage „Aufenthaltstitel“. Hochladen geht erst nach der Wahl.
   const [wahl, setWahl] = useState<Record<string, string>>({ ausweis: "", weitere: "" });
   const [notiz, setNotiz] = useState("");
+  // Querprüfung 08.10.2026: Entfernen mit Grund-Art — „falsche Person“/„nicht benötigt“ löschen den Inhalt sofort.
+  const [weg, setWeg] = useState<{ id: number; art: string; grund: string } | null>(null);
   const sagen: Melden = melden ?? ((t, titel, text) => { if (t === "schlecht") window.alert([titel, text].filter(Boolean).join("\n")); });
 
   const laden = useCallback(async () => {
@@ -89,15 +92,27 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
     onGeaendert?.();
   }, [basis, onGeaendert]);
 
-  const entfernen = async (d: UnterlagenDatei) => {
-    if (d.id == null) return;
-    const grund = window.prompt(`„${d.name}“ entfernen?\nKurz begründen (steht im Verlauf, die Datei bleibt im Archiv):`);
-    if (grund === null) return;
-    setArbeit(`weg-${d.id}`);
-    const j = await post(`/datei/${d.id}/entfernen`, { grund });
+  const entfernen = async () => {
+    if (!weg) return;
+    if (!weg.art) { sagen("schlecht", "Grund wählen", "Bitte zuerst wählen, warum die Datei entfernt wird."); return; }
+    if (weg.grund.trim().length < 5) { sagen("schlecht", "Grund fehlt", "Bitte kurz begründen (mindestens fünf Zeichen) — der Grund steht im Verlauf."); return; }
+    setArbeit(`weg-${weg.id}`);
+    const j = await post(`/datei/${weg.id}/entfernen`, { grund: weg.grund.trim(), grundArt: weg.art });
     setArbeit(null);
-    if (j?.ok) { if (j.stand) setStand(j.stand); sagen("gut", "Entfernt", j.meldung); onGeaendert?.(); }
+    if (j?.ok) { setWeg(null); if (j.stand) setStand(j.stand); sagen("gut", "Entfernt", j.meldung); onGeaendert?.(); }
     else sagen("schlecht", "Nicht entfernt", j?.error || "Bitte erneut versuchen.");
+  };
+
+  // Querprüfung 08.10.2026: Leitung — Inhalt einer entfernten Datei vor Ablauf der Frist endgültig löschen.
+  const endgueltig = async (d: UnterlagenDatei) => {
+    if (d.id == null) return;
+    const grund = window.prompt(`Inhalt von „${d.name}“ endgültig löschen?\nDas lässt sich nicht rückgängig machen. Kurz begründen (steht im Verlauf):`);
+    if (grund === null) return;
+    setArbeit(`endg-${d.id}`);
+    const j = await post(`/datei/${d.id}/endgueltig`, { grund });
+    setArbeit(null);
+    if (j?.ok) { if (j.stand) setStand(j.stand); sagen("gut", "Endgültig gelöscht", j.meldung); onGeaendert?.(); }
+    else sagen("schlecht", "Nicht gelöscht", j?.error || "Bitte erneut versuchen.");
   };
 
   const aktion = async (k: KategorieStand, was: "geprueft" | "neu-lesen") => {
@@ -162,7 +177,7 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                     <span className="ua-name">{d.name}{d.unterartLabel ? ` · ${d.unterartLabel}` : ""}</span>
                     <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {stand.inhaltErlaubt !== false && <a className={knopf} href={datei(d)} target="_blank" rel="noreferrer">Öffnen</a>}
-                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}`} onClick={() => void entfernen(d)}>Entfernen</button>}
+                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}`} onClick={() => setWeg(weg?.id === d.id ? null : { id: Number(d.id), art: "", grund: "" })}>Entfernen</button>}
                     </span>
                     <small>
                       {[d.seiten ? `${d.seiten} S.` : null, d.groesse, amText(d.am), d.von === "sie" ? "vom Kunden" : d.herkunft === "beschaffung" ? "von FIAON beschafft" : "vom Team",
@@ -170,6 +185,19 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                         d.befundText, d.notiz ? `„${d.notiz}“` : null, d.geprueft ? "geprüft" : null].filter(Boolean).join(" · ")}
                     </small>
                     {d.satz && <small className="ua-warn">{d.satz}</small>}
+                    {weg && weg.id === d.id && (
+                      <div className="ua-wahl" data-fiaon="unterlage-entfernen">
+                        <select value={weg.art} onChange={(e) => setWeg({ ...weg, art: e.target.value })} aria-label="Warum entfernen?">
+                          <option value="" disabled>Warum entfernen? …</option>
+                          {ENTFERN_GRUENDE.map((g) => <option key={g.wert} value={g.wert}>{g.label}</option>)}
+                        </select>
+                        <input type="text" maxLength={300} placeholder="Kurz begründen (steht im Verlauf)" value={weg.grund} onChange={(e) => setWeg({ ...weg, grund: e.target.value })} />
+                        <span style={{ display: "flex", gap: 6 }}>
+                          <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}` || !weg.art || weg.grund.trim().length < 5} onClick={() => void entfernen()}>Entfernen</button>
+                          <button type="button" className={knopf} onClick={() => setWeg(null)}>Abbrechen</button>
+                        </span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -213,7 +241,10 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                     <li key={`e-${d.id}`} className="ua-datei">
                       <span className="ua-name">{d.name}</span>
                       {stand.inhaltErlaubt !== false && !d.inhaltGeloescht && <a className={knopf} href={datei(d)} target="_blank" rel="noreferrer">Öffnen</a>}
-                      <small>{[amText(d.entferntAm), d.entferntVon, d.entferntGrund, d.inhaltGeloescht ? "Inhalt gelöscht (vom Kunden entfernt)" : null].filter(Boolean).join(" · ")}</small>
+                      {stand.darfEndgueltig && !d.inhaltGeloescht && d.id != null && (
+                        <button type="button" className={knopf} disabled={arbeit === `endg-${d.id}`} onClick={() => void endgueltig(d)}>Endgültig löschen</button>
+                      )}
+                      <small>{[amText(d.entferntAm), d.entferntVon, d.entferntGrund, d.inhaltGeloescht ? "Inhalt gelöscht" : `Inhalt wird ${ENTFERNT_AUFBEWAHRUNG_TAGE} Tage nach dem Entfernen gelöscht`].filter(Boolean).join(" · ")}</small>
                     </li>
                   ))}
                 </ul>

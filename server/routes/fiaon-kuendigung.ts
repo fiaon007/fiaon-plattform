@@ -19,6 +19,8 @@ import { absoluteUrl } from "../fiaon-base-url";
 // E-265 Nachbesserung 2 (01.10.2026): Vertragsart und Vertragsende aus denselben Regeln wie WhatsApp und Postfach.
 // E-265 (01.10.2026, Paket Recht): Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), nicht Kalendermonat.
 import { istJahresvertrag, abrechnungsmonatEnde, tagDeutsch, giltZumSatz } from "@shared/fiaon-antrag-stand";
+// Querprüfung 08.10.2026: dieselbe Regel „Identität offen“ wie im Sammellauf Altbestand (Strang b × g).
+import { KUENDIGUNG_IDENTITAET_OFFEN_SQL, identitaetVermerkGueltig, kuendigungIdentitaetSchluessel } from "@shared/fiaon-kuendigung-regel";
 // E-213: Die Urkunde zur Kündigung — Papier, Unterschrift, Prüfsumme.
 import { urkundeAusfertigen, urkundeVerwerfen, urkundeStand, rolleInWorten } from "../lib/fiaon-kuendigung-urkunde";
 
@@ -204,12 +206,9 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
     const alleKandidaten = (await sqlPool`
       SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason,
              -- E-IT-G (08.10.2026): Ohne passendes Geburtsdatum angenommen (Kündigungsseite) → erst buchen,
-             -- wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist. to_jsonb: läuft auch ohne Migration 103.
-             ((COALESCE(to_jsonb(c) ->> 'identifiziert_ueber', 'geburtsdatum') <> 'geburtsdatum'
-               OR COALESCE(c.admin_note, '') LIKE '%– Identität prüfen]%')
-              AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t
-                               WHERE t.schluessel = 'kuendigung-identitaet:' || c.id::text AND t.status = 'erledigt')
-             ) AS identitaet_offen
+             -- wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist. Querprüfung 08.10.: derselbe Ausdruck
+             -- wie für Akte und Chefbüro (KUENDIGUNG_IDENTITAET_OFFEN_SQL, to_jsonb: läuft auch ohne Migration 103).
+             ${sqlPool.unsafe(KUENDIGUNG_IDENTITAET_OFFEN_SQL("c"))} AS identitaet_offen
         FROM cancellation_requests c
         JOIN fiaon_applications a ON a.ref = c.ref AND a.merged_into IS NULL
        WHERE c.status = 'pending' AND a.gekuendigt_am IS NULL
@@ -339,9 +338,36 @@ export async function antragBuchen(antrag: OffenerAntrag, opts: {
   unterzeichner: { name: string; rolle: string; agentId?: number | null };
   /** true = die Leitung bucht auch, wo die Akte selbst nicht buchen darf (mit Ziel). */
   alsLeitung?: boolean; mail?: boolean;
+  /**
+   * Querprüfung 08.10.2026 (Strang b × g): Ist die Identität des Antrags offen (ohne passendes Geburtsdatum
+   * angenommen, Aufgabe „Kündigung – Identität prüfen“ nicht erledigt), bucht nur, wer in einem Satz vermerkt,
+   * wie die Identität geprüft wurde (Rückruf, Ausweis …) — auch die Leitung. Der Vermerk steht im Verlauf und
+   * erledigt die Prüfaufgabe.
+   */
+  identitaetVermerk?: string | null;
 }): Promise<any> {
   if (!antrag.ziel.ziel) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz };
   if (!antrag.ziel.buchbar && !opts.alsLeitung) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz, leitung: true };
+  if (antrag.identitaetOffen && !identitaetVermerkGueltig(opts.identitaetVermerk)) {
+    const satz = `Identität erst prüfen (Aufgabe „Kündigung – Identität prüfen“, Antrag Nr. ${antrag.id}): Der Antrag kam ohne passendes Geburtsdatum. `
+      + "Bitte zuerst die Aufgabe erledigen — oder hier in einem Satz vermerken, wie die Identität geprüft wurde.";
+    return { ok: false, grund: satz, error: satz, identitaet: true };
+  }
+  if (antrag.identitaetOffen) {
+    const vermerk = String(opts.identitaetVermerk).trim().slice(0, 300);
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${antrag.ref || antrag.ziel.ziel}, ${opts.personId}, ${opts.unterzeichner.agentId ?? null}, ${opts.unterzeichner.name}, 'system',
+              ${`Identität zum Kündigungsantrag Nr. ${antrag.id} geprüft (${opts.unterzeichner.name}): ${vermerk}`}, NOW())`.catch(() => {});
+    const [t] = (await sqlPool`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${kuendigungIdentitaetSchluessel(antrag.id)} AND status <> 'erledigt' LIMIT 1`.catch(() => [])) as any[];
+    if (t?.id) {
+      const { auftragErledigen } = await import("../lib/fiaon-auftraege");
+      await auftragErledigen(Number(t.id), {
+        art: "hand", von: opts.unterzeichner.name, autorArt: opts.unterzeichner.agentId ? "agent" : "betreiber", autorAgentId: opts.unterzeichner.agentId ?? null,
+        ergebnis: `Identität geprüft: ${vermerk}`,
+      }).catch((e) => console.error("[KÜNDIGUNG] Prüfaufgabe erledigen:", e));
+    }
+  }
   const erg = await kuendigungDurchfuehren(antrag.ziel.ziel, {
     quelle: "formular", am: antrag.am, grund: opts.grund, sofort: opts.sofort === true,
     personId: opts.personId, unterzeichner: opts.unterzeichner, mail: opts.mail,
@@ -383,6 +409,8 @@ router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agent
         buchbar: offenerAntrag.ziel.buchbar, leitung: offenerAntrag.ziel.buchbar ? null : offenerAntrag.ziel.satz,
         // Die Leitung bucht auch, wo die Akte nicht darf (mit Ziel), und schließt einen Antrag ohne Kündigung.
         darfLeitung: leitung,
+        // Querprüfung 08.10.2026: ohne passendes Geburtsdatum angenommen, Prüfaufgabe offen → Buchen nur mit Vermerk.
+        identitaetOffen: offenerAntrag.identitaetOffen,
       } : null,
       ok: true, ref: a.ref, bezahlt: String(a.payment_status) === "paid", paket: a.pack_name ? String(a.pack_name).split("\n")[0] : null,
       gekuendigt, gekuendigtAm: a.gekuendigt_am, quelle: a.kuendigung_quelle, grund: a.kuendigung_grund,
@@ -422,10 +450,10 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
       const alsLeitung = req.body?.alsLeitung === true;
       if (alsLeitung && !(await istLeitung(req))) return res.status(403).json({ ok: false, error: "Das entscheidet die Leitung." });
       const erg = await antragBuchen(antrag, {
-        grund: `${grund} (${req.agent!.name})`, sofort, personId: b.personId, alsLeitung,
+        grund: `${grund} (${req.agent!.name})`, sofort, personId: b.personId, alsLeitung, identitaetVermerk: req.body?.identitaetVermerk ?? null,
         unterzeichner: { name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id },
       });
-      if (erg?.ok === false && (erg.leitung || !antrag.ziel.ziel)) return res.status(409).json({ ok: false, error: erg.error });
+      if (erg?.ok === false && (erg.leitung || erg.identitaet || !antrag.ziel.ziel)) return res.status(409).json({ ok: false, error: erg.error, identitaet: !!erg.identitaet });
       return res.json(erg);
     }
     // E-213: EIN Vorgang für alle vier Türen — siehe kuendigungDurchfuehren.

@@ -433,6 +433,68 @@ abschnitt("A8c · Nachprüfung 08.10.: Freigabe, Löschung, Merge, Wache, Texte"
   ok(krit(1) === "Laut Ihrer Auskunft 1 belastender Eintrag." && krit(3) === "Laut Ihrer Auskunft 3 belastende Einträge." && !/Eintrag\/Einträge/.test(krit(0)), `Nachprüfung: Einzahl/Mehrzahl im Auskunft-Kriterium (${krit(1)} | ${krit(0)})`);
 }
 
+abschnitt("A8d · Querprüfung 08.10.: Löschung, Wache, Arten, Texte, Datenschutz");
+{
+  // Fund 1/9 (hoch): endgültige Löschung nimmt Dateien, Akte und Vorgänge der Familie mit.
+  const loe = lies("server/lib/fiaon-loeschen.ts");
+  const eg = loe.slice(loe.indexOf("async function endgueltigLoeschen"), loe.indexOf("async function anonymisieren"));
+  ok(/personFamilie\(k\.personId, lauf\)/.test(eg) && /personDatenLoeschen\(familie, \{ endgueltig: true \}, lauf\)/.test(eg) && /kundenbereichZeilenLoeschen\(familie, k\.refs, lauf\)/.test(eg)
+    && eg.indexOf("kundenbereichZeilenLoeschen(familie") < eg.indexOf("DELETE FROM fiaon_applications"),
+    "Querprüfung: endgueltigLoeschen — Familie (personFamilie), Finanzdaten der Familie, Kundenbereich-Zeilen VOR den Bestellungen");
+  ok(/DELETE FROM fiaon_dokumente WHERE person_id = ANY\(\$\{familie\}\) OR ref = ANY/.test(loe) && /DELETE FROM fiaon_unterlagen_akte WHERE person_id = ANY\(\$\{familie\}\)/.test(loe)
+    && /DELETE FROM fiaon_vorgaenge WHERE person_id = ANY\(\$\{familie\}\)/.test(loe) && /UPDATE fiaon_dokumente SET inhalt = '\\\\x'::bytea[\s\S]{0,200}person_id = ANY\(\$\{familie\}\)/.test(loe),
+    "Querprüfung: Dokumente (erst leeren, dann löschen), Akte je Kategorie, Vorgänge — auch die der Dubletten");
+  const fl = lies("server/lib/fiaon-finanzauswertung.ts");
+  ok(/personDatenLoeschen\(personIdOderFamilie: number \| number\[\]/.test(fl) && (fl.match(/WHERE person_id = ANY\(\$\{personId\}\)/g) ?? []).length === 8, "Querprüfung: personDatenLoeschen nimmt die Familie (alle acht Anweisungen)");
+  // Fund 8: Wache über den einen Weg.
+  const lief = lies("server/lib/fiaon-auskunft-lieferung.ts");
+  const wache = lief.slice(lief.indexOf("export async function wacheAufgabenSchliessen"), lief.indexOf("export async function wacheAufgabenSchliessen") + 2200);
+  ok(/systemAufgabenErledigen\(schluessel, grund, "Liegezeit-Wache", lauf\)/.test(wache) && /auftragErledigen\(Number\(z\.id\)/.test(wache) && /VON_HAND_WIEDER_OFFEN\.test/.test(wache)
+    && !/SET status = 'erledigt'/.test(lief.slice(lief.indexOf("async function beschaffungsAufgabeSchliessen"), lief.indexOf("export const SAMMEL_LINK_FEHLT_SCHLUESSEL"))),
+    "Querprüfung: Wache und Beschaffung erledigen über auftragErledigen (Beitrag, von, Ereignis), von Hand Geöffnetes bleibt offen");
+  // Fund 7: eigene Arten.
+  const AA = await import("../shared/fiaon-auftrag-arten");
+  const ue = AA.auftragArtVon({ schluessel: "unterlagen-eingang:123", quelle: "bestellung", titel: "Unterlagen eingegangen — Auswertung erzeugen" });
+  const ab = AA.auftragArtVon({ schluessel: "auskunft-bestaetigung-anruf:7", quelle: "bestellung", titel: "Auftragsbestätigung einholen" });
+  ok(ue === "auswertung" && ab === "auskunft_bestaetigung" && AA.artRegel(ue).nurHand && AA.artRegel(ab).nurHand
+    && AA.auftragArtVon({ schluessel: "auskunft-beschaffung:FIAON-SCHUFA-X", quelle: "bestellung", titel: "Auskunft beschaffen" }) === "auskunft",
+    `Querprüfung: „Unterlagen eingegangen“ und „Auftragsbestätigung“ haben eigene Arten (${ue}, ${ab}); die Beschaffung bleibt „auskunft“`);
+  // Fund 14: ehrliche Sätze.
+  const pdfQ2 = lies("server/lib/fiaon-finanzauswertung-pdf.ts");
+  ok(!/fließt dann in eine neue Fassung/.test(pdfQ2) && /Ihre Ansprechperson kann dann eine neue Fassung dieser Auswertung erstellen/.test(pdfQ2), "Querprüfung: PDF verspricht keine automatische Neufassung");
+  const karte = lies("client/src/components/finanzen/Finanzauswertung.tsx");
+  ok(!/Sobald Ihre Unterlagen vollständig sind und Ihre Ansprechperson/.test(karte) && /a\.laufend !== false/.test(karte) && /laufend,/.test(lies("server/routes/fiaon-finanzauswertung.ts"))
+    && /a\.gekuendigt_am IS NULL/.test(lies("server/routes/fiaon-finanzauswertung.ts")), "Querprüfung: Leerkarte nur mit laufendem, ungekündigtem Paket — sonst ein neutraler Satz");
+  // Fund 15: Datenkopie-Weg.
+  const mailMod = await import("../server/mail/vorlagen/auskunft-lead");
+  const dk = mailMod.schufaRequestedBaustein({ auskunft_liefermodus: "datenkopie" })!;
+  const ek = mailMod.schufaRequestedBaustein({ auskunft_liefermodus: "einkauf" })!;
+  ok(!/beschaffen wir/.test(dk.preheader) && /Datenkopie in Ihrem Namen an/.test(dk.preheader) && /beschaffen wir/.test(ek.preheader) && dk.knopf?.url === ek.knopf?.url,
+    "Querprüfung: Datenkopie-Mail mit eigener Vorzeile (kein „wir beschaffen“), Knopf wie im Einkauf");
+  const AKs = await import("../shared/fiaon-auskunft");
+  const hk = AKs.AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT("privat");
+  ok(!/kostenpflichtig|kostenlos/i.test(hk) && /Datenkopie nach Art\. 15 DSGVO/.test(hk) && /per Post an mich/.test(hk) && AKs.AUSKUNFT_DATENKOPIE_FASSUNG.length <= 20
+    && AKs.AUSKUNFT_DATENKOPIE_FASSUNG !== AKs.AUSKUNFT_AUFTRAG_FASSUNG && !/kostenpflichtig|kostenlos/i.test(AKs.AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT("firma")),
+    "Querprüfung: Haken im Datenkopie-Weg ohne „kostenpflichtig“/„kostenlos“, eigene Textfassung (≤ 20 Zeichen)");
+  const kauf2 = lies("server/routes/fiaon-auskunft-kauf.ts");
+  ok(/auftragHaken\(a\.art, datenkopie\)/.test(kauf2) && /Wir fordern Ihre Datenkopie nach Art\. 15 DSGVO in Ihrem Namen an\. Sie kommt per Post zu Ihnen/.test(kauf2)
+    && /wortlaut: AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT\(a\.art\), fassung: AUSKUNFT_DATENKOPIE_FASSUNG/.test(kauf2),
+    "Querprüfung: Bestätigungsseite — Leistung, Haken und Vermerk im Datenkopie-Weg mit eigenem Wortlaut");
+  // Fund 10: Datenschutz.
+  ok(/Anthropic PBC oder OpenAI, L\.L\.C\./.test(FA.DATENSCHUTZ_ABSATZ) && /USA/.test(FA.DATENSCHUTZ_ABSATZ) && /Art\. 46 Abs\. 2 lit\. c DSGVO/.test(FA.DATENSCHUTZ_ABSATZ) && /Art\. 22 DSGVO/.test(FA.DATENSCHUTZ_ABSATZ)
+    && /Abschnitt IV a/.test(FA.DATENSCHUTZ_ABSATZ), "Querprüfung: PDF-Datenschutz nennt Anbieter, Drittland mit Garantie, Art. 22 und den Abschnitt der Erklärung");
+  const priv = lies("client/src/pages/privacy.tsx");
+  ok(/id="unterlagen"/.test(priv) && /IV a\. Unterlagen, Auslesen mit KI/.test(priv) && /Anthropic PBC oder OpenAI/.test(priv) && /Standardvertragsklauseln/.test(priv) && /Art\. 22 DSGVO/.test(priv)
+    && /Profiling/.test(priv) && /Upload-Link ohne Anmeldung/.test(priv) && !/Ein Transfer dieser spezifischen Analysedaten in Drittländer findet nicht statt/.test(priv) && /Stand 8\. Oktober 2026/.test(priv),
+    "Querprüfung: Datenschutzerklärung IV a (Unterlagen, Upload-Link, KI-Anbieter, Drittland, Art. 9, Profiling ohne Art. 22, Speicherdauer), Stand 08.10.");
+  const link = lies("client/src/pages/unterlagen-link.tsx");
+  ok(/href="\/datenschutz#unterlagen"/.test(link) && /href="\/impressum"/.test(link) && /KI-Dienstleister in unserem Auftrag/.test(link), "Querprüfung: Upload-Seite nennt die KI-Lesung und hat Datenschutz und Impressum in der Fußzeile");
+  for (const [n, t] of [["Datenschutz-Absatz", FA.DATENSCHUTZ_ABSATZ], ["Haken Datenkopie", hk], ["Datenkopie-Vorzeile", dk.preheader]] as [string, string][]) {
+    const w = wandPruefen(t, []);
+    ok(w.length === 0, `Querprüfung: Wortwand ${n} (${w.map((x: any) => x.hinweis).join("; ")})`);
+  }
+}
+
 abschnitt("A9 · PDF-HTML (ohne Chromium)");
 {
   const pdfMod = await import("../server/lib/fiaon-finanzauswertung-pdf");
@@ -902,6 +964,17 @@ if (!LOKAL) {
     await LI.beschaffungWache(sqlPool, { heuteIso });
     const t2 = await todoStand(k1.anruf);
     ok(t2?.status === "erledigt" && /Einwilligung liegt vor/.test(t2.ergebnis ?? ""), `Nachprüfung: Kunde hat bestätigt → Anruf-Aufgabe automatisch erledigt (${t2?.ergebnis})`);
+    // Querprüfung 08.10.2026 (Fund 8): der eine Weg — Art „auto“, „erledigt von“, Ereignis, Beitrag; von Hand Geöffnetes bleibt offen.
+    const [t2v] = (await sqlPool`SELECT id, erledigt_art, erledigt_von, erledigt_ereignis,
+                                         (SELECT COUNT(*)::int FROM fiaon_betreiber_todo_beitraege b WHERE b.todo_id = t.id AND b.text LIKE 'Automatisch erledigt (Liegezeit-Wache)%') AS beitraege
+                                    FROM fiaon_betreiber_todos t WHERE schluessel = ${k1.anruf}`) as any[];
+    ok(t2v?.erledigt_art === "auto" && t2v.erledigt_von === "Liegezeit-Wache" && /Einwilligung liegt vor/.test(String(t2v.erledigt_ereignis)) && Number(t2v.beitraege) >= 1,
+      `Querprüfung: Wache erledigt über auftragErledigen (${JSON.stringify(t2v)})`);
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'offen', wieder_offen_grund = 'von Prüfstand Leitung wieder geöffnet: Kunde ruft selbst zurück' WHERE id = ${t2v.id}`;
+    const [wo] = (await sqlPool`SELECT wieder_offen_grund FROM fiaon_betreiber_todos WHERE id = ${t2v.id}`) as any[];
+    const zuHand = await LI.wacheAufgabenSchliessen(Number(bl.id), [k1.anruf], "Prüfstand: erneut", sqlPool);
+    ok(/^von /.test(String(wo?.wieder_offen_grund)) && zuHand === 0 && (await todoStand(k1.anruf))?.status !== "erledigt", `Querprüfung: von Hand wieder geöffnet → die Wache schließt nicht erneut (${wo?.wieder_offen_grund})`);
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW() WHERE id = ${t2v.id}`;
     const wd = await LI.beschaffungWache(sqlPool, { heuteIso });
     ok((await todoStand(k1.aufgabe))?.status === "offen" || (await todoStand(k1.dringend))?.status === "offen", `Wache: jetzt beschaffbar → Liegezeit-Aufgabe (${wd.texte.filter((t) => t.startsWith("Erika TeststegL")).join(" · ")})`);
     await LI.beschaffungAktion(Number(bl.id), "abschliessen", leitungA, "Prüfstand: geliefert");
@@ -922,6 +995,48 @@ if (!LOKAL) {
     // Nachprüfung 08.10.: Sammelknopf zweimal zugleich → der zweite läuft nicht.
     const [s1, s2b] = await Promise.all([LI.auftragLinksAlleSenden(leitungA), LI.auftragLinksAlleSenden(leitungB)]);
     ok([s1, s2b].filter((x) => x.texte.some((t) => /läuft schon/.test(t))).length === 1, "Nachprüfung: paralleler Sammelknopf verschickt nicht doppelt");
+  }
+
+  abschnitt("B6 · Querprüfung 08.10.: endgültige DSGVO-Löschung nimmt Dateien, Akte und Vorgänge der Familie mit");
+  {
+    const LO = await import("../server/lib/fiaon-loeschen");
+    const mk = async (n: string) => ((await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email)
+      VALUES (${`${marke}-${n}`}, 'Lea', ${`Loeschprobe${n}`}, ${`it-d-${marke.toLowerCase()}-${n}@example.invalid`}) RETURNING id`) as any[])[0].id as number;
+    const kopf = Number(await mk("LK")), dub = Number(await mk("LD"));
+    await sqlPool`UPDATE fiaon_persons SET merged_into_person_id = ${kopf}, account_status = 'merged', is_blocked = TRUE WHERE id = ${dub}`;
+    const lref = `FIAON-${marke}-LK`;
+    // Ein Interessent ohne Zahlung, ohne Rechnung, ohne Provision → „endgültig".
+    await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, first_name, last_name, email, country, type, pack_key, pack_name, payment_status, created_at)
+                  VALUES (${lref}, ${`${lref}-Z`}, ${kopf}, 'Lea', 'LoeschprobeLK', ${`it-d-${marke.toLowerCase()}-lk@example.invalid`}, 'DE', 'privat', 'plus', 'FIAON Plus', 'pending_payment', NOW() - INTERVAL '3 days')`;
+    const datei = async (pid: number, art: string, kat: string | null, name: string, ref: string | null = null) => {
+      const inhalt = await pdfAus([`${name} ${pid} ${marke}`]);
+      await sqlPool`INSERT INTO fiaon_dokumente (person_id, ref, art, kategorie, dateiname, mime, bytes, inhalt, quelle, doc_hash)
+                    VALUES (${pid}, ${ref}, ${art}, ${kat}, ${name}, 'application/pdf', ${inhalt.length}, ${inhalt}, 'kunde', ${`${marke}-${pid}-${name}`})`;
+    };
+    await datei(kopf, "unterlage", "ausweis", "ausweis.pdf", lref);
+    await datei(kopf, "unterlage", "kontoauszug", "auszug.pdf");
+    await datei(kopf, "finanzauswertung", null, "FA-1-1.pdf");
+    await datei(dub, "unterlage", "schufa", "auskunft-dublette.pdf");
+    await sqlPool`INSERT INTO fiaon_unterlagen_akte (person_id, kategorie, ref, dateien) VALUES (${kopf}, 'ausweis', ${lref}, 1), (${dub}, 'schufa', NULL, 1)`;
+    await sqlPool`INSERT INTO fiaon_vorgaenge (person_id, art, titel) VALUES (${dub}, 'brief', 'Brief der Dublette')`;
+    await sqlPool`INSERT INTO fiaon_unterlagen_anfragen (person_id, arten, quelle, mail_status, adresse) VALUES (${dub}, ${["ausweis"]}, 'akte', 'gesendet', 'dub@example.invalid')`;
+    const v = await LO.vorschau([kopf]);
+    ok(v.endgueltig === 1 && v.kandidaten[0]?.art === "endgueltig", `Einteilung: unbezahlter Interessent → endgültig (${v.kandidaten[0]?.begruendung})`);
+    const erg = await LO.ausfuehren([kopf], "Prüfstand", v.bestaetigung, "Querprüfung 08.10.");
+    ok(erg.ok && erg.endgueltig === 1, `Löschung ausgeführt (${erg.meldung ?? erg.fehler})`);
+    const fam = [kopf, dub];
+    const [z] = (await sqlPool`
+      SELECT (SELECT COUNT(*)::int FROM fiaon_dokumente WHERE person_id = ANY(${fam}) OR ref = ${lref}) AS dok,
+             (SELECT COUNT(*)::int FROM fiaon_unterlagen_akte WHERE person_id = ANY(${fam})) AS akte,
+             (SELECT COUNT(*)::int FROM fiaon_vorgaenge WHERE person_id = ANY(${fam})) AS vg,
+             (SELECT COUNT(*)::int FROM fiaon_unterlagen_anfragen WHERE person_id = ANY(${fam})) AS anf,
+             (SELECT COUNT(*)::int FROM fiaon_persons WHERE id = ANY(${fam})) AS pers,
+             (SELECT COUNT(*)::int FROM fiaon_applications WHERE ref = ${lref}) AS best`) as any[];
+    ok(z.dok === 0, `Keine Datei mehr in fiaon_dokumente — Unterlagen, Auswertungs-PDF und die Datei der Dublette (${z.dok})`);
+    ok(z.akte === 0 && z.vg === 0 && z.anf === 0, `Akte je Kategorie, Vorgänge und Anfragen der Familie gelöscht (${z.akte}/${z.vg}/${z.anf})`);
+    ok(z.pers === 0 && z.best === 0, `Kopf, Wegweiser der Dublette und Bestellung gelöscht (${z.pers}/${z.best})`);
+    const [pr] = (await sqlPool`SELECT art, person_id FROM fiaon_loeschungen WHERE stapel = ${erg.stapel ?? ""}`) as any[];
+    ok(pr?.art === "endgueltig" && Number(pr.person_id) === kopf, "Das Löschprotokoll bleibt (Art, Person, Vorgang)");
   }
 
   // ═════════════════════════════════════════════════════════════════════════

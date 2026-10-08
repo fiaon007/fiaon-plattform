@@ -1510,9 +1510,11 @@ router.get("/agent/dokumente/:personId/archiv/:id", requireAgent, async (req: Ag
     const [d] = (await sqlPool`
       SELECT id, ref, substring(art from 9) AS art, mime, inhalt, hochgeladen_am FROM fiaon_dokumente
        WHERE id = ${Number(req.params.id)} AND person_id = ${personId} AND art LIKE 'frueher\\_%' AND geloescht_am IS NULL
+         AND octet_length(inhalt) > 0
        LIMIT 1
     `) as any[];
-    if (!d) return res.status(404).json({ ok: false, error: "Diese Fassung gibt es nicht." });
+    // Querprüfung 08.10.2026: Ist der Inhalt nach der Frist gelöscht, gibt es nichts mehr zu öffnen (keine leere Datei).
+    if (!d) return res.status(404).json({ ok: false, error: "Diese Fassung gibt es nicht (mehr) — ihr Inhalt ist gelöscht." });
     const label = DOKUMENTE.find((x) => x.art === d.art)?.label ?? String(d.art);
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
@@ -1777,7 +1779,8 @@ router.post("/agent/dokumente/:personId/:art/loeschen", requireAgent, async (req
     // 60 Tagen), und der Verlauf scheiterte ohne ref still. Eine einzelne Datei entfernt die Akte unter
     // Dokumente → „Entfernen" (POST /agent/unterlagen/:personId/datei/:id/entfernen).
     const { kategorieLeeren } = await import("../lib/fiaon-unterlagen");
-    const erg = await kategorieLeeren(personId, art, { art: "mitarbeiter", name: req.agent!.name, agentId: req.agent!.id }, grund);
+    // Querprüfung 08.10.2026: Grund-Art wie beim Entfernen — „falsche_person“/„nicht_benoetigt“ ohne Archivfassung, Inhalt sofort leer.
+    const erg = await kategorieLeeren(personId, art, { art: "mitarbeiter", name: req.agent!.name, agentId: req.agent!.id }, grund, undefined, { grundArt: req.body?.grundArt ?? null });
     if (!erg.ok) return res.json({ ok: false, error: erg.satz });
     res.json({ ok: true, meldung: erg.satz });
   } catch (err) {

@@ -246,7 +246,11 @@ function teil2(): void {
   const rund = lies("client/src/pages/agent/rundgaenge.ts");
   pruef("Rundgang erklärt Band und Betreuer-Regel", /aufgegangen/.test(rund) && /nur bei zwei AKTIVEN Betreuern/.test(rund));
   const mig = lies("db/migrations/101_betreuer_nie_null.sql");
-  pruef("Migration 101: CHECK nur, wenn keine 0 mehr da ist (sonst NOTICE)", /RAISE NOTICE/.test(mig) && /assigned_agent_id IS NULL OR assigned_agent_id > 0/.test(mig) && /lock_timeout/.test(mig));
+  // Querprüfung 08.10.2026: keine stille NOTICE mehr — mit einer 0 bricht 101 ab (FAIL im Log, Datei bleibt offen, nächster Start erneut).
+  const mig101 = mig.split("\n").filter((z) => !/^\s*--/.test(z)).join("\n");
+  pruef("Migration 101: CHECK nur, wenn keine 0 mehr da ist — sonst EXCEPTION (nicht NOTICE + RETURN, die Datei bliebe sonst still verbucht)",
+    /RAISE EXCEPTION '[^']*it-e-einmal/.test(mig101) && !/RAISE NOTICE/.test(mig101) && (mig101.match(/RETURN;/g) ?? []).length === 1
+    && /assigned_agent_id IS NULL OR assigned_agent_id > 0/.test(mig101) && /lock_timeout/.test(mig101));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -274,6 +278,31 @@ async function teil3(): Promise<void> {
         catch (e: any) { abgewiesen = e?.code === "23514"; }
         pruef("Migration 101: die Wand weist assigned_agent_id = 0 ab", abgewiesen);
         await tx`ALTER TABLE fiaon_persons DROP CONSTRAINT fiaon_persons_agent_echt`;
+      }
+      // Querprüfung 08.10.2026: Liegt beim Deploy noch eine 0 vor, bricht 101 ab — die Datei bleibt offen (nicht still verbucht).
+      {
+        let fehler101 = "";
+        try {
+          await tx.savepoint(async (sp) => {
+            await sp`ALTER TABLE fiaon_persons DROP CONSTRAINT IF EXISTS fiaon_persons_agent_echt`;
+            await sp`INSERT INTO fiaon_persons (person_ref, first_name, assigned_agent_id) VALUES (${`FIAON-P-${marke}N`}, 'Null', 0)`;
+            await sp.unsafe(lies("db/migrations/101_betreuer_nie_null.sql"));
+          });
+        } catch (e: any) { fehler101 = String(e?.message || e); }
+        pruef("Migration 101 mit einer 0: Abbruch (FAIL) mit Hinweis auf it-e-einmal — keine stille NOTICE", /it-e-einmal/.test(fehler101) && /NICHT gesetzt/.test(fehler101), fehler101.slice(0, 160));
+        const [nullen] = (await tx`SELECT count(*)::int AS n FROM fiaon_persons WHERE assigned_agent_id IS NOT NULL AND assigned_agent_id <= 0`) as any[];
+        let leer101 = Number(nullen?.n) > 0 ? "ok" : "";
+        if (Number(nullen?.n) > 0) console.log(`  (101 ohne 0 übersprungen: die lokale Kopie trägt ${nullen.n} Altfälle)`);
+        else try {
+          await tx.savepoint(async (sp) => {
+            await sp`ALTER TABLE fiaon_persons DROP CONSTRAINT IF EXISTS fiaon_persons_agent_echt`;
+            await sp.unsafe(lies("db/migrations/101_betreuer_nie_null.sql"));
+            const [c] = (await sp`SELECT convalidated FROM pg_constraint WHERE conname = 'fiaon_persons_agent_echt'`) as any[];
+            leer101 = c?.convalidated === true ? "ok" : "fehlt";
+            throw new Zurueckrollen();
+          });
+        } catch (e: any) { if (!(e instanceof Zurueckrollen)) leer101 = String(e?.message || e); }
+        pruef("Migration 101 ohne 0: setzt und prüft die Wand (zurückgerollt)", leer101 === "ok", leer101.slice(0, 160));
       }
       const agent = async (name: string, x: Record<string, unknown> = {}) => {
         const [r] = await tx`INSERT INTO fiaon_agents ${tx({ name: `${name} ${marke}`, email: `${name.toLowerCase()}-${marke}@it-e.invalid`, active: true, is_test_account: false, ...x } as any)} RETURNING id`;

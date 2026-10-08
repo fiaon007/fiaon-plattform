@@ -787,25 +787,29 @@ export async function gehoertZu(fassungPersonId: number, personId: number, lauf:
  * ohne Adresse und Nummer; Upload-Links sofort ungültig; Sichtprüfungen und Teil-Prüfwerte weg.
  * `endgueltig` = auch die Zeilen selbst. Fehlt eine Tabelle, ist nichts zu tun.
  */
-export async function personDatenLoeschen(personId: number, opts: { endgueltig?: boolean } = {}, lauf: Lauf = sqlPool): Promise<void> {
+export async function personDatenLoeschen(personIdOderFamilie: number | number[], opts: { endgueltig?: boolean } = {}, lauf: Lauf = sqlPool): Promise<void> {
+  // Querprüfung 08.10.2026: Die endgültige Löschung übergibt die ganze Familie (Kopf + zusammengeführte Dubletten,
+  // personFamilie) — Links, Anfragen und Fassungen einer Dublette bleiben nach der Zusammenführung an ihr.
+  const personId = (Array.isArray(personIdOderFamilie) ? personIdOderFamilie : [personIdOderFamilie]).map(Number).filter((x) => Number.isFinite(x));
+  if (!personId.length) return;
   const [t] = (await lauf`
     SELECT to_regclass('fiaon_finanzauswertungen') IS NOT NULL AS fa, to_regclass('fiaon_unterlagen_links') IS NOT NULL AS li,
            to_regclass('fiaon_unterlagen_anfragen') IS NOT NULL AS an, to_regclass('fiaon_unterlagen_sichtpruefung') IS NOT NULL AS si,
            to_regclass('fiaon_unterlagen_teile') IS NOT NULL AS te`) as any[];
   if (t?.fa) {
-    if (opts.endgueltig) await lauf`DELETE FROM fiaon_finanzauswertungen WHERE person_id = ${personId}`;
-    else await lauf`UPDATE fiaon_finanzauswertungen SET inhalt = NULL, eingaben = NULL, updated_at = NOW() WHERE person_id = ${personId}`;
+    if (opts.endgueltig) await lauf`DELETE FROM fiaon_finanzauswertungen WHERE person_id = ANY(${personId})`;
+    else await lauf`UPDATE fiaon_finanzauswertungen SET inhalt = NULL, eingaben = NULL, updated_at = NOW() WHERE person_id = ANY(${personId})`;
   }
   if (t?.li) {
-    if (opts.endgueltig) await lauf`DELETE FROM fiaon_unterlagen_links WHERE person_id = ${personId}`;
-    else await lauf`UPDATE fiaon_unterlagen_links SET widerrufen_am = COALESCE(widerrufen_am, NOW()), widerruf_grund = COALESCE(widerruf_grund, 'DSGVO-Löschung') WHERE person_id = ${personId}`;
+    if (opts.endgueltig) await lauf`DELETE FROM fiaon_unterlagen_links WHERE person_id = ANY(${personId})`;
+    else await lauf`UPDATE fiaon_unterlagen_links SET widerrufen_am = COALESCE(widerrufen_am, NOW()), widerruf_grund = COALESCE(widerruf_grund, 'DSGVO-Löschung') WHERE person_id = ANY(${personId})`;
   }
   if (t?.an) {
-    if (opts.endgueltig) await lauf`DELETE FROM fiaon_unterlagen_anfragen WHERE person_id = ${personId}`;
-    else await lauf`UPDATE fiaon_unterlagen_anfragen SET adresse = NULL, nummer = NULL WHERE person_id = ${personId}`;
+    if (opts.endgueltig) await lauf`DELETE FROM fiaon_unterlagen_anfragen WHERE person_id = ANY(${personId})`;
+    else await lauf`UPDATE fiaon_unterlagen_anfragen SET adresse = NULL, nummer = NULL WHERE person_id = ANY(${personId})`;
   }
-  if (t?.si) await lauf`DELETE FROM fiaon_unterlagen_sichtpruefung WHERE person_id = ${personId}`;
-  if (t?.te) await lauf`DELETE FROM fiaon_unterlagen_teile WHERE person_id = ${personId}`;
+  if (t?.si) await lauf`DELETE FROM fiaon_unterlagen_sichtpruefung WHERE person_id = ANY(${personId})`;
+  if (t?.te) await lauf`DELETE FROM fiaon_unterlagen_teile WHERE person_id = ANY(${personId})`;
 }
 
 export { VORBEHALT_TEXTE };

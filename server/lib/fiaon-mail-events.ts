@@ -284,6 +284,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // E-282 (05.10.2026): Die Vertragsbestätigung des neuen Antrags entsteht aus der Vertragsannahme und trägt
   // das Vertrags-PDF — aus einer Kundenakte oder dem Sende-Menü wäre sie eine Bestätigung ohne Vertrag. Die
   // Pflichtfelder kennt nur ihr eigener Weg (vertragBestaetigungSenden); jeder andere Weg lehnt damit ab.
+  // Querprüfung 08.10.2026: Eingangsbestätigung der Kündigungsseite — nur ihr eigener Auslöser kennt Eingang und Erklärung.
+  kuendigung_eingegangen: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["eingang_text", "zeitpunkt_text", "erklaerung_text"],
+    klartext: "Kündigungsseite: Eingangsbestätigung mit Datum und Uhrzeit, gewünschtem Zeitpunkt und der Erklärung — geht sofort nach jedem angenommenen Antrag (§ 312k BGB).",
+  },
   vertrag_bestaetigung: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
     vonHand: false, pflichtFelder: ["anrede_zeile", "angenommen_datum", "angenommen_uhrzeit", "beginn_satz"],

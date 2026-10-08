@@ -381,7 +381,7 @@ export function finanzauswertungHtml(inhalt: AuswertungInhalt, seiten: Record<nu
       <p class="fein" style="margin-top:3mm">Die Erklärung jedes Eintrags, die Speicherfristen und die fertigen Schreiben finden Sie in Ihrem Bereich unter Ihrer Bonitätsauskunft. Einen Score der Auskunftei weisen wir hier bewusst nicht aus — er gehört der Auskunftei und ist nicht der ${esc(FA_WERT_NAME)}.</p>`
     : `
       <p class="lead">Eine ausgewertete Bonitätsauskunft lag uns für diese Auswertung nicht vor. Dieser Teil ist „nicht bewertet“; im ${esc(FA_WERT_NAME)} haben wir ihn mit der halben Punktzahl angesetzt.</p>
-      <p>Liegt Ihnen eine Bonitätsauskunft vor (etwa Ihre Datenkopie nach Art. 15 DSGVO bei einer Auskunftei), können Sie sie in Ihrem Bereich hochladen; sie fließt dann in eine neue Fassung dieser Auswertung ein.</p>`}
+      <p>Liegt Ihnen eine Bonitätsauskunft vor (etwa Ihre Datenkopie nach Art. 15 DSGVO bei einer Auskunftei), können Sie sie in Ihrem Bereich hochladen; Ihre Ansprechperson kann dann eine neue Fassung dieser Auswertung erstellen.</p>`}
   </section>`;
 
   const fristen: Frist[] = ["sofort", "30", "90", "365"];

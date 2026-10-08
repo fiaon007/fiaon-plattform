@@ -215,6 +215,18 @@ router.post("/agent/kunden/:personId/unterlagen-link/widerrufen", requireAgent, 
 // Kunde
 // ───────────────────────────────────────────────────────────────────────────
 
+/** Querprüfung 08.10.2026: Hat der Mensch (mit Dubletten) ein bezahltes, ungekündigtes, nicht beendetes Stufenpaket? */
+async function paketLaeuft(personId: number): Promise<boolean> {
+  const { personFamilie } = await import("../lib/fiaon-unterlagen-link");
+  const { produktkategorieSql } = await import("../lib/fiaon-produktkategorie");
+  const familie = await personFamilie(personId);
+  const [z] = (await sqlPool.unsafe(
+    `SELECT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = ANY($1::int[]) AND a.merged_into IS NULL
+        AND a.payment_status = 'paid' AND a.gekuendigt_am IS NULL AND a.gdpr_deleted_at IS NULL AND a.archived_at IS NULL
+        AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW()) AND ${produktkategorieSql("a")} = 'konto') AS ja`, [familie])) as any[];
+  return z?.ja === true;
+}
+
 async function personVonRef(ref: string): Promise<number | null> {
   const [a] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   return a?.person_id != null ? Number(a.person_id) : null;
@@ -224,8 +236,11 @@ router.get("/kunde/:ref/finanzauswertung", requireKunde, async (req: KundeReques
   try {
     res.setHeader("Cache-Control", "private, no-store");
     const personId = await personVonRef(req.kundeRef!);
-    if (!personId) return res.json({ ok: true, aktuell: null, fruehere: [] });
+    if (!personId) return res.json({ ok: true, aktuell: null, fruehere: [], laufend: false });
     const r = await kundeAuswertungen(personId);
+    // Querprüfung 08.10.2026: Die Leerkarte („Sobald Ihre Unterlagen vollständig sind …“) verspricht etwas nur dem, der ein
+    // laufendes, ungekündigtes Paket hat — Gekündigte und Kunden ohne Paket sehen einen neutralen Satz.
+    const laufend = await paketLaeuft(personId).catch(() => false);
     const gelesen = !!r.aktuell?.kundeGelesenAm;
     // Gelesen erst, wenn die Ansicht wirklich offen ist (?gelesen=1) — nicht schon, wenn die Karte auf „Heute“ nachfragt.
     // Nur der Kunde selbst macht sie „gelesen" — nie die Als-Kunde-Ansicht der Leitung (Nur-Ansicht, ohne Kunden-Cookie).
@@ -234,7 +249,7 @@ router.get("/kunde/:ref/finanzauswertung", requireKunde, async (req: KundeReques
     // Nur, was der Kunde sehen darf: kein Ersteller, keine Kosten, kein Modell, keine internen Vermerke.
     const schmal = (f: any) => ({ id: f.id, nummer: f.nummer, fassung: f.fassung, freigegebenAm: f.freigegebenAm, status: f.status });
     res.json({
-      ok: true, gelesen,
+      ok: true, gelesen, laufend,
       aktuell: r.aktuell ? { ...schmal(r.aktuell), inhalt: req.query.kurz === "1" ? null : r.aktuell.inhalt } : null,
       fruehere: r.fruehere.map(schmal),
     });

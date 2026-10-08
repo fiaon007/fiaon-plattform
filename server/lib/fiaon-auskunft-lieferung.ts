@@ -1233,9 +1233,8 @@ const LAND_TEXT: Record<AuskunftLand, string> = { DE: "Deutschland", AT: "Öster
 
 /** Die Aufgabe für die Beschaffung schließen — nichts löschen, nur „erledigt" mit Grund (Muster fiaon-app-antraege.ts). */
 async function beschaffungsAufgabeSchliessen(ref: string, ergebnis: string, lauf: Lauf, id?: number): Promise<void> {
-  await lauf`
-    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()), ergebnis = COALESCE(ergebnis, ${ergebnis}), updated_at = NOW()
-     WHERE schluessel = ${`auskunft-beschaffung:${ref}`} AND status <> 'erledigt'`.catch(() => {});
+  // Querprüfung 08.10.2026: über den einen Weg (auftragErledigen) — mit Beitrag, „erledigt von“ und Ereignis.
+  await systemAufgabenErledigen([`auskunft-beschaffung:${ref}`], ergebnis, "Auskunft-Beschaffung", lauf).catch(() => 0);
   // Nachprüfung 08.10.2026 (E-IT-D): auch die Aufgaben der Wache und „Datenkopie eingegangen“ zu diesem Auftrag.
   // NIE die Klärung „Leistung klären (Erstattung)“ — Heikles schließt nur ein Mensch (Entscheidung zu Punkt 6–9).
   if (id != null) {
@@ -1261,13 +1260,31 @@ export function wacheSchluessel(id: number): Record<"anruf" | "aufgabe" | "dring
  * angelegt hat; das Ergebnis sagt, wodurch. Gibt die Zahl der geschlossenen Aufgaben zurück.
  */
 export async function wacheAufgabenSchliessen(id: number, schluessel: string[], grund: string, lauf: Lauf = sqlPool): Promise<number> {
-  if (!schluessel.length) return 0;
-  const r = (await lauf`
-    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()),
-           ergebnis = COALESCE(ergebnis, ${`Automatisch erledigt: ${grund}`}), updated_at = NOW()
-     WHERE schluessel = ANY(${schluessel}) AND status <> 'erledigt' RETURNING id`.catch(() => [])) as any[];
   void id;
-  return r.length;
+  return systemAufgabenErledigen(schluessel, grund, "Liegezeit-Wache", lauf).catch(() => 0);
+}
+
+/**
+ * Querprüfung 08.10.2026 (Strang d × f): Die Aufgaben der Wache und der Beschaffung schlossen sich mit einem direkten
+ * UPDATE — ohne Beitrag, ohne „erledigt von“, ohne Ereignis, und eine von Hand wieder geöffnete schloss der nächste
+ * Lauf (alle 6 Stunden) erneut. Jetzt über den einen Weg (auftragErledigen, Art „auto“, von = wer, Ereignis = Grund);
+ * was ein Mensch wieder geöffnet hat („von … wieder geöffnet“), bleibt offen — wie in durchEreignisRoh.
+ */
+async function systemAufgabenErledigen(schluessel: string[], grund: string, von: string, lauf: Lauf): Promise<number> {
+  if (!schluessel.length) return 0;
+  const { auftragErledigen, VON_HAND_WIEDER_OFFEN } = await import("./fiaon-auftraege");
+  const zeilen = (await lauf`SELECT id, wieder_offen_grund FROM fiaon_betreiber_todos
+                              WHERE schluessel = ANY(${schluessel}) AND status <> 'erledigt'`.catch(() => [])) as any[];
+  let n = 0;
+  for (const z of zeilen) {
+    if (VON_HAND_WIEDER_OFFEN.test(String(z.wieder_offen_grund || ""))) continue;
+    const zu = await auftragErledigen(Number(z.id), {
+      art: "auto", von, autorArt: "system", ereignis: grund,
+      ergebnis: `Automatisch erledigt: ${grund}`, beitragText: `Automatisch erledigt (${von}): ${grund}`,
+    }, lauf).catch(() => false);
+    if (zu) n++;
+  }
+  return n;
 }
 
 /**

@@ -147,7 +147,11 @@ export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: bo
          ${opt.nurOhneAufgabe === false ? "" : `AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':a-klaeren')
          -- Integration Strang a (08.10.2026): höchstens EINE offene Anrufaufgabe je Mensch — auch über mehrere Bestellungen
          AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t2 WHERE t2.status <> 'erledigt'
-                           AND t2.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id))`}
+                           AND t2.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id))
+         -- Querprüfung 08.10.2026 (E-303 × E-184): keine zweite Anrufaufgabe, solange „Erstzahlung: E-Mail unzustellbar“
+         -- zu diesem Menschen offen ist — dieser Auftrag nennt die gemeldete Zahlung mit (unzustellbareErstzahlungenMelden).
+         AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t3 WHERE t3.status <> 'erledigt'
+                           AND t3.schluessel IN (SELECT 'antrag:' || x.ref || ':unzustellbar' FROM fiaon_applications x WHERE x.person_id = fa.person_id))`}
          ${opt.mitLeitung ? `-- … und keine, solange die Vertriebsleitung nach dem 9. Fehlversuch entscheidet (stufeAAnLeitung)
          AND NOT EXISTS (SELECT 1 FROM fiaon_vermerke v WHERE v.art = 'aufgabe' AND v.status = 'offen' AND v.entfernt_am IS NULL
                            AND v.text LIKE '${LEITUNG_MARKE_SQL}'

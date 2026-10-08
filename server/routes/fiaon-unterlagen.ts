@@ -33,8 +33,9 @@ import { UNTERLAGEN_GRENZEN, istUnterlagenKategorie, kategorieInfo, type Unterla
 import { lesefehlerSatz } from "@shared/fiaon-lesefehler";
 import {
   unterlagenStand, unterlageHinzufuegen, unterlageEntfernen, kategorieGeprueft, sofortLesen, dateiLesen,
-  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, type Handelnder,
+  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, unterlageEndgueltigLoeschen, type Handelnder,
 } from "../lib/fiaon-unterlagen";
+import { istLeitungsRolle } from "../lib/fiaon-geburtsdatum-akte";
 
 const router = Router();
 
@@ -222,7 +223,8 @@ router.get("/agent/unterlagen/:personId", requireAgent, async (req: AgentRequest
     const z = await officeZutritt(req, res);
     if (!z) return;
     // Wer den Kunden betreut, öffnet seine Unterlagen (18.09.2026) — wie die Akte.
-    res.json({ ok: true, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true) } });
+    // Querprüfung 08.10.2026: Die Leitung darf eine entfernte Datei endgültig löschen.
+    res.json({ ok: true, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true), darfEndgueltig: istLeitungsRolle(z.rolle) } });
   } catch (err) {
     console.error("[UNTERLAGEN] office stand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -288,11 +290,27 @@ router.post("/agent/unterlagen/:personId/datei/:id/entfernen", requireAgent, asy
   try {
     const z = await officeZutritt(req, res);
     if (!z) return;
-    const erg = await unterlageEntfernen(z.personId, Number(req.params.id), z.wer, String(req.body?.grund || ""));
+    // Querprüfung 08.10.2026: Grund-Art („falsche_person“/„nicht_benoetigt“ leert sofort, „veraltet“ Archiv mit Frist).
+    const erg = await unterlageEntfernen(z.personId, Number(req.params.id), z.wer, String(req.body?.grund || ""), sqlPool, { grundArt: req.body?.grundArt ?? null });
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
-    res.json({ ok: true, meldung: erg.satz, stand: await unterlagenStand(z.personId, "office") });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true), darfEndgueltig: istLeitungsRolle(z.rolle) } });
   } catch (err) {
     console.error("[UNTERLAGEN] office entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Querprüfung 08.10.2026: Inhalt einer ENTFERNTEN Datei endgültig löschen — nur die Leitung, mit Grund und Verlauf. */
+router.post("/agent/unterlagen/:personId/datei/:id/endgueltig", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await officeZutritt(req, res);
+    if (!z) return;
+    if (!istLeitungsRolle(z.rolle)) return res.status(403).json({ ok: false, error: "Endgültig löschen darf nur die Leitung." });
+    const erg = await unterlageEndgueltigLoeschen(z.personId, Number(req.params.id), z.wer, String(req.body?.grund || ""));
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true), darfEndgueltig: true } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] office endgültig:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -339,7 +357,7 @@ router.get("/admin/unterlagen/:ref", async (req: Request, res: Response) => {
   try {
     const personId = await adminPerson(req, res);
     if (!personId) return;
-    res.json({ ok: true, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true } });
+    res.json({ ok: true, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
   } catch (err) {
     console.error("[UNTERLAGEN] admin stand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -388,11 +406,25 @@ router.post("/admin/unterlagen/:ref/datei/:id/entfernen", async (req: Request, r
   try {
     const personId = await adminPerson(req, res);
     if (!personId) return;
-    const erg = await unterlageEntfernen(personId, Number(req.params.id), VERWALTUNG, String(req.body?.grund || ""));
+    const erg = await unterlageEntfernen(personId, Number(req.params.id), VERWALTUNG, String(req.body?.grund || ""), sqlPool, { grundArt: req.body?.grundArt ?? null });
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
-    res.json({ ok: true, meldung: erg.satz, stand: await unterlagenStand(personId, "office") });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
   } catch (err) {
     console.error("[UNTERLAGEN] admin entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Querprüfung 08.10.2026: Chefbüro-Akte (hinter dem Admin-Code = Leitung) — Inhalt einer entfernten Datei endgültig löschen. */
+router.post("/admin/unterlagen/:ref/datei/:id/endgueltig", async (req: Request, res: Response) => {
+  try {
+    const personId = await adminPerson(req, res);
+    if (!personId) return;
+    const erg = await unterlageEndgueltigLoeschen(personId, Number(req.params.id), VERWALTUNG, String(req.body?.grund || ""));
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] admin endgültig:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

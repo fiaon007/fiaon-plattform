@@ -295,6 +295,30 @@ titel("2 · Quelltext — keine zweiten Wege");
   pruef("Chefbüro „Bestätigen“: dieselbe Quelle und Buchung wie die Akte, Eingangstag, keine Bestätigung nach Rücknahme",
     /offeneKuendigungsantraege\(null, Number\(id\)\)/.test(canc) && /antragBuchen\(offen/.test(canc) && /eingang_tz/.test(canc) && /zurückgenommen — der Kunde ist geblieben/.test(canc));
   pruef("Befund 1: die Rücknahme schließt offene Anträge des Menschen („withdrawn“)", /SET status = 'withdrawn'/.test(quelle("server/lib/fiaon-kuendigung.ts")));
+  // ── Querprüfung 08.10.2026 (Strang b × g): Kündigung ohne geprüfte Identität ───────────────────────────────
+  {
+    const regelQ = quelle("shared/fiaon-kuendigung-regel.ts");
+    pruef("Querprüfung b×g: EINE Regel „Identität offen“ in shared — Antragsquelle liefert sie als Spalte",
+      /export const KUENDIGUNG_IDENTITAET_OFFEN_SQL/.test(regelQ) && /\$\{KUENDIGUNG_IDENTITAET_OFFEN_SQL\("kr_c"\)\} AS antrag_identitaet_offen/.test(regelQ)
+      && /identitaetOffen: z\.antrag_identitaet_offen === true/.test(quelle("server/lib/fiaon-kuendigung.ts")));
+    pruef("Querprüfung b×g: Sammellauf Altbestand nutzt denselben Ausdruck (keine zweite Abschrift)",
+      /KUENDIGUNG_IDENTITAET_OFFEN_SQL\("c"\)\)\} AS identitaet_offen/.test(kroute) && !/to_jsonb\(c\) ->> 'identifiziert_ueber'/.test(kroute));
+    pruef("Querprüfung b×g: antragBuchen bricht bei offener Identität ohne Vermerk ab — auch für die Leitung",
+      /antrag\.identitaetOffen && !identitaetVermerkGueltig\(opts\.identitaetVermerk\)/.test(antragBuchenRumpf) && /identitaet: true/.test(antragBuchenRumpf)
+      && antragBuchenRumpf.indexOf("identitaetVermerkGueltig") < antragBuchenRumpf.indexOf("kuendigungDurchfuehren(antrag.ziel.ziel"));
+    pruef("Querprüfung b×g: mit Vermerk — Verlaufseintrag und die Prüfaufgabe wird erledigt (auftragErledigen)",
+      /Identität zum Kündigungsantrag Nr\./.test(antragBuchenRumpf) && /kuendigungIdentitaetSchluessel\(antrag\.id\)/.test(antragBuchenRumpf) && /auftragErledigen\(Number\(t\.id\)/.test(antragBuchenRumpf));
+    pruef("Querprüfung b×g: Akte und Chefbüro reichen den Vermerk durch und antworten 409",
+      /identitaetVermerk: req\.body\?\.identitaetVermerk/.test(kroute) && /erg\.identitaet \|\| !antrag\.ziel\.ziel/.test(kroute)
+      && /identitaetVermerk: identitaetVermerk \?\? null/.test(canc) && /identitaet: !!vorgang\?\.identitaet/.test(canc) && /AS identitaet_offen FROM cancellation_requests c/.test(canc));
+    const chef = quelle("client/src/pages/admin-kuendigungen.tsx");
+    const pipeQ = quelle("client/src/pages/agent/pipeline.tsx");
+    pruef("Querprüfung b×g: Oberfläche zeigt den Stand — Akte (Hinweis, Vermerk, Knopf gesperrt), Chefbüro (Marke, Vermerk, Knopf gesperrt), Rundgang",
+      /Identität ist noch nicht geprüft/.test(pipeQ) && /identitaetVermerk: identVermerk\.trim\(\)/.test(pipeQ) && /identVermerk\.trim\(\)\.length < 10\)\} onClick/.test(pipeQ)
+      && /Identität noch nicht geprüft\./.test(chef) && /identitaet_offen && identVermerk\.trim\(\)\.length < 10/.test(chef) && /Identität prüfen<\/span>/.test(chef)
+      && /Identität noch nicht geprüft“ dabei/.test(quelle("client/src/pages/agent/rundgaenge.ts")));
+    pruef("Querprüfung b×g: Vermerk erst ab zehn Zeichen", !regelMod.identitaetVermerkGueltig("") && !regelMod.identitaetVermerkGueltig("Rückruf") && regelMod.identitaetVermerkGueltig("Rückruf, Ausweis gesehen"));
+  }
   const pipe2 = quelle("client/src/pages/agent/pipeline.tsx");
   pruef("Akte: „Jetzt buchen“ schickt die Antrags-ID, „Als Leitung buchen“ und „ohne Kündigung schließen“ gibt es", /ausAntrag, alsLeitung/.test(pipe2) && /Als Leitung auf/.test(pipe2) && /Antrag ohne Kündigung schließen/.test(pipe2) && /au\.satz/.test(pipe2));
   const kk2 = quelle("server/lib/fiaon-konto-karte.ts");
@@ -357,6 +381,13 @@ if (!MIT_DB) {
     await sqlPool`DELETE FROM fiaon_konto_karte WHERE person_id = ANY(${ids})`;
     await sqlPool`DELETE FROM fiaon_abo_raten WHERE ref LIKE 'FIAON-ITB-%'`.catch(() => {});
     await sqlPool`DELETE FROM fiaon_vertragsannahmen WHERE ref LIKE 'FIAON-ITB-%'`.catch(() => {});
+    // Querprüfung 08.10.2026: Prüfaufgaben „Kündigung – Identität prüfen“ der Testanträge (samt Beiträgen).
+    const identTodos = ((await sqlPool`SELECT t.id FROM fiaon_betreiber_todos t JOIN cancellation_requests c ON t.schluessel = 'kuendigung-identitaet:' || c.id::text
+                                        WHERE c.ref LIKE 'FIAON-ITB-%' OR c.email LIKE '%@pruefstand-itb.invalid'`.catch(() => [])) as any[]).map((r) => Number(r.id));
+    if (identTodos.length) {
+      await sqlPool`DELETE FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ANY(${identTodos})`.catch(() => {});
+      await sqlPool`DELETE FROM fiaon_betreiber_todos WHERE id = ANY(${identTodos})`;
+    }
     await sqlPool`DELETE FROM cancellation_requests WHERE ref LIKE 'FIAON-ITB-%' OR ref LIKE 'FIAON-SCHUFA-ITB-%' OR email LIKE '%@pruefstand-itb.invalid'`;
     await sqlPool`DELETE FROM fiaon_applications WHERE ref LIKE 'FIAON-ITB-%' OR ref LIKE 'FIAON-SCHUFA-ITB-%'`;
     await sqlPool`DELETE FROM fiaon_persons WHERE id = ANY(${ids})`;
@@ -477,6 +508,11 @@ if (!MIT_DB) {
     // P29: gekündigt, danach ein unbezahlter neuer Paketantrag (Schalter neuerAntragSchlaegt).
     await person(29); await bestellung(29, { gekuendigt_am: tage(20), created_at: tage(60) }, "K");
     await bestellung(29, { payment_status: "pending_payment", paid_at: null, created_at: tage(10) }, "N");
+    // P36 (Querprüfung 08.10.2026, Strang b × g): Antrag ohne passendes Geburtsdatum, Prüfaufgabe offen.
+    await person(36); await bestellung(36, { created_at: tage(30) });
+    const a36 = await antrag(36, REF(36), 4, { identifiziert_ueber: "name_email" });
+    await sqlPool`INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, status, quelle)
+                  VALUES (${`kuendigung-identitaet:${a36}`}, 'Kündigung – Identität prüfen', 'Prüfstand ITB', 'pruefen', 2, 'offen', 'kuendigungsseite')`;
     // P31: Altbestand — Bestellung NACH ihrem eigenen Kündigungstag angelegt (die 5 der Mail-Tür).
     await person(31); await bestellung(31, { gekuendigt_am: tage(30), created_at: tage(20) });
     // P33: eingeladen vor 8 Tagen, letzte Einladung WEICH zurück (Postfach voll).
@@ -738,6 +774,22 @@ if (!MIT_DB) {
     pruef("P28 (zwei Pakete am Eingangstag): Leitung, Vorschlag das bezahlte", await ungebucht(28) && o28?.ziel.buchbar === false && o28.ziel.ziel === REF(28, "A") && /mehrere Pakete/.test(o28.ziel.satz), o28);
     const b28 = await antragBuchen(o28, { grund: "Prüfstand", personId: P(28), unterzeichner: { name: "Prüf", rolle: "Mitarbeiter" }, mail: false });
     pruef("P28: ohne Leitung bucht die Akte NICHT", b28?.ok === false && b28?.leitung === true && !((await sqlPool`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = ${REF(28, "A")}`) as any[])[0].gekuendigt_am);
+    // Querprüfung 08.10.2026 (Strang b × g): Identität offen → weder Akte noch Leitung buchen ohne Vermerk.
+    const o36 = (await offen(36))[0];
+    pruef("P36 (ohne passendes Geburtsdatum, Prüfaufgabe offen): der Antrag trägt „Identität offen“", o36?.identitaetOffen === true && o36.ziel.buchbar, o36);
+    const b36a = await antragBuchen(o36, { grund: "Prüfstand", personId: P(36), unterzeichner: { name: "Prüf Leitung ITB", rolle: "Leitung" }, alsLeitung: true, mail: false });
+    const g36a = ((await sqlPool`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = ${REF(36)}`) as any[])[0];
+    pruef("P36: auch als Leitung ohne Vermerk NICHT gebucht — „Identität erst prüfen“", b36a?.ok === false && b36a?.identitaet === true && /Identität erst prüfen/.test(String(b36a?.error)) && !g36a.gekuendigt_am, b36a);
+    const b36k = await antragBuchen(o36, { grund: "Prüfstand", personId: P(36), unterzeichner: { name: "Prüf Klick ITB", rolle: "Mitarbeiter", agentId: AG.klick }, mail: false, identitaetVermerk: "kurz" });
+    pruef("P36: ein Vermerk unter zehn Zeichen reicht nicht", b36k?.ok === false && b36k?.identitaet === true);
+    const b36 = await antragBuchen(o36, { grund: "Prüfstand", personId: P(36), unterzeichner: { name: "Prüf Klick ITB", rolle: "Mitarbeiter", agentId: AG.klick }, mail: false,
+      identitaetVermerk: "Rückruf unter der bekannten Nummer, Kundin hat Geburtsdatum und Paket bestätigt" });
+    const [t36] = (await sqlPool`SELECT status, erledigt_von, ergebnis FROM fiaon_betreiber_todos WHERE schluessel = ${`kuendigung-identitaet:${a36}`}`) as any[];
+    const [v36] = (await sqlPool`SELECT note FROM fiaon_contact_log WHERE person_id = ${P(36)} AND note LIKE 'Identität zum Kündigungsantrag%' ORDER BY id DESC LIMIT 1`) as any[];
+    pruef("P36: mit Vermerk gebucht, Prüfaufgabe erledigt (von Hand, mit Satz), Vermerk im Verlauf",
+      b36?.ok === true && t36?.status === "erledigt" && t36.erledigt_von === "Prüf Klick ITB" && /Rückruf/.test(String(t36.ergebnis)) && /Rückruf/.test(String(v36?.note)), { b36: b36?.ok, t36, v36 });
+    const [ident37] = (await sqlPool.unsafe(`SELECT ${regelMod.KUENDIGUNG_IDENTITAET_OFFEN_SQL("c")} AS o FROM cancellation_requests c WHERE c.id = $1`, [a36])) as any[];
+    pruef("P36: nach der erledigten Aufgabe ist die Identität nicht mehr offen (dieselbe Regel wie im Sammellauf)", ident37?.o === false, ident37);
     {
       // Kundenzentrale: Filter und Zähler aus derselben Quelle.
       const kz = await import("../server/lib/fiaon-kundenzentrale");

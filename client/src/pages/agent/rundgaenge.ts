@@ -286,7 +286,11 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Steht dort „Kündigungsantrag vom … liegt vor, ist aber nicht gebucht“, hat der Kunde über das Formular "
       + "gekündigt, gebucht ist es noch nicht — es zählt erst nach „Jetzt buchen“. Der Satz daneben sagt, welches Paket "
       + "gebucht wird; gebucht wird immer zum Eingangstag des Antrags, nie zu heute. Kam nach dem Antrag ein neues Paket "
-      + "oder ist das Paket nicht eindeutig, entscheidet die Leitung (sie bucht oder schließt den Antrag ohne Kündigung).",
+      + "oder ist das Paket nicht eindeutig, entscheidet die Leitung (sie bucht oder schließt den Antrag ohne Kündigung). "
+      // Querprüfung 08.10.2026: Antrag ohne passendes Geburtsdatum (Strang b × g).
+      + "Kam der Antrag ohne passendes Geburtsdatum, steht „Identität noch nicht geprüft“ dabei: Gebucht wird erst, "
+      + "wenn die Aufgabe „Kündigung – Identität prüfen“ erledigt ist — oder mit deinem Satz, wie du die Identität "
+      + "geprüft hast (Rückruf, Ausweis). Der Satz steht im Verlauf und erledigt die Aufgabe.",
     tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
   },
   {
@@ -376,8 +380,11 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     titel: "Unterlagen: jede Datei einzeln — nichts wird mehr ersetzt.",
     text: "Je Unterlage siehst du den Stand (liegt vor, fehlt, wird geprüft, bitte neu) und jede Datei mit "
       + "Seiten, Größe, Datum und was beim Lesen herauskam. „Hinzufügen“ legt dazu — der fehlende Monat, die "
-      + "Rückseite —, „Alles ersetzen“ tauscht mit Grund aus, „Entfernen“ nimmt eine falsche Datei heraus (sie "
-      + "bleibt im Archiv; was der Kunde selbst entfernt, ist gelöscht). Bei Ausweis und „Weitere Unterlagen“ "
+      + "Rückseite —, „Alles ersetzen“ tauscht mit Grund aus, „Entfernen“ nimmt eine Datei heraus und fragt nach dem "
+      // Querprüfung 08.10.2026: Grund-Art beim Entfernen, Frist, Leitungsknopf.
+      + "Grund: „falsche Person“ oder „nicht benötigt“ löscht den Inhalt sofort, „veraltet oder ersetzt“ hält die Datei "
+      + "90 Tage im Archiv, danach wird ihr Inhalt gelöscht. Die Leitung kann eine entfernte Datei vorher „endgültig "
+      + "löschen“. Was der Kunde selbst entfernt, ist sofort gelöscht. Bei Ausweis und „Weitere Unterlagen“ "
       + "wählst du erst die Art. „Geprüft“ setzt du, wenn du hingesehen hast: Danach entfernt der Kunde dort nichts "
       + "mehr selbst. Unterlagen aus der Zeit vor dem 08.10. stehen auf „liegt vor“ mit dem Hinweis, sie einmal "
       + "anzusehen und „Geprüft“ zu setzen. „Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "

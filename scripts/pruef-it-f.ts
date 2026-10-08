@@ -339,6 +339,47 @@ async function teilA8(): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Q. QUERPRÜFUNG 08.10.2026 — rein und am Quelltext
+// ═══════════════════════════════════════════════════════════════════════════
+async function teilQuer(): Promise<void> {
+  const { readFileSync } = await import("node:fs");
+  const q = (d: string) => readFileSync(new URL(`../${d}`, import.meta.url), "utf8");
+  titel("Q1  Werbewiderspruch und Abmeldung schließen nie automatisch (§ 7 UWG, Art. 21 Abs. 3 DSGVO)");
+  const ja = ["Bitte melden Sie mich ab", "Bitte melden Sie mich vom Newsletter ab.", "Newsletter abbestellen", "Bitte nicht mehr anrufen", "Kunde widerspricht der Werbung",
+    "Kunde möchte keine Werbung mehr und bittet, nicht mehr angerufen zu werden.", "Bitte keine Nachrichten mehr schicken, ich will keinen Kontakt.", "STOP",
+    "keine weiteren Anrufe bitte", "Tragen Sie mich bitte aus", "unsubscribe", "Kunde möchte nicht mehr kontaktiert werden"];
+  const nein = ["Mahnstopp eingetragen", "Rückruf erbeten, Kunde fragt nach Rate", "Kunde hat keine Mail bekommen", "Kunde meldet sich ab Montag wieder",
+    "Kunde meldet Zahlung ab 15.", "Bitte rufen Sie mich ab 18 Uhr an", "Termin verschieben", "Kunde hat Geld überwiesen, bitte prüfen"];
+  const jaFalsch = ja.filter((t) => heikelArt(t) !== "beschwerde");
+  const neinFalsch = nein.filter((t) => heikelArt(t) !== null);
+  ok(`${ja.length} Abmelde-/Widerspruchsformulierungen → „beschwerde“ (nur von Hand)`, jaFalsch.length === 0, jaFalsch);
+  ok(`${nein.length} harmlose Sätze bleiben harmlos (kein „Mahnstopp“, keine Zustellfrage, „meldet sich ab Montag“)`, neinFalsch.length === 0, neinFalsch);
+  ok("Mara-Hinweis mit Werbewiderspruch → nur von Hand", artNachInhalt("mara_hinweis", { schluessel: "postmeister:4711:2026-10-01", text: "Kunde möchte keine Werbung mehr und bittet, nicht mehr angerufen zu werden." }) === "beschwerde");
+  ok("WhatsApp-Anliegen „keine Nachrichten mehr, keinen Kontakt“ → nur von Hand", artNachInhalt("mara_wa_anliegen", { schluessel: "wa-123-anliegen-2026-10-01", text: "Bitte keine Nachrichten mehr schicken, ich will keinen Kontakt." }) === "beschwerde");
+  ok("Kontaktanfrage „Bitte melden Sie mich ab“ → nur von Hand", auftragArtVon({ quelle: "kontakt", titel: "Kontaktanfrage", text: "Bitte melden Sie mich ab" }) === "beschwerde");
+  ok("Katalog-Label nennt den Werbewiderspruch", /Werbewiderspruch/.test(AUFTRAG_ARTEN.beschwerde.label));
+
+  titel("Q2  Eigene Arten für Strang-d-Aufgaben (nicht „Bonitätsauskunft beschaffen“)");
+  ok("unterlagen-eingang:<person> → „Unterlagen eingegangen: Auswertung erzeugen“", auftragArtVon({ schluessel: "unterlagen-eingang:123", quelle: "bestellung", titel: "Unterlagen eingegangen — Auswertung erzeugen" }) === "auswertung");
+  ok("auskunft-bestaetigung-anruf:<id> → „Auftrag bestätigen lassen“", auftragArtVon({ schluessel: "auskunft-bestaetigung-anruf:7", quelle: "bestellung", titel: "Anrufen" }) === "auskunft_bestaetigung");
+  ok("Beide nur von Hand bzw. über ihren eigenen Weg", AUFTRAG_ARTEN.auswertung.nurHand && AUFTRAG_ARTEN.auskunft_bestaetigung.nurHand && !artenFuerEreignis("ergebnis_erreicht").includes("auswertung" as any));
+
+  titel("Q3  Stufe A: eine Anrufaufgabe je Bestellung, Zahlung nur der eigenen Bestellung, Tagesbericht meldet Ereignisse");
+  const sa = q("server/lib/fiaon-stufe-a-klaeren.ts");
+  ok("stufeAKlaerenSql: keine Anrufaufgabe neben offener „Erstzahlung: E-Mail unzustellbar“", /t3\.schluessel IN \(SELECT 'antrag:' \|\| x\.ref \|\| ':unzustellbar'/.test(sa));
+  const an = q("server/routes/fiaon-antrag.ts");
+  ok("unzustellbareErstzahlungenMelden: offene Klärungsaufgabe bekommt den Adress-Hinweis (idempotent), sonst nennt die neue Aufgabe die gemeldete Zahlung",
+    /AS klaerung/.test(an) && /if \(z\.klaerung\) \{/.test(an) && /schluessel: String\(z\.klaerung\)/.test(an) && /strpos\(COALESCE\(k2\.text, ''\), \$1::text\) > 0/.test(an)
+    && /Der Kunde hat die Zahlung als überwiesen gemeldet/.test(an));
+  const au = q("server/lib/fiaon-auftraege.ts");
+  ok("durchEreignisRoh: zahlung_gebucht schließt „Zahlung gemeldet, nicht da“ nur für die Bestellung im Schlüssel (oder ihre Fortsetzung)",
+    /artName === "stufe_a_klaeren" && ein\.ereignis === "zahlung_gebucht"/.test(au) && /grund: "andere Bestellung"/.test(au) && /merged_into/.test(au.slice(au.indexOf('artName === "stufe_a_klaeren"'), au.indexOf('grund: "andere Bestellung"'))));
+  const tb = q("server/lib/fiaon-tagesbericht.ts");
+  ok("Tagesbericht: jeder Nachtrag (Ergebnis und Zusage) meldet sein Ereignis an die Aufträge — als Selbstangabe",
+    (tb.match(/await nachtragEreignis\(/g) ?? []).length === 2 && /ereignisMelden\(\{[\s\S]{0,200}Selbstangabe/.test(tb));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // B. LOKAL
 // ═══════════════════════════════════════════════════════════════════════════
 async function teilB(): Promise<{ aufraeumen: () => Promise<void>; daten: any }> {
@@ -709,6 +750,27 @@ async function teilB(): Promise<{ aufraeumen: () => Promise<void>; daten: any }>
     }).catch((e: any) => ({ fehler: String(e) }));
     ok("Fehler im Ereignis (in einer Transaktion) → Sicherungspunkt zurück, Transaktion lebt, Auftrag unverändert", (spErg as any).weiter === true && (spErg as any).status === "offen" && (spErg as any).w.geschlossen.length === 0, spErg);
 
+    titel("B4d Querprüfung 08.10.: Zahlung einer ANDEREN Bestellung, Tagesbericht-Nachtrag, Stufe A neben „unzustellbar“");
+    {
+      const RA = await neueBestellung(P1);
+      const klaer = await todo({ titel: `${MARKE} Zahlung gemeldet, nicht da`, schluessel: `antrag:${R1}:a-klaeren`, person_id: P1, ref: R1, art: "stufe_a_klaeren", quelle: "antrag", bereich: "konten" });
+      const fremdZahlung = await A.auftraegeDurchEreignis({ ereignis: "zahlung_gebucht", personId: P1, ref: RA, akteur: { id: null, name: "Zahlungsbuchung" }, detail: "Bonitätsauskunft 74 €" });
+      const bk = await beitraege(klaer);
+      ok("Zahlung einer anderen Bestellung (Auskunft) schließt „Zahlung gemeldet, nicht da“ NICHT — Beitrag „nicht die gemeldete Zahlung“",
+        (await lade(klaer)).status !== "erledigt" && fremdZahlung.ausgelassen.some((x) => x.id === klaer && x.grund === "andere Bestellung") && bk.some((b: any) => /nicht die gemeldete Zahlung/.test(b.text)), fremdZahlung);
+      const eigene = await A.auftraegeDurchEreignis({ ereignis: "zahlung_gebucht", personId: P1, ref: R1, akteur: { id: null, name: "Zahlungsbuchung" }, detail: "Erste Rate" });
+      ok("Die Zahlung der eigenen Bestellung schließt sie", eigene.geschlossen.some((g) => g.id === klaer) && (await lade(klaer)).status === "erledigt", eigene);
+
+      const { nachtraegeBuchen } = await import("../server/lib/fiaon-tagesbericht");
+      const tagIso = new Date(Date.now() - 86_400_000).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+      const hinweisTB = await todo({ titel: `${MARKE} Hinweis für den Tagesbericht`, schluessel: `postmeister:${P3}:2026-10-02-${MARKE}`, person_id: P3, art: "mara_hinweis", agent: 10, agentName: "Florentine Lombardi", created_at: new Date(Date.now() - 3 * 86_400_000) });
+      await sqlPool`UPDATE fiaon_betreiber_todos SET neu_seit = NOW() - INTERVAL '3 days', eingang_am = NOW() - INTERVAL '3 days' WHERE id = ${hinweisTB}`;
+      await nachtraegeBuchen({ id: 10, name: "Florentine Lombardi" }, tagIso, [{ personId: P3, ergebnis: "erreicht_sonstiges" }], []);
+      const nachTB = await lade(hinweisTB);
+      ok("Tagesbericht-Nachtrag „erreicht“ schließt den Hinweis des Mitarbeiters selbst — als Selbstangabe vermerkt",
+        nachTB.status === "erledigt" && nachTB.erledigt_art === "auto" && /Tagesbericht vom .*Selbstangabe/.test(String(nachTB.erledigt_ereignis)), { status: nachTB.status, ereignis: nachTB.erledigt_ereignis });
+    }
+
     titel("B5  Die echten Ketten (Akte, Forderungsmanagement, Rückruf, Termin)");
     const kette1 = await todo({ titel: `${MARKE} Kette Ergebnis`, person_id: P3, art: "mara_hinweis", agent: 10 });
     const { ergebnisNachbereiten } = await import("../server/lib/fiaon-kontakt-ergebnis");
@@ -873,6 +935,7 @@ async function teilC(d: any): Promise<void> {
 async function main(): Promise<void> {
   teilA();
   await teilA8();
+  await teilQuer();
   if (LOKAL) {
     const b = await teilB();
     if (SERVER) await teilC(b.daten);

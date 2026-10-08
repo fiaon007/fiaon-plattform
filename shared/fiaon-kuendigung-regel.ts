@@ -197,15 +197,42 @@ export function bestellungKuendbar(b: KuendigungBestellung & { archived_at?: unk
 }
 
 /**
+ * Ist die Identität eines Kündigungsantrags noch offen? (Querprüfung 08.10.2026, Strang b × g)
+ *
+ * Die Kündigungsseite nimmt einen Antrag auch ohne passendes Geburtsdatum an
+ * (identifiziert_ueber ≠ 'geburtsdatum', ohne Migration 103 die Marke in admin_note)
+ * und legt die Aufgabe „Kündigung – Identität prüfen“ (kuendigung-identitaet:<id>) an —
+ * „Erst danach die Kündigung buchen“. Offen ist die Identität, bis diese Aufgabe
+ * erledigt ist. EIN Ausdruck für den Sammellauf Altbestand UND die Buchungswege der
+ * Akte und des Chefbüros (antragBuchen). `c` ist der Alias von cancellation_requests.
+ * to_jsonb: läuft auch ohne Migration 103.
+ */
+export const KUENDIGUNG_IDENTITAET_OFFEN_SQL = (c: string): string =>
+  `((COALESCE(to_jsonb(${c}) ->> 'identifiziert_ueber', 'geburtsdatum') <> 'geburtsdatum'
+      OR COALESCE(${c}.admin_note, '') LIKE '%– Identität prüfen]%')
+     AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos kr_it
+                      WHERE kr_it.schluessel = 'kuendigung-identitaet:' || ${c}.id::text AND kr_it.status = 'erledigt'))`;
+
+/** Der Schlüssel der Aufgabe „Kündigung – Identität prüfen“ zu einem Antrag (server/routes/cancellation.ts). */
+export const kuendigungIdentitaetSchluessel = (antragId: number): string => `kuendigung-identitaet:${antragId}`;
+
+/** Ein Vermerk, mit dem ohne erledigte Prüfaufgabe gebucht werden darf: ein Satz, wie geprüft wurde. Rein. */
+export function identitaetVermerkGueltig(v: unknown): boolean {
+  return String(v ?? "").trim().length >= 10;
+}
+
+/**
  * Die offenen, nie gebuchten Kündigungsanträge — als Zeilenquelle (SELECT).
  * Spalten: antrag_id, antrag_am, antrag_ref, antrag_grund, antrag_wunsch,
- * person_id (der Kopf), eigene (die Referenz des Antrags gibt es).
+ * person_id (der Kopf), eigene (die Referenz des Antrags gibt es),
+ * antrag_identitaet_offen (Querprüfung 08.10.2026: KUENDIGUNG_IDENTITAET_OFFEN_SQL).
  * Ohne Bezug auf einen Aufrufer — als `IN (…)` einmal gerechnet (schnell auch
  * für die Zähler der Kundenzentrale über alle Menschen).
  */
 export const KUENDIGUNG_ANTRAEGE_SQL = `
   SELECT kr_c.id AS antrag_id, kr_c.created_at AS antrag_am, kr_c.ref AS antrag_ref, kr_c.reason AS antrag_grund,
-         kr_c.cancellation_date AS antrag_wunsch, kr_m.person_id, kr_m.eigene
+         kr_c.cancellation_date AS antrag_wunsch, kr_m.person_id, kr_m.eigene,
+         ${KUENDIGUNG_IDENTITAET_OFFEN_SQL("kr_c")} AS antrag_identitaet_offen
     FROM cancellation_requests kr_c
     CROSS JOIN LATERAL (
       SELECT COALESCE((SELECT kr_h.merged_into_person_id FROM fiaon_persons kr_h WHERE kr_h.id = kr_a.person_id), kr_a.person_id) AS person_id,

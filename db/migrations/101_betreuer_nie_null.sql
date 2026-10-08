@@ -19,15 +19,21 @@
 -- fiaon_person_owner_propagate von hier.
 --
 -- ── REIHENFOLGE UND SPERREN ───────────────────────────────────────────────
--- Gibt es noch eine Zeile mit 0 (Person 13458), setzt diese Migration NICHTS
--- und meldet das als NOTICE — ein CHECK auf eine solche Zeile ließe jedes
--- spätere UPDATE dieser Person scheitern (auch Läufe, die nur die Stufe
--- nachziehen). ACHTUNG: run-migrations.mjs verbucht die Datei trotzdem als
--- angewendet und führt sie NIE wieder aus. Steht in der Produktion noch eine 0
--- (Person 13458, Stand 08.10.2026), entsteht die Wand deshalb NUR über den
--- PFLICHT-Einmallauf nach dem Deploy: scripts/it-e-einmal.ts --ausfuehren
--- (repariert und setzt denselben CHECK selbst). Lief das Skript vorher, ist
--- diese Migration ein Leerlauf. Die Datei ist wiederholbar.
+-- Gibt es noch eine Zeile mit 0, setzt diese Migration NICHTS — ein CHECK auf
+-- eine solche Zeile ließe jedes spätere UPDATE dieser Person scheitern (auch
+-- Läufe, die nur die Stufe nachziehen).
+-- Querprüfung 08.10.2026: Bis dahin endete dieser Fall mit NOTICE + RETURN —
+-- run-migrations.mjs verbuchte die Datei als angewendet und führte sie NIE
+-- wieder aus; die Wand fiel still aus, sobald am Deploy-Tag auch nur eine 0
+-- da war (der alte Merge-Code aus main schreibt bis zum Deploy weiter 0 bei
+-- gestempelter Pool-Person; gemessen 08.10.: 0 Personen mit 0, aber rund 15
+-- Zusammenführungen in 7 Tagen). Jetzt wirft sie eine EXCEPTION: Die
+-- Transaktion rollt zurück, im Render-Log steht „FAIL 101_betreuer_nie_null.sql“
+-- mit dem Hinweis unten, die Datei bleibt offen und wird bei jedem Start erneut
+-- versucht. Der Start selbst läuft weiter (run-migrations: nur Sperrfehler
+-- brechen ab). Reparatur: scripts/it-e-einmal.ts --ausfuehren (repariert und
+-- setzt denselben CHECK selbst) — danach ist diese Datei ein Leerlauf und wird
+-- verbucht. Die Datei ist wiederholbar.
 -- Die Sperre: ADD CONSTRAINT … NOT VALID nimmt kurz ACCESS EXCLUSIVE (kein
 -- Lesen der Tabelle); VALIDATE liest die rund 6.800 Personen (08.10.2026: 6.755) in
 -- Millisekunden. run-migrations.mjs führt die Datei in EINER Transaktion aus —
@@ -44,8 +50,7 @@ BEGIN
     RETURN;
   END IF;
   IF EXISTS (SELECT 1 FROM fiaon_persons WHERE assigned_agent_id IS NOT NULL AND assigned_agent_id <= 0) THEN
-    RAISE NOTICE 'fiaon_persons_agent_echt NICHT gesetzt: Es gibt noch Personen mit assigned_agent_id <= 0. PFLICHT: scripts/it-e-einmal.ts --ausfuehren — das Skript repariert und setzt den CHECK selbst (diese Migration läuft nicht noch einmal).';
-    RETURN;
+    RAISE EXCEPTION 'fiaon_persons_agent_echt NICHT gesetzt: Es gibt noch Personen mit assigned_agent_id <= 0. PFLICHT: scripts/it-e-einmal.ts --ausfuehren — das Skript repariert und setzt den CHECK selbst; diese Datei bleibt offen und läuft beim nächsten Start erneut.';
   END IF;
   ALTER TABLE fiaon_persons
     ADD CONSTRAINT fiaon_persons_agent_echt CHECK (assigned_agent_id IS NULL OR assigned_agent_id > 0) NOT VALID;

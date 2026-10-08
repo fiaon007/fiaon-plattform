@@ -128,6 +128,9 @@ export default function AboKuendigenPage() {
 
   /* Confirmed cancellation id */
   const [requestId, setRequestId] = useState<number | null>(null);
+  // Querprüfung 08.10.2026 (§ 312k BGB): Eingang (Datum, Uhrzeit) und ob die Eingangsbestätigung per E-Mail raus ist.
+  const [eingangText, setEingangText] = useState<string | null>(null);
+  const [bestaetigungGesendet, setBestaetigungGesendet] = useState<boolean | null>(null);
 
   /* Confirmation checkbox */
   const [confirmed, setConfirmed] = useState(false);
@@ -139,12 +142,14 @@ export default function AboKuendigenPage() {
   /* === STEP 1: Verify identity via existing application === */
   async function handleVerify() {
     setVerifyError(null);
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || gebGelesen.stand === "leer") {
-      setVerifyError("Bitte alle Pflichtfelder ausfüllen");
+    // Querprüfung 08.10.2026: Das Geburtsdatum ist freiwillig — der Server nimmt die Kündigung auch ohne an
+    // (Name + E-Mail, das Team prüft die Identität). Nur ein angefangenes, unlesbares Datum wird angemerkt.
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      setVerifyError("Bitte Vorname, Nachname und E-Mail-Adresse ausfüllen");
       return;
     }
-    if (!birthdate) {
-      setVerifyError(gebGelesen.meldung || "Bitte prüfen Sie Ihr Geburtsdatum.");
+    if (gebGelesen.stand !== "leer" && !birthdate) {
+      setVerifyError(gebGelesen.meldung || "Bitte prüfen Sie Ihr Geburtsdatum — oder lassen Sie es leer.");
       return;
     }
     if (!email.includes("@")) {
@@ -160,7 +165,7 @@ export default function AboKuendigenPage() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
-          birthdate,
+          ...(birthdate ? { birthdate } : {}),
           reason: "__verify_only__",
         }),
       });
@@ -204,7 +209,7 @@ export default function AboKuendigenPage() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
-          birthdate,
+          ...(birthdate ? { birthdate } : {}),
           reason: finalReason,
           cancellationDate: cancellationDate || null,
         }),
@@ -214,6 +219,8 @@ export default function AboKuendigenPage() {
         setFormError(data.error || "Fehler beim Absenden");
       } else {
         setRequestId(data.id ?? null);
+        setEingangText(data.eingangText ?? null);
+        setBestaetigungGesendet(typeof data.bestaetigungGesendet === "boolean" ? data.bestaetigungGesendet : null);
         setPhase("done");
       }
     } catch {
@@ -292,8 +299,8 @@ export default function AboKuendigenPage() {
                 Abo kündigen
               </h1>
               <p className="text-[14px] text-gray-500 leading-relaxed max-w-sm mx-auto">
-                Bitte bestätigen Sie Ihre Identität. Wir prüfen Ihren Antrag und
-                melden uns innerhalb von 1–2 Werktagen bei Ihnen.
+                Bitte bestätigen Sie Ihre Identität. Ihre Kündigung gilt mit dem
+                Eingang — die Eingangsbestätigung bekommen Sie sofort per E-Mail.
               </p>
             </div>
 
@@ -359,7 +366,7 @@ export default function AboKuendigenPage() {
                 </Field>
 
                 {/* Birthdate — E-IT-G (08.10.2026): drei Felder, „63“ wird 1963, kein Kalender zum Zurückblättern. */}
-                <Field label="Geburtsdatum" req>
+                <Field label="Geburtsdatum (optional)">
                   <GeburtsdatumFeld variante="kunde" kontext="pruefung" teile={geburt}
                     onTeile={(t) => { setGeburt(t); setVerifyError(null); }} />
                 </Field>
@@ -402,9 +409,10 @@ export default function AboKuendigenPage() {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
                   <p className="text-[12px] text-blue-700 leading-relaxed">
-                    Ihre Kündigung wird von unserem Team geprüft und innerhalb
-                    von 1–2 Werktagen bearbeitet. Wir gleichen Ihre Angaben
-                    sicher gegen unsere Daten ab.
+                    Ihre Kündigung gilt ab dem Eingang. Unser Team trägt sie in
+                    Ihren Vertrag ein und bestätigt Ihnen das Vertragsende per
+                    E-Mail. Klappt es hier nicht, kündigen Sie formlos an
+                    support@fiaon.com — auch das gilt mit dem Eingang.
                   </p>
                 </div>
 
@@ -765,19 +773,26 @@ export default function AboKuendigenPage() {
               Antrag eingegangen
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-4">
-              Kündigung beantragt!
+              Kündigung eingegangen
             </h2>
             <p className="text-[15px] text-gray-500 mb-2 max-w-sm mx-auto leading-relaxed">
-              Ihr Kündigungsantrag wurde erfolgreich übermittelt und wird von
-              unserem Team geprüft.
+              Ihre Kündigung ist bei uns eingegangen. Unser Team trägt sie in
+              Ihren Vertrag ein.
             </p>
             {requestId && (
               <p className="text-[13px] text-gray-400 mb-2">
                 Antragsnummer: <span className="font-bold text-slate-600">#{requestId}</span>
               </p>
             )}
+            {eingangText && (
+              <p className="text-[13px] text-gray-500 mb-2">
+                Eingegangen am <span className="font-bold text-slate-600">{eingangText}</span> — Ihre Kündigung gilt ab diesem Zeitpunkt.
+              </p>
+            )}
             <p className="text-[13px] text-gray-400 mb-10">
-              Wir melden uns innerhalb von 1–2 Werktagen per E-Mail bei Ihnen.
+              {bestaetigungGesendet === false
+                ? "Die Eingangsbestätigung per E-Mail ließ sich gerade nicht senden — bitte notieren Sie sich Antragsnummer und Eingang. Wir tragen die Kündigung ein und bestätigen Ihnen das Vertragsende per E-Mail."
+                : "Die Eingangsbestätigung mit Datum und Uhrzeit ist per E-Mail unterwegs. Sobald die Kündigung in Ihrem Vertrag eingetragen ist, bestätigen wir Ihnen das Vertragsende."}
             </p>
 
             <div className="max-w-xs mx-auto space-y-3">

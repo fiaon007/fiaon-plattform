@@ -228,6 +228,29 @@ export async function berichtFuer(agentId: number, tag: string): Promise<any | n
 }
 
 /**
+ * Querprüfung 08.10.2026 (Strang a × f × E-303): Ein nachgetragenes Gespräch ist ein Kontakt wie jedes andere —
+ * es meldet sein Ereignis an die Aufträge (ereignisMelden, wie ergebnisNachbereiten). Vorher löste ein
+ * nachgetragener 9. Fehlversuch die Übergabe an die Leitung aus, ein nachgetragenes „erreicht“ schloss aber nichts
+ * (auch nicht „Zahlung gemeldet, nicht da“). Kontakt-Ereignisse schließen nur Aufträge des Mitarbeiters selbst;
+ * der Zeitpunkt ist Mittag des Berichtstags (neuere Kundennachrichten halten den Auftrag offen), und das Detail sagt,
+ * dass es eine Selbstangabe aus dem Tagesbericht ist — im Reiter „Erledigt“ steht es so dabei. Wirft nie.
+ */
+async function nachtragEreignis(agent: { id: number; name: string }, personId: number, ref: string | null, ergebnis: string, tag: string, tagDe: string, lauf: any): Promise<void> {
+  try {
+    const { ereignisAusErgebnis, ereignisMelden } = await import("./fiaon-auftraege");
+    const { ERGEBNIS_TEXT } = await import("./fiaon-kontakt-ergebnis");
+    const ereignis = ereignisAusErgebnis(ergebnis);
+    if (!ereignis) return;
+    const mittag = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? new Date(`${tag}T10:00:00Z`) : new Date();
+    await ereignisMelden({
+      ereignis, personId, ref, akteur: { id: agent.id, name: agent.name },
+      detail: `Tagesbericht vom ${tagDe}, Selbstangabe: ${ERGEBNIS_TEXT[ergebnis as keyof typeof ERGEBNIS_TEXT] ?? ergebnis}`,
+      am: mittag.getTime() > Date.now() ? new Date() : mittag,
+    }, lauf);
+  } catch (e) { console.error("[TAGESBERICHT] Ereignis an die Aufträge:", e); }
+}
+
+/**
  * Die Nachträge eines Tagesberichts buchen (E-216; E-IT-A, Gegenprüfung 08.10.2026).
  * Jeder Nachtrag geht den normalen Weg (ergebnisAnwenden — Wiedervorlage,
  * Zähler, Betreuung) und hinterlässt EINE Systemzeile im Verlauf.
@@ -264,6 +287,7 @@ export async function nachtraegeBuchen(
         SELECT ref FROM fiaon_applications WHERE person_id = ${n.personId} AND merged_into IS NULL
          ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
       await ergebnisAnwenden({ ref: a?.ref ?? null, personId: n.personId, ergebnis: n.ergebnis as any, amTag: tag }, lauf);
+      await nachtragEreignis(agent, n.personId, a?.ref ?? null, n.ergebnis, tag, tagDe, lauf);
       // Der Grund gehört in den Verlauf — sonst steht dort ein Ergebnis ohne
       // Anruf, und beim nächsten Blick fragt jemand, wo das Gespräch herkommt.
       await lauf`
@@ -287,6 +311,7 @@ export async function nachtraegeBuchen(
         SELECT ref FROM fiaon_applications WHERE person_id = ${z.personId} AND merged_into IS NULL
          ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
       await ergebnisAnwenden({ ref: az?.ref ?? null, personId: z.personId, ergebnis: "erreicht_zahlt_am", zusageDatum: z.datum, amTag: tag }, lauf);
+      await nachtragEreignis(agent, z.personId, az?.ref ?? null, "erreicht_zahlt_am", tag, tagDe, lauf);
       await lauf`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
         VALUES (${az?.ref ?? null}, ${z.personId}, ${agent.id}, ${agent.name}, 'system',

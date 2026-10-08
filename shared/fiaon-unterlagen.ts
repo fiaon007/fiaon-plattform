@@ -438,7 +438,10 @@ export interface UnterlagenDatei {
   entferntAm?: string | null;
   entferntVon?: string | null;
   entferntGrund?: string | null;
-  /** Office: Der Kunde hat die Datei selbst entfernt — ihr Inhalt ist gelöscht, nur der Vermerk bleibt. */
+  /**
+   * Office: Der Inhalt ist gelöscht, nur der Vermerk bleibt — der Kunde hat die Datei selbst entfernt, das Team
+   * hat „falsche Person“/„nicht benötigt“ gewählt, die Frist ist abgelaufen oder die Leitung hat endgültig gelöscht.
+   */
   inhaltGeloescht?: boolean;
 }
 
@@ -472,6 +475,34 @@ export interface UnterlagenStand {
   kategorien: KategorieStand[];
   grenzen: { mbJeDatei: number; dateienJeKategorie: number };
   inhaltErlaubt?: boolean;
+  /** Querprüfung 08.10.2026: Leitung (bzw. Chefbüro) — darf eine entfernte Datei endgültig löschen. */
+  darfEndgueltig?: boolean;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Entfernen durch das Team: mit Grund — und was mit dem Inhalt geschieht
+// (Querprüfung 08.10.2026, Art. 5 Abs. 1 lit. c/e und Art. 17 DSGVO)
+// ───────────────────────────────────────────────────────────────────────────
+// Seit E-IT-C archiviert „Entfernen“ (und der alte Knopf „Löschen“) nur noch —
+// vorher war die Datei weg. Damit gab es unterhalb der Gesamtlöschung keinen Weg
+// mehr, etwa den Ausweis eines Dritten zu löschen. Jetzt wählt das Team den Grund:
+// „falsche Person“ und „nicht benötigt“ leeren den Inhalt sofort (wie beim Kunden),
+// „veraltet/ersetzt“ hält die Datei ENTFERNT_AUFBEWAHRUNG_TAGE im Archiv — danach
+// leert der Takt unterlagen_frist den Inhalt. Die Leitung kann eine entfernte Datei
+// vorher „endgültig löschen“. Vermerkt bleibt immer: Name, Größe, Prüfsumme, wer, wann, warum.
+export const ENTFERNT_AUFBEWAHRUNG_TAGE = 90;
+export const ENTFERN_GRUENDE = [
+  { wert: "falsche_person", label: "Falsche Person (Datei eines Dritten) — Inhalt wird sofort gelöscht", kurz: "Falsche Person", leeren: true },
+  { wert: "nicht_benoetigt", label: "Nicht benötigt oder versehentlich hochgeladen — Inhalt wird sofort gelöscht", kurz: "Nicht benötigt", leeren: true },
+  { wert: "veraltet", label: `Veraltet oder ersetzt — bleibt ${ENTFERNT_AUFBEWAHRUNG_TAGE} Tage im Archiv`, kurz: "Veraltet/ersetzt", leeren: false },
+] as const;
+export type EntfernGrundArt = (typeof ENTFERN_GRUENDE)[number]["wert"];
+export function istEntfernGrundArt(v: unknown): v is EntfernGrundArt {
+  return ENTFERN_GRUENDE.some((g) => g.wert === v);
+}
+/** Leert dieser Grund den Inhalt sofort? Ohne Angabe (alter Client): nein — Archiv mit Frist. Rein. */
+export function entfernenLeertSofort(art: unknown): boolean {
+  return ENTFERN_GRUENDE.some((g) => g.wert === art && g.leeren);
 }
 
 // ───────────────────────────────────────────────────────────────────────────

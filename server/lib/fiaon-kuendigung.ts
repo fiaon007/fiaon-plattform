@@ -516,6 +516,11 @@ export interface OffenerAntrag {
   ziel: AntragZiel;
   /** Paketname der Zielbestellung — null ohne Ziel. */
   zielPaket: string | null;
+  /**
+   * Querprüfung 08.10.2026: Ohne passendes Geburtsdatum angenommen und die Aufgabe „Kündigung – Identität
+   * prüfen“ ist nicht erledigt (KUENDIGUNG_IDENTITAET_OFFEN_SQL). Dann bucht antragBuchen nur mit Vermerk.
+   */
+  identitaetOffen: boolean;
 }
 
 /**
@@ -553,6 +558,7 @@ export async function offeneKuendigungsantraege(personId: number | null, antragI
       grund: z.antrag_grund ? String(z.antrag_grund).slice(0, 300) : null,
       wunsch: z.antrag_wunsch ? String(z.antrag_wunsch instanceof Date ? z.antrag_wunsch.toISOString() : z.antrag_wunsch).slice(0, 10) : null,
       personId: pid, ziel, zielPaket: zb?.pack_name ? String(zb.pack_name).split("\n")[0] : null,
+      identitaetOffen: z.antrag_identitaet_offen === true,
     });
   }
   return aus;

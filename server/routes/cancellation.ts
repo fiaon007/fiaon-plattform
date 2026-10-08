@@ -2,8 +2,10 @@ import { Router, type Request } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { logger } from "../logger";
 import { geburtsdatumAnzeige, geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
+import { KUENDIGUNG_IDENTITAET_OFFEN_SQL } from "../../shared/fiaon-kuendigung-regel";
 import {
   kuendigungIdentitaet, kuendigungDrossel, kopfDerKette, KUENDIGUNG_KEIN_TREFFER, KUENDIGUNG_ZU_VIELE, type KuendigungUeber,
+  kuendigungEingangInhalt,
 } from "../lib/fiaon-kuendigung-identitaet";
 
 const router = Router();
@@ -97,6 +99,32 @@ export async function kuendigungsAntragEinfuegen(w: {
     void identitaetSpalteSichern().catch(() => {});
     return { ...row, ohneSpalte: true };
   }
+}
+
+/**
+ * Die Eingangsbestätigung der Kündigungsseite (Querprüfung 08.10.2026, § 312k Abs. 4 BGB): Inhalt der
+ * Erklärung, Datum und Uhrzeit des Eingangs, gewünschter Zeitpunkt, „gilt ab dem Eingang“ — Mailwerk-Ereignis
+ * kuendigung_eingegangen (Pflichtmail, Vertragspost). Der Versand steht im Verlauf der Bestellung.
+ */
+export async function eingangBestaetigen(w: {
+  ref: string; antragId: number; am: Date; name: string; wunsch: string | null; grund: string | null; packName: string | null; email: string;
+}): Promise<{ gesendet: boolean; grund?: string | null; inhalt: Record<string, string> }> {
+  const [a] = (await sqlPool`
+    SELECT ref, person_id, email, contact_email, billing_email, first_name, last_name, contact_name, payment_reference, amount_due, pack_name
+      FROM fiaon_applications WHERE ref = ${w.ref} LIMIT 1`) as any[];
+  const inhalt = kuendigungEingangInhalt({ am: w.am, wunsch: w.wunsch, paket: a?.pack_name ?? w.packName, grund: w.grund, antragNr: w.antragId, name: w.name });
+  const { sendMakeWebhookMitGrund, makePayloadFromRow } = await import("../make-webhook");
+  const erg: any = await sendMakeWebhookMitGrund("kuendigung_eingegangen", {
+    ...makePayloadFromRow(a ?? { ref: w.ref, email: w.email }), ...inhalt,
+  } as any).catch((e: any) => ({ ok: false, grund: String(e?.message || e) }));
+  const gesendet = erg?.ok === true;
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+    VALUES (${w.ref}, ${a?.person_id ?? null}, NULL, 'System', 'system',
+            ${`Eingangsbestätigung der Kündigung (Antrag Nr. ${w.antragId}, Eingang ${inhalt.eingang_text}, Kündigung zum ${inhalt.zeitpunkt_text}) `
+              + (gesendet ? "per E-Mail gesendet." : `NICHT gesendet (${String(erg?.grund ?? "unbekannt").slice(0, 160)}) — bitte die Bestätigung von Hand nachholen.`)})
+  `.catch((e) => logger.error("[CANCELLATION] Verlauf Eingangsbestätigung:", e));
+  return { gesendet, grund: gesendet ? null : String(erg?.grund ?? "unbekannt"), inhalt };
 }
 
 /** Die Adresse des Anfragenden — Muster clientIp (fiaon-app-login.ts): req.ip (trust proxy 1), sonst der LETZTE X-Forwarded-For-Eintrag. */
@@ -230,7 +258,20 @@ router.post("/abo-kuendigen", async (req, res) => {
 
     logger.info(`[CANCELLATION] New request #${row.id} for ref=${appRef}${ueber !== "geburtsdatum" ? ` (${ueber}, Team prüft)` : ""}`);
 
-    return res.json({ ok: true, id: row.id, ref: row.ref, status: row.status });
+    // ── Querprüfung 08.10.2026 (§ 312k Abs. 4 BGB): DIE EINGANGSBESTÄTIGUNG — SOFORT, IN TEXTFORM ──
+    // Vorher ging die einzige Mail erst mit der Buchung raus — bei offener Identität erst nach der Prüfung.
+    // Jetzt nach JEDEM angenommenen Antrag, auch wenn das Team die Identität noch prüft. Scheitert der Versand,
+    // bleibt der Antrag trotzdem angenommen (Eingang zählt); die Seite zeigt Eingang und Antragsnummer.
+    const eingangAm = new Date();
+    const eingang = await eingangBestaetigen({
+      ref: appRef, antragId: Number(row.id), am: eingangAm, name: `${String(firstName).trim()} ${String(lastName).trim()}`,
+      wunsch: cancellationDate ?? null, grund: reason ?? null, packName: treffer.pack_name ?? null, email: String(email),
+    }).catch((e) => { logger.error("[CANCELLATION] Eingangsbestätigung:", e); return { gesendet: false, inhalt: null as Record<string, string> | null }; });
+
+    return res.json({
+      ok: true, id: row.id, ref: row.ref, status: row.status,
+      eingangAm: eingangAm.toISOString(), eingangText: eingang.inhalt?.eingang_text ?? null, bestaetigungGesendet: eingang.gesendet,
+    });
   } catch (err: any) {
     logger.error("[CANCELLATION] POST error:", err);
     return res.status(500).json({ ok: false, error: "Interner Serverfehler. Bitte später erneut versuchen." });
@@ -242,9 +283,11 @@ router.post("/abo-kuendigen", async (req, res) => {
 router.get("/admin/cancellations", async (req, res) => {
   try {
     const status = (req.query.status as string) || "all";
+    // Querprüfung 08.10.2026: ob die Identität eines offenen Antrags noch zu prüfen ist (dieselbe Regel wie beim Buchen).
+    const offen = sqlPool.unsafe(`(c.status = 'pending' AND ${KUENDIGUNG_IDENTITAET_OFFEN_SQL("c")})`);
     const rows = status === "all"
-      ? await sqlPool`SELECT * FROM cancellation_requests ORDER BY created_at DESC`
-      : await sqlPool`SELECT * FROM cancellation_requests WHERE status = ${status} ORDER BY created_at DESC`;
+      ? await sqlPool`SELECT c.*, ${offen} AS identitaet_offen FROM cancellation_requests c ORDER BY c.created_at DESC`
+      : await sqlPool`SELECT c.*, ${offen} AS identitaet_offen FROM cancellation_requests c WHERE c.status = ${status} ORDER BY c.created_at DESC`;
 
     return res.json({ ok: true, data: rows });
   } catch (err: any) {
@@ -258,7 +301,7 @@ router.get("/admin/cancellations", async (req, res) => {
 router.patch("/admin/cancellations/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, adminNote, processedBy } = req.body;
+    const { status, adminNote, processedBy, identitaetVermerk } = req.body;
 
     if (!status || !["confirmed", "rejected"].includes(status)) {
       return res.status(400).json({ ok: false, error: "Status muss 'confirmed' oder 'rejected' sein." });
@@ -280,12 +323,13 @@ router.patch("/admin/cancellations/:id", async (req, res) => {
           return res.status(409).json({ ok: false, error: `${offen.ziel.satz} Bitte „Ablehnen“ (ohne Kündigung) oder in der Akte das richtige Paket kündigen.` });
         }
         const { antragBuchen } = await import("./fiaon-kuendigung");
+        // Querprüfung 08.10.2026 (Strang b × g): Auch die Leitung bucht einen Antrag mit offener Identität nur mit Vermerk.
         vorgang = await antragBuchen(offen, {
           grund: String(adminNote ?? offen.grund ?? "Kündigungsantrag bestätigt").slice(0, 300),
-          personId: offen.personId, alsLeitung: true,
+          personId: offen.personId, alsLeitung: true, identitaetVermerk: identitaetVermerk ?? null,
           unterzeichner: { name: String(processedBy ?? "FIAON LTD"), rolle: "Geschäftsführung" },
         }).catch((e: any) => ({ ok: false, error: String(e?.message || e) }));
-        if (!vorgang?.ok) return res.status(409).json({ ok: false, error: `Nicht gebucht: ${vorgang?.grund || vorgang?.error || "unbekannt"}`, vertrag: vorgang });
+        if (!vorgang?.ok) return res.status(409).json({ ok: false, error: `Nicht gebucht: ${vorgang?.grund || vorgang?.error || "unbekannt"}`, vertrag: vorgang, identitaet: !!vorgang?.identitaet });
         gebucht = true;
       } else {
         // Kam NACH dem Antrag eine Rücknahme, ist der Kunde geblieben — „Bestätigen“ kündigte sonst einen zahlenden

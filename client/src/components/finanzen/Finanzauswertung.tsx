@@ -23,7 +23,7 @@ const datum = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleD
 const tag = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
 interface Fassung { id: number; nummer: string; fassung: number; freigegebenAm: string | null; status: string }
-interface Antwort { ok: boolean; gelesen?: boolean; aktuell: (Fassung & { inhalt: AuswertungInhalt | null }) | null; fruehere: Fassung[]; error?: string }
+interface Antwort { ok: boolean; gelesen?: boolean; laufend?: boolean; aktuell: (Fassung & { inhalt: AuswertungInhalt | null }) | null; fruehere: Fassung[]; error?: string }
 
 async function laden(kundeRef: string, opts: { kurz?: boolean; gelesen?: boolean } = {}): Promise<Antwort | null> {
   const q = new URLSearchParams();
@@ -86,7 +86,11 @@ export function FinanzauswertungAnsicht({ kundeRef, demo = false, zurueck }: { k
       <div className="fa">
         <div className="fa-karte fa-leer">
           <b>Ihre Finanz- und Bonitätsauswertung</b>
-          <p className="fa-still" style={{ marginTop: 6 }}>Sobald Ihre Unterlagen vollständig sind und Ihre Ansprechperson die Auswertung freigegeben hat, finden Sie sie hier — mit Ampel, Plan und PDF.</p>
+          {/* Querprüfung 08.10.2026: Versprochen wird nur, was jemand auslöst — Ihre Ansprechperson erstellt die Auswertung;
+              ohne laufendes Paket (gekündigt, beendet, keins) kein Versprechen. */}
+          <p className="fa-still" style={{ marginTop: 6 }}>{a.laufend !== false
+            ? "Ihre Ansprechperson erstellt die Auswertung aus Ihren Unterlagen und gibt sie frei — dann finden Sie sie hier, mit Ampel, Plan und PDF. Fehlt noch etwas, sagt sie es Ihnen."
+            : "Eine Finanz- und Bonitätsauswertung gehört zu einem laufenden FIAON-Paket. Für Ihr Konto liegt keine vor."}</p>
         </div>
       </div>
     );

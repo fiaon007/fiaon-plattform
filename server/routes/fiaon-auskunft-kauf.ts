@@ -55,7 +55,7 @@ import { AUSKUNFT_WIDERRUF, AUSKUNFT_KEIN_WIDERRUF } from "@shared/fiaon-auskunf
 import { anredeMail } from "@shared/fiaon-anrede";
 import { markeSvg } from "@shared/fiaon-marke";
 import {
-  AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT,
+  AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT, AUSKUNFT_DATENKOPIE_FASSUNG,
   auskunftLeistung, auskunftWort, auskunfteienText, auskunftPreisCents, euroText,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
@@ -381,9 +381,10 @@ function kaufAktion(req: Request): string {
  * jeder Kauftür (AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT). `required` hält den Browser
  * auf; der Server prüft trotzdem (ein Formular ohne Haken bestellt nichts).
  */
-function auftragHaken(art: AuskunftArt): string {
+function auftragHaken(art: AuskunftArt, datenkopie = false): string {
+  // Querprüfung 08.10.2026: Im Datenkopie-Weg der eigene Wortlaut (ohne „kostenpflichtige Auskunft“).
   return `<label class="wahl"><input type="checkbox" name="auftrag" value="ja" required>
-  <span style="color:var(--text)">${esc(AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art))}</span></label>`;
+  <span style="color:var(--text)">${esc(datenkopie ? AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT(art) : AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art))}</span></label>`;
 }
 
 /**
@@ -863,19 +864,25 @@ router.get("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
     }
     const betrag = a.bestellung.betragCents != null ? euroText(a.bestellung.betragCents) : null;
     const bezahltAm = tagDe(a.bestellung.bezahltAm);
+    // Querprüfung 08.10.2026: Im Datenkopie-Weg eigene Einleitung, Leistungszeile und eigener Haken.
+    const datenkopie = a.modus === "datenkopie";
     const was = a.art === "firma" ? "Firmen-Bonitätsauskunft" : auskunftWort(a.land);
     return senden(res, 200, seite("Auftrag bestätigen", `
 <p class="marke">Bonitätsauskunft · ${esc(a.land === "DE" ? "Deutschland" : a.land === "AT" ? "Österreich" : "Schweiz")}</p>
 <h1>Bitte bestätigen Sie Ihren Auftrag</h1>
-<p>${esc(anredeMail({ vorname: a.kunde.vorname, nachname: a.kunde.nachname }))} Ihre Zahlung ist eingegangen — danke. Damit wir Ihre ${esc(was)} für Sie beschaffen dürfen, fehlt nur noch Ihre Bestätigung.</p>
+<p>${esc(anredeMail({ vorname: a.kunde.vorname, nachname: a.kunde.nachname }))} Ihre Zahlung ist eingegangen — danke. ${datenkopie
+  ? "Damit wir Ihre Datenkopie in Ihrem Namen anfordern dürfen, fehlt nur noch Ihre Bestätigung."
+  : `Damit wir Ihre ${esc(was)} für Sie beschaffen dürfen, fehlt nur noch Ihre Bestätigung.`}</p>
 <ul>
   <li><b>Bestellung:</b> ${esc(a.bestellung.paket || "Bonitätsauskunft inkl. Handlungsplan")} (${esc(a.ref)})</li>
   ${betrag ? `<li><b>Bezahlt:</b> ${esc(betrag)}${bezahltAm ? ` am ${esc(bezahltAm)}` : ""}</li>` : ""}
   <li><b>Auskunfteien:</b> ${esc(stellenText(a))}</li>
-  <li><b>Leistung:</b> Wir beschaffen Ihre Auskunft, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.</li>
+  <li><b>Leistung:</b> ${datenkopie
+    ? "Wir fordern Ihre Datenkopie nach Art. 15 DSGVO in Ihrem Namen an. Sie kommt per Post zu Ihnen — laden Sie sie dann hoch; wir erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor."
+    : "Wir beschaffen Ihre Auskunft, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor."}</li>
 </ul>
 <form method="post" action="${esc(`/api/fiaon/auskunft/auftrag/${String(req.params.token)}`)}" onsubmit="this.querySelector('button').disabled=true">
-  ${auftragHaken(a.art)}
+  ${auftragHaken(a.art, datenkopie)}
   <button type="submit">Auftrag bestätigen</button>
 </form>
 <p class="leise" style="margin-top:14px">${esc(danachSatz(a, true))} Mit dem Klick entstehen keine weiteren Kosten.</p>`));
@@ -895,8 +902,10 @@ router.post("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
     }
     if (a.einwilligung.quelle !== "auftrag") {
       const { beschaffungsauftragVermerken } = await import("../lib/fiaon-auskunft");
+      // Querprüfung 08.10.2026: Im Datenkopie-Weg steht der dort gezeigte Wortlaut mit eigener Fassung im Vermerk.
       const neu = await beschaffungsauftragVermerken({
         ref: a.ref, personId: a.personId, art: a.art, weg: "bestaetigung", von: "Kunde (Auftragsbestätigung)",
+        ...(a.modus === "datenkopie" ? { wortlaut: AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT(a.art), fassung: AUSKUNFT_DATENKOPIE_FASSUNG } : {}),
       });
       if (neu) {
         // Die Aufgabe der Beschaffung sagte „Einwilligung FEHLT" — sie bekommt den Nachtrag.

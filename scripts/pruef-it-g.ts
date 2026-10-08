@@ -408,10 +408,40 @@ titel("A5  Quelltext-Wände: jede Eingabestelle über das eine Bauteil");
   pruef("Kündigung: Aufgabe „Identität prüfen“ beim Betreuer (idempotent je Antrag)", /auftragFuerKunden\(\{[\s\S]{0,400}schluessel: `kuendigung-identitaet:\$\{row\.id\}`/.test(kuend));
   pruef("Kundenweg: Kündigungsantrag zeigt „Identität prüfen“ (to_jsonb, ohne Spalte lauffähig)", /to_jsonb\(c\) ->> 'identifiziert_ueber'/.test(quelle("server/lib/fiaon-kundenweg.ts")) && /Identität prüfen\)/.test(quelle("server/lib/fiaon-kundenweg.ts")));
   const kAlt = quelle("server/routes/fiaon-kuendigung.ts");
-  pruef("Sammellauf Altbestand: ungeprüfte Identität zurückgehalten, in der Vorschau getrennt", /AS identitaet_offen/.test(kAlt) && /'kuendigung-identitaet:' \|\| c\.id::text AND t\.status = 'erledigt'/.test(kAlt) && /identitaetOffen: identitaetOffen\.length/.test(kAlt));
+  // Querprüfung 08.10.2026: Der Ausdruck steht jetzt EINMAL in shared (KUENDIGUNG_IDENTITAET_OFFEN_SQL) — Sammellauf, Akte und Chefbüro.
+  pruef("Sammellauf Altbestand: ungeprüfte Identität zurückgehalten, in der Vorschau getrennt", /KUENDIGUNG_IDENTITAET_OFFEN_SQL\("c"\)\)\} AS identitaet_offen/.test(kAlt)
+    && /'kuendigung-identitaet:' \|\| \$\{c\}\.id::text AND kr_it\.status = 'erledigt'/.test(quelle("shared/fiaon-kuendigung-regel.ts")) && /identitaetOffen: identitaetOffen\.length/.test(kAlt));
   const seite = quelle("client/src/pages/abo-kuendigen.tsx");
   pruef("Kündigungsseite: kein Hinweis „kein Geburtsdatum hinterlegt“ mehr (keine Auskunft)", !/ohneGeburtsdatum|data-ohne-geburtsdatum|kein Geburtsdatum hinterlegt/.test(seite));
   pruef("Kündigungsseite: 429 zeigt die Server-Meldung", /res\.status === 404 \|\| res\.status === 429/.test(seite));
+  // ── Querprüfung 08.10.2026 (§ 312k BGB): Eingangsbestätigung, Ausweg, Geburtsdatum freiwillig ──
+  {
+    const idm = await import("../server/lib/fiaon-kuendigung-identitaet");
+    pruef("Querprüfung § 312k: „keine Übereinstimmung“ und Drossel nennen den Ausweg (formlos an support@fiaon.com, gilt mit dem Eingang)",
+      /support@fiaon\.com/.test(idm.KUENDIGUNG_KEIN_TREFFER) && /gilt mit dem Eingang/.test(idm.KUENDIGUNG_KEIN_TREFFER) && /support@fiaon\.com/.test(idm.KUENDIGUNG_ZU_VIELE));
+    const inh = idm.kuendigungEingangInhalt({ am: new Date("2026-10-08T12:32:00Z"), wunsch: "2026-10-31", paket: "FIAON Plus\nZeile 2", grund: "Zu <teuer> & weg", antragNr: 142, name: "Erika Muster" });
+    pruef("Querprüfung § 312k: Eingang mit Datum und Uhrzeit (Berlin), gewünschter Zeitpunkt, Erklärung — HTML-sicher",
+      inh.eingang_text === "08.10.2026 um 14:32 Uhr" && inh.zeitpunkt_text === "31.10.2026" && /zum 31\.10\.2026 erklärt — für Ihren Vertrag FIAON Plus\./.test(inh.zeitpunkt_satz)
+      && /Kündigung von Erika Muster, Grund: „Zu &lt;teuer&gt; &amp; weg“/.test(inh.erklaerung_text) && inh.antrag_nr === "142", JSON.stringify(inh));
+    const ohneW = idm.kuendigungEingangInhalt({ am: new Date("2026-01-05T08:05:00Z"), wunsch: null, paket: null, grund: null, antragNr: 1, name: "A B" });
+    pruef("Querprüfung § 312k: ohne Wunschdatum „nächstmöglicher Zeitpunkt“ (Winterzeit richtig)", ohneW.zeitpunkt_text === "nächstmöglicher Zeitpunkt" && ohneW.eingang_text === "05.01.2026 um 09:05 Uhr", JSON.stringify(ohneW));
+    const kz = quelle("server/routes/cancellation.ts");
+    const route = kz.slice(kz.indexOf('router.post("/abo-kuendigen"'), kz.indexOf("// ─── GET /api/fiaon/admin/cancellations"));
+    pruef("Querprüfung § 312k: nach JEDEM angenommenen Antrag sofort die Eingangsbestätigung (auch bei offener Identität)",
+      route.indexOf("kuendigungsAntragEinfuegen(") > 0 && route.indexOf("await eingangBestaetigen(") > route.indexOf("kuendigungsAntragEinfuegen(")
+      && route.indexOf("await eingangBestaetigen(") > route.indexOf('if (ueber !== "geburtsdatum")') && /bestaetigungGesendet: eingang\.gesendet/.test(route)
+      && /sendMakeWebhookMitGrund\("kuendigung_eingegangen"/.test(kz) && /Eingangsbestätigung der Kündigung \(Antrag Nr\./.test(kz));
+    const motor = await import("../server/mail/motor");
+    const { PFLICHTMAILS } = await import("../server/lib/fiaon-mail-frequenz");
+    const v = (motor as any).VORLAGEN?.kuendigung_eingegangen;
+    pruef("Querprüfung § 312k: Vorlage „Eingangsbestätigung“ — Vertragspost von FIAON Legal, Pflichtmail, Eingang/Zeitpunkt/Erklärung im Kasten",
+      !!v && v.marke === "Vertragspost" && motor.absenderFuer("kuendigung_eingegangen").name === "FIAON Legal" && PFLICHTMAILS.has("kuendigung_eingegangen")
+      && JSON.stringify(v.daten).includes("{{params.eingang_text}}") && JSON.stringify(v.daten).includes("{{params.zeitpunkt_text}}") && JSON.stringify(v.daten).includes("{{params.erklaerung_text}}")
+      && /gilt ab ihrem Eingang/.test(v.absaetze.join(" ")) && !v.knopf);
+    pruef("Querprüfung § 312k: Kündigungsseite — Geburtsdatum freiwillig, Eingang und Bestätigung auf der Fertig-Seite, Ausweg genannt",
+      /<Field label="Geburtsdatum \(optional\)">/.test(seite) && !/gebGelesen\.stand === "leer"\) \{/.test(seite) && /\.\.\.\(birthdate \? \{ birthdate \} : \{\}\)/.test(seite)
+      && /Eingegangen am <span/.test(seite) && /bestaetigungGesendet === false/.test(seite) && /support@fiaon\.com/.test(seite) && !/1–2 Werktagen/.test(seite));
+  }
   pruef("Einmal-Lauf: C1/C2 nur bei passendem Namen", /vollerNamePasst\(/.test(quelle("scripts/it-g-einmal.ts")) && /if \(b\.namePasst\) c1\.push/.test(quelle("scripts/it-g-einmal.ts")));
   pruef("Einmal-Lauf: zeigt das VALIDATE zum Nachholen", /VALIDATE CONSTRAINT \$\{b\.conname\}/.test(quelle("scripts/it-g-einmal.ts")));
   // Gegenprüfung 08.10. (niedrig): C1 schreibt nie das Datum eines anderen Menschen.
@@ -608,6 +638,11 @@ if (LOKAL) {
     await pm.bindePersonAnAntrag(RN);
     const [nachN] = (await sqlPool`SELECT birthdate, first_name FROM fiaon_persons WHERE id = ${namenlos}`) as any[];
     pruef("Person ohne Namen: Name und Datum kommen aus der Zeile (wie bisher)", nachN?.birthdate === "1981-08-09" && nachN?.first_name === "Nora", JSON.stringify(nachN));
+    // ── Querprüfung 08.10.2026 (§ 312k Abs. 4 BGB): Eingangsbestätigung ohne Schlüssel — versucht, im Verlauf ──
+    titel("B5  Eingangsbestätigung der Kündigung (ohne Mail-Schlüssel: versucht, im Verlauf)");
+    const eb = await kmod.eingangBestaetigen({ ref: R2, antragId: Number(mitSpalte.id), am: new Date(), name: "Prüfa Geburtig", wunsch: null, grund: "Prüfstand", packName: null, email: `pruef.${MARKE.toLowerCase()}@example.invalid` });
+    const [ebv] = (await sqlPool`SELECT note FROM fiaon_contact_log WHERE ref = ${R2} AND note LIKE 'Eingangsbestätigung der Kündigung%' ORDER BY id DESC LIMIT 1`) as any[];
+    pruef("Eingangsbestätigung: ohne Schlüssel nicht gesendet, aber im Verlauf mit Antragsnummer und Eingang", eb.gesendet === false && /Antrag Nr\. \d+, Eingang \d\d\.\d\d\.\d{4} um \d\d:\d\d Uhr/.test(String(ebv?.note)) && /NICHT gesendet/.test(String(ebv?.note)), ebv?.note);
   } finally {
     // Nur die eigene lokale Kopie (LOKAL geprüft): Prüfdaten wieder entfernen.
     const alle = [R1, R2, RK, RM, RN];
@@ -639,4 +674,5 @@ if (BASIS && /^http:\/\/(127\.0\.0\.1|localhost):5317$/.test(BASIS) && LOKAL) {
 
 if (LOKAL) { const { sqlPool } = await import("../server/lib/db-pool"); await sqlPool.end({ timeout: 2 }).catch(() => {}); }
 console.log(`\n${"═".repeat(72)}\nE-IT-G Geburtsdatum: ${ok} grün, ${rot} rot${rot ? `\n  ${fehler.slice(0, 20).join("\n  ")}` : ""}`);
-if (rot) process.exitCode = 1;
+// Querprüfung 08.10.2026: B5 lädt den Mailweg (Diagnose- und DDL-Wache-Takte) — ohne ausdrückliches Ende liefe der Prozess weiter.
+process.exit(rot ? 1 : 0);

@@ -2098,11 +2098,19 @@ async function erinnerungGezaehlt(ref: string): Promise<void> {
  * einmal je Bestellung an den Betreuer: Adresse klären oder anrufen. Der
  * Schlüssel macht es idempotent, der Lauf ist stündlich und billig.
  */
+/** Querprüfung 08.10.2026: Marke des Adress-Hinweises in der Klärungsaufgabe (Stufe A) — macht das Anhängen idempotent. */
+export const UNZUSTELLBAR_HINWEIS_MARKE = "Hinweis: E-Mail-Adresse unzustellbar";
+
 async function unzustellbareErstzahlungenMelden(): Promise<number> {
   const { globalKundeSql, globalKundeBereit } = await import("../lib/fiaon-global-kunde");
   await globalKundeBereit();
   const zeilen = (await sqlPool.unsafe(`
-    SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, ${zielMailSql("fa")} AS mail
+    SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, fa.payment_status, fa.claimed_paid_at, ${zielMailSql("fa")} AS mail,
+           -- Querprüfung 08.10.2026 (E-303 × E-184): Liegt zu diesem Menschen schon die Anrufaufgabe „Zahlung gemeldet, nicht da“,
+           -- bekommt SIE den Hinweis zur Adresse — keine zweite Anrufaufgabe zur selben Bestellung.
+           (SELECT k.schluessel FROM fiaon_betreiber_todos k WHERE k.status <> 'erledigt'
+              AND k.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id)
+            ORDER BY k.id DESC LIMIT 1) AS klaerung
       FROM fiaon_applications fa
       LEFT JOIN fiaon_persons pt ON pt.id = fa.person_id
      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
@@ -2122,20 +2130,43 @@ async function unzustellbareErstzahlungenMelden(): Promise<number> {
        -- E-IT-F (08.10.2026): wie im Abo-Motor — nach ZUSTAND_WIEDER_OFFEN_TAGE erneut melden, wenn die Lage besteht.
        AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar'
                          AND (t.status <> 'erledigt' OR COALESCE(t.erledigt_am, NOW()) > NOW() - INTERVAL '${ZUSTAND_WIEDER_OFFEN_TAGE} days'))
+       -- Querprüfung 08.10.2026: Hat die offene Anrufaufgabe den Adress-Hinweis schon, ist nichts mehr zu tun.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos k2 WHERE k2.status <> 'erledigt'
+                         AND k2.schluessel IN (SELECT 'antrag:' || x.ref || ':a-klaeren' FROM fiaon_applications x WHERE x.person_id = fa.person_id)
+                         AND strpos(COALESCE(k2.text, ''), $1::text) > 0)
      ORDER BY fa.created_at DESC
-     LIMIT 50`)) as any[];
+     LIMIT 50`, [UNZUSTELLBAR_HINWEIS_MARKE])) as any[];
   if (zeilen.length === 0) return 0;
   const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
   let n = 0;
   for (const z of zeilen) {
     try {
+      if (z.klaerung) {
+        // Querprüfung 08.10.2026: EIN Anruf zur Bestellung — der Adress-Hinweis kommt in die offene Klärungsaufgabe.
+        await auftragFuerKunden({
+          personId: z.person_id ? Number(z.person_id) : null,
+          ref: String(z.ref),
+          titel: "Zahlung gemeldet, nicht da — anrufen und klären",
+          text: `${UNZUSTELLBAR_HINWEIS_MARKE}: Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung) — `
+            + "beim Anruf bitte auch die E-Mail-Adresse klären und in der Akte berichtigen.",
+          schluessel: String(z.klaerung),
+          quelle: "antrag",
+          bereich: "konten",
+          autorName: "Erinnerungsmaschine",
+        });
+        n++;
+        continue;
+      }
+      const gemeldet = String(z.payment_status) === "claimed_paid";
       await auftragFuerKunden({
         personId: z.person_id ? Number(z.person_id) : null,
         ref: String(z.ref),
         titel: "Erstzahlung: E-Mail unzustellbar — Adresse klären oder anrufen",
         text: `Die Zahlungserinnerung${z.pack_name ? ` für ${String(z.pack_name).split("\n")[0]}` : ""} kommt nicht an: `
           + `Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung). `
-          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Erinnerung raus. Bitte anrufen oder die Adresse berichtigen.",
+          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Erinnerung raus. Bitte anrufen oder die Adresse berichtigen."
+          // Querprüfung 08.10.2026: gemeldete Zahlung → dieser EINE Anruf klärt beides (keine zweite Anrufaufgabe, stufeAKlaerenSql).
+          + (gemeldet ? " Der Kunde hat die Zahlung als überwiesen gemeldet, sie ist aber nicht da — beim Anruf auch Überweisungsbeleg oder -datum erfragen." : ""),
         dringend: true,
         schluessel: `antrag:${z.ref}:unzustellbar`,
         quelle: "antrag",

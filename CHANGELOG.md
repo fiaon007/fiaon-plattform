@@ -52,6 +52,17 @@ ist nicht dabei. Warum: die Befunde des Teams aus dem IT-Feedback vom 07.10.2026
   Upload-Weg (auch der Link ohne Anmeldung) landet in derselben Unterlagen-Ablage und meldet „Unterlage erhalten“.
 - **Für den Deploy:** Die Datenbank-Erweiterungen 097–103 laufen beim Start von selbst (nur hinzufügend, wiederholbar). Die Einmal-Läufe
   `scripts/it-a-einmal.ts` bis `it-g-einmal.ts` laufen erst danach, zuerst als Trockenlauf und nur nach Justins Freigabe.
+- **Nachbesserung nach der Querprüfung (08.10., abends):** Die endgültige DSGVO-Löschung nimmt jetzt jede Datei, die Akte je Unterlage,
+  Vorgänge und die Daten zusammengeführter Dubletten mit — vorher blieben Ausweis, Kontoauszug und Auswertungs-PDF stehen. Eine Kündigung
+  ohne geprüfte Identität bucht weder die Akte noch die Leitung, außer mit einem Satz, wie geprüft wurde; der Stand steht in Akte und
+  Chefbüro. Die Kündigungsseite schickt sofort eine Eingangsbestätigung (Datum, Uhrzeit, Zeitpunkt), nennt bei „keine Übereinstimmung“ den
+  Weg über support@fiaon.com, und das Geburtsdatum ist freiwillig. Beim Entfernen einer Datei wählt das Team den Grund („falsche Person“
+  und „nicht benötigt“ löschen den Inhalt sofort, sonst nach 90 Tagen), die Leitung kann endgültig löschen. Die Datenschutzerklärung hat
+  einen Abschnitt zu Unterlagen, KI-Lesung (USA) und Finanzauswertung; die Upload-Seite verlinkt Datenschutz und Impressum. Abmeldungen und
+  Werbewidersprüche schließen nie automatisch. Kleinere Abgleiche: eine Anrufaufgabe je Bestellung bei unzustellbarer Adresse, die Zahlung
+  einer Auskunft schließt „Zahlung gemeldet, nicht da“ nicht mehr, Tagesbericht-Nachträge melden ihr Gespräch an die Aufträge, Migration 101
+  bricht bei einer „0“ sichtbar ab, ehrliche Sätze im Datenkopie-Weg und in der Auswertung. *Wo:* Kundenzentrale › Löschen, Akte ›
+  Kündigung und Dokumente, Chefbüro › Kündigungen, fiaon.com/abo-kuendigen, fiaon.com/datenschutz.
 
 **Wo (Technik):** shared/fiaon-wiedervorlage.ts, server/lib/fiaon-pipeline-reihung.ts (1); server/lib/fiaon-konto-karte.ts,
 client/src/components/agent/KontoKarteAkte.tsx, shared/fiaon-kuendigung-regel.ts (2, 11); server/lib/fiaon-unterlagen.ts,
@@ -59,6 +70,8 @@ server/routes/fiaon-unterlagen.ts, shared/fiaon-lesefehler.ts (3, 13); server/li
 server/lib/fiaon-finanzauswertung.ts, server/lib/fiaon-unterlagen-link.ts (4a–4c); server/lib/fiaon-akte-aufloesen.ts,
 shared/fiaon-betreuer-lage.ts, server/lib/fiaon-person-merge.ts (5, 10); shared/fiaon-auftrag-arten.ts, server/lib/fiaon-auftraege.ts
 (6–9); shared/fiaon-geburtsdatum.ts (14); shared/fiaon-wa-raum.ts (15); server/lib/fiaon-stufe-a-klaeren.ts (Stufe A).
+Querprüfung: server/lib/fiaon-loeschen.ts (Löschung), server/routes/cancellation.ts und shared/fiaon-kuendigung-regel.ts (Kündigung),
+server/lib/fiaon-unterlagen.ts (Entfernen, Frist), client/src/pages/privacy.tsx (Datenschutz), shared/fiaon-auftrag-arten.ts (Widerspruch).
 Prüfstände `scripts/pruef-it-a.ts` bis `pruef-it-h.ts`.
 
 ## 08.10.2026 — E-303 Mara-Topsales: die Verkaufsketten laufen wieder (Diagnose mit Zahlen, Justin: „Mach Mara verkaufsfähig“)

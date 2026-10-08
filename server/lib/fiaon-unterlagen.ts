@@ -40,6 +40,7 @@ import { dateiEingang, sha256Hex, pdfEntschluesseln, pdfVerschluesselt, typAmInh
 import {
   UNTERLAGEN_GRENZEN, UNTERLAGEN_KATEGORIEN, STATUS_TEXT, kategorieInfo, istGebunden, unterartSauber, unterartLabel,
   kategorieStatus, monateLeiste, darfKundeEntfernen, ausweisBewerten, groesseText,
+  ENTFERN_GRUENDE, ENTFERNT_AUFBEWAHRUNG_TAGE, entfernenLeertSofort, istUnterlagenKategorie,
   type UnterlagenKategorie, type GebundeneKategorie, type DateiBefund, type AusweisUrteil,
   type UnterlagenDatei, type KategorieStand, type UnterlagenStand,
 } from "@shared/fiaon-unterlagen";
@@ -902,7 +903,17 @@ export async function unterlageHinzufuegen(ein: {
         // Was ersetzt wird, geht nicht verloren: Bestand vorher als Zeile, die Spalte ins Archiv.
         await bestandUebernehmen(ein.personId, k, tx);
         const { unterlageSichern } = await import("./fiaon-dokumente");
-        if (traeger) await unterlageSichern(traeger, k as DokumentArt, tx);
+        if (traeger) {
+          await unterlageSichern(traeger, k as DokumentArt, tx);
+          // Querprüfung 08.10.2026: Die Archivfassung der ersetzten Akte trägt den Entfernt-Vermerk — die Frist
+          // (entfernteInhalteLeeren, 90 Tage) erfasst sie wie die ersetzten Einzeldateien.
+          await tx.unsafe(
+            `UPDATE fiaon_dokumente SET entfernt_am = COALESCE(entfernt_am, NOW()), entfernt_von = COALESCE(entfernt_von, $3),
+                    entfernt_grund = COALESCE(entfernt_grund, $4)
+              WHERE person_id = $1 AND art = 'frueher_' || $5 AND geloescht_am IS NULL
+                AND doc_hash = (SELECT encode(sha256(a.${spalteVon(k as GebundeneKategorie)}), 'hex') FROM fiaon_applications a WHERE a.ref = $2)`,
+            [ein.personId, traeger, ein.wer.name, `ersetzt: ${ein.ersetzen.grund}`.slice(0, 300), k]);
+        }
       }
       await tx`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${ein.wer.name}, entfernt_grund = ${`ersetzt: ${ein.ersetzen.grund}`.slice(0, 300)}
                 WHERE person_id = ${ein.personId} AND art = 'unterlage' AND kategorie = ${k} AND entfernt_am IS NULL AND geloescht_am IS NULL`;
@@ -1011,7 +1022,8 @@ async function traegerWeiter(personId: number, lauf: Lauf): Promise<void> {
 // ───────────────────────────────────────────────────────────────────────────
 export type AktionErgebnis = { ok: true; satz: string } | { ok: false; status: number; satz: string };
 
-export async function unterlageEntfernen(personId: number, id: number, wer: Handelnder, grund: string, lauf: Lauf = sqlPool): Promise<AktionErgebnis> {
+export async function unterlageEntfernen(personId: number, id: number, wer: Handelnder, grund: string, lauf: Lauf = sqlPool,
+  opt: { grundArt?: string | null } = {}): Promise<AktionErgebnis> {
   if (!(await unterlagenBereit(lauf))) return { ok: false, status: 503, satz: "Gerade nicht möglich." };
   const zeile = (await zeilenLaden(personId, lauf)).find((z) => z.id === id);
   if (!zeile) return { ok: false, status: 404, satz: wer.art === "kunde" ? "Diese Datei gibt es nicht (mehr)." : "Diese Datei gibt es nicht (mehr)." };
@@ -1024,14 +1036,18 @@ export async function unterlageEntfernen(personId: number, id: number, wer: Hand
   } else if (String(grund || "").trim().length < 5) {
     return { ok: false, status: 400, satz: "Bitte kurz begründen — der Grund steht im Verlauf." };
   }
-  const g = String(grund || (wer.art === "kunde" ? "vom Kunden entfernt" : "")).trim().slice(0, 300);
   // E-IT-C Nachbesserung (Art. 5 Abs. 1 lit. c/e DSGVO): Was der Kunde selbst entfernt — eine eigene,
   // ungeprüfte Datei, meist versehentlich hochgeladen (der Auszug des Partners, ein Attest) —, wird
-  // gelöscht; es bleibt nur der Vermerk, dass es sie gab (Name, Größe, Prüfsumme, wann). Entfernt das
-  // Team (mit Grund), bleibt die Datei im Archiv der Akte.
+  // gelöscht; es bleibt nur der Vermerk, dass es sie gab (Name, Größe, Prüfsumme, wann).
+  // Querprüfung 08.10.2026: Das Team wählt den Grund (ENTFERN_GRUENDE). „Falsche Person“ und „nicht benötigt“
+  // löschen den Inhalt sofort wie beim Kunden; „veraltet/ersetzt“ (und ein alter Client ohne Angabe) hält die
+  // Datei ENTFERNT_AUFBEWAHRUNG_TAGE im Archiv — danach leert der Takt unterlagen_frist den Inhalt.
   const vomKunden = wer.art === "kunde";
-  await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${wer.name}, entfernt_grund = ${g},
-                    inhalt = CASE WHEN ${vomKunden} THEN '\\x'::bytea ELSE inhalt END
+  const art = vomKunden ? null : ENTFERN_GRUENDE.find((x) => x.wert === opt.grundArt) ?? null;
+  const leeren = vomKunden || entfernenLeertSofort(opt.grundArt);
+  const g = (art ? `${art.kurz}: ` : "") + String(grund || (vomKunden ? "vom Kunden entfernt" : "")).trim();
+  await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${wer.name}, entfernt_grund = ${g.slice(0, 300)},
+                    inhalt = CASE WHEN ${leeren} THEN '\\x'::bytea ELSE inhalt END
               WHERE id = ${id} AND person_id = ${personId} AND entfernt_am IS NULL`;
   const k = zeile.kategorie;
   if (istGebunden(k)) await akteFassungBinden(personId, k, lauf);
@@ -1043,8 +1059,51 @@ export async function unterlageEntfernen(personId: number, id: number, wer: Hand
                anstoss_von = CASE WHEN fiaon_unterlagen_akte.anstoss_von = 'kunde' AND fiaon_unterlagen_akte.anstoss_faellig_am IS NOT NULL THEN 'kunde' ELSE EXCLUDED.anstoss_von END,
                updated_at = NOW()`.catch(() => {});
   anstossPlanen(personId, k);
-  await verlauf(null, personId, wer, `${kategorieInfo(k).kurz}: Datei „${zeile.dateiname}“ entfernt (von ${wer.name}). Grund: ${g}. ${vomKunden ? "Der Inhalt ist gelöscht (eigene, ungeprüfte Datei des Kunden) — vermerkt bleibt nur, dass es sie gab." : "Die Datei bleibt im Archiv der Akte."}`, lauf);
-  return { ok: true, satz: wer.art === "kunde" ? `„${zeile.dateiname}“ ist entfernt.` : `„${zeile.dateiname}“ entfernt — der Grund steht im Verlauf.` };
+  const wasMitInhalt = vomKunden ? "Der Inhalt ist gelöscht (eigene, ungeprüfte Datei des Kunden) — vermerkt bleibt nur, dass es sie gab."
+    : leeren ? "Der Inhalt ist gelöscht — vermerkt bleibt nur, dass es sie gab."
+    : `Die Datei bleibt ${ENTFERNT_AUFBEWAHRUNG_TAGE} Tage im Archiv der Akte, danach wird ihr Inhalt gelöscht.`;
+  await verlauf(null, personId, wer, `${kategorieInfo(k).kurz}: Datei „${zeile.dateiname}“ entfernt (von ${wer.name}). Grund: ${g}. ${wasMitInhalt}`, lauf);
+  return { ok: true, satz: wer.art === "kunde" ? `„${zeile.dateiname}“ ist entfernt.` : `„${zeile.dateiname}“ entfernt${leeren ? ", der Inhalt ist gelöscht" : ""} — der Grund steht im Verlauf.` };
+}
+
+/**
+ * Querprüfung 08.10.2026: Die Leitung löscht den Inhalt einer ENTFERNTEN Datei sofort (vor Ablauf der Frist),
+ * mit Grund und Verlaufseintrag. Eine aktive Datei wird zuerst entfernt — „falsche Person“ tut beides in einem Schritt.
+ */
+export async function unterlageEndgueltigLoeschen(personId: number, id: number, wer: Handelnder, grund: string, lauf: Lauf = sqlPool): Promise<AktionErgebnis> {
+  if (!(await unterlagenBereit(lauf))) return { ok: false, status: 503, satz: "Gerade nicht möglich." };
+  const g = String(grund || "").trim();
+  if (g.length < 5) return { ok: false, status: 400, satz: "Bitte kurz begründen — der Grund steht im Verlauf." };
+  const [z] = (await lauf`SELECT id, dateiname, kategorie, entfernt_am, octet_length(inhalt) AS n FROM fiaon_dokumente
+                           WHERE id = ${id} AND person_id = ${personId} AND art = 'unterlage' AND geloescht_am IS NULL LIMIT 1`) as any[];
+  if (!z) return { ok: false, status: 404, satz: "Diese Datei gibt es nicht (mehr)." };
+  if (!z.entfernt_am) return { ok: false, status: 409, satz: "Die Datei ist noch aktiv — bitte zuerst „Entfernen“ (Grund „falsche Person“ löscht den Inhalt sofort)." };
+  if (Number(z.n) === 0) return { ok: false, status: 409, satz: "Der Inhalt dieser Datei ist schon gelöscht." };
+  await lauf`UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea,
+                    entfernt_grund = LEFT(CONCAT_WS(' · ', NULLIF(entfernt_grund, ''), ${`endgültig gelöscht von ${wer.name}: ${g}`}::text), 300)
+              WHERE id = ${id} AND person_id = ${personId}`;
+  const k = String(z.kategorie) as UnterlagenKategorie;
+  await verlauf(null, personId, wer, `${istUnterlagenKategorie(k) ? kategorieInfo(k).kurz : "Unterlage"}: Inhalt der entfernten Datei „${z.dateiname}“ endgültig gelöscht (von ${wer.name}). Grund: ${g}. Vermerkt bleibt nur, dass es sie gab.`, lauf);
+  return { ok: true, satz: `„${z.dateiname}“: Inhalt endgültig gelöscht — der Grund steht im Verlauf.` };
+}
+
+/**
+ * Takt unterlagen_frist (Querprüfung 08.10.2026, Art. 5 Abs. 1 lit. e DSGVO): Der Inhalt entfernter Dateien
+ * (Team-Entfernen, „Alles ersetzen“, Archivfassungen aus „Löschen“) wird ENTFERNT_AUFBEWAHRUNG_TAGE nach dem
+ * Entfernen geleert. Der Vermerk bleibt (Name, Größe, Prüfsumme, wer, wann, warum); Archivfassungen fallen
+ * aus der Archivliste (geloescht_am). Gibt die Zahl der geleerten Dateien zurück.
+ */
+export async function entfernteInhalteLeeren(lauf: Lauf = sqlPool, tage: number = ENTFERNT_AUFBEWAHRUNG_TAGE): Promise<number> {
+  if (!(await unterlagenBereit(lauf))) return 0;
+  const r = (await lauf`
+    UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea,
+           geloescht_am = CASE WHEN art LIKE 'frueher\\_%' THEN COALESCE(geloescht_am, NOW()) ELSE geloescht_am END,
+           entfernt_grund = LEFT(CONCAT_WS(' · ', NULLIF(entfernt_grund, ''), ${`Inhalt nach ${tage} Tagen gelöscht`}::text), 300)
+     WHERE entfernt_am IS NOT NULL AND entfernt_am < NOW() - make_interval(days => ${tage}::int)
+       AND (art = 'unterlage' OR art LIKE 'frueher\\_%') AND octet_length(inhalt) > 0 AND geloescht_am IS NULL
+     RETURNING id`) as any[];
+  if (r.length) console.log(`[UNTERLAGEN] Frist: Inhalt von ${r.length} entfernten Datei(en) nach ${tage} Tagen gelöscht.`);
+  return r.length;
 }
 
 /** Die Verwaltung (bzw. der Betreuer) hat die Kategorie geprüft: Ab jetzt entfernt der Kunde dort nichts mehr selbst. */
@@ -1060,19 +1119,34 @@ export async function kategorieGeprueft(personId: number, k: UnterlagenKategorie
 }
 
 /** „Löschen" der ganzen Kategorie (alter Knopf in der Akte): Dateien entfernen, Fassung archivieren, Spalten leeren. */
-export async function kategorieLeeren(personId: number, k: GebundeneKategorie, wer: Handelnder, grund: string, lauf: Lauf = sqlPool): Promise<AktionErgebnis> {
+export async function kategorieLeeren(personId: number, k: GebundeneKategorie, wer: Handelnder, grund: string, lauf: Lauf = sqlPool,
+  opt: { grundArt?: string | null } = {}): Promise<AktionErgebnis> {
   if (!(await unterlagenBereit(lauf))) return { ok: false, status: 503, satz: "Gerade nicht möglich." };
   await bestandUebernehmen(personId, k, lauf);
   const spalte = spalteVon(k);
-  const traeger = (await lauf.unsafe(`SELECT ref FROM fiaon_applications WHERE person_id = $1 AND gdpr_deleted_at IS NULL AND ${spalte} IS NOT NULL`, [personId])) as any[];
-  const { unterlageSichern } = await import("./fiaon-dokumente");
-  for (const t of traeger) await unterlageSichern(String(t.ref), k, lauf);
-  const r = (await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${wer.name}, entfernt_grund = ${`gelöscht: ${grund}`.slice(0, 300)}
+  const traeger = (await lauf.unsafe(`SELECT ref, encode(sha256(${spalte}), 'hex') AS h FROM fiaon_applications WHERE person_id = $1 AND gdpr_deleted_at IS NULL AND ${spalte} IS NOT NULL`, [personId])) as any[];
+  // Querprüfung 08.10.2026: „falsche Person“/„nicht benötigt“ → keine Archivfassung, Inhalt der Dateien sofort leer.
+  // Sonst wie bisher ins Archiv — die Archivfassung trägt jetzt den Entfernt-Vermerk, damit die Frist sie erfasst.
+  const leeren = entfernenLeertSofort(opt.grundArt);
+  const art = ENTFERN_GRUENDE.find((x) => x.wert === opt.grundArt) ?? null;
+  const grundText = `gelöscht: ${art ? `${art.kurz}: ` : ""}${grund}`.slice(0, 300);
+  if (!leeren) {
+    const { unterlageSichern } = await import("./fiaon-dokumente");
+    for (const t of traeger) await unterlageSichern(String(t.ref), k, lauf);
+    const hashes = traeger.map((t) => String(t.h)).filter(Boolean);
+    if (hashes.length) {
+      await lauf`UPDATE fiaon_dokumente SET entfernt_am = COALESCE(entfernt_am, NOW()), entfernt_von = COALESCE(entfernt_von, ${wer.name}),
+                        entfernt_grund = COALESCE(entfernt_grund, ${grundText})
+                  WHERE person_id = ${personId} AND art = ${`frueher_${k}`} AND doc_hash = ANY(${hashes}::text[]) AND geloescht_am IS NULL`;
+    }
+  }
+  const r = (await lauf`UPDATE fiaon_dokumente SET entfernt_am = NOW(), entfernt_von = ${wer.name}, entfernt_grund = ${grundText},
+                                inhalt = CASE WHEN ${leeren} THEN '\\x'::bytea ELSE inhalt END
                          WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = ${k} AND entfernt_am IS NULL AND geloescht_am IS NULL
                          RETURNING id`) as any[];
   if (!r.length && !traeger.length) return { ok: false, status: 404, satz: "Es liegt kein solches Dokument vor." };
   await akteFassungBinden(personId, k, lauf);
-  await verlauf(traeger[0]?.ref ? String(traeger[0].ref) : null, personId, wer, `Dokument gelöscht: ${kategorieInfo(k).kurz} (${r.length} Datei${r.length === 1 ? "" : "en"}, Fassung im Archiv). Grund: ${grund}`, lauf);
+  await verlauf(traeger[0]?.ref ? String(traeger[0].ref) : null, personId, wer, `Dokument gelöscht: ${kategorieInfo(k).kurz} (${r.length} Datei${r.length === 1 ? "" : "en"}, ${leeren ? "Inhalt gelöscht, keine Archivfassung" : `Fassung ${ENTFERNT_AUFBEWAHRUNG_TAGE} Tage im Archiv`}). Grund: ${art ? `${art.kurz}: ` : ""}${grund}`, lauf);
   return { ok: true, satz: `${kategorieInfo(k).kurz} gelöscht — der Kunde (oder du) kann jetzt das richtige Dokument hochladen.` };
 }
 

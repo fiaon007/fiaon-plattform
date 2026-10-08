@@ -840,11 +840,16 @@ export const HAFTUNG_ABSAETZE: string[] = [
 // gehen an kein Modell“. Beides stimmte so nicht: Der Zeilenleser (fiaon-kontoauszug-analyse.ts) liest den
 // ganzen Auszug samt Kopf (bei Fotos per Bild), maskiert wird erst danach; und die Ausweis-Prüfung ist ein
 // eigener, späterer Schritt (Justin 08.10.). Jetzt steht hier nur, was für DIESE Auswertung zutrifft.
+// Querprüfung 08.10.2026 (Art. 13 Abs. 1 lit. e/f DSGVO): Anbieter und Drittland mit Garantie genannt, Hinweis auf Art. 22
+// und auf die Datenschutzerklärung (Abschnitt IV a, client/src/pages/privacy.tsx).
 export const DATENSCHUTZ_ABSATZ =
   "Zum Lesen der Buchungen übermitteln wir den Inhalt Ihres Kontoauszugs — einschließlich des Kopfes mit Name, Anschrift und Kontonummer — an einen "
-  + "KI-Dienstleister, der in unserem Auftrag arbeitet (Art. 28 DSGVO). Für die Einordnung in dieser Auswertung erhält das Sprachmodell danach nur ein "
+  + "KI-Dienstleister, der in unserem Auftrag arbeitet (Art. 28 DSGVO): Anthropic PBC oder OpenAI, L.L.C., beide mit Sitz in den USA. Grundlage der "
+  + "Übermittlung sind die Standardvertragsklauseln der EU-Kommission (Art. 46 Abs. 2 lit. c DSGVO) und, soweit der Anbieter danach zertifiziert ist, "
+  + "das EU-U.S. Data Privacy Framework (Art. 45 DSGVO). Für die Einordnung in dieser Auswertung erhält das Sprachmodell danach nur ein "
   + "Faktenblatt ohne Namen, Kontonummern und Anschrift. Alle Zahlen, Ampeln und der Finanzwert entstehen nach festen Regeln auf den Servern von FIAON, "
-  + "nicht im Modell. " + ART9_HINWEIS;
+  + "nicht im Modell. Mit dem Finanzwert treffen wir keine Entscheidung über Sie, die Ihnen gegenüber rechtliche Wirkung entfaltet (Art. 22 DSGVO). "
+  + "Einzelheiten stehen in unserer Datenschutzerklärung unter fiaon.com/datenschutz (Abschnitt IV a). " + ART9_HINWEIS;
 
 export const VORBEHALT_TEXTE: Record<string, string> = {
   cent: "Die gelesenen Buchungen ließen sich nicht vollständig mit den Salden des Kontoauszugs abgleichen. Einzelne Beträge können fehlen oder abweichen — "

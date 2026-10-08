@@ -4347,6 +4347,8 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   const [ausAntrag, setAusAntrag] = useState<number | null>(null);
   // … und die Leitung bucht auch dort, wo die Akte selbst nicht darf (Ziel aus antragZiel, mit Grund).
   const [alsLeitung, setAlsLeitung] = useState(false);
+  // Querprüfung 08.10.2026: Antrag ohne passendes Geburtsdatum → Buchen erst nach der Prüfaufgabe oder mit Vermerk.
+  const [identVermerk, setIdentVermerk] = useState("");
   const laden = useCallback(async () => {
     const r = await api(`/agent/kunden/${personId}/kuendigung`);
     setStand(r.ok ? r.json : { fehlt: true, error: r.json?.error });
@@ -4356,11 +4358,13 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   const tag = (x: any) => (x ? new Date(x).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : null);
   const senden = async () => {
     if (grund.trim().length < 5) { melden("schlecht", "Grund fehlt", "Ein Satz reicht — er steht dauerhaft am Kunden."); return; }
-    setBusy(true);
     const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung`
       : modus === "schliessen" ? `/agent/kunden/${personId}/kuendigung/antrag/${Number(stand.antragUngebucht?.id)}/schliessen`
       : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
-    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung } : {}) }) });
+    const identPflicht = modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen;
+    if (identPflicht && identVermerk.trim().length < 10) { melden("schlecht", "Identität erst prüfen", "Ohne passendes Geburtsdatum angenommen: Erledige zuerst die Aufgabe „Kündigung – Identität prüfen“ oder schreib in einem Satz, wie du die Identität geprüft hast."); return; }
+    setBusy(true);
+    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung, ...(identPflicht ? { identitaetVermerk: identVermerk.trim() } : {}) } : {}) }) });
     setBusy(false);
     if (!r.ok || r.json?.ok === false) { melden("schlecht", "Nicht möglich", r.json?.error || "Der Server hat abgelehnt."); return; }
     if (modus === "schliessen") melden("gut", "Antrag geschlossen", String(r.json?.meldung || "Ohne Kündigung geschlossen."));
@@ -4371,7 +4375,7 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
         : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
       melden("gut", "Kündigung durchgesetzt", `${r.json?.gebuchtAuf ? `Gebucht auf ${r.json.gebuchtAuf} zum ${tag(r.json.gebuchtZum)} (Eingang des Antrags). ` : ""}${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
     } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
-    setModus("zu"); setGrund(""); setSofort(false); setAusAntrag(null); setAlsLeitung(false);
+    setModus("zu"); setGrund(""); setSofort(false); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk("");
     await laden(); onFrisch();
   };
   return (
@@ -4415,6 +4419,7 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
             {au.wunschDatum ? ` (gewünscht zum ${tag(au.wunschDatum)})` : ""}, ist aber nicht gebucht.
             {au.grund ? ` Grund laut Antrag: „${au.grund}“.` : ""}
             {" "}{au.satz}
+            {au.identitaetOffen && " Achtung: Die Identität ist noch nicht geprüft — der Antrag kam ohne passendes Geburtsdatum (Aufgabe „Kündigung – Identität prüfen“). Gebucht wird erst nach dieser Prüfung oder mit einem Vermerk, wie du sie geprüft hast."}
             {au.buchbar ? (
               <>{` „Jetzt buchen“ bucht ihn zum ${tag(au.am)} (Eingang des Antrags).`}
                 {modus === "zu" && <>{" "}<button type="button" className="pi-link" onClick={() => buchen(false)}>Jetzt buchen</button></>}</>
@@ -4440,6 +4445,10 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
                  placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)"
                    : modus === "schliessen" ? "Warum ist der Antrag ohne Kündigung erledigt? (steht im Verlauf)"
                    : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
+          {modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen && (
+            <input className="pi-eingabe" value={identVermerk} onChange={(e) => setIdentVermerk(e.target.value)} maxLength={300}
+                   placeholder="Wie hast du die Identität geprüft? (z. B. Rückruf unter der bekannten Nummer, Ausweis gesehen — steht im Verlauf)" />
+          )}
           {modus === "kuendigen" && (
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#94a3b8" }}>
               <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} />
@@ -4447,8 +4456,8 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
             </label>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? (ausAntrag ? `Zum ${tag(stand.antragUngebucht?.am)} buchen` : "Jetzt kündigen") : modus === "schliessen" ? "Ohne Kündigung schließen" : "Konto reaktivieren"}</button>
-            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); setAusAntrag(null); setAlsLeitung(false); }}>Abbrechen</button>
+            <button type="button" className="pi-knopf klein" disabled={busy || (modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen && identVermerk.trim().length < 10)} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? (ausAntrag ? `Zum ${tag(stand.antragUngebucht?.am)} buchen` : "Jetzt kündigen") : modus === "schliessen" ? "Ohne Kündigung schließen" : "Konto reaktivieren"}</button>
+            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk(""); }}>Abbrechen</button>
           </div>
           <span className="pi-fussnote">{modus === "kuendigen"
             ? "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf."

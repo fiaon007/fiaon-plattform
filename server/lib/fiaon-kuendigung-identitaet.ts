@@ -108,8 +108,44 @@ export function kuendigungDrossel(grenzen: { fensterMs: number; jeIp: number; je
   };
 }
 
+// ── KEINE SACKGASSE (Querprüfung 08.10.2026, § 312k BGB) ───────────────────
+// Passen Name oder E-Mail nicht, oder greift die Drossel, nennt die Meldung den
+// zweiten Weg: die formlose Kündigung an support@fiaon.com (Postfach mit Antwort
+// am selben Werktag, Kontaktseite). Sie gilt mit dem Eingang — die Seite darf
+// nie die einzige Tür sein. Die Meldung bleibt für jeden Fall gleich und sagt
+// weiter nicht, ob es die Adresse bei uns gibt.
+export const KUENDIGUNG_AUSWEG_ADRESSE = "support@fiaon.com";
+export const KUENDIGUNG_AUSWEG_SATZ =
+  `Klappt es nicht, kündigen Sie formlos an ${KUENDIGUNG_AUSWEG_ADRESSE} — mit Ihrem Namen und der Adresse, mit der Sie bestellt haben. Die Kündigung gilt mit dem Eingang.`;
+
 /** Die eine Meldung nach außen, wenn Name und E-Mail nicht passen — für jeden Fall gleich. */
 export const KUENDIGUNG_KEIN_TREFFER =
-  "Keine Übereinstimmung gefunden. Bitte prüfen Sie Vor- und Nachname sowie die E-Mail-Adresse, mit der Sie bestellt haben.";
+  "Keine Übereinstimmung gefunden. Bitte prüfen Sie Vor- und Nachname sowie die E-Mail-Adresse, mit der Sie bestellt haben. " + KUENDIGUNG_AUSWEG_SATZ;
 export const KUENDIGUNG_ZU_VIELE =
-  "Zu viele Versuche. Bitte versuchen Sie es in 15 Minuten erneut.";
+  "Zu viele Versuche. Bitte versuchen Sie es in 15 Minuten erneut. " + KUENDIGUNG_AUSWEG_SATZ;
+
+// ── DIE EINGANGSBESTÄTIGUNG (Querprüfung 08.10.2026, § 312k Abs. 4 BGB) ────
+// Nach jedem angenommenen Antrag geht SOFORT eine Bestätigung in Textform raus:
+// Inhalt der Erklärung, Datum und Uhrzeit des Eingangs, der Zeitpunkt, zu dem
+// gekündigt werden soll, und dass die Kündigung ab dem Eingang gilt. Vorher kam
+// die einzige Mail erst mit der Buchung (kuendigung_bestaetigt) — bei offener
+// Identität erst nach der Prüfung. Rein (kein Netz), Werte HTML-sicher.
+const htmlSicher = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export function kuendigungEingangInhalt(ein: {
+  am: Date; wunsch: string | null | undefined; paket: string | null | undefined; grund: string | null | undefined;
+  antragNr: number; name: string;
+}): Record<string, string> {
+  const tag = ein.am.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
+  const zeit = ein.am.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+  const w = String(ein.wunsch ?? "").slice(0, 10);
+  const wunschDe = /^\d{4}-\d{2}-\d{2}$/.test(w) ? `${w.slice(8, 10)}.${w.slice(5, 7)}.${w.slice(0, 4)}` : null;
+  const paket = String(ein.paket ?? "").split("\n")[0].trim();
+  const grund = String(ein.grund ?? "").trim().slice(0, 300);
+  return {
+    eingang_text: `${tag} um ${zeit} Uhr`,
+    zeitpunkt_text: wunschDe ?? "nächstmöglicher Zeitpunkt",
+    zeitpunkt_satz: `Sie haben die Kündigung ${wunschDe ? `zum ${wunschDe}` : "zum nächstmöglichen Zeitpunkt"} erklärt${paket ? ` — für Ihren Vertrag ${htmlSicher(paket)}` : ""}.`,
+    erklaerung_text: `Kündigung von ${htmlSicher(String(ein.name).trim().slice(0, 120))}${grund ? `, Grund: „${htmlSicher(grund)}“` : ""}`,
+    antrag_nr: String(ein.antragNr),
+  };
+}

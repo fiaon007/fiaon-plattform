@@ -139,6 +139,9 @@ export const AUFTRAG_ARTEN = {
   // antrag:<ref>:a-klaeren, fiaon-stufe-a-klaeren.ts). Ein ERREICHTES Gespräch des Betreuers — auch aus der Pipeline, wo
   // Stufe A höchstens 3 Werktage wartet — oder die gebuchte Zahlung ist die Klärung; sonst stünde der Kunde doppelt an
   // (Pipeline UND Auftrag). Ein Versuch schließt nie; Board-Aufgaben (Leitung, „abgelehnt“) schließt nur der Mensch.
+  // Querprüfung 08.10.2026: „erreicht“ zählt auch als Nachtrag im Tagesbericht (Selbstangabe, mit Vermerk); die gebuchte
+  // Zahlung nur, wenn sie zur Bestellung im Schlüssel gehört (oder zu deren Fortsetzung) — eine Auskunft-Zahlung nicht
+  // (Sonderfall in durchEreignisRoh, server/lib/fiaon-auftraege.ts).
   stufe_a_klaeren: { label: "Zahlung gemeldet, nicht da – klären", nurHand: false, ergebnisPflicht: true, zustand: false,
     schliesstBei: ["ergebnis_erreicht", "zahlung_gebucht"], bezug: "person" },
   // Integration 08.10.2026 (Strang d, Vier-Augen): „Vier-Augen: Auswertung FA-… freigeben“ an die Leitung. Erledigt wird sie
@@ -158,10 +161,16 @@ export const AUFTRAG_ARTEN = {
   kontakt: { label: "Kontaktanfrage", nurHand: false, ergebnisPflicht: false, zustand: false, schliesstBei: ["ergebnis_erreicht", "rueckruf_erledigt"], bezug: "person" },
   loeschantrag: { label: "Löschantrag an die Auskunftei", nurHand: true, ergebnisPflicht: true, zustand: false, schliesstBei: [], bezug: "ref", frist: true },
   kuendigung: { label: "Kündigung oder Widerruf", nurHand: true, ergebnisPflicht: true, zustand: false, schliesstBei: [], bezug: "person", frist: true },
-  beschwerde: { label: "Beschwerde, Recht, Löschung oder Erstattung", nurHand: true, ergebnisPflicht: true, zustand: false, schliesstBei: [], bezug: "person", frist: true },
+  beschwerde: { label: "Beschwerde, Recht, Löschung, Werbewiderspruch oder Erstattung", nurHand: true, ergebnisPflicht: true, zustand: false, schliesstBei: [], bezug: "person", frist: true },
   vorgang: { label: "Vorgang im Kundenbereich", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "person" },
   zahlung: { label: "Zahlung prüfen", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
   auskunft: { label: "Bonitätsauskunft beschaffen", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
+  // Querprüfung 08.10.2026 (Strang d × f): Strang d legt diese Aufgaben mit quelle „bestellung“ an — der Katalog las sie
+  // deshalb als „Bonitätsauskunft beschaffen“. Eigene Arten, an ihrem Schlüssel erkannt (artAusSchluessel, vor der
+  // Bestellung-Regel). Beide schließt nur ihr eigener Weg bzw. der Mensch: die Auswertung, wenn sie erzeugt ist; die
+  // Auftragsbestätigung, wenn der Kunde bestätigt (wacheAufgabenSchliessen).
+  auswertung: { label: "Unterlagen eingegangen: Auswertung erzeugen", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "person" },
+  auskunft_bestaetigung: { label: "Bonitätsauskunft: Auftrag bestätigen lassen", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
   global: { label: "FIAON Global", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
   bewerbung: { label: "Bewerbung", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "person" },
   hand: { label: "Von Hand übergeben", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "person" },
@@ -307,11 +316,21 @@ export function mailUebergabeHeikel(text: string | null | undefined): boolean {
 // sonst träfe „eingerichtet“.
 const KUENDIGUNG_WORTE = /(kündig|kuendig|widerruf|storn|(?:vertrag|abo|abonnement|mitgliedschaft|paket|starter|zusammenarbeit)\w*\s+(?:\S+\s+){0,3}beenden)/i;
 const HEIKEL_WORTE = /(beschwer|anwalt|anwält|klage|widerspruch|widersprech|bestreit|betrug|betrüg|abzock|fake|polizei|strafanzeige|verbraucherzentrale|datenschutz|dsgvo|lösch|loesch|erstatt|geld\s+zurück|rechtlich|\bgericht|mahnbescheid|abmahn|schlichtung|bafin|nicht\s+mehr\s+kontaktiert|keine\s+(?:weitere[n]?\s+)?kontaktaufnahme|keinen\s+(?:weiteren\s+)?kontakt\s+mehr|in\s+ruhe\s+(?:ge)?lassen)/i;
+// ── WERBEWIDERSPRUCH UND ABMELDUNG (Querprüfung 08.10.2026, § 7 UWG, Art. 21 Abs. 3 DSGVO) ──────────────
+// Ein „bitte keine Werbung mehr“, „melden Sie mich ab“, „nicht mehr anrufen“ in einem Mara-Hinweis, einem
+// WhatsApp-Anliegen, einer Rückruf-Übergabe oder einer Kontaktanfrage schloss sich beim nächsten „erreicht“
+// (bei WhatsApp schon mit einer Antwort) — ohne dass jemand die Werbesperre gesetzt hatte. Jetzt sind diese
+// Sätze heikel („beschwerde“: nur von Hand, mit Pflichtsatz). Lieber ein Auftrag zu viel von Hand als ein
+// Widerspruch, der still zugeht. „\bstopp?\b“ mit Wortgrenze: „Mahnstopp“ ist keiner.
+// „keine Mail“ allein zählt nicht („hat keine Mail bekommen“ ist eine Zustellfrage) — nur mit „mehr“/„weitere“;
+// Werbung und Newsletter immer. „melden Sie mich … ab“ / „tragen Sie mich … aus“ nur am Satzende („meldet sich ab Montag“).
+export const WERBEWIDERSPRUCH_WORTE = /(abmeld|abbestell|austragen|unsubscribe|\bstopp?\b|meld\w*\s+(?:\S+\s+){0,4}ab(?=\s*(?:[.!?,;)]|$))|trag\w*\s+(?:\S+\s+){0,4}aus(?=\s*(?:[.!?,;)]|$))|keine\s+(?:werbung|werbe\w*|newsletter)|keine\s+weitere[nr]?\s+(?:mails?|e-mails?|emails?|nachrichten|anrufe|sms|whatsapp\w*)|keine\s+(?:mails?|e-mails?|emails?|nachrichten|anrufe|sms|whatsapp\w*)\s+(?:\S+\s+){0,2}mehr\b|nicht\s+mehr\s+(?:\S+\s+){0,2}(?:anrufen|angerufen|anschreiben|angeschrieben|schreiben|kontaktieren|kontaktiert|belästig\w*|stören)|keinen\s+(?:weiteren\s+)?kontakt|kein\s+(?:weiterer\s+)?kontakt|widersprich|widerspricht)/i;
 export function heikelArt(s: string | null | undefined): "kuendigung" | "beschwerde" | null {
   // „Ankündigung“ (der Rate, des Termins) ist keine Kündigung.
   const t = String(s || "").replace(/an(kündig|kuendig)/gi, "");
   if (KUENDIGUNG_WORTE.test(t)) return "kuendigung";
   if (HEIKEL_WORTE.test(t)) return "beschwerde";
+  if (WERBEWIDERSPRUCH_WORTE.test(t)) return "beschwerde";
   return null;
 }
 /**
@@ -410,6 +429,9 @@ function artAusSchluessel(z: { schluessel?: string | null; quelle?: string | nul
   if (/^bewerbung:/.test(k)) return "bewerbung";
   if (/^global[a-z-]*:/.test(k) || q === "global") return "global";
   if (/^bank-(nachholen|unklar)/.test(k) || q === "bankbuch") return "zahlung";
+  // Querprüfung 08.10.2026: vor der Bestellung-Regel — sonst hießen sie „Bonitätsauskunft beschaffen“.
+  if (/^unterlagen-eingang:/.test(k)) return "auswertung";
+  if (/^auskunft-bestaetigung-anruf:/.test(k)) return "auskunft_bestaetigung";
   if (/^auskunft[a-z-]*:/.test(k) || q === "auskunft" || q === "bestellung") return "auskunft";
   if (/^kuendigung:/.test(k) || q === "kuendigung") return "kuendigung";
   if (recht && !VERWALTUNG_QUELLEN.includes(q) && !q.startsWith("claude")) return "beschwerde";

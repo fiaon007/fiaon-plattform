@@ -964,6 +964,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonUnterlagen.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('unterlagen_anstoss', async () => await (await import('./lib/fiaon-unterlagen')).anstoesseNachholen(10), 2 * 60 * 1000, { beimStartNach: 60_000, nurMitErgebnis: true });
+    // Querprüfung 08.10.2026 (Art. 5 Abs. 1 lit. e DSGVO): Inhalt vom Team entfernter Dateien nach 90 Tagen leeren.
+    tageslauf('unterlagen_frist', async () => await (await import('./lib/fiaon-unterlagen')).entfernteInhalteLeeren(), 6 * 60 * 60 * 1000, { beimStartNach: 600_000, nurMitErgebnis: true });
   });
   // 📊 E-IT-D (08.10.2026): FIAON Finanz- und Bonitätsauswertung (Akte, Kunde) und der Upload-Link ohne
   //    Anmeldung (/unterlagen/:token, signiert, 14 Tage) — server/routes/fiaon-finanzauswertung.ts.

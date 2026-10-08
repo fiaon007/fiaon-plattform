@@ -100,6 +100,15 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       offen_satz: "Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen bleibt die bereits gestellte Rechnung — Rate 3 über 59,99 €, fällig am 15.09.2026. Sobald diese Zahlung bei uns verbucht ist, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich." },
   },
   {
+    type: "kuendigung_eingegangen",
+    label: "Kündigung eingegangen (Eingangsbestätigung)",
+    description: "Querprüfung 08.10.2026: Geht SOFORT nach jedem angenommenen Antrag der Kündigungsseite (POST /abo-kuendigen) — Inhalt der Erklärung, Datum und Uhrzeit des Eingangs, gewünschter Zeitpunkt, „gilt ab dem Eingang“ (§ 312k Abs. 4 BGB). Pflichtmail (Vertragspost), einmal je Antrag; die Buchung bestätigt danach „Kündigung bestätigt“.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, eingang_text: "08.10.2026 um 14:32 Uhr", zeitpunkt_text: "nächstmöglicher Zeitpunkt",
+      zeitpunkt_satz: "Sie haben die Kündigung zum nächstmöglichen Zeitpunkt erklärt — für Ihren Vertrag FIAON Plus.",
+      erklaerung_text: "Kündigung von Max Mustermann, Grund: „Ich brauche den Service nicht mehr“", antrag_nr: "142" },
+  },
+  {
     type: "vertrag_beendet",
     label: "Vertrag beendet (letzte Rate bezahlt)",
     description: "E-092: Die letzte Rate ist eingegangen, der Vertrag ist aus. Unterlagen bleiben 90 Tage einsehbar. Pflichtmail, ausgelöst im Buchungsweg.",

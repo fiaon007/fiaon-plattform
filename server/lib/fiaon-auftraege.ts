@@ -383,7 +383,7 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
     const nurTeam = ein.ereignis !== "zahlung_gebucht";
     const kandidaten = (await lauf`
       SELECT id, schluessel, quelle, bereich, titel, LEFT(text, 20000) AS text, art, zustaendig_art, zustaendig_agent_id, frage_offen, frage_an_agent, status,
-             COALESCE(neu_seit, eingang_am, created_at) AS neu_seit, wieder_offen_grund
+             COALESCE(neu_seit, eingang_am, created_at) AS neu_seit, wieder_offen_grund, ref AS auftrag_ref
         FROM fiaon_betreiber_todos
        WHERE status <> 'erledigt'
          AND ((art = ANY(${artenPerson}::text[]) AND person_id = ANY(${kreis.ids}::int[]))
@@ -407,6 +407,30 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
       const regel: AuftragArtRegel | null = istAuftragArt(artName) ? AUFTRAG_ARTEN[artName] : null;
       if (!regel || regel.nurHand) { wirkung.ausgelassen.push({ id, grund: "nur von Hand" }); continue; }
       const wasDetail = `${AUFTRAG_EREIGNISSE[ein.ereignis].label}${ein.detail ? ` (${ein.detail})` : ""}`;
+      // ── Querprüfung 08.10.2026 (E-303 × Strang f): „Zahlung gemeldet, nicht da“ gehört zu EINER Bestellung ──────
+      // Der Auftrag hat bezug „person“ (ein erreichtes Gespräch klärt ihn), aber seine Zahlung ist die der Bestellung im
+      // Schlüssel (antrag:<ref>:a-klaeren). Eine andere Erstzahlung des Menschen — etwa eine Bonitätsauskunft für 74 € —
+      // ist nicht das gemeldete Geld: nur ein Beitrag, der Auftrag bleibt offen. Zählt auch die Fortsetzung (zusammengeführt).
+      if (artName === "stufe_a_klaeren" && ein.ereignis === "zahlung_gebucht") {
+        const auftragRef = (String(t.schluessel || "").match(/^antrag:([^:]+):a-klaeren$/)?.[1] ?? String(t.auftrag_ref || "")).toUpperCase();
+        let passt = !!ref && !!auftragRef && auftragRef === ref;
+        if (!passt && ref && auftragRef) {
+          const [m] = (await lauf`
+            SELECT 1 AS da FROM fiaon_applications
+             WHERE (UPPER(ref) = ${auftragRef} AND UPPER(COALESCE(merged_into, '')) = ${ref})
+                OR (UPPER(ref) = ${ref} AND UPPER(COALESCE(merged_into, '')) = ${auftragRef}) LIMIT 1`) as any[];
+          passt = !!m;
+        }
+        if (!passt) {
+          const ok = await auftragBeitrag(id, {
+            autorArt: "system", autorName: wer, art: "kommentar",
+            text: `${wasDetail} zu ${ref ?? "einer anderen Bestellung"} — das ist nicht die gemeldete Zahlung (${auftragRef || "Bestellung des Auftrags"}). Der Auftrag bleibt offen.`,
+          }, lauf);
+          if (ok) wirkung.vermerkt += 1;
+          wirkung.ausgelassen.push({ id, grund: "andere Bestellung" });
+          continue;
+        }
+      }
       // Kontakt durch jemand anderen als den Zuständigen (Forderungsmanagement, Leitung, Kollege,
       // Betreiber ohne Mitarbeiterkonto): nicht schließen, nur Bescheid geben.
       // Fertigstellung 08.10. (Justins Regel: Aufträge anderer Mitarbeiter schließt das System nie): Handelt ein

@@ -431,9 +431,26 @@ export const AUSKUNFT_AUFTRAG_BESTAETIGEN: MailBaustein = {
   karteZiel: true,
 };
 
+/**
+ * Querprüfung 08.10.2026: Im Datenkopie-Weg (74-€-Rückstand) beschafft FIAON die Auskunft nicht — die Auskunftei schickt die
+ * Datenkopie per Post an den Kunden, er lädt sie hoch. Vorzeile und Kasten sagen das; Betreff, Titel und Knopf bleiben.
+ * Die Sätze (danach_satz, fuss_satz) kommen aus schufaRequestedSaetze(…, { datenkopie: true }).
+ */
+export const AUSKUNFT_DATENKOPIE_BESTAETIGEN: MailBaustein = {
+  ...AUSKUNFT_AUFTRAG_BESTAETIGEN,
+  preheader: "Ein Klick genügt — dann fordern wir Ihre Datenkopie in Ihrem Namen an.",
+  daten: [
+    { label: "Datenkopie bei", wert: "{{params.auskunfteien}}" },
+    { label: "Ihr nächster Schritt", wert: "Auftrag bestätigen — ein Klick" },
+    { label: "Danach", wert: "Datenkopie kommt per Post zu Ihnen — bitte hochladen" },
+  ],
+};
+
 /** Die Vorlage für schufa_requested im Einkauf — null = die Vorlage des Vollmacht-Wegs bleibt (der Motor fragt hier). */
 export function schufaRequestedBaustein(p: Record<string, unknown>): MailBaustein | null {
-  return lieferwegAusNutzlast(p) === "einkauf" ? AUSKUNFT_AUFTRAG_BESTAETIGEN : null;
+  if (lieferwegAusNutzlast(p) !== "einkauf") return null;
+  // Querprüfung 08.10.2026: Der Datenkopie-Weg hat eigene Vorzeile und eigenen Kasten (kein „wir beschaffen“).
+  return String(p.auskunft_liefermodus ?? "").trim() === "datenkopie" ? AUSKUNFT_DATENKOPIE_BESTAETIGEN : AUSKUNFT_AUFTRAG_BESTAETIGEN;
 }
 
 /** Der wahlweise Satz in schufa_approved, wenn FIAON die Auskunft beschafft hat. */

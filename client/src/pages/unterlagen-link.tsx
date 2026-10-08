@@ -165,10 +165,17 @@ export default function UnterlagenLinkPage() {
               {laeuft ? "Wird hochgeladen …" : gewaehlt ? `${gewaehlt} Datei${gewaehlt === 1 ? "" : "en"} hochladen` : "Bitte zuerst Dateien wählen"}
             </button>
             <p style={{ ...s.still, marginTop: 18, fontSize: 13 }}>
-              Ihre Unterlagen werden verschlüsselt übertragen und nur für Ihre Akte bei FIAON verwendet. Fragen? Antworten Sie einfach auf die E-Mail, mit der Sie diesen Link bekommen haben.
+              Ihre Unterlagen werden verschlüsselt übertragen und nur für Ihre Akte bei FIAON verwendet. Kontoauszüge und Bonitätsauskünfte liest ein
+              KI-Dienstleister in unserem Auftrag (Anthropic oder OpenAI, USA), damit wir Ihre Buchungen auswerten können; Ausweisfotos gehen an keine KI.
+              Fragen? Antworten Sie einfach auf die E-Mail, mit der Sie diesen Link bekommen haben.
             </p>
           </>
         )}
+        {/* Querprüfung 08.10.2026: Seite ohne Anmeldung — Datenschutz und Impressum gehören sichtbar dazu. */}
+        <footer style={{ ...s.still, fontSize: 13, marginTop: 28, display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+          <a href="/datenschutz#unterlagen" style={{ color: "#5B6B82" }}>Datenschutz</a>
+          <a href="/impressum" style={{ color: "#5B6B82" }}>Impressum</a>
+        </footer>
       </div>
     </main>
   );

@@ -172,7 +172,8 @@ export interface FirmaRechner {
 export interface FirmaTeam {
   titel: string;
   sub: string;
-  personen: { name: string; rolle: string; foto: string | null; initialen: string }[];
+  /** ki: das Foto ist ein Symbolbild (Bildnachweis am Seitenende nennt es). */
+  personen: { name: string; rolle: string; foto: string | null; initialen: string; ki?: boolean }[];
 }
 
 export interface FirmaFrage { frage: string; antwort: string[] }

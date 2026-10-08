@@ -491,12 +491,17 @@ titel("7. Seite, Übersicht, Annahme");
   ok(/Team \(inhalt\.team\)/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "X", rolle: "Y", foto: "haus:justin" }] } }) ?? ""), "firmaParameterFehler lehnt ein KI-Porträt im Team ab");
   ok(S.firmaBildVerweise({ team: [{ name: "a", rolle: "b", foto: "team-a.webp" }, { name: "c", rolle: "d", foto: "haus:florentine" }] }).join() === "team-a.webp", "Import spielt Teamfotos ein (nur Bildnamen)");
   const seiteQ7 = fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8");
-  ok(!/gaf-ki-rund|portraitHinweis|gaf-team-ki/.test(seiteQ7.replace(/\/\/.*$|\{\/\*[\s\S]*?\*\/\}/gm, "")) && s.bildnachweis.includes("Porträt Justin Schwarzott: Porträt mit KI erstellt"), "kein KI-Hinweis unter den Porträts — einmal im Bildnachweis am Seitenende");
+  // Das Porträt des Ansprechpartners trägt seinen KI-Hinweis im Bildnachweis; KI-Symbolbilder des Teams (Justin 08.10. abends)
+  // stehen dagegen neben echten Namen und sind deshalb einzeln gekennzeichnet (gaf-team-ki, Prüfung in Abschnitt 11).
+  ok(!/gaf-ki-rund|portraitHinweis/.test(seiteQ7.replace(/\/\/.*$|\{\/\*[\s\S]*?\*\/\}/gm, "")) && s.bildnachweis.includes("Porträt Justin Schwarzott: Porträt mit KI erstellt"), "kein KI-Hinweis unter dem Porträt des Ansprechpartners — einmal im Bildnachweis am Seitenende");
   // Punkt 8: Inhaltsverzeichnis des Lesers = Ziffern des Rumpfs (Anker vorhanden).
   const html = F.firmaRumpf(D);
   ok(s.vertrag.inhalt.length === 23 && s.vertrag.inhalt.every((z) => html.includes(`id="${z.anker}"`)), "Leser: Inhalt (Präambel, zwanzig Ziffern, zwei Anlagen) mit Ankern im Vertrags-HTML", s.vertrag.inhalt.map((z) => z.anker));
   ok(s.leistungen.karten.map((k) => k.schluessel).join() === "gesellschaft,kapital,strategie,plattform,vertrieb,ansprechpartner", "sechs Leistungskarten");
-  ok(s.investition.posten.length === 4 && s.investition.posten.every((p) => p.was && p.wann && p.warum && p.wie) && s.investition.posten.map((p) => p.betrag).join(" · ") === "6.900 € · 2.000 € · 10 % · 5 %", "vier Posten mit Was/Wann/Warum/Wie (Wachstumsbudget: Ihr Anteil 2.000 €)", s.investition.posten.map((p) => p.betrag));
+  // Justin 08.10.2026 abends: Das Wachstumsbudget steht nicht mehr in den Konditionen der Seite, nur im Vertrag.
+  ok(S.firmaInvestPosten(D).length === 4 && S.firmaInvestPosten(D).every((p) => p.was && p.wann && p.warum && p.wie) && S.firmaInvestPosten(D).map((p) => p.betrag).join(" · ") === "6.900 € · 2.000 € · 10 % · 5 %", "vier Posten mit Was/Wann/Warum/Wie (Wachstumsbudget: Ihr Anteil 2.000 €)", S.firmaInvestPosten(D).map((p) => p.betrag));
+  ok(s.investition.posten.map((p) => p.schluessel).join() === "gruendung,umsatz,verkauf" && !texteAus(s.investition.posten).join(" ").includes("Wachstumsbudget") && !s.investition.fein.join(" ").includes("Wachstumsbudget"), "Konditionen der Seite: Gründung, Umsatz- und Verkaufsbeteiligung — das Wachstumsbudget nur im Vertrag", s.investition.posten.map((p) => p.schluessel));
+  ok(/Ziffer 10|Wachstumsbudget/.test(rumpfText) && rumpfText.includes("Wachstumsbudget"), "… das Wachstumsbudget steht weiter im Vertrag");
   ok(s.investition.rechner.minCents === 60_000_000 && s.investition.rechner.maxCents === 300_000_000 && s.investition.rechner.zeileBeteiligung.includes("{umsatz}") && s.investition.rechner.zeileBeteiligung.includes("{cent}") && s.investition.rechner.zeileUnterSchwelle.includes("{schwelle}"), "Rechner 600.000 € … 3.000.000 €, Platzhalter");
   ok(!("extra" in s.investition) && !/Etikettendruck|Labortests|Lager und Logistik/.test(texteAus(s).join("\n")), "Punkt 6: keine Liste „Was Sie direkt zahlen“ auf der Seite");
   ok(/Werbebudget für bezahlte Anzeigen über das gemeinsame Wachstumsbudget nach Absatz 3 hinaus \(Mehrbudget nach Absprache\)/.test(rumpfText) && /Etikettendruck/.test(rumpfText), "… sie steht nur im Vertrag (Ziffer 10 Absatz 6) — Werbebudget nur über das gemeinsame Budget hinaus");
@@ -531,7 +536,7 @@ titel("7. Seite, Übersicht, Annahme");
   ok(an.knopf === S.FIRMA_KNOPF && an.unternehmer.includes("kein Widerrufsrecht") && an.vertretung.includes("allein zu vertreten"), "Annahme: Knopf und zwei Pflicht-Häkchen");
   ok(S.firmaKundeAnrede(KUNDE) === "Sehr geehrte Frau Muster" && S.firmaKundeAnrede({ ...KUNDE, vertretung: { ...KUNDE.vertretung, anrede: "Herr" as any } }) === "Sehr geehrter Herr Muster", "Anrede");
   ok(S.firmaPflichtFehlen(D).length === 0 && S.firmaPflichtFehlen({ ...D, compliance: null }).some((x) => /Prüfbericht/.test(x)) && S.firmaPflichtFehlen({ ...D, buergin: SA.BUERGIN_VORGABE }).length > 0, "Pflichtfelder sperren die Annahme");
-  ok(/Anwalt/.test(S.firmaVersandSperre(BUERGIN_VOLL, {}) ?? "") && S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07" } }) === null && /Registernachweis/.test(S.firmaVersandSperre(SA.BUERGIN_VORGABE, { anwalt: { name: "K", am: "2026-10-07" } }) ?? ""), "Versandsperre = Sunbiz + Anwaltsfreigabe");
+  ok(/Anwalt/.test(S.firmaVersandSperre(BUERGIN_VOLL, {}) ?? "") && S.firmaVersandSperre(BUERGIN_VOLL, { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07" } }) === null && S.firmaVersandSperre(SA.BUERGIN_VORGABE, { anwalt: { name: "K", am: "2026-10-07" } }) === null && /Registernachweis/.test(SA.angebotVersandSperre(SA.BUERGIN_VORGABE) ?? ""), "Versandsperre Firma = nur Anwaltsfreigabe (Justin 08.10. abends); Individualangebot behält den Registernachweis");
   const r = ["sofort", "monatlich", "umsatz", "verkauf"].map((f) => S.firmaRechnungsText({ angebotRef: "FIAON-IA-FPRUEF1", auftragRef: "FIAON-X", faelligkeit: f, titel: f === "monatlich" ? S.FIRMA_TEIL_TITEL.monat(3) : f === "umsatz" ? S.FIRMA_TEIL_TITEL.umsatz(2027, 2) : f === "verkauf" ? S.FIRMA_TEIL_TITEL.verkauf : "Gründung", zeitraum: f === "umsatz" ? "Q2 2027" : null, bemessungCents: 70_000_000 }));
   ok(r[0].beschreibung.includes("Gründung der US-Gesellschaft") && r[1].beschreibung.includes("Wachstumsbudget — Ihr Anteil, Monat 3") && r[1].beschreibung.includes("gemeinsamen Wachstumsbudget") && r[2].beschreibung.includes("Umsatzbeteiligung — Q2 2027") && r[2].zeitraum === "Q2 2027" && r[3].beschreibung.includes("Verkaufsbeteiligung"), "Rechnungstexte je Posten");
 }
@@ -608,8 +613,8 @@ titel("9. Vor-Live-Prüfung (07./08.10.2026): Texte, Versandsperre, keine Kunden
   const freiAnwalt = { anwalt: { name: "Kanzlei Prüf", am: "2026-10-07" } };
   const ohneStatus = { ...BUERGIN_VOLL, bestaetigtGrundlage: "Registerauszug (Sunbiz) vom 07.10.2026" };
   const inaktiv = { ...BUERGIN_VOLL, bestaetigtGrundlage: "Sunbiz-Auszug vom 07.10.2026: Status Inactive" };
-  ok(/„Active“/.test(S.firmaVersandSperre(ohneStatus, freiAnwalt) ?? "") && /„Active“/.test(S.firmaVersandSperre(inaktiv, freiAnwalt) ?? "") && S.firmaVersandSperre(BUERGIN_VOLL, freiAnwalt) === null,
-    "Versandsperre Firma: Registerauszug ohne „Active“ oder mit „Inactive“ sperrt; mit „Active“ frei", { ohneStatus: S.firmaVersandSperre(ohneStatus, freiAnwalt), inaktiv: S.firmaVersandSperre(inaktiv, freiAnwalt) });
+  ok(S.firmaVersandSperre(ohneStatus, freiAnwalt) === null && S.firmaVersandSperre(inaktiv, freiAnwalt) === null && S.firmaVersandSperre(BUERGIN_VOLL, freiAnwalt) === null,
+    "Versandsperre Firma: der Registerstatus sperrt nicht mehr (Justin 08.10. abends) — nur die Anwaltsfreigabe zählt", { ohneStatus: S.firmaVersandSperre(ohneStatus, freiAnwalt), inaktiv: S.firmaVersandSperre(inaktiv, freiAnwalt) });
   ok(SA.angebotVersandSperre(ohneStatus) === null, "Individualangebot (E-268) unverändert: angebotVersandSperre verlangt weiter nur den Registerauszug");
   // ── Zweite Nachprüfung 08.10.2026 (N4): Verneinungen sperren; die Freigabe hängt auch an den Angaben der Bürgin ──
   const verneint = ["Sunbiz-Auszug vom 09.10.2026: Status not active", "Sunbiz: Status nicht Active", "Sunbiz: Admin Dissolution, früher Active",
@@ -823,7 +828,7 @@ titel("11. Runde 3 (Justin 08.10.2026, Endfassung): Kapital vorne, Gründungskos
   // ── Punkt 5: spätester Start des Wachstumsbudgets ──
   ok(PARAMETER.budgetSpaetestensMonate === 6 && S.budgetSpaetesterStart("2026-10-08", PARAMETER) === "2027-04-08" && S.budgetSpaetesterStart("2026-08-31", PARAMETER) === "2027-02-28", "spätester Starttag: Annahme + sechs Monate, monatsende-sicher");
   ok(rumpf.includes("Ist der Online-Shop sechs Monate nach dem Tag der Annahme (Ziffer 7 Absatz 1) nicht live, ist Starttag dieser Tag (spätester Starttag), es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat; dann bleibt es beim Tag, an dem der Online-Shop live ist."), "Ziffer 10 Absatz 2: spätester Starttag sechs Monate nach der Annahme, außer die Verzögerung liegt bei FIAON");
-  const mp = seite.investition.posten.find((x) => x.schluessel === "monat")!;
+  const mp = S.firmaInvestPosten(D).find((x) => x.schluessel === "monat")!;
   ok(/spätestens sechs Monate nach Ihrer Annahme, es sei denn, die Verzögerung liegt bei uns/.test(mp.satz) && /spätestens sechs Monate nach Ihrer Annahme/.test(seite.investition.budget.start), "Seite: der späteste Start in einem Satz (Zeile und Aufstellung)", mp.satz);
   ok(/budgetSpaetestensMonate/.test(S.firmaParameterFehler({ ...PARAMETER, budgetSpaetestensMonate: 0 }) ?? "") && /budgetSpaetestensMonate/.test(S.firmaParameterFehler({ ...PARAMETER, budgetSpaetestensMonate: 30 }) ?? "") && S.firmaParameterAus({}).budgetSpaetestensMonate === 6, "Parameter: budgetSpaetestensMonate eins bis vierundzwanzig, Vorgabe sechs");
   const shopTeil = srvQ.slice(srvQ.indexOf("export async function firmaShopLive"), srvQ.indexOf("export async function firmaKapitalErhalten"));
@@ -835,6 +840,12 @@ titel("11. Runde 3 (Justin 08.10.2026, Endfassung): Kapital vorne, Gründungskos
   ok(tm.personen.map((x) => x.name).join(" | ") === "Erika Beispiel | Dr. Test Muster", "Team: bestaetigt = false ausgeblendet, fehlendes Feld gilt als bestätigt", tm.personen.map((x) => x.name));
   ok(S.firmaParameterFehler(teamPar) === null && /bestaetigt/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "A", bestaetigt: "ja" as any }] } }) ?? ""), "Team: bestaetigt nur true oder false");
   ok(S.firmaTeamFotoOk("haus:florentine") && S.firmaTeamFotoOk("haus:daniel") && !S.firmaTeamFotoOk("haus:justin"), "Hausporträts: echte Fotos erlaubt, das KI-Porträt nicht");
+  // Justin 08.10.2026 abends: KI-Symbolbilder fürs Team — nur als Bildname am Angebot, auf der Seite gekennzeichnet (KI-VO Art. 50).
+  const kiPar = { ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "Prüfrolle A", foto: "team-erika.webp", ki: true }, { name: "Max Probe", rolle: "Prüfrolle B", foto: "haus:florentine" }] } };
+  const kiTm = S.firmaTeam({ ...kiPar, inhalt: S.firmaInhaltMitBildLinks(kiPar.inhalt, "FIAON-IA-PRUEF.1.abc") });
+  ok(S.firmaParameterFehler(kiPar) === null && kiTm.personen[0].ki === true && !!kiTm.personen[0].foto && kiTm.personen[1].ki === false, "Team: KI-Symbolbild erlaubt und markiert, Hausporträt nicht", kiTm.personen);
+  ok(/Team/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "A", foto: "haus:florentine", ki: true }] } }) ?? "") && /Team/.test(S.firmaParameterFehler({ ...PARAMETER, inhalt: { ...INHALT, team: [{ name: "Erika Beispiel", rolle: "A", foto: "team-erika.webp", ki: "ja" as any }] } }) ?? ""), "Team: ki nur true/false und nie an einem Hausporträt");
+  ok(!/gaf-team-ki|KI-Symbolbild/.test(fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8")) && S.firmaBildnachweis(kiPar).includes("Teamfotos teils Symbolbilder") && !S.firmaBildnachweis(PARAMETER).includes("Symbolbild"), "Team: kein Hinweis unter den Fotos (Justin 08.10. abends), leise im Bildnachweis");
   ok(/Porträt mit KI erstellt/.test(S.firmaBildnachweis(PARAMETER)) && !/Porträt mit KI erstellt/.test(texteAus(S.firmaTeam(PARAMETER)).join(" ")), "KI-Hinweis zu Porträts einmal im Bildnachweis, nicht im Team");
   // ── Punkt 7: Fassung und Anlage 1 ──
   ok(S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-C" as any) && S.FIRMA_FASSUNGEN[S.FIRMA_FASSUNGEN.length - 1] === "IA-FIRMA-2026-10-08-D" && S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Fassungen: D aktuell, C bleibt lesbar; Anlage 1 unverändert (Fassung D der Anlage)");
@@ -854,7 +865,7 @@ titel("12. Gegenprüfung 08.10.2026: Starttag mit spätestem Start in jedem Satz
   const rot = liveOhneSpaetestens(kundenTexte);
   ok(rot.length === 0, "Seite, Übersicht, Annahme, Bestätigung und „Mein Auftrag“: kein Satz mit „live“ ohne „spätestens“", rot.map((x) => x.slice(0, 140)));
   const SP = "(„Shop live“, spätestens sechs Monate nach Ihrer Annahme)";
-  const mp = seite.investition.posten.find((x) => x.schluessel === "monat")!;
+  const mp = S.firmaInvestPosten(D).find((x) => x.schluessel === "monat")!;
   const frageLauf = seite.fragen.liste.find((f) => f.frage.startsWith("Wie lange läuft der Vertrag"))!;
   const frageUs = seite.fragen.liste.find((f) => f.frage === "Gehört die US-Gesellschaft mir?")!;
   const aufbau = seite.phasen.liste.find((ph) => ph.nr === 2)!;

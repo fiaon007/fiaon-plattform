@@ -180,7 +180,7 @@ export interface FirmaInhalt {
  * Runde 3 (Punkt 6): bestaetigt = false blendet die Person aus, bis Justin bestätigt, dass sie echt ist und am Mandat mitwirkt
  * (dann in der privaten Datei auf true stellen, ggf. Foto liefern). Fehlt das Feld, gilt die Person als bestätigt.
  */
-export interface FirmaTeamEintrag { name: string; rolle: string; foto?: string; bestaetigt?: boolean }
+export interface FirmaTeamEintrag { name: string; rolle: string; foto?: string; bestaetigt?: boolean; /** Justin 08.10.2026 abends: Foto ist ein Symbolbild (nur mit Bildname am Angebot) — der Bildnachweis nennt es. */ ki?: boolean }
 export interface FirmaParameter {
   startCents: number;
   /** Seit Runde 2: der ANTEIL der Auftraggeberin am gemeinsamen Wachstumsbudget je Monat (die Hälfte von budgetGesamtCents). */
@@ -487,7 +487,7 @@ export function firmaParameterFehler(p: FirmaParameter): string | null {
   const summe = firmaBudgetPosten(p).reduce((a, x) => a + x.cents, 0);
   if (summe !== p.budgetGesamtCents) return `Wachstumsbudget: Die Aufstellung ergibt ${firmaEurKurz(summe)}, das Budget ist ${firmaEurKurz(p.budgetGesamtCents)} — beides muss gleich sein.`;
   const team = p.inhalt?.team;
-  if (team !== undefined && (!Array.isArray(team) || team.some((t) => !t || typeof t.name !== "string" || !t.name.trim() || typeof t.rolle !== "string" || !t.rolle.trim() || (t.foto !== undefined && !firmaTeamFotoOk(t.foto)) || (t.bestaetigt !== undefined && typeof t.bestaetigt !== "boolean")))) {
+  if (team !== undefined && (!Array.isArray(team) || team.some((t) => !t || typeof t.name !== "string" || !t.name.trim() || typeof t.rolle !== "string" || !t.rolle.trim() || (t.foto !== undefined && !firmaTeamFotoOk(t.foto)) || (t.ki !== undefined && (typeof t.ki !== "boolean" || (t.ki && !FIRMA_BILD_NAME.test(String(t.foto ?? ""))))) || (t.bestaetigt !== undefined && typeof t.bestaetigt !== "boolean")))) {
     return "Team (inhalt.team): jede Person mit name und rolle; foto nur als Bildname am Angebot („team-x.webp“) oder „haus:<kürzel>“ eines ECHTEN Porträts (kein KI-Porträt); bestaetigt nur true oder false.";
   }
   const falsch = firmaBildVerweise(p.inhalt).filter((n) => !FIRMA_BILD_NAME.test(n));
@@ -533,12 +533,11 @@ export function firmaRegisterAktiv(grundlage: unknown): boolean {
  * Rückgabe: alle Gründe als Satz fürs Chefbüro — oder null (frei).
  */
 export function firmaVersandSperre(b: AngebotBuergin, fr: FirmaFreigaben | null | undefined, aktuell?: { textHash: string; anlage1: string; buergin?: string }): string | null {
+  // Justin 08.10.2026 abends: Der Registernachweis der Bürgin (Registerauszug, Status „Active“) sperrt den Versand des
+  // Firmenangebots NICHT mehr — er hat mit der Annahme nichts zu tun. Es bleibt allein die Freigabe des Anwalts für genau
+  // diese Fassung (Vertrag, Anlage 1, Bürgin-Angaben). Das Individualangebot (E-268, angebotVersandSperre) bleibt unverändert.
+  void b;
   const gruende: string[] = [];
-  const buergin = angebotVersandSperre(b);
-  if (buergin) gruende.push(buergin);
-  else if (!firmaRegisterAktiv(b.bestaetigtGrundlage)) {
-    gruende.push(`Der Registerauszug der ${b.name} nennt keinen Status „Active“ oder verneint ihn (Grundlage: „${String(b.bestaetigtGrundlage ?? "").trim()}“). Vor dem Versand den Status aus dem Auszug in die Grundlage schreiben — z. B. „Sunbiz-Auszug vom TT.MM.JJJJ: Status Active“; steht dort „Inactive“, „not Active“ oder eine Auflösung, bleibt der Versand gesperrt.`);
-  }
   if (!fr?.anwalt?.name || !fr.anwalt.am) gruende.push("Die Freigabe des Vertrags durch den Anwalt fehlt — Name und Datum unter „Freigabe Anwalt“ eintragen, erst dann geht der Link raus.");
   else if (aktuell && (fr.anwalt.textHash !== aktuell.textHash || fr.anwalt.anlage1 !== aktuell.anlage1)) {
     gruende.push("Vertrag oder Anlage 1 haben sich seit der Freigabe des Anwalts geändert — die aktuelle Fassung (Prüfsumme im Chefbüro) freigeben lassen und die Freigabe neu eintragen.");
@@ -1099,8 +1098,8 @@ export function firmaTeam(par: Pick<FirmaParameter, "inhalt">): FirmaTeam {
   // Runde 3 (Punkt 6): nur bestätigte Personen (bestaetigt !== false) — die übrigen bleiben in den Angebotsdaten, unsichtbar.
   const daten = Array.isArray(par.inhalt?.team) ? par.inhalt!.team!.filter((t) => t && t.bestaetigt !== false && String(t.name ?? "").trim() && String(t.rolle ?? "").trim()) : null;
   const personen = daten && daten.length
-    ? daten.filter((t) => t.name.trim() !== ap).map((t) => ({ name: t.name.trim(), rolle: t.rolle.trim(), foto: fotoAus(t.foto), initialen: initialen(t.name.trim()) }))
-    : ANGEBOT_ANSPRECHPARTNER.filter((p) => p.name !== ap).map((p) => ({ name: p.name, rolle: p.rolle, foto: portraitMitKi(p.kuerzel) ? null : portraitUrl(p.kuerzel), initialen: initialen(p.name) }));
+    ? daten.filter((t) => t.name.trim() !== ap).map((t) => { const foto = fotoAus(t.foto); return { name: t.name.trim(), rolle: t.rolle.trim(), foto, initialen: initialen(t.name.trim()), ki: !!foto && t.ki === true && !String(t.foto ?? "").startsWith(TEAM_HAUS) }; })
+    : ANGEBOT_ANSPRECHPARTNER.filter((p) => p.name !== ap).map((p) => ({ name: p.name, rolle: p.rolle, foto: portraitMitKi(p.kuerzel) ? null : portraitUrl(p.kuerzel), initialen: initialen(p.name), ki: false }));
   return {
     titel: "Ihr Team bei FIAON Global",
     sub: "Mit Ihrem Ansprechpartner arbeiten diese Menschen an Ihrem Auftrag — jede und jeder in ihrem Fach.",
@@ -1135,6 +1134,7 @@ export function firmaBildnachweis(par: Pick<FirmaParameter, "inhalt">): string {
   if (glas) teile.push("das Glas im Kopf der Seite ist eine 3D-Darstellung nach diesen Fotos");
   const ap = firmaAnsprechpartner(par);
   if (ap.portraitHinweis) teile.push(`Porträt ${ap.name}: ${ap.portraitHinweis}`);
+  if ((par.inhalt?.team ?? []).some((t) => t && t.ki === true && t.bestaetigt !== false)) teile.push("Teamfotos teils Symbolbilder");
   return teile.length ? `Bildnachweis: ${teile.join(" · ")}.` : "";
 }
 
@@ -1195,12 +1195,14 @@ export function firmaSeite(d: FirmaDaten): FirmaSeite {
         ],
       },
       konditionenTitel: "Die Konditionen",
-      posten: firmaInvestPosten(d),
+      // Justin 08.10.2026 abends: Das Wachstumsbudget steht NICHT in den Konditionen der Seite — nur im Vertrag (Ziffer 10).
+      // Umsatz- und Verkaufsbeteiligung bleiben; die Gründung steht als ruhige Zeile darunter.
+      posten: firmaInvestPosten(d).filter((p) => p.schluessel !== "monat"),
       budget: firmaBudget(par),
       rechner: firmaRechner(par),
       fein: [
         "Alle Beträge netto. Unsere Rechnungen weisen keine Umsatzsteuer aus; die Steuer schuldet Ihr Unternehmen selbst (Reverse Charge).",
-        `Zahlungsziel der Monatsrechnungen des Wachstumsbudgets und der Beteiligungen: ${zahlwort(par.zahlungszielTage)} Tage. Überweisung auf Rechnung, keine Lastschrift.`,
+        `Zahlungsziel unserer Rechnungen: ${zahlwort(par.zahlungszielTage)} Tage. Überweisung auf Rechnung, keine Lastschrift.`,
         "Kosten Dritter nennen wir vorab — beauftragt wird nur mit Ihrer Zustimmung.",
       ],
     },

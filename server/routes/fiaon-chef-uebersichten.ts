@@ -310,9 +310,12 @@ router.get("/chef/kunde/:id", requireChef("leitung"), async (req: Request, res: 
     delete (person as any).password;
 
     const [akten, raten, termine, vermerke] = await Promise.all([
+      // E-315: dazu, was die Werkzeuge der EINEN Akte brauchen (Erstattung, Erinnerungs-Ausnahme, Abo-Stopp) — nur lesend.
       sqlPool`SELECT ref, pack_name, pack_key, amount_due, payment_status, paid_at,
                      created_at, onboarding_stufe, merged_into,
-                     (password IS NOT NULL AND password <> '') AS hat_passwort
+                     (password IS NOT NULL AND password <> '') AS hat_passwort,
+                     payment_reference, refunded_at, abo_gestoppt_am, abo_stopp_grund,
+                     COALESCE(allow_reminders_despite_paid, FALSE) AS erinnern_trotz_bezahlt, archived_at, dismissed_at
                 FROM fiaon_applications WHERE person_id = ${id} ORDER BY created_at DESC`,
       sqlPool`SELECT r.* FROM fiaon_abo_raten r
                 JOIN fiaon_applications a ON a.ref = r.ref

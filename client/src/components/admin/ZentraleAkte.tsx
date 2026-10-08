@@ -27,6 +27,7 @@ import "@/styles/zentrale-akte.css";
 const MitarbeiterAkte = lazy(() => import("@/pages/agent/pipeline").then((m) => ({ default: m.Akte })));
 const FragenAnbieter = lazy(() => import("@/pages/agent/shared").then((m) => ({ default: m.FragenAnbieter })));
 const Verwaltungsakte = lazy(() => import("@/pages/admin-kunde"));
+const Werkzeuge = lazy(() => import("@/components/admin/AkteVerwaltungWerkzeuge"));
 
 type Stand =
   | { art: "pruefen" }
@@ -52,19 +53,23 @@ async function json(url: string, init?: RequestInit): Promise<{ ok: boolean; sta
   }
 }
 
-export default function ZentraleAkte() {
+export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }: {
+  /** Im Fenster (Telefonkartei): die Kennung kommt von außen, die Adresse gehört der Kartei. */
+  kennung?: string;
+  imFenster?: boolean;
+} = {}) {
   const [, navigate] = useLocation();
-  const kennung = kennungAusAdresse();
-  const startReiter = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("reiter") ?? undefined : undefined;
+  const kennung = kennungFest || kennungAusAdresse();
+  const startReiter = !imFenster && typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("reiter") ?? undefined : undefined;
   const [stand, setStand] = useState<Stand>({ art: "pruefen" });
   const [runde, setRunde] = useState(0);
 
   // Alte Chefbüro-Adresse (/chef/s/akte?id=|?ref=) → die EINE Adresse; der Reiter reist mit.
   useEffect(() => {
-    if (!kennung || window.location.pathname.startsWith("/akte/")) return;
+    if (imFenster || !kennung || window.location.pathname.startsWith("/akte/")) return;
     const reiter = new URLSearchParams(window.location.search).get("reiter");
     navigate(`/akte/${encodeURIComponent(kennung)}${reiter ? `?reiter=${encodeURIComponent(reiter)}` : ""}`, { replace: true });
-  }, [kennung, navigate]);
+  }, [kennung, navigate, imFenster]);
 
   const laden = useCallback(async () => {
     setStand({ art: "pruefen" });
@@ -89,6 +94,7 @@ export default function ZentraleAkte() {
 
   // Reiter in die Adresse schreiben (teilbar, neu laden ohne Verlust).
   const reiterMerken = (key: string) => {
+    if (imFenster) return;
     try {
       const u = new URL(window.location.href);
       if (key === "ueberblick") u.searchParams.delete("reiter"); else u.searchParams.set("reiter", key);
@@ -104,7 +110,7 @@ export default function ZentraleAkte() {
 
   if (stand.art === "akte") {
     return (
-      <div className="za">
+      <div className={`za${imFenster ? " im-fenster" : ""}`}>
         <Suspense fallback={<div className="za-laden" role="status"><span /><span /><span /></div>}>
           <ToastAnbieter ton="dunkel">
             <FragenAnbieter>
@@ -124,10 +130,12 @@ export default function ZentraleAkte() {
                   inhalt: (
                     <div className="za-verwaltung cbs akte-dunkel">
                       <p className="za-verwaltung-satz">
-                        Was nur die Verwaltung kann: Zahlungen buchen und stornieren, Konditionen, Provisionen, Bestellungen,
-                        Bankeingänge, E-Mail-Center, Notizen &amp; Aufgaben, Dubletten. Jede Änderung wird protokolliert.
+                        Was nur die Verwaltung kann: Raten, Abo, Erstattung, Forderung und Sperre; Zahlungen buchen und stornieren,
+                        Konditionen, Provisionen, Bestellungen, Bankeingänge, E-Mail-Center, Notizen &amp; Aufgaben, Dubletten.
+                        Jede Änderung wird protokolliert.
                       </p>
                       <Suspense fallback={<div className="za-laden klein" role="status"><span /><span /><span /></div>}>
+                        <Werkzeuge personId={stand.personId} />
                         <Verwaltungsakte akteId={kennung} eingebettet modus="verwaltung" />
                       </Suspense>
                     </div>
@@ -143,9 +151,9 @@ export default function ZentraleAkte() {
 
   // Ohne Office-Sitzung derselben Person: kurze Anmeldung oben, darunter die Verwaltungsakte vollständig.
   return (
-    <div className="za">
+    <div className={`za${imFenster ? " im-fenster" : ""}`}>
       <OfficeAnmeldung grund={stand.grund} text={stand.text} onAngemeldet={() => setRunde((n) => n + 1)} />
-      <div className="za-voll cbs">
+      <div className="za-voll cbs akte-dunkel">
         <Suspense fallback={<div className="za-laden" role="status"><span /><span /><span /></div>}>
           <Verwaltungsakte akteId={kennung} eingebettet />
         </Suspense>

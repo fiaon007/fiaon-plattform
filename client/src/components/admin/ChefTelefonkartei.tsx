@@ -44,8 +44,8 @@ import "@/styles/office-rundgang.css";
 import "@/styles/chef-telefonkartei.css";
 import "@/styles/akte-dunkel.css";
 
-// Die Akte des Chefbüros — dieselbe Seite wie /chef/s/akte, hier im Fenster (E-201).
-const KundeAkte = lazy(() => import("@/pages/admin-kunde"));
+// Die Akte des Chefbüros — seit E-315 DIE EINE Akte (/akte/<Kennung>), hier im Fenster (E-201).
+const KundeAkte = lazy(() => import("@/components/admin/ZentraleAkte"));
 
 interface Antwort {
   ok: boolean;
@@ -727,10 +727,10 @@ function AkteFenster({ k, runde, onZu, onEmail }: { k: KarteiKarte; runde: numbe
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </div>
-        <div className="tk-akte-inhalt cbs akte-dunkel">
+        <div className="tk-akte-inhalt">
           {/* E-274: `runde` zählt nach einer Mail hoch — die Akte lädt neu und zeigt den Eintrag im Verlauf. */}
           <Suspense key={runde} fallback={<div className="tk-klein" style={{ padding: 24 }}>Akte lädt …</div>}>
-            {k.akteId && <KundeAkte akteId={k.akteId} eingebettet />}
+            {k.akteId && <KundeAkte kennung={k.akteId} imFenster />}
           </Suspense>
         </div>
       </div>

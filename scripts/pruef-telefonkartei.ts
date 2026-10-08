@@ -311,8 +311,10 @@ abschnitt("Wände im Quelltext");
   ok(lib.includes("testfall: !!z.testfall") && seite.includes('className="test">Testkonto'), "Karte trägt das Schild „Testkonto“");
   ok(routen.includes("gruenderAgentId()") && lib.includes("t.quelle = 'gruender' OR t.agent_id = ANY(${meine})"), "„Deine Termine“ = Gründerseite, eigenes Konto, Gründergespräch");
   ok(seite.includes('id="tk-deine-termine"') && seite.indexOf("Deine Termine") < seite.indexOf("Alle Termine des Teams"), "erst deine Termine, darunter alle");
-  ok(seite.includes("function AkteFenster") && seite.includes("<KundeAkte akteId={k.akteId} eingebettet />") && !/href=\{k\.akteLink\}/.test(seite), "Akte öffnet als Fenster auf derselben Seite");
-  ok(/export default function AdminKundeAktePage\(\{ akteId, eingebettet = false \}/.test(lies("client/src/pages/admin-kunde.tsx")), "Akte-Seite nimmt Kennung als Eigenschaft");
+  // E-315: Im Fenster steht DIE EINE Akte (ZentraleAkte) — dieselbe wie unter /akte/<Kennung>.
+  ok(seite.includes("function AkteFenster") && seite.includes("<KundeAkte kennung={k.akteId} imFenster />") && !/href=\{k\.akteLink\}/.test(seite), "Akte öffnet als Fenster auf derselben Seite");
+  ok(/export default function ZentraleAkte\(\{ kennung: kennungFest, imFenster = false \}/.test(lies("client/src/components/admin/ZentraleAkte.tsx"))
+    && /export default function AdminKundeAktePage\(\{ akteId, eingebettet = false, modus = "voll" \}/.test(lies("client/src/pages/admin-kunde.tsx")), "Akte-Seite nimmt Kennung als Eigenschaft");
   ok(!seite.includes("datetime-local") && seite.includes("const STUNDEN = [8,") && seite.includes("const MINUTEN = [0, 15, 30, 45]"), "Rückruf ohne Systemkalender: Tag, Stunde, Minute als Knöpfe");
   const css = lies("client/src/styles/chef-telefonkartei.css");
   ok(/\.tk-suche:focus-within/.test(css) && !/\.tk input:focus-visible/.test(css), "Suchfeld: Fokus an der runden Kante, kein eckiger Rahmen");

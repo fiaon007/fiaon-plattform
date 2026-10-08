@@ -222,7 +222,10 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "ab dem 9. ruht der Mensch. Wer gerade einen Antrag oder eine Zahlungsmeldung geschickt hat (bis 3 Tage), kommt "
       + "bis zum 5. Fehlversuch schon am nächsten Werktag wieder in die Liste — dort aber hinten, hinter allen, die länger "
       + "niemand versucht hat. Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage, auch wenn du „in 1 Woche“ wählst; "
-      + "ab dem 9. Fehlversuch bekommt zusätzlich die Leitung eine Aufgabe. Buchst du denselben Anruf zweimal (Telefon "
+      + "ab dem 9. Fehlversuch bekommt zusätzlich die Leitung eine Aufgabe. Ist nach 3 Werktagen kein Geld da, kommt "
+      + "dazu EINE Aufgabe „Zahlung gemeldet, nicht da — anrufen und klären“: Erreichst du den Kunden und trägst das "
+      + "Ergebnis ein (auch aus der Pipeline) oder ist die Zahlung gebucht, ist sie von selbst erledigt; ab dem 9. "
+      + "Fehlversuch übernimmt sie die Leitung. Buchst du denselben Anruf zweimal (Telefon "
       + "und Akte), zählt er einmal.",
     tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
   },

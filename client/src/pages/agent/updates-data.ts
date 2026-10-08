@@ -98,6 +98,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "„Nicht erreicht“ und „Mailbox“: Der Abstand wächst — 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause. Ab dem 9. ruht der Kunde wie bisher.",
       "Frischer Antrag oder frische Zahlungsmeldung (bis 3 Tage): bis zum 5. Fehlversuch schon am nächsten Werktag wieder in der Liste — aber hinten, nicht oben.",
       "Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage — auch von Hand; „1 Woche“ und „2 Wochen“ sind dort ausgegraut.",
+      "Stufe A ohne Geld nach 3 Werktagen: EINE Aufgabe „Zahlung gemeldet, nicht da — anrufen und klären“. Sie ist erledigt, sobald du den Kunden erreichst und das Ergebnis einträgst (auch aus der Pipeline) oder die Zahlung gebucht ist; ab dem 9. Fehlversuch übernimmt sie die Leitung.",
       "Dieselbe Buchung zweimal (Telefon und Akte binnen 30 Minuten) zählt nur einmal als Fehlversuch.",
       "Ratenkunden behalten ihre Wiedervorlage und Zusage — auch eine Zusage über WhatsApp oder Mara. Vorher waren sie nach höchstens 20 Minuten wieder fällig.",
       "Ein Ergebnis nach der vereinbarten Rückrufzeit gilt als beantworteter Rückruf.",

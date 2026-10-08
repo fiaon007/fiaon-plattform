@@ -400,6 +400,12 @@ export async function stufeAAnLeitung(
      WHERE id = ${personId}
   `;
   const aufgabe = await leitungAufgabeAnlegen(personId, versuche, p?.ref ?? null, bis, lauf);
+  // Integration Strang a × Mara-Topsales (08.10.2026): Die offene Anrufaufgabe „Zahlung gemeldet, nicht da — anrufen
+  // und klären“ (fiaon-stufe-a-klaeren.ts) geht damit an die Leitung über — keine zwei Aufgaben zum selben Fall.
+  if (aufgabe) {
+    const { klaerAufgabeAnLeitungUebergeben } = await import("./fiaon-stufe-a-klaeren");
+    await klaerAufgabeAnLeitungUebergeben(personId, lauf);
+  }
   return {
     wiedervorlage: bis,
     aufgabe,

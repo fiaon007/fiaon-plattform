@@ -135,6 +135,12 @@ export const AUFTRAG_ARTEN = {
   mara_wa_pruefung: { label: "WhatsApp: Mara war unsicher", nurHand: false, ergebnisPflicht: false, zustand: false, schliesstBei: KONTAKT, bezug: "person" },
   mara_wa_heikel: { label: "WhatsApp: Kündigung, Widerruf, Beschwerde", nurHand: true, ergebnisPflicht: true, zustand: false, schliesstBei: [], bezug: "person", frist: true },
   mara_wa_geld: { label: "WhatsApp: Zahlung oder Geld", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "person" },
+  // Integration Strang a × Mara-Topsales (08.10.2026): „Zahlung gemeldet, nicht da — anrufen und klären“ (Schlüssel
+  // antrag:<ref>:a-klaeren, fiaon-stufe-a-klaeren.ts). Ein ERREICHTES Gespräch des Betreuers — auch aus der Pipeline, wo
+  // Stufe A höchstens 3 Werktage wartet — oder die gebuchte Zahlung ist die Klärung; sonst stünde der Kunde doppelt an
+  // (Pipeline UND Auftrag). Ein Versuch schließt nie; Board-Aufgaben (Leitung, „abgelehnt“) schließt nur der Mensch.
+  stufe_a_klaeren: { label: "Zahlung gemeldet, nicht da – klären", nurHand: false, ergebnisPflicht: true, zustand: false,
+    schliesstBei: ["ergebnis_erreicht", "zahlung_gebucht"], bezug: "person" },
   unzustellbar_erstzahlung: { label: "Erstzahlung: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: ["zahlung_gebucht"], bezug: "ref" },
   // Eine bezahlte Rate heilt die Adresse NICHT: Für die nächste Rate geht wieder keine Mail raus
   // (UNZUSTELLBAR_SQL). Zu ist der Auftrag erst, wenn ein Mensch die Adresse geklärt hat — mit Satz.
@@ -390,6 +396,7 @@ function artAusSchluessel(z: { schluessel?: string | null; quelle?: string | nul
     return "mara_wa_anliegen";
   }
   if (/^wa-n?\d+-\d{4}-\d{2}-\d{2}/.test(k)) return recht ? "beschwerde" : "mara_wa_anliegen";
+  if (/^antrag:[^:]+:a-klaeren$/.test(k)) return "stufe_a_klaeren";
   if (/^antrag:[^:]+:unzustellbar/.test(k)) return "unzustellbar_erstzahlung";
   if (/^abo:[^:]+:unzustellbar/.test(k)) return "unzustellbar_rate";
   if (/^einladung-nachholen:/.test(k)) return "einladung_fehlt";

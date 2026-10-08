@@ -108,6 +108,7 @@ import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
+import { raumPfad } from "@shared/fiaon-wa-raum";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
 import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play, CreditCard } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
@@ -4250,6 +4251,10 @@ function WhatsAppSenden({ personId, name, melden }: {
       <span className="pi-fussnote">
         An {stand.nummer}{stand.fensterOffen ? " · Fenster offen, freier Text im WhatsApp-Raum möglich" : " · Fenster zu, nur Vorlagen"}
       </span>
+      {/* E-IT-H (08.10.2026, Punkt 15): aus der Akte direkt ins Gespräch — der Raum öffnet es über ?nummer=. */}
+      <Link href={raumPfad("agent", stand.nummer)} className="pi-knopf still klein pi-wa-raum" style={{ justifySelf: "start" }}>
+        Chat im WhatsApp-Raum öffnen
+      </Link>
       {nutzbare.length === 0 ? (
         <p className="pi-fussnote">
           Noch ist keine Vorlage von Meta freigegeben ({stand.vorlagen.length} eingereicht oder offen). Sobald die Freigabe da ist, erscheinen sie hier.

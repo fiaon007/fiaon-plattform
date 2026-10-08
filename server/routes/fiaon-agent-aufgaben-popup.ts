@@ -53,6 +53,7 @@ import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureTodoTabelle, refAusLink } from "./fiaon-betreiber-todo";
+import { nummerAusRaumPfad, raumPfad } from "../../shared/fiaon-wa-raum";
 
 const router = Router();
 
@@ -117,6 +118,10 @@ export function auszugVon(text: unknown, max = 180): string | null {
  */
 export function zielVon(a: { link: string | null; personId: number | null; ref: string | null; kanal: string | null }): { href: string; text: string } {
   const link = String(a.link || "");
+  // E-IT-H (08.10.2026, Punkt 15): Maras Übergabe ohne Person trägt die Nummer (…/whatsapp?nummer=…) —
+  // auch eine fürs Chefbüro gedachte führt den Mitarbeiter in SEINEN Raum, direkt ins Gespräch.
+  const waNummer = a.personId ? null : nummerAusRaumPfad(link);
+  if (waNummer) return { href: raumPfad("agent", waNummer), text: "WhatsApp öffnen" };
   if (link.startsWith("/agent/") && !/^\/agent\/(kunden|pipeline)(\?|$)/.test(link)) return { href: link, text: "Akte öffnen" };
   if (a.personId) return { href: `/agent/kunden?person=${a.personId}`, text: "Akte öffnen" };
   if (a.ref) return { href: `/agent/kunden?ref=${encodeURIComponent(a.ref)}`, text: "Akte öffnen" };

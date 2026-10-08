@@ -381,7 +381,8 @@ abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
   gleich(nummerFuerWhatsApp("4915112345602"), "4915112345602", "Schon internationale Nummern werden nicht verdoppelt");
   gleich(nummerFuerWhatsApp("0151 10761284"), "4915110761284", "Deutsche Schreibweise wird umgerechnet");
   ok(/requireAgent/.test(rt) && /requireChef\("leitung"\)/.test(rt), "Zwei Türen: Mitarbeiter und Leitung");
-  ok(/blick\.alles \|\| Number\(z\.assigned_agent_id/.test(rt), "Der Mitarbeiter sieht nur seine Menschen");
+  // E-IT-H (08.10.2026): Die Sicht steht im SQL VOR der Grenze (sichtMenge) — und jede Zeile läuft danach durch sichtFuer.
+  ok(/sichtMenge\(blick\)/.test(rt) && /= ANY\(\$\{ids\}::int\[\]\)/.test(rt) && /blick\.alles \|\| sieht\(z\.assigned_agent_id/.test(rt), "Der Mitarbeiter sieht nur seine Menschen");
   ok(/darfAnNummer/.test(rt), "Auch beim Senden wird die Zuständigkeit geprüft");
   ok(/mara_an = FALSE/.test(rt), "Schreibt ein Mensch, schweigt Mara in diesem Gespräch");
   // E-253 (28.09.2026): mit den Namen des Empfängers aus der Akte — sendePruefung(text, { namen }).

@@ -5,13 +5,27 @@
    #288DFA / #1D4ED8 als einziger Akzent, keine klebenden Leisten über Inhalt.
 
    Die Aufteilung richtet sich nach dem PLATZ des Raums, nicht nach dem Fenster
-   (Container Queries, Name „wr"):
-     ab 1100 px   Liste · Chat · Fall
+   (Container Queries, Name „wr"; dieselben Schwellen in shared/fiaon-wa-raum.ts):
+     ab 1500 px   wie ab 1100, Schrift × 1,06
+     ab 1100 px   Liste · Chat · Fall-Spalte (von selbst an ab 1400, sonst aus;
+                  die Wahl des Mitarbeiters gilt — (i) im Chat-Kopf)
      ab  760 px   Liste · Chat, der Fall als Schublade im Chat
      darunter     Liste; ein offener Chat ist eine eigene Vollfläche (.wr-vollflaeche)
-   Der Rahmen (WhatsAppRaum.tsx) nutzt dieselben Schwellen (BREIT_AB/MITTEL_AB).
+   Die Liste lässt sich ab 760 px zur Schiene einklappen (.liste-schmal, 76 px).
 
-   Rundgang-Ziele bleiben: .wr-liste, .wr-eingabe, .wr-schalter. */
+   E-IT-H (08.10.2026, Punkt 15) — DER RAUM FÜLLT DEN BILDSCHIRM:
+   · Keine gemessene Höhe mehr (--wr-hoehe ist weg): Die Hülle liefert die volle
+     Fläche (.of.voll im Office, .cb-voll im Chefbüro), der Raum füllt sie.
+   · Größere Grundschrift — im Office (87,5 %) steht die Blase mit 14 px am
+     Bildschirm (vorher 12,7, Uhrzeiten 9,2): alle Größen laufen über --wr-f
+     (Breite × Wahl „Schrift größer" × 1,15). Justin, 08.10.: Die
+     Office-Verkleinerung bleibt, der Raum gleicht über die Schrift aus.
+   · Der Telefonknopf (58 px unten rechts) bekommt eine freie Ecke
+     (--wr-knopf-zone) statt eines Höhenstreifens über die ganze Breite; ein
+     laufendes Gespräch (Pille) reserviert unten Platz (--wr-unten-zone).
+   · Der Rundgang hat keinen festen Knopf mehr — der Chip „Rundgang" im Kopf.
+
+   Rundgang-Ziele bleiben: .wr-liste, .wr-eingabe, .wr-schalter; neu .wr-kopf-knoepfe, .wr-fall-knopf. */
 
 .wr, .wr-tokens {
   --wr-blau: #288dfa;
@@ -38,39 +52,67 @@
 }
 .wr {
   container: wr / inline-size;
-  display: grid; gap: 12px; min-width: 0;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0;
+  /* In der vollen Hülle (Office .of.voll, Chefbüro .cb-voll) füllt der Raum die Restfläche. */
+  flex: 1 1 auto;
 }
+/* Die Schriftstufe: Breite des Raums (--wr-s, ab 1500 px) × Wahl „Schrift größer" (--wr-nutzer).
+   Auf .wr-raum noch einmal, weil --wr-s erst dort (Container Query) gesetzt wird. */
+.wr, .wr-raum, .wr-tokens { --wr-f: calc(var(--wr-s, 1) * var(--wr-nutzer, 1)); }
+.wr-schrift-gross { --wr-nutzer: 1.15; }
 .wr *, .wr *::before, .wr *::after { box-sizing: border-box; }
 .wr h1, .wr h2 { margin: 0; color: var(--wr-text); }
 .wr p { margin: 0; }
 .wr button, .wr input, .wr textarea { font-family: inherit; }
-.wr-still { color: var(--wr-still); font-size: 12px; }
-.wr-leer { padding: 18px; font-size: 13px; color: var(--wr-leise); }
+.wr-still { color: var(--wr-still); font-size: calc(13px * var(--wr-f, 1)); }
+.wr-leer { padding: 18px; font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-leise); }
 .wr-leise { color: var(--wr-leise); }
 .wr-gut { color: var(--wr-gut) !important; }
 
 /* ── Kopf der Seite: eine Zeile, kein Kasten ───────────────────────────── */
 .wr-kopf { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; padding: 0 2px; }
 .wr-kopf h1 { font-size: 26px; font-weight: 300; letter-spacing: -.02em; }
-.wr-kopf p { font-size: 12.5px; color: var(--wr-leise); }
+.wr-kopf p { font-size: calc(13px * var(--wr-f, 1)); color: var(--wr-leise); }
 .wr-kopf b { color: var(--wr-text-2); font-weight: 400; font-variant-numeric: tabular-nums; }
 /* E-261: der schmale Hinweis, solange die WhatsApp-Bremse steht (Pause oder Meta ROT). Kein Knopf. */
+.wr-kopf-knoepfe { margin-left: auto; display: flex; gap: 8px; align-self: center; }
 .wr-kopf .wr-bremse { flex: 1 1 100%; margin: 2px 0 0; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(253, 164, 175, .35);
-  background: rgba(127, 29, 29, .28); color: var(--wr-rot); font-size: 12.5px; font-weight: 300; line-height: 1.45; }
+  background: rgba(127, 29, 29, .28); color: var(--wr-rot); font-size: calc(13px * var(--wr-f, 1)); font-weight: 300; line-height: 1.45; }
 
 /* ── Der Raum ──────────────────────────────────────────────────────────── */
+/* E-IT-H: Spalten wachsen mit dem Platz (Liste 280–380, Fall 280–360 px), der
+   Chat bekommt den Rest. Ohne gewähltes Gespräch gibt es KEINE leere dritte Spur
+   mehr — die Fall-Spalte steht nur mit .mit-fall da. */
 .wr-raum {
-  display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; gap: 12px;
-  /* Die Höhe misst der Rahmen: vom Raum bis zum Fensterrand. */
-  height: var(--wr-hoehe, min(74vh, 780px)); min-height: 0;
+  --wr-liste-b: clamp(280px, 21cqi, 380px);
+  --wr-fall-b: clamp(280px, 20cqi, 360px);
+  display: grid; gap: 12px; min-width: 0; min-height: 320px;
+  grid-template-columns: var(--wr-liste-b) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  /* Rückfall, falls der Raum einmal ohne volle Hülle steht; in der Hülle füllt er sie. */
+  height: clamp(420px, 78vh, 1000px);
+  /* Läuft ein Gespräch am Telefon (Pille unten rechts), bleibt unten Platz. */
+  padding-bottom: var(--wr-unten-zone, 0px);
 }
-@container wr (max-width: 1099.98px) {
-  .wr-raum { grid-template-columns: 280px minmax(0, 1fr); }
+:is(.of.voll, .cb.cb-voll) .wr-raum { height: auto; }
+.wr-raum.mit-fall { grid-template-columns: var(--wr-liste-b) minmax(0, 1fr) var(--wr-fall-b); }
+.wr-raum.liste-schmal { --wr-liste-b: 76px; }
+@container wr (min-width: 1500px) {
+  .wr-raum { --wr-s: 1.06; }
 }
 @container wr (max-width: 759.98px) {
   .wr-raum { grid-template-columns: minmax(0, 1fr); }
   .wr-kopf h1 { font-size: 22px; }
 }
+
+/* Der Telefonknopf (Softphone.tsx: rechts 16, unten 12, 58 × 58 px) liegt über
+   der rechten unteren Ecke des Raums. Statt eines Streifens über die volle
+   Breite hält nur die Spalte darunter Abstand: mit Fall-Spalte deren Ende,
+   sonst die Eingabezeile (der Senden-Knopf liegt nie darunter). */
+html.wr-telefon .wr { --wr-knopf-zone: 78px; }
+html.wr-telefon:has(.fi-tel-pille) .wr { --wr-unten-zone: 80px; }
+.wr-raum.mit-fall > .wr-person { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px)); }
+.wr-raum:not(.mit-fall) .wr-eingabe { padding-right: calc(12px + var(--wr-knopf-zone, 0px)); }
 
 /* ── Liste ─────────────────────────────────────────────────────────────── */
 .wr-liste {
@@ -80,24 +122,51 @@
 .wr-suchfeld { padding: 12px 12px 8px; display: flex; gap: 8px; align-items: center; }
 .wr-suchfeld input, .wr-feld, .wr-blatt-kopf input {
   width: 100%; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--wr-linie);
-  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: 16px; font-weight: 300;
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); font-weight: 300;
 }
 .wr-suchfeld input:focus, .wr-feld:focus, .wr-blatt-kopf input:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
 .wr-neu {
   width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid rgba(40, 141, 250, .4);
   background: rgba(40, 141, 250, .12); color: var(--wr-blau-hell); display: grid; place-items: center; cursor: pointer;
 }
-.wr-filter { display: flex; gap: 6px; padding: 0 12px 10px; }
+/* E-IT-H: vier Filter als ruhiges 2 × 2 in der Listenspalte (statt eines einzeln gedehnten Knopfs in
+   Zeile zwei); am Handy, wo die Liste die ganze Breite hat, in einer Reihe. */
+.wr-filter { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 12px 10px; }
+@container wr (max-width: 759.98px) { .wr-filter { display: flex; flex-wrap: wrap; } }
 .wr-filter button {
-  flex: 1; padding: 6px 8px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
-  color: var(--wr-leise); font-size: 12px; font-weight: 400; cursor: pointer; white-space: nowrap;
+  flex: 1 1 auto; padding: 6px 8px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
+  color: var(--wr-leise); font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .wr-filter button.an { background: rgba(40, 141, 250, .14); border-color: rgba(40, 141, 250, .45); color: #dbeafe; }
+/* E-IT-H (Gegenprüfung): Beim Suchen gilt „Mit Antwort" nicht — der Knopf ruht, eine Zeile sagt warum. */
+.wr-filter button:disabled { opacity: .45; cursor: default; }
+.wr-filter-hinweis { grid-column: 1 / -1; flex: 1 1 100%; margin: 2px 2px 0; line-height: 1.45; }
 .wr-zeilen { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
 @container wr (max-width: 759.98px) {
-  /* Am Handy liegen Telefon- und Rundgangknopf unten rechts — die letzte Zeile muss darüber scrollen können. */
-  .wr-zeilen { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+  /* Am Handy liegt der Telefonknopf unten rechts — die letzte Zeile muss darüber scrollen können. */
+  .wr-zeilen { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px) + env(safe-area-inset-bottom, 0px)); }
 }
+.wr-leer-knopf { margin-top: 10px; }
+.wr-mehr-zeile { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--wr-linie); }
+.wr-ende { padding: 12px 16px 16px; text-align: center; line-height: 1.5; border-top: 1px solid var(--wr-linie); }
+.wr-liste-klapp { width: 36px; height: 36px; }
+
+/* ── Die Schiene: die Liste eingeklappt (E-IT-H) ─────────────────────────
+   Nur Bild, Ungelesen-Zahl und grüner Fenster-Punkt; Name und Vorschau im Titel. */
+.wr-liste.schmal { grid-template-rows: auto minmax(0, 1fr); }
+.wr-schiene-kopf { display: grid; justify-items: center; gap: 8px; padding: 10px 0 10px; border-bottom: 1px solid var(--wr-linie); }
+.wr-liste.schmal .wr-zeilen { display: grid; justify-items: center; align-content: start; gap: 6px; padding: 8px 0 12px; }
+.wr-rund {
+  position: relative; width: 52px; height: 52px; border-radius: 16px; border: 0; background: transparent;
+  display: grid; place-items: center; cursor: pointer; flex: none; padding: 0;
+}
+.wr-rund.an { background: rgba(40, 141, 250, .14); box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .5); }
+.wr-rund .wr-punkt { position: absolute; top: 1px; right: 1px; }
+.wr-offen-punkt {
+  position: absolute; bottom: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--wr-gut); box-shadow: 0 0 0 2px var(--wr-flaeche);
+}
+.wr-mehr-rund { margin-top: 4px; }
 
 .wr-zeile {
   display: flex; gap: 11px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--wr-linie);
@@ -105,26 +174,26 @@
 }
 .wr-zeile.an { background: rgba(40, 141, 250, .1); box-shadow: inset 2px 0 0 var(--wr-blau); }
 .wr-avatar {
-  width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; font-size: 15px; font-weight: 400;
+  width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; font-size: calc(16px * var(--wr-f, 1)); font-weight: 400;
 }
 .wr-zeile-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .wr-zeile-kopf, .wr-zeile-unten { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; min-width: 0; }
 .wr-zeile-unten { align-items: center; }
-.wr-zeile-kopf b { font-size: 14px; font-weight: 400; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-zeile-kopf b { font-size: calc(15.5px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wr-zeile.ungelesen .wr-zeile-kopf b { font-weight: 500; }
-.wr-zeile-zeit { font-size: 11.5px; color: var(--wr-still); white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; }
+.wr-zeile-zeit { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; }
 .wr-zeile.ungelesen .wr-zeile-zeit { color: var(--wr-blau); }
-.wr-vorschau { font-size: 12.5px; color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wr-vorschau { font-size: calc(13.5px * var(--wr-f, 1)); color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wr-vorschau em { font-style: normal; color: var(--wr-text-2); }
 .wr-vorschau.auto em { color: var(--wr-warn); }
 .wr-punkt {
-  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: var(--wr-blau); color: #fff;
-  font-size: 11px; font-weight: 500; display: grid; place-items: center; flex: none;
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--wr-blau); color: #fff;
+  font-size: calc(12px * var(--wr-f, 1)); font-weight: 500; display: grid; place-items: center; flex: none;
 }
 .wr-marken { display: flex; gap: 5px; flex-wrap: wrap; }
 .wr-marke {
-  font-size: 10.5px; font-weight: 400; line-height: 1; letter-spacing: .02em; padding: 4px 8px; border-radius: 99px;
+  font-size: calc(11.5px * var(--wr-f, 1)); font-weight: 400; line-height: 1; letter-spacing: .02em; padding: 4px 8px; border-radius: 99px;
   border: 1px solid rgba(148, 163, 184, .2); color: var(--wr-leise); white-space: nowrap;
 }
 .wr-marke.offen { color: var(--wr-gut); border-color: rgba(110, 231, 183, .3); }
@@ -148,7 +217,7 @@
 .wr-chat > .wr-person.schublade { grid-row: 2 / 4; grid-column: 1; z-index: 9; }
 .wr-chat.leer { grid-template-rows: minmax(0, 1fr); }
 .wr-nichts { display: grid; place-content: center; gap: 8px; text-align: center; padding: 40px; }
-.wr-nichts p:first-child { font-size: 15px; color: var(--wr-text-2); }
+.wr-nichts p:first-child { font-size: calc(16px * var(--wr-f, 1)); color: var(--wr-text-2); }
 .wr-nichts .wr-still { max-width: 46ch; line-height: 1.6; }
 
 /* Der Chat-Kopf — die EINE Glasstelle des Raums. */
@@ -157,13 +226,13 @@
   border-bottom: 1px solid var(--wr-linie);
   background: rgba(16, 30, 58, .72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }
-.wr-chat-kopf .wr-avatar { width: 36px; height: 36px; font-size: 14px; }
+.wr-chat-kopf .wr-avatar { width: 40px; height: 40px; font-size: calc(15px * var(--wr-f, 1)); }
 .wr-chat-wer { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.wr-chat-wer b { font-size: 15px; font-weight: 400; color: var(--wr-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wr-chat-wer small { font-size: 12px; color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-chat-wer b { font-size: calc(17px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-chat-wer small { font-size: calc(13px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wr-termin-kurz { display: none; color: var(--wr-gut); }
 .wr-termin-chip {
-  flex: none; font-size: 11.5px; color: var(--wr-gut); border: 1px solid rgba(110, 231, 183, .3);
+  flex: none; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-gut); border: 1px solid rgba(110, 231, 183, .3);
   border-radius: 99px; padding: 4px 10px; white-space: nowrap;
 }
 .wr-chat-knoepfe { display: flex; gap: 6px; align-items: center; flex: none; }
@@ -178,7 +247,7 @@
 .wr-ikon.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .14); }
 .wr-schalter {
   display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border-radius: 99px;
-  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .wr-schalter span { width: 7px; height: 7px; border-radius: 50%; background: var(--wr-still); }
 .wr-schalter em { font-style: normal; color: var(--wr-still); }
@@ -208,7 +277,7 @@
 @container wr (max-width: 759.98px) { .wr-verlauf { padding: 8px 10px 10px; } }
 .wr-tag { display: flex; justify-content: center; margin: 14px 0 6px; }
 .wr-tag span {
-  font-size: 11.5px; font-weight: 400; color: var(--wr-leise); padding: 3px 12px; border-radius: 99px; background: var(--wr-flaeche-3);
+  font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-leise); padding: 3px 12px; border-radius: 99px; background: var(--wr-flaeche-3);
 }
 
 .wr-reihe { display: flex; margin-top: 2px; min-width: 0; }
@@ -216,8 +285,9 @@
 .wr-reihe.rein { justify-content: flex-start; }
 .wr-reihe.raus { justify-content: flex-end; }
 .wr-blase {
-  display: grid; gap: 2px; max-width: min(74%, 560px); min-width: 0; padding: 7px 11px 5px; border-radius: 14px;
-  color: #eef3fb; font-size: 14.5px; line-height: 1.45; font-weight: 400;
+  /* E-IT-H: 16 statt 14,5 (im Office 14 px am Bildschirm), breiter bis 44 Zeichenbreiten statt 560 px. */
+  display: grid; gap: 2px; max-width: min(76%, 44em); min-width: 0; padding: 8px 12px 6px; border-radius: 14px;
+  color: #eef3fb; font-size: calc(16px * var(--wr-f, 1)); line-height: 1.5; font-weight: 400;
 }
 @container wr (max-width: 759.98px) { .wr-blase { max-width: 86%; } }
 .wr-reihe.rein.neu .wr-blase { border-top-left-radius: 5px; }
@@ -228,37 +298,37 @@
 .wr-blase.fehler { background: #331722; box-shadow: inset 0 0 0 1px rgba(253, 164, 175, .35); }
 .wr-blase.auto { background: #161f2f; color: #c3ccd9; box-shadow: inset 0 0 0 1px rgba(252, 211, 77, .18); }
 .wr-blase p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.wr-absender { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--wr-blau-hell); }
+.wr-absender { display: flex; align-items: center; gap: 6px; font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 500; color: var(--wr-blau-hell); }
 .wr-blase.mensch .wr-absender { color: #e3edff; }
 .wr-ki {
-  font-size: 9.5px; font-weight: 500; letter-spacing: .06em; line-height: 15px; padding: 0 5px; border-radius: 5px;
+  font-size: calc(10.5px * var(--wr-f, 1)); font-weight: 500; letter-spacing: .06em; line-height: 15px; padding: 0 5px; border-radius: 5px;
   border: 1px solid rgba(156, 200, 255, .45); color: var(--wr-blau-hell);
 }
-.wr-automarke, .wr-knopfmarke { font-size: 11px; font-weight: 400; color: var(--wr-warn); }
+.wr-automarke, .wr-knopfmarke { font-size: calc(12px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-warn); }
 .wr-knopfmarke { color: var(--wr-leise); }
 .wr-medien { font-style: italic; color: var(--wr-text-2); }
-.wr-medien small { display: block; font-style: normal; font-size: 11px; color: var(--wr-leise); margin-top: 2px; }
+.wr-medien small { display: block; font-style: normal; font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-leise); margin-top: 2px; }
 .wr-fuss {
   justify-self: end; display: flex; align-items: center; gap: 4px; margin-top: 1px;
-  font-size: 10.5px; color: rgba(226, 232, 240, .55); font-variant-numeric: tabular-nums;
+  font-size: calc(11.5px * var(--wr-f, 1)); color: rgba(226, 232, 240, .55); font-variant-numeric: tabular-nums;
 }
 .wr-haken { color: rgba(226, 232, 240, .6); flex: none; }
 .wr-haken.gelesen { color: var(--wr-blau); }
 .wr-haken.fehler { color: var(--wr-rot); }
 .wr-blase.mensch .wr-fuss, .wr-blase.mensch .wr-haken { color: rgba(255, 255, 255, .78); }
 .wr-blase.mensch .wr-haken.gelesen { color: #fff; }
-.wr-fehlertext { font-size: 11.5px; color: #ffc9d1; }
+.wr-fehlertext { font-size: calc(12.5px * var(--wr-f, 1)); color: #ffc9d1; }
 
 .wr-vorlagekarte { display: grid; gap: 2px; border-left: 2px solid rgba(156, 200, 255, .5); padding-left: 9px; margin: 1px 0 2px; }
-.wr-vorlagekarte small { font-size: 11px; color: var(--wr-blau-hell); letter-spacing: .02em; }
+.wr-vorlagekarte small { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-blau-hell); letter-spacing: .02em; }
 .wr-vorlagekarte p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .wr-vorlagekarte.auf p { display: block; }
-.wr-mehr { justify-self: start; border: 0; background: none; color: var(--wr-blau-hell); font-size: 12px; padding: 2px 0; cursor: pointer; }
+.wr-mehr { justify-self: start; border: 0; background: none; color: var(--wr-blau-hell); font-size: calc(13px * var(--wr-f, 1)); padding: 2px 0; cursor: pointer; }
 
 .wr-neu-pille {
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 4;
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 99px;
-  border: 1px solid rgba(40, 141, 250, .5); background: #10203d; color: #dbeafe; font-size: 12.5px; font-weight: 400; cursor: pointer;
+  border: 1px solid rgba(40, 141, 250, .5); background: #10203d; color: #dbeafe; font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer;
   box-shadow: 0 8px 22px rgba(2, 6, 23, .45);
 }
 
@@ -266,7 +336,7 @@
 .wr-intern { align-self: center; margin: 7px 0; max-width: min(94%, 640px); min-width: 0; text-align: center; }
 .wr-intern-kopf {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: 8px;
-  border: 0; background: transparent; color: var(--wr-leise); font-size: 11.5px; font-weight: 400; cursor: pointer;
+  border: 0; background: transparent; color: var(--wr-leise); font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer;
 }
 .wr-intern-wer { color: var(--wr-text-2); font-weight: 500; flex: none; }
 .wr-intern-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -278,7 +348,7 @@
 .wr-intern-kopf[aria-expanded="true"] .wr-intern-pfeil { transform: rotate(180deg); }
 .wr-intern-liste {
   list-style: none; margin: 4px 0 0; padding: 9px 11px; border-radius: 10px; background: var(--wr-flaeche-2);
-  text-align: left; display: grid; gap: 7px; font-size: 12px; line-height: 1.45;
+  text-align: left; display: grid; gap: 7px; font-size: calc(13px * var(--wr-f, 1)); line-height: 1.45;
 }
 .wr-intern-liste > li { display: grid; grid-template-columns: 40px 14px minmax(0, 1fr); gap: 4px; color: var(--wr-text-2); }
 .wr-intern-liste > li > time { color: var(--wr-still); font-variant-numeric: tabular-nums; }
@@ -286,10 +356,10 @@
 .wr-intern-liste > li.ton-warn { color: var(--wr-warn); }
 .wr-intern-liste > li.ton-gut .wr-intern-zeichen { color: var(--wr-gut); }
 .wr-intern-satz { min-width: 0; overflow-wrap: anywhere; }
-.wr-intern-satz small { display: block; margin-top: 2px; font-size: 11px; color: var(--wr-still); }
+.wr-intern-satz small { display: block; margin-top: 2px; font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); }
 .wr-intern-satz .wr-pruefmarke { margin-left: 6px; vertical-align: 1px; }
 .wr-pruefmarke {
-  font-size: 10.5px; font-weight: 400; line-height: 1.2; letter-spacing: .02em; padding: 2px 8px; border-radius: 99px;
+  font-size: calc(11.5px * var(--wr-f, 1)); font-weight: 400; line-height: 1.2; letter-spacing: .02em; padding: 2px 8px; border-radius: 99px;
   border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); white-space: nowrap;
 }
 button.wr-pruefmarke { cursor: pointer; }
@@ -310,7 +380,7 @@ button.wr-pruefmarke { cursor: pointer; }
   position: relative; min-width: 0; border-top: 1px solid var(--wr-linie); background: var(--wr-flaeche);
   padding: 7px 12px calc(8px + env(safe-area-inset-bottom, 0px));
 }
-.wr-lage { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding: 0 4px 6px; font-size: 11.5px; color: var(--wr-still); }
+.wr-lage { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding: 0 4px 6px; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); }
 .wr-lage > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .wr-lage-offen { color: var(--wr-gut); }
 .wr-lage-zu { color: var(--wr-warn); }
@@ -324,9 +394,11 @@ button.wr-pruefmarke { cursor: pointer; }
 .wr-plus { border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2); color: var(--wr-text-2); }
 .wr-plus.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .16); }
 .wr-feld-text {
-  display: block; width: 100%; min-width: 0; min-height: 40px; max-height: 150px; resize: none; overflow-y: hidden;
+  /* E-IT-H: wächst bis 36 % der Chathöhe, höchstens 320 px (am großen Schirm rund zwölf Zeilen) — dieselben Zahlen
+     rechnet Eingabe.tsx (FELD_ANTEIL_CHAT/FELD_HOECHSTENS_PX in shared/fiaon-wa-raum.ts). */
+  display: block; width: 100%; min-width: 0; min-height: 40px; max-height: 150px; max-height: min(36cqh, 320px); resize: none; overflow-y: hidden;
   padding: 9px 14px; border-radius: 20px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2);
-  color: var(--wr-text); font-size: 16px; line-height: 22px; font-weight: 400;
+  color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.45; font-weight: 400;
 }
 .wr-feld-text::placeholder { color: var(--wr-still); }
 .wr-feld-text:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
@@ -334,7 +406,7 @@ button.wr-pruefmarke { cursor: pointer; }
 .wr-senden:disabled { opacity: .38; cursor: default; }
 .wr-senden-dreht { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: wr-dreh .8s linear infinite; }
 @keyframes wr-dreh { to { transform: rotate(360deg); } }
-.wr-hilfe { display: flex; justify-content: space-between; gap: 8px; padding: 4px 52px 0; font-size: 11px; color: var(--wr-still); min-height: 19px; }
+.wr-hilfe { display: flex; justify-content: space-between; gap: 8px; padding: 4px 52px 0; font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); min-height: 19px; }
 .wr-zaehler { margin-left: auto; font-variant-numeric: tabular-nums; }
 .wr-zaehler.knapp { color: var(--wr-warn); }
 @media (hover: none) and (pointer: coarse) {
@@ -343,7 +415,7 @@ button.wr-pruefmarke { cursor: pointer; }
   .wr-hilfe:has(.wr-zaehler:empty) { display: none; }
 }
 .wr-zu-zeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 4px 2px; }
-.wr-zu-zeile p { flex: 1 1 240px; font-size: 12.5px; line-height: 1.5; color: var(--wr-leise); }
+.wr-zu-zeile p { flex: 1 1 240px; font-size: calc(13.5px * var(--wr-f, 1)); line-height: 1.5; color: var(--wr-leise); }
 .wr-zu-zeile b { color: var(--wr-warn); font-weight: 500; }
 
 /* ── Das „+"-Blatt: liegt ÜBER dem Verlauf, schrumpft ihn nicht ───────── */
@@ -354,13 +426,13 @@ button.wr-pruefmarke { cursor: pointer; }
 }
 .wr-blatt-griff { display: none; width: 36px; height: 4px; border-radius: 2px; background: rgba(148, 163, 184, .35); margin: 8px auto 0; flex: none; }
 .wr-blatt-kopf { display: flex; gap: 8px; padding: 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
-.wr-blatt-titel { font-size: 11px; color: var(--wr-still); margin: 2px 4px 6px; letter-spacing: .02em; }
+.wr-blatt-titel { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); margin: 2px 4px 6px; letter-spacing: .02em; }
 .wr-blatt-links { padding: 8px 10px 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
 .wr-blatt-links .wr-still { margin: 6px 4px 0; }
 .wr-blatt-linkreihe { display: flex; gap: 6px; flex-wrap: wrap; }
 .wr-blatt-linkreihe button {
   padding: 6px 12px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
-  color: var(--wr-text-2); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+  color: var(--wr-text-2); font-size: calc(13.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .wr-blatt-linkreihe button span { color: var(--wr-blau-hell); }
 .wr-blatt-linkreihe button.empfohlen { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .14); color: #dbeafe; }
@@ -368,14 +440,14 @@ button.wr-pruefmarke { cursor: pointer; }
 .wr-karte { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
 .wr-karte + .wr-karte { border-top: 1px solid var(--wr-linie); }
 .wr-karte-inhalt { display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.wr-karte-inhalt b { font-size: 14px; font-weight: 400; color: var(--wr-text); }
-.wr-karte-zweck { font-size: 11.5px; color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wr-karte-text { font-size: 12.5px; color: var(--wr-still); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-karte-inhalt b { font-size: calc(15px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); }
+.wr-karte-zweck { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-karte-text { font-size: calc(13.5px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wr-karte.auf .wr-karte-text, .wr-karte-text.lang { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wr-text-2); line-height: 1.5; }
 .wr-karte.auf .wr-karte-zweck { white-space: normal; }
 .wr-karte-senden {
   padding: 6px 13px; border-radius: 99px; border: 1px solid rgba(40, 141, 250, .5); background: transparent;
-  color: var(--wr-blau-hell); font-size: 12.5px; font-weight: 400; cursor: pointer; white-space: nowrap;
+  color: var(--wr-blau-hell); font-size: calc(13.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .wr-karte-senden:disabled { opacity: .5; cursor: default; }
 /* Nachbesserung E-248: passt nicht zur Lage — grau, aber nutzbar; „Ansehen" vor „Diese Vorlage senden". */
@@ -392,10 +464,10 @@ button.wr-pruefmarke { cursor: pointer; }
   display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; min-height: 0; min-width: 0;
   border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overscroll-behavior: contain;
 }
-.wr-person.schublade { border-radius: 0; border: 0; background: #0b1424; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.wr-person.schublade { border-radius: 0; border: 0; background: #0b1424; padding-bottom: calc(16px + var(--wr-knopf-zone, 0px) + env(safe-area-inset-bottom, 0px)); }
 .wr-person-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.wr-person h2 { font-size: 16px; font-weight: 400; }
-.wr-person dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin: 0; font-size: 13px; }
+.wr-person h2 { font-size: calc(18px * var(--wr-f, 1)); font-weight: 400; }
+.wr-person dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin: 0; font-size: calc(14px * var(--wr-f, 1)); }
 .wr-person dt { color: var(--wr-still); }
 .wr-person dd { margin: 0; color: var(--wr-text-2); overflow-wrap: anywhere; }
 .wr-person-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -404,25 +476,32 @@ button.wr-pruefmarke { cursor: pointer; }
 .wr-ergebnis-liste { display: grid; gap: 5px; }
 .wr-ergebnis-liste .wr-klein { text-align: left; justify-content: flex-start; }
 .wr-notiz { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--wr-linie); }
-.wr-notiz label { font-size: 11.5px; color: var(--wr-still); }
+.wr-notiz label { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); }
 .wr-notiz textarea {
   width: 100%; padding: 9px 11px; border-radius: 10px; resize: vertical; border: 1px solid var(--wr-linie);
-  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: 16px; line-height: 1.45; font-weight: 300;
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.45; font-weight: 300;
 }
 .wr-notiz textarea:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
 .wr-notiz .wr-klein { justify-self: start; }
-.wr-schrittschalter { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--wr-text-2); }
+.wr-schrittschalter { display: flex; gap: 8px; align-items: center; font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-text-2); }
 .wr-schrittschalter input { width: 18px; height: 18px; accent-color: var(--wr-blau); }
 
 /* ── Knöpfe ────────────────────────────────────────────────────────────── */
 .wr-knopf, .wr-klein {
   display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 99px;
   border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-text-2);
-  font-size: 13px; font-weight: 400; cursor: pointer; text-decoration: none; white-space: nowrap;
+  font-size: calc(14px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; text-decoration: none; white-space: nowrap;
 }
-.wr-klein { padding: 6px 12px; font-size: 12px; }
+.wr-klein { padding: 6px 12px; font-size: calc(13px * var(--wr-f, 1)); }
 .wr-knopf.voll { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); border-color: transparent; color: #fff; }
 .wr-knopf:disabled, .wr-klein:disabled { opacity: .5; cursor: default; }
+.wr-klein[aria-pressed="true"] { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .14); }
+
+/* ── Sehr breiter Chat (E-IT-H): Verlauf und Eingabe bleiben lesbar mittig ── */
+@container wrchat (min-width: 1180px) {
+  .wr-verlauf { padding-inline: calc((100cqi - 1100px) / 2); }
+  .wr-eingabe > :not(.wr-blatt) { max-width: 1100px; margin-inline: auto; }
+}
 
 /* ── Meldung: matt, oben — nie über dem Eingabefeld ───────────────────── */
 .wr-meldung-halter {
@@ -431,7 +510,7 @@ button.wr-pruefmarke { cursor: pointer; }
 }
 .wr-meldung {
   pointer-events: auto; max-width: 620px; padding: 10px 16px; border-radius: 12px;
-  border: 1px solid rgba(40, 141, 250, .35); background: #11203a; color: var(--wr-text); font-size: 13px; font-weight: 400;
+  border: 1px solid rgba(40, 141, 250, .35); background: #11203a; color: var(--wr-text); font-size: calc(14px * var(--wr-f, 1)); font-weight: 400;
   box-shadow: 0 12px 30px rgba(2, 6, 23, .5);
 }
 
@@ -442,16 +521,16 @@ button.wr-pruefmarke { cursor: pointer; }
   border-radius: 16px; border: 1px solid var(--wr-linie); background: #0c1322;
 }
 .wr-fenster-kopf { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-.wr-fenster-kopf h2 { font-size: 17px; font-weight: 400; }
+.wr-fenster-kopf h2 { font-size: calc(18px * var(--wr-f, 1)); font-weight: 400; }
 .wr-fenster-kopf p { margin-top: 4px; line-height: 1.5; max-width: 52ch; }
 .wr-treffer { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
 .wr-treffer-zeile {
   display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: 10px;
-  background: transparent; color: var(--wr-text-2); font-size: 13px; cursor: pointer;
+  background: transparent; color: var(--wr-text-2); font-size: calc(14px * var(--wr-f, 1)); cursor: pointer;
 }
 .wr-treffer-zeile b { color: var(--wr-text); font-weight: 400; }
 .wr-treffer-zeile.wr-frei { border: 1px dashed rgba(40, 141, 250, .45); border-radius: 12px; background: rgba(40, 141, 250, .08); }
-.wr-ziel { font-size: 13.5px; color: var(--wr-text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wr-ziel { font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .wr-ziel b { font-weight: 400; color: var(--wr-text); }
 .wr-neu-vorlagen { display: grid; gap: 4px; max-height: 50vh; overflow-y: auto; }
 .wr-karte.gross { align-items: start; border: 1px solid var(--wr-linie); border-radius: 12px; }
@@ -471,12 +550,6 @@ html.wr-vollbild, html.wr-vollbild body { overflow: hidden; overscroll-behavior:
 html.wr-vollbild .fi-telefonknopf,
 html.wr-vollbild .ru-knopf { display: none !important; }
 
-/* Am Rechner: Der Raum endet über den schwebenden Knöpfen; der Rundgang rückt
-   neben den Telefonknopf in denselben Streifen. */
-@media (min-width: 761px) {
-  html.wr-da .ru-knopf { bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
-  html.wr-da.wr-telefon .ru-knopf { right: 88px !important; bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
-}
 
 @media (hover: hover) {
   .wr-zeile:hover { background: rgba(148, 163, 184, .06); }

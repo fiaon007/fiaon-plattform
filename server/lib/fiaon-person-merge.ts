@@ -566,6 +566,13 @@ async function fuehreAus(
         WHEN werbung_gesperrt_am IS NULL THEN ${verlierer.werbung_gesperrt_am ?? null}::timestamptz
         WHEN ${verlierer.werbung_gesperrt_am ?? null}::timestamptz IS NULL THEN werbung_gesperrt_am
         ELSE LEAST(werbung_gesperrt_am, ${verlierer.werbung_gesperrt_am ?? null}::timestamptz) END,
+      -- Herkunft der Werbesperre (Zahlungspost-Freigabe, Migration 106): Steht auf EINER Seite eine Sperre, die nicht aus der
+      -- Freigabe stammt (ein Mensch, ein Altstempel ohne Herkunft), ist die gemeinsame Sperre menschlich — ein Nein geht nie verloren.
+      werbesperre_quelle = CASE
+        WHEN werbung_gesperrt_am IS NULL AND ${verlierer.werbung_gesperrt_am ?? null}::timestamptz IS NULL THEN werbesperre_quelle
+        WHEN (werbung_gesperrt_am IS NOT NULL AND COALESCE(werbesperre_quelle, '') <> 'zahlungspost_freigabe')
+          OR (${verlierer.werbung_gesperrt_am ?? null}::timestamptz IS NOT NULL AND COALESCE(${verlierer.werbesperre_quelle ?? null}::text, '') <> 'zahlungspost_freigabe') THEN 'mensch'
+        ELSE 'zahlungspost_freigabe' END,
       inkasso_ab = COALESCE(inkasso_ab, ${verlierer.inkasso_ab ?? null}::timestamptz),
       inkasso_von = CASE WHEN inkasso_ab IS NULL THEN ${verlierer.inkasso_von ?? null} ELSE inkasso_von END,
       inkasso_grund = CASE WHEN inkasso_ab IS NULL THEN ${verlierer.inkasso_grund ?? null} ELSE inkasso_grund END,

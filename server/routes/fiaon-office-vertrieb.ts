@@ -588,12 +588,42 @@ const HITZE_ORDNUNG = `
  * E-251: Seit der Sofort-Spur steht um 14 Uhr ein frischer Antrag vor dem
  * 14:30-Termin; ab 14:15 ist der Termin „jetzt" und steht wieder ganz vorn.
  */
-const NEU_ORDNUNG = HITZE_ORDNUNG;
-/** Pool-Reihenfolge (ohne Termin-Bezug): Fenster passend zuerst, Stufe 3 zuletzt, jüngstes Ereignis zuerst. */
-const POOL_ORDNUNG = `
+// ── NUR A, DANN NUR B, DANN NUR C — HÖHERES PAKET ZUERST (09.10.2026, E-326) ──────
+// Justin: „die neusten und besten Leads immer als erstes anzeigen, dann filtern nach neu
+// und Höhe des Pakets (höhere Pakete immer first!) — Nur A, dann nur B, dann nur C Kunden“.
+// Reihung für „Neu für dich“ und den Pool-Zug: (0) Termin oder vereinbarter Rückruf JETZT —
+// das ist eine Verabredung, kein Lead; (1) Stufe A vor B vor C, streng; (2) innerhalb der
+// Stufe das höhere Paket zuerst (PAKET_RANG_SQL); (3) das neueste Ereignis zuerst (Antrag,
+// Zahlungsmeldung — EREIGNIS_SQL); erst danach das Wunschfenster als Gleichstandsregel.
+// HITZE_ORDNUNG (Sofort-Spur, E-251) bleibt für andere Leser stehen, ordnet links aber nicht mehr.
+/**
+ * Paket des jüngsten Privat-Antrags: Highend 4 · Ultra 3 · Pro 2 · Start 1 · ohne 0. Fehlt der
+ * Paketschlüssel (ältere Anträge, gemessen 410 von 860 in 30 Tagen), entscheidet der Betrag —
+ * dieselbe Stufung über die Paketpreise. Auskunft, SCHUFA und Global zählen nicht.
+ */
+const PAKET_RANG_SQL = `COALESCE((SELECT CASE COALESCE(ap.pack_key, '')
+      WHEN 'highend' THEN 4 WHEN 'ultra' THEN 3 WHEN 'pro' THEN 2 WHEN 'start' THEN 1
+      ELSE CASE WHEN ap.amount_due >= 99 THEN 4 WHEN ap.amount_due >= 79 THEN 3 WHEN ap.amount_due >= 59 THEN 2
+                WHEN ap.amount_due > 0 THEN 1 ELSE 0 END END
+    FROM fiaon_applications ap
+   WHERE ap.person_id = p.id AND ap.merged_into IS NULL AND ap.archived_at IS NULL
+     AND COALESCE(ap.pack_key, '') NOT IN ('schufa', 'auskunft_privat')
+     AND COALESCE(ap.pack_key, '') NOT LIKE 'global%' AND COALESCE(ap.pack_key, '') NOT LIKE 'llc%'
+     AND (ap.pack_key IS NOT NULL OR ap.amount_due IS NOT NULL)
+   ORDER BY ap.created_at DESC LIMIT 1), 0)`;
+const NEU_ORDNUNG = `
+  CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0 ELSE 1 END,
+  CASE p.priority_tier WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 ELSE 4 END,
+  ${PAKET_RANG_SQL} DESC,
+  ${EREIGNIS_SQL} DESC NULLS LAST,
   ${FENSTER_ORDNUNG},
-  CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
-  ${EREIGNIS_SQL} DESC,
+  p.id DESC`;
+/** Pool-Reihenfolge (E-326): A vor B vor C, höheres Paket zuerst, jüngstes Ereignis zuerst. Gezogen wird ohnehin nur, wer jetzt erreichbar sein will. */
+const POOL_ORDNUNG = `
+  CASE p.priority_tier WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 ELSE 4 END,
+  ${PAKET_RANG_SQL} DESC,
+  ${EREIGNIS_SQL} DESC NULLS LAST,
+  ${FENSTER_ORDNUNG},
   p.id DESC`;
 /** Hitze-Felder → Karte („Antrag vor 12 Min · noch ohne Anruf"). */
 function hitzeVon(r: any) {

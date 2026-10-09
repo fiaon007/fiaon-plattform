@@ -80,5 +80,15 @@ ok(/personTierAktualisieren\(sqlPool, \{ ref \}\)/.test(neuerWeg), "E-324: der n
 ok(/einstufenNachAnnahme\(ref\)/.test(abschluss), "E-324: annahmeAbschliessen stuft nach der Bestellung neu ein");
 ok(/einstufenNachAnnahme\(ref\)/.test(nachholen), "E-324: auch die nachgeholte Annahme stuft neu ein");
 
+// E-326 (09.10.2026, Justin): „Nur A, dann nur B, dann nur C — höhere Pakete immer first, dann neu“.
+const ordnung = (name: string) => { const i = q.indexOf(`const ${name} = \``); return i < 0 ? "" : q.slice(i, q.indexOf("`;", i)); };
+for (const name of ["NEU_ORDNUNG", "POOL_ORDNUNG"]) {
+  const o = ordnung(name);
+  const stufe = o.indexOf("CASE p.priority_tier WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3"), paket = o.indexOf("${PAKET_RANG_SQL} DESC"), neu = o.indexOf("${EREIGNIS_SQL} DESC");
+  ok(stufe > 0 && paket > stufe && neu > paket, `E-326: ${name} reiht Stufe A→B→C, dann Paket absteigend, dann das Neueste`);
+  ok(!o.includes("SOFORT_SQL"), `E-326: ${name} kennt keine Sofort-Spur mehr vor der Stufe`);
+}
+ok(/WHEN 'highend' THEN 4 WHEN 'ultra' THEN 3 WHEN 'pro' THEN 2 WHEN 'start' THEN 1/.test(q), "E-326: Paketrang Highend > Ultra > Pro > Start");
+
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

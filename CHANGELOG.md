@@ -5,6 +5,15 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.10.2026 — E-318 Zahlungsseite zeigt den Auftrag: animierte Gründungsurkunde, Vertrag, Rechnung, nächste Schritte
+- **Was:** Gehört eine Rechnung (LLC-Paket, LLC-Gründung) zu einem angenommenen Begleitvertrag (E-312), zeigt /zahlung/<Zweck> oben
+  die Gründungsurkunde mit dem Namen der LLC (Rahmen zeichnet sich, Name schreibt sich ein, Siegel prägt sich ein — „Anmeldung nach
+  Ihrer Zahlung“), den Bezug zum Vertrag, Vertrag und Rechnung als PDF; unten „So geht es weiter“ und die Ansprechpartner mit Foto.
+  Der Vertrag nur über den signierten Angebotslink. Ohne Bewegung (prefers-reduced-motion) steht alles sofort.
+- **Warum:** Justin: „dass dort sein Vertrag angezeigt wird … seriöser“ und „seine Gründungsurkunde animiert mit seinem LLC-Namen“.
+- **Wo:** client/src/components/zahlung/AuftragBlock.tsx, client/src/pages/zahlung.tsx, server/lib/fiaon-zahlungsauftrag.ts,
+  server/lib/fiaon-global-angebot-begleit.ts (begleitZahlungsKontext), shared/fiaon-zahlung-auftrag.ts. Lokal 1440/390 px geprüft.
+
 ## 09.10.2026 — E-317 Zahlungsseite im Global-CI für Einzelrechnungen aus FIAON Global
 - **Was:** Die Zahlungsseite /zahlung/<Verwendungszweck> zeigt für die LLC-Rechnungen (llc_paket, llc_gruendung) dieselbe Fassung wie
   ein Global-Auftrag: Global-CI, „Ihr Auftrag: Zahlung per Überweisung“, „Rechnung überweisen“, ohne „Konto aktivieren“ und ohne

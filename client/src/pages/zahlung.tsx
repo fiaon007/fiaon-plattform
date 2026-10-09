@@ -10,6 +10,9 @@ import { buildEpcQrPayload } from "@/lib/epc-qr";
 import { BANK } from "@shared/fiaon-bank";
 import { ZAHLUNG_WOERTER, type ZahlungWorte } from "@/i18n/zahlung";
 import { ZAHLUNG_AUSKUNFT, type AuskunftSicht } from "@/i18n/zahlung-auskunft";
+// E-318 (09.10.2026): der Auftrag zur Rechnung (Begleitvertrag) — Urkunde, Unterlagen, nächste Schritte, Ansprechpartner.
+import { AuftragKopf, AuftragWeiter, AUFTRAG_CSS } from "@/components/zahlung/AuftragBlock";
+import type { ZahlungAuftragKontext } from "@shared/fiaon-zahlung-auftrag";
 
 // ============================================================================
 // /zahlung/[payment_reference] — Zahlungsseite (SEPA-Vorkasse), v2
@@ -40,6 +43,8 @@ interface PaymentOrder {
    */
   firmenauftrag?: boolean;
   firmenName?: string;
+  /** E-318: Rechnung zu einem Begleitvertrag — vom Server gebaut (shared/fiaon-zahlung-auftrag.ts). */
+  auftrag?: ZahlungAuftragKontext | null;
   /** Nur beim Firmenauftrag: die Sprache des Auftrags (/en/business/start → "en"). */
   sprache?: "de" | "en";
   /**
@@ -735,6 +740,7 @@ export default function ZahlungPage() {
                 Startgespräch der Privatkundenlinie an. Dort führt die Rechnung, und den Termin macht der
                 Ansprechpartner aus der Auftragsbestätigung. */}
             {/* E-243: Nicht bei der Auskunft — dort steht die Kurzfassung (kein Konto, kein Startgespräch). */}
+            {order.auftrag && <><style>{AUFTRAG_CSS}</style><AuftragKopf a={order.auftrag} /></>}
             {!order.firmenauftrag && !auskunft && <TerminAngebot paymentReference={order.paymentReference} art={order.art} />}
             {auskunft && <AuskunftKurzfassung sicht={auskunft} />}
 
@@ -900,6 +906,7 @@ export default function ZahlungPage() {
               {w.claimHinweis}
             </p>
             </>)}
+            {order.auftrag && <div className="mt-8"><AuftragWeiter a={order.auftrag} /></div>}
           </div>
         )}
       </div>

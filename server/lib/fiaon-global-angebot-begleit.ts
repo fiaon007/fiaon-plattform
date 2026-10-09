@@ -366,3 +366,49 @@ export function begleitListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
     bestaetigungMailAm: z.bestaetigung_mail_am ? new Date(z.bestaetigung_mail_am).toISOString() : null,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ZAHLUNGSSEITE (E-318, 09.10.2026): Gehört eine Rechnung (llc_paket, llc_gruendung) zu einem angenommenen Begleitvertrag
+// derselben Person, zeigt /zahlung/<Zweck> den Auftrag dazu. Der Vertrag NUR über den signierten Angebotslink.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_reference?: unknown; pack_key?: unknown; pack_name?: unknown; invoice_number?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
+  const personId = Number(a.person_id);
+  if (!Number.isInteger(personId) || personId <= 0) return null;
+  const [z] = (await sqlPool`
+    SELECT id FROM fiaon_global_angebote
+     WHERE person_id = ${personId} AND status = 'angenommen' AND fassung LIKE 'IA-BEGLEIT-%'
+     ORDER BY angenommen_am DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!z) return null;
+  const zeile = await angebotLesen({ id: Number(z.id) });
+  if (!zeile) return null;
+  const d = begleitDatenAus(zeile);
+  const token = angebotTokenErzeugen(d.ref, d.gueltigBis);
+  const { signInvoiceUrl } = await import("../fiaon-invoice");
+  const zweck = String(a.payment_reference ?? "");
+  const paketName = String(a.pack_name ?? "");
+  const gesellschaft = paketName.match(/([A-Z0-9][A-Z0-9 &,.'-]* LLC)\b/)?.[1] ?? null;
+  const gruendung = String(a.pack_key ?? "") === "llc_gruendung";
+  const angenommen = zeile.angenommen_am ? begleitTag(new Date(zeile.angenommen_am).toISOString().slice(0, 10)) : "";
+  return {
+    auge: "FIAON Global · Ihr Auftrag",
+    gesellschaft,
+    gesellschaftZeile: gesellschaft ? `Limited Liability Company · State of ${d.parameter.bundesstaat}` : "",
+    satz: `Diese Rechnung gehört zu Ihrem Begleitvertrag ${d.ref}${angenommen ? `, angenommen am ${angenommen}` : ""}.`,
+    dokumenteTitel: "Ihre Unterlagen",
+    dokumente: [
+      { titel: "Ihr Vertrag", unter: `${begleitVertragTitel()} · mit Annahmevermerk`, href: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf` },
+      ...(zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${paketName}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : []),
+    ],
+    hinweis: "Zum Selbstkostenpreis, ohne Aufschlag — so steht es in Ziffer 4 Ihres Vertrags.",
+    schritteTitel: "So geht es weiter",
+    schritte: gruendung
+      ? [
+        { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
+        { titel: `Anmeldung in ${d.parameter.bundesstaat}`, text: "Wir reichen die Anmeldung beim Bundesstaat (Sunbiz) ein und leiten die Gebühren an Ihren Registered Agent weiter." },
+        { titel: "Ihre Gesellschaft steht", text: "Sobald der Bundesstaat einträgt, erhalten Sie Ihre Gründungsunterlagen. Danach folgen US-Steuernummer (EIN) und Geschäftskonto." },
+      ]
+      : [],
+    ansprechTitel: "Ihre Ansprechpartner",
+    ansprechpartner: begleitAnsprechpartner(d.parameter).map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
+  };
+}

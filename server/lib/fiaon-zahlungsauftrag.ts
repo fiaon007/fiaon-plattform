@@ -50,6 +50,8 @@ export interface Zahlungsauftrag {
    */
   firmenauftrag?: boolean;
   firmenName?: string;
+  /** E-318 (09.10.2026): Rechnung zu einem Begleitvertrag — Gesellschaft, Vertrag, Rechnung, nächste Schritte, Ansprechpartner. */
+  auftrag?: import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null;
   /**
    * Nur beim Firmenauftrag: die Sprache, in der das Unternehmen seinen Auftrag geführt hat
    * (fiaon_global_auftraege.vertrag_sprache). Wer auf /en/business/start unterschrieben hat,
@@ -147,7 +149,7 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
 
   const [a] = (await sqlPool`
     SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name, pack_key,
-           company_name, country, person_id
+           company_name, country, person_id, invoice_number
     FROM fiaon_applications WHERE payment_reference = ${ref} LIMIT 1
   `) as any[];
   if (!a) return null;
@@ -182,6 +184,8 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
       ? (enName ? `FIAON ${enName}` : ((katalogPaket(a.pack_key)?.preisJeAngebot ? String(a.pack_name || "") : "") || katalogPaket(a.pack_key)?.label || a.pack_name || ""))
       : (a.pack_name || ""),
     ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),
+    // E-318: Die Seite darf am Auftrag nie scheitern — fehlt er oder hakt das Lesen, steht nur die Rechnung da.
+    ...(globalSeite ? { auftrag: await import("./fiaon-global-angebot-begleit").then((m) => m.begleitZahlungsKontext(a)).catch((e) => { console.error("[FIAON-ZAHLUNG] Auftrag zur Zahlung:", e); return null; }) } : {}),
   };
 }
 

@@ -53,6 +53,23 @@ export function AuftragKopf({ a }: { a: ZahlungAuftragKontext }) {
       <p className="za-block-auge">{a.auge}</p>
       {a.gesellschaft && <Urkunde name={a.gesellschaft} zeile={a.gesellschaftZeile} />}
       <p className="za-satz">{a.satz}</p>
+      {a.pruefungen && a.pruefungen.length > 0 && (
+        <div className="za-pruef">
+          {a.pruefTitel && <p className="za-titel-klein">{a.pruefTitel}</p>}
+          <ul>
+            {a.pruefungen.map((p, i) => (
+              <li key={p.titel} className={p.stand} style={{ animationDelay: `${0.25 + i * 0.18}s` }}>
+                <span className="za-haken" aria-hidden="true">
+                  {p.stand === "ok"
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5.5 12.5 4.2 4.2 8.8-9.2" /></svg>
+                    : <span className="za-offen-punkt" />}
+                </span>
+                <span><b>{p.titel}</b><span>{p.text}</span></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="za-dokumente">
         <p className="za-titel-klein">{a.dokumenteTitel}</p>
         {a.dokumente.map((d) => (
@@ -64,7 +81,7 @@ export function AuftragKopf({ a }: { a: ZahlungAuftragKontext }) {
             <span className="za-dok-pfeil">{WORTE.pdf} →</span>
           </a>
         ))}
-        <p className="za-hinweis">{a.hinweis}</p>
+        {a.hinweis && <p className="za-hinweis">{a.hinweis}</p>}
       </div>
     </section>
   );
@@ -156,6 +173,14 @@ export const AUFTRAG_CSS = `
 .za-person-text span{font-size:12px;color:#6b7587}
 .za-person-text a{font-size:13px;color:#12284a;text-decoration:none;overflow-wrap:anywhere}
 .za-person-text a:hover{text-decoration:underline}
+.za-pruef ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.za-pruef li{display:flex;gap:12px;align-items:flex-start;opacity:0;transform:translateY(6px);animation:za-auf .5s cubic-bezier(.22,1,.36,1) forwards}
+.za-haken{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#e8f5ee;color:#0f7a4a;margin-top:1px}
+.za-pruef li.offen .za-haken{background:#fbf3e2;color:#8a6420}
+.za-offen-punkt{width:8px;height:8px;border-radius:50%;background:#d9b45a;animation:za-puls 2s ease-out infinite}
+.za-pruef b{display:block;font-size:14px;color:#0c1a2e;font-weight:600}
+.za-pruef li>span>span{display:block;font-size:12.5px;color:#6b7587;margin-top:1px}
+@keyframes za-auf{to{opacity:1;transform:none}}
 @keyframes za-zeichnen{to{stroke-dashoffset:0}}
 @keyframes za-praegen{to{opacity:1;transform:scale(1) rotate(0)}}
 @keyframes za-glanz{to{transform:translateX(120%)}}
@@ -165,7 +190,8 @@ export const AUFTRAG_CSS = `
 @media (prefers-reduced-motion: reduce){
   .za-rahmen rect{animation:none;stroke-dashoffset:0}
   .za-siegel{animation:none;opacity:1;transform:none}
-  .za-urkunde::after,.za-cursor,.za-punkt{animation:none}
+  .za-urkunde::after,.za-cursor,.za-punkt,.za-offen-punkt{animation:none}
+  .za-pruef li{animation:none;opacity:1;transform:none}
   .za-cursor{display:none}
 }
 @media (max-width:480px){.za-block{padding:18px 16px}.za-urkunde-innen{padding:22px 20px 18px}.za-dok-pfeil{display:none}}

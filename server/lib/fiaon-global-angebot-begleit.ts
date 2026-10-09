@@ -412,3 +412,55 @@ export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_r
     ansprechpartner: begleitAnsprechpartner(d.parameter).map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-320 (09.10.2026): DIE ZAHLUNGSSEITE FÜR TEILE EINES INDIVIDUALANGEBOTS (E-268)
+// Gesellschaft aus der Akte (fiaon_global_auftraege.gesellschaft), Rechnung signiert, Prüfliste aus der Akte (Reisepass im Dokumentenraum = „erhalten und geprüft“ — das Dokument selbst NIE auf der Seite).
+// ═══════════════════════════════════════════════════════════════════════════
+export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_reference?: unknown; invoice_number?: unknown; payment_status?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
+  const ref = String(a.ref ?? "");
+  if (!ref) return null;
+  const [t] = (await sqlPool`
+    SELECT t.nr, t.titel, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref
+      FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote g ON g.id = t.angebot_id
+     WHERE t.bestell_ref = ${ref} AND g.status = 'angenommen' LIMIT 1`.catch(() => [])) as any[];
+  if (!t) return null;
+  const akteRef = String(t.auftrag_ref || ref);
+  const [akte] = (await sqlPool`SELECT gesellschaft FROM fiaon_global_auftraege WHERE ref = ${akteRef} LIMIT 1`.catch(() => [])) as any[];
+  const ges = json<{ name?: string | null; bundesstaat?: string | null }>(akte?.gesellschaft, {});
+  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${akteRef} AND art = 'reisepass' AND geloescht_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
+  const { signInvoiceUrl } = await import("../fiaon-invoice");
+  const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
+  const zweck = String(a.payment_reference ?? "");
+  const staatName: Record<string, string> = { FL: "Florida", WY: "Wyoming", DE: "Delaware", NM: "New Mexico" };
+  const staat = ges.bundesstaat ? (staatName[String(ges.bundesstaat)] ?? String(ges.bundesstaat)) : "Florida";
+  const name = ges.name ? String(ges.name).toUpperCase().replace(/\s*,?\s*L\.?L\.?C\.?$/, "").trim() + " LLC" : null;
+  const tag = (v: unknown) => (v ? begleitTag(new Date(String(v)).toISOString().slice(0, 10)) : "");
+  const bezahlt = String(a.payment_status) === "paid";
+  return {
+    auge: "FIAON Global · Ihr Auftrag",
+    gesellschaft: name,
+    gesellschaftZeile: name ? `Limited Liability Company · State of ${staat}` : "",
+    satz: `Diese Rechnung gehört zu Ihrem Individualangebot ${t.angebot_ref}${t.angenommen_am ? `, angenommen am ${tag(t.angenommen_am)}` : ""} — ${String(t.titel)}.`,
+    pruefTitel: "Stand Ihres Auftrags",
+    pruefungen: [
+      { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
+      ...(name ? [{ titel: "Name geprüft", text: `${name} ist im Register von ${staat} frei`, stand: "ok" as const }] : []),
+      ...(pass ? [{ titel: "Reisepass erhalten und geprüft", text: `am ${tag(pass.created_at)} — liegt sicher in Ihrem Auftragsbereich`, stand: "ok" as const }] : []),
+      { titel: bezahlt ? "Zahlung eingegangen" : "Ihre Zahlung", text: bezahlt ? "vielen Dank" : "der letzte Schritt vor der Anmeldung", stand: bezahlt ? "ok" : "offen" },
+    ],
+    dokumenteTitel: "Ihre Unterlagen",
+    // NUR die Rechnung: Vertrag (mit Prüfbericht) und Auftragsbereich (mit dem Reisepass im Dokumentenraum) sind über die öffentliche
+    // Zahlungsseite nicht erreichbar — beide über die persönlichen Links in den Mails an den Kunden.
+    dokumente: zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${String(t.titel)}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : [],
+    hinweis: "Ihren Vertrag und Ihren Auftragsbereich öffnen Sie über die persönlichen Links in unseren E-Mails.",
+    schritteTitel: "So geht es weiter",
+    schritte: [
+      { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
+      { titel: `Anmeldung in ${staat}`, text: "Wir reichen die Anmeldung Ihrer Gesellschaft beim Bundesstaat ein — Registered Agent und Geschäftsadresse stehen bereit." },
+      { titel: "Ihre Gesellschaft steht", text: "Danach folgen US-Steuernummer (EIN), Geschäftskonto und die Anträge für Ihre Karten — Schritt für Schritt mit Ihnen." },
+    ],
+    ansprechTitel: "Ihre Ansprechpartner",
+    ansprechpartner: ANGEBOT_ANSPRECHPARTNER.map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
+  };
+}

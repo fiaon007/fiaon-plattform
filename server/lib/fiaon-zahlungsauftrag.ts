@@ -186,6 +186,8 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),
     // E-318: Die Seite darf am Auftrag nie scheitern — fehlt er oder hakt das Lesen, steht nur die Rechnung da.
     ...(globalSeite ? { auftrag: await import("./fiaon-global-angebot-begleit").then((m) => m.begleitZahlungsKontext(a)).catch((e) => { console.error("[FIAON-ZAHLUNG] Auftrag zur Zahlung:", e); return null; }) } : {}),
+    // E-320 (09.10.2026): ein Teil eines Individualangebots (E-268) — derselbe Auftragsblock (Gesellschaft, Prüfliste, Unterlagen).
+    ...(katalogPaket(a.pack_key)?.preisJeAngebot ? { auftrag: await import("./fiaon-global-angebot-begleit").then((m) => m.angebotTeilZahlungsKontext(a)).catch((e) => { console.error("[FIAON-ZAHLUNG] Angebotsteil zur Zahlung:", e); return null; }) } : {}),
   };
 }
 

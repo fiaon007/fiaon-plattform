@@ -5,6 +5,15 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.10.2026 — E-320 Zahlungsseite für Teile eines Individualangebots: Urkunde, Stand des Auftrags, Rechnung
+- **Was:** Auch die Rechnung eines Individualangebots (E-268) zeigt auf /zahlung/<Zweck> die animierte Gründungsurkunde mit dem Namen
+  der Gesellschaft (aus der Akte), eine Prüfliste „Stand Ihres Auftrags“ (Vertrag angenommen, Name geprüft, Reisepass erhalten und
+  geprüft, Zahlung offen), die Rechnung als PDF, nächste Schritte und die drei Ansprechpartner. Der Reisepass selbst, der Vertrag und
+  der Auftragsbereich sind über die öffentliche Seite bewusst NICHT erreichbar (nur über die persönlichen Links in den Mails).
+- **Warum:** Justin: „mach ihm eine perfekte Zahlungsseite … dass er noch heute seine Rechnung bezahlt“.
+- **Wo:** server/lib/fiaon-global-angebot-begleit.ts (angebotTeilZahlungsKontext), server/lib/fiaon-zahlungsauftrag.ts,
+  client/src/components/zahlung/AuftragBlock.tsx, shared/fiaon-zahlung-auftrag.ts. Lokal 1440/390 px; pruef-individualangebot 882/882.
+
 ## 09.10.2026 — E-318 Zahlungsseite zeigt den Auftrag: animierte Gründungsurkunde, Vertrag, Rechnung, nächste Schritte
 - **Was:** Gehört eine Rechnung (LLC-Paket, LLC-Gründung) zu einem angenommenen Begleitvertrag (E-312), zeigt /zahlung/<Zweck> oben
   die Gründungsurkunde mit dem Namen der LLC (Rahmen zeichnet sich, Name schreibt sich ein, Siegel prägt sich ein — „Anmeldung nach

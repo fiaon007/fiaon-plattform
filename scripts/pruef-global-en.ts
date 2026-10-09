@@ -161,7 +161,7 @@ for (const { datei, s: e } of englisch) {
 // Business-Seiten GLOBAL_FUSS_WOERTER.en (bis heute JSX in GlobalFuss.tsx) und das Band der Jahresbetreuung
 // GLOBAL_JAHRESBETREUUNG.en — dieselben schärferen Regeln wie die Unterseiten (die VIP-Zahl darf „up to" tragen).
 {
-  const { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER } = await import("../client/src/i18n/global");
+  const { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER, GLOBAL_FILM_WOERTER, GLOBAL_BUEHNE_WOERTER } = await import("../client/src/i18n/global");
   const { GLOBAL_JAHRESBETREUUNG } = await import("../shared/fiaon-global");
   const sammle = (wert: unknown, pfad: string, aus: [string, string][]) => {
     if (typeof wert === "string") { if (wert.trim()) aus.push([pfad, wert]); return; }
@@ -173,6 +173,9 @@ for (const { datei, s: e } of englisch) {
   sammle(GLOBAL_WOERTER.en, "i18n/global.en", startseite);
   sammle(GLOBAL_GESPRAECH_WOERTER.en, "i18n/global#gespraech.en", startseite);
   sammle(GLOBAL_FUSS_WOERTER.en, "i18n/global#fuss.en", startseite);
+  // 09.10.2026: Vorführraum (E-313) und die Bühne (Hero „Your engagement“, Sektion „From Europe to Miami“).
+  sammle(GLOBAL_FILM_WOERTER.en, "i18n/global#film.en", startseite);
+  sammle(GLOBAL_BUEHNE_WOERTER.en, "i18n/global#buehne.en", startseite);
   const j = GLOBAL_JAHRESBETREUUNG.en;
   sammle({ kurzLeistungen: j.kurzLeistungen, bandSatz: j.bandSatz, zeitleiste: j.zeitleiste, bandBedingung: j.bandBedingung }, "fiaon-global/jahresbetreuung.en", startseite);
   for (const [p, t] of startseite) {

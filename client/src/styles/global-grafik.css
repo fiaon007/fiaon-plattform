@@ -64,11 +64,6 @@
 .fg-licht.siegel i{background:linear-gradient(105deg,transparent 46.5%,rgba(255,255,255,.85) 50%,transparent 53.5%)}
 .fg-licht.bild i{background:linear-gradient(105deg,transparent 42%,rgba(255,255,255,.32) 50%,transparent 58%)}
 @keyframes fg-c-streif{from{transform:translateX(-62%)}to{transform:translateX(2%)}}
-/* Siegel-Licht: 1,4 s, erstmals 2,25 s nach dem Einhängen (150 ms + 900 ms Einstieg + 1,2 s), danach alle 12 s.
-   Hält an, solange die Startbühne steht (ld-an) oder die Urkunde außer Sicht ist (data-sicht, GlobalObjekt). */
-.fg-hero-objekt .fg-licht.siegel i{animation:fg-c-siegel 12s var(--fg-ease-io) 2.25s infinite backwards}
-.ld-an .fg-hero-objekt .fg-licht i,.fg-hero-objekt[data-sicht="0"] .fg-licht i{animation-play-state:paused}
-@keyframes fg-c-siegel{0%{transform:translateX(-62%)}11.7%,100%{transform:translateX(2%)}}
 
 /* ── 1 Hero ─────────────────────────────────────────────────────────────── */
 .fg-neu .fg-hero{padding:128px 0 0;border-bottom:0}
@@ -80,24 +75,10 @@
 .fg-jahr-zeile{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
 .fg-jahr-zeile:hover{text-decoration-color:var(--navy)}
 .fg-neu .fg-hero-knoepfe{margin-top:26px}
+/* 09.10.2026: rechts „Ihr Auftrag“ (HeroAuftrag.tsx, styles/global-buehne.css) statt der Urkunde. 721–1120 px: Platz für
+   den senkrechten Nachweis „Beispielansicht“ rechts neben der Szene. */
 .fg-hero-objekt-rahmen{position:relative;display:flex;justify-content:center;align-items:center}
-.fg-hero-objekt{width:min(100%,400px);transform:rotate(-4deg);animation:fg-objekt-ein 900ms var(--fg-ease) 150ms both}
-.ld-an .fg-hero-objekt{animation-play-state:paused}
-@keyframes fg-objekt-ein{from{opacity:0;transform:translateY(16px) rotate(-2deg)}to{opacity:1;transform:translateY(0) rotate(-4deg)}}
-/* Aufwärts-Haarlinie (HeroLinie.tsx, ab 1.024 px): hinter Text und Urkunde, zeichnet sich einmal ab 600 ms. */
-.fg-neu .fg-hero-raster{position:relative}
-.fg-hero-linie{position:absolute;left:0;top:0;z-index:0;pointer-events:none;overflow:visible}
-.fg-hero-linie.leer{display:none}
-.fg-hero-linie path{fill:none;stroke:#1d4ed8;stroke-opacity:.45;stroke-width:1;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;animation:fg-b-zeichnen 1.2s var(--fg-ease-io) .6s backwards}
-.fg-hero-linie circle{fill:#1d4ed8;fill-opacity:.75;animation:fg-b-ein .3s var(--fg-ease) 1.75s backwards}
-.ld-an .fg-hero-linie path,.ld-an .fg-hero-linie circle{animation-play-state:paused}
-/* 721–1120 px: Die Urkunde füllt ihre Spalte; der senkrechte Nachweis (right:-16px, dazu die Drehung) lief über den
-   Bildrand hinaus und wurde abgeschnitten. Rechts Platz lassen. */
 @media(min-width:721px) and (max-width:1120px){.fg-neu .fg-hero-objekt-rahmen{padding-right:30px}}
-@media(hover:hover) and (pointer:fine){
-  .fg-hero-objekt{transition:transform 600ms var(--fg-ease)}
-  .fg-hero-objekt-rahmen:hover .fg-hero-objekt{transform:rotate(-1deg) translateY(-2px)}
-}
 /* Die Vertrauensleiste: vier Felder, Haarlinien dazwischen, je ein Linien-Zeichen */
 .fg-vertrauensleiste{list-style:none;margin:56px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--linie)}
 .fg-vertrauensleiste li{display:flex;align-items:center;gap:12px;min-height:88px;padding:0 20px;font-size:13.5px;line-height:1.45;color:var(--tinte)}
@@ -136,10 +117,8 @@
   .fg-neu .fg-hero-knoepfe{order:5;flex-direction:column;align-items:stretch;gap:2px;margin-top:20px}
   .fg-neu .fg-hero-knoepfe .fg-knopf{width:100%;min-height:48px}
   .fg-neu .fg-hero-gespraech.fg-knopf{background:none;border:0;box-shadow:none;min-height:40px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
-  /* 06.10.2026 (Justin: „am Handy … Bilder abgeschnitten“): Die Urkunde steht ganz unter den Knöpfen statt als
-     angeschnittener Streifen; Bildnachweis senkrecht rechts daneben wie am Desktop, Siegel-Licht läuft mit. */
-  .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:center;margin:30px 0 6px}
-  .fg-neu .fg-hero-objekt{width:min(56vw,220px);transform:rotate(-4deg);animation:none}
+  /* Am Handy steht „Ihr Auftrag“ ganz unter den Knöpfen, „Beispielansicht“ senkrecht rechts daneben. */
+  .fg-neu .fg-hero-objekt-rahmen{order:6;justify-content:center;margin:34px 0 6px;padding-right:18px}
   .fg-neu .fg-hero .fg-mikro{order:5;margin-top:10px;text-align:center}
   .fg-neu .fg-hero .fg-fussnote{order:8;margin-top:22px}
   .fg-vertrauensleiste{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px}
@@ -832,9 +811,8 @@
 
 /* ── Weniger Bewegung: jeder Endzustand sofort ─────────────────────────── */
 @media(prefers-reduced-motion:reduce){
-  .fg-hero-objekt,.fg-schritt.zwei{animation:none!important}
-  .fg-hero-objekt{opacity:1}
-  .fg-weg-knoten>*,.fg-weg-punkt,.fg-stern .ebene-ohne,.fg-stern .ebene-mit,.fg-stern .mitte,.fg-fragen-rest,.fg-wisch-punkte i,.fg-hero-objekt{transition:none!important}
+  .fg-schritt.zwei{animation:none!important}
+  .fg-weg-knoten>*,.fg-weg-punkt,.fg-stern .ebene-ohne,.fg-stern .ebene-mit,.fg-stern .mitte,.fg-fragen-rest,.fg-wisch-punkte i{transition:none!important}
   [data-an="1"] .fg-h2{animation:none}
   .fg-weg-linie path,.fg-stern path,.fg-beleg-haken path,.gf-orte-karte path{stroke-dashoffset:0}
   /* Scheibe B: alle Abläufe aus, jeder Endzustand sofort; Schalter, Paketwechsel und Klebeleiste ohne Übergang.
@@ -845,9 +823,8 @@
   .fg-stern.zustand-mit .ebene-mit path,.fg-schaubild .pfeil,.gf-orte-karte .zug{stroke-dashoffset:0!important}
   .fg-plakette-buehne .fg-plakette{transform:none!important}
   .gf-orte-karte .puls{opacity:0!important}
-  /* Scheibe C: Siegel-Licht, Lichtstreif und Haarlinie stehen still; die Linie ist gezeichnet. */
-  .fg-licht i,.fg-hero-linie path,.fg-hero-linie circle{animation:none!important}
-  .fg-hero-linie path{stroke-dashoffset:0!important}
+  /* Scheibe C: Lichtstreifen stehen still. */
+  .fg-licht i{animation:none!important}
 }
 
 /* ── 6b Visitenkarte mit Porträt (E-309, 08.10.2026, Justin: „einladend, verdammt hochwertig“) ─────────────

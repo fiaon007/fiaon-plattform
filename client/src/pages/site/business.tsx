@@ -38,7 +38,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
-import { GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
+import { GLOBAL_BUEHNE_WOERTER, GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
   GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, GLOBAL_BUERGSCHAFT_SEITE, globalPaket, globalPreisText, globalPlanungText,
@@ -54,11 +54,10 @@ import WegLinie from "@/components/site/global/WegLinie";
 import GlobalStern from "@/components/site/global/GlobalStern";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
-import GlobalObjekt from "@/components/site/global/GlobalObjekt";
-import HeroLinie from "@/components/site/global/HeroLinie";
+import HeroAuftrag from "@/components/site/global/HeroAuftrag";
+import GlobalBogen from "@/components/site/global/GlobalBogen";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
-import { GLOBAL_BILDER } from "@/lib/global-bilder";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
@@ -280,14 +279,15 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     <span>{t.auge.slice(0, augeIdx)}<a href={s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen"}>{t.augeLink}</a>{t.auge.slice(augeIdx + t.augeLink.length)}</span>
   );
 
+  // 09.10.2026: Hero „Ihr Auftrag“ und die Sektion „Der Bogen“ (Justin wählte B und C aus drei Entwürfen).
+  const buehne = GLOBAL_BUEHNE_WOERTER[s];
+
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <div className="fg fg-neu">
-        {/* ── 1 Hero: Anspruch, Kapitalrahmen und Festpreis links, die Urkunde rechts, darunter die Vertrauensleiste ── */}
+        {/* ── 1 Hero: Anspruch, Kapitalrahmen und Festpreis links, rechts „Ihr Auftrag“ (Beispielansicht), darunter die Vertrauensleiste ── */}
         <section className="fg-hero">
           <div className="fg-rahmen fg-hero-raster">
-            {/* Die Aufwärts-Haarlinie vom Siegel zum Festpreis (ab 1.024 px) — zuerst im DOM, damit Text und Urkunde darüber liegen. */}
-            <HeroLinie />
             <Auf className="fg-hero-text">
               <span className="fg-auge">{auge}</span>
               <h1 className="fg-h1">{t.h1a}<br /><em>{t.h1b}</em></h1>
@@ -313,12 +313,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <p className="fg-mikro">{t.gespraechMikro}</p>
               <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
             </Auf>
-            {/* Die Gründungsurkunde (HF-1, Scheibe C) mit Siegel-Licht. Am Handy steht sie ganz (nicht mehr angeschnitten —
-                Justin 06.10.: „Bilder abgeschnitten“) unter den Knöpfen, der Bildnachweis senkrecht daneben wie am Desktop. */}
-            <div className="fg-hero-objekt-rahmen">
-              <GlobalObjekt art="urkunde" hero bild={GLOBAL_BILDER.urkunde} licht="siegel" className="fg-hero-objekt"
-                groesse="(max-width: 720px) 220px, (max-width: 900px) 30vw, 400px" nachweis={t.bildKi} />
-            </div>
+            {/* 09.10.2026: statt der Gründungsurkunde (Justin: „passt nicht“) die Leistung selbst — schwebendes Glas in Ebenen,
+                „Beispielansicht“ senkrecht daneben. Am Handy unter den Knöpfen (.fg-hero-objekt-rahmen, order 6). */}
+            <div className="fg-hero-objekt-rahmen fg-hero-buehne"><HeroAuftrag w={buehne} en={s === "en"} /></div>
           </div>
           <div className="fg-rahmen">
             <ul className="fg-vertrauensleiste">
@@ -476,6 +473,26 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                 {t.fuerChips.map((c) => <li key={c.text}>{c.pfad ? <a href={c.pfad}>{c.text}</a> : <span>{c.text}</span>}</li>)}
               </ul>
             </div>
+          </div>
+        </Sek>
+
+        {/* ── 4b Der Bogen (09.10.2026): Europa → Miami → Etappen → Kapital zurück nach Europa ── */}
+        <Sek id="bogen" className="fg-sek stein fg-bogen-sek">
+          <div className="fg-rahmen fg-bogen-raster">
+            <div className="fg-bogen-text">
+              <span className="fg-auge">{buehne.bogenAuge}</span>
+              <h2 className="fg-h2">{buehne.bogenH2a} <em>{buehne.bogenH2b}</em></h2>
+              <p className="fg-lead">{buehne.bogenLead}</p>
+              <dl className="fg-bogen-punkte">
+                {buehne.bogenPunkte.map((p, i) => (
+                  <div key={p.titel}><i aria-hidden="true">{["I", "II", "III"][i]}</i><dt>{p.titel}</dt><dd>{p.text}</dd></div>
+                ))}
+              </dl>
+              <div className="fg-knoepfe">
+                <button type="button" className="fg-knopf" onClick={() => zumGespraech()}>{buehne.bogenKnopf}<Pfeil /></button>
+              </div>
+            </div>
+            <div className="fg-bogen-bild"><GlobalBogen w={buehne} etappen={t.weg.map((x) => x.titel)} /></div>
           </div>
         </Sek>
 

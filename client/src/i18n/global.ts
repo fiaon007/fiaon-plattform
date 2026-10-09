@@ -736,3 +736,94 @@ const filmEn: typeof filmDe = {
 };
 
 export const GLOBAL_FILM_WOERTER = { de: filmDe, en: filmEn };
+
+// ── Die Bühne von /business (09.10.2026) ─────────────────────────────────────
+// Justin: „Verwende B für den HERO und C ‚der Bogen‘ … füge diesen passend in einer Sektion ein“.
+// Hero „Ihr Auftrag“ (HeroAuftrag.tsx) = eine BEISPIELANSICHT — erfundene Gesellschaft, echter Ansprechpartner
+// (VISITENKARTEN.daniel). „Der Bogen“ (GlobalBogen.tsx) = Sektion nach „Ein Ansprechpartner statt acht“.
+// Kapital nie ohne „das Institut entscheidet“; der Satz zu Europa ist GLOBAL_KAPITAL_FREI (Fußnote im Hero).
+const buehneDe = {
+  beispiel: "Beispielansicht",
+  kapitalAuge: "Ihr Kapitalziel",
+  kapitalBetrag: "250.000 $",
+  kapitalZeile: "Paket Global Kapital · über den Rahmen entscheidet das Institut",
+  akteAuge: "Ihre US-Gesellschaft",
+  akteName: "Muster Ventures LLC",
+  akteOrt: "Florida · Global Kapital",
+  schritte: [
+    { titel: "Gesellschaft gegründet", zeile: "Florida · Articles of Organization", marke: "Erledigt" },
+    { titel: "EIN erteilt", zeile: "Steuernummer der IRS", marke: "Erledigt" },
+    { titel: "ITIN beantragt", zeile: "Frist der US-Steuerbehörde", marke: "Läuft" },
+    { titel: "Geschäftskonto", zeile: "Antrag vorbereitet", marke: "Als Nächstes" },
+    { titel: "Erste Firmenkarte", zeile: "Etappe II", marke: "Danach" },
+  ],
+  person: "Ihr Ansprechpartner",
+  mail: "E-Mail",
+  telefon: "Anrufen",
+  meldungTitel: "Neu in Ihrer Akte",
+  meldungText: "EIN-Bestätigung der IRS liegt bereit",
+  meldungZeit: "jetzt",
+  heroLabel: (name: string) => `Beispielansicht eines Auftrags: Gesellschaft gegründet, EIN erteilt, ITIN beantragt, Geschäftskonto als Nächstes. Ihr Ansprechpartner: ${name}.`,
+
+  bogenAuge: "Europa · Miami · Kapital",
+  bogenH2a: "Von Europa nach Miami",
+  bogenH2b: "— und zurück.",
+  bogenLead: "Sie bleiben, wo Sie sind. Unser Team in Miami gründet Ihre Gesellschaft und begleitet sie durch die vier Etappen — Ihr Ansprechpartner hält die Fäden zusammen.",
+  bogenPunkte: [
+    { titel: "Vor Ort in Miami", text: "Unser Team reicht ein, holt ab und fasst bei Behörden und Herausgebern nach." },
+    { titel: "Vier Etappen bis zum Bankdarlehen", text: "Gründung, erste Firmenkarte, Kartenleiter, Bankdarlehen — das Tempo bestimmen Behörden und Institute." },
+    { titel: "Auch in Europa einsetzbar", text: "Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren — im Rahmen der Bedingungen des jeweiligen Instituts." },
+  ],
+  bogenKnopf: "Erstgespräch vereinbaren",
+  bogenSie: "Sie",
+  bogenSieZeile: "Deutschland · Österreich · Schweiz",
+  bogenMiami: "Miami",
+  bogenMiamiZeile: "Ihr Team vor Ort",
+  bogenKapital: "Kapital auch in Europa einsetzbar",
+  bogenKapitalZeile: "Über jeden Rahmen entscheidet das jeweilige Institut.",
+  bogenEtappenKurz: ["Gründung", "Erste Firmenkarte", "Kartenleiter", "Bankdarlehen"],
+  bogenLabel: "Karte: von Ihnen in Deutschland, Österreich oder der Schweiz nach Miami zu unserem Team vor Ort, dort die vier Etappen bis zum Bankdarlehen; ein zweiter Bogen führt zurück nach Europa — Kapital ist auch in Europa einsetzbar, über jeden Rahmen entscheidet das jeweilige Institut.",
+};
+const buehneEn: typeof buehneDe = {
+  beispiel: "Sample view",
+  kapitalAuge: "Your capital target",
+  kapitalBetrag: "$250,000",
+  kapitalZeile: "Global Capital package · the institution decides on the limit",
+  akteAuge: "Your US company",
+  akteName: "Sample Ventures LLC",
+  akteOrt: "Florida · Global Capital",
+  schritte: [
+    { titel: "Company formed", zeile: "Florida · Articles of Organization", marke: "Done" },
+    { titel: "EIN issued", zeile: "Tax number from the IRS", marke: "Done" },
+    { titel: "ITIN applied for", zeile: "IRS processing time", marke: "In progress" },
+    { titel: "Business account", zeile: "Application prepared", marke: "Next" },
+    { titel: "First business card", zeile: "Stage II", marke: "Then" },
+  ],
+  person: "Your contact",
+  mail: "Email",
+  telefon: "Call",
+  meldungTitel: "New in your file",
+  meldungText: "IRS EIN confirmation is ready",
+  meldungZeit: "now",
+  heroLabel: (name: string) => `Sample view of an engagement: company formed, EIN issued, ITIN applied for, business account next. Your contact: ${name}.`,
+
+  bogenAuge: "Europe · Miami · Capital",
+  bogenH2a: "From Europe to Miami",
+  bogenH2b: "— and back.",
+  bogenLead: "You stay where you are. Our team in Miami forms your company and guides it through the four stages — your contact keeps every thread together.",
+  bogenPunkte: [
+    { titel: "On site in Miami", text: "Our team files, collects and follows up with authorities and issuers." },
+    { titel: "Four stages towards a bank loan", text: "Formation, first business card, card ladder, bank loan — authorities and institutions set the pace." },
+    { titel: "Can be used in Europe too", text: "Your company can transfer funds to Europe or invest them in Europe — within the terms of the institution concerned." },
+  ],
+  bogenKnopf: "Book an initial call",
+  bogenSie: "You",
+  bogenSieZeile: "Germany · Austria · Switzerland",
+  bogenMiami: "Miami",
+  bogenMiamiZeile: "Your team on site",
+  bogenKapital: "Capital can be used in Europe too",
+  bogenKapitalZeile: "Each institution decides on its own limit.",
+  bogenEtappenKurz: ["Formation", "First card", "Card ladder", "Bank loan"],
+  bogenLabel: "Map: from you in Germany, Austria or Switzerland to our team on site in Miami, where the four stages towards a bank loan take place; a second arc leads back to Europe — capital can be used in Europe too, each institution decides on its own limit.",
+};
+export const GLOBAL_BUEHNE_WOERTER = { de: buehneDe, en: buehneEn };

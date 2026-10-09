@@ -77,3 +77,15 @@ export function useNeigung(ref: RefObject<HTMLElement | null>) {
     return () => { if (raf) cancelAnimationFrame(raf); el.removeEventListener("pointermove", bewegen); el.removeEventListener("pointerleave", weg); };
   }, [ref]);
 }
+
+/**
+ * Ruft `fn` auf, sobald der Ladebildschirm weg ist (html.ld-an, App.tsx) — sofort, wenn er nie da war. Für Auftakte,
+ * die per JS laufen (Hero „Ihr Auftrag“, „Der Bogen“); CSS-Auftakte pausieren über `.ld-an … {animation-play-state:paused}`.
+ */
+export function nachLadebild(fn: () => void): () => void {
+  const html = document.documentElement;
+  if (!html.classList.contains("ld-an")) { fn(); return () => {}; }
+  const mo = new MutationObserver(() => { if (!html.classList.contains("ld-an")) { mo.disconnect(); fn(); } });
+  mo.observe(html, { attributes: true, attributeFilter: ["class"] });
+  return () => mo.disconnect();
+}

@@ -17,7 +17,7 @@
 //     npx tsx scripts/pruef-wortwand-de.ts        → Fehlercode 1 bei Treffern
 // ═══════════════════════════════════════════════════════════════════════════
 import { wandPruefen } from "../shared/fiaon-wortverbote";
-import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER } from "../client/src/i18n/global";
+import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER, GLOBAL_FILM_WOERTER, GLOBAL_BUEHNE_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
 import { GLOBAL_SEITE_WOERTER } from "../client/src/i18n/global-seite";
@@ -59,6 +59,9 @@ function sammle(wert: unknown, pfad: string, aus: [string, string][]) {
 
 const texte: [string, string][] = [];
 sammle(GLOBAL_WOERTER.de, "i18n/global", texte);
+// 09.10.2026: Vorführraum (E-313) und die Bühne von /business (Hero „Ihr Auftrag“, Sektion „Der Bogen“).
+sammle(GLOBAL_FILM_WOERTER.de, "i18n/global-film", texte);
+sammle(GLOBAL_BUEHNE_WOERTER.de, "i18n/global-buehne", texte);
 sammle(GLOBAL_GESPRAECH_WOERTER.de, "i18n/global#gespraech", texte);
 sammle(GLOBAL_START_WOERTER.de, "i18n/global-start", texte);
 sammle(GLOBAL_AUFTRAG_WOERTER.de, "i18n/global-auftrag", texte);

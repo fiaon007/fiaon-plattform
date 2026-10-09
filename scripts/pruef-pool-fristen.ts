@@ -71,5 +71,14 @@ ok(/COALESCE\(p\.unreachable_count, 0\) = 0/.test(zugWhere) && /follow_up_date I
   && /promised_payment_date IS NULL OR p\.promised_payment_date < \$\{HEUTE\}/.test(zugWhere),
   "E-324: der Pool gibt nur heraus, wer danach links auch erscheint (kein Fehlversuch, keine Wiedervorlage/Zusage in der Zukunft)");
 
+// E-324 (09.10.2026): Der neue Antragsweg stuft nach der Annahme sofort neu ein — daran hängt die
+// Sofort-Zuteilung (tier.ts). Ohne das kam Stufe B erst im 20-Minuten-Sammellauf, und der teilt nicht zu.
+const neuerWeg = fs.readFileSync(path.join(wurzel, "server/routes/fiaon-antrag-neu.ts"), "utf8");
+const abschluss = neuerWeg.slice(neuerWeg.indexOf("async function annahmeAbschliessen("), neuerWeg.indexOf("async function annahmeNachholen("));
+const nachholen = neuerWeg.slice(neuerWeg.indexOf("async function annahmeNachholen("), neuerWeg.indexOf("async function annahmeNachholen(") + 1800);
+ok(/personTierAktualisieren\(sqlPool, \{ ref \}\)/.test(neuerWeg), "E-324: der neue Antragsweg ruft personTierAktualisieren (Sofort-Zuteilung)");
+ok(/einstufenNachAnnahme\(ref\)/.test(abschluss), "E-324: annahmeAbschliessen stuft nach der Bestellung neu ein");
+ok(/einstufenNachAnnahme\(ref\)/.test(nachholen), "E-324: auch die nachgeholte Annahme stuft neu ein");
+
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

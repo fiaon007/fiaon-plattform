@@ -601,6 +601,19 @@ async function zahlungsAntwort(ref: string, annahme: { angenommen_am: Date; sofo
 }
 
 /**
+ * E-324 (09.10.2026): Nach Annahme und Bestellung SOFORT neu einstufen — wie der alte Weg
+ * (fiaon-antrag.ts, E-264 „abgeschickt → Stufe B sofort“). personTierAktualisieren ist die eine Stelle,
+ * an der die Sofort-Zuteilung hängt (tier.ts). Fehlte sie hier, kam die Stufe B erst mit dem
+ * 20-Minuten-Sammellauf (alleTierAktualisieren), und der teilt nicht zu: Gemessen (Produktion, nur lesend,
+ * 09.10.): Seit /antrag-neu für alle gilt (05.10.), blieben je Tag 40–50 % der frischen Anträge ohne
+ * Betreuer — Justin fand sie unter „Kunden ohne Betreuer“. Läuft im Hintergrund und wirft nie.
+ */
+function einstufenNachAnnahme(ref: string): void {
+  import("../lib/tier").then((m) => m.personTierAktualisieren(sqlPool, { ref }))
+    .catch((e) => console.error(`[ANTRAG-NEU] ${ref}: Einstufung nach der Annahme:`, e));
+}
+
+/**
  * Nach der gespeicherten Annahme: Antragszeile auf „abgeschickt" (Schritt 8, AGB und
  * Vertrag angenommen) und die Bestellung zum unterschriebenen Vertrag. Wirft nie —
  * was scheitert, holt der nächste Aufruf über annahmeNachholen nach.
@@ -618,6 +631,7 @@ async function annahmeAbschliessen(req: Request, ref: string, d: AntragNeuDaten,
     // Immer die eigene Bestellung zum unterschriebenen Vertrag — nie in eine ältere gemischt.
     const b = await bestellungFuerAntrag(ref, { ohneVerknuepfung: true });
     if (b.status >= 300) console.error(`[ANTRAG-NEU] ${ref}: Bestellung HTTP ${b.status}`, b.body);
+    einstufenNachAnnahme(ref);
     return b;
   } catch (e) {
     console.error(`[ANTRAG-NEU] ${ref}: Bestellung nicht angelegt:`, e);
@@ -647,6 +661,7 @@ async function annahmeNachholen(req: Request, ref: string, annahme: { angenommen
   try {
     const { bestellungFuerAntrag } = await import("./fiaon-antrag");
     await bestellungFuerAntrag(ref, { ohneVerknuepfung: true });
+    einstufenNachAnnahme(ref);
   } catch (e) {
     console.error(`[ANTRAG-NEU] ${ref}: Bestellung beim Nachholen nicht angelegt:`, e);
   }

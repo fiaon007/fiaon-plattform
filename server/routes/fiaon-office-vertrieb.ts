@@ -833,8 +833,18 @@ async function nachschubZiehen(me: number): Promise<void> {
        AND ${NIE_SQL}
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
              AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
-       AND (p.priority_tier BETWEEN 1 AND 3
-            OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
+       -- ── NUR WER LINKS STEHT, HÄLT EINEN PLATZ (09.10.2026, E-324) ──────────
+       -- Daniel, 09.10. 11:53: „Pipeline links sind bei mir keine Kunden mehr“ —
+       -- und Justin fand dieselben frischen Anträge unter „Kunden ohne Betreuer“.
+       -- Hier zählten seit E-165 (08.09.) auch Ratenkunden (Stufe 0 mit fälliger
+       -- Rate) als besetzte Plätze in „Neu für dich“. Seit E-168/E-305 stehen sie
+       -- aber RECHTS unter „Wieder dran“ (NEU_FUER_DICH_SQL = Stufe 1–3). Gemessen
+       -- (Produktion, nur lesend, 09.10. 12:20): Daniel 6 von 6 gezählten Plätzen =
+       -- Ratenkunden → „fehlt“ = 0, kein Nachschub, linke Spalte leer, 3.079 frische
+       -- Menschen im Pool. Ebenso #10 (18 von 18). Jetzt zählt der Nachschub genau
+       -- die linke Spalte: Stufe 1–3, und keine Zusage ab heute (wie basisTeile).
+       AND p.priority_tier BETWEEN 1 AND 3
+       AND (p.promised_payment_date IS NULL OR p.promised_payment_date < ${HEUTE})
        -- E-272: zählt dieselben Menschen wie die linke Spalte — ein Global-Kunde hält keinen Platz.
        AND ${KEIN_GLOBAL_KUNDE_SQL}
        -- E-184: Wer laut Antrag gerade NICHT erreichbar sein will, hält keinen
@@ -868,6 +878,12 @@ async function nachschubZiehen(me: number): Promise<void> {
           -- sie hält, würde jeder Aufbau sechs Menschen horten.
           AND ${NIE_SQL}
           AND ${JETZT_ERREICHBAR_SQL}
+          -- E-324 (09.10.2026): nur wer danach auch LINKS erscheint — kein Fehlversuch,
+          -- keine Wiedervorlage oder Zusage in der Zukunft (wie basisTeile). Sonst wäre
+          -- er zugeteilt, aber unsichtbar, und der nächste Aufbau zöge wieder.
+          AND COALESCE(p.unreachable_count, 0) = 0
+          AND (p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})
+          AND (p.promised_payment_date IS NULL OR p.promised_payment_date < ${HEUTE})
           -- E-272: Der Pool gibt nie einen Global-Kunden heraus (KEIN_GLOBAL_KUNDE_SQL oben).
           AND ${KEIN_GLOBAL_KUNDE_SQL}
         ORDER BY ${POOL_ORDNUNG}

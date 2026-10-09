@@ -62,6 +62,14 @@ ok(/LIMIT \$\{fehlt\}/.test(zug) && /FOR UPDATE SKIP LOCKED/.test(zug), "Nur so 
 const zaehlt = block.slice(block.indexOf("async function nachschubZiehen("), block.indexOf("const fehlt = SLOTS"));
 ok(/AND \$\{NIE_SQL\}/.test(zaehlt), "Gezählt werden dieselben Nie-Angerufenen, die gezogen werden");
 ok(/if \(Number\(alle\?\.n \?\? 0\) >= SLOTS \* 3\) return;/.test(block), "Deckel gegen Horten (18) bleibt");
+// E-324 (09.10.2026): Ratenkunden stehen rechts („Wieder dran“) — sie dürfen keinen Platz in
+// „Neu für dich“ halten. Vorher blockierten 6 fällige Ratenkunden Daniels ganzen Nachschub.
+ok(!/RATE_FAELLIG_SQL/.test(zaehlt), "E-324: Ratenkunden (Stufe 0) zählen nicht als besetzter Platz in „Neu für dich“");
+ok(/AND p\.priority_tier BETWEEN 1 AND 3\s/.test(zaehlt), "E-324: gezählt wird nur Stufe 1–3, wie die linke Spalte");
+ok(/promised_payment_date IS NULL OR p\.promised_payment_date < \$\{HEUTE\}/.test(zaehlt), "E-324: eine Zusage ab heute hält keinen Platz (wie basisTeile)");
+ok(/COALESCE\(p\.unreachable_count, 0\) = 0/.test(zugWhere) && /follow_up_date IS NULL OR p\.follow_up_date <= \$\{HEUTE\}/.test(zugWhere)
+  && /promised_payment_date IS NULL OR p\.promised_payment_date < \$\{HEUTE\}/.test(zugWhere),
+  "E-324: der Pool gibt nur heraus, wer danach links auch erscheint (kein Fehlversuch, keine Wiedervorlage/Zusage in der Zukunft)");
 
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

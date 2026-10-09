@@ -155,7 +155,10 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   if (produktkategorie({ type: a.type, ref: a.ref, pack_key: a.pack_key }) === "auskunft") {
     return auskunftAuftrag(a);
   }
-  const firmenauftrag = istGlobalPaket(a.pack_key);
+  // E-317 (09.10.2026): Einzelrechnungen aus FIAON Global (Katalogfeld zahlungsseite: "global") zeigen dieselbe Seite wie ein
+  // Global-Auftrag — ohne selbst ein Global-Paket zu sein. Paketname dann wie an der Bestellung (z. B. „Gründung … LLC (Florida)“).
+  const globalSeite = !istGlobalPaket(a.pack_key) && katalogPaket(a.pack_key)?.zahlungsseite === "global";
+  const firmenauftrag = istGlobalPaket(a.pack_key) || globalSeite;
   // Die Sprache steht in der Auftragsakte. Fehlt die Akte (Bestellung außerhalb des Bestellwegs) oder
   // die Tabelle, bleibt die Seite deutsch — die Zahlungsseite darf daran nie scheitern.
   let sprache: "de" | "en" = "de";
@@ -174,7 +177,8 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     // Beim Firmenauftrag steht oben die Firma, nicht ein Vorname.
     firstName: firmenauftrag ? "" : (a.first_name || ""),
     // E-268: Ein Teil eines Individualangebots heißt wie der Teil („FIAON Global – Individualangebot, Teil 1: Gründung").
-    packName: firmenauftrag
+    packName: globalSeite ? String(a.pack_name || katalogPaket(a.pack_key)?.label || "")
+      : firmenauftrag
       ? (enName ? `FIAON ${enName}` : ((katalogPaket(a.pack_key)?.preisJeAngebot ? String(a.pack_name || "") : "") || katalogPaket(a.pack_key)?.label || a.pack_name || ""))
       : (a.pack_name || ""),
     ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),

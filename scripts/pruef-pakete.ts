@@ -109,6 +109,7 @@ gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel 
   const llc = paket("llc_paket");
   ok("llc_paket: privat, kein Abo, eingestellt, 169,70 €, eigener Rechnungstext „einmalig“", llc?.art === "privat" && llc.abo === false && llc.eingestellt === true && llc.preisCents === 16970 && llc.rechnung?.zeitraum === "einmalig");
   ok("llc_paket: nicht Global, nicht verkaufbar", !istGlobalPaket("llc_paket") && !verkaufbarePakete().some((p) => p.key === "llc_paket"));
+  ok("E-317: beide LLC-Rechnungen zeigen die Zahlungsseite im Global-CI, kein Global-Paket hat das Feld", paket("llc_paket")?.zahlungsseite === "global" && paket("llc_gruendung")?.zahlungsseite === "global" && PAKETE.filter((p) => p.art === "global").every((p) => !p.zahlungsseite));
   const gr = paket("llc_gruendung");
   ok("llc_gruendung (E-316): privat, kein Abo, eingestellt, 398 €, nicht Global, eigener Rechnungstext", gr?.art === "privat" && gr.abo === false && gr.eingestellt === true && gr.preisCents === 39800 && !istGlobalPaket("llc_gruendung") && gr.rechnung?.zeitraum === "einmalig");
 }

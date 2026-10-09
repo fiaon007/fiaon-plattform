@@ -5,6 +5,13 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.10.2026 — E-317 Zahlungsseite im Global-CI für Einzelrechnungen aus FIAON Global
+- **Was:** Die Zahlungsseite /zahlung/<Verwendungszweck> zeigt für die LLC-Rechnungen (llc_paket, llc_gruendung) dieselbe Fassung wie
+  ein Global-Auftrag: Global-CI, „Ihr Auftrag: Zahlung per Überweisung“, „Rechnung überweisen“, ohne „Konto aktivieren“ und ohne
+  Terminangebot. Gesteuert über das Katalogfeld `zahlungsseite: "global"` — die Pakete bleiben Art „privat“ (kein Global-Start).
+- **Warum:** Justin: „mach die Zahlungsseite im Global CI, damit es passend ist“.
+- **Wo:** shared/fiaon-pakete.ts, server/lib/fiaon-zahlungsauftrag.ts; pruef-pakete 360/0, lokal geprüft (1440 und 390 px).
+
 ## 09.10.2026 — E-316 Rechnung „Gründung US-Gesellschaft (LLC)“ (398 €, Bestandskunde)
 - **Was:** Katalogeintrag `llc_gruendung` (398 €, Einmalkauf, Art privat, nicht verkaufbar) mit eigenem Rechnungstext „Anmeldung beim
   Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag“, „einmalig“.

@@ -70,6 +70,12 @@ export interface Paket {
    * Rechnung wie bisher „monatlicher Zugang …“ (Privat) bzw. „Aufbau einer US-Unternehmensstruktur …“ (Global).
    */
   rechnung?: { beschreibung: string; zeitraum: string };
+  /**
+   * Zahlungsseite im Global-CI (09.10.2026, E-317): Die Seite /zahlung/<Zweck> spricht wie bei einem Global-Auftrag (Global-CI,
+   * „Rechnung überweisen“, kein „Konto aktivieren“, kein Terminangebot) — für Einzelrechnungen aus FIAON Global, die selbst kein
+   * Global-Paket sind (sonst Global-Start nach der Zahlung).
+   */
+  zahlungsseite?: "global";
 }
 
 export const PAKETE: Paket[] = [
@@ -122,11 +128,11 @@ export const PAKETE: Paket[] = [
   // Bestandskunden (Begleitvertrag E-312). Einmalkauf (abo: false → nie eine Rate), Art „privat“ statt „global“: Ein
   // Global-Paket startete nach der Zahlung den Global-Auftrag mit Kundenmail (globalNachZahlung). `eingestellt`: in keiner Auswahl.
   { key: "llc_paket",           label: "GLOBAL LLC Package",        preisCents:   16970, art: "privat", abo: false, eingestellt: true,
-    rechnung: { beschreibung: "Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)", zeitraum: "einmalig" } },
+    rechnung: { beschreibung: "Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)", zeitraum: "einmalig" }, zahlungsseite: "global" },
   // E-316 (09.10.2026): die Gründungskosten derselben LLC (Begleitvertrag Ziffer 4, Selbstkosten): Anmeldung beim Bundesstaat
   // (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — Justin: „398 € (das ist der teuerste Teil)“.
   { key: "llc_gruendung",       label: "Gründung US-Gesellschaft (LLC)", preisCents: 39800, art: "privat", abo: false, eingestellt: true,
-    rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" } },
+    rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" }, zahlungsseite: "global" },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));

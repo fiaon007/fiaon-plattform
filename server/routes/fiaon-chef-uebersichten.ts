@@ -296,6 +296,27 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
   }
 });
 
+/**
+ * E-328 (09.10.2026, Justin: „1 Zentrale Akte für ALLE Kunden ALLE DATENSÄTZE!!!“): jeder Datensatz
+ * aus jeder Kundentabelle zu dieser Person — Reiter „Alle Daten“ der EINEN Akte. Nur lesen; Geheimnisse,
+ * Dateien und gesperrte Tabellen regelt server/lib/fiaon-akte-datensaetze.ts. Ab Geschäftsführung.
+ */
+router.get("/chef/kunde/:id/datensaetze", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    // Jede Akten-Kennung (Personen-Nr., lead-N, Antrags- oder Zahlungsreferenz) — dieselbe Auflösung wie /akte/<Kennung>.
+    const { akteAufloesen } = await import("../lib/fiaon-akte-aufloesen");
+    const a = await akteAufloesen(req.params.id);
+    if (!a.ok) return res.status(a.status).json({ ok: false, error: a.text });
+    const id = Number(a.ziel.personId || 0);
+    if (!id) return res.status(404).json({ ok: false, error: "Zu dieser Kennung gibt es noch keine Person." });
+    const { akteDatensaetze } = await import("../lib/fiaon-akte-datensaetze");
+    res.json({ ok: true, ...(await akteDatensaetze(id)) });
+  } catch (err) {
+    console.error("[CHEF] datensaetze:", err);
+    res.status(500).json({ ok: false, error: "Die Datensätze konnten nicht geladen werden." });
+  }
+});
+
 /** Eine einzelne Person in ganzer Tiefe — für das Sprungfenster. */
 router.get("/chef/kunde/:id", requireChef("leitung"), async (req: Request, res: Response) => {
   try {

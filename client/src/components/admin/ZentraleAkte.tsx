@@ -28,6 +28,8 @@ const MitarbeiterAkte = lazy(() => import("@/pages/agent/pipeline").then((m) => 
 const FragenAnbieter = lazy(() => import("@/pages/agent/shared").then((m) => ({ default: m.FragenAnbieter })));
 const Verwaltungsakte = lazy(() => import("@/pages/admin-kunde"));
 const Werkzeuge = lazy(() => import("@/components/admin/AkteVerwaltungWerkzeuge"));
+// E-328 (09.10.2026): „1 Zentrale Akte für ALLE Kunden ALLE DATENSÄTZE“ — jeder Datensatz aus jeder Kundentabelle.
+const AlleDaten = lazy(() => import("@/components/admin/AkteAlleDaten"));
 
 type Stand =
   | { art: "pruefen" }
@@ -140,6 +142,16 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
                       </Suspense>
                     </div>
                   ),
+                }, {
+                  key: "daten",
+                  label: "Alle Daten",
+                  inhalt: (
+                    <div className="za-daten">
+                      <Suspense fallback={<div className="za-laden klein" role="status"><span /><span /><span /></div>}>
+                        <AlleDaten kennung={String(stand.personId)} />
+                      </Suspense>
+                    </div>
+                  ),
                 }]}
               />
             </FragenAnbieter>
@@ -158,6 +170,14 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
           <Verwaltungsakte akteId={kennung} eingebettet />
         </Suspense>
       </div>
+      {/* E-328: auch ohne Office-Sitzung — jeder Datensatz dieses Kunden (Chefbüro ab Geschäftsführung). */}
+      {stand.grund !== "ohnePerson" && kennung && (
+        <div className="za-voll-daten cbs akte-dunkel">
+          <Suspense fallback={<div className="za-laden klein" role="status"><span /><span /><span /></div>}>
+            <AlleDaten kennung={kennung} />
+          </Suspense>
+        </div>
+      )}
     </div>
   );
 }

@@ -103,13 +103,13 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // 08.10.2026 (E-314): dazu „llc_paket" (Einzelrechnung Unterlagen-Paket, kein Abo).
 gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung"].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb"].sort());
 // E-314: Das LLC-Paket ist ein Einmalkauf der Art „privat“ (nie Global-Start), nie verkaufbar, mit eigenem Rechnungstext.
 {
   const llc = paket("llc_paket");
   ok("llc_paket: privat, kein Abo, eingestellt, 169,70 €, eigener Rechnungstext „einmalig“", llc?.art === "privat" && llc.abo === false && llc.eingestellt === true && llc.preisCents === 16970 && llc.rechnung?.zeitraum === "einmalig");
   ok("llc_paket: nicht Global, nicht verkaufbar", !istGlobalPaket("llc_paket") && !verkaufbarePakete().some((p) => p.key === "llc_paket"));
-  ok("E-317: beide LLC-Rechnungen zeigen die Zahlungsseite im Global-CI, kein Global-Paket hat das Feld", paket("llc_paket")?.zahlungsseite === "global" && paket("llc_gruendung")?.zahlungsseite === "global" && PAKETE.filter((p) => p.art === "global").every((p) => !p.zahlungsseite));
+  ok("E-317: beide LLC-Rechnungen zeigen die Zahlungsseite im Global-CI, kein Global-Paket hat das Feld", paket("llc_paket")?.zahlungsseite === "global" && paket("llc_gruendung")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.preisCents === 19900 && paket("llc_gruendung_halb")?.abo === false && PAKETE.filter((p) => p.art === "global").every((p) => !p.zahlungsseite));
   const gr = paket("llc_gruendung");
   ok("llc_gruendung (E-316): privat, kein Abo, eingestellt, 398 €, nicht Global, eigener Rechnungstext", gr?.art === "privat" && gr.abo === false && gr.eingestellt === true && gr.preisCents === 39800 && !istGlobalPaket("llc_gruendung") && gr.rechnung?.zeitraum === "einmalig");
 }

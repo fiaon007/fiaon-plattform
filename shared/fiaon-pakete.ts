@@ -133,6 +133,10 @@ export const PAKETE: Paket[] = [
   // (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — Justin: „398 € (das ist der teuerste Teil)“.
   { key: "llc_gruendung",       label: "Gründung US-Gesellschaft (LLC)", preisCents: 39800, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" }, zahlungsseite: "global" },
+  // E-322 (09.10.2026): dieselben Gründungskosten in zwei Hälften — Justin: „er bezahlt jetzt eine Hälfte, die andere Hälfte bezahlen wir
+  // voraus und er gibt sie uns nach der Gründung“. Hälfte 2 fällig mit dem ersten Geldeingang, spätestens zum Datum an der Bestellung.
+  { key: "llc_gruendung_halb",  label: "Gründung US-Gesellschaft (LLC), halbe Rechnung", preisCents: 19900, art: "privat", abo: false, eingestellt: true,
+    rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" }, zahlungsseite: "global" },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));

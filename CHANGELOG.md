@@ -5,6 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.10.2026 — E-322 Gründungskosten in zwei Hälften, Weiterleitung von ersetzten Rechnungen
+- **Was:** Katalogeintrag `llc_gruendung_halb` (199 €, Einmalkauf). Die Zahlungsseite einer halben Rechnung sagt „Wir kommen Ihnen entgegen:
+  Heute ist nur die erste Hälfte fällig …“ (hellblauer Kasten) und verlinkt beide Rechnungen; die zweite heißt „gestundet“. Eine ersetzte
+  LLC-Rechnung (Status superseded/cancelled) zeigt keinen Bezahlweg mehr, sondern leitet auf die offene Nachfolgerin derselben Person weiter.
+- **Warum:** Justin: Kunde in finanzieller Notlage — „er bezahlt jetzt eine Hälfte, die andere Hälfte bezahlen wir voraus“.
+- **Wo:** shared/fiaon-pakete.ts, server/lib/fiaon-zahlungsauftrag.ts (weiterZu), client/src/pages/zahlung.tsx, server/lib/fiaon-global-angebot-begleit.ts,
+  client/src/components/zahlung/AuftragBlock.tsx; pruef-pakete 361/0, lokal: Weiterleitung, beide Hälften, 390 px.
+
 ## 09.10.2026 — E-320 Zahlungsseite für Teile eines Individualangebots: Urkunde, Stand des Auftrags, Rechnung
 - **Was:** Auch die Rechnung eines Individualangebots (E-268) zeigt auf /zahlung/<Zweck> die animierte Gründungsurkunde mit dem Namen
   der Gesellschaft (aus der Akte), eine Prüfliste „Stand Ihres Auftrags“ (Vertrag angenommen, Name geprüft, Reisepass erhalten und

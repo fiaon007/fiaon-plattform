@@ -530,6 +530,8 @@ export default function ZahlungPage() {
       try {
         const res = await fetch(`/api/fiaon/payment-order/${encodeURIComponent(paymentRef)}`);
         const json = await res.json().catch(() => null);
+        // E-322: ersetzte Rechnung → auf die offene Nachfolgerin (gleicher Bereich), bevor irgendetwas zum Bezahlen erscheint.
+        if (res.ok && json?.ok && json.weiterZu) { window.location.replace(`/zahlung/${encodeURIComponent(json.weiterZu)}${window.location.search}`); return; }
         if (res.ok && json?.ok) setOrder(json);
         else setError(json?.error || "Bestellung nicht gefunden");
       } catch {

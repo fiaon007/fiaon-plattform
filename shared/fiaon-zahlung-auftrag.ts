@@ -19,6 +19,8 @@ export interface ZahlungAuftragKontext {
   dokumenteTitel: string;
   dokumente: { titel: string; unter: string; href: string }[];
   hinweis: string;
+  /** E-322: der Hinweis als hellblauer Kasten (z. B. die gestundete zweite Hälfte), nicht als graue Fußnote. */
+  hinweisBetont?: boolean;
   schritteTitel: string;
   schritte: { titel: string; text: string }[];
   ansprechTitel: string;

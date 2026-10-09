@@ -387,7 +387,16 @@ export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_r
   const zweck = String(a.payment_reference ?? "");
   const paketName = String(a.pack_name ?? "");
   const gesellschaft = paketName.match(/([A-Z0-9][A-Z0-9 &,.'-]* LLC)\b/)?.[1] ?? null;
-  const gruendung = String(a.pack_key ?? "") === "llc_gruendung";
+  const gruendung = ["llc_gruendung", "llc_gruendung_halb"].includes(String(a.pack_key ?? ""));
+  // E-322: Gründung in zwei Hälften — die jeweils andere Hälfte derselben Person (Betrag, Fälligkeit, signierte Rechnung).
+  const halb = String(a.pack_key ?? "") === "llc_gruendung_halb";
+  const zweite = halb && /Hälfte 2/.test(paketName);
+  const [andere] = halb ? ((await sqlPool`
+    SELECT payment_reference, invoice_number, amount_due, payment_due_date, payment_status FROM fiaon_applications
+     WHERE person_id = ${personId} AND pack_key = 'llc_gruendung_halb' AND payment_reference <> ${String(a.payment_reference ?? "")}
+       AND payment_status IN ('pending_payment', 'claimed_paid', 'paid') ORDER BY created_at LIMIT 1`.catch(() => [])) as any[]) : [];
+  const anderBetrag = andere ? begleitEur(Math.round(Number(andere.amount_due) * 100)) : "";
+  const anderBis = andere?.payment_due_date ? begleitTag(new Date(andere.payment_due_date).toISOString().slice(0, 10)) : "";
   const angenommen = zeile.angenommen_am ? begleitTag(new Date(zeile.angenommen_am).toISOString().slice(0, 10)) : "";
   return {
     auge: "FIAON Global · Ihr Auftrag",
@@ -397,9 +406,15 @@ export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_r
     dokumenteTitel: "Ihre Unterlagen",
     dokumente: [
       { titel: "Ihr Vertrag", unter: `${begleitVertragTitel()} · mit Annahmevermerk`, href: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf` },
-      ...(zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${paketName}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : []),
+      ...(zweck ? [{ titel: zweite ? "Ihre zweite Rechnung (gestundet)" : "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${paketName}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : []),
+      ...(andere && !zweite ? [{ titel: "Ihre zweite Rechnung (gestundet)", unter: `${String(andere.invoice_number ?? "Rechnung")} · ${anderBetrag} · fällig mit dem ersten Geldeingang, spätestens ${anderBis}`, href: signInvoiceUrl(String(andere.payment_reference), 60 * 24 * 3600_000) }] : []),
     ],
-    hinweis: "Zum Selbstkostenpreis, ohne Aufschlag — so steht es in Ziffer 4 Ihres Vertrags.",
+    hinweis: halb
+      ? (zweite
+        ? "Diese zweite Hälfte der Gründungskosten haben wir für Sie vorab übernommen. Sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig, spätestens zum Zahlungsziel oben."
+        : `Wir kommen Ihnen entgegen: Heute ist nur die erste Hälfte fällig. Die zweite Hälfte${anderBetrag ? ` (${anderBetrag})` : ""} übernehmen wir für Sie vorab — sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig${anderBis ? `, spätestens am ${anderBis}` : ""}. Alles zum Selbstkostenpreis, ohne Aufschlag (Ziffer 4 Ihres Vertrags).`)
+      : "Zum Selbstkostenpreis, ohne Aufschlag — so steht es in Ziffer 4 Ihres Vertrags.",
+    hinweisBetont: halb,
     schritteTitel: "So geht es weiter",
     schritte: gruendung
       ? [

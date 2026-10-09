@@ -81,7 +81,7 @@ export function AuftragKopf({ a }: { a: ZahlungAuftragKontext }) {
             <span className="za-dok-pfeil">{WORTE.pdf} →</span>
           </a>
         ))}
-        {a.hinweis && <p className="za-hinweis">{a.hinweis}</p>}
+        {a.hinweis && <p className={a.hinweisBetont ? "za-hinweis za-hinweis-box" : "za-hinweis"}>{a.hinweis}</p>}
       </div>
     </section>
   );
@@ -167,6 +167,8 @@ export const AUFTRAG_CSS = `
 .za-dok-text span{font-size:12.5px;color:#6b7587;overflow-wrap:anywhere}
 .za-dok-pfeil{flex:0 0 auto;font-size:12.5px;color:#288DFA;font-weight:500;transition:transform .3s,color .3s;white-space:nowrap}
 .za-hinweis{margin:10px 0 0;font-size:12.5px;color:#6b7587}
+.za-hinweis-box{margin-top:14px;padding:14px 16px;border-radius:12px;font-size:13.5px;line-height:1.6;color:#0b1c36;
+  background:linear-gradient(180deg,#f3f8ff,#e8f1ff);border:1px solid rgba(40,141,250,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
 .za-schritte{list-style:none;margin:0;padding:0;display:grid;gap:14px}
 .za-schritte li{display:flex;gap:14px;align-items:flex-start}
 .za-nr{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:500;

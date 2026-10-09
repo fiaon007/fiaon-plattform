@@ -52,6 +52,8 @@ export interface Zahlungsauftrag {
   firmenName?: string;
   /** E-318 (09.10.2026): Rechnung zu einem Begleitvertrag — Gesellschaft, Vertrag, Rechnung, nächste Schritte, Ansprechpartner. */
   auftrag?: import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null;
+  /** E-322: Diese Rechnung ist ersetzt — die Seite leitet auf die offene Nachfolgerin weiter. */
+  weiterZu?: string;
   /**
    * Nur beim Firmenauftrag: die Sprache, in der das Unternehmen seinen Auftrag geführt hat
    * (fiaon_global_auftraege.vertrag_sprache). Wer auf /en/business/start unterschrieben hat,
@@ -149,7 +151,7 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
 
   const [a] = (await sqlPool`
     SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name, pack_key,
-           company_name, country, person_id, invoice_number
+           company_name, country, person_id, invoice_number, created_at
     FROM fiaon_applications WHERE payment_reference = ${ref} LIMIT 1
   `) as any[];
   if (!a) return null;
@@ -161,6 +163,17 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   // Global-Auftrag — ohne selbst ein Global-Paket zu sein. Paketname dann wie an der Bestellung (z. B. „Gründung … LLC (Florida)“).
   const globalSeite = !istGlobalPaket(a.pack_key) && katalogPaket(a.pack_key)?.zahlungsseite === "global";
   const firmenauftrag = istGlobalPaket(a.pack_key) || globalSeite;
+  // E-322 (09.10.2026): Eine ersetzte LLC-Rechnung (z. B. in zwei Hälften geteilt) zeigt keinen Bezahlweg mehr, sondern leitet auf die
+  // offene Nachfolgerin derselben Person weiter — der alte Link aus Mail und WhatsApp bleibt gültig, niemand überweist den alten Betrag.
+  let weiterZu: string | null = null;
+  if (globalSeite && ["superseded", "cancelled"].includes(String(a.payment_status)) && a.person_id) {
+    const [n] = (await sqlPool`
+      SELECT payment_reference FROM fiaon_applications
+       WHERE person_id = ${a.person_id} AND pack_key LIKE 'llc_%' AND payment_reference <> ${a.payment_reference}
+         AND payment_status IN ('pending_payment', 'claimed_paid') AND created_at >= ${a.created_at}
+       ORDER BY payment_due_date ASC NULLS LAST, created_at ASC LIMIT 1`.catch(() => [])) as any[];
+    weiterZu = n?.payment_reference ? String(n.payment_reference) : null;
+  }
   // Die Sprache steht in der Auftragsakte. Fehlt die Akte (Bestellung außerhalb des Bestellwegs) oder
   // die Tabelle, bleibt die Seite deutsch — die Zahlungsseite darf daran nie scheitern.
   let sprache: "de" | "en" = "de";
@@ -184,6 +197,7 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
       ? (enName ? `FIAON ${enName}` : ((katalogPaket(a.pack_key)?.preisJeAngebot ? String(a.pack_name || "") : "") || katalogPaket(a.pack_key)?.label || a.pack_name || ""))
       : (a.pack_name || ""),
     ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),
+    ...(weiterZu ? { weiterZu } : {}),
     // E-318: Die Seite darf am Auftrag nie scheitern — fehlt er oder hakt das Lesen, steht nur die Rechnung da.
     ...(globalSeite ? { auftrag: await import("./fiaon-global-angebot-begleit").then((m) => m.begleitZahlungsKontext(a)).catch((e) => { console.error("[FIAON-ZAHLUNG] Auftrag zur Zahlung:", e); return null; }) } : {}),
     // E-320 (09.10.2026): ein Teil eines Individualangebots (E-268) — derselbe Auftragsblock (Gesellschaft, Prüfliste, Unterlagen).

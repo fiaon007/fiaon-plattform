@@ -191,14 +191,17 @@ const MAX_RUECKSCHAU_TAGE = 30;
  * nicht erst. Die `id` ist bei beiden Endpunkten DIESELBE, ein Wechsel kann
  * also nichts doppelt anlegen.
  */
-async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; gesehen: number; gedeckelt: boolean }> {
+async function gutschriften(tage: number, fenster?: { ab: Date; bis: Date }): Promise<{ eingaenge: Eingang[]; gesehen: number; gedeckelt: boolean }> {
   const konto = await globalAccountId();
-  const gedeckelt = tage > MAX_RUECKSCHAU_TAGE;
+  const gedeckelt = !fenster && tage > MAX_RUECKSCHAU_TAGE;
   const wirklich = Math.min(tage, MAX_RUECKSCHAU_TAGE);
-  const ab = new Date(Date.now() - wirklich * 24 * 60 * 60 * 1000).toISOString();
+  const ab = (fenster?.ab ?? new Date(Date.now() - wirklich * 24 * 60 * 60 * 1000)).toISOString();
+  // 09.10.2026: ein kurzes Fenster in der Vergangenheit (to_created_at) — für schwebende Zeilen, die älter
+  // sind als die 30 Tage, die eine offene Abfrage noch liefert (schwebendeAltePruefen).
+  const bis = fenster ? `&to_created_at=${encodeURIComponent(fenster.bis.toISOString())}` : "";
   const alle: any[] = [];
   for (let seite = 0; seite < 20; seite++) {
-    const j = await awGet(`/api/v1/deposits?from_created_at=${encodeURIComponent(ab)}&page_num=${seite}&page_size=100`);
+    const j = await awGet(`/api/v1/deposits?from_created_at=${encodeURIComponent(ab)}${bis}&page_num=${seite}&page_size=100`);
     const items: any[] = Array.isArray(j?.items) ? j.items : [];
     alle.push(...items);
     if (!j?.has_more || items.length === 0) break;
@@ -240,6 +243,72 @@ async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; geseh
  */
 const SCHWEBE_VERMERK = "Airwallex: Geld ist UNTERWEGS";
 
+/**
+ * Eine bekannte Zeile, die als „unterwegs" abgelegt wurde und jetzt gutgeschrieben ist.
+ * 09.10.2026: Der Vermerk wird VOR dem Buchungsversuch umgeschrieben. liveVerbuchen schreibt bei „keine
+ * Referenz", „keine Bestellung zur Referenz" oder „mehrdeutig" keinen eigenen Vermerk — vorher blieb
+ * angekommenes Geld deshalb für immer „unterwegs" stehen, und das Nachholen/Zubuchen wies es ab
+ * (Beispiel: 59,99 € „Sent from N26" vom 05.09.). Jetzt ist es danach eine normale offene Zeile.
+ */
+async function nachreichen(e: Eingang): Promise<"gebucht" | "angekommen" | null> {
+  const txnId = `AWX-${e.id}`;
+  const [alt] = (await sqlPool`
+    SELECT applied, note FROM fiaon_bank_txns WHERE txn_id = ${txnId} LIMIT 1
+  `) as any[];
+  if (!alt || alt.applied || !String(alt.note || "").startsWith(SCHWEBE_VERMERK)) return null;
+  await sqlPool`
+    UPDATE fiaon_bank_txns
+       SET note = ${`Airwallex-Automatik — war unterwegs, jetzt gutgeschrieben${e.status ? ` (Status ${e.status})` : ""}; noch NICHT gebucht`}, updated_at = NOW()
+     WHERE txn_id = ${txnId} AND NOT applied AND note LIKE ${`${SCHWEBE_VERMERK}%`}`;
+  const erg = await liveVerbuchen(txnId, refErkennen(e.zweck), e.cents, e.datum);
+  console.log(`[AIRWALLEX] Nachgereicht ${txnId}: war unterwegs, ist jetzt da — ${erg.gebucht ? "gebucht" : erg.grund}`);
+  return erg.gebucht ? "gebucht" : "angekommen";
+}
+
+/**
+ * Wie weit der Takt zurückschauen muss, damit jede noch „unterwegs" stehende Zeile nachgezogen wird
+ * (09.10.2026). Vorher las er immer 3 Tage — eine Überweisung, die länger PENDING war, fiel aus dem
+ * Fenster und blieb für immer „unterwegs" (gefunden: Eingänge vom 05.09., 21.09., 23.09.).
+ */
+async function rueckschauFuerSchwebende(basis: number): Promise<number> {
+  const [r] = (await sqlPool`
+    SELECT MIN(booked_at) AS ab FROM fiaon_bank_txns
+     WHERE NOT applied AND txn_id LIKE 'AWX-%' AND note LIKE ${`${SCHWEBE_VERMERK}%`}
+       AND booked_at > NOW() - (${MAX_RUECKSCHAU_TAGE} || ' days')::interval
+  `.catch(() => [])) as any[];
+  if (!r?.ab) return basis;
+  const tage = Math.ceil((Date.now() - new Date(r.ab).getTime()) / 86_400_000) + 1;
+  return Math.max(basis, Math.min(MAX_RUECKSCHAU_TAGE, tage));
+}
+
+/**
+ * Schwebende Zeilen, die älter sind als die 30 Tage einer offenen Abfrage: je Tag ein kurzes Fenster
+ * (2 Tage davor bis 5 Tage danach) — was dort gutgeschrieben ist, wird nachgereicht. Höchstens 90 Tage.
+ * Liefert die API für das Fenster nichts, ändert sich nichts.
+ */
+export async function schwebendeAltePruefen(): Promise<{ geprueft: number; nachgezogen: number }> {
+  if (!konfiguriert()) return { geprueft: 0, nachgezogen: 0 };
+  const tage = (await sqlPool`
+    SELECT DISTINCT (booked_at AT TIME ZONE 'UTC')::date AS tag FROM fiaon_bank_txns
+     WHERE NOT applied AND txn_id LIKE 'AWX-%' AND note LIKE ${`${SCHWEBE_VERMERK}%`}
+       AND booked_at <= NOW() - (${MAX_RUECKSCHAU_TAGE - 1} || ' days')::interval
+       AND booked_at > NOW() - INTERVAL '90 days'
+     ORDER BY 1 LIMIT 10
+  `.catch(() => [])) as any[];
+  let nachgezogen = 0;
+  for (const t of tage) {
+    const tag = new Date(`${new Date(t.tag).toISOString().slice(0, 10)}T00:00:00Z`);
+    const ab = new Date(tag.getTime() - 2 * 86_400_000), bis = new Date(tag.getTime() + 5 * 86_400_000);
+    try {
+      const { eingaenge } = await gutschriften(7, { ab, bis });
+      for (const e of eingaenge) if (!e.schwebt && (await nachreichen(e))) nachgezogen += 1;
+    } catch (err: any) {
+      console.warn(`[AIRWALLEX] Alte schwebende Zeilen (${tag.toISOString().slice(0, 10)}):`, String(err?.message || err).slice(0, 160));
+    }
+  }
+  return { geprueft: tage.length, nachgezogen };
+}
+
 export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; neu: number; gebucht: number; schwebend: number; nachgezogen: number; gedeckelt: boolean }> {
   if (!konfiguriert()) throw new Error("AIRWALLEX_CLIENT_ID / AIRWALLEX_API_KEY fehlen");
   const { eingaenge, gesehen, gedeckelt } = await gutschriften(tage);
@@ -280,14 +349,9 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
       // immer ungebucht — der Doppelschutz über txn_id würde es jedes Mal
       // wortlos überspringen.
       if (!e.schwebt) {
-        const [alt] = (await sqlPool`
-          SELECT applied, note FROM fiaon_bank_txns WHERE txn_id = ${txnId} LIMIT 1
-        `) as any[];
-        if (alt && !alt.applied && String(alt.note || "").startsWith(SCHWEBE_VERMERK)) {
-          const erg = await liveVerbuchen(txnId, ref, e.cents, e.datum);
-          if (erg.gebucht) { gebucht += 1; nachgezogen += 1; }
-          console.log(`[AIRWALLEX] Nachgereicht ${txnId}: war unterwegs, ist jetzt da — ${erg.gebucht ? "gebucht" : erg.grund}`);
-        }
+        const n = await nachreichen(e);
+        if (n === "gebucht") { gebucht += 1; nachgezogen += 1; }
+        else if (n === "angekommen") nachgezogen += 1;
       }
       continue;
     }
@@ -351,11 +415,12 @@ router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
     // Kennzeichnung fehlt (gemessen am 02.09.: 34 von 37 genau so).
     const offen = (await sqlPool`
       SELECT t.id, t.txn_id, t.booked_at, t.amount_cents, t.payer_name,
-             t.reference_raw, t.extracted_ref, a.payment_status, a.ref AS antrag
+             t.reference_raw, t.extracted_ref, a.payment_status, a.ref AS antrag, t.note
         FROM fiaon_bank_txns t
         LEFT JOIN fiaon_applications a
                ON a.payment_reference = t.extracted_ref AND a.merged_into IS NULL
        WHERE NOT t.applied
+         AND COALESCE(t.match_status, '') <> 'ignored'
          AND t.booked_at > NOW() - INTERVAL '60 days'
          AND (a.ref IS NULL OR a.payment_status NOT IN ('paid', 'superseded'))
        ORDER BY t.booked_at DESC NULLS LAST
@@ -392,6 +457,7 @@ router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
           zweck: String(z.reference_raw ?? "").slice(0, 120),
           erkannteReferenz: z.extracted_ref ?? null,
           antragStatus: z.payment_status ?? null,
+          unterwegs: String(z.note || "").startsWith(SCHWEBE_VERMERK),
         })),
       },
       liste: zeilen.slice(0, 60).map((z) => ({
@@ -402,6 +468,7 @@ router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
         zweck: String(z.reference_raw ?? "").slice(0, 140),
         referenz: z.matched_ref ?? z.extracted_ref ?? null,
         gebucht: !!z.applied,
+        keinKunde: z.match_status === "ignored",
         schwebend: String(z.note || "").includes("UNTERWEGS"),
         betragPasst: z.amount_ok,
         vermerk: z.note ?? null,
@@ -415,8 +482,11 @@ router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
 
 router.post("/admin/airwallex/einlesen", async (req: Request, res: Response) => {
   try {
-    const tage = Math.min(MAX_RUECKSCHAU_TAGE, Math.max(1, Number(req.body?.tage) || 3));
+    const gewuenscht = Math.min(MAX_RUECKSCHAU_TAGE, Math.max(1, Number(req.body?.tage) || 3));
+    const tage = await rueckschauFuerSchwebende(gewuenscht);
     const erg = await airwallexEinlesen(tage);
+    const alt = await schwebendeAltePruefen().catch(() => ({ geprueft: 0, nachgezogen: 0 }));
+    erg.nachgezogen += alt.nachgezogen;
     res.json({ ok: true, tage, maxTage: MAX_RUECKSCHAU_TAGE, quelle: "/api/v1/deposits", ...erg });
   } catch (e: any) {
     letzterLauf = { wann: new Date().toISOString(), gesehen: 0, neu: 0, gebucht: 0, fehler: String(e?.message || e).slice(0, 300) };
@@ -435,10 +505,16 @@ router.post("/admin/airwallex/einlesen", async (req: Request, res: Response) => 
 // „erfolg", schützt sie nichts mehr. Sobald ein Webhook dazukommt, läsen
 // Wecker und Takt gleichzeitig.
 // Jetzt wird die Arbeit erwartet: Dauer stimmt, Fehler schlägt durch, Sperre hält.
+let alteGeprueftAm = 0;
 tageslauf("airwallex-eingaenge", async () => {
   if (!konfiguriert()) return;
   try {
-    const r = await airwallexEinlesen(3);
+    const r = await airwallexEinlesen(await rueckschauFuerSchwebende(3));
+    if (Date.now() - alteGeprueftAm > 6 * 60 * 60 * 1000) {
+      alteGeprueftAm = Date.now();
+      const a = await schwebendeAltePruefen().catch(() => ({ geprueft: 0, nachgezogen: 0 }));
+      if (a.nachgezogen > 0) console.log(`[AIRWALLEX] Alte schwebende Zeilen: ${a.nachgezogen} nachgereicht (${a.geprueft} Tage geprüft)`);
+    }
     if (r.neu > 0 || r.nachgezogen > 0) {
       console.log(`[AIRWALLEX] Takt: ${r.neu} neu, ${r.gebucht} gebucht, ${r.schwebend} unterwegs, ${r.nachgezogen} nachgereicht`);
     }

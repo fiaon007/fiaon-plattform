@@ -188,7 +188,7 @@ export function genannteRate(zweck: string | null | undefined): number | null {
 async function kopfLesen(id: number): Promise<{ status: number; ok: boolean; error?: string; z?: any; zeile?: NachholZeile }> {
   const { refErkennen } = await import("../routes/fiaon-wise");
   const [z] = (await sqlPool`
-    SELECT id, txn_id, booked_at, amount_cents, payer_name, reference_raw, extracted_ref, matched_ref, applied, note
+    SELECT id, txn_id, booked_at, amount_cents, payer_name, reference_raw, extracted_ref, matched_ref, applied, note, match_status
       FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1
   `) as any[];
   if (!z) return { status: 404, ok: false, error: "Diesen Bankeingang gibt es nicht." };
@@ -210,6 +210,8 @@ async function kopfLesen(id: number): Promise<{ status: number; ok: boolean; err
   };
   if (z.applied) return { status: 409, ok: false, error: "Dieser Eingang ist schon verbucht.", z, zeile: { ...zeile, ergebnis: "schon verbucht", unklar: "schon verbucht" } };
   if (!(zeile.betragCents > 0)) return { status: 409, ok: false, error: "Kein Geldeingang (Betrag ≤ 0).", z, zeile: { ...zeile, ergebnis: "kein Geldeingang", unklar: "kein Geldeingang" } };
+  // 09.10.2026: „kein Kundengeld" (match_status ignored, FIAON Banking: „Sonstiger Eingang") wird nie einem Kunden zugebucht.
+  if (z.match_status === "ignored") return { status: 409, ok: false, error: "Dieser Eingang ist als „kein Kundengeld“ gekennzeichnet — erst die Kennzeichnung zurücknehmen.", z, zeile: { ...zeile, ergebnis: "kein Kundengeld", unklar: "kein Kundengeld" } };
   if (String(z.note || "").startsWith("Airwallex: Geld ist UNTERWEGS")) {
     return { status: 409, ok: false, error: "Das Geld ist noch unterwegs — der Einleser bucht es, sobald es da ist.", z, zeile: { ...zeile, ergebnis: "Geld noch unterwegs", unklar: "Geld noch unterwegs" } };
   }
@@ -1770,6 +1772,7 @@ export async function nachholListe(opts: { seit?: string | null; ids?: number[];
     : await sqlPool`SELECT id FROM fiaon_bank_txns
                      WHERE NOT applied AND amount_cents > 0 AND booked_at >= ${seit}::date
                        AND COALESCE(note, '') NOT LIKE 'Airwallex: Geld ist UNTERWEGS%'
+                       AND COALESCE(match_status, '') <> 'ignored'
                      ORDER BY booked_at, id`) as any[];
   const aus: NachholZeile[] = [];
   for (const z of zeilen) {
@@ -1793,6 +1796,172 @@ export async function nachholZahl(seit = NACHHOLEN_SEIT_VORGABE): Promise<{ anza
     SELECT COUNT(*)::int AS n, COALESCE(SUM(amount_cents), 0)::bigint AS c
       FROM fiaon_bank_txns
      WHERE NOT applied AND amount_cents > 0 AND booked_at >= ${seit}::date
-       AND COALESCE(note, '') NOT LIKE 'Airwallex: Geld ist UNTERWEGS%'`.catch(() => [])) as any[];
+       AND COALESCE(note, '') NOT LIKE 'Airwallex: Geld ist UNTERWEGS%'
+       AND COALESCE(match_status, '') <> 'ignored'`.catch(() => [])) as any[];
   return { anzahl: Number(r?.n || 0), cents: Number(r?.c || 0) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZUBUCHEN AUF /chef/s/konto (09.10.2026)
+//
+// Justin: „Buche all die Zahlungen den Kunden zu … auf der Seite muss ebenso ein Knopf sein, dass wir auf
+// ‚zubuchen' klicken und dann aus ALLEN Kunden denjenigen auswählen können." Die Seite Geschäftskonto
+// (ChefKonto.tsx) zeigte offene Eingänge bisher nur an. Hier stehen die drei Lese-Bausteine für ihren Knopf
+// und die eine neue Kennzeichnung — gebucht wird weiter NUR über bankeingangBuchen / bankeingangZuordnen
+// (POST /admin/zahlungen/bankeingang-nachholen), kein zweiter Weg.
+//   · zubuchenSuche: Personen über ALLE Kunden — Name, E-Mail, Telefon, Bestell- oder Zahlungsreferenz.
+//   · zubuchenZiele: je Person die Bestellungen und Raten, die ein Eingang treffen kann.
+//   · bankeingangKeinKunde: „kein Kundengeld" (match_status ignored — FIAON Banking zeigt „Sonstiger Eingang"),
+//     z. B. 0,18 € Prüfbetrag von Google. Nur unverbuchte Eingänge, mit Vermerk, jederzeit zurücknehmbar.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ZubuchenPerson {
+  personId: number; name: string; email: string | null; telefon: string | null;
+  referenzen: string[]; letzte: string | null; gesperrt: boolean;
+}
+
+/** Personen zu einem Suchbegriff (mind. 2 Zeichen) — zusammengeführte Personen und Bestellungen bleiben draußen. */
+export async function zubuchenSuche(qRoh: unknown): Promise<ZubuchenPerson[]> {
+  const q = String(qRoh ?? "").trim().slice(0, 80);
+  if (q.length < 2) return [];
+  const like = `%${q}%`;
+  const code = q.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const codeLike = code.length >= 4 ? `%${code}%` : null;
+  const ziffern = q.replace(/\D/g, "");
+  const ziffernLike = ziffern.length >= 5 ? `%${ziffern}%` : null;
+  const zeilen = (await sqlPool`
+    SELECT a.person_id,
+           MAX(COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name,
+                        NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.company_name, a.contact_name, a.email)) AS name,
+           MAX(COALESCE(NULLIF(p.primary_email, ''), NULLIF(a.email, ''), a.contact_email)) AS email,
+           MAX(COALESCE(NULLIF(p.primary_phone, ''), a.phone)) AS telefon,
+           ARRAY_AGG(DISTINCT a.payment_reference) FILTER (WHERE a.payment_reference IS NOT NULL) AS referenzen,
+           MAX(a.created_at) AS letzte,
+           BOOL_OR(COALESCE(p.is_blocked, FALSE)) AS gesperrt
+      FROM fiaon_applications a
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE a.merged_into IS NULL AND a.person_id IS NOT NULL
+       AND (p.id IS NULL OR p.merged_into_person_id IS NULL)
+       AND (
+         a.first_name ILIKE ${like} OR a.last_name ILIKE ${like} OR (COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) ILIKE ${like}
+         OR (COALESCE(a.last_name, '') || ' ' || COALESCE(a.first_name, '')) ILIKE ${like}
+         OR a.company_name ILIKE ${like} OR a.contact_name ILIKE ${like} OR a.email ILIKE ${like} OR a.contact_email ILIKE ${like}
+         OR p.primary_email ILIKE ${like} OR (COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) ILIKE ${like}
+         OR a.ref ILIKE ${like}
+         OR (${codeLike}::text IS NOT NULL AND UPPER(REGEXP_REPLACE(COALESCE(a.payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) LIKE ${codeLike})
+         OR (${ziffernLike}::text IS NOT NULL AND REGEXP_REPLACE(COALESCE(a.phone_country_code, '') || COALESCE(a.phone, ''), '\\D', '', 'g') LIKE ${ziffernLike})
+       )
+     GROUP BY a.person_id
+     ORDER BY MAX(a.created_at) DESC
+     LIMIT 25
+  `) as any[];
+  return zeilen.map((r) => ({
+    personId: Number(r.person_id),
+    name: String(r.name || `Person ${r.person_id}`),
+    email: r.email ? String(r.email) : null,
+    telefon: r.telefon ? String(r.telefon) : null,
+    referenzen: (Array.isArray(r.referenzen) ? r.referenzen : []).map(String).slice(0, 6),
+    letzte: r.letzte ? new Date(r.letzte).toISOString().slice(0, 10) : null,
+    gesperrt: !!r.gesperrt,
+  }));
+}
+
+export interface ZubuchenZiel {
+  art: "bestellung" | "rate";
+  /** Die Referenz, die als `ziel` an bankeingang-nachholen geht (Schreibweise der Datenbank). */
+  ziel: string;
+  bestellung: string;
+  titel: string;
+  sollCents: number | null;
+  status: string;
+  /** Was ein Klick tun würde: buchen (offen), zuordnen (schon bezahlt), storno (stornierte Rate — nur mit Haken), keins. */
+  aktion: "buchen" | "zuordnen" | "storno" | null;
+  faellig: string | null;
+  bezahlt: string | null;
+}
+
+/** Die Ziele einer Person: offene/ bezahlte Bestellungen und ihre Raten — für „Prüfen“ im Zubuchen-Dialog. */
+export async function zubuchenZiele(personIdRoh: unknown): Promise<{ person: ZubuchenPerson | null; ziele: ZubuchenZiel[] }> {
+  const personId = Number(personIdRoh);
+  if (!Number.isInteger(personId) || personId <= 0) return { person: null, ziele: [] };
+  const apps = (await sqlPool`
+    SELECT a.ref, a.payment_reference, a.pack_key, a.pack_name, a.amount_due, a.payment_status, a.status, a.created_at, a.paid_at,
+           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.company_name, a.contact_name, a.email) AS name,
+           COALESCE(NULLIF(a.email, ''), a.contact_email) AS email, a.phone
+      FROM fiaon_applications a
+     WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+     ORDER BY a.created_at DESC
+     LIMIT 25
+  `) as any[];
+  if (!apps.length) return { person: null, ziele: [] };
+  const refs = apps.map((a) => String(a.ref));
+  const raten = (await sqlPool`
+    SELECT r.ref, r.rate_nr, r.zahlungsreferenz, r.betrag_cents, r.faellig_am, r.status, r.bezahlt_am
+      FROM fiaon_abo_raten r
+     WHERE r.ref = ANY(${refs})
+     ORDER BY r.ref, r.rate_nr
+  `) as any[];
+  const ziele: ZubuchenZiel[] = [];
+  const tagVon = (x: unknown) => (x ? new Date(x as any).toISOString().slice(0, 10) : null);
+  for (const a of apps) {
+    if (!a.payment_reference) continue;
+    const paket = String(a.pack_name || a.pack_key || "Bestellung");
+    const zahlStatus = String(a.payment_status || a.status || "");
+    const bezahlt = zahlStatus === "paid";
+    const offen = ["pending_payment", "claimed_paid", "pending", "overdue"].includes(zahlStatus);
+    const eigeneRaten = raten.filter((r) => String(r.ref) === String(a.ref));
+    // Hat die Bestellung Raten, steht die Erstzahlung als Rate 1 — sie wird dort angeboten, nicht doppelt.
+    if (!eigeneRaten.length || !bezahlt) {
+      ziele.push({
+        art: "bestellung", ziel: String(a.payment_reference), bestellung: String(a.payment_reference),
+        titel: `${paket} · Erstzahlung`, sollCents: a.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null,
+        status: zahlStatus === "superseded" ? "ersetzt" : zahlStatus || "—",
+        aktion: offen ? "buchen" : bezahlt ? "zuordnen" : null,
+        faellig: null, bezahlt: tagVon(a.paid_at),
+      });
+    }
+    for (const r of eigeneRaten) {
+      const st = String(r.status || "");
+      ziele.push({
+        art: "rate", ziel: String(r.zahlungsreferenz), bestellung: String(a.payment_reference),
+        titel: `${paket} · Rate ${r.rate_nr}`, sollCents: Number(r.betrag_cents),
+        status: st, aktion: st === "bezahlt" ? "zuordnen" : st === "storniert" ? "storno" : ["offen", "faellig", "ueberfaellig"].includes(st) || !st ? "buchen" : null,
+        faellig: tagVon(r.faellig_am), bezahlt: tagVon(r.bezahlt_am),
+      });
+    }
+  }
+  const erste = apps[0];
+  const person: ZubuchenPerson = {
+    personId, name: String(erste.name || `Person ${personId}`), email: erste.email ? String(erste.email) : null,
+    telefon: erste.phone ? String(erste.phone) : null,
+    referenzen: apps.map((a) => a.payment_reference).filter(Boolean).map(String).slice(0, 6),
+    letzte: tagVon(erste.created_at), gesperrt: false,
+  };
+  return { person, ziele };
+}
+
+/** „Kein Kundengeld" setzen oder zurücknehmen — nur unverbuchte Eingänge, mit Vermerk. Bucht nichts. */
+export async function bankeingangKeinKunde(id: number, opts: { wer: string; grund?: string | null; zurueck?: boolean }): Promise<{ status: number; ok: boolean; error?: string; matchStatus?: string }> {
+  const [t] = (await sqlPool`SELECT id, applied, match_status FROM fiaon_bank_txns WHERE id = ${id} LIMIT 1`) as any[];
+  if (!t) return { status: 404, ok: false, error: "Diesen Bankeingang gibt es nicht." };
+  if (t.applied) return { status: 409, ok: false, error: "Dieser Eingang ist schon verbucht — „kein Kundengeld“ gilt nur für unverbuchte Eingänge." };
+  const wer = String(opts.wer || "Chefbüro").slice(0, 80);
+  const grund = opts.grund ? String(opts.grund).trim().slice(0, 160) : "";
+  if (!opts.zurueck) {
+    if (t.match_status === "ignored") return { status: 200, ok: true, matchStatus: "ignored" };
+    await sqlPool`
+      UPDATE fiaon_bank_txns
+         SET match_status = 'ignored', updated_at = NOW(),
+             note = CONCAT_WS(' · ', NULLIF(note, ''), ${`Kein Kundengeld (${wer}${grund ? `: ${grund}` : ""}) — wird keinem Kunden zugebucht.`}::text)
+       WHERE id = ${id} AND NOT applied`;
+    return { status: 200, ok: true, matchStatus: "ignored" };
+  }
+  if (t.match_status !== "ignored") return { status: 200, ok: true, matchStatus: String(t.match_status || "unmatched") };
+  const [n] = (await sqlPool`
+    UPDATE fiaon_bank_txns
+       SET match_status = CASE WHEN matched_ref IS NOT NULL THEN 'matched' ELSE 'unmatched' END, updated_at = NOW(),
+           note = CONCAT_WS(' · ', NULLIF(note, ''), ${`„Kein Kundengeld“ zurückgenommen (${wer})`}::text)
+     WHERE id = ${id} AND NOT applied AND match_status = 'ignored'
+     RETURNING match_status`) as any[];
+  return { status: 200, ok: true, matchStatus: String(n?.match_status || "unmatched") };
 }

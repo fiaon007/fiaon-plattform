@@ -661,7 +661,7 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
   const ueberzahlungBisCents = Math.max(0, Math.min(100, Math.floor(Number(req.body?.ueberzahlungBisCents) || 0)));
   const ziel = typeof req.body?.ziel === "string" && req.body.ziel.trim() ? String(req.body.ziel).trim().slice(0, 40) : null;
   const dazu = (Array.isArray(req.body?.dazu) ? req.body.dazu : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 3);
-  const modus = ["zuordnen", "aufgabe"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
+  const modus = ["zuordnen", "aufgabe", "kein_kunde", "kein_kunde_zurueck"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
   const stornoZuruecknehmen = req.body?.stornoZuruecknehmen === true;
   const verrechnungHeute = req.body?.verrechnungHeute === true;
   // Wer freigegeben hat — steht in den Vermerken („Justin 03.10.2026“); Vorgabe „Justin“.
@@ -671,6 +671,14 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
     const { bankeingangTrockenprobe, bankeingangBuchen } = nach;
     const chef = readChef(req);
     const wer = chef ? `Chef #${chef.agentId}` : "Admin-Code";
+    // 09.10.2026 (Zubuchen auf /chef/s/konto): „kein Kundengeld" — bucht nichts, kennzeichnet nur (match_status ignored).
+    if (modus === "kein_kunde" || modus === "kein_kunde_zurueck") {
+      if (trocken) return res.json({ ok: true, id, trocken, modus, wuerde: modus === "kein_kunde" ? "als „kein Kundengeld“ kennzeichnen — keine Buchung" : "Kennzeichnung zurücknehmen" });
+      const grund = typeof req.body?.grund === "string" ? req.body.grund : null;
+      const k = await nach.bankeingangKeinKunde(id, { wer, grund, zurueck: modus === "kein_kunde_zurueck" });
+      if (!k.ok) return res.status(k.status).json({ ok: false, id, trocken, modus, error: k.error });
+      return res.json({ ok: true, id, trocken, modus, matchStatus: k.matchStatus });
+    }
     if (modus !== "buchen") {
       const b = modus === "zuordnen"
         ? (trocken ? await nach.zuordnenPruefen(id, ziel) : await nach.bankeingangZuordnen(id, { ziel, wer, erwartet: req.body?.erwartet ?? null }))
@@ -692,6 +700,35 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
   } catch (e: any) {
     console.error("[BANK-NACHHOLEN]", e?.message || e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZUBUCHEN — Kunden und Ziele für den Knopf auf /chef/s/konto (09.10.2026)
+// Nur lesen. Liegt unter /admin/zahlungen → nur Admin-Code oder Chef-Stufe Geschäftsführung/Inhaber.
+//   GET /admin/zahlungen/zubuchen-suche?q=     → Personen über ALLE Kunden (Name, E-Mail, Telefon, Referenz)
+//   GET /admin/zahlungen/zubuchen-ziele?person= → deren Bestellungen und Raten mit der Aktion je Ziel
+// Gebucht wird danach über POST /admin/zahlungen/bankeingang-nachholen (der eine Weg).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/zahlungen/zubuchen-suche", async (req: Request, res: Response) => {
+  try {
+    const { zubuchenSuche } = await import("../lib/fiaon-bank-nachholen");
+    res.json({ ok: true, personen: await zubuchenSuche(req.query?.q) });
+  } catch (e: any) {
+    console.error("[ZUBUCHEN] suche:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Die Suche hat nicht geklappt." });
+  }
+});
+
+router.get("/admin/zahlungen/zubuchen-ziele", async (req: Request, res: Response) => {
+  try {
+    const { zubuchenZiele } = await import("../lib/fiaon-bank-nachholen");
+    const erg = await zubuchenZiele(req.query?.person);
+    if (!erg.person) return res.status(404).json({ ok: false, error: "Zu dieser Person gibt es keine Bestellung." });
+    res.json({ ok: true, ...erg });
+  } catch (e: any) {
+    console.error("[ZUBUCHEN] ziele:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Die Ziele ließen sich nicht laden." });
   }
 });
 

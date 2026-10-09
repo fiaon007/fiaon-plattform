@@ -109,3 +109,167 @@
   .kt-zweck { max-width: 200px; }
   .kt-kopf .kt-knopf { margin-left: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   09.10.2026 — DER GLÄSERNE GRUND (nur Geschäftskonto, Marke .kt-konto)
+   Justin: „im gesamten Hintergrund ein Hintergrund, der gläsern ist — der geht von Dunkelblau ins Hellblau,
+   langsam smooth animiert". Eine feste Ebene hinter der Chef-Hülle (::before): ein großer Verlauf
+   #050d1f → #0b1c36 → FIAON-Blau → Hellblau, der in 48 s hin und zurück treibt (nur transform — der Browser
+   verschiebt eine fertige Fläche, er malt nichts neu). Darüber (::after) Lichtbänder wie auf Glas, eigener Takt.
+   Das Kristallbild der Hülle tritt auf dieser Seite zurück. Alle Texte stehen auf dunklem Glas — auch dort, wo
+   der Grund hellblau wird, bleibt Schrift lesbar. „Weniger Bewegung": der Grund steht still.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cb.cb-glas:has(.kt-konto) { isolation: isolate; background: #061024; }
+.cb.cb-glas:has(.kt-konto)::before,
+.cb.cb-glas:has(.kt-konto)::after { content: ""; position: fixed; z-index: -1; pointer-events: none; }
+.cb.cb-glas:has(.kt-konto)::before {
+  inset: -35%;
+  background:
+    radial-gradient(60% 50% at 78% 72%, rgba(140, 200, 255, .55), rgba(140, 200, 255, 0) 70%),
+    linear-gradient(128deg, #040b1a 0%, #0b1c36 24%, #12305f 42%, #1d4ed8 63%, #288dfa 78%, #9fd0ff 100%);
+  animation: kt-grund 48s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.cb.cb-glas:has(.kt-konto)::after {
+  inset: 0;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0) 28%, rgba(255, 255, 255, .07) 40%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(112deg, rgba(255, 255, 255, 0) 58%, rgba(200, 228, 255, .06) 66%, rgba(255, 255, 255, 0) 74%),
+    radial-gradient(70% 60% at 8% 4%, rgba(3, 8, 20, .62), rgba(3, 8, 20, 0) 70%);
+  animation: kt-licht 30s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes kt-grund {
+  0% { transform: translate3d(-14%, -12%, 0) rotate(-2deg); }
+  100% { transform: translate3d(12%, 10%, 0) rotate(4deg); }
+}
+@keyframes kt-licht {
+  0% { transform: translate3d(-6%, 0, 0); opacity: .7; }
+  100% { transform: translate3d(6%, -2%, 0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb.cb-glas:has(.kt-konto)::before, .cb.cb-glas:has(.kt-konto)::after { animation: none; }
+}
+
+/* Glasflächen: Kopf, Abrufstand, Kacheln, Blöcke, Meldung, Fuß */
+.kt-konto { --kt-glas: linear-gradient(160deg, rgba(14, 30, 62, .66), rgba(6, 14, 32, .74));
+  --kt-glas-kante: rgba(156, 203, 255, .2); --kt-linie: rgba(156, 203, 255, .12); gap: 16px; }
+.kt-konto :is(.kt-kopf, .kt-stand, .kt-kachel, .kt-block, .kt-meldung, .kt-fuss) {
+  background: var(--kt-glas);
+  border: 1px solid var(--kt-glas-kante);
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 22px 50px -32px rgba(0, 0, 0, .8);
+}
+.kt-konto .kt-kopf { padding: 18px 20px; border-radius: 18px; align-items: center; }
+.kt-konto .kt-kopf h1 { font-weight: 300; font-size: 26px; }
+.kt-konto .kt-stand { border-radius: 14px; }
+.kt-konto .kt-kachel { border-radius: 16px; padding: 16px 18px; }
+.kt-konto .kt-kachel.rot { border-color: rgba(248, 113, 113, .38); }
+.kt-konto .kt-block { padding: 18px 20px; border-radius: 18px; gap: 12px; }
+.kt-konto .kt-meldung { border-radius: 14px; color: #bfdbfe; }
+.kt-konto .kt-fuss { padding: 12px 16px; border-radius: 14px; }
+.kt-konto .kt-leer { padding: 60px 20px; }
+.kt-tab-rahmen { overflow-x: auto; margin: 0 -4px; }
+.kt-tab-rahmen .kt-tab { display: table; min-width: 640px; }
+.kt-konto .kt-tab tbody tr { transition: background .2s; }
+.kt-konto .kt-tab tbody tr:hover td { background: rgba(120, 170, 255, .06); }
+.kt-aktion { text-align: right; white-space: nowrap; }
+.kt-knopf.klein { padding: 7px 13px; border-radius: 8px; font-size: 12.5px;
+  background: linear-gradient(135deg, #1d4ed8, #288dfa); box-shadow: 0 8px 18px -10px rgba(40, 141, 250, .8); }
+.kt-knopf.klein:hover { filter: brightness(1.08); }
+.kt-textknopf { margin-left: 6px; padding: 2px 0; border: 0; background: none; cursor: pointer;
+  font: 500 12px/1.4 'Inter', sans-serif; color: #93c5fd; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(147, 197, 253, .4); }
+.kt-textknopf:disabled { opacity: .5; cursor: default; }
+.kt-knopf:focus-visible, .kt-textknopf:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ═══ ZUBUCHEN — die Lade (ChefKontoZubuchen.tsx) ═══════════════════════════ */
+.kz-huelle { position: fixed; inset: 0; z-index: 1200; display: flex; justify-content: flex-end;
+  background: rgba(2, 6, 16, .52); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: kz-ein .25s ease-out both; }
+.kz-lade { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased;
+  width: min(620px, 100%); height: 100%; overflow-y: auto; display: grid; align-content: start; gap: 16px;
+  padding: 22px 24px 40px; color: #e8eef8; font-size: 14px;
+  background: linear-gradient(170deg, rgba(18, 38, 78, .92), rgba(6, 14, 32, .96));
+  border-left: 1px solid rgba(156, 203, 255, .22);
+  box-shadow: -30px 0 80px -30px rgba(0, 0, 0, .9), inset 1px 0 0 rgba(255, 255, 255, .06);
+  animation: kz-lade .45s cubic-bezier(.2, .75, .2, 1) both; }
+@keyframes kz-ein { from { opacity: 0; } }
+@keyframes kz-lade { from { transform: translateX(40px); opacity: 0; } }
+.kz-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.kz-auge { font: 500 10.5px/1 'Inter', sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #93c5fd; }
+.kz-kopf h2 { margin: 8px 0 4px; font: 300 26px/1.15 'Inter', sans-serif; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.kz-kopf h2 small { font-size: 15px; color: #a9b8cd; font-weight: 300; }
+.kz-zu { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(156, 203, 255, .22); background: rgba(255, 255, 255, .05);
+  color: #e8eef8; font-size: 20px; line-height: 1; cursor: pointer; flex: none; }
+.kz-zu:hover { background: rgba(255, 255, 255, .1); }
+.kz-leise { margin: 0; color: #a3b3c9; font-size: 13px; line-height: 1.5; }
+.kz-warn { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+  background: rgba(245, 165, 36, .1); border: 1px solid rgba(245, 165, 36, .3); color: #fcd34d; }
+.kz-fehler { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; background: rgba(239, 68, 68, .12);
+  border: 1px solid rgba(248, 113, 113, .32); color: #fecaca; }
+.kz-teil { display: grid; gap: 10px; padding: 16px 18px; border-radius: 16px;
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(156, 203, 255, .14); }
+.kz-teil h3 { margin: 0; font: 500 11px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #93c5fd; }
+.kz-vorschlag { display: grid; gap: 8px; padding: 14px 16px; border-radius: 14px; background: rgba(40, 141, 250, .08); border: 1px solid rgba(96, 165, 250, .24); }
+.kz-vorschlag.unklar { background: rgba(255, 255, 255, .04); border-color: rgba(148, 163, 184, .2); }
+.kz-vorschlag p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+.kz-vorschlag-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.kz-vorschlag-kopf b { font: 400 16px/1.3 'Inter', sans-serif; }
+.kz-marke { font: 600 10px/1 'Inter', sans-serif; letter-spacing: .04em; text-transform: uppercase; padding: 5px 8px; border-radius: 99px;
+  background: rgba(255, 255, 255, .07); color: #cbd5e1; }
+.kz-marke.sicher { background: rgba(74, 222, 128, .14); color: #86efac; }
+.kz-marke.wahrscheinlich { background: rgba(96, 165, 250, .16); color: #bfdbfe; }
+.kz-marke.unklar { background: rgba(245, 165, 36, .14); color: #fcd34d; }
+.kz-hinweise { margin: 0; padding-left: 18px; font-size: 12.5px; color: #c7d2e3; line-height: 1.5; }
+.kz-knopf { justify-self: start; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(156, 203, 255, .26);
+  background: rgba(255, 255, 255, .06); color: #e8eef8; font: 500 13px/1.2 'Inter', sans-serif; cursor: pointer; transition: background .2s, filter .2s; }
+.kz-knopf:hover:not(:disabled) { background: rgba(255, 255, 255, .11); }
+.kz-knopf.haupt { border-color: transparent; background: linear-gradient(135deg, #1d4ed8, #288dfa); color: #fff;
+  box-shadow: 0 10px 22px -12px rgba(40, 141, 250, .9); }
+.kz-knopf.haupt:hover:not(:disabled) { filter: brightness(1.08); }
+.kz-knopf.still { background: transparent; }
+.kz-knopf.gross { justify-self: stretch; padding: 13px 16px; font-size: 14.5px; border-radius: 12px; }
+.kz-knopf:disabled { opacity: .45; cursor: default; }
+.kz-knopf:focus-visible, .kz-zu:focus-visible, .kz-link:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.kz-feld { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(156, 203, 255, .24);
+  background: rgba(2, 8, 20, .55); color: #fff; font: 400 14px/1 'Inter', sans-serif; box-sizing: border-box; }
+.kz-feld::placeholder { color: #7f8fa8; }
+.kz-feld:focus { outline: none; border-color: rgba(120, 180, 255, .65); box-shadow: 0 0 0 3px rgba(40, 141, 250, .2); }
+.kz-personen { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
+.kz-personen button { width: 100%; display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; cursor: pointer;
+  border: 1px solid rgba(156, 203, 255, .14); background: rgba(255, 255, 255, .03); color: inherit; font: inherit; }
+.kz-personen button:hover, .kz-personen button:focus-visible { background: rgba(40, 141, 250, .1); border-color: rgba(96, 165, 250, .35); outline: none; }
+.kz-personen b { font: 500 14px/1.3 'Inter', sans-serif; }
+.kz-personen span { font-size: 12.5px; color: #a9b8cd; }
+.kz-personen em { font-style: normal; font-size: 11.5px; color: #7f95b5; font-variant-numeric: tabular-nums; }
+.kz-person { display: grid; gap: 10px; }
+.kz-person-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.kz-person-kopf div { display: grid; gap: 2px; }
+.kz-person-kopf b { font: 400 16px/1.3 'Inter', sans-serif; }
+.kz-person-kopf span { font-size: 12.5px; color: #a9b8cd; }
+.kz-ziele { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.kz-ziele th { text-align: left; padding: 6px 8px; font: 600 10px/1 'Inter', sans-serif; letter-spacing: .07em; text-transform: uppercase; color: #8fa3bf;
+  border-bottom: 1px solid rgba(156, 203, 255, .12); }
+.kz-ziele td { padding: 8px; border-bottom: 1px solid rgba(156, 203, 255, .08); vertical-align: middle; }
+.kz-ziele td:last-child { text-align: right; white-space: nowrap; }
+.kz-ziele tr.an td { background: rgba(40, 141, 250, .1); }
+.kz-ref { font-variant-numeric: tabular-nums; color: #bfdbfe; white-space: nowrap; }
+.kz-zahl { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kz-ziele .kz-knopf { padding: 6px 10px; font-size: 12px; }
+.kz-ergebnis { border-color: rgba(96, 165, 250, .32); background: rgba(40, 141, 250, .06); }
+.kz-probe { margin: 0; display: grid; gap: 8px; }
+.kz-probe div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; }
+.kz-probe dt { font-size: 12px; color: #8fa3bf; }
+.kz-probe dd { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.kz-fuss { padding-top: 4px; }
+.kz-link { border: 0; background: none; padding: 0; cursor: pointer; font: 400 13px/1.4 'Inter', sans-serif; color: #93c5fd;
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(147, 197, 253, .4); }
+.kz-keinkunde { display: grid; gap: 10px; padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(148, 163, 184, .2); }
+.kz-keinkunde p { margin: 0; font-size: 13px; line-height: 1.5; }
+.kz-reihe { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .kz-lade { padding: 18px 16px 32px; }
+  .kz-probe div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .kz-ziele th:nth-child(3), .kz-ziele td:nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .kz-huelle, .kz-lade { animation: none; } }

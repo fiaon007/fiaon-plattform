@@ -14,9 +14,17 @@
 // ist zugeordnetes Geld — am 02.09. sahen 37 Zeilen ohne Haken nach
 // liegengebliebenem Geld aus, und 34 davon waren längst verbucht. Wer die
 // Rohzahl zeigt, erzeugt eine Sorge, die es nicht gibt.
+//
+// 09.10.2026 — ZUBUCHEN UND GLAS. Justin: „Buche all die Zahlungen den Kunden zu … auf der Seite muss ebenso ein
+// Knopf sein, dass wir auf ‚zubuchen' klicken und dann aus ALLEN Kunden denjenigen auswählen können. Und im
+// gesamten Hintergrund ein Hintergrund, der gläsern ist — der geht von Dunkelblau ins Hellblau, langsam smooth
+// animiert." Jede offene Zeile hat jetzt „Zubuchen“ (ChefKontoZubuchen.tsx — Vorschlag, Suche über alle Kunden,
+// Prüfen, Buchen über den einen Weg) und „kein Kundengeld“ lässt sich hier wieder zurücknehmen. Der Hintergrund
+// hängt an der Marke `kt-konto` (styles/chef-konto.css, nur diese Seite).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
+import ChefKontoZubuchen, { type ZubuchenEingang } from "@/components/admin/ChefKontoZubuchen";
 import "@/styles/chef-konto.css";
 
 const API = "/api/fiaon";
@@ -24,13 +32,13 @@ const API = "/api/fiaon";
 interface Zeile {
   id: number; txnId: string | null; am: string | null;
   betrag: string; waehrung: string; zahler: string | null; zweck: string;
-  referenz: string | null; gebucht: boolean; schwebend: boolean;
+  referenz: string | null; gebucht: boolean; schwebend: boolean; keinKunde?: boolean;
   betragPasst: boolean | null; vermerk: string | null;
 }
 interface Offen {
   id: number; txnId: string | null; am: string | null; betrag: string;
   zahler: string | null; zweck: string; erkannteReferenz: string | null;
-  antragStatus: string | null;
+  antragStatus: string | null; unterwegs?: boolean;
 }
 interface Konto {
   konfiguriert: boolean;
@@ -54,6 +62,8 @@ export default function ChefKonto() {
   const [holt, setHolt] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [tage, setTage] = useState(14);
+  const [zubuchen, setZubuchen] = useState<ZubuchenEingang | null>(null);
+  const [nimmtZurueck, setNimmtZurueck] = useState<number | null>(null);
 
   const laden = (t = tage) => {
     setLaedt(true);
@@ -82,14 +92,29 @@ export default function ChefKonto() {
     setHolt(false);
   };
 
-  if (laedt && !k) return <div className="kt-leer">Konto wird geladen …</div>;
-  if (!k) return <div className="kt-leer">{meldung || "Keine Daten."}</div>;
+  // „Kein Kundengeld“ zurücknehmen — derselbe Weg wie das Setzen (bucht nichts).
+  const keinKundeZurueck = async (id: number) => {
+    setNimmtZurueck(id); setMeldung(null);
+    try {
+      const r = await fetch(`${API}/admin/zahlungen/bankeingang-nachholen`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, trocken: false, modus: "kein_kunde_zurueck" }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setMeldung(j?.ok ? "Kennzeichnung „kein Kundengeld“ zurückgenommen — der Eingang ist wieder offen." : (j?.error || "Zurücknehmen hat nicht geklappt."));
+      laden();
+    } catch { setMeldung("Zurücknehmen hat nicht geklappt."); }
+    setNimmtZurueck(null);
+  };
+
+  if (laedt && !k) return <div className="kt kt-konto"><div className="kt-leer">Konto wird geladen …</div></div>;
+  if (!k) return <div className="kt kt-konto"><div className="kt-leer">{meldung || "Keine Daten."}</div></div>;
 
   const alt = k.letzterLauf ? (Date.now() - new Date(k.letzterLauf.wann).getTime()) / 3_600_000 : null;
   const veraltet = alt === null || alt > 6;
 
   return (
-    <div className="kt">
+    <div className="kt kt-konto">
       <header className="kt-kopf">
         <div>
           <h1>Geschäftskonto</h1>
@@ -145,25 +170,36 @@ export default function ChefKonto() {
         <section className="kt-block">
           <h2>Diese Zahlungen gehören noch zu niemandem</h2>
           <p className="kt-leise">
-            Zu diesen Eingängen findet sich keine bezahlte Bestellung. Sie brauchen eine Zuordnung von Hand
-            in der Zahlungszentrale.
+            Zu diesen Eingängen findet sich keine bezahlte Bestellung. Mit „Zubuchen“ siehst du den Vorschlag, suchst
+            den Kunden aus allen Kunden heraus, prüfst — und buchst. Gehört ein Eingang keinem Kunden, kennzeichnest du
+            ihn dort als „kein Kundengeld“.
           </p>
-          <table className="kt-tab">
-            <thead>
-              <tr><th>Datum</th><th>Betrag</th><th>Absender</th><th>Verwendungszweck</th><th>Stand</th></tr>
-            </thead>
-            <tbody>
-              {k.wirklichOffen.zeilen.map((z) => (
-                <tr key={z.id}>
-                  <td>{tag(z.am)}</td>
-                  <td className="kt-zahl">{z.betrag} €</td>
-                  <td>{z.zahler || "—"}</td>
-                  <td className="kt-zweck">{z.zweck || "—"}</td>
-                  <td>{z.erkannteReferenz ? `${z.erkannteReferenz}${z.antragStatus ? ` (${z.antragStatus})` : ""}` : "keine Referenz erkannt"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="kt-tab-rahmen">
+            <table className="kt-tab">
+              <thead>
+                <tr><th>Datum</th><th>Betrag</th><th>Absender</th><th>Verwendungszweck</th><th>Stand</th><th /></tr>
+              </thead>
+              <tbody>
+                {k.wirklichOffen.zeilen.map((z) => (
+                  <tr key={z.id}>
+                    <td>{tag(z.am)}</td>
+                    <td className="kt-zahl">{z.betrag} €</td>
+                    <td>{z.zahler || "—"}</td>
+                    <td className="kt-zweck">{z.zweck || "—"}</td>
+                    <td>
+                      {z.erkannteReferenz ? `${z.erkannteReferenz}${z.antragStatus ? ` (${z.antragStatus})` : ""}` : "keine Referenz erkannt"}
+                      {z.unterwegs && <> <span className="kt-marke warn">unterwegs</span></>}
+                    </td>
+                    <td className="kt-aktion">
+                      <button type="button" className="kt-knopf klein" onClick={() => setZubuchen({ id: z.id, am: z.am, betrag: z.betrag, zahler: z.zahler, zweck: z.zweck, unterwegs: z.unterwegs })}>
+                        Zubuchen
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
@@ -178,6 +214,7 @@ export default function ChefKonto() {
             >{t} Tage</button>
           ))}
         </div>
+        <div className="kt-tab-rahmen">
         <table className="kt-tab">
           <thead>
             <tr><th>Datum</th><th>Betrag</th><th>Absender</th><th>Verwendungszweck</th><th>Zuordnung</th></tr>
@@ -192,21 +229,39 @@ export default function ChefKonto() {
                 <td>
                   {z.schwebend ? <span className="kt-marke warn">unterwegs</span>
                     : z.gebucht ? <span className="kt-marke gut">gebucht</span>
+                    : z.keinKunde ? <span className="kt-marke leise">kein Kundengeld</span>
                     : z.referenz ? <span className="kt-marke leise">{z.referenz}</span>
                     : <span className="kt-marke leise">—</span>}
                   {z.betragPasst === false && <span className="kt-marke rot">Betrag weicht ab</span>}
+                  {!z.gebucht && !z.keinKunde && (
+                    <button type="button" className="kt-textknopf" onClick={() => setZubuchen({ id: z.id, am: z.am, betrag: z.betrag, zahler: z.zahler, zweck: z.zweck, unterwegs: z.schwebend })}>Zubuchen</button>
+                  )}
+                  {z.keinKunde && (
+                    <button type="button" className="kt-textknopf" disabled={nimmtZurueck === z.id} onClick={() => void keinKundeZurueck(z.id)}>
+                      {nimmtZurueck === z.id ? "…" : "zurücknehmen"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
         {k.liste.length === 0 && <p className="kt-leise">In diesem Zeitraum ist kein Geld eingegangen.</p>}
       </section>
 
       <p className="kt-fuss">
         Das Konto wird alle 30 Minuten von selbst abgerufen. „Jetzt abrufen“ holt die letzten drei Tage
-        sofort — nützlich, wenn ein Kunde gerade überwiesen hat und du nicht warten willst.
+        sofort — und dazu jeden Eingang, der noch als „unterwegs“ im Bankbuch steht, bis er gutgeschrieben ist.
       </p>
+
+      {zubuchen && (
+        <ChefKontoZubuchen
+          eingang={zubuchen}
+          onZu={() => setZubuchen(null)}
+          onFertig={(m) => { setZubuchen(null); setMeldung(m); laden(); }}
+        />
+      )}
     </div>
   );
 }

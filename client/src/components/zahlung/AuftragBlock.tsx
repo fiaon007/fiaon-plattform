@@ -126,59 +126,68 @@ export function AuftragWeiter({ a }: { a: ZahlungAuftragKontext }) {
   );
 }
 
-/** Die Gestaltung — nur innerhalb von .zahlung-business (Global-CI). */
+/** Die Gestaltung — FIAON-CI: Glasblau #288DFA (Licht) und #1D4ED8 (Tiefe), Navy-Text, milchiges Glas, dünne Schrift; KEIN Gold. */
 export const AUFTRAG_CSS = `
-.za-block{background:#fff;border:1px solid #e3e7ee;border-radius:16px;padding:22px 22px 20px;margin:0 0 20px;text-align:left}
-.za-block-auge{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8a6420;font-weight:600;margin:0 0 14px}
-.za-titel{font-family:'Newsreader',Georgia,serif;font-size:21px;color:#0c1a2e;margin:0 0 14px}
-.za-titel-klein{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6b7587;font-weight:600;margin:18px 0 8px}
+.za-block{background:#fff;border:1px solid #e3e9f3;border-radius:16px;padding:22px 22px 20px;margin:0 0 20px;text-align:left;
+  box-shadow:0 1px 2px rgba(29,78,216,.04),0 12px 32px -22px rgba(29,78,216,.28)}
+.za-block-auge{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#1D4ED8;font-weight:500;margin:0 0 14px}
+.za-titel{font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:21px;color:#0c1a2e;margin:0 0 14px}
+.za-titel-klein{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6b7587;font-weight:500;margin:18px 0 8px}
 .za-satz{font-size:14px;line-height:1.6;color:#3b4658;margin:14px 0 0}
-.za-urkunde{position:relative;border-radius:12px;background:linear-gradient(180deg,#fdfbf5,#f8f2e3);overflow:hidden;container-type:inline-size;
-  box-shadow:0 18px 40px -26px rgba(138,100,32,.55)}
-.za-urkunde::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.7) 50%,transparent 65%);
+/* Die Urkunde — milchiges FIAON-Glasblau mit Lichtkante, wie Apples Glas (Justin 04.10./09.10.: „unser Glasblau“) */
+.za-urkunde{position:relative;border-radius:14px;overflow:hidden;container-type:inline-size;
+  background:radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.95) 0%,rgba(236,244,255,.9) 45%,rgba(214,231,255,.85) 100%);
+  border:1px solid rgba(40,141,250,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(29,78,216,.06),0 18px 40px -24px rgba(29,78,216,.45),0 2px 6px rgba(29,78,216,.06)}
+.za-urkunde::before{content:"";position:absolute;inset:-40% -10% auto auto;width:70%;height:120%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(40,141,250,.18),transparent 70%)}
+.za-urkunde::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%);
   transform:translateX(-120%);animation:za-glanz 2.4s cubic-bezier(.22,1,.36,1) 2.6s 1 forwards}
 .za-rahmen{position:absolute;inset:0;width:100%;height:100%}
-.za-rahmen rect{fill:none;stroke:#b8892e;stroke-width:1.4;stroke-dasharray:1;stroke-dashoffset:1;animation:za-zeichnen 1.6s cubic-bezier(.22,1,.36,1) .1s forwards;vector-effect:non-scaling-stroke}
-.za-rahmen rect+rect{stroke:#d9b45a;stroke-width:.8;animation-delay:.35s}
+.za-rahmen rect{fill:none;stroke:#288DFA;stroke-opacity:.75;stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1;animation:za-zeichnen 1.6s cubic-bezier(.22,1,.36,1) .1s forwards;vector-effect:non-scaling-stroke}
+.za-rahmen rect+rect{stroke:#1D4ED8;stroke-opacity:.35;stroke-width:.8;animation-delay:.35s}
 .za-urkunde-innen{position:relative;padding:26px 28px 22px}
 .za-urkunde-kopf{display:flex;justify-content:space-between;align-items:center}
-.za-auge{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#8a6420;font-weight:600}
-.za-siegel{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;color:#fff;
-  background:linear-gradient(120deg,#9a6e1f,#d9b45a 45%,#f3e3b5 55%,#c99a3a 70%,#8a6420);box-shadow:0 6px 16px -6px rgba(138,100,32,.7);
+.za-auge{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#1D4ED8;font-weight:500}
+.za-siegel{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;color:#fff;position:relative;
+  background:linear-gradient(145deg,#5aa9ff 0%,#288DFA 40%,#1D4ED8 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 18px -6px rgba(29,78,216,.6);
   opacity:0;transform:scale(1.8) rotate(-18deg);animation:za-praegen .55s cubic-bezier(.2,1.4,.4,1) 2.3s forwards}
-.za-name{margin:18px 0 0;min-height:1.2em;font-family:'Newsreader',Georgia,serif;font-weight:400;font-size:min(40px,10cqw);line-height:1.15;letter-spacing:.01em;color:#12284a;overflow-wrap:anywhere}
-.za-cursor{display:inline-block;margin-left:2px;color:#b8892e;animation:za-blinken 1s steps(1) infinite}
+.za-name{margin:18px 0 0;min-height:1.2em;font-family:'Newsreader',Georgia,serif;font-weight:300;font-size:min(40px,10cqw);line-height:1.15;letter-spacing:.01em;color:#0b1c36;overflow-wrap:anywhere}
+.za-cursor{display:inline-block;margin-left:2px;color:#288DFA;animation:za-blinken 1s steps(1) infinite}
 .za-cursor.aus{animation:za-weg .4s ease .6s forwards}
-.za-zeile{margin:6px 0 0;font-size:12px;color:#6b7587;letter-spacing:.03em}
-.za-status{margin:16px 0 0;padding-top:12px;border-top:1px dashed rgba(184,137,46,.5);display:flex;align-items:center;gap:8px;font-size:12.5px;color:#3b4658}
-.za-punkt{width:8px;height:8px;border-radius:50%;background:#d9b45a;box-shadow:0 0 0 0 rgba(217,180,90,.6);animation:za-puls 2s ease-out infinite}
-.za-dokument{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #eef1f5;text-decoration:none;color:#0c1a2e}
-.za-dokument:hover .za-dok-pfeil{color:#12284a;transform:translateX(3px)}
-.za-dok-symbol{flex:0 0 40px;height:40px;border-radius:10px;display:grid;place-items:center;background:#f5f7fa;color:#12284a}
+.za-zeile{margin:6px 0 0;font-size:12px;color:#5b6b85;letter-spacing:.03em}
+.za-status{margin:16px 0 0;padding-top:12px;border-top:1px dashed rgba(40,141,250,.35);display:flex;align-items:center;gap:8px;font-size:12.5px;color:#3b4658}
+.za-punkt{width:8px;height:8px;border-radius:50%;background:#288DFA;box-shadow:0 0 0 0 rgba(40,141,250,.55);animation:za-puls 2s ease-out infinite}
+.za-dokument{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #eef2f8;text-decoration:none;color:#0c1a2e}
+.za-dokument:hover .za-dok-pfeil{color:#1D4ED8;transform:translateX(3px)}
+.za-dok-symbol{flex:0 0 40px;height:40px;border-radius:10px;display:grid;place-items:center;background:#eef3fe;color:#1D4ED8;box-shadow:inset 0 0 0 1px #d6e1fb}
 .za-dok-text{display:grid;gap:2px;min-width:0;flex:1}
-.za-dok-text b{font-size:14.5px;font-weight:600}
+.za-dok-text b{font-size:14.5px;font-weight:500}
 .za-dok-text span{font-size:12.5px;color:#6b7587;overflow-wrap:anywhere}
-.za-dok-pfeil{flex:0 0 auto;font-size:12.5px;color:#8a6420;font-weight:600;transition:transform .3s,color .3s;white-space:nowrap}
+.za-dok-pfeil{flex:0 0 auto;font-size:12.5px;color:#288DFA;font-weight:500;transition:transform .3s,color .3s;white-space:nowrap}
 .za-hinweis{margin:10px 0 0;font-size:12.5px;color:#6b7587}
 .za-schritte{list-style:none;margin:0;padding:0;display:grid;gap:14px}
 .za-schritte li{display:flex;gap:14px;align-items:flex-start}
-.za-nr{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#12284a;color:#fff;font-size:13px;font-weight:600}
-.za-schritte b{display:block;font-size:14.5px;color:#0c1a2e;font-weight:600}
+.za-nr{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:500;
+  background:linear-gradient(145deg,#288DFA,#1D4ED8);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 6px 14px -6px rgba(29,78,216,.55)}
+.za-schritte b{display:block;font-size:14.5px;color:#0c1a2e;font-weight:500}
 .za-schritte li>span>span{display:block;margin-top:2px;font-size:13.5px;line-height:1.55;color:#3b4658}
 .za-personen{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .za-personen li{display:flex;gap:12px;align-items:center}
-.za-bild img,.za-mono{width:56px;height:56px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:#f5f7fa;color:#12284a;font-family:Georgia,serif;font-size:20px;box-shadow:0 0 0 1px #e3e7ee}
+.za-bild img,.za-mono{width:56px;height:56px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:#eef3fe;color:#1D4ED8;font-family:Georgia,serif;font-size:20px;box-shadow:0 0 0 1px #d6e1fb}
 .za-person-text{display:grid;gap:1px;min-width:0}
-.za-person-text b{font-size:14.5px;color:#0c1a2e;font-weight:600}
+.za-person-text b{font-size:14.5px;color:#0c1a2e;font-weight:500}
 .za-person-text span{font-size:12px;color:#6b7587}
-.za-person-text a{font-size:13px;color:#12284a;text-decoration:none;overflow-wrap:anywhere}
+.za-person-text a{font-size:13px;color:#1D4ED8;text-decoration:none;overflow-wrap:anywhere}
 .za-person-text a:hover{text-decoration:underline}
 .za-pruef ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .za-pruef li{display:flex;gap:12px;align-items:flex-start;opacity:0;transform:translateY(6px);animation:za-auf .5s cubic-bezier(.22,1,.36,1) forwards}
-.za-haken{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#e8f5ee;color:#0f7a4a;margin-top:1px}
-.za-pruef li.offen .za-haken{background:#fbf3e2;color:#8a6420}
-.za-offen-punkt{width:8px;height:8px;border-radius:50%;background:#d9b45a;animation:za-puls 2s ease-out infinite}
-.za-pruef b{display:block;font-size:14px;color:#0c1a2e;font-weight:600}
+.za-haken{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;margin-top:1px;
+  background:linear-gradient(145deg,#288DFA,#1D4ED8);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.za-pruef li.offen .za-haken{background:#eef3fe;box-shadow:inset 0 0 0 1px #c8d6f5}
+.za-offen-punkt{width:8px;height:8px;border-radius:50%;background:#288DFA;animation:za-puls 2s ease-out infinite}
+.za-pruef b{display:block;font-size:14px;color:#0c1a2e;font-weight:500}
 .za-pruef li>span>span{display:block;font-size:12.5px;color:#6b7587;margin-top:1px}
 @keyframes za-auf{to{opacity:1;transform:none}}
 @keyframes za-zeichnen{to{stroke-dashoffset:0}}
@@ -186,7 +195,7 @@ export const AUFTRAG_CSS = `
 @keyframes za-glanz{to{transform:translateX(120%)}}
 @keyframes za-blinken{50%{opacity:0}}
 @keyframes za-weg{to{opacity:0}}
-@keyframes za-puls{0%{box-shadow:0 0 0 0 rgba(217,180,90,.6)}100%{box-shadow:0 0 0 10px rgba(217,180,90,0)}}
+@keyframes za-puls{0%{box-shadow:0 0 0 0 rgba(40,141,250,.55)}100%{box-shadow:0 0 0 10px rgba(40,141,250,0)}}
 @media (prefers-reduced-motion: reduce){
   .za-rahmen rect{animation:none;stroke-dashoffset:0}
   .za-siegel{animation:none;opacity:1;transform:none}

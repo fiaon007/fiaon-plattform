@@ -5,6 +5,12 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.10.2026 — E-316 Rechnung „Gründung US-Gesellschaft (LLC)“ (398 €, Bestandskunde)
+- **Was:** Katalogeintrag `llc_gruendung` (398 €, Einmalkauf, Art privat, nicht verkaufbar) mit eigenem Rechnungstext „Anmeldung beim
+  Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag“, „einmalig“.
+- **Warum:** Justin: Rechnung für die Gründung der LLC eines Bestandskunden (Begleitvertrag E-312, Ziffer 4), damit die LLC am Dienstag steht.
+- **Wo:** shared/fiaon-pakete.ts; pruef-pakete 359/0, Katalogpreis-Wand (lokal) grün.
+
 ## 08.10.2026 nachts — E-314 Einzelrechnung „GLOBAL LLC Package“ (Bestandskunde, 169,70 €)
 - **Was:** Neuer Katalogeintrag `llc_paket` (169,70 €, Einmalkauf, Art privat, nicht verkaufbar) mit eigenem Rechnungstext:
   „GLOBAL LLC Package — Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)“, Zeitraum „einmalig“. Rechnungen anderer

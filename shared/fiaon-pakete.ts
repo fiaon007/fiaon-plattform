@@ -123,6 +123,10 @@ export const PAKETE: Paket[] = [
   // Global-Paket startete nach der Zahlung den Global-Auftrag mit Kundenmail (globalNachZahlung). `eingestellt`: in keiner Auswahl.
   { key: "llc_paket",           label: "GLOBAL LLC Package",        preisCents:   16970, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Unterlagen-Paket für die Gründung Ihrer US-Gesellschaft (LLC)", zeitraum: "einmalig" } },
+  // E-316 (09.10.2026): die Gründungskosten derselben LLC (Begleitvertrag Ziffer 4, Selbstkosten): Anmeldung beim Bundesstaat
+  // (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — Justin: „398 € (das ist der teuerste Teil)“.
+  { key: "llc_gruendung",       label: "Gründung US-Gesellschaft (LLC)", preisCents: 39800, art: "privat", abo: false, eingestellt: true,
+    rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" } },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));

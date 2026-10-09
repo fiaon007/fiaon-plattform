@@ -441,13 +441,16 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
     auge: "FIAON Global · Ihr Auftrag",
     gesellschaft: name,
     gesellschaftZeile: name ? `Limited Liability Company · State of ${staat}` : "",
-    satz: `Diese Rechnung gehört zu Ihrem Individualangebot ${t.angebot_ref}${t.angenommen_am ? `, angenommen am ${tag(t.angenommen_am)}` : ""} — ${String(t.titel)}.`,
+    satz: bezahlt
+      ? `Ihre Zahlung ist eingegangen — vielen Dank. Individualangebot ${t.angebot_ref}, ${String(t.titel)}.`
+      : `Wir haben mit der Umsetzung Ihres Auftrags bereits begonnen — offen ist nur noch diese Rechnung (Individualangebot ${t.angebot_ref}, ${String(t.titel)}).`,
     pruefTitel: "Stand Ihres Auftrags",
     pruefungen: [
       { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
       ...(name ? [{ titel: "Name geprüft", text: `${name} ist im Register von ${staat} frei`, stand: "ok" as const }] : []),
       ...(pass ? [{ titel: "Reisepass erhalten und geprüft", text: `am ${tag(pass.created_at)} — liegt sicher in Ihrem Auftragsbereich`, stand: "ok" as const }] : []),
-      { titel: bezahlt ? "Zahlung eingegangen" : "Ihre Zahlung", text: bezahlt ? "vielen Dank" : "der letzte Schritt vor der Anmeldung", stand: bezahlt ? "ok" : "offen" },
+      ...(name && pass && !bezahlt ? [{ titel: "Anmeldung vorbereitet", text: "im Eilverfahren — wir reichen sie direkt nach Ihrer Zahlung ein", stand: "ok" as const }] : []),
+      { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : "heute überweisen — dann geht die Anmeldung raus", stand: bezahlt ? "ok" : "offen" },
     ],
     dokumenteTitel: "Ihre Unterlagen",
     // NUR die Rechnung: Vertrag (mit Prüfbericht) und Auftragsbereich (mit dem Reisepass im Dokumentenraum) sind über die öffentliche

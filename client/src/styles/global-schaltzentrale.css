@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   „DIE SCHALTZENTRALE“ — Ein Ansprechpartner statt acht (SternZentrale.tsx, 09.10.2026, E-323)
+   Die Bühne hat feste Entwurfsmaße und wird als Ganzes skaliert (--k): Leitungen und Karten liegen pixelgenau.
+   --t staucht die Zeiten, wenn der Schalter gedrückt wird (Selbstlauf 1, Schalter .55).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sn{--sn-e:cubic-bezier(.2,.75,.2,1);--sn-eio:cubic-bezier(.65,0,.35,1);--t:.55;display:grid;justify-items:center;gap:26px;width:100%;
+  font-family:var(--sans,'Inter',sans-serif);margin-top:8px}
+.sn.selbst{--t:1}
+.sn-flaeche{position:relative;width:100%;height:calc(var(--h) * var(--k,1))}
+.sn-buehne{position:absolute;left:50%;top:0;transform:translateX(-50%) scale(var(--k,1));transform-origin:50% 0}
+.sn-leitungen{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.sn-legende{margin-top:4px}
+.sn-legende .sn-zeichen{width:16px;height:16px}
+
+/* Zeichen: Haken (im Festpreis) zeichnet sich; offener Kreis (Antrag vorbereitet) */
+.sn-zeichen{display:block;width:20px;height:20px;overflow:visible}
+.sn-zeichen.fest circle{fill:#1d4ed8}
+.sn-zeichen.fest path{fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sn-zeichen.antrag circle{fill:#fff;stroke:#288dfa;stroke-width:1.6}
+.sn-symbol{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* „Sie“ (Desktop) */
+.sn-sie{position:absolute;display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:99px;transform:translate(-50%,-50%);white-space:nowrap;
+  background:#fff;border:1px solid var(--linie-2,#cdd5e0);box-shadow:0 10px 24px -16px rgba(18,40,74,.35);font:400 13.5px/1 var(--sans,'Inter',sans-serif);color:var(--tinte,#0c1a2e)}
+.sn-sie i{width:8px;height:8px;border-radius:50%;background:#1d4ed8;box-shadow:0 0 0 4px rgba(29,78,216,.12)}
+
+/* Text in Karte und Zeile: „Mit“ und „Ohne“ liegen in derselben Zelle und blenden über */
+.sn-karte-text{display:grid;min-width:0}
+.sn-karte-text > span{grid-area:1/1;display:grid;gap:3px;align-content:center;transition:opacity calc(.45s * var(--t)) ease}
+.sn-karte-text b{font:400 14.5px/1.25 var(--sans,'Inter',sans-serif);color:var(--tinte,#0c1a2e)}
+.sn-karte-text small{font:300 12px/1.35 var(--sans,'Inter',sans-serif);color:var(--leise,#5d6678)}
+.sn-karte-text .ohne-text{font:300 12.5px/1.35 var(--sans,'Inter',sans-serif);color:#5d6678}
+.sn.mit .ohne-text,.sn.ohne .mit-text{opacity:0;pointer-events:none}
+.sn-karte-zeichen{display:grid;place-items:center;transition:opacity calc(.4s * var(--t)),transform calc(.5s * var(--t)) var(--sn-e)}
+.sn.ohne .sn-karte-zeichen{opacity:0;transform:scale(.4)}
+
+/* ═══ Desktop: die Platine ═════════════════════════════════════════════════ */
+.sn-z .sn-raster{opacity:.9}
+.sn-z #snzPunkte circle{fill:rgba(29,78,216,.16)}
+.sn-z.ohne .sn-raster{opacity:.35;transition:opacity .5s}
+.sn-z .sn-ohne path{fill:none;stroke:#8a94a6;stroke-width:1.1;opacity:0;transition:opacity calc(.5s * var(--t))}
+.sn-z.ohne .sn-ohne path{opacity:.7}
+.sn-z .sn-zur-mitte{fill:none;stroke:#1d4ed8;stroke-width:1.6;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;
+  transition:stroke-dashoffset calc(.25s * var(--t)) ease}
+.sn-z.mit .sn-zur-mitte{stroke-dashoffset:0;transition:stroke-dashoffset calc(.5s * var(--t)) var(--sn-eio) calc(.15s * var(--t))}
+.sn-z .spur{fill:none;stroke:rgba(29,78,216,.1);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity calc(.4s * var(--t))}
+.sn-z.mit .spur{opacity:1;transition-delay:calc(.8s * var(--t))}
+.sn-z .leitung{fill:none;stroke:#1d4ed8;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;
+  transition:stroke-dashoffset calc(.25s * var(--t)) ease}
+.sn-z.mit .leitung{stroke-dashoffset:0;transition:stroke-dashoffset calc(.75s * var(--t)) var(--sn-eio) calc((.85s + var(--n) * .07s) * var(--t))}
+.sn-z .puls{fill:none;stroke:#288dfa;stroke-width:3.4;stroke-linecap:round;stroke-dasharray:.06 2;stroke-dashoffset:.06;opacity:0;
+  filter:drop-shadow(0 0 4px rgba(40,141,250,.9))}
+.sn-z.mit .puls{animation:sn-puls 6.4s linear calc(2.8s + var(--n) * .8s) infinite}
+@keyframes sn-puls{0%{stroke-dashoffset:.06;opacity:0}2%{opacity:1}13%{stroke-dashoffset:-1;opacity:1}15%,100%{stroke-dashoffset:-1;opacity:0}}
+.sn-z .anschluss{fill:#fff;stroke:#1d4ed8;stroke-width:1.6;transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform calc(.2s * var(--t))}
+.sn-z.mit .anschluss{transform:scale(1);transition:transform calc(.45s * var(--t)) cubic-bezier(.3,1.6,.5,1) calc((1.55s + var(--n) * .07s) * var(--t))}
+
+.sn-zentrale{position:absolute;display:grid;place-items:center;border-radius:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;
+  background:radial-gradient(circle at 34% 28%,#2c5297,#14305c 52%,#0b1c36);
+  box-shadow:0 28px 56px -20px rgba(11,28,54,.75),0 0 0 10px rgba(29,78,216,.06),0 0 0 22px rgba(29,78,216,.035),inset 0 1px 0 rgba(255,255,255,.28),inset 0 -8px 18px rgba(0,0,0,.25);
+  transition:opacity calc(.3s * var(--t)),transform calc(.3s * var(--t)) ease}
+.sn-z.mit .sn-zentrale{opacity:1;transform:translate(-50%,-50%) scale(1);transition:opacity calc(.5s * var(--t)) calc(.55s * var(--t)),transform calc(.7s * var(--t)) cubic-bezier(.3,1.45,.5,1) calc(.55s * var(--t))}
+.sn-zentrale svg{width:46px;height:46px;fill:none;stroke:#dbeafe;stroke-width:1.5;stroke-linecap:round}
+.sn-zentrale .halo{position:absolute;inset:-12px;border-radius:50%;
+  background:conic-gradient(from 0deg,rgba(40,141,250,0) 0deg,rgba(40,141,250,0) 250deg,rgba(40,141,250,.75) 330deg,rgba(40,141,250,0) 360deg);
+  -webkit-mask:radial-gradient(circle,transparent 63%,#000 64.5%,#000 67%,transparent 68.5%);mask:radial-gradient(circle,transparent 63%,#000 64.5%,#000 67%,transparent 68.5%)}
+.sn-z.mit .sn-zentrale .halo{animation:sn-drehen 7s linear infinite}
+@keyframes sn-drehen{to{transform:rotate(360deg)}}
+.sn-zentrale-name{position:absolute;transform:translateX(-50%);white-space:nowrap;font:400 14px/1 var(--sans,'Inter',sans-serif);color:var(--navy,#12284a);
+  letter-spacing:.01em;opacity:0;transition:opacity calc(.3s * var(--t))}
+.sn-z.mit .sn-zentrale-name{opacity:1;transition-delay:calc(.9s * var(--t))}
+
+.sn-z .sn-karte{position:absolute;display:grid;grid-template-columns:42px minmax(0,1fr) 22px;gap:14px;align-items:center;padding:0 16px 0 14px;border-radius:16px;
+  background:linear-gradient(180deg,#fff,#f8fafd);border:1px solid #e3e7ee;
+  box-shadow:0 16px 32px -22px rgba(18,40,74,.4),0 1px 2px rgba(18,40,74,.04);transition:transform calc(.8s * var(--t)) var(--sn-e),box-shadow .4s,border-color .4s}
+.sn-z.ohne .sn-karte{transform:translate(var(--sx),var(--sy)) rotate(var(--sr));box-shadow:0 8px 18px -14px rgba(18,40,74,.3);border-color:#e9ecf1}
+.sn-z.ohne.selbst .sn-karte{transition:none}
+.sn-z.mit .sn-karte{transition:transform calc(.8s * var(--t)) var(--sn-e) calc(var(--n) * .03s * var(--t)),box-shadow .4s,border-color .4s;
+  animation:sn-ankunft 1.3s var(--sn-e) calc((1.5s + var(--n) * .07s) * var(--t)) both}
+@keyframes sn-ankunft{0%,100%{border-color:#e3e7ee}28%{border-color:rgba(40,141,250,.55);box-shadow:0 0 0 4px rgba(40,141,250,.14),0 20px 36px -20px rgba(29,78,216,.5)}}
+.sn-karte-symbol{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#eef3fe;color:#1d4ed8;transition:background .4s,color .4s}
+.sn.ohne .sn-karte-symbol{background:#f1f3f6;color:#8a94a6}
+.sn-z.mit .sn-karte .sn-karte-zeichen{transition:opacity calc(.3s * var(--t)) calc((1.6s + var(--n) * .07s) * var(--t)),transform calc(.5s * var(--t)) cubic-bezier(.3,1.6,.5,1) calc((1.6s + var(--n) * .07s) * var(--t))}
+
+/* ═══ Handy (≤ 860 px): der Baum ═══════════════════════════════════════════
+   „Sie“ → Linie → Zentrale mit Namen → eine Leiste links (x = Mitte der Zentrale) mit einem Abzweig je Karte.
+   Leiste und Abzweige sind Pseudo-Elemente je Karte (::before senkrecht, ::after waagerecht) — sie passen sich jeder
+   Kartenhöhe an. „Ohne“: Leitungen weg, Karten leicht schief, Zentrale aus. */
+.sn-mobil{display:none}
+@media(max-width:860px){
+  .sn-z .sn-flaeche{display:none}
+  .sn-mobil{--m:30px;display:grid;justify-items:start;width:100%;max-width:520px;margin:0 auto}
+  .sn-m-sie{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;background:#fff;border:1px solid var(--linie-2,#cdd5e0);
+    font:400 13px/1 var(--sans,'Inter',sans-serif);color:var(--tinte,#0c1a2e);box-shadow:0 8px 20px -14px rgba(18,40,74,.35)}
+  .sn-m-sie i{width:8px;height:8px;border-radius:50%;background:#1d4ed8;box-shadow:0 0 0 4px rgba(29,78,216,.12)}
+  .sn-m-zu{width:1.6px;height:24px;margin-left:var(--m);background:#1d4ed8;transform-origin:top;transform:scaleY(0);transition:transform calc(.25s * var(--t))}
+  .sn-z.mit .sn-m-zu{transform:scaleY(1);transition:transform calc(.4s * var(--t)) var(--sn-eio) calc(.1s * var(--t))}
+  .sn-m-kopf{display:flex;align-items:center;gap:14px;margin-left:calc(var(--m) - 30px)}
+  .sn-m-kopf b{font:400 15px/1.2 var(--sans,'Inter',sans-serif);color:var(--navy,#12284a);opacity:0;transition:opacity calc(.3s * var(--t))}
+  .sn-z.mit .sn-m-kopf b{opacity:1;transition-delay:calc(.6s * var(--t))}
+  .sn-m-zentrale{position:relative;display:grid;place-items:center;width:60px;height:60px;border-radius:50%;flex:none;opacity:0;transform:scale(.6);
+    background:radial-gradient(circle at 34% 28%,#2c5297,#14305c 52%,#0b1c36);
+    box-shadow:0 16px 32px -14px rgba(11,28,54,.7),0 0 0 7px rgba(29,78,216,.06),inset 0 1px 0 rgba(255,255,255,.28);
+    transition:opacity calc(.3s * var(--t)),transform calc(.3s * var(--t))}
+  .sn-z.mit .sn-m-zentrale{opacity:1;transform:scale(1);transition:opacity calc(.4s * var(--t)) calc(.4s * var(--t)),transform calc(.6s * var(--t)) cubic-bezier(.3,1.45,.5,1) calc(.4s * var(--t))}
+  .sn-m-zentrale svg{width:30px;height:30px;fill:none;stroke:#dbeafe;stroke-width:1.6;stroke-linecap:round}
+  .sn-m-zentrale .halo{position:absolute;inset:-9px;border-radius:50%;
+    background:conic-gradient(from 0deg,rgba(40,141,250,0) 0deg,rgba(40,141,250,0) 250deg,rgba(40,141,250,.75) 330deg,rgba(40,141,250,0) 360deg);
+    -webkit-mask:radial-gradient(circle,transparent 62%,#000 64%,#000 67%,transparent 69%);mask:radial-gradient(circle,transparent 62%,#000 64%,#000 67%,transparent 69%)}
+  .sn-z.mit .sn-m-zentrale .halo{animation:sn-drehen 7s linear infinite}
+  .sn-m-liste{list-style:none;margin:10px 0 0;padding:0 0 0 calc(var(--m) + 22px);width:100%;display:grid;gap:10px}
+  .sn-z .sn-m-karte{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr) 22px;gap:12px;align-items:center;min-height:68px;padding:10px 14px 10px 12px;
+    border-radius:14px;background:linear-gradient(180deg,#fff,#f8fafd);border:1px solid #e3e7ee;box-shadow:0 12px 26px -20px rgba(18,40,74,.4);
+    transition:transform calc(.6s * var(--t)) var(--sn-e),box-shadow .4s,border-color .4s}
+  .sn-m-karte .sn-karte-symbol{width:38px;height:38px;border-radius:11px}
+  .sn-m-karte .sn-karte-symbol svg{width:18px;height:18px}
+  .sn-m-karte .sn-karte-text b{font-size:14px}
+  /* Leiste: von der Zentrale (bzw. der Karte darüber) bis zur Mitte dieser Karte; Abzweig waagerecht in die Karte. */
+  .sn-m-karte::before,.sn-m-karte::after{content:"";position:absolute;pointer-events:none;border-color:#1d4ed8;transition:transform calc(.25s * var(--t))}
+  .sn-m-karte::before{left:-23px;top:-10px;height:calc(50% + 10px);border-left:1.6px solid;transform-origin:top;transform:scaleY(0)}
+  .sn-m-karte:not(:last-child)::before{height:calc(100% + 10px)}
+  .sn-m-karte:last-child::before{height:calc(50% - 2px)}
+  .sn-m-karte::after{left:-23px;top:50%;width:22px;border-top:1.6px solid;transform-origin:left;transform:scaleX(0)}
+  .sn-m-karte:last-child::after{top:calc(50% - 12px);height:12px;border-left:1.6px solid;border-bottom-left-radius:12px;border-top:0;border-bottom:1.6px solid}
+  .sn-z.mit .sn-m-karte::before{transform:scaleY(1);transition:transform calc(.22s * var(--t)) linear calc((.75s + var(--n) * .16s) * var(--t))}
+  .sn-z.mit .sn-m-karte::after{transform:scale(1);transition:transform calc(.25s * var(--t)) var(--sn-e) calc((.9s + var(--n) * .16s) * var(--t))}
+  .sn-z.mit .sn-m-karte{animation:sn-ankunft 1.2s var(--sn-e) calc((1s + var(--n) * .16s) * var(--t)) both}
+  .sn-z.ohne .sn-m-karte{transform:translateX(var(--sx)) rotate(var(--sr))}
+  .sn-z.ohne.selbst .sn-m-karte{transition:none}
+  .sn-z.mit .sn-m-karte .sn-karte-zeichen{transition:opacity calc(.3s * var(--t)) calc((1.05s + var(--n) * .16s) * var(--t)),transform calc(.5s * var(--t)) cubic-bezier(.3,1.6,.5,1) calc((1.05s + var(--n) * .16s) * var(--t))}
+  .sn-legende{justify-content:flex-start;margin-top:4px}
+}
+@media(max-width:380px){.sn-mobil{--m:26px}.sn-m-liste{padding-left:calc(var(--m) + 18px)}.sn-m-karte::before,.sn-m-karte::after{left:-19px}.sn-m-karte::after{width:18px}}
+
+@media(prefers-reduced-motion:reduce){
+  .sn *,.sn *::before,.sn *::after{transition:none!important;animation:none!important}
+}

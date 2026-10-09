@@ -22,7 +22,7 @@ export const ruhigGewuenscht = () =>
 export function useEinmalSichtbar(ref: RefObject<Element | null>, schwelle = 0.35, rand = "0px 0px -10% 0px") {
   // 06.10.2026 (E-293): useLayoutEffect statt useEffect — der Startzustand data-an="0" steht vor dem ersten Bild.
   // Sonst folgen bei einer Grafik, die schon beim Laden im Bild liegt, Endzustand → Startzustand → Ablauf
-  // (GlobalStern macht es genauso). Kein Server-Rendering (main.tsx nutzt createRoot), also keine Warnung.
+  // (SternZentrale macht es genauso). Kein Server-Rendering (main.tsx nutzt createRoot), also keine Warnung.
   // Element statt HTMLElement, damit auch SVG-Refs (Rollen-Dreieck) ohne Umwandlung passen.
   useLayoutEffect(() => {
     const el = ref.current;

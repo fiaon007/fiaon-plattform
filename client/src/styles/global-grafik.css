@@ -375,46 +375,10 @@
 .fg-kopf.mitte{grid-template-columns:1fr;justify-items:center;text-align:center}
 .fg-kopf.mitte .fg-h2{margin-left:auto;margin-right:auto}
 .fg-kopf.mitte .fg-auge::after{content:"";width:24px;height:1px;background:currentColor;opacity:.6}
-.fg-stern{display:grid;justify-items:center;margin-top:28px}
+/* Schalter und Legende tragen seit 09.10.2026 die Schaltzentrale (SternZentrale.tsx, styles/global-stern-neu.css). */
 .fg-stern-schalter{display:inline-flex;gap:2px;padding:3px;border-radius:999px;border:1px solid var(--linie-2);background:#fff}
 .fg-stern-schalter button{border:0;background:none;padding:8px 16px;border-radius:999px;font:400 13px/1 var(--sans);color:var(--text);cursor:pointer}
 .fg-stern-schalter button[aria-pressed="true"]{background:var(--navy);color:#fff}
-.fg-stern-bild.d{position:relative;width:100%;max-width:800px;aspect-ratio:760/460;margin-top:10px}
-.fg-stern-bild.d>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.fg-stern-bild.m{display:none}
-.fg-stern svg *{vector-effect:non-scaling-stroke}
-.fg-stern .ebene-ohne path{fill:none;stroke:#9aa6b8;stroke-width:1}
-.fg-stern .ebene-mit path{fill:none;stroke:var(--navy);stroke-width:1.25}
-.fg-stern.zustand-mit .ebene-ohne{opacity:.12}
-.fg-stern .knoten{fill:#fff;stroke:var(--navy);stroke-width:1}
-.fg-stern .mitte{fill:var(--navy)}
-.fg-stern .mitte-g{transform-box:fill-box;transform-origin:50% 50%}
-.fg-stern .mitte-figur{fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round}
-.fg-stern .sie{fill:var(--blau)}
-.fg-stern-zeichen{flex:0 0 auto;fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
-.fg-stern-zeichen.fest{stroke:var(--navy)}
-.fg-stern-zeichen.antrag{stroke:var(--blau)}
-.fg-stern-label{position:absolute;transform:translate(14px,-50%);max-width:190px;font-size:13px;line-height:1.35;color:var(--tinte)}
-.fg-stern-label.links{transform:translate(calc(-100% - 14px),-50%);text-align:right}
-.fg-stern-label .mit-text{display:grid;grid-template-columns:auto auto;column-gap:7px;align-items:center;justify-content:start}
-.fg-stern-label.links .mit-text{justify-content:end;grid-template-columns:auto auto}
-.fg-stern-label.links .fg-stern-zeichen{grid-column:2;grid-row:1}
-.fg-stern-label.links .name{grid-column:1;grid-row:1}
-.fg-stern-label.links .umfang{grid-column:1}
-.fg-stern-label .umfang{grid-column:2;font-size:12px;color:var(--leise)}
-.fg-stern-label .ohne-text{display:block;font-size:12px;color:var(--leise);max-width:160px}
-/* 06.10.2026 (E-293): Beide Fassungen liegen in DERSELBEN Rasterzelle, getauscht wird nur die Deckkraft. Vorher wechselte
-   display — beim Selbstlauf standen alle acht Beschriftungen ≈ 0,5 s leer, und am Handy wuchsen die Chips um 10 px
-   (Trichter und Legende rutschten, CLS 0,019). Jetzt hat jede Stelle immer die Höhe des längeren Texts. Die verdeckte
-   Fassung ist visibility:hidden — aus dem Vorlesebaum und der Tab-Reihenfolge, aber im DOM (kein display:none). */
-.fg-stern-label,.fg-stern-chips li{display:grid;align-content:start}
-.fg-stern-label>.mit-text,.fg-stern-label>.ohne-text,.fg-stern-chips li>.mit-text,.fg-stern-chips li>.ohne-text{grid-area:1/1}
-.fg-stern-label.links>.ohne-text{justify-self:end}
-.fg-stern.zustand-mit .ohne-text,.fg-stern.zustand-ohne .mit-text{opacity:0;visibility:hidden}
-.fg-stern-sie{position:absolute;transform:translate(-50%,12px);font-size:13px;font-weight:500;color:var(--blau)}
-/* Papier unter der Beschriftung: Die Speichen zu „Banken“ und „US-CPA“ liefen mitten durch „Ihr Ansprechpartner“ (06.10.). */
-.fg-stern-mitte{position:absolute;z-index:1;transform:translateX(-50%);padding:2px 8px;border-radius:999px;background:var(--papier,#fff);font-size:13px;font-weight:500;color:var(--navy);white-space:nowrap}
-.fg-stern.zustand-ohne .fg-stern-mitte{opacity:.35}
 .fg-stern-legende{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;margin:6px 0 0;padding:0}
 .fg-stern-legende li{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)}
 .fg-stern-unter{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;margin-top:30px;padding-top:22px;border-top:1px solid var(--linie)}
@@ -431,19 +395,6 @@
 @media(max-width:900px){.fg-stern-unter{grid-template-columns:minmax(0,1fr);gap:16px}}
 @media(max-width:720px){
   .fg-stern-sek{padding:64px 0}
-  .fg-stern-bild.d{display:none}
-  .fg-stern-bild.m{display:grid;justify-items:center;width:100%;margin-top:16px}
-  .fg-stern-sie-m{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--blau)}
-  .fg-stern-sie-m i{width:8px;height:8px;border-radius:50%;background:var(--blau)}
-  .fg-stern-chips{list-style:none;margin:12px 0 0;padding:0;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .fg-stern-chips li{min-height:56px;padding:9px 11px;border:1px solid var(--linie);border-radius:10px;background:#fff;font-size:12.5px;line-height:1.3;color:var(--tinte)}
-  .fg-stern-chips .mit-text{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:center}
-  .fg-stern-chips .umfang{grid-column:2;font-size:11.5px;color:var(--leise)}
-  .fg-stern-chips .ohne-text{font-size:11.5px;color:var(--leise)}
-  .fg-stern-trichter{display:block;width:100%;height:auto;overflow:visible}
-  .fg-stern-trichter .speiche{stroke-width:1.25}
-  .fg-stern-mitte-m{margin-top:4px;font-size:13px;font-weight:500;color:var(--navy)}
-  .fg-stern.zustand-ohne .fg-stern-mitte-m{opacity:.35}
   .fg-stern-legende{justify-content:flex-start;margin-top:16px}
   .fg-stern-partner{font-size:16px}
   /* Umbrechen statt waagerecht aus dem Bild laufen (06.10.2026: am Handy sah die Reihe abgeschnitten aus). */
@@ -713,38 +664,6 @@
 .fg-weg-fall{transform-origin:50% 0}
 .fg-wegleiste[data-an="1"] .fg-weg-fall{animation:fg-b-fallen .3s var(--fg-ease) calc(1.45s + var(--i) * 60ms) backwards}
 
-/* ── Stern: acht Fäden ordnen sich zu einem ───────────────────────────────
-   Vorwärts (→ „Mit“): „Ohne“ blendet aus, Linie Sie → Mitte zeichnet sich, Mitte rastet ein, die Speichen
-   zeichnen sich je 60 ms versetzt, die Zeichen folgen je 80 ms. Selbstlauf (.lang) ≈ 1,4 s, Schalter ≈ 600 ms
-   (--k staucht Dauer und Verzug). Rückwärts (→ „Ohne“): Speichen ziehen sich zurück, dann kehren die Fäden. */
-.fg-stern{--k:.43}
-.fg-stern.lang{--k:1}
-.fg-stern .ebene-mit path{vector-effect:none;stroke-dasharray:1;stroke-dashoffset:0}
-.fg-stern .ebene-ohne{transition:opacity calc(var(--k) * 400ms) var(--fg-ease)}
-.fg-stern .zum-partner{transition:stroke-dashoffset calc(var(--k) * 400ms) var(--fg-ease-io) calc(var(--k) * 200ms)}
-.fg-stern .mitte-g{transition:transform calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms),opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms)}
-.fg-stern .speiche{transition:stroke-dashoffset calc(var(--k) * 450ms) var(--fg-ease-io) calc(var(--k) * (550ms + var(--i,0) * 60ms))}
-.fg-stern.zustand-ohne .ebene-ohne{transition:opacity .35s var(--fg-ease) .25s}
-.fg-stern.zustand-ohne .zum-partner{stroke-dashoffset:1;transition:stroke-dashoffset .25s var(--fg-ease-io) .2s}
-.fg-stern.zustand-ohne .mitte-g{opacity:.12;transform:scale(.8);transition:transform .25s var(--fg-ease) .2s,opacity .25s var(--fg-ease) .2s}
-.fg-stern.zustand-ohne .speiche{stroke-dashoffset:1;transition:stroke-dashoffset .3s var(--fg-ease-io) calc((7 - var(--i,0)) * 25ms)}
-/* Beschriftungen: überblenden in derselben Zelle (06.10.2026, E-293). Je Stelle laufen Aus- und Einblenden GLEICHZEITIG
-   mit derselben Kurve (Summe der Deckkraft immer 1, keine Stelle steht leer): → „Mit“ ab k·(250 ms + i·60 ms) über
-   k·300 ms, → „Ohne“ sofort über 250 ms. Die verdeckte Fassung wird erst nach dem Ausblenden visibility:hidden
-   (Verzug am visibility-Übergang), die neue sofort sichtbar. */
-.fg-stern .mit-text,.fg-stern .ohne-text{transition:opacity .25s var(--fg-ease),transform .25s var(--fg-ease),visibility 0s linear .25s}
-.fg-stern.zustand-mit .ohne-text{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),visibility 0s linear calc(var(--k) * (550ms + var(--i,0) * 60ms))}
-.fg-stern.zustand-mit .mit-text{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),transform calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * (250ms + var(--i,0) * 60ms)),visibility 0s}
-.fg-stern.zustand-ohne .mit-text{transform:translateY(3px)}
-.fg-stern.zustand-ohne .ohne-text{transition:opacity .25s var(--fg-ease),visibility 0s}
-/* Die Zeichen (Haken / offener Kreis) rasten 150 ms nach ihrer Beschriftung ein. */
-.fg-stern .mit-text .fg-stern-zeichen{transform-origin:50% 50%;transition:transform .2s var(--fg-ease)}
-.fg-stern.zustand-mit .mit-text .fg-stern-zeichen{transition:transform calc(var(--k) * 200ms + 100ms) var(--fg-ease) calc(var(--k) * (400ms + var(--i,0) * 60ms))}
-.fg-stern.zustand-ohne .mit-text .fg-stern-zeichen{transform:scale(.6)}
-.fg-stern.zustand-ohne .fg-stern-mitte,.fg-stern.zustand-ohne .fg-stern-mitte-m{opacity:.35}
-.fg-stern-mitte,.fg-stern-mitte-m{transition:opacity calc(var(--k) * 300ms) var(--fg-ease) calc(var(--k) * 450ms)}
-.fg-stern.zustand-ohne .fg-stern-mitte,.fg-stern.zustand-ohne .fg-stern-mitte-m{transition-delay:.2s}
-
 /* ── Beleg: der Streifen kommt aus dem Schlitz ─────────────────────────────
    clip-path von oben nach unten (1.100 ms); der Endwert ragt seitlich und unten über den Streifen hinaus, damit
    der Kontaktschatten nicht beschnitten bleibt. Zeilen je 60 ms, Haken zeichnen sich (200 ms), dann die Summe. */
@@ -812,15 +731,15 @@
 /* ── Weniger Bewegung: jeder Endzustand sofort ─────────────────────────── */
 @media(prefers-reduced-motion:reduce){
   .fg-schritt.zwei{animation:none!important}
-  .fg-weg-knoten>*,.fg-weg-punkt,.fg-stern .ebene-ohne,.fg-stern .ebene-mit,.fg-stern .mitte,.fg-fragen-rest,.fg-wisch-punkte i{transition:none!important}
+  .fg-weg-knoten>*,.fg-weg-punkt,.fg-fragen-rest,.fg-wisch-punkte i{transition:none!important}
   [data-an="1"] .fg-h2{animation:none}
-  .fg-weg-linie path,.fg-stern path,.fg-beleg-haken path,.gf-orte-karte path{stroke-dashoffset:0}
+  .fg-weg-linie path,.fg-beleg-haken path,.gf-orte-karte path{stroke-dashoffset:0}
   /* Scheibe B: alle Abläufe aus, jeder Endzustand sofort; Schalter, Paketwechsel und Klebeleiste ohne Übergang.
      Der Hook setzt hier nie data-an="0" — die Regeln unten sind die zweite Sicherung. */
-  .fg-wegleiste *,.fg-wegleiste *::before,.fg-weg-linie,.fg-stern *,.fg-beleg-rahmen *,.fg-jb-band-sek *,.fg-jb-band-sek *::after,
+  .fg-wegleiste *,.fg-wegleiste *::before,.fg-weg-linie,.fg-beleg-rahmen *,.fg-jb-band-sek *,.fg-jb-band-sek *::after,
   .fg-buergschaft *,.fg-buergschaft *::before,.fg-buergschaft *::after,.gf-drei-orte *,.fg-mobil-linie,.fg-mobil-linie i::after{animation:none!important;transition:none!important}
   .fg-weg-linie,.fg-beleg,.fg-jb-zeit .zwei::after{-webkit-clip-path:none!important;clip-path:none!important}
-  .fg-stern.zustand-mit .ebene-mit path,.fg-schaubild .pfeil,.gf-orte-karte .zug{stroke-dashoffset:0!important}
+  .fg-schaubild .pfeil,.gf-orte-karte .zug{stroke-dashoffset:0!important}
   .fg-plakette-buehne .fg-plakette{transform:none!important}
   .gf-orte-karte .puls{opacity:0!important}
   /* Scheibe C: Lichtstreifen stehen still. */

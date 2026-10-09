@@ -51,7 +51,7 @@ import { werbeEreignis } from "@/lib/werbung";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalTafel, { Haken, Pfeil, TAFEL_ETAPPE_AB, TAFEL_ZUERST, tafelEtappenBis } from "@/components/site/global/GlobalTafel";
 import WegLinie from "@/components/site/global/WegLinie";
-import GlobalStern from "@/components/site/global/GlobalStern";
+import SternZentrale from "@/components/site/global/SternZentrale";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
 import HeroAuftrag from "@/components/site/global/HeroAuftrag";
@@ -459,7 +459,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             <div className="fg-kopf mitte">
               <div><span className="fg-auge">{t.vsAuge}</span><h2 className="fg-h2">{t.vsH2}</h2></div>
             </div>
-            <GlobalStern knoten={t.sternKnoten} ohne={t.ohne} schalter={t.sternSchalter} mitte={t.sternMitte} sie={t.sternSie} legende={t.sternLegende}
+            {/* 09.10.2026 (E-323): „Die Schaltzentrale“ statt des Sterns — Justin wählte Vorschlag 1 von zwei. */}
+            <SternZentrale knoten={t.sternKnoten} ohne={t.ohne} schalter={t.sternSchalter} mitte={t.sternMitte} sie={t.sternSie} legende={t.sternLegende}
               label={t.sternLabel} inklusive={GLOBAL_INKLUSIVE[s]} begriffe={[begriff("registeredAgent"), begriff("operatingAgreement"), begriff("usCpa")]} />
             <div className="fg-stern-unter">
               <p className="fg-stern-partner">{GLOBAL_ROLLEN[s].partner}</p>

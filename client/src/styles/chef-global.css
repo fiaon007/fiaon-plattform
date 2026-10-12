@@ -134,3 +134,8 @@
 .cg-unterlagen-knopf { justify-self: start; cursor: pointer; }
 .cg-unterlagen-knopf.cg-laeuft { opacity: .7; cursor: progress; }
 @media (max-width: 640px) { .cg-unterlagen-liste li { grid-template-columns: 1fr; } }
+/* E-338: Sprung in den Global-Arbeitsraum — gut sichtbar über der Auftragsliste. */
+.cg-arbeitsraum { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 16px; padding: 12px 16px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(40,141,250,.28), rgba(29,78,216,.2)); border: 1px solid rgba(127,182,255,.45); color: #fff; text-decoration: none;
+  font: 500 13.5px/1.3 'Inter', sans-serif; box-shadow: 0 14px 30px rgba(29,78,216,.28); transition: transform .2s, box-shadow .2s; }
+.cg-arbeitsraum:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(29,78,216,.38); }

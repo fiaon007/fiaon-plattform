@@ -147,6 +147,8 @@ function AuftraegeListe() {
       {meldung && <div className="cm-meldung" role="status">{meldung}</div>}
 
       <section className="cz-block cg-kopf">
+        {/* E-338: Der Arbeitsraum je Firmenkunde (Tresor, Post, Anfragen, Kapital, Kundenportal-Vorschau). */}
+        <a className="cg-arbeitsraum" href="/chef/global">Zum Global-Arbeitsraum — Tresor, Post, Anfragen, Banken &amp; Kapital, Kundenportal-Vorschau →</a>
         <header>
           <h2>FIAON Global — die Aufträge</h2>
           <p>Jeder Auftrag, den ein Unternehmen auf /business/start unterschrieben hat. Mit dem Zahlungseingang startet er von selbst: Aufgabe „US-Struktur starten“ an die zuständige Person, danach die Startmail an den Kunden.</p>
@@ -223,6 +225,7 @@ function AuftraegeListe() {
                       {z.vertragUrl ? <a href={z.vertragUrl} target="_blank" rel="noreferrer">Vertrag (PDF)</a> : <span className="cm-wann">kein Vertrag</span>}
                       {z.rechnungUrl && <a href={z.rechnungUrl} target="_blank" rel="noreferrer">Rechnung{z.rechnungsnummer ? ` ${z.rechnungsnummer.replace(/^FIAON-INV-/, "")}` : ""} (PDF)</a>}
                       {z.zahlungsseite && z.status === "offen" && <a href={z.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite des Kunden</a>}
+                      <a href={`/chef/global?mandat=${encodeURIComponent(z.ref)}`}><b>Arbeitsraum &amp; Portal-Vorschau</b></a>
                     </div>
                   </td>
                   <td>

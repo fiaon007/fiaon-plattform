@@ -75,7 +75,9 @@ router.get("/chef/global/mandate/:ref", requireChef("leitung"), async (req, res)
     res.setHeader("Cache-Control", "private, no-store");
     const m = await globalMandatChefSicht(ref(req));
     if (!m) return res.status(404).json({ ok: false, error: "Diesen Auftrag gibt es nicht." });
-    res.json({ ok: true, mandat: m, kundenLink: globalKundenLink(ref(req)) });
+    // Der Vorschau-Link reist mit (zwei Stunden gültig) — der Knopf ist ein normaler Link, kein Fenster nach einer
+    // Serverabfrage (das blocken Safari und Chrome als Popup).
+    res.json({ ok: true, mandat: m, kundenLink: globalKundenLink(ref(req)), vorschauUrl: globalVorschauLink(ref(req)) });
   } catch (e) { fehler(res, "mandat", e); }
 });
 

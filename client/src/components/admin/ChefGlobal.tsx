@@ -167,7 +167,7 @@ export default function ChefGlobal() {
 type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
-  const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
+  const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
   const [reiter, setReiter] = useState<Reiter>("ueberblick");
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
   const [kopiert, setKopiert] = useState(false);
@@ -183,10 +183,6 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
     return j.ok;
   };
 
-  const vorschau = async () => {
-    const r2 = await fetch(`${API}/chef/global/mandate/${r}/vorschau`, { credentials: "include" }).then((x) => x.json()).catch(() => null);
-    if (r2?.url) window.open(r2.url, "_blank", "noopener");
-  };
   const kopieren = async () => {
     try { await navigator.clipboard.writeText(daten?.kundenLink ?? ""); setKopiert(true); setTimeout(() => setKopiert(false), 1800); } catch { /* egal */ }
   };
@@ -230,9 +226,9 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
           </div>
         </div>
         <div className="cgr-akte-tun">
-          <button type="button" className="cw-knopf cgr-haupt" onClick={vorschau} title="Öffnet das neue Portal genau so, wie der Kunde es sieht — nichts gilt als gelesen.">
+          <a className="cw-knopf cgr-haupt" href={daten?.vorschauUrl} target="_blank" rel="noopener" title="Öffnet das neue Portal genau so, wie der Kunde es sieht — nichts gilt als gelesen.">
             <Eye size={15} /> Kundenportal ansehen
-          </button>
+          </a>
           <button type="button" className="cw-knopf" onClick={kopieren} title="Der Link des Kunden (ein Jahr gültig, verlängert sich beim Besuch)">
             {kopiert ? <Check size={15} /> : <Copy size={15} />} {kopiert ? "Kopiert" : "Kunden-Link"}
           </button>

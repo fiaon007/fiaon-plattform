@@ -16,7 +16,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { mailHtml, mailText, type MailBaustein } from "../mail/geruest";
+import { mailHtml, mailText, absatzHtml, type MailBaustein } from "../mail/geruest";
+import { signaturHtml, maraKundendienst, type SignaturDaten } from "./fiaon-signatur";
 import type { NaechsterSchritt } from "@shared/fiaon-postmeister-typen";
 import { schreibweiseFuerAnzeige } from "@shared/fiaon-anrede";
 
@@ -44,6 +45,8 @@ interface Rahmenworte {
   grussFrau: (name: string) => string;
   knopf: Record<string, string>;
   abschied: string;
+  /** Maras Rolle auf ihrer Karte (E-340) — sichtbar eine KI (KI-VO Art. 50), in der Sprache der Mail. */
+  assistentin: string;
 }
 
 const RAHMEN: Record<string, Rahmenworte> = {
@@ -53,6 +56,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Guten Tag Frau ${n},`,
     knopf: { zahlung: "Rechnung ansehen und bezahlen", termin: "Termin wählen", startgespraech: "Startgespräch buchen", bereich: "Zu meinem Bereich", unterlagen: "Unterlagen hochladen", antrag: "Antrag starten", angebot: "Angebot ansehen", auskunft: "Bonitätsauskunft bestellen", weiter: "Weiter" }, // auskunft: E-240
     abschied: "Freundliche Grüße",
+    assistentin: "Digitale Assistentin",
   },
   en: {
     grussNeutral: (n) => `Dear${n ? ` ${n}` : " Sir or Madam"},`,
@@ -60,6 +64,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Dear Ms ${n},`,
     knopf: { zahlung: "View and pay invoice", termin: "Choose an appointment", startgespraech: "Book your first consultation", bereich: "Go to my account", unterlagen: "Upload documents", antrag: "Start application", angebot: "View offer", auskunft: "Order credit report", weiter: "Continue" },
     abschied: "Kind regards",
+    assistentin: "Digital Assistant",
   },
   fr: {
     grussNeutral: (n) => `Bonjour${n ? ` ${n}` : ""},`,
@@ -67,6 +72,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Bonjour Madame ${n},`,
     knopf: { zahlung: "Consulter et payer la facture", termin: "Choisir un rendez-vous", startgespraech: "Réserver le premier entretien", bereich: "Accéder à mon espace", unterlagen: "Envoyer les documents", antrag: "Commencer la demande", angebot: "Voir l'offre", weiter: "Continuer" },
     abschied: "Cordialement",
+    assistentin: "Assistante numérique",
   },
   es: {
     grussNeutral: (n) => `Buenos días${n ? ` ${n}` : ""},`,
@@ -74,6 +80,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Estimada Sra. ${n}:`,
     knopf: { zahlung: "Ver y pagar la factura", termin: "Elegir una cita", startgespraech: "Reservar la primera consulta", bereich: "Ir a mi área", unterlagen: "Subir documentos", antrag: "Iniciar la solicitud", angebot: "Ver la oferta", weiter: "Continuar" },
     abschied: "Un cordial saludo",
+    assistentin: "Asistente digital",
   },
   it: {
     grussNeutral: (n) => `Buongiorno${n ? ` ${n}` : ""},`,
@@ -81,6 +88,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Gentile Sig.ra ${n},`,
     knopf: { zahlung: "Vedi e paga la fattura", termin: "Scegli un appuntamento", startgespraech: "Prenota il primo colloquio", bereich: "Vai alla mia area", unterlagen: "Carica i documenti", antrag: "Avvia la richiesta", angebot: "Vedi l'offerta", weiter: "Continua" },
     abschied: "Cordiali saluti",
+    assistentin: "Assistente digitale",
   },
   nl: {
     grussNeutral: (n) => `Goedendag${n ? ` ${n}` : ""},`,
@@ -88,6 +96,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Geachte mevrouw ${n},`,
     knopf: { zahlung: "Factuur bekijken en betalen", termin: "Afspraak kiezen", startgespraech: "Eerste gesprek boeken", bereich: "Naar mijn omgeving", unterlagen: "Documenten uploaden", antrag: "Aanvraag starten", angebot: "Aanbod bekijken", weiter: "Verder" },
     abschied: "Met vriendelijke groet",
+    assistentin: "Digitale assistent",
   },
   pl: {
     grussNeutral: (n) => `Dzień dobry${n ? ` ${n}` : ""},`,
@@ -95,6 +104,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Szanowna Pani ${n},`,
     knopf: { zahlung: "Zobacz i opłać fakturę", termin: "Wybierz termin", startgespraech: "Umów pierwszą rozmowę", bereich: "Przejdź do mojego konta", unterlagen: "Prześlij dokumenty", antrag: "Rozpocznij wniosek", angebot: "Zobacz ofertę", weiter: "Dalej" },
     abschied: "Z poważaniem",
+    assistentin: "Asystentka cyfrowa",
   },
   ro: {
     grussNeutral: (n) => `Bună ziua${n ? ` ${n}` : ""},`,
@@ -102,6 +112,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Stimată doamnă ${n},`,
     knopf: { zahlung: "Vezi și plătește factura", termin: "Alege o programare", startgespraech: "Rezervă prima discuție", bereich: "Spre contul meu", unterlagen: "Încarcă documentele", antrag: "Începe cererea", angebot: "Vezi oferta", weiter: "Continuă" },
     abschied: "Cu stimă",
+    assistentin: "Asistentă digitală",
   },
   tr: {
     grussNeutral: (n) => `İyi günler${n ? ` ${n}` : ""},`,
@@ -109,6 +120,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Sayın ${n} Hanım,`,
     knopf: { zahlung: "Faturayı görüntüle ve öde", termin: "Randevu seç", startgespraech: "İlk görüşmeyi ayarla", bereich: "Hesabıma git", unterlagen: "Belge yükle", antrag: "Başvuruyu başlat", angebot: "Teklifi gör", weiter: "Devam" },
     abschied: "Saygılarımızla",
+    assistentin: "Dijital asistan",
   },
   bg: {
     grussNeutral: (n) => `Добър ден${n ? ` ${n}` : ""},`,
@@ -116,6 +128,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Уважаема госпожо ${n},`,
     knopf: { zahlung: "Вижте и платете фактурата", termin: "Изберете час", startgespraech: "Запишете първи разговор", bereich: "Към моя профил", unterlagen: "Качете документи", antrag: "Започнете заявка", angebot: "Вижте офертата", weiter: "Напред" },
     abschied: "С уважение",
+    assistentin: "Дигитална асистентка",
   },
   ru: {
     grussNeutral: (n) => `Добрый день${n ? ` ${n}` : ""},`,
@@ -123,6 +136,7 @@ const RAHMEN: Record<string, Rahmenworte> = {
     grussFrau: (n) => `Уважаемая госпожа ${n},`,
     knopf: { zahlung: "Посмотреть и оплатить счёт", termin: "Выбрать время", startgespraech: "Записаться на первую беседу", bereich: "В личный кабинет", unterlagen: "Загрузить документы", antrag: "Начать заявку", angebot: "Посмотреть предложение", weiter: "Далее" },
     abschied: "С уважением",
+    assistentin: "Цифровой ассистент",
   },
 };
 
@@ -294,6 +308,13 @@ export function antwortBauen(ein: {
     ? [w.abschied, unterschrift(ein.gruss)].filter(Boolean).join("\n")
     : ein.gruss;
 
+  // ── E-340 (12.10.2026): MARAS KARTE STATT DER TEXTUNTERSCHRIFT ───────────
+  // Justin: „eine sehr seriöse Signatur mit Profilbild an JEDER E-Mail“. Unterschreibt Mara (ihr Name steht als
+  // eigene Zeile im Gruß), ersetzt im HTML ihre Karte die Zeilen Name · Team · Adresse; die Abschiedsformel bleibt
+  // Text darüber, ein Nachsatz (Mara-Aktion: „… Antwort mit Stopp“) ein Absatz darunter. Die Textfassung behält die
+  // Unterschrift als Text. Ohne ihren Namen im Gruß (js@-Gruß, Teamgruß ohne Agentin) bleibt die Mail, wie sie war.
+  const karte = maraKarte(gruss, ein.agentName, w);
+
   const baustein: MailBaustein = {
     betreff: ein.betreff,
     preheader: absaetze[0]?.slice(0, 110) ?? "",
@@ -308,9 +329,10 @@ export function antwortBauen(ein: {
     // `unterschrift()` waren fertig — und wurden nie erreicht. Der alte Weg
     // vor dem Umbau verschickte reinen Text, MIT Gruß. Der Umbau auf HTML hat
     // den Mangel also erst erzeugt.
-    absaetze: [esc(ein.anrede), ...absaetze, esc(gruss)].filter((z) => String(z || "").trim()),
+    absaetze: [esc(ein.anrede), ...absaetze, esc(karte ? karte.abschied : gruss)].filter((z) => String(z || "").trim()),
     knopf: ein.schritt?.url ? { text: knopf(ein.schritt), url: ein.schritt.url } : undefined,
     persoenlich: true,
+    ...(karte ? { signatur: karteHtml(karte, esc) } : {}),
   };
 
   const html = mailHtml(baustein);
@@ -369,6 +391,37 @@ export function grussMitAgent(gruss: string, agentName: string): string {
     return [zeilen[0], agentName.trim(), zeilen[1].replace(/^(Ihr|Ihre)\s+/, ""), ...zeilen.slice(2)].join("\n");
   }
   return String(gruss || "");
+}
+
+/**
+ * E-340: Steht Maras Name als eigene Zeile im Gruß, wird daraus ihre Karte. Danach höchstens eine Teamzeile („FIAON
+ * Welcome-Team“) und eine Adresszeile („welcome@fiaon.com · fiaon.com“) — alles Weitere ist Nachsatz und bleibt
+ * Text (in fremdsprachigen Mails fehlt die Leerzeile vor dem Stopp-Satz, unterschrift() filtert sie heraus).
+ */
+function maraKarte(gruss: string, agentName: string | null | undefined, w: Rahmenworte): { abschied: string; karte: SignaturDaten; danach: string } | null {
+  const name = String(agentName ?? "").trim();
+  if (!name) return null;
+  const zeilen = String(gruss || "").split("\n");
+  const i = zeilen.findIndex((z) => z.trim() === name);
+  if (i < 0) return null;
+  let j = i + 1;
+  let team: string | null = null;
+  let email: string | null = null;
+  const naechste = () => String(zeilen[j] ?? "").trim();
+  if (naechste() && !naechste().includes("@") && naechste().length <= 40) { team = naechste(); j++; }
+  if (naechste().includes("@") && naechste().length <= 60) { email = naechste().match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/)?.[0] ?? null; j++; }
+  return {
+    abschied: zeilen.slice(0, i).join("\n").trim(),
+    karte: maraKundendienst({ name, rolle: w.assistentin, team, email }),
+    danach: zeilen.slice(j).join("\n").trim(),
+  };
+}
+
+/** Die Karte mit Abstand zum Knopf darunter; ein Nachsatz als Absatz im Hausstil. */
+function karteHtml(k: { karte: SignaturDaten; danach: string }, esc: (t: string) => string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:0 0 14px;">
+${signaturHtml(k.karte)}${k.danach ? `\n${absatzHtml(esc(k.danach), "18px 0 0")}` : ""}
+</td></tr></table>`;
 }
 
 function fremdsprachig(sprache: string | null | undefined): boolean {

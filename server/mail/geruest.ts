@@ -56,6 +56,13 @@ export interface MailBaustein {
   titel: string;
   /** Absätze. Jeder wird als eigener <p> gesetzt. Einfaches <b> ist erlaubt. */
   absaetze: string[];
+  /**
+   * Fertiges HTML direkt hinter den Absätzen — Maras Signaturkarte (E-340, 12.10.2026): Postmeister-Antworten und
+   * Mara-Aktion aus welcome@/support@ tragen statt der Textunterschrift die Karte aus server/lib/fiaon-signatur.ts.
+   * Nur HTML; die Textfassung baut der Aufrufer (dort bleibt die Unterschrift als Text). Ohne Angabe bleibt jede
+   * Mail Byte für Byte, wie sie war — Rechnungen, Mahnungen und Systemmails tragen keine Karte.
+   */
+  signatur?: string;
   /** Der eine Knopf. Fehlt er, ist es eine reine Mitteilung. */
   knopf?: { text: string; url: string };
   /** Zweiter, leiserer Knopf unter dem ersten. */
@@ -203,6 +210,14 @@ function kalenderWorte(b: MailBaustein): { satz: string; verweise: { text: strin
   return { satz, verweise };
 }
 
+/**
+ * Ein Absatz im Hausstil — Textfarbe doppelt gesetzt (inline + <font>) gegen Gmails Dunkelmodus. `rand` ist der
+ * CSS-Außenabstand; die Vorgabe ist der Absatz jeder Vorlage. Auch für Absätze um Maras Karte (E-340).
+ */
+export function absatzHtml(a: string, rand = "0 0 16px"): string {
+  return `<p class="fiaon-text" style="margin:${rand};font:400 16px/1.65 ${SCHRIFT};color:${TEXT} !important;"><font color="${TEXT}" style="color:${TEXT} !important;">${String(a).replace(/\n/g, "<br />")}</font></p>`;
+}
+
 /** Baut das vollständige HTML einer Vorlage (Platzhalter bleiben drin). */
 export function mailHtml(b: MailBaustein): string {
   const r = RAHMEN[b.sprache === "en" ? "en" : "de"];
@@ -212,8 +227,7 @@ export function mailHtml(b: MailBaustein): string {
   // ist die Gegenmaßnahme für Gmails Dunkelmodus, der inline-CSS-Farben
   // teilweise invertiert und dann hellen Text auf hellem Grund zeigt; ein
   // <font color> respektiert er verlässlicher. Beides zusammen: doppelt hält.
-  const absaetze = b.absaetze.map((a) =>
-    `<p class="fiaon-text" style="margin:0 0 16px;font:400 16px/1.65 ${SCHRIFT};color:${TEXT} !important;"><font color="${TEXT}" style="color:${TEXT} !important;">${String(a).replace(/\n/g, "<br />")}</font></p>`).join("\n            ");
+  const absaetze = b.absaetze.map((a) => absatzHtml(a)).join("\n            ");
 
   const marke = b.marke
     ? `<div style="display:inline-block;margin:0 0 14px;padding:6px 14px;border-radius:999px;background:${HIMMEL};font:600 12px/1 ${SCHRIFT};letter-spacing:.06em;text-transform:uppercase;color:${BLAU};">${b.marke}</div>` : "";
@@ -328,7 +342,7 @@ export function mailHtml(b: MailBaustein): string {
         <tr><td style="padding:34px 34px 26px;">
             ${marke}
             <h1 style="margin:0 0 18px;font:700 25px/1.3 ${SCHRIFT};color:${NAVY};letter-spacing:-.01em;">${b.titel}</h1>
-            ${absaetze}
+            ${absaetze}${b.signatur ? `\n            ${b.signatur}` : ""}
             ${leiste}
             ${daten}
             ${bild}

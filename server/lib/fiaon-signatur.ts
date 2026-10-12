@@ -29,6 +29,24 @@ export interface SignaturDaten {
   termin?: string | null;
   /** Link auf die Seite (mit UTM). */
   seite?: string | null;
+  // ── E-340 (12.10.2026): dieselbe Karte im Kundendienst (welcome@/support@). Alles optional — ohne Angabe bleibt
+  //    jede Radar-Karte Byte für Byte, wie sie war (Beleg: Prüfstand gegen die Fassung vor dem Umbau).
+  /** Die blaue Zeile unter der Rolle. Vorgabe „FIAON Global“; im Kundendienst das Team des Postfachs. */
+  marke?: string | null;
+  /** Postfach-Adresse vor dem Seitenlink (als mailto). */
+  email?: string | null;
+  /** Linktext der Seite. Vorgabe „fiaon.com/business“. */
+  seiteText?: string | null;
+  /**
+   * Die Zeile mit dem Punkt. Vorgabe bei Mara: „Antwortet meist in wenigen Minuten“; null = keine Zeile. Im
+   * Kundendienst bewusst ohne: dort lagen in 14 Tagen 111 Entwürfe neben 51 Sofort-Antworten (Messung 12.10.).
+   */
+  status?: string | null;
+  /**
+   * Weißer Kartengrund + <font color> an jeder Zeile — für Mails im Hausgerüst, das Gmails Dunkelmodus abfängt
+   * (dieselbe Doppelung wie geruest.ts). Der Punkt ist ein GIF auf Weiß; der Grund muss weiß bleiben.
+   */
+  hell?: boolean;
 }
 
 /** Die Signatur für Mara — sichtbar als digitale Assistentin. */
@@ -40,21 +58,37 @@ export function signaturHtml(s: SignaturDaten): string {
   const b = basis();
   const bild = `${b}/mail/signatur/${s.person === "mara" ? "mara" : "justin"}.png`;
   const seite = s.seite || `${b}/business`;
+  const hell = !!s.hell;
+  const farbig = (inhalt: string, farbe: string) => (hell ? `<font color="${farbe}" style="color:${farbe};">${inhalt}</font>` : inhalt);
   const zeile = (inhalt: string, farbe = "#4b5565", gewicht = 400) =>
-    `<div style="font:${gewicht} 12.5px/1.5 ${SCHRIFT};color:${farbe};">${inhalt}</div>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 0;border-collapse:collapse;">
+    `<div style="font:${gewicht} 12.5px/1.5 ${SCHRIFT};color:${farbe};">${farbig(inhalt, farbe)}</div>`;
+  const status = s.status === undefined ? (s.person === "mara" ? "Antwortet meist in wenigen Minuten" : null) : s.status;
+  const email = s.email ? `<a href="mailto:${esc(s.email)}" style="color:#1d4ed8;text-decoration:none;">${esc(s.email)}</a> · ` : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"${hell ? ` class="fiaon-karte" bgcolor="#ffffff"` : ""} style="margin:6px 0 0;border-collapse:collapse;${hell ? "background-color:#ffffff;" : ""}">
 <tr>
 <td style="vertical-align:top;padding:2px 16px 0 0;width:64px;"><img src="${esc(bild)}" width="64" height="64" alt="${esc(s.name)}" style="display:block;width:64px;height:64px;border:0;border-radius:32px;"></td>
 <td style="vertical-align:top;">
-<div style="font:600 15px/1.35 ${SCHRIFT};color:#0b1c36;">${esc(s.name)}</div>
+<div style="font:600 15px/1.35 ${SCHRIFT};color:#0b1c36;">${farbig(esc(s.name), "#0b1c36")}</div>
 ${zeile(esc(s.rolle))}
-${zeile("FIAON Global", "#1d4ed8", 500)}
+${zeile(esc(s.marke ?? "FIAON Global"), "#1d4ed8", 500)}
 <img src="${esc(`${b}/mail/signatur/linie.gif`)}" width="240" height="2" alt="" style="display:block;width:240px;height:2px;border:0;margin:9px 0 8px;">
-${s.person === "mara" ? zeile(`<img src="${esc(`${b}/mail/signatur/punkt.gif`)}" width="10" height="10" alt="" style="width:10px;height:10px;border:0;vertical-align:-1px;margin-right:7px;">Antwortet meist in wenigen Minuten`, "#12284a") : ""}
-${zeile(`${s.telefon ? `${esc(s.telefon)} · ` : ""}<a href="${esc(seite)}" style="color:#1d4ed8;text-decoration:none;">fiaon.com/business</a>${s.termin ? ` · <a href="${esc(s.termin)}" style="color:#1d4ed8;text-decoration:underline;">Gespräch buchen</a>` : ""}`)}
+${status ? zeile(`<img src="${esc(`${b}/mail/signatur/punkt.gif`)}" width="10" height="10" alt="" style="width:10px;height:10px;border:0;vertical-align:-1px;margin-right:7px;">${esc(status)}`, "#12284a") : ""}
+${zeile(`${s.telefon ? `${esc(s.telefon)} · ` : ""}${email}<a href="${esc(seite)}" style="color:#1d4ed8;text-decoration:none;">${esc(s.seiteText ?? "fiaon.com/business")}</a>${s.termin ? ` · <a href="${esc(s.termin)}" style="color:#1d4ed8;text-decoration:underline;">Gespräch buchen</a>` : ""}`)}
 </td>
 </tr>
 </table>`;
+}
+
+/**
+ * Maras Karte im Kundendienst (E-340, 12.10.2026): Postmeister-Antworten und Mara-Aktion aus welcome@/support@.
+ * Privatkunden sehen das Team ihres Postfachs und fiaon.com — nie „FIAON Global“ oder /business (E-272). Die
+ * Rolle bleibt sichtbar „Digitale Assistentin“ (KI-VO Art. 50), in der Sprache der Mail.
+ */
+export function maraKundendienst(ein: { name: string; rolle: string; team?: string | null; email?: string | null }): SignaturDaten {
+  return {
+    person: "mara", name: ein.name, rolle: ein.rolle, marke: ein.team || "FIAON",
+    email: ein.email ?? null, seite: "https://fiaon.com", seiteText: "fiaon.com", status: null, hell: true,
+  };
 }
 
 export function signaturText(s: SignaturDaten): string {

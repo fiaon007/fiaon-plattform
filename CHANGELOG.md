@@ -5,6 +5,17 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.10.2026 — E-340 Maras Signaturkarte an jeder Antwort aus welcome@ und support@
+- **Was:** Antworten, die Mara im Kundendienst unterschreibt (Postmeister automatisch, Freigabe in der Zentrale, Nachholen,
+  Mara-Aktion), tragen im HTML statt „Mara Lindner / FIAON Welcome-Team / welcome@…“ ihre Karte: rundes Porträt, Name,
+  „Digitale Assistentin“ (in der Sprache der Mail), Team des Postfachs, Lichtlinie, Adresse · fiaon.com. Die Textfassung behält
+  die Unterschrift als Text; der Stopp-Satz der Mara-Aktion steht unter der Karte. Kein „FIAON Global“, kein /business und kein
+  „Antwortet meist in wenigen Minuten“ (im Kundendienst warten viele Antworten als Entwurf). Weißer Kartengrund für Gmails Dunkelmodus.
+- **Warum:** Justin: „eine sehr seriöse Signatur mit Profilbild an JEDER E-Mail“ — die Radar-Mails hatten sie seit E-337, die
+  Kundendienst-Antworten noch nicht.
+- **Wo:** server/lib/fiaon-postmeister-antworttext.ts (antwortBauen), server/lib/fiaon-signatur.ts (maraKundendienst, optionale Felder),
+  server/mail/geruest.ts (Feld `signatur`); Rechnungen, Mahnungen und Systemmails bleiben Byte für Byte gleich (scripts/pruef-mara-signatur.ts).
+
 ## 09.10.2026 — E-322 Gründungskosten in zwei Hälften, Weiterleitung von ersetzten Rechnungen
 - **Was:** Katalogeintrag `llc_gruendung_halb` (199 €, Einmalkauf). Die Zahlungsseite einer halben Rechnung sagt „Wir kommen Ihnen entgegen:
   Heute ist nur die erste Hälfte fällig …“ (hellblauer Kasten) und verlinkt beide Rechnungen; die zweite heißt „gestundet“. Eine ersetzte

@@ -231,12 +231,19 @@ export default function BusinessAuftrag() {
                     ? <div className="ga-schritt"><p>{a.naechsterSchritt.text}</p>{a.naechsterSchritt.bis && <small>{t.schrittBis(tag(a.naechsterSchritt.bis))}</small>}</div>
                     : <p className="ga-leer">{t.schrittLeer}</p>}
                   {a.stichtag && <p className="ga-stichtag">{t.stichtag}: <b>{tag(a.stichtag)}</b></p>}
-                  {a.widerruf && (
+                  {/* 12.10.2026 (Justin, Fall Hildbrand): Hat der Kunde „sofort starten“ gewählt, steht hier seine Wahl —
+                      nicht die Widerrufsfrist (sie steht in seinem Vertrag, Anlage Widerrufsbelehrung). Ohne Sofortstart
+                      bleibt die Frist stehen, weil der Start an ihr hängt. */}
+                  {a.widerruf && (a.widerruf.sofortBeginn ? (
+                    <p className="ga-stichtag" data-fiaon="mein-auftrag-start-sofort">
+                      <b>{t.startSofort}</b><br />{a.status === "offen" ? t.startSofortOffen : t.startSofortLaeuft}
+                    </p>
+                  ) : (
                     <p className="ga-stichtag">
                       {t.widerrufBis}: <b>{tag(a.widerruf.fristEnde)}</b>
-                      {!a.widerruf.sofortBeginn && (a.status === "offen" || a.status === "bezahlt") && <><br />{t.startNachFrist(tag(a.widerruf.startAb))}</>}
+                      {(a.status === "offen" || a.status === "bezahlt") && <><br />{t.startNachFrist(tag(a.widerruf.startAb))}</>}
                     </p>
-                  )}
+                  ))}
                 </section>
 
                 {a.angebot && (

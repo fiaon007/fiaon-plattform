@@ -29,6 +29,10 @@ const de = {
   schrittLeer: "Im Moment ist nichts von Ihnen nötig. Ihr Ansprechpartner meldet sich, sobald der nächste Schritt ansteht.",
   stichtag: "Vereinbarter Stichtag für Gesellschaft und EIN",
   widerrufBis: "Ihr Widerrufsrecht als Verbraucher läuft bis",
+  // 12.10.2026 (Justin, Fall Hildbrand): Wer „sofort starten“ gewählt hat, sieht seine Wahl — nicht die Widerrufsfrist.
+  startSofort: "Start: sofort — so haben Sie es bei der Auftragserteilung gewählt.",
+  startSofortOffen: "Wir beginnen direkt nach Ihrer Zahlung.",
+  startSofortLaeuft: "Wir haben direkt nach Ihrer Zahlung begonnen.",
   startNachFrist: (tag: string) => `Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist — ab dem ${tag}.`,
 
   unterlagenTitel: "Unterlagen, die wir von Ihnen brauchen",
@@ -105,6 +109,9 @@ const en: typeof de = {
   schrittLeer: "Nothing is needed from you at the moment. Your contact will get in touch as soon as the next step is due.",
   stichtag: "Agreed date for company and EIN",
   widerrufBis: "Your right of withdrawal as a consumer runs until",
+  startSofort: "Start: immediately — as you chose when placing the order.",
+  startSofortOffen: "We start right after your payment.",
+  startSofortLaeuft: "We started right after your payment.",
   startNachFrist: (tag: string) => `As you requested, we start after the withdrawal period has expired — from ${tag}.`,
 
   unterlagenTitel: "Documents we need from you",

@@ -1504,8 +1504,9 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     titel: "Angeschrieben wird nur, wer Kapital braucht.",
     text: "Jede Firma trägt ein Kapitalsignal mit Stärke 1 bis 5 (Punkte in der Liste) — mit wörtlichem Beleg auf seiner Quelle. "
-      + "Automatisch schreibt Mara erst ab Stärke 3. Die erste Mail nennt einen echten Anlass, was wir tun, und stellt eine Frage — "
-      + "ohne Preis und ohne Betrag. Adressen wie support@, privacy@ oder Ticket-Systeme fallen vorher raus.",
+      + "Automatisch schreibt Mara erst ab Stärke 3 und nur an den Entscheider persönlich — nie an info@, office@ oder welcome@. "
+      + "Die erste Mail nennt einen echten Anlass, was wir tun, und stellt eine Frage, ohne Preis und ohne Betrag. "
+      + "Jede Mail trägt die Signaturkarte mit Porträt.",
     tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung — Mara hält Tageskontingent, Abmeldesatz und Sperrliste ein.",
   },
 ];

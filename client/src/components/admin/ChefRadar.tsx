@@ -17,6 +17,7 @@
 // liegen 20 bis 45 Sekunden. Die Arbeit macht server/lib/fiaon-radar.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { API, datum, seit, eur, zahl, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -34,8 +35,9 @@ type Zeile = {
   ort: string | null; kurz: string | null; passung: number | null; gruende: Grund[]; signale: string[]; email: string | null;
   ansprechpartner: string | null; status: RadarStatus; gescannt_am: string | null; mail_am: string | null; versendet_am: string | null;
   postfach: string | null; hat_scan: boolean; hat_mail: boolean; created_at: string;
-  signal?: { art?: string; beleg?: string; url?: string } | null; signal_staerke?: number | null; antwort_am?: string | null; antwort_art?: string | null;
+  signal?: { art?: string; label?: string; beleg?: string; url?: string } | null; signal_staerke?: number | null; antwort_am?: string | null; antwort_art?: string | null;
   lead_am?: string | null; termin_am?: string | null; kauf_am?: string | null; nachfass_stufe?: number | null; nachfass_faellig?: string | null; adresse_vorschlag?: string | null;
+  entscheider?: { name: string; rolle: string | null; email: string; anrede: string | null; quelle: string; weg: string } | null; entscheider_am?: string | null;
 };
 type TrichterTag = {
   tag: string; gefunden: number; angeschrieben: number; nachfass: number; unzustellbar: number; antworten: number;
@@ -151,7 +153,7 @@ export default function ChefRadar() {
     <div className="cr cr-glas">
       <Rundgang raum="firmen-radar" titel="Firmen-Radar" schritte={RUNDGAENGE.firmenRadar.schritte} />
 
-      <MaraKopf trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />
+      <MaraKopf trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} />
       {t.fehler && <Fehlermeldung text={t.fehler} erneut={t.neu} />}
       <TrichterTafel trichter={t.daten} />
 
@@ -166,8 +168,8 @@ export default function ChefRadar() {
       </nav>
 
       {haupt === "gespraeche" && <Gespraeche runde={runde} onFirma={firmaOeffnen} onGeaendert={neuLaden} />}
-      {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={() => setSuchen(true)} />}
-      {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />}
+      {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />}
+      {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} />}
       {haupt === "messung" && <Messung trichter={t.daten} />}
 
       {suchen && <SuchFenster onZu={() => setSuchen(false)} onLauf={(l) => { setLauf(l); setSuchen(false); wechseln("firmen"); }} />}
@@ -209,8 +211,8 @@ function Ring({ wert, ziel, label, unter }: { wert: number; ziel: number; label:
   );
 }
 
-function MaraKopf({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
-  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void; onSuchen: () => void; onWebsite: () => void;
+function MaraKopf({ trichter, uebersicht, onGeaendert }: {
+  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void;
 }) {
   const a = trichter?.automatik;
   const an = !!a && a.versand && a.nachfass;
@@ -242,7 +244,7 @@ function MaraKopf({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
       <div className="cr-held-text">
         <span className="cr-auge">Vertrieb · FIAON Global</span>
         <h1>Firmen-Radar</h1>
-        <p>Mara findet Firmen mit Kapitalbedarf, schreibt jeder persönlich, fasst nach, beantwortet jede Antwort und bringt das Gespräch bis zum Kauf.</p>
+        <p>Mara findet Firmen mit Kapitalbedarf, schreibt dem Entscheider persönlich und bleibt dran bis zum Kauf.</p>
         <div className="cr-held-tun">
           <button type="button" className="cr-glasknopf" disabled={!!arbeit} onClick={() => knopf("post", "/chef/radar/post-lauf", (e) => `Postfach geprüft: ${e.eingang ?? 0} neue Antworten, davon ${e.leads ?? 0} Leads.`)}>
             {arbeit === "post" ? "Prüft …" : "Postfach jetzt prüfen"}
@@ -250,8 +252,6 @@ function MaraKopf({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
           <button type="button" className="cr-glasknopf" disabled={!!arbeit || !an} title={an ? "" : "Erst Mara einschalten"} onClick={() => knopf("versand", "/chef/radar/versand-lauf", (e) => e.grund ? `Keine Runde: ${e.grund}.` : `Runde fertig: ${e.erste ?? 0} erste Mails, ${e.nachfass ?? 0} Nachfass-Mails.`)}>
             {arbeit === "versand" ? "Sendet …" : "Jetzt eine Runde senden"}
           </button>
-          <button type="button" className="cr-glasknopf leise" onClick={onSuchen}>Firmen suchen</button>
-          <button type="button" className="cr-glasknopf leise" onClick={onWebsite}>Website aufnehmen</button>
         </div>
       </div>
 
@@ -262,10 +262,10 @@ function MaraKopf({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
 
       <div className={`cr-mara${an ? " an" : ""}`}>
         <div className="cr-mara-kopf">
-          <span className="cr-mara-punkt" aria-hidden="true" />
+          <span className="cr-mara-bild" aria-hidden="true"><img src="/mail/signatur/mara.png" alt="" width={44} height={44} /><span className="cr-mara-punkt" /></span>
           <div>
             <b>Mara {an ? "verkauft" : "pausiert"}</b>
-            <span>{an ? `${zahl(h?.angeschrieben ?? 0)} von ${a?.jeTag ?? 0} Mails heute · ${zahl(h?.nachfass ?? 0)} nachgefasst` : "Antworten liest sie trotzdem rund um die Uhr."}</span>
+            <span>{an ? `${zahl(h?.angeschrieben ?? 0)} von ${a?.jeTag ?? 0} Mails heute · ${zahl(h?.nachfass ?? 0)} nachgefasst` : "Liest Antworten trotzdem rund um die Uhr."}</span>
           </div>
           <button type="button" role="switch" aria-checked={an} className="cr-kippe" disabled={!!arbeit || !a} onClick={() => (an ? void schalten(false) : setFrage(true))}>
             <i aria-hidden="true" />
@@ -279,8 +279,8 @@ function MaraKopf({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
         </dl>
         {frage && (
           <div className="cr-mara-frage">
-            <p>Mara schreibt und sendet ab jetzt selbst bis zu <b>{a?.jeTag ?? 0} erste Mails je Werktag</b> aus <b>{postfach}</b>, fasst zweimal nach und beantwortet Antworten. Aus js@ legt sie Antworten zur Freigabe bereit, statt sie selbst zu senden.</p>
-            <p className="cr-recht">Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung (DE § 7 Abs. 2 Nr. 2 UWG, AT § 174 TKG 2021, CH Art. 3 Abs. 1 lit. o UWG). Mara hält die Leitplanken: jede Mail einzeln geschrieben, Tageskontingent, Abmeldesatz, Sperrliste.</p>
+            <p>Bis zu <b>{a?.jeTag ?? 0} erste Mails je Werktag</b> aus <b>{postfach}</b>, nur an Entscheider, zweimal Nachfassen.</p>
+            <p className="cr-recht">Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine Einwilligung (§ 7 UWG, § 174 TKG, Art. 3 UWG CH).</p>
             <label className="cr-haken-zeile"><input type="checkbox" checked={verantwortet} onChange={(e) => setVerantwortet(e.target.checked)} /> Ich verantworte den automatischen Versand.</label>
             <div className="cr-fenster-zeile">
               <button type="button" className="cr-knopf" disabled={!verantwortet || !!arbeit} onClick={() => void schalten(true)}>{arbeit === "schalter" ? "Schaltet …" : "Mara einschalten"}</button>
@@ -356,7 +356,7 @@ function Gespraeche({ runde, onFirma, onGeaendert }: { runde: number; onFirma: (
             <button key={k} type="button" role="radio" aria-checked={nur === k} className={nur === k ? "an" : undefined} onClick={() => setNur(k)}>{l}</button>
           ))}
         </div>
-        <span className="cr-klein">Mara liest alle 10 Minuten nur die Radar-Fäden — Absagen kommen von selbst auf die Sperrliste, Rückläufer bekommen eine neue Adresse.</span>
+        <span className="cr-klein">Absagen und Rückläufer erledigt Mara selbst.</span>
       </div>
       {fehler && <Fehlermeldung text={fehler} erneut={neu} />}
       {laedt && !daten && <Geruest zeilen={4} />}
@@ -445,8 +445,8 @@ function PostKarte({ p, onFirma, onGeaendert }: { p: Post; onFirma: (id: number)
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTOMATIK — alle Schalter an einem Ort
 // ═══════════════════════════════════════════════════════════════════════════
-function AutomatikTafel({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite }: {
-  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void; onSuchen: () => void; onWebsite: () => void;
+function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
+  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void;
 }) {
   const a = trichter?.automatik;
   const [jeTag, setJeTag] = useState<string>("");
@@ -468,17 +468,17 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite
       <div className="cr-kacheln">
         <article className="cr-kachel">
           <header><b>Erste Mails</b><Kippe an={a.versand} aus={!!arbeit} onKlick={() => setzen("versand", { versand: !a.versand }, a.versand ? "Erste Mails pausiert." : "Erste Mails laufen.")} /></header>
-          <p>Mara wählt die Firmen mit dem stärksten Kapitalsignal, liest die Website, prüft die Lage der Firma und schreibt jede Mail einzeln. Werktags 8:30–17:30, gleichmäßig verteilt.</p>
+          <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. Werktags 8:30–17:30.</p>
           <div className="cr-kachel-feld">
             <label><span>Mails je Werktag</span><input className="cr-feld" type="number" min={0} max={RADAR_HOECHSTENS_JE_TAG} value={jeTag} onChange={(e) => setJeTag(e.target.value)} /></label>
             <label><span>Ab Passung</span><input className="cr-feld" type="number" min={0} max={100} value={abPassung} onChange={(e) => setAbPassung(e.target.value)} /></label>
             <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setzen("zahlen", { jeTag: Number(jeTag), abPassung: Number(abPassung) }, "Gespeichert.")}>Speichern</button>
           </div>
-          <span className="cr-klein">Höchstens {RADAR_HOECHSTENS_JE_TAG} je Postfach und Tag — darüber leidet die Zustellung.</span>
+          <span className="cr-klein">Höchstens {RADAR_HOECHSTENS_JE_TAG} je Postfach und Tag.</span>
         </article>
         <article className="cr-kachel">
           <header><b>Nachfassen</b><Kippe an={a.nachfass} aus={!!arbeit} onKlick={() => setzen("nachfass", { nachfass: !a.nachfass }, a.nachfass ? "Nachfassen pausiert." : "Nachfassen läuft.")} /></header>
-          <p>Zwei kurze Mails im selben Faden: nach {RADAR_NACHFASS_TAGE[0]} Tagen ein neuer Gedanke, {RADAR_NACHFASS_TAGE[1]} Tage später ein freundlicher Abschluss. Jede Antwort stoppt das Nachfassen sofort.</p>
+          <p>Tag {RADAR_NACHFASS_TAGE[0]} und Tag {RADAR_NACHFASS_TAGE[0] + RADAR_NACHFASS_TAGE[1]}, im selben Faden. Jede Antwort stoppt.</p>
         </article>
         <article className="cr-kachel">
           <header><b>Mara antwortet</b></header>
@@ -487,27 +487,41 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert, onSuchen, onWebsite
               <button key={k} type="button" role="radio" aria-checked={a.mara === k} className={a.mara === k ? "an" : undefined} disabled={!!arbeit} onClick={() => setzen("mara", { mara: k }, "Gespeichert.")}>{l}</button>
             ))}
           </div>
-          <p>Bei Interesse, Frage oder Terminwunsch schreibt Mara binnen Minuten zurück — mit zwei bis drei freien Gesprächszeiten und dem Buchungslink. {postfach === "js@fiaon.com" ? "Aus js@ sendet sie nie selbst: Ihre Antwort liegt unter „Gespräche“ zur Freigabe." : ""}</p>
+          <p>Antwortet in Minuten mit freien Gesprächszeiten.{postfach === "js@fiaon.com" ? " Aus js@ liegt ihre Antwort unter „Gespräche“ zur Freigabe." : ""}</p>
         </article>
         <article className="cr-kachel">
           <header><b>Suche</b><span className="cr-chip">läuft täglich</span></header>
-          <p>Der Tageslauf findet bis zu 50 neue Firmen am Tag (6–20 Uhr) — mit geprüfter Website, Impressum und einer Adresse, die einen Entscheider erreicht. Vorrat jetzt: <b>{zahl(trichter?.vorrat ?? 0)}</b> Firmen.</p>
-          <div className="cr-fenster-zeile">
-            <button type="button" className="cr-knopf hell" onClick={onSuchen}>Firmen suchen</button>
-            <button type="button" className="cr-knopf hell" onClick={onWebsite}>Website aufnehmen</button>
-          </div>
+          <p>Bis zu 50 neue Firmen am Tag, jede mit Kapitalsignal. Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
         </article>
         <article className="cr-kachel breit">
           <header><b>So klingt die erste Mail</b></header>
           <p className="cr-zitat">„{RADAR_KERNSATZ.was} {RADAR_KERNSATZ.vorteil}“</p>
-          <p className="cr-klein">Dazu ein geprüfter Anlass aus der Website der Firma und eine Frage, auf die man mit einer Zeile antworten kann. Kein Preis, kein Betrag, kein Rahmen in der ersten Mail — die Zahlen gehören ins Gespräch.</p>
+          <p className="cr-klein">Dazu ein echter Anlass und eine Frage. Kein Preis, kein Betrag in der ersten Mail.</p>
         </article>
         <article className="cr-kachel breit">
-          <header><b>Leitplanken</b></header>
-          <p className="cr-klein">Jede Mail einzeln geschrieben und gegen die Lage der Firma geprüft · Adress-Wand (kein support@, privacy@, Ticket-System, Platzhalter) · Sperrliste nach jeder Absage · Abmeldesatz und Impressum in jeder Mail · Absender {postfach} · Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung.</p>
+          <header><b>Signatur an jeder Mail</b></header>
+          <div className="cr-signatur-vorschau">
+            <SignaturVorschau bild="/mail/signatur/mara.png" name="Mara Lindner" rolle="Digitale Assistentin von Justin Schwarzott" punkt />
+            <SignaturVorschau bild="/mail/signatur/justin.png" name="Justin Schwarzott" rolle="Gründer" />
+          </div>
         </article>
       </div>
     </section>
+  );
+}
+
+function SignaturVorschau({ bild, name, rolle, punkt }: { bild: string; name: string; rolle: string; punkt?: boolean }) {
+  return (
+    <div className="cr-signatur">
+      <img src={bild} alt="" width={56} height={56} />
+      <div>
+        <b>{name}</b>
+        <span>{rolle}</span>
+        <span className="blau">FIAON Global</span>
+        <img className="linie" src="/mail/signatur/linie.gif" alt="" width={200} height={2} />
+        {punkt && <span className="punkt"><img src="/mail/signatur/punkt.gif" alt="" width={10} height={10} />Antwortet meist in wenigen Minuten</span>}
+      </div>
+    </div>
   );
 }
 
@@ -556,8 +570,8 @@ function Messung({ trichter }: { trichter: Trichter | null }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // FIRMEN — die Liste wie bisher (Reiter, Tabelle, Stapel)
 // ═══════════════════════════════════════════════════════════════════════════
-function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen }: {
-  runde: number; postfach: string; lauf: Lauf | null; setLauf: (l: Lauf | null) => void; onFirma: (id: number) => void; offen: number | null; onSuchen: () => void;
+function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen, onWebsite }: {
+  runde: number; postfach: string; lauf: Lauf | null; setLauf: (l: Lauf | null) => void; onFirma: (id: number) => void; offen: number | null; onSuchen: () => void; onWebsite: () => void;
 }) {
   const [gruppe, setGruppe] = useState("");
   const [bereichFilter, setBereichFilter] = useState("");
@@ -597,6 +611,10 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen 
 
   return (
     <section className="cr-firmen">
+      <div className="cr-zeile-kopf cr-firmen-tun">
+        <button type="button" className="cr-glasknopf" onClick={onSuchen}>Firmen suchen</button>
+        <button type="button" className="cr-glasknopf leise" onClick={onWebsite}>Website aufnehmen</button>
+      </div>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
       <div className="cr-reiter">
         <div className="cr-reiter-liste" role="tablist" aria-label="Stand">
@@ -647,7 +665,9 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen 
                   <td className="cr-leise-spalte"><SignalPunkte staerke={f.signal_staerke ?? null} titel={f.signal?.art ?? radarBereich(f.bereich)?.label ?? ""} /></td>
                   <td className="cr-leise-spalte">{[f.ort, f.land].filter(Boolean).join(", ")}</td>
                   <td className="cr-kontakt-spalte">
-                    {f.email ? <><span className="cr-mail" title={f.email}>{f.email}</span>{f.ansprechpartner && <span className="cr-ap" title={f.ansprechpartner}>{f.ansprechpartner}</span>}</> : <span className="cr-ohne">E-Mail fehlt</span>}
+                    {f.entscheider
+                      ? <><span className="cr-mail persoenlich" title={f.entscheider.email}>{f.entscheider.name}</span><span className="cr-ap" title={f.entscheider.email}>{f.entscheider.email}</span></>
+                      : f.email ? <><span className="cr-mail sammel" title={f.email}>{f.email}</span><span className="cr-ap">{f.entscheider_am ? "kein Entscheider gefunden" : "Entscheider noch nicht gesucht"}</span></> : <span className="cr-ohne">E-Mail fehlt</span>}
                   </td>
                   <td><Stand s={f.status} /></td>
                 </tr>
@@ -737,13 +757,16 @@ function Fenster({ titel, onZu, children }: { titel: string; onZu: () => void; c
     window.addEventListener("keydown", t);
     return () => window.removeEventListener("keydown", t);
   }, [onZu]);
-  return (
-    <div className="cr-schatten" onClick={onZu}>
+  // E-337 (Justin: „das PopUp muss da aufgehen, wo man ist“): am <body> statt in der Seite — eine Glas- oder
+  // Bewegungsschicht der Chef-Hülle machte „position: fixed“ sonst relativ zur Seite, und das Fenster ging mitten im Inhalt auf.
+  return createPortal(
+    <div className="cr-schatten mitte" onClick={onZu}>
       <div className="cr-fenster" role="dialog" aria-modal="true" aria-label={titel} onClick={(e) => e.stopPropagation()}>
         <header><h2>{titel}</h2><button type="button" className="cr-zu" onClick={onZu} aria-label="Schließen">×</button></header>
         <div className="cr-fenster-rumpf">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -761,37 +784,36 @@ function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => 
       onLauf({ id: j.laufId, art: "suche", bereich, land: land || null, status: "laeuft", vorgeschlagen: 0, neu: 0, gesamt: 0, fertig: 0, aktuell: null, ergebnisse: [], verworfen: [], fehler: null, created_at: new Date().toISOString(), fertig_am: null });
     } catch (e: any) { setFehler(e.message); setLaeuft(false); }
   };
+  const gewaehlt = RADAR_SIGNALE.find((x) => x.key === signal);
   return (
     <Fenster titel="Firmen suchen" onZu={onZu}>
-      <p className="cr-klein">Die KI jagt ein Kapitalsignal, der Server prüft jede Firma: erreichbare Website, Firmenname auf der Seite, eine Adresse, die einen Entscheider erreicht, und das Signal wörtlich auf seiner Quelle. Ab Stärke {RADAR_SIGNAL_AB} schreibt Mara selbst.</p>
-      <div className="cr-bereiche" role="radiogroup" aria-label="Kapitalsignal">
+      <p className="cr-fenster-satz">Mara sucht zehn Firmen mit diesem Kapitalsignal und prüft jede.</p>
+      <div className="cr-chips" role="radiogroup" aria-label="Kapitalsignal">
         {RADAR_SIGNALE.map((x) => (
-          <button key={x.key} type="button" role="radio" aria-checked={signal === x.key} className={signal === x.key ? "an" : undefined} onClick={() => setSignal(x.key)}>
-            <b>{x.label} <SignalPunkte staerke={x.staerke} titel="" /></b><span>{x.suche}</span>
+          <button key={x.key} type="button" role="radio" aria-checked={signal === x.key} className={signal === x.key ? "an" : undefined} title={x.suche} onClick={() => setSignal(x.key)}>
+            {x.label}<SignalPunkte staerke={x.staerke} titel="" />
           </button>
         ))}
       </div>
-      <span className="cr-auge">Branche</span>
-      <div className="cr-bereiche" role="radiogroup" aria-label="Bereich">
-        {RADAR_BEREICHE.map((b) => (
-          <button key={b.key} type="button" role="radio" aria-checked={bereich === b.key} className={bereich === b.key ? "an" : undefined} onClick={() => setBereich(b.key)}>
-            <b>{b.label}</b><span>{b.satz}</span>
-          </button>
-        ))}
-      </div>
-      <div className="cr-fenster-zeile">
-        <div className="cr-segment" role="radiogroup" aria-label="Land">
-          {[["", "Alle"], ["DE", "DE"], ["AT", "AT"], ["CH", "CH"]].map(([k, l]) => (
-            <button key={k} type="button" role="radio" aria-checked={land === k} className={land === k ? "an" : undefined} onClick={() => setLand(k)}>{l}</button>
-          ))}
-        </div>
-        <input className="cr-feld" value={stichwort} onChange={(e) => setStichwort(e.target.value)} placeholder="Stichwort (optional): Messe in Las Vegas, Kosmetik, München …" maxLength={120} />
+      {gewaehlt && <p className="cr-klein cr-fenster-erklaerung">{gewaehlt.suche.split(" — ")[0]}.</p>}
+      <div className="cr-fenster-raster">
+        <label><span>Branche</span>
+          <select className="cr-feld" value={bereich} onChange={(e) => setBereich(e.target.value)}>
+            {RADAR_BEREICHE.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
+          </select>
+        </label>
+        <label><span>Land</span>
+          <div className="cr-segment" role="radiogroup" aria-label="Land">
+            {[["", "Alle"], ["DE", "DE"], ["AT", "AT"], ["CH", "CH"]].map(([k, l]) => (
+              <button key={k} type="button" role="radio" aria-checked={land === k} className={land === k ? "an" : undefined} onClick={() => setLand(k)}>{l}</button>
+            ))}
+          </div>
+        </label>
+        <label className="breit"><span>Stichwort (optional)</span>
+          <input className="cr-feld" value={stichwort} onChange={(e) => setStichwort(e.target.value)} placeholder="z. B. München, Kosmetik, Messe in Las Vegas" maxLength={120} />
+        </label>
       </div>
       {fehler && <p className="cr-hinweis fehler">{fehler}</p>}
-      <details className="cr-zielbild">
-        <summary>Wonach der Radar sucht</summary>
-        <ul>{RADAR_ZIELBILD.muss.map((x) => <li key={x}>✓ {x}</li>)}{RADAR_ZIELBILD.nie.map((x) => <li key={x} className="nie">✕ {x}</li>)}</ul>
-      </details>
       <div className="cr-fenster-tun">
         <button type="button" className="cr-knopf" onClick={starten} disabled={laeuft}>{laeuft ? "Startet …" : "10 Firmen suchen"}</button>
         <button type="button" className="cr-knopf hell" onClick={onZu}>Abbrechen</button>
@@ -812,7 +834,7 @@ function WebsiteFenster({ onZu, onFertig }: { onZu: () => void; onFertig: (id: n
   };
   return (
     <Fenster titel="Firma per Website aufnehmen" onZu={onZu}>
-      <p className="cr-klein">Adresse der Firma eintragen — der Radar liest Impressum und Kontaktseite und legt sie an.</p>
+      <p className="cr-fenster-satz">Website eintragen — Mara liest Impressum und Kontakt und legt die Firma an.</p>
       <div className="cr-fenster-zeile">
         <input className="cr-feld" value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="firma.de" maxLength={200} onKeyDown={(e) => { if (e.key === "Enter" && adresse.trim()) void aufnehmen(); }} />
         <select className="cr-feld" value={bereich} onChange={(e) => setBereich(e.target.value)} aria-label="Bereich">
@@ -883,7 +905,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
   // Nach einem Rückläufer oder einer neuen Adresse vom falschen Empfänger darf die erste Mail EINMAL an die neue Adresse.
   const neuerVersuch = !!f && (f.status === "unzustellbar" || (f.status === "antwort" && f.antwort_art === "falscher_empfaenger")) && !!f.email;
 
-  return (
+  return createPortal(
     <div className="cr-schatten" onClick={onZu}>
       <aside className="cr-blatt" role="dialog" aria-modal="true" aria-label={f?.name ?? "Firma"} onClick={(e) => e.stopPropagation()}>
         {fehler && <Fehlermeldung text={fehler} erneut={laden} />}
@@ -939,6 +961,18 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                       </div>
                     </div>
                   )}
+                  <div className={`cr-entscheider${f.entscheider ? " da" : ""}`}>
+                    <div>
+                      <span className="cr-auge">Entscheider</span>
+                      {f.entscheider
+                        ? <><b>{f.entscheider.anrede ? `${f.entscheider.anrede} ` : ""}{f.entscheider.name}{f.entscheider.rolle ? ` · ${f.entscheider.rolle}` : ""}</b>
+                            <span>{f.entscheider.email} · <a href={f.entscheider.quelle} target="_blank" rel="noopener noreferrer" className="cr-link">Quelle ↗</a></span></>
+                        : <b>{f.entscheider_am ? "Keine persönliche Adresse gefunden" : "Noch nicht gesucht"}</b>}
+                    </div>
+                    <button type="button" className="cr-knopf hell" disabled={!!arbeit || zu} onClick={() => tun("entscheider", () => rufen(`/chef/radar/firma/${id}/entscheider`), "Entscheider-Suche fertig.")}>
+                      {arbeit === "entscheider" ? "Sucht …" : f.entscheider ? "Neu suchen" : "Entscheider suchen"}
+                    </button>
+                  </div>
                   {f.adresse_vorschlag && (
                     <div className="cr-ohne-mail">
                       <b>Neue Adresse aus der Antwort: {f.adresse_vorschlag}</b>
@@ -950,18 +984,18 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                   {f.signal?.art && (
                     <div className="cr-block">
                       <h3>Kapitalsignal <small>Stärke {f.signal_staerke ?? "?"} von 5</small></h3>
-                      <p className="cr-profil">{f.signal.art}{f.signal.beleg ? <> — <q>{f.signal.beleg}</q></> : null}</p>
+                      <p className="cr-profil">{f.signal.label ?? RADAR_SIGNALE.find((x) => x.key === f.signal?.art)?.label ?? f.signal.art}{f.signal.beleg ? <> — <q>{f.signal.beleg}</q></> : null}</p>
                       {f.signal.url && <a href={f.signal.url} target="_blank" rel="noopener noreferrer" className="cr-link">Beleg ↗</a>}
                     </div>
                   )}
                   {imp.quelle === "website" && <p className="cr-klein">Kein lesbares Impressum — die Adresse steht wörtlich auf {imp.seite}.</p>}
                   {imp.quelle !== "website" && imp.seite && <p className="cr-klein">Aus dem Impressum ({imp.seite}) — jeder Wert steht dort wörtlich.{imp.emailSeite ? ` Die Adresse stand auf ${imp.emailSeite}.` : ""}</p>}
                   {!!f.gruende?.length && (
-                    <div className="cr-block">
-                      <h3>Warum sie passt <small>(Einschätzung der KI mit Quelle)</small></h3>
+                    <details className="cr-block cr-klappe">
+                      <summary><h3>Warum sie passt <small>{f.gruende.length} Gründe mit Quelle</small></h3></summary>
                       <ul className="cr-gruende">{f.gruende.map((g, i) => <li key={i}>{g.text}{g.url && <> — <a href={g.url} target="_blank" rel="noopener noreferrer" className="cr-link">Quelle ↗</a></>}</li>)}</ul>
                       {!!f.signale?.length && <div className="cr-signale">{f.signale.map((s) => <span key={s} className="cr-chip">{s}</span>)}</div>}
-                    </div>
+                    </details>
                   )}
                 </>
               )}
@@ -1102,6 +1136,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
           </>
         )}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

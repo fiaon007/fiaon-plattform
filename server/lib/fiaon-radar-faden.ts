@@ -54,6 +54,16 @@ import { globalWortPruefen } from "@shared/fiaon-global-wortregeln";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { htmlAusText, maraSignatur, type SignaturDaten } from "./fiaon-signatur";
+import { entscheiderFinden } from "./fiaon-radar-entscheider";
+
+/** Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). */
+function karte(person: "mara" | "justin"): SignaturDaten {
+  const a = radarAbsender();
+  return person === "mara"
+    ? maraSignatur(a.name, { telefon: a.telefon })
+    : { person: "justin", name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon };
+}
 
 /** Ab hier liest der erste Lauf eines Postfachs nach (die erste Radar-Mail ging am 19.09.2026 hinaus). */
 const NACHHOLEN_AB = "2026/09/18";
@@ -449,7 +459,7 @@ export async function maraAntwortVorbereiten(postId: number, opts: { sendenErlau
   const darfSenden = opts.sendenErlaubt && !pruefung.length && p.postfach !== "js@fiaon.com";
   if (darfSenden) {
     const original = await nachrichtLesen(String(p.postfach), String(p.gmail_id));
-    const id = await antwortSenden(String(p.postfach), original, text, null, null, { vonName: `Mara Lindner | FIAON Global` });
+    const id = await antwortSenden(String(p.postfach), original, text, htmlAusText(text, karte("mara")), null, { vonName: `Mara Lindner | FIAON Global` });
     await sqlPool`UPDATE fiaon_radar_post SET mara_text = ${text}, mara_status = 'gesendet', mara_pruefung = ${sqlPool.json(pruefung)}, mara_am = NOW(), mara_gesendet_id = ${id} WHERE id = ${postId}`;
     await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, thread_id, richtung, art, von, betreff, datum, text)
                   VALUES (${f.id}, ${p.postfach}, ${id}, ${p.thread_id}, 'aus', 'mara', ${p.postfach}, ${p.betreff}, NOW(), ${text}) ON CONFLICT (gmail_id) DO NOTHING`;
@@ -476,8 +486,9 @@ export async function radarAntwortSenden(postId: number, textRoh: string | null 
   if (!frei) throw new RadarFehler("Die Antwort wird gerade gesendet.");
   try {
     const original = await nachrichtLesen(String(p.postfach), String(p.gmail_id));
-    const vonName = /Mara Lindner/.test(text) ? "Mara Lindner | FIAON Global" : `${radarAbsender().name} | FIAON Global`;
-    const id = await antwortSenden(String(p.postfach), original, text, null, null, { vonName });
+    const istMara = /Mara Lindner/.test(text);
+    const vonName = istMara ? "Mara Lindner | FIAON Global" : `${radarAbsender().name} | FIAON Global`;
+    const id = await antwortSenden(String(p.postfach), original, text, htmlAusText(text, karte(istMara ? "mara" : "justin")), null, { vonName });
     await sqlPool`UPDATE fiaon_radar_post SET mara_text = ${text}, mara_status = 'gesendet', mara_am = NOW(), mara_gesendet_id = ${id} WHERE id = ${postId}`;
     await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, thread_id, richtung, art, von, betreff, datum, text)
                   VALUES (${p.firma_id}, ${p.postfach}, ${id}, ${p.thread_id}, 'aus', 'mara', ${p.postfach}, ${p.betreff}, NOW(), ${text}) ON CONFLICT (gmail_id) DO NOTHING`;
@@ -637,7 +648,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         const stufe = Number(frei.nachfass_stufe);
         const original = await nachrichtLesen(String(f.postfach), String(f.gmail_nachricht_id));
         const text = await nachfassSchreiben(f, stufe);
-        const id = await antwortSenden(String(f.postfach), original, text, null, null, { vonName: `${radarAbsender().name} | FIAON Global`, an: f.email });
+        const id = await antwortSenden(String(f.postfach), original, text, htmlAusText(text, karte("justin")), null, { vonName: `${radarAbsender().name} | FIAON Global`, an: f.email });
         const naechste = RADAR_NACHFASS_TAGE[stufe];
         await sqlPool`UPDATE fiaon_radar_firmen SET letzte_mail_am = NOW(),
                         nachfass_faellig = ${naechste != null ? new Date(Date.now() + naechste * 86_400_000) : null}, updated_at = NOW() WHERE id = ${f.id}`;
@@ -680,13 +691,15 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
       const id = Number(kandidat.id);
       await sqlPool`UPDATE fiaon_radar_firmen SET automatik_am = NOW() WHERE id = ${id}`;
       try {
-        const k = await radarKontaktNachsuchen(id);
-        if (!k.email) { erg.uebersprungen++; continue; }
-        // Erst das Kapitalsignal sichern: ungeprüfte Firmen werden (neu) gescannt — unter Stärke 3 schreibt Mara nicht.
-        const [vor] = (await sqlPool`SELECT signal_staerke FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
+        // 1. Den Entscheider zuerst auf der Website suchen — ohne KI, nur Impressum, Team, Kontakt (Justin: keine info@/office@).
+        const [vor] = (await sqlPool`SELECT signal_staerke, entscheider, entscheider_am FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
+        if (!vor?.entscheider && !vor?.entscheider_am) await entscheiderFinden(id, { websuche: false });
+        // 2. Das Kapitalsignal sichern: ungeprüfte Firmen werden (neu) gescannt — unter Stärke 3 schreibt Mara nicht.
         if (vor?.signal_staerke == null) await radarScannen(id);
-        const [nach] = (await sqlPool`SELECT signal_staerke FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
+        const [nach] = (await sqlPool`SELECT signal_staerke, entscheider FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
         if (Number(nach?.signal_staerke ?? 0) < RADAR_SIGNAL_AB) { erg.uebersprungen++; continue; }
+        // 3. Erst jetzt (Signal stimmt) die bezahlte Websuche nach dem Entscheider. Ohne persönliche Adresse keine Mail.
+        if (!nach?.entscheider && !(await entscheiderFinden(id, { websuche: true }))) { erg.uebersprungen++; continue; }
         const mail = await radarMailSchreiben(id);
         if (mail.sperrend.length) { erg.uebersprungen++; continue; }
         await radarMailAusgeben(id, { art: "senden", postfach, von: null });

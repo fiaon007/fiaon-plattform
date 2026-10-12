@@ -86,8 +86,10 @@ ok(mailPruefen({ ...sauber, absaetze: ["Die Karte kommt garantiert, das Institut
 ok(mailPruefen({ ...sauber, absaetze: ["Ich hoffe, es geht Ihnen gut! Wir sind innovativ."] }).warnungen.length >= 2, "Floskel und Ausrufezeichen werden gemeldet");
 const links = { gespraech: "https://fiaon.com/business?utm_source=radar#gespraech", seite: "https://fiaon.com/business" };
 const html = mailHtml({ anrede: "Guten Tag <b>X</b>,", absaetze: ['<script>alert(1)</script> & "Zitat"'], frage: "Passt es?", ps: "<img src=x onerror=alert(1)>", links });
-ok(!/<script|<img|onerror=alert\(1\)>/i.test(html.replace(/&lt;img src=x onerror=alert\(1\)&gt;/, "")) && html.includes("&lt;script&gt;"), "HTML ist maskiert — kein eingeschleuster Code");
-ok(!/<img\b/i.test(html) && !/background-image/i.test(html), "Keine Bilder — die Mail sieht aus wie eine persönliche Mail");
+// E-337: Die Signaturkarte trägt Bilder (Justins Wunsch) — erlaubt sind NUR die Bilder unter /mail/signatur/.
+const ohneSignaturBilder = html.replace(/<img src="https:\/\/[^"]+\/mail\/signatur\/[a-z]+\.(png|gif)"[^>]*>/g, "");
+ok(!/<script|<img|onerror=alert\(1\)>/i.test(ohneSignaturBilder.replace(/&lt;img src=x onerror=alert\(1\)&gt;/, "")) && html.includes("&lt;script&gt;"), "HTML ist maskiert — kein eingeschleuster Code");
+ok(!/<img\b/i.test(ohneSignaturBilder) && !/background-image/i.test(html), "Keine Bilder außer der Signaturkarte — die Mail sieht aus wie eine persönliche Mail");
 ok(html.includes(FIAON_FIRMA.companyNo) && html.includes("Kein Thema für Sie?") && html.includes(FIAON_FIRMA.name), "Fuß mit Firma, Registernummer und Abmeldesatz");
 const text = mailText({ anrede: "Guten Tag,", absaetze: ["A"], frage: "B?", ps: "", links });
 ok(text.includes(links.gespraech) && text.includes(FIAON_FIRMA.companyNo) && text.includes("Kein Thema für Sie?"), "Textfassung trägt Link, Firma und Abmeldesatz");
@@ -169,6 +171,27 @@ ok(sZuStark.staerke === 3, `Stärke gedeckelt auf die Art + 1 (${sZuStark.staerk
 ok((await signalPruefen({ art: "gibtsnicht", beleg: "irgendein langer Satz ohne Bedeutung hier", url: "", staerke: 4 }, sSeite)).signal === null, "Unbekannte Signal-Art zählt nicht");
 ok(RADAR_SIGNALE.every((x) => x.staerke >= 1 && x.staerke <= 5) && RADAR_SIGNALE.filter((x) => x.staerke >= RADAR_SIGNAL_AB).length >= 5, "Signale mit Stärke 1–5, mindestens fünf ab der Schwelle");
 ok(/r\.signal_staerke IS NULL OR r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(lies("server/lib/fiaon-radar-faden.ts")) && /< RADAR_SIGNAL_AB\) \{ erg\.uebersprungen/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik schreibt nur ab Signalstärke 3");
+
+abschnitt("Nur Entscheider, menschliche Anrede, Signatur (E-337)");
+const { radarAdressePersoenlich } = await import("../shared/fiaon-radar");
+ok(!radarAdressePersoenlich("info@firma.de") && !radarAdressePersoenlich("office@firma.at", ["Max Muster"]) && !radarAdressePersoenlich("welcome@kraftblock.com", ["Martin Schichtel"]) && !radarAdressePersoenlich("gf@firma.de", ["Max Muster"]), "info@, office@, welcome@, gf@ sind nie persönlich");
+ok(radarAdressePersoenlich("m.schichtel@kraftblock.com", ["Martin Schichtel"]) && radarAdressePersoenlich("claudius.zurlinden@foundingrestaurants.de", ["Claudius zur Linden"]) && radarAdressePersoenlich("jschmidt@firma.de", ["Jana Schmidt"]), "Persönliche Adressen passend zum Namen");
+ok(!radarAdressePersoenlich("sabine@firma.de", ["Max Muster"]), "Adresse eines anderen Menschen passt nicht zum Entscheider");
+const { anredeAusText } = await import("../server/lib/fiaon-radar-entscheider");
+ok(anredeAusText("Geschäftsführer: Herr Claudius zur Linden", "zur Linden") === "Herr" && anredeAusText("Vertreten durch Frau Dr. Anna Berg", "Berg") === "Frau", "Herr/Frau nur, wenn es wörtlich dasteht");
+ok(anredeAusText("Geschäftsführer: Claudius zur Linden", "zur Linden") === null, "Ohne Herr/Frau auf der Quelle wird nichts geraten");
+ok(anredeFuer("Claudius zur Linden (Geschäftsführung)", "Herr") === "Hallo Herr zur Linden," && anredeFuer("Anna Berg", "Frau") === "Hallo Frau Berg,", "Menschliche Anrede mit Nachname (Partikel bleiben)");
+ok(anredeFuer("Anna Berg", null) === "Guten Tag Anna Berg,", "Ohne belegte Anrede: voller Name");
+const sig = await import("../server/lib/fiaon-signatur");
+const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen Termin wählen: https://fiaon.com/business?utm_source=radar#gespraech\n\nViele Grüße\nMara Lindner\nDigitale Assistentin\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott"));
+ok(sigHtml.includes("/mail/signatur/mara.png") && sigHtml.includes("linie.gif") && sigHtml.includes("punkt.gif") && sigHtml.includes("Digitale Assistentin von Justin Schwarzott"), "Maras Karte: Porträt, Lichtlinie, Punkt, KI-Hinweis „Digitale Assistentin“");
+ok(sigHtml.includes("Einen Termin wählen") && sigHtml.includes("FIAON LTD · Fuß") && !/Mara Lindner<br>Digitale/.test(sigHtml), "Termin als Link, Fuß klein, Textunterschrift durch die Karte ersetzt");
+ok(/signaturHtml\(\{ person: "justin"/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt Justins Karte");
+ok((lies("server/lib/fiaon-radar-faden.ts").match(/htmlAusText\(/g) ?? []).length >= 3, "Nachfass, Maras Antwort und Freigabe senden mit Karte");
+ok(fs.existsSync(path.join(wurzel, "client/public/mail/signatur/mara.png")) && fs.existsSync(path.join(wurzel, "client/public/mail/signatur/linie.gif")), "Signaturbilder liegen öffentlich bereit");
+ok(/radarAdressePersoenlich\(an, namen\)/.test(lies("server/lib/fiaon-radar.ts")), "Wand beim Senden: nur persönliche Adresse eines Entscheiders");
+ok(/entscheiderFinden\(id, \{ websuche: false \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")) && /entscheiderFinden\(id, \{ websuche: true \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik: Entscheider erst Website, dann (nach Signal) Websuche");
+ok(mailPruefen({ ...sauber, absaetze: ["Das ist ein sehr langer Satz mit wirklich vielen Wörtern, der sich überhaupt nicht wie eine menschliche Mail liest, sondern wie ein Prospekt aus einer Agentur."] }).warnungen.some((x) => /24 Wörter/.test(x)), "Lange Sätze werden gemeldet");
 
 abschnitt("Quelltext-Wände");
 const routen = lies("server/routes/fiaon-radar.ts");

@@ -186,6 +186,13 @@ router.post("/chef/radar/post/:id/verwerfen", wache, async (req: ChefRequest, re
   try { await radarAntwortVerwerfen(idAus(req.params.id)); res.json({ ok: true }); } catch (e) { fehler(res, e); }
 });
 
+router.post("/chef/radar/firma/:id/entscheider", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { entscheiderFinden } = await import("../lib/fiaon-radar-entscheider");
+    res.json({ ok: true, entscheider: await entscheiderFinden(idAus(req.params.id), { websuche: true }) });
+  } catch (e) { fehler(res, e); }
+});
+
 router.post("/chef/radar/firma/:id/adresse-uebernehmen", wache, async (req: ChefRequest, res: Response) => {
   try { res.json({ ok: true, email: await radarAdresseUebernehmen(idAus(req.params.id)) }); } catch (e) { fehler(res, e); }
 });

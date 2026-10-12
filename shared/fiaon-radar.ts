@@ -310,15 +310,15 @@ export function radarSendefenster(jetzt: Date = new Date()): boolean {
 // ── DER TRICHTER ────────────────────────────────────────────────────────────
 /** Die Stufen vom Fund bis zum Kauf — in dieser Reihenfolge zeigt sie das Chefbüro. */
 export const RADAR_TRICHTER: { key: string; label: string; satz: string }[] = [
-  { key: "gefunden", label: "Gefunden", satz: "Firmen mit geprüfter Website und E-Mail" },
-  { key: "angeschrieben", label: "Angeschrieben", satz: "erste persönliche Mail raus" },
+  { key: "gefunden", label: "Gefunden", satz: "geprüfte Firmen" },
+  { key: "angeschrieben", label: "Angeschrieben", satz: "erste Mail raus" },
   { key: "zugestellt", label: "Zugestellt", satz: "ohne Rückläufer" },
-  { key: "antworten", label: "Antworten", satz: "von Menschen, ohne Automaten" },
-  { key: "leads", label: "Leads", satz: "Interesse, Sachfrage oder Terminwunsch" },
+  { key: "antworten", label: "Antworten", satz: "von Menschen" },
+  { key: "leads", label: "Leads", satz: "Interesse" },
   { key: "termine", label: "Termine", satz: "Gespräch gebucht" },
-  { key: "angebote", label: "Angebote", satz: "Auftrag oder Angebot offen" },
-  { key: "kaeufe", label: "Käufe", satz: "Auftrag bezahlt" },
-];
+  { key: "angebote", label: "Angebote", satz: "Auftrag offen" },
+  { key: "kaeufe", label: "Käufe", satz: "bezahlt" },
+]
 
 // ── DER KERNSATZ DER AKQUISE-MAIL (Justin, 12.10.2026) ──────────────────────
 // Justin: „Wir helfen Unternehmern dabei, eine LLC (gleichzusetzen mit einer GmbH) in den USA zu gründen, eröffnen für
@@ -332,3 +332,40 @@ export const RADAR_KERNSATZ = {
   vorteil: "Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und das Kapital lässt sich auch in Europa einsetzen.",
   vorOrt: "Alles Amerikanische erledigt unser Team vor Ort.",
 } as const;
+
+// ── NUR ENTSCHEIDER (Justin, 12.10.2026) ────────────────────────────────────
+// „Keine info, office, welcome Emails oder so.“ Die erste Mail geht nur noch an die PERSÖNLICHE Adresse eines
+// Menschen aus Geschäftsführung, Inhaberschaft oder Vorstand — und nur, wenn sie wörtlich irgendwo steht (Website,
+// Pressemitteilung, Verzeichnis). Geraten wird nie (kein vorname.nachname@ auf Verdacht).
+/** Sammelpostfächer — nie für eine erste Mail. */
+export const RADAR_ADRESSE_GENERISCH = /^(info|infos|office|kontakt|contact|contacts|hello|hallo|hi|hey|servus|moin|mail|email|e-mail|post|postbox|team|service|services|kundenservice|customer|welcome|willkommen|anfrage|anfragen|request|sales|vertrieb|verkauf|business|partner|zentrale|empfang|rezeption|buero|office\d*|verwaltung|admin|administration|general|enquiries|inquiry|inquiries|shop|store|support|marketing|einkauf|purchasing|projekt|projekte|order|team\d*|gf|geschaeftsleitung|geschaeftsfuehrung|management|ceo|vorstand|direktion|leitung)([.+_-]|$|\d)/i;
+
+const PARTIKEL = new Set(["von", "van", "vom", "zu", "zur", "zum", "der", "den", "de", "del", "di", "da", "le", "la", "und", "dr", "prof", "dipl", "ing", "mag", "msc", "mba"]);
+/** Namensteile, die in einer persönlichen Adresse stehen können — ohne Umlaute, ohne Partikel. Rein. */
+export function radarNamensteile(name: string | null | undefined): string[] {
+  const n = String(name ?? "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "");
+  return Array.from(new Set(n.split(/[^a-z]+/).filter((w) => w.length >= 3 && !PARTIKEL.has(w))));
+}
+
+/** Ist das die persönliche Adresse eines Menschen (und, wenn Namen bekannt sind, eines dieser Menschen)? Rein. */
+export function radarAdressePersoenlich(emailRoh: unknown, namen: (string | null | undefined)[] = []): boolean {
+  const email = String(emailRoh ?? "").trim().toLowerCase();
+  const lokal = email.split("@")[0] ?? "";
+  if (!lokal || !email.includes("@")) return false;
+  if (RADAR_ADRESSE_GENERISCH.test(lokal) || RADAR_ADRESSE_NIE.test(lokal)) return false;
+  const lokalFlach = lokal.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z]/g, "");
+  const teile = namen.flatMap((n) => radarNamensteile(n));
+  if (teile.length) {
+    if (teile.some((t) => lokalFlach.includes(t))) return true;
+    // Initiale + Nachname: „jschmidt“, „j.schmidt“, „schmidt.j“
+    return namen.some((n) => {
+      const t = radarNamensteile(n);
+      if (t.length < 2) return false;
+      const vor = t[0], nach = t[t.length - 1];
+      return lokalFlach === `${vor[0]}${nach}` || lokalFlach === `${nach}${vor[0]}`;
+    });
+  }
+  // Ohne bekannte Namen: nur die eindeutige Form „vorname.nachname“.
+  return /^[a-z]{2,}[._-][a-z]{2,}$/.test(lokal);
+}

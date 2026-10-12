@@ -418,3 +418,73 @@ select.cr-feld { cursor: pointer; }
   .cr-mara.an .cr-mara-punkt { animation: none; }
   .cr-kippe i, .cr-ring-wert, .cr-trichter-stufen li, .cr-glasknopf { transition: none; }
 }
+
+/* ── E-337: Fenster und Seitenblatt hängen am <body> (Portal) — gehen auf, wo man ist ──
+   Ohne die Hülle .cr fehlen dort deren Farben; deshalb trägt die Schattenfläche sie selbst. */
+.cr-schatten {
+  --cr-linie: rgba(148, 163, 184, .14); --cr-matt: rgba(15, 23, 42, .5); --cr-leise: rgba(148, 163, 184, .92);
+  --cr-hell: #e2e8f0; --cr-blau: #288dfa;
+  z-index: 1000; color: var(--cr-hell); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: rgba(2, 6, 23, .55); -webkit-backdrop-filter: blur(6px) saturate(140%); backdrop-filter: blur(6px) saturate(140%);
+  animation: cr-schatten-auf .2s ease both;
+}
+@keyframes cr-schatten-auf { from { opacity: 0; } }
+.cr-schatten.mitte { align-items: center; justify-content: center; padding: 16px; }
+.cr-schatten .cr-fenster {
+  width: min(620px, 100%); max-height: min(86vh, 760px); border-radius: 26px;
+  background: linear-gradient(165deg, rgba(36, 66, 128, .72), rgba(10, 18, 38, .9));
+  border: 1px solid rgba(196, 222, 255, .24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 40px 90px -30px rgba(0, 0, 0, .9), 0 0 60px -30px rgba(40, 141, 250, .7);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  animation: cr-fenster-auf .28s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes cr-fenster-auf { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.cr-schatten .cr-fenster header { background: transparent; border-bottom-color: rgba(196, 222, 255, .12); padding: 18px 22px; }
+.cr-schatten .cr-fenster h2 { font-size: 17px; font-weight: 400; }
+.cr-schatten .cr-fenster-rumpf { gap: 16px; padding: 18px 22px 22px; }
+.cr-fenster-satz { margin: 0; font-size: 13.5px; line-height: 1.5; color: #dbeafe; font-weight: 300; }
+.cr-fenster-erklaerung { margin: -6px 0 0; }
+.cr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cr-chips button { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 14px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px; color: #cfe0f7;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(196, 222, 255, .18); transition: background .2s, border-color .2s, box-shadow .2s; }
+.cr-chips button:hover { border-color: rgba(196, 222, 255, .4); }
+.cr-chips button.an { color: #fff; background: linear-gradient(180deg, rgba(40, 141, 250, .45), rgba(29, 78, 216, .3)); border-color: rgba(191, 219, 254, .55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 20px -6px rgba(40, 141, 250, .9); }
+.cr-fenster-raster { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.cr-fenster-raster label { display: grid; gap: 6px; font-size: 11px; letter-spacing: .06em; color: #9fb6d6; }
+.cr-fenster-raster label.breit { grid-column: 1 / -1; }
+.cr-fenster-raster .cr-feld { width: 100%; }
+.cr-schatten .cr-feld { border-radius: 12px; background: rgba(2, 6, 23, .4); }
+.cr-schatten .cr-segment { border-radius: 999px; padding: 3px; background: rgba(255, 255, 255, .04); }
+.cr-schatten .cr-segment button { border-radius: 999px; }
+.cr-schatten .cr-segment button.an { background: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .06)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); }
+.cr-schatten .cr-knopf { border-radius: 999px; }
+.cr-schatten .cr-blatt { width: min(720px, 100vw); background: linear-gradient(160deg, rgba(12, 22, 44, .97), rgba(16, 30, 58, .97)); border-left: 1px solid rgba(196, 222, 255, .2); }
+.cr-schatten .cr-blatt-kopf { background: rgba(12, 22, 44, .95); }
+@media (max-width: 560px) { .cr-fenster-raster { grid-template-columns: 1fr; } .cr-schatten .cr-blatt { border-radius: 0; } }
+@media (prefers-reduced-motion: reduce) { .cr-schatten, .cr-schatten .cr-fenster { animation: none; } }
+
+/* ── E-337: Entscheider, Mara-Bild, Signatur-Vorschau ── */
+.cr-entscheider { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 18px; background: rgba(255, 255, 255, .035); border: 1px dashed rgba(196, 222, 255, .22); }
+.cr-entscheider.da { border-style: solid; border-color: rgba(147, 197, 253, .38); background: linear-gradient(160deg, rgba(40, 141, 250, .16), rgba(29, 78, 216, .06)); }
+.cr-entscheider > div { display: grid; gap: 3px; min-width: 0; }
+.cr-entscheider b { font-size: 14px; font-weight: 400; color: #fff; }
+.cr-entscheider span { font-size: 12px; color: #b9cdea; overflow-wrap: anywhere; }
+.cr-kontakt-spalte .cr-mail.persoenlich { color: #fff; }
+.cr-kontakt-spalte .cr-mail.sammel { color: rgba(148, 163, 184, .75); }
+.cr-firmen-tun { justify-content: flex-end; }
+.cr-mara-bild { position: relative; width: 44px; height: 44px; flex: none; }
+.cr-mara-bild img { display: block; width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .8); }
+.cr-mara-bild .cr-mara-punkt { position: absolute; right: -1px; bottom: 1px; width: 11px; height: 11px; border: 2px solid #0d1830; }
+.cr-signatur-vorschau { display: flex; flex-wrap: wrap; gap: 14px; }
+.cr-signatur { display: flex; gap: 14px; padding: 16px 18px; border-radius: 18px; background: #fff; color: #0b1c36; min-width: 300px; flex: 1 1 300px; box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .9); }
+.cr-signatur > img { width: 56px; height: 56px; border-radius: 50%; flex: none; }
+.cr-signatur div { display: grid; gap: 1px; font-size: 12.5px; line-height: 1.45; color: #4b5565; }
+.cr-signatur b { font-size: 14.5px; font-weight: 600; color: #0b1c36; }
+.cr-signatur .blau { color: #1d4ed8; font-weight: 500; }
+.cr-signatur .linie { display: block; width: 200px; height: 2px; margin: 7px 0 6px; }
+.cr-signatur .punkt { display: inline-flex; align-items: center; gap: 7px; color: #12284a; }
+.cr-schatten .cr-fenster, .cr-schatten .cr-blatt { text-align: left; }
+.cr-klappe summary { cursor: pointer; list-style: none; }
+.cr-klappe summary::-webkit-details-marker { display: none; }
+.cr-klappe summary h3::after { content: "▾"; margin-left: 8px; color: #93c5fd; font-size: 11px; }
+.cr-klappe[open] summary h3::after { content: "▴"; }

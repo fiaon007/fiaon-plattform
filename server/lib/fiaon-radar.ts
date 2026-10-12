@@ -51,12 +51,13 @@ import { openaiFetch, kiPausiert, kiPauseLesen, kiPauseMeldung, istKiPause } fro
 import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, entwurfLoeschen } from "./fiaon-gmail";
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
-  radarBereich, radarDomain, radarAdressePruefen, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
+  radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
   type RadarLand, type RadarStatus, type RadarPaket,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
 import { globalWortPruefen } from "@shared/fiaon-global-wortregeln";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { signaturHtml } from "./fiaon-signatur";
 
 // ── Einstellungen ────────────────────────────────────────────────────────────
 const MODELL = () => process.env.RADAR_MODELL || process.env.POSTMEISTER_MODELL || "gpt-5.5";
@@ -174,7 +175,9 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS adresse_vorschlag TEXT,
           ADD COLUMN IF NOT EXISTS automatik_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS signal JSONB,
-          ADD COLUMN IF NOT EXISTS signal_staerke INTEGER`;
+          ADD COLUMN IF NOT EXISTS signal_staerke INTEGER,
+          ADD COLUMN IF NOT EXISTS entscheider JSONB,
+          ADD COLUMN IF NOT EXISTS entscheider_am TIMESTAMPTZ`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_firmen_faden_idx ON fiaon_radar_firmen (gmail_thread_id)`;
       // Jede Mail in einem Radar-Faden — eingehend (Antwort, Rückläufer) und ausgehend (erste Mail, Nachfass, Mara).
       await sqlPool`
@@ -224,6 +227,7 @@ export function zeileLesen<T extends Record<string, any>>(r: T | undefined | nul
   if ("mail" in z) z.mail = ausJson(z.mail, null);
   if ("verworfen" in z) z.verworfen = ausJson(z.verworfen, []);
   if ("signal" in z) z.signal = ausJson(z.signal, null);
+  if ("entscheider" in z) z.entscheider = ausJson(z.entscheider, null);
   return z as T;
 }
 
@@ -341,7 +345,7 @@ export async function radarKi<T>(ein: {
 }
 
 // ── Abrufen mit robots.txt ───────────────────────────────────────────────────
-function robotsWaechter() {
+export function robotsWaechter() {
   const regeln = new Map<string, RobotsRegel[] | "zu">();
   return async (url: URL) => {
     if (url.pathname === "/robots.txt") return;
@@ -360,7 +364,7 @@ function robotsWaechter() {
 
 interface GeleseneSeite { url: string; titel: string; text: string; html: string }
 
-async function seiteHolen(url: string | URL, waechter: (u: URL) => Promise<void>, maxBytes = 600_000): Promise<GeleseneSeite | null> {
+export async function seiteHolen(url: string | URL, waechter: (u: URL) => Promise<void>, maxBytes = 600_000): Promise<GeleseneSeite | null> {
   try {
     const s = await sicherAbrufen(url, { fristMs: 7000, maxBytes, maxWeiter: 3, vorSprung: waechter });
     if (s.status < 200 || s.status >= 300) return null;
@@ -433,7 +437,7 @@ export async function gesperrt(email: string | null | undefined, domain: string)
 
 // ── 1 + 2: SUCHEN UND PRÜFEN ─────────────────────────────────────────────────
 interface KapitalSignal { art: string; beleg: string; url: string; staerke: number }
-interface Vorschlag { name: string; website: string; land: string; ort: string; kurz: string; passung: number; gruende: { text: string; url: string }[]; signale: string[]; kapital_signal: KapitalSignal }
+interface Vorschlag { name: string; website: string; land: string; ort: string; kurz: string; passung: number; gruende: { text: string; url: string }[]; signale: string[]; kapital_signal: KapitalSignal; entscheider: { name: string; rolle: string; email: string; url: string } }
 
 /** Das Kapitalsignal im Schema der KI — Art aus RADAR_SIGNALE, ein wörtliches Zitat und die Seite, auf der es steht. */
 const SCHEMA_SIGNAL = {
@@ -480,8 +484,13 @@ const SCHEMA_SUCHE = {
           gruende: { type: "array", items: { type: "object", additionalProperties: false, properties: { text: { type: "string" }, url: { type: "string" } }, required: ["text", "url"] } },
           signale: { type: "array", items: { type: "string" } },
           kapital_signal: SCHEMA_SIGNAL,
+          entscheider: {
+            type: "object", additionalProperties: false,
+            properties: { name: { type: "string" }, rolle: { type: "string" }, email: { type: "string" }, url: { type: "string" } },
+            required: ["name", "rolle", "email", "url"],
+          },
         },
-        required: ["name", "website", "land", "ort", "kurz", "passung", "gruende", "signale", "kapital_signal"],
+        required: ["name", "website", "land", "ort", "kurz", "passung", "gruende", "signale", "kapital_signal", "entscheider"],
       },
     },
   },
@@ -502,6 +511,7 @@ function sucheAnweisung(): string {
     "- passung = 0 bis 100, wie gut die Firma ins Zielbild passt. gruende = 2 bis 3 konkrete, überprüfbare Gründe mit der URL, auf der du sie gefunden hast. signale = kurze Stichworte (z. B. „Versand in die USA“, „neuer Standort 2026“, „sucht Investoren“).",
     "- kapital_signal = das STÄRKSTE Zeichen, dass die Firma jetzt Kapital braucht. art aus dieser Liste: " + RADAR_SIGNALE.map((x) => `${x.key} (${x.label}, Stärke ${x.staerke}: ${x.suche})`).join(" · ") + ". beleg = ein WÖRTLICHES Zitat (mindestens 8 Wörter, exakt wie auf der Seite), url = die Seite, auf der es steht (Website der Firma, Kampagnenseite, Pressemitteilung). staerke = 1 bis 5 (5 sagt selbst „wir suchen Kapital“, 4 finanziert sich gerade sichtbar, 3 Lage macht Bedarf wahrscheinlich, 2 indirekt, 1 kaum). Ohne belegbares Signal: art leer, beleg leer, staerke 0 — und lieber eine andere Firma nehmen.",
     "- Firmen MIT belegtem Kapitalsignal ab Stärke 3 zuerst. VC-finanzierte Scale-ups mit großen Runden und eigenem Finanzvorstand sind NICHT unsere Kunden.",
+    "- entscheider = eine Person aus Geschäftsführung/Inhaberschaft mit ihrer PERSÖNLICHEN geschäftlichen E-Mail-Adresse, die WÖRTLICH auf einer öffentlichen Seite steht (url = diese Seite). Keine info@/office@/kontakt@/hello@. Nichts erraten. Findest du keine: alle Felder leer. Firmen, bei denen der Entscheider erreichbar ist, haben Vorrang.",
     "- Keine Firma aus der Ausschlussliste. Antworte ausschließlich im vorgegebenen JSON.",
   ].join("\n");
 }
@@ -516,7 +526,7 @@ const MAIL_GUT = /^(info|kontakt|contact|hello|hallo|hi|office|mail|team|service
 // media@, imprint@, booking@, officer@ (gemessen: jede zehnte der 77 Mails landete in einem Ticket-System).
 const MAIL_NIE = RADAR_ADRESSE_NIE;
 
-function kontaktVerweise(html: string, basis: URL): URL[] {
+export function kontaktVerweise(html: string, basis: URL): URL[] {
   const aus: URL[] = [];
   const re = /<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]{0,120}?)<\/a>/gi;
   let m: RegExpExecArray | null;
@@ -687,6 +697,11 @@ async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; quelle: st
     ON CONFLICT (domain) DO NOTHING
     RETURNING id`) as any[];
   if (!zeile) return nein("schon im Radar");
+  // E-337: den mitgelieferten Entscheider sofort nachprüfen (Seite lesen, Adresse und Name wörtlich).
+  if (v.entscheider?.email) {
+    const { entscheiderBelegen } = await import("./fiaon-radar-entscheider");
+    await entscheiderBelegen(Number(zeile.id), v.entscheider).catch(() => null);
+  }
   return { ok: true, id: Number(zeile.id) };
 }
 
@@ -958,9 +973,18 @@ const SCHEMA_MAIL = {
 };
 
 /** Die Anrede: mit dem Namen aus dem Impressum, sonst neutral. Das Geschlecht wird nie geraten. */
-export function anredeFuer(ansprechpartner: string | null | undefined): string {
+export function anredeFuer(ansprechpartner: string | null | undefined, form?: "Herr" | "Frau" | null): string {
   const name = String(ansprechpartner ?? "").replace(/\s*\(.*\)\s*$/, "").replace(/^(herr|frau)\s+/i, "").replace(/\s+/g, " ").trim();
-  return name && name.split(/\s+/).length >= 2 && name.length <= 60 ? `Guten Tag ${name},` : "Guten Tag,";
+  if (!(name && name.split(/\s+/).length >= 2 && name.length <= 60)) return "Guten Tag,";
+  // E-337 (Justin: „menschlicher, wie Öl“): „Hallo Herr zur Linden,“ — aber NUR, wenn „Herr“/„Frau“ wörtlich auf der
+  // Quelle steht (fiaon-radar-entscheider.ts). Sonst bleibt es beim vollen Namen ohne geratenes Geschlecht.
+  if (form === "Herr" || form === "Frau") {
+    const teile = name.split(" ");
+    const idx = teile.findIndex((t, i) => i > 0 && /^(von|van|vom|zu|zur|zum|de|del|di|da|le|la)$/i.test(t));
+    const nachname = idx > 0 ? teile.slice(idx).join(" ") : teile[teile.length - 1];
+    return `Hallo ${form} ${nachname},`;
+  }
+  return `Guten Tag ${name},`;
 }
 
 function mailLinks(id: number, seite: string): { gespraech: string; seite: string } {
@@ -980,9 +1004,8 @@ ${m.absaetze.map(p).join("\n")}
 ${p(m.frage)}
 <p style="margin:0 0 22px"><a href="${escHtml(m.links.gespraech)}" style="color:#1d4ed8;text-decoration:underline">Einen Termin für 30 Minuten wählen</a></p>
 <p style="margin:0 0 4px">Viele Grüße</p>
-<p style="margin:0;font-weight:600">${escHtml(a.name)}</p>
-<p style="margin:0;color:#4b5565">${escHtml(a.rolle)}</p>
-<p style="margin:0 0 18px;color:#4b5565">${escHtml(a.telefon)} · <a href="${escHtml(m.links.seite)}" style="color:#4b5565">fiaon.com/business</a></p>
+${signaturHtml({ person: "justin", name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon, seite: m.links.seite })}
+<div style="height:14px;line-height:14px;">&nbsp;</div>
 ${m.ps ? `<p style="margin:0 0 18px">PS: ${escHtml(m.ps)}</p>` : ""}
 <p style="margin:18px 0 0;padding-top:12px;border-top:1px solid #e5e8ee;font-size:11.5px;line-height:1.5;color:#7a8394">Kein Thema für Sie? Eine kurze Antwort genügt, dann melde ich mich nicht wieder.<br>${escHtml(FIAON_FIRMA.name)} · ${escHtml(FIAON_FIRMA.strasse)}, ${escHtml(FIAON_FIRMA.ortZeile)}, ${escHtml(FIAON_FIRMA.land)} · ${escHtml(FIAON_FIRMA.register)} Nr. ${escHtml(FIAON_FIRMA.companyNo)} · Director: ${escHtml(FIAON_FIRMA.director)}</p>
 </div></body></html>`;
@@ -1019,6 +1042,11 @@ export function mailPruefen(m: { betreff: string; absaetze: string[]; frage: str
   if (/\d[\d.,]*\s?(€|eur(?![a-z])|euro)|€\s?\d/i.test(rumpf)) warnungen.push("Preis in der ersten Mail — erst das Gespräch, dann das Angebot");
   if (m.betreff.length > 70) warnungen.push("Betreff länger als 70 Zeichen");
   if (/!/.test(rumpf)) warnungen.push("Ausrufezeichen — wirkt schnell nach Werbung");
+  // E-337 („wie Öl“): lange Sätze und Gedankenstrich-Ketten lesen sich wie ein Prospekt.
+  const saetze = [...m.absaetze, m.frage].join(" ").split(/(?<=[.?!])\s+/).filter(Boolean);
+  const lang = saetze.filter((x) => x.split(/\s+/).length > 24).length;
+  if (lang) warnungen.push(`${lang} Satz/Sätze über 24 Wörter — kürzer liest es sich leichter`);
+  if ((rumpf.match(/ [–—] /g) ?? []).length > 2) warnungen.push("Viele Gedankenstriche — wirkt konstruiert");
   if (/\b(du|dich|dir|dein)\b/i.test(rumpf)) warnungen.push("Du-Form entdeckt — die erste Mail siezt");
   if (/(ich hoffe,? (es geht|diese)|innovativ|maßgeschneidert|synergie|revolution|einzigartig|game.?changer)/i.test(rumpf)) warnungen.push("Floskel entdeckt");
   return { sperrend, warnungen };
@@ -1027,18 +1055,38 @@ export function mailPruefen(m: { betreff: string; absaetze: string[]; frage: str
 function mailAnweisung(): string {
   const a = radarAbsender();
   // E-337 (12.10.2026): NEUE ART. Gemessen an 77 Mails alter Art (150–200 Wörter, Paket, Festpreis und Kapitalrahmen
-  // schon in der ersten Mail): 4 Absagen, 0 Interessenten. Eine erste Mail verkauft kein Paket, sie öffnet ein Gespräch.
+  // schon in der ersten Mail): 4 Absagen, 0 Interessenten. Justin danach: „viel menschlicher — das muss runtergehen wie
+  // Öl, wenn man es liest.“ Eine erste Mail verkauft kein Paket, sie öffnet ein Gespräch zwischen zwei Unternehmern.
   return [
-    `Du schreibst als ${a.name} (${a.rolle}) eine erste, kurze, persönliche E-Mail an den Inhaber oder die Geschäftsführung einer Firma. Ziel ist eine Antwort, nicht ein Verkauf.`,
-    "So klingt sie: wie ein Unternehmer, der einem anderen Unternehmer zwei Zeilen schreibt. Sie-Form. Konkret, ruhig, menschlich. Keine Werbesprache, keine Floskeln („Ich hoffe, es geht Ihnen gut“, „innovativ“, „maßgeschneidert“, „Synergien“, „spannend“), keine Ausrufezeichen, keine Emojis, keine Aufzählungen, keine Großbuchstaben-Wörter, keine Meta-Sätze („laut Website“, „ich bin auf Sie aufmerksam geworden“).",
-    "Aufbau — absaetze = 2 oder 3 kurze Absätze, zusammen 70 bis 110 Wörter (die Anrede, die Grußformel und den Terminlink setzt der Server):",
-    "1. Der Anlass: EIN konkreter, geprüfter Aufhänger — am besten der, der auf Kapitalbedarf oder Wachstum zeigt (neue Standorte, Expansion, Finanzierungsrunde, Investitionen, Einstellungen, neue Märkte). Ein Satz zum Anlass, ein Satz, was daraus typischerweise folgt (z. B. Kapital vor dem Umsatz). Keine Schmeichelei.",
-    `2. Was wir tun — diesen Kern (Justin, 12.10.) fast wörtlich, mit einem kurzen Übergang zum Anlass („Genau da setzen wir an:“ o. ä.): „${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil}“ Optional dazu: „${RADAR_KERNSATZ.vorOrt}“`,
-    "frage = EINE einfache Frage, auf die man mit einer Zeile antworten kann (z. B. „Wäre ein kurzes Gespräch dazu für Sie interessant?“ oder „Ist Kapital für die nächsten Standorte bei Ihnen gerade ein Thema?“). Kein Druck, keine Frist.",
-    "betreff = höchstens 50 Zeichen, mit dem Firmennamen oder dem Anlass, klingt wie eine Mail unter Kollegen — z. B. „Kaspar Schmauser: Kapital für die nächsten Openings“. Kein „Re:“, kein Clickbait.",
-    "ps = leer. paket = leer — in der ersten Mail steht KEIN Paketname, KEIN Preis, KEIN Betrag und KEIN Kapitalrahmen in Dollar.",
-    "passt / passt_grund — die Kundensicht, bevor die Mail geht: passt = false, wenn die Firma das Angebot offensichtlich nicht braucht oder nicht nutzen kann: sie hat schon eine eigene US-Gesellschaft oder US-Fertigung, sie ist ein Konzern, börsennotiert oder hat mehr als etwa 250 Mitarbeiter, sie hat gerade eine große Finanzierungsrunde (über etwa 10 Mio. €) abgeschlossen und einen eigenen Finanzchef, sie ist in Insolvenz oder Liquidation, sie ist selbst Bank, Finanzdienstleister oder Gründungsdienst — oder der Empfänger ist erkennbar kein Mensch der Firma (Ticket-System, Datenschutzbeauftragter). Sonst passt = true. passt_grund = ein Satz.",
-    "VERBOTEN: Kapital, Kredite oder Limits versprechen; jeder Betrag, jeder Kapitalrahmen, jedes Limit; der Satz, dass ein Institut oder eine Bank entscheidet (gehört nicht in eine Akquise-Mail); „bis zu“; Namen von Banken oder Kartenherausgebern; „garantiert“; „Steuern sparen“; „empfehlen“; dass FIAON „berät“; „0 %“; „ohne Sicherheiten“; jede Behauptung über die Firma, die nicht in den geprüften Aufhängern oder im Profil steht; erfundene Zahlen.",
+    `Du schreibst als ${a.name}, Gründer von FIAON Global, eine erste E-Mail an einen Geschäftsführer oder Inhaber. Ziel ist eine Antwort, kein Verkauf.`,
+    "",
+    "SO KLINGT ES — wie ein Unternehmer, der einem anderen Unternehmer schreibt, den er respektiert:",
+    "- Kurze Sätze, höchstens 18 Wörter. Ein Gedanke pro Satz. Alltagssprache, aktiv, konkret.",
+    "- Sie-Form, warm, ruhig, selbstbewusst. Kein Verkäuferton, keine Floskel („Ich hoffe, es geht Ihnen gut“, „innovativ“, „maßgeschneidert“, „Synergien“, „spannend“, „Mehrwert“, „Lösung“, „wir bieten“).",
+    "- Höchstens ein Gedankenstrich in der ganzen Mail. Keine Klammern, keine Aufzählungen, keine Ausrufezeichen, keine Emojis.",
+    "- „Ich“ ist erlaubt und erwünscht („Ich habe gesehen, dass …“). Den Firmennamen höchstens einmal.",
+    "",
+    "AUFBAU — absaetze = 3 kurze Absätze, zusammen 70 bis 100 Wörter (Anrede, Gruß, Signatur und Terminlink setzt der Server):",
+    "1. Der Anlass in ein bis zwei Sätzen: EINE konkrete, geprüfte Beobachtung über die Firma (am liebsten das Kapitalsignal), dann eine menschliche Folgerung (z. B. „Neue Standorte kosten Geld, lange bevor sie welches verdienen.“). Keine Schmeichelei.",
+    `2. Was wir tun, natürlich erzählt — diese Fakten, in eigenen kurzen Sätzen: ${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}`,
+    "3. Eine einzige, leichte Frage, auf die man mit einer Zeile antworten kann (frage-Feld). Kein Druck, keine Frist.",
+    "",
+    "TON-VORBILD 1 (nur der Ton, keine Fakten übernehmen):",
+    "„Ich habe gesehen, dass nach Leipzig und Essen schon die nächsten Openings geplant sind. Neue Standorte kosten Geld, lange bevor sie welches verdienen.",
+    "Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, das amerikanische Gegenstück zur GmbH. Um Geschäftskonto, Firmenkreditkarten und den Weg zu US-Funding kümmern wir uns. Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und das Kapital können Sie auch hier in Europa einsetzen.“",
+    "Frage: „Wäre das für Sie gerade ein Thema?“",
+    "",
+    "TON-VORBILD 2:",
+    "„Glückwunsch zur neuen Halle. Für einen Familienbetrieb ist das ein großer Schritt, und meistens braucht er mehr Spielraum, als die Hausbank geben will.",
+    "Wir gründen für Unternehmer eine eigene LLC in den USA, vergleichbar mit einer GmbH. Wir kümmern uns um Konto und Firmenkreditkarten und ebnen den Weg zu US-Funding. Alles Amerikanische erledigt unser Team vor Ort.“",
+    "Frage: „Sollen wir dazu einmal kurz telefonieren?“",
+    "",
+    "betreff = höchstens 45 Zeichen, klingt wie eine Mail unter Kollegen, mit dem Firmennamen oder dem Anlass (z. B. „Kaspar Schmauser: Kapital für die nächsten Openings“, „Ihre neue Halle in Gersthofen“). Kein „Re:“, kein Clickbait.",
+    "ps = leer. paket = leer. In der ersten Mail steht KEIN Paketname, KEIN Preis, KEIN Betrag, KEIN Kapitalrahmen und KEIN Satz darüber, dass ein Institut oder eine Bank entscheidet.",
+    "",
+    "passt / passt_grund — die Kundensicht, bevor die Mail geht: passt = false, wenn die Firma das Angebot offensichtlich nicht braucht oder nicht nutzen kann: sie hat schon eine eigene US-Gesellschaft oder US-Fertigung, sie ist ein Konzern, börsennotiert oder hat mehr als etwa 250 Mitarbeiter, sie hat gerade eine große Finanzierungsrunde (über etwa 10 Mio. €) abgeschlossen und einen eigenen Finanzchef, sie ist in Insolvenz oder Liquidation, sie ist selbst Bank, Finanzdienstleister oder Gründungsdienst. Sonst passt = true. passt_grund = ein Satz.",
+    "",
+    "VERBOTEN: Kapital, Kredite oder Limits versprechen; jeder Betrag, Rahmen oder Limit; „bis zu“; Namen von Banken oder Kartenherausgebern; „garantiert“; „Steuern sparen“; „empfehlen“; dass FIAON „berät“; „0 %“; „ohne Sicherheiten“; jede Behauptung über die Firma, die nicht in den geprüften Aufhängern oder im Profil steht; erfundene Zahlen.",
     "Antworte ausschließlich im vorgegebenen JSON.",
   ].join("\n");
 }
@@ -1054,7 +1102,7 @@ export async function radarMailSchreiben(id: number, wunsch: { hinweis?: string 
   if (!aufhaenger.length) throw new RadarFehler("Der Scan hat keinen belegten Aufhänger gefunden — ohne ihn wäre die Mail nicht persönlich. Bitte eine andere Firma wählen oder erneut scannen.");
   const b = radarBereich(f.bereich);
   const links = mailLinks(id, b?.seite ?? "/business");
-  const anrede = anredeFuer(f.ansprechpartner);
+  const anrede = anredeFuer(f.entscheider?.name ?? f.ansprechpartner, f.entscheider?.anrede ?? null);
   const hinweis = String(wunsch.hinweis ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 400);
 
   const eingabe = [
@@ -1153,6 +1201,9 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   const adresse = radarAdressePruefen(an, f.domain, f.name);
   if (!adresse.ok && !ein.an) throw new RadarFehler(`Diese Adresse erreicht niemanden, der entscheidet: ${adresse.grund}. Bitte „Adresse nachsuchen“ oder eine bessere eintragen.`);
   if (ungueltig.includes(an)) throw new RadarFehler("An diese Adresse kam die Mail schon einmal unzustellbar zurück.");
+  // E-337 (Justin: „keine info, office, welcome Emails“): die erste Mail nur an die persönliche Adresse eines Entscheiders.
+  const namen = [f.entscheider?.name, ...((Array.isArray(f.impressum?.vertreter) ? f.impressum.vertreter : []).map((v: any) => v?.name || [v?.vorname, v?.nachname].filter(Boolean).join(" ")))].filter(Boolean) as string[];
+  if (!radarAdressePersoenlich(an, namen)) throw new RadarFehler("Erste Mails gehen nur an die persönliche Adresse eines Entscheiders — keine info@, office@ oder welcome@. Bitte „Entscheider suchen“ oder eine persönliche Adresse eintragen.");
   const a = radarAbsender();
   const inhalt = { vonName: `${a.name} | FIAON Global`, an, betreff: f.mail.betreff, text: f.mail.text, html: f.mail.html };
   if (ein.art === "entwurf") {
@@ -1208,7 +1259,8 @@ export async function radarSperren(ein: { wert: string; grund?: string | null; v
   const wert = art === "domain" ? radarDomain(w) : (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(w) ? w : null);
   if (!wert) throw new RadarFehler("Bitte eine Domäne (firma.de) oder eine E-Mail-Adresse angeben.");
   await sqlPool`INSERT INTO fiaon_radar_sperre (wert, art, grund, von) VALUES (${wert}, ${art}, ${ein.grund ?? null}, ${ein.von ?? null}) ON CONFLICT (wert) DO NOTHING`;
-  if (art === "domain") await sqlPool`UPDATE fiaon_radar_firmen SET status = 'gesperrt', updated_at = NOW() WHERE domain = ${wert} AND status NOT IN ('versendet', 'antwort')`;
+  // E-337: Eine Absage bleibt „Kein Interesse“ (nicht „Gesperrt“), ein laufendes Gespräch bleibt, wo es ist.
+  if (art === "domain") await sqlPool`UPDATE fiaon_radar_firmen SET status = 'gesperrt', updated_at = NOW() WHERE domain = ${wert} AND status NOT IN ('versendet', 'antwort', 'lead', 'termin', 'angebot', 'kauf', 'kein_interesse')`;
 }
 
 // ── KONTAKT NACHSUCHEN UND VON HAND SETZEN (19.09.2026) ──────────────────────
@@ -1350,7 +1402,8 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
   const firmen = (await sqlPool`
     SELECT id, tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, email, ansprechpartner, status,
            gescannt_am, mail_am, versendet_am, postfach, created_at, (scan IS NOT NULL) AS hat_scan, (mail IS NOT NULL) AS hat_mail,
-           signal, signal_staerke, antwort_am, antwort_art, lead_am, termin_am, kauf_am, nachfass_stufe, nachfass_faellig, adresse_vorschlag
+           signal, signal_staerke, antwort_am, antwort_art, lead_am, termin_am, kauf_am, nachfass_stufe, nachfass_faellig, adresse_vorschlag,
+           entscheider, entscheider_am
       FROM fiaon_radar_firmen
      WHERE (${tag}::date IS NULL OR tag = ${tag}::date)
        AND (${bereich}::text IS NULL OR bereich = ${bereich})

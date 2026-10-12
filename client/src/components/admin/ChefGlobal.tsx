@@ -152,6 +152,7 @@ export default function ChefGlobal() {
             </>
           )}
           <a className="cgr-liste-fuss" href="/chef/s/global-auftraege">Angebote &amp; Aufträge verwalten <ChevronRight size={13} /></a>
+          <a className="cgr-liste-fuss" href="/chef/s/firmen-radar">Firmen-Radar — neue Firmenkunden <ChevronRight size={13} /></a>
         </aside>
 
         <main className="cgr-akte-huelle">

@@ -125,14 +125,14 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // ── FIAON Global (E-338) ────────────────────────────────────────────────
   {
     key: "global", label: "Global-Mandate", Icon: Globe2, mindest: "leitung", gruppe: "global",
-    satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital, Angebote und Aufträge.",
+    satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital, Angebote, Aufträge und das Firmen-Radar.",
     punkte: [],
   },
   // ── Vertrieb ────────────────────────────────────────────────────────────
   {
     // E-336: Alles, was NEUE Kunden bringt — vorher verteilt auf „Kunden" und „Kommunikation".
     key: "vertrieb", label: "Vertrieb", Icon: Target, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass, kalte Leads und das Firmen-Radar.",
+    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass und kalte Leads.",
     punkte: [],
   },
   // ── DIE RÜCKHOLUNG (02.09.2026, E-074) ──────────────────────────────────

@@ -24,7 +24,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
@@ -82,10 +82,12 @@ export interface ChefRaum {
 // Raum zu genau einer Überschrift, und die Reihenfolge folgt dem Tag:
 // Heute → Kunden → Vertrieb → Geld → Team → System. Die Adressen
 // (/chef/<raum>, /chef/s/<seite>) bleiben unverändert — alte Links gehen weiter.
-export type ChefGruppe = "heute" | "kunden" | "vertrieb" | "geld" | "team" | "system";
+export type ChefGruppe = "heute" | "kunden" | "global" | "vertrieb" | "geld" | "team" | "system";
 export const CHEF_GRUPPEN: { key: ChefGruppe; label: string }[] = [
   { key: "heute", label: "Heute" },
   { key: "kunden", label: "Kunden" },
+  // E-338: Firmenkunden für sich — Justin: „so, dass sich das NICHT vermischt".
+  { key: "global", label: "FIAON Global" },
   { key: "vertrieb", label: "Vertrieb" },
   { key: "geld", label: "Geld" },
   { key: "team", label: "Team" },
@@ -120,11 +122,17 @@ export const CHEF_RAEUME: ChefRaum[] = [
     satz: "Die Arbeit am Kunden — Kunden-Zentrale, Termine, Ausweise, Kündigungen, Telefonkartei, Dubletten, Auskünfte.",
     punkte: [],
   },
+  // ── FIAON Global (E-338) ────────────────────────────────────────────────
+  {
+    key: "global", label: "Global-Mandate", Icon: Globe2, mindest: "leitung", gruppe: "global",
+    satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital, Angebote und Aufträge.",
+    punkte: [],
+  },
   // ── Vertrieb ────────────────────────────────────────────────────────────
   {
     // E-336: Alles, was NEUE Kunden bringt — vorher verteilt auf „Kunden" und „Kommunikation".
     key: "vertrieb", label: "Vertrieb", Icon: Target, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass, kalte Leads, Firmen-Radar und Global-Aufträge.",
+    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass, kalte Leads und das Firmen-Radar.",
     punkte: [],
   },
   // ── DIE RÜCKHOLUNG (02.09.2026, E-074) ──────────────────────────────────

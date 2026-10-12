@@ -45,6 +45,8 @@ interface Person {
   id: number; name: string; firma: string | null; email: string | null; ort: string | null;
   ref: string | null; mitarbeiter: string | null;
   zahlend: boolean; interessent: boolean; gesperrt: boolean; inkasso: boolean;
+  /** E-338: Firmenkunde (FIAON Global) — Treffer führt ins Mandat, nicht in die Privatakte. */
+  global?: boolean; globalRef?: string | null;
 }
 
 const ZULETZT_SCHLUESSEL = "chef-suche-zuletzt";
@@ -175,6 +177,15 @@ export function ChefSuche({ offen, schliessen, raeume, darf }: {
     if (!personen) return [];
     const z: Treffer[] = personen.map((p) => {
       const marken: Marke[] = [];
+      // Ein Firmenkunde ist für Privat-Abläufe gesperrt (E-272) — das ist Schutz, kein Makel: Er trägt „Global".
+      if (p.global) {
+        const satz = [p.firma && p.firma !== p.name ? p.firma : null, p.email, p.globalRef].filter(Boolean).join(" · ");
+        return {
+          id: `kunde-${p.id}`, art: "kunde" as const, titel: p.name, satz: satz || `Person ${p.id}`, ort: "FIAON Global",
+          pfad: p.globalRef ? `/chef/global?mandat=${encodeURIComponent(p.globalRef)}` : "/chef/global",
+          marken: [{ text: "Global", ton: "blau" as const }],
+        };
+      }
       if (p.gesperrt) marken.push({ text: "Gesperrt", ton: "rot" });
       if (p.inkasso) marken.push({ text: "Inkasso", ton: "gelb" });
       if (p.zahlend) marken.push({ text: "Kunde", ton: "blau" });

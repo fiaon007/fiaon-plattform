@@ -25,6 +25,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
+import { globalKundeBereit, globalKundeSql } from "../lib/fiaon-global-kunde";
 
 const router = Router();
 
@@ -92,7 +93,11 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
     if (filter === "ohneZugang") teile.push(`${bezahltHat} AND NOT EXISTS (
       SELECT 1 FROM fiaon_applications a5 WHERE a5.person_id = p.id
         AND a5.merged_into IS NULL AND a5.password IS NOT NULL AND a5.password <> '')`);
-    if (filter === "gesperrt") teile.push("p.is_blocked = TRUE");
+    // E-338: Firmenkunden sind für Privat-Abläufe gesperrt (E-272) — unter „Gesperrt" stehen sie nicht, sie haben ihren eigenen Filter.
+    await globalKundeBereit().catch(() => {});
+    await import("../lib/fiaon-global-mandat").then((m) => m.ensureGlobalMandat()).catch(() => {});
+    if (filter === "gesperrt") teile.push(`p.is_blocked = TRUE AND NOT ${globalKundeSql("p.id")}`);
+    if (filter === "global") teile.push(globalKundeSql("p.id"));
     if (filter === "inkasso") teile.push("p.inkasso_ab IS NOT NULL");
 
     const wo = teile.join(" AND ");
@@ -151,7 +156,9 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
                  WHERE a8.person_id = p.id AND a8.merged_into IS NULL
                  ORDER BY (a8.payment_status = 'paid') DESC, a8.created_at DESC LIMIT 1) AS ref,
                NOT EXISTS (SELECT 1 FROM fiaon_applications a9 WHERE a9.person_id = p.id) AS nur_interessent,
-               EXISTS (SELECT 1 FROM fiaon_leads l9 WHERE l9.person_id = p.id) AS hat_lead
+               EXISTS (SELECT 1 FROM fiaon_leads l9 WHERE l9.person_id = p.id) AS hat_lead,
+               ${globalKundeSql("p.id")} AS global,
+               (SELECT g.ref FROM fiaon_global_auftraege g WHERE g.person_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS global_ref
         ${basis}
         ORDER BY ${sort}
         LIMIT ${proSeite} OFFSET ${(seite - 1) * proSeite}`, werte) as Promise<any[]>,
@@ -165,7 +172,8 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
         COUNT(*) FILTER (WHERE ${bezahltHat})::int AS zahlende,
         COUNT(*) FILTER (WHERE p.mandat_seit IS NOT NULL)::int AS mandate,
         COUNT(*) FILTER (WHERE p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL)::int AS pool,
-        COUNT(*) FILTER (WHERE p.is_blocked)::int AS gesperrt,
+        COUNT(*) FILTER (WHERE p.is_blocked AND NOT ${globalKundeSql("p.id")})::int AS gesperrt,
+        COUNT(*) FILTER (WHERE ${globalKundeSql("p.id")})::int AS global,
         COUNT(*) FILTER (WHERE p.inkasso_ab IS NOT NULL)::int AS inkasso
       FROM fiaon_persons p WHERE ${ECHT}`)) as any[];
 
@@ -231,6 +239,9 @@ router.get("/chef/suche", requireChef("leitung"), async (req: Request, res: Resp
     }
     werte.push(woerter[0]);
     const erstes = werte.length;
+    // E-338: Firmenkunden (FIAON Global) tragen die Marke „Global" und führen in ihr Mandat — nicht in die Privatakte.
+    await globalKundeBereit().catch(() => {});
+    await import("../lib/fiaon-global-mandat").then((m) => m.ensureGlobalMandat()).catch(() => {});
     const zeilen = (await sqlPool.unsafe(`
       SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.city,
              p.is_blocked, p.inkasso_ab IS NOT NULL AS inkasso, ag.name AS mitarbeiter,
@@ -241,6 +252,8 @@ router.get("/chef/suche", requireChef("leitung"), async (req: Request, res: Resp
              (SELECT a8.ref FROM fiaon_applications a8
                WHERE a8.person_id = p.id AND a8.merged_into IS NULL
                ORDER BY (a8.payment_status = 'paid') DESC, a8.created_at DESC LIMIT 1) AS ref,
+             ${globalKundeSql("p.id")} AS global,
+             (SELECT g.ref FROM fiaon_global_auftraege g WHERE g.person_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS global_ref,
              COUNT(*) OVER ()::int AS gesamt
         FROM fiaon_persons p
         LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
@@ -263,6 +276,8 @@ router.get("/chef/suche", requireChef("leitung"), async (req: Request, res: Resp
         interessent: !!z.nur_interessent,
         gesperrt: !!z.is_blocked,
         inkasso: !!z.inkasso,
+        global: !!z.global,
+        globalRef: z.global_ref || null,
       })),
     });
   } catch (err) {

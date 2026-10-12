@@ -226,6 +226,42 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       knopf: { text: "Open the document", url: "{{params.mein_auftrag_url}}" },
     },
   },
+  // E-338 (12.10.2026): FIAON hat im Gesprächsfaden geantwortet. Wie beim Dokument reist der Inhalt NICHT mit —
+  // die Mail sagt nur, dass eine Antwort bereitliegt, und führt ins Portal.
+  global_nachricht: {
+    de: {
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      marke: "Ihre Anfragen",
+      betreff: "Antwort auf Ihre Anfrage — {{params.firma}}",
+      preheader: "Ihr Ansprechpartner hat Ihnen geantwortet.",
+      titel: "Ihr Ansprechpartner hat geantwortet",
+      absaetze: [
+        "{{params.anrede_zeile}}, zu Ihrem Auftrag für <b>{{params.firma}}</b> liegt eine Antwort von {{params.ansprechpartner}} für Sie bereit.",
+        "Aus Gründen der Vertraulichkeit steht sie nicht in dieser E-Mail. Sie lesen sie unter „Mein Auftrag“ — der Knopf unten führt dorthin.",
+      ],
+      daten: [
+        { label: "Auftrag", wert: "{{params.antrag_id}}" },
+        { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
+      ],
+      knopf: { text: "Antwort lesen", url: "{{params.mein_auftrag_url}}" },
+    },
+    en: {
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      marke: "Your requests",
+      betreff: "Reply to your request — {{params.firma}}",
+      preheader: "Your contact has replied.",
+      titel: "Your contact has replied",
+      absaetze: [
+        "{{params.anrede_zeile}}, there is a reply from {{params.ansprechpartner}} about your order for <b>{{params.firma}}</b>.",
+        "For reasons of confidentiality it is not included in this email. You read it under “My order” — the button below takes you there.",
+      ],
+      daten: [
+        { label: "Order", wert: "{{params.antrag_id}}" },
+        { label: "Your contact", wert: "{{params.ansprechpartner}}" },
+      ],
+      knopf: { text: "Read the reply", url: "{{params.mein_auftrag_url}}" },
+    },
+  },
 };
 
 const haelfte = (s: GlobalBereichSprache): Record<string, MailBaustein> =>

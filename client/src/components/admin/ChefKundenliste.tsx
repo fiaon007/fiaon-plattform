@@ -40,6 +40,8 @@ const FILTER = [
   { key: "ohneZugang", label: "Ohne Zugang" },
   { key: "inkasso", label: "Forderung" },
   { key: "gesperrt", label: "Gesperrt" },
+  // E-338: Firmenkunden für sich — sie gehören in Chefbüro › Global, nicht zwischen die Privatkunden.
+  { key: "global", label: "FIAON Global" },
 ] as const;
 
 const SORT = [
@@ -63,6 +65,8 @@ interface Zeile {
   nur_interessent?: boolean;
   /** E-IT-E: Gibt es einen Interessenten-Eintrag? Ohne ihn und ohne Bestellung gibt es keine Akte. */
   hat_lead?: boolean;
+  /** E-338: Firmenkunde (FIAON Global) — die Zeile führt in sein Mandat. */
+  global?: boolean; global_ref?: string | null;
 }
 
 /** Der Name, wie ein Mensch ihn schreiben würde — mit Firma, falls vorhanden. */
@@ -79,7 +83,8 @@ function name(z: Zeile): string {
  */
 function zeichen(z: Zeile) {
   const alle: { key: string; Icon: any; titel: string; ton: string }[] = [];
-  if (z.is_blocked) alle.push({ key: "sperre", Icon: ShieldAlert, titel: "Gesperrt", ton: "rot" });
+  // E-338: Die Sperre eines Firmenkunden ist Schutz vor Privat-Abläufen (E-272), keine Warnung.
+  if (z.is_blocked && !z.global) alle.push({ key: "sperre", Icon: ShieldAlert, titel: "Gesperrt", ton: "rot" });
   if (z.inkasso_ab) alle.push({ key: "inkasso", Icon: Landmark, titel: "In der Forderungsbearbeitung", ton: "rot" });
   if (Number(z.ueberfaellig) > 0) alle.push({
     key: "faellig", Icon: Clock, ton: "gelb",
@@ -224,7 +229,8 @@ export default function ChefKundenliste() {
           {zeilen.map((z) => {
             const zs = zeichen(z);
             return (
-              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} href={akteLink(z.id, "chef") ?? undefined}>
+              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`}
+                 href={z.global ? `/chef/global${z.global_ref ? `?mandat=${encodeURIComponent(z.global_ref)}` : ""}` : (akteLink(z.id, "chef") ?? undefined)}>
                 <span className="ck-marke" aria-hidden="true" data-ton={zs[0]?.ton ?? ""} />
 
                 <span className="ck-wer">
@@ -239,7 +245,8 @@ export default function ChefKundenliste() {
                   {/* E-IT-E (08.10.2026): Gut die Hälfte der Liste sind reine
                       Interessenten (nur Lead). Die Marke sagt es VOR dem Klick —
                       niemand soll eine Bezahl-Akte erwarten. */}
-                  {z.pakete ? <b title={z.pakete}>{z.pakete}</b>
+                  {z.global ? <b data-art="global">FIAON Global{z.global_ref ? ` · ${z.global_ref}` : ""}</b>
+                    : z.pakete ? <b title={z.pakete}>{z.pakete}</b>
                     : z.nur_interessent && z.hat_lead ? <b className="leise" data-art="interessent">Interessent — noch keine Bestellung</b>
                     : z.nur_interessent ? <b className="leise" data-art="ohne-vorgang">angelegt, ohne Antrag und ohne Interessenten-Eintrag</b>
                     : <b className="leise">kein bezahltes Paket</b>}

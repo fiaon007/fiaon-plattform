@@ -63,6 +63,17 @@ function zutritt(req: Request, res: Response): string | null {
 }
 
 // ── Drosseln (im Arbeitsspeicher der Instanz, wie jede Drossel im Haus) ──────
+/**
+ * E-338: Die Leitung öffnet das neue Portal als Vorschau (Link aus Chefbüro › Global mit `vorschau=neu|1`).
+ * Gilt NUR mit gültiger Chefbüro-Anmeldung im selben Browser — ein Kunde, der das Wort an seinen Link hängt,
+ * bekommt nichts anderes. In der Vorschau wird nichts als „vom Kunden gelesen" vermerkt.
+ */
+function istVorschau(req: Request): boolean {
+  const v = String(req.query.vorschau ?? "");
+  return (v === "neu" || v === "1") && (!!readChef(req) || hasAdminCode(req));
+}
+
+const unterschriftJeRef = fensterDrossel(10, 10 * 60_000);
 const uploadJeRef = fensterDrossel(20, 10 * 60_000);
 const uploadJeIp = fensterDrossel(30, 10 * 60_000);
 const nachrichtJeRef = fensterDrossel(5, 10 * 60_000);
@@ -122,7 +133,13 @@ router.get("/global/mein-auftrag/:ref", async (req: Request, res: Response) => {
     const zugang = Number.isFinite(exp) && exp - Date.now() < GLOBAL_PORTAL_ERNEUERN_TAGE * tag ? globalTokenErzeugen(ref, GLOBAL_PORTAL_TAGE * tag) : null;
     const auftrag = await globalBereichKundenSicht(ref, zugang ?? String(req.query.t));
     if (!auftrag) return res.status(404).json({ ok: false, error: "Wir finden zu diesem Link keinen Auftrag." });
-    res.json({ ok: true, auftrag, ...(zugang ? { zugang } : {}) });
+    // E-338: das NEUE Portal — für diesen Kunden freigeschaltet, oder die Leitung sieht die Vorschau (?vorschau=neu + Chefbüro-Anmeldung).
+    const vorschau = istVorschau(req);
+    const { globalPortalNeuFrei, globalMandatKundenZusatz } = await import("../lib/fiaon-global-mandat");
+    if (vorschau || await globalPortalNeuFrei(ref)) {
+      Object.assign(auftrag, await globalMandatKundenZusatz(ref, zugang ?? String(req.query.t), (auftrag.sprache as "de" | "en") ?? "de", vorschau));
+    }
+    res.json({ ok: true, auftrag, ...(zugang && !vorschau ? { zugang } : {}) });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] mein-auftrag:", err);
     res.status(500).json({ ok: false, error: "Ihr Auftrag lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
@@ -157,6 +174,7 @@ router.post("/global/mein-auftrag/:ref/dokument", (req: Request, res: Response, 
   // Erst der Zutritt, dann die Drossel, DANN der Körper.
   const ref = zutritt(req, res);
   if (!ref) return;
+  if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hochladen kann hier nur der Kunde." });
   if (uploadJeRef(ref) || uploadJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
   next();
 }, dateiAnnehmen("sie"), async (req: Request, res: Response) => {
@@ -176,6 +194,11 @@ router.get("/global/mein-auftrag/:ref/dokument/:id", async (req: Request, res: R
     if (!ref) return;
     const d = await globalDokumentLesen(ref, req.params.id, "kunde");
     if (!d) return res.status(404).json({ ok: false, error: "Dieses Dokument gibt es nicht." });
+    // E-338: geöffnet = gelesen (Post, Antworten-Anhänge, Unterschriften) — nie in der Vorschau der Leitung.
+    if (!istVorschau(req)) {
+      const { globalKundeHatGelesen } = await import("../lib/fiaon-global-mandat");
+      await globalKundeHatGelesen(ref, { dokument: Number(req.params.id) }).catch(() => {});
+    }
     dateiSenden(res, d);
   } catch (err) {
     console.error("[GLOBAL-BEREICH] dokument lesen:", err);
@@ -183,10 +206,47 @@ router.get("/global/mein-auftrag/:ref/dokument/:id", async (req: Request, res: R
   }
 });
 
+// E-338: Der Kunde hat die Antworten im Faden gesehen (nie in der Vorschau der Leitung).
+router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (!istVorschau(req)) {
+      const { globalKundeHatGelesen } = await import("../lib/fiaon-global-mandat");
+      await globalKundeHatGelesen(ref, "nachrichten");
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] gelesen:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// E-338: Der Kunde unterschreibt ein angefordertes PDF (Vollmacht u. a.). In der Vorschau der Leitung nie.
+router.post("/global/mein-auftrag/:ref/unterschrift/:id", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hier unterschreibt nur der Kunde." });
+    if (unterschriftJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { globalKundeUnterschreibt } = await import("../lib/fiaon-global-mandat");
+    const erg = await globalKundeUnterschreibt(ref, req.params.id, {
+      name: req.body?.name, bild: req.body?.bild, zustimmung: req.body?.zustimmung,
+      ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
+    });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: erg.meldung, id: erg.id });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] unterschrift:", err);
+    res.status(500).json({ ok: false, error: "Ihre Unterschrift konnte gerade nicht gespeichert werden. Bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+
 router.post("/global/mein-auftrag/:ref/nachricht", async (req: Request, res: Response) => {
   try {
     const ref = zutritt(req, res);
     if (!ref) return;
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — Nachrichten schreibt hier nur der Kunde." });
     if (nachrichtJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
     const erg = await globalKundenNachricht(ref, { text: req.body?.text, art: req.body?.art });
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });

@@ -1,0 +1,398 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS GLOBAL-PORTAL — „Mein Auftrag" für Firmenkunden (E-338, 12.10.2026)
+   Klassen .gp-. Global-CI: Papierweiß, Stein, Navy #12284a, Blau #1d4ed8,
+   Licht #288dfa, Newsreader (dünn) für große Zeilen, Inter für alles andere.
+   Die dunkle Navy-Bühne steht an GENAU einer Stelle; nichts klebt beim
+   Scrollen; der Kundenbereich bleibt immer hell (kein Dark Mode).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gp {
+  --papier: #ffffff; --stein: #f5f7fa; --stein-2: #eef1f5; --linie: #e3e7ee; --linie-2: #cdd5e0;
+  --tinte: #0c1a2e; --text: #3b4658; --leise: #6b7587; --navy: #12284a; --navy-2: #0b1c36;
+  --blau: #1d4ed8; --licht: #288dfa; --blau-hell: #eef3fe; --blau-rand: #d6e2fb; --gruen: #0f7a55;
+  --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif; --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --kurve: cubic-bezier(.22, 1, .36, 1);
+  color-scheme: light only; min-height: 100vh; color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  background: radial-gradient(1100px 480px at 50% -8%, #e6edfb 0%, rgba(230,237,251,0) 62%), var(--stein);
+  padding: 0 24px 48px;
+}
+.gp *, .gp *::before, .gp *::after { box-sizing: border-box; }
+.gp :focus-visible { outline: 2px solid var(--licht); outline-offset: 3px; border-radius: 8px; }
+.gp a { color: inherit; }
+
+/* ── Vorschau-Hinweis (nur Chefbüro) ── */
+.gp-vorschau { margin: 0 -24px; padding: 10px 24px; display: flex; align-items: center; justify-content: center; gap: 8px; text-align: center;
+  background: var(--navy); color: #dbe7fb; font: 400 12.5px/1.45 var(--sans); }
+
+/* ── Leiste ── */
+.gp-leiste { max-width: 1240px; margin: 0 auto; height: 76px; display: flex; align-items: center; gap: 16px; }
+.gp-logo { display: inline-flex; color: var(--navy); text-decoration: none; }
+.gp-leiste-trenner { width: 1px; height: 22px; background: var(--linie-2); }
+.gp-leiste-titel { font: 400 14px/1 var(--sans); color: var(--tinte); letter-spacing: .01em; }
+.gp-leiste-sicher { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font: 400 12px/1 var(--sans); color: var(--leise); }
+.gp-leiste-person { display: inline-flex; align-items: center; gap: 10px; padding: 5px 14px 5px 5px; border-radius: 999px; border: 1px solid var(--linie); background: var(--papier);
+  font: 400 13px/1 var(--sans); color: var(--tinte); cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s; }
+.gp-leiste-person:hover { border-color: var(--blau-rand); box-shadow: 0 8px 20px -12px rgba(12,26,46,.35); transform: translateY(-1px); }
+.gp-leiste-person img, .gp-leiste-person span { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+.gp-leiste-person span { display: grid; place-items: center; background: linear-gradient(145deg, var(--blau), var(--navy)); color: #fff; font: 500 13px/1 var(--sans); }
+.gp-leiste-person b { font-weight: 500; }
+
+/* ── Die Bühne ── */
+.gp-buehne { position: relative; isolation: isolate; max-width: 1240px; margin: 4px auto 0; border-radius: 30px; overflow: hidden; color: #fff; padding: 52px 52px 0;
+  background:
+    radial-gradient(820px 420px at 88% -6%, rgba(40,141,250,.30), rgba(40,141,250,0) 62%),
+    radial-gradient(720px 420px at -4% 108%, rgba(29,78,216,.42), rgba(29,78,216,0) 60%),
+    linear-gradient(158deg, #0b1c36 0%, #12284a 52%, #0d2141 100%);
+  box-shadow: 0 50px 90px -40px rgba(12,26,46,.65), 0 2px 0 rgba(255,255,255,.05) inset; }
+.gp-licht { position: absolute; z-index: -1; border-radius: 50%; pointer-events: none; filter: blur(8px); }
+.gp-licht.a { width: 560px; height: 560px; top: -260px; right: -140px; background: radial-gradient(circle, rgba(127,182,255,.30), rgba(127,182,255,0) 66%); animation: gp-schweben 22s ease-in-out infinite alternate; }
+.gp-licht.b { width: 460px; height: 460px; bottom: -220px; left: 18%; background: radial-gradient(circle, rgba(40,141,250,.22), rgba(40,141,250,0) 66%); animation: gp-schweben 26s ease-in-out -8s infinite alternate-reverse; }
+.gp-buehne-innen { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 44px; align-items: end; }
+.gp-gruss { margin: 0 0 22px; font: italic 300 21px/1.3 var(--serif); color: #bcd3f5; animation: gp-ein 1s var(--kurve) both; }
+.gp-auge { display: inline-flex; align-items: center; gap: 6px; font: 500 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--blau); }
+.gp-auge.hell { color: #9fc3f5; }
+.gp-llc { margin: 12px 0 0; font: 300 clamp(42px, 6.2vw, 78px)/1.02 var(--serif); letter-spacing: -.012em; text-wrap: balance;
+  background: linear-gradient(180deg, #ffffff 30%, #cfe0fa 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: gp-titel 1.2s var(--kurve) .1s both; }
+.gp-llc-zeile { margin: 14px 0 0; font: 400 15px/1.5 var(--sans); color: #a9bfdf; animation: gp-ein 1s var(--kurve) .25s both; }
+.gp-pillen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; animation: gp-ein 1s var(--kurve) .35s both; }
+.gp-pille { padding: 7px 12px; border-radius: 999px; font: 400 12px/1 var(--sans); letter-spacing: .02em; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #e6eefb; }
+.gp-pille.leise { color: #9fb6d8; }
+.gp-pille.st-offen { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.35); color: #fde3a1; }
+.gp-pille.st-bezahlt, .gp-pille.st-gestartet { background: rgba(40,141,250,.2); border-color: rgba(127,182,255,.45); color: #e3efff; }
+.gp-pille.st-abgeschlossen { background: rgba(16,185,129,.16); border-color: rgba(52,211,153,.4); color: #d1fae5; }
+
+.gp-buehne-rechts { display: flex; flex-direction: column; gap: 14px; animation: gp-ein 1.1s var(--kurve) .3s both; }
+.gp-ring-karte, .gp-naechster { border-radius: 22px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.13);
+  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); box-shadow: 0 1px 0 rgba(255,255,255,.08) inset; }
+.gp-ring-karte { position: relative; display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 20px; padding: 20px 22px; }
+.gp-ring { width: 132px; height: 132px; transform: rotate(-90deg); }
+.gp-ring circle { fill: none; stroke-width: 8; }
+.gp-ring-grund { stroke: rgba(255,255,255,.12); }
+.gp-ring-wert { --gp-p: 0; stroke: url(#gpRing); stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: calc(326.73 * (1 - var(--gp-p) / 100));
+  filter: drop-shadow(0 0 6px rgba(40,141,250,.55)); animation: gp-ring 1.8s var(--kurve) .4s both; }
+.gp-ring-mitte { position: absolute; left: 22px; top: 20px; width: 132px; height: 132px; display: grid; place-content: center; text-align: center; }
+.gp-ring-mitte b { font: 300 34px/1 var(--sans); font-variant-numeric: tabular-nums; color: #fff; }
+.gp-ring-mitte small { margin-top: 6px; font: 500 10px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: #9fc3f5; }
+.gp-ring-satz { margin: 0; font: 400 20px/1.3 var(--serif); color: #e6eefb; }
+.gp-naechster { padding: 18px 22px; display: flex; flex-direction: column; gap: 8px; }
+.gp-naechster p { margin: 0; font: 400 15px/1.5 var(--sans); color: #f1f6ff; }
+.gp-naechster small { font: 400 12.5px/1.3 var(--sans); color: #9fb6d8; }
+
+.gp-etappen { position: relative; z-index: 2; list-style: none; margin: 48px 0 0; padding: 0 0 70px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.gp-etappen li { position: relative; display: flex; flex-direction: column; gap: 8px; padding-right: 10px; opacity: 0; animation: gp-hoch .8s var(--kurve) both; animation-delay: calc(.55s + var(--i) * 90ms); }
+.gp-etappen li::before { content: ""; position: absolute; top: 14px; left: 30px; right: 0; height: 1px; background: rgba(255,255,255,.16); }
+.gp-etappen li:last-child::before { display: none; }
+.gp-etappen li[data-stand="fertig"]::before { background: linear-gradient(90deg, #7fb6ff, #288dfa); box-shadow: 0 0 10px rgba(40,141,250,.6); }
+.gp-etappe-punkt { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 500 12px/1 var(--sans);
+  border: 1px solid rgba(255,255,255,.28); color: #bcd0ee; background: #0e2243; }
+.gp-etappen li[data-stand="fertig"] .gp-etappe-punkt { background: linear-gradient(145deg, #7fb6ff, #288dfa); border-color: transparent; color: #0b1c36; }
+.gp-etappen li[data-stand="jetzt"] .gp-etappe-punkt { background: #fff; color: var(--navy); border-color: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.12), 0 0 26px rgba(127,182,255,.9); animation: gp-leuchten 3s ease-in-out infinite; }
+.gp-etappen b { font: 400 13px/1.3 var(--sans); color: #e6eefb; }
+.gp-etappen li[data-stand="offen"] b { color: #8fa9cf; }
+.gp-etappen li[data-stand="arbeit"] .gp-etappe-punkt { border-color: #7fb6ff; color: #dbeafe; box-shadow: 0 0 0 4px rgba(127,182,255,.16); }
+.gp-etappen li[data-stand="arbeit"] small { color: #9fc3f5; }
+.gp-etappen small { font: 400 11px/1.2 var(--sans); color: #7f9bc4; letter-spacing: .02em; }
+.gp-welle { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 130px; opacity: .55; pointer-events: none; z-index: 1; }
+
+/* ── Sprungleiste (klebt nicht) ── */
+.gp-sprung { max-width: 1240px; margin: 22px auto 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.gp-sprung::-webkit-scrollbar { display: none; }
+.gp-sprung button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px; border: 1px solid var(--linie); background: var(--papier);
+  font: 400 13px/1 var(--sans); color: var(--text); cursor: pointer; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s; }
+.gp-sprung button:hover { color: var(--tinte); border-color: var(--blau-rand); transform: translateY(-1px); box-shadow: 0 8px 18px -12px rgba(12,26,46,.35); }
+.gp-sprung i { min-width: 19px; height: 19px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center; font: 600 10.5px/1 var(--sans); font-style: normal; background: var(--licht); color: #fff; }
+
+/* ── Raster ── */
+.gp-raster { max-width: 1240px; margin: 22px auto 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.gp-haupt { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.gp-seite { display: flex; flex-direction: column; gap: 20px; }
+
+.gp-abschnitt, .gp-karte { background: var(--papier); border: 1px solid var(--linie); border-radius: 24px;
+  box-shadow: 0 1px 2px rgba(12,26,46,.04), 0 24px 48px -36px rgba(12,26,46,.25); }
+.gp-abschnitt { padding: 32px 34px; scroll-margin-top: 16px; }
+.gp-karte { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.gp-auftauchen { opacity: 0; transform: translateY(16px); transition: opacity .8s var(--kurve), transform .8s var(--kurve); }
+.gp-auftauchen.gp-da { opacity: 1; transform: none; }
+.gp-h2 { margin: 0; display: flex; align-items: center; gap: 10px; font: 400 29px/1.15 var(--serif); color: var(--tinte); letter-spacing: -.005em; }
+.gp-h2 svg { color: var(--blau); }
+.gp-lead { margin: 10px 0 0; max-width: 660px; font: 400 14.5px/1.6 var(--sans); color: var(--leise); }
+.gp-leise { margin: 0; font: 400 13px/1.55 var(--sans); color: var(--leise); }
+.gp-leise.klein { font-size: 12px; }
+.gp-satz { margin: 14px 0 0; font: 400 14px/1.6 var(--sans); color: var(--text); }
+.gp-satz b { color: var(--tinte); font-weight: 500; }
+.gp-satz.klein { font-size: 13px; }
+.gp-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; padding: 0; border: 0; background: none; font: 400 13px/1 var(--sans); color: var(--blau); cursor: pointer; text-decoration: none; }
+.gp-link:hover { text-decoration: underline; }
+
+/* Knöpfe & Felder */
+.gp-knopf { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--navy);
+  background: var(--navy); color: #fff !important; font: 400 14px/1 var(--sans); letter-spacing: .01em; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background .2s, box-shadow .25s, transform .2s; }
+.gp-knopf:hover { background: var(--navy-2); box-shadow: 0 12px 26px -10px rgba(18,40,74,.55); transform: translateY(-1px); }
+.gp-knopf:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+.gp-knopf.leise { background: var(--papier); color: var(--navy) !important; border-color: var(--linie-2); }
+.gp-knopf.leise:hover { background: var(--stein); box-shadow: none; }
+.gp-knopf.klein { min-height: 34px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
+.gp-knopf.gross { min-height: 52px; width: 100%; font-size: 15px; border-radius: 14px; }
+.gp-knopf.breit { width: 100%; }
+.gp-eingabe { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--linie-2); background: var(--papier); color: var(--tinte);
+  font: 400 15px/1.45 var(--sans); outline: none; transition: border-color .2s, box-shadow .2s; }
+.gp-eingabe:focus { border-color: var(--licht); box-shadow: 0 0 0 4px rgba(40,141,250,.14); }
+textarea.gp-eingabe { resize: vertical; min-height: 88px; }
+.gp-feldname { display: flex; flex-direction: column; gap: 7px; font: 500 12px/1.3 var(--sans); color: var(--leise); letter-spacing: .01em; }
+.gp-haken { display: flex; align-items: flex-start; gap: 10px; font: 400 14px/1.45 var(--sans); color: var(--text); cursor: pointer; }
+.gp-haken input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--navy); flex: 0 0 auto; }
+.gp-marke { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--linie); background: var(--papier);
+  font: 500 11px/1 var(--sans); letter-spacing: .02em; color: var(--leise); white-space: nowrap; }
+.gp-marke.blau { color: var(--blau); background: var(--blau-hell); border-color: var(--blau-rand); }
+.gp-marke.gruen, .gp-marke.st-zugesagt, .gp-marke.st-aktiv { color: var(--gruen); background: #ecfdf5; border-color: #bbf0d6; }
+.gp-marke.st-beantragt, .gp-marke.st-in_pruefung { color: var(--blau); background: var(--blau-hell); border-color: var(--blau-rand); }
+.gp-marke.st-abgelehnt { color: #b42318; background: #fef3f2; border-color: #fecdca; }
+.gp-meldung { margin: 12px 0 0; padding: 11px 14px; border-radius: 12px; font: 400 13.5px/1.45 var(--sans); background: var(--stein); color: var(--text); }
+.gp-meldung.gut { background: #ecfdf5; color: var(--gruen); }
+.gp-meldung.schlecht { background: #fef3f2; color: #b42318; }
+.gp-dreht { animation: gp-drehen 1s linear infinite; }
+
+/* ── Für Sie zu tun ── */
+.gp-tun { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.gp-tun-karte { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 18px 20px; border-radius: 18px;
+  border: 1px solid var(--linie); background: linear-gradient(180deg, #fff, #fbfcfe); opacity: 0; }
+.gp-da .gp-tun-karte { animation: gp-hoch .7s var(--kurve) both; animation-delay: calc(var(--i) * 90ms); }
+.gp-tun-karte.blau, .gp-tun-karte.navy { border-color: var(--blau-rand); background: linear-gradient(180deg, #f6f9ff, #fff); box-shadow: 0 18px 36px -28px rgba(29,78,216,.45); }
+.gp-tun-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--blau-hell); color: var(--blau); }
+.gp-tun-karte.navy .gp-tun-icon { background: linear-gradient(145deg, var(--blau), var(--navy)); color: #fff; }
+.gp-tun-karte b { display: block; font: 500 15px/1.35 var(--sans); color: var(--tinte); }
+.gp-tun-karte p { margin: 4px 0 0; font: 400 13.5px/1.5 var(--sans); color: var(--leise); }
+.gp-alles-gut { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 18px 20px; border-radius: 18px; background: #f3fbf7; border: 1px solid #d3f2e2; color: var(--gruen); }
+.gp-alles-gut p { margin: 0; font: 400 14.5px/1.5 var(--sans); color: #0d5c41; }
+.gp-termin { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: center; margin-top: 14px; padding: 16px 20px; border-radius: 18px; background: var(--stein); color: var(--blau); }
+.gp-termin b { font: 500 14px/1.4 var(--sans); color: var(--tinte); }
+.gp-termin small { display: block; font: 400 12.5px/1.45 var(--sans); color: var(--leise); }
+.gp-termin-wege { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* ── Fahrplan ── */
+.gp-fahrplan { display: flex; flex-direction: column; margin-top: 24px; }
+.gp-kapitel { position: relative; padding: 0 0 26px 54px; }
+.gp-kapitel::before { content: ""; position: absolute; left: 17px; top: 38px; bottom: 0; width: 1px; background: linear-gradient(180deg, var(--linie-2), var(--linie) 70%, transparent); }
+.gp-kapitel:last-child::before { display: none; }
+.gp-kapitel.fertig::before { background: linear-gradient(180deg, #7fb6ff, var(--blau-rand)); }
+.gp-kapitel.ausserhalb { opacity: .6; }
+.gp-kapitel-kopf { display: flex; align-items: center; gap: 14px; margin-left: -54px; }
+.gp-kapitel-nr { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font: 400 15px/1 var(--serif); border: 1px solid var(--linie-2); color: var(--leise); background: var(--papier); }
+.gp-kapitel.fertig .gp-kapitel-nr { background: linear-gradient(145deg, #7fb6ff, var(--licht)); border-color: transparent; color: #fff; }
+.gp-kapitel.jetzt .gp-kapitel-nr { background: var(--navy); border-color: var(--navy); color: #fff; box-shadow: 0 0 0 6px rgba(40,141,250,.12); }
+.gp-kapitel.arbeit .gp-kapitel-nr { border-color: var(--licht); color: var(--blau); box-shadow: 0 0 0 5px rgba(40,141,250,.1); }
+.gp-kapitel.arbeit .gp-kapitel-kopf small { color: var(--blau); }
+.gp-kapitel-kopf b { display: block; font: 400 20px/1.25 var(--serif); color: var(--tinte); }
+.gp-kapitel-kopf small { font: 500 11px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--leise); }
+.gp-kapitel.jetzt .gp-kapitel-kopf small { color: var(--blau); }
+.gp-kapitel-text { margin: 10px 0 0; max-width: 640px; font: 400 13.5px/1.6 var(--sans); color: var(--leise); }
+.gp-schritte { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.gp-schritt { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 10px 12px; margin-left: -12px; border-radius: 14px; transition: background .2s; opacity: 0; }
+.gp-da .gp-schritt { animation: gp-hoch .6s var(--kurve) both; animation-delay: calc(.1s + var(--i) * 70ms); }
+.gp-schritt:hover { background: var(--stein); }
+.gp-schritt b { font: 500 14px/1.35 var(--sans); color: var(--tinte); }
+.gp-schritt.offen b { color: var(--text); font-weight: 400; }
+.gp-schritt small { display: block; margin-top: 2px; font: 400 12px/1.3 var(--sans); color: var(--leise); }
+.gp-schritt.in_arbeit small { color: var(--blau); }
+.gp-schritt.erledigt small { color: var(--gruen); }
+.gp-schritt-text { margin: 5px 0 0; font: 400 12.5px/1.5 var(--sans); color: #8a93a3; }
+.gp-schritt-hinweis { margin: 7px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--blau-hell); font: 400 13px/1.5 var(--sans); color: #1e3a8a; }
+.gp-schritt-zeichen { width: 22px; height: 22px; margin-top: 1px; display: grid; place-items: center; color: #b3bccb; }
+.gp-haken circle { fill: #ecfdf5; stroke: #34d399; stroke-width: 1.4; }
+.gp-haken path { fill: none; stroke: var(--gruen); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 18; stroke-dashoffset: 18; }
+.gp-da .gp-haken path { animation: gp-zeichnen .7s var(--kurve) both; animation-delay: calc(.35s + var(--i) * 70ms); }
+.gp-puls { position: relative; width: 12px; height: 12px; border-radius: 50%; background: var(--licht); }
+.gp-puls::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--licht); animation: gp-welle-puls 2s ease-out infinite; }
+
+/* ── Tresor ── */
+.gp-mappen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.gp-mappen button { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--linie); background: var(--papier);
+  font: 400 13px/1 var(--sans); color: var(--text); cursor: pointer; transition: all .2s; }
+.gp-mappen button:hover { border-color: var(--blau-rand); color: var(--tinte); }
+.gp-mappen button.an { background: var(--navy); border-color: var(--navy); color: #fff; box-shadow: 0 10px 22px -12px rgba(18,40,74,.6); }
+.gp-mappen i { font-style: normal; font: 500 11px/1 var(--sans); padding: 3px 7px; border-radius: 999px; background: var(--stein-2); color: var(--leise); }
+.gp-mappen button.an i { background: rgba(255,255,255,.16); color: #fff; }
+.gp-dokliste { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; animation: gp-ein .5s var(--kurve) both; }
+.gp-dok { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 12px 14px; border-radius: 16px; border: 1px solid transparent; transition: background .2s, border-color .2s; }
+.gp-dok:hover { background: var(--stein); border-color: var(--linie); }
+.gp-dok-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--blau-hell); color: var(--blau); }
+.gp-dok-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; text-decoration: none; }
+.gp-dok-text b { font: 500 14px/1.35 var(--sans); color: var(--tinte); overflow-wrap: anywhere; }
+.gp-dok-text small { font: 400 12px/1.4 var(--sans); color: var(--leise); overflow-wrap: anywhere; }
+.gp-dok-pfeil { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--leise); transition: color .2s, background .2s, transform .25s var(--kurve); }
+.gp-dok:hover .gp-dok-pfeil { color: var(--blau); background: var(--papier); transform: translateX(3px); }
+.gp-ablage { margin-top: 22px; padding: 20px; border-radius: 20px; border: 1.5px dashed var(--linie-2); background: #fbfcfe; display: flex; flex-direction: column; gap: 14px; transition: border-color .2s, background .2s; }
+.gp-ablage.zieht { border-color: var(--licht); background: #f3f7ff; }
+.gp-ablage-titel { font: 500 14px/1.3 var(--sans); color: var(--tinte); }
+.gp-fehlt { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.gp-fehlt button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--linie); background: var(--papier); font: 400 12.5px/1 var(--sans); color: var(--text); cursor: pointer; }
+.gp-fehlt button.an { border-color: var(--licht); color: var(--blau); background: var(--blau-hell); }
+.gp-ablage-feld { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; padding: 18px; border-radius: 14px; background: var(--papier); border: 1px solid var(--linie); color: var(--blau); cursor: pointer; transition: border-color .2s; }
+.gp-ablage-feld:hover { border-color: var(--blau-rand); }
+.gp-ablage-feld svg { grid-row: 1 / span 2; }
+.gp-ablage-feld span { font: 400 14px/1.35 var(--sans); color: var(--tinte); }
+.gp-ablage-feld span b { font-weight: 500; }
+.gp-ablage-feld small { font: 400 12px/1.3 var(--sans); color: var(--leise); }
+.gp-ablage-feld input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.gp-ablage-zeile { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.gp-hinweis-zeile { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding: 14px 16px; border-radius: 14px; background: var(--stein); }
+
+/* ── Post ── */
+.gp-briefe { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.gp-brief { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--linie); text-decoration: none; transition: all .25s var(--kurve); }
+.gp-brief:hover { border-color: var(--blau-rand); box-shadow: 0 16px 30px -24px rgba(12,26,46,.45); transform: translateY(-1px); }
+.gp-brief-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: var(--stein-2); color: var(--navy); }
+.gp-brief.neu .gp-brief-icon { background: var(--blau-hell); color: var(--blau); }
+.gp-brief b { display: block; font: 500 14.5px/1.35 var(--sans); color: var(--tinte); }
+.gp-brief small { font: 400 12px/1.3 var(--sans); color: var(--leise); }
+.gp-brief-pfeil { color: var(--leise); }
+.gp-leer-karte { display: flex; align-items: center; gap: 14px; margin-top: 20px; padding: 20px 22px; border-radius: 18px; background: var(--stein); color: #8a93a3; }
+.gp-leer-karte p { margin: 0; font: 400 13.5px/1.55 var(--sans); color: var(--leise); }
+
+/* ── Anfragen ── */
+.gp-faden { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; padding: 18px; max-height: 440px; overflow-y: auto; border-radius: 20px; background: var(--stein); scroll-behavior: smooth; }
+.gp-blase { max-width: 76%; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; animation: gp-hoch .45s var(--kurve) both; }
+.gp-blase p { margin: 0; font: 400 14px/1.55 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; }
+.gp-blase small { font: 400 11px/1.2 var(--sans); }
+.gp-blase.kunde { align-self: flex-end; border-radius: 18px 18px 6px 18px; background: linear-gradient(160deg, var(--navy), #1a3563); color: #fff; }
+.gp-blase.kunde small { color: #9fb6d8; }
+.gp-blase.fiaon { align-self: flex-start; border-radius: 18px 18px 18px 6px; background: var(--papier); border: 1px solid var(--linie); color: var(--tinte); }
+.gp-blase.fiaon small { color: var(--leise); }
+.gp-schreiben { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-top: 14px; }
+
+/* ── Kapital ── */
+.gp-summe { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; padding: 20px 22px; border-radius: 18px; border: 1px solid var(--blau-rand); background: linear-gradient(135deg, #f3f7ff, #fff 70%); }
+.gp-summe small { font: 500 11px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--blau); }
+.gp-summe b { font: 300 42px/1 var(--serif); color: var(--tinte); font-variant-numeric: tabular-nums; }
+.gp-kapital { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.gp-kapital-karte { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding: 20px; border-radius: 18px; border: 1px solid var(--linie); background: var(--papier); opacity: 0; transition: box-shadow .25s, transform .25s; }
+.gp-da .gp-kapital-karte { animation: gp-hoch .7s var(--kurve) both; animation-delay: calc(var(--i) * 90ms); }
+.gp-kapital-karte:hover { transform: translateY(-2px); box-shadow: 0 22px 40px -30px rgba(12,26,46,.5); }
+.gp-kapital-karte::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 60px; background: linear-gradient(180deg, rgba(40,141,250,.07), transparent); pointer-events: none; }
+.gp-kapital-karte.st-zugesagt, .gp-kapital-karte.st-aktiv { border-color: #bbf0d6; }
+.gp-kapital-karte.st-zugesagt::before, .gp-kapital-karte.st-aktiv::before { background: linear-gradient(180deg, rgba(16,185,129,.08), transparent); }
+.gp-kapital-karte small { font: 500 11px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--leise); }
+.gp-kapital-karte b { margin-top: 6px; font: 400 19px/1.25 var(--serif); color: var(--tinte); }
+.gp-kapital-karte em { font: 400 13px/1.4 var(--sans); font-style: normal; color: var(--leise); }
+.gp-kapital-fuss { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.gp-kapital-fuss strong { font: 300 24px/1 var(--serif); color: var(--tinte); font-variant-numeric: tabular-nums; }
+.gp-kapital-karte p { margin: 10px 0 0; font: 400 12.5px/1.5 var(--sans); color: var(--leise); }
+
+/* ── Fristen, Teile, Verlauf ── */
+.gp-fristen, .gp-teile { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gp-fristen li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--linie); }
+.gp-fristen li div b { display: block; font: 500 14px/1.35 var(--sans); color: var(--tinte); }
+.gp-fristen li div small { display: block; margin-top: 3px; font: 400 12.5px/1.45 var(--sans); color: var(--leise); }
+.gp-frist-datum { display: flex; flex-direction: column; align-items: center; padding: 8px 0; border-radius: 12px; background: var(--stein); }
+.gp-frist-datum b { font: 300 26px/1 var(--serif); color: var(--navy); }
+.gp-frist-datum small { margin-top: 3px; font: 500 10px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--leise); }
+.gp-fristen li.bald .gp-marke { color: #9a6700; background: #fff8e6; border-color: #f7df9e; }
+.gp-fristen li.faellig .gp-marke { color: #b42318; background: #fef3f2; border-color: #fecdca; }
+.gp-fristen li.erledigt { opacity: .55; }
+.gp-teile li { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 16px; background: var(--stein); }
+.gp-teile li b { display: block; font: 500 14px/1.35 var(--sans); color: var(--tinte); }
+.gp-teile li small { display: block; margin-top: 3px; font: 400 12.5px/1.45 var(--sans); color: var(--leise); }
+.gp-verlauf { list-style: none; margin: 18px 0 0; padding: 0; }
+.gp-verlauf li { position: relative; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; padding: 10px 0 10px 18px; border-left: 1px solid var(--linie); }
+.gp-verlauf li::before { content: ""; position: absolute; left: -4px; top: 16px; width: 7px; height: 7px; border-radius: 50%; background: var(--blau-rand); }
+.gp-verlauf li:first-child::before { background: var(--licht); box-shadow: 0 0 0 4px rgba(40,141,250,.15); }
+.gp-verlauf time { font: 500 12px/1.4 var(--sans); color: var(--leise); font-variant-numeric: tabular-nums; }
+.gp-verlauf span { font: 400 13.5px/1.55 var(--sans); color: var(--text); }
+
+/* ── Seitenkarten ── */
+.gp-person { display: flex; align-items: center; gap: 14px; }
+.gp-person img, .gp-person-mono { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; box-shadow: 0 10px 22px -12px rgba(12,26,46,.5); }
+.gp-person-mono { display: grid; place-items: center; background: linear-gradient(145deg, var(--blau), var(--navy)); color: #fff; font: 400 22px/1 var(--serif); }
+.gp-person b { display: block; font: 500 16px/1.3 var(--sans); color: var(--tinte); }
+.gp-person a { display: flex; align-items: center; gap: 6px; margin-top: 5px; font: 400 13px/1.3 var(--sans); color: var(--blau); text-decoration: none; overflow-wrap: anywhere; }
+.gp-person a:hover { text-decoration: underline; }
+.gp-daten { margin: 0; display: flex; flex-direction: column; }
+.gp-zeile { display: grid; grid-template-columns: 1fr; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--stein-2); }
+.gp-zeile:last-child { border-bottom: 0; }
+.gp-zeile dt { font: 500 10.5px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--leise); }
+.gp-zeile dd { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 400 14px/1.45 var(--sans); color: var(--tinte); white-space: pre-line; overflow-wrap: anywhere; }
+.gp-kopie { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--linie); background: var(--papier); font: 400 11px/1 var(--sans); color: var(--leise); cursor: pointer; transition: color .2s, border-color .2s; }
+.gp-kopie:hover { color: var(--blau); border-color: var(--blau-rand); }
+.gp-paket { margin: 0; font: 400 20px/1.3 var(--serif); color: var(--tinte); }
+.gp-preis { margin: 0; font: 300 34px/1 var(--serif); color: var(--navy); font-variant-numeric: tabular-nums; }
+.gp-jahr { padding: 14px 16px; border-radius: 14px; background: var(--stein); display: flex; flex-direction: column; gap: 6px; }
+.gp-jahr b { font: 500 13.5px/1.3 var(--sans); color: var(--tinte); }
+.gp-jahr p { margin: 0; font: 400 13px/1.5 var(--sans); color: var(--text); }
+.gp-jahr small { font: 400 12px/1.5 var(--sans); color: var(--leise); }
+
+.gp-fuss { max-width: 1240px; margin: 34px auto 0; display: flex; align-items: center; justify-content: center; gap: 8px; text-align: center; font: 400 12px/1.5 var(--sans); color: var(--leise); }
+
+/* ── Dialog: Unterschrift ── */
+.gp-schleier { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(11,28,54,.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: gp-ein .25s ease-out both; }
+.gp-dialog { position: relative; width: min(660px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 30px; border-radius: 26px; background: var(--papier);
+  display: flex; flex-direction: column; gap: 16px; box-shadow: 0 50px 100px -30px rgba(11,28,54,.6); animation: gp-dialog .45s var(--kurve) both; }
+.gp-dialog h3 { margin: 0; font: 400 26px/1.2 var(--serif); color: var(--tinte); }
+.gp-dialog-zu { position: absolute; top: 16px; right: 16px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--linie); background: var(--papier); color: var(--leise); cursor: pointer; }
+.gp-dialog-pdf { display: flex; flex-direction: column; gap: 6px; }
+.gp-dialog-pdf iframe { width: 100%; height: 300px; border: 1px solid var(--linie); border-radius: 14px; background: var(--stein); }
+.gp-dialog-pdf .gp-link { margin-top: 4px; }
+.gp-zeichen-rahmen { position: relative; height: 170px; border-radius: 16px; border: 1.5px dashed var(--linie-2); background: #fbfcfe; overflow: hidden; }
+.gp-zeichenfeld { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; z-index: 1; }
+.gp-zeichen-linie { position: absolute; left: 26px; right: 26px; bottom: 40px; border-bottom: 1px solid var(--linie-2); pointer-events: none; }
+.gp-zeichen-neu { position: absolute; top: 10px; right: 10px; z-index: 2; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--linie); background: var(--papier); font: 400 12px/1 var(--sans); color: var(--leise); cursor: pointer; }
+.gp-fertig { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 10px 6px; }
+.gp-fertig p { margin: 0 0 8px; max-width: 420px; font: 400 14.5px/1.6 var(--sans); color: var(--leise); }
+.gp-haken-gross { width: 76px; height: 76px; }
+.gp-haken-gross circle { fill: #ecfdf5; stroke: #34d399; stroke-width: 1.5; stroke-dasharray: 151; stroke-dashoffset: 151; animation: gp-zeichnen-kreis .8s var(--kurve) both; }
+.gp-haken-gross path { fill: none; stroke: var(--gruen); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: gp-zeichnen .6s var(--kurve) .55s both; }
+
+/* ── Bewegung ── */
+@keyframes gp-ein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gp-hoch { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes gp-titel { from { opacity: 0; transform: translateY(18px); letter-spacing: .01em; filter: blur(4px); } to { opacity: 1; transform: none; letter-spacing: -.012em; filter: none; } }
+@keyframes gp-ring { from { stroke-dashoffset: 326.73; } }
+@keyframes gp-schweben { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-60px, 40px, 0) scale(1.08); } }
+@keyframes gp-leuchten { 0%, 100% { box-shadow: 0 0 0 6px rgba(255,255,255,.12), 0 0 22px rgba(127,182,255,.75); } 50% { box-shadow: 0 0 0 9px rgba(255,255,255,.06), 0 0 34px rgba(127,182,255,1); } }
+@keyframes gp-zeichnen { to { stroke-dashoffset: 0; } }
+@keyframes gp-zeichnen-kreis { to { stroke-dashoffset: 0; } }
+@keyframes gp-welle-puls { from { transform: scale(.6); opacity: .8; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes gp-drehen { to { transform: rotate(360deg); } }
+@keyframes gp-dialog { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* ── Schmal ── */
+@media (max-width: 1000px) {
+  .gp-raster { grid-template-columns: 1fr; }
+  .gp-buehne-innen { grid-template-columns: 1fr; gap: 28px; }
+}
+@media (max-width: 720px) {
+  .gp { padding: 0 12px 36px; }
+  .gp-vorschau { margin: 0 -12px; padding: 10px 14px; }
+  .gp-leiste { height: 64px; gap: 10px; }
+  .gp-leiste-sicher, .gp-leiste-person b, .gp-leiste-trenner { display: none; }
+  .gp-leiste-person { margin-left: auto; padding: 4px; }
+  .gp-buehne { border-radius: 22px; padding: 30px 22px 0; }
+  .gp-gruss { font-size: 18px; margin-bottom: 16px; }
+  .gp-ring-karte { grid-template-columns: 104px 1fr; padding: 16px; }
+  .gp-ring { width: 104px; height: 104px; }
+  .gp-ring-mitte { left: 16px; top: 16px; width: 104px; height: 104px; }
+  .gp-ring-mitte b { font-size: 28px; }
+  .gp-ring-satz { font-size: 17px; }
+  .gp-etappen { grid-template-columns: repeat(6, 132px); overflow-x: auto; scrollbar-width: none; margin: 34px -22px 0; padding: 0 22px 64px; }
+  .gp-etappen::-webkit-scrollbar { display: none; }
+  .gp-abschnitt { padding: 24px 18px; border-radius: 20px; }
+  .gp-h2 { font-size: 25px; }
+  .gp-tun-karte { grid-template-columns: auto minmax(0, 1fr); }
+  .gp-tun-karte > .gp-knopf { grid-column: 1 / -1; width: 100%; }
+  .gp-kapital { grid-template-columns: 1fr; }
+  .gp-dok { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .gp-dok > .gp-marke { grid-column: 2; justify-self: start; }
+  .gp-dok > .gp-knopf { grid-column: 1 / -1; }
+  .gp-ablage-zeile, .gp-schreiben { grid-template-columns: 1fr; }
+  .gp-eingabe { font-size: 16px; }
+  .gp-blase { max-width: 90%; }
+  .gp-verlauf li { grid-template-columns: 1fr; gap: 2px; }
+  .gp-dialog { padding: 22px 18px; border-radius: 22px; }
+  .gp-dialog-pdf iframe { height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gp *, .gp *::before, .gp *::after { animation: none !important; transition: none !important; }
+  .gp-auftauchen, .gp-tun-karte, .gp-schritt, .gp-kapital-karte, .gp-etappen li { opacity: 1 !important; transform: none !important; }
+  .gp-haken path, .gp-haken-gross circle, .gp-haken-gross path { stroke-dashoffset: 0 !important; }
+}

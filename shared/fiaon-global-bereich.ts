@@ -175,7 +175,9 @@ export function globalEtappeStand(nr: number, aktuell: number): GlobalEtappeStan
 // ── DOKUMENTARTEN ────────────────────────────────────────────────────────────
 export type GlobalDokumentArt =
   | "reisepass" | "adressnachweis" | "registerauszug" | "gesellschafterliste" | "namenswunsch" | "taetigkeitsbeschreibung"
-  | "gruendungsurkunde" | "ein_brief" | "operating_agreement" | "itin_bescheid" | "bank_unterlage" | "sonstiges";
+  | "gruendungsurkunde" | "ein_brief" | "operating_agreement" | "itin_bescheid" | "bank_unterlage" | "sonstiges"
+  // E-338 (12.10.2026): Arten des Global-Mandats — Tresor-Kategorien in shared/fiaon-global-mandat.ts.
+  | "vollmacht" | "bank_vertrag" | "karten_unterlage" | "kapital_vertrag" | "steuer" | "jahresbericht" | "post" | "info";
 
 /** `von`: wer diese Art üblicherweise liefert. Der Kunde wählt nur aus „kunde" und „beide"; FIAON darf jede Art ablegen. */
 export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fiaon" | "beide"; de: string; en: string }[] = [
@@ -190,6 +192,15 @@ export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fia
   { art: "operating_agreement", von: "fiaon", de: "Operating Agreement", en: "Operating agreement" },
   { art: "itin_bescheid", von: "fiaon", de: "ITIN-Bescheid", en: "ITIN notice" },
   { art: "bank_unterlage", von: "beide", de: "Unterlage für Bank oder Kartenherausgeber", en: "Document for a bank or card issuer" },
+  // E-338: Vollmachten, Bank, Kapital, Steuern, Post und Infomaterial — „sonstiges" bleibt der letzte Eintrag.
+  { art: "vollmacht", von: "fiaon", de: "Vollmacht", en: "Power of attorney" },
+  { art: "bank_vertrag", von: "beide", de: "Bankvertrag oder Kontounterlage", en: "Bank agreement or account document" },
+  { art: "karten_unterlage", von: "beide", de: "Kartenantrag oder -zusage", en: "Card application or approval" },
+  { art: "kapital_vertrag", von: "beide", de: "Kredit- oder Finanzierungsvertrag", en: "Credit or financing agreement" },
+  { art: "steuer", von: "beide", de: "Steuerunterlage", en: "Tax document" },
+  { art: "jahresbericht", von: "fiaon", de: "Jahresbericht (Annual Report)", en: "Annual report" },
+  { art: "post", von: "fiaon", de: "Eingegangene Post", en: "Incoming mail" },
+  { art: "info", von: "fiaon", de: "Infomaterial", en: "Information material" },
   { art: "sonstiges", von: "beide", de: "Sonstiges Dokument", en: "Other document" },
 ];
 

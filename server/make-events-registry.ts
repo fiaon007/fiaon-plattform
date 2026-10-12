@@ -819,6 +819,18 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-338 (12.10.2026): Antwort im Gesprächsfaden — der Inhalt reist nicht mit, der Knopf führt ins Portal.
+    type: "global_nachricht",
+    label: "FIAON Global: Antwort auf die Anfrage des Kunden (Firmenkunde)",
+    description: "Geht raus, wenn die Leitung im Chefbüro › Global auf eine Anfrage antwortet und „Kunde per Mail informieren“ gesetzt ist. Die Antwort selbst steht nur im Portal („Mein Auftrag“, Abschnitt Anfragen).",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
     type: "global_zahlung_erinnerung",
     label: "FIAON Global: Zahlung steht noch aus — ruhige Erinnerung (Firmenkunde)",
     description: "Geht automatisch am dritten und am siebten Tag nach dem Auftrag, je Stufe genau einmal und nur solange der Auftrag offen ist (Lauf global_zahlung_takt, Berlin 8–20 Uhr, Mo–Sa). Ein Satz Anlass, Knopf zur Zahlungsseite, Vertrag und Rechnung über „Mein Auftrag“ — keine Mahnstufe, keine Bankdaten im Text. Am zehnten Tag folgt keine Mail, sondern eine dringende Aufgabe an die zuständige Person. Englische Fassung über sprache: \"en\".",

@@ -25,7 +25,7 @@
 // eine ruhige Zeile, dass der Ansprechpartner sie später dazunimmt. Keine eigene
 // Buchungsstrecke — eine Nachricht an den Ansprechpartner genügt.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRoute } from "wouter";
 import { Dunkel } from "@/components/site/DunkleBuehne";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -34,6 +34,8 @@ import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
+// E-338: das neue Portal — nur, wenn der Server `portalNeu` meldet (für diesen Kunden freigeschaltet oder Vorschau der Leitung).
+const GlobalPortal = lazy(() => import("./global-portal"));
 
 type Etappe = { nr: number; titel: string; text?: string; stand: "fertig" | "jetzt" | "offen"; seit?: string };
 type Dokument = { id: number | string; art: string; artText?: string; name: string; groesse?: number; von: "kunde" | "fiaon"; am?: string };
@@ -93,7 +95,9 @@ export default function BusinessAuftrag() {
   const laden = useCallback(async () => {
     if (!ref || !token) return;
     try {
-      const r = await fetch(mitToken(""));
+      // E-338: Die Vorschau der Leitung (?vorschau=neu aus dem Chefbüro) reist mit — der Server prüft die Anmeldung.
+      const vorschau = new URLSearchParams(window.location.search).get("vorschau");
+      const r = await fetch(`${mitToken("")}${vorschau ? `&vorschau=${encodeURIComponent(vorschau)}` : ""}`);
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.ok && j.auftrag) {
         setAuftrag(j.auftrag); setStand("da");
@@ -172,6 +176,15 @@ export default function BusinessAuftrag() {
   const a = auftrag;
   const titel = stand === "da" && a ? a.firma.name : t.zugangTitel;
   const J = GLOBAL_JAHRESBETREUUNG[s];
+
+  // E-338: Das neue Portal hat seinen eigenen Rahmen (Leiste, Bühne, Fuß) — ohne die dunkle Seitenbühne.
+  if (stand === "da" && a && (a as any).portalNeu) {
+    return (
+      <Suspense fallback={<div style={{ minHeight: "100vh", background: "#f5f7fa" }} />}>
+        <GlobalPortal a={a as any} gref={ref} token={token} s={s} t={t as any} laden={laden} />
+      </Suspense>
+    );
+  }
 
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>

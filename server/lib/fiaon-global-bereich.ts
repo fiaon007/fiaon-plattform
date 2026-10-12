@@ -190,15 +190,18 @@ export function kundensatz(text: string): string | null {
   return `Der Text für den Kunden enthält Formulierungen, die wir nicht verwenden: ${funde.filter((f) => f.art !== "floskel").map((f) => `„${f.treffer}“`).join(", ")}. Bitte formuliere um.`;
 }
 
-async function verlaufSchreiben(ref: string, z: { art: string; text: string; sichtbar: boolean; agentId?: number | null; von?: "system" | "kunde" | "fiaon" }): Promise<void> {
-  await sqlPool`
+/** E-338: auch vom Global-Mandat (fiaon-global-mandat.ts) benutzt. */
+export async function verlaufSchreiben(ref: string, z: { art: string; text: string; sichtbar: boolean; agentId?: number | null; von?: "system" | "kunde" | "fiaon" }): Promise<number | null> {
+  const [neu] = (await sqlPool`
     INSERT INTO fiaon_global_verlauf (ref, art, text, sichtbar, agent_id, von)
     VALUES (${ref}, ${z.art}, ${z.text.slice(0, 4000)}, ${z.sichtbar}, ${z.agentId ?? null}, ${z.von ?? (z.agentId ? "fiaon" : "system")})
-  `.catch((e) => console.error(`[GLOBAL-BEREICH] ${ref}: Verlauf (${z.art}) nicht geschrieben:`, e));
+    RETURNING id
+  `.catch((e) => { console.error(`[GLOBAL-BEREICH] ${ref}: Verlauf (${z.art}) nicht geschrieben:`, e); return []; })) as any[];
+  return neu?.id != null ? Number(neu.id) : null;
 }
 
 // ── Die Lage eines Auftrags ──────────────────────────────────────────────────
-interface Lage {
+export interface Lage {
   ref: string; akte: any; b: any; status: GlobalBereichStatus; sprache: BereichSprache;
   etappe: number; etappenSeit: Record<string, string>; gesellschaft: GlobalGesellschaft;
 }
@@ -208,7 +211,7 @@ function bereichStatus(akte: any, b: any): GlobalBereichStatus {
   return s === "gestartet" && String(akte?.status) === "abgeschlossen" ? "abgeschlossen" : s;
 }
 
-async function lageLesen(ref: string): Promise<Lage | null> {
+export async function lageLesen(ref: string): Promise<Lage | null> {
   await ensureGlobalBereich();
   const akte = await globalAkteLesen(ref);
   if (!akte) return null;
@@ -517,7 +520,7 @@ function sprachZusatz(l: Lage): Record<string, string> {
   const gp = globalPaket(l.akte.paket_key);
   return { anrede_zeile: escapeHtml(anrede), ...(gp ? { paket: escapeHtml(`FIAON ${gp.en.name}`) } : {}) };
 }
-async function bereichMail(event: GlobalMail, l: Lage, zusatz: Record<string, string>, ausgeloestVon?: string): Promise<{ ok: boolean; grund: string | null }> {
+export async function bereichMail(event: GlobalMail, l: Lage, zusatz: Record<string, string>, ausgeloestVon?: string): Promise<{ ok: boolean; grund: string | null }> {
   return globalMailSenden(event, l.akte, l.b, { zusatz: { ...sprachZusatz(l), ...zusatz }, ausgeloestVon });
 }
 
@@ -627,10 +630,14 @@ async function aufgabeErledigen(schluessel: string, ergebnis: string): Promise<v
 }
 
 // ── OFFICE: Gesellschaft und Regel-Fristen ───────────────────────────────────
-export async function globalGesellschaftSetzen(ref: string, ein: Record<string, unknown>, agent: BereichAgent): Promise<Erg<{ meldung: string; fristen: { neu: number; geaendert: number; entfernt: number } }>> {
+export async function globalGesellschaftSetzen(ref: string, ein: Record<string, unknown>, agent: BereichAgent, opts: { vorZahlung?: boolean } = {}): Promise<Erg<{ meldung: string; fristen: { neu: number; geaendert: number; entfernt: number } }>> {
   const l = await lageLesen(ref);
   if (!l) return nein(404, "Diesen Auftrag gibt es nicht.");
-  if (!BEZAHLT.includes(l.status)) return nein(409, "Die US-Gesellschaft lässt sich erst nach dem Zahlungseingang eintragen.");
+  // E-338: Aus dem Chefbüro darf die Gesellschaft schon VOR der Zahlung gepflegt werden (der Name wird vorher
+  // reserviert, z. B. MUTINO LLC). Die Pflichtfristen — und damit ihre Erinnerungsmails — entstehen trotzdem
+  // erst mit dem Zahlungseingang (Tageslauf, sobald der Auftrag läuft).
+  const vorZahlung = opts.vorZahlung === true && l.status === "offen";
+  if (!BEZAHLT.includes(l.status) && !vorZahlung) return nein(409, "Die US-Gesellschaft lässt sich erst nach dem Zahlungseingang eintragen.");
   const g: GlobalGesellschaft = { ...l.gesellschaft };
   if ("name" in ein) g.name = knapp(ein.name, 160) || null;
   if ("form" in ein) {
@@ -660,6 +667,9 @@ export async function globalGesellschaftSetzen(ref: string, ein: Record<string, 
   await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${sqlPool.json(g as any)}, updated_at = NOW() WHERE ref = ${ref}`;
   const T = GLOBAL_VERLAUF_TEXT[l.sprache];
   await verlaufSchreiben(ref, { art: "gesellschaft", text: T.gesellschaft, sichtbar: true, agentId: agent.id });
+  if (vorZahlung) {
+    return { ok: true, fristen: { neu: 0, geaendert: 0, entfernt: 0 }, meldung: "Gesellschaft gespeichert. Der Pflichtenkalender entsteht mit dem Zahlungseingang." };
+  }
   const fristen = await regelFristenSetzen(ref, g, l.sprache);
   if (fristen.neu > 0) await verlaufSchreiben(ref, { art: "frist", text: T.kalender(fristen.neu), sichtbar: true, agentId: agent.id });
   // Die Meldung beim heimischen Finanzamt hat kein Datum, das FIAON nennen dürfte — sie wird zum
@@ -784,14 +794,14 @@ export async function globalFristLoeschen(ref: string, idRoh: unknown, agent: Be
 export interface DateiEin { buffer: Buffer; originalname: string }
 
 /** Multer liest Dateinamen als Latin-1; stand dort UTF-8 („Ã¼" statt „ü"), wird es hier zurückgeholt. */
-function nameAusMultipart(roh: string): string {
+export function nameAusMultipart(roh: string): string {
   const s = String(roh ?? "");
   if (!/[\u00c2-\u00f4][\u0080-\u00bf]/.test(s)) return s;
   const utf = Buffer.from(s, "latin1").toString("utf8");
   return utf.includes("\ufffd") ? s : utf;
 }
 
-async function dokumentSpeichern(z: { ref: string; von: "kunde" | "fiaon"; art: string; dateiname: string; mime: string; inhalt: Buffer; sichtbar: boolean; agentId: number | null }): Promise<{ id: number; am: string; doppelt: boolean }> {
+export async function dokumentSpeichern(z: { ref: string; von: "kunde" | "fiaon"; art: string; dateiname: string; mime: string; inhalt: Buffer; sichtbar: boolean; agentId: number | null }): Promise<{ id: number; am: string; doppelt: boolean }> {
   const hash = createHash("sha256").update(z.inhalt).digest("hex");
   // Dieselbe Datei noch einmal (Doppelklick, „Zurück und erneut senden") ist kein zweites Dokument.
   const [da] = (await sqlPool`
@@ -806,7 +816,7 @@ async function dokumentSpeichern(z: { ref: string; von: "kunde" | "fiaon"; art: 
 }
 
 /** Der Kunde hat etwas in den Dokumentenraum gelegt — die zuständige Person erfährt es (eine Aufgabe je Tag, weitere Uploads als Kommentar). */
-async function eingangMelden(l: Lage, zeile: string): Promise<void> {
+export async function eingangMelden(l: Lage, zeile: string): Promise<void> {
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     const firma = String(l.akte.firma_name || l.ref);
@@ -959,7 +969,14 @@ export async function globalKundenNachricht(ref: string, ein: { text: unknown; a
     console.error(`[GLOBAL-BEREICH] ${ref}: Nachricht des Kunden nicht zugestellt:`, e);
     return nein(500, t(s, "Ihre Nachricht konnte gerade nicht zugestellt werden — bitte versuchen Sie es in einer Minute noch einmal.", "Your message could not be delivered just now — please try again in a minute."));
   }
-  await verlaufSchreiben(ref, { art: "nachricht", text: GLOBAL_VERLAUF_TEXT[s].nachricht(text), sichtbar: true, von: "kunde" });
+  const verlaufId = await verlaufSchreiben(ref, { art: "nachricht", text: GLOBAL_VERLAUF_TEXT[s].nachricht(text), sichtbar: true, von: "kunde" });
+  // E-338: dieselbe Nachricht als Zeile im Gesprächsfaden (Chefbüro › Global, neues Portal) — über die Verlaufs-id nie doppelt.
+  try {
+    const { globalNachrichtAusVerlauf } = await import("./fiaon-global-mandat");
+    await globalNachrichtAusVerlauf(ref, verlaufId, text);
+  } catch (e) { console.error(`[GLOBAL-BEREICH] ${ref}: Nachricht nicht in den Faden übernommen:`, e); }
+  // „liegt bei Herr Stripling" → „bei Herrn Stripling" (Dativ). Frau bleibt Frau.
+  if (empfaenger) empfaenger = empfaenger.replace(/^Herr\s/, "Herrn ");
   return { ok: true, meldung: empfaenger ? t(s, `Danke — Ihre Nachricht liegt bei ${empfaenger}.`, `Thank you — your message is with ${empfaenger}.`) : t(s, "Danke — Ihre Nachricht ist angekommen.", "Thank you — your message has arrived.") };
 }
 

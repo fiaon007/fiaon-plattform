@@ -34,6 +34,7 @@ const EIGENE: (ChefSeite & { eigen: true })[] = [
   { slug: "kundenliste", label: "Alle Kunden", satz: "Der gesamte Bestand — eine Person, eine Zeile.", raum: "kundenliste", auch: "liste bestand personen suchen", Seite: null as any, eigen: true },
   { slug: "besucher", label: "Besucher", satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.", raum: "besucher", auch: "clarity besucher traffic seiten scroll", Seite: null as any, eigen: true },
   { slug: "zahlungen", label: "Zahlungszentrale", satz: "Jeder Eingang mit allen Angaben, gegengeprüft.", raum: "zahlungen", mindest: "geschaeftsfuehrung", auch: "umsatz eingang provision", Seite: null as any, eigen: true },
+  { slug: "global", label: "Global-Mandate", satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital.", raum: "global", auch: "global firmenkunde llc mandat tresor post vollmacht anfrage bank kapital funding steuer ein", Seite: null as any, eigen: true },
   // E-336: fehlte bis heute im Register.
   { slug: "wert", label: "Verdienst & Wert", satz: "Verdient, monatlich (MRR), Vertragsbestand ×12 und der Unternehmenswert.", raum: "wert", mindest: "geschaeftsfuehrung", auch: "mrr umsatz bewertung unternehmenswert verdient geld", Seite: null as any, eigen: true },
   { slug: "rueckholung", label: "Rückholung", satz: "Offene Anträge zurückholen — fünf Segmente, Zustellbarkeit, Schalter, Wirkung.", raum: "rueckholung", mindest: "geschaeftsfuehrung", auch: "rueckhol offene antraege mahnung frequenz bremse segmente", Seite: null as any, eigen: true },

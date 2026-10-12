@@ -183,7 +183,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
 
   // ── Vertrieb (E-336, 12.10.2026) ──────────────────────────────────────
   // Justin: Firmen-Radar „unter Bereich Kunden im Menü — WTF". Alles, was NEUE Kunden bringt, steht jetzt in
-  // einem Raum: Mara, die Meta-Leads, der Nachfass, die kalten Leads, das Firmen-Radar und die Global-Aufträge.
+  // einem Raum: Mara, die Meta-Leads, der Nachfass, die kalten Leads und das Firmen-Radar (Global-Aufträge seit E-338 im Raum „global“).
   // Die Adressen /chef/s/<slug> bleiben, wie sie waren — nur der Raum (und damit Kachel und Menü) ist neu.
   // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
   { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion, der Verkauf der Bonitätsauskunft und alle Termine, die Mara macht: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen, Termine abtelefonieren und „Team abwesend — Mara bucht bei mir“ schalten — dazu das Social-Studio: Posts prüfen, freigeben, Texte und Dateien holen, als veröffentlicht melden und sehen, wie Instagram aussieht.", Seite: Mara, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
@@ -196,7 +196,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.
-  { slug: "global-auftraege", label: "Global-Aufträge", satz: "Firmenaufträge über die US-Struktur: Stand, zuständige Person, Stichtag, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "vertrieb", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
+  { slug: "global-auftraege", label: "Global: Angebote & Aufträge", satz: "Individual-, Firmen- und Begleitangebote anlegen und steuern; Aufträge mit Stichtag, Zuständigkeit, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "global", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
 
   // ── Team ────────────────────────────────────────────────────────────────
   { slug: "team", label: "Team-Zentrale", satz: "Kennzahlen, Provisionen, Protokolle, Nachrichten.", Seite: TeamZentrale, raum: "team" },

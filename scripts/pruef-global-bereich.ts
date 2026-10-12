@@ -193,17 +193,20 @@ ok(!B.globalKundeDarfArt("ein_brief") && !B.globalKundeDarfArt("gruendungsurkund
 gleich(B.globalUnterlagenStand([]).filter((u) => u.alsText).map((u) => u.art), ["namenswunsch", "taetigkeitsbeschreibung"], "als Text einreichbar: Namenswunsch und Tätigkeit");
 ok(B.globalUnterlagenStand([], "de").every((u) => !/als Text/i.test(u.hinweis)) && B.globalUnterlagenStand([], "en").every((u) => !/as text/i.test(u.hinweis)), "ein Hinweis verspricht ein Textfeld, das die Seite nicht haben muss");
 ok(B.globalUnterlagenStand([], "en").filter((u) => u.alsText).every((u) => /as text/.test(u.textHinweis ?? "")), "textHinweis englisch");
-gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "ein_brief", "gesellschafterliste", "gruendungsurkunde", "itin_bescheid", "namenswunsch", "operating_agreement", "registerauszug", "reisepass", "sonstiges", "taetigkeitsbeschreibung"], "zwölf Dokumentarten");
+// E-338: zwölf Arten + acht des Global-Mandats (Vollmacht, Bank, Karten, Kapital, Steuer, Jahresbericht, Post, Info).
+gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "bank_vertrag", "ein_brief", "gesellschafterliste", "gruendungsurkunde", "info", "itin_bescheid", "jahresbericht", "kapital_vertrag", "karten_unterlage", "namenswunsch", "operating_agreement", "post", "registerauszug", "reisepass", "sonstiges", "steuer", "taetigkeitsbeschreibung", "vollmacht"], "zwanzig Dokumentarten");
+ok(B.GLOBAL_DOKUMENTARTEN[B.GLOBAL_DOKUMENTARTEN.length - 1].art === "sonstiges", "„Sonstiges“ bleibt der letzte Eintrag");
+ok(["vollmacht", "post", "info", "jahresbericht"].every((a) => !B.globalKundeDarfArt(a)), "Vollmacht, Post, Info, Jahresbericht legt nur FIAON ab");
 
-gleich(B.globalDokumentArtenFuer("office").length, 12, "das Office wählt aus allen zwölf Arten");
-ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 8, "der Kunde wählt nur aus Arten, die er liefern darf (acht, mit „Sonstiges“)");
+gleich(B.globalDokumentArtenFuer("office").length, 20, "das Office wählt aus allen zwanzig Arten");
+ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 12, "der Kunde wählt nur aus Arten, die er liefern darf (zwölf, mit „Sonstiges“)");
 gleich(B.globalDokumentArtenFuer("kunde", "en").find((a) => a.art === "reisepass")?.titel, "Passport", "Auswahl englisch");
 
 // ═══ 5: MAILS ═══════════════════════════════════════════════════════════════
-abschnitt("Mails: global_zugang · global_etappe · global_frist · global_dokument");
-const EREIGNISSE = ["global_zugang", "global_etappe", "global_frist", "global_dokument"];
+abschnitt("Mails: global_zugang · global_etappe · global_frist · global_dokument · global_nachricht");
+const EREIGNISSE = ["global_zugang", "global_etappe", "global_frist", "global_dokument", "global_nachricht"];
 const platzhalter = (b: unknown) => Array.from(new Set(Array.from(JSON.stringify(b).matchAll(/\{\{params\.([a-z_0-9]+)\}\}/g), (m) => m[1]))).sort();
-gleich(Object.keys(GLOBAL_BEREICH_PAARE).sort(), [...EREIGNISSE].sort(), "vier Paare");
+gleich(Object.keys(GLOBAL_BEREICH_PAARE).sort(), [...EREIGNISSE].sort(), "fünf Paare");
 for (const event of EREIGNISSE) {
   const paar = GLOBAL_BEREICH_PAARE[event];
   ok(hatVorlage(event), `${event}: fehlt im Motor`);

@@ -105,6 +105,7 @@ export type MakeEventType =
   | "global_etappe"          // neue Etappe im Auftrag, mit nächstem Schritt
   | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
   | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
+  | "global_nachricht"       // E-338: FIAON hat im Gesprächsfaden geantwortet (Inhalt nur im Portal)
   | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
   // ── Die Bonitätsauskunft (E-240, 24.09.2026): seit heute automatisch aus dem
   //    Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts), die Namen bleiben.

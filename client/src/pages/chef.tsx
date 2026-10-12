@@ -32,7 +32,9 @@ import ChefRegister from "@/components/admin/ChefRegister";
 import ChefBesucher from "@/components/admin/ChefBesucher";
 import ChefZahlen from "@/components/admin/ChefZahlen";
 import ChefRueckholung from "@/components/admin/ChefRueckholung";
-import { Suspense } from "react";
+import { Suspense, lazy } from "react";
+// E-338: der Global-Arbeitsraum — eigene Seite, erst beim Betreten geladen.
+const ChefGlobal = lazy(() => import("@/components/admin/ChefGlobal"));
 
 /**
  * Welche Raeume eine eigene Seite haben statt einer Kachelliste.
@@ -48,6 +50,7 @@ const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   besucher: () => <ChefBesucher />,
   wert: () => <ChefZahlen />,
   rueckholung: () => <ChefRueckholung />,
+  global: () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><ChefGlobal /></Suspense>,
 };
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];

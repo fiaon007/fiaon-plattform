@@ -577,6 +577,8 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
 export type GlobalMail =
   | "global_auftrag" | "global_start" | "global_stichtag" | "global_zahlung_erinnerung"
   | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument"
+  // E-338: Antwort im Gesprächsfaden (server/mail/vorlagen/global-bereich.ts).
+  | "global_nachricht"
   // Individualangebot (01.10.2026, E-268) — server/mail/vorlagen/global-angebot.ts.
   | "global_angebot_angenommen" | "global_angebot_start" | "global_angebot_teil2"
   | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung"

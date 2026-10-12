@@ -51,7 +51,7 @@ import { openaiFetch, kiPausiert, kiPauseLesen, kiPauseMeldung, istKiPause } fro
 import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, entwurfLoeschen } from "./fiaon-gmail";
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
-  radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
+  radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
   type RadarLand, type RadarStatus, type RadarPaket,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -76,6 +76,8 @@ export function radarAbsender() {
   };
 }
 const KI_ZEIT_MS = 240_000;
+/** Höchstens so viele Suchläufe des Tageslaufs am Tag (E-337) — je Lauf ≈ 0,2–0,3 € KI. */
+const RADAR_SUCHEN_JE_TAG = 30;
 
 export class RadarFehler extends Error {
   status: number;
@@ -197,6 +199,11 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS brief_auto_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS brief_besuch_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS brief_besuche INTEGER NOT NULL DEFAULT 0`;
+      // E-337 (12.10. nachts, Justin: „alle nach dem alten Muster speichern und weg aus der Ansicht“): das Archiv.
+      await sqlPool`
+        ALTER TABLE fiaon_radar_firmen
+          ADD COLUMN IF NOT EXISTS archiviert_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS archiv_grund TEXT`;
       // Jeder Aufruf von /business aus einem Brief-QR-Code (utm_source=radar_brief, utm_content=r<ID>) — ohne IP, ohne Gerät.
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_radar_besuche (
@@ -725,6 +732,11 @@ async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; quelle: st
     ON CONFLICT (domain) DO NOTHING
     RETURNING id`) as any[];
   if (!zeile) return nein("schon im Radar");
+  // E-337 (Justin: „nur noch qualifizierte Unternehmen“): Ohne belegtes Kapitalsignal ab Stärke 3 geht der Fund gleich ins Archiv
+  // (bleibt gespeichert, damit er nicht wieder vorgeschlagen wird).
+  if ((sig.staerke ?? 0) < RADAR_SIGNAL_AB) {
+    await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${sig.signal ? `Kapitalsignal ${sig.staerke ?? 0} von 5${sig.signal.geprueft ? "" : " (unbelegt)"}` : "kein Kapitalsignal"} WHERE id = ${Number(zeile.id)}`;
+  }
   // E-337: den mitgelieferten Entscheider sofort nachprüfen (Seite lesen, Adresse und Name wörtlich).
   if (v.entscheider?.email) {
     const { entscheiderBelegen } = await import("./fiaon-radar-entscheider");
@@ -813,23 +825,27 @@ export async function radarLauf(id: number): Promise<any | null> {
 // Stündlich zwischen 6 und 20 Uhr (Berlin), höchstens drei Suchen je Runde, bis
 // das Tagesziel steht. Die Bereiche wechseln reihum, Deutschland kommt öfter dran.
 export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolean; heute: number; neu: number; suchen: number; fehler: string | null }> {
-  const stunde = berlinStunde(jetzt);
-  if (stunde < 6 || stunde >= 20) return { ruhe: true, heute: 0, neu: 0, suchen: 0, fehler: null };
+  // E-337 (Justin: „Mara arbeitet Tag und Nacht“): Suchen geht rund um die Uhr — die Suche schreibt niemanden an; Mails und
+  // Briefe bleiben im Sendefenster. berlinStunde bleibt für die Rotation erhalten.
+  void berlinStunde(jetzt);
   if (await kiPausiert()) return { ruhe: true, heute: 0, neu: 0, suchen: 0, fehler: "KI pausiert" }; // E-246
   await ensureRadarTabellen();
   const tag = berlinToday(jetzt);
-  const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf'`) as any[])[0]?.n ?? 0);
+  // E-337: Aufs Tagesziel zählen nur QUALIFIZIERTE Funde (nicht archiviert, Signal ≥ 3) — sonst wäre das Ziel mit Firmen
+  // erreicht, die Mara nie anschreibt. Gegen die Kosten: höchstens RADAR_SUCHEN_JE_TAG Suchläufe am Tag.
+  const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf' AND archiviert_am IS NULL`) as any[])[0]?.n ?? 0);
   let heute = await zaehlen();
   // Erst die Lücken schließen: Firmen ohne E-Mail noch einmal nachsuchen (höchstens zehn je Runde).
   const luecken = (await sqlPool`
-    SELECT id FROM fiaon_radar_firmen WHERE email IS NULL AND status IN ('neu', 'gescannt', 'mail') ORDER BY id LIMIT 10`) as any[];
+    SELECT id FROM fiaon_radar_firmen WHERE email IS NULL AND archiviert_am IS NULL AND status IN ('neu', 'gescannt', 'mail') ORDER BY id LIMIT 10`) as any[];
   for (const l of luecken) await radarKontaktNachsuchen(Number(l.id)).catch(() => {});
   if (heute >= RADAR_TAGESZIEL) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const laeufeHeute = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_laeufe WHERE art = 'tageslauf' AND created_at > date_trunc('day', NOW())`) as any[])[0]?.n ?? 0);
+  if (laeufeHeute >= RADAR_SUCHEN_JE_TAG) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const LAENDER: RadarLand[] = ["DE", "DE", "AT", "DE", "CH"];
   let neu = 0, suchen = 0, fehler: string | null = null;
   const tagNr = Math.floor(jetzt.getTime() / 86_400_000);
-  for (let k = 0; k < 3 && heute < RADAR_TAGESZIEL; k++) {
+  for (let k = 0; k < 3 && heute < RADAR_TAGESZIEL && laeufeHeute + k < RADAR_SUCHEN_JE_TAG; k++) {
     const n = laeufeHeute + k;
     const bereich = RADAR_BEREICHE[(tagNr + n) % RADAR_BEREICHE.length];
     const land = LAENDER[(tagNr + n) % LAENDER.length];
@@ -1280,6 +1296,32 @@ export async function radarStatusSetzen(id: number, ein: { status: RadarStatus; 
   }
 }
 
+/**
+ * Das Archiv (E-337, Justin 12.10. nachts): Firmen raus aus Ansicht, Vorrat, Versand und Brief — gespeichert bleiben sie
+ * (Dubletten-Schutz, Messung, Sperrliste). Firmen im Gespräch (Antwort, Lead, Termin, Angebot, Kauf) werden nie archiviert.
+ * bis = alles, was vor diesem Zeitpunkt gefunden wurde (Vorgabe: Start des neuen Musters).
+ */
+export async function radarArchivieren(ein: { bis?: string | null; grund?: string | null; ids?: number[] | null } = {}): Promise<number> {
+  await ensureRadarTabellen();
+  const grund = String(ein.grund ?? "altes Muster (vor Signal-Jäger und Entscheider)").slice(0, 200);
+  if (ein.ids?.length) {
+    const ids = ein.ids.map(Number).filter((x) => Number.isInteger(x) && x > 0).slice(0, 500);
+    const r = (await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${grund}, nachfass_faellig = NULL, updated_at = NOW()
+                              WHERE id = ANY(${ids}) AND archiviert_am IS NULL AND status NOT IN ('antwort', 'lead', 'termin', 'angebot', 'kauf') RETURNING id`) as any[];
+    return r.length;
+  }
+  const bis = ein.bis && Number.isFinite(Date.parse(ein.bis)) ? new Date(ein.bis) : new Date(RADAR_NEUES_MUSTER_AB);
+  const r = (await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${grund}, nachfass_faellig = NULL, updated_at = NOW()
+                            WHERE created_at < ${bis} AND archiviert_am IS NULL AND status NOT IN ('antwort', 'lead', 'termin', 'angebot', 'kauf') RETURNING id`) as any[];
+  return r.length;
+}
+
+/** Eine Firma zurück aus dem Archiv (von Hand, in der Akte). */
+export async function radarAusArchiv(id: number): Promise<void> {
+  await ensureRadarTabellen();
+  await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NULL, archiv_grund = NULL, automatik_am = NULL, brief_auto_am = NULL, updated_at = NOW() WHERE id = ${id}`;
+}
+
 export async function radarSperren(ein: { wert: string; grund?: string | null; von?: number | null }): Promise<void> {
   await ensureRadarTabellen();
   const w = String(ein.wert || "").trim().toLowerCase();
@@ -1425,15 +1467,19 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
   // Reiter statt Statusliste: „Offen", „Mail bereit", „Versendet", „Ohne E-Mail", „Aussortiert".
   const gruppe = RADAR_GRUPPEN.find((g) => g.key === String(filter.gruppe ?? ""));
   const nurOhneMail = gruppe?.ohneMail === true;
-  const stati: string[] | null = einzeln ? [einzeln] : gruppe && !nurOhneMail ? [...gruppe.stati] : null;
+  const archiv = gruppe?.archiv === true;
+  const qualifiziert = gruppe?.qualifiziert === true;
+  const stati: string[] | null = einzeln ? [einzeln] : gruppe && !nurOhneMail && !archiv ? [...gruppe.stati] : null;
   const suche = String(filter.suche ?? "").trim().toLowerCase().slice(0, 60) || null;
   const firmen = (await sqlPool`
     SELECT id, tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, email, ansprechpartner, status,
            gescannt_am, mail_am, versendet_am, postfach, created_at, (scan IS NOT NULL) AS hat_scan, (mail IS NOT NULL) AS hat_mail,
            signal, signal_staerke, antwort_am, antwort_art, lead_am, termin_am, kauf_am, nachfass_stufe, nachfass_faellig, adresse_vorschlag,
-           entscheider, entscheider_am, brief_status, brief_versendet_am, brief_besuche
+           entscheider, entscheider_am, brief_status, brief_versendet_am, brief_besuche, archiviert_am, archiv_grund
       FROM fiaon_radar_firmen
      WHERE (${tag}::date IS NULL OR tag = ${tag}::date)
+       AND (archiviert_am IS NOT NULL) = ${archiv}
+       AND (${qualifiziert} = FALSE OR COALESCE(signal_staerke, 0) >= ${RADAR_SIGNAL_AB})
        AND (${bereich}::text IS NULL OR bereich = ${bereich})
        AND (${stati}::text[] IS NULL OR status = ANY(${stati}))
        AND (${nurOhneMail} = FALSE OR (email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')))
@@ -1450,15 +1496,19 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
            COUNT(*) FILTER (WHERE lead_am IS NOT NULL)::int AS leads,
            COUNT(*) FILTER (WHERE kauf_am IS NOT NULL)::int AS kaeufe,
            COUNT(*) FILTER (WHERE status IN ('mail', 'im_postfach'))::int AS offen
-      FROM fiaon_radar_firmen`) as any[];
+      FROM fiaon_radar_firmen WHERE archiviert_am IS NULL`) as any[];
   const laeufe = ((await sqlPool`
     SELECT id, art, bereich, land, status, vorgeschlagen, neu, gesamt, fertig, aktuell, ergebnisse, fehler, created_at, fertig_am
       FROM fiaon_radar_laeufe ORDER BY id DESC LIMIT 8`) as any[]).map((r) => zeileLesen(r));
   // Wie viele Firmen in welchem Reiter stehen — ohne den Zeitraum-Filter, damit die Zahlen stabil bleiben.
-  const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
+  const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
+  nachStand.archiv = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NOT NULL`) as any[])[0]?.n ?? 0);
+  nachStand.qualifiziert = Number(((await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt')
+       AND COALESCE(signal_staerke, 0) >= ${RADAR_SIGNAL_AB}`) as any[])[0]?.n ?? 0);
   // Der Reiter „Ohne E-Mail" zählt jede Firma ohne Adresse, egal in welchem Stand sie steht.
   nachStand.ohne_mail = Number(((await sqlPool`
-    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
   return {
     firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: RADAR_TAGESZIEL, stapelMax: RADAR_STAPEL_MAX,
     kostenHeute: await kostenHeute("radar").catch(() => 0), deckel: TAGESDECKEL_EUR(),

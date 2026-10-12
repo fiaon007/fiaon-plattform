@@ -646,7 +646,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
   if (s.nachfass) {
     const faellig = (await sqlPool`
       SELECT * FROM fiaon_radar_firmen
-       WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW()
+       WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW() AND archiviert_am IS NULL
          AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND COALESCE(gmail_thread_id, gmail_nachricht_id) IS NOT NULL AND postfach IS NOT NULL
        ORDER BY nachfass_faellig ASC LIMIT 2`) as any[];
     for (const roh of faellig) {
@@ -693,7 +693,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         SELECT id FROM fiaon_radar_firmen r
          WHERE ((r.status IN ('neu', 'gescannt', 'mail') AND r.versendet_am IS NULL)
                 OR (r.status = 'unzustellbar' AND r.email IS NOT NULL AND position(r.email in COALESCE(r.email_ungueltig, '')) = 0))
-           AND r.email IS NOT NULL AND r.automatik_am IS NULL
+           AND r.email IS NOT NULL AND r.automatik_am IS NULL AND r.archiviert_am IS NULL
            AND COALESCE(r.passung, 0) >= ${s.abPassung}
            -- E-337: nur mit Kapitalsignal ab Stärke 3 — oder noch ungeprüft (dann prüft der Scan unten, bevor geschrieben wird).
            AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB})
@@ -710,7 +710,11 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         // 2. Das Kapitalsignal sichern: ungeprüfte Firmen werden (neu) gescannt — unter Stärke 3 schreibt Mara nicht.
         if (vor?.signal_staerke == null) await radarScannen(id);
         const [nach] = (await sqlPool`SELECT signal_staerke, entscheider FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
-        if (Number(nach?.signal_staerke ?? 0) < RADAR_SIGNAL_AB) { erg.uebersprungen++; continue; }
+        if (Number(nach?.signal_staerke ?? 0) < RADAR_SIGNAL_AB) {
+          // Nicht qualifiziert (Justin: „nur noch qualifizierte Unternehmen“) — ins Archiv, raus aus der Ansicht.
+          await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${`Kapitalsignal ${Number(nach?.signal_staerke ?? 0)} von 5 (Scan)`} WHERE id = ${id}`;
+          erg.uebersprungen++; continue;
+        }
         // 3. Erst jetzt (Signal stimmt) die bezahlte Websuche nach dem Entscheider. Ohne persönliche Adresse keine Mail.
         if (!nach?.entscheider && !(await entscheiderFinden(id, { websuche: true }))) { erg.uebersprungen++; continue; }
         const mail = await radarMailSchreiben(id);
@@ -773,7 +777,7 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
            COUNT(*) FILTER (WHERE brief_versendet_am IS NOT NULL)::int AS briefe,
            COUNT(*) FILTER (WHERE brief_besuch_am IS NOT NULL)::int AS besuche,
            COALESCE(SUM(brief_kosten_cents), 0)::int AS "briefKostenCents",
-           COUNT(*) FILTER (WHERE status IN ('neu', 'gescannt', 'mail') AND email IS NOT NULL AND versendet_am IS NULL)::int AS vorrat
+           COUNT(*) FILTER (WHERE status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND archiviert_am IS NULL AND versendet_am IS NULL AND brief_versendet_am IS NULL AND COALESCE(signal_staerke, ${RADAR_SIGNAL_AB}) >= ${RADAR_SIGNAL_AB})::int AS vorrat
       FROM fiaon_radar_firmen`) as any[];
   const tageListe: TrichterTag[] = zeilen.map((r) => ({ ...r }));
   const plus = (a: TrichterTag, b: TrichterTag): TrichterTag => ({

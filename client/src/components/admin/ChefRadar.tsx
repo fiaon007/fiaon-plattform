@@ -40,6 +40,7 @@ type Zeile = {
   lead_am?: string | null; termin_am?: string | null; kauf_am?: string | null; nachfass_stufe?: number | null; nachfass_faellig?: string | null; adresse_vorschlag?: string | null;
   entscheider?: { name: string; rolle: string | null; email: string; anrede: string | null; quelle: string; weg: string } | null; entscheider_am?: string | null;
   brief_status?: string | null; brief_versendet_am?: string | null; brief_besuche?: number | null;
+  archiviert_am?: string | null; archiv_grund?: string | null;
 };
 type TrichterTag = {
   tag: string; gefunden: number; angeschrieben: number; nachfass: number; unzustellbar: number; antworten: number;
@@ -502,7 +503,7 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
         </article>
         <article className="cr-kachel">
           <header><b>Suche</b><span className="cr-chip">läuft täglich</span></header>
-          <p>Bis zu 50 neue Firmen am Tag, jede mit Kapitalsignal. Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
+          <p>Rund um die Uhr, bis 50 qualifizierte Firmen am Tag. Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
         </article>
         <BriefKachel />
         <article className="cr-kachel breit">
@@ -586,7 +587,8 @@ function Messung({ trichter }: { trichter: Trichter | null }) {
 function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen, onWebsite }: {
   runde: number; postfach: string; lauf: Lauf | null; setLauf: (l: Lauf | null) => void; onFirma: (id: number) => void; offen: number | null; onSuchen: () => void; onWebsite: () => void;
 }) {
-  const [gruppe, setGruppe] = useState("");
+  // E-337: Startansicht = „Qualifiziert“ (Justin: „ab jetzt nur noch qualifizierte Unternehmen“).
+  const [gruppe, setGruppe] = useState("qualifiziert");
   const [bereichFilter, setBereichFilter] = useState("");
   const [nurHeute, setNurHeute] = useState(false);
   const [suche, setSuche] = useState("");
@@ -634,7 +636,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
           <button type="button" role="tab" aria-selected={gruppe === ""} className={gruppe === "" ? "an" : undefined} onClick={() => setGruppe("")}>Alle <i>{z?.gesamt ?? 0}</i></button>
           {RADAR_GRUPPEN.map((g) => (
             <button key={g.key} type="button" role="tab" aria-selected={gruppe === g.key} className={gruppe === g.key ? "an" : undefined} onClick={() => setGruppe(g.key)}>
-              {g.label} <i>{g.ohneMail ? (stand["ohne_mail"] ?? 0) : gezaehlt(g.stati)}</i>
+              {g.label} <i>{g.ohneMail ? (stand["ohne_mail"] ?? 0) : g.archiv ? (stand["archiv"] ?? 0) : g.qualifiziert ? (stand["qualifiziert"] ?? 0) : gezaehlt(g.stati)}</i>
             </button>
           ))}
         </div>
@@ -653,7 +655,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
       {daten && !firmen.length && (
         <div className="cr-leer">
           <b>Hier ist gerade nichts.</b>
-          <span>Der Tageslauf sucht stündlich zwischen 6 und 20 Uhr, bis {daten.tagesziel} Firmen im Radar stehen. <button type="button" className="cr-textknopf" onClick={onSuchen}>Jetzt suchen</button></span>
+          <span>{gruppe === "qualifiziert" ? "Mara sucht rund um die Uhr nach Firmen mit Kapitalsignal — neue erscheinen hier, sobald sie geprüft sind." : "In diesem Reiter steht gerade keine Firma."} <button type="button" className="cr-textknopf" onClick={onSuchen}>Jetzt suchen</button></span>
         </div>
       )}
       {!!firmen.length && (
@@ -936,6 +938,12 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                 <button type="button" className="cr-zu" onClick={onZu} aria-label="Schließen">×</button>
               </div>
             </header>
+            {f.archiviert_am && (
+              <div className="cr-archiv-leiste">
+                <span>Im Archiv seit {datum(f.archiviert_am)}{f.archiv_grund ? ` · ${f.archiv_grund}` : ""}</span>
+                <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("archiv", () => rufen(`/chef/radar/firma/${id}/aus-archiv`), "Zurück im Radar.")}>Aus dem Archiv holen</button>
+              </div>
+            )}
 
             <ol className="cr-schritte" aria-label="Fortschritt">
               {["Gefunden", "Gescannt", "Mail bereit", "Versendet", "Lead", "Termin", "Angebot", "Kauf"].map((t, i) => (

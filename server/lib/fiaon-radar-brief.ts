@@ -660,6 +660,7 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
       SELECT id FROM fiaon_radar_firmen r
        WHERE r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND r.versendet_am IS NULL AND r.brief_versendet_am IS NULL
          AND COALESCE(r.brief_status, '') NOT IN ('test', 'sendet', 'uebergeben', 'versendet', 'fehler') AND r.brief_auto_am IS NULL
+         AND r.archiviert_am IS NULL
          AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB}) AND COALESCE(r.passung, 0) >= ${automatik.abPassung}
          AND r.impressum ? 'strasse' AND r.impressum ? 'plz'
          AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))
@@ -671,7 +672,11 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
     try {
       let f = await firmaLaden(id);
       if (f.signal_staerke == null) { await radarScannen(id); f = await firmaLaden(id); }
-      if (Number(f.signal_staerke ?? 0) < RADAR_SIGNAL_AB) { erg.uebersprungen++; continue; }
+      if (Number(f.signal_staerke ?? 0) < RADAR_SIGNAL_AB) {
+        // E-337: nicht qualifiziert → Archiv (wie im Mail-Versand).
+        await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${`Kapitalsignal ${Number(f.signal_staerke ?? 0)} von 5 (Scan)`} WHERE id = ${id}`;
+        erg.uebersprungen++; continue;
+      }
       // Erst die (bezahlte) Websuche nach einer persönlichen Adresse — findet sie eine, geht die Mail vor (kostet nichts).
       if (!f.entscheider_am) { await entscheiderFinden(id, { websuche: true }).catch(() => null); f = await firmaLaden(id); }
       if (!radarBriefPruefen(f).ok) { erg.uebersprungen++; continue; }

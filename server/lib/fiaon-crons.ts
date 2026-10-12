@@ -439,7 +439,7 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // weil ein Firmenkunde sich nicht über eine Erinnerung beschwert, die er nie bekommen hat.
   // 19.09.2026: Firmen-Radar — sucht stündlich (6–20 Uhr Berlin) bis zu drei Mal, bis 50 geprüfte Firmen im Radar stehen.
   firmen_radar: {
-    zweck: "Firmen-Radar: täglich 50 passende Firmen aus DE/AT/CH suchen, Website und Impressum prüfen, im Chefbüro bereitstellen",
+    zweck: "Firmen-Radar: rund um die Uhr bis 50 QUALIFIZIERTE Firmen am Tag (Kapitalsignal ≥ 3, E-337) aus DE/AT/CH suchen, Website, Impressum und Entscheider prüfen, höchstens 30 Suchläufe am Tag",
     folge: "Im Chefbüro stehen keine neuen Firmen für persönliche Mails; der Vertrieb von FIAON Global bekommt keinen Nachschub.",
     fenster: 26,
   },

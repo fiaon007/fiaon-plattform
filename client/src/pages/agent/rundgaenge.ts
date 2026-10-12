@@ -1498,7 +1498,7 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     titel: "Gespräche zuerst.",
     text: "„Gespräche“ zeigt jede Antwort einer Firma mit Maras Antwort darunter: lesen, ändern, „Senden …“. Absagen kommen von selbst "
       + "auf die Sperrliste, Rückläufer bekommen eine neue Adresse. „Firmen“ ist die Liste mit Stapel, „Automatik“ hat alle Schalter, "
-      + "„Messung“ jeden Tag als Zeile.",
+      + "„Messung“ jeden Tag als Zeile. Im Reiter „Firmen“ zeigt „Qualifiziert“ nur Firmen mit Kapitalsignal ab 3; alles Ältere liegt im „Archiv“.",
     tipp: "Ein Klick auf den Firmennamen öffnet die Akte mit dem ganzen Faden unter „Verlauf“.",
   },
   {

@@ -151,7 +151,10 @@ export const RADAR_PAKETE = ["global_struktur", "global_banking", "global_kapita
 export type RadarPaket = (typeof RADAR_PAKETE)[number];
 
 /** Die Reiter über der Liste — je Reiter die Stände, die er zeigt. */
-export const RADAR_GRUPPEN: { key: string; label: string; stati: RadarStatus[]; ohneMail?: boolean }[] = [
+export const RADAR_GRUPPEN: { key: string; label: string; stati: RadarStatus[]; ohneMail?: boolean; qualifiziert?: boolean; archiv?: boolean }[] = [
+  // E-337 (Justin, 12.10. nachts): „ab jetzt schreibt Mara nur noch qualifizierte Unternehmen an“ — dieser Reiter ist die Startansicht:
+  // offene Firmen mit belegtem Kapitalsignal ab Stärke 3 (Kanal: Mail an den Entscheider, sonst Brief).
+  { key: "qualifiziert", label: "Qualifiziert", stati: ["neu", "gescannt", "mail", "ohne_kontakt"], qualifiziert: true },
   { key: "offen", label: "Offen", stati: ["neu", "gescannt"] },
   { key: "bereit", label: "Mail bereit", stati: ["mail", "im_postfach"] },
   { key: "raus", label: "Unterwegs", stati: ["versendet", "brief"] },
@@ -159,7 +162,12 @@ export const RADAR_GRUPPEN: { key: string; label: string; stati: RadarStatus[]; 
   // Dieser Reiter zählt nach fehlender Adresse, nicht nach Stand — sonst übersieht man frisch gefundene Firmen ohne E-Mail.
   { key: "ohne", label: "Ohne E-Mail", stati: ["ohne_kontakt"], ohneMail: true },
   { key: "aus", label: "Aussortiert", stati: ["unzustellbar", "passt_nicht", "kein_interesse", "gesperrt"] },
+  // Archiv: alles, was nach dem alten Muster recherchiert wurde, und neue Funde ohne ausreichendes Signal — gespeichert,
+  // aber aus allen anderen Reitern, aus dem Vorrat und aus Versand und Brief heraus.
+  { key: "archiv", label: "Archiv", stati: [], archiv: true },
 ];
+/** Ab diesem Zeitpunkt sucht der Radar nach dem neuen Muster (Signal-Jäger + Entscheider, E-337 Runde 2 live 12.10.2026 20:39). */
+export const RADAR_NEUES_MUSTER_AB = "2026-10-12T18:39:00Z";
 /** Höchstens so viele Firmen in einem Stapel — mehr wäre Massenversand und dauert zu lang. */
 export const RADAR_STAPEL_MAX = 25;
 

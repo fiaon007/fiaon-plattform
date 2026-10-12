@@ -170,7 +170,7 @@ const sZuStark = await signalPruefen({ art: "finance_stelle", beleg: "drei neue 
 ok(sZuStark.staerke === 3, `Stärke gedeckelt auf die Art + 1 (${sZuStark.staerke})`);
 ok((await signalPruefen({ art: "gibtsnicht", beleg: "irgendein langer Satz ohne Bedeutung hier", url: "", staerke: 4 }, sSeite)).signal === null, "Unbekannte Signal-Art zählt nicht");
 ok(RADAR_SIGNALE.every((x) => x.staerke >= 1 && x.staerke <= 5) && RADAR_SIGNALE.filter((x) => x.staerke >= RADAR_SIGNAL_AB).length >= 5, "Signale mit Stärke 1–5, mindestens fünf ab der Schwelle");
-ok(/r\.signal_staerke IS NULL OR r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(lies("server/lib/fiaon-radar-faden.ts")) && /< RADAR_SIGNAL_AB\) \{ erg\.uebersprungen/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik schreibt nur ab Signalstärke 3");
+ok(/r\.signal_staerke IS NULL OR r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(lies("server/lib/fiaon-radar-faden.ts")) && /< RADAR_SIGNAL_AB\) \{[\s\S]{0,600}erg\.uebersprungen\+\+; continue;/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik schreibt nur ab Signalstärke 3");
 
 abschnitt("Nur Entscheider, menschliche Anrede, Signatur (E-337)");
 const { radarAdressePersoenlich } = await import("../shared/fiaon-radar");
@@ -192,6 +192,15 @@ ok(fs.existsSync(path.join(wurzel, "client/public/mail/signatur/mara.png")) && f
 ok(/radarAdressePersoenlich\(an, namen\)/.test(lies("server/lib/fiaon-radar.ts")), "Wand beim Senden: nur persönliche Adresse eines Entscheiders");
 ok(/entscheiderFinden\(id, \{ websuche: false \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")) && /entscheiderFinden\(id, \{ websuche: true \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik: Entscheider erst Website, dann (nach Signal) Websuche");
 ok(mailPruefen({ ...sauber, absaetze: ["Das ist ein sehr langer Satz mit wirklich vielen Wörtern, der sich überhaupt nicht wie eine menschliche Mail liest, sondern wie ein Prospekt aus einer Agentur."] }).warnungen.some((x) => /24 Wörter/.test(x)), "Lange Sätze werden gemeldet");
+
+abschnitt("Archiv und „nur qualifiziert“ (E-337)");
+const libA = lies("server/lib/fiaon-radar.ts"), fadenA = lies("server/lib/fiaon-radar-faden.ts"), briefA = lies("server/lib/fiaon-radar-brief.ts");
+ok(RADAR_GRUPPEN[0].key === "qualifiziert" && RADAR_GRUPPEN.some((g) => g.archiv), "Startreiter „Qualifiziert“, eigener Reiter „Archiv“");
+ok(/\(archiviert_am IS NOT NULL\) = \$\{archiv\}/.test(libA), "Die Liste zeigt Archiv und Bestand getrennt");
+ok(/r\.archiviert_am IS NULL/.test(fadenA) && /archiviert_am IS NULL/.test(briefA), "Archivierte Firmen bekommen weder Mail noch Brief");
+ok(/nachfass_faellig <= NOW\(\) AND archiviert_am IS NULL/.test(fadenA), "Kein Nachfassen an archivierte Firmen");
+ok(/status NOT IN \('antwort', 'lead', 'termin', 'angebot', 'kauf'\)/.test(libA), "Firmen im Gespräch werden nie archiviert");
+ok(/if \(\(sig\.staerke \?\? 0\) < RADAR_SIGNAL_AB\)/.test(libA), "Neue Funde ohne Signal ≥ 3 gehen gleich ins Archiv");
 
 abschnitt("Quelltext-Wände");
 const routen = lies("server/routes/fiaon-radar.ts");

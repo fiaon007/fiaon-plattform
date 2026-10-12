@@ -193,6 +193,20 @@ router.post("/chef/radar/firma/:id/entscheider", wache, async (req: ChefRequest,
   } catch (e) { fehler(res, e); }
 });
 
+// E-337: Archiv — Altbestand (vor dem neuen Muster) gesammelt archivieren, einzelne Firma zurückholen.
+router.post("/chef/radar/archivieren", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarArchivieren } = await import("../lib/fiaon-radar");
+    const n = await radarArchivieren({ bis: req.body?.bis ? String(req.body.bis) : null, grund: req.body?.grund ? String(req.body.grund) : null });
+    console.log(`[RADAR] Archiviert von #${req.chef?.agentId ?? "?"}: ${n} Firmen`);
+    res.json({ ok: true, archiviert: n });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/aus-archiv", wache, async (req: ChefRequest, res: Response) => {
+  try { const { radarAusArchiv } = await import("../lib/fiaon-radar"); await radarAusArchiv(idAus(req.params.id)); res.json({ ok: true }); } catch (e) { fehler(res, e); }
+});
+
 router.post("/chef/radar/firma/:id/adresse-uebernehmen", wache, async (req: ChefRequest, res: Response) => {
   try { res.json({ ok: true, email: await radarAdresseUebernehmen(idAus(req.params.id)) }); } catch (e) { fehler(res, e); }
 });

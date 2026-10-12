@@ -762,6 +762,35 @@ export function aboErinnerungPayload(r: any) {
   const heute = berlinToday();
   const ueberfaellig = Math.max(0, tageZwischen(faellig, heute));
   const stufe = Math.min(3, Math.max(1, Number(r.mahnstufe || 0) + 1));
+  const faelligText = new Date(`${faellig}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  // ── DIE ZEIT STIMMT (12.10.2026, Team-Feedback Florentine) ───────────────
+  // Die Vorabinfo (drei Tage vorher, vorabErinnern) lief durch dieselbe Vorlage wie die Mahnung: „war am 15.10.2026
+  // fällig" — am 12.10. — und darüber „heute ist Ihre Monatsrate fällig". Jetzt bestimmt das Datum den Ton:
+  // vorher eine freundliche Vorabinfo, am Tag selbst „heute fällig", danach „war fällig" mit der Mahnstufe.
+  const zeitpunkt: "vorab" | "heute" | "vorbei" = faellig > heute ? "vorab" : faellig === heute ? "heute" : "vorbei";
+  const zeit = {
+    vorab: {
+      titel_text: "Ihre nächste Monatsrate",
+      preheader_text: `Kleine Erinnerung vorab: Am ${faelligText} ist Ihre nächste Rate fällig.`,
+      mahnstufe_text: `Freundliche Erinnerung — Ihre Monatsrate ist am ${faelligText} fällig.`,
+      faellig_wort: "ist am",
+      knopf_text: "Bankdaten & QR-Code für die Überweisung",
+    },
+    heute: {
+      titel_text: "Heute ist Ihre Monatsrate fällig",
+      preheader_text: "Heute ist Ihre Rate fällig. Betrag und Bankdaten stehen hier bereit.",
+      mahnstufe_text: MAHN_TEXT[1],
+      faellig_wort: "ist heute, am",
+      knopf_text: "Rate bezahlen — QR-Code & Bankdaten",
+    },
+    vorbei: {
+      titel_text: "Ihre Monatsrate ist noch offen",
+      preheader_text: "Ihre Rate ist noch offen. Betrag und Bankdaten stehen hier bereit.",
+      mahnstufe_text: stufe === 1 ? "Freundliche Erinnerung — Ihre Monatsrate ist noch offen." : MAHN_TEXT[stufe],
+      faellig_wort: "war am",
+      knopf_text: "Rate bezahlen — QR-Code & Bankdaten",
+    },
+  }[zeitpunkt];
   return {
     ...makePayloadFromRow(r),
     // Die Ratenreferenz ersetzt bewusst payment_reference: bestehende
@@ -770,12 +799,11 @@ export function aboErinnerungPayload(r: any) {
     betrag: (Number(r.betrag_cents) / 100).toFixed(2),
     rate_nr: Number(r.rate_nr),
     faellig_am: faellig,
-    faellig_am_text: new Date(`${faellig}T12:00:00Z`).toLocaleDateString("de-DE", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-    }),
+    faellig_am_text: faelligText,
     tage_ueberfaellig: ueberfaellig,
     mahnstufe: stufe,
-    mahnstufe_text: MAHN_TEXT[stufe],
+    zeitpunkt,
+    ...zeit,
     empfaenger: FIAON_BANK_DETAILS.recipient,
     iban: FIAON_BANK_DETAILS.ibanDisplay,
     bic: FIAON_BANK_DETAILS.bic,

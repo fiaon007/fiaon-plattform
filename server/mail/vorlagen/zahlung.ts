@@ -91,15 +91,17 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     // Transaktionsmail ohne werbenden Teil. Dasselbe in abo_payment_reminder.
   },
 
-  // Monatsrate fällig/überfällig, mit Mahnstufe und Ratenleiste.
+  // Monatsrate: Vorabinfo (vor der Fälligkeit), am Tag selbst, danach mit Mahnstufe und Ratenleiste.
+  // 12.10.2026 (Team-Feedback Florentine): Titel, Vorschauzeile, Marke, Zeitwort und Knopf kommen aus
+  // aboErinnerungPayload (server/routes/fiaon-abo.ts) — vor der Fälligkeit klingt sie nicht mehr wie eine Mahnung.
   abo_payment_reminder: {
     betreff: "Ihre Monatsrate {{params.rate_nr}} — {{params.verwendungszweck}}",
-    preheader: "Ihre Rate ist fällig. Betrag und Bankdaten stehen hier bereit.",
-    titel: "Ihre Monatsrate ist fällig",
+    preheader: "{{params.preheader_text}}",
+    titel: "{{params.titel_text}}",
     marke: "{{params.mahnstufe_text}}",
     ratenLeiste: { nr: "{{params.rate_nr}}", von: 12 },
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre Monatsrate für <b>{{params.paket}}</b> war am <b>{{params.faellig_am_text}}</b> fällig.",
+      "Guten Tag {{params.vorname}}, Ihre Monatsrate für <b>{{params.paket}}</b> {{params.faellig_wort}} <b>{{params.faellig_am_text}}</b> fällig.",
       "Jede pünktliche Rate zahlt doppelt ein: Sie hält Ihre Betreuung am Laufen — und sie baut genau die Zahlungshistorie auf, die am Ende über Ihre Bonität entscheidet.",
       "Schon überwiesen? Dann hat sich diese Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun.",
     ],
@@ -111,7 +113,7 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.verwendungszweck}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
-    knopf: { text: "Rate bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
+    knopf: { text: "{{params.knopf_text}}", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
     fussnote: "Gerade schwierig diesen Monat? Sagen Sie es uns einfach — gemeinsam findet sich fast immer eine Lösung, bevor etwas anbrennt.",
     // 08.10.2026: kein Karten-Ziel-Block — reine Zahlungspost (siehe payment_reminder).
   },

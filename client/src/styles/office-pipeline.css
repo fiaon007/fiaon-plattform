@@ -1151,3 +1151,5 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 @media (max-width:560px){.pi-pausiert-zeile{grid-template-columns:1fr}.pi-pausiert-tun{grid-column:1/2;grid-row:auto}}
 .pi-marke.wieder{background:rgba(148,163,184,.1);color:#cbd5e1}
 .pi-wv-wahl > span[data-fiaon="wiedervorlage-hinweis"]{text-transform:none;letter-spacing:0;font-size:11px;color:#8ea0b8;margin-left:4px}
+/* 12.10.2026: Vermerk neben den Zustimmungen, wenn ein Bestandskunde als bestätigt gilt (Justin) */
+.pi-ab-haken span.pi-ab-bestand{border:0;background:none;padding:0 4px;min-height:30px;color:#94a3b8;font-size:11.5px}

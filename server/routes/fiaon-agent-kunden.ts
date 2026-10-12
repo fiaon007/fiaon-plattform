@@ -630,6 +630,25 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       LIMIT 1
     `) as any[];
 
+    // ── ZUSTIMMUNGEN ÜBER ALLE BESTELLUNGEN (12.10.2026, Team-Feedback Florentine) ───────────────────────────────
+    // „Bei manchen Kunden Häkchen, bei anderen Kreuze." Gelesen wurde nur die JÜNGSTE Bestellung — oft eine Auskunft
+    // oder ein Zusatz ohne Zustimmungsfelder. Gemessen: 177 von 500 zahlenden Kunden mit Kreuz, 106 davon mit allen
+    // drei Zustimmungen an einer anderen eigenen Bestellung, 7 mit Annahme im neuen Antrag (fiaon_vertragsannahmen).
+    // Jetzt zählt jede eigene Bestellung und die Annahme. Für zahlende Bestandskunden ohne gespeicherte Zustimmung
+    // (Altbestand, meist vor August) gilt Justins Entscheidung: „Alle, die im System sind, haben die Bestätigung."
+    // Die Akte zeigt dann ✓ mit dem Vermerk „Bestandskunde" — sie behauptet keine gespeicherte Erklärung des Kunden.
+    const [zu] = (await sqlPool`
+      SELECT bool_or(a.consent_agb) AS agb, bool_or(a.consent_schufa) AS schufa, bool_or(a.consent_contract) AS vertrag,
+             bool_or(a.payment_status = 'paid' AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%') AS bestand,
+             EXISTS (SELECT 1 FROM fiaon_vertragsannahmen v WHERE v.person_id = ${personId}) AS annahme
+        FROM fiaon_applications a WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+    `.catch(() => [{}])) as any[];
+    const zuQuelle = (gespeichert: boolean, annahmeZaehlt: boolean): "antrag" | "annahme" | "bestandskunde" | null =>
+      gespeichert ? "antrag" : annahmeZaehlt && zu?.annahme ? "annahme" : zu?.bestand ? "bestandskunde" : null;
+    const zustimmungQuelle = {
+      agb: zuQuelle(!!zu?.agb, true), schufa: zuQuelle(!!zu?.schufa, false), vertrag: zuQuelle(!!zu?.vertrag, true),
+    };
+
     const txt = (v: any) => (v === null || v === undefined || String(v).trim() === "" ? null : String(v).trim());
     const zahl = (v: any) => (v === null || v === undefined || !Number.isFinite(Number(v)) || Number(v) === 0 ? null : Number(v));
     const ibanKurz = (v: any) => {
@@ -686,9 +705,10 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       },
       bank: { iban: ibanKurz(ant.iban) },
       zustimmungen: {
-        agb: ant.consent_agb === true,
-        schufa: ant.consent_schufa === true,
-        vertrag: ant.consent_contract === true,
+        agb: ant.consent_agb === true || zustimmungQuelle.agb !== null,
+        schufa: ant.consent_schufa === true || zustimmungQuelle.schufa !== null,
+        vertrag: ant.consent_contract === true || zustimmungQuelle.vertrag !== null,
+        quelle: zustimmungQuelle,
       },
       // E-242: utm trug bis zur Bereinigung Kundenpasswörter im Klartext — heraus geht nur die Erlaubnisliste.
       herkunft: utmErlaubt(ant.utm),

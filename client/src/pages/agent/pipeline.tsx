@@ -4711,9 +4711,17 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
         <div className="pi-ab-haken">
           {/* E-IT-D (08.10.2026, 4a): Der Haken hieß „Bonitätsauskunft“ — er ist die Einwilligung in die Datenübermittlung
               (consent_schufa), keine Bestellung. 272 Kunden ohne Bestellung sahen ihn grün und galten als „beantragt“. */}
-          {[["AGB", antrag.zustimmungen?.agb], [EINWILLIGUNG_DATENUEBERMITTLUNG, antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
-            <span key={String(w)} className={ja ? "ja" : "nein"} title={w === EINWILLIGUNG_DATENUEBERMITTLUNG ? EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS : undefined}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
+          {/* 12.10.2026: über alle Bestellungen + Annahme; Bestandskunden gelten als bestätigt (Justin). */}
+          {([["AGB", antrag.zustimmungen?.agb, antrag.zustimmungen?.quelle?.agb], [EINWILLIGUNG_DATENUEBERMITTLUNG, antrag.zustimmungen?.schufa, antrag.zustimmungen?.quelle?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag, antrag.zustimmungen?.quelle?.vertrag]] as [string, boolean | undefined, string | null | undefined][]).map(([w, ja, quelle]) => (
+            <span key={w} className={ja ? "ja" : "nein"}
+                  title={[w === EINWILLIGUNG_DATENUEBERMITTLUNG ? EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS : null,
+                    quelle === "annahme" ? "Bestätigt bei der Vertragsannahme im Antrag." : quelle === "bestandskunde" ? "Bestandskunde — gilt als bestätigt (Entscheidung der Geschäftsleitung, 12.10.2026). Aus der Zeit vor der elektronischen Erfassung liegt keine gespeicherte Erklärung vor." : null].filter(Boolean).join(" ") || undefined}>
+              {ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{w}
+            </span>
           ))}
+          {(["agb", "schufa", "vertrag"] as const).some((s) => antrag.zustimmungen?.quelle?.[s] === "bestandskunde") && (
+            <span className="pi-ab-bestand">Bestandskunde — gilt als bestätigt</span>
+          )}
         </div>
       </Sek>
 

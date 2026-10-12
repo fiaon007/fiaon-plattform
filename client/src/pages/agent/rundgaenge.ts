@@ -1509,6 +1509,16 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
       + "Jede Mail trägt die Signaturkarte mit Porträt.",
     tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung — Mara hält Tageskontingent, Abmeldesatz und Sperrliste ein.",
   },
+  {
+    // E-339 (12.10.2026): Brief statt Mail.
+    ziel: ".cr-trichter-brief",
+    titel: "Keine persönliche Adresse? Dann ein Brief.",
+    text: "Firmen mit Kapitalsignal ab 3, deren Entscheider keine persönliche Mailadresse hat, bekommen einen Brief an die Geschäftsführung — "
+      + "Name und Anschrift aus dem Impressum, ein QR-Code zum Gesprächstermin, Widerspruch und Datenschutzhinweis auf jedem Brief. "
+      + "In der Akte unter „Brief“: schreiben lassen, das Druck-PDF ansehen, Text ändern, senden. Hier im Trichter: Briefe, Besuche über den QR-Code, Porto.",
+    tipp: "Gesendet wird nur mit dem Schalter „Briefe an Geschäftsführer“ unter Automatik, im Tageskontingent. Der Testmodus übergibt den Brief an den "
+      + "Versanddienst, ohne ihn zu drucken — so prüft der Dienst die Anschrift im Fenster, bevor Porto anfällt.",
+  },
 ];
 
 // ── /chef/s/telefonkartei (21.09.2026, E-201) ────────────────────────────────

@@ -13,6 +13,8 @@
 // macht server/lib/fiaon-radar.ts, die Oberfläche components/admin/ChefRadar.tsx.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { FIAON_FIRMA } from "./fiaon-firma";
+
 export const RADAR_TAGESZIEL = 50;
 
 export type RadarLand = "DE" | "AT" | "CH";
@@ -115,7 +117,7 @@ export function radarSignal(key: unknown): RadarSignal | null {
 }
 
 export type RadarStatus =
-  | "neu" | "gescannt" | "mail" | "im_postfach" | "versendet" | "antwort"
+  | "neu" | "gescannt" | "mail" | "im_postfach" | "versendet" | "brief" | "antwort"
   | "lead" | "termin" | "angebot" | "kauf"
   | "ohne_kontakt" | "unzustellbar" | "passt_nicht" | "kein_interesse" | "gesperrt";
 
@@ -128,6 +130,8 @@ export const RADAR_STATUS: Record<RadarStatus, { label: string; ton: "neu" | "ar
   mail: { label: "Mail geschrieben", ton: "arbeit" },
   im_postfach: { label: "Entwurf im Postfach", ton: "arbeit" },
   versendet: { label: "Versendet", ton: "arbeit" },
+  // E-339 (12.10.2026): der erste Kontakt ging als Brief an den Geschäftsführer (Pingen/LetterXpress).
+  brief: { label: "Brief unterwegs", ton: "arbeit" },
   antwort: { label: "Antwort erhalten", ton: "gut" },
   lead: { label: "Lead · Interesse", ton: "top" },
   termin: { label: "Termin gebucht", ton: "top" },
@@ -150,7 +154,7 @@ export type RadarPaket = (typeof RADAR_PAKETE)[number];
 export const RADAR_GRUPPEN: { key: string; label: string; stati: RadarStatus[]; ohneMail?: boolean }[] = [
   { key: "offen", label: "Offen", stati: ["neu", "gescannt"] },
   { key: "bereit", label: "Mail bereit", stati: ["mail", "im_postfach"] },
-  { key: "raus", label: "Unterwegs", stati: ["versendet"] },
+  { key: "raus", label: "Unterwegs", stati: ["versendet", "brief"] },
   { key: "gespraech", label: "Im Gespräch", stati: ["antwort", "lead", "termin", "angebot", "kauf"] },
   // Dieser Reiter zählt nach fehlender Adresse, nicht nach Stand — sonst übersieht man frisch gefundene Firmen ohne E-Mail.
   { key: "ohne", label: "Ohne E-Mail", stati: ["ohne_kontakt"], ohneMail: true },
@@ -369,3 +373,202 @@ export function radarAdressePersoenlich(emailRoh: unknown, namen: (string | null
   // Ohne bekannte Namen: nur die eindeutige Form „vorname.nachname“.
   return /^[a-z]{2,}[._-][a-z]{2,}$/.test(lokal);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-339 (12.10.2026) — BRIEF STATT MAIL
+//
+// Seit Justins Vorgabe „keine info, office, welcome Emails“ geht die erste Mail nur an die persönliche, öffentlich
+// belegte Adresse eines Entscheiders — und die steht (Probe 12.10.) bei 1 von 20 Firmen auf der Website. Name des
+// Geschäftsführers und Firmenanschrift stehen dagegen im Impressum (gemessen 12.10.: 943 von 1.079 Firmen mit
+// Anschrift, 512 davon auch mit Namen eines Vertreters). Für Firmen mit Kapitalsignal ≥ 3 ohne persönliche Adresse
+// schreibt Mara deshalb einen Brief an den Geschäftsführer. Personalisierte Briefwerbung ist nach Art. 6 Abs. 1 lit. f
+// DSGVO zulässig (OLG Stuttgart, Hinweisbeschluss 02.02.2024, 2 U 63/22) — mit Datenschutzhinweis samt Herkunft der
+// Daten (Art. 14) und deutlich abgesetztem Widerspruchsweg (Art. 21 Abs. 4). Für den Text gelten dieselben Wände wie
+// für die Mail: kein Betrag, kein Kapitalrahmen, kein Institut-Satz, Wortwand.
+// Hier steht, was Server und Chefbüro gleich sehen müssen; die Arbeit macht server/lib/fiaon-radar-brief.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type RadarBriefAnbieter = "pingen" | "letterxpress";
+
+/** Die zwei Versanddienste (Recherche 12.10.2026). Preise netto in Cent je Brief — eine Schätzung, bis der Dienst den echten Preis meldet. */
+export const RADAR_BRIEF_ANBIETER: Record<RadarBriefAnbieter, { label: string; preisCents: Record<RadarLand, number>; geschaetzt: readonly RadarLand[]; test: string; schluessel: string }> = {
+  // Pingen-Rechner, gemessen 12.10.2026: DE 1,14 € unter 500 Briefen im Monat (ab 500: 0,96 €), AT 1,43 €, CH 1,28 €.
+  pingen: {
+    label: "Pingen", preisCents: { DE: 114, AT: 143, CH: 128 }, geschaetzt: [],
+    test: "Testmodus: Der Brief wird bei Pingen hochgeladen und geprüft, aber nicht abgeschickt — er liegt dort zur Ansicht und kostet nichts.",
+    schluessel: "PINGEN_CLIENT_ID, PINGEN_CLIENT_SECRET, PINGEN_ORGANISATION_ID",
+  },
+  // LetterXpress-Preisliste: 0,76 € netto (DE). Ins Ausland ist der Preis nicht belegt — 1,50 € geschätzt.
+  letterxpress: {
+    label: "LetterXpress", preisCents: { DE: 76, AT: 150, CH: 150 }, geschaetzt: ["AT", "CH"],
+    test: "Testmodus: Der Auftrag landet in der LetterXpress-Postbox und wird nicht gedruckt.",
+    schluessel: "LETTERXPRESS_BENUTZER, LETTERXPRESS_API_KEY",
+  },
+};
+
+export interface RadarBriefEinstellung {
+  /** Gehen Briefe hinaus (von Hand aus der Akte und durch Mara im Tageskontingent)? Ohne Schalter: nur Brief und Vorschau. */
+  versand: boolean;
+  /** Höchstens so viele Briefe am Tag (von Hand und automatisch zusammen). */
+  jeTag: number;
+  anbieter: RadarBriefAnbieter;
+  /** Testmodus: Der Dienst bekommt den Brief, druckt ihn aber nicht (Pingen ohne Absenden, LetterXpress-Postbox). */
+  testmodus: boolean;
+  /** Farbdruck (Glasblau) oder Graustufen. */
+  farbe: boolean;
+}
+export const RADAR_BRIEF_VORGABE: RadarBriefEinstellung = { versand: false, jeTag: 10, anbieter: "pingen", testmodus: true, farbe: true };
+/** Harte Obergrenze je Tag — ein Fehler in der Automatik kostet sonst schnell dreistellig. */
+export const RADAR_BRIEF_HOECHSTENS_JE_TAG = 100;
+export const RADAR_BRIEF_SCHLUESSEL = {
+  versand: "radar_brief_versand", jeTag: "radar_brief_je_tag", anbieter: "radar_brief_anbieter", testmodus: "radar_brief_testmodus", farbe: "radar_brief_farbe",
+} as const;
+
+/** Liest die Brief-Schalter aus Rohwerten (fiaon_settings key → value). Rein. */
+export function radarBriefEinstellungLesen(roh: Record<string, string | null | undefined>): RadarBriefEinstellung {
+  const v = RADAR_BRIEF_VORGABE;
+  const k = RADAR_BRIEF_SCHLUESSEL;
+  const n = Math.round(Number(roh[k.jeTag]));
+  const anbieter = String(roh[k.anbieter] ?? "").trim();
+  return {
+    versand: roh[k.versand] != null ? roh[k.versand] === "an" : v.versand,
+    jeTag: Number.isFinite(n) && String(roh[k.jeTag] ?? "").trim() !== "" ? Math.max(0, Math.min(RADAR_BRIEF_HOECHSTENS_JE_TAG, n)) : v.jeTag,
+    anbieter: anbieter === "pingen" || anbieter === "letterxpress" ? anbieter : v.anbieter,
+    // Unbekannt = Testmodus. Echte Briefe nur, wenn jemand ausdrücklich „aus“ gesetzt hat.
+    testmodus: roh[k.testmodus] != null ? roh[k.testmodus] !== "aus" : v.testmodus,
+    farbe: roh[k.farbe] != null ? roh[k.farbe] !== "aus" : v.farbe,
+  };
+}
+
+/** Was ein Brief voraussichtlich kostet (netto, Cent) — geschätzt, bis der Dienst den Preis meldet. Rein. */
+export function radarBriefKosten(anbieter: RadarBriefAnbieter, land: unknown): { cents: number; geschaetzt: boolean } {
+  const a = RADAR_BRIEF_ANBIETER[anbieter] ?? RADAR_BRIEF_ANBIETER.pingen;
+  const l = alsRadarLand(land) ?? "DE";
+  return { cents: a.preisCents[l], geschaetzt: a.geschaetzt.includes(l) };
+}
+
+/** Die Kennung, unter der Besuche aus dem QR-Code des Briefs zählen (utm_source). */
+export const RADAR_BRIEF_QUELLE = "radar_brief";
+/** Der Link im QR-Code: /business mit Kennung r<ID> und Sprung zum Gesprächstermin. Rein. */
+export function radarBriefLink(id: number, basis = "https://fiaon.com"): string {
+  return `${String(basis).replace(/\/+$/, "")}/business?utm_source=${RADAR_BRIEF_QUELLE}&utm_content=r${Math.round(id)}#gespraech`;
+}
+/** Die Kennung der Firma auf dem Brief — für Widerspruch und Rückfragen. */
+export function radarBriefKennung(id: number): string {
+  return `R-${Math.round(id)}`;
+}
+/** „r123“ → 123, sonst null. Rein. */
+export function radarKennungLesen(utmContent: unknown): number | null {
+  const m = String(utmContent ?? "").trim().match(/^r(\d{1,9})$/);
+  return m ? Number(m[1]) : null;
+}
+
+const LAND_ZEILE: Record<RadarLand, string> = { DE: "DEUTSCHLAND", AT: "ÖSTERREICH", CH: "SCHWEIZ" };
+/** Geschäftsführung, Inhaberschaft, Vorstand — wer über einen Brief an die Firma entscheidet. */
+export const RADAR_ROLLE_CHEF = /geschäftsführ|geschaeftsfuehr|inhaber|ceo|vorstand|director|gründer|gruender|founder|präsident|praesident|managing|gesellschafter|komplementär/i;
+const NAMEN_PARTIKEL = /^(von|van|vom|zu|zur|zum|de|del|der|den|di|da|le|la|und)$/i;
+
+/**
+ * „ANDREAS SCHMALE“ → „Andreas Schmale“ (Impressen schreiben Namen oft in Versalien). Gemischte Schreibung bleibt,
+ * wie sie ist — „McLean“ oder „zur Linden“ weiß der Mensch besser als wir. Rein.
+ */
+export function radarNameSchreibweise(name: string | null | undefined): string {
+  const n = String(name ?? "").replace(/\s+/g, " ").trim();
+  if (!/[A-ZÄÖÜ]/.test(n) || n !== n.toUpperCase()) return n;
+  return n.split(" ").map((w, i) => {
+    if (i > 0 && NAMEN_PARTIKEL.test(w)) return w.toLowerCase();
+    return w.split("-").map((t) => t.charAt(0) + t.slice(1).toLowerCase()).join("-");
+  }).join(" ");
+}
+
+export interface RadarBriefEmpfaenger {
+  firma: string;
+  person: string | null;
+  rolle: string | null;
+  anrede: "Herr" | "Frau" | null;
+  strasse: string;
+  plz: string;
+  ort: string;
+  land: RadarLand | null;
+  /** Die Zeilen im Anschriftfeld, von oben nach unten (DIN 5008). */
+  zeilen: string[];
+  /** Was für einen persönlichen Brief fehlt — leer = vollständig. */
+  fehlt: string[];
+}
+
+/** Die Person, an die der Brief geht: Geschäftsführung aus dem Impressum zuerst, sonst der belegte Entscheider. Rein. */
+export function radarBriefPerson(impressum: any, entscheider?: { name?: string | null; rolle?: string | null } | null): { name: string; rolle: string | null } | null {
+  const vertreter: { name: string; rolle: string | null }[] = (Array.isArray(impressum?.vertreter) ? impressum.vertreter : [])
+    .map((v: any) => ({ name: radarNameSchreibweise(String(v?.name || [v?.vorname, v?.nachname].filter(Boolean).join(" ")).replace(/\(.*?\)/g, "")), rolle: v?.funktion ? String(v.funktion).trim() : null }))
+    .filter((v: { name: string }) => v.name.split(/\s+/).filter((w) => /[a-zäöüß]{2,}/i.test(w)).length >= 2 && v.name.length <= 60);
+  const chef = vertreter.find((v) => v.rolle && RADAR_ROLLE_CHEF.test(v.rolle)) ?? vertreter.find((v) => !v.rolle);
+  if (chef) return chef;
+  const e = radarNameSchreibweise(entscheider?.name ?? "");
+  if (e.split(/\s+/).length >= 2) return { name: e, rolle: entscheider?.rolle ? String(entscheider.rolle) : null };
+  return null;
+}
+
+/** Baut das Anschriftfeld aus dem Impressum. „Herrn“/„Frau“ nur, wenn die Anrede belegt ist — geraten wird nie. Rein. */
+export function radarBriefAnschrift(impressum: any, opts: { firmenname?: string | null; land?: unknown; anrede?: "Herr" | "Frau" | null; entscheider?: { name?: string | null; rolle?: string | null } | null } = {}): RadarBriefEmpfaenger {
+  const imp = impressum && typeof impressum === "object" ? impressum : {};
+  const firma = String(imp.name || opts.firmenname || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const person = radarBriefPerson(imp, opts.entscheider ?? null);
+  const strasse = String(imp.strasse ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const plz = String(imp.plz ?? "").replace(/\s+/g, "").trim();
+  const ort = String(imp.ort ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  const land = alsRadarLand(imp.land) ?? alsRadarLand(opts.land);
+  const anrede = opts.anrede === "Herr" || opts.anrede === "Frau" ? opts.anrede : null;
+  const fehlt: string[] = [];
+  if (!firma) fehlt.push("Firmenname");
+  if (!person) fehlt.push("Name der Geschäftsführung");
+  if (!strasse || !/\d/.test(strasse)) fehlt.push("Straße mit Hausnummer");
+  if (!land) fehlt.push("Land (DE, AT oder CH)");
+  if (!(land === "DE" ? /^\d{5}$/.test(plz) : /^\d{4}$/.test(plz))) fehlt.push("Postleitzahl");
+  if (!ort) fehlt.push("Ort");
+  const personZeile = person ? `${anrede === "Herr" ? "Herrn " : anrede === "Frau" ? "Frau " : ""}${person.name}` : null;
+  const zeilen = [firma, personZeile, strasse, `${plz} ${ort}`.trim(), land ? LAND_ZEILE[land] : ""].filter((z): z is string => !!z && !!z.trim());
+  return { firma, person: person?.name ?? null, rolle: person?.rolle ?? null, anrede, strasse, plz, ort, land, zeilen, fehlt };
+}
+
+export interface RadarBriefPruefFirma {
+  status: string; land?: string | null; signal_staerke?: number | null; versendet_am?: unknown; brief_versendet_am?: unknown;
+  entscheider?: { name?: string | null; email?: string | null } | null; impressum?: any; name?: string | null;
+}
+/**
+ * Bekommt diese Firma einen Brief? Jede Bedingung einzeln — das Chefbüro zeigt sie als Liste mit Haken. Rein.
+ * Die Mail an eine persönliche Adresse geht vor (kostet nichts, Antwort mit einer Zeile).
+ */
+export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] } {
+  const anschrift = radarBriefAnschrift(f.impressum, { firmenname: f.name, land: f.land });
+  const persoenlich = !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
+  const zu = ["gesperrt", "kein_interesse", "passt_nicht"].includes(f.status);
+  const gespraech = (RADAR_IM_GESPRAECH as readonly string[]).includes(f.status);
+  const punkte = [
+    { key: "signal", ok: Number(f.signal_staerke ?? 0) >= RADAR_SIGNAL_AB, text: `Kapitalsignal ab Stärke ${RADAR_SIGNAL_AB}${f.signal_staerke != null ? ` (hat ${f.signal_staerke})` : " (noch nicht geprüft)"}` },
+    { key: "persoenlich", ok: !persoenlich, text: persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
+    { key: "anschrift", ok: !anschrift.fehlt.length, text: anschrift.fehlt.length ? `Anschrift unvollständig: ${anschrift.fehlt.join(", ")}` : "Name und Anschrift aus dem Impressum vollständig" },
+    { key: "offen", ok: !zu && !gespraech && !f.versendet_am, text: zu ? "Gesperrt, abgelehnt oder passt nicht" : gespraech ? "Mit der Firma läuft schon ein Gespräch" : f.versendet_am ? "Hat schon eine erste Mail bekommen" : "Noch kein Kontakt, nicht gesperrt" },
+    { key: "einmal", ok: !f.brief_versendet_am, text: f.brief_versendet_am ? "Hat schon einen Brief bekommen — je Firma genau einer" : "Noch kein Brief an diese Firma" },
+  ];
+  return { ok: punkte.every((p) => p.ok), punkte };
+}
+
+/**
+ * Die festen Sätze auf jedem Brief — eine Quelle für Server, Chefbüro und die Wortwand (scripts/pruef-wortwand-de.ts).
+ * Datenschutzhinweis nach Art. 14 DSGVO in knapper Form (Verantwortlicher, Zweck, Rechtsgrundlage, Quelle, Empfänger,
+ * Speicherdauer als Kriterium, Rechte) mit Verweis auf die volle Erklärung; der Widerspruch steht davon abgesetzt.
+ */
+export const RADAR_BRIEF_TEXTE = {
+  qrTitel: "Ihr Gespräch mit mir",
+  qrSatz: "Code scannen und eine Zeit für 30 Minuten wählen.",
+  qrOhneCode: "Ohne Code: fiaon.com/business",
+  antwort: (mail: string) => `Lieber direkt: ${mail}`,
+  telefon: (telefon: string) => `oder Telefon ${telefon}`,
+  widerspruchTitel: "Keine Post mehr von uns?",
+  widerspruch: (kennung: string, mail: string, telefon: string) =>
+    `Sie können der Nutzung Ihrer Daten für Werbung jederzeit widersprechen (Art. 21 DSGVO). Eine kurze Nachricht an ${mail}, ein Anruf unter ${telefon} oder eine Zeile an die Anschrift oben genügt, gern mit der Kennung ${kennung}. Wir sperren Ihre Daten dann sofort für jede weitere Werbung.`,
+  datenschutzTitel: "Datenschutzhinweis",
+  datenschutz: (quelle: string) =>
+    `Verantwortlich ist ${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land} (${FIAON_FIRMA.email}). Ihren Namen, Ihre Funktion und die Geschäftsanschrift haben wir ${quelle} entnommen. Wir nutzen sie, um Ihnen unser Angebot einmal persönlich vorzustellen; Rechtsgrundlage ist unser berechtigtes Interesse an Direktwerbung (Art. 6 Abs. 1 lit. f DSGVO). Gedruckt und versandt hat den Brief ein Druck- und Versanddienstleister in unserem Auftrag. Der Code trägt eine Kennnummer, damit wir sehen, ob dieser Brief zu einem Besuch auf unserer Website geführt hat. Wir speichern die Angaben, bis Sie widersprechen oder die Ansprache abgeschlossen ist; nach einem Widerspruch bleibt nur der Eintrag in unserer Sperrliste, damit Sie keine Werbung mehr erhalten. Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Beschwerde bei einer Aufsichtsbehörde. Mehr unter fiaon.com/datenschutz.`,
+  ruecksendung: `${FIAON_FIRMA.name} · ${FIAON_FIRMA.strasse} · ${FIAON_FIRMA.ortZeile} · UK`,
+} as const;

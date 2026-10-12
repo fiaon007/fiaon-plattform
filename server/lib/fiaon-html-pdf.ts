@@ -137,6 +137,23 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
   }
 }
 
+/**
+ * E-339 (12.10.2026): Druckt ein Blatt, das seine Ränder selbst setzt (`@page { size: A4; margin: 0 }`) — für den Brief
+ * des Firmen-Radars, dessen Anschrift millimetergenau im Fenster des Umschlags stehen muss (DIN 5008). Bewusst OHNE
+ * pdfkit-Notbehelf: Ein Ersatzdruck mit verrutschter Anschrift wäre ein Brief, der nicht ankommt — dann lieber ein Fehler.
+ */
+export async function htmlZuPdfBlatt(html: string): Promise<Buffer> {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: "networkidle" });
+    const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true, margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EINE ECHTE LAUFENDE FUSSZEILE — MIT RESERVIERTEM RAND
 //

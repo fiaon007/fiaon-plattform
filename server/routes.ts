@@ -487,6 +487,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
   const fiaonRadarRoutes = await import('./routes/fiaon-radar');
   app.use('/api/fiaon', fiaonRadarRoutes.default);
+  // ✉️ E-339 (12.10.2026): Besuche aus dem QR-Code eines Radar-Briefs (/business?utm_source=radar_brief&utm_content=r<ID>).
+  //    Gemerkt werden nur Firma und Zeit (fiaon_radar_besuche) — ohne IP, ohne Gerät; die Seite läuft unverändert weiter.
+  app.get('/business', (req, _res, next) => {
+    if (req.query.utm_source === 'radar_brief') {
+      void import('./lib/fiaon-radar-brief')
+        .then((m) => m.radarBriefBesuchMerken(req.query.utm_content, req.get('user-agent')))
+        .catch((e) => console.error('[RADAR-BRIEF] Besuch:', e?.message || e));
+    }
+    next();
+  });
   // 📞 Telefonkartei (21.09.2026, E-201): Justins eigene Anrufseite — alle Kunden als Kartei,
   //    Kontakt fürs iPhone, vier Fälle (Rechnung, nicht erreicht, Rückruf, Storno). Nur Stufe Inhaber.
   const fiaonTelefonkarteiRoutes = await import('./routes/fiaon-telefonkartei');
@@ -553,6 +563,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Nachfassen und erste Mails im Tageskontingent nur werktags 8:30–17:30 und nur mit Schalter im Chefbüro.
     tageslauf('radar_post', async () => await (await import('./lib/fiaon-radar-faden')).radarPostLauf(), 10 * 60 * 1000, { beimStartNach: 420_000 });
     tageslauf('radar_versand', async () => await (await import('./lib/fiaon-radar-faden')).radarVersandLauf(), 10 * 60 * 1000, { beimStartNach: 600_000 });
+    // E-339 (12.10.2026): Brief statt Mail — nur mit Schalter „Briefversand“ im Chefbüro, im Tageskontingent, werktags 8:30–17:30.
+    tageslauf('radar_brief', async () => await (await import('./lib/fiaon-radar-brief')).radarBriefLauf(), 15 * 60 * 1000, { beimStartNach: 660_000 });
   });
   // Tageslauf dazu: Erinnerungen aus dem Pflichtenkalender, monatlicher Durchgang, Nachfassen bei
   // fehlenden Unterlagen. Stündlicher Takt; der Lauf arbeitet nur zwischen 8 und 20 Uhr Berliner Zeit

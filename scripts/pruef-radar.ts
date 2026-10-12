@@ -116,7 +116,7 @@ ok(RADAR_BEREICHE.length === 10 && new Set(RADAR_BEREICHE.map((b) => b.key)).siz
 const seitenPfade = new Set(GLOBAL_SEITEN.map((s) => s.pfad));
 for (const b of RADAR_BEREICHE) ok(b.seite === "/business" || seitenPfade.has(b.seite), `${b.key}: Seite ${b.seite} existiert`);
 ok(radarBereich("gibtsnicht") === null && !!radarBereich("bau"), "Unbekannter Bereich wird abgelehnt");
-ok(Object.keys(RADAR_STATUS).length === 15, "Fünfzehn Stände bis zum Kauf (E-337)");
+ok(Object.keys(RADAR_STATUS).length === 16 && RADAR_STATUS.brief?.label === "Brief unterwegs", "Sechzehn Stände bis zum Kauf (E-337), dazu „Brief unterwegs“ (E-339)");
 const inGruppen = new Set(RADAR_GRUPPEN.flatMap((g) => g.stati));
 ok(Object.keys(RADAR_STATUS).every((st) => inGruppen.has(st as any)), "Jeder Stand liegt in einem Reiter");
 ok(RADAR_STAPEL_MAX > 0 && RADAR_STAPEL_MAX <= 50, "Stapel bleibt klein genug für persönliche Mails");
@@ -216,6 +216,99 @@ const seiten = lies("client/src/components/admin/chef-seiten.tsx");
 ok(/slug: "firmen-radar"[^\n]*mindest: "geschaeftsfuehrung"/.test(seiten), "Chefbüro-Eintrag erst ab Geschäftsführung");
 ok(!/firmen-radar|ChefRadar/.test(lies("client/src/pages/agent/firmen.tsx")), "Nicht im Office (Nikitas Cockpit)");
 ok(/tageslauf\('firmen_radar'/.test(lies("server/routes.ts")) && /firmen_radar:/.test(lies("server/lib/fiaon-crons.ts")), "Tageslauf registriert und beschrieben");
+
+abschnitt("Brief statt Mail (E-339)");
+{
+  const sh = await import("../shared/fiaon-radar");
+  const br = await import("../server/lib/fiaon-radar-brief");
+  const QRCode = (await import("qrcode")).default;
+  // Schalter
+  const v = sh.radarBriefEinstellungLesen({});
+  ok(!v.versand && v.testmodus && v.anbieter === "pingen" && v.jeTag === 10 && v.farbe, "Ohne Einstellung: Versand aus, Testmodus an, Pingen, 10 je Tag, Farbe");
+  ok(sh.radarBriefEinstellungLesen({ radar_brief_je_tag: "500" }).jeTag === sh.RADAR_BRIEF_HOECHSTENS_JE_TAG, `Tageskontingent gedeckelt auf ${sh.RADAR_BRIEF_HOECHSTENS_JE_TAG}`);
+  ok(sh.radarBriefEinstellungLesen({ radar_brief_testmodus: "quatsch" }).testmodus && !sh.radarBriefEinstellungLesen({ radar_brief_testmodus: "aus" }).testmodus, "Echte Briefe nur mit ausdrücklichem „aus“ beim Testmodus");
+  ok(sh.radarBriefEinstellungLesen({ radar_brief_anbieter: "post" }).anbieter === "pingen" && sh.radarBriefEinstellungLesen({ radar_brief_anbieter: "letterxpress" }).anbieter === "letterxpress", "Versanddienst: nur Pingen oder LetterXpress");
+  ok(sh.radarBriefKosten("pingen", "DE").cents === 114 && !sh.radarBriefKosten("pingen", "DE").geschaetzt && sh.radarBriefKosten("letterxpress", "AT").geschaetzt, "Kosten je Brief: Pingen DE 1,14 €, LetterXpress Ausland als Schätzung markiert");
+  // QR-Link und Kennung
+  const link = sh.radarBriefLink(1078);
+  ok(link === "https://fiaon.com/business?utm_source=radar_brief&utm_content=r1078#gespraech", `QR-Link wie verlangt (${link})`);
+  ok(sh.radarKennungLesen("r1078") === 1078 && sh.radarKennungLesen("1078") === null && sh.radarKennungLesen("r12x") === null && sh.radarBriefKennung(1078) === "R-1078", "Kennung r<ID> wird streng gelesen");
+  const qr = QRCode.create(link, { errorCorrectionLevel: "M" }) as any;
+  ok(qr.segments.map((x: any) => String(x.data ?? "")).join("") === link || qr.segments.some((x: any) => Buffer.from(x.data ?? []).toString() === link), "Der QR-Code trägt genau diesen Link");
+  ok((await br.briefQrSvg(link)).startsWith("<svg"), "QR-Code als SVG (scharf im Druck)");
+  // Name und Anschrift
+  ok(sh.radarNameSchreibweise("ANDREAS SCHMALE") === "Andreas Schmale" && sh.radarNameSchreibweise("HANS-PETER MÜLLER") === "Hans-Peter Müller", "Versalien aus dem Impressum werden normal geschrieben");
+  ok(sh.radarNameSchreibweise("CLAUDIUS ZUR LINDEN") === "Claudius zur Linden" && sh.radarNameSchreibweise("Anna-Lena McLean") === "Anna-Lena McLean", "Partikel klein, gemischte Schreibung bleibt");
+  const imp = { name: "schmale Maschinenbau GmbH", strasse: "Altenaer Straße 95", plz: "58762", ort: "Altena", land: "DE",
+    vertreter: [{ name: "Max Muster", funktion: "Datenschutzbeauftragter" }, { name: "ANDREAS SCHMALE", funktion: "Geschäftsführender Gesellschafter" }] };
+  const an = sh.radarBriefAnschrift(imp, { anrede: "Herr" });
+  ok(JSON.stringify(an.zeilen) === JSON.stringify(["schmale Maschinenbau GmbH", "Herrn Andreas Schmale", "Altenaer Straße 95", "58762 Altena", "DEUTSCHLAND"]) && !an.fehlt.length, `Anschrift nach DIN 5008 (${an.zeilen.join(" | ")})`);
+  ok(sh.radarBriefAnschrift(imp, {}).zeilen[1] === "Andreas Schmale", "Ohne belegte Anrede kein „Herrn“ — das Geschlecht wird nie geraten");
+  ok(sh.radarBriefAnschrift({ ...imp, vertreter: [{ name: "Anna Berg", funktion: "Geschäftsführerin" }] }, { anrede: "Frau" }).zeilen[1] === "Frau Anna Berg", "„Frau“ nur mit Beleg");
+  ok(sh.radarBriefPerson(imp)?.name === "Andreas Schmale", "Die Geschäftsführung, nicht der Datenschutzbeauftragte");
+  ok(sh.radarBriefPerson({ vertreter: [{ name: "Max Muster", funktion: "Datenschutzbeauftragter" }] }) === null, "Nur ein Datenschutzbeauftragter: kein Empfänger");
+  ok(sh.radarBriefAnschrift({ ...imp, strasse: "Altenaer Straße" }).fehlt.includes("Straße mit Hausnummer") && sh.radarBriefAnschrift({ ...imp, plz: "5876" }).fehlt.includes("Postleitzahl"), "Unvollständige Anschrift wird gemeldet");
+  const at = sh.radarBriefAnschrift({ ...imp, land: "AT", plz: "1010", ort: "Wien" });
+  ok(!at.fehlt.length && at.zeilen[at.zeilen.length - 1] === "ÖSTERREICH", "Österreich: vierstellige PLZ, Landeszeile");
+  ok(br.briefAnrede(an) === "Guten Tag Herr Schmale," && br.briefAnrede(sh.radarBriefAnschrift(imp, {})) === "Guten Tag Andreas Schmale,", "Anrede nach der Regel der Mail — auf Papier „Guten Tag“");
+  // Wer bekommt einen Brief?
+  const basis = { status: "gescannt", land: "DE", signal_staerke: 4, impressum: imp, name: imp.name, entscheider: null, versendet_am: null, brief_versendet_am: null };
+  ok(sh.radarBriefPruefen(basis).ok, "Signal 4, keine persönliche Adresse, Anschrift vollständig → Brief");
+  ok(!sh.radarBriefPruefen({ ...basis, signal_staerke: 2 }).ok && !sh.radarBriefPruefen({ ...basis, signal_staerke: null }).ok, `Unter Stärke ${sh.RADAR_SIGNAL_AB} oder ungeprüft: kein Brief`);
+  ok(!sh.radarBriefPruefen({ ...basis, entscheider: { name: "Andreas Schmale", email: "a.schmale@schmale-gmbh.de" } }).ok, "Persönliche Adresse bekannt → die Mail geht vor");
+  ok(sh.radarBriefPruefen({ ...basis, entscheider: { name: "Andreas Schmale", email: "info@schmale-gmbh.de" } }).ok, "Nur info@ bekannt → Brief");
+  ok(!sh.radarBriefPruefen({ ...basis, versendet_am: "2026-10-01" }).ok && !sh.radarBriefPruefen({ ...basis, brief_versendet_am: "2026-10-01" }).ok, "Schon angeschrieben oder schon ein Brief → kein (zweiter) Brief");
+  ok(!sh.radarBriefPruefen({ ...basis, status: "gesperrt" }).ok && !sh.radarBriefPruefen({ ...basis, status: "lead" }).ok, "Gesperrt oder im Gespräch → kein Brief");
+  // Dieselben Wände wie die Mail
+  const sauberB = { betreff: "Ihre neue Halle in Altena", absaetze: ["Ich habe gelesen, dass Sie in Altena eine neue Halle bauen. Neue Hallen kosten Geld, lange bevor sie welches verdienen.", `${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil}`, "In einem Gespräch von 30 Minuten sehen wir gemeinsam, ob dieser Weg zu Ihren Plänen passt."], frage: "Darf ich Ihnen das einmal in Ruhe zeigen?" };
+  ok(br.briefPruefen(sauberB).sperrend.length === 0 && !br.briefPruefen(sauberB).warnungen.some((w) => /^Lang \(/.test(w)), `Sauberer Brief sperrt nicht (${br.briefPruefen(sauberB).sperrend.join("; ")}${br.briefPruefen(sauberB).warnungen.join("; ")})`);
+  ok(br.briefPruefen({ ...sauberB, absaetze: ["Ziel sind 250.000 $ für Ihre Expansion."] }).sperrend.some((x) => /Betrag/.test(x)), "Betrag im Brief sperrt");
+  ok(br.briefPruefen({ ...sauberB, absaetze: ["Wir öffnen Ihnen einen Kapitalrahmen."] }).sperrend.some((x) => /Kapitalrahmen/.test(x)), "Kapitalrahmen im Brief sperrt");
+  ok(br.briefPruefen({ ...sauberB, absaetze: ["Über Rahmen und Bedingungen entscheidet das jeweilige Institut."] }).sperrend.some((x) => /Institut-Satz/.test(x)), "Institut-Satz im Brief sperrt");
+  ok(br.briefPruefen({ ...sauberB, absaetze: ["Die Karte kommt garantiert."] }).sperrend.length > 0, "„garantiert“ sperrt (Wortwand)");
+  ok(br.briefPruefen({ ...sauberB, absaetze: ["Mehr unter https://fiaon.com oder js@fiaon.com."] }).warnungen.some((w) => /Link oder Mailadresse/.test(w)), "Link oder Mailadresse im Text wird gemeldet");
+  ok(sh.RADAR_BRIEF_TEXTE.widerspruch("R-1", "js@fiaon.com", "+41").includes("Art. 21 DSGVO") && /Datenschutzbeauftragt|Art\. 6 Abs\. 1 lit\. f/.test(sh.RADAR_BRIEF_TEXTE.datenschutz("dem Impressum")), "Widerspruch (Art. 21) und Rechtsgrundlage (Art. 6 Abs. 1 lit. f) stehen auf dem Brief");
+  ok(sh.RADAR_BRIEF_TEXTE.datenschutz("dem Impressum Ihrer Website firma.de").includes("dem Impressum Ihrer Website firma.de") && /Kennnummer/.test(sh.RADAR_BRIEF_TEXTE.datenschutz("x")), "Datenschutzhinweis nennt Herkunft der Daten und die Kennnummer im Code");
+  const texteAlle: string[] = []; for (const w of Object.values(sh.RADAR_BRIEF_TEXTE)) texteAlle.push(typeof w === "function" ? (w as any)("Muster", "Muster", "Muster") : String(w));
+  ok(globalWortPruefen(texteAlle.join("\n")).length === 0, "Feste Brieftexte bestehen die Global-Wortwand");
+  // Das Blatt
+  const brief: any = { ...sauberB, betreff: "<script>alert(1)</script>", anrede: "Guten Tag Herr Schmale,", empfaenger: an, quelle: "dem Impressum Ihrer Website schmale-gmbh.de",
+    kennung: "R-1078", link, antwortAn: "js@fiaon.com", warnungen: [], sperrend: [], geaendert: false, erstellt_am: "2026-10-12T19:00:00Z" };
+  const h = br.briefHtml(brief, { qrSvg: await br.briefQrSvg(link), farbe: true, datum: new Date("2026-10-12T12:00:00Z") });
+  ok(!/<script>alert/.test(h) && h.includes("&lt;script&gt;"), "HTML maskiert — kein eingeschleuster Code");
+  ok(/\.fenster \{ position: absolute; top: 45mm; left: 20mm; width: 85mm; height: 45mm; \}/.test(h) && /padding: 98\.5mm/.test(h) && /@page \{ size: A4; margin: 0; \}/.test(h), "DIN 5008 Form B: Anschriftfeld 20/45 mm, 85 × 45 mm, Betreff bei 98,5 mm, A4 ohne Rand");
+  ok(h.includes("Herrn Andreas Schmale") && h.includes(sh.RADAR_BRIEF_TEXTE.ruecksendung) && h.includes("12. Oktober 2026") && h.includes("R-1078"), "Anschrift, Rücksendeangabe, Datum (Berlin) und Kennung auf dem Blatt");
+  ok(h.includes("Keine Post mehr von uns?") && h.includes("Datenschutzhinweis") && h.includes(FIAON_FIRMA.companyNo), "Widerspruch abgesetzt, Datenschutzhinweis, Firmenangaben");
+  ok(/#288DFA/i.test(h) && !/gold|#c9a2|#d4af|#b8860b/i.test(h), "Glasblau, kein Gold");
+  ok(!/#288DFA/i.test(br.briefHtml(brief, { qrSvg: "<svg></svg>", farbe: false })), "Graustufen-Fassung ohne Blau");
+  // Besuche und Versand-Wände ohne Datenbank
+  ok(!(await br.radarBriefBesuchMerken("r12", "Googlebot/2.1")) && !(await br.radarBriefBesuchMerken("12", "Mozilla/5.0")) && !(await br.radarBriefBesuchMerken("r12", "")), "Roboter, falsche Kennung und leere Kennung zählen nicht als Besuch");
+  let warf: any = null;
+  try { await br.radarBriefEinstellungSetzen({ versand: true, anbieter: "pingen" }); } catch (e) { warf = e; }
+  ok(warf?.status === 409 && /Zugangsdaten/.test(String(warf?.message)), "Briefversand lässt sich ohne Zugangsdaten nicht einschalten");
+  // Quelltext-Wände
+  const blib = lies("server/lib/fiaon-radar-brief.ts");
+  ok(/if \(!s\.versand\) throw new RadarFehler/.test(blib) && /anbieterBereit\(s\.anbieter\)/.test(blib), "Senden nur mit Schalter und eingerichtetem Dienst");
+  ok(/pg_advisory_xact_lock\(339001\)/.test(blib) && /brief_versendet_am IS NULL AND COALESCE\(brief_status, 'entwurf'\) NOT IN \('sendet', 'uebergeben', 'versendet'\)/.test(blib), "Kontingent und „genau ein Brief“ unter einer Sperre");
+  ok(/const jetzt = briefPruefen\(brief\)/.test(blib) && /nach alten Regeln geschrieben/.test(blib), "Beim Senden gilt die AKTUELLE Wand");
+  ok(/auto_send: !ein\.test/.test(blib) && /mode: ein\.test \? "test" : "live"/.test(blib), "Testmodus: Pingen ohne Absenden, LetterXpress in die Postbox");
+  ok(/if \(seiten > 2\)/.test(blib) && /await gesperrt\(f\.email \?\? null, f\.domain\)/.test(blib), "Höchstens zwei Seiten; Sperrliste vor jedem Brief");
+  const pdfLib = lies("server/lib/fiaon-html-pdf.ts");
+  const blatt = pdfLib.slice(pdfLib.indexOf("export async function htmlZuPdfBlatt"), pdfLib.indexOf("// EINE ECHTE LAUFENDE FUSSZEILE"));
+  ok(blatt.length > 50 && !/renderPdfKitFallback/.test(blatt) && /preferCSSPageSize: true/.test(blatt), "Brief-PDF ohne pdfkit-Notbehelf (sonst verrutscht die Anschrift)");
+  const r = lies("server/routes.ts");
+  ok(r.indexOf("app.get('/business', (req, _res, next)") > 0 && r.indexOf("app.get('/business', (req, _res, next)") < r.indexOf("seiteUnbekannt(req.path)") && /radarBriefBesuchMerken\(req\.query\.utm_content, req\.get\('user-agent'\)\)/.test(r) && /next\(\);\n  \}\);/.test(r), "QR-Besuche werden vor dem Seitenaufbau gemerkt — die Seite läuft weiter");
+  ok(/tageslauf\('radar_brief'/.test(r) && /radar_brief: \{/.test(lies("server/lib/fiaon-crons.ts")) && /radar_brief: \(e\)/.test(lies("server/lib/fiaon-crons.ts")), "Lauf radar_brief registriert, beschrieben und bewacht");
+  const fd = lies("server/lib/fiaon-radar-faden.ts");
+  ok(/z\.utm_source IN \('radar', 'radar_brief'\)/.test(fd) && /FROM fiaon_radar_besuche WHERE quelle = 'radar_brief'/.test(fd) && /INTERVAL '13 months'/.test(fd), "Abgleich zählt Termine/Aufträge aus dem Brief und die QR-Besuche (13 Monate)");
+  ok(/OR \(\$\{briefPostfach\} AND brief_versendet_am IS NOT NULL\)/.test(fd), "Mails von Brief-Firmen liest der Antwort-Wächter — eine Absage sperrt (Widerspruch)");
+  ok(/AS briefe/.test(fd) && /AS besuche/.test(fd) && /"briefKostenCents"/.test(fd), "Trichter je Tag: Briefe, QR-Besuche, Porto");
+  ok(/RADAR_BRIEF_TEXTE/.test(lies("scripts/pruef-wortwand-de.ts")), "Die festen Brieftexte stehen in der deutschen Wortwand");
+  const rt = lies("server/routes/fiaon-radar.ts");
+  ok(/brief\/senden[\s\S]{0,260}req\.body\?\.bestaetigt !== true/.test(rt) && /brief\.pdf", wache,/.test(rt), "Brief senden nur mit Bestätigung, PDF nur hinter der Wache");
+  const ui = lies("client/src/components/admin/ChefRadar.tsx");
+  ok(/\["brief", "Brief"\]/.test(ui) && /<BriefReiter /.test(ui) && /<BriefKachel \/>/.test(ui) && /cr-trichter-brief/.test(ui), "Chefbüro: Akte › Brief, Automatik › Briefe, Brief-Kanal im Trichter");
+}
 
 abschnitt("Ergebnis");
 console.log(`  ${geprueft} Prüfungen, ${fehler} Fehler.`);

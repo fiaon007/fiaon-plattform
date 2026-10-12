@@ -182,9 +182,12 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
   let kiRest = KI_JE_LAUF;
   for (const postfach of radarPostfaecher()) {
     erg.postfaecher++;
+    // E-339: Firmen, die einen Brief bekamen, schreiben an die Adresse auf dem Brief (das erste Radar-Postfach) —
+    // ihre Mails kommen von der Firmen-Domäne, ohne Faden. Eine Absage dort ist zugleich der Widerspruch (Sperrliste).
+    const briefPostfach = postfach === radarPostfaecher()[0];
     const firmen = (await sqlPool`
       SELECT id, domain, lower(email) AS email, gmail_nachricht_id, COALESCE(gmail_thread_id, gmail_nachricht_id) AS faden
-        FROM fiaon_radar_firmen WHERE postfach = ${postfach} AND versendet_am IS NOT NULL`) as any[];
+        FROM fiaon_radar_firmen WHERE (postfach = ${postfach} AND versendet_am IS NOT NULL) OR (${briefPostfach} AND brief_versendet_am IS NOT NULL)`) as any[];
     if (!firmen.length) continue;
     const faeden = new Map<string, number>(firmen.filter((x) => x.faden).map((x) => [String(x.faden), Number(x.id)]));
     const ersteMails = new Set<string>(firmen.filter((x) => x.gmail_nachricht_id).map((x) => String(x.gmail_nachricht_id)));
@@ -328,14 +331,14 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
   }
   if (art === "automatisch") return { art, ki, mara: false };
   if (art === "weitergeleitet") {
-    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status IN ('versendet', 'unzustellbar') THEN 'antwort' ELSE status END,
+    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status IN ('versendet', 'brief', 'unzustellbar') THEN 'antwort' ELSE status END,
                     nachfass_faellig = NOW() + INTERVAL '5 days', updated_at = NOW() WHERE id = ${firmaId}`;
     return { art, ki, mara: false };
   }
   if (art === "falscher_empfaenger") {
     const neu = e.neue_adresse.trim().toLowerCase();
     const tauglich = neu && radarAdressePruefen(neu, f.domain, f.name).ok;
-    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status = 'versendet' THEN 'antwort' ELSE status END,
+    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status IN ('versendet', 'brief') THEN 'antwort' ELSE status END,
                     adresse_vorschlag = ${tauglich ? neu : null}, updated_at = NOW() WHERE id = ${firmaId}`;
     if (frisch) await aufgabeFuerJustin(f, postId, `Falscher Empfänger: ${f.name}`, `${e.zusammenfassung || "Die Mail kam beim falschen Empfänger an."}${tauglich ? ` Neue Adresse: ${neu} — im Firmen-Radar „Adresse übernehmen“.` : ""}`, false);
     return { art, ki, mara: false };
@@ -344,10 +347,10 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
   // Interesse, Sachfrage, Terminwunsch — und „sonstiges“ (Mensch prüft). Ab hier ist es ein Gespräch.
   if (regel.lead) {
     await sqlPool`UPDATE fiaon_radar_firmen SET
-                    status = CASE WHEN status IN ('neu', 'gescannt', 'mail', 'im_postfach', 'versendet', 'antwort', 'unzustellbar') THEN 'lead' ELSE status END,
+                    status = CASE WHEN status IN ('neu', 'gescannt', 'mail', 'im_postfach', 'versendet', 'brief', 'antwort', 'unzustellbar') THEN 'lead' ELSE status END,
                     lead_am = COALESCE(lead_am, ${n.datum}), updated_at = NOW() WHERE id = ${firmaId}`;
   } else {
-    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status IN ('versendet', 'unzustellbar') THEN 'antwort' ELSE status END, updated_at = NOW() WHERE id = ${firmaId}`;
+    await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status IN ('versendet', 'brief', 'unzustellbar') THEN 'antwort' ELSE status END, updated_at = NOW() WHERE id = ${firmaId}`;
   }
   if (!frisch) return { art, ki, mara: false };
   const automatik = await radarAutomatik();
@@ -511,28 +514,28 @@ export async function radarAntwortVerwerfen(postId: number): Promise<void> {
  * Link in der Mail (fiaon_werbe_zuordnung) und die Domäne der E-Mail-Adresse (Firmenkontakt, Auftrag) — nur für Firmen,
  * die eine Radar-Mail bekommen haben.
  */
-export async function radarAbgleich(): Promise<{ termine: number; angebote: number; kaeufe: number }> {
+export async function radarAbgleich(): Promise<{ termine: number; angebote: number; kaeufe: number; besuche: number }> {
   await ensureRadarTabellen();
   // Termine und Anfragen über den Link aus der Mail.
   const ueberLink = (await sqlPool`
     SELECT z.art, z.created_at, NULLIF(regexp_replace(z.utm_content, '[^0-9]', '', 'g'), '')::int AS firma_id
       FROM fiaon_werbe_zuordnung z
-     WHERE z.utm_source = 'radar' AND z.utm_content ~ '^r[0-9]+$'`.catch(() => [])) as any[];
+     WHERE z.utm_source IN ('radar', 'radar_brief') AND z.utm_content ~ '^r[0-9]+$'`.catch(() => [])) as any[];
   let termine = 0, angebote = 0, kaeufe = 0;
   for (const z of ueberLink) {
     if (!z.firma_id) continue;
     if (z.art === "termin") {
       const r = (await sqlPool`UPDATE fiaon_radar_firmen SET termin_am = COALESCE(termin_am, ${z.created_at}), lead_am = COALESCE(lead_am, ${z.created_at}),
-                                 status = CASE WHEN status IN ('versendet', 'antwort', 'lead', 'unzustellbar') THEN 'termin' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
+                                 status = CASE WHEN status IN ('versendet', 'brief', 'antwort', 'lead', 'unzustellbar') THEN 'termin' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
                                 WHERE id = ${z.firma_id} AND termin_am IS NULL RETURNING id`) as any[];
       termine += r.length;
     } else if (z.art === "anfrage") {
       await sqlPool`UPDATE fiaon_radar_firmen SET lead_am = COALESCE(lead_am, ${z.created_at}),
-                     status = CASE WHEN status IN ('versendet', 'antwort', 'unzustellbar') THEN 'lead' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
+                     status = CASE WHEN status IN ('versendet', 'brief', 'antwort', 'unzustellbar') THEN 'lead' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
                     WHERE id = ${z.firma_id} AND lead_am IS NULL`;
     } else if (z.art === "auftrag") {
       await sqlPool`UPDATE fiaon_radar_firmen SET angebot_am = COALESCE(angebot_am, ${z.created_at}), lead_am = COALESCE(lead_am, ${z.created_at}),
-                     status = CASE WHEN status IN ('versendet', 'antwort', 'lead', 'termin', 'unzustellbar') THEN 'angebot' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
+                     status = CASE WHEN status IN ('versendet', 'brief', 'antwort', 'lead', 'termin', 'unzustellbar') THEN 'angebot' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
                     WHERE id = ${z.firma_id} AND angebot_am IS NULL`;
     }
   }
@@ -541,12 +544,12 @@ export async function radarAbgleich(): Promise<{ termine: number; angebote: numb
     SELECT r.id, MIN(t.created_at) AS am
       FROM fiaon_radar_firmen r
       JOIN fiaon_persons p ON lower(split_part(p.primary_email, '@', 2)) = r.domain
-      JOIN fiaon_termine t ON t.person_id = p.id AND t.quelle = 'global' AND t.created_at > r.versendet_am
-     WHERE r.versendet_am IS NOT NULL AND r.termin_am IS NULL
+      JOIN fiaon_termine t ON t.person_id = p.id AND t.quelle = 'global' AND t.created_at > LEAST(r.versendet_am, r.brief_versendet_am)
+     WHERE (r.versendet_am IS NOT NULL OR r.brief_versendet_am IS NOT NULL) AND r.termin_am IS NULL
      GROUP BY r.id`.catch(() => [])) as any[];
   for (const z of ueberDomaeneTermin) {
     await sqlPool`UPDATE fiaon_radar_firmen SET termin_am = ${z.am}, lead_am = COALESCE(lead_am, ${z.am}),
-                   status = CASE WHEN status IN ('versendet', 'antwort', 'lead', 'unzustellbar') THEN 'termin' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
+                   status = CASE WHEN status IN ('versendet', 'brief', 'antwort', 'lead', 'unzustellbar') THEN 'termin' ELSE status END, nachfass_faellig = NULL, updated_at = NOW()
                   WHERE id = ${z.id}`;
     termine++;
   }
@@ -555,8 +558,9 @@ export async function radarAbgleich(): Promise<{ termine: number; angebote: numb
     SELECT r.id, g.ref, g.paket_key, g.created_at, g.bezahlt_am, g.status
       FROM fiaon_radar_firmen r
       JOIN fiaon_global_auftraege g ON (lower(split_part(g.email, '@', 2)) = r.domain
-           OR EXISTS (SELECT 1 FROM fiaon_werbe_zuordnung z WHERE z.art = 'auftrag' AND z.bezug = g.ref AND z.utm_source = 'radar' AND z.utm_content = 'r' || r.id))
-     WHERE r.versendet_am IS NOT NULL AND g.created_at > r.versendet_am AND COALESCE(g.status, '') <> 'storniert'`.catch(() => [])) as any[];
+           OR EXISTS (SELECT 1 FROM fiaon_werbe_zuordnung z WHERE z.art = 'auftrag' AND z.bezug = g.ref AND z.utm_source IN ('radar', 'radar_brief') AND z.utm_content = 'r' || r.id))
+     WHERE (r.versendet_am IS NOT NULL OR r.brief_versendet_am IS NOT NULL) AND g.created_at > LEAST(r.versendet_am, r.brief_versendet_am)
+       AND COALESCE(g.status, '') <> 'storniert'`.catch(() => [])) as any[];
   for (const g of auftraege) {
     const cents = globalKatalog(g.paket_key)?.preisCents ?? null;
     const r = (await sqlPool`
@@ -564,13 +568,22 @@ export async function radarAbgleich(): Promise<{ termine: number; angebote: numb
              kauf_am = CASE WHEN ${g.bezahlt_am ?? null}::timestamptz IS NOT NULL THEN COALESCE(kauf_am, ${g.bezahlt_am ?? null}::timestamptz) ELSE kauf_am END,
              kauf_cents = CASE WHEN ${g.bezahlt_am ?? null}::timestamptz IS NOT NULL THEN ${cents} ELSE kauf_cents END,
              status = CASE WHEN ${g.bezahlt_am ?? null}::timestamptz IS NOT NULL THEN 'kauf'
-                           WHEN status IN ('versendet', 'antwort', 'lead', 'termin', 'unzustellbar') THEN 'angebot' ELSE status END,
+                           WHEN status IN ('versendet', 'brief', 'antwort', 'lead', 'termin', 'unzustellbar') THEN 'angebot' ELSE status END,
              nachfass_faellig = NULL, updated_at = NOW()
        WHERE id = ${g.id} AND (auftrag_ref IS DISTINCT FROM ${g.ref} OR (kauf_am IS NULL AND ${g.bezahlt_am ?? null}::timestamptz IS NOT NULL))
        RETURNING kauf_am`) as any[];
     if (r.length) { angebote++; if (r[0].kauf_am) kaeufe++; }
   }
-  return { termine, angebote, kaeufe };
+  // E-339: Besuche aus dem QR-Code eines Briefs (fiaon_radar_besuche, geschrieben beim Aufruf von /business mit
+  // utm_source=radar_brief) an die Firma: wie oft und wann zuerst. Ein Besuch ist noch kein Lead — erst Termin, Anfrage
+  // oder Antwort sind es. Aufbewahrung wie bei der Kampagnen-Zuordnung: höchstens 13 Monate.
+  await sqlPool`DELETE FROM fiaon_radar_besuche WHERE am < NOW() - INTERVAL '13 months'`.catch(() => {});
+  const besuche = (await sqlPool`
+    UPDATE fiaon_radar_firmen r SET brief_besuche = b.n, brief_besuch_am = b.erster, updated_at = NOW()
+      FROM (SELECT firma_id, COUNT(*)::int AS n, MIN(am) AS erster FROM fiaon_radar_besuche WHERE quelle = 'radar_brief' GROUP BY firma_id) b
+     WHERE r.id = b.firma_id AND r.brief_besuche IS DISTINCT FROM b.n
+    RETURNING r.id`.catch(() => [])) as any[];
+  return { termine, angebote, kaeufe, besuche: besuche.length };
 }
 
 // ── NACHFASSEN UND ERSTE MAILS ───────────────────────────────────────────────
@@ -718,6 +731,8 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
 export interface TrichterTag {
   tag: string; gefunden: number; angeschrieben: number; nachfass: number; unzustellbar: number; antworten: number;
   leads: number; termine: number; angebote: number; kaeufe: number; umsatzCents: number; absagen: number;
+  /** E-339: Briefe an Geschäftsführer (beim Dienst übergeben), Firmen mit erstem QR-Besuch, Porto netto. */
+  briefe: number; besuche: number; briefKostenCents: number;
 }
 
 export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; summe: TrichterTag & { zugestellt: number }; gesamt: TrichterTag & { zugestellt: number }; heute: TrichterTag; ziel: typeof RADAR_ZIEL; vorrat: number }> {
@@ -738,7 +753,10 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
       (SELECT COUNT(*) FROM f WHERE (f.angebot_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS angebote,
       (SELECT COUNT(*) FROM f WHERE (f.kauf_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS kaeufe,
       (SELECT COALESCE(SUM(f.kauf_cents), 0) FROM f WHERE (f.kauf_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS "umsatzCents",
-      (SELECT COUNT(*) FROM p WHERE p.richtung = 'ein' AND p.art = 'kein_interesse' AND (p.datum AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS absagen
+      (SELECT COUNT(*) FROM p WHERE p.richtung = 'ein' AND p.art = 'kein_interesse' AND (p.datum AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS absagen,
+      (SELECT COUNT(*) FROM f WHERE (f.brief_versendet_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS briefe,
+      (SELECT COUNT(*) FROM f WHERE (f.brief_besuch_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS besuche,
+      (SELECT COALESCE(SUM(f.brief_kosten_cents), 0) FROM f WHERE (f.brief_versendet_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS "briefKostenCents"
     FROM t ORDER BY t.tag DESC`) as any[];
   const [g] = (await sqlPool`
     SELECT COUNT(*)::int AS gefunden,
@@ -752,6 +770,9 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
            COUNT(*) FILTER (WHERE kauf_am IS NOT NULL)::int AS kaeufe,
            COALESCE(SUM(kauf_cents), 0)::int AS "umsatzCents",
            COUNT(*) FILTER (WHERE status = 'kein_interesse')::int AS absagen,
+           COUNT(*) FILTER (WHERE brief_versendet_am IS NOT NULL)::int AS briefe,
+           COUNT(*) FILTER (WHERE brief_besuch_am IS NOT NULL)::int AS besuche,
+           COALESCE(SUM(brief_kosten_cents), 0)::int AS "briefKostenCents",
            COUNT(*) FILTER (WHERE status IN ('neu', 'gescannt', 'mail') AND email IS NOT NULL AND versendet_am IS NULL)::int AS vorrat
       FROM fiaon_radar_firmen`) as any[];
   const tageListe: TrichterTag[] = zeilen.map((r) => ({ ...r }));
@@ -759,8 +780,9 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
     tag: a.tag, gefunden: a.gefunden + b.gefunden, angeschrieben: a.angeschrieben + b.angeschrieben, nachfass: a.nachfass + b.nachfass,
     unzustellbar: a.unzustellbar + b.unzustellbar, antworten: a.antworten + b.antworten, leads: a.leads + b.leads, termine: a.termine + b.termine,
     angebote: a.angebote + b.angebote, kaeufe: a.kaeufe + b.kaeufe, umsatzCents: a.umsatzCents + b.umsatzCents, absagen: a.absagen + b.absagen,
+    briefe: a.briefe + b.briefe, besuche: a.besuche + b.besuche, briefKostenCents: a.briefKostenCents + b.briefKostenCents,
   });
-  const leer: TrichterTag = { tag: "", gefunden: 0, angeschrieben: 0, nachfass: 0, unzustellbar: 0, antworten: 0, leads: 0, termine: 0, angebote: 0, kaeufe: 0, umsatzCents: 0, absagen: 0 };
+  const leer: TrichterTag = { tag: "", gefunden: 0, angeschrieben: 0, nachfass: 0, unzustellbar: 0, antworten: 0, leads: 0, termine: 0, angebote: 0, kaeufe: 0, umsatzCents: 0, absagen: 0, briefe: 0, besuche: 0, briefKostenCents: 0 };
   const summe = tageListe.reduce(plus, { ...leer, tag: `${n} Tage` });
   const gesamt: TrichterTag = { ...leer, ...g, tag: "gesamt" };
   return {

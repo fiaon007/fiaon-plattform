@@ -488,3 +488,33 @@ select.cr-feld { cursor: pointer; }
 .cr-klappe summary::-webkit-details-marker { display: none; }
 .cr-klappe summary h3::after { content: "▾"; margin-left: 8px; color: #93c5fd; font-size: 11px; }
 .cr-klappe[open] summary h3::after { content: "▴"; }
+
+/* ── E-339: Brief statt Mail — Haken, Anschrift im Fenster, Druck-PDF, Versand, Kachel, Brief-Kanal im Trichter ── */
+.cr-brief { display: grid; gap: 14px; }
+.cr-brief-oben { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
+.cr-brief-punkte { list-style: none; margin: 0; padding: 12px 14px; display: grid; gap: 7px; border-radius: 18px; background: rgba(255, 255, 255, .035); border: 1px solid rgba(196, 222, 255, .12); }
+.cr-brief-punkte li { display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; line-height: 1.45; color: #d6e4fa; }
+.cr-brief-punkte li i { flex: none; display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; font-style: normal; font-size: 10px; }
+.cr-brief-punkte li.ja i { color: #0b1c36; background: linear-gradient(135deg, #9fd0ff, #288dfa); }
+.cr-brief-punkte li.nein { color: #b9c6da; }
+.cr-brief-punkte li.nein i { color: #fecaca; border: 1px solid rgba(248, 113, 113, .45); }
+.cr-brief-anschrift { display: grid; align-content: start; gap: 7px; padding: 12px 14px; border-radius: 18px; background: linear-gradient(160deg, rgba(40, 141, 250, .16), rgba(29, 78, 216, .05)); border: 1px solid rgba(147, 197, 253, .3); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
+.cr-brief-anschrift address { display: grid; gap: 1px; font-style: normal; font-size: 13px; line-height: 1.45; padding: 9px 11px; border-radius: 10px; background: #fff; color: #0b1220; box-shadow: 0 14px 30px -20px rgba(0, 0, 0, .9); }
+.cr-brief-pdf { height: 640px; }
+.cr-brief-versand { grid-column: 1 / -1; display: grid; gap: 3px; }
+.cr-brief-versand span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--cr-leise); }
+.cr-brief-versand b { font-size: 14px; font-weight: 500; color: #fff; }
+.cr-brief-versand small { font-size: 12px; color: #b9cdea; }
+.cr-brief-schalter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.cr-brief-kippe { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #d6e4fa; }
+.cr-brief-werte { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cr-trichter-brief { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; padding: 9px 14px; border-radius: 14px; font-size: 12px; color: #b9cdea;
+  background: rgba(255, 255, 255, .03); border: 1px solid rgba(196, 222, 255, .1); }
+.cr-trichter-brief span { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #93c5fd; margin-right: 6px; }
+.cr-trichter-brief b { font-weight: 500; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-trichter-brief i { font-style: normal; color: rgba(196, 222, 255, .35); }
+@media (max-width: 640px) {
+  .cr-brief-oben { grid-template-columns: 1fr; }
+  .cr-brief-werte { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-brief-pdf { height: 480px; }
+}

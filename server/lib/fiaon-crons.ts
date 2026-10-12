@@ -454,6 +454,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Angeschriebene Firmen bekommen kein Nachfassen, und das Tageskontingent neuer Mails bleibt liegen — keine neuen Leads.",
     fenster: 26,
   },
+  // E-339 (12.10.2026): Brief statt Mail — Firmen mit Kapitalsignal ohne persönliche Entscheider-Adresse bekommen einen Brief.
+  radar_brief: {
+    zweck: "Firmen-Radar: mit Schalter Briefe an Geschäftsführer (Kapitalsignal ≥ 3, ohne persönliche Adresse) im Tageskontingent an Pingen/LetterXpress übergeben und den Stand übergebener Briefe nachfragen",
+    folge: "Firmen ohne persönliche Mailadresse bekommen keinen Brief — der Kanal, der die meisten Entscheider erreicht, steht still; übergebene Briefe zeigen keinen Stand.",
+    fenster: 26,
+  },
   // 19.09.2026 (E-196): dazu Schritt (d) — die Aufgabe, die Rechnung für das zweite Jahr der Jahresbetreuung zu stellen.
   global_tageslauf: {
     zweck: "FIAON Global: Kunden an Termine des Pflichtenkalenders erinnern (rund einen Monat und eine Woche vorher), "
@@ -570,6 +576,8 @@ export const VERKAUFSLAEUFE: Record<string, (e: any) => { versandt: Zahl; aus: b
   mara_wa_nachfass: (e) => ({ versandt: zahl0(e?.gesendet), aus: !!e?.uebersprungen?.schalter_aus }),
   // E-337: Außerhalb des Sendefensters liefert der Lauf versandt 0 mit grund — das zählt nicht als „stumm“ (aus).
   radar_versand: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || /Sendefenster|kein Radar-Postfach/.test(String(e?.grund ?? "")) }),
+  // E-339: Im Testmodus geht kein echter Brief hinaus (versandt 0) — das ist gewollt, kein „stummer“ Lauf.
+  radar_brief: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || Number(e?.test) > 0 || /Sendefenster|Versanddienst/.test(String(e?.grund ?? "")) }),
 };
 
 /** Schlüssel, die eine Person oder einen Vorgang benennen können — sie stehen nie in der Meldung (auch nicht als Summe). */

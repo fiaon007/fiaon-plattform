@@ -197,4 +197,72 @@ router.post("/chef/radar/firma/:id/adresse-uebernehmen", wache, async (req: Chef
   try { res.json({ ok: true, email: await radarAdresseUebernehmen(idAus(req.params.id)) }); } catch (e) { fehler(res, e); }
 });
 
+// ── E-339 (12.10.2026): Brief statt Mail — Brief schreiben, Vorschau als PDF, senden (nur mit Schalter), Einstellungen ──
+router.get("/chef/radar/brief", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefUebersicht } = await import("../lib/fiaon-radar-brief");
+    res.json({ ok: true, ...(await radarBriefUebersicht()) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/brief/einstellung", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefEinstellungSetzen } = await import("../lib/fiaon-radar-brief");
+    const b = req.body ?? {};
+    const einstellung = await radarBriefEinstellungSetzen({ versand: b.versand, jeTag: b.jeTag, anbieter: b.anbieter, testmodus: b.testmodus, farbe: b.farbe });
+    console.log(`[RADAR-BRIEF] Einstellung von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(einstellung)}`);
+    res.json({ ok: true, einstellung });
+  } catch (e) { fehler(res, e); }
+});
+
+router.get("/chef/radar/firma/:id/brief", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefAkte } = await import("../lib/fiaon-radar-brief");
+    res.json({ ok: true, ...(await radarBriefAkte(idAus(req.params.id))) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/brief", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefSchreiben } = await import("../lib/fiaon-radar-brief");
+    res.json({ ok: true, brief: await radarBriefSchreiben(idAus(req.params.id), { hinweis: req.body?.hinweis ? String(req.body.hinweis) : null }) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.put("/chef/radar/firma/:id/brief", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefAendern } = await import("../lib/fiaon-radar-brief");
+    res.json({ ok: true, brief: await radarBriefAendern(idAus(req.params.id), { betreff: String(req.body?.betreff ?? ""), koerper: String(req.body?.koerper ?? "") }) });
+  } catch (e) { fehler(res, e); }
+});
+
+// Die Vorschau ist das echte Druck-PDF (dieselbe Datei, die der Versanddienst bekäme) — nie zwischengespeichert.
+router.get("/chef/radar/firma/:id/brief.pdf", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefPdf } = await import("../lib/fiaon-radar-brief");
+    const { pdf, name, seiten } = await radarBriefPdf(idAus(req.params.id));
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${name}"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Seiten", String(seiten));
+    res.send(pdf);
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/brief/senden", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    // Senden nur mit ausdrücklicher Bestätigung aus der Oberfläche — wie die erste Mail.
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte den Versand bestätigen.");
+    const { radarBriefSenden } = await import("../lib/fiaon-radar-brief");
+    res.json(await radarBriefSenden(idAus(req.params.id), { von: req.chef?.agentId ?? null }));
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/brief-lauf", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { radarBriefLauf } = await import("../lib/fiaon-radar-brief");
+    res.json({ ok: true, ergebnis: await radarBriefLauf() });
+  } catch (e) { fehler(res, e); }
+});
+
 export default router;

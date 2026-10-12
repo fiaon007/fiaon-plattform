@@ -36,6 +36,8 @@ import { SOZIAL_WOERTER } from "../client/src/i18n/sozial";
 import { GEBURT_TEXTE } from "../shared/fiaon-geburtsdatum";
 // 08.10.2026: die Empfängerseite „Zugang übergeben“ (Willkommen, drei Schritte, Regeln, Zustände des Links).
 import { ZUGANG_UEBERGABE_TEXTE } from "../shared/fiaon-zugang-uebergabe";
+// E-339 (12.10.2026): die festen Sätze auf jedem Radar-Brief (QR-Karte, Widerspruch, Datenschutzhinweis).
+import { RADAR_BRIEF_TEXTE, RADAR_KERNSATZ } from "../shared/fiaon-radar";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
@@ -98,6 +100,8 @@ sammle(STARTGESPRAECH_TEXTE, "startgespraech", texte);
 sammle(SOZIAL_WOERTER.de, "i18n/sozial", texte);
 sammle(GEBURT_TEXTE, "geburtsdatum", texte);
 sammle(ZUGANG_UEBERGABE_TEXTE, "zugang-uebergabe", texte);
+sammle(RADAR_BRIEF_TEXTE, "radar-brief", texte);
+sammle(RADAR_KERNSATZ, "radar-kernsatz", texte);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

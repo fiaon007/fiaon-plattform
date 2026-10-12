@@ -23,7 +23,8 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
   RADAR_BEREICHE, RADAR_GRUPPEN, RADAR_STATUS, RADAR_STAPEL_MAX, RADAR_ZIELBILD, RADAR_TRICHTER, RADAR_ANTWORT_ARTEN, RADAR_KERNSATZ,
-  RADAR_NACHFASS_TAGE, RADAR_HOECHSTENS_JE_TAG, RADAR_SIGNALE, RADAR_SIGNAL_AB, radarBereich, type RadarStatus, type RadarAntwortArt,
+  RADAR_NACHFASS_TAGE, RADAR_HOECHSTENS_JE_TAG, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, radarBereich,
+  type RadarStatus, type RadarAntwortArt, type RadarBriefAnbieter,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
 import "@/styles/office-rundgang.css";
@@ -38,10 +39,12 @@ type Zeile = {
   signal?: { art?: string; label?: string; beleg?: string; url?: string } | null; signal_staerke?: number | null; antwort_am?: string | null; antwort_art?: string | null;
   lead_am?: string | null; termin_am?: string | null; kauf_am?: string | null; nachfass_stufe?: number | null; nachfass_faellig?: string | null; adresse_vorschlag?: string | null;
   entscheider?: { name: string; rolle: string | null; email: string; anrede: string | null; quelle: string; weg: string } | null; entscheider_am?: string | null;
+  brief_status?: string | null; brief_versendet_am?: string | null; brief_besuche?: number | null;
 };
 type TrichterTag = {
   tag: string; gefunden: number; angeschrieben: number; nachfass: number; unzustellbar: number; antworten: number;
   leads: number; termine: number; angebote: number; kaeufe: number; umsatzCents: number; absagen: number;
+  briefe: number; besuche: number; briefKostenCents: number;
 };
 type Automatik = { versand: boolean; jeTag: number; nachfass: boolean; mara: "auto" | "entwurf" | "aus"; abPassung: number };
 type Trichter = {
@@ -62,6 +65,7 @@ type Voll = Zeile & {
   impressum: any; notiz: string | null; gmail_entwurf_id: string | null;
   scan: { profil: any; aufhaenger: Aufhaenger[]; verworfen: number; seiten: { url: string; titel: string }[]; am: string } | null;
   mail: Mail | null;
+  brief?: { betreff: string; erstellt_am: string } | null;
 };
 type Lauf = {
   id: number; art: string; bereich: string | null; land: string | null; status: "laeuft" | "fertig" | "fehler" | "abgebrochen";
@@ -332,6 +336,13 @@ function TrichterTafel({ trichter }: { trichter: Trichter | null }) {
           );
         })}
       </ol>
+      {/* E-339: der Brief-Kanal — Briefe an Geschäftsführer, Firmen mit Besuch über den QR-Code, Porto netto. */}
+      <p className="cr-trichter-brief">
+        <span>Brief-Kanal</span>
+        <b>{werte ? zahl(werte.briefe ?? 0) : "—"}</b> {(werte?.briefe ?? 0) === 1 ? "Brief" : "Briefe"}
+        <i aria-hidden="true">·</i><b>{werte ? zahl(werte.besuche ?? 0) : "—"}</b> über den QR-Code auf der Seite
+        <i aria-hidden="true">·</i><b>{werte ? eur(werte.briefKostenCents ?? 0) : "—"}</b> Porto
+      </p>
     </section>
   );
 }
@@ -493,6 +504,7 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
           <header><b>Suche</b><span className="cr-chip">läuft täglich</span></header>
           <p>Bis zu 50 neue Firmen am Tag, jede mit Kapitalsignal. Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
         </article>
+        <BriefKachel />
         <article className="cr-kachel breit">
           <header><b>So klingt die erste Mail</b></header>
           <p className="cr-zitat">„{RADAR_KERNSATZ.was} {RADAR_KERNSATZ.vorteil}“</p>
@@ -539,30 +551,31 @@ function Kippe({ an, aus, onKlick }: { an: boolean; aus?: boolean; onKlick: () =
 function Messung({ trichter }: { trichter: Trichter | null }) {
   if (!trichter) return <Geruest zeilen={8} />;
   const spalten: [keyof TrichterTag, string][] = [
-    ["gefunden", "Gefunden"], ["angeschrieben", "Angeschrieben"], ["nachfass", "Nachfass"], ["unzustellbar", "Rückläufer"], ["antworten", "Antworten"],
-    ["absagen", "Absagen"], ["leads", "Leads"], ["termine", "Termine"], ["angebote", "Angebote"], ["kaeufe", "Käufe"],
+    ["gefunden", "Gefunden"], ["angeschrieben", "Mails"], ["briefe", "Briefe"], ["nachfass", "Nachfass"], ["unzustellbar", "Rückläufer"], ["besuche", "QR-Besuche"],
+    ["antworten", "Antworten"], ["absagen", "Absagen"], ["leads", "Leads"], ["termine", "Termine"], ["angebote", "Angebote"], ["kaeufe", "Käufe"],
   ];
   return (
     <section className="cr-messung">
       <div className="cr-tabelle-rahmen">
         <table className="cr-tabelle cr-tabelle-zahlen">
-          <thead><tr><th>Tag</th>{spalten.map(([, l]) => <th key={l}>{l}</th>)}<th>Umsatz</th></tr></thead>
+          <thead><tr><th>Tag</th>{spalten.map(([, l]) => <th key={l}>{l}</th>)}<th>Porto</th><th>Umsatz</th></tr></thead>
           <tbody>
             {trichter.tage.map((t) => (
               <tr key={t.tag} className={t.leads >= trichter.ziel.leads ? "ziel" : undefined}>
                 <td>{new Date(`${t.tag}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}</td>
                 {spalten.map(([k]) => <td key={k} className={(t[k] as number) ? undefined : "null"}>{zahl(t[k] as number)}</td>)}
+                <td>{t.briefKostenCents ? eur(t.briefKostenCents) : "—"}</td>
                 <td>{t.umsatzCents ? eur(t.umsatzCents) : "—"}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr><td>30 Tage</td>{spalten.map(([k]) => <td key={k}>{zahl(trichter.summe[k] as number)}</td>)}<td>{trichter.summe.umsatzCents ? eur(trichter.summe.umsatzCents) : "—"}</td></tr>
-            <tr><td>Gesamt</td>{spalten.map(([k]) => <td key={k}>{zahl(trichter.gesamt[k] as number)}</td>)}<td>{trichter.gesamt.umsatzCents ? eur(trichter.gesamt.umsatzCents) : "—"}</td></tr>
+            <tr><td>30 Tage</td>{spalten.map(([k]) => <td key={k}>{zahl(trichter.summe[k] as number)}</td>)}<td>{trichter.summe.briefKostenCents ? eur(trichter.summe.briefKostenCents) : "—"}</td><td>{trichter.summe.umsatzCents ? eur(trichter.summe.umsatzCents) : "—"}</td></tr>
+            <tr><td>Gesamt</td>{spalten.map(([k]) => <td key={k}>{zahl(trichter.gesamt[k] as number)}</td>)}<td>{trichter.gesamt.briefKostenCents ? eur(trichter.gesamt.briefKostenCents) : "—"}</td><td>{trichter.gesamt.umsatzCents ? eur(trichter.gesamt.umsatzCents) : "—"}</td></tr>
           </tfoot>
         </table>
       </div>
-      <p className="cr-klein">Leads = Interesse, Sachfrage oder Terminwunsch (aus der Antwort) oder ein Termin/Auftrag über den Link der Mail. Käufe = bezahlter Global-Auftrag einer angeschriebenen Firma. Ziel je Tag: {trichter.ziel.leads} Leads, {trichter.ziel.kaeufe} Käufe.</p>
+      <p className="cr-klein">Leads = Interesse, Sachfrage oder Terminwunsch (aus der Antwort) oder ein Termin/Auftrag über den Link der Mail. Käufe = bezahlter Global-Auftrag einer angeschriebenen Firma. Briefe = beim Versanddienst übergeben (ohne Testmodus), QR-Besuche = Firmen, die über den Code auf dem Brief /business geöffnet haben, Porto netto. Ziel je Tag: {trichter.ziel.leads} Leads, {trichter.ziel.kaeufe} Käufe.</p>
     </section>
   );
 }
@@ -856,7 +869,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
 }) {
   const [f, setF] = useState<Voll | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [reiter, setReiter] = useState<"ueberblick" | "scan" | "mail" | "verlauf">("ueberblick");
+  const [reiter, setReiter] = useState<"ueberblick" | "scan" | "mail" | "brief" | "verlauf">("ueberblick");
   const [verlauf, setVerlauf] = useState<Post[] | null>(null);
   const [arbeit, setArbeit] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
@@ -876,9 +889,9 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
       if (j.firma.mail) { setBetreff(j.firma.mail.betreff); setKoerper([...j.firma.mail.absaetze, j.firma.mail.frage].join("\n\n")); setPs(j.firma.mail.ps ?? ""); }
       if (zuerst.current) {
         zuerst.current = false;
-        if (j.firma.versendet_am) setReiter("verlauf"); else if (j.firma.mail) setReiter("mail"); else if (j.firma.scan) setReiter("scan");
+        if (j.firma.versendet_am || j.firma.brief_versendet_am) setReiter("verlauf"); else if (j.firma.mail) setReiter("mail"); else if (j.firma.brief) setReiter("brief"); else if (j.firma.scan) setReiter("scan");
       }
-      if (j.firma.versendet_am) rufen<{ post: Post[] }>(`/chef/radar/post?firma=${id}`, "GET").then((v) => setVerlauf(v.post)).catch(() => setVerlauf([]));
+      if (j.firma.versendet_am || j.firma.brief_versendet_am) rufen<{ post: Post[] }>(`/chef/radar/post?firma=${id}`, "GET").then((v) => setVerlauf(v.post)).catch(() => setVerlauf([]));
     } catch (e: any) { setFehler(e.message); }
   };
   useEffect(() => { void laden(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
@@ -899,7 +912,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
   const scan = f?.scan;
   const mail = f?.mail;
   const zu = f?.status === "gesperrt" || f?.status === "kein_interesse";
-  const raus = f?.status === "versendet" || !!f?.versendet_am;
+  const raus = f?.status === "versendet" || !!f?.versendet_am || f?.status === "brief" || !!f?.brief_versendet_am;
   // E-337: Der Weg geht bis zum Kauf.
   const schritt = f?.kauf_am ? 8 : f?.status === "angebot" ? 7 : f?.termin_am ? 6 : f?.lead_am ? 5 : raus ? 4 : mail ? 3 : scan ? 2 : 1;
   // Nach einem Rückläufer oder einer neuen Adresse vom falschen Empfänger darf die erste Mail EINMAL an die neue Adresse.
@@ -931,7 +944,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
             </ol>
 
             <nav className="cr-blatt-reiter" role="tablist">
-              {([["ueberblick", "Überblick"], ["scan", "Website-Scan"], ["mail", "Mail"], ...(raus ? [["verlauf", `Verlauf${verlauf?.length ? ` · ${verlauf.length}` : ""}`]] : [])] as [typeof reiter, string][]).map(([k, l]) => (
+              {([["ueberblick", "Überblick"], ["scan", "Website-Scan"], ["mail", "Mail"], ["brief", "Brief"], ...(raus ? [["verlauf", `Verlauf${verlauf?.length ? ` · ${verlauf.length}` : ""}`]] : [])] as [typeof reiter, string][]).map(([k, l]) => (
                 <button key={k} type="button" role="tab" aria-selected={reiter === k} className={reiter === k ? "an" : undefined} onClick={() => setReiter(k)}>{l}</button>
               ))}
             </nav>
@@ -1050,7 +1063,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                         <>
                           <iframe className="cr-vorschau" title="Vorschau der Mail" sandbox="" srcDoc={mail.html} />
                           <div className="cr-fenster-zeile">
-                            <button type="button" className="cr-knopf hell" onClick={() => setBearbeiten(true)} disabled={raus}>Text ändern</button>
+                            <button type="button" className="cr-knopf hell" onClick={() => setBearbeiten(true)} disabled={f.status === "versendet" || !!f.versendet_am}>Text ändern</button>
                             <button type="button" className="cr-knopf hell" onClick={() => { void navigator.clipboard?.writeText(mail.text); setMeldung({ art: "gut", text: "Text kopiert." }); }}>Text kopieren</button>
                           </div>
                         </>
@@ -1068,7 +1081,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                         </div>
                       )}
 
-                      {(!raus || neuerVersuch) && !zu && (
+                      {(!(f.status === "versendet" || f.versendet_am) || neuerVersuch) && !zu && (
                         <div className="cr-ausgabe">
                           {neuerVersuch && <p className="cr-hinweis warn">Die erste Mail kam nicht an — sie darf einmal an die neue Adresse {f.email}.</p>}
                           <label><span>Absender</span>
@@ -1099,11 +1112,12 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                           )}
                         </div>
                       )}
-                      {raus && !neuerVersuch && <p className="cr-hinweis gut">Versendet {f.versendet_am ? datum(f.versendet_am) : ""}{f.postfach ? ` aus ${f.postfach}` : ""} — je Firma geht genau eine erste Mail.{f.nachfass_faellig ? ` Nachfassen ${f.nachfass_stufe ? `(Stufe ${(f.nachfass_stufe ?? 0) + 1}) ` : ""}ab ${datum(f.nachfass_faellig)}.` : ""}</p>}
+                      {(f.status === "versendet" || !!f.versendet_am) && !neuerVersuch && <p className="cr-hinweis gut">Versendet {f.versendet_am ? datum(f.versendet_am) : ""}{f.postfach ? ` aus ${f.postfach}` : ""} — je Firma geht genau eine erste Mail.{f.nachfass_faellig ? ` Nachfassen ${f.nachfass_stufe ? `(Stufe ${(f.nachfass_stufe ?? 0) + 1}) ` : ""}ab ${datum(f.nachfass_faellig)}.` : ""}</p>}
                     </>
                   )}
                 </>
               )}
+              {reiter === "brief" && <BriefReiter id={id} gesperrt={zu} onGeaendert={() => { void laden(); onGeaendert(); }} />}
               {reiter === "verlauf" && (
                 <>
                   {!verlauf && <Geruest zeilen={4} />}
@@ -1112,7 +1126,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                     {(verlauf ?? []).slice().sort((x, y) => String(x.datum).localeCompare(String(y.datum))).map((v) => (
                       <li key={v.id} className={v.richtung === "aus" ? "aus" : "ein"}>
                         <div className="cr-faden-kopf">
-                          <b>{v.richtung === "aus" ? (v.art === "mara" ? "Mara" : v.art === "von_hand" ? "Von Hand" : v.art?.startsWith("nachfass") ? `Nachfass ${v.art.slice(8)}` : "Erste Mail") : (RADAR_ANTWORT_ARTEN[v.art as RadarAntwortArt]?.label ?? v.art)}</b>
+                          <b>{v.richtung === "aus" ? (v.art === "mara" ? "Mara" : v.art === "von_hand" ? "Von Hand" : v.art === "brief" ? `Brief (${v.von})` : v.art?.startsWith("nachfass") ? `Nachfass ${v.art.slice(8)}` : "Erste Mail") : (RADAR_ANTWORT_ARTEN[v.art as RadarAntwortArt]?.label ?? v.art)}</b>
                           <span className="cr-klein">{v.datum ? new Date(v.datum).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>
                         </div>
                         {v.zusammenfassung && <p className="cr-faden-satz">{v.zusammenfassung}</p>}
@@ -1138,5 +1152,232 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
       </aside>
     </div>,
     document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-339 (12.10.2026) — BRIEF STATT MAIL
+// Für Firmen mit Kapitalsignal ohne persönliche Adresse des Entscheiders: Mara schreibt einen Brief an die
+// Geschäftsführung (Name und Anschrift aus dem Impressum). Die Vorschau IST das Druck-PDF; gesendet wird nur mit
+// Schalter „Briefversand“ (Automatik), im Tageskontingent, über Pingen oder LetterXpress — zuerst im Testmodus.
+// ═══════════════════════════════════════════════════════════════════════════
+type BriefDaten = {
+  pruefung: { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] };
+  empfaenger: { zeilen: string[]; fehlt: string[]; person: string | null; anrede: string | null; land: string | null };
+  brief: {
+    betreff: string; anrede: string; absaetze: string[]; frage: string; warnungen: string[]; sperrend: string[]; geaendert: boolean;
+    erstellt_am: string; kennung: string; link: string; quelle: string;
+  } | null;
+  stand: {
+    status: string | null; am: string | null; versendetAm: string | null; testAm: string | null; anbieter: string | null; anbieterId: string | null;
+    kostenCents: number | null; fehler: string | null; besuche: number; besuchAm: string | null;
+  };
+  kosten: { cents: number; geschaetzt: boolean };
+  link: string; kennung: string;
+};
+type BriefUebersicht = {
+  einstellung: { versand: boolean; jeTag: number; anbieter: RadarBriefAnbieter; testmodus: boolean; farbe: boolean };
+  heute: { briefe: number; kostenCents: number; test: number };
+  bereit: Record<RadarBriefAnbieter, { ok: boolean; fehlt: string[] }>;
+  hoechstens: number;
+};
+const BRIEF_STAND: Record<string, string> = {
+  entwurf: "Entwurf", sendet: "Wird übergeben …", test: "Im Testmodus übergeben — nicht gedruckt", uebergeben: "Beim Versanddienst", versendet: "Gedruckt und abgeschickt", fehler: "Fehler",
+};
+
+function BriefReiter({ id, gesperrt, onGeaendert }: { id: number; gesperrt: boolean; onGeaendert: () => void }) {
+  const d = useDaten<BriefDaten>(`/chef/radar/firma/${id}/brief`, [id]);
+  const u = useDaten<BriefUebersicht>(`/chef/radar/brief`, [id]);
+  const [arbeit, setArbeit] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const [hinweis, setHinweis] = useState("");
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [betreff, setBetreff] = useState("");
+  const [koerper, setKoerper] = useState("");
+  const [frage, setFrage] = useState(false);
+  const daten = d.daten;
+  const brief = daten?.brief ?? null;
+  useEffect(() => { if (brief) { setBetreff(brief.betreff); setKoerper([...brief.absaetze, brief.frage].join("\n\n")); } }, [brief?.erstellt_am, brief?.betreff]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tun = async (name: string, fn: () => Promise<unknown>, gut: string, danach?: () => void) => {
+    setArbeit(name); setMeldung(null);
+    try { await fn(); d.neu(); u.neu(); onGeaendert(); setMeldung({ art: "gut", text: gut }); danach?.(); }
+    catch (e: any) { setMeldung({ art: "fehler", text: e.message }); }
+    finally { setArbeit(null); }
+  };
+
+  if (d.fehler) return <Fehlermeldung text={d.fehler} erneut={d.neu} />;
+  if (!daten) return <Geruest zeilen={6} />;
+  const st = daten.stand;
+  const e = u.daten?.einstellung;
+  const bereit = e ? u.daten?.bereit[e.anbieter] : null;
+  const unterwegs = !!st.versendetAm;
+  const heute = e ? (e.testmodus ? u.daten?.heute.test ?? 0 : u.daten?.heute.briefe ?? 0) : 0;
+  const anbieterName = e ? RADAR_BRIEF_ANBIETER[e.anbieter].label : "—";
+  // Warum „Brief senden“ gerade nicht geht — in einem Satz, damit niemand rätselt.
+  const sperre = !brief ? "Erst den Brief schreiben lassen."
+    : brief.sperrend.length ? "Der Brief verletzt noch Regeln (siehe oben)."
+    : !daten.pruefung.ok ? "Diese Firma bekommt keinen Brief — siehe die Haken oben."
+    : !e ? "Einstellungen laden …"
+    : !e.versand ? "Der Briefversand ist aus — unter „Automatik › Briefe“ einschalten."
+    : !bereit?.ok ? `Für ${anbieterName} fehlen noch die Zugangsdaten (${bereit?.fehlt.join(", ")}).`
+    : heute >= e.jeTag ? `Tageskontingent erreicht (${e.jeTag}).`
+    : null;
+  const pdfAdresse = `${API}/chef/radar/firma/${id}/brief.pdf?v=${encodeURIComponent(`${brief?.erstellt_am ?? ""}-${brief?.betreff ?? ""}-${(brief?.absaetze ?? []).join("").length}-${brief?.frage?.length ?? 0}-${e?.farbe ? 1 : 0}`)}`;
+
+  return (
+    <div className="cr-brief">
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <div className="cr-brief-oben">
+        <ul className="cr-brief-punkte" aria-label="Bekommt diese Firma einen Brief?">
+          {daten.pruefung.punkte.map((p) => <li key={p.key} className={p.ok ? "ja" : "nein"}><i aria-hidden="true">{p.ok ? "✓" : "✕"}</i>{p.text}</li>)}
+        </ul>
+        <div className="cr-brief-anschrift">
+          <span className="cr-auge">Anschrift im Fenster</span>
+          <address>{daten.empfaenger.zeilen.map((z, i) => <span key={i}>{z}</span>)}</address>
+          {!!daten.empfaenger.fehlt.length && <span className="cr-klein">Fehlt: {daten.empfaenger.fehlt.join(", ")}</span>}
+          <span className="cr-klein">Kennung {daten.kennung} · der QR-Code führt zum Gesprächstermin auf /business</span>
+        </div>
+      </div>
+
+      {st.status && st.status !== "entwurf" && (
+        <p className={`cr-hinweis ${st.status === "fehler" ? "fehler" : st.status === "test" ? "warn" : "gut"}`}>
+          {BRIEF_STAND[st.status] ?? st.status}
+          {st.anbieter ? ` · ${RADAR_BRIEF_ANBIETER[st.anbieter as RadarBriefAnbieter]?.label ?? st.anbieter}` : ""}
+          {st.anbieterId ? ` · Kennung ${st.anbieterId}` : ""}
+          {st.versendetAm ? ` · übergeben ${datum(st.versendetAm)}` : st.testAm ? ` · Test ${datum(st.testAm)}` : ""}
+          {st.kostenCents != null && unterwegs ? ` · ${eur(st.kostenCents)} netto` : ""}
+          {unterwegs ? ` · ${st.besuche ? `${zahl(st.besuche)} ${st.besuche === 1 ? "Besuch" : "Besuche"} über den QR-Code${st.besuchAm ? ` (zuerst ${datum(st.besuchAm)})` : ""}` : "noch kein Besuch über den QR-Code"}` : ""}
+          {st.fehler ? ` — ${st.fehler}` : ""}
+        </p>
+      )}
+
+      {!unterwegs && (
+        <div className="cr-fenster-zeile">
+          <button type="button" className={`cr-knopf${brief ? " hell" : ""}`} disabled={!!arbeit || gesperrt || !!daten.empfaenger.fehlt.length}
+                  onClick={() => tun("schreiben", () => rufen(`/chef/radar/firma/${id}/brief`, "POST", { hinweis: hinweis.trim() || null }), "Der Brief steht — die Vorschau ist das Druck-PDF.", () => setBearbeiten(false))}>
+            {arbeit === "schreiben" ? "Mara schreibt …" : brief ? "Neu schreiben" : "Brief schreiben lassen"}
+          </button>
+          <input className="cr-feld" value={hinweis} onChange={(ev) => setHinweis(ev.target.value)} placeholder="Wunsch an Mara (optional): Fokus auf die neue Halle …" maxLength={400} />
+        </div>
+      )}
+      {arbeit === "schreiben" && <p className="cr-hinweis">Das dauert 30 bis 90 Sekunden — Mara liest Scan und Impressum und schreibt den Brief.</p>}
+      {!brief && !daten.empfaenger.fehlt.length && <p className="cr-klein">Noch kein Brief. Er entsteht aus den belegten Aufhängern des Scans; „Herr“/„Frau“ steht nur da, wenn es auf der Quelle steht.</p>}
+
+      {brief && (
+        <>
+          {!!brief.sperrend.length && <p className="cr-hinweis fehler">Sperrt den Versand: {brief.sperrend.join(" · ")}</p>}
+          {!!brief.warnungen.length && <p className="cr-hinweis warn">Hinweis: {brief.warnungen.join(" · ")}</p>}
+          <div className="cr-betreff"><span>Betreff</span><b>{brief.betreff}</b></div>
+          {!bearbeiten ? (
+            <>
+              <iframe className="cr-vorschau cr-brief-pdf" title="Der Brief als PDF — so geht er in den Druck" src={`${pdfAdresse}#toolbar=0&navpanes=0&view=FitH`} />
+              <div className="cr-fenster-zeile">
+                <a className="cr-knopf hell" href={pdfAdresse} target="_blank" rel="noopener noreferrer">PDF öffnen ↗</a>
+                {!unterwegs && <button type="button" className="cr-knopf hell" onClick={() => setBearbeiten(true)}>Text ändern</button>}
+              </div>
+            </>
+          ) : (
+            <div className="cr-bearbeiten">
+              <label><span>Betreff</span><input className="cr-feld" value={betreff} onChange={(ev) => setBetreff(ev.target.value)} maxLength={120} /></label>
+              <label><span>Text — Absätze durch eine Leerzeile trennen; der letzte Absatz ist die Schlussfrage. Anrede, Gruß, QR-Code, Widerspruch und Datenschutzhinweis setzt der Brief selbst.</span>
+                <textarea className="cr-feld" value={koerper} onChange={(ev) => setKoerper(ev.target.value)} rows={14} />
+              </label>
+              <div className="cr-fenster-zeile">
+                <button type="button" className="cr-knopf" disabled={!!arbeit} onClick={() => tun("speichern", () => rufen(`/chef/radar/firma/${id}/brief`, "PUT", { betreff, koerper }), "Gespeichert — die Vorschau ist neu gedruckt.", () => setBearbeiten(false))}>Speichern</button>
+                <button type="button" className="cr-knopf hell" onClick={() => setBearbeiten(false)}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+
+          {!unterwegs && !gesperrt && (
+            <div className="cr-ausgabe">
+              <div className="cr-brief-versand">
+                <span>Versand</span>
+                <b>{anbieterName}{e?.testmodus ? " · Testmodus" : ""}{e ? ` · ${e.farbe ? "Farbe" : "Graustufen"}` : ""}</b>
+                <small>etwa {eur(daten.kosten.cents)} netto{daten.kosten.geschaetzt ? " (geschätzt)" : ""} · heute {zahl(heute)} von {e?.jeTag ?? 0} {e?.testmodus ? "Testbriefen" : "Briefen"}</small>
+              </div>
+              <div className="cr-fenster-zeile">
+                <button type="button" className="cr-knopf warm" disabled={!!arbeit || !!sperre} title={sperre ?? ""} onClick={() => setFrage(true)}>{e?.testmodus ? "Testbrief übergeben …" : "Brief senden …"}</button>
+                {sperre && <span className="cr-klein">{sperre}</span>}
+              </div>
+              {frage && !sperre && (
+                <div className="cr-senden-frage">
+                  <b>{e?.testmodus ? `Testbrief an ${anbieterName} übergeben?` : `Brief an ${daten.empfaenger.person ?? "die Geschäftsführung"} über ${anbieterName} senden?`}</b>
+                  <p className="cr-recht">{e?.testmodus ? RADAR_BRIEF_ANBIETER[e.anbieter].test : `Der Brief wird gedruckt und verschickt — etwa ${eur(daten.kosten.cents)} netto. Je Firma geht genau ein Brief; danach lässt er sich nicht mehr ändern.`}</p>
+                  <div className="cr-fenster-zeile">
+                    <button type="button" className="cr-knopf warm" disabled={!!arbeit}
+                            onClick={() => tun("senden", () => rufen(`/chef/radar/firma/${id}/brief/senden`, "POST", { bestaetigt: true }), e?.testmodus ? `Testbrief an ${anbieterName} übergeben — dort ansehen, ob die Anschrift im Fenster sitzt.` : `Brief an ${anbieterName} übergeben.`, () => setFrage(false))}>
+                      {arbeit === "senden" ? "Übergibt …" : e?.testmodus ? "Testbrief übergeben" : "Jetzt senden"}
+                    </button>
+                    <button type="button" className="cr-knopf hell" onClick={() => setFrage(false)}>Abbrechen</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function BriefKachel() {
+  const u = useDaten<BriefUebersicht>(`/chef/radar/brief`, []);
+  const [jeTag, setJeTag] = useState("");
+  const [arbeit, setArbeit] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const e = u.daten?.einstellung;
+  useEffect(() => { if (e) setJeTag(String(e.jeTag)); }, [e?.jeTag]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setzen = async (name: string, teil: Record<string, unknown>, gut: string) => {
+    setArbeit(name); setMeldung(null);
+    try { await rufen("/chef/radar/brief/einstellung", "POST", teil); u.neu(); setMeldung({ art: "gut", text: gut }); }
+    catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
+    finally { setArbeit(null); }
+  };
+  const runde = async () => {
+    setArbeit("runde"); setMeldung(null);
+    try {
+      const j = await rufen<{ ergebnis: { briefe: number; test: number; uebersprungen: number; grund?: string } }>("/chef/radar/brief-lauf", "POST");
+      u.neu();
+      const r = j.ergebnis;
+      setMeldung({ art: "gut", text: r.grund && !r.briefe && !r.test ? `Keine Runde: ${r.grund}.` : `Runde fertig: ${r.briefe} Briefe, ${r.test} Testbriefe, ${r.uebersprungen} übersprungen.` });
+    } catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
+    finally { setArbeit(null); }
+  };
+  if (!u.daten || !e) return <article className="cr-kachel breit"><Geruest zeilen={3} /></article>;
+  const bereit = u.daten.bereit[e.anbieter];
+  return (
+    <article className="cr-kachel breit cr-brief-kachel">
+      <header><b>Briefe an Geschäftsführer</b><Kippe an={e.versand} aus={!!arbeit} onKlick={() => setzen("versand", { versand: !e.versand }, e.versand ? "Briefversand aus." : "Briefversand an.")} /></header>
+      <p>Für Firmen mit Kapitalsignal ab {RADAR_SIGNAL_AB} ohne persönliche Adresse. Name und Anschrift aus dem Impressum, ein QR-Code zum Gesprächstermin, Widerspruch und Datenschutzhinweis auf jedem Brief. Mara schreibt und übergibt werktags im Tageskontingent; in der Akte unter „Brief“ geht es auch von Hand.</p>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <div className="cr-brief-schalter">
+        <div className="cr-segment" role="radiogroup" aria-label="Versanddienst">
+          {(Object.keys(RADAR_BRIEF_ANBIETER) as RadarBriefAnbieter[]).map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={e.anbieter === k} className={e.anbieter === k ? "an" : undefined} disabled={!!arbeit}
+                    onClick={() => setzen("anbieter", { anbieter: k }, `${RADAR_BRIEF_ANBIETER[k].label} gewählt.`)}>{RADAR_BRIEF_ANBIETER[k].label}</button>
+          ))}
+        </div>
+        <label className="cr-brief-kippe"><Kippe an={e.testmodus} aus={!!arbeit} onKlick={() => setzen("test", { testmodus: !e.testmodus }, e.testmodus ? "Testmodus aus — Briefe werden gedruckt und verschickt." : "Testmodus an — nichts wird gedruckt.")} /><span>Testmodus</span></label>
+        <label className="cr-brief-kippe"><Kippe an={e.farbe} aus={!!arbeit} onKlick={() => setzen("farbe", { farbe: !e.farbe }, e.farbe ? "Graustufen." : "Farbdruck (Glasblau).")} /><span>Farbe</span></label>
+      </div>
+      <div className="cr-kachel-feld">
+        <label><span>Briefe je Werktag</span><input className="cr-feld" type="number" min={0} max={u.daten.hoechstens} value={jeTag} onChange={(ev) => setJeTag(ev.target.value)} /></label>
+        <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setzen("jeTag", { jeTag: Number(jeTag) }, "Gespeichert.")}>Speichern</button>
+        <button type="button" className="cr-knopf hell" disabled={!!arbeit || !e.versand} title={e.versand ? "" : "Erst den Briefversand einschalten"} onClick={() => void runde()}>{arbeit === "runde" ? "Mara schreibt …" : "Jetzt eine Brief-Runde"}</button>
+      </div>
+      <dl className="cr-mara-werte cr-brief-werte">
+        <div><dt>Heute</dt><dd>{zahl(u.daten.heute.briefe)} {u.daten.heute.briefe === 1 ? "Brief" : "Briefe"}</dd></div>
+        <div><dt>Porto heute</dt><dd>{eur(u.daten.heute.kostenCents)}</dd></div>
+        <div><dt>Testbriefe heute</dt><dd>{zahl(u.daten.heute.test)}</dd></div>
+        <div><dt>Je Brief etwa</dt><dd>{eur(RADAR_BRIEF_ANBIETER[e.anbieter].preisCents.DE)} (DE)</dd></div>
+      </dl>
+      <p className={`cr-hinweis ${bereit.ok ? "gut" : "warn"}`}>
+        {bereit.ok
+          ? `${RADAR_BRIEF_ANBIETER[e.anbieter].label} ist eingerichtet. ${e.testmodus ? RADAR_BRIEF_ANBIETER[e.anbieter].test : "Echte Briefe: gedruckt und verschickt."}`
+          : `${RADAR_BRIEF_ANBIETER[e.anbieter].label} ist noch nicht eingerichtet — es fehlen ${bereit.fehlt.join(", ")} in der Render-Umgebung. Bis dahin: Brief und Vorschau in jeder Akte.`}
+      </p>
+    </article>
   );
 }

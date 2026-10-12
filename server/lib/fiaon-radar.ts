@@ -179,6 +179,33 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS entscheider JSONB,
           ADD COLUMN IF NOT EXISTS entscheider_am TIMESTAMPTZ`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_firmen_faden_idx ON fiaon_radar_firmen (gmail_thread_id)`;
+      // E-339 (12.10.2026): Brief statt Mail — der Brief an den Geschäftsführer, sein Weg zum Versanddienst und die Besuche
+      // aus seinem QR-Code. Ein ALTER für alle Spalten (eine Sperre). brief_status: entwurf → sendet → test (Testmodus,
+      // nichts gedruckt) oder uebergeben (beim Dienst) → versendet (gedruckt/abgeschickt) · fehler.
+      await sqlPool`
+        ALTER TABLE fiaon_radar_firmen
+          ADD COLUMN IF NOT EXISTS brief JSONB,
+          ADD COLUMN IF NOT EXISTS brief_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS brief_status TEXT,
+          ADD COLUMN IF NOT EXISTS brief_versendet_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS brief_versendet_von INTEGER,
+          ADD COLUMN IF NOT EXISTS brief_anbieter TEXT,
+          ADD COLUMN IF NOT EXISTS brief_anbieter_id TEXT,
+          ADD COLUMN IF NOT EXISTS brief_kosten_cents INTEGER,
+          ADD COLUMN IF NOT EXISTS brief_fehler TEXT,
+          ADD COLUMN IF NOT EXISTS brief_test_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS brief_auto_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS brief_besuch_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS brief_besuche INTEGER NOT NULL DEFAULT 0`;
+      // Jeder Aufruf von /business aus einem Brief-QR-Code (utm_source=radar_brief, utm_content=r<ID>) — ohne IP, ohne Gerät.
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_radar_besuche (
+          id SERIAL PRIMARY KEY,
+          firma_id INTEGER NOT NULL,
+          quelle TEXT NOT NULL,
+          am TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_besuche_firma_idx ON fiaon_radar_besuche (firma_id, am)`;
       // Jede Mail in einem Radar-Faden — eingehend (Antwort, Rückläufer) und ausgehend (erste Mail, Nachfass, Mara).
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_radar_post (
@@ -228,6 +255,7 @@ export function zeileLesen<T extends Record<string, any>>(r: T | undefined | nul
   if ("verworfen" in z) z.verworfen = ausJson(z.verworfen, []);
   if ("signal" in z) z.signal = ausJson(z.signal, null);
   if ("entscheider" in z) z.entscheider = ausJson(z.entscheider, null);
+  if ("brief" in z) z.brief = ausJson(z.brief, null);
   return z as T;
 }
 
@@ -1231,7 +1259,7 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
 
 export async function radarStatusSetzen(id: number, ein: { status: RadarStatus; notiz?: string | null }): Promise<void> {
   await ensureRadarTabellen();
-  const erlaubt: RadarStatus[] = ["neu", "gescannt", "mail", "im_postfach", "versendet", "antwort", "lead", "termin", "angebot", "kauf", "ohne_kontakt", "unzustellbar", "passt_nicht", "kein_interesse", "gesperrt"];
+  const erlaubt: RadarStatus[] = ["neu", "gescannt", "mail", "im_postfach", "versendet", "brief", "antwort", "lead", "termin", "angebot", "kauf", "ohne_kontakt", "unzustellbar", "passt_nicht", "kein_interesse", "gesperrt"];
   if (!erlaubt.includes(ein.status)) throw new RadarFehler("Unbekannter Stand.");
   const [f] = (await sqlPool`SELECT domain, email FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
   if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
@@ -1260,7 +1288,7 @@ export async function radarSperren(ein: { wert: string; grund?: string | null; v
   if (!wert) throw new RadarFehler("Bitte eine Domäne (firma.de) oder eine E-Mail-Adresse angeben.");
   await sqlPool`INSERT INTO fiaon_radar_sperre (wert, art, grund, von) VALUES (${wert}, ${art}, ${ein.grund ?? null}, ${ein.von ?? null}) ON CONFLICT (wert) DO NOTHING`;
   // E-337: Eine Absage bleibt „Kein Interesse“ (nicht „Gesperrt“), ein laufendes Gespräch bleibt, wo es ist.
-  if (art === "domain") await sqlPool`UPDATE fiaon_radar_firmen SET status = 'gesperrt', updated_at = NOW() WHERE domain = ${wert} AND status NOT IN ('versendet', 'antwort', 'lead', 'termin', 'angebot', 'kauf', 'kein_interesse')`;
+  if (art === "domain") await sqlPool`UPDATE fiaon_radar_firmen SET status = 'gesperrt', updated_at = NOW() WHERE domain = ${wert} AND status NOT IN ('versendet', 'brief', 'antwort', 'lead', 'termin', 'angebot', 'kauf', 'kein_interesse')`;
 }
 
 // ── KONTAKT NACHSUCHEN UND VON HAND SETZEN (19.09.2026) ──────────────────────
@@ -1403,12 +1431,12 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
     SELECT id, tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, email, ansprechpartner, status,
            gescannt_am, mail_am, versendet_am, postfach, created_at, (scan IS NOT NULL) AS hat_scan, (mail IS NOT NULL) AS hat_mail,
            signal, signal_staerke, antwort_am, antwort_art, lead_am, termin_am, kauf_am, nachfass_stufe, nachfass_faellig, adresse_vorschlag,
-           entscheider, entscheider_am
+           entscheider, entscheider_am, brief_status, brief_versendet_am, brief_besuche
       FROM fiaon_radar_firmen
      WHERE (${tag}::date IS NULL OR tag = ${tag}::date)
        AND (${bereich}::text IS NULL OR bereich = ${bereich})
        AND (${stati}::text[] IS NULL OR status = ANY(${stati}))
-       AND (${nurOhneMail} = FALSE OR (email IS NULL AND status NOT IN ('versendet', 'antwort', 'gesperrt', 'kein_interesse')))
+       AND (${nurOhneMail} = FALSE OR (email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')))
        AND (${suche}::text IS NULL OR LOWER(name) LIKE ${"%" + (suche ?? "") + "%"} OR domain LIKE ${"%" + (suche ?? "") + "%"} OR LOWER(COALESCE(ort, '')) LIKE ${"%" + (suche ?? "") + "%"})
      ORDER BY COALESCE(lead_am, antwort_am) DESC NULLS LAST, tag DESC, COALESCE(signal_staerke, 0) DESC, passung DESC NULLS LAST, id DESC
      LIMIT 300`) as any[];
@@ -1430,7 +1458,7 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
   const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
   // Der Reiter „Ohne E-Mail" zählt jede Firma ohne Adresse, egal in welchem Stand sie steht.
   nachStand.ohne_mail = Number(((await sqlPool`
-    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE email IS NULL AND status NOT IN ('versendet', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
   return {
     firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: RADAR_TAGESZIEL, stapelMax: RADAR_STAPEL_MAX,
     kostenHeute: await kostenHeute("radar").catch(() => 0), deckel: TAGESDECKEL_EUR(),

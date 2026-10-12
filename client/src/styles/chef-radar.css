@@ -19,7 +19,7 @@
 .cr-klein { font-size: 11.5px; line-height: 1.5; color: var(--cr-leise); }
 .cr-link { color: #93c5fd; text-decoration: none; }
 .cr-link:hover { text-decoration: underline; }
-.cr-recht { margin: 0; font-size: 11.5px; line-height: 1.55; color: #fde68a; }
+.cr-recht { margin: 0; font-size: 11.5px; line-height: 1.55; color: #b9cdea; }
 
 /* ── Kopf ── */
 .cr-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding: 16px 18px; border-radius: 14px; background: var(--cr-matt); border: 1px solid var(--cr-linie); }
@@ -46,7 +46,8 @@
 .cr-knopf:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .cr-knopf.hell { background: rgba(255, 255, 255, .05); border-color: rgba(148, 163, 184, .28); box-shadow: none; color: var(--cr-hell); }
 .cr-knopf.hell:hover:not(:disabled) { background: rgba(255, 255, 255, .1); }
-.cr-knopf.warm { background: linear-gradient(135deg, #b45309, var(--cr-warm)); border-color: rgba(252, 211, 77, .4); box-shadow: 0 6px 18px rgba(180, 83, 9, .28); }
+/* E-337: kein Warmton mehr (Justin 09.10.: „kein Gold, wir sind Glasblau“) — Senden ist das tiefe Blau mit Lichtkante. */
+.cr-knopf.warm { background: linear-gradient(135deg, #1e3a8a, #1d4ed8 55%, #288dfa); border-color: rgba(191, 219, 254, .5); box-shadow: 0 8px 22px rgba(29, 78, 216, .45), inset 0 1px 0 rgba(255, 255, 255, .25); }
 .cr-textknopf { background: none; border: 0; padding: 5px 2px; font-size: 12px; color: #93c5fd; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(147, 197, 253, .35); }
 .cr-textknopf.rot { color: #fca5a5; text-decoration-color: rgba(252, 165, 165, .35); }
 .cr-textknopf:disabled { opacity: .45; cursor: not-allowed; }
@@ -120,7 +121,8 @@ select.cr-feld { cursor: pointer; }
 .cr-passung.leer { color: var(--cr-leise); }
 .cr-stand { display: inline-flex; align-items: center; min-height: 21px; padding: 0 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; border: 1px solid var(--cr-linie); }
 .cr-stand.neu { color: #bfdbfe; border-color: rgba(96, 165, 250, .3); }
-.cr-stand.arbeit { color: #fde68a; border-color: rgba(251, 191, 36, .3); }
+.cr-stand.arbeit { color: #bae6fd; border-color: rgba(125, 211, 252, .3); }
+.cr-stand.top { color: #fff; background: linear-gradient(135deg, rgba(29, 78, 216, .75), rgba(40, 141, 250, .7)); border-color: rgba(191, 219, 254, .5); box-shadow: 0 0 14px -4px rgba(40, 141, 250, .8); }
 .cr-stand.gut { color: #a7f3d0; border-color: rgba(52, 211, 153, .3); }
 .cr-stand.aus { color: #94a3b8; }
 .cr-leer { display: grid; gap: 6px; padding: 40px 20px; text-align: center; color: var(--cr-leise); font-size: 12.5px; border-radius: 12px; background: var(--cr-matt); border: 1px solid var(--cr-linie); }
@@ -177,8 +179,8 @@ select.cr-feld { cursor: pointer; }
 .cr-kontakt div { display: grid; gap: 3px; padding: 9px 11px; border-radius: 10px; background: rgba(2, 6, 23, .3); border: 1px solid rgba(148, 163, 184, .1); min-width: 0; }
 .cr-kontakt span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--cr-leise); }
 .cr-kontakt b { font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
-.cr-ohne-mail { display: grid; gap: 8px; padding: 12px 14px; border-radius: 11px; background: rgba(120, 53, 15, .18); border: 1px solid rgba(251, 191, 36, .3); }
-.cr-ohne-mail b { font-size: 13px; font-weight: 500; color: #fde68a; }
+.cr-ohne-mail { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(30, 58, 138, .22); border: 1px solid rgba(125, 211, 252, .3); }
+.cr-ohne-mail b { font-size: 13px; font-weight: 500; color: #e0f2fe; }
 .cr-block { display: grid; gap: 9px; padding: 14px; border-radius: 11px; background: rgba(2, 6, 23, .28); border: 1px solid rgba(148, 163, 184, .1); }
 .cr-block h3 { margin: 0; font-size: 13px; font-weight: 500; }
 .cr-block h3 small { font-weight: 400; color: var(--cr-leise); font-size: 11.5px; margin-left: 6px; }
@@ -202,7 +204,7 @@ select.cr-feld { cursor: pointer; }
 .cr-ausgabe { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid var(--cr-linie); }
 .cr-ausgabe .cr-fenster-zeile, .cr-ausgabe .cr-senden-frage { grid-column: 1 / -1; }
 @media (max-width: 700px) { .cr-ausgabe { grid-template-columns: 1fr; } }
-.cr-senden-frage { display: grid; gap: 9px; padding: 12px 14px; border-radius: 11px; background: rgba(120, 53, 15, .2); border: 1px solid rgba(251, 191, 36, .32); }
+.cr-senden-frage { display: grid; gap: 9px; padding: 12px 14px; border-radius: 16px; background: rgba(29, 78, 216, .18); border: 1px solid rgba(147, 197, 253, .34); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
 
 @media (max-width: 900px) {
   .cr-kopf-tun { margin-left: 0; }
@@ -212,4 +214,207 @@ select.cr-feld { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .cr-lauf-balken.unbekannt, .cr-blatt { animation: none; }
   .cr-knopf, .cr-balken i, .cr-tabelle tbody tr { transition: none; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-337 (12.10.2026) — DER B2B-VERTRIEB IM NEUEN GLAS
+   Justin: „clean, Glas (wie das neue Apple Update, das neue moderne Glas!), alles logisch sortiert.“
+   Liquid Glass in FIAON-Glasblau: stark weichgezeichnete, fast klare Flächen, eine Lichtkante oben, ein zweiter
+   Lichtfleck unten rechts (Brechung), weiche blaustichige Tiefe, große Radien. Bewegung nur beim Erscheinen und bei
+   Hover; nichts läuft dauerhaft unter backdrop-filter (Lüfter). Kein Gold (Justin 09.10.).
+   Aufbau: Held (Text · Ziel-Ringe · Mara-Karte) → Trichter → schwebende Reiter → Gespräche | Firmen | Automatik | Messung.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cr.cr-glas {
+  --lg-fill: linear-gradient(160deg, rgba(140, 185, 255, .13) 0%, rgba(255, 255, 255, .045) 42%, rgba(40, 141, 250, .07) 100%);
+  --lg-fill-tief: linear-gradient(165deg, rgba(36, 66, 128, .5), rgba(10, 18, 38, .62));
+  --lg-rand: rgba(196, 222, 255, .2);
+  --lg-rand-hell: rgba(214, 234, 255, .42);
+  --lg-glanz: inset 0 1px 0 rgba(255, 255, 255, .24), inset 0 -1px 0 rgba(255, 255, 255, .05), inset 0 0 0 1px rgba(255, 255, 255, .025);
+  --lg-schatten: 0 34px 70px -38px rgba(0, 0, 0, .9), 0 0 60px -34px rgba(40, 141, 250, .6);
+  gap: 16px;
+}
+.cr.cr-glas .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Die Glasfläche — eine Regel für alle Karten der Seite. */
+.cr-glas .cr-held, .cr-glas .cr-trichter, .cr-glas .cr-post, .cr-glas .cr-kachel, .cr-glas .cr-haupt, .cr-glas .cr-leer,
+.cr-glas .cr-firmen .cr-tabelle-rahmen, .cr-glas .cr-messung .cr-tabelle-rahmen {
+  position: relative; isolation: isolate;
+  background: var(--lg-fill); border: 1px solid var(--lg-rand); box-shadow: var(--lg-glanz), var(--lg-schatten);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+}
+.cr-glas .cr-held::before, .cr-glas .cr-trichter::before, .cr-glas .cr-post::before, .cr-glas .cr-kachel::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 12% -20%, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 52%),
+    radial-gradient(70% 60% at 108% 118%, rgba(40, 141, 250, .2), rgba(40, 141, 250, 0) 62%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cr-glas .cr-held, .cr-glas .cr-trichter, .cr-glas .cr-post, .cr-glas .cr-kachel, .cr-glas .cr-haupt { -webkit-backdrop-filter: none; backdrop-filter: none; background: #0d1830; }
+}
+
+/* ── Held ── */
+.cr-glas .cr-held { display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(280px, .9fr); align-items: center; gap: 22px 30px; padding: 26px 28px; border-radius: 30px; animation: cr-auf .5s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes cr-auf { from { opacity: 0; transform: translateY(8px) scale(.995); } }
+.cr-glas .cr-held h1 { font-size: 30px; font-weight: 300; letter-spacing: -.02em; margin: 6px 0 6px;
+  background: linear-gradient(100deg, #fff 0%, #dbeafe 45%, #7cc3ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cr-glas .cr-held-text p { margin: 0; max-width: 560px; font-size: 13.5px; line-height: 1.6; color: #b9cdea; font-weight: 300; }
+.cr-glas .cr-held-tun { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.cr-glas .cr-held-ziele { display: flex; gap: 18px; }
+.cr-glas .cr-held-meldung { grid-column: 1 / -1; }
+.cr-glasknopf { display: inline-flex; align-items: center; min-height: 34px; padding: 0 15px; border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 400; color: #eaf3ff; cursor: pointer; white-space: nowrap;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .05)); border: 1px solid rgba(214, 234, 255, .28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 8px 20px -12px rgba(0, 0, 0, .8); transition: transform .18s, background .2s, box-shadow .2s, opacity .2s; }
+.cr-glasknopf:hover:not(:disabled) { transform: translateY(-1px); background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38), 0 12px 26px -12px rgba(40, 141, 250, .7); }
+.cr-glasknopf.leise { color: #b9cdea; background: rgba(255, 255, 255, .03); }
+.cr-glasknopf:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Ziel-Ringe ── */
+.cr-ring { position: relative; display: grid; justify-items: center; gap: 4px; width: 128px; }
+.cr-ring svg { width: 112px; height: 112px; filter: drop-shadow(0 0 16px rgba(40, 141, 250, .35)); }
+.cr-ring-spur { fill: rgba(255, 255, 255, .03); stroke: rgba(196, 222, 255, .14); stroke-width: 7; }
+.cr-ring-wert { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dasharray 1s cubic-bezier(.2, .7, .2, 1); }
+.cr-ring-mitte { position: absolute; top: 0; width: 112px; height: 112px; display: grid; place-content: center; text-align: center; }
+.cr-ring-mitte b { font-size: 32px; font-weight: 300; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-ring-mitte small { font-size: 11px; color: #9fb6d6; margin-top: 3px; }
+.cr-ring-label { font-size: 12px; color: #e0ecff; letter-spacing: .02em; }
+.cr-ring-unter { font-size: 11px; color: #8fa6c6; }
+.cr-ring.voll svg { filter: drop-shadow(0 0 22px rgba(124, 195, 255, .75)); }
+
+/* ── Mara-Karte mit dem einen Schalter ── */
+.cr-glas .cr-mara { display: grid; gap: 14px; padding: 18px; border-radius: 24px; background: var(--lg-fill-tief); border: 1px solid var(--lg-rand); box-shadow: var(--lg-glanz), 0 24px 50px -30px rgba(0, 0, 0, .9); }
+.cr-glas .cr-mara.an { border-color: rgba(147, 197, 253, .5); box-shadow: var(--lg-glanz), 0 24px 50px -30px rgba(0, 0, 0, .9), 0 0 44px -18px rgba(40, 141, 250, .9); }
+.cr-mara-kopf { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.cr-mara-kopf b { display: block; font-size: 16px; font-weight: 400; color: #fff; }
+.cr-mara-kopf span { display: block; font-size: 11.5px; color: #9fb6d6; line-height: 1.4; }
+.cr-mara-punkt { width: 10px; height: 10px; border-radius: 50%; background: #64748b; box-shadow: 0 0 0 4px rgba(100, 116, 139, .18); }
+.cr-mara.an .cr-mara-punkt { background: #7cc3ff; box-shadow: 0 0 0 4px rgba(124, 195, 255, .2), 0 0 14px rgba(124, 195, 255, .9); animation: cr-puls 2.4s ease-in-out infinite; }
+@keyframes cr-puls { 50% { box-shadow: 0 0 0 7px rgba(124, 195, 255, .06), 0 0 18px rgba(124, 195, 255, .7); } }
+.cr-mara-werte { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cr-mara-werte div.breit { grid-column: 1 / -1; }
+.cr-mara-werte div { padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(196, 222, 255, .1); min-width: 0; }
+.cr-mara-werte dt { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #8fa6c6; }
+.cr-mara-werte dd { margin: 2px 0 0; font-size: 12.5px; color: #e0ecff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-mara-frage { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid rgba(196, 222, 255, .14); font-size: 12.5px; line-height: 1.55; color: #dbeafe; }
+.cr-mara-frage p { margin: 0; }
+
+/* Die Kippe — Glas-Schalter mit Lichtknopf. */
+.cr-kippe { position: relative; width: 58px; height: 32px; padding: 0; border-radius: 999px; cursor: pointer; flex: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)); border: 1px solid rgba(196, 222, 255, .26);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45), inset 0 -1px 0 rgba(255, 255, 255, .08); transition: background .25s, border-color .25s, box-shadow .25s; }
+.cr-kippe i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #dbe7f7 60%, #b6c8e2); box-shadow: 0 3px 8px rgba(0, 0, 0, .45), inset 0 -1px 2px rgba(0, 0, 0, .15);
+  transition: transform .32s cubic-bezier(.3, 1.4, .5, 1); }
+.cr-kippe[aria-checked="true"] { background: linear-gradient(135deg, #1d4ed8, #288dfa); border-color: rgba(214, 234, 255, .6); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 0 22px -4px rgba(40, 141, 250, .9); }
+.cr-kippe[aria-checked="true"] i { transform: translateX(26px); }
+.cr-kippe:disabled { opacity: .5; cursor: not-allowed; }
+.cr-kippe.klein { width: 46px; height: 26px; }
+.cr-kippe.klein i { width: 19px; height: 19px; }
+.cr-kippe.klein[aria-checked="true"] i { transform: translateX(20px); }
+
+/* ── Trichter ── */
+.cr-glas .cr-trichter { display: grid; gap: 14px; padding: 18px 20px 20px; border-radius: 26px; }
+.cr-trichter-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.cr-trichter-kopf h2 { margin: 0; font-size: 14px; font-weight: 400; letter-spacing: .02em; color: #e0ecff; }
+.cr-trichter-stufen { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; counter-reset: stufe; }
+.cr-trichter-stufen li { position: relative; display: grid; gap: 4px; padding: 12px 12px 11px; border-radius: 18px; min-width: 0;
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(196, 222, 255, .12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); transition: transform .2s, border-color .2s; }
+.cr-trichter-stufen li:hover { transform: translateY(-2px); border-color: rgba(196, 222, 255, .3); }
+.cr-trichter-stufen li + li::before { content: ""; position: absolute; left: -7px; top: 50%; width: 6px; height: 6px; border-top: 1px solid rgba(196, 222, 255, .4); border-right: 1px solid rgba(196, 222, 255, .4); transform: translateY(-50%) rotate(45deg); }
+.cr-trichter-stufen li.spaet { background: linear-gradient(160deg, rgba(40, 141, 250, .22), rgba(29, 78, 216, .1)); border-color: rgba(147, 197, 253, .32); }
+.cr-stufe-label { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #9fb6d6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-trichter-stufen b { font-size: 26px; font-weight: 300; color: #fff; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cr-trichter-stufen small { font-size: 10.5px; color: #8fa6c6; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* ── Schwebende Reiter ── */
+.cr-glas .cr-haupt { display: inline-flex; justify-self: start; gap: 4px; padding: 5px; border-radius: 999px; }
+.cr-haupt button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 18px; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 13px; color: #b9cdea; cursor: pointer; transition: background .2s, color .2s, box-shadow .2s; }
+.cr-haupt button:hover { color: #fff; }
+.cr-haupt button.an { color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .07)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 6px 18px -8px rgba(40, 141, 250, .9); }
+.cr-haupt button i { font-style: normal; font-size: 11px; min-width: 20px; padding: 1px 6px; border-radius: 999px; color: #fff; background: linear-gradient(135deg, #1d4ed8, #288dfa); box-shadow: 0 0 10px rgba(40, 141, 250, .7); }
+
+/* ── Segment im Glas ── */
+.cr-glas .cr-segment { border-radius: 999px; padding: 3px; background: rgba(255, 255, 255, .04); border-color: rgba(196, 222, 255, .16); }
+.cr-glas .cr-segment button { border-radius: 999px; padding: 0 13px; }
+.cr-glas .cr-segment button.an { background: linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .06)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); }
+.cr-glas .cr-knopf, .cr-glas .cr-feld { border-radius: 12px; }
+.cr-glas .cr-knopf.hell { border-radius: 999px; }
+.cr-glas .cr-hinweis { border-radius: 14px; }
+
+/* ── Gespräche ── */
+.cr-gespraeche, .cr-firmen, .cr-automatik, .cr-messung { display: grid; gap: 12px; animation: cr-auf .35s cubic-bezier(.2, .7, .2, 1) both; }
+.cr-zeile-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.cr-post-liste { display: grid; gap: 12px; }
+.cr-glas .cr-post { display: grid; gap: 10px; padding: 16px 18px; border-radius: 22px; }
+.cr-glas .cr-post.top { border-color: rgba(147, 197, 253, .42); box-shadow: var(--lg-glanz), var(--lg-schatten), inset 3px 0 0 #288dfa; }
+.cr-post-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cr-post-firma { display: inline-flex; align-items: baseline; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: 15px; font-weight: 400; color: #fff; cursor: pointer; }
+.cr-post-firma span { font-size: 11.5px; color: #8fa6c6; }
+.cr-post-firma:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(147, 197, 253, .5); }
+.cr-art { display: inline-flex; align-items: center; min-height: 22px; padding: 0 10px; border-radius: 999px; font-size: 11px; border: 1px solid rgba(196, 222, 255, .2); color: #cbd5e1; }
+.cr-art.top { color: #fff; background: linear-gradient(135deg, rgba(29, 78, 216, .8), rgba(40, 141, 250, .75)); border-color: rgba(191, 219, 254, .5); }
+.cr-art.rot { color: #fecaca; border-color: rgba(248, 113, 113, .4); }
+.cr-art.warn { color: #e0f2fe; border-color: rgba(125, 211, 252, .45); }
+.cr-art.aus, .cr-art.leise { color: #94a3b8; }
+.cr-post-satz { margin: 0; font-size: 13.5px; line-height: 1.55; color: #e5efff; }
+.cr-post-mail summary, .cr-faden summary { cursor: pointer; font-size: 12px; color: #93c5fd; }
+.cr-post-mail pre, .cr-faden pre, .cr-post-gesendet { margin: 8px 0 0; white-space: pre-wrap; font: inherit; font-size: 12.5px; line-height: 1.55; color: #cbd5e1; padding: 12px 14px; border-radius: 14px; background: rgba(2, 6, 23, .35); border: 1px solid rgba(196, 222, 255, .08); }
+.cr-post-mara { display: grid; gap: 8px; padding: 12px; border-radius: 18px; background: rgba(29, 78, 216, .12); border: 1px solid rgba(147, 197, 253, .2); }
+.cr-post-mara-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cr-post-mara-kopf b { font-size: 12.5px; font-weight: 500; color: #dbeafe; }
+.cr-post-mara textarea.cr-feld { background: rgba(2, 6, 23, .4); font-size: 13px; }
+
+/* ── Automatik ── */
+.cr-kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.cr-glas .cr-kachel { display: grid; align-content: start; gap: 10px; padding: 18px; border-radius: 24px; }
+.cr-kachel.breit { grid-column: 1 / -1; }
+.cr-kachel header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cr-kachel header b { font-size: 14px; font-weight: 400; color: #fff; }
+.cr-kachel p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #b9cdea; }
+.cr-kachel-feld { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.cr-kachel-feld label { display: grid; gap: 4px; font-size: 11px; color: #8fa6c6; }
+.cr-kachel-feld .cr-feld { width: 110px; }
+.cr-zitat { font-size: 14px !important; line-height: 1.6 !important; color: #eaf3ff !important; font-weight: 300; }
+
+/* ── Messung ── */
+.cr-tabelle-zahlen td, .cr-tabelle-zahlen th { text-align: right; font-variant-numeric: tabular-nums; }
+.cr-tabelle-zahlen td:first-child, .cr-tabelle-zahlen th:first-child { text-align: left; }
+.cr-tabelle-zahlen td.null { color: rgba(148, 163, 184, .45); }
+.cr-tabelle-zahlen tr.ziel td { color: #fff; background: rgba(40, 141, 250, .12); }
+.cr-tabelle-zahlen tfoot td { padding: 9px 12px; font-weight: 500; border-top: 1px solid rgba(196, 222, 255, .18); color: #e0ecff; }
+.cr-glas .cr-tabelle thead th { background: rgba(12, 22, 44, .92); }
+.cr-glas .cr-tabelle-rahmen { border-radius: 20px; }
+
+/* ── Signal-Punkte ── */
+.cr-signal { display: inline-flex; gap: 3px; }
+.cr-signal i { width: 7px; height: 7px; border-radius: 50%; background: rgba(148, 163, 184, .22); }
+.cr-signal i.an { background: #7cc3ff; box-shadow: 0 0 6px rgba(124, 195, 255, .8); }
+
+/* ── Faden im Seitenblatt ── */
+.cr-faden { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cr-faden li { display: grid; gap: 6px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, .035); border: 1px solid rgba(196, 222, 255, .1); }
+.cr-faden li.aus { margin-left: 28px; background: rgba(29, 78, 216, .14); border-color: rgba(147, 197, 253, .22); }
+.cr-faden-kopf { display: flex; justify-content: space-between; gap: 10px; }
+.cr-faden-kopf b { font-size: 12.5px; font-weight: 500; color: #e0ecff; }
+.cr-faden-satz { margin: 0; font-size: 12.5px; color: #cbd5e1; }
+.cr-glas ~ .cr-schatten .cr-blatt, .cr-blatt { border-radius: 26px 0 0 26px; }
+
+@media (max-width: 1180px) {
+  .cr-glas .cr-held { grid-template-columns: minmax(0, 1fr) auto; }
+  .cr-glas .cr-mara { grid-column: 1 / -1; }
+  .cr-trichter-stufen { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cr-trichter-stufen li:nth-child(5)::before { display: none; }
+}
+@media (max-width: 700px) {
+  .cr-glas .cr-held { grid-template-columns: 1fr; padding: 20px 18px; border-radius: 24px; }
+  .cr-glas .cr-held-ziele { justify-content: center; }
+  .cr-trichter-stufen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-trichter-stufen li::before { display: none; }
+  .cr-glas .cr-haupt { display: flex; overflow-x: auto; justify-self: stretch; }
+  .cr-mara-werte { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-glas .cr-held, .cr-gespraeche, .cr-firmen, .cr-automatik, .cr-messung { animation: none; }
+  .cr-mara.an .cr-mara-punkt { animation: none; }
+  .cr-kippe i, .cr-ring-wert, .cr-trichter-stufen li, .cr-glasknopf { transition: none; }
 }

@@ -86,6 +86,29 @@ export async function nachrichtenSuchen(postfach: string, q: string, max = 25, p
   };
 }
 
+/**
+ * Wie nachrichtenSuchen, aber mit dem Faden je Nachricht (12.10.2026, E-337 Firmen-Radar). Die Liste von Gmail
+ * nennt den Faden ohnehin — so kann der Radar NUR die Nachrichten lesen, die in seinen eigenen Fäden stehen,
+ * und fasst den Rest eines Postfachs (js@: Investorenpost) nicht an.
+ */
+export async function nachrichtenMitFaden(postfach: string, q: string, max = 100, pageToken?: string | null):
+  Promise<{ nachrichten: { id: string; threadId: string }[]; nextPageToken: string | null }> {
+  const p = new URLSearchParams({ q, maxResults: String(Math.min(500, max)) });
+  if (pageToken) p.set("pageToken", pageToken);
+  const j = await api(postfach, `/messages?${p.toString()}`);
+  return {
+    nachrichten: (j?.messages || []).map((m: any) => ({ id: String(m.id), threadId: String(m.threadId) })),
+    nextPageToken: j?.nextPageToken || null,
+  };
+}
+
+/** Nur der Absender einer Nachricht (Kopfzeile From) — ohne Inhalt. Für den Abgleich mit Radar-Domänen. */
+export async function nachrichtAbsender(postfach: string, id: string): Promise<{ adresse: string; threadId: string }> {
+  const j = await api(postfach, `/messages/${id}?format=metadata&metadataHeaders=From`);
+  const von = kopfWert(j?.payload?.headers || [], "From");
+  return { adresse: (von.match(/<([^>]+)>/)?.[1] || von).trim().toLowerCase(), threadId: String(j?.threadId || "") };
+}
+
 export interface GmailNachricht {
   id: string; threadId: string; labelIds: string[];
   von: string; vonAdresse: string; an: string; betreff: string;
@@ -310,11 +333,14 @@ export function mimeAntwort(opts: { von: string; an: string; betreff: string; te
   return b64url(zeilen.join("\r\n"));
 }
 
-export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null): Promise<string> {
+export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null, opts: { vonName?: string | null; an?: string | null } = {}): Promise<string> {
+  // 12.10.2026 (E-337 Firmen-Radar): Absendername und Empfänger wahlweise — die Nachfass-Mail antwortet auf die EIGENE
+  // erste Mail (dort steht der Empfänger im To, nicht im From) und trägt denselben Namen wie sie.
+  const von = opts.vonName ? `=?UTF-8?B?${Buffer.from(opts.vonName.replace(/[\r\n"]/g, "")).toString("base64")}?= <${postfach}>` : postfach;
   const j = await api(postfach, "/messages/send", {
     method: "POST",
     body: JSON.stringify({
-      raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
+      raw: mimeAntwort({ von, an: opts.an || original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
       threadId: original.threadId,
     }),
   });

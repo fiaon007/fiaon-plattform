@@ -1472,41 +1472,41 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
 ];
 
 // ── /chef/s/firmen-radar (19.09.2026, Fassung 2) ─────────────────────────────
+// E-337 (12.10.2026): der Radar ist jetzt der B2B-Vertrieb — Mara oben, Trichter bis zum Kauf, vier Reiter.
 export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
-    titel: "Der Radar findet Firmen, die zu FIAON Global passen.",
-    text: "Jeden Tag sucht er zwischen 6 und 20 Uhr, bis 50 geprüfte Firmen aus Deutschland, Österreich und der Schweiz im Radar stehen. "
-      + "Die KI schlägt vor, der Server prüft: erreichbare Website, Firmenname auf der Seite, und eine E-Mail, die wirklich dort steht — "
-      + "im Impressum, hinter einem mailto-Verweis, hinter dem Cloudflare-Schutz oder als „info [at] firma [dot] de“. Ohne Adresse kommt "
-      + "eine Firma gar nicht erst herein.",
-    tipp: "Oben stehen die Zahlen des Tages und die KI-Kosten. Über dem Deckel sucht der Radar erst am nächsten Tag weiter.",
+    ziel: ".cr-held",
+    titel: "Hier verkauft Mara FIAON Global an Firmen.",
+    text: "Mara findet Firmen mit Kapitalbedarf, schreibt jeder eine eigene kurze Mail, fasst zweimal nach, beantwortet jede Antwort mit "
+      + "freien Gesprächszeiten und verfolgt die Firma bis zum Kauf. Die zwei Ringe zeigen das Tagesziel: 10 Leads und 5 Käufe.",
+    tipp: "„Postfach jetzt prüfen“ und „Jetzt eine Runde senden“ machen sofort, was Mara sonst alle 10 Minuten von selbst tut.",
   },
   {
-    ziel: ".cr-kopf-tun",
-    titel: "Auf Knopfdruck suchen — oder eine bestimmte Firma aufnehmen.",
-    text: "„Firmen suchen“ öffnet die zehn Bereiche, dazu Land und Stichwort. Eine Suche dauert ein bis zwei Minuten und bringt bis zu zehn "
-      + "neue Firmen; was verworfen wurde, steht mit Grund im Laufbalken. „Website aufnehmen“ legt eine einzelne Firma an.",
+    ziel: ".cr-mara",
+    titel: "Ein Schalter: Mara verkauft — oder pausiert.",
+    text: "Eingeschaltet schreibt Mara werktags von 8:30 bis 17:30 Uhr selbst erste Mails im Tageskontingent und fasst nach. Antworten "
+      + "liest sie immer, rund um die Uhr. Aus js@ sendet sie keine Antworten selbst — die liegen unter „Gespräche“ zur Freigabe.",
   },
   {
-    ziel: ".cr-reiter-liste",
-    titel: "Die Reiter zeigen, wo eine Firma gerade steht.",
-    text: "„Offen“ sind neue und gescannte Firmen, „Mail bereit“ heißt: geschrieben, wartet auf dich. „Ohne E-Mail“ sammelt die Firmen, bei "
-      + "denen nichts zu finden war — dort kannst du nachsuchen lassen oder eine Adresse eintragen.",
+    ziel: ".cr-trichter",
+    titel: "Vom Fund bis zum Kauf — mit Quote je Stufe.",
+    text: "Gefunden, angeschrieben, zugestellt, Antworten, Leads, Termine, Angebote, Käufe. Termine und Aufträge holt der Radar selbst aus "
+      + "dem Global-Kalender und den Global-Aufträgen zurück. Oben rechts wählst du den Zeitraum.",
   },
   {
-    ziel: ".cr-tabelle-rahmen",
-    titel: "Anhaken — auch mehrere auf einmal.",
-    text: "Die Zahl links ist die Einschätzung der KI, wie gut die Firma passt. Mit den Häkchen wählst du mehrere Firmen; unten erscheint die "
-      + "Leiste: „Mails vorbereiten“ (scannt und schreibt), „Als Entwürfe ins Postfach“ und „Senden“. Zwischen zwei Mails liegen 20 bis 45 "
-      + "Sekunden, damit sie persönlich wirken und nicht im Spam landen.",
-    tipp: "Ein Klick auf die Zeile öffnet die Akte rechts: Überblick, Website-Scan und die Mail.",
+    ziel: ".cr-haupt",
+    titel: "Gespräche zuerst.",
+    text: "„Gespräche“ zeigt jede Antwort einer Firma mit Maras Antwort darunter: lesen, ändern, „Senden …“. Absagen kommen von selbst "
+      + "auf die Sperrliste, Rückläufer bekommen eine neue Adresse. „Firmen“ ist die Liste mit Stapel, „Automatik“ hat alle Schalter, "
+      + "„Messung“ jeden Tag als Zeile.",
+    tipp: "Ein Klick auf den Firmennamen öffnet die Akte mit dem ganzen Faden unter „Verlauf“.",
   },
   {
-    titel: "Die Mail gehört dir — nichts geht ohne Klick hinaus.",
-    text: "Im Reiter „Mail“ stehen Betreff, Vorschau und der Text zum Ändern. Sie nutzt nur Aufhänger, die wörtlich auf der Website belegt "
-      + "sind, siezt, verspricht kein Kapital und trägt Absender, Impressum und Abmeldesatz. Verletzt sie eine Regel der Wortwand, sperrt "
-      + "der Server Entwurf und Versand. Je Firma geht genau eine erste Mail; „Kein Interesse“ und „Sperren“ setzen sie auf die Sperrliste.",
-    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH eine vorherige Einwilligung — der Radar fragt deshalb vor jedem Versand.",
+    titel: "Angeschrieben wird nur, wer Kapital braucht.",
+    text: "Jede Firma trägt ein Kapitalsignal mit Stärke 1 bis 5 (Punkte in der Liste) — mit wörtlichem Beleg auf seiner Quelle. "
+      + "Automatisch schreibt Mara erst ab Stärke 3. Die erste Mail nennt einen echten Anlass, was wir tun, und stellt eine Frage — "
+      + "ohne Preis und ohne Betrag. Adressen wie support@, privacy@ oder Ticket-Systeme fallen vorher raus.",
+    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung — Mara hält Tageskontingent, Abmeldesatz und Sperrliste ein.",
   },
 ];
 

@@ -443,6 +443,17 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Im Chefbüro stehen keine neuen Firmen für persönliche Mails; der Vertrieb von FIAON Global bekommt keinen Nachschub.",
     fenster: 26,
   },
+  // E-337 (12.10.2026): Firmen-Radar → Vertrieb. Antworten lesen und einordnen, Mara antwortet, Nachfassen, erste Mails.
+  radar_post: {
+    zweck: "Firmen-Radar: Antworten und Rückläufer in Radar-Fäden lesen und einordnen (Absage → Sperrliste, Interesse → Lead + Maras Antwort + Aufgabe), Termine/Aufträge zurückholen",
+    folge: "Antworten von Firmen bleiben ungelesen im Postfach, Absagen landen nicht auf der Sperrliste, Interessenten warten auf eine Antwort — der B2B-Vertrieb verliert seine Leads.",
+    fenster: 2,
+  },
+  radar_versand: {
+    zweck: "Firmen-Radar: zweimal kurz nachfassen (Tag 3, Tag 8) und — mit Schalter — erste Mails im Tageskontingent werktags 8:30–17:30 senden",
+    folge: "Angeschriebene Firmen bekommen kein Nachfassen, und das Tageskontingent neuer Mails bleibt liegen — keine neuen Leads.",
+    fenster: 26,
+  },
   // 19.09.2026 (E-196): dazu Schritt (d) — die Aufgabe, die Rechnung für das zweite Jahr der Jahresbetreuung zu stellen.
   global_tageslauf: {
     zweck: "FIAON Global: Kunden an Termine des Pflichtenkalenders erinnern (rund einen Monat und eine Woche vorher), "
@@ -557,6 +568,8 @@ export const VERKAUFSLAEUFE: Record<string, (e: any) => { versandt: Zahl; aus: b
   // Die Lead-Strecke läuft nur zu ihren Slots — dazwischen gibt der Takt null zurück (kein „versandt“, zählt nicht als gelaufen).
   "lead-nachfass-und-verteilung": (e) => ({ versandt: e && typeof e === "object" ? zahl0(e.sent) : null, aus: !!e?.skippedWindow && zahl0(e?.sent) === 0 }),
   mara_wa_nachfass: (e) => ({ versandt: zahl0(e?.gesendet), aus: !!e?.uebersprungen?.schalter_aus }),
+  // E-337: Außerhalb des Sendefensters liefert der Lauf versandt 0 mit grund — das zählt nicht als „stumm“ (aus).
+  radar_versand: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || /Sendefenster|kein Radar-Postfach/.test(String(e?.grund ?? "")) }),
 };
 
 /** Schlüssel, die eine Person oder einen Vorgang benennen können — sie stehen nie in der Meldung (auch nicht als Summe). */

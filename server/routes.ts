@@ -549,6 +549,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
+    // E-337 (12.10.2026): Mara übernimmt den Faden — Antworten und Rückläufer rund um die Uhr (alle 10 Minuten),
+    // Nachfassen und erste Mails im Tageskontingent nur werktags 8:30–17:30 und nur mit Schalter im Chefbüro.
+    tageslauf('radar_post', async () => await (await import('./lib/fiaon-radar-faden')).radarPostLauf(), 10 * 60 * 1000, { beimStartNach: 420_000 });
+    tageslauf('radar_versand', async () => await (await import('./lib/fiaon-radar-faden')).radarVersandLauf(), 10 * 60 * 1000, { beimStartNach: 600_000 });
   });
   // Tageslauf dazu: Erinnerungen aus dem Pflichtenkalender, monatlicher Durchgang, Nachfassen bei
   // fehlenden Unterlagen. Stündlicher Takt; der Lauf arbeitet nur zwischen 8 und 20 Uhr Berliner Zeit

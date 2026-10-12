@@ -14,6 +14,10 @@ import {
   radarKontaktNachsuchen, radarKontaktSetzen, radarStapelStarten, radarLaufAbbrechen,
 } from "../lib/fiaon-radar";
 import { alsRadarLand } from "@shared/fiaon-radar";
+import {
+  radarAutomatik, radarAutomatikSetzen, radarTrichter, radarPost, radarPostLauf, maraAntwortVorbereiten,
+  radarAntwortSenden, radarAntwortVerwerfen, radarAdresseUebernehmen, radarVersandLauf,
+} from "../lib/fiaon-radar-faden";
 
 const router = Router();
 const wache = requireChef("geschaeftsfuehrung");
@@ -42,6 +46,7 @@ router.post("/chef/radar/suchen", wache, async (req: ChefRequest, res: Response)
   try {
     const laufId = await radarSucheStarten({
       bereich: String(req.body?.bereich ?? ""), land: alsRadarLand(req.body?.land), stichwort: req.body?.stichwort ? String(req.body.stichwort) : null,
+      signal: req.body?.signal ? String(req.body.signal) : null,
       anzahl: Number(req.body?.anzahl) || 10, von: req.chef?.agentId ?? null,
     });
     res.json({ ok: true, laufId });
@@ -133,6 +138,56 @@ router.post("/chef/radar/firma/:id/kontakt", wache, async (req: ChefRequest, res
 
 router.get("/chef/radar/postfach/:adresse", wache, async (req: ChefRequest, res: Response) => {
   try { res.json(await radarPostfachPruefen(String(req.params.adresse))); } catch (e) { fehler(res, e); }
+});
+
+// ── E-337 (12.10.2026): Trichter, Automatik, Posteingang, Mara ─────────────
+router.get("/chef/radar/trichter", wache, async (req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ...(await radarTrichter(Number(req.query.tage) || 14)), automatik: await radarAutomatik() }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/automatik", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const b = req.body ?? {};
+    const automatik = await radarAutomatikSetzen({ versand: b.versand, nachfass: b.nachfass, mara: b.mara, jeTag: b.jeTag, abPassung: b.abPassung });
+    console.log(`[RADAR] Automatik von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(automatik)}`);
+    res.json({ ok: true, automatik });
+  } catch (e) { fehler(res, e); }
+});
+
+router.get("/chef/radar/post", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const nur = ["offen", "leads", "alle"].includes(String(req.query.nur)) ? (String(req.query.nur) as "offen" | "leads" | "alle") : "offen";
+    const firma = req.query.firma ? idAus(req.query.firma) : null;
+    res.json({ ok: true, post: await radarPost({ nur, firma }) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/post-lauf", wache, async (_req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ergebnis: await radarPostLauf() }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/versand-lauf", wache, async (_req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ergebnis: await radarVersandLauf() }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/post/:id/mara", wache, async (req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ...(await maraAntwortVorbereiten(idAus(req.params.id), { sendenErlaubt: false, hinweis: req.body?.hinweis ? String(req.body.hinweis) : null })) }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/post/:id/senden", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    // Senden nur mit ausdrücklicher Bestätigung aus der Oberfläche — wie die erste Mail.
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte den Versand bestätigen.");
+    res.json(await radarAntwortSenden(idAus(req.params.id), req.body?.text != null ? String(req.body.text) : null, req.chef?.agentId ?? null));
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/post/:id/verwerfen", wache, async (req: ChefRequest, res: Response) => {
+  try { await radarAntwortVerwerfen(idAus(req.params.id)); res.json({ ok: true }); } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/firma/:id/adresse-uebernehmen", wache, async (req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, email: await radarAdresseUebernehmen(idAus(req.params.id)) }); } catch (e) { fehler(res, e); }
 });
 
 export default router;

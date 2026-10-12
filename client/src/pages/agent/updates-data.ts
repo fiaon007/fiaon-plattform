@@ -799,7 +799,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Im Auftrag (/business/start, Schritt „Vertrag“) steht die Jahresbetreuung mit ihren sechs Leistungen und einem Haken — nie vorangekreuzt. Setzt der Kunde ihn, steht sie im Vertrag (Ziffer 2, 3 und 5) und rechts unter „Ihr Auftrag“.",
       "Heute berechnet wird nur der Paketpreis. Die Rechnung nennt die Jahresbetreuung in einer Hinweiszeile: ab dem zweiten Jahr, 699 € je Betreuungsjahr, jährlich gesondert berechnet — nicht Teil dieser Rechnung.",
       "Keine Verlängerung von selbst: Vor jedem Betreuungsjahr kommt eine Rechnung, mit ihrer Zahlung beginnt das Jahr. Bleibt die Zahlung aus, endet die Jahresbetreuung, und der Kunde trägt die laufenden Kosten selbst.",
-      "Wo ihr es seht: im Raum „Global“ die Marke „Jahresbetreuung gebucht (ab Jahr 2)“ in der Liste und im Kopf der Akte; in der Akte rechts unter „Vertrag und Rechnung“, ab wann die Rechnung fürs zweite Jahr gestellt wird. Im Chefbüro unter Kunden → Global-Aufträge beim Paket.",
+      "Wo ihr es seht: im Raum „Global“ die Marke „Jahresbetreuung gebucht (ab Jahr 2)“ in der Liste und im Kopf der Akte; in der Akte rechts unter „Vertrag und Rechnung“, ab wann die Rechnung fürs zweite Jahr gestellt wird. Im Chefbüro unter Vertrieb → Global-Aufträge beim Paket.",
       "Rund einen Monat vor dem ersten Jahrestag der Gründung (ohne eingetragenen Gründungstag: des Starts) bekommt die zuständige Person die Aufgabe „Jahresbetreuung: Rechnung für das zweite Betreuungsjahr stellen“.",
       "Der Kunde sieht die gebuchte Jahresbetreuung auf seiner Seite „Mein Auftrag“. Ohne sie steht dort eine Zeile, dass er sie später über seinen Ansprechpartner dazubuchen kann.",
     ],
@@ -896,7 +896,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     ],
     howto: [
       "Aufgabe „… anrufen“ am zehnten Tag: anrufen und klären — kommt die Zahlung, gibt es Fragen, oder will das Unternehmen nicht mehr? Das Gespräch in der Akte dokumentieren.",
-      "Will der Kunde nicht mehr: der Leitung Bescheid geben. Storniert wird nur dort (Chefbüro → Kunden → Global-Aufträge → „Auftrag stornieren“); eine Erstattung überweist ausschließlich Justin von Hand — nenne dem Kunden dafür keinen Termin.",
+      "Will der Kunde nicht mehr: der Leitung Bescheid geben. Storniert wird nur dort (Chefbüro → Vertrieb → Global-Aufträge → „Auftrag stornieren“); eine Erstattung überweist ausschließlich Justin von Hand — nenne dem Kunden dafür keinen Termin.",
       "Fragt ein Firmenkunde nach seinem Zugang: Er braucht kein Passwort. Der Link zu „Mein Auftrag“ steht in seinen Mails und gilt dreißig Tage; einen frischen fordert er auf der Seite selbst an („Zugang neu anfordern“) — oder er versucht es mit seiner E-Mail-Adresse am Kunden-Login, dann kommt der Link von selbst.",
     ],
     link: { href: "/agent/aufgaben", label: "Aufgaben öffnen" },
@@ -968,7 +968,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     ],
     howto: [
       "Aufgabe „neuer Auftrag“: Kunden kurz anrufen, Eingang bestätigen, Fragen zur Überweisung klären — und das Gespräch in der Akte dokumentieren.",
-      "Aufgabe „US-Struktur starten“: Startgespräch vereinbaren, dort den Stichtag für Gesellschaft und EIN festlegen und der Leitung nennen (sie trägt ihn im Chefbüro unter Kunden → Global-Aufträge ein; der Kunde bekommt ihn per Mail).",
+      "Aufgabe „US-Struktur starten“: Startgespräch vereinbaren, dort den Stichtag für Gesellschaft und EIN festlegen und der Leitung nennen (sie trägt ihn im Chefbüro unter Vertrieb → Global-Aufträge ein; der Kunde bekommt ihn per Mail).",
       "Fremdkosten (Staatsgebühren, Registered Agent, Honorare von Steuerberater und Anwalt) nennst du dem Kunden VOR dem Start — sie sind nicht im Paketpreis.",
     ],
     link: { href: "/agent/aufgaben", label: "Aufgaben öffnen" },

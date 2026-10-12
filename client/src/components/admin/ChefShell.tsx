@@ -15,7 +15,7 @@
 // mit Schloss — die UI blendet aus, der Server erzwingt (spätere Scheibe).
 // Justin wird geduzt, wie Mitarbeiter untereinander.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   Gem,
@@ -29,6 +29,8 @@ import {
 import { seitenFuerRaum, chefPfad } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
 import { WaPauseBand } from "./ChefWaPause";
+// E-336: die Suche im Kopf (⌘K / Strg+K) — Seiten, Räume, Kunden.
+import { ChefSuche } from "./ChefSuche";
 import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
 // 08.10.2026 (Justin): Glas-Design — eine Schicht über allen Raum-Stilen, aktiv über .cb-glas (chefbuero-glas.css).
@@ -67,13 +69,34 @@ export interface ChefRaum {
   key: string; label: string; Icon: any; satz: string;
   /** Mindeststufe, um den Raum zu betreten (Plan §2.2: leitung sieht kein Geld/System). */
   mindest: ChefStufe;
+  /** E-336: Unter welcher Überschrift der Raum im Menü steht (CHEF_GRUPPEN). */
+  gruppe: ChefGruppe;
   punkte: ChefPunkt[];
 }
 
-/** Die 8 Räume (Plan §2.3). Jeder Unterpunkt = bestehende /admin-Seite. */
+// ── DIE ORDNUNG DES MENÜS (E-336, 12.10.2026) ─────────────────────────────
+// Justin: „Firmen-Radar ist unter Bereich Kunden im Menü zu finden (WTF,
+//          sortiere das Menü mal richtig durch)."
+// 15 Räume standen ohne Ordnung untereinander — „Kunden" neben „Alle Kunden",
+// das Geld an drei Stellen, Mara unter „Kommunikation". Jetzt gehört jeder
+// Raum zu genau einer Überschrift, und die Reihenfolge folgt dem Tag:
+// Heute → Kunden → Vertrieb → Geld → Team → System. Die Adressen
+// (/chef/<raum>, /chef/s/<seite>) bleiben unverändert — alte Links gehen weiter.
+export type ChefGruppe = "heute" | "kunden" | "vertrieb" | "geld" | "team" | "system";
+export const CHEF_GRUPPEN: { key: ChefGruppe; label: string }[] = [
+  { key: "heute", label: "Heute" },
+  { key: "kunden", label: "Kunden" },
+  { key: "vertrieb", label: "Vertrieb" },
+  { key: "geld", label: "Geld" },
+  { key: "team", label: "Team" },
+  { key: "system", label: "System" },
+];
+
+/** Die Räume des Chefbüros, in der Reihenfolge des Menüs. */
 export const CHEF_RAEUME: ChefRaum[] = [
+  // ── Heute ───────────────────────────────────────────────────────────────
   {
-    key: "lage", label: "Lagezimmer", Icon: LayoutDashboard, mindest: "leitung",
+    key: "lage", label: "Lagezimmer", Icon: LayoutDashboard, mindest: "leitung", gruppe: "heute",
     satz: "Der Tag auf einen Blick — Aufgaben, Warnungen, deine Liste.",
     punkte: [],
   },
@@ -81,47 +104,58 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // Kein Verzeichnis auf /admin-Seiten, sondern ein eigener Raum: Diese fünf
   // Werkzeuge waren als Endpunkte gebaut und hatten keine einzige Tür.
   {
-    key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung",
+    key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung", gruppe: "heute",
     satz: "Frag die Zahlen, Wahrheits-Check, Maschinenraum, Sprung, Freigaben, Posteingang.",
+    punkte: [],
+  },
+  // ── Kunden ──────────────────────────────────────────────────────────────
+  {
+    key: "kundenliste", label: "Alle Kunden", Icon: Table2, mindest: "leitung", gruppe: "kunden",
+    satz: "Der gesamte Bestand — eine Person, eine Zeile, mit Filtern und Suche.",
+    punkte: [],
+  },
+  {
+    // E-336: hieß „Kunden" — direkt neben „Alle Kunden" war nicht zu erkennen, was der Unterschied ist.
+    key: "kunden", label: "Betreuung", Icon: Users, mindest: "leitung", gruppe: "kunden",
+    satz: "Die Arbeit am Kunden — Kunden-Zentrale, Termine, Ausweise, Kündigungen, Telefonkartei, Dubletten, Auskünfte.",
+    punkte: [],
+  },
+  // ── Vertrieb ────────────────────────────────────────────────────────────
+  {
+    // E-336: Alles, was NEUE Kunden bringt — vorher verteilt auf „Kunden" und „Kommunikation".
+    key: "vertrieb", label: "Vertrieb", Icon: Target, mindest: "leitung", gruppe: "vertrieb",
+    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass, kalte Leads, Firmen-Radar und Global-Aufträge.",
     punkte: [],
   },
   // ── DIE RÜCKHOLUNG (02.09.2026, E-074) ──────────────────────────────────
   // 96.840 € offener Auftragswert in fünf Segmenten. Eigener Raum, weil hier
   // Geldstrecken GESCHALTET werden — das gehört nicht zwischen Leseseiten.
   {
-    key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung",
+    key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung", gruppe: "vertrieb",
     satz: "Offene Anträge zurückholen — fünf Segmente, Zustellbarkeit, Schalter, Wirkung.",
     punkte: [],
   },
   {
-    key: "kundenliste", label: "Alle Kunden", Icon: Table2, mindest: "leitung",
-    satz: "Der gesamte Bestand — eine Person, eine Zeile, mit Filtern und Suche.",
+    key: "kommunikation", label: "Kommunikation", Icon: Send, mindest: "leitung", gruppe: "vertrieb",
+    satz: "Postfach, WhatsApp, Mail-Zentrale, Mailwerk und die E-Mail-Events.",
     punkte: [],
   },
-  {
-    key: "zahlungen", label: "Zahlungszentrale", Icon: ReceiptIcon, mindest: "geschaeftsfuehrung",
-    satz: "Jeder Zahlungseingang mit allen Angaben — gegengeprüft gegen das Lagezimmer.",
-    punkte: [],
-  },
-  // ── DAS REGISTER ────────────────────────────────────────────────────────
-  // Die Antwort auf „kann man hier eigentlich alles?". Jede Fähigkeit der
-  // Plattform mit Namen, Klartext und Direktverweis — auch die, die bisher
-  // nur als Adresse mit Fragezeichen existierten.
   // ── BESUCHER (27.08.2026) ───────────────────────────────────────────────
   // Microsoft Clarity: Wer war da, und — wichtiger — wo hat es geklemmt.
   {
-    key: "besucher", label: "Besucher", Icon: Eye, mindest: "leitung",
+    key: "besucher", label: "Besucher", Icon: Eye, mindest: "leitung", gruppe: "vertrieb",
     satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.",
     punkte: [],
   },
+  // ── Geld ────────────────────────────────────────────────────────────────
   {
-    key: "register", label: "Register", Icon: LibraryBig, mindest: "leitung",
-    satz: "Jede Funktion der Plattform, durchsuchbar — auch die ohne eigene Kachel.",
+    key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung", gruppe: "geld",
+    satz: "Zahlungen, Verbuchung, Auszahlungen, Abrechnungen — alles Geld in einem Raum.",
     punkte: [],
   },
   {
-    key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung",
-    satz: "Zahlungen, Verbuchung, Auszahlungen, Abrechnungen — alles Geld in einem Raum.",
+    key: "zahlungen", label: "Zahlungszentrale", Icon: ReceiptIcon, mindest: "geschaeftsfuehrung", gruppe: "geld",
+    satz: "Jeder Zahlungseingang mit allen Angaben — gegengeprüft gegen das Lagezimmer.",
     punkte: [],
   },
   {
@@ -129,37 +163,37 @@ export const CHEF_RAEUME: ChefRaum[] = [
     // wir monatlich verdienen (jedes Paket = 12-Monats-Abo, Umsatz ×12) und
     // baue eine Unternehmensbewertung ein." Die eine Wahrheit über das Geld —
     // ersetzt inhaltlich die Stripe-Rechnung des alten Admin-Dashboards.
-    key: "wert", label: "Verdienst & Wert", Icon: Gem, mindest: "geschaeftsfuehrung",
+    key: "wert", label: "Verdienst & Wert", Icon: Gem, mindest: "geschaeftsfuehrung", gruppe: "geld",
     satz: "Verdient, monatlich (MRR), Vertragsbestand ×12 und der Unternehmenswert.",
     punkte: [],
   },
+  // ── Team ────────────────────────────────────────────────────────────────
   {
-    key: "kunden", label: "Kunden", Icon: Users, mindest: "leitung",
-    satz: "Jede Person genau einmal — Kunden, Termine, Leads, Dubletten, Fahrplan.",
+    key: "team", label: "Team", Icon: Handshake, mindest: "leitung", gruppe: "team",
+    satz: "Alles zu einem Menschen an einem Ort — Kennzahlen, Verträge, Bewerbungen, Space.",
     punkte: [],
   },
   {
-    key: "team", label: "Team", Icon: Handshake, mindest: "leitung",
-    satz: "Alles zu einem Menschen an einem Ort — Kennzahlen, Verträge, Skripte, Feedback.",
+    key: "academy", label: "Academy", Icon: GraduationCap, mindest: "leitung", gruppe: "team",
+    satz: "Einschulung, Prüfungen, Zertifikate, Funktionen mit Schulungsmodus.",
     punkte: [],
   },
   {
-    key: "kommunikation", label: "Kommunikation", Icon: Send, mindest: "leitung",
-    satz: "Mail-Zentrale, E-Mail-Events, Funktionen-Registry und der Team-Space.",
-    punkte: [],
-  },
-  {
-    key: "academy", label: "Academy", Icon: GraduationCap, mindest: "leitung",
-    satz: "Einschulung, Prüfungen, Zertifikate — die Ausbildung des Teams.",
-    punkte: [],
-  },
-  {
-    key: "redaktion", label: "Redaktion", Icon: FileText, mindest: "leitung",
+    key: "redaktion", label: "Redaktion", Icon: FileText, mindest: "leitung", gruppe: "team",
     satz: "Ratgeber-Redaktion — Entwürfe, Vorschau, Prüfstand, Veröffentlichung.",
     punkte: [],
   },
+  // ── System ──────────────────────────────────────────────────────────────
+  // ── DAS REGISTER ────────────────────────────────────────────────────────
+  // Die Antwort auf „kann man hier eigentlich alles?". Jede Fähigkeit der
+  // Plattform mit Namen, Klartext und Direktverweis.
   {
-    key: "system", label: "System", Icon: Settings, mindest: "geschaeftsfuehrung",
+    key: "register", label: "Register", Icon: LibraryBig, mindest: "leitung", gruppe: "system",
+    satz: "Jede Funktion der Plattform, durchsuchbar — auch die ohne eigene Kachel.",
+    punkte: [],
+  },
+  {
+    key: "system", label: "System", Icon: Settings, mindest: "geschaeftsfuehrung", gruppe: "system",
     satz: "Einstellungen, Diagnose, Audit, Changelog, Rechtstexte.",
     punkte: [],
   },
@@ -189,6 +223,21 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
+  // ── ⌘K / Strg+K (E-336) ─────────────────────────────────────────────────
+  // Öffnet die Suche von jeder Chefbüro-Seite aus; ein zweites ⌘K schließt sie.
+  const [sucheOffen, setSucheOffen] = useState(false);
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSucheOffen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, []);
+  const istMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const darf = useCallback((mindest?: ChefStufe) => !mindest || RANG[stufe] >= RANG[mindest], [stufe]);
   // ── DAS MENÜ IST EINGEKLAPPT, WENN MAN DIE SEITE ÖFFNET (04.09.2026) ─────
   // Justin: „das Menü soll sich einklappen wenn man die Seite öffnet — mehr
   // Platz, cleaner." Schmal heißt: 60 Pixel, nur die Icons, Name als Tooltip.
@@ -253,10 +302,19 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
       </Link>
     );
   };
+  // E-336: Das Menü steht in Gruppen (CHEF_GRUPPEN) — eingeklappt trennt eine feine Linie statt der Überschrift.
   const Liste = ({ inSchublade = false }: { inSchublade?: boolean }) => (
     <>
-      <div className="cb-leiste-titel">Räume</div>
-      {CHEF_RAEUME.map((r) => <Punkt key={r.key} r={r} inSchublade={inSchublade} />)}
+      {CHEF_GRUPPEN.map((g) => {
+        const raeume = CHEF_RAEUME.filter((r) => r.gruppe === g.key);
+        if (!raeume.length) return null;
+        return (
+          <div key={g.key} className="cb-leiste-gruppe" role="group" aria-label={g.label}>
+            <div className="cb-leiste-titel">{g.label}</div>
+            {raeume.map((r) => <Punkt key={r.key} r={r} inSchublade={inSchublade} />)}
+          </div>
+        );
+      })}
     </>
   );
 
@@ -292,11 +350,15 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           <small>{vorname ? `${gruss}, ${vorname}.` : `${gruss}.`}</small>
         </div>
         <div className="cb-kopf-rechts">
-          <div className="cb-suche" title="Suche — ⌘K kommt in einer späteren Scheibe">
+          <button type="button" className="cb-suche" onClick={() => setSucheOffen(true)}
+                  title={`Seiten, Räume und Kunden suchen (${istMac ? "⌘K" : "Strg+K"})`} aria-keyshortcuts="Meta+K Control+K">
             <Search size={14} strokeWidth={1.75} />
             <span>Suchen …</span>
-            <kbd>⌘K</kbd>
-          </div>
+            <kbd>{istMac ? "⌘K" : "Strg K"}</kbd>
+          </button>
+          <button type="button" className="cb-rund cb-suche-rund" onClick={() => setSucheOffen(true)} aria-label="Suchen">
+            <Search size={16} strokeWidth={1.75} />
+          </button>
           <span className="cb-stufe" title={`Angemeldet als ${titel || STUFEN_NAME[stufe]} (Stufe ${STUFEN_NAME[stufe]})`}>
             <span className="punkt" />{titel || STUFEN_NAME[stufe]}
           </span>
@@ -334,6 +396,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           <button type="button" onClick={onAbmelden}><LogOut size={17} /><span>Abmelden</span></button>
         </div>
       </aside>
+
+      <ChefSuche offen={sucheOffen} schliessen={() => setSucheOffen(false)} raeume={CHEF_RAEUME} darf={darf} />
     </div>
   );
 }

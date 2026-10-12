@@ -165,12 +165,11 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "finanzen", label: "Finanzen & Sales", satz: "Funnel, Umsatz, Marge, Werbekosten, Kampagnen.", Seite: Finanzen, raum: "geld", mindest: "geschaeftsfuehrung", auch: "cac marge funnel" },
   { slug: "investoren", label: "Investoren", satz: "Anfragen, Investments, Dokumente.", Seite: Investoren, raum: "geld", mindest: "geschaeftsfuehrung" },
 
-  // ── Kunden ──────────────────────────────────────────────────────────────
+  // ── Kunden — im Menü „Betreuung“ (Raum-Schlüssel bleibt „kunden“) ─────────────
   { slug: "telefonkartei", label: "Telefonkartei", satz: "Deine Anrufseite: alle Kunden als Karten, Kontakt fürs iPhone, Rechnung, nicht erreicht, später anrufen, stornieren.", Seite: Telefonkartei, raum: "kunden", mindest: "inhaber", eigenesDesign: true, auch: "anrufen telefon whatsapp kontakt vcard iphone rechnung storno stornieren rueckruf rückruf a b c kunden kartei" },
   { slug: "kunden", label: "Kunden-Zentrale", satz: "Leads, Kunden, Anträge — mit Massenaktionen.", Seite: Kunden, raum: "kunden" },
   { slug: "kyc", label: "Ausweisprüfungen", satz: "Wer hat Unterlagen eingereicht, die noch niemand angesehen hat?", Seite: Kunden, raum: "kunden", suche: "kycOffen=1", auch: "kyc ausweis legitimation unterlagen" },
   { slug: "kuendigungen", label: "Kündigungen", satz: "Wer hat gekündigt, und was ist daraus geworden?", Seite: Kunden, raum: "kunden", suche: "kuendigungen=1", auch: "storno beenden" },
-  { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat, aus dem nachgefasst wird.", Seite: Kunden, raum: "kunden", suche: "stufe=C", auch: "vorrat kalt" },
   { slug: "ohne-onboarding", label: "Bezahlt ohne Startgespräch", satz: "Die Kunden, bei denen das Onboarding hängt.", Seite: Kunden, raum: "kunden", suche: "bezahltOhneOnboarding=1" },
   // 24.09.2026 (E-240): Justin — die Auskunft soll „weggehen wie warme Semmeln" (Ziel 150 am Tag).
   // 25.09.2026 (E-241): Trichter (angeschrieben → geliefert) und Steuerung (Kreis, Mails/WhatsApp je Tag, Liefermodus, Protokoll).
@@ -178,17 +177,26 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "auskunft", label: "Auskunft-Verkauf (jetzt im Mara-Steuerpult)", satz: "Umgezogen: Mara-Steuerpult, Reiter „Bonitätsauskunft“.", Seite: AuskunftUmzug, raum: "", mindest: "inhaber", eigenesDesign: true },
   // 25.09.2026 (E-241): Bis die API steht, beschaffen wir die bezahlten Auskünfte selbst — hier, je Auftrag.
   { slug: "auskunft-beschaffung", label: "Auskunft-Beschaffung", satz: "Bezahlte Bonitätsauskünfte beschaffen: alle Daten zum Bestellen, Vollmacht, Frist, PDF hochladen — Akte, Analyse und Mail an den Kunden folgen von selbst.", Seite: AuskunftBeschaffung, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft beschaffung beschaffen einkauf kaufen bestellen schufa ksv crif intrum boniversum hochladen upload pdf vollmacht einwilligung widerrufsfrist rückstand rueckstand lieferung api" },
+  { slug: "termine", label: "Termin-Zentrale", satz: "Alle Termine aller Mitarbeiter — und wer keinen hat. Zum Abtelefonieren (mit Geld, Maras Zusage und „Team abwesend“): Mara-Steuerpult → Termine.", Seite: Termine, raum: "kunden" },
+  { slug: "dubletten", label: "Dubletten", satz: "Mehrfach angelegte Personen zusammenführen — umkehrbar.", Seite: Dubletten, raum: "kunden", auch: "doppelt merge trennen" },
+  { slug: "fahrplan", label: "Fahrplan / Kundenprodukt", satz: "Upload-Review, KI-Analyse freigeben, Ziel-Freischaltung.", Seite: Fahrplan, raum: "kunden" },
+
+  // ── Vertrieb (E-336, 12.10.2026) ──────────────────────────────────────
+  // Justin: Firmen-Radar „unter Bereich Kunden im Menü — WTF". Alles, was NEUE Kunden bringt, steht jetzt in
+  // einem Raum: Mara, die Meta-Leads, der Nachfass, die kalten Leads, das Firmen-Radar und die Global-Aufträge.
+  // Die Adressen /chef/s/<slug> bleiben, wie sie waren — nur der Raum (und damit Kachel und Menü) ist neu.
+  // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
+  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion, der Verkauf der Bonitätsauskunft und alle Termine, die Mara macht: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen, Termine abtelefonieren und „Team abwesend — Mara bucht bei mir“ schalten — dazu das Social-Studio: Posts prüfen, freigeben, Texte und Dateien holen, als veröffentlicht melden und sehen, wie Instagram aussieht.", Seite: Mara, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
+  { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
+  { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass-Maschine: Sendefenster, Bulk-Versand, Verteilung.", Seite: LeadAutomatik, raum: "vertrieb" },
+  { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat, aus dem nachgefasst wird.", Seite: Kunden, raum: "vertrieb", suche: "stufe=C", auch: "vorrat kalt" },
+  // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
+  // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
+  { slug: "firmen-radar", label: "Firmen-Radar", satz: "Täglich 50 passende Firmen, KI-Scan der Website und eine persönliche erste Mail.", Seite: FirmenRadar, raum: "vertrieb", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.
-  { slug: "global-auftraege", label: "Global-Aufträge", satz: "Firmenaufträge über die US-Struktur: Stand, zuständige Person, Stichtag, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "kunden", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
-  // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
-  // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
-  { slug: "firmen-radar", label: "Firmen-Radar", satz: "Täglich 50 passende Firmen, KI-Scan der Website und eine persönliche erste Mail.", Seite: FirmenRadar, raum: "kunden", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },
-  { slug: "termine", label: "Termin-Zentrale", satz: "Alle Termine aller Mitarbeiter — und wer keinen hat. Zum Abtelefonieren (mit Geld, Maras Zusage und „Team abwesend“): Mara-Steuerpult → Termine.", Seite: Termine, raum: "kunden" },
-  { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass-Maschine: Sendefenster, Bulk-Versand, Verteilung.", Seite: LeadAutomatik, raum: "kunden" },
-  { slug: "dubletten", label: "Dubletten", satz: "Mehrfach angelegte Personen zusammenführen — umkehrbar.", Seite: Dubletten, raum: "kunden", auch: "doppelt merge trennen" },
-  { slug: "fahrplan", label: "Fahrplan / Kundenprodukt", satz: "Upload-Review, KI-Analyse freigeben, Ziel-Freischaltung.", Seite: Fahrplan, raum: "kunden" },
+  { slug: "global-auftraege", label: "Global-Aufträge", satz: "Firmenaufträge über die US-Struktur: Stand, zuständige Person, Stichtag, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "vertrieb", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
 
   // ── Team ────────────────────────────────────────────────────────────────
   { slug: "team", label: "Team-Zentrale", satz: "Kennzahlen, Provisionen, Protokolle, Nachrichten.", Seite: TeamZentrale, raum: "team" },
@@ -200,6 +208,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "bewerbungen", label: "Bewerbungen", satz: "Wer sich beworben hat, wer zuständig ist — Zusage oder Absage mit Mail, dann die Einladung.", Seite: Bewerbungen, raum: "team", auch: "karriere bewerber bewerbung einstellen recruiting" },
   { slug: "vertraege", label: "Onboarding & Verträge", satz: "Zustimmungen, Vertragsstand, Vorlagen, Nachweise.", Seite: Vertraege, raum: "team" },
   { slug: "agent-portal", label: "Team-Updates & Feedback", satz: "Portal-Updates posten, Feedback prüfen.", Seite: AgentPortal, raum: "team" },
+  { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "team" },
 
   // ── Kommunikation ───────────────────────────────────────────────────────
   { slug: "mail-zentrale", label: "Mail-Zentrale", satz: "Freitext an Kunden und Gruppen, mit Vorschau.", Seite: MailZentrale, raum: "kommunikation" },
@@ -210,14 +219,10 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // Justins Zentrale (01.09.2026): „das soll nur meine Zentrale sein" — Stufe inhaber.
   { slug: "postmeister", label: "Postfach", satz: "Alle Kundenmails an einem Ort: was der Kunde schrieb, seine Akte daneben, die Antwort zum Prüfen", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
   { slug: "whatsapp", label: "WhatsApp", satz: "Der Chat mit den Kunden: alle Gespräche, das 24-Stunden-Fenster, Vorlagen und Maras Schalter je Gespräch.", Seite: WhatsAppRaumSeite, raum: "kommunikation", eigenesDesign: true, vollflaeche: true, auch: "whatsapp chat nachricht wa mara postfach kunde schreiben" },
-  { slug: "lead-motor", label: "Lead-Motor", satz: "Die Facebook-Leads direkt von Meta: Verbindung mit einem Knopf einrichten, Rückstand nachholen, Begrüßungsmail schalten — und jeder Lead mit Herkunft, Begrüßung, Klick und Antrag.", Seite: LeadMotor, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
-  // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
-  { slug: "mara", label: "Mara-Steuerpult", satz: "WhatsApp-Zentrale, Mail-Aktion, der Verkauf der Bonitätsauskunft und alle Termine, die Mara macht: Kundengruppen per WhatsApp anschreiben — von Hand oder im Takt —, jede Mail, jeden Takt und die Kosten steuern, den Auskunft-Verkauf scharf stellen, Termine abtelefonieren und „Team abwesend — Mara bucht bei mir“ schalten — dazu das Social-Studio: Posts prüfen, freigeben, Texte und Dateien holen, als veröffentlicht melden und sehen, wie Instagram aussieht.", Seite: Mara, raum: "kommunikation", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
-  { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
-  { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 
   // ── Academy und Redaktion ───────────────────────────────────────────────
   { slug: "academy", label: "FIAON Academy", satz: "Einschulung als Kapitel-Reise je Abteilung.", Seite: Schulung, raum: "academy" },
+  { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "academy" },
   { slug: "ratgeber", label: "Ratgeber-Redaktion", satz: "Entwürfe lesen, Vorschau, Prüfstand, veröffentlichen.", Seite: Ratgeber, raum: "redaktion" },
 
   // ── System ──────────────────────────────────────────────────────────────

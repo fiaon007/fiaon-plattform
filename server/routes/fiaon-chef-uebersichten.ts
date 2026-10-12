@@ -184,6 +184,94 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DIE SUCHE IM KOPF DES CHEFBÜROS (E-336, 12.10.2026)
+//
+// Justin: „oben im Header das Suchen, was man auch mit Command und K machen
+//          sollte — das geht nicht, das Suchfeld!"
+//
+// Das Feld war eine Attrappe. Jetzt sucht es Seiten (im Browser, aus
+// chef-seiten.tsx) und Menschen (hier). Diese Route ist absichtlich schmal:
+// sieben Treffer, keine Geldsummen, keine Kopfzahlen — sie läuft bei jedem
+// Tippen und muss schnell bleiben. Die große Auflistung bleibt /chef/kunden.
+//
+// Gesucht wird Wort für Wort wie in der Kundenliste (jedes Wort muss treffen),
+// dazu die Personen-Nummer genau und die Telefonnummer ohne Leerzeichen und
+// ohne führende Null — „0176 55" trifft „+49 176 55…".
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/suche", requireChef("leitung"), async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q || "").trim().slice(0, 80);
+    const woerter = q.split(/\s+/).filter(Boolean).slice(0, 5);
+    if (q.length < 2 || !woerter.length) return res.json({ ok: true, gesamt: 0, personen: [] });
+
+    const werte: any[] = [];
+    const teile: string[] = [ECHT];
+    for (const wort of woerter) {
+      // % und _ sind im Muster Platzhalter — wer „_" tippt, meint den Strich.
+      werte.push(`%${wort.replace(/[\\%_]/g, (z) => `\\${z}`)}%`);
+      const n = werte.length;
+      werte.push(wort);
+      const genau = werte.length;
+      const ziffern = wort.replace(/\D/g, "").replace(/^0+/, "");
+      let telefon = "";
+      if (ziffern.length >= 4) {
+        werte.push(`%${ziffern}%`);
+        telefon = `OR regexp_replace(COALESCE(p.primary_phone, ''), '[^0-9]', '', 'g') LIKE $${werte.length}`;
+      }
+      teile.push(`(
+        p.first_name ILIKE $${n} OR p.last_name ILIKE $${n}
+        OR CONCAT_WS(' ', p.first_name, p.last_name) ILIKE $${n}
+        OR p.primary_email ILIKE $${n} OR p.primary_phone ILIKE $${n}
+        OR p.company_name ILIKE $${n} OR p.person_ref ILIKE $${n}
+        OR p.id::text = $${genau}
+        ${telefon}
+        OR EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id
+                    AND (a2.ref ILIKE $${n} OR a2.payment_reference ILIKE $${n}))
+      )`);
+    }
+    werte.push(woerter[0]);
+    const erstes = werte.length;
+    const zeilen = (await sqlPool.unsafe(`
+      SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.city,
+             p.is_blocked, p.inkasso_ab IS NOT NULL AS inkasso, ag.name AS mitarbeiter,
+             EXISTS (SELECT 1 FROM fiaon_applications a3
+                      WHERE a3.person_id = p.id AND a3.payment_status = 'paid'
+                        AND a3.merged_into IS NULL) AS zahlend,
+             NOT EXISTS (SELECT 1 FROM fiaon_applications a9 WHERE a9.person_id = p.id) AS nur_interessent,
+             (SELECT a8.ref FROM fiaon_applications a8
+               WHERE a8.person_id = p.id AND a8.merged_into IS NULL
+               ORDER BY (a8.payment_status = 'paid') DESC, a8.created_at DESC LIMIT 1) AS ref,
+             COUNT(*) OVER ()::int AS gesamt
+        FROM fiaon_persons p
+        LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+       WHERE ${teile.join(" AND ")}
+       ORDER BY (p.id::text = $${erstes}) DESC, zahlend DESC, p.created_at DESC
+       LIMIT 7`, werte)) as any[];
+
+    res.json({
+      ok: true,
+      gesamt: Number(zeilen[0]?.gesamt ?? 0),
+      personen: zeilen.map((z) => ({
+        id: Number(z.id),
+        name: [z.first_name, z.last_name].filter(Boolean).join(" ").trim() || z.company_name || z.primary_email || `Person ${z.id}`,
+        firma: z.company_name || null,
+        email: z.primary_email || null,
+        ort: z.city || null,
+        ref: z.ref || null,
+        mitarbeiter: z.mitarbeiter || null,
+        zahlend: !!z.zahlend,
+        interessent: !!z.nur_interessent,
+        gesperrt: !!z.is_blocked,
+        inkasso: !!z.inkasso,
+      })),
+    });
+  } catch (err) {
+    console.error("[CHEF-SUCHE]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE ZAHLUNGSZENTRALE
 //
 // Jede bestätigte Zahlung als eine Zeile, mit allem, was dazugehört. Der

@@ -192,7 +192,7 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
       folge: "Der teuerste Moment der Kundenbeziehung — bezahlt und ausgesperrt.",
       anzahl: nichtFrei.length,
       gut: nichtFrei.length === 0,
-      knopf: nichtFrei.length ? { label: "Zur Kundenliste", href: "/chef/kunden" } : null,
+      knopf: nichtFrei.length ? { label: "Zur Kundenliste", href: "/chef/kundenliste" } : null,
       zeilen: nichtFrei.slice(0, 20),
     });
 

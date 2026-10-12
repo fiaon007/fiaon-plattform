@@ -22,6 +22,7 @@
 // Warnung mehr, sondern ein Muster.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import {
   Search, Users, ChevronLeft, ChevronRight, ArrowUpDown, ExternalLink,
   ShieldAlert, KeyRound, Clock, Landmark, X,
@@ -91,14 +92,24 @@ function zeichen(z: Zeile) {
 }
 
 export default function ChefKundenliste() {
-  const [q, setQ] = useState("");
-  const [suche, setSuche] = useState("");
+  // E-336: Die Suche im Kopf (⌘K) springt mit ?q=… hierher — „Alle Treffer in der Kundenliste".
+  const adresse = useSearch();
+  const ausAdresse = () => { try { return new URLSearchParams(adresse).get("q") ?? ""; } catch { return ""; } };
+  const [q, setQ] = useState(ausAdresse);
+  const [suche, setSuche] = useState(() => ausAdresse().trim());
   const [filter, setFilter] = useState<string>("alle");
   const [sort, setSort] = useState<string>("zuletzt");
   const [seite, setSeite] = useState(1);
   const [d, setD] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
+
+  // Neue Adresse bei offener Liste (zweiter Sprung aus der Suche): Feld übernimmt den Begriff.
+  useEffect(() => {
+    const neu = ausAdresse();
+    if (neu) setQ(neu);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adresse]);
 
   // Erst tippen lassen, dann suchen — sonst eine Abfrage je Tastendruck.
   useEffect(() => {

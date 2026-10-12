@@ -116,8 +116,12 @@ export async function ensureAnalyseTabelle(): Promise<void> {
   tabelleGeprueft = alleDa;
 }
 
-/** Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), 3 = dazu Spartöpfe der Bank (E-207). */
-export const AUSWERTUNG_VERSION = 3;
+/**
+ * Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), 3 = dazu Spartöpfe der Bank (E-207),
+ * 4 = Bareinzahlung vor eigenem Konto, Name nur als Gegenpartei, Nebenkonto nach Eingängen von außen (E-335, 12.10.2026).
+ * Eine höhere Fassung rechnet der Tageslauf `kontoauszug_neu_rechnen` ohne Modellaufruf nach (analysenNeuRechnen).
+ */
+export const AUSWERTUNG_VERSION = 4;
 
 export interface Buchung {
   datum: string;
@@ -299,10 +303,14 @@ const BUCHUNG_ANWEISUNG = (zeitraumVon: string | null, zeitraumBis: string | nul
   "  kredit_rate; Inkasso/Mahnung/Forderungsmanagement/Gerichtsvollzieher = inkasso_mahnung; Rücklastschrift/Rückbuchung/",
   "  Lastschrift zurück = ruecklastschrift; Kontoführung/Entgelt/Zinsen/Sollzinsen = gebuehren; Tipico/bwin/Lotto/Casino =",
   "  gluecksspiel; Supermärkte = lebensmittel; Tanken/Bahn/Bus = mobilitaet (Kfz-Versicherung = versicherung);",
-  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld; Bareinzahlung (Gutschrift) = bareinzahlung;",
+  "  Apotheke/Arzt = gesundheit; Geldautomat/Bargeld = bargeld; Bareinzahlung (Gutschrift) = bareinzahlung — auch Eigenerlag,",
+  "  SB-Einzahlung, Bareinlage, Kassa, Münzeinzahlung, Tageslosung: Bargeld kommt von außen, NIE eigenes_konto;",
   "  Finanzamt/Kfz-Steuer (Hauptzollamt)/Rundfunkbeitrag/Stadtkasse (Abbuchung) = abgaben.",
-  "· Aufladung/Top-up, Umbuchung oder Übertrag vom EIGENEN Konto (Zahlung vom Kontoinhaber selbst) = eigenes_konto — das ist",
-  "  kein Einkommen und keine Sozialleistung. Bewegungen zwischen Spartöpfen/Unterkonten derselben Bank (Pocket, Space, Tagesgeld,",
+  "· Aufladung/Top-up, Umbuchung oder Übertrag vom EIGENEN Konto = eigenes_konto — NUR wenn der Kontoinhaber selbst der",
+  "  AUFTRAGGEBER ist. Steht sein Name nur als Empfänger im Zweck (bei Überweisungen Dritter üblich), ist es Geld von außen",
+  "  (ueberweisung_ein). Auszahlungen von Kartenterminals/Kassensystemen (SumUp, Zettle, Stripe) und Zahlungen von Kunden",
+  "  sind Einnahmen (ueberweisung_ein oder sonstige_einnahme). Eigenes Konto ist kein Einkommen und keine Sozialleistung.",
+  "  Bewegungen zwischen Spartöpfen/Unterkonten derselben Bank (Pocket, Space, Tagesgeld,",
   "  Portmonee, Vault) = spartopf, in beide Richtungen. Inkassobüros und Forderungskäufer (PRA Group, Axactor, Intrum, Lowell, EOS, coeo,",
   "  KSP, Creditreform, Pair Finance) = inkasso_mahnung, nie kredit_rate.",
   "· wiederkehrend = true bei allem, was regelmäßig kommt (Miete, Energie, Versicherung, Telefon, Abos, Raten, Gehalt, Rente,",
@@ -714,7 +722,11 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   // Mensch mühelos liest. Ohne brauchbare Textschicht liest jetzt das
   // Bildmodell die Seiten zeilengetreu (fiaon-ocr.ts); gerechnet wird danach
   // derselbe Weg wie bei einem PDF aus dem Online-Banking.
-  if (!auszugBrauchbar(gesamt)) {
+  // E-335 (12.10.2026): Geprüft wird der Text OHNE den Vermerk „Vom Kunden als Bilddatei eingereicht …", den jede
+  // gewandelte Fotoseite trägt (fiaon-bild-zu-pdf.ts). Mit ihm galt ein reiner Foto-Auszug ab zwei Seiten als
+  // „brauchbar", die Texterkennung lief nie, der Kopf sah nur Fußzeilen → „kein Kontoauszug" (12 Personen, 88 Läufe).
+  const brauchbar = () => auszugBrauchbar(ohneFotoVermerk(gesamt));
+  if (!brauchbar()) {
     try {
       const ocr = await ocrLesen(buf, "kontoauszug");
       if (ocr) {
@@ -732,10 +744,10 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
       console.warn("[ANALYSE] Texterkennung:", (e as Error).message);
     }
   }
-  if (!auszugBrauchbar(gesamt) && technisch) {
+  if (!brauchbar() && technisch) {
     throw new Error(`Texterkennung technisch gescheitert — wird wiederholt: ${technisch}`);
   }
-  if (!auszugBrauchbar(gesamt)) {
+  if (!brauchbar()) {
     return leer("unlesbar", "Die Datei ist nicht lesbar — auch die Texterkennung findet keine Buchungen (zu unscharf, abgeschnitten oder leer). Bitte laden Sie den Kontoauszug als PDF aus dem Online-Banking hoch oder fotografieren Sie jede Seite gerade und scharf.",
       "Kontoauszug-Analyse: Datei auch mit Texterkennung nicht lesbar. Der Kunde sieht die Bitte um ein PDF aus dem Online-Banking oder ein scharfes Foto.", seiten.length);
   }

@@ -96,6 +96,12 @@ export interface AuszugEingang {
     pruefung: { stimmt: boolean | null; differenzCents?: number | null } | null;
     fehler: string | null;
   } | null;
+  /**
+   * E-335 (12.10.2026): Ein Mitarbeiter hat den Kontoauszug in der Akte als „Geprüft" vermerkt — und seither kam keine
+   * ungeprüfte Datei dazu. Dann sperrt ein „Nebenkonto"-Urteil der Auswertung nicht mehr (Mensch schlägt Regel);
+   * eine unlesbare Datei bleibt unlesbar, der Satz sagt es dazu.
+   */
+  bestaetigt?: { am: string } | null;
 }
 
 export type VorStand = "ok" | "fehlt" | "mangel" | "pruefen";
@@ -223,7 +229,7 @@ export function voraussetzungenPruefen(e: {
   } else if (!a || a.status === "laeuft") {
     konto = { ...leer, ok: false, stand: "pruefen", satz: a ? "Der Kontoauszug wird gerade ausgewertet." : "Der Kontoauszug ist noch nicht ausgewertet — unten „Jetzt auswerten“.", bitte: null };
   } else if (a.status === "unlesbar") {
-    konto = { ...leer, ok: false, stand: "mangel", satz: `Der Kontoauszug ist nicht auswertbar${a.fehler ? `: ${a.fehler}` : "."}`,
+    konto = { ...leer, ok: false, stand: "mangel", satz: `Der Kontoauszug ist nicht auswertbar${a.fehler ? `: ${a.fehler}` : "."}${e.auszug.bestaetigt ? " Von Hand als Kontoauszug bestätigt — die Buchungen sind trotzdem nicht lesbar: in der Akte „Neu lesen“." : ""}`,
       bitte: "einen gut lesbaren Kontoauszug als PDF aus Ihrem Online-Banking (keine Fotos vom Bildschirm, keine Gehaltsabrechnung)" };
   } else if (a.status !== "fertig" || (a.version ?? 0) < e.aktuelleVersion) {
     konto = { ...leer, ok: false, stand: "pruefen", satz: "Die Auswertung des Kontoauszugs ist veraltet oder gescheitert — unten „Neu auswerten“.", bitte: null };
@@ -247,7 +253,7 @@ export function voraussetzungenPruefen(e: {
     const alterTage = bis ? tagNr(e.heuteIso) - tagNr(bis) : 9999;
     const zr = von && bis ? `${datumDe(von)}–${datumDe(bis)}` : "unbekannt";
     const basis = { zeitraumVon: von, zeitraumBis: bis, tage, fehlendeMonate: fehlend, cent };
-    if (a.nebenkonto) {
+    if (a.nebenkonto && !e.auszug.bestaetigt) {
       konto = { ...basis, ok: false, stand: "mangel", satz: `Nebenkonto (${zr}): Die Eingänge kommen überwiegend von einem anderen eigenen Konto — das Gehaltskonto fehlt.`,
         bitte: "die Kontoauszüge des Kontos, auf dem Ihr Einkommen (Gehalt, Rente oder Leistung) eingeht — der hochgeladene Auszug ist ein Nebenkonto" };
     } else if (tage < FA_AUSZUG_MIN_TAGE) {
@@ -262,8 +268,11 @@ export function voraussetzungenPruefen(e: {
       konto = { ...basis, ok: false, stand: "mangel", satz: `Der Kontoauszug endet am ${datumDe(bis)} — älter als ${FA_AUSZUG_MAX_ALTER_TAGE} Tage, die Auswertung wäre veraltet.`,
         bitte: `Ihre aktuellen Kontoauszüge für ${aufzaehlung(neu.map((m) => monatsName(m)))}` };
     } else {
+      const hauptkonto = a.nebenkonto && e.auszug.bestaetigt
+        ? `Hauptkonto laut Prüfung von Hand am ${datumDe(e.auszug.bestaetigt.am.slice(0, 10))} — die Regel sah ein Nebenkonto`
+        : "Hauptkonto";
       konto = { ...basis, ok: true, stand: "ok", bitte: null,
-        satz: `Kontoauszug vollständig: ${zr} (${tage} Tage, Hauptkonto). Cent-Prüfung: ${cent === "stimmt" ? "stimmt" : cent === "abweichung" ? "nicht auf den Cent (Vorbehalt)" : "ohne Saldo im Auszug"}.` };
+        satz: `Kontoauszug vollständig: ${zr} (${tage} Tage, ${hauptkonto}). Cent-Prüfung: ${cent === "stimmt" ? "stimmt" : cent === "abweichung" ? "nicht auf den Cent (Vorbehalt)" : "ohne Saldo im Auszug"}.` };
       if (cent === "abweichung") vorbehalte.push("cent");
     }
   }

@@ -117,6 +117,11 @@ abschnitt("A2 · Voraussetzungen (Kontoauszug)");
   ok(!r.kontoauszug.ok && /es fehlen/.test(r.kontoauszug.satz) && r.kontoauszug.bitte?.includes(FA.monatsName(M1)) && r.kontoauszug.bitte?.includes(FA.monatsName(M2)), "Nur ein Monat → „es fehlen …“, Bitte nennt die fehlenden Monate");
   r = v({ ...voll, nebenkonto: true });
   ok(r.kontoauszug.stand === "mangel" && /Nebenkonto/.test(r.kontoauszug.satz) && /Einkommen/.test(r.kontoauszug.bitte ?? ""), "Nebenkonto → Gehaltskonto anfordern");
+  // E-335 (12.10.2026): „Geprüft“ in der Akte schlägt das Nebenkonto-Urteil — die Auswertung ist frei, der Satz sagt es.
+  r = FA.voraussetzungenPruefen({ ausweis: ausweisOk, auszug: { vorhanden: true, analyse: { ...voll, nebenkonto: true }, bestaetigt: { am: "2026-10-12T07:22:30.000Z" } }, auskunft: null, heuteIso, aktuelleVersion: 3 });
+  ok(r.kontoauszug.ok && /Prüfung von Hand am 12\.10\.2026/.test(r.kontoauszug.satz), "Nebenkonto + „Geprüft“ → Kontoauszug ok, mit Vermerk", r.kontoauszug.satz);
+  r = FA.voraussetzungenPruefen({ ausweis: ausweisOk, auszug: { vorhanden: true, analyse: { ...voll, status: "unlesbar", fehler: "kein Kontoauszug" }, bestaetigt: { am: "2026-10-12T07:22:30.000Z" } }, auskunft: null, heuteIso, aktuelleVersion: 3 });
+  ok(!r.kontoauszug.ok && /Von Hand als Kontoauszug bestätigt/.test(r.kontoauszug.satz), "Unlesbar + „Geprüft“ → bleibt gesperrt, Satz nennt „Neu lesen“", r.kontoauszug.satz);
   r = v({ ...voll, buchungsTage: tage.filter((t) => !t.startsWith(M2)) });
   ok(r.kontoauszug.stand === "mangel" && /Lücke/.test(r.kontoauszug.satz), "Lücke (ein Monat ohne Buchung) → mangel");
   r = v({ ...voll, zeitraumVon: tagPlus(heuteIso, -200), zeitraumBis: tagPlus(heuteIso, -100), buchungsTage: [tagPlus(heuteIso, -200), tagPlus(heuteIso, -170), tagPlus(heuteIso, -140), tagPlus(heuteIso, -110), tagPlus(heuteIso, -100)] });

@@ -347,7 +347,9 @@ abschnitt("Einsatzort Finanzauswertung (E-IT-D)");
     }
   };
   lauf("server");
-  ok(leser.sort().join(",") === "server/lib/fiaon-finanzauswertung.ts", `fiaon_finanzauswertungen nur im Ablauf gelesen (gefunden: ${leser.join(", ") || "—"})`);
+  // E-328 (12.10.2026): „Alle Daten“ der EINEN Akte listet jede Kundentabelle (nur Geschäftsführung, Inhalte lesend) — erlaubt.
+  const erlaubt = new Set(["server/lib/fiaon-finanzauswertung.ts", "server/lib/fiaon-akte-datensaetze.ts"]);
+  ok(leser.length > 0 && leser.every((x) => erlaubt.has(x)), `fiaon_finanzauswertungen nur im Ablauf (und in „Alle Daten“) gelesen (gefunden: ${leser.join(", ") || "—"})`);
   const routen = lies("server/routes/fiaon-finanzauswertung.ts");
   ok(/router\.get\("\/kunde\/:ref\/finanzauswertung", requireKunde/.test(routen), "Kunde sieht nur seine eigene Auswertung (requireKunde)");
   ok(/requireAgent/.test(routen) && /darfAnKunde/.test(routen), "Akte: nur wer den Kunden betreut, und die Leitung");

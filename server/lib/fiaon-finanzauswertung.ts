@@ -164,8 +164,17 @@ export async function eingabenSammeln(personId: number, lauf: Lauf = sqlPool): P
     }
   }
   const { AUSWERTUNG_VERSION } = await import("./fiaon-kontoauszug-analyse");
+  // E-335: „Geprüft" in der Akte (kategorieGeprueft → fiaon_dokumente.geprueft_am) — gilt, solange JEDE aktuelle
+  // Kontoauszug-Datei geprüft ist. Kommt eine neue dazu, muss wieder ein Mensch hinsehen.
+  const [gp] = (await lauf`
+    SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE geprueft_am IS NULL)::int AS offen, MAX(geprueft_am) AS am
+      FROM fiaon_dokumente
+     WHERE person_id = ANY(${familie}) AND art = 'unterlage' AND kategorie = 'kontoauszug'
+       AND entfernt_am IS NULL AND geloescht_am IS NULL`.catch(() => [])) as any[];
+  const bestaetigt = gp && Number(gp.n) > 0 && Number(gp.offen) === 0 && gp.am ? { am: new Date(gp.am).toISOString() } : null;
   const auszug: AuszugEingang = {
     vorhanden: !!dok("kontoauszug")?.vorhanden,
+    bestaetigt,
     analyse: analyse ? {
       status: analyse.status, version, zeitraumVon: analyse.zeitraumVon, zeitraumBis: analyse.zeitraumBis, nebenkonto: !!analyse.nebenkonto,
       buchungsTage: (analyse.buchungen ?? []).map((b: any) => String(b.datum)), pruefung: analyse.pruefung ? { stimmt: analyse.pruefung.stimmt ?? null, differenzCents: analyse.pruefung.differenzCents ?? null } : null,

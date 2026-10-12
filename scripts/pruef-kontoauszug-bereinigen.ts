@@ -160,5 +160,36 @@ ok(auszugWert("Kontoauszug Nr. 6 · Alter Kontostand 312,40 · 01.06. Lastschrif
 const zweimal = buchungenBereinigen(topf, P);
 ok(JSON.stringify(zweimal) === JSON.stringify(topf), "Bereinigen ist idempotent — die Korrektur „war: …“ bleibt erhalten");
 
+// ── E-335 (12.10.2026): Selbstständige aus Österreich — Bareinzahlungen, Kunden, die die Empfängerin in den Zweck drucken ──
+{
+  const E = { vorname: "Eva", nachname: "Muster" };
+  const r = buchungenBereinigen([
+    B("2026-07-13", 14015, "Eva Muster", "SB-Eigenerlag 13.07.", "eigenes_konto"),
+    B("2026-07-14", 800, "Privatperson", "Bareinlage Kassa", "eigenes_konto"),
+    B("2026-07-15", 1200, "Privatperson", "Eva Muster Rechnung 12", "eigenes_konto"),
+    B("2026-07-16", 950, "Privatperson", "Hans Huber an Eva Muster Rechnung 13", "ueberweisung_ein"),
+    B("2026-07-17", 430, "SumUp Payments", "Auszahlung 1234", "eigenes_konto"),
+    B("2026-07-18", 300, "Privatperson", "Zahlung von EVA MUSTER", "ueberweisung_ein"),
+    B("2026-07-19", 500, "Privatperson", "Privateinlage", "sonstige_einnahme"),
+    B("2026-07-20", 64.5, "ÖGK Österreichische Gesundheitskasse", "Krankenkassa Erstattung", "erstattung"),
+  ], E);
+  const k = (i: number) => r[i].kategorie;
+  ok(k(0) === "bareinzahlung", "„SB-Eigenerlag“ ist eine Bareinzahlung — auch mit dem eigenen Namen als Gegenpartei", k(0));
+  ok(k(1) === "bareinzahlung", "„Bareinlage Kassa“ ist eine Bareinzahlung", k(1));
+  ok(k(2) === "ueberweisung_ein", "Empfängerin im Zweck einer fremden Zahlung → Geld von außen", k(2));
+  ok(k(3) === "ueberweisung_ein", "„Hans Huber an Eva Muster“ → Geld von außen", k(3));
+  ok(k(4) === "ueberweisung_ein", "SumUp-Auszahlung: „eigenes Konto“ des Modells ohne Beleg → Eingang", k(4));
+  ok(k(5) === "eigenes_konto", "„Zahlung von EVA MUSTER“ bleibt die eigene Umbuchung (E-207)", k(5));
+  ok(k(6) === "eigenes_konto", "„Privateinlage“ ist eigenes Geld", k(6));
+  ok(k(7) === "erstattung", "„Krankenkassa“ ist keine Bareinzahlung („kassa“ nur als ganzes Wort)", k(7));
+  ok(!nebenkontoAus(r).nebenkonto, "Selbstständige mit Kunden- und Bareinzahlungen: KEIN Nebenkonto");
+  const nur = buchungenBereinigen([
+    B("2026-07-01", 1500, "Privatperson", "Zahlung von EVA MUSTER", "ueberweisung_ein"),
+    B("2026-07-15", 1500, "Eva Muster", "Umbuchung", "eigenes_konto"),
+    B("2026-07-20", 30, "Temu", "Refund", "erstattung"),
+  ], E);
+  ok(nebenkontoAus(nur).nebenkonto, "Nur Umbuchungen vom eigenen Konto + Erstattung → weiterhin Nebenkonto");
+}
+
 console.log(`\n${fehler === 0 ? "✓" : "✗"} ${geprueft - fehler}/${geprueft} Prüfungen bestanden`);
 process.exit(fehler === 0 ? 0 : 1);

@@ -56,7 +56,22 @@ const INKASSO = [
 ];
 
 /** Aufladungen und Umbuchungen, die auf einer Gutschrift Geld vom eigenen Konto bedeuten. */
-const EIGEN_EIN_WOERTER = ["top up", "topup", "aufladung", "aufgeladen", "umbuchung", "uebertrag", "kontouebertrag", "eigenes konto", "eigenuebertrag", "von eigenem konto"];
+const EIGEN_EIN_WOERTER = ["top up", "topup", "aufladung", "aufgeladen", "umbuchung", "uebertrag", "kontouebertrag", "eigenes konto", "eigenuebertrag", "von eigenem konto", "privateinlage", "privat einlage", "einlage privat"];
+// ── E-335 (12.10.2026, Team-Feedback Florentine, Fall Eva Sturm) ──────────────────────────────────────────────
+// Eine Selbstständige aus Kärnten: 73 % ihrer Eingänge galten als „eigenes Konto" — Tageslosungen am Automaten
+// („SB-Eigenerlag", „Bareinlage Kassa"), Zahlungen von Kunden, die ihren Namen als Empfängerin in den Zweck
+// drucken, SumUp-Auszahlungen. Ergebnis: „Nebenkonto — das Gehaltskonto fehlt", die Auswertung gesperrt.
+// Gemessen (nur lesend): 28 Bareinzahlungen bei 9 Personen (24.961 €) als eigenes Konto; 10 von 19 Selbstständigen
+// ohne Einkommen. Regeln jetzt:
+//  · Bareinzahlung (Wörter unten, als ganzes Wort) ist immer „bareinzahlung" — Bargeld kommt von außen.
+//  · Auszahlungen von Kartenterminals (SumUp …) fängt die nächste Regel: kein Beleg für „eigenes Konto" → Eingang.
+//  · Der eigene Name zählt als GEGENPARTEI oder im Zweck nur als ZAHLER („von …") — als Empfängerin steht er auch bei
+//    fremden Überweisungen im Zweck (George, SEPA).
+//  · Ein „eigenes Konto" des Modells ohne Beleg (eigener Name als Gegenpartei, Umbuchungswort) wird „ueberweisung_ein".
+/** Bareinzahlungen am Schalter oder Automaten (DE/AT/CH). Ganze Wörter — „kassa" nicht in „Krankenkassa". */
+const BAR_EIN_WOERTER = ["eigenerlag", "sb eigenerlag", "bareinzahlung", "bar einzahlung", "einzahlung bar", "bareinlage", "bar einlage",
+  "sb einzahlung", "einzahlung automat", "einzahlungsautomat", "muenzeinzahlung", "munzeinzahlung", "kassa", "tageslosung", "losung", "cash deposit"];
+const hatWort = (flach: string, w: string) => ` ${flach} `.includes(` ${w} `);
 /** Auf einer ABBUCHUNG zählt nur das ausdrückliche Wort — der eigene Name steht dort oft im Zweck („Miete … Max Muster"). */
 const EIGEN_AUS_WOERTER = ["umbuchung auf", "uebertrag auf", "auf eigenes konto", "an eigenes konto", "eigenuebertrag", "kontouebertrag"];
 /**
@@ -87,6 +102,24 @@ export function istEigenerName(text: string, p: PersonName): boolean {
   return nach.every((w) => varianten(w).some((v) => t.includes(` ${v} `))) && vor.some((w) => t.includes(` ${w} `));
 }
 
+/**
+ * E-335: Der eigene Name im ZWECK zählt nur als ZAHLER — direkt hinter „von", „from", „Auftraggeber", „Absender",
+ * „Einzahler" (bis zu einem „an"/„für"/„to"). „Zahlung von MAX MUSTERMANN" ist die eigene Aufladung (E-207);
+ * „Hans Huber an Eva Sturm Rechnung 12" oder „Eva Sturm Rechnung 12" ist Geld eines Dritten.
+ */
+const ZAHLER_WOERTER = new Set(["von", "from", "auftraggeber", "absender", "einzahler", "zahler"]);
+const ZAHLER_ENDE = new Set(["an", "to", "fuer", "for", "zugunsten", "empfaenger", "beguenstigter"]);
+export function eigenerNameAlsZahler(text: string, p: PersonName): boolean {
+  const w = flachText(text).split(" ").filter(Boolean);
+  for (let i = 0; i < w.length; i++) {
+    if (!ZAHLER_WOERTER.has(w[i])) continue;
+    const teil: string[] = [];
+    for (let j = i + 1; j < w.length && teil.length < 4 && !ZAHLER_ENDE.has(w[j]); j++) teil.push(w[j]);
+    if (teil.length && istEigenerName(teil.join(" "), p)) return true;
+  }
+  return false;
+}
+
 export interface BereinigteBuchung extends RohBuchung {
   /** Was die Bereinigung geändert hat — für die Nachvollziehbarkeit („war: sozialleistung"). */
   korrektur?: string;
@@ -94,9 +127,11 @@ export interface BereinigteBuchung extends RohBuchung {
 
 /**
  * Die Regeln, in dieser Reihenfolge:
- *  1. Eigenes Konto: auf einer GUTSCHRIFT Vor- und Nachname des Kunden — als
- *     Gegenpartei oder im Zweck einer Zahlung von einer Privatperson — oder
- *     eine Aufladung/Umbuchung (echte Lohn- und Rentenzeilen ausgenommen); auf
+ *  0. (E-335) Bareinzahlung → „bareinzahlung" — vor jeder Eigenes-Konto-Regel, auch gegen das Modell.
+ *  1. Eigenes Konto: auf einer GUTSCHRIFT Vor- und Nachname des Kunden als
+ *     Gegenpartei oder eine Aufladung/Umbuchung (echte Lohn- und Rentenzeilen
+ *     ausgenommen); ein „eigenes Konto" des Modells ohne diesen Beleg wird
+ *     „ueberweisung_ein" (E-335); auf
  *     einer ABBUCHUNG nur ausdrückliche Umbuchungswörter → „eigenes_konto";
  *     in beide Richtungen Spartöpfe der Bank (Pocket, Tagesgeld, Portmonee)
  *     → „spartopf". Beide neutral: weder Einnahme noch Ausgabe.
@@ -122,15 +157,23 @@ export function buchungenBereinigen(buchungen: RohBuchung[], person: PersonName)
     // … Verdienstabrechnung … <Name>", „BARMER Pflegekasse … <Name>". Das ist
     // echtes Geld. Eine Eigenüberweisung kommt von einer Privatperson (so legt
     // das Modell private Namen ab) oder trägt den Namen als Gegenpartei selbst.
+    // E-335: Der Name zählt als Gegenpartei — oder im Zweck einer Privatperson nur als ZAHLER („Zahlung von …"):
+    // eine fremde Überweisung trägt die Empfängerin im Zweck.
     const gegenueber = flachText(b.empfaenger);
     const vonPrivat = gegenueber === "" || gegenueber === "privatperson";
-    const eigenerName = istEigenerName(b.empfaenger, person) || (vonPrivat && istEigenerName(text, person));
+    const eigenerName = istEigenerName(b.empfaenger, person) || (vonPrivat && eigenerNameAlsZahler(b.zweck, person));
+    const umbuchungsWort = EIGEN_EIN_WOERTER.some((w) => flach.includes(w));
     const marke = markeDerBuchung(b.empfaenger, b.zweck, KATEGORIEN[alt]?.label ?? "");
     const lohnWort = LOHN_WOERTER.some((w) => flach.includes(w));
     if (!echterLohn && SPARTOPF.test(flach)) {
       kategorie = "spartopf";
-    } else if (b.betragCents > 0 && !echterLohn && (eigenerName || EIGEN_EIN_WOERTER.some((w) => flach.includes(w)))) {
+    } else if (b.betragCents > 0 && !echterLohn && BAR_EIN_WOERTER.some((w) => hatWort(flach, w))) {
+      kategorie = "bareinzahlung";
+    } else if (b.betragCents > 0 && !echterLohn && (eigenerName || umbuchungsWort)) {
       kategorie = "eigenes_konto";
+    } else if (b.betragCents > 0 && alt === "eigenes_konto") {
+      // Das Modell sah „eigenes Konto", aber kein Beleg trägt es — Geld von außen.
+      kategorie = "ueberweisung_ein";
     } else if (b.betragCents < 0 && (istEigenerName(b.empfaenger, person) || EIGEN_AUS_WOERTER.some((w) => flach.includes(w)))) {
       // Der eigene Name als GEGENPARTEI einer Abbuchung: Geld aufs eigene andere Konto
       // (gemessen 21.09.: 21 Echtzeitüberweisungen „an <eigener Name>", 555 € im Monat als Ausgabe).
@@ -163,8 +206,14 @@ export function buchungenBereinigen(buchungen: RohBuchung[], person: PersonName)
 
 /** Ab diesem Anteil von Eingängen vom eigenen (anderen) Konto ist der Auszug ein Nebenkonto — das Gehaltskonto fehlt. */
 export const NEBENKONTO_ANTEIL = 0.5;
-/** … aber nur, wenn auf dem Konto kaum echtes Einkommen eingeht (unter diesem Anteil der Eingänge). */
+/** … aber nur, wenn auf dem Konto kaum Geld von außen eingeht (unter diesem Anteil der Eingänge). */
 export const NEBENKONTO_EINKOMMEN_HOECHSTENS = 0.2;
+/**
+ * Eingänge von außen (E-335): alles, was weder neutral noch eine Rückbuchung ist — Gehalt, Rente, Leistung, aber auch
+ * Kundenzahlungen, Bareinzahlungen und Terminal-Umsätze. Ein Konto, auf dem eine Selbstständige ihre Umsätze
+ * empfängt, ist kein Nebenkonto, auch wenn kein „Gehalt" darauf steht.
+ */
+const NICHT_VON_AUSSEN = new Set(["eigenes_konto", "spartopf", "erstattung", "ruecklastschrift"]);
 
 /** Neutrale Kategorien: Geld bleibt beim Kunden. */
 export const NEUTRAL = new Set(["eigenes_konto", "spartopf"]);
@@ -177,14 +226,14 @@ export const NEUTRAL = new Set(["eigenes_konto", "spartopf"]);
  *    dem das Bürgergeld eingeht und das zusätzlich vom Sparkonto aufgefüllt wird, ist kein Nebenkonto.
  */
 export function nebenkontoAus(buchungen: { betragCents: number; kategorie: string }[]): { eigenEin: number; eigenAus: number; vomEigenenKonto: number; alleEin: number; nebenkonto: boolean } {
-  let eigenEin = 0, eigenAus = 0, vomEigenenKonto = 0, alleEin = 0, einkommen = 0;
+  let eigenEin = 0, eigenAus = 0, vomEigenenKonto = 0, alleEin = 0, vonAussen = 0;
   for (const b of buchungen) {
     if (b.betragCents > 0 && b.kategorie !== "spartopf") alleEin += b.betragCents;
-    if (b.betragCents > 0 && EINKOMMEN_KATEGORIEN.has(b.kategorie)) einkommen += b.betragCents;
+    if (b.betragCents > 0 && !NICHT_VON_AUSSEN.has(b.kategorie)) vonAussen += b.betragCents;
     if (!NEUTRAL.has(b.kategorie)) continue;
     if (b.betragCents > 0) eigenEin += b.betragCents; else eigenAus -= b.betragCents;
     if (b.betragCents > 0 && b.kategorie === "eigenes_konto") vomEigenenKonto += b.betragCents;
   }
-  const nebenkonto = alleEin > 0 && vomEigenenKonto / alleEin >= NEBENKONTO_ANTEIL && einkommen < alleEin * NEBENKONTO_EINKOMMEN_HOECHSTENS;
+  const nebenkonto = alleEin > 0 && vomEigenenKonto / alleEin >= NEBENKONTO_ANTEIL && vonAussen < alleEin * NEBENKONTO_EINKOMMEN_HOECHSTENS;
   return { eigenEin, eigenAus, vomEigenenKonto, alleEin, nebenkonto };
 }

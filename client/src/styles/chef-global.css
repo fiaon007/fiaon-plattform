@@ -123,3 +123,14 @@
 .cg-aufruf-liste { margin-top: 4px; }
 .cg-aufruf-tab { min-width: 640px; }
 .cg-aufruf-tab tr:not(.cg-aufruf-kunde) td { color: rgba(148, 163, 184, .85); }
+
+/* E-331 (12.10.2026): Unterlagen auf der Kundenseite eines Angebots */
+.cg-unterlagen { margin: 14px 0; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(147,197,253,.22); background: rgba(40,141,250,.06); display: grid; gap: 8px; }
+.cg-unterlagen h4 { margin: 0; }
+.cg-unterlagen-liste { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 2px; }
+.cg-unterlagen-liste li { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 7px 0; border-top: 1px solid rgba(148,163,184,.14); font-size: 13px; }
+.cg-unterlagen-liste li:first-child { border-top: 0; }
+.cg-unterlagen-liste b { color: #93c5fd; font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.cg-unterlagen-knopf { justify-self: start; cursor: pointer; }
+.cg-unterlagen-knopf.cg-laeuft { opacity: .7; cursor: progress; }
+@media (max-width: 640px) { .cg-unterlagen-liste li { grid-template-columns: 1fr; } }

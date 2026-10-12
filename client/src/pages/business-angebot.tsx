@@ -212,6 +212,37 @@ function Ansprechpartner({ angebotRef }: { angebotRef: string }) {
   );
 }
 
+// E-331 (12.10.2026): „Ihre Unterlagen" — was die Leitung im Chefbüro hinterlegt hat (Vertrag, Nachweise, Sicherheiten).
+// Nur hinter diesem Link; leer → kein Abschnitt.
+interface Unterlage { id: number; titel: string; dateiname: string; mime: string; groesse: number; reihenfolge: number }
+const groesseText = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+function IhreUnterlagen({ token }: { token: string }) {
+  const [liste, setListe] = useState<Unterlage[] | null>(null);
+  useEffect(() => {
+    let an = true;
+    void fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/unterlagen`, { credentials: "include" })
+      .then((r) => r.json()).then((j) => { if (an) setListe(j?.ok && Array.isArray(j.unterlagen) ? j.unterlagen : []); })
+      .catch(() => { if (an) setListe([]); });
+    return () => { an = false; };
+  }, [token]);
+  if (!liste || !liste.length) return null;
+  return (
+    <section className="gia-abschnitt gia-unterlagen" id="unterlagen" aria-label="Ihre Unterlagen">
+      <h2 className="gia-h2">Ihre Unterlagen</h2>
+      <p className="gia-unterlagen-lead">Vertrag, Nachweise und Sicherheiten — geordnet, zum Öffnen und Speichern.</p>
+      <ol className="gs-blatt gia-unterlagen-liste">
+        {liste.map((u) => (
+          <li key={u.id}>
+            <span className="gia-unterlage-nr" aria-hidden="true">{String(u.reihenfolge).padStart(2, "0")}</span>
+            <span className="gia-unterlage-text"><b>{u.titel}</b><small>{u.mime === "application/pdf" ? "PDF" : "Bild"} · {groesseText(u.groesse)}</small></span>
+            <a className="gia-unterlage-auf" href={`/api/fiaon/global/angebot/${encodeURIComponent(token)}/unterlage/${u.id}`} target="_blank" rel="noreferrer" aria-label={`${u.titel} öffnen`}>Öffnen</a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export default function BusinessAngebot() {
   const [, treffer] = useRoute("/business/angebot/:token");
   const token = String(treffer?.token ?? "");
@@ -351,6 +382,7 @@ export default function BusinessAngebot() {
             <p className="gia-klein">{fertig.fertigFuss}</p>
             <p className="gia-klein gia-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           </div>
+          <IhreUnterlagen token={token} />
           <section className="gia-abschnitt" aria-label={ANGEBOT_ANSPRECHPARTNER_TITEL}>
             <h2 className="gia-h2">{ANGEBOT_ANSPRECHPARTNER_TITEL}</h2>
             <Ansprechpartner angebotRef={fertig.ref} />
@@ -469,6 +501,8 @@ export default function BusinessAngebot() {
             <p>{S.kapitalFrei}</p>
             <p className="gia-fein">{S.verbunden}</p>
           </Abschnitt>
+
+          <IhreUnterlagen token={token} />
 
           <Abschnitt id="vertrag" label={S.dokumenteTitel}>
             <h2 className="gia-h2">{S.dokumenteTitel}</h2>

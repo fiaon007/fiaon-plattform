@@ -33,7 +33,7 @@
 // Justins Kalender — server/lib/fiaon-global-angebot-startgespraech.ts). Die Zeile „Startgespräch" zeigt den Termin
 // oder rot „nicht gebucht — von Hand buchen" mit dem Grund; „Nachholen" versucht es noch einmal.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
 import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
 // E-IT-G (08.10.2026): das Geburtsdatum im Angebot als drei Felder; der Text ist ISO (auch aus dem Antrag) oder halb getippt — der Server liest beides.
@@ -452,6 +452,61 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
   );
 }
 
+// E-331 (12.10.2026): „Ihre Unterlagen" auf der Kundenseite — hier legt die Leitung sie ab (PDF, PNG, JPEG bis 15 MB).
+// Titel und Reihenfolge aus dem Dateinamen („03 FIAON LTD – Certificate.pdf" → Platz 3). Der Kunde sieht sie sofort.
+interface UnterlageZeile { id: number; titel: string; dateiname: string; mime: string; groesse: number; reihenfolge: number; hochgeladenAm: string; von: string | null }
+function AngebotUnterlagen({ angebotId, kundeLink }: { angebotId: number; kundeLink: string | null }) {
+  const [liste, setListe] = useState<UnterlageZeile[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [meldung, setMeldung] = useState<{ gut: boolean; text: string } | null>(null);
+  const feld = useRef<HTMLInputElement>(null);
+  const laden = useCallback(async () => {
+    const r = await fetch(`${API}/admin/global/angebote/${angebotId}/unterlagen`, { credentials: "include" }).then((x) => x.json()).catch(() => null);
+    setListe(r?.ok ? r.unterlagen : []);
+  }, [angebotId]);
+  useEffect(() => { void laden(); }, [laden]);
+  const hochladen = async (dateien: FileList | null) => {
+    if (!dateien || !dateien.length) return;
+    const fd = new FormData();
+    Array.from(dateien).forEach((d) => fd.append("dateien", d, d.name));
+    setBusy(true); setMeldung(null);
+    const r = await fetch(`${API}/admin/global/angebote/${angebotId}/unterlagen`, { method: "POST", credentials: "include", body: fd })
+      .then(async (x) => x.json().catch(() => ({ ok: false, error: `Antwort ${x.status}` }))).catch(() => ({ ok: false, error: "Keine Verbindung zum Server." }));
+    setBusy(false);
+    setMeldung(r.ok ? { gut: true, text: r.meldung } : { gut: false, text: r.error || "Nicht hochgeladen." });
+    if (feld.current) feld.current.value = "";
+    void laden();
+  };
+  const entfernen = async (u: UnterlageZeile) => {
+    if (!window.confirm(`„${u.titel}" von der Kundenseite entfernen?`)) return;
+    const r = await post(`/admin/global/angebote/${angebotId}/unterlagen/${u.id}`, {}, "DELETE");
+    setMeldung(r.ok ? { gut: true, text: r.meldung } : { gut: false, text: r.error || "Nicht entfernt." });
+    void laden();
+  };
+  return (
+    <div className="cg-unterlagen" data-angebot-unterlagen={angebotId}>
+      <h4>Unterlagen auf der Kundenseite <span className="cm-fein">({liste?.length ?? "…"})</span></h4>
+      <p className="cm-fein">Erscheinen beim Kunden unter „Ihre Unterlagen“ — nur hinter seinem Link. PDF, PNG oder JPEG bis 15 MB; die Nummer vorn im Dateinamen bestimmt die Reihenfolge.{kundeLink ? <> <a href={`${kundeLink}#unterlagen`} target="_blank" rel="noreferrer">So sieht er es</a></> : null}</p>
+      {liste && liste.length > 0 && (
+        <ol className="cg-unterlagen-liste">
+          {liste.map((u) => (
+            <li key={u.id}>
+              <span><b>{String(u.reihenfolge).padStart(2, "0")}</b> {u.titel}</span>
+              <span className="cm-fein">{u.mime === "application/pdf" ? "PDF" : "Bild"} · {Math.max(1, Math.round(u.groesse / 1024)).toLocaleString("de-DE")} KB · {datumZeit(u.hochgeladenAm)}{u.von ? ` · ${u.von}` : ""}</span>
+              <button type="button" className="cg-knopf cg-knopf-storno" onClick={() => void entfernen(u)}>Entfernen</button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <label className={`cg-knopf cg-unterlagen-knopf${busy ? " cg-laeuft" : ""}`}>
+        {busy ? "Lädt hoch …" : "Unterlagen hinzufügen"}
+        <input ref={feld} type="file" multiple accept="application/pdf,image/png,image/jpeg" disabled={busy} onChange={(e) => void hochladen(e.target.files)} hidden />
+      </label>
+      {meldung && <p className={meldung.gut ? "cm-fein cg-gut" : "cm-fein cg-rot"} role="status">{meldung.text}</p>}
+    </div>
+  );
+}
+
 async function post(pfad: string, body: unknown, methode = "POST"): Promise<any> {
   return fetch(`${API}${pfad}`, { method: methode, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) })
     .then(async (r) => ({ status: r.status, ...(await r.json().catch(() => ({ ok: false, error: `Antwort ${r.status} ohne Inhalt` }))) }))
@@ -580,6 +635,8 @@ export default function ChefGlobalAngebote() {
               <a href={a.anlage1Url} target="_blank" rel="noreferrer">Anlage 1 zum Unterschreiben (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
               {a.officeLink && <a href={a.officeLink}>Auftrag im Office ({a.auftragRef})</a>}
             </div>
+
+            <AngebotUnterlagen angebotId={a.id} kundeLink={a.link ?? null} />
 
             <AufrufBlock x={a.aufrufe ?? null} />
 

@@ -1280,6 +1280,15 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "neuen Termin von Hand vereinbaren.",
     tipp: "Sagt der Kunde ab, wählt er über den Link bei Justin auf /justin eine neue Zeit — Justin bekommt dazu eine Aufgabe.",
   },
+  // E-331 (12.10.2026) — ohne `ziel`: Der Block steht an jedem Individualangebot, aber nur im Reiter „Individualangebote“.
+  {
+    titel: "Unterlagen auf der Kundenseite.",
+    text: "Jedes Individualangebot hat den Block „Unterlagen auf der Kundenseite“. „Unterlagen hinzufügen“ nimmt PDF, PNG und JPEG bis "
+      + "15 MB, mehrere auf einmal; die Nummer vorn im Dateinamen bestimmt die Reihenfolge („03 FIAON LTD – Certificate.pdf“ steht an "
+      + "Platz 3, Titel „FIAON LTD – Certificate“). Der Kunde sieht sie sofort auf seiner Angebotsseite unter „Ihre Unterlagen“ — nur "
+      + "hinter seinem Link, nie zwischengespeichert. Dieselbe Datei zweimal wird nicht doppelt abgelegt; „Entfernen“ nimmt sie ihm sofort wieder weg.",
+    tipp: "Ausweise und Pässe als gekennzeichnete Kopie hochladen — Zweck und Empfänger stehen im Bild.",
+  },
   // E-301 (07.10.2026) — ohne `ziel`: Der Block steht nur, wenn es ein Firmenangebot gibt.
   {
     titel: "Firmenangebote (B2B) haben einen eigenen Block.",

@@ -146,6 +146,46 @@ router.get("/global/angebot/:token/bild/:name", async (req: Request, res: Respon
   }
 });
 
+// E-331 (12.10.2026): „Ihre Unterlagen" — Liste und Datei, NUR hinter dem Link (dieselbe Prüfung wie Seite und PDFs,
+// server/lib/fiaon-global-angebot-unterlagen.ts). Nie zwischengespeichert, nie indexiert: darunter liegt ein Reisepass.
+const unterlagenKoepfe = (res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+};
+router.get("/global/angebot/:token/unterlagen", async (req: Request, res: Response) => {
+  unterlagenKoepfe(res);
+  try {
+    const U = await import("../lib/fiaon-global-angebot-unterlagen");
+    const erg = await U.unterlagenFuerToken(String(req.params.token));
+    if (!erg.unterlagen) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, unterlagen: erg.unterlagen });
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] unterlagen:", err);
+    res.status(500).json({ ok: false, error: "Die Unterlagen lassen sich gerade nicht laden." });
+  }
+});
+router.get("/global/angebot/:token/unterlage/:id", async (req: Request, res: Response) => {
+  unterlagenKoepfe(res);
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ ok: false, error: "Diese Unterlage gibt es nicht." });
+    const U = await import("../lib/fiaon-global-angebot-unterlagen");
+    const erg = await U.unterlageDateiFuerToken(String(req.params.token), id);
+    if (!erg.daten || !erg.mime) return res.status(erg.status).json({ ok: false, error: erg.error });
+    const name = String(erg.dateiname || "Unterlage").replace(/["\\\r\n]/g, "");
+    const ascii = name.normalize("NFKD").replace(/[^\x20-\x7e]/g, "").replace(/\s+/g, " ").trim() || "Unterlage";
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader("Content-Type", erg.mime);
+    res.setHeader("Content-Length", String(erg.daten.length));
+    res.setHeader("Content-Disposition", `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.end(erg.daten);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] unterlage:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Die Unterlage lässt sich gerade nicht laden." });
+  }
+});
+
 // ── Die Leitung ──────────────────────────────────────────────────────────────
 async function chefName(req: ChefRequest): Promise<string> {
   const id = req.chef?.agentId ?? null;
@@ -376,5 +416,61 @@ for (const art of ["vertrag", "pruefbericht", "anlage1"] as const) {
     }
   });
 }
+
+// E-331: Unterlagen eines Angebots — nur die Leitung lädt hoch oder entfernt (ein Mensch entscheidet, was der Kunde sieht).
+router.get("/admin/global/angebote/:id/unterlagen", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const U = await import("../lib/fiaon-global-angebot-unterlagen");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ok: true, unterlagen: await U.unterlagenListe(idAus(req)) });
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] unterlagen (Leitung):", err);
+    res.status(500).json({ ok: false, error: "Die Unterlagen lassen sich gerade nicht laden." });
+  }
+});
+router.post(
+  "/admin/global/angebote/:id/unterlagen",
+  requireChef("leitung"),
+  (req: Request, res: Response, next: (e?: unknown) => void) => {
+    import("multer")
+      .then(({ default: multer }) => {
+        multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 12, fields: 2 } })
+          .array("dateien", 12)(req as any, res as any, (err: any) => {
+            if (err) {
+              return res.status(400).json({
+                ok: false,
+                error: err?.code === "LIMIT_FILE_SIZE" ? "Eine Datei ist größer als 15 MB." : err?.code === "LIMIT_FILE_COUNT" ? "Höchstens zwölf Dateien auf einmal." : "Die Dateien konnten nicht gelesen werden.",
+              });
+            }
+            next();
+          });
+      })
+      .catch(() => res.status(500).json({ ok: false, error: "Hochladen ist gerade nicht verfügbar." }));
+  },
+  async (req: ChefRequest, res: Response) => {
+    try {
+      // multer liest Dateinamen als latin1 — Umlaute und Gedankenstriche kommen sonst verstümmelt an.
+      const name = (roh: string) => { const u = Buffer.from(String(roh || ""), "latin1").toString("utf8"); return u.includes("\uFFFD") ? String(roh || "") : u; };
+      const dateien = (((req as any).files ?? []) as { buffer: Buffer; originalname: string }[])
+        .map((f) => ({ buffer: f.buffer, name: name(f.originalname || "Unterlage.pdf").slice(0, 160) }));
+      const U = await import("../lib/fiaon-global-angebot-unterlagen");
+      const erg = await U.unterlagenHinzufuegen(idAus(req), dateien, await chefName(req));
+      res.status(erg.ok ? 200 : 400).json(erg.ok ? { ok: true, meldung: erg.text, neu: erg.neu } : { ok: false, error: erg.text });
+    } catch (err) {
+      console.error("[FIAON-ANGEBOT] unterlagen hochladen:", err);
+      res.status(500).json({ ok: false, error: "Das Hochladen ist gescheitert." });
+    }
+  },
+);
+router.delete("/admin/global/angebote/:id/unterlagen/:uid", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const U = await import("../lib/fiaon-global-angebot-unterlagen");
+    const erg = await U.unterlageEntfernen(idAus(req), Number(req.params.uid));
+    res.status(erg.ok ? 200 : 404).json(erg.ok ? { ok: true, meldung: erg.text } : { ok: false, error: erg.text });
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] unterlage entfernen:", err);
+    res.status(500).json({ ok: false, error: "Das Entfernen ist gescheitert." });
+  }
+});
 
 export default router;

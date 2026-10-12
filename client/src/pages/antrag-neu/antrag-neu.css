@@ -434,3 +434,19 @@ html.an-sheet-offen, html.an-sheet-offen body{overflow:hidden}
 .an-seite .an-chip.an-chip-stark{border:1.5px dashed var(--akzent);background:#fff;color:var(--tief);font-weight:500}
 .an-seite .an-uebersicht .an-akk{margin:4px 0 2px}
 .an-seite .an-uebersicht .an-akk>button{min-height:40px;font-size:.8125rem;color:var(--tinte-2)}
+
+/* E-329: Unterschrift am Handy — Name zuerst (ein Tipp), Zeichnen auf Wunsch; Lotse zum nächsten Schritt */
+.an-seite .an-unterschrift-feld.an-ruhig{touch-action:auto}
+.an-seite .an-unterschrift-feld.an-ruhig canvas{pointer-events:none}
+.an-seite .an-unterschrift-feld.an-tippbar{cursor:pointer;border:1.5px dashed rgba(40,141,250,.5);background:linear-gradient(180deg,#fff,var(--akzent-hauch))}
+.an-seite .an-sig-wahl{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.an-seite .an-sig-wahl .an-knopf.an-text{align-self:center}
+.an-seite .an-knopf.an-sig-knopf{width:100%;min-height:54px;padding:10px 20px;background:#fff;color:var(--tief);border:1.5px solid var(--akzent);box-shadow:0 4px 14px rgba(29,78,216,.10);white-space:normal;line-height:1.3;text-align:center}
+.an-seite .an-knopf.an-sig-knopf svg{width:20px;height:20px;flex:none}
+.an-seite .an-sig-fertig{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.an-seite .an-sig-ok{display:inline-flex;align-items:center;gap:6px;color:var(--tief);font-size:.875rem;font-weight:500}
+.an-seite .an-sig-ok svg{width:16px;height:16px}
+.an-seite .an-lotse{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%,18px);opacity:0;pointer-events:none;display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 20px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(13,27,52,.88);-webkit-backdrop-filter:blur(12px) saturate(140%);backdrop-filter:blur(12px) saturate(140%);color:#fff;font-size:.875rem;font-weight:500;white-space:nowrap;box-shadow:0 10px 30px rgba(11,18,32,.28),inset 0 1px 0 rgba(255,255,255,.12);transition:opacity .25s var(--kurve),transform .35s var(--kurve);z-index:30}
+.an-seite .an-lotse.an-an{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.an-seite .an-lotse svg{width:16px;height:16px;transition:transform .25s}
+.an-seite .an-lotse:focus-visible{outline:2px solid var(--akzent);outline-offset:3px}

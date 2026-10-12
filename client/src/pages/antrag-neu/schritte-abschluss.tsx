@@ -1,7 +1,8 @@
 // Die Bildschirme nach den Angaben: Prüfung, Ergebnis, Paket, Limit, Vertrag,
 // Unterschrift, Zahlung, Danke (PIN: pin.tsx). Wortlaut aus dem freigegebenen
 // Prototyp v2 — mit echten Daten, echter Prüfung, echter Annahme und Zahlung.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ANTRAG_NEU_HAKEN_KOMBI_NACH, ANTRAG_NEU_HAKEN_KOMBI_VOR, ANTRAG_NEU_KURZ, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
@@ -19,7 +20,7 @@ import { META_PAKETWECHSEL } from "@shared/fiaon-meta-ereignisse";
 import { Akk, Fehlerkasten, Guilloche, Haken, Ico, Knopf, Lead, Pfeil, Seg, Siegel, Tipp, Tippbar, Titel, Zeile, useAntrag, useFehler } from "./bausteine";
 import { api } from "./api";
 import {
-  anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, kleineresPaket, mitWem, naechstesPaket, paket, paketIndex, telefonText, uhr, zustandVergessen,
+  anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, kleineresPaket, mitWem, naechstesPaket, paket, paketIndex, ruhigSystem, telefonText, uhr, zustandVergessen,
   type PruefPunkt, type Zustand,
 } from "./zustand";
 import { AngabenSheet, AuskunftSheet, LeistungSheet, PasswortSheet, QrSheet, TerminWahl, VertragSheet } from "./sheets";
@@ -384,7 +385,10 @@ export function SchrittVertrag() {
 // ═══════════════════════════════════════════════════════════════════════════
 type Strich = [number, number, number][];
 
-function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderung: (o: { da: boolean; getippt: boolean; png: () => string | null }) => void; getippterName: string; sperren: boolean }) {
+// E-329: Am Handy ist der Name die erste Wahl — ein Tipp unterschreibt (gemessen 05.–12.10.: am Handy
+// schlossen 34 von 68 ab, am Computer 5 von 5). Zeichnen gibt es auf Wunsch; erst dann fängt das Feld
+// den Finger — vorher scrollt die Seite darüber, statt beim Wischen Striche zu malen.
+function Unterschriftsfeld({ onAenderung, getippterName, sperren, handy }: { onAenderung: (o: { da: boolean; getippt: boolean; png: () => string | null }) => void; getippterName: string; sperren: boolean; handy: boolean }) {
   const { buehne, ereignis } = useAntrag();
   const feld = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -396,6 +400,12 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
   const dick = useRef(2.6);
   const lt = useRef(0);
   const spiegel = useRef<number | null>(null);
+  const [modus, setModus] = useState<"name" | "zeichnen">(handy && getippterName ? "name" : "zeichnen");
+  const [unterschrieben, setUnterschrieben] = useState(false);
+  const modusRef = useRef(modus);
+  modusRef.current = modus;
+  const nameRef = useRef(getippterName);
+  nameRef.current = getippterName;
 
   const zeichnen = useCallback(() => {
     const c = cv.current?.getContext("2d");
@@ -404,12 +414,15 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
     c.clearRect(0, 0, w, h);
     c.strokeStyle = "#1D4ED8"; c.fillStyle = "#1D4ED8"; c.lineCap = "round"; c.lineJoin = "round";
     const s = sig.current;
-    if (s.text) {
+    const schrift = (t: string) => {
       let fs = Math.round(h * 0.26);
       c.font = `500 ${fs}px "Dancing Script", cursive`;
-      while (c.measureText(s.text).width > w - 52 && fs > 16) { fs -= 2; c.font = `500 ${fs}px "Dancing Script", cursive`; }
-      c.fillText(s.text, 26, h - 44);
-    }
+      while (c.measureText(t).width > w - 52 && fs > 16) { fs -= 2; c.font = `500 ${fs}px "Dancing Script", cursive`; }
+      c.fillText(t, 26, h - 44);
+    };
+    if (s.text) schrift(s.text);
+    // Im Namens-Modus steht der Name blass vor — so sieht man vorher, was ein Tipp einsetzt (nie im Bild, das gespeichert wird).
+    else if (modusRef.current === "name" && !s.striche.length && nameRef.current) { c.save(); c.globalAlpha = 0.17; schrift(nameRef.current); c.restore(); }
     for (const st of s.striche) for (let j = 1; j < st.length; j++) {
       c.lineWidth = st[j][2]; c.beginPath(); c.moveTo(st[j - 1][0] * w, st[j - 1][1] * h); c.lineTo(st[j][0] * w, st[j][1] * h); c.stroke();
     }
@@ -437,6 +450,7 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
     const s = sig.current;
     const da = !!s.text || laenge() > 60;
     if (da && !s.text && !gezeichnetGemeldet.current) { gezeichnetGemeldet.current = true; ereignis("unterschrift_gezeichnet", { schritt: "unterschrift" }); }
+    setUnterschrieben(da);
     onAenderung({
       da, getippt: !!s.text,
       png: () => { try { return cv.current?.toDataURL("image/png") ?? null; } catch { return null; } },
@@ -457,7 +471,7 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
 
   const pos = (e: React.PointerEvent) => { const q = cv.current!.getBoundingClientRect(); return [e.clientX - q.left, e.clientY - q.top]; };
   const runter = (e: React.PointerEvent) => {
-    if (sperren) return;
+    if (sperren || modusRef.current === "name") return;
     e.preventDefault(); groesse();
     malt.current = true;
     if (sig.current.text) { sig.current.text = ""; zeichnen(); }
@@ -485,22 +499,57 @@ function Unterschriftsfeld({ onAenderung, getippterName, sperren }: { onAenderun
   };
   const hoch = () => { if (!malt.current) return; malt.current = false; melden(); spiegeln(); };
 
+  // Schriftart nachladen und neu zeichnen — sonst steht der Name (oder sein Vorschau-Schatten) in der Ersatzschrift.
+  const nachSchrift = () => { void document.fonts?.load?.('500 40px "Dancing Script"').then(() => { zeichnen(); if (sig.current.text) { melden(); buehne()?.signatur(sig.current); } }); };
+  useEffect(() => { zeichnen(); if (modus === "name") nachSchrift(); }, [modus, getippterName]);
+  const leeren = () => { sig.current = { striche: [], text: "", asp: sig.current.asp }; zeichnen(); melden(); buehne()?.signatur(sig.current); };
+  const mitNamen = (detail: "chip" | "knopf" | "feld") => {
+    if (sperren) return;
+    sig.current = { striche: [], text: getippterName, asp: sig.current.asp };
+    ereignis("unterschrift_getippt", { schritt: "unterschrift", detail });
+    zeichnen(); melden(); buehne()?.signatur(sig.current);
+    nachSchrift();
+  };
+  const zeichnenWaehlen = () => {
+    if (sperren) return;
+    ereignis("unterschrift_zeichnen", { schritt: "unterschrift" });
+    modusRef.current = "zeichnen";
+    setModus("zeichnen"); leeren();
+  };
+  const nameModus = modus === "name";
+
   return (
     <>
-      <div className="an-unterschrift-feld" ref={feld} data-feld="unterschrift">
+      <div className={`an-unterschrift-feld${nameModus ? " an-ruhig" : ""}${nameModus && !unterschrieben && !sperren ? " an-tippbar" : ""}`} ref={feld} data-feld="unterschrift"
+        onClick={nameModus && !unterschrieben ? () => mitNamen("feld") : undefined}>
         <canvas ref={cv} onPointerDown={runter} onPointerMove={ziehen} onPointerUp={hoch} onPointerCancel={hoch} aria-label="Unterschriftsfeld" role="img" />
         <div className="an-grundlinie" /><div className="an-x">×</div>
-        <div className="an-platz" ref={platz}>Hier unterschreiben</div>
+        {nameModus ? null : <div className="an-platz" ref={platz}>Hier unterschreiben</div>}
       </div>
-      <div className="an-chips">
-        <button type="button" className="an-chip" disabled={sperren} onClick={() => { sig.current = { striche: [], text: "", asp: sig.current.asp }; zeichnen(); melden(); buehne()?.signatur(sig.current); }}>Neu zeichnen</button>
-        <button type="button" className="an-chip an-chip-stark" disabled={sperren} onClick={() => {
-          sig.current = { striche: [], text: getippterName, asp: sig.current.asp };
-          ereignis("unterschrift_getippt", { schritt: "unterschrift" });
-          zeichnen(); melden(); buehne()?.signatur(sig.current);
-          void document.fonts?.load?.('500 40px "Dancing Script"').then(() => { zeichnen(); melden(); buehne()?.signatur(sig.current); });
-        }}>Mit meinem Namen unterschreiben</button>
-      </div>
+      {nameModus ? (
+        unterschrieben ? (
+          <div className="an-sig-fertig">
+            <span className="an-sig-ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>Unterschrieben</span>
+            <span className="an-chips">
+              <button type="button" className="an-chip" disabled={sperren} onClick={leeren}>Zurücknehmen</button>
+              <button type="button" className="an-chip" disabled={sperren} onClick={zeichnenWaehlen}>Lieber zeichnen</button>
+            </span>
+          </div>
+        ) : (
+          <div className="an-sig-wahl">
+            <button type="button" className="an-knopf an-sig-knopf" disabled={sperren} onClick={() => mitNamen("knopf")}>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 15.5c2.2-.4 3.6-2.9 4.6-5.6.8-2.2.2-3.6-.8-3.1-1.3.6-1.2 5.2.9 7.3 1.4 1.4 2.6.6 3.4-.6.6-.9 1-1.7 1.6-1.5.7.2.2 1.6 1.1 1.9.8.3 1.6-.7 2.6-1.3" /><path d="M3 18h14" /></svg>
+              Mit meinem Namen unterschreiben
+            </button>
+            <button type="button" className="an-knopf an-text" disabled={sperren} onClick={zeichnenWaehlen}>Lieber mit dem Finger zeichnen</button>
+          </div>
+        )
+      ) : (
+        <div className="an-chips">
+          <button type="button" className="an-chip" disabled={sperren} onClick={leeren}>Neu zeichnen</button>
+          <button type="button" className="an-chip an-chip-stark" disabled={sperren} onClick={() => { if (handy) { modusRef.current = "name"; setModus("name"); } mitNamen("chip"); }}>Mit meinem Namen unterschreiben</button>
+        </div>
+      )}
     </>
   );
 }
@@ -517,6 +566,42 @@ export function SchrittUnterschrift() {
   const [neuLaden, setNeuLaden] = useState(false);
   const [tippText, setTippText] = useState("Ihr Vertrag wird geschlossen …");
   const faelligBis = new Date(Date.now() + 7 * 864e5);
+  const handy = useMemo(() => { try { return window.matchMedia("(pointer: coarse)").matches; } catch { return false; } }, []);
+
+  // E-329: Lotse am Handy. Gemessen 05.–12.10.: Von 34 Handy-Abbrüchen auf dieser Seite hatten 17 schon
+  // unterschrieben, 10 davon ohne Haken. Haken und Knopf liegen eine Bildschirmlänge tiefer; die Pille
+  // zeigt den nächsten Schritt, solange er nicht im Bild ist — ein Tipp scrollt hin. Sie bestellt nichts.
+  const knopfRef = useRef<HTMLButtonElement>(null);
+  const [wurzel, setWurzel] = useState<Element | null>(null);
+  const [imBild, setImBild] = useState<{ haken: boolean; knopf: boolean; hakenOben: boolean; knopfOben: boolean }>({ haken: true, knopf: true, hakenOben: false, knopfOben: false });
+  useEffect(() => { setWurzel(document.querySelector(".an-seite")); }, []);
+  useEffect(() => {
+    if (!handy || annahme || typeof IntersectionObserver === "undefined") return;
+    const h = document.getElementById("an-ag1"), k = knopfRef.current;
+    const io = new IntersectionObserver((eintraege) => {
+      setImBild((alt) => {
+        const neu = { ...alt };
+        for (const e of eintraege) {
+          const oben = e.boundingClientRect.top < 0;
+          if (e.target === h) { neu.haken = e.isIntersecting; neu.hakenOben = oben; }
+          if (e.target === k) { neu.knopf = e.isIntersecting; neu.knopfOben = oben; }
+        }
+        return neu;
+      });
+    }, { threshold: 0.5 });
+    if (h) io.observe(h);
+    if (k) io.observe(k);
+    return () => io.disconnect();
+  }, [handy, annahme]);
+  const lotsenZiel: "" | "haken" | "knopf" = !handy || !sig.da || annahme ? "" : !(S.ag1 && S.ag3) ? "haken" : "knopf";
+  const lotseZeigen = lotsenZiel !== "" && !imBild[lotsenZiel];
+  const lotseHoch = lotsenZiel === "haken" ? imBild.hakenOben : lotsenZiel === "knopf" ? imBild.knopfOben : false;
+  const lotsen = () => {
+    if (!lotsenZiel) return;
+    const el = lotsenZiel === "haken" ? document.getElementById("an-ag1") : knopfRef.current;
+    el?.scrollIntoView({ behavior: ruhigSystem() ? "auto" : "smooth", block: "center" });
+    ereignis("lotse", { schritt: "unterschrift", detail: lotsenZiel });
+  };
   const agb = agbDatum(AGB_FASSUNG);
   const maske = (() => { const m = S.email || ""; return `${m.charAt(0)}•••@${m.split("@")[1] || ""}`; })();
 
@@ -567,8 +652,10 @@ export function SchrittUnterschrift() {
   return (
     <>
       <Titel text="Unterschreiben – fertig." />
-      <Lead>Mit Finger oder Maus auf die Linie – oder mit einem Tipp Ihren Namen einsetzen.</Lead>
-      <Unterschriftsfeld getippterName={kartenName(S)} sperren={!!annahme}
+      <Lead>{handy && kartenName(S)
+        ? "Ein Tipp unterschreibt mit Ihrem Namen. Danach nur noch den Haken setzen und annehmen."
+        : "Mit Finger oder Maus auf die Linie – oder mit einem Tipp Ihren Namen einsetzen."}</Lead>
+      <Unterschriftsfeld getippterName={kartenName(S)} sperren={!!annahme} handy={handy}
         onAenderung={(o) => { setSig(o); if (o.da && fehlt === "sig") setFehlt(""); }} />
       {fehlt === "sig" ? <Tipp text="Bitte unterschreiben Sie auf der Linie – etwas größer, wenn es nicht reicht." /> : null}
       <div className="an-uebersicht">
@@ -608,12 +695,18 @@ export function SchrittUnterschrift() {
           <>
             {/* E-299: die zwei Sorgen vor dem Knopf in einem Satz — beides steht schon im Vertrag (Überweisung, Widerruf). */}
             <div className="an-fuss-zeile" style={{ fontWeight: 500, color: "var(--tinte-2)" }}>Sie überweisen selbst – abgebucht wird nichts. Gesetzliches Widerrufsrecht: 14 Tage.</div>
-            <button type="button" className="an-knopf an-haupt" onClick={() => void annehmen()}>{KNOPF_ZAHLUNGSPFLICHTIG}</button>
+            <button type="button" className="an-knopf an-haupt" ref={knopfRef} onClick={() => void annehmen()}>{KNOPF_ZAHLUNGSPFLICHTIG}</button>
             <div className="an-fuss-zeile">{euro(r)} im Monat für 12 Monate (zusammen {euro(r * 12)}). Erste Rate mit Vertragsschluss fällig, bitte bis {datum(faelligBis)}. Bestätigung, Vertrag und Widerrufsbelehrung kommen sofort per E-Mail.</div>
             <button type="button" className="an-knopf an-text" style={{ alignSelf: "center" }} onClick={() => { ereignis("rueckruf_geoeffnet", { schritt: "unterschrift" }); oeffneSheet(<TerminWahl art="vorher" />); }}>Noch Fragen? Wir rufen Sie an.</button>
           </>
         )}
       </div>
+      {/* Am Wurzelelement: die Schritt-Kinder tragen eine Einblend-Transformation, darin wäre „fixed" nicht fest. */}
+      {handy && wurzel ? createPortal(
+        <button type="button" className={`an-lotse${lotseZeigen ? " an-an" : ""}`} aria-hidden={!lotseZeigen} tabIndex={lotseZeigen ? 0 : -1} onClick={lotsen}>
+          {lotsenZiel === "knopf" ? "Weiter: annehmen" : "Weiter: Haken setzen"}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={lotseHoch ? { transform: "rotate(180deg)" } : undefined}><path d="M8 3v10M3.5 8.5L8 13l4.5-4.5" /></svg>
+        </button>, wurzel) : null}
     </>
   );
 }

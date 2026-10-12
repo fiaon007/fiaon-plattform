@@ -200,7 +200,7 @@ export default function ChefPostfach() {
   }, [neuLauf?.lauf?.laeuft, neuLaufLaden, laden]);
   const neuSchreiben = useCallback(async () => {
     const n = Number(neuLauf?.wartend?.entwuerfe || 0) + Number(neuLauf?.wartend?.fehler || 0);
-    if (!window.confirm(`${n} wartende Entwürfe und Fehler neu schreiben lassen? Alte Gmail-Entwürfe werden gelöscht, Mara schreibt jeden Fall mit dem heutigen Stand neu und sendet, was die Freigaben erlauben. Dauer etwa ${Math.ceil(n * 0.4)} Minuten.`)) return;
+    if (!window.confirm(`${n} Entwürfe und Fehler neu schreiben lassen?\n\nAlte Gmail-Entwürfe werden gelöscht; Mara sendet, was die Freigaben erlauben. Dauer ca. ${Math.ceil(n * 0.4)} Min.`)) return;
     try {
       const j = await hole("/admin/postmeister/neu-bearbeiten", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parallel: 2 }) });
       setMeldung({ art: "gut", text: `Neubearbeitung gestartet: ${j?.gestartet ?? 0} Vorgänge.` });
@@ -219,7 +219,7 @@ export default function ChefPostfach() {
       for (const [schluessel, wert] of [["postmeister_name", vor.trim()], ["postmeister_nachname", nach.trim()]] as const) {
         await hole("/admin/postmeister/einstellung", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schluessel, wert }) });
       }
-      setMeldung({ art: "gut", text: `Die Agentin heißt jetzt ${[vor.trim(), nach.trim()].filter(Boolean).join(" ")}. Gilt für alle neuen Antworten.` });
+      setMeldung({ art: "gut", text: `Agentin heißt jetzt ${[vor.trim(), nach.trim()].filter(Boolean).join(" ")} (für neue Antworten).` });
       await laden();
     } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
   }, [kopf, laden]);
@@ -334,8 +334,8 @@ export default function ChefPostfach() {
               <button type="button" className="pf-knopf still" onClick={() => void neuStoppen()}>Stopp</button>
             </span>
           ) : (
-            <button type="button" className="pf-knopf still" title="Alle wartenden Entwürfe mit dem heutigen Stand neu schreiben lassen" onClick={() => void neuSchreiben()}>
-              Alle Entwürfe neu schreiben{neuLauf?.lauf?.beendet ? ` (zuletzt ${neuLauf.lauf.gesendet} gesendet, ${neuLauf.lauf.entwurf} Entwurf)` : ""}
+            <button type="button" className="pf-knopf still" title="Wartende Entwürfe mit heutigem Stand neu schreiben" onClick={() => void neuSchreiben()}>
+              Alle Entwürfe neu schreiben{neuLauf?.lauf?.beendet ? ` (zuletzt ${neuLauf.lauf.gesendet} gesendet)` : ""}
             </button>
           )}
           <button type="button" className="pf-knopf still pf-agentin" title="Vor- und Nachname der Agentin ändern" onClick={() => void agentinUmbenennen()}>
@@ -406,7 +406,7 @@ export default function ChefPostfach() {
 
         <div className="pf-brief" ref={briefRef}>
           {offenId == null && (
-            <div className="pf-leer gross">Wähle links eine Nachricht. Mit <kbd>j</kbd> und <kbd>k</kbd> blätterst du, mit <kbd>⌘↵</kbd> sendest du.</div>
+            <div className="pf-leer gross">Wähle links eine Nachricht · <kbd>j</kbd>/<kbd>k</kbd> blättern · <kbd>⌘↵</kbd> senden</div>
           )}
           {offenId != null && !detail && <div className="pf-leer gross">Lädt …</div>}
           {E && (
@@ -427,7 +427,7 @@ export default function ChefPostfach() {
                 {(flags.droht_anwalt || flags.bestreitet || flags.beschwerde || flags.rechtlich) && (
                   <div className="pf-warnband">
                     <b>{flags.droht_anwalt ? "Droht mit dem Anwalt." : flags.bestreitet ? "Bestreitet die Forderung." : flags.rechtlich ? "Rechtliches Thema." : "Beschwerde."}</b>
-                    {" "}Diese Antwort geht nie automatisch raus — sie wartet auf dich.
+                    {" "}Geht nie automatisch raus.
                   </div>
                 )}
                 {E.aktion === "fehler" && E.begruendung && (
@@ -436,18 +436,18 @@ export default function ChefPostfach() {
                 {E.aktion === "versand_wartet" && (
                   <div className="pf-warnband">
                     <b>Versand wartet — Versuch {E.versandVersuche || 1}/4, nächster gegen {E.naechsterVersuchAm ? zeit(E.naechsterVersuchAm) : "gleich"}.</b>
-                    {" "}Die Antwort steht, nur Gmail hat sie nicht angenommen{E.versandFehler ? ` (${E.versandFehler})` : ""}. Du kannst sie jetzt von Hand senden.
+                    {" "}Gmail nahm sie nicht an{E.versandFehler ? ` (${E.versandFehler})` : ""}. Von Hand senden geht.
                   </div>
                 )}
                 {E.aktion === "versand_fehlgeschlagen" && (
                   <div className="pf-warnband rot">
-                    <b>Versand endgültig fehlgeschlagen — Aufgabe liegt beim Betreuer.</b>
-                    {" "}Vier Versuche{E.versandFehler ? ` (${E.versandFehler})` : ""}. Von Hand senden geht weiterhin — oder den Kunden anrufen.
+                    <b>Versand gescheitert — Aufgabe liegt beim Betreuer.</b>
+                    {" "}4 Versuche{E.versandFehler ? ` (${E.versandFehler})` : ""}. Von Hand senden oder anrufen.
                   </div>
                 )}
 
                 <section className="pf-abs">
-                  <h3>Was der Kunde geschrieben hat</h3>
+                  <h3>Kunde schreibt</h3>
                   <div className="pf-zitat">{E.text || "(kein Text)"}</div>
                   {Array.isArray(E.anhaengeEingang) && E.anhaengeEingang.length > 0 && (
                     <div className="pf-anhaenge">
@@ -463,7 +463,7 @@ export default function ChefPostfach() {
 
                 {Array.isArray(detail.verlauf) && detail.verlauf.filter((v: any) => v.id !== E.id).length > 0 && (
                   <section className="pf-abs">
-                    <h3>Bisheriger Schriftwechsel · {detail.verlauf.length} Nachrichten</h3>
+                    <h3>Verlauf · {detail.verlauf.length} Nachrichten</h3>
                     <div className="pf-verlauf">
                       {detail.verlauf.filter((v: any) => v.id !== E.id).map((v: any) => (
                         <div key={v.id} className="pf-v">
@@ -500,7 +500,7 @@ export default function ChefPostfach() {
 
                 {Array.isArray(E.handlungen) && E.handlungen.length > 0 && (
                   <section className="pf-abs">
-                    <h3>Bereits erledigt — das hat Mara getan</h3>
+                    <h3>Mara hat schon erledigt</h3>
                     <div className="pf-getan">
                       {E.handlungen.map((h: any, i: number) => (
                         <div key={i} className={`t${h.ok ? "" : " nicht"}`}>
@@ -514,7 +514,7 @@ export default function ChefPostfach() {
 
                 {(istEntwurf || E.antwort) && (
                   <section className="pf-abs">
-                    <h3>{istEntwurf ? "Antwort — Entwurf, du entscheidest" : "Gesendete Antwort"}</h3>
+                    <h3>{istEntwurf ? "Entwurf" : "Gesendete Antwort"}</h3>
                     {Array.isArray(E.pruefung?.fehlend) && E.pruefung.fehlend.length > 0 && (
                       <div className="pf-warnband">{E.pruefung.fehlend.join(" · ")}</div>
                     )}
@@ -566,7 +566,7 @@ export default function ChefPostfach() {
                             <div className="pf-schalter-stand">
                               <span>
                                 <b>Kündigung vorgemerkt.</b>{" "}
-                                {E.vertrag?.vertragEndeAm ? "Der Vertrag ist beendet." : E.vertrag?.letzteRateNr ? `Rate ${E.vertrag.letzteRateNr} bleibt offen — mit ihrer Zahlung endet der Vertrag (Storno erst nach Zahlungseingang).` : "Wird mit der letzten Zahlung wirksam."}
+                                {E.vertrag?.vertragEndeAm ? "Vertrag beendet." : E.vertrag?.letzteRateNr ? `Rate ${E.vertrag.letzteRateNr} bleibt offen — mit ihrer Zahlung endet der Vertrag.` : "Wirksam mit der letzten Zahlung."}
                               </span>
                               {!E.vertrag?.vertragEndeAm && (
                                 <button type="button" className="pf-knopf still" disabled={laeuft === `zurueck-${E.id}`} onClick={() => void kuendigungZurueck(E.id)}>
@@ -578,12 +578,12 @@ export default function ChefPostfach() {
                             <>
                               <label className={W.kuendigung ? "an" : ""}>
                                 <input type="checkbox" checked={W.kuendigung} disabled={!E.ref} onChange={(e) => wahlSetzen(E.id, E, A, { kuendigung: e.target.checked })} />
-                                <span><b>Kündigung vormerken</b><small> · {E.ref ? "der Kunde hat gekündigt, Mara hat es nicht gebucht" : "ohne Bestellung nicht möglich"}</small></span>
+                                <span><b>Kündigung vormerken</b><small> · {E.ref ? "Kunde hat gekündigt, noch nicht gebucht" : "ohne Bestellung nicht möglich"}</small></span>
                               </label>
                               {W.kuendigung && (
                                 <label className={`klein einzug ${W.nachZahlung ? "an" : ""}`}>
                                   <input type="checkbox" checked={W.nachZahlung} onChange={(e) => wahlSetzen(E.id, E, A, { nachZahlung: e.target.checked })} />
-                                  <span>Storno erst nach Zahlungseingang der offenen Rate <small>· aus = Kulanz, Vertrag endet sofort, offene Raten entfallen</small></span>
+                                  <span>Storno erst nach Zahlung der offenen Rate <small>· aus = Kulanz: endet sofort, offene Raten entfallen</small></span>
                                 </label>
                               )}
                             </>

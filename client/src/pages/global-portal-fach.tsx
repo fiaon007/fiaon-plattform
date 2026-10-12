@@ -44,22 +44,22 @@ const REITER_TEXT: Record<Reiter, { de: string; en: string; Icon: any }> = {
 const BIBLIOTHEK_NAME: Record<FachBereich, string> = { strategie: "Strategiebuch", recht: "Verzeichnis", steuern: "Steuerwissen" };
 const FRAGEN: Record<FachBereich, string[]> = {
   strategie: [
-    "Wie baue ich in den ersten Monaten geschäftliche Kreditwürdigkeit in den USA auf?",
-    "Welche Unterlagen sollte ich für einen Kreditrahmen vorbereiten?",
-    "Wie plane ich meine Liquidität für die nächsten zwölf Monate?",
-    "Wie gewinne ich meine ersten Kunden in den USA?",
+    "Wie baue ich in den USA geschäftliche Kreditwürdigkeit auf?",
+    "Welche Unterlagen brauche ich für einen Kreditrahmen?",
+    "Wie plane ich meine Liquidität für ein Jahr?",
+    "Wie gewinne ich erste Kunden in den USA?",
   ],
   recht: [
     "Was gehört in ein Operating Agreement einer Ein-Personen-LLC?",
-    "Wie unterschreibe ich Verträge richtig im Namen meiner LLC?",
+    "Wie unterschreibe ich richtig für meine LLC?",
     "Was passiert, wenn der Annual Report zu spät kommt?",
-    "Brauche ich ein Impressum, wenn ich an Kunden in der EU verkaufe?",
+    "Brauche ich ein Impressum für Kunden in der EU?",
   ],
   steuern: [
-    "Welche Steuerformulare muss meine LLC jedes Jahr einreichen?",
-    "Was ist Form 5472 und warum ist sie so wichtig?",
+    "Welche Steuerformulare muss meine LLC jährlich einreichen?",
+    "Was ist Form 5472 und warum ist sie wichtig?",
     "Brauche ich als Inhaber eine ITIN?",
-    "Wie wird meine LLC in Deutschland steuerlich behandelt?",
+    "Wie behandelt Deutschland meine LLC steuerlich?",
   ],
 };
 const KAPITEL: Record<FachBereich, FachKapitel[]> = { strategie: FACH_STRATEGIE_KAPITEL, recht: FACH_RECHT_KAPITEL, steuern: FACH_STEUERN_KAPITEL };
@@ -112,14 +112,14 @@ function Einzelfall({ bereich, mitToken, vorschau, zu, vorbelegt }: { bereich: F
           <div className="gp-fertig">
             <svg className="gp-haken-gross" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" /><path d="M15 27 l7 7 l15 -16" /></svg>
             <h3>Ihre Anfrage ist bei uns</h3>
-            <p>Ihr Ansprechpartner liest sie und meldet sich mit dem nächsten Schritt. Den Verlauf sehen Sie unter „Anfragen“.</p>
+            <p>Ihr Ansprechpartner meldet sich — den Verlauf sehen Sie unter „Anfragen“.</p>
             <button type="button" className="gp-knopf" onClick={zu}>Schließen</button>
           </div>
         ) : (
           <>
             <span className="gp-auge"><MessageCircleQuestion size={14} /> Einzelfall prüfen lassen</span>
             <h3>Worum geht es konkret?</h3>
-            <p className="gp-leise">Beschreiben Sie Ihre Frage mit allen Umständen, die wichtig sind. Sie geht direkt an Ihren Ansprechpartner, der sich mit dem nächsten Schritt bei Ihnen meldet.</p>
+            <p className="gp-leise">Mit allen wichtigen Umständen — direkt an Ihren Ansprechpartner.</p>
             <textarea className="gp-eingabe" rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={1800} />
             {fehler && <p className="gp-meldung schlecht">{fehler}</p>}
             {vorschau && <p className="gp-meldung">Vorschau — Anfragen schickt hier nur der Kunde.</p>}
@@ -168,7 +168,7 @@ function Sparring({ bereich, verlauf, mitToken, vorschau, frageVor, onEinzelfall
       <div className="gpf-faden" ref={faden}>
         {nachrichten.length === 0 && (
           <div className="gpf-start">
-            <p>Stellen Sie Ihre Frage — oder beginnen Sie mit einer dieser:</p>
+            <p>Fragen Sie frei — oder wählen Sie:</p>
             <div className="gpf-chips">
               {FRAGEN[bereich].map((q) => <button key={q} type="button" onClick={() => void stellen(undefined, q)}>{q}</button>)}
             </div>
@@ -182,7 +182,7 @@ function Sparring({ bereich, verlauf, mitToken, vorschau, frageVor, onEinzelfall
         {laeuft && <div className="gpf-blase ki tippt" aria-label="Antwort wird geschrieben"><span /><span /><span /></div>}
       </div>
       {fehler && <p className="gp-meldung schlecht">{fehler}</p>}
-      {vorschau && <p className="gpf-vorschau-zeile">Vorschau: Antworten werden nur für die Vorschau gespeichert, der Kunde sieht sie nicht.</p>}
+      {vorschau && <p className="gpf-vorschau-zeile">Vorschau — der Kunde sieht diese Antworten nicht.</p>}
       <form className="gpf-frage" onSubmit={stellen}>
         <textarea className="gp-eingabe" rows={2} value={frage} placeholder="Ihre Frage …" maxLength={1500} onChange={(e) => setFrage(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void stellen(); } }} />
@@ -210,7 +210,7 @@ function Bibliothek({ bereich, gref, onFrage }: { bereich: FachBereich; gref: st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bereich]);
   const haken = (id: string, i: number) => setErledigt((e) => { const n = [...(e[id] ?? [])]; n[i] = !n[i]; speicher.schreiben(schluessel(id), n); return { ...e, [id]: n }; });
-  if (liste.length === 0) return <p className="gp-leise">Die Bibliothek wird gerade aufgebaut.</p>;
+  if (liste.length === 0) return <p className="gp-leise">Folgt in Kürze.</p>;
   if (k) {
     const fertig = (erledigt[k.id] ?? []).filter(Boolean).length;
     return (
@@ -291,7 +291,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
       if (r.ok && (r.headers.get("content-type") || "").includes("application/pdf")) {
         const url = URL.createObjectURL(await r.blob());
         window.open(url, "_blank", "noopener");
-        setMeldung({ gut: true, text: "Vorschau-PDF geöffnet — in der Vorschau wird nichts abgelegt." });
+        setMeldung({ gut: true, text: "Vorschau-PDF geöffnet — nichts abgelegt." });
       } else {
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.ok) { setMeldung({ gut: true, text: j.meldung }); laden(); } else setMeldung({ gut: false, text: j.error || "—" });
@@ -299,7 +299,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
     } catch { setMeldung({ gut: false, text: "Keine Verbindung — bitte noch einmal." }); }
     finally { setStand(""); }
   };
-  if (FACH_VORLAGEN.length === 0) return <p className="gp-leise">Die Vorlagen werden gerade aufgebaut.</p>;
+  if (FACH_VORLAGEN.length === 0) return <p className="gp-leise">Folgt in Kürze.</p>;
   if (v) {
     const fehlt = v.felder.filter((f) => f.pflicht && !werte[f.key]?.trim());
     return (
@@ -323,7 +323,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
             </label>
           ))}
         </div>
-        <label className="gp-haken"><input type="checkbox" checked={unterschrift} onChange={(e) => setUnterschrift(e.target.checked)} /> <span>Danach direkt im Portal unterschreiben</span></label>
+        <label className="gp-haken"><input type="checkbox" checked={unterschrift} onChange={(e) => setUnterschrift(e.target.checked)} /> <span>Danach hier unterschreiben</span></label>
         <p className="gpf-hinweis">{FACH_HINWEIS.recht}</p>
         {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor →</button></>}</p>}
         <button type="button" className="gp-knopf gross" disabled={fehlt.length > 0 || stand === "laeuft"} onClick={erstellen}>
@@ -340,7 +340,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
           <span className="gpf-vorlage-sprache">{x.sprache.toUpperCase()}</span>
           <b>{x.titel}</b>
           <small>{x.wozu}</small>
-          <span className="gpf-vorlage-los">Auf einen Klick erstellen <ArrowRight size={14} /></span>
+          <span className="gpf-vorlage-los">Erstellen <ArrowRight size={14} /></span>
         </button>
       ))}
     </div>
@@ -351,7 +351,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
 function Formulare({ staat }: { staat: string | null }) {
   const [offen, setOffen] = useState<string | null>(null);
   const liste = FACH_FORMULARE.filter((f) => !f.staaten?.length || (staat && f.staaten.includes(staat)));
-  if (liste.length === 0) return <p className="gp-leise">Die Formulare werden gerade aufgebaut.</p>;
+  if (liste.length === 0) return <p className="gp-leise">Folgt in Kürze.</p>;
   return (
     <div className="gpf-formulare">
       {liste.map((f) => (
@@ -365,8 +365,8 @@ function Formulare({ staat }: { staat: string | null }) {
             <div className="gpf-formular-inhalt">
               <p>{f.was}</p>
               <ol>{f.schritte.map((x, i) => <li key={i}>{x}</li>)}</ol>
-              {f.folgen && <div className="gpf-merke warn"><b>Wenn es versäumt wird</b><p>{f.folgen}</p></div>}
-              <div className="gpf-merke"><b>Was FIAON dabei tut</b><p>{f.fiaon}</p></div>
+              {f.folgen && <div className="gpf-merke warn"><b>Bei Versäumnis</b><p>{f.folgen}</p></div>}
+              <div className="gpf-merke"><b>Was FIAON tut</b><p>{f.fiaon}</p></div>
               <a className="gp-link" href={f.quelle.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> {f.quelle.titel}</a>
             </div>
           )}
@@ -382,8 +382,8 @@ const CHECK_FRAGEN: { key: string; frage: string; optionen: { wert: string; text
   { key: "inhaber", frage: "Wie viele Gesellschafter hat Ihre LLC?", optionen: [{ wert: "eins", text: "Nur mich" }, { wert: "mehr", text: "Zwei oder mehr" }] },
   { key: "einnahmen", frage: "Hat Ihre LLC schon Einnahmen?", optionen: [{ wert: "ja", text: "Ja" }, { wert: "nein", text: "Noch nicht" }] },
   { key: "dienstleister", frage: "Bezahlt Ihre LLC Dienstleister in den USA?", optionen: [{ wert: "ja", text: "Ja" }, { wert: "nein", text: "Nein" }] },
-  { key: "verkauf", frage: "Verkaufen Sie Waren oder Leistungen an Endkunden im Bundesstaat Ihrer LLC?", optionen: [{ wert: "ja", text: "Ja" }, { wert: "nein", text: "Nein" }, { wert: "weiss", text: "Weiß nicht" }] },
-  { key: "fuehrung", frage: "Von wo aus führen Sie die LLC überwiegend?", optionen: [{ wert: "heim", text: "Von zu Hause (DE/AT/CH)" }, { wert: "usa", text: "Aus den USA" }, { wert: "gemischt", text: "Gemischt" }] },
+  { key: "verkauf", frage: "Verkaufen Sie an Endkunden im Bundesstaat Ihrer LLC?", optionen: [{ wert: "ja", text: "Ja" }, { wert: "nein", text: "Nein" }, { wert: "weiss", text: "Weiß nicht" }] },
+  { key: "fuehrung", frage: "Von wo führen Sie die LLC überwiegend?", optionen: [{ wert: "heim", text: "Von zu Hause (DE/AT/CH)" }, { wert: "usa", text: "Aus den USA" }, { wert: "gemischt", text: "Gemischt" }] },
 ];
 function Check_({ staat, onFrage }: { staat: string | null; onFrage: (q: string) => void }) {
   const [a, setA] = useState<Record<string, string>>({});
@@ -394,18 +394,18 @@ function Check_({ staat, onFrage }: { staat: string | null; onFrage: (q: string)
   if (fertig) {
     if (a.inhaber === "eins") {
       const f = formular("form-5472");
-      ergebnis.push({ titel: f ? `${f.nummer} — ${f.titel}` : "Form 5472 mit pro forma Form 1120", warum: "Eine LLC mit einem Inhaber im Ausland meldet jedes Jahr ihre Geschäfte mit dem Inhaber an den IRS — in aller Regel auch ohne Einnahmen, denn schon Einlagen und Zahlungen des Inhabers zählen dazu." });
+      ergebnis.push({ titel: f ? `${f.nummer} — ${f.titel}` : "Form 5472 mit pro forma Form 1120", warum: "Jährlich an den IRS — in der Regel auch ohne Einnahmen." });
     } else {
-      ergebnis.push({ titel: "Mehrere Gesellschafter: andere Bundesformulare", warum: "Eine LLC mit mehreren Gesellschaftern wird in den USA in der Regel wie eine Personengesellschaft behandelt (z. B. Form 1065). Das gehört in die Hände Ihrer Steuerkanzlei — nutzen Sie „Einzelfall prüfen lassen“." });
+      ergebnis.push({ titel: "Mehrere Gesellschafter: andere Bundesformulare", warum: "In der Regel wie eine Personengesellschaft (z. B. Form 1065) — ein Fall für Ihre Steuerkanzlei." });
     }
-    if (staat === "FL") ergebnis.push({ titel: formular("florida-annual-report")?.titel ?? "Florida Annual Report", warum: "Jede Florida-LLC reicht den Jahresbericht zwischen 1. Januar und 1. Mai ein — sonst droht die Auflösung durch den Staat." });
-    if (a.dienstleister === "ja") ergebnis.push({ titel: formular("form-1099-nec") ? `${formular("form-1099-nec")!.nummer} — ${formular("form-1099-nec")!.titel}` : "Form 1099-NEC", warum: "Wer US-Dienstleister bezahlt, meldet die Zahlungen — vorher holen Sie von ihnen ein Form W-9 ein." });
-    if (a.verkauf !== "nein" && staat === "FL") ergebnis.push({ titel: formular("florida-sales-tax")?.titel ?? "Sales Tax in Florida", warum: "Wer in Florida steuerpflichtige Waren oder Leistungen an Endkunden verkauft, braucht in der Regel eine Registrierung beim Florida Department of Revenue." });
-    if (a.einnahmen === "ja") ergebnis.push({ titel: formular("form-w-8ben")?.titel ?? "Form W-8BEN gegenüber US-Zahlern", warum: "US-Zahler fragen nach Ihrem Status als ausländischer Inhaber — welches Formular passt, steht in der Erklärung unter „Formulare“." });
+    if (staat === "FL") ergebnis.push({ titel: formular("florida-annual-report")?.titel ?? "Florida Annual Report", warum: "Jahresbericht ab Januar, spätestens zum ersten Mai — sonst droht die Auflösung." });
+    if (a.dienstleister === "ja") ergebnis.push({ titel: formular("form-1099-nec") ? `${formular("form-1099-nec")!.nummer} — ${formular("form-1099-nec")!.titel}` : "Form 1099-NEC", warum: "Sie melden die Zahlungen — vorher holen Sie ein Form W-9 ein." });
+    if (a.verkauf !== "nein" && staat === "FL") ergebnis.push({ titel: formular("florida-sales-tax")?.titel ?? "Sales Tax in Florida", warum: "In der Regel ist eine Registrierung beim Florida Department of Revenue nötig." });
+    if (a.einnahmen === "ja") ergebnis.push({ titel: formular("form-w-8ben")?.titel ?? "Form W-8BEN gegenüber US-Zahlern", warum: "US-Zahler fragen nach Ihrem Auslandsstatus — Details unter „Formulare“." });
     const heim = a.wohnsitz === "de" ? kapitel("deutschland") : a.wohnsitz === "at" || a.wohnsitz === "ch" ? kapitel("oesterreich") ?? kapitel("schweiz") : null;
     ergebnis.push({ titel: heim?.titel ?? "Ihr Heimatland", warum: a.fuehrung === "heim"
-      ? "Führen Sie die LLC von zu Hause aus, prüft Ihr Finanzamt, wo die Geschäftsleitung liegt — das ist DIE Frage für Ihre Steuerkanzlei."
-      : "Auch im Heimatland gibt es Melde- und Erklärungspflichten für Ihre Beteiligung — klären Sie sie mit Ihrer Steuerkanzlei." });
+      ? "Ihr Finanzamt prüft, wo die Geschäftsleitung liegt — DIE Frage für Ihre Steuerkanzlei."
+      : "Auch im Heimatland gelten Melde- und Erklärungspflichten — klären Sie sie mit Ihrer Steuerkanzlei." });
     ergebnis.push({ titel: "BOI-Meldung bei FinCEN", warum: "Für in den USA gegründete Gesellschaften seit März 2025 entfallen — hier ist nichts zu tun." });
   }
   return (
@@ -420,12 +420,12 @@ function Check_({ staat, onFrage }: { staat: string | null; onFrage: (q: string)
       ))}
       {fertig ? (
         <div className="gpf-check-ergebnis">
-          <h3>Diese Pflichten betreffen Ihre Konstellation</h3>
+          <h3>Das betrifft Ihre Gesellschaft</h3>
           {ergebnis.map((e, i) => <div key={i} className="gpf-check-punkt" style={{ ["--i" as any]: i }}><CheckCircle2 size={17} /><div><b>{e.titel}</b><p>{e.warum}</p></div></div>)}
           <p className="gpf-hinweis">{FACH_HINWEIS.steuern}</p>
           <button type="button" className="gp-knopf leise" onClick={() => onFrage("Zu meinem Pflichten-Check: ")}><Sparkles size={15} /> Frage dazu stellen</button>
         </div>
-      ) : <p className="gp-leise">Beantworten Sie die sechs Fragen — dann sehen Sie, welche Pflichten auf Ihre Gesellschaft zukommen.</p>}
+      ) : <p className="gp-leise">Sechs Fragen — dann sehen Sie Ihre Pflichten.</p>}
     </div>
   );
 }
@@ -457,7 +457,7 @@ function Liquiditaet({ gref }: { gref: string }) {
   );
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><LineChart size={20} /><div><b>Liquiditätsplan · zwölf Monate</b><small>Wie viel Geld liegt wann auf dem Konto? Werte ändern — die Kurve folgt sofort.</small></div>
+      <div className="gpf-werkzeug-kopf"><LineChart size={20} /><div><b>Liquiditätsplan · zwölf Monate</b><small>Werte ändern — die Kurve folgt sofort.</small></div>
         <button type="button" className="gp-knopf leise klein" onClick={() => window.print()}><Printer size={14} /> Drucken</button></div>
       <div className="gpf-felder drei">
         {feld("start", "Kontostand heute", "USD")}{feld("umsatz", "Umsatz im ersten Monat", "USD")}{feld("wachstum", "Wachstum je Monat", "%")}
@@ -475,7 +475,7 @@ function Liquiditaet({ gref }: { gref: string }) {
         <div><small>Tiefster Stand</small><b className={tiefster.stand < 0 ? "rot" : ""}>{usd(tiefster.stand)} <em>Monat {tiefster.m}</em></b></div>
         <div><small>Umsatz im Jahr</small><b>{usd(zeilen.reduce((s2, z) => s2 + z.ein, 0))}</b></div>
       </div>
-      {tiefster.stand < 0 && <p className="gp-meldung schlecht">In Monat {tiefster.m} reicht das Geld nicht — ein Puffer, ein Kreditrahmen oder spätere Ausgaben schließen die Lücke.</p>}
+      {tiefster.stand < 0 && <p className="gp-meldung schlecht">In Monat {tiefster.m} reicht das Geld nicht — Puffer, Kreditrahmen oder spätere Ausgaben schließen die Lücke.</p>}
       <div className="gpf-tabelle-huelle"><table className="gpf-tabelle"><thead><tr><th>Monat</th><th>Einnahmen</th><th>Ausgaben</th><th>Kontostand</th></tr></thead>
         <tbody>{zeilen.map((z) => <tr key={z.m}><td>{z.m}</td><td>{usd(z.ein)}</td><td>{usd(z.aus)}</td><td className={z.stand < 0 ? "rot" : ""}>{usd(z.stand)}</td></tr>)}</tbody></table></div>
     </div>
@@ -490,7 +490,7 @@ function Kapitalbedarf({ gref }: { gref: string }) {
   const summe = zeilen.reduce((s2, z) => s2 + (Number(z.betrag.replace(",", ".")) || 0), 0);
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><Landmark size={20} /><div><b>Kapitalbedarf</b><small>Wofür brauchen Sie wie viel? Die Summe mit Puffer ist die Zahl für Ihr Bank-Exposé.</small></div></div>
+      <div className="gpf-werkzeug-kopf"><Landmark size={20} /><div><b>Kapitalbedarf</b><small>Die Summe mit Puffer ist Ihre Zahl fürs Bank-Exposé.</small></div></div>
       {zeilen.map((z, i) => (
         <div key={i} className="gpf-kap-zeile">
           <input className="gp-eingabe" value={z.was} onChange={(e) => setZeilen(zeilen.map((x, j) => (j === i ? { ...x, was: e.target.value } : x)))} />
@@ -510,15 +510,15 @@ function Kapitalbedarf({ gref }: { gref: string }) {
 }
 
 const KREDIT_SCHRITTE = [
-  "EIN liegt vor und die Gesellschaft ist im Register aktiv",
-  "Geschäftsadresse und Telefonnummer sind überall gleich geschrieben (Register, Bank, Website, Verzeichnisse)",
-  "Geschäftskonto ist eröffnet und wird regelmäßig genutzt",
+  "EIN liegt vor, Gesellschaft im Register aktiv",
+  "Adresse und Telefon überall gleich (Register, Bank, Website)",
+  "Geschäftskonto eröffnet und regelmäßig genutzt",
   "Website und E-Mail-Adresse auf der eigenen Domain",
   "DUNS-Nummer bei Dun & Bradstreet beantragt",
   "Erste Lieferanten mit Zahlungsziel („Net 30“), die an Auskunfteien melden",
-  "Rechnungen immer pünktlich bezahlt — vor dem Fälligkeitstag",
-  "Erste Firmenkarte genutzt und die Auslastung niedrig gehalten",
-  "Unterlagen-Mappe für Banken vollständig (Register, EIN, Operating Agreement, Kontoauszüge)",
+  "Rechnungen immer vor Fälligkeit bezahlt",
+  "Erste Firmenkarte genutzt, Auslastung niedrig",
+  "Bank-Mappe vollständig (Register, EIN, Operating Agreement, Kontoauszüge)",
 ];
 function Kreditfahrplan({ gref }: { gref: string }) {
   const k = `gp-kredit:${gref}`;
@@ -527,7 +527,7 @@ function Kreditfahrplan({ gref }: { gref: string }) {
   const p = Math.round((n / KREDIT_SCHRITTE.length) * 100);
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><ListChecks size={20} /><div><b>Fahrplan geschäftliche Kreditwürdigkeit</b><small>Was Auskunfteien und Banken in den USA sehen wollen — Schritt für Schritt abhaken.</small></div>
+      <div className="gpf-werkzeug-kopf"><ListChecks size={20} /><div><b>Fahrplan geschäftliche Kreditwürdigkeit</b><small>Was Auskunfteien und Banken sehen wollen — zum Abhaken.</small></div>
         <span className="gpf-mini-ring" style={{ ["--p" as any]: p }}><b>{p}%</b></span></div>
       {KREDIT_SCHRITTE.map((x, i) => (
         <label key={i} className={`gpf-haken${h[i] ? " an" : ""}`}>
@@ -542,8 +542,8 @@ function Kreditfahrplan({ gref }: { gref: string }) {
 function Expose({ mitToken, vorschau, laden, geh }: { mitToken: (p: string) => string; vorschau: boolean; laden: () => void; geh: (s: string) => void }) {
   const FELDER: { key: string; label: string; hilfe: string }[] = [
     { key: "geschaeft", label: "Was macht Ihr Unternehmen?", hilfe: "Produkt oder Leistung, für wen, seit wann." },
-    { key: "kunden", label: "Wer sind Ihre Kunden, wo verkaufen Sie?", hilfe: "Zielgruppe, Märkte, wichtigste Kunden (ohne Namen, wenn vertraulich)." },
-    { key: "umsatz", label: "Umsatz und Entwicklung", hilfe: "Letztes Jahr, laufendes Jahr, Planung — so genau wie möglich." },
+    { key: "kunden", label: "Wer sind Ihre Kunden, wo verkaufen Sie?", hilfe: "Zielgruppe, Märkte, Kunden (ohne Namen, wenn vertraulich)." },
+    { key: "umsatz", label: "Umsatz und Entwicklung", hilfe: "Letztes Jahr, laufendes Jahr, Planung." },
     { key: "kosten", label: "Wichtigste Kosten und Marge", hilfe: "Große Kostenblöcke, ungefähre Marge." },
     { key: "kapital", label: "Wie viel Kapital suchen Sie?", hilfe: "Betrag in USD — der Kapitalbedarf-Rechner hilft." },
     { key: "verwendung", label: "Wofür genau?", hilfe: "Ware, Marketing, Personal, Ausstattung …" },
@@ -557,14 +557,14 @@ function Expose({ mitToken, vorschau, laden, geh }: { mitToken: (p: string) => s
     setStand("laeuft"); setMeldung(null);
     try {
       const r = await fetch(mitToken("/fach/expose"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(w) });
-      if (r.ok && (r.headers.get("content-type") || "").includes("application/pdf")) { window.open(URL.createObjectURL(await r.blob()), "_blank", "noopener"); setMeldung({ gut: true, text: "Vorschau-PDF geöffnet — in der Vorschau wird nichts abgelegt." }); }
+      if (r.ok && (r.headers.get("content-type") || "").includes("application/pdf")) { window.open(URL.createObjectURL(await r.blob()), "_blank", "noopener"); setMeldung({ gut: true, text: "Vorschau-PDF geöffnet — nichts abgelegt." }); }
       else { const j = await r.json().catch(() => ({})); if (r.ok && j.ok) { setMeldung({ gut: true, text: j.meldung }); laden(); } else setMeldung({ gut: false, text: j.error || "—" }); }
     } catch { setMeldung({ gut: false, text: "Keine Verbindung — bitte noch einmal." }); }
     finally { setStand(""); }
   };
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><FileText size={20} /><div><b>Bank-Exposé (Executive Summary)</b><small>Ihre Angaben auf Deutsch — die KI schreibt daraus eine englische Kurzfassung für Banken und Kartenherausgeber. Sie liegt danach als PDF in Ihrem Tresor.</small></div></div>
+      <div className="gpf-werkzeug-kopf"><FileText size={20} /><div><b>Bank-Exposé (Executive Summary)</b><small>Auf Deutsch ausfüllen — die KI legt ein englisches PDF in Ihren Tresor.</small></div></div>
       <div className="gpf-felder">
         {FELDER.map((f) => (
           <label key={f.key} className="gp-feldname breit"><span>{f.label}</span>
@@ -612,7 +612,7 @@ export default function GlobalFach({ bereich, a, s, mitToken, vorschau, laden, g
           );
         })}
       </div>
-      {s === "en" && reiter !== "sparring" && <p className="gp-leise">The library and templates are currently available in German; the documents themselves are in English.</p>}
+      {s === "en" && reiter !== "sparring" && <p className="gp-leise">Library and templates in German; documents in English.</p>}
       <div className="gpf-inhalt" key={`${bereich}:${reiter}`}>
         {reiter === "sparring" && <Sparring bereich={bereich} verlauf={daten?.chats?.[bereich] ?? []} mitToken={mitToken} vorschau={vorschau} frageVor={frageVor} onEinzelfall={(text) => setEinzelfall({ text })} />}
         {reiter === "bibliothek" && <Bibliothek bereich={bereich} gref={String(a.ref)} onFrage={fragen} />}

@@ -1177,7 +1177,7 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
   {
     ziel: ".cg-zahlen",
     titel: "Vier Zahlen, zwei davon sind Alarm.",
-    text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Gestartet ohne Stichtag“ "
+    text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Ohne Stichtag“ "
       + "heißt: Das Startgespräch ist noch nicht geführt oder nicht eingetragen. Beide sollten null sein.",
   },
   {

@@ -215,12 +215,12 @@ const SEGMENT_NAME: Record<string, string> = {
 };
 const SEGMENTE: Segment[] = ["kunde", "antrag", "abbrecher", "lead"];
 const KREIS_TEXT: Record<Kreis, { name: string; satz: string }> = {
-  uwg: { name: "Nur § 7 Abs. 3 UWG", satz: "Nur wer seit dem Widerspruchs-Hinweis im Antrag zum ersten Mal beantragt hat." },
+  uwg: { name: "Nur § 7 Abs. 3 UWG", satz: "Nur Erstanträge seit dem Widerspruchs-Hinweis im Antrag." },
   // E-243: Justins Zielgruppe — jeder mit E-Mail, ohne Stornierte und ohne wer die Auskunft schon hat.
-  alle: { name: "Alle ohne Auskunft", satz: "Kunden, Anträge, Abbrecher und Leads mit E-Mail — ohne Stornierte, Gekündigte und wer die Auskunft schon hat oder bestellt hat." },
+  alle: { name: "Alle ohne Auskunft", satz: "Alle mit E-Mail — ohne Storno, Kündigung oder vorhandene Auskunft." },
 };
 /** Justins Entscheidung vom 25./26.09.2026 — wörtlich so auf der Seite (Aufträge E-241, E-243). */
-const ALLE_HINWEIS = "Werbe-Mails auch an Kunden vor dem 02.09. und an Anträge, Abbrecher und Leads ohne Einwilligung — Justins Entscheidung vom 25./26.09.; Werbesperre, Abmeldung und Vertriebssperre gelten immer.";
+const ALLE_HINWEIS = "Justins Entscheidung (25./26.09.): Werbe-Mails auch an Kunden vor dem 02.09. und an Anträge, Abbrecher, Leads ohne Einwilligung. Werbesperre, Abmeldung und Vertriebssperre gelten immer.";
 /** E-243: der Stand einer Vorlage bei Meta in unseren Worten. E-252: Farbe als Pille (gut/warn/krit). */
 const META_TEXT: Record<MetaStatus, { text: string; farbe: "gut" | "warn" | "krit" | "" }> = {
   freigegeben: { text: "bei Meta freigegeben", farbe: "gut" },
@@ -231,9 +231,9 @@ const META_TEXT: Record<MetaStatus, { text: string; farbe: "gut" | "warn" | "kri
   unbekannt: { text: "Stand bei Meta unbekannt", farbe: "" },
 };
 const LIEFER_TEXT: Record<Liefermodus, { name: string; satz: string }> = {
-  einkauf: { name: "Einkauf", satz: "Bis die Schnittstelle steht, kaufen wir die Auskunft selbst ein — was zu kaufen ist, steht in der Beschaffung." },
-  vollmacht: { name: "Vollmacht", satz: "Der Kunde unterschreibt die Vollmacht, wir fordern seine Datenkopien bei den Auskunfteien an." },
-  api: { name: "Schnittstelle", satz: "Abruf über die Schnittstelle — erst wählen, wenn sie angebunden ist." },
+  einkauf: { name: "Einkauf", satz: "Wir kaufen selbst ein — die Liste steht in der Beschaffung." },
+  vollmacht: { name: "Vollmacht", satz: "Kunde unterschreibt die Vollmacht, wir fordern seine Datenkopien an." },
+  api: { name: "Schnittstelle", satz: "Abruf über die Schnittstelle." },
 };
 /** Seit diesem Tag gibt es die Auskunft zu kaufen (E-240) — davor sind leere Tage kein Befund. */
 const AUSKUNFT_SEIT = "2026-09-24";
@@ -403,7 +403,7 @@ export default function ChefAuskunft() {
     try {
       const j = await senden("/chef/auskunft/einstellung", { key, value });
       setEinstNeu({ e: j.einstellungen, p: j.protokoll ?? [] });
-      melden(j.geaendert === false ? "Unverändert — der Wert stand schon so." : fertig, ort);
+      melden(j.geaendert === false ? "Unverändert." : fertig, ort);
       if (j.geaendert !== false) {
         // Gegenlesen 25.09.2026 (E-241): Kreis und Tagesdeckel ändern den Vorrat („Im Kreis", „Heute fällig")
         // und „Wer als Nächstes" — ohne neues Laden zeigte die Seite bis zum Neuladen die Zahlen des alten Kreises.
@@ -420,26 +420,26 @@ export default function ChefAuskunft() {
     if (!s || !e) return;
     fragen({
       ort: "status", ja: "Ja, einschalten",
-      text: `Verkaufstakt einschalten?\n\nAb dem nächsten Takt (alle 30 Minuten, Mo–So ${fenster.ab}–${fenster.bis}) bekommen bis zu ${e.mailsProTag} Menschen am Tag das Angebot per E-Mail`
-        + ` und bis zu ${e.waProTag} per WhatsApp (nur mit Einwilligung und freigegebener Vorlage).\n\n`
+      text: `Verkaufstakt einschalten?\n\nAlle 30 Min. (Mo–So ${fenster.ab}–${fenster.bis}): bis zu ${e.mailsProTag} Angebots-Mails`
+        + ` und ${e.waProTag} WhatsApp am Tag (nur mit Einwilligung und freigegebener Vorlage).\n\n`
         + (e.kreis === "alle"
           ? `Kreis „alle“: ${ALLE_HINWEIS}`
-          : `Kreis „uwg“: nur wer nach dem ${stichtagText(s.takt.stichtag)} zum ersten Mal beantragt hat (§ 7 Abs. 3 UWG).`),
-      tat: () => void setzen("auskunft_verkauf_an", "1", "Der Verkaufstakt läuft — der nächste Takt schreibt an, wer dran ist.", "schalter"),
+          : `Kreis „uwg“: nur Erstanträge nach dem ${stichtagText(s.takt.stichtag)} (§ 7 Abs. 3 UWG).`),
+      tat: () => void setzen("auskunft_verkauf_an", "1", "Verkaufstakt läuft.", "schalter"),
     });
   };
   const anhalten = () => {
     if (!e?.an) return;
     fragen({
       ort: "status", ja: "Ja, anhalten",
-      text: "Verkauf anhalten?\n\nAb sofort geht keine Angebots-Mail und keine WhatsApp mehr raus. Kreis und Tagesdeckel bleiben stehen — „Verkauf scharf stellen“ startet ihn wieder.",
-      tat: () => void setzen("auskunft_verkauf_an", "0", "Der Verkauf ist angehalten. Es geht nichts mehr raus.", "schalter"),
+      text: "Verkauf anhalten?\n\nAb sofort keine Angebots-Mail und keine WhatsApp mehr. Kreis und Tagesdeckel bleiben.",
+      tat: () => void setzen("auskunft_verkauf_an", "0", "Verkauf angehalten.", "schalter"),
     });
   };
   const kreisWaehlen = (k: Kreis) => {
     const tun = () => void setzen("auskunft_verkauf_kreis", k, k === "alle" ? "Kreis „alle“ — ab dem nächsten Takt." : "Kreis „uwg“ — nur § 7 Abs. 3 UWG.", "kreis");
     if (k !== "alle") { tun(); return; }
-    fragen({ ort: "kreis", ja: "Ja, auf „alle“ stellen", text: `Kreis auf „alle“ stellen?\n\n${ALLE_HINWEIS}\n\nDie Änderung steht mit deinem Namen im Protokoll.`, tat: tun });
+    fragen({ ort: "kreis", ja: "Ja, auf „alle“ stellen", text: `Kreis auf „alle“ stellen?\n\n${ALLE_HINWEIS}\n\nWird mit deinem Namen protokolliert.`, tat: tun });
   };
   // ── E-243: Verkauf scharf stellen ──────────────────────────────────────
   /** Erst die Zahlen holen (Kreis „alle"), dann fragt die Seite — nichts wird dabei geändert. */
@@ -461,7 +461,7 @@ export default function ChefAuskunft() {
       // Das Einreichen bei Meta läuft im Hintergrund — sein Stand sofort im Band, bis der neue Stand geladen ist.
       if (j.einreichen) setEinreichen(j.einreichen);
       setScharf(null);
-      melden(j.geaendert?.length ? "Der Verkauf ist scharf — der nächste Takt schreibt an, wer dran ist." : "Alles stand schon so — der Verkauf ist scharf.", "scharf");
+      melden(j.geaendert?.length ? "Der Verkauf ist scharf." : "Stand schon so — der Verkauf ist scharf.", "scharf");
       setVorschau(null);
       stand.neu();
     } catch (err: any) { melden(err.message, "scharf", true); } finally { setBeschaeftigt(null); }
@@ -489,11 +489,11 @@ export default function ChefAuskunft() {
       ort: `rueck:${r.ref}`, ja: mail ? "Ja, Lieferung starten" : "Ja, ohne Mail starten",
       text: einkauf
         ? (mail
-          ? `Lieferung für ${r.name} starten?\n\nEs entsteht ein Beschaffungsauftrag (${r.auskunfteien}) auf der Seite „Auskunft-Beschaffung“. Fehlt seine Einwilligung, bekommt der Kunde einmal per Mail den Link zur Auftragsbestätigung.`
-          : `Lieferung für ${r.name} ohne Mail starten?\n\nEs entsteht ein Beschaffungsauftrag auf der Seite „Auskunft-Beschaffung“; fehlt seine Einwilligung, dort „Auftragsbestätigung senden“.`)
+          ? `Lieferung für ${r.name} starten?\n\nLegt einen Beschaffungsauftrag an (${r.auskunfteien}). Fehlt die Einwilligung, bekommt der Kunde einmal eine Mail mit dem Bestätigungslink.`
+          : `Lieferung für ${r.name} ohne Mail starten?\n\nLegt einen Beschaffungsauftrag an; fehlt die Einwilligung, dort „Auftragsbestätigung senden“.`)
         : (mail
-          ? `Lieferung für ${r.name} starten?\n\nEs entstehen die Anfragen an ${r.auskunfteien}, der Betreuer bekommt die Aufgabe, und der Kunde bekommt per Mail den Link zur Unterschrift (Vollmacht und Anfragen).`
-          : `Lieferung für ${r.name} ohne Mail starten?\n\nEs entstehen die Anfragen und die Aufgabe; der Betreuer holt die Unterschrift im Gespräch.`),
+          ? `Lieferung für ${r.name} starten?\n\nLegt Anfragen an ${r.auskunfteien} und eine Betreuer-Aufgabe an; der Kunde bekommt per Mail den Unterschriftslink.`
+          : `Lieferung für ${r.name} ohne Mail starten?\n\nLegt Anfragen und Aufgabe an; der Betreuer holt die Unterschrift im Gespräch.`),
       tat: () => void (async () => {
         setBeschaeftigt(`liefern:${r.ref}`);
         try {
@@ -509,16 +509,16 @@ export default function ChefAuskunft() {
     fragen({
       ort: "erinnerung", ja: an ? "Ja, einschalten" : "Ja, ausschalten",
       text: an
-        ? `Zahlungserinnerung einschalten?\n\nAb dem nächsten Lauf (alle 30 Minuten, Mo–So ${fenster.ab}–${fenster.bis}) bekommt jede offene Bonitätsauskunft ihre fällige Erinnerung — nie bei „Zahlung gemeldet“.`
-        : "Zahlungserinnerung ausschalten?\n\nDann bekommt niemand mit offener Bonitätsauskunft mehr eine Erinnerung — auch nicht die fälligen von heute. Die Änderung steht mit deinem Namen im Protokoll.",
+        ? `Zahlungserinnerung einschalten?\n\nAlle 30 Min. (Mo–So ${fenster.ab}–${fenster.bis}) geht jede fällige Erinnerung raus — nie bei „Zahlung gemeldet“.`
+        : "Zahlungserinnerung ausschalten?\n\nDann geht keine Erinnerung mehr raus — auch nicht die fälligen von heute. Wird mit deinem Namen protokolliert.",
       tat: () => void setzen("auskunft_erinnerung_an", an ? "1" : "0",
-        an ? "Die Zahlungserinnerung läuft." : "Die Zahlungserinnerung ist aus. Es geht keine mehr raus.", "er-an"),
+        an ? "Zahlungserinnerung läuft." : "Zahlungserinnerung aus.", "er-an"),
     });
   };
   const stornieren = (o: Offen) => {
     fragen({
       ort: `offen:${o.ref}`, ja: "Ja, stornieren",
-      text: `Bestellung von ${o.name} stornieren?\n\n${o.betrag ?? ""} · Verwendungszweck ${o.verwendungszweck ?? "—"}\n\nDie Bestellung wird storniert: keine Zahlungserinnerung mehr, kein neues Auskunft-Angebot, es entstehen keine Kosten. Der Kunde bekommt dazu KEINE automatische Mail — bitte ihm kurz antworten, wenn er darum gebeten hat.`,
+      text: `Bestellung von ${o.name} stornieren?\n\n${o.betrag ?? ""} · Verwendungszweck ${o.verwendungszweck ?? "—"}\n\nKeine Erinnerung und kein neues Angebot mehr, keine Kosten. Der Kunde bekommt KEINE automatische Mail — antworte ihm, wenn er darum gebeten hat.`,
       tat: () => void (async () => {
         setBeschaeftigt(`storno:${o.ref}`);
         try {
@@ -541,7 +541,7 @@ export default function ChefAuskunft() {
     if (!an) { void tun(); return; }
     fragen({
       ort: `offen:${o.ref}`, ja: "Ja, Mahnstopp",
-      text: `Mahnstopp für ${o.name}?\n\nDann geht zu dieser Bestellung keine Zahlungserinnerung mehr raus. Die Bestellung bleibt offen — bezahlen kann der Kunde weiterhin.`,
+      text: `Mahnstopp für ${o.name}?\n\nKeine Zahlungserinnerung mehr. Die Bestellung bleibt offen und bezahlbar.`,
       tat: () => void tun(),
     });
   };
@@ -604,7 +604,7 @@ export default function ChefAuskunft() {
       {/* Ein gescheitertes Nachladen: der alte Stand bleibt stehen, darüber eine leise Zeile. */}
       {stand.fehler && s && (
         <p className="ak-nachladen mara-still mara-klein">
-          Neu laden ging nicht ({stand.fehler}) — es steht der letzte Stand.{" "}
+          Neu laden gescheitert ({stand.fehler}) — letzter Stand.{" "}
           <button type="button" className="mara-knopf text" onClick={stand.neu}>Nochmal</button>
         </p>
       )}
@@ -692,18 +692,16 @@ export default function ChefAuskunft() {
                 <h2 id="ak-pool-titel">Wer sie noch nicht hat</h2>
                 <Info label="Wer zählt">
                   {e.kreis === "alle" ? (
-                    <>Keine Auskunft bestellt, bezahlt, hochgeladen oder ausgewertet · Kreis „alle“. Wer sich über den Abmeldelink oder mit „Stopp“ abmeldet, bekommt nie wieder ein Angebot. Der Kreis selbst steht in der Steuerung.</>
+                    <>Ohne bestellte, bezahlte, hochgeladene oder ausgewertete Auskunft · Kreis „alle“. Abmeldung oder „Stopp“ = nie wieder ein Angebot.</>
                   ) : (
-                    <>Keine Auskunft bestellt, bezahlt, hochgeladen oder ausgewertet · Kreis „uwg“. Werbung per E-Mail oder WhatsApp an Bestandskunden ohne Einwilligung erlaubt § 7 Abs. 3 UWG nur, wenn
-                    der Kunde schon bei der Angabe seiner Adresse auf sein Widerspruchsrecht hingewiesen wurde — im Antrag seit dem{" "}
-                    {stichtagText(s.takt.stichtag)}. {zahl(s.pool.nurGezaehlt)} zahlende Kunden ohne Auskunft sind davor Kunde geworden und
-                    werden in diesem Kreis nur gezählt; sie erreicht das Angebot im Kundenbereich, über ihren Betreuer und über Mara.</>
+                    <>Ohne Auskunft · Kreis „uwg“. § 7 Abs. 3 UWG erlaubt Werbung ohne Einwilligung nur nach Widerspruchs-Hinweis bei der Adressangabe — im Antrag seit dem{" "}
+                    {stichtagText(s.takt.stichtag)}. {zahl(s.pool.nurGezaehlt)} ältere zahlende Kunden werden nur gezählt (Angebot über Kundenbereich, Betreuer, Mara).</>
                   )}
                 </Info>
               </div>
               <div className="ak-vier">
                 <div><span className="mara-etikett">Im Kreis</span><b className="mara-akz-t">{s.pool.automatisch ? zahl(s.pool.automatisch) : <span className="wort">niemand</span>}</b><small>der Takt darf sie anschreiben</small></div>
-                <div><span className="mara-etikett">Heute fällig</span><b>{s.pool.heuteFaellig ? zahl(s.pool.heuteFaellig) : <span className="wort">niemand</span>}</b><small>ein Schritt steht an (vor der Tagesrücksicht)</small></div>
+                <div><span className="mara-etikett">Heute fällig</span><b>{s.pool.heuteFaellig ? zahl(s.pool.heuteFaellig) : <span className="wort">niemand</span>}</b><small title="vor der Tagesrücksicht">ein Schritt steht an</small></div>
                 <div><span className="mara-etikett">Gesperrt</span><b>{gesperrtSumme ? zahl(gesperrtSumme) : <span className="wort">niemand</span>}</b><small>nie anschreiben — Gründe unten</small></div>
                 <div><span className="mara-etikett">Leads ohne Person</span><b>{s.pool.leadsOhnePerson ? zahl(s.pool.leadsOhnePerson) : <span className="wort">keine</span>}</b><small>ohne Akte kein Kauflink</small></div>
               </div>
@@ -751,12 +749,11 @@ export default function ChefAuskunft() {
               <details className="mara-klappe ak-takt" onToggle={(ev) => setTaktOffen((ev.currentTarget as HTMLDetailsElement).open)}>
                 <summary>Wer als Nächstes · {taktMarke}</summary>
                 <p className="mara-still mara-klein">
-                  Dieselbe Auswahl wie der Takt, ohne zu senden.{" "}
+                  Vorschau des Takts — sendet nichts.{" "}
                   <Info label="Wie ausgewählt wird">
-                    Dieselbe Auswahl wie der Takt im Kreis „{e.kreis}“, ohne zu senden — auch wenn er aus ist. Kauf, Upload, Werbesperre,
-                    Abmeldung, „Stopp“, Kündigung, Storno oder Vertriebssperre beenden es sofort; wer gerade selbst geschrieben hat oder mit einem
-                    Mitarbeiter sprach, wartet. Die WhatsApp geht zuerst an alle, die den Kauflink geöffnet und nicht bestellt haben, dann an Kunden,
-                    Anträge, Abbrecher und Leads.
+                    Kreis „{e.kreis}“, auch wenn der Takt aus ist. Kauf, Upload, Werbesperre, Abmeldung, „Stopp“, Kündigung, Storno oder
+                    Vertriebssperre beenden es; wer gerade schrieb oder telefonierte, wartet. WhatsApp zuerst an alle mit geöffnetem Kauflink,
+                    dann Kunden, Anträge, Abbrecher, Leads.
                   </Info>
                 </p>
                 <div className="mara-reihe ak-neu-laden">
@@ -764,8 +761,7 @@ export default function ChefAuskunft() {
                     {beschaeftigt === "vorschau" ? "Lädt …" : "Neu laden"}
                   </button>
                   <span className="mara-still mara-klein">
-                    nur lesen — es geht nichts raus
-                    {vorschau ? ` · heute noch frei: ${zahl(vorschau.restHeute.mails)} Mails, ${zahl(vorschau.restHeute.whatsapp)} WhatsApp` : ""}
+                    {vorschau ? `heute noch frei: ${zahl(vorschau.restHeute.mails)} Mails, ${zahl(vorschau.restHeute.whatsapp)} WhatsApp` : ""}
                   </span>
                 </div>
                 <Meldung m={meldung} ort="takt" onZu={zu} />
@@ -779,7 +775,7 @@ export default function ChefAuskunft() {
                         <div className="mara-etikett">{titel} · {k === "whatsapp" && vorschau.waGrund && liste.length === 0 ? "ruht" : `${zahl(liste.length)}${liste.length >= 30 ? "+" : ""}`}</div>
                         {liste.length === 0 ? (
                           <p className="mara-still mara-klein ak-leer">
-                            {k === "whatsapp" && vorschau.waGrund ? "Ruht — siehe oben." : "Gerade ist niemand dran — alle im Kreis sind angeschrieben, warten auf den nächsten Schritt oder haben gerade eine andere Nachricht bekommen."}
+                            {k === "whatsapp" && vorschau.waGrund ? "Ruht — siehe oben." : "Gerade ist niemand dran."}
                           </p>
                         ) : (
                           <ul>
@@ -799,7 +795,7 @@ export default function ChefAuskunft() {
                             ))}
                           </ul>
                         )}
-                        {liste.length > 12 && <p className="mara-still mara-klein ak-abstand">und {zahl(liste.length - 12)} weitere in dieser Reihe</p>}
+                        {liste.length > 12 && <p className="mara-still mara-klein ak-abstand">+ {zahl(liste.length - 12)} weitere</p>}
                       </div>
                     ))}
                   </div>
@@ -820,7 +816,7 @@ export default function ChefAuskunft() {
                   <p className="mara-still mara-klein">
                     {istScharf
                       ? `Kreis „alle“ · ${zahl(e.mailsProTag)} Mails und ${zahl(e.waProTag)} WhatsApp am Tag · Mo–So ${fenster.ab}–${fenster.bis} · Liefermodus ${LIEFER_TEXT[e.liefermodus].name}.`
-                      : `Ein Klick stellt alles auf einmal: Takt an, Kreis „alle“, 500 Mails und 20 WhatsApp am Tag (Mo–So ${fenster.ab}–${fenster.bis}), Liefermodus Einkauf — und reicht die fehlenden WhatsApp-Vorlagen bei Meta ein. Vorher zeigt die Seite, wen das betrifft.`}
+                      : `Ein Klick: Takt an, Kreis „alle“, 500 Mails + 20 WhatsApp am Tag, Einkauf, fehlende Vorlagen einreichen — mit Rückfrage.`}
                   </p>
                 </div>
                 {/* „Anhalten" steht nicht mehr hier: derselbe Schlüssel wie der Schalter oben (auskunft_verkauf_an). */}
@@ -845,7 +841,7 @@ export default function ChefAuskunft() {
                 {/* Gegenlesen 26.09.2026 (E-243): Justin hat den Takt am 26.09. um 15:09 über die alte Steuerung eingeschaltet —
                     das Band steht dann schon auf „scharf", die Vorlagen fehlen aber bei Meta. Das muss hier stehen. */}
                 {istScharf && !einreichenJetzt?.laeuft && vorlagenListe.some((v) => v.meta === "fehlt") && (
-                  <span className="mara-warn-t">Ohne eingereichte Vorlage keine WhatsApp — „Erneut scharf stellen“ reicht sie bei Meta ein.</span>
+                  <span className="mara-warn-t">Vorlagen fehlen bei Meta — „Erneut scharf stellen“ reicht sie ein.</span>
                 )}
               </div>
               <p className="mara-still mara-klein ak-preise">
@@ -857,7 +853,7 @@ export default function ChefAuskunft() {
               {scharf && (
                 <section className="ak-rueckfrage" role="dialog" aria-modal="false" aria-labelledby="ak-rueckfrage-titel">
                   <h3 id="ak-rueckfrage-titel">Verkauf scharf stellen?</h3>
-                  <p className="mara-still mara-klein">gezählt eben, im Kreis „alle“ — ohne Sperren, ohne wer die Auskunft schon hat</p>
+                  <p className="mara-still mara-klein">Kreis „alle“, ohne Gesperrte und Auskunft-Inhaber</p>
                   <table className="ak-tabelle ak-block ak-rf-tabelle">
                     <thead>
                       <tr>
@@ -892,29 +888,27 @@ export default function ChefAuskunft() {
                   <details className="mara-klappe">
                     <summary>Was „Mail heute möglich“ heißt</summary>
                     <p className="mara-still mara-klein">
-                      „Mail heute möglich“: fällig und von keiner Tagesrücksicht aufgehalten (Unterlagen-Mail in den letzten 3 Tagen, andere
-                      Werbemail in 20 Stunden, gerade selbst geschrieben …) — davon gehen heute höchstens {zahl(scharf.deckel?.mails ?? 500)} raus, der Rest an den
-                      nächsten Tagen. Die WhatsApp folgt frühestens einen Tag nach der ersten Mail{scharf.summe.waHeute ? ` (heute schon möglich: ${zahl(scharf.summe.waHeute)})` : ""}.
+                      Fällig und von keiner Tagesrücksicht aufgehalten (Unterlagen-Mail in 3 Tagen, andere Werbemail in 20 h, gerade selbst
+                      geschrieben …). Heute höchstens {zahl(scharf.deckel?.mails ?? 500)}, der Rest folgt. WhatsApp frühestens einen Tag nach der ersten Mail{scharf.summe.waHeute ? ` (heute schon möglich: ${zahl(scharf.summe.waHeute)})` : ""}.
                     </p>
                   </details>
                   <ul className="ak-rueckfrage-liste">
                     {/* Gegenlesen 26.09.2026 (E-243): die Deckel aus der Antwort des Servers (SCHARF_WERTE), nicht fest im Text. */}
-                    <li>Takt an, Kreis „alle“, bis zu <b>{zahl(scharf.deckel.mails)} Mails</b> und <b>{zahl(scharf.deckel.whatsapp)} WhatsApp</b> am Tag, Mo–So {scharf.fenster.ab}–{scharf.fenster.bis}, gleichmäßig über den Tag.</li>
-                    <li>Reihenfolge der Mails: Kunden, fertige Anträge, Abbrecher, Leads — je die frischesten zuerst. WhatsApp zuerst an alle, die den Kauflink geöffnet und nicht bestellt haben — frühestens einen Tag nach der ersten Mail, höchstens eine je Mensch.</li>
+                    <li>Takt an, Kreis „alle“, bis zu <b>{zahl(scharf.deckel.mails)} Mails</b> und <b>{zahl(scharf.deckel.whatsapp)} WhatsApp</b> am Tag, Mo–So {scharf.fenster.ab}–{scharf.fenster.bis}.</li>
+                    <li>Mails: Kunden, Anträge, Abbrecher, Leads — frischeste zuerst. WhatsApp: erst wer den Kauflink öffnete, ab Tag 2 nach der ersten Mail, eine je Mensch.</li>
                     {/* Gegenlesen 26.09.2026 (E-243): ehrlich sagen, dass „WhatsApp-fähig" nicht „bekommt eine WhatsApp" heißt. */}
                     {scharf.summe.waFaehig > scharf.deckel.whatsapp * 14 && (
                       <li>
-                        {zahl(scharf.deckel.whatsapp)} WhatsApp am Tag bei {zahl(scharf.summe.waFaehig)} WhatsApp-fähigen: Es dauert rund{" "}
-                        {zahl(Math.ceil(scharf.summe.waFaehig / Math.max(1, scharf.deckel.whatsapp)))} Tage, bis jeder seine eine WhatsApp hatte — sie darf auch nach
-                        der dritten Mail noch kommen. Die Rangfolge entscheidet, wer zuerst (Link geöffnet, dann Kunden, Anträge, Abbrecher, Leads).
+                        {zahl(scharf.deckel.whatsapp)} WhatsApp am Tag bei {zahl(scharf.summe.waFaehig)} WhatsApp-fähigen: rund{" "}
+                        {zahl(Math.ceil(scharf.summe.waFaehig / Math.max(1, scharf.deckel.whatsapp)))} Tage, bis jeder eine hatte.
                       </li>
                     )}
-                    <li>Liefermodus Einkauf: Bis die Schnittstelle steht, kaufen wir jede bezahlte Auskunft selbst ein.</li>
+                    <li>Liefermodus Einkauf: wir kaufen jede bezahlte Auskunft selbst ein.</li>
                     <li>
                       WhatsApp-Vorlagen: {scharf.vorlagen.map((v) => `${v.name} — ${META_TEXT[v.meta ?? "unbekannt"].text}`).join("; ")}.
-                      {" "}{scharf.whatsapp.moeglich ? "" : "Bis Meta sie freigibt, schreibt der Takt nur per Mail. "}
+                      {" "}{scharf.whatsapp.moeglich ? "" : "Bis zur Freigabe nur Mail. "}
                       {/* Gegenlesen 26.09.2026 (E-243): vorlagenEinreichen reicht JEDE fehlende Vorlage des Hauses ein, nicht nur diese zwei. */}
-                      Der Knopf reicht jede noch fehlende WhatsApp-Vorlage bei Meta ein (Meta prüft Minuten bis Stunden); schon eingereichte und freigegebene bleiben unberührt.
+                      Fehlende Vorlagen werden eingereicht (Meta prüft Minuten bis Stunden).
                     </li>
                   </ul>
                   <p className="ak-warnzeile"><b>Rechtlich:</b> {scharf.rechtssatz}</p>
@@ -923,7 +917,7 @@ export default function ChefAuskunft() {
                       {beschaeftigt === "scharf" ? "Stellt scharf …" : "Jetzt scharf stellen"}
                     </button>
                     <button type="button" className="mara-knopf" onClick={() => setScharf(null)} disabled={beschaeftigt === "scharf"}>Abbrechen</button>
-                    <span className="mara-still mara-klein">Jede Änderung steht danach mit deinem Namen im Protokoll.</span>
+                    <span className="mara-still mara-klein">Wird mit deinem Namen protokolliert.</span>
                   </div>
                 </section>
               )}
@@ -964,7 +958,7 @@ export default function ChefAuskunft() {
                   </div>
                   <Verbrauch heute={s.takt.heute.whatsapp} deckel={e.waProTag} einheit="WhatsApp" />
                   {s.takt.whatsapp.moeglich
-                    ? <small>{verbrauchText(s.takt.heute.whatsapp, e.waProTag)} · 0 bis {zahl(e.hoechstensWa)} · nur mit nachgewiesener Einwilligung</small>
+                    ? <small>{verbrauchText(s.takt.heute.whatsapp, e.waProTag)} · 0 bis {zahl(e.hoechstensWa)} · nur mit Einwilligung</small>
                     : <small className="mara-warn-t">ruht: {s.takt.whatsapp.grund ?? "nicht möglich"}</small>}
                 </div>
                 <div className="mara-feld breit">
@@ -973,7 +967,7 @@ export default function ChefAuskunft() {
                   <span className="ak-klartext">
                     <b>{LIEFER_TEXT[e.liefermodus].name}.</b> {LIEFER_TEXT[e.liefermodus].satz}
                     {" "}Schnittstelle: {e.apiAngebunden ? "angebunden." : "noch nicht angebunden."}
-                    {e.liefermodus === "api" && !e.apiAngebunden ? " Bis dahin bleibt jede bezahlte Auskunft im Einkauf." : ""}
+                    {e.liefermodus === "api" && !e.apiAngebunden ? " Bis dahin Einkauf." : ""}
                     {" "}<a href="/chef/s/mara?reiter=auskunft&ansicht=beschaffung" onClick={(ev) => zurBeschaffung(ev, ".akb-modus")}>In der Beschaffung ändern →</a>
                   </span>
                 </div>
@@ -995,18 +989,18 @@ export default function ChefAuskunft() {
                         <span className="ak-vorlage-stand">
                           {v.freigegeben
                             ? <span className="mara-pille gut">bei Meta freigegeben</span>
-                            : <span className={`mara-pille ${META_TEXT[v.meta ?? "unbekannt"].farbe || "warn"}`}>{v.meta && v.meta !== "unbekannt" ? META_TEXT[v.meta].text : v.entwurf ? "Entwurf — muss bei Meta freigegeben werden" : "wartet auf Meta"}</span>}
+                            : <span className={`mara-pille ${META_TEXT[v.meta ?? "unbekannt"].farbe || "warn"}`}>{v.meta && v.meta !== "unbekannt" ? META_TEXT[v.meta].text : v.entwurf ? "Entwurf — braucht Meta-Freigabe" : "wartet auf Meta"}</span>}
                           {v.metaBild && v.metaBild !== "unbekannt" && <span className="mara-still mara-klein">Bildfassung: {META_TEXT[v.metaBild].text}</span>}
                         </span>
                       </div>
                       {(v.meta === "abgelehnt" || v.metaBild === "abgelehnt") && (
-                        <p className="mara-hinweis warn ak-abstand"><span className="mara-punkt warn" aria-hidden="true" /><span>Meta hat die Vorlage abgelehnt. Text in shared/fiaon-lead-texte.ts anpassen und im Lead-Motor „Einreichen“ drücken — der reicht sie mit dem neuen Text wieder ein.</span></p>
+                        <p className="mara-hinweis warn ak-abstand"><span className="mara-punkt warn" aria-hidden="true" /><span>Von Meta abgelehnt — Text in shared/fiaon-lead-texte.ts anpassen, dann im Lead-Motor „Einreichen“.</span></p>
                       )}
                       <p className="mara-still mara-klein ak-abstand">
                         Kategorie {v.kategorie === "MARKETING" ? "Marketing (Werbung)" : v.kategorie}.
                         {v.freigegeben
-                          ? " Der Takt schickt sie an Menschen mit nachgewiesener WhatsApp-Einwilligung, höchstens so viele am Tag wie oben eingestellt."
-                          : " Bis Meta sie freigibt, geht keine einzige WhatsApp damit raus — der Takt schreibt diesem Segment dann nur per Mail."}
+                          ? " Nur an Menschen mit Einwilligung, bis zum Tagesdeckel."
+                          : " Bis zur Freigabe keine WhatsApp — dieses Segment bekommt nur Mails."}
                       </p>
                       <div className="ak-blase"><b>{v.kopf}</b>{v.beispiel}<small>{v.fuss}</small></div>
                       <div className="ak-blase-knoepfe">{v.knoepfe.map((k) => <span key={k}>{k}</span>)}</div>
@@ -1016,7 +1010,7 @@ export default function ChefAuskunft() {
               )}
               <details className="mara-klappe ak-protokoll">
                 <summary>Protokoll der Steuerung{protokoll.length ? ` (${zahl(protokoll.length)})` : " · noch keine Änderung"}</summary>
-                {protokoll.length === 0 ? <p className="mara-still mara-klein">Noch keine Änderung über diese Seite.</p> : (
+                {protokoll.length === 0 ? <p className="mara-still mara-klein">Noch keine Änderung.</p> : (
                   <ol className="mara-liste">
                     {protokollListe.map((p, i) => (
                       <li key={`${p.zeit}-${i}`}>
@@ -1044,7 +1038,7 @@ export default function ChefAuskunft() {
                   </h2>
                   <p className="mara-still mara-klein">
                     ohne Archivierte und Tests{" "}
-                    <Info label="Was die Liste zeigt">Ohne Archivierte und Tests. Der Zahlungslink führt auf die Zahlungsseite mit QR-Code und Bankdaten.</Info>
+                    <Info label="Was die Liste zeigt">Zahlungslink = Zahlungsseite mit QR-Code und Bankdaten.</Info>
                   </p>
                 </div>
               </div>
@@ -1056,7 +1050,7 @@ export default function ChefAuskunft() {
                     <div>
                       <h3>Zahlungserinnerung</h3>
                       <p className="mara-still mara-klein">
-                        an jede bestellte, nicht bezahlte Auskunft · alle 30 Minuten, Mo–So {s.erinnerung?.fenster.ab ?? fenster.ab}–{s.erinnerung?.fenster.bis ?? fenster.bis} · höchstens {zahl(s.erinnerung?.jeLauf ?? 10)} je Lauf
+                        alle 30 Min., Mo–So {s.erinnerung?.fenster.ab ?? fenster.ab}–{s.erinnerung?.fenster.bis ?? fenster.bis} · max. {zahl(s.erinnerung?.jeLauf ?? 10)} je Lauf
                       </p>
                     </div>
                     <button type="button" className={`mara-schalter klein${er.an ? " an" : ""}`} aria-pressed={er.an} aria-label="Zahlungserinnerung"
@@ -1102,15 +1096,13 @@ export default function ChefAuskunft() {
                     </div>
                   </details>
                   <p className="mara-still mara-klein ak-abstand">
-                    {er.an ? "Läuft — Zahlungspost, die Werbesperre hält sie nicht auf; „Zahlung gemeldet“ bekommt nie eine." : "Aus — es geht keine Erinnerung raus."}{" "}
+                    {er.an ? "Läuft — gilt trotz Werbesperre, nie bei „Zahlung gemeldet“." : "Aus — keine Erinnerung."}{" "}
                     <Info label="Was in jeder Erinnerung steht" klasse="ak-er-satz">
-                      Jede Mail nennt Betrag, Bankdaten, Verwendungszweck und den Knopf zur Zahlungsseite, dazu „Schon überwiesen? …“ und
-                      „Sie möchten die Auskunft nicht mehr? …“. Die erste Erinnerung einer Bestellung ohne Belehrung in Textform trägt
-                      Vertragsbestätigung und Widerrufsbelehrung. Bestellungen ohne Erklärung des Kunden (vom Betreuer oder von Mara angelegt, kein Klick auf
-                      „zahlungspflichtig“) bekommen stattdessen die Nachfrage „möchten Sie sie noch?“ ohne Bankdaten, mit dem Knopf zum Bestätigen — Tag 1, 4, 10, 18,
-                      danach höchstens zwei weitere. Legt ein Betreuer die Auskunft neu an, gehen keine Zahlungsdaten hinaus, sondern sofort die erste Nachfrage.
-                      Bestätigt der Kunde, bekommt er gleich die Vertragsbestätigung mit Widerrufsbelehrung und Zahlungsdaten. Ab Tag {s.erinnerung?.aufgabeAbTagen ?? 30} und frühestens 7 Tage nach der letzten Mail bekommt der Betreuer einmal die Aufgabe „anrufen oder stornieren“.
-                      Änderungen stehen im Protokoll der Steuerung.
+                      Betrag, Bankdaten, Verwendungszweck, Knopf zur Zahlungsseite, „Schon überwiesen?“ und „Nicht mehr gewünscht?“. Fehlte die Belehrung in
+                      Textform, trägt die erste Vertragsbestätigung und Widerrufsbelehrung. Ohne Erklärung des Kunden (vom Betreuer oder Mara angelegt) kommt
+                      stattdessen die Nachfrage „möchten Sie sie noch?“ ohne Bankdaten — Tag 1, 4, 10, 18, danach max. zwei weitere. Bestätigt er,
+                      folgen Vertragsbestätigung, Widerrufsbelehrung und Zahlungsdaten. Ab Tag {s.erinnerung?.aufgabeAbTagen ?? 30} (frühestens 7 Tage
+                      nach der letzten Mail) bekommt der Betreuer einmal „anrufen oder stornieren“.
                     </Info>
                   </p>
                   <Meldung m={meldung} ort="erinnerung" onZu={zu} />
@@ -1193,7 +1185,7 @@ export default function ChefAuskunft() {
                 </div>
                 <a href="/chef/s/mara?reiter=auskunft&ansicht=beschaffung" onClick={(ev) => zurBeschaffung(ev, ".akb-status")}>Zur Beschaffung →</a>
               </div>
-              {s.rueckstand.zeilen.length === 0 ? <p className="mara-still ak-leer">Kein Rückstand — jede bezahlte Auskunft liegt in der Akte.</p> : (
+              {s.rueckstand.zeilen.length === 0 ? <p className="mara-still ak-leer">Kein Rückstand.</p> : (
                 <table className="ak-tabelle ak-block">
                   <thead><tr><th>Kunde</th><th>Bezahlt</th><th>Auskunfteien</th><th className="r">Anfragen</th><th>Betreuer</th><th className="r">Taten</th></tr></thead>
                   <tbody>
@@ -1265,7 +1257,7 @@ export default function ChefAuskunft() {
                       <tr key={d.tag} className="leer">
                         <td className="kopf">{d.bis ? `${tagText(d.tag)} – ${tagText(d.bis)}` : i === 0 ? "Heute" : tagText(d.tag)}</td>
                         <td className="voll ak-leer-tage" colSpan={7}>
-                          nichts angeschrieben, nichts bestellt{(d.bis ?? d.tag) < AUSKUNFT_SEIT ? " — die Auskunft gibt es erst seit 24.09." : ""}
+                          nichts angeschrieben, nichts bestellt{(d.bis ?? d.tag) < AUSKUNFT_SEIT ? " — Auskunft erst seit 24.09." : ""}
                         </td>
                       </tr>
                     ) : (
@@ -1327,11 +1319,9 @@ export default function ChefAuskunft() {
               <p className="mara-still mara-klein ak-abstand">
                 Jede Stufe zählt an dem Tag, an dem sie geschah.{" "}
                 <Info label="Wie gezählt wird">
-                  Jede Stufe zählt an dem Tag, an dem sie geschah — die Spalten sind nicht dieselben Menschen. „Geklickt“ = Kauflink
-                  geöffnet; Vorschauen von WhatsApp und bekannten Mail-Prüfprogrammen sind herausgefiltert, ein Prüfprogramm, das sich als
-                  Browser ausgibt, zählt mit. Das Segment gilt zum Zeitpunkt der Stufe. Ältere Bestellungen aus der Akte stehen unter
-                  „Betreuer“. „Ohne Herkunft“: Bestellungen, bei denen niemand den Weg festhielt (vor dem 25.09.) oder deren
-                  Kauflink-Klick nicht zuzuordnen war.
+                  Die Spalten sind nicht dieselben Menschen. „Geklickt“ = Kauflink geöffnet (Link-Vorschauen gefiltert, getarnte
+                  Prüfprogramme zählen mit). Segment zum Zeitpunkt der Stufe. Ältere Bestellungen aus der Akte: „Betreuer“.
+                  „Ohne Herkunft“: Weg nicht festgehalten (vor 25.09.) oder Klick nicht zuzuordnen.
                 </Info>
               </p>
             </section>

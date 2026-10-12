@@ -163,7 +163,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
     try {
       if (pruefung.modus === "aufgabe") {
         const j = await nachholen({ id: eingang.id, trocken: false, modus: "aufgabe" });
-        onFertig(`Aufgabe angelegt${j.aufgabe ? ` — ${j.aufgabe}` : ""}. Der Eingang bleibt unverbucht stehen.`);
+        onFertig(`Aufgabe angelegt${j.aufgabe ? ` — ${j.aufgabe}` : ""}. Eingang bleibt unverbucht.`);
       } else if (pruefung.modus === "zuordnen" && z) {
         await nachholen({ id: eingang.id, trocken: false, modus: "zuordnen", ziel: pruefung.ziel, erwartet: { ziel: z.ziel, rateId: z.rateId } });
         onFertig(`Zugeordnet: ${eingang.betrag} € → ${z.ziel} (${z.kunde ?? "—"}) — keine zweite Buchung.`);
@@ -182,7 +182,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
     setLaeuft(true); setFehler(null);
     try {
       await nachholen({ id: eingang.id, trocken: false, modus: "kein_kunde", grund: grund.trim() || null });
-      onFertig(`${eingang.betrag} € von ${eingang.zahler || "—"} als „kein Kundengeld“ gekennzeichnet — wird keinem Kunden zugebucht.`);
+      onFertig(`${eingang.betrag} € von ${eingang.zahler || "—"} als „kein Kundengeld“ gekennzeichnet.`);
     } catch (e: any) { setFehler(e.message); } finally { setLaeuft(false); }
   };
 
@@ -204,8 +204,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
         </header>
 
         {eingang.unterwegs && (
-          <p className="kz-warn">Airwallex meldete diesen Eingang zuletzt als <b>unterwegs</b>. Gebucht wird er erst, wenn er gutgeschrieben ist —
-            „Jetzt abrufen“ auf der Kontoseite prüft das sofort nach.</p>
+          <p className="kz-warn" title="„Jetzt abrufen“ auf der Kontoseite prüft das sofort nach.">Airwallex: noch <b>unterwegs</b> — buchbar erst nach Gutschrift.</p>
         )}
 
         {/* 1 · Vorschlag */}
@@ -222,7 +221,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
           )}
           {v && v.art !== "unbekannt" && <VorschlagKarte v={v} gesperrt={laeuft} onPruefen={(p) => void pruefen(p)} />}
           {start && !start.fehler && !direkt && (!v || v.art === "unbekannt") && (
-            <p className="kz-leise">{v?.text || "Kein eindeutiger Kunde erkannt — bitte unten suchen."}</p>
+            <p className="kz-leise">{v?.text || "Kein Kunde erkannt — bitte unten suchen."}</p>
           )}
         </section>
 
@@ -267,7 +266,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
                         <td>
                           {z.aktion === "buchen" && <button type="button" className="kz-knopf" disabled={laeuft} onClick={() => void pruefen({ modus: "buchen", ziel: z.ziel })}>Prüfen</button>}
                           {z.aktion === "zuordnen" && <button type="button" className="kz-knopf still" disabled={laeuft} onClick={() => void pruefen({ modus: "zuordnen", ziel: z.ziel })}>Nur zuordnen</button>}
-                          {z.aktion === "storno" && <button type="button" className="kz-knopf still" disabled={laeuft} title="Die Rate ist storniert: Prüfen nimmt den Storno zurück und bucht dann."
+                          {z.aktion === "storno" && <button type="button" className="kz-knopf still" disabled={laeuft} title="Rate storniert: nimmt den Storno zurück und bucht dann."
                             onClick={() => void pruefen({ modus: "buchen", ziel: z.ziel, storno: true })}>Storno zurück</button>}
                         </td>
                       </tr>
@@ -286,8 +285,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
             {laeuft && !pruefung.zeile && <p className="kz-leise">Prüfe …</p>}
             {pruefung.fehler && <p className="kz-fehler">{pruefung.fehler}</p>}
             {pruefung.modus === "aufgabe" && (
-              <p className="kz-leise">Gebucht wird nichts. Teilzahlungen gehen als Aufgabe an den Betreuer (er klärt den Rest mit dem Kunden),
-                Über- und Rückzahlungen an die Zahlungsstelle.</p>
+              <p className="kz-leise">Bucht nichts. Teilzahlung → Betreuer, Über-/Rückzahlung → Zahlungsstelle.</p>
             )}
             {pruefung.zeile && !pruefung.fehler && (
               <dl className="kz-probe">
@@ -301,8 +299,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
               </dl>
             )}
             {pruefung.modus === "zuordnen" && !pruefung.fehler && (
-              <p className="kz-leise">„Nur zuordnen“ bucht nichts: Das Geld gehört zu etwas, das schon als bezahlt gebucht ist. Der Eingang bekommt
-                seinen Haken, die Rate den Beleg — keine Mail, keine Provision, keine neue Rate.</p>
+              <p className="kz-leise">Bucht nichts — nur Haken und Beleg. Keine Mail, keine Provision, keine neue Rate.</p>
             )}
             <button type="button" className="kz-knopf haupt gross" disabled={!bereit || laeuft} onClick={() => void ausfuehren()}>
               {laeuft ? "Läuft …" : pruefung.modus === "zuordnen" ? "Jetzt zuordnen" : pruefung.modus === "aufgabe" ? "Aufgabe anlegen" : "Jetzt buchen"}
@@ -315,14 +312,13 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
         {/* 4 · Kein Kundengeld */}
         <footer className="kz-fuss">
           {!keinKundeFrage ? (
-            <button type="button" className="kz-link" disabled={laeuft} onClick={() => setKeinKundeFrage(true)}>Gehört keinem Kunden (z. B. Prüfbetrag, Gutschrift) …</button>
+            <button type="button" className="kz-link" disabled={laeuft} onClick={() => setKeinKundeFrage(true)}>Gehört keinem Kunden …</button>
           ) : (
             <div className="kz-keinkunde">
-              <p>Als <b>kein Kundengeld</b> kennzeichnen? Gebucht wird nichts; der Eingang verlässt die offene Liste und steht in FIAON Banking als
-                „Sonstiger Eingang“. Zurücknehmen geht jederzeit.</p>
+              <p title="Steht dann in FIAON Banking als „Sonstiger Eingang“.">Als <b>kein Kundengeld</b> kennzeichnen? Bucht nichts, verlässt die offene Liste. Jederzeit zurücknehmbar.</p>
               <input className="kz-feld" value={grund} onChange={(e) => setGrund(e.target.value)} placeholder="Grund (optional), z. B. „Prüfbetrag Google Ads“" maxLength={160} />
               <div className="kz-reihe">
-                <button type="button" className="kz-knopf haupt" disabled={laeuft} onClick={() => void keinKunde()}>Als kein Kundengeld kennzeichnen</button>
+                <button type="button" className="kz-knopf haupt" disabled={laeuft} onClick={() => void keinKunde()}>Kein Kundengeld</button>
                 <button type="button" className="kz-knopf still" disabled={laeuft} onClick={() => setKeinKundeFrage(false)}>Abbrechen</button>
               </div>
             </div>

@@ -80,7 +80,7 @@ interface Antwort {
   einstellungen: { zustaendigAgentId: number | null; provisionProzent: number; ustModus: string };
 }
 
-const STATUS_TEXT: Record<Status, string> = { offen: "Offen — wartet auf Zahlung", bezahlt: "Bezahlt — nicht gestartet", gestartet: "Gestartet", storniert: "Storniert" };
+const STATUS_TEXT: Record<Status, string> = { offen: "Wartet auf Zahlung", bezahlt: "Bezahlt, nicht gestartet", gestartet: "Gestartet", storniert: "Storniert" };
 
 export default function ChefGlobalAuftraege() {
   const [reiter, setReiter] = useState<Reiter>(reiterAusAdresse);
@@ -148,19 +148,18 @@ function AuftraegeListe() {
 
       <section className="cz-block cg-kopf">
         {/* E-338: Der Arbeitsraum je Firmenkunde (Tresor, Post, Anfragen, Kapital, Kundenportal-Vorschau). */}
-        <a className="cg-arbeitsraum" href="/chef/global">Zum Global-Arbeitsraum — Tresor, Post, Anfragen, Banken &amp; Kapital, Kundenportal-Vorschau →</a>
         <header>
-          <h2>FIAON Global — die Aufträge</h2>
-          <p>Jeder Auftrag, den ein Unternehmen auf /business/start unterschrieben hat. Mit dem Zahlungseingang startet er von selbst: Aufgabe „US-Struktur starten“ an die zuständige Person, danach die Startmail an den Kunden.</p>
+          <h2>Global-Aufträge</h2>
+          <p title="Start = Aufgabe „US-Struktur starten“ an die zuständige Person, danach Startmail an den Kunden.">Unterschrieben auf /business/start — startet mit dem Zahlungseingang von selbst.</p>
         </header>
         <div className="cg-zahlen">
-          <div><b>{zaehler.offen}</b><span>offen — {eur(offenerWert)} warten auf Zahlung</span></div>
-          <div className={zaehler.bezahlt ? "cg-warn" : ""}><b>{zaehler.bezahlt}</b><span>bezahlt, nicht gestartet — hier hängt etwas</span></div>
+          <div><b>{zaehler.offen}</b><span>offen · {eur(offenerWert)}</span></div>
+          <div className={zaehler.bezahlt ? "cg-warn" : ""}><b>{zaehler.bezahlt}</b><span>bezahlt, nicht gestartet</span></div>
           <div><b>{zaehler.gestartet}</b><span>gestartet</span></div>
-          <div className={zaehler.ohneStichtag ? "cg-warn" : ""}><b>{zaehler.ohneStichtag}</b><span>gestartet ohne Stichtag — im Startgespräch festlegen</span></div>
+          <div className={zaehler.ohneStichtag ? "cg-warn" : ""}><b>{zaehler.ohneStichtag}</b><span>ohne Stichtag</span></div>
         </div>
         <p className="cm-fein cg-einstellungen">
-          Neue Aufträge gehen an <b>{zustaendigName ?? "die Vertriebsleitung"}</b> · Provision {daten.einstellungen.provisionProzent} % · Rechnung: {daten.einstellungen.ustModus === "reverse_charge" ? "Reverse Charge" : "ohne Steuerausweis"} — ändern unter <a href="/chef/rueckholung">Rückholung → FIAON Global</a>.
+          Neue an <b>{zustaendigName ?? "die Vertriebsleitung"}</b> · Provision {daten.einstellungen.provisionProzent} % · {daten.einstellungen.ustModus === "reverse_charge" ? "Reverse Charge" : "ohne Steuerausweis"} · <a href="/chef/rueckholung" title="Rückholung → FIAON Global">ändern</a>
         </p>
       </section>
 
@@ -172,7 +171,7 @@ function AuftraegeListe() {
         </div>
 
         {sichtbar.length === 0 ? (
-          <p className="cg-leer">{alle.length === 0 ? "Noch kein Global-Auftrag. Der erste erscheint hier, sobald ein Unternehmen auf /business/start unterschrieben hat." : "In dieser Ansicht liegt gerade nichts."}</p>
+          <p className="cg-leer">{alle.length === 0 ? "Noch kein Global-Auftrag." : "Hier liegt gerade nichts."}</p>
         ) : (
           <div className="cm-tab-halter"><table className="cm-tab cg-tab">
             <thead><tr><th>Firma</th><th>Paket</th><th>Stand</th><th>Zuständig</th><th>Stichtag</th><th>Dokumente</th><th></th></tr></thead>
@@ -188,51 +187,51 @@ function AuftraegeListe() {
                   <td>
                     <b>{z.paketName.replace(/^FIAON /, "")}</b>
                     <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>
-                    {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor der Buchung klären.</span>}
+                    {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor Buchung klären.</span>}
                     {z.ustHinweis && <span className="cm-klartext cg-rot">USt-IdNr. fehlt — Rechnung ohne Steuerausweis.</span>}
                     {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}
-                    {z.angebotId != null && <span className="cm-klartext cg-jahr">Individualangebot — Teil 2, Frist und Erstattung im Reiter „Individualangebote“</span>}
+                    {z.angebotId != null && <span className="cm-klartext cg-jahr" title="Teil 2, Frist und Erstattung im Reiter „Individualangebote“">Individualangebot</span>}
                   </td>
                   <td>
                     <span className={`cg-marke cg-marke-${z.status}`}>{STATUS_TEXT[z.status]}</span>
                     <span className="cm-klartext">
-                      {z.status === "offen" && <>seit {z.alterTage === 0 ? "heute" : `${z.alterTage} ${z.alterTage === 1 ? "Tag" : "Tagen"}`}{z.faelligAm ? ` · zahlbar bis ${datum(z.faelligAm)}` : ""}{z.zahlungGemeldetAm ? ` · Kunde meldet Überweisung am ${datum(z.zahlungGemeldetAm)}` : ""}</>}
+                      {z.status === "offen" && <>seit {z.alterTage === 0 ? "heute" : `${z.alterTage} ${z.alterTage === 1 ? "Tag" : "Tagen"}`}{z.faelligAm ? ` · zahlbar bis ${datum(z.faelligAm)}` : ""}{z.zahlungGemeldetAm ? ` · Überweisung gemeldet ${datum(z.zahlungGemeldetAm)}` : ""}</>}
                       {z.status === "bezahlt" && <>bezahlt am {datum(z.bezahltAm)} — Aufgabe oder Startmail fehlt</>}
                       {z.status === "gestartet" && <>bezahlt am {datum(z.bezahltAm)} · gestartet am {datum(z.gestartetAm)}</>}
                       {z.status === "storniert" && <>angelegt am {datum(z.erstelltAm)}{z.storniertAm ? ` · storniert am ${datum(z.storniertAm)}${z.storniertVon ? ` von ${z.storniertVon}` : ""}` : ""}</>}
                     </span>
-                    {z.status === "storniert" && z.stornoGrund && <span className="cm-klartext">Grund: {z.stornoGrund}{z.stornoErstattung ? " · Erstattung liegt als Aufgabe bei Justin" : z.bezahltAm ? " · ohne Erstattung" : ""}</span>}
+                    {z.status === "storniert" && z.stornoGrund && <span className="cm-klartext">Grund: {z.stornoGrund}{z.stornoErstattung ? " · Erstattung: Aufgabe bei Justin" : z.bezahltAm ? " · ohne Erstattung" : ""}</span>}
                     {z.status === "offen" && (z.erinnerung1Am || z.erinnerung2Am || z.anrufAufgabeAm) && (
                       <span className="cm-klartext">
                         {[z.erinnerung1Am ? `Erinnerung 1 am ${datum(z.erinnerung1Am)}` : null, z.erinnerung2Am ? `Erinnerung 2 am ${datum(z.erinnerung2Am)}` : null, z.anrufAufgabeAm ? `Aufgabe „anrufen“ am ${datum(z.anrufAufgabeAm)}` : null].filter(Boolean).join(" · ")}
                       </span>
                     )}
                     {z.status === "offen" && z.taktHinweis && <span className="cm-klartext cg-rot">Zahlungstakt: {z.taktHinweis}</span>}
-                    {z.ohneAuftrag && <span className="cm-klartext cg-rot">Kein unterschriebener Auftrag — nicht über /business/start angelegt.</span>}
-                    {z.auftragMailFehler && !z.auftragMailAm && <span className="cm-klartext cg-rot">Vertrag und Rechnung gingen nicht raus: {z.auftragMailFehler}</span>}
+                    {z.ohneAuftrag && <span className="cm-klartext cg-rot" title="Nicht über /business/start angelegt.">Kein unterschriebener Auftrag.</span>}
+                    {z.auftragMailFehler && !z.auftragMailAm && <span className="cm-klartext cg-rot">Vertrag + Rechnung nicht raus: {z.auftragMailFehler}</span>}
                     {z.startMailFehler && !z.startMailAm && <span className="cm-klartext cg-rot">Startmail ging nicht raus: {z.startMailFehler}</span>}
                   </td>
                   <td>
                     {z.zustaendig ? <b>{z.zustaendig.name}</b> : <span className="cg-rot">niemand</span>}
-                    {z.betreuer && z.betreuer !== z.zustaendig?.name && <span className="cm-klartext">Betreuer der Person: {z.betreuer}</span>}
+                    {z.betreuer && z.betreuer !== z.zustaendig?.name && <span className="cm-klartext">Betreuer: {z.betreuer}</span>}
                   </td>
                   <td>
                     {z.stichtag ? <b>{datum(z.stichtag)}</b> : <span className="cm-wann">{z.status === "gestartet" ? "fehlt" : "—"}</span>}
-                    {z.stichtag && <span className="cm-klartext">{z.stichtagMailAm ? `dem Kunden mitgeteilt am ${datum(z.stichtagMailAm)}` : "dem Kunden noch nicht mitgeteilt"}</span>}
+                    {z.stichtag && <span className="cm-klartext">{z.stichtagMailAm ? `mitgeteilt am ${datum(z.stichtagMailAm)}` : "noch nicht mitgeteilt"}</span>}
                   </td>
                   <td>
                     <div className="cg-links">
                       {z.vertragUrl ? <a href={z.vertragUrl} target="_blank" rel="noreferrer">Vertrag (PDF)</a> : <span className="cm-wann">kein Vertrag</span>}
                       {z.rechnungUrl && <a href={z.rechnungUrl} target="_blank" rel="noreferrer">Rechnung{z.rechnungsnummer ? ` ${z.rechnungsnummer.replace(/^FIAON-INV-/, "")}` : ""} (PDF)</a>}
-                      {z.zahlungsseite && z.status === "offen" && <a href={z.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite des Kunden</a>}
-                      <a href={`/chef/global?mandat=${encodeURIComponent(z.ref)}`}><b>Arbeitsraum &amp; Portal-Vorschau</b></a>
+                      {z.zahlungsseite && z.status === "offen" && <a href={z.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite</a>}
+                      <a href={`/chef/global?mandat=${encodeURIComponent(z.ref)}`} title="Arbeitsraum mit Kundenportal-Vorschau"><b>Arbeitsraum</b></a>
                     </div>
                   </td>
                   <td>
                     <div className="cg-knoepfe">
                       {/* Der Grund steht als TEXT da, nicht im Tooltip (AGENTS.md: ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel). */}
-                      {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext">Stichtag: erst nach dem Zahlungseingang — er wird im Startgespräch festgelegt.</span>}
-                      {z.angebotId != null && <span className="cm-klartext">Kein Stichtag: Das Individualangebot hat eine Frist mit Kreditgarantie (sonst alles zurück).</span>}
+                      {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext" title="Wird im Startgespräch festgelegt.">Stichtag erst nach Zahlungseingang.</span>}
+                      {z.angebotId != null && <span className="cm-klartext" title="Frist mit Kreditgarantie (sonst alles zurück).">Kein Stichtag — hier gilt die Frist.</span>}
                       {!z.ohneAuftrag && z.angebotId == null && (z.status === "bezahlt" || z.status === "gestartet") && (
                         <button type="button" className="cg-knopf cg-knopf-stichtag"
                           onClick={() => { setOffen({ ref: z.ref, art: "stichtag" }); setWert(z.stichtag ?? ""); setMitteilen(true); }}>
@@ -266,8 +265,8 @@ function AuftraegeListe() {
                       return (
                         <div className="cg-form" role="dialog" aria-label={`Auftrag ${z.firma} stornieren`}>
                           <p className="cm-fein"><b>{z.firma}</b> · {z.paketName.replace(/^FIAON /, "")} · {eur(z.betragCents)} — {bezahlt ? `bezahlt am ${datum(z.bezahltAm)}` : "nicht bezahlt"}.</p>
-                          <label>Grund{bezahlt ? " (ein ganzer Satz — der Auftrag ist bezahlt)" : ""}
-                            <textarea rows={3} value={wert} maxLength={1000} onChange={(e) => setWert(e.target.value)} placeholder={bezahlt ? "Zum Beispiel: Kunde beendet den Auftrag vor der Gründung, Rückzahlung mit Justin am 17.09. abgestimmt." : "Zum Beispiel: Kunde will den Auftrag nicht mehr."} />
+                          <label>Grund{bezahlt ? " (ganzer Satz, da bezahlt)" : ""}
+                            <textarea rows={3} value={wert} maxLength={1000} onChange={(e) => setWert(e.target.value)} placeholder={bezahlt ? "z. B. Kunde beendet vor der Gründung, Rückzahlung mit Justin abgestimmt." : "z. B. Kunde will den Auftrag nicht mehr."} />
                           </label>
                           {bezahlt && (
                             <label className="cg-haken"><input type="checkbox" checked={erstattung} onChange={(e) => setErstattung(e.target.checked)} /> mit Erstattung von {eur(z.betragCents)}</label>
@@ -275,16 +274,16 @@ function AuftraegeListe() {
                           <p className="cm-fein">
                             {bezahlt
                               ? (erstattung
-                                ? "Es wird KEIN Geld bewegt: Justin bekommt die dringende Aufgabe „Erstattung veranlassen“ und überweist von Hand. Die Bestellung geht auf storniert, gebuchte Provisionen werden zurückgenommen."
-                                : "Ohne Erstattung bleibt die Zahlung gebucht und die Provision stehen — storniert wird nur der Auftrag (der Kunde beendet, die erbrachte Leistung ist bezahlt).")
-                              : "Die Bestellung geht auf storniert; Erinnerungen gehen keine mehr raus."}
-                            {" "}Die zuständige Person erfährt es als Aufgabe. Der Kunde bekommt keine automatische Mail.
+                                ? "Bewegt KEIN Geld: Justin bekommt die Aufgabe „Erstattung veranlassen“. Provisionen werden zurückgenommen."
+                                : "Zahlung und Provision bleiben — storniert wird nur der Auftrag.")
+                              : "Keine Erinnerungen mehr."}
+                            {" "}Zuständige Person bekommt eine Aufgabe, der Kunde keine Mail.
                           </p>
                           <div className="cg-form-knoepfe">
                             <button type="button" className="cg-knopf cg-knopf-storno" disabled={wert.trim().length < mindest || busy === `${z.ref}:storno`} onClick={() => senden(z.ref, "storno", { grund: wert.trim(), erstattung: bezahlt && erstattung })}>Jetzt stornieren</button>
                             <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
                           </div>
-                          {wert.trim().length < mindest && <p className="cm-fein">Noch {mindest - wert.trim().length} Zeichen bis zum Grund.</p>}
+                          {wert.trim().length < mindest && <p className="cm-fein">Noch {mindest - wert.trim().length} Zeichen.</p>}
                         </div>
                       );
                     })()}
@@ -293,7 +292,7 @@ function AuftraegeListe() {
                         <label>Stichtag für Gesellschaft und EIN
                           <input type="date" value={wert} onChange={(e) => setWert(e.target.value)} />
                         </label>
-                        <label className="cg-haken"><input type="checkbox" checked={mitteilen} onChange={(e) => setMitteilen(e.target.checked)} /> dem Kunden per Mail mitteilen (der Auftrag sagt die Textform zu)</label>
+                        <label className="cg-haken" title="Der Auftrag sagt die Textform zu."><input type="checkbox" checked={mitteilen} onChange={(e) => setMitteilen(e.target.checked)} /> dem Kunden per Mail mitteilen</label>
                         <div className="cg-form-knoepfe">
                           <button type="button" className="cg-knopf cg-knopf-haupt" disabled={!wert || busy === `${z.ref}:stichtag`} onClick={() => senden(z.ref, "stichtag", { stichtag: wert, mitteilen })}>Speichern</button>
                           <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
@@ -308,7 +307,7 @@ function AuftraegeListe() {
                             {daten.mitarbeiter.map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
                           </select>
                         </label>
-                        <p className="cm-fein">Die offene Aufgabe wandert mit, die Person bekommt eine Mail. Als Betreuer wird sie nur eingetragen, wenn bisher niemand oder die alte zuständige Person eingetragen war.</p>
+                        <p className="cm-fein" title="Als Betreuer wird sie nur eingetragen, wenn bisher niemand oder die alte zuständige Person eingetragen war.">Offene Aufgabe wandert mit, die Person bekommt eine Mail.</p>
                         <div className="cg-form-knoepfe">
                           <button type="button" className="cg-knopf cg-knopf-haupt" disabled={!wert || busy === `${z.ref}:zustaendig`} onClick={() => senden(z.ref, "zustaendig", { agentId: Number(wert) })}>Übergeben</button>
                           <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>

@@ -97,7 +97,7 @@ export default function ChefZahlen() {
           <Zaehler cents={mitte} />
         </h1>
         <p className="cz-spanne">
-          Spanne {eur(spanneVon)} – {eur(spanneBis)} · gerechnet auf {eur(d.bewertung.arrCents)} Jahresumsatz (ARR)
+          Spanne {eur(spanneVon)} – {eur(spanneBis)} · auf {eur(d.bewertung.arrCents)} ARR
         </p>
         <div className="cz-hero-zeile">
           <div><b><Zaehler cents={d.abo.mrrCents} /></b><span>vertraglich je Monat (MRR)</span></div>
@@ -108,12 +108,12 @@ export default function ChefZahlen() {
 
       {/* ── VERDIENT — Vergangenheit, hartes Geld ──────────────────────── */}
       <section className="cz-block">
-        <header><h2>Verdient</h2><p>Nur bankbestätigt gebuchtes Geld. Keine Ankündigungen, keine Testkonten.</p></header>
+        <header><h2>Verdient</h2><p>Nur bankbestätigtes Geld, ohne Testkonten.</p></header>
         <div className="cz-karten drei">
           <article className="cz-karte">
             <small>Gesamt eingegangen</small>
             <b>{eur(d.verdient.gesamtCents)}</b>
-            <span>{d.verdient.ratenAnzahl} Raten + {d.verdient.auskunftAnzahl} Bonitätsauskünfte{(d.verdient.globalAnzahl ?? 0) > 0 ? ` + ${d.verdient.globalAnzahl} FIAON-Global-Aufträge` : ""}</span>
+            <span>{d.verdient.ratenAnzahl} Raten + {d.verdient.auskunftAnzahl} Auskünfte{(d.verdient.globalAnzahl ?? 0) > 0 ? ` + ${d.verdient.globalAnzahl} Global` : ""}</span>
           </article>
           <article className="cz-karte">
             <small>Davon Abo-Raten</small>
@@ -123,7 +123,7 @@ export default function ChefZahlen() {
           <article className="cz-karte">
             <small>Davon Einmalerlöse</small>
             <b>{eur(d.verdient.auskunftCents + (d.verdient.globalCents ?? 0))}</b>
-            <span>Bonitätsauskünfte {eur(d.verdient.auskunftCents)} · FIAON Global {eur(d.verdient.globalCents ?? 0)} — bewusst getrennt vom Abo</span>
+            <span>Auskünfte {eur(d.verdient.auskunftCents)} · Global {eur(d.verdient.globalCents ?? 0)}</span>
           </article>
         </div>
 
@@ -144,20 +144,20 @@ export default function ChefZahlen() {
             );
           })}
         </div>
-        <p className="cz-fuss">Heller Abschnitt im Balken = Einmalerlöse (Bonitätsauskünfte, FIAON Global). Der laufende Monat ist noch nicht zu Ende — er wird noch größer.</p>
+        <p className="cz-fuss">Hell = Einmalerlöse. Laufender Monat noch offen.</p>
       </section>
 
       {/* ── DER ABO-MOTOR — Justins ×12, richtig erzählt ───────────────── */}
       <section className="cz-block">
         <header>
           <h2>Der Abo-Motor</h2>
-          <p>Jedes Paket ist ein 12-Monats-Abo: Eine Kundin für {eur(5999, 2)} im Monat ist kein {eur(5999, 2)}-Geschäft, sondern ein {eur(71988, 2)}-Vertrag.</p>
+          <p>Jedes Paket = 12-Monats-Abo: {eur(5999, 2)}/Monat sind {eur(71988, 2)} Vertragswert.</p>
         </header>
         <div className="cz-vertrag">
           <div className="cz-vertrag-zahlen">
             <div><small>Vertragsbestand (×12)</small><b><Zaehler cents={d.abo.vertrag12Cents} /></b><span>{d.abo.aktive} Abos × 12 Monatsraten</span></div>
-            <div><small>Davon schon vereinnahmt</small><b>{eur(d.abo.vereinnahmtCents)}</b><span>{Math.round(anteilVereinnahmt * 100)} % der Vertragssumme ist bezahlt</span></div>
-            <div><small>Steht vertraglich noch aus</small><b>{eur(d.abo.ausstehendCents)}</b><span>kommt über die Laufzeit herein — wenn die Raten gehalten werden</span></div>
+            <div><small>Davon schon vereinnahmt</small><b>{eur(d.abo.vereinnahmtCents)}</b><span>{Math.round(anteilVereinnahmt * 100)} % bezahlt</span></div>
+            <div><small>Steht vertraglich noch aus</small><b>{eur(d.abo.ausstehendCents)}</b><span>über die Laufzeit, wenn Raten gehalten werden</span></div>
           </div>
           <div className="cz-leiste" role="img"
                aria-label={`${Math.round(anteilVereinnahmt * 100)} Prozent der Vertragssumme vereinnahmt`}>
@@ -168,10 +168,8 @@ export default function ChefZahlen() {
               return <i key={i} className={voll ? "voll" : teil ? "teil" : ""} />;
             })}
           </div>
-          <p className="cz-fuss">
-            Die zwölf Segmente sind die zwölf Monatsraten eines Abo-Jahres über den ganzen Bestand.
-            Real eingegangen in den letzten 30 Tagen: <b>{eur(d.abo.letzte30TageCents)}</b> — die ehrliche
-            Gegenzahl zum vertraglichen MRR von {eur(d.abo.mrrCents)}. Die Lücke sind junge Ketten und offene Raten.
+          <p className="cz-fuss" title="Die Lücke zum MRR: junge Ketten und offene Raten.">
+            Real eingegangen (30 Tage): <b>{eur(d.abo.letzte30TageCents)}</b> · vertraglicher MRR {eur(d.abo.mrrCents)}.
           </p>
         </div>
 
@@ -190,7 +188,7 @@ export default function ChefZahlen() {
       <section className="cz-block">
         <header>
           <h2>Unternehmensbewertung</h2>
-          <p>Drei Blickwinkel auf denselben Jahresumsatz von {eur(d.bewertung.arrCents)} (MRR × 12).</p>
+          <p>Drei Faktoren auf {eur(d.bewertung.arrCents)} ARR (MRR × 12).</p>
         </header>
         <div className="cz-karten drei">
           {d.bewertung.szenarien.map((s, i) => (
@@ -201,17 +199,14 @@ export default function ChefZahlen() {
             </article>
           ))}
         </div>
-        <p className="cz-fuss">
-          Methodik: Vielfache auf den wiederkehrenden Jahresumsatz (ARR), wie bei Abo-Geschäften üblich.
-          Was den Wert nach oben treibt: belegtes Wachstum, niedrige Kündigungsquote, saubere Zahlen
-          (genau dafür ist diese Seite da). Interner Richtwert — keine Anlageberatung, kein Gutachten.
+        <p className="cz-fuss" title="Wert steigt mit belegtem Wachstum, niedriger Kündigungsquote, sauberen Zahlen.">
+          ARR-Vielfache, üblich bei Abo-Geschäften. Interner Richtwert — kein Gutachten.
         </p>
       </section>
 
       <p className="cz-stand">
         Stand {new Date(d.stand).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} Uhr ·
-        Quelle: bezahlte Raten und Bestellungen im System (bankbestätigt), Testkonten ausgeschlossen.
-        Das alte Dashboard rechnete mit Stripe-Kartenzahlungen — dort lief zuletzt fast nichts mehr, deshalb stimmten die Zahlen nicht.
+        Quelle: bankbestätigte Raten und Bestellungen, ohne Testkonten.
       </p>
     </div>
   );

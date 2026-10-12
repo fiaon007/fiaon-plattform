@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Globe2, Building2, FileText, MessageSquare, Landmark, CalendarClock, History, Eye, Copy, Check,
-  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, ChevronRight, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical,
+  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN, US_BUNDESSTAATEN } from "@shared/fiaon-global-bereich";
@@ -23,6 +23,8 @@ import {
   GLOBAL_TRESOR, globalTresorKategorie, globalUsd, type GlobalTresorKategorie,
 } from "@shared/fiaon-global-mandat";
 import "@/styles/chef-global-raum.css";
+// E-342: Gespräche je Tag + Google-Kalender als Leiste im Raum.
+import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
 
 // ── Typen (so, wie der Server sie schickt) ───────────────────────────────────
 interface MandatZeile {
@@ -87,7 +89,7 @@ export default function ChefGlobal() {
       <header className="cgr-kopf">
         <span className="cb-pille">Chefbüro · FIAON Global</span>
         <h1><span className="cb-verlauf">Global-Mandate</span></h1>
-        <p>Die Firmenkunden für sich — Gründung, Tresor, Post, Anfragen, Banken &amp; Kapital. Was du hier änderst, sieht der Kunde in seinem Portal.</p>
+        <p>Was du hier änderst, sieht der Kunde sofort in seinem Portal.</p>
       </header>
 
       <section className="cgr-kacheln" aria-label="Kennzahlen">
@@ -100,6 +102,8 @@ export default function ChefGlobal() {
           </div>
         ))}
       </section>
+
+      <ChefGlobalEinstellungen />
 
       {fehler && <Fehlermeldung text={fehler} erneut={neu} />}
 
@@ -151,8 +155,7 @@ export default function ChefGlobal() {
               ))}
             </>
           )}
-          <a className="cgr-liste-fuss" href="/chef/s/global-auftraege">Angebote &amp; Aufträge verwalten <ChevronRight size={13} /></a>
-          <a className="cgr-liste-fuss" href="/chef/s/firmen-radar">Firmen-Radar — neue Firmenkunden <ChevronRight size={13} /></a>
+
         </aside>
 
         <main className="cgr-akte-huelle">
@@ -222,7 +225,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
           </p>
           <div className="cgr-akte-marken">
             <em className={`st-${m.status}`}>{STATUS_TEXT[m.status] ?? m.status}</em>
-            <em className={m.portal.neu ? "st-portal" : "st-leise"}>{m.portal.neu ? `Neues Portal seit ${datum(m.portal.seit)}` : "Kunde sieht das bisherige Portal"}</em>
+            <em className={m.portal.neu ? "st-portal" : "st-leise"}>{m.portal.neu ? `Neues Portal seit ${datum(m.portal.seit)}` : "Bisheriges Portal"}</em>
             {m.test && <em className="st-test">Test</em>}
             {m.zustaendig && <em className="st-leise">Zuständig: {m.zustaendig.name}</em>}
           </div>
@@ -299,10 +302,10 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
             );
           })}
         </div>
-        {m.status === "offen" && <p className="cgr-satz">Die Zahlung steht aus — die Etappen beginnen mit dem Zahlungseingang. Der Fahrplan (Reiter Gesellschaft) lässt sich schon pflegen.</p>}
+        {m.status === "offen" && <p className="cgr-satz">Etappen starten mit dem Zahlungseingang — den Fahrplan kannst du schon pflegen.</p>}
         {etappeWahl !== null && (
           <div className="cgr-form zeile">
-            <input value={etappeText} onChange={(e) => setEtappeText(e.target.value)} placeholder="Persönlicher Satz an den Kunden (optional, er liest ihn)" />
+            <input value={etappeText} onChange={(e) => setEtappeText(e.target.value)} placeholder="Satz an den Kunden (optional, er liest ihn)" />
             <label className="cgr-haken"><input type="checkbox" checked={etappeMail} onChange={(e) => setEtappeMail(e.target.checked)} /> per Mail mitteilen</label>
             <button type="button" className="cw-knopf cgr-haupt" onClick={async () => { if (await tun("/etappe", "POST", { etappe: etappeWahl, text: etappeText, mitteilen: etappeMail })) setEtappeWahl(null); }}>
               Etappe {etappeWahl} setzen
@@ -313,7 +316,7 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
         <div className="cgr-fortschritt">
           <span style={{ width: `${Math.round((erledigt / gesamt) * 100)}%` }} />
         </div>
-        <p className="cgr-satz">{erledigt} von {gesamt} Schritten des Fahrplans erledigt. <button type="button" className="cgr-link" onClick={() => setReiter("gesellschaft")}>Fahrplan öffnen</button></p>
+        <p className="cgr-satz">{erledigt} von {gesamt} Schritten erledigt. <button type="button" className="cgr-link" onClick={() => setReiter("gesellschaft")}>Fahrplan öffnen</button></p>
       </section>
 
       <section className="cgr-block">
@@ -359,7 +362,7 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
           <dt>Telefon</dt><dd>{m.kontakt?.telefon || "—"}</dd>
           {m.firmaVoll?.name && m.firmaVoll?.art !== "privat" && <><dt>Firma</dt><dd>{String(m.firmaVoll.name)}</dd></>}
           <dt>Sprache</dt><dd>{m.sprache === "en" ? "Englisch" : "Deutsch"}</dd>
-          {m.person && <><dt>Personenakte</dt><dd><a className="cgr-link" href={`/akte/${m.person.id}`}>Person {m.person.id} <ExternalLink size={11} /></a>{m.person.gesperrt ? <span className="cgr-leise"> · für Privat-Abläufe gesperrt (Schutz)</span> : null}</dd></>}
+          {m.person && <><dt>Personenakte</dt><dd><a className="cgr-link" href={`/akte/${m.person.id}`}>Person {m.person.id} <ExternalLink size={11} /></a>{m.person.gesperrt ? <span className="cgr-leise"> · für Privat-Abläufe gesperrt</span> : null}</dd></>}
         </dl>
       </section>
 
@@ -386,7 +389,7 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
         <p className="cgr-satz">
           {m.portal.neu
             ? <>Der Kunde sieht das <b>neue Portal</b> (freigeschaltet {datumZeit(m.portal.seit)}{m.portal.von ? ` von ${m.portal.von}` : ""}).</>
-            : <>Der Kunde sieht noch das <b>bisherige Portal</b>. Sieh dir das neue über „Kundenportal ansehen“ an — erst wenn es für diesen Kunden sitzt, schaltest du es frei.</>}
+            : <>Der Kunde sieht noch das <b>bisherige Portal</b>. Erst „Kundenportal ansehen“, dann freischalten.</>}
         </p>
         <div className="cgr-form zeile">
           <button type="button" className={`cw-knopf${m.portal.neu ? "" : " cgr-haupt"}`} onClick={() => {
@@ -427,7 +430,7 @@ function Gesellschaft({ m, tun }: { m: any; tun: Tun }) {
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <h3>Die US-Gesellschaft <small>(steht im Portal des Kunden)</small></h3>
+        <h3>Die US-Gesellschaft <small>(sieht der Kunde)</small></h3>
         <div className="cgr-felder">
           <label>Name<input value={grund.name} onChange={(e) => setGrund({ ...grund, name: e.target.value })} placeholder="MUSTER LLC" /></label>
           <label>Form<select value={grund.form} onChange={(e) => setGrund({ ...grund, form: e.target.value })}><option>LLC</option><option>Corporation</option></select></label>
@@ -449,11 +452,11 @@ function Gesellschaft({ m, tun }: { m: any; tun: Tun }) {
           ))}
         </div>
         <div className="cgr-form zeile"><button type="button" className="cw-knopf cgr-haupt" onClick={speichern}>Gesellschaft speichern</button>
-          <span className="cgr-leise">Aus Bundesstaat und Gründungstag entstehen die Pflichtfristen (Annual Report, Form 5472/1120) automatisch.</span></div>
+          <span className="cgr-leise" title="Annual Report, Form 5472/1120">Bundesstaat + Gründungstag erzeugen die Pflichtfristen.</span></div>
       </section>
 
       <section className="cgr-block breit">
-        <h3>Fahrplan <small>(jeder Schritt erscheint beim Kunden; „Entfällt“ blendet ihn aus)</small></h3>
+        <h3>Fahrplan <small>(sieht der Kunde; „Entfällt“ blendet aus)</small></h3>
         {[1, 2, 3, 4].map((etappe) => (
           <div key={etappe} className="cgr-fahrplan-etappe">
             <h4>Etappe {etappe} · {GLOBAL_ETAPPEN.find((e) => e.nr === etappe)?.de.titel}</h4>
@@ -535,7 +538,7 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
             </div>
           </div>
         )}
-        {liste.length === 0 && !form && <p className="cgr-leer">Noch kein Konto, keine Karte, kein Rahmen erfasst.</p>}
+        {liste.length === 0 && !form && <p className="cgr-leer">Noch nichts erfasst.</p>}
         <div className="cgr-kapital">
           {liste.map((k) => {
             const ton = GLOBAL_KAPITAL_STATUS.find((s) => s.status === k.status)?.ton ?? "leise";
@@ -622,7 +625,7 @@ function Ablage({ gref, tun, fest, portalNeu }: { gref: string; tun: Tun; fest?:
           <label className="cgr-haken"><input type="checkbox" checked={mitteilen} onChange={(e) => setMitteilen(e.target.checked)} /> Kunde per Mail informieren</label>
         </div>
       </div>
-      {unterschrift && !portalNeu && <p className="cgr-warnung">Achtung: Dieser Kunde sieht noch das bisherige Portal — dort erscheint die Unterschrift nicht. Erst das neue Portal freischalten (Überblick).</p>}
+      {unterschrift && !portalNeu && <p className="cgr-warnung">Bisheriges Portal zeigt keine Unterschrift — erst neues Portal freischalten (Überblick).</p>}
       <button type="button" className="cw-knopf cgr-haupt" disabled={!datei || laeuft || (art === "post" && !absender.trim())} onClick={ablegen}>
         <Upload size={14} /> {laeuft ? "Lädt hoch …" : art === "post" ? "Post ablegen" : "In den Tresor legen"}
       </button>
@@ -688,7 +691,7 @@ function Post({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <h3>Post eingegangen? <small>Scan ablegen — der Kunde sieht ihn in seinem Briefkasten</small></h3>
+        <h3>Post ablegen <small>erscheint im Briefkasten des Kunden</small></h3>
         <Ablage gref={gref} tun={tun} fest="post" portalNeu={!!m.portal?.neu} />
       </section>
       <section className="cgr-block breit">
@@ -708,9 +711,9 @@ function Anfragen({ m, tun }: { m: any; tun: Tun }) {
     <div className="cgr-gitter">
       <section className="cgr-block breit">
         <h3>Gespräch mit dem Kunden</h3>
-        {!m.portal?.neu && <p className="cgr-warnung">Dieser Kunde sieht noch das bisherige Portal — Antworten erscheinen dort nicht. Bis zur Freischaltung bitte zusätzlich per Mail oder Telefon antworten.</p>}
+        {!m.portal?.neu && <p className="cgr-warnung">Bisheriges Portal zeigt keine Antworten — zusätzlich per Mail oder Telefon antworten.</p>}
         <div className="cgr-faden">
-          {faden.length === 0 && <p className="cgr-leer">Noch keine Anfrage. Wenn der Kunde im Portal schreibt, steht es hier — und als Aufgabe auf dem Board.</p>}
+          {faden.length === 0 && <p className="cgr-leer">Noch keine Anfrage — neue landen hier und auf dem Board.</p>}
           {faden.map((n) => (
             <div key={n.id} className={`cgr-blase ${n.von}`}>
               <p>{n.text}</p>
@@ -719,7 +722,7 @@ function Anfragen({ m, tun }: { m: any; tun: Tun }) {
           ))}
         </div>
         <div className="cgr-form">
-          <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort an den Kunden — er liest sie im Portal." />
+          <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Antwort an den Kunden (im Portal)" />
           <div className="cgr-form zeile">
             <label className="cgr-haken"><input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} /> Kunde per Mail informieren (ohne Inhalt)</label>
             <button type="button" className="cw-knopf cgr-haupt" disabled={text.trim().length < 2} onClick={async () => { if (await tun("/antwort", "POST", { text, mitteilen: mail })) setText(""); }}>
@@ -740,8 +743,8 @@ function Fristen({ m, tun }: { m: any; tun: Tun }) {
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <h3>Pflichtenkalender <small>Annual Report, Steuer, Registered Agent — der Kunde sieht ihn, Erinnerungen 30 und 7 Tage vorher</small></h3>
-        {(m.fristen as any[]).length === 0 && <p className="cgr-leer">Keine Fristen. Sie entstehen, sobald Bundesstaat und Gründungstag der Gesellschaft eingetragen sind.</p>}
+        <h3 title="Annual Report, Steuer, Registered Agent">Pflichtenkalender <small>sieht der Kunde · Erinnerung 30 und 7 Tage vorher</small></h3>
+        {(m.fristen as any[]).length === 0 && <p className="cgr-leer">Keine Fristen — entstehen mit Bundesstaat und Gründungstag.</p>}
         {(m.fristen as any[]).map((f) => (
           <div key={f.id} className={`cgr-frist${f.erledigt ? " erledigt" : ""}`}>
             <b>{datum(f.faelligAm)}</b>
@@ -772,7 +775,7 @@ function KiGespraeche({ gref }: { gref: string }) {
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <h3>Was die KI dem Kunden geantwortet hat <small>Strategie · Recht · Steuern — jede Antwort lief durch die Wortwand</small></h3>
+        <h3>KI-Antworten an den Kunden <small>Strategie · Recht · Steuern · durch die Wortwand geprüft</small></h3>
         {laedt && <Geruest zeilen={3} />}
         {fehler && <Fehlermeldung text={fehler} />}
         {!laedt && chats.length === 0 && <p className="cgr-leer">Noch keine Fragen an die KI.</p>}
@@ -799,7 +802,7 @@ function Verlauf({ m, tun }: { m: any; tun: Tun }) {
       <section className="cgr-block breit">
         <h3>Notiz</h3>
         <div className="cgr-form">
-          <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Interne Notiz — oder sichtbar für den Kunden in seinem Verlauf." />
+          <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Interne Notiz (oder für den Kunden sichtbar)" />
           <div className="cgr-form zeile">
             <label className="cgr-haken"><input type="checkbox" checked={sichtbar} onChange={(e) => setSichtbar(e.target.checked)} /> Kunde sieht die Notiz</label>
             <button type="button" className="cw-knopf" disabled={text.trim().length < 2} onClick={async () => { if (await tun("/notiz", "POST", { text, sichtbar })) setText(""); }}>Speichern</button>

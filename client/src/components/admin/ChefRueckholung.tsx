@@ -40,28 +40,28 @@ interface Antwort {
 const SEGMENT_TEXT: Record<SegmentKey, { titel: string; satz: string; beleg: string; event: string }> = {
   s1_frisch: {
     titel: "Frische Zahlungsmeldung", event: "rueckhol_s1",
-    satz: "Hat vor unter 3 Tagen gemeldet, dass er überwiesen hat — das Geld ist noch nicht da.",
-    beleg: "9,5 % zahlen — Faktor 19 zur Grundquote. Nach 72 Stunden ist der Vorsprung weg.",
+    satz: "Vor unter 3 Tagen Überweisung gemeldet, Geld noch nicht da.",
+    beleg: "9,5 % zahlen (19× Grundquote) — nach 72 h vorbei.",
   },
   s2_behauptet: {
     titel: "Alte Zahlungsmeldung", event: "rueckhol_s2",
-    satz: "Meldung liegt Wochen zurück; danach kamen im Schnitt 29 Mahnungen. Die Mail entschuldigt sich und stoppt die Kette.",
-    beleg: "47,2 % dieser Gruppe haben historisch doch bezahlt — die wertvollste Warteschlange.",
+    satz: "Meldung Wochen alt, danach ~29 Mahnungen. Mail entschuldigt sich, stoppt die Kette.",
+    beleg: "47,2 % haben doch bezahlt — wertvollste Gruppe.",
   },
   s3_preis_fehlt: {
     titel: "Preis fehlt (unser Bruch)", event: "rueckhol_s3",
-    satz: "Bestellung ohne Betrag — diese Menschen haben nie eine Zahlungsaufforderung bekommen.",
-    beleg: "0 von 1.211 haben je gezahlt. Erst prüfen, dann anschalten — Standard AUS.",
+    satz: "Bestellung ohne Betrag — nie eine Zahlungsaufforderung bekommen.",
+    beleg: "0 von 1.211 haben gezahlt. Erst prüfen, dann anschalten (Standard AUS).",
   },
   s4_nie_gemahnt: {
     titel: "Nie angeschrieben", event: "rueckhol_s4",
-    satz: "Antrag und Betrag liegen vor, aber es ging nie eine Erinnerung raus. Erstkontakt, keine Mahnung.",
-    beleg: "Die ersten 3 Mails bringen 75 von 116 Zahlern — hier ist die Botschaft noch neu.",
+    satz: "Antrag und Betrag da, nie erinnert. Erstkontakt, keine Mahnung.",
+    beleg: "Die ersten 3 Mails bringen 75 von 116 Zahlern.",
   },
   s5_altbestand: {
     titel: "Dauerpflege", event: "rueckhol_s5",
-    satz: "Wer seine Segmentstrecke durch hat, bekommt alle 28 Tage eine Wiedereinstiegs-Mail mit wechselndem Blickwinkel — ohne Ende, bis Kunde oder Stopp.",
-    beleg: "Niemand fällt aus dem Marketing (Justin, 02.09.). Zahl = heute versandfertig; Abstand über rueckhol_dauerpflege_abstand_tage (min. 21).",
+    satz: "Strecke durch: alle 28 Tage eine neue Mail, bis Kunde oder Stopp.",
+    beleg: "Zahl = heute versandfertig. Abstand unten einstellbar (min. 21 Tage).",
   },
 };
 
@@ -123,15 +123,15 @@ export default function ChefRueckholung() {
       <section className="cz-block cr-kopf">
         <div className="cr-riesig"><Hochzaehler ziel={gesamtWert} formatieren={eur} /></div>
         <p className="cr-riesig-satz">
-          offener Auftragswert in {zahl(gesamtZahl)} zurückholbaren Anträgen — sortiert nach Lage, nicht nach Alter.
-          {deckel <= 0 && <b> Der Lauf ist AUS (Tagesdeckel 0): es geht keine einzige Mail raus, bis unten eine Zahl gesetzt wird.</b>}
+          offener Wert in {zahl(gesamtZahl)} zurückholbaren Anträgen.
+          {deckel <= 0 && <b> Lauf AUS (Tagesdeckel 0) — keine Mail geht raus.</b>}
         </p>
       </section>
 
       {/* ── 2. Der Trichter: fünf Segmente ───────────────────────────────── */}
       <section className="cz-block">
         <header className="cz-block-kopf"><h3>Die fünf Segmente</h3>
-          <p>Jede Karte: wie viele Menschen, wie viel Wert, wie erreichbar. Der Lauf arbeitet von links nach rechts — S1 zuerst, denn eine frische Zahlungsmeldung verdirbt in 72 Stunden.</p>
+          <p>Der Lauf arbeitet von links nach rechts. Klick auf eine Karte zeigt die Fälle.</p>
         </header>
         <div className="cr-segmente">
           {REIHENFOLGE.map((k) => {
@@ -159,8 +159,8 @@ export default function ChefRueckholung() {
         </div>
         {offen && (
           <div className="cr-faelle">
-            <h4>{SEGMENT_TEXT[offen].titel} — die nächsten Fälle, wie der Lauf sie ziehen würde</h4>
-            {!faelle ? <Geruest zeilen={3} /> : faelle.length === 0 ? <p className="cr-leer">Kein versandfertiger Fall — alle gefiltert (keine Mail, Höchstzahl erreicht, Abstand läuft oder offener Bankeingang).</p> : (
+            <h4>{SEGMENT_TEXT[offen].titel} — die nächsten Fälle</h4>
+            {!faelle ? <Geruest zeilen={3} /> : faelle.length === 0 ? <p className="cr-leer" title="Gefiltert: keine Mail, Höchstzahl erreicht, Abstand läuft oder offener Bankeingang.">Kein versandfertiger Fall.</p> : (
               <div className="cr-tab-huelle"><table className="cr-tab">
                 <thead><tr><th>Referenz</th><th>Vorname</th><th>Paket</th><th>Betrag</th><th>Alter</th><th>Mahnungen</th><th>Rückhol-Mails</th><th>Kontakt</th></tr></thead>
                 <tbody>{faelle.map((f) => (
@@ -179,19 +179,19 @@ export default function ChefRueckholung() {
 
       {/* ── 3. Die Zustellbarkeit — der Block, der vor Schaden bewahrt ──── */}
       <section className="cz-block">
-        <header className="cz-block-kopf"><h3>Zustellbarkeit — die knappe Ressource</h3>
-          <p>Gmail &amp; Co. bewerten die Absender-Domain als Ganzes. Jede überflüssige Mail hier macht auch Zugangsdaten und Terminbestätigungen unzustellbarer.</p>
+        <header className="cz-block-kopf"><h3>Zustellbarkeit</h3>
+          <p>Jede überflüssige Mail schadet der ganzen Domain — auch Zugangsdaten und Termine.</p>
         </header>
         {letzteQuote >= 10 && (
           <div className="cr-klemmer"><ShieldAlert size={18} />
-            <div><b>{letzteQuote.toFixed(1).replace(".", ",")} % der rückgemeldeten Mails wurden zuletzt blockiert oder kamen zurück.</b> Über 10 % ist die Zone, in der Postfächer die Domain abwerten. Jetzt hilft nur weniger senden: Mahn-Obergrenze runter, Frequenzdeckel an, Rückholung klein takten.</div>
+            <div><b>{letzteQuote.toFixed(1).replace(".", ",")} % zuletzt blockiert oder zurück</b> — über 10 % wertet Gmail die Domain ab. Weniger senden: Mahngrenze runter, Bremse an, Rückholung klein.</div>
           </div>
         )}
         <div className="cr-vier">
-          <div className="cr-kennzahl"><b>{zahl(z.sendungen30)}</b><span>Mails in 30 Tagen an {zahl(z.empfaenger30)} Empfänger — im Schnitt {String(z.schnitt).replace(".", ",")} je Kopf, Spitze {zahl(z.maximum)}.</span></div>
-          <div className="cr-kennzahl"><b>{zahl(z.blockiert + z.gebounct)}</b><span>blockiert oder zurückgekommen; {zahl(z.spam)} Spam-Beschwerden. Jede davon senkt die Zustellrate aller Mails.</span></div>
-          <div className="cr-kennzahl"><b>{zahl(z.geoeffnet + z.geklickt)}</b><span>geöffnet oder geklickt — das Engagement, das die Domain rettet.</span></div>
-          <div className="cr-kennzahl"><b>{zahl(daten.bremse.zurueckgehalten24h)}</b><span>Mails hat die Frequenzbremse in 24 h zurückgehalten — Deckel je Empfänger, Pflichtmails ausgenommen.</span></div>
+          <div className="cr-kennzahl"><b>{zahl(z.sendungen30)}</b><span>Mails in 30 Tagen an {zahl(z.empfaenger30)} Empfänger · Ø {String(z.schnitt).replace(".", ",")} je Kopf, max. {zahl(z.maximum)}</span></div>
+          <div className="cr-kennzahl"><b>{zahl(z.blockiert + z.gebounct)}</b><span>blockiert oder zurück · {zahl(z.spam)} Spam-Beschwerden</span></div>
+          <div className="cr-kennzahl"><b>{zahl(z.geoeffnet + z.geklickt)}</b><span>geöffnet oder geklickt</span></div>
+          <div className="cr-kennzahl"><b>{zahl(daten.bremse.zurueckgehalten24h)}</b><span title="Deckel je Empfänger, Pflichtmails ausgenommen.">von der Bremse in 24 h zurückgehalten</span></div>
         </div>
         <div className="cr-wochen">
           {z.blockquoteWochen.map((wq) => (
@@ -200,26 +200,26 @@ export default function ChefRueckholung() {
               <span>{wq.woche}</span><b>{String(wq.quote).replace(".", ",")} %</b>
             </div>
           ))}
-          <p className="cr-wochen-satz">Blockquote je Woche (nur Mails mit Rückmeldung). Fällt sie, wirkt die Bremse.</p>
+          <p className="cr-wochen-satz">Blockquote je Woche (nur Mails mit Rückmeldung).</p>
         </div>
       </section>
 
       {/* ── 4. Die Schalter ──────────────────────────────────────────────── */}
       <section className="cz-block">
         <header className="cz-block-kopf"><h3>Die Schalter</h3>
-          <p>Alles Zahlen in fiaon_settings — wirken sofort, ohne Auslieferung. 0 heißt überall: aus.</p>
+          <p>Wirken sofort. 0 heißt überall: aus.</p>
         </header>
         <div className="cr-schalter">
           {([
-            ["rueckhol_pro_tag", "Rückhol-Mails je Tag", "Der Haupthahn. 0 = kein Versand. Empfehlung zum Start: 30 — erst S1/S2 abarbeiten, Wirkung ansehen, dann erhöhen."],
-            ["frequenzbremse_an", "Frequenzbremse (1 = an, 0 = aus)", "0 = keine Deckel je Empfänger, keine 14-Tage-Ruhe nach Blockaden, keine 20-Stunden-Ruhe. Unzustellbare Adressen und die Werbesperre für Werbung bleiben immer."],
-            ["frequenz_pro_tag", "Je Empfänger: Mails pro Tag", "Deckel über ALLE werbenden Mails des Hauses. Standard 2."],
-            ["frequenz_pro_woche", "Je Empfänger: pro Woche", "Standard 4. Justins 2-Tage-Takt passt darunter."],
-            ["frequenz_pro_monat", "Je Empfänger: pro 30 Tage", "Standard 8. Ab Mail 6 verdoppelt sich die Blockquote — 8 ist die Oberkante."],
-            ["max_reminders", "Erstzahlung: Erinnerungen je Bestellung", "0 = ohne Obergrenze (Justin, 11.09.). Die Messung vom 02.09. sagt: Ab Mahnung 6 ist die Ausbeute null."],
-            ["mahn_takte_pro_tag", "Mahnläufe pro Tag", "2 = zweimal täglich dieselben Leute. Empfehlung: 1."],
-            ["mahn_dauer_tage", "Raten: Dauermahnung alle … Tage", "Nach Stufe 5 (Tag 21) geht es alle N Tage weiter, bis bezahlt oder Mahnstopp. Standard 3. 0 = Schluss nach Stufe 5."],
-            ["rueckhol_dauerpflege_abstand_tage", "Dauerpflege: Tage zwischen zwei Mails", "Standard 28, Minimum 21 (sonst kollidiert es mit dem Monatsdeckel der Bremse)."],
+            ["rueckhol_pro_tag", "Rückhol-Mails je Tag", "Haupthahn. 0 = kein Versand. Start-Empfehlung: 30."],
+            ["frequenzbremse_an", "Frequenzbremse (1 = an, 0 = aus)", "0 = keine Deckel, keine Ruhezeiten. Unzustellbar + Werbesperre gelten immer."],
+            ["frequenz_pro_tag", "Je Empfänger: Mails pro Tag", "Gilt für ALLE Werbemails. Standard 2."],
+            ["frequenz_pro_woche", "Je Empfänger: pro Woche", "Standard 4."],
+            ["frequenz_pro_monat", "Je Empfänger: pro 30 Tage", "Standard 8 = Oberkante. Ab Mail 6 verdoppelt sich die Blockquote."],
+            ["max_reminders", "Erstzahlung: Erinnerungen je Bestellung", "0 = ohne Grenze. Ab Mahnung 6 zahlt praktisch keiner mehr."],
+            ["mahn_takte_pro_tag", "Mahnläufe pro Tag", "Empfehlung: 1. Bei 2 trifft es dieselben Leute zweimal täglich."],
+            ["mahn_dauer_tage", "Raten: Dauermahnung alle … Tage", "Nach Stufe 5 alle N Tage weiter. Standard 3. 0 = Schluss nach Stufe 5."],
+            ["rueckhol_dauerpflege_abstand_tage", "Dauerpflege: Tage zwischen zwei Mails", "Standard 28, Minimum 21."],
           ] as const).map(([key, label, satz]) => (
             <label key={key} className="cr-schalter-feld">
               <span className="cr-schalter-label">{label}</span>
@@ -236,8 +236,8 @@ export default function ChefRueckholung() {
           weil dies die Seite der Schalter ist — die Aufträge selbst zeigt
           /chef/s/global-auftraege. */}
       <section className="cz-block">
-        <header className="cz-block-kopf"><h3>FIAON Global — der Bestellweg für Unternehmen</h3>
-          <p>Wer einen neuen Auftrag bekommt, welcher Satz bei einem Abschluss gebucht wird und was zur Umsatzsteuer auf der Rechnung steht. Wirkt sofort, ohne Auslieferung. Die Aufträge selbst: <a href="/chef/s/global-auftraege">Global-Aufträge</a>.</p>
+        <header className="cz-block-kopf"><h3>FIAON Global — Bestellweg Firmen</h3>
+          <p>Zuständigkeit, Provision, Umsatzsteuer. Wirkt sofort. Aufträge: <a href="/chef/s/global-auftraege">Global-Aufträge</a>.</p>
         </header>
         <div className="cr-schalter">
           <label className="cr-schalter-feld">
@@ -247,13 +247,13 @@ export default function ChefRueckholung() {
               <option value="">Vertriebsleitung (wer am wenigsten offen hat)</option>
               {(daten.mitarbeiter ?? []).map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
             </select>
-            <small>Bekommt bei jedem neuen Auftrag eine Aufgabe mit Mail, wird als Betreuer eingetragen (wenn noch keiner da ist) und steht als Ansprechpartner in den Kundenmails. Nach dem Zahlungseingang bekommt sie die Aufgabe „US-Struktur starten“.</small>
+            <small title="Wird Betreuer (falls keiner da), steht als Ansprechpartner in Kundenmails, bekommt nach Zahlung „US-Struktur starten“.">Bekommt jeden neuen Auftrag als Aufgabe mit Mail.</small>
           </label>
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Provision bei Global-Abschlüssen, in Prozent</span>
             <input type="number" min={0} max={50} defaultValue={daten.schalter.global_provision_prozent ?? ""} placeholder="25"
               onBlur={(e) => { const v = e.target.value.trim(); if (v !== (daten.schalter.global_provision_prozent ?? "")) speichern("global_provision_prozent", v || "25", `Provision FIAON Global: ${v || "25"} %.`); }} />
-            <small>Vorgabe 25. Gebucht wird beim Zahlungseingang auf den Einmalpreis, ohne Partnerstatus-Zuschlag: bei 2.499 € und 25 % sind das 624,75 €, bei 35.999 € 8.999,75 €. Anspruch hat nur, wer vor der Zahlung ein Gespräch dokumentiert hat — ein reiner Web-Kauf bleibt ohne Provision. Hat der Mitarbeiter einen Werber, kommt dessen Team-Umsatzbeteiligung wie bei jedem Abschluss dazu. 0 = keine Provision.</small>
+            <small title="Auf den Einmalpreis, ohne Partnerzuschlag: 2.499 € → 624,75 €, 35.999 € → 8.999,75 €. Werber-Beteiligung kommt wie üblich dazu.">Vorgabe 25, bei Zahlungseingang. Nur mit dokumentiertem Gespräch — Web-Kauf ohne Provision. 0 = keine.</small>
           </label>
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Umsatzsteuer auf der Firmenrechnung</span>
@@ -262,7 +262,7 @@ export default function ChefRueckholung() {
               <option value="none">Ohne gesonderten Steuerausweis (Vorgabe)</option>
               <option value="reverse_charge">Reverse Charge — netto, Steuerschuld beim Kunden</option>
             </select>
-            <small>Erst umstellen, wenn der Steuerberater entschieden hat. Gilt für NEUE Aufträge und steht danach fest an der Bestellung — eine gestellte Rechnung ändert sich nicht mehr. Reverse Charge braucht die USt-IdNr. des Kunden; fehlt sie, geht die Rechnung ohne Steuerausweis raus und die Aufgabe sagt es. 19 % weist das System nie aus.</small>
+            <small title="Reverse Charge braucht die USt-IdNr.; fehlt sie, geht die Rechnung ohne Steuerausweis raus. 19 % weist das System nie aus.">Nur nach Steuerberater-Entscheid umstellen. Gilt nur für NEUE Aufträge.</small>
           </label>
         </div>
       </section>
@@ -270,20 +270,20 @@ export default function ChefRueckholung() {
       {/* ── 5. Die Wirkung ───────────────────────────────────────────────── */}
       <section className="cz-block">
         <header className="cz-block-kopf"><h3>Die Wirkung</h3>
-          <p>Der belegte Weg: Mail → gebuchter Termin (Faktor 6) → Zahlung. Erst wenn hier Zahlen stehen, weißt du, ob die Maschine verkauft.</p>
+          <p>Mail → Termin → Zahlung. Hier siehst du, ob die Rückholung verkauft.</p>
         </header>
         <div className="cr-stufen">
-          <div className="cr-stufe"><MailX size={16} /><b>{zahl(w.angeschrieben)}</b><span>Menschen angeschrieben</span></div>
+          <div className="cr-stufe"><MailX size={16} /><b>{zahl(w.angeschrieben)}</b><span>angeschrieben</span></div>
           <div className="cr-pfeil">{w.angeschrieben ? `${Math.round((w.termine / w.angeschrieben) * 100)} %` : "→"}</div>
-          <div className="cr-stufe"><CalendarCheck2 size={16} /><b>{zahl(w.termine)}</b><span>haben danach einen Termin gebucht</span></div>
+          <div className="cr-stufe"><CalendarCheck2 size={16} /><b>{zahl(w.termine)}</b><span>Termin gebucht</span></div>
           <div className="cr-pfeil">{w.termine ? `${Math.round((w.bezahlt / w.termine) * 100)} %` : "→"}</div>
-          <div className="cr-stufe"><PhoneCall size={16} /><b>{zahl(w.bezahlt)}</b><span>haben bezahlt — {eur(w.umsatz_cents)}</span></div>
+          <div className="cr-stufe"><PhoneCall size={16} /><b>{zahl(w.bezahlt)}</b><span>bezahlt — {eur(w.umsatz_cents)}</span></div>
         </div>
       </section>
 
       {/* ── 6. Die Läufe ─────────────────────────────────────────────────── */}
       <section className="cz-block">
-        <header className="cz-block-kopf"><h3>Die Läufe</h3><p>Grün: zuletzt sauber gelaufen. Der Rückhol-Takt prüft alle 30 Minuten, verschickt aber nur bis zum Tagesdeckel.</p></header>
+        <header className="cz-block-kopf"><h3>Die Läufe</h3><p>Grün = sauber gelaufen. Prüft alle 30 Min., sendet bis zum Tagesdeckel.</p></header>
         <div className="cr-laeufe">
           {daten.laeufe.map((l) => (
             <div key={l.name} className={`cr-lauf cr-lauf-${l.ampel}`}>

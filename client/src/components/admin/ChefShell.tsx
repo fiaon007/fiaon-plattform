@@ -26,7 +26,7 @@ import {
   MailCheck, MessageSquare,
   Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2,
 } from "lucide-react";
-import { seitenFuerRaum, chefPfad } from "./chef-seiten";
+import { seitenFuerRaum, chefPfad, type ChefSeite } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
 import { WaPauseBand } from "./ChefWaPause";
 // E-336: die Suche im Kopf (⌘K / Strg+K) — Seiten, Räume, Kunden.
@@ -46,6 +46,14 @@ const GLAS_LICHT_KARTEN = [
   ".cl-tab-huelle", ".cl-fehler", ".cw-werkzeug", ".cw-meldung", ".cw-tabelle-rahmen", ".cw-pruefung", ".ck-suche", ".cw-stapel",
   ".cbes-aergerkarte", ".cb-rang", ".cb-gratulation", ".kip-karte", ".sv-gruppe",
 ].join(", ");
+
+/** E-342 Kurzmodus: welche Elemente als ERKLÄRUNG gelten (nicht als Inhalt) — und wo nie gekürzt wird. */
+const KURZ_ZIELE = [
+  "header p", "[class*='-kopf'] p", "[class*='-kopf'] > small", "label small", "[class*='-feld'] small", "[class*='-hinweis'] p",
+  "p.text-slate-500", "p.text-slate-400", "p.text-gray-500", "p.text-muted-foreground", "p.text-xs", "p.text-sm.text-slate-600",
+].join(", ");
+const KURZ_NIE = "[data-volltext], [role='dialog'], table, textarea, pre, blockquote, [contenteditable='true'], .cb-hinweis, .cbk-schleier, .cge-hilfe";
+const KURZ_AB_ZEICHEN = 150;
 
 export type ChefStufe = "inhaber" | "geschaeftsfuehrung" | "leitung";
 const RANG: Record<ChefStufe, number> = { inhaber: 3, geschaeftsfuehrung: 2, leitung: 1 };
@@ -99,7 +107,7 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // ── Heute ───────────────────────────────────────────────────────────────
   {
     key: "lage", label: "Lagezimmer", Icon: LayoutDashboard, mindest: "leitung", gruppe: "heute",
-    satz: "Der Tag auf einen Blick — Aufgaben, Warnungen, deine Liste.",
+    satz: "Der Tag auf einen Blick.",
     punkte: [],
   },
   // ── DIE WERKSTATT (26.08.2026) ──────────────────────────────────────────
@@ -107,32 +115,32 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // Werkzeuge waren als Endpunkte gebaut und hatten keine einzige Tür.
   {
     key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung", gruppe: "heute",
-    satz: "Frag die Zahlen, Wahrheits-Check, Maschinenraum, Sprung, Freigaben, Posteingang.",
+    satz: "Werkzeuge auf den echten Daten.",
     punkte: [],
   },
   // ── Kunden ──────────────────────────────────────────────────────────────
   {
     key: "kundenliste", label: "Alle Kunden", Icon: Table2, mindest: "leitung", gruppe: "kunden",
-    satz: "Der gesamte Bestand — eine Person, eine Zeile, mit Filtern und Suche.",
+    satz: "Der ganze Bestand — eine Person, eine Zeile.",
     punkte: [],
   },
   {
     // E-336: hieß „Kunden" — direkt neben „Alle Kunden" war nicht zu erkennen, was der Unterschied ist.
     key: "kunden", label: "Betreuung", Icon: Users, mindest: "leitung", gruppe: "kunden",
-    satz: "Die Arbeit am Kunden — Kunden-Zentrale, Termine, Ausweise, Kündigungen, Telefonkartei, Dubletten, Auskünfte.",
+    satz: "Die Arbeit am Kunden.",
     punkte: [],
   },
   // ── FIAON Global (E-338) ────────────────────────────────────────────────
   {
     key: "global", label: "Global-Mandate", Icon: Globe2, mindest: "leitung", gruppe: "global",
-    satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital, Angebote, Aufträge und das Firmen-Radar.",
+    satz: "Firmenkunden — Mandate, Angebote, Radar.",
     punkte: [],
   },
   // ── Vertrieb ────────────────────────────────────────────────────────────
   {
     // E-336: Alles, was NEUE Kunden bringt — vorher verteilt auf „Kunden" und „Kommunikation".
     key: "vertrieb", label: "Vertrieb", Icon: Target, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Neue Kunden gewinnen — Mara, Meta-Leads, Nachfass und kalte Leads.",
+    satz: "Neue Kunden gewinnen.",
     punkte: [],
   },
   // ── DIE RÜCKHOLUNG (02.09.2026, E-074) ──────────────────────────────────
@@ -140,30 +148,30 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // Geldstrecken GESCHALTET werden — das gehört nicht zwischen Leseseiten.
   {
     key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung", gruppe: "vertrieb",
-    satz: "Offene Anträge zurückholen — fünf Segmente, Zustellbarkeit, Schalter, Wirkung.",
+    satz: "Offene Anträge zurückholen.",
     punkte: [],
   },
   {
     key: "kommunikation", label: "Kommunikation", Icon: Send, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Postfach, WhatsApp, Mail-Zentrale, Mailwerk und die E-Mail-Events.",
+    satz: "Postfach, WhatsApp, Mails.",
     punkte: [],
   },
   // ── BESUCHER (27.08.2026) ───────────────────────────────────────────────
   // Microsoft Clarity: Wer war da, und — wichtiger — wo hat es geklemmt.
   {
     key: "besucher", label: "Besucher", Icon: Eye, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.",
+    satz: "Wo Besucher nicht weiterkommen.",
     punkte: [],
   },
   // ── Geld ────────────────────────────────────────────────────────────────
   {
     key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung", gruppe: "geld",
-    satz: "Zahlungen, Verbuchung, Auszahlungen, Abrechnungen — alles Geld in einem Raum.",
+    satz: "Alles Geld in einem Raum.",
     punkte: [],
   },
   {
     key: "zahlungen", label: "Zahlungszentrale", Icon: ReceiptIcon, mindest: "geschaeftsfuehrung", gruppe: "geld",
-    satz: "Jeder Zahlungseingang mit allen Angaben — gegengeprüft gegen das Lagezimmer.",
+    satz: "Jeder Zahlungseingang, gegengeprüft.",
     punkte: [],
   },
   {
@@ -172,23 +180,23 @@ export const CHEF_RAEUME: ChefRaum[] = [
     // baue eine Unternehmensbewertung ein." Die eine Wahrheit über das Geld —
     // ersetzt inhaltlich die Stripe-Rechnung des alten Admin-Dashboards.
     key: "wert", label: "Verdienst & Wert", Icon: Gem, mindest: "geschaeftsfuehrung", gruppe: "geld",
-    satz: "Verdient, monatlich (MRR), Vertragsbestand ×12 und der Unternehmenswert.",
+    satz: "Verdient, MRR und Unternehmenswert.",
     punkte: [],
   },
   // ── Team ────────────────────────────────────────────────────────────────
   {
     key: "team", label: "Team", Icon: Handshake, mindest: "leitung", gruppe: "team",
-    satz: "Alles zu einem Menschen an einem Ort — Kennzahlen, Verträge, Bewerbungen, Space.",
+    satz: "Menschen, Verträge, Bewerbungen.",
     punkte: [],
   },
   {
     key: "academy", label: "Academy", Icon: GraduationCap, mindest: "leitung", gruppe: "team",
-    satz: "Einschulung, Prüfungen, Zertifikate, Funktionen mit Schulungsmodus.",
+    satz: "Einschulung und Funktionen.",
     punkte: [],
   },
   {
     key: "redaktion", label: "Redaktion", Icon: FileText, mindest: "leitung", gruppe: "team",
-    satz: "Ratgeber-Redaktion — Entwürfe, Vorschau, Prüfstand, Veröffentlichung.",
+    satz: "Ratgeber schreiben und veröffentlichen.",
     punkte: [],
   },
   // ── System ──────────────────────────────────────────────────────────────
@@ -197,12 +205,12 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // Plattform mit Namen, Klartext und Direktverweis.
   {
     key: "register", label: "Register", Icon: LibraryBig, mindest: "leitung", gruppe: "system",
-    satz: "Jede Funktion der Plattform, durchsuchbar — auch die ohne eigene Kachel.",
+    satz: "Jede Funktion, durchsuchbar.",
     punkte: [],
   },
   {
     key: "system", label: "System", Icon: Settings, mindest: "geschaeftsfuehrung", gruppe: "system",
-    satz: "Einstellungen, Diagnose, Audit, Changelog, Rechtstexte.",
+    satz: "Einstellungen, Diagnose, Audit.",
     punkte: [],
   },
 ];
@@ -212,8 +220,44 @@ export function raumErlaubt(raum: ChefRaum, stufe: ChefStufe): boolean {
   return RANG[stufe] >= RANG[raum.mindest];
 }
 
-export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false }: {
+/** E-342: die Seiten eines Raums, die diese Stufe öffnen darf — ohne reine Suchziele (Kundenakte). */
+function raumSeitenFuer(raumKey: string, darf: (m?: ChefStufe) => boolean): ChefSeite[] {
+  return seitenFuerRaum(raumKey).filter((s) => !s.ohneKachel && darf(s.mindest));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WEGELEISTE (E-342, 12.10.2026)
+//
+// Justin: „wie finde ich zu /chef/s/firmen-radar? … ich brauche für alles eine
+//          Verlinkung, dass wirklich jede Seite auch genutzt wird — man muss so
+//          ‚geführt werden'."
+// Über jeder Seite stehen alle Seiten ihres Raums als Reiter (der Raum selbst
+// zuerst), unter jeder Seite „Weiter: …" zur nächsten. Das Menü ist meist
+// eingeklappt — die Leiste ist der Weg, der immer sichtbar ist.
+// ═══════════════════════════════════════════════════════════════════════════
+export function RaumWege({ raum, stufe, aktivSlug }: { raum: ChefRaum; stufe: ChefStufe; aktivSlug: string | null }) {
+  const seiten = raumSeitenFuer(raum.key, (m) => !m || RANG[stufe] >= RANG[m]);
+  if (!seiten.length) return null;
+  return (
+    <nav className="cb-wege" aria-label={`Seiten im Raum ${raum.label}`}>
+      <Link href={`/chef/${raum.key}`} className={`cb-weg raum${aktivSlug ? "" : " an"}`} aria-current={aktivSlug ? undefined : "page"}>
+        <raum.Icon size={14} strokeWidth={1.75} />{raum.label}
+      </Link>
+      {seiten.map((x) => (
+        <Link key={x.slug} href={chefPfad(x)} className={`cb-weg${aktivSlug === x.slug ? " an" : ""}`} aria-current={aktivSlug === x.slug ? "page" : undefined}>
+          {x.kurz ?? x.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false, seiteSlug = null, volltext = false }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
+  /** E-342: die offene Seite (/chef/s/<slug>) — markiert ihren Unterpunkt im Menü. */
+  seiteSlug?: string | null;
+  /** E-342: Auf dieser Seite ist langer Text Inhalt (Chats, Mails) — der Kurzmodus kürzt nichts. */
+  volltext?: boolean;
   onAbmelden: () => void; children: ReactNode;
   /** Anzeigetitel der Person (admin_titel) — ersetzt im Kopf den Stufennamen. */
   titel?: string | null;
@@ -287,6 +331,47 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
     document.addEventListener("pointermove", bewegt, { passive: true });
     return () => { document.removeEventListener("pointermove", bewegt); if (bild) cancelAnimationFrame(bild); loesen(); };
   }, [ruhig]);
+  // ── DER KURZMODUS (E-342, 12.10.2026) ────────────────────────────────────
+  // Justin: „überall viel zu viel Text — mach das besser, auf jeder Seite, in jeder Ansicht."
+  // Lange ERKLÄRUNGEN (Absätze unter Überschriften, Hinweise unter Feldern, leise Grautexte der alten
+  // Admin-Seiten) zeigen zwei Zeilen; ein Klick klappt sie auf. Inhalt (Chats, Mails, Notizen, Tabellen,
+  // Dialoge) bleibt ganz — Seiten mit `volltext` (chef-seiten.tsx) und [data-volltext] sind ausgenommen.
+  useEffect(() => {
+    if (volltext) return;
+    const wurzel = document.querySelector(".cb-inhalt");
+    if (!wurzel) return;
+    const geprueft = new WeakSet<Element>();
+    let takt = 0;
+    const kuerzen = () => {
+      takt = 0;
+      wurzel.querySelectorAll(KURZ_ZIELE).forEach((el) => {
+        if (geprueft.has(el)) return;
+        geprueft.add(el);
+        if (el.closest(KURZ_NIE)) return;
+        if ((el.textContent || "").trim().length < KURZ_AB_ZEICHEN) return;
+        const d = getComputedStyle(el).display;
+        if (d !== "block" && d !== "inline" && d !== "inline-block") return;
+        el.classList.add("cb-kurz");
+        el.setAttribute("title", "Klicken: ganzer Text");
+      });
+    };
+    const beobachter = new MutationObserver(() => { if (!takt) takt = window.setTimeout(kuerzen, 180); });
+    beobachter.observe(wurzel, { childList: true, subtree: true });
+    kuerzen();
+    const klick = (e: Event) => {
+      const t = e.target as Element | null;
+      if (!t || t.closest("a, button, input, select, textarea, label input")) return;
+      const k = t.closest(".cb-kurz");
+      if (!k) return;
+      k.classList.toggle("cb-kurz-auf");
+      k.setAttribute("title", k.classList.contains("cb-kurz-auf") ? "Klicken: kürzer" : "Klicken: ganzer Text");
+    };
+    wurzel.addEventListener("click", klick);
+    return () => {
+      beobachter.disconnect(); wurzel.removeEventListener("click", klick); if (takt) clearTimeout(takt);
+      wurzel.querySelectorAll(".cb-kurz").forEach((el) => { el.classList.remove("cb-kurz", "cb-kurz-auf"); el.removeAttribute("title"); });
+    };
+  }, [volltext, raumKey, seiteSlug]);
   const vorname = String(name || "").split(" ")[0];
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
@@ -303,11 +388,27 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
         </div>
       );
     }
+    // E-342: Die Seiten des offenen Raums stehen darunter — im aufgeklappten Menü und in der Schublade.
+    // Ein Raum, der allein unter seiner Überschrift steht (FIAON Global), zeigt sie immer.
+    const unter = raumSeitenFuer(r.key, darf);
+    const allein = CHEF_RAEUME.filter((x) => x.gruppe === r.gruppe).length === 1;
+    const offen = unter.length > 0 && (inSchublade || !schmal) && (aktiv.key === r.key || allein);
     return (
-      <Link href={`/chef/${r.key}`} className={`cb-punkt${aktiv.key === r.key ? " an" : ""}`} title={r.label} onClick={() => inSchublade && setMenueOffen(false)}>
-        <i><r.Icon size={18} strokeWidth={1.75} /></i>
-        <span>{r.label}</span>
-      </Link>
+      <>
+        <Link href={`/chef/${r.key}`} className={`cb-punkt${aktiv.key === r.key && (!seiteSlug || !offen) ? " an" : ""}${aktiv.key === r.key ? " offen" : ""}`} title={r.label} onClick={() => inSchublade && setMenueOffen(false)}>
+          <i><r.Icon size={18} strokeWidth={1.75} /></i>
+          <span>{r.label}</span>
+        </Link>
+        {offen && (
+          <div className="cb-unter">
+            {unter.map((x) => (
+              <Link key={x.slug} href={chefPfad(x)} className={`cb-unterpunkt${seiteSlug === x.slug ? " an" : ""}`} onClick={() => inSchublade && setMenueOffen(false)}>
+                {x.kurz ?? x.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </>
     );
   };
   // E-336: Das Menü steht in Gruppen (CHEF_GRUPPEN) — eingeklappt trennt eine feine Linie statt der Überschrift.
@@ -463,9 +564,10 @@ export function ChefRaumSeite({ raum, stufe }: { raum: ChefRaum; stufe: ChefStuf
 // (chefbuero-seiten.css). Ohne diese Klasse wäre die Seite weiß auf schwarz —
 // mit ihr sieht sie aus, als wäre sie für das Chefbüro gebaut worden.
 // ═══════════════════════════════════════════════════════════════════════════
-export function ChefSeitenRahmen({ seite, raum, children }: {
-  seite: { label: string; satz: string; raum: string; eigenesDesign?: boolean };
+export function ChefSeitenRahmen({ seite, raum, stufe, children }: {
+  seite: { slug?: string; label: string; satz: string; raum: string; eigenesDesign?: boolean };
   raum: ChefRaum | undefined;
+  stufe: ChefStufe;
   children: ReactNode;
 }) {
   // ── WARUM HIER KEINE GROSSE ÜBERSCHRIFT STEHT ───────────────────────────
@@ -474,19 +576,41 @@ export function ChefSeitenRahmen({ seite, raum, children }: {
   // von mir, einmal von der Seite selbst. Fast jede übernommene Seite bringt
   // ihre eigene Überschrift mit — also bleibt hier nur der Weg zurück und
   // eine leise Zeile, die sagt, wo man ist.
+  // E-342: Statt „zurück + Ort" die Wegeleiste des Raums; unten „Weiter" zur nächsten Seite des Raums.
+  const geschwister = raum ? raumSeitenFuer(raum.key, (m) => !m || RANG[stufe] >= RANG[m]) : [];
+  const i = geschwister.findIndex((x) => x.slug === seite.slug);
+  const weiter = i >= 0 ? geschwister[i + 1] : undefined;
   return (
     <div className="cbs-huelle">
       <div className="cbs-kopf schlank">
-        {raum && (
+        {raum && geschwister.length ? <RaumWege raum={raum} stufe={stufe} aktivSlug={seite.slug ?? null} /> : raum && (
           <Link href={`/chef/${raum.key}`} className="cbs-zurueck">
             <ChevronRight size={15} strokeWidth={2} style={{ transform: "rotate(180deg)" }} />
             {raum.label}
           </Link>
         )}
-        <span className="cbs-ort">Chefbüro · {raum?.label ?? "Seite"} · {seite.label}</span>
       </div>
       {/* E-201: Seiten mit eigenem Chefbüro-Design laufen ohne die Hell→Dunkel-Übersetzung. */}
       <div className={seite.eigenesDesign ? "cbs-eigen" : "cbs"}>{children}</div>
+      {raum && i >= 0 && (
+        <nav className="cb-weiter" aria-label="Nächste Seite">
+          {weiter ? (
+            <Link href={chefPfad(weiter)} className="cb-weiter-link">
+              <small>Weiter in {raum.label}</small>
+              <b>{weiter.kurz ?? weiter.label}</b>
+              <span>{weiter.satz}</span>
+              <ChevronRight size={18} strokeWidth={1.75} />
+            </Link>
+          ) : (
+            <Link href={`/chef/${raum.key}`} className="cb-weiter-link">
+              <small>Alles gesehen</small>
+              <b>Zurück zu {raum.label}</b>
+              <span>{raum.satz}</span>
+              <ChevronRight size={18} strokeWidth={1.75} />
+            </Link>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

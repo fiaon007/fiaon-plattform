@@ -105,8 +105,7 @@ function FragDieZahlen() {
   return (
     <div className="cw-frag">
       <p className="cw-erklaerung">
-        Frag in ganzen Sätzen. Die Antwort kommt aus der echten Datenbank, und
-        die erzeugte Abfrage steht darunter — nur lesend, es wird nichts verändert.
+        Frag in ganzen Sätzen — nur lesend, die Abfrage steht darunter.
       </p>
       <div className="cw-fragfeld">
         <textarea
@@ -146,7 +145,7 @@ function FragDieZahlen() {
                   ))}
                 </tbody>
               </table>
-              {zeilen.length > 50 && <p className="cw-hinweis">Es werden die ersten 50 von {zahl(zeilen.length)} Zeilen gezeigt.</p>}
+              {zeilen.length > 50 && <p className="cw-hinweis">Erste 50 von {zahl(zeilen.length)} Zeilen.</p>}
             </div>
           )}
           {sql && (
@@ -189,8 +188,7 @@ function WahrheitsCheck() {
   return (
     <div className="cw-wahrheit">
       <p className="cw-erklaerung">
-        Sieben Stellen, an denen die Zahlen auseinanderlaufen können. Jede nennt,
-        was der Befund bedeutet — und wo man ihn behebt.
+        Sieben Prüfungen — jede sagt, was sie bedeutet und wo du es behebst.
       </p>
       <div className="cw-pruefliste">
         {d.pruefungen.map((p: any) => (
@@ -273,7 +271,7 @@ function Maschinenraum() {
     if (laeuft) return;
     // Ein Lauf von Hand kann Mails auslösen. Deshalb wird gefragt, und die
     // Frage nennt den Namen des Laufs — nicht nur „Bist du sicher?".
-    if (!window.confirm(`„${h.label}" jetzt von Hand starten?\n\n${h.satz}\n\nDabei können E-Mails an Kunden hinausgehen.`)) return;
+    if (!window.confirm(`„${h.label}" jetzt starten?\n\n${h.satz}\n\nKann E-Mails an Kunden auslösen.`)) return;
     setLaeuft(h.key); setMeldung(null);
     try {
       const r = await fetch(`${API}${h.pfad}`, { method: "POST", credentials: "include" });
@@ -296,8 +294,8 @@ function Maschinenraum() {
     <div className="cw-maschinen">
       <p className="cw-erklaerung">
         {d.cronsAn
-          ? "Die Automatik ist eingeschaltet. Gelb heißt: länger als üblich her. Rot heißt: zu lange."
-          : "Achtung — die Automatik ist auf diesem Server AUSGESCHALTET. Alle Ampeln unten sind deshalb ohne Aussage."}
+          ? "Automatik an. Gelb = länger her, Rot = zu lange."
+          : "Achtung — Automatik auf diesem Server AUS. Die Ampeln sagen nichts."}
       </p>
 
       <div className="cw-ampeln">
@@ -311,8 +309,8 @@ function Maschinenraum() {
       </div>
 
       <div className="cw-heute">
-        <span><b>{zahl(d.heute.mails)}</b><em>Mails heute hinausgegangen</em></span>
-        <span><b>{zahl(d.heute.zahlungen)}</b><em>Zahlungen heute eingegangen</em></span>
+        <span><b>{zahl(d.heute.mails)}</b><em>Mails heute</em></span>
+        <span><b>{zahl(d.heute.zahlungen)}</b><em>Zahlungen heute</em></span>
       </div>
 
       <div className="cw-handstarts">
@@ -360,7 +358,7 @@ function SprungUndSicht() {
   }, [q]);
 
   const alsKunde = async (ref: string | null) => {
-    if (!ref) { setMeldung("Zu dieser Person gibt es keine Akte, in die man springen könnte."); return; }
+    if (!ref) { setMeldung("Keine Akte zu dieser Person."); return; }
     try {
       const r = await fetch(`${API}/admin/kunden/${encodeURIComponent(ref)}/ansicht`, {
         method: "POST", credentials: "include",
@@ -376,8 +374,7 @@ function SprungUndSicht() {
   return (
     <div className="cw-sprung">
       <p className="cw-erklaerung">
-        Name, E-Mail, Telefonnummer oder Aktenzeichen. Von hier aus geht es in
-        die Akte — oder direkt in die Sicht des Kunden.
+        Name, E-Mail, Telefon oder Aktenzeichen.
       </p>
       <div className="cw-suchfeld">
         <Search size={18} strokeWidth={1.6} aria-hidden="true" />
@@ -387,7 +384,7 @@ function SprungUndSicht() {
       </div>
 
       {q.trim().length >= 2 && treffer.length === 0 && !sucht && (
-        <p className="cw-hinweis">Nichts gefunden. Vielleicht ist die Person als Dublette zusammengeführt.</p>
+        <p className="cw-hinweis">Nichts gefunden — evtl. als Dublette zusammengeführt.</p>
       )}
 
       {treffer.length > 0 && (
@@ -445,9 +442,7 @@ function Freigabestapel() {
   return (
     <div className="cw-freigaben">
       <p className="cw-erklaerung">
-        Vier Stapel, die nur du entscheiden kannst. Der Knopf führt jeweils
-        dorthin, wo die Entscheidung getroffen wird — hier wird nichts
-        versehentlich ausgelöst.
+        Nur du entscheidest. Der Knopf führt hin — hier wird nichts ausgelöst.
       </p>
       {d.stapel.map((t: any) => (
         <div key={t.key} className={`cw-stapel${Number(t.anzahl) === 0 ? " leer" : ""}`}>
@@ -484,7 +479,7 @@ function Freigabestapel() {
                   </table>
                 </div>
               ) : (
-                <p className="cw-hinweis">Für diesen Stapel gibt es keine Einzelaufstellung — der Knopf führt an den Ort.</p>
+                <p className="cw-hinweis">Keine Einzelaufstellung — der Knopf führt hin.</p>
               )}
               <a className="cw-knopf haupt" href={t.href}>
                 Dort entscheiden <ExternalLink size={14} strokeWidth={1.6} />
@@ -527,10 +522,7 @@ function Posteingang() {
   return (
     <div className="cw-post">
       <p className="cw-erklaerung">
-        Anfragen von der Website und offene Kundenanfragen aus dem
-        Kundenbereich. Beides stand bisher in der Datenbank, ohne dass es
-        irgendwo zu sehen war. Bewerbungen haben seit dem 11.09.2026 eine
-        eigene Seite mit Status, Zuständigem und Knöpfen:{" "}
+        Bewerbungen stehen unter{" "}
         <a href="/chef/s/bewerbungen">Team → Bewerbungen</a>.
       </p>
 
@@ -609,16 +601,15 @@ export default function ChefWerkzeuge() {
     <div className="cl cw">
       <header className="cl-kopf">
         <p className="cl-augenbraue">Werkstatt</p>
-        <h1>Fünf Werkzeuge</h1>
+        <h1>Werkzeuge</h1>
         <p className="cl-untertitel">
-          Alle fünf arbeiten auf den echten Daten. Was etwas verändert, fragt
-          vorher nach und wird im Chef-Protokoll festgehalten.
+          Echte Daten. Was etwas ändert, fragt vorher und wird protokolliert.
         </p>
       </header>
 
       <Werkzeug
         nr={1} Icon={MessageSquareText} titel="Frag die Zahlen"
-        satz="Eine Frage in ganzen Sätzen, die Antwort aus der Datenbank."
+        satz="Frage stellen, Antwort aus der Datenbank."
         offen={offen === "frag"} aufklappen={() => um("frag")}
       >
         <FragDieZahlen />
@@ -626,7 +617,7 @@ export default function ChefWerkzeuge() {
 
       <Werkzeug
         nr={2} Icon={ShieldCheck} titel="Wahrheits-Check"
-        satz="Stimmen meine Zahlen? Sieben Prüfungen an den empfindlichen Stellen."
+        satz="Stimmen meine Zahlen? Sieben Prüfungen."
         ton={kopf.wahrheit ? (kopf.wahrheit.offen === 0 ? "gut" : "achtung") : "ruhig"}
         kennzahl={kopf.wahrheit ? {
           wert: kopf.wahrheit.offen === 0 ? "sauber" : String(kopf.wahrheit.offen),
@@ -639,7 +630,7 @@ export default function ChefWerkzeuge() {
 
       <Werkzeug
         nr={3} Icon={Cpu} titel="Maschinenraum"
-        satz="Läuft die Automatik — und kann ich sie von hier neu anwerfen?"
+        satz="Läuft die Automatik? Hier neu anwerfen."
         ton={kopf.maschinen ? (kopf.maschinen.rot > 0 ? "achtung" : "gut") : "ruhig"}
         kennzahl={kopf.maschinen ? {
           wert: kopf.maschinen.rot > 0 ? `${kopf.maschinen.rot} rot` : "läuft",
@@ -652,7 +643,7 @@ export default function ChefWerkzeuge() {
 
       <Werkzeug
         nr={4} Icon={Search} titel="Sprung & Fremdsicht"
-        satz="In zwei Sekunden in der Akte — oder in der Sicht des Kunden."
+        satz="Direkt in die Akte oder die Kundensicht."
         offen={offen === "sprung"} aufklappen={() => um("sprung")}
       >
         <SprungUndSicht />
@@ -660,7 +651,7 @@ export default function ChefWerkzeuge() {
 
       <Werkzeug
         nr={5} Icon={Stamp} titel="Freigabestapel Geld"
-        satz="Alles, was nur du entscheiden kannst — an einer Stelle."
+        satz="Was nur du entscheidest — an einer Stelle."
         ton={kopf.freigaben ? (kopf.freigaben.offen > 0 ? "achtung" : "gut") : "ruhig"}
         kennzahl={kopf.freigaben ? {
           wert: zahl(kopf.freigaben.offen),
@@ -673,7 +664,7 @@ export default function ChefWerkzeuge() {
 
       <Werkzeug
         nr={6} Icon={Inbox} titel="Posteingang"
-        satz="Anfragen von der Website und offene Kundenanfragen."
+        satz="Website- und offene Kundenanfragen."
         ton={kopf.post ? ((kopf.post.tickets.anzahl + kopf.post.anfragen.anzahl) > 0 ? "achtung" : "gut") : "ruhig"}
         kennzahl={kopf.post ? {
           wert: zahl(kopf.post.tickets.anzahl + kopf.post.anfragen.anzahl),

@@ -83,15 +83,15 @@ const FILTER: { key: Reiter; text: string; satz: string; ton: "akz" | "warn" | "
   { key: "mailFehlt", text: "Mail fehlt", satz: "hochgeladen, Kunde weiß es nicht", ton: "krit" },
   { key: "problem", text: "Problem", satz: "mit Notiz", ton: "krit" },
   { key: "fertig", text: "Fertig", satz: "letzte 30 Tage", ton: "gut" },
-  { key: "alle", text: "Alle", satz: "jeder Auftrag, auch fertige", ton: "" },
+  { key: "alle", text: "Alle", satz: "auch fertige", ton: "" },
 ];
 const LAND: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
 const STATUS_TEXT: Record<Status, string> = { offen: "offen", in_arbeit: "in Arbeit", hochgeladen: "Mail fehlt", fertig: "fertig", problem: "Problem" };
 const STATUS_TON: Record<Status, string> = { offen: "", in_arbeit: "akz", hochgeladen: "krit", fertig: "gut", problem: "krit" };
 const MODUS_TEXT: Record<Modus, { name: string; satz: string }> = {
-  einkauf: { name: "Einkauf", satz: "Nach der Zahlung entsteht hier ein Auftrag; ihr beschafft die Auskunft und ladet sie hoch." },
-  vollmacht: { name: "Vollmacht", satz: "Der Weg vom 24.09.: je Auskunftei eine Anfrage, der Kunde unterschreibt, Versand per Post, Eingang im Vorgang." },
-  api: { name: "API", satz: "Wie Einkauf, dazu der Abruf über die Schnittstelle. Ohne Anbindung oder bei einem Fehler bleibt der Auftrag im Einkauf." },
+  einkauf: { name: "Einkauf", satz: "Nach Zahlung entsteht ein Auftrag; ihr beschafft und ladet hoch." },
+  vollmacht: { name: "Vollmacht", satz: "Je Auskunftei eine Anfrage, Kunde unterschreibt, Versand per Post." },
+  api: { name: "API", satz: "Wie Einkauf plus Abruf per Schnittstelle; bei Fehler bleibt es Einkauf." },
 };
 /** So viele Namen stehen zuerst in der Liste — danach „Weitere zeigen" (keine innere Rolle). */
 const LISTE_SCHRITT = 15;
@@ -125,7 +125,7 @@ function kurzStand(a: Auftrag): string {
   if (a.bearbeiter) teile.push(a.bearbeiter);
   if (a.bestellung.bezahlt === false) teile.push("nicht mehr bezahlt");
   if (a.anschriftFehlt) teile.push("Anschrift fehlt");
-  if (a.dokumentDa) teile.push("Auskunft liegt schon in der Akte");
+  if (a.dokumentDa) teile.push("Auskunft schon in der Akte");
   if (!a.einwilligung.ja) teile.push("Auftrag fehlt");
   else if (!a.faellig) teile.push(`fällig ab ${tagText(a.faelligAb)}`);
   return teile.join(" · ");
@@ -224,10 +224,10 @@ export default function ChefAuskunftBeschaffung() {
   const modusSetzen = (m: Modus) => {
     if (!s || m === s.modus) return;
     const warnung = m === "vollmacht"
-      ? "Ab der nächsten Zahlung entstehen wieder Anfragen je Auskunftei (Unterschrift, Versand per Post) statt eines Beschaffungsauftrags. Bestehende Aufträge hier bleiben."
+      ? "Ab nächster Zahlung wieder Anfragen je Auskunftei (Unterschrift, Post). Bestehende Aufträge bleiben."
       : m === "api"
-        ? `Ab der nächsten Zahlung wird mit bestätigtem Beschaffungsauftrag gleich über die API abgerufen.${s.apiAngebunden ? "" : " Die API ist noch NICHT angebunden — bis dahin bleibt jeder Auftrag im Einkauf von Hand."}`
-        : "Ab der nächsten Zahlung entsteht hier ein Auftrag, und ihr beschafft die Auskunft selbst.";
+        ? `Ab nächster Zahlung Abruf per API (mit bestätigtem Auftrag).${s.apiAngebunden ? "" : " API noch NICHT angebunden — bis dahin von Hand."}`
+        : "Ab nächster Zahlung entsteht hier ein Auftrag, ihr beschafft selbst.";
     setFrage({
       text: `Lieferweg auf „${MODUS_TEXT[m].name}“ stellen?\n\n${warnung}`, ja: "Ja, umstellen",
       tat: () => void ausfuehren("modus", async () => { await senden("/chef/auskunft-beschaffung/modus", { modus: m }); return `Lieferweg: ${MODUS_TEXT[m].name}.`; }, "status"),
@@ -246,7 +246,7 @@ export default function ChefAuskunftBeschaffung() {
       {stand.fehler && !s && <Fehlermeldung text={stand.fehler} erneut={stand.neu} />}
       {stand.fehler && s && (
         <p className="mara-still mara-klein">
-          Neu laden ging nicht ({stand.fehler}) — es steht der letzte Stand.{" "}
+          Neu laden ging nicht ({stand.fehler}) — letzter Stand.{" "}
           <button type="button" className="mara-knopf text" onClick={stand.neu}>Nochmal</button>
         </p>
       )}
@@ -288,14 +288,14 @@ export default function ChefAuskunftBeschaffung() {
           </div>
           {infoOffen && (
             <div className="mara-info">
-              <b>Lieferweg {MODUS_TEXT[s.modus].name}:</b> {MODUS_TEXT[s.modus].satz} Bezahlte Bonitätsauskünfte beschaffen und hochladen — die Akte, die Analyse und die Mail an den Kunden folgen von selbst.
+              <b>Lieferweg {MODUS_TEXT[s.modus].name}:</b> {MODUS_TEXT[s.modus].satz} Nach dem Hochladen folgen Akte, Analyse und Kundenmail von selbst.
             </div>
           )}
           <Rueckfrage f={frage} onZu={() => setFrage(null)} />
           <Meldung m={meldung} ort="status" onZu={zu} />
           {s.rueckstandNeu > 0 && (
             <div className="mara-hinweise">
-              <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>{zahl(s.rueckstandNeu)} bezahlte Auskünfte aus dem Rückstand sind eben als Aufträge dazugekommen — die Kunden haben dafür keine Mail bekommen.</span></p>
+              <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>{zahl(s.rueckstandNeu)} bezahlte Auskünfte aus dem Rückstand neu als Aufträge — ohne Kundenmail.</span></p>
             </div>
           )}
 
@@ -304,23 +304,23 @@ export default function ChefAuskunftBeschaffung() {
               alle offenen senden‘ über die bestehende Funktion; Liegezeit-Wache mit benannter Verantwortung." */}
           {s.sammel && (
             <div className="mara-hinweise akb-sammel" data-akb-sammel>
-              <p className={`mara-hinweis ${s.sammel.ohneEinwilligung ? "warn" : ""}`}>
+              <p className={`mara-hinweis ${s.sammel.ohneEinwilligung ? "warn" : ""}`} title="Der Sammelknopf stellt alle offenen, bezahlten Aufträge auf den Datenkopie-Weg (Art. 15 DSGVO, im Namen des Kunden) und mailt jedem ohne Bestätigung „Bitte bestätigen Sie kurz Ihren Auftrag“.">
                 <span className={`mara-punkt ${s.sammel.ohneEinwilligung ? "warn" : "gut"}`} aria-hidden="true" />
                 <span>
-                  <b>Rückstand liefern (Datenkopie-Weg):</b> {zahl(s.sammel.ohneEinwilligung)} bezahlte Aufträge warten auf die Auftragsbestätigung des Kunden
-                  {" · "}{zahl(s.sammel.linkJetzt)} bekämen jetzt den Link{" · "}{zahl(s.sammel.liegtUeberFrist)} beschaffbar und über der Frist
-                  {" · "}{zahl(s.sammel.anrufFaellig)} Anrufe fällig{s.sammel.datenkopie ? ` · ${zahl(s.sammel.datenkopie)} schon auf Datenkopie` : ""}.
-                  {" "}Der Sammelknopf stellt alle offenen, bezahlten Aufträge auf den Datenkopie-Weg (FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an) und schickt jedem Kunden ohne Bestätigung die Mail „Bitte bestätigen Sie kurz Ihren Auftrag“ — ohne „kostenlos“, höchstens einmal in 72 Stunden je Auftrag.
+                  <b>Rückstand liefern:</b> {zahl(s.sammel.ohneEinwilligung)} warten auf Bestätigung
+                  {" · "}{zahl(s.sammel.linkJetzt)} bekämen jetzt den Link{" · "}{zahl(s.sammel.liegtUeberFrist)} über der Frist
+                  {" · "}{zahl(s.sammel.anrufFaellig)} Anrufe fällig{s.sammel.datenkopie ? ` · ${zahl(s.sammel.datenkopie)} auf Datenkopie` : ""}.
+                  {" "}Sammelknopf mailt alle ohne Bestätigung (max. 1× in 72 h je Auftrag).
                 </span>
               </p>
               <div className="mara-knoepfe">
                 <button type="button" className="mara-knopf haupt klein" disabled={(!s.sammel.linkJetzt && !s.sammel.nochNichtDatenkopie) || beschaeftigt === "sammel"}
                   onClick={() => setFrage({
-                    text: `Auftragsbestätigung an ${s.sammel!.linkJetzt} Kunden senden?\n\nJeder bekommt eine Mail mit dem Knopf „Auftrag bestätigen“ (Datenkopie nach Art. 15 DSGVO, in seinem Namen angefordert). ${s.sammel!.nochNichtDatenkopie} offene Aufträge gehen dabei auf den Datenkopie-Weg (wer schon bestätigt hat, ohne Mail); Verlauf und Protokoll halten es fest.`,
+                    text: `Auftragsbestätigung an ${s.sammel!.linkJetzt} Kunden senden?\n\nJeder bekommt eine Mail mit „Auftrag bestätigen“. ${s.sammel!.nochNichtDatenkopie} offene Aufträge gehen auf den Datenkopie-Weg (Bestätigte ohne Mail).`,
                     ja: "Ja, an alle senden",
                     tat: () => void ausfuehren("sammel", async () => (await senden("/chef/auskunft-beschaffung/auftrag-links-alle")).text, "status"),
                   })}>
-                  {beschaeftigt === "sammel" ? "Sendet …" : `Auftragsbestätigung an alle offenen senden (${zahl(s.sammel.linkJetzt)})`}
+                  {beschaeftigt === "sammel" ? "Sendet …" : `Auftragsbestätigung an alle (${zahl(s.sammel.linkJetzt)})`}
                 </button>
                 <button type="button" className="mara-knopf klein" disabled={beschaeftigt === "wache"}
                   onClick={() => void ausfuehren("wache", async () => (await senden("/chef/auskunft-beschaffung/wache")).text, "status")}>
@@ -335,7 +335,7 @@ export default function ChefAuskunftBeschaffung() {
                   </select>
                 </label>
               </div>
-              <p className="mara-still mara-klein">Die Wache läuft alle sechs Stunden: beschaffbar und seit drei Werktagen fällig → Aufgabe an {s.sammel.verantwortlich?.name ?? "die Leitung"} (ab zehn Werktagen dringend); Link seit drei Werktagen unbestätigt → Anruf-Aufgabe an den Betreuer. Je Auftrag und Stufe genau eine Aufgabe.</p>
+              <p className="mara-still mara-klein">Wache alle 6 h: 3 Werktage fällig → Aufgabe an {s.sammel.verantwortlich?.name ?? "die Leitung"} (ab 10 dringend); Link 3 Werktage unbestätigt → Anruf-Aufgabe an Betreuer.</p>
             </div>
           )}
 
@@ -386,12 +386,12 @@ export default function ChefAuskunftBeschaffung() {
               <details className="mara-klappe akb-regeln">
                 <summary>Die Regeln der Beschaffung</summary>
                 <ul>
-                  <li><b>Kaufen nur mit Beschaffungsauftrag.</b> Er liegt vor, wenn der Kunde an der Kauftür (Bestellseite, Kauflink, Kaufkarte) den Auftrag angehakt oder ihn über den Link aus der Mail bestätigt hat. Nur er deckt den Kauf einer kostenpflichtigen Auskunft in seinem Namen.</li>
-                  <li><b>Vollmacht zur Übermittlung</b> (älterer Haken der Bestellseite, unterschriebene Vollmacht mit „Selbstauskunft“): deckt nur die kostenlose Datenkopie — seine Anfrage übermitteln und die Antwort entgegennehmen, keinen Kauf. Für einen Kauf erst „Auftragsbestätigung senden“.</li>
-                  <li><b>Fehlt die Einwilligung</b> (Betreuer, Mara, Altbestellung), schickt „Auftragsbestätigung senden“ den Link: Der Kunde sieht Bestellung und Leistung und bestätigt mit einem Haken. Danach springt der Auftrag von selbst auf „Jetzt beschaffen“.</li>
-                  <li><b>Fällig ab:</b> Hat der Kunde den Beginn vor Ablauf der Widerrufsfrist nicht verlangt, erst ab dem Tag nach dem Fristende. Vorher nicht anfordern.</li>
-                  <li><b>Hochladen:</b> nur PDF, bis {s.pdfMaxMb} MB je Datei, mehrere Dateien werden zu einer gebunden. Kommt eine Auskunftei später, einfach nachladen — sie wird angehängt. Sind alle schon gelieferten mit angehakt, ersetzt die neue Datei die alte (ohne zweite Mail).</li>
-                  <li>Gegenüber dem Kunden: nie etwas zusagen, was die Auskunftei oder die Bank entscheidet. Die kostenlose Datenkopie steht ihm immer zu — wer fragt, bekommt die ehrliche Antwort.</li>
+                  <li><b>Kaufen nur mit Beschaffungsauftrag</b> — Haken an der Kauftür oder per Mail-Link bestätigt.</li>
+                  <li><b>Vollmacht zur Übermittlung</b> deckt nur die kostenlose Datenkopie, keinen Kauf.</li>
+                  <li><b>Einwilligung fehlt?</b> „Auftragsbestätigung senden“ — nach dem Haken springt der Auftrag auf „Jetzt beschaffen“.</li>
+                  <li><b>Fällig ab:</b> ohne verlangten Frühbeginn erst nach Ende der Widerrufsfrist.</li>
+                  <li title="Sind alle schon gelieferten mit angehakt, ersetzt die neue Datei die alte (ohne zweite Mail)."><b>Hochladen:</b> nur PDF, bis {s.pdfMaxMb} MB; mehrere werden gebunden. Spätere Auskunftei einfach nachladen.</li>
+                  <li>Dem Kunden nie zusagen, was Auskunftei oder Bank entscheiden. Kostenlose Datenkopie steht ihm immer zu.</li>
                 </ul>
               </details>
             </section>
@@ -423,7 +423,7 @@ export default function ChefAuskunftBeschaffung() {
 function Feld({ label, wert, melden }: { label: string; wert: string | null; melden: Melden }) {
   const kopieren = async () => {
     if (!wert) return;
-    try { await navigator.clipboard.writeText(wert); melden(`${label} kopiert.`, "k-bestellen"); } catch { melden("Kopieren ging nicht — bitte markieren und kopieren.", "k-bestellen", true); }
+    try { await navigator.clipboard.writeText(wert); melden(`${label} kopiert.`, "k-bestellen"); } catch { melden("Kopieren ging nicht — bitte von Hand.", "k-bestellen", true); }
   };
   return (
     <div className={`akb-feld${wert ? "" : " leer"}`}>
@@ -469,8 +469,8 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
   const linkSenden = () => {
     const nochmal = !!a.vollmachtLinkAm;
     if (!window.confirm(nochmal
-      ? `Den Link zur Auftragsbestätigung noch einmal an ${k.name} schicken?\n\nZuletzt am ${zeitText(a.vollmachtLinkAm)} (${a.vollmachtLinkAnzahl}× gesendet).`
-      : `Den Link zur Auftragsbestätigung an ${k.name} schicken?\n\nDer Kunde bekommt eine Mail: Wir beschaffen seine Auskunft, dafür fehlt nur seine kurze Bestätigung des Auftrags (ein Klick, ein Haken).`)) return;
+      ? `Link zur Auftragsbestätigung erneut an ${k.name}?\n\nZuletzt ${zeitText(a.vollmachtLinkAm)} (${a.vollmachtLinkAnzahl}×).`
+      : `Link zur Auftragsbestätigung an ${k.name} schicken?\n\nDer Kunde bekommt eine Mail und bestätigt mit einem Haken.`)) return;
     void ausfuehren(`link:${a.id}`, async () => (await senden(`/chef/auskunft-beschaffung/${a.id}/auftrag-link`, { nochmal })).text, "k-oben");
   };
   // E-241: Der Knopf steht, solange kein Beschaffungsauftrag vermerkt ist — auch bei einer Vollmacht
@@ -478,11 +478,11 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
   const auftragDa = a.einwilligung.quelle === "auftrag";
   const hochladen = () => {
     if (!dateien.length) { melden("Bitte zuerst die PDF-Datei wählen.", "k-hochladen", true); return; }
-    if (!auswahl.length) { melden("Bitte angeben, von welcher Auskunftei die Datei stammt.", "k-hochladen", true); return; }
+    if (!auswahl.length) { melden("Bitte die Auskunftei ankreuzen.", "k-hochladen", true); return; }
     const zuGross = dateien.find((d) => d.size > pdfMaxMb * 1024 * 1024);
     if (zuGross) { melden(`„${zuGross.name}“ ist größer als ${pdfMaxMb} MB.`, "k-hochladen", true); return; }
     const namen = a.stellen.filter((st) => auswahl.includes(st.key)).map((st) => st.kurz).join(", ");
-    if (!window.confirm(`${namen} für ${k.name} hochladen?\n\nDie Auskunft kommt in die Akte, die Analyse startet, und der Kunde bekommt die Mail „Ihre Auskunft ist da“.`)) return;
+    if (!window.confirm(`${namen} für ${k.name} hochladen?\n\nAkte + Analyse, und der Kunde bekommt „Ihre Auskunft ist da“.`)) return;
     void ausfuehren(`hoch:${a.id}`, async () => {
       const fd = new FormData();
       for (const d of dateien) fd.append("datei", d, d.name);
@@ -505,7 +505,7 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
           {a.art === "firma" && <span className="mara-pille akz">Firma</span>}
           {a.quelle === "rueckstand" && <span className="mara-pille warn">Rückstand</span>}
           {/* E-IT-D (4a): FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an. */}
-          {a.modus === "datenkopie" && <span className="mara-pille akz" title="FIAON fordert die Datenkopie nach Art. 15 DSGVO im Namen des Kunden an — dafür genügt auch die Vollmacht zur Übermittlung.">Datenkopie</span>}
+          {a.modus === "datenkopie" && <span className="mara-pille akz" title="Datenkopie nach Art. 15 DSGVO im Namen des Kunden — Vollmacht genügt.">Datenkopie</span>}
           <span className={`mara-pille ${STATUS_TON[a.status]}`}>{STATUS_TEXT[a.status]}</span>
         </div>
         <span className="mara-still mara-klein">
@@ -527,7 +527,7 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
         <div className={`akb-schritt ${a.faellig ? "gut" : "warte"}`}>
           <span className="mara-etikett">Fällig ab</span>
           <b>{a.faellig ? "heute" : tagText(a.faelligAb)}</b>
-          <small>{a.faellig ? (a.einwilligung.ja ? "darf beschafft werden" : "sobald der Auftrag bestätigt ist") : "Beginn vor Ablauf der Widerrufsfrist nicht verlangt — vorher nicht anfordern"}</small>
+          <small>{a.faellig ? (a.einwilligung.ja ? "darf beschafft werden" : "sobald der Auftrag bestätigt ist") : "Widerrufsfrist läuft — vorher nicht anfordern"}</small>
         </div>
         <div className={`akb-schritt ${a.bearbeiter ? "gut" : ""}`}>
           <span className="mara-etikett">Wer beschafft</span>
@@ -542,10 +542,10 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
 
       {(a.anschriftFehlt || a.dokumentDa || a.vorgaengeLaufend > 0 || a.apiFehler || a.bestellung.bezahlt === false) && !fertig && (
         <div className="mara-hinweise akb-warnungen">
-          {a.bestellung.bezahlt === false && <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>Die Bestellung steht nicht mehr auf bezahlt ({a.bestellung.zahlStatus ?? "unbekannt"}) — nicht beschaffen. Erst klären (Widerruf, Erstattung?), dann „Abschließen“ mit Grund.</span></p>}
-          {a.anschriftFehlt && <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>In der Akte fehlt die Anschrift — erst erfragen. Ohne sie ordnet keine Auskunftei zu.</span></p>}
-          {a.dokumentDa && <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>In der Akte liegt schon eine Auskunft (auf anderem Weg hochgeladen). Prüfen, dann „Abschließen“ — oder die gekaufte hier hochladen.</span></p>}
-          {a.vorgaengeLaufend > 0 && <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>{a.vorgaengeLaufend} Anfrage{a.vorgaengeLaufend === 1 ? "" : "n"} aus dem Vollmacht-Weg laufen noch (Vorgänge) — nicht doppelt beschaffen.</span></p>}
+          {a.bestellung.bezahlt === false && <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>Nicht mehr bezahlt ({a.bestellung.zahlStatus ?? "unbekannt"}) — nicht beschaffen. Erst klären, dann „Abschließen“ mit Grund.</span></p>}
+          {a.anschriftFehlt && <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>Anschrift fehlt — erst erfragen, sonst ordnet keine Auskunftei zu.</span></p>}
+          {a.dokumentDa && <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Akte hat schon eine Auskunft. Prüfen, dann „Abschließen“ — oder die gekaufte hochladen.</span></p>}
+          {a.vorgaengeLaufend > 0 && <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>{a.vorgaengeLaufend} Anfrage{a.vorgaengeLaufend === 1 ? "" : "n"} aus dem Vollmacht-Weg laufen — nicht doppelt beschaffen.</span></p>}
           {a.apiFehler && <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>API: {a.apiFehler}{a.apiVersuchAm ? ` (${zeitText(a.apiVersuchAm)})` : ""}</span></p>}
         </div>
       )}
@@ -585,7 +585,7 @@ function AuftragKarte({ a, beschaeftigt, ausfuehren, melden, meldung, zu, pdfMax
               {!bereitZumKaufen && (
                 <p className="mara-hinweis warn">
                   <span className="mara-punkt warn" aria-hidden="true" />
-                  <span>{a.bestellung.bezahlt === false ? "Nicht mehr bezahlt — nicht beschaffen." : !a.einwilligung.ja ? "Ohne Einwilligung nicht selbst beschaffen." : `Vor dem ${tagText(a.faelligAb)} nicht anfordern.`} Hochladen nur, was der Kunde selbst geschickt hat.</span>
+                  <span>{a.bestellung.bezahlt === false ? "Nicht mehr bezahlt — nicht beschaffen." : !a.einwilligung.ja ? "Ohne Einwilligung nicht selbst beschaffen." : `Vor dem ${tagText(a.faelligAb)} nicht anfordern.`} Nur hochladen, was der Kunde selbst schickte.</span>
                 </p>
               )}
               <label className="akb-datei">

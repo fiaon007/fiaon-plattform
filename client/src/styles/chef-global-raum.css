@@ -278,3 +278,42 @@ em.st-leise { color: var(--cgr-still); }
 .cgr-kopf .cb-pille { align-self: flex-start; }
 .cgr-mappe > .cgr-link { margin: 6px 4px 0; font: 400 12.5px/1.4 "Inter", sans-serif; }
 .cgr-warnung { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(217,119,6,.12); border: 1px solid rgba(251,191,36,.3); color: #fde3a1; font: 400 12.5px/1.45 "Inter", sans-serif; }
+
+/* ── E-342: Gespräche je Tag + Google-Kalender (ChefGlobalEinstellungen) ── */
+.cge { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 12px 28px; align-items: start;
+  padding: 14px 18px; border-radius: 16px; background: var(--cgr-flaeche); border: 1px solid var(--cgr-linie); }
+.cge-feld { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.cge-titel { display: inline-flex; align-items: center; gap: 6px; font: 600 10px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--cgr-still); }
+.cge-titel svg { color: var(--cgr-hell); }
+.cge-feld small { font: 400 11.5px/1.35 'Inter', sans-serif; color: var(--cgr-still); overflow-wrap: anywhere; }
+.cge-feld small a { color: var(--cgr-hell); text-decoration: none; }
+.cge-feld small a:hover { text-decoration: underline; }
+.cge-wert { font: 400 18px/1.2 'Inter', sans-serif; color: #f8fafc; }
+.cge-wahl { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--cgr-linie); background: rgba(2,6,23,.35); }
+.cge-wahl button { min-width: 34px; height: 28px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--cgr-leise);
+  font: 500 13px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; transition: background .2s, color .2s; }
+.cge-wahl button:hover { color: var(--cgr-text); }
+.cge-wahl button.an { background: linear-gradient(180deg, #288dfa, #1d4ed8); color: #fff; box-shadow: 0 6px 16px rgba(29,78,216,.35); }
+.cge-wahl button:focus-visible, .cge-knopf:focus-visible { outline: 2px solid var(--cgr-hell); outline-offset: 2px; }
+.cge-status { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1.2 'Inter', sans-serif; color: var(--cgr-text); }
+.cge-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--cgr-still); }
+.cge-status.gruen i { background: var(--cgr-gruen); box-shadow: 0 0 0 4px rgba(52,211,153,.14); }
+.cge-status.gelb i { background: var(--cgr-gelb); box-shadow: 0 0 0 4px rgba(251,191,36,.14); }
+.cge-status.rot i { background: var(--cgr-rot); box-shadow: 0 0 0 4px rgba(248,113,113,.14); }
+.cge-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; }
+.cge-knopf { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(96,165,250,.35); background: rgba(40,141,250,.12); color: #d6eaff; font: 500 12px/1 'Inter', sans-serif; }
+.cge-knopf.leise { border-color: var(--cgr-linie); background: transparent; color: var(--cgr-leise); }
+.cge-knopf:disabled { opacity: .6; cursor: default; }
+.cge-knopf .dreht { animation: cge-dreh 1s linear infinite; }
+@keyframes cge-dreh { to { transform: rotate(360deg); } }
+.cge-hilfe { grid-column: 1 / -1; margin: 0; padding: 12px 14px 12px 32px; border-radius: 12px; background: rgba(2,6,23,.35); border: 1px solid var(--cgr-linie);
+  display: flex; flex-direction: column; gap: 6px; font: 400 13px/1.5 'Inter', sans-serif; color: var(--cgr-text); }
+.cge-hilfe a { color: var(--cgr-hell); }
+.cge-hilfe code { padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,.06); font: 400 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.cge-hilfe button { margin-left: 4px; padding: 3px; border: 0; border-radius: 6px; background: rgba(255,255,255,.06); color: var(--cgr-leise); cursor: pointer; vertical-align: middle; }
+.cge-meldung { grid-column: 1 / -1; margin: 0; font: 400 12.5px/1.4 'Inter', sans-serif; color: var(--cgr-rot); }
+.cge-meldung.gut { color: var(--cgr-gruen); }
+@media (max-width: 900px) { .cge { grid-template-columns: 1fr 1fr; } .cge-feld.breit { grid-column: 1 / -1; } }
+@media (max-width: 520px) { .cge { grid-template-columns: 1fr; padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { .cge-knopf .dreht { animation: none; } }

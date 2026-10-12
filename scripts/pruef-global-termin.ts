@@ -15,7 +15,7 @@
 //   2. Zwei Stunden Vorlauf, auf die Minute.
 //   3. Montag bis Freitag, 30-Minuten-Raster ab Fensterbeginn, 14 Tage.
 //   4. Bestehende Termine sperren mit ihrer ECHTEN Dauer.
-//   5. Der Tagesdeckel: vier Global-Gespräche, dann ist der Tag zu.
+//   5. Der Tagesdeckel: Vorgabe acht (E-342), einstellbar; die Mechanik hier mit vier gerechnet.
 //   6. Das Angebot streut gleichmäßig und zeigt nie mehr, als der Tag aufnimmt.
 //   7. Die Kalenderdatei ist gültiges iCalendar (CRLF, UTC, maskiert, gefaltet).
 //   8. Jeder Satz an das Unternehmen besteht die Wortwand — Routen-Texte und
@@ -168,25 +168,25 @@ titel("4 · Bestehende Termine sperren mit ihrer echten Dauer");
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-titel("5 · Der Tagesdeckel — vier Global-Gespräche, dann ist der Tag zu");
+titel("5 · Der Tagesdeckel — Vorgabe acht; die Mechanik mit vier gerechnet");
 // ───────────────────────────────────────────────────────────────────────────
 {
   const jetzt = new Date("2026-09-17T07:00:00.000Z");
   const gespraech = (min: number, global: boolean): GlobalBelegung => ({ beginn: berlinZeitpunkt("2026-09-18", min), dauerMin: 30, zaehltAlsGlobal: global });
-  ok("Vorgabe sind vier", GLOBAL_PRO_TAG === 4);
-  const drei = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [gespraech(540, true), gespraech(600, true), gespraech(840, true)] });
+  ok("Vorgabe sind acht (E-342)", GLOBAL_PRO_TAG === 8);
+  const drei = globalZeitenRechnen({ jetzt, fenster: FENSTER, proTag: 4, belegt: [gespraech(540, true), gespraech(600, true), gespraech(840, true)] });
   ok("drei gebucht: der Tag nimmt noch EINES auf", drei.restJeTag["2026-09-18"] === 1, JSON.stringify(drei.restJeTag["2026-09-18"]));
   ok("… frei sind die übrigen neun Zeiten", zeitenAm(drei, "2026-09-18").length === 9);
   ok("… das Angebot zeigt aber nur EINE", globalAngebot(drei).find((t) => t.tag === "2026-09-18")?.zeiten.length === 1);
-  const vier = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [gespraech(540, true), gespraech(600, true), gespraech(840, true), gespraech(900, true)] });
+  const vier = globalZeitenRechnen({ jetzt, fenster: FENSTER, proTag: 4, belegt: [gespraech(540, true), gespraech(600, true), gespraech(840, true), gespraech(900, true)] });
   ok("vier gebucht: der Tag bietet nichts mehr", zeitenAm(vier, "2026-09-18").length === 0 && !("2026-09-18" in vier.restJeTag));
   ok("… der Montag danach ist unberührt", zeitenAm(vier, "2026-09-21").length === 12 && vier.restJeTag["2026-09-21"] === 4);
-  const fremd = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [gespraech(540, false), gespraech(600, false), gespraech(840, false), gespraech(900, false)] });
+  const fremd = globalZeitenRechnen({ jetzt, fenster: FENSTER, proTag: 4, belegt: [gespraech(540, false), gespraech(600, false), gespraech(840, false), gespraech(900, false)] });
   ok("vier ANDERE Termine sperren ihre Zeit, verbrauchen aber keinen Platz", fremd.restJeTag["2026-09-18"] === 4 && zeitenAm(fremd, "2026-09-18").length === 8);
   const zwei = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [], proTag: 2 });
   ok("der Deckel ist einstellbar (2)", zwei.restJeTag["2026-09-18"] === 2 && globalAngebot(zwei).every((t) => t.zeiten.length <= 2));
   // Ein Global-Gespräch um 23:30 Berlin am Donnerstag gehört zum Donnerstag, nicht zum UTC-Freitag … und umgekehrt.
-  const nachts = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [{ beginn: new Date("2026-09-17T22:30:00.000Z"), dauerMin: 30, zaehltAlsGlobal: true }] });
+  const nachts = globalZeitenRechnen({ jetzt, fenster: FENSTER, proTag: 4, belegt: [{ beginn: new Date("2026-09-17T22:30:00.000Z"), dauerMin: 30, zaehltAlsGlobal: true }] });
   ok("der Deckel zählt den BERLINER Tag: 00:30 Berlin am 18.09. zählt für den 18.", nachts.restJeTag["2026-09-18"] === 3, JSON.stringify(nachts.restJeTag["2026-09-18"]));
 }
 
@@ -203,7 +203,9 @@ titel("6 · Das Angebot streut gleichmäßig");
   const jetzt = new Date("2026-09-17T07:00:00.000Z");
   const erg = globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [] });
   const angebot = globalAngebot(erg);
-  ok("kein Tag zeigt mehr als vier Zeiten", angebot.every((t) => t.zeiten.length <= 4 && t.zeiten.length > 0));
+  ok("kein Tag zeigt mehr als acht Zeiten (Vorgabe)", angebot.every((t) => t.zeiten.length <= GLOBAL_PRO_TAG && t.zeiten.length > 0));
+  const zwoelfJeTag = globalAngebot(globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [], proTag: 12 }));
+  ok("bei zwölf je Tag zeigt ein voller Tag alle zwölf Zeiten", zwoelfJeTag.some((t) => t.zeiten.length === 12));
   ok("jede gezeigte Zeit ist auch buchbar (steht in frei)", angebot.every((t) => t.zeiten.every((z) => erg.frei.some((f) => f.tag === t.tag && f.zeit === z))));
   ok("die Tage kommen aufsteigend, ohne Wochenende", angebot.map((t) => t.tag).join() === [...angebot.map((t) => t.tag)].sort().join() && angebot.every((t) => berlinWochentag(t.tag) <= 5));
   ok("dieselbe Eingabe, dasselbe Ergebnis", JSON.stringify(globalAngebot(globalZeitenRechnen({ jetzt, fenster: FENSTER, belegt: [] }))) === JSON.stringify(angebot));

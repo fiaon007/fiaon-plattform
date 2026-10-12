@@ -92,14 +92,14 @@ type Antwort = {
 function StartgespraechZeile({ sg }: { sg: NonNullable<Angebot["startgespraech"]> }) {
   const grund = sg.fehler ? sg.fehler.replace(/^(kein_platz|keine_person|technik):\s*/, "") : null;
   if (sg.stand === "gebucht" || sg.stand === "gefuehrt" || sg.stand === "vorbei") {
-    return <p className="cm-klartext" data-startgespraech={sg.stand}>Startgespräch: <b>{sg.zeile}</b> · {sg.stand === "gefuehrt" ? "geführt" : sg.stand === "vorbei" ? "Zeit vorbei — im Kalender abschließen" : "gebucht"}{sg.neuGebucht ? " (nach einer Absage neu gebucht)" : ""}{sg.mailAm ? ` · Kunde informiert ${datumZeit(sg.mailAm)}` : " · Mail an den Kunden noch nicht raus"}</p>;
+    return <p className="cm-klartext" data-startgespraech={sg.stand}>Startgespräch: <b>{sg.zeile}</b> · {sg.stand === "gefuehrt" ? "geführt" : sg.stand === "vorbei" ? "Zeit vorbei — im Kalender abschließen" : "gebucht"}{sg.neuGebucht ? " (neu gebucht)" : ""}{sg.mailAm ? ` · Kunde informiert ${datumZeit(sg.mailAm)}` : " · Kundenmail fehlt noch"}</p>;
   }
-  if (sg.stand === "abgesagt") return <p className="cm-klartext cg-rot" data-startgespraech="abgesagt">Startgespräch {sg.zeile ? `(${sg.zeile}) ` : ""}abgesagt {sg.abgesagtVon === "kunde" ? "vom Kunden" : "durch das Team"} — neuen Termin von Hand vereinbaren (Aufgabe bei Justin).</p>;
+  if (sg.stand === "abgesagt") return <p className="cm-klartext cg-rot" data-startgespraech="abgesagt">Startgespräch {sg.zeile ? `(${sg.zeile}) ` : ""}abgesagt {sg.abgesagtVon === "kunde" ? "vom Kunden" : "vom Team"} — neu vereinbaren (Aufgabe bei Justin).</p>;
   // Gegenprüfung E-273 (recht-zeitpunkt, 02.10.2026): „verpasst“ heißt hier, ein Mensch hat im Kalender „kam nicht
   // zustande“ eingetragen — gebucht WAR es, und eine Aufgabe an Justin entsteht dabei nicht (globalTerminErgebnis).
-  if (sg.stand === "persoenlich" && sg.terminStatus === "verpasst") return <p className="cm-klartext cg-rot" data-startgespraech="verpasst">Startgespräch{sg.zeile ? ` (${sg.zeile})` : ""} kam nicht zustande — neuen Termin von Hand vereinbaren.</p>;
-  if (sg.stand === "persoenlich") return <p className="cm-klartext cg-rot" data-startgespraech="persoenlich">Startgespräch: nicht gebucht — von Hand buchen{grund ? ` (${grund})` : ""}. Aufgabe bei Justin.</p>;
-  if (sg.stand === "folgt") return <p className="cm-klartext cg-rot" data-startgespraech="folgt">Startgespräch: noch nicht gebucht{grund ? ` (${grund}; ${sg.versuche} Versuch${sg.versuche === 1 ? "" : "e"}, der Stundenlauf versucht es weiter)` : " — die Buchung läuft"}. Sonst von Hand buchen.</p>;
+  if (sg.stand === "persoenlich" && sg.terminStatus === "verpasst") return <p className="cm-klartext cg-rot" data-startgespraech="verpasst">Startgespräch{sg.zeile ? ` (${sg.zeile})` : ""} kam nicht zustande — neu vereinbaren.</p>;
+  if (sg.stand === "persoenlich") return <p className="cm-klartext cg-rot" data-startgespraech="persoenlich">Startgespräch nicht gebucht{grund ? ` (${grund})` : ""} — von Hand buchen, Aufgabe bei Justin.</p>;
+  if (sg.stand === "folgt") return <p className="cm-klartext cg-rot" data-startgespraech="folgt">Startgespräch noch nicht gebucht{grund ? ` (${grund}; ${sg.versuche} Versuch${sg.versuche === 1 ? "" : "e"}, läuft stündlich weiter)` : " — Buchung läuft"}. Notfalls von Hand.</p>;
   return null;
 }
 
@@ -120,18 +120,18 @@ function BegleitAngebotBlock({ a, kopieren }: { a: BegleitAngebot; kopieren: (t:
         <div>
           <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Begleitvertrag (Bestandskunde)</span></h3>
           <p className="cm-klartext">{a.begleit.zeile} · gültig bis {datum(a.gueltigBis)} · {a.kunde.email}</p>
-          {a.fehlt.length > 0 && <p className="cm-klartext cg-rot">Für die Annahme fehlt noch: {a.fehlt.join(" · ")}</p>}
+          {a.fehlt.length > 0 && <p className="cm-klartext cg-rot">Fehlt für die Annahme: {a.fehlt.join(" · ")}</p>}
         </div>
         <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
       </header>
       <div className="cg-links">
-        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer">Kundenseite öffnen (Vorschau, ohne Annahme)</a><button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button></span>}
+        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer" title="Vorschau — nimmt nicht an">Kundenseite (Vorschau)</a><button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button></span>}
         <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertragsentwurf (PDF)"}</a>
       </div>
       {a.status === "angenommen" && (
         <div className="cg-begleit-annahme">
           <p className="cm-klartext"><b>Gesellschaft: {llc?.wunsch ?? "—"}</b>{llc && (llc.alternative1 || llc.alternative2) ? ` · Ausweichnamen: ${[llc.alternative1, llc.alternative2].filter(Boolean).join(" · ")}` : " · keine Ausweichnamen"}</p>
-          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Beginn {a.schalter?.sofortBeginn ? "sofort (verlangt)" : "nach der Widerrufsfrist"} · Jahresbetreuung {a.schalter?.jahresbetreuung ? "gewählt (699 €/Jahr ab Jahr 2)" : "nicht gewählt"}</p>
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Beginn {a.schalter?.sofortBeginn ? "sofort" : "nach Widerrufsfrist"} · Jahresbetreuung {a.schalter?.jahresbetreuung ? "ja (699 €/Jahr ab Jahr 2)" : "nein"}</p>
         </div>
       )}
       <AufrufBlock x={a.aufrufe} />
@@ -139,14 +139,14 @@ function BegleitAngebotBlock({ a, kopieren }: { a: BegleitAngebot; kopieren: (t:
   );
 }
 
-const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Offen — wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
+const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 // E-IT-G (08.10.2026): „Geburtsdatum (JJJJ-MM-TT)“ als Freitext ist raus — es steht als eigenes Bauteil darunter.
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
-const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Garantierter Kreditrahmen (US-Dollar)", "zahl"], ["kartenZiel", "Garantierte Business-Kreditkarten (Anzahl)", "zahl"], ["buergschaftUsd", "Höchstbetrag Bürgschaft (US-Dollar)", "zahl"]];
+const PARAM_FELDER: [string, string, "euro" | "zahl"][] = [["teil1Cents", "Teil 1 „Gründung“ (€)", "euro"], ["teil2Cents", "Teil 2 „Kapital-Begleitung“ (€)", "euro"], ["fristWochen", "Frist in Wochen", "zahl"], ["erstattungTage", "Erstattung binnen Tagen", "zahl"], ["teil2ZielTage", "Zahlungsziel Teil 2 (Tage)", "zahl"], ["kapitalZielUsd", "Garantierter Kreditrahmen (USD)", "zahl"], ["kartenZiel", "Garantierte Karten (Anzahl)", "zahl"], ["buergschaftUsd", "Bürgschaft höchstens (USD)", "zahl"]];
 
 /** Wer hat den persönlichen Link wann, wie oft und wo geöffnet — und wurde Justin benachrichtigt? */
 function AufrufBlock({ x }: { x: Aufrufe | null }) {
-  if (!x) return <div className="cg-aufrufe" data-aufrufe="fehlt"><p className="cm-fein">Die Aufrufe des Links lassen sich gerade nicht laden — bitte die Seite gleich neu laden.</p></div>;
+  if (!x) return <div className="cg-aufrufe" data-aufrufe="fehlt"><p className="cm-fein">Aufrufe gerade nicht ladbar — Seite neu laden.</p></div>;
   const kopf = x.geloescht && x.gesamt === 0
     ? "Aufrufe gelöscht — 90 Tage nach Abschluss"
     : x.geoeffnet > 0
@@ -184,7 +184,7 @@ function AufrufBlock({ x }: { x: Aufrufe | null }) {
           </table></div>
         </details>
       )}
-      <p className="cm-fein">Beim ersten Öffnen durch den Kunden und bei jedem neuen Besuch nach 30 Minuten Pause bekommst du eine Aufgabe auf deinem Board und eine Mail an js@fiaon.com. Deine eigenen Aufrufe zählen als „du“ und lösen nichts aus. Der Ort kommt nur aus den Angaben des Netzbetreibers. Die gekürzte IP steht nur hier, nicht in Aufgabe und Mail.</p>
+      <p className="cm-fein" title="Deine eigenen Aufrufe zählen als „du“ und lösen nichts aus. Ort nur laut Netzbetreiber. Die gekürzte IP steht nur hier, nicht in Aufgabe und Mail.">Erster Kundenbesuch und jeder neue nach 30 Min. Pause: Aufgabe + Mail an js@fiaon.com.</p>
     </div>
   );
 }
@@ -226,7 +226,7 @@ type FirmaForm = "shoplive" | "buergin" | "anwalt" | "bedingungen" | "kapital" |
 
 function teilStand(t: FirmaTeil): { text: string; rot?: boolean } {
   if (t.entfallenAm) return { text: `entfallen — ${t.entfallenGrund ?? ""}`, rot: true };
-  if (t.schuldner === "gesellschafter") return { text: "vorgemerkt — Schuldner sind die Gesellschafter, keine Rechnung an die Firma (Justin klärt)" };
+  if (t.schuldner === "gesellschafter") return { text: "vorgemerkt — Gesellschafter schulden, keine Rechnung (Justin klärt)" };
   if (t.zahlungsstatus === "paid") return { text: `bezahlt${t.bezahltAm ? ` am ${datum(t.bezahltAm)}` : ""}` };
   if (t.zahlungsstatus === "cancelled" || t.zahlungsstatus === "superseded") return { text: "storniert", rot: true };
   // Eine Rechnung steht erst ab pending_payment — der Verwendungszweck steht an jeder Bestellzeile schon ab dem Anlegen.
@@ -258,23 +258,23 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
         <div>
           <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Firmenangebot</span></h3>
           <p className="cm-klartext">Vertreten durch {a.vertreter} ({a.kunde.vertretung.funktion}) · UID {a.kunde.firma.uid} · {a.kunde.firma.registernummer}</p>
-          <p className="cm-klartext">Gründungskosten {eur(p.startCents)} · Wachstumsbudget: Anteil {eur(p.monatCents)}/Monat (die Hälfte; FIAON trägt die andere) ab „Shop live“{p.budgetSpaetestensMonate ? `, spätestens ${p.budgetSpaetestensMonate} Monate nach Annahme` : ""} ({p.mindestMonate} Monate, dann +{p.verlaengerungMonate}, Kündigung {p.kuendigungMonate} Monate vorher) · {p.umsatzSatzProzent} % über {eur(p.umsatzSchwelleCents)}/Jahr · {p.verkaufSatzProzent} % bei Verkauf · erste Runde {usd(p.kapitalUsd)} binnen {p.garantieMonate} Monaten {a.garantieAbAnnahme === false ? "nach erfüllten Bedingungen" : "ab Annahme"} · gültig bis {datum(a.gueltigBis)}</p>
+          <p className="cm-klartext" title="Wachstumsbudget: Die Kundin trägt die Hälfte, FIAON die andere.">Gründung {eur(p.startCents)} · Budget-Anteil {eur(p.monatCents)}/Monat ab „Shop live“{p.budgetSpaetestensMonate ? ` (spätestens ${p.budgetSpaetestensMonate} Mon. nach Annahme)` : ""} · Laufzeit {p.mindestMonate} Mon., dann +{p.verlaengerungMonate}, Kündigung {p.kuendigungMonate} Mon. vorher · {p.umsatzSatzProzent} % über {eur(p.umsatzSchwelleCents)}/Jahr · {p.verkaufSatzProzent} % bei Verkauf · erste Runde {usd(p.kapitalUsd)} in {p.garantieMonate} Mon. {a.garantieAbAnnahme === false ? "nach Bedingungen" : "ab Annahme"} · gültig bis {datum(a.gueltigBis)}</p>
         </div>
         <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
       </header>
 
       <div className="cg-links">
-        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer">Kundenseite öffnen (Vorschau, ohne Annahme)</a>
+        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer" title="Vorschau — nimmt nicht an">Kundenseite (Vorschau)</a>
           {a.status === "offen" && a.versandSperre
             ? <span className="cg-rot" data-versand="gesperrt"><b>Versand gesperrt:</b> {a.versandSperre}</span>
             : <button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button>}
         </span>}
         {!a.link && a.linkNurInhaber && <span className="cg-linkzeile">
           <span className="cg-rot" data-versand="gesperrt"><b>Versand gesperrt:</b> {a.versandSperre}</span>
-          <span className="cm-fein">Den Link sieht nur Justin (Stufe Inhaber), solange der Versand gesperrt ist.</span>
+          <span className="cm-fein">Link sieht nur Justin, solange gesperrt.</span>
         </span>}
-        <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertrag — Entwurf (PDF)"}</a>
-        <a href={a.anlage1Url} target="_blank" rel="noreferrer">Anlage 1 zum Unterschreiben (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
+        <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertragsentwurf (PDF)"}</a>
+        <a href={a.anlage1Url} target="_blank" rel="noreferrer" title="Zum eigenhändigen Unterschreiben">Anlage 1 (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
         {a.pruefberichtUrl && <a href={a.pruefberichtUrl} target="_blank" rel="noreferrer">Anlage 2: Prüfbericht (PDF)</a>}
         {a.officeLink && <a href={a.officeLink}>Auftrag im Office ({a.auftragRef})</a>}
       </div>
@@ -283,14 +283,14 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
 
       {a.status === "offen" && (a.fehlt.length > 0
         ? <div className="cg-pflicht"><b>Annahme gesperrt — es fehlt:</b><ul>{a.fehlt.map((f) => <li key={f}>{f}</li>)}</ul></div>
-        : <p className="cm-klartext cg-gut">Alle Pflichtfelder sind da — die Kundin kann annehmen.</p>)}
+        : <p className="cm-klartext cg-gut">Vollständig — die Kundin kann annehmen.</p>)}
 
       <div className="cg-zwei">
         <div>
           <h4>Bürgin: {a.buergin.name}</h4>
           <p className="cm-klartext">Register: {a.buergin.registernummer || <span className="cg-rot">fehlt</span>} · eigenhändig unterschrieben: {a.buergin.unterzeichnetAm ? datum(a.buergin.unterzeichnetAm) : <span className="cg-rot">offen</span>} · {a.buergin.bestaetigt ? `bestätigt (${a.buergin.bestaetigtGrundlage ?? "—"})` : <span className="cg-rot">nicht bestätigt</span>}</p>
-          <p className="cm-klartext">Freigabe Anwalt: {a.freigaben.anwalt ? <><b>{a.freigaben.anwalt.name}, {datum(a.freigaben.anwalt.am)}</b> · für Prüfsumme {a.freigaben.anwalt.textHash ? `${a.freigaben.anwalt.textHash.slice(0, 12)}…` : "— (ohne Prüfsumme: neu eintragen)"}{a.freigaben.anwalt.textHash && a.freigaben.anwalt.textHash !== a.pruefsummeJetzt ? <span className="cg-rot"> — der Vertrag hat sich seitdem geändert</span> : null}</> : <span className="cg-rot">fehlt (sperrt den Versand)</span>}</p>
-          <p className="cm-fein">Prüfsumme des Vertrags jetzt: {a.pruefsummeJetzt.slice(0, 12)}… (steht auch in der Fußzeile des Entwurfs-PDF) — die Freigabe gilt nur für diese Fassung.</p>
+          <p className="cm-klartext">Freigabe Anwalt: {a.freigaben.anwalt ? <><b>{a.freigaben.anwalt.name}, {datum(a.freigaben.anwalt.am)}</b> · für Prüfsumme {a.freigaben.anwalt.textHash ? `${a.freigaben.anwalt.textHash.slice(0, 12)}…` : "— (ohne Prüfsumme: neu eintragen)"}{a.freigaben.anwalt.textHash && a.freigaben.anwalt.textHash !== a.pruefsummeJetzt ? <span className="cg-rot"> — Vertrag seitdem geändert</span> : null}</> : <span className="cg-rot">fehlt (sperrt den Versand)</span>}</p>
+          <p className="cm-fein" title="Steht auch in der Fußzeile des Entwurfs-PDF.">Prüfsumme jetzt: {a.pruefsummeJetzt.slice(0, 12)}… — Freigabe gilt nur für diese Fassung.</p>
           <div className="cg-knoepfe cg-knoepfe-reihe">
             <Knopf grund={k.aendern} onClick={() => auf("buergin", { ...a.buergin })}>Pflichtfelder der Bürgin eintragen</Knopf>
             <Knopf grund={k.freigabe} onClick={() => auf("anwalt", { name: a.freigaben.anwalt?.name ?? "", am: "" })}>Freigabe Anwalt eintragen (nur Justin)</Knopf>
@@ -304,11 +304,11 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
 
       {a.status === "angenommen" && (
         <div className="cg-annahme">
-          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}…{a.unterschrift ? ` · Unterschrift ${a.unterschrift.art === "gezeichnet" ? "gezeichnet" : `getippt („${a.unterschrift.name ?? ""}“)`}` : ""} · {a.starttag ? <>Starttag („Shop live“) <b>{datum(a.starttag)}</b>{a.startWahl ? " (gewählt)" : ""} · Laufzeit bis {datum(a.laufzeitEnde)}</> : <b>Wachstumsbudget noch nicht gestartet — „Shop live“ eintragen, wenn der Shop live ist</b>}{a.freigaben.kuendigung ? ` · ${a.freigaben.kuendigung.art === "ausserordentlich" ? "aus wichtigem Grund gekündigt" : "ordentlich gekündigt"}${a.freigaben.kuendigung.seite === "fiaon" ? " (durch FIAON)" : ""} am ${datum(a.freigaben.kuendigung.am)} zum ${datum(a.freigaben.kuendigung.zum)}${a.freigaben.kuendigung.garantieEntfaellt ? " — Garantie entfällt bei Ende vor dem Fristende" : ""}` : a.kuendigungSpaetestens ? ` · Kündigung spätestens ${datum(a.kuendigungSpaetestens)}` : ""}</p>
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}…{a.unterschrift ? ` · Unterschrift ${a.unterschrift.art === "gezeichnet" ? "gezeichnet" : `getippt („${a.unterschrift.name ?? ""}“)`}` : ""} · {a.starttag ? <>Starttag („Shop live“) <b>{datum(a.starttag)}</b>{a.startWahl ? " (gewählt)" : ""} · Laufzeit bis {datum(a.laufzeitEnde)}</> : <b>Budget noch nicht gestartet — „Shop live“ eintragen</b>}{a.freigaben.kuendigung ? ` · ${a.freigaben.kuendigung.art === "ausserordentlich" ? "aus wichtigem Grund gekündigt" : "ordentlich gekündigt"}${a.freigaben.kuendigung.seite === "fiaon" ? " (durch FIAON)" : ""} am ${datum(a.freigaben.kuendigung.am)} zum ${datum(a.freigaben.kuendigung.zum)}${a.freigaben.kuendigung.garantieEntfaellt ? " — Garantie entfällt bei Ende vor Fristende" : ""}` : a.kuendigungSpaetestens ? ` · Kündigung spätestens ${datum(a.kuendigungSpaetestens)}` : ""}</p>
           {a.nacharbeitFehler && <p className="cm-klartext cg-rot">Nach der Annahme hing etwas: {a.nacharbeitFehler} <button type="button" className="cg-knopf" disabled={busy === `nach${a.id}`} onClick={() => aktion(`nach${a.id}`, `/admin/global/angebote/${a.id}/nachholen`, {})}>Nachholen</button></p>}
           {a.startgespraech && <StartgespraechZeile sg={a.startgespraech} />}
           <p className="cm-klartext">Erste Runde: {g.fristEnde
-            ? <>{a.garantieAbAnnahme === false ? `Bedingungen erfüllt am ${datum(g.bedingungenErfuelltAm)}` : `Garantiefrist ab Annahme (${datum(g.fristBeginn)})${g.bedingungenErfuelltAm ? ` · Bedingungen der Bürgschaft erfüllt am ${datum(g.bedingungenErfuelltAm)}` : " · Unterlagen der Bürgschaft noch offen"}`} · Garantiefrist bis <b>{datum(g.fristEnde)}</b>{g.ruhtTage ? ` (davon ${g.ruhtTage} Tage geruht)` : ""}</>
+            ? <>{a.garantieAbAnnahme === false ? `Bedingungen erfüllt am ${datum(g.bedingungenErfuelltAm)}` : `Garantiefrist ab Annahme (${datum(g.fristBeginn)})${g.bedingungenErfuelltAm ? ` · Bürgschafts-Bedingungen erfüllt ${datum(g.bedingungenErfuelltAm)}` : " · Bürgschafts-Unterlagen offen"}`} · Garantiefrist bis <b>{datum(g.fristEnde)}</b>{g.ruhtTage ? ` (davon ${g.ruhtTage} Tage geruht)` : ""}</>
             : "Garantiefrist beginnt mit „Bedingungen erfüllt“"}
             {g.erfuelltAm ? ` · erhalten am ${datum(g.erfuelltAm)} (${usd(g.betragUsd ?? 0)})` : ""}
             {g.erstattungAusgeloestAm ? ` · Garantiefall am ${datum(g.erstattungAusgeloestAm)}: ${eur(g.erstattungCents ?? 0)} zu erstatten` : ""}
@@ -328,7 +328,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
                 </tr>); })}
             </tbody>
           </table></div>
-          {a.teile.length > zeigen.length || alleTeile ? <button type="button" className="cg-knopf" onClick={() => setAlleTeile(!alleTeile)}>{alleTeile ? "Nur gestellte und nächste Teile zeigen" : `Alle ${a.teile.length} Teile zeigen`}</button> : null}
+          {a.teile.length > zeigen.length || alleTeile ? <button type="button" className="cg-knopf" onClick={() => setAlleTeile(!alleTeile)}>{alleTeile ? "Weniger zeigen" : `Alle ${a.teile.length} Teile zeigen`}</button> : null}
           <div className="cg-knoepfe cg-knoepfe-reihe">
             <Knopf klasse="cg-knopf cg-knopf-haupt" grund={k.shopLive ?? null} onClick={() => auf("shoplive", { am: "", art: "shop-live", verzoegerungFiaon: false })}>Shop live — Wachstumsbudget starten</Knopf>
             <Knopf klasse="cg-knopf cg-knopf-haupt" grund={k.bedingungen} onClick={() => auf("bedingungen", { am: "" })}>Bedingungen der Bürgschaft erfüllt</Knopf>
@@ -350,7 +350,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           <div className="cg-raster">{buerginFelder.map((f) => (
             <label key={String(f.schluessel)} title={f.hinweis}>{f.bezeichnung}<input type={f.schluessel === "unterzeichnetAm" ? "date" : "text"} value={String(form[f.schluessel] ?? "")} onChange={(e) => setForm({ ...form, [f.schluessel]: e.target.value })} /><span className="cm-fein">{f.hinweis}</span></label>
           ))}</div>
-          <label className="cg-haken"><input type="checkbox" checked={form.bestaetigt === true} onChange={(e) => setForm({ ...form, bestaetigt: e.target.checked })} /> Bundesstaat, Anschrift und Vertretung bestätigt — Grundlage im Feld „Grundlage der Bestätigung“.</label>
+          <label className="cg-haken"><input type="checkbox" checked={form.bestaetigt === true} onChange={(e) => setForm({ ...form, bestaetigt: e.target.checked })} /> Bundesstaat, Anschrift, Vertretung bestätigt — Grundlage eintragen.</label>
           <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fb${a.id}`} onClick={() => los(`fb${a.id}`, `/admin/global/angebote/${a.id}`, { buergin: form }, "PUT")}>Speichern</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
         </div>
       )}
@@ -358,7 +358,7 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
         <div className="cg-form"><div className="cg-raster">
           <label>Anwalt bzw. Kanzlei<input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
           <label>Freigegeben am<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
-        </div><p className="cm-fein">Ohne diese Freigabe bleibt der Versand des Links gesperrt (zusammen mit dem Registerauszug der Bürgin). Sie gilt für die Fassung mit der Prüfsumme {a.pruefsummeJetzt.slice(0, 12)}… — bitte mit der Fußzeile des PDF abgleichen, das der Anwalt geprüft hat. Ändern sich danach der Text oder die Angaben der Bürgin (Registerauszug, Status), sperrt der Versand wieder.</p>
+        </div><p className="cm-fein" title="Ohne Freigabe (und Registerauszug der Bürgin) bleibt der Versand gesperrt. Ändern sich Text oder Angaben der Bürgin, sperrt er wieder.">Gilt nur für Prüfsumme {a.pruefsummeJetzt.slice(0, 12)}… — mit der Fußzeile des geprüften PDF abgleichen.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fa${a.id}` || String(form.name || "").trim().length < 3 || !form.am} onClick={() => los(`fa${a.id}`, pfad("freigabe"), form)}>Freigabe eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "shoplive" && (() => {
@@ -367,16 +367,16 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
         const spaet = form.art === "spaetestens"; const nachSp = !spaet && !!sp && !!form.am && form.am > sp;
         return (
         <div className="cg-form">
-          {sp && <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="shop-live">Der Shop ist live (Tag eintragen)</option><option value="spaetestens" disabled={heute < sp}>Spätester Starttag {datum(sp)} erreicht — Shop noch nicht live, Verzögerung nicht bei FIAON</option></select></label>}
-          {!spaet && <label>Tag, an dem der Shop live ist (erreichbar und nimmt Bestellungen an)<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>}
-          {nachSp && <label className="cg-haken"><input type="checkbox" checked={form.verzoegerungFiaon === true} onChange={(e) => setForm({ ...form, verzoegerungFiaon: e.target.checked })} /> Der Tag liegt nach dem spätesten Starttag ({datum(sp)}): Die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat.</label>}
-          <p className="cm-fein">Das ist der Starttag (Ziffer 10 Absatz 2): Das gemeinsame Wachstumsbudget beginnt, {p.mindestMonate} Monatsteile über {eur(p.monatCents)} entstehen ab diesem Tag, die erste Monatsrechnung wird sofort gestellt (Aufgabe „Rechnung schicken“), die Mindestlaufzeit läuft ab dann.{sp ? ` Spätester Starttag: ${datum(sp)} — ist der Shop dann nicht live und liegt es nicht an FIAON, ist dieser Tag der Starttag.` : ""} Lässt sich nicht zurücknehmen. Es geht keine automatische Mail an die Kundin — den Tag bitte in Textform mitteilen.</p>
+          {sp && <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="shop-live">Der Shop ist live (Tag eintragen)</option><option value="spaetestens" disabled={heute < sp}>Spätester Starttag {datum(sp)} erreicht (Verzögerung nicht bei FIAON)</option></select></label>}
+          {!spaet && <label>Shop live seit (nimmt Bestellungen an)<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>}
+          {nachSp && <label className="cg-haken"><input type="checkbox" checked={form.verzoegerungFiaon === true} onChange={(e) => setForm({ ...form, verzoegerungFiaon: e.target.checked })} /> Nach dem spätesten Starttag ({datum(sp)}): Verzögerung lag bei FIAON.</label>}
+          <p className="cm-fein" title={`Starttag (Ziffer 10 Absatz 2): ${p.mindestMonate} Monatsteile über ${eur(p.monatCents)} entstehen ab diesem Tag, Aufgabe „Rechnung schicken“.${sp ? ` Spätester Starttag ${datum(sp)} — ist der Shop dann nicht live und liegt es nicht an FIAON, gilt dieser Tag.` : ""}`}>Startet Budget und Mindestlaufzeit, erste Monatsrechnung sofort. Nicht rücknehmbar. Keine Auto-Mail — Kundin in Textform informieren.</p>
           <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fsl${a.id}` || (!spaet && !form.am) || (nachSp && form.verzoegerungFiaon !== true)} onClick={() => los(`fsl${a.id}`, pfad("shop-live"), spaet ? { art: "spaetestens" } : { am: form.am, verzoegerungFiaon: form.verzoegerungFiaon === true })}>{spaet ? "Spätesten Starttag eintragen" : "Shop live eintragen"}</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
         );
       })()}
       {offen === "bedingungen" && (
-        <div className="cg-form"><label>Tag, an dem die letzte Bedingung erfüllt war<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
-        <p className="cm-fein">{a.garantieAbAnnahme === false ? `Damit beginnt die Garantiefrist der ersten Runde (${p.garantieMonate} Monate). Beginn und Ende der Kundin in Textform mitteilen (Ziffer 7 Absatz 3) — es geht keine automatische Mail raus.` : "Damit wird die Bürgschaft wirksam (Ziffer 8 Absatz 4/5). Die Garantiefrist läuft seit der Annahme und bleibt, wie sie ist. Den Tag der Kundin in Textform bestätigen — es geht keine automatische Mail raus."}</p>
+        <div className="cg-form"><label>Letzte Bedingung erfüllt am<input type="date" value={form.am ?? ""} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
+        <p className="cm-fein" title={a.garantieAbAnnahme === false ? "Ziffer 7 Absatz 3" : "Ziffer 8 Absatz 4/5"}>{a.garantieAbAnnahme === false ? `Startet die Garantiefrist (${p.garantieMonate} Monate). Keine Auto-Mail — Beginn und Ende in Textform mitteilen.` : "Bürgschaft wird wirksam, Garantiefrist bleibt. Keine Auto-Mail — Tag in Textform bestätigen."}</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fbe${a.id}` || !form.am} onClick={() => los(`fbe${a.id}`, pfad("bedingungen"), form)}>Bedingungen erfüllt eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "kapital" && (
@@ -384,20 +384,20 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           <label>Was ist passiert?<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}><option value="">Bitte wählen</option><option value="ausgezahlt">Erste Runde ausgezahlt</option>{!a.garantieNurAuszahlung && <option value="zugesagt">Verbindlich zugesagt (Textform)</option>}<option value="abgelehnt">Angeboten und von der Kundin abgelehnt (zählt als erhalten)</option></select></label>
           <label>Am<input type="date" value={form.am} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
           <label>Betrag (ganze US-Dollar)<input inputMode="numeric" value={form.betragUsd} placeholder={String(p.kapitalUsd)} onChange={(e) => setForm({ ...form, betragUsd: e.target.value })} /></label>
-        </div><label>Beleg in einem Satz (intern — kein Bankname gegenüber der Kundin)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
+        </div><label>Beleg (intern, kein Bankname an die Kundin)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fk${a.id}` || !form.art || !form.am || !form.betragUsd || String(form.beleg || "").trim().length < 20} onClick={() => los(`fk${a.id}`, pfad("kapital"), form)}>Erste Runde eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
-        {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen bis zum Beleg.</p>}</div>
+        {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen.</p>}</div>
       )}
       {offen === "hemmung" && (
         <div className="cg-form cg-form-breit"><div className="cg-raster">
           <label>Aufforderung in Textform am<input type="date" value={form.aufgefordertAm} onChange={(e) => setForm({ ...form, aufgefordertAm: e.target.value })} /></label>
           <label>Mitwirkung erbracht am (leer = fehlt noch)<input type="date" value={form.erbrachtAm} onChange={(e) => setForm({ ...form, erbrachtAm: e.target.value })} /></label>
-        </div><label>Welche Mitwirkung fehlt(e)? (mindestens 20 Zeichen)<textarea rows={2} value={form.grund} onChange={(e) => setForm({ ...form, grund: e.target.value })} /></label>
-        <p className="cm-fein">Die Frist ruht ab Aufforderung + sieben Tage bis zur Mitwirkung (Ziffer 7 Absatz 4). Das neue Fristende der Kundin in Textform mitteilen.</p>
+        </div><label>Fehlende Mitwirkung (min. 20 Zeichen)<textarea rows={2} value={form.grund} onChange={(e) => setForm({ ...form, grund: e.target.value })} /></label>
+        <p className="cm-fein" title="Ziffer 7 Absatz 4">Ruht ab Aufforderung + 7 Tage bis zur Mitwirkung. Neues Fristende in Textform mitteilen.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fh${a.id}` || !form.aufgefordertAm || String(form.grund || "").trim().length < 20} onClick={() => los(`fh${a.id}`, pfad("hemmung"), form)}>Ruhezeit eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "garantiefall" && (
-        <div className="cg-form cg-form-breit" role="dialog" aria-label="Garantiefall vormerken"><p className="cm-fein"><b>Garantiefrist am {datum(g.fristEnde)} abgelaufen, ohne dass die erste Runde eingetragen ist.</b> Zu erstatten: die Gründung ({eur(p.startCents)}). Der Vertrag läuft weiter. Justin bekommt EINE dringende Aufgabe mit Betrag und spätestem Datum; es wird KEIN Geld bewegt.</p>
+        <div className="cg-form cg-form-breit" role="dialog" aria-label="Garantiefall vormerken"><p className="cm-fein"><b>Frist am {datum(g.fristEnde)} abgelaufen, erste Runde fehlt.</b> Zu erstatten: Gründung ({eur(p.startCents)}). Vertrag läuft weiter. Bewegt KEIN Geld — Justin bekommt eine dringende Aufgabe.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `fg${a.id}`} onClick={() => los(`fg${a.id}`, pfad("garantiefall"), {})}>Garantiefall jetzt vormerken</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "ueberwiesen" && (
@@ -411,8 +411,8 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           <label>Kalenderjahr<input inputMode="numeric" value={form.jahr} onChange={(e) => setForm({ ...form, jahr: e.target.value.replace(/\D/g, "") })} /></label>
           <label>Zeitraum<select value={form.quartal} onChange={(e) => setForm({ ...form, quartal: e.target.value })}><option value="">Bitte wählen</option><option value="1">Q1 (Meldung bis 15.04.)</option><option value="2">Q2 (bis 15.07.)</option><option value="3">Q3 (bis 15.10.)</option><option value="4">Q4 (bis 15.01.)</option><option value="jahr">Jahresabgleich (Jahresabschluss)</option></select></label>
           <label>Kumulierter Netto-Umsatz der Gruppe im Jahr (€)<input inputMode="decimal" value={form.kumuliert} placeholder="z. B. 812.345,00" onChange={(e) => setForm({ ...form, kumuliert: e.target.value })} /></label>
-        </div><label>Beleg (z. B. „UVA Q3 vom 12.10. liegt im Dokumentenraum“)<input value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
-        <p className="cm-fein">Der Server rechnet: {p.umsatzSatzProzent} % × (kumuliert − Schwelle, im ersten Jahr anteilig) − schon abgerechnet. Positiv → Rechnung (Zahlungsziel sieben Tage); im Jahresabgleich negativ → Gutschrift (Aufgabe an Justin).</p>
+        </div><label>Beleg (z. B. „UVA Q3 im Dokumentenraum“)<input value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
+        <p className="cm-fein" title={`${p.umsatzSatzProzent} % × (kumuliert − Schwelle, im ersten Jahr anteilig) − schon abgerechnet.`}>Positiv → Rechnung (7 Tage); Jahresabgleich negativ → Gutschrift (Aufgabe an Justin).</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fum${a.id}` || !form.jahr || !form.quartal || !form.kumuliert || String(form.beleg || "").trim().length < 10} onClick={() => los(`fum${a.id}`, pfad("umsatz"), form)}>Umsatz eintragen und rechnen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "verkauf" && (
@@ -420,9 +420,9 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           <label>Wer veräußert? (Pflicht)<select value={form.veraeusserer ?? ""} onChange={(e) => setForm({ ...form, veraeusserer: e.target.value })}><option value="">Bitte wählen</option><option value="auftraggeberin">Auftraggeberin (Marke, Betrieb, Anteile an der US-Gesellschaft)</option><option value="gesellschafter">Gesellschafter der Auftraggeberin (ihre Anteile)</option></select></label>
           <label>Zugeflossene Gegenleistung (€)<input inputMode="decimal" value={form.gegenleistung} placeholder="z. B. 2.000.000,00" onChange={(e) => setForm({ ...form, gegenleistung: e.target.value })} /></label>
           <label>Zufluss am<input type="date" value={form.am} onChange={(e) => setForm({ ...form, am: e.target.value })} /></label>
-        </div><label>Beleg in einem Satz (Kaufvertrag, Zufluss — mindestens 20 Zeichen)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
-        <label className="cg-haken"><input type="checkbox" checked={!!form.endetUmsatz} onChange={(e) => setForm({ ...form, endetUmsatz: e.target.checked })} /> Mehr als die Hälfte der Anteile oder der Betrieb im Ganzen geht über — die Umsatzbeteiligung endet zum Quartalsende (Ziffer 11 Absatz 8)</label>
-        <p className="cm-fein">Der Server rechnet {p.verkaufSatzProzent} % der Gegenleistung. Veräußert die Auftraggeberin, stellt er die Rechnung an die Firma (Zahlungsziel sieben Tage). Veräußern Gesellschafter, schulden SIE (Ziffer 12 Absatz 5): keine Rechnung an die Firma — der Teil wird nur vorgemerkt, Justin bekommt die Aufgabe. Derselbe Zufluss mit derselben Gegenleistung lässt sich nur einmal eintragen. Bei einem Teilverkauf läuft die Umsatzbeteiligung weiter.</p>
+        </div><label>Beleg (Kaufvertrag, Zufluss; min. 20 Zeichen)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
+        <label className="cg-haken" title="Ziffer 11 Absatz 8"><input type="checkbox" checked={!!form.endetUmsatz} onChange={(e) => setForm({ ...form, endetUmsatz: e.target.checked })} /> Über die Hälfte der Anteile oder ganzer Betrieb — Umsatzbeteiligung endet zum Quartalsende</label>
+        <p className="cm-fein" title="Gesellschafter schulden selbst (Ziffer 12 Absatz 5). Bei Teilverkauf läuft die Umsatzbeteiligung weiter.">{p.verkaufSatzProzent} % der Gegenleistung. Auftraggeberin → Rechnung an die Firma (7 Tage); Gesellschafter → nur vorgemerkt, Aufgabe an Justin. Jeder Zufluss nur einmal.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `fv${a.id}` || !form.veraeusserer || !form.gegenleistung || !form.am || String(form.beleg || "").trim().length < 20} onClick={() => los(`fv${a.id}`, pfad("verkauf"), form)}>{form.veraeusserer === "gesellschafter" ? "Verkauf vormerken (ohne Rechnung)" : "Verkauf eintragen und rechnen"}</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "kuendigung" && (
@@ -433,9 +433,9 @@ function FirmaAngebotBlock({ a, aktion, busy, kopieren, buerginFelder }: {
           <label>{form.art === "ausserordentlich" ? "Wirksam zum (leer = Tag des Eingangs)" : "Zum (leer = frühestmöglich)"}<input type="date" value={form.zum} onChange={(e) => setForm({ ...form, zum: e.target.value })} /></label>
         </div>
         {form.art === "ausserordentlich" && (
-          <label className="cg-haken"><input type="checkbox" checked={form.garantieEntfaellt !== false} onChange={(e) => setForm({ ...form, garantieEntfaellt: e.target.checked })} /> Garantie entfällt, wenn der Vertrag vor dem Fristende endet — der wichtige Grund liegt NICHT bei FIAON (Ziffer 14 Absatz 3). Haken weg, wenn FIAON den Grund gegeben hat.</label>
+          <label className="cg-haken" title="Ziffer 14 Absatz 3"><input type="checkbox" checked={form.garantieEntfaellt !== false} onChange={(e) => setForm({ ...form, garantieEntfaellt: e.target.checked })} /> Garantie entfällt bei Ende vor Fristende — Haken weg, wenn FIAON den Grund gab.</label>
         )}
-        <p className="cm-fein">{form.art === "ausserordentlich" ? `Aus wichtigem Grund wirkt die Kündigung zum genannten Tag. Monatsteile danach entfallen.${!a.starttag ? " Vor „Shop live“ geht nur diese Art — danach beginnt kein Wachstumsbudget mehr." : ""}` : `Ordentlich: Der Server rechnet das Laufzeitende (Mindestlaufzeit bzw. Verlängerung, ${p.kuendigungMonate} Monate vorher). Eine ordentliche Kündigung lässt die Garantie stehen.`} Den Eingang schriftlich bestätigen.</p>
+        <p className="cm-fein">{form.art === "ausserordentlich" ? `Wirkt zum genannten Tag, spätere Monatsteile entfallen.${!a.starttag ? " Vor „Shop live“ nur diese Art — danach startet kein Budget mehr." : ""}` : `Endet zum Laufzeitende (${p.kuendigungMonate} Monate Frist); Garantie bleibt.`} Eingang schriftlich bestätigen.</p>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `fkd${a.id}` || !form.am} onClick={() => los(`fkd${a.id}`, pfad("kuendigung"), form)}>Kündigung eintragen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div></div>
       )}
       {offen === "zurueck" && (
@@ -486,7 +486,7 @@ function AngebotUnterlagen({ angebotId, kundeLink }: { angebotId: number; kundeL
   return (
     <div className="cg-unterlagen" data-angebot-unterlagen={angebotId}>
       <h4>Unterlagen auf der Kundenseite <span className="cm-fein">({liste?.length ?? "…"})</span></h4>
-      <p className="cm-fein">Erscheinen beim Kunden auf der Angebotsseite unter „Ihre Unterlagen“ und nach der Annahme dauerhaft in „Mein Auftrag“ unter „Nachweise und Sicherheiten“ — nur hinter seinen Links. PDF, PNG oder JPEG bis 15 MB; die Nummer vorn im Dateinamen bestimmt die Reihenfolge.{kundeLink ? <> <a href={`${kundeLink}#unterlagen`} target="_blank" rel="noreferrer">So sieht er es</a></> : null}</p>
+      <p className="cm-fein" title="Angebotsseite „Ihre Unterlagen“, nach der Annahme in „Mein Auftrag“ › „Nachweise und Sicherheiten“ — nur hinter seinen Links.">Sieht der Kunde sofort. PDF, PNG, JPEG bis 15 MB; Nummer vorn im Dateinamen = Reihenfolge.{kundeLink ? <> <a href={`${kundeLink}#unterlagen`} target="_blank" rel="noreferrer">So sieht er es</a></> : null}</p>
       {liste && liste.length > 0 && (
         <ol className="cg-unterlagen-liste">
           {liste.map((u) => (
@@ -567,7 +567,7 @@ export default function ChefGlobalAngebote() {
       <section className="cz-block">
         <header>
           <h2>Individualangebote</h2>
-          <p>Ein persönliches Angebot für eine Person — Teil 1 sofort, Teil 2 erst beim Meilenstein, Bürgschaftszusage und Kreditgarantie: Kreditrahmen und Karten in der Frist, sonst alles Gezahlte zurück. Der Kunde liest und nimmt über einen signierten Link an; danach laufen Rechnung, Zahlungsseite und „Mein Auftrag“ wie bei jedem Global-Auftrag. Fassung {V.fassung}.</p>
+          <p title="Mit Bürgschaftszusage. Der Kunde nimmt über einen signierten Link an; danach laufen Rechnung, Zahlungsseite und „Mein Auftrag“ wie bei jedem Global-Auftrag.">Teil 1 sofort, Teil 2 beim Meilenstein — Kreditgarantie in der Frist, sonst alles zurück. Fassung {V.fassung}.</p>
         </header>
         {!neuOffen ? (
           <button type="button" className="cg-knopf cg-knopf-haupt cg-neu-angebot" onClick={() => setNeuOffen(true)}>Neues Individualangebot</button>
@@ -588,14 +588,14 @@ export default function ChefGlobalAngebote() {
                   onTeile={(t) => setNeuForm({ ...neuForm, kunde: { ...neuForm.kunde, geburtsdatum: geburtTextAusTeile(t) } })} />
               </div>
             </div>
-            <p className="cm-fein">Teile und Fristen (leer = Vorgabe der Fassung: {eur(V.parameter.teil1Cents)} + {eur(V.parameter.teil2Cents)}, {V.parameter.fristWochen} Wochen):</p>
+            <p className="cm-fein">Teile und Fristen (leer = Vorgabe: {eur(V.parameter.teil1Cents)} + {eur(V.parameter.teil2Cents)}, {V.parameter.fristWochen} Wochen):</p>
             <div className="cg-raster">
               {PARAM_FELDER.map(([k, l, art]) => (
                 <label key={k}>{l}<input inputMode="decimal" value={neuForm.parameter[k] ?? ""} placeholder={art === "euro" ? String(V.parameter[k] / 100) : String(V.parameter[k])} onChange={(e) => setNeuForm({ ...neuForm, parameter: { ...neuForm.parameter, [k]: e.target.value } })} /></label>
               ))}
               <label>Gültig bis (leer = {V.gueltigTage} Tage)<input type="date" value={neuForm.gueltigBis} onChange={(e) => setNeuForm({ ...neuForm, gueltigBis: e.target.value })} /></label>
             </div>
-            <p className="cm-fein">Die Bürgin ({V.buergin.name}) und der Prüfbericht werden danach am Angebot eingetragen. Solange ein Pflichtfeld fehlt, kann der Kunde lesen, aber nicht annehmen.</p>
+            <p className="cm-fein">Bürgin ({V.buergin.name}) und Prüfbericht trägst du danach ein — bis dahin kann der Kunde nur lesen.</p>
             <div className="cg-form-knoepfe">
               <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === "anlegen"} onClick={anlegen}>Anlegen</button>
               <button type="button" className="cg-knopf" onClick={() => setNeuOffen(false)}>Abbrechen</button>
@@ -624,15 +624,15 @@ export default function ChefGlobalAngebote() {
             <div className="cg-links">
               {/* Endabnahme 01.10.2026: Solange der Registernachweis der Bürgin fehlt, gibt es „Link kopieren" nicht — nur die
                   Vorschau. Der Grund steht daneben; nach der Annahme hat der Kunde den Link ohnehin. */}
-              {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer">Kundenseite öffnen (Vorschau, ohne Annahme)</a>
+              {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer" title="Vorschau — nimmt nicht an">Kundenseite (Vorschau)</a>
                 {a.status === "offen" && a.versandSperre
                   ? <span className="cg-rot" data-versand="gesperrt"><b>Versand gesperrt:</b> {a.versandSperre}</span>
                   : <button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button>}
               </span>}
-              <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertrag — Entwurf (PDF)"}</a>
+              <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertragsentwurf (PDF)"}</a>
               {a.pruefberichtUrl && <a href={a.pruefberichtUrl} target="_blank" rel="noreferrer">Anlage 2: Prüfbericht (PDF)</a>}
               {/* Gegenprüfung 01.10.2026: Das Blatt zum eigenhändigen Unterschreiben — mit Prüfsumme dieser Fassung (§ 766 BGB). */}
-              <a href={a.anlage1Url} target="_blank" rel="noreferrer">Anlage 1 zum Unterschreiben (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
+              <a href={a.anlage1Url} target="_blank" rel="noreferrer" title="Zum eigenhändigen Unterschreiben">Anlage 1 (PDF) · Prüfsumme {a.anlage1Pruefsumme.slice(0, 12)}…</a>
               {a.officeLink && <a href={a.officeLink}>Auftrag im Office ({a.auftragRef})</a>}
             </div>
 
@@ -643,7 +643,7 @@ export default function ChefGlobalAngebote() {
             {a.status === "offen" && (
               a.fehlt.length > 0
                 ? <div className="cg-pflicht"><b>Annahme gesperrt — es fehlt:</b><ul>{a.fehlt.map((f) => <li key={f}>{f}</li>)}</ul></div>
-                : <p className="cm-klartext cg-gut">Alle Pflichtfelder sind da — der Kunde kann annehmen.</p>
+                : <p className="cm-klartext cg-gut">Vollständig — der Kunde kann annehmen.</p>
             )}
 
             <div className="cg-zwei">
@@ -682,13 +682,13 @@ export default function ChefGlobalAngebote() {
                           : t!.zahlungsstatus === "paid" ? <>bezahlt{t!.bezahltAm ? ` am ${datum(t!.bezahltAm)}` : ""}</>
                           : t!.zahlungsstatus === "cancelled" || t!.zahlungsstatus === "superseded" ? <span className="cg-rot">storniert</span>
                           : t!.bestellRef ? <>offen · fällig {datum(t!.faelligAm)}{t!.meilensteinAm ? ` · Meilenstein ${datum(t!.meilensteinAm)} (${t!.meilensteinArt === "karte" ? "Karte" : "Kapital"})` : ""}</>
-                          : <span className="cm-wann">noch nicht fällig — erst beim Meilenstein</span>}</td>
+                          : <span className="cm-wann">erst beim Meilenstein</span>}</td>
                         <td>{t!.rechnungUrl ? <a href={t!.rechnungUrl} target="_blank" rel="noreferrer">{t!.rechnungsnummer ?? "Rechnung"}</a> : "—"}{t!.verwendungszweck ? <span className="cm-klartext">Zweck {t!.verwendungszweck}</span> : null}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table></div>
-                <p className="cm-klartext">Frist: {a.fristEnde ? <>vom {datum(a.fristBeginn)} bis <b>{datum(a.fristEnde)}</b>{a.fristHemmungTage ? ` (davon ${a.fristHemmungTage} Tage gehemmt)` : ""}</> : "beginnt mit dem Start (Zahlung Teil 1, ohne sofortigen Beginn nach der Widerrufsfrist)"}{a.garantieErfuelltAm ? ` · Garantie erfüllt am ${datum(a.garantieErfuelltAm)} (Kreditrahmen ${usd(a.garantieRahmenUsd ?? 0)}, ${a.garantieKarten} Karten)` : ""}{a.erstattungAusgeloestAm ? ` · Garantiefall vorgemerkt am ${datum(a.erstattungAusgeloestAm)}${a.erstattungCents != null ? ` (${eur(a.erstattungCents)} zu erstatten)` : ""}` : ""}{a.erstattetAm ? ` · überwiesen am ${datum(a.erstattetAm)} (${a.erstattungNotiz})` : ""}</p>
+                <p className="cm-klartext">Frist: {a.fristEnde ? <>vom {datum(a.fristBeginn)} bis <b>{datum(a.fristEnde)}</b>{a.fristHemmungTage ? ` (davon ${a.fristHemmungTage} Tage gehemmt)` : ""}</> : "ab Zahlung Teil 1 (ohne Sofortbeginn: nach Widerrufsfrist)"}{a.garantieErfuelltAm ? ` · Garantie erfüllt am ${datum(a.garantieErfuelltAm)} (Kreditrahmen ${usd(a.garantieRahmenUsd ?? 0)}, ${a.garantieKarten} Karten)` : ""}{a.erstattungAusgeloestAm ? ` · Garantiefall vorgemerkt am ${datum(a.erstattungAusgeloestAm)}${a.erstattungCents != null ? ` (${eur(a.erstattungCents)} zu erstatten)` : ""}` : ""}{a.erstattetAm ? ` · überwiesen am ${datum(a.erstattetAm)} (${a.erstattungNotiz})` : ""}</p>
                 <div className="cg-knoepfe cg-knoepfe-reihe">
                   <span><button type="button" className="cg-knopf cg-knopf-haupt cg-knopf-meilenstein" disabled={!!a.knoepfe.meilenstein} onClick={() => { setOffen({ id: a.id, art: "meilenstein" }); setForm({ art: "", datum: "", eingetragenAm: "", beleg: "" }); }}>Meilenstein erreicht → Rechnung Teil 2</button>{a.knoepfe.meilenstein && <span className="cm-fein">{a.knoepfe.meilenstein}</span>}</span>
                   <span><button type="button" className="cg-knopf cg-knopf-haupt" disabled={!!a.knoepfe.garantie} onClick={() => { setOffen({ id: a.id, art: "garantie" }); setForm({ erfuelltAm: "", rahmenUsd: "", karten: "", beleg: "" }); }}>Garantie erfüllt (Kreditrahmen ≥ {usd(a.parameter.kapitalZielUsd)} + {a.parameter.kartenZiel} Karten)</button>{a.knoepfe.garantie && <span className="cm-fein">{a.knoepfe.garantie}</span>}</span>
@@ -712,8 +712,8 @@ export default function ChefGlobalAngebote() {
                     </label>
                   ))}
                 </div>
-                <label className="cg-haken"><input type="checkbox" checked={form.bestaetigt === true} onChange={(e) => setForm({ ...form, bestaetigt: e.target.checked })} /> Bundesstaat, Anschrift und Vertretung habe ich bestätigt — womit, steht im Feld „Grundlage der Bestätigung“ (z. B. EIN-Antrag SS-4 oder Registerauszug).</label>
-                <p className="cm-fein">Anlage 1 wird von Hand unterschrieben (§ 766 BGB) — das Original geht per Post an den Kunden, ein Scan in die Akte. Erst dann das Datum eintragen.</p>
+                <label className="cg-haken"><input type="checkbox" checked={form.bestaetigt === true} onChange={(e) => setForm({ ...form, bestaetigt: e.target.checked })} /> Bundesstaat, Anschrift, Vertretung bestätigt — Grundlage eintragen (z. B. SS-4, Registerauszug).</label>
+                <p className="cm-fein">Anlage 1 von Hand (§ 766 BGB): Original per Post an den Kunden, Scan in die Akte — dann Datum eintragen.</p>
                 <div className="cg-form-knoepfe">
                   <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `b${a.id}`} onClick={() => aktion(`b${a.id}`, `/admin/global/angebote/${a.id}`, { buergin: form }, "PUT")}>Speichern</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
@@ -727,19 +727,19 @@ export default function ChefGlobalAngebote() {
                     <select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>
                       <option value="">Bitte wählen</option>
                       <option value="kapital">Erstes Kapital an die Gesellschaft ausgezahlt</option>
-                      <option value="karte">Erste Business-Kreditkarte für die Gesellschaft freigeschaltet</option>
+                      <option value="karte">Erste Business-Kreditkarte freigeschaltet</option>
                     </select>
                   </label>
                   <label>Am (Auszahlung bzw. Freischaltung)<input type="date" value={form.datum} onChange={(e) => setForm({ ...form, datum: e.target.value })} /></label>
                   <label>Gesellschaft eingetragen am<input type="date" value={form.eingetragenAm} onChange={(e) => setForm({ ...form, eingetragenAm: e.target.value })} /></label>
                 </div>
-                <label>Beleg in einem Satz (intern — der Kunde sieht keinen Banknamen)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} placeholder="Zum Beispiel: Mitteilung des Instituts vom … liegt im Dokumentenraum." /></label>
-                <p className="cm-fein">Danach entsteht die Rechnung über Teil 2 ({eur(a.parameter.teil2Cents)}, zahlbar binnen {a.parameter.teil2ZielTage} Tagen) und geht mit einer Mail an den Kunden.</p>
+                <label>Beleg (intern, kein Bankname an den Kunden)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} placeholder="z. B. Mitteilung des Instituts vom … im Dokumentenraum" /></label>
+                <p className="cm-fein">Erzeugt die Rechnung Teil 2 ({eur(a.parameter.teil2Cents)}, {a.parameter.teil2ZielTage} Tage) und mailt sie dem Kunden.</p>
                 <div className="cg-form-knoepfe">
                   <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `m${a.id}` || !form.art || !form.datum || !form.eingetragenAm || String(form.beleg || "").trim().length < 20} onClick={() => aktion(`m${a.id}`, `/admin/global/angebote/${a.id}/meilenstein`, form)}>Rechnung Teil 2 stellen</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
                 </div>
-                {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen bis zum Beleg.</p>}
+                {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen.</p>}
               </div>
             )}
             {offen?.id === a.id && offen.art === "garantie" && (
@@ -747,16 +747,16 @@ export default function ChefGlobalAngebote() {
                 {/* E-271: Garantieziel = Kreditrahmen (Kreditlinien/Darlehen zusammen, ohne Kartenlimits) UND Karten, bis zum Fristende. */}
                 <div className="cg-raster">
                   <label>Vollständig erreicht am<input type="date" value={form.erfuelltAm} onChange={(e) => setForm({ ...form, erfuelltAm: e.target.value })} /></label>
-                  <label>Kreditrahmen zusammen (US-Dollar, ohne Kartenlimits)<input inputMode="numeric" value={form.rahmenUsd} onChange={(e) => setForm({ ...form, rahmenUsd: e.target.value })} placeholder={String(a.parameter.kapitalZielUsd)} /></label>
-                  <label>Freigeschaltete Business-Kreditkarten<input inputMode="numeric" value={form.karten} onChange={(e) => setForm({ ...form, karten: e.target.value })} placeholder={String(a.parameter.kartenZiel)} /></label>
+                  <label>Kreditrahmen gesamt (USD, ohne Kartenlimits)<input inputMode="numeric" value={form.rahmenUsd} onChange={(e) => setForm({ ...form, rahmenUsd: e.target.value })} placeholder={String(a.parameter.kapitalZielUsd)} /></label>
+                  <label>Freigeschaltete Karten<input inputMode="numeric" value={form.karten} onChange={(e) => setForm({ ...form, karten: e.target.value })} placeholder={String(a.parameter.kartenZiel)} /></label>
                 </div>
-                <label>Belege in einem Satz (intern — der Kunde sieht keinen Banknamen)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} placeholder="Zum Beispiel: Kreditzusagen und drei Kartenbestätigungen liegen im Dokumentenraum." /></label>
-                <p className="cm-fein">Damit ist die Garantie aus Ziffer 3 Absatz 1 erfüllt: Fristwarnungen und Garantiefall entfallen, die Kapital-Begleitung ist am Ziel. Das Datum muss am oder vor dem Fristende ({datum(a.fristEnde)}) liegen.</p>
+                <label>Belege (intern, kein Bankname an den Kunden)<textarea rows={2} value={form.beleg} onChange={(e) => setForm({ ...form, beleg: e.target.value })} placeholder="z. B. Kreditzusagen und drei Kartenbestätigungen im Dokumentenraum" /></label>
+                <p className="cm-fein" title="Garantie aus Ziffer 3 Absatz 1">Fristwarnungen und Garantiefall entfallen. Datum spätestens am Fristende ({datum(a.fristEnde)}).</p>
                 <div className="cg-form-knoepfe">
                   <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `g${a.id}` || !form.erfuelltAm || !form.rahmenUsd || !form.karten || String(form.beleg || "").trim().length < 20} onClick={() => aktion(`g${a.id}`, `/admin/global/angebote/${a.id}/garantie`, form)}>Garantie erfüllt eintragen</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
                 </div>
-                {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen bis zum Beleg.</p>}
+                {String(form.beleg || "").trim().length < 20 && <p className="cm-fein">Noch {20 - String(form.beleg || "").trim().length} Zeichen.</p>}
               </div>
             )}
             {offen?.id === a.id && offen.art === "hemmung" && (
@@ -766,8 +766,8 @@ export default function ChefGlobalAngebote() {
                   <label>Aufforderung in Textform am<input type="date" value={form.aufgefordertAm} onChange={(e) => setForm({ ...form, aufgefordertAm: e.target.value })} /></label>
                   <label>Mitwirkung erbracht am (leer = fehlt noch)<input type="date" value={form.erbrachtAm} onChange={(e) => setForm({ ...form, erbrachtAm: e.target.value })} /></label>
                 </div>
-                <label>Welche Mitwirkung fehlt(e)? (mindestens 20 Zeichen — der Satz steht in der Mail an den Kunden)<textarea rows={2} value={form.grund} onChange={(e) => setForm({ ...form, grund: e.target.value })} /></label>
-                <p className="cm-fein">Die Frist ruht ab dem Tag nach Ablauf der Aufforderungsfrist (Aufforderung + sieben Tage) bis zum Tag der Mitwirkung — bei noch fehlender Mitwirkung bis heute; was schon gezählt ist, zählt nicht doppelt (Ziffer 6 Absatz 3). Der Kunde bekommt das neue Fristende sofort per Mail (Textform). Behörden, Institute oder wir selbst hemmen nie.</p>
+                <label>Fehlende Mitwirkung (min. 20 Zeichen, steht in der Kundenmail)<textarea rows={2} value={form.grund} onChange={(e) => setForm({ ...form, grund: e.target.value })} /></label>
+                <p className="cm-fein" title="Ziffer 6 Absatz 3: Ruht ab Aufforderung + 7 Tage bis zur Mitwirkung (fehlt sie noch: bis heute). Nichts zählt doppelt.">Nur bei fehlender Mitwirkung des Kunden — nie wegen Behörden, Instituten oder uns. Neues Fristende geht sofort per Mail an ihn.</p>
                 <div className="cg-form-knoepfe">
                   <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `h${a.id}` || !form.aufgefordertAm || String(form.grund || "").trim().length < 20} onClick={() => aktion(`h${a.id}`, `/admin/global/angebote/${a.id}/hemmung`, form)}>Ruhezeit eintragen</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
@@ -776,7 +776,7 @@ export default function ChefGlobalAngebote() {
             )}
             {offen?.id === a.id && offen.art === "erstattung" && (
               <div className="cg-form cg-form-breit" role="dialog" aria-label="Garantiefall vormerken">
-                <p className="cm-fein"><b>Frist am {datum(a.fristEnde)} abgelaufen, ohne dass Kreditrahmen und Karten aus der Garantie vollständig erreicht sind.</b> Zu erstatten: <b>{eur(a.erstattungVorschau.summeCents)}</b> (alles Gezahlte). Teil 2: {a.erstattungVorschau.teil2Fall === "bezahlt → erstattet" ? "bezahlt — wird storniert und mit erstattet" : a.erstattungVorschau.teil2Fall === "offen → storniert" ? "Rechnung offen — wird storniert, der Kunde muss sie nicht zahlen" : a.erstattungVorschau.teil2Fall === "schon storniert" ? "schon storniert" : "noch nicht berechnet — entfällt"}. Teil 1 geht über den Storno-Weg mit Erstattung (Provisionen zurück), Justin bekommt EINE dringende Aufgabe „Erstattung veranlassen“ mit dem Gesamtbetrag und dem spätesten Datum, der Kunde eine Mail. Es wird KEIN Geld bewegt — überwiesen wird von Hand.</p>
+                <p className="cm-fein" title="Teil 1 geht über den Storno-Weg mit Erstattung (Provisionen zurück). Die Aufgabe „Erstattung veranlassen“ nennt Gesamtbetrag und spätestes Datum."><b>Frist am {datum(a.fristEnde)} abgelaufen, Garantie nicht erreicht.</b> Zu erstatten: <b>{eur(a.erstattungVorschau.summeCents)}</b> (alles Gezahlte). Teil 2: {a.erstattungVorschau.teil2Fall === "bezahlt → erstattet" ? "bezahlt → wird mit erstattet" : a.erstattungVorschau.teil2Fall === "offen → storniert" ? "offen → wird storniert" : a.erstattungVorschau.teil2Fall === "schon storniert" ? "schon storniert" : "entfällt"}. Bewegt KEIN Geld — Justin bekommt eine dringende Aufgabe, der Kunde eine Mail.</p>
                 <div className="cg-form-knoepfe">
                   <button type="button" className="cg-knopf cg-knopf-storno" disabled={busy === `e${a.id}`} onClick={() => aktion(`e${a.id}`, `/admin/global/angebote/${a.id}/erstattung`, {})}>Garantiefall jetzt vormerken</button>
                   <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>

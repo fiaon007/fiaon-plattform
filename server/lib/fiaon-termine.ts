@@ -1109,7 +1109,7 @@ export const VERSUCH_GRUND_TEXT: Record<string, string> = {
   zeit_unlesbar: "Zeitangabe unlesbar",
   link_ungueltig: "Link ungültig oder abgelaufen",
   keine_auswahl: "Kein Slot ausgewählt",
-  // E-188: nur beim Erstgespräch zu FIAON Global (höchstens vier je Tag).
+  // E-188: nur beim Erstgespräch zu FIAON Global (Tagesdeckel global_termin_pro_tag, Vorgabe acht).
   tag_voll: "Tagesdeckel erreicht (FIAON Global)",
   // E-283: nur beim Limit-Gespräch aus dem Kundenbereich.
   limit_gesperrt: "Limit-Gespräch noch nicht buchbar (Sperrfrist, Rückstand, Startgespräch)",
@@ -1517,6 +1517,8 @@ export async function terminBuchen(
     await lauf`UPDATE fiaon_termine SET herkunft = ${herkunft} WHERE id = ${Number(gebucht.id)}`
       .catch((e: unknown) => console.error("[TERMINE] Herkunft nicht vermerkt:", e));
   }
+  // E-342: Steht dieser Mitarbeiter im Google-Abgleich, ist der Termin in Sekunden in seinem Kalender (sonst der Minutentakt).
+  void import("./fiaon-google-kalender").then((m) => m.googleKalenderAnstossen()).catch(() => {});
 
   return {
     id: Number(gebucht.id),
@@ -1679,6 +1681,8 @@ export async function terminAbsagen(
     RETURNING id, person_id, agent_id, beginn, quelle
   `) as any[];
   if (!termin) return { ok: false };
+  // E-342: Die Absage verschwindet auch aus dem Google-Kalender — in Sekunden statt im Minutentakt.
+  void import("./fiaon-google-kalender").then((m) => m.googleKalenderAnstossen()).catch(() => {});
 
   // ══════════════════════════════════════════════════════════════════════
   // EINE ABSAGE, DIE NIEMAND ERFÄHRT, IST SCHLIMMER ALS KEIN TERMIN

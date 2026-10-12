@@ -213,4 +213,43 @@ router.post("/chef/global/mandate/:ref/portal", requireChef("inhaber"), async (r
   catch (e) { fehler(res, "portal", e); }
 });
 
+// ── E-342: Gespräche je Tag und Justins Google-Kalender ──────────────────────
+// Justin, 12.10.: „auf 8 erhöhen, vielleicht sogar auf 12 — und die Termine müssen sich immer in meinen Kalender
+// synchronisieren." Der Deckel ist dieselbe Einstellung, die Website-Kalender und Startgespräch lesen (fiaon-global-termin).
+router.get("/chef/global/einstellungen", requireChef("leitung"), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { globalTerminProTag, globalZustaendig } = await import("../lib/fiaon-global-termin");
+    const { GLOBAL_PRO_TAG } = await import("../lib/fiaon-global-zeiten");
+    const { googleKalenderStand } = await import("../lib/fiaon-google-kalender");
+    const [proTag, z, google] = await Promise.all([globalTerminProTag(), globalZustaendig().catch(() => null), googleKalenderStand()]);
+    const inhaber = (req as ChefRequest).chef?.stufe === "inhaber";
+    res.json({
+      ok: true, proTag, proTagVorgabe: GLOBAL_PRO_TAG,
+      zustaendig: z ? { id: z.id, name: z.vorname || z.name } : null,
+      // Client-ID und Bereiche braucht nur der Inhaber (für die Freigabe in der Google-Admin-Konsole).
+      google: inhaber ? google : { ...google, clientId: null, bereiche: "" },
+    });
+  } catch (e) { fehler(res, "einstellungen", e); }
+});
+router.post("/chef/global/einstellungen", requireChef("geschaeftsfuehrung"), async (req, res) => {
+  try {
+    const n = Math.round(Number(req.body?.proTag));
+    if (!Number.isInteger(n) || n < 1 || n > 12) return res.status(400).json({ ok: false, error: "Bitte eine Zahl von 1 bis 12." });
+    await sqlPool`
+      INSERT INTO fiaon_settings (key, value, updated_at) VALUES ('global_termin_pro_tag', ${String(n)}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+    console.log(`[CHEF-GLOBAL] Gespräche je Tag: ${n} (${(await wer(req)).name})`);
+    res.json({ ok: true, proTag: n, meldung: `Höchstens ${n} Global-Gespräche je Tag.` });
+  } catch (e) { fehler(res, "einstellungen", e); }
+});
+router.post("/chef/global/google-kalender", requireChef("inhaber"), async (req, res) => {
+  try {
+    const g = await import("../lib/fiaon-google-kalender");
+    if (typeof req.body?.an === "boolean") await g.googleKalenderSchalten(req.body.an);
+    if (req.body?.jetzt === true) await g.googleKalenderAbgleich();
+    res.json({ ok: true, google: await g.googleKalenderStand() });
+  } catch (e) { fehler(res, "google-kalender", e); }
+});
+
 export default router;

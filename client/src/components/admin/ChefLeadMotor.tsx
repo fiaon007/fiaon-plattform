@@ -111,14 +111,14 @@ export default function ChefLeadMotor() {
     setBeschaeftigt(einrichten ? "einrichten" : "pruefen");
     try {
       const j = await senden("/chef/lead-motor/verbindung", { einrichten });
-      melden(j.pruefliste?.bereit ? "Verbunden: Meta meldet jeden Lead direkt an die Plattform." : "Geprüft — die Liste sagt, was noch fehlt.");
+      melden(j.pruefliste?.bereit ? "Verbunden — Meta meldet jeden Lead direkt." : "Geprüft — die Liste zeigt, was fehlt.");
       alles();
     } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const willkommenSchalten = async (an: boolean) => {
-    if (an && !window.confirm("Begrüßungsmail einschalten?\n\nNur, wenn in Make im Szenario „FIAON Lead #1“ der Brevo-Weg (Weg 3) gelöscht ist — sonst bekommt jeder neue Lead zwei Begrüßungen.")) return;
+    if (an && !window.confirm("Begrüßungsmail einschalten?\n\nNur, wenn in Make („FIAON Lead #1“) Weg 3 (Brevo) gelöscht ist — sonst doppelte Begrüßung.")) return;
     setBeschaeftigt("willkommen");
-    try { await senden("/chef/lead-motor/willkommen", { an }); melden(an ? "Begrüßungsmail ist an — jeder neue Lead bekommt sie in Sekunden." : "Begrüßungsmail ist aus."); stand.neu(); }
+    try { await senden("/chef/lead-motor/willkommen", { an }); melden(an ? "Begrüßungsmail an — geht an jeden neuen Lead." : "Begrüßungsmail aus."); stand.neu(); }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const vorschauZeigen = async (leadId?: number) => {
@@ -154,8 +154,8 @@ export default function ChefLeadMotor() {
     try {
       await senden("/chef/lead-motor/messung/schalter", { welcher, an });
       melden(welcher === "web"
-        ? (an ? "Die Web-Messung ist an — Pixel und Server melden jeden Schritt im Antrag." : "Die Web-Messung ist aus.")
-        : (an ? "Die Stufenmeldung ist an — Meta erfährt, welcher Lead zahlt." : "Die Stufenmeldung ist aus."));
+        ? (an ? "Web-Messung an." : "Web-Messung aus.")
+        : (an ? "Stufenmeldung an — Meta erfährt, wer zahlt." : "Stufenmeldung aus."));
       stand.neu();
     } catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
@@ -171,7 +171,7 @@ export default function ChefLeadMotor() {
   };
   const probe = async () => {
     setBeschaeftigt("probe");
-    try { const j = await senden("/chef/lead-motor/messung/probe", { testCode }); melden(`Probe angekommen (${j.angenommen} Ereignis). Im Events-Manager unter „Testereignisse“ sichtbar.`); }
+    try { const j = await senden("/chef/lead-motor/messung/probe", { testCode }); melden(`Probe angekommen (${j.angenommen} Ereignis) — siehe „Testereignisse“.`); }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const kopieren = async (text: string) => {
@@ -189,9 +189,9 @@ export default function ChefLeadMotor() {
   const punktKlasse = !s ? "" : s.alarme.length ? " warn" : direkt && webhookBewiesen ? " an" : s.konfig.bereit ? " halb" : "";
   const letzterLeadText = s?.letzterLead ? `Letzter Lead ${seit(s.letzterLead.am)} (${s.letzterLead.weg}).` : "Noch kein Lead.";
   const kopfSatz = !s ? "" : !s.konfig.bereit
-    ? "Der Meta-Zugang fehlt noch — bis dahin kommen die Leads über Make (dort Weg 1 löschen, dann läuft es wieder). Jeden Schritt bei Meta siehst du hier."
+    ? "Meta-Zugang fehlt — Leads kommen bis dahin über Make (dort Weg 1 löschen)."
     : !direkt
-      ? "Der Zugang ist eingetragen — jetzt „Verbindung einrichten“ drücken."
+      ? "Zugang steht — jetzt „Verbindung einrichten“ drücken."
       : webhookBewiesen
         ? `Webhook bestätigt${s.ersteMeldung ? ` (erste Meldung am ${zeit(s.ersteMeldung)})` : ""}. ${letzterLeadText}`
         : `Verbunden, aber bisher nur Nachhol-Lauf — Webhook noch unbewiesen. ${letzterLeadText}`;
@@ -238,7 +238,7 @@ export default function ChefLeadMotor() {
             <Zahl titel="Begrüßt" wert={s.zahlen.begruesst} unter={s.zahlen.begruessungFehler ? `${s.zahlen.begruessungFehler} fehlgeschlagen` : "in 7 Tagen"} ton={s.zahlen.begruessungFehler ? "rot" : undefined} />
             <Zahl titel="Link geöffnet" wert={s.zahlen.linkGeoeffnet} unter={`Mail ${s.zahlen.klicks.mail} · WhatsApp ${s.zahlen.klicks.whatsapp} · SMS ${s.zahlen.klicks.sms}`} ton="blau" />
             <Zahl titel="Antrag begonnen" wert={s.zahlen.antrag} unter={s.zahlen.woche ? `${Math.round((s.zahlen.antrag / s.zahlen.woche) * 100)} % der Leads (7 Tage)` : "in 7 Tagen"} ton="gruen" />
-            <Zahl titel="WhatsApp möglich" wert={s.zahlen.whatsappJa} unter={s.zahlen.woche ? `${Math.round((s.zahlen.whatsappJa / s.zahlen.woche) * 100)} % der Leads — der Rest hat Festnetz oder keine Nummer` : "Leads mit Handynummer"} />
+            <Zahl titel="WhatsApp möglich" wert={s.zahlen.whatsappJa} unter={s.zahlen.woche ? `${Math.round((s.zahlen.whatsappJa / s.zahlen.woche) * 100)} % · Rest Festnetz/ohne Nr.` : "Leads mit Handynummer"} />
             <div className="lm-zahl lm-wege">
               <span className="lm-zahl-titel">Eingang je Weg (7 Tage)</span>
               <div className="lm-chips">
@@ -265,8 +265,8 @@ export default function ChefLeadMotor() {
             </div>
             {!s.konfig.bereit && (
               <div className="lm-hinweis">
-                <b>Das fehlt noch in Render:</b> {s.konfig.fehlt.join(", ")}.
-                <span> dashboard.render.com → fiaon-plattform → Environment → „Add Environment Variable“. Die Werte nie in einen Chat oder eine Mail.</span>
+                <b>Fehlt in Render:</b> {s.konfig.fehlt.join(", ")}.
+                <span> dashboard.render.com → fiaon-plattform → Environment. Werte nie in Chat oder Mail.</span>
               </div>
             )}
             <ul className="lm-pruefliste">
@@ -283,10 +283,8 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-messung"><summary>Messung an Meta<span className="lm-klapp-still">Pixel, Conversions API, Ereignisse</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still">
-                  Damit die Werbung auf <b>zahlende Kunden</b> optimiert statt auf Formulare: Der Pixel im Browser und der Server melden
-                  dieselben vier Schritte — Antrag begonnen, Antrag abgeschickt, Zahlung gebucht, Startgespräch. Beide tragen dieselbe
-                  Kennung, Meta zählt sie als eines. Namen, E-Mail und Telefon gehen nur verschlüsselt.
+                <p className="lm-still" title="Antrag begonnen, Antrag abgeschickt, Zahlung gebucht, Startgespräch. Pixel und Server tragen dieselbe Kennung — Meta zählt sie als eines.">
+                  Damit Meta auf <b>zahlende Kunden</b> optimiert: Pixel und Server melden vier Schritte, Kontaktdaten nur verschlüsselt.
                 </p>
               </div>
             </div>
@@ -305,7 +303,7 @@ export default function ChefLeadMotor() {
                       </button>
                     </div>
                   )}
-                {!s.messung.datensatz && <p className="lm-still">„Verbindung einrichten“ holt sie selbst — oder hier aus dem Events-Manager eintragen.</p>}
+                {!s.messung.datensatz && <p className="lm-still">Kommt mit „Verbindung einrichten“ — oder hier eintragen.</p>}
               </div>
 
               <div className="lm-mess-block">
@@ -323,7 +321,7 @@ export default function ChefLeadMotor() {
                   disabled={beschaeftigt === "messung-crm"} aria-pressed={s.messung.crm}>
                   <span className="lm-schalter-knopf" aria-hidden="true" />{s.messung.crm ? "An" : "Aus"}
                 </button>
-                <p className="lm-still">Meldet je Lead „Antrag fertig“ und „hat bezahlt“ — die Grundlage für Conversion-Leads-Kampagnen.</p>
+                <p className="lm-still" title="Grundlage für Conversion-Leads-Kampagnen">Meldet je Lead „Antrag fertig“ und „hat bezahlt“.</p>
               </div>
             </div>
 
@@ -355,7 +353,7 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-willkommen"><summary>Begrüßungsmail<span className="lm-klapp-still">Text, Schalter, Vorschau</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still">Eine Mail in Sekunden nach dem Formular, gesiezt, mit dem persönlichen Link — Name, E-Mail und Telefon stehen im Antrag schon drin.</p>
+                <p className="lm-still">Mail Sekunden nach dem Formular, mit persönlichem Link (Antrag vorausgefüllt).</p>
               </div>
               <button className={`lm-schalter${s.willkommen.an ? " an" : ""}`} onClick={() => willkommenSchalten(!s.willkommen.an)} disabled={beschaeftigt === "willkommen"} aria-pressed={s.willkommen.an}>
                 <span className="lm-schalter-knopf" aria-hidden="true" />
@@ -364,7 +362,7 @@ export default function ChefLeadMotor() {
             </div>
             {!s.willkommen.an && (
               <div className="lm-hinweis gelb">
-                Erst einschalten, wenn in Make im Szenario „FIAON Lead #1“ der Brevo-Weg (Weg 3) gelöscht ist — sonst bekommt jeder neue Lead zwei Begrüßungen.
+                Erst einschalten, wenn in Make („FIAON Lead #1“) Weg 3 (Brevo) gelöscht ist — sonst doppelte Begrüßung.
               </div>
             )}
             <div className="lm-knoepfe">
@@ -379,7 +377,7 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-rueckstand"><summary>Rückstand nachholen<span className="lm-klapp-still">Leads bei Meta abholen</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still">Meta hält jeden Lead 90 Tage bereit. Der Nachhol-Lauf fragt alle 5 Minuten jedes bekannte Formular ab — ein neues Formular kennt er erst nach „Verbindung einrichten“ oder der nächsten Prüfung (alle 6 Stunden). Der Knopf holt zusätzlich alles ab einem Tag nach — wer schon da ist, wird nicht doppelt angelegt. {s.nachholBis ? `Der Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
+                <p className="lm-still" title="Der Nachhol-Lauf fragt alle 5 Minuten jedes bekannte Formular ab; ein neues kennt er erst nach „Verbindung einrichten“ oder der nächsten Prüfung (alle 6 Stunden).">Holt alles ab einem Tag nach, ohne Doppelte. Meta hält Leads 90 Tage. {s.nachholBis ? `Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
               </div>
             </div>
             <div className="lm-reihe">
@@ -402,7 +400,7 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-formulare"><summary>Formulare<span className="lm-klapp-still">Meta-Formulare und ihre Felder</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still">Jeder Lead darf per WhatsApp angeschrieben werden — die Erlaubnis steht im Hinweistext des Formulars. Ein Kästchen brauchen wir nicht; nur ein ausdrückliches Nein zählt.</p>
+                <p className="lm-still">WhatsApp-Erlaubnis steht im Hinweistext — kein Kästchen nötig, nur ein Nein zählt.</p>
               </div>
               <button className="lm-knopf" onClick={formulareNeu} disabled={!!beschaeftigt || !s.konfig.bereit}>{beschaeftigt === "formulare" ? "Lädt …" : "Formulare neu laden"}</button>
             </div>
@@ -418,11 +416,11 @@ export default function ChefLeadMotor() {
                         <td className="lm-zahlzelle">{f.leads_woche}</td>
                         <td>
                           {(f.kaestchen ?? []).filter((k) => k.key).length === 0
-                            ? <span className="lm-chip gruen">Hinweistext — alle dürfen angeschrieben werden</span>
+                            ? <span className="lm-chip gruen">Hinweistext — alle erlaubt</span>
                             : (
                               <>
                                 <span className="lm-chip">{(f.kaestchen ?? []).filter((k) => k.key).length} Kästchen im Formular</span>
-                                <span className="lm-still"> Wer ein Kontakt-Kästchen NICHT anhakt, bekommt keine WhatsApp.</span>
+                                <span className="lm-still"> Ohne Haken keine WhatsApp.</span>
                               </>
                             )}
                         </td>
@@ -438,7 +436,7 @@ export default function ChefLeadMotor() {
             <div className="lm-karte-kopf">
               <div>
                 <h2>Letzte Leads</h2>
-                <p className="lm-still">Die jüngsten 60 — mit Weg, Anzeige, Einwilligung, Begrüßung, Klick und Antrag.</p>
+                <p className="lm-still">Die jüngsten 60</p>
               </div>
               <div className="lm-reiter">
                 {[["", "Alle"], ["meta_webhook", "Meta direkt"], ["meta_nachhol", "Nachgeholt"], ["meta_rueckstand", "Rückstand"], ["make", "Make"]].map(([w, t]) => (
@@ -489,7 +487,7 @@ export default function ChefLeadMotor() {
             <div className="lm-texte-inhalt">
               <div className="lm-einwilligung">
                 <h3>Hinweistext im Meta-Formular</h3>
-                <p className="lm-still">Formular → „Datenschutzrichtlinie“ → „Eigene Hinweise“ → Text (KEIN Kästchen, sonst schreiben wir nur der Hälfte). Bitte einmal vom Anwalt absegnen lassen.</p>
+                <p className="lm-still" title="Mit Kästchen dürften wir nur der Hälfte schreiben.">Formular → „Datenschutzrichtlinie“ → „Eigene Hinweise“ → Text, KEIN Kästchen. Vom Anwalt absegnen lassen.</p>
                 <blockquote>{s.texte.einwilligung}</blockquote>
                 <button className="lm-knopf" onClick={() => kopieren(s.texte.einwilligung)}>Text kopieren</button>
               </div>
@@ -582,7 +580,7 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
     setGemeldet(kennung);
     if (l.was === "einreichen") {
       const f = (l.ergebnis.fehler ?? []).map((x: any) => `${x.name}: ${x.grund}`).join(" · ");
-      melden(`${l.ergebnis.eingereicht?.length ?? 0} eingereicht, ${l.ergebnis.schonDa?.length ?? 0} lagen schon bei Meta.${f ? ` Nicht durchgekommen — ${f}` : " Meta prüft jetzt; das dauert Minuten bis Stunden."}`);
+      melden(`${l.ergebnis.eingereicht?.length ?? 0} eingereicht, ${l.ergebnis.schonDa?.length ?? 0} lagen schon bei Meta.${f ? ` Nicht durchgekommen — ${f}` : " Meta prüft (Minuten bis Stunden)."}`);
     } else if (l.was === "aufraeumen") {
       melden(`${l.ergebnis.geloescht?.length ?? 0} alte Vorlage(n) bei Meta gelöscht.`);
     }
@@ -605,7 +603,7 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
   const einreichen = async () => {
     try {
       await tun("/chef/lead-motor/vorlagen/einreichen", {}, "ein");
-      melden("Läuft — die Vorlagen gehen jetzt an Meta. Der Stand hier aktualisiert sich von selbst.");
+      melden("Läuft — die Vorlagen gehen an Meta.");
       setGemeldet(null);
       d.neu();
     } catch (e: any) { melden(e.message); }
@@ -614,7 +612,7 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
   const aufraeumen = async () => {
     try {
       const probe = await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: false }, "auf");
-      if (!probe.geloescht.length) { melden("Bei Meta liegt nichts Altes — es gibt nichts aufzuräumen."); return; }
+      if (!probe.geloescht.length) { melden("Nichts aufzuräumen."); return; }
       if (!window.confirm(`Bei Meta endgültig löschen:\n\n${probe.geloescht.join("\n")}\n\nDas lässt sich nicht rückgängig machen.`)) return;
       await tun("/chef/lead-motor/vorlagen/aufraeumen", { ausfuehren: true }, "auf");
       melden("Läuft — die alten Vorlagen werden bei Meta gelöscht.");
@@ -631,10 +629,10 @@ function Vorlagen({ melden }: { melden: (t: string) => void }) {
   const pruefung = v.filter((x) => x.status === "PENDING").length;
   const fehlt = v.filter((x) => x.status === "FEHLT").length;
   const satz = fehlt > 0
-    ? `${fehlt} von ${v.length} sind noch nicht bei Meta. Ohne Freigabe kann außerhalb des 24-Stunden-Fensters nichts verschickt werden.`
+    ? `${fehlt} von ${v.length} noch nicht bei Meta — ohne Freigabe nichts außerhalb des 24-h-Fensters.`
     : pruefung > 0
-      ? `${pruefung} in Prüfung bei Meta. Das dauert Minuten bis Stunden — die Seite zeigt den Stand beim Neuladen.`
-      : `Alle ${v.length} sind freigegeben. Der Versand läuft.`;
+      ? `${pruefung} in Prüfung bei Meta (Minuten bis Stunden).`
+      : `Alle ${v.length} freigegeben.`;
 
   return (
     <section className="lm-karte lm-vorlagen-karte" aria-label="WhatsApp-Vorlagen">
@@ -750,7 +748,7 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
     setBusy("v");
     try {
       await ruf("/chef/lead-motor/werkstatt/vorlage", bau);
-      melden("Gespeichert. Mit dem Knopf „einreichen“ oben geht sie an Meta.");
+      melden("Gespeichert — „einreichen“ oben schickt sie an Meta.");
       setBau(null); d.neu();
     } catch (e: any) { melden(e.message); } finally { setBusy(null); }
   };
@@ -765,11 +763,11 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
       <div className="lm-karte-kopf">
         <div>
           <h2>Werkstatt</h2>
-          <p className="lm-still">Das Geschäftsprofil, eigene Vorlagen und die WhatsApp-Kette an neue Leads.</p>
+          <p className="lm-still">Profil, eigene Vorlagen, WhatsApp-Kette</p>
         </div>
         <button type="button" className={`lm-knopf${d.daten.kette ? "" : " "}`}
           onClick={() => void ruf("/chef/lead-motor/werkstatt/kette", { an: !d.daten!.kette })
-            .then(() => { melden(d.daten!.kette ? "Kette aus — es geht keine WhatsApp mehr an neue Leads." : "Kette an. Neue Leads bekommen in Sekunden ihre erste WhatsApp."); d.neu(); })
+            .then(() => { melden(d.daten!.kette ? "Kette aus — keine WhatsApp mehr an neue Leads." : "Kette an — neue Leads bekommen sofort ihre erste WhatsApp."); d.neu(); })
             .catch((e) => melden(e.message))}>
           {d.daten.kette ? "WhatsApp-Kette läuft" : "WhatsApp-Kette einschalten"}
         </button>
@@ -777,7 +775,7 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
 
       {/* ── Geschäftsprofil ──────────────────────────────────────────── */}
       <details className="lm-profil">
-        <summary>Geschäftsprofil — was der Kunde im Chat oben sieht</summary>
+        <summary>Geschäftsprofil (Kopf im Chat)</summary>
         {profil && (
           <div className="lm-profil-felder">
             <label>Statuszeile<input value={profil.about ?? ""} maxLength={139} onChange={(e) => setProfil({ ...profil, about: e.target.value })} /></label>
@@ -793,8 +791,7 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
               <button type="button" className="lm-klein" onClick={() => setProfil({ ...profil, ...d.daten!.vorschlag })}>Vorschlag übernehmen</button>
             </div>
             <p className="lm-still">
-              Das Profilbild lädst du in der Meta Business Suite hoch (WhatsApp Manager → Telefonnummer → Profil).
-              Alles andere steht hier.
+              Profilbild: Meta Business Suite → WhatsApp Manager → Telefonnummer → Profil.
             </p>
           </div>
         )}
@@ -842,7 +839,7 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
             <label>Fußzeile <small>höchstens 60</small><input value={bau.fuss ?? ""} maxLength={60} onChange={(e) => setBau({ ...bau, fuss: e.target.value })} /></label>
             {varianten > 0 && (
               <div className="lm-beispiele">
-                <span className="lm-still">Ein Beispiel je Platzhalter — Meta verlangt sie zur Prüfung.</span>
+                <span className="lm-still">Ein Beispiel je Platzhalter (Pflicht bei Meta).</span>
                 {Array.from({ length: varianten }, (_x, i) => (
                   <input key={i} value={bau.beispiele[i] ?? ""} placeholder={`Beispiel für {{${i + 1}}}`}
                     onChange={(e) => { const b = [...bau.beispiele]; b[i] = e.target.value; setBau({ ...bau, beispiele: b }); }} />
@@ -871,7 +868,7 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
             <label className="lm-haken">
               <input type="checkbox" checked={bau.inkassoErlaubt === true} onChange={(e) => setBau({ ...bau, inkassoErlaubt: e.target.checked })} />
               Das ist eine Zahlungserinnerung zur eigenen Rechnung
-              <small>Hebt die Inkasso-Sperre für diese eine Vorlage auf. Sachlich bleiben: keine Frist mit Folgen, keine Gebühren, keine Androhung — sonst lehnt Meta ab.</small>
+              <small>Hebt die Inkasso-Sperre auf. Keine Frist mit Folgen, Gebühren oder Drohung — sonst lehnt Meta ab.</small>
             </label>
           </div>
 
@@ -958,9 +955,8 @@ function KostenKarte({ melden }: { melden: (t: string) => void }) {
       <div className="lm-karte-kopf">
         <div>
           <h2>Was ein zahlender Kunde kostet</h2>
-          <p className="lm-still">
-            Ausgaben laut Meta neben echtem Geld: zahlend heißt, Rate 1 ist auf dem Konto gebucht — nicht „Kunde sagt, er hat bezahlt“.
-            Gezählt nach Eingang: die Leads aus dem Zeitraum und alles, was sie seitdem bezahlt haben.
+          <p className="lm-still" title="Gezählt nach Eingang: die Leads aus dem Zeitraum und alles, was sie seitdem bezahlt haben.">
+            Meta-Ausgaben gegen echtes Geld — zahlend = Rate 1 gebucht.
           </p>
         </div>
         <div className="lm-knoepfe">
@@ -986,7 +982,7 @@ function KostenKarte({ melden }: { melden: (t: string) => void }) {
           </p>
           {!b.stand && (
             <div className="lm-hinweis">
-              Noch keine Kosten in der Datenbank. „Kosten jetzt abrufen“ holt sie bei Meta — danach alle drei Stunden von selbst.
+              Noch keine Kosten — „Kosten jetzt abrufen“, danach alle 3 Stunden automatisch.
             </div>
           )}
           {b.letzterAbruf && (b.letzterAbruf.fehler?.length > 0 || (!b.letzterAbruf.konten?.length && b.letzterAbruf.hinweis)) && (
@@ -1061,13 +1057,11 @@ function KostenKarte({ melden }: { melden: (t: string) => void }) {
           )}
 
           <div className="lm-hinweis gelb">
-            Die Kosten der alten Kampagne „DE Kampagne 2“ (Leads über Make) liegen in einem anderen Werbekonto — hier sind sie nicht abrufbar.
-            Ihre Leads, Anträge und Zahlenden stehen trotzdem in der Tabelle, nur ohne Kosten.
+            „DE Kampagne 2“ (Make) liegt in einem anderen Werbekonto — ihre Zeilen stehen ohne Kosten da.
           </div>
-          <p className="lm-still">
-            Ein Mensch zählt einmal, sein erster Lead im Zeitraum bestimmt die Kampagne. Antrag und Zahlung zählen nur, wenn sie nach dem Lead kamen
-            (einen Tag Spielraum). Umsatz = bezahlte Raten und bezahlte Bonitätsauskünfte, wie in der Geld-Wahrheit.
-            {b.zeilen.some((z) => z.art === "website") ? " „Website (Meta-Klick)“: Anträge nach einem Klick aus Facebook oder Instagram ohne Kampagnenkennung — sie zählen nicht in die Summe." : ""}
+          <p className="lm-still" title="Antrag und Zahlung zählen nur, wenn sie nach dem Lead kamen (einen Tag Spielraum). „Website (Meta-Klick)“: Anträge nach einem Klick aus Facebook oder Instagram ohne Kampagnenkennung.">
+            Je Mensch einmal, der erste Lead bestimmt die Kampagne. Umsatz = bezahlte Raten + Auskünfte.
+            {b.zeilen.some((z) => z.art === "website") ? " „Website (Meta-Klick)“ zählt nicht in die Summe." : ""}
           </p>
         </>
       )}

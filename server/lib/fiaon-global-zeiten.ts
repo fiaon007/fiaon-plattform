@@ -26,7 +26,8 @@
 //   · Frühestens zwei Stunden voraus, höchstens 14 Tage.
 //   · Abzüglich aller bestehenden Termine, mit ihrer ECHTEN Dauer: Ein
 //     20-Minuten-Termin um 10:20 sperrt 10:00 und 10:30.
-//   · Höchstens vier Global-Gespräche je Tag. Der Tag ist danach zu.
+//   · Höchstens acht Global-Gespräche je Tag (E-342, Justin 12.10.: „auf 8 erhöhen“; einstellbar 1–12
+//     im Chefbüro › Global-Mandate). Der Tag ist danach zu.
 //   · Tage zählen als Kalendertage in Berlin, nicht als 24-Stunden-Schritte:
 //     Am Tag der Zeitumstellung hat ein Tag 23 oder 25 Stunden, und
 //     „jetzt + n × 24 h" überspringt oder verdoppelt dann ein Datum.
@@ -41,8 +42,8 @@ export const GLOBAL_DAUER_MIN = 30;
 export const GLOBAL_VORLAUF_STUNDEN = 2;
 /** Längstens so viele Tage voraus — dieselbe Grenze, die `terminBuchen` durchsetzt. */
 export const GLOBAL_HORIZONT_TAGE = 14;
-/** Höchstens so viele Global-Gespräche je Tag. */
-export const GLOBAL_PRO_TAG = 4;
+/** Höchstens so viele Global-Gespräche je Tag — Vorgabe, solange fiaon_settings.global_termin_pro_tag leer ist (E-342: 4 → 8). */
+export const GLOBAL_PRO_TAG = 8;
 /** Nur an diesen Wochentagen (ISO: 1 = Montag). */
 export const GLOBAL_WOCHENTAGE = [1, 2, 3, 4, 5];
 

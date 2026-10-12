@@ -165,7 +165,7 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
     setBusy("plan");
     try {
       const j = await ruf("/chef/mara/auftrag", { befehl: befehl.trim() });
-      melden(j.auftrag?.status === "rueckfrage" ? "Mara hat eine Rückfrage — sie steht unter „Wartet auf dich“." : "Plan steht — sieh ihn dir unter „Wartet auf dich“ an und bestätige.", "befehl");
+      melden(j.auftrag?.status === "rueckfrage" ? "Rückfrage von Mara — unter „Wartet auf dich“." : "Plan steht — bestätige ihn unter „Wartet auf dich“.", "befehl");
       setBefehl(""); d.neu();
     } catch (e: any) { melden(e.message, "befehl", true); } finally { setBusy(null); }
   };
@@ -195,7 +195,7 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
     setBusy("dauer");
     try {
       await ruf("/chef/mara/dauerauftrag", { befehl: dauerBefehl.trim(), takt: dauerTakt, uhrzeit: dauerZeit });
-      melden("Dauerauftrag angelegt. Er wird bei jedem Lauf neu geplant.", "dauer");
+      melden("Dauerauftrag angelegt.", "dauer");
       setDauerBefehl(""); d.neu();
     } catch (e: any) { melden(e.message, "dauer", true); } finally { setBusy(null); }
   };
@@ -204,7 +204,7 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
     <div className="mara-kopfzeile">
       <div>
         <h2>Mara anweisen</h2>
-        <p className="mara-leise mara-satz">Schreib in einem Satz, was passieren soll. Mara legt dir einen Plan vor — nichts wirkt, bevor du bestätigst.</p>
+        <p className="mara-leise mara-satz">Ein Satz genügt. Mara plant — nichts wirkt ohne deine Bestätigung.</p>
       </div>
     </div>
   );
@@ -225,7 +225,7 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
         <textarea rows={2} value={befehl} maxLength={1000} aria-label="Was soll Mara tun?"
           onChange={(ev) => setBefehl(ev.target.value)}
           onKeyDown={(ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) void planen(); }}
-          placeholder="Zum Beispiel: Kündige den Kunden Gerold Kuhn, er hat angerufen. (⌘ + Enter)" />
+          placeholder="z. B. Kündige Gerold Kuhn, er hat angerufen. (⌘ + Enter)" />
         <button type="button" className="mara-knopf haupt" disabled={busy === "plan" || befehl.trim().length < 4} onClick={() => void planen()}>
           {busy === "plan" ? "Denkt nach …" : "Plan bauen"}
         </button>
@@ -282,9 +282,9 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
 
       {/* ── Daueraufträge ────────────────────────────────────────────── */}
       <details className="mara-klappe mp-dauer">
-        <summary>Daueraufträge{dauer.length ? ` (${dauer.length})` : ""} — wiederkehrend, bei jedem Lauf neu geplant</summary>
+        <summary title="Wird bei jedem Lauf neu geplant.">Daueraufträge{dauer.length ? ` (${dauer.length})` : ""} — wiederkehrend</summary>
         <p className="mp-still">
-          Enthält ein Lauf einen endgültigen Schritt, wartet er auf deinen Klick — ein Dauerauftrag kündigt niemanden von selbst.
+          Endgültige Schritte warten immer auf deinen Klick.
         </p>
         {dauer.map((x) => (
           <div key={x.id} className="mp-dauer-zeile">
@@ -308,7 +308,7 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
         ))}
         <div className="mp-befehl-eingabe mp-dauer-neu">
           <input value={dauerBefehl} maxLength={500} onChange={(ev) => setDauerBefehl(ev.target.value)} aria-label="Neuer Dauerauftrag"
-            placeholder="Zum Beispiel: Schau, wer heute Geburtstag hat, und schick eine Glückwunsch-Nachricht." />
+            placeholder="z. B. Gratuliere allen, die heute Geburtstag haben." />
           <select value={dauerTakt} onChange={(ev) => setDauerTakt(ev.target.value)} aria-label="Takt">
             <option value="taeglich">täglich</option>
             <option value="werktags">werktags</option>
@@ -334,11 +334,10 @@ function MaraBefehl({ children, verborgen }: { children?: ReactNode; verborgen?:
                 <span className="mp-still">{w.beschreibung}</span>
               </li>
             ))}
-            <li className="mp-nicht">
+            <li className="mp-nicht" title="Dafür bräuchte sie Schreibrechte auf den laufenden Code — ein falscher Satz nimmt die ganze Seite mit.">
               <b>nicht: Texte im Quelltext der Website</b>
               <span className="mp-still">
-                Dafür bräuchte sie Schreibrechte auf den laufenden Code; ein falscher Satz dort nimmt die ganze Seite mit.
-                Texte aus der Datenbank kann sie ändern.
+                Texte aus der Datenbank ja.
               </span>
             </li>
           </ul>
@@ -382,14 +381,14 @@ function StZahl({ wert, titel, unter }: { wert: string; titel: string; unter?: s
 
 const SO_ARBEITET_MARA = (
   <ul>
-    <li><b>Wen:</b> jeden mit offener Rechnung — A (Zahlung gemeldet, Geld nicht da) vor B (Antrag fertig). Heißeste zuerst: das jüngste Ereignis.</li>
+    <li><b>Wen:</b> alle mit offener Rechnung — A (gemeldet, Geld fehlt) vor B (Antrag fertig), heißeste zuerst.</li>
     {/* Mara-Topsales 08.10.2026 (Justin): wöchentlich am festen Wochentag statt alle 14 Tage, nur 8–21 Uhr, Klärung bei A. */}
-    <li><b>Wann:</b> erste Mail 24 Stunden nach Antrag bzw. Zahlungsmeldung, dann nach 2, 4 und 7 Tagen, danach wöchentlich an seinem festen Wochentag — bis er zahlt. Von 8 bis 21 Uhr.</li>
-    <li><b>Stufe A:</b> ab dem 3. Werktag ohne Eingang einmal eine Klärung (höchstens 20 am Tag) — „keine Zahlungserinnerung“, erst auf dem Kontoauszug nachsehen, dann Beleg oder Überweisungsdatum als Antwort, sonst mit seinem Verwendungszweck überweisen. Keine Mahnung. Dazu bekommt sein Betreuer eine Anrufaufgabe (steht „abgelehnt“ am Vorgang: die Leitung).</li>
-    <li><b>Wie:</b> jede Mail aus seiner Akte, seinem ganzen Weg und ihrem Gedächtnis geschrieben — nie zweimal dieselbe. Knopf zur Zahlungsseite, Karte positiv, keine Zusage, keine Frist.</li>
-    <li><b>Rücksicht:</b> Schreibt der Kunde selbst, antwortet Mara im Postfach und die Aktion wartet 7 Tage. Hat ein Mitarbeiter in den letzten 12 Stunden mit ihm gesprochen oder ging vor weniger als 6 Stunden eine andere Mail raus, wartet sie.</li>
-    <li><b>Nie:</b> bei Werbesperre, Vertriebssperre, „Stopp“, Storno, Kündigung, Zustellproblem — oder wenn du ihn hier aus der Aktion nimmst.</li>
-    <li><b>Prüfung:</b> Jede Mail läuft durch die Wortwand (nichts garantieren, nichts empfehlen, keine Frist) und die Sie-Form. Was hängen bleibt, geht nicht raus und steht unter „Zurückgehalten“.</li>
+    <li><b>Wann:</b> 24 h nach Antrag/Meldung, dann nach 2, 4, 7 Tagen, danach wöchentlich — bis er zahlt. 8–21 Uhr.</li>
+    <li title="Inhalt: keine Zahlungserinnerung — erst Kontoauszug prüfen, dann Beleg oder Überweisungsdatum schicken, sonst mit Verwendungszweck überweisen. Steht „abgelehnt“ am Vorgang, geht die Anrufaufgabe an die Leitung."><b>Stufe A:</b> ab dem 3. Werktag ohne Eingang einmal eine Klärung (max. 20/Tag), keine Mahnung. Betreuer bekommt eine Anrufaufgabe.</li>
+    <li><b>Wie:</b> aus Akte, Weg und Gedächtnis — nie zweimal gleich. Zahlungsknopf, keine Zusage, keine Frist.</li>
+    <li><b>Rücksicht:</b> Schreibt der Kunde, wartet die Aktion 7 Tage. Auch nach Gespräch (12 h) oder anderer Mail (6 h).</li>
+    <li><b>Nie:</b> bei Werbe-/Vertriebssperre, „Stopp“, Storno, Kündigung, Zustellproblem oder Ausschluss hier.</li>
+    <li title="Wortwand: nichts garantieren, nichts empfehlen, keine Frist."><b>Prüfung:</b> Wortwand und Sie-Form. Was hängen bleibt, steht unter „Zurückgehalten“.</li>
   </ul>
 );
 
@@ -422,12 +421,12 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
     catch (err: any) { melden(err.message, personId ? "wen" : "steuer", true); } finally { setBeschaeftigt(null); }
   };
   const durchgang = async () => {
-    if (!window.confirm("Mara schickt jetzt die nächsten Mails — nach denselben Regeln wie im Takt (Stunde, Kostendeckel). Weiter?")) return;
+    if (!window.confirm("Mara schickt jetzt die nächsten fälligen Mails (Takt und Kostendeckel gelten). Weiter?")) return;
     setBeschaeftigt("durchgang");
     try {
       const j = await senden("/chef/mara/durchgang", {});
       const r = j.ergebnis || {};
-      melden(r.grund ? `Kein Versand: ${r.grund}.` : `${r.gesendet} gesendet, ${r.abgelehnt} von der Prüfung zurückgehalten${r.fehler ? `, ${r.fehler} Fehler` : ""}.`, "steuer");
+      melden(r.grund ? `Kein Versand: ${r.grund}.` : `${r.gesendet} gesendet, ${r.abgelehnt} zurückgehalten${r.fehler ? `, ${r.fehler} Fehler` : ""}.`, "steuer");
       stand.neu(); setRunde((x) => x + 1);
     } catch (err: any) { melden(err.message, "steuer", true); } finally { setBeschaeftigt(null); }
   };
@@ -455,7 +454,7 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               </button>
             </div>
             <StZahl wert={oderWort(s.zaehler.heute, "keine")} titel="heute gesendet"
-              unter={rate > 0 ? `von ${zahl(s.zaehler.tagesDeckel)} möglich (24 × ${e.jeStunde}) · nur wer fällig ist` : "der Takt steht still"} />
+              unter={rate > 0 ? `von ${zahl(s.zaehler.tagesDeckel)} möglich · nur Fällige` : "der Takt steht still"} />
             <StZahl wert={oderWort(s.zaehler.letzteStunde, "keine")} titel="letzte Stunde"
               unter={rate > 0 ? `Takt jetzt ${rate} je Stunde` : "der Takt steht still"} />
             <StZahl wert={s.schlange.length ? schlangeZahl : "niemand"} titel="in der Schlange" unter="fällig, nach Hitze" />
@@ -473,14 +472,14 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
           {/* E-276 (02.10.2026): die RUNDE — Justin: „ALLE Mails dafür müssen noch heute raus gehen, wirklich alle die eine
               Zahlung offen haben (nicht die gesperrten)“. Einmal je Mensch der Stufen A/B, ohne Takt; alle Sperren bleiben. */}
           <div className="mara-hinweise" data-mara-runde={s.runde ? "an" : "aus"}>
-            <p className="mara-hinweis">
+            <p className="mara-hinweis" title="Ausgelassen: Sperre, ungebuchter Eingang oder Prüfung. Alle Sperren bleiben.">
               <span>
                 {s.runde
-                  ? <>Runde seit {uhrBerlin(s.runde.seit)} — {oderWort(s.runde.geschrieben, "noch keiner")} geschrieben, {oderWort(s.runde.offen, "keiner")} offen{s.runde.ausgelassen ? `, ${zahl(s.runde.ausgelassen)} ausgelassen (Sperre, ungebuchter Eingang, Prüfung)` : ""} · endet {tagZeitBerlin(s.runde.bis)} von selbst, das Tempo setzt der Takt ({rate} je Stunde). </>
-                  : <>Keine Runde. Eine Runde schreibt jedem mit offener erster Zahlung (A und B) einmal — ohne Takt, alle Sperren bleiben. </>}
+                  ? <>Runde seit {uhrBerlin(s.runde.seit)} — {oderWort(s.runde.geschrieben, "noch keiner")} geschrieben, {oderWort(s.runde.offen, "keiner")} offen{s.runde.ausgelassen ? `, ${zahl(s.runde.ausgelassen)} ausgelassen` : ""} · endet {tagZeitBerlin(s.runde.bis)} · Tempo {rate}/Std. </>
+                  : <>Keine Runde — sie schreibt jeden mit offener 1. Zahlung (A+B) einmal an. </>}
                 <button type="button" className="mara-knopf text"
                   onClick={() => {
-                    if (!s.runde && !window.confirm("Runde starten: Mara schreibt jedem mit offener erster Zahlung (A und B) einmal — im Tempo des Takts, ohne die Pausen des Takts. Gesperrte, „Stopp“ und ungebuchte Eingänge bleiben draußen. Weiter?")) return;
+                    if (!s.runde && !window.confirm("Runde starten? Mara schreibt jeden mit offener 1. Zahlung (A+B) einmal an, im Tempo des Takts. Gesperrte, „Stopp“ und ungebuchte Eingänge bleiben draußen.")) return;
                     void setzen("mara_aktion_runde_seit", s.runde ? "aus" : "jetzt", s.runde ? "Runde beendet — es gilt wieder der Takt." : "Runde läuft — die Mails gehen im Takt raus.", "status");
                   }}>{s.runde ? "Runde beenden" : "Runde jetzt starten"}</button>
               </span>
@@ -488,7 +487,7 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
           </div>
           {!e.an && (
             <div className="mara-hinweise">
-              <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Die Aktion ist pausiert. Antworten im Postfach laufen weiter.</span></p>
+              <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Aktion pausiert — Postfach-Antworten laufen weiter.</span></p>
             </div>
           )}
 
@@ -517,7 +516,7 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               <div className="mara-wen-kopf">
                 <h2 id="mp-wen-titel">Wen Mara anschreibt</h2>
                 <p className="mara-still mara-klein" title={`Schreibt von 8 bis 21 Uhr jeden an, der noch nichts bezahlt hat — ${e.stufen.join(" vor ")} zuerst, heißeste zuerst.`}>
-                  8 bis 21 Uhr jeden, der noch nichts bezahlt hat · {e.stufen.length ? e.stufen.join(" vor ") : "keine Stufe gewählt"} · heißeste zuerst
+                  8–21 Uhr · alle ohne Zahlung · {e.stufen.length ? e.stufen.join(" vor ") : "keine Stufe gewählt"} · heißeste zuerst
                 </p>
               </div>
               <div className="mp-stufen">
@@ -600,11 +599,11 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
                   title={e.an ? undefined : "Die Aktion ist pausiert — erst oben einschalten."}>
                   {beschaeftigt === "durchgang" ? "Sendet …" : "Jetzt einen Durchgang"}
                 </button>
-                {!e.an && <span className="mara-still mara-klein">Pausiert — ein Durchgang geht erst, wenn die Aktion läuft.</span>}
+                {!e.an && <span className="mara-still mara-klein">Pausiert — erst oben einschalten.</span>}
               </div>
               <Meldung m={meldung} ort="steuer" onZu={zu} />
               <p className="mara-klein mp-ton-link">
-                <button type="button" className="mara-knopf text" onClick={onAnweisungZeigen}>Ihr Ton: Deine Anweisung an Mara →</button>
+                <button type="button" className="mara-knopf text" onClick={onAnweisungZeigen}>Ton: deine Anweisung an Mara →</button>
               </p>
               <details className="mara-klappe mp-regeln">
                 <summary>So arbeitet Mara</summary>
@@ -617,7 +616,7 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
           <div className="mara-darunter">
             <section className="mara-karte mp-rausging" aria-labelledby="mp-rausging-titel">
               <div className="mara-kopfzeile">
-                <div><h2 id="mp-rausging-titel">Was rausging</h2><p className="mara-still mara-klein">Zeile antippen: Text, Maras Gedächtnis, Denkprotokoll</p></div>
+                <div><h2 id="mp-rausging-titel">Was rausging</h2><p className="mara-still mara-klein" title="Text, Maras Gedächtnis, Denkprotokoll">Zeile antippen für Details</p></div>
               </div>
               <nav className="mp-reiter" aria-label="Mails">
                 {([["gesendet", "Gesendet", z.gesendet], ["abgelehnt", "Zurückgehalten", z.abgelehnt], ["fehler", "Fehler", z.fehler]] as [MailStatus, string, number][]).map(([k, t, n]) => (
@@ -643,7 +642,7 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
 }
 
 function Schlange({ liste, onProbe, beschaeftigt }: { liste: Stand["schlange"]; onProbe: (personId: number) => void; beschaeftigt: boolean }) {
-  if (!liste.length) return <p className="mp-leer">Gerade ist niemand fällig — alle haben ihre Mail oder warten auf den nächsten Takt.</p>;
+  if (!liste.length) return <p className="mp-leer">Gerade ist niemand fällig.</p>;
   return (
     <ol className="mp-schlange">
       {liste.map((k) => (
@@ -691,7 +690,7 @@ function Mails({ status, runde, melden }: { status: MailStatus; runde: number; m
 
   if (fehler) return <Fehlermeldung text={fehler} erneut={() => void laden()} />;
   if (!liste) return <Geruest zeilen={5} />;
-  if (!liste.length) return <p className="mp-leer">{status === "gesendet" ? "Noch keine Mail aus der Aktion." : status === "abgelehnt" ? "Nichts zurückgehalten — jede Mail hat die Prüfung bestanden." : "Keine Fehler."}</p>;
+  if (!liste.length) return <p className="mp-leer">{status === "gesendet" ? "Noch keine Mail aus der Aktion." : status === "abgelehnt" ? "Nichts zurückgehalten." : "Keine Fehler."}</p>;
   const gezeigt = liste.slice(0, zeilen);
   return (
     <>
@@ -752,21 +751,21 @@ function Denkprotokoll({ id }: { id: number }) {
   }, [offen, id, daten]);
   return (
     <details className="mara-klappe mp-denk" onToggle={(e) => setOffen((e.target as HTMLDetailsElement).open)}>
-      <summary>Denkprotokoll — was sie wusste und was geprüft wurde</summary>
+      <summary title="Was sie wusste und was geprüft wurde">Denkprotokoll</summary>
       {!offen ? null : laedt && !daten ? <Geruest zeilen={3} /> : daten ? (
         <div className="mp-wissen">
           <ul>
             {Object.entries(daten.wissen ?? {}).map(([k, v]) => (
               <li key={k}><span className="mp-still">{WISSEN_TEXT[k] ?? k}</span> {v === null || v === "" ? "—" : String(v)}</li>
             ))}
-            {!daten.wissen && <li className="mp-still">Für diese Mail wurde noch kein Protokoll mitgeschrieben (vor dem 22.09.2026).</li>}
+            {!daten.wissen && <li className="mp-still">Kein Protokoll (Mail vor dem 22.09.2026).</li>}
           </ul>
           {daten.maengel?.length > 0 && (
-            <p className="mp-grund">Die Prüfung hatte etwas zu beanstanden: {daten.maengel.join(" · ")}</p>
+            <p className="mp-grund">Prüfung beanstandet: {daten.maengel.join(" · ")}</p>
           )}
           {daten.verlauf?.length > 0 && (
             <>
-              <h3>Was im Haus um diese Zeit passiert ist</h3>
+              <h3>Was zur selben Zeit lief</h3>
               <ul className="mp-post">
                 {daten.verlauf.slice(0, 6).map((v, i) => (
                   <li key={`${i}-${v.am}`}><span className="mp-still">{zeit(v.am)} · {v.wer}</span> {v.text}</li>
@@ -775,7 +774,7 @@ function Denkprotokoll({ id }: { id: number }) {
             </>
           )}
         </div>
-      ) : <p className="mp-grund">{fehler ? "Das Denkprotokoll ließ sich nicht laden — zu- und wieder aufklappen versucht es erneut." : "Nicht ladbar."}</p>}
+      ) : <p className="mp-grund">{fehler ? "Nicht geladen — zu- und aufklappen versucht es neu." : "Nicht ladbar."}</p>}
     </details>
   );
 }
@@ -798,7 +797,7 @@ function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string, f
         <pre className="mp-mail-text">{m.text || "—"}</pre>
       </div>
       <div className="mp-seite">
-        <h3>Was Mara sich zu {m.name.split(" ")[0]} gemerkt hat</h3>
+        <h3>Maras Gedächtnis zu {m.name.split(" ")[0]}</h3>
         {person.fehler && !person.daten ? <Fehlermeldung text={person.fehler} erneut={person.neu} />
           : person.laedt && !person.daten ? <Geruest zeilen={2} /> : g.length ? (
             <ul className="mp-gedaechtnis">
@@ -809,7 +808,7 @@ function MailDetail({ m, melden, onGeaendert }: { m: Mail; melden: (t: string, f
                 </li>
               ))}
             </ul>
-          ) : <p className="mp-still">Noch nichts — Mara merkt sich, was der Kunde ihr schreibt.</p>}
+          ) : <p className="mp-still">Noch nichts gemerkt.</p>}
         {(person.daten?.postfach?.length ?? 0) > 0 && (
           <>
             <h3>Seine Mails an uns</h3>
@@ -871,7 +870,7 @@ function Anweisungen() {
     setSpeichert(bereich);
     try {
       const j = await senden("/chef/mara/anweisung", { bereich, text });
-      melden(j.zeichen ? `Anweisung gespeichert (${j.zeichen} Zeichen) — sie gilt ab der nächsten Nachricht.` : "Anweisung gelöscht — Mara arbeitet wieder nur nach den Hausregeln.", bereich);
+      melden(j.zeichen ? `Gespeichert (${j.zeichen} Zeichen) — gilt ab der nächsten Nachricht.` : "Gelöscht — es gelten nur die Hausregeln.", bereich);
       setEntwurf((e) => { const n = { ...e }; delete n[bereich]; return n; });
       stand.neu();
     } catch (err: any) { melden(err.message, bereich, true); } finally { setSpeichert(null); }
@@ -885,7 +884,7 @@ function Anweisungen() {
     <div className="mara-abschnitt mp-anweisungen" id="mara-anweisung" aria-label="Maras Anweisung">
       <div className="mp-anw-kopf">
         <h3>Deine Anweisung an Mara</h3>
-        <span className="mara-still mara-klein">steht vor allem anderen in ihrem Auftrag · die Hausregeln bleiben darüber</span>
+        <span className="mara-still mara-klein">steht ganz oben im Auftrag · Hausregeln gehen vor</span>
       </div>
       {stand.fehler && <Fehlermeldung text={stand.fehler} erneut={stand.neu} />}
       {!stand.daten ? (stand.fehler ? null : <Geruest zeilen={3} />) : b.map((x) => {
@@ -899,7 +898,7 @@ function Anweisungen() {
               className="mp-feld-gross"
               rows={2}
               maxLength={stand.daten!.maxZeichen}
-              placeholder="Noch nichts hinterlegt — Mara arbeitet nach den Hausregeln."
+              placeholder="Leer — es gelten die Hausregeln."
               value={wert}
               onChange={(ev) => setEntwurf((e) => ({ ...e, [x.bereich]: ev.target.value }))}
             />
@@ -965,7 +964,7 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
           </>
         ) : (
           <>
-            <p className="mp-grund">Diese Mail würde Mara zurückhalten: {p.grund}</p>
+            <p className="mp-grund">Würde zurückgehalten: {p.grund}</p>
             {p.kern && <pre className="mp-mail-text">{p.kern}</pre>}
           </>
         )}
@@ -981,11 +980,11 @@ function ProbeFenster({ probe, onZu }: { probe: any; onZu: () => void }) {
         )}
         {p.auftrag && (
           <details className="mara-klappe">
-            <summary>Ihr ganzer Auftragstext ({Number(p.auftrag.length).toLocaleString("de-DE")} Zeichen)</summary>
+            <summary>Auftragstext ({Number(p.auftrag.length).toLocaleString("de-DE")} Zeichen)</summary>
             <pre className="mp-mail-text">{p.auftrag}</pre>
           </details>
         )}
-        <p className="mp-still">Kosten dieser Probe: {Number(p.kostenCents || 0).toFixed(2).replace(".", ",")} ct</p>
+        <p className="mp-still">Kosten: {Number(p.kostenCents || 0).toFixed(2).replace(".", ",")} ct</p>
       </div>
     </div>
   );
@@ -1130,7 +1129,7 @@ function MarasBilanz() {
         <div>
           <h2 id="mbz-titel">Maras Bilanz</h2>
           <p>
-            Was Mara und die neuen Leads gebracht haben. Geld heißt gebucht, nicht gemeldet.{b ? ` Stand ${tagZeit(b.stand)} Uhr.` : ""}
+            Was Mara und neue Leads brachten · Geld = gebucht.{b ? ` Stand ${tagZeit(b.stand)} Uhr.` : ""}
             {" "}<InfoKnopf offen={hinweisOffen} onClick={() => setHinweisOffen((x) => !x)} label="Wie gezählt wird" />
           </p>
         </div>
@@ -1143,10 +1142,10 @@ function MarasBilanz() {
 
       {hinweisOffen && b ? (
         <p className="mara-info mbz-hinweis">
-          <b>Zahlung nach Maras Kontakt = zeitliche Folge, kein Beweis.</b> Gezählt wird gebuchtes Geld (wie /chef/zahlen) höchstens {b.nachTagen} Tage nach einer Mail oder WhatsApp von Mara, ohne Testpersonen.
-          {" "}Mara schreibt alle Menschen der Stufen A und B an, fast jede neue Rate 1 folgt deshalb auf eine Mara-Mail. „Vorher gemeldet“ heißt: Die Zahlung war schon vor Maras erstem Kontakt gemeldet.
-          {" "}Gezählt wird bei Raten der Eingangstag (ohne Uhrzeit). Zahlungen werden oft Tage später nachgebucht, auch „Heute“ kann sich deshalb noch ändern. Fahre über eine Zahl oder tippe sie an, dann steht dort ihre Quelle.
-          {b.kostenStand ? ` Werbekosten zuletzt abgerufen ${tagZeit(b.kostenStand)} Uhr.` : ""}
+          <b>Zahlung nach Maras Kontakt = zeitliche Folge, kein Beweis.</b> Gezählt: gebuchtes Geld bis {b.nachTagen} Tage nach Maras Mail oder WhatsApp, ohne Testpersonen.
+          {" "}Fast jede Rate 1 folgt auf eine Mara-Mail, weil sie alle in A und B anschreibt. „Vorher gemeldet“: schon vor Maras erstem Kontakt gemeldet.
+          {" "}Raten zählen am Eingangstag; Nachbuchungen ändern auch „Heute“.
+          {b.kostenStand ? ` Werbekosten abgerufen ${tagZeit(b.kostenStand)} Uhr.` : ""}
         </p>
       ) : null}
 
@@ -1254,7 +1253,7 @@ function MarasBilanz() {
             <BRahmen klasse="gegen" titel="Gekündigt nach Aktions-Mail" wert={zz(z.rahmen.kuendigungNachMail)}
               unter={`alle Wege · ≤ ${b.nachTagen} Tage danach`} info={def("rahmen.kuendigungNachMail")} />
           </div>
-          <p className="mara-still mara-klein">Zahl antippen: Definition und Quelle stehen darunter.</p>
+          <p className="mara-still mara-klein">Zahl antippen: Quelle und Definition.</p>
         </>
       ) : null}
     </section>
@@ -1491,7 +1490,7 @@ function Steuerpult() {
   const rundgangStarten = () => {
     const starten = lage.rundgangStart.current;
     if (starten) { setOffen(null); starten(); }
-    else melden("Der Rundgang dieses Reiters lädt noch — gleich noch einmal tippen.", "kopf");
+    else melden("Rundgang lädt noch — gleich nochmal tippen.", "kopf");
   };
   const anweisungZeigen = () => { setAnweisenDa(true); setOffen("anweisen"); lage.zeigen("#mara-anweisung", { block: "start" }); };
   const { reiter, ansicht, wechseln } = lage;

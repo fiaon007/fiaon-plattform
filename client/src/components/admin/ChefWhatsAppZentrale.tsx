@@ -166,10 +166,10 @@ function leerStand(gr: GruppeInfo): Leer | null {
   if (gr.wartend && gr.wartend > 0) {
     const wann = wannWieder(gr.wiederAb);
     const kurzWann = wann.startsWith("heute ") ? wann.slice(6) : wann;
-    const abstand = gr.abstandTage > 0 ? ` (Abstand ${gr.abstandTage} ${gr.abstandTage === 1 ? "Tag" : "Tage"} je Mensch)` : "";
+    const abstand = gr.abstandTage > 0 ? ` (Abstand ${gr.abstandTage} ${gr.abstandTage === 1 ? "Tag" : "Tage"})` : "";
     return {
       pille: wann === "jetzt" ? "gleich wieder dran" : `wieder ab ${kurzWann}`, ton: "akz",
-      satz: `${zahl(gr.wartend)} schon angeschrieben — wieder dran ab ${wann}${abstand}.`, warn: null,
+      satz: `${zahl(gr.wartend)} angeschrieben — wieder dran ab ${wann}${abstand}.`, warn: null,
       kurz: wann === "jetzt" ? "gleich wieder" : `ab ${kurzWann}`, leadMotor: false,
     };
   }
@@ -183,11 +183,11 @@ function leerStand(gr: GruppeInfo): Leer | null {
     return {
       pille: "leer", ton: "",
       // tagNur endet schon mit Punkt („24.09.") — kein zweiter dahinter.
-      satz: `Kein Lead wartet auf seine erste Nachricht.${gueltig ? ` Letzter neuer Lead: ${tagNur(berlinTag(am!))}` : ""}`,
+      satz: `Kein Lead wartet.${gueltig ? ` Letzter: ${tagNur(berlinTag(am!))}` : ""}`,
       warn: tage >= 2 ? `Seit ${tage} Tagen keiner.` : null, kurz: "leer", leadMotor: true,
     };
   }
-  return { pille: "leer", ton: "", satz: "Gerade erfüllt niemand die Regel dieser Gruppe.", warn: null, kurz: "leer", leadMotor: false };
+  return { pille: "leer", ton: "", satz: "Gerade passt niemand.", warn: null, kurz: "leer", leadMotor: false };
 }
 const leerText = (l: Leer) => (l.warn ? `${l.satz} ${l.warn}` : l.satz);
 
@@ -288,7 +288,7 @@ function pruefPunkte(s: string | null): { ok: boolean; text: string }[] {
 function MaraPruefung({ z }: { z: MaraZeile }) {
   const punkte = pruefPunkte(z.pruefung);
   if (z.pruefungOk === null && punkte.length === 0) {
-    return <p className="wz-mp-offen">Noch nicht nachgeprüft — „Jetzt nachprüfen“ prüft sofort.</p>;
+    return <p className="wz-mp-offen">Noch nicht nachgeprüft.</p>;
   }
   return (
     <div className={`wz-mp-pruefung${z.pruefungOk === false ? " rot" : ""}`}>
@@ -349,11 +349,11 @@ function MaraProtokoll() {
       const unsauber = neueZeilen.filter(istUnsauber).length;
       const termine = Number(j.summe?.termine || 0);
       const teile: string[] = [];
-      if (rot) teile.push(`${rot === 1 ? "1 Termin stimmt" : `${zahl(rot)} Termine stimmen`} nicht — als dringende Aufgabe an die Leitung gemeldet`);
-      if (unsauber) teile.push(`${unsauber === 1 ? "1 Buchung ist" : `${zahl(unsauber)} Buchungen sind`} nicht sauber gespeichert — bitte im Kalender ansehen`);
+      if (rot) teile.push(`${rot === 1 ? "1 Termin stimmt" : `${zahl(rot)} Termine stimmen`} nicht — an die Leitung gemeldet`);
+      if (unsauber) teile.push(`${unsauber === 1 ? "1 Buchung ist" : `${zahl(unsauber)} Buchungen sind`} nicht sauber — im Kalender prüfen`);
       setHinweis(teile.length
         ? { art: "fehler", text: `Nachgeprüft: ${teile.join("; ")}. Rot markiert.` }
-        : { art: "gut", text: termine ? `Nachgeprüft: ${termine === 1 ? "Der eine Mara-Termin stimmt" : `Alle ${zahl(termine)} Mara-Termine stimmen`}.` : `Nachgeprüft: In den letzten ${MARA_TAGE} Tagen hat Mara keinen Termin eingetragen.` });
+        : { art: "gut", text: termine ? `Nachgeprüft: ${termine === 1 ? "Der eine Mara-Termin stimmt" : `Alle ${zahl(termine)} Mara-Termine stimmen`}.` : `Nachgeprüft: keine Mara-Termine in ${MARA_TAGE} Tagen.` });
       prot.neu();
     } catch (e: any) { setHinweis({ art: "fehler", text: e?.message || "Die Nachprüfung hat nicht geklappt." }); } finally { setPrueft(false); }
   };
@@ -376,7 +376,7 @@ function MaraProtokoll() {
       <div className="mara-kopfzeile">
         <div>
           <h2 id="wz-mara-titel">Was Mara getan hat</h2>
-          <p className="mara-still mara-klein">Letzte {MARA_TAGE} Tage · jeder eingetragene Termin wird nachgeprüft</p>
+          <p className="mara-still mara-klein">Letzte {MARA_TAGE} Tage · Termine werden nachgeprüft</p>
         </div>
         <button type="button" className="mara-knopf klein" onClick={() => void nachpruefen()} disabled={prueft || !p}>
           {prueft ? "Prüft …" : "Jetzt nachprüfen"}
@@ -391,7 +391,7 @@ function MaraProtokoll() {
       ) : null}
       {prot.laedt && !p ? <Geruest zeilen={4} /> : null}
       {prot.fehler && !p ? <Fehlermeldung text={prot.fehler} erneut={prot.neu} /> : null}
-      {prot.fehler && p ? <p className="mara-still mara-klein" role="status">Neu laden hat nicht geklappt — zu sehen ist der letzte Stand.</p> : null}
+      {prot.fehler && p ? <p className="mara-still mara-klein" role="status">Neu laden gescheitert — letzter Stand.</p> : null}
 
       {p && s ? (
         <>
@@ -407,7 +407,7 @@ function MaraProtokoll() {
           </div>
 
           {zeilen.length === 0 ? (
-            <p className="wz-mp-leer">Mara hat in den letzten {MARA_TAGE} Tagen noch nichts eingetragen.</p>
+            <p className="wz-mp-leer">Nichts in den letzten {MARA_TAGE} Tagen.</p>
           ) : (
             <>
               <div className="wz-mp-filter" role="group" aria-label="Filter">
@@ -541,21 +541,21 @@ function LaufKarte({ lauf, vorlagen, sekundenJePerson, hinweis, verbindung, onAn
   const dauer = lauf.bis ? (new Date(lauf.bis).getTime() - new Date(lauf.seit).getTime()) / 1000 : 0;
   const saetze: { text: string; art?: "warn" | "gut" | "akz" }[] = [];
   if (z === "unterbrochen" && lauf.laeuft) {
-    saetze.push({ art: "warn", text: "Der Server wurde gerade neu gestartet. Der Versand steht in der Datenbank und geht spätestens in einer Minute von selbst weiter — durch den Neustart bekommt niemand eine zweite Nachricht." });
+    saetze.push({ art: "warn", text: "Server-Neustart — geht spätestens in einer Minute von selbst weiter, ohne Doppelversand." });
   }
   if (z === "laeuft" && lauf.anhaltenAm) saetze.push({ art: "warn", text: "Hält nach der aktuellen Nachricht an." });
-  else if (stillstand && herzschlag <= 60) saetze.push({ art: "akz", text: `Wartet auf Meta — die letzte Antwort kam vor ${dauerText(herzschlag)}.` });
+  else if (stillstand && herzschlag <= 60) saetze.push({ art: "akz", text: `Wartet auf Meta — letzte Antwort vor ${dauerText(herzschlag)}.` });
   else if (stillstand) {
-    saetze.push({ art: "warn", text: `Seit ${dauerText(herzschlag)} kein Lebenszeichen vom Server. Hängt nur Meta, geht es danach von selbst weiter; ist der Server weg, übernimmt ein neuer spätestens nach drei Minuten — durch die Übernahme bekommt niemand eine zweite Nachricht.` });
+    saetze.push({ art: "warn", text: `Seit ${dauerText(herzschlag)} kein Lebenszeichen vom Server — geht von selbst weiter (spätestens nach 3 Min.), ohne Doppelversand.` });
   }
   if ((lauf.fortsetzungen ?? 0) > 0 && z !== "unterbrochen") {
-    saetze.push({ art: "gut", text: `Nach ${lauf.fortsetzungen === 1 ? "einem Neustart" : `${lauf.fortsetzungen} Neustarts`} des Servers fortgesetzt — durch den Neustart wurde niemand doppelt angeschrieben.` });
+    saetze.push({ art: "gut", text: `Nach ${lauf.fortsetzungen === 1 ? "einem Server-Neustart" : `${lauf.fortsetzungen} Server-Neustarts`} fortgesetzt — niemand doppelt angeschrieben.` });
   }
   if (entfallen > 0) {
-    saetze.push({ text: `${zahl(entfallen)} ${entfallen === 1 ? "war" : "waren"} inzwischen nicht mehr dran (geantwortet, bezahlt oder heute schon angeschrieben) — nicht angeschrieben.` });
+    saetze.push({ text: `${zahl(entfallen)} entfallen (geantwortet, bezahlt oder heute schon angeschrieben).` });
   }
   if (lauf.schluss) saetze.push({ art: z === "fertig" || z === "verfallen" ? "warn" : undefined, text: lauf.schluss });
-  if (z === "angehalten" && offen > 0) saetze.push({ text: `${zahl(offen)} aus dem Plan wurden nicht mehr angeschrieben.` });
+  if (z === "angehalten" && offen > 0) saetze.push({ text: `${zahl(offen)} aus dem Plan nicht mehr angeschrieben.` });
   const gruende = Object.entries(lauf.gruende ?? {}).sort((a, b) => b[1] - a[1]);
   const gruendeSumme = gruende.reduce((a, [, n]) => a + n, 0);
 
@@ -604,7 +604,7 @@ function LaufKarte({ lauf, vorlagen, sekundenJePerson, hinweis, verbindung, onAn
       </div>
 
       {saetze.map((x, i) => <p key={i} className={`wz-lauf-satz${x.art ? ` ${x.art}` : ""}`}>{x.text}</p>)}
-      {verbindung ? <p className="wz-lauf-satz warn" role="status">Keine Verbindung zum Server — zu sehen ist der Stand von {verbindung}. Es wird weiter versucht.</p> : null}
+      {verbindung ? <p className="wz-lauf-satz warn" role="status">Keine Verbindung — Stand von {verbindung}, wird weiter versucht.</p> : null}
       {hinweis ? (
         <p className="wz-lauf-satz warn" role="status">
           {hinweis} <button type="button" className="mara-knopf text" onClick={onAktualisieren}>Stand holen</button>
@@ -739,7 +739,7 @@ export default function ChefWhatsAppZentrale() {
       if (aus) return;
       if (Date.now() > frist) {
         aus = true; window.clearInterval(t);
-        setLaufHinweis(`Der Stand wird nicht mehr von selbst abgefragt (zuletzt ${uhrzeit(letzterStand)}).`);
+        setLaufHinweis(`Keine automatische Abfrage mehr (zuletzt ${uhrzeit(letzterStand)}).`);
         return;
       }
       try {
@@ -757,7 +757,7 @@ export default function ChefWhatsAppZentrale() {
           const bekannt = laufRef.current;
           const fertig = !!bekannt && bekannt.id === id && bekannt.gesamt > 0 && laufErledigt(bekannt) >= bekannt.gesamt;
           setLauf((alt) => (alt && alt.id === id ? { ...alt, laeuft: false, zustand: fertig ? "fertig" : "unterbrochen", ohneEndstand: true } : alt));
-          setLaufHinweis("Der Stand dieses Versands ist auf dem Server nicht mehr abrufbar (er wurde vor dem Umbau gestartet). Was rausging, steht unten im Verlauf.");
+          setLaufHinweis("Stand nicht mehr abrufbar (Versand vor dem Umbau). Was rausging, steht im Verlauf.");
           lage.neu();
         }
       } catch {
@@ -790,11 +790,11 @@ export default function ChefWhatsAppZentrale() {
   const knapp = d && g
     ? [
       { n: grenzeJeVersand, warum: "Grenze je Versand" },
-      { n: g.anzahl, warum: "so viele sind in der Gruppe dran" },
-      { n: d.meta.frei, warum: "so viel gibt Meta heute noch frei" },
+      { n: g.anzahl, warum: "so viele in der Gruppe" },
+      { n: d.meta.frei, warum: "so viel gibt Meta heute frei" },
       // E-261: Meta GELB → höchstens der halbe freie Tagesraum (dieselbe Rechnung wie laufStarten am Server) — nicht für die Monatsrate.
       ...(gruppeFaktor > 0 && gruppeFaktor < 1
-        ? [{ n: Math.max(1, Math.ceil(d.meta.frei * gruppeFaktor)), warum: "Meta GELB: höchstens die Hälfte des freien Tagesraums" }] : []),
+        ? [{ n: Math.max(1, Math.ceil(d.meta.frei * gruppeFaktor)), warum: "Meta GELB: halber Tagesraum" }] : []),
     ].reduce((a, b) => (b.n < a.n ? b : a))
     : null;
   const hoechstens = knapp ? Math.max(0, knapp.n) : 0;
@@ -804,14 +804,14 @@ export default function ChefWhatsAppZentrale() {
   // "" heißt: niemand dran — kein Fehler, der Knopf sagt „Niemand dran" und bietet eine andere Gruppe an.
   const sperre: string | null = !d ? "Lädt …"
     : !d.whatsappBereit ? "WhatsApp ist auf dem Server nicht eingerichtet."
-    : !d.tagsueber ? "Zwischen 21:00 und 07:00 schreiben wir niemanden an."
+    : !d.tagsueber ? "Nachtruhe von 21:00 bis 07:00."
     // E-261: die Bremse — Pause stoppt jede Vorlage; ROT jede Gruppe außer der Monatsrate (auch mit Termin-Vorlage).
     : d.bremse?.pause ? (d.bremse.satz ?? "WhatsApp pausiert — keine Vorlage geht raus.")
-    : g?.bremse && !g.bremse.erlaubt ? (g.bremse.grund ?? "Meta-Qualität ROT: In der Zentrale geht gerade nur die Monatsrate raus.")
-    : !g?.bremse && d.meta.qualitaet === "RED" && g?.schluessel !== SERVICE_GRUPPE ? "Meta-Qualität ROT: In der Zentrale geht gerade nur die Monatsrate raus — bis Meta wieder GELB oder GRÜN meldet."
+    : g?.bremse && !g.bremse.erlaubt ? (g.bremse.grund ?? "Meta ROT: nur die Monatsrate geht raus.")
+    : !g?.bremse && d.meta.qualitaet === "RED" && g?.schluessel !== SERVICE_GRUPPE ? "Meta ROT: nur die Monatsrate geht raus, bis Meta GELB oder GRÜN meldet."
     : d.meta.frei <= 0 ? "Das Tageslimit von Meta ist ausgeschöpft."
-    : !vorlageFrei ? "Diese Vorlage ist bei Meta noch nicht freigegeben."
-    : lauf?.laeuft ? (laufZustand(lauf) === "unterbrochen" ? "Ein Versand wurde durch einen Neustart unterbrochen und geht gleich von selbst weiter." : "Es läuft schon ein Versand.")
+    : !vorlageFrei ? "Vorlage bei Meta noch nicht freigegeben."
+    : lauf?.laeuft ? (laufZustand(lauf) === "unterbrochen" ? "Versand nach Neustart unterbrochen — geht gleich weiter." : "Es läuft schon ein Versand.")
     : menge <= 0 ? (leer ? "" : "In dieser Gruppe ist gerade niemand dran.")
     : null;
   const beste = d ? [...d.gruppen].filter((x) => x.anzahl > 0).sort((a, b) => b.anzahl - a.anzahl)[0] : undefined;
@@ -840,8 +840,7 @@ export default function ChefWhatsAppZentrale() {
     if (!d || sperre !== null) return;
     // E-253: Rückfragetext wortgleich mit dem Live-Stand b5bae0a8 (Dauer, Neustart).
     const satz = `Mara schreibt jetzt bis zu ${zahl(menge)} Menschen aus „${g?.titel}“ an — Vorlage „${vorlagenName(vorlage, d.vorlagen)}“. `
-      + `Eine Nachricht nach der anderen, Dauer etwa ${dauerText(menge * sekundenJePerson)}, jederzeit anhaltbar. `
-      + "Auch ein Neustart des Servers unterbricht nur kurz. Starten?";
+      + `Dauer etwa ${dauerText(menge * sekundenJePerson)}, jederzeit anhaltbar. Starten?`;
     if (!window.confirm(satz)) return;
     setBeschaeftigt("start");
     try {
@@ -862,7 +861,7 @@ export default function ChefWhatsAppZentrale() {
         setLauf((l) => (l ? { ...l, anhaltenAm: new Date().toISOString() } : l));
         if (j.zustand === "angehalten") void laufAktualisieren();
       } else {
-        melden("Es läuft gerade kein Versand — es gab nichts anzuhalten.", "lauf", true);
+        melden("Es läuft kein Versand.", "lauf", true);
         void laufAktualisieren();
       }
     } catch (e: any) { melden(e.message, "lauf", true); } finally { setHaeltAn(false); }
@@ -972,14 +971,14 @@ export default function ChefWhatsAppZentrale() {
                   </div>
                   <small>
                     {a.an && d.bremse?.pause
-                      ? "WhatsApp pausiert — die Automatik schickt nichts, bis du oben im Chip „WhatsApp“ wieder aktivierst."
+                      ? "Pausiert — wieder aktivieren über den Chip „WhatsApp“ oben."
                       : a.an
                       ? (() => {
                         // E-261: GELB halbiert die Stundenmenge (Server: automatikTakt, mitFaktor).
                         const soll = d.bremse?.jeStundeGelb ?? a.jeStunde;
                         return `${soll} je Stunde${soll !== a.jeStunde ? ` (Meta GELB: halbiert von ${a.jeStunde})` : ""} · ${a.von}–${a.bis} · diese Stunde ${a.dieseStunde ? `${a.dieseStunde} von ${soll}` : `noch keine von ${soll}`}`;
                       })()
-                      : "Versände startest du unten von Hand."}
+                      : "Versand nur von Hand."}
                   </small>
                 </div>
               </div>
@@ -1012,13 +1011,12 @@ export default function ChefWhatsAppZentrale() {
             </div>
             {infMeta ? (
               <div className="mara-info">
-                <b>Frei heute</b> = Grenze minus Verbrauch der letzten 24 Stunden. Die Grenze ist 80 % der Meta-Stufe
+                <b>Frei heute</b> = Grenze − Verbrauch (24 h). Grenze = 80 % der Meta-Stufe
                 {stufeZahl ? `: ${stufe} (${zahl(stufeZahl)} Gespräche) → ${zahl(d.meta.grenze)}.` : "."}
                 {" "}{d.meta.verbraucht
-                  ? `${zahl(d.meta.verbraucht)} sind verbraucht, also ${frei > 0 ? `${zahl(frei)} frei` : "heute nichts mehr frei"}.`
-                  : `Verbraucht ist noch nichts, also ${zahl(frei)} frei.`}
-                {" "}Erkennt der Server keine Stufe, rechnet er mit 250 → Grenze 200. Ist nichts mehr frei, sperrt der Start mit genau diesem Grund.
-                {" "}Antworten übernimmt Mara im WhatsApp-Raum.
+                  ? `${zahl(d.meta.verbraucht)} verbraucht, ${frei > 0 ? `${zahl(frei)} frei` : "nichts mehr frei"}.`
+                  : `Nichts verbraucht, ${zahl(frei)} frei.`}
+                {" "}Ohne erkannte Stufe: 250 → Grenze 200.
               </div>
             ) : null}
 
@@ -1030,28 +1028,28 @@ export default function ChefWhatsAppZentrale() {
                     <span className={`mara-punkt ${d.bremse.pause || d.bremse.qualitaet === "RED" ? "krit" : "warn"}`} aria-hidden="true" />
                     <span>
                       {d.bremse.satz}
-                      {d.bremse.pause ? <> „WhatsApp wieder aktivieren“ steht oben im Chip <b>WhatsApp</b> (nur Inhaber).</> : null}
+                      {d.bremse.pause ? <> Aktivieren: Chip <b>WhatsApp</b> oben (nur Inhaber).</> : null}
                       {!d.bremse.pause && d.bremse.jeStundeGelb && a.an ? <> Automatik: {a.jeStunde} → {d.bremse.jeStundeGelb} je Stunde.</> : null}
                     </span>
                   </p>
                 ) : null}
                 {wartend > 0 ? (
-                  <p className="mara-hinweis warn">
+                  <p className="mara-hinweis warn" title="Mara holt jede Minute nach — nachts nur Frisches, Älteres ab 7 Uhr.">
                     <span className="mara-punkt warn" aria-hidden="true" />
                     <span>
-                      {wartend === 1 ? "1 Kunde wartet" : `${zahl(wartend)} Kunden warten`} seit über 2 Minuten auf eine Antwort (längstens {zahl(d.wartend?.laengsteMin ?? 0)} Min.).
-                      {" "}Mara holt jede Minute nach — nachts nur Frisches, Älteres ab 7 Uhr. <a href="/chef/s/whatsapp">Zum WhatsApp-Raum</a>
+                      {wartend === 1 ? "1 Kunde wartet" : `${zahl(wartend)} Kunden warten`} über 2 Min. auf Antwort (längstens {zahl(d.wartend?.laengsteMin ?? 0)} Min.).
+                      {" "}<a href="/chef/s/whatsapp">Zum WhatsApp-Raum</a>
                     </span>
                   </p>
                 ) : null}
                 {!d.whatsappBereit ? (
-                  <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>WhatsApp ist auf dem Server nicht eingerichtet — es kann nichts gesendet werden.</span></p>
+                  <p className="mara-hinweis krit"><span className="mara-punkt krit" aria-hidden="true" /><span>WhatsApp nicht eingerichtet — es geht nichts raus.</span></p>
                 ) : null}
                 {q?.art === "warn" && !d.bremse?.satz ? (
-                  <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Meta bewertet die Nummer mit Gelb. Lieber kleinere Mengen senden, bis sie wieder grün ist.</span></p>
+                  <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Meta-Qualität gelb — kleinere Mengen senden, bis sie grün ist.</span></p>
                 ) : null}
                 {d.kette.pausiert ? (
-                  <p className="mara-hinweis"><span className="mara-punkt" aria-hidden="true" /><span>Die alte Stundenkette pausiert, solange die Automatik läuft. Die Sofort-Begrüßung neuer Leads läuft weiter.</span></p>
+                  <p className="mara-hinweis"><span className="mara-punkt" aria-hidden="true" /><span>Alte Stundenkette pausiert, solange die Automatik läuft. Sofort-Begrüßung läuft weiter.</span></p>
                 ) : null}
               </div>
             ) : null}
@@ -1104,11 +1102,11 @@ export default function ChefWhatsAppZentrale() {
                   {leere.map(gruppeZeile)}
                 </div>
                 <p className="mara-still mara-klein wz-einw-fuss">
-                  Streifen = Anteil mit nachgewiesener WhatsApp-Einwilligung.{" "}
+                  Streifen = Anteil mit WhatsApp-Einwilligung.{" "}
                   <InfoKnopf offen={infEinw} onClick={() => setInfEinw((x) => !x)} label="Was Einwilligung heißt" />
                 </p>
                 {infEinw ? (
-                  <div className="mara-info">Nachweislich eingewilligt: Meta-Formular mit WhatsApp-Hinweis oder hat uns selbst auf WhatsApp geschrieben. Der Antrag auf der Website fragt nicht nach WhatsApp.</div>
+                  <div className="mara-info">Eingewilligt = Meta-Formular mit WhatsApp-Hinweis oder selbst per WhatsApp geschrieben. Der Website-Antrag fragt nicht danach.</div>
                 ) : null}
               </section>
 
@@ -1117,7 +1115,7 @@ export default function ChefWhatsAppZentrale() {
                 <div className="mara-kopfzeile">
                   <div>
                     <span className="mara-etikett" id="wz-wie-titel">Versand starten</span>{" "}
-                    <span className="mara-still mara-klein">· eine Nachricht nach der anderen, jederzeit anhaltbar</span>
+                    <span className="mara-still mara-klein">· jederzeit anhaltbar</span>
                   </div>
                   <button type="button" className="mara-knopf klein wz-nur-schmal" onClick={() => hinrollen(".wz-wen")}>Gruppe wechseln ↓</button>
                 </div>
@@ -1192,7 +1190,7 @@ export default function ChefWhatsAppZentrale() {
                         {beschaeftigt === "start" ? "Startet …" : sperre === null ? `WhatsApp starten (${zahl(menge)})` : sperre === "" ? "Niemand dran" : "Gesperrt"}
                       </button>
                       {!leer && frei > 0 ? (
-                        <span className="mara-still mara-klein">Kleinstes aus: {zahl(grenzeJeVersand)} je Versand · {zahl(g.anzahl)} in der Gruppe · {zahl(frei)} bei Meta frei</span>
+                        <span className="mara-still mara-klein" title="Höchstmenge = das Kleinste aus diesen drei">max. {zahl(grenzeJeVersand)} je Versand · {zahl(g.anzahl)} in der Gruppe · {zahl(frei)} bei Meta frei</span>
                       ) : null}
                     </div>
                     {sperre && !lauf?.laeuft ? <p className="wz-sperre"><span className="mara-punkt warn" aria-hidden="true" /><span>{sperre}</span></p> : null}
@@ -1208,7 +1206,7 @@ export default function ChefWhatsAppZentrale() {
                     {vorschau ? (
                       <div className="wz-vorschau">
                         <span className="mara-etikett">{vorschau.length ? `Vorschau · die nächsten ${zahl(vorschau.length)}` : "Vorschau"}</span>
-                        {vorschau.length === 0 ? <p className="mara-still mara-klein">Niemand in dieser Gruppe ist gerade dran.</p> : vorschau.map((z) => {
+                        {vorschau.length === 0 ? <p className="mara-still mara-klein">Gerade niemand dran.</p> : vorschau.map((z) => {
                           const v = d.vorlagen.find((x) => x.name === z.vorlage);
                           return (
                             <div key={z.personId} className="wz-vorschau-zeile">
@@ -1239,7 +1237,7 @@ export default function ChefWhatsAppZentrale() {
                   <div className="wz-auto-kopf">
                     <h3>Automatik</h3>
                     <button type="button" className={`mara-schalter wz-schalter${a.an ? " an" : ""}`} data-mara-schalter="whatsapp" disabled={beschaeftigt !== null}
-                      onClick={() => void automatikSpeichern({ an: !a.an }, a.an ? "Automatik aus. Die alte Stundenkette läuft wieder." : "Automatik an. Mara schreibt im eingestellten Takt.")}
+                      onClick={() => void automatikSpeichern({ an: !a.an }, a.an ? "Automatik aus — die alte Stundenkette läuft wieder." : "Automatik an — Mara schreibt im Takt.")}
                       aria-pressed={a.an}>
                       <span className="bahn" aria-hidden="true" />
                       <span>{a.an ? "Läuft" : "Aus"}</span>
@@ -1270,7 +1268,7 @@ export default function ChefWhatsAppZentrale() {
                       <div className="mara-feld"><label htmlFor="wz-von">Von</label><input id="wz-von" className="mara-eingabe" type="time" value={auto.von} min="07:00" max="21:00" onChange={(e) => setAuto({ ...auto, von: e.target.value })} /></div>
                       <div className="mara-feld"><label htmlFor="wz-bis">Bis</label><input id="wz-bis" className="mara-eingabe" type="time" value={auto.bis} min="07:00" max="21:00" onChange={(e) => setAuto({ ...auto, bis: e.target.value })} /></div>
                       <div className="mara-feld"><label htmlFor="wz-je">Je Stunde</label><input id="wz-je" className="mara-eingabe mara-eingabe-zahl" type="number" min={1} max={30} value={auto.jeStunde} onChange={(e) => setAuto({ ...auto, jeStunde: Math.max(1, Math.min(30, Math.round(Number(e.target.value) || 1))) })} /></div>
-                      <p className="wz-takt-satz">≈ <b>{zahl(proTag)}</b> Nachrichten am Tag, gleichmäßig über jede Stunde verteilt.</p>
+                      <p className="wz-takt-satz">≈ <b>{zahl(proTag)}</b> Nachrichten am Tag, gleichmäßig verteilt.</p>
                     </div>
                     {/* E-252: alle Gruppen des Servers (GRUPPEN_REIHE, lage.gruppen) — auch „Auskunft fehlt"; angekreuzt ist nur, was gespeichert ist. */}
                     <ol className="wz-reihe">
@@ -1313,8 +1311,8 @@ export default function ChefWhatsAppZentrale() {
                         })}
                     </ol>
                     <div className="wz-automatik-fuss">
-                      <span className="mara-still mara-klein">
-                        Reihenfolge = Vorrang: Ist die erste Gruppe leer, kommt die nächste dran.
+                      <span className="mara-still mara-klein" title="Ist die erste Gruppe leer, kommt die nächste dran.">
+                        Reihenfolge = Vorrang.
                         {a.geaendertAm ? ` Zuletzt geändert ${seit(a.geaendertAm)}${a.geaendertVon ? ` von ${a.geaendertVon}` : ""}.` : ""}
                       </span>
                       <button type="button" className="mara-knopf haupt" disabled={!autoGeaendert || beschaeftigt !== null}

@@ -302,7 +302,7 @@ export async function globalTerminBuchen(ein: {
       error: globalText(T.schonGebucht, { datum: berlinDatumText(schon.beginn), uhrzeit: berlinUhrzeit(schon.beginn) }) };
   }
 
-  // ── ATOMAR: EINE ZEIT, EIN GESPRÄCH — UND HÖCHSTENS VIER AM TAG ──────────
+  // ── ATOMAR: EINE ZEIT, EIN GESPRÄCH — UND HÖCHSTENS DER TAGESDECKEL ───────
   // Die doppelte Zeit verhindert die Datenbank (eindeutiger Index auf
   // agent + beginn, dazu die Überschneidungs-Sperre) — zwei Anfragen in
   // derselben Millisekunde kommen durch jede Prüfung im Code, aber nur eine

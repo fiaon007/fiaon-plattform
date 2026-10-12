@@ -78,6 +78,9 @@ export const ABO_TAGE_VORAUS = 60;
 export const ABO_HOECHSTENS = 800;
 /** Standarddauer, wenn ein Termin keine trägt (wie überall im Haus). */
 const DAUER_VORGABE = 20;
+/** E-342: Was fiaon-google-kalender.ts sicher in Google eingetragen hat (kein Fehler, nicht gelöscht, derselbe Mitarbeiter). */
+const GOOGLE_ABO_AUSNAHME = `NOT EXISTS (SELECT 1 FROM fiaon_google_kalender gk
+  WHERE gk.termin_id = t.id AND gk.agent_id = t.agent_id AND gk.geloescht_am IS NULL AND gk.fehler IS NULL)`;
 const ORT = "Telefon (FIAON)";
 
 function geheim(): string {
@@ -383,6 +386,42 @@ export function googleTerminLink(t: { id?: number; person_id: number; quelle: st
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DIREKT IN GOOGLE (E-342, 12.10.2026) — dieselben Termine, dieselben Titel
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface GoogleTermin { id: number; agent_id: number; kal_sequenz: number; stand: Date; ereignis: IcsEreignis }
+
+/**
+ * Die Termine der Konten mit Google-Abgleich (fiaon-google-kalender.ts): ab gestern
+ * bis +60 Tage, gebucht/erledigt/verpasst, ohne Test- und zusammengeführte Personen —
+ * dieselben Regeln wie das eigene Abo, damit Abo und Google nie Verschiedenes zeigen.
+ */
+export async function termineFuerGoogle(agentIds: number[], lauf: Lauf = sqlPool): Promise<GoogleTermin[]> {
+  if (!agentIds.length) return [];
+  const zeilen = ((await lauf`
+    SELECT ${TERMIN_SPALTEN(lauf)}
+      FROM fiaon_termine t
+      JOIN fiaon_persons p ON p.id = t.person_id AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+      LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+     WHERE t.agent_id = ANY(${agentIds})
+       AND t.beginn >= NOW() - INTERVAL '1 day'
+       AND t.beginn < NOW() + make_interval(days => ${ABO_TAGE_VORAUS}::int)
+       AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.abgesagt_am IS NULL
+     ORDER BY t.beginn
+     LIMIT ${ABO_HOECHSTENS}`) as any[]).map(terminZeile);
+  return zeilen.map((t) => ({ id: t.id, agent_id: t.agent_id, kal_sequenz: t.kal_sequenz, stand: t.stand, ereignis: terminEreignis(t) }));
+}
+
+/** Gibt es die Google-Tabelle? (Ohne sie lässt das Abo nichts weg.) Einmal ja = für immer ja. */
+let googleTabelleDa = false;
+async function googleAusnahmeAn(lauf: Lauf): Promise<boolean> {
+  if (googleTabelleDa) return true;
+  const [r] = (await lauf`SELECT to_regclass('public.fiaon_google_kalender') IS NOT NULL AS da`.catch(() => [])) as any[];
+  googleTabelleDa = !!r?.da;
+  return googleTabelleDa;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DAS ABO (Feed)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -411,6 +450,8 @@ export const ABO_NAMEN: Record<KalenderAboUmfang, string> = {
  */
 export async function aboFeed(z: AboZeile, lauf: Lauf = sqlPool): Promise<AboFeed> {
   const team = z.umfang === "team";
+  // E-342: Was schon direkt in Google steht, lässt das EIGENE Abo weg — sonst stünde es zweimal im Kalender.
+  const ohneGoogle = !team && (await googleAusnahmeAn(lauf));
   const zeilen = ((await lauf`
     SELECT ${TERMIN_SPALTEN(lauf)}
       FROM fiaon_termine t
@@ -421,6 +462,7 @@ export async function aboFeed(z: AboZeile, lauf: Lauf = sqlPool): Promise<AboFee
        AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.abgesagt_am IS NULL
        AND ((NOT ${team}::boolean AND t.agent_id = ${z.agent_id})
             OR (${team}::boolean AND t.agent_id <> ${z.agent_id} AND ag.id IS NOT NULL AND ${lauf.unsafe(echteMitarbeiterSql("ag"))}))
+       ${lauf.unsafe(ohneGoogle ? `AND ${GOOGLE_ABO_AUSNAHME}` : "")}
      ORDER BY t.beginn DESC, t.id DESC
      LIMIT ${ABO_HOECHSTENS}`) as any[]).map(terminZeile).reverse();
   const ereignisse = zeilen.map((t) => terminEreignis(t, { team }));

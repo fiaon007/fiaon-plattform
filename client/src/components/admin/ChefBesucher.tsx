@@ -172,10 +172,8 @@ export default function ChefBesucher() {
       <header className="cl-kopf">
         <p className="cl-augenbraue">Besucher · Microsoft Clarity</p>
         <h1>Wer war da — und wo hat es geklemmt?</h1>
-        <p className="cl-untertitel">
-          Die letzten {d.tage} Tage. Clarity erlaubt zehn Abrufe am Tag, deshalb
-          liest diese Seite aus unserem Speicher und lädt höchstens alle acht
-          Stunden nach.
+        <p className="cl-untertitel" title="Clarity erlaubt zehn Abrufe am Tag — die Seite liest aus unserem Speicher.">
+          Letzte {d.tage} Tage · lädt höchstens alle 8 h nach.
         </p>
       </header>
 
@@ -183,9 +181,9 @@ export default function ChefBesucher() {
       <div className="cbes-stand">
         <span>
           Stand: <b>{d.stand ? seit(d.stand) : "unbekannt"}</b>
-          {d.budget && <> · heute {d.budget.verbrauchtHeute} von {d.budget.tagesbudget} Abrufen verbraucht
+          {d.budget && <> · Abrufe heute {d.budget.verbrauchtHeute}/{d.budget.tagesbudget}
             {d.budget.nochMoeglich > 0
-              ? <> · {d.budget.nochMoeglich} weitere möglich</>
+              ? <> · noch {d.budget.nochMoeglich}</>
               : <> · <b>heute keine weiteren</b></>}</>}
         </span>
         <button type="button" className="cw-knopf klein" onClick={neuHolen}
@@ -205,15 +203,15 @@ export default function ChefBesucher() {
         </Karte>
         <Karte klasse="ck-kz">
           <b><Hochzaehler ziel={k.menschen ?? 0} formatieren={zahl} /></b>
-          <em>unterschiedliche Menschen</em>
+          <em>Menschen</em>
         </Karte>
         <Karte klasse="ck-kz">
           <b>{dauer(k.zeitAktivMs ?? 0)}</b>
-          <em>aktive Zeit gesamt · von {dauer(k.zeitGesamtMs ?? 0)} Anwesenheit</em>
+          <em>aktiv · von {dauer(k.zeitGesamtMs ?? 0)} gesamt</em>
         </Karte>
         <Karte klasse="ck-kz">
           <b>{prozent(k.scrolltiefe ?? 0)}</b>
-          <em>durchschnittliche Scrolltiefe</em>
+          <em>Ø Scrolltiefe</em>
         </Karte>
       </div>
 
@@ -221,17 +219,13 @@ export default function ChefBesucher() {
       {(d.aergernisse ?? []).length > 0 && (
         <section className="cbes-abschnitt">
           <h2><AlertTriangle size={17} strokeWidth={1.7} aria-hidden="true" /> Wo sich Besucher ärgern</h2>
-          <p className="cr-gruppensatz">
-            Das ist der eigentliche Wert dieser Zahlen: nicht wie viele kamen,
-            sondern wo sie nicht weiterkamen.
-          </p>
           <div className="cbes-aerger">
             {d.aergernisse.map((a: any) => (
               <div key={a.key} className="cbes-aergerkarte">
                 <b>{zahl(a.vorfaelle)}</b>
                 <strong>{a.titel}</strong>
                 <em>{a.satz}</em>
-                <small>{prozent(a.anteil)} der Sitzungen · {zahl(a.seiten)} Seitenaufrufe betroffen</small>
+                <small>{prozent(a.anteil)} der Sitzungen · {zahl(a.seiten)} Seitenaufrufe</small>
               </div>
             ))}
           </div>
@@ -243,8 +237,7 @@ export default function ChefBesucher() {
         <section className="cbes-abschnitt">
           <h2><MousePointerClick size={17} strokeWidth={1.7} aria-hidden="true" /> Diese Seiten machen Ärger</h2>
           <p className="cr-gruppensatz">
-            Nach Gewicht sortiert: Ein Wut-Klick zählt dreifach, ein Skriptfehler
-            doppelt — beides sind Menschen, die etwas wollten und nicht bekamen.
+            Nach Gewicht: Wut-Klick ×3, Skriptfehler ×2.
           </p>
           <div className="cbes-seiten">
             {seitenNachAerger.map((s: any) => {
@@ -268,14 +261,14 @@ export default function ChefBesucher() {
                   </span>
                   <span className="cbes-wege">
                     {gemacht ? (
-                      <a className="cw-knopf klein" href="/chef/s/todo" title={gemacht.schonDa ? "Zu dieser Seite steht schon eine offene Aufgabe" : "Aufgabe angelegt"}>
+                      <a className="cw-knopf klein" href="/chef/s/todo" title={gemacht.schonDa ? "Aufgabe gibt es schon" : "Aufgabe angelegt"}>
                         <ClipboardCheck size={13} strokeWidth={1.8} />
                         {gemacht.schonDa ? "steht schon" : "angelegt"}
                       </a>
                     ) : (
                       <button type="button" className="cw-knopf klein" onClick={() => zurAufgabe(s)} disabled={!!aufgabeLaeuft}>
                         {aufgabeLaeuft === s.pfad ? <Loader2 size={13} className="cw-dreht" /> : <ClipboardPlus size={13} strokeWidth={1.8} />}
-                        Aufgabe daraus machen
+                        Als Aufgabe
                       </button>
                     )}
                     <a className="cw-knopf klein" href={s.adresse} target="_blank" rel="noopener noreferrer" title="Die Seite ansehen">
@@ -327,10 +320,8 @@ export default function ChefBesucher() {
         </div>
       </section>
 
-      <p className="dk-leise cbes-fuss">
-        Quelle: Microsoft Clarity, Datenexport-Schnittstelle. Clarity gibt über
-        diese Schnittstelle nur die letzten drei Tage heraus — jeder Abruf wird
-        bei uns aufbewahrt, daraus wächst mit der Zeit ein eigener Verlauf.
+      <p className="dk-leise cbes-fuss" title="Clarity liefert nur 3 Tage — jeder Abruf wird bei uns aufbewahrt und wächst zum Verlauf.">
+        Quelle: Microsoft Clarity (Datenexport).
       </p>
     </div>
   );

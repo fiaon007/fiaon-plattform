@@ -16,7 +16,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Lock } from "lucide-react";
 import ChefAnmeldung, { type ChefStatus } from "@/components/admin/ChefAnmeldung";
-import { ChefShell, ChefRaumSeite, ChefSeitenRahmen, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type ChefStufe } from "@/components/admin/ChefShell";
+import { ChefShell, ChefRaumSeite, ChefSeitenRahmen, RaumWege, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type ChefStufe } from "@/components/admin/ChefShell";
 import { SEITE_NACH_SLUG } from "@/components/admin/chef-seiten";
 // 26.08.2026: Das Lagezimmer ist keine Kachelliste mehr, sondern der Raum, in
 // dem die Zahlen des Unternehmens stehen. Die uebrigen sieben Raeume bleiben
@@ -88,7 +88,8 @@ export default function ChefPage() {
   return (
     <ChefShell stufe={stufe} name={status.name} titel={(status as any).titel ?? null} raumKey={raum.key} onAbmelden={abmelden}
                ruhigeHuelle={!!seite?.ruhig /* E-252: nur Seiten mit `ruhig` (heute /chef/s/mara) */}
-               vollflaeche={!!seite?.vollflaeche /* E-IT-H: nur Seiten mit `vollflaeche` (heute /chef/s/whatsapp) */}>
+               vollflaeche={!!seite?.vollflaeche /* E-IT-H: nur Seiten mit `vollflaeche` (heute /chef/s/whatsapp) */}
+               seiteSlug={seite?.slug ?? null} volltext={!!seite?.volltext /* E-342: Kurzmodus aus, wo langer Text Inhalt ist */}>
       {istSeite && !seite ? (
         <div className="cb-hinweis" role="status">
           <b>Diese Seite gibt es hier nicht.</b>
@@ -107,7 +108,7 @@ export default function ChefPage() {
             <p>Diese Seite gibt es erst ab Stufe {STUFEN_NAME[seite.mindest]} — deine Stufe ist {STUFEN_NAME[stufe]}.</p>
           </div>
         ) : (
-          <ChefSeitenRahmen seite={seite} raum={CHEF_RAEUME.find((r) => r.key === seite.raum)}>
+          <ChefSeitenRahmen seite={seite} raum={CHEF_RAEUME.find((r) => r.key === seite.raum)} stufe={stufe}>
             <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /><span /><span /></div>}>
               <seite.Seite />
             </Suspense>
@@ -117,7 +118,8 @@ export default function ChefPage() {
         raum.key === "lage"
           ? <ChefLagezimmer name={status.name} />
           : EIGENE_SEITE[raum.key]
-            ? EIGENE_SEITE[raum.key](stufe)
+            // E-342: Hat ein Raum mit eigener Seite weitere Seiten (Global: Angebote & Aufträge, Firmen-Radar), steht die Wegeleiste darüber.
+            ? <>{<RaumWege raum={raum} stufe={stufe} aktivSlug={null} />}{EIGENE_SEITE[raum.key](stufe)}</>
             : <ChefRaumSeite raum={raum} stufe={stufe} />
       ) : (
         <div className="cb-hinweis" role="status">

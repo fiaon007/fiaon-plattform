@@ -101,7 +101,7 @@ export default function ChefKonto() {
         body: JSON.stringify({ id, trocken: false, modus: "kein_kunde_zurueck" }),
       });
       const j = await r.json().catch(() => ({}));
-      setMeldung(j?.ok ? "Kennzeichnung „kein Kundengeld“ zurückgenommen — der Eingang ist wieder offen." : (j?.error || "Zurücknehmen hat nicht geklappt."));
+      setMeldung(j?.ok ? "„Kein Kundengeld“ zurückgenommen — Eingang wieder offen." : (j?.error || "Zurücknehmen hat nicht geklappt."));
       laden();
     } catch { setMeldung("Zurücknehmen hat nicht geklappt."); }
     setNimmtZurueck(null);
@@ -129,7 +129,7 @@ export default function ChefKonto() {
 
       {!k.konfiguriert && (
         <p className="kt-warn">
-          Die Zugangsdaten für Airwallex fehlen auf dem Server. Ohne sie kann nichts abgerufen werden.
+          Airwallex-Zugangsdaten fehlen auf dem Server — kein Abruf möglich.
         </p>
       )}
 
@@ -138,7 +138,7 @@ export default function ChefKonto() {
         <b>Zuletzt abgerufen:</b> {zeitpunkt(k.letzterLauf?.wann)}
         {k.letzterLauf && ` · ${k.letzterLauf.gesehen} gesehen, ${k.letzterLauf.neu} neu`}
         {k.letzterLauf?.fehler && <span className="kt-fehler"> · Fehler: {k.letzterLauf.fehler}</span>}
-        {veraltet && !k.letzterLauf?.fehler && <span className="kt-leise"> — das ist länger her, als es sein sollte.</span>}
+        {veraltet && !k.letzterLauf?.fehler && <span className="kt-leise"> — zu lange her.</span>}
       </div>
 
       <div className="kt-zahlen">
@@ -168,11 +168,9 @@ export default function ChefKonto() {
           bezahlt ist, ist keine Arbeit — sie steht deshalb nicht hier. */}
       {k.wirklichOffen.anzahl > 0 && (
         <section className="kt-block">
-          <h2>Diese Zahlungen gehören noch zu niemandem</h2>
+          <h2>Noch ohne Zuordnung</h2>
           <p className="kt-leise">
-            Zu diesen Eingängen findet sich keine bezahlte Bestellung. Mit „Zubuchen“ siehst du den Vorschlag, suchst
-            den Kunden aus allen Kunden heraus, prüfst — und buchst. Gehört ein Eingang keinem Kunden, kennzeichnest du
-            ihn dort als „kein Kundengeld“.
+            Keine bezahlte Bestellung gefunden. „Zubuchen“: Vorschlag, Kunde suchen, prüfen, buchen.
           </p>
           <div className="kt-tab-rahmen">
             <table className="kt-tab">
@@ -247,12 +245,11 @@ export default function ChefKonto() {
           </tbody>
         </table>
         </div>
-        {k.liste.length === 0 && <p className="kt-leise">In diesem Zeitraum ist kein Geld eingegangen.</p>}
+        {k.liste.length === 0 && <p className="kt-leise">Kein Eingang in diesem Zeitraum.</p>}
       </section>
 
-      <p className="kt-fuss">
-        Das Konto wird alle 30 Minuten von selbst abgerufen. „Jetzt abrufen“ holt die letzten drei Tage
-        sofort — und dazu jeden Eingang, der noch als „unterwegs“ im Bankbuch steht, bis er gutgeschrieben ist.
+      <p className="kt-fuss" title="Prüft dabei auch jeden Eingang, der noch „unterwegs“ ist.">
+        Abruf automatisch alle 30 Min. „Jetzt abrufen“ holt die letzten 3 Tage sofort.
       </p>
 
       {zubuchen && (

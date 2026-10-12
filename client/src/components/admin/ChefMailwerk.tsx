@@ -101,10 +101,7 @@ export default function ChefMailwerk() {
         <header>
           <h2>Der Versandweg</h2>
           <p>
-            Entscheidet, was hinter der einen Versand-Tür passiert. <b>Make</b> ist der bewährte
-            Umweg über das Szenario; <b>Direkt</b> rendert die Quelltext-Vorlagen und sendet
-            über Brevo — mit Annahme-Kennung im Protokoll und ohne Zweige, die fehlen können.
-            Der Schalter wirkt binnen einer Minute und geht jederzeit zurück.
+            Wirkt binnen einer Minute, jederzeit umstellbar.
           </p>
         </header>
         <div className="cm-weg">
@@ -131,10 +128,8 @@ export default function ChefMailwerk() {
       <section className="cz-block">
         <header>
           <h2>Die Takte der Automatik</h2>
-          <p>
-            Offene Rechnungen und Leads ohne Antrag werden automatisch bespielt — hier steht,
-            wie oft. Die Stopp-Regeln bleiben immer an: Wer bezahlt hat, einen Antrag stellt,
-            sich abmeldet oder dessen Adresse nicht existiert, bekommt nichts mehr.
+          <p title="Wer bezahlt, einen Antrag stellt, sich abmeldet oder unzustellbar ist, bekommt nichts mehr.">
+            Wie oft offene Rechnungen und Leads Mails bekommen. Stopp-Regeln sind immer an.
           </p>
         </header>
         <div className="cm-takte">
@@ -166,7 +161,7 @@ export default function ChefMailwerk() {
               <input type="number" min={1} max={60} defaultValue={takte.mahnObergrenze}
                 onBlur={(e) => speichern("max_reminders", e.target.value)} />
             </label>
-            <p className="cm-fein">Bei 2× täglich hält der Lauf fünf Stunden Abstand je Kunde — vormittags und nachmittags je einmal.</p>
+            <p className="cm-fein">Bei 2× täglich: 5 h Abstand je Kunde.</p>
           </div>
 
           <div className="cm-takt">
@@ -181,7 +176,7 @@ export default function ChefMailwerk() {
               <input defaultValue={takte.leadZeiten} placeholder="09:15,15:30"
                 onBlur={(e) => speichern("lead_followup_times", e.target.value)} />
             </label>
-            <label>Stufenplan (Tage seit Eintrag, je Stufe eine Mail)
+            <label>Stufenplan (Tage seit Eintrag)
               <input defaultValue={takte.leadPlan}
                 onBlur={(e) => speichern("lead_followup_days", e.target.value)} />
             </label>
@@ -190,8 +185,7 @@ export default function ChefMailwerk() {
                 onBlur={(e) => speichern("max_lead_followups", e.target.value)} />
             </label>
             <p className="cm-fein">
-              Zwei Mails am Tag brauchen ZWEI Uhrzeiten und einen Plan mit doppelten Tagen
-              (z. B. 1,1,2,2,4,4 …) — sonst greift nur der erste Slot.
+              2 Mails/Tag: zwei Uhrzeiten + doppelte Tage im Plan (1,1,2,2 …).
             </p>
           </div>
         </div>
@@ -219,7 +213,7 @@ export default function ChefMailwerk() {
           <header>
             <h2>{block.titel} — {block.liste.length} Mails</h2>
             {block.titel === "An Kunden" && (
-              <p>Sortiert nach Volumen der letzten 30 Tage. „Ansehen" zeigt exakt das, was der Kunde bekommt.</p>
+              <p>Nach Volumen (30 Tage). „Ansehen" zeigt die echte Kundenmail.</p>
             )}
           </header>
           <div className="cm-tab-halter">
@@ -248,7 +242,7 @@ export default function ChefMailwerk() {
                           </button>
                         </>
                       ) : (
-                        <span className="cm-ohne" title="Für dieses Ereignis gibt es noch keine Quelltext-Vorlage — es läuft weiter über Make.">
+                        <span className="cm-ohne" title="Noch keine Quelltext-Vorlage — läuft über Make.">
                           <AlertTriangle size={14} /> Make
                         </span>
                       )}
@@ -268,7 +262,7 @@ export default function ChefMailwerk() {
             <div className="cm-fenster-kopf">
               <div>
                 <b>{vorschau.label}</b>
-                <span>{vorschau.absender} · mit Beispieldaten — genau so kommt sie an</span>
+                <span>{vorschau.absender} · mit Beispieldaten</span>
               </div>
               <button onClick={() => setVorschau(null)} aria-label="Schließen"><X size={18} /></button>
             </div>
@@ -278,8 +272,7 @@ export default function ChefMailwerk() {
       )}
 
       <p className="cz-stand">
-        <CheckCircle2 size={13} style={{ verticalAlign: "-2px" }} /> Jede Mail — automatisch oder von Hand — steht
-        im Protokoll; beim Direktversand mit Brevo-Kennung. Notbremse: Versandweg auf „Make" stellen.
+        <CheckCircle2 size={13} style={{ verticalAlign: "-2px" }} /> Jede Mail steht im Protokoll. Notbremse: Versandweg auf „Make".
       </p>
     </div>
   );

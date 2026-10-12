@@ -65,97 +65,98 @@ const W = {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
     navTitel: "Bereiche Ihres Portals", nav: { auftrag: "Ihr Auftrag", fach: "Fachbereiche" } as Record<string, string>,
     seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan & Gesellschaft", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    // Leer = die Seite trägt ihren einen Satz im Abschnitt darunter (keine Doppelung).
     seitenSatz: {
-      fahrplan: "Jeder Schritt Ihrer Gesellschaft — und alle Angaben, die Sie für Banken, Behörden und Partner brauchen.",
-      tresor: "Alle Dokumente zu Ihrem Auftrag — geordnet, vertraulich, mit Unterschrift direkt hier.",
-      post: "Briefe an Ihre Gesellschaft, für Sie eingescannt.",
-      anfragen: "Schreiben Sie Ihrem Ansprechpartner — die Antwort lesen Sie hier.",
-      kapital: "Konto, Firmenkarten, Kreditrahmen — mit dem Stand jedes Antrags.",
-      vertrag: "Ihr Auftrag, der Zahlungsplan und die Rechnungen.",
-      strategie: "Ihr Sparringspartner für Wachstum, Bank und Kapital — mit Strategiebuch, Rechnern und Bank-Exposé.",
-      recht: "Verzeichnis, Vorlagen auf einen Klick und Antworten auf Rechtsfragen rund um Ihre Gesellschaft.",
-      steuern: "Pflichtenkalender, Formulare erklärt, Ausfüllhilfen und Antworten auf Steuerfragen.",
+      fahrplan: "",
+      tresor: "",
+      post: "",
+      anfragen: "",
+      kapital: "",
+      vertrag: "Auftrag, Zahlungsplan und Rechnungen.",
+      strategie: "Sparring, Rechner und Wissen für Wachstum und Kapital.",
+      recht: "Vorlagen, Wissen und Antworten rund um Ihre Gesellschaft.",
+      steuern: "Fristen, Formulare und Antworten auf Steuerfragen.",
     } as Record<string, string>,
     alleBereiche: "Alles für Ihre Gesellschaft",
     meinAuftrag: "Mein Auftrag", ihreGesellschaft: "Ihre Gesellschaft", inGruendung: "in Gründung", gesellschaftOhneName: "Ihre US-Gesellschaft",
     schritte: (a: number, b: number) => `${a} von ${b} Schritten`, fortschritt: "Fortschritt", naechster: "Ihr nächster Schritt", naechsterLeer: "Wir melden uns mit dem nächsten Schritt.",
     sprung: { tun: "Für Sie", fahrplan: "Fahrplan", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", fristen: "Pflichten", auftrag: "Vertrag" },
-    tunTitel: "Für Sie zu tun", tunLeer: "Alles erledigt. Wir sind am Zug — Sie hören von uns.",
-    unterschriftTitel: (x: string) => `Bitte unterschreiben: ${x}`, unterschriftText: "Lesen Sie das Dokument in Ruhe und unterschreiben Sie direkt hier — ohne Ausdrucken.", unterschreiben: "Jetzt unterschreiben",
-    antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Ihr Ansprechpartner hat auf Ihre Anfrage geantwortet.", lesen: "Antwort lesen",
-    postTitel: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, postText: "Post für Ihre Gesellschaft — für Sie eingescannt.", oeffnen: "Öffnen",
-    unterlagenTitel: (n: number) => n === 1 ? "Eine Unterlage fehlt noch" : `${n} Unterlagen fehlen noch`, unterlagenText: "Laden Sie sie in Ihrem Tresor hoch — sicher und direkt.", zumTresor: "Zum Tresor",
+    tunTitel: "Für Sie zu tun", tunLeer: "Alles erledigt — wir sind am Zug.",
+    unterschriftTitel: (x: string) => `Bitte unterschreiben: ${x}`, unterschriftText: "Direkt hier, ohne Ausdrucken.", unterschreiben: "Jetzt unterschreiben",
+    antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Zu Ihrer Anfrage.", lesen: "Antwort lesen",
+    postTitel: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, postText: "Für Sie eingescannt.", oeffnen: "Öffnen",
+    unterlagenTitel: (n: number) => n === 1 ? "Eine Unterlage fehlt noch" : `${n} Unterlagen fehlen noch`, unterlagenText: "Bitte im Tresor hochladen.", zumTresor: "Zum Tresor",
     termin: "Ihr Startgespräch",
-    fahrplanTitel: "Ihr Fahrplan", fahrplanLead: "Jeder Schritt bis zu Ihrer eingetragenen Gesellschaft, Ihrem Konto und Ihrem Kapital — mit Datum, sobald er erledigt ist.",
+    fahrplanTitel: "Ihr Fahrplan", fahrplanLead: "Alle Schritte zu Gesellschaft, Konto und Kapital — mit Datum, sobald erledigt.",
     stand: { offen: "offen", in_arbeit: "in Arbeit", erledigt: "erledigt" } as Record<string, string>,
     etappeStand: { fertig: "abgeschlossen", jetzt: "aktuell", arbeit: "in Arbeit", offen: "folgt" } as Record<string, string>,
-    tresorTitel: "Ihr Tresor", tresorLead: "Alle Dokumente zu Ihrem Auftrag — geordnet, vertraulich, jederzeit abrufbar.", alle: "Alle",
-    nachweise: "Nachweise und Sicherheiten", vertragRechnungen: "Vertrag und Rechnungen", neu: "Neu", leerMappe: "In dieser Mappe liegt noch nichts.",
+    tresorTitel: "Ihr Tresor", tresorLead: "Alle Dokumente vertraulich an einem Ort — unterschreiben direkt hier.", alle: "Alle",
+    nachweise: "Nachweise und Sicherheiten", vertragRechnungen: "Vertrag und Rechnungen", neu: "Neu", leerMappe: "Noch leer.",
     hochladenTitel: "Unterlage hochladen", hochladenFeld: "Datei hierher ziehen oder auswählen", hochladenKlein: "PDF, JPG, PNG oder HEIC · bis 15 MB", art: "Was laden Sie hoch?", hochladen: "Hochladen", laedt: "Wird hochgeladen …",
     unterschrieben: (d: string) => `unterschrieben am ${d}`, wartet: "wartet auf Ihre Unterschrift",
-    postFachTitel: "Ihr Briefkasten", postLead: "Briefe an Ihre Gesellschaft — etwa vom Bundesstaat oder der Steuerbehörde — legen wir hier eingescannt für Sie ab.", postLeer: "Noch keine Post. Sobald ein Brief für Ihre Gesellschaft eingeht, liegt er hier.", absender: "Absender", eingang: "Eingang",
-    anfragenTitel: "Ihre Anfragen", anfragenLead: (n: string) => `Schreiben Sie ${n} direkt — die Antwort lesen Sie hier.`, anfragenLeer: "Noch keine Anfrage. Stellen Sie Ihre Frage einfach unten.", sie: "Sie", platzhalter: "Ihre Nachricht …", senden: "Senden", sendet: "Wird gesendet …",
-    kapitalTitel: "Banken & Kapital", kapitalLead: "Ihr Geschäftskonto, Ihre Firmenkarten und Kreditrahmen — mit dem Stand jedes Antrags.", kapitalLeer: "Sobald wir Konto, Karten oder Rahmen für Ihre Gesellschaft beantragen, sehen Sie hier jeden Schritt.", zugesagt: "Zugesagt und aktiv", beantragt: (d: string) => `beantragt ${d}`,
-    fristenNachZahlung: "Ihr Pflichtenkalender beginnt mit dem Zahlungseingang — dann stehen hier alle Termine Ihrer Gesellschaft.",
-    fristenTitel: "Pflichten & Fristen", fristenLead: "Was Ihre Gesellschaft wann einreichen muss. Wir erinnern Sie 30 und 7 Tage vorher.", inTagen: (n: number) => n === 0 ? "heute" : n === 1 ? "morgen" : `in ${n} Tagen`, ueber: (n: number) => `seit ${n} ${n === 1 ? "Tag" : "Tagen"} fällig`,
+    postFachTitel: "Ihr Briefkasten", postLead: "Briefe an Ihre Gesellschaft, für Sie eingescannt.", postLeer: "Noch keine Post — neue Briefe erscheinen hier.", absender: "Absender", eingang: "Eingang",
+    anfragenTitel: "Ihre Anfragen", anfragenLead: (n: string) => `Schreiben Sie ${n} — die Antwort lesen Sie hier.`, anfragenLeer: "Noch keine Anfrage.", sie: "Sie", platzhalter: "Ihre Nachricht …", senden: "Senden", sendet: "Wird gesendet …",
+    kapitalTitel: "Banken & Kapital", kapitalLead: "Konto, Firmenkarten und Kreditrahmen — mit dem Stand jedes Antrags.", kapitalLeer: "Noch kein Antrag — jeder Schritt erscheint hier.", zugesagt: "Zugesagt und aktiv", beantragt: (d: string) => `beantragt ${d}`,
+    fristenNachZahlung: "Der Kalender startet mit Ihrem Zahlungseingang.",
+    fristenTitel: "Pflichten & Fristen", fristenLead: "Was wann fällig ist — wir erinnern Sie dreißig und sieben Tage vorher.", inTagen: (n: number) => n === 0 ? "heute" : n === 1 ? "morgen" : `in ${n} Tagen`, ueber: (n: number) => `seit ${n} ${n === 1 ? "Tag" : "Tagen"} fällig`,
     verlaufTitel: "Was bisher geschah", alleZeigen: "Alle anzeigen", weniger: "Weniger zeigen",
-    gesellschaftLeer: "Die Angaben erscheinen hier, sobald Ihre Gesellschaft eingetragen ist.",
+    gesellschaftLeer: "Die Angaben folgen mit der Eintragung.",
     kontaktTitel: "Ihr Ansprechpartner", schreiben: "Nachricht schreiben", gesellschaftTitel: "Ihre US-Gesellschaft", auftragTitel: "Ihr Auftrag", kopiert: "Kopiert",
     felder: { name: "Name", form: "Rechtsform", bundesstaat: "Bundesstaat", gegruendet: "Eingetragen am", aktenzeichen: "Registernummer", ein: "EIN", registeredAgent: "Registered Agent", usAdresse: "US-Adresse", usTelefon: "US-Telefon", itin: "ITIN" },
     itin: { offen: "noch offen", beantragt: "beantragt", vorhanden: "erteilt" } as Record<string, string>,
-    sicher: "Ihr persönlicher Zugang · verschlüsselt", vorschau: (n: string) => `Vorschau für das Chefbüro — so sieht ${n} das Portal. Nichts wird als gelesen vermerkt; senden und unterschreiben kann hier nur der Kunde.`,
-    modalTitel: "Dokument unterschreiben", modalLesen: "Dokument in neuem Fenster öffnen", modalName: "Ihr vollständiger Name", modalZeichnen: "Unterschreiben Sie mit Finger, Stift oder Maus", modalLoeschen: "Neu zeichnen",
+    sicher: "Ihr persönlicher Zugang · verschlüsselt", vorschau: (n: string) => `Vorschau — so sieht ${n} das Portal. Nichts gilt als gelesen; handeln kann nur der Kunde.`,
+    modalTitel: "Dokument unterschreiben", modalLesen: "In neuem Fenster öffnen", modalName: "Ihr vollständiger Name", modalZeichnen: "Unterschrift — mit Finger, Stift oder Maus", modalLoeschen: "Neu zeichnen",
     modalZustimmung: "Ich habe das Dokument gelesen und unterschreibe es elektronisch.", modalKnopf: "Verbindlich unterschreiben", modalLaeuft: "Wird unterschrieben …", modalFertig: "Unterschrieben",
-    modalFertigText: "Die unterschriebene Fassung liegt in Ihrem Tresor. Ihr Ansprechpartner ist informiert.", schliessen: "Schließen",
-    fusszeile: "FIAON Global · Ihr Auftrag ist vertraulich. Dieser Link ist persönlich und gilt ein Jahr — er verlängert sich, wenn Sie ihn öffnen.",
+    modalFertigText: "Liegt in Ihrem Tresor — Ihr Ansprechpartner ist informiert.", schliessen: "Schließen",
+    fusszeile: "FIAON Global · Vertraulich. Ihr persönlicher Link gilt ein Jahr und verlängert sich bei jedem Öffnen.",
   },
   en: {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
     navTitel: "Areas of your portal", nav: { auftrag: "Your order", fach: "Expert areas" } as Record<string, string>,
     seiten: { uebersicht: "Overview", fahrplan: "Roadmap & company", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
     seitenSatz: {
-      fahrplan: "Every step of your company — and every detail you need for banks, authorities and partners.",
-      tresor: "Every document for your order — organised, confidential, signed right here.",
-      post: "Letters to your company, scanned for you.",
-      anfragen: "Write to your contact — you read the reply here.",
-      kapital: "Account, business cards, credit lines — with the status of every application.",
-      vertrag: "Your order, the payment plan and the invoices.",
-      strategie: "Your sparring partner for growth, banking and capital — with the strategy book, calculators and a bank profile.",
-      recht: "Directory, one-click templates and answers to legal questions about your company.",
-      steuern: "Compliance calendar, forms explained, fill-in guides and answers to tax questions.",
+      fahrplan: "",
+      tresor: "",
+      post: "",
+      anfragen: "",
+      kapital: "",
+      vertrag: "Order, payment plan and invoices.",
+      strategie: "Sparring, calculators and know-how for growth and capital.",
+      recht: "Templates, know-how and answers about your company.",
+      steuern: "Deadlines, forms and answers to tax questions.",
     } as Record<string, string>,
     alleBereiche: "Everything for your company",
     meinAuftrag: "My order", ihreGesellschaft: "Your company", inGruendung: "being formed", gesellschaftOhneName: "Your US company",
     schritte: (a: number, b: number) => `${a} of ${b} steps`, fortschritt: "Progress", naechster: "Your next step", naechsterLeer: "We will be in touch with the next step.",
     sprung: { tun: "For you", fahrplan: "Roadmap", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", fristen: "Compliance", auftrag: "Contract" },
-    tunTitel: "For you to do", tunLeer: "All done. The next move is ours — you will hear from us.",
-    unterschriftTitel: (x: string) => `Please sign: ${x}`, unterschriftText: "Read the document at your leisure and sign it right here — no printing needed.", unterschreiben: "Sign now",
-    antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "Your contact has replied to your request.", lesen: "Read the reply",
-    postTitel: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, postText: "Mail for your company — scanned for you.", oeffnen: "Open",
-    unterlagenTitel: (n: number) => n === 1 ? "One document is still missing" : `${n} documents are still missing`, unterlagenText: "Upload them to your vault — securely and directly.", zumTresor: "Go to the vault",
+    tunTitel: "For you to do", tunLeer: "All done — the next move is ours.",
+    unterschriftTitel: (x: string) => `Please sign: ${x}`, unterschriftText: "Right here, no printing needed.", unterschreiben: "Sign now",
+    antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "On your request.", lesen: "Read the reply",
+    postTitel: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, postText: "Scanned for you.", oeffnen: "Open",
+    unterlagenTitel: (n: number) => n === 1 ? "One document is still missing" : `${n} documents are still missing`, unterlagenText: "Please upload to your vault.", zumTresor: "Go to the vault",
     termin: "Your kick-off call",
-    fahrplanTitel: "Your roadmap", fahrplanLead: "Every step to your registered company, your account and your capital — dated as soon as it is done.",
+    fahrplanTitel: "Your roadmap", fahrplanLead: "Every step to company, account and capital — dated once done.",
     stand: { offen: "open", in_arbeit: "in progress", erledigt: "done" } as Record<string, string>,
     etappeStand: { fertig: "completed", jetzt: "current", arbeit: "in progress", offen: "upcoming" } as Record<string, string>,
-    tresorTitel: "Your vault", tresorLead: "Every document for your order — organised, confidential, available at any time.", alle: "All",
-    nachweise: "Evidence and guarantees", vertragRechnungen: "Contract and invoices", neu: "New", leerMappe: "Nothing in this folder yet.",
-    hochladenTitel: "Upload a document", hochladenFeld: "Drop a file here or choose one", hochladenKlein: "PDF, JPG, PNG or HEIC · up to 15 MB", art: "What are you uploading?", hochladen: "Upload", laedt: "Uploading …",
+    tresorTitel: "Your vault", tresorLead: "Every document, confidential and in one place — sign right here.", alle: "All",
+    nachweise: "Evidence and collateral", vertragRechnungen: "Contract and invoices", neu: "New", leerMappe: "Empty for now.",
+    hochladenTitel: "Upload a document", hochladenFeld: "Drop a file here or choose one", hochladenKlein: "PDF, JPG, PNG or HEIC · max. 15 MB", art: "What are you uploading?", hochladen: "Upload", laedt: "Uploading …",
     unterschrieben: (d: string) => `signed on ${d}`, wartet: "awaiting your signature",
-    postFachTitel: "Your mailbox", postLead: "Letters to your company — for example from the state or the tax authority — are scanned and placed here for you.", postLeer: "No mail yet. As soon as a letter arrives for your company, it will be here.", absender: "Sender", eingang: "Received",
-    anfragenTitel: "Your requests", anfragenLead: (n: string) => `Write to ${n} directly — you read the reply here.`, anfragenLeer: "No requests yet. Simply ask your question below.", sie: "You", platzhalter: "Your message …", senden: "Send", sendet: "Sending …",
-    kapitalTitel: "Banking & capital", kapitalLead: "Your business account, your business cards and credit lines — with the status of every application.", kapitalLeer: "As soon as we apply for an account, cards or credit lines for your company, you will see every step here.", zugesagt: "Approved and active", beantragt: (d: string) => `applied for ${d}`,
-    fristenNachZahlung: "Your compliance calendar starts once your payment has arrived — then every date for your company appears here.",
-    fristenTitel: "Compliance & deadlines", fristenLead: "What your company has to file and when. We remind you 30 and 7 days ahead.", inTagen: (n: number) => n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`, ueber: (n: number) => `due ${n} ${n === 1 ? "day" : "days"} ago`,
+    postFachTitel: "Your mailbox", postLead: "Letters to your company, scanned for you.", postLeer: "No mail yet — new letters appear here.", absender: "Sender", eingang: "Received",
+    anfragenTitel: "Your requests", anfragenLead: (n: string) => `Write to ${n} — you read the reply here.`, anfragenLeer: "No requests yet.", sie: "You", platzhalter: "Your message …", senden: "Send", sendet: "Sending …",
+    kapitalTitel: "Banking & capital", kapitalLead: "Account, business cards and credit lines — with the status of every application.", kapitalLeer: "No application yet — every step appears here.", zugesagt: "Approved and active", beantragt: (d: string) => `applied for ${d}`,
+    fristenNachZahlung: "The calendar starts once your payment has arrived.",
+    fristenTitel: "Compliance & deadlines", fristenLead: "What is due when — we remind you thirty and seven days ahead.", inTagen: (n: number) => n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`, ueber: (n: number) => `due ${n} ${n === 1 ? "day" : "days"} ago`,
     verlaufTitel: "What has happened so far", alleZeigen: "Show all", weniger: "Show less",
-    gesellschaftLeer: "The details appear here as soon as your company is registered.",
+    gesellschaftLeer: "The details follow with registration.",
     kontaktTitel: "Your contact", schreiben: "Write a message", gesellschaftTitel: "Your US company", auftragTitel: "Your order", kopiert: "Copied",
     felder: { name: "Name", form: "Legal form", bundesstaat: "State", gegruendet: "Registered on", aktenzeichen: "Register number", ein: "EIN", registeredAgent: "Registered agent", usAdresse: "US address", usTelefon: "US phone", itin: "ITIN" },
     itin: { offen: "still open", beantragt: "applied for", vorhanden: "issued" } as Record<string, string>,
-    sicher: "Your personal access · encrypted", vorschau: (n: string) => `Preview for the Chefbüro — this is how ${n} sees the portal. Nothing is marked as read; only the client can send and sign here.`,
-    modalTitel: "Sign the document", modalLesen: "Open the document in a new window", modalName: "Your full name", modalZeichnen: "Sign with your finger, a pen or the mouse", modalLoeschen: "Draw again",
+    sicher: "Your personal access · encrypted", vorschau: (n: string) => `Preview — this is how ${n} sees the portal. Nothing is marked as read; only the client can act.`,
+    modalTitel: "Sign the document", modalLesen: "Open in a new window", modalName: "Your full name", modalZeichnen: "Signature — finger, pen or mouse", modalLoeschen: "Draw again",
     modalZustimmung: "I have read the document and sign it electronically.", modalKnopf: "Sign with binding effect", modalLaeuft: "Signing …", modalFertig: "Signed",
-    modalFertigText: "The signed version is in your vault. Your contact has been informed.", schliessen: "Close",
-    fusszeile: "FIAON Global · Your order is confidential. This link is personal and valid for one year — it renews whenever you open it.",
+    modalFertigText: "Now in your vault — your contact has been informed.", schliessen: "Close",
+    fusszeile: "FIAON Global · Confidential. Your personal link is valid for one year and renews each time you open it.",
   },
 };
 
@@ -249,7 +250,7 @@ function UnterschriftDialog({ dok, url, sendenUrl, s, gruss, onFertig, onZu, vor
       const r = await fetch(sendenUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), bild: c.toDataURL("image/png"), zustimmung: ok }) });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.ok) { setStand("fertig"); onFertig(); } else { setStand(""); setFehler(j.error || "—"); }
-    } catch { setStand(""); setFehler(s === "en" ? "No connection. Please try again." : "Keine Verbindung. Bitte versuchen Sie es noch einmal."); }
+    } catch { setStand(""); setFehler(s === "en" ? "No connection — please try again." : "Keine Verbindung — bitte noch einmal."); }
   };
   return (
     <div className="gp-schleier" role="dialog" aria-modal="true" aria-label={w.modalTitel} onMouseDown={(e) => { if (e.target === e.currentTarget && stand !== "laeuft") onZu(); }}>
@@ -390,7 +391,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       const r = await fetch(mitToken("/dokument"), { method: "POST", body: fd });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) setUploadMeldung({ gut: false, text: j.error || t.uploadFehler });
-      else { setDatei(null); setUploadMeldung({ gut: true, text: s === "en" ? "Uploaded — it is in your vault." : "Hochgeladen — es liegt in Ihrem Tresor." }); await laden(); }
+      else { setDatei(null); setUploadMeldung({ gut: true, text: s === "en" ? "Uploaded — now in your vault." : "Hochgeladen — liegt im Tresor." }); await laden(); }
     } catch { setUploadMeldung({ gut: false, text: t.uploadFehler }); }
     finally { setLaedtHoch(false); }
   };
@@ -466,9 +467,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : (de ? `${nachrichten.length} Nachrichten` : `${nachrichten.length} messages`);
       case "kapital": return zugesagtCents > 0 ? `${globalUsd(zugesagtCents, s)} ${de ? "zugesagt" : "approved"}` : (de ? `${kapital.length} Einträge` : `${kapital.length} entries`);
       case "vertrag": return a.status === "offen" ? (t.status?.[a.status] ?? a.status) : a.paketName;
-      case "strategie": return de ? "KI-Sparring · Strategiebuch · Rechner · Bank-Exposé" : "AI sparring · strategy book · calculators · bank profile";
-      case "recht": return de ? "Vorlagen auf einen Klick · Verzeichnis · Rechtsfragen" : "One-click templates · directory · legal questions";
-      case "steuern": return de ? "Pflichtenkalender · Formulare · Steuerfragen" : "Compliance calendar · forms · tax questions";
+      case "strategie": return de ? "KI-Sparring · Rechner · Bank-Exposé" : "AI sparring · calculators · bank profile";
+      case "recht": return de ? "Vorlagen · Verzeichnis · Rechtsfragen" : "Templates · directory · legal questions";
+      case "steuern": return de ? "Fristen · Formulare · Steuerfragen" : "Deadlines · forms · tax questions";
       default: return "";
     }
   };

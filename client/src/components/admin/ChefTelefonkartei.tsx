@@ -305,9 +305,8 @@ export default function ChefTelefonkartei() {
     <div className="tk">
       <Rundgang raum="telefonkartei" titel="Telefonkartei" schritte={RUNDGAENGE.telefonkartei.schritte} />
 
-      <p className="tk-soseht">
-        <b>So geht&apos;s:</b> „Anrufen“ speichert den Kontakt auf deinem iPhone und wählt. Nach dem Gespräch ein Knopf —
-        Mail und WhatsApp gehen automatisch raus, die WhatsApp über das FIAON-Konto: Sie steht im WhatsApp-Raum, und Mara weiß Bescheid.
+      <p className="tk-soseht" title="WhatsApp läuft über das FIAON-Konto — steht im WhatsApp-Raum, Mara weiß Bescheid.">
+        <b>So geht&apos;s:</b> „Anrufen“ wählt, danach ein Knopf — Mail und WhatsApp gehen automatisch raus.
       </p>
 
       <Rueckrufe
@@ -388,7 +387,7 @@ export default function ChefTelefonkartei() {
                           onStorno={() => { const k = nachrichtFuer; setNachrichtFuer(null); setStornoFuer(k); }}
                           onEmail={() => { const k = nachrichtFuer; setNachrichtFuer(null); setMailFuer(k); }}
                           onGesendet={(wa) => { const k = nachrichtFuer; setNachrichtFuer(null);
-                            melden({ art: "gut", titel: `${k.name}: ${wa.text}`, punkte: ["Steht im WhatsApp-Raum und im Verlauf der Akte."] }); }} />
+                            melden({ art: "gut", titel: `${k.name}: ${wa.text}`, punkte: ["Steht im WhatsApp-Raum und in der Akte."] }); }} />
       </Ebene>)}
 
       {akteFuer && (<Ebene>
@@ -624,7 +623,7 @@ function Termine({ liste, laedt, fehler }: { liste: KarteiTermin[]; laedt: boole
         {fehler && <p className="tk-klein">{fehler}</p>}
         {laedt && !liste.length && <p className="tk-klein">Lädt …</p>}
         {!laedt && !fehler && !deine.length && (
-          <p className="tk-klein">In den nächsten 60 Tagen hat niemand bei dir gebucht.</p>
+          <p className="tk-klein">Keine Buchung in den nächsten 60 Tagen.</p>
         )}
         {deine.map(([tag, zeilen]) => (
           <div key={tag} className="tk-tag">
@@ -656,7 +655,7 @@ function Termine({ liste, laedt, fehler }: { liste: KarteiTermin[]; laedt: boole
         </button>
         {alleOffen && (
           <>
-            {!andere.length && <p className="tk-klein">In den nächsten drei Wochen ist beim Team nichts gebucht.</p>}
+            {!andere.length && <p className="tk-klein">Nichts gebucht in den nächsten 3 Wochen.</p>}
             {andereTage.map(([tag, zeilen]) => (
               <div key={tag} className="tk-tag">
                 <h3>{tagUeberschrift(tag, zeilen[0].beginn)}</h3>
@@ -820,10 +819,10 @@ function NachrichtenBlatt({ k, onZu, onErgebnis, onRueckruf, onStorno, onEmail, 
         {ansicht === "faelle" ? (
           <>
             <p className="tk-nb-frage">Wie lief das Gespräch?</p>
-            <p className="tk-nb-wa">
-              WhatsApp geht über das FIAON-Konto — steht im WhatsApp-Raum, Mara weiß Bescheid.
-              {offen && !k.stopp ? ` In den letzten 24 Stunden kam eine Nachricht von ${vorname}: freier Text möglich.` : ""}
-              {k.stopp ? " Achtung: Hat „STOPP“ geschrieben — keine WhatsApp." : ""}
+            <p className="tk-nb-wa" title="Steht im WhatsApp-Raum, Mara weiß Bescheid.">
+              WhatsApp über das FIAON-Konto.
+              {offen && !k.stopp ? ` ${vorname} schrieb in 24 h: freier Text möglich.` : ""}
+              {k.stopp ? " Achtung: „STOPP“ — keine WhatsApp." : ""}
             </p>
             <div className="tk-nb-liste">
               {ersterFall ? (
@@ -857,7 +856,7 @@ function NachrichtenBlatt({ k, onZu, onErgebnis, onRueckruf, onStorno, onEmail, 
                 <span className="tk-nb-zeichen" aria-hidden="true">
                   <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>
                 </span>
-                <span className="tk-nb-text"><b>Später anrufen</b><small>Uhrzeit wählen · keine Nachricht an den Kunden</small></span>
+                <span className="tk-nb-text"><b>Später anrufen</b><small>Uhrzeit wählen · keine Nachricht</small></span>
                 <Pfeil />
               </button>
               <button type="button" className="tk-nb-fall rot" onClick={onStorno}>
@@ -876,7 +875,7 @@ function NachrichtenBlatt({ k, onZu, onErgebnis, onRueckruf, onStorno, onEmail, 
               <span className="tk-nb-text">
                 <b>Persönliche Nachricht</b>
                 <small>
-                  Du sagst, worum es geht — die KI schreibt sie für {vorname}
+                  Du sagst, worum es geht — die KI schreibt
                   {kiZusatz(lage)}
                 </small>
               </span>
@@ -891,7 +890,7 @@ function NachrichtenBlatt({ k, onZu, onErgebnis, onRueckruf, onStorno, onEmail, 
                 <span className="tk-nb-text">
                   <b>E-Mail schreiben</b>
                   <small>
-                    Nur eine Mail — kein Ergebnis, keine WhatsApp{hatRechnungsweg(k) ? " · auch „Zahlungsdaten neu senden“ mit Rechnung" : ""}
+                    Nur Mail, ohne Ergebnis{hatRechnungsweg(k) ? " · auch Zahlungsdaten mit Rechnung" : ""}
                   </small>
                 </span>
                 <Pfeil />
@@ -920,11 +919,11 @@ function kiZusatz(lage: WaLageStand): string {
   const d = lage.daten;
   if (!d) return "";
   const frei = d.frei;
-  if (frei.weg === "text") return frei.bestaetigen ? ` · ${frei.kurz}: nur mit ausdrücklicher Bestätigung, ohne Verkauf` : " · geht als freier Text über FIAON";
+  if (frei.weg === "text") return frei.bestaetigen ? ` · ${frei.kurz}: nur mit Bestätigung, ohne Verkauf` : " · als freier Text";
   if (frei.kurz !== "24-Stunden-Fenster zu") return ` · keine WhatsApp: ${frei.kurz ?? "—"}`;
   const rf = d.faelle.rueckfrage;
-  if (rf?.weg) return " · Fenster zu: erst die Rückfrage-Vorlage";
-  return ` · Fenster zu, Rückfrage heute nicht möglich: ${rf?.kurz ?? "—"}`;
+  if (rf?.weg) return " · Fenster zu: erst Rückfrage-Vorlage";
+  return ` · Fenster zu, keine Rückfrage heute: ${rf?.kurz ?? "—"}`;
 }
 
 function Pfeil() {
@@ -1041,7 +1040,7 @@ function KiNachricht({ k, lage, onGesendet }: { k: KarteiKarte; lage: WaLageStan
 
       {text && (
         <>
-          <p className="tk-ki-label">So geht sie raus — du kannst alles ändern</p>
+          <p className="tk-ki-label">So geht sie raus — frei änderbar</p>
           <textarea ref={textFeld} className="tk-ki-text" value={text} onChange={(e) => setText(e.target.value)} rows={8} />
           {hinweise.length > 0 && (
             <ul className="tk-ki-hinweise">{hinweise.map((h, i) => <li key={i}>{h}</li>)}</ul>
@@ -1054,7 +1053,7 @@ function KiNachricht({ k, lage, onGesendet }: { k: KarteiKarte; lage: WaLageStan
                 <p><b>{frei.kurz}:</b> {String(frei.grund ?? "").replace(/^[^:]+:\s*/, "")}</p>
                 <label className="tk-ki-bestaetigen">
                   <input type="checkbox" checked={bestaetigt} onChange={(e) => setBestaetigt(e.target.checked)} />
-                  <span>Ich habe die Sperre gesehen — ich antworte nur auf die Nachricht des Kunden, ohne Verkauf.</span>
+                  <span>Sperre gesehen — ich antworte nur, ohne Verkauf.</span>
                 </label>
                 <button type="button" className="tk-knopf wa" disabled={!!sendet || !bestaetigt} onClick={() => void senden("frei")}>
                   {sendet === "frei" ? "Wird gesendet …" : "Trotz Sperre senden"}
@@ -1066,11 +1065,8 @@ function KiNachricht({ k, lage, onGesendet }: { k: KarteiKarte; lage: WaLageStan
               </button>
             ) : frei?.kurz === "24-Stunden-Fenster zu" ? (
               <div className="tk-ki-fenster">
-                <p>
-                  <b>Das 24-Stunden-Fenster ist zu.</b> Freier Text geht über Meta erst, wenn {vorname} uns schreibt.
-                  Die Rückfrage-Vorlage („Eine kurze Rückfrage“) öffnet das Gespräch. Dein Text bleibt auf diesem Gerät
-                  als Entwurf — er geht nicht von selbst raus: Kommt eine Antwort, öffne „Persönliche Nachricht“ wieder und
-                  sende ihn. Bis dahin antwortet Mara.
+                <p title="Dein Text bleibt hier als Entwurf und geht nicht von selbst raus. Kommt eine Antwort, öffne „Persönliche Nachricht“ wieder und sende ihn. Bis dahin antwortet Mara.">
+                  <b>24-Stunden-Fenster zu.</b> Erst die Rückfrage-Vorlage senden — dein Text bleibt als Entwurf hier.
                 </p>
                 {rueck?.weg ? (
                   <button type="button" className="tk-knopf wa" disabled={!!sendet} onClick={() => void senden("rueckfrage")}>
@@ -1084,7 +1080,7 @@ function KiNachricht({ k, lage, onGesendet }: { k: KarteiKarte; lage: WaLageStan
               <span className="tk-ki-keine">
                 Keine WhatsApp möglich: {frei?.grund ?? lage.fehler ?? "unbekannt"}
                 {/* Bei „Stopp" kein Umweg über einen anderen Kanal vorschlagen. */}
-                {frei?.kurz === "Stopp" ? "" : " — kopieren und anders senden."}
+                {frei?.kurz === "Stopp" ? "" : " — kopieren, anders senden."}
               </span>
             )}
             <button type="button" className="tk-knopf still" disabled={laeuft || wunsch.trim().length < 3}
@@ -1232,16 +1228,16 @@ function MailBlatt({ k, absender, onZu, onGesendet }: {
     [betreff, text, anhang, zahlung],
   );
   const hinweise: string[] = [];
-  if (k.stopp) hinweise.push("Hat „STOPP“ bzw. „Keine Nachrichten mehr“ geschrieben — schreib nur, was er wirklich braucht.");
-  if (k.werbungGesperrt) hinweise.push("Werbesperre — nur, was er braucht (Zahlungsdaten, Antwort auf seine Frage), kein Verkauf.");
+  if (k.stopp) hinweise.push("Hat „STOPP“ geschrieben — nur das Nötigste.");
+  if (k.werbungGesperrt) hinweise.push("Werbesperre — nur Nötiges (Zahlungsdaten, Antwort), kein Verkauf.");
   if (k.gesperrt) hinweise.push("Vertriebssperre — kein Verkauf.");
   if (k.lage === "storniert") hinweise.push("Storniert — die Mail geht trotzdem raus.");
   // Gegenprüfung E-274: Kam die letzte Mail nicht an (Brevo-Sperrliste, Abmelder, falsche Adresse), kommt diese
   // meist auch nicht an — das stand bisher nur rot ganz unten, unter „Senden" und dem grünen „Gesendet an …".
   const letzteZustellung = d?.verlauf.find((z) => ZUSTELL_ENDSTAND.has(z.stand));
   if (letzteZustellung?.ton === "warn") {
-    hinweise.push(`Die letzte Mail an ${vorname} kam nicht an (Brevo: „${letzteZustellung.stand}“${letzteZustellung.grund ? ` — ${letzteZustellung.grund}` : ""}). `
-      + "Diese wahrscheinlich auch nicht — lieber anrufen oder die Adresse prüfen.");
+    hinweise.push(`Letzte Mail kam nicht an („${letzteZustellung.stand}“${letzteZustellung.grund ? ` — ${letzteZustellung.grund}` : ""}). `
+      + "Lieber anrufen oder Adresse prüfen.");
   }
   const anredeDoppelt = ANREDE_AM_ANFANG.test(text);
 
@@ -1298,7 +1294,7 @@ function MailBlatt({ k, absender, onZu, onGesendet }: {
       loeschen(entwurfSchluessel);
       if (!j.doppelt) onGesendet();
     } catch {
-      setFehler("Keine Verbindung — ob die Mail rausging, steht gleich unter „Zuletzt an …“. Bitte erst dort nachsehen.");
+      setFehler("Keine Verbindung — erst unter „Zuletzt an …“ prüfen, ob sie rausging.");
       // Gegenprüfung E-274: „steht gleich unter …" — dann muss der Stand auch neu kommen (kurz warten, bis der Server schrieb).
       window.setTimeout(lage.neu, 1500);
     } finally {
@@ -1332,8 +1328,8 @@ function MailBlatt({ k, absender, onZu, onGesendet }: {
 
         <p className="tk-nb-wa">
           {ohneAdresse
-            ? <>Für den Versand ist keine E-Mail-Adresse hinterlegt.{k.email ? ` Die Karte kennt ${k.email} aus dem Lead — trag sie in der Akte ein.` : ""}</>
-            : <>An <b className="tk-mail-an">{empfaenger || "…"}</b> · von FIAON (welcome@fiaon.com). Kein Gesprächsergebnis, keine WhatsApp.</>}
+            ? <>Keine E-Mail-Adresse hinterlegt.{k.email ? ` Lead kennt ${k.email} — in der Akte eintragen.` : ""}</>
+            : <>An <b className="tk-mail-an">{empfaenger || "…"}</b> · von welcome@fiaon.com</>}
         </p>
         {hinweise.length > 0 && <ul className="tk-ki-hinweise tk-mail-hinweise">{hinweise.map((h) => <li key={h}>{h}</li>)}</ul>}
 
@@ -1343,7 +1339,7 @@ function MailBlatt({ k, absender, onZu, onGesendet }: {
             <div>
               <b>{fertig.doppelt ? "Schon gesendet" : fertig.meldung}</b>
               <span>{fertig.doppelt ? fertig.meldung : `„${betreff.trim()}“${fertig.anhang ? ` · ${anhangZeile(fertig)}` : ""}`}</span>
-              {!fertig.doppelt && <span>Steht im Verlauf der Akte. Stand jetzt: „gesendet“ — zugestellt oder geöffnet siehst du unten.</span>}
+              {!fertig.doppelt && <span>Steht in der Akte. Zustellung siehst du unten.</span>}
             </div>
           </div>
         ) : !ohneAdresse && (
@@ -1374,13 +1370,13 @@ function MailBlatt({ k, absender, onZu, onGesendet }: {
               <span className="tk-mail-anrede" title="Setzt das System automatisch davor">{anrede || (lage.laedt ? "Anrede wird geladen …" : "Guten Tag,")}</span>
               <textarea id={`tk-mail-text-${k.personId}`} ref={textFeld} value={text} maxLength={KARTEI_MAIL_TEXT_MAX} rows={7}
                         onChange={(e) => aendern("text", e.target.value)}
-                        placeholder={`Was soll ${vorname} lesen? Die Anrede oben steht schon davor.`} />
+                        placeholder={`Was soll ${vorname} lesen?`} />
             </div>
-            <p className="tk-mail-klein">Die Anrede steht automatisch davor — Kopf, Fuß und Pflichtangaben setzt das FIAON-Gerüst.</p>
+            <p className="tk-mail-klein">Anrede, Kopf, Fuß und Pflichtangaben setzt das System.</p>
             {/* Gegenprüfung E-274: Der Server setzt die Anrede IMMER davor — „Hallo Herr …" am Anfang stünde doppelt in der Mail. */}
             {anredeDoppelt && (
               <ul className="tk-ki-hinweise tk-mail-doppelt">
-                <li>Dein Text beginnt mit einer Anrede — „{anrede || "Guten Tag …,"}“ steht schon davor, in der Mail stünden zwei. Nimm deine erste Zeile raus.</li>
+                <li>Doppelte Anrede — „{anrede || "Guten Tag …,"}“ steht schon davor. Erste Zeile raus.</li>
               </ul>
             )}
 
@@ -1479,20 +1475,20 @@ function StornoBlatt({ k, laeuft, onAbbrechen, onStornieren }: {
   const bezahlt = k.lage === "rate" || k.lage === "bezahlt";
   const punkte: string[] = [];
   if (k.lage === "A" || k.lage === "B" || k.lage === "abbrecher") {
-    punkte.push(`Die offene Bestellung${k.paket ? ` (${k.paket.label}${k.paket.preisCents != null ? ` · ${euro(k.paket.preisCents)}` : ""})` : ""} wird storniert — keine Zahlungserinnerungen mehr.`);
+    punkte.push(`Offene Bestellung${k.paket ? ` (${k.paket.label}${k.paket.preisCents != null ? ` · ${euro(k.paket.preisCents)}` : ""})` : ""} wird storniert, keine Erinnerungen mehr.`);
   }
-  if (k.lage === "A") punkte.push("Achtung: Er hat eine Zahlung gemeldet. Kommt das Geld doch noch, holst du ihn zurück.");
-  if (bezahlt) punkte.push("Bezahlter Vertrag: Kündigung nach Hausregel — die laufende Rate bleibt fällig, spätere entfallen, er bekommt die Bestätigung per Mail.");
-  if (k.leadId) punkte.push("Der Lead verschwindet aus allen Listen, die Lead-Mails hören auf.");
-  punkte.push(bezahlt ? "Keine Werbung mehr; als zahlender Kunde bleibt er bis zum Vertragsende bei seinem Betreuer." : "Keine Anrufe, keine Werbung, gebuchte Termine werden abgesagt.");
-  punkte.push("Du findest ihn danach unter „Storniert“ und kannst ihn dort zurückholen.");
+  if (k.lage === "A") punkte.push("Achtung: Zahlung gemeldet. Kommt das Geld, hol ihn zurück.");
+  if (bezahlt) punkte.push("Bezahlter Vertrag: laufende Rate bleibt fällig, spätere entfallen, Bestätigung per Mail.");
+  if (k.leadId) punkte.push("Lead raus aus allen Listen, Lead-Mails stoppen.");
+  punkte.push(bezahlt ? "Keine Werbung mehr; bleibt bis Vertragsende beim Betreuer." : "Keine Anrufe, keine Werbung, Termine werden abgesagt.");
+  punkte.push("Zurückholen unter „Storniert“.");
 
   return (
     <div className="tk-schleier" role="dialog" aria-modal="true" aria-label={`${k.name} stornieren`} onClick={onAbbrechen}>
       <div className="tk-blatt" onClick={(e) => e.stopPropagation()}>
         <h2>{k.name} stornieren?</h2>
         <ul className="tk-blatt-punkte">{punkte.map((p, i) => <li key={i}>{p}</li>)}</ul>
-        <p className="tk-blatt-label">Grund — steht am Kunden</p>
+        <p className="tk-blatt-label">Grund</p>
         <div className="tk-chips">
           {STORNO_GRUENDE.map((g) => (
             <button key={g} type="button" className={grund === g && !eigen ? "an" : ""} onClick={() => { setGrund(g); setEigen(""); }}>{g}</button>

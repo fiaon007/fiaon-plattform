@@ -1181,3 +1181,38 @@ body:has(.cb-ruhig) .fi-raum{display:none}
 .akte-tuer-karte p{margin:0;color:#94a3b8}
 .akte-tuer-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .akte-tuer .cw-knopf.hell{background:transparent;border:1px solid rgba(255,255,255,.25);color:#e2e8f0}
+
+/* ═══ E-342 (12.10.2026): Wegeleiste, „Weiter", Unterpunkte im Menü, Kurzmodus ═══ */
+.cb-wege{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.cb-inhalt>.cb-wege{margin:0 0 18px}
+.cb-weg{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(15,23,42,.38);color:#b3c3da;text-decoration:none;font:500 12.5px/1 'Inter',sans-serif;white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.cb-weg svg{color:#7fb6ff}
+.cb-weg:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.18)}
+.cb-weg.an{background:linear-gradient(180deg,#288dfa,#1d4ed8);border-color:transparent;color:#fff;box-shadow:0 8px 20px rgba(29,78,216,.32)}
+.cb-weg.an svg{color:#fff}
+.cb-weg:focus-visible{outline:2px solid #7fb6ff;outline-offset:2px}
+.cb-weg.raum{font-weight:600}
+@media(max-width:700px){.cb-wege{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-right:-16px;padding-right:16px}.cb-wege::-webkit-scrollbar{display:none}}
+
+.cb-weiter{margin:34px 0 8px;display:flex;justify-content:flex-end}
+.cb-weiter-link{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:16px;row-gap:3px;align-items:center;min-width:min(420px,100%);max-width:520px;padding:16px 18px;border-radius:18px;border:1px solid rgba(96,165,250,.28);background:linear-gradient(180deg,rgba(40,141,250,.14),rgba(29,78,216,.07));color:#e2e8f0;text-decoration:none;transition:transform .2s,border-color .2s,background .2s}
+.cb-weiter-link small{font:600 10px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#7fb6ff}
+.cb-weiter-link b{font:500 16px/1.25 'Inter',sans-serif;color:#fff}
+.cb-weiter-link span{font:400 12.5px/1.4 'Inter',sans-serif;color:#94a3b8}
+.cb-weiter-link svg{grid-column:2;grid-row:1/span 3;color:#d6eaff;transition:transform .2s}
+.cb-weiter-link:hover{transform:translateY(-1px);border-color:rgba(96,165,250,.5);background:linear-gradient(180deg,rgba(40,141,250,.22),rgba(29,78,216,.1))}
+.cb-weiter-link:hover svg{transform:translateX(3px)}
+.cb-weiter-link:focus-visible{outline:2px solid #7fb6ff;outline-offset:3px}
+.cb.cb-voll .cb-weiter{display:none}
+@media(prefers-reduced-motion:reduce){.cb-weiter-link,.cb-weiter-link svg{transition:none}}
+
+.cb-unter{display:flex;flex-direction:column;gap:1px;margin:2px 0 6px 22px;padding-left:12px;border-left:1px solid rgba(255,255,255,.1)}
+.cb-unterpunkt{padding:7px 10px;border-radius:10px;color:#94a3b8;text-decoration:none;font:400 12.5px/1.25 'Inter',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .2s,color .2s}
+.cb-unterpunkt:hover{background:rgba(255,255,255,.06);color:#fff}
+.cb-unterpunkt.an{color:#fff;background:rgba(40,141,250,.18);box-shadow:inset 2px 0 0 #288dfa}
+.cb.cb-schmal .cb-leiste .cb-unter{display:none}
+
+/* Kurzmodus: lange Erklärungen zwei Zeilen, Klick klappt auf (ChefShell, KURZ_ZIELE). */
+.cb-inhalt .cb-kurz{cursor:pointer}
+.cb-inhalt .cb-kurz:not(.cb-kurz-auf){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,#000 55%,rgba(0,0,0,.4));mask-image:linear-gradient(180deg,#000 55%,rgba(0,0,0,.4))}
+.cb-inhalt .cb-kurz:hover{color:#cbd5e1}

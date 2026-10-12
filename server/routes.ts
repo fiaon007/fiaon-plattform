@@ -531,6 +531,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // (fiaon_settings.wa_meta_stand) — auch wenn die Automatik aus ist und niemand die Zentrale offen hat.
     // Nur im Betrieb (tageslauf). Eine Historienzeile nur, wenn sich die Qualität geändert hat (nurMitErgebnis).
     tageslauf('wa_meta_stand', async () => (await (await import('./lib/fiaon-wa-bremse')).metaStandAuffrischen('takt')).geaendert, 5 * 60 * 1000, { beimStartNach: 60_000, nurMitErgebnis: true });
+    // E-342 (12.10.2026): Termine direkt in den Google-Kalender (Justin) — jede Minute, Historie nur bei Änderung.
+    tageslauf('google_kalender', async () => await (await import('./lib/fiaon-google-kalender')).googleKalenderAbgleich(), 60 * 1000, { beimStartNach: 45_000, nurMitErgebnis: true });
   });
   // Einmalig nach dem Ausrollen: fehlende Vorlagen bei Meta zur Prüfung einreichen (Sperre über fiaon_settings).
   // E-229: die 15 Bildvorlagen (erledigt 23.09.). E-230: die Raten-Vorlage fiaon_kk_rate + Bildfassung.

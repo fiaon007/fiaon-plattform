@@ -206,6 +206,86 @@ router.get("/global/mein-auftrag/:ref/dokument/:id", async (req: Request, res: R
   }
 });
 
+// ── E-341: DIE FACHBEREICHE (Strategie & Wachstum · Recht & Verträge · Steuern & Pflichten) ──
+const fachJeIp = fensterDrossel(40, 10 * 60_000);
+router.get("/global/mein-auftrag/:ref/fach", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    const v = istVorschau(req);
+    const F = await import("../lib/fiaon-global-fach");
+    const [vorbelegung, strategie, recht, steuern] = await Promise.all([
+      F.fachVorbelegung(ref), F.fachChatVerlauf(ref, "strategie", v), F.fachChatVerlauf(ref, "recht", v), F.fachChatVerlauf(ref, "steuern", v),
+    ]);
+    res.json({ ok: true, vorbelegung, chats: { strategie, recht, steuern } });
+  } catch (err) {
+    console.error("[GLOBAL-FACH] lesen:", err);
+    res.status(500).json({ ok: false, error: "Dieser Bereich lässt sich gerade nicht laden." });
+  }
+});
+router.post("/global/mein-auftrag/:ref/fach/chat", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { fachChat } = await import("../lib/fiaon-global-fach");
+    const erg = await fachChat(ref, req.body?.bereich, req.body?.frage, istVorschau(req));
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, antwort: erg.antwort, hinweis: erg.hinweis });
+  } catch (err) {
+    console.error("[GLOBAL-FACH] chat:", err);
+    res.status(500).json({ ok: false, error: "Der Assistent ist gerade nicht erreichbar — bitte gleich noch einmal." });
+  }
+});
+/** Vorlage → PDF. Kunde: in den Tresor (JSON). Vorschau der Leitung: das PDF selbst, nichts wird abgelegt. */
+router.post("/global/mein-auftrag/:ref/fach/vorlage", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const vorschau = istVorschau(req);
+    const { fachVorlageErstellen } = await import("../lib/fiaon-global-fach");
+    const erg = await fachVorlageErstellen(ref, { vorlage: req.body?.vorlage, werte: req.body?.werte, unterschrift: req.body?.unterschrift }, vorschau);
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    if (erg.pdf) return pdfSenden(res, erg.pdf, erg.dateiname);
+    res.json({ ok: true, id: erg.id, meldung: erg.meldung });
+  } catch (err) {
+    console.error("[GLOBAL-FACH] vorlage:", err);
+    res.status(500).json({ ok: false, error: "Das Dokument ließ sich gerade nicht erstellen — bitte gleich noch einmal." });
+  }
+});
+router.post("/global/mein-auftrag/:ref/fach/expose", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const vorschau = istVorschau(req);
+    const { fachExpose } = await import("../lib/fiaon-global-fach");
+    const erg = await fachExpose(ref, (req.body ?? {}) as Record<string, unknown>, vorschau);
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    if (erg.pdf) return pdfSenden(res, erg.pdf, erg.dateiname);
+    res.json({ ok: true, id: erg.id, meldung: erg.meldung });
+  } catch (err) {
+    console.error("[GLOBAL-FACH] expose:", err);
+    res.status(500).json({ ok: false, error: "Das Exposé ließ sich gerade nicht erstellen — bitte gleich noch einmal." });
+  }
+});
+router.post("/global/mein-auftrag/:ref/fach/einzelfall", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — Anfragen schickt hier nur der Kunde." });
+    if (nachrichtJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { fachEinzelfall } = await import("../lib/fiaon-global-fach");
+    const erg = await fachEinzelfall(ref, req.body?.bereich, req.body?.text);
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: erg.meldung });
+  } catch (err) {
+    console.error("[GLOBAL-FACH] einzelfall:", err);
+    res.status(500).json({ ok: false, error: "Ihre Anfrage konnte gerade nicht zugestellt werden — bitte gleich noch einmal." });
+  }
+});
+
 // E-338: Der Kunde hat die Antworten im Faden gesehen (nie in der Vorschau der Leitung).
 router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Response) => {
   try {

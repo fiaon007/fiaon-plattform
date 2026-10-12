@@ -81,6 +81,15 @@ router.get("/chef/global/mandate/:ref", requireChef("leitung"), async (req, res)
   } catch (e) { fehler(res, "mandat", e); }
 });
 
+// E-341: Was die KI dem Kunden in den Fachbereichen geantwortet hat — zur Kontrolle.
+router.get("/chef/global/mandate/:ref/fach", requireChef("leitung"), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { fachChatsFuerChef } = await import("../lib/fiaon-global-fach");
+    res.json({ ok: true, chats: await fachChatsFuerChef(ref(req)) });
+  } catch (e) { fehler(res, "fach", e); }
+});
+
 router.get("/chef/global/mandate/:ref/vorschau", requireChef("leitung"), (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
   res.json({ ok: true, url: globalVorschauLink(ref(req)) });

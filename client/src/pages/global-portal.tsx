@@ -21,25 +21,62 @@
 // sonst, dünn und luftig. Nichts klebt beim Scrollen. Bewegung nur, wo sie
 // führt — und gar keine bei „Bewegung reduzieren".
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight, Check, CheckCircle2, CircleDashed, Copy, Download, FileSignature, FileText, FolderLock, Inbox, Landmark, Loader2,
   Mail, MessageSquare, PenLine, Phone, Send, ShieldCheck, Sparkles, Upload, X, CalendarClock, Building2, Lock, ChevronDown,
+  LayoutGrid, Compass, Scale, Calculator,
 } from "lucide-react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import WellenFeld from "@/components/site/WellenFeld";
 import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
+// E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
+const GlobalFach = lazy(() => import("./global-portal-fach"));
 import "@/styles/global-rahmen.css";
 import "@/styles/global-portal.css";
 
 type T = Record<string, any>;
 
+// ── Die Seiten des Portals (E-341): Adresse #<seite>, Zurück-Taste funktioniert. ──
+export type PortalSeite = "uebersicht" | "fahrplan" | "tresor" | "post" | "anfragen" | "kapital" | "vertrag" | "strategie" | "recht" | "steuern";
+const SEITEN: PortalSeite[] = ["uebersicht", "fahrplan", "tresor", "post", "anfragen", "kapital", "vertrag", "strategie", "recht", "steuern"];
+const NAV_GRUPPEN: { key: "auftrag" | "fach"; seiten: { key: PortalSeite; Icon: any }[] }[] = [
+  { key: "auftrag", seiten: [
+    { key: "uebersicht", Icon: LayoutGrid }, { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
+    { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
+  ] },
+  { key: "fach", seiten: [{ key: "strategie", Icon: Compass }, { key: "recht", Icon: Scale }, { key: "steuern", Icon: Calculator }] },
+];
+const KACHELN: { key: PortalSeite; Icon: any; fach?: boolean }[] = [
+  { key: "strategie", Icon: Compass, fach: true }, { key: "recht", Icon: Scale, fach: true }, { key: "steuern", Icon: Calculator, fach: true },
+  { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
+  { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
+];
+const seiteAusHash = (): PortalSeite => {
+  const h = (typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "") as PortalSeite;
+  return SEITEN.includes(h) ? h : "uebersicht";
+};
+
 // ── Wörter des neuen Portals (DE/EN). Alles mit Gewicht kommt aus `t` (GLOBAL_AUFTRAG_WOERTER). ──
 const W = {
   de: {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
+    navTitel: "Bereiche Ihres Portals", nav: { auftrag: "Ihr Auftrag", fach: "Fachbereiche" } as Record<string, string>,
+    seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan & Gesellschaft", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    seitenSatz: {
+      fahrplan: "Jeder Schritt Ihrer Gesellschaft — und alle Angaben, die Sie für Banken, Behörden und Partner brauchen.",
+      tresor: "Alle Dokumente zu Ihrem Auftrag — geordnet, vertraulich, mit Unterschrift direkt hier.",
+      post: "Briefe an Ihre Gesellschaft, für Sie eingescannt.",
+      anfragen: "Schreiben Sie Ihrem Ansprechpartner — die Antwort lesen Sie hier.",
+      kapital: "Konto, Firmenkarten, Kreditrahmen — mit dem Stand jedes Antrags.",
+      vertrag: "Ihr Auftrag, der Zahlungsplan und die Rechnungen.",
+      strategie: "Ihr Sparringspartner für Wachstum, Bank und Kapital — mit Strategiebuch, Rechnern und Bank-Exposé.",
+      recht: "Verzeichnis, Vorlagen auf einen Klick und Antworten auf Rechtsfragen rund um Ihre Gesellschaft.",
+      steuern: "Pflichtenkalender, Formulare erklärt, Ausfüllhilfen und Antworten auf Steuerfragen.",
+    } as Record<string, string>,
+    alleBereiche: "Alles für Ihre Gesellschaft",
     meinAuftrag: "Mein Auftrag", ihreGesellschaft: "Ihre Gesellschaft", inGruendung: "in Gründung", gesellschaftOhneName: "Ihre US-Gesellschaft",
     schritte: (a: number, b: number) => `${a} von ${b} Schritten`, fortschritt: "Fortschritt", naechster: "Ihr nächster Schritt", naechsterLeer: "Wir melden uns mit dem nächsten Schritt.",
     sprung: { tun: "Für Sie", fahrplan: "Fahrplan", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", fristen: "Pflichten", auftrag: "Vertrag" },
@@ -74,6 +111,20 @@ const W = {
   },
   en: {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
+    navTitel: "Areas of your portal", nav: { auftrag: "Your order", fach: "Expert areas" } as Record<string, string>,
+    seiten: { uebersicht: "Overview", fahrplan: "Roadmap & company", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    seitenSatz: {
+      fahrplan: "Every step of your company — and every detail you need for banks, authorities and partners.",
+      tresor: "Every document for your order — organised, confidential, signed right here.",
+      post: "Letters to your company, scanned for you.",
+      anfragen: "Write to your contact — you read the reply here.",
+      kapital: "Account, business cards, credit lines — with the status of every application.",
+      vertrag: "Your order, the payment plan and the invoices.",
+      strategie: "Your sparring partner for growth, banking and capital — with the strategy book, calculators and a bank profile.",
+      recht: "Directory, one-click templates and answers to legal questions about your company.",
+      steuern: "Compliance calendar, forms explained, fill-in guides and answers to tax questions.",
+    } as Record<string, string>,
+    alleBereiche: "Everything for your company",
     meinAuftrag: "My order", ihreGesellschaft: "Your company", inGruendung: "being formed", gesellschaftOhneName: "Your US company",
     schritte: (a: number, b: number) => `${a} of ${b} steps`, fortschritt: "Progress", naechster: "Your next step", naechsterLeer: "We will be in touch with the next step.",
     sprung: { tun: "For you", fahrplan: "Roadmap", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", fristen: "Compliance", auftrag: "Contract" },
@@ -255,7 +306,20 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const tagKurz = (iso?: string | null) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString(loc, { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
   const zeit = (iso?: string | null) => iso ? new Date(iso).toLocaleString(loc, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   const kb = (n?: number) => !n ? "" : n > 1024 * 1024 ? `${(n / 1024 / 1024).toLocaleString(loc, { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
-  useAuftauchen(a.ref);
+  // ── Seiten (E-341) ──
+  const [seite, setSeite] = useState<PortalSeite>(seiteAusHash);
+  useEffect(() => {
+    const neu = () => setSeite(seiteAusHash());
+    window.addEventListener("hashchange", neu);
+    return () => window.removeEventListener("hashchange", neu);
+  }, []);
+  const geh = (ziel: PortalSeite | string) => {
+    const z = (SEITEN.includes(ziel as PortalSeite) ? ziel : "uebersicht") as PortalSeite;
+    if (window.location.hash !== `#${z}`) window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${z}`);
+    setSeite(z);
+    window.scrollTo({ top: 0, behavior: ruhig() ? "auto" : "smooth" });
+  };
+  useAuftauchen(`${a.ref}:${seite}`);
   // Titel, „nicht indexieren" und Dokument-Scrollen (iOS blendet seine Leisten nur beim Scrollen des Dokuments aus).
   useEffect(() => {
     const vorher = document.title;
@@ -364,7 +428,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const [kopiert, setKopiert] = useState("");
   const kopieren = async (wert: string, key: string) => { try { await navigator.clipboard.writeText(wert); setKopiert(key); setTimeout(() => setKopiert(""), 1600); } catch { /* egal */ } };
   const [verlaufAlle, setVerlaufAlle] = useState(false);
-  const zu = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: ruhig() ? "auto" : "smooth", block: "start" });
+  const zu = (id: string) => geh(id.replace(/^gp-/, ""));
 
   // ── „Für Sie zu tun" ──
   const tun: { key: string; Icon: any; ton: string; titel: string; text: string; knopf?: string; aktion?: () => void; href?: string }[] = [];
@@ -373,6 +437,14 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
   if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.titel).join(" · "), knopf: w.zumTresor, aktion: () => zu("gp-tresor") });
+  // Pflichtfristen der nächsten dreißig Tage gehören zu „Für Sie zu tun".
+  const heuteIso = new Date().toISOString().slice(0, 10);
+  const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  for (const f of (a.fristen ?? []) as T[]) {
+    if (!f.erledigt && f.faelligAm >= heuteIso && f.faelligAm <= in30) {
+      tun.push({ key: `f${f.id}`, Icon: CalendarClock, ton: "", titel: f.titel, text: s === "en" ? `Due on ${tag(f.faelligAm)}.` : `Fällig am ${tag(f.faelligAm)}.`, knopf: s === "en" ? "Compliance" : "Zu den Pflichten", aktion: () => geh("steuern") });
+    }
+  }
   const sg = a.angebot?.startgespraech;
   // Die Etappe kommt vom Server (sie steuert Mails). Für die Anzeige gilt zusätzlich der Fahrplan: Läuft in einer
   // „folgenden" Etappe schon etwas, steht sie auf „in Arbeit" — die Seite widerspricht sich nicht.
@@ -384,6 +456,22 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   };
   const hatAuftragsblock = !!(a.angebot || a.stichtag || a.widerruf);
   const preisText = a.angebot ? `${((a.angebot.teile as T[]).reduce((x, y) => x + y.betragCents, 0) / 100).toLocaleString("de-DE")} €` : globalPreisText(a.paket, s);
+
+  const kachelSatz = (k: PortalSeite): string => {
+    const de = s !== "en";
+    switch (k) {
+      case "fahrplan": return de ? `${erledigt} von ${gesamt} Schritten erledigt` : `${erledigt} of ${gesamt} steps done`;
+      case "tresor": return de ? `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} Dokumente${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} zur Unterschrift` : ""}` : `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} documents${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} to sign` : ""}`;
+      case "post": return postNeu.length ? (de ? `${postNeu.length} ungelesen` : `${postNeu.length} unread`) : (de ? `${post.length} Briefe` : `${post.length} letters`);
+      case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : (de ? `${nachrichten.length} Nachrichten` : `${nachrichten.length} messages`);
+      case "kapital": return zugesagtCents > 0 ? `${globalUsd(zugesagtCents, s)} ${de ? "zugesagt" : "approved"}` : (de ? `${kapital.length} Einträge` : `${kapital.length} entries`);
+      case "vertrag": return a.status === "offen" ? (t.status?.[a.status] ?? a.status) : a.paketName;
+      case "strategie": return de ? "KI-Sparring · Strategiebuch · Rechner · Bank-Exposé" : "AI sparring · strategy book · calculators · bank profile";
+      case "recht": return de ? "Vorlagen auf einen Klick · Verzeichnis · Rechtsfragen" : "One-click templates · directory · legal questions";
+      case "steuern": return de ? "Pflichtenkalender · Formulare · Steuerfragen" : "Compliance calendar · forms · tax questions";
+      default: return "";
+    }
+  };
 
   // ── Mappen-Inhalt ──
   const zeilenVertrag = () => (
@@ -422,7 +510,37 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
         )}
       </header>
 
-      {/* ── Die Bühne (die EINE dunkle Stelle) ── */}
+      <div className="gp-app">
+        {/* ── Navigation: zwei Gruppen, am Handy eine wischbare Leiste (klebt nicht über dem Inhalt) ── */}
+        <nav className="gp-nav" aria-label={w.navTitel}>
+          {NAV_GRUPPEN.map((gr) => (
+            <div key={gr.key} className="gp-nav-gruppe">
+              <span className="gp-nav-titel">{w.nav[gr.key]}</span>
+              {gr.seiten.map((x) => {
+                const zahl = x.key === "anfragen" ? ungeleseneAntworten.length : x.key === "post" ? postNeu.length : x.key === "tresor" ? zuUnterschreiben.length : 0;
+                return (
+                  <a key={x.key} href={`#${x.key}`} className={`gp-nav-punkt${seite === x.key ? " an" : ""}${gr.key === "fach" ? " fach" : ""}`} aria-current={seite === x.key ? "page" : undefined}
+                     onClick={(e) => { e.preventDefault(); geh(x.key); }}>
+                    <span className="gp-nav-icon"><x.Icon size={17} strokeWidth={1.6} /></span>
+                    <span className="gp-nav-text">{w.seiten[x.key]}</span>
+                    {zahl > 0 && <i>{zahl}</i>}
+                  </a>
+                );
+              })}
+            </div>
+          ))}
+          {ap && (
+            <button type="button" className="gp-nav-person" onClick={() => geh("anfragen")}>
+              {ap.bild ? <img src={ap.bild} alt="" /> : <span>{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
+              <div><small>{w.kontaktTitel}</small><b>{ap.name}</b></div>
+            </button>
+          )}
+        </nav>
+
+        <div className="gp-seiteninhalt" key={seite}>
+          {seite === "uebersicht" ? (
+            <>
+              {/* ── Die Bühne (die EINE dunkle Stelle) ── */}
       <section className="gp-buehne" aria-label={w.ihreGesellschaft}>
         <div className="gp-licht a" aria-hidden="true" /><div className="gp-licht b" aria-hidden="true" />
         <div className="gp-buehne-innen">
@@ -468,20 +586,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
         <WellenFeld unten className="gp-welle" />
       </section>
 
-      {/* ── Sprungleiste (klebt nicht) ── */}
-      <nav className="gp-sprung" aria-label="Bereiche">
-        {([["gp-tun", w.sprung.tun], ["gp-fahrplan", w.sprung.fahrplan], ["gp-tresor", w.sprung.tresor], ["gp-post", w.sprung.post], ["gp-anfragen", w.sprung.anfragen], ["gp-kapital", w.sprung.kapital], ["gp-fristen", w.sprung.fristen], ["gp-vertrag", w.sprung.auftrag]] as const).filter(([id]) => id !== "gp-vertrag" || hatAuftragsblock).map(([id, txt]) => (
-          <button key={id} type="button" onClick={() => zu(id)}>
-            {txt}
-            {id === "gp-anfragen" && ungeleseneAntworten.length > 0 && <i>{ungeleseneAntworten.length}</i>}
-            {id === "gp-post" && postNeu.length > 0 && <i>{postNeu.length}</i>}
-            {id === "gp-tresor" && zuUnterschreiben.length > 0 && <i>{zuUnterschreiben.length}</i>}
-          </button>
-        ))}
-      </nav>
 
-      <div className="gp-raster">
-        <main className="gp-haupt">
+              <div className="gp-spalten">
+                <main className="gp-haupt">
           {/* ── Für Sie zu tun ── */}
           <section id="gp-tun" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2">{w.tunTitel}</h2>
@@ -513,6 +620,62 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             {sg && !sg.zeile && sg.satz && <p className="gp-leise">{sg.satz}</p>}
           </section>
 
+
+                  <section className="gp-abschnitt gp-auftauchen">
+                    <h2 className="gp-h2">{w.alleBereiche}</h2>
+                    <div className="gp-kacheln">
+                      {KACHELN.map((x, i) => (
+                        <a key={x.key} href={`#${x.key}`} className={`gp-kachel${x.fach ? " fach" : ""}`} style={{ ["--i" as any]: i }} onClick={(e) => { e.preventDefault(); geh(x.key); }}>
+                          <span className="gp-kachel-icon"><x.Icon size={20} strokeWidth={1.5} /></span>
+                          <b>{w.seiten[x.key]}</b>
+                          <small>{kachelSatz(x.key)}</small>
+                          <ArrowRight size={16} className="gp-kachel-pfeil" />
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+          {/* ── Verlauf ── */}
+          <section className="gp-abschnitt gp-auftauchen">
+            <h2 className="gp-h2">{w.verlaufTitel}</h2>
+            {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
+              <>
+                <ol className="gp-verlauf">
+                  {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 6).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
+                </ol>
+                {(a.verlauf as T[]).length > 6 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
+              </>
+            )}
+          </section>
+                </main>
+                <aside className="gp-seite">
+          <div className="gp-karte gp-auftauchen">
+            <span className="gp-auge">{w.kontaktTitel}</span>
+            {ap ? (
+              <div className="gp-person">
+                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-person-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
+                <div>
+                  <b>{ap.name}</b>
+                  {ap.email && <a href={`mailto:${ap.email}`}><Mail size={13} /> {ap.email}</a>}
+                  {ap.telefon && <a href={`tel:${String(ap.telefon).replace(/\s/g, "")}`}><Phone size={13} /> {ap.telefon}</a>}
+                </div>
+              </div>
+            ) : <p className="gp-leise">{t.seiteAnsprechLeer}</p>}
+            <button type="button" className="gp-knopf leise breit" onClick={() => zu("gp-anfragen")}><MessageSquare size={15} /> {w.schreiben}</button>
+          </div>
+
+                </aside>
+              </div>
+            </>
+          ) : (
+            <>
+              <header className="gp-seitenkopf">
+                <span className="gp-auge">{g.name || a.firma?.name || w.meinAuftrag}</span>
+                <h1>{w.seiten[seite]}</h1>
+                {w.seitenSatz[seite] && <p>{w.seitenSatz[seite]}</p>}
+              </header>
+              {seite === "fahrplan" && (
+                <div className="gp-spalten">
+                  <main className="gp-haupt">
           {/* ── Fahrplan ── */}
           <section id="gp-fahrplan" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2">{w.fahrplanTitel}</h2>
@@ -551,6 +714,30 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             </div>
           </section>
 
+                  </main>
+                  <aside className="gp-seite">
+          <div className="gp-karte gp-auftauchen">
+            <span className="gp-auge">{w.gesellschaftTitel}</span>
+            <dl className="gp-daten">
+              <Zeile k={w.felder.name} v={g.name} />
+              <Zeile k={w.felder.form} v={g.form} />
+              <Zeile k={w.felder.bundesstaat} v={g.bundesstaat} />
+              <Zeile k={w.felder.gegruendet} v={g.gegruendetAm ? tag(g.gegruendetAm) : null} />
+              <Zeile k={w.felder.aktenzeichen} v={gp.aktenzeichen} kopie={() => kopieren(gp.aktenzeichen, "akz")} kopiert={kopiert === "akz"} w={w} />
+              <Zeile k={w.felder.ein} v={gp.ein} kopie={() => kopieren(gp.ein, "ein")} kopiert={kopiert === "ein"} w={w} />
+              <Zeile k={w.felder.registeredAgent} v={gp.registeredAgent} />
+              <Zeile k={w.felder.usAdresse} v={gp.usAdresse} />
+              <Zeile k={w.felder.usTelefon} v={gp.usTelefon} />
+              <Zeile k={w.felder.itin} v={g.itinStand ? w.itin[g.itinStand] : null} />
+            </dl>
+            {!g.name && !gp.ein && <p className="gp-leise">{w.gesellschaftLeer}</p>}
+            {gp.hinweis && <p className="gp-satz klein">{gp.hinweis}</p>}
+          </div>
+
+                  </aside>
+                </div>
+              )}
+              {seite === "tresor" && <div className="gp-haupt">
           {/* ── Tresor ── */}
           <section id="gp-tresor" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2"><FolderLock size={20} strokeWidth={1.5} /> {w.tresorTitel}</h2>
@@ -605,6 +792,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             )}
           </section>
 
+              </div>}
+              {seite === "post" && <div className="gp-haupt">
           {/* ── Post ── */}
           <section id="gp-post" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2"><Inbox size={20} strokeWidth={1.5} /> {w.postFachTitel}</h2>
@@ -623,6 +812,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             )}
           </section>
 
+              </div>}
+              {seite === "anfragen" && (
+                <div className="gp-spalten">
+                  <main className="gp-haupt">
           {/* ── Anfragen ── */}
           <section id="gp-anfragen" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2"><MessageSquare size={20} strokeWidth={1.5} /> {w.anfragenTitel}</h2>
@@ -645,6 +838,27 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             {nMeldung && <p className={`gp-meldung ${nMeldung.gut ? "gut" : "schlecht"}`} role="status">{nMeldung.text}</p>}
           </section>
 
+                  </main>
+                  <aside className="gp-seite">
+          <div className="gp-karte gp-auftauchen">
+            <span className="gp-auge">{w.kontaktTitel}</span>
+            {ap ? (
+              <div className="gp-person">
+                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-person-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
+                <div>
+                  <b>{ap.name}</b>
+                  {ap.email && <a href={`mailto:${ap.email}`}><Mail size={13} /> {ap.email}</a>}
+                  {ap.telefon && <a href={`tel:${String(ap.telefon).replace(/\s/g, "")}`}><Phone size={13} /> {ap.telefon}</a>}
+                </div>
+              </div>
+            ) : <p className="gp-leise">{t.seiteAnsprechLeer}</p>}
+            <button type="button" className="gp-knopf leise breit" onClick={() => zu("gp-anfragen")}><MessageSquare size={15} /> {w.schreiben}</button>
+          </div>
+
+                  </aside>
+                </div>
+              )}
+              {seite === "kapital" && <div className="gp-haupt">
           {/* ── Banken & Kapital ── */}
           <section id="gp-kapital" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2"><Landmark size={20} strokeWidth={1.5} /> {w.kapitalTitel}</h2>
@@ -668,28 +882,12 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             )}
           </section>
 
-          {/* ── Pflichten & Fristen ── */}
-          <section id="gp-fristen" className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2"><CalendarClock size={20} strokeWidth={1.5} /> {w.fristenTitel}</h2>
-            <p className="gp-lead">{w.fristenLead}</p>
-            {(a.fristen ?? []).length === 0 ? <p className="gp-leise">{a.status === "offen" ? w.fristenNachZahlung : t.fristenLeer}</p> : (
-              <ul className="gp-fristen">
-                {(a.fristen as T[]).map((f) => {
-                  const tage = Math.round((new Date(f.faelligAm + "T12:00:00").getTime() - new Date(new Date().toDateString()).getTime() - 12 * 3600_000) / 86_400_000);
-                  return (
-                    <li key={f.id} className={f.erledigt ? "erledigt" : tage < 0 ? "faellig" : tage <= 30 ? "bald" : ""}>
-                      <span className="gp-frist-datum"><b>{new Date(f.faelligAm + "T12:00:00").toLocaleDateString(loc, { day: "2-digit" })}</b><small>{new Date(f.faelligAm + "T12:00:00").toLocaleDateString(loc, { month: "short", year: "numeric" })}</small></span>
-                      <div><b>{f.titel}</b>{f.hinweis && <small>{f.hinweis}</small>}</div>
-                      <span className="gp-marke">{f.erledigt ? t.erledigt : tage < 0 ? w.ueber(-tage) : w.inTagen(tage)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
+              </div>}
+              {seite === "vertrag" && (
+                <div className="gp-spalten">
+                  <main className="gp-haupt">
           {/* ── Vertrag, Zahlungsplan, Garantie ── */}
-          {hatAuftragsblock && <section id="gp-vertrag" className="gp-abschnitt gp-auftauchen">
+          <section id="gp-vertrag" className="gp-abschnitt gp-auftauchen">
             <h2 className="gp-h2"><ShieldCheck size={20} strokeWidth={1.5} /> {a.angebot ? `${ANGEBOT_MEIN_AUFTRAG.titel} ${a.angebot.ref}` : w.auftragTitel}</h2>
             {a.angebot && (
               <>
@@ -711,57 +909,11 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             ) : (
               <p className="gp-satz">{t.widerrufBis}: <b>{tag(a.widerruf.fristEnde)}</b>{(a.status === "offen" || a.status === "bezahlt") && <> · {t.startNachFrist(tag(a.widerruf.startAb))}</>}</p>
             ))}
-          </section>}
-
-          {/* ── Verlauf ── */}
-          <section className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2">{w.verlaufTitel}</h2>
-            {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
-              <>
-                <ol className="gp-verlauf">
-                  {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 6).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
-                </ol>
-                {(a.verlauf as T[]).length > 6 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
-              </>
-            )}
+            {!hatAuftragsblock && <p className="gp-satz">{a.paketName} · {a.ref}</p>}
           </section>
-        </main>
 
-        {/* ── Seitenkarten ── */}
-        <aside className="gp-seite">
-          <div className="gp-karte gp-auftauchen">
-            <span className="gp-auge">{w.kontaktTitel}</span>
-            {ap ? (
-              <div className="gp-person">
-                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-person-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
-                <div>
-                  <b>{ap.name}</b>
-                  {ap.email && <a href={`mailto:${ap.email}`}><Mail size={13} /> {ap.email}</a>}
-                  {ap.telefon && <a href={`tel:${String(ap.telefon).replace(/\s/g, "")}`}><Phone size={13} /> {ap.telefon}</a>}
-                </div>
-              </div>
-            ) : <p className="gp-leise">{t.seiteAnsprechLeer}</p>}
-            <button type="button" className="gp-knopf leise breit" onClick={() => zu("gp-anfragen")}><MessageSquare size={15} /> {w.schreiben}</button>
-          </div>
-
-          <div className="gp-karte gp-auftauchen">
-            <span className="gp-auge">{w.gesellschaftTitel}</span>
-            <dl className="gp-daten">
-              <Zeile k={w.felder.name} v={g.name} />
-              <Zeile k={w.felder.form} v={g.form} />
-              <Zeile k={w.felder.bundesstaat} v={g.bundesstaat} />
-              <Zeile k={w.felder.gegruendet} v={g.gegruendetAm ? tag(g.gegruendetAm) : null} />
-              <Zeile k={w.felder.aktenzeichen} v={gp.aktenzeichen} kopie={() => kopieren(gp.aktenzeichen, "akz")} kopiert={kopiert === "akz"} w={w} />
-              <Zeile k={w.felder.ein} v={gp.ein} kopie={() => kopieren(gp.ein, "ein")} kopiert={kopiert === "ein"} w={w} />
-              <Zeile k={w.felder.registeredAgent} v={gp.registeredAgent} />
-              <Zeile k={w.felder.usAdresse} v={gp.usAdresse} />
-              <Zeile k={w.felder.usTelefon} v={gp.usTelefon} />
-              <Zeile k={w.felder.itin} v={g.itinStand ? w.itin[g.itinStand] : null} />
-            </dl>
-            {!g.name && !gp.ein && <p className="gp-leise">{w.gesellschaftLeer}</p>}
-            {gp.hinweis && <p className="gp-satz klein">{gp.hinweis}</p>}
-          </div>
-
+                  </main>
+                  <aside className="gp-seite">
           <div className="gp-karte gp-auftauchen">
             <span className="gp-auge">{w.auftragTitel}</span>
             <p className="gp-paket">{a.paketName}</p>
@@ -772,7 +924,40 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             ) : a.status !== "storniert" && <p className="gp-leise">{t.jahrSpaeter(J.titel, J.preisZeile)}</p>}
             <p className="gp-leise klein">{a.angebot ? ANGEBOT_MEIN_AUFTRAG.seiteHinweis : t.seiteHinweis}</p>
           </div>
-        </aside>
+                  </aside>
+                </div>
+              )}
+              {(seite === "strategie" || seite === "recht" || seite === "steuern") && (
+                <div className="gp-haupt">
+                  {seite === "steuern" && (
+          <section id="gp-fristen" className="gp-abschnitt gp-auftauchen">
+            <h2 className="gp-h2"><CalendarClock size={20} strokeWidth={1.5} /> {w.fristenTitel}</h2>
+            <p className="gp-lead">{w.fristenLead}</p>
+            {(a.fristen ?? []).length === 0 ? <p className="gp-leise">{a.status === "offen" ? w.fristenNachZahlung : t.fristenLeer}</p> : (
+              <ul className="gp-fristen">
+                {(a.fristen as T[]).map((f) => {
+                  const tage = Math.round((new Date(f.faelligAm + "T12:00:00").getTime() - new Date(new Date().toDateString()).getTime() - 12 * 3600_000) / 86_400_000);
+                  return (
+                    <li key={f.id} className={f.erledigt ? "erledigt" : tage < 0 ? "faellig" : tage <= 30 ? "bald" : ""}>
+                      <span className="gp-frist-datum"><b>{new Date(f.faelligAm + "T12:00:00").toLocaleDateString(loc, { day: "2-digit" })}</b><small>{new Date(f.faelligAm + "T12:00:00").toLocaleDateString(loc, { month: "short", year: "numeric" })}</small></span>
+                      <div><b>{f.titel}</b>{f.hinweis && <small>{f.hinweis}</small>}</div>
+                      <span className="gp-marke">{f.erledigt ? t.erledigt : tage < 0 ? w.ueber(-tage) : w.inTagen(tage)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+                  )}
+                  <Suspense fallback={<div className="gp-abschnitt"><Loader2 size={18} className="gp-dreht" /></div>}>
+                    <GlobalFach bereich={seite} a={a} s={s} mitToken={mitToken} vorschau={vorschau} laden={laden} geh={geh} />
+                  </Suspense>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <footer className="gp-fuss"><Lock size={12} /> {w.fusszeile}</footer>

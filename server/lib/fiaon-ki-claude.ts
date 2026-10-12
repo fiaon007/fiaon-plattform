@@ -65,7 +65,8 @@ export function claudeKannPfad(url: string, methode?: string | null): boolean {
  * Dienste, in denen Mara mit Kunden spricht — dort gilt Opus (bzw. der A/B-Test, E-280). Alles andere (Einordnen,
  * Texterkennung, Analysen, Radar, Ratgeber, Copilot …) läuft auf Sonnet: halber Preis, kein Kundentext (03.10.2026).
  */
-export const KUNDEN_DIENSTE: ReadonlySet<string> = new Set(["mara-whatsapp", "mara-aktion", "postmeister-antwort", "mara-auftrag", "kontakt-chat"]);
+// E-341: „global-berater" (Fachbereiche im Global-Portal) schreibt direkt an Firmenkunden — das große Modell.
+export const KUNDEN_DIENSTE: ReadonlySet<string> = new Set(["mara-whatsapp", "mara-aktion", "postmeister-antwort", "mara-auftrag", "kontakt-chat", "global-berater"]);
 
 /** Das Claude-Modell für ein OpenAI-Modell: claude-* bleibt; interne Dienste → KLEIN; *-mini/*-nano → KLEIN; sonst GROSS. */
 export function claudeModellFuer(modell: string | null | undefined, dienst?: string | null): string {

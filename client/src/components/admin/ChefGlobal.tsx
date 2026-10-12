@@ -165,7 +165,7 @@ export default function ChefGlobal() {
 }
 
 // ── Ein Mandat ───────────────────────────────────────────────────────────────
-type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "verlauf";
+type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
   const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
@@ -202,6 +202,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
     { key: "post", titel: "Post", Icon: Inbox, zahl: post.length || undefined },
     { key: "anfragen", titel: "Anfragen", Icon: MessageSquare, zahl: anfragenNeu || undefined },
     { key: "fristen", titel: "Fristen", Icon: CalendarClock, zahl: (m.fristen as any[]).filter((f) => !f.erledigt).length || undefined },
+    { key: "ki", titel: "KI-Gespräche", Icon: Sparkles },
     { key: "verlauf", titel: "Verlauf", Icon: History },
   ];
 
@@ -255,6 +256,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
         {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}
         {reiter === "anfragen" && <Anfragen m={m} tun={tun} />}
         {reiter === "fristen" && <Fristen m={m} tun={tun} />}
+        {reiter === "ki" && <KiGespraeche gref={gref} />}
         {reiter === "verlauf" && <Verlauf m={m} tun={tun} />}
       </div>
       {laedt && <div className="cgr-laedt" aria-hidden="true" />}
@@ -756,6 +758,31 @@ function Fristen({ m, tun }: { m: any; tun: Tun }) {
           <label>Fällig am<input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} /></label>
           <label className="breit">Hinweis<input value={hinweis} onChange={(e) => setHinweis(e.target.value)} /></label>
           <button type="button" className="cw-knopf cgr-haupt" disabled={!titel || !faellig} onClick={async () => { if (await tun("/frist", "POST", { titel, faelligAm: faellig, hinweis })) { setTitel(""); setFaellig(""); setHinweis(""); } }}><Plus size={14} /> Frist anlegen</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── KI-Gespräche (E-341) ─────────────────────────────────────────────────────
+const FACH_NAME: Record<string, string> = { strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten", expose: "Bank-Exposé" };
+function KiGespraeche({ gref }: { gref: string }) {
+  const { daten, laedt, fehler } = useDaten<{ ok: true; chats: { bereich: string; rolle: string; text: string; am: string; vorschau: boolean }[] }>(`/chef/global/mandate/${encodeURIComponent(gref)}/fach`);
+  const chats = daten?.chats ?? [];
+  return (
+    <div className="cgr-gitter">
+      <section className="cgr-block breit">
+        <h3>Was die KI dem Kunden geantwortet hat <small>Strategie · Recht · Steuern — jede Antwort lief durch die Wortwand</small></h3>
+        {laedt && <Geruest zeilen={3} />}
+        {fehler && <Fehlermeldung text={fehler} />}
+        {!laedt && chats.length === 0 && <p className="cgr-leer">Noch keine Fragen an die KI.</p>}
+        <div className="cgr-faden">
+          {chats.map((c, i) => (
+            <div key={i} className={`cgr-blase ${c.rolle === "kunde" ? "kunde" : "fiaon"}`}>
+              <p>{c.text}</p>
+              <small>{c.rolle === "kunde" ? "Kunde" : "KI"} · {FACH_NAME[c.bereich] ?? c.bereich} · {datumZeit(c.am)}{c.vorschau ? " · Vorschau (Chefbüro)" : ""}</small>
+            </div>
+          ))}
         </div>
       </section>
     </div>

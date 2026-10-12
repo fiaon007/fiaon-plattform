@@ -486,7 +486,7 @@ function AngebotUnterlagen({ angebotId, kundeLink }: { angebotId: number; kundeL
   return (
     <div className="cg-unterlagen" data-angebot-unterlagen={angebotId}>
       <h4>Unterlagen auf der Kundenseite <span className="cm-fein">({liste?.length ?? "…"})</span></h4>
-      <p className="cm-fein">Erscheinen beim Kunden unter „Ihre Unterlagen“ — nur hinter seinem Link. PDF, PNG oder JPEG bis 15 MB; die Nummer vorn im Dateinamen bestimmt die Reihenfolge.{kundeLink ? <> <a href={`${kundeLink}#unterlagen`} target="_blank" rel="noreferrer">So sieht er es</a></> : null}</p>
+      <p className="cm-fein">Erscheinen beim Kunden auf der Angebotsseite unter „Ihre Unterlagen“ und nach der Annahme dauerhaft in „Mein Auftrag“ unter „Nachweise und Sicherheiten“ — nur hinter seinen Links. PDF, PNG oder JPEG bis 15 MB; die Nummer vorn im Dateinamen bestimmt die Reihenfolge.{kundeLink ? <> <a href={`${kundeLink}#unterlagen`} target="_blank" rel="noreferrer">So sieht er es</a></> : null}</p>
       {liste && liste.length > 0 && (
         <ol className="cg-unterlagen-liste">
           {liste.map((u) => (

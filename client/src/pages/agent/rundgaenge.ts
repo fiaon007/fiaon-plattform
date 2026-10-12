@@ -1285,8 +1285,9 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     titel: "Unterlagen auf der Kundenseite.",
     text: "Jedes Individualangebot hat den Block „Unterlagen auf der Kundenseite“. „Unterlagen hinzufügen“ nimmt PDF, PNG und JPEG bis "
       + "15 MB, mehrere auf einmal; die Nummer vorn im Dateinamen bestimmt die Reihenfolge („03 FIAON LTD – Certificate.pdf“ steht an "
-      + "Platz 3, Titel „FIAON LTD – Certificate“). Der Kunde sieht sie sofort auf seiner Angebotsseite unter „Ihre Unterlagen“ — nur "
-      + "hinter seinem Link, nie zwischengespeichert. Dieselbe Datei zweimal wird nicht doppelt abgelegt; „Entfernen“ nimmt sie ihm sofort wieder weg.",
+      + "Platz 3, Titel „FIAON LTD – Certificate“). Der Kunde sieht sie sofort auf seiner Angebotsseite unter „Ihre Unterlagen“ und nach der "
+      + "Annahme dauerhaft in „Mein Auftrag“ unter „Nachweise und Sicherheiten“ (der Link dorthin gilt ein Jahr und verlängert sich bei jedem Besuch) — nur "
+      + "hinter seinen Links, nie zwischengespeichert. Dieselbe Datei zweimal wird nicht doppelt abgelegt; „Entfernen“ nimmt sie ihm sofort wieder weg.",
     tipp: "Ausweise und Pässe als gekennzeichnete Kopie hochladen — Zweck und Empfänger stehen im Bild.",
   },
   // E-301 (07.10.2026) — ohne `ziel`: Der Block steht nur, wenn es ein Firmenangebot gibt.

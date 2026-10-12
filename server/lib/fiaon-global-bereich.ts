@@ -393,8 +393,12 @@ export async function globalBereichKundenSicht(ref: string, token: string): Prom
   const s = await sichtBauen(l, "kunde");
   delete s._verlaufAlles;
   const r = encodeURIComponent(ref); const tk = encodeURIComponent(token);
+  // E-332: die Unterlagen aus dem Individualangebot (Vertrag, Nachweise, Sicherheiten) — eine Quelle mit der Angebotsseite.
+  const { unterlagenFuerAuftrag } = await import("./fiaon-global-angebot-unterlagen");
+  const angebotUnterlagen = await unterlagenFuerAuftrag(ref).catch((e) => { console.error("[GLOBAL-BEREICH] Angebotsunterlagen:", e); return []; });
   return {
     ...s,
+    angebotUnterlagen: angebotUnterlagen.map((u) => ({ id: u.id, titel: u.titel, mime: u.mime, groesse: u.groesse, reihenfolge: u.reihenfolge, url: `/api/fiaon/global/mein-auftrag/${r}/unterlage/${u.id}?t=${tk}` })),
     dokumente: (s.dokumente as any[]).map((d) => ({ ...d, url: `/api/fiaon/global/mein-auftrag/${r}/dokument/${d.id}?t=${tk}` })),
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${tk}`,
     rechnungUrl: `/api/fiaon/global/auftrag/${r}/rechnung.pdf?t=${tk}`,

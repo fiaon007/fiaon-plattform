@@ -52,6 +52,8 @@ type Auftrag = {
   gesellschaft?: { name?: string; form?: string; bundesstaat?: string; gegruendetAm?: string } | null;
   unterlagen: { art: string; titel: string; hinweis?: string; vorhanden: boolean }[];
   dokumente: Dokument[];
+  /** E-332 (12.10.2026): Unterlagen aus dem Individualangebot — Vertrag, Nachweise, Sicherheiten (eine Quelle mit der Angebotsseite). */
+  angebotUnterlagen?: { id: number; titel: string; mime: string; groesse: number; reihenfolge: number; url: string }[];
   fristen: { id: number | string; titel: string; faelligAm: string; erledigt: boolean; hinweis?: string }[];
   verlauf: { am: string; text: string }[];
   vertragUrl?: string; rechnungUrl?: string;
@@ -80,7 +82,8 @@ export default function BusinessAuftrag() {
   const [, de] = useRoute("/business/auftrag/:ref?");
   const [, en] = useRoute("/en/business/auftrag/:ref?");
   const ref = (de?.ref || en?.ref || "").trim();
-  const token = new URLSearchParams(window.location.search).get("t") || "";
+  // E-332: Der Server gibt bei Bedarf einen frischen Link aus (`zugang`) — er ersetzt den alten in der Adresse.
+  const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get("t") || "");
 
   const [auftrag, setAuftrag] = useState<Auftrag | null>(null);
   const [stand, setStand] = useState<"laedt" | "da" | "zugang">(ref && token ? "laedt" : "zugang");
@@ -92,11 +95,26 @@ export default function BusinessAuftrag() {
     try {
       const r = await fetch(mitToken(""));
       const j = await r.json().catch(() => ({}));
-      if (r.ok && j.ok && j.auftrag) { setAuftrag(j.auftrag); setStand("da"); } else setStand("zugang");
+      if (r.ok && j.ok && j.auftrag) {
+        setAuftrag(j.auftrag); setStand("da");
+        if (typeof j.zugang === "string" && j.zugang && j.zugang !== token) {
+          try { const u = new URL(window.location.href); u.searchParams.set("t", j.zugang); window.history.replaceState(window.history.state, "", u.toString()); } catch { /* Adresse bleibt */ }
+          setToken(j.zugang);
+        }
+      } else setStand("zugang");
     } catch { setStand("zugang"); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, token]);
   useEffect(() => { laden(); }, [laden]);
+  // E-332 (Justin: „immer aktualisiert"): Solange die Seite sichtbar ist, jede Minute frisch — und sofort beim Zurückkehren.
+  useEffect(() => {
+    if (stand !== "da") return;
+    const sichtbar = () => document.visibilityState === "visible";
+    const takt = window.setInterval(() => { if (sichtbar()) void laden(); }, 60_000);
+    const zurueck = () => { if (sichtbar()) void laden(); };
+    document.addEventListener("visibilitychange", zurueck);
+    return () => { window.clearInterval(takt); document.removeEventListener("visibilitychange", zurueck); };
+  }, [stand, laden]);
 
   const loc = s === "en" ? "en-GB" : "de-DE";
   const tag = (iso?: string | null) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" }) : "";
@@ -269,6 +287,23 @@ export default function BusinessAuftrag() {
                   </ul>
                   {uploadMeldung && <p className="ga-meldung schlecht" role="alert">{uploadMeldung}</p>}
                 </section>
+
+                {a.angebotUnterlagen && a.angebotUnterlagen.length > 0 && (
+                  <section className="ga-abschnitt" data-fiaon="mein-auftrag-nachweise" id="nachweise">
+                    <h2>{s === "en" ? "Evidence and guarantees" : "Nachweise und Sicherheiten"}</h2>
+                    <p className="lead">{s === "en"
+                      ? "Your contract, the guarantee commitment and the documents of FIAON LTD — in order, to open and save."
+                      : "Ihr Vertrag, die Bürgschaftszusage und die Unterlagen der FIAON LTD — geordnet, zum Öffnen und Speichern."}</p>
+                    <ul className="ga-liste">
+                      {a.angebotUnterlagen.map((u) => (
+                        <li key={u.id}>
+                          <div><b>{u.titel}</b><span>{[t.vonFiaon, u.mime === "application/pdf" ? "PDF" : (s === "en" ? "Image" : "Bild"), kb(u.groesse)].filter(Boolean).join(" · ")}</span></div>
+                          <div className="ga-rechts"><a className="ga-knopf" href={u.url} target="_blank" rel="noopener">{t.oeffnen}</a></div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
 
                 <section className="ga-abschnitt">
                   <h2>{t.raumTitel}</h2>

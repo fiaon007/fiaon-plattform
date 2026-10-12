@@ -83,6 +83,14 @@ import {
 import { globalUnterlagenZeilen } from "@shared/fiaon-global-bereich";
 
 export const GLOBAL_TOKEN_TAGE = 30;
+/**
+ * E-332 (12.10.2026, Justin: „sein Portal muss immer geöffnet bleiben und aktualisiert"): Der Link zu „Mein Auftrag"
+ * gilt ein Jahr und wird bei jedem Besuch wieder auf ein Jahr gestellt (GET /global/mein-auftrag/:ref, `zugang`).
+ * Wer ihn verliert, fordert ihn wie bisher mit seiner E-Mail-Adresse neu an.
+ */
+export const GLOBAL_PORTAL_TAGE = 365;
+/** Ab dieser Restlaufzeit gibt der Besuch einen frischen Portal-Link aus. */
+export const GLOBAL_PORTAL_ERNEUERN_TAGE = 300;
 // Individualangebot (01.10.2026, E-268): aus dem KATALOG (art „global"), nicht aus den vier Paketseiten —
 // sonst fehlte jeder Auftrag aus einem Individualangebot in der Liste der Leitung.
 export const GLOBAL_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
@@ -589,7 +597,7 @@ export function globalSpracheVon(akte: any): GlobalMailSprache {
  * Ein Token lässt sich nicht widerrufen; es ist an die Antragsnummer gebunden.
  */
 export function globalMeinAuftragUrl(ref: string, sprache: GlobalMailSprache = "de"): string {
-  return absoluteUrl(globalMeinAuftragPfad(ref, globalTokenErzeugen(ref), sprache));
+  return absoluteUrl(globalMeinAuftragPfad(ref, globalTokenErzeugen(ref, GLOBAL_PORTAL_TAGE * 24 * 60 * 60 * 1000), sprache));
 }
 
 async function ansprechpartnerName(agentId: number | null, sprache: GlobalMailSprache = "de"): Promise<string> {

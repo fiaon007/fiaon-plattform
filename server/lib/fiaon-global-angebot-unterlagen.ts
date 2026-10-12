@@ -145,3 +145,29 @@ export async function unterlageDateiFuerToken(token: string, id: number): Promis
   if (!r) return { status: 404, error: "Diese Unterlage gibt es nicht." };
   return { status: 200, daten: Buffer.from(r.daten), mime: String(r.mime), dateiname: String(r.dateiname), sha256: String(r.sha256) };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-332 (12.10.2026): DIESELBEN UNTERLAGEN IN „MEIN AUFTRAG" — das Portal des Kunden.
+// Der Auftrag kennt sein Angebot über fiaon_global_angebote.auftrag_ref; der Zutritt ist
+// der Portal-Link (globalTokenPruefen in der Route), nicht der Angebotslink — der läuft ab.
+// ═══════════════════════════════════════════════════════════════════════════
+async function angebotIdFuerAuftrag(ref: string): Promise<number | null> {
+  const [a] = (await sqlPool`
+    SELECT id FROM fiaon_global_angebote WHERE auftrag_ref = ${ref} AND zurueckgezogen_am IS NULL ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
+  return a?.id ? Number(a.id) : null;
+}
+
+export async function unterlagenFuerAuftrag(ref: string): Promise<Omit<UnterlageKurz, "von">[]> {
+  const id = await angebotIdFuerAuftrag(ref);
+  if (!id) return [];
+  return (await unterlagenListe(id)).map(({ von: _von, ...rest }) => rest);
+}
+
+export async function unterlageDateiFuerAuftrag(ref: string, uid: number): Promise<{ daten: Buffer; mime: string; dateiname: string } | null> {
+  const id = await angebotIdFuerAuftrag(ref);
+  if (!id) return null;
+  await unterlagenTabelleSichern();
+  const [r] = (await sqlPool`
+    SELECT dateiname, mime, daten FROM fiaon_global_angebot_unterlagen WHERE angebot_id = ${id} AND id = ${uid} LIMIT 1`) as any[];
+  return r ? { daten: Buffer.from(r.daten), mime: String(r.mime), dateiname: String(r.dateiname) } : null;
+}

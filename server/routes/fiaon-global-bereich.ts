@@ -34,7 +34,7 @@ import multer from "multer";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { readChef } from "./fiaon-chef-zugang";
 import { hasAdminCode } from "./fiaon-admin-zugang";
-import { globalTokenPruefen, globalVertragPdfLesen, globalRechnungPdf } from "../lib/fiaon-global-auftrag";
+import { globalTokenPruefen, globalTokenErzeugen, globalVertragPdfLesen, globalRechnungPdf, GLOBAL_PORTAL_TAGE, GLOBAL_PORTAL_ERNEUERN_TAGE } from "../lib/fiaon-global-auftrag";
 import {
   globalBereichKundenSicht, globalBereichOfficeSicht, globalBereichListe, globalBereichZustaendig, globalKundenDokument, globalOfficeDokument,
   globalDokumentLesen, globalDokumentEntfernen, globalKundenNachricht, globalZugangAnfordern, globalEtappeSetzen, globalNaechsterSchrittSetzen,
@@ -115,12 +115,41 @@ router.get("/global/mein-auftrag/:ref", async (req: Request, res: Response) => {
   try {
     const ref = zutritt(req, res);
     if (!ref) return;
-    const auftrag = await globalBereichKundenSicht(ref, String(req.query.t));
+    // E-332: Läuft der Link in weniger als GLOBAL_PORTAL_ERNEUERN_TAGE ab, gibt der Besuch einen frischen (ein Jahr) aus —
+    // die Seite setzt ihn in die Adresse. So bleibt das Portal offen, solange der Kunde es wenigstens alle paar Monate öffnet.
+    const tag = 24 * 60 * 60 * 1000;
+    const exp = Number(String(req.query.t ?? "").split(".")[0]);
+    const zugang = Number.isFinite(exp) && exp - Date.now() < GLOBAL_PORTAL_ERNEUERN_TAGE * tag ? globalTokenErzeugen(ref, GLOBAL_PORTAL_TAGE * tag) : null;
+    const auftrag = await globalBereichKundenSicht(ref, zugang ?? String(req.query.t));
     if (!auftrag) return res.status(404).json({ ok: false, error: "Wir finden zu diesem Link keinen Auftrag." });
-    res.json({ ok: true, auftrag });
+    res.json({ ok: true, auftrag, ...(zugang ? { zugang } : {}) });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] mein-auftrag:", err);
     res.status(500).json({ ok: false, error: "Ihr Auftrag lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+
+// E-332: eine Unterlage aus dem Individualangebot — derselbe Zutritt wie das Portal, nie zwischengespeichert, nie indexiert.
+router.get("/global/mein-auftrag/:ref/unterlage/:id", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const id = Number(req.params.id);
+    const { unterlageDateiFuerAuftrag } = await import("../lib/fiaon-global-angebot-unterlagen");
+    const d = Number.isInteger(id) && id > 0 ? await unterlageDateiFuerAuftrag(ref, id) : null;
+    if (!d) return res.status(404).json({ ok: false, error: "Diese Unterlage gibt es nicht." });
+    const name = d.dateiname.replace(/["\\\r\n]/g, "");
+    const ascii = name.normalize("NFKD").replace(/[^\x20-\x7e]/g, "").replace(/\s+/g, " ").trim() || "Unterlage";
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader("Content-Type", d.mime);
+    res.setHeader("Content-Length", String(d.daten.length));
+    res.setHeader("Content-Disposition", `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.end(d.daten);
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] unterlage:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Die Unterlage lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
   }
 });
 

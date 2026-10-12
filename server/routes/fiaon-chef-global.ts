@@ -247,7 +247,7 @@ router.post("/chef/global/google-kalender", requireChef("inhaber"), async (req, 
   try {
     const g = await import("../lib/fiaon-google-kalender");
     if (typeof req.body?.an === "boolean") await g.googleKalenderSchalten(req.body.an);
-    if (req.body?.jetzt === true) await g.googleKalenderAbgleich();
+    if (req.body?.jetzt === true) await g.googleKalenderAbgleich({ erzwingen: true });
     res.json({ ok: true, google: await g.googleKalenderStand() });
   } catch (e) { fehler(res, "google-kalender", e); }
 });

@@ -251,12 +251,15 @@ export async function googleKalenderSchalten(an: boolean): Promise<void> {
 // ───────────────────────────────────────────────────────────────────────────
 
 let laeuft = false;
+/** Seit wann Google die Freigabe verweigert — dann fragt der Takt nur alle 10 Minuten neu (0 = nicht verweigert). */
+let fehltSeit = 0;
 
 /**
  * Ein Durchgang: schreiben, was neu oder geändert ist; löschen, was nicht
  * mehr in den Kalender gehört. `true` = es wurde etwas getan (für den Takt).
+ * `erzwingen` (Knopf „Jetzt abgleichen“) prüft die Freigabe sofort, auch in der 10-Minuten-Pause.
  */
-export async function googleKalenderAbgleich(): Promise<boolean> {
+export async function googleKalenderAbgleich(opts: { erzwingen?: boolean } = {}): Promise<boolean> {
   if (laeuft) return false;
   laeuft = true;
   try {
@@ -264,6 +267,22 @@ export async function googleKalenderAbgleich(): Promise<boolean> {
     if (!dienstkonto()) return false;
     const konten = await googleKonten();
     if (!konten.length) return false;
+    if (!opts.erzwingen && fehltSeit && Date.now() - fehltSeit < 10 * 60_000) return false;
+    // ── ERST DIE FREIGABE, DANN DIE ARBEIT (Befund nach dem Ausrollen, 12.10.2026) ──
+    // Ohne Termine im Fenster fragte der Lauf keinen Token an und meldete „ok“, obwohl Google 401 sagte.
+    // Der Token wird gemerkt (1 h) — die Probe kostet im Normalfall nichts.
+    try {
+      for (const k of konten) await zugriff(k.email);
+      fehltSeit = 0;
+    } catch (e: any) {
+      if (e instanceof GoogleFreigabeFehlt) {
+        fehltSeit = Date.now();
+        await standMerken({ freigabe: "fehlt", fehler: null, zuletztOk: letzterStand?.zuletztOk ?? null });
+      } else {
+        await standMerken({ freigabe: "fehler", fehler: String(e?.message ?? e).slice(0, 200), zuletztOk: letzterStand?.zuletztOk ?? null });
+      }
+      return false;
+    }
     await ensureGoogleKalender();
     const emailVon = new Map(konten.map((k) => [k.id, k.email]));
 
@@ -325,6 +344,7 @@ export async function googleKalenderAbgleich(): Promise<boolean> {
     }
 
     if (freigabeFehlt) {
+      fehltSeit = Date.now();
       await standMerken({ freigabe: "fehlt", fehler: null, zuletztOk: letzterStand?.zuletztOk ?? null });
       return false;
     }

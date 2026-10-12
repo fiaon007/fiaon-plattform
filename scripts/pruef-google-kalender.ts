@@ -32,12 +32,13 @@ process.env.GOOGLE_SA_KEY = JSON.stringify({
   client_email: "pruef@fiaon-pruef.iam.gserviceaccount.com", client_id: "000000000000000000000",
   private_key: privateKey.export({ type: "pkcs8", format: "pem" }), token_uri: "https://oauth2.googleapis.com/token",
 });
-const GOOGLE = { freigabe: false, fehler500: false, ereignisse: new Map<string, any>(), schreib: 0, fremd: 0 };
+const GOOGLE = { freigabe: false, fehler500: false, ereignisse: new Map<string, any>(), schreib: 0, fremd: 0, token: 0 };
 const echtesFetch = globalThis.fetch;
 globalThis.fetch = (async (url: any, init: any = {}) => {
   const u = String(url);
   const antwort = (status: number, body?: unknown) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   if (u === "https://oauth2.googleapis.com/token") {
+    GOOGLE.token++;
     return GOOGLE.freigabe ? antwort(200, { access_token: "attrappe", expires_in: 3600 }) : antwort(401, { error: "unauthorized_client", error_description: "attrappe" });
   }
   const m = u.match(/^https:\/\/www\.googleapis\.com\/calendar\/v3\/calendars\/primary\/events(?:\/([^?]+))?/);
@@ -73,7 +74,7 @@ let gruen = 0, rot = 0;
 const ok = (titel: string, bed: boolean, info = "") => { if (bed) { gruen++; console.log(`  PASS  ${titel}`); } else { rot++; console.log(`  FAIL  ${titel}${info ? ` — ${info}` : ""}`); } };
 const titel = (t: string) => console.log(`\n── ${t}`);
 
-const JUSTIN = 928, ANDERER = 8, MARKE = `PRUEF342-${randomBytes(3).toString("hex")}`;
+const JUSTIN = 928, ANDERER = 8, OHNE_TERMINE = 929, MARKE = `PRUEF342-${randomBytes(3).toString("hex")}`;
 const personen: number[] = [];
 const termine: number[] = [];
 const alteEinstellungen = (await sqlPool`SELECT key, value FROM fiaon_settings WHERE key IN ('google_kalender_agent_ids', 'google_kalender_an', 'google_kalender_stand')`) as any[];
@@ -133,9 +134,19 @@ try {
   ok("Titel = Abo-Titel mit Namen", typeof body.summary === "string" && body.summary.includes("Prüf Kalender1"), body.summary);
   ok("Erinnerung 10 Minuten, Akte als Quelle", body.reminders?.overrides?.[0]?.minutes === 10 && /^https?:\/\//.test(body.source?.url ?? ""));
 
+  titel("2a · Konto ohne Termine: die Freigabe wird trotzdem geprüft (Befund nach dem Ausrollen)");
+  GOOGLE.freigabe = false;
+  await setzen("google_kalender_agent_ids", String(OHNE_TERMINE));
+  await G.googleKalenderAbgleich({ erzwingen: true });
+  ok("ohne Termine + Freigabe fehlt → Stand „fehlt“ (nicht „ok“)", (await G.googleKalenderStand()).freigabe === "fehlt", (await G.googleKalenderStand()).freigabe);
+  const tokenVorher = GOOGLE.token;
+  await G.googleKalenderAbgleich();
+  ok("in der 10-Minuten-Pause keine neue Token-Anfrage", GOOGLE.token === tokenVorher);
+  await setzen("google_kalender_agent_ids", String(JUSTIN));
+
   titel("2 · Freigabe fehlt");
   GOOGLE.freigabe = false;
-  const r2 = await G.googleKalenderAbgleich();
+  const r2 = await G.googleKalenderAbgleich({ erzwingen: true });
   ok("Abgleich meldet nichts getan", r2 === false);
   ok("nichts in Google", GOOGLE.ereignisse.size === 0 && GOOGLE.schreib === 0);
   ok("Stand: Freigabe fehlt", (await G.googleKalenderStand()).freigabe === "fehlt");
@@ -143,7 +154,8 @@ try {
 
   titel("3 · Freigabe da → Termin in Google, Abo ohne Doppelten");
   GOOGLE.freigabe = true;
-  const r3 = await G.googleKalenderAbgleich();
+  ok("ohne „Jetzt abgleichen“ wartet der Takt die Pause ab", (await G.googleKalenderAbgleich()) === false && !GOOGLE.ereignisse.size);
+  const r3 = await G.googleKalenderAbgleich({ erzwingen: true });
   ok("Abgleich meldet getan", r3 === true);
   ok("Termin steht in Google", GOOGLE.ereignisse.has(`fiaontermin${t1}`));
   const z3 = await zeile(t1);

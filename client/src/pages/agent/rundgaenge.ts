@@ -212,6 +212,17 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
+    // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht
+    // nur bei Kunden mit bezahlter Buchung und nur in der geöffneten Akte.
+    titel: "Die Bonitätsauswertung löst du aus — ein Klick, ein Kunde.",
+    text: "Hat dein Kunde bezahlt, steht im Überblick der Akte die Karte „FIAON Bonitätsauswertung“. Liegen ein geprüfter "
+      + "Ausweis und ein vollständiger Kontoauszug vor, heißt sie „Startklar“: Ein Klick auf „Bonitätsauswertung erstellen“, "
+      + "und in ein bis zwei Minuten steht der Entwurf da — Ampel für sieben Bereiche, FIAON-Finanzwert, Plan mit Fristen, PDF. "
+      + "Du siehst ihn zuerst; erst „An den Kunden übergeben“ legt ihn in seinen Bereich. Bei roter Gesamtlage oder Vorbehalt "
+      + "übergibt nur die Leitung. Fehlt etwas, sagt die Karte was — anfordern oder den Ausweis bestätigen geht im Reiter „Dokumente“.",
+    tipp: "Jede Auswertung kostet. Erstelle sie, wenn du mit dem Kunden darüber sprichst — nicht auf Vorrat. Eine neue Fassung bietet die Karte erst an, wenn neue Unterlagen da sind.",
+  },
+  {
     // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = nicht heute, später rechts.
     // E-IT-A (08.10.2026, Justin) mitgezogen: die eine Wiedervorlage-Regel.
     titel: "Jedes Ergebnis sagt dir, wann der Mensch wieder dran ist.",

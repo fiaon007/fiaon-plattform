@@ -136,6 +136,7 @@ import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
 // E-IT-D (08.10.2026, 4a/4b/4c): Auswertung + Anforderung in der Akte, Stufensätze der Auskunft aus EINER Quelle.
 import { FinanzauswertungAkte } from "@/components/finanzen/FinanzauswertungAkte";
+import { BonitaetsauswertungKarte } from "@/components/finanzen/BonitaetsauswertungKarte";
 import { auskunftStufenSatz, EINWILLIGUNG_DATENUEBERMITTLUNG, EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS } from "@shared/fiaon-auskunft-akte";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -3078,6 +3079,13 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
           </section>
 
           {leitfadenAuf && <Leitfaden stufe={sitLeitfaden} startAuf />}
+
+          {/* E-330 (12.10.2026): Die Bonitätsauswertung als großer Knopf, wo man hinschaut — für jeden Kunden mit
+              bezahlter Buchung. Ein Klick, ein Kunde (kein Sammellauf: jede Auswertung kostet). Alles Weitere
+              (Anfordern, Sichtprüfung, Verwerfen, Fassungen) bleibt im Reiter „Dokumente“. */}
+          {buchungen.some((b) => b.bezahlt) && (
+            <BonitaetsauswertungKarte personId={k.personId} name={k.name} melden={melden} onDetails={() => setReiter("dokumente")} />
+          )}
 
           {/* ═══ GESPRÄCH ABSCHLIESSEN (Justin 24.08.) ═══
               VORHER: „Ergebnis festhalten“ mit 4–5 gleichrangigen Knöpfen

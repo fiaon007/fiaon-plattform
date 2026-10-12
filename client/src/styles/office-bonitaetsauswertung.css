@@ -1,0 +1,166 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-330 (12.10.2026): DIE BONITÄTSAUSWERTUNG ALS KARTE IM ÜBERBLICK DER AKTE
+   Bauteil: components/finanzen/BonitaetsauswertungKarte.tsx
+
+   Die Office-Akte ist dunkel (.pi-*). Glasblau-CI: Navy-Glas als Fläche, das
+   Blau-Paar #288DFA/#1D4ED8 als einziger Akzent; Ampelfarben nur als Bedeutung.
+   Bewegung trägt Zustand: Der Rahmen kreist nur, wenn etwas zu tun ist
+   (startklar) oder etwas passiert (läuft); fertig steht er still.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ba{
+  --ba-blau:#288DFA;--ba-tief:#1D4ED8;--ba-hell:#93c5fd;
+  --ba-gruen:#34d399;--ba-gelb:#fbbf24;--ba-rot:#f87171;--ba-grau:#94a3b8;
+  /* clip statt hidden: Der gedrehte Lichtrand ragt weit hinaus — mit hidden wäre die Karte innen scrollbar,
+     und ein Fokuswechsel schob die Innenfläche nach oben (gesehen am Prüfstand). */
+  position:relative;isolation:isolate;overflow:hidden;overflow:clip;border-radius:22px;padding:1px;
+  background:rgba(148,163,184,.16);margin-top:14px;
+  animation:ba-rein .55s cubic-bezier(.22,1,.36,1) both;
+}
+/* Der kreisende Lichtrand — ein großes Quadrat mit Kegelverlauf, hinter der Innenfläche gedreht. */
+.ba::before{
+  content:"";position:absolute;inset:-75%;z-index:-1;opacity:0;transition:opacity .5s;
+  background:conic-gradient(from 0deg,transparent 0 62%,rgba(40,141,250,.15) 70%,var(--ba-blau) 80%,var(--ba-hell) 84%,transparent 92%);
+  animation:ba-dreh 5.5s linear infinite;
+}
+.ba.ba-bereit::before,.ba.ba-laeuft::before{opacity:1}
+.ba.ba-laeuft::before{animation-duration:2.4s}
+.ba.ba-entwurf::before{opacity:.45;animation-duration:9s}
+
+.ba-innen{
+  position:relative;display:grid;gap:12px;padding:20px 22px;border-radius:21px;
+  background:
+    radial-gradient(120% 90% at 100% 0%,rgba(40,141,250,.16),transparent 55%),
+    linear-gradient(160deg,rgba(17,30,58,.97),rgba(10,18,36,.97));
+  color:#e2e8f0;
+}
+/* Ein langsamer Lichthauch über die Fläche, solange die Karte startklar ist. */
+.ba-bereit .ba-innen::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(147,197,253,.07) 50%,transparent 65%);
+  background-size:250% 100%;animation:ba-hauch 6s ease-in-out infinite;
+}
+
+.ba-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ba-marke{display:inline-flex;align-items:center;gap:8px;font:600 11px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--ba-hell)}
+.ba-marke .ba-stern{width:16px;height:16px;color:var(--ba-blau);filter:drop-shadow(0 0 6px rgba(40,141,250,.6))}
+.ba-bereit .ba-marke .ba-stern,.ba-laeuft .ba-marke .ba-stern{animation:ba-funkeln 2.8s ease-in-out infinite}
+.ba-chip{font:500 11.5px/1 'Inter',sans-serif;padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.28);color:#cbd5e1;background:rgba(255,255,255,.04)}
+.ba-chip.bereit{border-color:rgba(40,141,250,.55);color:#dbeafe;background:rgba(40,141,250,.14)}
+.ba-chip.laeuft{border-color:rgba(147,197,253,.5);color:#dbeafe;background:rgba(40,141,250,.12)}
+.ba-chip.entwurf{border-color:rgba(251,191,36,.45);color:#fde68a;background:rgba(251,191,36,.1)}
+.ba-chip.frei{border-color:rgba(52,211,153,.45);color:#a7f3d0;background:rgba(16,185,129,.12)}
+.ba-chip.fehler{border-color:rgba(248,113,113,.45);color:#fecaca;background:rgba(248,113,113,.1)}
+
+.ba-titel{margin:0;font:400 clamp(17px,2.2vw,21px)/1.3 'Inter',sans-serif;letter-spacing:-.012em;color:#fff;text-wrap:balance}
+.ba-satz{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:62ch}
+.ba-klein{margin:0;font:400 11.5px/1.5 'Inter',sans-serif;color:#94a3b8}
+.ba-hinweis{margin:0;font:400 12.5px/1.5 'Inter',sans-serif;color:#fde68a}
+
+/* Prüfzeichen */
+.ba-pz{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;font:700 10.5px/1 'Inter',sans-serif;flex:none}
+.ba-pz.ja{background:rgba(52,211,153,.16);color:var(--ba-gruen);box-shadow:inset 0 0 0 1px rgba(52,211,153,.4)}
+.ba-pz.nein{background:rgba(248,113,113,.14);color:var(--ba-rot);box-shadow:inset 0 0 0 1px rgba(248,113,113,.4)}
+.ba-pz.frei{background:rgba(148,163,184,.12);color:var(--ba-grau);box-shadow:inset 0 0 0 1px rgba(148,163,184,.3)}
+.ba-pruefung{display:grid;gap:2px}
+.ba-pruefung>div{display:grid;grid-template-columns:18px auto 1fr;gap:4px 10px;align-items:start;padding:8px 0;border-top:1px solid rgba(148,163,184,.12);font:400 12.5px/1.45 'Inter',sans-serif}
+.ba-pruefung>div b{font-weight:600;color:#f1f5f9}
+.ba-pruefung>div span:last-child{color:#94a3b8}
+@media (max-width:560px){.ba-pruefung>div{grid-template-columns:18px 1fr}.ba-pruefung>div span:last-child{grid-column:2}}
+.ba-haken{display:flex;flex-wrap:wrap;gap:8px}
+.ba-haken>span{display:inline-flex;align-items:center;gap:7px;padding:6px 11px 6px 7px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.18);font:400 12px/1 'Inter',sans-serif;color:#e2e8f0;animation:ba-rein .5s cubic-bezier(.22,1,.36,1) both}
+.ba-haken>span:nth-child(2){animation-delay:.08s}
+.ba-haken>span:nth-child(3){animation-delay:.16s}
+
+/* Knöpfe */
+.ba-knoepfe{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}
+.ba-start{
+  position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  min-height:54px;padding:0 28px;border:0;border-radius:999px;cursor:pointer;
+  font:500 15px/1 'Inter',sans-serif;letter-spacing:.01em;color:#fff;
+  background:linear-gradient(135deg,var(--ba-blau),var(--ba-tief));
+  box-shadow:0 14px 34px rgba(29,78,216,.45),0 0 0 1px rgba(147,197,253,.35) inset,inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .2s cubic-bezier(.22,1,.36,1),box-shadow .25s,filter .2s;
+}
+.ba-start .ba-stern{width:18px;height:18px;color:#fff;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+/* Der Glanz, der in Abständen über den Knopf läuft. */
+.ba-start::after{
+  content:"";position:absolute;top:0;bottom:0;left:-60%;width:45%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.38),transparent);transform:skewX(-18deg);
+  animation:ba-glanz 3.4s ease-in-out infinite;
+}
+.ba-start:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 20px 44px rgba(29,78,216,.55),0 0 0 1px rgba(147,197,253,.5) inset,inset 0 1px 0 rgba(255,255,255,.3)}
+.ba-start:hover:not(:disabled) .ba-stern{transform:rotate(72deg) scale(1.12)}
+.ba-start:active:not(:disabled){transform:translateY(0) scale(.98)}
+.ba-start:focus-visible,.ba-neben:focus-visible{outline:2px solid var(--ba-hell);outline-offset:3px}
+.ba-start:disabled{cursor:default;filter:saturate(.6);opacity:.65}
+.ba-start.aus{background:rgba(255,255,255,.06);color:#94a3b8;box-shadow:inset 0 0 0 1px rgba(148,163,184,.25)}
+.ba-start.aus::after,.ba-start:disabled::after{display:none}
+.ba-start.aus .ba-stern{color:#64748b}
+.ba-start.klein{min-height:44px;padding:0 20px;font-size:13.5px}
+.ba-neben{background:none;border:0;padding:0;cursor:pointer;font:500 12.5px/1.4 'Inter',sans-serif;color:var(--ba-hell);text-decoration:none;text-underline-offset:3px}
+.ba-neben:hover{text-decoration:underline}
+.ba-neben.knopf{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(148,163,184,.26);color:#e2e8f0}
+.ba-neben.knopf:hover{text-decoration:none;background:rgba(255,255,255,.09)}
+.ba-neben:disabled{opacity:.5;cursor:default}
+
+/* Läuft: Scan-Balken und Schritte */
+.ba-scan{position:relative;height:4px;border-radius:999px;background:rgba(148,163,184,.14);overflow:hidden}
+.ba-scan i{position:absolute;inset:0 auto 0 0;width:38%;border-radius:inherit;background:linear-gradient(90deg,transparent,var(--ba-blau),var(--ba-hell),transparent);animation:ba-scan 1.6s cubic-bezier(.45,0,.55,1) infinite}
+.ba-lauf{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ba-lauf li{display:flex;align-items:center;gap:10px;font:400 13px/1.3 'Inter',sans-serif;color:#64748b;transition:color .4s}
+.ba-lauf li.jetzt{color:#fff}
+.ba-lauf li.fertig{color:#a7f3d0}
+.ba-punkt{position:relative;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;flex:none;font:700 10px/1 'Inter',sans-serif;box-shadow:inset 0 0 0 1.5px rgba(148,163,184,.35);color:var(--ba-gruen);transition:box-shadow .4s,background .4s}
+.ba-lauf li.fertig .ba-punkt{background:rgba(52,211,153,.16);box-shadow:inset 0 0 0 1.5px rgba(52,211,153,.5)}
+.ba-lauf li.jetzt .ba-punkt{box-shadow:inset 0 0 0 1.5px var(--ba-blau)}
+.ba-lauf li.jetzt .ba-punkt::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--ba-blau);animation:ba-puls 1.2s ease-in-out infinite}
+
+/* Ergebnis */
+.ba-ergebnis{display:grid;gap:14px}
+.ba-wertzeile{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.ba-wert{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.ba-wert-zahl{font:300 clamp(40px,6vw,54px)/1 'Inter',sans-serif;letter-spacing:-.03em;background:linear-gradient(180deg,#fff,#bfdbfe);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ba-wert-max{font:400 13px/1 'Inter',sans-serif;color:#64748b}
+.ba-gesamt{display:inline-flex;align-items:center;gap:10px;font:400 13.5px/1.3 'Inter',sans-serif;color:#cbd5e1}
+.ba-gesamt b{font-weight:600;color:#fff}
+.ba-lampe{position:relative;display:inline-block;width:14px;height:14px;border-radius:50%;flex:none;background:var(--ba-grau)}
+.ba-lampe.gruen{background:var(--ba-gruen);box-shadow:0 0 12px rgba(52,211,153,.65)}
+.ba-lampe.gelb{background:var(--ba-gelb);box-shadow:0 0 12px rgba(251,191,36,.6)}
+.ba-lampe.rot{background:var(--ba-rot);box-shadow:0 0 12px rgba(248,113,113,.65)}
+.ba-lampe:not(.klein)::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1.5px solid currentColor;opacity:0;animation:ba-ring 2.6s ease-out infinite}
+.ba-lampe.gruen::after{color:var(--ba-gruen)}.ba-lampe.gelb::after{color:var(--ba-gelb)}.ba-lampe.rot::after{color:var(--ba-rot)}.ba-lampe.offen::after{color:var(--ba-grau)}
+.ba-lampe.klein{width:10px;height:10px}
+.ba-ampeln{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.ba-ampeln li{display:grid;grid-template-columns:10px 1fr;gap:2px 9px;align-items:center;padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(148,163,184,.14);animation:ba-auf .5s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(.25s + var(--i,0) * .07s)}
+.ba-ampel-titel{font:500 12px/1.3 'Inter',sans-serif;color:#e2e8f0}
+.ba-ampel-wort{grid-column:2;font:400 11px/1.2 'Inter',sans-serif;color:#94a3b8}
+.ba-plan{display:grid;gap:6px;padding:12px 14px;border-radius:14px;background:rgba(40,141,250,.07);border:1px solid rgba(40,141,250,.22)}
+.ba-plan-kopf{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font:600 11px/1.3 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ba-hell)}
+.ba-spar{letter-spacing:0;text-transform:none;font-weight:500;color:#a7f3d0}
+.ba-schritt{display:flex;align-items:baseline;gap:10px;font:400 13px/1.45 'Inter',sans-serif;color:#e2e8f0;animation:ba-rein .5s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(.75s + var(--i,0) * .09s)}
+.ba-frist{flex:none;font:500 10.5px/1 'Inter',sans-serif;padding:4px 8px;border-radius:999px;background:rgba(148,163,184,.14);color:#cbd5e1;white-space:nowrap}
+.ba-frist.f-sofort{background:rgba(248,113,113,.14);color:#fecaca}
+.ba-frist.f-30{background:rgba(251,191,36,.12);color:#fde68a}
+.ba-mehr-schritte{font:400 11.5px/1.4 'Inter',sans-serif;color:#94a3b8}
+.ba-frage{display:grid;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(147,197,253,.3);font:400 13px/1.5 'Inter',sans-serif;color:#e2e8f0;animation:ba-auf .35s cubic-bezier(.22,1,.36,1) both}
+
+/* Laden */
+.ba-laedt .ba-innen{gap:10px}
+.ba-skelett{height:16px;border-radius:8px;background:linear-gradient(90deg,rgba(148,163,184,.1),rgba(148,163,184,.2),rgba(148,163,184,.1));background-size:200% 100%;animation:ba-hauch 1.4s linear infinite}
+.ba-skelett.kurz{width:55%}
+
+@keyframes ba-dreh{to{transform:rotate(360deg)}}
+@keyframes ba-rein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ba-auf{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes ba-hauch{0%{background-position:120% 0}100%{background-position:-120% 0}}
+@keyframes ba-glanz{0%,55%{left:-60%}85%,100%{left:130%}}
+@keyframes ba-funkeln{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.18) rotate(20deg)}}
+@keyframes ba-scan{0%{left:-40%}100%{left:100%}}
+@keyframes ba-puls{0%,100%{transform:scale(.6);opacity:.6}50%{transform:scale(1);opacity:1}}
+@keyframes ba-ring{0%{transform:scale(.6);opacity:.7}80%,100%{transform:scale(1.6);opacity:0}}
+
+@media (prefers-reduced-motion:reduce){
+  .ba,.ba *,.ba::before,.ba *::before,.ba *::after{animation:none!important;transition:none!important}
+  .ba::before{opacity:0!important}
+  .ba-scan i{left:0;width:100%;opacity:.6}
+}

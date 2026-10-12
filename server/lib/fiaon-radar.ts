@@ -1145,6 +1145,10 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   if (!/^[^@\s<>"]+@[^@\s<>"]+\.[a-z]{2,}$/i.test(an)) throw new RadarFehler("Keine gültige Empfängeradresse — bitte eintragen.");
   if (await gesperrt(an, f.domain)) throw new RadarFehler("Empfänger oder Firma stehen auf der Sperrliste.");
   if (f.mail.sperrend?.length) throw new RadarFehler(`Die Mail verletzt noch Regeln: ${f.mail.sperrend.join("; ")}`);
+  // E-337: Die Wand gilt beim SENDEN, nicht nur beim Schreiben — eine vor dem 12.10. geschriebene Mail trägt noch Betrag,
+  // Kapitalrahmen und Institut-Satz. Dann: „Neu schreiben“.
+  const jetzt = mailPruefen({ betreff: String(f.mail.betreff ?? ""), absaetze: Array.isArray(f.mail.absaetze) ? f.mail.absaetze : [], frage: String(f.mail.frage ?? ""), ps: String(f.mail.ps ?? "") });
+  if (jetzt.sperrend.length) throw new RadarFehler(`Diese Mail ist nach alten Regeln geschrieben (${jetzt.sperrend.join("; ")}) — bitte „Neu schreiben“.`);
   // E-337: Adress-Wand auch beim Versand — eine von Hand eingetragene Adresse darf bewusst abweichen (ein.an), die geprüfte nicht.
   const adresse = radarAdressePruefen(an, f.domain, f.name);
   if (!adresse.ok && !ein.an) throw new RadarFehler(`Diese Adresse erreicht niemanden, der entscheidet: ${adresse.grund}. Bitte „Adresse nachsuchen“ oder eine bessere eintragen.`);

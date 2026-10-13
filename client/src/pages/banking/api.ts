@@ -36,6 +36,9 @@ export interface Auftrag {
   entschiedenVon: string | null; entschiedenAm: string | null; entscheidungNotiz: string | null;
   freigabeArt: "vier_augen" | "einzel" | null; ausgefuehrtVon: string | null; ausgefuehrtAm: string | null;
   bankReferenz: string | null; hatBestaetigung: boolean; payoutId: number | null;
+  // 13.10.2026: Ausführung über die Buchhaltung (Adresse), Freigabe-Mail, Beauftragung und Bestätigung
+  ausfuehrungExtern?: string | null; freigabeMailAm?: string | null; externGesendetAm?: string | null;
+  externBestaetigtAm?: string | null; externWertAm?: string | null;
 }
 
 export interface Auszahlung {
@@ -43,6 +46,7 @@ export interface Auszahlung {
   ibanMaskiert: string | null; angefordertAm: string | null; ausgezahltAm: string | null; ablehnGrund: string | null;
   abrechnungId: number | null; abrechnungNr: string | null; hatAbrechnungPdf: boolean;
   auftragId: number | null; auftragNr: string | null; auftragStatus: string | null;
+  auftragExtern?: boolean; freigabeMailAm?: string | null; gfAbgelehnt?: boolean;
 }
 
 export interface Dauerauftrag {

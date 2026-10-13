@@ -447,6 +447,10 @@ export interface Auszahlung {
   auftragId: number | null;
   auftragNr: string | null;
   auftragStatus: string | null;
+  auftragExtern: boolean;
+  freigabeMailAm: string | null;
+  /** Der letzte Auftrag über die Buchhaltung wurde von der Geschäftsführung abgelehnt. */
+  gfAbgelehnt: boolean;
 }
 
 export async function auszahlungen(): Promise<Auszahlung[]> {
@@ -456,7 +460,8 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
            COALESCE(NULLIF(TRIM(ag.name), ''), 'Mitarbeiter ' || p.agent_id) AS name,
            st.id AS abrechnung_id, st.statement_no, COALESCE(st.hat_pdf, FALSE) AS hat_pdf,
            EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = 'gehalt') AS ist_gehalt,
-           o.id AS auftrag_id, o.nummer AS auftrag_nr, o.status AS auftrag_status
+           o.id AS auftrag_id, o.nummer AS auftrag_nr, o.status AS auftrag_status, o.ausfuehrung_extern, o.freigabe_mail_am,
+           (z.status = 'abgelehnt' AND z.ausfuehrung_extern IS NOT NULL) AS gf_abgelehnt
       FROM fiaon_payouts p
       LEFT JOIN fiaon_agents ag ON ag.id = p.agent_id
       LEFT JOIN LATERAL (
@@ -464,10 +469,13 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
           FROM fiaon_commission_statements s WHERE s.payout_id = p.id ORDER BY s.id DESC LIMIT 1
       ) st ON TRUE
       LEFT JOIN LATERAL (
-        SELECT id, nummer, status FROM fiaon_buch_auftrag
+        SELECT id, nummer, status, ausfuehrung_extern, freigabe_mail_am FROM fiaon_buch_auftrag
          WHERE payout_id = p.id AND status NOT IN ('abgelehnt', 'zurueckgezogen')
          ORDER BY id DESC LIMIT 1
       ) o ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT status, ausfuehrung_extern FROM fiaon_buch_auftrag WHERE payout_id = p.id ORDER BY id DESC LIMIT 1
+      ) z ON TRUE
      ORDER BY COALESCE(p.processed_at, p.requested_at) DESC NULLS LAST, p.id DESC`) as any[];
   return rows.map((r) => ({
     id: Number(r.id),
@@ -486,6 +494,10 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
     auftragId: r.auftrag_id != null ? Number(r.auftrag_id) : null,
     auftragNr: r.auftrag_nr ?? null,
     auftragStatus: r.auftrag_status ?? null,
+    // 13.10.2026: läuft der Auftrag über die Buchhaltung, und ist die Freigabe-Mail an die Geschäftsführung raus?
+    auftragExtern: !!r.ausfuehrung_extern,
+    freigabeMailAm: r.freigabe_mail_am ? new Date(r.freigabe_mail_am).toISOString() : null,
+    gfAbgelehnt: !!r.gf_abgelehnt,
   }));
 }
 

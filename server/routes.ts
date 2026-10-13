@@ -905,6 +905,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader('Cache-Control', 'private, no-store');
     next();
   });
+  // 13.10.2026: Die Bestätigungsseite der Buchhaltung trägt ihr Token im Pfad — derselbe Schutz.
+  app.get(['/auszahlung-ausfuehren', '/auszahlung-ausfuehren/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
   app.get(['/zugang/uebergabe', '/zugang/uebergabe/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');

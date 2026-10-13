@@ -135,6 +135,7 @@ const GRUPPEN: Gruppe[] = [
       ["/termin/…", "Termin buchen (Token)"], ["/termin/absagen/…", "Termin absagen (Token)"],
       ["/zustimmung/…", "Zustimmung (Token)"], ["/agent/setup/…", "Mitarbeiter-Setup (Token)"],
       ["/abmelden/…", "Mail-Abmeldung (Token)"], ["/scp-datenraum", "SCP-Datenraum"],
+      ["/auszahlung-ausfuehren/…", "Auszahlung ausführen — Buchhaltung (Token)"],
     ],
   },
   {

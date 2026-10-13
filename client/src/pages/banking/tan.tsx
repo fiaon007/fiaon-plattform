@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, Knopf, Meldung, Segmente, Zeichen } from "./ui";
 
-export function TanDialog({ offen, titel, anfordern, bestaetigen, onZu, onFertig, knopf = "Mit TAN bestätigen" }: {
+export function TanDialog({ offen, titel, anfordern, bestaetigen, onZu, onFertig, knopf = "Mit TAN bestätigen", vorhanden }: {
   offen: boolean;
   titel: string;
   anfordern: () => Promise<{ beschreibung: string; an: string }>;
@@ -17,6 +17,8 @@ export function TanDialog({ offen, titel, anfordern, bestaetigen, onZu, onFertig
   onZu: () => void;
   onFertig: () => void;
   knopf?: string;
+  /** 13.10.2026: Die TAN kam schon mit der Freigabe-Mail — beim Öffnen keine neue anfordern (sie entwertete die alte). */
+  vorhanden?: { beschreibung: string; hinweis: string } | null;
 }) {
   const [phase, setPhase] = useState<"sendet" | "bereit" | "prueft" | "fertig">("sendet");
   const [beschreibung, setBeschreibung] = useState("");
@@ -39,10 +41,17 @@ export function TanDialog({ offen, titel, anfordern, bestaetigen, onZu, onFertig
     } catch (e: any) { setFehler(e.message); setPhase("bereit"); }
   }, []);
 
-  useEffect(() => { if (offen) void holen(); }, [offen, holen]);
+  const [ausMail, setAusMail] = useState(false);
+  useEffect(() => {
+    if (!offen) return;
+    if (vorhanden) { setBeschreibung(vorhanden.beschreibung); setAn(""); setTan(""); setFehler(null); setPhase("bereit"); setAusMail(true); return; }
+    setAusMail(false);
+    void holen();
+  }, [offen, holen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const neuHolen = () => { setAusMail(false); void holen(); };
 
   useEffect(() => {
-    if (!offen || phase !== "bereit") return;
+    if (!offen || phase !== "bereit" || ausMail) return;
     const t = setInterval(() => setNochSek((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, [offen, phase]);
@@ -71,21 +80,23 @@ export function TanDialog({ offen, titel, anfordern, bestaetigen, onZu, onFertig
               </div>
             ) : null}
             <p className="bk-tan-satz">
-              {an ? <>Die TAN ist an <strong>{an}</strong> unterwegs. Sie gilt nur für diesen Vorgang.</> : null}
+              {ausMail && vorhanden ? vorhanden.hinweis
+                : an ? <>Die TAN ist an <strong>{an}</strong> unterwegs. Sie gilt nur für diesen Vorgang.</> : null}
             </p>
             <Segmente gruppen={[3, 3]} wert={tan} onWert={setTan} erlaubt={/[0-9]/} autoFocus beschriftung="TAN" />
             <div className="bk-tan-zeit">
               {phase === "fertig" ? <span className="bk-gut-text"><Zeichen n="haken" g={14} /> Bestätigt</span>
+                : ausMail ? <>TAN aus der Mail · 72 Stunden gültig</>
                 : nochSek > 0 ? <>Gültig noch {Math.floor(nochSek / 60)}:{String(nochSek % 60).padStart(2, "0")}</>
                 : <>Abgelaufen</>}
-              <button type="button" className="bk-link-knopf" onClick={() => void holen()} disabled={phase === "prueft"}>Neue TAN anfordern</button>
+              <button type="button" className="bk-link-knopf" onClick={neuHolen} disabled={phase === "prueft"}>Neue TAN anfordern</button>
             </div>
           </>
         )}
         {fehler ? <Meldung art="fehler">{fehler}</Meldung> : null}
         <div className="bk-tan-knoepfe">
           <Knopf art="still" onClick={onZu}>Abbrechen</Knopf>
-          <Knopf art="primaer" zeichen="schloss" disabled={tan.length !== 6 || phase !== "bereit" || nochSek === 0} onClick={() => void pruefen()}>
+          <Knopf art="primaer" zeichen="schloss" disabled={tan.length !== 6 || phase !== "bereit" || (!ausMail && nochSek === 0)} onClick={() => void pruefen()}>
             {phase === "prueft" ? "Prüfe …" : knopf}
           </Knopf>
         </div>

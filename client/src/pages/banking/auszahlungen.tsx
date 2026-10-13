@@ -24,6 +24,11 @@ const AUFTRAG_TEXT: Record<string, string> = {
   entwurf: "Entwurf", eingereicht: "wartet auf Freigabe", freigegeben: "freigegeben, zu überweisen",
   ausgefuehrt: "überwiesen", abgelehnt: "abgelehnt", zurueckgezogen: "zurückgezogen",
 };
+// 13.10.2026: Auszahlung über die Buchhaltung — Florentine gibt mit TAN frei, die Buchhaltung führt aus.
+const EXTERN_TEXT: Record<string, string> = {
+  entwurf: "Entwurf", eingereicht: "bei Florentine zur Freigabe", freigegeben: "bei der Buchhaltung",
+  ausgefuehrt: "ausgeführt", abgelehnt: "abgelehnt", zurueckgezogen: "zurückgezogen",
+};
 
 export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAuftraegen: () => void }) {
   const [liste, setListe] = useState<Auszahlung[] | null>(null);
@@ -55,6 +60,35 @@ export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAu
   const summe = (s: string) => (liste || []).filter((p) => p.status === s).reduce((x, p) => x + p.cents, 0);
   const zahl = (s: string) => (liste || []).filter((p) => p.status === s).length;
   const anweisbar = (liste || []).filter((p) => p.status === "angefordert" && !p.auftragId);
+  const inhaber = ich.rolle === "inhaber";
+  // Was noch an Florentine kann: angefordert und weder bei ihr (mit Mail) noch freigegeben.
+  const zurFreigabe = (liste || []).filter((p) => p.status === "angefordert"
+    && p.auftragStatus !== "freigegeben" && !(p.auftragExtern && p.auftragStatus === "eingereicht" && p.freigabeMailAm));
+  // „Alle“ schickt nichts erneut, was Florentine abgelehnt hat — das geht nur einzeln (wie im Server).
+  const fuerAlle = zurFreigabe.filter((p) => !(p.gfAbgelehnt && !p.auftragId));
+
+  const anFlorentine = async (id: number) => {
+    setLaeuft(id); setFehler(null); setMeldung(null);
+    try {
+      const j = await ruf<{ auftrag: { nummer: string }; mail: boolean; hinweis: string | null }>(`/buchhaltung/auszahlung/${id}/zur-freigabe`, { body: {} });
+      if (j.mail) setMeldung(`${j.auftrag.nummer} ist bei Florentine: Mail „Bitte geben Sie folgende Auszahlung frei“ mit TAN und Link ist raus.`);
+      else setFehler(`${j.auftrag.nummer} angelegt, aber die Mail an Florentine ging nicht raus: ${j.hinweis ?? "unbekannt"}. Unter „Aufträge“ erneut senden.`);
+      laden();
+    } catch (e: any) { setFehler(e.message); } finally { setLaeuft(null); }
+  };
+
+  const alleAnFlorentine = async () => {
+    const summe = fuerAlle.reduce((s, p) => s + p.cents, 0);
+    if (!window.confirm(`${fuerAlle.length} Auszahlungen über zusammen ${geld(summe)} an Florentine zur Freigabe schicken?\n\nSie bekommt je Auszahlung eine Mail mit TAN und Link ins Banking. Nach ihrer Freigabe geht der Auftrag an die Buchhaltung; ausgebucht wird erst, wenn die Buchhaltung die SEPA-Überweisung bestätigt.`)) return;
+    setLaeuft("alle"); setFehler(null); setMeldung(null);
+    try {
+      const j = await ruf<{ gesendet: string[]; ohneMail: string[]; uebersprungen: { id: number; grund: string }[] }>("/buchhaltung/auszahlungen/alle-zur-freigabe", { body: {} });
+      setMeldung(`${j.gesendet.length} Freigabe-Mails an Florentine raus`
+        + `${j.ohneMail.length ? ` · ${j.ohneMail.length} ohne Mail (${j.ohneMail.join(", ")}) — unter „Aufträge“ erneut senden` : ""}`
+        + `${j.uebersprungen.length ? ` · ${j.uebersprungen.length} übersprungen: ${j.uebersprungen.map((u) => `Nr. ${u.id} (${u.grund})`).join(", ")}` : ""}.`);
+      laden();
+    } catch (e: any) { setFehler(e.message); } finally { setLaeuft(null); }
+  };
 
   const anweisen = async (id: number) => {
     setLaeuft(id); setFehler(null); setMeldung(null);
@@ -98,7 +132,12 @@ export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAu
         </div>
         <span className="bk-flex" />
         <KnopfLink href="/api/fiaon/buchhaltung/auszahlungsjournal.pdf" zeichen="pdf">Auszahlungsjournal</KnopfLink>
-        {anweisbar.length ? (
+        {inhaber && fuerAlle.length ? (
+          <Knopf art="primaer" zeichen="senden" disabled={laeuft !== null} onClick={() => void alleAnFlorentine()}>
+            {laeuft === "alle" ? "Sende …" : `Alle offenen an Florentine (${fuerAlle.length})`}
+          </Knopf>
+        ) : null}
+        {!inhaber && anweisbar.length ? (
           <Knopf art="primaer" zeichen="senden" disabled={laeuft !== null} onClick={() => void alleAnweisen()}>
             {laeuft === "alle" ? "Lege an …" : `Alle offenen anweisen (${anweisbar.length})`}
           </Knopf>
@@ -138,7 +177,8 @@ export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAu
                           <span className="bk-klein">{p.art} · <span className="bk-mono">FIAON-AUS-{p.id}</span>{p.ibanMaskiert ? <> · <span className="bk-mono">{p.ibanMaskiert}</span></> : null}</span>
                           {p.ablehnGrund ? <span className="bk-klein">Grund: {p.ablehnGrund}</span> : null}
                         </td>
-                        <td><Chip art={st.art}>{st.text}</Chip>{p.auftragNr ? <span className="bk-klein"><span className="bk-mono">{p.auftragNr}</span> · {AUFTRAG_TEXT[p.auftragStatus ?? ""] ?? p.auftragStatus}</span> : null}</td>
+                        <td><Chip art={st.art}>{st.text}</Chip>{p.auftragNr ? <span className="bk-klein"><span className="bk-mono">{p.auftragNr}</span> · {(p.auftragExtern ? EXTERN_TEXT : AUFTRAG_TEXT)[p.auftragStatus ?? ""] ?? p.auftragStatus}</span>
+                          : p.status === "angefordert" && p.gfAbgelehnt ? <span className="bk-klein">von Florentine abgelehnt</span> : null}</td>
                         <td>{tag(p.angefordertAm)}</td>
                         <td>{tag(p.ausgezahltAm)}</td>
                         <td className="bk-r bk-zahl">{geld(p.cents)}</td>
@@ -149,7 +189,12 @@ export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAu
                           </div>
                         </td>
                         <td className="bk-r">
-                          {p.status === "angefordert" && !p.auftragId ? (
+                          {inhaber && zurFreigabe.some((x) => x.id === p.id) ? (
+                            <Knopf klein art="primaer" zeichen="senden" disabled={laeuft !== null} onClick={() => void anFlorentine(p.id)}
+                              title={p.gfAbgelehnt && !p.auftragId ? "Florentine hat abgelehnt — erneut zur Freigabe schicken" : "An Florentine zur Freigabe schicken (Mail mit TAN und Link)"}>
+                              {laeuft === p.id ? "…" : p.gfAbgelehnt && !p.auftragId ? "Erneut senden" : p.auftragExtern && p.auftragStatus === "eingereicht" ? "Mail senden" : "Zur Freigabe"}
+                            </Knopf>
+                          ) : !inhaber && p.status === "angefordert" && !p.auftragId ? (
                             <Knopf klein art="primaer" disabled={laeuft !== null} onClick={() => void anweisen(p.id)}>{laeuft === p.id ? "…" : "Anweisen"}</Knopf>
                           ) : p.status === "angefordert" && p.auftragId ? (
                             <Knopf klein art="still" onClick={onZuAuftraegen}>Zum Auftrag</Knopf>

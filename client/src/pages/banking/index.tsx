@@ -92,6 +92,11 @@ export default function BankingPage() {
 // ═══════════════════════════════════════════════════════════════════════════
 function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet: string } | null; abmelden: (grund?: string) => Promise<void> }) {
   const [reiter, setReiter] = useState<Reiter>(reiterAusAdresse);
+  // 13.10.2026: Der Link aus der Freigabe-Mail nennt den Auftrag (…&auftrag=ID) — einmal ansteuern.
+  const [fokusAuftrag] = useState<number | null>(() => {
+    const n = Number(new URLSearchParams(window.location.search).get("auftrag"));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  });
   const [lage, setLage] = useState<Lage | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [breit, setBreit] = useState(() => { try { return localStorage.getItem(MENUE_KEY) === "breit"; } catch { return false; } });
@@ -145,7 +150,8 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
     if (r === "auftraege") {
       return ich.rolle === "inhaber"
         ? lage.auftraege.filter((a) => a.status === "eingereicht" || a.status === "freigegeben").length
-        : lage.auftraege.filter((a) => a.status === "entwurf" && a.erstelltVon === ich.email).length;
+        : lage.auftraege.filter((a) => (a.status === "entwurf" && a.erstelltVon === ich.email)
+            || (a.status === "eingereicht" && !!a.ausfuehrungExtern && a.erstelltVon !== ich.email)).length;
     }
     if (r === "auszahlungen") return lage.auszahlungOffen.ohneAuftrag;
     return 0;
@@ -221,7 +227,7 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
               {reiter === "start" ? <Uebersicht lage={lage} onGehe={gehe} onNeu={() => void laden()} /> : null}
               {reiter === "umsaetze" ? <Umsaetze ich={ich} nachholen={lage.nachholen} onGebucht={() => void laden()} /> : null}
               {reiter === "ueberweisung" ? <Ueberweisung ich={ich} onFertig={() => void laden()} /> : null}
-              {reiter === "auftraege" ? <Auftraege auftraege={lage.auftraege} ich={ich} onNeu={() => void laden()} onNeueUeberweisung={() => gehe("ueberweisung")} /> : null}
+              {reiter === "auftraege" ? <Auftraege auftraege={lage.auftraege} ich={ich} onNeu={() => void laden()} onNeueUeberweisung={() => gehe("ueberweisung")} fokusId={fokusAuftrag} /> : null}
               {reiter === "auszahlungen" ? <Auszahlungen ich={ich} onZuAuftraegen={() => { void laden(); gehe("auftraege"); }} /> : null}
               {reiter === "dauer" ? <Dauerauftraege liste={lage.dauerauftraege} ich={ich} onNeu={() => void laden()} /> : null}
               {reiter === "auszuege" ? <Auszuege lage={lage} onNeu={() => void laden()} /> : null}

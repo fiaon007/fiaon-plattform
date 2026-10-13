@@ -264,9 +264,10 @@ export async function nachrichtLabeln(postfach: string, id: string,
 /** Ein Anhang für eine Antwort — z. B. die Rechnung als PDF. */
 export interface MailAnhang { dateiname: string; inhalt: Buffer; typ?: string }
 
-export function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null; anhaenge?: MailAnhang[] | null }): string {
-  const betreff = opts.betreff.replace(/^((re|aw|fwd?):\s*)+/i, "");
-  const kodiertBetreff = `=?UTF-8?B?${Buffer.from(`Re: ${betreff}`).toString("base64")}?=`;
+export function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null; anhaenge?: MailAnhang[] | null; neu?: boolean }): string {
+  // `neu` (13.10.2026): eine frische Mail mit Anhang — der Betreff bleibt, wie er ist (kein „Re:“).
+  const betreff = opts.neu ? opts.betreff : opts.betreff.replace(/^((re|aw|fwd?):\s*)+/i, "");
+  const kodiertBetreff = `=?UTF-8?B?${Buffer.from(opts.neu ? betreff : `Re: ${betreff}`).toString("base64")}?=`;
   // ── ANTWORTEN IM HAUS-CI (02.09.2026, Justins Auftrag) ──────────────────
   // Eine Kundenantwort sah bisher aus wie eine Notiz: reiner Text, kein Kopf,
   // keine Knöpfe, kein Absender-Bild. Jetzt geht dieselbe Nachricht als
@@ -376,6 +377,15 @@ export async function mailNeuSenden(postfach: string, an: string, betreff: strin
   const j = await api(postfach, "/messages/send", {
     method: "POST",
     body: JSON.stringify({ raw: b64url(zeilen.join("\r\n")) }),
+  });
+  return String(j?.id || "");
+}
+
+/** Eine FRISCHE Mail mit Anhängen (z. B. der Durchführungsbeleg als PDF) — Textfassung, ohne Faden. */
+export async function mailNeuMitAnhang(postfach: string, an: string, betreff: string, text: string, anhaenge: MailAnhang[]): Promise<string> {
+  const j = await api(postfach, "/messages/send", {
+    method: "POST",
+    body: JSON.stringify({ raw: mimeAntwort({ von: postfach, an, betreff, text, anhaenge, neu: true }) }),
   });
   return String(j?.id || "");
 }

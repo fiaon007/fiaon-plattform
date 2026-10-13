@@ -8,6 +8,7 @@ Disallow: /admin
 Disallow: /agent
 Disallow: /chef
 Disallow: /akte/
+Disallow: /auszahlung-ausfuehren/
 Disallow: /dashboard
 Disallow: /mein-bereich
 Disallow: /app

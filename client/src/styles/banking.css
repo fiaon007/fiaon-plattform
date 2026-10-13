@@ -534,6 +534,12 @@
 [data-fiaon-banking] .bk-auftragsliste { display: grid; gap: 14px; }
 [data-fiaon-banking] .bk-auftrag { background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--r-l); box-shadow: var(--tief-1); padding: 18px 20px; display: grid; gap: 14px; }
 [data-fiaon-banking] .bk-auftrag-eingereicht { border-color: var(--warn-l); }
+/* 13.10.2026: Sprung aus der Freigabe-Mail — der genannte Auftrag leuchtet kurz auf. */
+[data-fiaon-banking] .bk-auftrag.bk-fokus { border-color: var(--licht); box-shadow: 0 0 0 3px rgba(40, 141, 250, .16), var(--tief-2); scroll-margin-top: 90px; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-fiaon-banking] .bk-auftrag.bk-fokus { animation: bk-fokus-puls 1.6s var(--kurve) 2; }
+}
+@keyframes bk-fokus-puls { 50% { box-shadow: 0 0 0 7px rgba(40, 141, 250, .10), var(--tief-2); } }
 [data-fiaon-banking] .bk-auftrag-kopf { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
 [data-fiaon-banking] .bk-auftrag-kopf > div { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 [data-fiaon-banking] .bk-auftrag-nr { font-size: 13px; color: var(--tinte); font-weight: 500; }

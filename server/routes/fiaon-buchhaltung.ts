@@ -26,7 +26,9 @@ import {
   bewegungBuchen, bewegungStornieren, BEWEGUNG_ARTEN, type BewegungArt,
   auftraege, auftrag, auftragAnlegen, auftragEinreichen, auftragZurueckziehen,
   auftragFreigeben, auftragAblehnen, auftragAusfuehren, auftragAusAuszahlung,
-  freigabeMoeglich, freigabeZiel, freigabeBeschreibung,
+  freigabeMoeglich, freigabeZiel, freigabeBeschreibung, tanZweck,
+  zurFreigabeSenden, alleZurFreigabeSenden, freigabeMailSenden, externBeauftragen, externLesen, externBestaetigen,
+  durchfuehrungsbelegSenden, BUCHHALTUNG_AUSFUEHRUNG, mailProbe,
   empfaengerSuchen, empfaengerKartei, empfaengerLoeschen,
   dauerauftraege, dauerauftragAnlegen, dauerauftragBeenden, dauerauftraegeAusloesen,
   ibanGueltig, ibanSauber,
@@ -178,12 +180,8 @@ router.post("/buchhaltung/pin-anfordern", async (req: Request, res: Response) =>
     if (!person) return res.status(403).json({ ok: false, error: "Für diese Adresse ist kein Zugang eingerichtet." });
     if (await istGesperrt(person.email)) return res.status(403).json({ ok: false, code: "GESPERRT", error: "Dieser Zugang ist gesperrt." });
     const pin = await pinAnlegen(person);
-    const { mailNeuSenden, gmailBereit } = await import("../lib/fiaon-gmail");
-    if (!gmailBereit()) {
-      console.error("[BANKING] PIN nicht versendbar — GOOGLE_SA_KEY fehlt");
-      return res.status(503).json({ ok: false, error: "Der PIN-Versand ist gerade nicht möglich. Bitte bei js@fiaon.com melden." });
-    }
-    await mailNeuSenden("js@fiaon.com", person.email, `PIN ${pin.slice(0, 4)}-•••• · FIAON Banking`, [
+    const pinBetreff = `PIN ${pin.slice(0, 4)}-•••• · FIAON Banking`;
+    const pinText = [
       `Hallo ${person.name.split(" ")[0]},`,
       "",
       "dein Einmal-PIN für die Anmeldung im FIAON Banking:",
@@ -194,7 +192,16 @@ router.post("/buchhaltung/pin-anfordern", async (req: Request, res: Response) =>
       "Wolltest du dich gerade nicht anmelden? Dann sag sofort Bescheid — das Passwort wird geändert.",
       "",
       "FIAON Banking",
-    ].join("\n"));
+    ].join("\n");
+    // Lokaler Prüfstand (nie Produktion): der PIN landet im Probe-Ordner statt im Postfach.
+    if (!(await mailProbe(person.email, pinBetreff, pinText))) {
+      const { mailNeuSenden, gmailBereit } = await import("../lib/fiaon-gmail");
+      if (!gmailBereit()) {
+        console.error("[BANKING] PIN nicht versendbar — GOOGLE_SA_KEY fehlt");
+        return res.status(503).json({ ok: false, error: "Der PIN-Versand ist gerade nicht möglich. Bitte bei js@fiaon.com melden." });
+      }
+      await mailNeuSenden("js@fiaon.com", person.email, pinBetreff, pinText);
+    }
     buchProtokoll(person.email, "PIN angefordert", null, clientIp(req));
     return res.json({ ok: true, an: person.email });
   } catch (err) {
@@ -546,20 +553,25 @@ router.post("/buchhaltung/auftrag/:id/zurueckziehen", requireBuch(), async (req:
   } catch (err) { fehler(res, "zurueckziehen")(err); }
 });
 
-/** TAN für eine Freigabe anfordern — die Mail nennt Betrag, Empfänger und IBAN. */
-router.post("/buchhaltung/auftrag/:id/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+/**
+ * TAN für eine Freigabe anfordern — die Mail nennt Betrag, Empfänger und IBAN.
+ * 13.10.2026: Aufträge über die Buchhaltung gibt die Geschäftsführung frei (jede TAN gehört zu genau einem Auftrag);
+ * alle anderen weiterhin nur der Inhaber.
+ */
+router.post("/buchhaltung/auftrag/:id/tan", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
     const a = await auftrag(Number(req.params.id));
     if (!a) return res.status(404).json({ ok: false, error: "Auftrag nicht gefunden." });
+    if (req.buch!.rolle !== "inhaber" && !a.ausfuehrungExtern) return res.status(403).json({ ok: false, code: "NUR_INHABER", error: "Das darf nur der Inhaber." });
     const darf = freigabeMoeglich(a, req.buch!);
     if (!darf.ok) return res.status(400).json({ ok: false, error: darf.grund });
-    const t = await tanAnfordern(req.buch!, "freigabe", freigabeZiel(a), freigabeBeschreibung(a));
+    const t = await tanAnfordern(req.buch!, tanZweck(a), freigabeZiel(a), freigabeBeschreibung(a));
     if (!t.ok) return res.status(503).json({ ok: false, error: t.grund });
     res.json({ ok: true, an: req.buch!.email, beschreibung: freigabeBeschreibung(a), art: darf.art });
   } catch (err) { fehler(res, "tan")(err); }
 });
 
-router.post("/buchhaltung/auftrag/:id/freigeben", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+router.post("/buchhaltung/auftrag/:id/freigeben", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
     const erg = await auftragFreigeben(Number(req.params.id), req.buch!, String((req.body as any)?.tan || ""));
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
@@ -567,7 +579,7 @@ router.post("/buchhaltung/auftrag/:id/freigeben", requireBuch("inhaber"), async 
   } catch (err) { fehler(res, "freigeben")(err); }
 });
 
-router.post("/buchhaltung/auftrag/:id/ablehnen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+router.post("/buchhaltung/auftrag/:id/ablehnen", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
     const erg = await auftragAblehnen(Number(req.params.id), req.buch!, text((req.body as any)?.notiz, 300));
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
@@ -696,6 +708,85 @@ router.post("/buchhaltung/auszahlungen/alle-anweisen", requireBuch(), async (req
     buchProtokoll(req.buch!.email, "Sammelanweisung Auszahlungen", null, `${angelegt.length} Aufträge, ${fehlgeschlagen.length} ohne`);
     res.json({ ok: true, angelegt, fehlgeschlagen });
   } catch (err) { fehler(res, "alle-anweisen")(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUSZAHLUNG ÜBER DIE BUCHHALTUNG (13.10.2026) — siehe server/lib/fiaon-buchhaltung.ts
+// ═══════════════════════════════════════════════════════════════════════════
+/** Inhaber: eine Auszahlung zur Freigabe an die Geschäftsführung („Bitte geben Sie folgende Auszahlung frei“). */
+router.post("/buchhaltung/auszahlung/:id/zur-freigabe", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const erg = await zurFreigabeSenden(Number(req.params.id), req.buch!);
+    if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
+    res.json({ ok: true, auftrag: erg.auftrag, mail: !!erg.mail, hinweis: erg.hinweis ?? null });
+  } catch (err) { fehler(res, "zur-freigabe")(err); }
+});
+
+/** Inhaber: alle angeforderten Auszahlungen zur Freigabe — je Auszahlung eine Mail mit eigener TAN. */
+router.post("/buchhaltung/auszahlungen/alle-zur-freigabe", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try { res.json({ ok: true, ...(await alleZurFreigabeSenden(req.buch!)) }); }
+  catch (err) { fehler(res, "alle-zur-freigabe")(err); }
+});
+
+/** Inhaber: die Freigabe-Mail mit neuer TAN erneut schicken (die alte TAN verfällt). */
+router.post("/buchhaltung/auftrag/:id/freigabe-mail", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const a = await auftrag(Number(req.params.id));
+    if (!a) return res.status(404).json({ ok: false, error: "Auftrag nicht gefunden." });
+    const m = await freigabeMailSenden(a);
+    if (!m.ok) return res.status(400).json({ ok: false, error: m.grund });
+    res.json({ ok: true, auftrag: await auftrag(a.id) });
+  } catch (err) { fehler(res, "freigabe-mail")(err); }
+});
+
+/** Den freigegebenen Auftrag erneut an die Buchhaltung (neuer Bestätigungslink, der alte verfällt). */
+router.post("/buchhaltung/auftrag/:id/an-buchhaltung", requireBuch(), async (req: BuchRequest, res: Response) => {
+  try {
+    const erg = await externBeauftragen(Number(req.params.id));
+    if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
+    buchProtokoll(req.buch!.email, "Auftrag erneut an die Buchhaltung", String(req.params.id), BUCHHALTUNG_AUSFUEHRUNG);
+    res.json({ ok: true, auftrag: await auftrag(Number(req.params.id)) });
+  } catch (err) { fehler(res, "an-buchhaltung")(err); }
+});
+
+/** Den Durchführungsbeleg erneut an die Geschäftsführung schicken. */
+router.post("/buchhaltung/auftrag/:id/beleg-senden", requireBuch(), async (req: BuchRequest, res: Response) => {
+  try {
+    const erg = await durchfuehrungsbelegSenden(Number(req.params.id));
+    if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
+    res.json({ ok: true });
+  } catch (err) { fehler(res, "beleg-senden")(err); }
+});
+
+/**
+ * ÖFFENTLICH, nur mit dem Bestätigungslink der Buchhaltung: Auftrag ansehen und die ausgeführte SEPA-Überweisung
+ * bestätigen. Kein Banking-Zugang nötig — der Link (24 Zufallsbytes, gespeichert nur als Hash) ist der Nachweis.
+ */
+router.get("/buchhaltung/extern/:token", async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    const v = await externLesen(String(req.params.token || ""));
+    if (!v) return res.status(404).json({ ok: false, error: "Dieser Link ist ungültig oder abgelaufen." });
+    res.json({ ok: true, auftrag: v });
+  } catch (err) { fehler(res, "extern lesen")(err); }
+});
+
+router.post("/buchhaltung/extern/:token/bestaetigen", async (req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    if (!gleicheHerkunft(req)) return res.status(403).json({ ok: false, code: "HERKUNFT", error: "Anfrage von fremder Seite abgewiesen." });
+    const ip = clientIp(req);
+    const warte = gesperrtFuer(`extern:${ip}`);
+    if (warte > 0) return res.status(429).json({ ok: false, error: "Zu viele Versuche. Bitte später erneut." });
+    const b = req.body as any;
+    const erg = await externBestaetigen(String(req.params.token || ""), { wertAm: istTag(b?.wertAm) ? String(b.wertAm) : null, notiz: text(b?.notiz, 200) || null });
+    if (!erg.ok) {
+      if (/ungültig/.test(erg.grund)) bremse(`extern:${ip}`);
+      return res.status(400).json({ ok: false, error: erg.grund });
+    }
+    res.json({ ok: true, hinweis: erg.hinweis ?? null, auftrag: await externLesen(String(req.params.token || "")) });
+  } catch (err) { fehler(res, "extern bestaetigen")(err); }
 });
 
 router.get("/buchhaltung/auszahlung/:id/beleg.pdf", requireBuch(), async (req: Request, res: Response) => {

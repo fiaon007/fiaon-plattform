@@ -22,7 +22,7 @@ import { sqlPool } from "./db-pool";
 import { BANK } from "@shared/fiaon-bank";
 import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
 import {
-  auftrag, buchPerson, ibanHuebsch, ibanMaskiert, uebergabe, BUCH_LOGIN, type BuchPerson,
+  auftrag, bankZweck, buchPerson, ibanHuebsch, ibanMaskiert, uebergabe, BUCH_LOGIN, type Auftrag, type BuchPerson,
 } from "./fiaon-buchhaltung";
 import {
   KONTEN, umsaetze, kasse, buchSaldoAm, auszahlungen, artText, type KontoSchluessel, type Umsatz,
@@ -192,6 +192,15 @@ const STIL = `
   .streifen .l { font-size: 6pt; letter-spacing: .22em; text-transform: uppercase; color: #526277; font-weight: 600; }
   .streifen .w { font-family: Outfit, Inter, sans-serif; font-weight: 300; font-size: 13pt; color: #0B1220; margin-top: 1mm; }
 
+  .kette td.schritt { font-weight: 500; color: #0E1A2E; white-space: nowrap; }
+  .kette td .nachweis { display: block; color: #526277; font-size: 7pt; margin-top: 0.4mm; }
+  .kette td.punkt { width: 5mm; padding-right: 2mm; }
+  .kette td.punkt i { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: 50%; border: 0.7pt solid #1D4ED8; background: #FFFFFF; margin-top: 0.8mm; }
+  .kette tr.fertig td.punkt i { background: #1D4ED8; }
+  .siegelzeile { display: flex; justify-content: space-between; align-items: center; gap: 6mm; margin-top: 5mm; padding-top: 3.5mm; border-top: 0.5pt solid #C9D5E5; }
+  .siegelzeile .stempel { font-size: 6.4pt; letter-spacing: .24em; text-transform: uppercase; font-weight: 600; color: #12704F;
+                          border: 0.8pt solid #12704F; border-radius: 1.4mm; padding: 2mm 3.2mm; white-space: nowrap; }
+  .seitenumbruch { page-break-before: always; }
   .vermerk { margin-top: 4mm; padding: 3mm 4mm; border-radius: 2mm; background: #F4F7FC; font-size: 7.4pt; color: #22324A; line-height: 1.55; }
   ul { margin: 0; padding-left: 4.5mm; }
   li { margin: 0.8mm 0; }
@@ -245,6 +254,8 @@ export async function bestaetigungErzeugen(id: number): Promise<Buffer> {
   const a = await auftrag(id);
   if (!a) throw new Error("Auftrag nicht gefunden");
   if (a.status !== "ausgefuehrt") throw new Error("Eine Bestätigung gibt es erst nach der Ausführung");
+  // 13.10.2026: Ausgeführt von der Buchhaltung → der Durchführungsbeleg (eigene Fassung, siehe unten).
+  if (a.ausfuehrungExtern) return durchfuehrungsbelegErzeugen(a);
   const name = (e: string | null) => (e ? buchPerson(e)?.name ?? e : "—");
   const jetzt = new Date().toISOString();
   const pruef = pruefwert({ n: a.nummer, b: a.betragCents, i: a.iban, r: a.bankReferenz, t: a.ausgefuehrtAm });
@@ -298,6 +309,179 @@ export async function bestaetigungErzeugen(id: number): Promise<Buffer> {
   await sqlPool`
     UPDATE fiaon_buch_auftrag SET bestaetigung_base64 = ${pdf.toString("base64")}, bestaetigung_hash = ${docHash(pdf.toString("base64"))}
      WHERE id = ${id}`;
+  return pdf;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DURCHFÜHRUNGSBELEG (13.10.2026) — Auszahlung über die Buchhaltung
+//
+// Justin: „Das PDF, das Florentine bekommt, muss super rechtlich, perfekt formatiert sein — wie ein richtiger
+// Transaktionsbeleg von der Bank, wenn die Buchhaltung den Ausgang bestätigt hat."
+// Aufbau wie ein Transaktionsbeleg: Kopf mit Referenzen, Parteien, Betrag, Zahlungsdetails, die enthaltenen
+// Positionen, die lückenlose Kette Erfassung → Freigabe mit TAN → Beauftragung → bestätigte Ausführung →
+// Ausbuchung, der SEPA-Hinweis und der Ausstellervermerk. Aussteller ist die FIAON LTD — der Beleg nennt die
+// ausführende Stelle und sagt ausdrücklich, dass er kein Kontoauszug und keine Bestätigung eines Instituts ist.
+// Er entsteht NUR nach der Bestätigung der Buchhaltung (Status „ausgefuehrt“).
+// ═══════════════════════════════════════════════════════════════════════════
+const ART_POSITION: Record<string, string> = {
+  own: "Eigene Provision", eigen: "Eigene Provision", team: "Team-Provision", override: "Team-Provision",
+  gehalt: "Gehalt", praemie: "Prämie", bonus: "Bonus", korrektur: "Korrektur",
+};
+
+/** Ostersonntag (gregorianisch, Meeus/Jones/Butcher) als UTC-Datum. */
+function ostersonntag(j: number): Date {
+  const a = j % 19, b = Math.floor(j / 100), c = j % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const monat = Math.floor((h + l - 7 * m + 114) / 31), tag = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(j, monat - 1, tag));
+}
+
+/**
+ * „YYYY-MM-DD“ plus n Bankarbeitstage im SEPA-Verkehr (TARGET-Kalender): ohne Samstag, Sonntag, 1.1.,
+ * Karfreitag, Ostermontag, 1.5., 25.12. und 26.12.
+ */
+function plusBankarbeitstage(tag: string, n: number): string {
+  const d = new Date(`${tag}T12:00:00Z`);
+  const frei = (x: Date): boolean => {
+    const wt = x.getUTCDay();
+    if (wt === 0 || wt === 6) return true;
+    const md = `${String(x.getUTCMonth() + 1).padStart(2, "0")}-${String(x.getUTCDate()).padStart(2, "0")}`;
+    if (["01-01", "05-01", "12-25", "12-26"].includes(md)) return true;
+    const ostern = ostersonntag(x.getUTCFullYear()).getTime();
+    const tagMs = 86_400_000;
+    const t = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
+    return t === ostern - 2 * tagMs || t === ostern + tagMs;
+  };
+  let rest = n;
+  while (rest > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    if (!frei(d)) rest--;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
+  const name = (e: string | null) => (e ? buchPerson(e)?.name ?? e : "—");
+  const titelVon = (e: string | null) => (e ? buchPerson(e)?.titel ?? "" : "");
+  const wann = (iso: string | null) => (iso ? `${datum(iso)} · ${uhrzeit(iso)} Uhr` : "—");
+  const jetzt = new Date().toISOString();
+  const belegNr = a.nummer.replace(/^ZA-/, "DB-");
+  const ausfuehrungstag = a.externWertAm || (a.ausgefuehrtAm ? a.ausgefuehrtAm.slice(0, 10) : null);
+  const pruef = pruefwert({ b: belegNr, n: a.nummer, c: a.betragCents, i: a.iban, r: a.bankReferenz, w: ausfuehrungstag, f: a.entschiedenAm, x: a.externBestaetigtAm });
+
+  // Positionen und Abrechnung der Mitarbeiter-Auszahlung — dieselbe Wahrheit wie die Abrechnung.
+  let positionen: any[] = [];
+  let abrechnung: string | null = null;
+  if (a.payoutId) {
+    positionen = (await sqlPool`
+      SELECT created_at, payment_reference, ref, pack_name, kind, amount_cents, note
+        FROM fiaon_commissions WHERE payout_id = ${a.payoutId} ORDER BY created_at ASC, id ASC`) as any[];
+    const [st] = (await sqlPool`SELECT statement_no FROM fiaon_commission_statements WHERE payout_id = ${a.payoutId} ORDER BY id DESC LIMIT 1`) as any[];
+    abrechnung = st?.statement_no ?? null;
+  }
+  const summePos = positionen.reduce((x, p) => x + Number(p.amount_cents || 0), 0);
+  const zeigePos = positionen.length > 0 && positionen.length <= 40;
+
+  const kette: { schritt: string; wer: string; werZusatz?: string; wann: string; nachweis: string }[] = [
+    { schritt: "Auftrag erfasst", wer: `${name(a.erstelltVon)}${titelVon(a.erstelltVon) ? `, ${titelVon(a.erstelltVon)}` : ""}`, wann: wann(a.erstelltAm), nachweis: "FIAON Banking, angemeldete Sitzung" },
+    ...(a.freigabeMailAm ? [{ schritt: "Zur Freigabe übermittelt", wer: `an ${name(a.entschiedenVon)}`, wann: wann(a.freigabeMailAm), nachweis: "Mitteilung mit vorgangsgebundener TAN" }] : []),
+    { schritt: "Freigegeben", wer: `${name(a.entschiedenVon)}${titelVon(a.entschiedenVon) ? `, ${titelVon(a.entschiedenVon)}` : ""}`, wann: wann(a.entschiedenAm), nachweis: "TAN bestätigt · Vier-Augen-Prinzip" },
+    { schritt: "Zur Ausführung beauftragt", wer: "Buchhaltung", werZusatz: a.ausfuehrungExtern || "", wann: wann(a.externGesendetAm), nachweis: "Zahlungsauftrag mit Bestätigungslink" },
+    { schritt: "Ausführung bestätigt", wer: "Buchhaltung", werZusatz: a.ausfuehrungExtern || "", wann: wann(a.externBestaetigtAm), nachweis: `SEPA-Überweisung ausgeführt am ${datum(ausfuehrungstag)}` },
+    { schritt: "Ausgebucht", wer: "FIAON Banking", wann: wann(a.ausgefuehrtAm), nachweis: a.payoutId ? `Auszahlung FIAON-AUS-${a.payoutId} und ihre Positionen auf „ausgezahlt“` : "Zahlungsauftrag abgeschlossen" },
+  ];
+
+  const inhalt = `
+    <p class="lead">Die ${FIRMA} bestätigt die Ausführung der nachstehenden Auszahlung. Die Überweisung wurde nach Freigabe
+    mit TAN von der beauftragten Buchhaltung als SEPA-Überweisung ausgeführt; die Ausführung ist von der Buchhaltung bestätigt.</p>
+    <div class="kopfgitter">
+      <div><div class="l">Transaktionsreferenz</div><div class="w mono">${esc(a.bankReferenz || "—")}</div></div>
+      <div><div class="l">Zahlungsauftrag</div><div class="w mono">${esc(a.nummer)}</div></div>
+      <div><div class="l">Beleg</div><div class="w mono">${esc(belegNr)}</div></div>
+      <div><div class="l">Ausführungstag</div><div class="w">${esc(datum(ausfuehrungstag, true))}</div></div>
+      <div><div class="l">Zahlungsart</div><div class="w">SEPA-Überweisung (SCT)</div></div>
+      <div><div class="l">Währung</div><div class="w">EUR</div></div>
+    </div>
+    <div class="parteien" style="margin-top:5mm">
+      <div class="partei">
+        <div class="rolle">Auftraggeber</div>
+        <div class="name">${esc(FIRMA)}</div>
+        <div class="zusatz">Company No. 17318250</div>
+        <div class="zusatz">128 City Road · London EC1V 2NX · United Kingdom</div>
+        <div class="zusatz">Ausführende Stelle: Buchhaltung</div>
+        <div class="zusatz" style="white-space:nowrap">${esc(a.ausfuehrungExtern)}</div>
+      </div>
+      <div class="partei">
+        <div class="rolle">Zahlungsempfänger</div>
+        <div class="name">${esc(a.empfaenger)}</div>
+        <div class="iban">${esc(ibanHuebsch(a.iban))}</div>
+        <div class="zusatz">${a.bic ? `BIC ${esc(a.bic)}` : "BIC nicht angegeben (SEPA: IBAN genügt)"}</div>
+      </div>
+    </div>
+    <div class="betrag">
+      <div>
+        <div class="l">Überwiesener Betrag</div>
+        <div class="z">${geld(a.betragCents)}<small>EUR</small></div>
+      </div>
+      <div class="status">Ausgeführt · ${esc(datum(ausfuehrungstag))}</div>
+    </div>
+    <h2>Zahlungsdetails</h2>
+    <table class="kv">
+      <tr><th>Verwendungszweck (an die Bank)</th><td>${esc(bankZweck(a))}</td></tr>
+      ${a.kategorie ? `<tr><th>Art der Zahlung</th><td>${esc(a.kategorie)}</td></tr>` : ""}
+      ${a.payoutId ? `<tr><th>Mitarbeiter-Auszahlung</th><td class="mono">FIAON-AUS-${a.payoutId}</td></tr>` : ""}
+      ${abrechnung ? `<tr><th>Abrechnung</th><td class="mono">${esc(abrechnung)}</td></tr>` : ""}
+      <tr><th>Ausführung bestätigt</th><td>${esc(wann(a.externBestaetigtAm))} · <span style="white-space:nowrap">${esc(a.ausfuehrungExtern)}</span></td></tr>
+      ${ausfuehrungstag ? `<tr><th>Erwartete Gutschrift</th><td>bis ${esc(datum(plusBankarbeitstage(ausfuehrungstag, 3), true))} (1–3 Bankarbeitstage, keine Echtzeitüberweisung)</td></tr>` : ""}
+    </table>
+    ${zeigePos ? `
+    <h2>Enthaltene Positionen</h2>
+    <table class="liste">
+      <thead><tr><th>Datum</th><th>Referenz</th><th>Paket</th><th>Art</th><th class="r">Betrag EUR</th></tr></thead>
+      <tbody>
+        ${positionen.map((p) => `<tr>
+          <td class="n">${esc(datum(new Date(p.created_at).toISOString()))}</td>
+          <td class="mono">${esc(p.payment_reference || p.ref || "—")}</td>
+          <td>${esc(p.pack_name || "—")}</td>
+          <td>${esc(ART_POSITION[String(p.kind || "own")] ?? String(p.kind || "Provision"))}${p.note ? `<span class="klein">${esc(String(p.note).slice(0, 90))}</span>` : ""}</td>
+          <td class="r">${geld(Number(p.amount_cents || 0))}</td>
+        </tr>`).join("")}
+        <tr class="summe"><td colspan="4">Summe der Positionen${summePos !== a.betragCents ? ` (überwiesen ${geld(a.betragCents)})` : ""}</td><td class="r">${geld(summePos)}</td></tr>
+      </tbody>
+    </table>` : positionen.length > 40 ? `<p class="fein" style="margin-top:3mm">${positionen.length} Positionen — die vollständige Aufstellung steht in der Abrechnung ${esc(abrechnung || "")}.</p>` : ""}
+    <h2>Freigabe und Ausführung</h2>
+    <table class="liste kette">
+      <thead><tr><th></th><th>Schritt</th><th>Person · Stelle</th><th>Zeitpunkt</th></tr></thead>
+      <tbody>
+        ${kette.map((k) => `<tr class="fertig">
+          <td class="punkt"><i></i></td>
+          <td class="schritt">${esc(k.schritt)}<span class="nachweis">${esc(k.nachweis)}</span></td>
+          <td>${esc(k.wer)}${k.werZusatz ? `<span class="nachweis" style="white-space:nowrap">${esc(k.werZusatz)}</span>` : ""}</td>
+          <td class="n">${esc(k.wann)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+    <div class="vermerk">
+      <b>Hinweis zur Gutschrift.</b> Die Zahlung wurde als SEPA-Überweisung (SEPA Credit Transfer) ausgeführt, nicht als
+      Echtzeitüberweisung. Die Gutschrift auf dem Konto des Empfängers erfolgt in der Regel innerhalb von 1–3 Bankarbeitstagen
+      nach dem Ausführungstag. Maßgeblich ist die Buchung beim Empfänger unter der oben genannten Transaktionsreferenz.
+    </div>
+    <div class="siegelzeile">
+      <p class="fein" style="margin:0;max-width:128mm">
+        Aussteller dieses Belegs ist die ${FIRMA}, Company No. 17318250, 128 City Road, London EC1V 2NX, United Kingdom.
+        Der Beleg dokumentiert Erfassung, Freigabe und die von der ausführenden Buchhaltung bestätigte Ausführung der
+        genannten SEPA-Überweisung. Er ist kein Kontoauszug und keine Bestätigung eines Kreditinstituts. Der Prüfwert in
+        der Fußzeile sichert die Sachdaten dieses Belegs. Maschinell erstellt und ohne Unterschrift gültig.
+      </p>
+      <span class="stempel">Ausgeführt</span>
+    </div>`;
+
+  const pdf = await drucken({ art: "Zahlungsverkehr · SEPA-Überweisung", titel: "Durchführungsbeleg", nummer: belegNr, ausgestellt: jetzt, inhalt, rosette: true }, pruef, "Durchführungsbeleg");
+  const { docHash } = await import("./fiaon-html-pdf");
+  await sqlPool`
+    UPDATE fiaon_buch_auftrag SET bestaetigung_base64 = ${pdf.toString("base64")}, bestaetigung_hash = ${docHash(pdf.toString("base64"))}
+     WHERE id = ${a.id}`;
   return pdf;
 }
 

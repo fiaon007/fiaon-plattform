@@ -27,7 +27,8 @@ const INTERN = /^\/(agent|admin|chef|akte|Admindashboard|admindashboard|onboardi
 // anderen Seiten gegebene Einwilligung wird dort nicht angewendet (messungStarten bleibt aus).
 // 08.10.2026: Ebenso die Empfängerseite „Zugang übergeben“ — dort steht ein Start-Passwort im Bild; eine
 // Sitzungsaufzeichnung (Clarity) darf es nie sehen, auch nicht mit einer früher gegebenen Einwilligung.
-const OHNE_MESSUNG = /^\/(business\/angebot|zugang\/uebergabe)(\/|$)/;
+// 13.10.2026: Ebenso „Auszahlung ausführen“ der Buchhaltung — dort stehen volle IBAN und Empfänger im Bild.
+const OHNE_MESSUNG = /^\/(business\/angebot|zugang\/uebergabe|auszahlung-ausfuehren)(\/|$)/;
 
 export default function EinwilligungsHinweis() {
   // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).

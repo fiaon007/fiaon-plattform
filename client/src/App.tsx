@@ -31,6 +31,8 @@ const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
 const ZugangSetzenPage = lazy(() => import("@/pages/zugang-setzen"));
 // 08.10.2026: Zugang digital übergeben — Empfängerseite (Token im Anker, Passwort erst nach dem Code).
 const ZugangUebergabePage = lazy(() => import("@/pages/zugang-uebergabe"));
+// 13.10.2026: Die Buchhaltung bestätigt eine freigegebene Auszahlung (Token-Link aus ihrer Mail).
+const AuszahlungAusfuehrenPage = lazy(() => import("@/pages/auszahlung-ausfuehren"));
 const WasIstFiaonPage = lazy(() => import("@/pages/site/was-ist-fiaon"));
 const PlattformKonzeptPage = lazy(() => import("@/pages/site/plattform-konzept"));
 import LoginPage from "@/pages/login";
@@ -807,6 +809,8 @@ function Router() {
       <Route path="/scp-datenraum" component={ScpDatenraum} />
       {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
+      {/* Ausführung einer freigegebenen Auszahlung durch die Buchhaltung — kein Login, das Token ist der Ausweis. */}
+      <Route path="/auszahlung-ausfuehren/:token" component={AuszahlungAusfuehrenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
       {/* Vor /termin/:token — sonst hielte der Platzhalter „justin" für ein Token. */}
       <Route path="/justin" component={GruenderTerminPage} />

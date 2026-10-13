@@ -52,7 +52,6 @@ const api = (url: string, opts: RequestInit = {}) => fetch(url, {
   credentials: "include",
   headers: {
     ...(opts.headers as Record<string, string> ?? {}),
-    "x-admin-token": "fiaon-admin-2024",
   },
 });
 

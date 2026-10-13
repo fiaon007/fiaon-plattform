@@ -16,6 +16,7 @@ import { bestandHeuteSql, bestandSql } from "../lib/fiaon-bestand-filter";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { istVertriebsleiter } from "./fiaon-vertrieb";
 import { alleTrefferIds, filterZahlen, kundenListe, type Filter } from "../lib/fiaon-kundenzentrale";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 import { ausfuehren, vorschau } from "../lib/fiaon-loeschen";
 import { alsTestMarkieren, testMarkierungAufheben } from "../lib/fiaon-testerkennung";
 import { agentMitKleinsterLast } from "../lib/fiaon-zuteilung";
@@ -296,7 +297,18 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
     // Typ- und kein Syntaxfehler ist. Nur der Browser hätte es gezeigt, und
     // dorthin habe ich nicht geschaut.
     // ══════════════════════════════════════════════════════════════════════
+    // E-343 (13.10.2026): „Umsatz Monat" und „Abschlüsse" je Karte aus der EINEN Umsatzquelle
+    // (Berliner Monat, je zugeordnetem Mitarbeiter; Abschluss = Rate 1 oder Einmalkauf). Vorher
+    // Provisionszeilen ab UTC-Monatsanfang, Stornos eingeschlossen — und seit die Automatik aus ist
+    // (24.09.) fast leer: Oktober 414,99 € statt 3.862,51 €.
     const zeilen = (await sqlPool.unsafe(`
+      WITH um AS (
+        SELECT q.agent_id, COALESCE(SUM(q.cents), 0)::bigint AS cents, COUNT(*) FILTER (WHERE q.erste)::int AS abschluesse
+          FROM (${UMSATZ_QUELLE_SQL}) q
+         WHERE q.agent_id IS NOT NULL
+           AND date_trunc('month', q.am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')
+         GROUP BY q.agent_id
+      )
       SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), a.name) AS vorname, a.email,
              a.avatar, a.rolle, a.active, a.distribution_active, a.is_test_account,
              a.commission_rate_bp, a.monthly_goal_cents, a.last_login_at, a.bank_iban_masked,
@@ -329,12 +341,8 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
              (SELECT COUNT(*)::int FROM fiaon_contact_log cl
                WHERE cl.agent_id = a.id AND cl.type = 'result' AND cl.outcome IS NOT NULL
                  AND cl.created_at >= NOW() - INTERVAL '30 days') AS anrufe30,
-             (SELECT COUNT(*)::int FROM fiaon_commissions c
-               WHERE c.agent_id = a.id
-                 AND c.created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')) AS abschluesse_monat,
-             (SELECT COALESCE(SUM(c.base_amount_cents), 0)::bigint FROM fiaon_commissions c
-               WHERE c.agent_id = a.id
-                 AND c.created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')) AS umsatz_monat_cents,
+             COALESCE((SELECT um.abschluesse FROM um WHERE um.agent_id = a.id), 0)::int AS abschluesse_monat,
+             COALESCE((SELECT um.cents FROM um WHERE um.agent_id = a.id), 0)::bigint AS umsatz_monat_cents,
              (SELECT COALESCE(SUM(c.amount_cents), 0)::bigint FROM fiaon_commissions c
                WHERE c.agent_id = a.id AND c.status = 'bestaetigt') AS offen_cents,
              (SELECT COALESCE(SUM(c.amount_cents), 0)::bigint FROM fiaon_commissions c

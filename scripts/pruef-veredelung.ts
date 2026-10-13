@@ -279,21 +279,28 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("8. Wirtschaftlichkeit");
   // ═══════════════════════════════════════════════════════════════════════
-  const [wa] = (await sqlPool`
-    SELECT agent_id FROM fiaon_commissions WHERE status <> 'storniert'
-    GROUP BY agent_id ORDER BY COUNT(*) DESC LIMIT 1
-  `) as any[];
+  // E-343: der Mitarbeiter mit den meisten gebuchten Kundenzahlungen (über die Umsatzquelle — Provisionen gibt es
+  // ohne Provisionsautomatik keine neuen, und lokale Kopien haben oft gar keine).
+  const { UMSATZ_QUELLE_SQL: QUELLE_W } = await import("../server/lib/fiaon-umsatz-quelle");
+  const [wa] = (await sqlPool.unsafe(`
+    WITH q AS (${QUELLE_W}) SELECT agent_id FROM q WHERE agent_id IS NOT NULL
+    GROUP BY agent_id ORDER BY COUNT(*) DESC LIMIT 1`)) as any[];
+  if (!wa) throw new Error("Keine gebuchte Kundenzahlung mit zuständigem Mitarbeiter in dieser Datenbank.");
   const w = await wirtschaftlichkeit(Number(wa.agent_id));
 
   // DIE ZÄHLPROBE: Der Monatsumsatz muss GENAU dem entsprechen, was die
   // Rangliste rechnet. Zwei Zahlen auf derselben Seite, die sich um drei Euro
   // unterscheiden, kosten mehr Vertrauen als die ganze Ansicht wert ist.
-  const [ref] = (await sqlPool`
-    SELECT COALESCE(SUM(base_amount_cents) FILTER (WHERE amount_cents > 0 AND status != 'storniert'), 0)::bigint AS revenue
-    FROM fiaon_commissions WHERE agent_id = ${wa.agent_id}
-      AND created_at >= date_trunc('month', CURRENT_DATE)
-  `) as any[];
-  gleich("Keine zweite Umsatzzählung", w.monat.beitrag, Number(ref.revenue));
+  // E-343 (13.10.2026): Beitrag = gebuchte Zahlungen der Kunden dieses Mitarbeiters aus der EINEN Umsatzquelle
+  // (vorher Provisionsbasis — die sah ohne Provisionsautomatik nichts, Oktober 414,99 € statt 3.862,51 €).
+  const { UMSATZ_QUELLE_SQL } = await import("../server/lib/fiaon-umsatz-quelle");
+  const [ref] = (await sqlPool.unsafe(`
+    WITH q AS (${UMSATZ_QUELLE_SQL})
+    SELECT COALESCE(SUM(cents), 0)::bigint AS revenue FROM q
+     WHERE agent_id = $1
+       AND date_trunc('month', am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')
+       AND am <= NOW()`, [Number(wa.agent_id)])) as any[];
+  gleich("Keine zweite Umsatzzählung (Beitrag = Umsatzquelle)", w.monat.beitrag, Number(ref.revenue));
 
   gleich("Der Verlauf umfasst 30 Tage", w.verlauf.length, 30);
   ok("Es gibt einen Klartext-Satz", w.satz.length > 10, w.satz);
@@ -552,8 +559,18 @@ async function main(): Promise<void> {
         INSERT INTO fiaon_commissions (agent_id, ref, base_amount_cents, rate_bp, amount_cents, status, kind)
         VALUES (${a.id}, ${`V-${stempel}`}, 20000, 1500, 3000, 'bestaetigt', 'own')
       `;
+      // E-343: Eine Provision allein ist kein Umsatz — der Beitrag kommt aus der gebuchten Zahlung des Kunden.
+      const wP = await wirtschaftlichkeit(Number(a.id), undefined, tx as any);
+      gleich("Provision allein bringt keinen Beitrag (E-343)", wP.beitrag, 0);
+      await tx`
+        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_key, pack_name, amount_due,
+                                        payment_status, password, assigned_agent_id, completed_at, created_at, updated_at)
+        VALUES (${`V-${stempel}-E343`}, 'business', 'payment_completed', 'Prüf', ${`Vered${stempel}`},
+                ${`e343-${stempel}@pruefstand.test`.toLowerCase()}, 'llc_paket', 'Prüf-Einmalkauf', 200.00,
+                'paid', 'x', ${a.id}, NOW() - INTERVAL '1 minute', NOW(), NOW())
+      `;
       const w3 = await wirtschaftlichkeit(Number(a.id), undefined, tx as any);
-      gleich("Beitrag ist der Auftragswert", w3.beitrag, 20000);
+      gleich("Beitrag ist die gebuchte Zahlung des Kunden", w3.beitrag, 20000);
       gleich("Kosten = Gehaltsanteil + Provision", w3.kosten.gesamt, 12000 + 3000);
       ok("… gedeckt, mit Uhrzeit", !!w3.gedecktAb, String(w3.gedecktAb));
       ok("… und der Satz nennt sie", /gedeckt ab/.test(w3.satz), w3.satz);

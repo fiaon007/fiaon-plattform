@@ -722,45 +722,13 @@ export async function computeLage(): Promise<any> {
   // verschiedene Tage beziehen und die Summen widersprächen sich.
   const heute = berlinToday();
 
-  // 1) Umsatz heute / gestern / Monat — amount_due ist EUR-numeric, daher × 100.
-  const [umsatz] = await sqlPool`
-    SELECT
-      COUNT(*) FILTER (WHERE tag = ${heute}::date)::int                        AS heute_anzahl,
-      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag = ${heute}::date), 0) * 100) AS heute_cents,
-      COUNT(*) FILTER (WHERE tag = ${heute}::date - 1)::int                    AS gestern_anzahl,
-      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag = ${heute}::date - 1), 0) * 100) AS gestern_cents,
-      COUNT(*) FILTER (WHERE tag >= date_trunc('month', ${heute}::date)::date)::int AS monat_anzahl,
-      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag >= date_trunc('month', ${heute}::date)::date), 0) * 100) AS monat_cents,
-      COUNT(*)::int                                                           AS gesamt_anzahl,
-      ROUND(COALESCE(SUM(betrag), 0) * 100)                                   AS gesamt_cents
-    FROM (
-      SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag, amount_due AS betrag
-      FROM fiaon_applications
-      WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE)
-        AND merged_into IS NULL AND completed_at IS NOT NULL
-    ) x
-  `;
-
-  // 1b) Verlauf der letzten 14 Tage. Eine Tageszahl allein sagt nichts — erst
-  //     die Reihe zeigt, ob heute ein guter oder ein schwacher Tag ist. Tage
-  //     ohne Zahlung müssen als 0 auftauchen, sonst zieht die Linie eine Lücke
-  //     glatt und ein Ausfall wird unsichtbar: daher generate_series + LEFT JOIN.
-  const verlauf = await sqlPool`
-    SELECT reihe.tag::date AS tag,
-           COALESCE(z.anzahl, 0)::int AS anzahl,
-           ROUND(COALESCE(z.summe, 0) * 100) AS cents
-    FROM generate_series(${heute}::date - 13, ${heute}::date, INTERVAL '1 day') AS reihe(tag)
-    LEFT JOIN (
-      SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag,
-             COUNT(*) AS anzahl, SUM(amount_due) AS summe
-      FROM fiaon_applications
-      WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE)
-        AND merged_into IS NULL AND completed_at IS NOT NULL
-        AND (completed_at AT TIME ZONE 'Europe/Berlin')::date >= ${heute}::date - 13
-      GROUP BY 1
-    ) z ON z.tag = reihe.tag::date
-    ORDER BY reihe.tag
-  `;
+  // 1) Umsatz heute / gestern / Monat / 14 Tage — aus der EINEN Quelle (E-343, 13.10.2026).
+  //    Justin, 13.10. morgens: „wir haben heute bereits Geld eingenommen und hier steht 0“. Diese Kachel summierte
+  //    fiaon_applications.amount_due nach completed_at — also nur Erstzahlungen von Bestellungen, keine einzige
+  //    Monatsrate (heute 179,98 € aus zwei Raten → „0,00 €“, Oktober 2.116,75 € statt 3.862,51 €), ohne Testfilter.
+  //    Jetzt dieselbe Funktion wie Lagezimmer, Wert-Raum und Zahlungszentrale: umsatzBausteine().
+  const { umsatzBausteine, geldAbgleich } = await import("./fiaon-chef-zahlen");
+  const [ub, abgleich] = await Promise.all([umsatzBausteine(), geldAbgleich().catch(() => null)]);
 
   // 2) Provisionen je Agent — Rangliste nach Monat. Testkonten bleiben draussen,
   //    stornierte Provisionen zählen nicht. `own` = Eigenabschluss (die Zahl, die
@@ -836,15 +804,14 @@ export async function computeLage(): Promise<any> {
 
   return {
     umsatz: {
-      heute: { anzahl: zahl(umsatz.heute_anzahl), cents: zahl(umsatz.heute_cents) },
-      gestern: { anzahl: zahl(umsatz.gestern_anzahl), cents: zahl(umsatz.gestern_cents) },
-      monat: { anzahl: zahl(umsatz.monat_anzahl), cents: zahl(umsatz.monat_cents) },
-      gesamt: { anzahl: zahl(umsatz.gesamt_anzahl), cents: zahl(umsatz.gesamt_cents) },
-      verlauf: verlauf.map((v: any) => ({
-        tag: typeof v.tag === "string" ? v.tag : new Date(v.tag).toISOString().slice(0, 10),
-        anzahl: zahl(v.anzahl), cents: zahl(v.cents),
-      })),
+      heute: { anzahl: ub.heuteAnzahl, cents: ub.heuteCents },
+      gestern: { anzahl: ub.gesternAnzahl, cents: ub.gesternCents },
+      monat: { anzahl: ub.monatAnzahl, cents: ub.monatCents },
+      gesamt: { anzahl: ub.gesamtAnzahl, cents: ub.gesamtCents },
+      verlauf: ub.tage,
     },
+    // E-343: Bank gegen Buchung — steht unter „Heute eingenommen“.
+    abgleich,
     // Team-Provision: was vom Umsatz an die Agenten geht. Netto = Umsatz − Provision.
     provision: {
       heuteCents: agenten.reduce((s: number, a: any) => s + zahl(a.heute_cents), 0),
@@ -982,25 +949,27 @@ router.get("/admin/hub/liste", async (req, res) => {
         LIMIT ${limit}
       `, filter ? [heute] : []);
     } else if (art.startsWith("bezahlt")) {
+      // E-343: Die Liste hinter „Heute eingenommen — wer?“ zeigt GENAU die Zeilen der Summe (umsatzBausteine):
+      // Raten, Auskünfte, Global-Einmalkäufe — vorher nur Bestellungen nach completed_at.
+      const { UMSATZ_QUELLE_SQL } = await import("./fiaon-chef-zahlen");
       const zeitraum = art === "bezahlt-heute"
-        ? `AND (a.completed_at AT TIME ZONE 'Europe/Berlin')::date = $1::date`
+        ? `AND (q.am AT TIME ZONE 'Europe/Berlin')::date = $1::date`
         : art === "bezahlt-monat"
-          ? `AND (a.completed_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`
+          ? `AND (q.am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`
           : "";
-      // Parameter nur mitgeben, wenn der Zeitraum-Filter ihn wirklich benutzt:
-      // bei „alle" fällt der Filter weg, und ein übergebener, nie referenzierter
-      // Platzhalter lässt Postgres mit „could not determine data type of
-      // parameter $1" abbrechen.
+      // Parameter nur mitgeben, wenn der Zeitraum-Filter ihn wirklich benutzt (sonst „could not determine data type of $1").
       rows = await sqlPool.unsafe(`
+        WITH q AS (${UMSATZ_QUELLE_SQL})
         SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
-               a.amount_due, ${PAKET_SQL} AS paket, a.completed_at AS datum,
-               ag.name AS agent_name, 0 AS tage_alt
-        FROM fiaon_applications a
+               ROUND(q.cents / 100.0, 2) AS amount_due,
+               CONCAT_WS(' · ', CASE q.art WHEN 'rate' THEN 'Rate ' || q.rate_nr WHEN 'auskunft' THEN 'Bonitätsauskunft'
+                 ELSE 'FIAON Global' END, ${PAKET_SQL}) AS paket,
+               q.am AS datum, ag.name AS agent_name, 0 AS tage_alt
+        FROM q
+        JOIN fiaon_applications a ON a.ref = q.ref
         LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
-        WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
-          AND a.merged_into IS NULL AND a.completed_at IS NOT NULL
-          ${zeitraum}
-        ORDER BY a.completed_at DESC
+        WHERE TRUE ${zeitraum}
+        ORDER BY q.am DESC
         LIMIT ${limit}
       `, zeitraum ? [heute] : []);
     } else if (art === "offen-alle" || art === "offen-ohne-reaktion" || art === "abgelaufen") {

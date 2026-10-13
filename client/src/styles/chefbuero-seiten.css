@@ -422,3 +422,37 @@
 /* AUSDRÜCKLICH NICHT ÜBERSETZT: die Balken der Buchhaltung (rot-300, grün).
    Das ist ein Diagramm. Ein Diagramm, dem man die Farben nimmt, ist nicht
    dunkel, sondern kaputt. */
+
+/* ═══ E-343 (13.10.2026): RUHIGE FARBEN IM GANZEN CHEFBÜRO ═══════════════════
+   Justin: „Warum ist die Seite überhaupt so bunt? Ich muss unsere Zahlen,
+   Daten, Fakten immer 100 % zuverlässig haben." — und seit 09.10.: kein Gold,
+   Glasblau. Die Übersetzung oben machte aus jedem Orange/Gelb der alten
+   Seiten leuchtendes Gold (#fcd34d). Ab hier gilt: Fläche und Schrift neutral,
+   Farbe nur als kleiner Punkt (Ampel) und als Rot für echte Fehlbeträge.
+   Diese Regeln stehen am ENDE der Datei und gewinnen deshalb. */
+.cbs .bg-amber-50, .cbs .bg-yellow-50, .cbs .bg-orange-50,
+.cbs .bg-amber-100, .cbs .bg-yellow-100, .cbs .bg-orange-100,
+.cbs .bg-emerald-50, .cbs .bg-green-50, .cbs .bg-emerald-100, .cbs .bg-green-100,
+.cbs .bg-violet-50, .cbs .bg-purple-50, .cbs .bg-violet-100, .cbs .bg-purple-100 { background-color: rgba(255, 255, 255, .045) !important; }
+.cbs .text-amber-600, .cbs .text-amber-700, .cbs .text-amber-800, .cbs .text-amber-900,
+.cbs .text-orange-600, .cbs .text-orange-700, .cbs .text-orange-900,
+.cbs .text-yellow-800, .cbs .text-yellow-900,
+.cbs .text-violet-700, .cbs .text-purple-700 { color: #e2e8f0 !important; }
+.cbs .text-emerald-600, .cbs .text-emerald-700, .cbs .text-emerald-800, .cbs .text-emerald-900,
+.cbs .text-green-600, .cbs .text-green-700, .cbs .text-green-800, .cbs .text-green-900 { color: #cbe9dc !important; }
+.cbs .border-amber-200, .cbs .border-yellow-200, .cbs .border-orange-200,
+.cbs .border-emerald-200, .cbs .border-green-200 { border-color: rgba(255, 255, 255, .1) !important; }
+.cbs [style*="background:#fffbf5"] { background: rgba(255, 255, 255, .045) !important; border-color: rgba(255, 255, 255, .1) !important; }
+.cbs [style*="background: rgb(255, 251, 245)"] * { color: #e2e8f0 !important; }
+.cbs button[style*="color: rgb(217, 119, 6)"] { color: #e2e8f0 !important; }
+
+/* Kennzahl-Karten der Tagesübersicht: keine farbigen Seitenstreifen mehr — nur „Warnung" behält einen roten Punkt. */
+.cbs .a3-kachel[data-ton]::before { display: none !important; }
+.cbs .a3-kachel[data-ton="warnung"]::after {
+  content: ""; position: absolute; top: 14px; right: 40px; width: 6px; height: 6px; border-radius: 50%; background: #f87171;
+}
+
+/* Hinweis-Karten (admin-hub): dunkles Glas, Punkt statt Farbfläche. */
+.cbs .a3-hinweis { background: rgba(15, 23, 42, .42) !important; border-color: rgba(255, 255, 255, .1) !important; }
+.cbs .a3-hinweis-titel { color: #f1f5f9 !important; }
+.cbs .a3-hinweis-zeile { background: rgba(255, 255, 255, .04) !important; color: #cbd5e1 !important; }

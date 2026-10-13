@@ -42,7 +42,10 @@ interface AboUebersicht {
   ueberfaellig: { anzahl: number; cents: number };
   entscheidung: number;
   zustellfehler: number;
+  /** Folgeraten (Rate 2 ff.) im laufenden Monat. */
   monatBezahlt: { anzahl: number; cents: number };
+  /** E-343: alle gebuchten Zahlungen im laufenden Monat (eine Umsatzquelle). */
+  monatUmsatz?: { anzahl: number; cents: number };
   laufend: { abos: number; cents: number };
   ohneKette: number;
   motorAktiv: boolean;
@@ -239,7 +242,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
 
   const kacheln = u ? [
     { label: "Laufender Monatsumsatz", wert: eur(u.laufend.cents), unter: `${u.laufend.abos} aktive Abos`, ton: "geld" as const,
-      hilfe: "Summe der monatlichen Paketraten aller laufenden Abos — das ist der Umsatz, der bei gleichbleibendem Bestand jeden Monat wiederkommt." },
+      hilfe: "Summe der Monatsraten aller aktiven Abos (bezahlt, nicht gestoppt, storniert oder erstattet, ohne Einmalkäufe und Testkonten) — derselbe MRR wie unter Verdienst & Wert. Das ist der Umsatz, der bei gleichbleibendem Bestand jeden Monat wiederkommt." },
     { label: "Heute fällig", wert: String(u.heute.anzahl), unter: eurGlatt(u.heute.cents), ton: undefined,
       hilfe: "Raten mit Fälligkeitsdatum heute. Am Fälligkeitstag geht Mahnstufe 1 raus." },
     { label: "Nächste 7 Tage", wert: String(u.woche.anzahl), unter: eurGlatt(u.woche.cents), ton: undefined,
@@ -247,8 +250,13 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
     { label: "Überfällig", wert: String(u.ueberfaellig.anzahl), unter: eurGlatt(u.ueberfaellig.cents),
       ton: u.ueberfaellig.anzahl > 0 ? ("warnung" as const) : undefined,
       hilfe: "Fälligkeitstag verstrichen, Zahlung nicht gebucht. Nach Stufe 3 (14 Tage) endet der automatische Versand und der Fall wartet auf deine Entscheidung." },
-    { label: "Diesen Monat bezahlt", wert: eurGlatt(u.monatBezahlt.cents), unter: `${u.monatBezahlt.anzahl} Raten`, ton: "geld" as const,
-      hilfe: "Bereits gebuchte Monatsraten im laufenden Kalendermonat (ohne Erstzahlungen)." },
+    // E-343 (13.10.2026): der ganze Monatsumsatz aus der einen Quelle (wie Lagezimmer); Folgeraten als Unterzeile.
+    { label: "Diesen Monat bezahlt", wert: eur((u.monatUmsatz ?? u.monatBezahlt).cents),
+      unter: u.monatUmsatz
+        ? `${u.monatUmsatz.anzahl} Zahlungen · davon Folgeraten ${eurGlatt(u.monatBezahlt.cents)}`
+        : `${u.monatBezahlt.anzahl} Raten`,
+      ton: "geld" as const,
+      hilfe: "Alles, was im laufenden Kalendermonat (Berliner Zeit) gebucht eingegangen ist: Raten, Erstzahlungen und Einmalkäufe, ohne Testkonten — dieselbe Zahl wie im Lagezimmer. Die Unterzeile nennt davon die Folgeraten (Rate 2 ff.)." },
   ] : [];
 
   return (

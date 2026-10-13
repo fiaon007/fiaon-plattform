@@ -57,6 +57,8 @@ const monatsName = (m: string) => {
 interface Lage {
   stand: string;
   geld: {
+    /** E-343: Bank gegen Buchung. */
+    abgleich?: { heute: { bankCents: number; gebuchtCents: number }; monat: { bankCents: number; gebuchtCents: number }; offenAnzahl: number; offenCents: number; stimmt: boolean } | null;
     eingangHeute: number; eingangWoche: number; eingangMonat: number;
     eingangVormonat: number; eingangJahr: number; eingangGesamt: number;
     ratenOffen: number; ratenUeberfaellig: number; ueberfaelligSumme: number;
@@ -266,6 +268,19 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
           )}
           {l.geld.eingangHeute > 0 && (
             <span className="cl-pille heute">Heute bereits <b>{eur(l.geld.eingangHeute)}</b></span>
+          )}
+          {/* E-343: Stimmt die Zahl mit der Bank überein? Justin: „Ich muss mich darauf verlassen können." */}
+          {l.geld.abgleich && (
+            <span className="cl-pille still" title="Bank = Kundengeld-Eingänge auf dem Geschäftskonto heute; gebucht = derselbe Umsatz wie oben.">
+              <span className="cl-abgleich-punkt" data-stimmt={l.geld.abgleich.stimmt ? "1" : "0"} />
+              Bank heute <b>{eur(l.geld.abgleich.heute.bankCents)}</b> · gebucht <b>{eur(l.geld.abgleich.heute.gebuchtCents)}</b>
+              {l.geld.abgleich.heute.bankCents === l.geld.abgleich.heute.gebuchtCents ? " ✓" : ""}
+            </span>
+          )}
+          {l.geld.abgleich && l.geld.abgleich.offenAnzahl > 0 && (
+            <a className="cl-pille still" href="/chef/s/konto">
+              {l.geld.abgleich.offenAnzahl} {l.geld.abgleich.offenAnzahl === 1 ? "Eingang" : "Eingänge"} ({eur(l.geld.abgleich.offenCents)}) noch nicht zugebucht →
+            </a>
           )}
         </div>
       </section>

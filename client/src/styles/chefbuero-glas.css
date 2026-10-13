@@ -217,3 +217,10 @@
 .cb.cb-glas .cbs .dk-meldung { background: rgba(40, 141, 250, .1) !important; color: #bfdbfe !important; }
 /* Buchhaltung: helle Tabellen-Kopfzeile. */
 .cb.cb-glas .cbs tr[style*="background: rgb(248, 249, 251)"], .cb.cb-glas .cbs thead tr { background: rgba(255, 255, 255, .04) !important; }
+
+/* ── E-343 (13.10.2026): kein Gold — Orange-/Braun-Schrift der alten Seiten wird neutral (Justin: „Warum so bunt?"). ── */
+.cb.cb-glas .cbs [style*="color: rgb(146, 64, 14)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]),
+.cb.cb-glas .cbs [style*="color: rgb(120, 53, 15)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]),
+.cb.cb-glas .cbs [style*="color: rgb(180, 83, 9)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]),
+.cb.cb-glas .cbs [style*="color: rgb(217, 119, 6)"]:not([style*="background: rgb(2"]):not([style*="background-color: rgb(2"]) { color: #e2e8f0 !important; }
+.cb.cb-glas .cbs .dk-fehlt[data-benoetigt="1"] { color: #f1f5f9 !important; }

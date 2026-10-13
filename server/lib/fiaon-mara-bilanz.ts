@@ -26,6 +26,7 @@
 // · Die Kacheln „Zahlung danach" (Steuerpult) und „Wirkung 7 Tage"
 //   (WA-Zentrale) lesen seit E-244 dieselbe Geld-Quelle (geldSql).
 // ═══════════════════════════════════════════════════════════════════════════
+import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import { sqlPool } from "./db-pool";
 import { berichtSql, berichtBauen, type BerichtZeile } from "./fiaon-meta-kosten";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
@@ -68,26 +69,13 @@ export const IST_AUSKUNFT_SQL = (a: string) => `(COALESCE(${a}.type, '') = 'schu
  * exportieren, dann liest diese Datei sie mit).
  */
 export function geldSql(): string {
-  const echt = `a.ref NOT LIKE 'FIAON-TEST%' AND p.ist_test_am IS NULL`;
+  // E-343 (13.10.2026): aus der EINEN Quelle (server/lib/fiaon-umsatz-quelle.ts), wie hier vorgeschlagen —
+  // vorher eine Kopie, der die Firmen-Einzelangebote fehlten (199 €, 11.10.).
   return `
-    SELECT a.person_id, a.ref, r.betrag_cents::bigint AS cents, r.bezahlt_am AS am,
-           CASE WHEN r.rate_nr = 1 THEN 'rate1' ELSE 'rate2plus' END AS art, TRUE AS nur_tag
-      FROM fiaon_abo_raten r
-      JOIN fiaon_applications a ON a.ref = r.ref
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE r.status = 'bezahlt' AND r.bezahlt_am IS NOT NULL AND a.merged_into IS NULL AND ${echt}
-    UNION ALL
-    SELECT a.person_id, a.ref, ROUND(a.amount_due * 100)::bigint, COALESCE(a.paid_at, a.completed_at), 'auskunft', FALSE
-      FROM fiaon_applications a
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-       AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${echt}
-    UNION ALL
-    SELECT a.person_id, a.ref, COALESCE(ROUND(a.amount_due * 100), 0)::bigint, COALESCE(a.paid_at, a.completed_at), 'global', FALSE
-      FROM fiaon_applications a
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-       AND ${produktkategorieSql("a")} = 'global' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${echt}`;
+    SELECT q.person_id, q.ref, q.cents::bigint AS cents, q.am,
+           CASE WHEN q.art = 'rate' THEN (CASE WHEN q.rate_nr = 1 THEN 'rate1' ELSE 'rate2plus' END) ELSE q.art END AS art,
+           (q.art = 'rate') AS nur_tag
+      FROM (${UMSATZ_QUELLE_SQL}) q`;
 }
 
 /**

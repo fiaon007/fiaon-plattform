@@ -18,6 +18,7 @@
 
 import { sqlPool } from "./db-pool";
 import { echtePersonSql } from "./fiaon-bestand-filter";
+import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 // E-IT-B (08.10.2026): „nie gebuchter Kündigungsantrag“ aus der einen Regel.
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 
@@ -177,8 +178,8 @@ const SORT: Record<string, string> = {
   arbeit: "p.priority_tier ASC NULLS LAST, p.updated_at ASC NULLS LAST, p.id ASC",
   neueste: "p.created_at DESC NULLS LAST, p.id DESC",
   name: `${NAME_SQL} ASC`,
-  umsatz: `(SELECT COALESCE(SUM(a.amount_due), 0) FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.payment_status = 'paid') DESC NULLS LAST`,
+  // E-343 (13.10.2026): Umsatz = Summe der EINEN Umsatzquelle je Person (Spalte u.cents, siehe kundenListe).
+  umsatz: "COALESCE(u.cents, 0) DESC, p.id ASC",
 };
 
 export interface ZeilenErgebnis {
@@ -196,7 +197,11 @@ export async function kundenListe(f: Filter, lauf: Lauf = sqlPool): Promise<Zeil
     `SELECT COUNT(*)::int AS n FROM fiaon_persons p WHERE ${wo.join(" AND ")}`, werte as any[],
   )) as any[];
 
+  // E-343 (13.10.2026): „Umsatz" je Person aus der EINEN Umsatzquelle (bezahlte Raten, Auskunft,
+  // Global; ohne Test- und zusammengeführte Bestellungen) — vorher Bestellbetrag bezahlter
+  // Bestellungen: 114 von 508 Personen falsch, Summe 39.085,70 € statt 48.254,39 €.
   const zeilen = (await lauf.unsafe(`
+    WITH u AS (SELECT q.person_id, SUM(q.cents)::bigint AS cents FROM (${UMSATZ_QUELLE_SQL}) q GROUP BY q.person_id)
     SELECT p.id AS person_id, ${NAME_SQL} AS name,
            p.priority_tier, p.tier_reason, p.primary_phone, ${MAIL_SQL} AS email,
            p.created_at, p.updated_at, p.ist_test_am, p.ruhe_seit,
@@ -209,13 +214,13 @@ export async function kundenListe(f: Filter, lauf: Lauf = sqlPool): Promise<Zeil
            (SELECT SPLIT_PART(a.pack_name, E'\\n', 1) FROM fiaon_applications a
              WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.pack_name IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1) AS paket,
-           (SELECT COALESCE(SUM(a.amount_due), 0) FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.payment_status = 'paid') AS umsatz,
+           ROUND(COALESCE(u.cents, 0) / 100.0, 2) AS umsatz,
            (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
              JOIN fiaon_applications a ON a.ref = cl.ref
              WHERE a.person_id = p.id AND cl.type <> 'system') AS letzter_kontakt
     FROM fiaon_persons p
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+    LEFT JOIN u ON u.person_id = p.id
     WHERE ${wo.join(" AND ")}
     ORDER BY ${sort}
     LIMIT ${limit} OFFSET ${offset}

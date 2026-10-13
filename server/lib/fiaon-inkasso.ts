@@ -26,6 +26,7 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinToday, berlinPlusTage } from "./fiaon-time";
+import { ECHT } from "./fiaon-umsatz-quelle";
 // EINE Normalisierung für Anzeige UND Wahl — dieselbe, die der Vertrieb benutzt.
 import { waehlbareNummer } from "./fiaon-telefon";
 
@@ -806,6 +807,13 @@ export async function fristZaehler(
   };
 }
 
+// E-343 (13.10.2026): Die Geld-Kennzahlen zählen nur Raten ECHTER Kunden einer nicht
+// zusammengeführten Bestellung (dieselbe Regel wie die Umsatzquelle). Gemessen 13.10.:
+// 575,91 € des „Überfällig"-Betrags gehörten Testkunden. Die Arbeitsliste (SICHTFELD)
+// bleibt unberührt — hier geht es um die Zahl, nicht um die Liste.
+const ECHTE_RATE = `EXISTS (SELECT 1 FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+                     WHERE a.ref = r.ref AND a.merged_into IS NULL AND ${ECHT})`;
+
 /** Kennzahlen für den Kopf — und für die Übersichten von Leitung und Vorgesetzter. */
 export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, any>> {
   const heute = berlinToday();
@@ -823,7 +831,7 @@ export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, a
       COUNT(*) FILTER (WHERE r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am >= $1::date)::int AS zusagen_aktiv,
       COUNT(*) FILTER (WHERE r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < $1::date)::int AS zusagen_gebrochen,
       COUNT(*) FILTER (WHERE r.eskaliert_am IS NOT NULL)::int AS eskaliert
-    FROM fiaon_abo_raten r WHERE ${SICHTFELD}
+    FROM fiaon_abo_raten r WHERE ${SICHTFELD} AND ${ECHTE_RATE}
   `, [heute, 14 + frist])) as any[];
 
   // ══════════════════════════════════════════════════════════════════════
@@ -842,35 +850,39 @@ export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, a
   // bezahlt wurde. Alles andere ist normaler Zahlungseingang und gehört in
   // die Buchhaltung, nicht in die Kennzahl einer Abteilung.
   // ══════════════════════════════════════════════════════════════════════
+  // E-343: Monat und Zahlungstag in Berliner Zeit (vorher UTC), nur echte Kunden.
   const [m] = (await lauf`
-    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(betrag_cents), 0)::bigint AS cents
-    FROM fiaon_abo_raten
-    WHERE status = 'bezahlt'
-      AND bezahlt_am >= date_trunc('month', ${heute}::date)
+    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(r.betrag_cents), 0)::bigint AS cents
+    FROM fiaon_abo_raten r
+    WHERE r.status = 'bezahlt'
+      AND r.bezahlt_am >= date_trunc('month', ${heute}::date::timestamp) AT TIME ZONE 'Europe/Berlin'
       -- Die Rate war überfällig, als sie bezahlt wurde. Ohne diese Zeile ist
       -- es keine Einzugsleistung, sondern ein Zahlungseingang.
-      AND bezahlt_am::date > faellig_am
+      AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date > r.faellig_am
+      AND ${lauf.unsafe(ECHTE_RATE)}
   `) as any[];
 
   // Der Zahlungseingang OHNE Nachfassen — getrennt ausgewiesen. Beide Zahlen
   // nebeneinander sind ehrlich; eine allein führt in die Irre.
   const [puenktlich] = (await lauf`
-    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(betrag_cents), 0)::bigint AS cents
-    FROM fiaon_abo_raten
-    WHERE status = 'bezahlt'
-      AND bezahlt_am >= date_trunc('month', ${heute}::date)
-      AND bezahlt_am::date <= faellig_am
+    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(r.betrag_cents), 0)::bigint AS cents
+    FROM fiaon_abo_raten r
+    WHERE r.status = 'bezahlt'
+      AND r.bezahlt_am >= date_trunc('month', ${heute}::date::timestamp) AT TIME ZONE 'Europe/Berlin'
+      AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date <= r.faellig_am
+      AND ${lauf.unsafe(ECHTE_RATE)}
   `) as any[];
 
   // Einzugsquote: Von allen Raten, die diesen Monat fällig WAREN, wie viele
   // sind bezahlt? Ohne den Nenner „fällig gewesen" wäre die Zahl bedeutungslos.
   const [q] = (await lauf`
     SELECT COUNT(*)::int AS faellig_gewesen,
-           COUNT(*) FILTER (WHERE status = 'bezahlt')::int AS davon_bezahlt
-    FROM fiaon_abo_raten
-    WHERE faellig_am >= date_trunc('month', ${heute}::date)
-      AND faellig_am <= ${heute}::date
-      AND status <> 'storniert'
+           COUNT(*) FILTER (WHERE r.status = 'bezahlt')::int AS davon_bezahlt
+    FROM fiaon_abo_raten r
+    WHERE r.faellig_am >= date_trunc('month', ${heute}::date::timestamp)::date
+      AND r.faellig_am <= ${heute}::date
+      AND r.status <> 'storniert'
+      AND ${lauf.unsafe(ECHTE_RATE)}
   `) as any[];
 
   return {

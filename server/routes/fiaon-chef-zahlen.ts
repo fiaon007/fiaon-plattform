@@ -36,12 +36,11 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
 import { KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
-import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 
 const router = Router();
 
 /** Echte Kunden: keine Prüfstand-Referenzen, keine als Test markierten Personen. */
-const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NULL, FALSE) = FALSE`;
+import { ECHT, IST_AUSKUNFT, IST_GLOBAL, OHNE_RATEN, UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL IST UMSATZ — ABER KEIN ABO (17.09.2026, E-188)
@@ -57,7 +56,7 @@ const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NUL
 // Bestellung, Betrag der Bestellung, Buchungstag. Getrennt ausgewiesen —
 // Einmalerlös und wiederkehrender Umsatz gehören nie in einen Topf.
 // ═══════════════════════════════════════════════════════════════════════════
-const IST_GLOBAL = `${produktkategorieSql("a")} = 'global'`;
+// E-343: Kategorien und die Umsatzzeilen stehen jetzt in server/lib/fiaon-umsatz-quelle.ts (eine Fassung für Route, Hub und Mara-Bilanz).
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER EINE UMSATZ-BAUSTEIN (27.08.2026, Justins Regel: „ALLE ZAHLEN MÜSSEN
@@ -69,36 +68,29 @@ const IST_GLOBAL = `${produktkategorieSql("a")} = 'global'`;
 // JEDER Umsatzwert im Chefbüro kommt ab jetzt aus DIESER Funktion.
 // Umsatz = bezahlte Raten + bezahlte Bonitätsauskünfte, Testkonten nie.
 // ═══════════════════════════════════════════════════════════════════════════
-const QUELLE = `
-    SELECT r.betrag_cents AS cents, r.bezahlt_am AS am, 'rate' AS art
-      FROM fiaon_abo_raten r
-      JOIN fiaon_applications a ON a.ref = r.ref
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE r.status = 'bezahlt' AND r.bezahlt_am IS NOT NULL
-       AND a.merged_into IS NULL AND ${ECHT}
-    UNION ALL
-    SELECT ROUND(a.amount_due * 100)::int, COALESCE(a.paid_at, a.completed_at), 'auskunft'
-      FROM fiaon_applications a
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-       AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
-       AND ${ECHT}
-    UNION ALL
-    SELECT COALESCE(ROUND(a.amount_due * 100), 0)::int, COALESCE(a.paid_at, a.completed_at), 'global'
-      FROM fiaon_applications a
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-       AND ${IST_GLOBAL} AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
-       AND ${ECHT}`;
+const QUELLE = UMSATZ_QUELLE_SQL;
+export { UMSATZ_QUELLE_SQL };
 
+export interface UmsatzTag { tag: string; anzahl: number; cents: number }
 export async function umsatzBausteine(): Promise<{
   heuteCents: number; wocheCents: number; monatCents: number;
   vormonatCents: number; jahrCents: number; gesamtCents: number;
+  /** E-343: Anzahlen und gestern — die Tagesübersicht liest jetzt auch hier. */
+  heuteAnzahl: number; gesternCents: number; gesternAnzahl: number; monatAnzahl: number; gesamtAnzahl: number;
+  /** E-343: die letzten 14 Berliner Tage, lückenlos (Tage ohne Zahlung = 0). */
+  tage: UmsatzTag[];
   verlauf: { monat: string; ratenCents: number; auskunftCents: number; globalCents: number; zahlungen: number }[];
 }> {
   const [summen] = (await sqlPool.unsafe(`
     WITH q AS (${QUELLE})
     SELECT
+      COUNT(*) FILTER (WHERE (am AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute_n,
+      COALESCE(SUM(cents) FILTER (WHERE (am AT TIME ZONE 'Europe/Berlin')::date
+        = (NOW() AT TIME ZONE 'Europe/Berlin')::date - 1), 0)::bigint AS gestern,
+      COUNT(*) FILTER (WHERE (am AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date - 1)::int AS gestern_n,
+      COUNT(*) FILTER (WHERE date_trunc('month', am AT TIME ZONE 'Europe/Berlin')
+        = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin'))::int AS monat_n,
+      COUNT(*)::int AS gesamt_n,
       COALESCE(SUM(cents) FILTER (WHERE (am AT TIME ZONE 'Europe/Berlin')::date
         = (NOW() AT TIME ZONE 'Europe/Berlin')::date), 0)::bigint AS heute,
       COALESCE(SUM(cents) FILTER (WHERE am > NOW() - INTERVAL '7 days'), 0)::bigint AS woche,
@@ -120,7 +112,17 @@ export async function umsatzBausteine(): Promise<{
            COUNT(*)::int AS zahlungen
       FROM q GROUP BY 1 ORDER BY 1`)) as any[];
 
+  const tage = (await sqlPool.unsafe(`
+    WITH q AS (${QUELLE})
+    SELECT to_char(reihe.tag, 'YYYY-MM-DD') AS tag, COUNT(q.cents)::int AS anzahl, COALESCE(SUM(q.cents), 0)::bigint AS cents
+      FROM generate_series((NOW() AT TIME ZONE 'Europe/Berlin')::date - 13, (NOW() AT TIME ZONE 'Europe/Berlin')::date, INTERVAL '1 day') AS reihe(tag)
+      LEFT JOIN q ON (q.am AT TIME ZONE 'Europe/Berlin')::date = reihe.tag::date
+     GROUP BY reihe.tag ORDER BY reihe.tag`)) as any[];
+
   return {
+    heuteAnzahl: Number(summen.heute_n), gesternCents: Number(summen.gestern), gesternAnzahl: Number(summen.gestern_n),
+    monatAnzahl: Number(summen.monat_n), gesamtAnzahl: Number(summen.gesamt_n),
+    tage: tage.map((t: any) => ({ tag: String(t.tag), anzahl: Number(t.anzahl), cents: Number(t.cents) })),
     heuteCents: Number(summen.heute), wocheCents: Number(summen.woche),
     monatCents: Number(summen.monat), vormonatCents: Number(summen.vormonat),
     jahrCents: Number(summen.jahr), gesamtCents: Number(summen.gesamt),
@@ -132,35 +134,59 @@ export async function umsatzBausteine(): Promise<{
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER ABGLEICH BANK ↔ BUCHUNG (E-343, 13.10.2026)
+//
+// Justin: „Ich muss mich darauf verlassen können, dass alles synchron läuft."
+// Neben jeder Umsatzzahl steht ab jetzt, ob die Bank dasselbe sagt:
+//   bank     Kundengeld auf dem Konto (fiaon_bank_txns, Eingang, nicht „kein Kundengeld“)
+//   gebucht  dieselbe Umsatzquelle wie überall (umsatzBausteine)
+//   offen    Eingänge, die noch keiner Zahlung zugebucht sind (letzte 30 Tage)
+// „stimmt" heißt: heute Bank = gebucht und nichts offen. Kleine Abweichungen
+// haben Gründe (Sammelzahlung, Teilzahlung, Eingang am Monatsende) — die Zahl
+// zeigt sie, statt sie zu verstecken.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface GeldAbgleichTeil { bankCents: number; bankAnzahl: number; gebuchtCents: number; gebuchtAnzahl: number }
+export interface GeldAbgleich {
+  heute: GeldAbgleichTeil; monat: GeldAbgleichTeil;
+  offenAnzahl: number; offenCents: number;
+  stimmt: boolean;
+}
+export async function geldAbgleich(): Promise<GeldAbgleich> {
+  const [b] = (await sqlPool`
+    SELECT
+      COALESCE(SUM(amount_cents) FILTER (WHERE (booked_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date), 0)::bigint AS heute_cents,
+      COUNT(*) FILTER (WHERE (booked_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute_n,
+      COALESCE(SUM(amount_cents) FILTER (WHERE date_trunc('month', booked_at AT TIME ZONE 'Europe/Berlin') = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')), 0)::bigint AS monat_cents,
+      COUNT(*) FILTER (WHERE date_trunc('month', booked_at AT TIME ZONE 'Europe/Berlin') = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin'))::int AS monat_n,
+      COUNT(*) FILTER (WHERE NOT COALESCE(applied, FALSE) AND booked_at > NOW() - INTERVAL '30 days')::int AS offen_n,
+      COALESCE(SUM(amount_cents) FILTER (WHERE NOT COALESCE(applied, FALSE) AND booked_at > NOW() - INTERVAL '30 days'), 0)::bigint AS offen_cents
+    FROM fiaon_bank_txns
+    WHERE amount_cents > 0 AND match_status IS DISTINCT FROM 'ignored'`.catch(() => [{}])) as any[];
+  const u = await umsatzBausteine();
+  const heute = { bankCents: Number(b?.heute_cents ?? 0), bankAnzahl: Number(b?.heute_n ?? 0), gebuchtCents: u.heuteCents, gebuchtAnzahl: u.heuteAnzahl };
+  const monat = { bankCents: Number(b?.monat_cents ?? 0), bankAnzahl: Number(b?.monat_n ?? 0), gebuchtCents: u.monatCents, gebuchtAnzahl: u.monatAnzahl };
+  const offenAnzahl = Number(b?.offen_n ?? 0), offenCents = Number(b?.offen_cents ?? 0);
+  return { heute, monat, offenAnzahl, offenCents, stimmt: heute.bankCents === heute.gebuchtCents && offenAnzahl === 0 };
+}
+
+router.get("/chef/zahlen/abgleich", requireChef("leitung"), async (_req: Request, res: Response) => {
+  try { res.setHeader("Cache-Control", "private, no-store"); res.json({ ok: true, ...(await geldAbgleich()) }); }
+  catch (err) { console.error("[CHEF-ZAHLEN] abgleich", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
 router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Request, res: Response) => {
   try {
+    // E-343: „verdient" aus DERSELBEN Quelle wie heute/Monat — vorher drei eigene Summen mit eigenen Regeln.
     const [verdient] = (await sqlPool.unsafe(`
-      SELECT
-        COALESCE((SELECT SUM(r.betrag_cents) FROM fiaon_abo_raten r
-          JOIN fiaon_applications a ON a.ref = r.ref
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE r.status='bezahlt' AND a.merged_into IS NULL AND ${ECHT}), 0)::bigint AS raten_cents,
-        COALESCE((SELECT COUNT(*) FROM fiaon_abo_raten r
-          JOIN fiaon_applications a ON a.ref = r.ref
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE r.status='bezahlt' AND a.merged_into IS NULL AND ${ECHT}), 0)::int AS raten_anzahl,
-        COALESCE((SELECT SUM(ROUND(a.amount_due * 100)) FROM fiaon_applications a
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE a.payment_status='paid' AND a.merged_into IS NULL
-            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::bigint AS auskunft_cents,
-        COALESCE((SELECT COUNT(*) FROM fiaon_applications a
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE a.payment_status='paid' AND a.merged_into IS NULL
-            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::int AS auskunft_anzahl,
-        -- E-188: FIAON Global — Einmalerlöse, dieselbe Regel wie die Auskunft.
-        COALESCE((SELECT SUM(ROUND(a.amount_due * 100)) FROM fiaon_applications a
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE a.payment_status='paid' AND a.merged_into IS NULL
-            AND ${IST_GLOBAL} AND ${ECHT}), 0)::bigint AS global_cents,
-        COALESCE((SELECT COUNT(*) FROM fiaon_applications a
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-          WHERE a.payment_status='paid' AND a.merged_into IS NULL
-            AND ${IST_GLOBAL} AND ${ECHT}), 0)::int AS global_anzahl
+      WITH q AS (${QUELLE})
+      SELECT COALESCE(SUM(cents) FILTER (WHERE art = 'rate'), 0)::bigint AS raten_cents,
+             COUNT(*) FILTER (WHERE art = 'rate')::int AS raten_anzahl,
+             COALESCE(SUM(cents) FILTER (WHERE art = 'auskunft'), 0)::bigint AS auskunft_cents,
+             COUNT(*) FILTER (WHERE art = 'auskunft')::int AS auskunft_anzahl,
+             COALESCE(SUM(cents) FILTER (WHERE art = 'global'), 0)::bigint AS global_cents,
+             COUNT(*) FILTER (WHERE art = 'global')::int AS global_anzahl
+        FROM q
     `)) as any[];
 
     // Aktive Abos + MRR — und der Vertragsbestand ×12 je Abo.
@@ -315,7 +341,7 @@ router.get("/chef/zahlungszentrale", requireChef("geschaeftsfuehrung"), async (r
             FROM fiaon_applications a
             LEFT JOIN fiaon_persons p ON p.id = a.person_id
            WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-             AND a.ref LIKE 'FIAON-SCHUFA-%'
+             AND ${IST_AUSKUNFT} AND ${OHNE_RATEN}
              AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
           UNION ALL
           SELECT COALESCE(a.paid_at, a.completed_at), COALESCE(ROUND(a.amount_due * 100), 0)::int,
@@ -323,7 +349,7 @@ router.get("/chef/zahlungszentrale", requireChef("geschaeftsfuehrung"), async (r
             FROM fiaon_applications a
             LEFT JOIN fiaon_persons p ON p.id = a.person_id
            WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-             AND ${IST_GLOBAL}
+             AND ${IST_GLOBAL} AND ${OHNE_RATEN}
              AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
         ) e
         LEFT JOIN fiaon_persons p2 ON p2.id = e.person_id`;

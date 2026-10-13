@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import {
   CreditCard, Banknote, ChevronRight, Search, Landmark, HandCoins, Copy,
-  Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users, Receipt, ListChecks,
+  Sparkles, AlertTriangle, RefreshCw, Users, Receipt, ListChecks,
   CalendarClock, Megaphone, TrendingUp, Check, X, Mail,
 } from "lucide-react";
 import { ACCENT, ADMIN_NAV } from "@/components/admin/AdminShell";
@@ -53,8 +53,12 @@ interface AboLage {
   zyklus?: string;
   vorabTage?: number;
 }
+/** E-343: Bank gegen Buchung — dieselbe Prüfung wie im Lagezimmer (GET /chef/zahlen/abgleich). */
+interface GeldAbgleichTeil { bankCents: number; bankAnzahl: number; gebuchtCents: number; gebuchtAnzahl: number }
+interface GeldAbgleich { heute: GeldAbgleichTeil; monat: GeldAbgleichTeil; offenAnzahl: number; offenCents: number; stimmt: boolean }
 interface Lage {
   umsatz: { heute: Betrag; gestern: Betrag; monat: Betrag; gesamt: Betrag; verlauf: { tag: string; anzahl: number; cents: number }[] };
+  abgleich?: GeldAbgleich | null;
   provision: { heuteCents: number; monatCents: number; gesamtCents: number };
   agenten: AgentLage[];
   ankuendigungen: { heute: Betrag; gesamt: Betrag; alt: Betrag };
@@ -75,23 +79,34 @@ function tagKurz(iso: string): string {
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
-/** Veränderung gegenüber gestern in Prozent — null, wenn gestern 0 war (dann ist
- *  jede Prozentangabe eine Lüge: „+∞ %“ hilft niemandem). */
-function veraenderung(heute: number, gestern: number): number | null {
-  if (gestern <= 0) return null;
-  return Math.round(((heute - gestern) / gestern) * 100);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Geldtafel — die eine Zahl, auf die es ankommt
 // ═══════════════════════════════════════════════════════════════════════════
+// E-343 (13.10.2026): Justin — „ich muss mich darauf verlassen können, dass alles synchron läuft".
+// Unter der Tageszahl steht, ob die Bank dasselbe sagt. Weicht es ab, steht der Grund dort, wo man ihn klärt.
+function AbgleichZeile({ a }: { a: GeldAbgleich }) {
+  const gleich = a.heute.bankCents === a.heute.gebuchtCents;
+  return (
+    <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-white/55">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: a.stimmt ? "#34d399" : "#f59e0b" }} />
+        Bank heute {eur(a.heute.bankCents)} · gebucht {eur(a.heute.gebuchtCents)}{gleich ? " ✓" : ` · Differenz ${eur(a.heute.bankCents - a.heute.gebuchtCents)}`}
+      </span>
+      {a.offenAnzahl > 0 && (
+        <a href="/chef/s/konto" className="underline decoration-white/25 hover:text-white underline-offset-2">
+          {a.offenAnzahl} {a.offenAnzahl === 1 ? "Eingang" : "Eingänge"} ({eur(a.offenCents)}) noch nicht zugebucht
+        </a>
+      )}
+    </p>
+  );
+}
+
 function Geldtafel({ lage, onZeigen }: { lage: Lage | null; onZeigen: (art: ListenArt) => void }) {
   if (!lage) {
     return <div className="a3-hero h-[232px] sm:h-[212px] mb-4 opacity-60" aria-busy="true" />;
   }
   const { umsatz, provision } = lage;
   const netto = umsatz.heute.cents - provision.heuteCents;
-  const diff = veraenderung(umsatz.heute.cents, umsatz.gestern.cents);
   const maxTag = Math.max(1, ...umsatz.verlauf.map((v) => v.cents));
 
   // Hauptbetrag getrennt setzen: die Cents kleiner, damit die Euro-Zahl auf
@@ -117,22 +132,12 @@ function Geldtafel({ lage, onZeigen }: { lage: Lage | null; onZeigen: (art: List
                   className="text-white/70 hover:text-white underline decoration-white/25 hover:decoration-white/70 underline-offset-2 transition-colors">
                   {umsatz.heute.anzahl} {umsatz.heute.anzahl === 1 ? "bestätigte Zahlung" : "bestätigte Zahlungen"} — wer?
                 </button>
-                {diff !== null && (
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold"
-                    style={{
-                      background: diff >= 0 ? "rgba(52,211,153,.16)" : "rgba(248,113,113,.16)",
-                      color: diff >= 0 ? "#6ee7b7" : "#fca5a5",
-                    }}
-                  >
-                    {diff >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {diff > 0 ? "+" : ""}{diff} % zu gestern
-                  </span>
-                )}
-                {diff === null && umsatz.gestern.cents === 0 && (
-                  <span className="text-white/40">gestern kein Eingang</span>
-                )}
+                {/* E-343: Kein „−100 % zu gestern“ am Morgen — ein angefangener Tag ist kein Vergleich. Nur die Zahl. */}
+                <span className="text-white/45">
+                  {umsatz.gestern.cents > 0 ? `gestern ${eur(umsatz.gestern.cents)}` : "gestern kein Eingang"}
+                </span>
               </div>
+              {lage.abgleich && <AbgleichZeile a={lage.abgleich} />}
             </div>
 
             {/* 14-Tage-Verlauf: erst die Reihe sagt, ob heute gut oder schwach
@@ -1048,9 +1053,8 @@ export default function AdminHubPage() {
           Warnung nicht gelesen, die an ihrer Stelle steht.
           ══════════════════════════════════════════════════════════════════ */}
       {laeufe?.ok && laeufe.cronsAn && (laeufe.rot > 0 || laeufe.gelb > 0) && (
-        <section className="mb-4 rounded-2xl border p-4"
-                 style={{ borderColor: "rgba(185,28,28,.3)", background: "rgba(185,28,28,.05)" }}>
-          <h2 className="text-[14px] font-bold" style={{ color: "#b91c1c" }}>
+        <section className="a3-hinweis mb-4" data-stufe={laeufe.rot > 0 ? "rot" : "gelb"}>
+          <h2 className="a3-hinweis-titel">
             {laeufe.rot > 0
               ? `${laeufe.rot} ${laeufe.rot === 1 ? "Lauf steht" : "Läufe stehen"}`
               : `${laeufe.gelb} ${laeufe.gelb === 1 ? "Lauf ist" : "Läufe sind"} überfällig`}
@@ -1061,8 +1065,7 @@ export default function AdminHubPage() {
           {laeufe.laeufe
             .filter((x: any) => x.ampel === "rot" || x.ampel === "gelb")
             .map((x: any) => (
-              <div key={x.name} className="py-1.5 border-b last:border-0"
-                   style={{ borderColor: "rgba(185,28,28,.15)" }}>
+              <div key={x.name} className="py-1.5 border-b border-slate-200 last:border-0">
                 <p className="text-[12.5px] font-bold text-slate-900">
                   <span className="inline-block w-2 h-2 rounded-full mr-2"
                         style={{ background: x.ampel === "rot" ? "#b91c1c" : "#b45309" }} />
@@ -1112,14 +1115,8 @@ export default function AdminHubPage() {
       {durchgang?.ok && (durchgang.gesperrteKernaktionen > 0
         || durchgang.onboardingZeiten?.ampel !== "gruen"
         || durchgang.buchungsversuche?.abgelehnt > 0) && (
-        <section className="mb-4 rounded-2xl border p-4"
-                 style={{
-                   borderColor: durchgang.onboardingZeiten?.ampel === "rot"
-                     ? "rgba(185,28,28,.3)" : "rgba(180,83,9,.3)",
-                   background: durchgang.onboardingZeiten?.ampel === "rot"
-                     ? "rgba(185,28,28,.05)" : "rgba(180,83,9,.05)",
-                 }}>
-          <h2 className="text-[14px] font-bold" style={{ color: "#92400e" }}>
+        <section className="a3-hinweis mb-4" data-stufe={durchgang.onboardingZeiten?.ampel === "rot" ? "rot" : "gelb"}>
+          <h2 className="a3-hinweis-titel">
             Kann das Team arbeiten?
           </h2>
 
@@ -1138,12 +1135,7 @@ export default function AdminHubPage() {
           </p>
 
           {/* ── FREIE ONBOARDING-ZEITEN — rot unter 10 ──────────────────── */}
-          <p className="text-[12.5px] mt-2 px-3 py-2 rounded-xl"
-             style={durchgang.onboardingZeiten?.ampel === "rot"
-               ? { background: "rgba(185,28,28,.09)", color: "#b91c1c" }
-               : durchgang.onboardingZeiten?.ampel === "gelb"
-                 ? { background: "rgba(180,83,9,.09)", color: "#92400e" }
-                 : { background: "rgba(5,150,105,.08)", color: "#047857" }}>
+          <p className="a3-hinweis-zeile text-[12.5px] mt-2" data-stufe={durchgang.onboardingZeiten?.ampel ?? "gruen"}>
             <b>Freie Onboarding-Zeiten: {durchgang.onboardingZeiten?.frei}</b> in den
             nächsten 14 Tagen
             {durchgang.onboardingZeiten?.tageMitZeiten > 0 && (
@@ -1198,10 +1190,10 @@ export default function AdminHubPage() {
             Fußzeile und Seitenzahl) — die pixelgenaue Fassung fehlt.
           </p>
           {durchgang.pdfDruck.belegeFehlen > 0 && (
-            <p className="text-[12.5px] font-semibold mt-1.5" style={{ color: "#b91c1c" }}>
+            <p className="a3-hinweis-zeile text-[12.5px] font-semibold mt-1.5" data-stufe="rot">
               {durchgang.pdfDruck.belegeFehlen} ausgezahlte Abrechnung
               {durchgang.pdfDruck.belegeFehlen === 1 ? "" : "en"} über
-              {" "}{Number(durchgang.pdfDruck.belegeSumme).toFixed(2)} € haben
+              {" "}{eur(Math.round(Number(durchgang.pdfDruck.belegeSumme) * 100))} haben
               {" "}<b>keinen Beleg</b>.
             </p>
           )}
@@ -1240,10 +1232,8 @@ export default function AdminHubPage() {
         || durchgang.bezahltOhneOnboarding?.ueber14Tage > 0
         || durchgang.vertretungen?.gesamt > 0
         || durchgang.uebergabeBereit?.gesamt > 0) && (
-        <section id="unsichtbar" className="rounded-2xl border p-4 mb-4"
-                 style={{ borderColor: "rgba(180,83,9,.3)", background: "rgba(180,83,9,.05)" }}>
-          <h2 className="text-[13px] font-bold uppercase tracking-wider mb-2"
-              style={{ color: "#92400e" }}>
+        <section id="unsichtbar" className="a3-hinweis mb-4" data-stufe="gelb">
+          <h2 className="a3-hinweis-titel mb-2">
             Was niemand sieht
           </h2>
 
@@ -1296,15 +1286,14 @@ export default function AdminHubPage() {
               </span>
               <span className="block text-[12px] text-slate-600 mt-0.5">
                 Drei erfolglose Anrufe bei offener Rate, zusammen
-                {" "}{Number(durchgang.uebergabeBereit.summe ?? 0).toFixed(2)} €.
+                {" "}{eur(Math.round(Number(durchgang.uebergabeBereit.summe ?? 0) * 100))}.
                 {" "}Nichts wurde übergeben — du entscheidest.
               </span>
             </button>
           )}
 
           {durchgang.unsichtbar?.map((b: any) => (
-            <p key={b.art} className="text-[12px] leading-relaxed mt-1.5"
-               style={{ color: b.gewicht === "schwer" ? "#92400e" : "#64748b" }}>
+            <p key={b.art} className={`text-[12px] leading-relaxed mt-1.5 ${b.gewicht === "schwer" ? "text-slate-900" : "text-slate-500"}`}>
               <b>{b.anzahl}</b> — {b.klartext}
               <span className="block text-[11.5px] text-slate-500">Nachsehen: {b.wo}</span>
             </p>
@@ -1346,7 +1335,7 @@ export default function AdminHubPage() {
                       {" "}<span className="text-slate-500">
                         {f.erfolgloseAnrufe} erfolglose Anrufe ·
                         {" "}{f.anzahlOffen} offene Rate{f.anzahlOffen === 1 ? "" : "n"}
-                        {" "}({Number(f.summeOffen).toFixed(2)} €)
+                        {" "}({eur(Math.round(Number(f.summeOffen) * 100))})
                         {f.betreuer ? ` · ${f.betreuer}` : ""}
                       </span>
                       <span className="block text-[11.5px] text-slate-500">

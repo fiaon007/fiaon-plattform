@@ -20,6 +20,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
 import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -74,21 +75,24 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
       AND konvertiert_am BETWEEN ${from} AND ${to}
     GROUP BY assigned_agent_id
   `;
-  // 4) Abschlüsse + Umsatz — die EINE Wahrheit (paid + Referenz, Zeit-Anker completed_at)
+  // 4) Abschlüsse + Umsatz — E-343 (13.10.2026): aus der EINEN Umsatzquelle, je zugeordnetem
+  //    Mitarbeiter, Zeit-Anker = Zahlungstag. Umsatz = jede gebuchte Zahlung (auch Folgeraten),
+  //    Abschluss = Rate 1 oder Einmalkauf. Vorher Bestellbetrag bezahlter Bestellungen nach
+  //    completed_at — ohne Folgeraten, mit Testkunden (30 Tage: 3.486,31 € statt 7.615,74 €).
   const paid = await sqlPool`
-    SELECT assigned_agent_id AS agent_id, COUNT(*)::int AS abschluesse,
-      COALESCE(SUM(ROUND(COALESCE(amount_due::numeric, 0) * 100)), 0)::bigint AS umsatz_cents
-    FROM fiaon_applications
-    WHERE assigned_agent_id IS NOT NULL AND payment_status = 'paid'
-      AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
-      AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
-    GROUP BY assigned_agent_id
+    WITH q AS (${sqlPool.unsafe(UMSATZ_QUELLE_SQL)})
+    SELECT agent_id, COUNT(*) FILTER (WHERE erste)::int AS abschluesse,
+      COALESCE(SUM(cents), 0)::bigint AS umsatz_cents
+    FROM q
+    WHERE agent_id IS NOT NULL AND am BETWEEN ${from} AND ${to}
+    GROUP BY agent_id
   `;
-  // 5) Provision (gebucht im Zeitraum, nicht storniert)
+  // 5) Provision (gebucht im Zeitraum, nicht storniert). E-343: Rückbuchungen (negative
+  //    Zeilen) ziehen ab — vorher nur positive Zeilen, die Summe war damit zu hoch.
   const commissions = await sqlPool`
     SELECT agent_id, COALESCE(SUM(amount_cents), 0)::bigint AS provision_cents
     FROM fiaon_commissions
-    WHERE status <> 'storniert' AND amount_cents > 0 AND created_at BETWEEN ${from} AND ${to}
+    WHERE status <> 'storniert' AND created_at BETWEEN ${from} AND ${to}
     GROUP BY agent_id
   `;
   // 6) Reaktionsschnelligkeit: Lead-Eingang → erster dokumentierter Kontakt des
@@ -120,11 +124,11 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
     GROUP BY l.assigned_agent_id
   `;
 
-  const agents = await sqlPool`SELECT id, name, active FROM fiaon_agents ORDER BY name ASC`;
+  const agents = await sqlPool`SELECT id, name, active, is_test_account FROM fiaon_agents ORDER BY name ASC`;
   const byId = new Map<number, any>();
   for (const a of agents) {
     byId.set(Number(a.id), {
-      agentId: Number(a.id), name: a.name, active: !!a.active,
+      agentId: Number(a.id), name: a.name, active: !!a.active, istTest: !!a.is_test_account,
       akten: 0, kontakte: 0, kontakteLeads: 0, kontakteKunden: 0,
       links: 0, kundenmails: 0, rueckgaben: 0, outcomes: {} as Record<string, number>,
       konversionen: 0, abschluesse: 0, umsatzCents: 0, provisionCents: 0,
@@ -152,7 +156,9 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
     return t;
   });
   // Nur Agenten mit Aktivität im Zeitraum ODER aktive Agenten anzeigen
-  const visible = list.filter((t) => t.active || t.kontakte > 0 || t.akten > 0 || t.abschluesse > 0 || t.provisionCents > 0);
+  // E-343: auch wer nur Folgeraten-Umsatz oder eine Rückbuchung im Zeitraum hat, steht in der Summe.
+  const visible = list.filter((t) => t.active || t.kontakte > 0 || t.akten > 0 || t.abschluesse > 0
+    || t.umsatzCents > 0 || t.provisionCents !== 0);
 
   // 8) Zeitverlauf (Team, täglich): Kontakte + Abschlüsse
   const seriesContacts = await sqlPool`
@@ -161,11 +167,12 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
     WHERE agent_id IS NOT NULL AND type = 'result' AND created_at BETWEEN ${from} AND ${to}
     GROUP BY 1 ORDER BY 1
   `;
+  // E-343: Abschlüsse je Berliner Tag aus derselben Quelle wie oben (Rate 1 oder Einmalkauf).
   const seriesPaid = await sqlPool`
-    SELECT (COALESCE(completed_at, claimed_paid_at, created_at) AT TIME ZONE 'Europe/Berlin')::date AS d, COUNT(*)::int AS c
-    FROM fiaon_applications
-    WHERE payment_status = 'paid' AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
-      AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
+    WITH q AS (${sqlPool.unsafe(UMSATZ_QUELLE_SQL)})
+    SELECT (am AT TIME ZONE 'Europe/Berlin')::date AS d, COUNT(*)::int AS c
+    FROM q
+    WHERE erste AND am BETWEEN ${from} AND ${to}
     GROUP BY 1 ORDER BY 1
   `;
 
@@ -225,12 +232,15 @@ router.get("/agent/leistung", requireAgent, async (req: AgentRequest, res: Respo
     const { from, to } = parseRange(req);
     const data = await computeLeistung(from, to);
     const me = data.agents.find((a: any) => a.agentId === req.agent!.id) || null;
-    // Team-Durchschnitt zur Einordnung (keine Namen der Kollegen)
-    const n = data.agents.length || 1;
+    // Team-Durchschnitt zur Einordnung (keine Namen der Kollegen).
+    // E-343: ohne Testkonten — sie zählten im Nenner mit und drückten den Schnitt.
+    const echte = data.agents.filter((a: any) => !a.istTest);
+    const n = echte.length || 1;
+    const summe = (k: string) => echte.reduce((s: number, a: any) => s + Number(a[k] || 0), 0);
     const teamAvg = {
-      kontakte: Math.round(data.totals.kontakte / n),
-      abschluesse: Math.round((data.totals.abschluesse / n) * 10) / 10,
-      umsatzCents: Math.round(data.totals.umsatzCents / n),
+      kontakte: Math.round(summe("kontakte") / n),
+      abschluesse: Math.round((summe("abschluesse") / n) * 10) / 10,
+      umsatzCents: Math.round(summe("umsatzCents") / n),
     };
     res.json({ ok: true, range: data.range, me, teamAvg, series: data.series });
   } catch (err) {

@@ -17,6 +17,7 @@ import { aiComplete } from "./fiaon-leistung";
 import {
   validateReadOnlySql, runReadOnly, buildSchemaDoc, aggregateForAi, MAX_ROWS,
 } from "../lib/fiaon-cockpit";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -59,15 +60,41 @@ function ipOf(req: Request): string {
 }
 
 // Verbindliche Definitionen (siehe SYSTEM_DIAGNOSE.md D3 / fiaon-truth.ts).
+// E-343 (13.10.2026): Umsatz NICHT mehr „SUM(amount_due) nach completed_at" (sah keine
+// Monatsrate) — die KI liest die fertige Sicht `umsatz`, die der Server aus
+// UMSATZ_QUELLE_SQL voranstellt (siehe mitUmsatzSicht). Dieselbe Zahl wie im Chefbüro.
+const UMSATZ_SICHT = "umsatz";
 const TRUTH_DEFS = [
-  "VERBINDLICHE DEFINITIONEN (immer so rechnen — müssen mit truth-check, Finanzen, Zahlungszentrale übereinstimmen):",
-  "- Bezahlter Kunde = payment_status = 'paid' AND merged_into IS NULL AND NOT alt_bestand.",
+  "VERBINDLICHE DEFINITIONEN (immer so rechnen — müssen mit Chefbüro, Finanzen, Zahlungszentrale übereinstimmen):",
+  "- UMSATZ / GELD / EINNAHMEN / VERDIENT: IMMER und NUR aus der fertigen Sicht " + UMSATZ_SICHT + " (FROM " + UMSATZ_SICHT + "). Der Server stellt sie bereit — NICHT selbst definieren, NICHT nachbauen.",
+  "  " + UMSATZ_SICHT + "(cents num, am time, art text, ref text, person_id num, rate_nr num, agent_id num, erste bool): EINE Zeile je gebuchter Zahlung eines echten Kunden.",
+  "  art 'rate' = bezahlte Monatsrate (am = Zahlungseingang bezahlt_am); 'auskunft' = bezahlte Bonitätsauskunft ohne Ratenkette; 'global' = bezahlter Einmalkauf ohne Ratenkette.",
+  "  erste = TRUE heißt Abschluss (Rate 1 oder Einmalkauf) — Abschlüsse zählen mit COUNT(*) FILTER (WHERE erste). agent_id = fiaon_agents.id des zuständigen Mitarbeiters. ref = fiaon_applications.ref.",
+  "  Testkonten und Dubletten sind dort schon entfernt. Umsatz in Euro = SUM(cents) / 100.0.",
+  "- Tage und Monate IMMER in Berliner Zeit: (am AT TIME ZONE 'Europe/Berlin')::date bzw. date_trunc('month', am AT TIME ZONE 'Europe/Berlin'); heute = (NOW() AT TIME ZONE 'Europe/Berlin')::date.",
+  "- NIEMALS amount_due als Umsatz summieren; paid_at/completed_at/claimed_paid_at sind KEIN Zahlungsdatum (paid_at wird seit 24.09.2026 nicht mehr geschrieben).",
+  "- Bezahlter Kunde (Bestand) = payment_status = 'paid' AND merged_into IS NULL AND NOT alt_bestand.",
   "- Alt-Bestand (NIE in Umsatz/Funnel) = payment_status = 'paid' AND merged_into IS NULL AND alt_bestand.",
   "- payment_reference (Verwendungszweck) hat seit 08.08.2026 JEDE Bestellung — sie ist kein Merkmal fuer 'echte Bestellung' mehr.",
-  "- Umsatz = SUM(amount_due) genau der bezahlten Kunden; Zeit-Anker = COALESCE(completed_at, claimed_paid_at, created_at), NIEMALS updated_at.",
   "- Dubletten (merged_into IS NOT NULL) zählen NIE mit.",
   "- Offene Zahlung (angekündigt) = payment_status = 'claimed_paid'. Offen zu zahlen = payment_status = 'pending_payment'.",
 ].join("\n");
+
+/**
+ * E-343: Stellt der geprüften KI-SQL die Sicht `umsatz` voran (UMSATZ_QUELLE_SQL, vom Server,
+ * nicht von der KI). Geprüft wird die KI-SQL mit einem leeren Platzhalter gleichen Namens —
+ * erst danach kommt die echte Quelle hinein; so bleiben Allowlist und Prüfung unverändert.
+ */
+export function mitUmsatzSicht(roh: string): { pruefen: string; ausfuehren: (geprueft: string) => string } | null {
+  const s = roh.trim().replace(/^```(?:sql)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  if (!new RegExp(`\\b(?:from|join)\\s+${UMSATZ_SICHT}\\b`, "i").test(s)) return null;
+  if (new RegExp(`\\b${UMSATZ_SICHT}\\s+as\\s*\\(`, "i").test(s)) return null; // KI hat selbst definiert → normal prüfen
+  if (/^with\s+recursive\b/i.test(s)) return null; // selten; die Prüfung erkennt dort keine CTE-Namen
+  const PLATZHALTER = `${UMSATZ_SICHT} AS (SELECT NULL::int AS cents)`;
+  const kopf = /^with\s+/i.exec(s);
+  const pruefen = kopf ? `WITH ${PLATZHALTER}, ${s.slice(kopf[0].length)}` : `WITH ${PLATZHALTER} ${s}`;
+  return { pruefen, ausfuehren: (geprueft) => geprueft.replace(PLATZHALTER, () => `${UMSATZ_SICHT} AS (${UMSATZ_QUELLE_SQL})`) };
+}
 
 function buildSqlPrompt(schema: string, question: string): string {
   return [
@@ -76,7 +103,7 @@ function buildSqlPrompt(schema: string, question: string): string {
     "",
     "HARTE REGELN:",
     "- NUR SELECT/WITH. Keine Änderungen (kein INSERT/UPDATE/DELETE/DDL), keine Kommentare, kein Semikolon, EIN Statement.",
-    "- Verwende ausschließlich die unten aufgelisteten Tabellen/Spalten. Erfinde keine Namen.",
+    "- Verwende ausschließlich die unten aufgelisteten Tabellen/Spalten und die Sicht " + UMSATZ_SICHT + " (siehe Definitionen). Erfinde keine Namen.",
     "- Immer ein sinnvolles LIMIT (max. " + MAX_ROWS + ").",
     "- Namenssuche unscharf und ohne Groß/Klein-Beachtung (ILIKE '%…%'); Telefon ggf. über Teilstring.",
     "- Für Geldbeträge in Ergebnissen möglichst sprechende Spalten-Aliase (z. B. AS umsatz_eur).",
@@ -84,7 +111,7 @@ function buildSqlPrompt(schema: string, question: string): string {
     "",
     TRUTH_DEFS,
     "",
-    "SCHEMA (nur diese Tabellen sind erlaubt):",
+    "SCHEMA (nur diese Tabellen sind erlaubt, dazu die Sicht " + UMSATZ_SICHT + " für jeden Umsatz):",
     schema,
     "",
     "FRAGE: " + question,
@@ -128,12 +155,15 @@ router.post("/admin/cockpit/ask", async (req: Request, res: Response) => {
       return res.status(502).json({ ok: false, error: msg });
     }
 
-    // 2) SERVERSEITIG hart prüfen (der KI wird nicht vertraut).
-    const guard = validateReadOnlySql(generatedSql);
+    // 2) SERVERSEITIG hart prüfen (der KI wird nicht vertraut). E-343: Sicht `umsatz` vom Server.
+    const sicht = mitUmsatzSicht(generatedSql);
+    const guard = validateReadOnlySql(sicht ? sicht.pruefen : generatedSql);
     if (!guard.ok || !guard.sql) {
       await logAsk(actor, ip, question, generatedSql, false, null, guard.error || "Abfrage abgelehnt");
       return res.status(400).json({ ok: false, error: guard.error || "Abfrage abgelehnt", sql: generatedSql, rejected: true });
     }
+    const kiSql = guard.sql;
+    if (sicht) guard.sql = sicht.ausfuehren(guard.sql);
 
     // 3) NUR-LESEND ausführen (Read-only-TX + Timeout + LIMIT).
     let result;
@@ -158,7 +188,7 @@ router.post("/admin/cockpit/ask", async (req: Request, res: Response) => {
     } else {
       try {
         const agg = aggregateForAi(result.columns, result.rows);
-        const r = await aiComplete(buildExplainPrompt(question, guard.sql, result.rowCount, agg));
+        const r = await aiComplete(buildExplainPrompt(question, kiSql, result.rowCount, agg));
         explanation = r.text;
         provider = r.provider;
       } catch {

@@ -61,6 +61,7 @@ import {
 } from "../lib/fiaon-abo-zyklus";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { istKeinAboPaket, keinAboName, KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
+import { ECHT, UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -1421,24 +1422,36 @@ export async function aboUebersicht() {
       COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'offen' AND r.faellig_am = ${heute}::date), 0)::bigint AS heute_cents,
       COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am > ${heute}::date AND r.faellig_am <= ${heute}::date + 7)::int AS woche_anzahl,
       COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'offen' AND r.faellig_am > ${heute}::date AND r.faellig_am <= ${heute}::date + 7), 0)::bigint AS woche_cents,
-      COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date)::int AS ueberfaellig_anzahl,
-      COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date), 0)::bigint AS ueberfaellig_cents,
+      -- E-343 (13.10.2026): Überfällig ohne Testkonten — dieselbe Zahl wie „überfällige Raten" im Lagezimmer.
+      COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date AND ${sqlPool.unsafe(ECHT)})::int AS ueberfaellig_anzahl,
+      COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date AND ${sqlPool.unsafe(ECHT)}), 0)::bigint AS ueberfaellig_cents,
       COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date AND r.mahnstufe >= ${MAHNSTUFEN.length})::int AS entscheidung_anzahl,
-      COUNT(*) FILTER (WHERE r.status = 'offen' AND r.letzter_fehler IS NOT NULL)::int AS zustellfehler_anzahl,
-      COUNT(*) FILTER (WHERE r.status = 'bezahlt' AND r.rate_nr > 1 AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date)::int AS monat_bezahlt_anzahl,
-      COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'bezahlt' AND r.rate_nr > 1 AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date), 0)::bigint AS monat_bezahlt_cents
+      COUNT(*) FILTER (WHERE r.status = 'offen' AND r.letzter_fehler IS NOT NULL)::int AS zustellfehler_anzahl
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL
+    LEFT JOIN fiaon_persons p ON p.id = a.person_id
   `;
-  // Erwarteter Monatsumsatz = Summe der laufenden Abos (eine Rate je Kunde).
-  const [mrr] = await sqlPool`
-    SELECT COUNT(DISTINCT r.ref)::int AS abos,
-           COALESCE(SUM(x.betrag), 0)::bigint AS cents
-    FROM fiaon_abo_raten r
-    JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
-    JOIN LATERAL (SELECT MAX(betrag_cents) AS betrag FROM fiaon_abo_raten r2 WHERE r2.ref = r.ref) x ON TRUE
-    WHERE r.status = 'offen'
-  `;
+  // E-343 (13.10.2026): Bezahlt im Berliner Monat aus der EINEN Umsatzquelle. Vorher nur Folgeraten ohne
+  // Testfilter (1.745,76 € statt 3.862,51 €). monatBezahlt bleibt die Folgeraten-Teilmenge (Rate 2 ff.,
+  // so beschriftet im Admin-Hub), monatUmsatz ist der ganze Monat (Raten + Einmalkäufe).
+  const [monat] = (await sqlPool.unsafe(`
+    WITH q AS (${UMSATZ_QUELLE_SQL})
+    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(cents), 0)::bigint AS cents,
+           COUNT(*) FILTER (WHERE art = 'rate' AND rate_nr > 1)::int AS folge_anzahl,
+           COALESCE(SUM(cents) FILTER (WHERE art = 'rate' AND rate_nr > 1), 0)::bigint AS folge_cents
+      FROM q
+     WHERE date_trunc('month', am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')`)) as any[];
+  // E-343 (13.10.2026): Laufender Monatsumsatz = MRR genau wie GET /chef/zahlen (aktive Abos, ein Betrag je
+  // Bestellung). Vorher MAX(Rate) je OFFENER Ratenzeile summiert: 94 Abos 2–4× gezählt, Testkonten drin.
+  const [mrr] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS abos, COALESCE(SUM(ROUND(a.amount_due * 100)), 0)::bigint AS cents
+      FROM fiaon_applications a
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+       AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+       AND NOT ${KEIN_ABO_SQL}
+       AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
+       AND a.amount_due IS NOT NULL AND ${ECHT}`)) as any[];
   const settings = await getSettings();
   const [ohne] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM fiaon_applications a
@@ -1460,8 +1473,10 @@ export async function aboUebersicht() {
     // Erinnerungen, die Make nicht angenommen hat: Diese Kunden haben KEINE
     // Mail bekommen, ihre Mahnstufe steht bewusst still.
     zustellfehler: zahl(k.zustellfehler_anzahl),
-    monatBezahlt: { anzahl: zahl(k.monat_bezahlt_anzahl), cents: zahl(k.monat_bezahlt_cents) },
-    laufend: { abos: zahl(mrr.abos), cents: zahl(mrr.cents) },
+    // E-343: Folgeraten (Rate 2 ff.) des Monats — Teilmenge von monatUmsatz.
+    monatBezahlt: { anzahl: zahl(monat?.folge_anzahl), cents: zahl(monat?.folge_cents) },
+    monatUmsatz: { anzahl: zahl(monat?.anzahl), cents: zahl(monat?.cents) },
+    laufend: { abos: zahl(mrr?.abos), cents: zahl(mrr?.cents) },
     ohneKette: zahl(ohne.c),
     motorAktiv: settings.abo_motor_enabled !== "0",
     // Das Versandfenster geht mit an die Oberfläche, damit der Fußtext nicht

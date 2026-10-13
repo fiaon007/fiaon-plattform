@@ -20,6 +20,7 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
+import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import { gedankeFuer } from "./fiaon-gedanken";
 
 type Lauf = typeof sqlPool;
@@ -139,6 +140,10 @@ export interface Post {
  * Angepinntes kommt NUR auf der ersten Seite: Sonst stünde es auf jeder Seite
  * wieder oben.
  */
+/** Cent als deutscher Betrag mit zwei Nachkommastellen („1.234,50"). */
+const euroText = (cents: number): string =>
+  (cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 /**
  * Der Tageskopf — echte Zahlen, je Rolle die passenden.
  *
@@ -157,11 +162,13 @@ export async function tageszahlen(
   const heute = berlinToday();
 
   if (alsAdmin) {
+    // E-343 (13.10.2026): „Umsatz heute" aus der EINEN Umsatzquelle (dieselbe Regel wie
+    // umsatzBausteine().heuteCents/heuteAnzahl) — vorher Provisions-Auftragswerte ab
+    // UTC-Mitternacht: am 13.10. stand hier 0,00 €, eingegangen waren 179,98 €.
     const [u] = (await lauf`
-      SELECT COALESCE(SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden'), 0)::bigint AS umsatz,
-             COUNT(*) FILTER (WHERE COALESCE(kind,'') <> 'stunden')::int AS abschluesse
-      FROM fiaon_commissions
-      WHERE status <> 'storniert' AND created_at >= date_trunc('day', ${heute}::date)
+      WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
+      SELECT COALESCE(SUM(cents), 0)::bigint AS umsatz, COUNT(*)::int AS zahlungen
+        FROM q WHERE (am AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date
     `) as any[];
     const [z] = (await lauf`
       SELECT COUNT(*)::int AS offen FROM fiaon_applications
@@ -174,11 +181,11 @@ export async function tageszahlen(
     `.catch(() => [{ n: 0 }] as any[])) as any[];
     const [k] = (await lauf`
       SELECT COUNT(*)::int AS n FROM fiaon_contact_log
-      WHERE type <> 'system' AND created_at >= date_trunc('day', ${heute}::date)
+      WHERE type <> 'system' AND created_at >= ${heute}::date::timestamp AT TIME ZONE 'Europe/Berlin'
     `) as any[];
     return [
-      { titel: "Umsatz heute", wert: `${(Number(u.umsatz) / 100).toFixed(2).replace(".", ",")} €`,
-        hinweis: `${u.abschluesse} ${Number(u.abschluesse) === 1 ? "Abschluss" : "Abschlüsse"}` },
+      { titel: "Umsatz heute", wert: `${euroText(Number(u.umsatz))} €`,
+        hinweis: `${u.zahlungen} ${Number(u.zahlungen) === 1 ? "Zahlung" : "Zahlungen"}` },
       { titel: "Zahlung angekündigt", wert: String(z.offen), hinweis: "noch nicht eingegangen" },
       { titel: "Kontakte heute", wert: String(k.n), hinweis: "vom ganzen Team" },
       { titel: "Mails gescheitert", wert: String(d.n), hinweis: "letzte 24 Stunden" },
@@ -186,14 +193,18 @@ export async function tageszahlen(
   }
 
   // Team: die eigenen Zahlen.
+  // E-343 (13.10.2026): Monatsgrenze in Berliner Zeit (vorher UTC-Mitternacht des 1.);
+  // „Abschlüsse" = Rate 1 oder Einmalkauf aus der EINEN Umsatzquelle, nicht Provisionszeilen
+  // (die zählten Folgeraten mit und stehen seit 24.09. ohne Automatik leer).
   const [m] = (await lauf`
+    WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
     SELECT
       COALESCE((SELECT SUM(amount_cents) FROM fiaon_commissions c
                 WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
-                  AND c.created_at >= date_trunc('month', ${heute}::date)), 0)::bigint AS verdienst,
+                  AND c.created_at >= date_trunc('month', ${heute}::date::timestamp) AT TIME ZONE 'Europe/Berlin'), 0)::bigint AS verdienst,
       (SELECT COUNT(*)::int FROM fiaon_contact_log cl
         WHERE cl.agent_id = ${agentId} AND cl.type <> 'system'
-          AND cl.created_at >= date_trunc('day', ${heute}::date)) AS kontakte,
+          AND cl.created_at >= ${heute}::date::timestamp AT TIME ZONE 'Europe/Berlin') AS kontakte,
       -- 24.08.2026 (Justin: „Wie kann da stehen Stufe A 4 offen? Jeder hat ja
       -- nur das 2+2+2-Modell!"): Diese Zahl zählt ALLE Stufe-A-Kunden im
       -- Bestand, nicht die Arbeitsliste. Sie war damit rechnerisch richtig und
@@ -213,13 +224,12 @@ export async function tageszahlen(
       + LEAST(2, (SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = ${agentId}
                     AND p.merged_into_person_id IS NULL AND NOT p.is_blocked AND p.priority_tier = 3))
       )::int AS arbeitsliste,
-      (SELECT COUNT(*)::int FROM fiaon_commissions c
-        WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
-          AND COALESCE(c.kind,'') <> 'stunden'
-          AND c.created_at >= date_trunc('month', ${heute}::date)) AS abschluesse
+      (SELECT COUNT(*)::int FROM q
+        WHERE q.erste AND q.agent_id = ${agentId}
+          AND (q.am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date::timestamp)::date) AS abschluesse
   `) as any[];
   return [
-    { titel: "Verdienst Monat", wert: `${(Number(m.verdienst) / 100).toFixed(2).replace(".", ",")} €`,
+    { titel: "Verdienst Monat", wert: `${euroText(Number(m.verdienst))} €`,
       hinweis: `${m.abschluesse} ${Number(m.abschluesse) === 1 ? "Abschluss" : "Abschlüsse"}` },
     { titel: "Kontakte heute", wert: String(m.kontakte), hinweis: "von dir dokumentiert" },
     // VORHER: „Stufe A offen · warten auf dich" mit der Bestandszahl — las sich

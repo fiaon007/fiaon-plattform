@@ -2097,12 +2097,21 @@ export const eskalationVorbereiten: Werkzeug = {
   },
   async ausfuehren(p, k) {
     const wer = await zustaendig(k.personId);
+    // E-343 (13.10.2026): „offen" schloss die noch nicht fälligen Raten bis Vertragsende ein —
+    // die Leitung las den Restvertrag als Rückstand. Jetzt getrennt: fällig (bis heute, Berlin)
+    // und künftig.
     const [z] = k.ref ? (await sqlPool`
-      SELECT COALESCE(SUM(betrag_cents), 0)::int AS cents, COUNT(*)::int AS n, MAX(mahnstufe)::int AS stufe
+      SELECT COALESCE(SUM(betrag_cents) FILTER (WHERE faellig_am <= (NOW() AT TIME ZONE 'Europe/Berlin')::date), 0)::int AS cents,
+             COUNT(*) FILTER (WHERE faellig_am <= (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS n,
+             COALESCE(SUM(betrag_cents) FILTER (WHERE faellig_am > (NOW() AT TIME ZONE 'Europe/Berlin')::date), 0)::int AS kuenftig_cents,
+             COUNT(*) FILTER (WHERE faellig_am > (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS kuenftig_n,
+             MAX(mahnstufe)::int AS stufe
         FROM fiaon_abo_raten WHERE ref = ${k.ref} AND status = 'offen'
     `) as any[] : [null];
+    const geld = (c: unknown) => (Number(c || 0) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const summe = z ? (Number(z.cents) / 100).toFixed(2) : "0.00";
-    const text = `Kunde verweigert die Zahlung: „${String(p.zitat || "").slice(0, 200)}". Offen: ${z?.n ?? 0} Rate(n) über ${summe} €, höchste Mahnstufe ${z?.stufe ?? 0}. Bitte anrufen, bevor die Forderung ins Forderungsmanagement geht.`;
+    const kuenftig = Number(z?.kuenftig_n || 0) > 0 ? ` · künftig ${z.kuenftig_n} Rate(n) über ${geld(z.kuenftig_cents)} € (noch nicht fällig)` : "";
+    const text = `Kunde verweigert die Zahlung: „${String(p.zitat || "").slice(0, 200)}". Fällig: ${z?.n ?? 0} Rate(n) über ${geld(z?.cents)} €${kuenftig}, höchste Mahnstufe ${z?.stufe ?? 0}. Bitte anrufen, bevor die Forderung ins Forderungsmanagement geht.`;
     await protokoll(k, "eskalation_vorbereiten", text);
     // 05.09.2026: Daniel: „hier würde ich gerne anrufen … aber wer ist das?"
     // Der Titel trägt jetzt den Namen, der Link führt in die Mitarbeiter-Akte
@@ -2126,7 +2135,7 @@ export const eskalationVorbereiten: Werkzeug = {
         text, dringend: true, schluessel: `postmeister:eskalation:${k.ref ?? k.personId ?? k.postmeisterId ?? "x"}`, quelle: "postmeister",
       }, wer.vt);
     }
-    return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, betreuer: wer.kundenName } };
+    return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, kuenftig_euro: z ? (Number(z.kuenftig_cents) / 100).toFixed(2) : "0.00", betreuer: wer.kundenName } };
   },
 };
 

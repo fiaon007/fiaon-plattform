@@ -29,8 +29,24 @@ import {
   partnerThresholds, partnerStatusFor, ownRevenueCents,
   requireAgent, logAgentEvent, type AgentRequest,
 } from "./fiaon-agent";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
+
+// ── E-343 (13.10.2026): BERLINER GRENZEN UND DIE EINE ABSCHLUSS-ZÄHLUNG ──────
+// `date_trunc('day', NOW())` ist UTC-Mitternacht (DB-Sitzung läuft in UTC) — „heute",
+// „diese Woche", „dieser Monat" begannen zwei Stunden zu spät. Und „Abschlüsse" zählten
+// Provisionszeilen kind='own': Folgeraten mit, und seit die Automatik aus ist (24.09.)
+// gar nichts mehr (Oktober: 1 statt 25). Abschluss = Rate 1 oder Einmalkauf aus der
+// EINEN Umsatzquelle, je zugeordnetem Mitarbeiter (agent_id). Verdienst bleibt Provision.
+const B_TAG = "date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'";
+const B_WOCHE = "date_trunc('week', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'";
+const B_VORWOCHE = "(date_trunc('week', NOW() AT TIME ZONE 'Europe/Berlin') - INTERVAL '7 days') AT TIME ZONE 'Europe/Berlin'";
+const B_MONAT = "date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'";
+/** Berliner Kalendertag einer Spalte. */
+const B_DATUM = (spalte: string) => `(${spalte} AT TIME ZONE 'Europe/Berlin')::date`;
+const QUELLE = () => sqlPool.unsafe(UMSATZ_QUELLE_SQL);
+const U = (frag: string) => sqlPool.unsafe(frag);
 
 // ── Tabellen & Spalten (idempotent, gleiches Muster wie fiaon-agent.ts) ──────
 let portalTablesEnsured = false;
@@ -146,28 +162,28 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
     // eigene Provision + Team-Beteiligung + Feedback-Boni — wie das Guthaben)
     const sums = await sqlPool`
       SELECT
-        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('day', NOW())), 0) AS today,
-        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('week', NOW())), 0) AS week,
-        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('week', NOW()) - INTERVAL '7 days'
-                                             AND created_at <  date_trunc('week', NOW())), 0) AS prev_week,
-        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('month', NOW())), 0) AS month
+        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_TAG)}), 0) AS today,
+        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_WOCHE)}), 0) AS week,
+        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_VORWOCHE)}
+                                             AND created_at <  ${U(B_WOCHE)}), 0) AS prev_week,
+        COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_MONAT)}), 0) AS month
       FROM fiaon_commissions WHERE agent_id = ${me} AND status != 'storniert'
     `;
 
-    // Abschlüsse (eigene, positiv, nicht storniert): Monat gesamt, heute, bester Tag
+    // Abschlüsse (E-343: Rate 1 oder Einmalkauf aus der Umsatzquelle): Monat, heute, bester Tag
     const deals = await sqlPool`
+      WITH q AS (${QUELLE()})
       SELECT
-        COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW()))::int AS month_deals,
-        COUNT(*) FILTER (WHERE created_at >= date_trunc('day', NOW()))::int AS today_deals
-      FROM fiaon_commissions
-      WHERE agent_id = ${me} AND kind = 'own' AND amount_cents > 0 AND status != 'storniert'
+        COUNT(*) FILTER (WHERE am >= ${U(B_MONAT)})::int AS month_deals,
+        COUNT(*) FILTER (WHERE am >= ${U(B_TAG)})::int AS today_deals
+      FROM q WHERE agent_id = ${me} AND erste
     `;
     const bestDay = await sqlPool`
+      WITH q AS (${QUELLE()})
       SELECT COALESCE(MAX(c), 0)::int AS best FROM (
-        SELECT COUNT(*)::int AS c FROM fiaon_commissions
-        WHERE agent_id = ${me} AND kind = 'own' AND amount_cents > 0 AND status != 'storniert'
-          AND created_at >= date_trunc('month', NOW())
-        GROUP BY date_trunc('day', created_at)
+        SELECT COUNT(*)::int AS c FROM q
+        WHERE agent_id = ${me} AND erste AND am >= ${U(B_MONAT)}
+        GROUP BY ${U(B_DATUM("am"))}
       ) t
     `;
 
@@ -190,7 +206,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
       SELECT COUNT(*)::int AS c, COALESCE(SUM(amount_cents), 0) AS s
       FROM fiaon_commissions
       WHERE agent_id = ${me} AND kind <> 'own' AND amount_cents > 0 AND status != 'storniert'
-        AND created_at >= date_trunc('month', NOW())
+        AND created_at >= ${U(B_MONAT)}
     `;
 
     // AG4: Partner-Fortschritt (bestehende Engine, keine Neu-Erfindung)
@@ -325,30 +341,33 @@ router.get("/agent/feed", requireAgent, async (req: AgentRequest, res) => {
 
     // 4) Benchmark-/Ziel-Impulse — ausdrücklich als Statistik gekennzeichnet,
     //    ausschließlich aus ECHTEN Systemdaten. Keine Personen, keine Erfindung.
+    //    E-343: Abschlüsse = Rate 1 oder Einmalkauf aus der Umsatzquelle, Berliner Tage/Wochen.
     const bench = await sqlPool`
+      WITH q AS (${QUELLE()})
       SELECT
-        COUNT(*) FILTER (WHERE created_at >= date_trunc('week', NOW()))::int AS team_week,
-        COUNT(*) FILTER (WHERE agent_id = ${me} AND created_at >= date_trunc('week', NOW()))::int AS my_week,
-        COUNT(*) FILTER (WHERE agent_id = ${me} AND created_at >= date_trunc('day', NOW()))::int AS my_today
-      FROM fiaon_commissions
-      WHERE kind = 'own' AND amount_cents > 0 AND status != 'storniert'
+        COUNT(*) FILTER (WHERE am >= ${U(B_WOCHE)})::int AS team_week,
+        COUNT(*) FILTER (WHERE agent_id = ${me} AND am >= ${U(B_WOCHE)})::int AS my_week,
+        COUNT(*) FILTER (WHERE agent_id = ${me} AND am >= ${U(B_TAG)})::int AS my_today
+      FROM q
+      WHERE erste AND agent_id IS NOT NULL
     `;
     // Beste Wochenleistung EINES Agents in den letzten 8 Wochen (echter Top-Wert)
     const topWeek = await sqlPool`
+      WITH q AS (${QUELLE()})
       SELECT COALESCE(MAX(c), 0)::int AS top FROM (
-        SELECT agent_id, date_trunc('week', created_at) AS w, COUNT(*)::int AS c
-        FROM fiaon_commissions
-        WHERE kind = 'own' AND amount_cents > 0 AND status != 'storniert'
-          AND created_at >= NOW() - INTERVAL '8 weeks'
-        GROUP BY agent_id, date_trunc('week', created_at)
+        SELECT agent_id, date_trunc('week', am AT TIME ZONE 'Europe/Berlin') AS w, COUNT(*)::int AS c
+        FROM q
+        WHERE erste AND agent_id IS NOT NULL
+          AND am >= NOW() - INTERVAL '8 weeks'
+        GROUP BY agent_id, date_trunc('week', am AT TIME ZONE 'Europe/Berlin')
       ) t
     `;
     const myBestDay = await sqlPool`
+      WITH q AS (${QUELLE()})
       SELECT COALESCE(MAX(c), 0)::int AS best FROM (
-        SELECT COUNT(*)::int AS c FROM fiaon_commissions
-        WHERE agent_id = ${me} AND kind = 'own' AND amount_cents > 0 AND status != 'storniert'
-          AND created_at >= date_trunc('month', NOW())
-        GROUP BY date_trunc('day', created_at)
+        SELECT COUNT(*)::int AS c FROM q
+        WHERE agent_id = ${me} AND erste AND am >= ${U(B_MONAT)}
+        GROUP BY ${U(B_DATUM("am"))}
       ) t
     `;
 
@@ -407,7 +426,7 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
     // Monatsverdienst bisher (alle nicht-stornierten Einträge, wie Guthaben-Logik)
     const month = await sqlPool`
       SELECT COALESCE(SUM(amount_cents), 0) AS s FROM fiaon_commissions
-      WHERE agent_id = ${me} AND status != 'storniert' AND created_at >= date_trunc('month', NOW())
+      WHERE agent_id = ${me} AND status != 'storniert' AND created_at >= ${U(B_MONAT)}
     `;
     const monthCents = Number(month[0].s);
 
@@ -499,10 +518,11 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
         else segments.push({ rateBp, deals: 1, label: status.label });
       }
       // Heutige Abschlüsse anrechnen: Tagespensum minus bereits Geschafftes
+      // E-343: heutige Abschlüsse aus der Umsatzquelle (Rate 1 oder Einmalkauf), Berliner Tag.
       const todayDeals = await sqlPool`
-        SELECT COUNT(*)::int AS c FROM fiaon_commissions
-        WHERE agent_id = ${me} AND kind = 'own' AND amount_cents > 0 AND status != 'storniert'
-          AND created_at >= date_trunc('day', NOW())
+        WITH q AS (${QUELLE()})
+        SELECT COUNT(*)::int AS c FROM q
+        WHERE agent_id = ${me} AND erste AND am >= ${U(B_TAG)}
       `;
       const perWorkday = Math.ceil(deals / workdays);
 
@@ -511,13 +531,15 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
       // demotiviert. Obergrenze ist deshalb die beste TATSAECHLICHE Tagesleistung
       // irgendeines Agenten in den letzten 90 Tagen (mindestens 3, damit ein
       // junges Team sich nicht selbst ausbremst).
+      // E-343: beste Tagesleistung aus der Umsatzquelle (Rate 1 oder Einmalkauf), Berliner Tage.
       const bestDayEver = await sqlPool`
+        WITH q AS (${QUELLE()})
         SELECT COALESCE(MAX(c), 0)::int AS best FROM (
-          SELECT agent_id, date_trunc('day', created_at) AS d, COUNT(*)::int AS c
-          FROM fiaon_commissions
-          WHERE kind = 'own' AND amount_cents > 0 AND status != 'storniert'
-            AND created_at >= NOW() - INTERVAL '90 days'
-          GROUP BY agent_id, date_trunc('day', created_at)
+          SELECT agent_id, ${U(B_DATUM("am"))} AS d, COUNT(*)::int AS c
+          FROM q
+          WHERE erste AND agent_id IS NOT NULL
+            AND am >= NOW() - INTERVAL '90 days'
+          GROUP BY agent_id, ${U(B_DATUM("am"))}
         ) t
       `;
       const ceiling = Math.max(3, Number(bestDayEver[0].best));

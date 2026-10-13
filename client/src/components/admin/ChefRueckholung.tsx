@@ -28,7 +28,8 @@ interface Antwort {
     blockquoteWochen: { woche: string; quote: number }[];
   };
   bremse: { zurueckgehalten24h: number };
-  wirkung: { angeschrieben: number; termine: number; bezahlt: number; umsatz_cents: number };
+  /** E-343: bezahlt/umsatz = Zahlungen nach der ersten Rückhol-Mail; neu_* = davon Erstzahler. */
+  wirkung: { angeschrieben: number; termine: number; bezahlt: number; umsatz_cents: number; neu_bezahlt?: number; neu_umsatz_cents?: number };
   schalter: Record<string, string | null>;
   laeufe: { name: string; letzteMeldung: string | null; letzterErfolg: string | null; stundenHer: number | null; ampel: string }[];
   /** E-188: Auswahl für die zuständige Person bei FIAON Global. */
@@ -277,7 +278,10 @@ export default function ChefRueckholung() {
           <div className="cr-pfeil">{w.angeschrieben ? `${Math.round((w.termine / w.angeschrieben) * 100)} %` : "→"}</div>
           <div className="cr-stufe"><CalendarCheck2 size={16} /><b>{zahl(w.termine)}</b><span>Termin gebucht</span></div>
           <div className="cr-pfeil">{w.termine ? `${Math.round((w.bezahlt / w.termine) * 100)} %` : "→"}</div>
-          <div className="cr-stufe"><PhoneCall size={16} /><b>{zahl(w.bezahlt)}</b><span>bezahlt — {eur(w.umsatz_cents)}</span></div>
+          <div className="cr-stufe"
+            title={`Gebuchte Zahlungen nach der ersten Rückhol-Mail der Person.${w.neu_bezahlt != null ? ` Davon ${zahl(w.neu_bezahlt)} Personen, die vorher nie gezahlt hatten (${eur(w.neu_umsatz_cents ?? 0)}).` : ""}`}>
+            <PhoneCall size={16} /><b>{zahl(w.bezahlt)}</b><span>bezahlt — {eur(w.umsatz_cents)}</span>
+          </div>
         </div>
       </section>
 

@@ -541,7 +541,11 @@ router.get("/admin/kuendigungen", async (req: Request, res: Response) => {
              a.first_name, a.last_name, a.email, a.payment_status, a.pack_name, a.person_id,
              a.gekuendigt_am, a.letzte_rate_nr, a.vertrag_ende_am, a.kuendigung_bestaetigt_mail_am,
              (SELECT COUNT(*) FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen')::int AS raten_offen,
+             -- E-343 (13.10.2026): offen_cents = Restvertrag (ALLE offenen Raten bis Vertragsende, auch
+             -- noch nicht fällige) — ausdrücklich so benannt; der Rückstand steht getrennt in faellig_cents.
              (SELECT COALESCE(SUM(r.betrag_cents), 0) FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen')::int AS offen_cents,
+             (SELECT COALESCE(SUM(r.betrag_cents), 0) FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen'
+                 AND r.faellig_am <= (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS faellig_cents,
              (SELECT MAX(r.mahnstufe) FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen')::int AS mahnstufe
         FROM gebuendelt g
         JOIN fiaon_applications a ON a.ref = g.ref AND a.merged_into IS NULL
@@ -552,6 +556,9 @@ router.get("/admin/kuendigungen", async (req: Request, res: Response) => {
       ok: true, offen,
       anzahl: zeilen.length,
       summeOffenEuro: Math.round(zeilen.reduce((s, z) => s + Number(z.offen_cents || 0), 0)) / 100,
+      // E-343: Was „offen" hier heißt — und der echte Rückstand daneben.
+      offenBedeutet: "Restvertrag: alle offenen Raten bis Vertragsende, auch noch nicht fällige",
+      summeFaelligEuro: Math.round(zeilen.reduce((s, z) => s + Number(z.faellig_cents || 0), 0)) / 100,
       zeilen: zeilen.map((z) => ({
         ref: z.ref, quellen: z.quellen, erste_meldung: z.erste_meldung, grund: z.grund,
         name: [z.first_name, z.last_name].filter(Boolean).join(" "), email: z.email,
@@ -559,6 +566,7 @@ router.get("/admin/kuendigungen", async (req: Request, res: Response) => {
         person_id: z.person_id, gekuendigt_am: z.gekuendigt_am, letzte_rate_nr: z.letzte_rate_nr,
         vertrag_ende_am: z.vertrag_ende_am, bestaetigt_am: z.kuendigung_bestaetigt_mail_am,
         raten_offen: z.raten_offen, offen_euro: Number(z.offen_cents || 0) / 100, mahnstufe: z.mahnstufe,
+        restvertrag_euro: Number(z.offen_cents || 0) / 100, faellig_euro: Number(z.faellig_cents || 0) / 100,
       })),
     });
   } catch (e: any) {

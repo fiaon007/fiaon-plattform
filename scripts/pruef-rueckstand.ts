@@ -882,11 +882,14 @@ async function main(): Promise<void> {
     const a = inkQ2.indexOf("EINGEZOGEN HEISST: WAR ÜBERFÄLLIG");
     if (a < 0) return false;
     const block = inkQ2.slice(a, a + 1800);
-    return block.includes("AND bezahlt_am::date > faellig_am");
+    // E-343: Zahlungstag in Berliner Zeit — beide Schreibweisen sind dieselbe Regel.
+    return block.includes("AND bezahlt_am::date > faellig_am")
+      || block.includes("AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date > r.faellig_am");
   })());
   ok("Der pünktliche Eingang steht getrennt daneben",
     /puenktlich_monat_cents/.test(inkQ2)
-    && /bezahlt_am::date <= faellig_am/.test(inkQ2));
+    && (/bezahlt_am::date <= faellig_am/.test(inkQ2)
+      || /\(r\.bezahlt_am AT TIME ZONE 'Europe\/Berlin'\)::date <= r\.faellig_am/.test(inkQ2)));
   const kz = await (await import("../server/lib/fiaon-inkasso")).kennzahlen();
   ok("Beide Zahlen kommen an",
     typeof kz.eingezogen_monat_cents === "number" && typeof kz.puenktlich_monat_cents === "number",

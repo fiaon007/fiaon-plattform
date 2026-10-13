@@ -79,7 +79,8 @@ interface DupGroup { matchType: "email" | "phone"; key: string; label: string; e
 interface PaymentStats {
   pending: { count: number; sum: number };
   claimed: { count: number; sum: number };
-  paid: { count: number; sum: number };
+  /** E-343: count/sum = Erstzahlungen aus der Umsatzquelle; bestellungen = bezahlte Bestellungen (für den Filter-Reiter). */
+  paid: { count: number; sum: number; bestellungen?: number };
   confirmationRate: number | null;
   remindersToday: number;
 }
@@ -872,9 +873,9 @@ export default function AdminZahlungenPage() {
                 hilfe: "Der Kunde hat „Ich habe überwiesen“ gemeldet. Eingang prüfen (Verwendungszweck = Zahlungsreferenz) und freischalten. Das ist die eigentliche Arbeitsliste.",
               },
               {
-                label: "Bestätigt bezahlt",
-                wert: `${stats.paid.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`,
-                unter: `${stats.paid.count} bezahlt`,
+                label: "Bestätigte Erstzahlungen",
+                wert: `${stats.paid.sum.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
+                unter: `${stats.paid.count} Abschlüsse (ohne Testkonten)`,
                 art: "bezahlt-alle" as ListenArt, ton: "geld" as const,
                 hilfe: "Alle bestätigten Erstzahlungen. Ab dieser Buchung läuft die Abo-Uhr: 30 Tage später ist die erste Monatsrate fällig.",
               },
@@ -1054,7 +1055,7 @@ export default function AdminZahlungenPage() {
                 { key: "claimed_paid", label: `Angekündigt${stats ? ` ${stats.claimed.count}` : ""}` },
                 { key: "pending_payment", label: `Offen${stats ? ` ${stats.pending.count}` : ""}` },
                 { key: "expired", label: "Abgelaufen" },
-                { key: "paid", label: `Bezahlt${stats ? ` ${stats.paid.count}` : ""}` },
+                { key: "paid", label: `Bezahlt${stats ? ` ${stats.paid.bestellungen ?? stats.paid.count}` : ""}` },
                 { key: "alle", label: "Alle" },
               ] as const).map((t) => (
                 <button key={t.key} type="button" data-an={tab === t.key ? "1" : undefined}
@@ -1293,7 +1294,7 @@ export default function AdminZahlungenPage() {
                             wäre eine Behauptung. */}
                         {(c.payment_status === "paid" || c.payment_status === "claimed_paid") && (
                           <p className="text-[11px] truncate">
-                            <span className="text-slate-400">Provision: </span>
+                            <span className="text-slate-400">Provisionen gesamt (alle Mitarbeiter): </span>
                             {c.provision_cents != null && c.provision_cents !== 0 ? (
                               <span className="font-semibold text-emerald-700">
                                 {(c.provision_cents / 100).toFixed(2).replace(".", ",")} €

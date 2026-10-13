@@ -505,13 +505,20 @@ router.get("/admin/reconcile/list", async (req: Request, res: Response) => {
 });
 
 // ═══════════════ Zusammenfassung (exakte Bank-Aufstellung, brutto) ═══════════════
+// E-343 (13.10.2026): „Eingänge gesamt" (totalCents/totalCount) ist jetzt KUNDENGELD —
+// ohne „ignoriert" (als kein Kundengeld markiert; gemessen 13.10.: 17 Buchungen, 4.128,66 €).
+// Dieselbe Grenze wie der Bank-Abgleich im Chefbüro (geldAbgleich). Brutto inkl.
+// Nicht-Kundengeld steht getrennt daneben (bruttoCents/bruttoCount, ignoredCents).
 router.get("/admin/reconcile/summary", async (_req: Request, res: Response) => {
   try {
     await ensureTable();
     const [s] = await sqlPool`
       SELECT
-        COUNT(*)::int AS total_count,
-        COALESCE(SUM(amount_cents),0)::bigint AS total_cents,
+        COUNT(*) FILTER (WHERE match_status IS DISTINCT FROM 'ignored')::int AS total_count,
+        COALESCE(SUM(amount_cents) FILTER (WHERE match_status IS DISTINCT FROM 'ignored'),0)::bigint AS total_cents,
+        COUNT(*)::int AS brutto_count,
+        COALESCE(SUM(amount_cents),0)::bigint AS brutto_cents,
+        COALESCE(SUM(amount_cents) FILTER (WHERE match_status = 'ignored'),0)::bigint AS ignored_cents,
         COUNT(*) FILTER (WHERE match_status IN ('matched','manual'))::int AS matched_count,
         COALESCE(SUM(amount_cents) FILTER (WHERE match_status IN ('matched','manual')),0)::bigint AS matched_cents,
         COUNT(*) FILTER (WHERE match_status = 'unmatched')::int AS unmatched_count,
@@ -530,6 +537,8 @@ router.get("/admin/reconcile/summary", async (_req: Request, res: Response) => {
         unmatchedCount: Number(s.unmatched_count), unmatchedCents: Number(s.unmatched_cents),
         appliedCount: Number(s.applied_count), appliedCents: Number(s.applied_cents),
         discrepancyCount: Number(s.discrepancy_count), ignoredCount: Number(s.ignored_count),
+        ignoredCents: Number(s.ignored_cents),
+        bruttoCount: Number(s.brutto_count), bruttoCents: Number(s.brutto_cents),
       },
     });
   } catch (err) {

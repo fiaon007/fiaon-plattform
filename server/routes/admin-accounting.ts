@@ -2,6 +2,11 @@ import { Router, Request, Response, NextFunction } from "express";
 import postgres from "postgres";
 import { logger } from "../logger";
 import { adminZugriff } from "../lib/fiaon-admin-wache";
+import { readChef } from "./fiaon-chef-zugang";
+import { sqlPool } from "../lib/db-pool";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
+import { liveKontostand } from "../lib/fiaon-banking";
+import { umsatzBausteine, geldAbgleich } from "./fiaon-chef-zahlen";
 
 const router = Router();
 
@@ -9,7 +14,13 @@ const router = Router();
 // This matches the security model of the rest of the admin section (URL-based access).
 // 06.09.2026: kein festes Kennwort mehr im Quelltext — Admin-Code, Chef-Token „inhaber“ oder ADMIN_TOKEN
 // aus der Umgebung. Siehe lib/fiaon-admin-wache.ts.
-router.use(adminZugriff);
+// E-343 (13.10.2026): Die Seite steht im Chefbüro ab Stufe Geschäftsführung (chef-seiten.tsx „buchhaltung“) —
+// der Server ließ nur den Inhaber durch, und die Seite zeigte der Geschäftsführung einen Ersatzwert.
+router.use((req: Request, res: Response, next: NextFunction) => {
+  const st = readChef(req)?.stufe;
+  if (st === "inhaber" || st === "geschaeftsfuehrung") { next(); return; }
+  adminZugriff(req, res, next);
+});
 
 // Lazy SQL client (reuses env var like other routes)
 function getSql() {
@@ -21,6 +32,41 @@ function balanceDelta(entryType: string, amountCents: number): number {
   if (["income", "client_payment"].includes(entryType)) return amountCents;
   if (["expense_recurring", "expense_onetime", "withdrawal", "investment"].includes(entryType)) return -amountCents;
   return 0;
+}
+
+// ============================================================================
+// E-343 (13.10.2026): EINNAHMEN UND KONTOSTAND AUS DER WAHRHEIT
+// Vorher: „Monat Einnahmen", „Einnahmen letzte 30T" und die Prognose lasen nur die
+// Handtabelle accounting_entries (8 Zeilen, letzte 01.06., alles Entnahmen) → 0 €;
+// der „Kontostand" 18.700 € war ein Handwert vom 25.05., als aktuell angezeigt.
+// Jetzt: Einnahmen = UMSATZ_QUELLE_SQL / umsatzBausteine() (dieselbe Zahl wie das
+// Chefbüro; Handeinträge „Einnahme" zählen dort nicht, sonst stünde Kundengeld doppelt).
+// Kontostand = live von der Bank (Airwallex); geht das nicht, bleibt der Handwert —
+// aber als „von Hand, Stand <Datum>" bezeichnet, daneben die gebuchten Bankeingänge.
+// ============================================================================
+interface Kontostand {
+  cents: number; currency: string; note: string | null; updatedAt: string | null;
+  quelle: "live" | "hand"; handCents: number; handUpdatedAt: string | null;
+}
+
+async function kontostand(sql: ReturnType<typeof getSql>): Promise<Kontostand> {
+  const [hand] = await sql`SELECT balance_cents, currency, note, updated_at FROM accounting_balance ORDER BY id LIMIT 1`;
+  const handCents = Number(hand?.balance_cents ?? 5500000);
+  const handUpdatedAt = hand?.updated_at ? new Date(hand.updated_at).toISOString() : null;
+  const live = await liveKontostand().catch((e: unknown) => ({ ok: false as const, grund: String((e as Error)?.message || e).slice(0, 80) }));
+  if (live.ok && "cents" in live && live.cents != null) {
+    const unterwegs = Number((live as any).schwebendCents || 0);
+    return {
+      cents: live.cents, currency: "EUR", quelle: "live", handCents, handUpdatedAt,
+      note: `Live von der Bank (Airwallex)${unterwegs > 0 ? ` · davon unterwegs ${(unterwegs / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}`,
+      updatedAt: (live as any).stand ?? new Date().toISOString(),
+    };
+  }
+  return {
+    cents: handCents, currency: hand?.currency ?? "EUR", quelle: "hand", handCents, handUpdatedAt,
+    note: [`Von Hand eingetragen — kein Live-Kontostand${live.grund ? ` (${live.grund})` : ""}`, hand?.note].filter(Boolean).join(" · "),
+    updatedAt: handUpdatedAt,
+  };
 }
 
 // ============================================================================
@@ -76,17 +122,15 @@ router.get("/summary", async (_req, res) => {
   try {
     await ensureTables(sql);
 
-    const [balanceRow] = await sql`
-      SELECT balance_cents, currency, note, updated_at FROM accounting_balance ORDER BY id LIMIT 1
-    `;
+    // E-343: Kontostand (live oder klar als Handwert), Einnahmen aus der einen Quelle, Bankeingänge daneben.
+    const [konto, umsatz, abgleich] = await Promise.all([kontostand(sql), umsatzBausteine(), geldAbgleich()]);
 
-    // Monthly aggregations (current calendar month)
+    // Ausgaben des laufenden Berliner Monats (Handtabelle) — Einnahmen kommen aus umsatz.monatCents.
     const [monthly] = await sql`
       SELECT
-        COALESCE(SUM(CASE WHEN entry_type IN ('expense_recurring','expense_onetime','withdrawal','investment') AND status != 'cancelled' THEN amount_cents ELSE 0 END), 0) AS total_out_cents,
-        COALESCE(SUM(CASE WHEN entry_type IN ('income','client_payment') AND status != 'cancelled' THEN amount_cents ELSE 0 END), 0) AS total_in_cents
+        COALESCE(SUM(CASE WHEN entry_type IN ('expense_recurring','expense_onetime','withdrawal','investment') AND status != 'cancelled' THEN amount_cents ELSE 0 END), 0) AS total_out_cents
       FROM accounting_entries
-      WHERE DATE_TRUNC('month', entry_date) = DATE_TRUNC('month', CURRENT_DATE)
+      WHERE DATE_TRUNC('month', entry_date) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Europe/Berlin')::date)
     `;
 
     // Recurring monthly burn (annualized / 12 for yearly, x4 for quarterly)
@@ -120,17 +164,18 @@ router.get("/summary", async (_req, res) => {
       ORDER BY total_cents DESC
     `;
 
-    // Last 6 months cashflow
-    const cashflow = await sql`
-      SELECT
-        TO_CHAR(DATE_TRUNC('month', entry_date), 'YYYY-MM') AS month,
-        SUM(CASE WHEN entry_type IN ('expense_recurring','expense_onetime','withdrawal','investment') AND status != 'cancelled' THEN amount_cents ELSE 0 END) AS out_cents,
-        SUM(CASE WHEN entry_type IN ('income','client_payment') AND status != 'cancelled' THEN amount_cents ELSE 0 END) AS in_cents
-      FROM accounting_entries
-      WHERE entry_date >= CURRENT_DATE - INTERVAL '6 months'
-      GROUP BY DATE_TRUNC('month', entry_date)
-      ORDER BY month ASC
+    // Cashflow der letzten 6 Berliner Monate: Ausgaben aus der Handtabelle, Einnahmen (E-343) aus umsatz.verlauf.
+    const cashflowOut = await sql`
+      SELECT TO_CHAR(m, 'YYYY-MM') AS month,
+        COALESCE((SELECT SUM(e.amount_cents) FROM accounting_entries e
+           WHERE DATE_TRUNC('month', e.entry_date) = m
+             AND e.entry_type IN ('expense_recurring','expense_onetime','withdrawal','investment') AND e.status != 'cancelled'), 0) AS out_cents
+      FROM generate_series(DATE_TRUNC('month', (NOW() AT TIME ZONE 'Europe/Berlin')::date) - INTERVAL '5 months',
+                           DATE_TRUNC('month', (NOW() AT TIME ZONE 'Europe/Berlin')::date), INTERVAL '1 month') AS m
+      ORDER BY m ASC
     `;
+    const inJeMonat = new Map(umsatz.verlauf.map((v): [string, number] => [v.monat, v.ratenCents + v.auskunftCents + v.globalCents]));
+    const cashflow = cashflowOut.map((r: any) => ({ month: String(r.month), out_cents: r.out_cents, in_cents: inJeMonat.get(String(r.month)) ?? 0 }));
 
     // Upcoming payments (next 30 days, planned)
     const upcoming = await sql`
@@ -141,22 +186,22 @@ router.get("/summary", async (_req, res) => {
       LIMIT 5
     `;
 
-    const balance = balanceRow?.balance_cents ?? 5500000;
+    const balance = konto.cents;
     const runway = monthlyBurnCents > 0 ? Math.round(balance / monthlyBurnCents) : 999;
+    const monthlyInCents = umsatz.monatCents;
 
     res.json({
-      balance: {
-        cents: balance,
-        currency: balanceRow?.currency ?? "EUR",
-        note: balanceRow?.note,
-        updatedAt: balanceRow?.updated_at,
-      },
+      balance: konto,
       kpis: {
         monthlyOutCents: Number(monthly.total_out_cents),
-        monthlyInCents: Number(monthly.total_in_cents),
+        monthlyInCents,
+        monthlyInCount: umsatz.monatAnzahl,
+        // Gegenprobe: was die Bank diesen Monat als Kundengeld gebucht hat (ohne „kein Kundengeld").
+        bankInMonthCents: abgleich.monat.bankCents,
+        bankInMonthCount: abgleich.monat.bankAnzahl,
         monthlyBurnCents,
         runwayMonths: runway,
-        netCents: Number(monthly.total_in_cents) - Number(monthly.total_out_cents),
+        netCents: monthlyInCents - Number(monthly.total_out_cents),
       },
       categoryBreakdown: categoryBreakdown.map((r: any) => ({
         category: r.category,
@@ -447,19 +492,19 @@ router.get("/prediction", async (req, res) => {
   try {
     await ensureTables(sql);
 
-    const [balRow] = await sql`SELECT balance_cents FROM accounting_balance ORDER BY id LIMIT 1`;
-    const currentBalance = Number(balRow?.balance_cents ?? 5500000);
+    const konto = await kontostand(sql);
+    const currentBalance = konto.cents;
 
-    // Income entries over the last 60 days (paid only)
-    const incomeRows = await sql`
-      SELECT entry_date::text AS day, SUM(amount_cents) AS total
-      FROM accounting_entries
-      WHERE entry_type IN ('income','client_payment')
-        AND status = 'paid'
-        AND entry_date >= CURRENT_DATE - INTERVAL '60 days'
-      GROUP BY entry_date
-      ORDER BY entry_date ASC
-    `;
+    // E-343: Einnahmen der letzten 60 Berliner Tage aus der einen Quelle (heute eingeschlossen) —
+    // vorher Handeinträge „Einnahme" (es gab keine → immer „keine Daten").
+    const [ein] = (await sqlPool.unsafe(`
+      WITH q AS (${UMSATZ_QUELLE_SQL}),
+      t AS (SELECT (am AT TIME ZONE 'Europe/Berlin')::date AS tag, cents FROM q),
+      h AS (SELECT (NOW() AT TIME ZONE 'Europe/Berlin')::date AS heute)
+      SELECT COALESCE(SUM(t.cents) FILTER (WHERE t.tag > h.heute - 30 AND t.tag <= h.heute), 0)::bigint AS last30,
+             COALESCE(SUM(t.cents) FILTER (WHERE t.tag > h.heute - 60 AND t.tag <= h.heute - 30), 0)::bigint AS prev30,
+             COUNT(DISTINCT t.tag) FILTER (WHERE t.tag > h.heute - 30 AND t.tag <= h.heute)::int AS tage30
+        FROM t CROSS JOIN h`)) as any[];
 
     // Monthly burn (recurring costs)
     const recurringRows = await sql`
@@ -478,23 +523,16 @@ router.get("/prediction", async (req, res) => {
       }
     }
 
-    if (incomeRows.length === 0) {
+    const last30Total = Number(ein?.last30 ?? 0);
+    const prev30Total = Number(ein?.prev30 ?? 0);
+    if (last30Total === 0 && prev30Total === 0) {
       return res.json({
         hasData: false,
-        message: "Noch keine Einnahmen erfasst. Trage Einnahmen mit Status 'Bezahlt' ein, um Prognosen zu erhalten.",
+        message: "Keine gebuchten Zahlungen in den letzten 60 Tagen.",
         projectedBalance30d: currentBalance - monthlyBurnCents,
         monthlyBurnCents,
       });
     }
-
-    // Split into last 30 vs prior 30 days
-    const now = Date.now();
-    const ms30 = 30 * 24 * 60 * 60 * 1000;
-    const last30 = incomeRows.filter(r => new Date(r.day).getTime() >= now - ms30);
-    const prev30 = incomeRows.filter(r => new Date(r.day).getTime() < now - ms30);
-
-    const last30Total = last30.reduce((s, r) => s + Number(r.total), 0);
-    const prev30Total = prev30.reduce((s, r) => s + Number(r.total), 0);
 
     // Growth rate (capped for sanity)
     let growthRate = 0;
@@ -503,7 +541,7 @@ router.get("/prediction", async (req, res) => {
     }
 
     // Days with income in last 30
-    const incomeDays = last30.length;
+    const incomeDays = Number(ein?.tage30 ?? 0);
     const avgPerDay = incomeDays > 0 ? last30Total / 30 : 0; // avg over full 30d window
     const projectedIncome30d = Math.round(last30Total * (1 + growthRate));
     const projectedBalance30d = currentBalance + projectedIncome30d - monthlyBurnCents;
@@ -530,6 +568,7 @@ router.get("/prediction", async (req, res) => {
     res.json({
       hasData: true,
       currentBalance,
+      balanceSource: konto.quelle,
       last30IncomeCents: last30Total,
       prev30IncomeCents: prev30Total,
       growthRate: Math.round(growthRate * 100) / 100,

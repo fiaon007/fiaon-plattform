@@ -26,6 +26,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
 import { globalKundeBereit, globalKundeSql } from "../lib/fiaon-global-kunde";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -112,17 +113,22 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
 
     // Die Geldzahlen kommen aus einem Unterabfrage-Block je Person: ein JOIN
     // über Akten UND Raten zugleich würde die Beträge vervielfachen.
+    // E-343 (13.10.2026): „eingegangen" und „letzte Zahlung" je Person aus der EINEN Umsatzquelle (u, einmal
+    // gruppiert) — vorher nur Raten: 81 Personen fehlten 6.272,62 €, 8 standen trotz Zahlung auf „nie gezahlt".
+    // Der Ratenblock g liefert nur noch Offenes (offen, überfällig, nächste Fälligkeit, Mahnstufe).
+    const umsatzJePerson = `WITH q AS (${UMSATZ_QUELLE_SQL}),
+      u AS (SELECT person_id, SUM(cents)::bigint AS bezahlt_cents, MAX(am) AS letzte_zahlung
+              FROM q WHERE person_id IS NOT NULL GROUP BY person_id)`;
     const basis = `
       FROM fiaon_persons p
       LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+      LEFT JOIN u ON u.person_id = p.id
       LEFT JOIN LATERAL (
         SELECT
-          COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.bezahlt_am IS NOT NULL), 0)::bigint AS bezahlt_cents,
           COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.bezahlt_am IS NULL AND r.storniert_am IS NULL
                                                  AND r.status = 'offen'), 0)::bigint AS offen_cents,
           COUNT(*) FILTER (WHERE r.bezahlt_am IS NULL AND r.storniert_am IS NULL
                              AND r.status = 'offen' AND r.faellig_am < ${HEUTE})::int AS ueberfaellig,
-          MAX(r.bezahlt_am) AS letzte_zahlung,
           MIN(r.faellig_am) FILTER (WHERE r.bezahlt_am IS NULL AND r.storniert_am IS NULL
                                       AND r.status = 'offen') AS naechste_faellig,
           MAX(r.mahnstufe) FILTER (WHERE r.bezahlt_am IS NULL AND r.storniert_am IS NULL
@@ -138,12 +144,13 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
     const [[zaehler], liste] = await Promise.all([
       sqlPool.unsafe(`SELECT COUNT(*)::int AS n FROM fiaon_persons p WHERE ${wo}`, werte) as Promise<any[]>,
       sqlPool.unsafe(`
+        ${umsatzJePerson}
         SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name,
                p.primary_email, p.primary_phone, p.city, p.zip,
                p.priority_tier, p.mandat_seit, p.assigned_agent_id, p.assigned_at,
                p.is_blocked, p.inkasso_ab, p.created_at, p.follow_up_date,
                ag.name AS mitarbeiter,
-               g.bezahlt_cents, g.offen_cents, g.ueberfaellig, g.letzte_zahlung,
+               COALESCE(u.bezahlt_cents, 0)::bigint AS bezahlt_cents, g.offen_cents, g.ueberfaellig, u.letzte_zahlung,
                g.naechste_faellig, g.hoechste_mahnstufe,
                (SELECT STRING_AGG(DISTINCT a6.pack_name, ' · ')
                   FROM fiaon_applications a6
@@ -301,47 +308,52 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
     const seite = ganzzahl(req.query.seite, 1, 500);
     const proSeite = ganzzahl(req.query.proSeite, 50, 200);
 
+    // E-343 (13.10.2026): Grundlage ist die EINE Umsatzquelle (Raten + Bonitätsauskünfte + Einmalkäufe, ohne
+    // Testkonten) — vorher nur Raten. Die Ratenspalten kommen per (ref, rate_nr) dazu (UNIQUE), Einmalkäufe
+    // tragen dort NULL. Kein Client ruft diese Route mehr (ChefZahlungen liest /chef/zahlungszentrale).
     const zeitraum = von && bis
-      ? `(r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date BETWEEN '${von}' AND '${bis}'`
-      : `date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', ${HEUTE})`;
+      ? `(q.am AT TIME ZONE 'Europe/Berlin')::date BETWEEN '${von}' AND '${bis}'`
+      : `date_trunc('month', q.am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', ${HEUTE})`;
 
     const werte: any[] = [];
-    // Testkonten zählen nicht als Umsatz — dieselbe Regel wie im Lagezimmer,
-    // sonst lügt die Gegenprobe in die eine oder andere Richtung.
-    const teile = ["r.bezahlt_am IS NOT NULL", "(p.id IS NULL OR p.ist_test_am IS NULL)", zeitraum];
+    const teile = [zeitraum];
     if (q) {
       werte.push(`%${q}%`);
       const n = werte.length;
       teile.push(`(
         p.first_name ILIKE $${n} OR p.last_name ILIKE $${n}
-        OR a.ref ILIKE $${n} OR r.zahlungsreferenz ILIKE $${n}
+        OR a.ref ILIKE $${n} OR COALESCE(r.zahlungsreferenz, a.payment_reference) ILIKE $${n}
         OR ag.name ILIKE $${n}
       )`);
     }
     const wo = teile.join(" AND ");
 
+    const quelle = `WITH q AS (${UMSATZ_QUELLE_SQL})`;
     const basis = `
-      FROM fiaon_abo_raten r
-      LEFT JOIN fiaon_applications a ON a.ref = r.ref
+      FROM q
+      JOIN fiaon_applications a ON a.ref = q.ref
+      LEFT JOIN fiaon_abo_raten r ON q.art = 'rate' AND r.ref = q.ref AND r.rate_nr = q.rate_nr
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
       LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
       LEFT JOIN LATERAL (
         SELECT c.amount_cents, c.rate_bp, (c.payout_id IS NOT NULL) AS abgerechnet,
-               (c.base_amount_cents = r.betrag_cents) AS genau
+               (c.base_amount_cents = q.cents) AS genau
           FROM fiaon_commissions c
-         WHERE c.ref = r.ref
-         ORDER BY (c.base_amount_cents = r.betrag_cents) DESC, c.created_at DESC
+         WHERE c.ref = q.ref
+         ORDER BY (c.base_amount_cents = q.cents) DESC, c.created_at DESC
          LIMIT 1
       ) k ON TRUE
       WHERE ${wo}`;
 
     const [[z], zeilen, [summe]] = await Promise.all([
-      sqlPool.unsafe(`SELECT COUNT(*)::int AS n ${basis}`, werte) as Promise<any[]>,
+      sqlPool.unsafe(`${quelle} SELECT COUNT(*)::int AS n ${basis}`, werte) as Promise<any[]>,
       sqlPool.unsafe(`
-        SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.bezahlt_am, r.faellig_am,
-               r.zahlungsreferenz, r.quelle, r.status, r.mahnstufe,
+        ${quelle}
+        SELECT r.id, q.ref, q.rate_nr, q.art, q.cents AS betrag_cents, q.am AS bezahlt_am, r.faellig_am,
+               COALESCE(r.zahlungsreferenz, a.payment_reference) AS zahlungsreferenz,
+               r.quelle, COALESCE(r.status, 'bezahlt') AS status, r.mahnstufe,
                r.rechnung_am, r.notiz,
-               (SELECT COUNT(*)::int FROM fiaon_abo_raten r2 WHERE r2.ref = r.ref) AS raten_gesamt,
+               (SELECT COUNT(*)::int FROM fiaon_abo_raten r2 WHERE r2.ref = q.ref) AS raten_gesamt,
                a.pack_name, a.pack_key, a.amount_due, a.payment_status,
                p.id AS person_id, p.person_ref,
                TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde,
@@ -363,25 +375,23 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
                k.abgerechnet,
                k.genau AS provision_genau
         ${basis}
-        ORDER BY r.bezahlt_am DESC
+        ORDER BY q.am DESC
         LIMIT ${proSeite} OFFSET ${(seite - 1) * proSeite}`, werte) as Promise<any[]>,
       sqlPool.unsafe(`
-        SELECT COALESCE(SUM(r.betrag_cents),0)::bigint AS cents,
-               COUNT(DISTINCT p.id)::int AS kunden,
+        ${quelle}
+        SELECT COALESCE(SUM(q.cents),0)::bigint AS cents,
+               COUNT(DISTINCT q.person_id)::int AS kunden,
                COUNT(*)::int AS zahlungen
         ${basis}`, werte) as Promise<any[]>,
     ]);
 
-    // Monatsverlauf zum Vergleich — dieselbe Grundlage wie das Lagezimmer.
+    // Monatsverlauf zum Vergleich — dieselbe Quelle wie Lagezimmer und Verdienst & Wert.
     const verlauf = (await sqlPool.unsafe(`
-      SELECT to_char(date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
-             SUM(r.betrag_cents)::bigint AS cents, COUNT(*)::int AS anzahl
-        FROM fiaon_abo_raten r
-        LEFT JOIN fiaon_applications av ON av.ref = r.ref
-        LEFT JOIN fiaon_persons pv ON pv.id = av.person_id
-       WHERE r.bezahlt_am IS NOT NULL
-         AND (pv.id IS NULL OR pv.ist_test_am IS NULL)
-         AND r.bezahlt_am >= (${HEUTE} - INTERVAL '11 months')
+      WITH q AS (${UMSATZ_QUELLE_SQL})
+      SELECT to_char(date_trunc('month', am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
+             SUM(cents)::bigint AS cents, COUNT(*)::int AS anzahl
+        FROM q
+       WHERE date_trunc('month', am AT TIME ZONE 'Europe/Berlin') >= date_trunc('month', ${HEUTE}) - INTERVAL '11 months'
        GROUP BY 1 ORDER BY 1`)) as any[];
 
     res.json({

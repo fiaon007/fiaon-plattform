@@ -24,6 +24,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { ensurePersonTables } from "../fiaon-person-model";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -110,16 +111,19 @@ router.get("/admin/personen/konflikte", async (_req: Request, res: Response) => 
   try {
     await ensurePersonTables();
 
+    // E-343 (13.10.2026): „bezahlt" je Person aus der EINEN Umsatzquelle (ohne Test- und
+    // zusammengeführte Bestellungen, mit Folgeraten) — vorher Bestellbetrag bezahlter Bestellungen.
     const personen = await sqlPool`
+      WITH u AS (SELECT q.person_id, SUM(q.cents)::bigint AS cents
+                   FROM (${sqlPool.unsafe(UMSATZ_QUELLE_SQL)}) q GROUP BY q.person_id)
       SELECT
         p.id, p.person_ref, p.assigned_agent_id, p.quality_flags, p.account_status,
         p.primary_email, p.primary_phone, p.first_seen_at,
         COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                  p.company_name, p.contact_name, p.primary_email, p.person_ref) AS name,
         (SELECT COUNT(*)::int FROM fiaon_applications a
-          WHERE a.person_id = p.id AND a.payment_status = 'paid') AS bezahlte,
-        (SELECT COALESCE(SUM(a.amount_due), 0) FROM fiaon_applications a
-          WHERE a.person_id = p.id AND a.payment_status = 'paid') AS bezahlt_summe,
+          WHERE a.person_id = p.id AND a.payment_status = 'paid' AND a.merged_into IS NULL) AS bezahlte,
+        (SELECT ROUND(COALESCE(SUM(u.cents), 0) / 100.0, 2) FROM u WHERE u.person_id = p.id) AS bezahlt_summe,
         (SELECT COUNT(*)::int FROM fiaon_applications a WHERE a.person_id = p.id) AS bestellungen,
         (SELECT COUNT(*)::int FROM fiaon_leads l WHERE l.person_id = p.id) AS leads
       FROM fiaon_persons p

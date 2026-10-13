@@ -993,8 +993,8 @@ function TeamKosten() {
         <p className="fi-kosten-erklaerung">
           Personalkosten = Festgehälter (anteilig nach verstrichenen Arbeitstagen)
           + alle gebuchten Provisionen und Stundenlöhne dieses Monats, auch die noch
-          nicht überwiesenen. Umsatz = Bemessungsgrundlage dieser Provisionen ohne
-          Stunden. Deckung = Umsatz ÷ Personalkosten.
+          nicht überwiesenen. Umsatz = alle gebuchten Kundenzahlungen dieses Monats
+          (Raten, Auskünfte, Global) — dieselbe Zahl wie im Chefbüro. Deckung = Umsatz ÷ Personalkosten.
         </p>
       </div>
     </>
@@ -1192,7 +1192,7 @@ function LohntSich({ agentId, name }: { agentId: number; name: string }) {
           <div>
             <p className="text-[11px] fi-leise">Hereingeholt</p>
             <p className="text-[16px] font-bold tabular-nums">{geld(d.beitrag)}</p>
-            <p className="text-[10.5px] fi-leise mt-0.5">Auftragswert seiner Abschlüsse</p>
+            <p className="text-[10.5px] fi-leise mt-0.5">Zahlungen seiner Kunden heute</p>
           </div>
         </div>
 

@@ -367,3 +367,18 @@ a.a3-kachel:active, button.a3-kachel:active { transform: translateY(-1px) scale(
   .admin-flaeche a:hover, .admin-flaeche button:hover,
   .a3-kachel:hover, .a3-hero:hover { transform: none !important; }
 }
+
+/* ── E-343 (13.10.2026): Hinweis-Karten ruhig — Farbe nur als Punkt ───────
+   Justin: „Warum ist die Seite überhaupt so bunt?" Die Warnkästen trugen
+   Rahmen, Grund und Überschrift in Orange/Rot. Jetzt: neutrale Karte, die
+   Stufe steht als kleiner Punkt vor der Überschrift. */
+.a3-hinweis { border-radius: 16px; border: 1px solid #e2e8f0; background: #fff; padding: 16px; }
+.a3-hinweis-titel { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #0f172a; }
+.a3-hinweis-titel::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; flex: none; }
+.a3-hinweis[data-stufe="gelb"] .a3-hinweis-titel::before { background: #f59e0b; }
+.a3-hinweis[data-stufe="rot"] .a3-hinweis-titel::before { background: #ef4444; }
+.a3-hinweis-zeile { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: 12px; background: #f8fafc; color: #334155; }
+.a3-hinweis-zeile::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; flex: none; transform: translateY(-1px); }
+.a3-hinweis-zeile[data-stufe="gruen"]::before { background: #10b981; }
+.a3-hinweis-zeile[data-stufe="gelb"]::before { background: #f59e0b; }
+.a3-hinweis-zeile[data-stufe="rot"]::before { background: #ef4444; }

@@ -17,6 +17,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
 import { rueckholSegmente, rueckholKandidaten, type Segment } from "../lib/fiaon-rueckholung";
+import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -99,26 +100,31 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
          WHERE status = 'fehlgeschlagen' AND (grund LIKE 'Frequenzbremse:%' OR grund LIKE 'Sperre:%')
            AND created_at > NOW() - INTERVAL '24 hours'`,
       // Wirkung: Rückhol-Mail → Termin → Zahlung, je Person nach dem Versand.
-      sqlPool`
-        WITH post AS (
+      // E-343 (13.10.2026): Zahlung = jede gebuchte Zahlung der Person NACH ihrer ersten Rückhol-Mail, aus der
+      // EINEN Umsatzquelle. Vorher a.paid_at > erste Mail — paid_at wird seit 24.09. nicht mehr geschrieben,
+      // die Stufe stand deshalb immer auf 0. „neu" = Personen ohne jede Zahlung vor der ersten Mail.
+      sqlPool.unsafe(`
+        WITH q AS (${UMSATZ_QUELLE_SQL}),
+        post AS (
           SELECT person_id, MIN(created_at) erste
             FROM fiaon_mail_log
            WHERE event LIKE 'rueckhol_%' AND status = 'versandt' AND person_id IS NOT NULL
            GROUP BY 1
+        ),
+        danach AS (
+          SELECT post.person_id, SUM(q.cents) AS cents,
+                 NOT EXISTS (SELECT 1 FROM q q0 WHERE q0.person_id = post.person_id AND q0.am <= post.erste) AS neu
+            FROM post JOIN q ON q.person_id = post.person_id AND q.am > post.erste
+           GROUP BY post.person_id, post.erste
         )
-        SELECT COUNT(*)::int AS angeschrieben,
-               COUNT(*) FILTER (WHERE EXISTS (
+        SELECT (SELECT COUNT(*) FROM post)::int AS angeschrieben,
+               (SELECT COUNT(*) FROM post WHERE EXISTS (
                  SELECT 1 FROM fiaon_termine t WHERE t.person_id = post.person_id AND t.created_at > post.erste
                ))::int AS termine,
-               COUNT(*) FILTER (WHERE EXISTS (
-                 SELECT 1 FROM fiaon_applications a
-                  WHERE a.person_id = post.person_id AND a.payment_status = 'paid'
-                    AND a.paid_at > post.erste
-               ))::int AS bezahlt,
-               COALESCE(SUM((SELECT ROUND(SUM(a.amount_due) * 100) FROM fiaon_applications a
-                  WHERE a.person_id = post.person_id AND a.payment_status = 'paid'
-                    AND a.paid_at > post.erste)), 0)::bigint AS umsatz_cents
-          FROM post`,
+               (SELECT COUNT(*) FROM danach)::int AS bezahlt,
+               (SELECT COALESCE(SUM(cents), 0) FROM danach)::bigint AS umsatz_cents,
+               (SELECT COUNT(*) FROM danach WHERE neu)::int AS neu_bezahlt,
+               (SELECT COALESCE(SUM(cents), 0) FROM danach WHERE neu)::bigint AS neu_umsatz_cents`),
       einstellungen([
         "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
@@ -163,6 +169,8 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
       wirkung: {
         angeschrieben: Number(w.angeschrieben || 0), termine: Number(w.termine || 0),
         bezahlt: Number(w.bezahlt || 0), umsatz_cents: Number(w.umsatz_cents || 0),
+        // E-343: davon Personen, die vor der ersten Rückhol-Mail nie gezahlt hatten.
+        neu_bezahlt: Number(w.neu_bezahlt || 0), neu_umsatz_cents: Number(w.neu_umsatz_cents || 0),
       },
       schalter,
       laeufe,

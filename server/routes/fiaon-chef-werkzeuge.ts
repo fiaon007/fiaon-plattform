@@ -176,7 +176,8 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
     const nichtFrei = await zeilen(`
       SELECT p.id AS person_id,
              TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde,
-             p.primary_email AS email, MAX(a.paid_at) AS zuletzt_bezahlt,
+             -- E-343 (13.10.2026): paid_at wird seit 24.09. nicht mehr geschrieben — der Buchungstag ist completed_at.
+             p.primary_email AS email, MAX(COALESCE(a.paid_at, a.completed_at)) AS zuletzt_bezahlt,
              STRING_AGG(DISTINCT a.ref, ', ') AS akten
         FROM fiaon_applications a
         JOIN fiaon_persons p ON p.id = a.person_id
@@ -184,7 +185,7 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
          AND p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL
        GROUP BY p.id, p.first_name, p.last_name, p.primary_email
       HAVING COUNT(*) FILTER (WHERE a.password IS NOT NULL AND a.password <> '') = 0
-       ORDER BY MAX(a.paid_at) DESC NULLS LAST LIMIT 100`);
+       ORDER BY MAX(COALESCE(a.paid_at, a.completed_at)) DESC NULLS LAST LIMIT 100`);
     pruefungen.push({
       key: "nichtFrei",
       titel: "Bezahlt, kann sich aber nicht anmelden",
@@ -354,7 +355,15 @@ router.get("/chef/werkzeug/maschinen", requireChef("leitung"), async (_req, res)
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async (_req, res) => {
   try {
-    const [auszahlungen, abrechnungen, entscheidung, belegeFehlen] = await Promise.all([
+    // Mahnwege erschöpft: alle Stufen durchlaufen, Rate weiter offen (ohne Testkonten).
+    const ERSCHOEPFT = `
+          FROM fiaon_abo_raten r
+          LEFT JOIN fiaon_applications a ON a.ref = r.ref
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+         WHERE r.status = 'offen' AND r.bezahlt_am IS NULL AND r.storniert_am IS NULL
+           AND (p.id IS NULL OR p.ist_test_am IS NULL)
+           AND r.mahnstufe >= 3 AND r.faellig_am < ${HEUTE}`;
+    const [auszahlungen, abrechnungen, entscheidung, [entscheidungGesamt], belegeFehlen] = await Promise.all([
       zeilen(`
         SELECT po.id, po.amount_cents, po.requested_at, po.iban_masked,
                ag.name AS mitarbeiter, ag.email
@@ -380,13 +389,11 @@ router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async 
         SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.faellig_am, r.mahnstufe,
                (${HEUTE} - r.faellig_am) AS tage_offen,
                TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde
-          FROM fiaon_abo_raten r
-          LEFT JOIN fiaon_applications a ON a.ref = r.ref
-          LEFT JOIN fiaon_persons p ON p.id = a.person_id
-         WHERE r.status = 'offen' AND r.bezahlt_am IS NULL AND r.storniert_am IS NULL
-           AND (p.id IS NULL OR p.ist_test_am IS NULL)
-           AND r.mahnstufe >= 3 AND r.faellig_am < ${HEUTE}
+          ${ERSCHOEPFT}
          ORDER BY r.faellig_am ASC LIMIT 100`),
+      // E-343 (13.10.2026): Anzahl und Summe über ALLE Fälle — vorher aus den 100 gezeigten Zeilen
+      // (100 / 6.191,00 € statt 329 / 21.072,71 €). Das Limit gilt nur noch für die Liste.
+      zeilen(`SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(r.betrag_cents), 0)::bigint AS cents ${ERSCHOEPFT}`),
       eineZahl(`
         SELECT COUNT(*) FROM fiaon_payouts
          WHERE status IN ('ausgezahlt','paid')
@@ -411,8 +418,8 @@ router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async 
       {
         key: "entscheidung", titel: "Mahnwege erschöpft — Entscheidung nötig",
         satz: "Alle Mahnstufen durchlaufen, das Geld ist nicht da. Übergeben, stunden oder ausbuchen.",
-        anzahl: entscheidung.length,
-        summe: entscheidung.reduce((s: number, z: any) => s + Number(z.betrag_cents || 0), 0),
+        anzahl: Number(entscheidungGesamt?.anzahl ?? entscheidung.length),
+        summe: Number(entscheidungGesamt?.cents ?? 0),
         href: "/admin/zahlungen", zeilen: entscheidung.slice(0, 30),
       },
       {
@@ -423,10 +430,15 @@ router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async 
       },
     ];
 
+    // E-343 (13.10.2026): Keine Kopfsumme mehr über alle Stapel. Sie addierte Auszahlungen und Abrechnungen
+    // (oft dasselbe Provisionsgeld zweimal) und dazu Kundenrückstand (ein anderer Begriff) — 20.771,20 € ohne
+    // Bedeutung. Jede Summe steht getrennt an ihrem Stapel; der Kopf zeigt nur die Zahl offener Vorgänge.
     res.json({
       ok: true,
       offen: stapel.reduce((s, t) => s + Number(t.anzahl || 0), 0),
-      summe: stapel.reduce((s, t) => s + Number(t.summe || 0), 0),
+      summen: {
+        auszahlungenCents: stapel[0].summe, abrechnungenCents: stapel[1].summe, rueckstandCents: stapel[2].summe,
+      },
       stapel,
     });
   } catch (err) {

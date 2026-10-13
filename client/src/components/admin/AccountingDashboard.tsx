@@ -28,8 +28,9 @@ interface AccountingEntry {
 }
 
 interface Summary {
-  balance: { cents: number; currency: string; note?: string; updatedAt?: string };
-  kpis: { monthlyOutCents: number; monthlyInCents: number; monthlyBurnCents: number; runwayMonths: number; netCents: number };
+  // E-343: quelle „live“ = Bank (Airwallex), „hand“ = von Hand eingetragen (nie als aktuell ausgeben).
+  balance: { cents: number; currency: string; note?: string; updatedAt?: string; quelle?: "live" | "hand" };
+  kpis: { monthlyOutCents: number; monthlyInCents: number; monthlyInCount?: number; bankInMonthCents?: number; bankInMonthCount?: number; monthlyBurnCents: number; runwayMonths: number; netCents: number };
   categoryBreakdown: { category: string; totalCents: number; count: number }[];
   cashflow: { month: string; outCents: number; inCents: number }[];
   upcoming: AccountingEntry[];
@@ -417,9 +418,11 @@ function OptimizationTips({ summary }: { summary: Summary | null }) {
   const balance = summary.balance.cents;
   const runway = summary.kpis.runwayMonths;
 
-  if (runway < 6) tips.push({ icon: "🚨", text: `Runway nur ${runway} Monate – Kostenreduktion empfohlen.`, severity: "warn" });
+  // E-343: Ohne gepflegte Ausgaben (Burn 0) gibt es keine Reichweite — kein „Guter Runway: 999 Monate“.
+  if (runway >= 999) tips.push({ icon: "ℹ️", text: "Reichweite unbekannt: Es sind keine laufenden Ausgaben eingetragen.", severity: "info" });
+  else if (runway < 6) tips.push({ icon: "🚨", text: `Runway nur ${runway} Monate – Kostenreduktion empfohlen.`, severity: "warn" });
   else if (runway < 12) tips.push({ icon: "⚠️", text: `Runway ${runway} Monate – Puffer aufbauen.`, severity: "warn" });
-  else tips.push({ icon: "✅", text: `Guter Runway: ${runway} Monate.`, severity: "ok" });
+  else if (runway < 999) tips.push({ icon: "✅", text: `Guter Runway: ${runway} Monate.`, severity: "ok" });
 
   const recurring = summary.categoryBreakdown.filter(c => c.totalCents > 0);
   const softwareCosts = recurring.find(c => c.category === "software")?.totalCents ?? 0;
@@ -884,16 +887,9 @@ export default function AccountingDashboard() {
 
   const [tab, setTab] = useState<"overview" | "entries" | "breakdown" | "cashflow" | "kalkulation" | "kalender">("overview");
 
-  // ── Admin fetch helper — always includes the admin token header ──────────────
+  // ── Abruf mit Sitzung (E-343: ohne fest eingebauten Schlüssel — der öffnete nichts und gehört nicht in den Code) ──
   const adminFetch = (url: string, init: RequestInit = {}) =>
-    fetch(url, {
-      ...init,
-      credentials: "include",
-      headers: {
-        ...(init.headers as Record<string, string> ?? {}),
-        "x-admin-token": "fiaon-admin-2024",
-      },
-    });
+    fetch(url, { ...init, credentials: "include", headers: { ...(init.headers as Record<string, string> ?? {}) } });
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
   const loadSummary = useCallback(async () => {
@@ -974,7 +970,9 @@ export default function AccountingDashboard() {
     );
   }
 
-  const bal = summary?.balance.cents ?? 5500000;
+  // E-343 (13.10.2026): KEIN Ersatzwert. Vorher stand hier 55.000 €, sobald die Zusammenfassung nicht lud
+  // (z. B. 401) — eine erfundene Zahl auf der Seite, die das Geld zeigen soll.
+  const bal: number | null = summary?.balance.cents ?? null;
 
   return (
     <div className="space-y-4 pb-20">
@@ -984,9 +982,14 @@ export default function AccountingDashboard() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] tracking-widest uppercase font-semibold opacity-40 mb-2">FIAON GmbH · Unternehmenskonto</p>
-            <p className="text-[40px] font-bold tabular-nums leading-none tracking-tight">{fmt(bal)}</p>
+            <p className="text-[40px] font-bold tabular-nums leading-none tracking-tight">{bal == null ? "—" : fmt(bal)}</p>
+            {bal == null && <p className="text-[12px] opacity-60 mt-1.5">Kontostand nicht geladen — bitte neu laden oder als Inhaber öffnen.</p>}
             {summary?.balance.note && <p className="text-[12px] opacity-40 mt-1.5">{summary.balance.note}</p>}
-            {summary?.balance.updatedAt && <p className="text-[11px] opacity-30 mt-0.5">Stand: {fmtDate(summary.balance.updatedAt)}</p>}
+            {summary?.balance.updatedAt && (
+              <p className={`text-[11px] mt-0.5 ${summary.balance.quelle === "hand" ? "text-amber-300" : "opacity-30"}`}>
+                {summary.balance.quelle === "hand" ? "von Hand, Stand" : summary.balance.quelle === "live" ? "live von der Bank, Stand" : "Stand:"} {fmtDate(summary.balance.updatedAt)}
+              </p>
+            )}
           </div>
           <button onClick={() => setShowBalanceModal(true)}
             className="shrink-0 px-4 py-2 rounded-lg border border-white/10 text-[12px] font-medium text-white/60 hover:bg-white/10 transition-colors">
@@ -998,8 +1001,8 @@ export default function AccountingDashboard() {
             {[
               { label: "Monatl. Burn",    val: fmt(summary.kpis.monthlyBurnCents), note: "Wiederk. Kosten" },
               { label: "Monat Ausgaben",  val: fmt(summary.kpis.monthlyOutCents),  note: "Akt. Monat" },
-              { label: "Monat Einnahmen", val: fmt(summary.kpis.monthlyInCents),   note: "Akt. Monat" },
-              { label: "Runway",          val: summary.kpis.runwayMonths >= 999 ? "∞" : `${summary.kpis.runwayMonths} Mo`, note: "Monate" },
+              { label: "Monat Einnahmen", val: fmt(summary.kpis.monthlyInCents),   note: summary.kpis.bankInMonthCents != null ? `Gebucht · Bank ${fmt(summary.kpis.bankInMonthCents)}` : "Akt. Monat" },
+              { label: "Runway",          val: summary.kpis.runwayMonths >= 999 ? "—" : `${summary.kpis.runwayMonths} Mo`, note: summary.kpis.runwayMonths >= 999 ? "Ausgaben nicht gepflegt" : "Monate" },
             ].map(k => (
               <div key={k.label} className="bg-white/5 px-4 py-3">
                 <p className="text-[9px] tracking-widest uppercase opacity-40 font-semibold">{k.label}</p>
@@ -1373,7 +1376,7 @@ export default function AccountingDashboard() {
       )}
       {showBalanceModal && (
         <BalanceModal
-          current={bal}
+          current={bal ?? 0}
           onSave={handleUpdateBalance}
           onClose={() => setShowBalanceModal(false)}
         />

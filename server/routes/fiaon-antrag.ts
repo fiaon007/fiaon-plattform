@@ -1463,12 +1463,19 @@ router.get("/admin/payments/stats", async (_req, res) => {
       FROM fiaon_applications
       WHERE payment_reference IS NOT NULL AND merged_into IS NULL
     `;
+    // E-343 (13.10.2026): „Bestätigt bezahlt" = Erstzahlungen aus der EINEN Umsatzquelle (Rate 1 oder
+    // Einmalkauf, ohne Testkonten). Vorher SUM(amount_due) jeder bezahlten Bestellung — mit Testgeld und
+    // Altbestand. Die Bestellzahl selbst bleibt als paid.bestellungen (sie zählt die Liste „Bezahlt").
+    const { UMSATZ_QUELLE_SQL } = await import("../lib/fiaon-umsatz-quelle");
+    const [erste] = (await sqlPool.unsafe(`
+      WITH q AS (${UMSATZ_QUELLE_SQL})
+      SELECT COUNT(*)::int AS n, COALESCE(SUM(cents), 0)::bigint AS cents FROM q WHERE erste`)) as any[];
     const claimsTotal = Number(stats.claims_total);
     res.json({
       ok: true,
       pending: { count: Number(stats.pending_count), sum: Number(stats.pending_sum) },
       claimed: { count: Number(stats.claimed_count), sum: Number(stats.claimed_sum) },
-      paid: { count: Number(stats.paid_count), sum: Number(stats.paid_sum) },
+      paid: { count: Number(erste?.n ?? 0), sum: Number(erste?.cents ?? 0) / 100, bestellungen: Number(stats.paid_count) },
       confirmationRate: claimsTotal > 0 ? Math.round((Number(stats.claims_confirmed) / claimsTotal) * 100) : null,
       remindersToday: Number(stats.reminders_today),
     });
@@ -1691,6 +1698,9 @@ export async function alsBezahltBuchen(
       status = 'payment_completed',
       account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
       completed_at = COALESCE(completed_at, ${eingang}),
+      -- E-343 (13.10.2026): Das Zahldatum auch in paid_at — seit dem Ende von GoCardless (24.09.) schrieb es
+      -- niemand mehr, und jede Auswertung über paid_at (Rückholung, Wahrheits-Check) sah „nie bezahlt“.
+      paid_at = COALESCE(paid_at, ${eingang}),
       updated_at = NOW()
     WHERE payment_reference = ${paymentRef}
     RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, pack_key, account_status, completed_at

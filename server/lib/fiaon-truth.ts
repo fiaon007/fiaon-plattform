@@ -20,9 +20,12 @@
 // Umsatz gespült. Eine Bedeutung, die in der Abwesenheit eines anderen Wertes
 // steckt, hält keine Änderung aus. Jetzt steht sie in `alt_bestand`.
 //
-//   UMSATZ           = SUM(amount_due) der bezahlten Kunden.
-//   ZEIT-ANKER       = completed_at (Bezahl-/Freischalt-Zeitpunkt) — niemals
-//                      updated_at (das verschiebt Alt-Datensätze in den Zeitraum).
+//   UMSATZ           = E-343 (13.10.2026): NICHT mehr hier. Die alte Regel
+//                      „SUM(amount_due) nach completed_at" sah keine einzige
+//                      Monatsrate (Oktober 2.116,75 € statt 3.862,51 €) und
+//                      kannte keine Testkonten. Umsatz kommt nur noch aus
+//                      UMSATZ_QUELLE_SQL (server/lib/fiaon-umsatz-quelle.ts);
+//                      revenueCentsSql/paidAtSql sind deshalb entfernt.
 // ═══════════════════════════════════════════════════════════════════
 
 /** WHERE-Fragment „bezahlter Kunde" (die eine Wahrheit). alias z. B. "a". */
@@ -37,30 +40,19 @@ export function legacyPaidWhere(alias = ""): string {
   return `${p}payment_status = 'paid' AND ${p}merged_into IS NULL AND COALESCE(${p}alt_bestand, FALSE)`;
 }
 
-/** Zeit-Anker einer Zahlung (nie updated_at). alias z. B. "a". */
-export function paidAtSql(alias = ""): string {
-  const p = alias ? `${alias}.` : "";
-  return `COALESCE(${p}completed_at, ${p}claimed_paid_at, ${p}created_at)`;
-}
-
-/** Umsatz in Integer-Cents. alias z. B. "a". */
-export function revenueCentsSql(alias = ""): string {
-  const p = alias ? `${alias}.` : "";
-  return `ROUND(COALESCE(${p}amount_due::numeric, 0) * 100)`;
-}
-
 /** Klartext-Definitionen für Tooltips (Frontend erhält sie über die APIs). */
 export const KPI_DEFS = {
   bezahlt:
     "Bezahlter Kunde = Zahlungsstatus 'bezahlt', keine Dublette (merged), kein importierter Alt-Kunde. Alt-Importe ohne Zahlungsbeleg zählen hier nicht.",
   altbestand:
     "Alt-Bestand = als bezahlt importierte Alt-Kunden ohne Zahlungsbeleg (überwiegend ohne Betrag). Gekennzeichnet in der Spalte alt_bestand. Wird getrennt ausgewiesen und fließt nie in Umsatz oder Funnel ein.",
+  // E-343 (13.10.2026): dieselbe Regel wie /chef/zahlen — eine Quelle (UMSATZ_QUELLE_SQL).
   umsatz:
-    "Umsatz = Summe der Beträge (amount_due) aller bezahlten Kunden im Zeitraum. Zeit-Anker ist der Bezahl-Zeitpunkt (completed_at), nie das letzte Änderungsdatum.",
+    "Umsatz = jede gebuchte Zahlung echter Kunden im Zeitraum: bezahlte Monatsraten (Tag = Zahlungseingang, bezahlt_am) plus bezahlte Einmalkäufe ohne Ratenkette (Bonitätsauskunft, FIAON Global). Testkonten und Dubletten zählen nie. Tage in Berliner Zeit. Dieselbe Zahl wie im Chefbüro.",
   angeschrieben:
     "Angeschrieben = Lead hat mindestens eine automatische Mail erhalten (Status nicht mehr 'neu'). Das ist KEIN persönlicher Kontakt.",
   kontaktiertEcht:
     "Kontaktiert (Agent) = ein Agent hat ein Kontakt-Ergebnis dokumentiert (Anruf/Gespräch). Massenmails zählen nicht.",
-  cac: "CAC = eingetragenes Werbebudget ÷ bezahlte Kunden im Zeitraum (nur echte, referenzierte Zahlungen).",
-  ltv: "LTV = Ø-Bestellwert × 12 Monate ANGENOMMENE Laufzeit. Die 12 Monate sind eine Annahme, kein Messwert.",
+  cac: "CAC = eingetragenes Werbebudget ÷ Abschlüsse im Zeitraum (Rate 1 oder Einmalkauf gebucht).",
+  ltv: "LTV = Ø Abschlusswert (erste Zahlung: Rate 1 oder Einmalkauf) × 12 Monate ANGENOMMENE Laufzeit. Die 12 Monate sind eine Annahme, kein Messwert.",
 } as const;

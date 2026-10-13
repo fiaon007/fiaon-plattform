@@ -11,18 +11,17 @@
 //   + Provisionen, die an diesem Tag gutgeschrieben wurden
 //
 // BEITRAG eines Tages =
-//     Summe der Auftragswerte (base_amount_cents) der Abschlüsse dieses Tages
-//   bzw. bei Forderungsmanagement: Summe der an diesem Tag eingezogenen Raten
+//     Summe der an diesem Tag gebuchten Zahlungen seiner Kunden (EINE Umsatzquelle,
+//     server/lib/fiaon-umsatz-quelle.ts, je zugeordnetem Mitarbeiter) — E-343
 //
 // GEDECKT AB ist der Zeitpunkt, zu dem der aufgelaufene Beitrag die Kosten
 // des Tages zum ersten Mal überschreitet.
 //
 // ── WORAUF ES ANKOMMT: KEINE ZWEITE UMSATZZÄHLUNG ──────────────────────────
-// Der Beitrag kommt aus `fiaon_commissions.base_amount_cents` — genau der
-// Spalte, aus der auch die Rangliste und die Monatszahlen rechnen. Eine
-// eigene Zählung hier wäre eine zweite Wahrheit, und zwei Zahlen auf
-// derselben Seite, die sich um drei Euro unterscheiden, kosten mehr
-// Vertrauen als die ganze Ansicht wert ist.
+// E-343 (13.10.2026): Der Beitrag kommt aus UMSATZ_QUELLE_SQL — derselben Quelle
+// wie „Umsatz Monat" auf der Mitarbeiterkarte und der Kopf der Team-Zentrale.
+// Vorher `fiaon_commissions.base_amount_cents`: Seit die Provisions-Automatik
+// aus ist (24.09.) entstehen dort keine Zeilen mehr — jeder stand bei 0 €.
 //
 // ── WAS DIESE ZAHL NICHT IST ───────────────────────────────────────────────
 // Sie ist kein Deckungsbeitrag im buchhalterischen Sinn. Sie enthält keine
@@ -34,6 +33,7 @@
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { monatsfenster, tagfenster } from "./fiaon-tagfenster";
+import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 
 type Lauf = typeof sqlPool;
 
@@ -101,6 +101,7 @@ export async function wirtschaftlichkeit(
   const monat = monatsfenster(datum);
 
   const [heute] = (await lauf`
+    WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
     SELECT
       COALESCE((
         SELECT SUM(c.amount_cents) FROM fiaon_commissions c
@@ -108,10 +109,8 @@ export async function wirtschaftlichkeit(
           AND c.created_at >= ${fenster.von} AND c.created_at < ${fenster.bis}
       ), 0)::bigint AS provisionen,
       COALESCE((
-        SELECT SUM(c.base_amount_cents) FROM fiaon_commissions c
-        WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
-          AND COALESCE(c.kind, '') <> 'stunden'
-          AND c.created_at >= ${fenster.von} AND c.created_at < ${fenster.bis}
+        SELECT SUM(q.cents) FROM q
+        WHERE q.agent_id = ${agentId} AND q.am >= ${fenster.von} AND q.am < ${fenster.bis}
       ), 0)::bigint AS beitrag
   `) as any[];
 
@@ -143,14 +142,14 @@ export async function wirtschaftlichkeit(
   let gedecktAb: string | null = null;
   if (gesamtKosten > 0) {
     const schritte = (await lauf`
-      SELECT created_at, base_amount_cents FROM fiaon_commissions
-      WHERE agent_id = ${agentId} AND status <> 'storniert' AND COALESCE(kind, '') <> 'stunden'
-        AND created_at >= ${fenster.von} AND created_at < ${fenster.bis}
-      ORDER BY created_at
+      WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
+      SELECT am AS created_at, cents FROM q
+      WHERE agent_id = ${agentId} AND am >= ${fenster.von} AND am < ${fenster.bis}
+      ORDER BY am
     `) as any[];
     let summe = 0;
     for (const s of schritte) {
-      summe += Number(s.base_amount_cents);
+      summe += Number(s.cents);
       if (summe >= gesamtKosten) {
         gedecktAb = new Intl.DateTimeFormat("de-DE", {
           timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit",
@@ -162,15 +161,13 @@ export async function wirtschaftlichkeit(
 
   // ── Der Monat bis heute ─────────────────────────────────────────────────
   const [m] = (await lauf`
+    WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
     SELECT
-      COALESCE(SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden'), 0)::bigint AS beitrag,
-      COALESCE(SUM(amount_cents), 0)::bigint AS provisionen,
-      -- Auch die Gruppierung in Berliner Zeit: Ein Abschluss um 00:30 gehoert
-      -- zum neuen Tag, nicht zum alten.
-      COUNT(DISTINCT date_trunc('day', created_at AT TIME ZONE 'Europe/Berlin'))::int AS tage_mit_abschluss
-    FROM fiaon_commissions
-    WHERE agent_id = ${agentId} AND status <> 'storniert'
-      AND created_at >= ${monat.von} AND created_at < ${fenster.bis}
+      COALESCE((SELECT SUM(q.cents) FROM q
+                 WHERE q.agent_id = ${agentId} AND q.am >= ${monat.von} AND q.am < ${fenster.bis}), 0)::bigint AS beitrag,
+      COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c
+                 WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
+                   AND c.created_at >= ${monat.von} AND c.created_at < ${fenster.bis}), 0)::bigint AS provisionen
   `) as any[];
 
   const tagImMonat = Number(datum.slice(8, 10));
@@ -184,12 +181,12 @@ export async function wirtschaftlichkeit(
   // Kosten erstmals überholt?
   let breakEvenTag: string | null = null;
   if (monatKosten > 0) {
+    // Gruppierung in Berliner Zeit: Eine Zahlung um 00:30 gehört zum neuen Tag.
     const proTag = (await lauf`
-      SELECT to_char(created_at AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS tag,
-             SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden') AS beitrag
-      FROM fiaon_commissions
-      WHERE agent_id = ${agentId} AND status <> 'storniert'
-        AND created_at >= ${monat.von}
+      WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
+      SELECT to_char(am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS tag, SUM(cents) AS beitrag
+      FROM q
+      WHERE agent_id = ${agentId} AND am >= ${monat.von}
       GROUP BY tag ORDER BY tag
     `) as any[];
     let auf = 0;
@@ -202,13 +199,14 @@ export async function wirtschaftlichkeit(
   }
 
   // ── Die Linie über 30 Tage ──────────────────────────────────────────────
+  // E-343: Tage in Berliner Zeit — vorher `created_at >= d::date` = UTC-Mitternacht.
   const verlaufRoh = (await lauf`
+    WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
     SELECT to_char(d::date, 'YYYY-MM-DD') AS tag,
            COALESCE((
-             SELECT SUM(c.base_amount_cents) FROM fiaon_commissions c
-             WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
-               AND COALESCE(c.kind,'') <> 'stunden'
-               AND c.created_at >= d::date AND c.created_at < d::date + INTERVAL '1 day'
+             SELECT SUM(q.cents) FROM q
+             WHERE q.agent_id = ${agentId}
+               AND (q.am AT TIME ZONE 'Europe/Berlin')::date = d::date
            ), 0)::bigint AS beitrag
     FROM generate_series(${datum}::date - INTERVAL '29 days', ${datum}::date, INTERVAL '1 day') d
   `) as any[];
@@ -271,12 +269,16 @@ export async function teamWirtschaftlichkeit(
       AND (gehalt_ab IS NULL OR gehalt_ab <= ${datum}::date)
   `) as any[];
 
+  // E-343 (13.10.2026): Umsatz = der ganze Monat aus der EINEN Umsatzquelle (Berliner Monat,
+  // wie umsatzBausteine().monatCents) — vorher Provisions-Auftragswerte: Oktober 414,99 € statt
+  // 3.862,51 €. Die Provisionen bleiben Kosten (ohne Stornos, ohne Testkonten).
   const [u] = (await lauf`
-    SELECT COALESCE(SUM(c.base_amount_cents) FILTER (WHERE COALESCE(c.kind,'') <> 'stunden'), 0)::bigint AS umsatz,
-           COALESCE(SUM(c.amount_cents), 0)::bigint AS provisionen
-    FROM fiaon_commissions c
-    JOIN fiaon_agents a ON a.id = c.agent_id AND NOT a.is_test_account
-    WHERE c.status <> 'storniert' AND c.created_at >= ${monat.von}
+    WITH q AS (${lauf.unsafe(UMSATZ_QUELLE_SQL)})
+    SELECT
+      COALESCE((SELECT SUM(q.cents) FROM q WHERE q.am >= ${monat.von} AND q.am < ${monat.bis}), 0)::bigint AS umsatz,
+      COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c
+                  JOIN fiaon_agents a ON a.id = c.agent_id AND NOT a.is_test_account
+                 WHERE c.status <> 'storniert' AND c.created_at >= ${monat.von} AND c.created_at < ${monat.bis}), 0)::bigint AS provisionen
   `) as any[];
 
   const gehaltAnteil = Math.round((Number(g.gehalt) / tage) * verstrichen);

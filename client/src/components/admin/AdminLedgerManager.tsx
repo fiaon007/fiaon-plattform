@@ -25,7 +25,7 @@ const fmtDate = (v: string) => { try { return new Date(v).toLocaleDateString("de
 const fmtDateTime = (v: string) => { try { return new Date(v).toLocaleString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return v; } };
 
 const api = (url: string, opts: RequestInit = {}) =>
-  fetch(url, { ...opts, credentials: "include", headers: { ...(opts.headers as Record<string,string> ?? {}), "x-admin-token": "fiaon-admin-2024" } });
+  fetch(url, { ...opts, credentials: "include", headers: { ...(opts.headers as Record<string,string> ?? {}) } });
 
 const TODAY = new Date().toISOString().split("T")[0];
 

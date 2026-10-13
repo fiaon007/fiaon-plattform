@@ -32,6 +32,7 @@ import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/
 // E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
 // Individualangebot (01.10.2026): Teile eines Angebots melden nichts an Meta (istAngebotsPaket, onCustomerPaid).
 import { istGlobalPaket, istAngebotsPaket } from "../../shared/fiaon-pakete";
+import { ECHT } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
 
@@ -3207,6 +3208,7 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       JOIN fiaon_persons p ON p.id = a.person_id
       WHERE p.assigned_agent_id = ${me} AND p.merged_into_person_id IS NULL
         AND a.merged_into IS NULL AND a.payment_status IN ('pending_payment','claimed_paid')
+        AND ${sqlPool.unsafe(ECHT)} -- E-343 (13.10.2026): Testbestellungen sind kein möglicher Verdienst
     `;
     const sums = await sqlPool`
       SELECT status, COALESCE(SUM(amount_cents),0) AS s, COUNT(*) AS c
@@ -3215,9 +3217,11 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
     const byStatus: Record<string, { sum: number; count: number }> = {};
     for (const r of sums) byStatus[r.status] = { sum: Number(r.s), count: Number(r.c) };
     // Monatsziel-Fortschritt: nicht-stornierte Einträge dieses Kalendermonats
+    // (E-343: Monatsanfang in Berliner Zeit — `date_trunc('month', NOW())` ist UTC-Mitternacht).
     const month = await sqlPool`
       SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
-      WHERE agent_id = ${me} AND status != 'storniert' AND created_at >= date_trunc('month', NOW())
+      WHERE agent_id = ${me} AND status != 'storniert'
+        AND created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'
     `;
     const entries = await sqlPool`
       SELECT c.id, c.ref, c.payment_reference, c.pack_name, c.base_amount_cents, c.rate_bp, c.amount_cents,

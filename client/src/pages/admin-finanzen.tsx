@@ -520,7 +520,7 @@ export default function AdminFinanzenPage() {
             <Kpi label="Umsatz (brutto)" value={eur(ov.revenue.umsatzCents)} sub={`${ov.revenue.bezahltCount} bezahlt`} tip={ov.kpiDefs?.umsatz} />
             <Kpi label="Provisionen (Team)" value={eur(ov.revenue.provisionenCents)} tip="Alle nicht-stornierten Provisionseinträge im Zeitraum (own + override)." />
             <Kpi label="Netto FIAON" value={eur(ov.revenue.nettoCents)} sub={`Marge ${pct(ov.revenue.margePct)}`} tip="Umsatz minus Team-Provisionen. Keine sonstigen Kosten enthalten." />
-            <Kpi label="Ø Abschlusswert (AOV)" value={eur(ov.revenue.aovCents)} tip="Umsatz ÷ bezahlte Kunden im Zeitraum (nur echte, referenzierte Zahlungen)." />
+            <Kpi label="Ø Abschlusswert (AOV)" value={eur(ov.revenue.aovCents)} tip="Durchschnittliche Erstzahlung je Abschluss im Zeitraum (Rate 1 oder Einmalkauf, ohne Testkonten)." />
             <Kpi label="CAC" value={ov.cac.hasBudget ? eur(ov.cac.cacCents) : "Budget eintragen"} sub={ov.cac.hasBudget ? `Werbebudget ${eur(ov.cac.spendCents)}` : undefined} tip={ov.kpiDefs?.cac} />
             <Kpi label="Lead-Kosten" value={ov.cac.hasBudget ? eur(ov.cac.leadCostCents) : "Budget eintragen"} tip="Werbebudget ÷ Leads im Zeitraum." />
             {/* P2-D ehrlich: LTV/CAC ist eine ANNAHME (12 Monate Laufzeit sind nicht gemessen) */}

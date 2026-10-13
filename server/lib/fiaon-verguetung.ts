@@ -307,9 +307,11 @@ export async function monatsVorschau(
       COUNT(*) FILTER (WHERE kind = 'onboarding' OR COALESCE(rate_bp,0) = 0)::int AS pauschal_n
     FROM fiaon_commissions
    WHERE agent_id = ${agentId}
-     AND status <> 'cancelled'
-     AND created_at >= ${von}::date
-     AND created_at < (${von}::date + INTERVAL '1 month')
+     -- E-343 (13.10.2026): Stornostatus heißt 'storniert' ('cancelled' gibt es nicht — Stornos
+     -- zählten mit); Monatsgrenzen in Berliner Zeit statt UTC-Mitternacht.
+     AND status <> 'storniert'
+     AND created_at >= ${von}::date::timestamp AT TIME ZONE 'Europe/Berlin'
+     AND created_at < (${von}::date + INTERVAL '1 month') AT TIME ZONE 'Europe/Berlin'
   `.catch(() => [{ provision_cents: 0, provision_n: 0, pauschal_cents: 0, pauschal_n: 0 }] as any[])) as any[];
 
   // ── Bestätigte Stunden dieses Monats ────────────────────────────────────

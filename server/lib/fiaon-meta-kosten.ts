@@ -32,8 +32,12 @@
 //   kann). Wer schon vorher Kunde war, ist kein Kunde dieser Kampagne.
 // · „Antrag fertig" = Hausregel Stufe B oder höher (dieselbe CASE-Regel wie
 //   im WhatsApp-Raum, fiaon-whatsapp-postfach.ts).
-// · Umsatz = bezahlte Raten + bezahlte Bonitätsauskünfte — dieselbe Regel wie
-//   die Geld-Wahrheit (/chef/zahlen). Testkonten zählen nie.
+// · Umsatz = jede Zahlung aus UMSATZ_QUELLE_SQL (E-343, 13.10.2026: vorher nur
+//   Raten + Auskünfte mit FIAON-SCHUFA-Referenz — Einmalkäufe und Auskünfte
+//   neuer Art fehlten). Je Mensch: Zahlungen seiner Bestellungen (Lead-Referenz
+//   oder Person), Bestellung UND Zahlung nach dem Lead. Testkonten zählen nie.
+//   umsatzRatenCents = alles außer Auskunft (Raten + Einmalkäufe), auskunftCents =
+//   Auskünfte — die Summe beider ist der Umsatz der Quelle.
 // · Leads aus der ALTEN Make-Kampagne („DE Kampagne 2" u. a.) tragen nur den
 //   Kampagnennamen und liegen in einem fremden Werbekonto — ihre Kosten sind
 //   nicht abrufbar. Sie stehen als eigene Zeile da, ohne Kosten, nie mit einer
@@ -48,6 +52,7 @@ import { sqlPool } from "./db-pool";
 import { graph, graphAlle, metaKonfig, MetaFehler } from "./fiaon-meta";
 import { berlinToday, berlinPlusTage } from "./fiaon-time";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 
 type Lauf = typeof sqlPool;
 
@@ -392,6 +397,8 @@ export function berichtSql(opts: { kostenQuelle?: string; mitMessung: boolean; m
              (($2::date) + 1)::timestamp AT TIME ZONE 'Europe/Berlin' AS bis
     ),
     k AS (${kosten}),
+    -- E-343: die eine Umsatzquelle, einmal gerechnet (klein), je Mensch unten gefiltert.
+    umsatz AS MATERIALIZED (${UMSATZ_QUELLE_SQL}),
     kampagnen AS (
       SELECT DISTINCT ON (objekt_id) objekt_id AS id, name
         FROM k WHERE ebene = 'kampagne' ORDER BY objekt_id, tag DESC
@@ -461,20 +468,20 @@ export function berichtSql(opts: { kostenQuelle?: string; mitMessung: boolean; m
                 WHERE x.einheit = e.einheit AND r.rate_nr = 1 AND r.status = 'bezahlt'
                   AND r.bezahlt_am IS NOT NULL AND r.bezahlt_am >= e.ab - ${SPIELRAUM}
              ) AS zahlend,
-             COALESCE((
-               SELECT SUM(r.betrag_cents) FROM antraege x JOIN fiaon_abo_raten r ON r.ref = x.ref
-                WHERE x.einheit = e.einheit AND r.status = 'bezahlt'
-                  AND r.bezahlt_am IS NOT NULL AND r.bezahlt_am >= e.ab - ${SPIELRAUM}
-             ), 0)::bigint AS raten_cents,
-             au.n AS auskuenfte, au.cents AS auskunft_cents
+             u.raten_cents, u.auskuenfte, u.auskunft_cents
         FROM einheiten e
+        -- E-343: Umsatz aus der einen Quelle — Zahlungen der Bestellungen dieses Menschen
+        -- (Lead-Referenz oder Person), Bestellung und Zahlung nach dem Lead (Spielraum).
         LEFT JOIN LATERAL (
-          SELECT COUNT(*)::int AS n, COALESCE(SUM(ROUND(s.amount_due * 100)), 0)::bigint AS cents
-            FROM fiaon_applications s
-           WHERE s.ref LIKE 'FIAON-SCHUFA-%' AND s.payment_status = 'paid' AND s.merged_into IS NULL
-             AND (s.ref = ANY(e.refs) OR (e.person_id IS NOT NULL AND s.person_id = e.person_id))
-             AND COALESCE(s.paid_at, s.completed_at AT TIME ZONE 'UTC', s.created_at AT TIME ZONE 'UTC') >= e.ab - ${SPIELRAUM}
-        ) au ON TRUE
+          SELECT COALESCE(SUM(q.cents) FILTER (WHERE q.art <> 'auskunft'), 0)::bigint AS raten_cents,
+                 COUNT(*) FILTER (WHERE q.art = 'auskunft')::int AS auskuenfte,
+                 COALESCE(SUM(q.cents) FILTER (WHERE q.art = 'auskunft'), 0)::bigint AS auskunft_cents
+            FROM umsatz q
+            JOIN fiaon_applications a ON a.ref = q.ref
+           WHERE (q.ref = ANY(e.refs) OR (e.person_id IS NOT NULL AND q.person_id = e.person_id))
+             AND q.am >= e.ab - ${SPIELRAUM}
+             AND (a.created_at AT TIME ZONE 'UTC') >= e.ab - ${SPIELRAUM}
+        ) u ON TRUE
     ),
     ergebnis AS (
       SELECT schluessel, COUNT(*)::int AS menschen,

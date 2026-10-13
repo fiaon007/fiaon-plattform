@@ -29,6 +29,7 @@ import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { aufbereiten } from "../lib/fiaon-buchungen";
 import { requireAgent, type AgentRequest, getSettings, normalizeSearchDigits } from "./fiaon-agent";
+import { ECHT } from "../lib/fiaon-umsatz-quelle";
 import { waehlbareNummer, nichtWaehlbarSql } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
@@ -462,8 +463,9 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         COALESCE(SUM(amount_cents) FILTER (WHERE status = 'bestaetigt'), 0)::bigint AS guthaben,
         COALESCE(SUM(amount_cents) FILTER (WHERE status = 'in_auszahlung'), 0)::bigint AS angefordert,
         COALESCE(SUM(amount_cents) FILTER (WHERE status = 'ausgezahlt'), 0)::bigint AS ausgezahlt,
+        -- E-343 (13.10.2026): Monatsanfang in Berliner Zeit, nicht UTC-Mitternacht.
         COALESCE(SUM(amount_cents) FILTER (WHERE status <> 'storniert'
-          AND created_at >= date_trunc('month', NOW())), 0)::bigint AS monat
+          AND created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'), 0)::bigint AS monat
       FROM fiaon_commissions WHERE agent_id = ${me}
     `,
       sqlPool`
@@ -579,6 +581,7 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
       JOIN fiaon_persons p ON p.id = a.person_id
       WHERE p.assigned_agent_id = ${me} AND p.merged_into_person_id IS NULL
         AND a.merged_into IS NULL AND a.payment_status IN ('pending_payment', 'claimed_paid')
+        AND ${sqlPool.unsafe(ECHT)} -- E-343 (13.10.2026): Testbestellungen sind nicht „möglich"
     `;
 
     res.json({

@@ -145,3 +145,89 @@
   .cb.cb-apple .cl-aufschlag { min-height: 52vh; }
   .cb.cb-apple .cl-riesenzahl { font-size: clamp(54px, 15vw, 84px); }
 }
+
+/* ═══ DAS MENÜ: modern und belebt (E-346, Justin: „moderner, animierter, hochwertiger") ═══════════════
+   · EINE Glaspille gleitet zum aktiven Punkt (ChefShell setzt --an-top/-left/-w/-h an der Leiste).
+   · Punkte reagieren federnd auf den Zeiger, Untermenüs blenden gestaffelt ein, Ein-/Ausklappen fließt. */
+.cb.cb-apple .cb-grund { transition: grid-template-columns .5s cubic-bezier(.22, 1, .36, 1), gap .5s cubic-bezier(.22, 1, .36, 1); }
+.cb.cb-apple .cb-leiste { position: sticky; }
+.cb.cb-apple .cb-leiste-licht {
+  position: absolute; z-index: 0; pointer-events: none;
+  top: var(--an-top, 0); left: var(--an-left, 0); width: var(--an-w, 0); height: var(--an-h, 0);
+  opacity: var(--an-sicht, 0); border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .30), rgba(255, 255, 255, .16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 0 0 1px rgba(255, 255, 255, .18), 0 10px 26px -12px rgba(0, 0, 0, .45);
+  transition: top .52s cubic-bezier(.34, 1.36, .64, 1), left .4s cubic-bezier(.22, 1, .36, 1), width .4s cubic-bezier(.22, 1, .36, 1),
+              height .4s cubic-bezier(.22, 1, .36, 1), opacity .3s ease;
+}
+.cb.cb-apple .cb-leiste > :not(.cb-leiste-licht) { position: relative; z-index: 1; }
+.cb.cb-glas.cb-apple .cb-punkt.an,
+.cb.cb-apple .cb-unterpunkt.an { background: transparent; box-shadow: none; }
+.cb.cb-glas.cb-apple .cb-punkt {
+  transition: background .25s ease, color .25s ease, transform .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+.cb.cb-glas.cb-apple .cb-punkt i { transition: transform .45s cubic-bezier(.34, 1.56, .64, 1), color .25s ease; }
+.cb.cb-glas.cb-apple .cb-punkt:hover { transform: translateX(3px); background: rgba(255, 255, 255, .07); }
+.cb.cb-glas.cb-apple .cb-punkt:hover i { transform: scale(1.12); color: #fff; }
+.cb.cb-glas.cb-apple .cb-punkt:active { transform: scale(.97); }
+.cb.cb-apple.cb-schmal .cb-leiste .cb-punkt:hover { transform: scale(1.06); }
+.cb.cb-apple .cb-unterpunkt { transition: color .25s ease, transform .4s cubic-bezier(.34, 1.56, .64, 1), background .25s ease; }
+.cb.cb-apple .cb-unterpunkt:hover { transform: translateX(3px); background: rgba(255, 255, 255, .06); color: #fff; }
+.cb.cb-apple .cb-unter { animation: cbUnterAuf .45s cubic-bezier(.22, 1, .36, 1) backwards; }
+.cb.cb-apple .cb-unter .cb-unterpunkt { animation: cbUnterpunktAuf .5s cubic-bezier(.22, 1, .36, 1) backwards; animation-delay: calc(var(--i, 0) * 38ms + 60ms); }
+@keyframes cbUnterAuf { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cbUnterpunktAuf { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Kopfzeile: Suche als Glaspille, die beim Darüberfahren aufleuchtet. */
+.cb.cb-apple .cb-suche { background: rgba(255, 255, 255, .10); border-color: rgba(255, 255, 255, .20); transition: background .25s, border-color .25s, box-shadow .25s; }
+.cb.cb-apple .cb-suche:hover { background: rgba(255, 255, 255, .18); border-color: rgba(255, 255, 255, .34); box-shadow: 0 8px 24px -12px rgba(0, 0, 0, .45); }
+.cb.cb-apple .cb-rund { background: rgba(255, 255, 255, .10); border-color: rgba(255, 255, 255, .20); transition: background .25s, transform .35s cubic-bezier(.34, 1.56, .64, 1); }
+.cb.cb-apple .cb-rund:hover { background: rgba(255, 255, 255, .2); transform: scale(1.06); }
+.cb.cb-apple .cb-stufe { background: rgba(255, 255, 255, .10); border-color: rgba(255, 255, 255, .22); color: rgba(255, 255, 255, .88); }
+
+/* Seitenwechsel: weich einblenden — nur beim Erscheinen (backwards), danach keine Verschiebung,
+   damit feste Dialoge in den Seiten an ihrem Platz bleiben. */
+.cb.cb-apple .cb-szene { animation: cbSzeneAuf .55s cubic-bezier(.22, 1, .36, 1) backwards; }
+@keyframes cbSzeneAuf { from { opacity: 0; transform: translateY(10px) scale(.995); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* Mobil-Schublade: Milchglas, federnd. */
+.cb.cb-apple .cb-schublade {
+  background: var(--ap-glas-dicht); border-right: 1px solid var(--gl-kante);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+  transition: transform .55s cubic-bezier(.32, 1.25, .5, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb.cb-apple .cb-leiste-licht, .cb.cb-apple .cb-grund, .cb.cb-glas.cb-apple .cb-punkt, .cb.cb-apple .cb-unterpunkt { transition: none; }
+  .cb.cb-apple .cb-szene, .cb.cb-apple .cb-unter, .cb.cb-apple .cb-unter .cb-unterpunkt { animation: none; }
+}
+
+/* ── Damit das Milchglas wirklich unscharf ist (E-346) ─────────────────────────────────────────
+   Die Einblendung der Glaskarten (gl-auf, chefbuero-glas.css) lief mit „both" — am Ende blieb
+   filter: blur(0px) stehen, und ein gesetzter filter schaltet backdrop-filter auf DEMSELBEN Element
+   ab (Chrome, Safari). Gemessen 13.10.: Kacheln „Alle Kunden" ohne Unschärfe. Hier nur beim Erscheinen. */
+.cb.cb-glas.cb-apple .cb-inhalt :is(.lm-kopf, .lm-alarm, .lm-zeile, .lm-vorlage, .cm-takt, .mara-glas, .pm-tafel, .pv-meldung, .cr-stapel, .cr-segment, .so-insel, .so-schalter, .tk-suche, .tk-email, .tk-nb-fall, .tk-ki-wunsch, .tk-ki-text, .tk-mail-text, .tk-mail-anhang, .tk-mail-fertig, .tk-rueckrufe, .tk-deine, .tk-akte, .tk-blatt, .tk-meldung, .cz-hero, .cz-block, .cz-karte, .cb-kachel, .cb-hinweis, .cl-karte, .cl-klemmer, .cl-verlauf, .cl-team, .cl-tab-huelle, .cl-fehler, .cw-werkzeug, .cw-meldung, .cw-tabelle-rahmen, .cw-pruefung) { animation-fill-mode: backwards; }
+.cb.cb-apple .cl-karte { filter: none; }
+/* Eingebettete Fachseiten: der dunkle Grund unter dem Weiß bleibt (dort setzt die Glasschicht background-color: transparent). */
+.cb.cb-glas.cb-apple .cbs .bg-white.rounded-2xl, .cb.cb-glas.cb-apple .cbs .bg-white.rounded-xl, .cb.cb-glas.cb-apple .cbs .bg-white.rounded-lg {
+  background-color: rgba(12, 18, 34, .30) !important;
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+
+/* ── Global-Arbeitsraum (chef-global-raum.css): Flächen über die eigene Variable auf Milchglas ── */
+.cb.cb-apple .cgr { --cgr-flaeche: var(--ap-glas); --cgr-linie: rgba(255, 255, 255, .18); }
+.cb.cb-apple :is(.cgr-kachel, .cgr-mandat, .cge, .cgr-akte) {
+  box-shadow: var(--gl-licht), var(--gl-tiefe);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+.cb.cb-apple .cgr-akte { background: var(--ap-glas-dicht); border-color: var(--gl-kante); }
+.cb.cb-apple .cgr-mandat.an { background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .12)); border-color: rgba(255, 255, 255, .36); }
+.cb.cb-apple .cgr-reiter button.an { background: rgba(255, 255, 255, .22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45); }
+
+/* Die alte Einblendung des Inhaltsbereichs (cbAuf, „both") schirmte JEDE Glaskarte darunter von der Bühne ab —
+   gemessen 13.10.: Kacheln ohne Unschärfe, mit ausgeschalteter Animation sofort Milchglas. Die Szene (.cb-szene)
+   blendet jetzt ein und gibt danach alles frei. */
+.cb.cb-apple .cb-inhalt { animation: none; }
+/* Leise Kartentexte auf Milchglas: etwas heller, sonst verschwimmen sie im Blau. */
+.cb.cb-apple .cl-karte em,
+.cb.cb-apple .cl-karte small { color: rgba(255, 255, 255, .68); }

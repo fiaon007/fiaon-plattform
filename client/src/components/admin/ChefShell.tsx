@@ -15,7 +15,7 @@
 // mit Schloss — die UI blendet aus, der Server erzwingt (spätere Scheibe).
 // Justin wird geduzt, wie Mitarbeiter untereinander.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   Gem,
@@ -267,14 +267,17 @@ export function RaumWege({ raum, stufe, aktivSlug }: { raum: ChefRaum; stufe: Ch
 // ═══════════════════════════════════════════════════════════════════════════
 export const CHEF_BUEHNEN = ["alpen", "erde", "glas"] as const;
 export type ChefBuehne = typeof CHEF_BUEHNEN[number];
+/** E-346 (13.10.2026): Justin hat gewählt — „Die Alpen gefallen mir am besten". Alpen ist die Bühne für alle. */
+export const STANDARD_BUEHNE: ChefBuehne = "alpen";
 function buehneWaehlen(): ChefBuehne | null {
   try {
     const q = new URLSearchParams(window.location.search).get("buehne");
-    if (q === "aus") { window.localStorage.removeItem("chef-buehne"); return null; }
-    if (q && (CHEF_BUEHNEN as readonly string[]).includes(q)) { window.localStorage.setItem("chef-buehne", q); return q as ChefBuehne; }
-    const m = window.localStorage.getItem("chef-buehne");
-    return m && (CHEF_BUEHNEN as readonly string[]).includes(m) ? (m as ChefBuehne) : null;
-  } catch { return null; }
+    if (q === "aus") { window.localStorage.setItem("chef-buehne-2", "aus"); return null; }
+    if (q && (CHEF_BUEHNEN as readonly string[]).includes(q)) { window.localStorage.setItem("chef-buehne-2", q); return q as ChefBuehne; }
+    const m = window.localStorage.getItem("chef-buehne-2");
+    if (m === "aus") return null;
+    return m && (CHEF_BUEHNEN as readonly string[]).includes(m) ? (m as ChefBuehne) : STANDARD_BUEHNE;
+  } catch { return STANDARD_BUEHNE; }
 }
 
 export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false, seiteSlug = null, volltext = false }: {
@@ -340,6 +343,27 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
     setSchmal(v);
     try { window.localStorage.setItem("chef-menue-schmal", v ? "1" : "0"); } catch { /* egal */ }
   };
+  // E-346: Die Markierung des offenen Raums ist EINE Glaspille, die zum aktiven Punkt gleitet (Apple-Stil).
+  const leisteRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const l = leisteRef.current;
+    if (!l) return;
+    const setzen = () => {
+      const an = l.querySelector<HTMLElement>(".cb-unterpunkt.an") ?? l.querySelector<HTMLElement>(".cb-punkt.an");
+      if (!an || an.offsetParent === null) { l.style.setProperty("--an-sicht", "0"); return; }
+      const lr = l.getBoundingClientRect(), ar = an.getBoundingClientRect();
+      l.style.setProperty("--an-top", `${Math.round(ar.top - lr.top + l.scrollTop)}px`);
+      l.style.setProperty("--an-left", `${Math.round(ar.left - lr.left + l.scrollLeft)}px`);
+      l.style.setProperty("--an-w", `${Math.round(ar.width)}px`);
+      l.style.setProperty("--an-h", `${Math.round(ar.height)}px`);
+      l.style.setProperty("--an-sicht", "1");
+    };
+    setzen();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(setzen) : null;
+    ro?.observe(l);
+    const t = window.setTimeout(setzen, 520); // nach dem Ein-/Ausklappen des Menüs
+    return () => { ro?.disconnect(); window.clearTimeout(t); };
+  }, [raumKey, seiteSlug, schmal]);
   // Wer Bewegung abgestellt hat, bekommt ein Standbild statt des Films.
   const ruhig = typeof window !== "undefined"
     && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -438,8 +462,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
         </Link>
         {offen && (
           <div className="cb-unter">
-            {unter.map((x) => (
-              <Link key={x.slug} href={chefPfad(x)} className={`cb-unterpunkt${seiteSlug === x.slug ? " an" : ""}`} onClick={() => inSchublade && setMenueOffen(false)}>
+            {unter.map((x, i) => (
+              <Link key={x.slug} href={chefPfad(x)} className={`cb-unterpunkt${seiteSlug === x.slug ? " an" : ""}`} style={{ ["--i" as any]: i }} onClick={() => inSchublade && setMenueOffen(false)}>
                 {x.kurz ?? x.label}
               </Link>
             ))}
@@ -519,7 +543,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
       </header>
 
       <div className="cb-grund">
-        <aside className="cb-leiste" aria-label="Räume">
+        <aside className="cb-leiste" aria-label="Räume" ref={leisteRef}>
+          <span className="cb-leiste-licht" aria-hidden="true" />
           <Liste />
           <button type="button" className="cb-klapp" onClick={() => schmalSetzen(!schmal)}
                   title={schmal ? "Menü ausklappen" : "Menü einklappen"} aria-expanded={!schmal}>
@@ -532,7 +557,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           <KiPauseBand inhaber={stufe === "inhaber"} />
           {/* E-261: Die WhatsApp-Pause ebenso (z. B. Meta kann nicht abbuchen, #131042) — nur solange sie gilt. */}
           <WaPauseBand inhaber={stufe === "inhaber"} />
-          {children}
+          {/* E-346: Jeder Seitenwechsel blendet weich ein (Apple-Stil) — die Szene trägt die Adresse als Schlüssel. */}
+          <div className="cb-szene" key={`${raumKey}/${seiteSlug ?? ""}`}>{children}</div>
         </main>
       </div>
 

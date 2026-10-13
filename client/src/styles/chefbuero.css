@@ -1222,3 +1222,8 @@ body:has(.cb-ruhig) .fi-raum{display:none}
 .cl-abgleich-punkt[data-stimmt="1"] { background: #34d399; }
 a.cl-pille { text-decoration: none; }
 a.cl-pille:hover { color: #fff; }
+
+/* E-346: Szenen-Hülle (Seitenwechsel-Einblendung) — die Vollflächen-Seiten reichen die Höhe durch sie hindurch. */
+.cb.cb-voll .cb-inhalt>.cb-szene{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.cb.cb-voll .cb-szene>*:not(.cbs-huelle){flex:none}
+.cb.cb-voll .cb-szene>.cbs-huelle{flex:1 1 auto;min-height:0}

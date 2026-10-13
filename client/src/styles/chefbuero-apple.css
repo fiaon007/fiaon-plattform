@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO · APPLE-BÜHNE (E-345, 13.10.2026)
+
+   Justin: „Unser Design gefällt mir nicht, die Startseite von Chef muss schöner,
+   cleaner werden — schau dir das Apple-Design an (Sperrbildschirm), genau so will
+   ich es vom Glaseffekt — und ein Hintergrundvideo im Loop, transparent hinten."
+
+   Aktiv nur mit .cb-apple an der Hülle (ChefShell, ?buehne=alpen|erde|glas).
+   Der Kniff: Die Glasschicht (chefbuero-glas.css) malt jede Karte, Leiste und
+   Kopfzeile über Variablen. Hier werden NUR diese Variablen auf Apple-Milchglas
+   umgestellt — jede Glasfläche im Chefbüro folgt, ohne Einzelregel.
+   Lesbarkeit: Milchglas trägt einen leichten dunklen Grund unter dem Weiß, sonst
+   verschwindet weiße Schrift über Schnee und Wolken.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cb.cb-glas.cb-apple {
+  --ap-schrift: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --ap-glas: linear-gradient(160deg, rgba(255, 255, 255, .16) 0%, rgba(255, 255, 255, .07) 46%, rgba(255, 255, 255, .05) 100%), rgba(12, 18, 34, .24);
+  --ap-glas-dicht: linear-gradient(160deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .06) 100%), rgba(10, 15, 28, .46);
+  --ap-blur: blur(30px) saturate(180%);
+  --gl-kante: rgba(255, 255, 255, .20);
+  --gl-kante-hell: rgba(255, 255, 255, .38);
+  --gl-licht: inset 0 1px 0 rgba(255, 255, 255, .36), inset 0 -1px 0 rgba(255, 255, 255, .05), inset 1px 0 0 rgba(255, 255, 255, .06);
+  --gl-karte: var(--ap-glas);
+  --gl-blau: var(--ap-glas-dicht);
+  --gl-tiefe: 0 28px 60px -30px rgba(0, 0, 0, .55);
+  background: #03060D;
+  font-family: var(--ap-schrift);
+}
+
+/* ── Die Bühne: der Film klar und ganz, ein Schleier nur für die Lesbarkeit ── */
+.cb.cb-glas.cb-apple .cb-buehne { display: block; background: #03060D; }
+.cb.cb-apple .cb-buehne img,
+.cb.cb-apple .cb-buehne video { width: 100%; height: 100%; object-fit: cover; opacity: 1; transform: none; }
+/* Arbeitsseiten: Film bleibt sichtbar, aber gedämpft — Tabellen und Akten müssen lesbar sein. */
+.cb.cb-apple .cb-schleier {
+  display: block;
+  background: linear-gradient(180deg, rgba(3, 6, 13, .58) 0%, rgba(3, 6, 13, .50) 40%, rgba(3, 6, 13, .70) 100%);
+}
+/* Startseite: so klar wie der Sperrbildschirm — nur oben und unten ein Hauch. */
+.cb.cb-apple.cb-start .cb-schleier {
+  background: linear-gradient(180deg, rgba(3, 6, 13, .22) 0%, rgba(3, 6, 13, .04) 34%, rgba(3, 6, 13, .18) 70%, rgba(3, 6, 13, .55) 100%);
+}
+
+/* ── Kopfzeile und Seitenmenü: schwebendes Milchglas ─────────────────────── */
+.cb.cb-glas.cb-apple .cb-kopf,
+.cb.cb-glas.cb-apple .cb-leiste {
+  background: var(--ap-glas);
+  border: 1px solid var(--gl-kante);
+  box-shadow: var(--gl-licht), 0 30px 70px -36px rgba(0, 0, 0, .6);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+.cb.cb-glas.cb-apple .cb-punkt { color: rgba(255, 255, 255, .78); }
+.cb.cb-glas.cb-apple .cb-punkt i { color: rgba(255, 255, 255, .62); }
+.cb.cb-glas.cb-apple .cb-punkt:hover { background: rgba(255, 255, 255, .10); color: #fff; }
+.cb.cb-glas.cb-apple .cb-punkt.an {
+  background: rgba(255, 255, 255, .20);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .40), inset 0 0 0 1px rgba(255, 255, 255, .16);
+  color: #fff;
+}
+.cb.cb-glas.cb-apple .cb-punkt.an i { color: #fff; filter: none; }
+.cb.cb-apple .cb-leiste-titel { color: rgba(255, 255, 255, .5); }
+.cb.cb-apple .cb-unterpunkt { color: rgba(255, 255, 255, .62); }
+.cb.cb-apple .cb-unterpunkt.an { background: rgba(255, 255, 255, .16); box-shadow: none; color: #fff; }
+
+/* Wegeleiste und „Weiter": Glaspillen statt Blauflächen. */
+.cb.cb-apple .cb-weg {
+  background: rgba(255, 255, 255, .10); border-color: rgba(255, 255, 255, .18); color: rgba(255, 255, 255, .82);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+.cb.cb-apple .cb-weg svg { color: rgba(255, 255, 255, .7); }
+.cb.cb-apple .cb-weg.an { background: rgba(255, 255, 255, .26); border-color: rgba(255, 255, 255, .34); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45); }
+.cb.cb-apple .cb-weiter-link { background: var(--ap-glas); border-color: var(--gl-kante); -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur); }
+.cb.cb-apple .cb-weiter-link small { color: rgba(255, 255, 255, .6); }
+
+/* ═══ DIE STARTSEITE: wie der Sperrbildschirm ════════════════════════════════
+   Datum · eine riesige, dünne Zahl mit Glasschimmer · darunter wenige Glaspillen.
+   Alles mittig, viel Luft; Kennzahlen und „Was klemmt" liegen darunter auf Glas. */
+.cl-datum { display: none; }
+.cb.cb-apple .cl { gap: 56px; }
+.cb.cb-apple .cl-aufschlag {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  min-height: min(62vh, 640px); justify-content: center; padding: 2vh 0 0;
+}
+.cb.cb-apple .cl-datum {
+  display: block; order: 1; margin: 0;
+  font: 600 clamp(19px, 1.7vw, 25px)/1.2 var(--ap-schrift); letter-spacing: .005em;
+  color: rgba(255, 255, 255, .9); text-shadow: 0 1px 14px rgba(0, 0, 0, .28);
+}
+.cb.cb-apple .cl-riesenzahl {
+  order: 2; margin: 2px 0 0;
+  font: 200 clamp(76px, 10.5vw, 164px)/.98 var(--ap-schrift); letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .98) 8%, rgba(226, 238, 255, .80) 58%, rgba(205, 224, 255, .64) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: none; filter: drop-shadow(0 8px 34px rgba(0, 0, 0, .26));
+}
+.cb.cb-apple .cl-riesenzahl * { color: inherit; }
+.cb.cb-apple .cl-label {
+  order: 3; margin: 14px 0 0;
+  font: 500 11.5px/1 var(--ap-schrift); letter-spacing: .22em; color: rgba(255, 255, 255, .72);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .3);
+}
+.cb.cb-apple .cl-gruss {
+  order: 4; margin: 26px 0 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-family: var(--ap-schrift); color: rgba(255, 255, 255, .78);
+}
+.cb.cb-apple .cl-gruss-zeile { font: 500 16px/1.3 var(--ap-schrift); color: rgba(255, 255, 255, .92); }
+.cb.cb-apple .cl-gruss-status { font: 400 12.5px/1.3 var(--ap-schrift); color: rgba(255, 255, 255, .62); }
+.cb.cb-apple .cl-zeitraum {
+  order: 5; margin: 22px 0 0;
+  background: var(--ap-glas); border: 1px solid var(--gl-kante); box-shadow: var(--gl-licht);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+.cb.cb-apple .cl-zeitraum-knopf { font: 500 13px/1 var(--ap-schrift); color: rgba(255, 255, 255, .72); padding: 8px 18px; }
+.cb.cb-apple .cl-zeitraum-knopf.an { background: rgba(255, 255, 255, .26); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 4px 14px rgba(0, 0, 0, .18); }
+.cb.cb-apple .cl-aufschlag-zeile { order: 6; justify-content: center; gap: 10px; margin-top: 16px; }
+.cb.cb-apple .cl-pille,
+.cb.cb-apple .cl-pille.trend.gut,
+.cb.cb-apple .cl-pille.trend.schlecht,
+.cb.cb-apple .cl-pille.heute {
+  padding: 9px 16px; font: 400 13px/1 var(--ap-schrift);
+  background: var(--ap-glas); border: 1px solid var(--gl-kante); color: rgba(255, 255, 255, .86);
+  box-shadow: var(--gl-licht);
+  -webkit-backdrop-filter: var(--ap-blur); backdrop-filter: var(--ap-blur);
+}
+.cb.cb-apple .cl-pille b { color: #fff; font-weight: 600; }
+.cb.cb-apple .cl-pille em { color: rgba(255, 255, 255, .62); }
+.cb.cb-apple .cl-pille svg { color: #7cf0b9; }
+.cb.cb-apple a.cl-pille:hover { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* Kennzahlen: vier Glasflächen wie Widgets, Zahlen dünn. */
+.cb.cb-apple .cl-kennzahl b { font-family: var(--ap-schrift); font-weight: 300; color: #fff; }
+.cb.cb-apple .cl-kennzahl small,
+.cb.cb-apple .cl-kennzahl em { font-family: var(--ap-schrift); color: rgba(255, 255, 255, .66); }
+.cb.cb-apple .cl-kennzahl i { background: rgba(255, 255, 255, .16); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.cb.cb-apple .cl-block-kopf h2,
+.cb.cb-apple .cl-block-kopf h3 { font-family: var(--ap-schrift); font-weight: 500; }
+
+/* Wer Bewegung abgestellt hat oder ohne Unschärfe-Unterstützung: dichteres Glas, gleiche Ruhe. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cb.cb-glas.cb-apple { --ap-glas: rgba(14, 22, 40, .78); --ap-glas-dicht: rgba(10, 16, 30, .86); }
+}
+@media (max-width: 700px) {
+  .cb.cb-apple .cl-aufschlag { min-height: 52vh; }
+  .cb.cb-apple .cl-riesenzahl { font-size: clamp(54px, 15vw, 84px); }
+}

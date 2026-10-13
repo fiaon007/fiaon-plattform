@@ -234,6 +234,8 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
 
       {/* ── Der Aufschlag: Begrüßung wie ein Systemstart, dann DIE Zahl ── */}
       <section className="cl-aufschlag">
+        {/* E-345: Datum wie auf dem Sperrbildschirm — sichtbar nur mit der Apple-Bühne (chefbuero-apple.css). */}
+        <p className="cl-datum">{new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}</p>
         <p className="cl-gruss belebt">
           <span className="cl-gruss-zeile">{anrede ? `${gruss}, ${anrede}.` : `${gruss}.`}</span>
           <span className="cl-gruss-status"><i aria-hidden="true" />Ihre Systeme stehen bereit.</span>

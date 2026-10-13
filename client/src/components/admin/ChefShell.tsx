@@ -35,6 +35,8 @@ import "@/styles/chefbuero.css";
 import "@/styles/chefbuero-seiten.css";
 // 08.10.2026 (Justin): Glas-Design — eine Schicht über allen Raum-Stilen, aktiv über .cb-glas (chefbuero-glas.css).
 import "@/styles/chefbuero-glas.css";
+// E-345: Apple-Bühne (Milchglas, Systemschrift, Sperrbildschirm-Startseite) — nur aktiv mit .cb-apple.
+import "@/styles/chefbuero-apple.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /** Glaskarten mit Zeiger-Licht — dieselbe Liste wie die Glaskarten-Regel in chefbuero-glas.css. */
@@ -252,6 +254,29 @@ export function RaumWege({ raum, stufe, aktivSlug }: { raum: ChefRaum; stufe: Ch
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE APPLE-BÜHNE (E-345, 13.10.2026) — Vorschau
+//
+// Justin: „schau dir das Apple-Design an (Sperrbildschirm) — genau so will ich es vom Glaseffekt,
+//          und finde ein besseres Hintergrundvideo, das im Loop läuft und transparent hinten liegt."
+// Drei Bühnen (Higgsfield, Archiv 08_Medien_Higgsfield/2026-10-13_Chefbuero_Apple_Hintergrund):
+// alpen · erde · glas. Wählbar über ?buehne=<name> (gemerkt im Browser), ?buehne=aus = bisheriges Kristall.
+// Mit Bühne trägt die Hülle die Klasse .cb-apple (chefbuero-apple.css): Milchglas, Systemschrift, Startseite
+// wie der Sperrbildschirm. Der Film pausiert im Hintergrund-Tab; ruhige Seiten und „Bewegung reduzieren“
+// bekommen das Standbild (E-252: kein Dauerfilm unter dem Glas der Steuerpulte).
+// ═══════════════════════════════════════════════════════════════════════════
+export const CHEF_BUEHNEN = ["alpen", "erde", "glas"] as const;
+export type ChefBuehne = typeof CHEF_BUEHNEN[number];
+function buehneWaehlen(): ChefBuehne | null {
+  try {
+    const q = new URLSearchParams(window.location.search).get("buehne");
+    if (q === "aus") { window.localStorage.removeItem("chef-buehne"); return null; }
+    if (q && (CHEF_BUEHNEN as readonly string[]).includes(q)) { window.localStorage.setItem("chef-buehne", q); return q as ChefBuehne; }
+    const m = window.localStorage.getItem("chef-buehne");
+    return m && (CHEF_BUEHNEN as readonly string[]).includes(m) ? (m as ChefBuehne) : null;
+  } catch { return null; }
+}
+
 export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false, seiteSlug = null, volltext = false }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
   /** E-342: die offene Seite (/chef/s/<slug>) — markiert ihren Unterpunkt im Menü. */
@@ -275,6 +300,18 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
+  // E-345: die gewählte Bühne (Vorschau) — und der Film ruht, solange der Tab nicht sichtbar ist.
+  const [buehne] = useState<ChefBuehne | null>(() => buehneWaehlen());
+  useEffect(() => {
+    if (!buehne) return;
+    const umschalten = () => {
+      const v = document.querySelector<HTMLVideoElement>(".cb-buehne video");
+      if (!v) return;
+      if (document.hidden) v.pause(); else void v.play().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", umschalten);
+    return () => document.removeEventListener("visibilitychange", umschalten);
+  }, [buehne]);
   // ── ⌘K / Strg+K (E-336) ─────────────────────────────────────────────────
   // Öffnet die Suche von jeder Chefbüro-Seite aus; ein zweites ⌘K schließt sie.
   const [sucheOffen, setSucheOffen] = useState(false);
@@ -428,7 +465,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   );
 
   return (
-    <div className={`cb cb-glas${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
+    <div className={`cb cb-glas${buehne ? ` cb-apple cb-buehne-${buehne}${raumKey === "lage" && !seiteSlug ? " cb-start" : ""}` : ""}${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum
@@ -440,8 +477,14 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           Standbild. Ein Hintergrund darf niemandem schaden.
           ══════════════════════════════════════════════════════════════════ */}
       <div className="cb-buehne" aria-hidden="true">
-        {/* E-252: Auf einer ruhigen Seite gibt es weder Film noch Standbild — der Navy-Verlauf kommt aus chefbuero.css. */}
-        {ruhigeHuelle ? null : ruhig ? (
+        {/* E-345: Apple-Bühne — Film im Loop; ruhige Seiten und „Bewegung reduzieren“ sehen das Standbild. */}
+        {buehne ? (
+          (ruhigeHuelle || vollflaeche || ruhig)
+            ? <img src={`/film/chef-${buehne}.jpg`} alt="" decoding="async" />
+            : <video key={buehne} src={`/film/chef-${buehne}.mp4`} poster={`/film/chef-${buehne}.jpg`}
+                     autoPlay muted loop playsInline preload="auto" />
+        ) : /* E-252: Auf einer ruhigen Seite gibt es weder Film noch Standbild — der Navy-Verlauf kommt aus chefbuero.css. */
+        ruhigeHuelle ? null : ruhig ? (
           <img src="/film/chef-buehne.jpg" alt="" decoding="async" />
         ) : (
           <video src="/film/chef-buehne.mp4" poster="/film/chef-buehne.jpg"

@@ -10,19 +10,21 @@ import { API, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import "@/styles/chef-provisionen.css";
 
 interface Vormerkung {
-  id: number; agent: string; kunde: string | null; ref: string | null; zahlung: string | null; paket: string | null;
+  id: number; agentId: number; agent: string; kunde: string | null; ref: string | null; zahlung: string | null; paket: string | null;
   betragEuro: number; satz: number; basisEuro: number; art: string; quelle: string | null;
   anlass: string; notiz: string | null; am: string; erledigtAm: string | null; erledigtVon: string | null;
 }
 interface Stand {
   an: boolean;
   status: string;
+  jeMitarbeiter: { agentId: number; name: string; anzahl: number; euro: number; arten: Record<string, number> }[];
   zahlen: { offen: number; offenEuro: number; gebucht: number; verworfen: number };
   vormerkungen: Vormerkung[];
   letzteBuchungen: { id: number; agent: string; ref: string | null; betragEuro: number; art: string; status: string; am: string }[];
 }
 
 const euro = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const ART: Record<string, string> = { own: "eigene", override: "Team", inkasso: "Inkasso" };
 
 interface OverrideZeile { vormerkung: number; zahlung: string; betreuer: number; werber: number; betragEuro: number; satz: number; schonDa: boolean; angelegt: boolean }
 interface OverrideStand { trocken: boolean; anzahl: number; summeEuro: number; liste: OverrideZeile[] }
@@ -105,7 +107,9 @@ export default function ChefProvisionen() {
   const stand = useDaten<Stand>(`/chef/provisionen/stand?status=${status}`, [status]);
   const [beschaeftigt, setBeschaeftigt] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [nurAgent, setNurAgent] = useState<number | null>(null);
   const s = stand.daten;
+  const sichtbar = s ? s.vormerkungen.filter((v) => nurAgent === null || v.agentId === nurAgent) : [];
 
   const melden = (t: string) => { setMeldung(t); window.setTimeout(() => setMeldung(null), 7000); };
 
@@ -124,6 +128,12 @@ export default function ChefProvisionen() {
     if (!s || !window.confirm(`${s.zahlen.offen} Vormerkungen über ${euro(s.zahlen.offenEuro)} jetzt buchen?`)) return;
     setBeschaeftigt("alle");
     try { const j = await senden("/chef/provisionen/alle-buchen", {}); melden(`${j.gebucht} gebucht.`); stand.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
+  };
+  const personBuchen = async (p: Stand["jeMitarbeiter"][number]) => {
+    if (!window.confirm(`${p.anzahl} Vormerkung${p.anzahl === 1 ? "" : "en"} über ${euro(p.euro)} für ${p.name} jetzt buchen?\n\nNur ${p.name} — alle anderen bleiben vorgemerkt.`)) return;
+    setBeschaeftigt(`p${p.agentId}`);
+    try { const j = await senden("/chef/provisionen/alle-buchen", { agentId: p.agentId }); melden(`${p.name}: ${j.gebucht} gebucht (${euro(j.euro)}).`); setNurAgent(null); stand.neu(); }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const verwerfen = async (v: Vormerkung) => {
@@ -161,6 +171,23 @@ export default function ChefProvisionen() {
             <div className="pv-zahl"><span>Verworfen</span><b>{s.zahlen.verworfen}</b><small>mit Begründung</small></div>
           </section>
 
+          {status === "offen" && s.jeMitarbeiter.length > 0 && (
+            <section className="pv-je" aria-label="Je Mitarbeiter">
+              {s.jeMitarbeiter.map((p) => (
+                <div key={p.agentId} className={`pv-je-zeile${nurAgent === p.agentId ? " an" : ""}`}>
+                  <button type="button" className="pv-je-name" onClick={() => setNurAgent(nurAgent === p.agentId ? null : p.agentId)} title="Nur diese Vormerkungen zeigen">
+                    <b>{p.name}</b>
+                    <span className="pv-still">{p.anzahl} · {Object.entries(p.arten).map(([k, e]) => `${ART[k] ?? k} ${euro(e)}`).join(" · ")}</span>
+                  </button>
+                  <b className="pv-je-summe">{euro(p.euro)}</b>
+                  <button type="button" className="pv-knopf" disabled={!!beschaeftigt} onClick={() => void personBuchen(p)}>
+                    {beschaeftigt === `p${p.agentId}` ? "Bucht …" : "Buchen"}
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
+
           <div className="pv-leiste">
             <div className="pv-reiter">
               {([["offen", "Offen"], ["gebucht", "Gebucht"], ["verworfen", "Verworfen"]] as const).map(([k, t]) => (
@@ -174,7 +201,7 @@ export default function ChefProvisionen() {
             )}
           </div>
 
-          {s.vormerkungen.length === 0 ? (
+          {sichtbar.length === 0 ? (
             <p className="pv-leer">
               {status === "offen"
                 ? (s.an ? "Nichts vorgemerkt — die Automatik läuft ja." : "Noch nichts vorgemerkt. Sobald eine Zahlung gebucht wird, erscheint sie hier.")
@@ -187,7 +214,7 @@ export default function ChefProvisionen() {
                   <tr><th>Mensch</th><th>Mitarbeiter</th><th>Anlass</th><th className="r">Basis</th><th className="r">Satz</th><th className="r">Betrag</th><th>Wann</th><th /></tr>
                 </thead>
                 <tbody>
-                  {s.vormerkungen.map((v) => (
+                  {sichtbar.map((v) => (
                     <tr key={v.id}>
                       <td><b>{v.kunde ?? "—"}</b><span className="pv-still"> {v.ref ?? ""}</span></td>
                       <td>{v.agent}{v.art !== "own" ? <span className="pv-marke">{v.art}</span> : null}</td>

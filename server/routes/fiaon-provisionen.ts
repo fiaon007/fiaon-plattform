@@ -12,7 +12,7 @@ import { Router, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { sqlPool } from "../lib/db-pool";
 import {
-  automatikAn, automatikSetzen, vormerkungen, vormerkungZahlen, nachbuchen, verwerfen,
+  automatikAn, automatikSetzen, vormerkungen, vormerkungZahlen, vormerkungJeMitarbeiter, nachbuchen, verwerfen,
 } from "../lib/fiaon-provision-automatik";
 
 const router = Router();
@@ -22,21 +22,23 @@ const wer = (req: ChefRequest) => (req.chef?.agentId ? `Chef #${req.chef.agentId
 router.get("/chef/provisionen/stand", wache, async (req: ChefRequest, res: Response) => {
   try {
     const status = ["offen", "gebucht", "verworfen"].includes(String(req.query.status)) ? String(req.query.status) : "offen";
-    const [zahlen, liste, letzte] = await Promise.all([
+    const [zahlen, liste, letzte, jeMitarbeiter] = await Promise.all([
       vormerkungZahlen(),
-      vormerkungen(status, 200),
+      vormerkungen(status, 500),
       sqlPool`
         SELECT c.id, c.agent_id, a.name AS agent_name, c.ref, c.amount_cents, c.rate_bp, c.kind, c.status, c.created_at
           FROM fiaon_commissions c LEFT JOIN fiaon_agents a ON a.id = c.agent_id
          ORDER BY c.id DESC LIMIT 15`.catch(() => []),
+      vormerkungJeMitarbeiter(),
     ]);
     res.json({
       ok: true,
       an: await automatikAn(),
       zahlen,
       status,
+      jeMitarbeiter,
       vormerkungen: (liste as any[]).map((v) => ({
-        id: Number(v.id), agent: v.agent_name ?? `#${v.agent_id}`, kunde: String(v.kunde || "").trim() || null,
+        id: Number(v.id), agentId: Number(v.agent_id), agent: v.agent_name ?? `#${v.agent_id}`, kunde: String(v.kunde || "").trim() || null,
         ref: v.ref, zahlung: v.payment_reference, paket: v.pack_name,
         betragEuro: Number(v.amount_cents || 0) / 100, satz: Number(v.rate_bp || 0) / 100,
         basisEuro: Number(v.base_amount_cents || 0) / 100, art: v.kind, quelle: v.quelle_name ?? null,
@@ -73,17 +75,23 @@ router.post("/chef/provisionen/buchen", wache, async (req: ChefRequest, res: Res
   res.status(erg.ok ? 200 : 409).json(erg.ok ? { ok: true, hinweis: erg.grund ?? null } : { ok: false, error: erg.grund });
 });
 
-/** Alle offenen Vormerkungen auf einmal buchen — mit Bestätigung im Browser. */
+/**
+ * Alle offenen Vormerkungen auf einmal buchen — mit Bestätigung im Browser.
+ * { agentId } (14.10.2026): nur die Vormerkungen DIESES Mitarbeiters.
+ */
 router.post("/chef/provisionen/alle-buchen", wache, async (req: ChefRequest, res: Response) => {
   try {
-    const offen = await vormerkungen("offen", 500);
+    const nur = req.body?.agentId == null ? null : Number(req.body.agentId);
+    if (nur !== null && (!Number.isInteger(nur) || nur <= 0)) return res.status(400).json({ ok: false, error: "Ungültig." });
+    const offen = (await vormerkungen("offen", 500)).filter((v) => nur === null || Number(v.agent_id) === nur);
     let gebucht = 0;
+    let cents = 0;
     for (const v of offen) {
       const e = await nachbuchen(Number(v.id), wer(req));
-      if (e.ok) gebucht++;
+      if (e.ok) { gebucht++; cents += Number(v.amount_cents) || 0; }
     }
-    console.log(`[PROVISIONEN] ${wer(req)} hat ${gebucht} Vormerkungen gebucht.`);
-    res.json({ ok: true, gebucht });
+    console.log(`[PROVISIONEN] ${wer(req)} hat ${gebucht} Vormerkungen gebucht${nur !== null ? ` (nur Agent ${nur})` : ""}.`);
+    res.json({ ok: true, gebucht, euro: cents / 100 });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Das Nachbuchen ist abgebrochen." });
   }

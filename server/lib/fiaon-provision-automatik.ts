@@ -159,6 +159,30 @@ export async function vormerkungZahlen(): Promise<{ offen: number; offenEuro: nu
 }
 
 /**
+ * Offenes je Mitarbeiter (14.10.2026, Justin: „Buche Hans-Jürgen seine Provision nach, aber nur
+ * Hans-Jürgen und Daniel“) — damit sich gezielt EINE Person nachbuchen lässt statt alle oder Zeile für Zeile.
+ */
+export async function vormerkungJeMitarbeiter(): Promise<Array<{ agentId: number; name: string; anzahl: number; euro: number; arten: Record<string, number> }>> {
+  await tabelle();
+  const zeilen = (await sqlPool`
+    SELECT v.agent_id, COALESCE(a.name, '#' || v.agent_id) AS name, v.kind, COUNT(*)::int AS n, COALESCE(SUM(v.amount_cents), 0)::int AS cents
+      FROM fiaon_provision_vormerkung v
+      LEFT JOIN fiaon_agents a ON a.id = v.agent_id
+     WHERE v.status = 'offen'
+     GROUP BY 1, 2, 3`) as any[];
+  const je = new Map<number, { agentId: number; name: string; anzahl: number; euro: number; arten: Record<string, number> }>();
+  for (const z of zeilen) {
+    const id = Number(z.agent_id);
+    const e = je.get(id) ?? { agentId: id, name: String(z.name), anzahl: 0, euro: 0, arten: {} };
+    e.anzahl += Number(z.n);
+    e.euro = Math.round((e.euro + Number(z.cents) / 100) * 100) / 100;
+    e.arten[String(z.kind)] = Math.round(((e.arten[String(z.kind)] ?? 0) + Number(z.cents) / 100) * 100) / 100;
+    je.set(id, e);
+  }
+  return Array.from(je.values()).sort((a, b) => b.euro - a.euro);
+}
+
+/**
  * Eine Vormerkung nachbuchen — sie wird zu einer echten Provision. Derselbe
  * Weg wie die Automatik, nur von Hand ausgelöst.
  */

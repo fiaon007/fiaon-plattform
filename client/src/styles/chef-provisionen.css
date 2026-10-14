@@ -46,6 +46,15 @@
 .pv-zahl.gross b { color: var(--pv-gelb); }
 .pv-zahl small { font-size: 11.5px; color: var(--pv-still); }
 
+/* Je Mitarbeiter (14.10.2026): eine Zeile je Person, Name filtert die Liste, „Buchen“ bucht nur diese Person. */
+.pv-je { display: grid; border-top: 1px solid var(--pv-linie); }
+.pv-je-zeile { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 8px 2px; border-bottom: 1px solid var(--pv-linie); }
+.pv-je-zeile.an { background: var(--pv-flaeche); }
+.pv-je-name { display: grid; gap: 2px; text-align: left; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.pv-je-name b { color: var(--pv-text); font-weight: 500; font-size: 13.5px; }
+.pv-je-name .pv-still { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-je-summe { color: var(--pv-text); font-weight: 400; font-size: 15px; font-variant-numeric: tabular-nums; }
+
 .pv-leiste { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .pv-reiter { display: flex; gap: 6px; }
 .pv-reiter button {

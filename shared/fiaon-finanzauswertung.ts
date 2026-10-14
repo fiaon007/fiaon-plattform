@@ -296,8 +296,8 @@ export function voraussetzungenPruefen(e: {
   const auskunftFertig = e.auskunft?.status === "fertig";
   const auskunft = {
     ausgewertet: auskunftFertig,
-    // E-353/E-355 (14.10.2026, Justin): Die Auswertung ersetzt die Auskunft — ohne sie fehlt nichts.
-    satz: auskunftFertig ? "Vorgelegte Bonitätsauskunft fließt zusätzlich ein." : "Nicht nötig — die Bonität wird aus dem Kontoauszug bewertet.",
+    // E-356 (14.10.2026, Justin): „Bei Bonität muss stehen: Jetzt entwickeln — dann startet unser Prozess.“
+    satz: auskunftFertig ? "Jetzt entwickeln — die vorgelegte Auskunft fließt zusätzlich ein." : "Jetzt entwickeln — mit der FIAON-Bonitätsauswertung.",
   };
 
   const anforderbar: ("ausweis" | "kontoauszug")[] = [];

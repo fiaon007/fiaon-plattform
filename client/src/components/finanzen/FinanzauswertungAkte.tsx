@@ -157,7 +157,7 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
           <button type="button" className="pi-knopf klein" disabled={!v?.bereit || !!busy || !!d.laeuft}
                   title={v?.bereit ? "Erzeugt einen Entwurf — der Kunde sieht ihn erst nach deiner Freigabe." : "Erst wenn Ausweis und Kontoauszug hochgeladen sind."}
                   onClick={() => void erzeugen()}>
-            {d.laeuft ? "Wird erstellt …" : busy === "erzeugen" ? "Startet …" : aktuell || entwurf ? "Neue Fassung erzeugen" : "Auswertung erzeugen"}
+            {d.laeuft ? "Wird entwickelt …" : busy === "erzeugen" ? "Startet …" : aktuell || entwurf ? "Neue Fassung entwickeln" : "Bonität jetzt entwickeln"}
           </button>
         </div>
       </div>
@@ -188,7 +188,7 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
           )}
         </Zeile>
         <Zeile ok={v?.kontoauszug?.ok ?? false} titel="Kontoauszug" satz={v?.kontoauszug?.satz ?? "—"} />
-        <Zeile ok={true} titel="Bonität" satz={v?.auskunft?.satz ?? "—"} />
+        <Zeile ok={aktuell || entwurf ? true : null} titel="Bonität" satz={aktuell ? "Entwickelt — beim Kunden." : entwurf ? "Entwickelt — Entwurf wartet auf die Übergabe." : v?.bereit ? "Jetzt entwickeln — Knopf oben rechts." : "Jetzt entwickeln, sobald Ausweis und Kontoauszug da sind."} />
       </div>
 
       {/* 4c: Anfordern mit einem Klick */}

@@ -395,6 +395,10 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
 
     // ── Etappen — eine Reihenfolge, aus echten Zuständen ────────────────────
     const unterlagenOk = !!a.hat_kontoauszug && !!a.hat_ausweis && !a.reupload_bank_statement && !a.reupload_id_card;
+    // E-356 (14.10.2026): Die FIAON-Bonitätsauswertung ist die Leistung der bezahlten Auskunft — liegt sie beim Kunden?
+    const [bonitaetFa] = a.person_id ? ((await sqlPool`
+      SELECT 1 AS da FROM fiaon_finanzauswertungen WHERE person_id = ${a.person_id} AND status = 'freigegeben' LIMIT 1`.catch(() => [])) as any[]) : [null];
+    const bonitaetDa = !!bonitaetFa;
     const startErledigt = !!start && start.status === "erledigt";
     const auskunftBezahlt = !!bonitaet?.bezahlt;
     const auskunftDa = !!bonitaet?.hatDokument;
@@ -429,20 +433,23 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       // und Auskunfteien kommen aus dem Kauf-Block (Katalog + Land) — vorher
       // stand hier „74 € einmalig" hart, auch für Österreicher und Gekündigte.
       {
-        key: "auskunft", titel: "Bonitätsauskunft",
-        text: auskunftDa ? "Ihre Auskunft ist eingegangen."
-          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? `Bezahlt — wir fordern Ihre Datenkopien${kauf ? ` bei ${kauf.bei}` : ""} an und melden uns, sobald sie vorliegen.`
+        key: "auskunft", titel: "Bonität",
+        text: bonitaetDa ? "Ihre FIAON-Bonitätsauswertung liegt vor — mit Ampel, Finanzwert, jeder Ausgabe im Detail und Ihrem Plan."
+          : auskunftDa ? "Ihre Auskunft ist eingegangen."
+          : auskunftBezahlt || kauf?.stufe === "bezahlt"
+            ? (unterlagenOk ? "Bezahlt — wir entwickeln jetzt Ihre FIAON-Bonitätsauswertung aus Ihren Unterlagen."
+              : "Bezahlt — laden Sie Ihren Ausweis und Ihre Kontoauszüge hoch, dann entwickeln wir Ihre FIAON-Bonitätsauswertung.")
           : kauf?.stufe === "offen" ? `Beauftragt — sobald Ihre Zahlung${kauf.offen ? ` über ${kauf.offen.betragText}` : ""} da ist, fordern wir Ihre Datenkopien an.`
           : kauf?.sperre === "gekuendigt" ? "Nicht im Paket enthalten — nach der Kündigung lässt sie sich hier nicht mehr neu beauftragen."
           : kauf ? `Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei ${kauf.bei} an, erklären jeden Eintrag, prüfen die Fristen und schreiben Ihren Handlungsplan. ${auskunftPreisSatz} einmalig, kein Abo.${kauf.paketPreisSatz ? ` ${kauf.paketPreisSatz}` : ""}`
           : "Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei den Auskunfteien an, erklären jeden Eintrag und schreiben Ihren Handlungsplan.",
-        stand: auskunftDa ? "fertig" : "kommt", datum: null,
-        stempel: auskunftDa ? "liegt vor"
-          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? "in Beschaffung"
+        stand: bonitaetDa || auskunftDa ? "fertig" : "kommt", datum: null,
+        stempel: bonitaetDa || auskunftDa ? "liegt vor"
+          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? (unterlagenOk ? "wird entwickelt" : "Unterlagen fehlen")
           : kauf?.stufe === "offen" ? "Zahlung offen"
           : kauf?.sperre === "gekuendigt" ? "nicht beauftragt"
           : kauf ? `${auskunftPreisText} einmalig` : "Zusatzauftrag",
-        href: "#bonitaet",
+        href: bonitaetDa ? "/app/auswertung" : "#bonitaet",
       },
       {
         key: "analyse", titel: "Analyse durch FIAON",

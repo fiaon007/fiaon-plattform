@@ -30,6 +30,8 @@ export interface AblaufStand {
   zahlung: boolean;
   startgespraech: boolean;
   auskunft: boolean;
+  /** E-356: FIAON-Bonitätsauswertung beim Kunden (fehlt bei älteren Antworten). */
+  bonitaet?: boolean;
   vollAktiv: boolean;
   aboLaeuft: boolean;
 }
@@ -74,7 +76,8 @@ export function AblaufLeiste({ stand, dicht = false }: { stand: AblaufStand; dic
     { text: "Antrag", fertig: stand.antrag },
     { text: "Zahlung", fertig: stand.zahlung },
     { text: "Startgespräch", fertig: stand.startgespraech },
-    { text: "Auskunft", fertig: stand.auskunft, hinweis: "freiwillig" },
+    // E-356 (14.10.2026, Justin): „Bonität — Jetzt entwickeln“ statt „Auskunft · freiwillig“.
+    { text: "Bonität", fertig: stand.bonitaet === true, hinweis: "jetzt entwickeln" },
     { text: "Voll aktiv", fertig: stand.vollAktiv },
     { text: "Abo läuft", fertig: stand.aboLaeuft },
   ];

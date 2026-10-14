@@ -14,7 +14,9 @@
 //   · „Hinzufügen“ (mehrere, nacheinander, mit Balken), „Alles ersetzen“ (mit
 //     Grund), „Geprüft“ (danach entfernt der Kunde dort nichts mehr selbst),
 //     „Neu lesen“ (Prüfung + Analyse jetzt);
-//   · entfernte Dateien eingeklappt, mit wer/wann/warum.
+//   · entfernte Dateien eingeklappt, mit wer/wann/warum;
+//   · „Umordnen“ (14.10.2026, Florentine): eine Datei in die richtige Kategorie legen — z. B. Kontoauszüge,
+//     die der Kunde unter „Weitere → Sonstiges“ hochgeladen hat. Danach wie ein Upload dorthin (binden, lesen).
 // Ton: dunkel in der Akte (pipeline), hell im Chefbüro.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
@@ -48,6 +50,7 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
   const [notiz, setNotiz] = useState("");
   // Querprüfung 08.10.2026: Entfernen mit Grund-Art — „falsche Person“/„nicht benötigt“ löschen den Inhalt sofort.
   const [weg, setWeg] = useState<{ id: number; art: string; grund: string } | null>(null);
+  const [um, setUm] = useState<{ id: number; ziel: string; unterart: string } | null>(null);
   const sagen: Melden = melden ?? ((t, titel, text) => { if (t === "schlecht") window.alert([titel, text].filter(Boolean).join("\n")); });
 
   const laden = useCallback(async () => {
@@ -101,6 +104,15 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
     setArbeit(null);
     if (j?.ok) { setWeg(null); if (j.stand) setStand(j.stand); sagen("gut", "Entfernt", j.meldung); onGeaendert?.(); }
     else sagen("schlecht", "Nicht entfernt", j?.error || "Bitte erneut versuchen.");
+  };
+
+  const umordnen = async () => {
+    if (!um?.ziel) return;
+    setArbeit(`um-${um.id}`);
+    const j = await post(`/datei/${um.id}/umordnen`, { ziel: um.ziel, unterart: um.unterart || undefined });
+    setArbeit(null);
+    if (j?.ok) { setUm(null); if (j.stand) setStand(j.stand); sagen("gut", "Umgeordnet", j.meldung); onGeaendert?.(); }
+    else sagen("schlecht", "Nicht umgeordnet", j?.error || "Bitte erneut versuchen.");
   };
 
   // Querprüfung 08.10.2026: Leitung — Inhalt einer entfernten Datei vor Ablauf der Frist endgültig löschen.
@@ -177,7 +189,9 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                     <span className="ua-name">{d.name}{d.unterartLabel ? ` · ${d.unterartLabel}` : ""}</span>
                     <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {stand.inhaltErlaubt !== false && <a className={knopf} href={datei(d)} target="_blank" rel="noreferrer">Öffnen</a>}
-                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}`} onClick={() => setWeg(weg?.id === d.id ? null : { id: Number(d.id), art: "", grund: "" })}>Entfernen</button>}
+                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `um-${d.id}`} data-fiaon="unterlage-umordnen-knopf"
+                        onClick={() => { setWeg(null); setUm(um?.id === d.id ? null : { id: Number(d.id), ziel: "", unterart: "" }); }}>Umordnen</button>}
+                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}`} onClick={() => { setUm(null); setWeg(weg?.id === d.id ? null : { id: Number(d.id), art: "", grund: "" }); }}>Entfernen</button>}
                     </span>
                     <small>
                       {[d.seiten ? `${d.seiten} S.` : null, d.groesse, amText(d.am), d.von === "sie" ? "vom Kunden" : d.herkunft === "beschaffung" ? "von FIAON beschafft" : "vom Team",
@@ -185,6 +199,25 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                         d.befundText, d.notiz ? `„${d.notiz}“` : null, d.geprueft ? "geprüft" : null].filter(Boolean).join(" · ")}
                     </small>
                     {d.satz && <small className="ua-warn">{d.satz}</small>}
+                    {um && um.id === d.id && (
+                      <div className="ua-wahl" data-fiaon="unterlage-umordnen">
+                        <select value={um.ziel} onChange={(e) => setUm({ ...um, ziel: e.target.value, unterart: "" })} aria-label="Wohin gehört die Datei?">
+                          <option value="" disabled>Gehört zu … (statt {k.kurz})</option>
+                          {stand.kategorien.filter((x) => x.kategorie !== k.kategorie).map((x) => <option key={x.kategorie} value={x.kategorie}>{x.titel}</option>)}
+                        </select>
+                        {(um.ziel === "ausweis" || um.ziel === "weitere") && (
+                          <select value={um.unterart} onChange={(e) => setUm({ ...um, unterart: e.target.value })} aria-label="Art der Datei">
+                            <option value="">{um.ziel === "weitere" ? "Art (sonst „Sonstiges“) …" : "Art (optional) …"}</option>
+                            {(um.ziel === "ausweis" ? AUSWEIS_ARTEN : WEITERE_UNTERARTEN).map((u) => <option key={u.wert} value={u.wert}>{u.label}</option>)}
+                          </select>
+                        )}
+                        <small className="ua-satz">Die Datei gilt danach als ungeprüft{um.ziel && um.ziel !== "weitere" ? " und wird mit den anderen Dateien dort neu gelesen" : ""}.</small>
+                        <span style={{ display: "flex", gap: 6 }}>
+                          <button type="button" className={knopf} disabled={arbeit === `um-${d.id}` || !um.ziel} onClick={() => void umordnen()}>Umordnen</button>
+                          <button type="button" className={knopf} onClick={() => setUm(null)}>Abbrechen</button>
+                        </span>
+                      </div>
+                    )}
                     {weg && weg.id === d.id && (
                       <div className="ua-wahl" data-fiaon="unterlage-entfernen">
                         <select value={weg.art} onChange={(e) => setWeg({ ...weg, art: e.target.value })} aria-label="Warum entfernen?">

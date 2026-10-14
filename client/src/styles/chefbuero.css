@@ -685,6 +685,8 @@ body:has(.cb-ruhig) .fi-raum{display:none}
   box-shadow: 0 18px 42px -20px rgba(2,6,23,.7);
 }
 .ck-zeile:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+/* 14.10.2026: zurück aus der Akte — der zuletzt geöffnete Kunde leuchtet kurz auf. */
+.ck-zeile.zuletzt { border-color: rgba(96,165,250,.6); background: rgba(40,141,250,.16); box-shadow: 0 0 0 3px rgba(40,141,250,.18); }
 .ck-marke { width: 3px; height: 30px; border-radius: 999px; background: transparent; }
 .ck-marke[data-ton="rot"] { background: #f87171; }
 .ck-marke[data-ton="gelb"] { background: #fbbf24; }

@@ -176,3 +176,21 @@
   .zd-tabelle td{max-width:220px}
   .za-voll-daten{padding:16px}
 }
+
+/* „Nächster Kunde“ (14.10.2026, Florentine): schwebende Glas-Pille unten in der Mitte — blättert durch die Reihe der Kundenliste. */
+.za-reihe{position:fixed;left:50%;bottom:22px;z-index:60;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;
+  border-radius:999px;background:linear-gradient(180deg,rgba(26,48,92,.9),rgba(12,22,44,.94));border:1px solid rgba(156,203,255,.22);
+  box-shadow:0 22px 50px -18px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.1);max-width:calc(100vw - 32px)}
+.za-reihe button{border:0;background:none;color:#dbe7fa;font:400 13.5px/1 Inter,system-ui,sans-serif;cursor:pointer;border-radius:999px;
+  min-height:40px;padding:0 14px;white-space:nowrap;transition:background .18s ease,color .18s ease}
+.za-reihe button:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.za-reihe button:disabled{opacity:.4;cursor:default}
+.za-reihe button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.za-reihe-zurueck{font-size:20px !important;width:40px;padding:0 !important}
+.za-reihe-liste{color:#9fb3d1 !important;font-variant-numeric:tabular-nums}
+.za-reihe-liste b{color:#fff;font-weight:500}
+.za-reihe-weiter{color:#fff !important;background:linear-gradient(135deg,#288DFA,#1D4ED8) !important;box-shadow:0 8px 22px rgba(40,141,250,.35),inset 0 1px 0 rgba(255,255,255,.25)}
+.za-reihe-weiter:hover:not(:disabled){filter:brightness(1.08)}
+.za-reihe-wer{color:rgba(255,255,255,.75);display:inline-block;max-width:220px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+@media(max-width:620px){.za-reihe{bottom:14px}.za-reihe-wer{display:none}}
+@media(prefers-reduced-motion:reduce){.za-reihe button{transition:none}}

@@ -18,9 +18,11 @@
 // Adresse: /akte/<Kennung>?reiter=… (Tür: pages/akte-tuer.tsx). Kennung = Personen-Nummer, lead-N oder Referenz.
 // ═══════════════════════════════════════════════════════════════════════════
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { agentSitzung } from "@/lib/office-zustand";
 import { ToastAnbieter } from "@/lib/fiaon-ui";
+import { reiheLesen, reiheSeiteLaden, reiheZuletzt, type AkteReihe } from "@/lib/akte-reihe";
 import "@/styles/office-pipeline.css";
 import "@/styles/zentrale-akte.css";
 
@@ -120,6 +122,7 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
   if (stand.art === "akte") {
     return (
       <div className={`za${imFenster ? " im-fenster" : ""}`}>
+        {!imFenster && <ReiheLeiste personId={stand.personId} onGehe={(id) => { navigate(`/akte/${id}`); window.scrollTo(0, 0); const r = document.getElementById("root"); if (r) r.scrollTop = 0; }} onListe={zurListe} />}
         <Suspense fallback={<div className="za-laden" role="status"><span /><span /><span /></div>}>
           <ToastAnbieter ton="dunkel">
             <FragenAnbieter>
@@ -186,6 +189,48 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * „Nächster Kunde“ (14.10.2026, Florentine): durch die Reihe der Kundenliste blättern, ohne zurück und wieder
+ * hinunterzuscrollen. Schwebt unten in der Mitte; an den Rändern lädt sie die nächste/vorige Seite derselben Auswahl.
+ * Erscheint nur, wenn die Akte aus der Liste geöffnet wurde (die Person steht in der abgelegten Reihe).
+ */
+function ReiheLeiste({ personId, onGehe, onListe }: { personId: number; onGehe: (id: number) => void; onListe: () => void }) {
+  const [reihe, setReihe] = useState<AkteReihe | null>(() => reiheLesen());
+  const [laedt, setLaedt] = useState(false);
+  useEffect(() => { setReihe(reiheLesen()); reiheZuletzt(personId); }, [personId]);
+  const i = reihe ? reihe.eintraege.findIndex((e) => e.id === personId) : -1;
+  if (!reihe || i < 0) return null;
+  const nr = (reihe.seite - 1) * reihe.proSeite + i + 1;
+  const hatVor = i > 0 || reihe.seite > 1;
+  const hatNach = i < reihe.eintraege.length - 1 || reihe.seite < reihe.seiten;
+  const naechster = i < reihe.eintraege.length - 1 ? reihe.eintraege[i + 1] : null;
+  const gehe = async (richtung: 1 | -1) => {
+    if (laedt) return;
+    const j = i + richtung;
+    if (j >= 0 && j < reihe.eintraege.length) { onGehe(reihe.eintraege[j].id); return; }
+    setLaedt(true);
+    const neu = await reiheSeiteLaden(reihe, reihe.seite + richtung);
+    setLaedt(false);
+    const ziel = neu ? (richtung === 1 ? neu.eintraege[0] : neu.eintraege[neu.eintraege.length - 1]) : null;
+    if (neu && ziel) { setReihe(neu); onGehe(ziel.id); }
+  };
+  // Als Portal an <body>: Die Fläche des Chefbüros (.cb-inhalt) blendet mit einer Transform-Animation ein — darin wäre
+  // „position: fixed“ am Seitenende statt am Bildschirmrand.
+  return createPortal(
+    <nav className="za-reihe" aria-label="Durch die Kundenliste blättern" data-fiaon="akte-reihe">
+      <button type="button" className="za-reihe-zurueck" onClick={() => void gehe(-1)} disabled={!hatVor || laedt} aria-label="Vorheriger Kunde" title="Vorheriger Kunde">‹</button>
+      <button type="button" className="za-reihe-liste" onClick={onListe} title="Zurück zur Liste — an dieselbe Stelle">
+        <b>{nr}</b><span> / {reihe.gesamt.toLocaleString("de-DE")}</span>
+      </button>
+      <button type="button" className="za-reihe-weiter" onClick={() => void gehe(1)} disabled={!hatNach || laedt}
+              title={naechster ? `Nächster: ${naechster.name}` : "Nächster Kunde (nächste Seite)"}>
+        {laedt ? "Lädt …" : <>Nächster Kunde<span className="za-reihe-wer">{naechster ? `\u00a0·\u00a0${naechster.name}` : ""}</span> ›</>}
+      </button>
+    </nav>,
+    document.body,
   );
 }
 

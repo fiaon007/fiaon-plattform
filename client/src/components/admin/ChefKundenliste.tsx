@@ -21,7 +21,7 @@
 // bunte Zeilen — eine Liste, in der jede zweite Zeile leuchtet, hat keine
 // Warnung mehr, sondern ein Muster.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import {
   Search, Users, ChevronLeft, ChevronRight, ArrowUpDown, ExternalLink,
@@ -30,6 +30,8 @@ import {
 import { API, Karte, Hochzaehler, eur, zahl, datum, seit, Geruest, Fehlermeldung } from "./chef-teile";
 // E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
 import { akteLink } from "@/lib/akte-link";
+// 14.10.2026 (Florentine): „Nächster Kunde“ in der Akte — die Liste legt ihre Reihe ab und findet beim Zurückkommen die Stelle wieder.
+import { reiheAusZeilen, reiheLesen, reiheSpeichern, reiheZuletzt } from "@/lib/akte-reihe";
 
 const FILTER = [
   { key: "alle", label: "Alle" },
@@ -100,11 +102,14 @@ export default function ChefKundenliste() {
   // E-336: Die Suche im Kopf (⌘K) springt mit ?q=… hierher — „Alle Treffer in der Kundenliste".
   const adresse = useSearch();
   const ausAdresse = () => { try { return new URLSearchParams(adresse).get("q") ?? ""; } catch { return ""; } };
-  const [q, setQ] = useState(ausAdresse);
-  const [suche, setSuche] = useState(() => ausAdresse().trim());
-  const [filter, setFilter] = useState<string>("alle");
-  const [sort, setSort] = useState<string>("zuletzt");
-  const [seite, setSeite] = useState(1);
+  // Zurück aus der Akte (gleicher Tab): dieselbe Auswahl, dieselbe Seite — außer die Suche im Kopf bringt einen Begriff mit.
+  const [start] = useState(() => (ausAdresse() ? null : reiheLesen()));
+  const [q, setQ] = useState(() => ausAdresse() || start?.suche || "");
+  const [suche, setSuche] = useState(() => (ausAdresse() || start?.suche || "").trim());
+  const [filter, setFilter] = useState<string>(start?.filter ?? "alle");
+  const [sort, setSort] = useState<string>(start?.sort ?? "zuletzt");
+  const [seite, setSeite] = useState(start?.seite ?? 1);
+  const angesprungen = useRef(false);
   const [d, setD] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -118,9 +123,9 @@ export default function ChefKundenliste() {
 
   // Erst tippen lassen, dann suchen — sonst eine Abfrage je Tastendruck.
   useEffect(() => {
-    const t = setTimeout(() => { setSuche(q.trim()); setSeite(1); }, 280);
+    const t = setTimeout(() => { const neu = q.trim(); if (neu !== suche) { setSuche(neu); setSeite(1); } }, 280);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, suche]);
 
   useEffect(() => {
     let weg = false;
@@ -141,6 +146,27 @@ export default function ChefKundenliste() {
   const zeilen: Zeile[] = d?.zeilen ?? [];
   const kopf = d?.kopf ?? {};
 
+  // Die Reihe für „Nächster Kunde“ ablegen — und nach der Rückkehr zum zuletzt geöffneten Kunden springen.
+  useEffect(() => {
+    if (!d || laedt) return;
+    reiheSpeichern({
+      eintraege: reiheAusZeilen(d.zeilen ?? []), filter, sort, suche,
+      seite: Number(d.seite ?? seite), seiten: Number(d.seiten ?? 1), gesamt: Number(d.gesamt ?? 0), proSeite: 50,
+    });
+    if (angesprungen.current) return;
+    angesprungen.current = true;
+    const zuletzt = start?.zuletzt;
+    if (!zuletzt) return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`.ck-zeile[data-person="${zuletzt}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      el.classList.add("zuletzt");
+      setTimeout(() => el.classList.remove("zuletzt"), 2400);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, laedt]);
+
   // Die Summe der SICHTBAREN Zeilen — ausdrücklich als solche benannt, damit
   // sie niemand für den Gesamtumsatz hält.
   const summeSeite = useMemo(
@@ -155,7 +181,7 @@ export default function ChefKundenliste() {
         <h1>Alle Menschen bei FIAON</h1>
         <p className="cl-untertitel">
           Eine Person, eine Zeile. Zusammengeführte Dubletten und Testeinträge
-          sind nicht dabei.
+          sind nicht dabei. In der Akte blätterst du unten mit „Nächster Kunde“ weiter.
         </p>
       </header>
 
@@ -229,7 +255,8 @@ export default function ChefKundenliste() {
           {zeilen.map((z) => {
             const zs = zeichen(z);
             return (
-              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`}
+              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} data-person={z.id}
+                 onClick={() => { if (!z.global) reiheZuletzt(Number(z.id)); }}
                  href={z.global ? `/chef/global${z.global_ref ? `?mandat=${encodeURIComponent(z.global_ref)}` : ""}` : (akteLink(z.id, "chef") ?? undefined)}>
                 <span className="ck-marke" aria-hidden="true" data-ton={zs[0]?.ton ?? ""} />
 

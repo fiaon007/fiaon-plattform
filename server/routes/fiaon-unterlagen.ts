@@ -33,7 +33,7 @@ import { UNTERLAGEN_GRENZEN, istUnterlagenKategorie, kategorieInfo, type Unterla
 import { lesefehlerSatz } from "@shared/fiaon-lesefehler";
 import {
   unterlagenStand, unterlageHinzufuegen, unterlageEntfernen, kategorieGeprueft, sofortLesen, dateiLesen,
-  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, unterlageEndgueltigLoeschen, type Handelnder,
+  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, unterlageEndgueltigLoeschen, unterlageUmordnen, type Handelnder,
 } from "../lib/fiaon-unterlagen";
 import { istLeitungsRolle } from "../lib/fiaon-geburtsdatum-akte";
 
@@ -300,6 +300,22 @@ router.post("/agent/unterlagen/:personId/datei/:id/entfernen", requireAgent, asy
   }
 });
 
+/** 14.10.2026 (Florentine): Datei in die richtige Kategorie umordnen — z. B. Kontoauszüge, die unter „Weitere“ lagen. */
+router.post("/agent/unterlagen/:personId/datei/:id/umordnen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await officeZutritt(req, res);
+    if (!z) return;
+    const ziel = String(req.body?.ziel || "").toLowerCase();
+    if (!istUnterlagenKategorie(ziel)) return res.status(400).json({ ok: false, error: "Unbekannte Zielkategorie." });
+    const erg = await unterlageUmordnen(z.personId, Number(req.params.id), ziel, z.wer, sqlPool, { unterart: req.body?.unterart });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true), darfEndgueltig: istLeitungsRolle(z.rolle) } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] office umordnen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** Querprüfung 08.10.2026: Inhalt einer ENTFERNTEN Datei endgültig löschen — nur die Leitung, mit Grund und Verlauf. */
 router.post("/agent/unterlagen/:personId/datei/:id/endgueltig", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -411,6 +427,21 @@ router.post("/admin/unterlagen/:ref/datei/:id/entfernen", async (req: Request, r
     res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
   } catch (err) {
     console.error("[UNTERLAGEN] admin entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/unterlagen/:ref/datei/:id/umordnen", async (req: Request, res: Response) => {
+  try {
+    const personId = await adminPerson(req, res);
+    if (!personId) return;
+    const ziel = String(req.body?.ziel || "").toLowerCase();
+    if (!istUnterlagenKategorie(ziel)) return res.status(400).json({ ok: false, error: "Unbekannte Zielkategorie." });
+    const erg = await unterlageUmordnen(personId, Number(req.params.id), ziel, VERWALTUNG, sqlPool, { unterart: req.body?.unterart });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] admin umordnen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -28,7 +28,7 @@ import { createHash } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
-  FA_DIENST, FA_REGEL_VERSION, PLATZHALTER, VORBEHALT_TEXTE, ampelnRechnen, art9Maskieren, auswertungNummer, beratungsWandFunde,
+  FA_DIENST, FA_REGEL_VERSION, regelVeraltet, PLATZHALTER, VORBEHALT_TEXTE, ampelnRechnen, art9Maskieren, auswertungNummer, beratungsWandFunde,
   einordnungRegel, faktenAus, finanzwertRechnen, freigabeRegel, gesamtAmpel, istSichtTyp, kopfAbgleich, platzhalterEinsetzen,
   schritteAus, sparpotenzial, voraussetzungenPruefen, zahlenWandFunde, VERGLEICHSWEGE, BEREICHE,
   type AuskunftEingang, type AuswertungInhalt, type AusweisEingang, type AuszugEingang, type BereichKey, type IdentEingang,
@@ -256,7 +256,7 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   const letzte = zeilen.find((z) => z.status === "entwurf" || z.status === "freigegeben");
   // E-353 (14.10.2026): Auch ein Entwurf im alten Berichtsformat ist veraltet — er geht so nicht mehr an den Kunden.
   const neueUnterlagen = !!(letzte && e && (letzte.eingaben?.hash ?? null) !== eingabenHash(e));
-  const altesFormat = !!(letzte && (letzte.regel_version ?? null) !== FA_REGEL_VERSION);
+  const altesFormat = !!(letzte && letzte.status === "entwurf" && regelVeraltet(letzte.regel_version ?? null, letzte.inhalt ?? null));
   const veraltet = neueUnterlagen || altesFormat;
   const veraltetGrund: "unterlagen" | "format" | null = neueUnterlagen ? "unterlagen" : altesFormat ? "format" : null;
   const anfragen = ((await lauf`
@@ -820,7 +820,7 @@ export async function freigeben(
   });
   if (!regel.erlaubt) return { ok: false, text: regel.grund ?? "Nicht erlaubt." };
   // E-353: Ein Entwurf im alten Berichtsformat geht nicht mehr an den Kunden.
-  if ((r.regel_version ?? null) !== FA_REGEL_VERSION) return { ok: false, text: "Dieser Entwurf hat noch das alte Berichtsformat — bitte eine neue Fassung erstellen." };
+  if (regelVeraltet(r.regel_version ?? null, r.inhalt ?? null)) return { ok: false, text: "Dieser Entwurf hat noch das alte Berichtsformat — bitte eine neue Fassung erstellen." };
   const personId = Number(r.person_id);
   // Nachprüfung 08.10.: Kein Entwurf auf altem Stand an den Kunden — kam seit dem Entwurf eine neue
   // Unterlage oder Analyse, muss erst eine neue Fassung her (dieselbe Regel wie „veraltet“ in der Akte).

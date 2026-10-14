@@ -251,6 +251,12 @@ abschnitt("A5 · Wände für Modelltexte, Freigaberegel, Kopfabgleich");
   ok(FA.kopfAbgleich(kopf.replace(/Müller/g, "Mueller"), { nachname: "Müller", strasse: "Teststraße", plz: "10115" }).inhaber === true, "Kopf: „Mueller“ = „Müller“");
   ok(FA.kopfAbgleich(kopf, { nachname: "Schmidt", strasse: "Hauptweg 1", plz: "80331" }).inhaber === false, "Kopf: fremder Name → false");
   ok(FA.kopfAbgleich("kurz", { nachname: "Müller" }).inhaber === null, "Kopf ohne Textschicht → nicht prüfbar (null)");
+  // 14.10.2026 (Pierre Meißner): Auszug ohne Anschrift im Kopf ist kein Widerspruch; „Packhofstr.“ = „Packhofstraße“.
+  const ohneAnschrift = "N26 Kontoauszug Oktober 2026 Pierre Meißner IBAN DE89 1001 1001 2623 1234 56 BIC NTSBDEB1XXX Alter Saldo 120,00 Neuer Saldo 98,40 Buchungen";
+  ok(JSON.stringify(FA.kopfAbgleich(ohneAnschrift, { nachname: "Meißner", strasse: "Packhofstraße 1", plz: "08393" })) === '{"inhaber":true,"adresse":null}', "Kopf ohne Anschrift → Anschrift nicht prüfbar (null), nicht „abweichend“");
+  ok(FA.kopfAbgleich("Sparkasse Kontoauszug 9/2026 Herrn Pierre Meißner Packhofstr. 1 08393 Meerane IBAN DE12 8705 0000 0000 0000 00 Alter Saldo 5,00", { nachname: "Meißner", strasse: "Packhofstraße 1", plz: "08393" }).adresse === true, "„Packhofstr.“ im Auszug = „Packhofstraße“ in der Akte");
+  ok(FA.kopfAbgleich("Sparkasse Kontoauszug 9/2026 Frau Erika Müller Hauptweg 5 80331 München IBAN DE12 7005 0000 0000 0000 00 Alter Saldo 5,00", { nachname: "Müller", strasse: "Teststraße 12", plz: "10115" }).adresse === false, "Andere Anschrift hinter dem Namen → abweichend (false)");
+  ok(FA.kopfAbgleich("DKB AG Taubenstraße 7 10117 Berlin Kontoauszug 9/2026 Erika Müller IBAN DE12 1203 0000 0000 0000 00 Alter Saldo 5,00 Neuer Saldo 7,00", { nachname: "Müller", strasse: "Teststraße 12", plz: "80331" }).adresse === null, "Anschrift der Bank (nicht hinter dem Namen) zählt nicht als Widerspruch");
   ok(FA.auswertungNummer(4711, 2) === "FA-4711-2", "Fassungsnummer FA-<Person>-<Fassung>");
 }
 

@@ -40,7 +40,19 @@ import { EINKOMMEN_KATEGORIEN } from "./fiaon-kontoauszug-bereinigen";
 import { detailAus, type FaktenDetail } from "./fiaon-finanzauswertung-detail";
 
 /** Fassung der Regeln — steht in jeder Auswertung (eingefroren) und im PDF. */
-export const FA_REGEL_VERSION = "FA-2026-10-14.1";
+export const FA_REGEL_VERSION = "FA-2026-10-14.2";
+
+/**
+ * Ist eine Fassung nach ihrem Regelwerk veraltet (geht so nicht mehr an den Kunden)? 14.2 änderte nur den Adress-
+ * Abgleich mit dem Kontoauszug (Pierre Meißner: „Anschrift nicht belegt“, obwohl der Personalausweis sie trägt) —
+ * eine 14.1-Fassung ist deshalb nur veraltet, wenn ihre Identität gelb war; alle anderen bleiben gültig (keine
+ * unnötige neue Fassung, jede kostet KI).
+ */
+export function regelVeraltet(regelVersion: string | null, inhalt: { ampeln?: { key: string; ampel: string }[] } | null): boolean {
+  if (regelVersion === FA_REGEL_VERSION) return false;
+  if (regelVersion === "FA-2026-10-14.1") return (inhalt?.ampeln ?? []).some((a) => a?.key === "identitaet" && a.ampel === "gelb");
+  return true;
+}
 /** Der Dienstname in fiaon_ki_nutzung. */
 export const FA_DIENST = "finanzauswertung";
 export const FA_PRODUKT = "FIAON Finanz- und Bonitätsauswertung";
@@ -1047,7 +1059,32 @@ export function kopfAbgleich(kopfText: string, p: { vorname?: string | null; nac
   if (teile.length) inhaber = teile.some((t) => enthaelt(t));
   let adresse: boolean | null = null;
   const plz = String(p.plz ?? "").replace(/\D/g, "");
-  const strWort = String(p.strasse ?? "").replace(/\d.*$/, "").replace(/(str\.?|straße|strasse)$/i, "").trim();
-  if (plz.length >= 4 && strWort.length >= 3) adresse = t1.includes(plz) && enthaelt(strWort.split(/\s+/)[0]);
+  // 14.10.2026 (Pierre Meißner): erst trimmen, dann „straße/str.“ abschneiden — sonst blieb „Packhofstraße“ stehen,
+  // und „Packhofstr.“ im Auszug galt als fremde Anschrift.
+  const strWort = String(p.strasse ?? "").replace(/\d.*$/, "").trim().replace(/(str\.?|straße|strasse)$/i, "").trim();
+  if (plz.length >= 4 && strWort.length >= 3) {
+    if (t1.includes(plz) && enthaelt(strWort.split(/\s+/)[0])) adresse = true;
+    // Viele Auszüge (Online-Banken, PDF-Export) tragen im Kopf gar keine Anschrift — Fehlen ist kein Widerspruch.
+    // „false“ nur, wenn hinter dem Namen des Kunden (die Empfänger-Anschrift) eine ANDERE Postleitzahl steht; sonst null
+    // (nicht prüfbar) — dann belegt der Personalausweis die Anschrift.
+    else adresse = andereAnschriftHinterName(t2, teile.map((t) => normUmlaut(t)), plz) ? false : null;
+  }
   return { inhaber, adresse };
+}
+
+/** Steht direkt hinter dem Namen (bis 160 Zeichen) eine Postleitzahl, die nicht die des Kunden ist? Jahreszahlen zählen nicht. */
+function andereAnschriftHinterName(text: string, namen: string[], plz: string): boolean {
+  const muster = plz.length === 5 ? /(?:^|\s)(\d{5})(?=\s)/g : /(?:^|\s)(\d{4})(?=\s[a-z]{3,})/g;
+  for (const name of namen.filter((n) => n.length >= 2)) {
+    for (let i = text.indexOf(` ${name} `); i >= 0; i = text.indexOf(` ${name} `, i + 1)) {
+      const fenster = text.slice(i, i + 160);
+      for (const m of Array.from(fenster.matchAll(muster))) {
+        const zahl = m[1];
+        if (zahl === plz) continue;
+        if (plz.length === 4 && /^(19|20)\d\d$/.test(zahl)) continue;
+        return true;
+      }
+    }
+  }
+  return false;
 }

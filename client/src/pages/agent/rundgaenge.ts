@@ -401,7 +401,10 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "mehr selbst. Unterlagen aus der Zeit vor dem 08.10. stehen auf „liegt vor“ mit dem Hinweis, sie einmal "
       + "anzusehen und „Geprüft“ zu setzen. „Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "
       + "ausgewertete Auskunft wertet nur dieser Knopf neu aus. Bis 50 MB je Datei, auch iPhone-Fotos (HEIC). "
-      + "„Weitere Unterlagen“ nimmt Aufenthaltstitel, Einkommensnachweis, Bescheide und Sonstiges — deine Notiz dort ist intern, der Kunde sieht sie nicht.",
+      + "„Weitere Unterlagen“ nimmt Aufenthaltstitel, Einkommensnachweis, Bescheide und Sonstiges — deine Notiz dort ist intern, der Kunde sieht sie nicht. "
+      // 14.10.2026 (Florentine): Kontoauszüge, die der Kunde unter „Weitere → Sonstiges“ hochlud.
+      + "Liegt eine Datei in der falschen Unterlage (z. B. Kontoauszüge unter „Weitere“), legst du sie mit „Umordnen“ an die richtige Stelle — "
+      + "danach wird sie dort gebunden und neu gelesen wie ein Upload.",
     tipp: "Ausweisfotos liest keine KI — schau sie selbst an. Reisepass: die Datenseite genügt (ein nur gewählter Reisepass als Foto steht auf „wird geprüft“, bis du hingesehen hast). Personalausweis: vorn und hinten. Ein Aufenthaltstitel zählt nur zusammen mit dem Reisepass.",
   },
   {

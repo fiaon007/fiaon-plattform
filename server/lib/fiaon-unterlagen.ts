@@ -1067,6 +1067,76 @@ export async function unterlageEntfernen(personId: number, id: number, wer: Hand
 }
 
 /**
+ * Umordnen (14.10.2026, Florentine): Michaela Schneider lud ihre neuen Kontoauszüge (5 Fotos) im Kundenbereich unter
+ * „Weitere Unterlagen → Sonstiges“ hoch — die Auswertung sah weiter nur den alten Auszug, und das Team konnte die
+ * Dateien nur herunter- und wieder hochladen. Jetzt ordnet das Team eine Datei in die richtige Kategorie um; danach
+ * gilt alles wie beim Hochladen dorthin: Bestand übernehmen, Fassung binden (Ziel UND Herkunft), Prüfung + Analyse
+ * über den Anstoß, Ereignis „Unterlage erhalten“. Die Datei gilt danach als ungeprüft. Nur Team/Verwaltung.
+ */
+export async function unterlageUmordnen(personId: number, id: number, ziel: UnterlagenKategorie, wer: Handelnder, lauf: Lauf = sqlPool,
+  opt: { unterart?: unknown } = {}): Promise<AktionErgebnis> {
+  if (wer.art === "kunde") return { ok: false, status: 403, satz: "Umordnen kann nur Ihr Ansprechpartner." };
+  if (!(await unterlagenBereit(lauf))) return { ok: false, status: 503, satz: "Gerade nicht möglich." };
+  const zeile = (await zeilenLaden(personId, lauf)).find((z) => z.id === id);
+  if (!zeile) return { ok: false, status: 404, satz: "Diese Datei gibt es nicht (mehr)." };
+  const von = zeile.kategorie;
+  if (von === ziel) return { ok: false, status: 400, satz: `Die Datei liegt schon unter ${kategorieInfo(ziel).kurz}.` };
+  if (zeile.inhalt_n <= 0) return { ok: false, status: 409, satz: "Der Inhalt dieser Datei ist gelöscht — sie lässt sich nicht umordnen." };
+  const aktiv = (await lauf`
+    SELECT id, doc_hash, bytes FROM fiaon_dokumente
+     WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = ${ziel} AND entfernt_am IS NULL AND geloescht_am IS NULL`) as any[];
+  if (aktiv.some((a) => String(a.doc_hash) === zeile.doc_hash)) return { ok: false, status: 409, satz: `Genau diese Datei liegt unter ${kategorieInfo(ziel).kurz} schon.` };
+  if (aktiv.length >= UNTERLAGEN_GRENZEN.dateienJeKategorie) {
+    return { ok: false, status: 409, satz: `Unter ${kategorieInfo(ziel).kurz} liegen schon ${aktiv.length} Dateien — bitte erst eine veraltete entfernen.` };
+  }
+  if (istGebunden(ziel) && aktiv.reduce((n, a) => n + Number(a.bytes || 0), 0) + zeile.bytes > UNTERLAGEN_GRENZEN.mbAkteFassung * 1024 * 1024) {
+    return { ok: false, status: 413, satz: `Zusammen würden die Dateien unter ${kategorieInfo(ziel).kurz} größer als ${UNTERLAGEN_GRENZEN.mbAkteFassung} MB.` };
+  }
+  const unterart = unterartSauber(ziel, opt.unterart) ?? (ziel === "weitere" ? "sonstiges" : null);
+  // Der Sofortblick der Zielkategorie (bei Text-PDFs: Zeitraum, „ist das ein Kontoauszug?“) — Fotos liest der Anstoß.
+  let befund: DateiBefund | null = zeile.lese_befund;
+  if (zeile.lese_befund && zeile.lese_befund.typ === "pdf") {
+    const [roh] = (await lauf`SELECT inhalt FROM fiaon_dokumente WHERE id = ${id} AND person_id = ${personId}`) as any[];
+    if (roh?.inhalt) befund = await sofortblick(ziel, { buffer: Buffer.from(roh.inhalt), typ: "pdf", befund: zeile.lese_befund });
+  }
+  if (istGebunden(ziel)) await bestandUebernehmen(personId, ziel, lauf);
+  const geaendert = await lauf.begin(async (tx: any) => {
+    const r = (await tx`
+      UPDATE fiaon_dokumente
+         SET kategorie = ${ziel}, unterart = ${unterart}, geprueft_am = NULL, geprueft_von_agent_id = NULL,
+             lese_befund = ${befund ? tx.json(befund as any) : null},
+             zeitraum_von = ${befund?.zeitraumVon ?? null}, zeitraum_bis = ${befund?.zeitraumBis ?? null}
+       WHERE id = ${id} AND person_id = ${personId} AND art = 'unterlage' AND kategorie = ${von} AND entfernt_am IS NULL AND geloescht_am IS NULL
+       RETURNING id`) as any[];
+    if (!r.length) return false;
+    await tx`
+      INSERT INTO fiaon_unterlagen_akte (person_id, kategorie, letzter_upload_am, anstoss_faellig_am, anstoss_von, updated_at)
+      VALUES (${personId}, ${ziel}, NOW(), NOW() + make_interval(secs => ${ANSTOSS_NACH_MS / 1000}), 'mitarbeiter', NOW())
+      ON CONFLICT (person_id, kategorie) DO UPDATE SET letzter_upload_am = NOW(), anstoss_faellig_am = EXCLUDED.anstoss_faellig_am,
+        anstoss_von = CASE WHEN fiaon_unterlagen_akte.anstoss_von = 'kunde' AND fiaon_unterlagen_akte.anstoss_faellig_am IS NOT NULL THEN 'kunde' ELSE 'mitarbeiter' END,
+        updated_at = NOW()`;
+    return true;
+  });
+  if (!geaendert) return { ok: false, status: 409, satz: "Die Datei hat sich gerade geändert — bitte die Akte neu laden." };
+  let gebunden = true;
+  if (istGebunden(ziel)) gebunden = (await akteFassungBinden(personId, ziel, lauf)).ok;
+  if (istGebunden(von)) await akteFassungBinden(personId, von, lauf);
+  await nachHinzufuegen(personId, ziel, lauf);
+  await verlauf(null, personId, wer,
+    `Datei „${zeile.dateiname}“ umgeordnet: ${kategorieInfo(von).kurz} → ${kategorieInfo(ziel).kurz} (von ${wer.name}). Sie gilt dort als ungeprüft.`, lauf);
+  anstossPlanen(personId, ziel);
+  {
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({
+      ereignis: "unterlage_erhalten", personId, ref: await traegerRef(personId, lauf),
+      akteur: { id: wer.agentId ?? null, name: wer.name }, detail: ziel === "schufa" ? "eigene Bonitätsauskunft" : kategorieInfo(ziel).kurz,
+    }, lauf).catch(() => {});
+  }
+  const lesen = ziel === "weitere" ? "" : ziel === "kontoauszug" ? " Sie wird mit den anderen Auszügen gebunden und in ein bis drei Minuten neu ausgewertet." : " Sie wird in ein bis drei Minuten neu gelesen.";
+  return { ok: true, satz: `„${zeile.dateiname}“ liegt jetzt unter ${kategorieInfo(ziel).kurz}.${lesen}${gebunden ? "" : " Die Akte-Fassung ließ sich nicht neu binden — siehe Hinweis an der Unterlage."}` };
+}
+
+/**
  * Querprüfung 08.10.2026: Die Leitung löscht den Inhalt einer ENTFERNTEN Datei sofort (vor Ablauf der Frist),
  * mit Grund und Verlaufseintrag. Eine aktive Datei wird zuerst entfernt — „falsche Person“ tut beides in einem Schritt.
  */

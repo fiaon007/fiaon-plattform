@@ -60,6 +60,52 @@ export async function firmaKundinAdresse(email: string): Promise<boolean> {
   return !!y;
 }
 
+// ── E-350 (14.10.2026): AUCH MARA ANTWORTET NIE AUTOMATISCH ─────────────────
+// Justin (Fall ULRIKA'S): „wenn sie arbeitet darf Mara nicht automatisiert antworten bei ihr, bitte drauf achten“.
+// Die Global-Regel des Postmeisters (istGlobalKunde, E-272/E-275) hängt an der PERSON — ein Firmenangebot wird aber
+// ohne Person angelegt, und die Kundin schreibt von einer anderen Adresse der Firma (ulrika@ im Angebot, ulrikae@ in
+// der Mail). Deshalb erkennt der Postmeister die Kundin am ABSENDER: dieselbe Adresse wie firmaKundinAdresse ODER
+// dieselbe Firmen-Domäne wie die Adresse eines Firmenangebots/einer Firmenakte. Freemail-Domänen zählen nie als Firma
+// (sonst schwiege Mara für alle gmail.com-Kunden).
+const FREEMAIL_DOMAENEN: ReadonlySet<string> = new Set([
+  "gmail.com", "googlemail.com", "gmx.de", "gmx.net", "gmx.at", "gmx.ch", "web.de", "t-online.de", "yahoo.com", "yahoo.de",
+  "hotmail.com", "hotmail.de", "outlook.com", "outlook.de", "live.com", "icloud.com", "me.com", "aon.at", "bluewin.ch",
+  "freenet.de", "posteo.de", "proton.me", "protonmail.com", "a1.net", "chello.at", "msn.com", "mail.de",
+]);
+
+/** Die Domäne einer Adresse, wenn sie eine Firmen-Domäne sein kann (keine Freemail) — sonst null. Rein. */
+export function firmenDomaene(email: string | null | undefined): string | null {
+  const d = String(email || "").trim().toLowerCase().split("@")[1]?.replace(/[>\s].*$/, "") ?? "";
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d) || FREEMAIL_DOMAENEN.has(d) || d === "fiaon.com") return null;
+  return d;
+}
+
+/** Schreibt hier die Kundin eines Firmenangebots (gleiche Adresse oder gleiche Firmen-Domäne)? Wirft bei Störung. */
+export async function firmaKundinAbsender(email: string | null | undefined): Promise<boolean> {
+  const a = String(email || "").trim().toLowerCase();
+  if (!a || !process.env.DATABASE_URL) return false;
+  if (await firmaKundinAdresse(a)) return true;
+  const d = firmenDomaene(a);
+  if (!d) return false;
+  const { sqlPool } = await import("./db-pool");
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS angebote, to_regclass('public.fiaon_global_auftraege') AS akten`) as any[];
+  if (!t?.angebote) return false;
+  const endung = `%@${d}`;
+  const [x] = (await sqlPool`
+    SELECT 1 AS treffer FROM fiaon_global_angebote
+     WHERE fassung LIKE 'IA-FIRMA-%' AND status IN ('offen', 'abgelaufen', 'angenommen')
+       AND LOWER(TRIM(COALESCE(kunde->>'email', CASE WHEN jsonb_typeof(kunde) = 'string' THEN (kunde #>> '{}')::jsonb ->> 'email' END, ''))) LIKE ${endung}
+     LIMIT 1`) as any[];
+  if (x) return true;
+  if (!t.akten) return false;
+  const [y] = (await sqlPool`
+    SELECT 1 AS treffer FROM fiaon_global_auftraege g
+     WHERE LOWER(TRIM(COALESCE(g.email, ''))) LIKE ${endung}
+       AND g.angebot_id IN (SELECT id FROM fiaon_global_angebote WHERE fassung LIKE 'IA-FIRMA-%')
+     LIMIT 1`) as any[];
+  return !!y;
+}
+
 /** Die Frage für globalMailSenden: Soll diese Global-Mail wegen E-301 NICHT rausgehen? */
 export async function firmaGlobalMailSperre(event: string, akte: { bestaetigungen?: unknown } | null | undefined, an: string, ausgeloestVon: string | null | undefined): Promise<boolean> {
   if (FIRMA_ANGEFORDERT.has(event) || !globalAutomatik(ausgeloestVon)) return false;

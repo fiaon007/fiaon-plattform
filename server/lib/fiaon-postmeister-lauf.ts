@@ -1104,6 +1104,34 @@ export async function mailBearbeiten(ein: {
       return fertig({ ...basis, aktion: "geordnet", begruendung: "nach der KI-Pause nicht mehr im Posteingang — von Hand erledigt" }, "von Hand erledigt");
     }
 
+    // 0b. E-350 (14.10.2026): Kundin eines FIRMENANGEBOTS (E-301) — Mara antwortet nie, nicht einmal mit Entwurf
+    //     oder Werkzeug. Justin (ULRIKA'S): „wenn sie arbeitet darf Mara nicht automatisiert antworten bei ihr“.
+    //     Erkannt am Absender (Adresse oder Firmen-Domäne, auch Antwort-an) — das Angebot hat keine Person, die
+    //     Global-Regel unten (istGlobalKunde) sähe sie nicht. Die Mail bleibt ungelesen im Posteingang, Justin bekommt
+    //     eine Aufgabe. Stört die Prüfung, wirft sie: die Zeile geht auf „fehler“ und wird später neu geprüft — nie
+    //     „im Zweifel antworten“.
+    {
+      const { firmaKundinAbsender } = await import("./fiaon-global-firma-post");
+      const antwortAn = String(mail.antwortAn?.match(/<([^>]+)>/)?.[1] ?? mail.antwortAn ?? "");
+      const firmaKundin = (await firmaKundinAbsender(String(mail.vonAdresse || ""))) || (!!antwortAn && await firmaKundinAbsender(antwortAn));
+      if (firmaKundin) {
+        await ablegen(postfach, gmailId, "FIAON/Global von Hand");
+        try {
+          const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+          const a = await auftragFuerKunden({
+            personId: null, ref: null, anBetreiber: true, dringend: true,
+            titel: `Firmenkundin schreibt: „${String(mail.betreff || "(ohne Betreff)").slice(0, 100)}“`,
+            text: `Postfach ${postfach}, von ${mail.von}. Kundin eines Firmenangebots (E-301) — Mara antwortet ihr NICHT (E-350). Bitte von Hand antworten; die Mail liegt ungelesen im Posteingang (Ordner „FIAON/Global von Hand“).`,
+            schluessel: `postmeister:${id}:firma`, quelle: "postmeister", autorName: "Mara", link: "/chef/s/postmeister",
+          });
+          await wiederOffenBereinigen(a.id);
+        } catch (e) {
+          console.error("[POSTMEISTER] Aufgabe Firmenkundin:", String(e).slice(0, 160));
+        }
+        return fertig({ ...basis, kategorie: "intern", aktion: "ignoriert", begruendung: "Firmenangebot (E-350): keine automatische Antwort — Justin antwortet von Hand" }, "Firmenkundin");
+      }
+    }
+
     // 1. Fremdpost — eigener Ordner, nie beantworten.
     // ── UNGELESEN BLEIBT UNGELESEN (09.09.2026, E-171) ──────────────────
     // Justin: „ALLE Emails die hinein kommen und NICHT Support sind, müssen

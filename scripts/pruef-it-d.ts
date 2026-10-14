@@ -638,8 +638,14 @@ if (!LOKAL) {
     ok(wieder.id === r1.id && (await zahl()) === n0, "Klick auf einen frischen Entwurf aus denselben Unterlagen → derselbe Entwurf");
     // Freigabe: fremder Mitarbeiter nicht, Betreuer ja
     ok(!(await FL.freigeben(r1.id!, { ...betreuer, rolle: "agent", zustaendig: false }, sqlPool, { mail: false })).ok, "Nicht zuständig → keine Freigabe");
+    // E-355 (14.10.2026): Ein offener Beschaffungsauftrag der Person schließt sich mit der Übergabe.
+    await LI.ensureBeschaffungTabelle();
+    const [ba] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus)
+      VALUES (${`${k.ref}-AUSK`}, ${k.personId}, 'DE', 'privat', CURRENT_DATE, 'rueckstand', 'einkauf') RETURNING id`) as any[];
     const fr = await FL.freigeben(r1.id!, { ...betreuer, rolle: "agent", zustaendig: true }, sqlPool);
     ok(fr.ok && /nicht gesendet|gesendet/.test(fr.mail ?? ""), `Betreuer gibt frei, Mail-Versuch protokolliert (${fr.mail})`);
+    const [baN] = (await sqlPool`SELECT status, notiz FROM fiaon_auskunft_beschaffung WHERE id = ${ba.id}`) as any[];
+    ok(baN?.status === "fertig" && /Geliefert als FIAON-Bonitätsauswertung FA-/.test(String(baN?.notiz)), `E-355: Beschaffungsauftrag mit der Übergabe „fertig“ (${baN?.status})`);
     const [ml] = (await sqlPool`SELECT event, status, payload FROM fiaon_mail_log WHERE person_id = ${k.personId} AND event = 'finanzauswertung_bereit' ORDER BY id DESC LIMIT 1`) as any[];
     const mp = ml ? (typeof ml.payload === "string" ? JSON.parse(ml.payload) : ml.payload) : null;
     ok(!mp || (!/finanzwert|"wert"|ampel/i.test(JSON.stringify(mp)) && String(mp.auswertung_url ?? "").endsWith("/app/auswertung")), "Mail-Nutzlast: nur der Link, kein Wert");

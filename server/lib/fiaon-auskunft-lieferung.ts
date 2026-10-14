@@ -683,6 +683,11 @@ export interface RueckstandZeile {
 export async function rueckstandListe(lauf: Lauf = sqlPool): Promise<RueckstandZeile[]> {
   const { produktkategorieSql } = await import("./fiaon-produktkategorie");
   const kat = produktkategorieSql("a");
+  // E-355 (14.10.2026, Justin): Die übergebene FIAON-Bonitätsauswertung IST die Leistung — wer sie hat, ist kein Rückstand.
+  const [fa] = (await lauf`SELECT to_regclass('fiaon_finanzauswertungen') IS NOT NULL AS da`.catch(() => [])) as any[];
+  const ohneAuswertung = fa?.da
+    ? `AND NOT EXISTS (SELECT 1 FROM fiaon_finanzauswertungen f WHERE f.person_id = k.person_id AND f.status IN ('freigegeben', 'ersetzt'))`
+    : "";
   const zeilen = (await lauf.unsafe(`
     WITH kauf AS (
       SELECT DISTINCT ON (a.person_id) a.person_id, a.ref, a.pack_key, a.amount_due, a.paid_at, a.created_at,
@@ -708,6 +713,7 @@ export async function rueckstandListe(lauf: Lauf = sqlPool): Promise<RueckstandZ
       LEFT JOIN fiaon_agents ag ON ag.id = COALESCE(p.assigned_agent_id, k.assigned_agent_id)
      WHERE p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.person_id = k.person_id AND d.schufa_pdf IS NOT NULL)
+       ${ohneAuswertung}
      ORDER BY COALESCE(k.paid_at, k.created_at) ASC`)) as any[];
   const jetzt = Date.now();
   return zeilen.map((z) => {
@@ -2014,6 +2020,39 @@ export async function beschaffungAktion(
     return { ok: true, text: "Abgeschlossen — ohne Mail an den Kunden." };
   }
   return { ok: false, text: "Unbekannte Aktion." };
+}
+
+/**
+ * E-355 (14.10.2026, Justin: „ja bitte“): Wird die FIAON-Bonitätsauswertung an den Kunden übergeben, ist die bezahlte
+ * Auskunft geliefert — jeder offene Beschaffungsauftrag dieser Person (samt Dubletten) wird „fertig“, mit Vermerk, und
+ * seine System-Aufgaben (Beschaffung, Wache, Datenkopie) schließen sich über den einen Weg. Keine Mail an den Kunden
+ * (die Übergabe hat ihre eigene). Fehler hier halten die Übergabe nicht auf.
+ */
+export async function beschaffungDurchAuswertungErledigen(
+  personId: number, nummer: string, wer: { name: string; agentId: number | null }, lauf: Lauf = sqlPool,
+): Promise<number> {
+  try {
+    await ensureBeschaffungTabelle();
+    const { personFamilie } = await import("./fiaon-unterlagen-link");
+    const familie = await personFamilie(personId, lauf);
+    const offen = (await lauf`SELECT id, ref, person_id FROM fiaon_auskunft_beschaffung WHERE person_id = ANY(${familie}) AND status <> 'fertig'`) as any[];
+    const satz = `Geliefert als FIAON-Bonitätsauswertung ${nummer} (an den Kunden übergeben).`;
+    const stempel = `[${new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} ${wer.name}] ${satz}`;
+    for (const a of offen) {
+      await lauf`
+        UPDATE fiaon_auskunft_beschaffung
+           SET status = 'fertig', fertig_am = NOW(), notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${stempel}::text), updated_at = NOW()
+         WHERE id = ${a.id} AND status <> 'fertig'`;
+      await beschaffungsAufgabeSchliessen(String(a.ref), satz, lauf, Number(a.id));
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${a.ref}, ${Number(a.person_id)}, ${wer.agentId}, ${wer.name}, 'system', ${`Bonitätsauskunft: Beschaffung #${a.id} abgeschlossen — ${satz}`})`.catch(() => {});
+    }
+    return offen.length;
+  } catch (e) {
+    console.error("[AUSKUNFT-BESCHAFFUNG] durch Auswertung:", String((e as Error)?.message || e).slice(0, 200));
+    return 0;
+  }
 }
 
 // ── Über die API ────────────────────────────────────────────────────────────

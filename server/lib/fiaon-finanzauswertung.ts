@@ -755,6 +755,9 @@ export async function freigeben(
   if (!gelungen) return { ok: false, text: "Der Stand hat sich gerade geändert (schon freigegeben oder verworfen). Bitte die Akte neu laden." };
   // Integration 08.10.2026: die Vier-Augen-Aufgabe der Leitung ist damit erledigt.
   await vierAugenAufgabenAbgleichen(personId, lauf);
+  // E-355 (14.10.2026): Die übergebene Auswertung IST die bezahlte Auskunft — offene Beschaffungsaufträge schließen sich.
+  const { beschaffungDurchAuswertungErledigen } = await import("./fiaon-auskunft-lieferung");
+  await beschaffungDurchAuswertungErledigen(personId, auswertungNummer(personId, Number(r.fassung)), { name: wer.name, agentId: wer.agentId }, lauf);
   const nummer = auswertungNummer(personId, Number(r.fassung));
   let mail = "aus";
   if (opts.mail !== false) {

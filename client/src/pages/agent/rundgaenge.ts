@@ -2134,9 +2134,10 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
 export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
   {
     // E-352 (14.10.2026): die Arbeitsliste der Bonitätsauswertung ganz oben.
+    // E-364: jeder zahlende Kunde, nicht nur Auskunft-Käufer; „wartet auf den Kartenlink“ zuerst.
     ziel: ".awl",
     titel: "Bonitätsauswertung: wer wartet.",
-    text: "Jeder Kunde mit bezahlter Auskunft und sein Stand. „Akte öffnen“ führt zum Knopf — erstellt wird nur auf Knopfdruck.",
+    text: "Jeder zahlende Kunde und sein Stand. Wer auf den Kartenlink wartet, steht oben — den Link der Partnerbank gibt es erst nach der Bonität. „Akte öffnen“ führt zum Knopf, erstellt wird nur auf Knopfdruck.",
   },
   {
     ziel: ".akb-status",

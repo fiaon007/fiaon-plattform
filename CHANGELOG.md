@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 14.10.2026 — E-364 Arbeitsliste „Bonitätsauswertung“: jeder zahlende Paketkunde, „wartet auf den Kartenlink“
+- **Was:** Die Liste oben in Chefbüro › Kunden › Auskunft-Beschaffung zeigt jetzt jeden Kunden mit bezahltem Privatpaket (ohne Test,
+  ohne Global-Kunden, ohne wirksam Gekündigte) und wie bisher jeden Käufer der Bonitätsauskunft — auch nach einer Kündigung, denn die
+  Auswertung ist die bezahlte Leistung. Neue Marke je Zeile und neuer Filter „Wartet auf Kartenlink“: noch keine Einladung der
+  Partnerbank, kein Bestandsschutz (Link schon draußen, Vertrag PV-2026-10-05b), und nichts außer der Bonität hält den Link auf.
+  Diese Kunden stehen in jedem Filter oben. Je Filter erst 20 Zeilen, dann „Alle … zeigen“. Die Liste startet nichts.
+- **Warum:** Seit E-363 kommt der Kartenlink erst nach der freigegebenen Bonitätsauswertung — die Liste kannte aber nur Auskunft-Käufer
+  (73), zahlende Paketkunden fehlten. Gemessen 14.10. (nur lesend): 345 Kunden in der Liste, 98 startklar, 239 ohne Unterlagen;
+  4 warten heute wirklich auf den Kartenlink (107 der 112 Zahlenden ohne Link sind gekündigt).
+- **Wo:** server/lib/fiaon-bonitaet-arbeitsliste.ts (neu), Route GET /chef/auskunft-beschaffung/auswertungen,
+  server/lib/fiaon-konto-karte.ts (Baustein PAKET_BESTELLUNG_SQL, dieselbe Lesart wie paket_bezahlt),
+  client/src/components/admin/AuswertungWarteliste.tsx, Rundgang der Seite; Prüfstand scripts/pruef-it-d.ts (A10, B7).
+
 ## 12.10.2026 — E-340 Maras Signaturkarte an jeder Antwort aus welcome@ und support@
 - **Was:** Antworten, die Mara im Kundendienst unterschreibt (Postmeister automatisch, Freigabe in der Zentrale, Nachholen,
   Mara-Aktion), tragen im HTML statt „Mara Lindner / FIAON Welcome-Team / welcome@…“ ihre Karte: rundes Porträt, Name,

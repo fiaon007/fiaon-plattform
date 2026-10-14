@@ -20,9 +20,16 @@
 .awl-stand { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(148, 163, 184, .2); white-space: nowrap; }
 .awl-stand.s-bereit { border-color: rgba(147, 197, 253, .45); color: #dbeafe; }
 .awl-stand.s-beim_kunden { color: #a7f3d0; border-color: rgba(167, 243, 208, .35); }
+/* E-364: „wartet auf den Kartenlink“ — dieselbe Pille, hellblau gefüllt, damit sie in der Zeile zuerst ins Auge fällt. */
+.awl-marken { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.awl-karte { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(125, 211, 252, .45); background: rgba(56, 189, 248, .14); color: #e0f2fe; white-space: nowrap; }
+.awl-mehr { justify-self: start; min-height: 34px; padding: 6px 14px; border-radius: 99px; border: 1px solid rgba(148, 163, 184, .2); background: transparent; color: #93c5fd; font: inherit; font-size: 12.5px; cursor: pointer; }
+.awl-mehr:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .awl-auf { font-size: 13px; color: #93c5fd; text-decoration: none; white-space: nowrap; }
-@media (hover: hover) { .awl-auf:hover { text-decoration: underline; } .awl-filter button:hover { border-color: rgba(147, 197, 253, .4); } }
+@media (hover: hover) { .awl-auf:hover { text-decoration: underline; } .awl-filter button:hover, .awl-mehr:hover { border-color: rgba(147, 197, 253, .4); } }
 @media (max-width: 760px) {
   .awl-liste li { grid-template-columns: minmax(0, 1fr) auto; }
   .awl-haken { grid-column: 1 / -1; order: 3; }
+  /* E-364: zwei Pillen nebeneinander drückten den Namen auf „Erika T…“ — auf dem Handy eine eigene Zeile. */
+  .awl-marken { grid-column: 1 / -1; order: 2; justify-content: flex-start; }
 }

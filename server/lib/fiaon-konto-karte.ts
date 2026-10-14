@@ -482,9 +482,7 @@ const standSql = (): string => `
     -- wie nachher, niemand faellt heraus.
     EXISTS (
       SELECT 1 FROM fiaon_applications a
-      WHERE a.person_id = p.id AND a.merged_into IS NULL
-        AND a.payment_status = 'paid' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
-        AND ${produktkategorieSql("a")} = 'konto'
+      WHERE a.person_id = p.id AND ${PAKET_BESTELLUNG_SQL("a")}
     ) AS paket_bezahlt,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
@@ -523,9 +521,7 @@ const standSql = (): string => `
       -- E-272: dieselbe Lesart wie paket_bezahlt oben — nur ein Privatpaket.
       CASE WHEN EXISTS (
         SELECT 1 FROM fiaon_applications a3
-        WHERE a3.person_id = p.id AND a3.merged_into IS NULL
-          AND a3.payment_status = 'paid' AND a3.ref NOT LIKE 'FIAON-SCHUFA-%'
-          AND ${produktkategorieSql("a3")} = 'konto'
+        WHERE a3.person_id = p.id AND ${PAKET_BESTELLUNG_SQL("a3")}
       ) THEN 1 ELSE 0 END
     )::int AS raten_bezahlt,
     -- Wann die nächste offene Rate fällig ist. Ohne dieses Datum kann die
@@ -854,6 +850,14 @@ export const SCHON_EINGELADEN_SQL = (p: string): string =>
 export const BONITAET_DA_SQL = (p: string): string => `EXISTS (SELECT 1 FROM fiaon_finanzauswertungen ka_b
     WHERE ka_b.status IN ('freigegeben', 'ersetzt')
       AND ka_b.person_id IN (SELECT ka_bp.id FROM fiaon_persons ka_bp WHERE ka_bp.id = ${p} OR ka_bp.merged_into_person_id = ${p}))`;
+
+/**
+ * Eine bezahlte Bestellung eines Privatpakets (Kategorie konto, E-272) — boolean, `a` = Alias einer fiaon_applications-Zeile.
+ * Eine Quelle für paket_bezahlt und raten_bezahlt oben und die Arbeitsliste der Bonitätsauswertung
+ * (fiaon-bonitaet-arbeitsliste.ts, E-364): Wer hier zählt, wartet seit E-363 mit dem Kartenlink auf die Bonität.
+ */
+export const PAKET_BESTELLUNG_SQL = (a: string): string =>
+  `(${a}.merged_into IS NULL AND ${a}.payment_status = 'paid' AND ${a}.ref NOT LIKE 'FIAON-SCHUFA-%' AND ${produktkategorieSql(a)} = 'konto')`;
 
 /** E-363: Listen und Automatik lesen fiaon_finanzauswertungen — die Tabelle entsteht sonst erst mit der ersten Auswertung. */
 let bonitaetTabelle: Promise<void> | null = null;

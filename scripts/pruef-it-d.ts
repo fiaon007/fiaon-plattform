@@ -573,6 +573,33 @@ abschnitt("A9 · PDF-HTML (ohne Chromium)");
   ok(/Auswertung FA-1-1|FA-1-1/.test(html) && /Gewichte|Kriterium/.test(html), "Kriterien mit Gewichten offen gelegt");
 }
 
+// E-364 (14.10.2026): Die Arbeitsliste nimmt jeden zahlenden Paketkunden — aus den Bausteinen der Karte, ohne Kopie.
+abschnitt("A10 · E-364: Arbeitsliste aus denselben Bausteinen, nichts startet");
+{
+  const route = lies("server/routes/fiaon-chef-auskunft-beschaffung.ts");
+  const lib = lies("server/lib/fiaon-bonitaet-arbeitsliste.ts");
+  const kk = lies("server/lib/fiaon-konto-karte.ts");
+  const ui = lies("client/src/components/admin/AuswertungWarteliste.tsx");
+  const teil = route.slice(route.indexOf('"/chef/auskunft-beschaffung/auswertungen"'), route.indexOf('router.get("/chef/auskunft-beschaffung", wache'));
+  ok(/bonitaetArbeitsliste\(\)/.test(teil) && !/IST_AUSKUNFT|sqlPool/.test(teil), "Route liest die Liste aus server/lib/fiaon-bonitaet-arbeitsliste.ts — keine eigene Abfrage mehr");
+  ok(["PAKET_BESTELLUNG_SQL(", "karteAusschlussSql(", "KUENDIGUNG_WIRKSAM_SQL(", "globalKundeSql(", "${IST_AUSKUNFT}", "${ECHT}"].every((b) => lib.includes(b)),
+    "Bausteine: Paket (Karte), Ausschlussregel (bonitaet_offen), Kündigungsregel, Global, Auskunft, ECHT");
+  ok(!/erzeugen\(|freigeben\(|mailSenden|INSERT|UPDATE|DELETE/.test(lib.replace(/^\s*\/\/.*$/gm, "")), "Die Liste schreibt nichts und startet keine Auswertung");
+  ok((kk.match(/PAKET_BESTELLUNG_SQL\("a3?"\)/g) ?? []).length === 2 && !/AND a3?\.payment_status = 'paid' AND a3?\.ref NOT LIKE 'FIAON-SCHUFA-%'/.test(kk),
+    "paket_bezahlt und raten_bezahlt der Karte lesen denselben Baustein (keine zweite Fassung)");
+  const AL = await import("../server/lib/fiaon-bonitaet-arbeitsliste");
+  const { globalKundeSql } = await import("../server/lib/fiaon-global-kunde");
+  const { KUENDIGUNG_WIRKSAM_SQL } = await import("../shared/fiaon-kuendigung-regel");
+  const s = AL.arbeitslisteSql();
+  ok(/'bonitaet_offen'/.test(s) && /fiaon_konto_karte ka_k/.test(s) && /PV-2026-10-05b/.test(s) && /fiaon_finanzauswertungen ka_b/.test(s),
+    "„Wartet auf den Kartenlink“ = erster Grund der einen Regel ist bonitaet_offen (Einladung, Vertrag PV-2026-10-05b, Bonität)");
+  ok(s.includes(`WHERE NOT ${globalKundeSql("k.person_id")}`) && s.includes(`${KUENDIGUNG_WIRKSAM_SQL("k.person_id")} AS gekuendigt`)
+    && /WHERE \(m\.paket AND NOT m\.gekuendigt\) OR m\.auskunft/.test(s), "Global-Kunden nie, Gekündigte nur als Auskunft-Käufer");
+  ok(["Startklar", "Wartet auf Kartenlink", "Prüfen & freigeben", "Unterlagen fehlen", "Beim Kunden"].every((t) => ui.includes(`text: "${t}"`))
+    && /wartet auf den Kartenlink/.test(ui), "Oberfläche: vier Filter wie bisher plus „Wartet auf Kartenlink“, Marke je Zeile");
+  ok(!/method:\s*"POST"|apiPost|fetch\(/.test(ui), "Oberfläche: nur lesen — kein Knopf, der etwas startet");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TEIL B — GEGEN DIE LOKALE DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1121,6 +1148,91 @@ if (!LOKAL) {
     ok(z.pers === 0 && z.best === 0, `Kopf, Wegweiser der Dublette und Bestellung gelöscht (${z.pers}/${z.best})`);
     const [pr] = (await sqlPool`SELECT art, person_id FROM fiaon_loeschungen WHERE stapel = ${erg.stapel ?? ""}`) as any[];
     ok(pr?.art === "endgueltig" && Number(pr.person_id) === kopf, "Das Löschprotokoll bleibt (Art, Person, Vorgang)");
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // B7 · E-364 (14.10.2026): Wer wartet? — jeder zahlende Paketkunde, Marke „wartet auf den Kartenlink“
+  // ═════════════════════════════════════════════════════════════════════════
+  abschnitt("B7 · E-364: Arbeitsliste — Paketkunden, Kartenlink-Marke, Ausschlüsse, Reihenfolge");
+  {
+    const AL = await import("../server/lib/fiaon-bonitaet-arbeitsliste");
+    const KK = await import("../server/lib/fiaon-konto-karte");
+    const { globalKundeBereit } = await import("../server/lib/fiaon-global-kunde");
+    await globalKundeBereit(); await KK.bonitaetBereit(); await KK.ensureKartenTabelle();
+    /** Eine Person ohne Paket. */
+    const nurPerson = async (n: string) => Number(((await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email)
+      VALUES (${`${marke}-${n}`}, 'Erika', ${`Teststeg${n}`}, ${`it-d-${marke.toLowerCase()}-${n}@example.invalid`}) RETURNING id`) as any[])[0].id);
+    /** Die Bonitätsauskunft (74 €), bezahlt. */
+    const auskunft = async (personId: number, n: string) => sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, first_name, last_name, email, type, pack_name, payment_status, paid_at, created_at)
+      VALUES (${`FIAON-SCHUFA-${marke}-${n}`}, ${`FIAON-SCHUFA-${marke}-${n}-Z`}, ${personId}, 'Erika', ${`Teststeg${n}`}, ${`it-d-${marke.toLowerCase()}-${n}@example.invalid`},
+              'schufa', 'Bonitätsauskunft', 'paid', NOW() - INTERVAL '30 days', NOW() - INTERVAL '31 days')`;
+    const fa = (personId: number, ref: string, status: string) => sqlPool`INSERT INTO fiaon_finanzauswertungen (person_id, ref, fassung, status, regel_version, erstellt_von, freigegeben_am)
+      VALUES (${personId}, ${ref}, 1, ${status}, 'PRUEF', 'Prüfstand E-364', ${status === "freigegeben" ? new Date() : null})`;
+    const k1 = await kunde("K1");                                              // Paket + Unterlagen, kein Link → startklar, wartet
+    const k2 = await kunde("K2", { ausweis: false, auszug: false });           // Paket ohne Unterlagen → fehlt, wartet
+    const k3 = await kunde("K3");                                              // Link schon draußen → kein „wartet“
+    await sqlPool`INSERT INTO fiaon_konto_karte (person_id, kanal) VALUES (${k3.personId}, 'mail')`;
+    const k4 = await kunde("K4");                                              // nur von Hand GEMELDET — kein Versand → wartet
+    await sqlPool`INSERT INTO fiaon_konto_karte (person_id, kanal, status) VALUES (${k4.personId}, 'gemeldet', 'bestaetigt')`;
+    const k5 = await kunde("K5");                                              // Vertrag PV-2026-10-05b → Bestandsschutz
+    await sqlPool`INSERT INTO fiaon_vertragsannahmen ${sqlPool({ ref: k5.ref, person_id: k5.personId, weg: "antrag_neu", paket: "plus", rate_cents: 5999, gesamt_cents: 71988, vertrag_fassung: "PV-2026-10-05b", leistung_fassung: "t", agb_fassung: "t", knopf_text: "t", haken: sqlPool.json({}), sofort_beginn: true, vertrag_html: "<p>t</p>", vertrag_sha256: `t-${marke}-K5` } as any)}`;
+    const k6 = await kunde("K6"); await fa(k6.personId, k6.ref, "freigegeben"); // Bonität beim Kunden
+    const k7 = await kunde("K7"); await fa(k7.personId, k7.ref, "entwurf");     // Entwurf → zu prüfen, wartet weiter
+    const k8 = await kunde("K8");                                              // Paket gekündigt, keine Auskunft → raus
+    await sqlPool`UPDATE fiaon_applications SET gekuendigt_am = NOW() - INTERVAL '5 days' WHERE ref = ${k8.ref}`;
+    const k9 = await kunde("K9"); await auskunft(k9.personId, "K9");          // gekündigt, aber Auskunft bezahlt → bleibt
+    await sqlPool`UPDATE fiaon_applications SET gekuendigt_am = NOW() - INTERVAL '5 days' WHERE ref = ${k9.ref}`;
+    const k10 = await kunde("K10");                                            // Testkonto → raus
+    await sqlPool`UPDATE fiaon_persons SET ist_test_am = NOW() WHERE id = ${k10.personId}`;
+    const p11 = await nurPerson("K11"); await auskunft(p11, "K11");           // nur Auskunft, kein Paket → bleibt, ohne Marke
+    const p12 = await nurPerson("K12"); await auskunft(p12, "K12");           // Global-Kunde (Angebot) mit Auskunft → raus
+    await sqlPool`INSERT INTO fiaon_global_angebote (angebot_ref, person_id, fassung, kunde, parameter, buergin, status, gueltig_bis)
+      VALUES (${`FIAON-IA-${marke}-K12`}, ${p12}, 'pruefstand', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, 'offen', CURRENT_DATE + 14)`;
+    const k13 = await kunde("K13");                                            // Vertriebssperre → steht drin, aber nicht die Bonität hält den Link
+    await sqlPool`UPDATE fiaon_persons SET is_blocked = TRUE WHERE id = ${k13.personId}`;
+    const ids = [k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, { personId: p11 }, { personId: p12 }, k13].map((k) => k.personId);
+    const zaehlen = async () => ((await sqlPool`SELECT (SELECT COUNT(*)::int FROM fiaon_finanzauswertungen WHERE person_id = ANY(${ids})) AS fa,
+      (SELECT COUNT(*)::int FROM fiaon_mail_log WHERE person_id = ANY(${ids})) AS mails,
+      (SELECT COUNT(*)::int FROM fiaon_konto_karte WHERE person_id = ANY(${ids})) AS karte`) as any[])[0];
+    const vorher = await zaehlen();
+
+    const { zahlen, liste } = await AL.bonitaetArbeitsliste(sqlPool, { personIds: ids });
+    const z = (id: number) => liste.find((x) => x.personId === id);
+    ok(!!z(k1.personId) && z(k1.personId)!.stand === "bereit" && z(k1.personId)!.wartetKarte && z(k1.personId)!.paket && !z(k1.personId)!.auskunft,
+      "Paketkunde ohne Auskunft-Kauf steht drin: startklar, „wartet auf den Kartenlink“");
+    ok(z(k2.personId)?.stand === "fehlt" && z(k2.personId)?.wartetKarte === true, "Ohne Unterlagen: „Unterlagen fehlen“, wartet trotzdem auf den Link");
+    ok(z(k3.personId)?.stand === "bereit" && z(k3.personId)?.wartetKarte === false, "Link schon draußen → steht drin (Bonität ist Pflicht), aber ohne Marke");
+    ok(z(k4.personId)?.wartetKarte === true, "Nur von Hand gemeldete Eröffnung ist kein Versand → wartet");
+    ok(z(k5.personId)?.wartetKarte === false, "Vertrag PV-2026-10-05b → Bestandsschutz, keine Marke");
+    ok(z(k6.personId)?.stand === "beim_kunden" && z(k6.personId)?.wartetKarte === false, "Freigegebene Bonität → „Beim Kunden“, keine Marke");
+    ok(z(k7.personId)?.stand === "entwurf" && z(k7.personId)?.wartetKarte === true, "Entwurf → „Prüfen & freigeben“, Link wartet bis zur Freigabe");
+    ok(!z(k8.personId), "Wirksam gekündigt ohne Auskunft-Kauf → nicht in der Liste");
+    ok(z(k9.personId)?.gekuendigt === true && z(k9.personId)?.auskunft === true && z(k9.personId)?.wartetKarte === false,
+      "Gekündigt, aber Auskunft bezahlt → bleibt (die Auswertung ist die bezahlte Leistung), ohne Marke");
+    ok(!z(k10.personId), "Testkonto → nicht in der Liste");
+    ok(z(p11)?.paket === false && z(p11)?.auskunft === true && z(p11)?.wartetKarte === false, "Nur Auskunft gekauft → wie bisher in der Liste, ohne Marke");
+    ok(!z(p12), "Global-Kunde → nicht in der Liste");
+    ok(!!z(k13.personId) && z(k13.personId)!.wartetKarte === false, "Vertriebssperre → steht drin, aber nicht die Bonität hält den Link auf");
+    ok(zahlen.gesamt === 10 && zahlen.wartet_karte === 4 && zahlen.wartet_karte_bereit === 2 && zahlen.bereit === 6 && zahlen.fehlt === 2 && zahlen.entwurf === 1 && zahlen.beim_kunden === 1
+      && liste.length === 10, `Zähler aus derselben Liste (${JSON.stringify(zahlen)})`);
+    // Reihenfolge: Startklar zuerst, darin „wartet“ vorn; danach Entwurf, Unterlagen fehlen, beim Kunden.
+    const rang = { bereit: 0, laeuft: 1, entwurf: 2, fehlt: 3, beim_kunden: 4 } as const;
+    ok(liste.every((x, i) => i === 0 || rang[liste[i - 1].stand] < rang[x.stand] || (rang[liste[i - 1].stand] === rang[x.stand] && (liste[i - 1].wartetKarte || !x.wartetKarte))),
+      `Reihenfolge: Stand, darin „wartet auf den Kartenlink“ vorn (${liste.map((x) => `${x.stand}${x.wartetKarte ? "*" : ""}`).join(" ")})`);
+    ok(liste[0].stand === "bereit" && liste[0].wartetKarte && liste[1].stand === "bereit" && liste[1].wartetKarte, "Ganz oben: startklar UND wartet auf den Kartenlink");
+    // Dieselbe Regel wie die Akte: Die Marke stimmt mit dem TypeScript-Urteil (kartenStand, Zweck „automatik“) überein.
+    const abw: string[] = [];
+    for (const x of liste.filter((y) => y.paket && !y.gekuendigt)) {
+      const st = await KK.kartenStand(x.personId);
+      if ((st?.ausschlussAutomatik?.code === "bonitaet_offen") !== x.wartetKarte) abw.push(`${x.personId}: ${st?.ausschlussAutomatik?.code ?? "frei"} / ${x.wartetKarte}`);
+    }
+    ok(abw.length === 0, `Marke = Grund „bonitaet_offen“ der Akte (kartenStand) für alle Paketkunden${abw.length ? ` — ${abw.join(", ")}` : ""}`);
+    // Ohne Auswahl läuft die Liste über die ganze Datenbank — dieselben Urteile für unsere Kunden.
+    const voll = await AL.bonitaetArbeitsliste();
+    ok(ids.every((id) => (voll.liste.find((x) => x.personId === id)?.wartetKarte ?? null) === (z(id)?.wartetKarte ?? null)), `Volle Liste (${voll.liste.length} Zeilen) urteilt gleich`);
+    const nachher = await zaehlen();
+    ok(nachher.fa === vorher.fa && nachher.mails === vorher.mails && nachher.karte === vorher.karte,
+      `Nichts gestartet: keine Auswertung, keine Mail, keine Einladung (${JSON.stringify(vorher)} → ${JSON.stringify(nachher)})`);
   }
 
   // ═════════════════════════════════════════════════════════════════════════

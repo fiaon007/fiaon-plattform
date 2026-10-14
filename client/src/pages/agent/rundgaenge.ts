@@ -219,8 +219,8 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Kontoauszug hochgeladen, heißt sie „Startklar“ (E-352: Lücken oder ein ungeprüfter Ausweis stehen als Vorbehalt im Bericht; "
       + "einen ungelesenen Auszug liest der Klick zuerst): Ein Klick auf „Bonitätsauswertung erstellen“, "
       + "und in ein bis drei Minuten steht der Entwurf da — Ampel für sieben Bereiche, FIAON-Finanzwert, Plan mit Fristen, PDF. "
-      + "Du siehst ihn zuerst; erst „An den Kunden übergeben“ legt ihn in seinen Bereich. Bei roter Gesamtlage oder Vorbehalt "
-      + "übergibt nur die Leitung. Fehlt etwas, sagt die Karte was — anfordern oder den Ausweis bestätigen geht im Reiter „Dokumente“.",
+      + "Du prüfst das PDF und gibst frei („Freigeben & an den Kunden“) — der Kunde bekommt es sofort mit Mail und PDF, "
+      + "du bekommst vorher selbst eine Mail mit dem PDF. Fehlt etwas, sagt die Karte was — anfordern oder den Ausweis bestätigen geht im Reiter „Dokumente“.",
     tipp: "Jede Auswertung kostet. Erstelle sie, wenn du mit dem Kunden darüber sprichst — nicht auf Vorrat. Eine neue Fassung bietet die Karte erst an, wenn neue Unterlagen da sind.",
   },
   {
@@ -415,9 +415,9 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "WhatsApp) mit einem Upload-Link ohne Anmeldung — 14 Tage gültig. Ging er an die falsche Adresse, macht ihn "
       + "„Link zurückziehen“ sofort ungültig. Ein Foto vom Ausweis bestätigst du von Hand; war das ein Irrtum, "
       + "nimmt „Bestätigung zurücknehmen“ sie mit Grund zurück. "
-      + "Nach dem Erzeugen: Vorschau ansehen, „An den Kunden übergeben“ — das darf der Betreuer des Kunden, und nur, solange "
-      + "der Entwurf nicht veraltet ist. Bei roter Gesamtlage oder Vorbehalt gibt nur die Leitung frei, und nicht, wer erzeugt hat — "
-      + "sie bekommt dafür automatisch die Aufgabe „Vier-Augen: Auswertung … freigeben“, die sich mit Freigabe oder Verwerfen von selbst erledigt.",
+      + "Nach dem Entwickeln: PDF ansehen, prüfen und freigeben — das macht, wer die Auswertung entwickelt hat (oder Betreuer/Leitung), "
+      + "solange der Entwurf nicht veraltet ist. Kein Vier-Augen mehr (E-358). Dafür steht automatisch die Aufgabe „Bonitätsauswertung … prüfen "
+      + "und übergeben“ bei dir, die sich mit Freigabe oder Verwerfen von selbst erledigt; der Kunde bekommt sofort Mail und PDF.",
     tipp: "Die Auskunft-Kachel sagt jetzt, wo eine bezahlte Auskunft steht („wartet auf die Auftragsbestätigung“) — im Gespräch um den Klick in der Mail bitten. Der Haken im Antrag heißt „Einwilligung Datenübermittlung“: Das ist keine Bestellung.",
   },
   {

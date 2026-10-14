@@ -603,7 +603,7 @@ async function laufDurchfuehren(id: number, fassung: number, e: Eingaben, wer: {
   await lauf`
     UPDATE fiaon_finanzauswertungen
        SET status = 'entwurf', inhalt = ${sqlPool.json(inhalt as any)}, gesamt = ${inhalt.gesamt.ampel}, finanzwert = ${inhalt.finanzwert.wert},
-           band = ${inhalt.finanzwert.band}, vorbehalt = ${vorbehalt}, vier_augen = ${vorbehalt || inhalt.gesamt.ampel === "rot"},
+           band = ${inhalt.finanzwert.band}, vorbehalt = ${vorbehalt}, vier_augen = FALSE,
            pdf_dokument_id = ${Number(d.id)}, modell = ${ki.modell}, texte_quelle = ${texteQuelle}, kosten_cents = ${ki.kostenCents},
            fertig_am = NOW(), updated_at = NOW()
      WHERE id = ${id}`;
@@ -679,9 +679,8 @@ export async function mitarbeiterBenachrichtigen(id: number, lauf: Lauf = sqlPoo
   const personId = Number(f.person_id);
   const nummer = auswertungNummer(personId, Number(f.fassung));
   const kunde = [f.first_name, f.last_name].filter(Boolean).join(" ").trim() || `Kunde #${personId}`;
-  const standSatz = f.vier_augen
-    ? "Vier-Augen (Vorbehalt oder rote Gesamtlage): An den Kunden übergeben darf die Leitung — nicht, wer die Auswertung erstellt hat. Die Aufgabe dafür liegt bei der Leitung."
-    : "Nach Ihrer Prüfung können Sie die Auswertung selbst an den Kunden übergeben.";
+  // E-358: Kein Vier-Augen mehr — wer sie entwickelt hat, prüft und übergibt.
+  const standSatz = "Nach Ihrer Prüfung geben Sie die Auswertung selbst frei — der Kunde bekommt sie dann sofort mit Mail und PDF.";
   const anhang = await pdfAnhang(id, lauf);
   const motor = await import("../mail/motor");
   const { mailProtokoll } = await import("./fiaon-mail-log");
@@ -766,7 +765,6 @@ export async function vierAugenAufgabenAbgleichen(personId: number, lauf: Lauf =
           : f.status === "ersetzt" ? "durch eine neuere Freigabe ersetzt"
           : f.status === "fehler" ? "beim Erzeugen gescheitert"
           : juengste && Number(juengste.id) !== Number(f.id) ? `durch die neuere Fassung ${nummer(juengste)} überholt`
-          : !f.vier_augen ? "braucht keine Vier-Augen-Freigabe mehr"
           : null;
         if (!grund) continue;
         const text = `Erledigt: Auswertung ${nummer(f)} ${grund}.`;
@@ -774,26 +772,27 @@ export async function vierAugenAufgabenAbgleichen(personId: number, lauf: Lauf =
       }
     }
 
-    // 2. Der jüngste Entwurf mit Vier-Augen: EINE Aufgabe an die Leitung.
+    // 2. E-358 (14.10.2026): JEDER fertige Entwurf bekommt EINE Aufgabe „prüfen und übergeben“ — an den, der die
+    //    Auswertung entwickelt hat (sonst den Betreuer, sonst die Leitung). Kein Vier-Augen mehr (Justin).
     const f = juengste;
-    if (f && f.status === "entwurf" && f.vier_augen) {
+    if (f && f.status === "entwurf") {
       const erstellerId = f.erstellt_von_id != null ? Number(f.erstellt_von_id) : null;
-      const leitung = await vierAugenLeitung(erstellerId, lauf);
-      const vorbehalte = Array.isArray(f.vorbehalte) ? f.vorbehalte.map(String).filter(Boolean) : [];
-      const warum = f.vorbehalt ? `mit Vorbehalt${vorbehalte.length ? ` (${vorbehalte.slice(0, 3).join(" · ")})` : ""}` : "rote Gesamtlage";
+      const [ok] = erstellerId != null ? ((await lauf`
+        SELECT id FROM fiaon_agents WHERE id = ${erstellerId} AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL`.catch(() => [])) as any[]) : [];
+      const [betreuer] = (await lauf`SELECT assigned_agent_id AS id FROM fiaon_persons WHERE id = ${Number(f.person_id)}`.catch(() => [])) as any[];
+      const an = ok?.id != null ? Number(ok.id) : betreuer?.id != null ? Number(betreuer.id) : await vierAugenLeitung(null, lauf);
       const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
       const r = await auftragFuerKunden({
         personId: Number(f.person_id), ref: f.ref ? String(f.ref) : null,
         schluessel: VIER_AUGEN_SCHLUESSEL(Number(f.id)),
-        titel: `Vier-Augen: Auswertung ${nummer(f)} freigeben`,
-        text: `Die FIAON Finanz- und Bonitätsauswertung ${nummer(f)} (${warum}) wartet auf die Freigabe der Leitung — `
-          + `erzeugt von ${f.erstellt_von ?? "einem Mitarbeiter"}, der sie selbst nicht freigeben darf. Akte → Reiter „Dokumente“ → `
-          + "„FIAON Finanz- und Bonitätsauswertung“: Vorschau ansehen, dann „An den Kunden übergeben“ oder „Verwerfen“ (mit Grund). "
-          + "Steht dort „veraltet“, erst eine neue Fassung erzeugen. Freigabe, Verwerfen oder eine neuere Fassung erledigen diese Aufgabe von selbst.",
+        titel: `Bonitätsauswertung ${nummer(f)} prüfen und übergeben`,
+        text: `Die FIAON-Bonitätsauswertung ${nummer(f)} ist fertig. Akte → Überblick → Karte „FIAON Bonitätsauswertung“: `
+          + "„PDF ansehen“, kurz prüfen, dann „An den Kunden übergeben“ — der Kunde bekommt sie sofort mit Mail und PDF. "
+          + "Stimmt etwas nicht: im Reiter „Dokumente“ verwerfen (mit Grund). Übergabe, Verwerfen oder eine neuere Fassung erledigen diese Aufgabe von selbst.",
         quelle: "finanzauswertung", bereich: "pruefen", link: `/agent/kunden?person=${Number(f.person_id)}`,
-        autorName: "Finanzauswertung", anlageText: "Angelegt, weil der Entwurf nur von der Leitung freigegeben werden darf (Vier-Augen).",
+        autorName: "Finanzauswertung", anlageText: "Angelegt, weil die Bonitätsauswertung fertig ist und auf die Übergabe wartet.",
         faelligAm: new Date(Date.now() + 864e5).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
-        ...(leitung != null ? { agentId: leitung } : { anBetreiber: true as const }),
+        ...(an != null ? { agentId: an } : { anBetreiber: true as const }),
       });
       erg.angelegt = r.id != null;
     }

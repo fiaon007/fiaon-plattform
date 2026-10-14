@@ -962,19 +962,13 @@ export function platzhalterEinsetzen(text: string, werte: Partial<Record<Platzha
 export function freigabeRegel(e: {
   gesamt: Ampel; vorbehalt: boolean; rolle: string; freigeberId: number | null; erstellerId: number | null; zustaendig: boolean;
 }): { erlaubt: boolean; vierAugen: boolean; grund: string | null } {
-  const vierAugen = e.gesamt === "rot" || e.vorbehalt;
+  // E-358 (14.10.2026, Justin): „Der Mitarbeiter, der es entwickeln lässt, kontrolliert sie, gibt sie frei — und
+  // automatisch dann beim Kunden. Nicht mehr vier Augen.“ Freigeben dürfen: wer die Auswertung entwickelt hat, der
+  // Betreuer des Kunden (nicht Inkasso) und die Leitung. Rot oder Vorbehalt verlangen keinen zweiten Menschen mehr.
   const leitung = e.rolle === "admin" || e.rolle === "vertriebsleiter";
-  if (vierAugen) {
-    if (!leitung) return { erlaubt: false, vierAugen, grund: `${e.vorbehalt ? "Auswertung mit Vorbehalt" : "Rote Gesamtlage"}: Freigabe nur durch die Leitung (Vier-Augen).` };
-    if (e.freigeberId != null && e.erstellerId != null && e.freigeberId === e.erstellerId) {
-      return { erlaubt: false, vierAugen, grund: "Vier-Augen: Freigeben muss ein anderer Mensch als der, der die Auswertung erzeugt hat." };
-    }
-    return { erlaubt: true, vierAugen, grund: null };
-  }
-  // Nachprüfung 08.10.: Inkasso betreut nicht — und die Pflichtmail „Auswertung bereit“ kennt die Rolle nicht
-  // (der Kunde sähe die Auswertung sonst ohne Mail).
-  if (!leitung && (!e.zustaendig || e.rolle === "inkasso")) return { erlaubt: false, vierAugen, grund: "Freigeben darf der Betreuer des Kunden oder die Leitung." };
-  return { erlaubt: true, vierAugen, grund: null };
+  const ersteller = e.freigeberId != null && e.erstellerId != null && e.freigeberId === e.erstellerId;
+  if (leitung || ersteller || (e.zustaendig && e.rolle !== "inkasso")) return { erlaubt: true, vierAugen: false, grund: null };
+  return { erlaubt: false, vierAugen: false, grund: "Freigeben darf, wer die Auswertung entwickelt hat, der Betreuer des Kunden oder die Leitung." };
 }
 
 /** Die Nummer einer Fassung — steht im PDF und in der Akte. */

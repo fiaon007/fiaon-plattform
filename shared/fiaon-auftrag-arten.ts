@@ -147,7 +147,7 @@ export const AUFTRAG_ARTEN = {
   // Integration 08.10.2026 (Strang d, Vier-Augen): „Vier-Augen: Auswertung FA-… freigeben“ an die Leitung. Erledigt wird sie
   // durch Freigabe, Verwerfen oder eine neuere Fassung (fiaon-finanzauswertung.ts, vierAugenAufgabenAbgleichen) — kein
   // Gespräch und keine Unterlage schließen sie.
-  vier_augen: { label: "Vier-Augen: Auswertung freigeben", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
+  vier_augen: { label: "Bonitätsauswertung prüfen und übergeben", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
   unzustellbar_erstzahlung: { label: "Erstzahlung: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: ["zahlung_gebucht"], bezug: "ref" },
   // Eine bezahlte Rate heilt die Adresse NICHT: Für die nächste Rate geht wieder keine Mail raus
   // (UNZUSTELLBAR_SQL). Zu ist der Auftrag erst, wenn ein Mensch die Adresse geklärt hat — mit Satz.

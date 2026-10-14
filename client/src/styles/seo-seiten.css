@@ -65,6 +65,12 @@
 .sx-etappe h3 { margin: 4px 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: #fff; }
 .sx-etappe .dauer { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(148, 190, 255, .8); font-weight: 700; }
 .sx-etappe p { margin: 0; font-size: 14px; line-height: 1.65; color: rgba(226, 236, 250, .78); max-width: 62ch; }
+/* Zeitleiste und Skala im Lichtband (.dk-licht): dunkle Schrift (14.10.2026, gleicher Fehler wie im Glossar). */
+.dk-licht .sx-etappe h3 { color: #0f172a; }
+.dk-licht .sx-etappe .dauer { color: #1d4ed8; }
+.dk-licht .sx-etappe p { color: #475569; }
+.dk-licht .sx-skala-marken { color: #64748b; }
+.dk-licht .sx-skala .lesart { color: #475569; }
 
 /* ── Die Ratenleiste (/ratenzahlung-und-bonitaet) ────────────────────────── */
 .sx-raten { display: grid; grid-template-columns: repeat(12, 1fr); gap: 7px; margin-top: 30px; }
@@ -198,6 +204,18 @@
 @media (prefers-reduced-motion: reduce) { .sx-begriff summary .plus { transition: none !important; } }
 .sx-begriff .text { padding: 0 4px 16px; font-size: 14px; line-height: 1.7; color: rgba(226, 236, 250, .8); max-width: 72ch; }
 .sx-begriff .text a { color: #9cc3ff; }
+/* Das Glossar steht im Lichtband (.dk-licht) — dort dunkle Schrift auf hellem Grund (14.10.2026, Justin: „weiß auf weiß“). */
+.dk-licht .sx-glossar-suche input { background: #fff; border-color: rgba(15, 23, 42, .14); color: #0f172a; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.dk-licht .sx-glossar-suche input::placeholder { color: #64748b; }
+.dk-licht .sx-glossar-suche input:focus { border-color: rgba(37, 99, 235, .55); }
+.dk-licht .sx-anker a { color: #1d4ed8; background: rgba(37, 99, 235, .06); border-color: rgba(37, 99, 235, .18); }
+.dk-licht .sx-anker a:hover { background: rgba(37, 99, 235, .14); }
+.dk-licht .sx-buchstabe { color: #1d4ed8; }
+.dk-licht .sx-begriff { border-bottom-color: rgba(15, 23, 42, .08); }
+.dk-licht .sx-begriff summary { color: #0f172a; }
+.dk-licht .sx-begriff summary .plus { color: #2563eb; }
+.dk-licht .sx-begriff .text { color: #475569; }
+.dk-licht .sx-begriff .text a { color: #1d4ed8; }
 
 /* ── Dokument-Attrappe (/bonitaetsauskunft-beantragen) ───────────────────── */
 .sx-dokument {

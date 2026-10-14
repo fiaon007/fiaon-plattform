@@ -33,13 +33,45 @@ const tag = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDat
 const euroGanz = (c: number) => `${Math.round(c / 100).toLocaleString("de-DE")} €`;
 const ruhig = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 
-/** Die vier Arbeitsschritte des Laufs (laufDurchfuehren) — angezeigt nach der verstrichenen Zeit, nicht gemeldet. */
+/**
+ * Die Arbeitsschritte des Laufs (laufDurchfuehren) — angezeigt nach der verstrichenen Zeit, nicht gemeldet.
+ * E-358 (14.10.2026, Justin: „es muss noch eine perfekte Animation dazu geben“): sieben Schritte (Wortlaut Justin: „Kundenprofil analysieren“, „Bonität vollständig analysiert“), dazu das
+ * entstehende Dokument (Werk) und ein Fortschritt, der sich dem Ende nähert, ohne es zu behaupten.
+ */
 const LAUF_SCHRITTE: { titel: string; ab: number }[] = [
-  { titel: "Kontoauszug lesen", ab: 0 },
-  { titel: "Zahlen rechnen, Ampeln setzen", ab: 12 },
-  { titel: "Einordnung schreiben", ab: 30 },
-  { titel: "PDF drucken", ab: 65 },
+  { titel: "Kundenprofil analysieren", ab: 0 },
+  { titel: "Jede Buchung zuordnen", ab: 8 },
+  { titel: "Einnahmen und Ausgaben rechnen", ab: 20 },
+  { titel: "Ampeln und Finanzwert setzen", ab: 32 },
+  { titel: "Bericht schreiben", ab: 45 },
+  { titel: "Bonität vollständig analysiert", ab: 62 },
+  { titel: "PDF setzen", ab: 75 },
 ];
+/** Fortschritt aus der Zeit: nähert sich 96 %, erreicht 100 % erst mit dem fertigen Entwurf. */
+const fortschritt = (sek: number) => Math.min(0.96, 1 - Math.exp(-sek / 55));
+const uhr = (sek: number) => `${Math.floor(sek / 60)}:${String(sek % 60).padStart(2, "0")}`;
+
+/** Das entstehende Dokument: gestapelte Seiten, Skala, sieben Ampeln, Zeilen, Lichtstreifen, Seitenzähler. */
+function Werk({ sek }: { sek: number }) {
+  const seite = sek < 45 ? 1 : Math.min(25, 1 + Math.floor((sek - 45) / 1.4));
+  const bogen = Math.min(1, sek / 40);
+  return (
+    <div className="ba-werk" aria-hidden="true">
+      <div className="ba-blatt ba-blatt-3" />
+      <div className="ba-blatt ba-blatt-2" />
+      <div className="ba-blatt ba-blatt-1">
+        <svg className="ba-werk-skala" viewBox="0 0 100 56">
+          <path d="M8 50 A42 42 0 0 1 92 50" className="spur" />
+          <path d="M8 50 A42 42 0 0 1 92 50" className="wert" style={{ strokeDashoffset: `${(1 - bogen) * 132}` }} />
+        </svg>
+        <div className="ba-werk-ampeln">{Array.from({ length: 7 }, (_, i) => <i key={i} className={sek >= 32 + i * 1.6 ? "an" : ""} style={{ ["--i" as string]: i }} />)}</div>
+        <div className="ba-werk-zeilen">{[92, 78, 86, 64, 88, 72].map((w, i) => <i key={i} className={sek >= 45 + i * 2 ? "an" : ""} style={{ ["--w" as string]: `${w}%` }} />)}</div>
+        <i className="ba-werk-strahl" />
+      </div>
+      <div className="ba-werk-seite">Seite {seite} / 25</div>
+    </div>
+  );
+}
 
 /** Zählt beim Erscheinen von 0 auf den Wert hoch (ruhig: sofort). */
 function useHochzaehlen(ziel: number | null): number {
@@ -188,8 +220,9 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
   };
 
   const zustand = laeuft ? "laeuft" : entwurf ? "entwurf" : gescheitert ? "fehler" : aktuell ? "frei" : v.bereit ? "bereit" : "fehlt";
-  const chip = { laeuft: "Wird erstellt", entwurf: "Entwurf · wartet auf Freigabe", fehler: "Gescheitert", frei: "Beim Kunden", bereit: "Startklar", fehlt: "Unterlagen fehlen" }[zustand];
-  const darfNicht = entwurf ? (entwurf.vierAugen && (!leitung || entwurf.erstelltVonId === d.ich)) || !!d.veraltet : true;
+  const chip = { laeuft: "Wird entwickelt", entwurf: "Prüfen & freigeben", fehler: "Gescheitert", frei: "Beim Kunden", bereit: "Startklar", fehlt: "Unterlagen fehlen" }[zustand];
+  // E-358 (14.10.2026): kein Vier-Augen mehr — wer entwickelt hat, prüft und gibt frei (der Server prüft die Rolle).
+  const darfNicht = entwurf ? !!d.veraltet : true;
   const pdf = (f: any) => `/api/fiaon/agent/kunden/${personId}/finanzauswertung/${f.id}/pdf`;
   const aktiv = LAUF_SCHRITTE.reduce((i, s, j) => (sek >= s.ab ? j : i), 0);
 
@@ -222,7 +255,7 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
         {zustand === "bereit" && (
           <>
             <h3 className="ba-titel">Ausweis und Kontoauszug sind da — die Bonität kann jetzt entwickelt werden.</h3>
-            <p className="ba-satz">Ampel für sieben Bereiche, FIAON-Finanzwert, ein konkreter Plan mit Fristen und das PDF für {name || "den Kunden"}. Das PDF liegt danach sofort hier in der Akte; der Kunde bekommt es mit „An den Kunden übergeben“.</p>
+            <p className="ba-satz">Ampel für sieben Bereiche, FIAON-Finanzwert, ein konkreter Plan mit Fristen und das PDF für {name || "den Kunden"}. Danach prüfst du das PDF und gibst es frei — der Kunde bekommt es sofort mit Mail.</p>
             <div className="ba-haken">
               <span><Pruefzeichen ok={v.ausweis?.ok ? true : null} />Ausweis{v.ausweis?.ok ? "" : " (Vorbehalt)"}</span>
               <span><Pruefzeichen ok={v.kontoauszug?.ok ? true : null} />Kontoauszug{v.kontoauszug?.stand === "pruefen" ? " (wird zuerst gelesen)" : v.kontoauszug?.ok ? "" : " (Vorbehalt)"}</span>
@@ -233,7 +266,7 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
               <ul className="ba-vorbehalt-liste">
                 {!v.ausweis?.ok && <li>{v.ausweis?.satz}</li>}
                 {!v.kontoauszug?.ok && v.kontoauszug?.stand !== "pruefen" && <li>{v.kontoauszug?.satz}</li>}
-                <li className="ba-klein">Steht als Vorbehalt im Bericht — übergeben darf ihn dann die Leitung.</li>
+                <li className="ba-klein">Steht als Vorbehalt im Bericht.</li>
               </ul>
             )}
             <div className="ba-knoepfe">
@@ -246,18 +279,24 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
         )}
 
         {zustand === "laeuft" && (
-          <>
-            <h3 className="ba-titel">Die Auswertung entsteht …</h3>
-            <div className="ba-scan" aria-hidden="true"><i /></div>
-            <ol className="ba-lauf">
-              {LAUF_SCHRITTE.map((s, i) => (
-                <li key={s.titel} className={i < aktiv ? "fertig" : i === aktiv ? "jetzt" : ""}>
-                  <span className="ba-punkt" aria-hidden="true">{i < aktiv ? "✓" : ""}</span>{s.titel}
-                </li>
-              ))}
-            </ol>
-            <p className="ba-klein">Ein bis zwei Minuten. Die Karte aktualisiert sich von selbst — du kannst solange weiterarbeiten.</p>
-          </>
+          <div className="ba-entsteht">
+            <Werk sek={sek} />
+            <div className="ba-entsteht-text">
+              <h3 className="ba-titel">Die Bonität wird entwickelt …</h3>
+              <div className="ba-fortschritt" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fortschritt(sek) * 100)} aria-label="Fortschritt">
+                <i style={{ width: `${(fortschritt(sek) * 100).toFixed(1)}%` }} />
+              </div>
+              <div className="ba-fortschritt-zeile"><span>{LAUF_SCHRITTE[aktiv]?.titel} …</span><span className="ba-uhr">{uhr(sek)}</span></div>
+              <ol className="ba-lauf">
+                {LAUF_SCHRITTE.map((s, i) => (
+                  <li key={s.titel} className={i < aktiv ? "fertig" : i === aktiv ? "jetzt" : ""}>
+                    <span className="ba-punkt" aria-hidden="true">{i < aktiv ? "✓" : ""}</span>{s.titel}
+                  </li>
+                ))}
+              </ol>
+              <p className="ba-klein">Ein bis drei Minuten. Die Karte aktualisiert sich von selbst — du kannst solange weiterarbeiten. Du bekommst auch eine Mail mit dem PDF.</p>
+            </div>
+          </div>
         )}
 
         {zustand === "fehler" && gescheitert && (
@@ -281,14 +320,14 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
             {d.veraltet && <p className="ba-hinweis">{d.veraltetGrund === "format"
               ? "Diese Fassung hat noch das alte Berichtsformat (vor dem 14.10.). Erst eine neue Fassung erstellen — sie hat das volle Format."
               : "Seit dieser Fassung sind neue Unterlagen da — sie ist veraltet. Erst eine neue Fassung erstellen."}</p>}
-            {zustand === "entwurf" && entwurf?.vierAugen && (
-              <p className="ba-hinweis">Vier-Augen ({entwurf.vorbehalt ? "Vorbehalt" : "rote Gesamtlage"}): Übergeben darf nur die Leitung, und nicht, wer die Auswertung erstellt hat.</p>
+            {zustand === "entwurf" && !d.veraltet && (
+              <p className="ba-schritt-hinweis"><b>Jetzt prüfen und freigeben:</b> „PDF ansehen“, kurz durchsehen, dann „Freigeben &amp; an den Kunden“ — er bekommt sie sofort mit Mail und PDF.</p>
             )}
             {frage && entwurf ? (
               <div className="ba-frage" role="group" aria-label="Übergabe bestätigen">
-                <span>{entwurf.nummer} an {name || "den Kunden"} übergeben? Sie erscheint im Kundenbereich, dazu geht eine Mail ohne Anhang und ohne Zahlen raus.</span>
+                <span>{entwurf.nummer} freigeben? Sie erscheint sofort im Bereich von {name || "dem Kunden"}, und er bekommt eine Mail mit dem PDF.</span>
                 <div className="ba-knoepfe">
-                  <button type="button" className="ba-start klein" disabled={busy === "frei"} onClick={() => void freigeben()}>{busy === "frei" ? "Übergibt …" : "Ja, jetzt übergeben"}</button>
+                  <button type="button" className="ba-start klein" disabled={busy === "frei"} onClick={() => void freigeben()}>{busy === "frei" ? "Gibt frei …" : "Ja, freigeben"}</button>
                   <button type="button" className="ba-neben" onClick={() => setFrage(false)}>Abbrechen</button>
                 </div>
               </div>
@@ -296,8 +335,8 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
               <div className="ba-knoepfe">
                 {zustand === "entwurf" && (
                   <button type="button" className="ba-start klein" disabled={darfNicht || !!busy}
-                          title={d.veraltet ? "Veraltet: erst eine neue Fassung erstellen" : darfNicht ? "Vier-Augen: Leitung, anderer Mensch" : "Erscheint im Bereich des Kunden"}
-                          onClick={() => setFrage(true)}>An den Kunden übergeben</button>
+                          title={d.veraltet ? "Veraltet: erst eine neue Fassung erstellen" : "Erscheint sofort im Bereich des Kunden, dazu Mail mit PDF"}
+                          onClick={() => setFrage(true)}>Freigeben &amp; an den Kunden</button>
                 )}
                 <a className="ba-neben knopf" href={pdf(zeigen)} target="_blank" rel="noreferrer">PDF ansehen ↗</a>
                 {/* Eine neue Fassung kostet wie die erste — angeboten nur, wenn neue Unterlagen sie nötig machen. */}

@@ -206,6 +206,8 @@
 .dk-licht .dk-zitat + .wer{color:#64748b}
 .dk-licht .dk-schritt .n{box-shadow:0 10px 24px rgba(37,99,235,.25)}
 .dk-licht .dk-lead.hervor{color:#0f172a}
+.dk-zwischenruf-text{color:#fff}
+.dk-licht .dk-zwischenruf-text{color:#0f172a}
 
 /* ── AntragStart (Schritt 0): Pakete in voller Breite ──────────────────── */
 .antrag-start{position:relative;z-index:1}

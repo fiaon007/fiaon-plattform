@@ -19,10 +19,10 @@ interface Zeile {
 interface Antwort { zahlen: Record<string, number>; liste: Zeile[] }
 
 const STAND: Record<StandKey, string> = {
-  bereit: "Startklar", laeuft: "Wird erstellt", entwurf: "Entwurf — übergeben", fehlt: "Unterlagen fehlen", beim_kunden: "Beim Kunden",
+  bereit: "Startklar", laeuft: "Wird entwickelt", entwurf: "Prüfen & freigeben", fehlt: "Unterlagen fehlen", beim_kunden: "Beim Kunden",
 };
 const FILTER: { key: StandKey; text: string }[] = [
-  { key: "bereit", text: "Startklar" }, { key: "entwurf", text: "Zu übergeben" }, { key: "fehlt", text: "Unterlagen fehlen" }, { key: "beim_kunden", text: "Beim Kunden" },
+  { key: "bereit", text: "Startklar" }, { key: "entwurf", text: "Zu prüfen" }, { key: "fehlt", text: "Unterlagen fehlen" }, { key: "beim_kunden", text: "Beim Kunden" },
 ];
 
 export default function AuswertungWarteliste() {
@@ -66,7 +66,7 @@ export default function AuswertungWarteliste() {
                   <span className={z.ausweis ? "ja" : "nein"}>{z.ausweis ? "✓" : "✕"} Ausweis</span>
                   <span className={z.kontoauszug ? "ja" : "nein"}>{z.kontoauszug ? "✓" : "✕"} Kontoauszug</span>
                 </span>
-                <span className={`awl-stand s-${z.stand}`}>{z.gescheitert && z.stand === "bereit" ? "Letzter Lauf gescheitert" : STAND[z.stand]}{z.stand === "entwurf" && z.vierAugen ? " (Leitung)" : ""}</span>
+                <span className={`awl-stand s-${z.stand}`}>{z.gescheitert && z.stand === "bereit" ? "Letzter Lauf gescheitert" : STAND[z.stand]}</span>
                 {link ? <a className="awl-auf" href={link}>Akte öffnen →</a> : <span />}
               </li>
             );

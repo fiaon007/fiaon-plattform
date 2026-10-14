@@ -240,11 +240,12 @@ abschnitt("A5 · Wände für Modelltexte, Freigaberegel, Kopfabgleich");
   ok(FA.beratungsWandFunde("Ihre Einnahmen kommen regelmäßig. Am Monatsende bleibt etwas übrig.").length === 0, "Neutraler Text geht durch");
   const r = (x: Partial<Parameters<typeof FA.freigabeRegel>[0]>) => FA.freigabeRegel({ gesamt: "gruen", vorbehalt: false, rolle: "agent", freigeberId: 12, erstellerId: 12, zustaendig: true, ...x });
   ok(r({}).erlaubt && !r({}).vierAugen, "Grün: der Betreuer darf selbst freigeben");
-  ok(!r({ zustaendig: false }).erlaubt, "Fremder Mitarbeiter darf nicht freigeben");
-  ok(!r({ gesamt: "rot" }).erlaubt && r({ gesamt: "rot" }).vierAugen, "Rot: der Betreuer darf nicht");
-  ok(!r({ gesamt: "rot", rolle: "vertriebsleiter" }).erlaubt, "Rot: auch die Leitung nicht, wenn sie selbst erzeugt hat");
-  ok(r({ gesamt: "rot", rolle: "vertriebsleiter", freigeberId: 10 }).erlaubt, "Rot: ein anderer Mensch der Leitung darf");
-  ok(!r({ vorbehalt: true, rolle: "agent" }).erlaubt && r({ vorbehalt: true, rolle: "admin", freigeberId: 8 }).erlaubt, "Vorbehalt: Vier-Augen wie bei Rot");
+  // E-358 (14.10.2026, Justin): kein Vier-Augen mehr — Ersteller, Betreuer oder Leitung geben frei.
+  ok(!r({ zustaendig: false, erstellerId: 99 }).erlaubt, "Fremder Mitarbeiter (nicht Ersteller, nicht Betreuer) darf nicht freigeben");
+  ok(r({ zustaendig: false }).erlaubt, "E-358: Wer die Auswertung entwickelt hat, gibt selbst frei");
+  ok(r({ gesamt: "rot" }).erlaubt && !r({ gesamt: "rot" }).vierAugen, "E-358: Rot — der Ersteller gibt selbst frei, kein Vier-Augen");
+  ok(r({ gesamt: "rot", rolle: "vertriebsleiter" }).erlaubt && r({ gesamt: "rot", rolle: "vertriebsleiter", freigeberId: 10 }).erlaubt, "E-358: Rot — die Leitung darf (auch selbst erstellt)");
+  ok(r({ vorbehalt: true, rolle: "agent" }).erlaubt && !r({ vorbehalt: true }).vierAugen, "E-358: Vorbehalt — kein Vier-Augen");
   const kopf = "Sparkasse Berlin Kontoauszug 3/2026 Frau Erika Müller-Lüdenscheidt Teststraße 12 10115 Berlin IBAN DE12 1005 0000 0000 0000 00 Alter Saldo 500,00";
   ok(JSON.stringify(FA.kopfAbgleich(kopf, { nachname: "Müller-Lüdenscheidt", strasse: "Teststraße 12", plz: "10115" })) === '{"inhaber":true,"adresse":true}', "Kopf: Doppelname mit Umlaut und Anschrift gefunden");
   ok(FA.kopfAbgleich(kopf.replace(/Müller/g, "Mueller"), { nachname: "Müller", strasse: "Teststraße", plz: "10115" }).inhaber === true, "Kopf: „Mueller“ = „Müller“");
@@ -426,7 +427,7 @@ abschnitt("A8b · Gegenprüfung 08.10.: Speicher, Widerruf, Doppelte, Freigabe")
 abschnitt("A8c · Nachprüfung 08.10.: Freigabe, Löschung, Merge, Wache, Texte");
 {
   const r = (x: Partial<Parameters<typeof FA.freigabeRegel>[0]>) => FA.freigabeRegel({ gesamt: "gruen", vorbehalt: false, rolle: "agent", freigeberId: 12, erstellerId: 12, zustaendig: true, ...x });
-  ok(!r({ rolle: "inkasso" }).erlaubt, "Freigabe: Inkasso gibt nie frei (Pflichtmail kennt die Rolle nicht)");
+  ok(!r({ rolle: "inkasso", erstellerId: 99 }).erlaubt, "Freigabe: Inkasso gibt fremde Auswertungen nicht frei");
   const route = lies("server/routes/fiaon-finanzauswertung.ts");
   ok(!/zustaendig: true/.test(route) && /const zustaendig = await istBetreuer\(req\.agent!\.id, z\.personId\)/.test(route) && /assigned_agent_id = \$\{agentId\}/.test(route) && /vertreterDarfAnKunde/.test(route),
     "Freigabe: „zuständig“ = zugewiesener Betreuer oder Vertretung — nicht jeder mit Aktenzugang (Pool, Termin, Inkasso)");
@@ -435,7 +436,7 @@ abschnitt("A8c · Nachprüfung 08.10.: Freigabe, Löschung, Merge, Wache, Texte"
   const fg = fl.slice(fl.indexOf("export async function freigeben"), fl.indexOf("export async function verwerfen"));
   ok(/eingabenHash\(eJetzt\)/.test(fg) && fg.indexOf("eingabenHash(eJetzt)") < fg.indexOf("lauf.begin("), "Freigabe: veralteter Entwurf wird abgelehnt (vor der Sperre)");
   const akte = lies("client/src/components/finanzen/FinanzauswertungAkte.tsx");
-  ok(/\|\| !!d\.veraltet/.test(akte), "Akte: „An den Kunden übergeben“ ist bei veraltetem Entwurf aus");
+  ok(/darfNicht = !!d\.veraltet/.test(akte), "Akte: „An den Kunden übergeben“ ist bei veraltetem Entwurf aus");
   ok(/Link zurückziehen/.test(akte) && /unterlagen-link\/widerrufen/.test(akte) && /links: \{ id: number/.test(fl), "Akte: aktiver Upload-Link sichtbar, Knopf „Link zurückziehen“");
   ok(/AND art <> 'finanzauswertung'/.test(lies("server/routes/fiaon-app.ts")), "Kunde: Auswertungs-PDFs nicht über die allgemeine Dokument-Route (Entwürfe, verworfene)");
   const loe = lies("server/lib/fiaon-loeschen.ts");
@@ -644,7 +645,7 @@ if (!LOKAL) {
     const wieder = await FL.erzeugen(k.personId, betreuer, { einordnung: einordnungStub as any, drucken: druckStub });
     ok(wieder.id === r1.id && (await zahl()) === n0, "Klick auf einen frischen Entwurf aus denselben Unterlagen → derselbe Entwurf");
     // Freigabe: fremder Mitarbeiter nicht, Betreuer ja
-    ok(!(await FL.freigeben(r1.id!, { ...betreuer, rolle: "agent", zustaendig: false }, sqlPool, { mail: false })).ok, "Nicht zuständig → keine Freigabe");
+    ok(!(await FL.freigeben(r1.id!, { name: "Fremd", agentId: 13, rolle: "agent", zustaendig: false }, sqlPool, { mail: false })).ok, "Nicht zuständig, nicht Ersteller → keine Freigabe");
     // E-355 (14.10.2026): Ein offener Beschaffungsauftrag der Person schließt sich mit der Übergabe.
     await LI.ensureBeschaffungTabelle();
     const [ba] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus)
@@ -715,17 +716,17 @@ if (!LOKAL) {
     const k = await kunde("B", { stimmt: false, buch: buchungen({ ruecklast: 2, inkasso: 2 }) });
     const r = await FL.erzeugen(k.personId, leitungA, { einordnung: async () => ({ text: null, modell: null, kostenCents: 0, fehler: "KI pausiert" }), drucken: druckStub }, sqlPool, { warten: true });
     const f = await FL.fassungLesen(r.id!);
-    ok(f?.vorbehalt && f.vierAugen && f.inhalt?.texteQuelle === "regel", "Vorbehalt (Cent) → Vier-Augen; ohne Modell feste Sätze");
+    // E-358 (14.10.2026, Justin): kein Vier-Augen mehr — wer entwickelt hat, prüft und gibt frei.
+    ok(f?.vorbehalt && !f.vierAugen && f.inhalt?.texteQuelle === "regel", "E-358: Vorbehalt (Cent) ohne Vier-Augen; ohne Modell feste Sätze");
     ok(f?.inhalt?.pruefvermerke.some((v: string) => /feste[nm]? Sätzen/.test(v)), "Prüfvermerk: Einordnung mit festen Sätzen");
-    ok(!(await FL.freigeben(r.id!, { ...betreuer, rolle: "agent", zustaendig: true }, sqlPool, { mail: false })).ok, "Betreuer darf nicht freigeben");
-    ok(!(await FL.freigeben(r.id!, { ...leitungA, rolle: "vertriebsleiter", zustaendig: true }, sqlPool, { mail: false })).ok, "Ersteller (Leitung) darf nicht freigeben");
+    ok(!(await FL.freigeben(r.id!, { name: "Fremd", agentId: 13, rolle: "agent", zustaendig: false }, sqlPool, { mail: false })).ok, "E-358: Fremder Mitarbeiter (nicht Ersteller, nicht Betreuer) darf nicht freigeben");
     // Integration 08.10.2026 (offener Fund der Nachprüfung): Der Vier-Augen-Entwurf erreicht die Leitung — EINE Aufgabe, idempotent.
     const vaSchl = FL.VIER_AUGEN_SCHLUESSEL(r.id!);
     const vaZeilen = async () => (await sqlPool`SELECT id, status, titel, zustaendig_art, zustaendig_agent_id, art FROM fiaon_betreiber_todos WHERE schluessel = ${vaSchl}`) as any[];
     const va1 = await vaZeilen();
-    ok(va1.length === 1 && va1[0].status !== "erledigt" && /^Vier-Augen: Auswertung FA-/.test(va1[0].titel) && va1[0].art === "vier_augen",
-      `Vier-Augen-Entwurf → eine offene Aufgabe an die Leitung (${va1.map((z) => `${z.status}/${z.zustaendig_art}/${z.zustaendig_agent_id}`).join(", ")})`);
-    ok(va1.length === 1 && Number(va1[0].zustaendig_agent_id) !== leitungA.agentId, "… nie an den, der den Entwurf erzeugt hat");
+    ok(va1.length === 1 && va1[0].status !== "erledigt" && /^Bonitätsauswertung FA-.* prüfen und übergeben$/.test(va1[0].titel) && va1[0].art === "vier_augen",
+      `E-358: Fertiger Entwurf → eine offene Aufgabe „prüfen und übergeben“ (${va1.map((z) => `${z.status}/${z.zustaendig_art}/${z.zustaendig_agent_id}`).join(", ")})`);
+    ok(va1.length === 1 && Number(va1[0].zustaendig_agent_id) === leitungA.agentId, "E-358: … an den, der die Auswertung entwickelt hat");
     await FL.vierAugenAufgabenAbgleichen(k.personId);
     ok((await vaZeilen()).length === 1 && (await vaZeilen())[0].status !== "erledigt", "Abgleich zweimal → weiter genau eine offene Aufgabe");
     ok(!(await FL.verwerfen(r.id!, "x", leitungB)).ok, "Verwerfen ohne Grund abgelehnt");
@@ -772,7 +773,7 @@ if (!LOKAL) {
     }, sqlPool, { warten: true });
     const f4 = await FL.fassungLesen(r4.id!);
     ok(gelesen === 1 && f4?.status === "entwurf" && !!f4.pdf, `E-352: Ein Klick liest den Auszug zuerst und erzeugt dann den Entwurf (${f4?.status} ${f4?.fehler ?? ""})`);
-    ok(!!f4?.vorbehalt && (f4.inhalt?.vorbehalte ?? []).includes("zeitraum") && !!f4.vierAugen, "E-352: Ein Monat → Bericht mit Vorbehalt „zeitraum“, Übergabe durch die Leitung");
+    ok(!!f4?.vorbehalt && (f4.inhalt?.vorbehalte ?? []).includes("zeitraum") && !f4.vierAugen, "E-352/E-358: Ein Monat → Bericht mit Vorbehalt „zeitraum“, kein Vier-Augen");
     ok(!(await FL.lage(k4.personId)).veraltet, "E-352: Danach nicht „veraltet“ (Fingerabdruck nachgezogen)");
     // E-353 (14.10.2026): Ein Entwurf im alten Berichtsformat geht nicht mehr an den Kunden — die Karte bietet eine neue Fassung an.
     const kR = await kunde("R");

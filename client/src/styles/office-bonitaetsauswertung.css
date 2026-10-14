@@ -168,3 +168,47 @@
 /* E-352 (14.10.2026): Hinweise, die als Vorbehalt in den Bericht kommen — ruhig, keine Warnfarbe. */
 .ba-vorbehalt-liste { margin: 10px 0 0; padding: 0 0 0 18px; display: grid; gap: 4px; font-size: 12.5px; line-height: 1.45; opacity: .85; }
 .ba-vorbehalt-liste li::marker { color: currentColor; }
+
+/* ── E-358 (14.10.2026): Die Bonität entsteht — Werk (entstehendes Dokument) + Fortschritt ── */
+.ba-entsteht{display:grid;grid-template-columns:200px minmax(0,1fr);gap:26px;align-items:center}
+.ba-entsteht-text{display:grid;gap:12px;min-width:0}
+.ba-werk{position:relative;width:180px;height:220px;margin:4px auto 0}
+.ba-blatt{position:absolute;inset:0 18px 26px 18px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(232,239,250,.94));box-shadow:0 18px 40px -18px rgba(2,6,23,.7),inset 0 0 0 1px rgba(255,255,255,.6)}
+.ba-blatt-2{transform:translate(9px,7px) rotate(3deg);opacity:.55;animation:ba-blatt-wippen 3.2s ease-in-out infinite}
+.ba-blatt-3{transform:translate(16px,13px) rotate(6deg);opacity:.3;animation:ba-blatt-wippen 3.2s ease-in-out .4s infinite}
+.ba-blatt-1{overflow:hidden;padding:16px 14px;display:grid;align-content:start;gap:10px}
+.ba-werk-skala{width:100%;height:auto}
+.ba-werk-skala path{fill:none;stroke-width:8;stroke-linecap:round}
+.ba-werk-skala .spur{stroke:#E3E9F2}
+.ba-werk-skala .wert{stroke:#1D4ED8;stroke-dasharray:132;transition:stroke-dashoffset 1s cubic-bezier(.22,1,.36,1)}
+.ba-werk-ampeln{display:flex;justify-content:center;gap:6px}
+.ba-werk-ampeln i{width:9px;height:9px;border-radius:50%;background:#CBD5E1;transform:scale(.6);transition:transform .5s cubic-bezier(.34,1.56,.64,1),background .5s}
+.ba-werk-ampeln i.an{transform:scale(1);background:#0F9D6B}
+.ba-werk-ampeln i.an:nth-child(3),.ba-werk-ampeln i.an:nth-child(6){background:#D99A06}
+.ba-werk-zeilen{display:grid;gap:7px;margin-top:2px}
+.ba-werk-zeilen i{display:block;height:5px;border-radius:3px;background:#DCE5F2;width:0;transition:width .9s cubic-bezier(.22,1,.36,1)}
+.ba-werk-zeilen i.an{width:var(--w)}
+.ba-werk-strahl{position:absolute;left:-10%;right:-10%;height:42px;top:-50px;background:linear-gradient(180deg,rgba(40,141,250,0),rgba(40,141,250,.22),rgba(40,141,250,0));animation:ba-strahl 2.4s cubic-bezier(.45,0,.55,1) infinite}
+.ba-werk-seite{position:absolute;left:0;right:0;bottom:0;text-align:center;font:500 11.5px/1 'Inter',sans-serif;letter-spacing:.06em;color:#93c5fd;font-variant-numeric:tabular-nums}
+.ba-fortschritt{position:relative;height:6px;border-radius:999px;background:rgba(148,163,184,.16);overflow:hidden}
+.ba-fortschritt i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:linear-gradient(90deg,#1D4ED8,#288DFA,#93c5fd);transition:width .6s cubic-bezier(.22,1,.36,1)}
+.ba-fortschritt i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:ba-glanzlauf 1.8s ease-in-out infinite}
+.ba-fortschritt-zeile{display:flex;justify-content:space-between;gap:12px;font:400 12.5px/1.3 'Inter',sans-serif;color:#cbd5e1}
+.ba-uhr{font-variant-numeric:tabular-nums;color:#94a3b8}
+.ba-lauf li.fertig .ba-punkt{animation:ba-haken .45s cubic-bezier(.34,1.56,.64,1)}
+.ba-schritt-hinweis{margin:0;font:400 12.5px/1.5 'Inter',sans-serif;color:#bfdbfe}
+.ba-schritt-hinweis b{color:#fff;font-weight:600}
+@keyframes ba-strahl{0%{top:-50px}100%{top:110%}}
+@keyframes ba-blatt-wippen{0%,100%{translate:0 0}50%{translate:0 -3px}}
+@keyframes ba-glanzlauf{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@keyframes ba-haken{0%{transform:scale(.4)}100%{transform:scale(1)}}
+@media (max-width:640px){
+  .ba-entsteht{grid-template-columns:1fr;gap:16px}
+  .ba-werk{width:160px;height:196px}
+}
+@media (prefers-reduced-motion:reduce){
+  .ba-werk-strahl,.ba-fortschritt i::after{animation:none;display:none}
+  .ba-blatt-2,.ba-blatt-3,.ba-lauf li.fertig .ba-punkt{animation:none}
+  .ba-werk-zeilen i,.ba-werk-ampeln i,.ba-werk-skala .wert,.ba-fortschritt i{transition:none}
+}
+

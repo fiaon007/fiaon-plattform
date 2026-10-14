@@ -236,7 +236,7 @@ export function Zwischenruf({ text, knopf, href, still }: { text: ReactNode; kno
       <div className="dk-rahmen">
         <Auf>
           <div className="dk-glas ruhig" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "28px 32px" }}>
-            <p style={{ fontSize: 18, color: "#fff", maxWidth: "48ch", lineHeight: 1.45 }}>{text}</p>
+            <p className="dk-zwischenruf-text" style={{ fontSize: 18, maxWidth: "48ch", lineHeight: 1.45 }}>{text}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {still && <Knopf href={still.href} still>{still.knopf}</Knopf>}
               <Knopf href={href}>{knopf}</Knopf>

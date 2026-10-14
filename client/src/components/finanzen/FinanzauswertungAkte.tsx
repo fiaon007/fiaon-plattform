@@ -230,13 +230,14 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
         </div>
       )}
 
-      {d.laeuft && <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>Die Auswertung wird erstellt (Kontoauszug lesen, rechnen, Einordnung schreiben, PDF drucken) — ein bis zwei Minuten. Die Ansicht lädt von selbst nach.</p>}
+      {d.laeuft && <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>Die Bonität wird entwickelt (Kundenprofil analysieren, rechnen, Bericht schreiben, PDF setzen) — ein bis drei Minuten. Die Ansicht lädt von selbst nach.</p>}
       {d.veraltet && <p className="pi-sek-satz" style={{ marginTop: 8, color: "#fbbf24" }}>Seit der letzten Fassung sind neue Unterlagen oder eine neue Auswertung des Kontoauszugs da — die Fassung ist veraltet. „Neue Fassung erzeugen“.</p>}
 
       {/* Entwurf: Vorschau und Freigabe */}
       {entwurf && (() => {
         // Nachprüfung 08.10.: Ein veralteter Entwurf geht nicht an den Kunden (der Server lehnt ihn ebenso ab).
-        const darfNicht = (entwurf.vierAugen && (!leitung || entwurf.erstelltVonId === d.ich)) || !!d.veraltet;
+        // E-358: kein Vier-Augen mehr — wer entwickelt hat, Betreuer oder Leitung geben frei (der Server prüft).
+        const darfNicht = !!d.veraltet;
         return (
           <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(251,191,36,.35)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
@@ -247,11 +248,11 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
               </span>
             </div>
             <div style={{ fontSize: 11, opacity: .65, marginTop: 2 }}>{FINANZWERT_KURZ}</div>
-            {entwurf.vierAugen && <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 4 }}>Vier-Augen: {entwurf.vorbehalt ? "Vorbehalt" : "rote Gesamtlage"} — freigeben darf nur die Leitung, und nicht, wer die Auswertung erzeugt hat. Die Leitung hat dafür die Aufgabe „Vier-Augen: Auswertung {entwurf.nummer} freigeben“.</div>}
+
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <button type="button" className="pi-knopf still klein" onClick={() => setVorschau((x) => (x === entwurf.id ? null : entwurf.id))}>{vorschau === entwurf.id ? "Vorschau schließen" : "Vorschau ansehen"}</button>
               <a className="pi-knopf still klein" href={`/api/fiaon/agent/kunden/${personId}/finanzauswertung/${entwurf.id}/pdf`} target="_blank" rel="noreferrer">PDF in neuem Fenster</a>
-              <button type="button" className="pi-knopf klein" disabled={!!busy || darfNicht} title={d.veraltet ? "Veraltet: erst eine neue Fassung erzeugen" : darfNicht ? "Vier-Augen: Leitung, anderer Mensch" : "Erscheint im Bereich des Kunden, Mail ohne Anhang"} onClick={() => void freigeben(entwurf)}>
+              <button type="button" className="pi-knopf klein" disabled={!!busy || darfNicht} title={d.veraltet ? "Veraltet: erst eine neue Fassung erzeugen" : "Erscheint sofort im Bereich des Kunden, dazu Mail mit PDF"} onClick={() => void freigeben(entwurf)}>
                 {busy === `frei-${entwurf.id}` ? "Übergibt …" : "An den Kunden übergeben"}
               </button>
               <button type="button" className="pi-knopf still klein" disabled={!!busy} onClick={() => void verwerfen(entwurf)}>Verwerfen</button>

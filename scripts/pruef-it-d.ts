@@ -761,6 +761,13 @@ if (!LOKAL) {
     ok(gelesen === 1 && f4?.status === "entwurf" && !!f4.pdf, `E-352: Ein Klick liest den Auszug zuerst und erzeugt dann den Entwurf (${f4?.status} ${f4?.fehler ?? ""})`);
     ok(!!f4?.vorbehalt && (f4.inhalt?.vorbehalte ?? []).includes("zeitraum") && !!f4.vierAugen, "E-352: Ein Monat → Bericht mit Vorbehalt „zeitraum“, Übergabe durch die Leitung");
     ok(!(await FL.lage(k4.personId)).veraltet, "E-352: Danach nicht „veraltet“ (Fingerabdruck nachgezogen)");
+    // E-353 (14.10.2026): Ein Entwurf im alten Berichtsformat geht nicht mehr an den Kunden — die Karte bietet eine neue Fassung an.
+    const kR = await kunde("R");
+    const rR = await FL.erzeugen(kR.personId, betreuer, { einordnung: einordnungStub as any, drucken: druckStub }, sqlPool, { warten: true });
+    await sqlPool`UPDATE fiaon_finanzauswertungen SET regel_version = 'FA-2026-10-08.1' WHERE id = ${rR.id!}`;
+    const lR = await FL.lage(kR.personId);
+    const fR = await FL.freigeben(rR.id!, { ...leitungB, rolle: "vertriebsleiter", zustaendig: true }, sqlPool, { mail: false });
+    ok(lR.veraltet && lR.veraltetGrund === "format" && !fR.ok && /alte Berichtsformat/.test(fR.text), `E-353: Alter Entwurf → „veraltet (Format)“, keine Übergabe (${fR.text})`);
   }
 
   abschnitt("B3 · Upload-Link: Token, Wiederverwendung, Widerruf, Ablauf, Annahme");

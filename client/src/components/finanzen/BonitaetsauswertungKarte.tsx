@@ -278,7 +278,9 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
               {zeigen.nummer} · erstellt {tag(zeigen.erstelltAm)}{zeigen.erstelltVon ? ` von ${zeigen.erstelltVon}` : ""}
               {zustand === "frei" ? ` · übergeben ${tag(zeigen.freigegebenAm)} · ${zeigen.kundeGelesenAm ? `vom Kunden geöffnet ${tag(zeigen.kundeGelesenAm)}` : "vom Kunden noch nicht geöffnet"}` : ""}
             </p>
-            {d.veraltet && <p className="ba-hinweis">Seit dieser Fassung sind neue Unterlagen da — sie ist veraltet. Erst eine neue Fassung erstellen.</p>}
+            {d.veraltet && <p className="ba-hinweis">{d.veraltetGrund === "format"
+              ? "Diese Fassung hat noch das alte Berichtsformat (vor dem 14.10.). Erst eine neue Fassung erstellen — sie hat das volle Format."
+              : "Seit dieser Fassung sind neue Unterlagen da — sie ist veraltet. Erst eine neue Fassung erstellen."}</p>}
             {zustand === "entwurf" && entwurf?.vierAugen && (
               <p className="ba-hinweis">Vier-Augen ({entwurf.vorbehalt ? "Vorbehalt" : "rote Gesamtlage"}): Übergeben darf nur die Leitung, und nicht, wer die Auswertung erstellt hat.</p>
             )}

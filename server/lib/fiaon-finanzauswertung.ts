@@ -236,6 +236,8 @@ function eingabenHash(e: Eingaben): string {
 
 export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   voraussetzungen: Voraussetzungen | null; fassungen: FassungKurz[]; laeuft: FassungKurz | null; veraltet: boolean;
+  /** E-353: warum veraltet — neue Unterlagen oder ein älteres Berichtsformat (Regelwerk). */
+  veraltetGrund: "unterlagen" | "format" | null;
   sicht: { dokumenttyp: SichtTyp; von: string | null; am: string } | null; ausweisVorhanden: boolean;
   anfragen: { am: string; arten: string[]; mail: string | null; whatsapp: string | null; adresse: string | null; von: string | null }[];
   /** Der gültige Upload-Link (ohne Token) — für „Link zurückziehen“ in der Akte (Nachprüfung 08.10.). */
@@ -252,7 +254,11 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   const zeilen = (await lauf`SELECT * FROM fiaon_finanzauswertungen WHERE person_id = ANY(${familie}) ORDER BY erstellt_am DESC LIMIT 20`) as any[];
   const fassungen = zeilen.map(kurz);
   const letzte = zeilen.find((z) => z.status === "entwurf" || z.status === "freigegeben");
-  const veraltet = !!(letzte && e && (letzte.eingaben?.hash ?? null) !== eingabenHash(e));
+  // E-353 (14.10.2026): Auch ein Entwurf im alten Berichtsformat ist veraltet — er geht so nicht mehr an den Kunden.
+  const neueUnterlagen = !!(letzte && e && (letzte.eingaben?.hash ?? null) !== eingabenHash(e));
+  const altesFormat = !!(letzte && (letzte.regel_version ?? null) !== FA_REGEL_VERSION);
+  const veraltet = neueUnterlagen || altesFormat;
+  const veraltetGrund: "unterlagen" | "format" | null = neueUnterlagen ? "unterlagen" : altesFormat ? "format" : null;
   const anfragen = ((await lauf`
     SELECT am, arten, mail_status, whatsapp_status, adresse, von FROM fiaon_unterlagen_anfragen
      WHERE person_id = ANY(${familie}) ORDER BY am DESC LIMIT 5`) as any[]).map((r) => ({
@@ -265,7 +271,7 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
     dateien: Number(r.dateien || 0), erstelltVon: r.erstellt_von ?? null,
   }));
   return {
-    voraussetzungen: e?.voraussetzungen ?? null, fassungen, laeuft: fassungen.find((f) => f.status === "laeuft") ?? null, veraltet,
+    voraussetzungen: e?.voraussetzungen ?? null, fassungen, laeuft: fassungen.find((f) => f.status === "laeuft") ?? null, veraltet, veraltetGrund,
     sicht: e?.ausweis.sicht ?? null, ausweisVorhanden: !!e?.ausweis.vorhanden, anfragen, links,
   };
 }
@@ -721,6 +727,8 @@ export async function freigeben(
     erstellerId: r.erstellt_von_id != null ? Number(r.erstellt_von_id) : null, zustaendig: wer.zustaendig,
   });
   if (!regel.erlaubt) return { ok: false, text: regel.grund ?? "Nicht erlaubt." };
+  // E-353: Ein Entwurf im alten Berichtsformat geht nicht mehr an den Kunden.
+  if ((r.regel_version ?? null) !== FA_REGEL_VERSION) return { ok: false, text: "Dieser Entwurf hat noch das alte Berichtsformat — bitte eine neue Fassung erstellen." };
   const personId = Number(r.person_id);
   // Nachprüfung 08.10.: Kein Entwurf auf altem Stand an den Kunden — kam seit dem Entwurf eine neue
   // Unterlage oder Analyse, muss erst eine neue Fassung her (dieselbe Regel wie „veraltet“ in der Akte).

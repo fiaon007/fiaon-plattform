@@ -330,6 +330,35 @@ router.get("/chef/status", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /chef/office-sitzung — EINE Anmeldung für die ganze Akte (E-352, 14.10.2026).
+ *
+ * Justin (Screenshot /akte/…): „Ich finde den Knopf auch nirgendwo … nicht alle Funktionen." Die Akte zeigte
+ * ohne Office-Sitzung nur die Verwaltung und verlangte eine ZWEITE Anmeldung mit denselben Zugangsdaten.
+ * Die Chefbüro-Anmeldung ist die stärkere (Passwort, beim Inhaber dazu der Code) und gehört derselben Person —
+ * also stellt sie hier die Office-Sitzung DERSELBEN Person aus: dasselbe Cookie wie /agent/login, dieselbe
+ * Sperre (Zugang gesperrt), nie für jemand anderen. „Nicht aktiv“ hält ein Chefbüro-Konto nicht auf (requireAgent
+ * lässt Konten mit admin_stufe zu). Eine laufende Ansichts-Sitzung endet dabei.
+ */
+router.post("/chef/office-sitzung", async (req: Request, res: Response) => {
+  const c = readChef(req);
+  if (!c) return res.status(401).json({ ok: false, code: "CHEF_ANMELDUNG_ERFORDERLICH", error: "Bitte im Chefbüro anmelden." });
+  try {
+    const [row] = (await sqlPool`SELECT id, name, email, active, admin_stufe, zugang_gesperrt_am, session_epoch FROM fiaon_agents WHERE id = ${c.agentId}`) as any[];
+    if (!row || !String(row.admin_stufe || "").trim()) return res.status(403).json({ ok: false, error: "Kein Chefbüro-Zugang mehr." });
+    if (row.zugang_gesperrt_am) return res.status(423).json({ ok: false, error: "Dein Office-Zugang ist gesperrt." });
+    const { issueAgentCookie } = await import("./fiaon-agent");
+    const { ANSICHT_COOKIE } = await import("../lib/fiaon-ansicht");
+    res.clearCookie(ANSICHT_COOKIE, { path: "/" });
+    issueAgentCookie(res, Number(row.id), Number(row.session_epoch ?? 0));
+    void protokollSchreiben(c.agentId, c.stufe, "OFFICE_SITZUNG", "/chef/office-sitzung", `agent:${c.agentId}`, "Office-Sitzung aus der Chefbüro-Anmeldung");
+    res.json({ ok: true, agent: { name: row.name, email: row.email } });
+  } catch (err) {
+    console.error("[CHEF] office-sitzung:", err);
+    res.status(500).json({ ok: false, error: "Die Office-Sitzung ließ sich nicht öffnen." });
+  }
+});
+
+/**
  * POST /chef/abmelden — beide Türen schließen. Wer sich abmeldet, will WEG:
  * Bliebe das alte fiaon_admin-Cookie stehen, wäre man sofort wieder
  * „inhaber“ (Lehre aus /agent/logout, 11.08.2026).

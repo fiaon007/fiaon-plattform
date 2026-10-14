@@ -116,7 +116,15 @@ export interface Voraussetzung {
 }
 
 export interface Voraussetzungen {
+  /**
+   * Startklar (E-352, 14.10.2026): Ausweis UND Kontoauszug hochgeladen, der Auszug nicht nachweislich unlesbar.
+   * Justin: „sobald sie Kontoauszug und Reisepass hochgeladen haben einen Knopf …“ — was nur die Qualität betrifft
+   * (kurzer Zeitraum, Lücke, Alter, Nebenkonto, Ausweis nicht bestätigt), sperrt nicht mehr, sondern steht als
+   * Vorbehalt im Bericht. Ein noch nicht gelesener Auszug wird beim Klick zuerst gelesen.
+   */
   bereit: boolean;
+  /** Die strenge Lage von vorher (Ausweis geprüft UND Auszug vollständig) — nur zur Anzeige. */
+  vollstaendig: boolean;
   ausweis: Voraussetzung & { typ: string | null; quelle: "pruefung" | "sicht" | null };
   kontoauszug: Voraussetzung & {
     zeitraumVon: string | null; zeitraumBis: string | null; tage: number;
@@ -222,6 +230,7 @@ export function voraussetzungenPruefen(e: {
   // ── KONTOAUSZUG ──────────────────────────────────────────────────────────
   const a = e.auszug.analyse;
   let konto: Voraussetzungen["kontoauszug"];
+  let kontoGrund: "nebenkonto" | "zeitraum" | "luecke" | "alter" | null = null;
   const leer = { zeitraumVon: null, zeitraumBis: null, tage: 0, fehlendeMonate: fehlendeMonate(null, null, e.heuteIso), cent: null };
   if (!e.auszug.vorhanden) {
     konto = { ...leer, ok: false, stand: "fehlt", satz: "Kontoauszug fehlt.",
@@ -254,16 +263,20 @@ export function voraussetzungenPruefen(e: {
     const zr = von && bis ? `${datumDe(von)}–${datumDe(bis)}` : "unbekannt";
     const basis = { zeitraumVon: von, zeitraumBis: bis, tage, fehlendeMonate: fehlend, cent };
     if (a.nebenkonto && !e.auszug.bestaetigt) {
+      kontoGrund = "nebenkonto";
       konto = { ...basis, ok: false, stand: "mangel", satz: `Nebenkonto (${zr}): Die Eingänge kommen überwiegend von einem anderen eigenen Konto — das Gehaltskonto fehlt.`,
         bitte: "die Kontoauszüge des Kontos, auf dem Ihr Einkommen (Gehalt, Rente oder Leistung) eingeht — der hochgeladene Auszug ist ein Nebenkonto" };
     } else if (tage < FA_AUSZUG_MIN_TAGE) {
+      kontoGrund = "zeitraum";
       const monate = fehlend.length ? fehlend : [monatPlus(monatVon(e.heuteIso), -1)];
       konto = { ...basis, ok: false, stand: "mangel", satz: `Der Kontoauszug deckt nur ${zr} ab (${tage} Tage) — es fehlen ${aufzaehlung(monate.map((m) => monatsName(m, true)))}.`,
         bitte: `Ihre Kontoauszüge für ${aufzaehlung(monate.map((m) => monatsName(m)))} (bisher liegt uns nur der Zeitraum ${zr} vor)` };
     } else if (luecke) {
+      kontoGrund = "luecke";
       konto = { ...basis, ok: false, stand: "mangel", satz: `Lücke im Kontoauszug: vom ${datumDe(luecke.von)} bis ${datumDe(luecke.bis)} keine Buchung — vermutlich fehlt ein Monatsauszug.`,
         bitte: `den Kontoauszug für den Zeitraum ${datumDe(luecke.von)} bis ${datumDe(luecke.bis)} — dieser Teil fehlt in den bisherigen Auszügen` };
     } else if (alterTage > FA_AUSZUG_MAX_ALTER_TAGE) {
+      kontoGrund = "alter";
       const neu = fehlend.length ? fehlend : [monatPlus(monatVon(e.heuteIso), -1)];
       konto = { ...basis, ok: false, stand: "mangel", satz: `Der Kontoauszug endet am ${datumDe(bis)} — älter als ${FA_AUSZUG_MAX_ALTER_TAGE} Tage, die Auswertung wäre veraltet.`,
         bitte: `Ihre aktuellen Kontoauszüge für ${aufzaehlung(neu.map((m) => monatsName(m)))}` };
@@ -287,7 +300,13 @@ export function voraussetzungenPruefen(e: {
   const anforderbar: ("ausweis" | "kontoauszug")[] = [];
   if (!ausweis.ok && ausweis.bitte) anforderbar.push("ausweis");
   if (!konto.ok && konto.bitte) anforderbar.push("kontoauszug");
-  return { bereit: ausweis.ok && konto.ok, ausweis, kontoauszug: konto, auskunft, anforderbar, vorbehalte };
+  // E-352: startklar = beides hochgeladen und der Auszug nicht nachweislich unlesbar (eine Lesung mit älterem Leser
+  // darf der Klick wiederholen). Mängel der Qualität werden zum Vorbehalt im Bericht.
+  const unlesbar = a?.status === "unlesbar" && (a.version ?? 0) >= e.aktuelleVersion;
+  const bereit = e.ausweis.vorhanden && e.auszug.vorhanden && !unlesbar;
+  if (bereit && !ausweis.ok) vorbehalte.push("ausweis");
+  if (bereit && kontoGrund) vorbehalte.push(kontoGrund);
+  return { bereit, vollstaendig: ausweis.ok && konto.ok, ausweis, kontoauszug: konto, auskunft, anforderbar, vorbehalte };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -864,6 +883,15 @@ export const VORBEHALT_TEXTE: Record<string, string> = {
   cent: "Die gelesenen Buchungen ließen sich nicht vollständig mit den Salden des Kontoauszugs abgleichen. Einzelne Beträge können fehlen oder abweichen — "
     + "die Kennzahlen sind deshalb Näherungswerte.",
   inhaber: "Ihr Name war im Kopf des Kontoauszugs nicht eindeutig zu finden. Die Auswertung setzt voraus, dass das Konto Ihnen gehört.",
+  // E-352 (14.10.2026): Qualitätsmängel sperren nicht mehr, sie stehen offen im Bericht.
+  ausweis: "Ihr Ausweis lag uns vor, ließ sich aber nicht abschließend maschinell prüfen (zum Beispiel ein Foto oder eine unklare Seite). "
+    + "Die Auswertung bezieht sich auf die Person, auf die der Kontoauszug lautet.",
+  zeitraum: "Der Kontoauszug deckt weniger als drei Monate ab. Die Monatswerte sind aus diesem kürzeren Zeitraum gerechnet — einmalige "
+    + "Zahlungen können sie stärker prägen als bei drei vollen Monaten.",
+  luecke: "Im Kontoauszug fehlt ein Zeitraum ohne jede Buchung, vermutlich ein Monatsauszug. Die Monatswerte beruhen auf den vorliegenden Zeiträumen.",
+  alter: "Der Kontoauszug ist älter als zweieinhalb Monate. Die Auswertung zeigt Ihre Lage in diesem Zeitraum; spätere Änderungen sind nicht enthalten.",
+  nebenkonto: "Die Eingänge kommen überwiegend von einem anderen eigenen Konto — Ihr Gehaltskonto lag uns nicht vor. Einkommen und Ausgaben "
+    + "sind deshalb möglicherweise nicht vollständig erfasst.",
 };
 
 // ───────────────────────────────────────────────────────────────────────────

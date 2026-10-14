@@ -629,10 +629,14 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     // nachladen müssen; keine tat es. Hier geladen, stimmt es überall.
     const rows = await sqlPool`
       SELECT id, name, email, first_name, active, session_epoch, avatar, rolle, zugang_gesperrt_am,
-             is_test_account, pruefkonto, COALESCE(trainer, FALSE) AS trainer, COALESCE(schulung_offen, FALSE) AS schulung_offen
-      FROM fiaon_agents WHERE id = ${tok.id}
+             is_test_account, pruefkonto, COALESCE(trainer, FALSE) AS trainer, COALESCE(schulung_offen, FALSE) AS schulung_offen,
+             NULLIF(TRIM(to_jsonb(fa) ->> 'admin_stufe'), '') AS admin_stufe
+      FROM fiaon_agents fa WHERE id = ${tok.id}
     `;
-    if (rows.length === 0 || !rows[0].active) {
+    // E-352 (14.10.2026): Ein Chefbüro-Konto (admin_stufe) darf ins Office, auch wenn es nicht als aktiver
+    // Mitarbeiter geführt wird (Justin #2 ist bewusst „nicht aktiv“, damit er in keiner Verteilung steht) —
+    // sonst bekam er in der EINEN Akte nie die Office-Wege. Die Chefbüro-Anmeldung lässt dieselben Konten zu.
+    if (rows.length === 0 || (!rows[0].active && !rows[0].admin_stufe)) {
       return res.status(401).json({ ok: false, error: "Zugang deaktiviert" });
     }
     // Session-Epoch-Vergleich: nach Force-Reset sind alte Tokens ungültig.

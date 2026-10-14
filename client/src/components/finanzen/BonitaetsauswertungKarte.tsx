@@ -151,7 +151,8 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
     if (!laeuft) { startRef.current = null; return; }
     if (startRef.current == null) startRef.current = d?.laeuft?.erstelltAm ? new Date(d.laeuft.erstelltAm).getTime() : Date.now();
     let n = 0;
-    const abfrage = window.setInterval(() => { n++; if (n > 45) window.clearInterval(abfrage); else void laden(); }, 4000);
+    // E-352: Der Lauf liest einen ungelesenen Kontoauszug jetzt selbst zuerst — bis zu fünf Minuten nachsehen.
+    const abfrage = window.setInterval(() => { n++; if (n > 75) window.clearInterval(abfrage); else void laden(); }, 4000);
     const uhr = window.setInterval(() => setSek(Math.max(0, Math.round((Date.now() - (startRef.current ?? Date.now())) / 1000))), 500);
     return () => { window.clearInterval(abfrage); window.clearInterval(uhr); };
   }, [laeuft, laden]);
@@ -203,14 +204,14 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
         {zustand === "fehlt" && (
           <>
             <h3 className="ba-titel">Noch nicht startklar</h3>
-            <p className="ba-satz">Die Auswertung braucht einen geprüften Ausweis und einen vollständigen Kontoauszug. Die Bonitätsauskunft ist freiwillig — liegt sie ausgewertet vor, fließt sie ein.</p>
+            <p className="ba-satz">Es fehlt noch: {[!d.ausweisVorhanden ? "Ausweis" : null, v.kontoauszug?.stand === "fehlt" ? "Kontoauszug" : null].filter(Boolean).join(" und ") || "ein lesbarer Kontoauszug"}. Sobald beides hochgeladen ist, geht der Knopf an.</p>
             <div className="ba-pruefung">
               <div><Pruefzeichen ok={v.ausweis?.ok ?? false} /><b>Ausweis</b><span>{v.ausweis?.satz}</span></div>
               <div><Pruefzeichen ok={v.kontoauszug?.ok ?? false} /><b>Kontoauszug</b><span>{v.kontoauszug?.satz}</span></div>
               <div><Pruefzeichen ok={v.auskunft?.ausgewertet ? true : null} /><b>Bonitätsauskunft</b><span>{v.auskunft?.satz}</span></div>
             </div>
             <div className="ba-knoepfe">
-              <button type="button" className="ba-start aus" disabled title="Erst wenn Ausweis und Kontoauszug vollständig vorliegen.">
+              <button type="button" className="ba-start aus" disabled title="Erst wenn Ausweis und Kontoauszug hochgeladen sind.">
                 <Stern />Bonitätsauswertung erstellen
               </button>
               <button type="button" className="ba-neben" onClick={onDetails}>Fehlendes anfordern oder Ausweis bestätigen →</button>
@@ -220,18 +221,26 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
 
         {zustand === "bereit" && (
           <>
-            <h3 className="ba-titel">Alles da — die Auswertung kann starten.</h3>
-            <p className="ba-satz">Ampel für sieben Bereiche, FIAON-Finanzwert, ein konkreter Plan mit Fristen und das PDF für {name || "den Kunden"}. Der Kunde sieht sie erst nach deiner Freigabe.</p>
+            <h3 className="ba-titel">Ausweis und Kontoauszug sind da — die Auswertung kann starten.</h3>
+            <p className="ba-satz">Ampel für sieben Bereiche, FIAON-Finanzwert, ein konkreter Plan mit Fristen und das PDF für {name || "den Kunden"}. Das PDF liegt danach sofort hier in der Akte; der Kunde bekommt es mit „An den Kunden übergeben“.</p>
             <div className="ba-haken">
-              <span><Pruefzeichen ok={true} />Ausweis</span>
-              <span><Pruefzeichen ok={true} />Kontoauszug</span>
+              <span><Pruefzeichen ok={v.ausweis?.ok ? true : null} />Ausweis{v.ausweis?.ok ? "" : " (Vorbehalt)"}</span>
+              <span><Pruefzeichen ok={v.kontoauszug?.ok ? true : null} />Kontoauszug{v.kontoauszug?.stand === "pruefen" ? " (wird zuerst gelesen)" : v.kontoauszug?.ok ? "" : " (Vorbehalt)"}</span>
               <span><Pruefzeichen ok={v.auskunft?.ausgewertet ? true : null} />Auskunft {v.auskunft?.ausgewertet ? "fließt ein" : "nicht dabei"}</span>
             </div>
+            {/* E-352: Was nicht ideal ist, sperrt nicht mehr — es steht als Vorbehalt im Bericht (und braucht die Freigabe der Leitung). */}
+            {!v.vollstaendig && (
+              <ul className="ba-vorbehalt-liste">
+                {!v.ausweis?.ok && <li>{v.ausweis?.satz}</li>}
+                {!v.kontoauszug?.ok && v.kontoauszug?.stand !== "pruefen" && <li>{v.kontoauszug?.satz}</li>}
+                <li className="ba-klein">Steht als Vorbehalt im Bericht — übergeben darf ihn dann die Leitung.</li>
+              </ul>
+            )}
             <div className="ba-knoepfe">
               <button type="button" className="ba-start" disabled={!!busy} onClick={() => void erstellen()}>
                 <Stern />{busy === "start" ? "Startet …" : "Bonitätsauswertung erstellen"}
               </button>
-              <span className="ba-klein">Ein Klick, ein Kunde — dauert ein bis zwei Minuten.</span>
+              <span className="ba-klein">Ein Klick, ein Kunde — dauert ein bis drei Minuten.</span>
             </div>
           </>
         )}

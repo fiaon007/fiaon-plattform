@@ -155,7 +155,7 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
             </button>
           )}
           <button type="button" className="pi-knopf klein" disabled={!v?.bereit || !!busy || !!d.laeuft}
-                  title={v?.bereit ? "Erzeugt einen Entwurf — der Kunde sieht ihn erst nach deiner Freigabe." : "Erst wenn Ausweis und Kontoauszug vollständig vorliegen."}
+                  title={v?.bereit ? "Erzeugt einen Entwurf — der Kunde sieht ihn erst nach deiner Freigabe." : "Erst wenn Ausweis und Kontoauszug hochgeladen sind."}
                   onClick={() => void erzeugen()}>
             {d.laeuft ? "Wird erstellt …" : busy === "erzeugen" ? "Startet …" : aktuell || entwurf ? "Neue Fassung erzeugen" : "Auswertung erzeugen"}
           </button>

@@ -215,9 +215,10 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht
     // nur bei Kunden mit bezahlter Buchung und nur in der geöffneten Akte.
     titel: "Die Bonitätsauswertung löst du aus — ein Klick, ein Kunde.",
-    text: "Hat dein Kunde bezahlt, steht im Überblick der Akte die Karte „FIAON Bonitätsauswertung“. Liegen ein geprüfter "
-      + "Ausweis und ein vollständiger Kontoauszug vor, heißt sie „Startklar“: Ein Klick auf „Bonitätsauswertung erstellen“, "
-      + "und in ein bis zwei Minuten steht der Entwurf da — Ampel für sieben Bereiche, FIAON-Finanzwert, Plan mit Fristen, PDF. "
+    text: "Hat dein Kunde bezahlt, steht im Überblick der Akte die Karte „FIAON Bonitätsauswertung“. Sind Ausweis und "
+      + "Kontoauszug hochgeladen, heißt sie „Startklar“ (E-352: Lücken oder ein ungeprüfter Ausweis stehen als Vorbehalt im Bericht; "
+      + "einen ungelesenen Auszug liest der Klick zuerst): Ein Klick auf „Bonitätsauswertung erstellen“, "
+      + "und in ein bis drei Minuten steht der Entwurf da — Ampel für sieben Bereiche, FIAON-Finanzwert, Plan mit Fristen, PDF. "
       + "Du siehst ihn zuerst; erst „An den Kunden übergeben“ legt ihn in seinen Bereich. Bei roter Gesamtlage oder Vorbehalt "
       + "übergibt nur die Leitung. Fehlt etwas, sagt die Karte was — anfordern oder den Ausweis bestätigen geht im Reiter „Dokumente“.",
     tipp: "Jede Auswertung kostet. Erstelle sie, wenn du mit dem Kunden darüber sprichst — nicht auf Vorrat. Eine neue Fassung bietet die Karte erst an, wenn neue Unterlagen da sind.",
@@ -408,8 +409,8 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // Kein ziel: Der Block steht nur im Reiter „Dokumente“ — der Rundgang zeigt die Karte mittig.
     titel: "Unter „Dokumente“: die FIAON Finanz- und Bonitätsauswertung.",
     text: "Im Paket enthalten: eine Auswertung für den Kunden mit Ampel je Bereich, FIAON-Finanzwert (100–999, eigene "
-      + "Berechnung — kein SCHUFA-Score), Plan mit Euro-Wirkung und PDF. Der Knopf „Auswertung erzeugen“ wird aktiv, wenn "
-      + "Ausweis UND Kontoauszug vollständig sind. Fehlt etwas, steht der genaue Grund dabei („es fehlen August und "
+      + "Berechnung — kein SCHUFA-Score), Plan mit Euro-Wirkung und PDF. Der Knopf „Auswertung erzeugen“ wird aktiv, sobald "
+      + "Ausweis UND Kontoauszug hochgeladen sind; was nicht vollständig ist, steht als Vorbehalt im Bericht. Fehlt etwas, steht der genaue Grund dabei („es fehlen August und "
       + "September“) und „Beim Kunden anfordern“ schickt ihm mit einem Klick eine Mail (im offenen 24-Stunden-Fenster auch "
       + "WhatsApp) mit einem Upload-Link ohne Anmeldung — 14 Tage gültig. Ging er an die falsche Adresse, macht ihn "
       + "„Link zurückziehen“ sofort ungültig. Ein Foto vom Ausweis bestätigst du von Hand; war das ein Irrtum, "
@@ -2115,6 +2116,12 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
 // oder den Leer-Satz — beide tragen .akb-karte, so zeigt der Scheinwerfer nie ins Leere.
 // Ampel, Felder und Hochladen erklärt die Karte selbst; die Regeln stehen im Aufklapper.
 export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
+  {
+    // E-352 (14.10.2026): die Arbeitsliste der Bonitätsauswertung ganz oben.
+    ziel: ".awl",
+    titel: "Bonitätsauswertung: wer wartet.",
+    text: "Jeder Kunde mit bezahlter Auskunft und sein Stand. „Akte öffnen“ führt zum Knopf — erstellt wird nur auf Knopfdruck.",
+  },
   {
     ziel: ".akb-status",
     titel: "Der Lieferweg.",

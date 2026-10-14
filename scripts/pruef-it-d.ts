@@ -133,6 +133,26 @@ abschnitt("A2 · Voraussetzungen (Kontoauszug)");
   r = v({ ...voll, pruefung: { stimmt: false, differenzCents: 9000 } });
   ok(r.kontoauszug.ok && r.vorbehalte.includes("cent") && r.kontoauszug.cent === "abweichung", "Cent weicht ab → erlaubt, aber mit Vorbehalt");
   ok(JSON.stringify(FA.fehlendeMonate(`${M1}-01`, letzter(M3), heuteIso)) === "[]", "fehlendeMonate: volle drei Monate → nichts fehlt");
+  // E-352 (14.10.2026): Startklar, sobald Ausweis UND Kontoauszug hochgeladen sind — Qualitätsmängel werden Vorbehalt.
+  r = v({ ...voll, zeitraumVon: `${M3}-01` });
+  ok(r.bereit && !r.vollstaendig && r.vorbehalte.includes("zeitraum"), "E-352: Nur ein Monat → startklar, Vorbehalt „zeitraum“");
+  r = v({ ...voll, buchungsTage: tage.filter((t) => !t.startsWith(M2)) });
+  ok(r.bereit && r.vorbehalte.includes("luecke"), "E-352: Lücke → startklar, Vorbehalt „luecke“");
+  r = v({ ...voll, nebenkonto: true });
+  ok(r.bereit && r.vorbehalte.includes("nebenkonto"), "E-352: Nebenkonto → startklar, Vorbehalt „nebenkonto“");
+  r = v({ ...voll, version: 2 });
+  ok(r.bereit && !r.vorbehalte.includes("zeitraum"), "E-352: Alte Lesung → startklar (der Klick liest den Auszug zuerst)");
+  r = v(null);
+  ok(r.bereit, "E-352: Auszug hochgeladen, noch nie gelesen → startklar (der Klick liest ihn zuerst)");
+  r = v({ ...voll, status: "unlesbar", fehler: "Das ist eine Gehaltsabrechnung." });
+  ok(!r.bereit, "E-352: Mit dem aktuellen Leser unlesbar → bleibt gesperrt");
+  r = v({ ...voll, version: 2, status: "unlesbar", fehler: "alt" });
+  ok(r.bereit, "E-352: Mit einem älteren Leser unlesbar → der Klick darf neu lesen");
+  r = v(null, false);
+  ok(!r.bereit, "E-352: Kontoauszug fehlt → gesperrt");
+  r = FA.voraussetzungenPruefen({ ausweis: { vorhanden: true, urteil: { erkannt: null, vollstaendig: null, pruefbar: false, fehlt: [] }, sicht: null }, auszug: { vorhanden: true, analyse: voll }, auskunft: null, heuteIso, aktuelleVersion: 3 });
+  ok(r.bereit && r.vorbehalte.includes("ausweis") && !r.vollstaendig, "E-352: Foto-Ausweis ungeprüft → startklar, Vorbehalt „ausweis“");
+  ok(["ausweis", "zeitraum", "luecke", "alter", "nebenkonto"].every((k) => (FA.VORBEHALT_TEXTE[k] ?? "").length > 40), "E-352: Jeder neue Vorbehalt hat seinen Satz fürs PDF");
   ok(FA.fehlendeMonate(`${M1}-03`, `${M2}-27`, heuteIso).join(",") === M3, "fehlendeMonate: Monatsauszüge mit Randtagen zählen, der letzte fehlt");
   ok(FA.voraussetzungenPruefen({ ausweis: ausweisOk, auszug: { vorhanden: true, analyse: voll }, auskunft: { status: "fertig" }, heuteIso, aktuelleVersion: 3 }).auskunft.ausgewertet, "Ausgewertete Auskunft fließt ein");
 }
@@ -551,7 +571,7 @@ if (!LOKAL) {
   await LI.ensureBeschaffungTabelle();
   const { ensureTodoTabelle } = await import("../server/routes/fiaon-betreiber-todo");
   await ensureTodoTabelle();
-  const { ensureAnalyseTabelle } = await import("../server/lib/fiaon-kontoauszug-analyse");
+  const { ensureAnalyseTabelle, AUSWERTUNG_VERSION } = await import("../server/lib/fiaon-kontoauszug-analyse");
   await ensureAnalyseTabelle();
 
   /** Ein zahlender Kunde mit Paket, Ausweis und Kontoauszug (Analyse fertig). */
@@ -570,7 +590,7 @@ if (!LOKAL) {
     if (auszugPdf) {
       const b = o.buch ?? buchungen();
       await sqlPool`INSERT INTO fiaon_kontoauszug_analysen (ref, person_id, status, zeitraum_von, zeitraum_bis, buchungen, pruefung, nebenkonto, auswertung_version, bank, created_at)
-        VALUES (${ref}, ${p.id}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(b)}, ${sqlPool.json({ stimmt: o.stimmt ?? true, differenzCents: o.stimmt === false ? 9000 : 0, erfasst: b.length, zeilen: b.length, durchlaeufe: 1, hinweis: null })}, FALSE, 3, 'Sparkasse', NOW())`;
+        VALUES (${ref}, ${p.id}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(b)}, ${sqlPool.json({ stimmt: o.stimmt ?? true, differenzCents: o.stimmt === false ? 9000 : 0, erfasst: b.length, zeilen: b.length, durchlaeufe: 1, hinweis: null })}, FALSE, ${AUSWERTUNG_VERSION}, 'Sparkasse', NOW())`;
     }
     return { personId: Number(p.id), ref, nummer: waKanonisch(nummerFuerWhatsApp(p.primary_phone)) };
   }
@@ -629,7 +649,7 @@ if (!LOKAL) {
     const l = await FL.lage(k.personId);
     ok(!l.veraltet && l.fassungen.length === 2, "Lage: zwei Fassungen, nicht veraltet");
     await sqlPool`INSERT INTO fiaon_kontoauszug_analysen (ref, person_id, status, zeitraum_von, zeitraum_bis, buchungen, pruefung, nebenkonto, auswertung_version, created_at)
-      VALUES (${k.ref}, ${k.personId}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(buchungen())}, ${sqlPool.json({ stimmt: true })}, FALSE, 3, NOW() + INTERVAL '1 second')`;
+      VALUES (${k.ref}, ${k.personId}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(buchungen())}, ${sqlPool.json({ stimmt: true })}, FALSE, ${AUSWERTUNG_VERSION}, NOW() + INTERVAL '1 second')`;
     ok((await FL.lage(k.personId)).veraltet, "Neue Analyse → „veraltet“");
     const pdf = await FL.pdfLesen(a.id!);
     ok(pdf?.pdf.subarray(0, 4).toString("latin1") === "%PDF", "PDF liegt in fiaon_dokumente");
@@ -659,7 +679,7 @@ if (!LOKAL) {
     // Nachprüfung 08.10.: Kam nach dem Entwurf eine neue Analyse, geht der Entwurf nicht an den Kunden.
     const r5 = await FL.erzeugen(k.personId, betreuer, { einordnung: einordnungStub as any, drucken: druckStub }, sqlPool, { warten: true });
     await sqlPool`INSERT INTO fiaon_kontoauszug_analysen (ref, person_id, status, zeitraum_von, zeitraum_bis, buchungen, pruefung, nebenkonto, auswertung_version, created_at)
-      VALUES (${k.ref}, ${k.personId}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(buchungen())}, ${sqlPool.json({ stimmt: true })}, FALSE, 3, NOW() + INTERVAL '5 seconds')`;
+      VALUES (${k.ref}, ${k.personId}, 'fertig', ${`${M1}-01`}, ${letzter(M3)}, ${sqlPool.json(buchungen())}, ${sqlPool.json({ stimmt: true })}, FALSE, ${AUSWERTUNG_VERSION}, NOW() + INTERVAL '5 seconds')`;
     const alt5 = await FL.freigeben(r5.id!, { ...betreuer, rolle: "agent", zustaendig: true }, sqlPool, { mail: false });
     ok(!alt5.ok && /neue Fassung erzeugen/.test(alt5.text) && (await FL.fassungLesen(r5.id!))?.status === "entwurf", `Nachprüfung: veralteter Entwurf → keine Freigabe (${alt5.text})`);
   }
@@ -688,8 +708,8 @@ if (!LOKAL) {
     // Sichtprüfung
     const k2 = await kunde("C", { ausweisUrteil: { art: "ausweis", pruefbar: false, erkannt: null, vollstaendig: null, fehlt: [], seiten: 1, hinweisKunde: null, hinweisIntern: "Foto", quelle: "heuristik" } });
     let e = await FL.eingabenSammeln(k2.personId);
-    ok(e?.voraussetzungen.ausweis.stand === "pruefen" && !e.voraussetzungen.bereit, "Foto-Ausweis → von Hand prüfen");
-    ok(!(await FL.erzeugen(k2.personId, betreuer)).ok, "Ohne Voraussetzungen kein Lauf");
+    // E-352 (14.10.2026): Ein ungeprüfter Foto-Ausweis sperrt nicht mehr — er wird Vorbehalt im Bericht.
+    ok(e?.voraussetzungen.ausweis.stand === "pruefen" && e.voraussetzungen.bereit && e.voraussetzungen.vorbehalte.includes("ausweis"), "Foto-Ausweis → von Hand prüfbar, startklar mit Vorbehalt „ausweis“");
     ok(!(await FL.sichtpruefungSetzen(k2.personId, "fuehrerschein", betreuer)).ok, "Sichtprüfung: Führerschein gilt nicht");
     ok((await FL.sichtpruefungSetzen(k2.personId, "reisepass", betreuer)).ok, "Sichtprüfung: Reisepass bestätigt");
     e = await FL.eingabenSammeln(k2.personId);
@@ -698,7 +718,7 @@ if (!LOKAL) {
     ok(!(await FL.sichtpruefungZuruecknehmen(k2.personId, "", betreuer)).ok, "Sichtprüfung zurücknehmen: ohne Grund abgelehnt");
     ok((await FL.sichtpruefungZuruecknehmen(k2.personId, "falsche Person auf dem Foto", betreuer)).ok, "Sichtprüfung zurückgenommen");
     e = await FL.eingabenSammeln(k2.personId);
-    ok(e?.voraussetzungen.ausweis.stand === "pruefen" && !e.voraussetzungen.bereit && e.ausweis.sicht === null, "Nach der Rücknahme: Ausweis wieder ungeprüft, Auswertung gesperrt");
+    ok(e?.voraussetzungen.ausweis.stand === "pruefen" && e.voraussetzungen.vorbehalte.includes("ausweis") && e.ausweis.sicht === null, "Nach der Rücknahme: Ausweis wieder ungeprüft (Vorbehalt)");
     const [vz] = (await sqlPool`SELECT note FROM fiaon_contact_log WHERE person_id = ${k2.personId} AND note LIKE 'Ausweis-Bestätigung von Hand zurückgenommen%' ORDER BY id DESC LIMIT 1`) as any[];
     ok(/Reisepass/.test(vz?.note ?? "") && /falsche Person auf dem Foto/.test(vz?.note ?? ""), "Rücknahme steht mit Art und Grund im Verlauf");
     ok(!(await FL.sichtpruefungZuruecknehmen(k2.personId, "noch einmal", betreuer)).ok, "Zweite Rücknahme: nichts mehr zurückzunehmen");
@@ -709,6 +729,25 @@ if (!LOKAL) {
     const k3 = await kunde("D", { auszug: false });
     e = await FL.eingabenSammeln(k3.personId);
     ok(e?.voraussetzungen.anforderbar.includes("kontoauszug") && e.voraussetzungen.kontoauszug.bitte?.includes(FA.monatsName(M3)), "Kontoauszug fehlt → anforderbar mit Monaten");
+    ok(!e?.voraussetzungen.bereit && !(await FL.erzeugen(k3.personId, betreuer)).ok, "E-352: Ohne Kontoauszug kein Lauf");
+    // E-352 (14.10.2026): Auszug hochgeladen, aber nie gelesen → der Klick liest ihn zuerst (hier: Attrappe) und erzeugt dann.
+    const k4 = await kunde("Q");
+    await sqlPool`DELETE FROM fiaon_kontoauszug_analysen WHERE ref = ${k4.ref}`;
+    e = await FL.eingabenSammeln(k4.personId);
+    ok(!!e?.voraussetzungen.bereit && !e.auszug.analyse, "E-352: Auszug ungelesen → startklar");
+    let gelesen = 0;
+    const r4 = await FL.erzeugen(k4.personId, betreuer, {
+      einordnung: einordnungStub as any, drucken: druckStub,
+      auszugLesen: async (ref: string) => {
+        gelesen++;
+        await sqlPool`INSERT INTO fiaon_kontoauszug_analysen (ref, person_id, status, zeitraum_von, zeitraum_bis, buchungen, pruefung, nebenkonto, auswertung_version, bank, created_at)
+          VALUES (${ref}, ${k4.personId}, 'fertig', ${`${M3}-01`}, ${letzter(M3)}, ${sqlPool.json(buchungen().filter((x) => x.datum.startsWith(M3)))}, ${sqlPool.json({ stimmt: true })}, FALSE, ${AUSWERTUNG_VERSION}, 'Sparkasse', NOW())`;
+      },
+    }, sqlPool, { warten: true });
+    const f4 = await FL.fassungLesen(r4.id!);
+    ok(gelesen === 1 && f4?.status === "entwurf" && !!f4.pdf, `E-352: Ein Klick liest den Auszug zuerst und erzeugt dann den Entwurf (${f4?.status} ${f4?.fehler ?? ""})`);
+    ok(!!f4?.vorbehalt && (f4.inhalt?.vorbehalte ?? []).includes("zeitraum") && !!f4.vierAugen, "E-352: Ein Monat → Bericht mit Vorbehalt „zeitraum“, Übergabe durch die Leitung");
+    ok(!(await FL.lage(k4.personId)).veraltet, "E-352: Danach nicht „veraltet“ (Fingerabdruck nachgezogen)");
   }
 
   abschnitt("B3 · Upload-Link: Token, Wiederverwendung, Widerruf, Ablauf, Annahme");

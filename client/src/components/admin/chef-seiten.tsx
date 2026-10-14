@@ -182,7 +182,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // E-243 (26.09.2026): umgezogen ins Mara-Steuerpult — keine Kachel mehr (raum ""), die Adresse leitet weiter.
   { slug: "auskunft", label: "Auskunft-Verkauf (jetzt im Mara-Steuerpult)", satz: "Umgezogen ins Mara-Steuerpult.", Seite: AuskunftUmzug, raum: "", mindest: "inhaber", eigenesDesign: true },
   // 25.09.2026 (E-241): Bis die API steht, beschaffen wir die bezahlten Auskünfte selbst — hier, je Auftrag.
-  { slug: "auskunft-beschaffung", label: "Auskunft-Beschaffung", satz: "Bezahlte Auskünfte bestellen und hochladen.", Seite: AuskunftBeschaffung, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "auskunft beschaffung beschaffen einkauf kaufen bestellen schufa ksv crif intrum boniversum hochladen upload pdf vollmacht einwilligung widerrufsfrist rückstand rueckstand lieferung api" },
+  { slug: "auskunft-beschaffung", label: "Auskunft-Beschaffung", satz: "Bezahlte Auskünfte: Auswertung, Bestellung, Upload.", Seite: AuskunftBeschaffung, raum: "kunden", mindest: "geschaeftsfuehrung", eigenesDesign: true, auch: "bonitätsauswertung auswertung bericht ampel 74 auskunft beschaffung beschaffen einkauf kaufen bestellen schufa ksv crif intrum boniversum hochladen upload pdf vollmacht einwilligung widerrufsfrist rückstand rueckstand lieferung api" },
   { slug: "termine", label: "Termin-Zentrale", satz: "Alle Termine aller Mitarbeiter.", Seite: Termine, raum: "kunden" },
   { slug: "dubletten", label: "Dubletten", satz: "Doppelte Personen zusammenführen.", Seite: Dubletten, raum: "kunden", auch: "doppelt merge trennen" },
   { slug: "fahrplan", label: "Fahrplan / Kundenprodukt", satz: "Uploads prüfen, Analysen freigeben.", Seite: Fahrplan, raum: "kunden" },

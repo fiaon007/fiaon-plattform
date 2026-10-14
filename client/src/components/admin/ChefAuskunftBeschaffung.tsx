@@ -40,6 +40,8 @@ import "@/styles/chef-mara.css";
 import "@/styles/chef-auskunft-beschaffung.css";
 // E-IT-E (08.10.2026): Akte-Links über den einen Helfer — ohne Kennung kein Link ins Leere.
 import { akteLink } from "@/lib/akte-link";
+// E-352 (14.10.2026): die Arbeitsliste der Bonitätsauswertung — wer bezahlt hat, wo er steht, Weg in die Akte.
+import AuswertungWarteliste from "./AuswertungWarteliste";
 
 type Modus = "einkauf" | "vollmacht" | "api";
 type Status = "offen" | "in_arbeit" | "hochgeladen" | "fertig" | "problem";
@@ -242,6 +244,7 @@ export default function ChefAuskunftBeschaffung() {
       <Rundgang raum="auskunft-beschaffung" titel="Auskunft-Beschaffung" schritte={RUNDGAENGE.auskunftBeschaffung.schritte} {...rg} />
       {/* Als eigene Seite (/chef/s/auskunft-beschaffung) trägt sie ihren Namen selbst; im Steuerpult steht er im Umschalter. */}
       {!ml && <h1 className="akb-titel">Auskunft-Beschaffung</h1>}
+      <AuswertungWarteliste />
       {stand.laedt && !s && <Geruest zeilen={8} />}
       {stand.fehler && !s && <Fehlermeldung text={stand.fehler} erneut={stand.neu} />}
       {stand.fehler && s && (

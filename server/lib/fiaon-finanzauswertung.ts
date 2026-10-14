@@ -398,6 +398,39 @@ export interface Abhaengigkeiten {
   einordnung?: (fakten: Record<string, unknown>) => ReturnType<typeof einordnungDurchModell>;
   drucken?: (inhalt: AuswertungInhalt) => Promise<Buffer>;
   kopfText?: (personId: number) => Promise<string | null>;
+  /** E-352: den Kontoauszug lesen lassen (Prüfstand: ohne Modell). */
+  auszugLesen?: (ref: string, erzwingen: boolean) => Promise<void>;
+}
+
+/**
+ * E-352 (14.10.2026): Ein Klick genügt. Ist der Kontoauszug noch nicht (oder mit einem älteren Leser) gelesen,
+ * liest der Lauf ihn ZUERST — vorher stand die Karte auf „Unterlagen fehlen“, bis jemand im Reiter „Dokumente“
+ * „Jetzt auswerten“ fand. Läuft gerade eine Lesung, wartet er höchstens vier Minuten auf sie.
+ */
+async function auszugSicherstellen(e: Eingaben, deps: Abhaengigkeiten, lauf: Lauf): Promise<Eingaben> {
+  const a = e.auszug.analyse;
+  const { AUSWERTUNG_VERSION, kontoauszugAnalysieren } = await import("./fiaon-kontoauszug-analyse");
+  const frisch = !!a && a.status === "fertig" && (a.version ?? 0) >= AUSWERTUNG_VERSION;
+  if (!e.auszug.vorhanden || frisch || !e.ref) return e;
+  if (a?.status === "laeuft") {
+    for (let i = 0; i < 48; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const n = await eingabenSammeln(e.personId, lauf);
+      if (n && n.auszug.analyse?.status !== "laeuft") return n;
+    }
+    throw new Error("Der Kontoauszug wird seit Minuten gelesen — bitte gleich noch einmal auf den Knopf drücken.");
+  }
+  if (deps.auszugLesen) await deps.auszugLesen(e.ref, !!a);
+  else await kontoauszugAnalysieren(e.ref, { erzwingen: !!a });
+  const n = await eingabenSammeln(e.personId, lauf);
+  if (!n) throw new Error("Kunde nicht gefunden.");
+  const na = n.auszug.analyse;
+  if (!na || na.status !== "fertig") {
+    throw new Error(na?.status === "unlesbar"
+      ? `Der Kontoauszug ist nicht lesbar${na.fehler ? ` (${na.fehler})` : ""} — bitte beim Kunden einen PDF-Auszug aus dem Online-Banking anfordern.`
+      : `Der Kontoauszug ließ sich nicht lesen${na?.fehler ? `: ${na.fehler}` : ""} — bitte gleich noch einmal versuchen.`);
+  }
+  return n;
 }
 
 async function kopfTextFuer(personId: number, lauf: Lauf): Promise<string | null> {
@@ -481,7 +514,8 @@ export async function erzeugen(
   const e = await eingabenSammeln(personId, lauf);
   if (!e) return { ok: false, text: "Kunde nicht gefunden." };
   if (!e.voraussetzungen.bereit) {
-    const fehlt = [!e.voraussetzungen.ausweis.ok ? e.voraussetzungen.ausweis.satz : null, !e.voraussetzungen.kontoauszug.ok ? e.voraussetzungen.kontoauszug.satz : null].filter(Boolean).join(" ");
+    const fehlt = [!e.ausweis.vorhanden ? "Der Ausweis fehlt." : null, !e.auszug.vorhanden ? "Der Kontoauszug fehlt." : null,
+      e.auszug.vorhanden && !e.voraussetzungen.kontoauszug.ok ? e.voraussetzungen.kontoauszug.satz : null].filter(Boolean).join(" ");
     return { ok: false, text: `Voraussetzungen fehlen: ${fehlt}` };
   }
   const [lauft] = (await lauf`SELECT id FROM fiaon_finanzauswertungen WHERE person_id = ${personId} AND status = 'laeuft' LIMIT 1`) as any[];
@@ -515,10 +549,19 @@ export async function erzeugen(
     await lauf`UPDATE fiaon_finanzauswertungen SET status = 'fehler', fehler = ${String((err as Error)?.message || err).slice(0, 400)}, updated_at = NOW() WHERE id = ${id} AND status = 'laeuft'`.catch(() => {});
   });
   if (opts.warten) await arbeit;
-  return { ok: true, text: "Die Auswertung wird erstellt — das dauert ein bis zwei Minuten.", id, status: "laeuft" };
+  return { ok: true, text: "Die Auswertung wird erstellt — das dauert ein bis drei Minuten.", id, status: "laeuft" };
 }
 
 async function laufDurchfuehren(id: number, fassung: number, e: Eingaben, wer: { name: string; agentId: number | null }, deps: Abhaengigkeiten, lauf: Lauf): Promise<void> {
+  // E-352: erst den Auszug lesen, falls nötig — und den Fingerabdruck der Fassung auf den neuen Stand bringen.
+  const vorher = eingabenHash(e);
+  e = await auszugSicherstellen(e, deps, lauf);
+  if (eingabenHash(e) !== vorher) {
+    await lauf`UPDATE fiaon_finanzauswertungen
+                  SET eingaben = ${sqlPool.json({ hash: eingabenHash(e), analyseId: e.analyse?.id ?? null, schufaId: e.schufa?.id ?? null, ausweisHash: e.ausweisHash?.slice(0, 16) ?? null } as any)},
+                      updated_at = NOW()
+                WHERE id = ${id}`;
+  }
   const kopfRoh = deps.kopfText ? await deps.kopfText(e.personId) : await kopfTextFuer(e.personId, lauf);
   const kopf = kopfRoh ? kopfAbgleich(kopfRoh, e.person) : { inhaber: null, adresse: null };
   const basis = inhaltRechnen({

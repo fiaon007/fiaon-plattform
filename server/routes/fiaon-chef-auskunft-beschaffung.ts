@@ -72,6 +72,63 @@ function zahlen(liste: BeschaffungAuftrag[]) {
 // ───────────────────────────────────────────────────────────────────────────
 // GET — der Stand. Liest dabei den Rückstand ein (ohne Mail an die Kunden).
 // ───────────────────────────────────────────────────────────────────────────
+/**
+ * GET /chef/auskunft-beschaffung/auswertungen — die Arbeitsliste der Bonitätsauswertung (E-352, 14.10.2026).
+ *
+ * Daniel (Team-Chat 14.10.): „Wir brauchen eine Lösung für die ganzen bezahlten Bonitätsauskünfte, die nie
+ * ankamen … viele Kunden, die 74 € bezahlt und alles hochgeladen haben.“ Gemessen 14.10.: 72 bezahlte Auskünfte,
+ * 44 mit Ausweis und Kontoauszug, 2 Auswertungen (beide Entwurf). Diese Liste zeigt jeden bezahlten Kunden mit
+ * seinem Stand und führt in die Akte — dort steht der Knopf. Sie startet NICHTS (Justin: „nicht automatisch
+ * erstellen, sondern ERST wenn man den Knopf drückt“).
+ */
+router.get("/chef/auskunft-beschaffung/auswertungen", wache, async (_req: Request, res: Response) => {
+  try {
+    const { IST_AUSKUNFT, ECHT } = await import("../lib/fiaon-umsatz-quelle");
+    const { ensureFinanzauswertungTabellen } = await import("../lib/fiaon-finanzauswertung");
+    await ensureFinanzauswertungTabellen();
+    const zeilen = (await sqlPool.unsafe(`
+      WITH k AS (
+        SELECT a.person_id, MIN(COALESCE(a.paid_at, a.completed_at)) AS bezahlt_am
+          FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+         WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.person_id IS NOT NULL AND ${IST_AUSKUNFT} AND ${ECHT}
+         GROUP BY a.person_id
+      )
+      SELECT k.person_id, k.bezahlt_am,
+             TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name,
+             ag.name AS betreuer,
+             EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.person_id = k.person_id AND b.merged_into IS NULL AND b.id_card_pdf IS NOT NULL) AS ausweis,
+             (EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.person_id = k.person_id AND b.merged_into IS NULL AND b.bank_statement_pdf IS NOT NULL)
+              OR EXISTS (SELECT 1 FROM fiaon_dokumente d WHERE d.person_id = k.person_id AND d.kategorie = 'kontoauszug'
+                           AND d.entfernt_am IS NULL AND d.geloescht_am IS NULL)) AS auszug,
+             f.status AS fa_status, f.gesamt, f.finanzwert, f.vier_augen, f.freigegeben_am, f.erstellt_am AS fa_am
+        FROM k
+        JOIN fiaon_persons p ON p.id = k.person_id
+        LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+        LEFT JOIN LATERAL (
+          SELECT status, gesamt, finanzwert, vier_augen, freigegeben_am, erstellt_am FROM fiaon_finanzauswertungen fz
+           WHERE fz.person_id = k.person_id AND fz.status IN ('laeuft', 'entwurf', 'freigegeben', 'fehler')
+           ORDER BY (fz.status = 'freigegeben') DESC, fz.erstellt_am DESC LIMIT 1
+        ) f ON TRUE`)) as any[];
+    const stand = (z: any): "fehlt" | "bereit" | "laeuft" | "entwurf" | "beim_kunden" =>
+      z.fa_status === "freigegeben" ? "beim_kunden" : z.fa_status === "entwurf" ? "entwurf" : z.fa_status === "laeuft" ? "laeuft"
+        : z.ausweis && z.auszug ? "bereit" : "fehlt";
+    const RANG = { bereit: 0, laeuft: 1, entwurf: 2, fehlt: 3, beim_kunden: 4 } as const;
+    const liste = zeilen.map((z) => ({
+      personId: Number(z.person_id), name: String(z.name || "").trim() || `Person ${z.person_id}`, betreuer: z.betreuer ?? null,
+      bezahltAm: z.bezahlt_am ? new Date(z.bezahlt_am).toISOString() : null, ausweis: !!z.ausweis, kontoauszug: !!z.auszug,
+      stand: stand(z), gesamt: z.gesamt ?? null, finanzwert: z.finanzwert != null ? Number(z.finanzwert) : null, vierAugen: !!z.vier_augen,
+      gescheitert: z.fa_status === "fehler",
+    })).sort((a, b) => RANG[a.stand] - RANG[b.stand] || String(a.bezahltAm ?? "").localeCompare(String(b.bezahltAm ?? "")));
+    const zahlen = { gesamt: liste.length, bereit: 0, laeuft: 0, entwurf: 0, fehlt: 0, beim_kunden: 0 } as Record<string, number>;
+    for (const z of liste) zahlen[z.stand]++;
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, zahlen, liste });
+  } catch (err) {
+    console.error("[AUSKUNFT-BESCHAFFUNG] auswertungen:", err);
+    res.status(500).json({ ok: false, error: "Die Liste ließ sich nicht laden." });
+  }
+});
+
 router.get("/chef/auskunft-beschaffung", wache, async (_req: Request, res: Response) => {
   try {
     const rueckstandNeu = await rueckstandEinlesen().catch((e) => {

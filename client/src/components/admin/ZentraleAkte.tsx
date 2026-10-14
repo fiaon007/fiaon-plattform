@@ -34,7 +34,7 @@ const AlleDaten = lazy(() => import("@/components/admin/AkteAlleDaten"));
 type Stand =
   | { art: "pruefen" }
   | { art: "akte"; kunde: any; personId: number }
-  | { art: "ohneOffice"; grund: "keine" | "andere" | "ansicht" | "ohnePerson"; text?: string };
+  | { art: "ohneOffice"; grund: "keine" | "andere" | "ansicht" | "ohnePerson"; text?: string; chefName?: string | null };
 
 /** Die Kennung aus /akte/<k> oder (alte Chefbüro-Adresse) /chef/s/akte?id=|?ref=. */
 function kennungAusAdresse(): string {
@@ -77,11 +77,18 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
     setStand({ art: "pruefen" });
     const chef = await json("/api/fiaon/chef/status");
     const chefId = Number(chef.json?.agentId ?? 0) || null;
-    const ich = await json("/api/fiaon/agent/me");
+    const chefName = chef.json?.name ?? null;
+    let ich = await json("/api/fiaon/agent/me");
+    // E-352 (14.10.2026): EINE Anmeldung. Wer im Chefbüro angemeldet ist und im Office noch nicht, bekommt die
+    // Office-Sitzung derselben Person still dazu — keine zweite Anmeldung mehr vor der ganzen Akte.
+    if (!(ich.ok && ich.json?.agent) && chefId) {
+      const sso = await json("/api/fiaon/chef/office-sitzung", { method: "POST", body: "{}" });
+      if (sso.ok) ich = await json("/api/fiaon/agent/me");
+    }
     const agent = ich.ok ? ich.json?.agent : null;
-    if (!agent) { setStand({ art: "ohneOffice", grund: "keine" }); return; }
-    if (agent.ansicht) { setStand({ art: "ohneOffice", grund: "ansicht", text: agent.name }); return; }
-    if (chefId && Number(agent.id) !== chefId) { setStand({ art: "ohneOffice", grund: "andere", text: agent.name }); return; }
+    if (!agent) { setStand({ art: "ohneOffice", grund: "keine", chefName }); return; }
+    if (agent.ansicht) { setStand({ art: "ohneOffice", grund: "ansicht", text: agent.name, chefName: chefId ? chefName : null }); return; }
+    if (chefId && Number(agent.id) !== chefId) { setStand({ art: "ohneOffice", grund: "andere", text: agent.name, chefName }); return; }
     const auf = await json(`/api/fiaon/agent/akte/aufloesen?id=${encodeURIComponent(kennung)}`);
     const personId = Number(auf.json?.personId ?? 0) || null;
     if (!personId) { setStand({ art: "ohneOffice", grund: "ohnePerson", text: auf.json?.error }); return; }
@@ -164,7 +171,7 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
   // Ohne Office-Sitzung derselben Person: kurze Anmeldung oben, darunter die Verwaltungsakte vollständig.
   return (
     <div className={`za${imFenster ? " im-fenster" : ""}`}>
-      <OfficeAnmeldung grund={stand.grund} text={stand.text} onAngemeldet={() => setRunde((n) => n + 1)} />
+      <OfficeAnmeldung grund={stand.grund} text={stand.text} chefName={stand.chefName ?? null} onAngemeldet={() => setRunde((n) => n + 1)} />
       <div className="za-voll cbs akte-dunkel">
         <Suspense fallback={<div className="za-laden" role="status"><span /><span /><span /></div>}>
           <Verwaltungsakte akteId={kennung} eingebettet />
@@ -183,8 +190,8 @@ export default function ZentraleAkte({ kennung: kennungFest, imFenster = false }
 }
 
 /** Die Office-Anmeldung derselben Person — dieselbe Route wie das Office (/agent/login), kein Sonderweg. */
-function OfficeAnmeldung({ grund, text, onAngemeldet }: {
-  grund: "keine" | "andere" | "ansicht" | "ohnePerson"; text?: string; onAngemeldet: () => void;
+function OfficeAnmeldung({ grund, text, chefName, onAngemeldet }: {
+  grund: "keine" | "andere" | "ansicht" | "ohnePerson"; text?: string; chefName: string | null; onAngemeldet: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [passwort, setPasswort] = useState("");
@@ -195,6 +202,14 @@ function OfficeAnmeldung({ grund, text, onAngemeldet }: {
     : grund === "ansicht" ? `Im Browser läuft gerade die Ansicht als ${text ?? "Mitarbeiter"}. Für die ganze Akte bitte als du selbst im Office anmelden.`
     : grund === "andere" ? `Im Office ist gerade ${text ?? "eine andere Person"} angemeldet. Für die ganze Akte bitte als du selbst anmelden.`
     : "Anrufen, WhatsApp, Unterlagen-Prüfung, Boni-Ampel, Kündigung und Termine laufen über das Office. Einmal anmelden — dieselben Zugangsdaten wie im Chefbüro.";
+  // E-352: Im Chefbüro angemeldet, im Office läuft aber jemand anderes (oder eine Ansicht) → ein Klick, kein Passwort.
+  const alsIch = async () => {
+    setLaeuft(true); setFehler("");
+    const r = await json("/api/fiaon/chef/office-sitzung", { method: "POST", body: "{}" });
+    setLaeuft(false);
+    if (r.ok) onAngemeldet();
+    else setFehler(r.json?.error || "Das ging nicht — bitte unten mit E-Mail und Passwort anmelden.");
+  };
   const anmelden = async (e: React.FormEvent) => {
     e.preventDefault();
     setLaeuft(true); setFehler("");
@@ -209,7 +224,13 @@ function OfficeAnmeldung({ grund, text, onAngemeldet }: {
         <b>{grund === "ohnePerson" ? "Verwaltungsakte" : "Für die ganze Akte: im Office anmelden"}</b>
         <p>{satz}</p>
       </div>
-      {grund !== "ohnePerson" && (
+      {grund !== "ohnePerson" && chefName && grund !== "keine" && (
+        <div className="za-office-form">
+          <button type="button" className="cw-knopf" disabled={laeuft} onClick={() => void alsIch()}>{laeuft ? "…" : `Als ${chefName} weiter`}</button>
+          {fehler && <p className="za-office-fehler" role="alert">{fehler}</p>}
+        </div>
+      )}
+      {grund !== "ohnePerson" && !(chefName && grund !== "keine") && (
         <form className="za-office-form" onSubmit={anmelden}>
           <input type="email" autoComplete="username" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} required aria-label="E-Mail" />
           <input type="password" autoComplete="current-password" placeholder="Passwort" value={passwort} onChange={(e) => setPasswort(e.target.value)} required aria-label="Passwort" />

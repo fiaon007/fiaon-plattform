@@ -613,6 +613,99 @@ async function laufDurchfuehren(id: number, fassung: number, e: Eingaben, wer: {
             ${`Finanz- und Bonitätsauswertung ${inhalt.nummer} als Entwurf erzeugt (Gesamt ${inhalt.gesamt.ampel}, FIAON-Finanzwert ${inhalt.finanzwert.wert}${vorbehalt ? ", mit Vorbehalt" : ""}). Wartet auf Vorschau und Freigabe.`})`.catch(() => {});
   // Vier-Augen-Entwurf → EINE Aufgabe an die Leitung; ältere Entwürfe geben ihre Aufgabe ab (Integration 08.10.2026).
   await vierAugenAufgabenAbgleichen(e.personId, lauf);
+  // E-357: Der Mitarbeiter bekommt „Die Auswertung für Ihren Kunden … ist da“ mit PDF und Link zur Akte.
+  // Nie im Prüfstand-Druck (deps.drucken) — dort gibt es kein echtes PDF und keinen Versand.
+  if (!deps.drucken) await mitarbeiterBenachrichtigen(id, lauf).catch((err) => console.error("[FINANZAUSWERTUNG] Mitarbeiter-Mail:", String((err as Error)?.message || err).slice(0, 200)));
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// DIE MAILS MIT PDF (E-357, 14.10.2026)
+//
+// Justin: „Wenn wir die Bonitätsanalyse machen, muss der Mitarbeiter eine E-Mail bekommen (Die Auswertung für Ihren
+// Kunden XY ist da) mit PDF und Link dahin, und der Kunde muss eine E-Mail mit PDF und Link bekommen.“
+//   Mitarbeiter  sobald der Entwurf fertig ist — an den Betreuer und, wenn ein anderer, an den, der sie erstellt hat.
+//   Kunde        bei der Übergabe (freigeben) — der Kunde sieht nie einen ungeprüften Entwurf.
+// Versand direkt über den Motor (mailDirektSenden, wie die Vertragsbestätigung mit PDF), Protokoll in fiaon_mail_log.
+// Über 5 MB geht nur der Link (Brevo verlor am 01.10. eine Mail mit großen Anhängen still).
+// ───────────────────────────────────────────────────────────────────────────
+const PDF_ANHANG_MAX = 5 * 1024 * 1024;
+
+async function pdfAnhang(id: number, lauf: Lauf): Promise<{ name: string; inhalt: Buffer } | null> {
+  const p = await pdfLesen(id, lauf).catch(() => null);
+  if (!p || p.pdf.length > PDF_ANHANG_MAX) return null;
+  return { name: `FIAON-Bonitaetsauswertung-${p.nummer}.pdf`, inhalt: p.pdf };
+}
+
+/** Die Mail an den Kunden bei der Übergabe — PDF im Anhang, Link in seinen Bereich. */
+async function kundenMailSenden(
+  id: number, personId: number, ref: string, nummer: string, wer: { name: string; agentId: number }, lauf: Lauf,
+): Promise<{ ok: boolean; grund?: string; mitPdf: boolean }> {
+  const { empfaengerAufloesen } = await import("./fiaon-empfaenger");
+  const empfaenger = await empfaengerAufloesen({ personId, ref: ref || null }, lauf);
+  if (!empfaenger?.email) return { ok: false, grund: "Keine zustellbare E-Mail-Adresse", mitPdf: false };
+  const [p] = (await lauf`SELECT first_name, last_name, gdpr_deleted_at FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
+  if (p?.gdpr_deleted_at) return { ok: false, grund: "Daten DSGVO-gelöscht", mitPdf: false };
+  const vorname = String(p?.first_name ?? "").trim() || String(p?.last_name ?? "").trim() || "liebe Kundin, lieber Kunde";
+  const nutzlast = { email: empfaenger.email, vorname, auswertung_url: absoluteUrl("/app/auswertung"), nummer };
+  const motor = await import("../mail/motor");
+  const probe = motor.mailRendern("finanzauswertung_bereit", nutzlast);
+  if (!probe) return { ok: false, grund: "Keine Vorlage finanzauswertung_bereit", mitPdf: false };
+  const anhang = await pdfAnhang(id, lauf);
+  const erg = await motor.mailDirektSenden("finanzauswertung_bereit", nutzlast, anhang ? { anhaenge: [anhang] } : {})
+    .catch((e: unknown) => ({ ok: false, messageId: null, grund: String((e as Error)?.message || e) }));
+  const { mailProtokoll } = await import("./fiaon-mail-log");
+  await mailProtokoll({
+    event: "finanzauswertung_bereit", personId: empfaenger.personId ?? personId, empfaenger: empfaenger.email,
+    status: erg.ok ? "versandt" : "fehlgeschlagen", grund: erg.ok ? null : (erg.grund || "unbekannt"),
+    payload: { ...nutzlast, anhaenge: anhang ? [anhang.name] : [], pdf_bytes: anhang?.inhalt.length ?? 0, empfaenger_quelle: empfaenger.quelle },
+    ausgeloestVon: wer.name, ausgeloestAgentId: wer.agentId, brevoMessageId: erg.messageId,
+  }, lauf);
+  return { ok: erg.ok, grund: erg.grund, mitPdf: !!anhang };
+}
+
+/** Die Mail an den Mitarbeiter, sobald der Entwurf fertig ist. Gibt die Zahl der versandten Mails zurück. */
+export async function mitarbeiterBenachrichtigen(id: number, lauf: Lauf = sqlPool): Promise<number> {
+  const [f] = (await lauf`
+    SELECT f.person_id, f.fassung, f.vier_augen, f.erstellt_von_id, p.first_name, p.last_name, p.assigned_agent_id
+      FROM fiaon_finanzauswertungen f JOIN fiaon_persons p ON p.id = f.person_id
+     WHERE f.id = ${id} AND f.status = 'entwurf'`) as any[];
+  if (!f) return 0;
+  const ids = Array.from(new Set([f.assigned_agent_id, f.erstellt_von_id].filter((x: unknown) => x != null).map(Number)));
+  if (!ids.length) return 0;
+  const leute = (await lauf`
+    SELECT id, name, first_name, email FROM fiaon_agents
+     WHERE id = ANY(${ids}) AND COALESCE(is_test_account, FALSE) = FALSE AND NULLIF(TRIM(COALESCE(email, '')), '') IS NOT NULL`) as any[];
+  if (!leute.length) return 0;
+  const personId = Number(f.person_id);
+  const nummer = auswertungNummer(personId, Number(f.fassung));
+  const kunde = [f.first_name, f.last_name].filter(Boolean).join(" ").trim() || `Kunde #${personId}`;
+  const standSatz = f.vier_augen
+    ? "Vier-Augen (Vorbehalt oder rote Gesamtlage): An den Kunden übergeben darf die Leitung — nicht, wer die Auswertung erstellt hat. Die Aufgabe dafür liegt bei der Leitung."
+    : "Nach Ihrer Prüfung können Sie die Auswertung selbst an den Kunden übergeben.";
+  const anhang = await pdfAnhang(id, lauf);
+  const motor = await import("../mail/motor");
+  const { mailProtokoll } = await import("./fiaon-mail-log");
+  let n = 0;
+  for (const a of leute) {
+    const nutzlast = {
+      email: String(a.email).trim(), vorname: String(a.first_name || String(a.name || "").split(" ")[0] || "zusammen"),
+      kunde, nummer, stand_satz: standSatz, akte_url: absoluteUrl(`/akte/${personId}`),
+    };
+    const erg = await motor.mailDirektSenden("finanzauswertung_mitarbeiter", nutzlast, anhang ? { anhaenge: [anhang] } : {})
+      .catch((e: unknown) => ({ ok: false, messageId: null, grund: String((e as Error)?.message || e) }));
+    await mailProtokoll({
+      event: "finanzauswertung_mitarbeiter", personId: null, empfaenger: nutzlast.email,
+      status: erg.ok ? "versandt" : "fehlgeschlagen", grund: erg.ok ? null : (erg.grund || "unbekannt"),
+      payload: { ...nutzlast, kunde_person_id: personId, anhaenge: anhang ? [anhang.name] : [], pdf_bytes: anhang?.inhalt.length ?? 0 },
+      ausgeloestVon: "Finanzauswertung", brevoMessageId: erg.messageId,
+    }, lauf);
+    if (erg.ok) n++;
+  }
+  await lauf`
+    INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note)
+    SELECT ${personId}, ref, NULL, 'Finanzauswertung', 'system', ${`Auswertung ${nummer}: Mail ${anhang ? "mit PDF " : ""}an ${leute.map((x: any) => x.name).join(", ")} — ${n} von ${leute.length} versandt.`}
+      FROM fiaon_finanzauswertungen WHERE id = ${id}`.catch(() => {});
+  return n;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -761,13 +854,10 @@ export async function freigeben(
   const nummer = auswertungNummer(personId, Number(r.fassung));
   let mail = "aus";
   if (opts.mail !== false) {
-    const { mailSenden } = await import("./fiaon-mail-senden");
-    const v = await mailSenden({
-      event: "finanzauswertung_bereit", personId,
-      zusatz: { auswertung_url: absoluteUrl("/app/auswertung"), nummer },
-      akteur: { name: wer.name, agentId: wer.agentId, rolle: wer.rolle as any }, lauf,
-    }).catch((e: unknown) => ({ ok: false, grund: String((e as Error)?.message || e) } as any));
-    mail = (v as any).ok ? "gesendet" : `nicht gesendet: ${String((v as any).grund ?? (v as any).meldung ?? "unbekannt").replace(/\.+$/, "")}`;
+    // E-357 (14.10.2026, Justin): Der Kunde bekommt die Mail MIT PDF und Link.
+    const v = await kundenMailSenden(id, personId, String(r.ref ?? ""), nummer, wer, lauf)
+      .catch((e: unknown) => ({ ok: false, grund: String((e as Error)?.message || e), mitPdf: false }));
+    mail = v.ok ? `gesendet${v.mitPdf ? " (mit PDF)" : " (nur Link — PDF zu groß)"}` : `nicht gesendet: ${String(v.grund ?? "unbekannt").replace(/\.+$/, "")}`;
     await lauf`UPDATE fiaon_finanzauswertungen SET mail_status = ${mail.slice(0, 300)}, mail_am = NOW() WHERE id = ${id}`;
   }
   await lauf`

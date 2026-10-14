@@ -274,7 +274,14 @@ abschnitt("A6 · Texte: Wortwand, Kennzeichnung, nie „kostenlos“");
   const vorlage = (await import("../server/mail/vorlagen/finanzauswertung")).FINANZAUSWERTUNG_VORLAGEN.finanzauswertung_bereit;
   const mailText = [vorlage.betreff, vorlage.preheader, vorlage.titel, ...vorlage.absaetze, vorlage.fussnote].join(" ");
   ok(!/\{\{params\.(finanzwert|wert|band|gesamt)\}\}/.test(mailText) && !/\d{3}/.test(mailText), "Mail „Auswertung bereit“: keine Zahl, kein Wert");
-  ok(/nicht als Anhang/.test(mailText), "Mail sagt, warum kein Anhang");
+  // E-357 (14.10.2026, Justin): Kunde und Mitarbeiter bekommen das PDF im Anhang und den Link.
+  ok(/PDF im Anhang/.test(mailText) && /vertrauliche/.test(mailText), "E-357: Kunden-Mail nennt den PDF-Anhang und dass er vertraulich ist");
+  const mv = (await import("../server/mail/vorlagen/finanzauswertung")).FINANZAUSWERTUNG_VORLAGEN.finanzauswertung_mitarbeiter;
+  ok(!!mv && /Ihren Kunden \{\{params\.kunde\}\} ist da/.test(mv.betreff) && mv.knopf?.url === "{{params.akte_url}}", "E-357: Mitarbeiter-Mail „… für Ihren Kunden XY ist da“ mit Link zur Akte");
+  const mm = await import("../server/mail/motor");
+  const r1m = mm.mailRendern("finanzauswertung_mitarbeiter", { email: "x@example.invalid", vorname: "Daniel", kunde: "Erika Muster", nummer: "FA-1-1", stand_satz: "Nach Ihrer Prüfung können Sie übergeben.", akte_url: "https://fiaon.com/akte/1" });
+  const r2m = mm.mailRendern("finanzauswertung_bereit", { email: "x@example.invalid", vorname: "Erika", auswertung_url: "https://fiaon.com/app/auswertung", nummer: "FA-1-1" });
+  ok(!!r1m && !!r2m && r1m.fehlend.length === 0 && r2m.fehlend.length === 0 && /Erika Muster/.test(r1m.betreff), `E-357: beide Vorlagen rendern ohne Lücke (${r1m?.betreff})`);
   const texte: [string, string][] = [
     ["Kennzeichnung", FA.FINANZWERT_KENNZEICHNUNG], ["Kurz", FA.FINANZWERT_KURZ], ["Datenschutz", FA.DATENSCHUTZ_ABSATZ],
     ...FA.HAFTUNG_ABSAETZE.map((t, i): [string, string] => [`Haftung ${i + 1}`, t]),

@@ -724,9 +724,17 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "finanzauswertung_bereit",
     label: "Finanz- und Bonitätsauswertung liegt bereit (Kunde)",
-    description: "Geht automatisch, wenn der Betreuer (bei roter Gesamtlage oder Vorbehalt: die Leitung) die Auswertung in der Akte freigibt. Ohne Anhang und ohne Zahlen, Ampel oder Finanzwert — Knopf „Auswertung ansehen“ in den Bereich (/app/auswertung). Nur über den Motor (kein Make-Zweig).",
+    description: "Geht automatisch, wenn der Betreuer (bei roter Gesamtlage oder Vorbehalt: die Leitung) die Auswertung in der Akte freigibt. Seit E-357 (14.10.2026) mit dem PDF im Anhang (über 5 MB nur der Link); im Text keine Zahlen, Ampel oder Finanzwert — Knopf „Auswertung ansehen“ in den Bereich (/app/auswertung). Nur über den Motor (kein Make-Zweig).",
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE, auswertung_url: "https://www.fiaon.com/app/auswertung", nummer: "FA-1234-1" },
+  },
+  // E-357 (14.10.2026): an den Mitarbeiter, sobald der Entwurf fertig ist.
+  {
+    type: "finanzauswertung_mitarbeiter",
+    label: "Bonitätsauswertung ist da (Mitarbeiter)",
+    description: "Geht automatisch an Betreuer und Ersteller, sobald eine Bonitätsauswertung als Entwurf fertig ist — „Die Bonitätsauswertung für Ihren Kunden … ist da“, mit dem PDF im Anhang und dem Link zur Akte. Direktversand über den Motor.",
+    customerBound: false,
+    example: { email: "team@fiaon.com", vorname: "Daniel", kunde: "Erika Muster", nummer: "FA-1234-1", stand_satz: "Nach Ihrer Prüfung können Sie die Auswertung selbst an den Kunden übergeben.", akte_url: "https://www.fiaon.com/akte/1234" },
   },
   // ── FIAON Global (E-188, 17.09.2026) ────────────────────────────────────
   // customerBound: false — die Nutzlast entsteht aus der Auftragsakte

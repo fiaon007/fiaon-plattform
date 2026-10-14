@@ -311,7 +311,13 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   finanzauswertung_bereit: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
     vonHand: false, pflichtFelder: ["auswertung_url"],
-    klartext: "Die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich des Kunden — Knopf „Auswertung ansehen“, ohne Anhang, ohne Zahlen. Geht automatisch mit der Freigabe in der Akte.",
+    klartext: "Die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich des Kunden — PDF im Anhang (E-357), Knopf „Auswertung ansehen“, keine Zahlen im Text. Geht automatisch mit der Freigabe in der Akte.",
+  },
+  // E-357 (14.10.2026): an den Mitarbeiter, sobald der Entwurf fertig ist — direkt über den Motor, kein Menü.
+  finanzauswertung_mitarbeiter: {
+    gruppe: "team", zielgruppe: "mitarbeiter", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["kunde", "nummer", "akte_url"],
+    klartext: "„Die Bonitätsauswertung für Ihren Kunden … ist da“ — an Betreuer und Ersteller, mit PDF und Link zur Akte. Geht automatisch, sobald der Entwurf fertig ist.",
   },
   documents_change_request: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],

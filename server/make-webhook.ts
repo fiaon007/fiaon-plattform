@@ -129,7 +129,9 @@ export type MakeEventType =
   //    server/lib/fiaon-antrag-neu-bestaetigung.ts (direkt über den Motor, wie globalMailSenden).
   | "vertrag_bestaetigung"
   // E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich — nur über den Motor.
-  | "finanzauswertung_bereit";   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
+  | "finanzauswertung_bereit"   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
+  // E-357 (14.10.2026): an den Mitarbeiter — „Die Bonitätsauswertung für Ihren Kunden … ist da“, PDF + Link. Nur über den Motor.
+  | "finanzauswertung_mitarbeiter";
 
 export interface MakeWebhookPayload {
   email: string;
@@ -470,7 +472,7 @@ export async function sendMakeWebhookMitGrund(
   // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
   // 05.10.2026 (E-282): vertrag_bestaetigung ebenso — Make kennt sie nicht. Durch diese Tür kommt sie nur als
   // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit"].includes(eventType)
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit", "finanzauswertung_mitarbeiter"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -542,6 +544,8 @@ const PRIVATLINIE = new Set<string>([
   "vertrag_bestaetigung",
   // E-IT-D (08.10.2026): die Finanz- und Bonitätsauswertung ist eine Leistung des Privatpakets (Kundenbereich).
   "finanzauswertung_bereit",
+  // E-357 (14.10.2026): die Mitarbeiter-Mail zur fertigen Auswertung (PDF im Anhang) — nie über Make.
+  "finanzauswertung_mitarbeiter",
 ]);
 
 /** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */

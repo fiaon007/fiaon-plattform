@@ -106,7 +106,7 @@ const de = {
   wegTitel: "So läuft es ab",
   weg: [
     { titel: "FIAON beantragen", dauer: "rund 5 Minuten", text: "Sie stellen Ihren Antrag bei FIAON und wählen Ihr Paket." },
-    { titel: "Account aktiv", dauer: "mit der ersten Zahlung", text: "Mit Ihrer ersten gebuchten Zahlung ist Ihr Account aktiv — der Link unserer Partnerbank kommt direkt per Mail." },
+    { titel: "Bonität entwickeln", dauer: "nach der ersten Zahlung", text: "Mit Ausweis und Kontoauszügen entwickeln wir Ihre FIAON-Bonitätsauswertung — danach kommt der Link unserer Partnerbank direkt per Mail." },
     { titel: "Konto eröffnen", dauer: `rund ${DKB.eroeffnungMinuten} Minuten`, text: "Online, ohne Papier, Identität per Video. Über die Eröffnung entscheidet die Bank." },
     { titel: "Karte dazubuchen", dauer: "im Banking", text: "Steht das Konto, buchen Sie die Visa Kreditkarte im Banking der DKB dazu." },
     { titel: "Karte in der Hand", dauer: KARTE_ZEIT_KURZ, text: KARTE_ZEIT_SATZ },
@@ -125,7 +125,7 @@ const de = {
   fragen: [
     { f: "Ist das Konto wirklich kostenlos?", a: "Ja, wenn jeden Monat mindestens 700 Euro eingehen oder Sie unter 28 sind. Sonst kostet die Kontoführung 4,50 Euro im Monat. Die Visa Debitkarte ist immer ohne Jahresgebühr dabei." },
     { f: "Was bringt der Aktivstatus?", a: "Kostenloses Bezahlen und Geldabheben fast überall auf der Welt, keinen Aufschlag auf Fremdwährungen, einen günstigeren Dispozins und ein kostenloses Notfallpaket bei Kartenverlust im Ausland. Neukunden haben ihn die ersten drei Monate automatisch." },
-    { f: "Wann bekomme ich den Link der Partnerbank?", a: "Sobald Ihr Account aktiv ist, also mit Ihrer ersten gebuchten Zahlung, bekommen Sie direkt den fertigen Link unserer Partnerbank per Mail." },
+    { f: "Wann bekomme ich den Link der Partnerbank?", a: "Sobald Ihre FIAON-Bonitätsauswertung vorliegt. Nach Ihrer ersten Zahlung laden Sie Ausweis und Kontoauszüge hoch, wir entwickeln daraus Ihre Bonitätsauswertung, und danach bekommen Sie direkt den fertigen Link unserer Partnerbank per Mail." },
     { f: "Bekomme ich die Kreditkarte sofort?", a: "Erst das Konto, dann die Karte: Die Visa Kreditkarte buchen Sie im Banking dazu, sobald das Konto steht. Über Karte und Rahmen entscheidet die Bank. Nach der Zusage ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, meist können Sie sie schon vorher in der App mit Apple Pay nutzen." },
     { f: "Warum über FIAON und nicht direkt?", a: "Direkt geht auch, das Konto steht jedem offen. Über FIAON kommt der Antrag zur richtigen Zeit: mit entwickelter Bonität, in der richtigen Reihenfolge und mit Ihrem Betreuer an der Seite." },
     { f: "Verdient FIAON an meiner Kontoeröffnung?", a: "Ja, und das sagen wir offen: Eröffnet die DKB über unseren Link ein Konto, erhält FIAON eine Vergütung. Sie zahlen dafür nichts, und Ihr Paketpreis hängt nicht davon ab." },
@@ -133,7 +133,7 @@ const de = {
   ],
 
   abschlussA: "Konto, Karte, Bonität. ", abschlussB: "Ein Weg.",
-  abschlussText: "Starten Sie mit FIAON — den Link unserer Partnerbank bekommen Sie, sobald Ihr Account aktiv ist.",
+  abschlussText: "Starten Sie mit FIAON — den Link unserer Partnerbank bekommen Sie, sobald Ihre FIAON-Bonitätsauswertung vorliegt.",
   termin: "Startgespräch buchen",
 };
 
@@ -223,7 +223,7 @@ const en: typeof de = {
   partnerPille: "Our partnership", partnerH2a: "Exclusively for ", partnerH2b: "FIAON customers.",
   partnerLead: "Anyone can apply for a DKB account. What FIAON customers have on top is the guided route: the right order, the ready-made link and a person who knows where you stand.",
   partnerPlus: [
-    { s: "link", titel: "Your personal link", text: "As soon as your account is activated, you receive the ready-made link from our partner bank for your card application." },
+    { s: "link", titel: "Your personal link", text: "As soon as your FIAON credit assessment is ready, you receive the ready-made link from our partner bank for your card application." },
     { s: "pfad", titel: "The right order", text: "First the account, then the card. Applying the other way round risks a rejection and an unnecessary enquiry on your credit file." },
     { s: "auswertung", titel: "Your credit profile, developed first", text: "With the FIAON credit assessment you know where you stand before you apply — traffic light, financial score and plan." },
     { s: "mensch", titel: "Your account manager at your side", text: "A dedicated contact accompanies application, account and card — and helps whenever a question comes up along the way." },
@@ -231,7 +231,7 @@ const en: typeof de = {
   wegTitel: "How it works",
   weg: [
     { titel: "Apply to FIAON", dauer: "about 5 minutes", text: "You submit your FIAON application and choose your package." },
-    { titel: "Account active", dauer: "with the first payment", text: "With your first booked payment your account is active — the link from our partner bank arrives by email straight away." },
+    { titel: "Credit assessment", dauer: "after the first payment", text: "With your ID and bank statements we develop your FIAON credit assessment — then the link from our partner bank arrives by email straight away." },
     { titel: "Open the account", dauer: `about ${DKB.eroeffnungMinuten} minutes`, text: "Online, paperless, identity by video. The bank decides on the opening." },
     { titel: "Add the card", dauer: "in online banking", text: "Once the account is open, you add the Visa credit card in DKB's online banking." },
     { titel: "Card in hand", dauer: "usually 2–5 working days after the bank's approval", text: "After the bank's approval the card usually reaches you within 2–5 working days, and you can mostly use it with Apple Pay in the bank's app before then." },
@@ -250,7 +250,7 @@ const en: typeof de = {
   fragen: [
     { f: "Is the account really free of charge?", a: "Yes, if at least 700 euros are paid in each month or you are under 28. Otherwise the account fee is 4.50 euros a month. The Visa debit card always comes without an annual fee." },
     { f: "What does Active status bring?", a: "Free payments and cash withdrawals almost everywhere in the world, no surcharge on foreign currencies, a lower overdraft rate and a free emergency package if you lose your card abroad. New customers have it automatically for the first three months." },
-    { f: "When do I receive the partner bank's link?", a: "As soon as your account is active, that is with your first booked payment, you receive the ready-made link from our partner bank by email." },
+    { f: "When do I receive the partner bank's link?", a: "As soon as your FIAON credit assessment is ready. After your first payment you upload your ID and bank statements, we develop your credit assessment from them, and then you receive the ready-made link from our partner bank by email." },
     { f: "Do I get the credit card straight away?", a: "First the account, then the card: you add the Visa credit card in online banking once the account is open. The bank decides on the card and the limit. After approval the card usually reaches you within 2–5 working days, and you can mostly use it with Apple Pay in the app before then." },
     { f: "Why via FIAON rather than directly?", a: "Applying directly works too; the account is open to everyone. Via FIAON the application comes at the right time: with a developed credit profile, in the right order and with your account manager at your side." },
     { f: "Does FIAON earn from my account opening?", a: "Yes, and we say so openly: if DKB opens an account via our link, FIAON receives a fee. You pay nothing for it, and your package price does not depend on it." },
@@ -258,7 +258,7 @@ const en: typeof de = {
   ],
 
   abschlussA: "Account, card, credit profile. ", abschlussB: "One route.",
-  abschlussText: "Start with FIAON — you receive the link from our partner bank as soon as your account is active.",
+  abschlussText: "Start with FIAON — you receive the link from our partner bank as soon as your FIAON credit assessment is ready.",
   termin: "Book an introductory call",
 };
 

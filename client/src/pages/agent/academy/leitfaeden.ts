@@ -137,8 +137,8 @@ export const LEITFAEDEN: Leitfaden[] = [
     ziel: "Dem Kunden sagen, dass er am Ziel ist — und ihm den Weg in der richtigen Reihenfolge erklären: erst das Girokonto, dann die Kreditkarte. Danach den Link schicken und einen Rückruf verabreden.",
     kurz: [
       "„Herr [Name], ich rufe an, weil bei Ihnen jetzt alles zusammen ist — und ich habe gute Nachrichten.“",
-      "Was jetzt passiert ist, konkret nennen: erste Zahlung da, Account aktiviert, der Link der Partnerbank ist in seinem Postfach. „Genau darauf haben wir hingearbeitet.“",
-      "Die Antragszeit erklären: „Während die Bank Ihren Antrag bearbeitet, laden Sie in Ihrem Bereich Ihre Kontoauszüge der letzten sechs Monate, Ihren Ausweis und Ihre Bonitätsauskunft hoch — daraus machen wir unsere Bonitätsanalyse.“",
+      "Was jetzt passiert ist, konkret nennen: erste Zahlung da, Bonitätsauswertung liegt vor, der Link der Partnerbank ist in seinem Postfach. „Genau darauf haben wir hingearbeitet.“",
+      "Den nächsten Schritt erklären (E-363: der Link kommt nach der Bonitätsauswertung): „Mit Ihrer Bonitätsauswertung im Rücken stellen Sie jetzt den Antrag bei unserer Partnerbank: erst das Girokonto, dann im Banking die Visa-Kreditkarte dazubuchen.“",
       "Die Reihenfolge erklären: „Zuerst eröffnen Sie ein kostenloses Girokonto bei unserem Kooperationspartner, der DKB. Aus diesem Konto heraus buchen Sie dann die Kreditkarte dazu — anders geht es bei keiner Bank.“",
       "Die Vorteile nennen (kostenlos ab 700 € Geldeingang oder unter 28, Visa Debitkarte inklusive, Echtzeitüberweisungen, aktuell bis zu 200 € Startguthaben).",
       "„Den Link haben Sie schon per Mail — fünf Minuten, Ausweis bereithalten fürs Video-Ident. Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, meist können Sie sie vorher schon mit Apple Pay nutzen.“",
@@ -185,7 +185,7 @@ export const LEITFAEDEN: Leitfaden[] = [
           "„Sagen Sie mir kurz, wenn die Mail da ist?“",
         ],
         // E-IT-B (08.10.2026): Die Einladung ist meist schon automatisch raus — dann „E-Mail erneut senden“.
-        hinweis: "Meist ist die Einladung schon automatisch nach der ersten Zahlung raus. Hat er sie nicht: in der Akte im Kasten „Konto & Karte“ (Überblick oder „Sein Antrag“) → „E-Mail erneut senden“ — derselbe Link, keine neue Einladung, höchstens drei am Tag. Steht dort „An diese Adresse kommt nichts an“, erst die Adresse mit ihm prüfen und unter „Daten“ ändern. Noch keine Einladung und alle Bedingungen erfüllt: „Karte bestellen“. Für dich sind das 10 € — auszahlbar, sobald der Partner die Eröffnung bestätigt.",
+        hinweis: "Seit E-363 geht die Einladung automatisch raus, sobald die Bonitätsauswertung freigegeben ist (Verträge PV-2026-10-05b: nach der ersten Zahlung). Hat er sie nicht: in der Akte im Kasten „Konto & Karte“ (Überblick oder „Sein Antrag“) → „E-Mail erneut senden“ — derselbe Link, keine neue Einladung, höchstens drei am Tag. Steht dort „An diese Adresse kommt nichts an“, erst die Adresse mit ihm prüfen und unter „Daten“ ändern. Noch keine Einladung und alle Bedingungen erfüllt: „Karte bestellen“. Für dich sind das 10 € — auszahlbar, sobald der Partner die Eröffnung bestätigt.",
       },
       {
         titel: "5 · Rückruf verabreden",

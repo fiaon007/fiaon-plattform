@@ -164,9 +164,15 @@ export const AKTIVIERUNG_AUFRUF = "Zahlen Sie jetzt die Aktivierung";
  * Verwendungszweck … ist Ihr Account …“). mitAntragLuecke sucht genau „, und Sie bekommen direkt den fertigen Link
  * unserer Partnerbank für Ihren Kartenantrag“ — nicht umformulieren, ohne die Lücken-Fassung mitzuziehen. Rein.
  */
+/**
+ * E-363 (14.10.2026): der Schwanz von Justins Satz — seit „Kartenlink erst nach Bonität“ nach der Bonitätsauswertung.
+ * mitAntragLuecke sucht genau diesen Wortlaut. Kurz gehalten: WhatsApp-Abschluss unter 500 lesbaren Zeichen.
+ */
+export const LINK_NACH_BONITAET = ", und nach Ihrer Bonitätsauswertung bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag";
 export function nachDemEingang(opt: { ref?: string | null; anfang?: boolean } = {}): string {
   const ref = String(opt.ref ?? "").trim();
-  return `${opt.anfang ? "Mit" : "mit"} Ihrem Verwendungszweck${ref ? ` ${ref}` : ""} ist Ihr Account sofort nach Eingang aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag`;
+  // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): der Link kommt nach der Bonitätsauswertung, nicht mit der Zahlung.
+  return `${opt.anfang ? "Mit" : "mit"} Ihrem Verwendungszweck${ref ? ` ${ref}` : ""} ist Ihr Account sofort nach Eingang aktiv${LINK_NACH_BONITAET}`;
 }
 /**
  * Justins Satz nach dem Gedankenstrich der Aufforderung (klein, ohne Schlusszeichen): „… — mit Ihrem Verwendungszweck
@@ -182,7 +188,7 @@ export const NACH_DEM_EINGANG_SATZ = nachDemEingang({ anfang: true });
  * am Satzanfang macht der Aufrufer das „S“ groß). Derselbe Schwanz wie NACH_DEM_EINGANG (mitAntragLuecke). E-276. Rein.
  */
 export function nachDerZuordnung(opt: { betrag?: string | null; anfang?: boolean } = {}): string {
-  return `${opt.anfang ? "Sobald" : "sobald"} wir Ihre Zahlung${opt.betrag ? ` über ${opt.betrag}` : ""} zugeordnet haben, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag`;
+  return `${opt.anfang ? "Sobald" : "sobald"} wir Ihre Zahlung${opt.betrag ? ` über ${opt.betrag}` : ""} zugeordnet haben, ist Ihr Account sofort aktiv${LINK_NACH_BONITAET}`;
 }
 export const NACH_DER_ZUORDNUNG = nachDerZuordnung();
 
@@ -198,16 +204,17 @@ export function mitAntragLuecke<T extends string | null>(text: T, luecke: readon
   if (!text || !luecke.length) return text;
   const fehlt = luecke.join(", ");
   return String(text)
-    .replace(/,\s*und\s+Sie\s+bekommen\s+direkt\s+den\s+fertigen\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag/,
+    // E-363: auch die ältere Fassung ohne „nach Ihrer Bonitätsauswertung“ (Modell-Echo) — der Ersatz nennt beides, was fehlt.
+    .replace(/,\s*und\s+(?:nach\s+Ihrer\s+Bonitätsauswertung\s+bekommen\s+Sie|Sie\s+bekommen)\s+direkt\s+den\s+fertigen\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag/,
       // Ein eigener Satz ohne „bekommen Sie den …“: im Satz mit dem Betrag oder nach dem Wunschlimit wäre das für
       // tonPruefung eine Limit-Zusage (limit_zusage, hart).
-      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus`)
-    .replace(/Nach\s+der\s+Buchung\s+kommt\s+direkt\s+der\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag\./,
-      `Nach der Buchung und mit vollständigen Angaben im Antrag (es fehlt noch: ${fehlt}) kommt der Link unserer Partnerbank für Ihren Kartenantrag.`)
+      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}) und Ihre Bonitätsauswertung vorliegt, geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus`)
+    .replace(/Nach\s+der\s+Buchung\s+(?:und\s+Ihrer\s+Bonitätsauswertung\s+)?kommt\s+direkt\s+der\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag\./,
+      `Nach der Buchung, Ihrer Bonitätsauswertung und mit vollständigen Angaben im Antrag (es fehlt noch: ${fehlt}) kommt der Link unserer Partnerbank für Ihren Kartenantrag.`)
     // E-275 Ton (02.10.2026): die kurze Fassung aus bausteinVorkasse (Antwort auf „kein Kreditinstitut?“) — seit E-276
     // „Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt."
-    .replace(/,\s*und\s+der\s+Link\s+unserer\s+Partnerbank\s+kommt\s+direkt\./,
-      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}), geht der Link unserer Partnerbank an Sie raus.`) as T;
+    .replace(/,\s*und\s+(?:nach\s+Ihrer\s+Bonitätsauswertung\s+kommt\s+direkt\s+der\s+Link\s+unserer\s+Partnerbank|der\s+Link\s+unserer\s+Partnerbank\s+kommt\s+direkt)\./,
+      `. Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${fehlt}) und Ihre Bonitätsauswertung vorliegt, geht der Link unserer Partnerbank an Sie raus.`) as T;
 }
 /** Tempo als Nutzen, ohne Zusage zur Karte — derselbe Satz wie im Bereich Karte (einladungSatz „nicht_bereit“). */
 export const TEMPO_SATZ = "Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen.";
@@ -2439,7 +2446,7 @@ export function bausteinVorkasse(l: {
   // bleibt unter 500 lesbaren Zeichen (mit dem vollen Satz 531). mitAntragLuecke kennt auch sie.
   // E-276 (02.10.2026): „sofort“ nur mit dem Verwendungszweck (vorher „Mit dem Zahlungseingang ist Ihr Account sofort aktiv, …“);
   // die Zahlungsseite dahinter zeigt ihn. Genau 500 lesbare Zeichen mit Wunschlimit-Ziel — wie vorher unter der Grenze.
-  const danachKurz = "Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt.";
+  const danachKurz = "Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und nach Ihrer Bonitätsauswertung kommt direkt der Link unserer Partnerbank.";
   if (l.kreditFrage) {
     // Seine Frage zuerst: „kein Kreditinstitut? Kredit vorab?" — ja, keine Bank; nein, kein Kredit (nie „keinen Kredit", kredit_nein).
     // Nie „Richtig" am Anfang: Steht „unseriös" daneben, gäbe das dem Vorwurf recht (wahrheitsBefunde, E-236).
@@ -2840,7 +2847,7 @@ export function abschlussPruefung(antwort: string, ein: {
     if (/\/zahlung\/|\bbitte\s+(?:be)?(?:gleichen|zahlen|überweisen)|\b(?:begleichen|überweisen|bezahlen|zahlen)\s+sie\b|zahlungsseite/i.test(a)) {
       // E-275 (02.10.2026): ohne „und biete den Termin an“ — dafür die Zeit bis zur Karte (KARTE_ZEIT_SATZ).
       // E-276 (02.10.2026): „sobald wir sie zugeordnet haben“ (NACH_DER_ZUORDNUNG) statt „sobald sie bei uns eingeht“.
-      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald wir sie zugeordnet haben, ist sein Account sofort aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag (seine Visa-Kreditkarte bleibt das Ziel); nach der Zusage der Bank in der Regel 2–5 Werktage.");
+      h.push("Er hat seine Zahlung schon gemeldet — keine Zahlungsbitte und kein Zahlungslink. Sag: Sobald wir sie zugeordnet haben, ist sein Account sofort aktiv, und nach seiner Bonitätsauswertung (dafür Ausweis und Kontoauszüge hochladen) bekommt er direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag (seine Visa-Kreditkarte bleibt das Ziel); nach der Zusage der Bank in der Regel 2–5 Werktage.");
     }
     return h;
   }
@@ -3189,7 +3196,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "abschluss_b_zahlungsbereit",
-    titel: "B, zahlungsbereit — Justins Formel: Karte, Wunschlimit, „Zahlen Sie jetzt die Aktivierung“ mit Betrag, sofort aktiv und direkt der Link der Partnerbank, 2–5 Werktage, „Schaffen Sie die Überweisung heute noch?“ (E-275: kein Termin, begeistert, ein „!“)",
+    titel: "B, zahlungsbereit — Justins Formel: Karte, Wunschlimit, „Zahlen Sie jetzt die Aktivierung“ mit Betrag, sofort aktiv und nach der Bonitätsauswertung direkt der Link der Partnerbank, 2–5 Werktage, „Schaffen Sie die Überweisung heute noch?“ (E-275: kein Termin, begeistert, ein „!“)",
     kanal: "whatsapp",
     lage: "Antrag High-End abgeschickt, erste Monatsrate 99,99 € offen, Wunschlimit 25.000 €. Fester Betreuer Herr Stripling (ab Freitag wieder da).",
     linkLage: { stufe: "zahlung_offen", zahlungsReferenz: BSP_ZAHLUNG },
@@ -3238,7 +3245,7 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   },
   {
     id: "abschluss_a_gemeldet",
-    titel: "A, Zahlung gemeldet — danke, keine Zahlungsbitte, kein Zahlungslink, direkt der Link der Partnerbank, Karte, 2–5 Werktage (E-275: ohne Termin)",
+    titel: "A, Zahlung gemeldet — danke, keine Zahlungsbitte, kein Zahlungslink, nach der Bonitätsauswertung direkt der Link der Partnerbank, Karte, 2–5 Werktage (E-275: ohne Termin)",
     kanal: "whatsapp",
     lage: "Antrag Start abgeschickt, er hat gemeldet, dass er die 7,99 € überwiesen hat — die Buchung steht aus. Wunschlimit 500 €.",
     linkLage: { stufe: "zahlung_gemeldet" },

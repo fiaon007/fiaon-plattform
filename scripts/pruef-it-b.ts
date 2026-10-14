@@ -85,9 +85,15 @@ pruef("SQL-Regel liest nur gekuendigt_am (kein „zurückgenommen IS NULL“)", 
 // ═════════════════════════════════════════════════════════════════════════
 titel("1b · Wer bekommt den Link — die Ausschlussregel (rein)");
 // ═════════════════════════════════════════════════════════════════════════
-const leer = { test: false, vertriebssperre: false, stufeMinus1: false, global: false, dsgvo: false, gekuendigt: false, storniert: false, hatEmail: true };
+const leer = { test: false, vertriebssperre: false, stufeMinus1: false, global: false, dsgvo: false, gekuendigt: false, storniert: false, hatEmail: true, bonitaetDa: true };
 const code = (f: any, z: any) => weg.karteAusschluss({ ...leer, ...f }, z)?.code ?? null;
 pruef("niemand ausgeschlossen → frei für jeden Zweck", ["liste", "automatik", "mara", "mensch"].every((z) => code({}, z) === null));
+// E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“)
+pruef("E-363: ohne Bonität kein Link — Liste, Automatik, Mara UND Mensch", ["liste", "automatik", "mara", "mensch"].every((z) => code({ bonitaetDa: false }, z) === "bonitaet_offen"));
+pruef("E-363: ein harter Grund steht vor der fehlenden Bonität (Testkonto)", code({ test: true, bonitaetDa: false }, "automatik") === "test");
+pruef("E-363: Kundensatz ohne Bonität nennt die Bonitätsauswertung", /Bonitätsauswertung/.test(String(weg.karteKundeSatz({ ...leer, bonitaetDa: false }))));
+pruef("E-363: kein Hand-Hinweis — auch der Mensch schickt ohne Bonität nicht", weg.karteHandHinweis({ ...leer, bonitaetDa: false }) === null);
+pruef("E-363: Link-Satz verspricht den Link nach der Bonität, nicht nach der Zahlung", /Bonitätsauswertung/.test(weg.KARTE_LINK_SATZ) && !/Account aktiviert/.test(weg.KARTE_LINK_SATZ));
 pruef("Reihenfolge: Testkonto vor Vertriebssperre", code({ test: true, vertriebssperre: true }, "liste") === "test");
 pruef("Vertriebssperre sperrt auch den Menschen (die Mail-Tür lehnt sie ab: „Kontaktsperre“)", code({ vertriebssperre: true }, "mensch") === "vertriebssperre");
 pruef("gekündigt sperrt Liste, Automatik und Mara", ["liste", "automatik", "mara"].every((z) => code({ gekuendigt: true }, z) === "gekuendigt"));
@@ -379,6 +385,7 @@ if (!MIT_DB) {
     await sqlPool`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${ids}) OR ref LIKE 'FIAON-ITB-%'`;
     await sqlPool`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${ids}) OR empfaenger LIKE '%@pruefstand-itb.invalid'`;
     await sqlPool`DELETE FROM fiaon_konto_karte WHERE person_id = ANY(${ids})`;
+    await sqlPool`DELETE FROM fiaon_finanzauswertungen WHERE person_id = ANY(${ids})`.catch(() => {});
     await sqlPool`DELETE FROM fiaon_abo_raten WHERE ref LIKE 'FIAON-ITB-%'`.catch(() => {});
     await sqlPool`DELETE FROM fiaon_vertragsannahmen WHERE ref LIKE 'FIAON-ITB-%'`.catch(() => {});
     // Querprüfung 08.10.2026: Prüfaufgaben „Kündigung – Identität prüfen“ der Testanträge (samt Beiträgen).
@@ -396,6 +403,7 @@ if (!MIT_DB) {
 
   try {
     await kk.ensureKartenTabelle();
+    await kk.bonitaetBereit(); // E-363: die Regel liest fiaon_finanzauswertungen
     await aufraeumen();
     titel("3a · Aufbau der Testzeilen");
     for (const [id, name] of [[AG.betreuer, "Prüf Betreuer ITB"], [AG.alt, "Prüf Erstversender ITB"], [AG.klick, "Prüf Klick ITB"]] as [number, string][]) {
@@ -521,6 +529,18 @@ if (!MIT_DB) {
     // P34: eingeladen vor 8 Tagen, letzte Einladung HART zurück (Postfach gibt es nicht).
     await person(34); await bestellung(34); await einladung(34, { gesendet_am: tage(8) });
     await mail(34, { created_at: tage(8), zustellung: "gebounct", zustellung_grund: "550-5.1.1 The email account that you tried to reach does not exist." });
+    // E-363 (14.10.2026): Kartenlink erst nach Bonität. Wer in den alten Fällen „bereit“ sein soll (noch nicht eingeladen),
+    // bekommt eine freigegebene FIAON-Bonitätsauswertung; Eingeladene behalten ihren Link auch ohne.
+    const bonitaet = async (n: number) => {
+      await sqlPool`INSERT INTO fiaon_finanzauswertungen (person_id, ref, fassung, status, regel_version, erstellt_von, freigegeben_am)
+                    VALUES (${P(n)}, ${REF(n)}, 1, 'freigegeben', 'PRUEF', 'Prüfstand ITB', NOW())`;
+    };
+    for (const n of [2, 8, 9, 13]) await bonitaet(n);
+    // P37: bezahlt, Antrag vollständig, NICHT eingeladen, OHNE Bonität → kein neuer Link (E-363).
+    await person(37); await bestellung(37);
+    // P38: wie P37, aber mit Vertrag PV-2026-10-05b („Link nach der ersten Rate“) → Bestandsschutz, der Link geht (E-363).
+    await person(38); await bestellung(38);
+    await sqlPool`INSERT INTO fiaon_vertragsannahmen ${sqlPool({ ref: REF(38), person_id: P(38), weg: "antrag_neu", angenommen_am: tage(20), paket: "ultra", rate_cents: 7999, gesamt_cents: 95988, vertrag_fassung: "PV-2026-10-05b", leistung_fassung: "t", agb_fassung: "t", knopf_text: "t", haken: sqlPool.json({}), sofort_beginn: true, vertrag_html: "<p>t</p>", vertrag_sha256: "t38" } as any)}`;
     pruef("Testzeilen angelegt", true);
 
     // ── 3b · Paar-Test TS gegen SQL ────────────────────────────────────────
@@ -571,6 +591,23 @@ if (!MIT_DB) {
     pruef("Nachfassen: P2 „bereit“, P13 „wartet auf Widerrufsfrist“", zustand(2) === "bereit" && zustand(13) === "frist");
     pruef("Nachfassen: keine Gekündigten (P5, P6), kein Konto-steht (P3), keine Sperre (P4), kein Test (P10)", [3, 4, 5, 6, 10].every((n) => zustand(n) === null));
     pruef("Nachfassen: P1 (vor 10 Tagen eingeladen, zugestellt, nicht geklickt) ist „nicht geklickt“", zustand(1) === "nicht_geklickt");
+    // ── E-363: Kartenlink erst nach Bonität ────────────────────────────────
+    const st37 = await kk.kartenStand(P(37));
+    pruef("E-363: P37 ohne Bonität — nicht bereit, Grund „Bonität“, auch nicht von Hand", st37?.bereit === false && st37?.ausschluss?.code === "bonitaet_offen" && st37?.ausschlussAutomatik?.code === "bonitaet_offen", st37?.ausschluss);
+    pruef("E-363: P37 nicht in der Liste „bereit“ und nicht im Nachfassen", !bereitNeu.has(P(37)) && zustand(37) === null);
+    pruef("E-363: P37 Kundensatz nennt die Bonitätsauswertung", /Bonitätsauswertung/.test(String(st37?.kundeSatz)));
+    const st1 = await kk.kartenStand(P(1));
+    pruef("E-363: P1 schon eingeladen (ohne Bonität) — behält den Link, kein Bonitäts-Ausschluss", st1?.ausschluss?.code !== "bonitaet_offen" && st1?.ausschlussAutomatik?.code !== "bonitaet_offen");
+    pruef("E-363: SQL und TS einig für P37 (bonitaet_offen)", (await sqlPool.unsafe(`SELECT ${kk.karteAusschlussSql("p.id")} AS c FROM fiaon_persons p WHERE p.id = $1`, [P(37)]) as any[])[0]?.c === "bonitaet_offen");
+    const m37 = await kk.karteEinladungFuerPerson(P(37), { name: "Mara", quelle: "prüfstand" });
+    pruef("E-363: Mara bei P37 — „noch nicht bereit“ mit Satz zur Bonität, keine Übergabe, nichts gesendet", !m37.ok && m37.aktion === "nicht_bereit" && /Bonitätsauswertung/.test(String(m37.satz)) && !m37.gesendet, m37);
+    await bonitaet(37);
+    const st37b = await kk.kartenStand(P(37));
+    pruef("E-363: P37 nach der Freigabe der Bonität — bereit", st37b?.bereit === true && !st37b?.ausschluss);
+    await sqlPool`DELETE FROM fiaon_finanzauswertungen WHERE person_id = ${P(37)}`; // Zustand zurück — spätere Summen zählen P37 nicht
+    const st38 = await kk.kartenStand(P(38));
+    pruef("E-363 Bestandsschutz: P38 (Vertrag PV-2026-10-05b, ohne Bonität) — bereit wie vertraglich zugesagt", st38?.bereit === true && !st38?.ausschluss, st38?.ausschluss);
+    pruef("E-363 Bestandsschutz: SQL einig für P38 (kein Ausschluss)", (await sqlPool.unsafe(`SELECT ${kk.karteAusschlussSql("p.id")} AS c FROM fiaon_persons p WHERE p.id = $1`, [P(38)]) as any[])[0]?.c == null);
     pruef("Nachfassen: Reihenfolge — „nicht angekommen“ vor „nicht geklickt“ vor „bereit“", (() => {
       const r = nf.map((f) => weg.KARTE_NACHFASSEN_REIHENFOLGE.indexOf(f.zustand)); return r.every((x, i) => i === 0 || r[i - 1] <= x);
     })());

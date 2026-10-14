@@ -37,7 +37,7 @@ import { sqlPool } from "./db-pool";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import {
-  KARTE_LINK_SATZ, KARTE_ZEIT_SATZ,
+  KARTE_LINK_SATZ, KARTE_ZEIT_SATZ, KARTE_WEG_SATZ, KARTE_ZUSAGE_ERSTE_RATE,
   // E-IT-B (08.10.2026): die eine Regel „wer bekommt den Link“, Drossel, Zustellung, Nachfassen.
   KARTE_AUSSCHLUSS_REIHENFOLGE, karteAusschluss, karteHandHinweis, karteKundeSatz, KARTE_ERNEUT, KARTE_ZUSTELL_TEXT,
   zustellProblem, ZUSTELL_PROBLEM_SQL, KARTE_ZUSTELL_WEICH_TEXT, BREVO_SPERRGRUND_TEXT, KARTE_ADRESSE_KUNDE,
@@ -127,7 +127,7 @@ export const KARTE_MIN_RATEN = 1;
 // Unterlagen keine Tore mehr — sie kommen NACH dem Link, nicht davor.
 // Der Schutz „zwei Monate im Paket" entfällt damit bewusst (Justins Entscheidung).
 
-export type TorSchluessel = "antrag" | "bezahlt" | "unterlagen";
+export type TorSchluessel = "antrag" | "bezahlt" | "unterlagen" | "bonitaet"; // E-363: „bonitaet“
 
 export interface Tor {
   schluessel: TorSchluessel;
@@ -452,7 +452,8 @@ export async function kontoEroeffnetMelden(
  * einzelne Abfragen wären dort eine halbe Sekunde Wartezeit für eine
  * Marke auf einer Karte.
  */
-const STAND_SQL = `
+// E-363: eine Funktion statt einer Konstante — die Bonitäts-Bausteine stehen weiter unten und lesen den Stand der Tabellen erst beim Aufruf.
+const standSql = (): string => `
   SELECT p.id AS person_id,
     -- ── DIE PERSON ZAEHLT MIT (27.08.2026, Team-Punkt 2) ──────────────────
     -- Gemeldet: „Angaben im Antrag fehlen — Daten ergaenzen", waehrend unter
@@ -543,7 +544,9 @@ const STAND_SQL = `
       SELECT 1 FROM fiaon_applications a
       WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
         AND a.id_card_pdf IS NOT NULL
-    ) AS hat_ausweis
+    ) AS hat_ausweis,
+    -- E-363: Kartenlink erst nach der Bonität (oder Link schon draußen / Vertrag PV-2026-10-05b sagt ihn nach der ersten Rate zu).
+    (${BONITAET_DA_SQL("p.id")} OR ${SCHON_EINGELADEN_SQL("p.id")} OR ${VERTRAG_ZUSAGE_SQL("p.id")}) AS bonitaet_da
   FROM fiaon_persons p
 `;
 
@@ -591,10 +594,19 @@ function toreAus(r: any): Tor[] {
       fehlt: geldOk ? null : geldFehlt,
       wieWeiter: geldOk ? null : "Zahlungsdaten senden und die erste Zahlung nachhalten.",
       warumIntern:
-        "Justin am 21.09.2026: Ab der ersten bezahlten Rate bekommt jeder die Einladung der Partnerbank. "
-        + "Kontoauszüge, Ausweis und Auskunft lädt der Kunde in der Antragszeit hoch — dann folgt unsere Bonitätsanalyse.",
-      warumFuerKunden:
-        "Sobald Ihre erste Zahlung gebucht ist, ist Ihr Account aktiviert und Sie bekommen direkt den Link unserer Partnerbank.",
+        "Justin am 21.09.2026: Ab der ersten bezahlten Rate geht es los. Seit E-363 (14.10.2026) kommt die Einladung der Partnerbank "
+        + "erst nach der freigegebenen FIAON-Bonitätsauswertung (Ausweis + Kontoauszüge → Bonität → Link).",
+      warumFuerKunden: KARTE_WEG_SATZ,
+    },
+    {
+      // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“).
+      schluessel: "bonitaet",
+      titel: "FIAON-Bonitätsauswertung liegt vor",
+      erfuellt: !!r.bonitaet_da,
+      fehlt: r.bonitaet_da ? null : "die FIAON-Bonitätsauswertung liegt noch nicht beim Kunden",
+      wieWeiter: r.bonitaet_da ? null : "Ausweis und Kontoauszüge anfordern, dann im Überblick „Bonität jetzt entwickeln“, prüfen und freigeben.",
+      warumIntern: "Justin am 14.10.2026 (E-363): Kartenlink erst nach der Bonität. Bestandsschutz: Link schon draußen oder Vertrag PV-2026-10-05b.",
+      warumFuerKunden: KARTE_LINK_SATZ,
     },
   ];
 }
@@ -603,8 +615,9 @@ function toreAus(r: any): Tor[] {
 export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promise<KartenStand | null> {
   await ensureKartenTabelle(lauf);
   await schufaTabelleSicher();
+  await bonitaetBereit(); // E-363: der Stand liest fiaon_finanzauswertungen und fiaon_vertragsannahmen
   const [r] = (await lauf.unsafe(
-    `${STAND_SQL} WHERE p.id = $1 AND p.merged_into_person_id IS NULL`,
+    `${standSql()} WHERE p.id = $1 AND p.merged_into_person_id IS NULL`,
     [personId],
   )) as any[];
   if (!r) return null;
@@ -698,6 +711,7 @@ export async function bereiteKunden(
   await ensureKartenTabelle(lauf);
   await schufaTabelleSicher();
   await globalKundeBereit(); // die Ausschlussregel liest fiaon_global_angebote (E-272)
+  await bonitaetBereit(); // … und fiaon_finanzauswertungen (E-363)
   const bedingungen: string[] = ["p.merged_into_person_id IS NULL"];
   const werte: any[] = [];
   if (opt.agentId) { werte.push(opt.agentId); bedingungen.push(`p.assigned_agent_id = $${werte.length}`); }
@@ -705,7 +719,7 @@ export async function bereiteKunden(
   const zeilen = (await lauf.unsafe(
     `SELECT x.*, TRIM(COALESCE(pp.first_name,'') || ' ' || COALESCE(pp.last_name,'')) AS name,
             pp.assigned_agent_id
-     FROM (${STAND_SQL} WHERE ${bedingungen.join(" AND ")}) x
+     FROM (${standSql()} WHERE ${bedingungen.join(" AND ")}) x
      JOIN fiaon_persons pp ON pp.id = x.person_id
      WHERE x.antrag_voll AND x.paket_bezahlt
        AND x.raten_bezahlt >= ${KARTE_MIN_RATEN}
@@ -816,7 +830,44 @@ const KARTE_PRAEDIKAT: Record<Exclude<KarteAusschlussCode, "vertrag_beendet">, (
   storniert: (p) => `EXISTS (SELECT 1 FROM fiaon_telefonkartei_storno ka_st WHERE ka_st.person_id = ${p} AND ka_st.zurueck_am IS NULL)`,
   ohne_email: (p) => `NOT (EXISTS (SELECT 1 FROM fiaon_persons ka_e WHERE ka_e.id = ${p} AND COALESCE(ka_e.primary_email, '') <> '')
       OR EXISTS (SELECT 1 FROM fiaon_applications ka_ea WHERE ka_ea.person_id = ${p} AND COALESCE(ka_ea.email, '') <> ''))`,
+  // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): ohne freigegebene FIAON-Bonitätsauswertung kein NEUER
+  // Link. Wer ihn vor E-363 schon bekommen hat, behält ihn (Nachfassen, „erneut senden“, Mara schickt denselben Link).
+  bonitaet_offen: (p) => `NOT (${BONITAET_DA_SQL(p)} OR ${SCHON_EINGELADEN_SQL(p)} OR ${VERTRAG_ZUSAGE_SQL(p)})`,
 };
+
+/**
+ * E-363 Bestandsschutz: Sagt sein angenommener Vertrag den Link „nach Eingang der ersten Monatsrate“ zu (PV-2026-10-05b)?
+ * Ohne die Tabelle (frische Prüfstand-DB) FALSE — bonitaetBereit merkt sich, ob es sie gibt.
+ */
+let vertragTabelleDa = true;
+export const VERTRAG_ZUSAGE_SQL = (p: string): string => vertragTabelleDa
+  ? `EXISTS (SELECT 1 FROM fiaon_vertragsannahmen ka_v LEFT JOIN fiaon_applications ka_va ON ka_va.ref = ka_v.ref
+      WHERE (ka_va.person_id = ${p} OR ka_v.person_id = ${p})
+        AND ka_v.vertrag_fassung IN (${KARTE_ZUSAGE_ERSTE_RATE.map((f) => `'${f.replace(/'/g, "''")}'`).join(", ") || "NULL"}))`
+  : "FALSE";
+
+/** E-363: Ging schon eine echte Einladung raus (kein „gemeldet“)? Dann gilt die Bonitäts-Regel für ihn nicht mehr. */
+export const SCHON_EINGELADEN_SQL = (p: string): string =>
+  `EXISTS (SELECT 1 FROM fiaon_konto_karte ka_k WHERE ka_k.person_id = ${p} AND ka_k.kanal <> 'gemeldet')`;
+
+/** E-363: Liegt die FIAON-Bonitätsauswertung beim Kunden (freigegeben oder durch eine neuere ersetzt)? Auch an einer Dublette. */
+export const BONITAET_DA_SQL = (p: string): string => `EXISTS (SELECT 1 FROM fiaon_finanzauswertungen ka_b
+    WHERE ka_b.status IN ('freigegeben', 'ersetzt')
+      AND ka_b.person_id IN (SELECT ka_bp.id FROM fiaon_persons ka_bp WHERE ka_bp.id = ${p} OR ka_bp.merged_into_person_id = ${p}))`;
+
+/** E-363: Listen und Automatik lesen fiaon_finanzauswertungen — die Tabelle entsteht sonst erst mit der ersten Auswertung. */
+let bonitaetTabelle: Promise<void> | null = null;
+export function bonitaetBereit(): Promise<void> {
+  if (!bonitaetTabelle) {
+    bonitaetTabelle = import("./fiaon-finanzauswertung").then((m) => m.ensureFinanzauswertungTabellen())
+      .then(async () => {
+        const [t] = (await sqlPool`SELECT to_regclass('fiaon_vertragsannahmen') IS NOT NULL AS da`) as any[];
+        vertragTabelleDa = !!t?.da;
+      })
+      .catch((e) => { bonitaetTabelle = null; throw e; });
+  }
+  return bonitaetTabelle;
+}
 
 /** Der erste Ausschlussgrund (Zweck „automatik“) als Code oder NULL — für Listen und die Automatik. */
 export function karteAusschlussSql(person: string): string {
@@ -870,6 +921,8 @@ async function einladungPruefen(ids: number[], opt: { mitPhase?: boolean } = {})
   const liste = Array.from(new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)));
   if (!liste.length) return [];
   await globalKundeBereit(); // E-272: die Abfrage liest fiaon_global_angebote
+  await bonitaetBereit(); // E-363: die Abfrage liest fiaon_finanzauswertungen
+  await ensureKartenTabelle(); // … und fiaon_konto_karte (schon eingeladen)
   // Immer über den Pool, auch wenn der Aufrufer in einer Transaktion steht: Die Bausteine unten sind Pool-Fragmente,
   // und die Ausschlüsse hängen an keiner Zeile, die der Aufrufer gerade schreibt.
   const zeilen = (await sqlPool`
@@ -898,7 +951,10 @@ async function einladungPruefen(ids: number[], opt: { mitPhase?: boolean } = {})
            EXISTS (SELECT 1 FROM fiaon_mail_log ml WHERE ml.person_id = p.id AND ml.event = 'konto_karte_einladung'
                     AND ml.status <> 'versandt' AND ml.created_at > NOW() - INTERVAL '24 hours') AS fehlschlag,
            -- E-275: nur noch zur Auskunft im Protokoll — die Werbesperre schließt die Einladung nicht mehr aus.
-           (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
+           (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre,
+           -- E-363: Kartenlink erst nach der Bonität — außer er ging schon vorher raus.
+           (${sqlPool.unsafe(BONITAET_DA_SQL("p.id"))} OR ${sqlPool.unsafe(SCHON_EINGELADEN_SQL("p.id"))}
+             OR ${sqlPool.unsafe(VERTRAG_ZUSAGE_SQL("p.id"))}) AS bonitaet_da
       FROM fiaon_persons p
       LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
      WHERE p.id = ANY(${liste}) AND p.merged_into_person_id IS NULL
@@ -910,7 +966,7 @@ async function einladungPruefen(ids: number[], opt: { mitPhase?: boolean } = {})
       test: !!z.test, vertriebssperre: !!z.vertriebssperre, stufeMinus1: !!z.ausgeschlossen,
       global: z.global ? true : false, dsgvo: !!z.dsgvo, gekuendigt: !!z.gekuendigt,
       gekuendigtAm: z.gekuendigt && z.gekuendigt_am ? new Date(z.gekuendigt_am).toISOString() : null,
-      storniert: !!z.storniert, hatEmail: !!z.hat_email,
+      storniert: !!z.storniert, hatEmail: !!z.hat_email, bonitaetDa: !!z.bonitaet_da,
     };
     // Die Phase nur, wo ein Mensch fragt — sie braucht die Ratenkette (vertragsendeLesen, Abrechnungsmonat).
     if (opt.mitPhase && flags.gekuendigt && z.kuendigung_ref) {
@@ -1642,6 +1698,7 @@ export async function karteNachfassen(
   await ensureKartenTabelle(lauf);
   await schufaTabelleSicher();
   await globalKundeBereit();
+  await bonitaetBereit(); // E-363
   // Der von Hand gepflegte Stand der Bank (fiaon_applications.karten_status) — Spalten entstehen dort beim ersten Gebrauch.
   await import("./fiaon-kartenstatus").then((m) => m.ensureKartenSpalten()).catch(() => {});
   const werte: any[] = [];
@@ -1649,7 +1706,7 @@ export async function karteNachfassen(
   if (opt.agentId) { werte.push(opt.agentId); bed.push(`p.assigned_agent_id = $${werte.length}`); }
   const zeilen = (await lauf.unsafe(`
     WITH basis AS (
-      SELECT x.person_id FROM (${STAND_SQL} WHERE ${bed.join(" AND ")}) x
+      SELECT x.person_id FROM (${standSql()} WHERE ${bed.join(" AND ")}) x
        WHERE x.antrag_voll AND x.paket_bezahlt AND x.raten_bezahlt >= ${KARTE_MIN_RATEN}
          AND ${karteAusschlussSql("x.person_id")} IS NULL
     ), lage AS (
@@ -1722,7 +1779,8 @@ export async function karteNachfassen(
 // Werkzeug dafür, für Mail UND WhatsApp: Sie schickt die Einladung (oder den
 // Link erneut, wenn er schon draußen ist), und sie bekommt den Satz für den
 // Kunden — Justins eigene, wahre Formel aus shared/fiaon-karten-weg.ts:
-// „Sobald Ihr Account aktiviert ist, bekommen Sie direkt den fertigen Link
+// (seit E-363, 14.10.2026: „Sobald Ihre FIAON-Bonitätsauswertung vorliegt, bekommen Sie direkt den fertigen Link …“)
+// früher: „Sobald Ihr Account aktiviert ist, bekommen Sie direkt den fertigen Link
 // unserer Partnerbank … Nach der Zusage der Bank ist die Karte in der Regel in
 // 2–5 Werktagen bei Ihnen, und meist können Sie sie schon vorher in der App der
 // Bank mit Apple Pay nutzen.“ Keine Limit-Zusage, keine Karten-Zusage (die
@@ -1905,7 +1963,7 @@ export async function karteEinladungStand(personId: number): Promise<KarteEinlad
 }
 
 /** Der Satz für den Kunden — nur aus Bausteinen, die die Wortwand kennt (shared/fiaon-karten-weg.ts). */
-function einladungSatz(aktion: KarteEinladungAktion, s: KarteEinladungStand): string | null {
+function einladungSatz(aktion: KarteEinladungAktion, s: KarteEinladungStand, opt: { bonitaetOffen?: boolean } = {}): string | null {
   const an = s.adresse ? ` an ${s.adresse}` : "";
   const weg = "Darüber beantragen Sie in wenigen Minuten online Ihr Girokonto mit Visa-Karte — Sie brauchen nur Ihren Ausweis.";
   switch (aktion) {
@@ -1918,6 +1976,11 @@ function einladungSatz(aktion: KarteEinladungAktion, s: KarteEinladungStand): st
     case "konto_steht":
       return `Ihr Girokonto bei unserer Partnerbank, der DKB, ist bereits eröffnet${s.kontoEroeffnetAm ? ` (seit ${s.kontoEroeffnetAm})` : ""}. Die Visa-Kreditkarte buchen Sie direkt in Ihrem DKB-Banking dazu. ${KARTE_ZEIT_SATZ}`;
     case "nicht_bereit": {
+      // E-363: Zahlung und Antrag stimmen — es fehlt nur die Bonität.
+      if (s.paketBezahlt && !s.fehlendeAngaben.length && opt.bonitaetOffen) {
+        return "Ihre Zahlung ist da — jetzt fehlt nur noch Ihre FIAON-Bonitätsauswertung. Dafür brauchen wir Ihren Ausweis und Ihre Kontoauszüge; "
+          + "liegen beide schon bei uns, entwickeln wir sie jetzt für Sie. " + KARTE_LINK_SATZ + " " + KARTE_ZEIT_SATZ;
+      }
       if (!s.paketBezahlt) {
         // Justins „zahl die Aktivierung … also: Jetzt zahlen!“ in seiner eigenen, wahren Fassung (Mail vom
         // 02.10.): Zahlung → Account aktiviert → direkt der Link. KARTE_LINK_SATZ bleibt die eine Quelle; nur
@@ -1927,7 +1990,7 @@ function einladungSatz(aktion: KarteEinladungAktion, s: KarteEinladungStand): st
         const eine = s.fehlendeAngaben.length === 1;
         const link = s.fehlendeAngaben.length
           ? `Sobald auch Ihr Antrag vollständig ist (es fehlt noch: ${s.fehlendeAngaben.join(", ")}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus — schreiben Sie mir ${eine ? "diese Angabe" : "diese Angaben"} einfach zurück.`
-          : KARTE_LINK_SATZ.replace(/^Sobald Ihr Account aktiviert ist, bekommen Sie/, "Dann bekommen Sie");
+          : KARTE_WEG_SATZ;
         return `Sobald Ihre erste Zahlung bei uns eingegangen ist, ist Ihr Account aktiviert. ${link} `
           + `Je früher Ihre Zahlung da ist, desto früher können Sie Ihren Kartenantrag stellen. ${KARTE_ZEIT_SATZ}`;
       }
@@ -1965,7 +2028,9 @@ export async function karteEinladungFuerPerson(personId: number, akteur: KarteEi
     if (!stand) return nichts("fehler", `Person ${personId} nicht gefunden.`, null);
     const [pruefung] = await einladungPruefen([stand.personId]);
     if (!pruefung) return nichts("fehler", `Person ${stand.personId} nicht gefunden.`, stand);
-    if (pruefung.sperre) return nichts("gesperrt", `Kein Kartenlink: ${pruefung.sperre}.`, stand);
+    // E-363: Fehlt nur die Bonität, ist das kein Ausschluss, sondern der nächste Schritt — „noch nicht bereit“ mit Satz.
+    const bonitaetOffen = pruefung.sperreCode === "bonitaet_offen";
+    if (pruefung.sperre && !bonitaetOffen) return nichts("gesperrt", `Kein Kartenlink: ${pruefung.sperre}.`, stand);
     const schonAm = stand.zuletztGeschicktIso;
 
     if (stand.kontoEroeffnet) {
@@ -1974,11 +2039,19 @@ export async function karteEinladungFuerPerson(personId: number, akteur: KarteEi
         intern: `Girokonto steht schon${stand.kontoEroeffnetAm ? ` (${stand.kontoEroeffnetAm})` : ""} — kein neuer Link; die Karte bucht der Kunde im Banking dazu.`,
       });
     }
+    // E-363: Bezahlt und Antrag vollständig, nur die Bonität fehlt — der nächste Schritt, keine Übergabe an einen Menschen.
+    if (bonitaetOffen && stand.paketBezahlt && !stand.fehlendeAngaben.length) {
+      return antwort({
+        ok: false, aktion: "nicht_bereit", satz: einladungSatz("nicht_bereit", stand, { bonitaetOffen: true }), stand, schonAm,
+        intern: "Bonität noch nicht beim Kunden — der Kartenlink geht erst nach der freigegebenen FIAON-Bonitätsauswertung (E-363). "
+          + "Fehlen Ausweis oder Kontoauszüge: anfordern; liegen sie vor: Betreuer entwickelt die Bonität (Akte › Überblick).",
+      });
+    }
     if (!stand.bereit) {
       return antwort({
         ok: false, aktion: "nicht_bereit", satz: einladungSatz("nicht_bereit", stand), stand, schonAm,
         intern: !stand.paketBezahlt
-          ? "Paket noch nicht bezahlt — Zahlungslink dazugeben; nach der Buchung geht die Einladung automatisch raus (Takt karten_einladungen, ≤ 5 Min.)."
+          ? "Paket noch nicht bezahlt — Zahlungslink dazugeben. Nach der Buchung: Ausweis + Kontoauszüge, Bonität entwickeln und freigeben — dann geht die Einladung automatisch raus (E-363, Takt karten_einladungen)."
             + (stand.fehlendeAngaben.length ? ` Außerdem fehlt im Antrag: ${stand.fehlendeAngaben.join(", ")}.` : "")
           : `Antrag unvollständig (${stand.fehlendeAngaben.join(", ")}) — Angaben vom Kunden erfragen und in der Akte unter „Daten“ eintragen; danach geht die Einladung automatisch raus.`,
       });

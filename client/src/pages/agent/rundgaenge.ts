@@ -362,10 +362,12 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // bei allen anderen läge der Scheinwerfer auf nichts.
     // 21.09.2026 (E-206) nachgezogen: ab der ersten Rate, automatisch.
     titel: "Konto & Karte — worauf alles hinausläuft.",
-    text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Seit dem 21.09. bekommt jeder Kunde "
-      + "die Einladung unserer Partnerbank automatisch, sobald seine erste Zahlung gebucht ist (Antrag "
-      + "vollständig vorausgesetzt) — die Mail heißt „Ihr Link zur Karte ist da“. In der Antragszeit lädt er "
-      + "Kontoauszüge (sechs Monate), Ausweis und Auskunft hoch; daraus machen wir die Bonitätsanalyse. "
+    // 14.10.2026 (E-363, Justin: „Kartenlink erst nach Bonität“).
+    text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Seit dem 14.10. geht die Einladung unserer "
+      + "Partnerbank automatisch raus, sobald seine erste Zahlung gebucht ist UND seine FIAON-Bonitätsauswertung freigegeben "
+      + "ist (Antrag vollständig vorausgesetzt) — die Mail heißt „Ihr Link zur Karte ist da“. Also: Ausweis und Kontoauszüge "
+      + "anfordern, im Überblick „Bonität jetzt entwickeln“, prüfen, freigeben — dann kommt der Link. Wer den Link schon "
+      + "hat oder einen Vertrag in der Fassung PV-2026-10-05b, bekommt ihn wie zugesagt nach der ersten Zahlung. "
       // E-IT-B (08.10.2026): erneut senden statt Nachversand über „Karte bestellen“.
       + "Hat er den Link nicht, schickst du ihn in der Akte mit „E-Mail erneut senden“ noch einmal — derselbe Link, "
       + "keine neue Einladung. Auf jeder Karte steht, wie es um seine Einladung steht (nicht angekommen, nicht "

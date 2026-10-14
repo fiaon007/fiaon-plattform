@@ -425,7 +425,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wann bekomme ich den Link der Partnerbank?",
-      "a": "Sobald Ihr Account aktiv ist, also mit Ihrer ersten gebuchten Zahlung, bekommen Sie direkt den fertigen Link unserer Partnerbank per Mail."
+      "a": "Sobald Ihre FIAON-Bonitätsauswertung vorliegt. Nach Ihrer ersten Zahlung laden Sie Ausweis und Kontoauszüge hoch, wir entwickeln daraus Ihre Bonitätsauswertung, und danach bekommen Sie direkt den fertigen Link unserer Partnerbank per Mail."
     },
     {
       "f": "Bekomme ich die Kreditkarte sofort?",
@@ -455,7 +455,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "When do I receive the partner bank's link?",
-      "a": "As soon as your account is active, that is with your first booked payment, you receive the ready-made link from our partner bank by email."
+      "a": "As soon as your FIAON credit assessment is ready. After your first payment you upload your ID and bank statements, we develop your credit assessment from them, and then you receive the ready-made link from our partner bank by email."
     },
     {
       "f": "Do I get the credit card straight away?",

@@ -533,7 +533,7 @@ function thema(stufe: "A" | "B", schritt: number): string {
     return [
       "Erste Mail: Stell dich kurz vor. Danke ihm herzlich, dass er seine Zahlung gemeldet hat. Sag freundlich, dass sie bei uns noch nicht zugeordnet ist — oft kommt der Verwendungszweck verkürzt an. Hilf selbst: Den Überweisungsbeleg schickt er dir einfach als Antwort; Verwendungszweck und Zahlungsdaten stehen hinter dem Knopf unten. Dann mit Freude, was die Zuordnung bringt (Abschluss).",
       "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Die Zahlung ist noch nicht zugeordnet — bitte ihn um den Beleg (Datum, Betrag, Verwendungszweck) als Antwort; du kümmerst dich selbst darum. Dann, was die Zuordnung bringt (Abschluss).",
-      "Dritte Mail: Konzentrier dich auf die Karte: Nach der Zuordnung kommt direkt der Link unserer Partnerbank, die Karte ist nach der Zusage der Bank in der Regel in 2–5 Werktagen da, meist vorher schon mit Apple Pay nutzbar. Bitte um den Beleg als Antwort.",
+      "Dritte Mail: Konzentrier dich auf die Karte: Nach der Zuordnung lädt er Ausweis und Kontoauszüge hoch, nach seiner Bonitätsauswertung kommt direkt der Link unserer Partnerbank (E-363), die Karte ist nach der Zusage der Bank in der Regel in 2–5 Werktagen da, meist vorher schon mit Apple Pay nutzbar. Bitte um den Beleg als Antwort.",
       "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg). Frag, ob etwas unklar ist — eine kurze Antwort genügt, du klärst es selbst. Bitte um den Beleg als Antwort.",
     ][Math.min(schritt, 4) - 1];
   }

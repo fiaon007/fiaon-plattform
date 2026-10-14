@@ -1170,7 +1170,7 @@ function auftrag(ein: {
       // E-275 (02.10.2026): ohne „der Termin“ — Justin: „Mara soll selbst verkaufen … Jetzt zahlen! ;D — so in etwa nur seriös.“
       `═══ DEIN ABSCHLUSS (Justin 29.09.2026, E-275 02.10.2026) ═══`,
       ein.abschluss.art === "a"
-        ? `Er hat seine Zahlung gemeldet — KEINE Zahlungsbitte, KEIN Zahlungslink. Danke, nach der Buchung direkt der Link unserer Partnerbank für seinen Kartenantrag, die Karte, die Zeit bis zur Karte.`
+        ? `Er hat seine Zahlung gemeldet — KEINE Zahlungsbitte, KEIN Zahlungslink. Danke, nach der Buchung Ausweis und Kontoauszüge hochladen, nach seiner Bonitätsauswertung direkt der Link unserer Partnerbank für seinen Kartenantrag, die Karte, die Zeit bis zur Karte (E-363).`
         : ein.abschluss.art === "abbrecher" || ein.abschluss.art === "c"
           ? `Sein Antrag ist nicht abgeschickt — KEIN Satz zur Rate (keine Zahlung, kein Betrag). Die Karte, sein Antrag (DEIN LINK), eine kurze Frage („Machen Sie heute noch weiter?“ / „Wollen wir starten?“).`
           : `Gibt er ein Kaufsignal, ist das deine Antwort — Karte, sein Ziel${bankSatzNurAufNachfrage() ? "" : " mit dem Satz über die Bank"}, dann begeistert und klar die Aufforderung mit dem Betrag („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über …“), der Nutzen direkt dahinter („${NACH_DEM_EINGANG_SATZ}!“), die Zeit bis zur Karte und die Bitte um die Überweisung als EINE Frage („${ZAHL_FRAGE}“). Hat er einen EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut): erst sein Einwand in einem Satz, nie „Genau/Ja" am Anfang, dann die Fakten — PFLICHT: „Sie überweisen selbst, abgebucht wird nichts“ —, dann der Nutzen („${NACH_DEM_EINGANG}.“) und die Frage; einen Anruf nur, wenn er vorher sprechen möchte.`,
@@ -1232,7 +1232,7 @@ function auftrag(ein: {
     `WAHRE SÄTZE, MIT DENEN DU VERKAUFST (in eigenen Worten)`,
     // E-265: Freigeschaltet wird mit der Buchung, nicht in Echtzeit — Justins „direkt aktivieren" so, wie es stimmt.
     // E-275 (02.10.2026): Justins wahrer Satz aus seiner Mail vom 02.10. — die seriöse Fassung von „zahl die Aktivierung,
-    // die Karte geht zeitnah in Produktion": nach der Buchung direkt der Link, nach der Bankzusage 2–5 Werktage.
+    // die Karte geht zeitnah in Produktion": nach der Buchung und der Bonitätsauswertung direkt der Link (E-363), nach der Bankzusage 2–5 Werktage.
     // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account
     // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung, der Nutzen direkt dahinter. Wahr: Der Abgleich bucht eine
     // Zahlung mit richtigem Verwendungszweck selbst; die Karte gibt die Partnerbank nach ihrer Zusage aus, nicht FIAON.
@@ -1248,13 +1248,13 @@ function auftrag(ein: {
     ``,
     `WAHRE ANTWORTEN AUF DIE HÄUFIGSTEN FRAGEN (kurz halten!)`,
     `· „Wo stelle ich den Antrag?" / „Wie kann man bestellen?" → Sein persönlicher Link (DEIN LINK), dazu: etwa fünf Minuten. Nicht erst fragen, was er wissen will.`,
-    `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate den Account aktivieren — dann kommt direkt der Link unserer Partnerbank für seinen Kartenantrag (erst das Girokonto, dann im Banking die Visa-Kreditkarte dazubuchen), nach der Zusage der Bank in der Regel 2–5 Werktage; sein Betreuer begleitet ihn dabei.`,
-    `· „Wie lange dauert das?" → Antrag etwa fünf Minuten. Nach der Zahlung ist sein Account aktiv. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
+    `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate den Account aktivieren, Ausweis und Kontoauszüge hochladen — nach seiner Bonitätsauswertung kommt direkt der Link unserer Partnerbank für seinen Kartenantrag (erst das Girokonto, dann im Banking die Visa-Kreditkarte dazubuchen), nach der Zusage der Bank in der Regel 2–5 Werktage; sein Betreuer begleitet ihn dabei.`,
+    `· „Wie lange dauert das?" → Antrag etwa fünf Minuten. Nach der Zahlung ist sein Account aktiv; mit Ausweis und Kontoauszügen entwickeln wir seine Bonitätsauswertung, danach kommt der Link der Partnerbank. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
     `· „Was kostet das?" → Die Preise aus den Fakten, immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Laufzeit und Kündigung nur, wenn er danach fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt SEINE LAGE. Kulanz sagst du nie zu.`,
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher das Ziel im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); den Rahmen legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Kredit? Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Noch besser: seine eigene Kreditkarte bei unserer Partnerbank, mit einem Rahmen, den er immer wieder nutzen kann; den Rahmen legt die Bank fest, wir bereiten seinen Antrag stark vor. Nie mit „kein Kredit", „wir sind keine Bank", „nicht unser Produkt" beginnen.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel im Programm, darauf arbeiten wir hin; über Karte und Rahmen entscheidet die Partnerbank.`,
-    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer). Wer kleiner einsteigen will: ein Paket tiefer (wie bei „zu teuer"); ${paketName("start")} ab ${paketPreisText("start")} im Monat erst, wenn er auch das nicht will. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung direkt der Link der Partnerbank).`,
+    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer). Wer kleiner einsteigen will: ein Paket tiefer (wie bei „zu teuer"); ${paketName("start")} ab ${paketPreisText("start")} im Monat erst, wenn er auch das nicht will. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung und seiner Bonitätsauswertung direkt der Link der Partnerbank).`,
     `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: jeden Eintrag erklären, die Schreiben an die Auskunfteien übernehmen — und parallel Konto und Karte bei der Partnerbank vorbereiten.`,
     `· „Könnt ihr Einträge löschen?" → Wir prüfen jeden Eintrag und stellen für angreifbare die Anträge an die Auskunftei; entscheiden tut die Auskunftei. Kein „Ja".`,
     `· „Ohne Schufa?" → „Die Partnerbank schaut selbst — aber ${schufa} muss nicht perfekt sein, genau da setzen wir an."`,
@@ -1263,9 +1263,9 @@ function auftrag(ein: {
     `· „Welche Bank ist das?" → Unsere Partnerbank ist die DKB: erst das Girokonto, daraus bucht er die Visa-Kreditkarte dazu — genau in dieser Reihenfolge begleiten wir ihn.`,
     // E-275 Ton (02.10.2026): „sofort nach Zahlungseingang“ statt „sobald sie gebucht ist“ — der Abgleich bucht selbst.
     // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — ohne ihn bucht der Abgleich nicht selbst.
-    `· „Was passiert nach der Zahlung?" → Mit seinem Verwendungszweck ist sein Account sofort nach Zahlungseingang aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag; dazu das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
+    `· „Was passiert nach der Zahlung?" → Mit seinem Verwendungszweck ist sein Account sofort nach Zahlungseingang aktiv; er lädt Ausweis und Kontoauszüge hoch, und nach seiner Bonitätsauswertung bekommt er direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag; dazu das Startgespräch mit seinem festen Betreuer, etwa 15 Minuten am Telefon.`,
     // E-275 (02.10.2026): Hier stand „Steht dort nichts, sag, dass sein Betreuer nachsieht, und übergib.“ — 55 von 88 Kartenfragen.
-    `· „Wann kommt mein Link oder meine Karte?“ / „Karte nicht bekommen“ → ZAHLENDER Kunde: Du schickst ihm den Link unserer Partnerbank selbst${ein.kartenWerkzeug ? " (karte_link_schicken)" : ""} — auch wenn er schon einmal raus war (dann mit dem Datum aus SEINE LAGE: „hier noch einmal“) — mit den Schritten: zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay. Erste Zahlung offen: Justins Satz (nach der Buchung direkt der Link) und seine Zahlungsseite. Zahlung gemeldet: nach der Buchung kommt er direkt. Nie „sein Betreuer sieht nach“, nie „FIAON verschickt keine Karte“ als Antwort.`,
+    `· „Wann kommt mein Link oder meine Karte?“ / „Karte nicht bekommen“ → ZAHLENDER Kunde: Du schickst ihm den Link unserer Partnerbank selbst${ein.kartenWerkzeug ? " (karte_link_schicken)" : ""} — auch wenn er schon einmal raus war (dann mit dem Datum aus SEINE LAGE: „hier noch einmal“) — mit den Schritten: zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay. Fehlt nur seine Bonitätsauswertung, sagt dir das Werkzeug den Satz dazu (Ausweis und Kontoauszüge, dann der Link) — den übernimmst du. Erste Zahlung offen: Justins Satz (nach der Buchung und der Bonitätsauswertung der Link) und seine Zahlungsseite. Zahlung gemeldet: nach der Buchung kommt er direkt. Nie „sein Betreuer sieht nach“, nie „FIAON verschickt keine Karte“ als Antwort.`,
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 f11): Hier stand „Vertrag und Rechnung kamen per E-Mail" — eine
     // Vertragsmail an Privatkunden gibt es nicht; das Modell schrieb den Satz in Probe 2 und 3 wörtlich ab (hart).
     `· „Wo ist mein Vertrag?" / „Habe ich einen Vertrag?" → Das Datum aus SEINE LAGE (wann er geschlossen wurde), dann: „Ihre Vertragsunterlagen lasse ich Ihnen gern schicken" (mensch true, uebergabe: Vertragsunterlagen schicken). Sag nie, Vertrag oder Rechnung seien per E-Mail gekommen oder kämen so, und nie, der Vertrag liege in seinem Bereich — dafür gibt es keinen Beleg.`,
@@ -1727,7 +1727,7 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // der erste Entwurf folgte dem Ziel und ließ die Karte weg).
       // E-275 (02.10.2026): ohne „Dazu der Termin mit seinem Betreuer“ — dafür Justins Satz bis zur Karte.
       // E-275 Ton (02.10.2026): „sobald sie bei uns eingeht, ist sein Account sofort aktiv“ (vorher „… schaltet das System ihn frei“).
-      erg.ziel = `Kein Wort vom Bezahlen, keine Zahlungsbitte, kein Zahlungslink. Danken — sobald seine Zahlung bei uns eingeht, ist sein Account sofort aktiv, und er bekommt direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag. Seine Visa-Kreditkarte bleibt das Ziel; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")}`;
+      erg.ziel = `Kein Wort vom Bezahlen, keine Zahlungsbitte, kein Zahlungslink. Danken — sobald seine Zahlung bei uns eingeht, ist sein Account sofort aktiv; mit Ausweis und Kontoauszügen entwickeln wir seine Bonitätsauswertung, und danach bekommt er direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag. Seine Visa-Kreditkarte bleibt das Ziel; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")}`;
       erg.linkLage = { stufe: "zahlung_gemeldet" };
       erg.verkaufen = false;
     } else if (String(b.payment_status) === "expired" && b.payment_reference && stufe === "zahlung_offen") {
@@ -3606,7 +3606,7 @@ async function kartenLinkSchicken(ctx: WerkzeugKontext): Promise<{ ergebnis: any
   if (ctx.stufe !== "kunde") {
     return {
       // E-275 Ton (02.10.2026): Justins neuer Satz — die Aufforderung und der Nutzen.
-      ergebnis: { ok: false, grund: `Den Link der Partnerbank gibt es nach der ersten Zahlung. Vorher ist der Schritt seine Zahlungsseite — sag es mit Justins Satz: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“` },
+      ergebnis: { ok: false, grund: `Den Link der Partnerbank gibt es nach der ersten Zahlung und der Bonitätsauswertung (E-363). Vorher ist der Schritt seine Zahlungsseite — sag es mit Justins Satz: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“` },
       aktion: { werkzeug: name, ok: false, zeiten: [], kartenArt: "nicht_kunde" },
     };
   }

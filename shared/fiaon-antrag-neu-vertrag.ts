@@ -97,7 +97,8 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   if (P?.leistungen.includes(LIMIT_GESPRAECH)) {
     teile.push(p("Das erste Limit-Gespräch ist drei Monate nach Eingang der ersten Monatsrate im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt."));
   }
-  teile.push(p(`Den Antragslink der Partnerbank schickt FIAON dem Kunden ${d.sofortBeginn ? "nach Eingang der ersten Monatsrate" : "nach Eingang der ersten Monatsrate und Ablauf der Widerrufsfrist (§ 6)"} per E-Mail; auf Wunsch schickt FIAON ihn erneut. Den Antrag bei der Bank stellt der Kunde selbst und im eigenen Namen. FIAON erhält von der Partnerbank für eine Kontoeröffnung eine Vergütung; für den Kunden entstehen dadurch keine Kosten.`));
+  // E-363 (14.10.2026, Fassung PV-2026-10-14): der Link erst, wenn auch die FIAON-Bonitätsauswertung vorliegt (§ 4: Ausweis, Kontoauszug).
+  teile.push(p(`Den Antragslink der Partnerbank schickt FIAON dem Kunden ${d.sofortBeginn ? "nach Eingang der ersten Monatsrate" : "nach Eingang der ersten Monatsrate und Ablauf der Widerrufsfrist (§ 6)"}, sobald seine FIAON-Bonitätsauswertung vorliegt (dafür stellt der Kunde Ausweis und Kontoauszug bereit, § 4), per E-Mail; auf Wunsch schickt FIAON ihn erneut. Den Antrag bei der Bank stellt der Kunde selbst und im eigenen Namen. FIAON erhält von der Partnerbank für eine Kontoeröffnung eine Vergütung; für den Kunden entstehen dadurch keine Kosten.`));
   teile.push(h("§ 4 Mitwirkung des Kunden"));
   teile.push(p("Der Kunde macht vollständige und wahre Angaben und stellt die für die Leistungen benötigten Unterlagen bereit, insbesondere Ausweis, Kontoauszug und Bonitätsauskunft. Gegenüber Banken macht er nur wahre Angaben. Verzögert sich seine Mitwirkung, verschieben sich die davon abhängigen Leistungen entsprechend."));
   teile.push(h("§ 5 Vergütung und Zahlung"));

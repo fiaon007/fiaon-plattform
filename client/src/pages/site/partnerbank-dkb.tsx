@@ -15,8 +15,8 @@
 // Stand und Quelle), Kartenzeit nur aus shared/fiaon-karten-weg.ts, „exklusiv"
 // meint den begleiteten Weg für FIAON-Kunden — das Konto selbst steht jedem
 // offen, und das sagt die Seite. Die Vergütung steht offen da (wie AGB § 2).
-// Kein direkter Antragslink: Den persönlichen Link bekommt der Kunde, sobald
-// sein Account aktiv ist (E-206) — sonst ließe sich keine Eröffnung zuordnen.
+// Kein direkter Antragslink: Den persönlichen Link bekommt der Kunde, sobald seine
+// FIAON-Bonitätsauswertung vorliegt (E-363) — sonst ließe sich keine Eröffnung zuordnen.
 // Zweisprachig: /partnerbank-dkb und /en/partner-bank-dkb (client/src/i18n/partnerbank-dkb.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState, type ReactNode } from "react";

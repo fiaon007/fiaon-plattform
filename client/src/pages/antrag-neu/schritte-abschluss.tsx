@@ -211,7 +211,7 @@ export function SchrittErgebnis() {
         <ol className="an-weg">
           <li data-n="1"><span><b>Vertrag annehmen</b>Digital, mit Ihrer Unterschrift.</span></li>
           <li data-n="2"><span><b>FIAON-Konto aktivieren</b>Mit Ihrer ersten Monatsrate prüfen wir die Verifizierung per Namensabgleich und aktivieren Ihr FIAON-Konto direkt bei Eingang.</span></li>
-          <li data-n="3"><span><b>Ihre Karte</b>Nach der Aktivierung und der Zusage der Bank ist Ihre Karte in der Regel in 2–5 Werktagen bei Ihnen. Online nutzen Sie sie in der Regel sofort nach der Freigabe durch die Bank – auch mit Apple Pay und Google Pay.</span></li>
+          <li data-n="3"><span><b>Ihre Karte</b>Nach der Aktivierung laden Sie Ausweis und Kontoauszüge hoch; mit Ihrer FIAON-Bonitätsauswertung bekommen Sie den Link unserer Partnerbank. Nach der Zusage der Bank ist Ihre Karte in der Regel in 2–5 Werktagen bei Ihnen. Online nutzen Sie sie in der Regel sofort nach der Freigabe durch die Bank – auch mit Apple Pay und Google Pay.</span></li>
         </ol>
       </div>
       <Knopf text={S.pinGesetzt ? "Paket und Limit wählen" : "Persönliche PIN festlegen"} onClick={() => gehe(S.pinGesetzt ? "paket" : "pin")} />

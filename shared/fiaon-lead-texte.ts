@@ -210,7 +210,8 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     zweck: "Antrag fertig, Konto noch nicht aktiviert — die erste Zahlung startet alles.",
     wann: "NUR für die Aktivierung nach dem Antrag. NIE für eine überfällige Rate: Mahnungen über WhatsApp sind nach der Richtlinie verboten.",
     text: "Hallo {{1}}, Ihr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung. "
-      + "Mit der ersten Zahlung ist Ihr Konto aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
+      // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“) — bei Meta neu einreichen, bis dahin geht der alte Text raus.
+      + "Mit der ersten Zahlung ist Ihr Konto aktiv; danach entwickeln wir Ihre Bonitätsauswertung, und Sie bekommen den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
       + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
     beispiele: ["Frau Muster"],
     knoepfe: [ZAHLUNG, FRAGE],
@@ -349,7 +350,8 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     zweck: "Offene Rechnung mit Zahlungslink — sachlich, mit dem Tempo als Argument.",
     wann: "Wenn eine Rechnung offen ist. Sachlicher Ton ist Pflicht: keine Frist mit Folgen, keine Gebühren, keine Androhung.",
     text: "Hallo {{1}}, Ihre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}. "
-      + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link "
+      // E-363 (14.10.2026) — bei Meta neu einreichen, bis dahin geht der alte Text raus.
+      + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend; nach Ihrer Bonitätsauswertung bekommen Sie den fertigen Link "
       + "unserer Partnerbank für Ihre Kreditkarte. Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand. "
       + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
     beispiele: ["Frau Muster", "99,99", "FIAONMUE7AZ"],
@@ -603,7 +605,7 @@ const ABSAETZE: Record<string, string> = {
     + "Zwischen Ihnen und Ihrer eigenen Kreditkarte stehen noch wenige Minuten.\n\n"
     + "Der Knopf bringt Sie genau an die Stelle zurück, an der Sie aufgehört haben.",
   fiaon_kk_aktivierung: "Hallo {{1}},\n\nIhr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung.\n\n"
-    + "Mit der ersten Zahlung ist Ihr Konto aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte.\n\n"
+    + "Mit der ersten Zahlung ist Ihr Konto aktiv; danach entwickeln wir Ihre Bonitätsauswertung, und Sie bekommen den fertigen Link unserer Partnerbank für Ihre Kreditkarte.\n\n"
     + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
   fiaon_kk_aktiviert: "Hallo {{1}},\n\nIhr Konto ist aktiviert — und der Link unserer Partnerbank für Ihre Kreditkarte ist auf dem Weg zu Ihnen.\n\n"
     + "Bei Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App der Bank mit Apple Pay.",
@@ -624,7 +626,7 @@ const ABSAETZE: Record<string, string> = {
   fiaon_kk_tag7: "Hallo {{1}},\n\nfünf Minuten am Telefon klären meist alles: was Ihre Kreditkarte für Sie möglich macht, wie der Weg dorthin aussieht und was von Ihnen dafür gebraucht wird.\n\n"
     + "Suchen Sie sich ein Zeitfenster aus.",
   fiaon_kk_rechnung: "Hallo {{1}},\n\nIhre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}.\n\n"
-    + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
+    + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend; nach Ihrer Bonitätsauswertung bekommen Sie den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
     + "Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand.\n\n"
     + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
   fiaon_kk_letzte: "Hallo {{1}},\n\nIhr Antrag ist weiterhin vorbereitet und Ihr Platz steht.\n\n"

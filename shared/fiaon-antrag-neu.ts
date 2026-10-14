@@ -26,7 +26,10 @@ import { berlinHeuteIso, geburtsdatumLesen, tageImMonat } from "./fiaon-geburtsd
 export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-05b";
 /** Fassung des Vertragstextes (Hash und PDF tragen sie). */
 // E-283 (05.10.2026): „b" — § 3 nennt die Buchung des Limit-Gesprächs (Pakete mit dieser Leistung).
-export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-05b";
+// E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): § 3 — der Antragslink kommt nach der ersten Monatsrate UND
+// sobald die FIAON-Bonitätsauswertung vorliegt. Wer unter PV-2026-10-05b angenommen hat, behält „nach der ersten Rate“
+// (KARTE_ZUSAGE_ERSTE_RATE, shared/fiaon-karten-weg.ts).
+export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-14";
 
 export type AntragNeuPaketKey = "start" | "pro" | "ultra" | "highend";
 export const ANTRAG_NEU_PAKET_KEYS: AntragNeuPaketKey[] = ["start", "pro", "ultra", "highend"];

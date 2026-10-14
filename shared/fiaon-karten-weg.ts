@@ -18,8 +18,20 @@
 import type { KuendigungPhase } from "./fiaon-kuendigung-regel";
 import { tagDe } from "./fiaon-kuendigung-regel";
 
-/** Nach der Aktivierung (erste Zahlung gebucht) geht die Einladung der Partnerbank raus. */
-export const KARTE_LINK_SATZ = "Sobald Ihr Account aktiviert ist, bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.";
+/**
+ * E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): Die Einladung der Partnerbank geht erst raus, wenn die
+ * FIAON-Bonitätsauswertung beim Kunden liegt (freigegeben). Vorher galt: nach der ersten gebuchten Zahlung (E-206).
+ */
+export const KARTE_LINK_SATZ = "Sobald Ihre FIAON-Bonitätsauswertung vorliegt, bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.";
+
+/**
+ * E-363 Bestandsschutz: Diese Vertragsfassungen sagen den Link „nach Eingang der ersten Monatsrate“ zu — für ihre Kunden
+ * gilt die Bonitäts-Regel nicht (Vertrag ist Vertrag). Neue Fassungen nennen die Bonitätsauswertung (PV-2026-10-14).
+ */
+export const KARTE_ZUSAGE_ERSTE_RATE: readonly string[] = ["PV-2026-10-05b"];
+
+/** Der ganze Weg in einem Satz — nach der Zahlung: Unterlagen → Bonität → Link. */
+export const KARTE_WEG_SATZ = "Nach Ihrer Zahlung laden Sie Ausweis und Kontoauszüge hoch, daraus entwickeln wir Ihre FIAON-Bonitätsauswertung — und danach bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag.";
 
 /** Die Zeit bis zur Karte — nie ohne „in der Regel" und „nach der Zusage der Bank". */
 export const KARTE_ZEIT_SATZ = "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist können Sie sie schon vorher in der App der Bank mit Apple Pay nutzen.";
@@ -51,6 +63,10 @@ export const KARTE_ZEIT_KURZ = "in der Regel 2–5 Werktage nach der Zusage der 
 //     Adresse mit dem Kunden und ändert sie.
 // Die Werbesperre bleibt bewusst KEIN Ausschluss: Der Link ist Vertragsleistung (E-275).
 //
+// E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): „bonitaet_offen“ — ohne freigegebene
+// FIAON-Bonitätsauswertung kein Link, für Liste, Automatik, Mara UND den Menschen (keine Ausnahme von Hand).
+// Wer den Link vor E-363 schon bekommen hat, behält ihn (Nachfassen, „erneut senden“).
+//
 // Nachbesserung nach der Gegenprüfung (08.10.2026) — von Hand wie in der Basis:
 //   · Einstufung −1 und Storno (Telefonkartei) sperren Liste, Automatik und
 //     Mara, NICHT den Menschen: So war es vor E-IT-B („Die Verwaltung kann
@@ -69,7 +85,8 @@ export const KARTE_ZEIT_KURZ = "in der Regel 2–5 Werktage nach der Zusage der 
 export type KarteZweck = "liste" | "automatik" | "mara" | "mensch";
 
 export type KarteAusschlussCode =
-  | "test" | "vertriebssperre" | "stufe_minus1" | "global" | "dsgvo" | "gekuendigt" | "vertrag_beendet" | "storniert" | "ohne_email";
+  | "test" | "vertriebssperre" | "stufe_minus1" | "global" | "dsgvo" | "gekuendigt" | "vertrag_beendet" | "storniert" | "ohne_email"
+  | "bonitaet_offen";
 
 /** Was die Regel über einen Menschen wissen muss — die Server-Abfrage liefert genau diese Felder. */
 export interface KarteFlags {
@@ -88,11 +105,16 @@ export interface KarteFlags {
   vertragEnde?: string | null;
   storniert: boolean;
   hatEmail: boolean;
+  /**
+   * E-363: Liegt die FIAON-Bonitätsauswertung beim Kunden (freigegeben) — ODER ging der Link schon vorher raus (dann behält
+   * er ihn) — ODER sagt sein Vertrag den Link nach der ersten Rate zu (KARTE_ZUSAGE_ERSTE_RATE)? false = kein neuer Link.
+   */
+  bonitaetDa: boolean;
 }
 
 /** Die Reihenfolge ist Bedeutung: Der ERSTE zutreffende Grund steht in der Akte. Eine Quelle für TS und SQL. */
 export const KARTE_AUSSCHLUSS_REIHENFOLGE: readonly KarteAusschlussCode[] = [
-  "test", "vertriebssperre", "stufe_minus1", "global", "dsgvo", "gekuendigt", "storniert", "ohne_email",
+  "test", "vertriebssperre", "stufe_minus1", "global", "dsgvo", "gekuendigt", "storniert", "ohne_email", "bonitaet_offen",
 ];
 
 /** Gründe, die Liste, Automatik und Mara sperren, den MENSCHEN aber nicht (nur auf Wunsch, mit Hinweis). */
@@ -109,6 +131,7 @@ export const KARTE_AUSSCHLUSS_TEXT: Record<KarteAusschlussCode, string> = {
   vertrag_beendet: "Vertrag beendet — kein Link mehr aus dem Vertrag",
   storniert: "Storniert (Telefonkartei)",
   ohne_email: "Keine E-Mail-Adresse hinterlegt — erst unter „Daten“ eintragen",
+  bonitaet_offen: "Bonität noch nicht beim Kunden — erst „Bonität jetzt entwickeln“, prüfen und freigeben (Kartenlink erst nach der Bonität)",
 };
 
 /**
@@ -129,6 +152,7 @@ export const KARTE_AUSSCHLUSS_KUNDE: Record<KarteAusschlussCode, string> = {
   vertrag_beendet: "Ihr Vertrag ist beendet — der Link unserer Partnerbank gehörte zu seinen Leistungen.",
   storniert: "Den Link unserer Partnerbank schickt Ihnen Ihr Ansprechpartner auf Wunsch.",
   ohne_email: "Für den Link unserer Partnerbank fehlt noch Ihre E-Mail-Adresse.",
+  bonitaet_offen: "Den Link unserer Partnerbank bekommen Sie, sobald Ihre FIAON-Bonitätsauswertung vorliegt — dafür brauchen wir Ihren Ausweis und Ihre Kontoauszüge.",
 };
 
 export interface KarteAusschluss {
@@ -158,7 +182,8 @@ export function karteAusschluss(f: KarteFlags, zweck: KarteZweck): KarteAusschlu
       : code === "dsgvo" ? f.dsgvo
       : code === "gekuendigt" ? f.gekuendigt && (zweck !== "mensch" || f.phase === "beendet")
       : code === "storniert" ? f.storniert
-      : !f.hatEmail;
+      : code === "ohne_email" ? !f.hatEmail
+      : !f.bonitaetDa;
     if (!trifft) continue;
     if (code === "gekuendigt") {
       // Nach dem Vertragsende heißt es für jeden Zweck „Vertrag beendet“ — genauer als „gekündigt“.

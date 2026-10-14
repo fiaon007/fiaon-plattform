@@ -17,6 +17,7 @@ import { alsRadarLand } from "@shared/fiaon-radar";
 import {
   radarAutomatik, radarAutomatikSetzen, radarTrichter, radarPost, radarPostLauf, maraAntwortVorbereiten,
   radarAntwortSenden, radarAntwortVerwerfen, radarAdresseUebernehmen, radarVersandLauf,
+  radarTerminEintragen, radarMaraProbe, radarSzenarienPruefen,
 } from "../lib/fiaon-radar-faden";
 
 const router = Router();
@@ -184,6 +185,37 @@ router.post("/chef/radar/post/:id/senden", wache, async (req: ChefRequest, res: 
 
 router.post("/chef/radar/post/:id/verwerfen", wache, async (req: ChefRequest, res: Response) => {
   try { await radarAntwortVerwerfen(idAus(req.params.id)); res.json({ ok: true }); } catch (e) { fehler(res, e); }
+});
+
+// E-361: Die Wunschzeit einer Antwort in den Global-Kalender eintragen (Klick im Chefbüro, mit Bestätigung) — danach
+// schreibt Mara die Bestätigung neu (Schalter „auto“ und nicht js@: sie geht hinaus; sonst Entwurf).
+router.post("/chef/radar/post/:id/termin", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte den Termin bestätigen.");
+    const id = idAus(req.params.id);
+    const gebucht = await radarTerminEintragen(id, {
+      telefon: req.body?.telefon != null ? String(req.body.telefon).slice(0, 40) : null,
+      zeit: req.body?.zeit != null ? String(req.body.zeit).slice(0, 16) : null,
+    });
+    const a = await radarAutomatik();
+    const mara = await maraAntwortVorbereiten(id, { sendenErlaubt: a.mara === "auto", gebucht }).catch((e) => ({ status: "fehler", text: "", pruefung: [String(e?.message || e)] }));
+    res.json({ ok: true, gebucht, mara: { status: mara.status } });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-361: „Mara testen“ — was würde Mara mit dieser Antwort tun? Schreibt nichts, sendet nichts, bucht nichts.
+router.post("/chef/radar/mara-probe", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const firmaId = req.body?.firmaId ? idAus(req.body.firmaId) : null;
+    res.json({ ok: true, ...(await radarMaraProbe({
+      text: String(req.body?.text ?? ""), von: req.body?.von ? String(req.body.von) : null, betreff: req.body?.betreff ? String(req.body.betreff) : null,
+      firmaId, mitAntwort: req.body?.mitAntwort !== false,
+    })) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/mara-szenarien", wache, async (_req: ChefRequest, res: Response) => {
+  try { res.json({ ok: true, ...(await radarSzenarienPruefen()) }); } catch (e) { fehler(res, e); }
 });
 
 router.post("/chef/radar/firma/:id/entscheider", wache, async (req: ChefRequest, res: Response) => {

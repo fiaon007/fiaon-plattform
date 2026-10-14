@@ -26,6 +26,7 @@ import {
   RADAR_NACHFASS_TAGE, RADAR_HOECHSTENS_JE_TAG, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, radarBereich,
   type RadarStatus, type RadarAntwortArt, type RadarBriefAnbieter,
 } from "@shared/fiaon-radar";
+import { RADAR_SZENARIEN, type RadarSzenario } from "@shared/fiaon-radar-szenarien";
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-radar.css";
@@ -56,6 +57,9 @@ type Post = {
   id: number; firma_id: number; postfach: string; richtung: "ein" | "aus"; art: string; von: string; betreff: string; datum: string;
   text: string | null; zusammenfassung: string | null; neue_adresse: string | null; mara_text: string | null; mara_status: string | null;
   mara_pruefung: string[]; mara_am: string | null; firma: string; domain: string; firma_status: string; ansprechpartner: string | null;
+  // E-361: was die Einordnung aus der Antwort las — und der Termin, den Mara daraus eingetragen hat.
+  sprache?: string | null; wunsch_termin?: string | null; buchungslink?: string | null; telefon?: string | null; spaeter_datum?: string | null;
+  termin_id?: number | null; firma_telefon?: string | null;
 };
 type Aufhaenger = { text: string; beleg: string; url: string; quelle: "website" | "web" };
 type Mail = {
@@ -175,6 +179,7 @@ export default function ChefRadar() {
       {haupt === "gespraeche" && <Gespraeche runde={runde} onFirma={firmaOeffnen} onGeaendert={neuLaden} />}
       {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />}
       {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} />}
+      {haupt === "automatik" && <MaraTesten />}
       {haupt === "messung" && <Messung trichter={t.daten} />}
 
       {suchen && <SuchFenster onZu={() => setSuchen(false)} onLauf={(l) => { setLauf(l); setSuchen(false); wechseln("firmen"); }} />}
@@ -352,9 +357,12 @@ function TrichterTafel({ trichter }: { trichter: Trichter | null }) {
 // GESPRÄCHE — jede Antwort, Maras Antwort, ein Klick
 // ═══════════════════════════════════════════════════════════════════════════
 const ART_TON: Record<string, string> = {
-  interesse: "top", frage: "top", termin_wunsch: "top", kein_interesse: "aus", abwesend: "leise", weitergeleitet: "leise",
-  falscher_empfaenger: "warn", unzustellbar: "rot", automatisch: "leise", sonstiges: "leise",
+  interesse: "top", frage: "top", termin_wunsch: "top", rueckruf: "top", info: "top", termin_gebucht: "top", kein_interesse: "aus", abwesend: "leise", weitergeleitet: "leise",
+  falscher_empfaenger: "warn", einwand: "warn", termin_abgesagt: "warn", spaeter: "leise", unzustellbar: "rot", datenschutz: "rot", rechtlich: "rot", automatisch: "leise", sonstiges: "leise",
 };
+/** Wunschzeit „2026-10-22T10:00“ → „Do., 22.10., 10:00“. */
+const wunschLesbar = (iso: string) => `${new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}, ${iso.slice(11, 16)}`;
+const LEAD_ARTEN = Object.entries(RADAR_ANTWORT_ARTEN).filter(([, r]) => r.lead).map(([k]) => k);
 
 function Gespraeche({ runde, onFirma, onGeaendert }: { runde: number; onFirma: (id: number) => void; onGeaendert: () => void }) {
   const [nur, setNur] = useState<"offen" | "leads" | "alle">("offen");
@@ -398,9 +406,13 @@ function PostKarte({ p, onFirma, onGeaendert }: { p: Post; onFirma: (id: number)
     catch (e: any) { setMeldung({ art: "fehler", text: e.message }); }
     finally { setArbeit(null); }
   };
+  const [terminFrage, setTerminFrage] = useState(false);
+  const [telefon, setTelefon] = useState(p.telefon ?? p.firma_telefon ?? "");
   const art = RADAR_ANTWORT_ARTEN[p.art as RadarAntwortArt];
-  const fertig = p.mara_status === "gesendet" || p.mara_status === "von_hand";
-  const darfAntworten = !!art && !["kein_interesse", "unzustellbar", "automatisch", "abwesend"].includes(p.art);
+  const fertig = p.mara_status === "gesendet" || p.mara_status === "von_hand" || p.mara_status === "erledigt";
+  const darfAntworten = !!art && !["kein_interesse", "unzustellbar", "automatisch", "abwesend", "rechtlich", "termin_gebucht"].includes(p.art);
+  const darfEintragen = !!p.wunsch_termin && !p.termin_id && LEAD_ARTEN.includes(p.art) && !["kein_interesse", "gesperrt"].includes(p.firma_status);
+  const offenOhneMara = !darfAntworten && !["automatisch", "abwesend", "unzustellbar", "kein_interesse"].includes(p.art) && !["verworfen", "erledigt"].includes(p.mara_status ?? "");
   return (
     <article className={`cr-post ${ART_TON[p.art] ?? "leise"}`}>
       <header className="cr-post-kopf">
@@ -411,11 +423,46 @@ function PostKarte({ p, onFirma, onGeaendert }: { p: Post; onFirma: (id: number)
       {p.zusammenfassung && <p className="cr-post-satz">{p.zusammenfassung}</p>}
       {p.text && <details className="cr-post-mail"><summary>Ganze Mail lesen</summary><pre>{p.text}</pre></details>}
       {p.neue_adresse && <p className="cr-klein">Neue Adresse: <b>{p.neue_adresse}</b> — in der Firma übernehmen.</p>}
+      {(p.sprache && p.sprache !== "de") || p.wunsch_termin || p.telefon || p.buchungslink || p.spaeter_datum || p.termin_id ? (
+        <div className="cr-post-fakten">
+          {p.sprache && p.sprache !== "de" && <span className="cr-chip">Antwortet auf Englisch</span>}
+          {p.wunsch_termin && <span className="cr-chip">Wunschzeit {wunschLesbar(p.wunsch_termin)}</span>}
+          {p.telefon && <span className="cr-chip">Tel. {p.telefon}</span>}
+          {p.buchungslink && <a className="cr-chip" href={p.buchungslink} target="_blank" rel="noreferrer noopener">Ihr Buchungskalender ↗</a>}
+          {p.spaeter_datum && <span className="cr-chip">Wiedervorlage {datum(p.spaeter_datum)}</span>}
+          {!!p.termin_id && <span className="cr-chip gut">Termin eingetragen</span>}
+        </div>
+      ) : null}
+      {p.art === "rechtlich" && <p className="cr-hinweis fehler">Nicht antworten. Firma und Absender stehen auf der Sperrliste — bitte selbst prüfen.</p>}
+      {p.art === "datenschutz" && !fertig && <p className="cr-hinweis warn">Datenschutz: Antwort mit der Datenquelle liegt bereit. Bitte prüfen und senden — Frist ein Monat.</p>}
+      {darfEintragen && !terminFrage && (
+        <div className="cr-fenster-zeile">
+          <button type="button" className="cr-knopf" disabled={!!arbeit} onClick={() => setTerminFrage(true)}>Termin {wunschLesbar(p.wunsch_termin!)} eintragen …</button>
+        </div>
+      )}
+      {darfEintragen && terminFrage && (
+        <div className="cr-senden-frage">
+          <b>{wunschLesbar(p.wunsch_termin!)} Uhr in den Global-Kalender eintragen?</b>
+          <span className="cr-klein">Die Firma bekommt die Bestätigung mit Kalendereintrag, die Gesprächsperson den Auftrag. Danach schreibt Mara die Bestätigung im Faden.</span>
+          <div className="cr-fenster-zeile">
+            <input className="cr-feld" value={telefon} onChange={(e) => setTelefon(e.target.value)} placeholder="Telefonnummer für den Anruf" maxLength={40} />
+            <button type="button" className="cr-knopf" disabled={!!arbeit || telefon.replace(/\D/g, "").length < 6} onClick={() => tun("termin", () => rufen(`/chef/radar/post/${p.id}/termin`, "POST", { telefon: telefon.trim(), bestaetigt: true }), "Termin eingetragen — Mara hat die Bestätigung geschrieben.")}>
+              {arbeit === "termin" ? "Trägt ein …" : "Eintragen"}
+            </button>
+            <button type="button" className="cr-knopf hell" onClick={() => setTerminFrage(false)}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+      {offenOhneMara && (
+        <div className="cr-fenster-zeile">
+          <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("weg", () => rufen(`/chef/radar/post/${p.id}/verwerfen`), "Erledigt.")}>Erledigt</button>
+        </div>
+      )}
 
       {darfAntworten && (
         <div className="cr-post-mara">
           <div className="cr-post-mara-kopf">
-            <b>{fertig ? (p.mara_status === "gesendet" ? "Mara hat geantwortet" : "Von Hand beantwortet") : p.mara_text ? "Maras Antwort" : "Noch keine Antwort"}</b>
+            <b>{fertig ? (p.mara_status === "gesendet" ? "Mara hat geantwortet" : p.mara_status === "erledigt" ? "Erledigt — überholt" : "Von Hand beantwortet") : p.mara_text ? (p.art === "datenschutz" ? "Antwort von Justin (Entwurf)" : "Maras Antwort") : "Noch keine Antwort"}</b>
             {p.mara_am && <span className="cr-klein">{seit(p.mara_am)}</span>}
           </div>
           {!!p.mara_pruefung?.length && <p className="cr-hinweis warn">Wortwand: {p.mara_pruefung.join(" · ")}</p>}
@@ -433,7 +480,9 @@ function PostKarte({ p, onFirma, onGeaendert }: { p: Post; onFirma: (id: number)
               <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => tun("mara", () => rufen(`/chef/radar/post/${p.id}/mara`, "POST", { hinweis: hinweis.trim() || null }), "Mara hat neu geschrieben.")}>
                 {arbeit === "mara" ? "Mara schreibt …" : p.mara_text ? "Neu schreiben" : "Antwort schreiben lassen"}
               </button>
-              {p.mara_text && <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("weg", () => rufen(`/chef/radar/post/${p.id}/verwerfen`), "Verworfen.")}>Verwerfen</button>}
+              {p.mara_text
+                ? <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("weg", () => rufen(`/chef/radar/post/${p.id}/verwerfen`), "Verworfen.")}>Verwerfen</button>
+                : <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("weg", () => rufen(`/chef/radar/post/${p.id}/verwerfen`), "Erledigt.")}>Erledigt</button>}
             </div>
           )}
           {frage && (
@@ -520,6 +569,122 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
         </article>
       </div>
     </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA TESTEN (E-361) — eine Antwort einfügen und sehen, was Mara täte
+// ═══════════════════════════════════════════════════════════════════════════
+type Probe = {
+  art: string; label: string; quelle: "regel" | "ki"; wunschFrei: boolean; zeiten: string[]; person: string | null;
+  einordnung: { zusammenfassung: string; sprache: string; wunsch_termin: string; telefon: string; buchungslink: string; spaeter_datum: string };
+  plan: { mara: "senden" | "entwurf" | "keine"; buchen: boolean; schritte: string[] };
+  mara: { text: string; pruefung: string[] } | null;
+};
+type SzenarioErgebnis = { key: string; titel: string; erwartet: string; ist: string | null; quelle: "regel" | "ki" | "fehler"; ok: boolean; hinweis?: string };
+const artLabel = (k: string | null) => (k ? RADAR_ANTWORT_ARTEN[k as RadarAntwortArt]?.label ?? k : "—");
+
+function MaraTesten() {
+  const [text, setText] = useState("");
+  const [von, setVon] = useState("");
+  const [betreff, setBetreff] = useState("");
+  const [kopf, setKopf] = useState(false);
+  const [arbeit, setArbeit] = useState<"probe" | "alle" | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [probe, setProbe] = useState<Probe | null>(null);
+  const [alle, setAlle] = useState<{ ergebnisse: SzenarioErgebnis[]; richtig: number; gesamt: number } | null>(null);
+  const beispiel = (sz: RadarSzenario) => { setText(sz.text); setVon(sz.von); setBetreff(sz.betreff); setProbe(null); setFehler(null); };
+  const testen = async () => {
+    setArbeit("probe"); setFehler(null); setProbe(null);
+    try { setProbe(await rufen<Probe>("/chef/radar/mara-probe", "POST", { text, von: von.trim() || null, betreff: betreff.trim() || null })); }
+    catch (e: any) { setFehler(e.message); }
+    finally { setArbeit(null); }
+  };
+  const allePruefen = async () => {
+    setArbeit("alle"); setFehler(null); setAlle(null);
+    try { setAlle(await rufen("/chef/radar/mara-szenarien", "POST", {})); }
+    catch (e: any) { setFehler(e.message); }
+    finally { setArbeit(null); }
+  };
+  const e = probe?.einordnung;
+  return (
+    <section className="cr-kacheln">
+      <article className="cr-kachel breit cr-mara-test">
+        <header><b>Mara testen</b><span className="cr-klein">Schreibt nichts, sendet nichts, bucht nichts.</span></header>
+        <p>Füge eine Antwort ein. Mara zeigt, was sie erkennt und was sie tun würde.</p>
+        <select className="cr-feld" value="" aria-label="Beispiel aus dem Katalog" onChange={(ev) => { const sz = RADAR_SZENARIEN.find((x) => x.key === ev.target.value); if (sz) beispiel(sz); }}>
+          <option value="">Beispiel aus dem Katalog …</option>
+          {RADAR_SZENARIEN.map((sz) => <option key={sz.key} value={sz.key}>{sz.titel}</option>)}
+        </select>
+        <textarea className="cr-feld" rows={5} value={text} onChange={(ev) => setText(ev.target.value)} placeholder="z. B. „Klingt spannend. Donnerstag um 10 Uhr passt mir.“" maxLength={6000} />
+        {kopf ? (
+          <div className="cr-fenster-zeile">
+            <input className="cr-feld" value={von} onChange={(ev) => setVon(ev.target.value)} placeholder="Absender (optional)" maxLength={300} />
+            <input className="cr-feld" value={betreff} onChange={(ev) => setBetreff(ev.target.value)} placeholder="Betreff (optional)" maxLength={300} />
+          </div>
+        ) : <div className="cr-fenster-zeile"><button type="button" className="cr-textknopf" onClick={() => setKopf(true)}>Absender und Betreff angeben</button></div>}
+        <div className="cr-fenster-zeile">
+          <button type="button" className="cr-knopf" disabled={!text.trim() || !!arbeit} onClick={testen}>{arbeit === "probe" ? "Mara liest …" : "Was würde Mara tun?"}</button>
+          <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={allePruefen}>{arbeit === "alle" ? `Prüft ${RADAR_SZENARIEN.length} Szenarien …` : `Alle ${RADAR_SZENARIEN.length} Szenarien prüfen`}</button>
+        </div>
+        {fehler && <p className="cr-hinweis fehler">{fehler}</p>}
+        {probe && e && (
+          <div className="cr-probe">
+            <div className="cr-post-kopf">
+              <span className={`cr-art ${ART_TON[probe.art] ?? "leise"}`}>{probe.label}</span>
+              <span className="cr-klein">{probe.quelle === "regel" ? "sicher erkannt (Regel)" : "eingeordnet von der KI"}</span>
+            </div>
+            {e.zusammenfassung && <p className="cr-post-satz">{e.zusammenfassung}</p>}
+            {(e.sprache !== "de" || e.wunsch_termin || e.telefon || e.buchungslink || e.spaeter_datum) && (
+              <div className="cr-post-fakten">
+                {e.sprache !== "de" && <span className="cr-chip">Antwortet auf Englisch</span>}
+                {e.wunsch_termin && <span className="cr-chip">Wunschzeit {wunschLesbar(e.wunsch_termin)}{probe.wunschFrei ? " · frei" : " · nicht frei"}</span>}
+                {e.telefon && <span className="cr-chip">Tel. {e.telefon}</span>}
+                {e.buchungslink && <span className="cr-chip">Eigener Buchungskalender</span>}
+                {e.spaeter_datum && <span className="cr-chip">Wiedervorlage {datum(e.spaeter_datum)}</span>}
+              </div>
+            )}
+            <ol className="cr-probe-schritte">{probe.plan.schritte.map((x) => <li key={x}>{x}</li>)}</ol>
+            {probe.mara && (
+              <>
+                <b className="cr-probe-titel">{probe.art === "datenschutz" ? "Antwort von Justin (Entwurf)" : probe.plan.mara === "senden" ? "Mara würde senden" : "Maras Entwurf"}</b>
+                <pre className="cr-post-gesendet">{probe.mara.text}</pre>
+                {!!probe.mara.pruefung.length && <p className="cr-hinweis warn">Wortwand: {probe.mara.pruefung.join(" · ")} — so ginge sie nicht hinaus.</p>}
+              </>
+            )}
+          </div>
+        )}
+        {alle && (
+          <div className="cr-probe">
+            <div className="cr-post-kopf">
+              <b className="cr-probe-titel">{alle.richtig} von {alle.gesamt} richtig erkannt</b>
+              <span className="cr-klein">Regel = ohne KI · KI = echte Einordnung</span>
+            </div>
+            {alle.ergebnisse.some((r) => !r.ok) && <ul className="cr-szenarien">{alle.ergebnisse.filter((r) => !r.ok).map((r) => <SzenarioZeile key={r.key} r={r} />)}</ul>}
+            {alle.richtig > 0 && (
+              <details className="cr-post-mail">
+                <summary>{alle.richtig} richtig erkannt — anzeigen</summary>
+                <ul className="cr-szenarien">{alle.ergebnisse.filter((r) => r.ok).map((r) => <SzenarioZeile key={r.key} r={r} />)}</ul>
+              </details>
+            )}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function SzenarioZeile({ r }: { r: SzenarioErgebnis }) {
+  return (
+    <li className={r.ok ? "gut" : "rot"}>
+      <i aria-hidden="true">{r.ok ? "✓" : "✗"}</i>
+      <span>{r.titel}</span>
+      <span className="cr-klein">
+        {r.quelle === "fehler"
+          ? `Nicht geprüft: ${r.hinweis ?? "Fehler"}`
+          : `${artLabel(r.ist)}${r.ist !== r.erwartet && !r.ok ? ` — richtig wäre ${artLabel(r.erwartet)}` : ""}${r.hinweis ? ` · ${r.hinweis}` : ""} · ${r.quelle === "regel" ? "Regel" : "KI"}`}
+      </span>
+    </li>
   );
 }
 

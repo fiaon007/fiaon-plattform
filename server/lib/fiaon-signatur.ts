@@ -104,18 +104,20 @@ export function fussText(): string {
  * Macht aus einer Textmail (Absätze, „Viele Grüße“, Unterschrift, „—“ und Fuß) eine persönliche HTML-Mail mit der
  * Signaturkarte. So bleibt der Text im Chefbüro frei änderbar, und die Karte kommt trotzdem immer mit.
  */
-export function htmlAusText(text: string, s: SignaturDaten): string {
+export function htmlAusText(text: string, s: SignaturDaten, sprache: "de" | "en" = "de"): string {
+  // E-361 (14.10.2026): Mara antwortet in der Sprache der Firma — englisch mit „Best regards“, „Choose a time“ und lang="en".
+  const en = sprache === "en";
   const roh = String(text ?? "").replace(/\r/g, "");
   const [hauptRoh, ...fussTeile] = roh.split(/\n—\n/);
   const zeilen = hauptRoh.split("\n");
-  const grussIdx = zeilen.findIndex((z) => /^(viele|beste|freundliche|herzliche)\s+grü(ß|ss)e\b/i.test(z.trim()));
+  const grussIdx = zeilen.findIndex((z) => /^(viele|beste|freundliche|herzliche)\s+grü(ß|ss)e\b/i.test(z.trim()) || (en && /^(best|kind|warm) regards\b|^best wishes\b/i.test(z.trim())));
   const rumpf = (grussIdx >= 0 ? zeilen.slice(0, grussIdx) : zeilen).join("\n").trim();
-  const gruss = grussIdx >= 0 ? zeilen[grussIdx].trim() : "Viele Grüße";
-  const verlinken = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:#1d4ed8;text-decoration:underline;">${/utm_|#gespraech/.test(u) ? "Einen Termin wählen" : u}</a>`);
+  const gruss = grussIdx >= 0 ? zeilen[grussIdx].trim() : (en ? "Best regards" : "Viele Grüße");
+  const verlinken = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:#1d4ed8;text-decoration:underline;">${/utm_|#gespraech/.test(u) ? (en ? "Choose a time" : "Einen Termin wählen") : u}</a>`);
   const absaetze = rumpf.split(/\n\s*\n/).map((a) => a.trim()).filter(Boolean)
     .map((a) => `<p style="margin:0 0 14px;">${verlinken(a).replace(/\n/g, "<br>")}</p>`).join("\n");
   const fuss = fussTeile.join("\n—\n").trim();
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  return `<!DOCTYPE html><html lang="${en ? "en" : "de"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#ffffff">
 <div style="max-width:600px;padding:8px 4px;font-family:${SCHRIFT};font-size:15px;line-height:1.6;color:#1b2333">
 ${absaetze}

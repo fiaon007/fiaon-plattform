@@ -238,6 +238,18 @@ export function ensureRadarTabellen(): Promise<void> {
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_post_firma_idx ON fiaon_radar_post (firma_id, datum DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_post_mara_idx ON fiaon_radar_post (mara_status) WHERE mara_status IS NOT NULL`;
+      // E-361 (14.10.2026, Maras Szenarien): was die Einordnung aus einer Antwort liest — Sprache, Wunschzeit (Berlin,
+      // YYYY-MM-DDTHH:MM), fremder Buchungslink, Telefon, „später“-Datum — und der Termin, den Mara daraus eingetragen hat.
+      // An der Firma die Wiedervorlage („melden Sie sich im Januar wieder“).
+      await sqlPool`
+        ALTER TABLE fiaon_radar_post
+          ADD COLUMN IF NOT EXISTS sprache TEXT,
+          ADD COLUMN IF NOT EXISTS wunsch_termin TEXT,
+          ADD COLUMN IF NOT EXISTS buchungslink TEXT,
+          ADD COLUMN IF NOT EXISTS telefon TEXT,
+          ADD COLUMN IF NOT EXISTS spaeter_datum TEXT,
+          ADD COLUMN IF NOT EXISTS termin_id INTEGER`;
+      await sqlPool`ALTER TABLE fiaon_radar_firmen ADD COLUMN IF NOT EXISTS wiedervorlage_am TIMESTAMPTZ`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;

@@ -153,7 +153,8 @@ ok(radarAutomatikLesen({ radar_auto_versand: "an", radar_mara_antwort: "auto" })
 ok(radarSendefenster(new Date("2026-10-14T10:00:00+02:00")) && !radarSendefenster(new Date("2026-10-14T19:00:00+02:00")) && !radarSendefenster(new Date("2026-10-17T10:00:00+02:00")), "Sendefenster: Werktag 10 Uhr ja, 19 Uhr nein, Samstag nein");
 const faden = lies("server/lib/fiaon-radar-faden.ts");
 ok(/p\.postfach !== "js@fiaon\.com"/.test(faden) && /opts\.sendenErlaubt && !pruefung\.length/.test(faden), "Aus js@ sendet Mara nie selbst; Wortwand-Funde senden nie");
-ok(/frisch = Date\.now\(\) - n\.datum\.getTime\(\) < 48/.test(faden) && /if \(!frisch\) return/.test(faden), "Beim Nachholen alter Antworten keine Mara-Antwort und keine Aufgabe");
+// E-361: Die Entscheidung trifft radarPlan (frisch = false → keine Antwort, keine Aufgabe; geprüft unter „Maras Szenarien“).
+ok(/frisch = Date\.now\(\) - n\.datum\.getTime\(\) < 48/.test(faden) && /maraModus: automatik\.mara, postfachJs: postfach === "js@fiaon\.com", frisch,/.test(faden), "Beim Nachholen alter Antworten keine Mara-Antwort und keine Aufgabe");
 ok(/abfrage\.art === "domaene" \|\| faeden\.has\(m\.threadId\)/.test(faden), "Gelesen wird nur, was in einem Radar-Faden steht oder von einer Radar-Domäne kommt");
 ok(/radarSendefenster\(jetzt\)/.test(faden) && /if \(erg\.aus\) return/.test(faden), "Versand nur mit Schalter und im Sendefenster");
 ok(/status: "kein_interesse"/.test(faden), "Absage → Sperrliste über radarStatusSetzen");
@@ -317,6 +318,83 @@ abschnitt("Brief statt Mail (E-339)");
   ok(/brief\/senden[\s\S]{0,260}req\.body\?\.bestaetigt !== true/.test(rt) && /brief\.pdf", wache,/.test(rt), "Brief senden nur mit Bestätigung, PDF nur hinter der Wache");
   const ui = lies("client/src/components/admin/ChefRadar.tsx");
   ok(/\["brief", "Brief"\]/.test(ui) && /<BriefReiter /.test(ui) && /<BriefKachel \/>/.test(ui) && /cr-trichter-brief/.test(ui), "Chefbüro: Akte › Brief, Automatik › Briefe, Brief-Kanal im Trichter");
+}
+
+abschnitt("Maras Szenarien (E-361)");
+{
+  const { RADAR_SZENARIEN } = await import("../shared/fiaon-radar-szenarien");
+  const { radarPlan, radarBuchungslink, radarRoboter, RADAR_ANTWORT_SCHLUESSEL } = await import("../shared/fiaon-radar");
+  const { absenderTeile, datenschutzEntwurf } = await import("../server/lib/fiaon-radar-faden");
+  for (const sz of RADAR_SZENARIEN) {
+    const { adresse } = absenderTeile(sz.von);
+    const vorab = antwortVorab({ vonAdresse: adresse, betreff: sz.betreff, text: antwortKern(sz.text) || sz.text });
+    if (sz.regel === true) ok(vorab === sz.erwartet, `Regel erkennt „${sz.titel}“ als ${sz.erwartet} (ist: ${vorab})`);
+    if (sz.regel === false) ok(vorab === null, `Regel schlägt bei „${sz.titel}“ nicht fälschlich an (ist: ${vorab})`);
+  }
+  const abgedeckt = new Set(RADAR_SZENARIEN.map((x) => x.erwartet));
+  for (const k of RADAR_ANTWORT_SCHLUESSEL) ok(abgedeckt.has(k), `Der Katalog hat ein Szenario für „${k}“`);
+  ok(new Set(RADAR_SZENARIEN.map((x) => x.key)).size === RADAR_SZENARIEN.length && RADAR_SZENARIEN.length >= 30, "Mindestens 30 Szenarien, Schlüssel eindeutig");
+  ok(RADAR_ANTWORT_SCHLUESSEL.length === 18 && RADAR_ANTWORT_SCHLUESSEL.every((k) => RADAR_ANTWORT_ARTEN[k].was.length > 10), "18 Arten, jede mit einem Satz, was passiert");
+
+  const basis = { art: "termin_wunsch" as const, maraModus: "auto" as const, postfachJs: false, frisch: true, roboter: false, buchungslink: null, wunschFrei: true, telefon: true, maraHeute: 0 };
+  let pl = radarPlan(basis);
+  ok(pl.buchen && pl.mara === "senden" && pl.aufgabe && pl.dringend, "Freie Wunschzeit + Telefon + „auto“ → Mara trägt ein, antwortet, dringende Aufgabe");
+  pl = radarPlan({ ...basis, postfachJs: true });
+  ok(pl.buchen && pl.mara === "entwurf", "js@: eintragen ja (Bestätigung kommt vom System), Maras Antwort nur als Entwurf (E-171)");
+  pl = radarPlan({ ...basis, maraModus: "entwurf" });
+  ok(!pl.buchen && pl.mara === "entwurf" && pl.schritte.some((x) => /Termin eintragen/.test(x)), "Schalter „Zur Freigabe“: nichts selbst eintragen — Knopf „Termin eintragen“");
+  pl = radarPlan({ ...basis, telefon: false });
+  ok(!pl.buchen && pl.schritte.some((x) => /Telefonnummer fehlt/.test(x)), "Ohne Telefonnummer kein Eintrag — Mara fragt danach");
+  pl = radarPlan({ ...basis, buchungslink: "https://calendly.com/x" });
+  ok(!pl.buchen && pl.mara === "entwurf" && pl.dringend, "Eigener Buchungskalender der Firma: kein Eintrag bei uns, Entwurf, dringende Aufgabe");
+  pl = radarPlan({ ...basis, maraHeute: 3 });
+  ok(pl.mara === "entwurf", "Schleifenbremse: nach drei eigenen Antworten im Faden nur noch Entwurf");
+  pl = radarPlan({ ...basis, art: "termin_abgesagt", roboter: true, wunschFrei: false });
+  ok(pl.mara === "keine" && pl.aufgabe && pl.dringend, "Kalender-Absage von einer Maschine: keine Antwort, dringende Aufgabe");
+  pl = radarPlan({ ...basis, art: "termin_gebucht", wunschFrei: false });
+  ok(pl.mara === "keine" && pl.aufgabe && !pl.buchen && !pl.dringend, "Termin gebucht: keine Antwort an den Kalender, Aufgabe");
+  pl = radarPlan({ ...basis, art: "datenschutz", frisch: false, wunschFrei: false });
+  ok(pl.mara === "entwurf" && pl.sperre && pl.aufgabe && pl.dringend, "Datenschutz: immer Entwurf, Sperrliste, dringend — auch eine alte Mail");
+  pl = radarPlan({ ...basis, art: "rechtlich", wunschFrei: false });
+  ok(pl.mara === "keine" && pl.sperre && pl.dringend, "Anwalt/Abmahnung: nie antworten, Sperrliste, dringend");
+  pl = radarPlan({ ...basis, art: "kein_interesse", wunschFrei: false });
+  ok(pl.mara === "keine" && pl.sperre && !pl.aufgabe, "Absage: Sperrliste, keine Antwort, keine Aufgabe");
+  pl = radarPlan({ ...basis, art: "sonstiges", wunschFrei: false });
+  ok(pl.mara === "entwurf", "Sonstiges: Mara schreibt nur einen Entwurf");
+  pl = radarPlan({ ...basis, art: "einwand" });
+  ok(pl.mara === "senden" && !pl.buchen && !pl.dringend, "Einwand: Mara antwortet einmal, bucht nie");
+  pl = radarPlan({ ...basis, frisch: false });
+  ok(pl.mara === "keine" && !pl.buchen && !pl.aufgabe, "Alte Mail (Nachholen): nur einordnen");
+  pl = radarPlan({ ...basis, maraModus: "aus" });
+  ok(pl.mara === "keine" && !pl.buchen, "Mara aus: keine Antwort, kein Eintrag");
+  pl = radarPlan({ ...basis, roboter: true });
+  ok(pl.mara === "keine" && !pl.buchen, "Einer Maschine antwortet Mara nie");
+
+  ok(radarBuchungslink("Buch dir über meinen Link: https://calendar.app.google/AbC123.") === "https://calendar.app.google/AbC123", "Google-Terminplan erkannt, Satzzeichen am Ende ab");
+  ok(radarBuchungslink("https://calendly.com/max-muster/30min") !== null && radarBuchungslink("https://outlook.office365.com/owa/calendar/Muster@firma.de/bookings/") !== null && radarBuchungslink("https://meetings-eu1.hubspot.com/max") !== null, "Calendly, Microsoft Bookings, HubSpot erkannt");
+  ok(radarBuchungslink("Termin: https://fiaon.com/business?utm_source=radar#gespraech") === null && radarBuchungslink("Unsere Seite: https://musterfirma.de/kontakt") === null, "Unser eigener Link und normale Seiten zählen nicht");
+  ok(radarRoboter("calendar-notification@google.com") && radarRoboter("info+noreply@greenlyte.tech") && radarRoboter("no-reply@calendly.com") && !radarRoboter("joerg.bluemel@pakajo.world") && !radarRoboter("info@musterfirma.de"), "Maschinen-Absender erkannt, Menschen nicht");
+  ok(absenderTeile("\"Jörg Blümel\" <Joerg.Bluemel@pakajo.world>").name === "Jörg Blümel" && absenderTeile("x@y.de").name === "" && absenderTeile("Jörg <J@p.de>").adresse === "j@p.de", "Absender in Name und Adresse zerlegt");
+  ok(antwortVorab({ vonAdresse: "newsletter@musterfirma.de", betreff: "Einladung: Herbst-Webinar", text: "Jetzt anmelden" }) === null, "„Einladung:“ ohne Kalender-Merkmal ist kein Termin");
+  ok(antwortVorab({ vonAdresse: "a@b.de", betreff: "AW: x", text: "Wir sind DSGVO-konform aufgestellt — wie ist das bei Ihnen?" }) === null, "„DSGVO“ in einer Frage ist kein Datenschutz-Antrag");
+  const ds = datenschutzEntwurf({ name: "Musterfirma", domain: "musterfirma.de", email: "max@musterfirma.de", impressum: { seite: "https://musterfirma.de/impressum" } }, "Max Muster <max@musterfirma.de>", false);
+  ok(/https:\/\/musterfirma\.de\/impressum/.test(ds) && /Art\. 15 DSGVO/.test(ds) && /gesperrt/.test(ds) && globalWortPruefen(ds).length === 0 && !/Mara Lindner/.test(ds) && /^Guten Tag Max Muster,/.test(ds), "Datenschutz-Antwort: Quelle, Art. 15, Sperrvermerk, Wortwand sauber, von Justin");
+  const dsEn = datenschutzEntwurf({ name: "Muster", domain: "muster.com", website: "https://muster.com" }, "tom@muster.com", true);
+  ok(/^Hello,/.test(dsEn) && /Art\. 15 GDPR/.test(dsEn) && /https:\/\/muster\.com/.test(dsEn), "Datenschutz-Antwort auf Englisch");
+
+  const sigEn = sig.htmlAusText("Dear Max Muster,\n\nOne sentence.\n\nBook a time directly: https://fiaon.com/en/business?utm_source=radar#gespraech\n\nBest regards\nMara Lindner\nDigital assistant\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott", { rolle: "Digital assistant to Justin Schwarzott" }), "en");
+  ok(sigEn.includes('lang="en"') && sigEn.includes("Choose a time") && sigEn.includes("Best regards") && sigEn.includes("Digital assistant to Justin Schwarzott") && !/Mara Lindner<br>Digital/.test(sigEn), "Englische Antwort: lang=en, „Choose a time“, Karte mit KI-Hinweis");
+
+  const fd = lies("server/lib/fiaon-radar-faden.ts");
+  const probe = fd.slice(fd.indexOf("export async function radarMaraProbe"), fd.indexOf("// ── ABGLEICH: TERMIN, ANGEBOT, KAUF"));
+  ok(probe.length > 500 && !/INSERT|UPDATE|DELETE|antwortSenden|globalTerminBuchen|radarTerminEintragen|aufgabeFuerJustin/.test(probe), "„Mara testen“ schreibt, sendet und bucht nichts");
+  ok(/darfSenden = opts\.sendenErlaubt && !pruefung\.length && p\.postfach !== "js@fiaon\.com" && regel\?\.mara === "antwort" && !p\.buchungslink && !radarRoboter/.test(fd), "Mara sendet nie aus js@, nie an Maschinen, nie bei fremdem Buchungslink, nur Arten mit Antwort");
+  ok(/Wiedervorlage \(E-361\)[\s\S]{0,900}wiedervorlage_am = NULL WHERE id = \$\{w\.id\} AND wiedervorlage_am <= NOW\(\) RETURNING id/.test(fd), "Wiedervorlage: atomar geholt, dann schreibt Mara im Faden");
+  ok(/const plan = radarPlan\(\{/.test(fd) && /if \(plan\.buchen\)/.test(fd), "Der Wächter entscheidet über radarPlan — dieselbe Regel wie „Mara testen“");
+  const rt = lies("server/routes/fiaon-radar.ts");
+  ok(/"\/chef\/radar\/mara-probe", wache/.test(rt) && /"\/chef\/radar\/mara-szenarien", wache/.test(rt) && /"\/chef\/radar\/post\/:id\/termin", wache[\s\S]{0,120}bestaetigt !== true/.test(rt), "Neue Routen hinter der Wache, Termin nur mit Bestätigung");
+  const ui = lies("client/src/components/admin/ChefRadar.tsx");
+  ok(/<MaraTesten \/>/.test(ui) && /Alle \$\{RADAR_SZENARIEN\.length\} Szenarien prüfen/.test(ui) && /Termin \{wunschLesbar\(p\.wunsch_termin!\)\} eintragen/.test(ui), "Chefbüro: „Mara testen“, „Alle Szenarien prüfen“, „Termin eintragen“");
 }
 
 abschnitt("Ergebnis");

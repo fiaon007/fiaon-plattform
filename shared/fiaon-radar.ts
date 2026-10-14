@@ -216,24 +216,145 @@ export function alsRadarLand(roh: unknown): RadarLand | null {
 /** Das Tagesziel bis zum Kauf (Justin, 12.10.2026). */
 export const RADAR_ZIEL = { leads: 10, kaeufe: 5 } as const;
 
-/** Was eine eingehende Mail in einem Radar-Faden ist. */
+/** Was eine eingehende Mail in einem Radar-Faden ist. E-361 (14.10.2026, Justin: „trainiere Mara, jedes erdenkliche Szenario“): 18 Arten. */
 export type RadarAntwortArt =
-  | "interesse" | "frage" | "termin_wunsch" | "kein_interesse" | "abwesend" | "weitergeleitet"
-  | "falscher_empfaenger" | "unzustellbar" | "automatisch" | "sonstiges";
+  | "interesse" | "frage" | "termin_wunsch" | "rueckruf" | "info" | "einwand" | "spaeter"
+  | "termin_gebucht" | "termin_abgesagt"
+  | "kein_interesse" | "datenschutz" | "rechtlich"
+  | "abwesend" | "weitergeleitet" | "falscher_empfaenger" | "unzustellbar" | "automatisch" | "sonstiges";
 
-export const RADAR_ANTWORT_ARTEN: Record<RadarAntwortArt, { label: string; lead: boolean; stopptNachfass: boolean }> = {
-  interesse: { label: "Interesse", lead: true, stopptNachfass: true },
-  frage: { label: "Sachfrage", lead: true, stopptNachfass: true },
-  termin_wunsch: { label: "Will einen Termin", lead: true, stopptNachfass: true },
-  kein_interesse: { label: "Kein Interesse", lead: false, stopptNachfass: true },
-  abwesend: { label: "Abwesend", lead: false, stopptNachfass: false },
-  weitergeleitet: { label: "Weitergeleitet", lead: false, stopptNachfass: false },
-  falscher_empfaenger: { label: "Falscher Empfänger", lead: false, stopptNachfass: true },
-  unzustellbar: { label: "Unzustellbar", lead: false, stopptNachfass: true },
-  automatisch: { label: "Automatische Antwort", lead: false, stopptNachfass: false },
-  sonstiges: { label: "Sonstiges", lead: false, stopptNachfass: true },
+/**
+ * Die Regel je Art. lead = zählt als Interessent · stopptNachfass = kein weiteres Nachfassen · mara = antwortet sie
+ * (nach dem Schalter), schreibt sie höchstens einen Entwurf für Justin, oder nie · sperre = Domäne und Adresse auf die
+ * Sperrliste · dringend = Aufgabe für Justin als dringend. was = ein Satz fürs Chefbüro („Mara testen“).
+ */
+export interface RadarAntwortRegel {
+  label: string; lead: boolean; stopptNachfass: boolean;
+  mara: "antwort" | "entwurf" | "nie"; sperre: boolean; dringend: boolean; was: string;
+}
+export const RADAR_ANTWORT_ARTEN: Record<RadarAntwortArt, RadarAntwortRegel> = {
+  interesse: { label: "Interesse", lead: true, stopptNachfass: true, mara: "antwort", sperre: false, dringend: true, was: "Lead. Mara antwortet und bietet freie Gesprächszeiten an." },
+  frage: { label: "Sachfrage", lead: true, stopptNachfass: true, mara: "antwort", sperre: false, dringend: true, was: "Lead. Mara beantwortet die Frage mit Fakten und bietet das Gespräch an." },
+  termin_wunsch: { label: "Will einen Termin", lead: true, stopptNachfass: true, mara: "antwort", sperre: false, dringend: true, was: "Lead. Ist die Wunschzeit frei, trägt Mara sie ein — sonst nennt sie die nächsten freien Zeiten." },
+  rueckruf: { label: "Will einen Anruf", lead: true, stopptNachfass: true, mara: "antwort", sperre: false, dringend: true, was: "Lead. Aufgabe mit Telefonnummer; Mara bestätigt den Anruf und nennt Zeiten." },
+  info: { label: "Will Unterlagen", lead: true, stopptNachfass: true, mara: "antwort", sperre: false, dringend: true, was: "Lead. Mara schickt einen kurzen Überblick mit Link und bietet das Gespräch an." },
+  einwand: { label: "Einwand", lead: false, stopptNachfass: true, mara: "antwort", sperre: false, dringend: false, was: "Mara nimmt den Einwand ernst und antwortet einmal mit Fakten — ohne zu drängen." },
+  spaeter: { label: "Später melden", lead: false, stopptNachfass: true, mara: "antwort", sperre: false, dringend: false, was: "Kein Nachfassen. Mara bestätigt und meldet sich zum genannten Zeitpunkt wieder (Wiedervorlage)." },
+  termin_gebucht: { label: "Termin gebucht", lead: true, stopptNachfass: true, mara: "nie", sperre: false, dringend: false, was: "Stand „Termin“. Keine Antwort an eine Kalender-Mail — Aufgabe für Justin." },
+  termin_abgesagt: { label: "Termin abgesagt", lead: true, stopptNachfass: true, mara: "entwurf", sperre: false, dringend: true, was: "Zurück auf „Lead“. Dringende Aufgabe; Mara legt neue Zeiten als Entwurf bereit." },
+  kein_interesse: { label: "Kein Interesse", lead: false, stopptNachfass: true, mara: "nie", sperre: true, dringend: false, was: "Sperrliste. Nie wieder eine Mail — so verspricht es der Abmeldesatz." },
+  datenschutz: { label: "Datenschutz", lead: false, stopptNachfass: true, mara: "entwurf", sperre: true, dringend: true, was: "Sperrliste. Dringende Aufgabe; Antwort mit der Datenquelle liegt als Entwurf von Justin bereit — nie automatisch." },
+  rechtlich: { label: "Anwalt / Abmahnung", lead: false, stopptNachfass: true, mara: "nie", sperre: true, dringend: true, was: "Sperrliste. Dringende Aufgabe für Justin. Keine Antwort von Mara." },
+  abwesend: { label: "Abwesend", lead: false, stopptNachfass: false, mara: "nie", sperre: false, dringend: false, was: "Nachfassen wartet bis nach der Rückkehr." },
+  weitergeleitet: { label: "Weitergeleitet", lead: false, stopptNachfass: false, mara: "nie", sperre: false, dringend: false, was: "Stand „Antwort“. Nachgefasst wird in fünf Tagen." },
+  falscher_empfaenger: { label: "Falscher Empfänger", lead: false, stopptNachfass: true, mara: "nie", sperre: false, dringend: false, was: "Aufgabe; eine genannte neue Adresse liegt zum Übernehmen bereit." },
+  unzustellbar: { label: "Unzustellbar", lead: false, stopptNachfass: true, mara: "nie", sperre: false, dringend: false, was: "Adresse gilt als falsch; der Radar sucht eine neue." },
+  automatisch: { label: "Automatische Antwort", lead: false, stopptNachfass: false, mara: "nie", sperre: false, dringend: false, was: "Ticket, Eingangsbestätigung oder verzögerte Zustellung — nichts zu tun." },
+  sonstiges: { label: "Sonstiges", lead: false, stopptNachfass: true, mara: "entwurf", sperre: false, dringend: false, was: "Aufgabe für Justin; Mara schreibt höchstens einen Entwurf." },
 };
 export const RADAR_ANTWORT_SCHLUESSEL = Object.keys(RADAR_ANTWORT_ARTEN) as RadarAntwortArt[];
+
+/** Arten, bei denen eine freie Wunschzeit direkt in den Global-Kalender darf. */
+export const RADAR_BUCHBAR: readonly RadarAntwortArt[] = ["termin_wunsch", "rueckruf", "interesse", "frage"];
+
+/** Fremde Buchungskalender („Buchen Sie über meinen Link“) — Calendly, Google-Terminplan, Microsoft Bookings, HubSpot … */
+const BUCHUNGS_DIENSTE = /(calendly\.com|(^|\.)cal\.com|calendar\.app\.google|calendar\.google\.com\/calendar\/(u\/\d+\/)?(appointments|selfsched)|outlook\.office(365)?\.com\/(owa\/)?(calendar|book)|bookings\.cloud\.microsoft|meetings(-eu1)?\.hubspot\.com|zcal\.co|tidycal\.com|youcanbook\.me|doodle\.com\/(bp|meeting|sm)|savvycal\.com|koalendar\.com|etermin\.net|terminland\.de|simplymeet\.me|zoho\.(com|eu)\/bookings|acuityscheduling\.com|setmore\.com|appointlet\.com|reclaim\.ai\/m|leadconnectorhq\.com\/widget\/booking|tucalendi\.com|vyte\.in)/i;
+
+/** Der erste Link auf einen fremden Buchungskalender im Text — nie unser eigener. Rein. */
+export function radarBuchungslink(text: string): string | null {
+  for (const roh of String(text ?? "").match(/https?:\/\/[^\s<>"'\])]+/gi) ?? []) {
+    const url = roh.replace(/[.,;:!?]+$/, "");
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); } catch { continue; }
+    if (/(^|\.)fiaon\.com$/.test(host)) continue;
+    if (BUCHUNGS_DIENSTE.test(url)) return url.slice(0, 500);
+  }
+  return null;
+}
+
+/** Schreibt hier eine Maschine (noreply, Kalender, Benachrichtigung)? Einer Maschine antwortet Mara nie. Rein. */
+export function radarRoboter(adresse: string): boolean {
+  const a = String(adresse ?? "").toLowerCase().trim();
+  const lokal = a.split("@")[0] ?? "";
+  const domain = a.split("@")[1] ?? "";
+  return /^(no-?reply|noreply|do-?not-?reply|donotreply|mailer-daemon|postmaster|calendar-notification|calendar|notifications?|notify|benachrichtigung(en)?|bounces?|autoresponder|auto-?reply|automailer)([.+_-]|$)/.test(lokal)
+    || /\+noreply$/.test(lokal) || /(^|\.)calendly\.com$/.test(domain);
+}
+
+/** Die Lage, in der Mara über eine Antwort entscheidet. */
+export interface RadarPlanLage {
+  art: RadarAntwortArt;
+  maraModus: RadarAutomatik["mara"];
+  /** Die Antwort kam in Justins Postfach js@ — dort sendet Mara nie selbst (E-171). */
+  postfachJs: boolean;
+  /** Höchstens 48 Stunden alt (beim Nachholen alter Mails wird nur eingeordnet). */
+  frisch: boolean;
+  /** Der Absender ist eine Maschine. */
+  roboter: boolean;
+  /** Fremder Buchungslink in der Mail. */
+  buchungslink: string | null;
+  /** Die Wunschzeit steht genau so im freien Global-Kalender. */
+  wunschFrei: boolean;
+  /** Eine Telefonnummer ist bekannt (Antwort oder Impressum). */
+  telefon: boolean;
+  /** So oft hat Mara in diesem Faden in den letzten 24 Stunden selbst gesendet. */
+  maraHeute: number;
+}
+
+export interface RadarPlan {
+  mara: "senden" | "entwurf" | "keine";
+  buchen: boolean;
+  aufgabe: boolean;
+  dringend: boolean;
+  sperre: boolean;
+  /** Was passiert, in Sätzen — für „Mara testen“ und die Aufgabe. */
+  schritte: string[];
+}
+
+/** Höchstens so viele eigene Antworten je Faden in 24 Stunden — danach nur Entwürfe (Schleifenbremse). */
+export const RADAR_MARA_JE_FADEN = 3;
+
+/**
+ * Was Mara mit einer eingeordneten Antwort tut. EINE Stelle für Server und „Mara testen“. Rein.
+ * Reihenfolge der Bremsen: alt → Art ohne Antwort → Maschine → Schalter aus → fremder Buchungslink / Art nur als
+ * Entwurf / Schalter Entwurf / js@ / Schleifenbremse → senden.
+ */
+export function radarPlan(l: RadarPlanLage): RadarPlan {
+  const r = RADAR_ANTWORT_ARTEN[l.art];
+  const schritte: string[] = [r.was];
+  const buchen = RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && l.telefon && l.maraModus === "auto" && l.frisch && !l.buchungslink && !l.roboter;
+  if (buchen) schritte.push("Die Wunschzeit ist frei: Mara trägt sie in den Global-Kalender ein. Die Firma bekommt die Bestätigung mit Kalendereintrag.");
+  else if (RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && !l.buchungslink) {
+    schritte.push(!l.telefon
+      ? "Die Wunschzeit ist frei, aber eine Telefonnummer fehlt — Mara fragt danach."
+      : "Die Wunschzeit ist frei — „Termin eintragen“ an der Antwort bucht sie mit einem Klick.");
+  }
+  if (l.buchungslink) schritte.push("Die Firma möchte über ihren eigenen Kalender buchen: dringende Aufgabe mit dem Link — Maras Antwort nur als Entwurf.");
+
+  let mara: RadarPlan["mara"] = "senden";
+  let warum = "";
+  if (l.art === "datenschutz") { mara = "entwurf"; }
+  else if (!l.frisch) { mara = "keine"; warum = "Älter als 48 Stunden: nur eingeordnet, keine verspätete Antwort."; }
+  else if (r.mara === "nie") { mara = "keine"; }
+  else if (l.roboter) { mara = "keine"; warum = "Keine Antwort: Der Absender ist eine Maschine."; }
+  else if (l.maraModus === "aus") { mara = "keine"; warum = "Mara ist für Antworten ausgeschaltet."; }
+  else if (l.buchungslink) { mara = "entwurf"; }
+  else if (r.mara === "entwurf") { mara = "entwurf"; warum = "Diese Art geht nur als Entwurf zur Freigabe."; }
+  else if (l.maraModus === "entwurf") { mara = "entwurf"; warum = "Schalter „Entwurf“: Maras Antwort liegt zur Freigabe bereit."; }
+  else if (l.postfachJs) { mara = "entwurf"; warum = "Justins Postfach js@: Mara sendet dort nie selbst — Entwurf zur Freigabe."; }
+  else if (l.maraHeute >= RADAR_MARA_JE_FADEN) { mara = "entwurf"; warum = `Schleifenbremse: Mara hat in diesem Faden heute schon ${l.maraHeute}-mal geantwortet — jetzt nur Entwurf.`; }
+  if (mara === "senden") schritte.push("Die Antwort geht sofort hinaus, im selben Faden, mit Signaturkarte.");
+  if (warum) schritte.push(warum);
+
+  // Nur, was der Satz der Art nicht schon sagt — „Mara testen“ soll kurz bleiben.
+  const sperre = r.sperre;
+  if (sperre && !/Sperrliste/.test(r.was)) schritte.push("Domäne und Adresse kommen auf die Sperrliste.");
+  const ohneAufgabe: RadarAntwortArt[] = ["automatisch", "abwesend", "unzustellbar", "kein_interesse", "weitergeleitet"];
+  const aufgabe = !ohneAufgabe.includes(l.art) && (l.frisch || (r.sperre && r.dringend));
+  const dringend = aufgabe && (r.dringend || !!l.buchungslink);
+  if (aufgabe && !/Aufgabe/.test(r.was)) schritte.push(dringend ? "Dringende Aufgabe für Justin." : "Aufgabe für Justin.");
+  return { mara, buchen, aufgabe, dringend, sperre, schritte };
+}
 
 // ── DIE ADRESS-WAND ─────────────────────────────────────────────────────────
 // Gemessen an den 77 Mails: Jede zehnte ging an ein Ticket-System (support@, enjoy@zammad), an privacy@, media@,

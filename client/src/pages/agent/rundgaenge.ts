@@ -1523,6 +1523,16 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     tipp: "Gesendet wird nur mit dem Schalter „Briefe an Geschäftsführer“ unter Automatik, im Tageskontingent. Der Testmodus übergibt den Brief an den "
       + "Versanddienst, ohne ihn zu drucken — so prüft der Dienst die Anschrift im Fenster, bevor Porto anfällt.",
   },
+  {
+    // E-361 (14.10.2026): Maras Szenarien — jede Art von Antwort, jede mit ihrer Regel.
+    ziel: ".cr-mara-test",
+    titel: "Mara kennt jede Art von Antwort.",
+    text: "Interesse, Frage, Terminwunsch, Rückruf, Unterlagen, Einwand, „später“, Kalender-Bestätigung und -Absage, Absage, Datenschutz, "
+      + "Anwalt, Abwesenheit, Rückläufer und mehr: 18 Arten, jede mit fester Regel. Nennt eine Firma eine freie Zeit, trägt Mara sie ein "
+      + "(Schalter „Selbst“) — sonst steht an der Antwort „Termin eintragen“. Datenschutz geht nur als Entwurf von dir, Anwaltspost nie.",
+    tipp: "„Mara testen“: eine Antwort einfügen und sehen, was Mara täte — schreibt nichts, sendet nichts, bucht nichts. "
+      + "„Alle Szenarien prüfen“ schickt den ganzen Katalog durch die echte Einordnung.",
+  },
 ];
 
 // ── /chef/s/telefonkartei (21.09.2026, E-201) ────────────────────────────────

@@ -188,7 +188,7 @@ export function FinanzauswertungAkte({ personId, melden, onNeu }: { personId: nu
           )}
         </Zeile>
         <Zeile ok={v?.kontoauszug?.ok ?? false} titel="Kontoauszug" satz={v?.kontoauszug?.satz ?? "—"} />
-        <Zeile ok={v?.auskunft?.ausgewertet ? true : null} titel="Bonitätsauskunft (freiwillig)" satz={v?.auskunft?.satz ?? "—"} />
+        <Zeile ok={true} titel="Bonität" satz={v?.auskunft?.satz ?? "—"} />
       </div>
 
       {/* 4c: Anfordern mit einem Klick */}

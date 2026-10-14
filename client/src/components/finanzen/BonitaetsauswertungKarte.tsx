@@ -208,7 +208,7 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
             <div className="ba-pruefung">
               <div><Pruefzeichen ok={v.ausweis?.ok ?? false} /><b>Ausweis</b><span>{v.ausweis?.satz}</span></div>
               <div><Pruefzeichen ok={v.kontoauszug?.ok ?? false} /><b>Kontoauszug</b><span>{v.kontoauszug?.satz}</span></div>
-              <div><Pruefzeichen ok={v.auskunft?.ausgewertet ? true : null} /><b>Bonitätsauskunft</b><span>{v.auskunft?.satz}</span></div>
+              <div><Pruefzeichen ok={true} /><b>Bonität</b><span>{v.auskunft?.satz}</span></div>
             </div>
             <div className="ba-knoepfe">
               <button type="button" className="ba-start aus" disabled title="Erst wenn Ausweis und Kontoauszug hochgeladen sind.">
@@ -226,7 +226,7 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
             <div className="ba-haken">
               <span><Pruefzeichen ok={v.ausweis?.ok ? true : null} />Ausweis{v.ausweis?.ok ? "" : " (Vorbehalt)"}</span>
               <span><Pruefzeichen ok={v.kontoauszug?.ok ? true : null} />Kontoauszug{v.kontoauszug?.stand === "pruefen" ? " (wird zuerst gelesen)" : v.kontoauszug?.ok ? "" : " (Vorbehalt)"}</span>
-              <span><Pruefzeichen ok={v.auskunft?.ausgewertet ? true : null} />Auskunft {v.auskunft?.ausgewertet ? "fließt ein" : "nicht dabei"}</span>
+              <span><Pruefzeichen ok={true} />{v.auskunft?.ausgewertet ? "Auskunft fließt ein" : "Bonität aus dem Kontoauszug"}</span>
             </div>
             {/* E-352: Was nicht ideal ist, sperrt nicht mehr — es steht als Vorbehalt im Bericht (und braucht die Freigabe der Leitung). */}
             {!v.vollstaendig && (

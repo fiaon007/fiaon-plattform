@@ -39,7 +39,7 @@ export default function AuswertungWarteliste() {
       <header className="awl-kopf">
         <div>
           <h2>Bonitätsauswertung</h2>
-          <p className="awl-still">{a.zahlen.gesamt} bezahlt · Akte öffnen, dort „Bonitätsauswertung erstellen“.</p>
+          <p className="awl-still">{a.zahlen.gesamt} bezahlt · Akte öffnen, dort „Bonitätsauswertung erstellen“. Eine Auskunft muss nicht beschafft werden — die Auswertung ist die Leistung.</p>
         </div>
         <div className="awl-filter" role="tablist">
           {FILTER.map((f) => {

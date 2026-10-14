@@ -296,7 +296,8 @@ export function voraussetzungenPruefen(e: {
   const auskunftFertig = e.auskunft?.status === "fertig";
   const auskunft = {
     ausgewertet: auskunftFertig,
-    satz: auskunftFertig ? "Bonitätsauskunft ausgewertet — fließt ein." : "Keine ausgewertete Bonitätsauskunft — dieser Teil wird „nicht bewertet“ ausgewiesen.",
+    // E-353/E-355 (14.10.2026, Justin): Die Auswertung ersetzt die Auskunft — ohne sie fehlt nichts.
+    satz: auskunftFertig ? "Vorgelegte Bonitätsauskunft fließt zusätzlich ein." : "Nicht nötig — die Bonität wird aus dem Kontoauszug bewertet.",
   };
 
   const anforderbar: ("ausweis" | "kontoauszug")[] = [];

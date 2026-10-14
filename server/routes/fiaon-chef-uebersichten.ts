@@ -431,6 +431,46 @@ router.get("/chef/kunde/:id/datensaetze", requireChef("geschaeftsfuehrung"), asy
 });
 
 /** Eine einzelne Person in ganzer Tiefe — für das Sprungfenster. */
+/**
+ * E-354 (14.10.2026): Bezahltes anrechnen — das Guthaben einer stornierten Bestellung wird zum Abo einer neuen
+ * (Fall Dogan Cengiz: 99,99 € High End storniert → FIAON Start 7,99 € für ein Jahr). Regeln: server/lib/fiaon-anrechnung.ts.
+ *   GET  /chef/kunde/:id/anrechnung                     Quellen, Ziele, bisherige Anrechnungen
+ *   POST /chef/kunde/:id/anrechnung { quelleRef, zielRef, trocken }   Vorgabe trocken (Vorschau)
+ */
+router.get("/chef/kunde/:id/anrechnung", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Ungültige Kennung" });
+    const { anrechnungLage } = await import("../lib/fiaon-anrechnung");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...(await anrechnungLage(id)) });
+  } catch (err) {
+    console.error("[CHEF] anrechnung lage:", err);
+    res.status(500).json({ ok: false, error: "Die Anrechnung ließ sich nicht laden." });
+  }
+});
+router.post("/chef/kunde/:id/anrechnung", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Ungültige Kennung" });
+    const quelleRef = String(req.body?.quelleRef ?? "").trim();
+    const zielRef = String(req.body?.zielRef ?? "").trim();
+    if (!quelleRef || !zielRef || quelleRef === zielRef) return res.status(400).json({ ok: false, error: "Quelle und Ziel angeben." });
+    const chef = (req as any).chef as { agentId: number | null } | undefined;
+    let name = "Chefbüro";
+    if (chef?.agentId) {
+      const [a] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${chef.agentId}`) as any[];
+      if (a?.name) name = String(a.name);
+    }
+    const { anrechnen } = await import("../lib/fiaon-anrechnung");
+    const r = await anrechnen({ personId: id, quelleRef, zielRef, wer: { name, agentId: chef?.agentId ?? null }, trocken: req.body?.trocken !== false });
+    res.status(r.ok ? 200 : 409).json(r.ok ? { ok: true, meldung: r.text, plan: r.plan } : { ok: false, error: r.text });
+  } catch (err) {
+    console.error("[CHEF] anrechnen:", err);
+    res.status(500).json({ ok: false, error: String((err as Error)?.message || "Die Anrechnung ist abgebrochen — nichts wurde geändert.").slice(0, 200) });
+  }
+});
+
 router.get("/chef/kunde/:id", requireChef("leitung"), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);

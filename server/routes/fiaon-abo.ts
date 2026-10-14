@@ -598,9 +598,13 @@ export async function naechsteRateAnlegen(
   const wirktGekappt = amMonatsende && ankerTagZahl > letzterTag;
   const rhythmus = wirktGekappt ? anker : bisher;
   const faellig = naechsteFaelligkeit(rhythmus, bisher);
+  // E-354 (14.10.2026): Ein Rest aus einer Anrechnung (bezahltes Guthaben einer stornierten Bestellung) mindert
+  // die neue Rate — z. B. Rate 13 nach einer Verlängerung. Ohne Guthaben ändert sich nichts.
+  const { guthabenVerbrauchen } = await import("../lib/fiaon-anrechnung");
+  const gut = await guthabenVerbrauchen(ref, betrag).catch(() => ({ betragCents: betrag, angerechnetCents: 0, notiz: null as string | null }));
   await sqlPool`
-    INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
-    VALUES (${ref}, ${nr}, ${`${referenz}-${nr}`}, ${betrag}, ${faellig}::date, 'offen', 'auto')
+    INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, notiz)
+    VALUES (${ref}, ${nr}, ${`${referenz}-${nr}`}, ${gut.betragCents}, ${faellig}::date, 'offen', 'auto', ${gut.notiz})
     ON CONFLICT DO NOTHING
   `;
 }

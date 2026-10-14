@@ -18,7 +18,8 @@
 //   global    bezahlter Einmalkauf des Katalogs (Kategorie „global“ ODER
 //             KEIN_ABO_SQL, ohne Auskunft) OHNE Ratenkette
 //   nie       Testkonten, zusammengeführte Bestellungen, alte Privatbestellungen
-//             ohne Kette (gemessen 13.10.: alle gestoppt/storniert)
+//             ohne Kette (gemessen 13.10.: alle gestoppt/storniert), angerechnete
+//             Raten (quelle 'anrechnung', E-354 — das Geld kam früher schon herein)
 // Hat eine Einmalbestellung doch Raten, zählt sie NUR über die Raten — nie doppelt.
 //
 // Wer Umsatz zeigt, liest UMSATZ_QUELLE_SQL (oder umsatzBausteine() in
@@ -45,6 +46,8 @@ export const UMSATZ_QUELLE_SQL = `
       JOIN fiaon_applications a ON a.ref = r.ref
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
      WHERE r.status = 'bezahlt' AND r.bezahlt_am IS NOT NULL
+       -- E-354: Angerechnete Raten sind kein neues Geld — gezählt wurde es am Tag der ursprünglichen Zahlung.
+       AND COALESCE(r.quelle, '') <> 'anrechnung'
        AND a.merged_into IS NULL AND ${ECHT}
     UNION ALL
     SELECT ROUND(a.amount_due * 100)::int, COALESCE(a.paid_at, a.completed_at), 'auskunft', a.ref, a.person_id, NULL::int,

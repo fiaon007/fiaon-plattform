@@ -18,7 +18,7 @@ import { useFragen } from "@/pages/agent/shared";
 
 type Rate = {
   id: number; ref: string; rate_nr: number; betrag_cents: number; faellig_am: string; status: string;
-  bezahlt_am: string | null; storniert_am: string | null; zahlungsreferenz: string | null; mahnstufe: number | null;
+  bezahlt_am: string | null; storniert_am: string | null; zahlungsreferenz: string | null; mahnstufe: number | null; quelle?: string | null;
 };
 type Bestellung = {
   ref: string; pack_name: string | null; payment_status: string; paid_at: string | null; payment_reference: string | null;
@@ -26,6 +26,13 @@ type Bestellung = {
   archived_at: string | null; dismissed_at: string | null;
 };
 type Daten = { person: any; akten: Bestellung[]; raten: Rate[] };
+// E-354 (14.10.2026): Bezahltes anrechnen — Guthaben einer stornierten Bestellung wird zum Abo einer neuen.
+type Anrechnung = {
+  quellen: { ref: string; paket: string | null; bezahltCents: number; angerechnetCents: number; verfuegbarCents: number }[];
+  ziele: { ref: string; paket: string | null; preisCents: number; status: string }[];
+  bisher: { quelleRef: string; zielRef: string; guthabenCents: number; raten: number; restCents: number; am: string; von: string | null }[];
+};
+type Plan = { guthabenCents: number; preisCents: number; raten: number; ratenCents: number; restCents: number; restAuf: string | null; bisMonat: string | null };
 
 async function api(pfad: string, methode = "GET", body?: unknown): Promise<{ ok: boolean; status: number; json: any }> {
   try {
@@ -64,11 +71,20 @@ export default function AkteVerwaltungWerkzeuge({ personId }: { personId: number
   const [form, setForm] = useState<{ key: string; datum: string; grund: string } | null>(null);
   const [alleRaten, setAlleRaten] = useState(false);
   const [dsgvoName, setDsgvoName] = useState("");
+  const [anr, setAnr] = useState<Anrechnung | null>(null);
+  const [anrWahl, setAnrWahl] = useState<{ quelle: string; ziel: string; plan: Plan | null }>({ quelle: "", ziel: "", plan: null });
 
   const laden = useCallback(async () => {
     const r = await api(`/chef/kunde/${personId}`);
     if (r.ok) { setD(r.json as Daten); setFehler(""); }
     else setFehler(meldeText(r, "Die Werkzeuge ließen sich nicht laden."));
+    // Anrechnung nur für die Geschäftsführung — ohne Recht bleibt die Karte einfach weg.
+    const a = await api(`/chef/kunde/${personId}/anrechnung`);
+    if (a.ok) {
+      const j = a.json as Anrechnung;
+      setAnr(j);
+      setAnrWahl((w) => ({ quelle: j.quellen.some((q) => q.ref === w.quelle) ? w.quelle : j.quellen[0]?.ref ?? "", ziel: j.ziele.some((z) => z.ref === w.ziel) ? w.ziel : j.ziele[0]?.ref ?? "", plan: null }));
+    } else setAnr(null);
   }, [personId]);
   useEffect(() => { void laden(); }, [laden]);
   useEffect(() => { void api("/chef/status").then((r) => setStufe(String(r.json?.stufe ?? ""))); }, []);
@@ -141,6 +157,28 @@ export default function AkteVerwaltungWerkzeuge({ personId }: { personId: number
       folge: "Die Bestellung gilt als erstattet, offene Raten fallen weg, die Provision wird storniert bzw. verrechnet. Es wird KEIN Geld überwiesen — die Rückzahlung macht ihr selbst über das Geschäftskonto.",
       ja: "Als erstattet buchen", gefaehrlich: true });
     if (ja) await tun(`r${b.ref}`, `/admin/payments/${encodeURIComponent(b.payment_reference)}/refund`, { reason: form.grund.trim() }, "Als erstattet gebucht.");
+  };
+
+  // ── Bezahltes anrechnen (E-354) ──────────────────────────────────────────
+  const anrVorschau = async () => {
+    if (!anrWahl.quelle || !anrWahl.ziel) return;
+    setLaeuft("anr-v"); setMeldung(null);
+    const r = await api(`/chef/kunde/${personId}/anrechnung`, "POST", { quelleRef: anrWahl.quelle, zielRef: anrWahl.ziel, trocken: true });
+    setLaeuft(null);
+    if (r.ok) setAnrWahl((w) => ({ ...w, plan: r.json.plan as Plan }));
+    else setMeldung({ gut: false, text: meldeText(r, "Die Vorschau ließ sich nicht rechnen.") });
+  };
+  const anrechnenJetzt = async () => {
+    const p = anrWahl.plan;
+    if (!p) return;
+    const ja = await fragen({
+      titel: `${eur(p.guthabenCents)} anrechnen?`,
+      text: `${p.raten} Rate${p.raten === 1 ? "" : "n"} à ${eur(p.preisCents)} gelten als bezahlt — Abo bis ${tag(p.bisMonat)}${p.restCents > 0 ? `, Rest ${eur(p.restCents)} ${p.restAuf === "naechste_rate" ? "mindert die nächste Rate" : "für Rate 13 bei Verlängerung"}` : ""}.`,
+      folge: "Die Zielbestellung gilt als bezahlt und aktiv, der Kunde sieht das Abo mit den bezahlten Raten in seinem Bereich. Es wird KEIN Geld bewegt, es entsteht kein Umsatz und keine Provision, und es geht keine Mail raus. Der Vorgang steht im Verlauf.",
+      ja: "Anrechnen",
+    });
+    if (!ja) return;
+    await tun("anr", `/chef/kunde/${personId}/anrechnung`, { quelleRef: anrWahl.quelle, zielRef: anrWahl.ziel, trocken: false }, `Angerechnet: ${p.raten} Raten bezahlt, Abo bis ${tag(p.bisMonat)}.`);
   };
 
   // ── Forderung, Sperre, DSGVO ─────────────────────────────────────────────
@@ -220,7 +258,7 @@ export default function AkteVerwaltungWerkzeuge({ personId }: { personId: number
               <button type="button" className="zw-link" onClick={() => setAlleRaten((v) => !v)}>{alleRaten ? "Bezahlte ausblenden" : `Bezahlte zeigen (${bezahlt.length})`}</button>
               {alleRaten && bezahlt.map((r) => (
                 <div key={r.id} className="zw-zeile still">
-                  <div className="zw-zeile-text"><b>Rate {r.rate_nr} · {eur(r.betrag_cents)}</b><span>bezahlt {tag(r.bezahlt_am)}</span></div>
+                  <div className="zw-zeile-text"><b>Rate {r.rate_nr} · {eur(r.betrag_cents)}</b><span>{r.quelle === "anrechnung" ? `angerechnet (fällig ${tag(r.faellig_am)})` : `bezahlt ${tag(r.bezahlt_am)}`}</span></div>
                 </div>
               ))}
             </>
@@ -257,6 +295,46 @@ export default function AkteVerwaltungWerkzeuge({ personId }: { personId: number
             </div>
           ))}
         </div>
+
+        {/* ── Bezahltes anrechnen (E-354) ── */}
+        {anr && (anr.bisher.length > 0 || (anr.quellen.length > 0 && anr.ziele.length > 0)) && (
+          <div className="zw-karte">
+            <div className="zw-kopf"><b>Bezahltes anrechnen</b><span>Guthaben → Abo</span></div>
+            {anr.quellen.length > 0 && anr.ziele.length > 0 && (
+              <>
+                <p className="zw-leer">Bezahltes aus einer stornierten Bestellung wird als Raten auf ein neues Abo angerechnet.</p>
+                <div className="zw-form">
+                  <label className="zw-label">Guthaben aus
+                    <select className="zw-feld" value={anrWahl.quelle} onChange={(e) => setAnrWahl({ ...anrWahl, quelle: e.target.value, plan: null })}>
+                      {anr.quellen.map((q) => <option key={q.ref} value={q.ref}>{q.paket || "Paket"} · {q.ref} · {eur(q.verfuegbarCents)}</option>)}
+                    </select>
+                  </label>
+                  <label className="zw-label">für
+                    <select className="zw-feld" value={anrWahl.ziel} onChange={(e) => setAnrWahl({ ...anrWahl, ziel: e.target.value, plan: null })}>
+                      {anr.ziele.map((z) => <option key={z.ref} value={z.ref}>{z.paket || "Paket"} · {z.ref} · {eur(z.preisCents)} im Monat</option>)}
+                    </select>
+                  </label>
+                  {!anrWahl.plan
+                    ? <button type="button" className="zw-knopf" disabled={laeuft === "anr-v"} onClick={() => void anrVorschau()}>{laeuft === "anr-v" ? "…" : "Vorschau"}</button>
+                    : <button type="button" className="zw-knopf haupt" disabled={laeuft === "anr"} onClick={() => void anrechnenJetzt()}>{laeuft === "anr" ? "…" : "Anrechnen"}</button>}
+                </div>
+                {anrWahl.plan && (
+                  <div className="zw-zeile">
+                    <div className="zw-zeile-text">
+                      <b>{anrWahl.plan.raten} × {eur(anrWahl.plan.preisCents)} = {eur(anrWahl.plan.ratenCents)} · Abo bis {tag(anrWahl.plan.bisMonat)}</b>
+                      <span>Guthaben {eur(anrWahl.plan.guthabenCents)}{anrWahl.plan.restCents > 0 ? ` · Rest ${eur(anrWahl.plan.restCents)} ${anrWahl.plan.restAuf === "naechste_rate" ? "mindert die nächste Rate" : "für Rate 13 bei Verlängerung"}` : ""} · kein Umsatz, keine Provision, keine Mail</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            {anr.bisher.map((b) => (
+              <div key={`${b.quelleRef}-${b.zielRef}-${b.am}`} className="zw-zeile still">
+                <div className="zw-zeile-text"><b>{eur(b.guthabenCents)} angerechnet · {b.raten} Raten</b><span>{b.quelleRef} → {b.zielRef} · {tag(b.am)}{b.von ? ` · ${b.von}` : ""}{b.restCents > 0 ? ` · Rest ${eur(b.restCents)}` : ""}</span></div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Forderung & Sperre ── */}
         <div className="zw-karte">

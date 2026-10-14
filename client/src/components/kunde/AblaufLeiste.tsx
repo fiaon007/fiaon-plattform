@@ -77,7 +77,8 @@ export function AblaufLeiste({ stand, dicht = false }: { stand: AblaufStand; dic
     { text: "Zahlung", fertig: stand.zahlung },
     { text: "Startgespräch", fertig: stand.startgespraech },
     // E-356 (14.10.2026, Justin): „Bonität — Jetzt entwickeln“ statt „Auskunft · freiwillig“.
-    { text: "Bonität", fertig: stand.bonitaet === true, hinweis: "jetzt entwickeln" },
+    // 14.10.2026 (Justin): „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“
+    { text: "Bonität", fertig: stand.bonitaet === true, hinweis: "Pflicht · jetzt entwickeln" },
     { text: "Voll aktiv", fertig: stand.vollAktiv },
     { text: "Abo läuft", fertig: stand.aboLaeuft },
   ];

@@ -179,6 +179,10 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
   let stufe: Kundenstufe;
   let grund: string;
   let naechsterSchritt: string;
+  // 14.10.2026 (Justin): „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“ Erfüllt mit der
+  // übergebenen FIAON-Bonitätsauswertung (E-355). Nur der nächste Schritt — die Stufe selbst ändert sich dadurch nicht.
+  const bonitaetOffen = a.bonitaet_entwickelt !== true;
+  const BONITAET_PFLICHT = "Bonität entwickeln — Pflicht, bevor es für den Kunden weitergeht: im Überblick „Bonität jetzt entwickeln“, prüfen, freigeben.";
 
   if (!bezahlt) {
     stufe = "kein_zugang";
@@ -204,11 +208,11 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
     // schicken wäre eine Aufforderung zu einem Termin über nichts.
     stufe = "voll_aktiv";
     grund = "Bonitätsauskunft ohne Paket — für dieses Produkt gibt es kein Startgespräch.";
-    naechsterSchritt = "Auskunft abrufen und dem Kunden bereitstellen.";
+    naechsterSchritt = bonitaetOffen ? BONITAET_PFLICHT : "Nichts. Die Bonitätsauswertung liegt beim Kunden.";
   } else if (erledigt) {
     stufe = "voll_aktiv";
     grund = "Das Startgespräch ist geführt — das Konto ist voll freigeschaltet.";
-    naechsterSchritt = "Nichts. Der Kunde arbeitet mit seinem Fahrplan.";
+    naechsterSchritt = bonitaetOffen ? BONITAET_PFLICHT : "Nichts. Der Kunde arbeitet mit seinem Fahrplan.";
   } else if (ausnahmeGesetzt) {
     // ── DIE AUSNAHME ────────────────────────────────────────────────────
     // Für Härtefälle: ein Kunde, der kein Gespräch führen kann oder will, und
@@ -216,13 +220,14 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
     // Namen — sonst wäre es eine Hintertür.
     stufe = "voll_aktiv";
     grund = `Onboarding-Pflicht ausgesetzt: ${String(a.onboarding_ausnahme_grund).trim()}`;
-    naechsterSchritt = "Nichts. Die Ausnahme wurde ausdrücklich entschieden.";
+    naechsterSchritt = bonitaetOffen ? BONITAET_PFLICHT : "Nichts. Die Ausnahme wurde ausdrücklich entschieden.";
   } else {
     stufe = "wartet_auf_onboarding";
     grund = "Bezahlt, aber das Startgespräch ist noch nicht geführt.";
-    naechsterSchritt = a.gebucht_id
+    naechsterSchritt = (a.gebucht_id
       ? `Termin steht — das Gespräch führen und im Cockpit abschließen.`
-      : "Startgespräch einladen: Der Kunde sieht das Gate beim nächsten Login.";
+      : "Startgespräch einladen: Der Kunde sieht das Gate beim nächsten Login.")
+      + (bonitaetOffen ? " Und: Bonität entwickeln ist Pflicht." : "");
   }
 
   const spalte = a.onboarding_stufe != null ? String(a.onboarding_stufe) : null;

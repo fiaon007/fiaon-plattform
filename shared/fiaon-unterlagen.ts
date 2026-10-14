@@ -67,6 +67,12 @@ export interface KategorieInfo {
   kurz: string;
   /** Pflicht für den Kunden? Die Auskunft beschafft FIAON — der eigene Upload ist der kleine zweite Weg. */
   pflicht: boolean;
+  /**
+   * Pflicht im Team (14.10.2026, Justin: „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“).
+   * Erfüllt durch eine vorliegende Auskunft ODER die übergebene FIAON-Bonitätsauswertung (E-355). Der Kunde muss
+   * dafür nichts selbst hochladen (E-353) — deshalb bleibt `pflicht` (Kundensicht, Erinnerungen) unverändert.
+   */
+  pflichtTeam?: boolean;
   /** Was gebraucht wird — Sie-Form, unter dem Titel. */
   hinweisKunde: string;
   /** Wofür die Kategorie im Office steht. */
@@ -85,7 +91,7 @@ export const UNTERLAGEN_KATEGORIEN: readonly KategorieInfo[] = [
     hinweisOffice: "Personalausweis vorn + hinten oder Reisepass (Datenseite). Aufenthaltstitel nur zusammen mit Reisepass.",
   },
   {
-    kategorie: "schufa", titel: "Eigene Bonitätsauskunft", kurz: "Bonitätsauskunft", pflicht: false,
+    kategorie: "schufa", titel: "Eigene Bonitätsauskunft", kurz: "Bonitätsauskunft", pflicht: false, pflichtTeam: true,
     hinweisKunde: "Nur falls Sie schon eine haben: die vollständige Auskunft der Auskunftei, alle Seiten. Ein Foto der Score-Anzeige aus einer App können wir nicht verwenden.",
     hinweisOffice: "Auskunft einer Auskunftei (alle Seiten). Eine von FIAON beschaffte Auskunft steht hier mit Herkunft „beschafft“.",
   },
@@ -466,6 +472,8 @@ export interface KategorieStand {
   ausweis?: AusweisUrteil | null;
   /** Office: Hinweis, dass die Akte-Fassung außerhalb geändert wurde oder sich nicht binden ließ. */
   akteHinweis?: string | null;
+  /** Office (14.10.2026): Pflicht im Team — und ob sie erfüllt ist (Bonitätsauskunft). */
+  pflichtTeam?: { erfuellt: boolean; satz: string } | null;
   geprueft: boolean;
 }
 

@@ -173,9 +173,13 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
         return (
           <div key={k.kategorie} className="ua-kat">
             <div className="ua-kopf">
-              <b>{k.kurz}{!k.pflicht ? " (optional)" : ""}</b>
-              <span className={`ua-status ${k.status}`}>{k.statusText}{k.geprueft && k.dateien.length ? " · geprüft" : ""}</span>
+              <b>{k.kurz}{k.pflichtTeam ? " · Pflicht" : !k.pflicht ? " (optional)" : ""}</b>
+              {/* 14.10.2026: Die Bonitätsauskunft ist Pflicht — erfüllt auch durch die übergebene Bonitätsauswertung (ohne Datei). */}
+              {k.pflichtTeam?.erfuellt && k.dateien.length === 0
+                ? <span className="ua-status liegt_vor">erfüllt</span>
+                : <span className={`ua-status ${k.status}`}>{k.statusText}{k.geprueft && k.dateien.length ? " · geprüft" : ""}</span>}
             </div>
+            {k.pflichtTeam && <p className={k.pflichtTeam.erfuellt ? "ua-satz" : "ua-warn"} data-fiaon="bonitaet-pflicht">{k.pflichtTeam.satz}</p>}
             {k.satz && <p className={k.status === "bitte_neu" ? "ua-warn" : "ua-satz"}>{k.satz}</p>}
             {k.ausweis && k.ausweis.hinweisIntern !== k.satz && <p className="ua-satz">Regel: {k.ausweis.hinweisIntern}</p>}
             {k.akteHinweis && <p className="ua-warn">{k.akteHinweis}</p>}

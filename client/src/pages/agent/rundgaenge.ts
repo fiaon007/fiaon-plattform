@@ -214,14 +214,15 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
   {
     // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht
     // nur bei Kunden mit bezahlter Buchung und nur in der geöffneten Akte.
-    titel: "Die Bonitätsauswertung löst du aus — ein Klick, ein Kunde.",
+    // 14.10.2026 (Justin): „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“
+    titel: "Die Bonität ist Pflicht — du entwickelst sie, ein Klick je Kunde.",
     text: "Hat dein Kunde bezahlt, steht im Überblick der Akte die Karte „FIAON Bonitätsauswertung“. Sind Ausweis und "
       + "Kontoauszug hochgeladen, heißt sie „Startklar“ (E-352: Lücken oder ein ungeprüfter Ausweis stehen als Vorbehalt im Bericht; "
-      + "einen ungelesenen Auszug liest der Klick zuerst): Ein Klick auf „Bonitätsauswertung erstellen“, "
+      + "einen ungelesenen Auszug liest der Klick zuerst): Ein Klick auf „Bonität jetzt entwickeln“, "
       + "und in ein bis drei Minuten steht der Entwurf da — Ampel für sieben Bereiche, FIAON-Finanzwert, Plan mit Fristen, PDF. "
       + "Du prüfst das PDF und gibst frei („Freigeben & an den Kunden“) — der Kunde bekommt es sofort mit Mail und PDF, "
       + "du bekommst vorher selbst eine Mail mit dem PDF. Fehlt etwas, sagt die Karte was — anfordern oder den Ausweis bestätigen geht im Reiter „Dokumente“.",
-    tipp: "Jede Auswertung kostet. Erstelle sie, wenn du mit dem Kunden darüber sprichst — nicht auf Vorrat. Eine neue Fassung bietet die Karte erst an, wenn neue Unterlagen da sind.",
+    tipp: "Pflicht für jeden Kunden, bevor es für ihn weitergeht — unter Dokumente steht bei der Bonitätsauskunft, ob sie erfüllt ist. Jede Auswertung kostet: einmal je Kunde, nicht auf Vorrat. Eine neue Fassung bietet die Karte erst an, wenn neue Unterlagen da sind.",
   },
   {
     // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = nicht heute, später rechts.

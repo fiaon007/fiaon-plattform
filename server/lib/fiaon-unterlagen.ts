@@ -350,6 +350,7 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
   const auskunftFertig = sicht === "kunde" && !beschaffung ? await auskunftAbgeschlossen(personId, lauf) : false;
   const titelUnterWeitere = aktiv.some((z) => z.kategorie === "weitere" && z.unterart === "aufenthaltstitel");
 
+  const bonitaetPflicht = sicht === "office" ? await bonitaetPflichtLage(personId, aktiv.some((z) => z.kategorie === "schufa"), lauf) : null;
   const kategorien: KategorieStand[] = UNTERLAGEN_KATEGORIEN.map((info) => {
     const k = info.kategorie;
     const eigene = aktiv.filter((z) => z.kategorie === k);
@@ -443,7 +444,7 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
       dateien, ...(entfernte ? { entfernte } : {}), ...(monate && ergebnis.status !== "liegt_vor" ? { monate } : {}),
       darfHinzufuegen: !sperrSatz, sperrSatz, liestGerade,
       erneutAngefordert: k === "kontoauszug" ? lage.erneut.kontoauszug : k === "ausweis" ? lage.erneut.ausweis : false,
-      ...(sicht === "office" ? { ausweis, akteHinweis } : {}),
+      ...(sicht === "office" ? { ausweis, akteHinweis, pflichtTeam: info.pflichtTeam ? bonitaetPflicht : null } : {}),
       geprueft: verwaltungGeprueft,
     };
   });
@@ -451,6 +452,29 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
     personId, ref: lage.traeger, kategorien,
     grenzen: { mbJeDatei: UNTERLAGEN_GRENZEN.mbJeDatei, dateienJeKategorie: UNTERLAGEN_GRENZEN.dateienJeKategorie },
   };
+}
+
+/**
+ * Die Bonitätsauskunft ist im Team Pflicht (Justin 14.10.2026). Erfüllt ist sie, wenn die FIAON-Bonitätsauswertung beim
+ * Kunden liegt (E-355: Übergabe = gelieferte Auskunft) — dieselbe Regel wie die Station „Bonität“ (bonitaet_entwickelt).
+ * Eine Auskunft in der Akte allein erfüllt sie nicht: Sie fließt in die Auswertung ein. Nur Anzeige — sperrt nichts.
+ */
+async function bonitaetPflichtLage(personId: number, auskunftDa: boolean, lauf: Lauf): Promise<{ erfuellt: boolean; satz: string }> {
+  const { personFamilie } = await import("./fiaon-unterlagen-link");
+  const familie = await personFamilie(personId, lauf).catch(() => [personId]);
+  const [f] = (await lauf`
+    SELECT person_id, fassung, status, freigegeben_am FROM fiaon_finanzauswertungen
+     WHERE person_id = ANY(${familie}) AND status IN ('freigegeben', 'entwurf', 'laeuft')
+     ORDER BY (status = 'freigegeben') DESC, erstellt_am DESC LIMIT 1`.catch(() => [])) as any[];
+  if (f?.status === "freigegeben") {
+    const am = f.freigegeben_am ? new Date(f.freigegeben_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
+    return { erfuellt: true, satz: `Erfüllt: FIAON-Bonitätsauswertung FA-${f.person_id}-${f.fassung} liegt beim Kunden${am ? ` (seit ${am})` : ""}.` };
+  }
+  if (f?.status === "entwurf") return { erfuellt: false, satz: "Pflicht — die Bonitätsauswertung ist fertig: im Überblick prüfen und freigeben." };
+  if (f?.status === "laeuft") return { erfuellt: false, satz: "Pflicht — die Bonitätsauswertung wird gerade entwickelt." };
+  return { erfuellt: false, satz: auskunftDa
+    ? "Pflicht — die Auskunft liegt vor. Jetzt im Überblick „Bonität jetzt entwickeln“; sie fließt dort ein."
+    : "Pflicht, bevor es für den Kunden weitergeht: im Überblick „Bonität jetzt entwickeln“." };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

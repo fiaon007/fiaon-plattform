@@ -36,9 +36,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { tiefenanalyse, type Tiefe, type TiefeBuchung, type Posten } from "./fiaon-kontoauszug-tiefe";
 import { EINKOMMEN_KATEGORIEN } from "./fiaon-kontoauszug-bereinigen";
+// E-353 (14.10.2026): die Tiefe — jeder Posten, Monatsablauf, Kontostand, Kennzahlen, Bankblick, Jahresblick.
+import { detailAus, type FaktenDetail } from "./fiaon-finanzauswertung-detail";
 
 /** Fassung der Regeln — steht in jeder Auswertung (eingefroren) und im PDF. */
-export const FA_REGEL_VERSION = "FA-2026-10-08.1";
+export const FA_REGEL_VERSION = "FA-2026-10-14.1";
 /** Der Dienstname in fiaon_ki_nutzung. */
 export const FA_DIENST = "finanzauswertung";
 export const FA_PRODUKT = "FIAON Finanz- und Bonitätsauswertung";
@@ -422,6 +424,8 @@ export interface Fakten {
   art9Anzahl: number;
   /** Die Tipps der Tiefenanalyse — nur Art, Betrag, Posten (keine Mitarbeiter-Sätze). */
   tipps: { art: string; jeMonatCents: number; vermeidbar: boolean; posten: string[]; anzahl: number | null }[];
+  /** E-353: die ganze Tiefe für das PDF (fehlt in Fassungen vor dem 14.10.2026). */
+  detail?: FaktenDetail;
 }
 
 const PFAENDUNG = /\b(pfaendung\w*|pfändung\w*|p-konto|pkonto|pfaendungsschutz\w*|pfändungsschutz\w*|drittschuldner|gerichtsvollzieher|vollstreckung\w*|zwangsvollstreckung)\b/i;
@@ -511,6 +515,7 @@ export function faktenAus(buchungen: TiefeBuchung[], kopf: { zeitraumVon?: strin
     vermeidbarJeMonatCents: k.vermeidbarJeMonatCents,
     art9Anzahl,
     tipps: t.tipps.map((x) => ({ art: x.art, jeMonatCents: x.jeMonatCents, vermeidbar: x.vermeidbar, posten: x.posten.filter((n) => n !== ART9_NAME), anzahl: x.anzahl ?? null })),
+    detail: detailAus(t, buchungen, einnahmen),
   };
 }
 
@@ -667,7 +672,8 @@ export const GEWICHTE: { key: string; titel: string; max: number }[] = [
   { key: "raten", titel: "Raten und „Später bezahlen“", max: 70 },
   { key: "gluecksspiel", titel: "Kein Glücksspiel", max: 30 },
   { key: "identitaet", titel: "Identität und Anschrift belegt", max: 40 },
-  { key: "auskunft", titel: "Ihre Bonitätsauskunft (falls vorgelegt)", max: 49 },
+  // E-353: ohne vorgelegte Auskunft zählt hier das finanzielle Polster (Kontostand) — nie mehr „halb gewertet“.
+  { key: "auskunft", titel: "Bonitätsauskunft bzw. finanzielles Polster", max: 49 },
 ];
 
 export const BAENDER: { ab: number; band: Band; satz: string }[] = [
@@ -690,9 +696,9 @@ function stufen(w: number, stufen: [number, number][], sonst: number): number {
 export function finanzwertRechnen(f: Fakten, ampeln: BereichAmpel[], auskunft: AuskunftEingang | null): Finanzwert {
   const k: Kriterium[] = [];
   const g = (key: string) => GEWICHTE.find((x) => x.key === key)!;
-  const add = (key: string, punkte: number, grund: string, beleg: Kriterium["beleg"] = "belegt") => {
+  const add = (key: string, punkte: number, grund: string, beleg: Kriterium["beleg"] = "belegt", titel?: string) => {
     const gw = g(key);
-    k.push({ key, titel: gw.titel, max: gw.max, punkte: Math.max(0, Math.min(gw.max, Math.round(punkte))), grund, beleg });
+    k.push({ key, titel: titel ?? gw.titel, max: gw.max, punkte: Math.max(0, Math.min(gw.max, Math.round(punkte))), grund, beleg });
   };
 
   const volle = f.zeitraum.volleMonate.length;
@@ -724,8 +730,20 @@ export function finanzwertRechnen(f: Fakten, ampeln: BereichAmpel[], auskunft: A
     f.gluecksspielAnzahl === 0 ? "Keine Glücksspiel-Buchung." : `${f.gluecksspielAnzahl} Buchungen für Glücksspiel oder Wetten.`);
   const id = ampeln.find((a) => a.key === "identitaet");
   add("identitaet", id?.ampel === "gruen" ? 40 : id?.ampel === "gelb" ? 20 : 0, id?.grund ?? "—");
-  if (!auskunft?.stufe) add("auskunft", 25, "Keine ausgewertete Bonitätsauskunft vorgelegt — halb gewertet.", "nicht bewertet");
-  else add("auskunft", auskunft.stufe === "frei" ? 49 : auskunft.stufe === "aufraeumen" ? 40 : auskunft.stufe === "angreifbar" ? 20 : 0,
+  if (!auskunft?.stufe) {
+    // E-353 (14.10.2026, Justin): Die Auswertung ERSETZT die Auskunft — ohne Auskunft wird hier das Polster gewertet,
+    // das der Kontoverlauf zeigt (Ø Kontostand gegen die Monatsausgaben); ohne Kontostände der Überschuss.
+    const s = f.detail?.saldo ?? null;
+    const aus = Math.max(1, f.ausgabenJeMonatCents);
+    if (s) {
+      const q = s.schnittCents / aus;
+      add("auskunft", q >= 1 ? 49 : q >= 0.5 ? 38 : q >= 0.2 ? 28 : s.schnittCents >= 0 ? 18 : 0,
+        `Ø Kontostand ${euro(s.schnittCents)} — ${q >= 1 ? "mehr als" : "rund"} ${Math.max(0, Math.round(q * 100))} % einer Monatsausgabe.`, "belegt", "Finanzielles Polster");
+    } else {
+      add("auskunft", f.ueberschussQuote >= 0.1 ? 35 : f.ueberschussQuote >= 0 ? 20 : 0,
+        "Aus dem monatlichen Überschuss bewertet (der Auszug nennt keine Kontostände).", "belegt", "Finanzielles Polster");
+    }
+  } else add("auskunft", auskunft.stufe === "frei" ? 49 : auskunft.stufe === "aufraeumen" ? 40 : auskunft.stufe === "angreifbar" ? 20 : 0,
     auskunft.stufe === "frei" || !auskunft.negativ ? "Keine belastenden Einträge laut Ihrer Auskunft."
       : auskunft.negativ === 1 ? "Laut Ihrer Auskunft 1 belastender Eintrag." : `Laut Ihrer Auskunft ${auskunft.negativ} belastende Einträge.`);
 
@@ -846,11 +864,11 @@ export const VERGLEICHSWEGE: { titel: string; text: string }[] = [
 
 export const FINANZWERT_KENNZEICHNUNG =
   "Der FIAON-Finanzwert ist eine eigene Berechnung von FIAON aus den von Ihnen vorgelegten Unterlagen. Er ist kein SCHUFA-Score und "
-  + "kein Score einer anderen Auskunftei, keine Bonitätsauskunft, keine Kreditwürdigkeitsprüfung und keine automatisierte Entscheidung im Sinne "
+  + "kein Score einer anderen Auskunftei, keine Auskunft einer Auskunftei, keine Kreditwürdigkeitsprüfung und keine automatisierte Entscheidung im Sinne "
   + "von Art. 22 DSGVO. Er ist "
   + "keine Kredit- oder Kartenzusage, entscheidet bei FIAON über nichts und wird nicht an Dritte weitergegeben.";
 
-export const FINANZWERT_KURZ = "Eigene Berechnung von FIAON aus Ihren Unterlagen — kein SCHUFA-Score, keine Bonitätsauskunft, keine Kredit- oder Kartenzusage.";
+export const FINANZWERT_KURZ = "Eigene Berechnung von FIAON aus Ihren Unterlagen — kein SCHUFA-Score, keine Auskunft einer Auskunftei, keine Kredit- oder Kartenzusage.";
 
 export const HAFTUNG_ABSAETZE: string[] = [
   "Diese Auswertung dient Ihrer Information und der Ordnung Ihrer Finanzen. Sie ist keine Anlage-, Kredit-, Versicherungs-, Steuer- oder Rechtsberatung "

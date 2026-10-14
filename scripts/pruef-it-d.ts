@@ -193,10 +193,12 @@ let beispielInhalt: any = null;
   const summe = fw.sockel + fw.kriterien.reduce((s, k) => s + k.punkte, 0);
   ok(fw.wert === summe && fw.wert >= 100 && fw.wert <= 999, `Finanzwert = Sockel + Summe der Kriterien (${fw.wert})`);
   ok(FA.GEWICHTE.reduce((s, g) => s + g.max, 0) + FA.FINANZWERT_SOCKEL === 999, "Gewichte + Sockel = 999");
-  ok(fw.kriterien.find((k) => k.key === "auskunft")!.punkte === 25 && fw.kriterien.find((k) => k.key === "auskunft")!.beleg === "nicht bewertet", "Ohne Auskunft: halbe Punkte, „nicht bewertet“");
+  // E-353 (14.10.2026): Ohne Auskunft zählt das finanzielle Polster (hier ohne Kontostände: aus dem Überschuss) — nie „halb gewertet“.
+  const ohne = fw.kriterien.find((k) => k.key === "auskunft")!;
+  ok(ohne.titel === "Finanzielles Polster" && ohne.beleg === "belegt" && ohne.punkte >= 0 && ohne.punkte <= 49 && !/halb/.test(ohne.grund), `E-353: Ohne Auskunft: Polster statt halber Punkte (${ohne.punkte}, ${ohne.grund})`);
   ok(JSON.stringify(FA.finanzwertRechnen(f, ampeln, null)) === JSON.stringify(fw), "Deterministisch: gleiche Eingabe, gleicher Wert");
   const mitAuskunft = FA.finanzwertRechnen(f, ampeln, { stufe: "frei", auskunftei: "SCHUFA", vom: null, negativ: 0, offenCents: null });
-  ok(mitAuskunft.wert === fw.wert + 24, "Saubere Auskunft: volle 49 statt 25 Punkte");
+  ok(mitAuskunft.wert === fw.wert - ohne.punkte + 49, "Saubere Auskunft: volle 49 Punkte statt des Polsters");
   ok(FA.bandFuer(999) === "sehr stabil" && FA.bandFuer(850) === "sehr stabil" && FA.bandFuer(849) === "stabil" && FA.bandFuer(700) === "stabil"
     && FA.bandFuer(550) === "tragfähig" && FA.bandFuer(549) === "angespannt" && FA.bandFuer(399) === "kritisch" && FA.bandFuer(100) === "kritisch", "Bandgrenzen 850/700/550/400");
   // Schwellen an veränderten Kennzahlen
@@ -438,7 +440,9 @@ abschnitt("A8c · Nachprüfung 08.10.: Freigabe, Löschung, Merge, Wache, Texte"
     && /Bestätigung zurücknehmen/.test(lies("client/src/pages/agent/rundgaenge.ts")),
     "Sichtprüfung: „Bestätigung zurücknehmen“ — Route, Knopf (nur bei Bestätigung von Hand) und Rundgang");
   const pdfQ = lies("server/lib/fiaon-finanzauswertung-pdf.ts");
-  ok(!/Auf Wunsch fordern wir sie für Sie an/.test(pdfQ) && /neue Fassung dieser Auswertung/.test(pdfQ), "PDF Kapitel 7: kein Angebot ohne Preis, nur der Upload-Hinweis");
+  // E-353 (14.10.2026, Justin): Die Auswertung ERSETZT die Auskunft — kein „lag uns nicht vor“, kein „laden Sie hoch“.
+  ok(!/Auf Wunsch fordern wir sie für Sie an/.test(pdfQ) && !/lag uns für diese Auswertung nicht vor/.test(pdfQ) && !/halben Punktzahl/.test(pdfQ)
+    && !/können Sie sie in Ihrem Bereich hochladen/.test(pdfQ) && /Ihre Bonität aus Sicht einer Bank/.test(pdfQ), "E-353: PDF Kapitel 10 — Bonität aus Sicht einer Bank, kein Upload-Hinweis, keine halbe Wertung");
   const lk = lies("server/lib/fiaon-unterlagen-link.ts");
   ok(/const \[kopf\] = await personFamilie\(link\.personId, lauf\)/.test(lk), "Upload-Link nach Zusammenführung: gilt für den Kopf der Person");
   ok(/person_id = ANY\(\$\{await import\("\.\/fiaon-unterlagen-link"\)/.test(lies("server/lib/fiaon-auskunft-lieferung.ts")), "Akte: Beschaffungsauftrag einer zusammengeführten Dublette wird gefunden");
@@ -486,7 +490,7 @@ abschnitt("A8d · Querprüfung 08.10.: Löschung, Wache, Arten, Texte, Datenschu
     `Querprüfung: „Unterlagen eingegangen“ und „Auftragsbestätigung“ haben eigene Arten (${ue}, ${ab}); die Beschaffung bleibt „auskunft“`);
   // Fund 14: ehrliche Sätze.
   const pdfQ2 = lies("server/lib/fiaon-finanzauswertung-pdf.ts");
-  ok(!/fließt dann in eine neue Fassung/.test(pdfQ2) && /Ihre Ansprechperson kann dann eine neue Fassung dieser Auswertung erstellen/.test(pdfQ2), "Querprüfung: PDF verspricht keine automatische Neufassung");
+  ok(!/fließt dann in eine neue Fassung/.test(pdfQ2) && !/Ihre Ansprechperson kann dann eine neue Fassung/.test(pdfQ2), "Querprüfung/E-353: PDF verspricht keine Neufassung und verlangt nichts nach");
   const karte = lies("client/src/components/finanzen/Finanzauswertung.tsx");
   ok(!/Sobald Ihre Unterlagen vollständig sind und Ihre Ansprechperson/.test(karte) && /a\.laufend !== false/.test(karte) && /laufend,/.test(lies("server/routes/fiaon-finanzauswertung.ts"))
     && /a\.gekuendigt_am IS NULL/.test(lies("server/routes/fiaon-finanzauswertung.ts")), "Querprüfung: Leerkarte nur mit laufendem, ungekündigtem Paket — sonst ein neutraler Satz");
@@ -532,7 +536,16 @@ abschnitt("A9 · PDF-HTML (ohne Chromium)");
   };
   beispielInhalt.inhalt = inhalt;
   const html = pdfMod.finanzauswertungHtml(inhalt, { 1: 3, 2: 4 });
-  ok(pdfMod.KAPITEL.length === 11 && pdfMod.KAPITEL.every((k) => html.includes(`FAKAPITEL${String(k.nr).padStart(2, "0")}`)), "Alle elf Kapitel mit Marke für das Verzeichnis");
+  ok(pdfMod.KAPITEL.length === 16 && pdfMod.KAPITEL.every((k) => html.includes(`FAKAPITEL${String(k.nr).padStart(2, "0")}`)), "E-353: Alle sechzehn Kapitel mit Marke für das Verzeichnis");
+  ok(!/lag uns für diese Auswertung nicht vor|halben Punktzahl|halb gewertet\.? —|in Ihrem Bereich hochladen/.test(html) && /Haushaltsrechnung/.test(html) && /Die Merkmale einer Kreditprüfung/.test(html),
+    "E-353: Ohne Auskunft kein „fehlt“-Satz — Haushaltsrechnung und Merkmale der Kreditprüfung stehen da");
+  const det = f.detail!;
+  ok(!!det && det.gruppen.length > 0 && det.gruppen.every((g) => g.posten.every((p) => html.includes(p.name.replace(/&/g, "&amp;")) || g.posten.indexOf(p) >= 30)),
+    `E-353: Ausgaben im Detail — jeder Empfänger je Gruppe steht im PDF (${det?.gruppen.reduce((s2, g) => s2 + g.posten.length, 0)} Empfänger)`);
+  ok(det.monatsTeile.length === 6 && det.wochentage.length === 7 && Math.abs(det.monatsTeile.reduce((s2, t) => s2 + t.anteil, 0) - 1) < 0.01, "E-353: Monatsablauf (6 Abschnitte) und Wochentage (7) summieren sich");
+  ok(/Kennzahlen und Richtwerte/.test(html) && /Ihr Optimierungspotenzial/.test(html) && /Ihre nächsten 12 Monate/.test(html) && /Vertraulich/.test(html), "E-353: Kennzahlen, Potenzial, Jahresblick, „Vertraulich“");
+  const polster = FA.finanzwertRechnen(f, ampeln, null).kriterien.find((x) => x.key === "auskunft")!;
+  ok(polster.titel === "Finanzielles Polster" && polster.beleg === "belegt" && !/halb gewertet|Bonitätsauskunft/.test(polster.grund), `E-353: Ohne Auskunft wertet der Finanzwert das Polster (${polster.grund})`);
   ok(html.includes(FA.FINANZWERT_KENNZEICHNUNG.replace(/„/g, "„")) || html.includes("kein SCHUFA-Score"), "Kennzeichnung auf dem Deckblatt");
   ok(!/undefined|NaN|\[object Object\]/.test(html), "Keine leeren Platzhalter (undefined/NaN)");
   ok(!/kostenlos/i.test(html), "Kein „kostenlos“ im PDF");
@@ -542,7 +555,7 @@ abschnitt("A9 · PDF-HTML (ohne Chromium)");
   ok(/<td class="s">3<\/td>/.test(html), "Verzeichnis trägt die Seitenzahlen des zweiten Durchgangs");
   const alleSeiten = Object.fromEntries(pdfMod.KAPITEL.map((k) => [k.nr, k.nr + 2]));
   const html2 = pdfMod.finanzauswertungHtml(inhalt, alleSeiten);
-  ok(!/FAKAPITEL/.test(html2) && (html2.match(/class="mk"/g) ?? []).length === 11, "Nachprüfung: zweiter Durchgang ohne Kapitelmarken in der Textschicht (Platzhalter gleicher Höhe)");
+  ok(!/FAKAPITEL/.test(html2) && (html2.match(/class="mk"/g) ?? []).length === 16, "Nachprüfung: zweiter Durchgang ohne Kapitelmarken in der Textschicht (Platzhalter gleicher Höhe)");
   ok(/Auswertung FA-1-1|FA-1-1/.test(html) && /Gewichte|Kriterium/.test(html), "Kriterien mit Gewichten offen gelegt");
 }
 
@@ -1102,7 +1115,7 @@ if (!LOKAL) {
       ok(seiten.some((t) => /kein SCHUFA-Score/.test(t)), "Kennzeichnung steht im gedruckten PDF");
       ok(pdf.length < 3 * 1024 * 1024, `Unter 3 MB (${Math.round(pdf.length / 1024)} KB)`);
       const verz = seiten[1] ?? "";
-      ok(pdfMod.KAPITEL.every((k) => verz.includes(k.titel)) && /Auf einen Blick \d+/.test(verz.replace(/\s+/g, " ")), "Verzeichnis mit Seitenzahlen (zweiter Durchgang)");
+      ok(pdfMod.KAPITEL.every((k) => verz.includes(k.titel)) && /Zusammenfassung \d+/.test(verz.replace(/\s+/g, " ")), "Verzeichnis mit Seitenzahlen (zweiter Durchgang)");
     } catch (e) {
       ok(false, `Chromium-Druck: ${String((e as Error)?.message || e).slice(0, 200)}`);
     }

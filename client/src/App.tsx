@@ -246,6 +246,8 @@ const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
+// 14.10.2026: Konto und Karte mit der Partnerbank DKB — alle Vorteile, zweisprachig.
+const SitePartnerbankDkb = lazy(() => import("@/pages/site/partnerbank-dkb"));
 const SiteOesterreich = lazy(() => import("@/pages/site/oesterreich"));
 const SiteSchweiz = lazy(() => import("@/pages/site/schweiz"));
 const SiteSicherheit = lazy(() => import("@/pages/site/sicherheit"));
@@ -410,6 +412,7 @@ function Router() {
       <Route path="/en/business/knowledge/:slug" component={GlobalSeitePage} />
       <Route path="/en/business/:slug" component={GlobalSeitePage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
+      <Route path="/en/partner-bank-dkb" component={SitePartnerbankDkb} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />
       <Route path="/en/contact" component={SiteKontakt} />
@@ -461,6 +464,7 @@ function Router() {
       <Route path="/en/tools/monthly-headroom" component={WzSpielraum} />
       <Route path="/en/tools/card-check" component={WzKartenCheck} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
+      <Route path="/partnerbank-dkb" component={SitePartnerbankDkb} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />
       <Route path="/sicherheit" component={SiteSicherheit} />

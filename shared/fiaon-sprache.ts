@@ -76,6 +76,7 @@ export const EN_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/werkzeuge", "Free tools"],
     ["/preise", "Pricing & plans"],
     ["/kreditkarte", "A credit card despite an entry"],
+    ["/partnerbank-dkb", "Account & card with DKB"],
     ["/privatkunden", "Personal"],
     ["/business", "Business"],
     ["/oesterreich", "FIAON in Austria"],

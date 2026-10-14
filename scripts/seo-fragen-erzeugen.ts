@@ -41,6 +41,7 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/preise.ts": "/preise|/en/pricing",
   "client/src/pages/site/en-start.tsx": "/en",
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
+  "client/src/i18n/partnerbank-dkb.ts": "/partnerbank-dkb|/en/partner-bank-dkb",
   "client/src/i18n/laender.ts#oesterreich": "/oesterreich|/en/austria@oesterreich",
   "client/src/i18n/laender.ts#schweiz": "/schweiz|/en/switzerland@schweiz",
   "client/src/i18n/sicherheit.ts": "/sicherheit|/en/security",

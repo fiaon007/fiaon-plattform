@@ -48,6 +48,7 @@ const PLATTFORM: [string, string][] = [
   ["/werkzeuge", "Kostenlose Werkzeuge"],
   ["/preise", "Preise & Pakete"],
   ["/kreditkarte", "Kreditkarte trotz Eintrag"],
+  ["/partnerbank-dkb", "Konto & Karte mit der DKB"],
   ["/privatkunden", "Privatkunden Setup"],
   ["/business", "FIAON Global"],
 ];

@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (8), /en/request-your-credit-report (8), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (8), /en/request-your-credit-report (8), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -412,6 +412,66 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "What does the card cost?",
       "a": "The card fee is set by the issuer and named beforehand. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing — the plan price is the price."
+    }
+  ],
+  "/partnerbank-dkb": [
+    {
+      "f": "Ist das Konto wirklich kostenlos?",
+      "a": "Ja, wenn jeden Monat mindestens 700 Euro eingehen oder Sie unter 28 sind. Sonst kostet die Kontoführung 4,50 Euro im Monat. Die Visa Debitkarte ist immer ohne Jahresgebühr dabei."
+    },
+    {
+      "f": "Was bringt der Aktivstatus?",
+      "a": "Kostenloses Bezahlen und Geldabheben fast überall auf der Welt, keinen Aufschlag auf Fremdwährungen, einen günstigeren Dispozins und ein kostenloses Notfallpaket bei Kartenverlust im Ausland. Neukunden haben ihn die ersten drei Monate automatisch."
+    },
+    {
+      "f": "Wann bekomme ich den Link der Partnerbank?",
+      "a": "Sobald Ihr Account aktiv ist, also mit Ihrer ersten gebuchten Zahlung, bekommen Sie direkt den fertigen Link unserer Partnerbank per Mail."
+    },
+    {
+      "f": "Bekomme ich die Kreditkarte sofort?",
+      "a": "Erst das Konto, dann die Karte: Die Visa Kreditkarte buchen Sie im Banking dazu, sobald das Konto steht. Über Karte und Rahmen entscheidet die Bank. Nach der Zusage ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, meist können Sie sie schon vorher in der App mit Apple Pay nutzen."
+    },
+    {
+      "f": "Warum über FIAON und nicht direkt?",
+      "a": "Direkt geht auch, das Konto steht jedem offen. Über FIAON kommt der Antrag zur richtigen Zeit: mit entwickelter Bonität, in der richtigen Reihenfolge und mit Ihrem Betreuer an der Seite."
+    },
+    {
+      "f": "Verdient FIAON an meiner Kontoeröffnung?",
+      "a": "Ja, und das sagen wir offen: Eröffnet die DKB über unseren Link ein Konto, erhält FIAON eine Vergütung. Sie zahlen dafür nichts, und Ihr Paketpreis hängt nicht davon ab."
+    },
+    {
+      "f": "Ist mein Geld bei der DKB sicher?",
+      "a": "Guthaben ist über die gesetzliche Einlagensicherung bis 100.000 Euro geschützt."
+    }
+  ],
+  "/en/partner-bank-dkb": [
+    {
+      "f": "Is the account really free of charge?",
+      "a": "Yes, if at least 700 euros are paid in each month or you are under 28. Otherwise the account fee is 4.50 euros a month. The Visa debit card always comes without an annual fee."
+    },
+    {
+      "f": "What does Active status bring?",
+      "a": "Free payments and cash withdrawals almost everywhere in the world, no surcharge on foreign currencies, a lower overdraft rate and a free emergency package if you lose your card abroad. New customers have it automatically for the first three months."
+    },
+    {
+      "f": "When do I receive the partner bank's link?",
+      "a": "As soon as your account is active, that is with your first booked payment, you receive the ready-made link from our partner bank by email."
+    },
+    {
+      "f": "Do I get the credit card straight away?",
+      "a": "First the account, then the card: you add the Visa credit card in online banking once the account is open. The bank decides on the card and the limit. After approval the card usually reaches you within 2–5 working days, and you can mostly use it with Apple Pay in the app before then."
+    },
+    {
+      "f": "Why via FIAON rather than directly?",
+      "a": "Applying directly works too; the account is open to everyone. Via FIAON the application comes at the right time: with a developed credit profile, in the right order and with your account manager at your side."
+    },
+    {
+      "f": "Does FIAON earn from my account opening?",
+      "a": "Yes, and we say so openly: if DKB opens an account via our link, FIAON receives a fee. You pay nothing for it, and your package price does not depend on it."
+    },
+    {
+      "f": "Is my money safe with DKB?",
+      "a": "Balances are protected by statutory deposit insurance up to 100,000 euros."
     }
   ],
   "/oesterreich": [

@@ -74,7 +74,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
-import { KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { ohneEmojis } from "@shared/fiaon-telefonkartei";
 import { akteLesen } from "./fiaon-postmeister-dossier";
@@ -92,7 +91,7 @@ import { menschSperre, werbesperreAnAdresse, werbungVerboten } from "./fiaon-mai
 import { personaText, tonPruefung, linkPruefung, AUSSICHT_SAETZE, kartenZiel, kartenzielText, BANK_SATZ, ohneLimitUndBankSatz, type KartenZiel,
   bankSatzRegel, bankSatzNurWennGefragt,
   // E-276 (02.10.2026): dieselben Bausteine wie Postfach und WhatsApp (E-275) — Abschluss, Aufforderung, Lücke, Prüfungen.
-  bausteinAbschluss, mitAntragLuecke, nachDemEingang, nachDerZuordnung, AKTIVIERUNG_AUFRUF, TEMPO_SATZ, ZAHL_KNOPF_MAIL,
+  bausteinAbschluss, mitAntragLuecke, nachDemEingang, nachDerZuordnung, AKTIVIERUNG_AUFRUF, ZAHL_KNOPF_MAIL,
   selbstErledigtTreffer, ausrufezeichen,
 } from "@shared/fiaon-mara-ton";
 import type { MitarbeiterEintrag } from "@shared/fiaon-mitarbeiter-name";
@@ -559,14 +558,16 @@ function thema(stufe: "A" | "B", schritt: number): string {
     return [
       "Erste Mail: Stell dich kurz vor. Danke ihm herzlich, dass er seine Zahlung gemeldet hat. Sag freundlich, dass sie bei uns noch nicht zugeordnet ist — oft kommt der Verwendungszweck verkürzt an. Hilf selbst: Den Überweisungsbeleg schickt er dir einfach als Antwort; Verwendungszweck und Zahlungsdaten stehen hinter dem Knopf unten. Dann mit Freude, was die Zuordnung bringt (Abschluss).",
       "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Die Zahlung ist noch nicht zugeordnet — bitte ihn um den Beleg (Datum, Betrag, Verwendungszweck) als Antwort; du kümmerst dich selbst darum. Dann, was die Zuordnung bringt (Abschluss).",
-      "Dritte Mail: Konzentrier dich auf die Karte: Nach der Zuordnung lädt er Ausweis und Kontoauszüge hoch, nach seiner Bonitätsauswertung kommt direkt der Link unserer Partnerbank (E-363), die Karte ist nach der Zusage der Bank in der Regel in 2–5 Werktagen da, meist vorher schon mit Apple Pay nutzbar. Bitte um den Beleg als Antwort.",
+      // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch … nichts vermischen“): sein Ziel, nicht die Abläufe der Bank.
+      "Dritte Mail: Konzentrier dich auf sein Ziel: Sobald seine Zahlung zugeordnet ist, schalten wir umgehend seinen Account frei, damit er schnellstmöglich seine Visa-Kreditkarte mit seinem Wunschlimit nutzen kann (Abschluss). Bitte um den Beleg als Antwort.",
       "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg). Frag, ob etwas unklar ist — eine kurze Antwort genügt, du klärst es selbst. Bitte um den Beleg als Antwort.",
     ][Math.min(schritt, 4) - 1];
   }
   return [
     // E-265 Nachbesserung (29.09.2026): kein „fehlt nur noch" (Nähe als Druck, fast eine Zusage — naehe_druck).
-    "Erste Mail: Stell dich kurz vor. Sein Antrag liegt bei dir — jetzt aktiviert er mit seiner ersten Monatsrate seinen Account. Die Visa-Kreditkarte vorn (sein Wunschlimit als Ziel, über den Rahmen entscheidet die Bank), dann begeistert die klare Aufforderung mit dem Nutzen (Abschluss).",
-    "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Heute die Karte: was direkt nach dem Eingang passiert (Link unserer Partnerbank, nach der Zusage der Bank in der Regel 2–5 Werktage, Apple Pay meist vorher) — dann die Aufforderung (Abschluss).",
+    // E-373 (15.10.2026, Justin): den Wunsch verkaufen — kein Satz über die Bank, keine Abläufe der Bank.
+    "Erste Mail: Stell dich kurz vor. Sein Antrag liegt bei dir — jetzt aktiviert er mit seiner ersten Monatsrate seinen Account. Die Visa-Kreditkarte mit seinem Wunschlimit vorn, dann begeistert die klare Aufforderung mit Justins Satz (Abschluss).",
+    "Zweite Mail: Kein Vorstellen. Nimm kurz Bezug auf deine letzte Mail. Heute sein Ziel: Nach seiner Zahlung schalten wir umgehend seinen Account frei, damit er schnellstmöglich seine Visa-Kreditkarte mit seinem Wunschlimit nutzen kann — dann die Aufforderung (Abschluss).",
     "Dritte Mail: Wie einfach es ist: ein Klick auf den Knopf, dort stehen Betrag, Bankdaten, Verwendungszweck und ein QR-Code für die Banking-App — in zwei Minuten erledigt. Zögert er, antwortet er dir kurz, und du klärst es selbst. Dann die Aufforderung (Abschluss).",
     "Weitere Mail: Persönlich und kurz. Nimm Bezug auf seine Lage (Gedächtnis, Weg, was er bei der Bestellung wollte). Erinnere mit Freude an sein Ziel, seine Visa-Kreditkarte, und fordere ihn klar auf, die Aktivierung jetzt zu zahlen (Abschluss).",
   ][Math.min(schritt, 4) - 1];
@@ -674,10 +675,11 @@ function aktionsPrompt(ein: {
     `· Nie „wir sind keine Bank“, nie „wir versenden Ihre Karte“ und nie „in Produktion“ — die Karte gibt unsere Partnerbank nach ihrer Zusage aus.`,
     a
       ? `· „Sofort aktiv“ nur so: „${nachDerZuordnung({ anfang: true })}“ — nie „sofort nach Zahlungseingang“.`
-      : `· „Sofort“ nur mit seinem Verwendungszweck im selben Satz: „${nachDemEingang({ ref: k.zahlungsreferenz, anfang: true })}“. ${TEMPO_SATZ} ${ZAHL_KNOPF_MAIL}`,
+      : `· „Sofort“ nur mit seinem Verwendungszweck im selben Satz: „${nachDemEingang({ ref: k.zahlungsreferenz, anfang: true })}“. ${ZAHL_KNOPF_MAIL}`,
     `· Nichts garantieren, nicht beraten, nie „ich empfehle“, keine feste Frist, keine Zusage außer der im Abschluss. Keine Rückzahlung zusagen. Hat er nach einem Kredit gefragt (Gedächtnis, Weg): nie mit einem Nein anfangen — seine eigene Kreditkarte ist das Bessere.`,
-    `· Karten-Zeit nur sinngemäß so: „${KARTE_ZEIT_SATZ}“ — „in der Regel“, „nach der Zusage der Bank“ und „meist“ bleiben immer drin.`,
-    `· Das Wunschlimit ist ein Ziel („als Ziel“, „darauf arbeiten wir hin“), nie eine Zusage; über den Rahmen entscheidet unsere Partnerbank. Das Wort „Kreditkarte“ gehört in jede Mail.`,
+    // E-373 (15.10.2026, Justin: „nicht mit ‚Wir sind keine Bank‘ … das steht alles im Vertrag und gehört NICHT zum Verkauf“).
+    `· VERKAUFEN HEISST SEINEN WUNSCH VERKAUFEN: sein Wunschlimit an seiner Visa-Kreditkarte, mit Justins Satz aus dem Abschluss. Im Verkauf NIE „nach der Zusage der Bank“, keine Werktage bis zur Karte, nie „über den Rahmen entscheidet …“, nie „wir sind keine Bank“ — das steht im Vertrag. Das Wort „Kreditkarte“ gehört in jede Mail.`,
+    `· Erfinde keine eigene Zusage: nie „Sie bekommen Ihr Wunschlimit sicher“, „garantiert“, „ist genehmigt“ — nur Justins Satz.`,
     `· Kein Nähe-Versprechen: nie „fehlt nur noch“, „nur noch einen Schritt“, „greifbar“ — sag den nächsten Schritt.`,
     `· Keine internen Wörter (Akte, Status, Stufe, Aktion, System, Lead).`,
     `· Nutze, was du über ihn weißt: ein Telefonat, eine frühere Mail, sein Ziel. Er soll merken, dass hier ein Mensch schreibt, der ihn kennt. Erfinde nichts.`,
@@ -783,6 +785,11 @@ export const AKTION_HART: readonly string[] = ["karte_versand", "sofort_ohne_zwe
  * E-276 (02.10.2026): die WEICHEN Befunde (E-275-Ton) — sie lösen einen zweiten Entwurf aus, halten die Mail aber nicht
  * auf: weiche Regeln aus tonPruefung, mehr als ein „!“, und bei B die fehlende klare Aufforderung. Rein.
  */
+/** E-373: Ein Satz über die Bank im Verkauf („nach der Zusage der Bank“, „… entscheidet die Bank“, „keine Bank“) — sonst null. Rein. */
+export function bankVorbehalt(text: string): string | null {
+  return String(text || "").match(/[^.!?\n]*(?:zusage\s+der\s+(?:partner)?bank|entscheidet[^.!?\n]{0,40}\b(?:partner)?bank\b|\b(?:partner)?bank\b[^.!?\n]{0,30}\bentscheidet|wir\s+sind\s+keine\s+bank)[^.!?\n]*/i)?.[0]?.trim().slice(0, 90) ?? null;
+}
+
 export function aktionHinweise(betreff: string, text: string, opt: { stufe?: "A" | "B"; land?: string | null } = {}): string[] {
   const h: string[] = [];
   const land = String(opt.land || "").toUpperCase();
@@ -791,6 +798,9 @@ export function aktionHinweise(betreff: string, text: string, opt: { stufe?: "A"
   }
   if (ausrufezeichen(text) > 1) h.push("Mehr als ein Ausrufezeichen — höchstens eins (das im Abschluss)");
   if (opt.stufe !== "A" && !fordertZahlung(text)) h.push(`Die klare Aufforderung fehlt — „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate …“ mit dem Nutzen dahinter`);
+  // E-373 (15.10.2026, Justin: „das steht alles im Vertrag und gehört NICHT zum Verkauf“): Bank-Vorbehalte → zweiter Entwurf.
+  const vorbehalt = bankVorbehalt(text);
+  if (vorbehalt) h.push(`Kein Bank-Vorbehalt im Verkauf („${vorbehalt}“) — streich den Satz; verkauf seinen Wunsch mit Justins Satz aus dem Abschluss`);
   return h;
 }
 

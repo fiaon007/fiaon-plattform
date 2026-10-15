@@ -139,6 +139,10 @@ ok(A276.aktionPruefen("Kurz zu Ihrer Karte", gut.replace(TON.nachDemEingang({ re
 ok(A276.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Über den Knopf unten", "Wir kümmern uns darum, dass die Karte schnell versendet wird. Über den Knopf unten")).length > 0, "„… dass die Karte schnell versendet wird“ fällt durch");
 ok(A276.aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Über den Knopf unten", "Wir sind keine Bank. Über den Knopf unten")).length > 0, "„Wir sind keine Bank“ fällt durch");
 ok(A276.aktionHinweise("x", gut.replace("Einen schönen Abend wünsche ich Ihnen.", "Ich freue mich! Einen schönen Abend!"), { stufe: "B" }).some((x) => /Ausrufezeichen/.test(x)), "Mehr als ein „!“ → zweiter Entwurf");
+// E-373 (15.10.2026, Justin: Bank-Vorbehalte gehören in den Vertrag, nicht in den Verkauf) — gemessen: die erste Mail nach dem Deploy trug noch
+// „Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen …“ (vom Modell aus dem alten Auftrag).
+ok(A276.aktionHinweise("x", absB + " Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen.", { stufe: "B" }).some((x) => /Bank-Vorbehalt/.test(x))
+  && !A276.aktionHinweise("x", absB, { stufe: "B" }).some((x) => /Bank-Vorbehalt/.test(x)), "E-373: „Nach der Zusage der Bank …“ im Verkauf → zweiter Entwurf; Justins Abschluss allein ist frei");
 ok(TON.ausrufezeichen(A276.nurEinAusrufezeichen("Toll! Super! Prima!")) === 1 && A276.nurEinAusrufezeichen("Toll! Super!") === "Toll! Super.", "Übrige „!“ werden Punkte");
 ok(A276.aktionHinweise("x", gut.replace(/Zahlen Sie jetzt die Aktivierung, /, ""), { stufe: "B" }).some((x) => /klare Aufforderung/.test(x)), "B ohne klare Aufforderung → zweiter Entwurf");
 

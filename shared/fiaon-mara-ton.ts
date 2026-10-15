@@ -1004,7 +1004,7 @@ export const AUSSICHT_SAETZE = [
   "Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter.",
   "Genau für diese Lage gibt es FIAON — Sie machen das nicht allein.",
   "Nach der Zahlung ist Ihr Account aktiv, und es geht direkt weiter.",
-  "Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay.",
+  // E-373 (15.10.2026, Justin): keine Abläufe der Bank im Verkauf — „Nach der Zusage der Bank …“ ist hier raus.
   "Wir bereiten Ihren Antrag bei unserer Partnerbank so stark wie möglich vor.",
 ] as const;
 
@@ -3027,11 +3027,13 @@ export const KARTE_REGEL_TEXT = [
   // so in etwa nur seriös"): die seriöse Fassung ist sein eigener Satz (KARTE_LINK_SATZ, KARTE_ZEIT_SATZ) — kein Termin mehr.
   // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account
   // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung statt „Bitte begleichen Sie …“, der Nutzen direkt dahinter.
-  `· Justins Abschluss: Karte + Wunschlimit + Satz über die Bank, dann ein PUNKT → die klare Aufforderung mit dem Betrag als neuer Satz und der Nutzen direkt dahinter („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${NACH_DEM_EINGANG}!“) → „${KARTE_ZEIT_SATZ}“ (gern davor „${TEMPO_SATZ}“) → EINE Frage: „${ZAHL_FRAGE}“ (Mail: der Knopf). Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Wunschlimit und Betrag/Aktivierung nie in EINEM Satz (kein Semikolon dazwischen). „Die Karte ist in Produktion“, „kommt sicher“ oder „wir versenden Ihre Karte“ sagst du nie — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
+  // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): Justins Satz mit seinem Wunschlimit an
+  // der Karte — kein Satz über die Bank, kein „Nach der Zusage der Bank …“, kein Tempo-Umweg.
+  `· Justins Abschluss: die klare Aufforderung mit dem Betrag und direkt dahinter Justins Satz („${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${NACH_DEM_EINGANG}!“ — mit seinem Wunschlimit: „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … € nutzen können!“) → EINE Frage: „${ZAHL_FRAGE}“ (Mail: der Knopf). Im Verkauf NIE ein Satz über die Bank, nie „nach der Zusage der Bank“, nie „wir sind keine Bank“ — das steht im Vertrag. Begeistert, aber seriös: höchstens EIN Ausrufezeichen.`,
   `· KEIN TERMIN ALS PFLICHT (Justin 02.10.2026: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): Einen Anruf oder Termin bietest du nur an, wenn er telefonieren will, unsicher bleibt und ausdrücklich sprechen möchte, oder ein zugesagter Anruf ausgefallen ist. Steht sein Termin schon, nennst du ihn.`,
   `· Bei einem EINWAND (Vorkasse, „zuerst die Zahlung“, unseriös, kein Kreditinstitut, zu teuer): nie mit „Genau“ oder „Ja“ beginnen. Erst sein Einwand in einem Satz — fragt er „kein Kreditinstitut?“, beantwortest du genau das (was FIAON tut, nie „wir sind keine Bank“ als Ausrede) —, dann die Karte, „Sie überweisen selbst, abgebucht wird nichts“, was der Zahlungseingang auslöst („${NACH_DEM_EINGANG_SATZ}“) und die Bitte; sprechen kann er, wenn er möchte („Möchten Sie vorher kurz sprechen, sagen Sie es mir einfach.“). Zu teuer: das kleinere Paket mit seinem Ziel.`,
   // E-276 (02.10.2026): „sobald wir sie zugeordnet haben“ — mit verkürztem Verwendungszweck bucht der Abgleich nicht selbst.
-  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — sobald wir sie zugeordnet haben, ist sein Account sofort aktiv und der Link unserer Partnerbank für seinen Kartenantrag kommt direkt, seine Visa-Kreditkarte bleibt das Ziel, nach der Zusage der Bank in der Regel 2–5 Werktage.`,
+  `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte, kein Zahlungslink — „${nachDerZuordnung({ anfang: true })}!“ (mit seinem Wunschlimit an der Karte, E-373).`,
   `· Ist sein Antrag nicht abgeschickt: kein Satz zur Rate — die Karte, sein nächster Schritt ist der Antrag („Machen Sie heute noch weiter?“). Nie „nur noch einen Schritt entfernt“, nie „greifbar“, nie „fehlt nur noch“.`,
   `· „Ich habe ja keine Karte bekommen — wozu zahlen?“ → Bei der ERSTEN Monatsrate: „Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist“ mit Betrag und Zahlungsseite, dann „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“. Beim ZAHLENDEN Kunden ist der Link unserer Partnerbank die Antwort: Du schickst ihn selbst (WhatsApp: karte_link_schicken) mit den Schritten (zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; nach der Zusage der Bank in der Regel 2–5 Werktage) — und nennst danach seine fällige Rate („Ihre Rate vom … über …“) mit Zahlungsseite. Die Folgerate ist nie „der Grund“. Nie „FIAON verschickt keine Karte“, nie ein Kollege, der nachsieht.`,
   `· Steht die Formel schon in deiner letzten Nachricht, wiederhol sie nicht ganz — nur das Neue und die Frage.`,

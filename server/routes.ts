@@ -1179,6 +1179,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 📎 E-365 (14.10.2026): Bonitätsauswertung bezahlt, Ausweis/Kontoauszug fehlen noch → Erinnerung mit frischem Link
     //    (nach 3, 4, 7 Tagen, höchstens drei), alle 2 Stunden, nur 09–19 Uhr Berlin, je Lauf höchstens 10.
     tageslauf('bonitaet_unterlagen_erinnerung', async () => await (await import('./lib/fiaon-bonitaet-ablauf')).auswertungUnterlagenErinnern(), 2 * 60 * 60 * 1000, { beimStartNach: 600_000 });
+    // 📨 E-376 (15.10.2026, Justin: „du erledigst alles für mich, auch die WhatsApp-Vorlagen reiche ein … mach es in Zukunft
+    //    immer selbst“): Vorlagen, die im Code stehen und bei Meta FEHLEN (neue Fassungen wie …_v2), reicht die Plattform selbst
+    //    ein — 5 Minuten nach jedem Start und alle 6 Stunden. Nur Fehlende (vorlagenEinreichen): eine freigegebene Vorlage geht
+    //    nie zurück in die Prüfung; die Hauswand (sendePruefung) gilt wie beim Knopf.
+    tageslauf('wa_vorlagen_einreichen', async () => await (await import('./routes/fiaon-chef-auskunft')).vorlagenEinreichenStarten(), 6 * 60 * 60 * 1000, { beimStartNach: 300_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

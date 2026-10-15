@@ -293,20 +293,13 @@ export async function auswertungLieferungStarten(ref: string, personId: number, 
     if (e?.voraussetzungen.kontoauszug.bitte) saetze.kontoauszug = e.voraussetzungen.kontoauszug.bitte;
     const { unterlagenAnfrageSenden } = await import("./fiaon-unterlagen-link");
     const r = await unterlagenAnfrageSenden({
-      personId, arten: lage.fehlt, kanaele: ["mail"], saetze, quelle: "auskunft", anlassSatz: AUSWERTUNG_ANLASS_SATZ,
+      personId, arten: lage.fehlt, kanaele: ["mail"], saetze, quelle: "auskunft", anlassSatz: AUSWERTUNG_ANLASS_SATZ, lieferung: "auswertung",
       akteur: { name: "Bonitätsauswertung", agentId: null, rolle: "admin" /* System-Absender wie Monatsbericht und Kartenlink */ }, lauf,
     }).catch((err: unknown) => ({ ok: false, status: "fehlgeschlagen", meldung: String((err as Error)?.message || err) } as any));
     const anforderung: AblaufErgebnis["anforderung"] = r.ok ? "gesendet" : r.status === "abgelehnt" ? "abgelehnt" : "fehlgeschlagen";
-    if (!r.ok) {
-      // Ging die Bitte nicht hinaus, muss ein Mensch nachfassen — sonst wartet der Käufer still.
-      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-      await auftragFuerKunden({
-        personId, ref, schluessel: `bonitaet-unterlagen-fehlen:${ref}`, bereich: "pruefen", quelle: "bestellung", autorName: "Bonitätsauswertung",
-        titel: "Bonitätsauswertung bezahlt — Unterlagen anfordern",
-        text: `Die FIAON-Bonitätsauswertung ${ref} ist bezahlt. Die automatische Bitte um ${lage.fehlt.join(" und ")} ging NICHT hinaus: ${String(r.meldung ?? "").slice(0, 300)}\n\nBitte den Kunden anrufen oder in der Akte → Dokumente → „Beim Kunden anfordern“.`,
-        anlageText: "Angelegt, weil die Unterlagen-Bitte nach der Zahlung nicht zugestellt werden konnte.",
-      }).catch(() => {});
-    }
+    // E-376 (15.10.2026, Justin: „mach es in Zukunft immer selbst und hör auf, mir irgendwelche Aufgaben zu geben“): Ging die
+    // Bitte nicht hinaus, legt die Plattform KEINE Aufgabe mehr an — die Erinnerung (auswertungUnterlagenErinnern) versucht es
+    // selbst noch einmal (nach 2 Stunden, höchstens dreimal); eine Kontaktsperre wird respektiert.
     await vermerk(`Bonitätsauswertung bezahlt — Ausweis/Kontoauszug angefordert (${lage.fehlt.join(", ")}): ${r.ok ? "Upload-Link per Mail gesendet" : `NICHT gesendet (${String(r.meldung ?? "").slice(0, 200)})`}.`);
     return { ok: true, text: `${ref}: Unterlagen angefordert — ${anforderung}.`, anforderung, aufgabe: false };
   }
@@ -325,6 +318,9 @@ export async function auswertungLieferungStarten(ref: string, personId: number, 
 // Pflichtpost (keine Werbung): Die Bitte gilt der bezahlten Leistung. Werktags-Fenster wie die Zahlungserinnerung.
 // ═══════════════════════════════════════════════════════════════════════════
 export const ERINNERUNG_HOECHSTENS = 3;
+/** E-376: Eine nie zugestellte erste Bitte holt die Plattform selbst nach — höchstens so oft, frühestens nach diesem Abstand. */
+export const NACHHOLEN_HOECHSTENS = 3;
+export const NACHHOLEN_ABSTAND_MS = 2 * 3_600_000;
 const ABSTAND_TAGE = [3, 4, 7];
 
 export async function auswertungUnterlagenErinnern(lauf: Lauf = sqlPool, opts: { hoechstens?: number; jetzt?: Date } = {}): Promise<{ geprueft: number; gesendet: number; texte: string[] }> {
@@ -339,8 +335,11 @@ export async function auswertungUnterlagenErinnern(lauf: Lauf = sqlPool, opts: {
   // Bezahlte Bonitätsauswertungen (privat) ohne freigegebene Fassung, die den Ablauf schon hatten.
   const faelle = (await lauf`
     SELECT a.ref, a.person_id,
-           (SELECT COUNT(*)::int FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id AND u.quelle = 'auskunft') AS bitten,
-           (SELECT MAX(u.am) FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id) AS letzte
+           -- E-376: nur ZUGESTELLTE Bitten zählen; gescheiterte Versuche (Tür, Zustellung) getrennt.
+           (SELECT COUNT(*)::int FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id AND u.quelle = 'auskunft' AND u.mail_status = 'gesendet') AS bitten,
+           (SELECT MAX(u.am) FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id AND u.mail_status = 'gesendet') AS letzte,
+           (SELECT COUNT(*)::int FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id AND u.quelle = 'auskunft' AND u.mail_status <> 'gesendet') AS versuche,
+           (SELECT MAX(u.am) FROM fiaon_unterlagen_anfragen u WHERE u.person_id = a.person_id AND u.quelle = 'auskunft' AND u.mail_status <> 'gesendet') AS letzter_versuch
       FROM fiaon_applications a
      WHERE a.merged_into IS NULL AND (COALESCE(a.type, '') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
        AND a.payment_status = 'paid' AND a.cancelled_at IS NULL AND a.gdpr_deleted_at IS NULL AND a.person_id IS NOT NULL
@@ -356,20 +355,35 @@ export async function auswertungUnterlagenErinnern(lauf: Lauf = sqlPool, opts: {
   for (const f of faelle) {
     if (gesendet >= hoechstens) break;
     const bitten = Number(f.bitten || 0);
-    if (bitten < 1 || bitten > ERINNERUNG_HOECHSTENS) continue;
-    const abstand = ABSTAND_TAGE[Math.min(bitten - 1, ABSTAND_TAGE.length - 1)];
-    if (f.letzte && jetzt - new Date(f.letzte).getTime() < abstand * 86_400_000) continue;
+    if (bitten > ERINNERUNG_HOECHSTENS) continue;
+    if (bitten === 0) {
+      // E-376: Die erste Bitte ging nie hinaus (Tür, Zustellung) — nach 2 Stunden selbst noch einmal, höchstens dreimal.
+      if (Number(f.versuche || 0) >= NACHHOLEN_HOECHSTENS) continue;
+      if (f.letzter_versuch && jetzt - new Date(f.letzter_versuch).getTime() < NACHHOLEN_ABSTAND_MS) continue;
+    } else {
+      const abstand = ABSTAND_TAGE[Math.min(bitten - 1, ABSTAND_TAGE.length - 1)];
+      if (f.letzte && jetzt - new Date(f.letzte).getTime() < abstand * 86_400_000) continue;
+    }
     const personId = Number(f.person_id);
     const lage = await auswertungLage(personId, lauf).catch(() => null);
     if (!lage || lage.stand !== "unterlagen_fehlen" || !lage.fehlt.length) continue;
     const { unterlagenAnfrageSenden } = await import("./fiaon-unterlagen-link");
     const r = await unterlagenAnfrageSenden({
       personId, arten: lage.fehlt, kanaele: ["mail"], quelle: "auskunft",
-      anlassSatz: `Kurze Erinnerung: ${AUSWERTUNG_ANLASS_SATZ}`,
-      akteur: { name: "Bonitätsauswertung (Erinnerung)", agentId: null, rolle: "admin" }, lauf,
+      anlassSatz: bitten === 0 ? AUSWERTUNG_ANLASS_SATZ : `Kurze Erinnerung: ${AUSWERTUNG_ANLASS_SATZ}`, lieferung: "auswertung",
+      akteur: { name: bitten === 0 ? "Bonitätsauswertung (nachgeholt)" : "Bonitätsauswertung (Erinnerung)", agentId: null, rolle: "admin" }, lauf,
     }).catch((err: unknown) => ({ ok: false, meldung: String((err as Error)?.message || err) } as any));
     if (r.ok) gesendet++;
-    texte.push(`${f.ref}: Erinnerung ${bitten} — ${r.ok ? "gesendet" : `nicht gesendet (${String(r.meldung ?? "").slice(0, 120)})`}`);
+    // E-376: Eine alte Team-Aufgabe „Unterlagen anfordern“ schließt sich, sobald die Bitte draußen ist — oder wenn eine
+    // Kontaktsperre jede Bitte verbietet (dann ruft auch niemand an).
+    const sperre = !r.ok && /kontaktsperre|abgelehnt/i.test(String(r.meldung ?? ""));
+    if (r.ok || sperre) {
+      await lauf`
+        UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = 'Bonitätsauswertung',
+               ergebnis = ${r.ok ? "Die Plattform hat die Bitte um Ausweis und Kontoauszug selbst nachgeholt (E-376)." : "Kontaktsperre — keine Bitte, kein Anruf (E-376)."}, letzte_aktivitaet = NOW()
+         WHERE schluessel = ${`bonitaet-unterlagen-fehlen:${f.ref}`} AND status <> 'erledigt'`.catch(() => {});
+    }
+    texte.push(`${f.ref}: ${bitten === 0 ? "nachgeholt" : `Erinnerung ${bitten}`} — ${r.ok ? "gesendet" : `nicht gesendet (${String(r.meldung ?? "").slice(0, 120)})`}`);
   }
   return { geprueft: faelle.length, gesendet, texte };
 }

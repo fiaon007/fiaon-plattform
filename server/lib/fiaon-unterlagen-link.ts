@@ -313,6 +313,8 @@ export async function unterlagenAnfrageSenden(ein: {
   ohneDrossel?: boolean;
   /** E-365: ein Satz zum Anlass unter der Liste (z. B. „Für Ihre FIAON-Bonitätsauswertung …“) — keine Werbung, kein Preis. */
   anlassSatz?: string;
+  /** E-376: „auswertung“ = Lieferung einer bezahlten Bonitätsauswertung (die Tür kennt dann kein „gekündigt“ und kein Angebot). */
+  lieferung?: "auswertung" | null;
   lauf?: Lauf;
 }): Promise<AnfrageErgebnis> {
   const lauf = ein.lauf ?? sqlPool;
@@ -368,6 +370,7 @@ export async function unterlagenAnfrageSenden(ein: {
           upload_satz: uploadSatz(lk.link.gueltigBis),
           unterlagen_arten: arten.join(","),
           auskunft_modus: "", auskunft_betrag: "",
+          lieferung: ein.lieferung ?? "",
         },
         akteur: { name: ein.akteur.name, agentId: ein.akteur.agentId, rolle: ein.akteur.rolle as any },
         lauf,

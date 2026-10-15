@@ -1004,9 +1004,13 @@ export function sperrUrteil(
   }
   if (NUR_MIT_VERTRAG.has(event)) {
     if (nurTest) return "Testkonto — keine Unterlagen-Aufforderung";
-    if (ohneVertrag) return "Gekündigt oder Vertrag beendet — keine Aufforderung mehr, Unterlagen nachzureichen";
     const n = opts.nutzlast ?? null;
-    const mitAngebot = !!n && (String(n.angebot_text ?? "").trim() !== "" || String(n.auskunft_modus ?? "") === "angebot");
+    // E-376 (15.10.2026): Die Bitte um Ausweis und Kontoauszug für eine BEZAHLTE Bonitätsauswertung ist Lieferung, kein Angebot —
+    // auch nach gekündigtem Paket und trotz Werbesperre (dieselbe Ausnahme wie versandErlaubt, auswertungBezahlt). Gemessen am
+    // Knopf „Käufer um Unterlagen bitten“: 6 Käufer mit gekündigtem Paket und 2 mit Werbesperre bekamen ihre Bitte nicht.
+    const lieferung = !!n && String(n.lieferung ?? "") === "auswertung";
+    if (ohneVertrag && !lieferung) return "Gekündigt oder Vertrag beendet — keine Aufforderung mehr, Unterlagen nachzureichen";
+    const mitAngebot = !lieferung && !!n && (String(n.angebot_text ?? "").trim() !== "" || String(n.auskunft_modus ?? "") === "angebot");
     if (irgendeineSperre && mitAngebot) return "Werbesperre: Die Unterlagen-Mail darf nur die Bitte enthalten, kein Kaufangebot";
     return null;
   }

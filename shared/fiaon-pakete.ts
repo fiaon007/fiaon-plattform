@@ -94,14 +94,14 @@ export const PAKETE: Paket[] = [
   // ── KEIN ABO ─────────────────────────────────────────────────────────────
   // Die Bonitätsauskunft ist ein Einmalkauf. Sie steht hier, damit sie einen
   // Preis hat — und mit `abo: false`, damit sie NIE eine Rate erzeugt.
-  { key: "schufa",              label: "Bonitätsauskunft",          preisCents:  7400, art: "privat",   abo: false, zusatz: "auskunft" },
+  { key: "schufa",              label: "FIAON-Bonitätsauswertung",  preisCents:  7400, art: "privat",   abo: false, zusatz: "auskunft" },
   // ── DIE AUSKUNFT IN VIER PREISEN (24.09.2026, E-240) ─────────────────────
   // Justin: „ohne ABO 149 € mit ABO 74 € … für Unternehmen 349 € ohne ABO und
   // 199 € mit ABO". „schufa" oben bleibt der Privatpreis mit Abo (Altbestand).
   // Welcher Preis gilt, entscheidet NUR der Server (fiaon-auskunft.ts,
   // auskunftPreis): bezahltes, laufendes Paket → „mit Abo". Preise und
   // Leistung stehen in shared/fiaon-auskunft.ts.
-  { key: "auskunft_privat",     label: "Bonitätsauskunft (einzeln)",          preisCents: 14900, art: "privat",   abo: false, zusatz: "auskunft" },
+  { key: "auskunft_privat",     label: "FIAON-Bonitätsauswertung (einzeln)",  preisCents: 14900, art: "privat",   abo: false, zusatz: "auskunft" },
   { key: "auskunft_firma",      label: "Firmen-Bonitätsauskunft (einzeln)",   preisCents: 34900, art: "business", abo: false, zusatz: "auskunft" },
   { key: "auskunft_firma_abo",  label: "Firmen-Bonitätsauskunft (Kundenpreis)", preisCents: 19900, art: "business", abo: false, zusatz: "auskunft" },
   // ── FIAON GLOBAL (17.09.2026, E-188) — EINMALPREISE, KEIN ABO ────────────

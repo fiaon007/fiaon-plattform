@@ -186,7 +186,7 @@ export async function profilLesen(): Promise<Profil | null> {
 export const PROFIL_VORSCHLAG: Omit<Profil, "profileBild"> = {
   about: "Ihr Weg zur eigenen Kreditkarte",
   description:
-    "FIAON begleitet Privatpersonen auf dem Weg zur eigenen Kreditkarte: Wir holen Ihre Bonitätsauskunft, "
+    "FIAON begleitet Privatpersonen auf dem Weg zur eigenen Kreditkarte: Wir zeigen Ihnen Ihre Bonität aus Sicht einer Bank, "
     + "erklären jeden Eintrag und übernehmen die Schreiben an die Auskunfteien. Über Konto und Karte entscheidet die Bank.",
   address: "FIAON LTD · 124 City Road · London EC1V 2NX · United Kingdom",
   email: "support@fiaon.com",

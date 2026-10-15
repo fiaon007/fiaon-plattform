@@ -148,9 +148,9 @@ export default function LeseAufruf() {
         <h2 id="la-titel">Sollen wir das <span className="la-verlauf">für Sie übernehmen?</span></h2>
         <p id="la-text" className="la-text">
           Alles in diesem Ratgeber können Sie selbst tun — die Werkzeuge dafür
-          sind kostenlos. Wenn Sie es lieber abgeben: FIAON beschafft Ihre
-          Auskünfte bei SCHUFA, KSV und CRIF, prüft jeden Eintrag gegen die
-          gesetzlichen Voraussetzungen und führt den Schriftwechsel mit Fristen.
+          sind kostenlos. Wenn Sie es lieber abgeben: FIAON zeigt Ihnen Ihre
+          Bonität aus Sicht einer Bank, prüft jeden Eintrag Ihrer Datenkopie gegen
+          die gesetzlichen Voraussetzungen und führt den Schriftwechsel mit Fristen.
           Sie sehen jeden Schritt in Ihrem Bereich.
         </p>
 

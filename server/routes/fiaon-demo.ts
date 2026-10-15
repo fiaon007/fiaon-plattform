@@ -135,9 +135,9 @@ function demoBereich(stufeRoh: unknown) {
       : st.auskunft
         ? "Ihre Auskunft ist eingegangen. Ein Mensch geht sie gerade Eintrag für Eintrag durch."
         : auskunftBeauftragt
-          ? `Ihre Auskunft ist beauftragt. Wir fordern Ihre Datenkopien bei ${auskunft.bei} an und tragen sie hier ein.`
+          ? "Ihre Bonitätsauswertung ist bezahlt. Sobald Ausweis und Kontoauszüge da sind, entwickelt Ihr FIAON-Team sie."
           : st.bezahlt
-            ? `Die Bonitätsauskunft ist nicht im Paket enthalten. Sie können sie hier für ${auskunft.preisText} dazu beauftragen.`
+            ? `Ihre FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank — für ${auskunft.preisText} einmalig.`
             : `Die Bonitätsauskunft ist nicht im Paket enthalten. Nach Ihrer ersten Zahlung können Sie sie hier für ${euroText(auskunftPreisCents("privat", true))} dazu beauftragen.`,
     naechsterSchritt: st.schreiben
       ? "Warten auf die Antwort zum ersten Schreiben. Wir melden uns, sobald sie da ist."

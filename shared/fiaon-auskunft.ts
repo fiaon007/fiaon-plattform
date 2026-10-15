@@ -142,7 +142,8 @@ export function auskunftLeistung(art: AuskunftArt, land: AuskunftLand): string[]
   // E-365 (14.10.2026): Privat ist das Produkt die FIAON-Bonitätsauswertung (E-353) — keine Beschaffung, keine
   // Datenkopie, keine Schreiben mehr. Jeder Satz beschreibt, was im Bericht steht (fiaon-finanzauswertung-pdf.ts).
   const privat = [
-    "Ihre Bonität aus Sicht einer Bank: Haushaltsrechnung und die neun Merkmale, die eine Kreditprüfung ansieht.",
+    // „Kredit“ steht in VERBOTENE_WORTE der Kaltansprache (shared/fiaon-lead-strecke.ts) — diese Sätze gehen auch an Leads.
+    "Ihre Bonität aus Sicht einer Bank: Haushaltsrechnung und die neun Merkmale, auf die eine Bank achtet.",
     "Jede Einnahme und jede Ausgabe im Detail — nach Empfänger, Monat für Monat, mit Ampel für sieben Bereiche und Ihrem FIAON-Finanzwert.",
     "Ihr Potenzial und Ihr Plan: was im Monat und im Jahr frei werden kann, mit Hochrechnung auf zwölf Monate.",
     "Rund 25 Seiten, erstellt von Ihrem FIAON-Team aus Ihren eigenen Kontoauszügen — ein Mensch prüft den Bericht und gibt ihn frei.",
@@ -174,7 +175,7 @@ export const AUSKUNFT_KOSTENLOS_ANTWORT =
  * lesen AUSKUNFT_NUTZEN_SATZ_KARTE.
  */
 export const AUSKUNFT_NUTZEN_SATZ =
-  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank bei einer Kreditprüfung sieht — und wir richten Ihren Weg zu Karte und Wunschlimit genau danach aus."
+  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank sieht, bevor sie entscheidet — und wir richten Ihren Weg zu Karte und Wunschlimit genau danach aus."
 
 /**
  * Derselbe Nutzen ohne „Limit" (25.09.2026, E-241) — für fertige, unbezahlte
@@ -184,7 +185,7 @@ export const AUSKUNFT_NUTZEN_SATZ =
  * ohne Vertrag wäre Werbung für eine erlaubnispflichtige Leistung (§ 34c GewO).
  */
 export const AUSKUNFT_NUTZEN_SATZ_KARTE =
-  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank bei einer Kreditprüfung sieht — und wir richten Ihren Weg zur Karte genau danach aus."
+  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank sieht, bevor sie entscheidet — und wir richten Ihren Weg zur Karte genau danach aus."
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER BESCHAFFUNGSAUFTRAG (25.09.2026, E-241)

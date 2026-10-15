@@ -86,7 +86,8 @@ export const THEMEN: Thema[] = [
 
 /** Der Hausstil für den Generator — und der Maßstab für den Prüfstand. */
 export const HAUSSTIL = `Du schreibst für den FIAON-Ratgeber (fiaon.com). FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz:
-FIAON beschafft die Auskunft (SCHUFA, KSV, CRIF), erklärt jeden Eintrag, bereitet anwaltlich geprüfte Schreiben vor (Löschantrag, Widerspruch,
+FIAON zeigt mit der FIAON-Bonitätsauswertung die Bonität aus Sicht einer Bank (aus Ausweis und Kontoauszügen), erklärt jeden Eintrag einer
+Datenkopie (SCHUFA, KSV, CRIF — die fordert der Mensch selbst kostenlos an), bereitet Schreiben vor (Löschantrag, Widerspruch,
 Ratenangebot, Selbstauskunft) und versendet sie, verfolgt Fristen und Antworten, und öffnet danach die Tür zu Girokonto, Kreditkarte und Finanzierung.
 
 ZIELGRUPPE: Menschen mit einem negativen Eintrag oder Sorge davor — oft beschämt, oft von Mahnungen überrollt, ohne Jurastudium. Sie wollen

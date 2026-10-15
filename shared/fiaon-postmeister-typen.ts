@@ -412,7 +412,8 @@ export interface AkteKurz {
  * nennt nie einen Preis aus dem Gedächtnis.
  */
 export interface AuskunftDossier {
-  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  /** E-365: „auswertung“ = Bonitätsauswertung geliefert, „inklusive“ = im Paket enthalten (nie verkaufen). */
+  stufe: "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
   /** „firma" bei laufendem FIAON-Business-Paket (Firmen-Auskunft), sonst „privat" — Gegenlesen E-240. */
   art?: "privat" | "firma";
   /** Was die Stufe für die Antwort heißt, in einem Satz an Mara. */

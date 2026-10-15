@@ -2179,7 +2179,8 @@ export function bausteinWasIstFiaon(l: { kanal: MaraKanal; stufe: LinkStufe; zie
     return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte bei unserer Partnerbank: Sie tragen im Antrag Ihr Wunschlimit ein, wir bereiten alles so vor, dass Ihr Antrag stark ankommt${bankSatzNurAufNachfrage() ? "" : ", und über den Rahmen entscheidet die Bank"}. Das dauert etwa fünf Minuten${link}`;
   }
   const ziel = l.ziel ? `, bei Ihnen ${kartenzielText(l.ziel, { alsZiel: true })}` : "";
-  const auskunft = l.stufe === "kunde" ? " Dazu erklären wir jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien." : "";
+  // E-365: Am Anfang steht die FIAON-Bonitätsauswertung (Ausweis + Kontoauszug) — FIAON holt keine Auskunft mehr.
+  const auskunft = l.stufe === "kunde" ? " Dazu zeigt Ihnen Ihre FIAON-Bonitätsauswertung Ihre Bonität aus Sicht einer Bank, und wir übernehmen die Schreiben an die Auskunfteien." : "";
   return `FIAON bringt Sie zu Ihrer eigenen Visa-Kreditkarte${ziel}${bankSatzNurAufNachfrage() ? "" : " — über den Rahmen entscheidet die Bank"}. Dafür bereiten wir Konto und Karte bei unserer Partnerbank mit Ihnen vor.${auskunft}${b ? ` Fest an Ihrer Seite ist ${b.nom}.` : ""}`;
 }
 

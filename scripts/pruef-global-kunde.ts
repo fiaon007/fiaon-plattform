@@ -685,11 +685,13 @@ const zaehle = (text: string, muster: string) => text.split(muster).length - 1;
 {
   const f = quelle("server/lib/fiaon-whatsapp-mara.ts");
   const antwort = rumpf(f, "export async function maraAntwortet(");
-  pruef("Mara-WA (maraAntwortet): Global-Kunde VOR Abschluss-Weitergabe, Privat-Lage und Modell — Aufgabe an Justin (betreiber)",
+  // E-372 (15.10.2026): statt der Aufgabe auf Justins Board eine Karte in Mara › Entscheidungen (waWeg „global“ → uebergeben);
+  // die Aufgabe auf Justins Board (betreiber) bleibt der Rückfall, wenn die Karte nicht angelegt werden kann.
+  pruef("Mara-WA (maraAntwortet): Global-Kunde VOR Abschluss-Weitergabe, Privat-Lage und Modell — Karte für Justin (Rückfall: Aufgabe auf seinem Board)",
     vorher(antwort, "await globalKundeWa(Number(personId))", `if (urteil.art === "weitergeben") {`)
       && vorher(antwort, "await globalKundeWa(Number(personId))", "await lageFuer(")
       && vorher(antwort, "await globalKundeWa(Number(personId))", "await entwerfen(")
-      && /aufgabeFuerMenschen\([^;]*"global", \{ betreiber: true/.test(antwort));
+      && /uebergeben\(\{[^;]*anlass: "global"[^;]*klasse: "global", opt: \{ betreiber: true/.test(antwort));
   const versand = rumpf(f, "export async function versandLauf(");
   pruef("Mara-WA (versandLauf): vorbereitete Antwort an einen Global-Kunden wird verworfen, nicht gesendet",
     vorher(versand, "globalKundeWa(w?.person_id ?? null)", "waSenden(nummer"));

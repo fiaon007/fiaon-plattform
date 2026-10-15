@@ -403,6 +403,8 @@ console.log("── A11. E-276: „sofort“ nur mit dem Verwendungszweck, Stufe
   const { readFileSync } = await import("node:fs");
   const q = readFileSync(new URL("../server/lib/fiaon-whatsapp-mara.ts", import.meta.url), "utf8");
   ok(/\(\?<!zugeordnet\\s\+haben,\\s\+\)ist\\s\+ihr\\s\+account\\s\+sofort/.test(q), "WhatsApp-Ruhe: „… ist Ihr Account sofort nach Eingang aktiv“ zählt als Zahlungsbitte, „zugeordnet haben, ist Ihr Account …“ nicht");
+  // E-373 (15.10.2026): Justins neuer Satz „… schalten wir umgehend Ihren Account frei“ — B ist eine Zahlungsbitte, A („zugeordnet haben, …“) nicht.
+  ok(/\(\?<!zugeordnet\\s\+haben,\\s\+\)schalten\\s\+wir\\s\+umgehend\\s\+ihren\\s\+account\\s\+frei/.test(q), "WhatsApp-Ruhe: „… schalten wir umgehend Ihren Account frei“ zählt als Zahlungsbitte, „zugeordnet haben, schalten wir …“ nicht");
   ok(wa.mitAntragLuecke === ton.mitAntragLuecke, "mitAntragLuecke: EINE Quelle (shared), WhatsApp exportiert sie weiter");
 }
 function KKE_E276(): string { return ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "99,99 €", erste: true, ziel: ZIEL, link: LINK }); }
@@ -426,6 +428,8 @@ if (MIT_DB) {
     }
     if (PERSONEN.length) {
       await sql`DELETE FROM fiaon_betreiber_todos WHERE schluessel ~ ${`^wa-(${PERSONEN.join("|")})-`}`.catch(() => {});
+      // E-372: die Entscheidungskarten der Prüfpersonen (wa:<fall>:p<id>:…).
+      await sql`DELETE FROM fiaon_mara_entscheidungen WHERE person_id = ANY(${PERSONEN})`.catch(() => {});
       await sql`DELETE FROM fiaon_mara_protokoll WHERE person_id = ANY(${PERSONEN})`.catch(() => {});
       await sql`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${PERSONEN})`.catch(() => {});
       await sql`DELETE FROM fiaon_kurzlinks WHERE person_id = ANY(${PERSONEN})`.catch(() => {});
@@ -531,7 +535,10 @@ if (MIT_DB) {
       const r = await lauf("4915900275002", k.personId);
       console.log(`   NEU: „${kurz(r.antwort, 300)}“`);
       ok(r.karte.length === 1, "der Kartenweg wurde gefragt");
-      ok(r.aufgaben.length === 1 && /Kartenlink konnte Mara nicht schicken \(Kein Kartenlink: Vertriebssperre/.test(String(r.aufgaben[0]?.text ?? "")), "Übergabe mit dem internen Grund");
+      // E-372 (15.10.2026): Ein Ausschluss ist keine Aufgabe beim Betreuer mehr, sondern eine Karte für Justin (wa_karte) —
+      // mit dem internen Grund in der Karte (vorher: „Übergabe mit dem internen Grund“, eine Aufgabe).
+      const kk = (await sql`SELECT art, belege::text AS belege FROM fiaon_mara_entscheidungen WHERE person_id = ${k.personId} AND art = 'wa_karte' AND status = 'offen'`.catch(() => [])) as any[];
+      ok(!r.aufgaben.length && kk.length === 1 && /Kartenlink konnte Mara nicht schicken \(Kein Kartenlink: Vertriebssperre/.test(String(kk[0]?.belege ?? "")), `Karte für Justin mit dem internen Grund, keine Aufgabe (Aufgaben ${r.aufgaben.length}, Karten ${kk.length})`);
       ok(!/Vertriebssperre|is_blocked|Ausschluss/.test(r.antwort) && !r.aufrufe.some((x) => /Vertriebssperre/.test(x.system)), "der Kunde (und das Modell) liest keinen internen Grund");
     }
 

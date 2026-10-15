@@ -381,8 +381,11 @@ abschnitt("WhatsApp — neue Fassungen ohne Bank-Vorbehalt (E-373/E-374)");
   const def = (n: string) => WA_VORLAGEN.find((v) => v.name === n);
   // Justins Satz ohne Betrag — wortgleich mit dem Mailsatz ohne Ziel, fest getippt (eine freigegebene Vorlage ändert sich nie still).
   gleich(WA_WUNSCH_SATZ, `${nachDemEingang({ anfang: true })}.`, "Vorlagensatz = nachDemEingang ohne Ziel");
-  gleich(JSON.stringify(VORLAGE_NACHFOLGER), JSON.stringify({ fiaon_kk_anfrage: "fiaon_kk_anfrage_v2", fiaon_kk_aktiviert: "fiaon_kk_aktiviert_v2", fiaon_kk_tag3: "fiaon_kk_tag3_v2" }),
-    "drei Vorlagen bekommen eine neue Fassung");
+  gleich(JSON.stringify(VORLAGE_NACHFOLGER), JSON.stringify({
+    fiaon_kk_anfrage: "fiaon_kk_anfrage_v2", fiaon_kk_aktiviert: "fiaon_kk_aktiviert_v2", fiaon_kk_tag3: "fiaon_kk_tag3_v2",
+    // E-375: die beiden Vorlagen, die E-363 unter dem alten Namen umgetextet hatte.
+    fiaon_kk_aktivierung: "fiaon_kk_aktivierung_v2", fiaon_kk_rechnung: "fiaon_kk_rechnung_v2",
+  }), "fünf Vorlagen haben eine neue Fassung");
   // Kein Verkaufstext mit Bank-Vorbehalt: jede Vorlage, die künftig rausgeht (alles außer den eingefrorenen Rückfällen).
   const VORBEHALT = /zusage der bank|bei zusage|nach der zusage|über den rahmen entscheidet|entscheidet (?:die|unsere) (?:partner)?bank|keine bank\b|kein kreditinstitut|werktag/i;
   for (const v of WA_VORLAGEN.filter((x) => !vorlageEingefroren(x.name))) {
@@ -411,6 +414,9 @@ abschnitt("WhatsApp — neue Fassungen ohne Bank-Vorbehalt (E-373/E-374)");
   const FREIGEGEBEN: Record<string, string> = {
     fiaon_kk_anfrage: "7423cd9d109d191b", fiaon_kk_aktiviert: "31a611245b16d48b", fiaon_kk_tag3: "ee9a996f0db58ffb",
     fiaon_kkb_anfrage: "5740b9bab3e66bcf", fiaon_kkb_aktiviert: "70439cd83cf10102", fiaon_kkb_tag3: "ffa56572d94c76a7",
+    // E-375: Wortlaut vom 23.09. (vor E-363 a7ffa4b3) — so führt Meta sie.
+    fiaon_kk_aktivierung: "df3da8d5900526d1", fiaon_kk_rechnung: "0ee5337414639c49",
+    fiaon_kkb_aktivierung: "0584cd7e42f2aabe", fiaon_kkb_rechnung: "d66c6ef8aa75b9af",
   };
   for (const [n, h] of Object.entries(FREIGEGEBEN)) {
     const v = def(n);
@@ -424,6 +430,11 @@ abschnitt("WhatsApp — neue Fassungen ohne Bank-Vorbehalt (E-373/E-374)");
   gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set()), null, "nichts frei → null (waSenden bleibt beim gerufenen Namen)");
   gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set(["fiaon_kkb_anfrage_v2"]), (n) => n !== "fiaon_kkb_anfrage_v2"), null, "nur, was im Register steht");
   gleich(vorlageZumSenden("fiaon_kk_rate", new Set(["fiaon_kk_rate", "fiaon_kkb_rate"])), "fiaon_kkb_rate", "ohne neue Fassung wie bisher: Bild vor Text");
+  gleich(vorlageZumSenden("fiaon_kk_rechnung", new Set(["fiaon_kkb_rechnung", "fiaon_kkb_rechnung_v2"])), "fiaon_kkb_rechnung_v2", "Rechnung: neue Bildfassung frei → sie");
+  // E-375: Die Inkasso-Ausnahme gilt für den Namen, der WIRKLICH rausgeht — also auch für die neue Rechnung, nie für die Aktivierung.
+  const inkassoFrei = T.INKASSO_AUSNAHME as readonly string[];
+  ok(vorlageFassungen("fiaon_kk_rechnung").every((n) => inkassoFrei.includes(n)), "Inkasso-Ausnahme deckt jede Fassung der Rechnung");
+  ok(!vorlageFassungen("fiaon_kk_aktivierung").some((n) => inkassoFrei.includes(n)) && inkassoFrei.length === 4, "… und nur die Rechnung (namentlich, vier Namen)");
   gleich(vorlageFassungen("fiaon_eigene_vorlage").join(","), "fiaon_eigene_vorlage", "Werkstatt-Vorlage: nur sie selbst");
   ok(vorlageNutzbar("fiaon_kk_aktiviert", new Set(["fiaon_kkb_aktiviert_v2"])) && !vorlageNutzbar("fiaon_kk_aktiviert", new Set(["fiaon_kk_tag3"])), "nutzbar, sobald irgendeine Fassung frei ist");
   gleich(vorlageVorschau("fiaon_kk_tag3", new Set(["fiaon_kk_tag3", "fiaon_kkb_tag3_v2"]))?.name, "fiaon_kk_tag3_v2", "Vorschau zeigt den Text der neuen Fassung, sobald sie rausgeht");
@@ -436,6 +447,9 @@ abschnitt("WhatsApp — neue Fassungen ohne Bank-Vorbehalt (E-373/E-374)");
   ok(/!v\.varianteVon && !v\.nachfolgerVon\)/.test(lies("server/routes/fiaon-vertrieb.ts")), "Akte: neue Fassung keine eigene Zeile");
   ok(/!v\.varianteVon && !v\.nachfolgerVon && v\.name\.startsWith\("fiaon_kk_"\)/.test(lies("server/lib/fiaon-wa-zentrale.ts")), "Zentrale: neue Fassung keine eigene Zeile");
   ok(/vorlageStamm\(t\.name\) !== t\.name\) continue;/.test(lies("server/routes/fiaon-whatsapp-postfach.ts")), "Raum: neue Fassung keine eigene Zeile");
+  const tk = lies("server/lib/fiaon-telefonkartei.ts");
+  ok(/const vorlagen = wahl\.weg === "vorlage" \? vorlageFassungen\(wahl\.vorlage\)/.test(tk) && /return vorlageNutzbar\(vorlage, frei\);/.test(tk),
+    "Telefonkartei: Doppel-Schutz und Freigabe sehen jede Fassung (sonst ginge die Rechnung als …_v2 zweimal raus)");
 }
 
 // ── 8g. Der WhatsApp-Raum und Mara im Chat ─────────────────────────────────

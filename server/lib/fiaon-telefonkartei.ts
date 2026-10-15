@@ -59,7 +59,7 @@ import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { ERGEBNIS_TEXT, istErgebnis, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { whatsappUrteil } from "@shared/fiaon-whatsapp-erlaubnis";
-import { WA_VORLAGEN, bildName } from "@shared/fiaon-lead-texte";
+import { WA_VORLAGEN, vorlageFassungen, vorlageNutzbar } from "@shared/fiaon-lead-texte";
 import { persoenlicherLink, stufeAusAntrag, type MaraKanal } from "@shared/fiaon-mara-ton";
 import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import {
@@ -1050,9 +1050,9 @@ interface WaUmfeld {
   aus: { grund: string; kurz: string } | null;
 }
 
-/** Freigegeben heißt: Textfassung oder Bildfassung ist bei Meta APPROVED (wie istFrei der Zentrale). */
+/** Freigegeben heißt: Textfassung oder Bildfassung ist bei Meta APPROVED (wie istFrei der Zentrale) — seit E-374 auch die neue Fassung (…_v2). */
 function vorlageFrei(vorlage: string, frei: Set<string>): boolean {
-  return frei.has(vorlage) || frei.has(bildName(vorlage));
+  return vorlageNutzbar(vorlage, frei);
 }
 
 /** Die Kopfzeile der Vorlage — „Ihre offene Rechnung" —, sonst ihr Name. */
@@ -1266,7 +1266,8 @@ async function waHindernis(k: KarteiKarte, fall: WaFallServer, wahl: Exclude<WaW
       };
     }
   }
-  const vorlagen = wahl.weg === "vorlage" ? [wahl.vorlage, bildName(wahl.vorlage)] : [];
+  // E-375: waSenden kann jede Fassung genommen haben (alt, Bild, neue …_v2) — der Doppel-Schutz sieht alle.
+  const vorlagen = wahl.weg === "vorlage" ? vorlageFassungen(wahl.vorlage) : [];
   const [doppelt] = (await sqlPool`
     SELECT 1 AS da FROM fiaon_whatsapp
      WHERE person_id = ${k.personId} AND richtung = 'raus' AND COALESCE(status, '') <> 'fehler'
@@ -1276,7 +1277,7 @@ async function waHindernis(k: KarteiKarte, fall: WaFallServer, wahl: Exclude<WaW
   if (doppelt) return { doppelt: true, grund: "Diese WhatsApp ist vor weniger als zehn Minuten schon über FIAON rausgegangen.", kurz: "eben schon gesendet" };
   if (fall === "nicht_erreicht") {
     // Nachbesserung E-259: für Vorlage UND freien Text — vorher galt der Abstand nur für die Vorlage.
-    const ne = [KARTEI_WA_VORLAGE.nicht_erreicht, bildName(KARTEI_WA_VORLAGE.nicht_erreicht)];
+    const ne = vorlageFassungen(KARTEI_WA_VORLAGE.nicht_erreicht);
     const [kurz] = (await sqlPool`
       SELECT 1 AS da FROM fiaon_whatsapp
        WHERE person_id = ${k.personId} AND richtung = 'raus' AND COALESCE(status, '') <> 'fehler'

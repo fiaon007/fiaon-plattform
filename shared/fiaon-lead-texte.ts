@@ -42,7 +42,8 @@ export const EINWILLIGUNG_HINWEIS =
  * Vorlage mit Mahnton bauen will, muss sie hier eintragen und sich dabei
  * ansehen, was er tut.
  */
-export const INKASSO_AUSNAHME = ["fiaon_kk_rechnung", "fiaon_kkb_rechnung"] as const;
+// E-375: auch die neue Fassung der Rechnung — waSenden prüft den Namen, der WIRKLICH rausgeht.
+export const INKASSO_AUSNAHME = ["fiaon_kk_rechnung", "fiaon_kkb_rechnung", "fiaon_kk_rechnung_v2", "fiaon_kkb_rechnung_v2"] as const;
 
 /** Der Name für {{1}} — ohne brauchbaren Namen „und willkommen". */
 export function vorlagenName(anredeChatZeile: string): string {
@@ -220,8 +221,8 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     zweck: "Antrag fertig, Konto noch nicht aktiviert — die erste Zahlung startet alles.",
     wann: "NUR für die Aktivierung nach dem Antrag. NIE für eine überfällige Rate: Mahnungen über WhatsApp sind nach der Richtlinie verboten.",
     text: "Hallo {{1}}, Ihr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung. "
-      // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“) — bei Meta neu einreichen, bis dahin geht der alte Text raus.
-      + "Mit der ersten Zahlung ist Ihr Konto aktiv; danach entwickeln wir Ihre Bonitätsauswertung, und Sie bekommen den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
+      // Wortlaut wie bei Meta freigegeben (eingefroren). E-363/E-375: die neue Fassung ist fiaon_kk_aktivierung_v2 (WA_VORLAGEN_NEU).
+      + "Mit der ersten Zahlung ist Ihr Konto aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
       + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
     beispiele: ["Frau Muster"],
     knoepfe: [ZAHLUNG, FRAGE],
@@ -360,8 +361,8 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
     zweck: "Offene Rechnung mit Zahlungslink — sachlich, mit dem Tempo als Argument.",
     wann: "Wenn eine Rechnung offen ist. Sachlicher Ton ist Pflicht: keine Frist mit Folgen, keine Gebühren, keine Androhung.",
     text: "Hallo {{1}}, Ihre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}. "
-      // E-363 (14.10.2026) — bei Meta neu einreichen, bis dahin geht der alte Text raus.
-      + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend; nach Ihrer Bonitätsauswertung bekommen Sie den fertigen Link "
+      // Wortlaut wie bei Meta freigegeben (eingefroren). E-363/E-375: die neue Fassung ist fiaon_kk_rechnung_v2 (WA_VORLAGEN_NEU).
+      + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link "
       + "unserer Partnerbank für Ihre Kreditkarte. Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand. "
       + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
     beispiele: ["Frau Muster", "99,99", "FIAONMUE7AZ"],
@@ -439,6 +440,17 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
 // sich nie still mit dem Mailsatz ändern (der Prüfstand hält beide gleich).
 // Kein „2–5 Werktage“ und kein „Apple Pay vorher“: Ohne den Bank-Satz wären
 // beide eine Zusage, die FIAON nicht geben kann.
+//
+// ── E-375 (15.10.2026): AKTIVIERUNG UND RECHNUNG ─────────────────────────
+// E-363 („Kartenlink erst nach Bonität“) hatte fiaon_kk_aktivierung und
+// fiaon_kk_rechnung (+ Bild) unter dem alten Namen umgetextet — „Einreichen“
+// hätte die freigegebenen Vorlagen in die Prüfung geschickt, und die Rechnung
+// ist ein Zahlungsweg. Jetzt dasselbe Muster: der freigegebene Wortlaut (vom
+// 23.09.) wieder unter dem alten Namen, die neue Fassung als …_v2. Ihr Text
+// folgt E-373 statt dem E-363-Ablauf: Justins Satz — er verspricht keinen Link
+// und keinen Zeitpunkt, also auch nicht „direkt den fertigen Link“ (E-363).
+// Raus wie oben: „Je schneller die Zahlung da ist, desto schneller halten Sie
+// die Karte in der Hand“ (ohne Bank-Satz eine Zusage).
 // ═══════════════════════════════════════════════════════════════════════════
 /** E-374: Justins Verkaufssatz für feste Vorlagen (ohne Betrag, ohne Bank-Satz). */
 export const WA_WUNSCH_SATZ = "Nach Ihrer Zahlung mit Ihrem Verwendungszweck schalten wir umgehend Ihren Account frei, "
@@ -490,6 +502,36 @@ const WA_VORLAGEN_NEU: WaVorlage[] = [
       + "Der erste Schritt dauert wenige Minuten — den Rest übernehmen wir.",
     beispiele: ["Frau Muster"],
     knoepfe: [WEITER, FRAGE, STOPP],
+  },
+  {
+    name: "fiaon_kk_aktivierung_v2",
+    nachfolgerVon: "fiaon_kk_aktivierung",
+    kopf: "Nur noch die Aktivierung",
+    fuss: "FIAON LTD · Fragen? Einfach hier antworten",
+    kategorie: "UTILITY",
+    zweck: "E-375: Neue Fassung der Aktivierung (löst fiaon_kk_aktivierung ab, sobald Meta sie freigibt) — Justins Satz statt „… direkt den fertigen Link …“.",
+    wann: "NUR für die Aktivierung nach dem Antrag. NIE für eine überfällige Rate: Mahnungen über WhatsApp sind nach der Richtlinie verboten. "
+      + "Bis zur Freigabe geht fiaon_kk_aktivierung raus.",
+    text: "Hallo {{1}}, Ihr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung. "
+      + WA_WUNSCH_SATZ + " "
+      + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
+    beispiele: ["Frau Muster"],
+    knoepfe: [ZAHLUNG, FRAGE],
+  },
+  {
+    name: "fiaon_kk_rechnung_v2",
+    nachfolgerVon: "fiaon_kk_rechnung",
+    kopf: "Ihre offene Rechnung",
+    fuss: "FIAON LTD · Fragen? Einfach hier antworten",
+    kategorie: "UTILITY",
+    zweck: "E-375: Neue Fassung der offenen Rechnung (löst fiaon_kk_rechnung ab, sobald Meta sie freigibt) — sachlich, Justins Satz statt „… direkt den fertigen Link …“.",
+    wann: "Wenn eine Rechnung offen ist. Sachlicher Ton ist Pflicht: keine Frist mit Folgen, keine Gebühren, keine Androhung. "
+      + "Bis zur Freigabe geht fiaon_kk_rechnung raus.",
+    text: "Hallo {{1}}, Ihre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}. "
+      + WA_WUNSCH_SATZ + " "
+      + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
+    beispiele: ["Frau Muster", "99,99", "FIAONMUE7AZ"],
+    knoepfe: [ZAHLUNG, FRAGE],
   },
 ];
 
@@ -702,6 +744,8 @@ const BILD_FUER: Record<string, WaBild> = {
   fiaon_kk_anfrage_v2: "karte",
   fiaon_kk_aktiviert_v2: "karte",
   fiaon_kk_tag3_v2: "antrag",
+  fiaon_kk_aktivierung_v2: "zahlung",
+  fiaon_kk_rechnung_v2: "zahlung",
 };
 
 /**
@@ -722,7 +766,7 @@ const ABSAETZE: Record<string, string> = {
     + "Zwischen Ihnen und Ihrer eigenen Kreditkarte stehen noch wenige Minuten.\n\n"
     + "Der Knopf bringt Sie genau an die Stelle zurück, an der Sie aufgehört haben.",
   fiaon_kk_aktivierung: "Hallo {{1}},\n\nIhr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung.\n\n"
-    + "Mit der ersten Zahlung ist Ihr Konto aktiv; danach entwickeln wir Ihre Bonitätsauswertung, und Sie bekommen den fertigen Link unserer Partnerbank für Ihre Kreditkarte.\n\n"
+    + "Mit der ersten Zahlung ist Ihr Konto aktiv, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte.\n\n"
     + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
   fiaon_kk_aktiviert: "Hallo {{1}},\n\nIhr Konto ist aktiviert — und der Link unserer Partnerbank für Ihre Kreditkarte ist auf dem Weg zu Ihnen.\n\n"
     + "Bei Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App der Bank mit Apple Pay.",
@@ -743,7 +787,7 @@ const ABSAETZE: Record<string, string> = {
   fiaon_kk_tag7: "Hallo {{1}},\n\nfünf Minuten am Telefon klären meist alles: was Ihre Kreditkarte für Sie möglich macht, wie der Weg dorthin aussieht und was von Ihnen dafür gebraucht wird.\n\n"
     + "Suchen Sie sich ein Zeitfenster aus.",
   fiaon_kk_rechnung: "Hallo {{1}},\n\nIhre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}.\n\n"
-    + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend; nach Ihrer Bonitätsauswertung bekommen Sie den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
+    + "Sobald die Zahlung bei uns eingeht, aktiviere ich Ihr Konto umgehend, und Sie bekommen direkt den fertigen Link unserer Partnerbank für Ihre Kreditkarte. "
     + "Je schneller die Zahlung da ist, desto schneller halten Sie die Karte in der Hand.\n\n"
     + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
   fiaon_kk_letzte: "Hallo {{1}},\n\nIhr Antrag ist weiterhin vorbereitet und Ihr Platz steht.\n\n"
@@ -765,6 +809,13 @@ const ABSAETZE: Record<string, string> = {
   fiaon_kk_tag3_v2: "Hallo {{1}},\n\nIhr Weg zur eigenen Kreditkarte in drei Schritten:\n\n"
     + "1. Antrag abschließen\n2. Account aktivieren\n3. Den fertigen Link unserer Partnerbank öffnen\n\n"
     + WA_WUNSCH_SATZ + " Der erste Schritt dauert wenige Minuten — den Rest übernehmen wir.",
+  // E-375: Aktivierung und Rechnung (E-363 als neue Fassung).
+  fiaon_kk_aktivierung_v2: "Hallo {{1}},\n\nIhr Antrag ist angekommen — jetzt fehlt nur noch die Aktivierung.\n\n"
+    + WA_WUNSCH_SATZ + "\n\n"
+    + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und Ihren Verwendungszweck.",
+  fiaon_kk_rechnung_v2: "Hallo {{1}},\n\nIhre Rechnung über {{2}} € ist noch offen — Verwendungszweck {{3}}.\n\n"
+    + WA_WUNSCH_SATZ + "\n\n"
+    + "Über den Knopf sehen Sie den QR-Code für Ihre Banking-App und alle Bankdaten.",
 };
 
 /** Fußzeile der Bildfassung: „FIAON Ltd." vorne, dann was die Textfassung sagt. */

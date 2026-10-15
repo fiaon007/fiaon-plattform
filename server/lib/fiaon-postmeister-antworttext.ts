@@ -145,24 +145,71 @@ export function rahmenFuer(sprache: string | null | undefined): Rahmenworte {
   return RAHMEN[String(sprache || "de").slice(0, 2).toLowerCase()] ?? RAHMEN.de;
 }
 
+/**
+ * E-369 (15.10.2026): Vor- und Nachname entdoppeln. Gemessen 08.–15.10.: „Frau Robiban Robiban“, „Gaetano Gaetano“,
+ * „Herr Bucher Bucher“, „Herr Fug Fugmann“, „Katica Meffert Meffert“ — in fiaon_persons.first_name steht oft der
+ * Nachname mit, oder der Name kam zweimal ins Feld. Regeln: im Nachnamen jeden Teil nur einmal und keinen, der nur der
+ * Anfang eines anderen ist („Fug Fugmann“ → „Fugmann“); im Vornamen kein Teil, der auch im Nachnamen steht. Rein.
+ */
+export function namenEntdoppeln(vorname: string | null | undefined, nachname: string | null | undefined): { vor: string; nach: string } {
+  const teile = (x: unknown) => String(x ?? "").trim().split(/\s+/).filter(Boolean);
+  const einmal = (l: string[]) => l.filter((w, i) => l.findIndex((x) => x.toLowerCase() === w.toLowerCase()) === i);
+  let nach = einmal(teile(nachname));
+  nach = nach.filter((w) => !nach.some((x) => x !== w && w.length >= 3 && x.toLowerCase().startsWith(w.toLowerCase())));
+  const nl = nach.map((x) => x.toLowerCase());
+  const vor = einmal(teile(vorname)).filter((w) => !nl.includes(w.toLowerCase()));
+  return { vor: vor.join(" "), nach: nach.join(" ") };
+}
+
+// tsconfig-Zielstand kennt das Flag „u“ in Literalen nicht (TS1501) — deshalb als new RegExp.
+const NAMENSWORT = new RegExp(String.raw`^[\p{L}-]{2,}$`, "u");
+
+/**
+ * E-369: Passt der Name im Absender („Gerda Molk <…>“) nicht zum Vornamen der Akte („Franz“)? Dann schreibt jemand
+ * anderes (Partnerin, Sohn) von dieser Adresse — die Anrede bleibt ohne Namen (#6478 „Franz Molk“ an Gerda Molk,
+ * #6763 „Satpal Jhim“ an Yogesh). Nur bei einem Absendernamen aus mindestens zwei Wörtern. Rein.
+ */
+export function absenderPasstNicht(absender: string | null | undefined, vorname: string | null | undefined): boolean {
+  const anzeige = String(absender ?? "").replace(/<[^>]*>/g, "").replace(/["']/g, "").trim();
+  if (!anzeige || anzeige.includes("@")) return false;
+  // Nur ein Personenname (mindestens zwei Wörter) zählt — „Info“, „Office“, „Familie“ sagen nichts über den Schreiber.
+  if (anzeige.split(/[\s,]+/).filter((w) => NAMENSWORT.test(w)).length < 2) return false;
+  const erster = (x: string) => (x.split(/[\s,]+/).find((w) => NAMENSWORT.test(w)) ?? "").toLowerCase();
+  // „Molk, Gerda“ — Nachname zuerst: dann zählt das Wort nach dem Komma.
+  const a = anzeige.includes(",") ? erster(anzeige.split(",").slice(1).join(" ")) : erster(anzeige);
+  const v = erster(String(vorname ?? ""));
+  if (!a || !v || a.length < 2 || v.length < 2) return false;
+  return a !== v && !a.startsWith(v) && !v.startsWith(a);
+}
+
 export async function anredeBestimmen(
   personId: number | null,
   vorname: string | null,
   nachname: string | null,
   sprache?: string | null,
+  opt: { absender?: string | null } = {},
 ): Promise<{ zeile: string; gespeichert: boolean }> {
   const w = rahmenFuer(sprache);
   // Namen mit Ziffern („Edam2021") sind Tippfehler oder Nutzernamen — nie in
   // eine Anrede (05.09.2026, gesehen bei „Guten Tag Edam2021 Tokmak").
   const sauber = (x: string) => (/\d/.test(x) ? "" : x);
+  // E-369: Bei bekannter Person zählen ihre beiden Namensfelder — nicht ein per Leerzeichen zerlegter Gesamtname
+  // („Herr Florian Zobl“: zweiter Vorname landete im Nachnamen).
+  const [p] = personId ? (await sqlPool`SELECT anrede, first_name, last_name FROM fiaon_persons WHERE id = ${personId} LIMIT 1`.catch(() => [])) as any[] : [null];
+  const roh = namenEntdoppeln(
+    String(p?.first_name ?? "").trim() || vorname,
+    String(p?.last_name ?? "").trim() || nachname,
+  );
   // 06.10.2026 (erste Mara-Aktion-Mails nach dem Neustart): „Guten Tag MATO Masic“ — Einheitsschrift (alles groß oder
   // alles klein) wird wie in allen anderen Kanälen gerichtet (schreibweiseFuerAnzeige); gemischte Schreibweise bleibt.
-  const vor = schreibweiseFuerAnzeige(sauber(String(vorname || "").trim())) ?? "";
-  const nach = schreibweiseFuerAnzeige(sauber(String(nachname || "").trim()), "nachname") ?? "";
+  const vor = schreibweiseFuerAnzeige(sauber(roh.vor)) ?? "";
+  const nach = schreibweiseFuerAnzeige(sauber(roh.nach), "nachname") ?? "";
+  // E-369: Schreibt jemand anderes von dieser Adresse, nennt die Anrede keinen Namen.
+  if (absenderPasstNicht(opt.absender, vor)) return { zeile: w.grussNeutral(""), gespeichert: false };
   const neutral = w.grussNeutral([vor, nach].filter(Boolean).join(" "));
   if (!personId) return { zeile: neutral, gespeichert: false };
+  if (!vor && !nach) return { zeile: neutral, gespeichert: false };
 
-  const [p] = (await sqlPool`SELECT anrede FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
   const bekannt = String(p?.anrede || "").trim();
   if (bekannt === "Herr") return { zeile: w.grussHerr(nach || vor), gespeichert: true };
   if (bekannt === "Frau") return { zeile: w.grussFrau(nach || vor), gespeichert: true };

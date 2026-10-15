@@ -14,7 +14,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { kiPausiert } from "../lib/fiaon-ki-pause";
-import { akteLesen } from "../lib/fiaon-postmeister-dossier";
+import { akteLesen, kundenlageBerechnen } from "../lib/fiaon-postmeister-dossier";
 import { postmeisterSchema, kostenHeute } from "../lib/fiaon-postmeister-schema";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { postfachProbe } from "../lib/fiaon-gmail";
@@ -251,6 +251,20 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     return { ok: false, grund: "Text ist zu kurz" };
   }
 
+  // ── E-369 (15.10.2026): ERST PRÜFEN, OB DIE LAGE NOCH STIMMT ──────────────────────────────────────────────
+  // #6627: Ein Entwurf ging 30 h später raus („wird abgeglichen, eine Erinnerung kann noch kommen“) — die Zahlung war
+  // längst automatisch gebucht. Hat sich seit dem Schreiben die Lage gedreht (bezahlt, gekündigt, storniert, Zahlung
+  // gemeldet) oder schrieb der Kunde danach noch einmal, geht Maras alter Text nicht raus: „Neu schreiben“.
+  // Einen Text, den ein Mensch geändert hat, verantwortet er selbst — der wird nicht angehalten.
+  const geaendert = textNeu != null && String(textNeu).trim() !== String(r.antwort ?? "").trim();
+  if (!geaendert) {
+    const veraltet = await entwurfVeraltet(r).catch(() => null);
+    if (veraltet) {
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Nicht gesendet — veraltet: ${veraltet}. Bitte „Neu schreiben“ (E-369).`} WHERE id = ${id}`;
+      return { ok: false, grund: `Maras Entwurf ist veraltet: ${veraltet}. Bitte „Neu schreiben“ — Mara schreibt mit dem heutigen Stand.` };
+    }
+  }
+
   const erledigt: string[] = [];
   const gelaufen = handlungenLesen(r.handlungen).filter((h) => h.ok).map((h) => String(h.werkzeug));
 
@@ -359,7 +373,9 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     // Text und HTML aus dem FINALEN Text bauen — nie das alte HTML mit neuem Text.
     const { antwortAusText, grussMitAgent } = await import("../lib/fiaon-postmeister-antworttext");
     const { agentName } = await import("../lib/fiaon-postmeister-agent");
-    const name = await agentName();
+    // E-369 (#6343, #6609: unter Maras Namen umgeschrieben): Hat ein Mensch den Text geändert, unterschreibt er selbst.
+    const mensch = geaendert && !/^(?:postfach|postfach-zentrale|betreuer|mara)$/i.test(String(von || "").trim()) ? String(von).trim() : null;
+    const name = mensch ?? await agentName();
     const grussVorgabe = grussMitAgent(postfachGrussVorgabe(String(r.postfach)), name);
     const fertig = antwortAusText(text, { schritt: jsonOderLeer(r.naechster_schritt, null), betreff: String(r.betreff || ""), sprache: r.sprache ?? null, agentName: name, gruss: grussVorgabe });
     await antwortSenden(r.postfach, mail, fertig.text, fertig.html, gebaut.dateien);
@@ -388,6 +404,32 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${String(e?.message || e).slice(0, 300)} WHERE id = ${id}`;
     return { ok: false, grund: String(e?.message || e).slice(0, 200) };
   }
+}
+
+/**
+ * E-369 (15.10.2026): Was hat sich seit Maras Entwurf geändert? null = nichts, sonst der Grund in einem Satz.
+ * Lage neu gerechnet (bezahlt, gekündigt, storniert, gemeldet …), eine seither bezahlte Rate, eine neuere Mail des Kunden.
+ */
+export async function entwurfVeraltet(r: any): Promise<string | null> {
+  const seit = new Date(r.entwurf_geprueft_am ?? r.updated_at ?? r.created_at);
+  if (r.person_id || r.ref) {
+    const jetzt = await kundenlageBerechnen(r.person_id ?? null, r.ref ?? null);
+    if (r.kundenlage && jetzt.lage !== String(r.kundenlage)) return `Lage vorher „${r.kundenlage}“, jetzt „${jetzt.lage}“ (${jetzt.grund.slice(0, 90)})`;
+  }
+  if (r.person_id) {
+    const [b] = (await sqlPool`
+      SELECT r2.rate_nr, r2.bezahlt_am FROM fiaon_abo_raten r2 JOIN fiaon_applications a ON a.ref = r2.ref
+       WHERE a.person_id = ${Number(r.person_id)} AND r2.status = 'bezahlt' AND r2.bezahlt_am > ${seit}
+       ORDER BY r2.bezahlt_am DESC LIMIT 1`.catch(() => [])) as any[];
+    if (b) return `Rate ${b.rate_nr} ist seitdem bezahlt`;
+    const [m] = (await sqlPool`
+      SELECT id FROM fiaon_postmeister
+       WHERE person_id = ${Number(r.person_id)} AND id <> ${Number(r.id)} AND aktion <> 'ignoriert'
+         AND COALESCE(empfangen_am, created_at) > ${new Date(r.empfangen_am ?? r.created_at)}
+       ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
+    if (m) return `der Kunde hat danach noch einmal geschrieben (Mail #${m.id})`;
+  }
+  return null;
 }
 
 router.post("/admin/postmeister/eintrag/:id/senden", async (req: Request, res: Response) => {

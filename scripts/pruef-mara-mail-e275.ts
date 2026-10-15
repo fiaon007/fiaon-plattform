@@ -228,11 +228,16 @@ ok(lauf.menschNoetig(E(["status_frage"]), "Ich habe versucht anzurufen, aber nie
 ok(lauf.menschNoetig(E(["status_frage"]), "Bitte nicht anrufen, ich bin auf der Arbeit.") === null, "„Bitte nicht anrufen“ ist kein Rückrufwunsch");
 ok(lauf.menschNoetig(E(["termin"]), "Bitte rufen Sie mich morgen Vormittag an.") === lauf.UEBERGABE_GRUND.ansprechpartner, "„Bitte rufen Sie mich morgen an“ → Rückruf (Mensch)");
 ok(lauf.menschNoetig(E(["sonstiges"]), "Ich möchte mit meinem Betreuer sprechen.") === lauf.UEBERGABE_GRUND.ansprechpartner, "„möchte mit meinem Betreuer sprechen“ → Mensch");
-ok(lauf.menschNoetig(E(["zahlung"], { beschwerde: true }), "Unverschämt!") === lauf.UEBERGABE_GRUND.beschwerde, "Beschwerde → Mensch");
+// E-369 (15.10.2026): Beschwerde und „kann nicht zahlen“ beantwortet Mara selbst (ohne Zahlungsbitte); Mensch nur Anwalt/Widerruf/Global.
+ok(lauf.menschNoetig(E(["zahlung"], { beschwerde: true }), "Unverschämt!") === null, "E-369: Beschwerde → Mara selbst");
 ok(lauf.menschNoetig(E(["rechtlich"], { widerruf: true, rechtlich: true }), "Ich widerrufe.") === lauf.UEBERGABE_GRUND.rechtlich, "Widerruf/Recht → Mensch");
-ok(lauf.menschNoetig(E(["zahlung"], { zahlungsunfaehig: true }), "Ich kann gerade nicht zahlen.") === lauf.UEBERGABE_GRUND.zahlungsunfaehig, "„kann nicht zahlen“ → Mensch (Geld)");
+ok(lauf.menschNoetig(E(["zahlung"], { zahlungsunfaehig: true }), "Ich kann gerade nicht zahlen.") === null, "E-369: „kann nicht zahlen“ → Mara selbst (Ratenpause anbieten)");
+ok(lauf.menschNoetig(E(["zahlung"], { bestreitet: true }), "Ich habe nie etwas bestellt.") === null, "E-369: Bestreiten → Mara selbst (Akte, Vertragsdatum, Nachweis erbitten)");
+ok(lauf.menschNoetig(E(["beschwerde"]), "Schon wieder eine Mahnung!") === null, "E-369: Kategorie Beschwerde → Mara selbst");
+ok(lauf.menschNoetig(E(["zahlung"], { droht_anwalt: true }), "Mein Anwalt meldet sich.") === lauf.UEBERGABE_GRUND.rechtlich, "E-369: Anwalt → Mensch (Justin)");
 ok(lauf.menschNoetig(E(["status_frage"]), "Wie ist der Stand?", { globalKunde: true }) === lauf.UEBERGABE_GRUND.global, "Kunde von FIAON Global → Justin (E-272)");
-ok(lauf.menschNoetig(E(["beschwerde"]), "…") === lauf.UEBERGABE_GRUND.mensch, "Kategorie Beschwerde → Mensch");
+ok(lauf.menschNoetig(E(["beschwerde"]), "…") === null, "E-369: Kategorie Beschwerde → Mara selbst (vorher Mensch)");
+ok(lauf.menschNoetig(E(["rechtlich"]), "…") === lauf.UEBERGABE_GRUND.rechtlich, "E-369: Kategorie rechtlich → Mensch (Justin)");
 
 abschnitt("3 · Kartenfrage, Verweis- und Abwehrsätze, Mail-Abschluss");
 ok(agent.fragtNachFehlenderKarte("I have not your kaditkarte", "Sent from Yahoo Mail for iPhone"), "#6120: „I have not your kaditkarte“ (Betreff) → Kartenfrage");

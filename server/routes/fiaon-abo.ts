@@ -160,7 +160,7 @@ const UNZUSTELLBAR_SQL = unzustellbarSql("a");
 // Jetzt: bezahlt, nicht storniert, nicht archiviert (server/lib/fiaon-raten-storno.ts).
 const ERINNERBAR_SQL = ERINNERBARE_BESTELLUNG_SQL("a");
 
-// ── WAS NIE GEMAHNT WIRD (15.10.2026, E-367, Prüfung aller Mails 08.–15.10.) ─────────────────────────────────────────
+// ── WAS NIE GEMAHNT WIRD (15.10.2026, E-368, Prüfung aller Mails 08.–15.10.) ─────────────────────────────────────────
 // Justin: „Kunden, die bereits erledigt sind, bittet sie zur Zahlung.“ Gemessen in sieben Tagen:
 //   · 126 Mails zu 65 Raten, die NACH dem Vertragsende eines gekündigten Altvertrags fällig wurden (4.135 €, nicht
 //     geschuldet — rateNachVertragsende in fiaon-kuendigung.ts kannte die Regel, die Läufe nicht);
@@ -781,7 +781,7 @@ export async function offeneRateFuerErinnerung(personId: number): Promise<any | 
       AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.status = 'offen'
       AND r.storniert_am IS NULL
-      -- E-367: eine Rate nach dem Vertragsende ist nie die „offene Rate“, auch nicht in der Mail von Hand.
+      -- E-368: eine Rate nach dem Vertragsende ist nie die „offene Rate“, auch nicht in der Mail von Hand.
       AND NOT ${sqlPool.unsafe(RATE_NACH_ENDE_SQL)}
     ORDER BY r.faellig_am ASC, r.rate_nr ASC
     LIMIT 1
@@ -818,7 +818,7 @@ export function aboErinnerungPayload(r: any) {
     vorbei: {
       titel_text: "Ihre Monatsrate ist noch offen",
       preheader_text: "Ihre Rate ist noch offen. Betrag und Bankdaten stehen hier bereit.",
-      // E-367 (15.10.2026): Der Satz folgt den echten Tagen — nie mehr „Letzte Erinnerung“. Seit der Dauermahnung (E-182,
+      // E-368 (15.10.2026): Der Satz folgt den echten Tagen — nie mehr „Letzte Erinnerung“. Seit der Dauermahnung (E-182,
       // alle 3 Tage) stand er in 651 von 784 Mails, bis 70 Tage nach Fälligkeit, und schon am 7. Tag „seit zwei Wochen“.
       mahnstufe_text: ueberfaellig <= 6
         ? `Freundliche Erinnerung — Ihre Monatsrate ist seit ${ueberfaellig === 1 ? "einem Tag" : `${ueberfaellig} Tagen`} offen.`
@@ -906,7 +906,7 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       -- wird nicht gemahnt, sondern in der Gegenprobe einmalkaufMitRaten
       -- (fiaon-abo-pflicht.ts, Seite Team-Zentrale) rot gezeigt.
       AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
-      -- E-367: nach Vertragsende, ungebuchte Kündigung, Mahnstopp im Vertrag, Testkonto, schon heute eine Mail zum Vertrag.
+      -- E-368: nach Vertragsende, ungebuchte Kündigung, Mahnstopp im Vertrag, Testkonto, schon heute eine Mail zum Vertrag.
       AND ${sqlPool.unsafe(RATE_MAHNBAR_SQL)}
       AND r.faellig_am <= ${heute}::date
       AND (r.mahnstufe < ${MAHNSTUFEN.length}
@@ -1035,7 +1035,7 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
   }
 
   const batch = await faelligeRaten(ABO_BATCH, { abStichtag: stichtag });
-  // E-367: zwei Raten desselben Vertrags im selben Stapel — nur die älteste bekommt heute eine Mail.
+  // E-368: zwei Raten desselben Vertrags im selben Stapel — nur die älteste bekommt heute eine Mail.
   const schonHeute = new Set<string>();
   for (const r of batch) {
     if (schonHeute.has(String(r.ref))) continue;
@@ -1169,7 +1169,7 @@ async function vorabErinnern(heute: string, tage: number): Promise<number> {
       AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.faellig_am = ${zielTag}::date
       AND r.vorab_am IS NULL
-      -- E-367: dieselben Grenzen wie die Mahnung — und keine Vorabinfo, solange eine ältere Rate offen ist (dann sagt die
+      -- E-368: dieselben Grenzen wie die Mahnung — und keine Vorabinfo, solange eine ältere Rate offen ist (dann sagt die
       -- Mahnung alles; vorher kamen beide Mails um 08:52).
       AND ${sqlPool.unsafe(RATE_MAHNBAR_SQL)}
       AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}

@@ -262,21 +262,28 @@ export function rueckrufGewollt(text: string): boolean {
   return RUECKRUF_WUNSCH.some((m) => m.test(eigenerText));
 }
 
+/** E-369: Post einer Behörde oder Aufsicht (nie automatisch beantworten). Rein. */
+export const BEHOERDE = /\b(?:finanzmarktaufsicht|bafin|fma\b|staatsanwaltschaft|polizeiinspektion|polizeipräsidium|polizeipraesidium|kriminalpolizei|amtsgericht|landgericht|gerichtsvollzieh\w*|aktenzeichen\s*[:.]?\s*\d|datenschutzbeh(?:ö|oe)rde|landesbeauftragte\w*\s+f(?:ü|ue)r\s+(?:den\s+)?datenschutz|aufsichtsbeh(?:ö|oe)rde|ermittlungsverfahren)/i;
+
 export function menschNoetig(
   e: { kategorien: readonly string[]; flags: object; dringend: boolean }, text: string,
   opt: { globalKunde?: boolean } = {},
 ): string | null {
   const f = (e.flags || {}) as Record<string, boolean>;
-  if (f.beschwerde) return UEBERGABE_GRUND.beschwerde;
-  if (f.bestreitet) return UEBERGABE_GRUND.bestreitet;
+  // E-369 (15.10.2026, Justin: „Mara soll ALLES selbst machen können, nichts weitergeben an die Mitarbeiter“):
+  // Beschwerde, Bestreiten, „kann nicht zahlen“ und „vertrieb_komplex“ beantwortet Mara selbst — ohne Zahlungsbitte
+  // (zahlungsRuhe) und nur, wenn die Prüfung sauber ist (maraSelbstSendbar im Agenten). Einen Menschen (Justin, per
+  // Entscheidungskarte) brauchen nur noch Anwalt/Behörde, ein Widerruf und FIAON Global — und der ausdrückliche
+  // Rückrufwunsch, solange Mara den Termin nicht selbst eingeplant hat.
   if (f.droht_anwalt || f.rechtlich) return UEBERGABE_GRUND.rechtlich;
+  // E-369 (#6558: Ersuchen der Finanzmarktaufsicht, Mara-Entwurf „melden uns fristgerecht“): Behördenpost entscheidet Justin.
+  if (BEHOERDE.test(text)) return UEBERGABE_GRUND.rechtlich;
   if (f.widerruf) return UEBERGABE_GRUND.widerruf;
-  if (f.zahlungsunfaehig) return UEBERGABE_GRUND.zahlungsunfaehig;
   // E-275: Global-Kunden bleiben bei Justin — nie eine automatische Antwort (E-272).
   if (opt.globalKunde) return UEBERGABE_GRUND.global;
   const k = new Set(e.kategorien || []);
   // E-275: „sonstiges“ ist kein Grund mehr (#6120) — Mara beantwortet es selbst.
-  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex")) return UEBERGABE_GRUND.mensch;
+  if (k.has("rechtlich")) return UEBERGABE_GRUND.rechtlich;
   // E-275: nur der AUSDRÜCKLICHE Wunsch nach Rückruf oder Gespräch — nicht jedes Wort „Betreuer“ oder „anrufen“.
   if (rueckrufGewollt(text)) return UEBERGABE_GRUND.ansprechpartner;
   return null;
@@ -902,6 +909,50 @@ export async function doppelteEntwuerfeOrdnen(opt: { immer?: boolean } = {}): Pr
   }
 }
 
+/** E-369: So lange wartet eine frische Mail, ob der Kunde gleich weiterschreibt (ein Takt ist 5 Minuten). */
+export const BUENDEL_WARTE_MS = 4 * 60_000;
+/** E-369: Eine neuere Mail innerhalb dieses Abstands nimmt die ältere mit. */
+export const BUENDEL_FENSTER_MS = 3 * 3_600_000;
+
+/**
+ * E-369 (15.10.2026): Warten, mitnehmen lassen oder jetzt beantworten? Reine Entscheidung über die Zeilen desselben
+ * Kunden (Person, sonst Adresse) — ohne „ignoriert“ und ohne Doppel/Gebündelte („geordnet“ ohne Versand).
+ *  · warten: diese Mail ist jünger als BUENDEL_WARTE_MS;
+ *  · mitgenommen: eine neuere Mail (bis BUENDEL_FENSTER_MS später) wartet noch auf ihre Antwort — oder hat sie schon
+ *    bekommen, nachdem diese hier im Haus war (dann stand sie in deren Verlauf).
+ */
+export function buendelEntscheiden(
+  dieser: { am: number; seit: number }, andere: { id: number; am: number; aktion: string; gesendetAm: number | null }[], jetzt: number,
+): { art: "warten" | "mitgenommen" | "jetzt"; grund: string } {
+  if (jetzt - dieser.am < BUENDEL_WARTE_MS) return { art: "warten", grund: "frisch" };
+  const neuere = andere.filter((z) => z.am > dieser.am && z.am - dieser.am <= BUENDEL_FENSTER_MS && z.aktion !== "ignoriert"
+    && !(z.aktion === "geordnet" && !z.gesendetAm));
+  const offen = neuere.find((z) => !z.gesendetAm && !["auto_beantwortet", "gesendet"].includes(z.aktion));
+  if (offen) return { art: "mitgenommen", grund: `Die Antwort auf Mail #${offen.id} (neuer, desselben Kunden) nimmt diese mit` };
+  const beantwortet = neuere.find((z) => z.gesendetAm != null && z.gesendetAm >= dieser.seit);
+  if (beantwortet) return { art: "mitgenommen", grund: `Mit der Antwort auf Mail #${beantwortet.id} (neuer, desselben Kunden) beantwortet` };
+  return { art: "jetzt", grund: "" };
+}
+
+async function buendelUrteil(ein: { id: number; personId: number | null; von: string; am: Date }): Promise<{ art: "warten" | "mitgenommen" | "jetzt"; grund: string }> {
+  const adresse = adresseAus(ein.von);
+  if (ein.personId == null && !adresse) return { art: "jetzt", grund: "" };
+  const [ich] = (await sqlPool`SELECT created_at FROM fiaon_postmeister WHERE id = ${ein.id}`) as any[];
+  const zeilen = (await sqlPool`
+    SELECT id, COALESCE(empfangen_am, created_at) AS am, aktion, gesendet_am
+      FROM fiaon_postmeister
+     WHERE id <> ${ein.id}
+       AND ${ein.personId != null ? sqlPool`person_id = ${ein.personId}` : sqlPool`LOWER(COALESCE(substring(von from '<([^>]+)>'), von, '')) = ${adresse}`}
+       AND COALESCE(empfangen_am, created_at) > ${ein.am}
+       AND COALESCE(empfangen_am, created_at) <= ${new Date(ein.am.getTime() + BUENDEL_FENSTER_MS)}
+     ORDER BY COALESCE(empfangen_am, created_at) DESC LIMIT 20`) as any[];
+  return buendelEntscheiden(
+    { am: ein.am.getTime(), seit: ich?.created_at ? new Date(ich.created_at).getTime() : Date.now() },
+    zeilen.map((z) => ({ id: Number(z.id), am: new Date(z.am).getTime(), aktion: String(z.aktion), gesendetAm: z.gesendet_am ? new Date(z.gesendet_am).getTime() : null })),
+    Date.now(),
+  );
+}
+
 /**
  * Die anderen Mails desselben Kunden aus den letzten drei Tagen, die NICHT in
  * diesem Faden stehen (E-248). Schreibt jemand in drei Fäden kurz hintereinander,
@@ -1160,7 +1211,7 @@ export async function mailBearbeiten(ein: {
 
     // 3. Wer schreibt da?
     // E-367: die Antwort-Kette mitgeben — antwortet er auf eine unserer Mails, ist er darüber sicher erkannt.
-    const wer = await personSuchen(mail.von, neuerText, { kette: [mail.antwortAufId, mail.references].filter(Boolean).join(" ") || null });
+    const wer = await personSuchen(mail.von, neuerText, { kette: [mail.antwortAufId, mail.references].filter(Boolean).join(" ") || null, betreff: mail.betreff });
     fuerAufgabe = { personId: wer.personId, ref: wer.ref, betreff: mail.betreff };
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 
@@ -1260,6 +1311,33 @@ export async function mailBearbeiten(ein: {
       }, "Doppel");
     }
 
+    // 5d. E-369 (15.10.2026): BÜNDELN — EIN KUNDE, EINE ANTWORT. Gemessen 08.–15.10.: 18 Antwortpaare bei 13 Kunden
+    //     binnen Minuten, teils widersprüchlich (#6584 „bitte nicht per Mail schicken“ und #6586 „Datei angekommen“, beide
+    //     14:43; #6705/#6706 mit gegensätzlichen Knöpfen; sechs Antworten an einem Tag). Jetzt: Eine Mail, die jünger als
+    //     BUENDEL_WARTE_MS ist, wartet einen Takt (er schreibt oft gleich weiter). Gibt es vom selben Kunden eine neuere Mail,
+    //     beantwortet Mara nur die neueste — sie sieht diese hier im Verlauf bzw. als Nachbarmail (nachbarMails).
+    if (!ein.nurOrdnen) {
+      const buendel = await buendelUrteil({ id, personId: wer.personId, von: mail.von, am: mail.datum }).catch((e) => {
+        console.warn("[POSTMEISTER] Bündeln:", String(e?.message || e).slice(0, 160));
+        return null;
+      });
+      if (buendel?.art === "warten") {
+        await sqlPool`
+          UPDATE fiaon_postmeister
+             SET aktion = 'vorgeordnet', in_arbeit_seit = NULL, versuche = GREATEST(versuche - ${neuAngelegt ? 0 : 1}, 0),
+                 begruendung = ${"Bündeln: wartet einen Takt auf weitere Mails desselben Kunden (E-369)"}, updated_at = NOW()
+           WHERE id = ${id} AND gesendet_am IS NULL`.catch((x) => console.error("[POSTMEISTER] Bündeln zurücklegen:", String(x).slice(0, 160)));
+        return { aktion: "geordnet", grund: "wartet auf weitere Mails (Bündeln)", id };
+      }
+      if (buendel?.art === "mitgenommen") {
+        await ablegen(postfach, gmailId, "FIAON/Gebündelt");
+        return fertig({
+          ...gemeinsam, kundenlage, aktion: "geordnet",
+          begruendung: `Gebündelt: ${buendel.grund} (E-369)`,
+        }, "gebündelt");
+      }
+    }
+
     // 6. Verlauf und Antwort.
     const verlauf = await verlaufLesen(postfach, mail.threadId, gmailId);
     // E-248: Seine anderen Mails der letzten drei Tage (andere Fäden) und unsere Antworten darauf.
@@ -1304,7 +1382,7 @@ export async function mailBearbeiten(ein: {
     // nach einem Telefonat eingetragen hat.
     // E-248 (#5591): dieselbe EINE Sprache wie der Text — nie Rahmen deutsch, Text spanisch.
     const sprache = antwortSpracheCode;
-    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, sprache);
+    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, sprache, { absender: mail.von });
     // Der Gruß trägt den Namen des Agenten (04.09.2026): „Freundliche Grüße\nMara\nFIAON Welcome-Team".
     const { agentName } = await import("./fiaon-postmeister-agent");
     const name = await agentName();
@@ -1331,13 +1409,14 @@ export async function mailBearbeiten(ein: {
     // 18.09.2026 (Team-Feedback Priorität 6): „Die KI übergibt bei komplexeren
     // Anliegen an einen Mitarbeiter." Was ein Mensch klären muss, geht nie
     // automatisch raus — es wird ein Entwurf UND eine Aufgabe beim Betreuer.
-    const kuendigungGebucht = erg.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken") || !!akte.kuendigung;
     // E-275 (02.10.2026): Global-Kunden bleiben bei Justin (E-272) — die eine Regel, hier für den Entwurf.
     const globalAbsender = await globalUebergabe(wer.personId);
-    let mensch = menschNoetig(einordnung, neuerText, { globalKunde: globalAbsender })
-      ?? (vorgeschichte ? UEBERGABE_GRUND.vorgeschichte : null)
-      // Kündigung angesprochen, nicht gebucht: ein Mensch prüft — nie still liegen lassen (#5626, #4682).
-      ?? (einordnung.flags?.kuendigung && !kuendigungGebucht && !erg.automatischErlaubt ? UEBERGABE_GRUND.kuendigung : null);
+    // E-369 (15.10.2026): Ein früherer Einwand (vorgeschichte) sperrt nur die Zahlungsbitte (zahlungsRuhe), nicht den
+    // Versand — vorher machte er JEDE spätere Mail zum Entwurf, auch „Okay, danke“ (#6624) oder „Anruf abgesagt“ (#6658).
+    // Eine nicht gebuchte Kündigung beantwortet Mara mit der Rückfrage („Ein kurzes Ja genügt.“, Agent) — kein Mensch.
+    // Ein Widerruf, den Mara als Storno der unbezahlten Bestellung gebucht hat, ist erledigt (automatischErlaubt).
+    let mensch = menschNoetig(einordnung, neuerText, { globalKunde: globalAbsender });
+    if (mensch === UEBERGABE_GRUND.widerruf && erg.automatischErlaubt) mensch = null;
     // E-275: Der Rückrufwunsch ist erledigt, wenn Mara ihn selbst eingeplant hat (Aufgabe mit Rückruf, Notiz mit
     // Anruf, Terminlink) — dann geht ihre Antwort („Herr Stripling ruft Sie morgen um 10 Uhr an“) ohne zweite
     // Übergabe raus, sofern die Prüfung sie freigibt (die Lampe rueckruf_wunsch fällt dort ebenso).

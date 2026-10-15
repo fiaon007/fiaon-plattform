@@ -10,7 +10,7 @@ import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { eingangOffenSql } from "../lib/fiaon-zahlung-unverbucht";
 
 // ════════════════════════════════════════════════════════════════════════════
-// WER BEZAHLT HAT ODER GEHEN WILL, BEKOMMT KEIN „STEHT NOCH AUS“ (15.10.2026, E-367)
+// WER BEZAHLT HAT ODER GEHEN WILL, BEKOMMT KEIN „STEHT NOCH AUS“ (15.10.2026, E-368)
 //
 // Justin: „Kunden, die bereits bezahlt haben, bittet sie zur Zahlung.“ Gemessen 08.–15.10.: 64 falsche Erstzahlungs-
 // Erinnerungen an 13 Menschen — Testkonten und Vertriebssperre täglich (die Auswahl kannte fiaon_persons nicht),

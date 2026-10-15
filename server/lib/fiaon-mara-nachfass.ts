@@ -50,7 +50,7 @@ export const NACHFASS_HEIKEL = /kündig|kuendig|widerruf|storn|erstatt|zurück\s
  * geantwortet; ungefragt noch einmal zu schreiben wäre Drängen (Probe 07.10.: „nein danke sowas kenne ich nicht mach ich nicht“).
  */
 /**
- * E-367 (15.10.2026): Der Kunde sagt, er habe bezahlt oder überweise gerade (oder schickte ein Bild — meist der Beleg).
+ * E-368 (15.10.2026): Der Kunde sagt, er habe bezahlt oder überweise gerade (oder schickte ein Bild — meist der Beleg).
  * Dann fragt Mara nicht „Hat es mit der Überweisung geklappt? Zahlen Sie jetzt …“ — 3 von 6 solchen Nachfassern gingen
  * genau daran (5400 zahlte 11 Minuten später, 13535 „Überweisung dauert“).
  */
@@ -106,7 +106,7 @@ export const nachfassKandidatenSql = (abStunden: number = NACHFASS_AB_STUNDEN): 
          (SELECT w.lead_id FROM fiaon_whatsapp w WHERE w.nummer = r.nummer AND w.lead_id IS NOT NULL ORDER BY w.id DESC LIMIT 1) AS lead_id,
          (SELECT string_agg(COALESCE(h.text, h.knopf, ''), ' | ') FROM fiaon_whatsapp h
            WHERE h.nummer = r.nummer AND h.richtung = 'rein' AND h.created_at > NOW() - INTERVAL '3 days') AS kunde_3t,
-         -- E-367: ein Bild/Dokument ohne Text (meist ein Überweisungsbeleg) in den letzten 3 Tagen
+         -- E-368: ein Bild/Dokument ohne Text (meist ein Überweisungsbeleg) in den letzten 3 Tagen
          (SELECT COUNT(*)::int FROM fiaon_whatsapp hm
            WHERE hm.nummer = r.nummer AND hm.richtung = 'rein' AND hm.created_at > NOW() - INTERVAL '3 days'
              AND COALESCE(TRIM(hm.text), '') = '' AND hm.knopf IS NULL) AS kunde_medien

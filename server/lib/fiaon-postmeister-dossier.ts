@@ -25,6 +25,8 @@ import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
 import { antragAbgeschickt, istJahresvertrag, abrechnungsmonatEnde } from "@shared/fiaon-antrag-stand";
+import { STUFE_A_GEMELDET_TAGE } from "@shared/fiaon-wiedervorlage";
+import { eingangOffenFuer } from "./fiaon-zahlung-unverbucht";
 import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS, AUSWERTUNG_NAME } from "@shared/fiaon-auskunft";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { kartenZiel, kartenzielText, kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
@@ -144,7 +146,39 @@ const GRUNDFORM_SQL = (spalte: string) => `(CASE WHEN LOWER(TRIM(COALESCE(${spal
   THEN regexp_replace(split_part(LOWER(TRIM(${spalte})), '@', 1), '\\+.*$|\\.', '', 'g') || '@gmail.com'
   ELSE LOWER(TRIM(COALESCE(${spalte}, ''))) END)`;
 
-export async function personSuchen(absender: string, text: string, opts: { kette?: string | null } = {}): Promise<{
+/** E-369: Nummern, an denen Mara einen Kunden erkennt — in der Reihenfolge, in der sie gesucht werden. */
+export type NummerArt = "rechnung" | "vorgang" | "rate" | "zahlung";
+const NUMMER_NAME: Record<NummerArt, string> = { rechnung: "Rechnungsnummer", vorgang: "Vorgangsnummer", rate: "Raten-Verwendungszweck", zahlung: "Zahlungsreferenz" };
+
+/**
+ * E-369 (15.10.2026): Alle FIAON-Nummern aus Betreff + Text, eindeutigste zuerst. Formate (gemessen, 90 Tage):
+ * FIAON-INV-2026-01881 (Rechnung), FIAON-MRNJX91O-49VD (Vorgang), FIAON-ABC123-2 (Rate), FIAON-ABC123 oder FIAONABC123
+ * (Zahlungsreferenz). Rein — der erste Teil vor dem Zeilenumbruch gilt als Betreff.
+ */
+export function nummernImText(betreffUndText: string): { art: NummerArt; wert: string; imBetreff: boolean }[] {
+  const roh = String(betreffUndText || "").toUpperCase();
+  const betreffEnde = roh.indexOf("\n");
+  const aus: { art: NummerArt; wert: string; imBetreff: boolean; pos: number }[] = [];
+  const belegt: [number, number][] = [];
+  const frei = (a: number, b: number) => !belegt.some(([x, y]) => a < y && b > x);
+  const muster: [NummerArt, RegExp][] = [
+    ["rechnung", /\bFIAON-INV-\d{4}-\d{3,6}\b/g],
+    ["vorgang", /\bFIAON-[A-Z0-9]{8}-[A-Z0-9]{4}\b/g],
+    ["rate", /\bFIAON-[A-Z0-9]{6}-\d{1,2}\b/g],
+    ["zahlung", /\bFIAON-?(?!INV)[A-Z0-9]{6}\b/g],
+  ];
+  for (const [art, re] of muster) {
+    for (const m of Array.from(roh.matchAll(re))) {
+      const a = m.index ?? 0, b = a + m[0].length;
+      if (!frei(a, b)) continue;
+      belegt.push([a, b]);
+      if (!aus.some((x) => x.art === art && x.wert === m[0])) aus.push({ art, wert: m[0], imBetreff: betreffEnde < 0 || a < betreffEnde, pos: a });
+    }
+  }
+  return aus.map(({ art, wert, imBetreff }) => ({ art, wert, imBetreff }));
+}
+
+export async function personSuchen(absender: string, text: string, opts: { kette?: string | null; betreff?: string | null } = {}): Promise<{
   personId: number | null; ref: string | null; sicher: boolean; wie: string;
   kandidaten: { personId: number; name: string; wie: string }[];
 }> {
@@ -201,15 +235,36 @@ export async function personSuchen(absender: string, text: string, opts: { kette
     }
   }
 
-  // Stufe 3: Referenz im Text (FIAON-XXXXXX oder Ratenreferenz).
+  // Stufe 3: Nummer im Betreff oder Text — E-369 (15.10.2026): vorher nur „FIAON-XXXXXX“ gegen payment_reference und nur
+  // im Text. Grant/Persch schrieben zweimal mit „FIAON-INV-2026-01881“ im Betreff (Person 12599) — beide Mails blieben
+  // als „unbekannt“ liegen. Jetzt (Reihenfolge = Eindeutigkeit, Formate gemessen 15.10., 90 Tage):
+  // Rechnungsnummer, Vorgangsnummer, Raten-Verwendungszweck, Zahlungsreferenz mit oder ohne Bindestrich.
   if (!personId) {
-    const ref = String(text || "").toUpperCase().match(/FIAON-[A-Z0-9]{6}/)?.[0];
-    if (ref) {
-      const [r] = (await sqlPool`
-        SELECT person_id, ref FROM fiaon_applications
-         WHERE payment_reference = ${ref} AND merged_into IS NULL LIMIT 1
-      `) as any[];
-      if (r?.person_id) { personId = Number(r.person_id); wie = `Zahlungsreferenz ${ref} im Text`; }
+    const nr = nummernImText(`${opts.betreff ?? ""}\n${text || ""}`);
+    for (const n of nr) {
+      const abfrage = n.art === "rechnung" ? sqlPool`
+          SELECT person_id FROM fiaon_applications WHERE invoice_number = ${n.wert} AND merged_into IS NULL AND person_id IS NOT NULL
+          UNION ALL
+          SELECT a.person_id FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+           WHERE r.rechnungsnummer = ${n.wert} AND a.person_id IS NOT NULL LIMIT 1`
+        : n.art === "vorgang" ? sqlPool`
+          SELECT person_id FROM fiaon_applications WHERE UPPER(ref) = ${n.wert} AND person_id IS NOT NULL LIMIT 1`
+        : n.art === "rate" ? sqlPool`
+          SELECT a.person_id FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+           WHERE UPPER(r.zahlungsreferenz) = ${n.wert} AND a.person_id IS NOT NULL LIMIT 1`
+        : sqlPool`
+          SELECT person_id FROM fiaon_applications
+           WHERE REPLACE(UPPER(payment_reference), '-', '') = ${n.wert.replace(/-/g, "")} AND merged_into IS NULL AND person_id IS NOT NULL
+          UNION ALL
+          SELECT a.person_id FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+           WHERE REPLACE(UPPER(r.zahlungsreferenz), '-', '') = ${n.wert.replace(/-/g, "")} AND a.person_id IS NOT NULL LIMIT 1`;
+      const [r] = (await abfrage.catch(() => [])) as any[];
+      if (r?.person_id) {
+        const [m] = (await sqlPool`SELECT COALESCE(merged_into_person_id, id) AS id FROM fiaon_persons WHERE id = ${Number(r.person_id)}`.catch(() => [])) as any[];
+        personId = Number(m?.id ?? r.person_id);
+        wie = `${NUMMER_NAME[n.art]} ${n.wert} im ${n.imBetreff ? "Betreff" : "Text"}`;
+        break;
+      }
     }
   }
 
@@ -306,7 +361,7 @@ async function kundenlageRoh(personId: number | null, ref: string | null, opt: {
     SELECT werbung_gesperrt_am, is_blocked, account_status FROM fiaon_persons WHERE id = ${personId} LIMIT 1
   `) as any[] : [null];
   const [a] = ref ? (await sqlPool`
-    SELECT ref, payment_status, claimed_paid_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am,
+    SELECT ref, payment_status, claimed_paid_at, payment_proof_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am,
            account_status, onboarding_stufe, freigeschaltet_am, gdpr_deleted_at, agb_stand,
            status, current_step, submitted_at, created_at, person_id, type, pack_key
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
@@ -381,7 +436,24 @@ async function kundenlageOhneWerbesperre(
     return { lage: "gekuendigt", grund: "hat gekündigt, letzte Rechnung noch offen" };
   }
   if (a.payment_status === "cancelled" || a.vertrag_ende_am) return { lage: "gesperrt", grund: "Vertrag beendet oder storniert" };
-  if (a.payment_status === "claimed_paid") return { lage: "zahlung_gemeldet", grund: `hat am ${relativ(a.claimed_paid_at)} eine Zahlung gemeldet, Geld ist nicht angekommen` };
+  if (a.payment_status === "claimed_paid") {
+    // ── E-369 (15.10.2026): EINE ALTE ZAHLUNGSMELDUNG IST KEINE ZAHLUNG ─────────────────────────────────────────────
+    // Gemessen 08.–15.10.: Pielken meldete am 10.07., nie kam Geld — Mara dankte trotzdem weiter „für Ihre Überweisung“.
+    // Frisch (STUFE_A_GEMELDET_TAGE), mit Beleg oder mit einem passenden, noch ungebuchten Bankeingang bleibt es
+    // „zahlung_gemeldet“ (keine Zahlungsbitte). Sonst „unbezahlt“ mit dem ehrlichen Satz im Grund: Datum der Meldung,
+    // nichts angekommen, bei der Bank prüfen, sonst jetzt überweisen.
+    const gemeldetAm = a.claimed_paid_at ? new Date(a.claimed_paid_at) : null;
+    const frisch = !gemeldetAm || Date.now() - gemeldetAm.getTime() < STUFE_A_GEMELDET_TAGE * 86_400_000;
+    const eingang = !frisch && pid ? await eingangOffenFuer(pid) : false;
+    if (frisch || a.payment_proof_at || eingang) {
+      return { lage: "zahlung_gemeldet", grund: `hat am ${relativ(a.claimed_paid_at)} eine Zahlung gemeldet, Geld ist nicht angekommen` };
+    }
+    const datum = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(gemeldetAm!);
+    return {
+      lage: "unbezahlt",
+      grund: `hat am ${datum} gemeldet, überwiesen zu haben — bis heute ist KEIN Geld eingegangen (über ${STUFE_A_GEMELDET_TAGE} Tage, kein Beleg). Sag ihm das ehrlich mit diesem Datum (kein Dank für die Überweisung): Die gemeldete Zahlung ist bei uns nicht angekommen; er soll bei seiner Bank nachsehen, ob sie ausgeführt wurde — wurde sie nicht ausgeführt, überweist er jetzt mit dem Verwendungszweck`,
+    };
+  }
   // E-264 (29.09.2026): „unbezahlt" hieß bis heute JEDE nicht bezahlte Bestellung — auch ein Antrag,
   // der bei Schritt 5 stehen blieb (approved + pending_payment setzt der Antragsweg VOR dem Vertrag).
   // Mara forderte so Geld ohne Vertrag. Nie abgeschickt (antragAbgeschickt, EINE Regel) heißt:

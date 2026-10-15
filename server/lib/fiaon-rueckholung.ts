@@ -250,12 +250,12 @@ function grundmenge() {
        -- Läufe; wer zusätzlich ein bezahltes Stufenpaket hat („gemischt“), bleibt drin. Weil
        -- Segmente, Dauerpflege und Kandidaten alle aus dieser Grundmenge schöpfen, gilt es dort mit.
        AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
-       -- E-367 (15.10.2026): LLC-Gründungen (llc_*) stehen im Katalog als „privat“, sind aber FIAON Global —
+       -- E-368 (15.10.2026): LLC-Gründungen (llc_*) stehen im Katalog als „privat“, sind aber FIAON Global —
        -- Chehade (3224) bekam S4 und S1 der Privatlinie zu „Gründung LLC Hälfte 1“.
        AND LEFT(LOWER(COALESCE(a.pack_key, '')), 4) <> 'llc_'
-       -- E-367: ein eingegangener, noch nicht gebuchter Kündigungsantrag — keine Rückhol-Werbung (3 Mails in 7 Tagen).
+       -- E-368: ein eingegangener, noch nicht gebuchter Kündigungsantrag — keine Rückhol-Werbung (3 Mails in 7 Tagen).
        AND NOT ${sqlPool.unsafe(KUENDIGUNG_UNGEBUCHT_SQL("p.id"))}
-       -- E-367: MARA HAT VORRANG. Wer in den letzten 7 Tagen eine Mara-Aktion-Mail bekam („Zahlen Sie jetzt die
+       -- E-368: MARA HAT VORRANG. Wer in den letzten 7 Tagen eine Mara-Aktion-Mail bekam („Zahlen Sie jetzt die
        -- Aktivierung“), bekommt keine Rückhol-Mail („Termin wählen — nichts davon setzt eine Zahlung voraus“): 209
        -- B-Kunden lasen in derselben Woche beides, 13567 sogar in derselben Minute.
        AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log mv WHERE mv.person_id = p.id AND mv.event = 'mara_aktion'

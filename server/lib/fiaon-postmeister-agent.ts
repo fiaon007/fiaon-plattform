@@ -1183,7 +1183,7 @@ function systemPrompt(ein: {
       // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): beide Aufträge ohne Pflicht-Termin,
       // dafür mit Justins wahrem Satz (Zahlung → Account aktiviert → Bonitätsauswertung → direkt der Link der Partnerbank → 2–5 Werktage; E-363).
       ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); „${nachDerZuordnung({ anfang: true })}!“ „${KARTE_ZEIT_SATZ}“ Seine eigene Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank") bleibt das Ziel. Kein Termin, außer er will ein Gespräch. Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
-      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: unserer Begleitung auf dem Weg zu seiner eigenen Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank"). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins wahrem Satz: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}! ${TEMPO_SATZ}“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht).`,
+      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: unserer Begleitung auf dem Weg zu seiner eigenen Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank"). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins wahrem Satz: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}! ${TEMPO_SATZ}“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht). EBENSO (E-369), wenn er kündigen oder stornieren will — auch mit Tippfehlern („Stonie“, „kündgen“) — und kuendigung_vormerken (noch) nichts gebucht hat: dann ist deine Antwort nur die eine Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.“ bzw. bei unbezahlter Bestellung „… Ihre Bestellung jetzt storniere? …“), ohne Rate, ohne Zahlungsseite.`,
     // E-265: Justins Abschluss, eingesetzt für DIESEN Kunden (Ziel, Nennform) — die Zahlen aus den Werkzeugen.
     (() => {
       // E-272: Beim Global-Kunden kein Kreditkarten-Abschluss.
@@ -1588,7 +1588,10 @@ export function fordertZahlung(text: string): string | null {
   // („Jede Rate überweisen Sie selbst“) bleibt frei.
   // E-275 Endkontrolle (02.10.2026): Die drei neuen Formen nie, wenn direkt „nichts/nicht/keine“ folgt — „Überweisen Sie
   // bitte nichts mehr.“ in einer Kündigungs- oder Widerrufsantwort ist das Gegenteil einer Zahlungsbitte.
-  const m = String(text || "").match(/\b(?:bitte|jetzt|zeitnah|umgehend|gleich)\b[^.!?\n]{0,60}?\b(?:begleichen|bezahlen|überweisen|ueberweisen)\b|\b(?:begleichen|bezahlen|überweisen|ueberweisen)\s+sie\b|(?:^|[.!?:—–\n]\s*)(?:über|ueber)weisen\s+sie\b(?!\s+(?:bitte\s+)?(?:nichts|nicht|keine?n?)\b)|(?<![a-zäöüß])(?:über|ueber)weisen\s+sie\s+(?:sie\s+|es\s+)?(?:bitte|jetzt|gleich|heute|am\s+besten)\b(?!\s+(?:nichts|nicht|keine?n?)\b)|\bzahlen\s+sie\s+(?:jetzt|gleich|heute|bitte|die\s+aktivierung)\b(?!\s+(?:nichts|nicht|keine?n?)\b)|\bplease\s+(?:pay|settle)\b|\bpor\s+favor[^.!?\n]{0,30}\bpag/i);
+  // E-369 (15.10.2026): „Bitte überweisen Sie die offene Rate heute.“ fiel durch — \b vor „ü“ greift ohne Unicode-Flag
+  // nie (#6687 Pielken: „Bitte überweisen Sie die 59,99 €“). Jetzt Lookbehind statt \b; „bitte … nicht/kein … überweisen“
+  // und „Überweisen Sie nichts“ bleiben frei.
+  const m = String(text || "").match(/\b(?:bitte|jetzt|zeitnah|umgehend|gleich)\b(?:(?!\bnicht\b|\bnichts\b|\bkein)[^.!?\n]){0,60}?(?<![a-zäöüß])(?:begleichen|bezahlen|überweisen|ueberweisen)(?![a-zäöüß])(?!\s+(?:sie\s+)?(?:bitte\s+)?(?:nichts|nicht|keine?n?)\b)|\b(?:begleichen|bezahlen|überweisen|ueberweisen)\s+sie\b|(?:^|[.!?:—–\n]\s*)(?:über|ueber)weisen\s+sie\b(?!\s+(?:bitte\s+)?(?:nichts|nicht|keine?n?)\b)|(?<![a-zäöüß])(?:über|ueber)weisen\s+sie\s+(?:sie\s+|es\s+)?(?:bitte|jetzt|gleich|heute|am\s+besten)\b(?!\s+(?:nichts|nicht|keine?n?)\b)|\bzahlen\s+sie\s+(?:jetzt|gleich|heute|bitte|die\s+aktivierung)\b(?!\s+(?:nichts|nicht|keine?n?)\b)|\bplease\s+(?:pay|settle)\b|\bpor\s+favor[^.!?\n]{0,30}\bpag/i);
   return m ? m[0] : null;
 }
 
@@ -1707,6 +1710,44 @@ export function spracheStimmt(text: string, sprache: string): boolean {
  * Brennt irgendeine andere Lampe (Beschwerde, Widerruf, Bestreiten, Anwalt,
  * „kann nicht zahlen", „habe bezahlt", Rückruf), bleibt es beim Menschen. Rein.
  */
+/**
+ * E-369 (15.10.2026): Will er kündigen/stornieren (Lampe kuendigung), und ist nichts gebucht — weder durch Mara in
+ * diesem Lauf noch in der Akte noch als stornierte Bestellung? Rein (liest nur den Kontext des Laufs).
+ */
+export function kuendigungNichtGebucht(k: { einordnung: { flags?: Partial<Flags> | null }; handlungen: { ok: boolean; werkzeug: string }[]; akte?: any; kontext?: { ref?: string | null } }): boolean {
+  if (!k.einordnung.flags?.kuendigung) return false;
+  if (k.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken")) return false;
+  if (k.akte?.kuendigung) return false;
+  const ref = k.kontext?.ref ?? null;
+  return !(k.akte?.bestellungen ?? []).some((b: any) => (!ref || b.ref === ref) && ["cancelled", "canceled", "storniert", "refunded"].includes(String(b.status)));
+}
+
+/** Fragt der Text zurück, ob er kündigen/stornieren möchte? („… Ein kurzes Ja genügt.“ oder eine Frage mit kündig/storn). Rein. */
+export function rueckfrageGestellt(text: string): boolean {
+  const t = String(text || "");
+  return /ein\s+kurzes\s+ja\s+gen(?:ü|ue)gt/i.test(t) || /(?:kündig|kuendig|storn|beend|widerruf)[^.!?\n]{0,120}\?/i.test(t);
+}
+
+/** Lampen, bei denen ein Mensch entscheiden muss (Entscheidungskarte bei Justin) — alles andere erledigt Mara selbst (E-369). */
+export const MENSCH_LAMPEN: (keyof Flags)[] = ["rechtlich", "droht_anwalt", "widerruf"];
+
+/**
+ * E-369 (15.10.2026): Darf Mara diese Antwort selbst senden, obwohl eine Lampe brennt? Ja, wenn
+ *  · keine Mensch-Lampe brennt (Anwalt/Behörde; Widerruf nur, wenn er nicht schon als Storno der unbezahlten Bestellung gebucht ist),
+ *  · er kein Global-Kunde ist und die Person sicher zugeordnet ist (nicht „fremd“/„unklar“),
+ *  · eine Ruhe-Antwort (Beschwerde, Bestreiten, Stopp, „kann nicht zahlen“, offene Kündigung, früherer Einwand) und jede
+ *    Antwort in den Lagen „bestreitet“/„gesperrt“ KEINE Zahlungsbitte enthält.
+ * Die Prüfung (sauber: Wand, Belege, Pflichten, Ton) entscheidet der Aufrufer. Rein.
+ */
+export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean }): boolean {
+  const f = ein.flags as Record<string, unknown>;
+  if (ein.global || ein.lage === "fremd" || ein.lage === "unklar") return false;
+  const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht));
+  if (mensch.length) return false;
+  if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && fordertZahlung(ein.text)) return false;
+  return true;
+}
+
 export function sichereSelbstErledigung(ein: {
   flags: Partial<Flags> | Record<string, unknown>; gelaufen: string[]; werkzeugDaten: Record<string, any>; werbungGesperrt?: boolean;
   /** Nachbesserung E-248: Maras Antwort — ein ungefragtes Storno-Angebot geht nie ohne Menschen raus. */
@@ -1748,6 +1789,35 @@ export function sichereSelbstErledigung(ein: {
  * Bereich" mit der Zahlungsseite dahinter (#5559, #5565, #5629). `ruhe`: keine
  * Zahlung und keine Auskunft als Knopf (zahlungsRuhe).
  */
+/**
+ * E-369 (15.10.2026): Verweist der Text auf einen Knopf, der nicht der Knopf unter der Mail ist? Gemessen 08.–15.10.
+ * (4 versandte Mails, „wirr“): „wählen Sie Ihren Termin über den Knopf“ — Knopf „Rechnung bezahlen“ (#6621); „Zahlungsseite
+ * unten“ — Knopf „Zu meinem Bereich“ (#6687); „Zahlungsseite“ — Knopf „Angebot ansehen“ (#6386). null = passt. Rein.
+ */
+export function knopfWiderspruch(text: string, schritt: { art?: unknown; text?: unknown } | null | undefined): string | null {
+  const saetze = String(text || "").split(/(?<=[.!?])\s+|\n+/);
+  const bezug = /\b(?:knopf|button|schaltfläche|schaltflaeche)\b|\bunten\b|\bunterhalb\b|\bklicken\s+sie\b/i;
+  const absichten: [string, RegExp][] = [
+    ["zahlung", /\b(?:zahl\w*|bezahl\w*|überweis\w*|ueberweis\w*|rechnung\w*|qr-?code|begleich\w*)\b/i],
+    ["termin", /\b(?:termin\w*|gespräch\w*|gespraech\w*|rückruf\w*|rueckruf\w*|telefonat\w*)\b/i],
+    ["antrag", /\bantrag\w*\b/i],
+    ["auskunft", /\b(?:auskunft|bonitätsauskunft|bonitaetsauskunft|bonitätsauswertung|schufa)\b/i],
+    ["bereich", /\b(?:bereich|kundenbereich|konto|einloggen|anmelden|login)\b/i],
+  ];
+  const art = String(schritt?.art ?? "");
+  const knopfArt = art === "startgespraech" ? "termin" : art === "unterlagen" || art === "angebot" ? "bereich" : art;
+  for (const satz of saetze) {
+    if (!bezug.test(satz)) continue;
+    const gemeint = absichten.filter(([, re]) => re.test(satz)).map(([a]) => a);
+    if (!gemeint.length || gemeint.includes(knopfArt)) continue;
+    const ohneKnopf = !art || ["erledigt", "rueckruf", "wartet_auf_uns", "keiner"].includes(art);
+    return ohneKnopf
+      ? `Der Text verweist auf einen Knopf („${satz.slice(0, 80)}“), unter der Mail steht aber KEIN Knopf — nenne keinen Knopf`
+      : `Der Text verweist auf einen Knopf für ${gemeint.join("/")} („${satz.slice(0, 80)}“), der Knopf unter der Mail ist aber „${String(schritt?.text ?? art)}“ — beziehe dich nur auf diesen Knopf`;
+  }
+  return null;
+}
+
 export function schrittBestimmen(
   roh: any, lage: Kundenlage, werkzeugDaten: Record<string, any>,
   /** E-241: Antwort auf das Angebot oder eigene Frage — dann darf der Knopf auch bei B/Lead die Auskunft sein. */
@@ -1821,7 +1891,11 @@ export function schrittBestimmen(
   // ── HAT auskunft_anbieten GELIEFERT, IST DIE AUSKUNFT DER KNOPF (E-240) ──
   // Auch in einer Zahlungslage: Die offene Rate steht dann als ein Satz mit
   // Betrag und Verwendungszweck im Text (Prüfung unten), ihre Rechnung hängt an.
+  // E-369 (15.10.2026, #6706: er hatte „Nein“ zur Auskunft gesagt, Text „klicken Sie auf Antrag starten“, Knopf
+  // „Bonitätsauskunft bestellen“): Der Auskunftsknopf nur, wenn das Modell selbst die Auskunft als Schritt gewählt hat
+  // (oder gar keinen) — er überschreibt nicht mehr einen anderen, bewusst gewählten Schritt.
   const auskunftSchritt: NaechsterSchritt | null = !storniert && auskunftSeite && erlaubteSchritte(lage, auskunftAntwort).includes("auskunft")
+    && (!schritt || String(schritt.art) === "auskunft")
     ? { art: "auskunft", url: String(auskunftSeite), text: "Bonitätsauskunft bestellen" }
     : null;
   const schrittFinal: NaechsterSchritt | null = storniert
@@ -2294,7 +2368,10 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // E-241: Antwortet er auf das Angebot oder fragt selbst, darf der Knopf auch bei B/Lead die Auskunft sein.
   const auskunftAntwort = k.kontext.auskunftAntwort ?? null;
   // E-248: Ruhe (Stopp, Widerruf …) oder „bitte nicht noch einmal überweisen" im eigenen Text (#5662) → kein Zahlknopf.
-  const ruheKnopf = !!k.ruhe || sagtNichtNochmalZahlen(text);
+  // E-369 (15.10.2026, #6520 „hiermit Stonie ich meinn Vertrag“ → „Zahlen Sie jetzt die Aktivierung 7,99 €“): Will er
+  // kündigen oder stornieren und ist (noch) nichts gebucht, ist die Antwort die Rückfrage — keine Zahlungsbitte, kein Zahlknopf.
+  const kuendigungOffen = kuendigungNichtGebucht(k);
+  const ruheKnopf = !!k.ruhe || kuendigungOffen || sagtNichtNochmalZahlen(text);
   // E-265: Zahlung gemeldet oder Beleg geschickt → nie der Zahlknopf (#5773).
   const gemeldet = k.lage === "zahlung_gemeldet" || !!k.einordnung.flags?.zahlung_behauptet;
   const { schritt: schrittFinal, storniert } = schrittBestimmen(roh, k.lage, k.werkzeugDaten, !!auskunftAntwort, { ruhe: ruheKnopf, gemeldet });
@@ -2384,6 +2461,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
       : sprache === "fr" ? /(^|[\s("])(tu|toi|ton|ta|tes)(?=[\s.,;:!?)"]|$)/
       : null;
     if (duForm && duForm.test(t)) fehlend.push("Du-Form statt Sie-Form");
+    // E-369: Text und Knopf sagen dasselbe (knopfWiderspruch) — sonst zweiter Entwurf, hält er es nicht: Entwurf.
+    const knopfBefund = knopfWiderspruch(t, schrittFinal);
+    if (knopfBefund) fehlend.push(knopfBefund);
     // ── E-248: DIE NEUEN WÄNDE ─────────────────────────────────────────────
     // (1) Nie eine Kündigung/ein Storno bestätigen, das nicht gebucht ist (#5626).
     const bestaetigt = bestaetigtKuendigung(t);
@@ -2394,8 +2474,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
     const rueck = zusageRueckzahlung(t, { widerruf: !!k.einordnung.flags?.widerruf });
     if (rueck) fehlend.push(`Rückzahlung/Erstattung zugesagt oder beim Widerruf ausgeschlossen („${rueck.slice(0, 70)}") — darüber entscheidet allein die Geschäftsführung: nichts zusagen, beim Widerruf auch nicht „nichts wird erstattet"; Satz: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht."`);
     // (3) Ruhe: keine Zahlungsaufforderung (#5633, #5575).
-    const bitte = ruheKnopf && k.ruhe ? fordertZahlung(t) : null;
-    if (bitte) fehlend.push(`Zahlungsaufforderung („${bitte}") in einer Antwort auf ${k.ruhe} — beantworte sein Anliegen ohne Bitte um Zahlung`);
+    const bitte = ruheKnopf && (k.ruhe || kuendigungOffen) ? fordertZahlung(t) : null;
+    if (bitte) fehlend.push(`Zahlungsaufforderung („${bitte}") in einer Antwort auf ${k.ruhe ?? "einen Kündigungs- oder Stornowunsch, der noch nicht gebucht ist"} — beantworte sein Anliegen ohne Bitte um Zahlung`);
     // E-265 Nachbesserung (29.09.2026, Recht): Ist nach der Kündigung bis zum Vertragsende nichts mehr zu zahlen
     // (Altvertrag, die Rate liegt nach dem Monatsende), verlangt die Mail auch keine Rate.
     const kvDaten = k.werkzeugDaten.kuendigung_vormerken;
@@ -2542,6 +2622,11 @@ async function pruefenUndAbschliessen(roh: any, k: {
       const frage = unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.";
       text = [rest, de ? frage : ""].filter(Boolean).join("\n\n");
       fehlend = [...fehlend.filter((f) => !/NICHT gebucht/.test(f)), "Server: Satz „Kündigung liegt vor/ist erfasst“ ohne Buchung entfernt und durch die Rückfrage ersetzt — bitte prüfen"];
+    } else if (!gebuchtJetzt && kuendigungOffen && !rueckfrageGestellt(text) && String(k.sprache || "de").startsWith("de")) {
+      // E-369: Er will kündigen/stornieren, gebucht ist nichts, und die Antwort fragt nicht zurück — dann hängt der Server
+      // die eine Rückfrage an. Ein „Ja“ darauf bucht kuendigung_vormerken (jaAufRueckfrage). Kein Mangel: das ist der Weg.
+      const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
+      text = `${text}\n\n${unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt."}`;
     }
   }
 
@@ -2570,9 +2655,20 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // E-275 (02.10.2026): „dringend“ allein hält die Antwort nicht mehr fest — eine eilige Frage („seit Wochen keine
   // Karte!“) braucht eine schnelle Antwort, keinen wartenden Entwurf. Beschwerde, Bestreiten, Anwalt (die Gründe, aus
   // denen die Einordnung „dringend“ sonst setzt) sind Warnlampen und halten weiter.
+  // ── E-369 (15.10.2026, Justin): „Mara soll ALLES selbst machen können, nichts weitergeben an die Mitarbeiter“ ──
+  // Gemessen 08.–15.10.: 64 Antworten lagen im Schnitt 86 h als Entwurf, 55 davon als „Übergabe an den Betreuer“ —
+  // und Maras Texte waren fachlich meist richtig (Beschwerde nach Kündigung, früherer Einwand, „kann nicht zahlen“,
+  // „habe bezahlt“). Jetzt sendet sie selbst, wenn die Prüfung sauber ist und keine Zahlungsbitte in einer Ruhe-Antwort
+  // steht. Beim Menschen (Entscheidungskarte bei Justin) bleibt nur, was eine Entscheidung braucht: Anwalt oder Behörde,
+  // ein Widerruf, der nicht schon als Storno gebucht ist, FIAON Global (maraSelbstSendbar).
+  const selbstSendbar = maraSelbstSendbar({
+    flags, lage: k.lage, global: !!k.akte?.global, text, ruhe: !!k.ruhe || kuendigungOffen,
+    stornoGebucht: String(k.werkzeugDaten.kuendigung_vormerken?.weg || "") === "storno_unbezahlt" && gelaufen.includes("kuendigung_vormerken"),
+  });
   const automatisch = sauber && urteil.automatisch
-    && (AUTO_LAGEN.includes(k.lage) || (!!selbst && !["fremd", "unklar", "bestreitet"].includes(k.lage)))
-    && warnlampen(flags).length === 0;
+    && ((AUTO_LAGEN.includes(k.lage) && warnlampen(flags).length === 0)
+      || (!!selbst && !["fremd", "unklar", "bestreitet"].includes(k.lage))
+      || selbstSendbar);
 
   return {
     ok: !!text,

@@ -76,7 +76,7 @@ for (const [muster, satz] of [
   [/fiaon_mara_ausschluss/, "Aus der Aktion genommen stoppt"],
   [/INTERVAL '7 days'\)/, "Kunde schreibt selbst → 7 Tage Pause"],
   [/INTERVAL '12 hours'/, "Mitarbeiter gerade dran → Pause"],
-  // E-367 (15.10.2026): Rücksicht auf andere Post am selben Berliner Kalendertag (vorher 6 h); Zustellproblem = harter
+  // E-368 (15.10.2026): Rücksicht auf andere Post am selben Berliner Kalendertag (vorher 6 h); Zustellproblem = harter
   // Rückläufer/Spam der letzten 30 Tage ohne spätere Zustellung („blockiert“ zählt nicht — Mara sendet über Gmail).
   [/mail AS \(SELECT DISTINCT person_id FROM fiaon_mail_log WHERE person_id IS NOT NULL AND art = 'echt'\s+AND created_at >= \(\(NOW\(\) AT TIME ZONE 'Europe\/Berlin'\)::date/, "Andere Mail heute schon raus → Pause"],
   [/zustellung IN \('gebounct', 'spam'\)[\s\S]{0,200}INTERVAL '30 days'/, "Zustellproblem (Rückläufer/Spam, 30 Tage) stoppt"],

@@ -1696,6 +1696,8 @@ const STOPP_AUSDRUECKLICH: RegExp[] = [
   /\bkeine\s+weiteren?\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|nachrichten|sms|anrufe|post|erinnerungen|kontaktaufnahme\w*|korrespondenz)\b/i,
   /\bkeine\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|me[ie]l\w*|nachrichten|sms|anrufe|post|informationen|infos?|benachrichtigungen)\s+mehr\b/i,
   /\bbitte\s+keine\s+(?:\S+\s+){0,1}?(?:e-?mails?|mails?|ma[ei]l\w*|me[ie]l\w*|nachrichten|sms|anrufe|post)\b|\bbitte\s+nicht\s+me[a-z]{0,2}h?r\b/i,
+  // E-369 (15.10.2026, #6763 Betreff „bitte nicht e mail“ → Mara schickte Kartenlink und Ratenbitte): „bitte nicht (mehr) E-Mail“.
+  /\bbitte\s+nicht\s+(?:mehr\s+)?e[\s-]?mails?\b(?!\s*(?:-?adresse|an\b))/i,
   /\b(?:nicht|nie)\s+mehr\s+(?:\S+\s+){0,2}?(?:an)?(?:schreiben|kontaktieren|anrufen|mailen|zuschicken|schicken|senden|belästigen|belaestigen)\b/i,
   /\b(?:kontaktieren|anschreiben|anrufen|schreiben|belästigen|belaestigen|mailen|schicken|senden)\s+(?:sie|ihr|du)\s+mich\s+(?:\S+\s+){0,2}?(?:nicht|nie)\s+mehr\b/i,
   /\bschreib\w*\s+(?:sie\s+|ihr\s+|du\s+)?(?:\S+\s+){0,2}?mir\s+(?:\S+\s+){0,2}?(?:nicht|nie|nichts)\s+mehr\b/i,

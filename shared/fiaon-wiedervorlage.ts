@@ -54,6 +54,12 @@ export const RUHEND_AB_FEHLVERSUCH = 9;
 export const LEITUNG_AB_FEHLVERSUCH = 9;
 /** Stufe A (Zahlung gemeldet) pausiert höchstens so viele Werktage. */
 export const STUFE_A_HOECHSTENS_WERKTAGE = 3;
+/**
+ * E-369 (15.10.2026): So viele Kalendertage nach der Meldung gilt „Zahlung gemeldet“ noch als frisch (Mara-Aktion Stufe A,
+ * Postmeister-Lage zahlung_gemeldet). Danach ist die Meldung eine Behauptung ohne Geld: Mara sagt ehrlich, dass nichts
+ * angekommen ist (gemessen 08.–15.10.: 71 von 105 Stufe-A-Mails an Meldungen älter als 30 Tage, „Danke für Ihre Überweisung“).
+ */
+export const STUFE_A_GEMELDET_TAGE = 14;
 /** Der Satz dazu — für Meldung, Akte und den Hinweis an der Wahl von Hand. */
 export const STUFE_A_HINWEIS = `Stufe A, Zahlung gemeldet: höchstens ${STUFE_A_HOECHSTENS_WERKTAGE} Werktage`;
 /**

@@ -5,6 +5,38 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 15.10.2026 — E-379 Ratgeber: jeden Tag ein neuer Artikel für Privat und für Business — selbst recherchiert, geprüft, veröffentlicht
+- **Was:** Die Redaktion arbeitet wieder — und zwar selbst. Ab 06:00 (Berlin) sucht sie je Bereich das Thema des Tages mit der
+  Websuche (OpenAI /v1/responses, Modell gpt-5.5, über openaiFetch: Anbieter-Weiche, KI-Pause, Kosten in fiaon_ki_nutzung), prüft,
+  dass es das Thema bei uns noch nicht gibt (Titel, Keyword, Adresse), schreibt den Artikel im Hausstil des Bereichs NUR aus den
+  belegten Fakten der Recherche und setzt den Quellenblock selbst aus den Adressen, die die Suche wirklich gesehen hat. Das Tor ist der
+  strenge Prüfstand (pruefstand mit streng: true: Wortwand, für Business die Global-Regeln wie „bis zu“, keine Superlative, Sie-Form,
+  Abschnitt über FIAON bzw. FIAON Global mit Link auf das passende Angebot, „Was nicht geht“, Schritt-für-Schritt-Liste, mindestens drei
+  Quellen, nur Links auf Seiten, die es gibt). Besteht der Text, ist er sofort veröffentlicht (quelle „ki“); sonst schreibt die KI mit
+  den Fehlern neu (höchstens drei Mal je Lauf, neun KI-Aufrufe je Bereich und Tag), danach bleibt er Entwurf und der nächste Lauf
+  (alle 30 Minuten) macht weiter. Genau EIN Artikel je Bereich und Tag — die Arbeitszeile entsteht vor der ersten KI-Anfrage
+  (eindeutig je Bereich und Tag), ein Hand-Artikel des Tages zählt mit. Keine Aufgabe an den Betreiber.
+  Neu: Spalte „bereich“ (privat | business; Kategorie „firmen“ = Business), dazu tagesartikel, recherche, anlass, versuche
+  (Wanderung 109). /ratgeber zeigt nur Privat-Artikel; /business/wissen bekommt oben „Aktuell aus der Redaktion“ mit den neuesten
+  Business-Artikeln (Links im Business-Rahmen). Business-Artikel zeigen auf der Artikelseite den Weg zu FIAON Global (Pakete,
+  Erstgespräch) statt Antrag/Konto, ohne das Privat-Popup. Die Redaktion (Chefbüro › Ratgeber-Redaktion) zeigt statt
+  „0 von 40 Themen offen“ jetzt „Heute: Privat ✓ · Business ✓“ und den nächsten Lauf, „Tagesartikel jetzt“, „Entwurf erzeugen“
+  je Bereich, Filter Privat/Business, die Marke „Automatisch veröffentlicht“ und im Prüfstand Anlass und Quellen der Recherche.
+- **Warum:** Justin: „Die Redaktion erstellt keine Artikel mehr. Es muss jeden Tag 1 neuer Artikel für die Privatkunden-Seite und
+  1 neuer Artikel für die Business-Kunden live gehen — immer aktuell und PERFEKT passend.“ Der feste Themenplan (40 Themen) war seit
+  dem 31.08. aufgebraucht; der Lauf fand nichts und meldete trotzdem „erfolg“ — und schrieb vorher nur Entwürfe. Jetzt ist der Lauf
+  („ratgeber-tagesartikel“) im Lauf-Katalog (LAUF_FOLGEN): Fehlt nach einem Lauf ein Artikel (vor 06:00: der des Vortags), steht
+  „fehler“ in der Historie, und nach 26 Stunden wird die Maschinen-Ampel gelb.
+- **Wo:** server/lib/fiaon-ratgeber-redaktion.ts (neu: Tabelle, Recherche, Schreiben, Tor, Tageslauf), server/routes/fiaon-ratgeber.ts
+  (öffentlich ?bereich=&sprache=&limit=, Redaktion, POST /admin/ratgeber/tagesartikel, /admin/ratgeber/generieren {bereich}),
+  shared/fiaon-ratgeber.ts (Bereich, HAUSSTIL_BUSINESS, strenger Prüfstand), server/lib/fiaon-crons.ts (LAUF_FOLGEN),
+  server/routes.ts (Takt), server/lib/fiaon-ratgeber-seo.ts, db/migrations/109_ratgeber_bereich.sql,
+  client/src/pages/admin-ratgeber.tsx, client/src/pages/site/ratgeber.tsx, ratgeber-artikel.tsx, global-seite.tsx;
+  Prüfstand scripts/pruef-e379.ts (offline + lokale DB, KI als Attrappe, 87/87).
+- **Gemessen (Echtläufe gegen eine lokale Prüfdatenbank, 15.10.):** je Bereich eine Recherche (Websuche) und ein bis zwei
+  Schreibaufrufe mit gpt-5.5 — zusammen rund 0,36–0,50 € am Tag für beide Artikel (Hauspreisliste in fiaon_ki_nutzung; die
+  Websuche berechnet OpenAI zusätzlich je Suche), Dauer rund fünf bis sieben Minuten.
+
 ## 15.10.2026 — E-378 Chefbüro › Besucher: eigene Messung ohne Cookies, Trichter bis zum Kauf
 - **Was:** fiaon.com misst Besucher jetzt selbst. Jeder Seitenwechsel auf den öffentlichen Seiten meldet Pfad, Herkunfts-Domain,
   Kampagnenangaben (utm_*), ob eine Klick-Kennung von Google/Meta im Link stand (nie ihr Wert) und die sichtbare Zeit. Kein Cookie, kein

@@ -10,12 +10,30 @@
 // Generator (Server), der Prüfstand (Server + Admin-Vorschau) und die Seite.
 // Ein Wort, das man nicht schreiben soll, gehört in eine Prüfung — nicht in
 // eine Schulung, die man vergisst (siehe fiaon-onboarding-agenda.ts).
+//
+// ── E-379 (15.10.2026): ZWEI BEREICHE, JEDEN TAG EIN ARTIKEL JE BEREICH ─────
+// Justin: „Die Redaktion erstellt keine Artikel mehr. Es muss jeden Tag 1 neuer
+// Artikel für die Privatkunden-Seite und 1 neuer für die Business-Kunden live
+// gehen — immer aktuell und PERFEKT passend."
+// Der feste Themenplan (40 Themen) war aufgebraucht, und der Generator schrieb
+// nur Entwürfe, die liegen blieben. Jetzt sucht die Redaktion ihr Thema selbst
+// (Websuche, server/lib/fiaon-ratgeber-redaktion.ts), schreibt es im Hausstil
+// des Bereichs und veröffentlicht, sobald der STRENGE Prüfstand (unten,
+// `streng: true`) nichts mehr findet. Der Bereich (privat | business) hängt an
+// der Kategorie: „firmen" ist Business, alles andere privat — eine Funktion,
+// bereichVonKategorie, entscheidet das überall.
 // ═══════════════════════════════════════════════════════════════════════════
 import { worthygiene } from "./fiaon-onboarding-agenda";
+import { wandPruefen } from "./fiaon-wortverbote";
+import { GLOBAL_SCHAERFER } from "./fiaon-global-wortregeln";
 
 export type Land = "DE" | "AT" | "CH" | "DACH";
-export type Kategorie = "eintraege" | "auskunft" | "karte" | "kredit" | "score" | "inkasso" | "at" | "ch" | "grundlagen";
+export type Kategorie = "eintraege" | "auskunft" | "karte" | "kredit" | "score" | "inkasso" | "at" | "ch" | "grundlagen" | "firmen";
 export type Status = "entwurf" | "geprueft" | "veroeffentlicht" | "archiv";
+/** E-379: Für wen der Artikel geschrieben ist — die Privatkunden-Seite (/ratgeber) oder FIAON Global (/business). */
+export type Bereich = "privat" | "business";
+export const BEREICHE: Bereich[] = ["privat", "business"];
+export const BEREICH_LABEL: Record<Bereich, string> = { privat: "Privat", business: "Business" };
 
 export const KATEGORIEN: Record<Kategorie, { label: string; kurz: string }> = {
   eintraege: { label: "Einträge löschen", kurz: "Welche Einträge angreifbar sind – und wie" },
@@ -27,7 +45,19 @@ export const KATEGORIEN: Record<Kategorie, { label: string; kurz: string }> = {
   at: { label: "Österreich · KSV", kurz: "Auskunft, Einträge, Löschung in Österreich" },
   ch: { label: "Schweiz · CRIF & Betreibung", kurz: "Auszug, Einträge, Löschung in der Schweiz" },
   grundlagen: { label: "Grundlagen", kurz: "Begriffe, die jeder kennen sollte" },
+  // E-379: Die Business-Artikel (FIAON Global) — seit 09.09.2026 in der Tabelle, bis heute ohne Eintrag hier.
+  firmen: { label: "Für Unternehmen", kurz: "Firmenbonität, Gründung, Kapital, internationale Strukturen" },
 };
+
+/** E-379: Die EINE Regel, welcher Bereich zu einer Kategorie gehört. */
+export function bereichVonKategorie(k: string | null | undefined): Bereich {
+  return k === "firmen" ? "business" : "privat";
+}
+
+/** Die Kategorien, die ein Bereich benutzt (Themenfinder, Redaktion). */
+export function kategorienFuer(b: Bereich): Kategorie[] {
+  return (Object.keys(KATEGORIEN) as Kategorie[]).filter((k) => bereichVonKategorie(k) === b);
+}
 
 /** Die fiktive Autorin — niemand aus dem Team (Justin). */
 export const AUTORIN = {
@@ -113,12 +143,60 @@ STRUKTUR DES ARTIKELS (Markdown, 1.500–2.000 Wörter):
 - Einstieg (2–3 Absätze): die Lage des Lesers, ohne Einleitung-Floskel.
 - 5–7 Abschnitte mit ## Überschriften; darunter gern ### Unterpunkte, Listen, eine kleine Tabelle, wo Zahlen zu vergleichen sind.
 - Ein Abschnitt „Schritt für Schritt" als nummerierte Liste.
-- Ein Abschnitt „Was FIAON dabei übernimmt" — sachlich, 1 Absatz, was die Plattform konkret tut (beschaffen, erklären, Schreiben vorbereiten,
-  versenden, Fristen verfolgen, Tür zu Konto/Karte). Kein Verkaufston.
+- Ein Abschnitt „Was FIAON dabei übernimmt“ (## Überschrift mit dem Wort FIAON) — FIAON als Lösung für genau diese Lage (Justin 23.09.2026):
+  1–2 Absätze, konkret, was die Plattform tut (Einträge der selbst angeforderten Datenkopie erklären, Schreiben vorbereiten und versenden,
+  Fristen verfolgen, die FIAON-Bonitätsauswertung aus Kontoauszügen, danach der Link der Partnerbank für Konto und Karte), mit einem Link
+  auf die passende Seite. Ruhig und überzeugend, ohne Superlative („Gamechanger“, „die beste“, „Nummer 1“) und ohne Versprechen.
 - Ein Abschnitt „Was nicht geht" — ehrlich.
 - Kurzes Fazit („Das Wichtigste in drei Sätzen").
 Dazu: 5 FAQ (Frage + Antwort in 2–4 Sätzen), ein Teaser (max. 160 Zeichen), Meta-Titel (max. 60 Zeichen, enthält das Keyword),
-Meta-Beschreibung (max. 155 Zeichen), 4–6 Schlagwörter, geschätzte Lesezeit.`;
+Meta-Beschreibung (max. 155 Zeichen), 4–6 Schlagwörter. (Die Lesezeit rechnet das System — sie steht nicht im Text.)`;
+
+/**
+ * E-379: Der Hausstil der Business-Artikel (FIAON Global, /business). Dieselbe Strenge wie privat — dazu die
+ * schärferen Wortregeln von FIAON Global (shared/fiaon-global-wortregeln.ts, E-188). Die Pakete und Preise setzt
+ * der Generator zur Laufzeit aus shared/fiaon-global.ts ein (eine Quelle für Preise).
+ */
+export const HAUSSTIL_BUSINESS = `Du schreibst für FIAON Global (fiaon.com/business), den Bereich von FIAON für Unternehmer, Gründer und Geschäftsführer
+aus Deutschland, Österreich und der Schweiz. FIAON Global baut für sie eine US-Gesellschaft auf (LLC oder Corporation, mit Team in Miami),
+beantragt EIN und ITIN, stellt Registered Agent, US-Adresse und US-Telefonnummer, bereitet das US-Geschäftskonto und die erste Firmenkarte vor,
+plant die „Kartenleiter“ weiterer Herausgeber und bereitet Kennzahlen für ein späteres Bankdarlehen auf; dazu ein Pflichtenkalender für die
+US-Meldungen (Form 5472 mit Form 1120), Partner-Anwalt, Partner-Steuerberater und US-CPA. Festpreise je Paket. Das Kapital ist nicht an die USA
+gebunden. FIAON plant, bereitet vor und begleitet — es vergibt und vermittelt keine Kredite; über Konto, Karte, Rahmen und Darlehen entscheidet
+allein das jeweilige Institut. Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft und Kapitalaufbau, KEIN Steuermodell: Wer sie aus
+Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause und meldet sie dem Finanzamt.
+
+ZIELGRUPPE: Inhaber kleiner und mittlerer Unternehmen, Selbstständige, Gründer — unter Zeitdruck, skeptisch gegenüber Versprechen, mit
+konkreten Fragen zu Bonität, Finanzierung, Liquidität, Gründung und Expansion. Schreibe wie eine gute Wirtschaftsredaktion: präzise,
+nüchtern, mit Zahlen und Beispielen aus dem Alltag eines Unternehmens. Sie-Form. Kurze Sätze.
+
+RECHT & EHRLICHKEIT (nicht verhandelbar): Keine Beratung, keine Garantie, keine Empfehlung, kein Steuerversprechen. Verbotene Wörter:
+Beratung/beraten (auch „Steuerberatung“, „Unternehmensberatung“ — erlaubt ist „Steuerberater“, „Anwalt“), Empfehlung/empfehlen/empfohlen,
+Garantie/garantiert (auch „Ausfallgarantie“ — sag „Bürgschaft“), „sicher zu“, „auf jeden Fall“, „bis zu“ (sag „höchstens“), „0 %“,
+„ohne Sicherheiten“ (sag „ohne Bareinlage“, die persönliche Haftung IST die Sicherheit), „Steuern sparen“/„Steuervorteil“, Banknamen
+als Versprechen, Fristen mit Ziffer in Wochen oder Monaten („innerhalb von 6 Wochen“ — schreibe Fristen in Worten: „sechs Wochen“).
+Alles andere in Ziffern: Jahreszahlen (2026), Daten, Beträge, Prozentwerte, Paragraphen — nie eine Jahreszahl ausschreiben.
+Nenne Gesetze korrekt (BGB, HGB, InsO, AO, GmbHG; in Österreich UGB/IO, in der Schweiz OR/SchKG; EU-Recht mit Nummer) und nur, wenn sie stimmen.
+
+STRUKTUR DES ARTIKELS (Markdown, 1.500–2.000 Wörter):
+- Einstieg (2–3 Absätze): eine konkrete Lage aus dem Unternehmensalltag, ohne Floskel.
+- 5–7 Abschnitte mit ## Überschriften; darunter gern ### Unterpunkte, Listen, eine kleine Tabelle, wo Zahlen zu vergleichen sind.
+- Ein Abschnitt „Schritt für Schritt“ als nummerierte Liste.
+- Ein Abschnitt „So übernimmt FIAON Global …“ (## Überschrift mit „FIAON Global“): FIAON Global als Lösung für genau diese Lage, 1–2 Absätze —
+  was das Team konkret tut, welches Paket passt (Name und Festpreis), Partner vor Ort, und ein Link auf die passende Seite.
+  Ruhig und überzeugend, ohne Superlative („Gamechanger“, „die beste“, „Nummer 1“) und ohne Zusagen zu Rahmen, Zinsen oder Dauer.
+- Ein Abschnitt „Was nicht geht“ — ehrlich (z. B. keine Steuerersparnis durch eine US-Gesellschaft, persönliche Haftung bei der ersten Karte,
+  keine Zusage eines Rahmens).
+- Kurzes Fazit („Das Wichtigste in drei Sätzen“).
+Dazu: 5 FAQ (Frage + Antwort in 2–4 Sätzen), ein Teaser (max. 160 Zeichen), Meta-Titel (max. 60 Zeichen, enthält das Keyword),
+Meta-Beschreibung (max. 155 Zeichen), 4–6 Schlagwörter.`;
+
+/** Der Hausstil je Bereich. */
+export function hausstilFuer(b: Bereich): string {
+  return b === "business" ? HAUSSTIL_BUSINESS : HAUSSTIL;
+}
+
+export interface Quelle { titel: string; url: string }
 
 export interface Artikel {
   id: number; slug: string; titel: string; untertitel: string | null; teaser: string; inhalt: string;
@@ -128,40 +206,113 @@ export interface Artikel {
   status: Status; quelle: "ki" | "hand"; modell: string | null;
   pruefung: Pruefung | null;
   erstelltAm: string; aktualisiertAm: string; veroeffentlichtAm: string | null;
+  /** E-379: privat (/ratgeber) oder business (FIAON Global). */
+  bereich: Bereich;
+  /** E-379: Der Berliner Tag, für den die Redaktion diesen Artikel als Tagesartikel geschrieben hat (sonst null). */
+  tagesartikel: string | null;
+  /** E-379: Die Quellen der Recherche (Websuche) — für die Redaktion. */
+  quellen: Quelle[];
+  /** E-379: Warum das Thema gerade jetzt dran ist (aus der Recherche). */
+  anlass: string | null;
 }
 
 export interface Pruefung { ok: boolean; punkte: { art: "fehler" | "hinweis" | "ok"; text: string }[]; worte: number; geprueftAm: string }
 
+export interface PruefOptionen {
+  /** Business-Artikel bekommen zusätzlich die schärferen Wortregeln von FIAON Global. */
+  bereich?: Bereich;
+  /**
+   * E-379: Der Prüfstand als TOR für die automatische Veröffentlichung. Was für einen Menschen ein Hinweis ist
+   * (Du-Form, fehlender FIAON-Abschnitt, kein „Was nicht geht“, keine Quellen, Superlative, Wortwand), ist für
+   * die Automatik ein Fehler — sie hat niemanden, der den Hinweis liest.
+   */
+  streng?: boolean;
+  /** Interne Links, die es wirklich gibt. Steht ein anderer „](/…)“-Link im Text, ist das im strengen Modus ein Fehler. */
+  erlaubteLinks?: string[];
+}
+
+/** Superlative und Werbewörter — Kanzlei-Ton, YMYL-Vertrauen (Justin 23.09.2026: FIAON als Lösung, aber ohne „Gamechanger“). */
+const WERBEWORTE = /\b(game-?changer|revolution\w*|nummer\s*(1|eins)|platz\s*(1|eins)|unschlagbar\w*|einzigartig\w*|weltbest\w*|marktführer\w*)\b/i;
+/** „die beste …“ ist nur in einem Satz über FIAON Werbung — „Die beste Arbeitsregel lautet …“ ist keine (Echtlauf 15.10.2026). */
+const BESTE = /\b(der|die|das|den|dem)\s+beste[nm]?\b/i;
+function werbewort(text: string): string | null {
+  const m = text.match(WERBEWORTE);
+  if (m) return m[0];
+  for (const satz of text.split(/(?<=[.!?])\s+|\n+/)) {
+    if (!/FIAON/.test(satz)) continue;
+    const b = satz.match(BESTE);
+    if (b) return b[0];
+  }
+  return null;
+}
+
 /** Der Prüfstand: Worthygiene, Form, Länge, Struktur. Reine Funktion — Server und Admin-Vorschau prüfen dasselbe. */
-export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq" | "metaTitel" | "metaBeschreibung" | "keyword">): Pruefung {
+export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq" | "metaTitel" | "metaBeschreibung" | "keyword">, opt: PruefOptionen = {}): Pruefung {
   const punkte: Pruefung["punkte"] = [];
+  const streng = !!opt.streng;
+  const schwer = (streng ? "fehler" : "hinweis") as "fehler" | "hinweis";
   const alles = `${a.titel}\n${a.teaser}\n${a.inhalt}\n${a.faq.map((f) => f.frage + " " + f.antwort).join("\n")}`;
   const worte = a.inhalt.split(/\s+/).filter(Boolean).length;
+  // E-379: Wortprüfungen ohne Adressen — „eur-lex.europa.eu/eli/dir/2023/…“ ist keine Du-Form.
+  const text = alles.replace(/\]\([^)\s]*\)/g, "]").replace(/https?:\/\/\S+/g, " ");
 
   // 02.09.2026: „Schuldnerberatung" ist der gesetzliche Name der kostenlosen,
   // staatlich anerkannten Stellen, an die der Ratgeber bei ernster Lage
   // verweisen MUSS (Regel aus /werkzeuge/schulden-check). Die Silbe „beratung"
   // darin ist kein Versprechen von FIAON — sie wird vor der Prüfung entfernt.
-  const schlecht = worthygiene(alles.replace(/schuldnerberatung/gi, ""));
+  const schlecht = worthygiene(text.replace(/schuldnerberatung/gi, ""));
   if (schlecht.length) punkte.push({ art: "fehler", text: `Verbotene Wörter: ${schlecht.join(", ")}` });
   else punkte.push({ art: "ok", text: "Worthygiene: keine verbotenen Wörter" });
 
-  const versprechen = ["ohne schufa garantiert", "100 % sicher", "garantiert gelöscht", "sofort gelöscht", "schufa-frei", "schufafrei"].filter((w) => alles.toLowerCase().includes(w));
+  const versprechen = ["ohne schufa garantiert", "100 % sicher", "garantiert gelöscht", "sofort gelöscht", "schufa-frei", "schufafrei"].filter((w) => text.toLowerCase().includes(w));
   if (versprechen.length) punkte.push({ art: "fehler", text: `Versprechen, die wir nicht halten: ${versprechen.join(", ")}` });
 
-  const du = /(^|[^a-zäöü])(du|dich|dir|dein|deine|deinen|deinem)([^a-zäöü]|$)/i.test(alles.replace(/Dusche|durch|dunkel/gi, ""));
-  if (du) punkte.push({ art: "hinweis", text: "Du-Form gefunden — der Ratgeber siezt." });
+  // E-379: die Wand aller Kundentexte (shared/fiaon-wortverbote.ts) — nur die harten Treffer; für Business dazu die Global-Regeln.
+  const wand = wandPruefen(text.replace(/schuldnerberatung/gi, "")).filter((f) => f.art === "verboten");
+  for (const f of wand) punkte.push({ art: schwer, text: `Wortwand: „${f.treffer}“ — ${f.hinweis}` });
+  if (opt.bereich === "business") {
+    for (const r of GLOBAL_SCHAERFER) {
+      const m = text.match(r.muster);
+      if (m) punkte.push({ art: schwer, text: `FIAON-Global-Regel: „${m[0].slice(0, 50)}“ — ${r.grund}` });
+    }
+  }
+  const werbung = werbewort(text);
+  if (werbung) punkte.push({ art: schwer, text: `Superlativ/Werbewort „${werbung}“ — FIAON als Lösung zeigen, ohne Superlative.` });
 
-  if (worte < 1100) punkte.push({ art: "fehler", text: `Zu kurz: ${worte} Wörter (Ziel 1.500–2.000)` });
+  const du = /(^|[^a-zäöü])(du|dich|dir|dein|deine|deinen|deinem)([^a-zäöü]|$)/i.test(text.replace(/Dusche|durch|dunkel/gi, ""));
+  if (du) punkte.push({ art: schwer, text: "Du-Form gefunden — der Ratgeber siezt." });
+
+  const mindestens = streng ? 1300 : 1100;
+  if (worte < mindestens) punkte.push({ art: "fehler", text: `Zu kurz: ${worte} Wörter (Ziel 1.500–2.000)` });
   else if (worte < 1400) punkte.push({ art: "hinweis", text: `Knapp: ${worte} Wörter (Ziel 1.500–2.000)` });
   else punkte.push({ art: "ok", text: `Länge: ${worte} Wörter` });
 
-  const h2 = (a.inhalt.match(/^## /gm) || []).length;
+  const ueberschriften = a.inhalt.match(/^## .+$/gm) || [];
+  const h2 = ueberschriften.length;
   if (h2 < 5) punkte.push({ art: "fehler", text: `Nur ${h2} Abschnitte (## ) — mindestens 5` });
   else punkte.push({ art: "ok", text: `${h2} Abschnitte` });
-  if (!/^\d+\. /m.test(a.inhalt)) punkte.push({ art: "hinweis", text: "Keine nummerierte Schritt-für-Schritt-Liste gefunden" });
-  if (!/FIAON/.test(a.inhalt)) punkte.push({ art: "hinweis", text: "Der Abschnitt „Was FIAON übernimmt“ fehlt" });
-  if (!/nicht geht|Was nicht geht|geht nicht/i.test(a.inhalt)) punkte.push({ art: "hinweis", text: "Kein ehrlicher Abschnitt „Was nicht geht“" });
+  if (/^# /m.test(a.inhalt)) punkte.push({ art: schwer, text: "Eine H1 (# …) im Text — der Titel steht separat." });
+  // 15.10.2026: Die Fristen-Regel der Wortwand verleitete die KI, auch Jahreszahlen auszuschreiben („im August zweitausendsechsundzwanzig“).
+  if (streng && /(zweitausend|neunzehnhundert)\w*/i.test(a.inhalt)) punkte.push({ art: "fehler", text: "Jahreszahl ausgeschrieben — Jahreszahlen in Ziffern (2026)." });
+  if (!/^\d+\. /m.test(a.inhalt)) punkte.push({ art: schwer, text: "Keine nummerierte Schritt-für-Schritt-Liste gefunden" });
+  // Streng: der Abschnitt muss eine ## Überschrift mit FIAON sein — ein FIAON irgendwo im Text ist noch kein Abschnitt.
+  if (streng ? !ueberschriften.some((u) => /FIAON/.test(u)) : !/FIAON/.test(a.inhalt)) punkte.push({ art: schwer, text: "Der Abschnitt „Was FIAON übernimmt“ fehlt" });
+  if (streng ? !ueberschriften.some((u) => /nicht geht|geht nicht/i.test(u)) : !/nicht geht|Was nicht geht|geht nicht/i.test(a.inhalt)) punkte.push({ art: schwer, text: "Kein ehrlicher Abschnitt „Was nicht geht“" });
+
+  // E-034: jede Zahl mit Quelle — am Ende ein Quellenblock. Streng: mindestens drei Einträge mit Adresse.
+  const qi = a.inhalt.search(/^## Quellen\s*$/m);
+  const quellZeilen = qi >= 0 ? (a.inhalt.slice(qi).match(/^[-*] .*https?:\/\//gm) || []).length : 0;
+  if (qi < 0) punkte.push({ art: schwer, text: "Kein Abschnitt „## Quellen“ am Ende (Regel E-034: jede Zahl mit Quelle)" });
+  else if (streng && quellZeilen < 3) punkte.push({ art: "fehler", text: `Nur ${quellZeilen} Quellen mit Adresse (mindestens 3)` });
+
+  if (opt.erlaubteLinks) {
+    const erlaubt = new Set(opt.erlaubteLinks.map((l) => l.replace(/[#?].*$/, "").replace(/\/+$/, "") || "/"));
+    const intern = Array.from(a.inhalt.matchAll(/\]\((\/[^)\s]*)\)/g)).map((m) => m[1]);
+    const fremd = intern.filter((l) => !erlaubt.has(l.replace(/[#?].*$/, "").replace(/\/+$/, "") || "/"));
+    if (fremd.length) punkte.push({ art: schwer, text: `Links auf Seiten, die es nicht gibt: ${Array.from(new Set(fremd)).join(", ")}` });
+    const ziel = opt.bereich === "business" ? /^\/business(\/|#|\?|$)/ : /^\/(privatkunden|antrag|bonitaetsauskunft|bonitaet-antrag|bonitaet|partnerbank-dkb|preise)(\/|#|\?|$)/;
+    if (!intern.some((l) => ziel.test(l))) punkte.push({ art: schwer, text: opt.bereich === "business" ? "Kein Link auf FIAON Global (/business…)" : "Kein Link auf ein FIAON-Angebot (/privatkunden, /bonitaetsauskunft …)" });
+  }
 
   if (a.faq.length < 4) punkte.push({ art: "fehler", text: `Nur ${a.faq.length} FAQ (mindestens 4)` });
   else punkte.push({ art: "ok", text: `${a.faq.length} FAQ` });
@@ -170,6 +321,12 @@ export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq
   if (!a.metaTitel || a.metaTitel.length > 64) punkte.push({ art: "hinweis", text: `Meta-Titel ${a.metaTitel?.length || 0} Zeichen (max. 60)` });
   if (!a.metaBeschreibung || a.metaBeschreibung.length > 160) punkte.push({ art: "hinweis", text: `Meta-Beschreibung ${a.metaBeschreibung?.length || 0} Zeichen (max. 155)` });
   if (a.keyword && !alles.toLowerCase().includes(a.keyword.toLowerCase().split(" ")[0])) punkte.push({ art: "hinweis", text: `Keyword „${a.keyword}“ kommt im Text kaum vor` });
+  // E-379 (Echtlauf 15.10.2026): „Beim Thema **boi reporting us llc** …“ — das Keyword wörtlich und klein in den Text gesetzt.
+  // Deutsch schreibt Substantive groß; eine klein geschriebene Kette aus mehreren Wörtern ist fast immer eingefügtes SEO.
+  const kw = String(a.keyword || "").trim();
+  if (streng && kw.split(/\s+/).length >= 2 && /[a-zäöü]/.test(kw) && kw === kw.toLowerCase() && a.inhalt.replace(/\]\([^)]*\)/g, "]").includes(kw)) {
+    punkte.push({ art: "fehler", text: `Keyword als klein geschriebene Wortkette im Text („${kw}“) — natürlich formulieren` });
+  }
 
   const ok = !punkte.some((p) => p.art === "fehler");
   return { ok, punkte, worte, geprueftAm: new Date().toISOString() };

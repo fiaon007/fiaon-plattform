@@ -6,92 +6,52 @@
 // veröffentlicht. Der Generator muss auf uns abgestimmt sein. Ich muss auch
 // selbst jederzeit einen Artikel online stellen können — auch fünf am Tag."
 //
-// Öffentlich (kein Login):   GET /ratgeber · GET /ratgeber/:slug
+// E-379 (15.10.2026): Jeden Tag EIN Artikel je Bereich (privat, business), selbst
+// recherchiert, geprüft und veröffentlicht — die Redaktion steht in
+// server/lib/fiaon-ratgeber-redaktion.ts (Tabelle, Recherche, Schreiben, Tor).
+//
+// Öffentlich (kein Login):   GET /ratgeber[?bereich=privat|business&sprache=de&limit=n] · GET /ratgeber/:slug
 // Redaktion (/admin, Gate):  GET /admin/ratgeber · POST /admin/ratgeber (neu)
-//                            POST /admin/ratgeber/generieren {anzahl}
+//                            POST /admin/ratgeber/generieren {bereich}  → ein Entwurf (im Hintergrund)
+//                            POST /admin/ratgeber/tagesartikel          → der Tageslauf sofort (im Hintergrund)
 //                            PATCH /admin/ratgeber/:id · POST …/:id/pruefen
 //                            POST …/:id/veroeffentlichen · POST …/:id/zurueckziehen
 //                            DELETE …/:id
-// Täglich 06:00 Berlin:      drei Entwürfe aus dem Themenplan (nur, wenn heute
-//                            noch keine entstanden sind) — Justin prüft sie.
+// Alle 30 Minuten, ab 06:00 Berlin: Tagesartikel je Bereich (ratgeberTageslauf, Lauf „ratgeber-tagesartikel“).
 // Sitemap:                   sitemapXml() ergänzt die statische Sitemap.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { AUTORIN, HAUSSTIL, THEMEN, pruefstand, slugify, lesezeitVon, type Artikel } from "@shared/fiaon-ratgeber";
-import { START_ARTIKEL } from "../lib/fiaon-ratgeber-start";
-import { START_ARTIKEL_2 } from "../lib/fiaon-ratgeber-start-2";
-import { INSIDER_ARTIKEL } from "../lib/fiaon-ratgeber-insider";
-// 02.09.2026 (E-080): zehn Ratgeber zu den zehn neuen Werkzeugen — Justin: „direkt veröffentlichen".
-import { WERKZEUG_ARTIKEL_1 } from "../lib/fiaon-ratgeber-werkzeuge-1";
-import { WERKZEUG_ARTIKEL_2 } from "../lib/fiaon-ratgeber-werkzeuge-2";
-import { WERKZEUG_ARTIKEL_3 } from "../lib/fiaon-ratgeber-werkzeuge-3";
-import { WERKZEUG_ARTIKEL_4 } from "../lib/fiaon-ratgeber-werkzeuge-4";
-import { openaiFetch, kiPausiert, istKiPause } from "../lib/fiaon-ki-pause";
+import { AUTORIN, BEREICHE, THEMEN, pruefstand, slugify, lesezeitVon, bereichVonKategorie, type Artikel, type Bereich } from "@shared/fiaon-ratgeber";
+import { kiPausiert, kiLesenMoeglich } from "../lib/fiaon-ki-pause";
+import {
+  ensureRatgeberTabelle, zeile, tagesStand, tagesartikelLauf, ratgeberLaufPruefen, entwurfErzeugen, naechsterLauf, faelligerTag,
+  RATGEBER_LAUF, MODELL, type TageslaufErgebnis,
+} from "../lib/fiaon-ratgeber-redaktion";
+
+export { ensureRatgeberTabelle } from "../lib/fiaon-ratgeber-redaktion";
 
 const router = Router();
-let tabelleDa = false;
 
-export async function ensureRatgeberTabelle(): Promise<void> {
-  if (tabelleDa) return;
-  await sqlPool`
-    CREATE TABLE IF NOT EXISTS fiaon_ratgeber (
-      id SERIAL PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
-      titel TEXT NOT NULL,
-      untertitel TEXT,
-      teaser TEXT NOT NULL DEFAULT '',
-      inhalt TEXT NOT NULL DEFAULT '',
-      kategorie TEXT NOT NULL DEFAULT 'grundlagen',
-      land TEXT NOT NULL DEFAULT 'DE',
-      keyword TEXT NOT NULL DEFAULT '',
-      schlagworte JSONB NOT NULL DEFAULT '[]'::jsonb,
-      faq JSONB NOT NULL DEFAULT '[]'::jsonb,
-      meta_titel TEXT NOT NULL DEFAULT '',
-      meta_beschreibung TEXT NOT NULL DEFAULT '',
-      lesezeit INTEGER NOT NULL DEFAULT 6,
-      status TEXT NOT NULL DEFAULT 'entwurf',
-      quelle TEXT NOT NULL DEFAULT 'hand',
-      modell TEXT,
-      pruefung JSONB,
-      thema_slug TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      published_at TIMESTAMPTZ
-    )`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_ratgeber_status_idx ON fiaon_ratgeber (status, published_at DESC)`;
-  // Die drei Startartikel — einmalig, von Hand geschrieben, sofort veröffentlicht.
-  for (const a of [...START_ARTIKEL, ...START_ARTIKEL_2, ...INSIDER_ARTIKEL, ...WERKZEUG_ARTIKEL_1, ...WERKZEUG_ARTIKEL_2, ...WERKZEUG_ARTIKEL_3, ...WERKZEUG_ARTIKEL_4]) {
-    const p = pruefstand({ titel: a.titel, teaser: a.teaser, inhalt: a.inhalt, faq: a.faq, metaTitel: a.metaTitel, metaBeschreibung: a.metaBeschreibung, keyword: a.keyword });
-    await sqlPool`
-      INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, pruefung, thema_slug, published_at)
-      VALUES (${a.slug}, ${a.titel}, ${a.untertitel}, ${a.teaser}, ${a.inhalt}, ${a.kategorie}, ${a.land}, ${a.keyword}, ${JSON.stringify(a.schlagworte)}::jsonb, ${JSON.stringify(a.faq)}::jsonb,
-              ${a.metaTitel}, ${a.metaBeschreibung}, ${lesezeitVon(a.inhalt)}, 'veroeffentlicht', 'hand', ${JSON.stringify(p)}::jsonb, ${a.slug}, NOW())
-      ON CONFLICT (slug) DO NOTHING`;
-  }
-  tabelleDa = true;
-}
-
-function zeile(r: any): Artikel {
-  const j = (v: any) => (typeof v === "string" ? JSON.parse(v) : v);
-  return {
-    id: Number(r.id), slug: r.slug, titel: r.titel, untertitel: r.untertitel ?? null, teaser: r.teaser || "", inhalt: r.inhalt || "",
-    kategorie: r.kategorie, land: r.land, keyword: r.keyword || "", schlagworte: j(r.schlagworte) || [], faq: j(r.faq) || [],
-    metaTitel: r.meta_titel || "", metaBeschreibung: r.meta_beschreibung || "", lesezeit: Number(r.lesezeit || 6),
-    status: r.status, quelle: r.quelle, modell: r.modell ?? null, pruefung: r.pruefung ? j(r.pruefung) : null,
-    erstelltAm: r.created_at, aktualisiertAm: r.updated_at, veroeffentlichtAm: r.published_at ?? null,
-  };
-}
-const oeffentlich = (a: Artikel) => ({ ...a, pruefung: undefined, modell: undefined, quelle: undefined, autorin: AUTORIN });
+const oeffentlich = (a: Artikel) => ({ ...a, pruefung: undefined, modell: undefined, quelle: undefined, quellen: undefined, anlass: undefined, autorin: AUTORIN });
+const bereichAus = (v: unknown): Bereich | null => (v === "privat" || v === "business" ? v : null);
 
 // ── Öffentlich ──────────────────────────────────────────────────────────────
 router.get("/ratgeber", async (req: Request, res: Response) => {
   try {
     await ensureRatgeberTabelle();
     const kat = String(req.query.kategorie || "").trim();
-    const rows = (kat
-      ? await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND kategorie = ${kat} ORDER BY published_at DESC LIMIT 200`
-      : await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC LIMIT 200`) as any[];
+    // E-379: ?bereich=privat|business — die Privat-Seite zeigt nur Privates, /business/wissen nur Business.
+    const bereich = bereichAus(req.query.bereich);
+    const sprache = String(req.query.sprache || "").trim();
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 200));
+    const rows = (await sqlPool`
+      SELECT * FROM fiaon_ratgeber
+       WHERE status = 'veroeffentlicht'
+         AND (${kat} = '' OR kategorie = ${kat})
+         AND (${bereich ?? ""} = '' OR bereich = ${bereich ?? ""})
+         AND (${sprache} = '' OR sprache = ${sprache})
+       ORDER BY published_at DESC LIMIT ${limit}`) as any[];
     res.setHeader("Cache-Control", "public, max-age=120");
     res.json({ ok: true, artikel: rows.map((r) => { const a = oeffentlich(zeile(r)); return { ...a, inhalt: undefined }; }), autorin: AUTORIN });
   } catch (err) { console.error("[RATGEBER] liste:", err); res.status(500).json({ ok: false, error: "Der Ratgeber ist gerade nicht erreichbar." }); }
@@ -104,21 +64,48 @@ router.get("/ratgeber/:slug", async (req: Request, res: Response) => {
     const [r] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${String(req.params.slug)} LIMIT 1`) as any[];
     if (!r || (r.status !== "veroeffentlicht" && !vorschau)) return res.status(404).json({ ok: false, error: "Diesen Ratgeber gibt es nicht." });
     const a = oeffentlich(zeile(r));
+    // E-379: Weiterlesen bleibt im Bereich und in der Sprache — ein Unternehmer liest weiter Unternehmerthemen.
     const weitere = (await sqlPool`SELECT slug, titel, teaser, kategorie, land, lesezeit, published_at FROM fiaon_ratgeber
-      WHERE status = 'veroeffentlicht' AND slug <> ${a.slug} ORDER BY (kategorie = ${a.kategorie}) DESC, published_at DESC LIMIT 3`) as any[];
+      WHERE status = 'veroeffentlicht' AND slug <> ${a.slug} AND bereich = ${a.bereich} AND sprache = ${String(r.sprache || "de")}
+      ORDER BY (kategorie = ${a.kategorie}) DESC, published_at DESC LIMIT 3`) as any[];
     if (!vorschau) res.setHeader("Cache-Control", "public, max-age=120");
     res.json({ ok: true, artikel: a, weitere: weitere.map((w) => ({ slug: w.slug, titel: w.titel, teaser: w.teaser, kategorie: w.kategorie, land: w.land, lesezeit: Number(w.lesezeit), veroeffentlichtAm: w.published_at })) });
   } catch (err) { console.error("[RATGEBER] artikel:", err); res.status(500).json({ ok: false, error: "Der Ratgeber ist gerade nicht erreichbar." }); }
 });
 
 // ── Redaktion ───────────────────────────────────────────────────────────────
+// Was gerade im Hintergrund läuft (ein Prozess, eine Arbeit): Recherche und Schreiben dauern Minuten — länger,
+// als eine Anfrage offen bleiben darf. Die Seite fragt nach (GET /admin/ratgeber → arbeit, letzteArbeit).
+let arbeit: { was: "tagesartikel" | "entwurf"; bereich: Bereich | null; seit: string } | null = null;
+let letzteArbeit: { was: string; ende: string; ok: boolean; text: string } | null = null;
+
+function imHintergrund(was: "tagesartikel" | "entwurf", bereich: Bereich | null, fn: () => Promise<{ ok: boolean; text: string }>): void {
+  arbeit = { was, bereich, seit: new Date().toISOString() };
+  void fn()
+    .then((r) => { letzteArbeit = { was, ende: new Date().toISOString(), ok: r.ok, text: r.text }; })
+    .catch((e: any) => { letzteArbeit = { was, ende: new Date().toISOString(), ok: false, text: String(e?.message || e).slice(0, 300) }; console.error("[RATGEBER] Hintergrund:", e); })
+    .finally(() => { arbeit = null; });
+}
+
 router.get("/admin/ratgeber", async (_req: Request, res: Response) => {
   try {
     await ensureRatgeberTabelle();
     const rows = (await sqlPool`SELECT * FROM fiaon_ratgeber ORDER BY (status = 'entwurf') DESC, updated_at DESC LIMIT 500`) as any[];
-    const benutzt = new Set(rows.map((r) => r.thema_slug).filter(Boolean));
-    const heute = rows.filter((r) => r.quelle === "ki" && new Date(r.created_at).toDateString() === new Date().toDateString()).length;
-    res.json({ ok: true, artikel: rows.map((r) => ({ ...zeile(r), inhalt: undefined })), themenOffen: THEMEN.filter((t) => !benutzt.has(t.slug)).length, themenGesamt: THEMEN.length, heuteErzeugt: heute, generatorBereit: !!process.env.OPENAI_API_KEY, autorin: AUTORIN });
+    // E-379: Der Stand des Tages je Bereich und der nächste Lauf — statt „0 von 40 Themen offen".
+    const jetzt = new Date();
+    const { tag } = faelligerTag(jetzt);
+    const stand = await tagesStand(tag);
+    const { REGISTRIERT } = await import("../lib/fiaon-crons");
+    const automatik = REGISTRIERT.some((r) => r.name === RATGEBER_LAUF && r.laeuft);
+    const [letzter] = (await sqlPool`SELECT begonnen, ergebnis, fehler FROM fiaon_lauf_historie WHERE name = ${RATGEBER_LAUF} ORDER BY begonnen DESC LIMIT 1`.catch(() => [])) as any[];
+    const naechster = automatik ? naechsterLauf(jetzt, letzter?.begonnen ? new Date(letzter.begonnen) : null, BEREICHE.every((b) => stand[b].erledigt)) : null;
+    res.json({
+      ok: true, artikel: rows.map((r) => ({ ...zeile(r), inhalt: undefined, recherche: undefined })),
+      heute: { tag, ...stand }, naechsterLauf: naechster ? naechster.toISOString() : null, automatik,
+      letzterLauf: letzter ? { am: letzter.begonnen, ergebnis: letzter.ergebnis, fehler: letzter.fehler ? String(letzter.fehler).slice(0, 300) : null } : null,
+      arbeit, letzteArbeit, generatorBereit: kiLesenMoeglich(), kiPause: await kiPausiert().catch(() => false), modell: MODELL(), autorin: AUTORIN,
+      themenOffen: THEMEN.filter((t) => !rows.some((r) => r.thema_slug === t.slug)).length,
+    });
   } catch (err) { console.error("[RATGEBER] admin liste:", err); res.status(500).json({ ok: false, error: "Liste nicht ladbar." }); }
 });
 
@@ -138,13 +125,15 @@ router.post("/admin/ratgeber", async (req: Request, res: Response) => {
     const b = req.body || {};
     const thema = b.themaSlug ? THEMEN.find((t) => t.slug === b.themaSlug) : null;
     const titel = String(b.titel || thema?.titel || "Neuer Ratgeber").trim();
+    // E-379: Ein neuer Business-Artikel kommt mit ?bereich=business (Kategorie „firmen").
+    const kategorie = String(b.kategorie || thema?.kategorie || (b.bereich === "business" ? "firmen" : "grundlagen"));
     let slug = slugify(String(b.slug || thema?.slug || titel));
     const [dup] = (await sqlPool`SELECT 1 FROM fiaon_ratgeber WHERE slug = ${slug}`) as any[];
     if (dup) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
     const [r] = (await sqlPool`
-      INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, thema_slug)
-      VALUES (${slug}, ${titel}, ${b.untertitel ?? null}, ${String(b.teaser || "")}, ${String(b.inhalt || "")}, ${String(b.kategorie || thema?.kategorie || "grundlagen")}, ${String(b.land || thema?.land || "DE")},
-              ${String(b.keyword || thema?.keyword || "")}, '[]'::jsonb, '[]'::jsonb, ${String(b.metaTitel || titel).slice(0, 70)}, ${String(b.metaBeschreibung || "")}, ${lesezeitVon(String(b.inhalt || ""))}, 'entwurf', 'hand', ${thema?.slug ?? null})
+      INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, thema_slug, bereich)
+      VALUES (${slug}, ${titel}, ${b.untertitel ?? null}, ${String(b.teaser || "")}, ${String(b.inhalt || "")}, ${kategorie}, ${String(b.land || thema?.land || "DE")},
+              ${String(b.keyword || thema?.keyword || "")}, '[]'::jsonb, '[]'::jsonb, ${String(b.metaTitel || titel).slice(0, 70)}, ${String(b.metaBeschreibung || "")}, ${lesezeitVon(String(b.inhalt || ""))}, 'entwurf', 'hand', ${thema?.slug ?? null}, ${bereichVonKategorie(kategorie)})
       RETURNING *`) as any[];
     res.json({ ok: true, artikel: zeile(r) });
   } catch (err) { console.error("[RATGEBER] neu:", err); res.status(500).json({ ok: false, error: "Anlegen fehlgeschlagen." }); }
@@ -163,7 +152,8 @@ router.patch("/admin/ratgeber/:id", async (req: Request, res: Response) => {
         slug = ${slug}, titel = ${b.titel != null ? String(b.titel) : alt.titel}, untertitel = ${b.untertitel !== undefined ? b.untertitel : alt.untertitel},
         teaser = ${b.teaser != null ? String(b.teaser) : alt.teaser}, inhalt = ${inhalt},
         kategorie = ${b.kategorie || alt.kategorie}, land = ${b.land || alt.land}, keyword = ${b.keyword != null ? String(b.keyword) : alt.keyword},
-        schlagworte = ${b.schlagworte ? JSON.stringify(b.schlagworte) : alt.schlagworte}::jsonb, faq = ${b.faq ? JSON.stringify(b.faq) : alt.faq}::jsonb,
+        bereich = ${bereichVonKategorie(b.kategorie || alt.kategorie)},
+        schlagworte = ${JSON.stringify(b.schlagworte ?? zeile(alt).schlagworte)}::text::jsonb, faq = ${JSON.stringify(b.faq ?? zeile(alt).faq)}::text::jsonb,
         meta_titel = ${b.metaTitel != null ? String(b.metaTitel) : alt.meta_titel}, meta_beschreibung = ${b.metaBeschreibung != null ? String(b.metaBeschreibung) : alt.meta_beschreibung},
         lesezeit = ${lesezeitVon(inhalt)}, updated_at = NOW()
       WHERE id = ${id} RETURNING *`) as any[];
@@ -179,9 +169,9 @@ router.post("/admin/ratgeber/:id/pruefen", async (req: Request, res: Response) =
     await ensureRatgeberTabelle();
     const [r] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE id = ${Number(req.params.id)} LIMIT 1`) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
-    const a = zeile(r); const p = pruefstand(a);
+    const a = zeile(r); const p = pruefstand(a, { bereich: a.bereich });
     const status = a.status === "veroeffentlicht" ? a.status : p.ok ? "geprueft" : "entwurf";
-    await sqlPool`UPDATE fiaon_ratgeber SET pruefung = ${JSON.stringify(p)}::jsonb, status = ${status}, updated_at = NOW() WHERE id = ${a.id}`;
+    await sqlPool`UPDATE fiaon_ratgeber SET pruefung = ${JSON.stringify(p)}::text::jsonb, status = ${status}, updated_at = NOW() WHERE id = ${a.id}`;
     res.json({ ok: true, pruefung: p, status });
   } catch (err) { console.error("[RATGEBER] pruefen:", err); res.status(500).json({ ok: false, error: "Prüfung fehlgeschlagen." }); }
 });
@@ -192,9 +182,9 @@ router.post("/admin/ratgeber/:id/veroeffentlichen", async (req: Request, res: Re
     await ensureRatgeberTabelle();
     const [r] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE id = ${Number(req.params.id)} LIMIT 1`) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
-    const a = zeile(r); const p = pruefstand(a);
+    const a = zeile(r); const p = pruefstand(a, { bereich: a.bereich });
     if (!p.ok && !req.body?.trotzdem) return res.status(409).json({ ok: false, error: "Der Prüfstand meldet Fehler. Bitte beheben – oder bewusst „trotzdem veröffentlichen“.", pruefung: p });
-    await sqlPool`UPDATE fiaon_ratgeber SET status = 'veroeffentlicht', pruefung = ${JSON.stringify(p)}::jsonb, published_at = COALESCE(published_at, NOW()), updated_at = NOW() WHERE id = ${a.id}`;
+    await sqlPool`UPDATE fiaon_ratgeber SET status = 'veroeffentlicht', pruefung = ${JSON.stringify(p)}::text::jsonb, published_at = COALESCE(published_at, NOW()), updated_at = NOW() WHERE id = ${a.id}`;
     res.json({ ok: true, url: `/ratgeber/${a.slug}` });
   } catch (err) { console.error("[RATGEBER] veroeffentlichen:", err); res.status(500).json({ ok: false, error: "Veröffentlichen fehlgeschlagen." }); }
 });
@@ -213,98 +203,42 @@ router.delete("/admin/ratgeber/:id", async (req: Request, res: Response) => {
   } catch (err) { console.error("[RATGEBER] loeschen:", err); res.status(500).json({ ok: false, error: "Löschen fehlgeschlagen." }); }
 });
 
-// ── Der Generator ───────────────────────────────────────────────────────────
-const SCHEMA = {
-  type: "object", additionalProperties: false,
-  properties: {
-    titel: { type: "string" }, untertitel: { type: "string" }, teaser: { type: "string" },
-    inhalt: { type: "string", description: "Der Artikel in Markdown (## und ### Überschriften, Listen, ggf. eine Tabelle), 1500–2000 Wörter" },
-    faq: { type: "array", minItems: 5, maxItems: 6, items: { type: "object", additionalProperties: false, properties: { frage: { type: "string" }, antwort: { type: "string" } }, required: ["frage", "antwort"] } },
-    metaTitel: { type: "string" }, metaBeschreibung: { type: "string" },
-    schlagworte: { type: "array", minItems: 4, maxItems: 6, items: { type: "string" } },
-  },
-  required: ["titel", "untertitel", "teaser", "inhalt", "faq", "metaTitel", "metaBeschreibung", "schlagworte"],
-} as const;
-
-async function artikelErzeugen(thema: (typeof THEMEN)[number]): Promise<{ daten: any; modell: string }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY fehlt.");
-  const modell = process.env.FIAON_RATGEBER_MODELL || "gpt-4.1";
-  const auftrag = `Schreibe den Ratgeber-Artikel zum Thema:
-Titel (Vorschlag, darf leicht verbessert werden): ${thema.titel}
-Haupt-Keyword: ${thema.keyword}
-Land: ${thema.land === "DACH" ? "Deutschland, Österreich, Schweiz" : thema.land === "AT" ? "Österreich (KSV1870, CRIF, Datenschutzbehörde Wien)" : thema.land === "CH" ? "Schweiz (CRIF, Intrum, DSG, Betreibungsauszug)" : "Deutschland (SCHUFA)"}
-Kategorie: ${thema.kategorie}
-Fokus: ${thema.fokus}
-Autorin (nur für den Ton, nicht nennen): ${AUTORIN.name}, ${AUTORIN.rolle}.
-Liefere JSON nach Schema. Der Artikel-Text („inhalt“) ist Markdown und beginnt direkt mit dem ersten Absatz (keine H1, der Titel steht separat).`;
-  const r = await openaiFetch("ratgeber", "/chat/completions", {
-    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: modell, temperature: 0.5,
-      response_format: { type: "json_schema", json_schema: { name: "ratgeber_artikel", strict: true, schema: SCHEMA } },
-      messages: [{ role: "system", content: HAUSSTIL }, { role: "user", content: auftrag }],
-    }),
-  });
-  const j: any = await r.json().catch(() => null);
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${j?.error?.message || "unbekannt"}`);
-  return { daten: JSON.parse(String(j?.choices?.[0]?.message?.content || "{}")), modell };
-}
-
-/** Erzeugt bis zu `anzahl` Entwürfe aus den nächsten unbenutzten Themen. */
-export async function entwuerfeErzeugen(anzahl: number, themaSlug?: string): Promise<{ erzeugt: Artikel[]; fehler: string[] }> {
-  await ensureRatgeberTabelle();
-  const rows = (await sqlPool`SELECT thema_slug FROM fiaon_ratgeber WHERE thema_slug IS NOT NULL`) as any[];
-  const benutzt = new Set(rows.map((r) => r.thema_slug));
-  const kandidaten = themaSlug ? THEMEN.filter((t) => t.slug === themaSlug) : THEMEN.filter((t) => !benutzt.has(t.slug)).slice(0, Math.max(1, Math.min(10, anzahl)));
-  const erzeugt: Artikel[] = []; const fehler: string[] = [];
-  for (const thema of kandidaten) {
-    try {
-      const { daten, modell } = await artikelErzeugen(thema);
-      let slug = slugify(thema.slug);
-      const [dup] = (await sqlPool`SELECT 1 FROM fiaon_ratgeber WHERE slug = ${slug}`) as any[];
-      if (dup) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
-      const p = pruefstand({ titel: daten.titel, teaser: daten.teaser, inhalt: daten.inhalt, faq: daten.faq, metaTitel: daten.metaTitel, metaBeschreibung: daten.metaBeschreibung, keyword: thema.keyword });
-      const [r] = (await sqlPool`
-        INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, modell, pruefung, thema_slug)
-        VALUES (${slug}, ${String(daten.titel)}, ${String(daten.untertitel || "")}, ${String(daten.teaser || "")}, ${String(daten.inhalt || "")}, ${thema.kategorie}, ${thema.land}, ${thema.keyword},
-                ${JSON.stringify(daten.schlagworte || [])}::jsonb, ${JSON.stringify(daten.faq || [])}::jsonb, ${String(daten.metaTitel || "").slice(0, 70)}, ${String(daten.metaBeschreibung || "").slice(0, 170)},
-                ${lesezeitVon(String(daten.inhalt || ""))}, ${p.ok ? "geprueft" : "entwurf"}, 'ki', ${modell}, ${JSON.stringify(p)}::jsonb, ${thema.slug})
-        RETURNING *`) as any[];
-      erzeugt.push(zeile(r));
-    } catch (e: any) {
-      // E-246: KI pausiert — nicht die übrigen Themen einzeln scheitern lassen.
-      if (istKiPause(e)) { fehler.push(String(e.message)); break; }
-      console.error("[RATGEBER] Generator:", thema.slug, e?.message || e);
-      fehler.push(`${thema.titel}: ${e?.message || "Fehler"}`);
-    }
-  }
-  return { erzeugt, fehler };
-}
-
+// ── Der Generator (E-379: server/lib/fiaon-ratgeber-redaktion.ts) ───────────
+/** „Entwurf erzeugen": ein Artikel im gewählten Bereich, recherchiert und geprüft — bleibt Entwurf (geprüft), bis jemand veröffentlicht. */
 router.post("/admin/ratgeber/generieren", async (req: Request, res: Response) => {
-  try {
-    const anzahl = Math.max(1, Math.min(10, Number(req.body?.anzahl || 3)));
-    const out = await entwuerfeErzeugen(anzahl, req.body?.themaSlug ? String(req.body.themaSlug) : undefined);
-    res.json({ ok: true, ...out, erzeugt: out.erzeugt.map((a) => ({ ...a, inhalt: undefined })) });
-  } catch (err: any) { console.error("[RATGEBER] generieren:", err); res.status(500).json({ ok: false, error: err?.message || "Generator fehlgeschlagen." }); }
+  if (arbeit) return res.status(409).json({ ok: false, error: "Die Redaktion schreibt gerade — bitte warten, bis sie fertig ist." });
+  if (!kiLesenMoeglich()) return res.status(503).json({ ok: false, error: "Kein KI-Schlüssel gesetzt." });
+  if (await kiPausiert().catch(() => false)) return res.status(503).json({ ok: false, error: "Die KI ist pausiert (Chefbüro › Mara-Steuerpult)." });
+  const bereich = bereichAus(req.body?.bereich) ?? "privat";
+  imHintergrund("entwurf", bereich, async () => {
+    const a = await entwurfErzeugen(bereich);
+    return { ok: !!a.pruefung?.ok, text: `${a.titel}${a.pruefung?.ok ? " — Prüfstand ok" : " — Prüfstand meldet Fehler"}` };
+  });
+  res.status(202).json({ ok: true, gestartet: true });
 });
 
-/** Täglicher Lauf: um 06:00 Berlin drei Entwürfe, falls heute noch keine entstanden sind. */
-export async function ratgeberTageslauf(): Promise<void> {
-  const jetzt = new Date();
-  // formatToParts statt format(): format() liefert in de-DE „08 Uhr" → Number = NaN
-  // → die Nachtsperre griff nie (Hausmuster berlinMinuten, Hotfix 02.09.2026).
-  const berlin = Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
-    .formatToParts(jetzt).find((p) => p.type === "hour")?.value);
-  if (!Number.isFinite(berlin) || berlin < 6) return;
-  await ensureRatgeberTabelle();
-  const [h] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_ratgeber WHERE quelle = 'ki' AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`) as any[];
-  if (Number(h?.n || 0) > 0) return;
-  if (!process.env.OPENAI_API_KEY) return;
-  if (await kiPausiert()) return; // E-246: vorher alle 30 Minuten drei Fehlaufrufe
-  const out = await entwuerfeErzeugen(3);
-  console.log(`[RATGEBER] Tageslauf: ${out.erzeugt.length} Entwürfe, ${out.fehler.length} Fehler`);
+/** „Tagesartikel jetzt": der Tageslauf sofort — durch dieselbe Sperre und Historie wie der Takt (laufMitHistorie). */
+router.post("/admin/ratgeber/tagesartikel", async (_req: Request, res: Response) => {
+  if (arbeit) return res.status(409).json({ ok: false, error: "Die Redaktion schreibt gerade — bitte warten, bis sie fertig ist." });
+  imHintergrund("tagesartikel", null, async () => {
+    const { laufMitHistorie, laufMeldung } = await import("../lib/fiaon-crons");
+    let erg: TageslaufErgebnis | null = null;
+    const l = await laufMitHistorie(RATGEBER_LAUF, async () => { erg = await tagesartikelLauf({ sofort: true }); return ratgeberLaufPruefen(erg); }, { meldung: (e) => laufMeldung(RATGEBER_LAUF, e) });
+    const e = erg as TageslaufErgebnis | null;
+    if (!l.gelaufen && !e) return { ok: false, text: l.grund === "läuft bereits" ? "Der Tageslauf läuft schon." : String(l.grund || "nicht gelaufen") };
+    return { ok: !!e && e.fehlt.length === 0, text: e ? (e.fehlt.length ? `Es fehlt noch: ${e.fehlt.join(", ")} — ${e.grund ?? ""}` : e.veroeffentlicht ? `${e.veroeffentlicht} veröffentlicht` : "Heute ist schon alles erschienen.") : String(l.grund || "") };
+  });
+  res.status(202).json({ ok: true, gestartet: true });
+});
+
+/** Der Takt (server/routes.ts, alle 30 Minuten): der Tageslauf. Wirft nicht — siehe ratgeberLaufPruefen für die Historie. */
+export async function ratgeberTageslauf(): Promise<TageslaufErgebnis> {
+  return tagesartikelLauf();
+}
+
+/** Der Takt als Lauf mit Wahrheit: Fehlt ein Artikel, ist es KEIN Erfolg (Historie „fehler", Ampel). */
+export async function ratgeberTageslaufStreng(): Promise<ReturnType<typeof ratgeberLaufPruefen>> {
+  return ratgeberLaufPruefen(await tagesartikelLauf());
 }
 
 /** Die Sitemap — statische Seiten plus alle veröffentlichten Ratgeber. */

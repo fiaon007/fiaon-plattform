@@ -18,7 +18,8 @@ export default function Ratgeber() {
   const [liste, setListe] = useState<Karte[] | null>(null);
   const [kat, setKat] = useState<string>(() => new URLSearchParams(window.location.search).get("kategorie") || "");
   useEffect(() => {
-    fetch("/api/fiaon/ratgeber").then((r) => r.json()).then((j) => setListe(j?.artikel || [])).catch(() => setListe([]));
+    // E-379: Die Privat-Seite zeigt nur Privat-Artikel — die Business-Artikel stehen auf /business/wissen (FIAON Global).
+    fetch("/api/fiaon/ratgeber?bereich=privat&sprache=de").then((r) => r.json()).then((j) => setListe(j?.artikel || [])).catch(() => setListe([]));
   }, []);
   useEffect(() => { document.title = "Ratgeber · Bonität verstehen · FIAON"; }, []);
   const gefiltert = useMemo(() => (liste || []).filter((a) => !kat || a.kategorie === kat), [liste, kat]);

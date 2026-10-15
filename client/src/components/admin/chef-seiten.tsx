@@ -230,7 +230,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // ── Academy und Redaktion ───────────────────────────────────────────────
   { slug: "academy", label: "FIAON Academy", volltext: true, satz: "Einschulung je Abteilung.", Seite: Schulung, raum: "academy" },
   { slug: "funktionen", label: "Funktionen & Schulung", volltext: true, satz: "Alle Funktionen mit Selbsttest.", Seite: Funktionen, raum: "academy" },
-  { slug: "ratgeber", label: "Ratgeber-Redaktion", volltext: true, satz: "Entwürfe, Vorschau, veröffentlichen.", Seite: Ratgeber, raum: "redaktion" },
+  { slug: "ratgeber", label: "Ratgeber-Redaktion", volltext: true, satz: "Täglich je ein Artikel für Privat und Business – automatisch.", Seite: Ratgeber, raum: "redaktion" },
 
   // ── System ──────────────────────────────────────────────────────────────
   { slug: "einstellungen", label: "Einstellungen", satz: "Provision, Auszahlung, Erinnerungen.", Seite: Einstellungen, raum: "system", mindest: "geschaeftsfuehrung" },

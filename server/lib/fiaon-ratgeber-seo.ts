@@ -18,6 +18,8 @@ const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, 
 // schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
 import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen } from "./fiaon-seiten-seo";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
+import { globalSeite } from "@shared/fiaon-global-seiten";
+import { ensureRatgeberTabelle } from "./fiaon-ratgeber-redaktion";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
 // fand 20 Artikel „zu lang" — jeder trug „· FIAON Ratgeber" (17 Zeichen)
@@ -31,8 +33,10 @@ export function ratgeberTitel(roh: string): string {
 
 export async function ratgeberSeitenHtml(slug: string | null): Promise<string | null> {
   const html = indexHtml(); if (!html) return null;
+  await ensureRatgeberTabelle();
   if (!slug) {
-    const rows = (await sqlPool`SELECT slug, titel, teaser, kategorie, published_at, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC LIMIT 100`) as any[];
+    // E-379: Die Privat-Seite zeigt nur Privat-Artikel auf Deutsch — Business steht auf /business/wissen (dieselbe Regel wie der Client).
+    const rows = (await sqlPool`SELECT slug, titel, teaser, kategorie, published_at, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND bereich = 'privat' AND sprache = 'de' ORDER BY published_at DESC LIMIT 100`) as any[];
     const liste = rows.map((r) => `<li><a href="/ratgeber/${esc(r.slug)}"><h3>${esc(r.titel)}</h3></a><p>${esc(r.teaser)}</p></li>`).join("");
     const inhalt = `<main><article><h1>Ratgeber: Bonität verstehen – SCHUFA, KSV, CRIF</h1><p>Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – geprüft, ehrlich, ohne Versprechen. Für Deutschland, Österreich und die Schweiz.</p><section><h2>Alle Artikel</h2><ul>${liste}</ul></section>${pfeilerLinks()}</article></main>`;
     const ld = [
@@ -50,16 +54,20 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
   const schlag = (typeof a.schlagworte === "string" ? JSON.parse(a.schlagworte) : a.schlagworte) || [];
   const url = `${BASIS}/ratgeber/${a.slug}`;
   const kat = (KATEGORIEN as any)[a.kategorie]?.label || "Ratgeber";
+  // E-379: Business-Artikel hängen in der Business-Welt — Brotkrumen FIAON Global › Wissen.
+  const business = a.bereich === "business";
+  const krume1 = business ? { name: "FIAON Global", pfad: "/business" } : { name: "FIAON", pfad: "/" };
+  const krume2 = business ? { name: "Wissen", pfad: "/business/wissen" } : { name: "Ratgeber", pfad: "/ratgeber" };
   const body = markdownZuHtml(a.inhalt);
   const faqHtml = faq.length ? `<section><h2>Häufige Fragen</h2>${faq.map((f: any) => `<h3>${esc(f.frage)}</h3><p>${esc(f.antwort)}</p>`).join("")}</section>` : "";
-  const inhalt = `<main><article><p><a href="/">FIAON</a> › <a href="/ratgeber">Ratgeber</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>Von ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString("de-DE")} · ${a.lesezeit} Min. Lesezeit</p>${body}${faqHtml}${pfeilerLinks(a.kategorie)}</article></main>`;
+  const inhalt = `<main><article><p><a href="${krume1.pfad}">${krume1.name}</a> › <a href="${krume2.pfad}">${krume2.name}</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>Von ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString("de-DE")} · ${a.lesezeit} Min. Lesezeit</p>${body}${faqHtml}${pfeilerLinks(a.kategorie)}</article></main>`;
   const ld = [
     organisationLd(),
     { "@context": "https://schema.org", "@type": "Article", headline: a.titel, description: a.teaser, inLanguage: "de", datePublished: a.published_at, dateModified: a.updated_at,
       author: { "@type": "Person", name: AUTORIN.name, jobTitle: AUTORIN.rolle }, publisher: { "@id": `${BASIS}/#organisation` },
       mainEntityOfPage: url, keywords: schlag.join(", "), articleSection: kat, wordCount: textAusMarkdown(a.inhalt).split(" ").length },
     faq.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f: any) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
-    { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
+    { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: krume1.name, item: `${BASIS}${krume1.pfad === "/" ? "" : krume1.pfad}` }, { "@type": "ListItem", position: 2, name: krume2.name, item: `${BASIS}${krume2.pfad}` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
   return kopfEinsetzen(html, { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" } })
     .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
@@ -81,8 +89,15 @@ const PFEILER_JE_KATEGORIE: Record<string, string[]> = {
   ch: ["/schweiz", "/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/verjaehrung"],
 };
 const PFEILER_STANDARD = ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/glossar-bonitaet"];
+// E-379: Business-Artikel verweisen in die Business-Welt (FIAON Global), nie auf die Privat-Seiten.
+const PFEILER_BUSINESS = ["/business/wissen", "/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/kosten"];
 
 function pfeilerLinks(kategorie?: string): string {
+  if (kategorie === "firmen") {
+    const eintraege = PFEILER_BUSINESS.map((p) => globalSeite(p)).filter(Boolean)
+      .map((s) => `<li><a href="${esc(s!.pfad)}">${esc(`${s!.h1}${s!.h1b ? ` ${s!.h1b}` : ""}`)}</a> – ${esc(s!.seo.beschreibung)}</li>`).join("");
+    return `<nav aria-label="Weiterlesen"><h2>Weiterlesen</h2><ul>${eintraege}</ul></nav>`;
+  }
   const pfade = PFEILER_JE_KATEGORIE[kategorie ?? ""] ?? PFEILER_STANDARD;
   const eintraege = pfade.map((p) => SEO_SEITEN[p]).filter(Boolean)
     .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a> – ${esc(s.beschreibung)}</li>`).join("");

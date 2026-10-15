@@ -1007,8 +1007,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(html);
     } catch (e) { console.error('[RATGEBER-SEO]', e); next(); }
   });
+  // E-379 (15.10.2026): Jeden Tag ab 06:00 Berlin EIN Artikel je Bereich (privat, business) — recherchiert, geprüft,
+  // veröffentlicht. Fehlt nach dem Lauf einer, ist der Lauf ein FEHLER in der Historie (Ampel, LAUF_FOLGEN), kein „erfolg".
+  // Vorher hieß der Lauf „ratgeber-entwuerfe" und meldete sechs Wochen lang Erfolg, ohne einen Artikel zu schreiben.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('ratgeber-entwuerfe', async () => await fiaonRatgeber.ratgeberTageslauf(), 30 * 60 * 1000, { beimStartNach: 120_000 });
+    tageslauf('ratgeber-tagesartikel', async () => await fiaonRatgeber.ratgeberTageslaufStreng(), 30 * 60 * 1000, { beimStartNach: 120_000 });
   });
 
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.

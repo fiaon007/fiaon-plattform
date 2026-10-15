@@ -440,6 +440,14 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Aufnahmen liegen länger als erlaubt — ein Datenschutzverstoß, der wächst.",
     fenster: 24,
   },
+  // E-379 (15.10.2026): Der Ratgeber-Lauf stand bis heute NICHT hier — sechs Wochen ohne einen Artikel fielen niemandem
+  // auf. „erfolg" heißt jetzt: Für den Tag (vor 06:00: den Vortag) ist je Bereich ein Artikel erschienen. Fehlt einer,
+  // schreibt der Lauf „fehler" (ratgeberLaufPruefen) — bleibt das 26 Stunden so, wird die Ampel gelb und warnt.
+  "ratgeber-tagesartikel": {
+    zweck: "Ratgeber: jeden Tag ab 06:00 je einen neuen, aktuellen Artikel für Privatkunden (/ratgeber) und Business (FIAON Global, /business/wissen) recherchieren, schreiben, streng prüfen und veröffentlichen",
+    folge: "Auf fiaon.com erscheinen keine neuen Ratgeber — weder für Privatkunden noch auf /business/wissen; die Seiten veralten, und der organische Kanal bekommt keinen Nachschub.",
+    fenster: 26,
+  },
   // 17.09.2026 (E-188): „Mein Auftrag" von FIAON Global. Die Pakete sagen Pflichtenkalender und
   // monatlichen Durchgang zu — bleibt dieser Lauf aus, bleibt beides stumm, und niemand merkt es,
   // weil ein Firmenkunde sich nicht über eine Erinnerung beschwert, die er nie bekommen hat.

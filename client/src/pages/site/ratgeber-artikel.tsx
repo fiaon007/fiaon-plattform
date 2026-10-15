@@ -15,6 +15,8 @@ import "@/styles/ratgeber.css";
 // 27.08.2026: Nach 80 Sekunden Lesezeit ein Angebot — siehe LeseAufruf.tsx.
 import LeseAufruf from "@/components/site/LeseAufruf";
 import { SozialBeitrag } from "@/components/site/sozial/SozialBeitrag";
+// E-379: Business-Artikel (FIAON Global) zeigen den Weg zu FIAON Global statt zum Privatkunden-Paket.
+import { globalPaketePfad, globalGespraechPfad } from "@shared/fiaon-global-wege";
 
 interface Weiterer { slug: string; titel: string; teaser: string; kategorie: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
 const LANDKURZ: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", DACH: "DACH" };
@@ -95,17 +97,21 @@ export default function RatgeberArtikel() {
   }
   if (!a) return <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="FIAON Ratgeber"><section className="dk-hero"><div className="dk-rahmen"><p className="dk-lead">Der Text wird geladen …</p></div></section></Dunkel>;
 
+  // E-379: Für wen ist der Text? Business (FIAON Global) → eigene Wege, kein Privatkunden-Aufruf, Weiterlesen im Business-Rahmen.
+  const business = a.bereich === "business" || a.kategorie === "firmen";
+  const weiterSuffix = business ? "?bereich=business" : "";
+
   return (
     <Dunkel seite="ratgeber" titel={a.metaTitel || a.titel} beschreibung={a.metaBeschreibung || a.teaser}>
       {/* Nach 80 Sekunden Lesezeit ein Angebot — nur auf einem ECHTEN Artikel,
           nicht auf der Fehlerseite. Genau dort war er beim ersten Einbau
           gelandet und deshalb nie zu sehen. */}
-      <LeseAufruf />
+      {!business && <LeseAufruf />}
       <div className="rg-fortschritt" aria-hidden="true"><i style={{ width: `${fortschritt * 100}%` }} /></div>
       <section className="dk-hero rg-artikel-hero">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <a href={`/ratgeber?kategorie=${a.kategorie}`} className="dk-pille" style={{ textDecoration: "none" }}>{KATEGORIEN[a.kategorie]?.label || "Ratgeber"} · {LANDKURZ[a.land] || a.land}</a>
+          <a href={business ? "/business/wissen" : `/ratgeber?kategorie=${a.kategorie}`} className="dk-pille" style={{ textDecoration: "none" }}>{KATEGORIEN[a.kategorie]?.label || "Ratgeber"} · {LANDKURZ[a.land] || a.land}</a>
           <h1 className="dk-h1">{a.titel}</h1>
           {a.untertitel && <p className="dk-lead">{a.untertitel}</p>}
           <div className="rg-meta">
@@ -124,14 +130,23 @@ export default function RatgeberArtikel() {
               <p>Inhalt</p>
               <ol>{toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className={`${t.ebene === 3 ? "e3" : ""}${aktiv === t.id ? " aktiv" : ""}`} onClick={springen(t.id)}>{t.text}</a></li>)}</ol>
               {/* 05.10.2026, E-283: „Konto in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf. */}
-              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Antrag starten</a><small>Antrag in rund fünf Minuten · jeder Schritt im Kundenbereich</small></div>
+              {business
+                ? <div className="rg-toc-cta"><a className="dk-knopf" href={globalGespraechPfad("de")}>Erst sprechen</a><small>FIAON Global · vier Pakete mit Festpreis</small></div>
+                : <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Antrag starten</a><small>Antrag in rund fünf Minuten · jeder Schritt im Kundenbereich</small></div>}
             </aside>
             <article>
               <div ref={inhaltRef} className="rg-inhalt" dangerouslySetInnerHTML={{ __html: html }} />
-              <div className="rg-einschub">
-                <div><small>Was FIAON übernimmt</small><b>Einträge erklären, Schreiben versenden, Fristen halten.</b><p>Ihre kostenlose Datenkopie fordern Sie selbst an und laden sie hoch. Für neue Paketkunden ist die FIAON-Bonitätsauswertung aus Ihren Kontoauszügen im Paket enthalten – der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag.</p></div>
-                <Knopf href="/antrag">Konto eröffnen</Knopf>
-              </div>
+              {business ? (
+                <div className="rg-einschub">
+                  <div><small>So übernimmt FIAON Global</small><b>Gesellschaft, Konto, Karten und Kapital – aus einer Hand.</b><p>Unser Team gründet Ihre US-Gesellschaft, beantragt EIN und ITIN, bereitet Konto und erste Firmenkarte vor und plant den Weg zum Kapital – zum Festpreis je Paket. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.</p></div>
+                  <Knopf href={globalPaketePfad("de")}>Pakete ansehen</Knopf>
+                </div>
+              ) : (
+                <div className="rg-einschub">
+                  <div><small>Was FIAON übernimmt</small><b>Einträge erklären, Schreiben versenden, Fristen halten.</b><p>Ihre kostenlose Datenkopie fordern Sie selbst an und laden sie hoch. Für neue Paketkunden ist die FIAON-Bonitätsauswertung aus Ihren Kontoauszügen im Paket enthalten – der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag.</p></div>
+                  <Knopf href="/antrag">Konto eröffnen</Knopf>
+                </div>
+              )}
               {a.faq.length > 0 && (
                 <section className="rg-faq">
                   <h2>Häufige Fragen</h2>
@@ -139,18 +154,20 @@ export default function RatgeberArtikel() {
                 </section>
               )}
               {/* E-296 (06.10.2026): ein Beitrag von Instagram, der zum Thema passt — sonst nichts. */}
-              <SozialBeitrag kategorie={a.kategorie} schlagworte={a.schlagworte} />
+              {!business && <SozialBeitrag kategorie={a.kategorie} schlagworte={a.schlagworte} />}
               <div className="rg-autorin">
                 <img src={AUTORIN.bild} alt={AUTORIN.name} />
                 <div><small>{AUTORIN.rolle}</small><b>{AUTORIN.name}</b><p>{AUTORIN.kurz}</p></div>
               </div>
-              <p className="rg-hinweis">Dieser Text informiert allgemein über Rechte und Abläufe rund um Auskunfteien und ersetzt keine Rechtsberatung im Einzelfall. FIAON erklärt Einträge aus Ihrer selbst angeforderten Datenkopie und bereitet Schreiben vor – über Konto, Karte und Rahmen entscheidet immer die Bank. Stand: {datum(a.aktualisiertAm)}.</p>
+              {business
+                ? <p className="rg-hinweis">Dieser Text informiert allgemein über Recht, Steuern und Finanzierung und ersetzt nicht die Prüfung im Einzelfall durch Anwalt oder Steuerberater. FIAON Global plant, bereitet vor und begleitet – über Konto, Karte, Rahmen und Darlehen entscheidet immer das jeweilige Institut. Stand: {datum(a.aktualisiertAm)}.</p>
+                : <p className="rg-hinweis">Dieser Text informiert allgemein über Rechte und Abläufe rund um Auskunfteien und ersetzt keine Rechtsberatung im Einzelfall. FIAON erklärt Einträge aus Ihrer selbst angeforderten Datenkopie und bereitet Schreiben vor – über Konto, Karte und Rahmen entscheidet immer die Bank. Stand: {datum(a.aktualisiertAm)}.</p>}
               {weitere.length > 0 && (
                 <section className="rg-weitere">
                   <h2>Weiterlesen</h2>
                   <div className="rg-liste" style={{ marginTop: 0 }}>
                     {weitere.map((w) => (
-                      <a key={w.slug} href={`/ratgeber/${w.slug}`} className="rg-karte">
+                      <a key={w.slug} href={`/ratgeber/${w.slug}${weiterSuffix}`} className="rg-karte">
                         <div className="rg-kopfzeile"><span>{KATEGORIEN[w.kategorie as keyof typeof KATEGORIEN]?.label || w.kategorie}</span><span className="land">{LANDKURZ[w.land] || w.land}</span></div>
                         <h3>{w.titel}</h3><p>{w.teaser}</p>
                         <div className="rg-karte-fuss"><span>{w.lesezeit} Min.</span><b>Lesen →</b></div>
@@ -164,7 +181,9 @@ export default function RatgeberArtikel() {
         </div>
       </Licht>
 
-      <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? Laden Sie Ihre kostenlose Datenkopie hoch – FIAON erklärt die Einträge und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />
+      {business
+        ? <Zwischenruf text="Sie planen eine US-Gesellschaft, ein US-Konto oder den Weg zu Firmenkarten und Kapital? Im Erstgespräch klären wir, welches Paket zu Ihrem Vorhaben passt." knopf="Pakete ansehen" href={globalPaketePfad("de")} still={{ knopf: "Alle Beiträge", href: "/business/wissen" }} />
+        : <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? Laden Sie Ihre kostenlose Datenkopie hoch – FIAON erklärt die Einträge und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />}
     </Dunkel>
   );
 }

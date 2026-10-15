@@ -85,7 +85,21 @@ function Seite({ s }: { s: GlobalSeite }) {
   const t = GLOBAL_WOERTER[sp];
   const u = GLOBAL_SEITE_WOERTER[sp];
   const w = GLOBAL_SEITE_WORTE[sp];
-  const inhalt = useMemo(() => globalInhalt(s), [s]);
+  // E-379 (15.10.2026): Auf der Wissen-Übersicht stehen die neuesten Beiträge der Redaktion — jeden Tag einer
+  // für Unternehmer (server/lib/fiaon-ratgeber-redaktion.ts). Nur deutsch: Die Redaktion schreibt deutsch.
+  const mitAktuell = s.art === "hub" && sp === "de";
+  const [aktuell, setAktuell] = useState<RedaktionsBeitrag[]>([]);
+  useEffect(() => {
+    if (!mitAktuell) return;
+    let vorbei = false;
+    fetch("/api/fiaon/ratgeber?bereich=business&sprache=de&limit=60").then((r) => r.json())
+      .then((j) => { if (!vorbei) setAktuell(Array.isArray(j?.artikel) ? j.artikel : []); }).catch(() => {});
+    return () => { vorbei = true; };
+  }, [mitAktuell]);
+  const inhalt = useMemo(() => {
+    const basis = globalInhalt(s);
+    return mitAktuell && aktuell.length ? [basis[0], { id: "aktuell", titel: AKTUELL_TITEL }, ...basis.slice(1)] : basis;
+  }, [s, mitAktuell, aktuell.length]);
   const nummer = useMemo(() => {
     const m = new Map<string, string>();
     let n = 0;
@@ -213,6 +227,8 @@ function Seite({ s }: { s: GlobalSeite }) {
               </ol>
             </details>
 
+            {mitAktuell && aktuell.length > 0 && <RedaktionAktuell beitraege={aktuell} nr={nummer.get("aktuell")} />}
+
             {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} onGespraech={oeffneGespraech}
               randUnten={b.typ === "hinweis" && !randDaneben(s.bloecke[i + 1])} />)}
 
@@ -318,6 +334,40 @@ function useScrollspy(ids: string[]): string | null {
     return () => io.disconnect();
   }, [ids.join("|")]);
   return aktiv;
+}
+
+// ── Aktuell aus der Redaktion (E-379) ───────────────────────────────────────
+interface RedaktionsBeitrag { slug: string; titel: string; teaser: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
+const AKTUELL_TITEL = "Aktuell aus der Redaktion";
+const AKTUELL_SICHTBAR = 6;
+
+/**
+ * Die neuesten Business-Artikel als Verzeichnis — dieselbe Haarlinien-Liste wie „verzeichnis“. Die Links tragen
+ * ?bereich=business: Menü und Fußzeile bleiben die von FIAON Global (lib/bereich.ts — ein Geschäftskunde verlässt
+ * die Business-Welt nie aus Versehen).
+ */
+function RedaktionAktuell({ beitraege, nr }: { beitraege: RedaktionsBeitrag[]; nr?: string }) {
+  const [alle, setAlle] = useState(false);
+  const sichtbar = alle ? beitraege : beitraege.slice(0, AKTUELL_SICHTBAR);
+  const am = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" }) : "");
+  return (
+    <Abschnitt id="aktuell">
+      <Kopf nr={nr} h2={AKTUELL_TITEL} lead="Jeden Tag ein neuer Beitrag für Unternehmer — aktuell, mit Quellen." />
+      <ul className="fd-verzeichnis">
+        {sichtbar.map((b) => (
+          <li key={b.slug}><a href={`/ratgeber/${encodeURIComponent(b.slug)}?bereich=business`}>
+            <span><span className="tag">{am(b.veroeffentlichtAm)} · {b.lesezeit} Min.</span><span className="titel">{b.titel}</span><span className="text">{b.teaser}</span></span>
+            <span className="pfeil"><Pfeil groesse={18} /></span>
+          </a></li>
+        ))}
+      </ul>
+      {beitraege.length > AKTUELL_SICHTBAR && (
+        <button type="button" className="fg-textknopf" style={{ marginTop: 14 }} onClick={() => setAlle((x) => !x)}>
+          {alle ? "Weniger zeigen" : `Alle ${beitraege.length} Beiträge`}
+        </button>
+      )}
+    </Abschnitt>
+  );
 }
 
 // ── Die Bausteine ────────────────────────────────────────────────────────────

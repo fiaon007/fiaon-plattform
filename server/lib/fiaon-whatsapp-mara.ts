@@ -710,7 +710,8 @@ export function auskunftJetzt(ein: {
  * Datenkopie in der Akte — die Auswertung ist ein anderes Produkt; nie bei „auswertung" oder „inklusive". Rein.
  */
 export function auskunftVerkaufbar(t: Pick<AuskunftTeil, "stufe" | "art"> | null | undefined): boolean {
-  return !!t && (t.stufe === "nichts" || t.stufe === "offen" || (t.stufe === "dokument" && t.art !== "firma"));
+  // E-367: eine eigene Auskunft in der Akte („dokument") sperrt wieder — auch privat.
+  return !!t && (t.stufe === "nichts" || t.stufe === "offen");
 }
 
 /** Bekommt Mara in diesem Gespräch das Werkzeug auskunft_anbieten? */
@@ -3914,7 +3915,8 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
   }
   if (privat && stand.stufe === "inklusive") return nein(`Die Bonitätsauswertung ist in seinem Paket ENTHALTEN — kein Preis, kein Link. Sag ihm: „${AUSWERTUNG_INKLUSIVE_SATZ}" (hochladen in seinem Bereich unter fiaon.com/app/unterlagen).`);
   if (privat && stand.stufe === "auswertung") return nein("Seine Bonitätsauswertung liegt schon vor — nichts verkaufen. Sie liegt in seinem Bereich unter fiaon.com/app/auswertung (und kam als PDF per E-Mail).");
-  if (!privat && stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte — nichts verkaufen.");
+  // E-367: auch privat — wer seine Auskunft hochgeladen hat (meist schon ausgewertet), bekommt kein Angebot.
+  if (stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte (meist schon ausgewertet) — nichts verkaufen. Fragt er nach der Bonitätsauswertung, darf er sie in seinem Bereich unter fiaon.com/app/unterlagen selbst bestellen.");
   if (stand.offen?.status === "claimed_paid") return nein("Er hat die Zahlung schon gemeldet — die Zahlungsstelle prüft den Eingang. Kein Link.");
   const kunde = String(ctx.kunde ?? "");
   const du = String(ctx.letzteDu ?? "");

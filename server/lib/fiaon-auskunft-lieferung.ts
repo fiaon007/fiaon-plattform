@@ -859,7 +859,8 @@ export async function auskunftAngebotKaufstand(personId: number | null, lauf: La
   const { auskunftStand } = await import("./fiaon-auskunft");
   const stand = await auskunftStand(personId, lauf, "privat", { land: false });
   if (stand.stufe === "bezahlt") return "Diese Person hat die Auskunft schon bezahlt — kein Angebot.";
-  // E-365: Die gelieferte Bonitätsauswertung und die Inklusiv-Lage sperren; eine eigene Datenkopie in der Akte nicht mehr.
+  // E-365: Die gelieferte Bonitätsauswertung und die Inklusiv-Lage sperren. E-367: eine eigene Auskunft in der Akte wieder auch.
+  if (stand.stufe === "dokument") return "Für diese Person liegt schon eine eigene Auskunft in der Akte — kein Angebot.";
   if (stand.stufe === "auswertung") return "Für diese Person liegt die FIAON-Bonitätsauswertung schon vor — kein Angebot.";
   if (stand.stufe === "inklusive") return "Die Bonitätsauswertung ist im Paket dieser Person enthalten (ihr Kartenlink wartet auf sie) — kein Angebot, sondern Unterlagen anfordern.";
   if (stand.offen?.status === "claimed_paid") return "Diese Person hat die Zahlung für die Auskunft schon gemeldet — kein Angebot.";

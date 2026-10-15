@@ -1088,8 +1088,8 @@ export const auskunftAnbieten: Werkzeug = {
     if (stand.offen?.status === "claimed_paid") return nichtVerkaufen("gemeldet", null);
     // Wie die Unterlagen-Mail (auskunftMailTeil): Wer selbst eine hochgeladen hat,
     // bekommt weder ein Angebot noch eine Zahlungsbitte — auch bei offener Bestellung.
-    // E-365: nur noch bei Firmen — privat ist die Bonitätsauswertung ein anderes Produkt als die eigene Datenkopie.
-    if (!privat && stand.dokumentDa) return nichtVerkaufen("dokument", null);
+    // E-367 (15.10.2026): wieder auch privat — Kunden mit ausgewerteter SCHUFA empfanden das Angebot als „schon erledigt“.
+    if (stand.dokumentDa) return nichtVerkaufen("dokument", null);
 
     const preisHinweis = (mitAbo: boolean) => mitAbo
       ? `Kundenpreis mit laufendem Paket (einzeln ${euroText(AUSKUNFT_PREISE_CENTS[art].einzeln)}) — beide Preise nebeneinander, nie „statt"`

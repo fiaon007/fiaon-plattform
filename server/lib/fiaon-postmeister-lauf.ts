@@ -1159,7 +1159,8 @@ export async function mailBearbeiten(ein: {
     }
 
     // 3. Wer schreibt da?
-    const wer = await personSuchen(mail.von, neuerText);
+    // E-367: die Antwort-Kette mitgeben — antwortet er auf eine unserer Mails, ist er darüber sicher erkannt.
+    const wer = await personSuchen(mail.von, neuerText, { kette: [mail.antwortAufId, mail.references].filter(Boolean).join(" ") || null });
     fuerAufgabe = { personId: wer.personId, ref: wer.ref, betreff: mail.betreff };
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 

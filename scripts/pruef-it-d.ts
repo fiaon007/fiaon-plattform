@@ -1272,8 +1272,16 @@ if (!LOKAL) {
     ok(ER.tuerUrteil(tz).grund === "dokument" && ER.tuerUrteil({ ...tz, dokument: false }).erinnern === true, "Zahlungserinnerung: eigene Datenkopie hält sie weiter an (Altbestellungen)");
     ok(ER.tuerUrteil({ ...tz, auswertungDa: true }).grund === "auswertung" && ER.tuerUrteil({ ...tz, inklusive: true }).grund === "inklusive", "Zahlungserinnerung: geliefert / inklusive → stornieren?");
     const VK = await import("../server/lib/fiaon-auskunft-verkauf");
-    ok(VK.standVerkaufbar({ stufe: "dokument", offen: null } as any) === null && VK.standVerkaufbar({ stufe: "inklusive", offen: null } as any) !== null, "Verkauf: Datenkopie in der Akte sperrt nicht, inklusive schon");
-    ok(VK.OHNE_AUSKUNFT_SQL("p.id").includes("fiaon_finanzauswertungen") && !VK.OHNE_AUSKUNFT_SQL("p.id").includes("schufa_pdf IS NOT NULL"), "Verkaufskreis: gelieferte Auswertung und inklusive statt Datenkopie");
+    // E-367 (15.10.2026): eine eigene Auskunft in der Akte sperrt das AUTOMATISCHE Angebot wieder (Kunden mit ausgewerteter SCHUFA).
+    ok(VK.standVerkaufbar({ stufe: "dokument", offen: null } as any) !== null && VK.standVerkaufbar({ stufe: "inklusive", offen: null } as any) !== null
+      && VK.standVerkaufbar({ stufe: "nichts", offen: null } as any) === null, "E-367 Verkauf: eigene Auskunft und inklusive sperren, „nichts“ nicht");
+    ok(VK.OHNE_AUSKUNFT_SQL("p.id").includes("fiaon_finanzauswertungen") && VK.OHNE_AUSKUNFT_SQL("p.id").includes("schufa_pdf IS NOT NULL")
+      && VK.OHNE_AUSKUNFT_SQL("p.id").includes("fiaon_schufa_analysen"), "E-367 Verkaufskreis: gelieferte Auswertung, inklusive UND eigene Auskunft sperren");
+    {
+      const PD = await import("../server/lib/fiaon-postmeister-dossier");
+      ok(PD.adresseGrundform("Sequo.Rug+x@GoogleMail.com") === "sequorug@gmail.com" && PD.adresseGrundform("max@web.de") === "max@web.de",
+        "E-367 Mara: googlemail.com = gmail.com, Punkte/+Zusatz zählen bei Gmail nicht, andere Adressen bleiben");
+    }
 
     // ── Käufer ohne Paket (149 €), ohne Unterlagen ──────────────────────────
     const nurPerson = async (n: string) => Number(((await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email, street, zip, city, country)

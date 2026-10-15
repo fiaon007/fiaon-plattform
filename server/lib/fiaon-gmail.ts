@@ -119,6 +119,8 @@ export interface GmailNachricht {
   antwortAn: string | null;
   /** Vollständige References-Kette, damit Outlook die Antwort im Gespräch behält. */
   references: string | null;
+  /** E-367: In-Reply-To — antwortet der Kunde auf eine unserer Mails (Brevo-Message-ID), erkennt Mara ihn daran. */
+  antwortAufId?: string | null;
   /** Dateien an der Mail (04.09.2026): Belege, Ausweise, Verträge — ein Mensch sähe sie, Mara auch. */
   anhaenge: GmailAnhang[];
 }
@@ -181,6 +183,7 @@ export async function nachrichtLesen(postfach: string, id: string): Promise<Gmai
     betreff: kopfWert(h, "Subject"), messageIdHeader: kopfWert(h, "Message-ID") || null,
     antwortAn: kopfWert(h, "Reply-To") || null,
     references: kopfWert(h, "References") || null,
+    antwortAufId: kopfWert(h, "In-Reply-To") || null,
     datum: new Date(Number(j.internalDate || Date.now())),
     text: textAusTeilen(j.payload).slice(0, 20_000),
     snippet: String(j.snippet || ""), autoHinweis: auto,

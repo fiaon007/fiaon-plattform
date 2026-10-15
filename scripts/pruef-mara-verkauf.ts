@@ -413,7 +413,9 @@ pruef("E365 auswertung: liegt vor, /app/auswertung, kein Werkzeug", /liegt vor/.
   && !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "auswertung", jetzt: true }));
 pruef("E365 bezahlt: Ausweis und Kontoauszüge, keine Datenkopien", /Ausweis und seine Kontoauszüge/.test(auskunftBlock({ ...AUSKUNFT_DE, stufe: "bezahlt", jetzt: true }).join("\n"))
   && !/Datenkopien bei/.test(auskunftBlock({ ...AUSKUNFT_DE, stufe: "bezahlt", jetzt: true }).join("\n")));
-pruef("E365 dokument privat: anbieten erlaubt (anderes Produkt), Firma nicht", auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "dokument", jetzt: true })
+// E-367 (15.10.2026): eigene Auskunft in der Akte sperrt das Angebot wieder — privat UND Firma (Kunden mit ausgewerteter
+// SCHUFA schrieben „Sie haben meine Schufa bereits ausgewertet“).
+pruef("E367 dokument: kein Angebot, privat und Firma", !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "dokument", jetzt: true })
   && !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "dokument", art: "firma", jetzt: true }));
 pruef("E365 Lead: „Bonitätsauswertung“ ungefragt bleibt Hürde", V("Ja, da sind Sie bei uns genau richtig! Danach erstellen wir noch Ihre Bonitätsauswertung.", "Ich suche unkompliziert eine Kreditkarte").some((h) => /Bonitätsauskunft/.test(h)));
 pruef("E365 Angebot: Kontoauszüge im Auswertungs-Satz sind keine Hürde, allein schon",

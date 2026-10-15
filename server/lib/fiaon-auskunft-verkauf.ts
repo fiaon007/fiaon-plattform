@@ -513,9 +513,14 @@ export const OHNE_AUSKUNFT_SQL = (person: string) => `(
   NOT EXISTS (SELECT 1 FROM fiaon_applications ax_s WHERE ax_s.person_id = ${person} AND ax_s.merged_into IS NULL
                 AND ${IST_AUSKUNFT("ax_s")}
                 AND (ax_s.payment_status IN ('paid', 'claimed_paid', 'pending_payment', 'cancelled') OR ax_s.cancelled_at IS NOT NULL))
-  -- E-365 (14.10.2026): Verkauft wird die FIAON-Bonitätsauswertung. Eine eigene Datenkopie in der Akte (schufa_pdf,
-  -- SCHUFA-Analyse, Dokument „schufa") ist ein anderes Produkt und sperrt nicht mehr; es sperren die gelieferte
-  -- Auswertung und die Inklusiv-Lage (zahlender Paketkunde, dessen Kartenlink auf die Bonität wartet).
+  -- E-367 (15.10.2026): Eine eigene Auskunft in der Akte (schufa_pdf, SCHUFA-Analyse, Dokument „schufa") sperrt das
+  -- AUTOMATISCHE Angebot wieder — E-365 hatte das gelöst, und am selben Morgen schrieben Kunden mit ausgewerteter SCHUFA
+  -- „Sie haben meine Schufa bereits ausgewertet“ (21 von 37 Angeboten nach dem Deploy). Kaufen kann er im Bereich weiter.
+  AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax_d WHERE ax_d.person_id = ${person} AND ax_d.gdpr_deleted_at IS NULL AND ax_d.schufa_pdf IS NOT NULL)
+  -- ohne Bezug (NOT IN): fiaon_schufa_analysen hat keinen Index auf person_id — je Mensch ein Seq Scan wäre teuer
+  AND ${person} NOT IN (SELECT ax_a.person_id FROM fiaon_schufa_analysen ax_a WHERE ax_a.person_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM fiaon_dokumente ax_k WHERE ax_k.person_id = ${person} AND ax_k.geloescht_am IS NULL AND ax_k.art ILIKE '%schufa%')
+  -- E-365: die gelieferte Auswertung und die Inklusiv-Lage (zahlender Paketkunde, dessen Kartenlink auf die Bonität wartet).
   AND NOT ${BONITAET_DA_SQL(person)}
   AND NOT ${BONITAET_INKLUSIVE_SQL(person)}
   -- E-243: das Bündel wartet auf die erste Paketzahlung (ohne Bezug, einmal als Hash-Liste)
@@ -1527,8 +1532,8 @@ export async function angebotSperre(
  * Aufrufer der alten Form.
  */
 export function standVerkaufbar(stand: Pick<AuskunftStand, "stufe" | "offen">, _jetzt: number = Date.now()): string | null {
-  // E-365: eine eigene Datenkopie in der Akte („dokument") sperrt den Verkauf der Bonitätsauswertung nicht mehr.
-  if (stand.stufe === "nichts" || stand.stufe === "dokument") return null;
+  // E-367: eine eigene Auskunft in der Akte („dokument") sperrt das automatische Angebot wieder (E-365 rückgängig).
+  if (stand.stufe === "nichts") return null;
   return `Auskunft inzwischen ${stand.stufe}`;
 }
 

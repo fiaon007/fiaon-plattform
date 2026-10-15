@@ -127,7 +127,24 @@ function globalOhneAuftragGrund(t: Awaited<ReturnType<typeof globalTeil>>): stri
  * beiden liefern nur KANDIDATEN — ein Namensvetter darf nie automatisch die
  * Akte eines Fremden zu sehen bekommen.
  */
-export async function personSuchen(absender: string, text: string): Promise<{
+/**
+ * E-367 (15.10.2026): Eine Gmail-Adresse in ihrer Grundform — googlemail.com ist gmail.com, Punkte und „+Zusatz“ im
+ * Namen zählen bei Gmail nicht. Fall Reinhold Müller: Angebot an sequorug@gmail.com, Antwort von sequorug@googlemail.com,
+ * Mara schrieb „Unter dieser Absenderadresse finde ich Sie bei FIAON noch nicht“. Andere Adressen bleiben, wie sie sind.
+ */
+export function adresseGrundform(adresse: string): string {
+  const a = String(adresse || "").trim().toLowerCase();
+  const m = a.match(/^([^@\s]+)@(gmail\.com|googlemail\.com)$/);
+  if (!m) return a;
+  return `${m[1].replace(/\+.*$/, "").replace(/\./g, "")}@gmail.com`;
+}
+/** Dieselbe Grundform in SQL — für eine Spalte (Ausdruck) der Datenbank. */
+// Achtung: im Template-Literal braucht ein Backslash für SQL zwei (\\. → \. in der Abfrage).
+const GRUNDFORM_SQL = (spalte: string) => `(CASE WHEN LOWER(TRIM(COALESCE(${spalte}, ''))) ~ '@(gmail|googlemail)\\.com$'
+  THEN regexp_replace(split_part(LOWER(TRIM(${spalte})), '@', 1), '\\+.*$|\\.', '', 'g') || '@gmail.com'
+  ELSE LOWER(TRIM(COALESCE(${spalte}, ''))) END)`;
+
+export async function personSuchen(absender: string, text: string, opts: { kette?: string | null } = {}): Promise<{
   personId: number | null; ref: string | null; sicher: boolean; wie: string;
   kandidaten: { personId: number; name: string; wie: string }[];
 }> {
@@ -152,6 +169,36 @@ export async function personSuchen(absender: string, text: string): Promise<{
        ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1
     `) as any[];
     if (a?.person_id) { personId = Number(a.person_id); wie = "E-Mail-Adresse einer Bestellung"; }
+  }
+
+  // E-367: Stufe 2b — Gmail-Grundform (googlemail.com = gmail.com, Punkte und „+Zusatz“ zählen nicht).
+  if (!personId) {
+    const grund = adresseGrundform(adresse);
+    if (/@gmail\.com$/.test(grund)) {
+      const [g] = (await sqlPool.unsafe(`
+        SELECT COALESCE(p.merged_into_person_id, p.id) AS person_id FROM fiaon_persons p
+         WHERE ${GRUNDFORM_SQL("p.primary_email")} = $1
+        UNION ALL
+        SELECT a.person_id FROM fiaon_applications a
+         WHERE a.merged_into IS NULL AND a.person_id IS NOT NULL
+           AND $1 IN (${GRUNDFORM_SQL("a.email")}, ${GRUNDFORM_SQL("a.contact_email")}, ${GRUNDFORM_SQL("a.billing_email")})
+        LIMIT 1`, [grund]).catch(() => [])) as any[];
+      if (g?.person_id) { personId = Number(g.person_id); wie = "E-Mail-Adresse (Gmail-Grundform)"; }
+    }
+  }
+
+  // E-367: Stufe 2c — Antwort auf eine unserer Mails: In-Reply-To/References tragen die Brevo-Message-ID, die
+  // fiaon_mail_log zu genau dieser Person kennt. Sicher, weil die Kennung nur in unserer eigenen Mail stand.
+  if (!personId && opts.kette) {
+    const ids = Array.from(new Set((String(opts.kette).match(/<[^<>\s]+>/g) ?? []).slice(-20)));
+    if (ids.length) {
+      const [r] = (await sqlPool`
+        SELECT COALESCE(p.merged_into_person_id, p.id) AS person_id
+          FROM fiaon_mail_log ml JOIN fiaon_persons p ON p.id = ml.person_id
+         WHERE ml.brevo_message_id = ANY(${ids}) AND ml.person_id IS NOT NULL
+         ORDER BY ml.id DESC LIMIT 1`.catch(() => [])) as any[];
+      if (r?.person_id) { personId = Number(r.person_id); wie = "Antwort auf unsere Mail"; }
+    }
   }
 
   // Stufe 3: Referenz im Text (FIAON-XXXXXX oder Ratenreferenz).

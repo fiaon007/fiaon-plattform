@@ -145,7 +145,7 @@ export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: bo
          AND fa.person_id NOT IN (${eingangOffenSql()})
          AND ${werktageSeitSql("fa.claimed_paid_at")} >= ${KLAERUNG_AB_WERKTAGEN}
          -- E-368 (15.10.2026, Justin: „Mara soll ALLES selbst machen … nicht MEHR Arbeit schaffen“): ZUERST klärt Mara per
-         -- Mail. Angerufen wird erst, wenn ihre Klärung seit ${KLAERUNG_AB_WERKTAGEN} Werktagen ohne Eingang und ohne Antwort ist
+         -- Mail. Angerufen wird erst, wenn ihre Klärung seit drei Werktagen (KLAERUNG_AB_WERKTAGEN) ohne Eingang und ohne Antwort ist
          -- — oder wenn sie gar nicht schreiben kann (Sperre, Werbesperre, unzustellbar: keine gesendete Aktionsmail in 7 Tagen
          -- trotz fälliger Klärung). Vorher: 96 Anrufaufgaben seit 08.10., 92 offen, parallel zu Maras Klärung.
          AND (EXISTS (SELECT 1 FROM fiaon_mara_aktion mk WHERE mk.person_id = fa.person_id AND mk.status = 'gesendet'

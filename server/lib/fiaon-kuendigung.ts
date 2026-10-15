@@ -30,14 +30,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { offeneRatenZaehlen, ratenStornieren } from "./fiaon-raten-storno";
+// E-370: STORNO_NACH_VERTRAGSENDE — die Raten nach dem Vertragsende kommen mit der Rücknahme zurück (wie „kuendigung“).
+import { offeneRatenZaehlen, ratenStornieren, STORNO_NACH_VERTRAGSENDE } from "./fiaon-raten-storno";
 // E-265 Nachbesserung 2 (01.10.2026): EINE Rechnung für Urkunde, Bestätigungsmail, WhatsApp und Postfach.
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag ist das Ende des ABRECHNUNGSMONATS (Fälligkeit zu
 // Fälligkeit, AGB 04.07.2026 § 6, Frist 24 Stunden) — nicht mehr der Kalendermonat. Die eine Rechnung: abrechnungsmonat.
 import { istJahresvertrag, abrechnungsmonat, tagDeutsch } from "@shared/fiaon-antrag-stand";
 import { kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
 // E-IT-B (08.10.2026): die eine Regel „wirksam gekündigt“ und die Produktkategorie.
-import { KUENDIGUNG_WIRKSAM_SQL, KUENDIGUNG_ANTRAEGE_SQL, antragZiel, type AntragZiel } from "@shared/fiaon-kuendigung-regel";
+import { KUENDIGUNG_WIRKSAM_SQL, KUENDIGUNG_ANTRAEGE_SQL, antragZiel, type AntragZiel,
+  VERTRAGSENDE_SPALTEN_SQL, vertragsendeAusZeile } from "@shared/fiaon-kuendigung-regel";
 import { produktkategorieSql } from "@shared/fiaon-produktkategorie";
 
 /** YYYY-MM-DD (Berlin) eines Zeitpunkts. */
@@ -88,28 +90,14 @@ export function kuendigungRatenPlan<T extends { faellig_am?: unknown }>(offen: r
  * Kalendermonatsende vor dem 01.10.) — dann gilt das Ende des Abrechnungsmonats, nie der frühere Tag. Beim nie bezahlten
  * Storno (storno_unbezahlt) gab es keinen laufenden Vertrag; dort bleibt der gesetzte Tag.
  */
-export async function vertragsendeLesen(ref: string, opt: { am?: Date | string | null } = {}): Promise<{
+export async function vertragsendeLesen(ref: string, opt: { am?: Date | string | null; lauf?: typeof sqlPool } = {}): Promise<{
   jahresvertrag: boolean; ende: string | null; endeDe: string | null; gekuendigtAm: Date | null; quelle: string | null;
 }> {
-  const [a] = (await sqlPool`
-    SELECT a.agb_stand, a.gekuendigt_am, a.vertrag_ende_am, a.kuendigung_zurueckgenommen_am, a.payment_status,
-           COALESCE(a.paid_at, a.completed_at, a.created_at) AS anker,
-           (SELECT COALESCE(json_agg(r.faellig_am ORDER BY r.rate_nr), '[]'::json) FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS faelligkeiten
-      FROM fiaon_applications a WHERE a.ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
-  if (!a) return { jahresvertrag: false, ende: null, endeDe: null, gekuendigtAm: null, quelle: null };
-  const jahresvertrag = istJahresvertrag(a.agb_stand);
-  const gekuendigtAm: Date | null = a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am ? new Date(a.gekuendigt_am) : null;
-  if (jahresvertrag) return { jahresvertrag, ende: a.vertrag_ende_am ? berlinTag(a.vertrag_ende_am) : null, endeDe: a.vertrag_ende_am ? tagDeutsch(berlinTag(a.vertrag_ende_am)) : null, gekuendigtAm, quelle: a.vertrag_ende_am ? "vertrag_ende_am" : null };
-  const kette: unknown[] = Array.isArray(a.faelligkeiten) ? a.faelligkeiten : (() => { try { return JSON.parse(String(a.faelligkeiten ?? "[]")); } catch { return []; } })();
-  const m = abrechnungsmonat(opt.am ?? gekuendigtAm ?? new Date(), kette as any[], { anker: a.anker ?? null });
-  if (gekuendigtAm && a.vertrag_ende_am) {
-    const gesetzt = berlinTag(a.vertrag_ende_am);
-    if (String(a.payment_status) === "paid" && gesetzt < m.bis) {
-      return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
-    }
-    return { jahresvertrag, ende: gesetzt, endeDe: tagDeutsch(gesetzt), gekuendigtAm, quelle: "vertrag_ende_am" };
-  }
-  return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
+  // E-370 (15.10.2026): Die Rechnung steht rein in shared/fiaon-kuendigung-regel.ts (vertragsendeAusZeile) — Maras
+  // Entscheidungen rechnen damit alle gekündigten Altverträge auf einmal. `lauf` für Prüfstände in einer Transaktion.
+  const lauf = opt.lauf ?? sqlPool;
+  const [a] = (await lauf.unsafe(`SELECT ${VERTRAGSENDE_SPALTEN_SQL("a")} FROM fiaon_applications a WHERE a.ref = $1 LIMIT 1`, [ref]).catch(() => [])) as any[];
+  return vertragsendeAusZeile(a ?? null, { am: opt.am ?? null });
 }
 
 /**
@@ -471,7 +459,7 @@ export async function kuendigungZuruecknehmen(ref: string, grund?: string | null
   await sqlPool.begin(async (tx) => {
     const w = (await tx`
       UPDATE fiaon_abo_raten SET status = 'offen', storniert_am = NULL, storno_grund = NULL, updated_at = NOW()
-       WHERE ref = ${ref} AND storno_grund = 'kuendigung' AND status = 'storniert' RETURNING id
+       WHERE ref = ${ref} AND storno_grund IN ('kuendigung', ${STORNO_NACH_VERTRAGSENDE}) AND status = 'storniert' RETURNING id
     `) as any[];
     zurueck = w.length;
     await tx`

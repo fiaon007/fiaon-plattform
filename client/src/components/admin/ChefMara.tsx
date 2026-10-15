@@ -50,6 +50,8 @@ const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
 const MaraTermine = lazy(() => import("./ChefMaraTermine"));
 // E-294 (06.10.2026): das Social-Studio — der fünfte Reiter, erst beim Öffnen geladen.
 const MaraSocial = lazy(() => import("./ChefMaraSocial"));
+// E-370 (15.10.2026): Maras Entscheidungen — der sechste Reiter (vorn), erst beim Öffnen geladen.
+const MaraEntscheidungen = lazy(() => import("./ChefMaraEntscheidungen"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
@@ -1459,10 +1461,19 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 // &post=<id>): Plan, Post-Detail im Handy-Rahmen mit Freigeben, Zurück an
 // Claude, Verschieben, Als veröffentlicht melden und Verwerfen, dazu die
 // Instagram-Vorschau. Die Zahlmarke zählt Posts, die auf die Freigabe warten.
+//
+// E-370 (15.10.2026), Justin: „Mara soll ALLES selbst machen können, nichts
+// weitergeben an die Mitarbeiter – wenn sie ne Entscheidung braucht, dann soll
+// ich es mit 1 Klick entscheiden können." Keine neue Seite — der Reiter
+// „Entscheidungen" (?reiter=entscheidungen) steht VORN: Karten mit Maras
+// Empfehlung und Knöpfen, die die Sache erledigen. Die Zahlmarke zählt die
+// offenen Karten (ohne „später").
 // ═══════════════════════════════════════════════════════════════════════════
 // E-261 (29.09.2026): der Chip „WhatsApp" neben „KI" — Pause, Meta-Qualität, „WhatsApp wieder aktivieren".
 type Aufklapper = "ki" | "wa" | "bilanz" | "anweisen";
 const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
+  // E-370: am Handy (390 px) „Fragen“ — „Entscheiden“ sprengte mit drei zweistelligen Zahlmarken die Zeile.
+  { r: "entscheidungen", lang: "Entscheidungen", kurz: "Fragen" },
   { r: "whatsapp", lang: "WhatsApp-Zentrale", kurz: "WhatsApp" },
   { r: "mail", lang: "E-Mail-Aktion", kurz: "Mail" },
   { r: "auskunft", lang: "Bonitätsauskunft", kurz: "Auskunft" },
@@ -1472,6 +1483,8 @@ const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
 interface TermineKern { zaehler: { wartet: number } }
 /** E-294: nur die Zahl „zur Freigabe" aus GET /chef/social/plan (shared/fiaon-social.ts, SocialPlanAntwort). */
 interface SocialKern { zaehler?: { zur_freigabe?: number } }
+/** E-370: nur die Zahl offener Karten aus GET /chef/mara/entscheidungen (fiaon-mara-entscheidungen.ts, EntscheidungenStand). */
+interface EntscheidungenKern { zaehler?: { offen?: number; geldRecht?: number } }
 
 function Steuerpult() {
   const lage = useMaraLage();
@@ -1479,6 +1492,7 @@ function Steuerpult() {
   const auskunft = useMaraDaten<AuskunftKern>("auskunft", MARA_QUELLEN.auskunft);
   const termine = useMaraDaten<TermineKern>("termine", MARA_QUELLEN.termine);
   const social = useMaraDaten<SocialKern>("social", MARA_QUELLEN.social);
+  const entscheidungen = useMaraDaten<EntscheidungenKern>("entscheidungen", MARA_QUELLEN.entscheidungen);
   const [offen, setOffen] = useState<Aufklapper | null>(null);
   // E-252 (Gegenprüfung): „Mara anweisen" bleibt nach dem ersten Öffnen montiert (nur ausgeblendet) — Entwürfe bleiben.
   const [anweisenDa, setAnweisenDa] = useState(false);
@@ -1497,6 +1511,7 @@ function Steuerpult() {
   const bs = auskunft.daten?.beschaffung;
   const wartenTermine = Number(termine.daten?.zaehler?.wartet || 0);
   const socialPruefen = Number(social.daten?.zaehler?.zur_freigabe || 0);
+  const zuEntscheiden = Number(entscheidungen.daten?.zaehler?.offen || 0);
 
   return (
     <div className="mara mara-pult">
@@ -1532,10 +1547,20 @@ function Steuerpult() {
             {x.r === "social" && socialPruefen > 0
               ? <span className="mara-zahlmarke" title={`${socialPruefen} ${socialPruefen === 1 ? "Post wartet" : "Posts warten"} auf deine Freigabe`}>{socialPruefen}</span>
               : null}
+            {x.r === "entscheidungen" && zuEntscheiden > 0
+              ? <span className="mara-zahlmarke" title={`${zuEntscheiden} ${zuEntscheiden === 1 ? "Entscheidung wartet" : "Entscheidungen warten"} auf dich`}>{zuEntscheiden}</span>
+              : null}
           </button>
         ))}
       </div>
 
+      {reiter === "entscheidungen" && (
+        <div role="tabpanel" aria-labelledby="mara-tab-entscheidungen">
+          <Suspense fallback={<Geruest zeilen={8} />}>
+            <MaraEntscheidungen />
+          </Suspense>
+        </div>
+      )}
       {reiter === "whatsapp" && <div role="tabpanel" aria-labelledby="mara-tab-whatsapp"><ChefWhatsAppZentrale /></div>}
       {reiter === "mail" && <div role="tabpanel" aria-labelledby="mara-tab-mail"><MaraMailAktion onAnweisungZeigen={anweisungZeigen} /></div>}
       {reiter === "auskunft" && (

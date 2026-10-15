@@ -21,9 +21,12 @@
 // animiert." Jede offene Zeile hat jetzt „Zubuchen“ (ChefKontoZubuchen.tsx — Vorschlag, Suche über alle Kunden,
 // Prüfen, Buchen über den einen Weg) und „kein Kundengeld“ lässt sich hier wieder zurücknehmen. Der Hintergrund
 // hängt an der Marke `kt-konto` (styles/chef-konto.css, nur diese Seite).
+//
+// 15.10.2026 (E-370): /chef/s/konto?eingang=<id> öffnet „Zubuchen“ für genau diesen Eingang — der Knopf „Im Konto
+// zuordnen“ einer Entscheidungskarte im Mara-Steuerpult springt hierher (60 Tage, damit der Eingang in der Liste steht).
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChefKontoZubuchen, { type ZubuchenEingang } from "@/components/admin/ChefKontoZubuchen";
 import "@/styles/chef-konto.css";
 
@@ -56,12 +59,21 @@ const tag = (s: string | null) =>
 const zeitpunkt = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "nie";
 
+/** E-370: ?eingang=<id> — der Eingang, für den „Zubuchen“ gleich offen sein soll (null ohne). */
+function eingangAusAdresse(): number | null {
+  try {
+    const n = Number(new URLSearchParams(window.location.search).get("eingang"));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+
 export default function ChefKonto() {
   const [k, setK] = useState<Konto | null>(null);
   const [laedt, setLaedt] = useState(true);
   const [holt, setHolt] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
-  const [tage, setTage] = useState(14);
+  const vorauswahl = useRef<number | null>(eingangAusAdresse());
+  const [tage, setTage] = useState(vorauswahl.current ? 60 : 14);
   const [zubuchen, setZubuchen] = useState<ZubuchenEingang | null>(null);
   const [nimmtZurueck, setNimmtZurueck] = useState<number | null>(null);
 
@@ -74,6 +86,17 @@ export default function ChefKonto() {
       .finally(() => setLaedt(false));
   };
   useEffect(() => { laden(); /* eslint-disable-next-line */ }, []);
+  // E-370: Vorauswahl aus der Adresse — einmal, sobald das Konto geladen ist.
+  useEffect(() => {
+    const id = vorauswahl.current;
+    if (!k || !id) return;
+    vorauswahl.current = null;
+    const z = k.liste.find((x) => x.id === id);
+    const o = k.wirklichOffen.zeilen.find((x) => x.id === id);
+    if (z && !z.gebucht && !z.keinKunde) setZubuchen({ id: z.id, am: z.am, betrag: z.betrag, zahler: z.zahler, zweck: z.zweck, unterwegs: z.schwebend });
+    else if (o) setZubuchen({ id: o.id, am: o.am, betrag: o.betrag, zahler: o.zahler, zweck: o.zweck, unterwegs: o.unterwegs });
+    else setMeldung(z ? "Dieser Eingang ist schon gebucht oder gekennzeichnet." : "Diesen Eingang gibt es in den letzten 60 Tagen nicht.");
+  }, [k]);
 
   const abrufen = async () => {
     setHolt(true); setMeldung(null);

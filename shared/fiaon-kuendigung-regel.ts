@@ -69,6 +69,8 @@
 // brauchen sie nicht: Für sie sperrt jede wirksame Kündigung.
 // ═══════════════════════════════════════════════════════════════════════════
 import { produktkategorie, produktkategorieSql } from "./fiaon-produktkategorie";
+// E-370 (15.10.2026): das Vertragsende aus einer gelesenen Zeile — rein, für vertragsendeLesen und Maras Entscheidungen.
+import { istJahresvertrag, abrechnungsmonat, tagDeutsch, berlinKalendertag } from "./fiaon-antrag-stand";
 
 /** Die Felder einer Bestellung, die die Regel liest (Zeile aus fiaon_applications). */
 export interface KuendigungBestellung {
@@ -364,3 +366,76 @@ export function tagDe(iso: string | null | undefined): string | null {
 export const AUSKUNFT_GEKUENDIGT_SQL = (person: string): string => `EXISTS (
   SELECT 1 FROM fiaon_applications kr_x WHERE kr_x.person_id = ${person} AND kr_x.merged_into IS NULL
      AND kr_x.gekuendigt_am IS NOT NULL AND ${produktkategorieSql("kr_x")} = 'auskunft')`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS VERTRAGSENDE AUS EINER ZEILE — UND DIE RATEN DANACH (E-370, 15.10.2026)
+//
+// vertragsendeLesen (server/lib/fiaon-kuendigung.ts) war die eine Lesestelle —
+// aber nur für EINE Bestellung je Abfrage. Maras Entscheidung „Raten nach
+// Vertragsende stornieren“ braucht dieselbe Rechnung für alle gekündigten
+// Altverträge auf einmal. Deshalb steht die Rechnung jetzt hier, rein, und
+// vertragsendeLesen ruft genau diese Funktion — eine Rechnung, zwei Leser.
+// Die Spalten liest VERTRAGSENDE_SPALTEN_SQL (derselbe Text an beiden Stellen).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Spalten, aus denen das Vertragsende gerechnet wird. `a` ist der Alias einer fiaon_applications-Zeile. */
+export const VERTRAGSENDE_SPALTEN_SQL = (a: string): string =>
+  `${alias(a)}.agb_stand, ${a}.gekuendigt_am, ${a}.vertrag_ende_am, ${a}.kuendigung_zurueckgenommen_am, ${a}.payment_status,
+   COALESCE(${a}.paid_at, ${a}.completed_at, ${a}.created_at) AS anker,
+   (SELECT COALESCE(json_agg(ve_r.faellig_am ORDER BY ve_r.rate_nr), '[]'::json) FROM fiaon_abo_raten ve_r WHERE ve_r.ref = ${a}.ref) AS faelligkeiten`;
+
+/** Eine Zeile mit den Spalten aus VERTRAGSENDE_SPALTEN_SQL. */
+export interface VertragsendeZeile {
+  agb_stand?: unknown;
+  gekuendigt_am?: unknown;
+  vertrag_ende_am?: unknown;
+  kuendigung_zurueckgenommen_am?: unknown;
+  payment_status?: unknown;
+  anker?: unknown;
+  /** Die Fälligkeitstage der ganzen Ratenkette (auch bezahlte und stornierte) — Liste oder JSON-Text. */
+  faelligkeiten?: unknown;
+}
+
+export interface Vertragsende {
+  jahresvertrag: boolean;
+  /** Vertragsende „JJJJ-MM-TT“ (Berlin) — null beim Jahresvertrag ohne gesetztes Ende. */
+  ende: string | null;
+  endeDe: string | null;
+  gekuendigtAm: Date | null;
+  quelle: string | null;
+}
+
+/**
+ * Das Vertragsende einer Bestellung aus ihrer Zeile — die Rechnung von vertragsendeLesen (E-265, 01.10.2026), rein.
+ * Jahresvertrag: vertrag_ende_am oder nichts. Altvertrag: vertrag_ende_am, wenn gesetzt (beim bezahlten Vertrag nie
+ * früher als das Ende des Abrechnungsmonats — ein früherer Tag ist ein Altwert), sonst das Ende des Abrechnungsmonats
+ * aus der Ratenkette bzw. dem Anker. Ohne Kündigung: das Ende, das eine Kündigung `am` (Vorgabe: `jetzt`) hätte.
+ */
+export function vertragsendeAusZeile(a: VertragsendeZeile | null | undefined, opt: { am?: Date | string | null; jetzt?: Date } = {}): Vertragsende {
+  if (!a) return { jahresvertrag: false, ende: null, endeDe: null, gekuendigtAm: null, quelle: null };
+  const jahresvertrag = istJahresvertrag(a.agb_stand);
+  const gekuendigtAm: Date | null = hatTag(a.gekuendigt_am) && !hatTag(a.kuendigung_zurueckgenommen_am) ? new Date(a.gekuendigt_am as any) : null;
+  const gesetzt = hatTag(a.vertrag_ende_am) ? berlinKalendertag(a.vertrag_ende_am as any) : null;
+  if (jahresvertrag) return { jahresvertrag, ende: gesetzt, endeDe: tagDeutsch(gesetzt), gekuendigtAm, quelle: gesetzt ? "vertrag_ende_am" : null };
+  const roh = a.faelligkeiten;
+  const kette: unknown[] = Array.isArray(roh) ? roh : (() => { try { const x = JSON.parse(String(roh ?? "[]")); return Array.isArray(x) ? x : []; } catch { return []; } })();
+  const m = abrechnungsmonat((opt.am ?? gekuendigtAm ?? opt.jetzt ?? new Date()) as any, kette as any[], { anker: (a.anker ?? null) as any });
+  if (gekuendigtAm && gesetzt) {
+    if (String(a.payment_status ?? "") === "paid" && gesetzt < m.bis) return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
+    return { jahresvertrag, ende: gesetzt, endeDe: tagDeutsch(gesetzt), gekuendigtAm, quelle: "vertrag_ende_am" };
+  }
+  return { jahresvertrag, ende: m.bis, endeDe: tagDeutsch(m.bis), gekuendigtAm, quelle: m.quelle };
+}
+
+/**
+ * Die offenen Raten eines gekündigten ALTVERTRAGS (vor dem 03.09.2026), die NACH seinem Vertragsende fällig sind —
+ * sie werden nie verlangt (AGB 04.07.2026 § 6; rateNachVertragsende in fiaon-kuendigung.ts ist dieselbe Regel für
+ * eine Rate). Jahresvertrag, keine oder zurückgenommene Kündigung, Rate ohne Fälligkeit: nichts. Raten bis zum
+ * Ende bleiben geschuldet („offene Rechnung vor Kündigung bleibt“). Rein.
+ */
+export function ratenNachVertragsende<T extends { faellig_am?: unknown }>(a: VertragsendeZeile | null | undefined, offene: readonly T[]): { ende: string | null; nachEnde: T[] } {
+  if (!a || !hatTag(a.gekuendigt_am) || hatTag(a.kuendigung_zurueckgenommen_am) || istJahresvertrag(a.agb_stand)) return { ende: null, nachEnde: [] };
+  const { ende } = vertragsendeAusZeile(a);
+  if (!ende) return { ende: null, nachEnde: [] };
+  return { ende, nachEnde: offene.filter((r) => { const f = berlinKalendertag(r.faellig_am as any); return !!f && f > ende; }) };
+}

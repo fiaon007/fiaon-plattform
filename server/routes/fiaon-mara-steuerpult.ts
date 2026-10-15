@@ -680,6 +680,85 @@ router.post("/chef/mara/kalender-abo/:umfang/:aktion", wache, async (req: ChefRe
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ENTSCHEIDUNGEN — REITER „ENTSCHEIDUNGEN" (15.10.2026, E-370)
+//
+// Justin: „Mara soll ALLES selbst machen können, nichts weitergeben an die
+// Mitarbeiter – wenn sie ne Entscheidung braucht, dann soll ich es mit 1 Klick
+// entscheiden können … aber Mara soll nicht MEHR Arbeit schaffen."
+//
+//   GET  /chef/mara/entscheidungen              offen · später · entschieden (7 Tage); stößt den Sammler an
+//                                               (höchstens alle 10 Min.) und wartet bis 8 s auf ihn
+//   POST /chef/mara/entscheidungen/entscheiden  { id, option } — führt das Werkzeug der Option aus
+//   POST /chef/mara/entscheidungen/spaeter      { id } — drei Tage aus der Liste
+//   POST /chef/mara/entscheidungen/pruefen      Sammler jetzt (wartet bis 25 s)
+//
+// Stufe „inhaber" wie das ganze Steuerpult; requireChef schreibt jede Nicht-GET-
+// Anfrage ins Chef-Protokoll, die Entscheidung dazu mit Ziel und Option.
+// Die Regeln stehen in server/lib/fiaon-mara-entscheidungen.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Wer klickt — der Name aus dem Mitarbeiterkonto des Chefs, sonst „Chef #id“ / „Inhaber“. */
+async function chefName(req: ChefRequest): Promise<string> {
+  const id = req.chef?.agentId ?? null;
+  if (id) {
+    const [a] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${id} LIMIT 1`.catch(() => [])) as any[];
+    if (a?.name && String(a.name).trim()) return String(a.name).trim().slice(0, 80);
+  }
+  return wer(req);
+}
+
+router.get("/chef/mara/entscheidungen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { entscheidungenStand } = await import("../lib/fiaon-mara-entscheidungen");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...(await entscheidungenStand({ warten: 8000 })) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] entscheidungen:", err);
+    res.status(500).json({ ok: false, error: "Die Entscheidungen ließen sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/entscheidungen/entscheiden", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const id = Number(req.body?.id);
+    const option = String(req.body?.option ?? "").trim().slice(0, 60);
+    if (!Number.isInteger(id) || id <= 0 || !option) return res.status(400).json({ ok: false, error: "Karte und Option fehlen." });
+    const { entscheiden } = await import("../lib/fiaon-mara-entscheidungen");
+    const von = await chefName(req);
+    const erg = await entscheiden(id, option, { von, agentId: req.chef?.agentId ?? null });
+    void chefProtokoll(req, `mara_entscheidung:${id}`, `${option}${erg.ok ? "" : ` — ${String(erg.error ?? "").slice(0, 160)}`}`);
+    res.status(erg.ok ? 200 : erg.status).json(erg.ok ? { ok: true, karte: erg.karte, schon: !!erg.schon } : { ok: false, error: erg.error, karte: erg.karte ?? null });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] entscheiden:", err);
+    res.status(500).json({ ok: false, error: "Die Entscheidung ist abgebrochen — bitte noch einmal." });
+  }
+});
+
+router.post("/chef/mara/entscheidungen/spaeter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Karte fehlt." });
+    const { entscheidungSpaeter } = await import("../lib/fiaon-mara-entscheidungen");
+    const karte = await entscheidungSpaeter(id);
+    if (!karte) return res.status(409).json({ ok: false, error: "Diese Karte ist schon entschieden." });
+    void chefProtokoll(req, `mara_entscheidung:${id}`, "später (3 Tage)");
+    res.json({ ok: true, karte });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] später:", err);
+    res.status(500).json({ ok: false, error: "Das ließ sich nicht verschieben." });
+  }
+});
+
+router.post("/chef/mara/entscheidungen/pruefen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { entscheidungenStand } = await import("../lib/fiaon-mara-entscheidungen");
+    res.json({ ok: true, ...(await entscheidungenStand({ warten: 25_000, jetzt: true })) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] entscheidungen prüfen:", err);
+    res.status(500).json({ ok: false, error: "Die Prüfung ist abgebrochen." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DER TAKT FÜR DIE DAUERAUFTRÄGE (23.09.2026, E-219)
 //
 // Alle zehn Minuten nachsehen, ob einer dran ist. Die Uhrzeit prüft der Lauf

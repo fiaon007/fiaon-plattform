@@ -5,6 +5,29 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 15.10.2026 — E-370 Mara-Steuerpult › Entscheidungen: Maras Fragen an Justin, ein Klick erledigt sie
+- **Was:** Neuer Reiter „Entscheidungen“ (vorn im Mara-Steuerpult, /chef/s/mara?reiter=entscheidungen, am Handy „Fragen“, Zahlmarke =
+  offene Karten). Je Karte: was los ist, wer (Link zur Akte), Belege, die Kundenzeile gekürzt, Maras Empfehlung als blauer Knopf, die
+  anderen Möglichkeiten daneben, „Später“ (3 Tage). Der Klick erledigt die Sache über den bestehenden Weg und schreibt das Ergebnis in die
+  Karte; hat sich die Lage inzwischen erledigt, tut er nichts und sagt das. Mara sucht die Karten selbst (beim Öffnen, höchstens alle
+  10 Minuten, „Neu prüfen“ sofort): Raten nach Vertragsende (eine Sammelkarte, storniert NUR Raten nach dem Ende — neuer Weg
+  ratenNachVertragsendeStornieren, Grund „nach_vertragsende“, kommt mit einer Rücknahme der Kündigung zurück), nie gebuchte Kündigungen
+  (buchen wie in der Akte über antragBuchen, oder „Ist keine Kündigung“), Postmeister-Mahnstopps (Raten stornieren + Abo-Stopp /
+  weiter erinnern / so lassen), Geld auf dem Konto ohne Buchung (eindeutig: buchen über bankeingangBuchen; sonst „Im Konto zuordnen“ —
+  /chef/s/konto?eingang=… öffnet „Zubuchen“ für genau diesen Eingang; „Kein Kundengeld“), Werbesperre auf eine Zahlungsmail (lassen /
+  aufheben: Zahlungspost wieder frei, Werbung bleibt aus) und fehlende WhatsApp-Vorlagen bei Meta (derselbe Einreich-Weg wie im Reiter
+  „Bonitätsauskunft“). Unten aufklappbar: entschieden in den letzten 7 Tagen. Mara und der Postmeister können eigene Karten anlegen
+  (entscheidungAnlegen, werkzeugRegistrieren).
+- **Warum:** Justin: „Mara soll ALLES selbst machen können, nichts weitergeben an die Mitarbeiter – wenn sie ne Entscheidung braucht,
+  dann soll ich es mit 1 Klick entscheiden können … aber Mara soll nicht MEHR Arbeit schaffen.“ Gemessen 15.10. (nur lesend):
+  22 nie gebuchte Kündigungen, 59 Menschen mit 76 Raten (4.719,24 €) nach Vertragsende, 15 Mahnstopps mit 16 offenen Raten
+  (1.147,84 €), 4 Werbesperren auf Zahlungsmails, 1 unverbuchter Eingang.
+- **Wo:** server/lib/fiaon-mara-entscheidungen.ts (neu: Tabelle fiaon_mara_entscheidungen, Detektoren, Werkzeuge), Routen
+  GET /chef/mara/entscheidungen, POST …/entscheiden, …/spaeter, …/pruefen (server/routes/fiaon-mara-steuerpult.ts),
+  shared/fiaon-kuendigung-regel.ts (vertragsendeAusZeile, ratenNachVertragsende — vertragsendeLesen rechnet jetzt damit),
+  server/lib/fiaon-raten-storno.ts, client/src/components/admin/ChefMaraEntscheidungen.tsx, Rundgang des Reiters und ein Schritt im
+  Mara-Rundgang; Prüfstand scripts/pruef-mara-entscheidungen.ts (57/57, lokale DB).
+
 ## 14.10.2026 — E-364 Arbeitsliste „Bonitätsauswertung“: jeder zahlende Paketkunde, „wartet auf den Kartenlink“
 - **Was:** Die Liste oben in Chefbüro › Kunden › Auskunft-Beschaffung zeigt jetzt jeden Kunden mit bezahltem Privatpaket (ohne Test,
   ohne Global-Kunden, ohne wirksam Gekündigte) und wie bisher jeden Käufer der Bonitätsauskunft — auch nach einer Kündigung, denn die

@@ -1661,8 +1661,8 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   {
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
-    // E-260 (29.09.2026): vier Reiter — dazu „Termine". E-294 (06.10.2026): fünf — dazu „Social".
-    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle fünf Reiter.",
+    // E-260 (29.09.2026): vier Reiter — dazu „Termine". E-294 (06.10.2026): fünf — dazu „Social". E-370 (15.10.2026): sechs — dazu „Entscheidungen".
+    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle sechs Reiter.",
   },
   // E-261 (29.09.2026): die WhatsApp-Bremse — der Chip steht immer da (grün, gelb oder rot).
   {
@@ -1684,11 +1684,18 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
   },
   {
     ziel: ".mara-reiter",
-    titel: "Fünf Reiter: WhatsApp, Mail, Bonitätsauskunft, Termine, Social.",
+    titel: "Sechs Reiter: Entscheidungen, WhatsApp, Mail, Bonitätsauskunft, Termine, Social.",
     text: "Die Adresse merkt sich den Reiter: /chef/s/mara?reiter=auskunft öffnet direkt die Bonitätsauskunft, "
       + "/chef/s/mara?reiter=termine alle Termine — die Zahl am Reiter „Termine“ sind Kunden, die gerade warten. "
       // E-294 (06.10.2026): das Social-Studio.
       + "/chef/s/mara?reiter=social ist das Social-Studio: die Zahl dort sind Posts, die auf deine Freigabe warten.",
+  },
+  // E-370 (15.10.2026), Justin: „wenn sie ne Entscheidung braucht, dann soll ich es mit 1 Klick entscheiden können“.
+  {
+    ziel: "#mara-tab-entscheidungen",
+    titel: "Entscheidungen: ein Klick, erledigt.",
+    text: "Braucht Mara eine Entscheidung, liegt sie hier als Karte — mit ihrer Empfehlung als blauem Knopf. Ein Klick erledigt die Sache "
+      + "wirklich (buchen, stornieren, zubuchen), nichts geht an das Team. Die Zahl am Reiter sind die offenen Karten.",
   },
   {
     ziel: ".mp-aktion-schalter",
@@ -1738,6 +1745,31 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mp-reiter",
     titel: "Jede Mail, vollständig.",
     text: "Unten jede Mail, die rausging, hängen blieb oder scheiterte.",
+  },
+];
+
+// ── /chef/s/mara?reiter=entscheidungen (15.10.2026, E-370) ──────────────────
+// Justin: „Mara soll ALLES selbst machen können, nichts weitergeben an die Mitarbeiter – wenn sie ne
+// Entscheidung braucht, dann soll ich es mit 1 Klick entscheiden können." Ein Satz je Schritt wie im
+// Steuerpult (E-252). Ziele: .me-status, die erste Karte (.me-knoepfe), .me-entschieden.
+export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
+  {
+    ziel: ".me-status",
+    titel: "Oben: was auf dich wartet.",
+    text: "Die Zahl sind die offenen Entscheidungen — Geld und Recht stehen vorn. Mara sucht sie selbst, höchstens alle zehn Minuten; "
+      + "„Neu prüfen“ sofort.",
+  },
+  {
+    ziel: ".me-karte .me-knoepfe",
+    titel: "Der blaue Knopf ist Maras Empfehlung.",
+    text: "Jeder Knopf erledigt die Sache über denselben Weg wie Akte und Konto — mit Urkunde, Mail und Vermerk. Gelb umrandet heißt "
+      + "endgültig, mit Rückfrage. „Später“ legt die Karte drei Tage weg.",
+    tipp: "Hat sich die Lage inzwischen erledigt (bezahlt, schon gebucht), tut der Knopf nichts und sagt das.",
+  },
+  {
+    ziel: ".me-entschieden",
+    titel: "Was entschieden ist.",
+    text: "Aufklappbar: alles der letzten sieben Tage, mit Ergebnis, wer und wann — auch was sich von selbst erledigt hat.",
   },
 ];
 
@@ -2311,6 +2343,8 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },
   maraTermine: { titel: "Termine", schritte: RUNDGANG_MARA_TERMINE },
+  // E-370 (15.10.2026): Maras Entscheidungen im Mara-Steuerpult.
+  maraEntscheidungen: { titel: "Entscheidungen", schritte: RUNDGANG_MARA_ENTSCHEIDUNGEN },
   // E-294 (06.10.2026): Social-Studio im Mara-Steuerpult — je Unteransicht einer.
   socialPlan:     { titel: "Social · Plan", schritte: RUNDGANG_SOCIAL_PLAN },
   socialPost:     { titel: "Social · Post", schritte: RUNDGANG_SOCIAL_POST },

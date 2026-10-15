@@ -55,7 +55,9 @@ export type RatenStornoGrund =
   /** Erstattung: Die Zahlung geht zurück, es besteht kein Vertrag mehr. */
   | "erstattet"
   /** Abo-Stopp aus der Verwaltung (POST /admin/abo/:ref/stoppen). */
-  | "abo_gestoppt";
+  | "abo_gestoppt"
+  /** E-370: Mahnstopp-Karte „Raten stornieren (Kunde hat recht)“ — Einwand anerkannt, Abo gestoppt (fiaon-mara-entscheidungen.ts). */
+  | "einwand_anerkannt";
 
 /**
  * Storniert alle noch offenen Raten einer Bestellung. Gibt zurück, wie viele es waren.
@@ -74,6 +76,44 @@ export async function ratenStornieren(ref: string, grund: RatenStornoGrund, lauf
     RETURNING id
   `) as any[];
   return zeilen.length;
+}
+
+// ── NUR DIE RATEN NACH DEM VERTRAGSENDE (E-370, 15.10.2026) ────────────────
+// Justin: „offene Rechnung vor Kündigung bleibt“. ratenStornieren nimmt ALLE
+// offenen Raten einer Bestellung — für den Altbestand der gekündigten
+// Altverträge (vor dem 03.09.2026) wäre das falsch: Raten bis zum Vertragsende
+// sind geschuldet, nur die danach nicht (AGB 04.07.2026 § 6). Gemessen am
+// 15.10.2026 (nur lesend, mit vertragsendeAusZeile): 59 Menschen, 76 Raten,
+// 4.719,24 € — seit E-368 nicht mehr gemahnt, aber noch offen in den Büchern. Neue Kündigungen storniert
+// kuendigungSetzen selbst (Nachbesserung 2, 01.10.2026).
+//
+// Gleiche Nebenwirkungen wie ratenStornieren (Mahnstufe 0, Inkasso gelöst),
+// eigener Grund STORNO_NACH_VERTRAGSENDE. Die Grenze steht in der Anweisung
+// selbst: nur genannte Raten, nur noch offene, nur fällig NACH `endeTag` — eine
+// Rate bis zum Ende fällt nie, auch wenn der Aufrufer sie mitschickt.
+// kuendigungZuruecknehmen holt diesen Grund zurück (wie „kuendigung“): Nimmt
+// der Kunde die Kündigung zurück, läuft der Vertrag weiter und die Raten gelten.
+// ═══════════════════════════════════════════════════════════════════════════
+export const STORNO_NACH_VERTRAGSENDE = "nach_vertragsende";
+
+/**
+ * Storniert die genannten offenen Raten einer Bestellung, soweit sie NACH `endeTag` (JJJJ-MM-TT) fällig sind.
+ * Gibt die stornierten Raten zurück (Nummer, Betrag, Fälligkeit). `lauf` = Transaktion des Aufrufers.
+ */
+export async function ratenNachVertragsendeStornieren(ref: string, rateIds: readonly number[], endeTag: string, lauf: Lauf = sqlPool): Promise<{ id: number; rate_nr: number; betrag_cents: number; faellig: string }[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endeTag) || !rateIds.length) return [];
+  const zeilen = (await lauf`
+    UPDATE fiaon_abo_raten
+       SET status = 'storniert', storniert_am = NOW(), storno_grund = ${STORNO_NACH_VERTRAGSENDE},
+           mahnstufe = 0,
+           inkasso_agent_id = NULL, inkasso_wiedervorlage = NULL, inkasso_zusage_am = NULL,
+           updated_at = NOW()
+     WHERE ref = ${ref} AND id = ANY(${rateIds.map(Number)}::int[])
+       AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL
+       AND faellig_am IS NOT NULL AND faellig_am > ${endeTag}::date
+    RETURNING id, rate_nr, betrag_cents, to_char(faellig_am, 'YYYY-MM-DD') AS faellig
+  `) as any[];
+  return zeilen.map((z) => ({ id: Number(z.id), rate_nr: Number(z.rate_nr), betrag_cents: Number(z.betrag_cents) || 0, faellig: String(z.faellig) }));
 }
 
 // ── DIE ZWEITE HÄLFTE: WEN DIE ERINNERUNGSLÄUFE ÜBERHAUPT ANSEHEN ─────────

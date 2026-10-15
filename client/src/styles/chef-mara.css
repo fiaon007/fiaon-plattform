@@ -701,9 +701,11 @@ a.mp-name:hover { text-decoration: underline; }
 }
 /* E-294 (06.10.2026): fünf Reiter (dazu „Social") — am Handy (390 px) passen sie nur mit
    schmalerem Rand und 13 px Schrift in eine Zeile, samt Zahlmarken. Keine Querrolle. */
+/* E-370 (15.10.2026): sechs Reiter (dazu „Entscheidungen“, kurz „Fragen“) — gemessen bei 390 px mit drei zweistelligen
+   Zahlmarken: 13 px liefen 62 px über, 12 px mit 2 px Rand passen genau (366/366). */
 @media (max-width: 440px) {
-  .mara .mara-reiter button { padding: 0 3px; font-size: 13px; gap: 4px; }
-  .mara .mara-reiter .mara-zahlmarke { min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; margin-left: 3px; }
+  .mara .mara-reiter button { padding: 0 2px; font-size: 12px; gap: 2px; }
+  .mara .mara-reiter .mara-zahlmarke { min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; margin-left: 2px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -718,3 +720,48 @@ a.mp-name:hover { text-decoration: underline; }
 .mara-wa-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 18px; margin: 14px 0 8px; }
 .mara-wa-zahlen dt { font: 400 11.5px/1.3 'Inter', sans-serif; color: var(--m-text-3); }
 .mara-wa-zahlen dd { margin: 2px 0 0; font: 500 14px/1.3 'Inter', sans-serif; color: var(--m-text); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-370 (15.10.2026): REITER „ENTSCHEIDUNGEN" (ChefMaraEntscheidungen.tsx) — Präfix .me-
+   Eine Karte je Entscheidung; die erste ist die eine Glasfläche der Ansicht (.mara-glas),
+   die übrigen matt (.mara-karte). Empfehlung = blauer Knopf vorn, „vorsicht" gelb umrandet.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.me-status { margin-bottom: 14px; }
+.me-liste-karten { display: flex; flex-direction: column; gap: 14px; }
+.me-karte { display: flex; flex-direction: column; gap: 9px; }
+.me-karte.fertig { opacity: .92; }
+.me-kopf { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+.me-person { font-size: 13.5px; }
+.mara .me-titel { font-size: 16.5px; line-height: 1.35; color: var(--m-text); font-weight: 400; }
+.me-text { color: var(--m-text-2); line-height: 1.55; max-width: 78ch; }
+.me-belege { display: flex; flex-wrap: wrap; gap: 6px; }
+.me-belege .mp-chip { white-space: normal; }
+.mp-chip.rot { color: var(--m-krit); border-color: rgba(240, 113, 120, .4); }
+.me-zitat { margin: 0; padding: 7px 12px; border-left: 2px solid var(--m-linie-2); color: var(--m-text-2); font-size: 13px; line-height: 1.5; max-width: 78ch; }
+.me-zitat-wo { display: block; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--m-text-3); margin-bottom: 1px; }
+.me-liste { margin-top: 2px; padding-top: 6px; }
+.me-liste ul { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.me-liste li { display: flex; flex-wrap: wrap; gap: 2px 10px; padding: 6px 0; border-top: 1px solid var(--m-linie); font-size: 13px; }
+.me-liste li:first-child { border-top: 0; }
+.me-knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.me-empf { flex-basis: 100%; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--m-licht-text); }
+.me-knoepfe a.mara-knopf { display: inline-flex; align-items: center; text-decoration: none; }
+.me-spaeter { margin-left: 4px; }
+.me-ergebnis { display: flex; align-items: baseline; gap: 9px; margin: 2px 0 0; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(61, 214, 140, .32); background: rgba(61, 214, 140, .06); color: var(--m-text); font-size: 13.5px; line-height: 1.5; }
+.me-ergebnis.leise { border-color: var(--m-linie-2); background: var(--m-matt); color: var(--m-text-2); }
+.me-ergebnis .mara-punkt { transform: translateY(-1px); }
+.me-leer { padding: 22px 2px; font-size: 15px; color: var(--m-text-2); }
+.me-entschieden, .me-spaeter-liste { margin-top: 22px; }
+.me-verlauf { list-style: none; margin: 0; padding: 0; }
+.me-verlauf li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 2px 14px; padding: 9px 0; border-top: 1px solid var(--m-linie); font-size: 13px; }
+.me-verlauf li:first-child { border-top: 0; }
+.me-verlauf li > :not(.mara-etikett) { grid-column: 2; }
+.me-verlauf-was b { font-weight: 400; color: var(--m-text); }
+.me-verlauf-ergebnis { color: var(--m-text-2); }
+@media (max-width: 760px) {
+  .me-knoepfe .mara-knopf:not(.text) { flex: 1 1 auto; justify-content: center; text-align: center; }
+  .me-verlauf li { grid-template-columns: minmax(0, 1fr); }
+  .me-verlauf li > :not(.mara-etikett) { grid-column: 1; }
+  .me .mara-klappe > summary { min-height: 40px; }
+}

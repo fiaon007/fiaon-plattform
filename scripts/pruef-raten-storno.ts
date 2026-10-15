@@ -318,8 +318,13 @@ try {
   {
     const helfer = lies("server/lib/fiaon-raten-storno.ts");
     const gruende = [...(helfer.match(/export type RatenStornoGrund =([\s\S]*?);/)?.[1] ?? "").matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
-    ok("Storno-Gründe fest (5), keiner heißt kuendigung/kuendigung_kulanz", gruende.length === 5 && !gruende.includes("kuendigung") && !gruende.includes("kuendigung_kulanz"), gruende);
-    ok("kuendigungZuruecknehmen holt nur storno_grund = 'kuendigung' zurück", /storno_grund = 'kuendigung' AND status = 'storniert'/.test(lies("server/lib/fiaon-kuendigung.ts")));
+    // E-370 (15.10.2026): + „einwand_anerkannt“ (Mahnstopp-Karte „Kunde hat recht“) — kommt mit keiner Rücknahme zurück.
+    ok("Storno-Gründe fest (6), keiner heißt kuendigung/kuendigung_kulanz/nach_vertragsende",
+      gruende.length === 6 && !gruende.includes("kuendigung") && !gruende.includes("kuendigung_kulanz") && !gruende.includes("nach_vertragsende"), gruende);
+    // E-370: Die Raten nach dem Vertragsende (STORNO_NACH_VERTRAGSENDE) kommen mit der Rücknahme der Kündigung zurück — wie „kuendigung“.
+    ok("kuendigungZuruecknehmen holt nur storno_grund 'kuendigung' und 'nach_vertragsende' zurück",
+      /storno_grund IN \('kuendigung', \$\{STORNO_NACH_VERTRAGSENDE\}\) AND status = 'storniert'/.test(lies("server/lib/fiaon-kuendigung.ts"))
+      && /export const STORNO_NACH_VERTRAGSENDE = "nach_vertragsende";/.test(lies("server/lib/fiaon-raten-storno.ts")));
     ok("Telefonkartei holt nur storno_grund = 'kuendigung_kulanz' zurück", /status = 'storniert' AND storno_grund = 'kuendigung_kulanz'/.test(lies("server/lib/fiaon-telefonkartei.ts")));
     const abo = lies("server/routes/fiaon-abo.ts");
     ok("Abo-Stopp setzt nirgends mehr status 'storniert' ohne storniert_am", !/SET status = 'storniert', notiz/.test(abo));

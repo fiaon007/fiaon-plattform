@@ -496,7 +496,7 @@ const AUSKUNFT_ABSAETZE: Record<string, string[]> = {
       + "Keine Auskunft einer Auskunftei, keine Anfrage dort.",
     "Ihr Preis als FIAON-Kunde: {{4}} einmalig, ohne Abo. Über den Knopf sehen Sie alles in Ruhe; "
       + "bestellt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
-    "Fragen beantworte ich gern hier, oder ich hole Ihren Betreuer dazu.",
+    "Fragen? Antworten Sie einfach hier.",
     AUSKUNFT_STOPP_SATZ,
   ],
   [AUSKUNFT_LEAD_VORLAGE]: [
@@ -507,9 +507,9 @@ const AUSKUNFT_ABSAETZE: Record<string, string[]> = {
     "Genau das zeigt Ihnen die FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, jede Ausgabe im Detail, "
       + "Ampel, Finanzwert und Ihr Plan. Sie laden Ausweis und Kontoauszüge hoch, ein Mensch aus unserem Team prüft den Bericht. "
       + "Keine Auskunft einer Auskunftei, keine Anfrage dort.",
-    "Ihr Preis: {{4}} einmalig, ohne Abo — mit einem FIAON-Paket wird sie günstiger. "
+    "Ihr Preis: {{4}} einmalig, ohne Abo — mit FIAON-Paket günstiger. "
       + "Über den Knopf sehen Sie alles in Ruhe; bestellt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
-    "Fragen beantworte ich gern hier, oder ich verbinde Sie mit einem Menschen aus unserem Team.",
+    "Fragen? Antworten Sie einfach hier.",
     AUSKUNFT_STOPP_SATZ,
   ],
 };

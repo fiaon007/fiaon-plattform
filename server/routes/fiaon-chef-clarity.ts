@@ -132,7 +132,7 @@ async function abrufen(tage: number, vonHand: boolean): Promise<any> {
   const [zeile] = (await sqlPool`
     INSERT INTO fiaon_clarity_abrufe (tage, anfragen, von_hand, erfolg, gesamt, seiten, aufschluessel)
     VALUES (${n}, ${ANFRAGEN_JE_ABRUF}, ${vonHand}, TRUE,
-            ${JSON.stringify(gesamt)}::jsonb, ${JSON.stringify(seiten)}::jsonb, ${JSON.stringify(aufschluessel)}::jsonb)
+            ${JSON.stringify(gesamt)}::text::jsonb, ${JSON.stringify(seiten)}::text::jsonb, ${JSON.stringify(aufschluessel)}::text::jsonb)
     RETURNING *`) as any[];
   console.log(`[CLARITY] Abruf über ${n} Tage abgelegt (${vonHand ? "von Hand" : "selbsttätig"}), heute ${verbraucht + ANFRAGEN_JE_ABRUF}/${TAGESBUDGET}`);
   return zeile;
@@ -158,10 +158,24 @@ function summe(zeilen: any[], feld: string): number {
   return zeilen.reduce((s, z) => s + zahl(z?.[feld]), 0);
 }
 
-function auswerten(abruf: any) {
-  const gesamt = abruf?.gesamt ?? [];
-  const seitenRoh = abruf?.seiten ?? [];
-  const auf = abruf?.aufschluessel ?? [];
+/**
+ * E-377 (15.10.2026, Justin: „Besucher sehe ich nie … wirklich nie“): Die Rohdaten lagen DOPPELT verpackt in der Tabelle —
+ * `${JSON.stringify(x)}::jsonb` macht aus dem Text einen JSON-STRING (jsonb_typeof = 'string', alle 63 Abrufe seit 28.08.).
+ * auswerten() rief dann .find() auf einem Text auf → 500 → „Die Besucherzahlen ließen sich nicht laden.“ — seit dem ersten Tag.
+ * Jetzt: entpacken, egal ob Liste, JSON-Text oder doppelt verpackter Text. Rein.
+ */
+export function rohListe(v: unknown): any[] {
+  let x: unknown = v;
+  for (let i = 0; i < 3 && typeof x === "string"; i++) {
+    try { x = JSON.parse(x); } catch { return []; }
+  }
+  return Array.isArray(x) ? x : [];
+}
+
+export function auswerten(abruf: any) {
+  const gesamt = rohListe(abruf?.gesamt);
+  const seitenRoh = rohListe(abruf?.seiten);
+  const auf = rohListe(abruf?.aufschluessel);
 
   // ── Die Kopfzahlen ──────────────────────────────────────────────────────
   const verkehr = metrik(gesamt, "Traffic")[0] ?? {};
@@ -503,7 +517,8 @@ router.get("/chef/clarity/verlauf", requireChef("leitung"), async (_req: Request
     await ensureTabelle();
     const zeilen = (await sqlPool`
       SELECT geholt_am, tage, von_hand,
-             (gesamt -> 0) IS NOT NULL AS hat_daten
+             -- E-377: alte Zeilen tragen die Liste als JSON-Text (doppelt verpackt) — auch sie haben Daten.
+             (CASE WHEN jsonb_typeof(gesamt) = 'string' THEN length(gesamt #>> '{}') > 2 ELSE (gesamt -> 0) IS NOT NULL END) AS hat_daten
         FROM fiaon_clarity_abrufe
        WHERE erfolg ORDER BY geholt_am DESC LIMIT 60`) as any[];
     res.json({ ok: true, zeilen });

@@ -34,6 +34,7 @@ import "@/styles/chef-social.css";
 const SocialPlan = lazy(() => import("./social/SocialPlan"));
 const SocialVorschau = lazy(() => import("./social/SocialVorschau"));
 const SocialPost = lazy(() => import("./social/SocialPost"));
+const SocialAutomatik = lazy(() => import("./social/SocialAutomatik"));
 
 
 function ausAdresse(): { sicht: SocialSicht; post: number | null } {
@@ -108,6 +109,8 @@ export default function ChefMaraSocial({ onGeaendert }: { onGeaendert?: () => vo
               <button type="button" aria-pressed={ort.sicht === "vorschau"} onClick={() => sichtWechseln("vorschau")}
                 title="So sieht das Instagram-Profil aus — heute, in 7 oder in 30 Tagen.">So sieht es aus</button>
             </div>
+            {/* E-380: Automatisch posten — Stand, nächster Post, Not-Aus. */}
+            <Suspense fallback={null}><SocialAutomatik onOeffnen={oeffnen} /></Suspense>
           </div>
           <Suspense fallback={<Geruest zeilen={8} />}>
             {ort.sicht === "plan"

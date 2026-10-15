@@ -89,7 +89,7 @@ export async function ichLaden(chef: { agentId: number | null; stufe: SocialIch[
   const stufe = chef.stufe;
   return { stufe, agentId: chef.agentId ?? null, name, darfTrotzdem: stufe === "inhaber" };
 }
-export const handelnderAus = (ich: SocialIch): SocialHandelnder => ({ von: ich.agentId ? `chef:${ich.agentId}` : "inhaber", name: ich.name, agentId: ich.agentId, stufe: ich.stufe });
+export const handelnderAus = (ich: SocialIch): SocialHandelnder => ({ von: ich.automatik ? "automatik" : ich.agentId ? `chef:${ich.agentId}` : "inhaber", name: ich.name, agentId: ich.agentId, stufe: ich.stufe });
 
 // ── Zeilen → API ───────────────────────────────────────────────────────────
 interface PostDatei { datei_id: number; pos: number; rolle: SocialRolle; dateiname: string; sha256: string; sekunden: number | null; mime: string; bytes: number; breite: number | null; hoehe: number | null }

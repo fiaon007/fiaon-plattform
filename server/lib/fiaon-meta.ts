@@ -161,6 +161,13 @@ export async function graph(
      */
     roherKoerper?: Record<string, unknown>;
     zeitMs?: number;
+    /**
+     * Genau EIN Versuch, keine Wiederholung (E-380). Für Aufrufe, die etwas
+     * Sichtbares anlegen (Instagram media_publish, Facebook-Beitrag): Kommt die
+     * Antwort nicht an, wurde womöglich schon gepostet — ein zweiter Versuch
+     * wäre ein doppelter Beitrag.
+     */
+    einmal?: boolean;
   } = {},
 ): Promise<any> {
   const z = zugang(opt.app ?? "haupt");
@@ -185,7 +192,8 @@ export async function graph(
     body = new URLSearchParams(params).toString();
   }
   let letzter: unknown = null;
-  for (let versuch = 0; versuch < 3; versuch++) {
+  const versuche = opt.einmal ? 1 : 3;
+  for (let versuch = 0; versuch < versuche; versuch++) {
     try {
       const r = await fetch(url, {
         method: methode,
@@ -208,7 +216,7 @@ export async function graph(
       if (err instanceof MetaFehler && !(err.status >= 500 || [1, 2, 4, 17, 32, 613].includes(err.code ?? -1))) throw err;
       letzter = err;
     }
-    await warte(versuch === 0 ? 1000 : 3000);
+    if (versuch + 1 < versuche) await warte(versuch === 0 ? 1000 : 3000);
   }
   if (letzter instanceof MetaFehler) throw letzter;
   throw new MetaFehler(`Meta nicht erreichbar: ${letzter instanceof Error ? letzter.message : String(letzter)}`, null, 0);

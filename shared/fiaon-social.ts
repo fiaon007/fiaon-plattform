@@ -689,7 +689,11 @@ export interface SocialFehler {
   kanaele?: SocialKanal[];
 }
 
-export interface SocialIch { stufe: "inhaber" | "geschaeftsfuehrung" | "leitung"; agentId: number | null; name: string; darfTrotzdem: boolean }
+export interface SocialIch {
+  stufe: "inhaber" | "geschaeftsfuehrung" | "leitung"; agentId: number | null; name: string; darfTrotzdem: boolean;
+  /** E-380: die Meta-Automatik meldet „veröffentlicht" selbst — im Verlauf steht dann „automatik", nie „inhaber". */
+  automatik?: boolean;
+}
 
 export interface SocialDatei {
   id: number;

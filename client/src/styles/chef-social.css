@@ -34,6 +34,16 @@
 .so-kopf-rechts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .so-zurueck { margin: -4px 0 14px; }
 
+/* ── E-380: „Automatisch posten" in der Kopfzeile — eine Zeile, matt, kein Glas ── */
+.so-auto { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; min-width: 0; font-size: 13px; color: var(--m-text-2, #B6C2D6); }
+.so-auto-text { min-width: 0; line-height: 1.5; }
+.so-auto-link { display: inline; padding: 0; font-size: inherit; }
+.so-auto-zeit { font-variant-numeric: tabular-nums; color: var(--m-text, #E6EDF7); }
+.so-auto .so-kanal { margin-left: 2px; }
+.so-auto-fehler { cursor: pointer; max-width: 100%; white-space: normal; text-align: left; }
+.so-auto-meldung { color: var(--m-krit, #F07178); font-size: 12.5px; }
+@media (max-width: 600px) { .so-auto { width: 100%; } }
+
 /* ── Kanal-Kürzel und Format-Zeichen ─────────────────────────────────── */
 .so-kanaele { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .so-kanal {

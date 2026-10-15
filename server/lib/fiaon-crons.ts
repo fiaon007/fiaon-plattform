@@ -443,6 +443,18 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // E-379 (15.10.2026): Der Ratgeber-Lauf stand bis heute NICHT hier — sechs Wochen ohne einen Artikel fielen niemandem
   // auf. „erfolg" heißt jetzt: Für den Tag (vor 06:00: den Vortag) ist je Bereich ein Artikel erschienen. Fehlt einer,
   // schreibt der Lauf „fehler" (ratgeberLaufPruefen) — bleibt das 26 Stunden so, wird die Ampel gelb und warnt.
+  // E-380 (15.10.2026): Meta-Automatik. Ohne Posting-Rechte läuft der Posten-Lauf leer (Erfolg) — er
+  // gehört trotzdem in den Katalog: Fällt er aus, stehen geplante Posts still, und niemand merkt es.
+  social_meta_posten: {
+    zweck: "Freigegebene Posts aus dem Social-Studio zur Planzeit auf Instagram und Facebook veröffentlichen und im Studio melden",
+    folge: "Geplante Posts gehen nicht raus — Instagram und Facebook bleiben still, obwohl im Studio alles freigegeben ist.",
+    fenster: 2,
+  },
+  meta_utm: {
+    zweck: "Jede laufende Meta-Anzeige, die auf fiaon.com führt, bekommt einmal die utm-Parameter (Kampagne, Anzeigengruppe, Anzeige)",
+    folge: "Neue Website-Anzeigen landen in Chefbüro › Besucher nur als „Facebook/Instagram“ — Kampagne und Kosten je Kauf sind nicht zuzuordnen.",
+    fenster: 3,
+  },
   "ratgeber-tagesartikel": {
     zweck: "Ratgeber: jeden Tag ab 06:00 je einen neuen, aktuellen Artikel für Privatkunden (/ratgeber) und Business (FIAON Global, /business/wissen) recherchieren, schreiben, streng prüfen und veröffentlichen",
     folge: "Auf fiaon.com erscheinen keine neuen Ratgeber — weder für Privatkunden noch auf /business/wissen; die Seiten veralten, und der organische Kanal bekommt keinen Nachschub.",

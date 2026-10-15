@@ -45,6 +45,7 @@ import {
   ichLaden, statusZaehler, webVariantenSpeichern, SocialFehlerWurf, type SocialHandelnder, type WebVarianteEingang,
 } from "../lib/fiaon-social";
 import { dateiKopf, dateiLesen, dateiStuecke, downloadName, STUECK_BYTES } from "../lib/fiaon-social-dateien";
+import { metaAutomatikStand, postenSchalten, medienSignaturPruefen } from "../lib/fiaon-social-meta";
 import { sozialFeed, sozialFeedLeer, sozialFeedLeeren, websiteBild } from "../lib/fiaon-sozial-feed";
 import { SOZIAL_FEED_PFAD } from "@shared/fiaon-sozial-feed";
 import { fensterDrossel } from "../lib/fiaon-global-bereich-regeln";
@@ -452,6 +453,43 @@ router.post("/chef/social/post/:id/:aktion", wache, async (req: ChefRequest, res
     return res.json({ ok: true, post, meldung: r.meldung });
   } catch (e) { return fehlerSenden(res, e, `Aktion ${aktion}`); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-380 · META-AUTOMATIK: Stand, Not-Aus und die signierten Medien für Meta
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/social/automatik", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    await ichLaden(req.chef);
+    return res.json(await metaAutomatikStand());
+  } catch (e) { return fehlerSenden(res, e, "Automatik"); }
+});
+
+/** Not-Aus: { an: boolean }. Wieder an heißt „ab jetzt" — aus der Aus-Zeit wird nichts nachgeholt. */
+router.post("/chef/social/automatik", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    await ichLaden(req.chef);
+    if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, code: "UNGUELTIG", error: "Bitte „an“ oder „aus“ schicken." });
+    await postenSchalten(req.body.an);
+    void chefProtokoll(req, "social:automatik", `Automatisch posten: ${req.body.an ? "an" : "aus"}`);
+    return res.json(await metaAutomatikStand());
+  } catch (e) { return fehlerSenden(res, e, "Automatik schalten"); }
+});
+
+/**
+ * Meta holt die Bilder und Videos selbst (image_url / video_url / file_url). Ohne Anmeldung,
+ * aber nur mit gültiger, drei Stunden geltender Signatur aus der Automatik (medienUrl) —
+ * sonst 404, ohne zu verraten, ob es die Datei gibt.
+ */
+function metaDatei(req: Request, res: Response, nurKopf: boolean) {
+  const id = idAus(req);
+  if (!id || !medienSignaturPruefen(id, req.query.bis, req.query.sig)) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(404).json({ ok: false, error: "Diese Datei gibt es nicht." });
+  }
+  return dateiAusliefern(req as ChefRequest, res, nurKopf);
+}
+router.head("/social/meta-datei/:id", (req: Request, res: Response) => metaDatei(req, res, true));
+router.get("/social/meta-datei/:id", (req: Request, res: Response) => metaDatei(req, res, false));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // E-296 · ÖFFENTLICH: WEBSITE-FEED UND BILDER (ohne Anmeldung)

@@ -69,6 +69,8 @@ import {
   AKTIVIERUNG_AUFRUF, NACH_DEM_EINGANG, TEMPO_SATZ, ZAHL_KNOPF_MAIL,
   // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck; Stufe A „sobald wir Ihre Zahlung zugeordnet haben“.
   NACH_DEM_EINGANG_SATZ, nachDerZuordnung, mitAntragLuecke,
+  // E-373 (15.10.2026): Justins Verkaufssatz mit seinem Wunschlimit.
+  nachDemEingang,
 } from "@shared/fiaon-mara-ton";
 import { rahmenFuer } from "./fiaon-postmeister-antworttext";
 
@@ -875,7 +877,8 @@ export const AKTIVIERUNG_SATZ_A = `${nachDerZuordnung()}!`;
 export function aktivierungMitLuecke(luecke: readonly string[]): string {
   // E-275 Ton (02.10.2026): „Ihr Account ist sofort nach Zahlungseingang aktiv“ wie AKTIVIERUNG_SATZ — der Link erst mit vollständigem Antrag.
   // E-276 (02.10.2026): mit seinem Verwendungszweck, wie AKTIVIERUNG_SATZ.
-  return `Mit Ihrem Verwendungszweck ist Ihr Account sofort nach Zahlungseingang aktiv, und sobald Ihre Angaben im Antrag vollständig sind (es fehlt noch: ${luecke.join(", ")}), geht der fertige Link unserer Partnerbank für Ihren Kartenantrag an Sie raus. Schicken Sie mir ${luecke.length === 1 ? "diese Angabe" : "diese Angaben"} einfach mit.`;
+  // E-373: Justins Verkaufssatz, der Nutzen hängt an den fehlenden Angaben (mitAntragLuecke, dieselbe Fassung).
+  return `${mitAntragLuecke(`${NACH_DEM_EINGANG_SATZ}.`, luecke)} Schicken Sie mir ${luecke.length === 1 ? "diese Angabe" : "diese Angaben"} einfach mit.`;
 }
 
 /**
@@ -894,7 +897,8 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
       // der Satz bleibt wörtlich, damit aktivierungMitLuecke ihn bei unvollständigem Antrag ersetzen kann.
       // E-276 (02.10.2026): „sobald wir Ihre Zahlung zugeordnet haben …“ (AKTIVIERUNG_SATZ_A) — er hat schon überwiesen;
       // kam der Verwendungszweck verkürzt an, bucht der Abgleich nicht selbst. Bei Lücke: mitAntragLuecke (Schwanz gleich).
-      return `Danke Ihnen — ${AKTIVIERUNG_SATZ_A} ${KARTE_ZEIT_SATZ}${ziel ? `\n\n${zielSatz("Ziel bleibt Ihre eigene Visa-Kreditkarte")}` : ""}`;
+      // E-373: Justins Satz mit seinem Wunschlimit, ohne „Nach der Zusage der Bank …“.
+      return `Danke Ihnen — ${nachDerZuordnung({ ziel })}!`;
     case "rate":
       // Die Folgerate ist Vertragspflicht, nicht der Schlüssel zur Karte (E-265 Recht) — fehlt ihm der Link: karte_senden.
       // E-275 Ton: klar und freundlich-zupackend; die Folgerate ist nie „die Aktivierung“ und nie der Schlüssel zur Karte.
@@ -909,7 +913,9 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
       // E-275 Ton (02.10.2026, Justin: „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!“): die klare
       // Aufforderung mit Betrag, der Nutzen direkt dahinter (AKTIVIERUNG_SATZ, das eine Ausrufezeichen) — im ersten Absatz,
       // wie vorher der Aktivierungssatz (die Lücken-Fassung ersetzt ihn dort); im zweiten Tempo und Zeit bis zur Karte.
-      return `${zielSatz("Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte")} ${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über [Betrag] (Verwendungszweck [Verwendungszweck]) — am schnellsten über den Knopf unten. ${AKTIVIERUNG_SATZ}\n\n${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}`;
+      // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): Aufforderung, dann Justins
+      // Satz WÖRTLICH mit Verwendungszweck und Wunschlimit — ohne Bank-Satz, ohne Tempo- und Zeit-Satz der Bank.
+      return `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über [Betrag] — ${nachDemEingang({ ref: "[Verwendungszweck]", ziel })}!\n\n${ZAHL_KNOPF_MAIL}`;
   }
 }
 
@@ -922,11 +928,13 @@ export function mailAbschlussFormel(art: AbschlussArt, ziel: KartenZiel | null):
 export const MAIL_KARTE_REGEL = [
   `═══ DIE KREDITKARTE VORN — SO SCHLIESST DU PER MAIL AB (Justin 29.09. und 02.10.2026) ═══`,
   `· Wer uns schreibt, will seine eigene Visa-Kreditkarte. Sie steht früh in der Antwort (spätestens im zweiten Satz — dein erster Satz darf auf seine Worte eingehen).`,
-  `· Sein Wunschlimit nennst du, wenn es in der Akte steht (Feld kartenziel: „mit Ihrem Wunschlimit von 25.000 € als Ziel“) — ${bankSatzRegel()}. Nie als Zusage („Sie bekommen 25.000 €“, „bekommen Sie Ihre Kreditkarte mit …“), nie eine andere Zahl. Limit, Rahmen und Beträge ab 1.000 € NUR in diesen Formen: „mit Ihrem Wunschlimit von X €“, „mit X € als Ziel“, „Ihr Wunschlimit bleibt unser Ziel“, „Sie tragen im Antrag Ihr Wunschlimit ein“ — ${bankSatzRegel()}. Wunschlimit und Betrag nie in EINEM Satz.`,
+  // E-373 (15.10.2026, Justin): „Wenn Mara das Paket verkauft, verkauft sie den Kunden den Wunsch am Limit … nicht mit ‚Wir
+  // sind keine Bank‘ oder so ein Dreck, das steht alles im Vertrag und gehört NICHT zum Verkauf … wir dürfen nichts vermischen.“
+  `· VERKAUFEN HEISST SEINEN WUNSCH VERKAUFEN (Justin): Steht sein Wunschlimit in der Akte (Feld kartenziel), verkaufst du genau das — mit Justins Satz, WÖRTLICH: „Nach Ihrer Zahlung mit dem Verwendungszweck „[Verwendungszweck]“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ (ohne Wunschlimit in der Akte: „${NACH_DEM_EINGANG_SATZ}!“). Im Verkauf NIE „wir sind keine Bank“, nie „über den Rahmen entscheidet …“, nie „nach der Zusage der Bank“, nie „keine Garantie“ — das steht im Vertrag, nicht in der Mail. Den Satz über die Bank schreibst du NUR, wenn er ausdrücklich nach Sicherheit, Zusage oder Ablehnung fragt. Andere Zusagen als Justins Satz gibt es nicht („Sie bekommen 25.000 € sicher“, „garantiert“ bleiben verboten); Limit, Rahmen und Beträge ab 1.000 € nur in Justins Satz oder als „mit Ihrem Wunschlimit von X €“.`,
   // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung, wir kümmern uns
   // darum das die Karte schnell versendet wird. Ihr Account ist sofort nach Eingang aktiv!‘“) — die wahre Fassung: Die Karte
   // gibt die Partnerbank nach ihrer Zusage aus; FIAON sorgt dafür, dass der Kartenantrag sofort starten kann.
-  `· DIE AKTIVIERUNG VERKAUFST DU — begeistert, eher übermotiviert als zurückhaltend, und seriös (Sie-Form, kein Slang, höchstens EIN Ausrufezeichen). Erst die klare Aufforderung mit Betrag: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über X € — am schnellsten über den Knopf unten.“ Direkt dahinter der Nutzen: „${AKTIVIERUNG_SATZ} ${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}“`,
+  `· DIE AKTIVIERUNG VERKAUFST DU — begeistert, eher übermotiviert als zurückhaltend, und seriös (Sie-Form, kein Slang, höchstens EIN Ausrufezeichen). Erst die klare Aufforderung mit Betrag: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über X € — am schnellsten über den Knopf unten.“ Direkt dahinter Justins Satz (oben, wörtlich, mit seinem Verwendungszweck und Wunschlimit).`,
   `· Nie „die Karte ist in Produktion“, „garantiert“, „Sie bekommen die Karte“, „wir versenden Ihre Karte“ oder „wir sorgen dafür, dass die Karte schnell verschickt wird“ — die Karte gibt die Partnerbank nach ihrer Zusage aus. Der wahre Weg ist stark genug.`,
   `· „Ich habe keine Karte bekommen“: ZAHLENDER Kunde → karte_senden (prüft den Stand, schickt den Link erneut) und der Weg. ERSTE ZAHLUNG OFFEN → „Das liegt daran, dass bei Ihnen noch die erste Zahlung offen ist“, dann die Aufforderung und der Nutzen („${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“). Beim zahlenden Kunden ist eine Folgerate nie der Grund für die fehlende Karte (die Einladung hängt nur an der ersten Zahlung).`,
   `· Hat er seine Zahlung schon gemeldet: keine Zahlungsbitte — nach der Buchung lädt er Ausweis und Kontoauszüge hoch, und nach seiner Bonitätsauswertung kommt direkt der Link (E-363). Ist sein Antrag nicht abgeschickt: kein Satz zur Rate, sein nächster Schritt ist der Antrag. Nie „nur noch einen Schritt entfernt“, nie „greifbar“.`,
@@ -1026,7 +1034,8 @@ export function verweisBefunde(text: string, ein: {
 export function mailAbschlussVerkauf(text: string): string[] {
   const t = String(text || "");
   const h: string[] = [];
-  if (!/partnerbank|partner\s+bank|link\b[^.!?\n]{0,60}\b(?:karte|kartenantrag|card)|kartenantrag|card\s+application/i.test(t)) {
+  // E-373 (15.10.2026): Justins Verkaufssatz („… schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich …“) IST der Nutzen.
+  if (!/schalten\s+wir\s+(?:umgehend\s+)?ihren\s+account\s+frei|partnerbank|partner\s+bank|link\b[^.!?\n]{0,60}\b(?:karte|kartenantrag|card)|kartenantrag|card\s+application/i.test(t)) {
     h.push(`Sag, was die Zahlung ihm bringt: „${AKTIVIERUNG_SATZ}“`);
   }
   if (!fordertZahlung(t) && !/\bbitte\s+(?:\S+\s+){0,3}?(?:begleichen|bezahlen|überweisen|ueberweisen|zahlen)\b|\bplease\s+(?:\S+\s+){0,2}?(?:pay|settle|transfer)\b/i.test(t)) {
@@ -1182,8 +1191,8 @@ function systemPrompt(ein: {
     : (ein.lage === "zahlung_gemeldet" || ein.einordnung.flags?.zahlung_behauptet)
       // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): beide Aufträge ohne Pflicht-Termin,
       // dafür mit Justins wahrem Satz (Zahlung → Account aktiviert → Bonitätsauswertung → direkt der Link der Partnerbank → 2–5 Werktage; E-363).
-      ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); „${nachDerZuordnung({ anfang: true })}!“ „${KARTE_ZEIT_SATZ}“ Seine eigene Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank") bleibt das Ziel. Kein Termin, außer er will ein Gespräch. Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
-      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: unserer Begleitung auf dem Weg zu seiner eigenen Visa-Kreditkarte (sein Wunschlimit aus der Akte, Feld kartenziel, immer mit „über den Rahmen entscheidet unsere Partnerbank"). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins wahrem Satz: „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}! ${TEMPO_SATZ}“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht). EBENSO (E-369), wenn er kündigen oder stornieren will — auch mit Tippfehlern („Stonie“, „kündgen“) — und kuendigung_vormerken (noch) nichts gebucht hat: dann ist deine Antwort nur die eine Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.“ bzw. bei unbezahlter Bestellung „… Ihre Bestellung jetzt storniere? …“), ohne Rate, ohne Zahlungsseite.`,
+      ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); „${nachDerZuordnung({ anfang: true })}!“ — steht sein Wunschlimit in der Akte (Feld kartenziel), mit Justins Fassung „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ (E-373: kein Bank-Satz, kein „nach der Zusage der Bank“). Kein Termin, außer er will ein Gespräch. Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
+      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: seinem Wunsch — seiner eigenen Visa-Kreditkarte mit seinem Wunschlimit aus der Akte (Feld kartenziel), verkauft mit Justins Satz (E-373: „Nach Ihrer Zahlung mit dem Verwendungszweck „…“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … nutzen können!“ — nie ein Bank-Satz im Verkauf). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins Satz (E-373, wörtlich): „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ bzw. mit seinem Wunschlimit „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht). EBENSO (E-369), wenn er kündigen oder stornieren will — auch mit Tippfehlern („Stonie“, „kündgen“) — und kuendigung_vormerken (noch) nichts gebucht hat: dann ist deine Antwort nur die eine Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.“ bzw. bei unbezahlter Bestellung „… Ihre Bestellung jetzt storniere? …“), ohne Rate, ohne Zahlungsseite.`,
     // E-265: Justins Abschluss, eingesetzt für DIESEN Kunden (Ziel, Nennform) — die Zahlen aus den Werkzeugen.
     (() => {
       // E-272: Beim Global-Kunden kein Kreditkarten-Abschluss.
@@ -1202,10 +1211,9 @@ function systemPrompt(ein: {
       const luecke: string[] = Array.isArray(ein.akte?.karte?.fehlendeAngaben) ? ein.akte.karte.fehlendeAngaben.map(String) : [];
       // E-276 (02.10.2026): A trägt jetzt „sobald wir Ihre Zahlung zugeordnet haben …“ (AKTIVIERUNG_SATZ_A) — dort
       // ersetzt mitAntragLuecke (shared) den Schwanz „, und nach Ihrer Bonitätsauswertung bekommen Sie direkt den fertigen Link …“ (E-363).
-      const satz = luecke.length && art === "b" ? formel.replace(AKTIVIERUNG_SATZ, aktivierungMitLuecke(luecke))
-        : luecke.length && art === "a" ? mitAntragLuecke(formel, luecke)
-        : formel;
-      return `SO SCHLIESST DU AB (Justin 29.09. und 02.10.2026 — in eigenen Worten, gleiche Fakten; [Betrag], [Verwendungszweck], [Fälligkeit] aus zahlungslink_bauen bzw. der Akte, nie erfunden${ein.akte?.kartenziel ? "" : "; ein Wunschlimit kennst du hier nicht — nenne keine Zahl"}; KEIN Termin am Ende, außer er will ein Gespräch): „${satz}"`;
+      // E-373: A und B tragen Justins Verkaufssatz — mitAntragLuecke hängt den Nutzen an die fehlenden Angaben.
+      const satz = luecke.length && (art === "b" || art === "a") ? mitAntragLuecke(formel, luecke) : formel;
+      return `SO SCHLIESST DU AB (Justin 29.09., 02.10. und 15.10.2026 — in eigenen Worten, gleiche Fakten; den Satz „… schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich …“ übernimmst du WÖRTLICH; [Betrag], [Verwendungszweck], [Fälligkeit] aus zahlungslink_bauen bzw. der Akte, nie erfunden${ein.akte?.kartenziel ? "" : "; ein Wunschlimit kennst du hier nicht — nenne keine Zahl"}; KEIN Termin am Ende, außer er will ein Gespräch): „${satz}"`;
     })(),
     ein.ruhe
       ? `DIESE MAIL IST KEINE ZAHLUNGSAUFFORDERUNG (${ein.ruhe}). Du beantwortest sein Anliegen menschlich, ruhig und ernsthaft — keine Bitte um Zahlung, kein Zahlungsknopf, keine Rechnung (außer er verlangt sie ausdrücklich), kein Verkauf, keine Auskunft. Offene Beträge nennst du höchstens als Tatsache, wenn er danach fragt. Was du selbst erledigen kannst (Werbesperre bei „Stopp", Storno einer unbezahlten Bestellung, eine klare Kündigung), erledigst du mit dem Werkzeug; alles, was entschieden werden muss (Widerruf nach Zahlung, bestrittene Forderung, Anwalt), sagst du ihm freundlich zu klären — wer sich kümmert, mit Namen aus dem Werkzeug. Nächster Schritt: Termin (terminlink_bauen), wenn ein Gespräch hilft, sonst „erledigt".`
@@ -1596,6 +1604,15 @@ export function fordertZahlung(text: string): string | null {
 }
 
 /**
+ * E-373 (15.10.2026): Zahlungsbitte ODER Justins Verkaufssatz („Nach Ihrer Zahlung … schalten wir umgehend Ihren Account frei …“)
+ * — beides gehört nie in eine Ruhe-Antwort (Beschwerde, Widerruf, offene Kündigung …). Der Satz bei A („sobald wir … zugeordnet
+ * haben, …“) bleibt frei. fordertZahlung selbst bleibt die „klare Aufforderung“ (der Verkaufssatz allein ist keine). Rein.
+ */
+export function zahltOderVerkauft(text: string): string | null {
+  return fordertZahlung(text) ?? (String(text || "").match(/(?<!zugeordnet\s+haben,\s+)schalten\s+wir\s+umgehend\s+ihren\s+account\s+frei/i)?.[0] ?? null);
+}
+
+/**
  * Bestätigt der Text eine Kündigung oder ein Storno? (#5626 „Ihre Kündigung liegt
  * mir jetzt eindeutig vor … mit der Zahlung abgeschlossen" — nichts war gebucht.)
  * Die Wortwand (shared/fiaon-wortverbote.ts) kennt „vorgemerkt/vermerkt/
@@ -1746,7 +1763,7 @@ export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, 
   if (ein.stoppOffen) return false;
   const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht));
   if (mensch.length) return false;
-  if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && fordertZahlung(ein.text)) return false;
+  if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && zahltOderVerkauft(ein.text)) return false;
   return true;
 }
 
@@ -2476,7 +2493,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     const rueck = zusageRueckzahlung(t, { widerruf: !!k.einordnung.flags?.widerruf });
     if (rueck) fehlend.push(`Rückzahlung/Erstattung zugesagt oder beim Widerruf ausgeschlossen („${rueck.slice(0, 70)}") — darüber entscheidet allein die Geschäftsführung: nichts zusagen, beim Widerruf auch nicht „nichts wird erstattet"; Satz: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht."`);
     // (3) Ruhe: keine Zahlungsaufforderung (#5633, #5575).
-    const bitte = ruheKnopf && (k.ruhe || kuendigungOffen) ? fordertZahlung(t) : null;
+    const bitte = ruheKnopf && (k.ruhe || kuendigungOffen) ? zahltOderVerkauft(t) : null;
     if (bitte) fehlend.push(`Zahlungsaufforderung („${bitte}") in einer Antwort auf ${k.ruhe ?? "einen Kündigungs- oder Stornowunsch, der noch nicht gebucht ist"} — beantworte sein Anliegen ohne Bitte um Zahlung`);
     // E-265 Nachbesserung (29.09.2026, Recht): Ist nach der Kündigung bis zum Vertragsende nichts mehr zu zahlen
     // (Altvertrag, die Rate liegt nach dem Monatsende), verlangt die Mail auch keine Rate.

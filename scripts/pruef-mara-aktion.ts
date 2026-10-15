@@ -38,13 +38,14 @@ const quelle = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 
 console.log("── Nachprüfung jeder Mail ─────────────────────────────────────────");
 // E-265 (29.09.2026): Die gute Mail stellt die Visa-Kreditkarte vorn (Justin: „VIEL MEHR AUF DIE KREDITKARTEN!").
 // E-276 (02.10.2026): ohne Termin und ohne „fehlt mir nur noch“ — mit Justins Abschluss (Aktivierung, Verwendungszweck).
-const gut = "Hier ist Mara Lindner von FIAON. Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte, mit Ihrem Wunschlimit von 5.000 € als Ziel — über den Rahmen entscheidet unsere Partnerbank. Nach der Aktivierung sind Sie bei Herrn Stripling in besten Händen.\n\nZahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 59,99 € — mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account sofort nach Eingang aktiv, und nach Ihrer Bonitätsauswertung bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag! Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
+// E-373 (15.10.2026): der Aktivierungssatz ist Justins Verkaufssatz („Nach Ihrer Zahlung mit dem Verwendungszweck …“).
+const gut = "Hier ist Mara Lindner von FIAON. Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte, mit Ihrem Wunschlimit von 5.000 € als Ziel — über den Rahmen entscheidet unsere Partnerbank. Nach der Aktivierung sind Sie bei Herrn Stripling in besten Händen.\n\nZahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 59,99 € — nach Ihrer Zahlung mit dem Verwendungszweck „FIAON-AB12CD“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte kommen! Über den Knopf unten ist es in zwei Minuten erledigt. Einen schönen Abend wünsche ich Ihnen.";
 ok(aktionPruefen("Ihr Account wartet auf einen Schritt", gut).length === 0, "Eine gute Mail besteht die Prüfung");
 // E-265 (#1388 „Florentine hat Ihnen heute …"): mit der Mitarbeiterliste ist der Vorname allein ein Mangel.
 const TEAM = [{ vorname: "Florentine", nachname: "Lombardi", anrede: "Frau" as const }, { vorname: "Daniel", nachname: "Stripling", anrede: "Herr" as const }];
 ok(aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Herrn Stripling", "Daniel"), { mitarbeiter: TEAM }).some((x) => /Herr\/Frau Nachname/.test(x)), "Vorname eines Mitarbeiters allein fällt durch (#1388)");
 ok(aktionPruefen("Kurz zu Ihrer Karte", gut, { mitarbeiter: TEAM }).length === 0, "„Herrn Stripling“ besteht mit der Mitarbeiterliste");
-ok(aktionPruefen("Kurz zu Ihrer Karte", gut.replace("Visa-Kreditkarte", "Karte")).some((x) => /Kreditkarte/.test(x)), "Ohne „Kreditkarte“ fällt die Mail durch (1 von 368 am 29.09.)");
+ok(aktionPruefen("Kurz zu Ihrer Karte", gut.replace(/Visa-Kreditkarte/g, "Karte")).some((x) => /Kreditkarte/.test(x)), "Ohne „Kreditkarte“ fällt die Mail durch (1 von 368 am 29.09.)");
 const m = aktionPruefen("Jetzt zugreifen!", "Ich garantiere Ihnen die Karte innerhalb von 3 Tagen. Schau auf www.fiaon.com vorbei, dann kannst du loslegen.");
 ok(m.some((x) => /garant/i.test(x)), "„garantieren“ fällt durch");
 ok(m.some((x) => /innerhalb von/.test(x)), "Feste Frist fällt durch");
@@ -109,15 +110,16 @@ const { fordertZahlung } = await import("../server/lib/fiaon-postmeister-agent")
 const ziel = { euro: 5000, art: "wunsch" as const, paketName: "FIAON Pro" };
 const absB = A276.aktionAbschluss({ stufe: "B", ziel, betrag: "99,99 €", verwendungszweck: "FIAON-AB12CD" });
 ok(absB.includes(`${TON.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 €`), "B: „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 99,99 €“");
-ok(absB.includes(TON.nachDemEingang({ ref: "FIAON-AB12CD" })), "B: „mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account sofort nach Eingang aktiv …“");
-ok(absB.includes(TON.TEMPO_SATZ) && absB.includes(TON.ZAHL_KNOPF_MAIL) && absB.includes(ZEIT), "B: Tempo, Zeit bis zur Karte (2–5 Werktage nach der Zusage der Bank), Knopf");
+ok(absB.includes(TON.nachDemEingang({ ref: "FIAON-AB12CD", ziel })), "B: Justins Satz „nach Ihrer Zahlung mit dem Verwendungszweck „FIAON-AB12CD“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich …“ (E-373)");
+// E-373 (15.10.2026, Justin: „verkauft den Wunsch … nichts vermischen“): kein Tempo-Umweg, kein „Nach der Zusage der Bank …“.
+ok(!absB.includes(ZEIT) && !/zusage der bank|entscheidet/i.test(absB) && absB.includes(TON.ZAHL_KNOPF_MAIL), "B: ohne Zeit-Satz der Bank und ohne Bank-Satz, mit Knopf (E-373)");
 ok(TON.ausrufezeichen(absB) === 1, "B: genau ein „!“");
 ok(!/termin/i.test(absB) && !/melde|meldet/i.test(absB), "B: kein Termin, kein „meldet sich“");
 const absBL = A276.aktionAbschluss({ stufe: "B", ziel, betrag: "99,99 €", verwendungszweck: "FIAON-AB12CD", luecke: ["Geburtsdatum"] });
-ok(!/direkt den fertigen Link/.test(absBL) && /es fehlt noch: Geburtsdatum/.test(absBL), "B mit Antragslücke: kein „direkt der Link“, sondern was fehlt");
+ok(!/direkt den fertigen Link/.test(absBL) && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(absBL), "B mit Antragslücke: Freischaltung, und was für sein Ziel noch fehlt (E-373)");
 const absA = A276.aktionAbschluss({ stufe: "A", ziel, betrag: "99,99 €", verwendungszweck: "FIAON-AB12CD" });
 ok(!fordertZahlung(absA), "A: keine Zahlungsaufforderung im Abschluss");
-ok(/Sobald wir Ihre Zahlung über 99,99 € zugeordnet haben, ist Ihr Account sofort aktiv/.test(absA), "A: „Sobald wir Ihre Zahlung … zugeordnet haben, ist Ihr Account sofort aktiv …“");
+ok(/Sobald wir Ihre Zahlung über 99,99 € zugeordnet haben, schalten wir umgehend Ihren Account frei/.test(absA), "A: „Sobald wir Ihre Zahlung … zugeordnet haben, schalten wir umgehend Ihren Account frei …“ (E-373)");
 ok(absA.includes(A276.A_HILFE_SATZ) && /Verwendungszweck und die Zahlungsdaten/.test(absA), "A: Hilfe — Beleg als Antwort, Verwendungszweck über den Knopf");
 ok(A276.A_KNOPF_TEXT === "Verwendungszweck und Zahlungsdaten ansehen" && !fordertZahlung(A276.A_KNOPF_TEXT), "A: Knopf „Verwendungszweck und Zahlungsdaten ansehen“");
 

@@ -212,9 +212,10 @@ ok(wz.eigenerBetreff("Re: Ihre Zahlung") === "" && wz.eigenerBetreff("AW: x") ==
     ok(!agent.fragtNachFehlenderKarte("Re: Ihre Monatsrate 2", t), `Ausstieg ist keine Kartenfrage: „${t}“`);
   }
   // Unvollständiger Antrag: Der Abschluss verspricht den Link nicht „direkt“ — und besteht Ton und Wand (auch nach dem Wunschlimit).
-  const formelL = agent.mailAbschlussFormel("b", { euro: 25000, art: "wunsch", paketName: null } as any)
-    .replace(agent.AKTIVIERUNG_SATZ, agent.aktivierungMitLuecke(["Geburtsdatum"])).replace("[Betrag]", "59,99 €").replace("[Verwendungszweck]", "FIAON-ABCDEF");
-  ok(!/direkt\s+den\s+fertigen\s+Link/.test(formelL) && /es fehlt noch: Geburtsdatum/.test(formelL)
+  // E-373: Justins Verkaufssatz — mitAntragLuecke hängt den Nutzen an die fehlenden Angaben.
+  const formelL = ton.mitAntragLuecke(agent.mailAbschlussFormel("b", { euro: 25000, art: "wunsch", paketName: null } as any), ["Geburtsdatum"])
+    .replace("[Betrag]", "59,99 €").replace("[Verwendungszweck]", "FIAON-ABCDEF");
+  ok(!/direkt\s+den\s+fertigen\s+Link/.test(formelL) && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(formelL)
     && !ton.tonPruefung(formelL, { kanal: "mail", land: "DE", kunde: "" }).some((b) => b.schwere === "hart") && !wandPruefen(formelL, []).length,
     "Abschluss B mit unvollständigem Antrag: kein „direkt“, nennt was fehlt, Ton und Wand ohne harten Treffer");
 }
@@ -273,18 +274,17 @@ for (const art of ["b", "a", "rate", "abbrecher", "c"] as const) {
   }
 }
 const fb = agent.mailAbschlussFormel("b", ZIEL);
-// E-275 Ton (02.10.2026, Justin: „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!“): die klare
-// Aufforderung statt „Bitte begleichen Sie jetzt …“, der Nutzen direkt dahinter, das Tempo — bewusst mitgezogen.
-ok(fb.includes(agent.AKTIVIERUNG_SATZ) && fb.includes(KARTE_ZEIT_SATZ) && fb.includes(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über [Betrag]`) && fb.includes(ton.TEMPO_SATZ) && fb.includes(ton.BANK_SATZ)
-  // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — der Satz beginnt jetzt mit der Bedingung.
-  && agent.AKTIVIERUNG_SATZ.startsWith("Mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv") && ton.ausrufezeichen(fb) === 1,
-  "Abschluss B: „Zahlen Sie jetzt die Aktivierung“, der Nutzen (mit Verwendungszweck sofort aktiv → direkt der Link), Tempo, 2–5 Werktage, Wunschlimit nur mit Bank-Satz, ein „!“");
+// E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nicht mit ‚Wir sind keine Bank‘ … nichts vermischen“):
+// die Aufforderung mit Betrag, dann Justins Satz mit Verwendungszweck und Wunschlimit — ohne Bank-Satz, ohne Tempo- und Zeit-Satz.
+ok(fb.includes(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über [Betrag]`) && fb.includes(ton.nachDemEingang({ ref: "[Verwendungszweck]", ziel: ZIEL }))
+  && !fb.includes(KARTE_ZEIT_SATZ) && !fb.includes(ton.TEMPO_SATZ) && !fb.includes(ton.BANK_SATZ) && !/keine\s+bank|zusage\s+der\s+bank/i.test(fb) && ton.ausrufezeichen(fb) === 1,
+  "Abschluss B: „Zahlen Sie jetzt die Aktivierung“, dann Justins Satz mit Verwendungszweck und Wunschlimit — kein Bank-Satz, kein Zeit-Satz der Bank, ein „!“ (E-373)");
 // E-276: Stufe A sagt „sobald wir Ihre Zahlung zugeordnet haben …“ — und mit unvollständigem Antrag kein „direkt“.
 const faL = agent.mailAbschlussFormel("a", null);
 ok(faL.includes(agent.AKTIVIERUNG_SATZ_A) && !faL.includes(agent.AKTIVIERUNG_SATZ) && !ton.mitAntragLuecke(faL, ["Geburtsdatum"]).includes("direkt den fertigen Link")
-  && /es fehlt noch: Geburtsdatum/.test(ton.mitAntragLuecke(faL, ["Geburtsdatum"])),
+  && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(ton.mitAntragLuecke(faL, ["Geburtsdatum"])),
   "Abschluss A (E-276): „sobald wir Ihre Zahlung zugeordnet haben“, mit Lücke ohne „direkt“");
-ok(fb.indexOf(ton.AKTIVIERUNG_AUFRUF) < fb.indexOf(agent.AKTIVIERUNG_SATZ) && fb.split("\n\n")[0].includes(agent.AKTIVIERUNG_SATZ), "Abschluss B: erst die Aufforderung, direkt dahinter der Nutzen — im ersten Absatz");
+ok(fb.indexOf(ton.AKTIVIERUNG_AUFRUF) < fb.indexOf("schalten wir umgehend Ihren Account frei") && fb.split("\n\n")[0].includes("schalten wir umgehend Ihren Account frei"), "Abschluss B: erst die Aufforderung, direkt dahinter Justins Satz — im ersten Absatz (E-373)");
 ok(!/Bitte begleichen|überweisen|zahlen Sie/i.test(agent.mailAbschlussFormel("a", null)), "Abschluss A (Zahlung gemeldet): keine Zahlungsbitte, keine Aufforderung");
 ok(agent.mailAbschlussVerkauf(fb.replace(/\[Betrag\]/g, "59,99 €")).length === 0, "mailAbschlussVerkauf: die Formel erfüllt Nutzen und Bitte");
 ok(agent.mailAbschlussVerkauf("Offen ist Ihre erste Monatsrate über 59,99 €. Welche Zeit passt Ihnen für einen Anruf mit Herrn Stripling?").length === 2, "mailAbschlussVerkauf: ohne Nutzen-Satz und ohne Bitte → zwei Hinweise");

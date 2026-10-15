@@ -31,6 +31,12 @@ async function main() {
   ok(agent.maraSelbstSendbar({ flags: {}, lage: "gesperrt", global: false, text: "Ihr Vertrag ist beendet; es ist nichts mehr offen.", ruhe: false }), "Lage gesperrt (Vertrag beendet), sachliche Antwort → selbst");
   ok(!agent.maraSelbstSendbar({ flags: { stopp: true }, lage: "unbezahlt", global: false, text: "Sie bekommen keine Werbung mehr.", ruhe: true, stoppOffen: true }), "E-371: „Stopp“, Werbesperre nicht gesetzt → nie automatisch");
 
+  // E-373: Justins Verkaufssatz ist in einer Ruhe-Antwort verboten (zahltOderVerkauft), bei A („zugeordnet haben“) frei.
+  const verkauf = "Nach Ihrer Zahlung mit Ihrem Verwendungszweck schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte kommen.";
+  ok(!agent.maraSelbstSendbar({ flags: { beschwerde: true }, lage: "aktiv", global: false, text: verkauf, ruhe: true }), "E-373: Beschwerde mit Verkaufssatz → nicht selbst");
+  ok(!!agent.zahltOderVerkauft(verkauf) && !agent.fordertZahlung(verkauf), "E-373: Verkaufssatz zählt in der Ruhe, ist aber keine „klare Aufforderung“");
+  ok(!agent.zahltOderVerkauft("Danke Ihnen! Sobald wir Ihre Zahlung über 59,99 € zugeordnet haben, schalten wir umgehend Ihren Account frei, damit Sie …"), "E-373: A-Fassung („zugeordnet haben“) bleibt frei");
+
   console.log("── 2 · Kündigung nicht gebucht → Rückfrage, keine Zahlungsbitte");
   const k = (flags: any, handlungen: any[] = [], akte: any = {}) => ({ einordnung: { flags }, handlungen, akte, kontext: { ref: "FIAON-REF" } });
   ok(agent.kuendigungNichtGebucht(k({ kuendigung: true })), "#6520 „Stonie“: Lampe kuendigung, nichts gebucht → offen");

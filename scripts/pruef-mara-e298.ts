@@ -77,7 +77,8 @@ async function main() {
   ok(!ton.BANK_SATZ_MUSTER.test(b) && b.includes("5.000 €") && b.includes(ton.AKTIVIERUNG_AUFRUF), "Mail-Abschluss B: Karte + Ziel + Aktivierung, ohne Bank-Satz");
   ok(!ton.BANK_SATZ_MUSTER.test(agent.mailAbschlussFormel("abbrecher", ziel)), "Mail-Abschluss Abbrecher ohne Bank-Satz");
   ok(!ton.BANK_SATZ_MUSTER.test(agent.mailAbschlussFormel("c", null)), "Mail-Abschluss C ohne Bank-Satz");
-  ok(agent.MAIL_KARTE_REGEL.includes("OHNE den Satz über die Bank"), "MAIL_KARTE_REGEL: Bank-Satz nur auf seine Frage");
+  // E-373 (15.10.2026, Justin: Verkauf ohne Vertragssätze): die Regel sagt es jetzt selbst — Bank-Satz nur auf seine ausdrückliche Frage.
+  ok(agent.MAIL_KARTE_REGEL.includes("Den Satz über die Bank schreibst du NUR, wenn er ausdrücklich") && agent.MAIL_KARTE_REGEL.includes("NIE „wir sind keine Bank“"), "MAIL_KARTE_REGEL: Bank-Satz nur auf seine Frage, nie „wir sind keine Bank“ (E-373)");
   const quelleMail = fs.readFileSync("server/lib/fiaon-postmeister-agent.ts", "utf8");
   ok(/text = bankSatzNurWennGefragt\(text, k\.kundeText \?\? ""\)/.test(quelleMail), "Postfach: letzte Stelle nimmt den ungefragten Bank-Satz heraus");
   const quelleAktion = fs.readFileSync("server/lib/fiaon-mara-aktion.ts", "utf8");

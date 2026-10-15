@@ -169,10 +169,34 @@ export const AKTIVIERUNG_AUFRUF = "Zahlen Sie jetzt die Aktivierung";
  * mitAntragLuecke sucht genau diesen Wortlaut. Kurz gehalten: WhatsApp-Abschluss unter 500 lesbaren Zeichen.
  */
 export const LINK_NACH_BONITAET = ", und nach Ihrer Bonitätsauswertung bekommen Sie direkt den fertigen Link unserer Partnerbank für Ihren Kartenantrag";
-export function nachDemEingang(opt: { ref?: string | null; anfang?: boolean } = {}): string {
+// ── E-373 (15.10.2026, Justin): VERKAUFEN HEISST DEN WUNSCH VERKAUFEN — NICHTS VERMISCHEN ──────────────────────────
+// „Wenn Mara das Paket verkauft, dann verkauft sie den Kunden den Wunsch am Limit, also sowas wie: ‚Nach Ihrer Zahlung mit
+// dem Verwendungszweck „XY“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihr Limit von „20.000 €“
+// nutzen können‘, genau so in der Art, nicht mit ‚Wir sind keine Bank‘ oder so ein Dreck, das steht alles im Vertrag und
+// gehört NICHT zum Verkauf! … wir dürfen nichts vermischen.“ (gilt für WhatsApp UND Mail). Gemessen vorher (7 Tage, nur
+// lesend): jede der 615 Aktionsmails trug „Nach der Zusage der Bank …“, 12 WhatsApp- und 4 Postfach-Antworten „die Bank
+// entscheidet“. Jetzt ist Justins Satz der Abschluss in allen Kanälen — mit seinem Wunschlimit, wenn es in der Akte steht
+// („Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von X €“ — sein Wort aus dem Antrag, an der Karte), sonst „zu Ihrer eigenen Visa-Kreditkarte“. Er ist als Baustein freigegeben
+// (FREIE_BAUSTEINE); frei erfundene Zusagen („garantiert“, „Sie bekommen sicher …“) bleiben hart.
+/** Was die Freischaltung bringt — sein Wunschlimit (oder der Rahmen seines Pakets) bzw. ohne Ziel die Karte. Rein. */
+export function verkaufsNutzen(ziel?: KartenZiel | null): string {
+  if (ziel && limitNennen()) {
+    return ziel.art === "paket"
+      ? `Ihre Visa-Kreditkarte mit ${euroGanz(ziel.euro)} nutzen können`
+      : `Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von ${euroGanz(ziel.euro)} nutzen können`;
+  }
+  return "zu Ihrer eigenen Visa-Kreditkarte kommen";
+}
+/**
+ * Justins Verkaufssatz (E-373): „Nach Ihrer Zahlung mit dem Verwendungszweck „FIAON-AB12CD“ schalten wir umgehend Ihren
+ * Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von 20.000 € nutzen können“ — ohne Schlusszeichen. `ref`: der
+ * Verwendungszweck im Text (Mail), sonst „Ihrem Verwendungszweck“; `anfang`: am Satzanfang groß (sonst nach „ — “).
+ * Bei unvollständigem Antrag macht mitAntragLuecke daraus „… frei. Damit Sie …, fehlt in Ihrem Antrag nur noch: …“. Rein.
+ */
+export function nachDemEingang(opt: { ref?: string | null; anfang?: boolean; ziel?: KartenZiel | null } = {}): string {
   const ref = String(opt.ref ?? "").trim();
-  // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): der Link kommt nach der Bonitätsauswertung, nicht mit der Zahlung.
-  return `${opt.anfang ? "Mit" : "mit"} Ihrem Verwendungszweck${ref ? ` ${ref}` : ""} ist Ihr Account sofort nach Eingang aktiv${LINK_NACH_BONITAET}`;
+  const zweck = ref ? `dem Verwendungszweck „${ref}“` : "Ihrem Verwendungszweck";
+  return `${opt.anfang ? "Nach" : "nach"} Ihrer Zahlung mit ${zweck} schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich ${verkaufsNutzen(opt.ziel)}`;
 }
 /**
  * Justins Satz nach dem Gedankenstrich der Aufforderung (klein, ohne Schlusszeichen): „… — mit Ihrem Verwendungszweck
@@ -187,8 +211,9 @@ export const NACH_DEM_EINGANG_SATZ = nachDemEingang({ anfang: true });
  * mit ihm bucht der Abgleich, ohne ihn ordnet die Zahlungsstelle zu. Klein, ohne Schlusszeichen (nach „Danke Ihnen — “;
  * am Satzanfang macht der Aufrufer das „S“ groß). Derselbe Schwanz wie NACH_DEM_EINGANG (mitAntragLuecke). E-276. Rein.
  */
-export function nachDerZuordnung(opt: { betrag?: string | null; anfang?: boolean } = {}): string {
-  return `${opt.anfang ? "Sobald" : "sobald"} wir Ihre Zahlung${opt.betrag ? ` über ${opt.betrag}` : ""} zugeordnet haben, ist Ihr Account sofort aktiv${LINK_NACH_BONITAET}`;
+export function nachDerZuordnung(opt: { betrag?: string | null; anfang?: boolean; ziel?: KartenZiel | null } = {}): string {
+  // E-373: derselbe Verkaufssatz wie nachDemEingang — er hat schon überwiesen, also „sobald wir sie zugeordnet haben“.
+  return `${opt.anfang ? "Sobald" : "sobald"} wir Ihre Zahlung${opt.betrag ? ` über ${opt.betrag}` : ""} zugeordnet haben, schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich ${verkaufsNutzen(opt.ziel)}`;
 }
 export const NACH_DER_ZUORDNUNG = nachDerZuordnung();
 
@@ -204,6 +229,9 @@ export function mitAntragLuecke<T extends string | null>(text: T, luecke: readon
   if (!text || !luecke.length) return text;
   const fehlt = luecke.join(", ");
   return String(text)
+    // E-373: Justins Verkaufssatz — die Freischaltung bleibt, der Nutzen hängt an den fehlenden Angaben.
+    .replace(/schalten\s+wir\s+umgehend\s+Ihren\s+Account\s+frei,\s+damit\s+Sie\s+schnellstmöglich\s+(.+?)\s+(nutzen\s+können|kommen)(?=[!.?]|\s*$)/,
+      (_m, was: string, verb: string) => `schalten wir umgehend Ihren Account frei. Damit Sie schnellstmöglich ${was} ${verb}, fehlt in Ihrem Antrag nur noch: ${fehlt}`)
     // E-363: auch die ältere Fassung ohne „nach Ihrer Bonitätsauswertung“ (Modell-Echo) — der Ersatz nennt beides, was fehlt.
     .replace(/,\s*und\s+(?:nach\s+Ihrer\s+Bonitätsauswertung\s+bekommen\s+Sie|Sie\s+bekommen)\s+direkt\s+den\s+fertigen\s+Link\s+unserer\s+Partnerbank\s+für\s+Ihren\s+Kartenantrag/,
       // Ein eigener Satz ohne „bekommen Sie den …“: im Satz mit dem Betrag oder nach dem Wunschlimit wäre das für
@@ -472,7 +500,8 @@ export const TON_REGELN: TonRegel[] = [
     // „über 3.000 €": der Tausenderpunkt ist kein Satzende.
     muster: /\b(einen\s+)?kredit(e)?\b(?:[^.!?]|\.(?=\d)){0,40}\b(gibt\s+es|vergeben\s+wir|vergibt\s+fiaon|bieten\s+wir|bekommen\s+sie)\b[^.!?]{0,20}\b(nicht|keine?n?)\b|\b(vergeben|vergibt|vermittelt|vermitteln|bieten|gibt\s+es)\s+(wir\s+|fiaon\s+|bei\s+uns\s+)?(keine|keinen)\s+kredit|\b(keinen|kein)\s+kredit\b/i,
     beispiel: "„Einen Kredit über 3.000 € vergeben wir nicht.“", hinweis: "„Noch besser: Wir bringen Sie zu Ihrer eigenen Kreditkarte bei unserer Partnerbank …“ (bausteinKreditFrage)." },
-  { id: "keine_bank", schwere: "weich", muster: /\bwir\s+sind\s+(keine|nicht\s+die)\s+bank\b/i,
+  // E-373 (15.10.2026, Justin: „nicht mit ‚Wir sind keine Bank‘ oder so ein Dreck, das steht alles im Vertrag“): hart.
+  { id: "keine_bank", schwere: "hart", muster: /\bwir\s+sind\s+(keine|nicht\s+die)\s+bank\b/i,
     beispiel: "„Wir sind keine Bank.“", hinweis: "Sag, was FIAON tut: Wir bringen Sie zu Ihrer Kreditkarte bei unserer Partnerbank." },
   // E-275 (02.10.2026, Justin: „nicht immer sagen … ‚Wir sind keine Bank und können nichts wissen‘“): der Rückzug statt
   // einer Antwort — „können wir nicht wissen/sehen“, „keinen Einblick/Einfluss“, „liegt allein bei der Bank“, „FIAON
@@ -633,6 +662,8 @@ function rueckverweis(x: string): boolean {
 const BANK_ART = String.raw`(?:die|unsere|ihre)\s+(?:partner)?bank`;
 /** Die ersten BANK_BAUSTEINE Einträge von FREIE_BAUSTEINE sind der Satz über die Bank. */
 const BANK_BAUSTEINE = 5;
+/** E-373: der Nutzen in Justins Verkaufssatz (verkaufsNutzen) — für die weiße Liste. */
+const VERKAUFS_NUTZEN = String.raw`(?:(?:ihre\s+(?:eigene\s+)?visa-?kreditkarte\s+mit\s+)?ihr(?:em)?\s+wunschlimit\s+(?:von|über)\s+${L_BETRAG}\s+nutzen\s+können|ihre\s+(?:eigene\s+)?visa-?kreditkarte\s+mit\s+${L_BETRAG}\s+nutzen\s+können|zu\s+ihrer\s+(?:eigenen\s+)?visa-?kreditkarte\s+kommen)`;
 const FREIE_BAUSTEINE: RegExp[] = [
   // Der Satz über die Bank (die ersten BANK_BAUSTEINE)
   String.raw`über\s+(?:den|ihren)\s+rahmen\s+entscheide[nt]\s+(?:am\s+ende\s+|allein\s+|immer\s+|letztlich\s+)?${BANK_ART}`,
@@ -640,6 +671,10 @@ const FREIE_BAUSTEINE: RegExp[] = [
   String.raw`${BANK_ART}\s+(?:entscheidet|legt)\s+(?:allein\s+|am\s+ende\s+)?(?:über\s+(?:den|ihren)\s+rahmen|(?:den|ihren)\s+rahmen\s+fest)`,
   String.raw`(?:our|the)\s+partner\s+bank\s+decides\s+(?:on|about)\s+(?:the|your)\s+(?:credit\s+)?(?:limit|line)`,
   String.raw`(?:the|your)\s+(?:credit\s+)?(?:limit|credit\s+line)\s+is\s+(?:decided|set)\s+by\s+(?:our|the)\s+partner\s+bank`,
+  // E-373 (15.10.2026, Justin): sein Verkaufssatz (VOR den Wunschlimit-Bausteinen, die sonst „Ihr Wunschlimit von X €“ zuerst herausnähmen) — Freischaltung nach der Zahlung, dann sein Wunschlimit (nachDemEingang,
+  // nachDerZuordnung, mitAntragLuecke). Nur genau diese Fassungen; „Sie bekommen Ihr Wunschlimit sicher“ bleibt hart.
+  String.raw`(?:nach\s+ihrer\s+zahlung\s+mit\s+(?:dem|ihrem)\s+verwendungszweck(?:\s+[„"»]?[\p{L}\p{N}\[\]-]+[“"«]?)?|sobald\s+wir\s+ihre\s+zahlung(?:\s+über\s+${L_BETRAG})?\s+zugeordnet\s+haben,?)\s+schalten\s+wir\s+umgehend\s+ihren\s+account\s+frei(?:,?\s+damit\s+sie\s+schnellstmöglich\s+${VERKAUFS_NUTZEN})?`,
+  String.raw`damit\s+sie\s+schnellstmöglich\s+${VERKAUFS_NUTZEN},?\s+fehlt\s+in\s+ihrem\s+antrag\s+nur\s+noch`,
   // Sein Wunschlimit als Ziel
   String.raw`(?:ihr|das)\s+wunschlimit(?:\s+aus\s+(?:dem|ihrem)\s+antrag)?(?:\s+(?:von|über)\s+${L_BETRAG})?\s+(?:ist|bleibt)\s+(?:dabei\s+|weiter\s+|auch\s+|weiterhin\s+)?(?:das|unser|ihr)\s+(?:gemeinsames\s+)?ziel`,
   // E-265 Schluss-Nachbesserung (Probe 4 l02): die umgestellte Form „… ist Ihr Wunschlimit (aus dem Antrag | von X €) unser Ziel".
@@ -2118,10 +2153,10 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // (mitAntragLuecke ersetzt ihn bei unvollständigem Antrag).
       // E-276 (02.10.2026): „Sobald wir Ihre Zahlung … zugeordnet haben“ statt „… bei uns eingeht“ — er hat schon überwiesen;
       // kam sein Verwendungszweck verkürzt an, bucht der Abgleich nicht selbst, dann ordnet die Zahlungsstelle zu (nachDerZuordnung).
-      return absatz(
-        `Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true })}.${zt ? ` Ziel bleibt Ihre Visa-Kreditkarte ${zt}${bankZusatz()}.` : " Ziel bleibt Ihre eigene Visa-Kreditkarte."}`,
-        steht ? `${steht} — dort geht es direkt weiter.` : mail ? KARTE_ZEIT_SATZ : KARTE_ZEIT_WA,
-      );
+      // E-373 (15.10.2026, Justin): Justins Verkaufssatz mit seinem Wunschlimit — ohne „Nach der Zusage der Bank …“ (Vertrag, kein Verkauf).
+      return steht
+        ? absatz(`Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true, ziel: l.ziel })}.`, `${steht} — dort geht es direkt weiter.`)
+        : `Danke Ihnen! ${nachDerZuordnung({ betrag: l.betrag, anfang: true, ziel: l.ziel })}.`;
     case "rate":
       // E-265 Nachbesserung (29.09.2026, Recht): kein „sobald sie gebucht ist, läuft Ihr Weg ohne Pause weiter" — seit
       // E-206 hängt die Einladung der Partnerbank nur an der ERSTEN Rate; die Folgerate ist Vertragspflicht, nicht
@@ -2145,8 +2180,9 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // E-265 Nachbesserung (29.09.2026): endet mit EINER Frage. E-275: „Wollen wir starten?“ statt „Lieber erst sprechen —
       // passt Ihnen … für einen Anruf mit …?" — den Anruf bietet Mara an, wenn er ihn will. E-275 Ton (02.10.2026): bleibt so —
       // die Begeisterung trägt der erste Satz („Ja, da sind Sie bei uns genau richtig!“).
+      // E-373: der Satz über die Bank nur noch auf seine Frage (wie mailAbschlussFormel „c“) — nie im Verkauf.
       return absatz(
-        `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank${zt ? `, ${kartenzielText(l.ziel, { alsZiel: true })}` : ""}. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten, und über den Rahmen entscheidet am Ende die Bank${link ? `:${link}` : "."}`,
+        `Ja, da sind Sie bei uns genau richtig! Es geht um Ihre eigene Visa-Kreditkarte bei unserer Partnerbank${zt ? `, ${kartenzielText(l.ziel, { alsZiel: true })}` : ""}. Im Antrag tragen Sie Ihr Wunschlimit ein, das dauert etwa fünf Minuten${bankSatzNurAufNachfrage() ? "" : ", und über den Rahmen entscheidet am Ende die Bank"}${link ? `:${link}` : "."}`,
         `Wollen wir starten?`,
       );
     case "b":
@@ -2158,9 +2194,11 @@ export function bausteinAbschluss(l: AbschlussLage): string {
       // schaltet das System Sie frei, …"). In der Mail dazu der Tempo-Satz (auf WhatsApp zählt jedes Zeichen, ≤ 500).
       // E-276 (02.10.2026): „sofort“ nur mit seinem Verwendungszweck — per Mail steht er im Satz („mit Ihrem
       // Verwendungszweck FIAON-AB12CD ist Ihr Account …“, statt in Klammern davor), auf WhatsApp zeigt ihn die Zahlungsseite.
+      // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): die Aufforderung, dann
+      // Justins Satz mit seinem Wunschlimit — ohne Bank-Satz, ohne „Nach der Zusage der Bank …“, ohne Tempo-Umweg.
       return absatz(
-        `Bei uns kommen Sie zu Ihrer ${mail ? "eigenen " : ""}Visa-Kreditkarte${zt ? ` ${zt}` : ""}${bankZusatz()}.`,
-        `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""} — ${nachDemEingang({ ref: mail ? l.verwendungszweck : null })}! ${steht ? `${steht}.` : mail ? `${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}` : KARTE_ZEIT_WA} ${zahlen}${link}`,
+        `${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate${l.betrag ? ` über ${l.betrag}` : ""} — ${nachDemEingang({ ref: mail ? l.verwendungszweck : null, ziel: l.ziel })}!`,
+        `${steht ? `${steht}. ` : ""}${zahlen}${link}`,
       );
   }
 }
@@ -2442,21 +2480,26 @@ export function bausteinVorkasse(l: {
    * Was der Zahlungseingang auslöst — Justins Satz. E-275 Ton (02.10.2026): vorher „Nach der Buchung kommt direkt der
    * Link unserer Partnerbank für Ihren Kartenantrag." Auf einen Einwand ohne Imperativ: die Fakten, der Nutzen, die Frage.
    */
-  const danach = `${NACH_DEM_EINGANG_SATZ}.`; // E-276: am Satzanfang groß
+  // E-373 (15.10.2026, Justin): Justins Verkaufssatz mit seinem Wunschlimit — kein Bank-Satz im Verkauf.
+  const danach = `${nachDemEingang({ anfang: true, ziel: l.ziel })}.`; // E-276: am Satzanfang groß
   // Die kurze Fassung für die Antwort auf „kein Kreditinstitut?“ — dort steht die längste Erklärung, und die Nachricht
   // bleibt unter 500 lesbaren Zeichen (mit dem vollen Satz 531). mitAntragLuecke kennt auch sie.
   // E-276 (02.10.2026): „sofort“ nur mit dem Verwendungszweck (vorher „Mit dem Zahlungseingang ist Ihr Account sofort aktiv, …“);
   // die Zahlungsseite dahinter zeigt ihn. Genau 500 lesbare Zeichen mit Wunschlimit-Ziel — wie vorher unter der Grenze.
-  const danachKurz = "Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und nach Ihrer Bonitätsauswertung kommt direkt der Link unserer Partnerbank.";
+  // E-373: die kurze Fassung ist jetzt Justins Satz ohne Zahl (sein Ziel steht schon im ersten Satz).
+  const danachKurz = `${nachDemEingang({ anfang: true })}.`;
   if (l.kreditFrage) {
     // Seine Frage zuerst: „kein Kreditinstitut? Kredit vorab?" — ja, keine Bank; nein, kein Kredit (nie „keinen Kredit", kredit_nein).
     // Nie „Richtig" am Anfang: Steht „unseriös" daneben, gäbe das dem Vorwurf recht (wahrheitsBefunde, E-236).
     const rate = l.ohneAntrag
       ? "Vorab zahlen Sie keinen Kreditbetrag: Die erste Monatsrate unserer Begleitung kommt erst nach Ihrem Antrag, Sie überweisen sie selbst, abgebucht wird nichts."
       : `Vorab zahlen Sie keinen Kreditbetrag, sondern ${l.betrag ? `die ${l.betrag} als ` : "die "}erste Monatsrate unserer Begleitung — Sie überweisen selbst, abgebucht wird nichts. ${danachKurz}`;
-    return `Verstehe ich: Die Visa-Kreditkarte gibt unsere Partnerbank aus — FIAON ist kein Kreditinstitut, sondern bringt Sie dorthin${zt ? `, ${zt}` : ""} — über den Rahmen entscheidet die Bank. ${rate} ${frage}${link}`;
+    // E-373 (15.10.2026, Justin: „nicht mit ‚Wir sind keine Bank‘ … das steht alles im Vertrag“): positiv — was FIAON tut,
+    // beantwortet seine Frage; der Satz über die Bank nur ohne MARA_BANK_SATZ=nachfrage.
+    return `Verstehe ich: Ihre Visa-Kreditkarte gibt unsere Partnerbank aus — wir bringen Sie dorthin${zt ? `, ${zt}` : ""}${bankSatzNurAufNachfrage() ? "" : " — über den Rahmen entscheidet die Bank"}. ${rate} ${frage}${link}`;
   }
-  const karte = `Bei uns kommen Sie zu Ihrer Visa-Kreditkarte${l.ziel ? ` ${kartenzielText(l.ziel)}` : ""}${bankZusatz()}.`;
+  // E-373: sein Wunschlimit steht in Justins Satz (danach) — hier nur die Karte.
+  const karte = `Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte.`;
   const rate = l.ohneAntrag
     ? "Die erste Monatsrate kommt erst, wenn Ihr Antrag abgeschickt ist — Sie überweisen sie selbst, abgebucht wird nichts."
     : `${l.betrag ? `Die ${l.betrag} sind die erste ${l.jahresvertrag ? "von zwölf Monatsraten" : "Monatsrate"} Ihres Pakets` : "Sie zahlen in Monatsraten"} — Sie überweisen selbst, abgebucht wird nichts. ${danach}`;
@@ -2937,7 +2980,8 @@ export function mailAbschlussPflicht(text: string, ein: { betrag?: string | null
   const komma = b.replace(".", ","), punkt = b.replace(",", ".");
   if (b && !t.includes(komma) && !t.includes(punkt)) h.push(`Nenn den Betrag der ersten Monatsrate (${komma} €) in einem Satz.`);
   // E-275 Ton (02.10.2026): „Ihr Account ist sofort nach Zahlungseingang aktiv“ zählt wie „schaltet das System Sie frei“.
-  if (!/schaltet[^.!?\n]{0,40}\bfrei\b|freigeschaltet|freischalt|account\s+(?:ist\s+)?(?:[^\s.!?]+\s+){0,4}?aktiv|activat|unlock|account\s+(?:is|will\s+be)\s+(?:\S+\s+){0,3}?active/i.test(t)) {
+  // E-373: Justins Verkaufssatz („… schalten wir umgehend Ihren Account frei …“) ist die Freischaltung.
+  if (!/schaltet[^.!?\n]{0,40}\bfrei\b|schalten\s+wir[^.!?\n]{0,40}\bfrei\b|freigeschaltet|freischalt|account\s+(?:ist\s+)?(?:[^\s.!?]+\s+){0,4}?aktiv|activat|unlock|account\s+(?:is|will\s+be)\s+(?:\S+\s+){0,3}?active/i.test(t)) {
     // E-276 (02.10.2026): mit seinem Verwendungszweck — nur dann bucht der Abgleich sofort.
     h.push(`Sag, was die Zahlung auslöst: „${NACH_DEM_EINGANG_SATZ}“ (englisch: „With your payment reference, your account is active as soon as your payment arrives, and you receive the link of our partner bank for your card application right away.“).`);
   }

@@ -147,12 +147,14 @@ const B = ton.bausteinAbschluss({ kanal: "whatsapp", art: "b", ziel: ZIEL, betra
 // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account ist
 // sofort nach Eingang aktiv!‘“): statt „Bitte begleichen Sie … — sobald sie gebucht ist, schaltet das System Sie frei, …“ die
 // klare Aufforderung mit Betrag und der Nutzen direkt dahinter — bewusst mitgezogen.
-ok(B.includes(ton.ZAHL_FRAGE) && B.includes(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${ton.NACH_DEM_EINGANG}!`) && /2–5 Werktagen/.test(B) && B.endsWith(LINK)
-  && !/schaltet das System|Bitte begleichen/.test(B), `B: „Zahlen Sie jetzt die Aktivierung“ mit Betrag, sofort aktiv, direkt der Link der Partnerbank, 2–5 Werktage, die Bitte, Link — „${kurz(B, 160)}“`);
+// E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): Justins Satz mit seinem
+// Wunschlimit — kein „Nach der Zusage der Bank …“, kein Satz über die Bank.
+ok(B.includes(ton.ZAHL_FRAGE) && B.includes(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 99,99 € — ${ton.nachDemEingang({ ziel: ZIEL })}!`) && !/Werktagen|Zusage der Bank|entscheidet/.test(B) && B.endsWith(LINK)
+  && !/schaltet das System|Bitte begleichen/.test(B), `B: Aufforderung mit Betrag, Justins Satz mit Wunschlimit, die Bitte, Link — ohne Bank- und Zeit-Satz (E-373) — „${kurz(B, 160)}“`);
 ok(!/Termin|Anruf|Stripling|vereinbare/.test(B), "B: kein Termin, kein Anruf, kein Name (Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“)");
 ok(!/produktion|garant|sicher\b|versend|verschick/i.test(B), "B: nie „in Produktion“, „garantiert“, „sicher“, „versendet“ — die Karte gibt die Partnerbank nach ihrer Zusage aus");
 const A = ton.bausteinAbschluss({ kanal: "whatsapp", art: "a", ziel: ZIEL, betrag: "99,99 €", mit: ds });
-ok(/Link unserer Partnerbank für Ihren Kartenantrag/.test(A) && !/begleichen|überweisen|zahlungsseite|Termin/i.test(A), "A: nach der Buchung direkt der Link, keine Zahlungsbitte, kein Termin");
+ok(/schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich/.test(A) && !/begleichen|überweisen|zahlungsseite|Termin/i.test(A), "A: nach der Zuordnung die Freischaltung und sein Ziel (E-373), keine Zahlungsbitte, kein Termin");
 const RATE = ton.bausteinAbschluss({ kanal: "whatsapp", art: "rate", ziel: ZIEL, betrag: "79,99 €", rateVom: "02.10.", mit: ds, link: LINK });
 ok(RATE.includes(ton.ZAHL_FRAGE) && /Ihre Rate vom 02\.10\. über 79,99 €/.test(RATE) && !/Termin/.test(RATE), "Rate: die Rate, die Bitte ums Zahlen statt „Soll ich Ihnen dazu einen Termin … eintragen?“");
 const AB = ton.bausteinAbschluss({ kanal: "whatsapp", art: "abbrecher", ziel: ZIEL, mit: ds, link: "https://fiaon.com/a/P275wa0000/w" });
@@ -160,20 +162,20 @@ ok(/Machen Sie heute noch weiter\?/.test(AB) && !/Termin|vereinbare/.test(AB) &&
 const C = ton.bausteinAbschluss({ kanal: "whatsapp", art: "c", mit: ds, link: "https://fiaon.com/a/P275wa0000/w" });
 ok(/Wollen wir starten\?$/.test(C) && !/Anruf/.test(C), "C: „Wollen wir starten?“ statt „Lieber erst sprechen — passt Ihnen … für einen Anruf …?“");
 const VK = ton.bausteinVorkasse({ betrag: "99,99 €", ziel: ZIEL, mit: ds, zeit: "heute um 15:30 Uhr", link: LINK, jahresvertrag: true });
-ok(/Sie überweisen selbst, abgebucht wird nichts/.test(VK) && /Link unserer Partnerbank/.test(VK) && VK.includes(ton.ZAHL_FRAGE) && !/Anruf|bevor Sie etwas überweisen/.test(VK), "Vorkasse: die Fakten, Justins Satz, die Bitte — kein Anruf als Pflicht");
+ok(/Sie überweisen selbst, abgebucht wird nichts/.test(VK) && /schalten wir umgehend Ihren Account frei/.test(VK) && VK.includes(ton.ZAHL_FRAGE) && !/Anruf|bevor Sie etwas überweisen/.test(VK), "Vorkasse: die Fakten, Justins Satz, die Bitte — kein Anruf als Pflicht");
 const VKK = ton.bausteinVorkasse({ betrag: "99,99 €", ziel: ZIEL, link: LINK, jahresvertrag: true, kreditFrage: true });
-ok(!/tatsächlich keine Bank|wir sind keine bank/i.test(VKK) && /FIAON ist kein Kreditinstitut, sondern bringt Sie dorthin/.test(VKK), "„kein Kreditinstitut?“: positiv, was FIAON tut — nie „FIAON ist tatsächlich keine Bank“");
+ok(!/tatsächlich keine Bank|wir sind keine bank|kein Kreditinstitut/i.test(VKK) && /Ihre Visa-Kreditkarte gibt unsere Partnerbank aus — wir bringen Sie dorthin/.test(VKK), "„kein Kreditinstitut?“: positiv, was FIAON tut — nie „keine Bank“/„kein Kreditinstitut“ (E-373)");
 for (const [was, t] of [["B", B], ["A", A], ["Rate", RATE], ["Abbrecher", AB], ["C", C], ["Vorkasse", VK], ["Vorkasse Kredit", VKK]] as const) {
   const hart = ton.tonPruefung(t, { kanal: "whatsapp", land: "DE", kunde: "" }).filter((b) => b.schwere === "hart");
   ok(!hart.length && !sendePruefung(t).length && lesbar(t) <= 500, `${was}: Ton und Wand ohne harten Treffer, ${lesbar(t)} Zeichen ohne Link${hart.length ? ` — ${hart.map((b) => b.id).join(", ")}` : ""}`);
 }
-ok(KARTE_LINK_SATZ.includes("fertigen Link unserer Partnerbank für Ihren Kartenantrag") && B.includes("fertigen Link unserer Partnerbank für Ihren Kartenantrag"), "Justins Satz kommt aus EINER Quelle (shared/fiaon-karten-weg.ts)");
+ok(KARTE_LINK_SATZ.includes("fertigen Link unserer Partnerbank für Ihren Kartenantrag") && B.includes(ton.nachDemEingang({ ziel: ZIEL })), "Justins Verkaufssatz kommt aus EINER Quelle (nachDemEingang, shared/fiaon-mara-ton.ts)");
 // E-275 Gegenprüfung (Wahrheit und Recht): Fehlt im Antrag noch etwas, kommt der Link NICHT direkt nach der Buchung.
 for (const [was, t] of [["B", B], ["A", A], ["Vorkasse", VK]] as const) {
   const mitL = wa.mitAntragLuecke(t, ["Geburtsdatum"]);
-  ok(!/direkt\s+(?:den\s+fertigen\s+|der\s+)Link/.test(mitL) && /es fehlt noch: Geburtsdatum/.test(mitL) && wa.mitAntragLuecke(t, []) === t
+  ok(!/direkt\s+(?:den\s+fertigen\s+|der\s+)Link/.test(mitL) && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(mitL) && wa.mitAntragLuecke(t, []) === t
     && !ton.tonPruefung(mitL, { kanal: "whatsapp", land: "DE", kunde: "" }).some((b) => b.schwere === "hart") && !sendePruefung(mitL).length,
-    `${was} mit unvollständigem Antrag: kein „direkt der Link“, sondern was fehlt — „${kurz(mitL.replace(/^[\s\S]*?(Sobald auch Ihr Antrag|Nach der Buchung und)/, "$1"), 110)}“`);
+    `${was} mit unvollständigem Antrag: kein „direkt der Link“, sondern was fehlt — „${kurz(mitL.replace(/^[\s\S]*?(Damit Sie schnellstmöglich|Sobald auch Ihr Antrag|Nach der Buchung und)/, "$1"), 110)}“`);
 }
 // E-275 Endkontrolle (02.10.2026, Wahrheit): Auch „keine Karte“ bei offener ERSTER Rate und die Antwort auf die Limit-Frage
 // (B) tragen Justins Satz „… und Sie bekommen direkt den fertigen Link …“ — maraAntwortet reichte beide ohne Lücken-Fassung
@@ -183,7 +185,7 @@ for (const [was, t] of [["B", B], ["A", A], ["Vorkasse", VK]] as const) {
   const LF = ton.bausteinLimitFrage({ kanal: "whatsapp", ziel: ZIEL, betrag: "99,99 €", link: LINK });
   for (const [was, t] of [["Keine Karte (erste Rate)", KKE], ["Limit-Frage (B)", LF]] as const) {
     const mitL = wa.mitAntragLuecke(t, ["Geburtsdatum"]);
-    ok(/direkt den fertigen Link/.test(t) && !/direkt\s+(?:den\s+fertigen\s+|der\s+)Link/.test(mitL) && /es fehlt noch: Geburtsdatum/.test(mitL)
+    ok(/schalten wir umgehend Ihren Account frei/.test(t) && !/direkt\s+(?:den\s+fertigen\s+|der\s+)Link/.test(mitL) && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(mitL)
       && !ton.tonPruefung(mitL, { kanal: "whatsapp", land: "DE", kunde: "" }).some((b) => b.schwere === "hart") && !sendePruefung(mitL).length,
       `${was} mit unvollständigem Antrag: kein „direkt der Link“, sondern was fehlt`);
   }
@@ -201,7 +203,7 @@ ok(!/damit|deshalb|liegt daran/i.test(KK.slice(KK.indexOf("ist außerdem"))), "d
 const KKlang = ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "79,99 €", rateVom: "02.10.", link: LINK, kartenSatz: `${KARTEN_SATZ} ${"x".repeat(200)}.` });
 ok(!/ist außerdem noch offen/.test(KKlang), "zu lang für die Rate dazu: dann nur der Satz aus dem Bereich Karte (höchstens 500 lesbare Zeichen)");
 ok(/Das liegt daran, dass bei Ihnen noch eine Zahlung offen ist/.test(ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "99,99 €", erste: true, link: LINK }))
-  && /direkt den fertigen Link unserer Partnerbank/.test(ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "99,99 €", erste: true, link: LINK })), "erste Zahlung offen: „Das liegt daran …“ und was die Buchung auslöst (Justins Satz)");
+  && /schalten wir umgehend Ihren Account frei/.test(ton.bausteinKeineKarte({ kanal: "whatsapp", betrag: "99,99 €", erste: true, link: LINK })), "erste Zahlung offen: „Das liegt daran …“ und was die Zahlung auslöst (Justins Satz, E-373)");
 
 console.log("── A4. Weiche Prüfung: kein ungefragter Anruf, kein „X meldet sich“ ──");
 const vp = (a: string, kunde: string, anrufOk: boolean) => wa.verkaufsPruefung(a, { kunde, letzteDu: [], verkaufen: false, anrufOk });
@@ -324,17 +326,18 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
   const AUFRUF = `${ton.AKTIVIERUNG_AUFRUF}`;
   for (const [was, x] of [["B", B], ["keine Karte (erste Rate)", KKE], ["Limit-Frage", LF], ["Mail-B", MB2]] as const) {
     // E-276 (02.10.2026): „mit Ihrem Verwendungszweck … ist Ihr Account sofort nach Eingang aktiv“ — die Bedingung im selben Satz.
-    ok(x.includes(AUFRUF) && x.indexOf(AUFRUF) < x.indexOf("ist Ihr Account sofort nach Eingang aktiv") && /mit Ihrem Verwendungszweck (?:FIAON-\S+ )?ist Ihr Account sofort nach Eingang aktiv/.test(x) && ton.ausrufezeichen(x) === 1,
+    // E-373: Justins Verkaufssatz direkt hinter der Aufforderung.
+    ok(x.includes(AUFRUF) && x.indexOf(AUFRUF) < x.indexOf("schalten wir umgehend Ihren Account frei") && /nach Ihrer Zahlung mit (?:dem Verwendungszweck „FIAON-\S+“|Ihrem Verwendungszweck) schalten wir umgehend Ihren Account frei/.test(x) && ton.ausrufezeichen(x) === 1,
       `${was}: „Zahlen Sie jetzt die Aktivierung“, der Nutzen direkt dahinter, genau ein „!“`);
   }
   for (const [was, x] of [["A", A], ["Rate", RATE], ["Vorkasse", VK], ["Vorkasse Kredit", VKK], ["Abbrecher", AB], ["C", C]] as const) {
     ok(ton.ausrufezeichen(x) <= 1 && !x.includes(AUFRUF), `${was}: keine Aufforderung zur Aktivierung (nicht die erste Zahlung bzw. Einwand/kein Antrag), höchstens ein „!“`);
   }
   // E-276 (02.10.2026): A „sobald wir Ihre Zahlung … zugeordnet haben“ (statt „… bei uns eingeht“) — wahr auch mit verkürztem Zweck.
-  ok(/Sobald wir Ihre Zahlung über 99,99 € zugeordnet haben, ist Ihr Account sofort aktiv, und Sie bekommen direkt den fertigen Link/.test(A), "A: „sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account sofort aktiv“ — keine Bitte");
-  ok(/Mit dem Verwendungszweck ist Ihr Account sofort aktiv, und der Link unserer Partnerbank kommt direkt\./.test(VKK) && lesbar(VKK) <= 500, `Vorkasse Kredit: die kurze Fassung mit dem Verwendungszweck (E-276), ${lesbar(VKK)} Zeichen`);
+  ok(/Sobald wir Ihre Zahlung über 99,99 € zugeordnet haben, schalten wir umgehend Ihren Account frei/.test(A), "A: „sobald wir Ihre Zahlung zugeordnet haben, schalten wir umgehend Ihren Account frei …“ — keine Bitte (E-373)");
+  ok(VKK.includes(`${ton.NACH_DEM_EINGANG_SATZ}.`) && lesbar(VKK) <= 500, `Vorkasse Kredit: Justins Satz in der kurzen Fassung (E-373), ${lesbar(VKK)} Zeichen`);
   const VKKL = wa.mitAntragLuecke(VKK, ["Geburtsdatum"]);
-  ok(!/kommt direkt/.test(VKKL) && /es fehlt noch: Geburtsdatum/.test(VKKL) && !ton.tonPruefung(VKKL, { kanal: "whatsapp", land: "DE", kunde: "" }).some((b) => b.schwere === "hart"),
+  ok(!/kommt direkt/.test(VKKL) && /fehlt in Ihrem Antrag nur noch: Geburtsdatum/.test(VKKL) && !ton.tonPruefung(VKKL, { kanal: "whatsapp", land: "DE", kunde: "" }).some((b) => b.schwere === "hart"),
     "Vorkasse Kredit mit unvollständigem Antrag: kein „direkt“, nennt was fehlt");
   // Nie die unwahre Fassung von Justins Satz: FIAON versendet keine Karte, „in Produktion“ gibt es vor der Zusage nicht.
   for (const x of [B, A, KKE, LF, MB2, VK, VKK, ton.KARTE_REGEL_TEXT, ton.personaText("whatsapp", {}), agent.MAIL_KARTE_REGEL]) {
@@ -365,7 +368,7 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
     "Postfach: „Überweisen/Zahlen Sie (bitte) nichts mehr“ ist keine Zahlungsbitte — „Überweisen Sie jetzt, damit keine …“ bleibt eine");
   ok(ton.abschlussPruefung(`${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 7,99 €.`, { art: "a", kunde: "habe bezahlt" }).length > 0, "A (Zahlung gemeldet): „Zahlen Sie jetzt …“ fällt auf");
   ok(ton.mailAbschlussPflicht(`Bei uns kommen Sie zu Ihrer Visa-Kreditkarte. ${ton.AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über 59,99 € — ${ton.NACH_DEM_EINGANG}!`, { betrag: "59.99" }).length === 0,
-    "Mail-Pflicht: „mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv“ zählt als Freischaltung, „Zahlen Sie jetzt“ als Schritt");
+    "Mail-Pflicht: Justins Satz („… schalten wir umgehend Ihren Account frei …“) zählt als Freischaltung, „Zahlen Sie jetzt“ als Schritt (E-373)");
   // Persona und Auftrag: übermotiviert, seriös, nie „ich leite das weiter“.
   const P = ton.personaText("whatsapp", {});
   ok(/VERKAUFST MIT BEGEISTERUNG/.test(P) && /höchstens EIN Ausrufezeichen/.test(P) && /ich leite das an … weiter/.test(P) && P.includes(ton.TEMPO_SATZ), "Persona: begeistert, seriös, ein „!“, nie „ich leite das an … weiter“, der Tempo-Satz");
@@ -379,13 +382,14 @@ console.log("── A10. E-275 Ton: Aufforderung, Nutzen, ein Ausrufezeichen, di
 console.log("── A11. E-276: „sofort“ nur mit dem Verwendungszweck, Stufe A „zugeordnet“ ──");
 {
   const agent = await import("../server/lib/fiaon-postmeister-agent");
-  ok(ton.NACH_DEM_EINGANG.startsWith("mit Ihrem Verwendungszweck ist Ihr Account sofort nach Eingang aktiv, und Sie bekommen direkt den fertigen Link")
-    && ton.NACH_DEM_EINGANG_SATZ.startsWith("Mit Ihrem Verwendungszweck") && ton.nachDemEingang({ ref: "FIAON-AB12CD" }).includes("mit Ihrem Verwendungszweck FIAON-AB12CD ist Ihr Account"),
-    "Justins Satz trägt die Bedingung (klein nach dem Gedankenstrich, groß am Satzanfang, per Mail mit dem Zweck)");
-  ok(agent.AKTIVIERUNG_SATZ === `${ton.NACH_DEM_EINGANG_SATZ}!` && agent.AKTIVIERUNG_SATZ_A.startsWith("sobald wir Ihre Zahlung zugeordnet haben, ist Ihr Account sofort aktiv"),
+  // E-373 (15.10.2026, Justin): „Nach Ihrer Zahlung mit dem Verwendungszweck „XY“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich …“
+  ok(ton.NACH_DEM_EINGANG.startsWith("nach Ihrer Zahlung mit Ihrem Verwendungszweck schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich")
+    && ton.NACH_DEM_EINGANG_SATZ.startsWith("Nach Ihrer Zahlung mit Ihrem Verwendungszweck") && ton.nachDemEingang({ ref: "FIAON-AB12CD" }).includes("nach Ihrer Zahlung mit dem Verwendungszweck „FIAON-AB12CD“ schalten wir"),
+    "Justins Satz trägt die Bedingung (klein nach dem Gedankenstrich, groß am Satzanfang, per Mail mit dem Zweck) — E-373");
+  ok(agent.AKTIVIERUNG_SATZ === `${ton.NACH_DEM_EINGANG_SATZ}!` && agent.AKTIVIERUNG_SATZ_A.startsWith("sobald wir Ihre Zahlung zugeordnet haben, schalten wir umgehend Ihren Account frei"),
     "Postfach: AKTIVIERUNG_SATZ mit Verwendungszweck, Stufe A „sobald wir Ihre Zahlung zugeordnet haben“");
   const MB = ton.bausteinAbschluss({ kanal: "mail", art: "b", betrag: "59,99 €", verwendungszweck: "FIAON-P276M" });
-  ok(MB.includes("— mit Ihrem Verwendungszweck FIAON-P276M ist Ihr Account sofort nach Eingang aktiv") && !/\(Verwendungszweck FIAON-P276M\)/.test(MB),
+  ok(MB.includes("— nach Ihrer Zahlung mit dem Verwendungszweck „FIAON-P276M“ schalten wir umgehend Ihren Account frei") && !/\(Verwendungszweck FIAON-P276M\)/.test(MB),
     "Mail-B: der Verwendungszweck steht IM Satz (nicht mehr in Klammern davor)");
   // Die weiche Prüfung „sofort_ohne_zweck“: „sofort nach (Zahlungs-)Eingang“ ohne Zweck im selben Satz.
   const w = (t: string) => ton.tonPruefung(t, { kanal: "whatsapp" }).filter((b) => b.id === "sofort_ohne_zweck");

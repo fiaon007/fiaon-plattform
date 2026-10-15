@@ -244,8 +244,11 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   links: { id: number; arten: string[]; gueltigBis: string; nutzungen: number; dateien: number; erstelltVon: string | null }[];
   /** E-365: Warum das Team heute noch nicht beginnen darf (Widerrufsfrist der gekauften Auswertung) — sonst null. */
   startSperre: { satz: string; abText: string } | null;
-  /** E-365: bezahlt (Bestellung), inklusive (Kartenlink wartet) oder keins von beiden — für die Marke auf der Karte. */
+  /** E-365: bezahlt (Bestellung), inklusive (Kartenlink wartet) oder keins von beiden — für die Marke auf der Karte.
+   *  Bei „keine“ ist betragText der Angebotspreis (74 € mit Paket, sonst 149 €). */
   grundlage: { art: "bezahlt" | "inklusive" | "keine"; ref: string | null; betragText: string | null };
+  /** E-365 Nachtrag: false = nicht gekauft — erst anbieten, kein „Bonität jetzt entwickeln“. */
+  darfEntwickeln: boolean;
 }> {
   await ensureFinanzauswertungTabellen();
   // Liegengebliebene Läufe (Neustart mitten im Lauf) nach 15 Minuten freigeben — sonst sperrte der Teilindex die Person.
@@ -276,22 +279,20 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   }));
   const ablauf = await import("./fiaon-bonitaet-ablauf");
   const sperre = await ablauf.auswertungStartSperre(personId, lauf).catch(() => null);
-  const kauf = await ablauf.auswertungKauf(personId, lauf).catch(() => null);
-  let inklusive = false;
-  if (!kauf) {
-    const karte = await import("./fiaon-konto-karte");
-    await karte.bonitaetBereit().catch(() => {});
-    const [i] = (await lauf`SELECT ${lauf.unsafe(karte.BONITAET_INKLUSIVE_SQL(String(Math.trunc(personId))))} AS ja`.catch(() => [])) as any[];
-    inklusive = !!i?.ja;
-  }
+  const grund = await ablauf.auswertungGrundlage(personId, lauf).catch(() => null);
   const { euroText } = await import("@shared/fiaon-auskunft");
+  // E-365 Nachtrag: der Preis für das Angebot bei „nicht gekauft“ (74 € mit Paket, sonst 149 €).
+  const { auskunftPreis } = await import("./fiaon-auskunft");
+  const preis = grund?.art === "keine" ? await auskunftPreis(personId, "privat", lauf).catch(() => null) : null;
   return {
     voraussetzungen: e?.voraussetzungen ?? null, fassungen, laeuft: fassungen.find((f) => f.status === "laeuft") ?? null, veraltet, veraltetGrund,
     sicht: e?.ausweis.sicht ?? null, ausweisVorhanden: !!e?.ausweis.vorhanden, anfragen, links,
     startSperre: sperre ? { satz: sperre.satz, abText: sperre.abText } : null,
-    grundlage: kauf
-      ? { art: "bezahlt", ref: kauf.ref, betragText: kauf.betragCents ? euroText(kauf.betragCents) : null }
-      : { art: inklusive ? "inklusive" : "keine", ref: null, betragText: null },
+    grundlage: grund?.art === "bezahlt"
+      ? { art: "bezahlt", ref: grund.ref, betragText: grund.betragCents ? euroText(grund.betragCents) : null }
+      : { art: grund?.art === "inklusive" ? "inklusive" : "keine", ref: null, betragText: preis?.text ?? null },
+    // E-365 Nachtrag: Der Knopf „Bonität jetzt entwickeln“ nur für Käufer, Inklusiv-Fälle oder eine neue Fassung einer früheren.
+    darfEntwickeln: !grund || grund.art !== "keine" || grund.frueher,
   };
 }
 
@@ -543,6 +544,10 @@ export async function erzeugen(
   const { auswertungStartSperre } = await import("./fiaon-bonitaet-ablauf");
   const sperre = await auswertungStartSperre(personId, lauf).catch(() => null);
   if (sperre) return { ok: false, text: sperre.satz };
+  // E-365 Nachtrag (15.10.2026, Justin „nein“): nur für Käufer und Inklusiv-Fälle — „nicht gekauft“ wird erst angeboten.
+  const { auswertungGrundlage, NICHT_GEKAUFT_SATZ } = await import("./fiaon-bonitaet-ablauf");
+  const grund = await auswertungGrundlage(personId, lauf).catch(() => null);
+  if (grund && grund.art === "keine" && !grund.frueher) return { ok: false, text: NICHT_GEKAUFT_SATZ };
   if (!e.voraussetzungen.bereit) {
     const fehlt = [!e.ausweis.vorhanden ? "Der Ausweis fehlt." : null, !e.auszug.vorhanden ? "Der Kontoauszug fehlt." : null,
       e.auszug.vorhanden && !e.voraussetzungen.kontoauszug.ok ? e.voraussetzungen.kontoauszug.satz : null].filter(Boolean).join(" ");

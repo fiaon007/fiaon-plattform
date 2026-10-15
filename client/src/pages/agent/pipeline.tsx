@@ -2980,11 +2980,11 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
                       <button type="button" onClick={() => {
                         void (async () => {
                           const r = await api(`/agent/crm/kunden/${k.personId}/bonitaet-bestellen`, { method: "POST" });
-                          if (r.ok) melden("gut", r.json?.existing ? "Bestellung besteht bereits" : "Bonitätsauskunft bestellt",
+                          if (r.ok) melden("gut", r.json?.existing ? "Bestellung besteht bereits" : "Bonitätsauswertung bestellt",
                             `${r.json?.hinweis || ""}${r.json?.paymentReference ? ` Verwendungszweck: ${r.json.paymentReference}` : ""}`);
                           else melden("schlecht", "Nicht bestellt", r.json?.error || "Bitte erneut versuchen.");
                         })();
-                      }}>Bonitätsauskunft bestellen</button>
+                      }}>Bonitätsauswertung bestellen</button>
                       <button type="button" onClick={() => {
                         void (async () => {
                           const r = await api(`/agent/onboarding/person/${k.personId}/gefuehrt`, { method: "POST" });

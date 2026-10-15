@@ -2143,7 +2143,7 @@ export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
     // E-365 (15.10.2026): Grundlage je Zeile und der Knopf für Altkäufer.
     ziel: ".awl",
     titel: "Bezahlt, im Paket, nicht gekauft.",
-    text: "Jede Zeile sagt, worauf die Auswertung beruht: bezahlt (74/149 €), im Paket (der Kartenlink wartet — dann ist sie inklusive) oder nicht gekauft. „Käufer um Unterlagen bitten“ schickt Käufern, die nie um Ausweis und Kontoauszug gebeten wurden, einmal den Upload-Link.",
+    text: "Jede Zeile sagt, worauf die Auswertung beruht: bezahlt (74/149 €), im Paket (der Kartenlink wartet — dann ist sie inklusive) oder nicht gekauft. Entwickelt wird nur für bezahlt und im Paket; „Nicht gekauft · anbieten“ ist ein eigener Filter — dort bietest du sie in der Akte an. „Käufer um Unterlagen bitten“ schickt Käufern, die nie um Ausweis und Kontoauszug gebeten wurden, einmal den Upload-Link.",
   },
   {
     ziel: ".akb-status",

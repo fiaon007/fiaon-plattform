@@ -210,6 +210,16 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
     if (r.ok) { startRef.current = Date.now(); setSek(0); melden("gut", "Bonitätsauswertung startet", r.json?.meldung); void laden(); }
     else melden("schlecht", "Nicht gestartet", r.json?.error || "Bitte erneut versuchen.");
   };
+  // E-365 Nachtrag: das Angebot (dieselbe Bestellung wie Akte → ⋯ → „Bonitätsauswertung bestellen“, mit Rückfrage).
+  const anbieten = async () => {
+    if (busy) return;
+    if (!window.confirm(`${name || "Dem Kunden"} die Bonitätsauswertung anbieten? Er bekommt eine E-Mail zum Bestätigen mit Kauflink.`)) return;
+    setBusy("start");
+    const r = await api(`/agent/crm/kunden/${personId}/bonitaet-bestellen`, { method: "POST", body: "{}" });
+    setBusy("");
+    if (r.ok) { melden("gut", r.json?.existing ? "Bestellung besteht bereits" : "Bonitätsauswertung angeboten", r.json?.hinweis); void laden(); }
+    else melden("schlecht", "Nicht angeboten", r.json?.error || "Bitte erneut versuchen.");
+  };
   const freigeben = async () => {
     if (!entwurf || busy) return;
     setBusy("frei");
@@ -220,7 +230,9 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
   };
 
   const zustand = laeuft ? "laeuft" : entwurf ? "entwurf" : gescheitert ? "fehler" : aktuell ? "frei" : v.bereit ? "bereit" : "fehlt";
-  const chip = { laeuft: "Wird entwickelt", entwurf: "Prüfen & freigeben", fehler: "Gescheitert", frei: "Beim Kunden", bereit: "Startklar", fehlt: "Unterlagen fehlen" }[zustand];
+  const chip = (zustand === "bereit" || zustand === "fehlt") && d.darfEntwickeln === false
+    ? "Nicht gekauft" // E-365 Nachtrag: erst anbieten
+    : { laeuft: "Wird entwickelt", entwurf: "Prüfen & freigeben", fehler: "Gescheitert", frei: "Beim Kunden", bereit: "Startklar", fehlt: "Unterlagen fehlen" }[zustand];
   // E-358 (14.10.2026): kein Vier-Augen mehr — wer entwickelt hat, prüft und gibt frei (der Server prüft die Rolle).
   const darfNicht = entwurf ? !!d.veraltet : true;
   const pdf = (f: any) => `/api/fiaon/agent/kunden/${personId}/finanzauswertung/${f.id}/pdf`;
@@ -244,7 +256,21 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
           </p>
         )}
 
-        {zustand === "fehlt" && (
+        {/* E-365 Nachtrag (15.10.2026, Justin „nein“): nicht gekauft und nicht im Paket — erst anbieten, nicht gratis entwickeln. */}
+        {(zustand === "fehlt" || zustand === "bereit") && d.darfEntwickeln === false && (
+          <>
+            <h3 className="ba-titel">Nicht gekauft — erst anbieten</h3>
+            <p className="ba-satz">Der Kartenlink ist schon da, die Bonitätsauswertung ist nicht im Paket enthalten. Sie kostet {d.grundlage?.betragText ?? "74 €"} einmalig. {name || "Der Kunde"} bekommt eine E-Mail zum Bestätigen mit Kauflink — Zahlungsdaten erst danach. Mara bietet sie auch von sich aus an.</p>
+            <div className="ba-knoepfe">
+              <button type="button" className="ba-start" disabled={!!busy} onClick={() => void anbieten()} data-fiaon="bonitaet-anbieten">
+                <Stern />{busy === "start" ? "Wird angeboten …" : "Bonitätsauswertung anbieten"}
+              </button>
+              <span className="ba-klein">Nichts wird entwickelt, bevor der Kunde gekauft hat.</span>
+            </div>
+          </>
+        )}
+
+        {zustand === "fehlt" && d.darfEntwickeln !== false && (
           <>
             <h3 className="ba-titel">Noch nicht startklar</h3>
             <p className="ba-satz">Es fehlt noch: {[!d.ausweisVorhanden ? "Ausweis" : null, v.kontoauszug?.stand === "fehlt" ? "Kontoauszug" : null].filter(Boolean).join(" und ") || "ein lesbarer Kontoauszug"}. Sobald beides hochgeladen ist, geht der Knopf an.</p>
@@ -262,7 +288,7 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
           </>
         )}
 
-        {zustand === "bereit" && (
+        {zustand === "bereit" && d.darfEntwickeln !== false && (
           <>
             <h3 className="ba-titel">Ausweis und Kontoauszug sind da — die Bonität kann jetzt entwickelt werden.</h3>
             <p className="ba-satz">Ampel für sieben Bereiche, FIAON-Finanzwert, ein konkreter Plan mit Fristen und das PDF für {name || "den Kunden"}. Danach prüfst du das PDF und gibst es frei — der Kunde bekommt es sofort mit Mail.</p>

@@ -16,7 +16,7 @@ import { akteLink } from "@/lib/akte-link";
 import "@/styles/auswertung-warteliste.css";
 
 type StandKey = "bereit" | "laeuft" | "entwurf" | "fehlt" | "beim_kunden";
-type FilterKey = StandKey | "karte";
+type FilterKey = StandKey | "karte" | "anbieten";
 interface Zeile {
   personId: number; name: string; betreuer: string | null; bezahltAm: string | null; ausweis: boolean; kontoauszug: boolean;
   stand: StandKey; gesamt: string | null; finanzwert: number | null; vierAugen: boolean; gescheitert: boolean;
@@ -34,7 +34,12 @@ const STAND: Record<StandKey, string> = {
 const FILTER: { key: FilterKey; text: string }[] = [
   { key: "bereit", text: "Startklar" }, { key: "karte", text: "Wartet auf Kartenlink" }, { key: "entwurf", text: "Prüfen & freigeben" },
   { key: "fehlt", text: "Unterlagen fehlen" }, { key: "beim_kunden", text: "Beim Kunden" },
+  // E-365 Nachtrag (15.10.2026, Justin „nein“): nicht gekauft, nicht im Paket — nicht entwickeln, sondern 74 € anbieten.
+  { key: "anbieten", text: "Nicht gekauft · anbieten" },
 ];
+
+/** E-365 Nachtrag: „nicht gekauft“ ohne Auswertung gehört nicht in Startklar/Unterlagen fehlen — dort steht nur, wer entwickelt wird. */
+const zumAnbieten = (z: Zeile) => z.grundlage === "nicht_gekauft" && (z.stand === "bereit" || z.stand === "fehlt");
 
 /** E-364: Seit jeder zahlende Kunde drinsteht (14.10.: 345 statt 73), zeigt jeder Filter erst die ersten 20 — die Beschaffung darunter bleibt erreichbar. */
 const ERSTE = 20;
@@ -60,11 +65,13 @@ export default function AuswertungWarteliste() {
   const a = d.daten;
   if (!a) return d.fehler ? <p className="awl-still">{d.fehler}</p> : null;
   // Ohne Wahl: die erste Gruppe, in der jemand steht (Startklar → Kartenlink → Zu übergeben → Unterlagen fehlen → Beim Kunden).
-  const anzahl = (k: FilterKey) => (k === "karte" ? a.zahlen.wartet_karte ?? 0
-    : k === "entwurf" ? (a.zahlen.entwurf ?? 0) + (a.zahlen.laeuft ?? 0) : a.zahlen[k] ?? 0);
+  const imFilter = (z: Zeile, k: FilterKey) => (k === "anbieten" ? zumAnbieten(z)
+    : k === "karte" ? z.wartetKarte
+    : k === "entwurf" ? z.stand === "entwurf" || z.stand === "laeuft"
+    : z.stand === k && !zumAnbieten(z));
+  const anzahl = (k: FilterKey) => a.liste.filter((z) => imFilter(z, k)).length;
   const filter: FilterKey = wahl ?? FILTER.find((f) => anzahl(f.key) > 0)?.key ?? "bereit";
-  const zeilen = a.liste.filter((z) => (filter === "karte" ? z.wartetKarte
-    : filter === "entwurf" ? z.stand === "entwurf" || z.stand === "laeuft" : z.stand === filter));
+  const zeilen = a.liste.filter((z) => imFilter(z, filter));
   return (
     <section className="awl" aria-label="Bonitätsauswertung">
       <header className="awl-kopf">
@@ -98,6 +105,9 @@ export default function AuswertungWarteliste() {
           })}
         </div>
       </header>
+      {filter === "anbieten" && zeilen.length > 0 && (
+        <p className="awl-still">Kartenlink schon da, nichts gekauft — hier wird nicht entwickelt. In der Akte „Bonitätsauswertung anbieten“ (74 €); Mara bietet sie auch von sich aus an.</p>
+      )}
       {filter === "karte" && zeilen.length > 0 && (
         <p className="awl-still">Noch kein Link draußen, kein Bestandsschutz — der Kartenlink der Partnerbank kommt erst nach der freigegebenen Bonität.</p>
       )}

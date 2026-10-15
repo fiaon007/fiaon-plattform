@@ -82,6 +82,29 @@ export async function auswertungKauf(personId: number, lauf: Lauf = sqlPool): Pr
 }
 
 /**
+ * E-365 Nachtrag (15.10.2026, Justin: „nein“ — kein Gratis-Entwickeln für Paketkunden mit Kartenlink ohne Kauf):
+ * Worauf beruht die Auswertung? „bezahlt“ (74/149 € gekauft), „inklusive“ (Kartenlink wartet, BONITAET_INKLUSIVE_SQL) oder
+ * „keine“ (nicht gekauft — erst anbieten). `frueher`: Es gab schon eine Fassung (Entwurf, freigegeben, ersetzt) — eine neue
+ * Fassung aus neuen Unterlagen bleibt dann erlaubt.
+ */
+export async function auswertungGrundlage(personId: number, lauf: Lauf = sqlPool): Promise<{
+  art: "bezahlt" | "inklusive" | "keine"; ref: string | null; betragCents: number | null; frueher: boolean;
+}> {
+  const kauf = await auswertungKauf(personId, lauf);
+  const familie = await familieVon(personId, lauf);
+  const [f] = (await lauf`SELECT 1 FROM fiaon_finanzauswertungen WHERE person_id = ANY(${familie}) AND status IN ('entwurf', 'freigegeben', 'ersetzt') LIMIT 1`.catch(() => [])) as any[];
+  if (kauf) return { art: "bezahlt", ref: kauf.ref, betragCents: kauf.betragCents, frueher: !!f };
+  const karte = await import("./fiaon-konto-karte");
+  await karte.bonitaetBereit().catch(() => {});
+  const [i] = (await lauf`SELECT ${lauf.unsafe(karte.BONITAET_INKLUSIVE_SQL(String(Math.trunc(personId))))} AS ja`.catch(() => [])) as any[];
+  return { art: i?.ja ? "inklusive" : "keine", ref: null, betragCents: null, frueher: !!f };
+}
+
+/** Darf das Team für diesen Menschen eine Auswertung entwickeln? Nur bezahlt, inklusive oder als neue Fassung einer früheren. */
+export const NICHT_GEKAUFT_SATZ = "Nicht gekauft: Für diesen Kunden ist die FIAON-Bonitätsauswertung weder bezahlt noch im Paket enthalten (sein Kartenlink ist schon da). "
+  + "Erst anbieten — 74 € mit Paket: Karte „Bonitätsauswertung anbieten“ oder Akte → ⋯ → „Bonitätsauswertung bestellen“ (der Kunde bestätigt per Mail).";
+
+/**
  * Darf das Team die Auswertung heute entwickeln? null = ja, sonst der Satz für den Mitarbeiter.
  * Gesperrt nur, wenn die Person sie GEKAUFT hat, den Beginn vor Ablauf der Widerrufsfrist nicht verlangt hat
  * und die Frist noch läuft — und sie nicht ohnehin im Paket enthalten ist (dort gilt der Paketvertrag).

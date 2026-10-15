@@ -2621,7 +2621,7 @@ router.post("/agent/crm/kunden/:personId/bonitaet-bestellen", requireAgent, asyn
       return res.json({
         ok: true, existing: true, ref: best.ref, paymentReference: null, status: "paid",
         preisEuro: null, mitAbo: best.mitAbo,
-        hinweis: "Die Bonitätsauskunft ist bereits bezahlt — es wird nichts neu bestellt.",
+        hinweis: art === "firma" ? "Die Bonitätsauskunft ist bereits bezahlt — es wird nichts neu bestellt." : "Die Bonitätsauswertung ist bereits bezahlt — es wird nichts neu bestellt.",
       });
     }
     if (best.art === "offen") {
@@ -2634,15 +2634,19 @@ router.post("/agent/crm/kunden/:personId/bonitaet-bestellen", requireAgent, asyn
       });
     }
     if (!best.ok || !best.ref) {
-      return res.status(500).json({ ok: false, error: best.fehler ?? "Die Bonitätsauskunft ließ sich nicht anlegen." });
+      // E-365: „liegt schon vor“ / „im Paket enthalten“ ist kein Serverfehler, sondern die Antwort.
+      const lage = /enthalten|liegt bei diesem Kunden schon vor/.test(String(best.fehler ?? ""));
+      return res.status(lage ? 409 : 500).json({ ok: false, error: best.fehler ?? "Die Bonitätsauswertung ließ sich nicht anlegen." });
     }
     res.json({
       ok: true, existing: false, ref: best.ref, paymentReference: best.paymentReference, status: "pending_payment",
       preisEuro: best.betragCents / 100, betragText: best.betragText, mitAbo: best.mitAbo,
       zahlungsseite: best.zahlungsseite,
-      hinweis: `Bonitätsauskunft angelegt: ${best.betragText} (${best.mitAbo ? "Kundenpreis mit laufendem Paket" : "Einzelpreis, kein laufendes Paket"}). `
-        + "Die Zahlungsdaten gehen dem Kunden per E-Mail zu"
-        + (best.zahlungsseite ? ` — Zahlungsseite: ${best.zahlungsseite}` : "") + ".",
+      hinweis: `${art === "firma" ? "Bonitätsauskunft" : "Bonitätsauswertung"} angelegt: ${best.betragText} (${best.mitAbo ? "Kundenpreis mit laufendem Paket" : "Einzelpreis, kein laufendes Paket"}). `
+        // E-365: Ohne Erklärung des Kunden geht erst die Frage mit Kauflink hinaus — Zahlungsdaten erst nach seiner Bestätigung.
+        + (best.ohneKundenerklaerung
+          ? `Der Kunde bekommt ${best.frageVersandt ? "jetzt" : "gleich"} eine E-Mail zum Bestätigen — erst danach die Zahlungsdaten.`
+          : "Die Zahlungsdaten gehen dem Kunden per E-Mail zu" + (best.zahlungsseite ? ` — Zahlungsseite: ${best.zahlungsseite}` : "") + "."),
     });
   } catch (err) {
     console.error("[CRM] bonitaet-bestellen:", err);

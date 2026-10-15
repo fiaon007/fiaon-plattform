@@ -1337,6 +1337,22 @@ if (!LOKAL) {
     const lI = await BA.auswertungLage(kI.personId);
     ok(lI.stand === "wird_entwickelt" && lI.inklusive, "Lage inklusive: wird entwickelt");
 
+    // ── E-365 Nachtrag (Justin „nein“): Paketkunde MIT Kartenlink, nichts gekauft → nicht entwickeln, erst anbieten ──
+    const kN = await kunde("E365N");
+    await sqlPool`INSERT INTO fiaon_konto_karte (person_id, kanal) VALUES (${kN.personId}, 'mail')`;
+    const BA2 = await import("../server/lib/fiaon-bonitaet-ablauf");
+    const gN = await BA2.auswertungGrundlage(kN.personId);
+    ok(gN.art === "keine" && !gN.frueher, `Nicht gekauft: Grundlage „keine“ (${gN.art})`);
+    const eN = await FL.erzeugen(kN.personId, betreuer, { einordnung: einordnungStub as any, drucken: druckStub });
+    ok(!eN.ok && /Nicht gekauft/.test(eN.text), "Nicht gekauft: Erzeugen verweigert, Hinweis „erst anbieten“");
+    const laN = await FL.lage(kN.personId);
+    ok(laN.darfEntwickeln === false && laN.grundlage.art === "keine" && /€/.test(laN.grundlage.betragText ?? ""), `Akte-Karte: kein Entwickeln, Angebotspreis ${laN.grundlage.betragText}`);
+    const stN = await AU.auskunftStand(kN.personId);
+    // (Das Prüfstand-Paket „plus“ ist kein Katalogpaket — der Preis kann hier 149 € sein; es zählt: verkaufbar.)
+    ok(stN.stufe === "nichts", `Nicht gekauft: im Verkauf (${stN.stufe}, ${stN.preis.text})`);
+    const uiK = lies("client/src/components/finanzen/BonitaetsauswertungKarte.tsx");
+    ok(/darfEntwickeln === false/.test(uiK) && /Bonitätsauswertung anbieten/.test(uiK) && /bonitaet-bestellen/.test(uiK), "Karte: bei „nicht gekauft“ Angebot statt Entwickeln");
+
     // ── Wache: private Beschaffungsaufträge bekommen keine Liegezeit-Aufgabe mehr ──
     const pB = await nurPerson("E365B");
     const refB = await kaufen(pB, "E365B", 30);

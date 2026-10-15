@@ -23,7 +23,9 @@
 //     nachgesehen statt neu gepostet.
 //   · KI-Pflicht (Art. 50 KI-VO, Meta-Regel): Instagram setzt die KI-Info über
 //     die Schnittstelle (is_ai_generated, seit 22.06.2026). Für Facebook-Seiten
-//     gibt es kein belegtes Feld — KI-Posts gehen dort NICHT automatisch raus.
+//     gibt es kein belegtes Feld — dort steht am Ende JEDES Beitrags Justins Satz
+//     FB_KI_SATZ (Justin 15.10.2026: „es reicht, wenn wir am Ende jedes Beitrages
+//     stehen haben: Bild und Textmaterial teilweise mit KI erstellt").
 //   · Ein Not-Aus im Social-Studio; ohne Posting-Rechte passiert gar nichts.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -41,6 +43,9 @@ export const AUFTRAG_HAENGT_MS = 30 * 60_000;
 export const CONTAINER_VERFALL_MS = 23 * 3_600_000;
 /** So oft versucht die Automatik einen Kanal, bevor sie aufgibt (Fehler bleibt sichtbar). */
 export const AUTO_HOECHSTVERSUCHE = 3;
+
+/** Steht am Ende jedes automatischen Facebook-Beitrags — Justins Wortlaut (15.10.2026). */
+export const FB_KI_SATZ = "(Bild und Textmaterial teilweise mit KI erstellt)";
 
 export const AUTO_KANAELE = ["instagram", "facebook"] as const;
 export type AutoKanal = (typeof AUTO_KANAELE)[number];
@@ -82,7 +87,6 @@ export function kanalSperre(p: AutoPostSicht, kanal: AutoKanal, rechte: PostingR
   if (p.plattform_ids && (p.plattform_ids as any)[kanal]) return "schon veröffentlicht";
   if (kanal === "instagram" && !rechte.instagram) return "Meta erlaubt das Posten noch nicht";
   if (kanal === "facebook" && !rechte.facebook) return "Meta erlaubt das Posten noch nicht";
-  if (kanal === "facebook" && p.ki_noetig) return "KI-Post: Facebook bietet die KI-Kennzeichnung nicht über die Schnittstelle";
   return null;
 }
 
@@ -119,9 +123,15 @@ export function medienPlan(format: string, dateien: readonly AutoDatei[]): Medie
   return { fehler: `Format „${format}“ geht nur von Hand.` };
 }
 
-/** Die Bildunterschrift so, wie sie im Studio steht (Hashtags stehen schon darin); Instagram nimmt höchstens 2.200 Zeichen. */
-export function captionFuerMeta(caption: string | null | undefined): string {
-  return String(caption ?? "").replace(/\r\n/g, "\n").trim().slice(0, 2200);
+/**
+ * Die Bildunterschrift so, wie sie im Studio steht (Hashtags stehen schon darin); höchstens 2.200 Zeichen.
+ * Facebook: am Ende immer FB_KI_SATZ — gekürzt wird vorher der Text, nie der Satz.
+ */
+export function captionFuerMeta(caption: string | null | undefined, kanal: AutoKanal = "instagram"): string {
+  const text = String(caption ?? "").replace(/\r\n/g, "\n").trim();
+  if (kanal !== "facebook") return text.slice(0, 2200);
+  if (text.endsWith(FB_KI_SATZ)) return text.slice(-2200);
+  return `${text.slice(0, 2200 - FB_KI_SATZ.length - 2)}\n\n${FB_KI_SATZ}`.trim();
 }
 
 // ── ANZEIGEN-PARAMETER ─────────────────────────────────────────────────────

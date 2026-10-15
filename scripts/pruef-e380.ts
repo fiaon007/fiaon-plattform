@@ -25,8 +25,10 @@ async function main() {
   const alle = { instagram: true, facebook: true, kommentare: false };
   const basis = { status: "freigegeben", format: "bild", kanaele: ["instagram", "facebook", "linkedin_firma"], ki_noetig: false, veroeffentlicht: {}, plattform_ids: {} };
   ok(R.autoKanaele(basis, alle).join(",") === "instagram,facebook", "Bild, freigegeben → Instagram und Facebook (LinkedIn nicht)");
-  ok(R.autoKanaele({ ...basis, ki_noetig: true }, alle).join(",") === "instagram", "KI-Post → nur Instagram (Facebook ohne KI-Feld)");
-  ok(/KI/.test(String(R.kanalSperre({ ...basis, ki_noetig: true }, "facebook", alle))), "Facebook-Sperre nennt den KI-Grund");
+  ok(R.autoKanaele({ ...basis, ki_noetig: true }, alle).join(",") === "instagram,facebook", "KI-Post → Instagram (KI-Info) und Facebook (Satz am Ende)");
+  ok(R.captionFuerMeta("Text #FIAON", "facebook").endsWith(`#FIAON\n\n${R.FB_KI_SATZ}`), "Facebook: Justins Satz steht am Ende");
+  ok(R.captionFuerMeta("Text #FIAON", "instagram") === "Text #FIAON", "Instagram: Text unverändert");
+  ok(R.captionFuerMeta("x".repeat(3000), "facebook").length === 2200 && R.captionFuerMeta("x".repeat(3000), "facebook").endsWith(R.FB_KI_SATZ), "Facebook zu lang: der Text wird gekürzt, nie der Satz");
   ok(R.autoKanaele({ ...basis, status: "zur_freigabe" }, alle).length === 0, "nicht freigegeben → nichts");
   ok(R.autoKanaele({ ...basis, format: "story" }, alle).length === 0, "Story → nur von Hand");
   ok(R.autoKanaele({ ...basis, veroeffentlicht: { instagram: { permalink: "x" } } }, alle).join(",") === "facebook", "schon auf Instagram gemeldet → nur noch Facebook");
@@ -145,6 +147,8 @@ async function main() {
     e = await SM.metaPostenLauf(new Date(), g);
     let pa = await post(a);
     ok(e.gepostet === 2 && zaehle(/^ig1\/media_publish$/) === 1 && zaehle(/^seite1\/photos$/) === 1, "Bild: genau ein Instagram- und ein Facebook-Beitrag", JSON.stringify(e));
+    ok(String(log.find((l) => l.pfad === "seite1/photos")?.params?.caption ?? "").endsWith(R.FB_KI_SATZ), "auch ein Post ohne KI-Bild trägt auf Facebook den Satz am Ende (Justins Wortlaut: jeder Beitrag)");
+    ok(!String(log.find((l) => l.pfad === "ig1/media" && l.methode === "POST")?.params?.caption ?? "").includes(R.FB_KI_SATZ), "…auf Instagram nicht (dort die KI-Info von Meta)");
     ok(pa.status === "veroeffentlicht" && pa.veroeffentlicht?.instagram?.permalink?.includes("instagram.com") && pa.veroeffentlicht?.facebook?.permalink?.includes("facebook.com"), "im Studio als veröffentlicht gemeldet, mit beiden Links");
     ok(log.filter((l) => /media_publish|seite1\/photos/.test(l.pfad) && l.methode === "POST").every((l) => l.einmal), "Veröffentlichen immer mit einmal: true");
     const bildUrl = String(log.find((l) => l.pfad === "ig1/media" && l.methode === "POST")?.params?.image_url ?? "");
@@ -164,7 +168,9 @@ async function main() {
     if (!rahmen) { await SM.metaPostenLauf(new Date(), g); pk = await post(k); }
     const rahmen2 = log.find((l) => l.pfad === "ig1/media" && l.params.media_type === "CAROUSEL");
     ok(rahmen2?.params?.is_ai_generated === "true", "KI-Karussell: KI-Info am Karussell-Container");
-    ok(pk.veroeffentlicht?.instagram && !pk.veroeffentlicht?.facebook && zaehle(/seite1\//) === 0, "KI-Post: Instagram ja, Facebook nein");
+    const fbKi = log.find((l) => l.pfad === "seite1/feed" && l.methode === "POST");
+    ok(pk.veroeffentlicht?.instagram && pk.veroeffentlicht?.facebook && String(fbKi?.params?.message ?? "").endsWith(R.FB_KI_SATZ), "KI-Post: Instagram und Facebook — dort mit Justins Satz am Ende");
+    ok(!!pk.checkliste?.facebook?.ki_info, "KI-Haken auch für Facebook (durch den Satz)");
     ok(!!pk.checkliste?.instagram?.ki_info, "KI-Haken im Studio gesetzt (von der Automatik)");
 
     containerStatus = "IN_PROGRESS";

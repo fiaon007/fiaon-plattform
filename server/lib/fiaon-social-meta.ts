@@ -311,7 +311,7 @@ async function auftragBearbeiten(g: GraphFn, a: Auftrag, rechte: PostingRechte, 
     await sqlPool`UPDATE fiaon_social_meta_auftraege SET versuche = ${AUTO_HOECHSTVERSUCHE} WHERE id = ${a.id}`;
     return "fehler";
   }
-  const caption = captionFuerMeta(p.caption);
+  const caption = captionFuerMeta(p.caption, a.kanal);
   const seite = await seiteLesen(g);
 
   if (a.kanal === "instagram") {
@@ -383,7 +383,8 @@ async function auftragBearbeiten(g: GraphFn, a: Auftrag, rechte: PostingRechte, 
     if (!gefunden) { await uebergang(a.id, ["unklar"], "unklar", { fehler: `Antwort fehlt, Beitrag nicht gefunden — nicht erneut gepostet. ${String((e as any)?.message ?? e).slice(0, 200)}` }); return "unklar"; }
     ergebnis = gefunden;
   }
-  const meldung = ergebnis.permalink ? await imStudioMelden(a.post_id, "facebook", ergebnis.permalink, ergebnis.id, false) : "Online, aber ohne Link — im Studio nicht gemeldet.";
+  // Der KI-Haken für Facebook gilt durch FB_KI_SATZ am Ende des Beitrags (Justin 15.10.2026).
+  const meldung = ergebnis.permalink ? await imStudioMelden(a.post_id, "facebook", ergebnis.permalink, ergebnis.id, ki) : "Online, aber ohne Link — im Studio nicht gemeldet.";
   await uebergang(a.id, ["unklar"], "ok", { media_id: ergebnis.id, permalink: ergebnis.permalink, fehler: meldung, fertig: true });
   return "ok";
 }

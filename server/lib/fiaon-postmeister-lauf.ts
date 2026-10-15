@@ -1498,14 +1498,19 @@ export async function mailBearbeiten(ein: {
       personId: wer.personId, ref: wer.ref, kundeText: neuerText, antwort: erg.antwort, art: "entwurf",
       handlungen: erg.handlungen, grund: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund,
     });
-    // Der Entwurf wartet nicht mehr nur in der Zentrale: Der Betreuer bekommt
-    // die Mail samt Maras Vorschlag als Aufgabe und kann ihn senden, ändern
-    // oder selbst antworten (Aufgaben → „E-Mail anzeigen").
-    await anBetreuerUebergeben({
-      id, personId: wer.personId, ref: wer.ref, postfach, betreff: mail.betreff,
-      zusammenfassung: einordnung.zusammenfassung, grund: mensch ?? "Mara hat einen Entwurf vorbereitet, aber nicht gesendet.",
-      dringend: einordnung.dringend || !!mensch,
-    });
+    // E-371 (15.10.2026, Justin: „nichts weitergeben an die Mitarbeiter … mit 1 Klick entscheiden“): Was Mara nicht
+    // selbst senden darf, wird eine Karte in Mara › Entscheidungen (fiaon-postmeister-entscheidungen.ts) — senden, neu
+    // schreiben, selbst antworten oder ablegen. Nur der ausdrückliche Rückrufwunsch bleibt beim Betreuer (er ruft an).
+    if (mensch === UEBERGABE_GRUND.ansprechpartner) {
+      await anBetreuerUebergeben({
+        id, personId: wer.personId, ref: wer.ref, postfach, betreff: mail.betreff,
+        zusammenfassung: einordnung.zusammenfassung, grund: mensch,
+        dringend: einordnung.dringend || !!mensch,
+      });
+    } else {
+      const { postmeisterKarteJetzt } = await import("./fiaon-postmeister-entscheidungen");
+      await postmeisterKarteJetzt(id);
+    }
     return ergebnis;
   } catch (e: any) {
     const grund = String(e?.message || e).slice(0, 300);

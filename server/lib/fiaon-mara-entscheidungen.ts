@@ -965,7 +965,7 @@ entscheidungWerkzeug({
 // ═══════════════════════════════════════════════════════════════════════════
 // DER SAMMLER — Detektoren laufen, Karten entstehen, Erledigtes schließt sich
 // ═══════════════════════════════════════════════════════════════════════════
-interface Detektor {
+export interface Detektor {
   art: string;
   finden: (lauf: Lauf) => Promise<EntscheidungNeu[]>;
   /** Satz für eine Karte, deren Lage es nicht mehr gibt. */
@@ -980,6 +980,22 @@ export const DETEKTOREN: Detektor[] = [
   { art: "wa_vorlagen", finden: findeWaVorlagen, erledigtText: "Hat sich erledigt — Meta kennt alle Vorlagen." },
 ];
 
+/** E-371: Ein Detektor aus einem anderen Modul (Postmeister) — einmal je Art; ein zweiter Aufruf ersetzt ihn. */
+export function detektorRegistrieren(d: Detektor): void {
+  const i = DETEKTOREN.findIndex((x) => x.art === d.art);
+  if (i >= 0) DETEKTOREN[i] = d; else DETEKTOREN.push(d);
+}
+
+// E-371 (15.10.2026): Module, die eigene Karten, Detektoren und Werkzeuge anmelden (Postmeister: Maras Mail-Entwürfe).
+// Dynamisch geladen — ein statischer Import wäre ein Kreis (sie importieren dieses Modul).
+let erweiterungen: Promise<void> | null = null;
+function erweiterungenLaden(): Promise<void> {
+  erweiterungen ??= import("./fiaon-postmeister-entscheidungen")
+    .then(() => undefined)
+    .catch((e) => { erweiterungen = null; console.error("[ENTSCHEIDUNG] Postmeister-Karten nicht geladen:", String((e as Error)?.message ?? e).slice(0, 200)); });
+  return erweiterungen;
+}
+
 export interface SammelErgebnis {
   am: string;
   je: Record<string, { karten: number; neu: number; erledigt: number; fehler?: string }>;
@@ -991,6 +1007,7 @@ export interface SammelErgebnis {
  */
 export async function entscheidungenSammeln(opts: { nur?: string[] } = {}): Promise<SammelErgebnis> {
   await entscheidungTabellen();
+  await erweiterungenLaden();
   const lauf = sqlPool;
   const erg: SammelErgebnis = { am: new Date().toISOString(), je: {} };
   await lauf`UPDATE fiaon_mara_entscheidungen SET status = 'offen', spaeter_bis = NULL, aktualisiert_am = NOW()
@@ -1112,6 +1129,7 @@ export async function entscheiden(id: number, optionKey: string, opts: { von: st
   ok: boolean; status: number; error?: string; karte?: EntscheidungSicht; schon?: boolean;
 }> {
   await entscheidungTabellen();
+  await erweiterungenLaden();
   const lauf = opts.lauf ?? sqlPool;
   if (!Number.isInteger(id) || id <= 0) return { ok: false, status: 400, error: "Ungültige Karte." };
   if (inArbeit.has(id)) return { ok: false, status: 409, error: "Diese Entscheidung läuft schon." };

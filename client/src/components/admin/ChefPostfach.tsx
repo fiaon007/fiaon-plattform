@@ -159,6 +159,10 @@ export default function ChefPostfach() {
       if (briefRef.current) briefRef.current.scrollTop = 0;
     } catch (e: any) { setFehler(String(e?.message || e)); }
   }, []);
+  // E-371 (15.10.2026): /chef/s/postmeister?eintrag=<id> öffnet genau diese Mail — Knopf „Selbst antworten“ in Mara › Entscheidungen.
+  useEffect(() => {
+    try { const id = Number(new URLSearchParams(window.location.search).get("eintrag")); if (id > 0) void oeffnen(id); } catch { /* still */ }
+  }, [oeffnen]);
 
   const senden = useCallback(async (id: number, text?: string) => {
     setLaeuft(`senden-${id}`);

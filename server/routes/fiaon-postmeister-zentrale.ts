@@ -572,46 +572,68 @@ router.get("/admin/postmeister/neu-bearbeiten", async (_req: Request, res: Respo
   res.json({ ok: true, lauf: { ...neuLauf, protokoll: neuLauf.protokoll.slice(-40) }, wartend: z });
 });
 
+/**
+ * Entwürfe (und Fehler) mit heutigem Stand neu schreiben lassen — der Kern von „Alle Entwürfe neu schreiben“ (E-119).
+ * E-371 (15.10.2026): als Funktion, damit Mara › Entscheidungen denselben Weg nimmt (eine Karte je Entwurf: „Neu schreiben
+ * lassen“; die Sammelkarte für die Entwürfe von vor E-369: `nurVor`).
+ */
+export async function entwuerfeNeuSchreiben(opt: { ids?: number[]; deckel?: number; parallel?: number; postfach?: string | null; nurVor?: Date | null; nichtVor?: Date | null } = {}): Promise<
+  { ok: true; gestartet: number; doppelteGeordnet: number; parallel: number } | { ok: false; error: string; laeuft?: boolean }
+> {
+  if (neuLauf.laeuft) return { ok: false, error: "Mara schreibt gerade schon neu — bitte gleich noch einmal.", laeuft: true };
+  const deckel = Math.max(1, Math.min(500, Number(opt.deckel) || 500));
+  const parallel = Math.max(1, Math.min(4, Number(opt.parallel) || 2));
+  const ids: number[] = Array.isArray(opt.ids) ? opt.ids.map(Number).filter(Number.isFinite) : [];
+  const postfach = typeof opt.postfach === "string" ? opt.postfach : null;
+  const nurVor = opt.nurVor instanceof Date && !Number.isNaN(opt.nurVor.getTime()) ? opt.nurVor : null;
+  // E-371: nur Mails, die nicht älter sind als `nichtVor` (Kundenmail-Eingang) — eine Antwort nach Wochen verwirrt mehr, als sie hilft.
+  const nichtVor = opt.nichtVor instanceof Date && !Number.isNaN(opt.nichtVor.getTime()) ? opt.nichtVor : null;
+  const kandidaten = (await sqlPool`
+    SELECT id, postfach, gmail_id, von, antwort_draft_id, thread_id, empfangen_am FROM fiaon_postmeister
+     -- 18.09.2026 (Team-Feedback Priorität 6): Mit ausdrücklichen ids auch verworfene
+     -- Mails — echte Kundenantworten, die als „Dienstleister" (googlemail.com) oder
+     -- „eigene Post" abgelegt wurden, laufen damit noch einmal durch.
+     WHERE (aktion IN ('entwurf', 'fehler') OR (${ids.length > 0} AND aktion = 'ignoriert'))
+       AND gmail_id IS NOT NULL AND gmail_id <> ''
+       AND (${ids.length ? sqlPool`id = ANY(${ids})` : sqlPool`TRUE`})
+       AND (${postfach ? sqlPool`postfach = ${postfach}` : sqlPool`TRUE`})
+       AND (${nurVor ? sqlPool`COALESCE(entwurf_geprueft_am, created_at) < ${nurVor}` : sqlPool`TRUE`})
+       AND (${nichtVor ? sqlPool`COALESCE(empfangen_am, created_at) >= ${nichtVor}` : sqlPool`TRUE`})
+     ORDER BY empfangen_am ASC NULLS LAST, id ASC LIMIT ${deckel}
+  `) as any[];
+  if (!kandidaten.length) return { ok: true, gestartet: 0, doppelteGeordnet: 0, parallel };
+  // Dieselbe Nachricht dreimal im selben Thread (Frau Weber, 25./26.08.) bekommt
+  // EINE Antwort — die neueste Mail wird beantwortet, die älteren geordnet.
+  const nachThread = new Map<string, any[]>();
+  for (const k of kandidaten) { const t = String(k.thread_id || k.id); if (!nachThread.has(t)) nachThread.set(t, []); nachThread.get(t)!.push(k); }
+  const bearbeiten: any[] = []; let geordnet = 0;
+  const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+  for (const gruppe of Array.from(nachThread.values())) {
+    gruppe.sort((a, b) => new Date(a.empfangen_am || 0).getTime() - new Date(b.empfangen_am || 0).getTime());
+    const neueste = gruppe[gruppe.length - 1];
+    for (const alt of gruppe.slice(0, -1)) {
+      await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'geordnet', begruendung = ${`Doppelte Nachricht im selben Thread — beantwortet über #${neueste.id}`}, antwort_draft_id = NULL, updated_at = NOW()
+         WHERE id = ${alt.id} AND aktion IN ('entwurf', 'fehler')
+      `.catch(() => {});
+      if (alt.antwort_draft_id) await entwurfLoeschen(alt.postfach, alt.antwort_draft_id).catch(() => {});
+      geordnet++;
+    }
+    bearbeiten.push(neueste);
+  }
+  void neuLaufStarten(bearbeiten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
+  return { ok: true, gestartet: bearbeiten.length, doppelteGeordnet: geordnet, parallel };
+}
+
 router.post("/admin/postmeister/neu-bearbeiten", async (req: Request, res: Response) => {
   try {
-    if (neuLauf.laeuft) return res.status(409).json({ ok: false, error: "Läuft bereits", lauf: neuLauf });
-    const deckel = Math.max(1, Math.min(500, Number(req.body?.deckel) || 500));
-    const parallel = Math.max(1, Math.min(4, Number(req.body?.parallel) || 2));
-    const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
-    const postfach = typeof req.body?.postfach === "string" ? req.body.postfach : null;
-    const kandidaten = (await sqlPool`
-      SELECT id, postfach, gmail_id, von, antwort_draft_id, thread_id, empfangen_am FROM fiaon_postmeister
-       -- 18.09.2026 (Team-Feedback Priorität 6): Mit ausdrücklichen ids auch verworfene
-       -- Mails — echte Kundenantworten, die als „Dienstleister" (googlemail.com) oder
-       -- „eigene Post" abgelegt wurden, laufen damit noch einmal durch.
-       WHERE (aktion IN ('entwurf', 'fehler') OR (${ids.length > 0} AND aktion = 'ignoriert'))
-         AND gmail_id IS NOT NULL AND gmail_id <> ''
-         AND (${ids.length ? sqlPool`id = ANY(${ids})` : sqlPool`TRUE`})
-         AND (${postfach ? sqlPool`postfach = ${postfach}` : sqlPool`TRUE`})
-       ORDER BY empfangen_am ASC NULLS LAST, id ASC LIMIT ${deckel}
-    `) as any[];
-    if (!kandidaten.length) return res.json({ ok: true, gestartet: 0 });
-    // Dieselbe Nachricht dreimal im selben Thread (Frau Weber, 25./26.08.) bekommt
-    // EINE Antwort — die neueste Mail wird beantwortet, die älteren geordnet.
-    const nachThread = new Map<string, any[]>();
-    for (const k of kandidaten) { const t = String(k.thread_id || k.id); if (!nachThread.has(t)) nachThread.set(t, []); nachThread.get(t)!.push(k); }
-    const bearbeiten: any[] = []; let geordnet = 0;
-    const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
-    for (const gruppe of Array.from(nachThread.values())) {
-      gruppe.sort((a, b) => new Date(a.empfangen_am || 0).getTime() - new Date(b.empfangen_am || 0).getTime());
-      const neueste = gruppe[gruppe.length - 1];
-      for (const alt of gruppe.slice(0, -1)) {
-        await sqlPool`
-          UPDATE fiaon_postmeister SET aktion = 'geordnet', begruendung = ${`Doppelte Nachricht im selben Thread — beantwortet über #${neueste.id}`}, antwort_draft_id = NULL, updated_at = NOW()
-           WHERE id = ${alt.id} AND aktion IN ('entwurf', 'fehler')
-        `.catch(() => {});
-        if (alt.antwort_draft_id) await entwurfLoeschen(alt.postfach, alt.antwort_draft_id).catch(() => {});
-        geordnet++;
-      }
-      bearbeiten.push(neueste);
-    }
-    void neuLaufStarten(bearbeiten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
-    res.json({ ok: true, gestartet: bearbeiten.length, doppelteGeordnet: geordnet, parallel });
+    const erg = await entwuerfeNeuSchreiben({
+      deckel: req.body?.deckel, parallel: req.body?.parallel,
+      ids: Array.isArray(req.body?.ids) ? req.body.ids : undefined,
+      postfach: typeof req.body?.postfach === "string" ? req.body.postfach : null,
+    });
+    if (!erg.ok) return res.status(erg.laeuft ? 409 : 500).json({ ok: false, error: erg.laeuft ? "Läuft bereits" : erg.error, lauf: neuLauf });
+    res.json(erg);
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
   }

@@ -1735,13 +1735,15 @@ export const MENSCH_LAMPEN: (keyof Flags)[] = ["rechtlich", "droht_anwalt", "wid
  * E-369 (15.10.2026): Darf Mara diese Antwort selbst senden, obwohl eine Lampe brennt? Ja, wenn
  *  · keine Mensch-Lampe brennt (Anwalt/Behörde; Widerruf nur, wenn er nicht schon als Storno der unbezahlten Bestellung gebucht ist),
  *  · er kein Global-Kunde ist und die Person sicher zugeordnet ist (nicht „fremd“/„unklar“),
+ *  · ein „Stopp“ erledigt ist (Werbesperre gesetzt — sonst stoppOffen),
  *  · eine Ruhe-Antwort (Beschwerde, Bestreiten, Stopp, „kann nicht zahlen“, offene Kündigung, früherer Einwand) und jede
  *    Antwort in den Lagen „bestreitet“/„gesperrt“ KEINE Zahlungsbitte enthält.
  * Die Prüfung (sauber: Wand, Belege, Pflichten, Ton) entscheidet der Aufrufer. Rein.
  */
-export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean }): boolean {
+export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean; stoppOffen?: boolean }): boolean {
   const f = ein.flags as Record<string, unknown>;
   if (ein.global || ein.lage === "fremd" || ein.lage === "unklar") return false;
+  if (ein.stoppOffen) return false;
   const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht));
   if (mensch.length) return false;
   if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && fordertZahlung(ein.text)) return false;
@@ -2663,6 +2665,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // ein Widerruf, der nicht schon als Storno gebucht ist, FIAON Global (maraSelbstSendbar).
   const selbstSendbar = maraSelbstSendbar({
     flags, lage: k.lage, global: !!k.akte?.global, text, ruhe: !!k.ruhe || kuendigungOffen,
+    // E-371: Brennt „Stopp“ noch (sichereSelbstErledigung hat ihn nicht gelöscht), ist die Werbesperre NICHT gesetzt —
+    // dann nie „Sie bekommen keine Werbung mehr“ automatisch (Prüfstand: werbesperre_setzen scheiterte, Antwort ging raus).
+    stoppOffen: !!flags.stopp,
     stornoGebucht: String(k.werkzeugDaten.kuendigung_vormerken?.weg || "") === "storno_unbezahlt" && gelaufen.includes("kuendigung_vormerken"),
   });
   const automatisch = sauber && urteil.automatisch

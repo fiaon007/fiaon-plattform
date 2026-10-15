@@ -1316,16 +1316,9 @@ export const kuendigungVormerken: Werkzeug = {
       (offene ?? []).map((r) => ({ ...r, faellig: r.faellig_iso ?? null })),
       { jahresvertrag: !k.formlosKuendbar, vertragsEnde: endeTag },
     );
-    if (!beendet && nachEnde.length) {
-      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-      await auftragFuerKunden({
-        personId: k.personId, ref: k.ref, anBetreiber: true, quelle: "postmeister", autorName: "Mara",
-        titel: `Entscheidung: Rate nach Vertragsende (${k.ref})`.slice(0, 160),
-        text: `Altvertrag (vor dem 03.09.2026), per E-Mail zum Ende des Abrechnungsmonats (${tagDeutsch(endeTag) ?? "?"}) gekündigt. Diese Rate(n) sind erst NACH dem Vertragsende fällig und bleiben im System offen: `
-          + `${nachEnde.map((r: any) => `Rate ${r.rate_nr} über ${rateEuro(Number(r.betrag_cents))}, fällig ${r.faellig_iso ? `${r.faellig_iso.slice(8, 10)}.${r.faellig_iso.slice(5, 7)}.${r.faellig_iso.slice(0, 4)}` : "?"}`).join("; ")}. Mara hat sie dem Kunden NICHT genannt und nicht „danach kommt nichts mehr" geschrieben. Bitte stornieren (Altbestand vor der Nachbesserung 01.10.; neue Kündigungen storniert kuendigungSetzen selbst) — sonst mahnt die Dauermahnung sie ab Fälligkeit.`,
-        schluessel: `postmeister:kuendigung-nach-ende:${k.ref}`,
-      }).catch((e) => console.error("[POSTMEISTER] Prüffall Rate nach Vertragsende:", String(e).slice(0, 160)));
-    }
+    // E-371 (15.10.2026): Hier legte Mara die Aufgabe „Entscheidung: Rate nach Vertragsende“ auf Justins Board. Diese Raten
+    // mahnt seit E-368 kein Lauf mehr (RATE_NACH_ENDE_SQL), und die Sammelkarte „Raten nach Vertragsende stornieren“ in
+    // Mara › Entscheidungen (E-370, ratenNachVertragsendeStornieren) räumt sie mit einem Klick ab — keine zweite Aufgabe.
     const gelesen: OffeneRate[] | null = offene
       ? offenBisEnde.map((r: any) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents), faellig: r.faellig_iso ? `${r.faellig_iso.slice(8, 10)}.${r.faellig_iso.slice(5, 7)}.${r.faellig_iso.slice(0, 4)}` : null }))
       : null;

@@ -29,6 +29,7 @@ async function main() {
   ok(!agent.maraSelbstSendbar({ flags: {}, lage: "unklar", global: false, text: ruhig, ruhe: false }), "Person unklar → nicht selbst");
   ok(!agent.maraSelbstSendbar({ flags: {}, lage: "gesperrt", global: false, text: fordert, ruhe: false }), "Lage gesperrt mit Zahlungsbitte → nicht selbst");
   ok(agent.maraSelbstSendbar({ flags: {}, lage: "gesperrt", global: false, text: "Ihr Vertrag ist beendet; es ist nichts mehr offen.", ruhe: false }), "Lage gesperrt (Vertrag beendet), sachliche Antwort → selbst");
+  ok(!agent.maraSelbstSendbar({ flags: { stopp: true }, lage: "unbezahlt", global: false, text: "Sie bekommen keine Werbung mehr.", ruhe: true, stoppOffen: true }), "E-371: „Stopp“, Werbesperre nicht gesetzt → nie automatisch");
 
   console.log("── 2 · Kündigung nicht gebucht → Rückfrage, keine Zahlungsbitte");
   const k = (flags: any, handlungen: any[] = [], akte: any = {}) => ({ einordnung: { flags }, handlungen, akte, kontext: { ref: "FIAON-REF" } });

@@ -363,7 +363,8 @@ if (MIT_DB) {
   const lauf1 = async (von: string, text: string, sz: Szenario, o: { betreff?: string; thread?: string; vorMin?: number } = {}) => {
     mailNr += 1;
     const gmailId = `e248m-${mailNr}`;
-    NACHRICHTEN.set(gmailId, { thread: o.thread ?? `e248m-t${mailNr}`, am: jetzt - (o.vorMin ?? 3) * 60_000, von: `Max Prüfer <${von}>`, betreff: o.betreff ?? "Frage", text });
+    // E-369: Eine Mail jünger als BUENDEL_WARTE_MS (4 Min.) wartet einen Takt (Bündeln) — die Prüfmails sind 10 Min. alt.
+    NACHRICHTEN.set(gmailId, { thread: o.thread ?? `e248m-t${mailNr}`, am: jetzt - (o.vorMin ?? 10) * 60_000, von: `Max Prüfer <${von}>`, betreff: o.betreff ?? "Frage", text });
     SZ = sz;
     const vorKi = OPENAI.length, vorSenden = GMAIL_SENDEN.length, vorEntwurf = GMAIL_ENTWURF.length;
     const e = await lauf.mailBearbeiten({ postfach: PF, gmailId, gruss: GRUSS, modus: "auto" });
@@ -428,7 +429,9 @@ if (MIT_DB) {
     ok(s1b.z?.aktion === "entwurf" && s1b.gesendet === 0, `„liegt mir eindeutig vor“ ohne Buchung geht NIE raus (${s1b.z?.aktion})`);
     ok((s1b.pruefung?.fehlend ?? []).some((f: string) => /ohne Buchung entfernt/.test(f)), "Prüfung nennt den Grund: bestätigt, aber nicht gebucht");
     ok(!/liegt mir jetzt eindeutig vor/.test(String(s1b.z?.antwort)) && /Ein kurzes Ja genügt/.test(String(s1b.z?.antwort)), "Auch der Entwurf trägt die falsche Bestätigung nicht mehr — die Rückfrage steht an ihrer Stelle (die Zentrale prüft beim Freigeben nur die Wortwand)");
-    ok(/Kündigung angesprochen, aber nicht gebucht/.test(String(s1b.z?.begruendung)), `Übergabe an einen Menschen mit Grund („${String(s1b.z?.begruendung).slice(0, 70)}“)`);
+    // E-369/E-371 (15.10.2026): keine Übergabe an den Betreuer mehr — der Entwurf trägt den Prüfgrund und wird eine Karte
+    // in Mara › Entscheidungen (fiaon-postmeister-entscheidungen.ts).
+    ok(/ohne Buchung/.test(String(s1b.z?.begruendung)) && !/Übergabe an den Betreuer/.test(String(s1b.z?.begruendung)), `Entwurf mit Grund, keine Übergabe an den Betreuer („${String(s1b.z?.begruendung).slice(0, 70)}“)`);
 
     // ── Nachbesserung E-248: Verneinung bucht nie, ein „Ja“ auf die Rückfrage bucht ──
     const NP = await person("NP");
@@ -732,7 +735,10 @@ if (MIT_DB) {
       },
     });
     ok(/KEINE ZAHLUNGSAUFFORDERUNG \(Widerruf aus seiner Mail vom/.test(s4b.kiAntwort[0]?.system ?? ""), "Folgemail ohne das Wort „Widerruf“: der offene Widerruf aus der Vorgeschichte hält die Zahlung an");
-    ok(s4b.z?.aktion === "entwurf" && /Widerruf oder Einwand aus einer früheren Mail offen/.test(String(s4b.z?.begruendung)), `… und ein Mensch entscheidet („${String(s4b.z?.begruendung).slice(0, 60)}“)`);
+    // E-369 (15.10.2026, Justin: „Mara soll ALLES selbst machen“): Der offene Einwand sperrt nur die Zahlungsbitte, nicht
+    // den Versand — eine saubere Antwort ohne Zahlungsbitte geht raus (vorher: jede Folgemail ein Entwurf, auch „Okay, danke“).
+    const agentE = await import("../server/lib/fiaon-postmeister-agent");
+    ok(s4b.z?.aktion === "auto_beantwortet" && !agentE.fordertZahlung(String(s4b.z?.antwort ?? "")), `… und Mara antwortet selbst, ohne Zahlungsbitte („${String(s4b.z?.begruendung).slice(0, 60)}“)`);
 
     // ── 4. ZUSAGEN ─────────────────────────────────────────────────────────
     abschnitt("DB 4 · Keine Rückzahlungszusage");

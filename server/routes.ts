@@ -1110,6 +1110,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Speicher — Clarity erlaubt nur zehn Abrufe je Tag.
   const chefClarity = await import('./routes/fiaon-chef-clarity');
   app.use('/api/fiaon', chefClarity.default);
+  // 👣 Eigene Besuchermessung ohne Cookies (15.10.2026, E-378): POST /besuch (öffentlich, sendBeacon)
+  // und die Auswertung für Chefbüro › Besucher. Keine IP, kein Speicher im Browser — lib/fiaon-besuch.ts.
+  const besuchRouten = await import('./routes/fiaon-besuch');
+  app.use('/api/fiaon', besuchRouten.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('besuch-aufraeumen', async () => await (await import('./lib/fiaon-besuch')).besuchAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 660_000 });
+  });
 
   // 💎 Verdienst & Wert (27.08.2026): die eine Wahrheit über Umsatz, MRR/ARR
   // (jedes Paket = 12-Monats-Abo) und den Unternehmenswert. Ersetzt inhaltlich

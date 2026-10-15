@@ -6,6 +6,7 @@ import { Switch, Route, Redirect, useLocation } from "wouter";
 // Das Telefon des Office hängt an der App, nicht an der Seite (09.09.2026, E-169).
 import { SoftphoneHost } from "@/components/SoftphoneHost";
 import { bereichMerken } from "@/lib/akte-bereich";
+import { besuchSeitenwechsel } from "@/lib/besuch";
 import { useSeitenTitel } from "@/lib/fiaon-titel";
 import { FiaonRaum } from "@/components/FiaonRaum";
 import { queryClient } from "./lib/queryClient";
@@ -322,6 +323,15 @@ const DemoKundenbereich = lazy(() => import("@/pages/demo-kundenbereich"));
 function BereichMerker() {
   const [pfad] = useLocation();
   useEffect(() => { bereichMerken(pfad); }, [pfad]);
+  return null;
+}
+/**
+ * E-378: die eigene Besuchermessung — je Seitenwechsel eine Meldung, ohne Cookie und ohne Speicher im Browser
+ * (lib/besuch.ts). Hier im Rahmen und nicht in den Seiten: Keine Seite (auch /start nicht) muss dafür etwas tun.
+ */
+function BesuchMesser() {
+  const [pfad] = useLocation();
+  useEffect(() => { besuchSeitenwechsel(pfad); }, [pfad]);
   return null;
 }
 function admin(Component: ComponentType) {
@@ -866,6 +876,7 @@ function Router() {
         nicht mehr ab — ein laufendes Gespräch bleibt stehen (E-169). */}
     <SoftphoneHost />
     <BereichMerker />
+    <BesuchMesser />
     </>
   );
 }

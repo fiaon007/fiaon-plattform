@@ -1,0 +1,229 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO › BESUCHER — die eigene Messung (15.10.2026, E-378)
+
+   Gebaut auf den Variablen der Glasschicht (chefbuero-glas.css, --gl-*) — so
+   folgt jede Fläche hier dem Kristall wie der Apple-Bühne, ohne eigene Regel je
+   Thema. Ziffern stehen mit fester Breite (tabular-nums), damit Spalten und
+   Achsen ruhig untereinander stehen. Farbe trägt nur Bedeutung: Blau = diese
+   Zahl/anklickbar, Grau gestrichelt = der Zeitraum davor, Grün/Bernstein = besser/
+   schlechter als davor. Am Telefon: zwei Kacheln je Reihe, Tabellen scrollen in
+   ihrem Rahmen, nie die Seite.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* minmax(0, 1fr): Ohne das ist die Spur so breit wie ihr breitestes Kind — am Telefon schob das Schaubild die Seite
+   auf 539 px (gemessen bei 375 px Breite). */
+.cl.bz { gap: 26px; grid-template-columns: minmax(0, 1fr); }
+.bz { --bz-blau: #60a5fa; --bz-vorher: #5b6b82; --bz-leise: #8193ab; --bz-text: #e5ecf6; }
+.bz .bz-leise { color: var(--bz-leise); font-weight: 300; }
+
+/* ── Kopf ──────────────────────────────────────────────────────────────── */
+.bz-kopf { padding-bottom: 0; }
+.bz-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; font-size: 12.5px; color: var(--bz-leise); }
+.bz-live {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--gl-kante, rgba(255, 255, 255, .1)); color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+.bz-live b { color: #fff; font-weight: 600; }
+.bz-live i { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+.bz-live.an i { background: #34d399; animation: bzPuls 2.4s ease-out infinite; }
+@keyframes bzPuls {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .55); }
+  70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+.bz-live-seite { font-variant-numeric: tabular-nums; color: #b8c4d6; }
+.bz-live-seite b { color: #fff; font-weight: 500; margin-left: 2px; }
+
+/* ── Zeitraum, Vergleich, Filter ───────────────────────────────────────── */
+.bz-leiste { display: grid; gap: 12px; }
+/* Am breiten Bildschirm bleiben Zeitraum und Filter beim Scrollen stehen — wer unten eine Kampagne
+   anklickt, sieht oben, wonach gerade gefiltert ist. Am Telefon nicht: dort wäre es ein Drittel des Bildes. */
+@media (min-width: 900px) {
+  .cb.cb-glas:not(.cb-voll):not(.cb-ruhig) .bz-leiste {
+    position: sticky; top: 90px; z-index: 6; padding: 10px 12px; margin: 0 -12px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(8, 14, 28, .72), rgba(8, 14, 28, .58));
+    -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  }
+}
+.bz-steuerung { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-width: 0; }
+.bz-zeitraum { margin: 0; max-width: 100%; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
+/* Die Apple-Bühne ordnet .cl-zeitraum für die Startseite (order 5, Abstand oben) — hier steht er vorn. */
+.cb.cb-apple .bz .bz-zeitraum { order: 0; margin: 0; }
+.bz-zeitraum::-webkit-scrollbar { display: none; }
+.bz-zeitraum .cl-zeitraum-knopf { white-space: nowrap; }
+.bz-eigen { display: flex; flex-wrap: wrap; gap: 8px; }
+.bz-eigen label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--bz-leise); }
+.bz-eigen input {
+  padding: 7px 10px; border-radius: 10px; color-scheme: dark; font: inherit; font-size: 13px; color: var(--bz-text);
+  background: rgba(2, 6, 23, .35); border: 1px solid var(--gl-kante, rgba(255, 255, 255, .12));
+}
+.bz-vergleich { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #b8c4d6; cursor: pointer; }
+.bz-vergleich input { accent-color: #3b82f6; width: 15px; height: 15px; }
+.bz-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bz-filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(37, 99, 235, .32), rgba(29, 78, 216, .2)); border: 1px solid rgba(147, 197, 253, .35);
+  color: #dbeafe; font: inherit; font-size: 12.5px; max-width: 100%;
+}
+.bz-filter-chip span { color: #93c5fd; }
+.bz-filter-chip b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42ch; }
+.bz-filter-chip i { font-style: normal; opacity: .7; }
+.bz-filter-chip:hover i { opacity: 1; }
+.bz-filter-alle { background: none; border: 0; padding: 6px 4px; color: var(--bz-leise); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Inhalt ────────────────────────────────────────────────────────────── */
+.bz-inhalt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; transition: opacity .2s ease; }
+.bz-inhalt.laedt { opacity: .55; }
+.bz-hinweis {
+  padding: 13px 16px; border-radius: 14px; font-size: 13px; line-height: 1.6; color: #cbd5e1;
+  background: rgba(37, 99, 235, .1); border: 1px solid rgba(96, 165, 250, .24);
+}
+.bz-hinweis b { color: #fff; font-weight: 500; }
+.bz-zeitraum-text { margin: 0 0 -24px; font-size: 12.5px; color: var(--bz-leise); font-variant-numeric: tabular-nums; }
+
+/* Kopfzahlen */
+.bz-kacheln { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.bz .bz-kz { padding: 18px 18px 16px; min-width: 0; }
+.bz .bz-kz b { display: block; font-weight: 300; font-size: clamp(24px, 2.6vw, 32px); line-height: 1; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap; }
+.bz .bz-kz em { display: block; margin-top: 8px; font-style: normal; font-size: 12.5px; color: #b8c4d6; }
+.bz .bz-kz small { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 8px; font-size: 11.5px; color: var(--bz-leise); font-variant-numeric: tabular-nums; }
+.bz-delta { padding: 2px 7px; border-radius: 999px; font-weight: 500; }
+.bz-delta.gut { color: #6ee7b7; background: rgba(5, 150, 105, .16); }
+.bz-delta.schlecht { color: #fcd34d; background: rgba(251, 191, 36, .13); }
+.bz-delta.gleich { color: #b8c4d6; background: rgba(255, 255, 255, .06); }
+
+/* Abschnitte */
+.bz-abschnitt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.bz-abschnitt-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.bz-abschnitt-kopf h2 { display: flex; align-items: baseline; gap: 10px; margin: 0; font-weight: 300; font-size: 21px; line-height: 1.3; color: #fff; letter-spacing: -.015em; }
+.bz-abschnitt-kopf h2 svg { color: #93c5fd; align-self: center; }
+.bz-abschnitt-kopf h2 em, .bz-unterkopf em, .bz-rang h3 em { font-style: normal; font-size: 12px; font-weight: 400; color: var(--bz-leise); letter-spacing: 0; text-transform: none; }
+.bz-unterkopf { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 10.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #94a3b8; }
+.bz-nach { margin-top: 6px; }
+.bz-schalter { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: rgba(2, 6, 23, .3); border: 1px solid var(--gl-kante, rgba(255, 255, 255, .1)); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.bz-schalter::-webkit-scrollbar { display: none; }
+.bz-schalter button { padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; color: #b8c4d6; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.bz-schalter button:hover { color: #fff; }
+.bz-schalter button.an { background: rgba(96, 165, 250, .22); color: #fff; box-shadow: inset 0 0 0 1px rgba(147, 197, 253, .35); }
+
+/* Glasfläche für Schaubilder und Ranglisten */
+.bz-karte, .bz-rang {
+  position: relative; min-width: 0; padding: 18px 20px; border-radius: 18px;
+  background: var(--gl-karte, rgba(15, 23, 42, .4)); border: 1px solid var(--gl-kante, rgba(255, 255, 255, .07));
+  box-shadow: var(--gl-licht, none), var(--gl-tiefe, 0 20px 44px -26px rgba(2, 6, 23, .7));
+  -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* ── Verlauf ───────────────────────────────────────────────────────────── */
+.bz-verlauf { position: relative; width: 100%; min-width: 0; overflow: hidden; outline: none; touch-action: pan-y; }
+.bz-verlauf:focus-visible { box-shadow: 0 0 0 2px rgba(96, 165, 250, .55); border-radius: 10px; }
+.bz-verlauf svg { display: block; overflow: visible; }
+.bz-gitter { stroke: rgba(255, 255, 255, .08); stroke-width: 1; }
+.bz-achse { fill: var(--bz-leise); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bz-linie { fill: none; stroke: var(--bz-blau); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bz-flaeche { fill: rgba(96, 165, 250, .1); stroke: none; }
+.bz-linie-vorher { fill: none; stroke: var(--bz-vorher); stroke-width: 2; stroke-dasharray: 5 5; stroke-linejoin: round; stroke-linecap: round; }
+.bz-fadenkreuz { stroke: rgba(255, 255, 255, .28); stroke-width: 1; }
+.bz-punkt { fill: var(--bz-blau); stroke: #0b1424; stroke-width: 2; }
+.bz-punkt-vorher { fill: var(--bz-vorher); stroke: #0b1424; stroke-width: 2; }
+.bz-tipp {
+  position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 2;
+  display: grid; gap: 3px; min-width: 150px; padding: 9px 12px; border-radius: 12px;
+  background: rgba(10, 17, 32, .94); border: 1px solid rgba(147, 197, 253, .25); box-shadow: 0 16px 40px -14px rgba(0, 0, 0, .8);
+  font-size: 12px; color: #b8c4d6; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.bz-tipp b { color: #fff; font-size: 16px; font-weight: 600; }
+.bz-tipp small { font-size: 11.5px; color: var(--bz-leise); }
+.bz-tipp-vorher { display: flex; align-items: center; gap: 6px; }
+.bz-tipp-vorher i { width: 12px; border-top: 2px dashed var(--bz-vorher); }
+.bz-legende { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; font-size: 12px; color: var(--bz-leise); }
+.bz-legende span { display: inline-flex; align-items: center; gap: 7px; }
+.bz-legende i { width: 16px; }
+.bz-legende-jetzt { border-top: 2px solid var(--bz-blau); }
+.bz-legende-vorher { border-top: 2px dashed var(--bz-vorher); }
+.bz-tabelle-auf { margin-top: 10px; }
+.bz-tabelle-auf summary { cursor: pointer; font-size: 12px; color: var(--bz-leise); padding: 4px 0; width: max-content; }
+.bz-tabelle-auf summary:hover { color: #93c5fd; }
+.bz-tabelle-auf .cw-tabelle-rahmen { max-height: 340px; overflow: auto; margin-top: 8px; }
+
+/* ── Trichter ──────────────────────────────────────────────────────────── */
+.bz-trichter { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.bz-trichter li { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 12px; row-gap: 6px; align-items: baseline; }
+.bz-trichter-zahl { grid-row: 1; font-size: 22px; font-weight: 300; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -.01em; text-align: right; }
+.bz-trichter-name { grid-row: 1; font-size: 13px; color: #cbd5e1; }
+.bz-trichter-quote { grid-row: 1; font-size: 12.5px; color: #93c5fd; font-variant-numeric: tabular-nums; }
+.bz-trichter-balken { grid-row: 2; grid-column: 2 / 4; display: block; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .05); overflow: hidden; }
+.bz-trichter-balken i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #2563eb, var(--bz-blau)); }
+.bz-trichter-tabelle { margin: 0; }
+.bz-klickzeile { cursor: pointer; }
+.bz-klickzeile:focus-visible td { background: rgba(96, 165, 250, .12); outline: none; }
+.bz-klickzeile.an td { background: rgba(96, 165, 250, .14); }
+.bz-klickzeile td b { color: #6ee7b7; font-weight: 600; }
+.bz-name-zelle { color: #fff !important; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Ranglisten ────────────────────────────────────────────────────────── */
+.bz-raenge { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 14px; }
+.bz-rang h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 10.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #94a3b8; }
+.bz-rang ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.bz-rang-zeile {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 5px; align-items: center;
+  padding: 7px 8px; margin: 0 -8px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; box-sizing: content-box;
+}
+.bz-rang-zeile:hover { background: rgba(255, 255, 255, .05); }
+.bz-rang-zeile:focus-visible { outline: 2px solid rgba(96, 165, 250, .6); outline-offset: -2px; }
+.bz-rang-zeile.an { background: rgba(96, 165, 250, .16); box-shadow: inset 0 0 0 1px rgba(147, 197, 253, .3); }
+.bz-rang-name { display: grid; min-width: 0; }
+.bz-rang-name > span { font-size: 13px; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bz-rang-name small { font-size: 11px; color: var(--bz-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bz-rang-zahl { font-size: 13px; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+.bz-rang-balken { grid-column: 1 / 3; display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .05); overflow: hidden; }
+.bz-rang-balken i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #2563eb, var(--bz-blau)); }
+.bz-mehr { margin-top: 8px; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 12px; color: #93c5fd; cursor: pointer; }
+.bz-mehr:hover { color: #fff; }
+
+/* ── Wochentag × Stunde ────────────────────────────────────────────────── */
+.bz-heat-karte { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.bz-heat { display: grid; gap: 3px; }
+.bz-heat-zeile { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: 3px; align-items: center; }
+.bz-heat-zeile > span:first-child { font-size: 11px; color: var(--bz-leise); }
+.bz-heat-kopf span { font-size: 10px; color: var(--bz-leise); font-variant-numeric: tabular-nums; }
+.bz-heat-zelle {
+  height: 24px; border-radius: 4px;
+  background: rgba(96, 165, 250, var(--a, 0)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+.bz-heat-zelle:hover, .bz-heat-zelle:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 0; }
+
+/* ── Clarity (zweiter Teil) ────────────────────────────────────────────── */
+.bz-clarity { padding-top: 22px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.bz-clarity .cbes-stand { margin-bottom: 0; }
+.bz-clarity .cbes-aerger { margin-top: 0; }
+.bz-clarity .cbes-pfad em b { display: inline; }
+.bz-clarity-zahlen { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 12.5px; color: var(--bz-leise); }
+.bz-clarity-zahlen b { color: #fff; font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+/* ── Telefon ───────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .bz-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .cl.bz { gap: 20px; }
+  .bz-inhalt { gap: 32px; }
+  .bz-kacheln { gap: 8px; }
+  .bz .bz-kz { padding: 14px 14px 12px; }
+  .bz-karte, .bz-rang { padding: 14px 14px; border-radius: 16px; }
+  .bz-trichter li { grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; }
+  .bz-trichter-zahl { font-size: 18px; }
+  .bz-heat-zeile { grid-template-columns: 22px repeat(24, minmax(0, 1fr)); gap: 2px; }
+  .bz-heat-zelle { height: auto; aspect-ratio: 1; border-radius: 3px; }
+  .bz-heat { gap: 2px; }
+  .bz-zeitraum-text { margin-bottom: -18px; }
+  /* Trichter-Tabelle am Telefon: „Antrag auf" und „abgeschickt" stehen im Trichter darüber — hier zählen Anträge, Käufe, Geld. */
+  .bz-trichter-tabelle :is(th, td):is(:nth-child(3), :nth-child(5)) { display: none; }
+  .bz-trichter-tabelle :is(th, td) { padding-left: 10px; padding-right: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bz-live.an i { animation: none; }
+  .bz-inhalt { transition: none; }
+}

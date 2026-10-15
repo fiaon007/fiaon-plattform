@@ -41,6 +41,7 @@ import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { istRoboterUnterschrift } from "../lib/fiaon-vertrieb-zusage";
 import { pinErstmalsSetzen } from "../lib/fiaon-kunden-pin";
 import { antragGeraet } from "../lib/fiaon-antrag-weiche";
+import { antragBesuchVerknuepfen } from "../lib/fiaon-besuch";
 import {
   ANTRAG_NEU_BERUF_SPALTE, ANTRAG_NEU_HAKEN_GEPRUEFT, antragNeuHakenKombi, ANTRAG_NEU_LEER, ANTRAG_NEU_LEISTUNG_FASSUNG,
   ANTRAG_NEU_SOFORT_TEXT, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WOHNEN_SPALTE, BERUF_MIT_ARBEITGEBER,
@@ -276,6 +277,9 @@ router.post("/antrag-neu/ereignis", async (req: Request, res: Response) => {
     const weg = b.weg === "alt" ? "alt" : b.weg === "neu" ? "neu" : null;
     const sitzung = String(b.sitzung || "");
     if (!weg || !/^[a-z0-9]{8,40}$/i.test(sitzung) || !Array.isArray(b.liste)) return res.status(400).json({ ok: false });
+    // E-378: Die Antrags-Sitzung an die Besuchs-Sitzung derselben Anfrage hängen (Trichter Besuch → bezahlt
+    // im Chefbüro › Besucher). Ohne IP, ohne Cookie — derselbe Tages-Hash wie die Besuchermessung. Darf nie stören.
+    void antragBesuchVerknuepfen(req, sitzung).catch(() => {});
     const geraet = geraetAus(ua);
     const nur = (v: unknown, muster: RegExp, max: number) => { const s = String(v ?? "").slice(0, max); return s && muster.test(s) ? s : null; };
     let n = 0;

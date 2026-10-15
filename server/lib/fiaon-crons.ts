@@ -388,6 +388,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     // zweiten Tag kurz auf Gelb, ohne dass etwas fehlt.
     fenster: 30,
   },
+  // E-378: Die eigene Messung verspricht in der Datenschutzerklärung (III a) eine Löschfrist.
+  "besuch-aufraeumen": {
+    zweck: "Eigene Besuchermessung nach 400 Tagen löschen (Datenschutzerklärung III a)",
+    folge: "Messdaten bleiben länger liegen, als die Datenschutzerklärung zusagt.",
+    fenster: 50,
+  },
   "betreuer-kopie-angleich": {
     zweck: "Betreuer-Kopie am Antrag stuendlich an die Person angleichen (eine Wahrheit)",
     folge: "Management und Telefon nennen wieder verschiedene Betreuer — Kunden werden "

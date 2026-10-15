@@ -278,7 +278,7 @@ export function auswerten(abruf: any) {
 
   type Sammel = {
     pfad: string; sitzungen: number; menschen: number; bots: number;
-    tiefeSumme: number; tiefeGewicht: number; zeitAktiv: number; zeitGesamt: number;
+    tiefeSumme: number; tiefeGewicht: number; zeitAktiv: number; zeitGesamt: number; zeitGewicht: number;
     wut: number; tot: number; fehler: number; zurueck: number; scrollSuche: number;
     adressen: number;
   };
@@ -286,7 +286,7 @@ export function auswerten(abruf: any) {
   const hole = (pfad: string): Sammel => {
     const e = nachPfad.get(pfad) ?? {
       pfad, sitzungen: 0, menschen: 0, bots: 0, tiefeSumme: 0, tiefeGewicht: 0,
-      zeitAktiv: 0, zeitGesamt: 0, wut: 0, tot: 0, fehler: 0, zurueck: 0,
+      zeitAktiv: 0, zeitGesamt: 0, zeitGewicht: 0, wut: 0, tot: 0, fehler: 0, zurueck: 0,
       scrollSuche: 0, adressen: 0,
     };
     nachPfad.set(pfad, e);
@@ -305,8 +305,9 @@ export function auswerten(abruf: any) {
     // ist keiner. Eine Adresse mit 900 Sitzungen wiegt schwerer als eine mit 3.
     const t = tiefeJeSeite.get(z.adresse);
     if (t != null && z.sitzungen > 0) { e.tiefeSumme += t * z.sitzungen; e.tiefeGewicht += z.sitzungen; }
+    // E-378: Die Zeiten sind Mittelwerte je Sitzung — wie die Scrolltiefe mit den Sitzungen gewichten, nicht addieren.
     const zt = zeitJeSeite.get(z.adresse);
-    if (zt) { e.zeitAktiv += zt.aktiv; e.zeitGesamt += zt.gesamt; }
+    if (zt && z.sitzungen > 0) { e.zeitAktiv += zt.aktiv * z.sitzungen; e.zeitGesamt += zt.gesamt * z.sitzungen; e.zeitGewicht += z.sitzungen; }
     const a = wutJeSeite.get(z.adresse);
     if (a) { e.wut += a.wut; e.tot += a.tot; e.fehler += a.fehler; e.zurueck += a.zurueck; }
     const sc = scrollSucheJeSeite.get(z.adresse);
@@ -324,7 +325,10 @@ export function auswerten(abruf: any) {
         menschen: e.menschen,
         bots: e.bots,
         scrolltiefe: e.tiefeGewicht > 0 ? e.tiefeSumme / e.tiefeGewicht : null,
-        zeit: e.zeitGesamt > 0 || e.zeitAktiv > 0 ? { aktiv: e.zeitAktiv, gesamt: e.zeitGesamt } : null,
+        // Millisekunden (Clarity liefert Sekunden, E-378) — Ø je Sitzung auf diesem Pfad.
+        zeit: e.zeitGewicht > 0 && (e.zeitGesamt > 0 || e.zeitAktiv > 0)
+          ? { aktiv: Math.round((e.zeitAktiv / e.zeitGewicht) * 1000), gesamt: Math.round((e.zeitGesamt / e.zeitGewicht) * 1000) }
+          : null,
         aerger: { wut: e.wut, tot: e.tot, fehler: e.fehler, zurueck: e.zurueck, scrollSuche: e.scrollSuche },
         // ── DIE GEWICHTUNG, DIE AUS ZAHLEN EINE REIHENFOLGE MACHT ────────
         // Nicht die absolute Zahl entscheidet, sondern die Dichte: 36
@@ -345,9 +349,10 @@ export function auswerten(abruf: any) {
       sitzungen, menschen, bots,
       botAnteil: sitzungen + bots > 0 ? (bots / (sitzungen + bots)) * 100 : 0,
       seitenJeSitzung,
-      // Clarity gibt Zeiten in Millisekunden je Sitzung als Summe.
-      zeitGesamtMs: zahl(zeit.totalTime),
-      zeitAktivMs: zahl(zeit.activeTime),
+      // E-378 (15.10.2026): Clarity liefert SEKUNDEN, Ø je Sitzung (Abruf heute: totalTime 106, activeTime 44).
+      // Hier stand „Millisekunden" — die Seite teilte durch 1000 und zeigte „0 s aktiv · von 0 s gesamt".
+      zeitGesamtMs: zahl(zeit.totalTime) * 1000,
+      zeitAktivMs: zahl(zeit.activeTime) * 1000,
       scrolltiefe: zahl(tiefe.averageScrollDepth),
     },
     aergernisse: [

@@ -32,7 +32,7 @@ const EIGENE: (ChefSeite & { eigen: true })[] = [
   { slug: "", label: "Lagezimmer", satz: "Alle Zahlen des Unternehmens auf einen Blick.", raum: "lage", auch: "umsatz zahlen dashboard start", Seite: null as any, eigen: true },
   { slug: "werkzeuge", label: "Werkstatt", satz: "Frag die Zahlen, Wahrheits-Check, Maschinenraum, Sprung, Freigaben, Posteingang.", raum: "werkzeuge", auch: "wahrheit mailbox cron lauf freigabe tickets anfragen", Seite: null as any, eigen: true },
   { slug: "kundenliste", label: "Alle Kunden", satz: "Der gesamte Bestand — eine Person, eine Zeile.", raum: "kundenliste", auch: "liste bestand personen suchen", Seite: null as any, eigen: true },
-  { slug: "besucher", label: "Besucher", satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.", raum: "besucher", auch: "clarity besucher traffic seiten scroll", Seite: null as any, eigen: true },
+  { slug: "besucher", label: "Besucher", satz: "Wer kommt, woher, welche Kampagne — und was daraus wird: Besuch → Antrag → bezahlt. Dazu Wut-Klicks aus Clarity.", raum: "besucher", auch: "clarity besucher traffic seiten scroll kampagne utm herkunft trichter conversion live analytics reichweite", Seite: null as any, eigen: true },
   { slug: "zahlungen", label: "Zahlungszentrale", satz: "Jeder Eingang mit allen Angaben, gegengeprüft.", raum: "zahlungen", mindest: "geschaeftsfuehrung", auch: "umsatz eingang provision", Seite: null as any, eigen: true },
   { slug: "global", label: "Global-Mandate", satz: "Die Firmenkunden — Gründung, Tresor, Post, Anfragen, Banken & Kapital.", raum: "global", auch: "global firmenkunde llc mandat tresor post vollmacht anfrage bank kapital funding steuer ein", Seite: null as any, eigen: true },
   // E-336: fehlte bis heute im Register.

@@ -43,6 +43,12 @@
 // was der Code tut. ANWALT + DSFA (Art. 35) vor dem Start: Rechtsgrundlage für das LESEN
 // von Art.-9-Daten im Auszug (maskiert wird erst danach), Garantien der Drittlandübermittlung,
 // Speicherdauer der Unterlagen (heute: bis zur Löschung auf Verlangen — keine feste Frist im Code).
+//
+// 15.10.2026 (E-378): III a neu — die eigene Reichweitenmessung ohne Cookies (client/src/lib/besuch.ts,
+// server/lib/fiaon-besuch.ts): was gemeldet wird, der Tages-Hash statt gespeicherter IP, die Verbindung mit
+// einem Antrag, Art. 6 Abs. 1 lit. f, 400 Tage, Widerspruch über GPC/DNT (der Server hält sich daran).
+// ANWALT: ob das Lesen von document.referrer durch das Skript unter § 25 Abs. 1 TDDDG fällt (strenge Lesart
+// EDSA-Leitlinien 2/2023) — Fensterbreite und Sprache liest das Skript bewusst NICHT, sie kommen aus den Kopfzeilen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -173,6 +179,31 @@ export default function PrivacyPage() {
                   <div>
                     <h3 className="font-semibold mb-2">3. Dauer der Speicherung</h3>
                     <p className="text-sm">Die Daten werden gelöscht, sobald sie für die Erreichung des Zweckes ihrer Erhebung nicht mehr erforderlich sind. Im Falle der Erfassung der Daten zur Bereitstellung der Website ist dies der Fall, wenn die jeweilige Sitzung beendet ist. Im Falle der Speicherung der Daten in Logfiles ist dies nach spätestens sieben Tagen der Fall.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* III a. Eigene Reichweitenmessung ohne Cookies (15.10.2026, E-378) */}
+            <div id="reichweite" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">III a. Reichweitenmessung ohne Cookies</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Was wir messen</h3>
+                    <p className="text-sm">Um zu verstehen, welche Seiten gelesen werden und auf welchen Wegen Besucher zu uns finden, misst fiaon.com die Reichweite selbst, auf unserem eigenen Server und ohne Drittanbieter. Bei jedem Seitenwechsel meldet die Seite: die aufgerufene Seite (ohne Parameter; Kennungen aus persönlichen Links entfernen wir), die Domain der Seite, von der Sie kamen (nicht deren vollständige Adresse), Kampagnenangaben aus dem Link (utm_source, utm_medium, utm_campaign, utm_content, utm_term), ob der Link eine Klick-Kennung von Google oder Meta enthielt (nicht die Kennung selbst) und wie lange die Seite sichtbar war. Geräteart und Sprache leiten wir aus der Browserkennung und den Spracheinstellungen ab, die Ihr Browser bei jedem Aufruf mitsendet, das Land aus der Angabe unseres Netzbetreibers. Den internen Bereich, den Kundenbereich und Seiten mit persönlichen Vertragsunterlagen messen wir nicht.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Keine Cookies, keine gespeicherte IP-Adresse</h3>
+                    <p className="text-sm">Wir setzen dafür keine Cookies und legen nichts im Local Storage oder Session Storage Ihres Browsers ab. Um Seitenaufrufe eines Tages zu einem Besuch zusammenzufassen, bildet unser Server aus Ihrer IP-Adresse, der Browserkennung, der Domain und einem Zufallswert einen nicht umkehrbaren Prüfwert (Hash). Der Zufallswert wird jeden Tag neu erzeugt und am Folgetag gelöscht; danach lässt sich der Prüfwert keinem Anschluss mehr zuordnen, auch nicht durch uns, und Besuche verschiedener Tage lassen sich nicht verbinden. Die IP-Adresse selbst speichern wir dafür nicht.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Verbindung mit einem Antrag</h3>
+                    <p className="text-sm">Beginnen Sie während des Besuchs einen Antrag, ordnen wir den Besuch diesem Antrag zu (Herkunft, Kampagne, Einstiegsseite, Gerät), um zu erkennen, welche Wege und Anzeigen zu Anträgen und Aufträgen führen. Ausgewertet wird das nur zusammengefasst, nicht je Person.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Rechtsgrundlage und Speicherdauer</h3>
+                    <p className="text-sm">Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Unser berechtigtes Interesse ist, die Reichweite unserer Website und die Wirksamkeit unserer Werbung zu messen und die Website zu verbessern. Die Messdaten löschen wir nach 400 Tagen. Sie können der Messung jederzeit widersprechen (Art. 21 DSGVO): Sendet Ihr Browser das Signal „Global Privacy Control“ oder „Do Not Track“, messen wir Ihre Besuche nicht.</p>
                   </div>
                 </div>
               </div>

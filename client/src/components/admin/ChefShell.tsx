@@ -160,9 +160,10 @@ export const CHEF_RAEUME: ChefRaum[] = [
   },
   // ── BESUCHER (27.08.2026) ───────────────────────────────────────────────
   // Microsoft Clarity: Wer war da, und — wichtiger — wo hat es geklemmt.
+  // E-378 (15.10.2026): dazu die eigene Messung ohne Cookies — Herkunft, Kampagnen, Trichter bis zum Kauf.
   {
     key: "besucher", label: "Besucher", Icon: Eye, mindest: "leitung", gruppe: "vertrieb",
-    satz: "Wo Besucher nicht weiterkommen.",
+    satz: "Wer kommt — und was daraus wird.",
     punkte: [],
   },
   // ── Geld ────────────────────────────────────────────────────────────────

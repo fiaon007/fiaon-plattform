@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 15.10.2026 — E-378 Chefbüro › Besucher: eigene Messung ohne Cookies, Trichter bis zum Kauf
+- **Was:** fiaon.com misst Besucher jetzt selbst. Jeder Seitenwechsel auf den öffentlichen Seiten meldet Pfad, Herkunfts-Domain,
+  Kampagnenangaben (utm_*), ob eine Klick-Kennung von Google/Meta im Link stand (nie ihr Wert) und die sichtbare Zeit. Kein Cookie, kein
+  Speicher im Browser, keine gespeicherte IP: Wer ein Besucher ist, rechnet der Server aus einem Tages-Salz (wird jeden Tag gelöscht),
+  IP, Browserkennung und Domain. Gerät, Sprache und Land kommen aus den Kopfzeilen. Nicht gezählt werden Chefbüro, Office, Kundenbereich
+  (/app, Mein Bereich), Seiten ohne Messung, Team-Mitglieder (Chef-/Mitarbeiter-Cookie), Roboter und wer „Global Privacy Control“ oder
+  „Do Not Track“ schickt. Startet jemand einen Antrag, hängt sich die Antragsmessung an seinen Besuch — so entsteht der Trichter
+  Besuch → Antrag geöffnet → angelegt → abgeschickt → bezahlt (Umsatz aus der einen Umsatz-Quelle, Kauf zählt beim Erstkontakt).
+  Die Seite Besucher zeigt: Zeitraum (Heute, Gestern, 7/30/90 Tage, eigener) mit Vergleich zum Zeitraum davor, „gerade da“ (5 Minuten),
+  acht Kopfzahlen, Verlauf je Tag/Stunde (Besucher, Seitenaufrufe, Anträge, Käufe), Trichter nach Kanal/Kampagne/Einstiegsseite/Gerät,
+  Seiten/Einstieg/Ausstieg, Kanal/Herkunft/Kampagne/Anzeige/Anzeigengruppe, Gerät/Land/Sprache, Wochentag × Stunde. Jede Zeile filtert
+  die ganze Seite; Zeitraum und Filter stehen in der Adresse. Darunter wie bisher Clarity („Ärgernisse, letzte 3 Tage“); dort stimmen die
+  Zeiten jetzt (Clarity liefert Sekunden — die Seite zeigte „0 s aktiv“). Löschfrist der Messung 400 Tage (Tageslauf besuch-aufraeumen).
+  Datenschutzerklärung: neuer Abschnitt III a „Reichweitenmessung ohne Cookies“; Cookie-Seite nennt die Messung im Grundsatz.
+- **Warum:** Justin: „Besucher hat nie funktioniert … ich brauche super detaillierte Aufschlüsselungen.“ Clarity gibt nur Summen der
+  letzten drei Tage heraus (zehn Abrufe am Tag) und sieht nur Besucher mit Einwilligung — daraus wird nie ein Cockpit.
+- **Wo:** Chefbüro › Vertrieb › Besucher (/chef/besucher). shared/fiaon-besuch.ts (Regeln), server/lib/fiaon-besuch.ts (Hash, Sitzung,
+  Auswertung), server/routes/fiaon-besuch.ts (POST /api/fiaon/besuch, GET /chef/besucher, /chef/besucher/live),
+  db/migrations/108_besuche.sql, client/src/lib/besuch.ts (Meldung im Browser, App.tsx BesuchMesser),
+  client/src/components/admin/ChefBesucher.tsx + ChefBesucherClarity.tsx, client/src/styles/chef-besucher.css,
+  Brücke in server/routes/fiaon-antrag-neu.ts; Prüfstand scripts/pruef-e378.ts (102/102, lokale DB).
+
 ## 15.10.2026 — E-370 Mara-Steuerpult › Entscheidungen: Maras Fragen an Justin, ein Klick erledigt sie
 - **Was:** Neuer Reiter „Entscheidungen“ (vorn im Mara-Steuerpult, /chef/s/mara?reiter=entscheidungen, am Handy „Fragen“, Zahlmarke =
   offene Karten). Je Karte: was los ist, wer (Link zur Akte), Belege, die Kundenzeile gekürzt, Maras Empfehlung als blauer Knopf, die

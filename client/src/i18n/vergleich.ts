@@ -3,6 +3,9 @@
 // Beide Sprachen Schlüssel für Schlüssel; die Seite liest über useWoerter().
 // „passt zu" statt „empfehlen" — auch auf Englisch „fits", nie „recommend".
 // Der FAQ-Generator teilt an „const en".
+// 14.10.2026 (E-365): FIAON beschafft keine Auskunft mehr; die Datenkopie
+// fordert jeder selbst an. FIAON verkauft die Bonitätsauswertung aus den
+// Kontoauszügen (149 € einzeln, für neue Paketkunden im Paket enthalten).
 // ═══════════════════════════════════════════════════════════════════════════
 const de = {
   metaTitel: "Vergleich · FIAON, Anwalt, Score-App oder selbst?",
@@ -16,8 +19,8 @@ const de = {
   tabelleH2a: "Vier Wege ", tabelleH2b: "nebeneinander.", tabelleLead: "Richtwerte, Stand September 2026. Anwaltskosten nach RVG je Gegenstandswert; App-Angaben für kostenlose Score-Apps.",
   kopf: ["", "Selbst + Werkzeuge", "Score-App", "Anwalt", "FIAON"],
   zeilen: [
-    ["Kosten", "0 € + Porto", "0 €", "150–300 € je Schreiben", "74 € Auskunft · 7,99–99,99 €/Monat, 12 Raten"],
-    ["Auskunft beschaffen", "selbst, kostenlos", "zeigt Score", "meist selbst", "FIAON, mit Vollmacht, DE/AT/CH"],
+    ["Kosten", "0 € + Porto", "0 €", "150–300 € je Schreiben", "7,99–99,99 €/Monat, 12 Raten · Bonitätsauswertung inklusive (einzeln 149 €)"],
+    ["Datenkopie anfordern", "selbst, kostenlos", "zeigt Score", "meist selbst", "selbst, kostenlos – FIAON erklärt sie, DE/AT/CH"],
     ["Jeden Eintrag einordnen", "mit Eintrag-Prüfer", "nein", "ja, im Einzelfall", "ja, Klartext je Eintrag"],
     ["Löschantrag schreiben", "Generator (Muster)", "nein", "ja, individuell", "ja, anwaltlich geprüfte Vorlage"],
     ["Versand, Nachfassen, Fristen", "selbst", "nein", "gegen Honorar", "inklusive (ab Pro)"],
@@ -37,10 +40,10 @@ const de = {
   ihrWeg: "Ihr Weg", lieberReden: "Lieber erst reden",
   wege: {
     anwalt: { titel: "Ein Anwalt passt zu Ihrer Lage.", text: "Eine bereits abgelehnte Löschung oder ein Schadensersatzanspruch nach Art. 82 DSGVO gehört zu jemandem, der klagen darf. Nehmen Sie Ihre Datenkopie, den Löschantrag und die Ablehnung mit – der Widerspruch-Generator liefert die Vorstufe kostenlos. Prüfen Sie, ob eine Rechtsschutzversicherung Datenschutzstreitigkeiten deckt.", knopf: "Löschantrag als Vorstufe" },
-    nur: { titel: "Die kostenlose Datenkopie passt – plus eine Score-App zum Beobachten.", text: "Sie wollen wissen, wo Sie stehen: Datenkopie nach Art. 15 DSGVO (kostenlos, der Generator schreibt den Brief) und der kostenlose SCHUFA-Account für den Score. FIAON brauchen Sie erst, wenn etwas zu tun ist – oder wenn Sie die Auskunft erklärt haben möchten (74 Euro).", knopf: "Datenkopie anfordern" },
+    nur: { titel: "Die kostenlose Datenkopie passt – plus eine Score-App zum Beobachten.", text: "Sie wollen wissen, wo Sie stehen: Datenkopie nach Art. 15 DSGVO (kostenlos, der Generator schreibt den Brief) und der kostenlose SCHUFA-Account für den Score. FIAON brauchen Sie erst, wenn etwas zu tun ist – oder wenn Sie wissen möchten, wie eine Bank Sie sieht: die Bonitätsauswertung aus Ihren Kontoauszügen (149 €).", knopf: "Datenkopie anfordern" },
     selbst: { titel: "Selbermachen passt – mit den kostenlosen Werkzeugen.", text: "Ein klarer Eintrag, Zeit zum Nachfassen: Der Löschantrag-Generator schreibt beide Briefe, der Löschfrist-Rechner das Datum. Zwei Einschreiben, vier Wochen Geduld, notfalls die Datenschutzaufsicht. Das ist ehrlich gesagt der günstigste Weg.", knopf: "Löschantrag erzeugen" },
     konto: { titel: "FIAON Pro passt – wegen des Wegs nach der Auskunft.", text: "Konto und Karte entstehen aus der Akte: bereinigte Einträge, Kontoführung, Zahlungshistorie. Das ist genau der Teil, den weder Anwalt noch App noch Werkzeug abdecken – FIAON bereitet Konto und Karte beim Partnerinstitut vor, die Bank entscheidet.", knopf: "Paket ansehen" },
-    fiaon: { titel: "FIAON passt – Verfolgung statt Selbermachen.", text: "Mehrere Einträge oder wenig Zeit: Der Unterschied zwischen einem Brief und einer bereinigten Auskunft ist das Nachfassen. FIAON beschafft, prüft, versendet per Einschreiben, hält Fristen und eskaliert – zum Festpreis über zwölf Raten, danach monatlich kündbar.", knopf: "Preise ansehen" },
+    fiaon: { titel: "FIAON passt – Verfolgung statt Selbermachen.", text: "Mehrere Einträge oder wenig Zeit: Der Unterschied zwischen einem Brief und einer bereinigten Auskunft ist das Nachfassen. FIAON erklärt, prüft, versendet per Einschreiben, hält Fristen und eskaliert – zum Festpreis über zwölf Raten, danach monatlich kündbar.", knopf: "Preise ansehen" },
   } as Record<string, { titel: string; text: string; knopf: string }>,
   altH2a: "Die drei Alternativen – ", altH2b: "fair betrachtet.", altLead: "Jede hat ihren Platz. Das hier ist keine Abwertung, sondern eine Einordnung.",
   alternativen: [
@@ -49,14 +52,14 @@ const de = {
     { tag: "Anwalt", titel: "Unersetzlich, wenn es streitig wird", text: "Vor Gericht, bei Schadensersatz, bei einer Auskunftei, die sich weigert: Nur ein Anwalt darf Sie vertreten. Für den ersten Löschantrag ist er oft teurer als nötig – für die Klage danach die einzige Wahl. FIAON verweist an diesem Punkt weiter." },
   ],
   nichtTag: "Was FIAON nicht ist", nichtTitel: "Damit der Vergleich ehrlich bleibt",
-  nichtA: "FIAON ist keine Rechtsberatung, keine Bank und kein Kreditvermittler. FIAON beschafft, erklärt, schreibt aus geprüften Vorlagen, versendet, verfolgt, verhandelt Raten und bereitet Konto und Karte vor – zum Festpreis über zwölf Raten, danach monatlich kündbar. Wo ein Fall vor Gericht gehört, sagen wir es. Wo die Werkzeuge reichen, auch. Mehr dazu auf ", nichtLink: "So arbeitet FIAON", nichtB: ".",
+  nichtA: "FIAON ist keine Rechtsberatung, keine Bank und kein Kreditvermittler. FIAON wertet aus, erklärt, schreibt aus geprüften Vorlagen, versendet, verfolgt, verhandelt Raten und bereitet Konto und Karte vor – zum Festpreis über zwölf Raten, danach monatlich kündbar. Wo ein Fall vor Gericht gehört, sagen wir es. Wo die Werkzeuge reichen, auch. Mehr dazu auf ", nichtLink: "So arbeitet FIAON", nichtB: ".",
   fragenTitel: "Häufige Fragen zum Vergleich",
   fragen: [
     { f: "Wann ist der Anwalt der bessere Weg?", a: "Wenn die Auskunftei eine eindeutig unzulässige Meldung trotz Löschantrag nicht löscht, wenn Schadensersatz nach Art. 82 DSGVO im Raum steht oder wenn bereits geklagt wird. Dann braucht es jemanden, der vor Gericht auftreten darf. FIAON ist keine Rechtsberatung – und sagt Ihnen, wenn dieser Punkt erreicht ist." },
     { f: "Was kostet ein Anwalt für einen SCHUFA-Eintrag?", a: "Ein anwaltliches Schreiben nach RVG liegt je nach Gegenstandswert typischerweise bei 150 bis 300 Euro; Erstberatungen werden oft pauschal bis 190 Euro angeboten. Bei mehreren Einträgen und Nachfassen summiert sich das schnell. Rechtsschutzversicherungen decken Datenschutzstreitigkeiten teils ab – fragen Sie vorher nach." },
     { f: "Reicht eine kostenlose Score-App?", a: "Zum Anschauen ja: Score, Einträge, Warnungen. Zum Handeln nein: Keine App schreibt den Löschantrag, verfolgt die Frist oder verhandelt Raten. Nutzen Sie die App für die Einsicht – und die kostenlosen FIAON-Werkzeuge oder ein Paket für die Aktion." },
     { f: "Kann ich das wirklich alles selbst machen?", a: "Ja. Die Datenkopie ist kostenlos, die Gesetze sind öffentlich, und die 20 FIAON-Werkzeuge schreiben die Briefe. Was Sie mitbringen müssen: Zeit (rund drei Stunden je Eintrag), Disziplin beim Nachfassen und die Bereitschaft, Fristen selbst im Blick zu behalten." },
-    { f: "Was unterscheidet FIAON von einem Anwalt?", a: "FIAON ist Verfolgung und Weg: Auskunft beschaffen, jeden Eintrag einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus." },
+    { f: "Was unterscheidet FIAON von einem Anwalt?", a: "FIAON ist Verfolgung und Weg: Bonität aus Sicht einer Bank auswerten, jeden Eintrag Ihrer Datenkopie einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus." },
   ],
   zwischenrufA: "Unsicher, welcher Weg?", zwischenrufB: " 15 Minuten am Telefon – wir sagen auch, wenn Sie uns nicht brauchen.",
   terminBuchen: "Startgespräch buchen", werkzeuge: "Kostenlose Werkzeuge",
@@ -74,8 +77,8 @@ const en: typeof de = {
   tabelleH2a: "Four routes ", tabelleH2b: "side by side.", tabelleLead: "Guide values, as of September 2026. Lawyer's fees under the German fee schedule (RVG) depending on the amount at stake; app figures for free score apps.",
   kopf: ["", "Yourself + tools", "Score app", "Lawyer", "FIAON"],
   zeilen: [
-    ["Cost", "€0 + postage", "€0", "€150–300 per letter", "€74 report · €7.99–99.99/month, 12 instalments"],
-    ["Obtain the report", "yourself, free", "shows the score", "usually yourself", "FIAON, with authorisation, DE/AT/CH"],
+    ["Cost", "€0 + postage", "€0", "€150–300 per letter", "€7.99–99.99/month, 12 instalments · credit assessment included (€149 on its own)"],
+    ["Request the data copy", "yourself, free", "shows the score", "usually yourself", "yourself, free — FIAON explains it, DE/AT/CH"],
     ["Classify every entry", "with the entry checker", "no", "yes, case by case", "yes, plain language per entry"],
     ["Write the deletion request", "generator (template)", "no", "yes, individually", "yes, template reviewed by lawyers"],
     ["Sending, follow-up, deadlines", "yourself", "no", "for a fee", "included (from Pro)"],
@@ -95,10 +98,10 @@ const en: typeof de = {
   ihrWeg: "Your route", lieberReden: "Rather talk first",
   wege: {
     anwalt: { titel: "A lawyer fits your situation.", text: "A deletion already refused or a claim for damages under Art. 82 GDPR belongs with someone who may sue. Take your data copy, the deletion request and the refusal with you — the objection generator provides the first step free of charge. Check whether legal expenses insurance covers data protection disputes.", knopf: "Deletion request as a first step" },
-    nur: { titel: "The free data copy fits — plus a score app to keep watch.", text: "You want to know where you stand: the data copy under Art. 15 GDPR (free, the generator writes the letter) and the free SCHUFA account for the score. You only need FIAON once there is something to do — or if you would like the report explained (€74).", knopf: "Request a data copy" },
+    nur: { titel: "The free data copy fits — plus a score app to keep watch.", text: "You want to know where you stand: the data copy under Art. 15 GDPR (free, the generator writes the letter) and the free SCHUFA account for the score. You only need FIAON once there is something to do — or if you want to know how a bank sees you: the credit assessment from your bank statements (€149).", knopf: "Request a data copy" },
     selbst: { titel: "Doing it yourself fits — with the free tools.", text: "A clear entry, time to follow up: the deletion request generator writes both letters, the deletion deadline calculator names the date. Two registered letters, four weeks of patience, the data protection authority if need be. Honestly, that is the cheapest route.", knopf: "Generate a deletion request" },
     konto: { titel: "FIAON Pro fits — because of the path after the report.", text: "Account and card grow out of the file: cleaned-up entries, account management, payment history. That is exactly the part neither lawyer nor app nor tool covers — FIAON prepares account and card with the partner institution, the bank decides.", knopf: "See the plan" },
-    fiaon: { titel: "FIAON fits — follow-up instead of doing it yourself.", text: "Several entries or little time: the difference between a letter and a cleaned-up report is the follow-up. FIAON obtains, checks, sends by registered post, keeps deadlines and escalates — for a fixed price over twelve instalments, cancellable monthly thereafter.", knopf: "See pricing" },
+    fiaon: { titel: "FIAON fits — follow-up instead of doing it yourself.", text: "Several entries or little time: the difference between a letter and a cleaned-up report is the follow-up. FIAON explains, checks, sends by registered post, keeps deadlines and escalates — for a fixed price over twelve instalments, cancellable monthly thereafter.", knopf: "See pricing" },
   },
   altH2a: "The three alternatives — ", altH2b: "considered fairly.", altLead: "Each has its place. This is not a put-down but a classification.",
   alternativen: [
@@ -107,14 +110,14 @@ const en: typeof de = {
     { tag: "Lawyer", titel: "Irreplaceable when it becomes contentious", text: "In court, for damages, with a credit bureau that refuses: only a lawyer may represent you. For the first deletion request a lawyer is often more expensive than necessary — for the lawsuit afterwards the only choice. FIAON refers you on at that point." },
   ],
   nichtTag: "What FIAON is not", nichtTitel: "So that the comparison stays honest",
-  nichtA: "FIAON is not legal advice, not a bank and not a credit broker. FIAON obtains, explains, writes from reviewed templates, sends, follows up, negotiates instalments and prepares account and card — for a fixed price over twelve instalments, cancellable monthly thereafter. Where a case belongs in court, we say so. Where the tools are enough, likewise. More on ", nichtLink: "How FIAON works", nichtB: ".",
+  nichtA: "FIAON is not legal advice, not a bank and not a credit broker. FIAON assesses, explains, writes from reviewed templates, sends, follows up, negotiates instalments and prepares account and card — for a fixed price over twelve instalments, cancellable monthly thereafter. Where a case belongs in court, we say so. Where the tools are enough, likewise. More on ", nichtLink: "How FIAON works", nichtB: ".",
   fragenTitel: "Frequently asked questions about the comparison",
   fragen: [
     { f: "When is a lawyer the better route?", a: "When the credit bureau does not delete a clearly unlawful report despite a deletion request, when damages under Art. 82 GDPR are at stake or when a lawsuit is already under way. Then you need someone who may appear in court. FIAON is not legal advice — and tells you when that point is reached." },
     { f: "What does a lawyer cost for a SCHUFA entry?", a: "A lawyer's letter under the German fee schedule (RVG) typically costs €150 to €300 depending on the amount at stake; initial consultations are often offered at a flat rate of up to €190. With several entries and follow-up that adds up quickly. Legal expenses insurance sometimes covers data protection disputes — ask beforehand." },
     { f: "Is a free score app enough?", a: "For looking, yes: score, entries, alerts. For acting, no: no app writes the deletion request, tracks the deadline or negotiates instalments. Use the app for insight — and the free FIAON tools or a plan for action." },
     { f: "Can I really do all of this myself?", a: "Yes. The data copy is free, the law is public, and the 20 FIAON tools write the letters. What you need to bring: time (around three hours per entry), discipline in following up and the willingness to keep an eye on deadlines yourself." },
-    { f: "What is the difference between FIAON and a lawyer?", a: "FIAON is follow-up and path: obtain the report, classify every entry, send letters reviewed by lawyers, chase replies, instalment offers, prepare account and card — for a fixed price over twelve instalments. A lawyer represents you legally in the individual case and may sue. The two are not mutually exclusive." },
+    { f: "What is the difference between FIAON and a lawyer?", a: "FIAON is follow-up and path: assess your creditworthiness as a bank sees it, classify every entry in your data copy, send letters reviewed by lawyers, chase replies, instalment offers, prepare account and card — for a fixed price over twelve instalments. A lawyer represents you legally in the individual case and may sue. The two are not mutually exclusive." },
   ],
   zwischenrufA: "Not sure which route?", zwischenrufB: " 15 minutes on the phone — we also tell you if you do not need us.",
   terminBuchen: "Book a call", werkzeuge: "Free tools",

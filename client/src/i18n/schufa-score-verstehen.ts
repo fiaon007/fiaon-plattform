@@ -52,17 +52,17 @@ const de = {
   ],
   fiaonTitel: "Was FIAON daraus macht", fiaonLead: "Verstehen ist der Anfang. Danach kommt Arbeit mit Fristen und Paragrafen – die übernehmen wir.", schritt: "Schritt",
   schritte: [
-    { titel: "Auskünfte beschaffen", text: "FIAON holt Ihre Daten bei SCHUFA, KSV (Österreich) und CRIF (Schweiz) ein – vollständig, als Datenkopie mit allen Meldedaten. Sie sehen den Eingang in Ihrem Kundenbereich, meist innerhalb von 24 Stunden nach Vorliegen." },
+    { titel: "Datenkopie hochladen", text: "Ihre kostenlose Datenkopie bei SCHUFA, KSV (Österreich) und CRIF (Schweiz) fordern Sie selbst an – unser Generator schreibt den Brief. Nur sie zeigt alle Meldedaten. Laden Sie sie in Ihrem Kundenbereich hoch." },
     { titel: "Jeden Eintrag erklären und prüfen", text: "Jede Zeile wird gegen die gesetzlichen Voraussetzungen gehalten: § 31 BDSG (zulässige Meldung), Art. 16/17 DSGVO (Berichtigung, Löschung), die Löschfristen der Verhaltensregeln. Sie bekommen Klartext: Was steht da, was kostet es an Punkten, was lässt sich tun." },
     { titel: "Schriftwechsel führen, Fristen halten", text: "Für angreifbare Einträge bereitet FIAON die Schreiben an Auskunftei und meldende Stelle vor und verfolgt die Fristen. Was berechtigt und zulässig gemeldet ist, bleibt – das sagen wir genauso deutlich, denn ein Versprechen wäre unseriös." },
   ],
-  soLaeuft: "So läuft die Bonitätsauskunft", selbstAnfordern: "Selbst anfordern (kostenlos)",
+  soLaeuft: "Auskunft beantragen: so geht es", selbstAnfordern: "Selbst anfordern (kostenlos)",
   beispielTitel: "Ein Beispiel aus der Praxis", beispielLead: "Ein nachgestellter, typischer Fall – ein Beispiel, kein Versprechen.",
   beispiel: "Lena, 29, sieht bei einer Finanzierungsanfrage zum ersten Mal ihre Klasse: „ungenügend“, kein Punktwert. Die Datenkopie zeigt den Grund – eine Mobilfunkforderung über 214 Euro aus einem Umzugsjahr, gemeldet als offene Forderung. Die Prüfung ergibt: Es gab nur EINE Mahnung, nicht die zwei, die § 31 BDSG verlangt – der Eintrag war nie zulässig. Nach dem Widerspruch mit Fristsetzung löscht die Auskunftei. Beim nächsten Abruf rechnet der Score ohne den Eintrag: 264 Punkte für „keine Zahlungsstörung“ statt Aussetzung – Lena landet in der Klasse „gut“. Nicht, weil jemand „den Score verbessert“ hätte, sondern weil eine unzulässige Information nicht mehr mitrechnet. Ob die Bank finanziert, entscheidet weiterhin die Bank.",
   fragenTitel: "Häufige Fragen zum SCHUFA-Score",
   fragen: [
     { f: "Was ist ein guter SCHUFA-Score?", a: "Seit März 2026 läuft die Skala von 100 bis 999 Punkten. Ab 776 Punkten gilt die Bonität als „hervorragend“, von 709 bis 775 als „gut“, von 642 bis 708 als „akzeptabel“, darunter als „ausreichend“. Wer eine offene Zahlungsstörung hat, bekommt keinen Punktwert, sondern die Klasse „ungenügend“. Nach Angaben der SCHUFA liegen rund 62 Prozent der Menschen in der besten Klasse." },
-    { f: "Wo sehe ich meinen SCHUFA-Score kostenlos?", a: "Seit dem 17. März 2026 digital und kostenlos: im SCHUFA-Account (app.schufa.de) oder über die bonify-App – mit allen zwölf Kriterien und den Punkten je Kriterium. Daneben bleibt die Datenkopie nach Art. 15 DSGVO per Post kostenlos; nur sie zeigt, welche Stelle was gemeldet hat. FIAON bestellt die Datenkopie im Rahmen der Bonitätsauskunft für Sie mit." },
+    { f: "Wo sehe ich meinen SCHUFA-Score kostenlos?", a: "Seit dem 17. März 2026 digital und kostenlos: im SCHUFA-Account (app.schufa.de) oder über die bonify-App – mit allen zwölf Kriterien und den Punkten je Kriterium. Daneben bleibt die Datenkopie nach Art. 15 DSGVO per Post kostenlos; nur sie zeigt, welche Stelle was gemeldet hat. Unser kostenloser Generator schreibt Ihnen die Anforderung." },
     { f: "Was ist aus dem Basisscore und den Branchenscores geworden?", a: "Der Basisscore (0 bis 100 Prozent) ist mit dem 17. März 2026 abgelöst. Die sechs Branchenscores – für Banken, Sparkassen, Genossenschaftsbanken, Telekommunikation, Handel und Versandhandel – werden durch den einen neuen Score ersetzt; für Unternehmen gilt eine Übergangsfrist bis Ende 2028. Die Verbraucherzentrale stellte im Juni 2026 fest, dass erst etwa ein Viertel der Vertragspartner den neuen Score nutzte – Ihre Bank kann übergangsweise noch mit einem alten Wert arbeiten." },
     { f: "Wie oft wird der SCHUFA-Score neu berechnet?", a: "Der neue Score wird bei jeder Anfrage aus den aktuell gespeicherten Daten berechnet – nicht mehr vierteljährlich wie der alte Basisscore. Eine Löschung oder Berichtigung wirkt deshalb beim nächsten Abruf, sobald die Auskunftei die Daten geändert hat." },
     { f: "Warum bekomme ich bei zwei Banken unterschiedliche Entscheidungen bei gleichem Score?", a: "Weil der SCHUFA-Score nur EIN Baustein ist. Banken rechnen eigene Scorings mit eigenen Grenzen und gewichten Einkommen, Kontoführung und Produktart dazu. Dieselben 720 Punkte können bei der einen Bank für eine Karte reichen und bei der anderen nicht – deshalb ist der Kontoauszug oft entscheidender als die Zahl." },
@@ -76,7 +76,7 @@ const de = {
     { href: "/bonitaet-verbessern", t: "Bonität Schritt für Schritt aufbauen" },
   ],
   fussSatz: "Redaktionelle Einordnung, Stand 2. September 2026 – keine Rechtsberatung im Einzelfall.",
-  aufrufTitel: "Erst die Auskunft, dann die Klarheit.", aufrufSatz: "FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext und greift an, was angreifbar ist. Ihre Angaben in rund fünf Minuten – den Rest sehen Sie in Ihrem Kundenbereich.",
+  aufrufTitel: "Erst die Auskunft, dann die Klarheit.", aufrufSatz: "Ihre kostenlose Datenkopie fordern Sie selbst an. Laden Sie sie hoch, erklärt FIAON jede Zeile in Klartext und greift an, was angreifbar ist. Ihre Angaben in rund fünf Minuten – den Rest sehen Sie in Ihrem Kundenbereich.",
 };
 const en: typeof de = {
   metaTitel: "Understanding the SCHUFA score: table and meaning",
@@ -127,17 +127,17 @@ const en: typeof de = {
   ],
   fiaonTitel: "What FIAON makes of it", fiaonLead: "Understanding is the beginning. After that comes work with deadlines and sections of law — we take that on.", schritt: "Step",
   schritte: [
-    { titel: "Obtain the reports", text: "FIAON collects your data from SCHUFA, KSV (Austria) and CRIF (Switzerland) — complete, as a data copy with all reporting data. You see the receipt in your customer area, usually within 24 hours of the report arriving." },
+    { titel: "Upload your data copy", text: "You request your free data copy from SCHUFA, KSV (Austria) and CRIF (Switzerland) yourself — our generator writes the letter. Only it shows all reporting data. Upload it in your customer area." },
     { titel: "Explain and check every entry", text: "Every line is held against the legal requirements: Section 31 BDSG (lawful reporting), Art. 16/17 GDPR (rectification, erasure), the deletion deadlines of the code of conduct. You get plain language: what is there, what it costs in points, what can be done." },
     { titel: "Handle correspondence, keep deadlines", text: "For challengeable entries FIAON prepares the letters to the credit bureau and the reporting body and tracks the deadlines. What is justified and lawfully reported stays — we say that just as clearly, because a promise would not be serious." },
   ],
-  soLaeuft: "How the credit report works", selbstAnfordern: "Request it yourself (free)",
+  soLaeuft: "How to request your report", selbstAnfordern: "Request it yourself (free)",
   beispielTitel: "An example from practice", beispielLead: "A reconstructed, typical case — an example, not a promise.",
   beispiel: "Lena, 29, sees her class for the first time during a financing enquiry: “insufficient”, no points value. The data copy shows the reason — a mobile phone claim of €214 from the year of a move, reported as an open claim. The check reveals: there was only ONE reminder, not the two Section 31 BDSG requires — the entry was never lawful. After the objection with a deadline the credit bureau deletes it. At the next retrieval the score calculates without the entry: 264 points for “no payment default” instead of a suspension — Lena lands in the class “good”. Not because someone “boosted the score”, but because unlawful information no longer counts. Whether the bank finances is still decided by the bank.",
   fragenTitel: "Frequently asked questions about the SCHUFA score",
   fragen: [
     { f: "What is a good SCHUFA score?", a: "Since March 2026 the scale runs from 100 to 999 points. From 776 points the credit standing counts as “excellent”, from 709 to 775 as “good”, from 642 to 708 as “acceptable”, below that as “sufficient”. Anyone with an open payment default gets no points value but the class “insufficient”. According to SCHUFA, around 62 per cent of people are in the best class." },
-    { f: "Where can I see my SCHUFA score free of charge?", a: "Since 17 March 2026 digitally and free: in the SCHUFA account (app.schufa.de) or via the bonify app — with all twelve criteria and the points per criterion. Alongside, the data copy under Art. 15 GDPR by post remains free; only it shows which body reported what. FIAON orders the data copy for you as part of the credit report." },
+    { f: "Where can I see my SCHUFA score free of charge?", a: "Since 17 March 2026 digitally and free: in the SCHUFA account (app.schufa.de) or via the bonify app — with all twelve criteria and the points per criterion. Alongside, the data copy under Art. 15 GDPR by post remains free; only it shows which body reported what. Our free generator writes the request for you." },
     { f: "What has become of the base score and the industry scores?", a: "The base score (0 to 100 per cent) was replaced on 17 March 2026. The six industry scores — for banks, savings banks, cooperative banks, telecommunications, retail and mail order — are replaced by the one new score; for companies a transition period applies until the end of 2028. The consumer advice centre found in June 2026 that only about a quarter of contractual partners were using the new score — your bank may temporarily still work with an old value." },
     { f: "How often is the SCHUFA score recalculated?", a: "The new score is calculated from the currently stored data at every enquiry — no longer quarterly like the old base score. A deletion or correction therefore takes effect at the next retrieval, as soon as the credit bureau has changed the data." },
     { f: "Why do I get different decisions from two banks with the same score?", a: "Because the SCHUFA score is only ONE building block. Banks run their own scoring with their own thresholds and weigh in income, account management and product type. The same 720 points can be enough for a card at one bank and not at another — that is why the bank statement is often more decisive than the number." },
@@ -151,6 +151,6 @@ const en: typeof de = {
     { href: "/bonitaet-verbessern", t: "building your credit file step by step" },
   ],
   fussSatz: "Editorial classification, as of 2 September 2026 — no legal advice in individual cases.",
-  aufrufTitel: "First the report, then the clarity.", aufrufSatz: "FIAON obtains your reports from SCHUFA, KSV and CRIF, explains every line in plain language and challenges what can be challenged. Your details in about five minutes — you see the rest in your customer area.",
+  aufrufTitel: "First the report, then the clarity.", aufrufSatz: "You request your free data copy yourself. Upload it and FIAON explains every line in plain language and challenges what can be challenged. Your details in about five minutes — you see the rest in your customer area.",
 };
 export const SCHUFA_SCORE_WOERTER = { de, en };

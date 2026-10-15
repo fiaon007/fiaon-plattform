@@ -1,4 +1,6 @@
 // /presse · /en/press — Wörterbuch (02.09.2026). Preise kommen aus shared/fiaon-pakete. Generator teilt an „const en".
+// 14.10.2026 (E-365): FIAON beantragt keine Auskunft mehr; das Produkt ist die FIAON-Bonitätsauswertung
+// (149 € einzeln, 74 € mit laufendem Paket, für neue Paketkunden inklusive — Preise aus shared/fiaon-auskunft).
 const de = {
   metaTitel: "Presse",
   metaBeschreibung: "FIAON in den Medien: Kurzprofil, Fakten, Zahlen zum Zitieren, Bildmaterial und Ansprechpartner für Journalistinnen und Journalisten.",
@@ -6,23 +8,23 @@ const de = {
   lead: "Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und öffnet danach die Tür zu Konto, Karte und Finanzierung. Hier finden Sie alles für Ihre Recherche.",
   anfrageStellen: "Presseanfrage stellen", faktenBlick: "Fakten auf einen Blick",
   kurzprofilTag: "Kurzprofil · 50 Wörter",
-  kurzprofil: "FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz. Sie beantragt für ihre Kunden die Auskunft bei SCHUFA, KSV oder CRIF, erklärt jeden Eintrag, bereitet anwaltlich geprüfte Löschanträge und Widersprüche vor und begleitet den Weg zu Girokonto, Kreditkarte und Finanzierung. Sitz: London. Kunden: DACH.",
+  kurzprofil: "FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz. Ihre Bonitätsauswertung zeigt Kunden, wie eine Bank sie sieht – aus den eigenen Kontoauszügen. FIAON erklärt die selbst angeforderte Datenkopie, bereitet anwaltlich geprüfte Löschanträge und Widersprüche vor und begleitet den Weg zu Girokonto, Kreditkarte und Finanzierung. Sitz: London. Kunden: DACH.",
   faktenTag: "Fakten",
   fakten: (preise: string, auskunft: string) => [
     ["Unternehmen", "FIAON LTD, London"], ["Gründer und Director", "Justin Schwarzott"], ["Märkte", "Deutschland · Österreich · Schweiz"], ["Produkt", "Einsicht · Aktion · Zugang"],
-    ["Preise", preise], ["Bonitätsauskunft", auskunft], ["Zahlung", "Überweisung, 12 Raten"], ["Presse", "presse@fiaon.com"],
+    ["Preise", preise], ["Bonitätsauswertung", auskunft], ["Zahlung", "Überweisung, 12 Raten"], ["Presse", "presse@fiaon.com"],
   ] as [string, string][],
-  preisSpanne: (min: string, max: string) => `${min} bis ${max} / Monat`, einmalig: (p: string) => `${p} einmalig`,
+  preisSpanne: (min: string, max: string) => `${min} bis ${max} / Monat`, auswertungPreis: (einzeln: string, mitPaket: string) => `${einzeln} einmalig · ${mitPaket} mit laufendem Paket · für neue Paketkunden im Paket enthalten`,
   zahlenPille: "Zahlen zum Zitieren", zahlenA: "Der Markt in ", zahlenB: "vier Zahlen.",
   kennzahlen: [
     { wert: "100 Mio.", label: "Menschen im DACH-Raum mit einem Eintrag bei einer Auskunftei" },
     { wert: "6 Mio.", label: "überschuldete Personen allein in Deutschland" },
-    { wert: "< 24 h", label: "von der Anmeldung bis zur ersten Einsicht in die eigene Auskunft" },
+    { wert: "25 Seiten", label: "Bonitätsauswertung (rund): Bonität aus Sicht einer Bank, aus den eigenen Kontoauszügen" },
     { wert: "25.000 €", label: "Kreditkartenrahmen, der bei guter Bonität über Partner erreichbar ist" },
   ],
   geschichtePille: "Die Geschichte", geschichteA: "In drei Sätzen ", geschichteB: "erzählt.", geschichteLead: "Wer FIAON in einem Absatz beschreiben will, braucht nur die drei Schichten.",
   schichten: [
-    { tag: "1 · Einsicht", titel: "Menschen sehen zum ersten Mal ihre Auskunft.", text: "FIAON stellt die Anfrage bei SCHUFA, KSV oder CRIF. Innerhalb eines Tages liegt die Auskunft erklärt im Kundenbereich – zusammen mit einer Analyse des Kontoauszugs." },
+    { tag: "1 · Einsicht", titel: "Menschen sehen zum ersten Mal, wie eine Bank sie sieht.", text: "Die FIAON-Bonitätsauswertung entsteht aus den eigenen Kontoauszügen: Haushaltsrechnung, Ampel, Finanzwert und ein Plan – ein Mensch prüft und gibt frei. Sie ist keine Auskunft einer Auskunftei und kein Score; die kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Kunden selbst an, FIAON erklärt sie." },
     { tag: "2 · Aktion", titel: "Dann ändern sie, was falsch ist.", text: "Erledigte Forderungen, veraltete Daten, angreifbare Einträge: Das Schreiben ist vorbereitet und anwaltlich geprüft. Der Kunde gibt frei, FIAON versendet und verfolgt die Antwort." },
     { tag: "3 · Zugang", titel: "Und bekommen, was ihnen vorher verwehrt war.", text: "Girokonto für jeden Kunden, Kreditkarte bei guter Bonität, Finanzierung später – über Partnerbanken, die eine dokumentierte Bonität sehen statt eines Antrags." },
   ],
@@ -61,23 +63,23 @@ const en: typeof de = {
   lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and then opens the door to account, card and financing. Here you find everything for your research.",
   anfrageStellen: "Make a press enquiry", faktenBlick: "Facts at a glance",
   kurzprofilTag: "Short profile · 50 words",
-  kurzprofil: "FIAON is a credit platform for Germany, Austria and Switzerland. It requests the report from SCHUFA, KSV or CRIF for its customers, explains every entry, prepares lawyer-reviewed deletion requests and objections and accompanies the route to current account, credit card and financing. Based in London. Customers: DACH.",
+  kurzprofil: "FIAON is a credit platform for Germany, Austria and Switzerland. Its credit assessment shows customers how a bank sees them – from their own bank statements. FIAON explains the data copy customers request themselves, prepares lawyer-reviewed deletion requests and objections and accompanies the route to current account, credit card and financing. Based in London. Customers: DACH.",
   faktenTag: "Facts",
   fakten: (preise, auskunft) => [
     ["Company", "FIAON LTD, London"], ["Founder and director", "Justin Schwarzott"], ["Markets", "Germany · Austria · Switzerland"], ["Product", "Insight · Action · Access"],
-    ["Prices", preise], ["Credit report", auskunft], ["Payment", "Bank transfer, 12 instalments"], ["Press", "presse@fiaon.com"],
+    ["Prices", preise], ["Credit assessment", auskunft], ["Payment", "Bank transfer, 12 instalments"], ["Press", "presse@fiaon.com"],
   ],
-  preisSpanne: (min, max) => `${min} to ${max} / month`, einmalig: (p) => `${p} one-off`,
+  preisSpanne: (min, max) => `${min} to ${max} / month`, auswertungPreis: (einzeln, mitPaket) => `${einzeln} one-off · ${mitPaket} with a running plan · included for new plan customers`,
   zahlenPille: "Figures to quote", zahlenA: "The market in ", zahlenB: "four figures.",
   kennzahlen: [
     { wert: "100 m", label: "people in the DACH region with an entry at a credit bureau" },
     { wert: "6 m", label: "over-indebted people in Germany alone" },
-    { wert: "< 24 h", label: "from sign-up to the first look at your own credit report" },
+    { wert: "25 pages", label: "credit assessment (approx.): creditworthiness as a bank sees it, from your own bank statements" },
     { wert: "€25,000", label: "credit card limit reachable via partners with a good credit file" },
   ],
   geschichtePille: "The story", geschichteA: "Told in ", geschichteB: "three sentences.", geschichteLead: "Anyone who wants to describe FIAON in one paragraph needs only the three layers.",
   schichten: [
-    { tag: "1 · Insight", titel: "People see their credit report for the first time.", text: "FIAON makes the request to SCHUFA, KSV or CRIF. Within a day the report is in the customer area, explained – together with an analysis of the bank statement." },
+    { tag: "1 · Insight", titel: "People see for the first time how a bank sees them.", text: "The FIAON credit assessment is built from their own bank statements: household budget, traffic light, financial score and a plan – a person checks and releases it. It is not a report from a credit bureau and not a credit score; customers request their free data copy from SCHUFA, KSV or CRIF themselves, FIAON explains it." },
     { tag: "2 · Action", titel: "Then they change what is wrong.", text: "Settled claims, outdated data, challengeable entries: the letter is prepared and lawyer-reviewed. The customer approves, FIAON sends and tracks the reply." },
     { tag: "3 · Access", titel: "And get what was denied to them before.", text: "A current account for every customer, a credit card with a good credit file, financing later – via partner banks that see a documented credit file instead of an application." },
   ],

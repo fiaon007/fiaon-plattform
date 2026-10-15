@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /bonitaetsauskunft/ablauf — WAS NACH DEM KAUF PASSIERT (25.09.2026, E-241)
 //
-// Vier Schritte, wie sie wirklich laufen (E-240: Bestellseite → Zahlungsseite →
-// Anfragen nach Zahlungseingang über die Art.-15-Vorgänge → Auswertung im
-// Kundenbereich). Die Dauer ohne Zahlenversprechen: der Satz der
-// Vertragsbestätigung (auskunftLeistungszeit) — die gesetzliche Frist der
-// Auskunfteien ist ihre Frist, nicht unsere Zusage. Der Widerruf in Alltags-
-// sprache; die Belehrung selbst steht wörtlich auf der Bestellseite.
+// Vier Schritte, wie sie wirklich laufen (E-365, 14.10.2026: Bestellseite und
+// Zahlungsseite → Ausweis und Kontoauszüge per Link hochladen → das FIAON-Team
+// entwickelt die Bonitätsauswertung, ein Mensch gibt frei → PDF per E-Mail und im
+// FIAON-Bereich). Keine Anfrage bei einer Auskunftei. Die Dauer: der Satz der
+// Vertragsbestätigung (auskunftLeistungszeit) — die gesetzliche Obergrenze, kein
+// Werbeversprechen. Der Widerruf in Alltagssprache; die Belehrung selbst steht
+// wörtlich auf der Bestellseite.
 //
 // Gegenlesen E-241: Vorher stand hier erst der kurze Weg (vier Kreise) und
 // darunter dieselben vier Schritte noch einmal als vier volle Abschnitte —

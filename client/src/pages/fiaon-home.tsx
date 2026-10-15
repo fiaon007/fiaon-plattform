@@ -17,7 +17,11 @@ import { FlugHero } from "@/components/site/FlugHero";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import ArasCore from "@/components/home3d/ArasCore";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
-import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { paket as paketVon } from "@shared/fiaon-pakete";
+// E-365 (14.10.2026): Das Produkt hinter 149/74 € ist die FIAON-Bonitätsauswertung (aus Ausweis und
+// Kontoauszügen) — FIAON fordert bei keiner Auskunftei an. Preise aus der einen Quelle; 74 € ist der
+// Kundenpreis mit laufendem Paket, nie der Einzelpreis.
+import { AUSKUNFT_PREISE_CENTS, euroText } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
 import { globalGespraechPfad, globalSeitePfad, globalStartPfad } from "@shared/fiaon-global-wege";
 
@@ -80,7 +84,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
   return (
     <Block id="setups" pille="Ihr Paket" titel={<>W&auml;hlen Sie, wie weit Sie gehen. <span className="dk-verlauf">Nicht, ob.</span></>}
            lead={tab === "privat"
-             ? "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."
+             ? "Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank."
              : "FIAON Global: Ihre US-Gesellschaft aus einer Hand – mit einem Team vor Ort in den USA und einem Ansprechpartner. Vier Pakete, jedes zum Einmalpreis. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
       <Auf>
         <div className="dk-tabs" role="tablist">
@@ -116,7 +120,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
       </div>
       <p className="dk-leise" style={{ marginTop: 28, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "privat"
-          ? `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Auskunft? Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
+          ? `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Bonitätsauswertung? ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einmalig, mit laufendem Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
           : `FIAON Global: ein Preis, einmalig – kein Abo, keine Monatsraten. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. ${GLOBAL_ROLLEN.de.kosten}`}
       </p>
       {tab === "business" && (
@@ -140,8 +144,8 @@ export default function FiaonHome() {
 
       <Block eng>
         <Kennzahlen items={[
-          { wert: "3", label: "Auskunfteien: SCHUFA, KSV und CRIF – beantragt durch FIAON" },
-          { wert: "< 24 h", label: "Von der Anmeldung bis zur ersten Einsicht" },
+          { wert: "9", label: "Merkmale einer Kreditprüfung – in Ihrer Bonitätsauswertung" },
+          { wert: "≈ 25", label: "Seiten Bonitätsauswertung, von einem Menschen geprüft" },
           { wert: "25.000 €", label: "Kreditkartenrahmen bei guter Bonität" },
           { wert: "100 Mio.", label: "Menschen im DACH-Raum, für die FIAON gebaut ist" },
         ]} />
@@ -167,7 +171,7 @@ export default function FiaonHome() {
         <div className="dk-zweispaltig" style={{ marginTop: 56 }}>
           <Auf><div className="dk-szene gross"><ArasCore className="absolute inset-0" /></div></Auf>
           <div style={{ display: "grid", gap: 18 }}>
-            <Auf><Glas tag="Schicht 1" titel="Einsicht – zuerst Klarheit.">FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF und liest Ihren Kontoauszug. Sie sehen Ihren Wert als Bogen, jeden Eintrag erklärt, Ihre Einnahmen, Fixkosten und Ihren monatlichen Spielraum.</Glas></Auf>
+            <Auf><Glas tag="Schicht 1" titel="Einsicht – zuerst Klarheit.">FIAON liest Ihre Kontoauszüge und zeigt Ihre Bonität aus Sicht einer Bank: Einnahmen, Fixkosten, Ampel und Ihren monatlichen Spielraum. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag.</Glas></Auf>
             <Auf verzoegerung={100}><Glas tag="Schicht 2" titel="Aktion – dann Bewegung.">Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet. FIAON erinnert Sie an jede Frist und verfolgt jede Antwort.</Glas></Auf>
             <Auf verzoegerung={200}><Glas tag="Schicht 3" titel="Zugang – dann die Tür.">Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Niemand geht leer aus. Jeder hat ein nächstes Ziel.</Glas></Auf>
             <Auf verzoegerung={300}><p className="dk-leise" style={{ borderLeft: "2px solid rgba(96,165,250,.4)", paddingLeft: 14 }}>FIAON liefert Analysen und vorbereitete Schreiben, keine Rechts- oder Steuerberatung. Jedes Schreiben geht erst hinaus, wenn Sie es freigeben.</p></Auf>
@@ -176,7 +180,7 @@ export default function FiaonHome() {
       </Block>
 
       {/* E-283 (05.10.2026): /antrag führt in den neuen Antrag — Angaben rund fünf Minuten, nicht „Konto in zwei“. */}
-      <Zwischenruf text="Ihre Angaben dauern rund fünf Minuten – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich." knopf="Jetzt starten" href="/antrag" still={{ knopf: "Pakete ansehen", href: "#setups" }} />
+      <Zwischenruf text="Ihre Angaben dauern rund fünf Minuten – danach laden Sie Ausweis und Kontoauszüge hoch, und wir entwickeln Ihre Bonitätsauswertung." knopf="Jetzt starten" href="/antrag" still={{ knopf: "Pakete ansehen", href: "#setups" }} />
 
       <Licht>
       <Block pille="Ihr Vertrauen" titel={<>Gef&uuml;hrt wie ein Finanzinstitut. <span className="dk-verlauf">Gebaut wie eine App.</span></>}
@@ -197,8 +201,8 @@ export default function FiaonHome() {
       <Block pille="Die Plattform" titel={<>Einsicht. Aktion. Zugang. <span className="dk-verlauf">Alles in Ihrem Bereich.</span></>} mitte>
         <div style={{ textAlign: "left" }}>
           <Karten items={[
-            { tag: "Die Auskunft", titel: "Bonitätsauskunft", text: "FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF – Sie füllen kein Formular aus. Innerhalb von 24 Stunden wissen Sie, was dort steht." },
-            { tag: "Die Analyse", titel: "Kontoauszug-Analyse", text: "Laden Sie Ihren Kontoauszug hoch. FIAON erkennt Einnahmen, Fixkosten, Abos und Risiken – und zeigt Ihren monatlichen Spielraum." },
+            { tag: "Die Auswertung", titel: "Bonitätsauswertung", text: "Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen: Haushaltsrechnung, jede Ausgabe nach Empfänger, Ampel, FIAON-Finanzwert und Ihr Plan für zwölf Monate. Keine Auskunft einer Auskunftei, kein Score." },
+            { tag: "Die Datenkopie", titel: "Ihre Auskunft, erklärt", text: "Ihre Datenkopie von SCHUFA, KSV oder CRIF steht Ihnen kostenlos zu – Sie fordern sie selbst an, unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir jeden Eintrag." },
             { tag: "Die Aktion", titel: "Löschanträge und Widersprüche", text: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar, angreifbar. Das Schreiben ist vorbereitet – Sie geben frei, FIAON versendet." },
             { tag: "Die Einigung", titel: "Ratenvereinbarungen", text: "Offene Forderungen werden zu Plänen: FIAON schlägt Raten vor, die zu Ihrem Spielraum passen, und verfolgt die Antwort des Gläubigers." },
             { tag: "Der Zugang", titel: "Konto und Karte", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch davon entfernt sind." },
@@ -230,7 +234,7 @@ export default function FiaonHome() {
         <div style={{ textAlign: "left" }}>
           <Schritte items={[
             { titel: "Antrag stellen", text: "Ihre Angaben in rund fünf Minuten, die Prüfung direkt im Antrag, dann Paket und Vertrag. Danach ist Ihr Bereich eingerichtet – am Handy wie am Rechner." },
-            { titel: "Auskunft erhalten", text: "FIAON beantragt Ihre Auskunft. Innerhalb von 24 Stunden sehen Sie, was SCHUFA, KSV oder CRIF über Sie führen – und was sich ändern lässt." },
+            { titel: "Bonität sehen", text: "Sie laden Ausweis und Kontoauszüge hoch, wir entwickeln Ihre Bonitätsauswertung: was eine Bank sieht – und was sich ändern lässt. Ihre kostenlose Datenkopie der Auskunfteien laden Sie gern dazu." },
             { titel: "Handeln und Zugang erhalten", text: "Schreiben freigeben, Raten vereinbaren, Etappen abschließen. Am Ende stehen Konto, Karte und – wenn Sie möchten – die Finanzierung." },
           ]} />
         </div>
@@ -244,7 +248,7 @@ export default function FiaonHome() {
 
       <Block id="faq" schmal pille="Häufige Fragen">
         <Fragen items={[
-          { f: "Beantragt FIAON die Auskunft für mich?", a: "Ja. Sie geben uns einmal Ihre Daten, FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF. Sie müssen kein Formular ausfüllen und nichts hochladen. Innerhalb von 24 Stunden sehen Sie in Ihrem Bereich, was dort steht." },
+          { f: "Fordert FIAON meine Auskunft bei SCHUFA, KSV oder CRIF an?", a: "Nein. Ihre Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu – Sie fordern sie selbst an, unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir jeden Eintrag. Ihre FIAON-Bonitätsauswertung entsteht aus Ihrem Ausweis und Ihren Kontoauszügen: Ihre Bonität aus Sicht einer Bank. Sie ist keine Auskunft einer Auskunftei und kein Score." },
           { f: "Was passiert mit meinen Einträgen?", a: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar oder angreifbar. Für alles, was sich ändern lässt, bereitet FIAON das Schreiben vor. Sie geben es frei – FIAON versendet es und verfolgt die Antwort." },
           { f: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
           { f: "Wie arbeitet die FIAON-Analyse?", a: "Sie liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Sie ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
@@ -263,7 +267,7 @@ export default function FiaonHome() {
 
       <Abschluss
         titel={<>Ihr Weg beginnt <span className="dk-verlauf">mit einer E-Mail-Adresse.</span></>}
-        text="Antrag in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. Zahlung per Überweisung · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
+        text="Antrag in rund fünf Minuten. Danach Ausweis und Kontoauszüge hochladen – wir entwickeln Ihre Bonitätsauswertung. Ein Mensch, der Sie durch alles Weitere begleitet. Zahlung per Überweisung · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
         knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="/was-ist-fiaon" still>Die Plattform kennenlernen</Knopf></>}
       />
 

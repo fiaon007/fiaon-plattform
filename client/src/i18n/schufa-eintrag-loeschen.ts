@@ -39,7 +39,7 @@ const de = {
   fragen: [
     { f: "Kann man einen berechtigten SCHUFA-Eintrag löschen lassen?", a: "Einen inhaltlich richtigen, zulässig gemeldeten Eintrag vor Fristablauf: nein — Anbieter, die genau das pauschal versprechen, arbeiten unseriös. Aber ein erheblicher Teil der Einträge ist eben NICHT zulässig gemeldet: ohne die zwei vorgeschriebenen Mahnungen, trotz bestrittener Forderung oder nach Ablauf der Löschfrist. Diese Einträge sind angreifbar, und ihre Löschung ist ein Rechtsanspruch." },
     { f: "Wie lange bleibt ein erledigter Eintrag gespeichert?", a: "Grundsätzlich drei Jahre ab Erledigung, taggenau. Seit 2024 gilt die 100-Tage-Regel: Wer innerhalb von 100 Tagen nach der Meldung bezahlt und sonst keine Negativmerkmale hat, ist nach 18 Monaten raus. Die Restschuldbefreiung nach Insolvenz wird schon nach sechs Monaten gelöscht." },
-    { f: "Was kostet es, einen Eintrag löschen zu lassen?", a: "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer die Beschaffung, Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien." },
+    { f: "Was kostet es, einen Eintrag löschen zu lassen?", a: "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen; die Datenkopie fordern Sie dafür selbst kostenlos an — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien." },
     { f: "Bringt die Löschung eines Eintrags wirklich etwas?", a: "Ja, oft erheblich: Negativeinträge sind das schwerste Einzelmerkmal im Score. Fällt der Eintrag, verbessern sich Score-Klasse und Konditionen — vom Handyvertrag über die Wohnung bis zum Kreditzins. Die Wirkung tritt nicht über Nacht ein; die Auskunfteien rechnen ihre Scores in Abständen neu." },
     { f: "Kann ich das auch bei KSV (Österreich) und CRIF (Schweiz) machen?", a: "Ja. Die DSGVO gilt in Österreich unmittelbar, die Schweiz hat mit dem revidierten DSG vergleichbare Auskunfts- und Berichtigungsrechte. Die Fristen und Gepflogenheiten unterscheiden sich im Detail — die Länderseiten für Österreich und die Schweiz erklären sie." },
   ],
@@ -51,7 +51,7 @@ const de = {
     { href: "/schufa-score-verstehen", titel: "SCHUFA-Score verstehen", text: "Was Ihre Zahl bedeutet und welche sechs Hebel sie bewegen." },
     { href: "/inkasso-brief-erhalten", titel: "Inkasso-Brief erhalten?", text: "Der ruhige 5-Schritte-Plan, bevor überhaupt ein Eintrag entsteht." },
   ],
-  zwischenrufFett: "Selbst machen ist möglich. Machen lassen ist schneller.", zwischenruf: " FIAON beschafft alle Auskünfte, prüft jeden Eintrag gegen jede Regel und führt den Schriftwechsel mit Fristenlauf — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
+  zwischenrufFett: "Selbst machen ist möglich. Machen lassen ist schneller.", zwischenruf: " Laden Sie Ihre kostenlose Datenkopie hoch: FIAON prüft die Einträge gegen jede Regel und führt den Schriftwechsel mit Fristenlauf — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
   zwischenrufKnopf: "Prüfung beauftragen",
 };
 const en: typeof de = {
@@ -93,7 +93,7 @@ const en: typeof de = {
   fragen: [
     { f: "Can a justified SCHUFA entry be deleted?", a: "A factually correct, lawfully reported entry before its period expires: no — providers who promise exactly that across the board are not reputable. But a considerable share of entries is NOT lawfully reported: without the two required reminders, despite a disputed claim or after the deletion period has expired. These entries can be challenged, and their deletion is a legal right." },
     { f: "How long does a settled entry stay stored?", a: "In principle three years from settlement, to the day. Since 2024 the 100-day rule applies: anyone who pays within 100 days of the report and has no other negative features is out after 18 months. The discharge of residual debt after insolvency is deleted after only six months." },
-    { f: "What does it cost to have an entry deleted?", a: "Doing it yourself costs nothing but time: data copy, check, letters, deadlines — all templates and rules are public, our tools prepare every step for free. Anyone who wants to hand over obtaining, checking and enforcing instructs a service like FIAON with transparent plan prices — reputable providers never charge per “deleted entry” on a success basis and promise no guarantees." },
+    { f: "What does it cost to have an entry deleted?", a: "Doing it yourself costs nothing but time: data copy, check, letters, deadlines — all templates and rules are public, our tools prepare every step for free. Anyone who wants to hand over checking and enforcing instructs a service like FIAON with transparent plan prices; you request the data copy for it yourself, free of charge — reputable providers never charge per “deleted entry” on a success basis and promise no guarantees." },
     { f: "Does deleting an entry really achieve anything?", a: "Yes, often considerably: negative entries are the heaviest single feature in the score. If the entry falls away, score class and conditions improve — from the mobile contract to the flat to the loan interest rate. The effect does not occur overnight; the credit bureaus recalculate their scores at intervals." },
     { f: "Can I do this with KSV (Austria) and CRIF (Switzerland) too?", a: "Yes. The GDPR applies directly in Austria; Switzerland has comparable rights to information and rectification under the revised Data Protection Act (DSG). The deadlines and customs differ in detail — the country pages for Austria and Switzerland explain them." },
   ],
@@ -105,7 +105,7 @@ const en: typeof de = {
     { href: "/schufa-score-verstehen", titel: "Understanding the SCHUFA score", text: "What your number means and which six levers move it." },
     { href: "/inkasso-brief-erhalten", titel: "Received a debt collection letter?", text: "The calm 5-step plan, before an entry even arises." },
   ],
-  zwischenrufFett: "Doing it yourself is possible. Having it done is faster.", zwischenruf: " FIAON obtains all reports, checks every entry against every rule and conducts the correspondence with deadline tracking — you see every step in your customer area.",
+  zwischenrufFett: "Doing it yourself is possible. Having it done is faster.", zwischenruf: " Upload your free data copy: FIAON checks the entries against every rule and conducts the correspondence with deadline tracking — you see every step in your customer area.",
   zwischenrufKnopf: "Order the check",
 };
 export const SCHUFA_EINTRAG_LOESCHEN_WOERTER = { de, en };

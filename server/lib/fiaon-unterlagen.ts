@@ -994,6 +994,12 @@ export async function unterlageHinzufuegen(ein: {
       detail: k === "schufa" ? "eigene Bonitätsauskunft" : info.kurz,
     }, lauf).catch(() => {});
   }
+  // E-365 (14.10.2026): Ist damit eine bezahlte oder inklusive Bonitätsauswertung startklar, bekommt das Team die Aufgabe
+  // „Bonitätsauswertung entwickeln“ — im Hintergrund, der Upload wartet nie darauf.
+  if (k === "ausweis" || k === "kontoauszug") {
+    void import("./fiaon-bonitaet-ablauf").then((m) => m.auswertungStartklarMelden(ein.personId, ein.wer.art === "kunde" ? "Upload des Kunden" : `Upload von ${ein.wer.name}`))
+      .catch((e: unknown) => console.error("[UNTERLAGEN] Bonitätsauswertung startklar:", String((e as Error)?.message || e).slice(0, 160)));
+  }
   // Integration E-IT-C × E-IT-D (08.10.2026, 4a): Kommt eine Auskunft in die Akte, während ein Beschaffungsauftrag
   // offen ist, wird daraus eine Leistungsfrage (bzw. im Datenkopie-Weg die Lieferung) — für JEDEN Weg hier an einer
   // Stelle (vorher je Route in /upload-kyc, Akte-Upload und Upload-Link). Ein Fehler hier hält den Upload nie auf.
@@ -1155,6 +1161,10 @@ export async function unterlageUmordnen(personId: number, id: number, ziel: Unte
       ereignis: "unterlage_erhalten", personId, ref: await traegerRef(personId, lauf),
       akteur: { id: wer.agentId ?? null, name: wer.name }, detail: ziel === "schufa" ? "eigene Bonitätsauskunft" : kategorieInfo(ziel).kurz,
     }, lauf).catch(() => {});
+  }
+  if (ziel === "ausweis" || ziel === "kontoauszug") {
+    void import("./fiaon-bonitaet-ablauf").then((m) => m.auswertungStartklarMelden(personId, `umgeordnet von ${wer.name}`))
+      .catch((e: unknown) => console.error("[UNTERLAGEN] Bonitätsauswertung startklar:", String((e as Error)?.message || e).slice(0, 160)));
   }
   const lesen = ziel === "weitere" ? "" : ziel === "kontoauszug" ? " Sie wird mit den anderen Auszügen gebunden und in ein bis drei Minuten neu ausgewertet." : " Sie wird in ein bis drei Minuten neu gelesen.";
   return { ok: true, satz: `„${zeile.dateiname}“ liegt jetzt unter ${kategorieInfo(ziel).kurz}.${lesen}${gebunden ? "" : " Die Akte-Fassung ließ sich nicht neu binden — siehe Hinweis an der Unterlage."}` };

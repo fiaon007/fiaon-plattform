@@ -6,20 +6,23 @@
 //   Kopf mit klarem Angebot (beide Preise, Hauptknopf → /bonitaet-antrag,
 //   zweiter Knopf „So läuft es ab") und der Preistafel vor der Mappe —
 //   was Sie bekommen (je Land und Art) — für wen — der Ablauf in vier Schritten
-//   — ein Handlungsplan als Beispiel mit erfundenen Daten — die ehrliche Antwort
+//   — ein Plan als Beispiel mit erfundenen Daten — die ehrliche Antwort
 //   auf „kostenlos?" — Fragen — Abschluss.
 //
+// E-365 (14.10.2026): Privat verkauft die Seite die FIAON-Bonitätsauswertung (aus
+// Ausweis und Kontoauszügen) — die Tafel nennt die Unterlagen, keine Auskunfteien.
+//
 // Land und Art: Die Tafel im Kopf und „Was Sie bekommen" teilen EINE Wahl —
-// wer oben Österreich wählt, liest unten KSV1870 und CRIF, und der Knopf trägt
-// ?land=AT mit auf die Bestellseite.
+// der Knopf trägt ?land= mit auf die Bestellseite (bei Unternehmen zählt das Land
+// auch für die Auskunfteien der persönlichen Datenkopie).
 //
 // Messung: ViewContent mit content_category „auskunft" (useAuskunftAnsicht).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { Knopf, Auf, Fragen } from "@/components/site/DunkleBuehne";
-import { auskunfteienFuer, type AuskunftArt, type AuskunftLand } from "@shared/fiaon-auskunft";
+import type { AuskunftArt, AuskunftLand } from "@shared/fiaon-auskunft";
 import {
-  BX, BX_HUB, BX_HUB_WEITER, BX_PFAD, BX_PREIS, LAND_NAME, bestellPfad, bxPreis,
+  BX, BX_HUB, BX_HUB_WEITER, BX_INKLUSIVE_NEU, BX_PFAD, BX_PREIS, LAND_NAME, bestellPfad, bxPreis,
 } from "@/i18n/bonitaetsauskunft-familie";
 import { BX_FRAGEN_HUB } from "@/i18n/bonitaetsauskunft-fragen";
 import {
@@ -30,7 +33,7 @@ import {
 const LAENDER = ["DE", "AT", "CH"] as const;
 const ARTEN = ["privat", "firma"] as const;
 
-/** Die Mappe: drei Blätter (Aufbau der Lieferung) und davor die Preistafel — die Navy-Glas-Fläche der Seite. */
+/** Die Mappe: drei Blätter (Aufbau des Berichts) und davor die Preistafel — die Navy-Glas-Fläche der Seite. */
 function Mappe({ land, setLand, linkLand }: { land: AuskunftLand; setLand: (l: AuskunftLand) => void; linkLand?: AuskunftLand }) {
   const h = BX_HUB;
   return (
@@ -58,8 +61,9 @@ function Mappe({ land, setLand, linkLand }: { land: AuskunftLand; setLand: (l: A
             links entfällt dort, bx-hero.mit-instrument) — die Steuerzeile gehört dann hierher (PAngV). */}
         <p className="steuer">{BX_PREIS.steuer}</p>
         <Schalter werte={LAENDER} wert={land} setze={setLand} namen={LAND_NAME} aria={h.tafelLandAria} dunkel />
-        <p className="unter">{BX.karteBei}</p>
-        <div className="bx-chips">{auskunfteienFuer(land).map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
+        {/* E-365: Woraus die Auswertung entsteht — keine Auskunftei. */}
+        <p className="unter">{BX.karteAus}</p>
+        <div className="bx-chips">{BX.karteUnterlagen.map((u) => <span key={u}>{u}</span>)}</div>
         <a className="bx-karte-knopf" href={bestellPfad("privat", linkLand)}>{BX.knopfBestellen}<Pfeil /></a>
         {/* E-243: Kunden mit laufendem Paket direkt zum Kundenpreis-Link (die Preiszeile links entfällt ab 1024 px). */}
         <KundenpreisLink art="privat" land={linkLand} className="bx-karte-leise" />
@@ -103,6 +107,8 @@ export default function BonitaetsauskunftUebersicht() {
             <div className="bx-leistung-preis">
               <p><b className="zahl">{bxPreis(art).einzeln}</b> {BX.preisEinmal}</p>
               <p>{BX.preisMitPaket(bxPreis(art).paket)}</p>
+              {/* E-365: für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten. */}
+              {art === "privat" && <p>{BX_INKLUSIVE_NEU}</p>}
               {/* Gegenlesen E-241: Preis mit Kaufknopf — die Steuerzeile gehört dazu (PAngV). */}
               <p className="steuer">{BX_PREIS.steuer}</p>
               <Knopf href={bestellPfad(art, linkLand)}>{art === "firma" ? BX.knopfBestellenFirma : BX.knopfBestellen}</Knopf>

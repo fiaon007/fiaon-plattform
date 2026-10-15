@@ -32,17 +32,17 @@ const de = {
     { f: "Bekomme ich überall eine kostenlose Auskunft?", a: "Ja. In Deutschland und Österreich über Art. 15 DSGVO, in der Schweiz über Art. 25 des revidierten Datenschutzgesetzes. Die Auskunfteien verkaufen daneben Bezahlprodukte — für die Prüfung der eigenen Daten reicht die kostenlose Datenkopie immer." },
     { f: "Werden Daten zwischen den Ländern ausgetauscht?", a: "Nicht automatisch: SCHUFA-Einträge sieht eine Schweizer Bank nicht, ein KSV-Eintrag bleibt in Österreich. Aber internationale Konzerne wie CRIF sind in mehreren Ländern aktiv, und bei grenzüberschreitenden Verträgen (etwa Auto-Leasing) fragen Anbieter mitunter im Nachbarland an. Verlassen sollte man sich auf die Trennung nicht." },
     { f: "Gelten die Löschfristen überall gleich?", a: "Nein — das ist der wichtigste Unterschied: Deutschland löscht erledigte Forderungen nach drei Jahren (18 Monate mit 100-Tage-Regel), Österreich kennt für den „KSV-Eintrag“ nach vollständiger Zahlung eine Löschung nach drei Jahren in der Warnliste, die Schweiz speichert Betreibungen fünf Jahre im Betreibungsregister. Wer Fristen aus einem Land aufs andere überträgt, rechnet falsch." },
-    { f: "Hilft FIAON in allen drei Ländern?", a: "Ja — das ist der Kern des Angebots: Beschaffung, Prüfung und Durchsetzung bei SCHUFA, KSV1870 und CRIF aus einer Hand, mit den jeweiligen Landesregeln. Die Länderseiten für Österreich und die Schweiz erklären die Besonderheiten." },
+    { f: "Hilft FIAON in allen drei Ländern?", a: "Ja — mit den jeweiligen Landesregeln: Ihre kostenlose Datenkopie von SCHUFA, KSV1870 oder CRIF fordern Sie selbst an und laden sie hoch; Prüfung und Durchsetzung übernimmt FIAON. Die Länderseiten für Österreich und die Schweiz erklären die Besonderheiten." },
   ],
   fussSatz: "Redaktionelle Einordnung, Stand August 2026. Fristen und Praxis der Auskunfteien können sich ändern; maßgeblich sind die jeweils aktuellen Verhaltensregeln und Gesetze. Keine Rechtsberatung im Einzelfall.",
   weiterlesen: "Zum Weiterlesen",
   weiter: [
-    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Der kostenlose Weg und der geprüfte FIAON-Weg — ehrlich verglichen." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Der kostenlose Weg zu Ihrer Datenkopie — und was die FIAON-Bonitätsauswertung anders macht." },
     { href: "/selbstauskunft-checkliste", t: "Selbstauskunft-Checkliste", s: "Zehn Punkte, mit denen Sie jede Datenkopie selbst prüfen." },
     { href: "/eintrag-verjaehrung", t: "Eintrag & Verjährung", s: "Alle Speicherfristen je Eintragsart — mit Checker zum Nachrechnen." },
     { href: "/glossar-bonitaet", t: "Bonitäts-Glossar A–Z", s: "Jeder Begriff aus Ihrer Auskunft, in zwei bis vier Sätzen erklärt." },
   ],
-  zwischen2A: "Drei Länder, ein Ansprechpartner.", zwischen2B: " FIAON beschafft und prüft Ihre Daten bei SCHUFA, KSV1870 und CRIF — mit den Regeln des jeweiligen Landes.", pruefungStarten: "Prüfung starten",
+  zwischen2A: "Drei Länder, eine Ansprechperson.", zwischen2B: " Ihre kostenlose Datenkopie fordern Sie selbst an — FIAON prüft sie mit den Regeln des jeweiligen Landes.", pruefungStarten: "Prüfung starten",
 };
 const en: typeof de = {
   metaTitel: "SCHUFA, KSV1870, CRIF · credit bureaus compared",
@@ -76,16 +76,16 @@ const en: typeof de = {
     { f: "Do I get free access everywhere?", a: "Yes. In Germany and Austria under Art. 15 GDPR, in Switzerland under Art. 25 of the revised Data Protection Act. The bureaus also sell paid products — for checking your own data the free data copy is always enough." },
     { f: "Is data exchanged between the countries?", a: "Not automatically: a Swiss bank does not see SCHUFA entries, a KSV entry stays in Austria. But international groups such as CRIF are active in several countries, and with cross-border contracts (car leasing, say) providers sometimes enquire in the neighbouring country. One should not rely on the separation." },
     { f: "Do the deletion deadlines apply equally everywhere?", a: "No — that is the most important difference: Germany deletes settled claims after three years (18 months with the 100-day rule), Austria knows for the “KSV entry” after full payment a deletion after three years from the warning list, Switzerland stores enforcements for five years in the debt enforcement register. Anyone who transfers deadlines from one country to another is calculating wrongly." },
-    { f: "Does FIAON help in all three countries?", a: "Yes — that is the core of the offer: obtaining, checking and enforcement at SCHUFA, KSV1870 and CRIF from one hand, with the respective national rules. The country pages for Austria and Switzerland explain the particularities." },
+    { f: "Does FIAON help in all three countries?", a: "Yes — with the respective national rules: you request your free data copy from SCHUFA, KSV1870 or CRIF yourself and upload it; FIAON takes on checking and enforcement. The country pages for Austria and Switzerland explain the particularities." },
   ],
   fussSatz: "Editorial classification, as of August 2026. Deadlines and practice of the credit bureaus can change; the current codes of conduct and laws are decisive. No legal advice in individual cases.",
   weiterlesen: "Read on",
   weiter: [
-    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "The free route and the reviewed FIAON route — compared honestly." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "The free route to your data copy — and what the FIAON credit assessment does differently." },
     { href: "/selbstauskunft-checkliste", t: "Self-disclosure checklist", s: "Ten points with which you check any data copy yourself." },
     { href: "/eintrag-verjaehrung", t: "Entries and limitation periods", s: "All storage periods per entry type — with a checker to work it out." },
     { href: "/glossar-bonitaet", t: "Credit glossary A–Z", s: "Every term from your report, explained in two to four sentences." },
   ],
-  zwischen2A: "Three countries, one contact person.", zwischen2B: " FIAON obtains and checks your data at SCHUFA, KSV1870 and CRIF — with the rules of the respective country.", pruefungStarten: "Start the check",
+  zwischen2A: "Three countries, one contact person.", zwischen2B: " You request your free data copy yourself — FIAON checks it with the rules of the respective country.", pruefungStarten: "Start the check",
 };
 export const AUSKUNFTEIEN_WOERTER = { de, en };

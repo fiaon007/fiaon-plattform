@@ -42,7 +42,7 @@ const de = {
   schrittRegulaer: "Prüfen, ob die Meldung überhaupt zulässig war – wenn Voraussetzungen fehlen, ist der Eintrag vor Ablauf der Frist angreifbar.",
   linkVorbei: "Datenkopie anfordern", linkRegel: "Die 100-Tage-Regel",
   fuss: "Grundlage: Verhaltensregeln der Wirtschaftsauskunfteien (Fassung 2024), § 31 BDSG, Art. 17 DSGVO, EuGH C-26/22. Das Werkzeug ersetzt keine Prüfung Ihrer Datenkopie. Nichts wird gespeichert.",
-  zwischenrufFett: "Frist läuft – oder längst abgelaufen?", zwischenruf: " FIAON beschafft Ihre Auskunft, prüft jede Frist und verlangt die Löschung, wo sie fällig ist.", zwischenrufKnopf: "Auskunft beschaffen",
+  zwischenrufFett: "Frist läuft – oder längst abgelaufen?", zwischenruf: " Laden Sie Ihre kostenlose Datenkopie hoch: FIAON prüft jede Frist und verlangt die Löschung, wo sie fällig ist.", zwischenrufKnopf: "FIAON übernimmt das",
 };
 const en: typeof de = {
   metaTitel: "Deletion deadline calculator · When is my entry gone?",
@@ -85,6 +85,6 @@ const en: typeof de = {
   schrittRegulaer: "Check whether the report was lawful at all – if requirements are missing, the entry can be challenged before the period expires.",
   linkVorbei: "Request the data copy", linkRegel: "The 100-day rule",
   fuss: "Basis: code of conduct of the credit bureaus (2024 version), Section 31 BDSG, Article 17 GDPR, ECJ C-26/22. The tool does not replace a check of your data copy. Nothing is stored.",
-  zwischenrufFett: "Period running – or long expired?", zwischenruf: " FIAON obtains your report, checks every deadline and demands deletion where it is due.", zwischenrufKnopf: "Obtain the report",
+  zwischenrufFett: "Period running – or long expired?", zwischenruf: " Upload your free data copy: FIAON checks every deadline and demands deletion where it is due.", zwischenrufKnopf: "FIAON takes this over",
 };
 export const WZ_LOESCHFRIST_WOERTER = { de, en };

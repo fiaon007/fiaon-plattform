@@ -17,7 +17,7 @@ const de = {
     { f: "Was kosten die FIAON-Werkzeuge?", a: "Nichts. Alle Werkzeuge sind kostenlos, verlangen keine Anmeldung und keine E-Mail-Adresse. Die Berechnungen laufen in Ihrem Browser — es wird nichts übertragen und nichts gespeichert." },
     { f: "Ersetzen die Werkzeuge eine Beratung?", a: "Nein. Sie geben eine fundierte erste Einschätzung nach den geltenden Regeln — die verbindliche Prüfung Ihres Einzelfalls leisten sie nicht. Bei ernster Überschuldung gehört der erste Weg zur kostenlosen, staatlich anerkannten Schuldnerberatung." },
     { f: "Woher stammen die Regeln in den Werkzeugen?", a: "Aus den veröffentlichten Quellen: Verhaltensregeln der Wirtschaftsauskunfteien (Fassung 2024), § 31 BDSG, Art. 15 und 17 DSGVO, § 6a PAngV, §§ 195 ff. und 500 ff. BGB, RVG für Inkassokosten sowie der Rechtsprechung von BGH und EuGH. Jedes Werkzeug nennt seine Grundlage unten auf der Seite." },
-    { f: "Warum stellt FIAON das kostenlos bereit?", a: "Weil die erste Frage — was steht über mich drin, und was davon ist angreifbar? — jeder selbst beantworten können sollte. Wer danach möchte, dass jemand die Beschaffung, Prüfung und Durchsetzung übernimmt, kennt uns dann schon." },
+    { f: "Warum stellt FIAON das kostenlos bereit?", a: "Weil die erste Frage — was steht über mich drin, und was davon ist angreifbar? — jeder selbst beantworten können sollte. Wer danach möchte, dass jemand Prüfung und Durchsetzung übernimmt, kennt uns dann schon." },
   ],
   weiterTitel: "Die Ratgeber zu den Werkzeugen",
   weiter: [
@@ -26,7 +26,7 @@ const de = {
     { href: "/selbstauskunft-checkliste", titel: "Selbstauskunft-Checkliste", text: "Die Datenkopie liegt vor Ihnen? So lesen Sie sie richtig." },
     { href: "/glossar-bonitaet", titel: "Bonitäts-Glossar A–Z", text: "Alle Begriffe erklärt — von der Anfrage bis zur Zahlungshistorie, mit dem neuen Score seit 2026." },
   ],
-  zwischenrufFett: "Die Werkzeuge zeigen, was möglich ist — FIAON setzt es durch.", zwischenruf: " Beschaffung aller Auskünfte, Prüfung jedes Eintrags, Schreiben mit Fristenlauf: ein Auftrag, ein Ansprechpartner.", zwischenrufKnopf: "So arbeitet FIAON",
+  zwischenrufFett: "Die Werkzeuge zeigen, was möglich ist — FIAON setzt es durch.", zwischenruf: " Ihre Datenkopie fordern Sie kostenlos selbst an — Prüfung der Einträge, Schreiben mit Fristenlauf: ein Auftrag, eine Ansprechperson.", zwischenrufKnopf: "So arbeitet FIAON",
 };
 const en: typeof de = {
   metaTitel: "Tools · Twenty free calculators and checkers",
@@ -45,7 +45,7 @@ const en: typeof de = {
     { f: "What do the FIAON tools cost?", a: "Nothing. All tools are free, require no sign-up and no e-mail address. The calculations run in your browser — nothing is transmitted and nothing is stored." },
     { f: "Do the tools replace professional help?", a: "No. They give a well-founded first assessment under the applicable rules — they do not provide a binding check of your individual case. In serious over-indebtedness the first route is free, state-recognised debt counselling." },
     { f: "Where do the rules in the tools come from?", a: "From the published sources: the code of conduct of the credit bureaus (2024 version), Section 31 BDSG, Articles 15 and 17 GDPR, Section 6a PAngV, Sections 195 ff. and 500 ff. BGB, the RVG for debt collection costs and the case law of the Federal Court of Justice and the European Court of Justice. Every tool names its basis at the bottom of the page." },
-    { f: "Why does FIAON provide this for free?", a: "Because the first question — what is stored about me, and what of it can be challenged? — is one everyone should be able to answer themselves. Anyone who then wants someone to take over obtaining, checking and enforcing already knows us." },
+    { f: "Why does FIAON provide this for free?", a: "Because the first question — what is stored about me, and what of it can be challenged? — is one everyone should be able to answer themselves. Anyone who then wants someone to take over checking and enforcing already knows us." },
   ],
   weiterTitel: "The guides to the tools",
   weiter: [
@@ -54,6 +54,6 @@ const en: typeof de = {
     { href: "/selbstauskunft-checkliste", titel: "Credit report checklist", text: "The data copy is in front of you? This is how to read it correctly." },
     { href: "/glossar-bonitaet", titel: "Credit glossary A–Z", text: "Every term explained — from enquiry to payment history, with the new score since 2026." },
   ],
-  zwischenrufFett: "The tools show what is possible — FIAON enforces it.", zwischenruf: " Obtaining all reports, checking every entry, letters with deadline tracking: one order, one contact.", zwischenrufKnopf: "How FIAON works",
+  zwischenrufFett: "The tools show what is possible — FIAON enforces it.", zwischenruf: " You request your data copy yourself, free of charge — checking the entries, letters with deadline tracking: one order, one contact person.", zwischenrufKnopf: "How FIAON works",
 };
 export const WZ_HUB_WOERTER = { de, en };

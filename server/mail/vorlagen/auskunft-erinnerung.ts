@@ -51,7 +51,7 @@ export const AUSKUNFT_ERINNERUNG_EVENT = "auskunft_zahlung_erinnerung";
 
 /** Die beiden Sätze aus Justins Auftrag — wörtlich, eine Quelle für Vorlage und Prüfstand. */
 export const SCHON_UEBERWIESEN_SATZ = "Schon überwiesen? Dann ist alles in Ordnung — die Zuordnung dauert meist ein bis zwei Werktage.";
-export const NICHT_MEHR_SATZ = "Sie möchten die Auskunft nicht mehr? Antworten Sie kurz auf diese Mail — wir stornieren, es entstehen keine Kosten.";
+export const NICHT_MEHR_SATZ = "Sie möchten die Bonitätsauswertung nicht mehr? Antworten Sie kurz auf diese Mail — wir stornieren, es entstehen keine Kosten.";
 
 /** Der Muster-Satz, den die nachgeholte Belehrung ersetzt — gelesen aus der EINEN Quelle, damit ein neuer Wortlaut auffällt. */
 export const MUSTER_FRIST_SATZ = AUSKUNFT_WIDERRUF.abschnitte[0].absaetze[1];
@@ -68,17 +68,17 @@ export const NACHGEHOLT_HINWEIS = "Mit dieser E-Mail schicken wir Ihnen die Wide
 export function erinnerungLeistungSatz(p: Record<string, unknown>): string {
   const firma = String(p.auskunft_art ?? "").trim() === "firma";
   const nachFrist = !firma && auskunftBeginnWahl(p.widerruf_wahl) === "nicht_verlangt";
-  if (lieferwegAusNutzlast(p) === "vollmacht") {
-    const was = firma
-      ? "Sobald Ihre Überweisung da ist, fordern wir die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an, dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}."
-      : "Sobald Ihre Überweisung da ist, bereiten wir Ihre Anfragen an {{params.auskunfteien}} vor.";
-    return `${was} Dafür bekommen Sie eine eigene E-Mail mit dem Link, über den Sie Vollmacht und Anfragen am Bildschirm unterschreiben.`
-      + (nachFrist ? " Wie bei Ihrer Bestellung gewählt, übermitteln wir die Anfragen erst nach Ablauf der Widerrufsfrist." : "");
+  // E-365 (14.10.2026): privat ist die Leistung die FIAON-Bonitätsauswertung — kein Lieferweg, keine Beschaffung.
+  if (!firma) {
+    return "Sobald Ihre Überweisung da ist, laden Sie Ihren Ausweis und Ihre Kontoauszüge hoch (Link per E-Mail, ohne Anmeldung), "
+      + `und Ihr FIAON-Team entwickelt daraus Ihre Bonitätsauswertung${nachFrist ? " — wie bei Ihrer Bestellung gewählt, erst nach Ablauf der Widerrufsfrist" : ""}: `
+      + "Ihre Bonität aus Sicht einer Bank, jede Ausgabe im Detail, Ampel, Finanzwert und Plan — als PDF und in Ihrem Bereich.";
   }
-  const was = firma
-    ? "die Auskünfte Ihres Unternehmens bei den Wirtschaftsauskunfteien und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}"
-    : "Ihre Auskunft bei {{params.auskunfteien}}";
-  return `Sobald Ihre Überweisung da ist, beschaffen wir ${was}${nachFrist ? " — wie bei Ihrer Bestellung gewählt, erst nach Ablauf der Widerrufsfrist" : ""}. `
+  if (lieferwegAusNutzlast(p) === "vollmacht") {
+    return "Sobald Ihre Überweisung da ist, fordern wir die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an, dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}. "
+      + "Dafür bekommen Sie eine eigene E-Mail mit dem Link, über den Sie Vollmacht und Anfragen am Bildschirm unterschreiben.";
+  }
+  return "Sobald Ihre Überweisung da ist, beschaffen wir die Auskünfte Ihres Unternehmens bei den Wirtschaftsauskunfteien und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}. "
     + "Wir erklären jeden Eintrag in klaren Worten und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.";
 }
 
@@ -110,7 +110,7 @@ function anlass(stufe: number): { betreff: string; titel: string; preheader: str
   if (stufe <= 1) {
     return {
       betreff: "Ihre Bonitätsauskunft: die Zahlungsdaten zu Ihrer Bestellung",
-      titel: "Ihre Auskunft wartet auf Ihre Überweisung",
+      titel: "Ihre Bonitätsauswertung wartet auf Ihre Überweisung",
       preheader: "Hier sind die Zahlungsdaten zu Ihrer Bestellung noch einmal.",
       einstieg: "danke für Ihre Bestellung von <b>{{params.paket}}</b> am {{params.bestellt_am}}. Ihre Überweisung ist bei uns noch nicht angekommen — damit Sie nicht suchen müssen, stehen die Zahlungsdaten hier noch einmal.",
     };
@@ -135,15 +135,15 @@ function anlass(stufe: number): { betreff: string; titel: string; preheader: str
     return {
       betreff: "Ihre Bestellung ist weiter offen — Bonitätsauskunft {{params.payment_reference}}",
       titel: "Ihre Bestellung ist weiter offen",
-      preheader: "Alle Zahlungsdaten auf einen Blick — oder kurz antworten, wenn Sie die Auskunft nicht mehr möchten.",
+      preheader: "Alle Zahlungsdaten auf einen Blick — oder kurz antworten, wenn Sie die Bonitätsauswertung nicht mehr möchten.",
       einstieg: "Ihre Bestellung von <b>{{params.paket}}</b> vom {{params.bestellt_am}} ist weiter offen. Hier noch einmal alles, was Sie für die Überweisung brauchen.",
     };
   }
   return {
     betreff: "Offene Bestellung: Ihre Bonitätsauskunft ({{params.payment_reference}})",
     titel: "Ihre Bestellung ist noch offen",
-    preheader: "Möchten Sie die Auskunft weiterhin, genügt die Überweisung — sonst reicht eine kurze Antwort.",
-    einstieg: "Ihre Bestellung von <b>{{params.paket}}</b> vom {{params.bestellt_am}} ist noch offen. Möchten Sie die Auskunft weiterhin, genügt die Überweisung mit den Daten unten. Möchten Sie sie nicht mehr, sagen Sie es uns kurz.",
+    preheader: "Möchten Sie die Bonitätsauswertung weiterhin, genügt die Überweisung — sonst reicht eine kurze Antwort.",
+    einstieg: "Ihre Bestellung von <b>{{params.paket}}</b> vom {{params.bestellt_am}} ist noch offen. Möchten Sie die Bonitätsauswertung weiterhin, genügt die Überweisung mit den Daten unten. Möchten Sie sie nicht mehr, sagen Sie es uns kurz.",
   };
 }
 
@@ -189,7 +189,7 @@ function frageAnlass(stufe: number, erste: boolean, frisch = false): { betreff: 
       betreff: FRAGE_BETREFF_FRISCH,
       titel: "Bitte bestätigen Sie Ihre Bestellung",
       preheader: "Ihre Bestellung ist vorbereitet — bestätigen oder kurz absagen.",
-      einstieg: "für Sie ist am {{params.bestellt_am}} eine Bestellung Ihrer Bonitätsauskunft angelegt worden: <b>{{params.paket}}</b> über {{params.betrag}} €. Bevor wir beginnen und bevor Sie etwas bezahlen, brauchen wir Ihre eigene Bestätigung: Möchten Sie die Auskunft?",
+      einstieg: "für Sie ist am {{params.bestellt_am}} eine Bestellung Ihrer FIAON-Bonitätsauswertung angelegt worden: <b>{{params.paket}}</b> über {{params.betrag}} €. Bevor wir beginnen und bevor Sie etwas bezahlen, brauchen wir Ihre eigene Bestätigung: Möchten Sie die Bonitätsauswertung?",
     };
   }
   const kern = "bei uns ist seit dem {{params.bestellt_am}} eine Bestellung Ihrer Bonitätsauskunft offen: <b>{{params.paket}}</b> über {{params.betrag}} €.";
@@ -198,7 +198,7 @@ function frageAnlass(stufe: number, erste: boolean, frisch = false): { betreff: 
       betreff: FRAGE_BETREFF,
       titel: "Möchten Sie Ihre Bonitätsauskunft noch?",
       preheader: "Eine kurze Frage zu Ihrer offenen Bestellung — bestätigen oder kurz absagen.",
-      einstieg: `${kern} Eine Bestätigung von Ihnen selbst haben wir dazu noch nicht — deshalb fragen wir kurz nach: Möchten Sie die Auskunft noch?`,
+      einstieg: `${kern} Eine Bestätigung von Ihnen selbst haben wir dazu noch nicht — deshalb fragen wir kurz nach: Möchten Sie die Bonitätsauswertung noch?`,
     };
   }
   if (stufe <= 4) {
@@ -206,14 +206,14 @@ function frageAnlass(stufe: number, erste: boolean, frisch = false): { betreff: 
       betreff: "Kurze Nachfrage: Möchten Sie Ihre Bonitätsauskunft noch?",
       titel: "Möchten Sie Ihre Bonitätsauskunft noch?",
       preheader: "Ihre Bestellung ist noch offen — bestätigen oder kurz absagen.",
-      einstieg: `${kern} Wir haben dazu noch keine Bestätigung von Ihnen und fragen deshalb noch einmal nach: Möchten Sie die Auskunft noch?`,
+      einstieg: `${kern} Wir haben dazu noch keine Bestätigung von Ihnen und fragen deshalb noch einmal nach: Möchten Sie die Bonitätsauswertung noch?`,
     };
   }
   return {
     betreff: "Ihre offene Bestellung der Bonitätsauskunft — möchten Sie sie noch?",
     titel: "Ihre Bestellung ist noch offen",
-    preheader: "Bestätigen Sie die Bestellung, wenn Sie die Auskunft möchten — sonst genügt eine kurze Antwort.",
-    einstieg: `${kern} Eine Bestätigung von Ihnen haben wir weiterhin nicht. Möchten Sie die Auskunft, bestätigen Sie die Bestellung mit dem Knopf unten; sonst genügt eine kurze Antwort.`,
+    preheader: "Bestätigen Sie die Bestellung, wenn Sie die Bonitätsauswertung möchten — sonst genügt eine kurze Antwort.",
+    einstieg: `${kern} Eine Bestätigung von Ihnen haben wir weiterhin nicht. Möchten Sie die Bonitätsauswertung, bestätigen Sie die Bestellung mit dem Knopf unten; sonst genügt eine kurze Antwort.`,
   };
 }
 
@@ -226,7 +226,7 @@ export function auskunftFrageBaustein(p: Record<string, unknown>): MailBaustein 
   const firma = String(p.auskunft_art ?? "").trim() === "firma";
   const was = firma
     ? "Wir holen die Auskünfte Ihres Unternehmens bei den Wirtschaftsauskunfteien und die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}} ein"
-    : "Wir holen Ihre Auskunft bei {{params.auskunfteien}} ein";
+    : null;
   return {
     betreff: a.betreff,
     preheader: a.preheader,
@@ -235,7 +235,9 @@ export function auskunftFrageBaustein(p: Record<string, unknown>): MailBaustein 
     absaetze: [
       `{{params.anrede}} ${a.einstieg}`,
       "Wenn ja: Mit dem Knopf unten sehen Sie Leistung und Betrag, bestätigen den Auftrag selbst und entscheiden, ob wir sofort oder erst nach Ablauf der Widerrufsfrist beginnen. Danach kommen Sie zur Zahlungsseite.",
-      `${was}, erklären jeden Eintrag in klaren Worten und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`,
+      // E-365: privat die Bonitätsauswertung (Ausweis + Kontoauszug), Firmen unverändert.
+      was ? `${was}, erklären jeden Eintrag in klaren Worten und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`
+        : "Aus Ihrem Ausweis und Ihren Kontoauszügen entwickelt Ihr FIAON-Team Ihre Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, jede Ausgabe im Detail, Ampel, Finanzwert und Plan — als PDF und in Ihrem Bereich.",
       FRAGE_ZAHLUNG_SATZ,
       FRAGE_NICHT_MEHR_SATZ,
     ],

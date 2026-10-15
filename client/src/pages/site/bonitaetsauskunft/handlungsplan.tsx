@@ -1,10 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /bonitaetsauskunft/handlungsplan — WAS DRINSTEHT (25.09.2026, E-241)
+// /bonitaetsauskunft/handlungsplan — IHR PLAN IN DER BONITÄTSAUSWERTUNG
+// (25.09.2026, E-241 · seit 14.10.2026 E-365)
 //
-// Was der Plan enthält, welche Schreiben es gibt (Hauswissen: Academy
-// Kapitel 6 — Löschung nach Fristablauf, Berichtigung, Erledigung nachtragen),
-// ein Plan und ein Schreiben als Beispiel mit erfundenen Daten und die Grenze:
-// keine Rechtsberatung, keine Löschzusage — die Auskunftei entscheidet.
+// Der Pfad bleibt (Suchwort, Verweise). Seit E-365 zeigt die Seite den Plan der
+// FIAON-Bonitätsauswertung: was er enthält (Haushalt, Ampel, Potenzial,
+// Reihenfolge, zwölf Monate), woraus er entsteht (die eigenen Kontoauszüge), ein
+// Beispiel mit erfundenen Daten und die Grenze: keine Rechtsberatung, kein
+// Score, keine Zusage — über Konto und Karte entscheidet die Bank. Keine
+// Schreiben an Auskunfteien, keine Löschung.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Knopf, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import { BX, BX_HUB, BX_PFAD, BX_PLAN, bestellPfad } from "@/i18n/bonitaetsauskunft-familie";
@@ -13,7 +16,6 @@ import { Abschnitt, Band, BeispielPlan, BxHero, BxRahmen, Pfeil, PreisZeile, Wei
 
 export default function BonitaetsauskunftHandlungsplan() {
   const t = BX_PLAN;
-  const b = t.brief;
   return (
     <BxRahmen
       seite="handlungsplan" krume={t.krume} fragen={BX_FRAGEN_PLAN}
@@ -36,7 +38,7 @@ export default function BonitaetsauskunftHandlungsplan() {
         <Auf><BeispielPlan /></Auf>
       </Abschnitt>
 
-      <Abschnitt marke="Schreiben" titel={t.schreibenTitel} text={t.schreibenText}>
+      <Abschnitt marke="Grundlage" titel={t.schreibenTitel} text={t.schreibenText}>
         <Auf>
           <div className="bx-schreiben">
             {t.schreiben.map((s, i) => (
@@ -48,18 +50,6 @@ export default function BonitaetsauskunftHandlungsplan() {
               </article>
             ))}
           </div>
-        </Auf>
-      </Abschnitt>
-
-      <Abschnitt marke="Beispiel" titel={t.briefTitel} text={t.briefText}>
-        <Auf>
-          <figure className="bx-brief" aria-label={`${b.betreff} — ${b.marke}`}>
-            <span className="bx-stempel">{b.marke}</span>
-            <address>{b.an.map((z) => <span key={z}>{z}</span>)}</address>
-            <p className="betreff">{b.betreff}</p>
-            {b.absaetze.map((a) => <p key={a}>{a}</p>)}
-            <p className="unterschrift">{b.unterschrift}</p>
-          </figure>
         </Auf>
       </Abschnitt>
 

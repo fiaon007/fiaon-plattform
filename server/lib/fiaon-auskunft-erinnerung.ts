@@ -105,6 +105,8 @@ import { katalogpreisCents } from "./fiaon-massgebliche-bestellung";
 import { anredeMail } from "@shared/fiaon-anrede";
 import { AUSKUNFT_SCHLUESSEL, auskunftLand, euroText, type AuskunftLand } from "@shared/fiaon-auskunft";
 import { KUNDENERKLAERUNG_SQL } from "./fiaon-auskunft";
+// E-365: die gelieferte Bonitätsauswertung und die Inklusiv-Lage beenden die Zahlungserinnerung (eine Quelle mit der Kartenregel).
+import { BONITAET_DA_SQL, BONITAET_INKLUSIVE_SQL, bonitaetBereit } from "./fiaon-konto-karte";
 import {
   istSendezeit, SCHALTER_ERINNERUNG_AN, SCHALTER_ERINNERUNG_PRO_TAG, SCHALTER_ERINNERUNG_DAUER,
   STANDARD_ERINNERUNG_PRO_TAG, HOECHSTENS_ERINNERUNG_PRO_TAG, STANDARD_ERINNERUNG_DAUER_TAGE, HOECHSTENS_ERINNERUNG_DAUER_TAGE,
@@ -254,7 +256,7 @@ export function naechsteFaelligkeit(s: ErinnerungStand, jetzt: Date, dauerTage: 
 
 export type TuerGrund =
   | "gemeldet" | "archiviert" | "test" | "ohne_zweck" | "ohne_mail" | "mahnstopp" | "mahnstopp_person" | "unzustellbar"
-  | "bezahlt" | "gekuendigt" | "dokument" | "vertriebssperre" | "werbesperre_frage";
+  | "bezahlt" | "gekuendigt" | "dokument" | "vertriebssperre" | "werbesperre_frage" | "auswertung" | "inklusive";
 
 export const TUER_GRUND_TEXT: Record<TuerGrund, string> = {
   gemeldet: "Zahlung gemeldet — wird der Bank zugeordnet, keine Erinnerung",
@@ -270,12 +272,15 @@ export const TUER_GRUND_TEXT: Record<TuerGrund, string> = {
   dokument: "hat schon ein eigenes Auskunft-Dokument — stornieren?",
   vertriebssperre: "Vertriebssperre (kein Interesse) — stornieren?",
   werbesperre_frage: "ohne Bestätigung des Kunden und mit Werbesperre — keine Nachfrage per Mail, stornieren?",
+  auswertung: "die FIAON-Bonitätsauswertung liegt beim Kunden schon vor — stornieren?",
+  inklusive: "die Bonitätsauswertung ist im Paket enthalten (Kartenlink wartet auf sie) — stornieren!",
 };
 
 /** Kurzform des Storno-Grunds für Aufgabentitel. */
 const STORNO_KURZ: Partial<Record<TuerGrund, string>> = {
   bezahlt: "schon eine bezahlte Auskunft", gekuendigt: "gekündigt", dokument: "hat schon ein Auskunft-Dokument",
   vertriebssperre: "Vertriebssperre", werbesperre_frage: "ohne Bestätigung, Werbesperre",
+  auswertung: "Bonitätsauswertung liegt vor", inklusive: "im Paket enthalten",
 };
 
 export interface TuerZeile {
@@ -289,7 +294,12 @@ export interface TuerZeile {
   mahnstoppPerson?: boolean;
   unzustellbar: boolean;
   gekuendigt: boolean;
+  /** Eine eigene Auskunft liegt in der Akte — keine Zahlungserinnerung, „stornieren?“ an den Betreiber. */
   dokument: boolean;
+  /** E-365: Die Bonitätsauswertung liegt beim Kunden (freigegeben/ersetzt). */
+  auswertungDa?: boolean;
+  /** E-365: Sie ist im Paket enthalten (zahlender Paketkunde, Kartenlink wartet). */
+  inklusive?: boolean;
   vertriebssperre: boolean;
   werbesperre?: boolean;
   /**
@@ -338,6 +348,11 @@ export function tuerUrteil(z: TuerZeile): TuerUrteil {
   // Gesamtdurchsicht 26.09.2026: schon eine bezahlte Auskunft (auch an der Kopf-Person) — diese ist wohl doppelt.
   if (z.bezahltPerson) return nein("bezahlt", true, true);
   if (z.gekuendigt) return nein("gekuendigt", true, true);
+  // E-365: Die gelieferte Auswertung oder ihre Inklusiv-Lage macht die Bestellung überflüssig. Ein eigenes Auskunft-Dokument
+  // hält die Zahlungserinnerung weiter an (die offenen Bestellungen sind fast alle aus der Zeit vor E-365 — wer seine
+  // Datenkopie schon hochgeladen hat, bekommt keine Mahnung, sondern den Vorschlag „stornieren?“ an den Betreiber).
+  if (z.auswertungDa) return nein("auswertung", true, true);
+  if (z.inklusive) return nein("inklusive", true, true);
   if (z.dokument) return nein("dokument", true, true);
   if (z.vertriebssperre) return nein("vertriebssperre", true, true);
   // Nach den Storno-Gründen: Wer gekündigt/gesperrt ist UND einen Mahnstopp am Paket hat, soll auf der Chefseite
@@ -434,6 +449,7 @@ export interface OffeneBestellung extends TuerZeile {
  */
 export async function offeneBestellungen(lauf: Lauf = sqlPool, limit = 500, refs: string[] | null = null): Promise<OffeneBestellung[]> {
   await ensureErinnerungSpalten();
+  await bonitaetBereit().catch(() => {});
   const zeilen = (await lauf.unsafe(`
     SELECT a.ref, a.person_id, a.payment_reference, a.payment_status, a.amount_due, a.pack_key, a.pack_name, a.type,
            a.created_at::timestamptz AS angelegt, a.claimed_paid_at, (a.archived_at IS NOT NULL) AS archiviert,
@@ -451,6 +467,8 @@ export async function offeneBestellungen(lauf: Lauf = sqlPool, limit = 500, refs
            ${KUENDIGUNG_WIRKSAM_SQL("a.person_id")} AS gekuendigt,
            (EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.person_id = a.person_id AND d.gdpr_deleted_at IS NULL AND d.schufa_pdf IS NOT NULL)
             OR EXISTS (SELECT 1 FROM fiaon_dokumente k WHERE k.person_id = a.person_id AND k.geloescht_am IS NULL AND k.art ILIKE '%schufa%')) AS dokument,
+           ${BONITAET_DA_SQL("a.person_id")} AS auswertung_da,
+           ${BONITAET_INKLUSIVE_SQL("a.person_id")} AS inklusive,
            -- Gesamtdurchsicht 26.09.2026: die EINE Erkennung, ob der Kunde die Bestellung selbst erklärt hat (fiaon-auskunft.ts).
            ${KUNDENERKLAERUNG_SQL("a")} AS erklaert,
            -- Gesamtdurchsicht 26.09.2026: schon eine BEZAHLTE Auskunft an der Person oder an ihrer Kopf-Person
@@ -494,7 +512,8 @@ export async function offeneBestellungen(lauf: Lauf = sqlPool, limit = 500, refs
       land: auskunftLand(z.land),
       art,
       // Zwei Altzeilen tragen vom Zusammenführen „highend" im Paketnamen — dann der Name der Leistung.
-      paket: /auskunft/i.test(packName) ? packName : art === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan",
+      // E-365: privat heißt die Leistung „FIAON-Bonitätsauswertung“ — auch für Altbestellungen mit dem alten Namen.
+      paket: art === "firma" ? (/auskunft/i.test(packName) ? packName : "Firmen-Bonitätsauskunft inkl. Handlungsplan") : "FIAON-Bonitätsauswertung",
       // E-181: der Katalogpreis gilt; amount_due nur, wenn keiner bestimmbar ist.
       betragCents: katalog ?? (z.amount_due != null ? Math.round(Number(z.amount_due) * 100) : null),
       angelegt: new Date(z.angelegt),
@@ -514,6 +533,8 @@ export async function offeneBestellungen(lauf: Lauf = sqlPool, limit = 500, refs
       unzustellbar: !!z.unzustellbar,
       gekuendigt: !!z.gekuendigt,
       dokument: !!z.dokument,
+      auswertungDa: !!z.auswertung_da,
+      inklusive: !!z.inklusive,
       vertriebssperre: !!z.vertriebssperre,
       werbesperre: !!z.werbesperre,
       erklaert: !!z.erklaert,

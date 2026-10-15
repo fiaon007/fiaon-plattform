@@ -15,7 +15,7 @@ const de = {
   textSolide: "Solide: Banken sehen Luft für Raten und Rahmen. Faustregel vieler Herausgeber: Rahmen bis zum Acht- bis Zehnfachen des monatlichen Spielraums – bei sauberer Auskunft.",
   textKomfortabel: "Komfortabel: Mit dieser Quote sind Rahmen bis zur Schwelle des Kartenpartners realistisch. Entscheidend ist dann nur noch, was die Auskunft zeigt.",
   richtwert: "Richtwert Kartenrahmen (Faustregel, keine Zusage)", richtwertText: (b: string) => `Etwa ${b} – bei sauberer Auskunft und pünktlich geführtem Konto. Über den Rahmen entscheidet die Bank.`,
-  kartenCheck: "Karten-Check machen", auskunft: "Auskunft beschaffen",
+  kartenCheck: "Karten-Check machen", auskunft: "Zum FIAON-Antrag",
   fuss: "Richtwerte, keine Beratung. Nichts verlässt Ihren Browser; FIAON speichert diese Eingaben nicht.",
   zwischenrufFett: "Im Kundenbereich rechnet FIAON das aus Ihrem Kontoauszug.", zwischenruf: " Automatisch, jeden Monat, mit Spielraum-Verlauf.", zwischenrufKnopf: "Den Bereich ansehen",
 };
@@ -35,7 +35,7 @@ const en: typeof de = {
   textSolide: "Solid: banks see room for instalments and a limit. Rule of thumb of many issuers: a limit up to eight to ten times the monthly headroom – with a clean report.",
   textKomfortabel: "Comfortable: with this ratio, limits up to the card partner's threshold are realistic. What matters then is only what the report shows.",
   richtwert: "Indicative card limit (rule of thumb, no promise)", richtwertText: (b) => `Around ${b} – with a clean report and a punctually run account. The bank decides on the limit.`,
-  kartenCheck: "Do the card check", auskunft: "Obtain the report",
+  kartenCheck: "Do the card check", auskunft: "To the FIAON application",
   fuss: "Indicative values, not advice. Nothing leaves your browser; FIAON does not store these entries.",
   zwischenrufFett: "In the customer area FIAON calculates this from your bank statement.", zwischenruf: " Automatically, every month, with a headroom history.", zwischenrufKnopf: "See the area",
 };

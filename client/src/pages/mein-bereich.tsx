@@ -419,7 +419,7 @@ export default function MeinBereichPage() {
 
             {/* ═══ BONITÄT ═══ */}
             <section id="bonitaet">
-              <div className="mb-abschnitt-kopf"><div><h2>Ihre Bonität</h2><p>{d.bonitaet?.fuerKunden || "Eine Auskunft, jeder Eintrag geprüft, in Menschensprache erklärt."}</p></div></div>
+              <div className="mb-abschnitt-kopf"><div><h2>Ihre Bonität</h2><p>{d.bonitaet?.fuerKunden || "Ihre FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, in Menschensprache erklärt."}</p></div></div>
               <div className="mb-karte">
                 {d.bonitaetAnalyse?.status === "fertig" ? (
                   <BonitaetAuswertung a={d.bonitaetAnalyse} refKunde={d.kunde.ref} />
@@ -429,8 +429,11 @@ export default function MeinBereichPage() {
                   <div className="mb-warte"><b>Ihre Auskunft wird gerade ausgewertet.</b> Das dauert wenige Minuten. Laden Sie die Seite danach neu.</div>
                 ) : d.bonitaet?.geprueft || d.bonitaet?.hatDokument ? (
                   <div className="mb-warte"><b>Ihre Auskunft ist eingegangen.</b> Wir gehen jeden Eintrag durch und leiten daraus Ihre nächsten Schritte ab. Sie hören von uns, sobald die Auswertung vorliegt.</div>
-                ) : d.bonitaet?.bezahlt || d.auskunft?.stufe === "bezahlt" ? (
-                  <div className="mb-warte"><b>Bezahlt — wir fordern Ihre Datenkopien an.</b> {d.auskunft ? `Bei ${d.auskunft.bei}. ` : ""}Sobald sie vorliegen, sehen Sie hier jeden Eintrag erklärt und Ihren Handlungsplan.</div>
+                ) : d.auskunft && (d.auskunft.stufe === "bezahlt" || d.auskunft.stufe === "inklusive" || d.auskunft.stufe === "auswertung") ? (
+                  // E-365: der Stand der Bonitätsauswertung (Unterlagen fehlen / wird entwickelt / liegt vor) aus derselben Karte wie /app.
+                  <AuskunftKaufkarte kauf={d.auskunft} demo={DEMO} hochladen="#unterlagen" />
+                ) : d.bonitaet?.bezahlt ? (
+                  <div className="mb-warte"><b>Bezahlt — wir entwickeln Ihre FIAON-Bonitätsauswertung.</b> Laden Sie dafür Ihren Ausweis und Ihre Kontoauszüge unter „Unterlagen“ hoch.</div>
                 ) : (
                   // ── DIE KAUFKARTE (24.09.2026, E-240) ──────────────────────
                   // Vorher: „Einmalig 74 €" als Satz, der Knopf auf die alte
@@ -449,10 +452,10 @@ export default function MeinBereichPage() {
                             {/* 25.09.2026 (E-241): Stufe B (Paket bestellt, nicht bezahlt) sieht oben die Kaufkarte zum
                                 Einzelpreis — hier bleibt nur „Zahlung gemeldet“ (nach der Buchung gilt der Kundenpreis). */}
                             {d.auskunft?.sperre === "gekuendigt"
-                              ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen."
+                              ? "Ihr Vertrag ist gekündigt — die Bonitätsauswertung lässt sich darüber nicht mehr neu beauftragen."
                               : d.auskunft?.sperre === "paket_offen"
-                              ? "Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, beauftragen Sie die Auskunft hier zum Kundenpreis."
-                              : "Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Ansprechpartnerin richtet sie mit Ihnen ein."}
+                              ? "Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, sehen Sie hier, wie es mit Ihrer FIAON-Bonitätsauswertung weitergeht."
+                              : "Ihre Ansprechpartnerin richtet Ihre FIAON-Bonitätsauswertung mit Ihnen ein."}
                           </p>
                           {d.bonitaet?.darfHochladen && (
                             <a href="#unterlagen" style={{ display: "inline-block", marginTop: 12, fontSize: 12.5, color: "var(--text-still)", textDecoration: "underline", textUnderlineOffset: 3 }}>Sie haben schon eine aktuelle Auskunft? Hier hochladen</a>
@@ -523,7 +526,8 @@ export default function MeinBereichPage() {
               <div className="mb-raster">
                 {[["Löschantrag · Art. 17 DSGVO", "Für Einträge ohne Rechtsgrund. Die Auskunftei muss innerhalb eines Monats antworten.", "Nach der Analyse"],
                   ["Ratenvereinbarung", "Für offene Forderungen: ein tragbarer Vorschlag, den das Inkasso annehmen kann.", "Nach der Analyse"],
-                  ["Datenkopien · Art. 15 DSGVO", `Teil Ihrer Bonitätsauskunft: Wir fordern sie bei ${d.auskunft?.bei || auskunfteienText(auskunftLand(d.kunde.land))} an — mit Ihrer Vollmacht.`, "Mit der Auskunft"]].map(([t, x, wann]) => (
+                  // E-365: Die Datenkopie fordern Sie selbst an (kostenlos) — wir erklären sie, wenn Sie sie hochladen.
+                  ["Datenkopie · Art. 15 DSGVO", `Ihre kostenlose Datenkopie bei ${d.auskunft?.bei || auskunfteienText(auskunftLand(d.kunde.land))}: Laden Sie sie hoch, dann erklären wir jeden Eintrag.`, "Wenn Sie sie haben"]].map(([t, x, wann]) => (
                   <article className="mb-kachel" key={t}><h4>{t}</h4><p>{x}</p><div className="mb-kachel-fuss"><span className="mb-lage ruht">{wann}</span></div></article>
                 ))}
               </div>

@@ -25,6 +25,7 @@ import { AGB_FRUEHERE_FASSUNGEN } from "@shared/fiaon-vertrag-paket";
 
 /** Für wen eine Fassung gilt, wenn sein Vertrag keine Fassung nennt (05.10.2026, E-283: auch 03.09. und 26.09.). */
 const GELTUNG_OHNE_NENNUNG: Record<string, string> = {
+  "2026-10-05": "Nennt Ihr Vertrag keine Fassung – so ist es bei Verträgen über den bisherigen Antrag –, gilt die Fassung, die beim Vertragsschluss auf fiaon.com stand: diese hier für Verträge ab dem Erscheinen dieser Fassung bis zum Erscheinen der Fassung vom 15. Oktober 2026.",
   "2026-09-26": "Nennt Ihr Vertrag keine Fassung – so ist es bei Verträgen über den bisherigen Antrag –, gilt die Fassung, die beim Vertragsschluss auf fiaon.com stand: diese hier für Verträge ab dem Erscheinen dieser Fassung bis zum Erscheinen der Fassung vom 5. Oktober 2026.",
   "2026-09-03": "Nennt Ihr Vertrag keine Fassung – so ist es bei Verträgen über den bisherigen Antrag –, gilt die Fassung, die beim Vertragsschluss auf fiaon.com stand: diese hier für Verträge vom 3. September 2026 bis zum Erscheinen der Fassung vom 26. September 2026.",
   "2026-07-04": "Verträge über den bisherigen Antrag nennen keine Fassung. Für sie gilt die Fassung, die beim Vertragsschluss auf fiaon.com stand – diese hier für Verträge vom 4. Juli bis zum 2. September 2026.",

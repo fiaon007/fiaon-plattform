@@ -441,15 +441,23 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
 //   (Firma: „den Wirtschaftsauskunfteien und für Sie persönlich bei …") unter
 //   1.024 Zeichen bleibt — waSenden prüft den GEFÜLLTEN Text (sendePruefung).
 // ═══════════════════════════════════════════════════════════════════════════
-export const AUSKUNFT_VORLAGE = "fiaon_kk_auskunft";
-/** E-241: dieselbe Auskunft für fertige Anträge ohne Zahlung und Leads. */
-export const AUSKUNFT_LEAD_VORLAGE = "fiaon_kk_auskunft_lead";
-/** Beide Auskunft-Vorlagen mit ihren Bildfassungen — für Sendewege, die den Kauflink prüfen. */
-export const AUSKUNFT_VORLAGEN_ALLE: readonly string[] = [AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, "fiaon_kkb_auskunft", "fiaon_kkb_auskunft_lead"];
+// ── E-365 (15.10.2026): NEUE VORLAGEN FÜR DIE FIAON-BONITÄTSAUSWERTUNG ─────
+// fiaon_kk_auskunft(_lead) beschreiben das alte Produkt („Wir holen die Daten bei … ein, erklären jeden Eintrag … fertige
+// Schreiben“) — das liefert FIAON privat nicht mehr (E-353). Sie dürfen nicht weiter hinausgehen. Statt den freigegebenen
+// Text bei Meta zu ändern, tragen die Vorlagen NEUE Namen: Bis Meta sie freigibt (istFrei), sendet der Takt keine
+// WhatsApp zur Auswertung — die Mail läuft weiter. Einreichen: „Vorlagen einreichen“ (Mara-Steuerpult/Lead-Motor).
+// Die alten Namen bleiben erkannt (Antworten auf schon gesendete Angebote, AUSKUNFT_VORLAGEN_ALT).
+export const AUSKUNFT_VORLAGE = "fiaon_kk_auswertung";
+/** E-241/E-365: dieselbe Auswertung für fertige Anträge ohne Zahlung, Abbrecher und Leads. */
+export const AUSKUNFT_LEAD_VORLAGE = "fiaon_kk_auswertung_lead";
+/** Die Vorlagen vor E-365 (altes Produkt) — nur noch zum Erkennen, nie mehr zum Senden. */
+export const AUSKUNFT_VORLAGEN_ALT: readonly string[] = ["fiaon_kk_auskunft", "fiaon_kk_auskunft_lead", "fiaon_kkb_auskunft", "fiaon_kkb_auskunft_lead"];
+/** Alle Auskunft-Vorlagen mit ihren Bildfassungen — für Sendewege, die den Kauflink prüfen. */
+export const AUSKUNFT_VORLAGEN_ALLE: readonly string[] = [AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, "fiaon_kkb_auswertung", "fiaon_kkb_auswertung_lead", ...AUSKUNFT_VORLAGEN_ALT];
 
 // Der Knopf trägt den signierten Kurz-Kauflink (fiaon-chef-auskunft.ts, Route /k/:token).
 const AUSKUNFT_KAUF: WaKnopf = {
-  typ: "URL", text: "Auskunft beauftragen", url: "https://fiaon.com/api/fiaon/auskunft/k/{{1}}",
+  typ: "URL", text: "Auswertung ansehen", url: "https://fiaon.com/api/fiaon/auskunft/k/{{1}}",
   beispiel: "https://fiaon.com/api/fiaon/auskunft/k/4711-p-mfy3k2q0-0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c",
 };
 
@@ -473,29 +481,34 @@ const AUSKUNFT_STOPP_SATZ = "Sie können solchen Nachrichten jederzeit widerspre
 // die Bestätigungsseite. Text- und Bildfassung entstehen aus DENSELBEN
 // Absätzen (AUSKUNFT_ABSAETZE): Der Wortlaut kann nicht auseinanderlaufen.
 // Platzhalter unverändert {{1}}–{{4}} in derselben Reihenfolge (werteFuer).
+// E-365 (15.10.2026): der Wortlaut der Bonitätsauswertung. Dieselben vier Platzhalter in derselben Reihenfolge wie
+// zuvor ({{1}} Name, {{2}} das Wort der Auskunft des Landes, {{3}} die Auskunfteien, {{4}} der Preis) — werteFuer bleibt.
+// Kein „Kredit“ (auf WhatsApp gesperrt), kein „Limit“, keine Zusage; die Abgrenzung „keine Auskunft einer Auskunftei“
+// steht im Text.
 const AUSKUNFT_ABSAETZE: Record<string, string[]> = {
   [AUSKUNFT_VORLAGE]: [
     "Hallo {{1}},",
     "hier ist Mara, die digitale Assistentin von FIAON.",
-    "Schon einmal abgelehnt, ohne zu erfahren, warum? Der Grund steht oft bei den Auskunfteien — "
-      + "dort sieht die Bank nach, bevor sie über Ihre Karte entscheidet.",
-    "In Ihrer Akte fehlt noch Ihre {{2}}. Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, "
-      + "zeigen, ob und was Sie bremst, und legen fertige Schreiben zur Freigabe vor.",
+    "Bevor eine Bank über Ihre Karte entscheidet, sieht sie nicht nur in Ihre {{2}} bei {{3}} — "
+      + "sie rechnet auch mit Ihren Kontoauszügen.",
+    "Genau das zeigt Ihnen die FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, jede Ausgabe im Detail, "
+      + "Ampel, Finanzwert und Ihr Plan. Sie laden Ausweis und Kontoauszüge hoch, ein Mensch aus unserem Team prüft den Bericht. "
+      + "Keine Auskunft einer Auskunftei, keine Anfrage dort.",
     "Ihr Preis als FIAON-Kunde: {{4}} einmalig, ohne Abo. Über den Knopf sehen Sie alles in Ruhe; "
-      + "beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen. "
-      + "Schon eine aktuelle Auskunft? Dann laden Sie sie in Ihrem Bereich hoch.",
+      + "bestellt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
     "Fragen beantworte ich gern hier, oder ich hole Ihren Betreuer dazu.",
     AUSKUNFT_STOPP_SATZ,
   ],
   [AUSKUNFT_LEAD_VORLAGE]: [
     "Hallo {{1}},",
     "hier ist Mara, die digitale Assistentin von FIAON.",
-    "Schon einmal abgelehnt, ohne zu erfahren, warum? Der Grund steht oft bei den Auskunfteien — "
-      + "dort sieht die Bank nach, bevor sie über Ihre Karte entscheidet.",
-    "Mit Ihrer {{2}} sehen Sie vorher, was dort steht: Wir holen die Daten bei {{3}} ein, erklären jeden Eintrag, "
-      + "zeigen, ob und was Sie bremst, und legen fertige Schreiben zur Freigabe vor.",
-    "Ihr Preis: {{4}} einmalig, ohne Abo — mit einem FIAON-Paket wird die Auskunft günstiger. "
-      + "Über den Knopf sehen Sie alles in Ruhe; beauftragt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
+    "Bevor eine Bank über Ihre Karte entscheidet, sieht sie nicht nur in Ihre {{2}} bei {{3}} — "
+      + "sie rechnet auch mit Ihren Kontoauszügen.",
+    "Genau das zeigt Ihnen die FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, jede Ausgabe im Detail, "
+      + "Ampel, Finanzwert und Ihr Plan. Sie laden Ausweis und Kontoauszüge hoch, ein Mensch aus unserem Team prüft den Bericht. "
+      + "Keine Auskunft einer Auskunftei, keine Anfrage dort.",
+    "Ihr Preis: {{4}} einmalig, ohne Abo — mit einem FIAON-Paket wird sie günstiger. "
+      + "Über den Knopf sehen Sie alles in Ruhe; bestellt ist erst, wenn Sie auf der nächsten Seite bestätigen.",
     "Fragen beantworte ich gern hier, oder ich verbinde Sie mit einem Menschen aus unserem Team.",
     AUSKUNFT_STOPP_SATZ,
   ],
@@ -506,14 +519,14 @@ const auskunftText = (name: string) => AUSKUNFT_ABSAETZE[name].join(" ");
 const WA_VORLAGEN_AUSKUNFT: WaVorlage[] = [
   {
     name: AUSKUNFT_VORLAGE,
-    kopf: "Ihre Bonitätsauskunft fehlt noch",
+    kopf: "Ihre Bonität aus Sicht einer Bank",
     fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
-    zweck: "Angebot der Bonitätsauskunft an zahlende Kunden ohne Auskunft — Winkel „abgelehnt, ohne zu erfahren, warum?“, Kundenpreis, Knopf zur Bestätigungsseite, Hochlade-Weg im Bereich.",
+    zweck: "E-365: Angebot der FIAON-Bonitätsauswertung an zahlende Kunden ohne Auswertung (nie an Paketkunden, deren Kartenlink auf sie wartet — dort ist sie inklusive) — Winkel „was die Bank sieht“, Kundenpreis, Knopf zur Bestätigungsseite.",
     // Integration 26.09.2026 (E-243): frühestens 1 Tag nach Mail a (vorher 3), Fenster Mo–So 07:00–20:30.
     wann: "Gruppe „Auskunft fehlt“ der WA-Zentrale und Verkaufstakt (frühestens 1 Tag nach der Angebots-Mail, Mo–So 07:00–20:30) — zahlende Kunden ohne Auskunft, "
       + "je nach Verkaufskreis (auskunft_verkauf_kreis) nur ab dem 02.09.2026 12:35 oder alle; nur mit WhatsApp-Einwilligung, einmal je Kunde, "
-      + "zusammen mit fiaon_kk_auskunft_lead höchstens auskunft_verkauf_wa_pro_tag am Tag.",
+      + "zusammen mit fiaon_kk_auswertung_lead höchstens auskunft_verkauf_wa_pro_tag am Tag.",
     text: auskunftText(AUSKUNFT_VORLAGE),
     // {{1}} ist der ganze Name wie bei der Monatsrate (werteFuer: k.name) — das Beispiel zeigt es so.
     beispiele: ["Maria Muster", "SCHUFA-Auskunft", "SCHUFA, CRIF und Creditreform Boniversum", "74 €"],
@@ -521,13 +534,13 @@ const WA_VORLAGEN_AUSKUNFT: WaVorlage[] = [
   },
   {
     name: AUSKUNFT_LEAD_VORLAGE,
-    kopf: "Was die Bank über Sie sieht",
+    kopf: "Was die Bank über Sie rechnet",
     fuss: "FIAON LTD · Mara Lindner",
     kategorie: "MARKETING",
-    zweck: "Angebot der Bonitätsauskunft an fertige Anträge ohne Zahlung, Leads und Abbrecher — Winkel „abgelehnt, ohne zu erfahren, warum?“, "
-      + "Einzelpreis mit dem Hinweis, dass die Auskunft mit Paket günstiger ist, Knopf zur Bestätigungsseite; ohne Akte, Betreuer und Hochlade-Weg.",
+    zweck: "E-365: Angebot der FIAON-Bonitätsauswertung an fertige Anträge ohne Zahlung, Leads und Abbrecher — Winkel „was die Bank sieht“, "
+      + "Einzelpreis mit dem Hinweis, dass sie mit Paket günstiger ist, Knopf zur Bestätigungsseite.",
     wann: "Nur im Verkaufskreis „alle“ (auskunft_verkauf_kreis): Verkaufstakt und WA-Zentrale für Antrag fertig ohne Zahlung (B), Leads (C) und Abbrecher ohne Auskunft — "
-      + "nur mit WhatsApp-Einwilligung, einmal je Mensch, zusammen mit fiaon_kk_auskunft höchstens auskunft_verkauf_wa_pro_tag am Tag.",
+      + "nur mit WhatsApp-Einwilligung, einmal je Mensch, zusammen mit fiaon_kk_auswertung höchstens auskunft_verkauf_wa_pro_tag am Tag.",
     text: auskunftText(AUSKUNFT_LEAD_VORLAGE),
     beispiele: ["Maria Muster", "SCHUFA-Auskunft", "SCHUFA, CRIF und Creditreform Boniversum", "149 €"],
     knoepfe: [AUSKUNFT_KAUF, FRAGE, STOPP],
@@ -585,6 +598,9 @@ const BILD_FUER: Record<string, WaBild> = {
   // E-241: „Ihr Weg zur Kreditkarte" — die Auskunft ist ein Schritt dorthin; kein Bild zeigt eine Zahlung.
   fiaon_kk_auskunft: "karte",
   fiaon_kk_auskunft_lead: "karte",
+  // E-365: die Vorlagen der Bonitätsauswertung.
+  fiaon_kk_auswertung: "karte",
+  fiaon_kk_auswertung_lead: "karte",
 };
 
 /**

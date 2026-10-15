@@ -9,7 +9,7 @@
 // dem Mitarbeiter-Office (BoniAmpel), keine Weitergabe (Prüfstand
 // pruef-boni-ampel.ts, Abschnitt „Einsatzort Finanzauswertung").
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   AMPEL_WORT, BEREICHE, FINANZWERT_KENNZEICHNUNG, FRIST_TEXT, VORBEHALT_TEXTE, FA_WERT_NAME,
@@ -23,7 +23,52 @@ const datum = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleD
 const tag = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
 interface Fassung { id: number; nummer: string; fassung: number; freigegebenAm: string | null; status: string }
-interface Antwort { ok: boolean; gelesen?: boolean; laufend?: boolean; aktuell: (Fassung & { inhalt: AuswertungInhalt | null }) | null; fruehere: Fassung[]; error?: string }
+/** E-365: der Stand ohne freigegebene Fassung (Server: auswertungLage). */
+interface Lage { stand: string; fehlt: ("ausweis" | "kontoauszug")[]; abText: string | null; preisText: string; inklusive: boolean; zahlungsseite: string | null; paketLaeuft: boolean }
+interface Antwort { ok: boolean; gelesen?: boolean; laufend?: boolean; paket?: boolean; lage?: Lage | null; aktuell: (Fassung & { inhalt: AuswertungInhalt | null }) | null; fruehere: Fassung[]; error?: string }
+
+const FEHLT_TEXT = (f: Lage["fehlt"]) => f.map((x) => (x === "ausweis" ? "Ihr Ausweis" : "Ihre Kontoauszüge der letzten drei Monate")).join(" und ") || "Ihr Ausweis und Ihre Kontoauszüge";
+
+/** E-365: Die leere Ansicht sagt, wo der Kunde steht, und führt zum nächsten Schritt — nie eine Sackgasse. */
+function LeerStand({ a, basis }: { a: Antwort; basis: string }) {
+  const l = a.lage ?? null;
+  const knopf = (href: string, text: string, extern = false) => extern
+    ? <a className="fa-knopf" href={href} style={{ marginTop: 12, display: "inline-block" }}>{text}</a>
+    : <Link className="fa-knopf" href={href} style={{ marginTop: 12, display: "inline-block" }}>{text}</Link>;
+  let titel = "Ihre FIAON-Bonitätsauswertung";
+  let satz: string;
+  let aktion: ReactNode = null;
+  if (l?.stand === "unterlagen_fehlen") {
+    titel = l.inklusive ? "Im Paket enthalten — jetzt nur noch Ihre Unterlagen" : "Bezahlt — jetzt nur noch Ihre Unterlagen";
+    satz = `Für Ihre Bonitätsauswertung fehlt noch: ${FEHLT_TEXT(l.fehlt)}. Ein Handyfoto genügt, wenn alles lesbar ist — dann entwickelt Ihr FIAON-Team Ihren Bericht.`;
+    aktion = knopf(`${basis}/unterlagen`, "Jetzt hochladen");
+  } else if (l?.stand === "beginnt_ab") {
+    satz = `Ihre Unterlagen sind da. Wie bei Ihrer Bestellung gewählt, beginnen wir am ${l.abText ?? "Ende der Widerrufsfrist"} — Sie bekommen den Bericht als PDF per E-Mail und finden ihn hier.`;
+  } else if (l?.stand === "wird_entwickelt") {
+    titel = "Ihre Bonitätsauswertung wird entwickelt";
+    satz = "Ausweis und Kontoauszüge liegen vor. Ihr FIAON-Team wertet jede Buchung aus; ein Mensch prüft den Bericht und gibt ihn frei — dann finden Sie ihn hier, mit Ampel, Finanzwert, Plan und PDF.";
+  } else if (l?.stand === "zahlung_offen") {
+    satz = "Ihre Bonitätsauswertung ist bestellt — die Zahlung ist noch offen. Danach laden Sie Ausweis und Kontoauszüge hoch.";
+    if (l.zahlungsseite) aktion = knopf(l.zahlungsseite, "Zur Zahlung", true);
+  } else if (l?.stand === "nicht_bestellt") {
+    titel = "Ihre Bonität aus Sicht einer Bank";
+    satz = `Die FIAON-Bonitätsauswertung aus Ihren eigenen Kontoauszügen: Haushaltsrechnung, jede Ausgabe im Detail, Ampel für sieben Bereiche, Ihr FIAON-Finanzwert und Ihr Plan — rund 25 Seiten, ${l.preisText} einmalig.`;
+    aktion = knopf(`${basis}/unterlagen`, "Bonitätsauswertung ansehen");
+  } else {
+    satz = a.laufend !== false
+      ? "Ihre Ansprechperson erstellt die Auswertung aus Ihren Unterlagen und gibt sie frei — dann finden Sie sie hier, mit Ampel, Plan und PDF."
+      : "Für Ihr Konto liegt keine Bonitätsauswertung vor.";
+  }
+  return (
+    <div className="fa">
+      <div className="fa-karte fa-leer" data-fiaon="auswertung-leer" data-stand={l?.stand ?? "unbekannt"}>
+        <b>{titel}</b>
+        <p className="fa-still" style={{ marginTop: 6 }}>{satz}</p>
+        {aktion}
+      </div>
+    </div>
+  );
+}
 
 async function laden(kundeRef: string, opts: { kurz?: boolean; gelesen?: boolean } = {}): Promise<Antwort | null> {
   const q = new URLSearchParams();
@@ -67,7 +112,7 @@ function wirkungText(w: AuswertungInhalt["schritte"][number]["wirkung"]): string
 }
 
 /** Die ganze Ansicht (Vollbild in /app, Abschnitt in /mein-bereich). */
-export function FinanzauswertungAnsicht({ kundeRef, demo = false, zurueck }: { kundeRef: string; demo?: boolean; zurueck?: { href: string; text: string } }) {
+export function FinanzauswertungAnsicht({ kundeRef, demo = false, zurueck, basis = "/app" }: { kundeRef: string; demo?: boolean; zurueck?: { href: string; text: string }; basis?: string }) {
   const [a, setA] = useState<Antwort | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   useEffect(() => {
@@ -81,27 +126,14 @@ export function FinanzauswertungAnsicht({ kundeRef, demo = false, zurueck }: { k
   if (fehler) return <div className="fa"><div className="fa-karte fa-leer">{fehler}</div></div>;
   if (!a) return <div className="fa"><div className="fa-karte fa-leer fa-still">Wird geladen …</div></div>;
   const x = a.aktuell?.inhalt ?? null;
-  if (!a.aktuell || !x) {
-    return (
-      <div className="fa">
-        <div className="fa-karte fa-leer">
-          <b>Ihre Finanz- und Bonitätsauswertung</b>
-          {/* Querprüfung 08.10.2026: Versprochen wird nur, was jemand auslöst — Ihre Ansprechperson erstellt die Auswertung;
-              ohne laufendes Paket (gekündigt, beendet, keins) kein Versprechen. */}
-          <p className="fa-still" style={{ marginTop: 6 }}>{a.laufend !== false
-            ? "Ihre Ansprechperson erstellt die Auswertung aus Ihren Unterlagen und gibt sie frei — dann finden Sie sie hier, mit Ampel, Plan und PDF. Fehlt noch etwas, sagt sie es Ihnen."
-            : "Eine Finanz- und Bonitätsauswertung gehört zu einem laufenden FIAON-Paket. Für Ihr Konto liegt keine vor."}</p>
-        </div>
-      </div>
-    );
-  }
+  if (!a.aktuell || !x) return <LeerStand a={a} basis={basis} />;
   const f = x.fakten;
   const fristen: Frist[] = ["sofort", "30", "90", "365"];
   return (
     <div className="fa">
       {zurueck && <Link className="fa-link" href={zurueck.href} style={{ display: "inline-block", marginBottom: 10 }}>← {zurueck.text}</Link>}
       <section className="fa-buehne" aria-label="Ihr FIAON-Finanzwert">
-        <div className="fa-art">Finanz- und Bonitätsauswertung · {x.nummer}</div>
+        <div className="fa-art">FIAON-Bonitätsauswertung · {x.nummer}</div>
         <Skala wert={x.finanzwert.wert} />
         <div className="fa-wert">{x.finanzwert.wert}<small>{FA_WERT_NAME} · 100–999</small></div>
         <div className="fa-band">{x.finanzwert.band.charAt(0).toUpperCase() + x.finanzwert.band.slice(1)}</div>
@@ -167,8 +199,24 @@ export function FinanzauswertungAnsicht({ kundeRef, demo = false, zurueck }: { k
         </>
       )}
 
-      <a className="fa-knopf" href={pdfUrl(kundeRef, a.aktuell.id)}>Auswertung als PDF speichern</a>
+      {/* E-365: Was nur im PDF steht — damit niemand glaubt, die Ansicht sei schon der ganze Bericht. */}
+      <div className="fa-karte" data-fiaon="auswertung-pdf-kapitel">
+        <b>Im PDF außerdem</b>
+        <p className="fa-still" style={{ marginTop: 4 }}>Ihre Bonität aus Sicht einer Bank (Haushaltsrechnung und die neun Merkmale einer Kreditprüfung), jede Ausgabe nach Empfänger, Ihr Monat im Ablauf, Kennzahlen gegen Richtwerte, Ihr Potenzial und die Hochrechnung auf zwölf Monate.</p>
+      </div>
+      <a className="fa-knopf" href={pdfUrl(kundeRef, a.aktuell.id)}>Bonitätsauswertung als PDF speichern</a>
       <a className="fa-knopf still" href={pdfUrl(kundeRef, a.aktuell.id, true)} target="_blank" rel="noreferrer">PDF im Browser ansehen</a>
+      {/* E-365: Ohne Paket der ruhige nächste Schritt — eine Seite der Website, keine Werbung per Post. */}
+      {a.paket === false && (
+        <div className="fa-karte" data-fiaon="auswertung-naechster-schritt" style={{ marginTop: 14 }}>
+          <b>Ihr nächster Schritt: Konto und Karte mit FIAON</b>
+          <p className="fa-still" style={{ marginTop: 4 }}>Mit einem FIAON-Paket begleitet Sie Ihre Ansprechperson auf dem Weg zu Konto und Karte bei unserer Partnerbank — auf Grundlage dieser Auswertung.</p>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
+            <a className="fa-link" href="/privatkunden">Pakete ansehen →</a>
+            <a className="fa-link" href="/partnerbank-dkb">Unsere Partnerbank →</a>
+          </div>
+        </div>
+      )}
 
       {a.fruehere.length > 0 && (
         <>
@@ -199,8 +247,8 @@ export function FinanzauswertungKarte({ kundeRef, demo = false, href, nurNeu = f
   return (
     <Link href={href} className="fa" style={{ display: "block", textDecoration: "none" }}>
       <div className="fa-karte" style={{ borderColor: "#D6E3F7", background: "#F7FAFE" }}>
-        <b style={{ color: "#0B1220" }}>{a.gelesen ? "Ihre Finanz- und Bonitätsauswertung" : "Ihre Finanz- und Bonitätsauswertung liegt bereit"}</b>
-        <p className="fa-still" style={{ margin: "4px 0 0" }}>Ampel je Bereich, Ihr Plan mit konkreten Schritten und das PDF — freigegeben am {datum(a.aktuell.freigegebenAm)}.</p>
+        <b style={{ color: "#0B1220" }}>{a.gelesen ? "Ihre FIAON-Bonitätsauswertung" : "Ihre FIAON-Bonitätsauswertung liegt bereit"}</b>
+        <p className="fa-still" style={{ margin: "4px 0 0" }}>Ihre Bonität aus Sicht einer Bank: Ampel je Bereich, Ihr Plan mit konkreten Schritten und das PDF — freigegeben am {datum(a.aktuell.freigegebenAm)}.</p>
         <span className="fa-link" style={{ display: "inline-block", marginTop: 8 }}>Ansehen →</span>
       </div>
     </Link>

@@ -2,15 +2,18 @@
 // Die Agenda des Startgesprächs kommt aus shared/fiaon-onboarding-agenda.ts (Betriebsquelle,
 // deutsch); die englische Fassung steht hier je Schritt in derselben Reihenfolge.
 // Der FAQ-Generator teilt an „const en".
+// 14.10.2026 (E-365): FIAON beschafft keine Auskunft mehr (keine Vollmacht, kein
+// „24 Stunden"). Das Produkt ist die FIAON-Bonitätsauswertung aus Ausweis und
+// Kontoauszügen; die Datenkopie fordert der Kunde selbst an und lädt sie hoch.
 const de = {
   metaTitel: "Plattform-Konzept · So funktioniert FIAON",
   metaBeschreibung: "Die ganze Plattform erklärt: drei Schichten, der Weg Tag für Tag, Paketfinder, Kundenbereich, Startgespräch, DACH, Technik und Sicherheit – und was FIAON nicht ist.",
   heroPille: "Plattform-Konzept", heroA: "Bonität, ", heroB: "zu Ende gedacht.",
-  heroLead: "Einsicht, Aktion, Zugang: FIAON beschafft Ihre Auskunft, bereinigt, was angreifbar ist, und öffnet Konto und Karte. Hier ist die ganze Plattform – Schicht für Schicht, Tag für Tag.",
+  heroLead: "Einsicht, Aktion, Zugang: FIAON zeigt Ihre Bonität aus Sicht einer Bank, bereinigt, was angreifbar ist, und öffnet Konto und Karte. Hier ist die ganze Plattform – Schicht für Schicht, Tag für Tag.",
   wegAnsehen: "Den Weg ansehen", paketfinder: "Paketfinder",
   schichtenPille: "Drei Schichten", schichtenA: "Eine Plattform, ", schichtenB: "drei Schichten.", schichtenLead: "Jede Schicht baut auf der vorigen auf. Die meisten Anbieter hören nach der ersten auf.",
   schichten: [
-    { nr: "I", titel: "Einsicht", text: "Die Bonitätsauskunft – SCHUFA, KSV1870, CRIF – mit Vollmacht beschafft und in Menschensprache erklärt. Dazu die Auswertung des Kontoauszugs: Einnahmen, Fixkosten, Spielraum.", ergebnis: "Ergebnis: Sie wissen, was die Auskunfteien über Sie wissen." },
+    { nr: "I", titel: "Einsicht", text: "Die FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen, mit Haushaltsrechnung, Ampel und Plan. Dazu Ihre kostenlose Datenkopie von SCHUFA, KSV1870 oder CRIF: Sie fordern sie selbst an und laden sie hoch, wir erklären sie in Menschensprache.", ergebnis: "Ergebnis: Sie wissen, wie eine Bank Sie sieht – und was die Auskunfteien über Sie wissen." },
     { nr: "II", titel: "Aktion", text: "Für jeden angreifbaren Eintrag ein anwaltlich geprüftes Schreiben: Löschantrag, Widerspruch, Berichtigung, Ratenangebot. Sie geben frei, FIAON versendet per Einschreiben, verfolgt Fristen und Antworten.", ergebnis: "Ergebnis: Was nicht hingehört, ist weg." },
     { nr: "III", titel: "Zugang", text: "Girokonto für jeden Kunden, unabhängig von der Bonität. Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht. Später Finanzierung. Über alles entscheidet die Bank – FIAON bereitet vor.", ergebnis: "Ergebnis: Türen, die vorher zu waren." },
   ],
@@ -20,9 +23,9 @@ const de = {
   weg: [
     { tag: "Tag 0", titel: "Antrag in rund fünf Minuten", text: "Ihre Angaben, die Prüfung direkt im Antrag, Paket und Vertrag – danach die erste Monatsrate per Überweisung, und Ihr Bereich ist eingerichtet.", bereich: "Übersicht · Einrichtung" },
     { tag: "Tag 1–3", titel: "Startgespräch, 15 Minuten", text: "Ein Mitarbeiter ruft an: Lage, Ziel, Unterlagen, nächste Schritte. Danach kennen Sie Ihren festen Ansprechpartner.", bereich: "Mein Fahrplan" },
-    { tag: "Tag 1–5", titel: "Unterlagen mit dem Handy", text: "Kontoauszug der letzten drei Monate und Ausweis fotografieren. Vollmacht für die Auskunft digital unterschreiben.", bereich: "Unterlagen" },
-    { tag: "Tag 3–10", titel: "Auskunft beschafft", text: "FIAON holt die Bonitätsauskunft bei SCHUFA, KSV1870 oder CRIF. Jeder Eintrag wird in Menschensprache erklärt und bewertet: berechtigt, angreifbar, falsch.", bereich: "Meine Bonität" },
-    { tag: "Tag 5–12", titel: "Finanzauswertung", text: "Aus dem Kontoauszug entsteht Ihre Übersicht: Einnahmen, Fixkosten, Spielraum. Ohne Bewertung, ohne Belehrung – nur Klarheit.", bereich: "Meine Finanzen" },
+    { tag: "Tag 1–5", titel: "Unterlagen mit dem Handy", text: "Kontoauszüge der letzten drei Monate und Ausweis fotografieren und per Link hochladen. Ihre kostenlose Datenkopie fordern Sie selbst an – unser Generator schreibt den Brief.", bereich: "Unterlagen" },
+    { tag: "Nach dem Upload", titel: "Bonitätsauswertung", text: "Aus Ausweis und Kontoauszügen entsteht Ihre Bonitätsauswertung: Haushaltsrechnung, jede Einnahme und Ausgabe nach Empfänger, Ampel, FIAON-Finanzwert und Plan. Ein Mensch prüft sie und gibt sie frei.", bereich: "Meine Finanzen" },
+    { tag: "Mit Ihrer Datenkopie", titel: "Jeder Eintrag erklärt", text: "Sobald Sie Ihre Datenkopie hochladen, wird jeder Eintrag in Menschensprache erklärt und bewertet: berechtigt, angreifbar, falsch.", bereich: "Meine Bonität" },
     { tag: "Tag 10–20", titel: "Schreiben gehen raus", text: "Für angreifbare Einträge liegen anwaltlich geprüfte Schreiben bereit. Sie geben frei, FIAON versendet per Einschreiben und verfolgt die Frist.", bereich: "Meine Schreiben" },
     { tag: "Woche 3–8", titel: "Antworten und Löschungen", text: "Gläubiger und Auskunfteien antworten. FIAON bewertet, hakt nach, eskaliert bei Bedarf zur Datenschutzbehörde. Jeder Stand in der Akte.", bereich: "Meine Schreiben" },
     { tag: "Woche 2–6", titel: "Girokonto", text: "Unabhängig von der Bonität: FIAON bereitet die Kontoeröffnung vor, Sie bestätigen bei der Bank. Ein Konto, das nicht gekündigt wird, weil ein Eintrag auftaucht.", bereich: "Meine Vorteile" },
@@ -33,7 +36,7 @@ const de = {
   frage: "Frage",
   finderFragen: [
     { key: "wer", frage: "Für wen suchen Sie?", optionen: [["privat", "Für mich privat"], ["business", "Für mein Unternehmen"]] as [string, string][] },
-    { key: "lage", frage: "Wie ist die Lage?", optionen: [["klar", "Ich will nur wissen, was drinsteht"], ["eintrag", "Es gibt Einträge, die weg sollen"], ["zugang", "Ich brauche Konto oder Karte"], ["alles", "Alles davon – und einen festen Ansprechpartner"]] as [string, string][] },
+    { key: "lage", frage: "Wie ist die Lage?", optionen: [["klar", "Ich will nur wissen, wie eine Bank mich sieht"], ["eintrag", "Es gibt Einträge, die weg sollen"], ["zugang", "Ich brauche Konto oder Karte"], ["alles", "Alles davon – und einen festen Ansprechpartner"]] as [string, string][] },
     { key: "tempo", frage: "Wie schnell soll es gehen?", optionen: [["ruhig", "In Ruhe, Schritt für Schritt"], ["zuegig", "Zügig, ich habe Fristen"], ["sofort", "So schnell wie irgendwie möglich"]] as [string, string][] },
   ],
   // 17.09.2026 (E-188): Für Unternehmen gibt es FIAON Global statt der früheren
@@ -43,8 +46,8 @@ const de = {
   globalAb: (ab: string) => `ab ${ab} einmalig`,
   globalGespraech: "Erst sprechen",
   gruende: {
-    schufa: "Nur die Auskunft, erklärt – kein Abo. Wer danach mehr will, rechnet den Betrag an.",
-    start: "Auskunft, Erklärung und die Schreiben zum Selbstversand – günstig und vollständig.",
+    schufa: "Nur die Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen – einmalig, kein Abo.",
+    start: "Bonitätsauswertung, Erklärung Ihrer Datenkopie und die Schreiben zum Selbstversand – günstig und vollständig.",
     pro_fristen: "FIAON versendet und verfolgt – bei Fristen der Unterschied zwischen Tag 100 und Tag 101.",
     pro_zugang: "Konto- und Kartenvorbereitung sind ab Pro enthalten.",
     highend: "Vorrang bei allem, direkter Draht, alles aus einer Hand.",
@@ -55,7 +58,7 @@ const de = {
   bereichPille: "Der Kundenbereich", bereichA: "Zwölf Räume, ", bereichB: "eine Akte.", bereichLead: "Alles, was FIAON für Sie tut, steht an einem Ort – nachlesbar, jederzeit, vom Handy.",
   bereich: [
     ["Übersicht", "Fahrplan mit Etappen, nächste Schritte, Stand der Akte."], ["Meine Bonität", "Jeder Eintrag erklärt und bewertet; Score-Entwicklung."], ["Konto verbinden", "Kontoanbindung für die laufende Auswertung (kommt)."], ["Meine Finanzen", "Einnahmen, Fixkosten, Spielraum aus dem Kontoauszug."],
-    ["Mein Fahrplan", "Startgespräch, Unterlagen, Auskunft, Analyse, Schreiben, Konto, Karte."], ["Meine Schreiben", "Entwürfe, Freigabe, Versand, Fristen, Antworten."], ["Unterlagen", "Handyfoto genügt. Alles an einem Ort."], ["Meine Vorteile", "Girokonto, Karte, Partnerangebote."],
+    ["Mein Fahrplan", "Startgespräch, Unterlagen, Bonitätsauswertung, Datenkopie, Schreiben, Konto, Karte."], ["Meine Schreiben", "Entwürfe, Freigabe, Versand, Fristen, Antworten."], ["Unterlagen", "Handyfoto genügt. Alles an einem Ort."], ["Meine Vorteile", "Girokonto, Karte, Partnerangebote."],
     ["Mein Konto", "Daten, Ansprechpartner, Referenz."], ["Abo & Zahlungen", "Raten, Zahlungskalender, Abo kündigen."], ["Passwort & Sicherheit", "Passwort ändern, Sitzungen."], ["Hilfe", "Anliegen direkt an den Ansprechpartner, nachlesbar in der Akte."],
   ] as [string, string][],
   demoAnsehen: "Den Bereich als Demo ansehen",
@@ -67,40 +70,40 @@ const de = {
     ["Österreich", "KSV1870 und CRIF. Auskunft nach Art. 15 DSGVO; Löschung in der Regel drei Jahre nach Erledigung; Konsumenteninformation nach § 152 GewO."],
     ["Schweiz", "CRIF, Intrum und das Betreibungsregister beim Betreibungsamt. Auskunft nach Art. 25 DSG; Betreibungen bleiben fünf Jahre sichtbar – unbegründete lassen sich entfernen (Art. 8a SchKG)."],
   ] as [string, string][],
-  technikPille: "Technik & Sicherheit", technikA: "Gebaut wie eine Bank, ", technikB: "gesprochen wie ein Mensch.", technikLead: "Ihre Auskunft ist das sensibelste Dokument, das es über Sie gibt. So behandeln wir es.",
+  technikPille: "Technik & Sicherheit", technikA: "Gebaut wie eine Bank, ", technikB: "gesprochen wie ein Mensch.", technikLead: "Ihre Kontoauszüge und Ihre Auskunft sind die sensibelsten Dokumente, die es über Sie gibt. So behandeln wir sie.",
   kennzahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS", label: "Verschlüsselte Übertragung, verschlüsselte Ablage" }, { wert: "SEPA", label: "Jede Zahlung per Überweisung, keine gespeicherten Zahlungsdaten" }, { wert: "0", label: "Daten an Dritte verkauft – nie" }],
   technik: [
-    { tag: "Vollmacht", titel: "Nur mit Ihrer Unterschrift", text: "FIAON beschafft die Auskunft ausschließlich mit Ihrer digitalen Vollmacht – und nur bei den Auskunfteien, die Sie freigeben." },
+    { tag: "Upload", titel: "Nur, was Sie hochladen", text: "FIAON fordert nichts bei Auskunfteien an. Wir arbeiten mit dem, was Sie selbst hochladen – Ausweis, Kontoauszüge und, wenn Sie möchten, Ihre Datenkopie." },
     { tag: "Freigabe", titel: "Kein Schreiben ohne Sie", text: "Jedes Schreiben sehen Sie vor dem Versand. Sie geben frei, FIAON versendet. Nichts geht raus, was Sie nicht gelesen haben." },
     { tag: "Löschung", titel: "Ihre Daten, Ihr Ende", text: "Nach Vertragsende löschen wir Auskunft und Unterlagen auf Wunsch vollständig. Sie können jederzeit eine Kopie Ihrer Akte anfordern." },
   ],
   nichtPille: "Ehrlichkeit", nichtA: "Was FIAON ", nichtB: "nicht ist.",
   nicht: [
-    { tag: "Keine Beratung", titel: "Wir übernehmen, wir beraten nicht", text: "FIAON ist keine Rechts- oder Finanzberatung. Wir beschaffen, erklären, bereiten vor, versenden, verfolgen. Bei echten Rechtsstreitigkeiten nennen wir Anwälte." },
+    { tag: "Keine Beratung", titel: "Wir übernehmen, wir beraten nicht", text: "FIAON ist keine Rechts- oder Finanzberatung. Wir werten aus, erklären, bereiten vor, versenden, verfolgen. Bei echten Rechtsstreitigkeiten nennen wir Anwälte." },
     { tag: "Keine Garantie", titel: "Kein Score-Versprechen", text: "Niemand kann einen Score „verbessern“ – nur Einträge, die nicht hingehören, entfernen. Berechtigte Einträge bleiben, bis ihre Frist abläuft. Das sagen wir vorher." },
     { tag: "Keine Bank", titel: "Die Bank entscheidet", text: "Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON sorgt dafür, dass die Unterlagen vollständig sind und die Auskunft stimmt – mehr nicht, und das ist viel." },
   ],
   fragenPille: "Häufige Fragen",
   fragen: [
-    { f: "Wie lange dauert es, bis ich meine Auskunft sehe?", a: "In der Regel innerhalb von 24 Stunden nach Eingang bei FIAON. Die Auskunfteien selbst brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen." },
+    { f: "Wie komme ich zu meiner Bonitätsauskunft?", a: "Ihre Datenkopie fordern Sie selbst an – kostenlos, unser Generator schreibt den Brief. Die Auskunfteien brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen. Die FIAON-Bonitätsauswertung zeigt dazu Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein." },
     { f: "Was, wenn alle Einträge berechtigt sind?", a: "Dann sagen wir das. Sie bekommen die Löschdaten, die 100-Tage-Regel, wo sie greift, und den Weg zu Konto und Karte über den Wert statt über die Bereinigung." },
     { f: "Kann ich das Paket wechseln oder kündigen?", a: "Ja – im Antrag, im Startgespräch und im Kundenbereich unter Abo & Zahlungen. Zwölf Raten, dann entscheiden Sie frei." },
     { f: "Muss ich mit jemandem sprechen?", a: "Einmal, 15 Minuten. Das Startgespräch ist Pflicht, weil es den Unterschied macht. Danach läuft alles über den Bereich, Telefon und E-Mail nach Bedarf." },
     { f: "Wer sieht meine Daten?", a: "Ihr Ansprechpartner und die Mitarbeiter, die an Ihrer Akte arbeiten. Niemand sonst. Daten werden nie verkauft oder für Werbung weitergegeben." },
   ],
   zwischenrufFett: "Noch Fragen zur Plattform?", zwischenruf: " Der FIAON-Assistent kennt jede Seite, jedes Paket und jede Frist – sofort, kostenlos.", assistentFragen: "Assistent fragen", kontaktSupport: "Kontakt & Support",
-  abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskunft innerhalb von 24 Stunden, ein Mensch, der Sie durch alles Weitere begleitet.",
+  abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Ihre Bonitätsauswertung aus Ihren Kontoauszügen, ein Mensch, der Sie durch alles Weitere begleitet.",
   jetztStarten: "Jetzt starten", paketeAnsehen: "Pakete ansehen",
 };
 const en: typeof de = {
   metaTitel: "How FIAON works: the platform concept day by day | FIAON",
   metaBeschreibung: "The whole platform explained: three layers, the route day by day, plan finder, customer area, onboarding call, DACH, security – and what FIAON is not.",
   heroPille: "The platform concept", heroA: "Creditworthiness, ", heroB: "thought through to the end.",
-  heroLead: "Insight, action, access: FIAON obtains your credit report, clears up what can be challenged, and opens account and card. Here is the whole platform – layer by layer, day by day.",
+  heroLead: "Insight, action, access: FIAON shows your creditworthiness as a bank sees it, clears up what can be challenged, and opens account and card. Here is the whole platform – layer by layer, day by day.",
   wegAnsehen: "See the route", paketfinder: "Plan finder",
   schichtenPille: "Three layers", schichtenA: "One platform, ", schichtenB: "three layers.", schichtenLead: "Each layer builds on the previous one. Most providers stop after the first.",
   schichten: [
-    { nr: "I", titel: "Insight", text: "The credit report – SCHUFA, KSV1870, CRIF – obtained with your power of attorney and explained in plain language. Plus the analysis of your bank statement: income, fixed costs, headroom.", ergebnis: "Result: you know what the credit bureaus know about you." },
+    { nr: "I", titel: "Insight", text: "The FIAON credit assessment: your creditworthiness as a bank sees it – from your own bank statements, with household budget, traffic light and plan. Plus your free data copy from SCHUFA, KSV1870 or CRIF: you request it yourself and upload it, we explain it in plain language.", ergebnis: "Result: you know how a bank sees you – and what the credit bureaus know about you." },
     { nr: "II", titel: "Action", text: "For every challengeable entry a lawyer-reviewed letter: deletion request, objection, rectification, instalment offer. You approve, FIAON sends by registered post and tracks deadlines and replies.", ergebnis: "Result: what does not belong is gone." },
     { nr: "III", titel: "Access", text: "A current account for every customer, regardless of creditworthiness. A credit card as soon as your value reaches the card partner's threshold. Later, financing. The bank decides on everything – FIAON prepares.", ergebnis: "Result: doors that were closed before." },
   ],
@@ -109,9 +112,9 @@ const en: typeof de = {
   weg: [
     { tag: "Day 0", titel: "Application in about five minutes", text: "Your details, the check right in the application, plan and contract – then the first monthly instalment by bank transfer, and your area is set up.", bereich: "Overview · Setup" },
     { tag: "Days 1–3", titel: "Onboarding call, 15 minutes", text: "A member of staff calls: situation, goal, documents, next steps. Afterwards you know your dedicated contact.", bereich: "My roadmap" },
-    { tag: "Days 1–5", titel: "Documents with your phone", text: "Photograph the bank statement of the last three months and your ID. Sign the power of attorney for the report digitally.", bereich: "Documents" },
-    { tag: "Days 3–10", titel: "Report obtained", text: "FIAON obtains the credit report from SCHUFA, KSV1870 or CRIF. Every entry is explained in plain language and assessed: justified, challengeable, wrong.", bereich: "My credit file" },
-    { tag: "Days 5–12", titel: "Financial analysis", text: "Your overview emerges from the bank statement: income, fixed costs, headroom. No judgement, no lecture – just clarity.", bereich: "My finances" },
+    { tag: "Days 1–5", titel: "Documents with your phone", text: "Photograph your bank statements for the last three months and your ID and upload them via a link. You request your free data copy yourself – our generator writes the letter.", bereich: "Documents" },
+    { tag: "After the upload", titel: "Credit assessment", text: "Your ID and bank statements become your credit assessment: household budget, every income and expense by payee, traffic light, FIAON financial score and plan. A person checks it and releases it.", bereich: "My finances" },
+    { tag: "With your data copy", titel: "Every entry explained", text: "As soon as you upload your data copy, every entry is explained in plain language and assessed: justified, challengeable, wrong.", bereich: "My credit file" },
     { tag: "Days 10–20", titel: "Letters go out", text: "Lawyer-reviewed letters are ready for challengeable entries. You approve, FIAON sends by registered post and tracks the deadline.", bereich: "My letters" },
     { tag: "Weeks 3–8", titel: "Replies and deletions", text: "Creditors and credit bureaus reply. FIAON assesses, follows up, escalates to the data protection authority if needed. Every status in your file.", bereich: "My letters" },
     { tag: "Weeks 2–6", titel: "Current account", text: "Regardless of creditworthiness: FIAON prepares the account opening, you confirm with the bank. An account that is not closed because an entry turns up.", bereich: "My benefits" },
@@ -122,7 +125,7 @@ const en: typeof de = {
   frage: "Question",
   finderFragen: [
     { key: "wer", frage: "Who are you looking for?", optionen: [["privat", "For me personally"], ["business", "For my business"]] },
-    { key: "lage", frage: "What is the situation?", optionen: [["klar", "I just want to know what is in there"], ["eintrag", "There are entries that should go"], ["zugang", "I need an account or a card"], ["alles", "All of that – and a dedicated contact"]] },
+    { key: "lage", frage: "What is the situation?", optionen: [["klar", "I just want to know how a bank sees me"], ["eintrag", "There are entries that should go"], ["zugang", "I need an account or a card"], ["alles", "All of that – and a dedicated contact"]] },
     { key: "tempo", frage: "How fast should it go?", optionen: [["ruhig", "Calmly, step by step"], ["zuegig", "Quickly, I have deadlines"], ["sofort", "As fast as at all possible"]] },
   ],
   globalTitel: "FIAON Global",
@@ -130,8 +133,8 @@ const en: typeof de = {
   globalAb: (ab: string) => `from ${ab} one-off`,
   globalGespraech: "Talk first",
   gruende: {
-    schufa: "Just the report, explained – no subscription. Anyone who wants more afterwards has the amount credited.",
-    start: "Report, explanation and the letters for you to send yourself – inexpensive and complete.",
+    schufa: "Just the credit assessment: your creditworthiness as a bank sees it, from your own bank statements – one-off, no subscription.",
+    start: "Credit assessment, an explanation of your data copy and the letters for you to send yourself – inexpensive and complete.",
     pro_fristen: "FIAON sends and tracks – with deadlines, the difference between day 100 and day 101.",
     pro_zugang: "Account and card preparation are included from Pro upwards.",
     highend: "Priority in everything, a direct line, everything from one source.",
@@ -142,7 +145,7 @@ const en: typeof de = {
   bereichPille: "The customer area", bereichA: "Twelve rooms, ", bereichB: "one file.", bereichLead: "Everything FIAON does for you is in one place – readable at any time, from your phone.",
   bereich: [
     ["Overview", "Roadmap with stages, next steps, status of your file."], ["My credit file", "Every entry explained and assessed; score development."], ["Connect account", "Account connection for ongoing analysis (coming)."], ["My finances", "Income, fixed costs, headroom from the bank statement."],
-    ["My roadmap", "Onboarding call, documents, report, analysis, letters, account, card."], ["My letters", "Drafts, approval, dispatch, deadlines, replies."], ["Documents", "A phone photo is enough. Everything in one place."], ["My benefits", "Current account, card, partner offers."],
+    ["My roadmap", "Onboarding call, documents, credit assessment, data copy, letters, account, card."], ["My letters", "Drafts, approval, dispatch, deadlines, replies."], ["Documents", "A phone photo is enough. Everything in one place."], ["My benefits", "Current account, card, partner offers."],
     ["My account", "Details, contact, reference."], ["Plan & payments", "Instalments, payment calendar, cancel plan."], ["Password & security", "Change password, sessions."], ["Help", "Requests straight to your contact, readable in your file."],
   ],
   demoAnsehen: "See the area as a demo",
@@ -152,7 +155,7 @@ const en: typeof de = {
     { titel: "Platform tour – what is where", zweck: "Click through together once. Anyone who has walked the route once finds it again." },
     { titel: "Roadmap explained", zweck: "The roadmap is the reason for this call. It is explained, not read out." },
     { titel: "Documents: what is missing, how to upload", zweck: "Missing documents are the most common reason things do not move on." },
-    { titel: "Credit report explained (€74)", zweck: "A report, not advice. The customer decides for themselves – and knows how to pay." },
+    { titel: "Credit assessment explained", zweck: "Not advice: your creditworthiness as a bank sees it, from your own bank statements. For new plan customers it is included in the plan – the customer knows what to upload." },
     { titel: "Plan clarity – confirm the running costs", zweck: "The most common dispute begins with “I thought that was a one-off”." },
     { titel: "Next steps and how to reach us", zweck: "The call ends with an arrangement, not with a goodbye." },
   ],
@@ -162,29 +165,29 @@ const en: typeof de = {
     ["Austria", "KSV1870 and CRIF. Information under Article 15 GDPR; deletion usually three years after settlement; consumer information under Section 152 GewO."],
     ["Switzerland", "CRIF, Intrum and the debt enforcement register at the enforcement office. Information under Article 25 DSG; enforcement proceedings stay visible for five years – unfounded ones can be removed (Article 8a SchKG)."],
   ],
-  technikPille: "Technology & security", technikA: "Built like a bank, ", technikB: "spoken like a human.", technikLead: "Your credit report is the most sensitive document that exists about you. This is how we treat it.",
+  technikPille: "Technology & security", technikA: "Built like a bank, ", technikB: "spoken like a human.", technikLead: "Your bank statements and your credit report are the most sensitive documents that exist about you. This is how we treat them.",
   kennzahlen: [{ wert: "EU", label: "Servers in the European Union, GDPR" }, { wert: "TLS", label: "Encrypted transfer, encrypted storage" }, { wert: "SEPA", label: "Every payment by bank transfer, no stored payment details" }, { wert: "0", label: "Data sold to third parties – never" }],
   technik: [
-    { tag: "Power of attorney", titel: "Only with your signature", text: "FIAON obtains the report exclusively with your digital power of attorney – and only from the credit bureaus you approve." },
+    { tag: "Upload", titel: "Only what you upload", text: "FIAON requests nothing from credit bureaus. We work with what you upload yourself – ID, bank statements and, if you wish, your data copy." },
     { tag: "Approval", titel: "No letter without you", text: "You see every letter before it is sent. You approve, FIAON sends. Nothing goes out that you have not read." },
     { tag: "Deletion", titel: "Your data, your ending", text: "After the contract ends we delete report and documents completely on request. You can request a copy of your file at any time." },
   ],
   nichtPille: "Honesty", nichtA: "What FIAON ", nichtB: "is not.",
   nicht: [
-    { tag: "Not advice", titel: "We take over, we do not advise", text: "FIAON is not legal or financial advice. We obtain, explain, prepare, send, track. In genuine legal disputes we name lawyers." },
+    { tag: "Not advice", titel: "We take over, we do not advise", text: "FIAON is not legal or financial advice. We assess, explain, prepare, send, track. In genuine legal disputes we name lawyers." },
     { tag: "No guarantee", titel: "No score promise", text: "Nobody can “improve” a score – only remove entries that do not belong. Justified entries stay until their period expires. We say so beforehand." },
     { tag: "Not a bank", titel: "The bank decides", text: "The bank always decides on account, card and limit. FIAON makes sure the documents are complete and the report is right – nothing more, and that is a lot." },
   ],
   fragenPille: "Frequently asked questions",
   fragen: [
-    { f: "How long until I see my report?", a: "Usually within 24 hours of receipt at FIAON. The credit bureaus themselves need between a few days and four weeks depending on country and route." },
+    { f: "How do I get my credit report?", a: "You request your data copy yourself – free of charge, our generator writes the letter. The credit bureaus need between a few days and four weeks depending on country and route. The FIAON credit assessment adds your creditworthiness as a bank sees it – from your own bank statements. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it." },
     { f: "What if all entries are justified?", a: "Then we say so. You get the deletion dates, the 100-day rule where it applies, and the route to account and card via your value rather than via the clear-up." },
     { f: "Can I change or cancel the plan?", a: "Yes – in the application, in the onboarding call and in the customer area under Plan & payments. Twelve instalments, then you decide freely." },
     { f: "Do I have to talk to someone?", a: "Once, 15 minutes. The onboarding call is mandatory because it makes the difference. After that everything runs via the area, phone and e-mail as needed." },
     { f: "Who sees my data?", a: "Your contact and the staff working on your file. Nobody else. Data is never sold or passed on for advertising." },
   ],
   zwischenrufFett: "Still have questions about the platform?", zwischenruf: " The FIAON assistant knows every page, every plan and every deadline – immediately, free of charge.", assistentFragen: "Ask the assistant", kontaktSupport: "Contact & support",
-  abschlussA: "Your route begins ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, report within 24 hours, a human who accompanies you through everything else.",
+  abschlussA: "Your route begins ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, your credit assessment from your bank statements, a human who accompanies you through everything else.",
   jetztStarten: "Start now", paketeAnsehen: "See the plans",
 };
 export const PLATTFORM_KONZEPT_WOERTER = { de, en };

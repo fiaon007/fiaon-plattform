@@ -1,6 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /bonitaet-antrag — DIE BESTELLSEITE DER BONITÄTSAUSKUNFT: TEXTE
-// (24.09.2026, E-240)
+// /bonitaet-antrag — DIE BESTELLSEITE: TEXTE
+// (24.09.2026, E-240 · seit 14.10.2026 E-365: privat die FIAON-Bonitätsauswertung)
+//
+// ── E-365 (14.10.2026) ────────────────────────────────────────────────────
+// Privat bestellt der Mensch hier die FIAON-Bonitätsauswertung — aus Ausweis und
+// Kontoauszügen der letzten drei Monate, die er NACH der Bestellung per Link
+// hochlädt. FIAON fragt bei keiner Auskunftei an. Kopf, Bestellkarte, Ablauf und
+// Fragen sprechen je Art (privat/firma); die Firmen-Auskunft ist unverändert.
 //
 // ── WARUM EINE EIGENE DATEI ───────────────────────────────────────────────
 // Auf dieser Seite schließt ein Mensch einen Vertrag. Jeder Satz über Anbieter,
@@ -30,7 +36,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import {
-  AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, euroText, type AuskunftArt, type AuskunftLand,
+  AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_PREISE_CENTS, AUSWERTUNG_KEINE_AUSKUNFT_SATZ,
+  AUSWERTUNG_NAME, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_UNTERZEILE, euroText, type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import {
   AUSKUNFT_ANBIETER_ZEILE, AUSKUNFT_KEIN_WIDERRUF, AUSKUNFT_KONTAKT_ZEILE, AUSKUNFT_LAUFZEIT, AUSKUNFT_PREIS_STEUER,
@@ -46,7 +53,7 @@ import { verkaufbarePakete } from "@shared/fiaon-pakete";
 const PAKET_RATEN = verkaufbarePakete("privat").filter((p) => p.abo && !p.zusatz).map((p) => p.preisCents);
 export const PAKET_AB: string | null = PAKET_RATEN.length ? euroText(Math.min(...PAKET_RATEN)) : null;
 
-/** Der Weg ins Paket mit Auskunft — das Bündel baut der Antrag (/antrag), hier nur der Link. */
+/** Der Weg ins Paket — das Bündel baut der Antrag (/antrag), hier nur der Link. */
 export const PAKET_MIT_AUSKUNFT_PFAD = "/antrag?src=auskunft&auskunft=1";
 
 /**
@@ -57,8 +64,10 @@ export const PAKET_MIT_AUSKUNFT_PFAD = "/antrag?src=auskunft&auskunft=1";
  * 2026-09-25b (E-241): Der Haken „Vollmacht zur Übermittlung" ist jetzt der
  * Beschaffungsauftrag (hakenAuftrag, Schlüssel „beschaffungsauftrag") — die
  * Vollmacht deckte nur die kostenlose Datenkopie, nicht den Kauf der Auskunft.
+ * 2026-10-15 (E-365): privat ist die Leistung die FIAON-Bonitätsauswertung — Leistungszeile,
+ * Endzeile, Auftrag (AUSKUNFT_AUFTRAG_FASSUNG 2026-10-15) und Leistungszeit neu.
  */
-export const BESTELL_FASSUNG = "2026-09-25b";
+export const BESTELL_FASSUNG = "2026-10-15";
 
 /** Der Knopf nach § 312j Abs. 3 BGB — wörtlich, ohne Zusatz. */
 export const BESTELL_KNOPF = "Zahlungspflichtig bestellen";
@@ -89,23 +98,36 @@ export const REGISTER_BEISPIEL: Record<AuskunftLand, string> = {
 };
 
 export const T = {
-  pille: "Bonitätsauskunft · Einmalpreis, kein Abo",
-  h1a: "Ihre Bonitätsauskunft.",
-  h1b: " Angefordert, erklärt, mit Plan.",
-  lead: "Wir fordern Ihre Datenkopien bei den großen Auskunfteien Ihres Landes an, erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen einen Handlungsplan mit fertigen Schreiben.",
-  fakten: ["Die großen Auskunfteien Ihres Landes", "Jede Zeile in klaren Worten", "Schreiben zur Freigabe"],
+  // Der Kopf je Art (E-365): privat die Bonitätsauswertung, für Unternehmen die unveränderte Firmen-Auskunft.
+  pille: "Bonitätsauswertung · Einmalpreis, kein Abo",
+  h1a: "Ihre Bonitätsauswertung.",
+  h1b: " Aus Sicht einer Bank.",
+  lead: `${AUSWERTUNG_UNTERZEILE} Haushaltsrechnung, die neun Merkmale einer Kreditprüfung, jede Ausgabe nach Empfänger, Ampel, FIAON-Finanzwert und Ihr Plan für zwölf Monate.`,
+  fakten: ["Aus Ihren eigenen Kontoauszügen", "Keine Anfrage bei einer Auskunftei", "Ein Mensch prüft und gibt frei"],
+  // Sichtbar unter dem Kopf (privat): was der Mensch NACH der Bestellung tut.
+  unterlagenTitel: "Ihr Schritt nach der Bestellung:",
+  unterlagen: AUSWERTUNG_UNTERLAGEN_SATZ,
+  keineAuskunft: AUSWERTUNG_KEINE_AUSKUNFT_SATZ,
+  firmaKopf: {
+    pille: "Bonitätsauskunft für Unternehmen · Einmalpreis, kein Abo",
+    h1a: "Bonitätsauskunft für Ihr Unternehmen.",
+    h1b: " Angefordert, erklärt, mit Plan.",
+    lead: "Wir fordern die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an und dazu die persönliche Datenkopie der Inhaberin, des Inhabers oder der Geschäftsführung, erklären jeden Eintrag, prüfen die Fristen und geben Ihnen einen Handlungsplan mit fertigen Schreiben.",
+    fakten: ["Wirtschaftsauskunfteien und Datenkopie", "Jede Zeile in klaren Worten", "Schreiben zur Freigabe"],
+  },
 
   // ── Schritt 1 ──
   s1: "Für wen bestellen Sie?",
-  artPrivat: "Privatperson", artPrivatSub: "Ihre persönliche Auskunft",
+  artPrivat: "Privatperson", artPrivatSub: "Ihre persönliche Bonitätsauswertung",
   artFirma: "Unternehmen", artFirmaSub: "Auskunft über Ihre Firma",
   landTitel: "Land Ihres Wohnsitzes", landTitelFirma: "Sitz des Unternehmens",
+  // Nur für Unternehmen (persönliche Datenkopie) — privat fragt FIAON nirgends an (E-365).
   landSub: (bei: string) => `Anfrage bei ${bei}`,
 
   // ── Schritt 2 ──
   s2: "Ihre Angaben",
   s2Firma: "Unternehmen und Ansprechperson",
-  s2Sub: "So, wie Sie bei den Auskunfteien gemeldet sind — damit sie Sie sicher zuordnen können.",
+  s2Sub: "So, wie es in Ihrem Ausweis steht — damit wir Ihre Unterlagen sicher zuordnen können.",
   s2SubFirma: "So, wie das Unternehmen im Register steht.",
   vorname: "Vorname", nachname: "Nachname",
   geburtsdatum: "Geburtsdatum", geburtsdatumPlatz: "TT.MM.JJJJ",
@@ -119,17 +141,19 @@ export const T = {
 
   // ── Schritt 3 ──
   s3: "So erreichen wir Sie",
-  s3Sub: "An diese Adresse gehen Zahlungsdaten, Rechnung und Ihre Auswertung.",
+  s3Sub: "An diese Adresse gehen Zahlungsdaten, Rechnung, der Link zum Hochladen und Ihre Bonitätsauswertung.",
+  s3SubFirma: "An diese Adresse gehen Zahlungsdaten, Rechnung und Ihre Auswertung.",
   email: "E-Mail-Adresse", emailPlatz: { DE: "name@beispiel.de", AT: "name@beispiel.at", CH: "name@beispiel.ch" } as Record<AuskunftLand, string>,
   telefon: "Telefonnummer", telefonPlatz: { DE: "176 12345678", AT: "664 1234567", CH: "79 123 45 67" } as Record<AuskunftLand, string>,
-  telefonHinweis: "Für Rückfragen Ihres Betreuers zur Auswertung.",
+  telefonHinweis: "Für Rückfragen Ihrer Ansprechperson zur Auswertung.",
 
   // ── Schritt 4 ──
   s4: "Bestellung prüfen",
   s4Sub: "Bis zum Klick auf „Zahlungspflichtig bestellen“ können Sie jede Angabe oben noch ändern.",
   zfLeistung: "Leistung", zfPreis: "Preis", zfLaufzeit: "Laufzeit", zfZahlung: "Zahlung", zfZeit: "Leistungszeit",
-  leistungName: (art: AuskunftArt, land: AuskunftLand, bei: string) =>
-    `${art === "firma" ? "Bonitätsauskunft für Unternehmen" : "Bonitätsauskunft für Privatpersonen"} · ${LANDNAMEN[land]} — Anfrage bei ${bei}; jeder Eintrag erklärt, Speicherfristen geprüft, Handlungsplan und fertige Schreiben zur Freigabe.`,
+  leistungName: (art: AuskunftArt, land: AuskunftLand, bei: string) => art === "firma"
+    ? `Bonitätsauskunft für Unternehmen · ${LANDNAMEN[land]} — Anfrage bei ${bei}; jeder Eintrag erklärt, Speicherfristen geprüft, Handlungsplan und fertige Schreiben zur Freigabe.`
+    : `${AUSWERTUNG_NAME} · ${LANDNAMEN[land]} — erstellt aus Ihrem Ausweis und Ihren Kontoauszügen der letzten drei Monate, die Sie nach der Bestellung hochladen: Haushaltsrechnung, die neun Merkmale einer Kreditprüfung, jede Einnahme und Ausgabe nach Empfänger, Ampel für sieben Bereiche, FIAON-Finanzwert, Potenzial und Plan für zwölf Monate; rund 25 Seiten, von einem Menschen geprüft, als PDF per E-Mail und in Ihrem FIAON-Bereich. Keine Auskunft einer Auskunftei und kein Score.`,
   // Laufzeit, Leistungszeit, Anbieter, Kontakt und Vertragssprache: seit 25.09.2026 (E-240)
   // wortgleich aus shared/fiaon-auskunft-widerruf.ts — die Vertragsbestätigung der
   // Zahlungsdaten-Mail liest dieselben Sätze.
@@ -179,12 +203,13 @@ export const T = {
   // Die Zeile direkt über dem Knopf (§ 312j Abs. 2 BGB): Was, wie lange, was es kostet —
   // auch am Handy, wo die Bestellkarte weit oben steht.
   endzeile: (art: AuskunftArt, land: AuskunftLand) =>
-    `${art === "firma" ? "Bonitätsauskunft für Unternehmen" : "Bonitätsauskunft für Privatpersonen"} · ${LANDNAMEN[land]} · einmalig, kein Abo`,
+    `${art === "firma" ? "Bonitätsauskunft für Unternehmen" : AUSWERTUNG_NAME} · ${LANDNAMEN[land]} · einmalig, kein Abo`,
   knopfLaeuft: "Ihre Zahlungsseite wird geöffnet …",
   unterKnopf: "Nach dem Klick sehen Sie Ihre Zahlungsseite mit Bankverbindung und Verwendungszweck.",
 
   // ── Die Bestellkarte (Navy, die eine dunkle Stelle der Seite) ──
-  karteTag: "Ihre Bonitätsauskunft",
+  karteTag: "Ihre Bonitätsauswertung",
+  karteTagFirma: "Bonitätsauskunft für Unternehmen",
   karteEinmal: "einmalig · kein Abo",
   kartePaket: (privat: string, firma: string) => `FIAON-Kunden mit Paket zahlen ${privat} (Unternehmen ${firma}).`,
   // 26.09.2026 (E-243): vorher „Im Kundenbereich bestellen" (/login) — jetzt öffnet der Link den
@@ -196,47 +221,63 @@ export const T = {
   // Angemeldet, aber ohne laufendes, bezahltes Paket: Warum hier der Einzelpreis steht —
   // sonst sieht ein Kunde 149 €, obwohl sein Betreuer von 74 € sprach.
   karteKundeOhnePaket: (kundenpreis: string) => `Der Kundenpreis von ${kundenpreis} gilt, solange ein FIAON-Paket läuft und bezahlt ist. Für Ihr Konto gilt deshalb der Einzelpreis.`,
-  karteKundePaketOffen: "Sobald die erste Rate Ihres Pakets eingegangen ist, bestellen Sie die Auskunft im Kundenbereich zum Kundenpreis.",
-  karteBei: "Angefragt bei",
+  karteKundePaketOffen: "Sobald die erste Rate Ihres Pakets eingegangen ist, gilt Ihr Kundenpreis — und für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten.",
+  // Privat (E-365): keine Auskunftei — die Karte nennt die Unterlagen.
+  karteAus: "Aus Ihren Unterlagen",
+  karteUnterlagen: ["Ausweis", "Kontoauszüge · drei Monate"],
   karteFirmaBei: "Firmendaten u. a. bei",
   kartePersoenlichBei: "Persönliche Datenkopie bei",
   karteLeistung: "Das bekommen Sie",
 
   // ── Angemeldete Kunden ──
   kundeTitel: (name: string) => `Angemeldet als ${name}`,
-  kundeText: "Wir bestellen die Auskunft mit den Angaben aus Ihrem Konto.",
+  kundeText: "Wir bestellen mit den Angaben aus Ihrem Konto.",
   kundeAendern: "Angaben im Kundenbereich ändern",
   kundeAndere: "Für eine andere Person bestellen",
-  kundeBezahlt: "Ihre Bonitätsauskunft ist bereits bezahlt — den Stand sehen Sie in Ihrem Kundenbereich.",
-  kundeOffen: (betrag: string) => `Ihre Bonitätsauskunft ist schon bestellt. Die Zahlung${betrag ? ` über ${betrag}` : ""} ist noch offen — Sie brauchen keine zweite Bestellung.`,
-  kundeOffenGemeldet: "Ihre Bonitätsauskunft ist bestellt, und Sie haben die Überweisung gemeldet. Sobald das Geld eingegangen ist, übermitteln wir Ihre Anfragen.",
+  kundeBezahlt: "Ihre Bestellung ist bereits bezahlt — den Stand sehen Sie in Ihrem FIAON-Bereich.",
+  kundeOffen: (betrag: string) => `Ihre Bestellung steht schon. Die Zahlung${betrag ? ` über ${betrag}` : ""} ist noch offen — Sie brauchen keine zweite Bestellung.`,
+  kundeOffenGemeldet: "Ihre Bestellung steht, und Sie haben die Überweisung gemeldet. Sobald das Geld eingegangen ist und Ihre Unterlagen vorliegen, beginnen wir.",
   kundeZurZahlung: "Zur Zahlungsseite",
   kundeZumBereich: "Zum Kundenbereich",
-  kundeDokument: "In Ihrer Akte liegt bereits eine Auskunft, die Sie selbst hochgeladen haben — wir werten sie aus.",
-  kundeTrotzdem: "Trotzdem die Auskunft bestellen",
+  kundeDokument: "In Ihrer Akte liegt bereits eine Datenkopie, die Sie selbst hochgeladen haben — wir beziehen sie in Ihre Bonitätsauswertung ein.",
+  kundeTrotzdem: "Bonitätsauswertung bestellen",
   // Der Bereich sieht schon eine Auskunft (alte Käufe über die E-Mail, Dokument an einer
   // Schwester-Zeile), die Kaufkarte bleibt dort zu — hier ebenso, nur mit bewusster Wahl.
-  kundeVorhanden: "Zu Ihrem Konto ist bereits eine Bonitätsauskunft hinterlegt — den Stand sehen Sie in Ihrem Kundenbereich.",
+  kundeVorhanden: "Zu Ihrem Konto ist bereits eine Bestellung hinterlegt — den Stand sehen Sie in Ihrem FIAON-Bereich.",
   // E-213: gekündigt = keine neuen Leistungen (derselbe Satz wie PORTAL_GESPERRT_SATZ, server/lib/fiaon-kuendigung.ts).
   kundeGekuendigt: "Ihr Vertrag ist gekündigt. Neue Leistungen können darüber nicht mehr beauftragt werden — Ihre Unterlagen und offenen Rechnungen finden Sie weiterhin in Ihrem Bereich.",
 
-  // ── Ablauf und Fragen ──
+  // ── Ablauf und Fragen (je Art, E-365) ──
   ablaufTitel: "So geht es weiter",
   ablauf: [
     { t: "Zahlungsseite", x: "Direkt nach der Bestellung: Bankverbindung, Verwendungszweck und Betrag auf einen Blick." },
-    { t: "Anfragen übermitteln", x: "Nach Zahlungseingang übermitteln wir Ihre Anfragen an die Auskunfteien Ihres Landes." },
-    { t: "Auswertung", x: "Jeder Eintrag in klaren Worten erklärt, die Speicherfristen geprüft." },
+    { t: "Hochladen", x: "Per E-Mail bekommen Sie einen Link: Ausweis und Kontoauszüge der letzten drei Monate hochladen — ohne Anmeldung." },
+    { t: "Wir entwickeln", x: "Ihr FIAON-Team wertet jede Buchung aus; ein Mensch prüft den Bericht und gibt ihn frei." },
+    { t: "Sie erhalten", x: "Ihren Bericht als PDF per E-Mail und jederzeit in Ihrem FIAON-Bereich." },
+  ],
+  ablaufFirma: [
+    { t: "Zahlungsseite", x: "Direkt nach der Bestellung: Bankverbindung, Verwendungszweck und Betrag auf einen Blick." },
+    { t: "Anfragen übermitteln", x: "Nach Zahlungseingang übermitteln wir Ihre Anfragen an die Wirtschaftsauskunfteien und die Auskunfteien Ihres Landes." },
+    { t: "Auswertung", x: "Jeder Eintrag in klaren Worten erklärt, die Fristen geprüft." },
     { t: "Handlungsplan", x: "Was Sie tun können, in welcher Reihenfolge — mit fertigen Schreiben, die Sie freigeben." },
   ],
   fragenTitel: "Häufige Fragen",
   fragen: [
-    { f: "Wirkt sich die Anfrage auf meine Bonität aus?", a: "Die Anfrage auf Ihre eigene Datenkopie ist keine Kreditanfrage. Nach Angaben der Auskunfteien fließt sie nicht in Ihre Bewertung ein." },
-    { f: "Wie lange dauert es?", a: "Wir übermitteln Ihre Anfragen, sobald Ihre Zahlung eingegangen ist. Die Auskunfteien müssen innerhalb der gesetzlichen Frist antworten, in der Regel innerhalb eines Monats. Sobald die Antworten vorliegen, erhalten Sie Auswertung, Handlungsplan und Schreiben." },
-    { f: "Kann FIAON Einträge löschen lassen?", a: "Löschen kann nur die Auskunftei. Wir prüfen die Speicherfristen und bereiten die Schreiben vor — etwa zur Löschung nach Fristablauf oder zur Berichtigung falscher Daten. Sie geben jedes Schreiben frei; ob ein Eintrag gelöscht wird, entscheidet die Auskunftei." },
+    { f: "Wirkt sich die Bonitätsauswertung auf meine Bonität aus?", a: "Nein. Wir fragen bei keiner Auskunftei an — es entsteht keine Anfrage und kein Eintrag. Die Auswertung entsteht allein aus Ihren eigenen Unterlagen." },
+    { f: "Was muss ich hochladen?", a: `${AUSWERTUNG_UNTERLAGEN_SATZ} Haben Sie die kostenlose Datenkopie einer Auskunftei, laden Sie sie gern dazu.` },
+    { f: "Wie lange dauert es?", a: auskunftLeistungszeit("privat") },
     // 26.09.2026 (E-243): der Kundenpreis-Link ohne Anmeldung als erster Weg.
-    { f: "Ich bin schon FIAON-Kunde. Was zahle ich?", a: `Mit einem laufenden Paket gilt der Kundenpreis: ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}). Einzeln kostet die Auskunft ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}). Wählen Sie oben „Ja, ich bin Kunde" und fordern Sie Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto, Ihre Angaben sind dort schon eingetragen. Oder melden Sie sich an und bestellen Sie im Kundenbereich; dort gilt der Kundenpreis von selbst.` },
-    // Die kostenlose Datenkopie: ehrliche Antwort auf die Frage — nicht als erster Punkt, nicht als Hauptweg.
+    { f: "Ich bin schon FIAON-Kunde. Was zahle ich?", a: `Mit einem laufenden Paket gilt der Kundenpreis: ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} (Bonitätsauskunft für Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}). Einzeln kostet die Bonitätsauswertung ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} (Unternehmen ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}). Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Wählen Sie oben „Ja, ich bin Kunde" und fordern Sie Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto, Ihre Angaben sind dort schon eingetragen. Oder melden Sie sich an und bestellen Sie im Kundenbereich; dort gilt der Kundenpreis von selbst.` },
+    // Die kostenlose Datenkopie: ehrliche Antwort auf die Frage.
     { f: "Kann ich die Datenkopie nicht auch kostenlos selbst anfordern?", a: AUSKUNFT_KOSTENLOS_ANTWORT },
+    { f: "Ist das eine Auskunft einer Auskunftei?", a: `Nein. ${AUSWERTUNG_KEINE_AUSKUNFT_SATZ}` },
+  ],
+  // Die Firmen-Auskunft ist unverändert — ihre Fragen wie bisher.
+  fragenFirma: [
+    { f: "Wirkt sich die Anfrage auf meine Bonität aus?", a: "Die Anfrage auf die persönliche Datenkopie ist keine Kreditanfrage. Nach Angaben der Auskunfteien fließt sie nicht in Ihre Bewertung ein." },
+    { f: "Wie lange dauert es?", a: auskunftLeistungszeit("firma") },
+    { f: "Kann FIAON Einträge löschen lassen?", a: "Löschen kann nur die Auskunftei. Wir prüfen die Fristen und bereiten die Schreiben vor — etwa zur Berichtigung falscher oder veralteter Firmendaten. Sie geben jedes Schreiben frei; ob ein Eintrag gelöscht wird, entscheidet die Auskunftei." },
+    { f: "Ich bin schon FIAON-Kunde. Was zahle ich?", a: `Mit einem laufenden Paket gilt der Kundenpreis: ${euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo)}, einzeln ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}. Wählen Sie oben „Ja, ich bin Kunde" und fordern Sie Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto.` },
     { f: "Brauchen Sie weitere Unterlagen von mir?", a: "Zunächst nur die Angaben auf dieser Seite. Verlangt eine Auskunftei zusätzlich einen Identitätsnachweis, sagen wir Ihnen Bescheid." },
   ],
 
@@ -245,7 +286,7 @@ export const T = {
     vorname: "Bitte geben Sie Ihren Vornamen ein.",
     nachname: "Bitte geben Sie Ihren Nachnamen ein.",
     geburtsdatum: "Bitte geben Sie Ihr Geburtsdatum als TT.MM.JJJJ ein.",
-    geburtsdatumAlter: "Die Auskunft können Sie ab 18 Jahren bestellen.",
+    geburtsdatumAlter: "Bestellen können Sie ab 18 Jahren.",
     geburtsdatumFirma: "Bitte als TT.MM.JJJJ eingeben — oder das Feld leer lassen.",
     firma: "Bitte geben Sie den Firmennamen ein.",
     rechtsform: "Bitte wählen Sie die Rechtsform.",
@@ -259,7 +300,7 @@ export const T = {
     haken: "Bitte bestätigen Sie die markierten Punkte.",
     oben: "Bitte prüfen Sie die markierten Angaben.",
     senden: `Die Bestellung ließ sich gerade nicht anlegen. Bitte versuchen Sie es in einem Moment noch einmal — oder schreiben Sie an ${FIAON_FIRMA.email}.`,
-    bezahlt: "Für Sie ist bereits eine bezahlte Bonitätsauskunft hinterlegt — den Stand sehen Sie in Ihrem Kundenbereich.",
+    bezahlt: "Für Sie ist bereits eine bezahlte Bestellung hinterlegt — den Stand sehen Sie in Ihrem FIAON-Bereich.",
     // Antwort 409 {anmelden:true}: seit 26.09.2026 (E-243) kein Verweis auf die Anmeldung mehr,
     // sondern der Wechsel in den Kunden-Zweig — Text: kf.nach409.
   },
@@ -292,22 +333,26 @@ export const T = {
     anmelden: "Im Kundenbereich anmelden",
     // Nach der 409 der Bestellung (fiaon-antrag.ts): Bewusst ohne „Sie sind FIAON-Kunde" — wer eine
     // fremde Adresse eintippt, soll daraus nicht lesen, wer bei uns Kunde ist.
-    nach409: "Mit dieser E-Mail-Adresse können wir die Auskunft hier nicht einzeln bestellen. Sind Sie bereits FIAON-Kunde, fordern Sie hier Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto.",
+    nach409: "Mit dieser E-Mail-Adresse können wir hier nicht einzeln bestellen. Sind Sie bereits FIAON-Kunde, fordern Sie hier Ihren Kundenpreis-Link an — er kommt an die Adresse in Ihrem Konto.",
     doch: "Doch nicht Kunde? Einzeln bestellen",
     fehler: "Das hat gerade nicht geklappt. Bitte versuchen Sie es in einem Moment noch einmal — oder melden Sie sich im Kundenbereich an.",
   },
 
   // ── Der ehrliche Vergleich im Zweig „Nein" (26.09.2026, E-243) ─────────────
   // Justin: „Ziel ist, die Bonitätsauskunft zu verkaufen UND ein Abo — wenn nicht, auch gut."
+  // E-365: Für NEUE Paketkunden ist die Bonitätsauswertung im Paket enthalten — die Kachel
+  // „Mit FIAON-Paket" zeigt privat deshalb „im Paket enthalten" statt eines Preises.
   // Beide Wege nebeneinander, ohne Streichpreis (PAngV § 11), mit Laufzeit und ohne „Limit"
   // (Nicht-Kunden, § 34c GewO). Den Kundenpreis gibt es erst mit der ersten bezahlten Rate
   // (hatLaufendesPaket) — das steht dabei.
   vg: {
     titel: "Einzeln oder mit Paket?",
-    nurTitel: "Nur die Auskunft",
+    nurTitel: "Nur die Bonitätsauswertung",
+    nurTitelFirma: "Nur die Firmen-Auskunft",
     nurText: "einmalig, kein Abo — Sie bestellen gleich hier unten.",
     paketTitel: "Mit FIAON-Paket",
-    paketText: `für die Auskunft — dazu Ihr Paket${PAKET_AB ? ` ab ${PAKET_AB} im Monat` : ""}, Laufzeit zwölf Monate. Eine feste Ansprechperson begleitet Sie auf Ihrem Weg zur Karte, und wir übernehmen die Schreiben an die Auskunfteien. Der Kundenpreis gilt, sobald die erste Rate Ihres Pakets eingegangen ist.`,
+    paketEnthalten: "im Paket enthalten",
+    paketText: `Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Ihr Paket${PAKET_AB ? ` ab ${PAKET_AB} im Monat` : ""}, Laufzeit zwölf Monate; eine feste Ansprechperson begleitet Sie auf Ihrem Weg zur Karte.`,
     paketLink: "Paket wählen und Antrag starten",
     // Gegenlesen 26.09.2026 (E-243): Für die FIRMEN-Auskunft gibt es keinen Paketweg im Antrag —
     // die Business-Pakete sind eingestellt, das Bündel im Antrag legt nach der ersten Rate eine

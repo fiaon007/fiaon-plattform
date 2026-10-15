@@ -54,7 +54,7 @@ const de = {
   } as Record<string, EpErgebnis>,
   naechsterSchritt: "Ihr nächster Schritt", fiaonUebernimmt: "FIAON übernimmt das", nachlesen: "Im Ratgeber nachlesen",
   hinweis: "Diese Einschätzung beruht auf Ihren Angaben und den allgemeinen Regeln (§ 31 BDSG, Verhaltensregeln der Auskunfteien, BGH 2023). Sie ersetzt keine Prüfung des Einzelfalls. Für Österreich und die Schweiz gelten ähnliche, nicht identische Regeln.",
-  zwischenruf: "FIAON beschafft Ihre Auskunft, bewertet jeden Eintrag und bereitet das passende Schreiben vor – Sie geben frei, wir versenden.", kontoEroeffnen: "Konto eröffnen", generator: "Selbstauskunft-Generator",
+  zwischenruf: "Laden Sie Ihre kostenlose Datenkopie hoch: FIAON bewertet die Einträge und bereitet das passende Schreiben vor – Sie geben frei, wir versenden.", kontoEroeffnen: "Konto eröffnen", generator: "Selbstauskunft-Generator",
 };
 const en: typeof de = {
   metaTitel: "Can my entry be challenged? · Tool",
@@ -107,6 +107,6 @@ const en: typeof de = {
   },
   naechsterSchritt: "Your next step", fiaonUebernimmt: "FIAON takes this over", nachlesen: "Read more in the guide",
   hinweis: "This assessment is based on your answers and the general rules (Section 31 BDSG, code of conduct of the credit bureaus, Federal Court of Justice 2023). It does not replace a check of the individual case. Similar, not identical rules apply in Austria and Switzerland.",
-  zwischenruf: "FIAON obtains your report, assesses every entry and prepares the right letter – you approve, we send.", kontoEroeffnen: "Open an account", generator: "Credit report request generator",
+  zwischenruf: "Upload your free data copy: FIAON assesses the entries and prepares the right letter – you approve, we send.", kontoEroeffnen: "Open an account", generator: "Credit report request generator",
 };
 export const WZ_EINTRAG_PRUEFEN_WOERTER = { de, en };

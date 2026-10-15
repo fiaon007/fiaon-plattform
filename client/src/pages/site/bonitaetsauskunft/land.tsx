@@ -2,10 +2,11 @@
 // /bonitaetsauskunft/schufa · /oesterreich · /schweiz — DIE LÄNDERSEITEN
 // (25.09.2026, E-241)
 //
-// Eine Seite je Land, ein Aufbau: bei wem wir anfragen (nur die Auskunfteien
-// aus shared/fiaon-auskunft.ts, mit Ort und Rechtsgrundlage) — was Sie
-// bekommen (die eine Leistungsliste) — ein landeseigener Abschnitt — Fragen.
-// Jeder Kaufknopf trägt ?land= mit auf /bonitaet-antrag.
+// Eine Seite je Land, ein Aufbau: was Sie bekommen (die eine Leistungsliste der
+// Bonitätsauswertung, E-365) — wo Sie Ihre kostenlose Datenkopie selbst
+// anfordern (nur die Auskunfteien aus shared/fiaon-auskunft.ts, mit Ort und
+// Rechtsgrundlage — Information, keine FIAON-Leistung) — ein landeseigener
+// Abschnitt — Fragen. Jeder Kaufknopf trägt ?land= mit auf /bonitaet-antrag.
 //
 // Österreich und Schweiz lesen nie „SCHUFA" (E-240: am 24.09. bekamen 111
 // Österreicher die „SCHUFA-Datenkopie" angemahnt).
@@ -32,15 +33,17 @@ export default function LandSeite({ land }: { land: "DE" | "AT" | "CH" }) {
         />
       )}
     >
-      <Abschnitt marke="Auskunfteien" titel={t.beiTitel} text={t.beiText}>
-        <Auf><Stellen land={land} /></Auf>
-      </Abschnitt>
-
       <Abschnitt marke="Leistung" titel={t.bekommenTitel} text={t.bekommenText}>
         <Auf><LeistungListe art="privat" land={land} /></Auf>
       </Abschnitt>
 
       <Band satz={t.bandSatz} land={land} />
+
+      {/* E-365: die kostenlose Datenkopie — wo Sie sie selbst anfordern; FIAON fragt nicht an. */}
+      <Abschnitt marke="Kostenlos" titel={t.beiTitel} text={t.beiText}>
+        <Auf><Stellen land={land} /></Auf>
+        <p className="bx-mehr"><a href="/werkzeuge/selbstauskunft">{BX_HUB.selbstLink}<Pfeil /></a></p>
+      </Abschnitt>
 
       <Abschnitt marke={t.eigenMarke} titel={t.eigenTitel} text={t.eigenText}>
         {t.eigenPunkte && (

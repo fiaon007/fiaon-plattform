@@ -36,7 +36,7 @@ const de = {
   eintragA: "Steht der Eintrag schon? Dann gilt der Weg aus dem Ratgeber ", eintragLink1: "SCHUFA-Eintrag löschen lassen", eintragB: " — und die Fristen aus ", eintragLink2: "Eintrag und Verjährung", eintragC: ".",
   fiaonTitel: "Wie FIAON Sie dabei unterstützt", fiaonLead: "FIAON ist kein Inkasso und keine Rechtsberatung — FIAON ist Ihre Gegenprüfung.",
   fiaon: [
-    { nr: "Klarheit", titel: "Erst sehen, was gespeichert ist", text: "FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF. Ob die Forderung aus dem Brief dort schon gemeldet ist — und ob zulässig —, sehen Sie schwarz auf weiß, statt es zu vermuten." },
+    { nr: "Klarheit", titel: "Erst sehen, was gespeichert ist", text: "Ihre kostenlose Datenkopie bei SCHUFA, KSV und CRIF fordern Sie selbst an und laden sie hoch. Ob die Forderung aus dem Brief dort schon gemeldet ist — und ob zulässig —, sehen Sie schwarz auf weiß, statt es zu vermuten." },
     { nr: "Prüfung", titel: "Jeden Eintrag gegen die Regeln halten", text: "Zwei Mahnungen? Hinweis auf die Meldung? Frist abgelaufen? Bestritten und trotzdem gemeldet? Jede Zeile wird gegen § 31 BDSG und die Löschfristen geprüft — mit Klartext-Ergebnis." },
     { nr: "Durchsetzung", titel: "Schreiben und Fristen übernehmen wir", text: "Für angreifbare Einträge bereitet FIAON den Schriftwechsel mit Auskunftei und meldender Stelle vor und verfolgt die Fristen. Berechtigte, zulässig gemeldete Einträge bleiben — das sagen wir vorher, nicht hinterher." },
   ],
@@ -50,7 +50,7 @@ const de = {
     { f: "Ich habe schon einen Eintrag — was jetzt?", a: "Prüfen, ob er zulässig gemeldet wurde (zwei Mahnungen, Hinweis, nicht bestritten) und ob die Löschfrist läuft oder abgelaufen ist. Erledigte Forderungen werden nach drei Jahren gelöscht, bei Ausgleich binnen 100 Tagen nach 18 Monaten. FIAON prüft das für Sie — die Regeln stehen im Ratgeber zum Eintrag löschen." },
   ],
   fussSatz: "Redaktionelle Einordnung nach RDG, RVG, § 31 BDSG und den Verhaltensregeln der Wirtschaftsauskunfteien, Stand August 2026. Keine Rechtsberatung im Einzelfall — bei gerichtlichen Schreiben zählt jede Frist, im Zweifel hilft die Verbraucherzentrale oder eine Anwältin.",
-  aufrufTitel: "Gewissheit statt Bauchgefühl.", aufrufSatz: "FIAON zeigt Ihnen, was wirklich über Sie gespeichert ist, prüft jeden Eintrag gegen die gesetzlichen Regeln und führt den Schriftwechsel — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
+  aufrufTitel: "Gewissheit statt Bauchgefühl.", aufrufSatz: "Laden Sie Ihre kostenlose Datenkopie hoch: FIAON zeigt Ihnen, was wirklich über Sie gespeichert ist, prüft die Einträge gegen die gesetzlichen Regeln und führt den Schriftwechsel — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
 };
 const en: typeof de = {
   metaTitel: "Received a debt collection letter? Check first, then pay",
@@ -88,7 +88,7 @@ const en: typeof de = {
   eintragA: "Is the entry already there? Then the route in the guide ", eintragLink1: "Removing a SCHUFA entry", eintragB: " applies — and the deadlines in ", eintragLink2: "Entries and limitation periods", eintragC: ".",
   fiaonTitel: "How FIAON supports you", fiaonLead: "FIAON is not a debt collector and not legal advice — FIAON is your cross-check.",
   fiaon: [
-    { nr: "Clarity", titel: "First see what is stored", text: "FIAON obtains your reports from SCHUFA, KSV and CRIF. Whether the claim from the letter has already been reported there — and whether lawfully — you see in black and white instead of guessing." },
+    { nr: "Clarity", titel: "First see what is stored", text: "You request your free data copy from SCHUFA, KSV and CRIF yourself and upload it. Whether the claim from the letter has already been reported there — and whether lawfully — you see in black and white instead of guessing." },
     { nr: "Check", titel: "Hold every entry against the rules", text: "Two reminders? Notice of the report? Deadline expired? Disputed and still reported? Every line is checked against Section 31 BDSG and the deletion deadlines — with a plain-language result." },
     { nr: "Enforcement", titel: "We take on letters and deadlines", text: "For challengeable entries FIAON prepares the correspondence with the credit bureau and the reporting body and tracks the deadlines. Justified, lawfully reported entries stay — we say that beforehand, not afterwards." },
   ],
@@ -102,6 +102,6 @@ const en: typeof de = {
     { f: "I already have an entry — what now?", a: "Check whether it was lawfully reported (two reminders, notice, not disputed) and whether the deletion deadline is running or has expired. Settled claims are deleted after three years, after 18 months if settled within 100 days. FIAON checks that for you — the rules are in the guide on removing an entry." },
   ],
   fussSatz: "Editorial classification under the RDG, RVG, Section 31 BDSG and the credit bureaus' code of conduct, as of August 2026. No legal advice in individual cases — with court documents every deadline counts; when in doubt the consumer advice centre or a lawyer helps.",
-  aufrufTitel: "Certainty instead of gut feeling.", aufrufSatz: "FIAON shows you what is really stored about you, checks every entry against the legal rules and handles the correspondence — you see every step in your customer area.",
+  aufrufTitel: "Certainty instead of gut feeling.", aufrufSatz: "Upload your free data copy: FIAON shows you what is really stored about you, checks the entries against the legal rules and handles the correspondence — you see every step in your customer area.",
 };
 export const INKASSO_BRIEF_WOERTER = { de, en };

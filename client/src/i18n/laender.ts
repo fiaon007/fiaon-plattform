@@ -3,6 +3,10 @@
 // für Schlüssel. Der FAQ-Generator teilt an „const en" — die Fragen beider
 // Länder stehen deshalb je Sprache zusammen (Zuordnung über QUELLEN im Generator
 // bewusst je Land: siehe scripts/seo-fragen-erzeugen.ts).
+// 14.10.2026 (E-365): FIAON beschafft keine Auskunft und keinen Registerauszug
+// mehr. Das Produkt ist die FIAON-Bonitätsauswertung aus Kontoauszügen; die
+// Selbstauskunft fordert der Kunde selbst an und lädt sie hoch. Kein „SCHUFA"
+// in Produktsätzen für AT/CH, keine Frist in Stunden.
 type Land = {
   metaTitel: string; metaBeschreibung: string; pille: string; h1a: string; h1b: string; lead: string;
   beschaffen: string; brief: string;
@@ -25,7 +29,7 @@ const de: { oesterreich: Land; schweiz: Land } = {
     metaBeschreibung: "Bonität in Österreich: KSV1870 und CRIF erklärt, Selbstauskunft nach Art. 15 DSGVO, Löschfristen, Bonitätsdatenbanken der Banken – und wie FIAON Einträge prüft, bereinigt und Konto und Karte vorbereitet.",
     pille: "Österreich", h1a: "Bonität in Österreich, ", h1b: "Klartext.",
     lead: "KSV1870, CRIF, die Warnlisten der Banken: In Österreich entscheiden andere Stellen über Konto, Karte und Handyvertrag als in Deutschland – mit eigenen Regeln und eigenen Fristen. FIAON kennt sie.",
-    beschaffen: "Auskunft beschaffen", brief: "Selbstauskunft-Brief (kostenlos)",
+    beschaffen: "Antrag starten", brief: "Selbstauskunft-Brief (kostenlos)",
     zahlen: [{ wert: "2", label: "große Auskunfteien: KSV1870 und CRIF" }, { wert: "1", label: "Monat Frist für die Selbstauskunft (Art. 15 DSGVO)" }, { wert: "3", label: "Jahre übliche Speicherdauer nach Erledigung" }, { wert: "0 €", label: "kostet die Auskunft über Ihre Daten" }],
     werPille: "Wer speichert was", werH2a: "Die Stellen, ", werH2b: "die über Sie entscheiden.",
     stellen: [
@@ -43,7 +47,7 @@ const de: { oesterreich: Land; schweiz: Land } = {
     ],
     wegPille: "Der Weg mit FIAON", wegH2a: "Von der Auskunft ", wegH2b: "zur Karte.",
     weg: [
-      { titel: "Vollmacht und Auskünfte", text: "FIAON fordert Ihre Daten bei KSV1870, CRIF und – mit Ihrer Freigabe – bei den Banken an. Sie füllen kein Formular aus." },
+      { titel: "Bonitätsauswertung und Selbstauskunft", text: "Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Ihre kostenlose Selbstauskunft bei KSV1870 und CRIF fordern Sie selbst an – unser Generator schreibt den Brief – und laden sie hoch." },
       { titel: "Jeder Eintrag erklärt", text: "Was steht da, wer hat es gemeldet, ist es berechtigt, wann ist es weg. In Menschensprache, im Kundenbereich." },
       { titel: "Schreiben nach österreichischem Recht", text: "Richtigstellung, Löschung, Widerspruch – mit den richtigen Paragraphen, per Einschreiben, mit Frist." },
       { titel: "Konto und Karte", text: "Girokonto über Partnerbanken, die auch bei Einträgen eröffnen; Kreditkarte, sobald die Auskunft trägt. Die Bank entscheidet." },
@@ -57,19 +61,19 @@ const de: { oesterreich: Land; schweiz: Land } = {
     fragen: [
       { f: "Gibt es in Österreich die SCHUFA?", a: "Nein. Die Rolle übernehmen KSV1870 und CRIF, daneben die Warnlisten der Banken. Wer aus Deutschland nach Österreich zieht, beginnt bei KSV und CRIF ohne Historie – die SCHUFA-Daten werden nicht übertragen." },
       { f: "Wie lange bleibt ein Eintrag beim KSV?", a: "Erledigte Forderungen in der Regel drei Jahre nach Erledigung; Insolvenzdaten entsprechend der Ediktsdatei. Länger gespeicherte Daten sind nach Art. 17 DSGVO zu löschen." },
-      { f: "Warum wurde mein Handyvertrag abgelehnt, obwohl der KSV nichts hat?", a: "Mobilfunkanbieter fragen häufig bei CRIF an. Fordern Sie dort die Selbstauskunft – FIAON tut das für Sie." },
+      { f: "Warum wurde mein Handyvertrag abgelehnt, obwohl der KSV nichts hat?", a: "Mobilfunkanbieter fragen häufig bei CRIF an. Fordern Sie dort die kostenlose Selbstauskunft an – unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir sie Ihnen." },
       { f: "Kann ich trotz Eintrag ein Konto eröffnen?", a: "Ja. Auf ein Basiskonto besteht nach dem Verbraucherzahlungskontogesetz ein Rechtsanspruch. FIAON bereitet die Eröffnung bei einer Partnerbank vor." },
       { f: "Arbeitet FIAON mit österreichischem Recht?", a: "Ja. Schreiben, Fristen und Paragraphen sind für Österreich angepasst: DSGVO, DSG, GewO, Verbraucherzahlungskontogesetz. Der Ansprechpartner kennt beide Länder." },
     ],
-    zwischenA: "Sie sind in Österreich?", zwischenB: " Der Antrag erkennt Ihr Land und beschafft KSV- und CRIF-Auskunft.", anderesLand: "Schweiz", anderesLandHref: "/schweiz",
-    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
+    zwischenA: "Sie sind in Österreich?", zwischenB: " Der Antrag erkennt Ihr Land. Ihre Bonitätsauswertung entsteht aus Ihren Kontoauszügen; die Selbstauskunft bei KSV1870 und CRIF fordern Sie kostenlos selbst an.", anderesLand: "Schweiz", anderesLandHref: "/schweiz",
+    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Ihre Bonitätsauswertung aus Ihren Kontoauszügen, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
   },
   schweiz: {
     metaTitel: "FIAON in der Schweiz · Betreibungsregister, CRIF, Intrum",
     metaBeschreibung: "Bonität in der Schweiz: Betreibungsregisterauszug, CRIF und Intrum erklärt, Auskunft nach Art. 25 DSG, Löschung unbegründeter Betreibungen (Art. 8a SchKG) – und wie FIAON Einträge prüft, bereinigt und Konto und Karte vorbereitet.",
     pille: "Schweiz", h1a: "Bonität in der Schweiz, ", h1b: "Klartext.",
     lead: "Betreibungsregister, CRIF, Intrum: In der Schweiz entscheidet oft ein Auszug vom Betreibungsamt über Wohnung, Handy und Karte – und fünf Jahre sind lang. FIAON kennt die Wege, ihn zu bereinigen.",
-    beschaffen: "Auskunft beschaffen", brief: "Auskunftsbrief (kostenlos)",
+    beschaffen: "Antrag starten", brief: "Auskunftsbrief (kostenlos)",
     zahlen: [{ wert: "5", label: "Jahre bleibt eine Betreibung im Registerauszug sichtbar" }, { wert: "3", label: "Monate Frist, eine unbegründete Betreibung sperren zu lassen (Art. 8a SchKG)" }, { wert: "30", label: "Tage Frist für die Auskunft nach Art. 25 DSG" }, { wert: "17 CHF", label: "kostet der Betreibungsregisterauszug beim Amt" }],
     werPille: "Wer speichert was", werH2a: "Die Stellen, ", werH2b: "die über Sie entscheiden.",
     stellen: [
@@ -87,7 +91,7 @@ const de: { oesterreich: Land; schweiz: Land } = {
     ],
     wegPille: "Der Weg mit FIAON", wegH2a: "Vom Registerauszug ", wegH2b: "zur Karte.",
     weg: [
-      { titel: "Auszug und Auskünfte", text: "FIAON beschafft den Betreibungsregisterauszug sowie die Auskünfte bei CRIF und Intrum – mit Vollmacht, ohne Behördengang." },
+      { titel: "Bonitätsauswertung und Auszug", text: "Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Den Betreibungsregisterauszug bestellen Sie beim Amt, die kostenlosen Auskünfte bei CRIF und Intrum fordern Sie selbst an – und laden alles hoch." },
       { titel: "Jede Betreibung erklärt", text: "Gläubiger, Betrag, Stand, Rechtsvorschlag, Frist. Welche lässt sich sperren, welche zurückziehen, welche bleibt." },
       { titel: "Gesuche und Schreiben", text: "Nichtbekanntgabe nach Art. 8a SchKG, Rückzugserklärung vom Gläubiger, Berichtigung bei CRIF und Intrum – per Einschreiben, mit Frist." },
       { titel: "Konto und Karte", text: "Konto bei einer Partnerbank, Kreditkarte, sobald der Auszug trägt. Die Bank entscheidet – FIAON bereitet vor." },
@@ -105,8 +109,8 @@ const de: { oesterreich: Land; schweiz: Land } = {
       { f: "Bekomme ich mit Betreibungen ein Konto?", a: "Banken dürfen ablehnen; PostFinance führt Konten für Personen mit Wohnsitz in der Schweiz weitgehend unabhängig von Betreibungen. FIAON bereitet die Eröffnung vor." },
       { f: "Wie lange dauert die Nichtbekanntgabe nach Art. 8a?", a: "Das Gesuch ist frühestens drei Monate nach Zustellung des Zahlungsbefehls möglich; das Amt fragt den Gläubiger an, der 20 Tage Zeit hat, ein Verfahren nachzuweisen. Danach wird die Betreibung Dritten nicht mehr angezeigt." },
     ],
-    zwischenA: "Sie sind in der Schweiz?", zwischenB: " Der Antrag erkennt Ihr Land und beschafft Registerauszug, CRIF- und Intrum-Auskunft.", anderesLand: "Österreich", anderesLandHref: "/oesterreich",
-    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Auskünfte innerhalb von 24 Stunden nach Eingang, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
+    zwischenA: "Sie sind in der Schweiz?", zwischenB: " Der Antrag erkennt Ihr Land. Ihre Bonitätsauswertung entsteht aus Ihren Kontoauszügen; Registerauszug und Auskünfte bei CRIF und Intrum holen Sie selbst – wir erklären sie.", anderesLand: "Österreich", anderesLandHref: "/oesterreich",
+    abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einer E-Mail-Adresse.", abschlussText: "Ihre Angaben in rund fünf Minuten, Ihre Bonitätsauswertung aus Ihren Kontoauszügen, ein Mensch, der Sie durch alles Weitere begleitet.", jetztStarten: "Jetzt starten", preise: "Preise",
   },
 };
 const en: typeof de = {
@@ -115,7 +119,7 @@ const en: typeof de = {
     metaBeschreibung: "Creditworthiness in Austria: KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' credit databases — and how FIAON checks and cleans up entries and prepares account and card.",
     pille: "Austria", h1a: "Creditworthiness in Austria, ", h1b: "in plain terms.",
     lead: "KSV1870, CRIF, the banks' warning lists: in Austria, different bodies decide on account, card and mobile contract than in Germany — with their own rules and their own deadlines. FIAON knows them.",
-    beschaffen: "Obtain the report", brief: "Self-disclosure letter (free)",
+    beschaffen: "Start the application", brief: "Self-disclosure letter (free)",
     zahlen: [{ wert: "2", label: "major credit bureaus: KSV1870 and CRIF" }, { wert: "1", label: "month to reply to a self-disclosure request (Art. 15 GDPR)" }, { wert: "3", label: "years usual storage after settlement" }, { wert: "€0", label: "is what access to your data costs" }],
     werPille: "Who stores what", werH2a: "The bodies ", werH2b: "that decide about you.",
     stellen: [
@@ -133,7 +137,7 @@ const en: typeof de = {
     ],
     wegPille: "The path with FIAON", wegH2a: "From report ", wegH2b: "to card.",
     weg: [
-      { titel: "Authorisation and reports", text: "FIAON requests your data from KSV1870, CRIF and — with your approval — from the banks. You fill in no forms." },
+      { titel: "Credit assessment and self-disclosure", text: "Your credit assessment shows your creditworthiness as a bank sees it — from your own bank statements. You request your free self-disclosure from KSV1870 and CRIF yourself — our generator writes the letter — and upload it." },
       { titel: "Every entry explained", text: "What is there, who reported it, is it justified, when will it go. In plain language, in the customer area." },
       { titel: "Letters under Austrian law", text: "Rectification, erasure, objection — with the right sections, by registered post, with a deadline." },
       { titel: "Account and card", text: "A current account via partner banks that open accounts even with entries; a credit card as soon as the report supports it. The bank decides." },
@@ -147,19 +151,19 @@ const en: typeof de = {
     fragen: [
       { f: "Is there a SCHUFA in Austria?", a: "No. The role is taken by KSV1870 and CRIF, alongside the banks' warning lists. Anyone who moves from Germany to Austria starts at KSV and CRIF without a history — the SCHUFA data is not transferred." },
       { f: "How long does an entry stay at KSV?", a: "Settled claims usually three years after settlement; insolvency data according to the insolvency register (Ediktsdatei). Data stored longer is to be erased under Art. 17 GDPR." },
-      { f: "Why was my mobile contract rejected although KSV has nothing?", a: "Mobile providers frequently enquire at CRIF. Request the self-disclosure there — FIAON does that for you." },
+      { f: "Why was my mobile contract rejected although KSV has nothing?", a: "Mobile providers frequently enquire at CRIF. Request your free self-disclosure there — our generator writes the letter. Upload it and we explain it to you." },
       { f: "Can I open an account despite an entry?", a: "Yes. There is a legal right to a basic account under the Consumer Payment Accounts Act (Verbraucherzahlungskontogesetz). FIAON prepares the opening with a partner bank." },
       { f: "Does FIAON work under Austrian law?", a: "Yes. Letters, deadlines and sections are adapted for Austria: GDPR, DSG, GewO, Consumer Payment Accounts Act. Your contact person knows both countries." },
     ],
-    zwischenA: "Are you in Austria?", zwischenB: " The application recognises your country and obtains the KSV and CRIF reports.", anderesLand: "Switzerland", anderesLandHref: "/schweiz",
-    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
+    zwischenA: "Are you in Austria?", zwischenB: " The application recognises your country. Your credit assessment is built from your bank statements; you request the self-disclosure from KSV1870 and CRIF yourself, free of charge.", anderesLand: "Switzerland", anderesLandHref: "/schweiz",
+    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, your credit assessment from your bank statements, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
   },
   schweiz: {
     metaTitel: "FIAON in Switzerland · debt enforcement register, CRIF, Intrum",
     metaBeschreibung: "Creditworthiness in Switzerland: the debt enforcement register extract, CRIF and Intrum explained, access under Art. 25 DSG, blocking unjustified enforcements (Art. 8a SchKG) — and how FIAON checks and cleans up entries and prepares account and card.",
     pille: "Switzerland", h1a: "Creditworthiness in Switzerland, ", h1b: "in plain terms.",
     lead: "Debt enforcement register, CRIF, Intrum: in Switzerland an extract from the enforcement office often decides on flat, phone and card — and five years is a long time. FIAON knows the routes to clean it up.",
-    beschaffen: "Obtain the report", brief: "Access letter (free)",
+    beschaffen: "Start the application", brief: "Access letter (free)",
     zahlen: [{ wert: "5", label: "years an enforcement stays visible in the register extract" }, { wert: "3", label: "months to have an unjustified enforcement blocked (Art. 8a SchKG)" }, { wert: "30", label: "days to reply to an access request under Art. 25 DSG" }, { wert: "CHF 17", label: "is what the register extract costs at the office" }],
     werPille: "Who stores what", werH2a: "The bodies ", werH2b: "that decide about you.",
     stellen: [
@@ -177,7 +181,7 @@ const en: typeof de = {
     ],
     wegPille: "The path with FIAON", wegH2a: "From register extract ", wegH2b: "to card.",
     weg: [
-      { titel: "Extract and reports", text: "FIAON obtains the debt enforcement register extract and the reports from CRIF and Intrum — with authorisation, without a trip to the office." },
+      { titel: "Credit assessment and extract", text: "Your credit assessment shows your creditworthiness as a bank sees it — from your own bank statements. You order the debt enforcement register extract from the office and request the free reports from CRIF and Intrum yourself — then upload everything." },
       { titel: "Every enforcement explained", text: "Creditor, amount, status, objection, deadline. Which can be blocked, which withdrawn, which stays." },
       { titel: "Requests and letters", text: "Non-disclosure under Art. 8a SchKG, withdrawal declaration from the creditor, rectification at CRIF and Intrum — by registered post, with a deadline." },
       { titel: "Account and card", text: "An account with a partner bank, a credit card as soon as the extract supports it. The bank decides — FIAON prepares." },
@@ -195,8 +199,8 @@ const en: typeof de = {
       { f: "Can I get an account with enforcements?", a: "Banks may refuse; PostFinance runs accounts for people resident in Switzerland largely regardless of enforcements. FIAON prepares the opening." },
       { f: "How long does non-disclosure under Art. 8a take?", a: "The request is possible at the earliest three months after service of the payment order; the office asks the creditor, who has 20 days to prove proceedings. After that the enforcement is no longer shown to third parties." },
     ],
-    zwischenA: "Are you in Switzerland?", zwischenB: " The application recognises your country and obtains the register extract and the CRIF and Intrum reports.", anderesLand: "Austria", anderesLandHref: "/oesterreich",
-    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, reports explained within 24 hours of receipt, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
+    zwischenA: "Are you in Switzerland?", zwischenB: " The application recognises your country. Your credit assessment is built from your bank statements; you get the register extract and the CRIF and Intrum reports yourself — we explain them.", anderesLand: "Austria", anderesLandHref: "/oesterreich",
+    abschlussA: "Your journey starts ", abschlussB: "with an e-mail address.", abschlussText: "Your details in about five minutes, your credit assessment from your bank statements, a person who guides you through everything else.", jetztStarten: "Get started", preise: "Pricing",
   },
 };
 export const LAENDER_WOERTER = { de, en };

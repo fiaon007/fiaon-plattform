@@ -25,7 +25,7 @@ import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz, AuskunftDossier } from "@shared/fiaon-postmeister-typen";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
 import { antragAbgeschickt, istJahresvertrag, abrechnungsmonatEnde } from "@shared/fiaon-antrag-stand";
-import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
+import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS, AUSWERTUNG_NAME } from "@shared/fiaon-auskunft";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { kartenZiel, kartenzielText, kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
 // E-272 (02.10.2026): Global-Kunde als Merkmal der PERSON — die eine Regel (fiaon-global-kunde.ts).
@@ -658,11 +658,26 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   };
 }
 
-/** Was jede Stufe für Maras Antwort heißt — ein Satz, damit das Modell nicht rät. */
-const AUSKUNFT_BEDEUTUNG: Record<AuskunftDossier["stufe"], string> = {
-  nichts: "Keine Auskunft bestellt und keine in der Akte — anbieten: auskunft_anbieten rufen, Preis und Knopf kommen von dort.",
-  offen: "Auskunft bestellt, Zahlung offen — keine zweite Bestellung; auskunft_anbieten liefert dieselbe Zahlungsseite. Steht offen.gemeldet auf true, hat der Kunde die Zahlung schon gemeldet: nicht erneut zur Zahlung auffordern.",
-  bezahlt: "Auskunft bezahlt — nicht noch einmal verkaufen; FIAON fordert sie an, der Betreuer geht die Auswertung mit dem Kunden durch.",
+/**
+ * Was jede Stufe für Maras Antwort heißt — ein Satz, damit das Modell nicht rät.
+ * E-365 (14.10.2026): privat ist das Produkt die FIAON-Bonitätsauswertung (Ausweis + Kontoauszüge), neu die Stufen
+ * „auswertung" (liegt vor) und „inklusive" (im Paket enthalten, Kartenlink wartet — nie verkaufen); „dokument" hält privat
+ * keinen Verkauf mehr auf. Firmen behalten die Firmen-Bonitätsauskunft (AUSKUNFT_BEDEUTUNG_FIRMA). Als Record<string, …>,
+ * damit die Akte auch Stufen kennt, die der Typ in shared/fiaon-postmeister-typen.ts noch nicht führt.
+ */
+const AUSKUNFT_BEDEUTUNG: Record<string, string> = {
+  nichts: "Keine FIAON-Bonitätsauswertung bestellt — anbieten: auskunft_anbieten rufen, Preis und Knopf kommen von dort. Privat ist das Produkt die Bonitätsauswertung aus Ausweis und Kontoauszügen (keine Auskunft einer Auskunftei, keine Datenkopie, keine Schreiben).",
+  offen: "Bonitätsauswertung bestellt, Zahlung offen — keine zweite Bestellung; an die Zahlung erinnern, auskunft_anbieten liefert dieselbe Zahlungsseite. Steht offen.gemeldet auf true, hat der Kunde die Zahlung schon gemeldet: nicht erneut zur Zahlung auffordern.",
+  bezahlt: "Bonitätsauswertung bezahlt — nicht noch einmal verkaufen. Wir entwickeln seine Bonitätsauswertung; dafür brauchen wir Ausweis und Kontoauszüge der letzten drei Monate (Link kam per E-Mail, sonst fiaon.com/app/unterlagen).",
+  auswertung: "Seine FIAON-Bonitätsauswertung liegt vor (geprüft und freigegeben) — nichts verkaufen. Sie liegt unter fiaon.com/app/auswertung und kam als PDF per E-Mail.",
+  inklusive: "Die FIAON-Bonitätsauswertung ist in seinem Paket ENTHALTEN (sein Kartenlink wartet auf die Bonität) — NIE verkaufen, keinen Preis nennen. Sag ihm, dass sie im Paket enthalten ist, und bitte um Ausweis und Kontoauszüge der letzten drei Monate (hochladen unter fiaon.com/app/unterlagen).",
+  dokument: "Er hat selbst eine Datenkopie in der Akte — die Bonitätsauswertung ist ein anderes Produkt: anbieten darfst du sie (auskunft_anbieten), seine Datenkopie beziehen wir ein.",
+};
+/** Firmen-Bonitätsauskunft (unverändert) — nur die Stufen, die dort etwas anderes heißen. */
+const AUSKUNFT_BEDEUTUNG_FIRMA: Record<string, string> = {
+  nichts: "Keine Firmen-Bonitätsauskunft bestellt und keine in der Akte — anbieten: auskunft_anbieten rufen, Preis und Knopf kommen von dort.",
+  offen: "Firmen-Auskunft bestellt, Zahlung offen — keine zweite Bestellung; auskunft_anbieten liefert dieselbe Zahlungsseite. Steht offen.gemeldet auf true, hat der Kunde die Zahlung schon gemeldet: nicht erneut zur Zahlung auffordern.",
+  bezahlt: "Firmen-Auskunft bezahlt — nicht noch einmal verkaufen; FIAON holt sie ein, der Betreuer geht die Auswertung mit dem Kunden durch.",
   dokument: "Eine Auskunft liegt schon in der Akte (hochgeladen oder geliefert) — nichts verkaufen.",
 };
 
@@ -699,12 +714,15 @@ export async function auskunftDossier(personId: number, lage?: Kundenlage | null
       : await auskunftArtFuer(personId);
     // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
     const s = (await import("./fiaon-auskunft")).standZumZeigen(await auskunftStand(personId, sqlPool, art));
+    const stufe = String(s.stufe);
     return {
-      stufe: s.stufe,
+      // E-365: „auswertung"/„inklusive" kommen neu aus auskunftStand — der Typ der Akte zieht nach (shared/fiaon-postmeister-typen.ts).
+      stufe: stufe as AuskunftDossier["stufe"],
       art,
-      bedeutung: AUSKUNFT_BEDEUTUNG[s.stufe],
+      bedeutung: (art === "firma" ? AUSKUNFT_BEDEUTUNG_FIRMA[stufe] : undefined) ?? AUSKUNFT_BEDEUTUNG[stufe] ?? AUSKUNFT_BEDEUTUNG.nichts,
       land: s.land,
-      wort: auskunftWort(s.land),
+      // E-365: privat heißt das Produkt so — Firmen behalten das Wort ihres Landes.
+      wort: art === "firma" ? auskunftWort(s.land) : AUSWERTUNG_NAME,
       auskunfteien: auskunfteienText(s.land),
       preis: {
         fuerIhn: s.preis.text,

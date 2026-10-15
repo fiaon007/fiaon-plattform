@@ -2,7 +2,7 @@
 // /sicherheit — Datenschutz & Sicherheit (23.08.2026)
 //
 // Was mit den sensibelsten Daten passiert, die es über einen Menschen gibt:
-// Hosting, Verschlüsselung, Vollmacht, Freigabe, Löschung, Zahlungen, Rechte.
+// Hosting, Verschlüsselung, Hochladen, Freigabe, Löschung, Zahlungen, Rechte.
 // Werkzeug: Datenschutz-Check (was darf wer, in 6 Fragen). Ehrlich, konkret.
 // ═══════════════════════════════════════════════════════════════════════════
 // 02.09.2026: zweisprachig — /sicherheit (Deutsch) und /en/security (Englisch);

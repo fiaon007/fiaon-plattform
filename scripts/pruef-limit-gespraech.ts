@@ -233,8 +233,8 @@ for (const p of ANTRAG_NEU_PAKETE) {
     ok(html.split(SATZ_3).length === 2, `Vertrag ${p.key}: der Satz steht genau einmal`);
   }
 }
-ok(ANTRAG_NEU_LEISTUNG_FASSUNG === "AN-2026-10-05b" && ANTRAG_NEU_VERTRAG_FASSUNG === "PV-2026-10-14", "Fassungen hochgezählt (AN-2026-10-05b, PV-2026-10-14 seit E-363)");
-ok(vertrag("pro").includes("Vertragsfassung PV-2026-10-14"), "der Vertrag trägt die neue Fassung");
+ok(ANTRAG_NEU_LEISTUNG_FASSUNG === "AN-2026-10-15" && ANTRAG_NEU_VERTRAG_FASSUNG === "PV-2026-10-15", "Fassungen hochgezählt (AN-2026-10-15, PV-2026-10-15 seit E-365)");
+ok(vertrag("pro").includes("Vertragsfassung PV-2026-10-15"), "der Vertrag trägt die neue Fassung");
 
 // ═══════════════════════════════════════════════════════════════════════════
 abschnitt("5 · Art, Legende, Leitfaden — und Quelltext-Wachen");

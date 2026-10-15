@@ -233,6 +233,16 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
           <span className="ba-marke"><Stern />FIAON Bonitätsauswertung</span>
           <span className={`ba-chip ${zustand}`}>{chip}</span>
         </header>
+        {/* E-365: Worauf die Auswertung beruht — gekauft (74/149 €), im Paket enthalten (Kartenlink wartet) oder keins von beiden. */}
+        {d.grundlage && (
+          <p className="ba-grundlage" data-fiaon="bonitaet-grundlage">
+            {d.grundlage.art === "bezahlt"
+              ? <>Bezahlt{d.grundlage.betragText ? ` · ${d.grundlage.betragText}` : ""}{d.grundlage.ref ? ` · ${d.grundlage.ref}` : ""}</>
+              : d.grundlage.art === "inklusive"
+                ? <>Im Paket enthalten — der Kartenlink wartet auf die Bonität</>
+                : <>Nicht gekauft und nicht im Paket enthalten (Kartenlink schon da oder kein Paket)</>}
+          </p>
+        )}
 
         {zustand === "fehlt" && (
           <>
@@ -269,9 +279,12 @@ export function BonitaetsauswertungKarte({ personId, name, melden, onDetails }: 
                 <li className="ba-klein">Steht als Vorbehalt im Bericht.</li>
               </ul>
             )}
+            {/* E-365: gekauft, Beginn vor Ablauf der Widerrufsfrist nicht verlangt — der Knopf wartet bis zum Fristende. */}
+            {d.startSperre && <p className="ba-hinweis" data-fiaon="bonitaet-widerruf">{d.startSperre.satz}</p>}
             <div className="ba-knoepfe">
-              <button type="button" className="ba-start" disabled={!!busy} onClick={() => void erstellen()}>
-                <Stern />{busy === "start" ? "Startet …" : "Bonität jetzt entwickeln"}
+              <button type="button" className={`ba-start${d.startSperre ? " aus" : ""}`} disabled={!!busy || !!d.startSperre} onClick={() => void erstellen()}
+                title={d.startSperre ? `Ab dem ${d.startSperre.abText}` : undefined}>
+                <Stern />{busy === "start" ? "Startet …" : d.startSperre ? `Ab dem ${d.startSperre.abText}` : "Bonität jetzt entwickeln"}
               </button>
               <span className="ba-klein">Ein Klick, ein Kunde — dauert ein bis drei Minuten.</span>
             </div>

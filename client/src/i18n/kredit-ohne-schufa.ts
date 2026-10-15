@@ -35,7 +35,7 @@ const de = {
     { f: "Was kostet ein Kredit ohne SCHUFA?", a: "Deutlich mehr: Die effektiven Jahreszinsen liegen üblicherweise zwischen 10 und 16 Prozent — beim regulären Ratenkredit mit ordentlicher Bonität sind es 5 bis 9. Auf 5.000 Euro über 40 Monate macht das schnell 1.000 Euro und mehr Unterschied." },
     { f: "Sieht meine Bank, dass ich einen Kredit ohne SCHUFA aufgenommen habe?", a: "In der Auskunftei nicht — genau das ist der Zweck. Aber die Rate erscheint auf Ihrem Kontoauszug, und bei jeder späteren Kreditprüfung zählt sie in der Haushaltsrechnung mit. Verschwiegene Raten, die dort auftauchen, kosten mehr Vertrauen als ein erklärter Eintrag." },
     { f: "Was ist der bessere Weg?", a: "In den meisten Fällen: die Auskunft in Ordnung bringen statt sie umgehen. Viele Negativeinträge sind angreifbar — falsch gemeldet, verfristet oder ohne die gesetzlichen Voraussetzungen eingetragen. Ist die Auskunft sauber, steht der normale Kreditmarkt wieder offen, zu normalen Zinsen." },
-    { f: "Hilft FIAON bei der Kreditvermittlung?", a: "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, prüft jeden Eintrag auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen." },
+    { f: "Hilft FIAON bei der Kreditvermittlung?", a: "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. Ihre kostenlose Datenkopie fordern Sie selbst an und laden sie hoch; FIAON prüft die Einträge auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen." },
   ],
   // E-283 (05.10.2026): „… und erhält keine Provisionen von Kreditgebern" gestrichen — FIAON wird von seiner
   // Partnerbank je Kontoeröffnung vergütet (AGB § 2). Was stimmt, steht in den AGB; hier nur, was die Seite braucht.
@@ -46,7 +46,7 @@ const de = {
     { href: "/girokonto-trotz-negativer-bonitaet", t: "Girokonto trotz negativer Bonität", s: "Der ehrliche Weg zum Konto — mit allem, was wir NICHT versprechen." },
     { href: "/ratenzahlung-und-bonitaet", t: "Ratenzahlung & Bonität", s: "Wie zwölf pünktliche Raten die Historie bauen, die Banken sehen wollen." },
   ],
-  zwischen2A: "Die Absage kam wegen der Auskunft?", zwischen2B: " FIAON beschafft sie, prüft jeden Eintrag und setzt durch, was angreifbar ist — damit der nächste Antrag ohne Umweg gelingt.", pruefenLassen: "Auskunft prüfen lassen",
+  zwischen2A: "Die Absage kam wegen der Auskunft?", zwischen2B: " Fordern Sie Ihre kostenlose Datenkopie an und laden Sie sie hoch — FIAON prüft die Einträge und setzt durch, was angreifbar ist, damit der nächste Antrag ohne Umweg gelingt.", pruefenLassen: "Auskunft prüfen lassen",
 };
 const en: typeof de = {
   metaTitel: "Loans without SCHUFA · what is really behind them",
@@ -83,7 +83,7 @@ const en: typeof de = {
     { f: "What does a loan without SCHUFA cost?", a: "Considerably more: the effective annual rates are usually between 10 and 16 per cent — for a regular instalment loan with a decent credit file it is 5 to 9. On €5,000 over 40 months that quickly makes a difference of €1,000 and more." },
     { f: "Does my bank see that I have taken out a loan without SCHUFA?", a: "Not at the credit bureau — that is exactly the purpose. But the instalment appears on your bank statement, and in every later credit check it counts in the household calculation. Concealed instalments that turn up there cost more trust than an explained entry." },
     { f: "What is the better route?", a: "In most cases: put the credit file in order instead of circumventing it. Many negative entries can be challenged — wrongly reported, expired or entered without the legal requirements. Once the file is clean, the normal credit market is open again, at normal rates." },
-    { f: "Does FIAON help with credit brokerage?", a: "No — FIAON does not broker loans and does not sell financial products. FIAON obtains your reports from SCHUFA, KSV and CRIF, checks every entry for whether it can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan." },
+    { f: "Does FIAON help with credit brokerage?", a: "No — FIAON does not broker loans and does not sell financial products. You request your free data copy yourself and upload it; FIAON checks the entries for whether they can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan." },
   ],
   fussSatz: "FIAON does not broker loans. This page is an editorial classification based on publicly available sources (as of August 2026) and not legal or investment advice.",
   weiterlesen: "Read on",
@@ -92,6 +92,6 @@ const en: typeof de = {
     { href: "/girokonto-trotz-negativer-bonitaet", t: "A current account despite a poor record", s: "The honest route to an account — with everything we do NOT promise." },
     { href: "/ratenzahlung-und-bonitaet", t: "Instalments and creditworthiness", s: "How twelve punctual instalments build the history banks want to see." },
   ],
-  zwischen2A: "Was the rejection because of your credit file?", zwischen2B: " FIAON obtains it, checks every entry and enforces what can be challenged — so that the next application succeeds without a detour.", pruefenLassen: "Have your credit file checked",
+  zwischen2A: "Was the rejection because of your credit file?", zwischen2B: " Request your free data copy and upload it — FIAON checks the entries and enforces what can be challenged, so that the next application succeeds without a detour.", pruefenLassen: "Have your credit file checked",
 };
 export const KREDIT_OHNE_SCHUFA_WOERTER = { de, en };

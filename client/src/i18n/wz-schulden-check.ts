@@ -32,7 +32,7 @@ const de = {
     { f: "Speichert dieser Check meine Angaben?", a: "Nein. Alle Berechnungen laufen in Ihrem Browser. Es wird nichts übertragen, nichts gespeichert und keine Anmeldung verlangt." },
   ],
   fuss: "Der Check ist eine Selbsteinschätzung anhand der üblichen Kennzahlen der Kredit- und Beratungspraxis — keine Schuldner- oder Rechtsberatung. Staatlich anerkannte Schuldnerberatungsstellen arbeiten kostenlos. Nichts wird gespeichert.",
-  zwischenrufFett: "Ordnung ist der erste Schritt aus jeder Lage.", zwischenruf: " FIAON beschafft Ihre Auskünfte, prüft jeden Eintrag und baut mit Ihnen den Fahrplan — ehrlich, auch wenn die Antwort erst einmal „Schuldnerberatung“ heißt.", zwischenrufKnopf: "Lage besprechen",
+  zwischenrufFett: "Ordnung ist der erste Schritt aus jeder Lage.", zwischenruf: " Ihre kostenlose Datenkopie fordern Sie selbst an; FIAON prüft die Einträge und baut mit Ihnen den Fahrplan — ehrlich, auch wenn die Antwort erst einmal „Schuldnerberatung“ heißt.", zwischenrufKnopf: "Lage besprechen",
 };
 const en: typeof de = {
   metaTitel: "Debt check · Am I over-indebted?",
@@ -66,6 +66,6 @@ const en: typeof de = {
     { f: "Does this check store my details?", a: "No. All calculations run in your browser. Nothing is transmitted, nothing is stored and no sign-up is required." },
   ],
   fuss: "The check is a self-assessment based on the usual key figures of lending and counselling practice — not debt or legal advice. State-recognised debt counselling centres work free of charge. Nothing is stored.",
-  zwischenrufFett: "Order is the first step out of any situation.", zwischenruf: " FIAON obtains your reports, checks every entry and builds the roadmap with you — honestly, even if the answer is “debt counselling” first.", zwischenrufKnopf: "Discuss the situation",
+  zwischenrufFett: "Order is the first step out of any situation.", zwischenruf: " You request your free data copy yourself; FIAON checks the entries and builds the roadmap with you — honestly, even if the answer is “debt counselling” first.", zwischenrufKnopf: "Discuss the situation",
 };
 export const WZ_SCHULDEN_CHECK_WOERTER = { de, en };

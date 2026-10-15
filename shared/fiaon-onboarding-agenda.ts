@@ -102,8 +102,9 @@ export const AGENDA: AgendaSchritt[] = [
     titel: `Bonitätsauskunft erklärt (${AUSKUNFT_KUNDENPREIS} Kundenpreis)`,
     zweck: "Eine Auskunft, kein Rat. Sie ist nicht im Paket enthalten; der Kunde entscheidet selbst — und weiß, wie er zahlt.",
     punkte: [
-      "Was er bekommt: seine Datenkopien bei allen Auskunfteien seines Landes, jeden Eintrag erklärt, Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe.",
-      "Die Eigenauskunft ist neutral: keine Kreditanfrage — Banken sehen sie nicht als Anfrage.",
+      // E-365: Das Produkt ist die FIAON-Bonitätsauswertung (Ausweis + Kontoauszug), keine Datenkopie.
+      "Was er bekommt: seine FIAON-Bonitätsauswertung — Bonität aus Sicht einer Bank, jede Ausgabe im Detail, Ampel, Finanzwert und Plan, aus Ausweis und Kontoauszug.",
+      "Neutral: FIAON fragt bei keiner Auskunftei an — es entsteht keine Anfrage und kein Eintrag. Wartet sein Kartenlink auf die Bonität, ist sie im Paket enthalten.",
       `Mit Paket ${AUSKUNFT_KUNDENPREIS} einmalig (einzeln ${AUSKUNFT_EINZELPREIS}), kein Abo. Will er sie: in der Akte bestellen, er bekommt den Link zur Zahlungsseite — der Verwendungszweck ist Pflicht. Fragt er nach dem kostenlosen Weg: ehrlich ja sagen — und was wir ihm abnehmen.`,
     ],
     notizFrage: "Wollte der Kunde die Auskunft? Wenn nein: warum nicht?",

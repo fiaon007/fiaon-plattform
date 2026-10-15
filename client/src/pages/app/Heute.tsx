@@ -17,6 +17,7 @@ import { Zielkarte } from "./Weg";
 import { api, eur, zeit } from "./Bausteine";
 import { LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
 import { FinanzauswertungKarte } from "@/components/finanzen/Finanzauswertung";
+import { AuskunftKaufkarte, fehltText } from "@/components/kunde/AuskunftKauf";
 
 interface BerichtKurz { monat: string; monatText: string; grosseZahlCents: number; grosseZahlText: string; gelesen: boolean }
 const DEMO_BERICHT: BerichtKurz = { monat: "2026-08", monatText: "August 2026", grosseZahlCents: 59742, grosseZahlText: "Im August für Sie geholt: 597,42 € im Monat.", gelesen: false };
@@ -50,9 +51,15 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
   else if (rw.schritte.some((s) => s.key === "anspruchs_check" && s.stand !== "erledigt")) band = { text: "Ihre Selbstauskunft: Angaben zu Ihrer persönlichen und finanziellen Situation – in Ruhe, eine Frage nach der anderen.", aktion: "Selbstauskunft ausfüllen", href: `${basis}/ansprueche/check` };
   else if (!startFertig && !terminGebucht) band = { text: "Ihr Startgespräch: Wählen Sie eine Zeit. Das Gespräch führen wir am Telefon.", aktion: "Zeit wählen", href: `${basis}/weg` };
   // E-240: seine eigene Bestellung wartet auf Zahlung — die Zahlungsseite ist eine eigene Seite (kein /app-Reiter).
-  else if (ak?.stufe === "offen" && ak.offen && !ak.offen.gemeldet && ak.offen.zahlungsseite && !demo) band = { text: "Ihre Bonitätsauskunft ist bestellt – die Zahlung ist noch offen.", zusatz: `${ak.offen.betragText} · danach fordern wir Ihre Datenkopien bei ${ak.bei} an.`, aktion: "Zur Zahlung", href: ak.offen.zahlungsseite, extern: true };
-  // E-240: Paket bezahlt, keine Auskunft, keine Werbesperre — die Wahl steht unter Unterlagen.
-  else if (ak?.darfKaufen && ak.werbung) band = { text: "Ihre Bonitätsauskunft fehlt noch.", zusatz: `Wir fordern Ihre Datenkopien bei ${ak.bei} an und erklären jeden Eintrag – ${ak.preisText} einmalig.`, aktion: "Ansehen", href: `${basis}/unterlagen` };
+  // E-365: Für die (bezahlte oder im Paket enthaltene) Bonitätsauswertung fehlen Unterlagen — das ist jetzt sein Schritt.
+  else if (ak?.auswertung?.stand === "unterlagen_fehlen") band = { text: `Für Ihre Bonitätsauswertung fehlt noch: ${fehltText(ak.auswertung.fehlt)}.`, zusatz: "Ein Handyfoto genügt — dann entwickelt Ihr FIAON-Team Ihren Bericht.", aktion: "Jetzt hochladen", href: `${basis}/unterlagen` };
+  else if (ak?.stufe === "offen" && ak.offen && !ak.offen.gemeldet && ak.offen.zahlungsseite && !demo) band = ak.art === "firma"
+    ? { text: "Ihre Bonitätsauskunft ist bestellt – die Zahlung ist noch offen.", zusatz: `${ak.offen.betragText} · danach fordern wir Ihre Datenkopien bei ${ak.bei} an.`, aktion: "Zur Zahlung", href: ak.offen.zahlungsseite, extern: true }
+    : { text: "Ihre Bonitätsauswertung ist bestellt – die Zahlung ist noch offen.", zusatz: `${ak.offen.betragText} · danach laden Sie Ausweis und Kontoauszüge hoch.`, aktion: "Zur Zahlung", href: ak.offen.zahlungsseite, extern: true };
+  // E-240/E-365: kaufbar, keine Werbesperre — die Wahl steht unter Unterlagen.
+  else if (ak?.darfKaufen && ak.werbung) band = ak.art === "firma"
+    ? { text: "Ihre Bonitätsauskunft fehlt noch.", zusatz: `Wir fordern Ihre Datenkopien bei ${ak.bei} an und erklären jeden Eintrag – ${ak.preisText} einmalig.`, aktion: "Ansehen", href: `${basis}/unterlagen` }
+    : { text: "Ihre Bonität aus Sicht einer Bank.", zusatz: `Die FIAON-Bonitätsauswertung aus Ihren eigenen Kontoauszügen – ${ak.preisText} einmalig.`, aktion: "Ansehen", href: `${basis}/unterlagen` };
   else if (!startFertig && terminGebucht) band = { text: `Ihr Startgespräch: ${zeit(b.termin!.beginn)} Uhr am Telefon${b.termin!.agent ? ` mit ${b.termin!.agent}` : ""}. Halten Sie Ihr Handy bereit.`, aktion: null, href: null };
 
   return (
@@ -171,6 +178,53 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
         </div>
       </section>
       {demo && <p className="ap-fuss">Demo-Ansicht mit festen Vorführdaten – kein echtes Konto.</p>}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NUR DIE BONITÄTSAUSWERTUNG (E-365, 14.10.2026)
+//
+// Wer die Auswertung für 149 € ohne Paket gekauft hat, sah in /app den ganzen Paketweg: Selbstauskunft,
+// Startgespräch, elf Schritte zur Karte, Raten. Jetzt sieht er nur, was ihn betrifft: den Stand seiner
+// Auswertung (Kaufkarte im Stand), den fertigen Bericht — und danach ruhig den nächsten Schritt mit FIAON
+// (eine Seite der Website, keine Werbung per Post).
+// ═══════════════════════════════════════════════════════════════════════════
+export function NurAuswertungHeute({ b, basis, demo }: { b: Bereich; basis: string; demo: boolean }) {
+  const std = new Date().getHours();
+  const gruss = std < 11 ? "Guten Morgen" : std < 18 ? "Guten Tag" : "Guten Abend";
+  const ak = b.auskunft ?? null;
+  const stand = ak?.auswertung?.stand ?? (ak?.stufe === "offen" ? "zahlung_offen" : null);
+  const ruhe = stand === "unterlagen_fehlen" ? <><b>Eine Sache wartet auf Sie:</b> Ihre Unterlagen.</>
+    : stand === "liegt_vor" ? <><b>Ihre Bonitätsauswertung ist fertig.</b></>
+    : stand === "zahlung_offen" ? <><b>Ihre Zahlung ist noch offen.</b></>
+    : <><b>Sie müssen heute nichts tun.</b> Ihr FIAON-Team arbeitet an Ihrer Bonitätsauswertung.</>;
+  return (
+    <>
+      <h1 className="ap-gruss ap-auf">{gruss}, {b.kunde.vorname} {b.kunde.nachname}.</h1>
+      <p className="ap-ruhe ap-auf">{ruhe}</p>
+      {ak && (
+        <section className="ap-abschnitt ap-auf v1" data-fiaon="nur-auswertung">
+          <div className="ap-karte"><AuskunftKaufkarte kauf={ak} variante="ap" demo={demo} hochladen={`${basis}/unterlagen`} /></div>
+        </section>
+      )}
+      <div className="ap-auf v1"><FinanzauswertungKarte kundeRef={b.kunde.ref} demo={demo} href={`${basis}/auswertung`} /></div>
+      {stand === "liegt_vor" && (
+        <section className="ap-abschnitt ap-auf v1">
+          <h2 className="ap-abschnitt-titel">Ihr nächster Schritt</h2>
+          <div className="ap-karte">
+            <h3>Konto und Karte mit FIAON</h3>
+            <p>Mit einem FIAON-Paket begleitet Sie Ihre Ansprechperson auf dem Weg zu Konto und Karte bei unserer Partnerbank — auf Grundlage Ihrer Bonitätsauswertung.</p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              <a className="ap-link" href="/privatkunden">Pakete ansehen →</a>
+              <a className="ap-link" href="/partnerbank-dkb">Unsere Partnerbank →</a>
+            </div>
+          </div>
+        </section>
+      )}
+      {b.ansprechpartner && (
+        <p className="ap-fuss ap-auf v1" style={{ marginTop: 14 }}>Fragen? Schreiben Sie {b.ansprechpartner.name} unter <Link href={`${basis}/mehr/hilfe`}>Hilfe und Nachricht</Link>.</p>
+      )}
     </>
   );
 }

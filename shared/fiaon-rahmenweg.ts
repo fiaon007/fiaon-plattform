@@ -16,6 +16,8 @@
 // erledigt war, bleibt erledigt — auch wenn ein späterer noch offen ist.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { KARTE_LINK_SATZ } from "./fiaon-karten-weg";
+
 /** Spiegel von server/lib/fiaon-konto-karte.ts (dort die Quelle). Nur Rate 2…MIN zählt als Schritt.
  *  21.09.2026 (E-206): 1 — die Einladung kommt ab der ersten Rate; ein eigener „Rate 2"-Schritt entfällt. */
 export const KARTE_MIN_RATEN = 1;
@@ -64,6 +66,14 @@ export interface BereichEingang {
   unterlagen: { kontoauszug: boolean; ausweis: boolean; erneutKontoauszug?: boolean; erneutAusweis?: boolean };
   kontoVerbunden?: boolean;
   bonitaet?: { hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; bezahlt: boolean } | null;
+  /**
+   * E-365 (14.10.2026): der Stand der FIAON-Bonitätsauswertung aus dem Kauf-Block (`auskunft.auswertung`) und ob sie
+   * kaufbar ist (`auskunft.darfKaufen`). Schritt 6 und 7 lesen nur noch das — die Datenkopie beschafft FIAON nicht mehr.
+   */
+  auskunft?: {
+    darfKaufen?: boolean; stufe?: string;
+    auswertung?: { stand: string; fehlt?: string[]; abText?: string | null; gelesen?: boolean } | null;
+  } | null;
   abo?: { raten: { nr: number; betragCents: number; status: string; faelligAm: string | null; faelligIso: string | null; bezahltAm: string | null }[] } | null;
   karte?: { verschickt?: boolean; tore?: { titel: string; erfuellt: boolean }[] } | null;
   /**
@@ -129,7 +139,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   }
 
   const s: Schritt[] = [];
-  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihre Selbstauskunft", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauskunft", analyse: "die Prüfung Ihrer Auskunft", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Weg zu Konto und Karte" };
+  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihre Selbstauskunft", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauswertung", analyse: "Ihre Bonitätsauswertung lesen", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Weg zu Konto und Karte" };
   const ok = (key: string, titel: string, erledigt: boolean, am: string | null, textOffen: string, wer: Wer, aktion: string | null, href: string | null, extra?: Partial<Schritt>) => {
     s.push({ key, titel, kurz: KURZ[key] ?? (key.startsWith("rate_") ? `Rate ${key.slice(5)}` : titel), stand: erledigt ? "erledigt" : "kommt", am: erledigt ? am : null, text: textOffen, wer: erledigt ? null : wer, aktion: erledigt ? null : aktion, href: erledigt ? null : href, ...extra });
   };
@@ -154,15 +164,25 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   const u = b.unterlagen;
   const unterlagenOk = !!u.ausweis && (!!u.kontoauszug || !!b.kontoVerbunden) && !u.erneutAusweis && !u.erneutKontoauszug;
   ok("unterlagen", "Ausweis und Kontoauszug geprüft", unterlagenOk, datum("unterlagen"), "Ein Handyfoto genügt, wenn alles lesbar ist.", "kunde", "Unterlagen einreichen", "/unterlagen");
-  // 6 · Auskunft
+  // 6 · Bonitätsauswertung (E-365, 14.10.2026) — vorher „Bonitätsauskunft liegt vor“ (Datenkopie, von FIAON beschafft).
+  // Erledigt, sobald die freigegebene FIAON-Bonitätsauswertung beim Kunden liegt (auch eine eigene, ausgewertete Auskunft
+  // zählt weiter, damit der Weg bestehender Kunden nicht zurückspringt).
   const bo = b.bonitaet ?? null;
-  const auskunftDa = !!bo?.hatDokument;
-  const auskunftKunde = !!bo?.darfKaufen && !bo?.bezahlt;
-  ok("auskunft", "Bonitätsauskunft liegt vor", auskunftDa, datum("auskunft"),
-    auskunftKunde ? "Die Auskunft ist die Grundlage für jeden Löschantrag." : "Wir beschaffen Ihre Auskunft und tragen sie hier ein.",
-    auskunftKunde ? "kunde" : "fiaon", auskunftKunde ? "Auskunft beauftragen" : null, auskunftKunde ? "/unterlagen" : null);
-  // 7 · Analyse
-  ok("analyse", "Auskunft geprüft und erklärt", !!bo?.geprueft, datum("analyse"), "Ein Mensch prüft jeden Eintrag und erklärt ihn in Ihrer Akte.", "fiaon", null, null);
+  const aw = b.auskunft?.auswertung ?? null;
+  const auswertungDa = aw?.stand === "liegt_vor";
+  const fehlt = (aw?.fehlt ?? []).map((f) => (f === "ausweis" ? "Ihren Ausweis" : "Ihre Kontoauszüge")).join(" und ");
+  const [t6, wer6, akt6, href6]: [string, Wer, string | null, string | null] =
+    aw?.stand === "unterlagen_fehlen" ? [`Laden Sie ${fehlt || "Ausweis und Kontoauszüge"} hoch — daraus entwickelt Ihr FIAON-Team Ihre Bonitätsauswertung.`, "kunde", "Unterlagen hochladen", "/unterlagen"]
+    : aw?.stand === "beginnt_ab" ? [`Ihre Unterlagen sind da. Wie bei Ihrer Bestellung gewählt, beginnen wir am ${aw.abText ?? "Ende der Widerrufsfrist"}.`, "fiaon", null, null]
+    : aw?.stand === "wird_entwickelt" ? ["Ihr FIAON-Team entwickelt Ihre Bonitätsauswertung — Ihre Bonität aus Sicht einer Bank, mit Ampel, Finanzwert und Plan.", "fiaon", null, null]
+    : b.auskunft?.stufe === "offen" ? ["Ihre Bonitätsauswertung ist bestellt — die Zahlung ist noch offen.", "kunde", "Zur Zahlung", "/unterlagen"]
+    : b.auskunft?.darfKaufen ? ["Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen, mit Ampel, Finanzwert und Plan.", "kunde", "Bonitätsauswertung ansehen", "/unterlagen"]
+    : ["Ihr FIAON-Team entwickelt Ihre Bonitätsauswertung, sobald Ihr Ausweis und Ihre Kontoauszüge da sind.", "fiaon", null, null];
+  ok("auskunft", "Bonitätsauswertung liegt vor", auswertungDa || !!bo?.geprueft, datum("auskunft"), t6, wer6, akt6, href6);
+  // 7 · Gelesen — der Bericht wirkt erst, wenn der Kunde ihn öffnet (Kapitel, Plan, PDF).
+  ok("analyse", "Bonitätsauswertung gelesen", (auswertungDa && !!aw?.gelesen) || (!auswertungDa && !!bo?.geprueft), datum("analyse"),
+    "Bereich für Bereich, wo Sie stehen, jede Ausgabe im Detail und Ihr Plan — als PDF zum Aufbewahren.",
+    auswertungDa ? "kunde" : "fiaon", auswertungDa ? "Jetzt lesen" : null, auswertungDa ? "/auswertung" : null);
   // 8 · Erstes Schreiben
   ok("erster_vorgang", "Erstes Schreiben versandt", (o.vorgaengeVersandt ?? 0) > 0, null, "Aus Ihren Ansprüchen entsteht der erste Antrag – Sie unterschreiben, ein Mensch versendet.", "fiaon", null, null);
   // 9 · Rate 2 … KARTE_MIN_RATEN
@@ -194,7 +214,8 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   // Konto-und-Karte-Mail) — nicht, dass eine Karte beantragt wäre. Praxistest
   // 05.09.: Sapia stand mit „Karte beantragt ✓“ da, ohne je ein Konto eröffnet
   // zu haben. Der Schritt heißt deshalb, was er ist.
-  ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, "Sobald Ihre erste Zahlung gebucht ist, schicken wir Ihnen direkt den Link unserer Partnerbank für Konto und Karte. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
+  // E-363/E-365: der Link kommt nach der Bonitätsauswertung — derselbe Satz wie überall (shared/fiaon-karten-weg.ts).
+  ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, `${KARTE_LINK_SATZ} Über Karte und Rahmen entscheidet die Bank.`, "fiaon", null, null);
 
   // ── Jetzt = erster nicht erledigter Schritt ────────────────────────────
   let jetzt: Schritt | null = null;

@@ -242,6 +242,10 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
   anfragen: { am: string; arten: string[]; mail: string | null; whatsapp: string | null; adresse: string | null; von: string | null }[];
   /** Der gültige Upload-Link (ohne Token) — für „Link zurückziehen“ in der Akte (Nachprüfung 08.10.). */
   links: { id: number; arten: string[]; gueltigBis: string; nutzungen: number; dateien: number; erstelltVon: string | null }[];
+  /** E-365: Warum das Team heute noch nicht beginnen darf (Widerrufsfrist der gekauften Auswertung) — sonst null. */
+  startSperre: { satz: string; abText: string } | null;
+  /** E-365: bezahlt (Bestellung), inklusive (Kartenlink wartet) oder keins von beiden — für die Marke auf der Karte. */
+  grundlage: { art: "bezahlt" | "inklusive" | "keine"; ref: string | null; betragText: string | null };
 }> {
   await ensureFinanzauswertungTabellen();
   // Liegengebliebene Läufe (Neustart mitten im Lauf) nach 15 Minuten freigeben — sonst sperrte der Teilindex die Person.
@@ -270,9 +274,24 @@ export async function lage(personId: number, lauf: Lauf = sqlPool): Promise<{
     id: Number(r.id), arten: r.arten ?? [], gueltigBis: new Date(r.gueltig_bis).toISOString(), nutzungen: Number(r.nutzungen || 0),
     dateien: Number(r.dateien || 0), erstelltVon: r.erstellt_von ?? null,
   }));
+  const ablauf = await import("./fiaon-bonitaet-ablauf");
+  const sperre = await ablauf.auswertungStartSperre(personId, lauf).catch(() => null);
+  const kauf = await ablauf.auswertungKauf(personId, lauf).catch(() => null);
+  let inklusive = false;
+  if (!kauf) {
+    const karte = await import("./fiaon-konto-karte");
+    await karte.bonitaetBereit().catch(() => {});
+    const [i] = (await lauf`SELECT ${lauf.unsafe(karte.BONITAET_INKLUSIVE_SQL(String(Math.trunc(personId))))} AS ja`.catch(() => [])) as any[];
+    inklusive = !!i?.ja;
+  }
+  const { euroText } = await import("@shared/fiaon-auskunft");
   return {
     voraussetzungen: e?.voraussetzungen ?? null, fassungen, laeuft: fassungen.find((f) => f.status === "laeuft") ?? null, veraltet, veraltetGrund,
     sicht: e?.ausweis.sicht ?? null, ausweisVorhanden: !!e?.ausweis.vorhanden, anfragen, links,
+    startSperre: sperre ? { satz: sperre.satz, abText: sperre.abText } : null,
+    grundlage: kauf
+      ? { art: "bezahlt", ref: kauf.ref, betragText: kauf.betragCents ? euroText(kauf.betragCents) : null }
+      : { art: inklusive ? "inklusive" : "keine", ref: null, betragText: null },
   };
 }
 
@@ -519,6 +538,11 @@ export async function erzeugen(
   await ensureFinanzauswertungTabellen();
   const e = await eingabenSammeln(personId, lauf);
   if (!e) return { ok: false, text: "Kunde nicht gefunden." };
+  // E-365 (15.10.2026): Hat der Kunde die Auswertung gekauft und den Beginn vor Ablauf der Widerrufsfrist NICHT verlangt,
+  // beginnt das Team erst nach der Frist — so stand es an der Kauftür („Ohne diesen Haken beginnen wir nach Ablauf …“).
+  const { auswertungStartSperre } = await import("./fiaon-bonitaet-ablauf");
+  const sperre = await auswertungStartSperre(personId, lauf).catch(() => null);
+  if (sperre) return { ok: false, text: sperre.satz };
   if (!e.voraussetzungen.bereit) {
     const fehlt = [!e.ausweis.vorhanden ? "Der Ausweis fehlt." : null, !e.auszug.vorhanden ? "Der Kontoauszug fehlt." : null,
       e.auszug.vorhanden && !e.voraussetzungen.kontoauszug.ok ? e.voraussetzungen.kontoauszug.satz : null].filter(Boolean).join(" ");
@@ -646,7 +670,20 @@ async function kundenMailSenden(
   const [p] = (await lauf`SELECT first_name, last_name, gdpr_deleted_at FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
   if (p?.gdpr_deleted_at) return { ok: false, grund: "Daten DSGVO-gelöscht", mitPdf: false };
   const vorname = String(p?.first_name ?? "").trim() || String(p?.last_name ?? "").trim() || "liebe Kundin, lieber Kunde";
-  const nutzlast = { email: empfaenger.email, vorname, auswertung_url: absoluteUrl("/app/auswertung"), nummer };
+  // E-365: Was als Nächstes kommt — für zahlende Paketkunden ohne Kartenlink der Weg zur Partnerbank (E-363), sonst nichts
+  // (kein Angebot in dieser Mail: sie ist Lieferung, keine Werbung).
+  let naechster = "";
+  try {
+    const karte = await import("./fiaon-konto-karte");
+    await karte.bonitaetBereit();
+    const pid = String(Math.trunc(personId));
+    const { KUENDIGUNG_WIRKSAM_SQL } = await import("@shared/fiaon-kuendigung-regel");
+    const [k] = (await lauf`
+      SELECT EXISTS (SELECT 1 FROM fiaon_applications ka WHERE ka.person_id = ${personId} AND ${lauf.unsafe(karte.PAKET_BESTELLUNG_SQL("ka"))})
+             AND NOT ${lauf.unsafe(karte.SCHON_EINGELADEN_SQL(pid))} AND NOT ${lauf.unsafe(KUENDIGUNG_WIRKSAM_SQL(pid))} AS kommt`) as any[];
+    if (k?.kommt) naechster = "Als Nächstes prüfen wir Ihren Weg zu Konto und Karte: Sind alle Voraussetzungen erfüllt, bekommen Sie den Link unserer Partnerbank für Ihren Kartenantrag in einer eigenen E-Mail.";
+  } catch { /* ohne Satz — die Mail geht trotzdem */ }
+  const nutzlast = { email: empfaenger.email, vorname, auswertung_url: absoluteUrl("/app/auswertung"), nummer, naechster_satz: naechster };
   const motor = await import("../mail/motor");
   const probe = motor.mailRendern("finanzauswertung_bereit", nutzlast);
   if (!probe) return { ok: false, grund: "Keine Vorlage finanzauswertung_bereit", mitPdf: false };
@@ -851,6 +888,8 @@ export async function freigeben(
   const { beschaffungDurchAuswertungErledigen } = await import("./fiaon-auskunft-lieferung");
   await beschaffungDurchAuswertungErledigen(personId, auswertungNummer(personId, Number(r.fassung)), { name: wer.name, agentId: wer.agentId }, lauf);
   const nummer = auswertungNummer(personId, Number(r.fassung));
+  // E-365: die Aufgabe „Bonitätsauswertung entwickeln“ ist damit erledigt.
+  await import("./fiaon-bonitaet-ablauf").then((m) => m.auswertungFreigegeben(personId, nummer, wer.name, lauf)).catch(() => 0);
   let mail = "aus";
   if (opts.mail !== false) {
     // E-357 (14.10.2026, Justin): Der Kunde bekommt die Mail MIT PDF und Link.

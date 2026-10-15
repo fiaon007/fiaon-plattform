@@ -20,7 +20,8 @@
 import { paket, PAKETE } from "./fiaon-pakete";
 import { PAKET_ANZEIGE } from "./fiaon-paketname";
 
-export const AGB_FASSUNG = "2026-10-05";
+// E-365 (15.10.2026): § 4 Abs. 1/3, § 9 und § 10 zur FIAON-Bonitätsauswertung — 2026-10-05 liegt im Archiv.
+export const AGB_FASSUNG = "2026-10-15";
 
 /**
  * Die früheren Fassungen der AGB, neueste zuerst (05.10.2026, E-283). Jede steht wörtlich unter
@@ -28,7 +29,7 @@ export const AGB_FASSUNG = "2026-10-05";
  * 2026-04-12 ist die Fassung der SCP Real Estate KG (Gräfelfing, Zahlung über Stripe) — eine eigene Fassung,
  * nicht nur eine Vorstufe: Anbieterin und Zahlungsweg waren andere.
  */
-export const AGB_FRUEHERE_FASSUNGEN = ["2026-09-26", "2026-09-03", "2026-07-04", "2026-04-12"] as const;
+export const AGB_FRUEHERE_FASSUNGEN = ["2026-10-05", "2026-09-26", "2026-09-03", "2026-07-04", "2026-04-12"] as const;
 
 /** true = unter fiaon.com/agb/<fassung> steht ein Text (die aktuelle oder eine archivierte Fassung). */
 export function agbFassungBekannt(fassung: unknown): boolean {

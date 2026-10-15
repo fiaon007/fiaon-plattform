@@ -35,7 +35,8 @@ interface Stand {
 }
 
 interface AuskunftStand {
-  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  /** E-365: „auswertung" = Bonitätsauswertung liegt vor, „inklusive" = im Paket enthalten. */
+  stufe: "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
   preisText: string;
   mitAbo: boolean;
   offen: { betragText: string; gemeldet: boolean } | null;
@@ -72,9 +73,10 @@ function anforderKnopf(d: Dokument, auskunft: AuskunftStand | null | undefined):
         titel: `Mail mit der Bitte um die ${auskunft.wort}, ohne Angebot (${OHNE_ANGEBOT[String(auskunft.ohneAngebot)] ?? "kein Angebot"}).`,
       };
     }
+    // E-365: Angeboten wird die FIAON-Bonitätsauswertung; die eigene Datenkopie bleibt der Weg zum Hochladen.
     return {
-      text: "Auskunft anbieten",
-      titel: `Mail mit dem Angebot, die ${auskunft.wort} für den Kunden zu holen (${auskunft.preisText}) — und dem Weg, eine eigene hochzuladen.`,
+      text: "Bonitätsauswertung anbieten",
+      titel: `Mail mit dem Angebot der FIAON-Bonitätsauswertung (${auskunft.preisText}) — und dem Weg, eine eigene ${auskunft.wort} hochzuladen.`,
     };
   }
   if (auskunft.stufe === "offen" && auskunft.offen && !auskunft.offen.gemeldet) {

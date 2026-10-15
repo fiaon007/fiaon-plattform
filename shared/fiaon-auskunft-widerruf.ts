@@ -52,7 +52,8 @@ import { FIAON_FIRMA } from "./fiaon-firma";
 import type { AuskunftArt } from "./fiaon-auskunft";
 
 /** Fassung der Belehrung und der Bestätigungssätze in dieser Datei. */
-export const AUSKUNFT_WIDERRUF_FASSUNG = "2026-09-25";
+// E-365 (14.10.2026): Beginn- und Leistungszeit-Satz für die Bonitätsauswertung (privat) — die Belehrung selbst ist unverändert.
+export const AUSKUNFT_WIDERRUF_FASSUNG = "2026-10-15";
 
 /** Die Anschrift der FIAON LTD, wie sie im Impressum steht. */
 export const AUSKUNFT_ANBIETER_ANSCHRIFT =
@@ -135,7 +136,7 @@ export function auskunftBeginnWahl(roh: unknown): AuskunftBeginnWahl {
 }
 
 /** Der Satz zur Wahl in der Vertragsbestätigung — null, wenn keine Wahl dokumentiert ist. */
-export function auskunftBeginnSatz(wahl: AuskunftBeginnWahl, abText?: string | null): string | null {
+export function auskunftBeginnSatz(wahl: AuskunftBeginnWahl, abText?: string | null, art: AuskunftArt = "privat"): string | null {
   if (wahl === "verlangt") {
     return "Sie haben bei Ihrer Bestellung ausdrücklich verlangt, dass wir vor Ablauf der Widerrufsfrist mit der Leistung beginnen, "
       + "und bestätigt, dass Ihr Widerrufsrecht erlischt, sobald wir den Vertrag vollständig erfüllt haben. "
@@ -143,7 +144,10 @@ export function auskunftBeginnSatz(wahl: AuskunftBeginnWahl, abText?: string | n
   }
   if (wahl === "nicht_verlangt") {
     return "Sie haben bei Ihrer Bestellung nicht verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen. "
-      + `Deshalb übermitteln wir Ihre Anfragen an die Auskunfteien erst nach Ablauf der Widerrufsfrist${abText ? `, ab dem ${abText}` : ""}.`;
+      + (art === "firma"
+        ? `Deshalb übermitteln wir Ihre Anfragen an die Auskunfteien erst nach Ablauf der Widerrufsfrist${abText ? `, ab dem ${abText}` : ""}.`
+        // E-365: privat ist die Leistung die Bonitätsauswertung — das Team beginnt erst nach der Frist (Sperre in fiaon-finanzauswertung.ts).
+        : `Deshalb beginnen wir mit Ihrer Bonitätsauswertung erst nach Ablauf der Widerrufsfrist${abText ? `, ab dem ${abText}` : ""}. Ihre Unterlagen können Sie schon jetzt hochladen.`);
   }
   return null;
 }
@@ -177,8 +181,10 @@ export function auskunftLeistungszeit(art: AuskunftArt, nachFrist?: { ab: string
   // Wer den Beginn vor Fristablauf NICHT verlangt hat (Kaufkarte, Kauflink), dem sagt die
   // Bestätigung das Datum — dieselbe Regel wie die Lieferung (anforderungAb). Ohne
   // `nachFrist` ist der Satz wortgleich mit der Bestellseite.
+  // E-365 (14.10.2026): privat ist die Leistung die FIAON-Bonitätsauswertung. Die Leistungszeit ist eine Obergrenze
+  // (Art. 246a § 1 Abs. 1 Nr. 7 EGBGB) ab vollständigen Unterlagen — kein Werbeversprechen über Tempo.
   const wann = nachFrist
-    ? `Wir übermitteln Ihre Anfragen, sobald Ihre Zahlung eingegangen und die Widerrufsfrist abgelaufen ist${nachFrist.ab ? ` — frühestens am ${nachFrist.ab}` : ""}.`
-    : "Wir übermitteln Ihre Anfragen, sobald Ihre Zahlung eingegangen ist.";
-  return `${wann} Die Auskunfteien müssen innerhalb der gesetzlichen Frist antworten, in der Regel innerhalb eines Monats. Sobald die Antworten vorliegen, erhalten Sie Auswertung, Handlungsplan und Schreiben.`;
+    ? `Wir beginnen, sobald Ihre Zahlung eingegangen ist, Ihr Ausweis und Ihre Kontoauszüge vorliegen und die Widerrufsfrist abgelaufen ist${nachFrist.ab ? ` — frühestens am ${nachFrist.ab}` : ""}.`
+    : "Wir beginnen, sobald Ihre Zahlung eingegangen ist und Ihr Ausweis und Ihre Kontoauszüge vorliegen.";
+  return `${wann} Ihre Bonitätsauswertung erhalten Sie spätestens 30 Tage nach Eingang Ihrer vollständigen Unterlagen — als PDF per E-Mail und in Ihrem FIAON-Bereich.`;
 }

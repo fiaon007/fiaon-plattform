@@ -80,8 +80,11 @@ const tag = (d: any): string | null => {
 // bei den Unterlagen bleibt die Wahl sichtbar — dort sucht er sie selbst.
 // ═══════════════════════════════════════════════════════════════════════════
 export interface AuskunftKauf {
-  /** Aus auskunftStand(): bezahlt | offen (bestellt, Zahlung aus) | dokument (selbst hochgeladen) | nichts. */
-  stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+  /**
+   * Aus auskunftStand(): bezahlt | offen (bestellt, Zahlung aus) | dokument (selbst hochgeladen) | nichts.
+   * E-365: „auswertung" = die FIAON-Bonitätsauswertung liegt vor, „inklusive" = im Paket enthalten (Kartenlink wartet).
+   */
+  stufe: "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
   /** Die Kaufkarte zeigen? Nur bei „nichts", bezahltem Paket und ohne Kündigung. */
   darfKaufen: boolean;
   /** Warum (noch) nicht: erste Rate offen oder Vertrag gekündigt. */
@@ -108,6 +111,19 @@ export interface AuskunftKauf {
   auftragText: string;
   /** E-241: Stufe B (Paket bestellt, nicht bezahlt): der Kundenpreis mit aktivem Paket, als ganzer Satz — sonst null. */
   paketPreisSatz: string | null;
+  /**
+   * E-365: Wo die Bonitätsauswertung steht (fiaon-bonitaet-ablauf.ts, auswertungLage) — nur bei bezahlt, inklusive oder
+   * geliefert, sonst null. Daraus zeigen Kaufkarte, Heute und Weg „Unterlagen hochladen“, „wird entwickelt“ oder „liegt vor“.
+   */
+  auswertung: {
+    stand: import("@shared/fiaon-auskunft").AuswertungKundenStand;
+    fehlt: ("ausweis" | "kontoauszug")[];
+    abText: string | null;
+    nummer: string | null;
+    inklusive: boolean;
+    /** Hat der Kunde die freigegebene Auswertung geöffnet? (Schritt 7 des Weges) */
+    gelesen: boolean;
+  } | null;
 }
 
 /** Der Satz zum Kundenpreis für Stufe B — wortgleich mit dem Hinweis der Angebots-Mail an Anträge (auskunft-verkauf.ts). */
@@ -126,12 +142,15 @@ export function auskunftKaufBlock(ein: {
   paketBezahlt?: boolean;
   /** E-241: Stufe B — den Kundenpreis-Satz zeigen. */
   paketPreisHinweis?: boolean;
+  /** E-365: der Stand der Bonitätsauswertung (nur bei bezahlt/inklusive/geliefert). */
+  auswertung?: AuskunftKauf["auswertung"];
 }): AuskunftKauf {
   const art: AuskunftArt = ein.art ?? "privat";
   const bezahlt = ein.paketBezahlt ?? ein.mitAbo;
   return {
     stufe: ein.stufe,
-    darfKaufen: ein.stufe === "nichts" && ein.sperre === null,
+    // E-365: Eine eigene Datenkopie in der Akte („dokument") ist ein anderes Produkt — die Auswertung bleibt kaufbar.
+    darfKaufen: (ein.stufe === "nichts" || ein.stufe === "dokument") && ein.sperre === null,
     sperre: ein.sperre,
     werbung: ein.werbung,
     preisCents: ein.preisCents,
@@ -147,6 +166,7 @@ export function auskunftKaufBlock(ein: {
     art,
     auftragText: AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art),
     paketPreisSatz: ein.paketPreisHinweis && !ein.mitAbo ? paketPreisSatzFuer(art) : null,
+    auswertung: ein.auswertung ?? null,
   };
 }
 
@@ -157,7 +177,9 @@ export function auskunftKaufBlock(ein: {
  */
 export function kundeAmZugAuskunft(kauf: AuskunftKauf | null, bonitaetDarfKaufen: boolean): boolean {
   if (!kauf) return bonitaetDarfKaufen;
-  return (kauf.stufe === "nichts" && bonitaetDarfKaufen) || kauf.stufe === "offen";
+  // E-365: Am Zug ist der Kunde auch, wenn für seine (bezahlte oder inklusive) Bonitätsauswertung Unterlagen fehlen.
+  return ((kauf.stufe === "nichts" || kauf.stufe === "dokument") && bonitaetDarfKaufen) || kauf.stufe === "offen"
+    || kauf.auswertung?.stand === "unterlagen_fehlen";
 }
 
 /**
@@ -186,7 +208,15 @@ export async function auskunftKaufFuer(personId: number | null, ref: string, pak
   // Stufe A „Zahlung gemeldet" wartet auf die Buchung (Kundenpreis) — Stufe B kauft zum Einzelpreis.
   const gemeldet = !bezahlt && sperreKauf === "zahlung_gemeldet";
   const pr = stand.offen?.paymentReference ?? null;
+  // E-365: der Stand der Bonitätsauswertung — nur wo es einen gibt (bezahlt, inklusive, geliefert); kostet sonst nichts.
+  let auswertung: AuskunftKauf["auswertung"] = null;
+  if (art === "privat" && (stand.stufe === "bezahlt" || stand.stufe === "inklusive" || stand.stufe === "auswertung")) {
+    const { auswertungLage } = await import("../lib/fiaon-bonitaet-ablauf");
+    const l = await auswertungLage(personId).catch(() => null);
+    if (l) auswertung = { stand: l.stand, fehlt: l.fehlt, abText: l.abText, nummer: l.aktuell?.nummer ?? null, inklusive: l.inklusive, gelesen: !!l.aktuell?.gelesen };
+  }
   return auskunftKaufBlock({
+    auswertung,
     art,
     paketBezahlt: bezahlt,
     paketPreisHinweis: !bezahlt && !gemeldet,
@@ -310,9 +340,23 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     // Zwei Stände, eine Karte: Sieht die Bonitäts-Wahrheit (die auch alte Käufe
     // ohne Person über die E-Mail findet) schon eine Auskunft, wird nichts
     // angeboten — ein Angebot für etwas, das man hat, sagt: Die kennen mich nicht.
-    const kauf: AuskunftKauf | null = kaufRoh && bonitaet && !bonitaet.darfKaufen && kaufRoh.darfKaufen
+    // E-365: Sperren darf hier nur ein KAUF (bezahlt oder bestellt) — eine eigene Datenkopie in der Akte nicht mehr,
+    // denn verkauft wird die Bonitätsauswertung, nicht die Datenkopie.
+    const kaufGesehen = !!bonitaet && (bonitaet.bezahlt || bonitaet.stufe === "zahlung_offen" || bonitaet.stufe === "beschaffung_laeuft");
+    const kauf: AuskunftKauf | null = kaufRoh && kaufGesehen && kaufRoh.darfKaufen
       ? { ...kaufRoh, darfKaufen: false }
       : kaufRoh;
+
+    // E-365 (14.10.2026): Wer NUR die Bonitätsauswertung hat (149-€-Käufer ohne Paket), sieht in /app keinen Paketweg
+    // (Selbstauskunft, Startgespräch, Raten), sondern den Weg seiner Auswertung. Die Sitzung steht dann auf der Auskunft-Zeile.
+    let nurAuswertung = false;
+    if (String(a.ref).startsWith("FIAON-SCHUFA-") && a.person_id) {
+      const { produktkategorieSql } = await import("../lib/fiaon-produktkategorie");
+      const [nz] = (await sqlPool.unsafe(
+        `SELECT NOT EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = $1 AND x.merged_into IS NULL AND x.archived_at IS NULL
+           AND ${produktkategorieSql("x")} <> 'auskunft') AS nur`, [Number(a.person_id)]).catch(() => [])) as any[];
+      nurAuswertung = !!nz?.nur;
+    }
 
     // Termine des Kunden (Startgespräch)
     const termine = a.person_id ? ((await sqlPool`
@@ -439,22 +483,27 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
           : auskunftBezahlt || kauf?.stufe === "bezahlt"
             ? (unterlagenOk ? "Bezahlt — wir entwickeln jetzt Ihre FIAON-Bonitätsauswertung aus Ihren Unterlagen."
               : "Bezahlt — laden Sie Ihren Ausweis und Ihre Kontoauszüge hoch, dann entwickeln wir Ihre FIAON-Bonitätsauswertung.")
-          : kauf?.stufe === "offen" ? `Beauftragt — sobald Ihre Zahlung${kauf.offen ? ` über ${kauf.offen.betragText}` : ""} da ist, fordern wir Ihre Datenkopien an.`
-          : kauf?.sperre === "gekuendigt" ? "Nicht im Paket enthalten — nach der Kündigung lässt sie sich hier nicht mehr neu beauftragen."
-          : kauf ? `Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei ${kauf.bei} an, erklären jeden Eintrag, prüfen die Fristen und schreiben Ihren Handlungsplan. ${auskunftPreisSatz} einmalig, kein Abo.${kauf.paketPreisSatz ? ` ${kauf.paketPreisSatz}` : ""}`
-          : "Nicht im Paket enthalten: Wir fordern Ihre Datenkopien bei den Auskunfteien an, erklären jeden Eintrag und schreiben Ihren Handlungsplan.",
+          // E-365: im Paket enthalten, weil der Kartenlink auf sie wartet.
+          : kauf?.stufe === "inklusive"
+            ? (unterlagenOk ? "Im Paket enthalten — wir entwickeln jetzt Ihre FIAON-Bonitätsauswertung aus Ihren Unterlagen."
+              : "Im Paket enthalten — laden Sie Ihren Ausweis und Ihre Kontoauszüge hoch, dann entwickeln wir Ihre FIAON-Bonitätsauswertung.")
+          : kauf?.stufe === "offen" ? `Beauftragt — sobald Ihre Zahlung${kauf.offen ? ` über ${kauf.offen.betragText}` : ""} da ist, laden Sie Ausweis und Kontoauszüge hoch.`
+          : kauf?.sperre === "gekuendigt" ? "Nach der Kündigung lässt sich die Bonitätsauswertung hier nicht mehr neu beauftragen."
+          : kauf ? `Ihre FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen. ${auskunftPreisSatz} einmalig, kein Abo.${kauf.paketPreisSatz ? ` ${kauf.paketPreisSatz}` : ""}`
+          : "Ihre FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen.",
         stand: bonitaetDa || auskunftDa ? "fertig" : "kommt", datum: null,
         stempel: bonitaetDa || auskunftDa ? "liegt vor"
-          : auskunftBezahlt || kauf?.stufe === "bezahlt" ? (unterlagenOk ? "wird entwickelt" : "Unterlagen fehlen")
+          : auskunftBezahlt || kauf?.stufe === "bezahlt" || kauf?.stufe === "inklusive" ? (unterlagenOk ? "wird entwickelt" : "Unterlagen fehlen")
           : kauf?.stufe === "offen" ? "Zahlung offen"
           : kauf?.sperre === "gekuendigt" ? "nicht beauftragt"
           : kauf ? `${auskunftPreisText} einmalig` : "Zusatzauftrag",
         href: bonitaetDa ? "/app/auswertung" : "#bonitaet",
       },
       {
-        key: "analyse", titel: "Analyse durch FIAON",
-        text: analyseFertig ? "Jeder Eintrag ausgewertet — mit Frist, Rechtsgrundlage und dem nächsten Schritt unter „Ihre Bonität“."
-          : "Wir gehen jeden Eintrag durch, bewerten seine Wirkung und leiten daraus Ihre nächsten Schritte ab.",
+        // E-365: Diese Etappe gilt einer eigenen, hochgeladenen Auskunft (Paketleistung „Auswertung der Bonitätsauskunft“).
+        key: "analyse", titel: "Ihre eigene Auskunft",
+        text: analyseFertig ? "Ihre hochgeladene Auskunft ist ausgewertet — mit Frist, Rechtsgrundlage und dem nächsten Schritt unter „Ihre Bonität“."
+          : "Haben Sie eine Datenkopie einer Auskunftei, laden Sie sie hoch: Wir gehen jeden Eintrag durch und leiten daraus Ihre nächsten Schritte ab.",
         stand: analyseFertig ? "fertig" : "kommt", datum: null, stempel: analyseFertig ? "fertig" : "nach der Auskunft",
       },
       // E-240: „juristisch geprüft" ohne Beleg und „mit einem Klick versendet" waren
@@ -592,6 +641,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       } : null,
       // Der Kauf-Block (E-240): Stufe, Preis, Leistung, Zahlungsseite. null ohne Person.
       auskunft: kauf,
+      // E-365: nur die Bonitätsauswertung, kein Paket — /app zeigt ihren Weg statt des Paketwegs.
+      nurAuswertung,
       karte,
       // Schritt 10 des Weges — null, solange keine Kontoeröffnung gemeldet ist.
       konto: kontoEroeffnung,
@@ -1366,8 +1417,12 @@ router.post("/kunde/auskunft/bestellen", requireKunde, async (req: KundeRequest,
       const { PORTAL_GESPERRT_SATZ } = await import("../lib/fiaon-kuendigung");
       return res.status(403).json({ ok: false, grund: "gekuendigt", error: PORTAL_GESPERRT_SATZ });
     }
-    if (kauf.stufe === "dokument") {
-      return res.status(409).json({ ok: false, grund: "dokument", error: "Ihre Auskunft liegt uns bereits vor — wir werten sie aus. Sie sehen das Ergebnis unter „Ihre Bonität“." });
+    // E-365: Die Bonitätsauswertung liegt schon vor oder ist im Paket enthalten — dann wird nichts verkauft.
+    if (kauf.stufe === "auswertung") {
+      return res.status(409).json({ ok: false, grund: "auswertung", error: "Ihre FIAON-Bonitätsauswertung liegt schon vor — Sie finden sie in Ihrem Bereich unter „Bonitätsauswertung“." });
+    }
+    if (kauf.stufe === "inklusive") {
+      return res.status(409).json({ ok: false, grund: "inklusive", error: "Ihre FIAON-Bonitätsauswertung ist in Ihrem Paket enthalten. Laden Sie einfach Ihren Ausweis und Ihre Kontoauszüge hoch — dann entwickeln wir sie." });
     }
     if (kauf.stufe === "nichts" && !kauf.darfKaufen && kauf.sperre === "paket_offen") {
       // E-241: nur noch „Zahlung gemeldet" — nach der Buchung gilt der Kundenpreis.
@@ -1378,16 +1433,17 @@ router.post("/kunde/auskunft/bestellen", requireKunde, async (req: KundeRequest,
     // selbst hochgeladene Dokumente an einer Schwester-Zeile. Sieht sie schon
     // eine Auskunft oder eine Bestellung, wird nichts angelegt — sonst zahlte
     // jemand zweimal, weil er den Knopf aus einem alten Tab heraus drückte.
-    if (kauf.stufe === "nichts") {
+    if (kauf.stufe === "nichts" || kauf.stufe === "dokument") {
       const { bonitaetFuer } = await import("../lib/fiaon-bonitaet-status");
       const bo = await bonitaetFuer(ref).catch(() => null);
-      if (bo && !bo.darfKaufen) {
+      // E-365: nur ein Kauf (bezahlt/bestellt) sperrt — eine eigene Datenkopie nicht.
+      if (bo && (bo.bezahlt || bo.stufe === "zahlung_offen" || bo.stufe === "beschaffung_laeuft")) {
         return res.status(409).json({ ok: false, grund: "vorhanden", error: "Zu Ihrer Bonitätsauskunft liegt uns schon ein Auftrag oder ein Dokument vor. Den Stand sehen Sie unter „Ihre Bonität“." });
       }
     }
     // E-241: eine NEUE Bestellung nur mit dem Beschaffungsauftrag (Pflicht-Haken der Kaufkarte).
-    if (kauf.stufe === "nichts" && !auftrag) {
-      return res.status(400).json({ ok: false, grund: "auftrag_fehlt", error: "Bitte bestätigen Sie den Auftrag, damit wir Ihre Auskunft für Sie beschaffen dürfen." });
+    if ((kauf.stufe === "nichts" || kauf.stufe === "dokument") && !auftrag) {
+      return res.status(400).json({ ok: false, grund: "auftrag_fehlt", error: kauf.art === "firma" ? "Bitte bestätigen Sie den Auftrag, damit wir Ihre Auskunft für Sie beschaffen dürfen." : "Bitte bestätigen Sie den Auftrag für Ihre Bonitätsauswertung." });
     }
 
     if (bestellungLaeuft.has(personId)) {
@@ -1410,10 +1466,10 @@ router.post("/kunde/auskunft/bestellen", requireKunde, async (req: KundeRequest,
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${b.ref}, ${personId}, NULL, 'Kunde (Kundenbereich)', 'system',
-                ${`Bonitätsauskunft im Kundenbereich zahlungspflichtig beauftragt (${b.betragText}${b.mitAbo ? ", Kundenpreis mit Paket" : ", Einzelpreis"}). `
+                ${`${kauf.art === "firma" ? "Bonitätsauskunft" : "FIAON-Bonitätsauswertung"} im Kundenbereich zahlungspflichtig beauftragt (${b.betragText}${b.mitAbo ? ", Kundenpreis mit Paket" : ", Einzelpreis"}). `
                   + (sofortBeginn
                     ? "Beginn vor Ablauf der Widerrufsfrist AUSDRÜCKLICH VERLANGT — Hinweis auf anteiligen Wertersatz und Erlöschen des Widerrufsrechts bei vollständiger Erfüllung bestätigt."
-                    : "Beginn vor Ablauf der Widerrufsfrist NICHT verlangt — mit der Anforderung erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.")})`
+                    : `Beginn vor Ablauf der Widerrufsfrist NICHT verlangt — ${kauf.art === "firma" ? "mit der Anforderung" : "mit der Bonitätsauswertung"} erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.`)})`
         .catch((e) => console.error("[KUNDE] auskunft Widerrufsvermerk:", e));
     }
     // E-241: der Beschaffungsauftrag an die Bestellung (neu oder wiederverwendet offen) — idempotent.
@@ -1426,7 +1482,7 @@ router.post("/kunde/auskunft/bestellen", requireKunde, async (req: KundeRequest,
     res.json({
       ok: true, art: b.art, ref: b.ref, paymentReference: b.paymentReference,
       betragText: b.betragText, mitAbo: b.mitAbo, zahlungsseite,
-      meldung: b.art === "bezahlt" ? "Ihre Auskunft ist bereits bezahlt — wir fordern Ihre Datenkopien an."
+      meldung: b.art === "bezahlt" ? (kauf.art === "firma" ? "Ihre Auskunft ist bereits bezahlt — wir fordern Ihre Datenkopien an." : "Ihre Bonitätsauswertung ist bereits bezahlt — laden Sie Ausweis und Kontoauszüge hoch, dann entwickeln wir sie.")
         : zahlungsseite ? null : "Ihre Bestellung ist angelegt. Die Zahlungsdaten kommen per E-Mail.",
     });
   } catch (err) {

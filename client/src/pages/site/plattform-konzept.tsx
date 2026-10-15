@@ -16,6 +16,10 @@
 // der Antrag nicht). Der Grund-Satz im Wörterbuch versprach eine Anrechnung auf
 // ein späteres Paket, die es nicht gibt — bis das Wörterbuch nachgezogen ist,
 // steht der ehrliche Satz hier (AUSKUNFT_GRUND).
+//
+// 14.10.2026 (E-365): Das Produkt ist die FIAON-Bonitätsauswertung (Bericht aus
+// Ausweis und Kontoauszügen) — keine Datenkopien, keine Schreiben. 149 € einzeln,
+// 74 € mit laufendem Paket, für neue Paketkunden im Paket enthalten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Karten, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
@@ -32,8 +36,8 @@ import "@/styles/plattform-konzept.css";
 type Antwort = Record<string, string>;
 const AUSKUNFT_EINZELN = auskunftSchluessel("privat", false);
 const AUSKUNFT_GRUND = {
-  de: (mitPaket: string) => `Nur die Auskunft: Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, Fristen geprüft, Handlungsplan und fertige Schreiben – einmalig, kein Abo. Mit einem FIAON-Paket kostet sie ${mitPaket}.`,
-  en: (mitPaket: string) => `Just the report: data copies from every credit bureau in your country, every line explained, deadlines checked, an action plan and finished letters — one-off, no subscription. With a FIAON plan it costs ${mitPaket}.`,
+  de: (mitPaket: string) => `Nur die Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen, mit Ampel, FIAON-Finanzwert und Plan für zwölf Monate. Einmalig, kein Abo; mit laufendem Paket ${mitPaket}, für neue Paketkunden im Paket enthalten.`,
+  en: (mitPaket: string) => `Just the credit assessment: your creditworthiness as a bank sees it — from your own bank statements, with a traffic light, your FIAON financial score and a twelve-month plan. One-off, no subscription; ${mitPaket} with a running plan, included for new plan customers.`,
 };
 // 17.09.2026 (E-188): Die Business-Abos sind eingestellt. Ein Unternehmen
 // bekommt sofort seine Antwort — FIAON Global (Einmalpreis) — und wird nicht
@@ -119,10 +123,10 @@ export default function PlattformKonzept() {
             {paket && vorschlag && (
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
-                <h3>{paket.abo ? paket.label : (en ? "Credit report" : "Bonitätsauskunft")}</h3>
+                <h3>{paket.abo ? paket.label : (en ? "FIAON credit assessment" : "FIAON-Bonitätsauswertung")}</h3>
                 <p className="pk-preis">{paket.abo ? <>{euro(paket.preisCents)} <span>{t.imMonat}</span></> : <>{euro(paket.preisCents)} <span>{t.einmalig}</span></>}</p>
                 <p>{paket.abo ? t.gruende[vorschlag.grund] : AUSKUNFT_GRUND[en ? "en" : "de"](euro(AUSKUNFT_PREISE_CENTS.privat.mitAbo))}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={paket.abo ? `/antrag?pack=${paket.key}&src=konzept` : "/bonitaet-antrag"}>{paket.abo ? t.mitPaket : (en ? "Order the credit report" : "Bonitätsauskunft bestellen")}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={paket.abo ? `/antrag?pack=${paket.key}&src=konzept` : "/bonitaet-antrag"}>{paket.abo ? t.mitPaket : (en ? "Order the credit assessment" : "Bonitätsauswertung bestellen")}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
               </div>
             )}
           </div>

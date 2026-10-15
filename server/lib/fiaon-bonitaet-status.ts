@@ -227,8 +227,9 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "beschaffung_laeuft",
       grund: "Die Auskunft ist bezahlt, liegt aber noch nicht vor.",
-      fuerKunden: "Ihre Bonitätsauskunft ist bezahlt — wir beschaffen sie für Sie.",
-      naechsterSchritt: "Auskunft beschaffen und im Kundendatensatz hinterlegen.",
+      // E-365: bezahlt ist die FIAON-Bonitätsauswertung (privat) — nichts wird beschafft.
+      fuerKunden: "Ihre FIAON-Bonitätsauswertung ist bezahlt — laden Sie Ausweis und Kontoauszüge hoch, dann entwickeln wir sie.",
+      naechsterSchritt: "Unterlagen anfordern bzw. Bonität entwickeln (Akte → Überblick → Karte „FIAON Bonitätsauswertung“).",
       // NICHT kaufen: Er hat bezahlt. Aber hochladen darf er — wenn er selbst
       // schneller ist als wir, soll ihn nichts daran hindern.
       darfKaufen: false, darfHochladen: true,
@@ -238,7 +239,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "zahlung_offen",
       grund: "Die Auskunft ist bestellt, die Zahlung steht noch aus.",
-      fuerKunden: "Ihre Bestellung ist eingegangen — sobald die Zahlung da ist, beschaffen wir die Auskunft.",
+      fuerKunden: "Ihre Bestellung ist eingegangen — sobald die Zahlung da ist, laden Sie Ausweis und Kontoauszüge hoch.",
       naechsterSchritt: "Zahlungseingang abwarten oder im Kontoabgleich zuordnen.",
       darfKaufen: false, darfHochladen: true,
     };
@@ -247,8 +248,8 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   return {
     ...roh, stufe: "nichts",
     grund: "Keine Auskunft vorhanden und keine bestellt.",
-    fuerKunden: "Noch keine Bonitätsauskunft vorhanden.",
-    naechsterSchritt: "Der Kunde kann sie bestellen oder selbst hochladen.",
+    fuerKunden: "Ihre FIAON-Bonitätsauswertung zeigt Ihnen Ihre Bonität aus Sicht einer Bank.",
+    naechsterSchritt: "Bonitätsauswertung anbieten (74 €/149 €) — oder, wenn der Kartenlink auf sie wartet, inklusive entwickeln.",
     darfKaufen: true, darfHochladen: true,
   };
 }

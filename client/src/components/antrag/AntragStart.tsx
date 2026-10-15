@@ -68,8 +68,8 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
         <Block pille="Was Sie bekommen" titel={<>Einsicht. Aktion. <span className="dk-verlauf">Zugang.</span></>} mitte>
           <div style={{ textAlign: "left" }}>
             <Karten items={[
-              { tag: "Schicht 1 · Einsicht", titel: "Ihre Auskunft, erklärt.", text: "FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF und liest Ihren Kontoauszug. Innerhalb von 24 Stunden sehen Sie, was gespeichert ist – und was sich ändern lässt." },
-              { tag: "Schicht 2 · Aktion", titel: "Schreiben, die hinausgehen.", text: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, anwaltlich geprüft, mit einem Klick versendet. FIAON verfolgt jede Antwort und jede Frist." },
+              { tag: "Schicht 1 · Einsicht", titel: "Ihre Bonität, erklärt.", text: "Am Anfang steht Ihre FIAON-Bonitätsauswertung aus Ausweis und Kontoauszug – Ihre Bonität aus Sicht einer Bank. Eine Datenkopie der Auskunftei erklären wir Ihnen Eintrag für Eintrag." },
+              { tag: "Schicht 2 · Aktion", titel: "Schreiben, die hinausgehen.", text: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, Sie geben frei, wir übermitteln. FIAON verfolgt jede Antwort und jede Frist." },
               { tag: "Schicht 3 · Zugang", titel: "Konto, Karte, Finanzierung.", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Niemand geht leer aus – jeder hat ein nächstes Ziel." },
             ]} />
           </div>
@@ -109,10 +109,10 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
       {/* 6 · Fragen */}
       <Block schmal pille="Häufige Fragen">
         <Fragen items={[
-          { f: "Was passiert nach dem Klick auf ein Paket?", a: "Sie landen im Antrag: wenige Angaben, zwei Minuten. Danach überweisen Sie die erste Rate, und mit dem Eingang ist Ihr Bereich aktiv. FIAON beantragt Ihre Auskunft." },
+          { f: "Was passiert nach dem Klick auf ein Paket?", a: "Sie landen im Antrag: wenige Angaben, zwei Minuten. Danach überweisen Sie die erste Rate, und mit dem Eingang ist Ihr Bereich aktiv. Dann laden Sie Ausweis und Kontoauszug hoch – daraus entwickeln wir Ihre FIAON-Bonitätsauswertung." },
           { f: "Wann zahle ich?", a: "Die erste Rate mit der Aktivierung – per Überweisung. Danach monatlich, ebenfalls per Überweisung, zwölf Raten lang. Nach der zwölften fragen wir Sie, ob Sie bleiben möchten." },
           { f: "Kann ich das Paket später ändern?", a: "Ja, direkt im Antrag über „Paket ändern“ – und im Startgespräch prüfen wir gemeinsam, ob es passt." },
-          { f: "Brauche ich Unterlagen?", a: "Für den Antrag nicht. Die Auskunft beantragt FIAON für Sie. Einen Kontoauszug können Sie später in Ihrem Bereich hochladen – für die Analyse Ihres Spielraums." },
+          { f: "Brauche ich Unterlagen?", a: "Für den Antrag nicht. Nach Ihrer ersten Zahlung laden Sie Ausweis und Kontoauszüge der letzten drei Monate hoch – daraus entsteht Ihre FIAON-Bonitätsauswertung, der Schritt vor dem Link unserer Partnerbank." },
           { f: "Bekomme ich garantiert eine Karte?", a: "Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor – ein Girokonto ist für jeden Kunden erreichbar, eine Karte bis 25.000 € bei guter Bonität." },
         ]} />
       </Block>
@@ -123,7 +123,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
           <Auf>
             <span className="dk-pille">Bereit</span>
             <h2 className="dk-h2">Ihr Weg beginnt <span className="dk-verlauf">mit einem Klick.</span></h2>
-            <p className="dk-lead">Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet.</p>
+            <p className="dk-lead">Antrag in zwei Minuten. Ihre Bonität aus Sicht einer Bank. Ein Mensch, der Sie durch alles Weitere begleitet.</p>
             <div className="dk-knoepfe"><Knopf onClick={zuPaketen}>Paket wählen</Knopf></div>
           </Auf>
         </div>

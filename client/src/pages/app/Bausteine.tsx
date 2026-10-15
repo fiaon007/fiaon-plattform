@@ -310,8 +310,12 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
   const kauf = u.auskunftKauf ?? null;
   // Auch vor der ersten Rate und nach einer Kündigung steht hier ein Satz: Der Weg
   // schickt mit „Auskunft beauftragen" hierher, und eine leere Stelle wäre eine Sackgasse.
-  const kaufSperre = !!kauf && kauf.stufe === "nichts" && !!kauf.sperre;
-  const kaufZeigen = !!kauf && !u.auskunft && (kauf.darfKaufen || kauf.stufe === "offen" || kauf.stufe === "bezahlt" || kaufSperre);
+  const kaufSperre = !!kauf && (kauf.stufe === "nichts" || kauf.stufe === "dokument") && !!kauf.sperre;
+  // E-365: Die Bonitätsauswertung steht hier in jedem Stand (kaufbar, bestellt, bezahlt, inklusive, geliefert) — auch
+  // wenn eine eigene Datenkopie in der Akte liegt (anderes Produkt).
+  const kaufZeigen = !!kauf && (kauf.darfKaufen || kauf.stufe === "offen" || kauf.stufe === "bezahlt" || kauf.stufe === "inklusive"
+    || kauf.stufe === "auswertung" || kaufSperre) && (kauf.art !== "firma" || !u.auskunft);
+  const firma = kauf?.art === "firma";
 
   return (
     <>
@@ -325,21 +329,24 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
       )}
       {kaufZeigen && kauf && (
         <section className="ap-abschnitt ap-auf v1">
-          <h2 className="ap-abschnitt-titel">{kauf.darfKaufen ? "Ihre Bonitätsauskunft: FIAON holt sie – oder Sie laden sie hoch" : "Ihre Bonitätsauskunft"}</h2>
+          <h2 className="ap-abschnitt-titel">{firma ? (kauf.darfKaufen ? "Ihre Bonitätsauskunft: FIAON holt sie – oder Sie laden sie hoch" : "Ihre Bonitätsauskunft") : "Ihre FIAON-Bonitätsauswertung"}</h2>
           <div className="ap-karte">
             {kaufSperre ? (
               <p style={{ margin: 0 }}>
                 {kauf.sperre === "gekuendigt"
-                  ? "Ihr Vertrag ist gekündigt — eine Bonitätsauskunft lässt sich darüber nicht mehr neu beauftragen. Eine eigene, aktuelle Auskunft können Sie unten hochladen."
+                  ? "Ihr Vertrag ist gekündigt — die Bonitätsauswertung lässt sich darüber nicht mehr neu beauftragen. Eine eigene, aktuelle Auskunft können Sie unten hochladen."
                   // 25.09.2026 (E-241): nur noch „Zahlung gemeldet“ — Stufe B sieht die Kaufkarte zum Einzelpreis.
-                  : `Die Bonitätsauskunft ist nicht im Paket enthalten. Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, beauftragen Sie sie hier zum Kundenpreis: Wir beschaffen Ihre Auskunft bei ${kauf.bei} und erklären jeden Eintrag.`}
+                  : "Ihre Zahlung für das Paket wird gerade geprüft — sobald sie gebucht ist, sehen Sie hier, wie es mit Ihrer FIAON-Bonitätsauswertung weitergeht."}
               </p>
             ) : (
-              <AuskunftKaufkarte kauf={kauf} variante="ap" demo={demo} hochladen={kauf.darfKaufen ? "#auskunft-hochladen" : null} />
+              // E-365: Nach dem Kauf führt „Jetzt hochladen“ zur Liste darunter (Anker der Unterlagen-Liste).
+              <AuskunftKaufkarte kauf={kauf} variante="ap" demo={demo}
+                hochladen={kauf.darfKaufen ? "#auskunft-hochladen" : (kauf.auswertung?.stand === "unterlagen_fehlen" ? "#unterlagen-liste" : null)} />
             )}
           </div>
         </section>
       )}
+      <div id="unterlagen-liste" />
       <UnterlagenListe kundeRef={kundeRef} demo={demo} variante="ap" />
     </>
   );
@@ -373,6 +380,8 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
           {limit && limit.grund !== "global" && (
             <Link href={`${basis}/mehr/limit`} data-fiaon="mehr-limit">{LIMIT_TEXTE.titel}{limitZusatz(limit) ? ` · ${limitZusatz(limit)}` : ""}</Link>
           )}
+          {/* E-365: die Bonitätsauswertung immer erreichbar — nicht nur über Heute (bis gelesen) und Geld. */}
+          <Link href={`${basis}/auswertung`} data-fiaon="mehr-auswertung">Bonitätsauswertung</Link>
           <Link href={`${basis}/unterlagen`}>Unterlagen</Link>
           <Link href={`${basis}/vorgaenge`}>Vorgänge und Ansprüche</Link>
           <Link href={`${basis}/mehr/vollmachten`}>Vollmacht</Link>

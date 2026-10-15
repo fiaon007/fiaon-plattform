@@ -24,7 +24,7 @@ const de = {
   ] as [string, string][],
   nordH2a: "Die vier Nordstern-Kennzahlen – ", nordH2b: "in Messung.", nordLead: "Sie messen Kundennutzen und Unternehmenswert zugleich. Veröffentlicht werden sie, sobald sie über ein Quartal belastbar sind – nicht vorher.",
   nord: [
-    { tag: "Einsicht · in Messung", titel: "Zeit bis zur ersten Einsicht", text: "Von der bankbestätigten Zahlung bis zur erklärten Auskunft im Kundenbereich. Ziel: unter 24 Stunden nach Vorliegen der Auskunft. Die Messung läuft seit Juli 2026; die Auskunfteien brauchen ein bis vier Wochen, das rechnen wir getrennt aus." },
+    { tag: "Einsicht · in Messung", titel: "Zeit bis zur ersten Einsicht", text: "Von den vollständig hochgeladenen Unterlagen bis zur freigegebenen Bonitätsauswertung im Kundenbereich. Jede Auswertung prüft ein Mensch, bevor sie freigegeben wird – den Wert veröffentlichen wir, sobald er über ein Quartal belastbar ist." },
     { tag: "Aktion · in Messung", titel: "Antwortquote auf Schreiben", text: "Anteil der versendeten Löschanträge, Widersprüche und Ratenvorschläge, die eine Antwort erhalten – und wie viele davon positiv ausfallen. Erste belastbare Werte nach einem vollen Quartal Schriftwechsel." },
     { tag: "Zugang · in Messung", titel: "Graduation-Rate", text: "Anteil der Kunden, die aus dem Programm in ein Konto oder eine Finanzierung übergehen. Die Zahl, die Partnerbanken interessiert – und die erst nach zwölf Raten der ersten Kunden ehrlich ist." },
     { tag: "Ertrag · in Messung", titel: "Raten-Einzugsquote", text: "Anteil der fälligen Raten, die pünktlich per Überweisung eingehen, und nach Begleitung durch das Team. Veröffentlicht wird die Quote, sobald sie über ein volles Quartal belastbar ist." },
@@ -62,7 +62,7 @@ const en: typeof de = {
   ],
   nordH2a: "The four north-star metrics — ", nordH2b: "being measured.", nordLead: "They measure customer benefit and company value at the same time. They are published as soon as they are reliable over a quarter — not before.",
   nord: [
-    { tag: "Insight · being measured", titel: "Time to first insight", text: "From the bank-confirmed payment to the explained report in the customer area. Target: under 24 hours after the report arrives. Measurement has been running since July 2026; the credit bureaus take one to four weeks, which we calculate separately." },
+    { tag: "Insight · being measured", titel: "Time to first insight", text: "From the fully uploaded documents to the released credit assessment in the customer area. A person checks every assessment before it is released — we publish the figure as soon as it is reliable over a quarter." },
     { tag: "Action · being measured", titel: "Reply rate on letters", text: "Share of deletion requests, objections and instalment proposals sent that receive a reply — and how many of them are positive. First reliable values after a full quarter of correspondence." },
     { tag: "Access · being measured", titel: "Graduation rate", text: "Share of customers who move from the programme into an account or finance. The figure partner banks are interested in — and which is only honest after the first customers' twelve instalments." },
     { tag: "Revenue · being measured", titel: "Instalment collection rate", text: "Share of due instalments that arrive on time by bank transfer, and after support from the team. The rate will be published as soon as it is reliable over a full quarter." },

@@ -28,7 +28,8 @@ export const EINWILLIGUNG_DATENUEBERMITTLUNG = "Einwilligung Datenübermittlung"
 export const EINWILLIGUNG_DATENUEBERMITTLUNG_HINWEIS =
   "Einwilligung in die Übermittlung der Daten für die Bonitätsprüfung (Pflicht-Haken im Antrag). Das ist KEINE Bestellung einer Bonitätsauskunft.";
 
-export type AuskunftAkteStufe = "bezahlt" | "offen" | "dokument" | "nichts";
+// E-365: „auswertung" = FIAON-Bonitätsauswertung liegt vor, „inklusive" = im Paket enthalten (Kartenlink wartet).
+export type AuskunftAkteStufe = "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
 export type BeschaffungAkteStatus = "offen" | "in_arbeit" | "hochgeladen" | "fertig" | "problem";
 
 /** Der Stand der Beschaffung, wie ihn der Server (dokumentStand → auskunft.beschaffung) liefert. */
@@ -109,9 +110,13 @@ export function lieferwegWort(modus: string | null | undefined): string {
  */
 export function auskunftStufenSatz(a: AuskunftAkte | null | undefined, heuteIso?: string): string | null {
   if (!a) return null;
+  // E-365: die Bonitätsauswertung — geliefert oder im Paket enthalten; nichts verkaufen.
+  if (a.stufe === "auswertung") return "Die FIAON-Bonitätsauswertung liegt beim Kunden — nichts anbieten.";
+  if (a.stufe === "inklusive") return "Im Paket enthalten (der Kartenlink wartet auf sie) — nichts verkaufen, Ausweis und Kontoauszug anfordern und die Bonität entwickeln.";
   if (a.stufe === "bezahlt") {
     const b = a.beschaffung ?? null;
-    if (!b) return "Bezahlt — FIAON holt die Auskunft ein (noch kein Beschaffungsauftrag angelegt).";
+    // E-365: Seit dem neuen Ablauf gibt es für privat keinen Beschaffungsauftrag — bezahlt heißt: Unterlagen, dann entwickeln.
+    if (!b) return "Bezahlt — die FIAON-Bonitätsauswertung: Ausweis und Kontoauszug anfordern, dann „Bonität jetzt entwickeln“ (Karte im Überblick).";
     const bezahlt = b.bezahltAm ? `Bezahlt am ${tag(b.bezahltAm)}` : "Bezahlt";
     const weg = b.modus === "datenkopie" ? " — per Datenkopie (Art. 15 DSGVO)" : "";
     if (b.status === "problem") return `${bezahlt} — Beschaffungsauftrag #${b.id} mit Problem${b.notiz ? `: ${b.notiz}` : ""}.`;
@@ -129,13 +134,15 @@ export function auskunftStufenSatz(a: AuskunftAkte | null | undefined, heuteIso?
   if (a.stufe === "offen" && a.offen) {
     return `Bestellt, Zahlung offen (${a.offen.betragText})${a.ohneAngebot === "werbesperre" ? " — Werbesperre: die Mail nennt keinen Zahlungslink" : ""}.`;
   }
-  // Die Auskunft liegt an einer anderen Bestellung derselben Person — deshalb kein Knopf.
-  if (a.stufe === "dokument") return "Liegt an einer anderen Bestellung dieser Person vor.";
+  // E-365: Eine eigene Datenkopie liegt in der Akte — die Bonitätsauswertung ist trotzdem kaufbar (anderes Produkt).
+  if (a.stufe === "dokument") {
+    return `Eine eigene Datenkopie liegt in der Akte. Die FIAON-Bonitätsauswertung ist ein eigenes Produkt — ${a.preisText}${a.mitAbo ? " (mit Paket)" : " (einzeln)"}.`;
+  }
   if (a.stufe === "nichts" && a.angebot === false) {
-    return `Nicht bestellt — der Kunde kann eine eigene Auskunft hochladen. Kein Angebot: ${OHNE_ANGEBOT_TEXT[String(a.ohneAngebot)] ?? "gesperrt"}.`;
+    return `Bonitätsauswertung nicht bestellt. Kein Angebot: ${OHNE_ANGEBOT_TEXT[String(a.ohneAngebot)] ?? "gesperrt"}.`;
   }
   if (a.stufe === "nichts") {
-    return `Nicht bestellt — der Kunde kann eine eigene Auskunft hochladen, oder FIAON holt sie für ${a.preisText}${a.mitAbo ? " (mit Paket)" : " (einzeln)"}.`;
+    return `Bonitätsauswertung nicht bestellt — anbieten für ${a.preisText}${a.mitAbo ? " (mit Paket)" : " (einzeln)"}.`;
   }
   return null;
 }

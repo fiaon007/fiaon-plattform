@@ -23,13 +23,17 @@ import { berlinHeuteIso, geburtsdatumLesen, tageImMonat } from "./fiaon-geburtsd
 // nach dem letzten). Wer unter „AN-2026-10-05" angenommen hat, behält seinen Text;
 // die Buchungsregel gilt für ihn als Betriebsregel — sein Satz verspricht nur
 // „alle drei Monate".
-export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-05b";
+// E-365 (15.10.2026): Die FIAON-Bonitätsauswertung steht ausdrücklich in jedem Paket (sie ist der Schritt vor dem
+// Kartenlink, E-363); „Kontoauszug-Analyse“ heißt so, und „die Auskunft als Zusatz“ (Datenkopie) gibt es nicht mehr.
+export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-15";
 /** Fassung des Vertragstextes (Hash und PDF tragen sie). */
 // E-283 (05.10.2026): „b" — § 3 nennt die Buchung des Limit-Gesprächs (Pakete mit dieser Leistung).
 // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): § 3 — der Antragslink kommt nach der ersten Monatsrate UND
 // sobald die FIAON-Bonitätsauswertung vorliegt. Wer unter PV-2026-10-05b angenommen hat, behält „nach der ersten Rate“
 // (KARTE_ZUSAGE_ERSTE_RATE, shared/fiaon-karten-weg.ts).
-export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-14";
+// E-365 (15.10.2026): § 3 nennt die Bonitätsauswertung als Teil des Pakets (Leistungen AN-2026-10-15), § 4 die Unterlagen
+// dafür (Ausweis, Kontoauszug; eine Datenkopie nur, wenn vorhanden).
+export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-15";
 
 export type AntragNeuPaketKey = "start" | "pro" | "ultra" | "highend";
 export const ANTRAG_NEU_PAKET_KEYS: AntragNeuPaketKey[] = ["start", "pro", "ultra", "highend"];
@@ -67,12 +71,12 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
     intro: "Ihr Einstieg bei FIAON: Wir werten Ihre Lage aus und zeigen Ihnen Schritt für Schritt Ihren Weg zur Karte.",
     leistungen: [
       KARTE_PUNKT,
-      "Auswertung Ihrer Bonitätsauskunft – jeder Eintrag in klaren Worten erklärt (Ihre selbst angeforderte Datenkopie oder die Auskunft als Zusatz).",
-      "Kontoauszug-Analyse mit Ihrem finanziellen Spielraum.",
+      "Ihre FIAON-Bonitätsauswertung aus Ihren Kontoauszügen – Ihre Bonität aus Sicht einer Bank, mit Ampel, Finanzwert und Plan.",
+      "Auswertung Ihrer Bonitätsauskunft – jeder Eintrag in klaren Worten erklärt (Ihre selbst angeforderte Datenkopie).",
       "Ihr Kundenbereich mit persönlichem Fahrplan.",
       "Unterstützung per E-Mail.",
     ],
-    zeile: "Auswertung Ihrer Bonitätsauskunft, Kontoauszug-Analyse, Kundenbereich mit Fahrplan, Unterstützung per E-Mail.",
+    zeile: "FIAON-Bonitätsauswertung, Auswertung Ihrer Bonitätsauskunft, Kundenbereich mit Fahrplan, Unterstützung per E-Mail.",
   },
   {
     key: "pro", name: "FIAON Pro", beisatz: "Am häufigsten gewählt", kartenLabel: "PRO", bis: 5000, limits: [1000, 2500, 5000],
@@ -83,7 +87,7 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
       LIMIT_GESPRAECH,
       BONITAET_PUNKT,
       "Ratenvereinbarungen mit Ihren Gläubigern – mit Antwort-Verfolgung.",
-      "Auswertung Ihrer Bonitätsauskunft und Kontoauszug-Analyse.",
+      "Ihre FIAON-Bonitätsauswertung und die Auswertung Ihrer Bonitätsauskunft.",
       "Ihr Kundenbereich mit persönlichem Fahrplan.",
     ],
     zeile: "Alles aus Start, dazu Löschanträge und Widersprüche, Ratenvereinbarungen mit Antwort-Verfolgung, Startgespräch und feste Ansprechpartnerin, Limit-Gespräch alle drei Monate.",
@@ -99,7 +103,7 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
       BONITAET_PUNKT,
       "Bevorzugte Bearbeitung Ihrer Schreiben.",
       "Ratenvereinbarungen mit Ihren Gläubigern – mit Antwort-Verfolgung.",
-      "Auswertung Ihrer Bonitätsauskunft, Kontoauszug-Analyse und Kundenbereich mit Fahrplan.",
+      "Ihre FIAON-Bonitätsauswertung, die Auswertung Ihrer Bonitätsauskunft und Ihr Kundenbereich mit Fahrplan.",
     ],
     zeile: "Alles aus Pro, dazu Begleitung auf dem Weg zu einer Kreditkarte, bevorzugte Bearbeitung, telefonische Betreuung.",
   },
@@ -114,7 +118,7 @@ export const ANTRAG_NEU_PAKETE: AntragNeuPaket[] = [
       "Vorbereitung auf Finanzierungen.",
       BONITAET_PUNKT,
       "Bevorzugte Bearbeitung Ihrer Schreiben und telefonische Betreuung.",
-      "Ratenvereinbarungen, Auswertung Ihrer Bonitätsauskunft, Kontoauszug-Analyse und Kundenbereich mit Fahrplan.",
+      "Ratenvereinbarungen, Ihre FIAON-Bonitätsauswertung, die Auswertung Ihrer Bonitätsauskunft und Ihr Kundenbereich mit Fahrplan.",
     ],
     zeile: "Alles aus Ultra, dazu persönlicher Betreuer, Vorbereitung auf Finanzierungen, Erreichbarkeit auch außerhalb der Bürozeiten.",
   },
@@ -129,7 +133,7 @@ export const ANTRAG_NEU_KURZ: Record<AntragNeuPaketKey, string[]> = {
   start: [
     "Fertiger Antragslink unserer Partnerbank für Ihre Visa-Kreditkarte",
     "Auswertung Ihrer Bonitätsauskunft – jeder Eintrag erklärt",
-    "Kontoauszug-Analyse mit Ihrem Spielraum",
+    "FIAON-Bonitätsauswertung – Ihre Bonität aus Sicht einer Bank",
     "Kundenbereich mit persönlichem Fahrplan",
     "Unterstützung per E-Mail",
   ],

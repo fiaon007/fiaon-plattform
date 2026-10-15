@@ -21,7 +21,7 @@ const de = {
   ],
   wegPille: "Der Kundenweg", wegA: "Was passiert, bevor ein Kunde ", wegB: "bei Ihnen ankommt.", wegLead: "Drei Etappen, jede dokumentiert. Am Ende steht ein Kunde, der weiß, was über ihn gespeichert ist – und es geändert hat.",
   weg: [
-    { titel: "Einsicht", text: "FIAON beantragt die Auskunft und analysiert den Kontoauszug. Der Kunde sieht Einträge, Einnahmen, Fixkosten und Spielraum – erklärt." },
+    { titel: "Einsicht", text: "FIAON wertet die Kontoauszüge aus (FIAON-Bonitätsauswertung) und erklärt die Datenkopie, die der Kunde selbst anfordert. Der Kunde sieht Einträge, Einnahmen, Fixkosten und Spielraum – erklärt." },
     { titel: "Aktion", text: "Erledigte und falsche Einträge werden per anwaltlich geprüftem Schreiben angegriffen, offene Forderungen in Raten umgewandelt. Jede Antwort wird erfasst." },
     { titel: "Zugang", text: "Mit bereinigter Akte und dokumentierter Zahlungshistorie wird der Kunde Ihnen vorgestellt – mit seiner Einwilligung und allen Unterlagen." },
   ],
@@ -76,7 +76,7 @@ const en: typeof de = {
   ],
   wegPille: "The customer journey", wegA: "What happens before a customer ", wegB: "arrives with you.", wegLead: "Three stages, each documented. At the end stands a customer who knows what is stored about them – and has changed it.",
   weg: [
-    { titel: "Insight", text: "FIAON requests the report and analyses the bank statement. The customer sees entries, income, fixed costs and headroom – explained." },
+    { titel: "Insight", text: "FIAON assesses the bank statements (FIAON credit assessment) and explains the data copy the customer requests themselves. The customer sees entries, income, fixed costs and headroom – explained." },
     { titel: "Action", text: "Settled and wrong entries are challenged with lawyer-reviewed letters, open claims converted into instalments. Every reply is recorded." },
     { titel: "Access", text: "With a cleaned-up file and documented payment history the customer is introduced to you – with their consent and all documents." },
   ],

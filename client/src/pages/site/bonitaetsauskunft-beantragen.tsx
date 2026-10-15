@@ -4,9 +4,10 @@
 //
 // Suchintention: „bonitätsauskunft beantragen / kostenlos“. Die Seite ist
 // ehrlich: Der kostenlose Weg (Datenkopie nach Art. 15 DSGVO) steht ganz
-// vorne — und daneben die FIAON-Bonitätsauskunft für alle, die Anforderung,
-// Erklärung und Fristenprüfung abgeben wollen. Ehrlichkeit ist hier keine
-// Tugend, sondern die Verkaufsstrategie: Wer den Gratisweg verschweigt,
+// vorne — die beantragen Sie selbst. Daneben seit 14.10.2026 (E-365) die
+// FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, aus Ausweis und
+// Kontoauszügen — FIAON fordert bei keiner Auskunftei an. Ehrlichkeit ist hier
+// keine Tugend, sondern die Verkaufsstrategie: Wer den Gratisweg verschweigt,
 // wirkt wie die Anbieter, vor denen wir warnen.
 // JSON-LD: Service + FAQPage.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -142,10 +143,11 @@ export default function BonitaetsauskunftBeantragen() {
           </p>
         </Block>
 
-        {/* ── WAS GELIEFERT WIRD — JE LAND UND ART (E-240) ───────────────────
+        {/* ── WAS GELIEFERT WIRD — JE LAND UND ART (E-240, E-365) ────────────
             Dieselbe Liste wie in Mail, Kundenbereich und Maras Wissen
-            (auskunftLeistung). Wer in Österreich wohnt, sieht KSV1870 und CRIF —
-            nicht „SCHUFA". */}
+            (auskunftLeistung). Privat: die Bonitätsauswertung (in allen Ländern
+            gleich); Unternehmen: die Firmen-Auskunft — wer in Österreich wohnt,
+            liest dort KSV1870 und CRIF, nicht „SCHUFA". */}
         <Block schmal mitte titel={t.leistungTitel} lead={t.leistungLead}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
             <div className="sx-umschalter" role="group" aria-label={t.leistungTitel}>
@@ -161,6 +163,8 @@ export default function BonitaetsauskunftBeantragen() {
               <ul className="zeilen">
                 {leistung.map((z) => <li key={z}><Haken />{z}</li>)}
               </ul>
+              {/* E-365: die ehrliche Abgrenzung unter der privaten Leistung. */}
+              {art === "privat" && <p style={{ margin: "14px 0 0", fontSize: 13, color: "rgba(226, 236, 250, .8)" }}>{t.keineAuskunft}</p>}
               <div className="dk-knoepfe" style={{ justifyContent: "center", marginTop: 22 }}>
                 {/* Art und Land gehen mit: /bonitaet-antrag liest ?art= und ?land= vor. */}
                 <Knopf href={`${BESTELLEN}?art=${art}&land=${land}`}>{t.antragStarten}</Knopf>
@@ -198,6 +202,8 @@ export default function BonitaetsauskunftBeantragen() {
             <div className="sx-preis">
               <div className="betrag">{einzeln}<small>{t.preisEinmalig}</small></div>
               <p style={{ margin: "6px 0 0", fontSize: 14, color: "rgba(226, 236, 250, .85)" }}>{t.preisMitPaket(mitPaket)}</p>
+              {/* E-365: für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten. */}
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "rgba(226, 236, 250, .8)" }}>{t.preisNeuKunden}</p>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "rgba(196, 216, 246, .7)" }}>{t.preisFirma(euro(P.firma.einzeln), euro(P.firma.mitAbo))}</p>
               <p style={{ margin: "4px 0 0", fontSize: 12, color: "rgba(196, 216, 246, .6)" }}>{t.preisSteuer}</p>
               <ul className="zeilen">

@@ -15,6 +15,8 @@ export interface Bereich {
   bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; preisEuro: number; auskunftStufe?: string | null } | null;
   /** E-240: Stufe, Preis, Leistung, Zahlungsseite der Bonitätsauskunft — null ohne Person. */
   auskunft?: AuskunftKauf | null;
+  /** E-365: nur die Bonitätsauswertung gekauft, kein Paket — /app zeigt ihren Weg statt des Paketwegs. */
+  nurAuswertung?: boolean;
   /** `auskunftKauf` ist derselbe Block wie `auskunft` — der Unterlagen-Schirm bekommt nur `unterlagen`. */
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; auskunftKauf?: AuskunftKauf | null; erneutKontoauszug?: boolean; erneutAusweis?: boolean; kycStatus: string; kontoStatus: string; hinweise?: string[] };
   /** 07.09.2026: Kündigung sichtbar — null, solange keine vorliegt. */

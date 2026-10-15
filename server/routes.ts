@@ -1176,6 +1176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     //    3 Werktagen fällig → Aufgabe an die benannte Verantwortung (10 Werktage: dringend); Link 3 Werktage
     //    unbestätigt → Anruf-Aufgabe an den Betreuer. Je Auftrag und Stufe genau eine Aufgabe.
     tageslauf('auskunft_liegezeit_wache', async () => await (await import('./lib/fiaon-auskunft-lieferung')).beschaffungWache(), 6 * 60 * 60 * 1000, { beimStartNach: 540_000 });
+    // 📎 E-365 (14.10.2026): Bonitätsauswertung bezahlt, Ausweis/Kontoauszug fehlen noch → Erinnerung mit frischem Link
+    //    (nach 3, 4, 7 Tagen, höchstens drei), alle 2 Stunden, nur 09–19 Uhr Berlin, je Lauf höchstens 10.
+    tageslauf('bonitaet_unterlagen_erinnerung', async () => await (await import('./lib/fiaon-bonitaet-ablauf')).auswertungUnterlagenErinnern(), 2 * 60 * 60 * 1000, { beimStartNach: 600_000 });
   });
 
   // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026

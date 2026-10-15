@@ -124,12 +124,12 @@ export default function RatgeberArtikel() {
               <p>Inhalt</p>
               <ol>{toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className={`${t.ebene === 3 ? "e3" : ""}${aktiv === t.id ? " aktiv" : ""}`} onClick={springen(t.id)}>{t.text}</a></li>)}</ol>
               {/* 05.10.2026, E-283: „Konto in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf. */}
-              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Auskunft beschaffen</a><small>Antrag in rund fünf Minuten · Einsicht in 24 Stunden</small></div>
+              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Antrag starten</a><small>Antrag in rund fünf Minuten · jeder Schritt im Kundenbereich</small></div>
             </aside>
             <article>
               <div ref={inhaltRef} className="rg-inhalt" dangerouslySetInnerHTML={{ __html: html }} />
               <div className="rg-einschub">
-                <div><small>Was FIAON übernimmt</small><b>Auskunft beschaffen, jeden Eintrag erklären, Schreiben versenden, Fristen halten.</b><p>Antrag in rund fünf Minuten, Einsicht in 24 Stunden. Danach Girokonto für jeden Kunden – und die Karte, sobald der Wert reicht.</p></div>
+                <div><small>Was FIAON übernimmt</small><b>Einträge erklären, Schreiben versenden, Fristen halten.</b><p>Ihre kostenlose Datenkopie fordern Sie selbst an und laden sie hoch. Für neue Paketkunden ist die FIAON-Bonitätsauswertung aus Ihren Kontoauszügen im Paket enthalten – der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag.</p></div>
                 <Knopf href="/antrag">Konto eröffnen</Knopf>
               </div>
               {a.faq.length > 0 && (
@@ -144,7 +144,7 @@ export default function RatgeberArtikel() {
                 <img src={AUTORIN.bild} alt={AUTORIN.name} />
                 <div><small>{AUTORIN.rolle}</small><b>{AUTORIN.name}</b><p>{AUTORIN.kurz}</p></div>
               </div>
-              <p className="rg-hinweis">Dieser Text informiert allgemein über Rechte und Abläufe rund um Auskunfteien und ersetzt keine Rechtsberatung im Einzelfall. FIAON beschafft Auskünfte, erklärt Einträge und bereitet Schreiben vor – über Konto, Karte und Rahmen entscheidet immer die Bank. Stand: {datum(a.aktualisiertAm)}.</p>
+              <p className="rg-hinweis">Dieser Text informiert allgemein über Rechte und Abläufe rund um Auskunfteien und ersetzt keine Rechtsberatung im Einzelfall. FIAON erklärt Einträge aus Ihrer selbst angeforderten Datenkopie und bereitet Schreiben vor – über Konto, Karte und Rahmen entscheidet immer die Bank. Stand: {datum(a.aktualisiertAm)}.</p>
               {weitere.length > 0 && (
                 <section className="rg-weitere">
                   <h2>Weiterlesen</h2>
@@ -164,7 +164,7 @@ export default function RatgeberArtikel() {
         </div>
       </Licht>
 
-      <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? FIAON beschafft die Auskunft und erklärt jeden Eintrag – innerhalb von 24 Stunden." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />
+      <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? Laden Sie Ihre kostenlose Datenkopie hoch – FIAON erklärt die Einträge und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />
     </Dunkel>
   );
 }

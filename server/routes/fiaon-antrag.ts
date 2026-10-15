@@ -1307,7 +1307,7 @@ router.post("/payment-order", async (req, res) => {
                                         street, zip, city, country, birthdate, phone, person_id, created_at, updated_at)
         VALUES (${ref}, 'schufa', 'submitted',
                 ${firstName || vorlage?.first_name || null}, ${lastName || vorlage?.last_name || null}, ${email || vorlage?.email || null},
-                ${preis.key}, ${auskunftArt === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan"},
+                ${preis.key}, ${auskunftArt === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "FIAON-Bonitätsauswertung"},
                 ${auskunftArt === "firma" ? String(b.firma || b.companyName || "").slice(0, 200) || null : null},
                 ${b.street || vorlage?.street || null}, ${b.plz || b.zip || vorlage?.zip || null}, ${b.city || vorlage?.city || null},
                 ${b.country || vorlage?.country || null}, ${geburt}, ${b.phone || vorlage?.phone || null}, ${personId},

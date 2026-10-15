@@ -35,7 +35,7 @@ const de = {
     { f: "Was tue ich, wenn die Auskunftei ablehnt oder nicht antwortet?", a: "Beschwerde bei der zuständigen Datenschutzaufsichtsbehörde (Art. 77 DSGVO) – für die SCHUFA ist das der Hessische Beauftragte für Datenschutz und Informationsfreiheit. Zusätzlich gibt es den Ombudsmann der SCHUFA. Beides ist kostenlos. FIAON übernimmt diese Eskalation für Kunden." },
     { f: "Soll ich per E-Mail oder per Post schicken?", a: "Per Post als Einschreiben mit Rückschein – oder per Einwurf-Einschreiben. Sie brauchen später den Nachweis, wann das Schreiben zugegangen ist. Eine Kopie des Ausweises verlangen Auskunfteien oft zur Identifikation; schwärzen Sie darauf alles außer Name, Anschrift und Geburtsdatum." },
   ],
-  zwischenrufFett: "Lieber nicht selbst nachhalten?", zwischenruf: " FIAON prüft jeden Eintrag, versendet die Schreiben per Einschreiben, verfolgt die Antwort und eskaliert zur Aufsicht – Sie geben nur frei.", zwischenrufKnopf: "FIAON übernimmt das", wieFiaon: "Wie FIAON arbeitet",
+  zwischenrufFett: "Lieber nicht selbst nachhalten?", zwischenruf: " Laden Sie Ihre Datenkopie hoch: FIAON prüft die Einträge, versendet die Schreiben per Einschreiben, verfolgt die Antwort und eskaliert zur Aufsicht – Sie geben nur frei.", zwischenrufKnopf: "FIAON übernimmt das", wieFiaon: "Wie FIAON arbeitet",
 };
 const en: typeof de = {
   metaTitel: "Objection generator · deletion request against an entry",
@@ -71,6 +71,6 @@ const en: typeof de = {
     { f: "What do I do if the credit bureau refuses or does not reply?", a: "Complaint to the competent data protection supervisory authority (Article 77 GDPR) – for SCHUFA that is the Hessian Commissioner for Data Protection and Freedom of Information. In addition there is the SCHUFA ombudsman. Both are free of charge. FIAON takes over this escalation for customers." },
     { f: "Should I send by e-mail or by post?", a: "By post as registered mail with return receipt – or as registered delivery. You will later need proof of when the letter was received. Credit bureaus often demand a copy of your ID for identification; black out everything on it except name, address and date of birth." },
   ],
-  zwischenrufFett: "Would rather not follow up yourself?", zwischenruf: " FIAON checks every entry, sends the letters by registered post, tracks the reply and escalates to the supervisory authority – you only approve.", zwischenrufKnopf: "FIAON takes this over", wieFiaon: "How FIAON works",
+  zwischenrufFett: "Would rather not follow up yourself?", zwischenruf: " Upload your data copy: FIAON checks the entries, sends the letters by registered post, tracks the reply and escalates to the supervisory authority – you only approve.", zwischenrufKnopf: "FIAON takes this over", wieFiaon: "How FIAON works",
 };
 export const WZ_WIDERSPRUCH_WOERTER = { de, en };

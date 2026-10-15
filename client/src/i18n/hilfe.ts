@@ -3,6 +3,10 @@
 // Acht Themen, je vier bis sechs Fragen, in beiden Sprachen. Die Antworten
 // folgen shared/fiaon-wissen.ts — dieselben Aussagen wie am Telefon.
 // Der FAQ-Generator teilt an „const en".
+// 14.10.2026 (E-365): FIAON fordert keine Auskunft an — die Datenkopie fordert
+// der Kunde selbst an und lädt sie hoch. Verkauft wird die FIAON-
+// Bonitätsauswertung (149 € einzeln, 74 € mit laufendem Paket, für neue
+// Paketkunden enthalten). Eine Anrechnung auf ein Paket gibt es nicht.
 // ═══════════════════════════════════════════════════════════════════════════
 export type HilfeThema = { key: string; titel: string; satz: string; fragen: { f: string; a: string }[] };
 
@@ -15,7 +19,7 @@ const de = {
   pille: "Hilfe-Center", h1a: "Antworten, ", h1b: "bevor Sie fragen müssen.",
   lead: "Acht Themen, dieselben Antworten wie am Telefon und im Assistenten. Suchen Sie – oder öffnen Sie das Thema, das gerade dran ist.",
   suchen: "Suchen", einMensch: "Ein Mensch, bitte",
-  wonach: "Wonach suchen Sie?", suchePlatz: "z. B. kündigen, Rate, Vollmacht, Mahnbescheid",
+  wonach: "Wonach suchen Sie?", suchePlatz: "z. B. kündigen, Rate, Hochladen, Mahnbescheid",
   keinTrefferA: "Kein Treffer. Fragen Sie den Assistenten auf der ", keinTrefferLink: "Kontaktseite", keinTrefferB: " – er antwortet sofort.",
   nichtDabeiTag: "Nicht dabei?", nichtDabeiTitel: "Drei Wege zu einem Menschen",
   nichtDabeiA: "Der ", nichtDabeiLink: "Assistent auf der Kontaktseite", nichtDabeiB: " antwortet sofort und kennt die Plattform im Detail. Kunden erreichen ihre Ansprechpartnerin im Kundenbereich unter Hilfe. Alle anderen: Support +41 44 244 93 01 (werktags 9–19 Uhr) oder support@fiaon.com – Antwort innerhalb eines Werktags. Dringendes landet über „Dringend melden“ direkt bei der Geschäftsführung.",
@@ -27,7 +31,7 @@ const de = {
       // Der Kartenlink kommt ohne verlangten sofortigen Beginn erst nach der Widerrufsfrist (Vertrag § 6, fiaon-konto-karte.ts).
       { f: "Wie lange dauert der Antrag?", a: "Ihre Angaben dauern rund fünf Minuten: Name, Kontakt, Geburtsdatum, Adresse (füllt sich beim Tippen selbst aus), Beruf, Einkommen und Ihre Ausgangslage. Danach prüfen wir Ihre Angaben direkt im Antrag – Anschrift, Kontakt, kein laufender Vertrag, ohne Abfrage bei einer Auskunftei. Dann legen Sie Ihre persönliche PIN fest, wählen Paket und Ziel-Limit und unterschreiben den Vertrag am Bildschirm." },
       { f: "Was passiert nach dem Antrag?", a: "Direkt nach der Unterschrift sehen Sie die Zahlungsdaten Ihrer ersten Monatsrate mit QR-Code und überweisen sie. Danach öffnen Sie Ihren Bereich; später melden Sie sich mit Ihrer E-Mail-Adresse an. Nach Zahlungseingang wählen Sie dort Ihr Startgespräch, und Sie bekommen den Link unserer Partnerbank für Ihren Kartenantrag (haben Sie keinen sofortigen Beginn verlangt, nach Ablauf der Widerrufsfrist). Über Karte und Limit entscheidet die Bank." },
-      { f: "Was ist das Startgespräch?", a: "Ein Telefonat von rund 15 Minuten mit einem Mitarbeiter: Lage, Ziel, Unterlagen, nächste Schritte. Es ist Pflicht, weil danach Ihre Auskunft beantragt wird. Wer vorher einen Termin über /termin gebucht hat, braucht keinen zweiten." },
+      { f: "Was ist das Startgespräch?", a: "Ein Telefonat von rund 15 Minuten mit einem Mitarbeiter: Lage, Ziel, Unterlagen, nächste Schritte. Es ist Pflicht, weil darin Ihr erster Schritt festgelegt wird. Wer vorher einen Termin über /termin gebucht hat, braucht keinen zweiten." },
       { f: "Kann ich das Paket noch ändern?", a: "Ja – im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf der Preisseite gibt die erste Orientierung." },
       { f: "Ich habe den Antrag abgebrochen – was nun?", a: "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Kosten entstehen erst, wenn Sie den Vertrag unterschreiben und auf „Zahlungspflichtig annehmen“ klicken – davor sehen Sie Paket, Monatsrate, Laufzeit und Gesamtbetrag." },
     ] },
@@ -37,11 +41,12 @@ const de = {
       { f: "Meine Zahlung ist nicht angekommen – was tun?", a: "Überweisungen brauchen ein bis zwei Bankarbeitstage. Prüfen Sie Verwendungszweck (Ihre Referenz) und Betrag. Ist die Zahlung nach drei Werktagen nicht zugeordnet, melden Sie sich mit Datum und Betrag beim Support – wir suchen sie im Bankbuch." },
       { f: "Was passiert, wenn ich eine Rate nicht pünktlich zahlen kann?", a: "Sie bekommen eine Erinnerung mit den Zahlungsdaten; es entstehen keine Mahngebühren bei FIAON. Melden Sie sich vor der Fälligkeit, wenn es eng wird – Ihre Ansprechpartnerin kann eine Rate verschieben." },
       { f: "Bekomme ich eine Rechnung?", a: "Ja, je Rate im Kundenbereich unter Abo & Zahlungen als PDF – mit Umsatzsteuer ausgewiesen." },
-      { f: "Wird die Bonitätsauskunft angerechnet?", a: "Wer zuerst nur die Auskunft (74 Euro) bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet – sagen Sie es im Startgespräch." },
+      { f: "Was kostet die Bonitätsauswertung?", a: "Einzeln 149 €, mit laufendem Paket 74 € – einmalig, kein Abo. Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag." },
     ] },
-    { key: "auskunft", titel: "Auskunft und Einträge", satz: "Was FIAON beschafft und wie Sie es lesen.", fragen: [
-      { f: "Welche Auskünfte beschafft FIAON?", a: "In Deutschland die SCHUFA (auf Wunsch auch Boniversum, CRIF), in Österreich KSV1870 und CRIF, in der Schweiz CRIF, Intrum und den Betreibungsregisterauszug – mit Ihrer digitalen Vollmacht. Sie füllen kein Formular aus." },
-      { f: "Wie lange dauert es, bis die Auskunft da ist?", a: "Die Auskunfteien haben einen Monat Zeit (Art. 15 DSGVO); in der Praxis kommen Datenkopien oft nach ein bis drei Wochen. Sobald sie vorliegt, sehen Sie sie innerhalb von 24 Stunden erklärt im Kundenbereich." },
+    { key: "auskunft", titel: "Auskunft und Einträge", satz: "Ihre Bonitätsauswertung, Ihre Datenkopie – und wie Sie beides lesen.", fragen: [
+      { f: "Was ist die FIAON-Bonitätsauswertung?", a: "Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen: Haushaltsrechnung und die neun Merkmale einer Kreditprüfung, jede Einnahme und Ausgabe nach Empfänger, Ampel für sieben Bereiche, FIAON-Finanzwert und ein Plan für zwölf Monate. Dafür brauchen wir nur Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate. Nach der Bestellung bekommen Sie einen Link zum Hochladen — ohne Anmeldung. Ein Mensch prüft den Bericht und gibt ihn frei; Sie bekommen ihn als PDF per E-Mail und im Kundenbereich. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein." },
+      { f: "Fordert FIAON meine Auskunft an?", a: "Nein. Ihre Datenkopie fordern Sie selbst an – kostenlos, der Selbstauskunft-Generator unter /werkzeuge/selbstauskunft schreibt den Brief. Zuständig sind in Deutschland die SCHUFA (daneben Boniversum, CRIF), in Österreich KSV1870 und CRIF, in der Schweiz CRIF, Intrum und das Betreibungsregister. Laden Sie die Datenkopie im Kundenbereich hoch, ordnet Ihr Paket jeden Eintrag ein." },
+      { f: "Wie lange dauert es, bis die Datenkopie da ist?", a: "Die Auskunfteien haben einen Monat Zeit (Art. 15 DSGVO); in der Praxis kommen Datenkopien oft nach ein bis drei Wochen per Post zu Ihnen. Laden Sie sie dann im Kundenbereich hoch – ein Handyfoto genügt." },
       { f: "Was bedeuten die Bewertungen an den Einträgen?", a: "Jeder Eintrag bekommt eine Einordnung: erledigt, löschbar, berichtigbar, angreifbar – oder berechtigt. Berechtigt heißt: zulässig gemeldet und noch in der Frist; daran ändert kein Schreiben etwas, und das sagen wir vorher." },
       { f: "Was ist der neue SCHUFA-Score?", a: "Seit dem 17. März 2026 rechnet die SCHUFA mit 100 bis 999 Punkten aus zwölf veröffentlichten Kriterien in fünf Klassen. Er ersetzt den Basisscore in Prozent. FIAON ordnet Ihren Score je Kriterium ein – die Tabelle steht auf der Seite SCHUFA-Score verstehen." },
       { f: "Kann ich meine Auskunft selbst kostenlos anfordern?", a: "Ja, die Datenkopie nach Art. 15 DSGVO ist bei jeder Auskunftei kostenlos. Der Selbstauskunft-Generator unter /werkzeuge/selbstauskunft schreibt den Brief. FIAON lohnt sich für die Erklärung, die Prüfung und alles danach." },
@@ -61,7 +66,7 @@ const de = {
     ] },
     { key: "kuendigung", titel: "Kündigung und Widerruf", satz: "Monatlich, formlos, ohne Grund.", fragen: [
       { f: "Wie kündige ich?", a: "Der Vertrag läuft über zwölf Monatsraten; danach jederzeit mit einer Frist von einem Monat, formlos: im Kundenbereich unter Abo & Zahlungen mit einem Klick oder per E-Mail an support@fiaon.com. Sie bekommen eine Bestätigung." },
-      { f: "Gibt es ein Widerrufsrecht?", a: "Ja, 14 Tage ab Vertragsschluss, ohne Angabe von Gründen – die Widerrufsbelehrung und das Musterformular stehen auf der Seite Widerrufsbelehrung. Bereits erbrachte Leistungen (etwa eine beschaffte Auskunft) werden anteilig berechnet." },
+      { f: "Gibt es ein Widerrufsrecht?", a: "Ja, 14 Tage ab Vertragsschluss, ohne Angabe von Gründen – die Widerrufsbelehrung und das Musterformular stehen auf der Seite Widerrufsbelehrung. Bereits erbrachte Leistungen werden anteilig berechnet." },
       { f: "Was passiert mit meinen Daten nach der Kündigung?", a: "Auf Wunsch löschen wir Auskunft, Unterlagen und Akte vollständig (Art. 17 DSGVO) und bestätigen das innerhalb von 30 Tagen. Gesetzliche Aufbewahrungspflichten für Rechnungen bleiben." },
       { f: "Laufen meine Schreiben nach der Kündigung weiter?", a: "Bereits versendete Schreiben bleiben wirksam – die Auskunftei muss antworten. Die Nachverfolgung durch FIAON endet mit dem Paket; Sie erhalten alle Unterlagen als Kopie." },
     ] },
@@ -88,7 +93,7 @@ const en: typeof de = {
   pille: "Help centre", h1a: "Answers, ", h1b: "before you have to ask.",
   lead: "Eight topics, the same answers as on the phone and in the assistant. Search — or open the topic that is on your mind.",
   suchen: "Search", einMensch: "A person, please",
-  wonach: "What are you looking for?", suchePlatz: "e.g. cancel, instalment, authorisation, court order",
+  wonach: "What are you looking for?", suchePlatz: "e.g. cancel, instalment, upload, court order",
   keinTrefferA: "No match. Ask the assistant on the ", keinTrefferLink: "contact page", keinTrefferB: " — it answers straight away.",
   nichtDabeiTag: "Not here?", nichtDabeiTitel: "Three ways to a person",
   nichtDabeiA: "The ", nichtDabeiLink: "assistant on the contact page", nichtDabeiB: " answers straight away and knows the platform in detail. Customers reach their contact person in the customer area under Help. Everyone else: support +41 44 244 93 01 (weekdays 9–19 h) or support@fiaon.com — a reply within one working day. Urgent matters go straight to the management via “Report urgently”.",
@@ -98,7 +103,7 @@ const en: typeof de = {
     { key: "antrag", titel: "Application and start", satz: "From the first click to the onboarding call.", fragen: [
       { f: "How long does the application take?", a: "Your details take about five minutes: name, contact, date of birth, address (fills in as you type), occupation, income and your current situation. We then check your details right in the application — address, contact, no existing contract, without any credit bureau enquiry. Then you set your personal PIN, choose your plan and target limit and sign the contract on screen. The application is currently in German; our team helps in English on the phone." },
       { f: "What happens after the application?", a: "Straight after signing you see the payment details for your first monthly instalment with a QR code and make the transfer. Then you open your area; later you sign in with your e-mail address. Once your payment has arrived, you choose your onboarding call there and receive our partner bank's link for your card application (if you did not request an immediate start, once the withdrawal period has expired). The bank decides on the card and the limit." },
-      { f: "What is the onboarding call?", a: "A phone call of around 15 minutes with one of our team: situation, goal, documents, next steps. It is mandatory because your report is requested afterwards. Anyone who booked a call beforehand does not need a second one." },
+      { f: "What is the onboarding call?", a: "A phone call of around 15 minutes with one of our team: situation, goal, documents, next steps. It is mandatory because your first step is set in it. Anyone who booked a call beforehand does not need a second one." },
       { f: "Can I still change the plan?", a: "Yes — in the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on the pricing page gives a first orientation." },
       { f: "I abandoned the application — what now?", a: "You can continue at any time: the link in the e-mail takes you back into the application. Costs only arise when you sign the contract and click “Zahlungspflichtig annehmen” (accept with obligation to pay) — before that you see the plan, monthly instalment, term and total amount." },
     ] },
@@ -108,11 +113,12 @@ const en: typeof de = {
       { f: "My payment has not arrived — what should I do?", a: "Bank transfers take one to two banking days. Check the reference (your reference) and the amount. If the payment has not been allocated after three working days, contact support with date and amount — we look for it in the bank ledger." },
       { f: "What happens if I cannot pay an instalment on time?", a: "You get a reminder with the payment details; no reminder fees arise at FIAON. Get in touch before the due date if money is tight — your contact person can move an instalment." },
       { f: "Do I get an invoice?", a: "Yes, per instalment in the customer area under Subscription & payments as a PDF — with VAT shown." },
-      { f: "Is the credit report credited?", a: "If you first buy only the report (€74) and choose a plan within 30 days, the amount is credited against the first instalment — say so in the onboarding call." },
+      { f: "What does the credit assessment cost?", a: "€149 on its own, €74 with a running plan — one-off, no subscription. For new plan customers the credit assessment is included in the plan — it is the step before our partner bank's link for your card application." },
     ] },
-    { key: "auskunft", titel: "Report and entries", satz: "What FIAON obtains and how to read it.", fragen: [
-      { f: "Which reports does FIAON obtain?", a: "In Germany SCHUFA (on request also Boniversum, CRIF), in Austria KSV1870 and CRIF, in Switzerland CRIF, Intrum and the debt enforcement register extract — with your digital authorisation. You fill in no forms." },
-      { f: "How long until the report arrives?", a: "The credit bureaus have one month (Art. 15 GDPR); in practice data copies often arrive after one to three weeks. As soon as it is there, you see it explained in the customer area within 24 hours." },
+    { key: "auskunft", titel: "Report and entries", satz: "Your credit assessment, your data copy — and how to read both.", fragen: [
+      { f: "What is the FIAON credit assessment?", a: "Your creditworthiness as a bank sees it — from your own bank statements: household budget and the nine criteria a credit check looks at, every income and expense by payee, a traffic light for seven areas, your FIAON financial score and a twelve-month plan. All we need is your ID and your bank statements for the last three months. After ordering you get a link to upload them — no login needed. A person checks the report and releases it; you receive it as a PDF by email and in the customer area. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it." },
+      { f: "Does FIAON request my credit report?", a: "No. You request your data copy yourself — free of charge, the self-disclosure generator under /werkzeuge/selbstauskunft writes the letter. Responsible are SCHUFA in Germany (alongside Boniversum, CRIF), KSV1870 and CRIF in Austria, CRIF, Intrum and the debt enforcement register in Switzerland. Upload the data copy in the customer area and your plan classifies every entry." },
+      { f: "How long until the data copy arrives?", a: "The credit bureaus have one month (Art. 15 GDPR); in practice data copies often reach you by post after one to three weeks. Then upload it in the customer area — a phone photo is enough." },
       { f: "What do the assessments on the entries mean?", a: "Every entry gets a classification: settled, deletable, correctable, challengeable — or justified. Justified means: lawfully reported and still within the deadline; no letter changes that, and we say so beforehand." },
       { f: "What is the new SCHUFA score?", a: "Since 17 March 2026 SCHUFA calculates 100 to 999 points from twelve published criteria in five classes. It replaces the base score in per cent. FIAON classifies your score criterion by criterion — the table is on the page Understanding the SCHUFA score." },
       { f: "Can I request my report myself free of charge?", a: "Yes, the data copy under Art. 15 GDPR is free at every credit bureau. The self-disclosure generator under /werkzeuge/selbstauskunft writes the letter. FIAON is worth it for the explanation, the review and everything afterwards." },
@@ -132,7 +138,7 @@ const en: typeof de = {
     ] },
     { key: "kuendigung", titel: "Cancellation and withdrawal", satz: "Monthly, informal, without giving a reason.", fragen: [
       { f: "How do I cancel?", a: "The contract runs for twelve monthly instalments; after that at any time with one month\x27s notice, informally: in the customer area under Subscription & payments with one click or by e-mail to support@fiaon.com. You get a confirmation." },
-      { f: "Is there a right of withdrawal?", a: "Yes, 14 days from the conclusion of the contract, without giving reasons — the withdrawal notice and the model form are on the page Right of withdrawal. Services already provided (such as a report obtained) are charged proportionately." },
+      { f: "Is there a right of withdrawal?", a: "Yes, 14 days from the conclusion of the contract, without giving reasons — the withdrawal notice and the model form are on the page Right of withdrawal. Services already provided are charged proportionately." },
       { f: "What happens to my data after cancellation?", a: "On request we delete report, documents and file completely (Art. 17 GDPR) and confirm it within 30 days. Statutory retention obligations for invoices remain." },
       { f: "Do my letters continue after cancellation?", a: "Letters already sent remain effective — the credit bureau has to reply. Follow-up by FIAON ends with the plan; you receive all documents as copies." },
     ] },

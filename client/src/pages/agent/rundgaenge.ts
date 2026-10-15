@@ -2140,6 +2140,12 @@ export const RUNDGANG_AUSKUNFT_BESCHAFFUNG: RundgangSchritt[] = [
     text: "Jeder zahlende Kunde und sein Stand. Wer auf den Kartenlink wartet, steht oben — den Link der Partnerbank gibt es erst nach der Bonität. „Akte öffnen“ führt zum Knopf, erstellt wird nur auf Knopfdruck.",
   },
   {
+    // E-365 (15.10.2026): Grundlage je Zeile und der Knopf für Altkäufer.
+    ziel: ".awl",
+    titel: "Bezahlt, im Paket, nicht gekauft.",
+    text: "Jede Zeile sagt, worauf die Auswertung beruht: bezahlt (74/149 €), im Paket (der Kartenlink wartet — dann ist sie inklusive) oder nicht gekauft. „Käufer um Unterlagen bitten“ schickt Käufern, die nie um Ausweis und Kontoauszug gebeten wurden, einmal den Upload-Link.",
+  },
+  {
     ziel: ".akb-status",
     titel: "Der Lieferweg.",
     text: "Oben der Lieferweg — die eine Stelle dafür, auch für den Verkauf.",

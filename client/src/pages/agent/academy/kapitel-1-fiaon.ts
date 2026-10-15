@@ -14,7 +14,7 @@ export const KAPITEL_1: KapitelInhalt = {
         p("FIAON dreht das um. Wir holen die Auskunft des Kunden, zerlegen sie in einzelne Einträge, erklären jeden in Menschensprache, greifen an, was angreifbar ist, und bereiten den Zugang vor: Konto, Karte, später Finanzierung. Der Kunde sieht jeden Schritt in seinem Bereich – und hat einen Menschen mit Namen, der seine Akte kennt: dich."),
         merk("Wir verkaufen keine Zahl und kein Versprechen. Wir verkaufen Arbeit, die sichtbar ist: Auskunft, Einordnung, Schreiben, Fristen, Zugang."),
         p("Die Vision ist groß: Im DACH-Raum leben rund 100 Millionen Menschen; die SCHUFA allein speichert Daten zu rund 68 Millionen Personen in Deutschland. Jeder von ihnen hat das Recht zu wissen, was über ihn gespeichert ist, und das Recht, Falsches löschen zu lassen. Fast niemand nutzt es – weil es Aufwand ist. FIAON senkt den Aufwand auf einen Klick."),
-        kacheln(["Einsicht", "Die Auskunft beschaffen und jeden Eintrag erklären."], ["Aktion", "Anwaltlich geprüfte Schreiben vorbereiten, versenden, Fristen halten."], ["Zugang", "Girokonto, Kreditkarte, Finanzierung – die Bank entscheidet, FIAON bereitet vor."]),
+        kacheln(["Einsicht", "Die Bonität aus Sicht einer Bank zeigen (FIAON-Bonitätsauswertung) und jeden Eintrag einer Datenkopie erklären."], ["Aktion", "Geprüfte Schreiben vorbereiten, versenden, Fristen halten."], ["Zugang", "Girokonto, Kreditkarte, Finanzierung – die Bank entscheidet, FIAON bereitet vor."]),
         p("Warum das ein Abo ist: Ein Eintrag fällt nicht an einem Tag. Eine Datenkopie braucht bis zu einen Monat, ein Gläubiger antwortet nach Wochen, eine Löschfrist läuft über Monate. Zwölf Raten bedeuten zwölf Monate, in denen jeden Monat etwas passiert – und der Kunde es sieht."),
       ],
     },
@@ -22,7 +22,7 @@ export const KAPITEL_1: KapitelInhalt = {
       einleitung: "Drei Schichten, die aufeinander aufbauen. Wer sie erklären kann, kann jedes Kundengespräch führen.",
       bloecke: [
         tab(["Schicht", "Was passiert", "Wer handelt"],
-          ["1 · Einsicht", "Auskunft mit Vollmacht beschaffen (SCHUFA in Deutschland, KSV1870/CRIF in Österreich, CRIF/Intrum und Betreibungsregister in der Schweiz); jeden Eintrag erklären; Kontoauszug auswerten (Einnahmen, Fixkosten, Spielraum).", "FIAON beschafft und erklärt; du ordnest im Startgespräch ein."],
+          ["1 · Einsicht", "FIAON-Bonitätsauswertung aus Ausweis und Kontoauszug (Haushaltsrechnung, jede Ausgabe, Ampel, Finanzwert, Plan); eine hochgeladene Datenkopie (SCHUFA, KSV1870/CRIF, CRIF/Intrum) Eintrag für Eintrag erklären. FIAON fordert bei keiner Auskunftei an.", "Du entwickelst die Auswertung per Knopf, prüfst und gibst frei; im Startgespräch ordnest du ein."],
           ["2 · Aktion", "Für angreifbare Einträge liegen geprüfte Schreiben bereit: Datenkopie Art. 15, Berichtigung Art. 16, Löschung Art. 17, Widerspruch, Ratenangebot. Der Kunde gibt frei, FIAON versendet per Einschreiben, verfolgt Fristen und Antworten.", "Der Kunde gibt frei; das Back-Office versendet; du erklärst und hältst nach."],
           ["3 · Zugang", "Girokonto für jeden Kunden (unabhängig von der Bonität, z. B. DKB), Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht (bis 25.000 € bei guter Bonität), später Finanzierung.", "Die Bank entscheidet. FIAON bereitet vor. Niemand verspricht."],
         ),
@@ -84,7 +84,7 @@ export const KAPITEL_1: KapitelInhalt = {
           "Ton: ruhig, konkret, kurz. Zahlen statt Adjektive. Keine Emojis in Kundentexten. Keine Druckwörter („nur heute“, „letzte Chance“).",
         ),
         sagen(
-          ["„Ich bin Ihre Ansprechpartnerin bei FIAON und kenne Ihre Akte.“", "„Wir beschaffen Ihre Auskunft und erklären Ihnen jeden Eintrag.“", "„Über die Karte entscheidet die Bank – wir bereiten alles vor.“", "„Das kann ich Ihnen nicht sicher sagen – ich prüfe es und melde mich bis morgen 12 Uhr.“"],
+          ["„Ich bin Ihre Ansprechpartnerin bei FIAON und kenne Ihre Akte.“", "„Wir entwickeln Ihre Bonitätsauswertung und erklären Ihnen jeden Eintrag Ihrer Datenkopie.“", "„Über die Karte entscheidet die Bank – wir bereiten alles vor.“", "„Das kann ich Ihnen nicht sicher sagen – ich prüfe es und melde mich bis morgen 12 Uhr.“"],
           ["„Ich berate Sie gern.“", "„Das klappt garantiert.“", "„Wir verbessern Ihren Score.“", "„Sie bekommen auf jeden Fall eine Karte.“", "„Kredit ohne SCHUFA – kein Problem.“"],
         ),
         merk("Der beste Satz, wenn du etwas nicht weißt: „Das prüfe ich und melde mich bis … Uhr.“ Und dann tust du es."),

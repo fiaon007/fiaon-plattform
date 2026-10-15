@@ -31,7 +31,7 @@ export default function Ratgeber() {
         pille="Ratgeber · Bonität verstehen"
         titel={<>Wissen, das <span className="dk-verlauf">Einträge bewegt.</span></>}
         lead="Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – für Deutschland, Österreich und die Schweiz. Jeder Text wird gegen Gesetz, Verhaltensregeln der Auskunfteien und die Praxis aus FIAON-Akten geprüft."
-        knoepfe={<><Knopf href="#artikel">Artikel lesen</Knopf><Knopf href="/antrag" still>Auskunft beschaffen lassen</Knopf></>}
+        knoepfe={<><Knopf href="#artikel">Artikel lesen</Knopf><Knopf href="/antrag" still>Antrag starten</Knopf></>}
       />
 
       <Licht>
@@ -81,7 +81,7 @@ export default function Ratgeber() {
         </Block>
       </Licht>
 
-      <Zwischenruf text="Lesen hilft. Handeln hilft mehr: FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Was ist FIAON", href: "/was-ist-fiaon" }} />
+      <Zwischenruf text="Lesen hilft. Handeln hilft mehr: Laden Sie Ihre kostenlose Datenkopie hoch – FIAON erklärt die Einträge und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Was ist FIAON", href: "/was-ist-fiaon" }} />
     </Dunkel>
   );
 }

@@ -33,6 +33,12 @@
 // Einzelpreis, Paketspalten „+ 74 € Kundenpreis", der Fallrechner rechnet sie
 // als Zusatz, und jeder Auskunft-Knopf führt auf /bonitaet-antrag. Preise aus
 // shared/fiaon-auskunft.ts.
+//
+// 14.10.2026 (E-365): Die Spalte ist die FIAON-Bonitätsauswertung (Bericht aus
+// Ausweis und Kontoauszügen, keine Beschaffung bei Auskunfteien). Für neue
+// Paketkunden ist sie im Paket enthalten — die Paketspalten tragen ✓, der
+// Fallrechner zählt sie als „inklusive" (der Paketpreis ist der Gesamtpreis).
+// 149 € einzeln, 74 € nur mit laufendem Paket.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
@@ -51,16 +57,15 @@ import "@/styles/ratgeber.css";
 
 // Die Zeilen der Leistungstabelle: welche Spalte was hat. Die Texte kommen aus
 // dem Wörterbuch (Reihenfolge = leistungen[]); "s" = zum Selbstversand,
-// "v" = FIAON versendet, "t" = ab Schwelle, "z" = zubuchbar zum Kundenpreis
-// (die Auskunft ist nicht im Paket), "a" = Schreiben an Auskunfteien zur
-// Freigabe (Teil der Auskunft).
-type Zelle = boolean | "s" | "v" | "t" | "z" | "a";
+// "v" = FIAON versendet, "t" = ab Schwelle. E-365: Zeile 1 ist die
+// Bonitätsauswertung — einzeln und für neue Paketkunden enthalten; die frühere
+// Zeile „Finanzauswertung aus dem Kontoauszug" ist darin aufgegangen.
+type Zelle = boolean | "s" | "v" | "t";
 const MATRIX: Record<string, Zelle>[] = [
-  { schufa: true, start: "z", pro: "z", ultra: "z", highend: "z" },
-  { schufa: true, start: true, pro: true, ultra: true, highend: true },
   { schufa: true, start: true, pro: true, ultra: true, highend: true },
   { schufa: false, start: true, pro: true, ultra: true, highend: true },
-  { schufa: "a", start: "s", pro: "v", ultra: "v", highend: "v" },
+  { schufa: false, start: true, pro: true, ultra: true, highend: true },
+  { schufa: false, start: "s", pro: "v", ultra: "v", highend: "v" },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
   { schufa: false, start: false, pro: true, ultra: true, highend: true },
@@ -74,8 +79,8 @@ const SPALTEN = ["schufa", "start", "pro", "ultra", "highend"];
 // ── Paketfinder — dieselben drei Fragen wie auf /plattform-konzept. ───────────
 // Die Logik liefert den Paketschlüssel und den SCHLÜSSEL des Grundes; der
 // Text zum Grund steht im Wörterbuch (beide Sprachen).
-// E-240: „Nur wissen, was drinsteht" ist die Auskunft ohne Paket — also der
-// Einzelpreis (auskunft_privat), nicht der Kundenpreis „schufa".
+// E-240/E-365: „Nur wissen, wie eine Bank mich sieht" ist die Bonitätsauswertung
+// ohne Paket — also der Einzelpreis (auskunft_privat), nicht der Kundenpreis „schufa".
 type Antwort = Record<string, string>;
 const AUSKUNFT_EINZELN = auskunftSchluessel("privat", false);
 function paketFuer(a: Antwort): { key: string; grund: string } | null {
@@ -96,11 +101,11 @@ export default function Preise() {
   // Zahlen in der Sprache der Seite: 79,99 € (de) — €79.99 (en).
   const geld = (c: number) => en ? "€" + (c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
   const euro0 = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-  // E-240: zwei Preise der Auskunft — einzeln und mit laufendem Paket (Kundenpreis).
+  // E-240/E-365: zwei Preise der Bonitätsauswertung — einzeln und mit laufendem Paket.
   const euroKurz = (c: number) => en ? "€" + (c / 100).toLocaleString("en-GB") : euroText(c);
   const auskunftEinzeln = euroKurz(AUSKUNFT_PREISE_CENTS.privat.einzeln);
   const auskunftMitPaket = euroKurz(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
-  const zelle = (w: Zelle) => w === true ? <span className="pr-ja">✓</span> : w === false ? <span className="pr-nein">–</span> : <span className="pr-text">{w === "s" ? t.selbstversand : w === "v" ? t.fiaonVersendet : w === "a" ? t.anAuskunfteien : w === "z" ? t.zubuchbar(auskunftMitPaket) : t.abSchwelle}</span>;
+  const zelle = (w: Zelle) => w === true ? <span className="pr-ja">✓</span> : w === false ? <span className="pr-nein">–</span> : <span className="pr-text">{w === "s" ? t.selbstversand : w === "v" ? t.fiaonVersendet : t.abSchwelle}</span>;
   const privat = PAKETE.filter((p) => p.art === "privat" && p.abo && !p.eingestellt);
   const pro = PAKETE.find((p) => p.key === "pro")!;
 
@@ -117,19 +122,18 @@ export default function Preise() {
   const fall = useMemo(() => {
     const key = ziel === "auskunft" ? AUSKUNFT_EINZELN : eintraege >= 4 ? "ultra" : "pro";
     const p = PAKETE.find((x) => x.key === key)!;
-    // E-240: Mit Paket kommt die Auskunft zum Kundenpreis dazu — sie ist nicht enthalten.
-    const auskunftCents = p.abo ? AUSKUNFT_PREISE_CENTS.privat.mitAbo : 0;
+    // E-365: Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — kein Zusatzpreis.
     const raten = p.abo ? (p.preisCents / 100) * 12 : p.preisCents / 100;
-    const gesamt = raten + auskunftCents / 100;
+    const gesamt = raten;
     const anwalt = eintraege * 190 + (laender - 1) * 60;
     const selbstZeit = eintraege * 3 + 4 + (laender - 1) * 2;
-    return { p, raten, gesamt, auskunftCents, anwalt, selbstZeit, selbstWert: selbstZeit * stunden + eintraege * 11 };
+    return { p, raten, gesamt, anwalt, selbstZeit, selbstWert: selbstZeit * stunden + eintraege * 11 };
   }, [eintraege, laender, ziel, stunden]);
 
   return (
     <Dunkel seite="privatkunden" titel={en ? "Pricing & plans" : "Preise & Pakete · FIAON"} beschreibung={en
-      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly thereafter. Credit report ${auskunftEinzeln} one-off, ${auskunftMitPaket} with a plan.`
-      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, danach monatlich kündbar. Bonitätsauskunft ${auskunftEinzeln} einmalig, mit Paket ${auskunftMitPaket}. Alle Pakete, alle Leistungen, keine Sternchen.`}>
+      ? `FIAON costs ${geld(privat[0].preisCents)} to ${geld(privat[privat.length - 1].preisCents)} a month, twelve instalments, cancellable monthly thereafter. Credit assessment ${auskunftEinzeln} one-off, ${auskunftMitPaket} with a running plan, included for new plan customers.`
+      : `FIAON kostet ${geld(privat[0].preisCents)} bis ${geld(privat[privat.length - 1].preisCents)} im Monat, zwölf Raten, danach monatlich kündbar. Bonitätsauswertung ${auskunftEinzeln} einmalig, mit laufendem Paket ${auskunftMitPaket}, für neue Paketkunden inklusive. Alle Pakete, alle Leistungen, keine Sternchen.`}>
       <SeoDaten pfad={en ? "/en/pricing" : "/preise"} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad: en ? "/en/pricing" : "/preise" }]} />
 
       <Hero
@@ -202,11 +206,11 @@ export default function Preise() {
             </div>
             <div className="pr-vergleich" style={{ marginTop: 22 }}>
               <div className="pr-spalte hervor">
-                <small>{fall.p.label}</small>
+                <small>{fall.p.abo ? fall.p.label : t.auskunftTitel}</small>
                 <ul>
                   <li><span>{fall.p.abo ? t.zwoelfRatenA + geld(fall.p.preisCents) : t.einmaligGross}</span><b>{euro0(fall.raten)}</b></li>
-                  <li><span>{fall.p.abo ? t.auskunftMitPaket : t.auskunftBei(laender)}</span><b>{fall.p.abo ? euro0(fall.auskunftCents / 100) : t.inklusive}</b></li>
-                  <li><span>{!fall.p.abo ? t.schreibenAuskunft : fall.p.key === "start" ? t.schreibenSelbst : t.schreibenVersand}</span><b>{t.inklusive}</b></li>
+                  <li><span>{fall.p.abo ? t.auskunftMitPaket : t.auskunftEinzeln}</span><b>{t.inklusive}</b></li>
+                  <li><span>{!fall.p.abo ? t.auswertungInhalt : fall.p.key === "start" ? t.schreibenSelbst : t.schreibenVersand}</span><b>{t.inklusive}</b></li>
                   <li><span>{t.ihreZeit}</span><b>{euro0(stunden)}</b></li>
                   <li className="summe"><span>{t.summeGesamt}</span><b>{euro0(fall.gesamt + stunden)}</b></li>
                 </ul>

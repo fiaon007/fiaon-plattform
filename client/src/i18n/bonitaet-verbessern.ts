@@ -46,7 +46,7 @@ const de = {
     { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral anfragen", s: "Kredite vergleichen, ohne den Score zu belasten: Konditions- statt Kreditanfrage." },
     { href: "/girokonto-trotz-negativer-bonitaet", t: "Girokonto trotz negativer Bonität", s: "Was wirklich erreichbar ist — und was niemand versprechen kann." },
   ],
-  zwischen2A: "90 Tage sind schneller vorbei, als man denkt.", zwischen2B: " FIAON übernimmt Beschaffung, Prüfung und Schriftwechsel — Sie sehen jeden Schritt und jede Frist in Ihrem Kundenbereich.", ordnenLassen: "Bonität ordnen lassen",
+  zwischen2A: "90 Tage sind schneller vorbei, als man denkt.", zwischen2B: " Sie laden Ihre kostenlose Datenkopie hoch, FIAON übernimmt Prüfung und Schriftwechsel — Sie sehen jeden Schritt und jede Frist in Ihrem Kundenbereich.", ordnenLassen: "Bonität ordnen lassen",
 };
 const en: typeof de = {
   metaTitel: "Strengthening your credit file · the levers ranked by effect",
@@ -93,6 +93,6 @@ const en: typeof de = {
     { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral enquiries", s: "Comparing loans without burdening the score: rate enquiry instead of credit enquiry." },
     { href: "/girokonto-trotz-negativer-bonitaet", t: "A current account despite a poor record", s: "What is really achievable — and what nobody can promise." },
   ],
-  zwischen2A: "90 days pass faster than you think.", zwischen2B: " FIAON takes on obtaining, checking and correspondence — you see every step and every deadline in your customer area.", ordnenLassen: "Have your credit file put in order",
+  zwischen2A: "90 days pass faster than you think.", zwischen2B: " You upload your free data copy, FIAON takes on checking and correspondence — you see every step and every deadline in your customer area.", ordnenLassen: "Have your credit file put in order",
 };
 export const BONITAET_VERBESSERN_WOERTER = { de, en };

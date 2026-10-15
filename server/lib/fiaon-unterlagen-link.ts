@@ -307,9 +307,12 @@ export async function unterlagenAnfrageSenden(ein: {
   kanaele: ("mail" | "whatsapp")[];
   saetze?: Partial<Record<LinkArt, string>>;
   akteur: { name: string; agentId: number | null; rolle: string };
-  quelle: "akte" | "betreiber" | "kunde_neu";
+  /** E-365: „auskunft" = automatisch nach der Zahlung der Bonitätsauswertung bzw. ihre Erinnerung (fiaon-bonitaet-ablauf.ts). */
+  quelle: "akte" | "betreiber" | "kunde_neu" | "auskunft";
   /** Ohne Drossel (nur der alte Betreiber-Knopf, der seine eigene 72-Stunden-Sperre hat). */
   ohneDrossel?: boolean;
+  /** E-365: ein Satz zum Anlass unter der Liste (z. B. „Für Ihre FIAON-Bonitätsauswertung …“) — keine Werbung, kein Preis. */
+  anlassSatz?: string;
   lauf?: Lauf;
 }): Promise<AnfrageErgebnis> {
   const lauf = ein.lauf ?? sqlPool;
@@ -359,7 +362,7 @@ export async function unterlagenAnfrageSenden(ein: {
         event: "documents_change_request", personId: ein.personId,
         zusatz: {
           hinweis,
-          angebot_text: "", widerspruch_text: "",
+          angebot_text: ein.anlassSatz ?? "", widerspruch_text: "",
           knopf_text: "Jetzt hochladen (ohne Anmeldung)", knopf_url: lk.url,
           knopf2_text: "", knopf2_url: "",
           upload_satz: uploadSatz(lk.link.gueltigBis),
@@ -657,6 +660,11 @@ export async function unterlageAnnehmen(ein: {
       akteur: ein.quelle.art === "link" ? { id: null, name: "Kunde (Upload-Link)" } : { id: ein.quelle.agentId, name: ein.quelle.name },
       detail: ein.art === "schufa" ? "eigene Bonitätsauskunft" : titel,
     }, lauf).catch(() => {});
+  }
+  // E-365: dieselbe Meldung wie in fiaon-unterlagen.ts — bezahlte/inklusive Bonitätsauswertung startklar → Aufgabe ans Team.
+  if (ein.art === "ausweis" || ein.art === "kontoauszug") {
+    void import("./fiaon-bonitaet-ablauf").then((m) => m.auswertungStartklarMelden(ein.personId, ein.quelle.art === "link" ? "Upload über den Link" : `Upload von ${ein.quelle.name}`))
+      .catch((e: unknown) => console.error("[UNTERLAGEN-LINK] Bonitätsauswertung startklar:", String((e as Error)?.message || e).slice(0, 160)));
   }
 
   const n = neuOhneDoppel.length;

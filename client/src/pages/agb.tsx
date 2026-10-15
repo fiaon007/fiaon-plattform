@@ -1,5 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ALLGEMEINE GESCHÄFTSBEDINGUNGEN — FASSUNG VOM 05.10.2026 (E-283)
+// ALLGEMEINE GESCHÄFTSBEDINGUNGEN — FASSUNG VOM 15.10.2026 (E-365)
+//
+// E-365 (15.10.2026): Die Bonitätsauskunft als Zusatzleistung ist seit E-353 die FIAON-Bonitätsauswertung (Bericht aus
+// Ausweis und Kontoauszug, keine Datenkopie). Geändert sind NUR § 4 Abs. 1 (Beispiel der Leistungen), § 4 Abs. 3
+// (Bonitätsauswertung: was sie ist, wann sie im Paket enthalten ist, wann Zusatzleistung) und § 9 Abs. 2 (keine Anfrage
+// bei Auskunfteien; Datenkopie nur noch bei der Firmen-Bonitätsauskunft) sowie der Verweis in § 10. Die Fassung vom
+// 05.10.2026 liegt wörtlich unter client/src/pages/agb-archiv/fassung-2026-10-05.tsx (fiaon.com/agb/2026-10-05).
+//
+// ── FASSUNG VOM 05.10.2026 (E-283) ─────────────────────────────────────────
 //
 // Justin, 05.10.2026: „Ja pass die AGBs an". Neu gefasst sind Präambel, § 2,
 // § 3, § 4, § 5 Abs. 3 und 4, § 7 (Weiterverwertung), § 8 (Entscheidungen
@@ -208,13 +216,13 @@ export default function AGBPage() {
                   „§ 4 Abs. 2 (Bank entscheidet)"). Der Satz zu den Paketgesprächen gilt, seit die Buchung des
                   Limit-Gesprächs im Kundenbereich live ist (derselbe Deploy). Kein „Garantie" mehr (Wortwand). */}
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(1) Leistungsbeschreibung.</strong> Der genaue Leistungsumfang ergibt sich aus der Leistungsbeschreibung des gebuchten Pakets zum Zeitpunkt des Vertragsschlusses, wie sie in der Bestellübersicht und – wo die Anbieterin einen ausformulierten Vertrag vorlegt – im Vertrag steht (z. B. Auswertung der Bonitätsauskunft, Kontoauszug-Analyse, persönlicher Fahrplan im Kundenbereich, feste Ansprechpartnerin, Limit-Gespräch). Gespräche, die zum Paket gehören (z. B. Startgespräch, Limit-Gespräch), bucht der Nutzer in seinem Kundenbereich. Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang der ersten Monatsrate buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch. Voraussetzung ist, dass das Startgespräch geführt ist; ist eine Rate überfällig, erst nach deren Ausgleich. Nicht genutzte Gespräche werden nicht nachgeholt.
+                <strong>(1) Leistungsbeschreibung.</strong> Der genaue Leistungsumfang ergibt sich aus der Leistungsbeschreibung des gebuchten Pakets zum Zeitpunkt des Vertragsschlusses, wie sie in der Bestellübersicht und – wo die Anbieterin einen ausformulierten Vertrag vorlegt – im Vertrag steht (z. B. FIAON-Bonitätsauswertung, Auswertung einer selbst angeforderten Bonitätsauskunft, persönlicher Fahrplan im Kundenbereich, feste Ansprechpartnerin, Limit-Gespräch). Gespräche, die zum Paket gehören (z. B. Startgespräch, Limit-Gespräch), bucht der Nutzer in seinem Kundenbereich. Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang der ersten Monatsrate buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch. Voraussetzung ist, dass das Startgespräch geführt ist; ist eine Rate überfällig, erst nach deren Ausgleich. Nicht genutzte Gespräche werden nicht nachgeholt.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(2) Kein geschuldeter Erfolg.</strong> Die Anbieterin schuldet keinen bestimmten wirtschaftlichen Erfolg, insbesondere nicht, dass der Nutzer eine bestimmte Kreditkarte, ein bestimmtes Kreditlimit oder eine Veränderung seines Scores bei Auskunfteien (z. B. SCHUFA, KSV1870, CRIF) erreicht. Ein im Antrag angegebenes Ziel-Limit ist die Angabe des Nutzers. Über Konto, Karte und Rahmen entscheidet allein die Bank, über Einträge und Scores die jeweilige Auskunftei.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(3) Bonitätsauskunft.</strong> Die Bonitätsauskunft selbst ist nicht Bestandteil der Pakete. Das Paket umfasst die Auswertung einer Auskunft, die der Nutzer selbst anfordert, oder einer Auskunft, die er gesondert als Zusatzleistung beauftragt. Für die Zusatzleistung gelten Leistung, Einmalpreis, Fälligkeit und Widerrufsbelehrung aus ihrer Bestellung; § 5 Absatz 2 und 3 sowie § 6 Absatz 1, 2, 4 und 7 gelten für sie nicht.
+                <strong>(3) FIAON-Bonitätsauswertung und Bonitätsauskunft.</strong> Die FIAON-Bonitätsauswertung ist ein Bericht der Anbieterin aus den Kontoauszügen und dem Ausweis, die der Nutzer bereitstellt (u. a. Haushaltsrechnung, Einnahmen und Ausgaben, Ampeln je Bereich, FIAON-Finanzwert, Plan); sie ist keine Auskunft einer Auskunftei und keine Kredit- oder Kartenzusage. Knüpft der Vertrag des Pakets einen Leistungsschritt an die Bonitätsauswertung (etwa den Link zum Kartenantrag bei der Partnerbank), ist sie im Paket enthalten. Im Übrigen kann der Nutzer sie gesondert als Zusatzleistung zum einmaligen Preis beauftragen. Die Bonitätsauskunft einer Auskunftei selbst ist nicht Bestandteil der Pakete; das Paket umfasst die Auswertung einer Auskunft, die der Nutzer selbst anfordert. Für eine Zusatzleistung gelten Leistung, Einmalpreis, Leistungszeit, Fälligkeit und Widerrufsbelehrung aus ihrer Bestellung; § 5 Absatz 2 und 3 sowie § 6 Absatz 1, 2, 4 und 7 gelten für sie nicht.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 <strong>(4) Verfügbarkeit.</strong> Die Anbieterin gewährleistet eine Verfügbarkeit der SaaS-Dienste von 98,5 % im Jahresmittel. Hiervon ausgenommen sind Zeiten, in denen die Plattform aufgrund von technischen oder sonstigen Problemen, die nicht im Einflussbereich der Anbieterin liegen (höhere Gewalt, Verschulden Dritter), nicht zu erreichen ist, sowie routinemäßige Wartungsarbeiten.
@@ -357,7 +365,7 @@ export default function AGBPage() {
                 Die Erhebung und Verarbeitung personenbezogener Daten erfolgt streng nach den Vorgaben der Datenschutz-Grundverordnung (DSGVO).
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Anbieterin führt zu keinem Zeitpunkt Bonitätsanfragen bei der SCHUFA Holding AG oder anderen Auskunfteien durch. Beauftragt der Nutzer die Bonitätsauskunft als Zusatzleistung, fordert die Anbieterin in seinem Auftrag seine eigene Datenkopie (bei der Firmen-Bonitätsauskunft auch die Daten seines Unternehmens) bei den Auskunfteien an.
+                Die Anbieterin führt zu keinem Zeitpunkt Bonitätsanfragen bei der SCHUFA Holding AG oder anderen Auskunfteien durch. Für die FIAON-Bonitätsauswertung wertet sie die Kontoauszüge und den Ausweis aus, die der Nutzer bereitstellt; eine Anfrage bei einer Auskunftei findet dabei nicht statt. Beauftragt ein Unternehmen die Firmen-Bonitätsauskunft als Zusatzleistung, fordert die Anbieterin in seinem Auftrag die Daten seines Unternehmens und die eigene Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei den Auskunfteien an.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 Weitere Details zur Datenverarbeitung sind der Datenschutzerklärung der Anbieterin unter fiaon.com/datenschutz zu entnehmen.
@@ -388,7 +396,7 @@ export default function AGBPage() {
                   sahen, und „Erlöschen des Widerrufsrechts bei digitalen Inhalten" (die Pakete sind Dienstleistungen; der
                   Satz „Haben Sie verlangt …" greift nur, wenn der Nutzer den früheren Beginn verlangt hat). */}
               <p className="text-gray-700 leading-relaxed mb-4">
-                Schließt der Nutzer den Vertrag als Verbraucher (§ 13 BGB), steht ihm das gesetzliche Widerrufsrecht nach der folgenden Widerrufsbelehrung zu. Für die gesondert beauftragte Bonitätsauskunft gilt die Widerrufsbelehrung, die bei ihrer Bestellung angezeigt wird.
+                Schließt der Nutzer den Vertrag als Verbraucher (§ 13 BGB), steht ihm das gesetzliche Widerrufsrecht nach der folgenden Widerrufsbelehrung zu. Für eine gesondert beauftragte Zusatzleistung (FIAON-Bonitätsauswertung, Firmen-Bonitätsauskunft) gilt die Widerrufsbelehrung, die bei ihrer Bestellung angezeigt wird.
               </p>
 
               <div className="mt-6 p-6 bg-white/50 rounded-xl border border-blue-200">

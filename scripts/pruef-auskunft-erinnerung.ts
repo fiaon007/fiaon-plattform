@@ -262,7 +262,8 @@ const WORTWAND: [RegExp, string][] = [
   ok("Knopf auf /zahlung/<Verwendungszweck>, GiroCode aus derselben Referenz", m1.html.includes("https://fiaon.com/zahlung/FIAON-SCHUFA-MPRUEF") && m1.html.includes("/api/fiaon/zahlung/FIAON-SCHUFA-MPRUEF/qr.png"));
   ok("Absender FIAON Accounting", m1.absender.name === "FIAON Accounting", m1.absender);
   ok("kein Karten-Block, kein Werbesatz (Zahlungspost)", !m1.html.includes(KARTE_SATZ.slice(0, 40)) && !/abmelden/i.test(m1.html));
-  ok("DE: nennt SCHUFA", /SCHUFA, CRIF/.test(m1.text));
+  // E-365: privat ist die Leistung die FIAON-Bonitätsauswertung — die Mail nennt sie, keine Auskunfteien.
+  ok("DE: nennt die Bonitätsauswertung, keine Auskunfteien", /Bonitätsauswertung/.test(m1.text) && !/SCHUFA, CRIF/.test(m1.text));
   ok("ohne Belehrung: kein Widerrufsrecht im Text", !/Widerrufsrecht|Muster-Widerrufsformular|Vertragsbestätigung/.test(m1.text));
   const mb = r({ mit_belehrung: "ja" });
   ok("mit Belehrung: Vertragsbestätigung, Widerrufsbelehrung und Muster-Formular", /Vertragsbestätigung/i.test(mb.text) && /Widerruf/.test(mb.text) && /Muster-Widerrufsformular/i.test(mb.text), mb.text.slice(-600));
@@ -270,11 +271,11 @@ const WORTWAND: [RegExp, string][] = [
   for (const [land, bei] of [["AT", "KSV1870 und CRIF"], ["CH", "CRIF und Intrum"]] as const) {
     for (const mit of ["nein", "ja"]) {
       const m = r({ auskunft_land: land, auskunfteien: bei, mit_belehrung: mit, stufe: mit === "ja" ? 1 : 3 });
-      ok(`${land}${mit === "ja" ? " mit Belehrung" : ""}: nie „SCHUFA“ (Betreff, HTML, Text), nennt ${bei}`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && m.text.includes(bei));
+      ok(`${land}${mit === "ja" ? " mit Belehrung" : ""}: nie „SCHUFA“ (Betreff, HTML, Text), nennt die Bonitätsauswertung`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && /Bonitätsauswertung/.test(m.text));
     }
   }
   const ohneLand = motor.mailRendern(vorlage.AUSKUNFT_ERINNERUNG_EVENT, { ...nutz(), auskunfteien: "", auskunft_land: "" })!;
-  ok("ohne Land: „den Auskunfteien Ihres Landes“ statt einer geratenen SCHUFA", ohneLand.text.includes("den Auskunfteien Ihres Landes") && !/SCHUFA,/.test(ohneLand.text));
+  ok("ohne Land: keine geratene SCHUFA", !/SCHUFA,/.test(ohneLand.text) && /Bonitätsauswertung/.test(ohneLand.text));
   // ── Gegenprüfung 26.09.2026: die NACHGEHOLTE Belehrung ──
   ok("Muster-Satz der Quelle ist der erwartete (sonst greift der Ersatz nicht)", vorlage.MUSTER_FRIST_SATZ === "Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.", vorlage.MUSTER_FRIST_SATZ);
   const mn = r({ mit_belehrung: "ja", widerruf_wahl: "nicht_verlangt", widerruf_ab: "06.10.2026", stufe: 5 });
@@ -286,11 +287,11 @@ const WORTWAND: [RegExp, string][] = [
     && /Muster-Widerrufsformular/i.test(mn.text) && /Folgen des Widerrufs/i.test(mn.text));
   // ── Gegenprüfung 26.09.2026: der Leistungssatz folgt Wahl und Lieferweg ──
   const lk = (o: Record<string, unknown>) => vorlage.erinnerungLeistungSatz({ auskunft_art: "privat", ...o });
-  ok("Leistung, Einkauf, nicht verlangt: „erst nach Ablauf der Widerrufsfrist“", /erst nach Ablauf der Widerrufsfrist/.test(lk({ auskunft_liefermodus: "einkauf", widerruf_wahl: "nicht_verlangt" }))
-    && /beschaffen wir/.test(lk({ auskunft_liefermodus: "einkauf", widerruf_wahl: "nicht_verlangt" })));
+  // E-365: privat ein Satz für jeden Lieferweg — Ausweis und Kontoauszüge, dann entwickelt das Team die Bonitätsauswertung.
+  ok("Leistung, nicht verlangt: „erst nach Ablauf der Widerrufsfrist“", /erst nach Ablauf der Widerrufsfrist/.test(lk({ auskunft_liefermodus: "einkauf", widerruf_wahl: "nicht_verlangt" }))
+    && /Bonitätsauswertung/.test(lk({ auskunft_liefermodus: "einkauf", widerruf_wahl: "nicht_verlangt" })) && !/beschaffen/.test(lk({})));
   ok("Leistung, Einkauf, verlangt/offen: ohne Wartesatz", !/Widerrufsfrist/.test(lk({ auskunft_liefermodus: "einkauf", widerruf_wahl: "verlangt" })) && !/Widerrufsfrist/.test(lk({})));
-  ok("Leistung, Vollmacht: Hinweis auf die eigene Mail zum Unterschreiben", /Vollmacht und Anfragen am Bildschirm unterschreiben/.test(lk({ auskunft_liefermodus: "vollmacht" })));
-  ok("Leistung, Vollmacht + nicht verlangt: Anfragen erst nach Ablauf der Frist", /übermitteln wir die Anfragen erst nach Ablauf der Widerrufsfrist/.test(lk({ auskunft_liefermodus: "vollmacht", widerruf_wahl: "nicht_verlangt" })));
+  ok("Leistung privat, auch im Vollmacht-Modus: Ausweis und Kontoauszüge hochladen, keine Vollmacht", /Ausweis und Ihre Kontoauszüge/.test(lk({ auskunft_liefermodus: "vollmacht" })) && !/Vollmacht/.test(lk({ auskunft_liefermodus: "vollmacht" })));
   ok("Leistung, Firma: nie ein Wartesatz (kein Widerrufsrecht), Wirtschaftsauskunfteien", !/Widerrufsfrist/.test(vorlage.erinnerungLeistungSatz({ auskunft_art: "firma", widerruf_wahl: "nicht_verlangt" }))
     && /Wirtschaftsauskunfteien/.test(vorlage.erinnerungLeistungSatz({ auskunft_art: "firma" })));
   const mNf = r({ stufe: 3, widerruf_wahl: "nicht_verlangt", auskunft_liefermodus: "einkauf" });
@@ -325,7 +326,7 @@ const WORTWAND: [RegExp, string][] = [
   ok("Frage: Absender Accounting, kein Karten-Block", fq().absender.name === "FIAON Accounting" && !fq().html.includes(KARTE_SATZ.slice(0, 40)));
   for (const [land, bei] of [["AT", "KSV1870 und CRIF"], ["CH", "CRIF und Intrum"]] as const) {
     const m = fq({ auskunft_land: land, auskunfteien: bei, stufe: 5 });
-    ok(`Frage ${land}: nie „SCHUFA“, nennt ${bei}`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && m.text.includes(bei));
+    ok(`Frage ${land}: nie „SCHUFA“, nennt die Bonitätsauswertung`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && /Bonitätsauswertung/.test(m.text));
   }
   const fOhneKauf = motor.mailRendern(vorlage.AUSKUNFT_ERINNERUNG_EVENT, { ...nutz({ fassung: "frage" }) })!;
   ok("Frage ohne kauf_url: Knopf entfällt (nie ein leerer Link)", !fOhneKauf.html.includes('href=""') && !fOhneKauf.html.includes("{{params.kauf_url}}"), fOhneKauf.fehlend);
@@ -334,7 +335,7 @@ const WORTWAND: [RegExp, string][] = [
   const fFrisch = fq({ stufe: 1, erste_nachfrage: "ja", frisch: "ja", bestellt_am: "26.09.2026" });
   const wwF = WORTWAND.filter(([re]) => re.test(`${fFrisch.betreff}\n${fFrisch.text}`)).map(([, t]) => t);
   ok("Frage frisch: eigener Betreff, „angelegt worden“, nie „seit dem … offen“/„noch?“, keine Bankdaten, Kauflink, Wortwand sauber",
-    fFrisch.betreff === vorlage.FRAGE_BETREFF_FRISCH && /angelegt worden/.test(fFrisch.text) && /Möchten Sie die Auskunft\?/.test(fFrisch.text) && !/seit dem|noch\?|noch einmal/.test(`${fFrisch.betreff}${fFrisch.text}`)
+    fFrisch.betreff === vorlage.FRAGE_BETREFF_FRISCH && /angelegt worden/.test(fFrisch.text) && /Möchten Sie die Bonitätsauswertung\?/.test(fFrisch.text) && !/seit dem|noch\?|noch einmal/.test(`${fFrisch.betreff}${fFrisch.text}`)
     && !/IBAN|GiroCode|\/zahlung\//.test(`${fFrisch.html}${fFrisch.text}`) && (fFrisch.html.includes(KAUF) || fFrisch.html.includes(KAUF.replace(/&/g, "&amp;"))) && fFrisch.text.includes(vorlage.FRAGE_ZAHLUNG_SATZ)
     && fFrisch.fehlend.length === 0 && wwF.length === 0, { b: fFrisch.betreff, wwF });
   const bs = (o: Record<string, unknown> = {}) => r({ fassung: "bestaetigung", mit_belehrung: "ja", belehrung_nachgeholt: "ja", bestaetigt_am: "26.09.2026", bestellt_am: "16.07.2026", auskunft_bestellt_am: "16.07.2026", stufe: 5, ...o });
@@ -355,7 +356,7 @@ const WORTWAND: [RegExp, string][] = [
   ok("Bestätigung bei „nicht verlangt“: Wartesatz, Wahl in der Belehrung", /erst nach Ablauf der Widerrufsfrist/.test(mBn.text) && /Ihre Wahl bei der Bestellung/.test(mBn.text));
   for (const [land, bei] of [["AT", "KSV1870 und CRIF"], ["CH", "CRIF und Intrum"]] as const) {
     const m = bs({ auskunft_land: land, auskunfteien: bei });
-    ok(`Bestätigung ${land}: nie „SCHUFA“, nennt ${bei}`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && m.text.includes(bei));
+    ok(`Bestätigung ${land}: nie „SCHUFA“, nennt die Bonitätsauswertung`, !/schufa/i.test(`${m.betreff}${m.html}${m.text}`.replace(/FIAON-SCHUFA-/g, "")) && /Bonitätsauswertung/.test(m.text) && !!bei);
   }
 }
 
@@ -445,6 +446,11 @@ async function paket(personId: number, name: string, o: { gekuendigt?: boolean; 
                                     created_at, updated_at, paid_at, payment_reference, gekuendigt_am, mahnstopp_am)
     VALUES (${ref}, 'private', 'submitted', 8, 'pro', 'paid', ${personId}, ${name}, 'Prüfstand', ${adresse(name)}, 'DE',
             ${vorTagen(60)}, ${vorTagen(60)}, ${vorTagen(59)}, ${`Q${MARKE}${refs.length}`}, ${o.gekuendigt ? new Date() : null}, ${o.mahnstopp ? new Date() : null})`;
+  // E-365: Ein zahlender Paketkunde OHNE Kartenlink bekommt die Bonitätsauswertung inklusive — die Zahlungserinnerung
+  // der 74-€-Bestellung schweigt dann („inklusive“). Diese Kunden hier haben ihren Link schon (wie die meisten im Bestand).
+  const { ensureKartenTabelle } = await import("../server/lib/fiaon-konto-karte");
+  await ensureKartenTabelle();
+  await sqlPool`INSERT INTO fiaon_konto_karte (person_id, kanal) VALUES (${personId}, 'mail')`;
   return ref;
 }
 const zeile = async (ref: string) => ((await sqlPool`
@@ -506,11 +512,11 @@ try {
   const m1 = mailsAn("Eins")[0], m2 = mailsAn("Zwei")[0], m3 = mailsAn("Wien")[0], m15 = mailsAn("Zuerich")[0];
   ok("Eins (keine Belehrung protokolliert): mit Vertragsbestätigung und Widerrufsbelehrung", /Muster-Widerrufsformular/i.test(m1?.text ?? "") && /Vertragsbestätigung/.test(m1?.betreff ?? ""), m1?.betreff);
   ok("Zwei (Zahlungsdaten in der Auskunft-Fassung protokolliert): ohne Belehrung", !!m2 && !/Widerrufsformular|Vertragsbestätigung/i.test(`${m2.betreff}${m2.text}`));
-  ok("Zürich (Belehrung als jsonb-Text protokolliert): ohne Belehrung, nie SCHUFA", !!m15 && !/Widerrufsformular/i.test(m15.text) && !/schufa/i.test(`${m15.betreff}${m15.html}`.replace(/FIAON-SCHUFA-/g, "")) && /CRIF und Intrum/.test(m15.text));
+  ok("Zürich (Belehrung als jsonb-Text protokolliert): ohne Belehrung, nie SCHUFA", !!m15 && !/Widerrufsformular/i.test(m15.text) && !/schufa/i.test(`${m15.betreff}${m15.html}`.replace(/FIAON-SCHUFA-/g, "")) && /Bonitätsauswertung/.test(m15.text));
   ok("Wien (Belehrung nachgeholt): Frist ab Erhalt dieser Mail, nie „ab dem Tag des Vertragsabschlusses“", !!m3 && m3.text.includes(vorlage.NACHGEHOLT_FRIST_SATZ) && !m3.text.includes("ab dem Tag des Vertragsabschlusses"));
   ok("PaketStopp: Marke unberührt (Stufe 0)", Number((await zeile(E23)).stufe || 0) === 0);
-  ok("Wien (AT, Tag 45): eine Mail, Dauerstufe, mit Belehrung, KSV1870, nie SCHUFA", mailsAn("Wien").length === 1 && /Offene Bestellung/.test(m3?.betreff ?? "")
-    && /Muster-Widerrufsformular/i.test(m3?.text ?? "") && /KSV1870/.test(m3?.text ?? "") && !/schufa/i.test(`${m3?.betreff}${m3?.html}${m3?.text}`.replace(/FIAON-SCHUFA-/g, "")), m3?.betreff);
+  ok("Wien (AT, Tag 45): eine Mail, Dauerstufe, mit Belehrung, Bonitätsauswertung, nie SCHUFA", mailsAn("Wien").length === 1 && /Offene Bestellung/.test(m3?.betreff ?? "")
+    && /Muster-Widerrufsformular/i.test(m3?.text ?? "") && /Bonitätsauswertung/.test(m3?.text ?? "") && !/schufa/i.test(`${m3?.betreff}${m3?.html}${m3?.text}`.replace(/FIAON-SCHUFA-/g, "")), m3?.betreff);
   ok("Knopf zur Zahlungsseite mit dem Verwendungszweck", !!m1 && m1.html.includes(`https://fiaon.com/zahlung/P${MARKE}1`));
   const log = (await sqlPool`
     SELECT (CASE WHEN jsonb_typeof(payload) = 'string' THEN (payload #>> '{}')::jsonb ELSE payload END) AS p, status
@@ -722,7 +728,7 @@ try {
   const href = (m?: BrevoMail) => (m?.html.match(/href="(https?:\/\/[^"]*\/auskunft\/bestellen\?[^"]*)"/)?.[1] ?? "").replace(/&amp;/g, "&");
   const linkF = href(mF);
   ok("Frage: Knopf = signierter Kauflink der Person", new URL(linkF || "https://x.invalid/").searchParams.get("p") === String(PF) && /sig=[0-9a-f]{32}/.test(linkF), linkF);
-  ok("FrageWien (AT): Nachfrage, nie „SCHUFA“, KSV1870", !!mW && !/schufa/i.test(`${mW.betreff}${mW.html}${mW.text}`.replace(/FIAON-SCHUFA-/g, "")) && /KSV1870/.test(mW.text) && mW.betreff === vorlage.FRAGE_BETREFF, mW?.betreff);
+  ok("FrageWien (AT): Nachfrage, nie „SCHUFA“, Bonitätsauswertung", !!mW && !/schufa/i.test(`${mW.betreff}${mW.html}${mW.text}`.replace(/FIAON-SCHUFA-/g, "")) && /Bonitätsauswertung/.test(mW.text) && mW.betreff === vorlage.FRAGE_BETREFF, mW?.betreff);
   ok("FrageMitte (Stufe 5 vor 8 Tagen): zweite Dauer-Nachfrage (Stufe 6), Dauer-Betreff", !!mM && Number((await zeile(F8)).stufe) === 6 && /möchten Sie sie noch\?/.test(mM.betreff) && mM.betreff !== vorlage.FRAGE_BETREFF, mM?.betreff);
   const sF = await zeile(F1), sW = await zeile(F2), sT = await zeile(F4);
   ok("Marken: Frage Stufe 5 (erste Dauer-Nachfrage), FrageWien Stufe 3; FrageTeuer Stufe 0 mit Ruhe und Hinweis „kein Bestätigungsformular“",

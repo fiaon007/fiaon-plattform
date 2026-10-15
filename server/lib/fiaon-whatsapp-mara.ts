@@ -147,6 +147,7 @@ import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { berlinTagZeit } from "@shared/fiaon-auftrag-arten";
 import {
   AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS, auskunftWort, auskunfteienText, euroText,
+  AUSWERTUNG_NAME, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_KEINE_AUSKUNFT_SATZ, AUSWERTUNG_INKLUSIVE_SATZ,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { fragtNachAuskunftSelbst, lehntAuskunftAb, bezogenAufAuskunftAngebot } from "@shared/fiaon-postmeister-typen";
@@ -466,7 +467,8 @@ const HUERDEN: { wort: RegExp; frage: RegExp; was: string }[] = [
   // „Was brauchen Sie von mir?" erlaubt alles; „Brauche ich einen Einkommensnachweis?" die ehrliche Ergänzung.
   { wort: /kontoausz/i, frage: new RegExp(`auszug|auszüg|einkommen|gehalt|lohn|${FRAGT_UNTERLAGEN}`, "i"), was: "Kontoauszüge" },
   { wort: /ausweis|reisepass/i, frage: new RegExp(`ausweis|\\bpass\\b|identi|${FRAGT_UNTERLAGEN}`, "i"), was: "den Ausweis" },
-  { wort: /bonitätsauskunft|schufa-?auskunft/i, frage: new RegExp(`schufa|auskunft|bonität|${FRAGT_UNTERLAGEN}`, "i"), was: "die Bonitätsauskunft" },
+  // E-365: auch die Bonitätsauswertung (das Produkt heißt privat seit dem 14.10.2026 so) — dieselbe Hürde, dieselbe Ausnahme.
+  { wort: /bonitätsauskunft|bonitätsauswertung|schufa-?auskunft/i, frage: new RegExp(`schufa|auskunft|bonität|${FRAGT_UNTERLAGEN}`, "i"), was: "die Bonitätsauskunft" },
   { wort: /\bunterlagen\b|hochlad/i, frage: new RegExp(`auszug|auszüg|ausweis|foto|${FRAGT_UNTERLAGEN}`, "i"), was: "Unterlagen" },
   { wort: /schufa-?(?:prüfung|abfrage|check)|bonitätsprüfung|einkommensprüfung|prüft\s+(?:ihre\s+)?(?:schufa|bonität)|(?:schaut|prüft)\s+selbst/i,
     frage: /schufa|bonität|auskunft|eintr|score|crif|ksv|prüf|negativ|minus|ablehn|abgelehnt/i,
@@ -509,6 +511,13 @@ const ZUSTIMMUNG = /^\s*(?:ja|jo|jep|gern|gerne|ok|okay|klar|bitte|los|passt|mac
 // wie alle. Ungefragt bleibt es bei der Karte; ein Nein ist ein Nein.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * E-365 (14.10.2026): Woran Mara IHR EIGENES Angebot erkennt — privat heißt das Produkt seitdem
+ * „FIAON-Bonitätsauswertung". Ohne den neuen Namen sähe sie ihr eigenes Angebot nicht mehr
+ * (doppeltes Angebot, ein „Ja" darauf ginge verloren).
+ */
+export const ANGEBOT_WORT = /auskunft|bonit(?:ä|ae)tsauswertung/i;
+
 /** Er schreibt über das, wofür die Auskunft ein Vorteil ist. */
 export const AUSKUNFT_THEMA = /schufa|bonit|auskunft|crif|\bksv|boniversum|creditreform|intrum|eintr[aä]g|\bscore|negativ|limit|rahmen|karte|abgelehnt|ablehnung|kreditwürd/i;
 
@@ -523,9 +532,9 @@ export function auskunftZugestimmt(kunde: string, letzteDu: string): boolean {
   const du = String(letzteDu ?? "").trim();
   if (!k || /\b(?:nicht|nein|kein\w*|später|überleg\w*|schon|bereits)\b/i.test(k)) return false;
   const bestellt = /\b(?:bestell\w*|beauftrag\w*|kaufen|buchen)\b|\bholen\s+sie\b|\bmachen\s+sie\s+das\b|\bnehme\s+(?:ich\s+)?(?:sie|die|das)\b/i.test(k)
-    && (/auskunft|schufa|\bksv|bonit/i.test(k) || /auskunft/i.test(du));
+    && (/auskunft|schufa|\bksv|bonit/i.test(k) || ANGEBOT_WORT.test(du));
   // Nur ein reines Ja — „Bitte rufen Sie mich an" beginnt auch mit „Bitte", ist aber kein Auftrag.
-  const jaAufAngebot = NUR_JA.test(k) && /auskunft/i.test(du) && /\?\s*$/.test(du);
+  const jaAufAngebot = NUR_JA.test(k) && ANGEBOT_WORT.test(du) && /\?\s*$/.test(du);
   return bestellt || jaAufAngebot;
 }
 const NUR_JA = /^\s*(?:(?:ja|jo|jep|jawohl|gern|gerne|sehr\s+gern|ok|okay|klar|bitte|los|passt|gut|super|perfekt|mach(?:en\s+(?:sie|wir))?(?:\s+das)?|schicken\s+sie(?:\s+(?:ihn|den\s+link|sie))?|bestellen\s+sie(?:\s+sie)?)[\s,.!]*)+$/i;
@@ -545,7 +554,11 @@ export type AuskunftSegment = "kunde" | "antrag" | "lead";
 
 /** Was Mara über seine Auskunft weiß — aus auskunftStand, nie vom Modell. */
 export interface AuskunftTeil {
-  stufe: "nichts" | "offen" | "bezahlt" | "dokument";
+  /**
+   * E-365 (14.10.2026): dazu „auswertung" (die FIAON-Bonitätsauswertung liegt vor) und „inklusive" (zahlender Paketkunde,
+   * dessen Kartenlink auf die Bonität wartet — nie verkaufen). „dokument" hält privat keinen Verkauf mehr auf.
+   */
+  stufe: "nichts" | "offen" | "bezahlt" | "dokument" | "auswertung" | "inklusive";
   land: AuskunftLand;
   /** E-241: ohne Angabe ein zahlender Kunde (wie bis E-240). */
   segment?: AuskunftSegment;
@@ -592,7 +605,9 @@ export const ANGEBOT_ANTWORT_TAGE = 14;
  * fiaon_kk_auskunft_lead und ihre Bildfassungen fiaon_kkb_… — als Muster, damit
  * eine weitere Fassung dahinter (…_firma) nicht vergessen wird.
  */
-const AUSKUNFT_VORLAGE_MUSTER = new RegExp(`^${AUSKUNFT_VORLAGE.replace(/^fiaon_kk_/, "fiaon_kkb?_")}(?:_|$)`, "i");
+// E-365: die neuen Vorlagen der Bonitätsauswertung (fiaon_kk_auswertung…) UND die alten (fiaon_kk_auskunft…) — Antworten
+// auf schon gesendete Angebote müssen erkannt bleiben.
+const AUSKUNFT_VORLAGE_MUSTER = new RegExp(`^(?:${AUSKUNFT_VORLAGE.replace(/^fiaon_kk_/, "fiaon_kkb?_")}|fiaon_kkb?_auskunft)(?:_|$)`, "i");
 
 /**
  * Ist diese Nachricht VON UNS ein Angebot der Auskunft (E-241)? Die Vorlage
@@ -603,7 +618,7 @@ export function istAuskunftAngebot(n: { vorlage?: string | null; text?: string |
   if (!n) return false;
   if (n.vorlage) return AUSKUNFT_VORLAGE_MUSTER.test(String(n.vorlage));
   const t = String(n.text ?? "");
-  return /auskunft/i.test(t) && (/\d\s*(?:€|euro\b)/i.test(t) || /\/auskunft\/(?:bestellen|k\/)/i.test(t));
+  return ANGEBOT_WORT.test(t) && (/\d\s*(?:€|euro\b)/i.test(t) || /\/auskunft\/(?:bestellen|k\/)/i.test(t));
 }
 
 /**
@@ -668,7 +683,7 @@ export function auskunftJetzt(ein: {
     // die Mail. Dieselbe Grenze wie beim zahlenden Kunden (E-240: auf die Kartenfrage kein zweites Angebot).
     const aufAngebot = !!ein.aufAngebot && (bezogenAufAngebot(kunde) || bezogenAufAuskunftAngebot(kunde)
       || /^\s*ich habe eine frage[\s.!]*$/im.test(kunde) || /\b(?:angebot|e-?mail|mail)\b/i.test(kunde));
-    const schonAngeboten = du.slice(0, 8).some((t) => /auskunft/i.test(t) && /\d\s*(?:€|euro\b)/i.test(t));
+    const schonAngeboten = du.slice(0, 8).some((t) => ANGEBOT_WORT.test(t) && /\d\s*(?:€|euro\b)/i.test(t));
     const nein = lehntAuskunftAb(kunde);
     const jetzt = !nein && (ein.werbesperre
       ? ((selbst && auskunftGefragt(kunde)) || zugestimmt)
@@ -677,7 +692,7 @@ export function auskunftJetzt(ein: {
   }
   // Ein Angebot per Mail oder Vorlage zählt wie eines in diesem Gespräch: danach nur noch,
   // wenn er selbst auf die Auskunft zurückkommt (AUSKUNFT_DIREKT) oder Ja sagt.
-  const schonAngeboten = !!ein.anderswo || du.slice(0, 8).some((t) => /auskunft/i.test(t) && /\d\s*(?:€|euro\b)/i.test(t));
+  const schonAngeboten = !!ein.anderswo || du.slice(0, 8).some((t) => ANGEBOT_WORT.test(t) && /\d\s*(?:€|euro\b)/i.test(t));
   // E-241: Dieselbe Lücke hatte der zahlende Kunde — „Ja, gern" auf die Vorlage
   // fiaon_kk_auskunft war weder Thema noch Zustimmung zu Maras Frage, und die Bremse
   // sah die Vorlage als „schon angeboten". Sein Ja oder seine Rückfrage zum Angebot
@@ -690,21 +705,57 @@ export function auskunftJetzt(ein: {
   return { jetzt: zugestimmt || (schonAngeboten ? AUSKUNFT_DIREKT.test(kunde) : AUSKUNFT_THEMA.test(kunde)), schonAngeboten };
 }
 
+/**
+ * Darf ihm die Bonitätsauswertung angeboten werden (oder hat er eine offene Bestellung)? E-365: privat auch mit eigener
+ * Datenkopie in der Akte — die Auswertung ist ein anderes Produkt; nie bei „auswertung" oder „inklusive". Rein.
+ */
+export function auskunftVerkaufbar(t: Pick<AuskunftTeil, "stufe" | "art"> | null | undefined): boolean {
+  return !!t && (t.stufe === "nichts" || t.stufe === "offen" || (t.stufe === "dokument" && t.art !== "firma"));
+}
+
 /** Bekommt Mara in diesem Gespräch das Werkzeug auskunft_anbieten? */
 export function auskunftWerkzeugAn(t: AuskunftTeil | null | undefined): boolean {
-  return !!t && (t.stufe === "nichts" || t.stufe === "offen") && t.jetzt;
+  return !!t && auskunftVerkaufbar(t) && t.jetzt;
 }
 
 /** Der Teil des Auftrags über seine Auskunft. Exportiert für den Prüfstand. */
+// E-365 (14.10.2026): Privat ist das Produkt die FIAON-Bonitätsauswertung (Ausweis + Kontoauszüge, keine Auskunftei,
+// keine Schreiben). Firmen behalten die Firmen-Bonitätsauskunft mit ihren Auskunfteien.
 export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
   if (!t) return [];
-  const wort = auskunftWort(t.land);
+  const firma = t.art === "firma";
+  const wort = firma ? auskunftWort(t.land) : AUSWERTUNG_NAME;
   const bei = auskunfteienText(t.land);
   // E-241: der Einzelpreis seiner Art (Firma 349 €, privat 149 €) — nicht immer der private.
   const einzeln = euroText(AUSKUNFT_PREISE_CENTS[t.art ?? "privat"].einzeln);
-  const landWort = t.land === "DE" ? "" : ` In seinem Land heißt sie „${wort}" — das Wort SCHUFA schreibst du ihm nie.`;
-  if (t.stufe === "bezahlt") return [`SEINE BONITÄTSAUSKUNFT: bezahlt — wir fordern seine Datenkopien bei ${bei} an. Nicht noch einmal anbieten; fragt er nach dem Stand, sieht sein Betreuer nach.${landWort}`, ``];
-  if (t.stufe === "dokument") return [`SEINE BONITÄTSAUSKUNFT: Eine Auskunft liegt in seiner Akte. Nichts dazu verkaufen.${landWort}`, ``];
+  const landWort = t.land === "DE" ? "" : firma
+    ? ` In seinem Land heißt sie „${auskunftWort(t.land)}" — das Wort SCHUFA schreibst du ihm nie.`
+    : ` Er lebt in ${t.land === "AT" ? "Österreich" : "der Schweiz"} — das Wort SCHUFA schreibst du ihm nie.`;
+  // Was wir tun — privat die Bonitätsauswertung, für Firmen die Auskunft wie bisher.
+  const wasWirTun = firma
+    ? `· Was wir tun: Wir holen die Daten seines Unternehmens bei den Wirtschaftsauskunfteien und seine persönlichen bei ${bei} ein, erklären jeden Eintrag und legen ihm Handlungsplan und Schreiben zur Freigabe vor.`
+    : `· Was er bekommt: ${AUSWERTUNG_NAME} — seine Bonität aus Sicht einer Bank: Haushaltsrechnung und die neun Merkmale, die eine Bank bei ihrer Prüfung ansieht, jede Einnahme und Ausgabe nach Empfänger und Monat, Ampel für sieben Bereiche, sein FIAON-Finanzwert, sein Potenzial und sein Plan. Rund 25 Seiten, von seinem FIAON-Team aus seinen eigenen Kontoauszügen erstellt, von einem Menschen geprüft und freigegeben, als PDF per E-Mail und in seinem Bereich.`;
+  const wasErTut = firma ? [] : [`· Was er dafür tut: „${AUSWERTUNG_UNTERLAGEN_SATZ}"`];
+  const nieMehr = firma ? [] : [`· Privat fordern wir KEINE Datenkopien an, beschaffen nichts und liefern keinen Handlungsplan mit Schreiben — das schreibst du nie. Fragt er nach Auskunfteien, Einträgen oder Score: „${AUSWERTUNG_KEINE_AUSKUNFT_SATZ}"`];
+  // ── E-365: IM PAKET ENTHALTEN ODER LIEGT VOR — NIE VERKAUFEN ──────────────
+  if (!firma && t.stufe === "inklusive") {
+    return [
+      `═══ SEINE ${AUSWERTUNG_NAME.toUpperCase()}: IM PAKET ENTHALTEN ═══`,
+      `Sein Link der Partnerbank für den Kartenantrag wartet auf seine Bonitätsauswertung — sie ist in seinem Paket enthalten. Du verkaufst sie NIE: keinen Preis, keinen Kauflink, kein auskunft_anbieten.`,
+      `· Schreibt er über Auskunft, SCHUFA, Bonität, Karte oder Link, sagst du sinngemäß: „${AUSWERTUNG_INKLUSIVE_SATZ}" Hochladen geht in seinem Bereich unter fiaon.com/app/unterlagen (Ausweis und Kontoauszüge der letzten drei Monate). Eine ${auskunftWort(t.land)} braucht er dafür nicht.${landWort}`,
+      ``,
+    ];
+  }
+  if (!firma && t.stufe === "auswertung") {
+    return [`SEINE ${AUSWERTUNG_NAME.toUpperCase()}: liegt vor (geprüft und freigegeben) — nichts verkaufen. Fragt er danach, sag ihm, dass er sie als PDF per E-Mail bekommen hat und jederzeit in seinem Bereich unter fiaon.com/app/auswertung findet, und dass sein Betreuer sie gern mit ihm durchgeht.${landWort}`, ``];
+  }
+  if (t.stufe === "bezahlt") {
+    return firma
+      ? [`SEINE FIRMEN-BONITÄTSAUSKUNFT: bezahlt — wir holen sie bei den Wirtschaftsauskunfteien und ${bei} ein. Nicht noch einmal anbieten; fragt er nach dem Stand, sieht sein Betreuer nach.${landWort}`, ``]
+      : [`SEINE ${AUSWERTUNG_NAME.toUpperCase()}: bezahlt — wir entwickeln sie. Nicht noch einmal anbieten. Fragt er nach dem Stand: Dafür brauchen wir seinen Ausweis und seine Kontoauszüge der letzten drei Monate — den Link zum Hochladen hat er per E-Mail bekommen, sonst lädt er sie in seinem Bereich unter fiaon.com/app/unterlagen hoch.${landWort}`, ``];
+  }
+  if (t.stufe === "dokument" && firma) return [`SEINE FIRMEN-BONITÄTSAUSKUNFT: Eine Auskunft liegt in seiner Akte. Nichts dazu verkaufen.${landWort}`, ``];
+  const dokumentSatz = t.stufe === "dokument" ? " Er hat selbst eine Datenkopie hochgeladen — die Bonitätsauswertung ist etwas anderes; seine Datenkopie beziehen wir ein." : "";
   // ── E-241: OFFENER ANTRAG ODER LEAD ───────────────────────────────────────
   // Ungefragt kein Wort (Justin 24.09.: „Ich suche unkompliziert eine Kreditkarte"
   // → nur die Karte) — der Auftrag bleibt dann genau so, wie er vor E-241 war.
@@ -713,16 +764,18 @@ export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
     if (t.stufe !== "offen") {
       const antrag = t.segment === "antrag";
       return [
-        `═══ SEINE FRAGE: DIE BONITÄTSAUSKUNFT ═══`,
-        `${t.aufAngebot ? "Er antwortet auf unser Angebot der Bonitätsauskunft" : "Er fragt selbst nach der Bonitätsauskunft"} — jetzt ist sie seine Frage, keine Hürde. ${antrag ? "Sein Antrag liegt vor, die erste Zahlung für sein Paket ist noch offen." : "Er hat noch keinen Antrag."} Beantworte, was er schreibt, positiv in ein bis zwei Sätzen, dann der Schritt.`,
-        `· Was wir tun: Wir fordern seine Datenkopien bei ${bei} an (mit seiner Vollmacht — er schreibt keinen Brief), erklären jeden Eintrag, prüfen die Speicherfristen und liefern seinen Handlungsplan und fertige Schreiben (etwa Löschung nach Fristablauf, Berichtigung) zur Freigabe.`,
+        `═══ SEINE FRAGE: DIE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()} ═══`,
+        `${t.aufAngebot ? `Er antwortet auf unser Angebot der ${firma ? "Bonitätsauskunft" : "Bonitätsauswertung"}` : "Er fragt selbst nach seiner Bonität bzw. Auskunft"} — jetzt ist sie seine Frage, keine Hürde. ${antrag ? "Sein Antrag liegt vor, die erste Zahlung für sein Paket ist noch offen." : "Er hat noch keinen Antrag."} Beantworte, was er schreibt, positiv in ein bis zwei Sätzen, dann der Schritt.${dokumentSatz}`,
+        wasWirTun,
+        ...wasErTut,
+        ...nieMehr,
         // 25.09.2026 (E-241): Antrag und Lead lesen den Nutzen ohne „Limit“ (VERBOTENE_WORTE, § 34c GewO).
         `· Warum: „${AUSKUNFT_NUTZEN_SATZ_KARTE}"`,
-        `· Sein Preis: ${t.preisText} einmalig — ein eigener Auftrag, kein Abo, keine Monatsrate. Einen anderen Betrag für die Auskunft nennst du nie.${landWort}`,
-        `· Die Auskunft ist KEINE Voraussetzung für ${antrag ? "sein Paket" : "den Antrag"} oder die Karte — das sagst du nie anders. Kontoauszüge, Ausweis und Hochladen erwähnst du nicht.`,
+        `· Sein Preis: ${t.preisText} einmalig — ein eigener Auftrag, kein Abo, keine Monatsrate. Einen anderen Betrag dafür nennst du nie.${landWort}`,
+        `· Sie ist KEINE Voraussetzung für ${antrag ? "sein Paket" : "den Antrag"} — das sagst du nie anders. ${firma ? "Kontoauszüge, Ausweis und Hochladen erwähnst du nicht." : "Ausweis und Kontoauszüge nennst du nur als das, was er NACH der Bestellung für die Auswertung hochlädt."}`,
         antrag
-          ? `· Seine offene erste Zahlung sprichst du höchstens in einem kurzen Satz an, ohne zweiten Link — der Schritt dieser Antwort ist die Auskunft.`
-          : `· Den Antragslink schickst du hier nur, wenn er danach fragt — der Schritt dieser Antwort ist die Auskunft.`,
+          ? `· Seine offene erste Zahlung sprichst du höchstens in einem kurzen Satz an, ohne zweiten Link — der Schritt dieser Antwort ist die ${firma ? "Auskunft" : "Bonitätsauswertung"}.${firma ? "" : " Fragt er, ob sie mit dem Paket dazugehört: Mit seinem Paket wird sie nach der ersten Zahlung zum Schritt vor dem Link der Partnerbank — einzeln bestellen muss er sie dann nicht."}`
+          : `· Den Antragslink schickst du hier nur, wenn er danach fragt — der Schritt dieser Antwort ist die ${firma ? "Auskunft" : "Bonitätsauswertung"}.`,
         `· Sagt er Ja, will er sie oder fragt nach Preis oder Weg: rufe auskunft_anbieten auf und schick GENAU den Link aus dem Ergebnis. Einen Link, Preis oder Betrag, der nicht hier oder im Werkzeug steht, nennst du nie. Geht es ihm in Wahrheit um etwas anderes, beantworte nur das — ohne Angebot.`,
         `· Fragt er, ob er die Datenkopie nicht kostenlos selbst anfordern kann, sagst du ehrlich: „${AUSKUNFT_KOSTENLOS_ANTWORT}" Von dir aus empfiehlst du den kostenlosen Weg nie.`,
         `· Keine Zusage: nie „dann bekommen Sie die Karte" oder „Ihr Rahmen steigt", keine Löschzusage, kein „Score verbessern", keine Frist mit Zahl. Den Satz über die Bank nur, wenn er nach Karte, Rahmen oder Zusage fragt.`,
@@ -731,12 +784,12 @@ export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
     }
   }
   if (t.werbesperre && !t.jetzt) {
-    return [`SEINE BONITÄTSAUSKUNFT: liegt uns noch nicht vor. Er hat um keine Werbung gebeten — du bietest sie ihm nicht an. Nur wenn er sie ausdrücklich haben will, nennst du den Preis (${t.offenBetrag ?? t.preisText} einmalig).${landWort}`, ``];
+    return [`SEINE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()}: liegt uns noch nicht vor. Er hat um keine Werbung gebeten — du bietest sie ihm nicht an. Nur wenn er sie ausdrücklich haben will, nennst du den Preis (${t.offenBetrag ?? t.preisText} einmalig).${landWort}`, ``];
   }
   if (t.stufe === "offen") {
     return [
-      `═══ SEINE BONITÄTSAUSKUNFT ═══`,
-      `Er hat sie bestellt, die Zahlung über ${t.offenBetrag ?? t.preisText} ist noch offen (einmalig, keine Monatsrate).${t.jetzt ? " Er schreibt gerade über Bonität, Rahmen, Karte oder die Auskunft — zeig ihm, dass nur noch dieser Schritt fehlt, und schick seine Zahlungsseite (auskunft_anbieten liefert sie)." : " Fragt er danach, schick ihm seine Zahlungsseite."}`,
+      `═══ SEINE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()} ═══`,
+      `Er hat sie bestellt, die Zahlung über ${t.offenBetrag ?? t.preisText} ist noch offen (einmalig, keine Monatsrate).${t.jetzt ? " Er schreibt gerade über Bonität, Rahmen, Karte oder die Auskunft — zeig ihm, dass nur noch dieser Schritt fehlt, und schick seine Zahlungsseite (auskunft_anbieten liefert sie)." : " Fragt er danach, schick ihm seine Zahlungsseite."}${firma ? "" : " Nach dem Zahlungseingang lädt er Ausweis und Kontoauszüge hoch (Link per E-Mail), dann entwickeln wir seine Auswertung."}`,
       `· Warum es sich lohnt: „${AUSKUNFT_NUTZEN_SATZ_KARTE}"`,
       `· Einen Link oder Betrag, der nicht hier oder im Werkzeug steht, nennst du nie.${landWort}`,
       ``,
@@ -745,17 +798,19 @@ export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
   if (!t.jetzt) {
     if (t.schonAngeboten) {
       const wann = t.angebotAnderswo ? `Er hat sie ${t.angebotAnderswo} schon angeboten bekommen` : "Du hast sie ihm in diesem Gespräch schon angeboten";
-      return [`SEINE BONITÄTSAUSKUNFT: ${wann} (${t.preisText} einmalig). Wiederhole das Angebot nicht — beantworte seine Frage. Kommt er selbst darauf zurück, hilfst du weiter.${landWort}`, ``];
+      return [`SEINE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()}: ${wann} (${t.preisText} einmalig). Wiederhole das Angebot nicht — beantworte seine Frage. Kommt er selbst darauf zurück, hilfst du weiter.${landWort}`, ``];
     }
-    return [`SEINE BONITÄTSAUSKUNFT: liegt uns noch nicht vor (für ihn ${t.preisText} einmalig${t.mitAbo ? ", Kundenpreis mit Paket" : ""}). Er hat gerade nicht danach gefragt — erwähne sie nur, wenn er über Bonität, ${auskunftWort(t.land)}, Einträge, Rahmen, Karte oder seine fehlende Auskunft schreibt, und nie als Hürde.${landWort}`, ``];
+    return [`SEINE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()}: liegt uns noch nicht vor (für ihn ${t.preisText} einmalig${t.mitAbo ? ", Kundenpreis mit Paket" : ""}). Er hat gerade nicht danach gefragt — erwähne sie nur, wenn er über Bonität, ${auskunftWort(t.land)}, Einträge, Rahmen, Karte oder seine fehlende Auskunft schreibt, und nie als Hürde.${dokumentSatz}${landWort}`, ``];
   }
   return [
-    `═══ DEIN ANGEBOT FÜR IHN: DIE BONITÄTSAUSKUNFT ═══`,
+    `═══ DEIN ANGEBOT FÜR IHN: DIE ${firma ? "FIRMEN-BONITÄTSAUSKUNFT" : AUSWERTUNG_NAME.toUpperCase()} ═══`,
     // E-241: Antwortet er auf die Vorlage oder Maras Angebot, heißt es genau so — nicht „er schreibt über Bonität".
     t.aufAngebot
-      ? `Er ist Kunde, seine Auskunft liegt uns noch nicht vor, und er antwortet auf unser Angebot der Bonitätsauskunft — genau jetzt ist sie für ihn ein Vorteil, keine Hürde und keine Pflicht. Beantworte seine Antwort positiv, in ein bis zwei Sätzen, dann der Schritt.`
-      : `Er ist Kunde, und seine Auskunft liegt uns noch nicht vor. Er schreibt gerade über Bonität, Einträge, Rahmen, Karte oder seine fehlende Auskunft — genau jetzt ist sie für ihn ein Vorteil, keine Hürde und keine Pflicht. Biete sie ihm an: positiv, in ein bis zwei Sätzen, dann der Schritt.`,
-    `· Was wir tun: Wir fordern seine Datenkopien bei ${bei} an (mit seiner Vollmacht — er schreibt keinen Brief), erklären jeden Eintrag, prüfen die Speicherfristen und liefern seinen Handlungsplan und fertige Schreiben (etwa Löschung nach Fristablauf, Berichtigung) zur Freigabe.`,
+      ? `Er ist Kunde, und er antwortet auf unser Angebot der ${firma ? "Bonitätsauskunft" : "Bonitätsauswertung"} — genau jetzt ist sie für ihn ein Vorteil, keine Hürde und keine Pflicht. Beantworte seine Antwort positiv, in ein bis zwei Sätzen, dann der Schritt.${dokumentSatz}`
+      : `Er ist Kunde, und seine ${firma ? "Auskunft" : "Bonitätsauswertung"} liegt uns noch nicht vor. Er schreibt gerade über Bonität, Einträge, Rahmen, Karte oder seine fehlende Auskunft — genau jetzt ist sie für ihn ein Vorteil, keine Hürde und keine Pflicht. Biete sie ihm an: positiv, in ein bis zwei Sätzen, dann der Schritt.${dokumentSatz}`,
+    wasWirTun,
+    ...wasErTut,
+    ...nieMehr,
     // E-248: auch für zahlende Kunden der Satz ohne „Limit" (Justin: „Rahmen" statt „Limit"; tonPruefung hart).
     `· Warum: „${AUSKUNFT_NUTZEN_SATZ_KARTE}"`,
     `· Sein Preis: ${t.preisText} einmalig${t.mitAbo ? ` — Kundenpreis mit Paket (einzeln kostet sie ${einzeln})` : ""}. Keine Monatsrate, keine zwölf Raten.${landWort}`,
@@ -833,6 +888,12 @@ export function verkaufsPruefung(antwort: string, ein: {
       // E-240: Das Angebot der Auskunft an einen zahlenden Kunden, der gerade über Bonität,
       // Limit oder Karte schreibt, ist ein Vorteil, den er kaufen kann — keine Hürde vor der Karte.
       if (h.was === "die Bonitätsauskunft" && ein.auskunftAngebot) continue;
+      // E-365 (14.10.2026): Die Bonitätsauswertung entsteht aus Ausweis und Kontoauszügen — im Angebot sind sie ihr Inhalt,
+      // keine Hürde. Nur in Sätzen, die die Auswertung selbst nennen; „Laden Sie dann Ihre Kontoauszüge hoch." bleibt eine.
+      if (ein.auskunftAngebot && (h.was === "Kontoauszüge" || h.was === "den Ausweis" || h.was === "Unterlagen")) {
+        const saetze = a.split(/(?<=[.!?])\s+/).filter((x) => h.wort.test(x));
+        if (saetze.length && saetze.every((x) => /auswertung/i.test(x))) continue;
+      }
       // E-265 (29.09.2026): Neben seinem Wunschlimit, einem Kartenziel oder der Visa-Kreditkarte ist „über den
       // Rahmen entscheidet die Bank" keine Hürde, sondern PFLICHT (limit_ohne_bank) — Justins Abschlussformel.
       // E-298 (07.10.2026): mit MARA_BANK_SATZ=nachfrage auch neben dem Wunschlimit nur auf seine Frage.
@@ -1239,8 +1300,9 @@ function auftrag(ein: {
     `· „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ „${TEMPO_SATZ}“ „${KARTE_ZEIT_SATZ}“ — und dann die Frage „${ZAHL_FRAGE}“. Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Nie ein Tag oder eine Uhrzeit für den Link, nie „wir versenden Ihre Karte“, „die Karte geht in Produktion“ oder „ist sicher“ — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
     `· „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von … €${bankZusatz()}." (Nur mit SEINER Zahl aus DEIN ABSCHLUSS.)`,
     `· „${bN ? `${bN.nom} ist` : "Ihr Betreuer ist"} an Ihrer Seite, Sie machen das nicht allein." · „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter."`,
-    // E-240: Die Bonitätsauskunft ist ein Zusatzprodukt, NICHT im Paket (shared/fiaon-auskunft.ts).
-    `· „Wir erklären jeden Eintrag Ihrer Auskunft und übernehmen die Schreiben an die Auskunfteien."`,
+    // E-365 (14.10.2026): Privat ist die Bonität die FIAON-Bonitätsauswertung aus den eigenen Kontoauszügen (shared/fiaon-auskunft.ts) —
+    // für neue Paketkunden der Schritt vor dem Link der Partnerbank. Keine Datenkopie, keine Schreiben an Auskunfteien.
+    `· „Mit Ihrer FIAON-Bonitätsauswertung sehen Sie Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen."`,
     `· „Eine Gehaltsabrechnung brauchen Sie nicht — Ihre Kontoauszüge laden Sie später bequem im Kundenbereich hoch." (Fragt er nach Nachweisen oder Einkommen, nennst du die Kontoauszüge der letzten sechs Monate IMMER mit.) · „${schufa} muss nicht perfekt sein — genau da setzen wir an."`,
     `· „${paketName("start")} gibt es ab ${paketPreisText("start")} im Monat, in zwölf zinsfreien Monatsraten." (Preise aller Pakete in den Fakten unten.)`,
     `Entwerte deine eigene Zusage nie: Hänge an einen wahren, starken Satz keine Einschränkung, nach der niemand gefragt hat. Der Satz über die Bank kommt genau dann, wenn er nach Rahmen, Betrag, Kredit, Geld, Zusage oder Sicherheit fragt — und IMMER neben seinem Wunschlimit —, dann einmal, positiv gerahmt.`,
@@ -1254,11 +1316,11 @@ function auftrag(ein: {
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher das Ziel im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); den Rahmen legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Kredit? Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Noch besser: seine eigene Kreditkarte bei unserer Partnerbank, mit einem Rahmen, den er immer wieder nutzen kann; den Rahmen legt die Bank fest, wir bereiten seinen Antrag stark vor. Nie mit „kein Kredit", „wir sind keine Bank", „nicht unser Produkt" beginnen.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel im Programm, darauf arbeiten wir hin; über Karte und Rahmen entscheidet die Partnerbank.`,
-    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Erklärung der Einträge, Schreiben, Begleitung durch seinen Betreuer). Wer kleiner einsteigen will: ein Paket tiefer (wie bei „zu teuer"); ${paketName("start")} ab ${paketPreisText("start")} im Monat erst, wenn er auch das nicht will. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung und seiner Bonitätsauswertung direkt der Link der Partnerbank).`,
-    `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: jeden Eintrag erklären, die Schreiben an die Auskunfteien übernehmen — und parallel Konto und Karte bei der Partnerbank vorbereiten.`,
+    `· „Warum vorher zahlen?" → Die erste von zwölf Monatsraten; mit ihr wird sein Account aktiv, und die Leistung beginnt sofort (Startgespräch, seine Bonitätsauswertung aus Ausweis und Kontoauszügen, Begleitung durch seinen Betreuer bis zum Link der Partnerbank). Wer kleiner einsteigen will: ein Paket tiefer (wie bei „zu teuer"); ${paketName("start")} ab ${paketPreisText("start")} im Monat erst, wenn er auch das nicht will. Ist er verärgert, zeig Verständnis und bleib bei den Fakten („Sie überweisen selbst, abgebucht wird nichts“, nach der Buchung und seiner Bonitätsauswertung direkt der Link der Partnerbank).`,
+    `· Schufa-Einträge, Minus, eine Ablehnung → Genau dafür gibt es FIAON: Mit seiner Bonitätsauswertung sieht er, was eine Bank sieht — und wir bereiten mit ihm Konto und Karte bei der Partnerbank vor.`,
     `· „Könnt ihr Einträge löschen?" → Wir prüfen jeden Eintrag und stellen für angreifbare die Anträge an die Auskunftei; entscheiden tut die Auskunftei. Kein „Ja".`,
     `· „Ohne Schufa?" → „Die Partnerbank schaut selbst — aber ${schufa} muss nicht perfekt sein, genau da setzen wir an."`,
-    `· „Welche Unterlagen brauche ich?" (nur wenn er DAS fragt) → „Für den Start nur den Antrag. Danach laden Sie in Ihrem Bereich Ausweis, Kontoauszüge und Ihre Auskunft hoch — ein Handyfoto genügt, und bei der Auskunft helfen wir Ihnen."`,
+    `· „Welche Unterlagen brauche ich?" (nur wenn er DAS fragt) → „Für den Start nur den Antrag. Nach der ersten Zahlung laden Sie in Ihrem Bereich Ausweis und Kontoauszüge hoch — ein Handyfoto genügt; daraus entwickeln wir Ihre Bonitätsauswertung."`,
     `· „Lastschrift, Karte, PayPal?" → Ganz einfach per Überweisung mit seinem Verwendungszweck; Bankdaten und QR-Code stehen auf seiner Zahlungsseite.`,
     `· „Welche Bank ist das?" → Unsere Partnerbank ist die DKB: erst das Girokonto, daraus bucht er die Visa-Kreditkarte dazu — genau in dieser Reihenfolge begleiten wir ihn.`,
     // E-275 Ton (02.10.2026): „sofort nach Zahlungseingang“ statt „sobald sie gebucht ist“ — der Abgleich bucht selbst.
@@ -1697,11 +1759,16 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       erg.auskunft = await auskunftLage(personId, "kunde");
       if (erg.auskunft) {
         const st = erg.auskunft;
-        const wort = auskunftWort(st.land);
-        erg.lage += st.stufe === "nichts" ? ` Seine ${wort} liegt uns noch nicht vor (weder bestellt noch hochgeladen).`
-          : st.stufe === "offen" ? ` Seine ${wort} ist bestellt, die Zahlung ist offen.`
-          : st.stufe === "bezahlt" ? ` Seine ${wort} ist bezahlt — wir fordern sie an.`
-          : ` Eine Auskunft liegt in seiner Akte.`;
+        // E-365 (14.10.2026): privat heißt das Produkt FIAON-Bonitätsauswertung; neu „auswertung" und „inklusive".
+        const firmaArt = st.art === "firma";
+        const wort = firmaArt ? auskunftWort(st.land) : AUSWERTUNG_NAME;
+        const stufe = String(st.stufe);
+        erg.lage += stufe === "inklusive" ? ` Seine ${AUSWERTUNG_NAME} ist in seinem Paket enthalten (sein Kartenlink wartet auf sie) — nie verkaufen; er lädt Ausweis und Kontoauszüge hoch.`
+          : stufe === "auswertung" ? ` Seine ${AUSWERTUNG_NAME} liegt vor (fiaon.com/app/auswertung).`
+          : stufe === "nichts" ? ` Seine ${wort} liegt uns noch nicht vor (weder bestellt noch hochgeladen).`
+          : stufe === "offen" ? ` Seine ${wort} ist bestellt, die Zahlung ist offen.`
+          : stufe === "bezahlt" ? (firmaArt ? ` Seine ${wort} ist bezahlt — wir holen sie ein.` : ` Seine ${wort} ist bezahlt — wir entwickeln sie, sobald Ausweis und Kontoauszüge da sind.`)
+          : firmaArt ? ` Eine Auskunft liegt in seiner Akte.` : ` Er hat eine eigene Datenkopie in der Akte; die ${AUSWERTUNG_NAME} hat er noch nicht.`;
       }
       // Hat er zuletzt unsere Raten-Erinnerung bekommen: GENAU diese Rate (Referenz aus dem gesendeten Text),
       // nicht „die älteste offene" — sonst zeigte Mara nach der Zahlung auf die nächste, noch nicht fällige Rate.
@@ -2688,7 +2755,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // darauf. Die Abfrage läuft nur, wenn die Vorlage allein es nicht schon zeigt.
     // (Auch beim zahlenden Kunden: „Ja, gern" auf fiaon_kk_auskunft ist seine Antwort, siehe auskunftJetzt.)
     let aufAngebot = false;
-    if (personId && lage.auskunft && (lage.auskunft.stufe === "nichts" || lage.auskunft.stufe === "offen")) {
+    // E-365: auskunftVerkaufbar — dazu privat „dokument" (eigene Datenkopie; die Auswertung ist ein anderes Produkt).
+    if (personId && lage.auskunft && auskunftVerkaufbar(lage.auskunft)) {
       const lr = verlauf.find((v) => v.richtung === "raus" && v.status !== "fehler" && Number(v.id) < Number(ersteOffene.id)) ?? null;
       const letzteRaus = lr ? { vorlage: lr.vorlage ?? null, text: lr.text ?? null } : null;
       aufAngebot = antwortetAufAuskunftAngebot({ kunde, letzteRaus });
@@ -3367,7 +3435,8 @@ const WERKZEUG_AUSKUNFT = {
   type: "function",
   function: {
     name: "auskunft_anbieten",
-    description: "Sein echter Link zur Bonitätsauskunft mit seinem Preis (einmalig): bei offener Bestellung seine Zahlungsseite, sonst der Link, über den er sie mit einem Klick beauftragt (dort sieht er Preis, AGB und Widerrufsbelehrung, danach die Zahlungsseite). Gibt seinem Betreuer Bescheid.",
+    // E-365 (14.10.2026): privat die FIAON-Bonitätsauswertung; nie bei „im Paket enthalten“ oder „liegt vor“.
+    description: "Sein echter Link zur FIAON-Bonitätsauswertung (für ein Unternehmen: zur Firmen-Bonitätsauskunft) mit seinem Preis (einmalig): bei offener Bestellung seine Zahlungsseite, sonst der Link, über den er sie mit einem Klick beauftragt (dort sieht er Preis, AGB und Widerrufsbelehrung, danach die Zahlungsseite). Ist sie in seinem Paket enthalten, bezahlt oder liegt sie vor, sagt es dir das (ok: false, grund) — dann kein Preis, kein Link. Gibt seinem Betreuer Bescheid.",
     parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
   },
 };
@@ -3835,14 +3904,23 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
   // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (älter als 21 Tage, teurer als heute), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
   const stand = standZumZeigen(await auskunftStand(ctx.personId, undefined, auskunftArt));
   const land = ctx.auskunft.land ?? stand.land;
-  if (stand.stufe === "bezahlt") return nein("Die Auskunft ist schon bezahlt — wir fordern sie an. Nichts verkaufen.");
-  if (stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte — nichts verkaufen.");
-  if (stand.offen?.status === "claimed_paid") return nein("Er hat die Zahlung der Auskunft schon gemeldet — die Zahlungsstelle prüft den Eingang. Kein Link.");
+  // E-365 (14.10.2026): privat die FIAON-Bonitätsauswertung — nie verkaufen bei „inklusive“ (im Paket enthalten) und „auswertung“ (liegt vor);
+  // „dokument“ (eigene Datenkopie) hält privat nicht mehr auf.
+  const privat = auskunftArt !== "firma";
+  if (stand.stufe === "bezahlt") {
+    return nein(privat
+      ? "Die Bonitätsauswertung ist schon bezahlt — nichts verkaufen. Sag ihm: Wir entwickeln sie; dafür brauchen wir Ausweis und Kontoauszüge der letzten drei Monate (Link per E-Mail, sonst fiaon.com/app/unterlagen)."
+      : "Die Firmen-Auskunft ist schon bezahlt — wir holen sie ein. Nichts verkaufen.");
+  }
+  if (privat && stand.stufe === "inklusive") return nein(`Die Bonitätsauswertung ist in seinem Paket ENTHALTEN — kein Preis, kein Link. Sag ihm: „${AUSWERTUNG_INKLUSIVE_SATZ}" (hochladen in seinem Bereich unter fiaon.com/app/unterlagen).`);
+  if (privat && stand.stufe === "auswertung") return nein("Seine Bonitätsauswertung liegt schon vor — nichts verkaufen. Sie liegt in seinem Bereich unter fiaon.com/app/auswertung (und kam als PDF per E-Mail).");
+  if (!privat && stand.stufe === "dokument") return nein("Eine Auskunft liegt schon in seiner Akte — nichts verkaufen.");
+  if (stand.offen?.status === "claimed_paid") return nein("Er hat die Zahlung schon gemeldet — die Zahlungsstelle prüft den Eingang. Kein Link.");
   const kunde = String(ctx.kunde ?? "");
   const du = String(ctx.letzteDu ?? "");
   const zugestimmt = auskunftZugestimmt(kunde, du);
   const sperre = werbungVerboten(await menschSperre(Number(ctx.personId)).catch(() => null));
-  if (sperre && !zugestimmt && !auskunftGefragt(kunde)) return nein(`${sperre} — die Auskunft nur, wenn er sie ausdrücklich haben will. Kein Angebot.`);
+  if (sperre && !zugestimmt && !auskunftGefragt(kunde)) return nein(`${sperre} — die ${privat ? "Bonitätsauswertung" : "Auskunft"} nur, wenn er sie ausdrücklich haben will. Kein Angebot.`);
 
   let link: string;
   let betrag = stand.preis.text;
@@ -3869,10 +3947,12 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
   return {
     ergebnis: {
       ok: true, link, preis: betrag, einmalig: true, kundenpreis_mit_paket: stand.preis.mitAbo,
-      wort: auskunftWort(land), auskunfteien: auskunfteienText(land),
-      was_passiert: art === "angebot"
+      wort: privat ? AUSWERTUNG_NAME : auskunftWort(land),
+      ...(privat ? { unterlagen: AUSWERTUNG_UNTERLAGEN_SATZ, ehrlich: AUSWERTUNG_KEINE_AUSKUNFT_SATZ } : { auskunfteien: auskunfteienText(land) }),
+      was_passiert: (art === "angebot"
         ? "Über den Link bestätigt er die Bestellung mit einem Klick; danach sieht er Betrag, Verwendungszweck und QR-Code."
-        : "Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code.",
+        : "Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code.")
+        + (privat ? " Danach lädt er Ausweis und Kontoauszüge über den Link aus der E-Mail hoch — ohne Anmeldung." : ""),
       so_schreiben: `Hier geht es direkt weiter: ${link}`,
     },
     aktion: { werkzeug: name, ok: true, zeiten: [], link, betrag, art },
@@ -3886,9 +3966,10 @@ async function auskunftAnbieten(ctx: WerkzeugKontext): Promise<{ ergebnis: any; 
 async function betreuerZurAuskunft(personId: number, ein: { art: Aktion["art"]; betrag: string; kunde: string; segment?: AuskunftSegment }): Promise<void> {
   const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const segment: AuskunftSegment = ein.segment ?? "kunde";
-  const was = ein.art === "bestellt" ? `hat die Bonitätsauskunft für ihn bestellt (${ein.betrag}, Zahlung offen)`
-    : ein.art === "offen" ? `hat ihm den Link zur offenen Zahlung seiner Bonitätsauskunft geschickt (${ein.betrag})`
-    : `hat ihm die Bonitätsauskunft angeboten (${ein.betrag}) und den Link zum Bestellen geschickt`;
+  // E-365: privat heißt das Produkt FIAON-Bonitätsauswertung.
+  const was = ein.art === "bestellt" ? `hat die Bonitätsauswertung für ihn bestellt (${ein.betrag}, Zahlung offen)`
+    : ein.art === "offen" ? `hat ihm den Link zur offenen Zahlung seiner Bonitätsauswertung geschickt (${ein.betrag})`
+    : `hat ihm die Bonitätsauswertung angeboten (${ein.betrag}) und den Link zum Bestellen geschickt`;
   try {
     // ── E-241: OFFENER ANTRAG ODER LEAD ─────────────────────────────────────
     // Die Aufgabe geht nach der Regel des Hauses (auskunftAufgabeAn, Postmeister-
@@ -3904,16 +3985,16 @@ async function betreuerZurAuskunft(personId: number, ein: { art: Aktion["art"]; 
       }
       agentId = an.agentId;
     }
-    const anruf = segment === "antrag" ? "Bitte kurz anrufen: die Auskunft erklären und die erste Zahlung für sein Paket mitnehmen."
-      : segment === "lead" ? "Bitte kurz anrufen: die Auskunft erklären und seinen Antrag mitnehmen."
-      : "Bitte kurz anrufen: Auskunft, Karte und Wunschlimit besprechen.";
+    const anruf = segment === "antrag" ? "Bitte kurz anrufen: die Bonitätsauswertung erklären (aus Ausweis und Kontoauszügen, keine Auskunft einer Auskunftei) und die erste Zahlung für sein Paket mitnehmen."
+      : segment === "lead" ? "Bitte kurz anrufen: die Bonitätsauswertung erklären (aus Ausweis und Kontoauszügen, keine Auskunft einer Auskunftei) und seinen Antrag mitnehmen."
+      : "Bitte kurz anrufen: Bonitätsauswertung, Karte und Wunschlimit besprechen.";
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     await auftragFuerKunden({
       ...(agentId ? { agentId } : {}),
       personId, ref: null,
-      titel: ein.art === "bestellt" ? "WhatsApp: Bonitätsauskunft bestellt — bitte begleiten"
-        : segment === "kunde" ? "WhatsApp: Bonitätsauskunft angeboten — bitte nachfassen"
-        : `WhatsApp: Bonitätsauskunft angeboten (${segment === "antrag" ? "Antrag offen" : "Interessent"}) — bitte nachfassen`,
+      titel: ein.art === "bestellt" ? "WhatsApp: Bonitätsauswertung bestellt — bitte begleiten"
+        : segment === "kunde" ? "WhatsApp: Bonitätsauswertung angeboten — bitte nachfassen"
+        : `WhatsApp: Bonitätsauswertung angeboten (${segment === "antrag" ? "Antrag offen" : "Interessent"}) — bitte nachfassen`,
       text: `Mara ${was}. Der Kunde schrieb: „${ein.kunde.replace(/\s+/g, " ").slice(0, 240)}". ${anruf}`,
       quelle: "mara-whatsapp", dringend: false, link: `/agent/kunden?person=${personId}`,
       schluessel: `wa-auskunft-${personId}-${tag}`, autorName: "Mara",
@@ -4153,7 +4234,7 @@ export function handlungsPruefung(
   // die allgemeinen Sätze („Ihre Schufa muss nicht perfekt sein") sagen das Wort aber.
   // Schreibt er es selbst, darf Mara es aufgreifen.
   if (bekannt.land && bekannt.land !== "DE" && /schufa/i.test(a) && !/schufa/i.test(kunde)) {
-    funde.push(`In seinem Land heißt sie „${auskunftWort(bekannt.land)}" — schreib nie „SCHUFA", sondern ${auskunfteienText(bekannt.land)} bzw. „Bonitätsauskunft".`);
+    funde.push(`In seinem Land heißt die Auskunft „${auskunftWort(bekannt.land)}" — schreib nie „SCHUFA", sondern „Bonität" bzw. ${auskunfteienText(bekannt.land)}; unser Produkt heißt „${AUSWERTUNG_NAME}".`);
   }
   return Array.from(new Set(funde));
 }

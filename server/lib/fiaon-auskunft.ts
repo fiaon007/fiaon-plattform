@@ -75,7 +75,12 @@ export async function auskunftPreis(personId: number | null, art: AuskunftArt = 
   return { art, mitAbo, cents, key: auskunftSchluessel(art, mitAbo), text: euroText(cents) };
 }
 
-export type AuskunftStufe = "bezahlt" | "offen" | "dokument" | "nichts";
+/**
+ * E-365 (14.10.2026): „auswertung" = die FIAON-Bonitätsauswertung liegt beim Kunden (freigegeben/ersetzt), „inklusive" = zahlender
+ * Paketkunde, dessen Kartenlink auf die Bonität wartet (BONITAET_INKLUSIVE_SQL) — beide: nie verkaufen. „dokument" (eigene
+ * Datenkopie in der Akte) ist seitdem KEIN Hindernis mehr: Die Auswertung ist ein anderes Produkt als die Datenkopie.
+ */
+export type AuskunftStufe = "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
 
 export interface AuskunftStand {
   stufe: AuskunftStufe;
@@ -97,6 +102,10 @@ export interface AuskunftStand {
   bezahltRef: string | null;
   /** Liegt ein Auskunft-Dokument in der Akte (gekauft oder selbst hochgeladen)? */
   dokumentDa: boolean;
+  /** E-365: Liegt die FIAON-Bonitätsauswertung beim Kunden (freigegeben oder durch eine neuere ersetzt)? */
+  auswertungDa?: boolean;
+  /** E-365: Zahlender Paketkunde, dessen Kartenlink auf die Bonität wartet — die Auswertung ist inklusive. */
+  inklusive?: boolean;
   land: AuskunftLand;
   preis: AuskunftPreis;
 }
@@ -110,8 +119,14 @@ export async function auskunftStand(
   /** E-241: `land: false` = nur der Kaufstand gefragt (Türen, Takt) — spart die Abfrage der Grundmenge bei Leads. */
   opts: { land?: boolean } = {},
 ): Promise<AuskunftStand> {
+  // E-365: Bonitätsauswertung und Kartenregel lesen fiaon_finanzauswertungen/fiaon_vertragsannahmen (bonitaetBereit legt an bzw. merkt sich).
+  const karte = await import("./fiaon-konto-karte");
+  await karte.bonitaetBereit().catch(() => {});
+  const pid = String(Math.trunc(Number(personId)));
   const [z] = (await lauf`
     SELECT
+      ${lauf.unsafe(karte.BONITAET_DA_SQL(pid))} AS auswertung_da,
+      ${lauf.unsafe(karte.BONITAET_INKLUSIVE_SQL(pid))} AS inklusive,
       (SELECT country FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL AND country IS NOT NULL
         ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1) AS land,
       EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.person_id = ${personId} AND d.gdpr_deleted_at IS NULL AND d.schufa_pdf IS NOT NULL) AS dokument_da,
@@ -147,11 +162,16 @@ export async function auskunftStand(
     art: (offenKey === AUSKUNFT_SCHLUESSEL.firma.einzeln || offenKey === AUSKUNFT_SCHLUESSEL.firma.mitAbo ? "firma" : "privat") as AuskunftArt,
     wahlDa: !!o.wahl_da,
   } : null;
-  const stufe: AuskunftStufe = z?.bezahlt_ref ? "bezahlt" : offen ? "offen" : z?.dokument_da ? "dokument" : "nichts";
+  // E-365: bezahlt vor allem (die bezahlte Bestellung zeigt ihren Stand), dann die gelieferte Auswertung, dann inklusive —
+  // erst danach eine offene Bestellung: Wer die Auswertung hat oder sie im Paket bekommt, bekommt keinen Zahlungslink.
+  const auswertungDa = !!z?.auswertung_da;
+  const inklusive = !auswertungDa && !!z?.inklusive;
+  const stufe: AuskunftStufe = z?.bezahlt_ref ? "bezahlt" : auswertungDa ? "auswertung" : inklusive ? "inklusive"
+    : offen ? "offen" : z?.dokument_da ? "dokument" : "nichts";
   // Integration 25.09.2026 (E-241): Ohne Land im Antrag (Leads) gilt das Land der Grundmenge (landOhneAntrag).
   const land = String(z?.land ?? "").trim() || opts.land === false
     ? auskunftLand(z?.land) : ((await landOhneAntrag(personId, lauf)) ?? "DE");
-  return { stufe, offen, bezahltRef: z?.bezahlt_ref ?? null, dokumentDa: !!z?.dokument_da, land, preis };
+  return { stufe, offen, bezahltRef: z?.bezahlt_ref ?? null, dokumentDa: !!z?.dokument_da, auswertungDa, inklusive, land, preis };
 }
 
 /**
@@ -340,6 +360,15 @@ export async function auskunftBestellen(ein: {
   if (stand.stufe === "bezahlt") {
     return { ok: true, art: "bezahlt", ref: stand.bezahltRef, paymentReference: null, betragCents: 0, betragText: "", mitAbo: stand.preis.mitAbo, zahlungsseite: null };
   }
+  // E-365: Wer die Bonitätsauswertung schon hat oder sie im Paket bekommt, kann sie nicht kaufen (privat — Firmen unberührt).
+  if (art === "privat" && (stand.stufe === "auswertung" || stand.stufe === "inklusive")) {
+    return {
+      ok: false, art: "neu", ref: null, paymentReference: null, betragCents: 0, betragText: "", mitAbo: stand.preis.mitAbo, zahlungsseite: null,
+      fehler: stand.stufe === "auswertung"
+        ? "Die FIAON-Bonitätsauswertung liegt bei diesem Kunden schon vor — es wird nichts bestellt."
+        : "Die FIAON-Bonitätsauswertung ist im Paket dieses Kunden enthalten (sein Kartenlink wartet auf sie) — es wird nichts bestellt. Bitte Ausweis und Kontoauszug anfordern.",
+    };
+  }
   // Gemeldet („habe überwiesen") gilt immer; eine offene Bestellung, solange sie nicht teurer ist
   // als der Preis, der HEUTE gilt (offenWiederverwendbar, E-243) — sonst ersetzt die neue sie
   // (unten, superseded_by). Integration 26.09.2026 (E-244): ohne Altersgrenze (vorher 21 Tage).
@@ -372,7 +401,8 @@ export async function auskunftBestellen(ein: {
   // Nachbesserung 26.09.2026: ohne Erklärung des Kunden keine Zahlungsdaten beim Anlegen (QUELLEN_OHNE_KUNDENERKLAERUNG).
   // Nur über den Standard-Pool: frageSofort liest die Zeile über sqlPool (in einer Transaktion wäre sie unsichtbar).
   const ohneErklaerung = art === "privat" && QUELLEN_OHNE_KUNDENERKLAERUNG.includes(ein.quelle) && lauf === sqlPool;
-  const packName = art === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "Bonitätsauskunft inkl. Handlungsplan";
+  // E-365: privat heißt die Bestellung wie das Produkt (Rechnung, Zahlungsseite, Akte).
+  const packName = art === "firma" ? "Firmen-Bonitätsauskunft inkl. Handlungsplan" : "FIAON-Bonitätsauswertung";
   // payment_reference setzt der Trigger (Migration 037); bestellungFuerAntrag
   // setzt Betrag, Frist, Rechnung und schickt die Zahlungsdaten.
   // Integration 25.09.2026 (E-241): Ohne Land in der Quelle (Lead) trägt die Bestellung das Land
@@ -1039,9 +1069,13 @@ export async function auskunftBuendelNachZahlung(ref: string, lauf: Lauf = sqlPo
         await abschluss(`nicht angelegt — die Bonitätsauskunft ist schon bezahlt (${stand.bezahltRef}).`);
         return erg("hat_auskunft", `${ref}: Auskunft schon bezahlt (${stand.bezahltRef}) — nichts angelegt.`, { auskunftRef: stand.bezahltRef });
       }
-      if (stand.stufe === "dokument") {
-        await abschluss("nicht angelegt — eine Bonitätsauskunft liegt schon in der Akte.");
-        return erg("hat_auskunft", `${ref}: Auskunft liegt schon in der Akte — nichts angelegt.`);
+      // E-365: Die Bonitätsauswertung liegt vor oder ist im Paket enthalten (Kartenlink wartet auf sie) — dann kein 74-€-Zusatz.
+      // Eine eigene Datenkopie in der Akte sperrt nicht mehr (anderes Produkt).
+      if (wunsch.art === "privat" && (stand.stufe === "auswertung" || stand.stufe === "inklusive")) {
+        await abschluss(stand.stufe === "auswertung"
+          ? "nicht angelegt — die FIAON-Bonitätsauswertung liegt schon vor."
+          : "nicht angelegt — die FIAON-Bonitätsauswertung ist im Paket enthalten (der Kartenlink wartet auf sie), kein Zusatz zu bezahlen.");
+        return erg("hat_auskunft", `${ref}: Bonitätsauswertung ${stand.stufe === "auswertung" ? "liegt vor" : "ist inklusive"} — nichts angelegt.`);
       }
       // Der Kundenpreis gilt nur mit laufendem Paket — ohne ihn keine Bestellung zu einem anderen
       // Preis als dem, den der Haken nannte (z. B. am selben Tag storniert).

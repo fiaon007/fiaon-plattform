@@ -35,7 +35,7 @@ import { metaEreignis, einwilligungLesen, EINWILLIGUNG_EREIGNIS } from "@/lib/we
 import { META_PRODUKT } from "@shared/fiaon-meta-ereignisse";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
 import {
-  AUSKUNFT_PREISE_CENTS, auskunfteienFuer, auskunftLand, auskunftLeistung, type AuskunftArt, type AuskunftLand,
+  AUSKUNFT_PREISE_CENTS, AUSWERTUNG_KEINE_AUSKUNFT_SATZ, auskunfteienFuer, auskunftLand, auskunftLeistung, type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { landErkennen } from "@/lib/land-erkennen";
 import {
@@ -67,8 +67,8 @@ function Krumen({ seite, krume }: { seite: BxSeite | null; krume?: string }) {
     <nav className="bx-krumen" aria-label="Brotkrumen">
       <a href="/">FIAON</a><i aria-hidden="true">/</i>
       {seite === "hub"
-        ? <span aria-current="page">Bonitätsauskunft</span>
-        : <><a href={BX_PFAD.hub}>Bonitätsauskunft</a><i aria-hidden="true">/</i><span aria-current="page">{krume}</span></>}
+        ? <span aria-current="page">Bonitätsauswertung</span>
+        : <><a href={BX_PFAD.hub}>Bonitätsauswertung</a><i aria-hidden="true">/</i><span aria-current="page">{krume}</span></>}
     </nav>
   );
 }
@@ -217,12 +217,19 @@ export function Schalter<W extends string>({ werte, wert, setze, namen, aria, du
   );
 }
 
-/** Die Leistung — wörtlich aus shared/fiaon-auskunft.ts (dieselbe Liste wie Bestellseite, Mail und Mara). */
+/**
+ * Die Leistung — wörtlich aus shared/fiaon-auskunft.ts (dieselbe Liste wie Bestellseite, Mail und Mara).
+ * E-365: Unter der privaten Liste steht immer die ehrliche Abgrenzung (AUSWERTUNG_KEINE_AUSKUNFT_SATZ) —
+ * wo die Bonitätsauswertung beschrieben wird, fehlt sie nie.
+ */
 export function LeistungListe({ art, land }: { art: AuskunftArt; land: AuskunftLand }) {
   return (
-    <ol className="bx-leistung">
-      {auskunftLeistung(art, land).map((z) => <li key={z}><span>{z}</span></li>)}
-    </ol>
+    <>
+      <ol className="bx-leistung">
+        {auskunftLeistung(art, land).map((z) => <li key={z}><span>{z}</span></li>)}
+      </ol>
+      {art === "privat" && <p className="bx-text" style={{ marginTop: 14, fontSize: 14 }}>{AUSWERTUNG_KEINE_AUSKUNFT_SATZ}</p>}
+    </>
   );
 }
 
@@ -258,7 +265,7 @@ export function WegSchritte() {
   );
 }
 
-/** Das Beispiel eines Handlungsplans — erfunden und als solches gekennzeichnet. */
+/** Das Beispiel eines Plans der Bonitätsauswertung — erfunden und als solches gekennzeichnet. */
 export function BeispielPlan() {
   const b = BX_BEISPIEL;
   return (
@@ -323,17 +330,21 @@ export function Bestellkarte({ art, land, aktiv }: { art: AuskunftArt; land: Aus
         <div className="betrag"><b className="zahl">{p.einzeln}</b><span>{BX.karteEinmal}</span></div>
         <p className="paket">{BX.kartePaket(p.paket)}</p>
         <p className="steuer">{BX_PREIS.steuer}</p>
-        {art === "firma" && (<>
+        {art === "firma" ? (<>
           <p className="unter">{BX.karteFirmaBei}</p>
           <div className="bx-chips"><span>Creditreform</span><span>CRIF</span></div>
+          {land ? (<>
+            <p className="unter">{BX.kartePersoenlich}</p>
+            <div className="bx-chips">{auskunfteienFuer(land).map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
+          </>) : (
+            <p className="alle">{BX.karteAlleFirma}</p>
+          )}
+        </>) : (<>
+          {/* E-365: privat fragt FIAON bei keiner Auskunftei an — die Karte nennt die Unterlagen. */}
+          <p className="unter">{BX.karteAus}</p>
+          <div className="bx-chips">{BX.karteUnterlagen.map((u) => <span key={u}>{u}</span>)}</div>
         </>)}
-        {land ? (<>
-          <p className="unter">{art === "firma" ? BX.kartePersoenlich : BX.karteBei}</p>
-          <div className="bx-chips">{auskunfteienFuer(land).map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
-        </>) : (
-          <p className="alle">{art === "firma" ? BX.karteAlleFirma : BX.karteAlle}</p>
-        )}
-        <ul>{BX.kartePunkte.map((z) => <li key={z}><Haken /><span>{z}</span></li>)}</ul>
+        <ul>{(art === "firma" ? BX.kartePunkteFirma : BX.kartePunkte).map((z) => <li key={z}><Haken /><span>{z}</span></li>)}</ul>
         <a className="bx-karte-knopf" href={bestellPfad(art, land ?? undefined)}>
           {art === "firma" ? BX.knopfBestellenFirma : BX.knopfBestellen}<Pfeil />
         </a>
@@ -406,7 +417,7 @@ export function BxSchluss({ art = "privat", land, eigen }: { art?: AuskunftArt; 
           </div>
           {/* E-243: der Weg zum Kundenpreis unter den Knöpfen (nicht auf Seiten mit eigenen Worten ohne Satz). */}
           <KundenpreisLink art={art} land={land} eigen={eigen} className="bx-karte-leise" stil={{ marginTop: 16 }} />
-          <p className="fuss">{e.fuss ?? BX.schlussFuss}</p>
+          <p className="fuss">{e.fuss ?? (art === "firma" ? BX.schlussFussFirma : BX.schlussFuss)}</p>
         </Auf>
       </div>
     </section>
@@ -462,7 +473,7 @@ function ServiceLd({ arten, land, pfad, name }: { arten: AuskunftArt[]; land?: A
   useEffect(() => {
     const angebote = arten.flatMap((a) => {
       const pr = AUSKUNFT_PREISE_CENTS[a];
-      const was = a === "firma" ? "Bonitätsauskunft für Unternehmen" : "Bonitätsauskunft";
+      const was = a === "firma" ? "Bonitätsauskunft für Unternehmen" : "FIAON-Bonitätsauswertung";
       const url = `${URSPRUNG}${bestellPfad(a, land)}`;
       return [
         { "@type": "Offer", name: `${was} — einzeln`, price: (pr.einzeln / 100).toFixed(2), priceCurrency: "EUR", url, availability: "https://schema.org/InStock" },
@@ -477,7 +488,10 @@ function ServiceLd({ arten, land, pfad, name }: { arten: AuskunftArt[]; land?: A
       "@context": "https://schema.org",
       "@type": "Service",
       name,
-      serviceType: "Anforderung und Erklärung von Bonitätsauskünften (Datenkopien) mit Handlungsplan und fertigen Schreiben",
+      // E-365: privat die Bonitätsauswertung aus Ausweis und Kontoauszügen; die Firmen-Auskunft unverändert.
+      serviceType: arten.includes("privat")
+        ? "Bonitätsauswertung aus eigenen Kontoauszügen: Haushaltsrechnung, Ampel, FIAON-Finanzwert und Plan — keine Auskunft einer Auskunftei"
+        : "Anforderung und Erklärung von Bonitätsauskünften für Unternehmen mit Handlungsplan und fertigen Schreiben",
       provider: { "@type": "Organization", name: "FIAON", url: URSPRUNG },
       areaServed: land ? [land] : ["DE", "AT", "CH"],
       url: `${URSPRUNG}${pfad}`,
@@ -541,12 +555,12 @@ export function BxRahmen({ seite, krume, art = "privat", land, arten, fragen, he
   const pfad = BX_PFAD[seite];
   const eintrag = seoSeite(pfad);
   const krumen = seite === "hub"
-    ? [{ name: "Bonitätsauskunft", pfad }]
-    : [{ name: "Bonitätsauskunft", pfad: BX_PFAD.hub }, { name: krume ?? "", pfad }];
+    ? [{ name: "Bonitätsauswertung", pfad }]
+    : [{ name: "Bonitätsauswertung", pfad: BX_PFAD.hub }, { name: krume ?? "", pfad }];
   return (
-    <Dunkel seite={SEITE_IM_MENUE} titel={eintrag?.titel ?? "Bonitätsauskunft"} beschreibung={eintrag?.beschreibung ?? ""}>
+    <Dunkel seite={SEITE_IM_MENUE} titel={eintrag?.titel ?? "Bonitätsauswertung"} beschreibung={eintrag?.beschreibung ?? ""}>
       <SeoDaten pfad={pfad} titel={eintrag?.titel ?? ""} beschreibung={eintrag?.beschreibung ?? ""} fragen={fragen} krumen={krumen} />
-      <ServiceLd arten={arten ?? [art]} land={land} pfad={pfad} name={art === "firma" ? "FIAON-Bonitätsauskunft für Unternehmen" : "FIAON-Bonitätsauskunft mit Handlungsplan"} />
+      <ServiceLd arten={arten ?? [art]} land={land} pfad={pfad} name={art === "firma" ? "FIAON-Bonitätsauskunft für Unternehmen" : "FIAON-Bonitätsauswertung"} />
       <div className="bx">
         {hero}
         <Licht>

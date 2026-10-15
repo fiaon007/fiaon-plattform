@@ -276,7 +276,7 @@ abschnitt("A6 · Texte: Wortwand, Kennzeichnung, nie „kostenlos“");
   ok(!/kostenlos|kostenfrei|gratis|umsonst|kostenpflichtig/i.test(dkText), "Datenkopie-Mail: kein „kostenlos“, kein „kostenpflichtig“");
   ok(/per Post an Ihre Anschrift/.test(dk.danach_satz) && /hoch/.test(dk.danach_satz) && !/liegt dann in Ihrem Bereich/.test(dk.danach_satz), "Nachprüfung: Datenkopie-Mail nennt den Postweg und bittet um den Upload");
   const kauf = lies("server/routes/fiaon-auskunft-kauf.ts");
-  ok(/a\.modus === "datenkopie"/.test(kauf.slice(kauf.indexOf("function danachSatz"), kauf.indexOf("function danachSatz") + 900)) && /per Post an Ihre Anschrift/.test(kauf), "Nachprüfung: Bestätigungsseite im Datenkopie-Weg ebenso ehrlich");
+  ok(/a\.modus === "datenkopie"/.test(kauf.slice(kauf.indexOf("function danachSatz"), kauf.indexOf("function danachSatz") + 2000)) && /per Post an Ihre Anschrift/.test(kauf), "Nachprüfung: Bestätigungsseite im Datenkopie-Weg ebenso ehrlich");
   ok(!/kostenlos/i.test(AK.RUECKSTAND_MAIL_SATZ), "Rückstand-Satz ohne „kostenlos“");
   const vorlage = (await import("../server/mail/vorlagen/finanzauswertung")).FINANZAUSWERTUNG_VORLAGEN.finanzauswertung_bereit;
   const mailText = [vorlage.betreff, vorlage.preheader, vorlage.titel, ...vorlage.absaetze, vorlage.fussnote].join(" ");
@@ -324,9 +324,11 @@ abschnitt("A7 · 4a: Stufensätze der Akte, Wache, Werktage, Haken");
   ok(/Widerrufsfrist/.test(s), "Fällig erst später → Widerrufsfrist genannt");
   s = AK.auskunftStufenSatz({ ...basis, stufe: "bezahlt", beschaffung: b({ status: "problem", notiz: "Kunde hat eigene Auskunft hochgeladen – Leistung klären" }) } as any, heuteIso)!;
   ok(/Problem: Kunde hat eigene Auskunft hochgeladen/.test(s), "Problem mit Notiz");
-  ok(/noch kein Beschaffungsauftrag/.test(AK.auskunftStufenSatz({ ...basis, stufe: "bezahlt", beschaffung: null } as any)!), "Bezahlt ohne Auftrag ehrlich benannt");
+  // E-365: bezahlt ohne Beschaffungsauftrag heißt privat — die Bonitätsauswertung (Unterlagen, dann entwickeln).
+  ok(/Bonitätsauswertung/.test(AK.auskunftStufenSatz({ ...basis, stufe: "bezahlt", beschaffung: null } as any)!) && /Ausweis und Kontoauszug/.test(AK.auskunftStufenSatz({ ...basis, stufe: "bezahlt", beschaffung: null } as any)!), "Bezahlt ohne Auftrag: Bonitätsauswertung, Unterlagen anfordern");
   ok(/Zahlung gemeldet/.test(AK.auskunftStufenSatz({ ...basis, stufe: "offen", offen: { betragText: "74 €", gemeldet: true } } as any)!), "Zahlung gemeldet");
-  ok(/^Nicht bestellt/.test(AK.auskunftStufenSatz({ ...basis, stufe: "nichts", angebot: true } as any)!), "Nicht bestellt → eigener Upload oder Angebot");
+  ok(/^Bonitätsauswertung nicht bestellt — anbieten/.test(AK.auskunftStufenSatz({ ...basis, stufe: "nichts", angebot: true } as any)!), "Nicht bestellt → Bonitätsauswertung anbieten");
+  ok(/im Paket enthalten/i.test(AK.auskunftStufenSatz({ ...basis, stufe: "inklusive" } as any)!) && /liegt beim Kunden/.test(AK.auskunftStufenSatz({ ...basis, stufe: "auswertung" } as any)!), "E-365: Kachel für inklusive und geliefert");
   ok(!/kostenlos/i.test(JSON.stringify(AK)), "Kein „kostenlos“ in den Stufensätzen");
   ok(AK.werktageZwischen("2026-10-02", "2026-10-07") === 3 && AK.werktageZwischen("2026-10-07", "2026-10-07") === 0 && AK.werktageZwischen("2026-10-09", "2026-10-12") === 1, "Werktage zählen Mo–Fr, ohne Starttag");
   const w = (x: any) => AK.wacheStufe({ status: "offen", einwilligung: true, faelligAb: "2026-10-01", linkAm: null, bezahlt: true, dokumentDa: false, ...x }, "2026-10-08");
@@ -597,7 +599,10 @@ abschnitt("A10 · E-364: Arbeitsliste aus denselben Bausteinen, nichts startet")
     && /WHERE \(m\.paket AND NOT m\.gekuendigt\) OR m\.auskunft/.test(s), "Global-Kunden nie, Gekündigte nur als Auskunft-Käufer");
   ok(["Startklar", "Wartet auf Kartenlink", "Prüfen & freigeben", "Unterlagen fehlen", "Beim Kunden"].every((t) => ui.includes(`text: "${t}"`))
     && /wartet auf den Kartenlink/.test(ui), "Oberfläche: vier Filter wie bisher plus „Wartet auf Kartenlink“, Marke je Zeile");
-  ok(!/method:\s*"POST"|apiPost|fetch\(/.test(ui), "Oberfläche: nur lesen — kein Knopf, der etwas startet");
+  // E-365: genau EIN Knopf, der etwas startet — „Käufer um Unterlagen bitten“, mit Rückfrage; die Liste selbst erstellt nichts.
+  const posts = ui.match(/fetch\(`[^`]*`/g) ?? [];
+  ok(posts.length === 1 && /altkaeufer/.test(posts[0]) && /Ja, senden/.test(ui) && !/finanzauswertung/.test(posts.join(" ")),
+    "Oberfläche: nur der Knopf „Käufer um Unterlagen bitten“ (mit Rückfrage) — nichts erstellt eine Auswertung");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -915,7 +920,7 @@ if (!LOKAL) {
     const mref = `FIAON-SCHUFA-${marke}-M1`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, email, country, type, pack_key, payment_status, paid_at, created_at)
                   VALUES (${mref}, ${`${mref}-Z`}, ${m1.personId}, ${`it-d-${marke.toLowerCase()}-m1s@example.invalid`}, 'DE', 'schufa', 'schufa', 'paid', NOW() - INTERVAL '20 days', NOW() - INTERVAL '21 days')`;
-    const [bm] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${mref}, ${m1.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -5)}, 'zahlung', 'einkauf') RETURNING id`) as any[];
+    const [bm] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${mref}, ${m1.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -5)}, 'zahlung', 'einkauf') RETURNING id`) as any[];
     await sqlPool`UPDATE fiaon_persons SET merged_into_person_id = ${m2.personId} WHERE id = ${m1.personId}`;
     await sqlPool`UPDATE fiaon_applications SET person_id = ${m2.personId} WHERE person_id = ${m1.personId}`;
     ok(JSON.stringify(await L.personFamilie(m1.personId)) === JSON.stringify([m2.personId, m1.personId]) && (await L.personFamilie(m2.personId))[0] === m2.personId, "Nachprüfung: personFamilie — Kopf zuerst, Dublette dabei");
@@ -968,13 +973,13 @@ if (!LOKAL) {
     ok(r4.status === "abgelehnt" && /gekündigt/i.test(r4.meldung), `Gekündigt → keine Anforderung (${r4.meldung})`);
   }
 
-  abschnitt("B5 · 4a: Akte, Sammelknopf (Datenkopie), eigener Upload, Wache, Verantwortung");
+  abschnitt("B5 · 4a: Akte, Sammelknopf (Datenkopie), eigener Upload, Wache, Verantwortung — seit E-365 mit FIRMEN-Aufträgen (privat gibt es keine Beschaffung mehr)");
   {
     const k = await kunde("G", { auszug: false });
     const sref = `FIAON-SCHUFA-${marke}-G`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, first_name, last_name, email, country, type, pack_key, pack_name, payment_status, paid_at, amount_due, created_at)
-                  VALUES (${sref}, ${`${sref}-Z`}, ${k.personId}, 'Erika', 'TeststegG', ${`it-d-${marke.toLowerCase()}-G@example.invalid`}, 'DE', 'schufa', 'schufa', 'Bonitätsauskunft', 'paid', NOW() - INTERVAL '40 days', 74, NOW() - INTERVAL '41 days')`;
-    const [bz] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${sref}, ${k.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -30)}, 'rueckstand', 'einkauf') RETURNING id`) as any[];
+                  VALUES (${sref}, ${`${sref}-Z`}, ${k.personId}, 'Erika', 'TeststegG', ${`it-d-${marke.toLowerCase()}-G@example.invalid`}, 'DE', 'schufa', 'auskunft_firma', 'Firmen-Bonitätsauskunft', 'paid', NOW() - INTERVAL '40 days', 74, NOW() - INTERVAL '41 days')`;
+    const [bz] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${sref}, ${k.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -30)}, 'rueckstand', 'einkauf') RETURNING id`) as any[];
     const { dokumentStand } = await import("../server/lib/fiaon-dokumente");
     const st = await dokumentStand({ personId: k.personId, rolle: "agent", zustaendig: true });
     ok(st?.auskunft?.stufe === "bezahlt" && st.auskunft.beschaffung?.id === Number(bz.id) && st.auskunft.beschaffung.einwilligung === false, "Akte: bezahlte Auskunft mit Beschaffungsstand");
@@ -986,7 +991,8 @@ if (!LOKAL) {
     ok(sammel.aufDatenkopie >= 1 && a1.modus === "datenkopie", `Sammelknopf stellt auf Datenkopie (${sammel.aufDatenkopie}, gesendet ${sammel.gesendet}, fehlgeschlagen ${sammel.fehlgeschlagen})`);
     const [ml] = (await sqlPool`SELECT payload FROM fiaon_mail_log WHERE person_id = ${k.personId} AND event = 'schufa_requested' ORDER BY id DESC LIMIT 1`) as any[];
     const mp = ml ? (typeof ml.payload === "string" ? JSON.parse(ml.payload) : ml.payload) : null;
-    ok(mp && /Datenkopie nach Art\. 15 DSGVO/.test(String(mp.auftrag_anfang)) && !/kostenlos/i.test(JSON.stringify(mp)) && mp.unterschrift_url === "[verborgen]" && mp.auskunft_liefermodus === "datenkopie",
+    // E-365: Firmen-Fassung (privat gibt es keine Datenkopie-Beschaffung mehr).
+    ok(mp && /Datenkopie nach Art\. 15 DSGVO|Auskünfte Ihres Unternehmens/.test(String(mp.auftrag_anfang)) && !/kostenlos/i.test(JSON.stringify(mp)) && mp.unterschrift_url === "[verborgen]" && mp.auskunft_liefermodus === "datenkopie",
       "Mail der Auftragsbestätigung: Datenkopie-Sätze, kein „kostenlos“, Link verborgen");
     ok(/Bitte entschuldigen Sie/.test(String(mp?.unterschrift_satz ?? "")), "Rückstand: Entschuldigung in der Mail");
     const [verlauf] = (await sqlPool`SELECT note FROM fiaon_contact_log WHERE ref = ${sref} AND note LIKE ${"%Datenkopie-Weg gestellt%"}`) as any[];
@@ -1025,8 +1031,8 @@ if (!LOKAL) {
     const kH = await kunde("H", { auszug: false });
     const hRef = `FIAON-SCHUFA-${marke}-H`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, email, country, type, pack_key, payment_status, paid_at, created_at)
-                  VALUES (${hRef}, ${`${hRef}-Z`}, ${kH.personId}, ${`it-d-${marke.toLowerCase()}-h@example.invalid`}, 'DE', 'schufa', 'schufa', 'paid', NOW() - INTERVAL '20 days', NOW() - INTERVAL '21 days')`;
-    const [bh] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${hRef}, ${kH.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -5)}, 'zahlung', 'einkauf') RETURNING id`) as any[];
+                  VALUES (${hRef}, ${`${hRef}-Z`}, ${kH.personId}, ${`it-d-${marke.toLowerCase()}-h@example.invalid`}, 'DE', 'schufa', 'auskunft_firma', 'paid', NOW() - INTERVAL '20 days', NOW() - INTERVAL '21 days')`;
+    const [bh] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${hRef}, ${kH.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -5)}, 'zahlung', 'einkauf') RETURNING id`) as any[];
     await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_name, type, note) VALUES (${hRef}, ${kH.personId}, 'Kunde', 'system', ${"Beschaffungsauftrag ERTEILT über die Bestellseite am 03.10.2026 (Fassung 2026-09-25)"})`;
     const mailVorher = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE person_id = ${kH.personId}`) as any[])[0].n);
     const s2 = await LI.auftragLinksAlleSenden(leitungB);
@@ -1040,8 +1046,8 @@ if (!LOKAL) {
     const kJ = await kunde("J", { auszug: false });
     const jRef = `FIAON-SCHUFA-${marke}-J`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, email, country, type, pack_key, payment_status, paid_at, created_at)
-                  VALUES (${jRef}, ${`${jRef}-Z`}, ${kJ.personId}, ${`it-d-${marke.toLowerCase()}-j@example.invalid`}, 'DE', 'schufa', 'schufa', 'paid', NOW() - INTERVAL '30 days', NOW() - INTERVAL '31 days')`;
-    const [bj] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, status, bearbeiter) VALUES (${jRef}, ${kJ.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -20)}, 'rueckstand', 'datenkopie', 'in_arbeit', 'Prüfstand') RETURNING id`) as any[];
+                  VALUES (${jRef}, ${`${jRef}-Z`}, ${kJ.personId}, ${`it-d-${marke.toLowerCase()}-j@example.invalid`}, 'DE', 'schufa', 'auskunft_firma', 'paid', NOW() - INTERVAL '30 days', NOW() - INTERVAL '31 days')`;
+    const [bj] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, status, bearbeiter) VALUES (${jRef}, ${kJ.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -20)}, 'rueckstand', 'datenkopie', 'in_arbeit', 'Prüfstand') RETURNING id`) as any[];
     await LI.beschaffungBeiEigenemUpload(kJ.personId, "kunde", null);
     const [aj] = await LI.beschaffungListe({ id: Number(bj.id) });
     ok(aj.status === "in_arbeit" && /Datenkopie vom Kunden eingegangen/.test(aj.notiz ?? "") && !/Leistung klären|Erstattung/.test(aj.notiz ?? ""), `Nachprüfung: Datenkopie-Weg — Kunden-Upload ist die Lieferung, kein Klärfall (${aj.status}: ${aj.notiz})`);
@@ -1055,8 +1061,8 @@ if (!LOKAL) {
     const kL = await kunde("L", { auszug: false });
     const lRef = `FIAON-SCHUFA-${marke}-L`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, email, country, type, pack_key, payment_status, paid_at, created_at)
-                  VALUES (${lRef}, ${`${lRef}-Z`}, ${kL.personId}, ${`it-d-${marke.toLowerCase()}-l@example.invalid`}, 'DE', 'schufa', 'schufa', 'paid', NOW() - INTERVAL '12 days', NOW() - INTERVAL '13 days')`;
-    const [bl] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, created_at) VALUES (${lRef}, ${kL.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -10)}, 'rueckstand', 'einkauf', NOW() - INTERVAL '10 days') RETURNING id`) as any[];
+                  VALUES (${lRef}, ${`${lRef}-Z`}, ${kL.personId}, ${`it-d-${marke.toLowerCase()}-l@example.invalid`}, 'DE', 'schufa', 'auskunft_firma', 'paid', NOW() - INTERVAL '12 days', NOW() - INTERVAL '13 days')`;
+    const [bl] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, created_at) VALUES (${lRef}, ${kL.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -10)}, 'rueckstand', 'einkauf', NOW() - INTERVAL '10 days') RETURNING id`) as any[];
     // Ohne E-Mail-Adresse: der Sammelknopf hilft nicht — die Wache stellt eine Einzelaufgabe (anrufen, Adresse klären).
     await sqlPool`UPDATE fiaon_persons SET primary_email = NULL WHERE id = ${kL.personId}`;
     await sqlPool`UPDATE fiaon_applications SET email = NULL WHERE person_id = ${kL.personId}`;
@@ -1096,8 +1102,8 @@ if (!LOKAL) {
     const kS = await kunde("S", { auszug: false });
     const sRef = `FIAON-SCHUFA-${marke}-S`;
     await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, email, country, type, pack_key, payment_status, paid_at, created_at)
-                  VALUES (${sRef}, ${`${sRef}-Z`}, ${kS.personId}, ${`it-d-${marke.toLowerCase()}-s@example.invalid`}, 'DE', 'schufa', 'schufa', 'paid', NOW() - INTERVAL '12 days', NOW() - INTERVAL '13 days')`;
-    const [bs] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, created_at) VALUES (${sRef}, ${kS.personId}, 'DE', 'privat', ${tagPlus(heuteIso, -10)}, 'rueckstand', 'einkauf', NOW() - INTERVAL '10 days') RETURNING id`) as any[];
+                  VALUES (${sRef}, ${`${sRef}-Z`}, ${kS.personId}, ${`it-d-${marke.toLowerCase()}-s@example.invalid`}, 'DE', 'schufa', 'auskunft_firma', 'paid', NOW() - INTERVAL '12 days', NOW() - INTERVAL '13 days')`;
+    const [bs] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus, created_at) VALUES (${sRef}, ${kS.personId}, 'DE', 'firma', ${tagPlus(heuteIso, -10)}, 'rueckstand', 'einkauf', NOW() - INTERVAL '10 days') RETURNING id`) as any[];
     const ws = await LI.beschaffungWache(sqlPool, { heuteIso });
     const [sammelTodo] = (await sqlPool`SELECT status, text FROM fiaon_betreiber_todos WHERE schluessel = ${LI.SAMMEL_LINK_FEHLT_SCHLUESSEL}`) as any[];
     ok(ws.linkFehlt >= 1 && sammelTodo?.status === "offen" && String(sammelTodo.text).includes("Erika TeststegS") && !(await todoStand(LI.wacheSchluessel(Number(bs.id)).link_fehlt)),
@@ -1233,6 +1239,122 @@ if (!LOKAL) {
     const nachher = await zaehlen();
     ok(nachher.fa === vorher.fa && nachher.mails === vorher.mails && nachher.karte === vorher.karte,
       `Nichts gestartet: keine Auswertung, keine Mail, keine Einladung (${JSON.stringify(vorher)} → ${JSON.stringify(nachher)})`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // B8 · E-365 (15.10.2026): Die Bonitätsauswertung als geschlossener Ablauf
+  // ═══════════════════════════════════════════════════════════════════════════
+  abschnitt("B8 · E-365: Kauf → Unterlagen-Link → Aufgabe → Widerruf → inklusive → Arbeitsliste");
+  {
+    const BA = await import("../server/lib/fiaon-bonitaet-ablauf");
+    const AU = await import("../server/lib/fiaon-auskunft");
+    const AUS = await import("../shared/fiaon-auskunft");
+    const AL = await import("../server/lib/fiaon-bonitaet-arbeitsliste");
+    const KK = await import("../server/lib/fiaon-konto-karte");
+    const V = await import("../server/lib/fiaon-versand");
+    await KK.bonitaetBereit(); await KK.ensureKartenTabelle();
+    // Reine Texte: das Produkt ist die Bonitätsauswertung, nichts wird beschafft.
+    const leistung = AUS.auskunftLeistung("privat", "DE").join(" ");
+    ok(/Sicht einer Bank/.test(leistung) && !/Datenkopie|Handlungsplan|fertige Schreiben|fordern/.test(leistung), "Leistung privat: Bonitätsauswertung, keine Datenkopie/Schreiben");
+    ok(/Bonitätsauswertung/.test(AUS.AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT("privat")) && !/beschaffen/.test(AUS.AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT("privat")), "Auftrag privat: Bonitätsauswertung, kein Beschaffen");
+    const { auskunftLeistungszeit } = await import("../shared/fiaon-auskunft-widerruf");
+    ok(/spätestens 30 Tage/.test(auskunftLeistungszeit("privat")) && !/Auskunfteien müssen/.test(auskunftLeistungszeit("privat")), "Leistungszeit privat: Obergrenze ab vollständigen Unterlagen");
+    const { buendelAnzeige } = await import("../shared/fiaon-auskunft-buendel");
+    ok(buendelAnzeige("?auskunft=1") === "aus" && buendelAnzeige("") === "aus", "Antrag: kein 74-€-Zusatz mehr (Bündel aus)");
+    const LT = await import("../shared/fiaon-lead-texte");
+    const wa = LT.WA_VORLAGEN.find((v: any) => v.name === LT.AUSKUNFT_VORLAGE);
+    ok(LT.AUSKUNFT_VORLAGE === "fiaon_kk_auswertung" && !!wa && !/Datenkopie|fertige Schreiben|erklären jeden Eintrag/.test(wa.text) && !/\bKredit(?!karte)/i.test(wa.text),
+      "WhatsApp: neue Vorlage fiaon_kk_auswertung, Text ohne altes Produkt und ohne „Kredit“");
+    const WM = await import("../server/lib/fiaon-whatsapp-mara");
+    ok(WM.istAuskunftAngebot({ vorlage: "fiaon_kkb_auswertung_lead" }) && WM.istAuskunftAngebot({ vorlage: "fiaon_kk_auskunft" }), "WhatsApp: alte und neue Angebotsvorlagen erkannt");
+    const ER = await import("../server/lib/fiaon-auskunft-erinnerung");
+    const tz = { archiviert: false, test: false, status: "pending_payment", mahnstopp: false, paymentReference: "X", mail: "a@b.de", unzustellbar: false, gekuendigt: false, dokument: true, vertriebssperre: false } as any;
+    ok(ER.tuerUrteil(tz).grund === "dokument" && ER.tuerUrteil({ ...tz, dokument: false }).erinnern === true, "Zahlungserinnerung: eigene Datenkopie hält sie weiter an (Altbestellungen)");
+    ok(ER.tuerUrteil({ ...tz, auswertungDa: true }).grund === "auswertung" && ER.tuerUrteil({ ...tz, inklusive: true }).grund === "inklusive", "Zahlungserinnerung: geliefert / inklusive → stornieren?");
+    const VK = await import("../server/lib/fiaon-auskunft-verkauf");
+    ok(VK.standVerkaufbar({ stufe: "dokument", offen: null } as any) === null && VK.standVerkaufbar({ stufe: "inklusive", offen: null } as any) !== null, "Verkauf: Datenkopie in der Akte sperrt nicht, inklusive schon");
+    ok(VK.OHNE_AUSKUNFT_SQL("p.id").includes("fiaon_finanzauswertungen") && !VK.OHNE_AUSKUNFT_SQL("p.id").includes("schufa_pdf IS NOT NULL"), "Verkaufskreis: gelieferte Auswertung und inklusive statt Datenkopie");
+
+    // ── Käufer ohne Paket (149 €), ohne Unterlagen ──────────────────────────
+    const nurPerson = async (n: string) => Number(((await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email, street, zip, city, country)
+      VALUES (${`${marke}-${n}`}, 'Erika', ${`Teststeg${n}`}, ${`it-d-${marke.toLowerCase()}-${n}@example.invalid`}, 'Teststraße 12', '10115', 'Berlin', 'DE') RETURNING id`) as any[])[0].id);
+    const kaufen = async (personId: number, n: string, tageHer = 2) => {
+      const ref = `FIAON-SCHUFA-${marke}-${n}`;
+      await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, first_name, last_name, email, country, type, pack_key, pack_name, payment_status, paid_at, amount_due, created_at)
+        VALUES (${ref}, ${`${ref}-Z`}, ${personId}, 'Erika', ${`Teststeg${n}`}, ${`it-d-${marke.toLowerCase()}-${n}@example.invalid`}, 'DE', 'schufa', 'auskunft_privat',
+                'FIAON-Bonitätsauswertung', 'paid', NOW(), 149, NOW() - ${`${tageHer} days`}::interval)`;
+      return ref;
+    };
+    const pK = await nurPerson("E365K");
+    const refK = await kaufen(pK, "E365K");
+    const l0 = await BA.auswertungLage(pK);
+    ok(l0.stand === "unterlagen_fehlen" && l0.fehlt.includes("ausweis") && l0.fehlt.includes("kontoauszug") && !!l0.kauf, `Lage: bezahlt, Unterlagen fehlen (${l0.stand}, ${l0.fehlt.join("+")})`);
+    const r1 = await LI.lieferungStarten(refK);
+    const [bsK] = (await sqlPool`SELECT id FROM fiaon_auskunft_beschaffung WHERE ref = ${refK}`) as any[];
+    ok(r1.ok && !bsK && r1.vorgaenge.length === 0, `Lieferung privat: kein Beschaffungsauftrag, keine Vorgänge (${r1.text})`);
+    const [anf] = (await sqlPool`SELECT quelle, arten, mail_status, grund FROM fiaon_unterlagen_anfragen WHERE person_id = ${pK} ORDER BY id DESC LIMIT 1`) as any[];
+    // Klicktest 15.10.: Mit Rolle „system“ wies die Rollenregel die Mail ab („Deine Rolle darf … nicht senden“) — nie wieder.
+    ok(anf?.quelle === "auskunft" && anf.mail_status !== "abgelehnt" && !/Rolle/.test(String(anf.grund ?? "")), `Unterlagen-Mail nicht von der Rollenregel abgewiesen (${anf?.mail_status}: ${String(anf?.grund ?? "").slice(0, 80)})`);
+    const [aufgK] = (await sqlPool`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${`bonitaet-unterlagen-fehlen:${refK}`}`) as any[];
+    // Ohne BREVO_API_KEY scheitert der Versand im Prüfstand — dann MUSS die Nachfass-Aufgabe stehen.
+    ok(anf?.quelle === "auskunft" || !!aufgK, `Unterlagen angefordert (quelle auskunft) oder Aufgabe „Unterlagen anfordern“ (${anf?.quelle ?? "—"} / ${aufgK ? "Aufgabe" : "—"})`);
+    const r2 = await LI.lieferungStarten(refK);
+    ok(/lief schon/.test(r2.text), "Zweiter Aufruf: nichts doppelt");
+    const kaufK = await AU.auskunftStand(pK);
+    ok(kaufK.stufe === "bezahlt", "auskunftStand: bezahlt");
+    // Gekündigt (anderes Paket) hält die Bitte um die Unterlagen der BEZAHLTEN Auswertung nicht auf.
+    const vk = await V.versandErlaubt(pK, "documents_change_request");
+    ok(vk.erlaubt, `Unterlagen-Mail für Käufer erlaubt (${vk.grund ?? "ok"})`);
+
+    // ── Unterlagen kommen → Aufgabe ans Team; Widerruf „nicht verlangt“ → Sperre ──
+    const kW = await kunde("E365W");
+    const refW = await kaufen(kW.personId, "E365W", 0);
+    await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_name, type, note) VALUES (${refW}, ${kW.personId}, 'Kunde', 'system', ${`${AU.WIDERRUF_WAHL_NICHT} mit der Bonitätsauswertung erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.`})`;
+    const sp = await BA.auswertungStartSperre(kW.personId);
+    // kunde() legt ein bezahltes Paket an — ohne Einladung ist die Auswertung dann inklusive, die Sperre gilt dort nicht.
+    const inkl = await AU.auskunftStand(kW.personId);
+    ok(inkl.stufe === "bezahlt" && inkl.inklusive === false || sp === null, `Paketkunde mit Kauf: Lage ${inkl.stufe}, Sperre ${sp ? sp.abText : "keine"}`);
+    // Ohne Paket: Sperre greift.
+    const pW2 = await nurPerson("E365V");
+    const refW2 = await kaufen(pW2, "E365V", 0);
+    await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_name, type, note) VALUES (${refW2}, ${pW2}, 'Kunde', 'system', ${`${AU.WIDERRUF_WAHL_NICHT} mit der Bonitätsauswertung erst nach Ablauf der 14-tägigen Widerrufsfrist beginnen.`})`;
+    const sp2 = await BA.auswertungStartSperre(pW2);
+    ok(!!sp2 && /Widerrufsfrist/.test(sp2.satz), `Widerruf nicht verlangt → Start ab ${sp2?.abText}`);
+    const erz = await FL.erzeugen(pW2, betreuer, { einordnung: einordnungStub as any, drucken: druckStub });
+    ok(!erz.ok && /Widerrufsfrist/.test(erz.text), "Erzeugen hält sich an die Widerrufsfrist");
+    const lageAkte = await FL.lage(pW2);
+    ok(!!lageAkte.startSperre && lageAkte.grundlage.art === "bezahlt", "Akte-Karte: Sperre und Grundlage „bezahlt“");
+
+    // ── Inklusive: zahlender Paketkunde, Kartenlink wartet ───────────────────
+    const kI = await kunde("E365I");
+    const stI = await AU.auskunftStand(kI.personId);
+    ok(stI.stufe === "inklusive" && stI.inklusive === true, `Paketkunde ohne Einladung: inklusive (${stI.stufe})`);
+    const bestI = await AU.auskunftBestellen({ personId: kI.personId, quelle: "kundenbereich" });
+    ok(!bestI.ok && /enthalten/.test(String(bestI.fehler)), "Inklusive: es wird nichts bestellt");
+    const aufI = await BA.auswertungStartklarMelden(kI.personId, "Prüfstand");
+    const [tI] = (await sqlPool`SELECT titel FROM fiaon_betreiber_todos WHERE schluessel = ${BA.entwickelnSchluessel(kI.personId)}`) as any[];
+    ok(aufI.angelegt && /inklusive/.test(tI?.titel ?? ""), `Unterlagen da → Aufgabe „Bonitätsauswertung entwickeln (inklusive)“ (${tI?.titel})`);
+    const lI = await BA.auswertungLage(kI.personId);
+    ok(lI.stand === "wird_entwickelt" && lI.inklusive, "Lage inklusive: wird entwickelt");
+
+    // ── Wache: private Beschaffungsaufträge bekommen keine Liegezeit-Aufgabe mehr ──
+    const pB = await nurPerson("E365B");
+    const refB = await kaufen(pB, "E365B", 30);
+    const [bB] = (await sqlPool`INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus) VALUES (${refB}, ${pB}, 'DE', 'privat', ${tagPlus(heuteIso, -20)}, 'rueckstand', 'einkauf') RETURNING id`) as any[];
+    await LI.beschaffungWache(sqlPool, { heuteIso });
+    const kB = LI.wacheSchluessel(Number(bB.id));
+    const [tB] = (await sqlPool`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ANY(${[kB.aufgabe, kB.dringend, kB.anruf, kB.link_fehlt]})`) as any[];
+    ok(!tB, "Wache: privat keine „beschaffen“-Aufgabe mehr");
+    const [aB] = await LI.beschaffungListe({ id: Number(bB.id) });
+    ok(!LI.sammelKandidat(aB).ja, "Sammelknopf: privat kein Kandidat mehr");
+    ok(!(await LI.auftragLinkSenden(Number(bB.id), leitungA)).ok, "Auftragsbestätigung: privat nicht mehr");
+
+    // ── Arbeitsliste: Grundlage und Altkäufer ───────────────────────────────
+    const { liste } = await AL.bonitaetArbeitsliste(sqlPool, { personIds: [pK, kI.personId, pB] });
+    const g = (id: number) => liste.find((x) => x.personId === id)?.grundlage;
+    ok(g(pK) === "bezahlt" && g(kI.personId) === "inklusive", `Arbeitsliste: Grundlage bezahlt / inklusive (${g(pK)}, ${g(kI.personId)})`);
+    const alt = await AL.altkaeuferOhneUnterlagen();
+    ok(alt.some((x) => x.personId === pB) && !alt.some((x) => x.personId === pK), "Altkäufer: ohne Ablauf-Vermerk ja, schon angeschrieben nein");
   }
 
   // ═════════════════════════════════════════════════════════════════════════

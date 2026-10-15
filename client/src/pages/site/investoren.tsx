@@ -26,7 +26,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Hero, Block, Karten, Schritte, Zeilen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import ArasCore from "@/components/home3d/ArasCore";
 import { Team } from "@/components/site/Team";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
@@ -259,7 +260,7 @@ export default function Investoren() {
         <div className="iv-zahlen">
           <Auf><div className="iv-zahl"><b><ZahlHoch bis={100} einheit={de ? " Mio." : "M"} /></b><span>{de ? "Menschen in Deutschland, Österreich und der Schweiz mit einem Eintrag bei SCHUFA, KSV oder CRIF" : "people in Germany, Austria and Switzerland with an entry at SCHUFA, KSV or CRIF"}</span></div></Auf>
           <Auf verzoegerung={80}><div className="iv-zahl"><b><ZahlHoch bis={6} einheit={de ? " Mio." : "M"} /></b><span>{de ? "Personen allein in Deutschland gelten als überschuldet – fast jede Akte enthält angreifbare Einträge" : "people in Germany alone are considered over-indebted — almost every file contains contestable entries"}</span></div></Auf>
-          <Auf verzoegerung={160}><div className="iv-zahl"><b><ZahlHoch bis={3} einheit="" /></b><span>{de ? "Auskunfteien, bei denen FIAON die Auskunft für den Kunden beschafft – mit Vollmacht, ohne Formular" : "credit bureaus FIAON queries on the customer's behalf — with power of attorney, no forms"}</span></div></Auf>
+          <Auf verzoegerung={160}><div className="iv-zahl"><b><ZahlHoch bis={9} einheit="" /></b><span>{de ? "Merkmale einer Kreditprüfung – die FIAON-Bonitätsauswertung liest sie aus den eigenen Kontoauszügen des Kunden" : "criteria a credit check looks at — the FIAON credit assessment reads them from the customer's own bank statements"}</span></div></Auf>
           <Auf verzoegerung={240}><div className="iv-zahl"><b><ZahlHoch bis={12} einheit="" /></b><span>{de ? "Monatsraten je Paket – nach der zwölften entscheidet der Kunde ausdrücklich, ob er bleibt" : "monthly instalments per package — after the twelfth, the customer explicitly decides whether to stay"}</span></div></Auf>
         </div>
       </Block>
@@ -289,8 +290,8 @@ export default function Investoren() {
           <Auf><div className="dk-szene gross"><ArasCore className="absolute inset-0" /></div></Auf>
           <div style={{ display: "grid", gap: 16 }}>
             <Auf><Glas tag={de ? "Schicht 1 · Einsicht" : "Layer 1 · Insight"} titel={de ? "Zuerst Klarheit." : "Clarity first."}>{de
-              ? "Auskunft aus SCHUFA, KSV oder CRIF, Kontoauszug-Analyse durch FIAON, jeder Eintrag erklärt. Ziel: erste Einsicht innerhalb von 24 Stunden."
-              : "Reports from SCHUFA, KSV or CRIF, bank-statement analysis by FIAON, every entry explained in plain language. Target: first insight within 24 hours."}</Glas></Auf>
+              ? "Die FIAON-Bonitätsauswertung aus den eigenen Kontoauszügen – die Sicht einer Bank –, dazu die Datenkopie von SCHUFA, KSV oder CRIF, die der Kunde selbst anfordert und hochlädt: jeder Eintrag erklärt."
+              : "The FIAON credit assessment from the customer's own bank statements — the bank's view — plus the SCHUFA, KSV or CRIF data copy the customer requests and uploads: every entry explained in plain language."}</Glas></Auf>
             <Auf verzoegerung={100}><Glas tag={de ? "Schicht 2 · Aktion — der Burggraben" : "Layer 2 · Action — the moat"} titel={de ? "Dann Bewegung." : "Then movement."}>{de
               ? "Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet, Antwort verfolgt. Jede Antwort macht das System besser."
               : "Deletion requests, corrections, objections, instalment agreements: prepared, legally reviewed, sent with one click, every reply tracked. Each reply makes the system smarter."}</Glas></Auf>
@@ -333,11 +334,11 @@ export default function Investoren() {
                : "The customer pays for insight and action. The partner pays for access. Both hang on the same file — which is why a customer's value grows with every stage."}>
         <Karten items={de ? [
           { tag: "Abo", titel: `Privat ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} im Monat`, text: "Vier Privatpakete — monatlich, zwölf Raten, danach monatlich kündbar und die ausdrückliche Frage, ob der Kunde bleibt. Jede Rate wird vom eigenen Team begleitet." },
-          { tag: "Auskunft", titel: `${euro(SCHUFA_PREIS_EURO * 100)} einmalig`, text: "Die Bonitätsauskunft als Einstieg für Kunden, die zuerst nur wissen wollen, was über sie gespeichert ist. Der erste Schritt in die Akte." },
+          { tag: "Bonitätsauswertung", titel: `${euro(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einmalig`, text: `Die FIAON-Bonitätsauswertung: die Bonität aus Sicht einer Bank, aus den eigenen Kontoauszügen des Kunden. Mit laufendem Paket ${euro(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}, für neue Paketkunden im Paket enthalten. Keine Auskunft einer Auskunftei, kein Score – der erste Schritt in die Akte.` },
           { tag: "Partner", titel: "Provision je Abschluss", text: "Konto und Finanzierung über Partnerbanken. Der Partner bekommt einen Kunden mit dokumentierter, reparierter Bonität – und zahlt dafür." },
         ] : [
           { tag: "Subscription", titel: `Consumer ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} a month`, text: "Four consumer packages — monthly, twelve instalments, cancellable monthly thereafter, followed by the explicit question whether the customer stays. Every instalment is accompanied by our own team." },
-          { tag: "Report", titel: `${euro(SCHUFA_PREIS_EURO * 100)} one-off`, text: "The credit report as the entry point for customers who first simply want to know what is stored about them. The first step into the file." },
+          { tag: "Credit assessment", titel: `${euro(AUSKUNFT_PREISE_CENTS.privat.einzeln)} one-off`, text: `The FIAON credit assessment: creditworthiness as a bank sees it, from the customer's own bank statements. ${euro(AUSKUNFT_PREISE_CENTS.privat.mitAbo)} with a running plan, included for new plan customers. Not a credit bureau report, not a credit score — the first step into the file.` },
           { tag: "Partners", titel: "Commission per completion", text: "Accounts and financing through partner banks. The partner receives a customer with documented, repaired creditworthiness — and pays for exactly that." },
         ]} />
         <div className="dk-raster zwei" style={{ marginTop: 24 }}>
@@ -383,12 +384,12 @@ export default function Investoren() {
                ? "Vier Kennzahlen, die Kundennutzen und Unternehmenswert gleichzeitig abbilden. Die aktuellen Werte liegen im Datenraum und werden monatlich aktualisiert."
                : "Four metrics that capture customer value and enterprise value at the same time. Current values live in the data room and are updated monthly."}>
         <Karten items={de ? [
-          { tag: "Einsicht", titel: "Zeit bis zur ersten Einsicht", text: "Von der Anmeldung bis zur gelesenen Auskunft im Bereich. Ziel: unter 24 Stunden." },
+          { tag: "Einsicht", titel: "Zeit bis zur ersten Einsicht", text: "Von der Anmeldung bis zur freigegebenen Bonitätsauswertung im Bereich." },
           { tag: "Aktion", titel: "Antwortquote auf Schreiben", text: "Anteil der versendeten Löschanträge, Widersprüche und Ratenvorschläge, die eine Antwort erhalten – und wie viele davon positiv." },
           { tag: "Zugang", titel: "Graduation-Rate", text: "Anteil der Kunden, die aus dem Programm in ein Konto oder eine Finanzierung übergehen. Die Zahl, die Partner interessiert." },
           { tag: "Ertrag", titel: "Raten-Einzugsquote", text: "Anteil der fälligen Raten, die pünktlich per Überweisung eingehen – und nach Begleitung durch das eigene Team." },
         ] : [
-          { tag: "Insight", titel: "Time to first insight", text: "From sign-up to the first report read inside the customer area. Target: under 24 hours." },
+          { tag: "Insight", titel: "Time to first insight", text: "From sign-up to the released credit assessment inside the customer area." },
           { tag: "Action", titel: "Reply rate on letters", text: "Share of deletion requests, objections and instalment proposals that receive a reply — and how many of those are positive." },
           { tag: "Access", titel: "Graduation rate", text: "Share of customers who graduate from the programme into an account or financing. The number partners care about." },
           { tag: "Revenue", titel: "Instalment collection rate", text: "Share of due instalments paid on time by bank transfer — and after accompaniment by our own team." },
@@ -398,12 +399,12 @@ export default function Investoren() {
       <Block pille="Roadmap"
              titel={de ? <>Erst ein Land <V>perfekt.</V> Dann die Nachbarn.</> : <>First one country, <V>perfected.</V> Then its neighbours.</>}>
         <Schritte items={de ? [
-          { titel: "Deutschland", text: "SCHUFA-Auskunft, Löschanträge, Ratenvereinbarungen, Konto. Der Kundenweg wird bis ins Detail gemessen und verbessert." },
+          { titel: "Deutschland", text: "Bonitätsauswertung, Löschanträge, Ratenvereinbarungen, Konto. Der Kundenweg wird bis ins Detail gemessen und verbessert." },
           { titel: "Österreich und Schweiz", text: "KSV und CRIF als Auskunfteien, Länder-Erkennung im Antrag, lokale Partnerbanken. Die Plattform ist dafür bereits gebaut." },
           { titel: "Finanzierung", text: "Die dritte Tür: Ratenkredit und Umschuldung über Partner – für Kunden, deren Akte es trägt." },
           { titel: "Europa", text: "Dasselbe Betriebssystem, weitere Auskunfteien. Der Burggraben – geprüfte Schreiben und verfolgte Antworten – reist mit." },
         ] : [
-          { titel: "Germany", text: "SCHUFA reports, deletion requests, instalment agreements, accounts. The customer journey is measured and improved in detail." },
+          { titel: "Germany", text: "Credit assessments, deletion requests, instalment agreements, accounts. The customer journey is measured and improved in detail." },
           { titel: "Austria and Switzerland", text: "KSV and CRIF as bureaus, country detection in the application, local partner banks. The platform is already built for this." },
           { titel: "Financing", text: "The third door: instalment loans and debt restructuring through partners — for customers whose file supports it." },
           { titel: "Europe", text: "The same operating system, additional bureaus. The moat — reviewed letters and tracked replies — travels with it." },
@@ -473,12 +474,12 @@ export default function Investoren() {
 
       <Block eng schmal pille={de ? "Häufige Fragen" : "Frequently asked"}>
         <Fragen items={de ? [
-          { f: "Wie verdient FIAON Geld?", a: "Mit dem Abo des Kunden (7,99 € bis 99,99 € im Monat, zwölf Raten), mit der einmaligen Bonitätsauskunft und mit Provisionen der Partnerbanken, wenn ein Kunde über FIAON ein Konto oder eine Finanzierung erhält." },
+          { f: "Wie verdient FIAON Geld?", a: "Mit dem Abo des Kunden (7,99 € bis 99,99 € im Monat, zwölf Raten), mit der einmaligen FIAON-Bonitätsauswertung und mit Provisionen der Partnerbanken, wenn ein Kunde über FIAON ein Konto oder eine Finanzierung erhält." },
           { f: "Ist FIAON eine Bank?", a: "Nein. FIAON ist kein Kreditinstitut. Über Konto und Finanzierung entscheidet immer die jeweilige Partnerbank. FIAON bereitet den Kunden vor und dokumentiert seine Bonität." },
           { f: "Wo sitzt das Unternehmen?", a: "FIAON LTD, London (Companies House No. 17318250). Die Kunden sitzen in Deutschland, Österreich und der Schweiz; die Plattform läuft auf EU-Servern (Frankfurt), die Zahlungen laufen per Überweisung auf das Geschäftskonto der FIAON LTD." },
           { f: "Was bekomme ich im Datenraum?", a: "Sechs Kapitel: Unternehmen, Finanzen, Produkt und Technik, Recht und Datenschutz, Team und Verträge, Markt. Dazu das Entscheidungsregister und das Logbuch – beides wird seit dem ersten Tag geführt." },
         ] : [
-          { f: "How does FIAON make money?", a: "Through the customer subscription (€7.99 to €99.99 per month, twelve instalments), the one-off credit report, and partner-bank commissions when a customer obtains an account or financing through FIAON." },
+          { f: "How does FIAON make money?", a: "Through the customer subscription (€7.99 to €99.99 per month, twelve instalments), the one-off FIAON credit assessment, and partner-bank commissions when a customer obtains an account or financing through FIAON." },
           { f: "Is FIAON a bank?", a: "No. FIAON is not a credit institution. Accounts and financing are always decided by the respective partner bank. FIAON prepares the customer and documents their creditworthiness." },
           { f: "Where is the company based?", a: "FIAON LTD, London (Companies House No. 17318250). Customers are in Germany, Austria and Switzerland; the platform runs on EU servers (Frankfurt) and payments are made by bank transfer to the business account of FIAON LTD." },
           { f: "What is inside the data room?", a: "Six chapters: company, financials, product and technology, legal and privacy, team and contracts, market. Plus the decision register and the logbook — both kept since day one." },
@@ -487,8 +488,8 @@ export default function Investoren() {
 
       <Abschluss
         titel={de
-          ? <>Jede Zahl beginnt mit einem Menschen, der seine Auskunft <V>zum ersten Mal sieht.</V></>
-          : <>Every number starts with a person seeing their credit report <V>for the very first time.</V></>}
+          ? <>Jede Zahl beginnt mit einem Menschen, der seine Bonität <V>zum ersten Mal sieht.</V></>
+          : <>Every number starts with a person seeing their creditworthiness <V>for the very first time.</V></>}
         text={de
           ? "Das ist der Zusammenhang: Einsicht wird Aktion, Aktion wird Zugang – und Zugang wird Umsatz. Für den Kunden zuerst. Dann für FIAON. Dann für Sie."
           : "That is the chain: insight becomes action, action becomes access — and access becomes revenue. For the customer first. Then for FIAON. Then for you."}

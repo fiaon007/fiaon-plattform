@@ -87,13 +87,32 @@ function zahlen(liste: BeschaffungAuftrag[]) {
  */
 router.get("/chef/auskunft-beschaffung/auswertungen", wache, async (_req: Request, res: Response) => {
   try {
-    const { bonitaetArbeitsliste } = await import("../lib/fiaon-bonitaet-arbeitsliste");
-    const { zahlen, liste } = await bonitaetArbeitsliste();
+    const { bonitaetArbeitsliste, altkaeuferOhneUnterlagen } = await import("../lib/fiaon-bonitaet-arbeitsliste");
+    const [{ zahlen, liste }, alt] = await Promise.all([bonitaetArbeitsliste(), altkaeuferOhneUnterlagen().catch(() => [])]);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, zahlen, liste });
+    // E-365: `altkaeufer` = bezahlt vor dem neuen Ablauf, Unterlagen fehlen, nie um sie gebeten — für den Knopf.
+    res.json({ ok: true, zahlen, liste, altkaeufer: alt.length });
   } catch (err) {
     console.error("[AUSKUNFT-BESCHAFFUNG] auswertungen:", err);
     res.status(500).json({ ok: false, error: "Die Liste ließ sich nicht laden." });
+  }
+});
+
+/**
+ * POST /chef/auskunft-beschaffung/auswertungen/altkaeufer — E-365 (15.10.2026): Käufer vor dem neuen Ablauf einmal um
+ * Ausweis und Kontoauszug bitten (Upload-Link per Mail, danach die Erinnerungen). Nur auf Klick; idempotent je Bestellung
+ * (Ablauf-Vermerk) — ein zweiter Klick schreibt niemanden doppelt an.
+ */
+router.post("/chef/auskunft-beschaffung/auswertungen/altkaeufer", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { altkaeuferAnschreiben, altkaeuferMeldung } = await import("../lib/fiaon-bonitaet-arbeitsliste");
+    const ich = await wer(req);
+    const r = await altkaeuferAnschreiben(ich.name);
+    await chefProtokoll(req, "auskunft-beschaffung:altkaeufer-unterlagen", `${r.gesendet} von ${r.gesamt} Käufern um Ausweis und Kontoauszug gebeten`).catch(() => {});
+    res.json({ ok: true, ...r, meldung: altkaeuferMeldung(r) });
+  } catch (err) {
+    console.error("[AUSKUNFT-BESCHAFFUNG] altkaeufer:", err);
+    res.status(500).json({ ok: false, error: "Das hat nicht geklappt." });
   }
 });
 

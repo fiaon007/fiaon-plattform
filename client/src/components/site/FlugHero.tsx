@@ -49,9 +49,9 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
   const landWaehlen = (l: string) => { setLand(l); try { sessionStorage.setItem("fiaon_land", l); } catch { /* egal */ } };
 
   const MOMENTE = [
-    { ueber: `Bonität in ${LANDNAME[land]} · Auskunft: ${AUSKUNFTEI[land]}`, h: <>Wissen, was <span className="dk-verlauf">über Sie</span> gespeichert ist.</>, satz: "Ihre Auskunft, beschafft und in Menschensprache erklärt – innerhalb von 24 Stunden." },
-    { ueber: "Schicht 2 · Aktion", h: <>Und es <span className="dk-verlauf">ändern.</span></>, satz: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, anwaltlich geprüft, mit einem Klick versendet." },
-    { ueber: "Schicht 3 · Zugang", h: <>Dann die <span className="dk-verlauf">Tür.</span></>, satz: "Girokonto, Kreditkarte bis 25.000 €, Finanzierung. Antrag in rund fünf Minuten, Einsicht in 24 Stunden." },
+    { ueber: `Bonität in ${LANDNAME[land]} · Auskunft: ${AUSKUNFTEI[land]}`, h: <>Wissen, was <span className="dk-verlauf">über Sie</span> gespeichert ist.</>, satz: "Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen, in Menschensprache erklärt." },
+    { ueber: "Schicht 2 · Aktion", h: <>Und es <span className="dk-verlauf">ändern.</span></>, satz: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, Sie geben frei, wir übermitteln." },
+    { ueber: "Schicht 3 · Zugang", h: <>Dann die <span className="dk-verlauf">Tür.</span></>, satz: "Girokonto, Kreditkarte bis 25.000 €, Finanzierung. Antrag in rund fünf Minuten." },
   ];
 
   // Video: stumm, in Schleife, nur sichtbar laufen lassen

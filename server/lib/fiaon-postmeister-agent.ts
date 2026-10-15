@@ -34,6 +34,7 @@ import {
 } from "@shared/fiaon-postmeister-typen";
 import {
   AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_PREISE_CENTS, euroText, auskunfteienText,
+  AUSWERTUNG_NAME, AUSWERTUNG_UNTERZEILE, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_KEINE_AUSKUNFT_SATZ, AUSWERTUNG_INKLUSIVE_SATZ,
 } from "@shared/fiaon-auskunft";
 import {
   werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, auskunftBetreuerMelden, akteRef,
@@ -578,7 +579,7 @@ export async function einordnen(mail: { betreff: string; text: string; von: stri
   const system = [
     "Du ordnest eingehende Kundenmails eines deutschen Dienstleisters ein. Du antwortest NICHT, du beschreibst nur.",
     "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, auskunft, sonstiges.",
-    "auskunft = der Kunde spricht über seine Bonitätsauskunft (SCHUFA, KSV, CRIF, Datenkopie): hat keine, will eine, weiß nicht, wie er an eine kommt, fragt nach Preis, Lieferung oder Inhalt.",
+    "auskunft = der Kunde spricht über seine Bonitätsauskunft oder seine FIAON-Bonitätsauswertung (SCHUFA, KSV, CRIF, Datenkopie, Auswertung): hat keine, will eine, weiß nicht, wie er an eine kommt, fragt nach Preis, Lieferung oder Inhalt.",
     "Flag auskunft_fehlt = true, wenn der Kunde sagt, er habe keine Bonitätsauskunft/SCHUFA/Datenkopie oder wisse nicht, wie er an eine kommt — auch knapp als Antwort auf unsere Bitte um die Auskunft („Ich hab keine.“, „nicht vorhanden“). „Keine Einträge“ oder „keine Schulden“ ist NICHT gemeint.",
     "werbung_newsletter = Newsletter, Angebote, Rundschreiben von Firmen an uns. spam = unerbetene Kaltakquise an uns (SEO, Webdesign, Leads, Krypto, Kreditangebote, Massenmails), Phishing, wirre Texte ohne Bezug zu uns. Beides ist KEIN Kunde und bekommt genau eine Kategorie. Ein Mensch, der über sein Anliegen bei FIAON schreibt — auch wütend, auch knapp, auch in schlechtem Deutsch — ist NIE werbung_newsletter oder spam.",
     "fragen: jede Frage des Kunden als eigener kurzer Satz, in seinen Worten. Keine Frage erfinden.",
@@ -686,39 +687,66 @@ function sprachName(code: string): string {
 // Wortwand und gegen auskunftPruefung (.pruef/pruef-postmeister-auskunft.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 export const AUSKUNFT_MUSTER_KUNDE = "Ich hab keine.";
+// E-365 (14.10.2026): Privat verkauft FIAON die FIAON-Bonitätsauswertung aus Ausweis und Kontoauszügen — keine
+// Datenkopie, keine Beschaffung, keine Schreiben. Das Muster nennt keine Auskunftei (gilt so auch in AT und CH).
 export const AUSKUNFT_MUSTER_ANTWORT = [
-  "Das ist gar kein Problem, Frau Beispiel — genau das übernehmen wir für Sie. Wir fordern Ihre Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum an, Sie müssen keinen Brief schreiben.",
+  "Das ist gar kein Problem, Frau Beispiel — dafür brauchen Sie keine Auskunft einer Auskunftei. Mit der FIAON-Bonitätsauswertung sehen Sie Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen.",
   "",
-  "Danach erklären wir Ihnen jeden Eintrag in klaren Worten und prüfen, ob Speicherfristen abgelaufen sind. Dazu kommen Ihr persönlicher Handlungsplan und fertige Schreiben, die Sie nur noch freigeben. Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zur Karte genau danach aus.",
+  "Wir werten jede Einnahme und jede Ausgabe aus, nach Empfänger und Monat für Monat — mit Haushaltsrechnung, Ampel für sieben Bereiche, Ihrem FIAON-Finanzwert und Ihrem Plan für die nächsten zwölf Monate. Ein Mensch aus Ihrem FIAON-Team prüft den Bericht und gibt ihn frei. Dafür brauchen wir nur Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate; den Link zum Hochladen bekommen Sie nach der Bestellung.",
   "",
-  "Mit Ihrem Paket gilt für Sie der Kundenpreis von 74 € (einzeln 149 €). Ein Klick auf den Knopf unten genügt: Dort bestätigen Sie den Auftrag und sehen gleich danach Betrag, Bankdaten und Verwendungszweck.",
+  "Mit Ihrem Paket gilt für Sie der Kundenpreis von 74 € (einzeln 149 €), einmalig und ohne Abo. Ein Klick auf den Knopf unten genügt: Dort bestätigen Sie den Auftrag und sehen gleich danach Betrag, Bankdaten und Verwendungszweck.",
   "",
   "Offen ist außerdem noch Ihre Rate 3 über 7,99 € mit dem Verwendungszweck FIAON-AB12CD-3; die Rechnung dazu hängt an. Ich freue mich auf Ihre Rückmeldung.",
 ].join("\n");
+
+/** E-365: Was Mara privat über die Leistung sagt — in jedem Verkaufsblock derselbe Wortlaut. */
+const AUSWERTUNG_LEISTUNG_SATZ = "seine Bonität aus Sicht einer Bank — Haushaltsrechnung und die neun Merkmale, die eine Bank bei ihrer Prüfung ansieht, jede Einnahme und Ausgabe nach Empfänger und Monat, Ampel für sieben Bereiche, sein FIAON-Finanzwert, sein Potenzial und sein Plan; rund 25 Seiten, von seinem FIAON-Team aus seinen eigenen Kontoauszügen erstellt, von einem Menschen geprüft und freigegeben, als PDF per E-Mail und in seinem Bereich";
+
+/** E-365: Was das frühere Privatprodukt war — Mara schreibt es nie mehr. */
+const AUSWERTUNG_NIE_MEHR = `DAS PRODUKT IST NEU (14.10.2026): Privat fordert FIAON KEINE Datenkopien bei Auskunfteien mehr an, beschafft nichts und liefert keinen Handlungsplan mit fertigen Schreiben — das schreibst du nie. Sagt der Kunde „Bonitätsauskunft" oder „SCHUFA-Auskunft", antwortest du mit der ${AUSWERTUNG_NAME}. Ehrlich, wenn er nach SCHUFA, Score oder Datenkopie fragt: „${AUSWERTUNG_KEINE_AUSKUNFT_SATZ}"`;
 
 /**
  * Der Prompt-Block zur Auskunft — je nach Lage ganz, knapp oder gar nicht.
  * `antwort` (E-241): Die Mail antwortet auf das Angebot („angebot") oder der
  * Kunde fragt selbst („frage") — nur dann verkauft Mara sie auch einem offenen
  * Antrag oder einem Lead.
+ * E-365: Privat ist das Produkt die FIAON-Bonitätsauswertung; neu die Stufen „auswertung" (liegt vor) und
+ * „inklusive" (zahlender Paketkunde, dessen Kartenlink auf die Bonität wartet — nie verkaufen). „dokument"
+ * (eigene Datenkopie in der Akte) hält privat keinen Verkauf mehr auf: Die Auswertung ist ein anderes Produkt.
  */
-export function auskunftBlock(lage: Kundenlage, akteAuskunft?: { stufe?: string; land?: string } | null, antwort: AuskunftAntwort = null, opt: { werbesperre?: boolean } = {}): string {
+export function auskunftBlock(lage: Kundenlage, akteAuskunft?: { stufe?: string; land?: string; art?: string } | null, antwort: AuskunftAntwort = null, opt: { werbesperre?: boolean } = {}): string {
+  const st = String(akteAuskunft?.stufe ?? "");
+  const firmaArt = akteAuskunft?.art === "firma";
+  // E-365: Inklusive und „liegt vor" sind Service, kein Angebot — sie gelten auch bei Werbesperre; nur nicht, wenn die
+  // Akte womöglich nicht ihm gehört oder er bestreitet bzw. gekündigt hat.
+  const dienst = !["fremd", "unklar", "bestreitet", "gekuendigt"].includes(lage);
+  if (dienst && !firmaArt && st === "inklusive") {
+    return `DIE ${AUSWERTUNG_NAME.toUpperCase()} IST IN SEINEM PAKET ENTHALTEN — sein Link der Partnerbank für den Kartenantrag wartet auf sie. Du verkaufst sie NIE: keinen Preis, keinen Kauflink. Schreibt er über Auskunft, SCHUFA, Bonität, Karte oder Link (oder sagt, er habe keine Auskunft), sag ihm sinngemäß: „${AUSWERTUNG_INKLUSIVE_SATZ}" — Ausweis und Kontoauszüge der letzten drei Monate lädt er in seinem Bereich unter fiaon.com/app/unterlagen hoch; ist das geschehen, entwickelt sein FIAON-Team die Auswertung, und danach kommt der Link der Partnerbank. Rufst du auskunft_anbieten, gibt es dir genau diesen Stand zurück (verkaufen: false). Eine SCHUFA-Auskunft braucht er dafür nicht.`;
+  }
+  if (dienst && !firmaArt && st === "auswertung") {
+    return `SEINE ${AUSWERTUNG_NAME.toUpperCase()} LIEGT VOR (geprüft und freigegeben) — du verkaufst NICHTS. Fragt er danach oder schreibt, er habe keine, sag ihm freundlich, dass sie als PDF per E-Mail kam und jederzeit in seinem Bereich unter fiaon.com/app/auswertung liegt, und dass seine Ansprechperson sie gern mit ihm durchgeht.`;
+  }
   // E-275 (02.10.2026): Werbesperre beim zahlenden Kunden — sein Service läuft, verkauft wird ihm nichts.
   if (opt.werbesperre) {
-    return "DIE BONITÄTSAUSKUNFT bietest du diesem Kunden NICHT an (Werbesperre — kein Upsell, kein Preis, kein Knopf). Fragt er selbst danach, antworte sachlich mit dem Hauswissen.";
+    return `DIE ${AUSWERTUNG_NAME.toUpperCase()} (früher Bonitätsauskunft) bietest du diesem Kunden NICHT an (Werbesperre — kein Upsell, kein Preis, kein Knopf). Fragt er selbst danach, antworte sachlich mit dem Hauswissen.`;
   }
   if (lage === "gesperrt" || lage === "fremd" || lage === "unklar" || lage === "bestreitet" || lage === "gekuendigt") {
-    return "DIE BONITÄTSAUSKUNFT bietest du diesem Kunden NICHT an. Fragt er selbst danach, antworte sachlich mit dem Hauswissen — ohne Angebot, ohne Knopf.";
+    return `DIE ${AUSWERTUNG_NAME.toUpperCase()} (früher Bonitätsauskunft) bietest du diesem Kunden NICHT an. Fragt er selbst danach, antworte sachlich mit dem Hauswissen — ohne Angebot, ohne Knopf.`;
   }
   if (!auskunftLageErlaubt(lage, !!antwort)) {
     // E-241: Ein Lead ohne Frage nach der Auskunft — sein Ziel ist der Antrag, nichts sonst.
     if (lage === "interessent") {
-      return "DIE BONITÄTSAUSKUNFT sprichst du bei diesem Interessenten nicht von dir aus an — sein Ziel ist der Antrag. Kein Wort zu Auskunft, SCHUFA-Datenkopie oder Kontoauszügen, nach dem er nicht gefragt hat.";
+      return `DIE ${AUSWERTUNG_NAME.toUpperCase()} sprichst du bei diesem Interessenten nicht von dir aus an — sein Ziel ist der Antrag. Kein Wort zu Auskunft, Bonitätsauswertung, SCHUFA-Datenkopie oder Kontoauszügen, nach dem er nicht gefragt hat.`;
     }
-    return "DIE BONITÄTSAUSKUNFT: In dieser Lage (erste Zahlung fehlt noch) bietest du sie nicht mit Knopf an — das Ziel dieser Mail ist die offene Zahlung. Fragt er danach, sag in einem Satz, dass FIAON sie ihm nach der ersten Zahlung zum Kundenpreis besorgt. Die kostenlose Datenkopie nur, wenn er danach fragt.";
+    return `DIE ${AUSWERTUNG_NAME.toUpperCase()}: In dieser Lage (erste Zahlung fehlt noch) bietest du sie nicht mit Knopf an — das Ziel dieser Mail ist die offene Zahlung. Fragt er danach, sag in einem Satz, dass nach der ersten Zahlung seine Bonitätsauswertung der nächste Schritt ist (er lädt dafür Ausweis und Kontoauszüge hoch) — einen Preis dafür nennst du nicht. Die kostenlose Datenkopie nur, wenn er danach fragt.`;
   }
-  if (akteAuskunft?.stufe === "bezahlt" || akteAuskunft?.stufe === "dokument") {
-    return `DIE BONITÄTSAUSKUNFT ${akteAuskunft.stufe === "bezahlt" ? "hat dieser Kunde schon bezahlt" : "liegt für diesen Kunden schon in der Akte"} — du verkaufst sie NICHT noch einmal. Fragt er danach oder schreibt, er habe keine, sag ihm freundlich, wo sie steht, und dass sein Betreuer die Auswertung mit ihm durchgeht.`;
+  if (st === "bezahlt") {
+    return firmaArt
+      ? "DIE FIRMEN-BONITÄTSAUSKUNFT hat dieser Kunde schon bezahlt — du verkaufst sie NICHT noch einmal. Fragt er danach oder schreibt, er habe keine, sag ihm freundlich, dass FIAON sie für ihn einholt und sein Betreuer die Auswertung mit ihm durchgeht."
+      : `SEINE ${AUSWERTUNG_NAME.toUpperCase()} IST BEZAHLT — du verkaufst sie NICHT noch einmal. Fragt er danach oder schreibt, er habe keine, sag ihm: Wir entwickeln seine Bonitätsauswertung; dafür brauchen wir seinen Ausweis und seine Kontoauszüge der letzten drei Monate — den Link zum Hochladen hat er per E-Mail bekommen, sonst lädt er sie in seinem Bereich unter fiaon.com/app/unterlagen hoch. Ist sie freigegeben, kommt sie als PDF per E-Mail und liegt unter fiaon.com/app/auswertung.`;
+  }
+  if (st === "dokument" && firmaArt) {
+    return "DIE FIRMEN-BONITÄTSAUSKUNFT liegt für diesen Kunden schon in der Akte — du verkaufst sie NICHT noch einmal. Fragt er danach, sag ihm freundlich, wo sie steht, und dass sein Betreuer die Auswertung mit ihm durchgeht.";
   }
   // ── E-241: OFFENER ANTRAG ODER LEAD, DER ANTWORTET ODER FRAGT ─────────────
   if (AUSKUNFT_ANTWORT_LAGEN.includes(lage)) return auskunftBlockAntwort(lage, akteAuskunft, antwort);
@@ -726,27 +754,26 @@ export function auskunftBlock(lage: Kundenlage, akteAuskunft?: { stufe?: string;
   // die Bestätigungsseite lässt dann nicht beauftragen (angebotLage, fiaon-auskunft-kauf.ts).
   // Nur eine schon offene Auskunft-Bestellung bekommt ihren Zahlungsweg; sonst gilt
   // dasselbe wie bei „unbezahlt", und der Betreuer erfährt es über die Aufgabe.
-  if (lage === "zahlung_gemeldet" && akteAuskunft?.stufe !== "offen") {
-    return "DIE BONITÄTSAUSKUNFT: Die erste Zahlung dieses Kunden ist gemeldet, aber noch nicht gebucht — du bietest die Auskunft jetzt nicht mit Knopf an. Schreibt er, er habe keine, oder fragt danach, sag in einem Satz, dass FIAON sie für ihn holt, sobald die erste Zahlung gebucht ist, und dass sich sein Betreuer dazu meldet. Die kostenlose Datenkopie nur, wenn er danach fragt.";
+  if (lage === "zahlung_gemeldet" && st !== "offen") {
+    return `DIE ${AUSWERTUNG_NAME.toUpperCase()}: Die erste Zahlung dieses Kunden ist gemeldet, aber noch nicht gebucht — du bietest sie jetzt nicht mit Knopf an. Schreibt er, er habe keine Auskunft, oder fragt danach, sag in einem Satz, dass nach der Buchung seine Bonitätsauswertung der nächste Schritt ist (Ausweis und Kontoauszüge hochladen) und dass sich sein Betreuer dazu meldet. Einen Preis nennst du nicht. Die kostenlose Datenkopie nur, wenn er danach fragt.`;
   }
   const p = AUSKUNFT_PREISE_CENTS.privat;
-  const stand = akteAuskunft?.stufe ? ` Stand dieses Kunden (Akte, Feld auskunft): „${akteAuskunft.stufe}".` : "";
+  const stand = st ? ` Stand dieses Kunden (Akte, Feld auskunft): „${st}".` : "";
   const landRoh = String(akteAuskunft?.land ?? "");
   const land: "AT" | "CH" | null = landRoh === "AT" || landRoh === "CH" ? landRoh : null;
   return [
-    `DIE BONITÄTSAUSKUNFT VERKAUFST DU. Sie ist ein eigenes Produkt, NICHT im Paket enthalten: ${euroText(p.mitAbo)} für Kunden mit laufendem Paket, ${euroText(p.einzeln)} einzeln. Für Firmenkunden gelten andere Preise. Den Preis für DIESEN Kunden nennt dir auskunft_anbieten (Feld betragText) — nie aus dem Kopf.${stand}`,
-    `WANN: Schreibt der Kunde über Auskunft, SCHUFA, KSV, Datenkopie, Bonität, Einträge, Rahmen oder Karte — sagt er, er habe keine Auskunft (auch knapp: „Ich hab keine.", „nicht vorhanden") — oder zeigt die Akte unter auskunft die Stufe „nichts" und er hat ein gewöhnliches Anliegen: Rufe auskunft_anbieten, BEVOR du schreibst. Liefert es einen Knopf (Feld knopf), ist die Auskunft das Ziel dieser Mail, und der Knopf unten führt dorthin (Schritt auskunft). Das Werkzeug bestellt nichts — beauftragen tut der Kunde selbst auf der Seite hinter dem Knopf. Bei Kündigung, Beschwerde, Bestreiten, „Stopp" oder „kann nicht zahlen" verkaufst du nichts.`,
-    `WIE: begeistert, konkret, kurz. (1) Nimm seine Lage auf („Das ist gar kein Problem — genau das übernehmen wir für Sie."). (2) Was er bekommt, aus dem Feld leistung: Wir fordern seine Datenkopien bei den Auskunfteien seines Landes an (Feld auskunfteien, mit seiner Vollmacht — er muss keinen Brief schreiben), erklären jeden Eintrag, prüfen die Speicherfristen, liefern den persönlichen Handlungsplan und fertige Schreiben, die er nur freigibt. (3) Sein Ziel: „${AUSKUNFT_NUTZEN_SATZ_KARTE}" — nie eine Zusage zu Karte, Rahmen oder Löschung. (4) Preis (betragText; mit Paket beide Preise nebeneinander, nie „statt") und der Weg aus dem Feld weg: Ist noch nichts beauftragt, bestätigt er hinter dem Knopf den Auftrag und sieht danach Betrag, Bankdaten und Verwendungszweck — schreib dann nie, er habe schon bestellt oder eine Rechnung sei offen. Ist die Auskunft schon beauftragt (stufe offen), führt der Knopf direkt zur Zahlungsseite; dann nennst du Betrag und Verwendungszweck.`,
-    `DAS WORT: Nenne die Auskunft so wie das Werkzeug (Feld wort).${land ? ` Dieser Kunde lebt in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort gibt es keine SCHUFA: Das Wort „SCHUFA" schreibst du nicht, die Auskunfteien heißen ${auskunfteienText(land)}.` : ` In Österreich und der Schweiz schreibst du nie „SCHUFA".`}`,
+    `DIE ${AUSWERTUNG_NAME.toUpperCase()} VERKAUFST DU. „${AUSWERTUNG_UNTERZEILE}" Sie ist ein eigenes Produkt: ${euroText(p.mitAbo)} für Kunden mit laufendem Paket, ${euroText(p.einzeln)} einzeln, einmalig, kein Abo. Für ein Unternehmen (Akte, Feld art „firma") gilt stattdessen die Firmen-Bonitätsauskunft mit eigenen Preisen und eigener Leistung (Feld leistung). Den Preis für DIESEN Kunden nennt dir auskunft_anbieten (Feld betragText) — nie aus dem Kopf.${stand}${st === "dokument" ? " Er hat selbst eine Datenkopie hochgeladen — die Bonitätsauswertung ist ein anderes Produkt; du darfst sie anbieten, und seine Datenkopie beziehen wir ein." : ""}`,
+    AUSWERTUNG_NIE_MEHR,
+    `WANN: Schreibt der Kunde über Auskunft, SCHUFA, KSV, Datenkopie, Bonität, Einträge, Rahmen oder Karte — sagt er, er habe keine Auskunft (auch knapp: „Ich hab keine.", „nicht vorhanden") — oder zeigt die Akte unter auskunft die Stufe „nichts" bzw. „dokument" und er hat ein gewöhnliches Anliegen: Rufe auskunft_anbieten, BEVOR du schreibst. Liefert es einen Knopf (Feld knopf), ist die Bonitätsauswertung das Ziel dieser Mail, und der Knopf unten führt dorthin (Schritt auskunft). Das Werkzeug bestellt nichts — beauftragen tut der Kunde selbst auf der Seite hinter dem Knopf. Bei Kündigung, Beschwerde, Bestreiten, „Stopp" oder „kann nicht zahlen" verkaufst du nichts.`,
+    `WIE: begeistert, konkret, kurz. (1) Nimm seine Lage auf („Das ist gar kein Problem — dafür brauchen Sie keine Auskunft einer Auskunftei."). (2) Was er bekommt, aus dem Feld leistung: ${AUSWERTUNG_LEISTUNG_SATZ}. (3) Was er dafür tut: „${AUSWERTUNG_UNTERLAGEN_SATZ}" (4) Sein Ziel: „${AUSKUNFT_NUTZEN_SATZ_KARTE}" — nie eine Zusage zu Karte oder Rahmen. (5) Preis (betragText; mit Paket beide Preise nebeneinander, nie „statt") und der Weg aus dem Feld weg: Ist noch nichts beauftragt, bestätigt er hinter dem Knopf den Auftrag und sieht danach Betrag, Bankdaten und Verwendungszweck — schreib dann nie, er habe schon bestellt oder eine Rechnung sei offen. Ist sie schon beauftragt (stufe offen), führt der Knopf direkt zur Zahlungsseite; dann nennst du Betrag und Verwendungszweck und erinnerst freundlich an die Zahlung.`,
+    `DAS WORT: Nenne das Produkt so wie das Werkzeug (Feld wort) — privat „${AUSWERTUNG_NAME}".${land ? ` Dieser Kunde lebt in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort gibt es keine SCHUFA: Das Wort „SCHUFA" schreibst du nicht.` : ` In Österreich und der Schweiz schreibst du nie „SCHUFA".`}`,
     `DIE KOSTENLOSE DATENKOPIE erwähnst du nicht von dir aus — und verschweigst sie nie, wenn er fragt („Kann ich die nicht kostenlos selbst anfordern?"). Dann ehrlich, sinngemäß: „${AUSKUNFT_KOSTENLOS_ANTWORT}" — und danach der Knopf.`,
-    `VERBOTEN: „fordern Sie sie in Ihrem Bereich an", „Sie können sie selbst anfordern", eine Anleitung zum Selbst-Anfordern als Hauptweg; Löschzusagen, „Score verbessern", Fristen mit Zahl, „anwaltlich geprüft".`,
-    `IST SCHON ETWAS DA: Meldet auskunft_anbieten verkaufen: false (bezahlt, Zahlung gemeldet oder in der Akte), verkaufst du nichts — sag ihm, wo seine Auskunft steht und dass sein Betreuer die Auswertung mit ihm durchgeht.`,
-    `IST EINE RATE OFFEN: Die offene Rate bleibt in DERSELBEN Mail, in EINEM Satz mit Nummer, Betrag und Verwendungszweck aus zahlungslink_bauen — die Rechnung dazu hängt an. Der Knopf unten gehört dann der Auskunft.`,
+    `VERBOTEN: „fordern Sie sie in Ihrem Bereich an", „Sie können sie selbst anfordern", eine Anleitung zum Selbst-Anfordern als Hauptweg; „wir fordern Ihre Datenkopien an", „Handlungsplan", „fertige Schreiben" (privat); Löschzusagen, „Score verbessern", Fristen mit Zahl, „anwaltlich geprüft".`,
+    `IST SCHON ETWAS DA: Meldet auskunft_anbieten verkaufen: false, verkaufst du nichts und übernimmst den Stand aus dem Ergebnis — bezahlt: wir entwickeln seine Bonitätsauswertung, dafür brauchen wir Ausweis und Kontoauszüge (Link per E-Mail, sonst fiaon.com/app/unterlagen); im Paket enthalten: „${AUSWERTUNG_INKLUSIVE_SATZ}"; liegt vor: fiaon.com/app/auswertung.`,
+    `IST EINE RATE OFFEN: Die offene Rate bleibt in DERSELBEN Mail, in EINEM Satz mit Nummer, Betrag und Verwendungszweck aus zahlungslink_bauen — die Rechnung dazu hängt an. Der Knopf unten gehört dann der Bonitätsauswertung.`,
     `DER BETREUER erfährt vom Angebot automatisch (auskunft_anbieten legt ihm die Aufgabe an) — dafür keine eigene Aufgabe und keine Notiz.`,
     `MUSTER (Beispielwerte; Name, Preis, Rate und Verwendungszweck kommen bei dir aus Akte und Werkzeugen). Die Kundin antwortet auf unsere Bitte um die Auskunft nur: „${AUSKUNFT_MUSTER_KUNDE}" — Rate 3 ist offen. Deine Antwort:`,
-    // Gegenlesen E-240: Für Österreich/Schweiz das Muster mit den Auskunfteien des
-    // Landes — sonst schreibt das Modell das deutsche Muster samt „SCHUFA" ab.
-    land ? AUSKUNFT_MUSTER_ANTWORT.replace(auskunfteienText("DE"), auskunfteienText(land)) : AUSKUNFT_MUSTER_ANTWORT,
+    AUSKUNFT_MUSTER_ANTWORT,
   ].join("\n");
 }
 
@@ -756,28 +783,29 @@ export function auskunftBlock(lage: Kundenlage, akteAuskunft?: { stufe?: string;
  * Dieselben Wortregeln wie für zahlende Kunden. Anders: der Einzelpreis, die
  * Auskunft ist keine Voraussetzung für Antrag oder Karte, und bei „unbezahlt"
  * bleibt die offene erste Zahlung EIN Satz in derselben Mail (Justin: die
- * Auskunft ist dann das Ziel).
+ * Auskunft ist dann das Ziel). E-365: privat die FIAON-Bonitätsauswertung.
  */
 function auskunftBlockAntwort(lage: Kundenlage, akteAuskunft: { stufe?: string; land?: string } | null | undefined, antwort: AuskunftAntwort): string {
   // 25.09.2026 (E-241): Antrag und Lead lesen den Nutzen ohne „Limit" (AUSKUNFT_NUTZEN_SATZ_KARTE, VERBOTENE_WORTE).
   const landRoh = String(akteAuskunft?.land ?? "");
   const land: "AT" | "CH" | null = landRoh === "AT" || landRoh === "CH" ? landRoh : null;
   const stand = akteAuskunft?.stufe ? ` Stand dieses Kunden (Akte, Feld auskunft): „${akteAuskunft.stufe}".` : "";
-  const warum = antwort === "angebot" ? "Er antwortet auf unser Angebot der Bonitätsauskunft" : "Er fragt selbst nach seiner Bonitätsauskunft";
+  const warum = antwort === "angebot" ? "Er antwortet auf unser Angebot der Bonitätsauswertung" : "Er fragt selbst nach seiner Bonität bzw. Auskunft";
   const wer = lage === "unbezahlt" ? "Sein Antrag liegt vor, die erste Zahlung für sein Paket ist noch offen" : "Er hat noch keinen Antrag";
   return [
     // Gegenlesen E-241: nicht fest „149 €" — ein Business-Antrag bekommt die Firmen-Auskunft (wie im Angebot des Takts).
-    `DIE BONITÄTSAUSKUNFT VERKAUFST DU IHM JETZT. ${warum} — sie ist seine Frage, keine Hürde. ${wer}; für ihn gilt deshalb der Einzelpreis, nicht der Kundenpreis mit Paket (${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} privat, ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)} für ein Unternehmen). Welcher Betrag für ihn gilt, nennt dir auskunft_anbieten (Feld betragText) — nie aus dem Kopf, und keinen anderen.${stand}`,
-    `WANN: Rufe auskunft_anbieten, BEVOR du schreibst (steht es oben als VORAB GEHOLT, ist es schon gelaufen). Liefert es einen Knopf (Feld knopf), ist die Auskunft das Ziel dieser Mail, und der Knopf unten führt dorthin (Schritt auskunft). Das Werkzeug bestellt nichts — beauftragen tut er selbst auf der Seite hinter dem Knopf.`,
-    `WIE: begeistert, konkret, kurz. (1) Nimm seine Antwort auf („Sehr gern — genau das übernehmen wir für Sie."). (2) Was er bekommt, aus dem Feld leistung: Wir fordern seine Datenkopien bei den Auskunfteien seines Landes an (Feld auskunfteien, mit seiner Vollmacht — er muss keinen Brief schreiben), erklären jeden Eintrag, prüfen die Speicherfristen, liefern den persönlichen Handlungsplan und fertige Schreiben, die er nur freigibt. (3) Sein Ziel: „${AUSKUNFT_NUTZEN_SATZ_KARTE}" — nie eine Zusage zu Karte, Rahmen oder Löschung. (4) Preis (betragText, einmalig, kein Abo) und der Weg aus dem Feld weg: Hinter dem Knopf bestätigt er den Auftrag und sieht danach Betrag, Bankdaten und Verwendungszweck — schreib nie, er habe schon bestellt.`,
-    `KEINE HÜRDE: Die Auskunft ist ein eigener Auftrag und KEINE Voraussetzung für ${lage === "unbezahlt" ? "sein Paket" : "einen Antrag"} oder die Karte — das stellst du nie anders dar. Kontoauszüge, Ausweis und weitere Unterlagen erwähnst du nicht.`,
+    `DIE ${AUSWERTUNG_NAME.toUpperCase()} VERKAUFST DU IHM JETZT. ${warum} — sie ist seine Frage, keine Hürde. „${AUSWERTUNG_UNTERZEILE}" ${wer}; für ihn gilt deshalb der Einzelpreis, nicht der Kundenpreis mit Paket (${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} privat; für ein Unternehmen die Firmen-Bonitätsauskunft zu ${euroText(AUSKUNFT_PREISE_CENTS.firma.einzeln)}). Welcher Betrag für ihn gilt, nennt dir auskunft_anbieten (Feld betragText) — nie aus dem Kopf, und keinen anderen.${stand}`,
+    AUSWERTUNG_NIE_MEHR,
+    `WANN: Rufe auskunft_anbieten, BEVOR du schreibst (steht es oben als VORAB GEHOLT, ist es schon gelaufen). Liefert es einen Knopf (Feld knopf), ist die Bonitätsauswertung das Ziel dieser Mail, und der Knopf unten führt dorthin (Schritt auskunft). Das Werkzeug bestellt nichts — beauftragen tut er selbst auf der Seite hinter dem Knopf.`,
+    `WIE: begeistert, konkret, kurz. (1) Nimm seine Antwort auf („Sehr gern — genau dafür gibt es die ${AUSWERTUNG_NAME}."). (2) Was er bekommt, aus dem Feld leistung: ${AUSWERTUNG_LEISTUNG_SATZ}. (3) Was er dafür tut: „${AUSWERTUNG_UNTERLAGEN_SATZ}" (4) Sein Ziel: „${AUSKUNFT_NUTZEN_SATZ_KARTE}" — nie eine Zusage zu Karte oder Rahmen. (5) Preis (betragText, einmalig, kein Abo) und der Weg aus dem Feld weg: Hinter dem Knopf bestätigt er den Auftrag und sieht danach Betrag, Bankdaten und Verwendungszweck — schreib nie, er habe schon bestellt.`,
+    `KEINE HÜRDE: Die Bonitätsauswertung ist ein eigener Auftrag und KEINE Voraussetzung für ${lage === "unbezahlt" ? "sein Paket" : "einen Antrag"} — das stellst du nie anders dar. Ausweis und Kontoauszüge nennst du nur als das, was er NACH der Bestellung für die Auswertung hochlädt; weitere Unterlagen erwähnst du nicht.`,
     lage === "unbezahlt"
-      ? `SEIN PAKET IST NOCH NICHT BEZAHLT: Die erste Zahlung nennst du in EINEM Satz mit Betrag und Verwendungszweck aus zahlungslink_bauen (mit ihr wird sein Account aktiv) — die Rechnung dazu hängt an. Der Knopf unten gehört der Auskunft. Kein zweiter Knopf.`
-      : `SEIN ANTRAG liegt für ihn vorbereitet bereit — erwähne ihn höchstens in einem Satz. Der Knopf unten gehört der Auskunft. Kein zweiter Knopf.`,
-    `DAS WORT: Nenne die Auskunft so wie das Werkzeug (Feld wort).${land ? ` Dieser Kunde lebt in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort gibt es keine SCHUFA: Das Wort „SCHUFA" schreibst du nicht, die Auskunfteien heißen ${auskunfteienText(land)}.` : ` In Österreich und der Schweiz schreibst du nie „SCHUFA".`}`,
+      ? `SEIN PAKET IST NOCH NICHT BEZAHLT: Die erste Zahlung nennst du in EINEM Satz mit Betrag und Verwendungszweck aus zahlungslink_bauen (mit ihr wird sein Account aktiv) — die Rechnung dazu hängt an. Der Knopf unten gehört der Bonitätsauswertung. Kein zweiter Knopf. Fragt er, ob sie mit dem Paket günstiger ist oder dazugehört, sag ehrlich: Mit seinem Paket wird die Bonitätsauswertung nach der ersten Zahlung zum Schritt vor dem Link der Partnerbank — einzeln bestellen muss er sie dann nicht.`
+      : `SEIN ANTRAG liegt für ihn vorbereitet bereit — erwähne ihn höchstens in einem Satz. Der Knopf unten gehört der Bonitätsauswertung. Kein zweiter Knopf.`,
+    `DAS WORT: Nenne das Produkt so wie das Werkzeug (Feld wort) — privat „${AUSWERTUNG_NAME}".${land ? ` Dieser Kunde lebt in ${land === "AT" ? "Österreich" : "der Schweiz"} — dort gibt es keine SCHUFA: Das Wort „SCHUFA" schreibst du nicht.` : ` In Österreich und der Schweiz schreibst du nie „SCHUFA".`}`,
     `DIE KOSTENLOSE DATENKOPIE erwähnst du nicht von dir aus — und verschweigst sie nie, wenn er fragt („Kann ich die nicht kostenlos selbst anfordern?"). Dann ehrlich, sinngemäß: „${AUSKUNFT_KOSTENLOS_ANTWORT}" — und danach der Knopf.`,
-    `VERBOTEN: „fordern Sie sie in Ihrem Bereich an", „Sie können sie selbst anfordern", eine Anleitung zum Selbst-Anfordern als Hauptweg; Löschzusagen, „Score verbessern", Fristen mit Zahl, „anwaltlich geprüft".`,
-    `IST SCHON ETWAS DA: Meldet auskunft_anbieten verkaufen: false, verkaufst du nichts — sag ihm, wo seine Auskunft steht. Liefert es einen Fehler, nennst du keinen Preis und keinen Link.`,
+    `VERBOTEN: „fordern Sie sie in Ihrem Bereich an", „Sie können sie selbst anfordern", eine Anleitung zum Selbst-Anfordern als Hauptweg; „wir fordern Ihre Datenkopien an", „Handlungsplan", „fertige Schreiben" (privat); Löschzusagen, „Score verbessern", Fristen mit Zahl, „anwaltlich geprüft".`,
+    `IST SCHON ETWAS DA: Meldet auskunft_anbieten verkaufen: false, verkaufst du nichts — übernimm den Stand aus dem Ergebnis. Liefert es einen Fehler, nennst du keinen Preis und keinen Link.`,
     `DER BETREUER erfährt vom Angebot automatisch (auskunft_anbieten legt die Aufgabe an) — dafür keine eigene Aufgabe und keine Notiz.`,
   ].join("\n");
 }
@@ -1240,7 +1268,7 @@ function systemPrompt(ein: {
     // E-248: „und die IBAN" gestrichen — die Wortwand verbietet Bankdaten im Text, das
     // Hauswissen sagt „nenne sie nie selbst". Der Widerspruch im Auftrag ist aufgelöst:
     // Bankdaten kommen nur über Zahlungsseite und Rechnung (eine Quelle: shared/fiaon-bank.ts).
-    `ZAHLUNGSDATEN GEHÖREN IN DIE MAIL, NICHT NUR HINTER EINEN KLICK. Ist eine Rechnung offen (und diese Mail keine der Ausnahmen oben), nennst du: den Betrag, die Fälligkeit und den Verwendungszweck — zum Ablesen und Kopieren. Die Bankdaten mit QR-Code stehen auf der Zahlungsseite hinter dem Knopf und auf der Rechnung im Anhang; eine IBAN schreibst du nie selbst. Den Knopf zur Zahlungsseite (zahlungslink_bauen) setzt du, die Rechnung hängst du an (rechnung_anhaengen). (Verkaufst du in derselben Mail die Bonitätsauskunft, gehört der Knopf ihr; Betrag und Verwendungszweck der Rate stehen trotzdem im Text, die Rechnung der Rate hängt an.)`,
+    `ZAHLUNGSDATEN GEHÖREN IN DIE MAIL, NICHT NUR HINTER EINEN KLICK. Ist eine Rechnung offen (und diese Mail keine der Ausnahmen oben), nennst du: den Betrag, die Fälligkeit und den Verwendungszweck — zum Ablesen und Kopieren. Die Bankdaten mit QR-Code stehen auf der Zahlungsseite hinter dem Knopf und auf der Rechnung im Anhang; eine IBAN schreibst du nie selbst. Den Knopf zur Zahlungsseite (zahlungslink_bauen) setzt du, die Rechnung hängst du an (rechnung_anhaengen). (Verkaufst du in derselben Mail die FIAON-Bonitätsauswertung, gehört der Knopf ihr; Betrag und Verwendungszweck der Rate stehen trotzdem im Text, die Rechnung der Rate hängt an.)`,
 
     // ══════════════════════════════════════════════════════════════════════
     // DER MANTRA-SATZ (23.09.2026, E-225)
@@ -1273,20 +1301,20 @@ function systemPrompt(ein: {
 · Justins Satz (02.10.2026), die seriöse Fassung von „Zahlen Sie die Aktivierung … Ihr Account ist sofort nach Eingang aktiv!": „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über X € — am schnellsten über den Knopf unten. ${AKTIVIERUNG_SATZ} ${TEMPO_SATZ} ${KARTE_ZEIT_SATZ}" — begeistert, höchstens EIN Ausrufezeichen.
 · „Ihr Betreuer begleitet Sie, Sie machen das nicht allein."
 · „${AUSSICHT_SAETZE[4]}"
-· „Mit der Bonitätsauskunft über FIAON fordern wir Ihre Datenkopien bei den Auskunfteien Ihres Landes an, erklären jeden Eintrag und bereiten die Schreiben vor — Sie geben nur frei." (Die Auskunft ist ein Zusatz mit eigenem Preis — siehe DIE BONITÄTSAUSKUNFT VERKAUFST DU.)
+· „Mit der FIAON-Bonitätsauswertung sehen Sie Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen, jede Einnahme und Ausgabe im Detail, mit Ampel, Finanzwert und Plan." (Sie ist ein Zusatz mit eigenem Preis — oder im Paket enthalten, solange sein Kartenlink auf sie wartet; siehe DIE FIAON-BONITÄTSAUSWERTUNG weiter unten.)
 · „Nach der Zusage der Bank ist die Karte in der Regel in 2–5 Werktagen bei Ihnen, und meist nutzen Sie sie schon vorher in der App mit Apple Pay."
 ENTWERTE NIE DEINE EIGENE ZUSAGE. Wenn du etwas Wahres und Starkes gesagt hast, hänge KEINEN Einschränkungssatz daran, nach dem niemand gefragt hat. Der Satz über die Bank kommt, wenn der Kunde nach Geld, Auszahlung, Rahmen oder Zusage fragt — dann sofort, klar, freundlich und als Aussicht („Den Rahmen legt die Bank fest, und wir bereiten Ihren Antrag so stark wie möglich vor.“). Sonst nicht.
 GEH MIT DER WELLE. Ist der Kunde ungeduldig („ich brauche das sofort"), nimm das Tempo auf, statt zu bremsen: Sag, was HEUTE noch geht — zahlen, Account aktiv, Ausweis und Kontoauszüge hochladen (danach Bonitätsauswertung und Link der Partnerbank). Ist er skeptisch, nimm den Einwand ernst, beantworte ihn in einem Satz und führ ihn zurück zum nächsten Schritt. „Bekomme ich die Karte sicher?" — sinngemäß: „${bausteinSicher()}" Ist er verärgert, nimm seinen Ärger ernst und sag, was du jetzt für ihn tust; recht gibst du ihm, wo bei uns wirklich etwas schiefging (eine Mail zu viel, eine Antwort zu spät) — nie bei einem Vorwurf wie Betrug oder Abzocke, dort bleibst du ruhig bei den Tatsachen (dieselbe Regel wie auf WhatsApp). Nie ausweichen, nie an einen Kollegen abschieben, nie „ich prüfe das".
-EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahlen (mit Betrag, Verwendungszweck und Knopf — die Bankdaten stehen hinter dem Knopf und auf der Rechnung), den Kartenantrag bei der Partnerbank stellen (Link aus karte_senden, eigene Mail), die Bonitätsauskunft bestellen (Knopf aus auskunft_anbieten), Unterlagen hochladen — oder ein Termin, wenn er ein Gespräch will. Nie zwei Knöpfe, nie eine Mail ohne Ziel. Hat auskunft_anbieten einen Knopf geliefert, trägt der Knopf die Auskunft — eine offene Rate steht dann als EIN Satz mit Betrag und Verwendungszweck in derselben Mail (24.09.2026, E-240).`,
+EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahlen (mit Betrag, Verwendungszweck und Knopf — die Bankdaten stehen hinter dem Knopf und auf der Rechnung), den Kartenantrag bei der Partnerbank stellen (Link aus karte_senden, eigene Mail), die FIAON-Bonitätsauswertung bestellen (Knopf aus auskunft_anbieten), Unterlagen hochladen — oder ein Termin, wenn er ein Gespräch will. Nie zwei Knöpfe, nie eine Mail ohne Ziel. Hat auskunft_anbieten einen Knopf geliefert, trägt der Knopf die Bonitätsauswertung — eine offene Rate steht dann als EIN Satz mit Betrag und Verwendungszweck in derselben Mail (24.09.2026, E-240).`,
 
     // E-275 (02.10.2026, Justin: „nicht immer sagen … ‚Wir sind keine Bank und können nichts wissen‘“): auch die
     // Abwehr-Formen („die Karte kommt von der Bank, nicht von uns“, „können wir nicht wissen“) sind gemeint.
-    `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Rahmen oder Zusage fragt — dann aber klar, freundlich und ohne Umschweife; neben einem Wunschlimit steht „über den Rahmen entscheidet unsere Partnerbank" immer. Fragt er etwas anderes, lässt du ihn weg. Nie abwehrend: kein „Wir sind keine Bank“, kein „Das können wir nicht wissen“, kein „Die Karte kommt von der Bank, nicht von FIAON“ — sag, was FIAON TUT und was jetzt passiert. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die Bonitätsauskunft mit Handlungsplan und fertigen Schreiben ist ein Zusatz, den du ihm anbietest (auskunft_anbieten).`,
+    `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Rahmen oder Zusage fragt — dann aber klar, freundlich und ohne Umschweife; neben einem Wunschlimit steht „über den Rahmen entscheidet unsere Partnerbank" immer. Fragt er etwas anderes, lässt du ihn weg. Nie abwehrend: kein „Wir sind keine Bank“, kein „Das können wir nicht wissen“, kein „Die Karte kommt von der Bank, nicht von FIAON“ — sag, was FIAON TUT und was jetzt passiert. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die FIAON-Bonitätsauswertung ist ein Zusatz, den du ihm anbietest (auskunft_anbieten) — außer sie ist in seinem Paket enthalten (Akte, auskunft „inklusive"), dann nennst du keinen Preis.`,
     // E-240: der Verkaufsblock zur Auskunft — je nach Lage ganz, knapp oder gar nicht.
     // E-272 (02.10.2026, Gegenprüfung): Beim Global-Kunden (Akte, Feld global) nie — der Block nannte ihm sonst je nach
     // Lage 74/149 € oder „nach der ersten Zahlung zum Kundenpreis“, gegen GLOBAL_AUFTRAG. Justin: „Er soll Global bleiben.“
     ein.akte?.global
-      ? "DIE BONITÄTSAUSKUNFT der Privatkundenlinie bietest du diesem Kunden von FIAON Global NICHT an — kein Preis, kein Knopf, kein auskunft_anbieten. Fragt er selbst danach (etwa für seinen Kapitalweg), gibst du das Anliegen mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
+      ? "DIE FIAON-BONITÄTSAUSWERTUNG der Privatkundenlinie (früher Bonitätsauskunft) bietest du diesem Kunden von FIAON Global NICHT an — kein Preis, kein Knopf, kein auskunft_anbieten. Fragt er selbst danach (etwa für seinen Kapitalweg), gibst du das Anliegen mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
       : auskunftBlock(ein.lage, ein.akte?.auskunft ?? null, ein.auskunftAntwort ?? null, { werbesperre: !!ein.werbesperreZahlend }),
 
     // ══════════════════════════════════════════════════════════════════════
@@ -1311,7 +1339,7 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // E-275 (02.10.2026): „erneut schicken kann sein Betreuer“ und „FIAON verschickt keine Karte und keine PIN“ sind raus —
     // genau daraus wurde in #6120 „The card itself is issued and sent by the bank … I have asked Nikita Boychenko“.
     // Den Link schickt Mara jetzt selbst (karte_senden); die Wahrheit über den Weg bleibt, positiv gesagt.
-    ein.akte?.global ? `` : `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"; 02.10.2026: „selbstständig … Jetzt zahlen!"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg (E-363, Justin 14.10.: „Kartenlink erst nach Bonität“): Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert; er lädt Ausweis und Kontoauszüge hoch, wir entwickeln seine Bonitätsauswertung, und danach bekommt er DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" Mit dem Link beantragt er Konto und Karte online in wenigen Minuten direkt bei der Partnerbank (nur Ausweis); die Karte schickt ihm die Bank nach ihrer Zusage. In der Antragszeit lädt er in seinem Bereich Kontoauszüge (6 Monate) und Ausweis/Reisepass hoch; seine Bonitätsauskunft besorgt FIAON für ihn (auskunft_anbieten) — hat er schon eine aktuelle, lädt er sie hoch. Dann folgt unsere Bonitätsanalyse. Fragt er „wann bekomme ich meine Karte?", „ich habe keine Karte/keinen Link“ oder schreibt „bezahle ich nicht": Du handelst SELBST. Zahlender Kunde → karte_senden (prüft seinen Stand aus der Akte, Feld karte, und schickt den Link — auch erneut; ist die Karte schon unterwegs, sagt es dir das; fehlt noch seine Bonitätsauswertung, gibt es dir den Satz dazu — den übernimmst du) und erklär den Weg. Erste Zahlung offen → die klare Aufforderung „${AKTIVIERUNG_AUFRUF}“ und direkt dahinter, was er bekommt: „${AKTIVIERUNG_SATZ}“ (E-275 Ton, 02.10.2026). Nie „ich empfehle", nie „garantiert", nie „in Produktion“, solange die Bank nicht zugesagt hat, nie „die Karte kommt von der Bank, nicht von uns“, nie „ich habe Herrn X gebeten, nachzusehen“ oder „ich leite das an X weiter“, nie „wir versenden Ihre Karte“, nie eine feste Frist außer „in der Regel 2–5 Werktage nach der Zusage der Bank“.`,
+    ein.akte?.global ? `` : `KARTE UND KONTO (seit 21.09.2026, Justin: „viel mehr auf die Kreditkarte gepitcht, immer nett und motivierend"; 02.10.2026: „selbstständig … Jetzt zahlen!"): Die Karte ist das Ziel des Kunden — schreib positiv, warm und ermutigend darüber, nie abwehrend. Der Weg (E-363, Justin 14.10.: „Kartenlink erst nach Bonität“): Sobald die erste Zahlung gebucht ist, ist sein Account aktiviert; er lädt Ausweis und Kontoauszüge hoch, wir entwickeln seine Bonitätsauswertung, und danach bekommt er DIREKT den fertigen Link unserer Partnerbank (DKB) für Konto und Karte; das geht automatisch raus. Die Sätze dazu: „${KARTE_LINK_SATZ}" und „${KARTE_ZEIT_SATZ}" Mit dem Link beantragt er Konto und Karte online in wenigen Minuten direkt bei der Partnerbank (nur Ausweis); die Karte schickt ihm die Bank nach ihrer Zusage. Nach der ersten Zahlung lädt er in seinem Bereich (fiaon.com/app/unterlagen) Ausweis/Reisepass und Kontoauszüge der letzten drei Monate hoch; daraus entwickelt sein FIAON-Team seine Bonitätsauswertung (im Paket enthalten, solange sein Kartenlink darauf wartet — Akte, auskunft „inklusive"). Eine SCHUFA-Auskunft braucht er dafür nicht; eine selbst angeforderte Datenkopie kann er dazulegen. Fragt er „wann bekomme ich meine Karte?", „ich habe keine Karte/keinen Link“ oder schreibt „bezahle ich nicht": Du handelst SELBST. Zahlender Kunde → karte_senden (prüft seinen Stand aus der Akte, Feld karte, und schickt den Link — auch erneut; ist die Karte schon unterwegs, sagt es dir das; fehlt noch seine Bonitätsauswertung, gibt es dir den Satz dazu — den übernimmst du) und erklär den Weg. Erste Zahlung offen → die klare Aufforderung „${AKTIVIERUNG_AUFRUF}“ und direkt dahinter, was er bekommt: „${AKTIVIERUNG_SATZ}“ (E-275 Ton, 02.10.2026). Nie „ich empfehle", nie „garantiert", nie „in Produktion“, solange die Bank nicht zugesagt hat, nie „die Karte kommt von der Bank, nicht von uns“, nie „ich habe Herrn X gebeten, nachzusehen“ oder „ich leite das an X weiter“, nie „wir versenden Ihre Karte“, nie eine feste Frist außer „in der Regel 2–5 Werktage nach der Zusage der Bank“.`,
     // E-248 (Justin 28.09.): „Wenn jemand wegen Krediten fragt: ‚Noch besser — wir bieten
     // Kreditkarten!'" Vorher begann der Satz mit „FIAON vergibt keine Kredite" — ein Nein
     // am Anfang, genau das, was die Persona verbietet (TON_REGELN „kredit_nein").
@@ -1496,13 +1524,18 @@ export function auskunftPruefung(ein: {
     if (preis && !preis.test(t)) fehlend.push(`Preis der Auskunft (${aa.betragText}) fehlt im Text`);
     // Gegenlesen E-240: Der Kauflink bestellt nichts — erst der Klick auf der
     // Bestätigungsseite. „Ihre Auskunft ist bestellt" wäre unwahr.
-    if (aa.stufe === "nichts" && /(?:auskunft|\bsie)\b[^.!?\n]{0,60}?\b(?:ist|wurde|haben wir)\s+(?:schon\s+|bereits\s+)?(?:für Sie\s+)?(?:bestellt|beauftragt|angelegt)\b/i.test(t)) {
+    if (aa.stufe === "nichts" && /(?:auskunft|auswertung|\bsie)\b[^.!?\n]{0,60}?\b(?:ist|wurde|haben wir)\s+(?:schon\s+|bereits\s+)?(?:für Sie\s+)?(?:bestellt|beauftragt|angelegt)\b/i.test(t)) {
       fehlend.push("Die Antwort sagt, die Auskunft sei bestellt — bestellt ist erst mit dem Klick auf der Bestätigungsseite");
     }
   }
-  if (!ein.gelaufen.includes("auskunft_anbieten")
-    && /\b(?:bonitätsauskunft|schufa-auskunft|ksv-auskunft|auskunft)\b/i.test(t) && /\b(?:74|149|199|349)(?:[,.]00)?\s*(?:€|euro)/i.test(t)) {
+  // E-365: auch „Bonitätsauswertung" — das Produkt heißt privat seit dem 14.10.2026 so.
+  const auskunftPreisImText = /\b(?:bonitätsauskunft|schufa-auskunft|ksv-auskunft|auskunft|bonitätsauswertung)\b/i.test(t) && /\b(?:74|149|199|349)(?:[,.]00)?\s*(?:€|euro)/i.test(t);
+  if (!ein.gelaufen.includes("auskunft_anbieten") && auskunftPreisImText) {
     fehlend.push("Auskunft mit Preis angeboten, ohne auskunft_anbieten — Preis und Knopf kommen nur aus dem Werkzeug");
+  }
+  // E-365: Im Paket enthalten (Kartenlink wartet auf die Bonität) — dann steht nie ein Preis in der Mail.
+  if ((String(ein.akteAuskunft?.stufe ?? "") === "inklusive" || aa?.stufe === "inklusive") && auskunftPreisImText) {
+    fehlend.push("Die Bonitätsauswertung ist im Paket dieses Kunden enthalten — die Mail nennt trotzdem einen Preis dafür");
   }
   const land = aa?.land ?? ein.akteAuskunft?.land ?? null;
   if ((land === "AT" || land === "CH") && /schufa/i.test(t) && !/schufa/i.test(String(ein.kundeText || ""))) {
@@ -2111,7 +2144,7 @@ export async function antwortErzeugen(ein: {
       if (erg.ok && erg.daten) werkzeugDaten.auskunft_anbieten = erg.daten;
       vorab.push(erg.ok
         ? `VORAB GEHOLT (auskunft_anbieten ist gelaufen, nicht noch einmal rufen): ${erg.ergebnis} ${JSON.stringify(erg.daten)}`
-        : `HINWEIS: Die Bonitätsauskunft ließ sich nicht anbieten (${erg.fehler || "unbekannt"}) — nenne keinen Preis und keinen Link dafür.`);
+        : `HINWEIS: Die Bonitätsauswertung ließ sich nicht anbieten (${erg.fehler || "unbekannt"}) — nenne keinen Preis und keinen Link dafür.`);
     }
   }
   // Der Betreuer erfährt „hat keine Auskunft" auch dann, wenn Mara hier nicht

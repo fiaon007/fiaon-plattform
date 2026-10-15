@@ -723,10 +723,10 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   // E-IT-D (08.10.2026, 4b): die FIAON Finanz- und Bonitätsauswertung ist freigegeben.
   {
     type: "finanzauswertung_bereit",
-    label: "Finanz- und Bonitätsauswertung liegt bereit (Kunde)",
-    description: "Geht automatisch, wenn der Betreuer (bei roter Gesamtlage oder Vorbehalt: die Leitung) die Auswertung in der Akte freigibt. Seit E-357 (14.10.2026) mit dem PDF im Anhang (über 5 MB nur der Link); im Text keine Zahlen, Ampel oder Finanzwert — Knopf „Auswertung ansehen“ in den Bereich (/app/auswertung). Nur über den Motor (kein Make-Zweig).",
+    label: "FIAON-Bonitätsauswertung liegt bereit (Kunde)",
+    description: "Geht automatisch, wenn die Bonitätsauswertung in der Akte freigegeben wird (E-358: wer entwickelt, gibt frei). Seit E-357 (14.10.2026) mit dem PDF im Anhang (über 5 MB nur der Link); im Text keine Zahlen, Ampel oder Finanzwert — Knopf „Bonitätsauswertung ansehen“ in den Bereich (/app/auswertung). E-365: naechster_satz nennt zahlenden Paketkunden ohne Kartenlink den Weg zur Partnerbank (sonst leer, Absatz entfällt). Nur über den Motor (kein Make-Zweig).",
     customerBound: true,
-    example: { ...CUSTOMER_EXAMPLE, auswertung_url: "https://www.fiaon.com/app/auswertung", nummer: "FA-1234-1" },
+    example: { ...CUSTOMER_EXAMPLE, auswertung_url: "https://www.fiaon.com/app/auswertung", nummer: "FA-1234-1", naechster_satz: "Als Nächstes prüfen wir Ihren Weg zu Konto und Karte: Sind alle Voraussetzungen erfüllt, bekommen Sie den Link unserer Partnerbank für Ihren Kartenantrag in einer eigenen E-Mail." },
   },
   // E-357 (14.10.2026): an den Mitarbeiter, sobald der Entwurf fertig ist.
   {
@@ -911,7 +911,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: {
       ...CUSTOMER_EXAMPLE,
       antrag_id: "FIAON-SCHUFA-MB2XK4LQ-7T9A",
-      paket: "Bonitätsauskunft inkl. Handlungsplan",
+      paket: "FIAON-Bonitätsauswertung",
       anrede: "Guten Tag Max Mustermann,",
       auskunfteien: auskunfteienText("DE"),
       ...schufaRequestedSaetze("vollmacht"),
@@ -982,7 +982,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       ...CUSTOMER_EXAMPLE,
       antrag_id: "FIAON-SCHUFA-MU5QVVB0-AB12",
       payment_reference: "FIAON-SCHUFA-MU5QVVB0",
-      paket: "Bonitätsauskunft inkl. Handlungsplan",
+      paket: "FIAON-Bonitätsauswertung",
       betrag: (AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100).toFixed(2),
       anrede: "Guten Tag Max Mustermann,",
       stufe: 2,

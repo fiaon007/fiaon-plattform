@@ -145,16 +145,20 @@ const dorisTeil: AuskunftTeil = { ...AUSKUNFT_DE, jetzt: AUSKUNFT_THEMA.test(dor
 pruef("E240 Doris: Thema erkannt", AUSKUNFT_THEMA.test(doris));
 pruef("E240 Doris: Werkzeug auskunft_anbieten an", auskunftWerkzeugAn(dorisTeil));
 const pDoris = promptMit(dorisTeil);
-pruef("E240 Doris: Angebot und Werkzeug im Auftrag", /DEIN ANGEBOT FÜR IHN: DIE BONITÄTSAUSKUNFT/.test(pDoris) && /· auskunft_anbieten —/.test(pDoris));
+// E-365 (14.10.2026): privat heißt das Produkt FIAON-Bonitätsauswertung.
+pruef("E240 Doris: Angebot und Werkzeug im Auftrag", /DEIN ANGEBOT FÜR IHN: DIE FIAON-BONITÄTSAUSWERTUNG/.test(pDoris) && /· auskunft_anbieten —/.test(pDoris));
 pruef("E240 Doris: Preis 74 € einmalig, kein Ratensatz", /74 € einmalig/.test(pDoris) && /Keine Monatsrate, keine zwölf Raten/.test(pDoris));
-pruef("E240 Doris: Auskunfteien DE", /SCHUFA, CRIF und Creditreform Boniversum/.test(pDoris));
+// E-365: privat keine Auskunfteien mehr — Ausweis und Kontoauszüge, keine Datenkopien, kein Handlungsplan.
+pruef("E365 Doris: Auswertung aus Kontoauszügen statt Auskunfteien", !/SCHUFA, CRIF und Creditreform Boniversum/.test(pDoris) && /Kontoauszüge der letzten drei Monate/.test(pDoris)
+  && /KEINE Datenkopien/.test(pDoris) && !/Wir fordern seine Datenkopien/.test(pDoris));
 // E-248 (28.09.2026): „Rahmen" statt „Limit" — auch im Nutzen-Satz (AUSKUNFT_NUTZEN_SATZ_KARTE) und im Bank-Satz.
 // E-265 (29.09.2026): „Wunschlimit" steht jetzt im Auftrag — aber nur mit dem Satz über die Bank (Justins Formel).
 pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Über Karte und Limit/.test(pDoris) && /Wunschlimit[^\n]{0,120}entscheidet unsere Partnerbank/.test(pDoris));
 pruef("E240 Doris: kostenlose Datenkopie nur auf Nachfrage", /kostenlos selbst anfordern/.test(pDoris) && /Von dir aus empfiehlst du den kostenlosen Weg nie/.test(pDoris));
 pruef("E240 Doris: „Ich hab keine\" ist kein Auftrag (Kauflink statt Bestellung)", !auskunftZugestimmt(doris, "") && !auskunftZugestimmt("Ich hab keine", ""));
 const kauf = "https://fiaon.com/api/fiaon/auskunft/bestellen?p=4513&art=privat&exp=1&sig=abc";
-const antwortDoris = `Kein Problem — genau dafür sind wir da: Für 74 € einmalig holen wir Ihre Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum, erklären jeden Eintrag und liefern Ihren Handlungsplan. Hier geht es direkt weiter: ${kauf}`;
+// E-365: die Antwort beschreibt die Bonitätsauswertung (vorher: Datenkopien, Handlungsplan).
+const antwortDoris = `Kein Problem — genau dafür gibt es die FIAON-Bonitätsauswertung: Für 74 € einmalig sehen Sie Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen. Hier geht es direkt weiter: ${kauf}`;
 const werkzeugDoris = [{ werkzeug: "auskunft_anbieten", ok: true, zeiten: [], link: kauf, betrag: "74 €", art: "angebot" as const }];
 const bekanntDoris = { links: ["https://fiaon.com/login"], auskunftPreise: ["74 €", "149 €"] };
 const vpDoris = verkaufsPruefung(antwortDoris, { kunde: doris, letzteDu: [], verkaufen: true, auskunftAngebot: true });
@@ -188,7 +192,11 @@ pruef("E240 bezahlt: nichts verkaufen", /Nicht noch einmal anbieten/.test(auskun
 pruef("E240 offen: Werkzeug für die Zahlungsseite", auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "offen", offenLink: "https://fiaon.com/zahlung/X", offenBetrag: "74 €", jetzt: true }));
 // 4. Österreich: nie „SCHUFA" als Wort für den Kunden
 const at = auskunftBlock({ ...AUSKUNFT_DE, land: "AT", jetzt: true }).join("\n");
-pruef("E240 AT: KSV1870 und CRIF, Wort KSV-Auskunft", /KSV1870 und CRIF/.test(at) && /„KSV-Auskunft"/.test(at) && !/SCHUFA, CRIF/.test(at));
+// E-365: privat nennt der Block keine Auskunfteien mehr — „SCHUFA" steht höchstens im Verbot selbst.
+pruef("E240 AT: kein „SCHUFA“ außer im Verbot", !/SCHUFA, CRIF/.test(at) && /das Wort SCHUFA schreibst du ihm nie/.test(at)
+  && !/SCHUFA/.test(at.replace(/das Wort SCHUFA schreibst du ihm nie/g, "")), at.slice(0, 200));
+const atFirma = auskunftBlock({ ...AUSKUNFT_DE, land: "AT", art: "firma", preisText: "199 €", jetzt: true }).join("\n");
+pruef("E240 AT Firma: KSV1870 und CRIF, Wort KSV-Auskunft", /KSV1870 und CRIF/.test(atFirma) && /„KSV-Auskunft"/.test(atFirma) && !/SCHUFA, CRIF/.test(atFirma));
 // 5. Zustimmung: nur ein klares Ja hält das Angebot „jetzt" (bestellt wird seit dem Gegenlesen nur über die Bestätigungsseite)
 const angebot = "Soll ich Ihnen den Link zur Auskunft schicken?";
 pruef("E240 „Ja gerne\" auf das Angebot = Zustimmung", auskunftZugestimmt("Ja gerne", angebot));
@@ -282,12 +290,13 @@ const jaTeil: AuskunftTeil = { ...LEAD_AUSKUNFT, ...jaLead };
 pruef("E241 Lead „Ja, gern“ → Werkzeug auskunft_anbieten an", auskunftWerkzeugAn(jaTeil));
 const blockJa = auskunftBlock(jaTeil).join("\n");
 pruef("E241 Lead: Block „SEINE FRAGE“ mit 149 € einmalig, Werkzeug und „keine Voraussetzung“",
-  /SEINE FRAGE: DIE BONITÄTSAUSKUNFT/.test(blockJa) && /149 € einmalig/.test(blockJa) && /auskunft_anbieten/.test(blockJa) && /KEINE Voraussetzung/.test(blockJa) && /antwortet auf unser Angebot/.test(blockJa), blockJa.slice(0, 200));
+  /SEINE FRAGE: DIE FIAON-BONITÄTSAUSWERTUNG/.test(blockJa) && /149 € einmalig/.test(blockJa) && /auskunft_anbieten/.test(blockJa) && /KEINE Voraussetzung/.test(blockJa) && /antwortet auf unser Angebot/.test(blockJa), blockJa.slice(0, 200));
 pruef("E241 Lead: Block ohne Kundenpreis 74 €", !/74 €/.test(blockJa));
 const pJa = promptLead(jaTeil);
 pruef("E241 Lead: Werkzeug im Auftrag, Bescheid an „unserem Team“ (kein [Betreuer])", /· auskunft_anbieten —/.test(pJa) && /gibt auch unserem Team Bescheid/.test(pJa) && !/\[Betreuer\] Bescheid/.test(pJa));
 const kaufLead = "https://www.fiaon.com/api/fiaon/auskunft/bestellen?p=9101&art=privat&exp=1&sig=abc";
-const antwortLead = `Sehr gern — für 149 € einmalig holen wir Ihre Datenkopien bei SCHUFA, CRIF und Creditreform Boniversum und erklären Ihnen jeden Eintrag. Hier geht es direkt weiter: ${kaufLead}`;
+// E-365: die Bonitätsauswertung — die Kontoauszüge sind ihr Inhalt, keine Hürde (verkaufsPruefung, Satz mit „Auswertung").
+const antwortLead = `Sehr gern — für 149 € einmalig erstellen wir Ihre FIAON-Bonitätsauswertung aus Ihren eigenen Kontoauszügen. Hier geht es direkt weiter: ${kaufLead}`;
 const aktionLead = [{ werkzeug: "auskunft_anbieten", ok: true, zeiten: [], link: kaufLead, betrag: "149 €", art: "angebot" as const }];
 const bekanntLead = { links: ["https://fiaon.com/a/x/w"], auskunftPreise: ["149 €"], land: "DE" as const };
 pruef("E241 Lead: Antwort mit Kauflink aus dem Werkzeug und 149 € besteht die harte Prüfung",
@@ -324,7 +333,7 @@ pruef("E241 B „Was kostet die Auskunft?“ → jetzt, als eigene Frage", bFrag
 const bTeil: AuskunftTeil = { ...LEAD_AUSKUNFT, segment: "antrag", ...bFrage };
 const blockB = auskunftBlock(bTeil).join("\n");
 pruef("E241 B: Block fragt selbst, erste Zahlung höchstens ein Satz ohne zweiten Link, 149 €",
-  /fragt selbst nach der Bonitätsauskunft/.test(blockB) && /erste Zahlung/.test(blockB) && /ohne zweiten Link/.test(blockB) && /149 € einmalig/.test(blockB) && auskunftWerkzeugAn(bTeil), blockB.slice(0, 240));
+  /fragt selbst nach seiner Bonität/.test(blockB) && /erste Zahlung/.test(blockB) && /ohne zweiten Link/.test(blockB) && /149 € einmalig/.test(blockB) && auskunftWerkzeugAn(bTeil), blockB.slice(0, 240));
 for (const k of ["Können Sie meine Schufa-Auskunft holen?", "Ich hätte gern eine Datenkopie", "Können Sie meine Schufa anfordern?", "Was steht in meiner Schufa?", "Wie komme ich an meine SCHUFA?"]) {
   pruef(`E241 eigene Frage erkannt: „${k}“`, fragtNachAuskunftSelbst(k) && auskunftJetzt({ kunde: k, letzteDu: [], werbesperre: false, segment: "antrag" }).jetzt);
 }
@@ -353,7 +362,7 @@ pruef("E241 Kunde ohne segment: „Wann kommt meine Karte?“ → Angebot wie bi
 // Dieselbe Lücke beim zahlenden Kunden: „Ja, gern" auf fiaon_kk_auskunft (Bremse: Vorlage vor 1 Tag)
 const kundeJa = auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: false, anderswo: true, aufAngebot: antwortetAufAuskunftAngebot({ kunde: "Ja, gern", letzteRaus: { vorlage: "fiaon_kk_auskunft" } }) });
 pruef("E241 Kunde „Ja, gern“ auf die Vorlage → jetzt, trotz Bremse (seine Antwort)", kundeJa.jetzt && kundeJa.aufAngebot === true, JSON.stringify(kundeJa));
-pruef("E241 Kunde: Block sagt „antwortet auf unser Angebot“", /antwortet auf unser Angebot der Bonitätsauskunft/.test(auskunftBlock({ ...AUSKUNFT_DE, ...kundeJa }).join("\n")));
+pruef("E241 Kunde: Block sagt „antwortet auf unser Angebot“", /antwortet auf unser Angebot der Bonitätsauswertung/.test(auskunftBlock({ ...AUSKUNFT_DE, ...kundeJa }).join("\n")));
 const kundeKarte = auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [], werbesperre: false, anderswo: true, aufAngebot: true });
 pruef("E241 Kunde „Wann kommt meine Karte?“ nach der Vorlage → kein zweites Angebot (E-240 bleibt)", !kundeKarte.jetzt && kundeKarte.schonAngeboten, JSON.stringify(kundeKarte));
 pruef("E241 Kunde mit Werbesperre: „Ja, gern“ auf eine Vorlage → kein Angebot", !auskunftJetzt({ kunde: "Ja, gern", letzteDu: [], werbesperre: true, aufAngebot: true }).jetzt);
@@ -379,7 +388,37 @@ const blockFirmaB = auskunftBlock({ ...LEAD_AUSKUNFT, segment: "antrag", art: "f
 pruef("GL E241 B Firma: Block „349 € einmalig“, kein 149 €", /349 € einmalig/.test(blockFirmaB) && !/149 €/.test(blockFirmaB), blockFirmaB.slice(0, 200));
 // Österreich: Block nennt KSV1870; „SCHUFA“ steht höchstens im Verbot selbst.
 const blockAT = auskunftBlock({ ...LEAD_AUSKUNFT, land: "AT", ...jaLead }).join("\n");
-pruef("GL E241 Lead AT: Block nennt KSV1870, „SCHUFA“ nur als Verbot", /KSV1870/.test(blockAT) && !/SCHUFA/.test(blockAT.replace(/das Wort SCHUFA schreibst du ihm nie/g, "")), blockAT.slice(0, 240));
+// E-365: privat nennt der Block keine Auskunfteien mehr; die Firma (Firmen-Auskunft) weiter KSV1870.
+pruef("GL E241 Lead AT: „SCHUFA“ nur als Verbot", !/SCHUFA/.test(blockAT.replace(/das Wort SCHUFA schreibst du ihm nie/g, "")), blockAT.slice(0, 240));
+const blockATFirma = auskunftBlock({ ...LEAD_AUSKUNFT, land: "AT", art: "firma", preisText: "349 €", ...jaLead }).join("\n");
+pruef("GL E241 Lead AT Firma: Block nennt KSV1870, „SCHUFA“ nur als Verbot", /KSV1870/.test(blockATFirma) && !/SCHUFA/.test(blockATFirma.replace(/das Wort SCHUFA schreibst du ihm nie/g, "")), blockATFirma.slice(0, 240));
+
+// ── E-365 (14.10.2026): DIE FIAON-BONITÄTSAUSWERTUNG ────────────────────────
+// Maras eigenes Angebot heißt jetzt „Bonitätsauswertung" — sie muss es weiter als ihr Angebot erkennen
+// (kein doppeltes Angebot, ein „Ja" darauf zählt). Neu: „inklusive" (im Paket enthalten) und „auswertung" (liegt vor).
+const angebotNeu = "Für 149 € einmalig erstellen wir Ihre FIAON-Bonitätsauswertung — soll ich Ihnen den Link schicken?";
+pruef("E365 Maras Angebot „Bonitätsauswertung“ mit Preis ist ein Angebot", istAuskunftAngebot({ vorlage: null, text: angebotNeu })
+  && !istAuskunftAngebot({ vorlage: null, text: "Ihre Bonitätsauswertung liegt vor." }));
+pruef("E365 „Ja gerne“ auf das Angebot der Bonitätsauswertung = Zustimmung", auskunftZugestimmt("Ja gerne", angebotNeu) && auskunftZugestimmt("Bestellen Sie sie bitte", angebotNeu));
+pruef("E365 schon angeboten (Kunde): „Wann kommt meine Karte?“ → kein zweites Angebot",
+  auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [angebotNeu], werbesperre: false }).schonAngeboten
+  && !auskunftJetzt({ kunde: "Wann kommt meine Karte?", letzteDu: [angebotNeu], werbesperre: false }).jetzt);
+pruef("E365 schon angeboten (Lead) erkannt", auskunftJetzt({ kunde: "Ok", letzteDu: [angebotNeu], werbesperre: false, segment: "lead" }).schonAngeboten);
+pruef("E365 Antwort auf Maras eigenes Auswertungs-Angebot zählt", antwortetAufAuskunftAngebot({ kunde: "Ja, gern", letzteRaus: { vorlage: null, text: angebotNeu } }));
+const inkl = auskunftBlock({ ...AUSKUNFT_DE, stufe: "inklusive", jetzt: true }).join("\n");
+pruef("E365 inklusive: im Paket enthalten, kein Preis, kein Werkzeug", /IM PAKET ENTHALTEN/.test(inkl) && !/74 €|149 €/.test(inkl) && /fiaon\.com\/app\/unterlagen/.test(inkl)
+  && !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "inklusive", jetzt: true }), inkl.slice(0, 200));
+const liegtVor = auskunftBlock({ ...AUSKUNFT_DE, stufe: "auswertung", jetzt: true }).join("\n");
+pruef("E365 auswertung: liegt vor, /app/auswertung, kein Werkzeug", /liegt vor/.test(liegtVor) && /fiaon\.com\/app\/auswertung/.test(liegtVor) && !/74 €/.test(liegtVor)
+  && !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "auswertung", jetzt: true }));
+pruef("E365 bezahlt: Ausweis und Kontoauszüge, keine Datenkopien", /Ausweis und seine Kontoauszüge/.test(auskunftBlock({ ...AUSKUNFT_DE, stufe: "bezahlt", jetzt: true }).join("\n"))
+  && !/Datenkopien bei/.test(auskunftBlock({ ...AUSKUNFT_DE, stufe: "bezahlt", jetzt: true }).join("\n")));
+pruef("E365 dokument privat: anbieten erlaubt (anderes Produkt), Firma nicht", auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "dokument", jetzt: true })
+  && !auskunftWerkzeugAn({ ...AUSKUNFT_DE, stufe: "dokument", art: "firma", jetzt: true }));
+pruef("E365 Lead: „Bonitätsauswertung“ ungefragt bleibt Hürde", V("Ja, da sind Sie bei uns genau richtig! Danach erstellen wir noch Ihre Bonitätsauswertung.", "Ich suche unkompliziert eine Kreditkarte").some((h) => /Bonitätsauskunft/.test(h)));
+pruef("E365 Angebot: Kontoauszüge im Auswertungs-Satz sind keine Hürde, allein schon",
+  verkaufsPruefung("Für 149 € erstellen wir Ihre Bonitätsauswertung aus Ihren eigenen Kontoauszügen.", { kunde: "Ja, gern", letzteDu: [], verkaufen: true, auskunftAngebot: true }).length === 0
+  && verkaufsPruefung("Laden Sie dann Ihre Kontoauszüge hoch.", { kunde: "Ja, gern", letzteDu: [], verkaufen: true, auskunftAngebot: true }).some((h) => /Kontoauszüge/.test(h)));
 console.log(`E-241 (Anträge und Leads, nur als Antwort): ${ok - vor241Ok} bestanden, ${fehl - vor241Fehl} nicht.`);
 console.log(`Gesamt offline: ${ok} bestanden, ${fehl} nicht.`);
 

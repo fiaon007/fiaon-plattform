@@ -19,7 +19,7 @@ import type { Bereich, Vorgang } from "./typen";
 import { api, startgespraechBuchen, demoVorgaenge, Ansprueche, Unterlagen, Mehr } from "./Bausteine";
 import { Regie } from "./Regie";
 import { demoStufeAus, demoCheckAnteil } from "@shared/fiaon-demo-stufen";
-import { Heute } from "./Heute";
+import { Heute, NurAuswertungHeute } from "./Heute";
 import { Weg } from "./Weg";
 import { Brief } from "./Brief";
 import { Vorgaenge } from "./Vorgaenge";
@@ -204,7 +204,8 @@ export default function AppBereich() {
     navigiere(`${basis}${s.href}`);
   };
   const primaer = rw && rw.lage === "kunde_dran" && rw.jetzt && rw.jetzt.wer === "kunde" && rw.jetzt.aktion ? rw.jetzt : null;
-  const zeigeAktion = !!primaer && (bildschirm === "heute" || bildschirm === "weg");
+  // E-365: Wer nur die Bonitätsauswertung hat, bekommt keinen Paket-Primärknopf (Selbstauskunft, Startgespräch).
+  const zeigeAktion = !!primaer && !b?.nurAuswertung && (bildschirm === "heute" || bildschirm === "weg");
   const aktivReiter: Reiter | null = (["heute", "weg", "brief", "geld", "mehr"] as Bildschirm[]).indexOf(bildschirm) !== -1 ? (bildschirm as Reiter) : null;
 
   return (
@@ -240,8 +241,9 @@ export default function AppBereich() {
         )}
         {fehler && <div className="ap-karte ap-leer"><b>{fehler}</b><button type="button" className="ap-knopf still" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>Noch einmal</button></div>}
         {!b && !fehler && <Skelett />}
-        {b && rw && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} briefAn={briefAn} />}
-        {b && rw && bildschirm === "weg" && <Weg b={b} rw={rw} basis={basis} onAktion={aktion} />}
+        {b && b.nurAuswertung && (bildschirm === "heute" || bildschirm === "weg") && <NurAuswertungHeute b={b} basis={basis} demo={demo} />}
+        {b && rw && !b.nurAuswertung && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} briefAn={briefAn} />}
+        {b && rw && !b.nurAuswertung && bildschirm === "weg" && <Weg b={b} rw={rw} basis={basis} onAktion={aktion} />}
         {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} briefAn={briefAn} />}
         {b && rw && bildschirm === "geld" && rest[0] === "zahlen" && <Zahlen b={b} kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "geld" && rest[0] === "bericht" && rest[1] && <Bericht kundeRef={ref} basis={basis} demo={demo} monat={rest[1]} />}
@@ -250,7 +252,8 @@ export default function AppBereich() {
         {b && bildschirm === "vorgaenge" && rest[0] && rest[0] !== "ansprueche" && <VorgangSeite kundeRef={ref} basis={basis} demo={demo} id={rest[0]} />}
         {b && bildschirm === "vorgaenge" && (!rest[0] || rest[0] === "ansprueche") && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
-        {b && bildschirm === "auswertung" && <FinanzauswertungAnsicht kundeRef={ref} demo={demo} zurueck={{ href: `${basis}/geld`, text: "Zurück zu Geld" }} />}
+        {b && bildschirm === "auswertung" && <FinanzauswertungAnsicht kundeRef={ref} demo={demo} basis={basis}
+          zurueck={b.nurAuswertung ? { href: basis, text: "Zurück zu Heute" } : { href: `${basis}/geld`, text: "Zurück zu Geld" }} />}
         {b && bildschirm === "unterlagen" && rest[0] === "konto" && <KontoVerbinden kundeRef={ref} basis={basis} demo={demo} verbunden={!!b.kontoVerbunden} />}
         {b && bildschirm === "unterlagen" && rest[0] !== "konto" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} basis={basis} />}
         {b && bildschirm === "mehr" && rest[0] === "hilfe" && <Hilfe kundeRef={ref} demo={demo} ansprechpartner={b.ansprechpartner} vorgang={new URLSearchParams(window.location.search).get("vorgang")} buchungsLink={termine?.buchungsLink ?? null} />}
@@ -266,7 +269,7 @@ export default function AppBereich() {
         {b && bildschirm === "mehr" && rest[0] === "limit" && <Limit kundeRef={ref} demo={demo} demoStufe={stufe} basis={basis} onStand={(a) => setB((x) => (x ? { ...x, limitGespraech: a } : x))} />}
         {b && bildschirm === "mehr" && rest[0] === "daten" && <MeineDaten kundeRef={ref} demo={demo} kunde={b.kunde} />}
         {b && bildschirm === "mehr" && rest[0] === "abo" && <Abo kundeRef={ref} basis={basis} demo={demo} b={b} />}
-        {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} pinGesetzt={demo ? true : b.pinGesetzt} limit={b.limitGespraech ?? null} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
+        {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} pinGesetzt={demo ? true : b.pinGesetzt} limit={b.nurAuswertung ? null : b.limitGespraech ?? null} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
         {hinweis && <div className="ap-meldung" role="status">{hinweis}</div>}
       </main>
       {zeigeAktion && primaer && (

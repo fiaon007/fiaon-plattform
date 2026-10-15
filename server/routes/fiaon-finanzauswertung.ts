@@ -109,7 +109,7 @@ router.get("/agent/kunden/:personId/finanzauswertung/:id/pdf", requireAgent, asy
     const id = idAus(req); const p = id ? await pdfLesen(id) : null;
     if (!p || !(await gehoertZu(p.personId, z.personId))) return res.status(404).json({ ok: false, error: "Kein PDF zu dieser Auswertung." });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="FIAON-Finanzauswertung-${p.nummer}.pdf"`);
+    res.setHeader("Content-Disposition", `inline; filename="FIAON-Bonitaetsauswertung-${p.nummer}.pdf"`);
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.send(p.pdf);
@@ -240,7 +240,11 @@ router.get("/kunde/:ref/finanzauswertung", requireKunde, async (req: KundeReques
     const r = await kundeAuswertungen(personId);
     // Querprüfung 08.10.2026: Die Leerkarte („Sobald Ihre Unterlagen vollständig sind …“) verspricht etwas nur dem, der ein
     // laufendes, ungekündigtes Paket hat — Gekündigte und Kunden ohne Paket sehen einen neutralen Satz.
-    const laufend = await paketLaeuft(personId).catch(() => false);
+    // E-365: Wer die Auswertung gekauft hat (149 € ohne Paket), hat ebenfalls Anspruch auf sie — nicht nur Paketkunden.
+    const { auswertungLage } = await import("../lib/fiaon-bonitaet-ablauf");
+    const l = r.aktuell ? null : await auswertungLage(personId).catch(() => null);
+    const paket = await paketLaeuft(personId).catch(() => false);
+    const laufend = paket || !!l?.kauf || !!l?.inklusive;
     const gelesen = !!r.aktuell?.kundeGelesenAm;
     // Gelesen erst, wenn die Ansicht wirklich offen ist (?gelesen=1) — nicht schon, wenn die Karte auf „Heute“ nachfragt.
     // Nur der Kunde selbst macht sie „gelesen" — nie die Als-Kunde-Ansicht der Leitung (Nur-Ansicht, ohne Kunden-Cookie).
@@ -248,8 +252,14 @@ router.get("/kunde/:ref/finanzauswertung", requireKunde, async (req: KundeReques
     if (r.aktuell && req.query.gelesen === "1" && kundeAusCookie(req as any) === req.kundeRef) await kundeGelesen(r.aktuell.id, personId);
     // Nur, was der Kunde sehen darf: kein Ersteller, keine Kosten, kein Modell, keine internen Vermerke.
     const schmal = (f: any) => ({ id: f.id, nummer: f.nummer, fassung: f.fassung, freigegebenAm: f.freigegebenAm, status: f.status });
+    // E-365: der Stand für die leere Ansicht (Unterlagen fehlen, wird entwickelt, bestellt, kaufbar) — ohne interne Daten.
+    const lage = l ? {
+      stand: l.stand, fehlt: l.fehlt, abText: l.abText, preisText: l.preisText, inklusive: l.inklusive,
+      zahlungsseite: l.offen?.zahlungsseite ?? null, paketLaeuft: l.paketLaeuft,
+    } : null;
     res.json({
-      ok: true, gelesen, laufend,
+      // E-365: `paket` — läuft ein Paket? Ohne Paket zeigt die Ansicht unter dem Bericht den nächsten Schritt (Website).
+      ok: true, gelesen, laufend, lage, paket,
       aktuell: r.aktuell ? { ...schmal(r.aktuell), inhalt: req.query.kurz === "1" ? null : r.aktuell.inhalt } : null,
       fruehere: r.fruehere.map(schmal),
     });
@@ -267,7 +277,7 @@ router.get("/kunde/:ref/finanzauswertung/:id/pdf", requireKunde, async (req: Kun
       return res.status(404).json({ ok: false, error: "Diese Auswertung gibt es nicht." });
     }
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `${req.query.ansehen ? "inline" : "attachment"}; filename="FIAON-Finanzauswertung-${p.nummer}.pdf"`);
+    res.setHeader("Content-Disposition", `${req.query.ansehen ? "inline" : "attachment"}; filename="FIAON-Bonitaetsauswertung-${p.nummer}.pdf"`);
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.send(p.pdf);

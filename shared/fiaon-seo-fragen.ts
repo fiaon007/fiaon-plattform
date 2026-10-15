@@ -9,15 +9,15 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (8), /en/request-your-credit-report (8), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
 export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/": [
     {
-      "f": "Beantragt FIAON die Auskunft für mich?",
-      "a": "Ja. Sie geben uns einmal Ihre Daten, FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF. Sie müssen kein Formular ausfüllen und nichts hochladen. Innerhalb von 24 Stunden sehen Sie in Ihrem Bereich, was dort steht."
+      "f": "Fordert FIAON meine Auskunft bei SCHUFA, KSV oder CRIF an?",
+      "a": "Nein. Ihre Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu – Sie fordern sie selbst an, unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir jeden Eintrag. Ihre FIAON-Bonitätsauswertung entsteht aus Ihrem Ausweis und Ihren Kontoauszügen: Ihre Bonität aus Sicht einer Bank. Sie ist keine Auskunft einer Auskunftei und kein Score."
     },
     {
       "f": "Was passiert mit meinen Einträgen?",
@@ -47,7 +47,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was unterscheidet FIAON von einer Score-App?",
-      "a": "Eine Score-App zeigt eine Zahl. FIAON holt die Auskunft, erklärt jeden Eintrag, bereitet das Schreiben vor und versendet es nach Ihrer Freigabe – und verfolgt die Antwort. Anzeigen ist die erste Schicht. FIAON hat drei."
+      "a": "Eine Score-App zeigt eine Zahl. FIAON zeigt Ihre Bonität aus Sicht einer Bank, erklärt jeden Eintrag Ihrer selbst angeforderten Datenkopie, bereitet das Schreiben vor und versendet es nach Ihrer Freigabe – und verfolgt die Antwort. Anzeigen ist die erste Schicht. FIAON hat drei."
     },
     {
       "f": "Wer prüft die Schreiben?",
@@ -55,11 +55,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Für welche Länder gilt das?",
-      "a": "Deutschland (SCHUFA), Österreich (KSV) und die Schweiz (CRIF). Die Plattform erkennt Ihr Land und stellt die Anfrage bei der richtigen Auskunftei."
+      "a": "Deutschland (SCHUFA), Österreich (KSV) und die Schweiz (CRIF). Die Plattform erkennt Ihr Land und nennt Ihnen die richtige Auskunftei für Ihre kostenlose Datenkopie."
     },
     {
       "f": "Was kostet FIAON?",
-      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung, danach entscheiden Sie, ob Sie bleiben. Nur die Auskunft? 74 € einmalig."
+      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung, danach entscheiden Sie, ob Sie bleiben. Die Bonitätsauswertung allein kostet 149 € einmalig, mit laufendem Paket 74 €; für neue Paketkunden ist sie im Paket enthalten. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
       "f": "Wo liegen meine Daten?",
@@ -73,7 +73,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What makes FIAON different from a score app?",
-      "a": "A score app shows a number. FIAON obtains the report, explains every entry, prepares the letter and sends it after your approval — and tracks the reply. Displaying is the first layer. FIAON has three."
+      "a": "A score app shows a number. FIAON shows your creditworthiness as a bank sees it, explains every entry in the data copy you requested yourself, prepares the letter and sends it after your approval — and tracks the reply. Displaying is the first layer. FIAON has three."
     },
     {
       "f": "Who reviews the letters?",
@@ -81,11 +81,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Which countries does this apply to?",
-      "a": "Germany (SCHUFA), Austria (KSV) and Switzerland (CRIF). The platform recognises your country and makes the request to the right credit bureau."
+      "a": "Germany (SCHUFA), Austria (KSV) and Switzerland (CRIF). The platform recognises your country and names the right credit bureau for your free data copy."
     },
     {
       "f": "What does FIAON cost?",
-      "a": "Plans from €7.99 a month, twelve instalments by bank transfer, then you decide whether to stay. Just the report? €74 one-off."
+      "a": "Plans from €7.99 a month, twelve instalments by bank transfer, then you decide whether to stay. The credit assessment on its own costs €149 one-off, with a running plan €74; for new plan customers it is included in the plan. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
       "f": "Where is my data held?",
@@ -98,8 +98,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Nein – über Karte und Rahmen entscheidet die Bank. Was FIAON tut: Ihre Akte in Ordnung bringen, Ihre Readiness berechnen und den Antrag vorbereiten, wenn es realistisch ist. Ein Girokonto bekommt jeder Kunde."
     },
     {
-      "f": "Wie schnell sehe ich meine Auskunft?",
-      "a": "In der Regel innerhalb von 24 Stunden nach der Aktivierung. FIAON stellt die Anfrage bei SCHUFA, KSV oder CRIF mit Ihrer Vollmacht – Sie füllen kein Formular aus."
+      "f": "Wie bekomme ich meine Bonitätsauskunft?",
+      "a": "Ihre Datenkopie steht Ihnen bei SCHUFA, KSV oder CRIF kostenlos zu. Sie fordern sie selbst an – unser kostenloser Generator schreibt den Brief. Laden Sie sie hoch, erklärt Ihr Paket jeden Eintrag."
     },
     {
       "f": "Was passiert, wenn ein Eintrag berechtigt ist?",
@@ -107,7 +107,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet es – und wie lange bin ich gebunden?",
-      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Nur die Auskunft: 74,00 € einmalig."
+      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Die Bonitätsauswertung allein kostet 149 € einmalig, mit laufendem Paket 74 €; für neue Paketkunden ist sie im Paket enthalten."
     },
     {
       "f": "Kann ich das Paket später ändern?",
@@ -115,11 +115,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Gilt das auch in Österreich und der Schweiz?",
-      "a": "Ja. FIAON arbeitet mit KSV1870 und CRIF (Österreich) sowie CRIF und Intrum (Schweiz). Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide."
+      "a": "Ja. In Österreich sind es KSV1870 und CRIF, in der Schweiz CRIF und Intrum – Ihre Datenkopie fordern Sie dort selbst an, wir erklären sie. Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide."
     },
     {
       "f": "Was braucht FIAON von mir?",
-      "a": "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Dazu Ihre Bonitätsauskunft: Ihre selbst angeforderte Datenkopie – oder die Auskunft als Zusatz, die FIAON in Ihrem Auftrag anfordert."
+      "a": "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszüge der letzten drei Monate – ein Handyfoto genügt; daraus entsteht Ihre Bonitätsauswertung. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
       "f": "Wie erreiche ich meine Ansprechpartnerin?",
@@ -132,8 +132,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "No — the bank decides on card and limit. What FIAON does: put your file in order, calculate your readiness and prepare the application when it is realistic. Every customer gets a current account."
     },
     {
-      "f": "How quickly do I see my report?",
-      "a": "Usually within 24 hours of activation. FIAON makes the request to SCHUFA, KSV or CRIF with your authorisation — you fill in no forms."
+      "f": "How do I get my credit report?",
+      "a": "You are entitled to your data copy from SCHUFA, KSV or CRIF free of charge. You request it yourself — our free generator writes the letter. Upload it and your plan explains every entry."
     },
     {
       "f": "What happens if an entry is justified?",
@@ -141,7 +141,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does it cost — and how long am I tied in?",
-      "a": "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off."
+      "a": "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. The credit assessment on its own costs €149 one-off, with a running plan €74; for new plan customers it is included in the plan."
     },
     {
       "f": "Can I change the plan later?",
@@ -149,11 +149,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does this also apply in Austria and Switzerland?",
-      "a": "Yes. FIAON works with KSV1870 and CRIF (Austria) and with CRIF and Intrum (Switzerland). The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both."
+      "a": "Yes. In Austria the bureaus are KSV1870 and CRIF, in Switzerland CRIF and Intrum — you request your data copy there yourself, we explain it. The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both."
     },
     {
       "f": "What does FIAON need from me?",
-      "a": "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. Plus your credit report: a data copy you requested yourself — or the report as an add-on, which FIAON requests on your behalf."
+      "a": "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough; your credit assessment is built from them. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
       "f": "How do I reach my contact person?",
@@ -306,12 +306,12 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Der Vertrag läuft über zwölf Monatsraten – so lange, weil Auskunft, Schreiben und Antworten Zeit brauchen. Danach läuft er unbefristet weiter und ist jederzeit mit einer Frist von einem Monat kündbar, formlos: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich."
     },
     {
-      "f": "Ist die Bonitätsauskunft im Paket enthalten?",
-      "a": "Nein, sie ist ein eigenes Produkt. Mit laufendem Paket kostet sie einmalig 74 €, ohne Paket 149 € (für Unternehmen 199 € mit Paket, 349 € ohne). Sie bekommen die Datenkopien aller Auskunfteien Ihres Landes, jede Zeile erklärt, die Speicherfristen geprüft, einen Handlungsplan und fertige Schreiben zur Freigabe. Ihre Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu – fordern Sie sie selbst an, laden Sie sie im Kundenbereich hoch, und Ihr Paket erklärt sie."
+      "f": "Ist die Bonitätsauswertung im Paket enthalten?",
+      "a": "Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Einzeln kostet sie einmalig 149 €, mit laufendem Paket 74 € – kein Abo (die Firmen-Bonitätsauskunft: 349 € einzeln, 199 € mit Paket). Sie zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Dafür brauchen wir nur Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate; nach der Bestellung bekommen Sie einen Link zum Hochladen – ohne Anmeldung. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
       "f": "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?",
-      "a": "Für Sie nicht – weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – dazu auf Wunsch die Bonitätsauskunft. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
+      "a": "Für Sie nicht – weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis – für neue Paketkunden ist die Bonitätsauswertung darin enthalten. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Wie wird bezahlt?",
@@ -323,7 +323,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was, wenn alle meine Einträge berechtigt sind?",
-      "a": "Dann sagen wir es Ihnen nach der Auskunft – und Sie entscheiden, ob Sie weitermachen. Auch bei berechtigten Einträgen gibt es einen Weg: Erledigt-Vermerke, Ratenvereinbarungen mit Meldeverzicht, das Girokonto, die Zahlungshistorie. Nur Löschung gibt es dann nicht, und das versprechen wir auch nicht."
+      "a": "Dann sagen wir es Ihnen, sobald Ihre Datenkopie vorliegt – und Sie entscheiden, ob Sie weitermachen. Auch bei berechtigten Einträgen gibt es einen Weg: Erledigt-Vermerke, Ratenvereinbarungen mit Meldeverzicht, das Girokonto, die Zahlungshistorie. Nur Löschung gibt es dann nicht, und das versprechen wir auch nicht."
     }
   ],
   "/en/pricing": [
@@ -332,12 +332,12 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "The contract runs for twelve monthly instalments — that long because reports, letters and replies take time. After that it continues indefinitely and can be cancelled at any time with one month\\x27s notice, informally: in your customer area under Subscription & payments or by e-mail. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition."
     },
     {
-      "f": "Is the credit report included in a plan?",
-      "a": "No, it is a separate product. With a running plan it costs €74 one-off, without a plan €149 (for companies €199 with a plan, €349 without). You receive the data copies from every credit bureau in your country, every line explained, storage periods checked, an action plan and finished letters for your approval. You are also entitled to your data copy from each bureau free of charge — request it yourself, upload it in your customer area and your plan explains it."
+      "f": "Is the credit assessment included in a plan?",
+      "a": "For new plan customers the credit assessment is included in the plan — it is the step before our partner bank's link for your card application. On its own it costs €149 one-off, with a running plan €74 — no subscription (the company credit report: €349 on its own, €199 with a plan). It shows your creditworthiness as a bank sees it — from your own bank statements. All we need is your ID and your bank statements for the last three months; after ordering you get a link to upload them — no login needed. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
       "f": "Are there fees per letter or success commissions?",
-      "a": "Not for you — neither per letter nor on deletions, accounts or card limits. The plan price is the price — plus the credit report if you want it. Registered-letter postage, follow-up, escalation — all included. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
+      "a": "Not for you — neither per letter nor on deletions, accounts or card limits. The plan price is the price — for new plan customers the credit assessment is included. Registered-letter postage, follow-up, escalation — all included. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "How do I pay?",
@@ -349,7 +349,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What if all my entries are justified?",
-      "a": "Then we tell you so after the report — and you decide whether to continue. Even with justified entries there is a way forward: settled markers, instalment agreements with a waiver of reporting, the current account, your payment history. Only deletion is off the table then, and we do not promise it."
+      "a": "Then we tell you so once your data copy is in — and you decide whether to continue. Even with justified entries there is a way forward: settled markers, instalment agreements with a waiver of reporting, the current account, your payment history. Only deletion is off the table then, and we do not promise it."
     }
   ],
   "/en": [
@@ -359,7 +359,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Which credit bureaus does FIAON work with?",
-      "a": "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — always with your written authorisation."
+      "a": "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — FIAON explains the data copies you upload. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
       "f": "Can I cancel?",
@@ -385,7 +385,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Welche Karte bekomme ich über FIAON?",
-      "a": "Eine Kreditkarte eines Kartenpartners, je nach Profil Mastercard oder Visa, mit Monatsabrechnung. Welche konkret, klärt das Startgespräch anhand Ihrer Auskunft."
+      "a": "Eine Kreditkarte eines Kartenpartners, je nach Profil Mastercard oder Visa, mit Monatsabrechnung. Welche konkret, klärt das Startgespräch anhand Ihrer Bonitätsauswertung."
     },
     {
       "f": "Was kostet die Karte?",
@@ -407,7 +407,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Which card do I get through FIAON?",
-      "a": "A credit card from a card partner, Mastercard or Visa depending on your profile, with a monthly statement. Which one exactly is settled in the onboarding call on the basis of your report."
+      "a": "A credit card from a card partner, Mastercard or Visa depending on your profile, with a monthly statement. Which one exactly is settled in the onboarding call on the basis of your credit assessment."
     },
     {
       "f": "What does the card cost?",
@@ -485,7 +485,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Warum wurde mein Handyvertrag abgelehnt, obwohl der KSV nichts hat?",
-      "a": "Mobilfunkanbieter fragen häufig bei CRIF an. Fordern Sie dort die Selbstauskunft – FIAON tut das für Sie."
+      "a": "Mobilfunkanbieter fragen häufig bei CRIF an. Fordern Sie dort die kostenlose Selbstauskunft an – unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir sie Ihnen."
     },
     {
       "f": "Kann ich trotz Eintrag ein Konto eröffnen?",
@@ -507,7 +507,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Why was my mobile contract rejected although KSV has nothing?",
-      "a": "Mobile providers frequently enquire at CRIF. Request the self-disclosure there — FIAON does that for you."
+      "a": "Mobile providers frequently enquire at CRIF. Request your free self-disclosure there — our generator writes the letter. Upload it and we explain it to you."
     },
     {
       "f": "Can I open an account despite an entry?",
@@ -605,7 +605,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Kann ich FIAON nutzen, ohne Unterlagen hochzuladen?",
-      "a": "Die Auskunft lässt sich mit Vollmacht beschaffen; für die Finanzauswertung braucht es den Kontoauszug, für Konto und Karte den Ausweis. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht."
+      "a": "Für die Bonitätsauswertung braucht es Ausweis und Kontoauszüge, für Konto und Karte den Ausweis; Ihre Datenkopie laden Sie hoch, wenn Sie möchten. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht."
     }
   ],
   "/en/security": [
@@ -651,7 +651,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I use FIAON without uploading documents?",
-      "a": "The report can be obtained with authorisation; the financial analysis needs the bank statement, account and card need your ID. What you do not upload stays out — and we tell you what then is not possible."
+      "a": "The credit assessment needs your ID and bank statements, account and card need your ID; you upload your data copy if you wish. What you do not upload stays out — and we tell you what then is not possible."
     }
   ],
   "/kontakt": [
@@ -701,7 +701,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/investoren": [
     {
       "f": "Wie verdient FIAON Geld?",
-      "a": "Mit dem Abo des Kunden (7,99 € bis 99,99 € im Monat, zwölf Raten), mit der einmaligen Bonitätsauskunft und mit Provisionen der Partnerbanken, wenn ein Kunde über FIAON ein Konto oder eine Finanzierung erhält."
+      "a": "Mit dem Abo des Kunden (7,99 € bis 99,99 € im Monat, zwölf Raten), mit der einmaligen FIAON-Bonitätsauswertung und mit Provisionen der Partnerbanken, wenn ein Kunde über FIAON ein Konto oder eine Finanzierung erhält."
     },
     {
       "f": "Ist FIAON eine Bank?",
@@ -737,11 +737,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was macht FIAON genau?",
-      "a": "FIAON beschafft Ihre Bonitätsauskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext, prüft jeden Eintrag auf Zulässigkeit (§ 31 BDSG) und Verfristung und führt den Schriftwechsel mit Auskunfteien und Gläubigern – anwaltlich geprüfte Vorlagen, Einschreiben, Fristen, Antworten. Danach bereitet FIAON Girokonto und Kreditkarte beim Partnerinstitut vor. Über die Vergabe entscheidet die Bank."
+      "a": "FIAON zeigt Ihnen in der Bonitätsauswertung Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an und laden sie hoch; FIAON erklärt jede Zeile in Klartext, prüft jeden Eintrag auf Zulässigkeit (§ 31 BDSG) und Verfristung und führt den Schriftwechsel mit Auskunfteien und Gläubigern – anwaltlich geprüfte Vorlagen, Einschreiben, Fristen, Antworten. Danach bereitet FIAON Girokonto und Kreditkarte beim Partnerinstitut vor. Über die Vergabe entscheidet die Bank."
     },
     {
       "f": "Was kostet FIAON?",
-      "a": "Die Bonitätsauskunft mit Prüfung kostet einmalig 74 Euro. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten von 7,99 bis 99,99 Euro; alle Preise stehen offen auf der Preisseite. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
+      "a": "Die Bonitätsauswertung kostet einzeln einmalig 149 €, mit laufendem Paket 74 €; für neue Paketkunden ist sie im Paket enthalten. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten von 7,99 bis 99,99 Euro; alle Preise stehen offen auf der Preisseite. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Kann FIAON meine SCHUFA-Einträge löschen?",
@@ -749,7 +749,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie sehe ich, was FIAON für mich tut?",
-      "a": "In Ihrem Kundenbereich: jeder Auftrag, jede eingegangene Auskunft, jedes Schreiben, jede Frist und jede Antwort als nachvollziehbarer Verlauf. Sie müssen nicht anrufen, um den Stand zu erfahren – und Sie geben jedes Schreiben frei, bevor es rausgeht."
+      "a": "In Ihrem Kundenbereich: jeder Auftrag, jede hochgeladene Unterlage, jedes Schreiben, jede Frist und jede Antwort als nachvollziehbarer Verlauf. Sie müssen nicht anrufen, um den Stand zu erfahren – und Sie geben jedes Schreiben frei, bevor es rausgeht."
     },
     {
       "f": "Arbeitet FIAON auch in Österreich und der Schweiz?",
@@ -771,11 +771,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What exactly does FIAON do?",
-      "a": "FIAON obtains your credit reports from SCHUFA, KSV and CRIF, explains every line in plain language, checks every entry for lawfulness (Section 31 BDSG) and expiry and handles the correspondence with credit bureaus and creditors — templates reviewed by lawyers, registered post, deadlines, replies. Then FIAON prepares a current account and a credit card with the partner institution. The bank decides on the issue."
+      "a": "In the credit assessment FIAON shows you your creditworthiness as a bank sees it — from your own bank statements. You request your free data copy from SCHUFA, KSV or CRIF yourself and upload it; FIAON explains every line in plain language, checks every entry for lawfulness (Section 31 BDSG) and expiry and handles the correspondence with credit bureaus and creditors — templates reviewed by lawyers, registered post, deadlines, replies. Then FIAON prepares a current account and a credit card with the partner institution. The bank decides on the issue."
     },
     {
       "f": "What does FIAON cost?",
-      "a": "The credit report with review costs €74 one-off. The plans for ongoing support run over twelve monthly instalments from €7.99 to €99.99; all prices are open on the pricing page. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
+      "a": "The credit assessment costs €149 one-off on its own, €74 with a running plan; for new plan customers it is included in the plan. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it. The plans for ongoing support run over twelve monthly instalments from €7.99 to €99.99; all prices are open on the pricing page. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "Can FIAON delete my SCHUFA entries?",
@@ -783,7 +783,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I see what FIAON is doing for me?",
-      "a": "In your customer area: every engagement, every report received, every letter, every deadline and every reply as a traceable timeline. You do not have to call to find out the status — and you approve every letter before it goes out."
+      "a": "In your customer area: every engagement, every document uploaded, every letter, every deadline and every reply as a traceable timeline. You do not have to call to find out the status — and you approve every letter before it goes out."
     },
     {
       "f": "Does FIAON also work in Austria and Switzerland?",
@@ -869,7 +869,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was unterscheidet FIAON von einem Anwalt?",
-      "a": "FIAON ist Verfolgung und Weg: Auskunft beschaffen, jeden Eintrag einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus."
+      "a": "FIAON ist Verfolgung und Weg: Bonität aus Sicht einer Bank auswerten, jeden Eintrag Ihrer Datenkopie einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus."
     }
   ],
   "/en/compare": [
@@ -891,7 +891,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What is the difference between FIAON and a lawyer?",
-      "a": "FIAON is follow-up and path: obtain the report, classify every entry, send letters reviewed by lawyers, chase replies, instalment offers, prepare account and card — for a fixed price over twelve instalments. A lawyer represents you legally in the individual case and may sue. The two are not mutually exclusive."
+      "a": "FIAON is follow-up and path: assess your creditworthiness as a bank sees it, classify every entry in your data copy, send letters reviewed by lawyers, chase replies, instalment offers, prepare account and card — for a fixed price over twelve instalments. A lawyer represents you legally in the individual case and may sue. The two are not mutually exclusive."
     }
   ],
   "/hilfe": [
@@ -905,7 +905,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was ist das Startgespräch?",
-      "a": "Ein Telefonat von rund 15 Minuten mit einem Mitarbeiter: Lage, Ziel, Unterlagen, nächste Schritte. Es ist Pflicht, weil danach Ihre Auskunft beantragt wird. Wer vorher einen Termin über /termin gebucht hat, braucht keinen zweiten."
+      "a": "Ein Telefonat von rund 15 Minuten mit einem Mitarbeiter: Lage, Ziel, Unterlagen, nächste Schritte. Es ist Pflicht, weil darin Ihr erster Schritt festgelegt wird. Wer vorher einen Termin über /termin gebucht hat, braucht keinen zweiten."
     },
     {
       "f": "Kann ich das Paket noch ändern?",
@@ -936,16 +936,20 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Ja, je Rate im Kundenbereich unter Abo & Zahlungen als PDF – mit Umsatzsteuer ausgewiesen."
     },
     {
-      "f": "Wird die Bonitätsauskunft angerechnet?",
-      "a": "Wer zuerst nur die Auskunft (74 Euro) bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet – sagen Sie es im Startgespräch."
+      "f": "Was kostet die Bonitätsauswertung?",
+      "a": "Einzeln 149 €, mit laufendem Paket 74 € – einmalig, kein Abo. Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag."
     },
     {
-      "f": "Welche Auskünfte beschafft FIAON?",
-      "a": "In Deutschland die SCHUFA (auf Wunsch auch Boniversum, CRIF), in Österreich KSV1870 und CRIF, in der Schweiz CRIF, Intrum und den Betreibungsregisterauszug – mit Ihrer digitalen Vollmacht. Sie füllen kein Formular aus."
+      "f": "Was ist die FIAON-Bonitätsauswertung?",
+      "a": "Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen: Haushaltsrechnung und die neun Merkmale einer Kreditprüfung, jede Einnahme und Ausgabe nach Empfänger, Ampel für sieben Bereiche, FIAON-Finanzwert und ein Plan für zwölf Monate. Dafür brauchen wir nur Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate. Nach der Bestellung bekommen Sie einen Link zum Hochladen — ohne Anmeldung. Ein Mensch prüft den Bericht und gibt ihn frei; Sie bekommen ihn als PDF per E-Mail und im Kundenbereich. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
-      "f": "Wie lange dauert es, bis die Auskunft da ist?",
-      "a": "Die Auskunfteien haben einen Monat Zeit (Art. 15 DSGVO); in der Praxis kommen Datenkopien oft nach ein bis drei Wochen. Sobald sie vorliegt, sehen Sie sie innerhalb von 24 Stunden erklärt im Kundenbereich."
+      "f": "Fordert FIAON meine Auskunft an?",
+      "a": "Nein. Ihre Datenkopie fordern Sie selbst an – kostenlos, der Selbstauskunft-Generator unter /werkzeuge/selbstauskunft schreibt den Brief. Zuständig sind in Deutschland die SCHUFA (daneben Boniversum, CRIF), in Österreich KSV1870 und CRIF, in der Schweiz CRIF, Intrum und das Betreibungsregister. Laden Sie die Datenkopie im Kundenbereich hoch, ordnet Ihr Paket jeden Eintrag ein."
+    },
+    {
+      "f": "Wie lange dauert es, bis die Datenkopie da ist?",
+      "a": "Die Auskunfteien haben einen Monat Zeit (Art. 15 DSGVO); in der Praxis kommen Datenkopien oft nach ein bis drei Wochen per Post zu Ihnen. Laden Sie sie dann im Kundenbereich hoch – ein Handyfoto genügt."
     },
     {
       "f": "Was bedeuten die Bewertungen an den Einträgen?",
@@ -1001,7 +1005,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Gibt es ein Widerrufsrecht?",
-      "a": "Ja, 14 Tage ab Vertragsschluss, ohne Angabe von Gründen – die Widerrufsbelehrung und das Musterformular stehen auf der Seite Widerrufsbelehrung. Bereits erbrachte Leistungen (etwa eine beschaffte Auskunft) werden anteilig berechnet."
+      "a": "Ja, 14 Tage ab Vertragsschluss, ohne Angabe von Gründen – die Widerrufsbelehrung und das Musterformular stehen auf der Seite Widerrufsbelehrung. Bereits erbrachte Leistungen werden anteilig berechnet."
     },
     {
       "f": "Was passiert mit meinen Daten nach der Kündigung?",
@@ -1051,7 +1055,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What is the onboarding call?",
-      "a": "A phone call of around 15 minutes with one of our team: situation, goal, documents, next steps. It is mandatory because your report is requested afterwards. Anyone who booked a call beforehand does not need a second one."
+      "a": "A phone call of around 15 minutes with one of our team: situation, goal, documents, next steps. It is mandatory because your first step is set in it. Anyone who booked a call beforehand does not need a second one."
     },
     {
       "f": "Can I still change the plan?",
@@ -1082,16 +1086,20 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Yes, per instalment in the customer area under Subscription & payments as a PDF — with VAT shown."
     },
     {
-      "f": "Is the credit report credited?",
-      "a": "If you first buy only the report (€74) and choose a plan within 30 days, the amount is credited against the first instalment — say so in the onboarding call."
+      "f": "What does the credit assessment cost?",
+      "a": "€149 on its own, €74 with a running plan — one-off, no subscription. For new plan customers the credit assessment is included in the plan — it is the step before our partner bank's link for your card application."
     },
     {
-      "f": "Which reports does FIAON obtain?",
-      "a": "In Germany SCHUFA (on request also Boniversum, CRIF), in Austria KSV1870 and CRIF, in Switzerland CRIF, Intrum and the debt enforcement register extract — with your digital authorisation. You fill in no forms."
+      "f": "What is the FIAON credit assessment?",
+      "a": "Your creditworthiness as a bank sees it — from your own bank statements: household budget and the nine criteria a credit check looks at, every income and expense by payee, a traffic light for seven areas, your FIAON financial score and a twelve-month plan. All we need is your ID and your bank statements for the last three months. After ordering you get a link to upload them — no login needed. A person checks the report and releases it; you receive it as a PDF by email and in the customer area. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
-      "f": "How long until the report arrives?",
-      "a": "The credit bureaus have one month (Art. 15 GDPR); in practice data copies often arrive after one to three weeks. As soon as it is there, you see it explained in the customer area within 24 hours."
+      "f": "Does FIAON request my credit report?",
+      "a": "No. You request your data copy yourself — free of charge, the self-disclosure generator under /werkzeuge/selbstauskunft writes the letter. Responsible are SCHUFA in Germany (alongside Boniversum, CRIF), KSV1870 and CRIF in Austria, CRIF, Intrum and the debt enforcement register in Switzerland. Upload the data copy in the customer area and your plan classifies every entry."
+    },
+    {
+      "f": "How long until the data copy arrives?",
+      "a": "The credit bureaus have one month (Art. 15 GDPR); in practice data copies often reach you by post after one to three weeks. Then upload it in the customer area — a phone photo is enough."
     },
     {
       "f": "What do the assessments on the entries mean?",
@@ -1147,7 +1155,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Is there a right of withdrawal?",
-      "a": "Yes, 14 days from the conclusion of the contract, without giving reasons — the withdrawal notice and the model form are on the page Right of withdrawal. Services already provided (such as a report obtained) are charged proportionately."
+      "a": "Yes, 14 days from the conclusion of the contract, without giving reasons — the withdrawal notice and the model form are on the page Right of withdrawal. Services already provided are charged proportionately."
     },
     {
       "f": "What happens to my data after cancellation?",
@@ -1197,11 +1205,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Ist FIAON eine Bank, ein Inkasso oder eine Kanzlei?",
-      "a": "Nichts davon. FIAON ist eine Bonitätsplattform: Auskunft beschaffen und erklären, Einträge nach DSGVO und § 31 BDSG angreifen, Raten verhandeln, Konto und Karte beim Partnerinstitut vorbereiten. Keine Rechtsberatung im Einzelfall, keine Kreditvermittlung, keine eigenen Konten."
+      "a": "Nichts davon. FIAON ist eine Bonitätsplattform: Bonität aus Sicht einer Bank auswerten, die selbst angeforderte Datenkopie erklären, Einträge nach DSGVO und § 31 BDSG angreifen, Raten verhandeln, Konto und Karte beim Partnerinstitut vorbereiten. Keine Rechtsberatung im Einzelfall, keine Kreditvermittlung, keine eigenen Konten."
     },
     {
       "f": "Wie verdient FIAON Geld?",
-      "a": "Mit Festpreisen: der Bonitätsauskunft (74 Euro einmalig) und Paketen über zwölf Monatsraten. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
+      "a": "Mit Festpreisen: der Bonitätsauswertung (149 € einzeln, 74 € mit laufendem Paket, für neue Paketkunden im Paket enthalten) und Paketen über zwölf Monatsraten. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten."
     },
     {
       "f": "Warum führt FIAON ein öffentliches Entscheidungsregister?",
@@ -1219,11 +1227,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Is FIAON a bank, a debt collector or a law firm?",
-      "a": "None of those. FIAON is a credit platform: obtain and explain the report, challenge entries under the GDPR and Section 31 BDSG, negotiate instalments, prepare account and card with the partner institution. No legal advice in individual cases, no credit brokerage, no accounts of its own."
+      "a": "None of those. FIAON is a credit platform: assess creditworthiness as a bank sees it, explain the data copy you requested yourself, challenge entries under the GDPR and Section 31 BDSG, negotiate instalments, prepare account and card with the partner institution. No legal advice in individual cases, no credit brokerage, no accounts of its own."
     },
     {
       "f": "How does FIAON make money?",
-      "a": "With fixed prices: the credit report (€74 one-off) and plans over twelve monthly instalments. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
+      "a": "With fixed prices: the credit assessment (€149 on its own, €74 with a running plan, included for new plan customers) and plans over twelve monthly instalments. No success fee, no fee per letter. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing."
     },
     {
       "f": "Why does FIAON keep a public decision register?",
@@ -1289,7 +1297,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Hilft FIAON bei der Kreditvermittlung?",
-      "a": "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, prüft jeden Eintrag auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen."
+      "a": "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. Ihre kostenlose Datenkopie fordern Sie selbst an und laden sie hoch; FIAON prüft die Einträge auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen."
     }
   ],
   "/en/loans-without-schufa": [
@@ -1315,7 +1323,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does FIAON help with credit brokerage?",
-      "a": "No — FIAON does not broker loans and does not sell financial products. FIAON obtains your reports from SCHUFA, KSV and CRIF, checks every entry for whether it can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan."
+      "a": "No — FIAON does not broker loans and does not sell financial products. You request your free data copy yourself and upload it; FIAON checks the entries for whether they can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan."
     }
   ],
   "/bonitaet-verbessern": [
@@ -1389,7 +1397,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Hilft FIAON in allen drei Ländern?",
-      "a": "Ja — das ist der Kern des Angebots: Beschaffung, Prüfung und Durchsetzung bei SCHUFA, KSV1870 und CRIF aus einer Hand, mit den jeweiligen Landesregeln. Die Länderseiten für Österreich und die Schweiz erklären die Besonderheiten."
+      "a": "Ja — mit den jeweiligen Landesregeln: Ihre kostenlose Datenkopie von SCHUFA, KSV1870 oder CRIF fordern Sie selbst an und laden sie hoch; Prüfung und Durchsetzung übernimmt FIAON. Die Länderseiten für Österreich und die Schweiz erklären die Besonderheiten."
     }
   ],
   "/en/credit-bureaus": [
@@ -1411,7 +1419,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does FIAON help in all three countries?",
-      "a": "Yes — that is the core of the offer: obtaining, checking and enforcement at SCHUFA, KSV1870 and CRIF from one hand, with the respective national rules. The country pages for Austria and Switzerland explain the particularities."
+      "a": "Yes — with the respective national rules: you request your free data copy from SCHUFA, KSV1870 or CRIF yourself and upload it; FIAON takes on checking and enforcement. The country pages for Austria and Switzerland explain the particularities."
     }
   ],
   "/schufa-score-verstehen": [
@@ -1421,7 +1429,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wo sehe ich meinen SCHUFA-Score kostenlos?",
-      "a": "Seit dem 17. März 2026 digital und kostenlos: im SCHUFA-Account (app.schufa.de) oder über die bonify-App – mit allen zwölf Kriterien und den Punkten je Kriterium. Daneben bleibt die Datenkopie nach Art. 15 DSGVO per Post kostenlos; nur sie zeigt, welche Stelle was gemeldet hat. FIAON bestellt die Datenkopie im Rahmen der Bonitätsauskunft für Sie mit."
+      "a": "Seit dem 17. März 2026 digital und kostenlos: im SCHUFA-Account (app.schufa.de) oder über die bonify-App – mit allen zwölf Kriterien und den Punkten je Kriterium. Daneben bleibt die Datenkopie nach Art. 15 DSGVO per Post kostenlos; nur sie zeigt, welche Stelle was gemeldet hat. Unser kostenloser Generator schreibt Ihnen die Anforderung."
     },
     {
       "f": "Was ist aus dem Basisscore und den Branchenscores geworden?",
@@ -1447,7 +1455,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Where can I see my SCHUFA score free of charge?",
-      "a": "Since 17 March 2026 digitally and free: in the SCHUFA account (app.schufa.de) or via the bonify app — with all twelve criteria and the points per criterion. Alongside, the data copy under Art. 15 GDPR by post remains free; only it shows which body reported what. FIAON orders the data copy for you as part of the credit report."
+      "a": "Since 17 March 2026 digitally and free: in the SCHUFA account (app.schufa.de) or via the bonify app — with all twelve criteria and the points per criterion. Alongside, the data copy under Art. 15 GDPR by post remains free; only it shows which body reported what. Our free generator writes the request for you."
     },
     {
       "f": "What has become of the base score and the industry scores?",
@@ -1469,27 +1477,31 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/bonitaetsauskunft-beantragen": [
     {
       "f": "Ist eine Bonitätsauskunft wirklich kostenlos möglich?",
-      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben — und bei FIAON die Arbeit drumherum: anfordern bei den großen Auskunfteien Ihres Landes, jede Zeile erklären, Fristen prüfen, Handlungsplan und fertige Schreiben."
+      "a": "Ja. Die Datenkopie nach Art. 15 DSGVO ist gesetzlich kostenlos — bei jeder Auskunftei, in der Schweiz nach Art. 25 DSG. Sie enthält alle gespeicherten Daten samt Meldedatum und meldender Stelle. Sie fordern sie selbst an; unser Generator schreibt Ihnen den Brief. Kostenpflichtig ist bei den Auskunfteien nur das Bonitätszertifikat zum Weitergeben."
     },
     {
-      "f": "Was kostet die Bonitätsauskunft über FIAON?",
-      "a": "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für Unternehmen: 349 € einzeln, 199 € mit Paket. Darin enthalten: die Anforderung Ihrer Datenkopien bei den großen Auskunfteien Ihres Landes, die Erklärung jeder Zeile, die Prüfung der Speicherfristen, Ihr Handlungsplan und fertige Schreiben zur Freigabe. Kein Abo, keine Erfolgsbeteiligung — seriöse Arbeit rechnet nicht pro „gelöschtem Eintrag“ ab."
+      "f": "Was ist die FIAON-Bonitätsauswertung?",
+      "a": "Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen. Rund 25 Seiten: Haushaltsrechnung und die neun Merkmale einer Kreditprüfung, jede Einnahme und Ausgabe nach Empfänger, eine Ampel für sieben Bereiche, Ihr FIAON-Finanzwert, Ihr Potenzial und Ihr Plan für zwölf Monate. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
-      "f": "Wie lange dauert es, bis ich meine Auskunft habe?",
-      "a": "Die Bestellung dauert wenige Minuten. Die Auskunfteien haben für die Datenkopie gesetzlich in der Regel einen Monat Zeit, oft geht es schneller. Sobald die Kopien vorliegen, erklären und prüfen wir sie und legen Handlungsplan und Schreiben in Ihren Kundenbereich."
+      "f": "Was kostet die Bonitätsauswertung?",
+      "a": "Einmalig 149 €. Mit einem laufenden FIAON-Paket zahlen Sie den Kundenpreis von 74 €. Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Kein Abo, keine Erfolgsbeteiligung."
+    },
+    {
+      "f": "Was muss ich dafür tun?",
+      "a": "Nach der Bestellung bekommen Sie einen Link und laden Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate hoch — ohne Anmeldung. Bei keiner Auskunftei wird etwas angefragt."
     },
     {
       "f": "Was ist der Unterschied zwischen Datenkopie und Bonitätszertifikat?",
-      "a": "Die Datenkopie ist für SIE: vollständig, mit jedem Eintrag und jedem Detail — und kostenlos. Das Bonitätszertifikat der Auskunfteien ist für DRITTE (z. B. Vermieter): gekürzt, dafür zum Vorzeigen gedacht und kostenpflichtig. Wer seine Lage verstehen und angehen will, braucht die Datenkopie."
+      "a": "Die Datenkopie ist für SIE: vollständig, mit jedem Eintrag und jedem Detail — und kostenlos. Das Bonitätszertifikat der Auskunfteien ist für DRITTE (z. B. Vermieter): gekürzt, dafür zum Vorzeigen gedacht und kostenpflichtig. Wer wissen will, was gespeichert ist, braucht die Datenkopie."
     },
     {
       "f": "Sieht die SCHUFA, dass ich eine Auskunft beantrage?",
-      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Das gilt auch, wenn FIAON sie in Ihrem Auftrag für Sie anfordert."
+      "a": "Die Eigenauskunft ist neutral: Sie wird nicht als Anfrage gespeichert, die andere Banken sehen, und sie verändert Ihren Score nicht. Die FIAON-Bonitätsauswertung fragt ohnehin bei keiner Auskunftei an."
     },
     {
       "f": "Gilt das auch für Österreich und die Schweiz?",
-      "a": "Ja. In Deutschland fordern wir bei SCHUFA, CRIF und Creditreform Boniversum an, in Österreich bei KSV1870 und CRIF, in der Schweiz bei CRIF und Intrum. In Österreich gilt die DSGVO unmittelbar, die Schweiz kennt mit dem revidierten DSG eigene Auskunfts- und Berichtigungsrechte (Art. 25 DSG)."
+      "a": "Ja. Ihre kostenlose Datenkopie fordern Sie in Deutschland bei SCHUFA, CRIF und Creditreform Boniversum an, in Österreich bei KSV1870 und CRIF, in der Schweiz bei CRIF und Intrum. In Österreich gilt die DSGVO unmittelbar, die Schweiz kennt mit dem revidierten DSG eigene Auskunftsrechte (Art. 25 DSG). Die Bonitätsauswertung ist in allen drei Ländern dieselbe."
     },
     {
       "f": "Gibt es die Bonitätsauskunft auch für Unternehmen?",
@@ -1497,33 +1509,41 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Kann FIAON zusagen, dass Einträge gelöscht werden?",
-      "a": "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Was FIAON leistet: jeden Eintrag gegen die gesetzlichen Voraussetzungen halten und für das, was angreifbar ist, die Schreiben fertig machen. Ob gelöscht wird, entscheidet die Auskunftei. Anbieter, die eine Löschung versprechen, erkennen Sie als unseriös."
+      "a": "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf; ob gelöscht wird, entscheidet die Auskunftei. Die Bonitätsauswertung ändert an Einträgen nichts — sie zeigt, was in Ihrer Hand liegt. Anbieter, die eine Löschung versprechen, erkennen Sie als unseriös."
     }
   ],
   "/en/request-your-credit-report": [
     {
       "f": "Is a credit report really possible free of charge?",
-      "a": "Yes. The data copy under Art. 15 GDPR is free by law — at every credit bureau, in Switzerland under Art. 25 DSG. It contains all stored data including reporting date and reporting body. What the bureaus charge for is only the credit certificate to pass on — and what FIAON charges for is the work around it: requesting from every bureau in your country, explaining every line, checking deadlines, an action plan and finished letters."
+      "a": "Yes. The data copy under Art. 15 GDPR is free by law — at every credit bureau, in Switzerland under Art. 25 DSG. It contains all stored data including reporting date and reporting body. You request it yourself; our generator writes the letter for you. What the bureaus charge for is only the credit certificate to pass on."
     },
     {
-      "f": "What does the credit report via FIAON cost?",
-      "a": "€149 one-off. With a running FIAON plan you pay the customer price of €74. For companies: €349 on its own, €199 with a plan. Included: requesting your data copies from every credit bureau in your country, explaining every line, checking the storage periods, your action plan and finished letters for your approval. No subscription, no success fee — serious work does not charge per “deleted entry”."
+      "f": "What is the FIAON credit assessment?",
+      "a": "Your creditworthiness as a bank sees it — from your own bank statements. Around 25 pages: household budget and the nine criteria of a credit check, every income and expense by payee, a traffic light for seven areas, your FIAON financial score, your potential and your twelve-month plan. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
-      "f": "How long until I have my report?",
-      "a": "Ordering takes a few minutes. By law the credit bureaus usually have one month for the data copy, often it is faster. As soon as the copies arrive, we explain and check them and put the action plan and letters in your customer area."
+      "f": "What does the credit assessment cost?",
+      "a": "€149 one-off. With a running FIAON plan you pay the customer price of €74. For new plan customers the credit assessment is included in the plan — it is the step before our partner bank's link for your card application. No subscription, no success fee."
+    },
+    {
+      "f": "What do I have to do?",
+      "a": "After ordering you get a link and upload your ID and your bank statements for the last three months — no login needed. No credit bureau is contacted."
+    },
+    {
+      "f": "How long until I have my credit assessment?",
+      "a": "Ordering takes a few minutes. We start as soon as your payment has arrived and your ID and bank statements are in. You receive your credit assessment as a PDF by email and in your FIAON area; the status is always visible there."
     },
     {
       "f": "What is the difference between a data copy and a credit certificate?",
-      "a": "The data copy is for YOU: complete, with every entry and every detail — and free. The credit bureaus' credit certificate is for THIRD PARTIES (landlords, say): abridged, meant for showing, and paid. Anyone who wants to understand and tackle their situation needs the data copy."
+      "a": "The data copy is for YOU: complete, with every entry and every detail — and free. The credit bureaus' credit certificate is for THIRD PARTIES (landlords, say): abridged, meant for showing, and paid. Anyone who wants to know what is stored needs the data copy."
     },
     {
       "f": "Does SCHUFA see that I am requesting a report?",
-      "a": "Self-disclosure is neutral: it is not stored as an enquiry that other banks see, and it does not change your score. That also applies when FIAON requests it for you with your authorisation."
+      "a": "Self-disclosure is neutral: it is not stored as an enquiry that other banks see, and it does not change your score. The FIAON credit assessment does not contact any credit bureau anyway."
     },
     {
       "f": "Does this also apply in Austria and Switzerland?",
-      "a": "Yes. In Germany we request from SCHUFA, CRIF and Creditreform Boniversum, in Austria from KSV1870 and CRIF, in Switzerland from CRIF and Intrum. In Austria the GDPR applies directly, Switzerland has its own rights of access and rectification under the revised DSG (Art. 25 DSG)."
+      "a": "Yes. You request your free data copy in Germany from SCHUFA, CRIF and Creditreform Boniversum, in Austria from KSV1870 and CRIF, in Switzerland from CRIF and Intrum. In Austria the GDPR applies directly, Switzerland has its own rights of access under the revised DSG (Art. 25 DSG). The credit assessment is the same in all three countries."
     },
     {
       "f": "Is the credit report also available for companies?",
@@ -1531,7 +1551,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can FIAON promise that entries will be deleted?",
-      "a": "No — and nobody can, seriously. Justified, lawfully reported entries stay until the deadline expires. What FIAON does: hold every entry against the legal requirements and prepare the letters for whatever can be challenged. Whether an entry is deleted is decided by the credit bureau. You can recognise providers who promise deletion as not serious."
+      "a": "No — and nobody can, seriously. Justified, lawfully reported entries stay until the deadline expires; whether an entry is deleted is decided by the credit bureau. The credit assessment does not change any entry — it shows what is in your hands. You can recognise providers who promise deletion as not serious."
     }
   ],
   "/inkasso-brief-erhalten": [
@@ -1653,11 +1673,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Führt FIAON selbst Konten?",
-      "a": "Nein. FIAON ist keine Bank. Konto und Karte entstehen beim Partnerinstitut; FIAON beschafft und prüft Ihre Auskünfte, bereitet den Antrag vor und begleitet den Weg. Über Eröffnung, Karte und Rahmen entscheidet die Bank nach eigenen Regeln."
+      "a": "Nein. FIAON ist keine Bank. Konto und Karte entstehen beim Partnerinstitut; FIAON wertet Ihre Bonität aus, prüft Ihre Datenkopie, bereitet den Antrag vor und begleitet den Weg. Über Eröffnung, Karte und Rahmen entscheidet die Bank nach eigenen Regeln."
     },
     {
       "f": "Wie lange dauert der Weg zum Konto?",
-      "a": "Ihre Angaben im FIAON-Antrag dauern etwa fünf Minuten. Danach hängt das Tempo von zwei Dingen ab: wie schnell die Auskunfteien liefern (Tage bis etwa vier Wochen) und wie die Bank entscheidet. Einen festen Termin verspricht Ihnen hier niemand seriös — Sie sehen aber jeden Schritt in Ihrem Kundenbereich."
+      "a": "Ihre Angaben im FIAON-Antrag dauern etwa fünf Minuten. Danach hängt das Tempo von zwei Dingen ab: wie schnell Ihre Unterlagen für die Bonitätsauswertung vorliegen (Ausweis und Kontoauszüge der letzten drei Monate) und wie die Bank entscheidet. Einen festen Termin verspricht Ihnen hier niemand seriös — Sie sehen aber jeden Schritt in Ihrem Kundenbereich."
     },
     {
       "f": "Kostet der Kontoantrag bei FIAON extra?",
@@ -1683,11 +1703,11 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does FIAON run accounts itself?",
-      "a": "No. FIAON is not a bank. Account and card come from the partner institution; FIAON obtains and checks your reports, prepares the application and accompanies the route. The bank decides on opening, card and limit under its own rules."
+      "a": "No. FIAON is not a bank. Account and card come from the partner institution; FIAON assesses your creditworthiness, checks your data copy, prepares the application and accompanies the route. The bank decides on opening, card and limit under its own rules."
     },
     {
       "f": "How long does the route to an account take?",
-      "a": "Your details in the FIAON application take about five minutes. After that the pace depends on two things: how quickly the credit bureaus deliver (days to about four weeks) and how the bank decides. Nobody seriously promises you a fixed date here — but you see every step in your customer area."
+      "a": "Your details in the FIAON application take about five minutes. After that the pace depends on two things: how quickly your documents for the credit assessment are in (your ID and bank statements for the last three months) and how the bank decides. Nobody seriously promises you a fixed date here — but you see every step in your customer area."
     },
     {
       "f": "Does the account application at FIAON cost extra?",
@@ -1772,8 +1792,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Einmal im Jahr als Routine — und zusätzlich vor jedem großen Schritt: Wohnungssuche, Finanzierung, Selbstständigkeit. Die Eigenauskunft ist neutral, sie verändert Ihren Score nicht und wird anderen nicht angezeigt."
     },
     {
-      "f": "Übernimmt FIAON diese Prüfung komplett?",
-      "a": "Ja — das ist die Bonitätsauskunft mit Prüfung: FIAON beschafft die Datenkopien aller drei Häuser, erklärt jede Zeile in Klartext und hält jeden Eintrag gegen § 31 BDSG und die Löschfristen. Sie bekommen die Liste, die Sie hier von Hand erstellen würden — fertig und mit Handlungsplan."
+      "f": "Übernimmt FIAON diese Prüfung für mich?",
+      "a": "Die Checkliste ist zum Selbermachen — Ihre Datenkopie ist kostenlos. FIAON bietet etwas anderes: Die FIAON-Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen — einmalig 149 €, mit laufendem FIAON-Paket 74 €, kein Abo. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     }
   ],
   "/en/reading-your-credit-report": [
@@ -1798,8 +1818,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Once a year as routine — and additionally before every big step: flat hunting, financing, self-employment. Your own enquiry is neutral, it does not change your score and is not shown to others."
     },
     {
-      "f": "Does FIAON take over this check completely?",
-      "a": "Yes — that is the credit report with check: FIAON obtains the data copies from all three bureaus, explains every line in plain language and holds every entry against Section 31 BDSG and the deletion periods. You get the list you would draw up by hand here — finished and with an action plan."
+      "f": "Does FIAON take over this check for me?",
+      "a": "The checklist is made for doing it yourself — your data copy is free. FIAON offers something different: the FIAON credit assessment shows your creditworthiness as a bank sees it, from your own bank statements — €149 one-off, €74 with a running FIAON plan, no subscription. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     }
   ],
   "/schufa-neutral-anfragen": [
@@ -1865,7 +1885,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet es, einen Eintrag löschen zu lassen?",
-      "a": "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer die Beschaffung, Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien."
+      "a": "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen; die Datenkopie fordern Sie dafür selbst kostenlos an — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien."
     },
     {
       "f": "Bringt die Löschung eines Eintrags wirklich etwas?",
@@ -1887,7 +1907,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does it cost to have an entry deleted?",
-      "a": "Doing it yourself costs nothing but time: data copy, check, letters, deadlines — all templates and rules are public, our tools prepare every step for free. Anyone who wants to hand over obtaining, checking and enforcing instructs a service like FIAON with transparent plan prices — reputable providers never charge per “deleted entry” on a success basis and promise no guarantees."
+      "a": "Doing it yourself costs nothing but time: data copy, check, letters, deadlines — all templates and rules are public, our tools prepare every step for free. Anyone who wants to hand over checking and enforcing instructs a service like FIAON with transparent plan prices; you request the data copy for it yourself, free of charge — reputable providers never charge per “deleted entry” on a success basis and promise no guarantees."
     },
     {
       "f": "Does deleting an entry really achieve anything?",
@@ -1900,8 +1920,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/plattform-konzept": [
     {
-      "f": "Wie lange dauert es, bis ich meine Auskunft sehe?",
-      "a": "In der Regel innerhalb von 24 Stunden nach Eingang bei FIAON. Die Auskunfteien selbst brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen."
+      "f": "Wie komme ich zu meiner Bonitätsauskunft?",
+      "a": "Ihre Datenkopie fordern Sie selbst an – kostenlos, unser Generator schreibt den Brief. Die Auskunfteien brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen. Die FIAON-Bonitätsauswertung zeigt dazu Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
     },
     {
       "f": "Was, wenn alle Einträge berechtigt sind?",
@@ -1922,8 +1942,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/how-the-platform-works": [
     {
-      "f": "How long until I see my report?",
-      "a": "Usually within 24 hours of receipt at FIAON. The credit bureaus themselves need between a few days and four weeks depending on country and route."
+      "f": "How do I get my credit report?",
+      "a": "You request your data copy yourself – free of charge, our generator writes the letter. The credit bureaus need between a few days and four weeks depending on country and route. The FIAON credit assessment adds your creditworthiness as a bank sees it – from your own bank statements. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
     },
     {
       "f": "What if all entries are justified?",
@@ -2397,7 +2417,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Warum stellt FIAON das kostenlos bereit?",
-      "a": "Weil die erste Frage — was steht über mich drin, und was davon ist angreifbar? — jeder selbst beantworten können sollte. Wer danach möchte, dass jemand die Beschaffung, Prüfung und Durchsetzung übernimmt, kennt uns dann schon."
+      "a": "Weil die erste Frage — was steht über mich drin, und was davon ist angreifbar? — jeder selbst beantworten können sollte. Wer danach möchte, dass jemand Prüfung und Durchsetzung übernimmt, kennt uns dann schon."
     }
   ],
   "/en/tools": [
@@ -2415,7 +2435,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Why does FIAON provide this for free?",
-      "a": "Because the first question — what is stored about me, and what of it can be challenged? — is one everyone should be able to answer themselves. Anyone who then wants someone to take over obtaining, checking and enforcing already knows us."
+      "a": "Because the first question — what is stored about me, and what of it can be challenged? — is one everyone should be able to answer themselves. Anyone who then wants someone to take over checking and enforcing already knows us."
     }
   ],
   "/status": [
@@ -2696,7 +2716,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
 };
 
-/** Die Begriffe von /glossar-bonitaet (39). */
+/** Die Begriffe von /glossar-bonitaet (40). */
 export const SEO_GLOSSAR: { wort: string; text: string }[] = [
   {
     "wort": "Anfrage (Kredit / Konditionen)",
@@ -2724,7 +2744,11 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
   },
   {
     "wort": "Bonitätsauskunft",
-    "text": "Der Blick in die eigene Datenlage. Als Datenkopie nach Art. 15 DSGVO kostenlos; als geprüfte FIAON-Auskunft mit Beschaffung bei drei Häusern, Klartext-Erklärung und Prüfung jedes Eintrags für einmalig 74 Euro."
+    "text": "Der Blick in die eigene Datenlage bei einer Auskunftei. Als Datenkopie nach Art. 15 DSGVO kostenlos — Sie fordern sie selbst an, unser Generator schreibt den Brief."
+  },
+  {
+    "wort": "Bonitätsauswertung (FIAON)",
+    "text": "Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen: Haushaltsrechnung, die neun Merkmale einer Kreditprüfung, eine Ampel für sieben Bereiche. Einmalig 149 €, mit laufendem FIAON-Paket 74 €. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein."
   },
   {
     "wort": "Branchenscore (bis März 2026)",
@@ -2856,7 +2880,7 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
   }
 ];
 
-/** Die Begriffe von /en/credit-glossary (39). */
+/** Die Begriffe von /en/credit-glossary (40). */
 export const SEO_GLOSSAR_EN: { wort: string; text: string }[] = [
   {
     "wort": "Enquiry (loan / conditions)",
@@ -2884,7 +2908,11 @@ export const SEO_GLOSSAR_EN: { wort: string; text: string }[] = [
   },
   {
     "wort": "Credit report (Bonitätsauskunft)",
-    "text": "The look into your own data. Free as a data copy under Article 15 GDPR; as a checked FIAON report with retrieval from three bureaus, plain-language explanation and a check of every entry for a one-off €74."
+    "text": "The look into your own data at a credit bureau. Free as a data copy under Article 15 GDPR — you request it yourself, our generator writes the letter."
+  },
+  {
+    "wort": "Credit assessment (FIAON)",
+    "text": "Your creditworthiness as a bank sees it — from your own bank statements: household budget, the nine criteria a credit check looks at, a traffic light for seven areas. €149 one-off, €74 with a running FIAON plan. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it."
   },
   {
     "wort": "Industry score (until March 2026)",

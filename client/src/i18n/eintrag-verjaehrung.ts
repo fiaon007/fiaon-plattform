@@ -39,7 +39,7 @@ const de = {
   ],
   wegTitel: "Der FIAON-Weg bei verfristeten Einträgen", wegLead: "Nachrechnen ist der Anfang — durchsetzen die Arbeit.", schritt: "Schritt",
   weg: [
-    { titel: "Datenkopie aller drei Auskunfteien", text: "FIAON beschafft SCHUFA, KSV und CRIF aus einer Hand. Nur die Datenkopie zeigt Meldedatum und Erledigungsdatum — genau die Daten, an denen die Fristen hängen." },
+    { titel: "Datenkopie aller drei Auskunfteien", text: "Ihre kostenlose Datenkopie bei SCHUFA, KSV und CRIF fordern Sie selbst an — unser Generator schreibt den Brief, Sie laden sie hoch. Nur die Datenkopie zeigt Meldedatum und Erledigungsdatum — genau die Daten, an denen die Fristen hängen." },
     { titel: "Jede Frist taggenau nachgerechnet", text: "Jeder Eintrag wird gegen seine Frist und gegen § 31 BDSG gehalten. Sie bekommen das Ergebnis in Klartext: Was muss weg, was ist angreifbar, was bleibt." },
     { titel: "Löschverlangen mit Fristsetzung", text: "Für verfristete und unzulässige Einträge bereitet FIAON die Schreiben an Auskunftei und meldende Stelle vor (Art. 17 DSGVO) und verfolgt die Antwortfristen — bis zur Ombudsstelle, wenn es sein muss." },
   ],
@@ -54,7 +54,7 @@ const de = {
     { f: "Gilt das auch in Österreich und der Schweiz?", a: "Die Grundrechte (Auskunft, Berichtigung, Löschung) sind vergleichbar — die DSGVO gilt in Österreich unmittelbar, die Schweiz hat das revidierte DSG. Die konkreten Speicherpraktiken von KSV und CRIF unterscheiden sich im Detail. FIAON prüft alle drei Häuser; die Länderseiten für Österreich und die Schweiz erklären die Unterschiede." },
   ],
   fussA: "Redaktionelle Einordnung nach den Verhaltensregeln der Wirtschaftsauskunfteien (Fassung 2024), § 31 BDSG und Art. 15–17 DSGVO, Stand August 2026. Keine Rechtsberatung im Einzelfall. Begriffe von A bis Z erklärt das ", fussLink: "Bonitäts-Glossar", fussB: ".",
-  aufrufTitel: "Ihr Verfallsdatum steht in Ihrer Auskunft. Wir lesen es.", aufrufSatz: "FIAON beschafft Ihre Datenkopien, rechnet jede Frist taggenau nach und verlangt die Löschung, wo sie fällig ist — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
+  aufrufTitel: "Ihr Verfallsdatum steht in Ihrer Auskunft. Wir lesen es.", aufrufSatz: "Sie fordern Ihre kostenlose Datenkopie an und laden sie hoch. FIAON rechnet jede Frist taggenau nach und verlangt die Löschung, wo sie fällig ist — Sie sehen jeden Schritt in Ihrem Kundenbereich.",
 };
 const en: typeof de = {
   metaTitel: "SCHUFA entries and limitation periods: all the deadlines",
@@ -95,7 +95,7 @@ const en: typeof de = {
   ],
   wegTitel: "The FIAON route for expired entries", wegLead: "Doing the sums is the beginning — enforcing is the work.", schritt: "Step",
   weg: [
-    { titel: "Data copies from all three credit bureaus", text: "FIAON obtains SCHUFA, KSV and CRIF from one hand. Only the data copy shows reporting date and settlement date — exactly the data the deadlines hang on." },
+    { titel: "Data copies from all three credit bureaus", text: "You request your free data copy from SCHUFA, KSV and CRIF yourself — our generator writes the letter, you upload it. Only the data copy shows reporting date and settlement date — exactly the data the deadlines hang on." },
     { titel: "Every deadline recalculated to the day", text: "Every entry is held against its deadline and against Section 31 BDSG. You get the result in plain language: what must go, what can be challenged, what stays." },
     { titel: "Deletion demand with a deadline", text: "For expired and unlawful entries FIAON prepares the letters to the credit bureau and the reporting body (Art. 17 GDPR) and tracks the reply deadlines — up to the ombudsman if need be." },
   ],
@@ -110,6 +110,6 @@ const en: typeof de = {
     { f: "Does this also apply in Austria and Switzerland?", a: "The basic rights (access, rectification, erasure) are comparable — the GDPR applies directly in Austria, Switzerland has the revised DSG. The specific storage practices of KSV and CRIF differ in detail. FIAON checks all three bureaus; the country pages for Austria and Switzerland explain the differences." },
   ],
   fussA: "Editorial classification under the credit bureaus' code of conduct (2024 version), Section 31 BDSG and Art. 15–17 GDPR, as of August 2026. No legal advice in individual cases. Terms from A to Z are explained in the ", fussLink: "credit glossary", fussB: ".",
-  aufrufTitel: "Your expiry date is in your report. We read it.", aufrufSatz: "FIAON obtains your data copies, recalculates every deadline to the day and demands deletion where it is due — you see every step in your customer area.",
+  aufrufTitel: "Your expiry date is in your report. We read it.", aufrufSatz: "You request your free data copy and upload it. FIAON recalculates every deadline to the day and demands deletion where it is due — you see every step in your customer area.",
 };
 export const EINTRAG_VERJAEHRUNG_WOERTER = { de, en };

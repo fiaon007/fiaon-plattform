@@ -220,7 +220,8 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
 // (fiaon-produktkategorie.ts) — dort stand sonst „FIAON Ultra" über einer Auskunft.
 // ═══════════════════════════════════════════════════════════════════════════
 const AUSKUNFT_NAME: Record<AuskunftArt, string> = {
-  privat: "Bonitätsauskunft inkl. Handlungsplan",
+  // E-365 (14.10.2026): privat ist das Produkt die FIAON-Bonitätsauswertung (E-353) — auch auf Altbestellungen.
+  privat: "FIAON-Bonitätsauswertung",
   firma: "Firmen-Bonitätsauskunft inkl. Handlungsplan",
 };
 

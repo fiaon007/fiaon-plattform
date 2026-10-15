@@ -21,7 +21,7 @@ const de = {
   } as Record<string, KcErgebnis>,
   naechsterSchritt: "Ihr nächster Schritt", fiaonUebernimmt: "FIAON übernimmt das",
   fuss: "Einordnung, keine Zusage: Über Karte und Rahmen entscheidet immer die Bank. Es wird keine Auskunft abgefragt, nichts gespeichert.",
-  zwischenrufFett: "Die Karte kommt über die Auskunft.", zwischenruf: " FIAON beschafft sie, bereinigt, was angreifbar ist, und bereitet den Kartenantrag vor.", zwischenrufKnopf: "Auskunft beschaffen",
+  zwischenrufFett: "Vor der Karte kommt die Bonitätsauswertung.", zwischenruf: " Für neue Paketkunden ist sie im Paket enthalten: Ihre Bonität aus Sicht einer Bank, aus Ihren eigenen Kontoauszügen — keine Auskunft einer Auskunftei und kein Score. Sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag.", zwischenrufKnopf: "Antrag starten",
 };
 const en: typeof de = {
   metaTitel: "Card check · Which credit card is realistic for me?",
@@ -44,6 +44,6 @@ const en: typeof de = {
   },
   naechsterSchritt: "Your next step", fiaonUebernimmt: "FIAON takes this over",
   fuss: "An assessment, not a promise: the bank always decides on card and limit. No report is requested, nothing is stored.",
-  zwischenrufFett: "The card comes via the report.", zwischenruf: " FIAON obtains it, clears up what can be challenged and prepares the card application.", zwischenrufKnopf: "Obtain the report",
+  zwischenrufFett: "Before the card comes the credit assessment.", zwischenruf: " For new plan customers it is included in the plan: your creditworthiness as a bank sees it, from your own bank statements — not a report from a credit bureau and not a credit score. It is the step before our partner bank's link for your card application.", zwischenrufKnopf: "Start the application",
 };
 export const WZ_KARTEN_CHECK_WOERTER = { de, en };

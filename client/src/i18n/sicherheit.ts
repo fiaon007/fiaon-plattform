@@ -2,17 +2,19 @@
 // /sicherheit · /en/security — das Wörterbuch der Seite (02.09.2026)
 // Beide Sprachen Schlüssel für Schlüssel; die Seite liest über useWoerter().
 // Der FAQ-Generator teilt an „const en".
+// 14.10.2026 (E-365): FIAON beschafft keine Auskünfte mehr (keine Vollmacht für
+// Auskunfteien) — es zählt nur, was der Kunde selbst hochlädt.
 // ═══════════════════════════════════════════════════════════════════════════
 const de = {
   metaTitel: "Datenschutz & Sicherheit · FIAON",
-  metaBeschreibung: "Wie FIAON mit den sensibelsten Daten umgeht, die es über Sie gibt: EU-Hosting, Verschlüsselung, Vollmacht, Freigabe vor jedem Schreiben, Löschung auf Wunsch. Plus Datenschutz-Check: Wer darf was mit Ihren Bonitätsdaten?",
+  metaBeschreibung: "Wie FIAON mit den sensibelsten Daten umgeht, die es über Sie gibt: EU-Hosting, Verschlüsselung, nur was Sie hochladen, Freigabe vor jedem Schreiben, Löschung auf Wunsch. Plus Datenschutz-Check: Wer darf was mit Ihren Bonitätsdaten?",
   pille: "Datenschutz & Sicherheit", h1a: "Das sensibelste Dokument ", h1b: "über Sie.",
-  lead: "Ihre Bonitätsauskunft sagt mehr über Sie als jedes Zeugnis. Deshalb ist Sicherheit bei FIAON keine Seite im Impressum, sondern der Bauplan: nichts ohne Ihre Vollmacht, nichts ohne Ihre Freigabe, nichts länger als nötig.",
+  lead: "Ihre Kontoauszüge und Ihre Bonitätsauskunft sagen mehr über Sie als jedes Zeugnis. Deshalb ist Sicherheit bei FIAON keine Seite im Impressum, sondern der Bauplan: nur, was Sie selbst hochladen, nichts ohne Ihre Freigabe, nichts länger als nötig.",
   check: "Datenschutz-Check", prinzipien: "Die Prinzipien",
   zahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS 1.3", label: "Verschlüsselung bei Übertragung, AES bei Ablage" }, { wert: "0", label: "Datensätze verkauft — Bonitätsdaten gehen nie an Werbenetzwerke" }, { wert: "1", label: "Klick zur Löschung Ihrer Akte nach Vertragsende" }],
   prinzPille: "Fünf Prinzipien", prinzH2a: "So gehen wir ", prinzH2b: "mit Ihren Daten um.",
   prinz: [
-    { tag: "1 · Vollmacht", titel: "Nichts ohne Ihre Unterschrift", text: "FIAON beschafft Auskünfte nur mit Ihrer digitalen Vollmacht – und nur bei den Stellen, die Sie freigeben. Keine Abfrage auf Verdacht." },
+    { tag: "1 · Hochladen", titel: "Nur, was Sie hochladen", text: "FIAON fordert keine Auskünfte bei Auskunfteien an. Wir arbeiten mit dem, was Sie selbst hochladen – Ausweis, Kontoauszüge und, wenn Sie möchten, Ihre Datenkopie. Keine Abfrage auf Verdacht." },
     { tag: "2 · Freigabe", titel: "Kein Schreiben ohne Sie", text: "Jedes Schreiben sehen Sie vor dem Versand. Sie geben frei, FIAON versendet. Nichts verlässt das Haus, was Sie nicht gelesen haben." },
     { tag: "3 · Zweckbindung", titel: "Nur wofür es gedacht ist", text: "Ihre Daten dienen Ihrer Akte. Ihre Bonitätsdaten gehen nie an Werbenetzwerke oder Partner ohne Ihre Freigabe, und es gibt keine Statistiken mit Ihrem Namen. Nur wenn Sie der Messung zustimmen, erfahren Google und Meta, ob eine Anzeige zu einem Antrag oder Kauf geführt hat — mit verschlüsselten (gehashten) Kontaktdaten, ohne Bonitätsdaten. Anonymisierte Erfahrungen fließen in bessere Schreiben – ohne Personenbezug." },
     { tag: "4 · Zugriff", titel: "Wer darf hineinsehen", text: "Ihr Ansprechpartner und die Mitarbeiter an Ihrer Akte – jeder Zugriff protokolliert. Die Geschäftsführung sieht Akten nur auf Ihren Wunsch oder bei Beschwerden." },
@@ -47,7 +49,7 @@ const de = {
   weiterlesen: "Zum Weiterlesen",
   weiter: [
     { href: "/fiaon-erfahrungen", t: "So arbeitet FIAON", s: "Ablauf, Preise, ehrliche Grenzen — und woran Sie unseriöse Anbieter erkennen." },
-    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Was mit Ihren Daten passiert, Schritt für Schritt — vom Antrag bis zum Prüfbericht." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft oder Bonitätsauswertung?", s: "Was mit Ihren Unterlagen passiert, Schritt für Schritt — vom Hochladen bis zum fertigen Bericht." },
   ],
   fragenPille: "Häufige Fragen",
   fragen: [
@@ -55,7 +57,7 @@ const de = {
     { f: "Wer ist für den Datenschutz verantwortlich?", a: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Datenschutzanfragen an support@fiaon.com. Zuständige Aufsicht für Kunden in Deutschland: die Landesdatenschutzbehörde Ihres Wohnsitzes." },
     { f: "Werden meine Daten für KI-Training verwendet?", a: "Nein. Personenbezogene Daten werden nicht zum Training von Modellen genutzt. Anonymisierte Erfahrungen (welche Schreiben wirken) verbessern Vorlagen – ohne Namen, ohne Referenzen." },
     { f: "Was passiert bei einer Datenpanne?", a: "Meldung an die Aufsichtsbehörde innerhalb von 72 Stunden und Information der Betroffenen, wenn ein Risiko besteht (Art. 33, 34 DSGVO). Dafür gibt es einen Plan, keine Improvisation." },
-    { f: "Kann ich FIAON nutzen, ohne Unterlagen hochzuladen?", a: "Die Auskunft lässt sich mit Vollmacht beschaffen; für die Finanzauswertung braucht es den Kontoauszug, für Konto und Karte den Ausweis. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht." },
+    { f: "Kann ich FIAON nutzen, ohne Unterlagen hochzuladen?", a: "Für die Bonitätsauswertung braucht es Ausweis und Kontoauszüge, für Konto und Karte den Ausweis; Ihre Datenkopie laden Sie hoch, wenn Sie möchten. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht." },
   ],
   zwischenrufA: "Fragen zum Datenschutz?", zwischenrufB: " Der Assistent kennt die Regeln; für Ihre Akte antwortet ein Mensch.",
   kontakt: "Kontakt & Support", datenschutz: "Datenschutzerklärung",
@@ -65,14 +67,14 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Privacy & security · FIAON",
-  metaBeschreibung: "How FIAON handles the most sensitive data there is about you: EU hosting, encryption, authorisation, approval before every letter, deletion on request. Plus a privacy check: who may do what with your credit data?",
+  metaBeschreibung: "How FIAON handles the most sensitive data there is about you: EU hosting, encryption, only what you upload, approval before every letter, deletion on request. Plus a privacy check: who may do what with your credit data?",
   pille: "Privacy & security", h1a: "The most sensitive document ", h1b: "about you.",
-  lead: "Your credit report says more about you than any reference. That is why security at FIAON is not a page in the legal notice but the blueprint: nothing without your authorisation, nothing without your approval, nothing longer than necessary.",
+  lead: "Your bank statements and your credit report say more about you than any reference. That is why security at FIAON is not a page in the legal notice but the blueprint: only what you upload yourself, nothing without your approval, nothing longer than necessary.",
   check: "Privacy check", prinzipien: "The principles",
   zahlen: [{ wert: "EU", label: "servers in the European Union, GDPR" }, { wert: "TLS 1.3", label: "encryption in transit, AES at rest" }, { wert: "0", label: "records sold — credit data never goes to ad networks" }, { wert: "1", label: "click to delete your file after the contract ends" }],
   prinzPille: "Five principles", prinzH2a: "How we handle ", prinzH2b: "your data.",
   prinz: [
-    { tag: "1 · Authorisation", titel: "Nothing without your signature", text: "FIAON obtains reports only with your digital authorisation — and only from the bureaus you approve. No enquiry on suspicion." },
+    { tag: "1 · Upload", titel: "Only what you upload", text: "FIAON requests no reports from credit bureaus. We work with what you upload yourself — ID, bank statements and, if you wish, your data copy. No enquiry on suspicion." },
     { tag: "2 · Approval", titel: "No letter without you", text: "You see every letter before it is sent. You approve, FIAON sends. Nothing leaves the house that you have not read." },
     { tag: "3 · Purpose limitation", titel: "Only what it is meant for", text: "Your data serves your file. Your credit data never goes to ad networks or to partners without your approval, and there are no statistics with your name. Only if you consent to measurement do Google and Meta learn whether an ad led to an application or purchase — with hashed contact details, never credit data. Anonymised experience flows into better letters — with no personal reference." },
     { tag: "4 · Access", titel: "Who may look inside", text: "Your contact person and the staff working on your file — every access logged. The management sees files only at your request or in the event of a complaint." },
@@ -107,7 +109,7 @@ const en: typeof de = {
   weiterlesen: "Read on",
   weiter: [
     { href: "/fiaon-erfahrungen", t: "How FIAON works", s: "Process, prices, honest limits — and how to recognise dubious providers." },
-    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "What happens to your data, step by step — from application to review report." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Credit report or credit assessment?", s: "What happens to your documents, step by step — from upload to the finished report." },
   ],
   fragenPille: "Frequently asked questions",
   fragen: [
@@ -115,7 +117,7 @@ const en: typeof de = {
     { f: "Who is responsible for data protection?", a: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Data protection requests to support@fiaon.com. Competent supervisory authority for customers in Germany: the state data protection authority of your place of residence." },
     { f: "Is my data used for AI training?", a: "No. Personal data is not used to train models. Anonymised experience (which letters work) improves templates — without names, without references." },
     { f: "What happens in the event of a data breach?", a: "Notification to the supervisory authority within 72 hours and information to those affected if there is a risk (Art. 33, 34 GDPR). There is a plan for that, not improvisation." },
-    { f: "Can I use FIAON without uploading documents?", a: "The report can be obtained with authorisation; the financial analysis needs the bank statement, account and card need your ID. What you do not upload stays out — and we tell you what then is not possible." },
+    { f: "Can I use FIAON without uploading documents?", a: "The credit assessment needs your ID and bank statements, account and card need your ID; you upload your data copy if you wish. What you do not upload stays out — and we tell you what then is not possible." },
   ],
   zwischenrufA: "Questions about privacy?", zwischenrufB: " The assistant knows the rules; for your file a person answers.",
   kontakt: "Contact & support", datenschutz: "Privacy policy",

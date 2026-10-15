@@ -62,13 +62,11 @@ export type BuendelAnzeige = "offen" | "dezent" | "aus";
  * src=auskunft_da (Link aus „Ihre Auskunft ist da") blendet aus.
  */
 export function buendelAnzeige(suche: string): BuendelAnzeige {
-  try {
-    const q = new URLSearchParams(suche);
-    const src = String(q.get("src") ?? "").trim().toLowerCase();
-    if (src === "auskunft_da" || q.get("auskunft") === "0") return "aus";
-    if (q.get("auskunft") === "1" || src === "auskunft") return "offen";
-  } catch { /* egal — dezent */ }
-  return "dezent";
+  // E-365 (14.10.2026): Kein 74-€-Zusatz mehr im Antrag — für neue Paketkunden ist die FIAON-Bonitätsauswertung im Paket
+  // enthalten (der Kartenlink wartet auf sie, E-363); ein Bündel dafür wäre eine doppelte Rechnung. Vorher: ?auskunft=1
+  // bzw. src=auskunft klappten auf, src=auskunft_da und ?auskunft=0 blendeten aus, sonst „dezent“.
+  void suche;
+  return "aus";
 }
 
 /**

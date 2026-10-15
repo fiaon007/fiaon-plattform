@@ -846,7 +846,7 @@ export default function ChefAuskunft() {
               </div>
               <p className="mara-still mara-klein ak-preise">
                 alle 30 Minuten, Mo–So {fenster.ab}–{fenster.bis} · höchstens {s.takt.hoechstensBeruehrungen} Berührungen je Mensch ·
-                Bonitätsauskunft mit Handlungsplan: privat {auskunftPreisZeile("privat")}; Firma {auskunftPreisZeile("firma")}
+                FIAON-Bonitätsauswertung (privat): {auskunftPreisZeile("privat")}; Firmen-Bonitätsauskunft: {auskunftPreisZeile("firma")}
               </p>
               <Meldung m={meldung} ort="scharf" onZu={zu} />
 

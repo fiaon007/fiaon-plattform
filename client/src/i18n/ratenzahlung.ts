@@ -43,7 +43,7 @@ const de = {
   ],
   vertiefen: "Vertiefen: ", vertiefenLinks: [{ href: "/schufa-score-verstehen", t: "SCHUFA-Score verstehen" }, { href: "/bonitaet-verbessern", t: "Bonität Schritt für Schritt" }, { href: "/glossar-bonitaet", t: "Begriffe im Glossar" }],
   fussSatz: "Stand August 2026 — keine Rechtsberatung im Einzelfall.",
-  aufrufTitel: "Zwölf Raten. Ein Plan. Kein Zufall.", aufrufSatz: "FIAON hält Ihre Zahlungen im Kalender, erinnert vor jeder Rate und prüft parallel Ihre Auskünfte bei SCHUFA, KSV und CRIF — damit die Historie wächst, statt zu reißen.",
+  aufrufTitel: "Zwölf Raten. Ein Plan. Kein Zufall.", aufrufSatz: "FIAON hält Ihre Zahlungen im Kalender, erinnert vor jeder Rate und prüft parallel die Datenkopie, die Sie hochladen — damit die Historie wächst, statt zu reißen.",
 };
 const en: typeof de = {
   metaTitel: "Instalments and creditworthiness: your strongest lever",
@@ -88,6 +88,6 @@ const en: typeof de = {
   ],
   vertiefen: "Go deeper: ", vertiefenLinks: [{ href: "/schufa-score-verstehen", t: "Understanding the SCHUFA score" }, { href: "/bonitaet-verbessern", t: "Strengthening your credit file step by step" }, { href: "/glossar-bonitaet", t: "terms in the glossary" }],
   fussSatz: "As of August 2026 — no legal advice in individual cases.",
-  aufrufTitel: "Twelve instalments. One plan. No chance.", aufrufSatz: "FIAON keeps your payments in the calendar, reminds you before every instalment and in parallel checks your reports at SCHUFA, KSV and CRIF — so that the history grows instead of breaking.",
+  aufrufTitel: "Twelve instalments. One plan. No chance.", aufrufSatz: "FIAON keeps your payments in the calendar, reminds you before every instalment and in parallel checks the data copy you upload — so that the history grows instead of breaking.",
 };
 export const RATENZAHLUNG_WOERTER = { de, en };

@@ -45,7 +45,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import {
-  auskunftLand, auskunftLeistung, auskunftPreisZeile, auskunfteienText, type AuskunftArt,
+  auskunftLand, auskunftLeistung, auskunfteienText, type AuskunftArt,
 } from "@shared/fiaon-auskunft";
 import { RUECKSTAND_MAIL_SATZ } from "@shared/fiaon-auskunft-akte";
 import {
@@ -182,7 +182,8 @@ export const AUSKUNFT_LEAD_VORLAGEN: Record<string, MailBaustein> = {
       // Gegenlesen 25.09.2026 (E-240): nicht „Danach öffnet sich Ihr Bereich" — der Bereich öffnet
       // sich erst mit der ersten Zahlung (fiaon-kontostufe.ts; welcome Absatz 2), nicht nach dem Antrag.
       "So geht es weiter: Sie wählen Ihr Paket und ergänzen ein paar Angaben — das dauert nur wenige Minuten. Danach arbeiten wir für Sie: Wir erklären jeden Eintrag Ihrer Bonitätsauskunft in verständlichen Worten und übernehmen die Schreiben an die Auskunfteien. Eine feste Ansprechperson begleitet Sie, angefangen mit einem kurzen Startgespräch am Telefon.",
-      `Ihre Bonitätsauskunft ist nicht im Paket enthalten: Eine selbst angeforderte Datenkopie laden Sie einfach in Ihrem Bereich hoch — oder Sie beauftragen uns damit als Zusatz (${auskunftPreisZeile("privat")}).`,
+      // E-365 (14.10.2026): Am Anfang steht die FIAON-Bonitätsauswertung — für neue Paketkunden inklusive (ihr Kartenlink wartet auf sie, E-363).
+      "Am Anfang steht Ihre FIAON-Bonitätsauswertung — im Paket enthalten: Aus Ihrem Ausweis und Ihren Kontoauszügen zeigt Ihr FIAON-Team Ihnen Ihre Bonität aus Sicht einer Bank. Danach bekommen Sie den Link unserer Partnerbank für Ihren Kartenantrag.",
     ],
     knopf: { text: "Antrag fortsetzen", url: "{{params.antrag_url}}" },
     fussnote: "Lieber erst sprechen? Antworten Sie einfach auf diese E-Mail. Der Link ist persönlich für Sie erstellt — bitte nicht weitergeben.",
@@ -227,12 +228,13 @@ export const AUSKUNFT_LEAD_VORLAGEN: Record<string, MailBaustein> = {
 // ═══════════════════════════════════════════════════════════════════════════
 export const AUSKUNFT_ZAHLUNG_VORLAGEN: Record<"payment_details" | "payment_confirmed", MailBaustein> = {
   payment_details: {
-    betreff: "Ihre Zahlungsdaten für die Bonitätsauskunft — {{params.payment_reference}}",
-    preheader: "Sobald Ihre Überweisung da ist, fordern wir Ihre Datenkopien an.",
-    titel: "Ihre Auskunft ist beauftragt",
+    // E-365 (14.10.2026): Die Basis spricht von der FIAON-Bonitätsauswertung (privat); Firmen bekommen ihre Sätze im Baustein unten.
+    betreff: "Ihre Zahlungsdaten für die FIAON-Bonitätsauswertung — {{params.payment_reference}}",
+    preheader: "Sobald Ihre Überweisung da ist, laden Sie Ausweis und Kontoauszüge hoch — dann entwickeln wir Ihre Bonitätsauswertung.",
+    titel: "Ihre Bonitätsauswertung ist beauftragt",
     absaetze: [
       "Guten Tag {{params.vorname}}, danke für Ihren Auftrag. Hier sind die Zahlungsdaten für <b>{{params.paket}}</b>.",
-      "Sobald Ihre Überweisung eingeht, fordern wir Ihre Datenkopien bei {{params.auskunfteien}} an. Dafür bekommen Sie eine eigene E-Mail mit dem Link, über den Sie Vollmacht und Anfragen am Bildschirm unterschreiben.",
+      "Sobald Ihre Überweisung eingeht, bekommen Sie eine eigene E-Mail mit dem Link, über den Sie Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate hochladen — ohne Anmeldung. Daraus entwickelt Ihr FIAON-Team Ihre Bonitätsauswertung.",
       "Wichtig ist nur eines: der <b>Verwendungszweck</b>. An ihm erkennt unser System Ihre Zahlung automatisch — ohne ihn liegt Ihr Geld ohne Namen bei uns, und Ihr Auftrag wartet.",
     ],
     daten: [
@@ -244,18 +246,20 @@ export const AUSKUNFT_ZAHLUNG_VORLAGEN: Record<"payment_details" | "payment_conf
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
     knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
-    fussnote: "Eine Überweisung braucht in der Regel einen Bankarbeitstag. Fragen zu Ihrer Auskunft? Antworten Sie einfach auf diese E-Mail.",
+    fussnote: "Eine Überweisung braucht in der Regel einen Bankarbeitstag. Fragen zu Ihrer Bonitätsauswertung? Antworten Sie einfach auf diese E-Mail.",
     karteZiel: true,
   },
 
   payment_confirmed: {
-    betreff: "Zahlung eingegangen — wir holen Ihre Auskunft, {{params.vorname}}",
-    preheader: "Danke! Als Nächstes braucht es Ihre Unterschrift am Bildschirm.",
+    // E-365 (14.10.2026): Basis = Bonitätsauswertung (privat), Unterlagen fehlen noch. Der Baustein unten wählt je Lage
+    // (Unterlagen schon da, Beginn nach der Widerrufsfrist) und für Firmen die alten Sätze.
+    betreff: "Zahlung eingegangen — jetzt nur noch Ihre Unterlagen, {{params.vorname}}",
+    preheader: "Danke! Laden Sie Ausweis und Kontoauszüge hoch — dann entwickeln wir Ihre Bonitätsauswertung.",
     titel: "Danke — Ihre Zahlung ist da",
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen. Ab jetzt arbeiten wir an Ihrer Auskunft.",
-      "Als Nächstes fordern wir Ihre Datenkopien bei {{params.auskunfteien}} an. Damit wir das dürfen, braucht es Ihre Unterschrift unter der Vollmacht zur Übermittlung und unter Ihren Anfragen — den Weg dorthin schicken wir Ihnen in einer eigenen E-Mail. Fehlt uns dafür noch eine Angabe, klärt Ihre Ansprechperson sie mit Ihnen.",
-      "Danach schicken die Auskunfteien Ihre Datenkopie per Post an Ihre Anschrift. Sie fotografieren sie in Ihrem Bereich, und wir erklären jeden Eintrag, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.",
+      "Guten Tag {{params.vorname}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen. Danke!",
+      "Jetzt brauchen wir nur noch Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate. Den Link zum Hochladen — ohne Anmeldung — bekommen Sie in einer eigenen E-Mail; in Ihrem Bereich finden Sie dasselbe unter „Unterlagen“.",
+      "Ihr FIAON-Team entwickelt daraus Ihre Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank, jede Einnahme und Ausgabe im Detail, Ampel, Finanzwert und Ihr Plan. Ein Mensch prüft den Bericht und gibt ihn frei — dann bekommen Sie ihn als PDF per E-Mail und finden ihn jederzeit in Ihrem Bereich.",
     ],
     daten: [
       { label: "Ihr Auftrag", wert: "{{params.paket}}" },
@@ -286,12 +290,12 @@ export const AUSKUNFT_ZAHLUNG_VORLAGEN: Record<"payment_details" | "payment_conf
 // richtig; hier deshalb nur, DASS sie kommt.
 // ═══════════════════════════════════════════════════════════════════════════
 export const AUSKUNFT_ZAHLUNG_GEMELDET_VORLAGE: MailBaustein = {
-  betreff: "Danke — wir prüfen Ihre Zahlung für die Bonitätsauskunft",
+  betreff: "Danke — wir prüfen Ihre Zahlung für die Bonitätsauswertung",
   preheader: "Ihre Meldung ist da. Wir gleichen mit dem Konto ab und melden uns.",
   titel: "Ihre Zahlungsmeldung ist da",
   absaetze: [
     "Guten Tag {{params.vorname}}, Sie haben uns mitgeteilt, dass Sie <b>{{params.betrag}} €</b> für <b>{{params.paket}}</b> überwiesen haben — danke dafür.",
-    "Wir gleichen Ihre Zahlung jetzt mit dem Bankkonto ab. Das dauert in der Regel einen Bankarbeitstag. Sobald das Geld zugeordnet ist, bestätigen wir Ihnen den Eingang per E-Mail — darin steht auch, wie es mit Ihrer Auskunft bei {{params.auskunfteien}} weitergeht.",
+    "Wir gleichen Ihre Zahlung jetzt mit dem Bankkonto ab. Das dauert in der Regel einen Bankarbeitstag. Sobald das Geld zugeordnet ist, bestätigen wir Ihnen den Eingang per E-Mail — darin steht auch, wie es mit Ihrer Bonitätsauswertung weitergeht.",
     "Eine Bitte, damit das glattgeht: Sehen Sie kurz nach, ob Sie den Verwendungszweck unten mitgeschickt haben — daran finden wir Ihre Zahlung. Überweisen Sie bitte auf keinen Fall ein zweites Mal — wir melden uns, sobald Ihre Zahlung zugeordnet ist.",
   ],
   daten: [
@@ -567,17 +571,35 @@ export function auskunftZahlungEingangBaustein(p: Record<string, unknown>): Mail
   const art: AuskunftArt = String(p.auskunft_art ?? "").trim() === "firma" ? "firma" : "privat";
   const wahl = art === "privat" ? auskunftBeginnWahl(p.widerruf_wahl) : "offen";
   const ab = DATUM_DE.test(String(p.widerruf_ab ?? "").trim()) ? String(p.widerruf_ab).trim() : null;
-  // 25.09.2026 (E-241): Im Einkauf beschafft FIAON die Auskunft selbst — kein
-  // „Anfragen unterschreiben", keine Datenkopie per Post zum Kunden. Die Tür
-  // (auskunftMailAnreichern) setzt `auskunft_liefermodus` und, ob für die
-  // Bestellung schon eine Vollmacht dokumentiert ist (`auskunft_einwilligung`).
-  if (lieferwegAusNutzlast(p) === "einkauf") return auskunftZahlungEingangEinkauf(p, art, wahl === "nicht_verlangt" ? ab : null, wahl === "nicht_verlangt");
-  const zweiter = art === "firma"
-    ? "Als Nächstes fordern wir die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an, dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}. Damit wir das dürfen, braucht es Ihre Unterschrift unter der Vollmacht zur Übermittlung und unter Ihren Anfragen — den Weg dorthin schicken wir Ihnen in einer eigenen E-Mail."
-    : wahl === "nicht_verlangt"
-      ? `Als Nächstes bereiten wir Ihre Anfragen an {{params.auskunfteien}} vor; die Vollmacht zur Übermittlung unterschreiben Sie über den Link in einer eigenen E-Mail. Wie bei Ihrer Bestellung gewählt, übermitteln wir die Anfragen erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""}.`
-      : basis.absaetze[1];
-  return { ...basis, absaetze: [basis.absaetze[0], zweiter, ...basis.absaetze.slice(2)] };
+  // E-365 (14.10.2026): Privat ist die Leistung die Bonitätsauswertung — kein Lieferweg, keine Vollmacht. Die Tür
+  // (auskunftMailAnreichern) sagt, ob Ausweis und Kontoauszug schon da sind (`auswertung_unterlagen`).
+  if (art === "privat") {
+    const da = String(p.auswertung_unterlagen ?? "").trim() === "da";
+    const fristSatz = wahl === "nicht_verlangt"
+      ? ` Wie bei Ihrer Bestellung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""}.`
+      : "";
+    const zweiter = da
+      ? `Ihr Ausweis und Ihre Kontoauszüge liegen uns schon vor — Sie müssen nichts weiter tun. Ihr FIAON-Team entwickelt ${fristSatz ? "Ihre Bonitätsauswertung" : "jetzt Ihre Bonitätsauswertung"}.${fristSatz}`
+      : `${basis.absaetze[1]}${fristSatz ? `${fristSatz} Hochladen können Sie schon jetzt.` : ""}`;
+    return {
+      ...basis,
+      ...(da ? { betreff: "Zahlung eingegangen — wir entwickeln Ihre Bonitätsauswertung, {{params.vorname}}", preheader: "Danke! Ihre Unterlagen sind schon da." } : {}),
+      absaetze: [basis.absaetze[0], zweiter, basis.absaetze[2]],
+    };
+  }
+  if (lieferwegAusNutzlast(p) === "einkauf") return auskunftZahlungEingangEinkauf(p, art, null, false);
+  // Firmen (unverändert seit E-241): Datenkopien und Wirtschaftsauskünfte über Vollmacht und Anfragen.
+  const zweiter = "Als Nächstes fordern wir die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien an, dazu die persönliche Datenkopie der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei {{params.auskunfteien}}. Damit wir das dürfen, braucht es Ihre Unterschrift unter der Vollmacht zur Übermittlung und unter Ihren Anfragen — den Weg dorthin schicken wir Ihnen in einer eigenen E-Mail.";
+  return {
+    ...basis,
+    betreff: "Zahlung eingegangen — wir holen Ihre Auskunft, {{params.vorname}}",
+    preheader: "Danke! Als Nächstes braucht es Ihre Unterschrift am Bildschirm.",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen. Ab jetzt arbeiten wir an Ihrer Auskunft.",
+      zweiter,
+      "Danach schicken die Auskunfteien die Datenkopien und Firmendaten. Wir erklären jeden Eintrag, prüfen die Fristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.",
+    ],
+  };
 }
 
 /**
@@ -608,9 +630,10 @@ function auskunftZahlungEingangEinkauf(p: Record<string, unknown>, art: Auskunft
     : `Wir beschaffen ${wann}${was}.${fristSatz} Sie müssen dafür nichts weiter tun.`;
   return {
     ...basis,
+    betreff: "Zahlung eingegangen — wir holen Ihre Auskunft, {{params.vorname}}",
     preheader: auftragFehlt ? "Danke! Als Nächstes braucht es nur Ihre kurze Bestätigung des Auftrags." : nachFrist ? "Danke! Nach Ablauf der Widerrufsfrist beschaffen wir Ihre Auskunft." : "Danke! Wir beschaffen jetzt Ihre Auskunft.",
     absaetze: [
-      basis.absaetze[0],
+      "Guten Tag {{params.vorname}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen. Ab jetzt arbeiten wir an Ihrer Auskunft.",
       zweiter,
       "Sobald Ihre Auskunft da ist, bekommen Sie Bescheid und finden Handlungsplan und Schreiben in Ihrem Bereich: Wir erklären jeden Eintrag, prüfen die Speicherfristen und legen Ihnen fertige Schreiben zur Freigabe vor. Fehlt uns dafür noch eine Angabe, klärt Ihre Ansprechperson sie mit Ihnen.",
     ],
@@ -647,11 +670,17 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
   // 25.09.2026 (E-241): Kein Satz mehr zur Vollmacht — die Kauftüren holen den Beschaffungsauftrag
   // selbst ein (Pflicht-Haken), und wo er fehlt, bittet die Beschaffung nach der Zahlung in einer
   // eigenen Mail um die Bestätigung (die Zahlungsbestätigung sagt das dann).
-  const einkaufAbsatz = lieferwegAusNutzlast(p) === "einkauf"
+  // E-365: privat ist der zweite Absatz immer der der Bonitätsauswertung (Basis), bei „nicht verlangt“ mit Fristsatz.
+  const privatAbsatz = art === "privat"
+    ? `${basis.absaetze[1]}${nachFrist ? ` Wie bei Ihrer Bestellung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""} — hochladen können Sie schon vorher.` : ""}`
+    : null;
+  const einkaufAbsatz = art === "firma" && lieferwegAusNutzlast(p) === "einkauf"
     ? `Sobald Ihre Überweisung eingeht, beschaffen wir ${einkaufWas}${nachFrist ? ` — wie bei Ihrer Bestellung gewählt, erst nach Ablauf der Widerrufsfrist${ab ? `, ab dem ${ab}` : ""} —` : ""} `
       + `und melden uns, sobald ${art === "firma" ? "sie da sind" : "sie da ist"}.`
     : null;
-  const absaetze = einkaufAbsatz
+  const absaetze = privatAbsatz
+    ? [basis.absaetze[0], privatAbsatz, basis.absaetze[2]]
+    : einkaufAbsatz
     ? [basis.absaetze[0], einkaufAbsatz, basis.absaetze[2]]
     : nachFrist
     ? [
@@ -684,7 +713,7 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
   ];
 
   const w = AUSKUNFT_WIDERRUF;
-  const beginn = art === "privat" ? auskunftBeginnSatz(wahl, ab) : null;
+  const beginn = art === "privat" ? auskunftBeginnSatz(wahl, ab, art) : null;
   const widerruf: string[] = art === "firma"
     ? [AUSKUNFT_KEIN_WIDERRUF]
     : [
@@ -704,6 +733,7 @@ export function auskunftZahlungsdatenBaustein(p: Record<string, unknown>): MailB
 
   return {
     ...basis,
+    ...(art === "firma" ? { betreff: "Ihre Zahlungsdaten für die Bonitätsauskunft — {{params.payment_reference}}", titel: "Ihre Auskunft ist beauftragt" } : {}),
     preheader: nachFrist ? "Ihre Zahlungsdaten, Ihre Vertragsbestätigung und Ihr Widerrufsrecht."
       : einkaufAbsatz ? "Sobald Ihre Überweisung da ist, beschaffen wir Ihre Auskunft." : basis.preheader,
     absaetze,

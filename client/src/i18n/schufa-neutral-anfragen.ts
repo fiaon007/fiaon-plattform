@@ -52,8 +52,8 @@ const de = {
     { f: "Wie stark drücken mehrere Kreditanfragen den Score?", a: "Eine exakte Zahl nennt die SCHUFA nicht — die Formel ist Geschäftsgeheimnis. Belegt ist der Mechanismus: Mehrere Kreditanfragen in kurzer Zeit lesen sich als gescheiterte Finanzierungsversuche. Deshalb gilt: vergleichen ausschließlich über Konditionsanfragen, die echte Kreditanfrage erst für den Vertrag, den Sie wirklich abschließen." },
     { f: "Gilt der Unterschied auch bei Girokonten und Handyverträgen?", a: "Dort läuft es anders: Konto- und Vertragsanfragen sind eigene Anfragearten mit eigener Behandlung. Der Konditions-Trick ist ein Kredit-Thema. Bei Konten zählt eher, wie viele Sie führen — dazu mehr auf der Score-Seite." },
   ],
-  fussA: "Stand August 2026 — keine Rechtsberatung im Einzelfall. Ob Ihre bisherigen Anfragen richtig gespeichert sind, zeigt nur die eigene Datenkopie — FIAON beschafft und prüft sie mit der ", fussLink: "Bonitätsauskunft", fussB: ".",
-  aufrufTitel: "Erst wissen, was gespeichert ist. Dann anfragen.", aufrufSatz: "FIAON beschafft Ihre Auskünfte, prüft jede Anfrage und jeden Eintrag auf Richtigkeit und bereinigt, was angreifbar ist — damit Ihre nächste Anfrage auf sauberer Grundlage läuft.",
+  fussA: "Stand August 2026 — keine Rechtsberatung im Einzelfall. Ob Ihre bisherigen Anfragen richtig gespeichert sind, zeigt nur die eigene Datenkopie — wie Sie sie kostenlos anfordern, steht unter ", fussLink: "Bonitätsauskunft beantragen", fussB: ".",
+  aufrufTitel: "Erst wissen, was gespeichert ist. Dann anfragen.", aufrufSatz: "Laden Sie Ihre kostenlose Datenkopie hoch: FIAON prüft Anfragen und Einträge auf Richtigkeit und bereinigt, was angreifbar ist — damit Ihre nächste Anfrage auf sauberer Grundlage läuft.",
 };
 const en: typeof de = {
   metaTitel: "SCHUFA-neutral enquiries: conditions instead of loan enquiry",
@@ -107,7 +107,7 @@ const en: typeof de = {
     { f: "How much do several loan enquiries push the score down?", a: "SCHUFA does not name an exact figure — the formula is a trade secret. The mechanism is documented: several loan enquiries in a short time read as failed financing attempts. So: compare exclusively via conditions enquiries, the real loan enquiry only for the contract you actually sign." },
     { f: "Does the difference also apply to current accounts and mobile contracts?", a: "There it works differently: account and contract enquiries are separate types of enquiry with their own treatment. The conditions trick is a loan topic. With accounts what counts more is how many you hold — more on that on the score page." },
   ],
-  fussA: "As of August 2026 — no legal advice in individual cases. Whether your previous enquiries are stored correctly is shown only by your own data copy — FIAON obtains and checks it with the ", fussLink: "credit report", fussB: ".",
-  aufrufTitel: "First know what is stored. Then enquire.", aufrufSatz: "FIAON obtains your reports, checks every enquiry and every entry for accuracy and clears up what can be challenged — so that your next enquiry runs on a clean basis.",
+  fussA: "As of August 2026 — no legal advice in individual cases. Whether your previous enquiries are stored correctly is shown only by your own data copy — how to request it free of charge is explained under ", fussLink: "requesting your credit report", fussB: ".",
+  aufrufTitel: "First know what is stored. Then enquire.", aufrufSatz: "Upload your free data copy: FIAON checks enquiries and entries for accuracy and clears up what can be challenged — so that your next enquiry runs on a clean basis.",
 };
 export const SCHUFA_NEUTRAL_WOERTER = { de, en };

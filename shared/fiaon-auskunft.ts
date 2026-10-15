@@ -139,14 +139,14 @@ export function auskunftWort(land: AuskunftLand): string {
 // ═══════════════════════════════════════════════════════════════════════════
 export function auskunftLeistung(art: AuskunftArt, land: AuskunftLand): string[] {
   const bei = auskunfteienText(land);
+  // E-365 (14.10.2026): Privat ist das Produkt die FIAON-Bonitätsauswertung (E-353) — keine Beschaffung, keine
+  // Datenkopie, keine Schreiben mehr. Jeder Satz beschreibt, was im Bericht steht (fiaon-finanzauswertung-pdf.ts).
   const privat = [
-    `Wir fordern Ihre Datenkopien bei ${bei} an — in Ihrem Auftrag, Sie müssen keinen Brief schreiben.`,
-    "Wir erklären jeden Eintrag in klaren Worten und prüfen, ob Speicherfristen abgelaufen sind.",
-    "Ihr persönlicher Handlungsplan: was Sie konkret tun können, in welcher Reihenfolge.",
-    "Fertige Schreiben (z. B. Löschung nach Fristablauf, Berichtigung falscher Daten) — Sie geben frei, wir übermitteln.",
-    // 25.09.2026 (E-241): ohne „Limit" — die Liste steht auch in Mails an Anträge und Leads, und
-    // „Limit" gehört dort zu VERBOTENE_WORTE (shared/fiaon-lead-strecke.ts, § 34c GewO).
-    "Ihr Betreuer geht die Auswertung mit Ihnen durch und richtet Ihren Weg zur Karte danach aus.",
+    "Ihre Bonität aus Sicht einer Bank: Haushaltsrechnung und die neun Merkmale, die eine Kreditprüfung ansieht.",
+    "Jede Einnahme und jede Ausgabe im Detail — nach Empfänger, Monat für Monat, mit Ampel für sieben Bereiche und Ihrem FIAON-Finanzwert.",
+    "Ihr Potenzial und Ihr Plan: was im Monat und im Jahr frei werden kann, mit Hochrechnung auf zwölf Monate.",
+    "Rund 25 Seiten, erstellt von Ihrem FIAON-Team aus Ihren eigenen Kontoauszügen — ein Mensch prüft den Bericht und gibt ihn frei.",
+    "Als PDF per E-Mail und jederzeit in Ihrem FIAON-Bereich. Ihre Ansprechperson geht ihn mit Ihnen durch und richtet Ihren Weg zur Karte danach aus.",
   ];
   if (art === "privat") return privat;
   return [
@@ -163,9 +163,10 @@ export function auskunftLeistung(art: AuskunftArt, land: AuskunftLand): string[]
  * für Mara, Betreuer und die FAQ. Wahr, ohne die eigene Leistung zu entwerten.
  */
 export const AUSKUNFT_KOSTENLOS_ANTWORT =
-  "Ja, die Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu — das bleibt so. "
-  + "Wir nehmen Ihnen die Arbeit ab: Wir fordern sie bei den großen Auskunfteien Ihres Landes an, "
-  + "erklären jeden Eintrag, prüfen die Fristen und liefern Handlungsplan und fertige Schreiben.";
+  "Ja, Ihre Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu — die können Sie jederzeit selbst anfordern. "
+  + "Die FIAON-Bonitätsauswertung ist etwas anderes: Wir werten Ihre eigenen Kontoauszüge aus und zeigen Ihnen Ihre Bonität "
+  + "aus Sicht einer Bank — mit Haushaltsrechnung, jeder Ausgabe im Detail, Ampel, Finanzwert und Plan. "
+  + "Laden Sie Ihre Datenkopie dazu hoch, beziehen wir sie ein."
 
 /**
  * Ein Satz für den Verkauf — Karte und Limit, ohne Zusage (die Bank entscheidet).
@@ -173,7 +174,7 @@ export const AUSKUNFT_KOSTENLOS_ANTWORT =
  * lesen AUSKUNFT_NUTZEN_SATZ_KARTE.
  */
 export const AUSKUNFT_NUTZEN_SATZ =
-  "Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zu Karte und Wunschlimit genau danach aus.";
+  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank bei einer Kreditprüfung sieht — und wir richten Ihren Weg zu Karte und Wunschlimit genau danach aus."
 
 /**
  * Derselbe Nutzen ohne „Limit" (25.09.2026, E-241) — für fertige, unbezahlte
@@ -183,7 +184,7 @@ export const AUSKUNFT_NUTZEN_SATZ =
  * ohne Vertrag wäre Werbung für eine erlaubnispflichtige Leistung (§ 34c GewO).
  */
 export const AUSKUNFT_NUTZEN_SATZ_KARTE =
-  "Mit Ihrer Auskunft sehen wir, was die Bank sieht — und richten Ihren Weg zur Karte genau danach aus.";
+  "Mit Ihrer Bonitätsauswertung sehen Sie, was eine Bank bei einer Kreditprüfung sieht — und wir richten Ihren Weg zur Karte genau danach aus."
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER BESCHAFFUNGSAUFTRAG (25.09.2026, E-241)
@@ -205,7 +206,8 @@ export const AUSKUNFT_NUTZEN_SATZ_KARTE =
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Die Fassung des Auftragstextes — steht in jedem Vermerk (AUSKUNFT_BESCHAFFUNG_VERMERK). */
-export const AUSKUNFT_AUFTRAG_FASSUNG = "2026-09-25";
+// E-365 (14.10.2026): privat ist der Auftrag die Bonitätsauswertung — neue Fassung (Firmen unverändert).
+export const AUSKUNFT_AUFTRAG_FASSUNG = "2026-10-15";
 
 /** Der Wortlaut des Beschaffungsauftrags — Pflicht-Haken an jeder Kauftür. */
 export function AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art: AuskunftArt): string {
@@ -215,7 +217,8 @@ export function AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT(art: AuskunftArt): string {
     ? "Ich beauftrage und bevollmächtige FIAON, die Bonitätsauskunft meines Unternehmens bei den Wirtschaftsauskunfteien und, "
       + "sofern ich Inhaberin, Inhaber oder Geschäftsführung bin, meine persönliche Bonitätsauskunft bei den oben genannten "
       + `Auskunfteien anzufordern bzw. zu beschaffen ${kosten}`
-    : `Ich beauftrage und bevollmächtige FIAON, meine Bonitätsauskunft bei den oben genannten Auskunfteien für mich anzufordern bzw. zu beschaffen ${kosten}`;
+    : "Ich beauftrage FIAON, aus meinem Ausweis und meinen Kontoauszügen meine FIAON-Bonitätsauswertung zu erstellen. "
+      + "Die Unterlagen lade ich nach der Bestellung hoch; FIAON beginnt, sobald sie vorliegen.";
 }
 
 // ── DER DATENKOPIE-WEG (Querprüfung 08.10.2026, 74-€-Rückstand, Entscheidung 4a) ──────────────────────────
@@ -241,3 +244,55 @@ export function AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT(art: AuskunftArt): string {
  * Wortlaut, Fassung, Zeit und Weg in einer Zeile.
  */
 export const AUSKUNFT_BESCHAFFUNG_VERMERK = "Beschaffungsauftrag ERTEILT";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE FIAON-BONITÄTSAUSWERTUNG — DAS PRODUKT HINTER 74 € / 149 € (E-353, E-365)
+//
+// Justin 14.10.2026: „er zahlt an uns 74 € und wir ersetzen damit die Bonitätsauswertung“ (E-353) und
+// „kläre den GESAMTEN Prozess ab … der gesamte Prozess muss ein geschlossenes System sein“ (E-365).
+// Privat verkauft FIAON seitdem den Bericht aus Ausweis und Kontoauszug — keine Datenkopie, keine
+// Beschaffung. Jede Kauftür, jede Mail, Mara und der Kundenbereich sagen es mit DIESEN Sätzen.
+//
+// DIE PREISREGEL (eine Quelle: auskunftPreis + auswertungInklusive in server/lib/fiaon-auskunft.ts):
+//   · ohne laufendes Paket 149 €, mit laufendem Paket 74 € — einmalig, kein Abo;
+//   · wartet der Kartenlink eines zahlenden Paketkunden auf die Bonität (E-363), ist sie INKLUSIVE:
+//     Ein Vertragsschritt (Link zum Kartenantrag, PV-2026-10-14 § 3) darf nie an einer Zusatzzahlung
+//     hängen — sonst wäre der Paketpreis nicht der Gesamtpreis (§ 3 PAngV, § 5a UWG).
+// WORTWAND: „keine Auskunft einer Auskunftei" bleibt stehen (FINANZWERT_KENNZEICHNUNG); nie „Score
+// verbessern", nie Garantie, keine Fristen mit Zahl als Werbung, „Limit" nur an zahlende Kunden.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** So heißt das Produkt überall beim Kunden. */
+export const AUSWERTUNG_NAME = "FIAON-Bonitätsauswertung";
+
+/** Die Zeile unter dem Namen. */
+export const AUSWERTUNG_UNTERZEILE = "Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen.";
+
+/** Was der Kunde dafür tut — an jeder Kauftür, in der Bestätigung und im Bereich. */
+export const AUSWERTUNG_UNTERLAGEN_SATZ =
+  "Dafür brauchen wir nur Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate. Nach der Bestellung bekommen Sie einen Link zum Hochladen — ohne Anmeldung.";
+
+/** Die ehrliche Abgrenzung — nie weglassen, wo das Produkt beschrieben wird. */
+export const AUSWERTUNG_KEINE_AUSKUNFT_SATZ =
+  "Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein.";
+
+/** Für zahlende Paketkunden, deren Kartenlink auf die Bonität wartet (E-363) — dort wird nichts verkauft. */
+export const AUSWERTUNG_INKLUSIVE_SATZ =
+  "Ihre FIAON-Bonitätsauswertung ist in Ihrem Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Laden Sie dafür Ihren Ausweis und Ihre Kontoauszüge hoch.";
+
+/** Der Ablauf in vier Schritten — Kaufseite, Kaufkarte, Bestätigung. */
+export const AUSWERTUNG_SCHRITTE: { titel: string; text: string }[] = [
+  { titel: "Bestellen", text: "Einmalig, kein Abo." },
+  { titel: "Hochladen", text: "Ausweis und Kontoauszüge der letzten drei Monate — per Link, ohne Anmeldung." },
+  { titel: "Wir entwickeln", text: "Ihr FIAON-Team wertet jede Buchung aus; ein Mensch prüft den Bericht und gibt ihn frei." },
+  { titel: "Sie erhalten", text: "Ihren Bericht als PDF per E-Mail und jederzeit in Ihrem FIAON-Bereich." },
+];
+
+/** Der Stand der Auswertung beim Kunden — Kundenbereich, Kaufkarte, Mara (auswertungStand im Server). */
+export type AuswertungKundenStand =
+  | "liegt_vor"        // freigegeben (oder durch eine neuere ersetzt)
+  | "wird_entwickelt"  // Unterlagen da, Entwurf oder Lauf beim Team
+  | "unterlagen_fehlen" // bezahlt oder inklusive, Ausweis/Kontoauszug fehlen
+  | "beginnt_ab"       // bezahlt, Unterlagen da, Beginn vor Fristablauf nicht verlangt
+  | "zahlung_offen"    // bestellt, Zahlung aus oder gemeldet
+  | "nicht_bestellt";  // weder bezahlt noch inklusive

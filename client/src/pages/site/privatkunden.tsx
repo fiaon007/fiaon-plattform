@@ -18,7 +18,8 @@ import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PRIVATKUNDEN_WOERTER } from "@/i18n/privatkunden";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht, Szenenbild } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
-import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { paket as paketVon } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS, euroText } from "@shared/fiaon-auskunft";
 import { betrag, landLesen, type Land } from "@/lib/fiaon-land";
 import "@/styles/privatkunden.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
@@ -71,7 +72,8 @@ export default function Privatkunden() {
   const zu = (p: string) => inSprache(p, sprache);
   // Preise in der Sprache der Seite: 7,99 € (de) — €7.99 (en).
   const preis = (key: string) => { const c = paketVon(key)?.preisCents ?? 0; return en ? "€" + (c / 100).toFixed(2) : (c / 100).toFixed(2).replace(".", ",") + " €"; };
-  const auskunft = en ? "€" + SCHUFA_PREIS_EURO.toFixed(2) : SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
+  // E-365: „Nur die Bonitätsauswertung" ist der Einzelpreis (149 €), nie der Kundenpreis mit laufendem Paket.
+  const auskunft = en ? `€${AUSKUNFT_PREISE_CENTS.privat.einzeln / 100}` : euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
   const start = (key: string) => { try { sessionStorage.setItem("fiaon_paket", key); } catch { /* egal */ } window.location.href = `/antrag?pack=${key}&src=privatkunden`; };
   // Das Limit in der Sprache der Seite und im Land wie die Merkmale: „bis 5.000 €" / „bis CHF 5'000" / „up to €5,000".
   const rahmen = (lim: number) => t.bisRahmen(en ? "€" + lim.toLocaleString("en-GB") : betrag(lim.toLocaleString("de-DE"), land));

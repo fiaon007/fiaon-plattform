@@ -49,6 +49,13 @@
 // sind unverändert. Die Bausteine der Familie (bausteine.tsx) werden hier
 // bewusst NICHT geladen — sie ziehen die dunkle Bühne samt three.js mit.
 //
+// ── E-365 (14.10.2026): PRIVAT DIE BONITÄTSAUSWERTUNG ─────────────────────
+// Privat bestellt der Mensch die FIAON-Bonitätsauswertung (aus Ausweis und
+// Kontoauszügen, die er NACH der Bestellung per Link hochlädt) — der Kopf sagt
+// das sichtbar (T.unterlagen), die Bestellkarte nennt die Unterlagen statt
+// Auskunfteien und trägt die ehrliche Abgrenzung (T.keineAuskunft). Kopf, Ablauf
+// und Fragen sprechen je Art; die Firmen-Auskunft ist unverändert.
+//
 // ── DIE FRAGE NACH DEM PAKET (26.09.2026, E-243) ──────────────────────────
 // Justin: „Wie stellen wir sicher, dass FIAON-Kunden den Preis bekommen …? Wo
 // wird da gefragt?" Jetzt ganz oben, für jeden ohne Kunden-Sitzung: „Sind Sie
@@ -230,7 +237,7 @@ function KarteKopf({ nr, titel, text }: { nr: number; titel: string; text?: stri
   );
 }
 
-/** Die EINE Navy-Stelle der Seite: Preis, Auskunfteien, Leistung. */
+/** Die EINE Navy-Stelle der Seite: Preis, Unterlagen (privat) bzw. Auskunfteien (Unternehmen), Leistung. */
 function Bestellkarte({ art, land, preisCents, mitAbo, angemeldet, paketOffen, kundenZweig, onKunde }: {
   art: AuskunftArt; land: AuskunftLand; preisCents: number; mitAbo: boolean; angemeldet: boolean; paketOffen: boolean;
   /** 26.09.2026 (E-243): Der Kunden-Zweig ist offen — die Karte zeigt den Kundenpreis, bestellt wird über den Link. */
@@ -241,7 +248,7 @@ function Bestellkarte({ art, land, preisCents, mitAbo, angemeldet, paketOffen, k
   const betrag = kundenZweig && !angemeldet ? auskunftPreisCents(art, true) : preisCents;
   return (
     <aside className="ba-bestell ba-rein v1" aria-label="Ihre Bestellung">
-      <div className="tag">{T.karteTag}</div>
+      <div className="tag">{art === "firma" ? T.karteTagFirma : T.karteTag}</div>
       <p className="fuer">{art === "firma" ? T.artFirma : T.artPrivat} · {LANDNAMEN[land]}</p>
       <div className="betrag"><b>{euroText(betrag)}</b><span>{T.karteEinmal}</span></div>
       <p className="steuer">{PREIS_STEUER}</p>
@@ -261,16 +268,21 @@ function Bestellkarte({ art, land, preisCents, mitAbo, angemeldet, paketOffen, k
           {paketOffen && <><br />{T.karteKundePaketOffen}</>}
         </div>
       )}
-      {art === "firma" && (<>
+      {art === "firma" ? (<>
         <h3>{T.karteFirmaBei}</h3>
         <div className="ba-chips"><span>Creditreform</span><span>CRIF</span></div>
+        <h3>{T.kartePersoenlichBei}</h3>
+        <div className="ba-chips">{bei.map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
+      </>) : (<>
+        {/* E-365: privat fragt FIAON bei keiner Auskunftei an — die Karte nennt die Unterlagen. */}
+        <h3>{T.karteAus}</h3>
+        <div className="ba-chips">{T.karteUnterlagen.map((u) => <span key={u}>{u}</span>)}</div>
       </>)}
-      <h3>{art === "firma" ? T.kartePersoenlichBei : T.karteBei}</h3>
-      <div className="ba-chips">{bei.map((a) => <span key={a.key}>{a.kurz}</span>)}</div>
       <h3>{T.karteLeistung}</h3>
       <ul className="ba-liste">
         {auskunftLeistung(art, land).map((s) => <li key={s}><Haken16 /><span>{s}</span></li>)}
       </ul>
+      {art === "privat" && <p className="steuer">{T.keineAuskunft}</p>}
     </aside>
   );
 }
@@ -531,10 +543,15 @@ export default function BonitaetAntragPage() {
             ))}
           </ol>
         </div>
-        <span className="ba-pille"><i aria-hidden="true" />{T.pille}</span>
-        <h1 className="ba-h1">{T.h1a}<span className="ba-verlauf">{T.h1b}</span></h1>
-        <p className="ba-lead">{T.lead}</p>
-        <ul className="ba-fakten">{T.fakten.map((x) => <li key={x}><Haken16 />{x}</li>)}</ul>
+        {/* E-365: der Kopf je Art — privat die Bonitätsauswertung, für Unternehmen die Firmen-Auskunft. */}
+        <span className="ba-pille"><i aria-hidden="true" />{art === "firma" ? T.firmaKopf.pille : T.pille}</span>
+        <h1 className="ba-h1">{art === "firma" ? T.firmaKopf.h1a : T.h1a}<span className="ba-verlauf">{art === "firma" ? T.firmaKopf.h1b : T.h1b}</span></h1>
+        <p className="ba-lead">{art === "firma" ? T.firmaKopf.lead : T.lead}</p>
+        <ul className="ba-fakten">{(art === "firma" ? T.firmaKopf.fakten : T.fakten).map((x) => <li key={x}><Haken16 />{x}</li>)}</ul>
+        {/* E-365: sichtbar, was nach der Bestellung zu tun ist — Ausweis und Kontoauszüge hochladen. */}
+        {art !== "firma" && (
+          <div className="ba-mitteilung" style={{ marginTop: 22, maxWidth: "60ch" }}><b>{T.unterlagenTitel}</b> {T.unterlagen}</div>
+        )}
       </header>
 
       <main className="ba-rahmen">
@@ -629,14 +646,15 @@ export default function BonitaetAntragPage() {
                     <p className="ba-unter" style={{ marginTop: 0 }}>{T.vg.titel}</p>
                     <dl className="ba-zf">
                       <div className="preis">
-                        <dt>{T.vg.nurTitel}</dt>
+                        <dt>{art === "firma" ? T.vg.nurTitelFirma : T.vg.nurTitel}</dt>
                         <dd><b>{euroText(AUSKUNFT_PREISE_CENTS[art].einzeln)}</b><small>{T.vg.nurText}</small></dd>
                       </div>
                       <div className="preis">
                         <dt>{T.vg.paketTitel}</dt>
                         <dd>
                           {/* Gegenlesen 26.09.2026: Firma ohne Paketweg (das Bündel im Antrag liefert privat) — dort der Kunden-Zweig. */}
-                          <b>{euroText(AUSKUNFT_PREISE_CENTS[art].mitAbo)}</b><small>{art === "firma" ? T.vg.paketTextFirma : T.vg.paketText}</small>
+                          {/* E-365: privat ist die Bonitätsauswertung für neue Paketkunden im Paket enthalten. */}
+                          <b>{art === "firma" ? euroText(AUSKUNFT_PREISE_CENTS.firma.mitAbo) : T.vg.paketEnthalten}</b><small>{art === "firma" ? T.vg.paketTextFirma : T.vg.paketText}</small>
                           <p className="ba-verweis" style={{ marginTop: 8 }}>
                             {art === "firma"
                               ? <button type="button" className="ba-textknopf" onClick={() => zumKundenZweig()}>{T.kartePaketLink}</button>
@@ -676,7 +694,8 @@ export default function BonitaetAntragPage() {
                             disabled={!!kunde && kunde.land !== l}
                             onClick={() => { beruehrt.current = true; setLand(l); if (fehler.plz) setFehler((f) => ({ ...f, plz: "" })); }}>
                       <span className="kuerzel" aria-hidden="true">{l}</span>
-                      <span><b>{LANDNAMEN[l]}</b><small>{T.landSub(auskunfteienText(l))}</small></span>
+                      {/* E-365: „Anfrage bei …" nur für Unternehmen — privat fragt FIAON nirgends an. */}
+                      <span><b>{LANDNAMEN[l]}</b>{firma && <small>{T.landSub(auskunfteienText(l))}</small>}</span>
                       <span className="haken" aria-hidden="true"><Haken12 /></span>
                     </button>
                   ))}
@@ -739,7 +758,7 @@ export default function BonitaetAntragPage() {
               {/* ── 3 · Kontakt ── */}
               {!kunde && (
                 <section className="ba-karte" aria-label={T.s3}>
-                  <KarteKopf nr={nr.kontakt} titel={T.s3} text={T.s3Sub} />
+                  <KarteKopf nr={nr.kontakt} titel={T.s3} text={firma ? T.s3SubFirma : T.s3Sub} />
                   <div className="ba-felder">
                     <Feld id="email" label={T.email} pflicht fehler={fe("email")} voll>
                       <input id="ba-e-email" className="ba-eingabe" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
@@ -842,12 +861,12 @@ export default function BonitaetAntragPage() {
 
         <section className="ba-block" aria-labelledby="ba-ablauf">
           <h2 id="ba-ablauf">{T.ablaufTitel}</h2>
-          <ol className="ba-schritte">{T.ablauf.map((s) => <li key={s.t}><b>{s.t}</b><p>{s.x}</p></li>)}</ol>
+          <ol className="ba-schritte">{(art === "firma" ? T.ablaufFirma : T.ablauf).map((s) => <li key={s.t}><b>{s.t}</b><p>{s.x}</p></li>)}</ol>
         </section>
 
         <section className="ba-block ba-fragen" aria-labelledby="ba-fragen">
           <h2 id="ba-fragen">{T.fragenTitel}</h2>
-          {T.fragen.map((q) => <details key={q.f}><summary>{q.f}</summary><p>{q.a}</p></details>)}
+          {(art === "firma" ? T.fragenFirma : T.fragen).map((q) => <details key={q.f}><summary>{q.f}</summary><p>{q.a}</p></details>)}
           <p className="bx-antrag-mehr">
             {BX.antragMehr.map((l, i) => <span key={l.href}>{i > 0 ? " · " : ""}<a href={l.href}>{l.t}</a></span>)}
           </p>

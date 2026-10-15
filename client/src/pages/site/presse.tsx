@@ -4,7 +4,8 @@ import { Dunkel, Hero, Block, Karten, Kennzahlen, Zeilen, Glas, Zitat, Fragen, Z
 import SeoDaten from "@/components/site/SeoDaten";
 import ArasCore from "@/components/home3d/ArasCore";
 import KartenSzene from "@/components/home3d/KartenSzene";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PRESSE_WOERTER } from "@/i18n/presse";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
@@ -18,7 +19,8 @@ export default function Presse() {
   const euro = (c: number) => en ? "€" + (c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
   const abos = PAKETE.filter((p) => p.abo && p.art === "privat").map((p) => p.preisCents);
   const preise = t.preisSpanne(euro(Math.min(...abos)), euro(Math.max(...abos)));
-  const auskunft = t.einmalig(euro(Math.round(SCHUFA_PREIS_EURO * 100)));
+  // E-365: die Bonitätsauswertung — 149 € einzeln, 74 € mit laufendem Paket (nie 74 € als Einzelpreis).
+  const auskunft = t.auswertungPreis(euro(AUSKUNFT_PREISE_CENTS.privat.einzeln), euro(AUSKUNFT_PREISE_CENTS.privat.mitAbo));
   return (
     <Dunkel seite="presse" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <SeoDaten pfad={pfad} titel={t.metaTitel} beschreibung={t.metaBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />

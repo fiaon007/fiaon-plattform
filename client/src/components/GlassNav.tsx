@@ -132,7 +132,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
   ] : [
     { titel: "Für Privatkunden", art: "gross", eintraege: [
       { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
-      { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH", key: "bonitaetsauskunft" },
+      { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Ihre Bonität aus Sicht einer Bank – DE, AT, CH", key: "bonitaetsauskunft" },
       { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
       { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
     ] },
@@ -310,7 +310,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
                 { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
                 // 25.09.2026 (E-241): der Menüpunkt führt auf die Übersicht der Seitenfamilie (/bonitaet leitet dorthin).
-                { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Erklärt, mit Handlungsplan – DE, AT, CH" },
+                { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Ihre Bonität aus Sicht einer Bank – DE, AT, CH" },
                 { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital" },
                 { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos" },
                 { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft" },

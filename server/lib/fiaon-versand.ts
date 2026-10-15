@@ -206,6 +206,8 @@ interface Zustand {
   vertragVorbei: boolean;
   /** Als Testkunde markiert (fiaon_persons.ist_test_am). */
   testkonto: boolean;
+  /** E-365: Eine bezahlte, nicht stornierte Bonitätsauswertung (Auskunft-Bestellung) — die Bitte um ihre Unterlagen gilt dieser Leistung. */
+  auswertungBezahlt: boolean;
   /** „Stopp“ gesagt oder abgemeldet (fiaon_persons.werbung_gesperrt_am) — nichts Werbliches mehr. */
   werbesperre: boolean;
 }
@@ -242,7 +244,10 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
                  AND (a8.vertrag_ende_am IS NULL OR a8.vertrag_ende_am > NOW())
                  AND COALESCE(a8.type, '') <> 'schufa' AND a8.ref NOT LIKE 'FIAON-SCHUFA-%')) AS vertrag_vorbei,
       (p.ist_test_am IS NOT NULL) AS testkonto,
-      (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre
+      (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre,
+      EXISTS (SELECT 1 FROM fiaon_applications a9 WHERE a9.person_id = p.id AND a9.merged_into IS NULL
+                AND (COALESCE(a9.type, '') = 'schufa' OR a9.ref LIKE 'FIAON-SCHUFA-%')
+                AND a9.payment_status = 'paid' AND a9.cancelled_at IS NULL AND a9.gdpr_deleted_at IS NULL) AS auswertung_bezahlt
     FROM fiaon_persons p WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
   `) as any[];
   if (!z) return null;
@@ -259,6 +264,7 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
     vertragVorbei: !!z.vertrag_vorbei,
     testkonto: !!z.testkonto,
     werbesperre: !!z.werbesperre,
+    auswertungBezahlt: !!z.auswertung_bezahlt,
   };
 }
 
@@ -327,8 +333,10 @@ function bewerten(
   // ══════════════════════════════════════════════════════════════════════
   if (art === "documents_change_request") {
     if (z.testkonto) return { erlaubt: false, grund: "Testkonto — Unterlagen-Mails gehen nicht an Testdatensätze.", warnung: null, heute };
-    if (z.gekuendigt) return { erlaubt: false, grund: "Der Kunde hat gekündigt — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
-    if (z.vertragVorbei) return { erlaubt: false, grund: "Der Vertrag ist beendet — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
+    // E-365 (14.10.2026): Wer die Bonitätsauswertung bezahlt hat, bekommt die Bitte um Ausweis und Kontoauszug auch nach
+    // einer Kündigung des Stufenpakets — die Kündigung gilt dem Paket, die Auswertung ist eine bezahlte eigene Leistung (E-364).
+    if (z.gekuendigt && !z.auswertungBezahlt) return { erlaubt: false, grund: "Der Kunde hat gekündigt — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
+    if (z.vertragVorbei && !z.auswertungBezahlt) return { erlaubt: false, grund: "Der Vertrag ist beendet — keine Aufforderung mehr, Unterlagen nachzureichen.", warnung: null, heute };
     if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", warnung: null, heute };
     return {
       erlaubt: true, grund: null, heute,

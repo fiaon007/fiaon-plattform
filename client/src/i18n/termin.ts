@@ -20,8 +20,8 @@ const de = {
     { titel: "Ihre Lage", text: "Was ist passiert – Ablehnung, Brief, Eintrag, Kündigung? Welche Auskunftei, welches Land? Zwei Minuten, keine Formulare." },
     { titel: "Was die Auskunft hergibt", text: "Wir erklären, was ein Eintrag rechtlich bedeutet, ob er angreifbar sein könnte und welche Frist läuft – ohne Versprechen, mit Paragrafen." },
     { titel: "Ihr Ziel", text: "Nur Klarheit? Einträge weg? Konto, Karte, Finanzierung? Das Ziel bestimmt den Weg – und ob FIAON überhaupt der richtige ist." },
-    { titel: "Der ehrliche Vorschlag", text: "Kostenlose Werkzeuge, die Auskunft für 74 Euro oder ein Paket – wir nennen das, was zu Ihrem Fall passt, nicht das teuerste." },
-    { titel: "Die nächsten Schritte", text: "Wenn Sie wollen: Paket, erste Rate, Vollmacht, Auskunft. Wenn nicht: eine Zusammenfassung per E-Mail und die Links zu den Werkzeugen." },
+    { titel: "Der ehrliche Vorschlag", text: "Kostenlose Werkzeuge, die Bonitätsauswertung für 149 € oder ein Paket (für neue Paketkunden ist sie darin enthalten) – wir nennen das, was zu Ihrem Fall passt, nicht das teuerste." },
+    { titel: "Die nächsten Schritte", text: "Wenn Sie wollen: Paket, erste Rate, Ausweis und Kontoauszüge per Link hochladen. Wenn nicht: eine Zusammenfassung per E-Mail und die Links zu den Werkzeugen." },
   ],
   buchenH2a: "Zeitfenster wählen – ", buchenH2b: "wir rufen an.", buchenLead: "Ihre Angaben gehen direkt ins Team; niemand außerhalb von FIAON sieht sie. Sie bekommen eine Bestätigung per E-Mail.",
   felder: {
@@ -37,7 +37,7 @@ const de = {
   warum: [
     { tag: "Ehrlich", titel: "Manchmal reichen die Werkzeuge", text: "Ein einziger, klar erledigter Eintrag: Der Löschantrag-Generator schreibt den Brief kostenlos. Das sagen wir am Telefon – und schicken den Link." },
     { tag: "Konkret", titel: "Die Frist, die gerade läuft", text: "Mahnbescheid, Inkassofrist, Löschfrist: Am Telefon klären wir in zwei Minuten, welcher Tag der letzte ist – bevor Sie ein Paket wählen." },
-    { tag: "Passend", titel: "Das richtige Paket, nicht das größte", text: "Start, Pro, Ultra oder nur die Auskunft: Der Unterschied liegt darin, wie viel FIAON übernimmt. Wer allein nachhalten kann, braucht weniger." },
+    { tag: "Passend", titel: "Das richtige Paket, nicht das größte", text: "Start, Pro, Ultra oder nur die Bonitätsauswertung: Der Unterschied liegt darin, wie viel FIAON übernimmt. Wer allein nachhalten kann, braucht weniger." },
   ],
   fragenTitel: "Häufige Fragen zum Gespräch",
   fragen: [
@@ -67,8 +67,8 @@ const en: typeof de = {
     { titel: "Your situation", text: "What has happened — a rejection, a letter, an entry, a termination? Which credit bureau, which country? Two minutes, no forms." },
     { titel: "What the report shows", text: "We explain what an entry means legally, whether it might be challengeable and which deadline is running — without promises, with the relevant sections." },
     { titel: "Your goal", text: "Just clarity? Entries gone? Account, card, finance? The goal determines the path — and whether FIAON is the right choice at all." },
-    { titel: "The honest suggestion", text: "Free tools, the report for €74 or a plan — we name what fits your case, not the most expensive option." },
-    { titel: "The next steps", text: "If you want: plan, first instalment, authorisation, report. If not: a summary by e-mail and the links to the tools." },
+    { titel: "The honest suggestion", text: "Free tools, the credit assessment for €149 or a plan (for new plan customers it is included) — we name what fits your case, not the most expensive option." },
+    { titel: "The next steps", text: "If you want: plan, first instalment, upload your ID and bank statements via a link. If not: a summary by e-mail and the links to the tools." },
   ],
   buchenH2a: "Choose a time slot — ", buchenH2b: "we call you.", buchenLead: "Your details go straight to the team; nobody outside FIAON sees them. You receive a confirmation by e-mail.",
   felder: {
@@ -84,7 +84,7 @@ const en: typeof de = {
   warum: [
     { tag: "Honest", titel: "Sometimes the tools are enough", text: "A single, clearly settled entry: the deletion request generator writes the letter free of charge. We say so on the phone — and send the link." },
     { tag: "Concrete", titel: "The deadline running right now", text: "Court order, collection deadline, deletion deadline: on the phone we clarify in two minutes which day is the last — before you choose a plan." },
-    { tag: "Fitting", titel: "The right plan, not the biggest", text: "Start, Pro, Ultra or just the report: the difference is how much FIAON takes on. Anyone who can follow up alone needs less." },
+    { tag: "Fitting", titel: "The right plan, not the biggest", text: "Start, Pro, Ultra or just the credit assessment: the difference is how much FIAON takes on. Anyone who can follow up alone needs less." },
   ],
   fragenTitel: "Frequently asked questions about the call",
   fragen: [

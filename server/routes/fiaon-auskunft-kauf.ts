@@ -45,6 +45,16 @@
 //      — für Bestellungen ohne Auftrag (Mara, Betreuer, Altbestand): Bestellung,
 //      Leistung, derselbe Haken; das Absenden schreibt den Vermerk (idempotent).
 //      Den Link verschickt die Beschaffung (auftragLinkSenden, fiaon-auskunft-lieferung.ts).
+//
+// ── E-365 (14.10.2026): PRIVAT DIE FIAON-BONITÄTSAUSWERTUNG ────────────────
+// Privat steht hinter 149 €/74 € seitdem die FIAON-Bonitätsauswertung aus
+// Ausweis und Kontoauszügen (shared/fiaon-auskunft.ts, AUSWERTUNG_*). Die
+// Seiten und Mail-Sätze hier sagen das; Firmen lesen die Firmen-Auskunft wie
+// bisher. Neu: „auswertung" (liegt vor) und „inklusive" (im Paket enthalten,
+// Kartenlink wartet) zeigen eine Hinweisseite statt der Kaufseite — bestellt
+// wird dort nichts (auskunftBestellen lehnt ebenfalls ab). Bezahlte Altbestellungen
+// (Paketname ohne „Bonitätsauswertung") behalten auf der Auftragsbestätigung den
+// Wortlaut des Produkts, das sie gekauft haben.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -57,6 +67,7 @@ import { markeSvg } from "@shared/fiaon-marke";
 import {
   AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, AUSKUNFT_BESCHAFFUNGSAUFTRAG_TEXT, AUSKUNFT_DATENKOPIE_AUFTRAG_TEXT, AUSKUNFT_DATENKOPIE_FASSUNG,
   auskunftLeistung, auskunftWort, auskunfteienText, auskunftPreisCents, euroText,
+  AUSWERTUNG_NAME, AUSWERTUNG_UNTERZEILE, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_KEINE_AUSKUNFT_SATZ, AUSWERTUNG_INKLUSIVE_SATZ, AUSWERTUNG_SCHRITTE,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 
@@ -220,7 +231,16 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
   const art = await auskunftArtFuer(personId, lauf);
   // Integration 26.09.2026 (E-243): standZumZeigen — eine offene Bestellung, die auskunftBestellen nicht wiederverwenden würde (teurer als heute oder ohne Betrag — seit E-244 ohne Altersgrenze), zeigt keinen Zahlungslink, sondern den Kauf zum heutigen Preis.
   const stand = (await import("../lib/fiaon-auskunft")).standZumZeigen(await auskunftStand(personId, lauf, art));
-  if (stand.stufe === "bezahlt") return { modus: "weglassen", grund: "Die Auskunft ist bezahlt — wir holen sie ein, der Kunde muss nichts liefern." };
+  if (stand.stufe === "bezahlt") {
+    return { modus: "weglassen", grund: art === "firma"
+      ? "Die Auskunft ist bezahlt — wir holen sie ein, der Kunde muss nichts liefern."
+      : "Die FIAON-Bonitätsauswertung ist bezahlt — kein Angebot; für sie braucht das Team Ausweis und Kontoauszüge." };
+  }
+  // E-365: Liegt die Bonitätsauswertung vor oder ist sie im Paket enthalten (Kartenlink wartet), wird nichts angeboten.
+  if (art === "privat" && stand.stufe === "auswertung") return { modus: "weglassen", grund: "Die FIAON-Bonitätsauswertung liegt vor — nichts anbieten." };
+  if (art === "privat" && stand.stufe === "inklusive") {
+    return { modus: "weglassen", grund: "Die FIAON-Bonitätsauswertung ist im Paket enthalten (Kartenlink wartet auf die Bonität) — kein Angebot; die Mail bittet nur um Ausweis und Kontoauszüge." };
+  }
   // dokumentDa statt stufe === "dokument": Die Stufe stellt eine offene Bestellung
   // VOR das Dokument — wer selbst eine hochgeladen hat, bekommt trotzdem keine Zahlungsbitte.
   if (stand.dokumentDa) return { modus: "weglassen", grund: "Eine Auskunft liegt schon in der Akte." };
@@ -254,8 +274,10 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
     if ((await auskunftLiefermodus(lauf)) !== "vollmacht") {
       return {
         modus: "zahlen", land, posten, betragText: betrag, ohneAngebot: null,
-        satz: `Für ${posten} ist bei uns schon ein Auftrag angelegt — es fehlt nur noch die Überweisung über ${betrag}. `
-          + `Sobald sie eingegangen ist, beschaffen wir Ihre Auskunft bei ${bei} und erstellen daraus Ihren Handlungsplan.`,
+        satz: art === "firma"
+          ? `Für ${posten} ist bei uns schon ein Auftrag angelegt — es fehlt nur noch die Überweisung über ${betrag}. `
+            + `Sobald sie eingegangen ist, beschaffen wir Ihre Auskunft bei ${bei} und erstellen daraus Ihren Handlungsplan.`
+          : zahlenSatzAuswertung(betrag),
         knopf: { text: `Zahlungsseite öffnen — ${betrag}`, url: absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`) },
       };
     }
@@ -266,8 +288,10 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
       // dürfen wir anfordern. Vorher stand hier, wir forderten gleich an. Und
       // „angelegt" statt „haben Sie beauftragt": Offene Bestellungen stammen auch
       // aus der Akte oder von Mara — der Satz stimmt für jede Tür.
-      satz: `Für ${posten} ist bei uns schon ein Auftrag angelegt — es fehlt nur noch die Überweisung über ${betrag}. `
-        + `Sobald sie eingegangen ist, schicken wir Ihnen die Vollmacht zur Unterschrift, fordern danach Ihre Datenkopien bei ${bei} an und erstellen daraus Ihren Handlungsplan.`,
+      satz: art === "firma"
+        ? `Für ${posten} ist bei uns schon ein Auftrag angelegt — es fehlt nur noch die Überweisung über ${betrag}. `
+          + `Sobald sie eingegangen ist, schicken wir Ihnen die Vollmacht zur Unterschrift, fordern danach Ihre Datenkopien bei ${bei} an und erstellen daraus Ihren Handlungsplan.`
+        : zahlenSatzAuswertung(betrag),
       knopf: { text: `Zahlungsseite öffnen — ${betrag}`, url: absoluteUrl(`/zahlung/${encodeURIComponent(stand.offen.paymentReference)}`) },
     };
   }
@@ -285,13 +309,25 @@ export async function auskunftMailTeil(personId: number, lauf: Lauf = sqlPool): 
   }
 
   const preis = stand.preis.text;
+  const kundenpreis = stand.preis.mitAbo ? ", Ihr Preis als Kunde mit laufendem Paket" : "";
   return {
     modus: "angebot", land, posten, betragText: preis, ohneAngebot: null,
-    satz: `${AUSKUNFT_NUTZEN_SATZ} Die Auskunft holen wir gern für Sie: Wir fordern Ihre Datenkopien bei ${bei} an, `
-      + "erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren persönlichen Handlungsplan "
-      + `mit fertigen Schreiben zur Freigabe — für ${preis} einmalig${stand.preis.mitAbo ? ", Ihr Preis als Kunde mit laufendem Paket" : ""}.`,
-    knopf: { text: `Auskunft für ${preis} beauftragen`, url: kaufLink(personId, art) },
+    // E-365: privat die FIAON-Bonitätsauswertung — keine Beschaffung, keine Datenkopie, keine Schreiben.
+    satz: art === "firma"
+      ? `${AUSKUNFT_NUTZEN_SATZ} Die Auskunft holen wir gern für Sie: Wir fordern Ihre Datenkopien bei ${bei} an, `
+        + "erklären jeden Eintrag, prüfen die Speicherfristen und geben Ihnen Ihren persönlichen Handlungsplan "
+        + `mit fertigen Schreiben zur Freigabe — für ${preis} einmalig${kundenpreis}.`
+      : `${AUSKUNFT_NUTZEN_SATZ} Mit der ${AUSWERTUNG_NAME} sehen Sie Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen: `
+        + `Haushaltsrechnung, jede Einnahme und Ausgabe im Detail, Ampel, Finanzwert und Ihr Plan — für ${preis} einmalig${kundenpreis}. `
+        + `${AUSWERTUNG_UNTERLAGEN_SATZ} ${AUSWERTUNG_KEINE_AUSKUNFT_SATZ}`,
+    knopf: { text: art === "firma" ? `Auskunft für ${preis} beauftragen` : `Bonitätsauswertung für ${preis} bestellen`, url: kaufLink(personId, art) },
   };
+}
+
+/** E-365: Der Zahlungssatz einer offenen Privat-Bestellung — dieselben Worte für jeden Liefermodus. */
+function zahlenSatzAuswertung(betrag: string): string {
+  return `Für Ihre ${AUSWERTUNG_NAME} ist bei uns schon ein Auftrag angelegt — es fehlt nur noch die Überweisung über ${betrag}. `
+    + "Sobald sie eingegangen ist, entwickeln wir Ihre Auswertung aus Ihrem Ausweis und Ihren Kontoauszügen der letzten drei Monate — den Link zum Hochladen bekommen Sie per E-Mail.";
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -393,9 +429,9 @@ function auftragHaken(art: AuskunftArt, datenkopie = false): string {
  * Auftragsbestätigung (Bestellung schon bezahlt) nur der Auftrag noch nicht bestätigt.
  */
 function auftragFehltSeite(res: Response, zurueck: string, schluss = "Es wurde noch nichts bestellt."): void {
-  senden(res, 400, seite("Bitte bestätigen Sie den Auftrag", `<p class="marke">Bonitätsauskunft</p>
+  senden(res, 400, seite("Bitte bestätigen Sie den Auftrag", `<p class="marke">FIAON · Bonität</p>
 <h1>Bitte bestätigen Sie den Auftrag</h1>
-<p>Damit wir Ihre Auskunft für Sie anfordern bzw. beschaffen dürfen, setzen Sie bitte den Haken beim Auftrag und klicken Sie danach erneut auf den Knopf. ${esc(schluss)}</p>
+<p>Damit wir Ihren Auftrag ausführen dürfen, setzen Sie bitte den Haken beim Auftrag und klicken Sie danach erneut auf den Knopf. ${esc(schluss)}</p>
 <p><a class="knopf" href="${esc(zurueck)}">Zurück zum Auftrag</a></p>`));
 }
 
@@ -408,7 +444,31 @@ function auftragFehltSeite(res: Response, zurueck: string, schluss = "Es wurde n
 const bestellungLaeuft = new Set<number>();
 
 function hinweisSeite(res: Response, status: number, titel: string, text: string, mitBereich = true): void {
-  senden(res, status, seite(titel, `<p class="marke">Bonitätsauskunft</p><h1>${esc(titel)}</h1><p>${esc(text)}</p>${mitBereich ? ZUM_BEREICH : ""}`));
+  senden(res, status, seite(titel, `<p class="marke">FIAON · Bonität</p><h1>${esc(titel)}</h1><p>${esc(text)}</p>${mitBereich ? ZUM_BEREICH : ""}`));
+}
+
+/**
+ * E-365: Die Hinweisseiten der Bonitätsauswertung (privat) — bezahlt, liegt vor, im Paket enthalten. Gibt true zurück,
+ * wenn eine Seite geschrieben wurde (dann wird nichts bestellt).
+ */
+function auswertungStandSeite(res: Response, stufe: string): boolean {
+  if (stufe === "bezahlt") {
+    hinweisSeite(res, 200, "Ihre Bonitätsauswertung ist schon beauftragt",
+      "Die Zahlung ist bei uns eingegangen — wir entwickeln Ihre FIAON-Bonitätsauswertung. Dafür brauchen wir Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate: "
+      + "Den Link zum Hochladen haben Sie per E-Mail bekommen, oder Sie laden sie in Ihrem Bereich unter Unterlagen hoch.");
+    return true;
+  }
+  if (stufe === "auswertung") {
+    hinweisSeite(res, 200, "Ihre Bonitätsauswertung liegt schon vor",
+      "Sie haben sie als PDF per E-Mail bekommen und finden sie jederzeit in Ihrem Bereich unter „Auswertung“. Ihre Ansprechperson geht sie gern mit Ihnen durch.");
+    return true;
+  }
+  if (stufe === "inklusive") {
+    hinweisSeite(res, 200, "Ihre Bonitätsauswertung ist in Ihrem Paket enthalten",
+      `${AUSWERTUNG_INKLUSIVE_SATZ} Das geht in Ihrem Bereich unter Unterlagen — hier müssen Sie nichts bestellen.`);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -468,8 +528,11 @@ export async function kaufSperre(personId: number, lauf: Lauf = sqlPool): Promis
 /** „Zahlung gemeldet": nach der Buchung zum Kundenpreis — kein Einzelpreis heute. */
 function zahlungGemeldetSeite(res: Response, art: AuskunftArt): void {
   const kundenpreis = euroText(auskunftPreisCents(art, true));
-  hinweisSeite(res, 409, "Ihre Zahlung wird gerade geprüft",
-    `Sie haben uns die erste Zahlung für Ihr Paket gemeldet — danke. Sobald sie gebucht ist, beauftragen Sie die ${art === "firma" ? "Firmen-Bonitätsauskunft" : "Bonitätsauskunft"} zu Ihrem Kundenpreis von ${kundenpreis}, über diesen Link oder in Ihrem Bereich.`);
+  // E-365: privat ist die Bonitätsauswertung nach der Buchung oft im Paket enthalten (Kartenlink wartet) — dann kein Preis.
+  hinweisSeite(res, 409, "Ihre Zahlung wird gerade geprüft", art === "firma"
+    ? `Sie haben uns die erste Zahlung für Ihr Paket gemeldet — danke. Sobald sie gebucht ist, beauftragen Sie die Firmen-Bonitätsauskunft zu Ihrem Kundenpreis von ${kundenpreis}, über diesen Link oder in Ihrem Bereich.`
+    : "Sie haben uns die erste Zahlung für Ihr Paket gemeldet — danke. Sobald sie gebucht ist, ist Ihre FIAON-Bonitätsauswertung der nächste Schritt: "
+      + "Ob sie in Ihrem Paket enthalten ist oder was sie kostet, sehen Sie dann in Ihrem Bereich.");
 }
 
 /** Hat dieser Mensch einen Antrag (einen Bereich mit Unterlagen)? Ein Lead ohne Antrag nicht — dann kein Hochlade-Hinweis. */
@@ -486,7 +549,7 @@ async function vorpruefen(req: Request, res: Response): Promise<{ personId: numb
   if (!urteil.ok) {
     hinweisSeite(res, urteil.abgelaufen ? 410 : 400,
       urteil.abgelaufen ? "Dieser Link ist abgelaufen" : "Dieser Link ist ungültig",
-      "Sie können die Auskunft jederzeit in Ihrem Bereich beauftragen — oder Sie antworten einfach auf unsere E-Mail, dann kümmert sich Ihr Ansprechpartner darum.");
+      "Sie können sie jederzeit in Ihrem Bereich beauftragen — oder Sie antworten einfach auf unsere E-Mail, dann kümmert sich Ihr Ansprechpartner darum.");
     return null;
   }
   const person = await personAufloesen(urteil.personId);
@@ -609,6 +672,8 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
     });
     const { auskunftStand } = await import("../lib/fiaon-auskunft");
     const stand = await auskunftStand(ok.personId, sqlPool, ok.art);
+    // E-365: privat — bezahlt, liegt vor oder im Paket enthalten: eine Hinweisseite, keine Kaufseite.
+    if (ok.art === "privat" && auswertungStandSeite(res, String(stand.stufe))) return;
     if (stand.stufe === "bezahlt") {
       return hinweisSeite(res, 200, "Ihre Auskunft ist schon beauftragt",
         "Die Zahlung ist bei uns eingegangen — wir holen Ihre Auskunft ein. Den Stand sehen Sie in Ihrem Bereich.");
@@ -636,8 +701,9 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
     const mitBereich = await hatAntrag(ok.personId);
     // Gegenlesen 24.09.2026: Der Link kennt auch art=firma (Mara, Verkaufstakt) —
     // dann ist es nicht „Ihre SCHUFA-Auskunft", sondern die des Unternehmens.
-    const wort = ok.art === "firma" ? "Firmen-Bonitätsauskunft" : auskunftWort(stand.land);
+    const wort = ok.art === "firma" ? "Firmen-Bonitätsauskunft" : AUSWERTUNG_NAME;
     const leistung = auskunftLeistung(ok.art, stand.land);
+    const privat = ok.art === "privat";
     // E-244: bei einer offenen Bestellung ihr Betrag (der Klick verwendet sie wieder), sonst der Preis von heute.
     const preis = nachtragen ? euroText(nachtragen.betragCents) : stand.preis.text;
     // Das Formular schickt denselben signierten Link zurück — die Signatur gilt
@@ -645,11 +711,15 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
     const aktion = kaufAktion(req);
     // E-241: „Limit" nur für zahlende Kunden — Anträge und Leads lesen den Nutzen ohne (VERBOTENE_WORTE, § 34c GewO).
     const nutzen = stand.preis.mitAbo ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE;
+    // E-365: privat die FIAON-Bonitätsauswertung — Unterzeile, Leistung, Ablauf in vier Schritten, ehrliche Abgrenzung.
     return senden(res, 200, seite(`${wort} beauftragen`, `
-<p class="marke">Bonitätsauskunft · ${esc(stand.land === "DE" ? "Deutschland" : stand.land === "AT" ? "Österreich" : "Schweiz")}</p>
-<h1>${esc(wort)} — wir holen sie für Sie</h1>
+<p class="marke">${privat ? "Bonitätsauswertung" : "Bonitätsauskunft"} · ${esc(stand.land === "DE" ? "Deutschland" : stand.land === "AT" ? "Österreich" : "Schweiz")}</p>
+<h1>${privat ? `Ihre ${esc(wort)}` : `${esc(wort)} — wir holen sie für Sie`}</h1>
+${privat ? `<p><b>${esc(AUSWERTUNG_UNTERZEILE)}</b></p>` : ""}
 <p>${esc(nutzen)}</p>
 <ul>${leistung.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+${privat ? `<ol>${AUSWERTUNG_SCHRITTE.map((x) => `<li><b>${esc(x.titel)}:</b> ${esc(x.text)}</li>`).join("")}</ol>
+<p class="leise">${esc(AUSWERTUNG_UNTERLAGEN_SATZ)} ${esc(AUSWERTUNG_KEINE_AUSKUNFT_SATZ)}</p>` : ""}
 <div class="preis"><b>${esc(preis)}</b><span class="leise">einmalig${stand.preis.mitAbo ? " · Ihr Preis als Kunde mit laufendem Paket" : ""}</span></div>
 <p class="leise">${esc(PREIS_STEUER)}. Kein Abo. Ihr Vertragspartner ist die FIAON LTD. Bezahlt wird per Überweisung: Auf der nächsten Seite sehen Sie Betrag, Bankdaten und Verwendungszweck; die Zahlungsdaten bekommen Sie zusätzlich per E-Mail.</p>
 <form method="post" action="${esc(aktion)}" onsubmit="this.querySelector('button').disabled=true">
@@ -659,7 +729,7 @@ router.get("/auskunft/bestellen", async (req: Request, res: Response) => {
   <p class="leise" style="margin:-6px 0 16px 35px">Ohne diesen Haken beginnen wir nach Ablauf der Widerrufsfrist.</p>
   <button type="submit">Zahlungspflichtig beauftragen — ${esc(preis)}</button>
 </form>
-<p class="leise" style="margin-top:14px">Mit dem Klick beauftragen Sie FIAON mit der ${esc(ok.art === "firma" ? "Firmen-Bonitätsauskunft" : "Bonitätsauskunft")} inklusive Handlungsplan. Es gelten unsere <a href="${absoluteUrl("/agb")}">AGB</a>; über Ihr Widerrufsrecht informiert ${ok.art === "firma" ? "der Hinweis" : "die Widerrufsbelehrung"} unten.${mitBereich ? ` Sie haben schon eine aktuelle Auskunft? Dann laden Sie sie einfach <a href="${absoluteUrl("/login")}">in Ihrem Bereich</a> hoch.` : ""}</p>
+<p class="leise" style="margin-top:14px">Mit dem Klick beauftragen Sie FIAON mit ${privat ? `Ihrer ${esc(AUSWERTUNG_NAME)}` : "der Firmen-Bonitätsauskunft inklusive Handlungsplan"}. Es gelten unsere <a href="${absoluteUrl("/agb")}">AGB</a>; über Ihr Widerrufsrecht informiert ${ok.art === "firma" ? "der Hinweis" : "die Widerrufsbelehrung"} unten.${mitBereich && !privat ? ` Sie haben schon eine aktuelle Auskunft? Dann laden Sie sie einfach <a href="${absoluteUrl("/login")}">in Ihrem Bereich</a> hoch.` : ""}</p>
 ${ok.art === "firma" ? `<p class="leise">${esc(AUSKUNFT_KEIN_WIDERRUF)}</p>` : widerrufHtml()}`));
   } catch (err) {
     console.error("[AUSKUNFT-KAUF] Seite:", err);
@@ -676,6 +746,8 @@ router.post("/auskunft/bestellen", async (req: Request, res: Response) => {
     if (!ok) return;
     const { auskunftBestellen, auskunftStand, beschaffungsauftragVermerken } = await import("../lib/fiaon-auskunft");
     const vorher = await auskunftStand(ok.personId, sqlPool, ok.art, { land: false });
+    // E-365: privat — bezahlt, liegt vor oder im Paket enthalten: nichts bestellen (wie die Seite oben).
+    if (ok.art === "privat" && auswertungStandSeite(res, String(vorher.stufe))) return;
     if (vorher.stufe === "bezahlt") {
       return hinweisSeite(res, 200, "Ihre Auskunft ist schon beauftragt",
         "Die Zahlung ist bei uns eingegangen — wir holen Ihre Auskunft ein. Den Stand sehen Sie in Ihrem Bereich.");
@@ -694,6 +766,7 @@ router.post("/auskunft/bestellen", async (req: Request, res: Response) => {
     meineSperre = ok.personId;
     const best = await auskunftBestellen({ personId: ok.personId, art: ok.art, quelle: "kunde", von: "Kunde (Kauflink aus der E-Mail)" });
     if (best.art === "bezahlt") {
+      if (ok.art === "privat") { auswertungStandSeite(res, "bezahlt"); return; }
       return hinweisSeite(res, 200, "Ihre Auskunft ist schon beauftragt",
         "Die Zahlung ist bei uns eingegangen — wir holen Ihre Auskunft ein. Den Stand sehen Sie in Ihrem Bereich.");
     }
@@ -821,7 +894,8 @@ async function auftragVorpruefen(req: Request, res: Response): Promise<Beschaffu
     return null;
   }
   if (a.status === "fertig") {
-    hinweisSeite(res, 200, "Ihre Auskunft liegt schon vor", "Wir haben Ihre Auskunft beschafft — Sie finden sie mit der Auswertung in Ihrem Bereich.");
+    if (istAuswertungsBestellung(a)) hinweisSeite(res, 200, "Ihre Bonitätsauswertung liegt vor", "Sie finden sie in Ihrem Bereich unter „Auswertung“ — und als PDF in Ihrem Postfach.");
+    else hinweisSeite(res, 200, "Ihre Auskunft liegt schon vor", "Wir haben Ihre Auskunft beschafft — Sie finden sie mit der Auswertung in Ihrem Bereich.");
     return null;
   }
   if (!a.bestellung.bezahlt) {
@@ -832,6 +906,14 @@ async function auftragVorpruefen(req: Request, res: Response): Promise<Beschaffu
   return a;
 }
 
+/**
+ * E-365 (14.10.2026): Ist diese Bestellung schon die FIAON-Bonitätsauswertung (privat, Paketname seit E-365)? Dann sprechen
+ * die Seiten von Ausweis und Kontoauszügen. Ältere bezahlte Bestellungen behalten den Wortlaut des Produkts, das sie gekauft haben.
+ */
+function istAuswertungsBestellung(a: BeschaffungAuftragT): boolean {
+  return a.art === "privat" && /bonitätsauswertung/i.test(String(a.bestellung.paket ?? ""));
+}
+
 /** Bei wem beschafft wird — die Namen, die der Auftrag „oben" meint. */
 function stellenText(a: BeschaffungAuftragT): string {
   const bei = auskunfteienText(a.land);
@@ -840,6 +922,14 @@ function stellenText(a: BeschaffungAuftragT): string {
 
 /** Was nach der Bestätigung kommt — auf der Seite (`vorher`: „Nach Ihrer Bestätigung …") und auf der Dankeseite. */
 function danachSatz(a: BeschaffungAuftragT, vorher = false): string {
+  // E-365: die Bonitätsauswertung — aus Ausweis und Kontoauszügen, nichts wird bei einer Auskunftei angefordert.
+  if (istAuswertungsBestellung(a)) {
+    const wann = a.faellig
+      ? (vorher ? "Nach Ihrer Bestätigung entwickeln wir Ihre Bonitätsauswertung." : "Wir entwickeln jetzt Ihre Bonitätsauswertung.")
+      : `Wie bei Ihrer Beauftragung gewählt, beginnen wir damit erst nach Ablauf der Widerrufsfrist, ab dem ${isoDe(a.faelligAb)}.`;
+    return `${wann} Dafür brauchen wir Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate — den Link zum Hochladen bekommen Sie per E-Mail. `
+      + "Ist der Bericht geprüft und freigegeben, kommt er als PDF per E-Mail und liegt in Ihrem Bereich.";
+  }
   // E-IT-D (Nachprüfung 08.10.2026): Im Datenkopie-Weg kommt die Auskunft per Post zum Kunden — das steht hier ehrlich.
   if (a.modus === "datenkopie") {
     const wann = a.faellig
@@ -859,25 +949,33 @@ router.get("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
     const a = await auftragVorpruefen(req, res);
     if (!a) return;
     if (a.einwilligung.quelle === "auftrag") {
-      return senden(res, 200, seite("Ihr Auftrag ist bestätigt", `<p class="marke">Bonitätsauskunft</p>
+      return senden(res, 200, seite("Ihr Auftrag ist bestätigt", `<p class="marke">${istAuswertungsBestellung(a) ? "Bonitätsauswertung" : "Bonitätsauskunft"}</p>
 <h1>Ihr Auftrag ist bestätigt</h1><p>${esc(danachSatz(a))}</p>${ZUM_BEREICH}`));
     }
     const betrag = a.bestellung.betragCents != null ? euroText(a.bestellung.betragCents) : null;
     const bezahltAm = tagDe(a.bestellung.bezahltAm);
     // Querprüfung 08.10.2026: Im Datenkopie-Weg eigene Einleitung, Leistungszeile und eigener Haken.
-    const datenkopie = a.modus === "datenkopie";
+    // E-365: Eine Bestellung der Bonitätsauswertung (privat) — eigene Einleitung und Leistungszeile, keine Auskunfteien.
+    const auswertung = istAuswertungsBestellung(a);
+    const datenkopie = !auswertung && a.modus === "datenkopie";
     const was = a.art === "firma" ? "Firmen-Bonitätsauskunft" : auskunftWort(a.land);
     return senden(res, 200, seite("Auftrag bestätigen", `
-<p class="marke">Bonitätsauskunft · ${esc(a.land === "DE" ? "Deutschland" : a.land === "AT" ? "Österreich" : "Schweiz")}</p>
+<p class="marke">${auswertung ? "Bonitätsauswertung" : "Bonitätsauskunft"} · ${esc(a.land === "DE" ? "Deutschland" : a.land === "AT" ? "Österreich" : "Schweiz")}</p>
 <h1>Bitte bestätigen Sie Ihren Auftrag</h1>
-<p>${esc(anredeMail({ vorname: a.kunde.vorname, nachname: a.kunde.nachname }))} Ihre Zahlung ist eingegangen — danke. ${datenkopie
+<p>${esc(anredeMail({ vorname: a.kunde.vorname, nachname: a.kunde.nachname }))} Ihre Zahlung ist eingegangen — danke. ${auswertung
+  ? `Damit wir Ihre ${esc(AUSWERTUNG_NAME)} erstellen dürfen, fehlt nur noch Ihre Bestätigung.`
+  : datenkopie
   ? "Damit wir Ihre Datenkopie in Ihrem Namen anfordern dürfen, fehlt nur noch Ihre Bestätigung."
   : `Damit wir Ihre ${esc(was)} für Sie beschaffen dürfen, fehlt nur noch Ihre Bestätigung.`}</p>
 <ul>
-  <li><b>Bestellung:</b> ${esc(a.bestellung.paket || "Bonitätsauskunft inkl. Handlungsplan")} (${esc(a.ref)})</li>
+  <li><b>Bestellung:</b> ${esc(auswertung ? AUSWERTUNG_NAME : (a.bestellung.paket || "Bonitätsauskunft inkl. Handlungsplan"))} (${esc(a.ref)})</li>
   ${betrag ? `<li><b>Bezahlt:</b> ${esc(betrag)}${bezahltAm ? ` am ${esc(bezahltAm)}` : ""}</li>` : ""}
-  <li><b>Auskunfteien:</b> ${esc(stellenText(a))}</li>
-  <li><b>Leistung:</b> ${datenkopie
+  ${auswertung
+    ? `<li><b>Grundlage:</b> Ihr Ausweis und Ihre Kontoauszüge der letzten drei Monate</li>`
+    : `<li><b>Auskunfteien:</b> ${esc(stellenText(a))}</li>`}
+  <li><b>Leistung:</b> ${auswertung
+    ? `${esc(AUSWERTUNG_UNTERZEILE)} Haushaltsrechnung, jede Einnahme und Ausgabe im Detail, Ampel, Finanzwert und Plan — ein Mensch prüft den Bericht und gibt ihn frei. ${esc(AUSWERTUNG_KEINE_AUSKUNFT_SATZ)}`
+    : datenkopie
     ? "Wir fordern Ihre Datenkopie nach Art. 15 DSGVO in Ihrem Namen an. Sie kommt per Post zu Ihnen — laden Sie sie dann hoch; wir erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor."
     : "Wir beschaffen Ihre Auskunft, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor."}</li>
 </ul>
@@ -926,7 +1024,7 @@ router.post("/auskunft/auftrag/:token", async (req: Request, res: Response) => {
         }
       }
     }
-    return senden(res, 200, seite("Ihr Auftrag ist bestätigt", `<p class="marke">Bonitätsauskunft</p>
+    return senden(res, 200, seite("Ihr Auftrag ist bestätigt", `<p class="marke">${istAuswertungsBestellung(a) ? "Bonitätsauswertung" : "Bonitätsauskunft"}</p>
 <h1>Danke — Ihr Auftrag ist bestätigt</h1><p>${esc(danachSatz(a))}</p>${ZUM_BEREICH}`));
   } catch (err) {
     console.error("[AUSKUNFT-AUFTRAG] Bestätigen:", err);
@@ -1022,7 +1120,9 @@ const kpMaske = (s: string) => { const at = s.indexOf("@"); return at < 1 ? "(un
 
 export type KundenpreisErgebnis =
   | "versandt" | "kein_kunde" | "geloescht" | "gekuendigt" | "gesperrt"
-  | "schon_bezahlt" | "zahlung_gemeldet" | "offen_zum_einzelpreis" | "mail_abgelehnt" | "bremse_tag";
+  | "schon_bezahlt" | "zahlung_gemeldet" | "offen_zum_einzelpreis" | "mail_abgelehnt" | "bremse_tag"
+  /** E-365: privat — die Bonitätsauswertung liegt vor bzw. ist im Paket enthalten; kein Kundenpreis-Link. */
+  | "auswertung_da" | "inklusive";
 
 /**
  * Gegenlesen 26.09.2026 (E-243): der Tagesdeckel JE PERSON — im Mail-Protokoll, nicht im Speicher.
@@ -1084,6 +1184,9 @@ export async function kundenpreisLinkAnfordern(ein: { email: string; art?: unkno
   let art: AuskunftArt = ein.art === "firma" ? "firma" : await auskunftArtFuer(personId);
   const stand = await auskunftStand(personId, sqlPool, art);
   if (stand.stufe === "bezahlt") return { ergebnis: "schon_bezahlt", personId, art };
+  // E-365: privat nie ein Preis, wenn die Auswertung vorliegt oder im Paket enthalten ist (Kartenlink wartet).
+  if (art === "privat" && stand.stufe === "auswertung") return { ergebnis: "auswertung_da", personId, art };
+  if (art === "privat" && stand.stufe === "inklusive") return { ergebnis: "inklusive", personId, art };
   if (stand.offen?.status === "claimed_paid") return { ergebnis: "zahlung_gemeldet", personId, art };
   if (!stand.preis.mitAbo) return { ergebnis: "kein_kunde", personId, art };
   // Integration 26.09.2026 (E-243): Eine offene Bestellung nur, wenn auskunftBestellen sie auch
@@ -1122,16 +1225,18 @@ export async function kundenpreisLinkAnfordern(ein: { email: string; art?: unkno
     akteur: { rolle: "admin", name: "System (Kundenpreis-Link)", agentId: null },
     zusatz: {
       anrede: anredeMail({ vorname: s.first_name, nachname: s.last_name }),
-      was: art === "firma" ? "die Bonitätsauskunft Ihres Unternehmens" : "Ihre Bonitätsauskunft",
+      was: art === "firma" ? "die Bonitätsauskunft Ihres Unternehmens" : `Ihre ${AUSWERTUNG_NAME}`,
       preis_text: preis,
       auskunfteien: bei,
       leistung_satz: art === "firma"
         ? `Das bekommen Sie: Wir holen die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien ein, dazu die persönliche Auskunft der Inhaberin bzw. des Inhabers oder der Geschäftsführung bei ${bei}, erklären jeden Eintrag und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`
-        : `Das bekommen Sie: Wir holen Ihre Auskunft bei ${bei} ein, erklären jeden Eintrag in klaren Worten, prüfen die Speicherfristen und legen Ihnen Handlungsplan und fertige Schreiben zur Freigabe vor.`,
+        // E-365: privat die Bonitätsauswertung aus Ausweis und Kontoauszügen.
+        : `Das bekommen Sie: ${AUSWERTUNG_UNTERZEILE} Haushaltsrechnung, jede Einnahme und Ausgabe im Detail, Ampel, Finanzwert und Ihr Plan — ein Mensch prüft den Bericht und gibt ihn frei. `
+          + `${AUSWERTUNG_UNTERLAGEN_SATZ} ${AUSWERTUNG_KEINE_AUSKUNFT_SATZ}`,
       weg_satz: offen
         ? `Für Sie ist schon eine Bestellung über ${preis} angelegt — es fehlt nur noch die Überweisung. Der Knopf führt Sie direkt zur Zahlungsseite mit Bankverbindung und Verwendungszweck.`
         : "Mit dem Knopf öffnen Sie Ihre Bestellung. Ihre Angaben kennen wir aus Ihrem Konto: Sie sehen Leistung und Preis, bestätigen den Auftrag und kommen danach direkt zur Zahlungsseite.",
-      knopf_text: offen ? `Zahlungsseite öffnen — ${preis}` : `Auskunft für ${preis} beauftragen`,
+      knopf_text: offen ? `Zahlungsseite öffnen — ${preis}` : art === "firma" ? `Auskunft für ${preis} beauftragen` : `Bonitätsauswertung für ${preis} bestellen`,
       kauf_url: offen ? absoluteUrl(`/zahlung/${encodeURIComponent(String(offen.paymentReference))}`) : kaufLink(personId, art),
       gueltig_tage: String(KAUF_LINK_TAGE),
       auskunft_art: art,

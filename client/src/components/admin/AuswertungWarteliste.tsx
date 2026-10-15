@@ -7,9 +7,11 @@
 // E-364: nicht mehr nur Käufer der Auskunft, sondern jeder zahlende Paketkunde; Marke und
 // Filter „Wartet auf Kartenlink“ (seit E-363 kommt der Link der Partnerbank erst nach der Bonität).
 // Server: GET /chef/auskunft-beschaffung/auswertungen (server/lib/fiaon-bonitaet-arbeitsliste.ts).
+// E-365 (15.10.2026): Jede Zeile sagt, worauf die Auswertung beruht — „bezahlt“, „im Paket“ (Kartenlink wartet, inklusive)
+// oder „nicht gekauft“ —, und der Knopf „Käufer um Unterlagen bitten“ schreibt die Altkäufer EINMAL an (nur auf Klick).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
-import { useDaten, seit } from "./chef-teile";
+import { useDaten, seit, API } from "./chef-teile";
 import { akteLink } from "@/lib/akte-link";
 import "@/styles/auswertung-warteliste.css";
 
@@ -19,8 +21,12 @@ interface Zeile {
   personId: number; name: string; betreuer: string | null; bezahltAm: string | null; ausweis: boolean; kontoauszug: boolean;
   stand: StandKey; gesamt: string | null; finanzwert: number | null; vierAugen: boolean; gescheitert: boolean;
   paket: boolean; auskunft: boolean; gekuendigt: boolean; wartetKarte: boolean;
+  /** E-365: bezahlt (74/149 €), inklusive (Kartenlink wartet) oder nicht gekauft. */
+  grundlage?: "bezahlt" | "inklusive" | "nicht_gekauft";
 }
-interface Antwort { zahlen: Record<string, number>; liste: Zeile[] }
+interface Antwort { zahlen: Record<string, number>; liste: Zeile[]; altkaeufer?: number }
+
+const GRUNDLAGE: Record<string, string> = { bezahlt: "bezahlt", inklusive: "im Paket", nicht_gekauft: "nicht gekauft" };
 
 const STAND: Record<StandKey, string> = {
   bereit: "Startklar", laeuft: "Wird entwickelt", entwurf: "Prüfen & freigeben", fehlt: "Unterlagen fehlen", beim_kunden: "Beim Kunden",
@@ -37,7 +43,20 @@ export default function AuswertungWarteliste() {
   const d = useDaten<Antwort>("/chef/auskunft-beschaffung/auswertungen");
   const [wahl, setWahl] = useState<FilterKey | null>(null);
   const [alle, setAlle] = useState(false);
+  const [frage, setFrage] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
   const setFilter = (k: FilterKey) => { setWahl(k); setAlle(false); };
+  // E-365: Altkäufer einmal um Ausweis und Kontoauszug bitten — mit Rückfrage, nie automatisch.
+  const altAnschreiben = async () => {
+    setLaeuft(true); setMeldung(null);
+    try {
+      const r = await fetch(`${API}/chef/auskunft-beschaffung/auswertungen/altkaeufer`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const j = await r.json().catch(() => null);
+      setMeldung(j?.ok ? j.meldung : (j?.error || "Das hat nicht geklappt."));
+    } catch { setMeldung("Keine Verbindung."); }
+    setLaeuft(false); setFrage(false); d.neu();
+  };
   const a = d.daten;
   if (!a) return d.fehler ? <p className="awl-still">{d.fehler}</p> : null;
   // Ohne Wahl: die erste Gruppe, in der jemand steht (Startklar → Kartenlink → Zu übergeben → Unterlagen fehlen → Beim Kunden).
@@ -52,6 +71,21 @@ export default function AuswertungWarteliste() {
         <div>
           <h2>Bonitätsauswertung</h2>
           <p className="awl-still">{a.zahlen.gesamt} zahlende Kunden · Akte öffnen, dort „Bonität jetzt entwickeln“. Die Auswertung ist die Leistung — eine Auskunft muss nicht beschafft werden.</p>
+          <p className="awl-still" data-fiaon="awl-grundlage">{a.zahlen.bezahlt ?? 0} bezahlt · {a.zahlen.inklusive ?? 0} im Paket (Kartenlink wartet) · {a.zahlen.nicht_gekauft ?? 0} nicht gekauft</p>
+          {(a.altkaeufer ?? 0) > 0 && (
+            <div className="awl-alt" data-fiaon="awl-altkaeufer">
+              {!frage ? (
+                <button type="button" className="awl-mehr" onClick={() => setFrage(true)}>Käufer um Unterlagen bitten ({a.altkaeufer})</button>
+              ) : (
+                <span>
+                  {a.altkaeufer} Käufer haben bezahlt, aber nie die Bitte um Ausweis und Kontoauszug bekommen. Jetzt jedem einmal den Upload-Link schicken?{" "}
+                  <button type="button" className="awl-mehr" disabled={laeuft} onClick={() => void altAnschreiben()}>{laeuft ? "Schickt …" : "Ja, senden"}</button>{" "}
+                  <button type="button" className="awl-mehr" disabled={laeuft} onClick={() => setFrage(false)}>Abbrechen</button>
+                </span>
+              )}
+            </div>
+          )}
+          {meldung && <p className="awl-still" role="status">{meldung}</p>}
         </div>
         <div className="awl-filter" role="tablist">
           {FILTER.map((f) => {
@@ -85,6 +119,7 @@ export default function AuswertungWarteliste() {
                 </span>
                 <span className="awl-marken">
                   {z.wartetKarte && filter !== "karte" && <span className="awl-karte">wartet auf den Kartenlink</span>}
+                  {z.grundlage && <span className={`awl-grund g-${z.grundlage}`}>{GRUNDLAGE[z.grundlage]}</span>}
                   <span className={`awl-stand s-${z.stand}`}>{z.gescheitert && z.stand === "bereit" ? "Letzter Lauf gescheitert" : STAND[z.stand]}</span>
                 </span>
                 {link ? <a className="awl-auf" href={link}>Akte öffnen →</a> : <span />}

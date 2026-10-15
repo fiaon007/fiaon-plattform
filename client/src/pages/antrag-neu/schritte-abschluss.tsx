@@ -23,7 +23,7 @@ import {
   anredeDativ, anredeKurz, anschriftText, datenAus, datum, euro, kartenName, kleineresPaket, mitWem, naechstesPaket, paket, paketIndex, ruhigSystem, telefonText, uhr, zustandVergessen,
   type PruefPunkt, type Zustand,
 } from "./zustand";
-import { AngabenSheet, AuskunftSheet, LeistungSheet, PasswortSheet, QrSheet, TerminWahl, VertragSheet } from "./sheets";
+import { AngabenSheet, LeistungSheet, PasswortSheet, QrSheet, TerminWahl, VertragSheet } from "./sheets";
 
 const rate = (key: string) => paketPreisCents(key) / 100;
 
@@ -993,78 +993,41 @@ function StartBox() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BONITÄTSAUSWERTUNG IM ANTRAG (E-365, 14.10.2026)
+//
+// Bis heute bot diese Box die Bonitätsauskunft als 74-€-Zusatz an („Wir besorgen sie für Sie“). Seit E-363 wartet
+// der Link zum Kartenantrag auf die FIAON-Bonitätsauswertung, und der Vertrag PV-2026-10-14 § 3 sagt das so —
+// für neue Paketkunden ist sie deshalb IM PAKET ENTHALTEN (ein Vertragsschritt hängt nie an einer Zusatzzahlung).
+// Die Box sagt, was kommt; bestellt wird hier nichts mehr. Eine Bestellung aus einer älteren Sitzung bleibt sichtbar.
+// ═══════════════════════════════════════════════════════════════════════════
 function AuskunftBox() {
-  const { S, setze, oeffneSheet, ereignis } = useAntrag();
-  // E-283: Kam der Kunde über einen Link „mit Auskunft" (?auskunft=1, src=auskunft), ist „Wir besorgen
-  // sie für Sie" vorgewählt. Bestellt wird trotzdem erst im Sheet — mit Haken und Knopf, wie immer.
-  const gewuenscht = S.auskunftVorab === "gewuenscht";
-  const [wahl, setWahl] = useState<"" | "besorgen" | "selbst" | "habe">(() => (gewuenscht ? "besorgen" : ""));
-  const wort = S.land === "DE" ? "SCHUFA-Auskunft" : S.land === "AT" ? "KSV-Auskunft" : "Bonitätsauskunft";
+  const { S } = useAntrag();
+  const P = paket(S.paket);
   if (S.auskunft === "bestellt") {
     return (
       <div className="an-box">
-        <span className="an-marke">Bonitätsauskunft</span>
+        <span className="an-marke">Bonitätsauswertung</span>
         <div className="an-erledigt-zeile">Bestellt zum Kundenpreis von 74 €</div>
-        <p>{S.bezahlt ? "Ihre erste Rate ist da – Rechnung und Zahlungsdaten der Auskunft kommen per E-Mail." : "Rechnung und Zahlungsdaten kommen erst nach Ihrer ersten Paketzahlung per E-Mail. Ihre Überweisung von heute bleibt, wie sie ist."}</p>
+        <p>{S.bezahlt ? "Ihre erste Rate ist da – Rechnung und Zahlungsdaten kommen per E-Mail." : "Rechnung und Zahlungsdaten kommen erst nach Ihrer ersten Paketzahlung per E-Mail. Ihre Überweisung von heute bleibt, wie sie ist."}</p>
       </div>
     );
   }
-  // E-283: Liegt die Auskunft schon vor (src=auskunft_da, Mail „Ihre Auskunft ist da") oder ist sie schon
-  // bestellt (auskunft=0, von ihrer Zahlungsseite) — keine zweite anbieten.
-  if (S.auskunftVorab === "da" || S.auskunftVorab === "bestellt") {
-    const da = S.auskunftVorab === "da";
+  if (S.auskunftVorab === "da") {
     return (
       <div className="an-box" data-fiaon="antrag-neu-auskunft-vorab">
-        <span className="an-marke">Bonitätsauskunft</span>
-        <div className="an-erledigt-zeile">{da ? "Ihre Auskunft liegt schon vor" : "Ihre Auskunft ist schon bestellt"}</div>
-        <p>{da
-          ? "Sie haben Ihre Bonitätsauskunft bereits über FIAON bekommen – eine zweite brauchen Sie nicht."
-          : "Sie haben Ihre Bonitätsauskunft bereits bei uns bestellt – eine zweite brauchen Sie nicht."}</p>
+        <span className="an-marke">Bonitätsauswertung</span>
+        <div className="an-erledigt-zeile">Ihre Bonitätsauswertung liegt schon vor</div>
+        <p>Sie haben Ihre FIAON-Bonitätsauswertung bereits bekommen – eine zweite brauchen Sie nicht.</p>
       </div>
     );
   }
-  if (S.auskunft === "selbst") {
-    return (
-      <div className="an-box">
-        <span className="an-marke">Bonitätsauskunft</span>
-        <div className="an-erledigt-zeile">Sie fordern Ihre {wort} selbst an</div>
-        <p>So geht es kostenlos, Schritt für Schritt: <a href="/bonitaetsauskunft-beantragen" target="_blank" rel="noopener" style={{ color: "var(--tief)" }}>Anleitung öffnen</a>. Sobald die Antwort da ist, laden Sie sie in Ihrem Bereich hoch.</p>
-        <button type="button" className="an-knopf an-text" style={{ alignSelf: "flex-start" }} onClick={() => setze({ auskunft: "" })}>Doch lieber besorgen lassen</button>
-      </div>
-    );
-  }
-  if (S.auskunft === "habe") {
-    return (
-      <div className="an-box">
-        <span className="an-marke">Bonitätsauskunft</span>
-        <div className="an-erledigt-zeile">Sie haben Ihre Auskunft schon</div>
-        <p>Laden Sie sie in Ihrem Bereich hoch, ein Foto mit dem Handy genügt.</p>
-        <button type="button" className="an-knopf an-text" style={{ alignSelf: "flex-start" }} onClick={() => setze({ auskunft: "" })}>Ändern</button>
-      </div>
-    );
-  }
-  const empfohlen = S.eintraege === "ja" || S.eintraege === "weiss_nicht";
-  const w = (k: "besorgen" | "selbst" | "habe", t: string, u: string) => (
-    <button type="button" className="an-zeile-w" style={{ gridTemplateColumns: "18px 1fr", alignItems: "start" }} role="radio" aria-checked={wahl === k} onClick={() => { setWahl(k); ereignis("auskunft_wahl", { schritt: "danke", detail: k }); }}>
-      <span className="an-rund" style={{ marginTop: 2 }} /><span><b style={{ fontWeight: 500 }}>{t}</b><small>{u}</small></span>
-    </button>
-  );
   return (
-    <div className="an-box">
-      <span className={`an-marke${empfohlen ? " an-warm" : ""}`}>{empfohlen ? "Für Ihre Lage wichtig" : "Damit wir starten können"}</span>
-      <h2>Ihre {wort}.</h2>
-      <p>Mit Ihrer Auskunft sehen wir, was die Bank sieht – und richten Ihren Weg zur Karte genau danach aus.</p>
-      {gewuenscht ? <p className="an-klein" style={{ margin: 0 }}>Sie kommen über das Angebot mit Bonitätsauskunft – „Wir besorgen sie für Sie“ ist schon ausgewählt. Bestellt ist sie erst, wenn Sie sie ansehen und bestätigen.</p> : null}
-      <div className="an-liste" role="radiogroup" aria-label="Ihre Auskunft">
-        {w("besorgen", "Wir besorgen sie für Sie", "74 € als FIAON-Kunde · einzeln 149 € · einmalig, kein Abo. Fällig erst nach Ihrer ersten Paketzahlung.")}
-        {w("selbst", "Ich fordere sie selbst kostenlos an", "Die Datenkopie steht Ihnen kostenlos zu. Die Antwort kommt per Post, spätestens nach einem Monat.")}
-        {w("habe", "Habe ich schon", "Laden Sie sie im Bereich hoch, ein Foto genügt.")}
-      </div>
-      {wahl ? (
-        <button type="button" className="an-knopf an-leise" onClick={() => { if (wahl === "besorgen") oeffneSheet(<AuskunftSheet />); else setze({ auskunft: wahl }); }}>
-          {wahl === "besorgen" ? "Ansehen und bestellen" : "Übernehmen"}
-        </button>
-      ) : null}
+    <div className="an-box" data-fiaon="antrag-neu-bonitaet">
+      <span className="an-marke">In {P.name} enthalten</span>
+      <h2>Ihre FIAON-Bonitätsauswertung.</h2>
+      <p>Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen: Haushaltsrechnung, jede Ausgabe im Detail, Ampel, Finanzwert und Ihr Plan. Sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag.</p>
+      <p className="an-klein" style={{ margin: 0 }}>Nach Ihrer ersten Zahlung laden Sie Ihren Ausweis und Ihre Kontoauszüge der letzten drei Monate hoch – den Link dazu bekommen Sie per E-Mail, ohne Anmeldung. Haben Sie schon eine Datenkopie einer Auskunftei, laden Sie sie gern dazu.</p>
     </div>
   );
 }

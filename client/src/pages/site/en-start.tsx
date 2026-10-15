@@ -8,7 +8,8 @@
 // Britisches Englisch. Kopf und Korpus: shared/fiaon-seo-seiten.ts ("/" → en).
 // ═══════════════════════════════════════════════════════════════════════════
 import { Dunkel, Hero, Block, Licht, Knopf, Karten, Kennzahlen, Schritte, Fragen, Glas, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
-import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
 import "@/styles/seo-seiten.css";
 
 const preis = (c: number) => "€" + (c / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 });
@@ -18,18 +19,18 @@ export default function EnStart() {
   return (
     <Dunkel seite="startseite" titel="FIAON in English" beschreibung="Your credit file, explained and acted on.">
       <Hero pille="FIAON · English" titel={<>Your credit file, <span className="dk-verlauf">explained — and acted on.</span></>}
-            lead="FIAON is for people in Germany, Austria and Switzerland whose credit file stands between them and a bank account, a card or a flat. We obtain the report, explain it in plain language, send the letters and prepare the account. The bank decides — we make sure your file is ready."
+            lead="FIAON is for people in Germany, Austria and Switzerland whose credit file stands between them and a bank account, a card or a flat. You request your free data copy and upload it; we explain it in plain language, send the letters and prepare the account. The bank decides — we make sure your file is ready."
             knoepfe={<><Knopf href="/en/pricing">Pricing & plans</Knopf><Knopf href="/kontakt" still>Talk to us</Knopf></>}
             szene={<Szenenbild src="/kino/akten.jpg" tief />} />
 
       <section className="dk-block" style={{ paddingTop: 10 }}>
-        <div className="dk-rahmen"><Kennzahlen items={[{ wert: "3", label: "countries: Germany, Austria, Switzerland" }, { wert: "24 h", label: "from receipt of your report to your explanation" }, { wert: "12", label: "monthly instalments, then you decide" }, { wert: "1", label: "named person who stays with you" }]} /></div>
+        <div className="dk-rahmen"><Kennzahlen items={[{ wert: "3", label: "countries: Germany, Austria, Switzerland" }, { wert: "9", label: "criteria a credit check looks at — all in your credit assessment" }, { wert: "12", label: "monthly instalments, then you decide" }, { wert: "1", label: "named person who stays with you" }]} /></div>
       </section>
 
       <Block pille="Three layers" titel={<>Insight, action, <span className="dk-verlauf">access.</span></>} lead="Every FIAON plan follows the same three layers. Nothing is promised that a bank would have to decide.">
         <Karten items={[
-          { tag: "1 · Insight", titel: "Your report, explained", text: "We obtain your credit report from SCHUFA (Germany's main credit bureau), KSV1870 (Austria) or CRIF and Intrum (Switzerland) with your authorisation and explain every entry: what it is, why it is there, when it will be deleted." },
-          { tag: "2 · Action", titel: "Letters that are sent and followed up", text: "For entries that can be challenged there are reviewed letters: deletion requests under Art. 17 GDPR, objections, corrections, a request for your free data copy (Art. 15). You approve, FIAON sends, tracks the deadlines and assesses the replies." },
+          { tag: "1 · Insight", titel: "Your credit file, explained", text: "You request your free data copy from SCHUFA (Germany's main credit bureau), KSV1870 (Austria) or CRIF and Intrum (Switzerland) yourself and upload it. We explain every entry: what it is, why it is there, when it will be deleted. For new plan customers the FIAON credit assessment is included in the plan: your creditworthiness as a bank sees it, from your own bank statements." },
+          { tag: "2 · Action", titel: "Letters that are sent and followed up", text: "For entries that can be challenged there are reviewed letters: deletion requests under Art. 17 GDPR, objections, corrections. You approve, FIAON sends, tracks the deadlines and assesses the replies." },
           { tag: "3 · Access", titel: "An account, then a card", text: "A current account for every customer, regardless of their file. A card once your file meets the partner's threshold. Card, account and limit are goals, never promises — the bank decides." },
         ]} />
       </Block>
@@ -41,12 +42,12 @@ export default function EnStart() {
             { titel: "Apply and choose a plan", text: "Your details, checked right in the application — then you choose your plan and accept the contract on screen." },
             { titel: "Pay the first instalment by bank transfer", text: "Payment details with a QR code in your area. Every later instalment by bank transfer too — bank details and payment reference are in every payment e-mail." },
             { titel: "Onboarding call, 15 minutes", text: "A named person goes through your goal and your situation with you and agrees the first steps." },
-            { titel: "Report, analysis, letters", text: "We request your report with your authorisation. About 24 hours after it arrives you see every entry explained — and the letters that make sense, ready for your approval." },
+            { titel: "Credit assessment, entries, letters", text: "You upload your ID and bank statements for your credit assessment, and your free data copy. You see every entry explained — and the letters that make sense, ready for your approval." },
           ]} />
         </Block>
       </Licht>
 
-      <Block pille="What it costs" titel={<>Plans from {preis(privat[0].preisCents)} <span className="dk-verlauf">a month.</span></>} lead={`Twelve monthly instalments, then cancellable monthly. Just the credit report on its own: ${"€" + SCHUFA_PREIS_EURO.toFixed(2)} one-off. No commission on limits, no fee per letter.`}>
+      <Block pille="What it costs" titel={<>Plans from {preis(privat[0].preisCents)} <span className="dk-verlauf">a month.</span></>} lead={`Twelve monthly instalments, then cancellable monthly. The FIAON credit assessment on its own: €${AUSKUNFT_PREISE_CENTS.privat.einzeln / 100} one-off, €${AUSKUNFT_PREISE_CENTS.privat.mitAbo / 100} with a running plan. No commission on limits, no fee per letter.`}>
         <div className="sx-vertiefen">
           {privat.map((p) => <a key={p.key} href={`/antrag?pack=${p.key}&src=en`}><b>{p.label.replace(" (Standard)", "")}</b><span>{preis(p.preisCents)} a month · twelve instalments</span></a>)}
         </div>
@@ -62,14 +63,14 @@ export default function EnStart() {
         <Block schmal pille="Frequently asked questions">
           <Fragen items={[
             { f: "Is FIAON available in English?", a: "The website is being translated page by page; the application and the customer area are currently in German. Our team speaks English on the phone and by e-mail." },
-            { f: "Which credit bureaus does FIAON work with?", a: "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — always with your written authorisation." },
+            { f: "Which credit bureaus does FIAON work with?", a: "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — FIAON explains the data copies you upload. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it." },
             { f: "Can I cancel?", a: "Yes. The plan runs for twelve monthly instalments; you can give notice in text form with one month's notice to the end of those twelve months, and at any time with one month's notice after that. The 14-day right of withdrawal applies in addition." },
             { f: "How long does a settled debt stay on file?", a: "Under the credit bureaus' code of conduct, three years after settlement to the day; if you settle within 100 days of the entry and have no other entries, 18 months. FIAON tracks the exact date for every entry." },
           ]} />
         </Block>
       </Licht>
 
-      <Abschluss titel={<>Your journey starts <span className="dk-verlauf">with an e-mail address.</span></>} text="Application in about five minutes, report within 24 hours, a person who guides you through everything else." knoepfe={<><Knopf href="/antrag">Get started</Knopf><Knopf href="/en/pricing" still>Pricing & plans</Knopf></>} />
+      <Abschluss titel={<>Your journey starts <span className="dk-verlauf">with an e-mail address.</span></>} text="Application in about five minutes, then a person who guides you through everything else." knoepfe={<><Knopf href="/antrag">Get started</Knopf><Knopf href="/en/pricing" still>Pricing & plans</Knopf></>} />
     </Dunkel>
   );
 }

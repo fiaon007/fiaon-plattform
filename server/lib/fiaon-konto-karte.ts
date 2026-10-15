@@ -859,6 +859,17 @@ export const BONITAET_DA_SQL = (p: string): string => `EXISTS (SELECT 1 FROM fia
 export const PAKET_BESTELLUNG_SQL = (a: string): string =>
   `(${a}.merged_into IS NULL AND ${a}.payment_status = 'paid' AND ${a}.ref NOT LIKE 'FIAON-SCHUFA-%' AND ${produktkategorieSql(a)} = 'konto')`;
 
+/**
+ * E-365 (14.10.2026): Die Bonitätsauswertung ist für diesen Menschen INKLUSIVE — er hat ein bezahltes Privatpaket, ist nicht
+ * wirksam gekündigt, und sein Kartenlink wartet auf die Bonität (dasselbe Prädikat wie bonitaet_offen, E-363). Ein Schritt
+ * des Paketvertrags (Link zum Kartenantrag, PV-2026-10-14 § 3) darf nie an einer Zusatzzahlung hängen — wer hier zählt,
+ * bekommt die Auswertung ohne Aufpreis und nie ein 74-€-Angebot (auskunftStand „inklusive“, OHNE_AUSKUNFT_SQL).
+ */
+export const BONITAET_INKLUSIVE_SQL = (p: string): string => `(EXISTS (SELECT 1 FROM fiaon_applications ka_ip
+      WHERE ka_ip.person_id = ${p} AND ${PAKET_BESTELLUNG_SQL("ka_ip")})
+    AND NOT ${KUENDIGUNG_WIRKSAM_SQL(p)}
+    AND ${KARTE_PRAEDIKAT.bonitaet_offen(p)})`;
+
 /** E-363: Listen und Automatik lesen fiaon_finanzauswertungen — die Tabelle entsteht sonst erst mit der ersten Auswertung. */
 let bonitaetTabelle: Promise<void> | null = null;
 export function bonitaetBereit(): Promise<void> {

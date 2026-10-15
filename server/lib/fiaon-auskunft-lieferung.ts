@@ -277,6 +277,19 @@ export async function lieferungStarten(ref: string, opts: { mail?: boolean; von?
     return leer("ohne_person", `${ref} hängt an keiner Person.`);
   }
 
+  // ── E-365 (14.10.2026): PRIVAT IST DIE LEISTUNG DIE BONITÄTSAUSWERTUNG ──────
+  // Keine Beschaffung, keine Vorgänge, keine Unterschrift: Unterlagen anfordern bzw. die Aufgabe „entwickeln“
+  // ans Team (fiaon-bonitaet-ablauf.ts). Firmen-Auskünfte bleiben auf dem Lieferweg unten.
+  if (art === "privat") {
+    const { auswertungLieferungStarten } = await import("./fiaon-bonitaet-ablauf");
+    const a = await auswertungLieferungStarten(ref, personId, opts, lauf);
+    return {
+      ok: a.ok, grund: null, text: a.text, ref, personId, land: auskunftLand(z.country), vorgaenge: [], neuAngelegt: 0,
+      mail: a.anforderung === "gesendet" ? "gesendet" : a.anforderung === "fehlgeschlagen" || a.anforderung === "abgelehnt" ? "fehlgeschlagen" : "nicht_noetig",
+      auftragId: null, beschaffung: null,
+    };
+  }
+
   // ── DER LIEFERWEG (25.09.2026, E-241) ──────────────────────────────────────
   // Justin: „Bis zur API kaufen wir sie selbst." Im Einkauf (Standard) und über
   // die API entsteht statt der Anfragen ein Beschaffungsauftrag (Abschnitt 5);
@@ -784,15 +797,23 @@ export async function auskunftMailAnreichern<T extends Record<string, unknown>>(
   // noch keine Vollmacht dokumentiert ist, dass der Link dazu in einer eigenen
   // Mail kommt. Dieselbe Prüfung wie die Beschaffung (auskunftEinwilligung).
   const modus = await auskunftLiefermodus(lauf);
-  const einwilligung = modus !== "vollmacht" && z.person_id != null
+  const einwilligung = art === "firma" && modus !== "vollmacht" && z.person_id != null
     ? await auskunftEinwilligung(String(z.ref), Number(z.person_id), lauf).catch(() => null)
     : null;
+  // E-365: Für die Bonitätsauswertung sagt die Zahlungsbestätigung, ob Ausweis und Kontoauszug schon da sind.
+  let unterlagen: "da" | "fehlen" | null = null;
+  if (art === "privat" && z.person_id != null) {
+    const { eingabenSammeln } = await import("./fiaon-finanzauswertung");
+    const e = await eingabenSammeln(Number(z.person_id), lauf).catch(() => null);
+    unterlagen = e ? (e.voraussetzungen.bereit ? "da" : "fehlen") : null;
+  }
   return {
     ...payload, produktkategorie: "auskunft", auskunft_land: land, auskunfteien: html(auskunfteienText(land)),
     ...(vorname ? { vorname: html(vorname) } : {}),
     auskunft_art: art,
     auskunft_liefermodus: modus,
     ...(einwilligung ? { auskunft_einwilligung: einwilligung.ja ? "ja" : "nein" } : {}),
+    ...(unterlagen ? { auswertung_unterlagen: unterlagen } : {}),
     ...(angelegt && !Number.isNaN(angelegt.getTime()) ? { auskunft_bestellt_am: datumBerlin(angelegt) } : {}),
     ...(wahl ? {
       widerruf_wahl: wahl.verlangt === true ? "verlangt" : wahl.verlangt === false ? "nicht_verlangt" : "offen",
@@ -838,7 +859,9 @@ export async function auskunftAngebotKaufstand(personId: number | null, lauf: La
   const { auskunftStand } = await import("./fiaon-auskunft");
   const stand = await auskunftStand(personId, lauf, "privat", { land: false });
   if (stand.stufe === "bezahlt") return "Diese Person hat die Auskunft schon bezahlt — kein Angebot.";
-  if (stand.stufe === "dokument") return "Für diese Person liegt schon eine Auskunft in der Akte — kein Angebot.";
+  // E-365: Die gelieferte Bonitätsauswertung und die Inklusiv-Lage sperren; eine eigene Datenkopie in der Akte nicht mehr.
+  if (stand.stufe === "auswertung") return "Für diese Person liegt die FIAON-Bonitätsauswertung schon vor — kein Angebot.";
+  if (stand.stufe === "inklusive") return "Die Bonitätsauswertung ist im Paket dieser Person enthalten (ihr Kartenlink wartet auf sie) — kein Angebot, sondern Unterlagen anfordern.";
   if (stand.offen?.status === "claimed_paid") return "Diese Person hat die Zahlung für die Auskunft schon gemeldet — kein Angebot.";
   // 26.09.2026 (E-243): Im Antrag zum Kundenpreis dazubestellt, das Bündel wartet auf die erste
   // Paketzahlung — ein Angebot zum Einzelpreis wäre ein Widerspruch (buendelWartet, fiaon-auskunft.ts).
@@ -1276,7 +1299,7 @@ export async function wacheAufgabenSchliessen(id: number, schluessel: string[], 
  * Lauf (alle 6 Stunden) erneut. Jetzt über den einen Weg (auftragErledigen, Art „auto“, von = wer, Ereignis = Grund);
  * was ein Mensch wieder geöffnet hat („von … wieder geöffnet“), bleibt offen — wie in durchEreignisRoh.
  */
-async function systemAufgabenErledigen(schluessel: string[], grund: string, von: string, lauf: Lauf): Promise<number> {
+export async function systemAufgabenErledigen(schluessel: string[], grund: string, von: string, lauf: Lauf = sqlPool): Promise<number> {
   if (!schluessel.length) return 0;
   const { auftragErledigen, VON_HAND_WIEDER_OFFEN } = await import("./fiaon-auftraege");
   const zeilen = (await lauf`SELECT id, wieder_offen_grund FROM fiaon_betreiber_todos
@@ -1464,6 +1487,10 @@ export async function auftragLinkSenden(
   const [a] = (await lauf`SELECT id, ref, person_id, land, art, status, quelle, modus, to_char(faellig_ab, 'YYYY-MM-DD') AS faellig_ab, vollmacht_link_am FROM fiaon_auskunft_beschaffung WHERE id = ${id}`) as any[];
   if (!a) return { ok: false, mail: "nicht_noetig", text: "Diesen Beschaffungsauftrag gibt es nicht." };
   if (a.status === "fertig") return { ok: false, mail: "nicht_noetig", text: "Der Auftrag ist fertig — kein Link mehr nötig." };
+  // E-365: Privat liefert FIAON die Bonitätsauswertung — keine Auftragsbestätigung zur Beschaffung mehr.
+  if (String(a.art) === "privat") {
+    return { ok: false, mail: "nicht_noetig", text: "Privat liefert FIAON die Bonitätsauswertung (E-365) — statt der Auftragsbestätigung: in der Arbeitsliste „Käufer um Unterlagen bitten“ bzw. in der Akte Ausweis und Kontoauszug anfordern." };
+  }
   const personId = Number(a.person_id);
   const einw = await auskunftEinwilligung(String(a.ref), personId, lauf);
   if (einw.quelle === "auftrag") return { ok: false, mail: "nicht_noetig", text: `Der Auftrag liegt schon vor: ${einw.text}` };
@@ -1683,6 +1710,9 @@ export async function rueckstandEinlesen(lauf: Lauf = sqlPool): Promise<number> 
   let neu = 0;
   for (const r of rueck) {
     if (da.has(r.ref)) continue;
+    // E-365: privat liefert FIAON die Bonitätsauswertung — kein neuer Beschaffungsauftrag (der Ablauf steht in
+    // fiaon-bonitaet-ablauf.ts; Altkäufer bekommen die Bitte um Unterlagen per Knopf in der Arbeitsliste).
+    if (r.art === "privat") continue;
     const faellig = await faelligFuer(r.ref, r.art, lauf);
     const [z] = (await lauf`
       INSERT INTO fiaon_auskunft_beschaffung (ref, person_id, land, art, faellig_ab, quelle, modus)
@@ -2203,6 +2233,8 @@ export interface SammelErgebnis {
 
 /** Wer bekäme jetzt den Link (ohne zu senden) — dieselbe Auswahl wie der Sammelknopf. */
 export function sammelKandidat(a: BeschaffungAuftrag, jetzt = Date.now()): { ja: boolean; grund: string | null } {
+  // E-365: privat keine Auftragsbestätigung/Datenkopie mehr — dort gilt die Bitte um Unterlagen (Arbeitsliste, Altkäufer).
+  if (a.art === "privat") return { ja: false, grund: "privat: Bonitätsauswertung (E-365) — „Käufer um Unterlagen bitten“" };
   if (a.status !== "offen" && a.status !== "in_arbeit") return { ja: false, grund: `Status ${a.status}` };
   if (!a.bestellung.bezahlt) return { ja: false, grund: "nicht (mehr) bezahlt" };
   if (a.dokumentDa) return { ja: false, grund: "Auskunft liegt schon in der Akte" };
@@ -2377,6 +2409,8 @@ export async function beschaffungFuerAkte(personId: number, lauf: Lauf = sqlPool
            b.bearbeiter, b.notiz, COALESCE(a.paid_at, a.updated_at) AS bezahlt_am
       FROM fiaon_auskunft_beschaffung b LEFT JOIN fiaon_applications a ON a.ref = b.ref
      WHERE b.person_id = ANY(${await import("./fiaon-unterlagen-link").then((m) => m.personFamilie(personId, lauf))})
+       -- E-365: Privat gibt es keine Beschaffung mehr — die Kachel zeigt dort den Stand der Bonitätsauswertung.
+       AND b.art <> 'privat'
      ORDER BY (b.status <> 'fertig') DESC, b.created_at DESC LIMIT 1`) as any[];
   if (!b) return null;
   const e = await auskunftEinwilligung(String(b.ref), personId, lauf);
@@ -2419,14 +2453,18 @@ export async function beschaffungWache(lauf: Lauf = sqlPool, opts: { heuteIso?: 
   // Bestätigt der Kunde am Tag 4, rief sonst der Betreuer einen Kunden an, der längst bestätigt
   // hatte; Liegezeit-Aufgaben blieben offen, obwohl der Auftrag fertig war. Je Auftrag gilt: Eine
   // Aufgabe der Wache, deren Stufe nicht mehr besteht, ist automatisch erledigt (mit Grund).
+  // E-365 (14.10.2026): Privat liefert FIAON die Bonitätsauswertung — kein Beschaffen mehr (E-355). Offene private
+  // Beschaffungsaufträge bekommen keine Liegezeit-Aufgabe mehr; vorhandene schließt die Wache mit Grund.
+  const privatAus = (a: BeschaffungAuftrag) => a.art === "privat";
   for (const a of alle) {
-    const stufe = a.status === "offen" || a.status === "in_arbeit" ? wacheStufeFuer(a, heute) : "keine";
+    const stufe = (a.status === "offen" || a.status === "in_arbeit") && !privatAus(a) ? wacheStufeFuer(a, heute) : "keine";
     const k = wacheSchluessel(a.id);
     const zu: string[] = [];
     if (stufe !== "anruf") zu.push(k.anruf);
     if (stufe !== "link_fehlt") zu.push(k.link_fehlt);
     if (stufe !== "aufgabe" && stufe !== "dringend") zu.push(k.aufgabe, k.dringend);
-    const grund = a.status === "fertig" ? "Auftrag fertig."
+    const grund = privatAus(a) && (a.status === "offen" || a.status === "in_arbeit") ? "Seit E-365 liefert FIAON die Bonitätsauswertung statt einer Beschaffung."
+      : a.status === "fertig" ? "Auftrag fertig."
       : a.dokumentDa ? "Die Auskunft liegt in der Akte."
         : !a.bestellung.bezahlt ? "Bestellung nicht mehr bezahlt."
           : a.status !== "offen" && a.status !== "in_arbeit" ? `Auftrag steht auf „${a.status}“.`
@@ -2438,6 +2476,7 @@ export async function beschaffungWache(lauf: Lauf = sqlPool, opts: { heuteIso?: 
   const sammel: BeschaffungAuftrag[] = [];
   for (const a of liste) {
     erg.geprueft++;
+    if (privatAus(a)) continue;
     const stufe = wacheStufeFuer(a, heute);
     if (stufe === "keine") continue;
     if (stufe === "link_fehlt" && a.kunde.email) { sammel.push(a); continue; }

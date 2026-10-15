@@ -13,7 +13,7 @@ const de = {
   hinweisAusweis: "Legen Sie eine Kopie Ihres Ausweises bei (Vorder- und Rückseite). Nicht benötigte Angaben – Augenfarbe, Größe, Zugangsnummer – dürfen Sie schwärzen; Name, Geburtsdatum, Anschrift und Gültigkeit müssen lesbar bleiben.",
   hinweisSprache: "",
   kopiert: "Kopiert", kopieren: "Brief kopieren", drucken: "Drucken",
-  zwischenruf: "Sie möchten die Auskunft nicht selbst beantragen und lesen? FIAON beschafft sie, erklärt jeden Eintrag und bereitet die Schreiben vor.", kontoEroeffnen: "Konto eröffnen", eintragPruefen: "Ist mein Eintrag angreifbar?",
+  zwischenruf: "Sie möchten die Auskunft nicht allein lesen? Laden Sie sie hoch: FIAON erklärt die Einträge und bereitet die Schreiben vor.", kontoEroeffnen: "Konto eröffnen", eintragPruefen: "Ist mein Eintrag angreifbar?",
 };
 const en: typeof de = {
   metaTitel: "Data copy request generator · your free credit report",
@@ -27,6 +27,6 @@ const en: typeof de = {
   hinweisAusweis: "Enclose a copy of your ID (front and back). Details that are not needed – eye colour, height, access number – may be blacked out; name, date of birth, address and validity must remain legible.",
   hinweisSprache: "The letter is written in German: SCHUFA, KSV1870, CRIF and Intrum process requests in German. Fill in your details here – the placeholders in the letter are replaced automatically, and you can send it exactly as it is.",
   kopiert: "Copied", kopieren: "Copy the letter", drucken: "Print",
-  zwischenruf: "You would rather not request and read the report yourself? FIAON obtains it, explains every entry and prepares the letters.", kontoEroeffnen: "Open an account", eintragPruefen: "Can my entry be challenged?",
+  zwischenruf: "You would rather not read the report alone? Upload it: FIAON explains the entries and prepares the letters.", kontoEroeffnen: "Open an account", eintragPruefen: "Can my entry be challenged?",
 };
 export const WZ_SELBSTAUSKUNFT_WOERTER = { de, en };

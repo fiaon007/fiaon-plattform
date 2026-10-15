@@ -152,7 +152,8 @@ export interface DokumentLageVoll {
    * „Anfordern" an, die sie längst bezahlt hatten. Null, wenn keine Person dranhängt.
    */
   auskunft: {
-    stufe: "bezahlt" | "offen" | "dokument" | "nichts";
+    /** E-365: „auswertung" = Bonitätsauswertung liegt vor, „inklusive" = im Paket enthalten (Kartenlink wartet) — beide: nichts anbieten. */
+    stufe: "bezahlt" | "auswertung" | "inklusive" | "offen" | "dokument" | "nichts";
     /** Der Preis für DIESEN Menschen (74 € mit Paket, sonst 149 €). */
     preisText: string;
     mitAbo: boolean;
@@ -190,7 +191,8 @@ async function auskunftFuerAkte(personId: number | null, lauf: Lauf): Promise<Do
     // Integration 25.09.2026: Dieselbe Bremse wie die Unterlagen-Mail (auskunftMailTeil) — sonst
     // verspräche der Knopf „Auskunft anbieten" ein Angebot, das der Server gerade weglässt.
     const { zuletztAngeboten } = await import("./fiaon-auskunft");
-    const kuerzlich = lage.angebot && s.stufe === "nichts" && !s.dokumentDa ? await zuletztAngeboten(personId, {}, lauf) : null;
+    // E-365: eine eigene Datenkopie in der Akte sperrt den Verkauf der Bonitätsauswertung nicht mehr.
+    const kuerzlich = lage.angebot && (s.stufe === "nichts" || s.stufe === "dokument") ? await zuletztAngeboten(personId, {}, lauf) : null;
     // E-IT-D (4a): bei bezahlter Auskunft ohne Datei der Stand der Beschaffung — eine Störung lässt die Kachel beim alten Satz.
     const beschaffung = s.stufe === "bezahlt"
       ? await import("./fiaon-auskunft-lieferung").then((m) => m.beschaffungFuerAkte(personId, lauf)).catch(() => null)

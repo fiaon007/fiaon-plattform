@@ -8,6 +8,22 @@
 // Knopf. Diese Vorlage ist das Angebot: was wir tun, bei wem, was es kostet,
 // und EIN Knopf, der es beauftragt.
 //
+// ── E-365 (14.10.2026): PRIVAT IST ES DIE FIAON-BONITÄTSAUSWERTUNG ─────────
+// Seit dem 14.10.2026 verkauft FIAON Privatpersonen für 149 €/74 € nicht mehr
+// die Beschaffung bei den Auskunfteien (Datenkopien, Erklärung jedes Eintrags,
+// Handlungsplan, fertige Schreiben), sondern die FIAON-Bonitätsauswertung:
+// „Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen."
+// Jede Privat-Fassung (a, b, c) beschreibt deshalb den Bericht, sagt, was der
+// Kunde liefert (Ausweis + Kontoauszüge, Link nach der Bestellung) und trägt
+// in der Fußnote AUSWERTUNG_KEINE_AUSKUNFT_SATZ (keine Auskunft einer
+// Auskunftei, kein Score, die kostenlose Datenkopie bleibt sein Recht). Kein
+// Hochlade-Knopf „Schon eine aktuelle Auskunft?" mehr: Eine Datenkopie ersetzt
+// die Auswertung nicht. Der Paketweg sagt ehrlich, dass die Auswertung für neue
+// Paketkunden im Paket enthalten ist (Kartenlink wartet auf die Bonität, E-363).
+// Zwei Privat-Betreffzeilen nannten die SCHUFA-Auskunft — sie sind neu, die
+// alten stehen in ANGEBOT_FRUEHERE_BETREFFE, damit Antworten darauf erkannt
+// bleiben. Die Firma (art = "firma") liest unverändert die Firmen-Auskunft.
+//
 // ── NEU GETEXTET: EHRLICH, ABER VERKAUFEND (26.09.2026, E-243) ─────────────
 // Justin: „Entwickle umfassend gute E-Mails (etwa ‚Von der Bank wieder wegen
 // eines Kredits abgelehnt? Auf unseriöse Unternehmen reingefallen, die ‚Kredit
@@ -111,6 +127,7 @@ import type { MailBaustein } from "../geruest";
 import {
   AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ, AUSKUNFT_NUTZEN_SATZ_KARTE, auskunftLand, auskunftLeistung, auskunftPreisCents, auskunftWort,
   auskunfteienFuer, auskunfteienText, euroText,
+  AUSWERTUNG_NAME, AUSWERTUNG_UNTERZEILE, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_KEINE_AUSKUNFT_SATZ,
   type AuskunftArt, type AuskunftLand,
 } from "@shared/fiaon-auskunft";
 import { anredeMail, vornameFuerBetreff } from "@shared/fiaon-anrede";
@@ -245,8 +262,6 @@ const klar = (s: unknown): string => String(s ?? "").replace(/[<>]/g, "").replac
 
 const gross = (s: string): string => s.replace(/^./, (c) => c.toUpperCase());
 
-const ZAHLWORT = ["keine", "eine", "zwei", "drei", "vier", "fünf"];
-
 const JA = ["1", "true", "ja", "an", "on", "yes"];
 const NEIN = ["0", "false", "nein", "aus", "off", "no"];
 
@@ -280,11 +295,14 @@ function paketHinweis(roh: unknown, segment: AngebotSegment, art: AuskunftArt): 
   // die erste Zahlung zu seinem Antrag.
   if (art === "firma" && segment !== "antrag") return null;
   if (!schalter(roh, segment === "antrag")) return null;
-  const was = art === "firma" ? "die Firmen-Auskunft" : "die Auskunft";
+  const was = art === "firma" ? "die Firmen-Auskunft" : "die Bonitätsauswertung";
   const preis = euroText(auskunftPreisCents(art, true));
+  // E-365: privat ist die Auswertung für Paketkunden, deren Link zum Kartenantrag noch auf die Bonität wartet, im Paket
+  // enthalten (auskunftStand „inklusive") — sonst gilt der Kundenpreis. Beides stimmt für jeden Vertragsstand.
+  const inklusive = art === "firma" ? "" : " — und solange Ihr Link zum Kartenantrag noch auf Ihre Bonität wartet, ist sie im Paket enthalten";
   return segment === "antrag"
-    ? `Gut zu wissen: Mit aktivem FIAON-Paket kostet ${was} ${preis} — Ihr Paket aktivieren Sie mit der ersten Zahlung zu Ihrem Antrag.`
-    : `Gut zu wissen: Als FIAON-Kunde mit laufendem Paket zahlen Sie für ${was} ${preis}.`;
+    ? `Gut zu wissen: Mit aktivem FIAON-Paket kostet ${was} ${preis}${inklusive}. Ihr Paket aktivieren Sie mit der ersten Zahlung zu Ihrem Antrag.`
+    : `Gut zu wissen: Als FIAON-Kunde mit laufendem Paket zahlen Sie für ${was} ${preis}${inklusive}.`;
 }
 
 /**
@@ -299,14 +317,14 @@ function paketHinweis(roh: unknown, segment: AngebotSegment, art: AuskunftArt): 
 function paketWeg(p: Record<string, unknown>, segment: AngebotSegment, art: AuskunftArt): { satz: string; knopf: { text: string; url: string } } | null {
   if (segment !== "lead" && segment !== "abbrecher") return null;
   if (art === "firma" || !schalter(p.paket_weg, true)) return null;
-  const preis = euroText(auskunftPreisCents(art, true));
   const url = String(p.paket_url ?? "").trim() ? "{{params.paket_url}}" : PAKET_WEG_URL;
   return {
-    // Gegenlesen 26.09.2026: Der Satz sagt, WIE (der Zusatz im Antrag, antrag.tsx — mit src=auskunft
-    // aufgeklappt, nie vorangekreuzt) und WANN bezahlt wird (BUENDEL_FAELLIG_SATZ: nach der ersten Paketzahlung).
-    satz: `Oder gleich mit FIAON-Paket für Ihren Weg zur Karte: Im Antrag bestellen Sie die Auskunft auf Wunsch zum Kundenpreis von ${preis} dazu — `
-      + "fällig erst nach Ihrer ersten Paketzahlung. Das Paket hat einen eigenen Preis und eine eigene Laufzeit; beides steht im Antrag, bevor Sie etwas bezahlen.",
-    knopf: { text: `Lieber gleich mit FIAON-Paket? Dann ${preis} für die Auskunft`, url },
+    // E-365 (14.10.2026): Für neue Paketkunden ist die Bonitätsauswertung der Schritt vor dem Link der Partnerbank und
+    // im Paket enthalten (auskunftStand „inklusive", BONITAET_INKLUSIVE_SQL) — kein „74 € dazubestellen" mehr.
+    satz: "Oder gleich mit FIAON-Paket für Ihren Weg zur Karte: Für neue Paketkunden ist die Bonitätsauswertung der Schritt vor dem Link "
+      + "unserer Partnerbank für den Kartenantrag — und dann im Paket enthalten. Das Paket hat einen eigenen Preis und eine eigene Laufzeit; "
+      + "beides steht im Antrag, bevor Sie etwas bezahlen.",
+    knopf: { text: "Lieber gleich mit FIAON-Paket? Dort ist die Auswertung enthalten", url },
   };
 }
 
@@ -323,7 +341,8 @@ function betreffFuer(o: {
   const { fassung, variante, segment, firma, wort, vn } = o;
   if (fassung === "a") {
     if (variante === 1) return `${vn}schon einmal abgelehnt, ohne zu erfahren, warum?`;
-    return firma ? `${vn}was Banken über Ihr Unternehmen sehen — und Sie vielleicht nicht` : `${vn}wenn die Bank Nein sagt: Der Grund steht oft in Ihrer ${wort}`;
+    // E-365: privat nicht mehr „… steht oft in Ihrer SCHUFA-Auskunft" (frühere Zeile: ANGEBOT_FRUEHERE_BETREFFE).
+    return firma ? `${vn}was Banken über Ihr Unternehmen sehen — und Sie vielleicht nicht` : `${vn}wenn die Bank Nein sagt: Sehen Sie, was sie sieht`;
   }
   if (fassung === "b") {
     if (variante === 1) return firma ? `${vn}bevor Sie für schnelle Finanzierungsversprechen bezahlen` : `${vn}bevor Sie für schnelle Versprechen bezahlen`;
@@ -333,8 +352,18 @@ function betreffFuer(o: {
   if (segment === "kunde") return firma ? `${vn}in Ihrer Akte fehlt noch die Firmen-Auskunft` : `${vn}in Ihrer Akte fehlt noch ein Baustein`;
   if (segment === "antrag") return `${vn}ein kurzer Gedanke zu Ihrem Antrag`;
   if (segment === "abbrecher") return `${vn}ein kurzer Gedanke zu Ihrem begonnenen Antrag`;
-  return firma ? `${vn}kurz und ohne Umwege: die Firmen-Auskunft` : `${vn}kurz und ohne Umwege: Ihre ${wort}`;
+  return firma ? `${vn}kurz und ohne Umwege: die Firmen-Auskunft` : `${vn}kurz und ohne Umwege: Ihre Bonitätsauswertung`;
 }
+
+/**
+ * E-365 (14.10.2026): Die Betreffzeilen, die die Privat-Fassungen bis zum 14.10.2026 trugen und die es nicht mehr gibt —
+ * ohne Vornamen, je Land. Wer auf eine ältere Angebots-Mail antwortet („Re: Wenn die Bank Nein sagt: Der Grund steht oft
+ * in Ihrer SCHUFA-Auskunft"), antwortet trotzdem auf das Angebot (angebotsBetreffeOhneNamen, auskunftAngebotsBetreffs).
+ */
+export const ANGEBOT_FRUEHERE_BETREFFE: readonly string[] = (["DE", "AT", "CH"] as AuskunftLand[]).flatMap((land) => [
+  `Wenn die Bank Nein sagt: Der Grund steht oft in Ihrer ${auskunftWort(land)}`,
+  `Kurz und ohne Umwege: Ihre ${auskunftWort(land)}`,
+]);
 
 /**
  * Baut die Mail aus der Nutzlast. Fehlt etwas, gilt der sichere Rückfall:
@@ -361,23 +390,33 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   const preis = sicher(preisRoh);
   const wort = auskunftWort(land);
   const bei = auskunfteienText(land);
-  const anzahl = auskunfteienFuer(land).length;
-  const zahl = gross(anzahl < ZAHLWORT.length ? ZAHLWORT[anzahl] : String(anzahl));
   const recht = auskunfteienFuer(land)[0]?.recht ?? "Art. 15 DSGVO";
-  const mitUpload = opts.mitUpload === true || (!ohneBereich && String(p.upload_url ?? "").trim() !== "");
+  const privat = !firma;
+  // E-365: privat kein Hochlade-Weg mehr — eine eigene Datenkopie ersetzt die Bonitätsauswertung nicht.
+  const mitUpload = firma && (opts.mitUpload === true || (!ohneBereich && String(p.upload_url ?? "").trim() !== ""));
 
   // Die Leistung: aus der Nutzlast (dieselbe Quelle, vom Server gebaut) — außer
   // sie passt nicht zum Land. Ein „SCHUFA" in Österreich fliegt raus, ehe es gedruckt wird.
   // 25.09.2026 (E-241): ebenso ein „Limit" in einer Mail an Antrag, Lead oder (E-243) Abbrecher
   // (VERBOTENE_WORTE, § 34c GewO) — etwa aus einer Nutzlast, die vor der neuen Leistungsliste gebaut wurde.
+  // E-365: privat ebenso eine Liste des früheren Produkts (Datenkopien, Handlungsplan, Schreiben) aus einer
+  // Nutzlast von vor dem 14.10.2026 — dann gilt die Liste der Bonitätsauswertung.
   const ausNutzlast = Array.isArray(p.leistung) && p.leistung.length ? (p.leistung as unknown[]).map(String) : null;
   const leistungRoh = ausNutzlast && !(land !== "DE" && ausNutzlast.some((z) => /schufa/i.test(z)))
     && !(!kundeSegment && ausNutzlast.some((z) => /limit/i.test(z)))
+    && !(privat && ausNutzlast.some((z) => /datenkopie|handlungsplan|schreiben|fordern|einholen|holen\b|eintr[aä]g|speicherfrist/i.test(z)))
     ? ausNutzlast : auskunftLeistung(art, land);
+  // E-365: „Kredit" steht in VERBOTENE_WORTE der Kaltansprache (shared/fiaon-lead-strecke.ts) — Antrag, Lead und Abbrecher
+  // lesen „Kreditprüfung" aus den geteilten Sätzen als „Prüfung der Bank". Der zahlende Kunde liest sie unverändert.
+  const ohneKredit = (t: string): string => kundeSegment ? t
+    : t.replace(/die eine Kreditprüfung ansieht/g, "die eine Bank bei ihrer Prüfung ansieht")
+      .replace(/bei einer Kreditprüfung/g, "bei ihrer Prüfung").replace(/Kreditprüfung/g, "Prüfung der Bank");
   // Punkt und geschütztes Leerzeichen als Zeichen, nicht als HTML-Entität: Der
   // Text-Teil der Mail (mailText) entfernt nur Tags — „&#8226;&nbsp;" stand dort
   // wörtlich (Gegenlesen 24.09.2026).
-  const liste = `<b>Das übernehmen wir für Sie:</b>\n${leistungRoh.map((z) => `•  ${sicher(z)}`).join("\n")}`;
+  const liste = `<b>${firma ? "Das übernehmen wir für Sie:" : "Das bekommen Sie:"}</b>\n${leistungRoh.map((z) => `•  ${sicher(ohneKredit(z))}`).join("\n")}`;
+  // E-365: Was der Kunde für die Auswertung tut — an jeder Privat-Fassung, direkt vor dem Preis.
+  const unterlagen = privat ? [AUSWERTUNG_UNTERLAGEN_SATZ] : [];
 
   const name = { vorname: p.vorname as string | null, nachname: p.nachname as string | null };
   const anrede = sicher(String(p.anrede ?? "").trim() || anredeMail(name));
@@ -385,11 +424,12 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   const vn = vorname ? `${klar(vorname)}, ` : "";
 
   // Was gekauft wird — im Akkusativ („Wir holen … ein") und im Dativ („Mit … sehen Sie").
-  const was = firma ? "die Firmen-Auskunft" : `Ihre ${wort}`;
-  const wasDativ = firma ? "der Firmen-Auskunft" : `Ihrer ${wort}`;
+  // E-365: privat die Bonitätsauswertung.
+  const was = firma ? "die Firmen-Auskunft" : "Ihre Bonitätsauswertung";
+  const wasDativ = firma ? "der Firmen-Auskunft" : "Ihrer Bonitätsauswertung";
   const woher = firma
     ? `die Daten Ihres Unternehmens bei den Wirtschaftsauskunfteien und Ihre persönlichen Daten bei ${sicher(bei)}`
-    : `Ihre Daten bei ${sicher(bei)}`;
+    : "";
   // „Ihre Karte" / „eine Karte für Ihr Unternehmen" — der Weg, nie eine Zusage (die Bank entscheidet).
   const karte = firma ? "eine Karte für Ihr Unternehmen" : "Ihre Karte";
 
@@ -406,7 +446,7 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   // „Limit" steht in VERBOTENE_WORTE der Kaltansprache (shared/fiaon-lead-strecke.ts):
   // Werbung mit einer Kreditsumme an Menschen ohne Vertrag wäre Werbung für eine
   // erlaubnispflichtige Leistung (§ 34c GewO). Der zahlende Kunde behält „Karte und Wunschlimit".
-  const nutzen = `<b>${kundeSegment ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE}</b>`;
+  const nutzen = `<b>${sicher(ohneKredit(kundeSegment ? AUSKUNFT_NUTZEN_SATZ : AUSKUNFT_NUTZEN_SATZ_KARTE))}</b>`;
   // Die ehrliche Antwort wörtlich aus shared/fiaon-auskunft.ts — der erste Satz („Ja, … kostenlos zu") fett.
   const kostenlosAntwort = AUSKUNFT_KOSTENLOS_ANTWORT.replace(/^([^.]*\.)\s/, "<b>$1</b> ");
   const betreff = gross(betreffFuer({ fassung, variante, segment, firma, wort, vn }));
@@ -419,15 +459,18 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
     daten: [
       firma
         ? { label: "Eingeholt bei", wert: `Wirtschaftsauskunfteien, ${sicher(bei)}` }
-        : { label: "Auskunfteien", wert: sicher(bei) },
+        : { label: "Grundlage", wert: "Ihr Ausweis und Ihre Kontoauszüge der letzten drei Monate" },
       { label: kundenpreis ? "Ihr Kundenpreis" : "Ihr Preis", wert: `${preis} einmalig` },
       { label: "Laufzeit", wert: "keine — kein Abo" },
     ],
     // Der Preis steht im Knopf: Wer klickt, weiß, was es kostet — die Seite dahinter bestätigt es nur noch.
-    knopf: { text: `Auskunft für ${preis} beauftragen`, url: "{{params.kauf_url}}" },
+    knopf: { text: firma ? `Auskunft für ${preis} beauftragen` : `Bonitätsauswertung für ${preis} bestellen`, url: "{{params.kauf_url}}" },
     ...zweiterKnopf,
-    fussnote: `${firma ? "Ihre persönliche Datenkopie" : "Ihre Datenkopie"} steht Ihnen bei jeder Auskunftei auch kostenlos zu (${recht}) — `
-      + "mit dem Auftrag übernehmen wir das Einholen, die Auswertung, den Handlungsplan und die Schreiben für Sie. "
+    fussnote: (firma
+      ? `Ihre persönliche Datenkopie steht Ihnen bei jeder Auskunftei auch kostenlos zu (${recht}) — `
+        + "mit dem Auftrag übernehmen wir das Einholen, die Auswertung, den Handlungsplan und die Schreiben für Sie. "
+      // E-365: die ehrliche Abgrenzung — keine Auskunft einer Auskunftei, kein Score, die Datenkopie bleibt sein Recht.
+      : `${AUSWERTUNG_KEINE_AUSKUNFT_SATZ} `)
       + (kundeSegment ? "Über Karte und Limit entscheidet am Ende immer die Bank. " : "Über eine Karte entscheidet am Ende immer die Bank. ")
       + `${WIDERSPRUCH_SATZ} Den Abmeldelink finden Sie ganz unten in dieser E-Mail.`,
     karteZiel: true,
@@ -438,6 +481,7 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   // Der Winkel: Wer schon einmal auf ein Versprechen hereingefallen ist, glaubt
   // keinem nächsten. Also kein Versprechen — sondern die Ursache und die ehrliche
   // Antwort auf „Das gibt es doch kostenlos" (AUSKUNFT_KOSTENLOS_ANTWORT, wörtlich).
+  // E-365: privat setzen wir dort an, wo eine Bank hinsieht — bei Einnahmen und Ausgaben, nicht bei den Einträgen.
   if (fassung === "b") {
     const zitat = angebotWarnzitat(land, art);
     const lage = segment === "kunde"
@@ -458,18 +502,25 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
         // Arbeit bezahlt; der Vorwurf fiele auf uns zurück. Die Warnung trägt auch so: „selten", „oft".
         firma
           ? `${anrede} wenn die Hausbank Nein gesagt hat, klingen Angebote für ${zitat} verlockend. Wer so etwas schon ausprobiert hat, kennt es vielleicht: Solche Versprechen lösen selten etwas und kosten oft Geld. Das eigentliche Problem bleibt, wo es war: in dem, was über Ihr Unternehmen und über Sie persönlich gespeichert ist.`
-          : `${anrede} im Netz stößt man schnell auf Angebote, die ${zitat} versprechen. Wer so etwas schon ausprobiert hat, kennt es vielleicht: Solche Versprechen lösen selten etwas und kosten oft Geld. Das eigentliche Problem bleibt, wo es war: in dem, was über Sie gespeichert ist.`,
+          : `${anrede} im Netz stößt man schnell auf Angebote, die ${zitat} versprechen. Wer so etwas schon ausprobiert hat, kennt es vielleicht: Solche Versprechen lösen selten etwas und kosten oft Geld. Die eigentliche Frage bleibt offen: Wie sieht eine Bank Ihre Finanzen?`,
         // Gegenlesen 26.09.2026: Hier NICHT die Leistung aufzählen — die ehrliche Antwort und die Liste
         // darunter tun es schon; dreimal „erklären jeden Eintrag" liest sich wie Füllstoff.
-        `<b>Wir setzen an der Ursache an: bei ${firma ? "den Einträgen Ihres Unternehmens und Ihren persönlichen" : "Ihren Einträgen"}.</b> `
-          + `Was steht dort, was ist veraltet oder falsch — und was können Sie dagegen tun? ${lage}`,
+        firma
+          ? "<b>Wir setzen an der Ursache an: bei den Einträgen Ihres Unternehmens und Ihren persönlichen.</b> "
+            + `Was steht dort, was ist veraltet oder falsch — und was können Sie dagegen tun? ${lage}`
+          : `<b>Wir setzen dort an, wo eine Bank hinsieht: bei Ihren Einnahmen und Ausgaben.</b> Genau das zeigt die ${AUSWERTUNG_NAME} — aus Ihren eigenen Kontoauszügen. `
+            + (segment === "kunde" ? "In Ihrer Akte bei uns fehlt sie noch." : lage),
         "Bleibt die naheliegende Frage, ob Sie das nicht kostenlos selbst anfordern können. Die ehrliche Antwort:",
         kostenlosAntwort,
         // Gegenlesen 25.09.2026: Nutzen VOR der Liste — deren letzter Punkt (Betreuer, Weg zur Karte) sagt fast dasselbe.
-        "Selbst angefordert heißt: für jede Auskunftei den richtigen Weg finden, einzeln anfragen — und am Ende Listen voller Kürzel, Daten und Fristen selbst auswerten. "
-          + "Ob ein Eintrag zu alt ist oder nicht stimmt, sieht man ihm nicht an. Genau hier beginnt unsere Arbeit.",
+        firma
+          ? "Selbst angefordert heißt: für jede Auskunftei den richtigen Weg finden, einzeln anfragen — und am Ende Listen voller Kürzel, Daten und Fristen selbst auswerten. "
+            + "Ob ein Eintrag zu alt ist oder nicht stimmt, sieht man ihm nicht an. Genau hier beginnt unsere Arbeit."
+          : "Eine Datenkopie zeigt, was bei einer Auskunftei gespeichert ist. Eine Bank schaut bei ihrer Prüfung zusätzlich darauf, was jeden Monat hereinkommt, was hinausgeht und was übrig bleibt — "
+            + "genau das rechnen wir aus Ihren Kontoauszügen für Sie nach.",
         nutzen,
         liste,
+        ...unterlagen,
         ...preisTeil,
       ],
     };
@@ -480,25 +531,33 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   // kein „nur noch heute" — und auch kein Versprechen, dass nichts mehr kommt:
   // Das entscheidet der Takt, nicht der Text.
   if (fassung === "c") {
+    // E-365: privat „prüft Ihre Bonität — auch anhand Ihrer Einnahmen und Ausgaben" statt „schaut in die Daten der Auskunfteien".
+    const vorBank = firma
+      ? "schaut sie in die Daten der Auskunfteien."
+      : "prüft sie Ihre Bonität — auch anhand dessen, was jeden Monat hereinkommt und hinausgeht.";
     const einstieg = segment === "kunde"
       ? `${anrede} nur eine kurze, persönliche Nachricht: In Ihrer Akte fehlt noch ${was} — und wir möchten sichergehen, dass das nicht untergegangen ist.`
       : segment === "antrag"
-        ? `${anrede} nur ein kurzer Gedanke zu Ihrem Antrag, ganz ohne Druck: Bevor die Bank über ${karte} entscheidet, schaut sie in die Daten der Auskunfteien. Wer vorher weiß, was dort steht, geht vorbereitet in diesen Schritt.`
+        ? `${anrede} nur ein kurzer Gedanke zu Ihrem Antrag, ganz ohne Druck: Bevor die Bank über ${karte} entscheidet, ${vorBank} Wer vorher weiß, ${firma ? "was dort steht" : "wie sie das sieht"}, geht vorbereitet in diesen Schritt.`
         : segment === "abbrecher"
-          ? `${anrede} Sie hatten Ihren Antrag bei uns begonnen — ein kurzer Gedanke dazu, ganz ohne Druck: Bevor eine Bank über ${karte} entscheidet, schaut sie in die Daten der Auskunfteien. Mit ${wasDativ} wissen Sie vorher, was dort steht.`
-          : `${anrede} nur eine kurze, persönliche Nachricht: Bevor eine Bank über ${karte} entscheidet, schaut sie in die Daten der Auskunfteien. Mit ${wasDativ} wissen Sie vorher, was dort steht.`;
+          ? `${anrede} Sie hatten Ihren Antrag bei uns begonnen — ein kurzer Gedanke dazu, ganz ohne Druck: Bevor eine Bank über ${karte} entscheidet, ${vorBank} Mit ${wasDativ} wissen Sie vorher, ${firma ? "was dort steht" : "wie sie das sieht"}.`
+          : `${anrede} nur eine kurze, persönliche Nachricht: Bevor eine Bank über ${karte} entscheidet, ${vorBank} Mit ${wasDativ} wissen Sie vorher, ${firma ? "was dort steht" : "wie sie das sieht"}.`;
     return {
       ...gemeinsam,
       marke: "Kurz und persönlich",
       betreff,
       preheader: firma
         ? "Ein Auftrag für Ihr Unternehmen und Sie — jede Zeile erklärt, mit Handlungsplan."
-        : `${zahl} Auskunfteien, ein Auftrag — jede Zeile erklärt, mit Handlungsplan.`,
+        : AUSWERTUNG_UNTERZEILE,
       titel: firma ? "Wissen, was Banken über Ihr Unternehmen sehen" : "Wissen, was die Bank sieht — bevor sie entscheidet",
       absaetze: [
         einstieg,
-        `Wir holen ${woher} ein, erklären jeden Eintrag, prüfen die Fristen und legen Ihnen Ihren Handlungsplan und, wo nötig, fertige Schreiben zur Freigabe vor.`,
+        firma
+          ? `Wir holen ${woher} ein, erklären jeden Eintrag, prüfen die Fristen und legen Ihnen Ihren Handlungsplan und, wo nötig, fertige Schreiben zur Freigabe vor.`
+          : "Wir werten Ihre Kontoauszüge aus — jede Einnahme und jede Ausgabe nach Empfänger, Monat für Monat, mit Haushaltsrechnung, Ampel und Ihrem FIAON-Finanzwert. "
+            + "Ein Mensch aus Ihrem FIAON-Team prüft den Bericht und gibt ihn frei.",
         nutzen,
+        ...unterlagen,
         ...preisTeil,
         "Passt es gerade nicht, ist das völlig in Ordnung.",
       ],
@@ -509,29 +568,38 @@ export function auskunftAngebotBaustein(p: Record<string, unknown>, opts: { mitU
   // Der Winkel: das Nein ohne Begründung. „Oft", nicht „immer" — eine Bank
   // entscheidet auch nach Einkommen und eigenen Regeln. Und „ob und was Sie
   // bremst": Steht nichts Nachteiliges dort, ist auch das eine Antwort.
+  // E-365: privat zeigt die Bonitätsauswertung, wie eine Bank die Finanzen sieht — nicht, was bei Auskunfteien steht.
   const schmerz = firma
     ? `${anrede} kennen Sie das? Die Bank lehnt die Finanzierung ab, der Leasinggeber will zusätzliche Sicherheiten, ein Lieferant liefert nur noch gegen Vorkasse — und eine Begründung bekommt Ihr Unternehmen selten.`
     : `${anrede} kennen Sie das? Die Bank sagt Nein, der Vermieter nimmt jemand anderen, der Handyvertrag geht nicht durch — und eine Begründung bekommen Sie selten.`;
   const lage = segment === "kunde"
-    ? `Genau das fehlt in Ihrer Akte bei uns noch: ${was}.`
+    ? firma ? `Genau das fehlt in Ihrer Akte bei uns noch: ${was}.` : `Genau das zeigt Ihnen ${was} — und die fehlt in Ihrer Akte bei uns noch.`
     : segment === "antrag"
-      ? `Ihr Antrag liegt bei uns — und bevor die Bank über ${karte} entscheidet, schaut sie genau dort nach. ${gross(was)} zeigt es Ihnen vorher.`
+      ? `Ihr Antrag liegt bei uns — und bevor die Bank über ${karte} entscheidet, schaut sie genau ${firma ? "dort nach" : "darauf"}. ${gross(was)} zeigt es Ihnen vorher.`
       : segment === "abbrecher"
-        ? `Sie hatten Ihren Antrag bei uns begonnen, aber noch nicht abgeschlossen — vielleicht, weil Sie erst wissen möchten, was die Bank über ${firma ? "Ihr Unternehmen" : "Sie"} sieht. Genau das zeigt ${was}.`
-        : `Sie hatten sich bei FIAON gemeldet — und bevor eine Bank über ${karte} entscheidet, schaut sie genau dort nach. ${gross(was)} zeigt es Ihnen vorher.`;
+        ? `Sie hatten Ihren Antrag bei uns begonnen, aber noch nicht abgeschlossen — vielleicht, weil Sie erst wissen möchten, ${firma ? "was die Bank über Ihr Unternehmen sieht" : "wie eine Bank Sie sieht"}. Genau das zeigt ${was}.`
+        : `Sie hatten sich bei FIAON gemeldet — und bevor eine Bank über ${karte} entscheidet, schaut sie genau ${firma ? "dort nach" : "darauf"}. ${gross(was)} zeigt es Ihnen vorher.`;
   return {
     ...gemeinsam,
     betreff,
-    preheader: "Oft steht der Grund bei den Auskunfteien — wir sehen für Sie nach, Zeile für Zeile.",
+    preheader: firma
+      ? "Oft steht der Grund bei den Auskunfteien — wir sehen für Sie nach, Zeile für Zeile."
+      : "Ihre Bonität aus Sicht einer Bank — Monat für Monat, Ausgabe für Ausgabe.",
     titel: "Abgelehnt — und keiner sagt Ihnen, warum?",
     absaetze: [
       schmerz,
-      `Der Grund steht oft dort, wo ${firma ? "Banken, Leasinggeber und Lieferanten" : "Banken, Vermieter und Mobilfunkanbieter"} vorher nachsehen: bei den Auskunfteien. ${lage}`,
-      `Mit dem Auftrag holen wir ${woher} ein, zeigen Ihnen, ob und was ${firma ? "Ihr Unternehmen" : "Sie"} bremst, und was Sie dagegen tun können — wo nötig mit fertigen Schreiben zur Freigabe. `
-        + "Steht dort nichts Nachteiliges, wissen Sie auch das: schwarz auf weiß.",
+      firma
+        ? `Der Grund steht oft dort, wo Banken, Leasinggeber und Lieferanten vorher nachsehen: bei den Auskunfteien. ${lage}`
+        : `Eine Bank schaut bei ihrer Prüfung nicht nur auf Einträge, sondern auch darauf, wie Ihre Finanzen dastehen: was jeden Monat hereinkommt, was hinausgeht und was übrig bleibt. ${lage}`,
+      firma
+        ? `Mit dem Auftrag holen wir ${woher} ein, zeigen Ihnen, ob und was Ihr Unternehmen bremst, und was Sie dagegen tun können — wo nötig mit fertigen Schreiben zur Freigabe. `
+          + "Steht dort nichts Nachteiliges, wissen Sie auch das: schwarz auf weiß."
+        : `Mit der ${AUSWERTUNG_NAME} werten wir Ihre eigenen Kontoauszüge aus und zeigen Ihnen, wo Sie stehen, was Sie bremst und was im Monat frei werden kann. `
+          + "Steht alles gut da, wissen Sie auch das: schwarz auf weiß.",
       // Gegenlesen 25.09.2026: Nutzen vor der Liste (wie Fassung b) — nicht direkt hinter ihrem letzten Punkt.
       nutzen,
       liste,
+      ...unterlagen,
       ...preisTeil,
     ],
   };
@@ -557,6 +625,8 @@ export function angebotsBetreffeOhneNamen(): string[] {
     for (const land of ["DE", "AT", "CH"]) for (const mit_abo of [true, false]) for (const betreff_variante of ANGEBOT_BETREFF_VARIANTEN) {
       alle.add(auskunftAngebotBaustein({ fassung, segment, art, land, mit_abo, betreff_variante, vorname: null, nachname: null }).betreff);
     }
+  // E-365: auch die Zeilen von vor dem 14.10.2026 — Antworten auf ältere Angebote bleiben Antworten.
+  for (const b of ANGEBOT_FRUEHERE_BETREFFE) alle.add(b);
   return Array.from(alle);
 }
 

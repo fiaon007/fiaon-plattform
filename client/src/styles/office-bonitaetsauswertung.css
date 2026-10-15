@@ -49,6 +49,8 @@
 .ba-chip.laeuft{border-color:rgba(147,197,253,.5);color:#dbeafe;background:rgba(40,141,250,.12)}
 .ba-chip.entwurf{border-color:rgba(251,191,36,.45);color:#fde68a;background:rgba(251,191,36,.1)}
 .ba-chip.frei{border-color:rgba(52,211,153,.45);color:#a7f3d0;background:rgba(16,185,129,.12)}
+/* E-365: die Grundlage (bezahlt / inklusive / keins) als ruhige Zeile unter dem Kopf */
+.ba-grundlage{margin:-4px 0 12px;font:500 12px/1.4 'Inter',sans-serif;color:#93c5fd;letter-spacing:.01em}
 .ba-chip.fehler{border-color:rgba(248,113,113,.45);color:#fecaca;background:rgba(248,113,113,.1)}
 
 .ba-titel{margin:0;font:400 clamp(17px,2.2vw,21px)/1.3 'Inter',sans-serif;letter-spacing:-.012em;color:#fff;text-wrap:balance}

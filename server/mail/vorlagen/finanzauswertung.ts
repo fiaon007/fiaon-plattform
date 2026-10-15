@@ -17,17 +17,20 @@ import type { MailBaustein } from "../geruest";
 
 export const FINANZAUSWERTUNG_VORLAGEN: Record<string, MailBaustein> = {
   finanzauswertung_bereit: {
-    betreff: "Ihre Finanz- und Bonitätsauswertung liegt bereit, {{params.vorname}}",
-    preheader: "Ihre persönliche Auswertung mit Plan — sicher in Ihrem Bereich.",
-    titel: "Ihre Auswertung ist fertig",
+    // E-365 (14.10.2026): ein Name überall — „FIAON-Bonitätsauswertung“ (Kauf, Bereich, Mail); das PDF trägt weiter
+    // den Deckblatt-Titel „Finanz- und Bonitätsauswertung“. Der nächste Schritt kommt vom Server (naechster_satz).
+    betreff: "Ihre FIAON-Bonitätsauswertung liegt bereit, {{params.vorname}}",
+    preheader: "Ihre Bonität aus Sicht einer Bank, mit Plan — als PDF und in Ihrem Bereich.",
+    titel: "Ihre Bonitätsauswertung ist fertig",
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre FIAON Finanz- und Bonitätsauswertung liegt in Ihrem Bereich für Sie bereit.",
-      "Sie zeigt Ihnen Bereich für Bereich, wo Sie stehen, und einen Plan mit konkreten Schritten, die Sie selbst umsetzen können — jeweils mit dem, was der Schritt im Monat bewirken kann.",
+      "Guten Tag {{params.vorname}}, Ihre FIAON-Bonitätsauswertung ist fertig — geprüft und freigegeben von Ihrem FIAON-Team.",
+      "Sie zeigt Ihnen Ihre Bonität aus Sicht einer Bank, Bereich für Bereich, wo Sie stehen, jede Ausgabe im Detail und einen Plan mit konkreten Schritten, die Sie selbst umsetzen können — jeweils mit dem, was der Schritt im Monat bewirken kann.",
       "Sie finden sie als PDF im Anhang dieser E-Mail — und jederzeit in Ihrem Bereich über den Knopf unten.",
+      "{{params.naechster_satz}}",
       "Noch kein Passwort? Auf der Anmeldeseite lassen Sie sich mit einem Klick einen Anmelde-Link an diese Adresse schicken.",
     ],
-    knopf: { text: "Auswertung ansehen", url: "{{params.auswertung_url}}" },
-    fussnote: "Die Auswertung ist eine eigene Berechnung von FIAON aus Ihren Unterlagen — keine Bonitätsauskunft einer Auskunftei und keine Kredit- oder Kartenzusage. Die Datei enthält vertrauliche Angaben zu Ihren Finanzen; bitte leiten Sie sie nur weiter, wenn Sie das möchten. Fragen dazu? Antworten Sie einfach auf diese E-Mail.",
+    knopf: { text: "Bonitätsauswertung ansehen", url: "{{params.auswertung_url}}" },
+    fussnote: "Die Bonitätsauswertung ist eine eigene Berechnung von FIAON aus Ihren Unterlagen — keine Auskunft einer Auskunftei und keine Kredit- oder Kartenzusage. Die Datei enthält vertrauliche Angaben zu Ihren Finanzen; bitte leiten Sie sie nur weiter, wenn Sie das möchten. Fragen dazu? Antworten Sie einfach auf diese E-Mail — Ihre Ansprechperson geht den Bericht gern mit Ihnen durch.",
   },
   // E-357: an den Mitarbeiter (Betreuer und, wenn ein anderer, wer sie erstellt hat), sobald der Entwurf fertig ist.
   finanzauswertung_mitarbeiter: {

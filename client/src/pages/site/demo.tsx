@@ -24,7 +24,7 @@ const KUNDE = {
     ["Paket", "FIAON Pro · 59,99 € im Monat"],
     ["Zahlung", "1. Rate bezahlt · per Überweisung"],
     ["Unterlagen", "Kontoauszug und Ausweis liegen vor"],
-    ["Bonitätsauskunft", "Bestellt · in Beschaffung"],
+    ["Bonitätsauswertung", "Im Paket enthalten · wird entwickelt"],
     ["Stufe", "Wartet auf das Startgespräch"],
     ["Ziel des Kunden", "Kreditkarte in zwölf Monaten"],
   ] as const,
@@ -56,9 +56,9 @@ function OnboardingDemo() {
       <div className="demo-frei">
         <span className="dk-pille">Freigeschaltet</span>
         <h3 className="dk-h3">Das Konto von Max Mustermann ist jetzt <span className="dk-verlauf">vollständig aktiv.</span></h3>
-        <p className="dk-text">Der Mitarbeiter hat abgeschlossen. Was jetzt beim Kunden passiert: Der Fahrplan zeigt das Startgespräch als erledigt, der nächste Schritt steht, die Bonitätsauskunft wird beschafft – und in seinem Bereich steht der Name seiner Ansprechpartnerin.</p>
+        <p className="dk-text">Der Mitarbeiter hat abgeschlossen. Was jetzt beim Kunden passiert: Der Fahrplan zeigt das Startgespräch als erledigt, der nächste Schritt steht, die Bonitätsauswertung aus seinen Kontoauszügen wird entwickelt – und in seinem Bereich steht der Name seiner Ansprechpartnerin.</p>
         <div className="demo-frei-zeilen">
-          <div><b>Fahrplan</b><span>Startgespräch erledigt · Unterlagen geprüft · Auskunft in Beschaffung</span></div>
+          <div><b>Fahrplan</b><span>Startgespräch erledigt · Unterlagen geprüft · Bonitätsauswertung in Arbeit</span></div>
           <div><b>Ansprechpartnerin</b><span>Viktoria Reichert · Onboarding</span></div>
           <div><b>Notizen</b><span>{Object.keys(stand.notizen).filter((k) => stand.notizen[k]?.trim()).length} Schritte dokumentiert, im Verlauf des Kunden hinterlegt</span></div>
         </div>
@@ -87,7 +87,7 @@ function OnboardingDemo() {
           {KUNDE.lage.map(([k, v]) => <div key={k} className="demo-zeile"><span>{k}</span><b>{v}</b></div>)}
           <div className="demo-kern">
             <p className="demo-ueber">Kernbotschaft</p>
-            <p>FIAON beschafft die Auskunft und zeigt, was gespeichert ist. Keine Beratung, kein Versprechen – ein Handlungsplan, den der Kunde selbst versteht.</p>
+            <p>FIAON zeigt die Bonität aus Sicht einer Bank – aus den eigenen Kontoauszügen – und erklärt, was gespeichert ist. Keine Beratung, kein Versprechen – ein Plan, den der Kunde selbst versteht.</p>
           </div>
         </aside>
 
@@ -172,7 +172,7 @@ export default function Demo() {
         <div style={{ textAlign: "left" }}>
           <Schritte items={[
             { titel: "Konto freigeschaltet", text: "Der Kunde sieht seinen Fahrplan vollständig, die Notizen liegen in seinem Verlauf, seine Ansprechpartnerin steht mit Namen im Bereich." },
-            { titel: "Auskunft beschafft", text: "FIAON stellt die Anfrage bei SCHUFA, KSV oder CRIF. Sobald sie vorliegt, wird jeder Eintrag geprüft und erklärt." },
+            { titel: "Bonitätsauswertung freigegeben", text: "Aus Ausweis und Kontoauszügen entsteht die Bonitätsauswertung; ein Mensch prüft sie und gibt sie frei. Lädt der Kunde seine kostenlose Datenkopie hoch, wird jeder Eintrag geprüft und erklärt." },
             { titel: "Schreiben versendet", text: "Löschanträge und Widersprüche, vorbereitet und geprüft. Der Kunde gibt frei, FIAON verfolgt Fristen und Antworten." },
             { titel: "Tür geöffnet", text: "Girokonto sofort, Kreditkarte, sobald der Wert die Schwelle erreicht. Jeder Kunde hat ein nächstes Ziel." },
           ]} />

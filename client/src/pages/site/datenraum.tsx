@@ -27,7 +27,7 @@ export default function Datenraum() {
         <Karten items={[
           { tag: "01", titel: "Unternehmen", text: "FIAON LTD, London. Gründungsunterlagen, Gesellschafter, Director, Beschlüsse, Sitz und Vertretung." },
           { tag: "02", titel: "Finanzen", text: "Umsatz je Paket, Raten-Einzugsquote, offene Forderungen, Kosten, Planung. Monatlich aus der Plattform gezogen – keine Handarbeit." },
-          { tag: "03", titel: "Produkt und Technik", text: "Architektur, Kundenweg, Agentenportal, Schnittstellen (Auskunfteien, Bankabgleich, KI), Deploy-Protokolle, Testberichte." },
+          { tag: "03", titel: "Produkt und Technik", text: "Architektur, Kundenweg, Agentenportal, Schnittstellen (Bankabgleich, KI), Deploy-Protokolle, Testberichte." },
           { tag: "04", titel: "Recht und Datenschutz", text: "AGB, Widerruf, Datenschutz, Einwilligungen, Vorlagen der Schreiben mit anwaltlicher Freigabe, Verfahrensverzeichnis." },
           { tag: "05", titel: "Team und Verträge", text: "Organisation, Handelsvertreterverträge, Provisionsregeln, Academy-Inhalte, Dienstleister." },
           { tag: "06", titel: "Markt", text: "DACH-Marktdaten, Wettbewerb, Partnergespräche, Roadmap Österreich und Schweiz, Europa." },
@@ -93,7 +93,7 @@ export default function Datenraum() {
 
       <Abschluss
         titel={<>Transparenz ist kein Versprechen. <span className="dk-verlauf">Sie ist eine Gewohnheit.</span></>}
-        text="Dieselbe Gewohnheit, mit der FIAON seinen Kunden ihre Auskunft zeigt, gilt für das Unternehmen selbst: Alles ist einsehbar, alles ist erklärbar, alles hat ein Datum."
+        text="Dieselbe Gewohnheit, mit der FIAON seinen Kunden ihre Bonität zeigt, gilt für das Unternehmen selbst: Alles ist einsehbar, alles ist erklärbar, alles hat ein Datum."
         knoepfe={<><Knopf href="#anfrage">Zugang anfragen</Knopf><Knopf href="/investoren" still>Das Investment verstehen</Knopf></>}
       />
     </Dunkel>

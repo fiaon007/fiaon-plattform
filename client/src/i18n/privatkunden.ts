@@ -9,6 +9,11 @@
 // Merkmale der Paketkarten kommen auf Deutsch aus client/src/lib/paket-merkmale.ts
 // (Wortlaut wie /start, abhängig vom Land); die Zeile „Ziel: …“ gibt es auf
 // /start nicht und ist entfallen. Englisch: dieselben Merkmale, übersetzt.
+//
+// 14.10.2026 (E-365): FIAON beschafft keine Auskunft mehr. Das Produkt ist die
+// FIAON-Bonitätsauswertung aus Ausweis und Kontoauszügen (149 € einzeln, 74 € mit
+// laufendem Paket, für neue Paketkunden enthalten). Die Datenkopie fordert der
+// Kunde selbst an und lädt sie hoch; das Paket erklärt sie. Kein „24 h" mehr.
 // ═══════════════════════════════════════════════════════════════════════════
 import { LAENDER, type Land } from "@/lib/fiaon-land";
 import { PAKET_MERKMALE } from "@/lib/paket-merkmale";
@@ -26,35 +31,35 @@ const de = {
   lead: "Ein Eintrag ist kein Urteil. FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
   paketWaehlen: "Paket wählen", eintragPruefen: "Ist mein Eintrag angreifbar?",
   zahlen: [
-    { wert: "24 h", label: "bis Sie sehen, was SCHUFA, KSV oder CRIF über Sie gespeichert haben" },
+    { wert: "25 Seiten", label: "Bonitätsauswertung (rund): Ihre Bonität aus Sicht einer Bank, aus Ihren Kontoauszügen" },
     { wert: "25.000 €", label: "Kreditkarten-Rahmen, der bei guter Bonität erreichbar wird" },
-    { wert: "0 Formulare", label: "FIAON stellt die Anfrage bei der Auskunftei für Sie" },
+    { wert: "1 Link", label: "zum Hochladen von Ausweis und Kontoauszügen – ohne Anmeldung" },
     { wert: "12 Raten", label: "monatlich per Überweisung – danach entscheiden Sie, ob Sie bleiben" },
   ],
   wegPille: "Der Weg", wegH2a: "Vier Etappen. ", wegH2b: "Ein Ziel.",
   wegLead: "Niemand bekommt eine Karte, weil er sie beantragt. Er bekommt sie, weil seine Akte sie trägt. Genau daran arbeitet FIAON – in dieser Reihenfolge.",
   weg: [
-    { titel: "Einsicht", text: "Ihre Auskunft, innerhalb von 24 Stunden, jeder Eintrag erklärt: berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet, falsch." },
+    { titel: "Einsicht", text: "Ihre Bonitätsauswertung aus Ihren Kontoauszügen. Ihre kostenlose Datenkopie fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag: berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet, falsch." },
     { titel: "Aktion", text: "Löschanträge, Widersprüche, Ratenvereinbarungen – anwaltlich geprüft, von Ihnen freigegeben, per Einschreiben versendet. FIAON hält jede Frist." },
     { titel: "Konto", text: "Ein Girokonto für jeden Kunden, unabhängig von der Bonität. Ab hier läuft Ihr Zahlungsverhalten sauber – das zählt für jede Bank." },
     { titel: "Karte", text: "Aus Einträgen, Einkommen und Kontoverhalten berechnet FIAON Ihre Readiness. Reicht der Wert, ist der Antrag beim Kartenpartner vorbereitet." },
   ],
   paketePille: "Ihr Paket", paketeH2a: "Wählen Sie, wie weit Sie gehen. ", paketeH2b: "Nicht, ob.",
-  paketeLead: "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Ihr Antrag startet mit diesem Paket.",
+  paketeLead: "Jedes Paket beginnt mit Ihrer Bonitätsauswertung – für neue Paketkunden ist sie enthalten. Je weiter Sie gehen, desto näher rückt die Karte. Ein Klick – und Ihr Antrag startet mit diesem Paket.",
   beliebt: "Beliebt", zielRahmen: "Ziel-Rahmen", karteName: "Ihr Name", bisRahmen: (b: string) => `bis ${b}`, proMonat: "/ Monat", mitStarten: (n: string) => `Mit ${n} starten`, waehlenUndStarten: (n: string) => `${n} wählen und Antrag starten`,
   // 05.10.2026, E-283: Paketkarten im Wortlaut von /start (eine Quelle: client/src/lib/paket-merkmale.ts).
   pakete: Object.fromEntries(PAKET_MERKMALE.map(({ key, name, sub, feats }) => [key, { name, sub, feats }])) as Record<string, PaketText>,
-  paketeHinweis: (auskunft: string) => `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie · Paket im Antrag jederzeit änderbar · Nur die Auskunft? Bonitätsauskunft ${auskunft} einmalig. Über Konto, Karte und Rahmen entscheidet immer die Bank.`,
+  paketeHinweis: (auskunft: string) => `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie · Paket im Antrag jederzeit änderbar · Nur die Bonitätsauswertung? ${auskunft} einmalig – für neue Paketkunden im Paket enthalten. Über Konto, Karte und Rahmen entscheidet immer die Bank.`,
   tutPille: "Was FIAON für Sie tut", tutH2a: "Einsicht. Aktion. ", tutH2b: "Zugang.",
   tut: [
-    { tag: "Schicht 1 · Einsicht", titel: "Die Auskunft, erklärt.", text: "FIAON stellt die Anfrage bei SCHUFA, KSV oder CRIF und liest Ihren Kontoauszug. Sie sehen, was gespeichert ist – und was sich ändern lässt. Ohne Fachsprache." },
+    { tag: "Schicht 1 · Einsicht", titel: "Ihre Bonität, erklärt.", text: "FIAON wertet Ihre Kontoauszüge aus und zeigt Ihre Bonität aus Sicht einer Bank. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an und laden sie hoch – Sie sehen, was gespeichert ist und was sich ändern lässt. Ohne Fachsprache." },
     { tag: "Schicht 2 · Aktion", titel: "Schreiben, die wirken.", text: "Für jeden angreifbaren Eintrag liegt das passende Schreiben bereit. Sie geben frei, FIAON versendet per Einschreiben, verfolgt Antwort und Frist – bis zur Datenschutzbehörde." },
     { tag: "Schicht 3 · Zugang", titel: "Konto, Karte, Finanzierung.", text: "Girokonto für jeden Kunden, Kreditkarte, sobald Ihre Readiness die Schwelle erreicht, Finanzierung später. Jeder hat ein nächstes Ziel." },
   ],
   vergleichPille: "Ehrlicher Vergleich", vergleichH2a: "Was andere tun – ", vergleichH2b: "und was FIAON tut.",
   vergleichKopf: ["", "Score-App", "Anwalt", "FIAON"],
   vergleich: [
-    ["Auskunft beschaffen", "Sie selbst", "Sie selbst", "FIAON, in 24 h"],
+    ["Bonität aus Sicht einer Bank", "ein Score", "–", "Bonitätsauswertung aus Ihren Kontoauszügen"],
     ["Jeden Eintrag einordnen", "–", "im Einzelfall", "jeder, mit Erfolgsaussicht"],
     ["Schreiben versenden, Fristen halten", "–", "ja, je Stunde", "inklusive, per Einschreiben"],
     ["Girokonto", "–", "–", "für jeden Kunden"],
@@ -79,21 +84,21 @@ const de = {
     { tag: "02", titel: "Ein Mensch am Telefon", text: "Jeder Kunde beginnt mit einem Startgespräch. Danach kennen Sie Ihre Ansprechpartnerin mit Namen." },
     { tag: "03", titel: "Ehrlich bis zum Nein", text: "Berechtigte Einträge lassen sich nicht weglöschen. Wir sagen es – und zeigen, was stattdessen geht." },
   ],
-  zwischenruf: "Unsicher, welches Paket passt? Wählen Sie eines – im Startgespräch prüfen wir es gemeinsam und ändern es, wenn nötig.", erstAuskunft: "Erst die Auskunft",
+  zwischenruf: "Unsicher, welches Paket passt? Wählen Sie eines – im Startgespräch prüfen wir es gemeinsam und ändern es, wenn nötig.", erstAuskunft: "Erst die Bonitätsauswertung",
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Bekomme ich garantiert eine Kreditkarte?", a: "Nein – über Karte und Rahmen entscheidet die Bank. Was FIAON tut: Ihre Akte in Ordnung bringen, Ihre Readiness berechnen und den Antrag vorbereiten, wenn es realistisch ist. Ein Girokonto bekommt jeder Kunde." },
-    { f: "Wie schnell sehe ich meine Auskunft?", a: "In der Regel innerhalb von 24 Stunden nach der Aktivierung. FIAON stellt die Anfrage bei SCHUFA, KSV oder CRIF mit Ihrer Vollmacht – Sie füllen kein Formular aus." },
+    { f: "Wie bekomme ich meine Bonitätsauskunft?", a: "Ihre Datenkopie steht Ihnen bei SCHUFA, KSV oder CRIF kostenlos zu. Sie fordern sie selbst an – unser kostenloser Generator schreibt den Brief. Laden Sie sie hoch, erklärt Ihr Paket jeden Eintrag." },
     { f: "Was passiert, wenn ein Eintrag berechtigt ist?", a: "Dann sagen wir es. Berechtigte Einträge verschwinden, wenn die Forderung erledigt ist und die Frist abläuft – seit 2024 schon nach 18 Monaten, wenn Sie innerhalb von 100 Tagen nach der Meldung zahlen. FIAON hilft bei Ratenvereinbarung und Erledigungsvermerk." },
-    { f: "Was kostet es – und wie lange bin ich gebunden?", a: "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Nur die Auskunft: 74,00 € einmalig." },
+    { f: "Was kostet es – und wie lange bin ich gebunden?", a: "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Die Bonitätsauswertung allein kostet 149 € einmalig, mit laufendem Paket 74 €; für neue Paketkunden ist sie im Paket enthalten." },
     { f: "Kann ich das Paket später ändern?", a: "Ja – im Antrag direkt, und im Startgespräch prüfen wir gemeinsam, ob es passt." },
-    { f: "Gilt das auch in Österreich und der Schweiz?", a: "Ja. FIAON arbeitet mit KSV1870 und CRIF (Österreich) sowie CRIF und Intrum (Schweiz). Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide." },
-    { f: "Was braucht FIAON von mir?", a: "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszug der letzten drei Monate – ein Handyfoto genügt. Dazu Ihre Bonitätsauskunft: Ihre selbst angeforderte Datenkopie – oder die Auskunft als Zusatz, die FIAON in Ihrem Auftrag anfordert." },
+    { f: "Gilt das auch in Österreich und der Schweiz?", a: "Ja. In Österreich sind es KSV1870 und CRIF, in der Schweiz CRIF und Intrum – Ihre Datenkopie fordern Sie dort selbst an, wir erklären sie. Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide." },
+    { f: "Was braucht FIAON von mir?", a: "Für den Antrag nur wenige Angaben. Danach Ausweis und Kontoauszüge der letzten drei Monate – ein Handyfoto genügt; daraus entsteht Ihre Bonitätsauswertung. Die Bonitätsauswertung ist keine Auskunft einer Auskunftei und kein Score. Ihre kostenlose Datenkopie können Sie jederzeit selbst anfordern — laden Sie sie hoch, beziehen wir sie ein." },
     { f: "Wie erreiche ich meine Ansprechpartnerin?", a: "Im Bereich, per E-Mail, telefonisch – und für viele Kunden per WhatsApp. Jede Frage landet bei der Person, die Ihre Akte kennt." },
   ],
   abschlussA: "Ihr Weg beginnt ", abschlussB: "mit einem Klick.",
   // 05.10.2026 (E-283): „Konto in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf.
-  abschlussText: "Ihre Angaben in rund fünf Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie bis zur Karte begleitet.",
+  abschlussText: "Ihre Angaben in rund fünf Minuten. Ihre Bonitätsauswertung aus Ihren Kontoauszügen. Ein Mensch, der Sie bis zur Karte begleitet.",
   bereichAnsehen: "Den Bereich ansehen",
 };
 
@@ -105,21 +110,21 @@ const en: typeof de = {
   lead: "An entry is not a verdict. FIAON explains every entry in your credit report, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
   paketWaehlen: "Choose a plan", eintragPruefen: "Can my entry be challenged?",
   zahlen: [
-    { wert: "24 h", label: "until you see what SCHUFA, KSV or CRIF hold on you" },
+    { wert: "25 pages", label: "credit assessment (approx.): your creditworthiness as a bank sees it, from your bank statements" },
     { wert: "€25,000", label: "credit card limit that becomes reachable with a good file" },
-    { wert: "0 forms", label: "FIAON makes the request to the credit bureau for you" },
+    { wert: "1 link", label: "to upload your ID and bank statements — no login needed" },
     { wert: "12 instalments", label: "monthly by bank transfer — then you decide whether to stay" },
   ],
   wegPille: "The path", wegH2a: "Four stages. ", wegH2b: "One goal.",
   wegLead: "Nobody gets a card because they apply for it. They get it because their file supports it. That is exactly what FIAON works on — in this order.",
   weg: [
-    { titel: "Insight", text: "Your report within 24 hours, every entry explained: justified, paid-but-not-deleted, reported without a reminder, wrong." },
+    { titel: "Insight", text: "Your credit assessment from your bank statements. You request your free data copy yourself — upload it and we explain every entry: justified, paid-but-not-deleted, reported without a reminder, wrong." },
     { titel: "Action", text: "Deletion requests, objections, instalment agreements — reviewed by lawyers, approved by you, sent by registered post. FIAON keeps every deadline." },
     { titel: "Account", text: "A current account for every customer, regardless of their file. From here your payment behaviour runs cleanly — and that counts with every bank." },
     { titel: "Card", text: "From entries, income and account behaviour FIAON calculates your readiness. When the value is there, the application with the card partner is prepared." },
   ],
   paketePille: "Your plan", paketeH2a: "Choose how far you go. ", paketeH2b: "Not whether.",
-  paketeLead: "Every plan starts with your report. The further you go, the closer the card comes. One click — and your application starts with this plan.",
+  paketeLead: "Every plan starts with your credit assessment — for new plan customers it is included. The further you go, the closer the card comes. One click — and your application starts with this plan.",
   beliebt: "Popular", zielRahmen: "Target limit", karteName: "Your name", bisRahmen: (b: string) => `up to ${b}`, proMonat: "/ month", mitStarten: (n: string) => `Start with ${n}`, waehlenUndStarten: (n: string) => `Choose ${n} and start the application`,
   // 05.10.2026, E-283: the plan cards as on /start, translated — same structure, same dependence on the country.
   pakete: {
@@ -132,17 +137,17 @@ const en: typeof de = {
     highend: { name: "FIAON High End", sub: "The maximum",
       feats: (l: Land) => [`Your ${betragEn("25.000", l)} Black Card set-up`, "Exclusive access: metal & VIP cards", "Personal account director", "International limit structures", "24/7 dedicated concierge support"] },
   },
-  paketeHinweis: (auskunft: string) => `All plans: monthly by bank transfer · twelve instalments, then you decide · plan can be changed in the application at any time · Just the report? Credit report ${auskunft} one-off. The bank always decides on account, card and limit. The application is currently in German; our team speaks English on the phone.`,
+  paketeHinweis: (auskunft: string) => `All plans: monthly by bank transfer · twelve instalments, then you decide · plan can be changed in the application at any time · Just the credit assessment? ${auskunft} one-off — included in the plan for new plan customers. The bank always decides on account, card and limit. The application is currently in German; our team speaks English on the phone.`,
   tutPille: "What FIAON does for you", tutH2a: "Insight. Action. ", tutH2b: "Access.",
   tut: [
-    { tag: "Layer 1 · Insight", titel: "The report, explained.", text: "FIAON makes the request to SCHUFA, KSV or CRIF and reads your bank statement. You see what is stored — and what can be changed. Without jargon." },
+    { tag: "Layer 1 · Insight", titel: "Your creditworthiness, explained.", text: "FIAON analyses your bank statements and shows your creditworthiness as a bank sees it. You request your free data copy from SCHUFA, KSV or CRIF yourself and upload it — you see what is stored and what can be changed. Without jargon." },
     { tag: "Layer 2 · Action", titel: "Letters that work.", text: "For every challengeable entry the right letter is ready. You approve, FIAON sends by registered post, tracks reply and deadline — up to the data protection authority." },
     { tag: "Layer 3 · Access", titel: "Account, card, finance.", text: "A current account for every customer, a credit card as soon as your readiness reaches the threshold, finance later. Everyone has a next goal." },
   ],
   vergleichPille: "Honest comparison", vergleichH2a: "What others do — ", vergleichH2b: "and what FIAON does.",
   vergleichKopf: ["", "Score app", "Lawyer", "FIAON"],
   vergleich: [
-    ["Obtain the report", "you", "you", "FIAON, within 24 h"],
+    ["Creditworthiness as a bank sees it", "a score", "–", "credit assessment from your bank statements"],
     ["Classify every entry", "–", "case by case", "every one, with its prospects"],
     ["Send letters, keep deadlines", "–", "yes, by the hour", "included, by registered post"],
     ["Current account", "–", "–", "for every customer"],
@@ -167,20 +172,20 @@ const en: typeof de = {
     { tag: "02", titel: "A person on the phone", text: "Every customer starts with an onboarding call. After that you know your contact person by name." },
     { tag: "03", titel: "Honest up to the no", text: "Justified entries cannot be deleted away. We say so — and show what works instead." },
   ],
-  zwischenruf: "Not sure which plan fits? Choose one — in the onboarding call we check it together and change it if needed.", erstAuskunft: "The report first",
+  zwischenruf: "Not sure which plan fits? Choose one — in the onboarding call we check it together and change it if needed.", erstAuskunft: "The credit assessment first",
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "Am I guaranteed a credit card?", a: "No — the bank decides on card and limit. What FIAON does: put your file in order, calculate your readiness and prepare the application when it is realistic. Every customer gets a current account." },
-    { f: "How quickly do I see my report?", a: "Usually within 24 hours of activation. FIAON makes the request to SCHUFA, KSV or CRIF with your authorisation — you fill in no forms." },
+    { f: "How do I get my credit report?", a: "You are entitled to your data copy from SCHUFA, KSV or CRIF free of charge. You request it yourself — our free generator writes the letter. Upload it and your plan explains every entry." },
     { f: "What happens if an entry is justified?", a: "Then we say so. Justified entries disappear once the claim is settled and the deadline expires — since 2024 already after 18 months if you pay within 100 days of the report. FIAON helps with instalment agreements and the settled marker." },
-    { f: "What does it cost — and how long am I tied in?", a: "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off." },
+    { f: "What does it cost — and how long am I tied in?", a: "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. The credit assessment on its own costs €149 one-off, with a running plan €74; for new plan customers it is included in the plan." },
     { f: "Can I change the plan later?", a: "Yes — directly in the application, and in the onboarding call we check together whether it fits." },
-    { f: "Does this also apply in Austria and Switzerland?", a: "Yes. FIAON works with KSV1870 and CRIF (Austria) and with CRIF and Intrum (Switzerland). The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both." },
-    { f: "What does FIAON need from me?", a: "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. Plus your credit report: a data copy you requested yourself — or the report as an add-on, which FIAON requests on your behalf." },
+    { f: "Does this also apply in Austria and Switzerland?", a: "Yes. In Austria the bureaus are KSV1870 and CRIF, in Switzerland CRIF and Intrum — you request your data copy there yourself, we explain it. The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both." },
+    { f: "What does FIAON need from me?", a: "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough; your credit assessment is built from them. The credit assessment is not a report from a credit bureau and not a credit score. You can request your free data copy yourself at any time — upload it and we will include it." },
     { f: "How do I reach my contact person?", a: "In your area, by e-mail, by phone — and for many customers by WhatsApp. Every question lands with the person who knows your file." },
   ],
   abschlussA: "Your journey starts ", abschlussB: "with one click.",
-  abschlussText: "Your details in about five minutes. Your report within 24 hours. A person who stays with you all the way to the card.",
+  abschlussText: "Your details in about five minutes. Your credit assessment from your bank statements. A person who stays with you all the way to the card.",
   bereichAnsehen: "See the customer area",
 };
 

@@ -128,6 +128,8 @@ import {
   fragtNachKarte, ZAHL_FRAGE, KARTE_ZEIT_WA,
   // E-275 Ton (02.10.2026): die klare Aufforderung zur ersten Zahlung und der Nutzen dahinter
   AKTIVIERUNG_AUFRUF, NACH_DEM_EINGANG, TEMPO_SATZ,
+  // E-373 (15.10.2026): Justins Verkaufssatz auch für Stufe A.
+  nachDerZuordnung,
   // E-275 Gegenprüfung Verkauf: ungefragter Anruf und Abgabe an einen Kollegen — eine Regel für WhatsApp und Mail
   selbstErledigtTreffer,
   // E-276 (02.10.2026): Justins Satz mit seinem Verwendungszweck am Satzanfang; die Lücken-Fassung steht jetzt in shared
@@ -822,7 +824,7 @@ export function auskunftBlock(t: AuskunftTeil | null | undefined): string[] {
     `· Sein Preis: ${t.preisText} einmalig${t.mitAbo ? ` — Kundenpreis mit Paket (einzeln kostet sie ${einzeln})` : ""}. Keine Monatsrate, keine zwölf Raten.${landWort}`,
     `· Sagt er, er habe keine Auskunft, will er sie oder sagt er Ja zu deinem Angebot: rufe auskunft_anbieten auf und schick GENAU den Link aus dem Ergebnis. Einen Link, Preis oder Betrag, der nicht hier oder im Werkzeug steht, nennst du nie.`,
     `· Fragt er, ob er die Datenkopie nicht kostenlos selbst anfordern kann, sagst du ehrlich: „${AUSKUNFT_KOSTENLOS_ANTWORT}" Von dir aus empfiehlst du den kostenlosen Weg nie.`,
-    `· Keine Zusage: nie „dann bekommen Sie die Karte" oder „Ihr Rahmen steigt", keine Löschzusage, kein „Score verbessern", keine Frist mit Zahl. Über Karte und Rahmen entscheidet die Bank — wir bereiten ihn darauf vor.`,
+    `· Keine Zusage: nie „dann bekommen Sie die Karte" oder „Ihr Rahmen steigt", keine Löschzusage, kein „Score verbessern", keine Frist mit Zahl. Kein Satz über die Bank im Verkauf (E-373, Justin: „steht alles im Vertrag“) — nur, wenn er ausdrücklich danach fragt.`,
     ``,
   ];
 }
@@ -1309,7 +1311,9 @@ function auftrag(ein: {
     // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung … Ihr Account
     // ist sofort nach Eingang aktiv!‘"): die klare Aufforderung, der Nutzen direkt dahinter. Wahr: Der Abgleich bucht eine
     // Zahlung mit richtigem Verwendungszweck selbst; die Karte gibt die Partnerbank nach ihrer Zusage aus, nicht FIAON.
-    `· „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ „${TEMPO_SATZ}“ „${KARTE_ZEIT_SATZ}“ — und dann die Frage „${ZAHL_FRAGE}“. Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Nie ein Tag oder eine Uhrzeit für den Link, nie „wir versenden Ihre Karte“, „die Karte geht in Produktion“ oder „ist sicher“ — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
+    // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): Justins Satz, mit seinem Wunschlimit an
+    // der Karte — ohne Tempo-Umweg und ohne „Nach der Zusage der Bank …“ (Vertrag, nicht Verkauf).
+    `· „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ — mit seinem Wunschlimit aus DEIN ABSCHLUSS: „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … € nutzen können!“ — und dann die Frage „${ZAHL_FRAGE}“. Begeistert, aber seriös: höchstens EIN Ausrufezeichen. Nie ein Tag oder eine Uhrzeit für den Link, nie „wir versenden Ihre Karte“, „die Karte geht in Produktion“ oder „ist sicher“ — die Karte gibt die Partnerbank nach ihrer Zusage aus.`,
     `· „Bei uns kommen Sie zu Ihrer eigenen Visa-Kreditkarte mit Ihrem Wunschlimit von … €${bankZusatz()}." (Nur mit SEINER Zahl aus DEIN ABSCHLUSS.)`,
     `· „${bN ? `${bN.nom} ist` : "Ihr Betreuer ist"} an Ihrer Seite, Sie machen das nicht allein." · „Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter."`,
     // E-365 (14.10.2026): Privat ist die Bonität die FIAON-Bonitätsauswertung aus den eigenen Kontoauszügen (shared/fiaon-auskunft.ts) —
@@ -1815,7 +1819,8 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // der erste Entwurf folgte dem Ziel und ließ die Karte weg).
       // E-275 (02.10.2026): ohne „Dazu der Termin mit seinem Betreuer“ — dafür Justins Satz bis zur Karte.
       // E-275 Ton (02.10.2026): „sobald sie bei uns eingeht, ist sein Account sofort aktiv“ (vorher „… schaltet das System ihn frei“).
-      erg.ziel = `Kein Wort vom Bezahlen, keine Zahlungsbitte, kein Zahlungslink. Danken — sobald seine Zahlung bei uns eingeht, ist sein Account sofort aktiv; mit Ausweis und Kontoauszügen entwickeln wir seine Bonitätsauswertung, und danach bekommt er direkt den fertigen Link unserer Partnerbank für seinen Kartenantrag. Seine Visa-Kreditkarte bleibt das Ziel; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")}`;
+      // E-373 (15.10.2026, Justin): auch hier sein Wunsch, nicht der Vertrag — kein „Nach der Zusage der Bank …“.
+      erg.ziel = `Kein Wort vom Bezahlen, keine Zahlungsbitte, kein Zahlungslink. Danken — dann Justins Satz: „${nachDerZuordnung({ anfang: true })}!“ (mit seinem Wunschlimit aus DEIN ABSCHLUSS: „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … € nutzen können!“). Kein Satz über die Bank.`;
       erg.linkLage = { stufe: "zahlung_gemeldet" };
       erg.verkaufen = false;
     } else if (String(b.payment_status) === "expired" && b.payment_reference && stufe === "zahlung_offen") {
@@ -1852,7 +1857,9 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // E-275 (02.10.2026, Justin: „Hi, zahl die Aktivierung, die Karte geht zeitnahe in Produktion — also: Jetzt zahlen! ;D —
       // so in etwa nur seriös"): Justins wahrer Satz statt „und du vereinbarst den Termin“.
       // E-275 Ton (02.10.2026): die klare Aufforderung „Zahlen Sie jetzt die Aktivierung“ mit dem Nutzen direkt dahinter.
-      erg.ziel = `Seine Visa-Kreditkarte vorn — mit seinem Wunschlimit${bankSatzNurAufNachfrage() ? "" : " und „über den Rahmen entscheidet unsere Partnerbank“"} —, dann begeistert und klar die erste Monatsrate: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über … — ${NACH_DEM_EINGANG}!“; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")} Dann die Frage, ob er heute überweist („${ZAHL_FRAGE}“). Kein Tag und keine Uhrzeit für den Link, nie „die Karte ist in Produktion“. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.`;
+      // E-373 (15.10.2026, Justin: „verkauft den Kunden den Wunsch am Limit … nichts vermischen“): Justins Satz mit seinem
+      // Wunschlimit an der Karte — ohne „Nach der Zusage der Bank …“.
+      erg.ziel = `Seine Visa-Kreditkarte vorn — mit seinem Wunschlimit${bankSatzNurAufNachfrage() ? "" : " und „über den Rahmen entscheidet unsere Partnerbank“"} —, dann begeistert und klar die erste Monatsrate: „${AKTIVIERUNG_AUFRUF}, Ihre erste Monatsrate über … — ${NACH_DEM_EINGANG}!“ (mit seinem Wunschlimit: „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … € nutzen können!“). Dann die Frage, ob er heute überweist („${ZAHL_FRAGE}“). Kein Tag und keine Uhrzeit für den Link, nie „die Karte ist in Produktion“. Der Link ist seine Zahlungsseite mit Betrag, Verwendungszweck und QR-Code. Nennt er einen Zahltag, hältst du ihn mit zahlungszusage_merken fest.`;
       erg.linkLage = { stufe: "zahlung_offen", zahlungsReferenz: String(b.payment_reference) };
       erg.zahlung = { betrag, referenz: String(b.payment_reference) };
       // E-241: Stufe B — die Auskunft nur als Antwort (auskunftJetzt), nichts an SEINE LAGE anhängen.

@@ -153,7 +153,8 @@ pruef("E365 Doris: Auswertung aus Kontoauszügen statt Auskunfteien", !/SCHUFA, 
   && /KEINE Datenkopien/.test(pDoris) && !/Wir fordern seine Datenkopien/.test(pDoris));
 // E-248 (28.09.2026): „Rahmen" statt „Limit" — auch im Nutzen-Satz (AUSKUNFT_NUTZEN_SATZ_KARTE) und im Bank-Satz.
 // E-265 (29.09.2026): „Wunschlimit" steht jetzt im Auftrag — aber nur mit dem Satz über die Bank (Justins Formel).
-pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Über Karte und Limit/.test(pDoris) && /Wunschlimit[^\n]{0,120}entscheidet unsere Partnerbank/.test(pDoris));
+// E-373 (15.10.2026, Justin: „steht alles im Vertrag und gehört NICHT zum Verkauf“): im Auskunft-Block kein Bank-Satz mehr — das Verbot steht dort.
+pruef("E240 Doris: Karte und Rahmen ohne Zusage", /Weg zur Karte genau danach aus/.test(pDoris) && /Kein Satz über die Bank im Verkauf/.test(pDoris) && !/Über Karte und Rahmen entscheidet die Bank/.test(pDoris) && !/Über Karte und Limit/.test(pDoris) && /Wunschlimit[^\n]{0,120}entscheidet unsere Partnerbank/.test(pDoris));
 pruef("E240 Doris: kostenlose Datenkopie nur auf Nachfrage", /kostenlos selbst anfordern/.test(pDoris) && /Von dir aus empfiehlst du den kostenlosen Weg nie/.test(pDoris));
 pruef("E240 Doris: „Ich hab keine\" ist kein Auftrag (Kauflink statt Bestellung)", !auskunftZugestimmt(doris, "") && !auskunftZugestimmt("Ich hab keine", ""));
 const kauf = "https://fiaon.com/api/fiaon/auskunft/bestellen?p=4513&art=privat&exp=1&sig=abc";

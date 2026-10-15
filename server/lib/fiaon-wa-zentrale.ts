@@ -114,7 +114,7 @@
 import { sqlPool } from "./db-pool";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
-import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, type WaVorlage } from "@shared/fiaon-lead-texte";
+import { WA_VORLAGEN, WA_VORLAGEN_ENTWURF, AUSKUNFT_VORLAGE, AUSKUNFT_LEAD_VORLAGE, vorlageNutzbar, vorlageVorschau, type WaVorlage } from "@shared/fiaon-lead-texte";
 import { WHATSAPP_MOEGLICH_SQL, WHATSAPP_EINWILLIGUNG_SQL } from "@shared/fiaon-whatsapp-erlaubnis";
 import { WA_NUMMER_UNZUSTELLBAR_SQL, WA_WERBUNG_ABBESTELLT_SQL } from "./fiaon-wa-unzustellbar";
 import { waBremse, waBremseLage, metaStandLesen, mitFaktor, wirksameQualitaet, type WaBremseErgebnis } from "./fiaon-wa-bremse";
@@ -757,9 +757,9 @@ export function vorlagePasst(g: Gruppe, vorlage: string): boolean {
   return vorlage === "stufen" || !!vorlageDef(vorlage);
 }
 
-/** Freigegeben heißt: die Textfassung oder ihre Bildfassung ist bei Meta APPROVED. */
+/** Freigegeben heißt: die Textfassung oder ihre Bildfassung ist bei Meta APPROVED — seit E-374 auch die neue Fassung (…_v2). */
 export function istFrei(vorlage: string, frei: Set<string>): boolean {
-  return frei.has(vorlage) || frei.has(vorlage.replace(/^fiaon_kk_/, "fiaon_kkb_"));
+  return vorlageNutzbar(vorlage, frei);
 }
 
 async function freigabeSatz(): Promise<Set<string>> {
@@ -1641,8 +1641,9 @@ export async function zentraleLage() {
 
   // E-240: Die Entwürfe (WA_VORLAGEN_ENTWURF) stehen mit in der Liste — mit „entwurf", damit
   // Auswahl und Vorschau sie zeigen können; frei sind sie erst, wenn Meta sie freigibt.
-  const vorlagenListe = [...WA_VORLAGEN.filter((v) => !v.varianteVon && v.name.startsWith("fiaon_kk_")), ...WA_VORLAGEN_ENTWURF].map((v) => ({
-    name: v.name, kopf: v.kopf ?? "", zweck: v.zweck, text: v.text,
+  // E-374: neue Fassungen (…_v2) nicht als eigene Zeile — die Vorschau zeigt ihren Text, sobald sie rausgeht.
+  const vorlagenListe = [...WA_VORLAGEN.filter((v) => !v.varianteVon && !v.nachfolgerVon && v.name.startsWith("fiaon_kk_")), ...WA_VORLAGEN_ENTWURF].map((v) => ({
+    name: v.name, kopf: v.kopf ?? "", zweck: v.zweck, text: vorlageVorschau(v.name, frei)?.text ?? v.text,
     frei: istFrei(v.name, frei),
     bild: frei.has(v.name.replace(/^fiaon_kk_/, "fiaon_kkb_")),
     kopfBild: WA_VORLAGEN.find((x) => x.varianteVon === v.name)?.kopfBild ?? null,

@@ -49,6 +49,7 @@ import { waSenden, vorlagenStand, waKonfig, waAktenvermerk, waTagesplatz } from 
 import { waBremse, mitFaktor } from "./fiaon-wa-bremse";
 import { STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { nummerFuerWhatsApp } from "../../shared/fiaon-whatsapp-erlaubnis";
+import { vorlageNutzbar } from "../../shared/fiaon-lead-texte";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit, istGlobalKunde } from "./fiaon-global-kunde";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
@@ -205,7 +206,7 @@ export async function whatsappKetteLaufen(deckel = 60): Promise<KettenLauf> {
     const tage = Math.floor((Date.now() - new Date(String(c.eingang)).getTime()) / 86400000);
     const vorlage = vorlageFuer(tage, c.rechnung_offen === true, c.antrag_begonnen === true, c.schon_angeschrieben === true);
     if (!vorlage) { weg("heute kein Schritt fällig"); continue; }
-    if (!freigegeben.has(vorlage) && !freigegeben.has(vorlage.replace(/^fiaon_kk_/, "fiaon_kkb_"))) { weg(`Vorlage ${vorlage} noch nicht freigegeben`); continue; }
+    if (!vorlageNutzbar(vorlage, freigegeben)) { weg(`Vorlage ${vorlage} noch nicht freigegeben`); continue; }
 
     // Die Werte je Vorlage — Name zuerst, dann was die Vorlage sonst braucht.
     const anrede = String(c.name || "").trim() || "und willkommen";
@@ -287,7 +288,8 @@ export async function ersteWhatsAppFuerLead(leadId: number): Promise<{ ok: boole
   if (!bremse.erlaubt) return { ok: false, grund: bremse.grund ?? "WhatsApp pausiert" };
 
   const freigegeben = new Set((await vorlagenStand().catch(() => [])).filter((t) => t.status === "APPROVED").map((t) => t.name));
-  if (!freigegeben.has("fiaon_kk_anfrage") && !freigegeben.has("fiaon_kkb_anfrage")) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
+  // E-374: frei ist sie, wenn irgendeine Fassung frei ist (alte, Bild oder neue …_v2) — waSenden wählt die richtige.
+  if (!vorlageNutzbar("fiaon_kk_anfrage", freigegeben)) return { ok: false, grund: "Die erste Vorlage ist bei Meta noch nicht freigegeben." };
 
   // E-253 (28.09.2026): der Tagesplatz direkt vor Meta. Gemessen am 24.09.: dieselbe Begrüßung kam
   // zweimal, 66 ms auseinander — die Automatik der Zentrale schrieb den neuen Menschen gleichzeitig an.

@@ -897,7 +897,9 @@ export async function vorlageIstWerbung(name: string): Promise<boolean> {
     const k = await vorlagenKategorien();
     const bild = n.replace(/^fiaon_kk_/, "fiaon_kkb_");
     const text = n.replace(/^fiaon_kkb_/, "fiaon_kk_");
-    return [n, bild, text].some((x) => String(k.get(x) ?? "").toUpperCase() === "MARKETING");
+    // E-374: auch die neue Fassung (…_v2) — waSenden nimmt sie, sobald Meta sie freigibt.
+    const { vorlageFassungen } = await import("../../shared/fiaon-lead-texte");
+    return [n, bild, text, ...vorlageFassungen(n)].some((x) => String(k.get(x) ?? "").toUpperCase() === "MARKETING");
   } catch {
     return false; // Metas Kategorie nicht lesbar: unsere Regel gilt
   }

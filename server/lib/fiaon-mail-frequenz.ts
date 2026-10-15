@@ -47,6 +47,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { istAboPaket, PAKETE } from "@shared/fiaon-pakete";
+import { vorlageStamm } from "@shared/fiaon-lead-texte";
 
 /**
  * Pflichtmails: Antworten auf eine Handlung des Menschen. Diese laufen IMMER
@@ -1032,7 +1033,9 @@ const WA_NICHT_WERBLICH = new Set<string>([
   "fiaon_kk_termin_morgen", "fiaon_kkb_termin_morgen", "fiaon_kk_aktiviert", "fiaon_kkb_aktiviert",
 ]);
 export function waVorlageWerblich(name: string): boolean {
-  return !WA_NICHT_WERBLICH.has(String(name || "").trim());
+  // E-374: auch Bild- und neue Fassung (fiaon_kkb_aktiviert_v2) zählen wie ihr Stamm.
+  const n = String(name || "").trim();
+  return !WA_NICHT_WERBLICH.has(n) && !WA_NICHT_WERBLICH.has(vorlageStamm(n));
 }
 
 /**

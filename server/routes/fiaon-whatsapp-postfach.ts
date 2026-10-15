@@ -26,7 +26,7 @@ import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   waTabellen, waSenden, waVerlauf, waZahlen, waKonfig, sendePruefung, vorlagenStand, fensterOffen, empfaengerNamen,
 } from "../lib/fiaon-whatsapp";
-import { WA_VORLAGEN } from "../../shared/fiaon-lead-texte";
+import { WA_VORLAGEN, vorlageStamm, vorlageNutzbar, vorlageZumSenden, vorlageVorschau } from "../../shared/fiaon-lead-texte";
 import { istAutoantwort, stufeAusAntrag, persoenlicherLink, type LinkStufe } from "../../shared/fiaon-mara-ton";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 // E-IT-H (08.10.2026, Punkt 15): Filter, Grenze und Suche der Liste — eine Quelle für Raum und Server.
@@ -72,7 +72,8 @@ const VORLAGE_KLARTEXT: Record<string, string> = {
 };
 export function vorlageKlartext(name: string | null | undefined): string | null {
   if (!name) return null;
-  const kern = String(name).replace(/^fiaon_kkb?_/, "").replace(/^fiaon_/, "");
+  // E-374: Bild- und neue Fassung (fiaon_kkb_anfrage_v2) heißen wie ihr Stamm.
+  const kern = vorlageStamm(String(name)).replace(/^fiaon_kkb?_/, "").replace(/^fiaon_/, "");
   if (VORLAGE_KLARTEXT[kern]) return VORLAGE_KLARTEXT[kern];
   const t = kern.replace(/_/g, " ").trim();
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
@@ -211,14 +212,25 @@ function nutzbareVorlagen(stand: { name: string; status: string; kategorie: stri
   const aus: any[] = [];
   for (const t of stand) {
     if (t.status !== "APPROVED" || !t.name.startsWith("fiaon_") || t.name.startsWith("fiaon_kkb_")) continue;
+    // E-374: Eine neue Fassung (…_v2) ist kein eigener Eintrag — gewählt wird der Stamm, waSenden nimmt die neue.
+    if (vorlageStamm(t.name) !== t.name) continue;
     aus.push({ ...t, ...(WA_VORLAGEN.find((v) => v.name === t.name) ?? {}), mitBild: frei.has(t.name.replace(/^fiaon_kk_/, "fiaon_kkb_")) });
   }
   for (const v of WA_VORLAGEN) {
-    if (!v.varianteVon || !frei.has(v.name) || frei.has(v.varianteVon)) continue;
+    if (!v.varianteVon || v.nachfolgerVon || !frei.has(v.name) || frei.has(v.varianteVon)) continue;
     const text = WA_VORLAGEN.find((x) => x.name === v.varianteVon);
     if (text) aus.push({ ...text, status: "APPROVED", id: "", mitBild: true });
   }
-  return aus;
+  // E-374: Stämme, von denen nur die neue Fassung frei ist, fehlen sonst; und der Text zeigt, was wirklich rausgeht.
+  for (const v of WA_VORLAGEN) {
+    if (v.varianteVon || v.nachfolgerVon || !v.name.startsWith("fiaon_") || aus.some((x) => x.name === v.name)) continue;
+    if (vorlageNutzbar(v.name, frei)) aus.push({ ...v, status: "APPROVED", id: "", mitBild: String(vorlageZumSenden(v.name, frei) ?? "").startsWith("fiaon_kkb_") });
+  }
+  return aus.map((x) => {
+    // Geht die neue Fassung raus (Text oder Bild), zeigt die Auswahl ihren Text — sonst bleibt alles wie bisher.
+    const neu = vorlageVorschau(String(x.name), frei);
+    return neu && neu.name !== x.name ? { ...x, text: neu.text } : x;
+  });
 }
 // E-218: Gesprächsergebnisse direkt aus dem Chat buchen — dieselbe Liste
 // und derselbe Weg wie in der Akte, kein zweiter Satz Ergebnisse.

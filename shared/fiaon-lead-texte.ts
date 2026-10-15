@@ -84,6 +84,11 @@ export interface WaVorlage {
   kopfBild?: WaBild;
   /** Bei einer Bildfassung: der Name der Textfassung, die sie ersetzt. */
   varianteVon?: string;
+  /**
+   * E-374: Bei einer NEUEN Fassung (…_v2): der Name der freigegebenen Vorlage, die sie ablöst, sobald Meta
+   * sie freigibt. Die Aufrufer nennen weiter den alten Namen; waSenden nimmt die neue (vorlageZumSenden).
+   */
+  nachfolgerVon?: string;
   /** FUSSZEILE — höchstens 60 Zeichen, klein und grau unter dem Text. */
   fuss?: string;
   kategorie: "UTILITY" | "MARKETING";
@@ -146,6 +151,11 @@ const JA: WaKnopf = { typ: "QUICK_REPLY", text: "Ja, bitte" };
 //
 // Ebenso bleibt „bei Zusage der Bank" stehen. Nicht aus Vorsicht: FIAON stellt
 // keine Karte aus, und ein Versprechen, das ein Dritter halten muss, ist keines.
+// → Überholt durch E-373/E-374 (15.10.2026, Justin: „das steht alles im Vertrag
+//   und gehört NICHT zum Verkauf“): Die neuen Fassungen (WA_VORLAGEN_NEU unten)
+//   verkaufen den Wunsch ohne Bank-Satz — und ohne „2–5 Werktage“, denn ohne den
+//   Bank-Satz wäre die Frist eine Zusage. Die Texte hier bleiben, wie Meta sie
+//   freigegeben hat: Sie sind der Rückfall, bis die neuen frei sind.
 // ═══════════════════════════════════════════════════════════════════════════
 const WA_VORLAGEN_TEXT: WaVorlage[] = [
   {
@@ -397,6 +407,93 @@ const WA_VORLAGEN_TEXT: WaVorlage[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
+// NEUE FASSUNGEN OHNE BANK-VORBEHALT (15.10.2026, E-374 — E-373 auf den Vorlagen)
+//
+// Justin: „Wenn Mara das Paket verkauft, dann verkauft sie den Kunden den Wunsch
+// … nicht mit ‚Wir sind keine Bank‘ … das steht alles im Vertrag und gehört
+// NICHT zum Verkauf … wir dürfen nichts vermischen“ — gilt für WhatsApp und Mail.
+// Mail, Mara-Aktion und Maras Antworten verkaufen seit E-373 so; drei Vorlagen
+// trugen noch „Bei Zusage (der Bank) ist Ihre Karte in der Regel in 2–5
+// Werktagen bei Ihnen …“: fiaon_kk_anfrage, fiaon_kk_aktiviert, fiaon_kk_tag3
+// (und ihre Bildfassungen).
+//
+// ── WARUM NEUE NAMEN STATT NEUER TEXTE ────────────────────────────────────
+// Meta hat GENAU den alten Wortlaut freigegeben. Ein geänderter Text unter dem
+// alten Namen würde beim nächsten „Einreichen“ die freigegebene Vorlage
+// bearbeiten (auffrischen) — sie stünde in Prüfung, und die Begrüßung jedes
+// neuen Leads stünde mit ihr still; bis dahin zeigte der Verlauf einen Text,
+// den der Kunde nie gelesen hat. Deshalb: neue Namen (…_v2), dieselben
+// Platzhalter, dieselben Knöpfe in derselben Reihenfolge. Die alten bleiben
+// unverändert stehen (vorlageEingefroren: nie aufgefrischt, und weil sie im
+// Quelltext stehen, nie aufgeräumt) und gehen raus, bis Meta die neue Fassung
+// freigibt. Dann nimmt waSenden sie selbst (vorlageZumSenden); kein Aufrufer
+// ändert sich — alle nennen weiter fiaon_kk_anfrage usw.
+//
+// ── DER WORTLAUT ──────────────────────────────────────────────────────────
+// Justins Satz ohne Betrag — eine feste Vorlage kennt sein Wunschlimit nicht,
+// und „Limit“ ist auf WhatsApp gesperrt: „Nach Ihrer Zahlung mit Ihrem
+// Verwendungszweck schalten wir umgehend Ihren Account frei, damit Sie
+// schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte kommen.“ Das ist
+// nachDemEingang({ anfang: true }) ohne Ziel (shared/fiaon-mara-ton.ts) — hier
+// fest getippt und nicht importiert: Eine bei Meta freigegebene Vorlage darf
+// sich nie still mit dem Mailsatz ändern (der Prüfstand hält beide gleich).
+// Kein „2–5 Werktage“ und kein „Apple Pay vorher“: Ohne den Bank-Satz wären
+// beide eine Zusage, die FIAON nicht geben kann.
+// ═══════════════════════════════════════════════════════════════════════════
+/** E-374: Justins Verkaufssatz für feste Vorlagen (ohne Betrag, ohne Bank-Satz). */
+export const WA_WUNSCH_SATZ = "Nach Ihrer Zahlung mit Ihrem Verwendungszweck schalten wir umgehend Ihren Account frei, "
+  + "damit Sie schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte kommen.";
+
+const WA_VORLAGEN_NEU: WaVorlage[] = [
+  {
+    name: "fiaon_kk_anfrage_v2",
+    nachfolgerVon: "fiaon_kk_anfrage",
+    kopf: "Ihre Kreditkarte",
+    fuss: "FIAON LTD · Mara Lindner",
+    kategorie: "UTILITY",
+    zweck: "E-374: Neue Fassung des ersten Kontakts (löst fiaon_kk_anfrage ab, sobald Meta sie freigibt) — Karte im ersten Satz, "
+      + "Justins Satz statt „Bei Zusage …“, KI-Hinweis, Weg zum Menschen.",
+    wann: "Sekunden nach dem Meta-Formular — an jeden Lead mit Handynummer. Bis zur Freigabe geht fiaon_kk_anfrage raus.",
+    text: "Hallo {{1}}, hier ist Mara Lindner von FIAON — ich bin die digitale Assistentin im Team. "
+      + "Ihre Anfrage für Ihre Kreditkarte liegt auf meinem Tisch, und ich würde sie gern mit Ihnen abschließen. "
+      + "Ihr Antrag ist bereits vorbereitet, Ihre Angaben stehen drin — es fehlen wenige Minuten. "
+      + "Ist er abgeschickt, geht es schnell: " + WA_WUNSCH_SATZ + " "
+      + "Über den Knopf geht es weiter. Wenn Sie lieber mit einem Menschen sprechen, sagen Sie es mir hier.",
+    beispiele: ["Frau Muster"],
+    knoepfe: [LINK, RUECKRUF, FRAGE],
+  },
+  {
+    name: "fiaon_kk_aktiviert_v2",
+    nachfolgerVon: "fiaon_kk_aktiviert",
+    kopf: "Ihr Account ist freigeschaltet",
+    fuss: "FIAON LTD · Wir bleiben an Ihrer Seite",
+    kategorie: "UTILITY",
+    zweck: "E-374: Neue Fassung von „Konto aktiviert“ (löst fiaon_kk_aktiviert ab, sobald Meta sie freigibt) — ohne „Bei Zusage der Bank …“ und ohne Frist.",
+    wann: "Sobald die erste Zahlung gebucht ist und der Link der Partnerbank rausgeht (seit E-363 nach der Bonitätsauswertung). "
+      + "Bis zur Freigabe geht fiaon_kk_aktiviert raus.",
+    text: "Hallo {{1}}, Ihr Account ist freigeschaltet — und der Link unserer Partnerbank für Ihre Kreditkarte ist auf dem Weg zu Ihnen. "
+      + "Öffnen Sie ihn gleich, wenn er da ist — so kommen Sie schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte.",
+    beispiele: ["Frau Muster"],
+    knoepfe: [BEREICH, FRAGE],
+  },
+  {
+    name: "fiaon_kk_tag3_v2",
+    nachfolgerVon: "fiaon_kk_tag3",
+    kopf: "Ihr Weg zur Kreditkarte",
+    fuss: "FIAON LTD · Mara Lindner",
+    kategorie: "MARKETING",
+    zweck: "E-374: Neue Fassung von „Weg zur Karte“ (löst fiaon_kk_tag3 ab, sobald Meta sie freigibt) — drei Schritte, Justins Satz statt „Bei Zusage der Bank …“.",
+    wann: "Tag 3. Bis zur Freigabe geht fiaon_kk_tag3 raus.",
+    text: "Hallo {{1}}, Ihr Weg zur eigenen Kreditkarte in drei Schritten: Antrag abschließen. Account aktivieren. "
+      + "Den fertigen Link unserer Partnerbank öffnen. "
+      + WA_WUNSCH_SATZ + " "
+      + "Der erste Schritt dauert wenige Minuten — den Rest übernehmen wir.",
+    beispiele: ["Frau Muster"],
+    knoepfe: [WEITER, FRAGE, STOPP],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE BONITÄTSAUSKUNFT AUF WHATSAPP (24.09.2026, E-240 · 25.09.2026, E-241)
 //
 // E-240 legte fiaon_kk_auskunft als ENTWURF neben die Liste (nicht
@@ -601,6 +698,10 @@ const BILD_FUER: Record<string, WaBild> = {
   // E-365: die Vorlagen der Bonitätsauswertung.
   fiaon_kk_auswertung: "karte",
   fiaon_kk_auswertung_lead: "karte",
+  // E-374: die neuen Fassungen tragen dasselbe Bild wie die alten.
+  fiaon_kk_anfrage_v2: "karte",
+  fiaon_kk_aktiviert_v2: "karte",
+  fiaon_kk_tag3_v2: "antrag",
 };
 
 /**
@@ -654,6 +755,16 @@ const ABSAETZE: Record<string, string> = {
   // E-243 (26.09.2026): dieselben Absätze wie die Textfassung (AUSKUNFT_ABSAETZE), mit Leerzeile gegliedert.
   [AUSKUNFT_VORLAGE]: AUSKUNFT_ABSAETZE[AUSKUNFT_VORLAGE].join("\n\n"),
   [AUSKUNFT_LEAD_VORLAGE]: AUSKUNFT_ABSAETZE[AUSKUNFT_LEAD_VORLAGE].join("\n\n"),
+  // E-374 (15.10.2026): die neuen Fassungen ohne Bank-Vorbehalt (WA_VORLAGEN_NEU) — derselbe Wortlaut in Absätzen.
+  fiaon_kk_anfrage_v2: "Hallo {{1}},\n\nhier ist Mara Lindner von FIAON — ich bin die digitale Assistentin im Team.\n\n"
+    + "Ihre Anfrage für Ihre Kreditkarte liegt auf meinem Tisch. Ihr Antrag ist bereits vorbereitet, Ihre Angaben stehen drin — es fehlen nur wenige Minuten.\n\n"
+    + "Ist er abgeschickt, geht es schnell: " + WA_WUNSCH_SATZ + "\n\n"
+    + "Über den Knopf geht es weiter. Wenn Sie lieber mit einem Menschen sprechen, sagen Sie es mir hier.",
+  fiaon_kk_aktiviert_v2: "Hallo {{1}},\n\nIhr Account ist freigeschaltet — und der Link unserer Partnerbank für Ihre Kreditkarte ist auf dem Weg zu Ihnen.\n\n"
+    + "Öffnen Sie ihn gleich, wenn er da ist — so kommen Sie schnellstmöglich zu Ihrer eigenen Visa-Kreditkarte.",
+  fiaon_kk_tag3_v2: "Hallo {{1}},\n\nIhr Weg zur eigenen Kreditkarte in drei Schritten:\n\n"
+    + "1. Antrag abschließen\n2. Account aktivieren\n3. Den fertigen Link unserer Partnerbank öffnen\n\n"
+    + WA_WUNSCH_SATZ + " Der erste Schritt dauert wenige Minuten — den Rest übernehmen wir.",
 };
 
 /** Fußzeile der Bildfassung: „FIAON Ltd." vorne, dann was die Textfassung sagt. */
@@ -663,7 +774,8 @@ const fussBild = (fuss?: string) => {
 };
 
 // E-241: Die Auskunft-Vorlagen gehören zum Register (eingereicht, mit Bildfassung) — siehe oben.
-export const WA_VORLAGEN_BILD: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_AUSKUNFT].map((v) => ({
+// E-374: die neuen Fassungen ebenso; ihre Bildfassung löst die alte Bildfassung ab (nachfolgerVon fiaon_kkb_…).
+export const WA_VORLAGEN_BILD: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_NEU, ...WA_VORLAGEN_AUSKUNFT].map((v) => ({
   ...v,
   name: bildName(v.name),
   kopf: undefined,
@@ -671,14 +783,83 @@ export const WA_VORLAGEN_BILD: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGE
   text: ABSAETZE[v.name] ?? v.text,
   fuss: fussBild(v.fuss),
   varianteVon: v.name,
+  ...(v.nachfolgerVon ? { nachfolgerVon: bildName(v.nachfolgerVon) } : {}),
 }));
 
 /**
  * ALLE Vorlagen des Hauses: erst die Textfassungen (die Aufrufer nennen),
  * dann die Bildfassungen. Einreichen, Aufräumen und die Prüfstände sehen
  * beide — Aufräumen darf die Bildfassungen nie für Altlast halten.
+ * E-374: Die neuen Fassungen stehen mittendrin — WA_VORLAGEN[0] bleibt der erste Kontakt (fiaon_kk_anfrage).
  */
-export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_AUSKUNFT, ...WA_VORLAGEN_BILD];
+export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_NEU, ...WA_VORLAGEN_AUSKUNFT, ...WA_VORLAGEN_BILD];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FASSUNGEN EINER VORLAGE (15.10.2026, E-374)
+//
+// Eine Vorlage kann bei Meta unter bis zu vier Namen liegen: alte Text- und
+// Bildfassung (fiaon_kk_anfrage, fiaon_kkb_anfrage) und — seit E-374 — die neue
+// Text- und Bildfassung (fiaon_kk_anfrage_v2, fiaon_kkb_anfrage_v2). Die Aufrufer
+// kennen nur den STAMM (die alte Textfassung). Gesendet wird die erste
+// freigegebene in dieser Reihenfolge: neue Bild-, neue Text-, alte Bild-, alte
+// Textfassung. Freigegeben heißt hier: Meta führt sie als APPROVED.
+// ═══════════════════════════════════════════════════════════════════════════
+/** E-374: alter Name → neue Fassung (nur Textfassungen; die Bildfassung folgt über bildName). */
+export const VORLAGE_NACHFOLGER: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(WA_VORLAGEN_NEU.map((v) => [v.nachfolgerVon as string, v.name])),
+);
+const VORLAGE_VORGAENGER: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(VORLAGE_NACHFOLGER).map(([alt, neu]) => [neu, alt]),
+);
+
+/** E-374: der Name, unter dem der Code die Vorlage ruft — fiaon_kkb_anfrage_v2 → fiaon_kk_anfrage. Andere Namen bleiben. */
+export function vorlageStamm(name: string): string {
+  const text = String(name ?? "").trim().replace(/^fiaon_kkb_/, "fiaon_kk_");
+  return VORLAGE_VORGAENGER[text] ?? text;
+}
+
+/** E-374: alle Fassungen in der Reihenfolge, in der gesendet wird (neue Bild-, neue Text-, alte Bild-, alte Textfassung). */
+export function vorlageFassungen(name: string): string[] {
+  const stamm = vorlageStamm(name);
+  const neu = VORLAGE_NACHFOLGER[stamm];
+  return Array.from(new Set([...(neu ? [bildName(neu), neu] : []), bildName(stamm), stamm]));
+}
+
+/**
+ * E-374: Welche Fassung geht raus? Die erste freigegebene, die im Register steht (`bekannt`) — null, wenn keine
+ * freigegeben ist (dann sendet waSenden den gerufenen Namen wie bisher, und Meta lehnt ab).
+ */
+export function vorlageZumSenden(
+  name: string, frei: ReadonlySet<string>,
+  bekannt: (n: string) => boolean = (n) => WA_VORLAGEN.some((v) => v.name === n),
+): string | null {
+  return vorlageFassungen(name).find((n) => bekannt(n) && frei.has(n)) ?? null;
+}
+
+/**
+ * E-374: Die Textfassung, deren Wortlaut gerade rausginge — für Vorschauen in Akte, Raum und Zentrale: die neue,
+ * sobald eine ihrer Fassungen frei ist, sonst die gerufene selbst (null, wenn sie nicht im Register steht).
+ */
+export function vorlageVorschau(name: string, frei: ReadonlySet<string>): WaVorlage | null {
+  const geht = WA_VORLAGEN.find((v) => v.name === vorlageZumSenden(name, frei));
+  if (geht?.nachfolgerVon) return WA_VORLAGEN.find((v) => v.name === (geht.varianteVon ?? geht.name)) ?? null;
+  return WA_VORLAGEN.find((v) => v.name === name) ?? null;
+}
+
+/** E-374: Nutzbar heißt: irgendeine Fassung ist bei Meta freigegeben. */
+export function vorlageNutzbar(name: string, frei: ReadonlySet<string>): boolean {
+  return vorlageFassungen(name).some((n) => frei.has(n));
+}
+
+/**
+ * E-374: eine ABGELÖSTE Fassung (alte Text- oder Bildfassung mit Nachfolger). Ihr Wortlaut ist bei Meta
+ * freigegeben und der Rückfall, bis die neue frei ist — „Einreichen“ frischt sie nie auf.
+ */
+export function vorlageEingefroren(name: string): boolean {
+  const n = String(name ?? "").trim();
+  const stamm = vorlageStamm(n);
+  return !!VORLAGE_NACHFOLGER[stamm] && (n === stamm || n === bildName(stamm));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ENTWÜRFE — BEREITGELEGT, NICHT EINGEREICHT (24.09.2026, E-240)

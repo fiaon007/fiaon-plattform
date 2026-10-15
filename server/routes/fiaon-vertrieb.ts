@@ -1408,7 +1408,7 @@ router.get("/agent/kunden/:personId/whatsapp-vorlagen", requireAgent, async (req
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     const { vorlagenStand, fensterOffen } = await import("../lib/fiaon-whatsapp");
-    const { WA_VORLAGEN } = await import("../../shared/fiaon-lead-texte");
+    const { WA_VORLAGEN, vorlageNutzbar, vorlageVorschau } = await import("../../shared/fiaon-lead-texte");
     const { nummerFuerWhatsApp } = await import("../../shared/fiaon-whatsapp-erlaubnis");
     const [p] = (await sqlPool`SELECT primary_phone FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
     const nummer = nummerFuerWhatsApp(p?.primary_phone);
@@ -1423,12 +1423,14 @@ router.get("/agent/kunden/:personId/whatsapp-vorlagen", requireAgent, async (req
       // Sonst steht der Mitarbeiter vor einer leeren Liste und weiß nicht, warum.
       // E-229: Bildfassungen erscheinen nicht doppelt — gesendet wird die
       // Textfassung, und waSenden nimmt die Bildfassung, sobald sie frei ist.
-      vorlagen: WA_VORLAGEN.filter((v) => !v.varianteVon).map((v) => ({
-        name: v.name, zweck: v.zweck, wann: v.wann, text: v.text,
+      // E-374: Neue Fassungen (…_v2) erscheinen nicht als eigene Zeile — gewählt wird der Stamm, waSenden nimmt die
+      // neue, sobald Meta sie freigibt; die Vorschau zeigt dann ihren Text.
+      vorlagen: WA_VORLAGEN.filter((v) => !v.varianteVon && !v.nachfolgerVon).map((v) => ({
+        name: v.name, zweck: v.zweck, wann: v.wann, text: vorlageVorschau(v.name, freigegeben)?.text ?? v.text,
         variablen: (v.text.match(/\{\{\d\}\}/g) ?? []).length,
         beispiele: v.beispiele,
         status: stand.find((t) => t.name === v.name)?.status ?? "FEHLT",
-        nutzbar: freigegeben.has(v.name) || freigegeben.has(v.name.replace(/^fiaon_kk_/, "fiaon_kkb_")),
+        nutzbar: vorlageNutzbar(v.name, freigegeben),
       })),
     });
   } catch (err) {

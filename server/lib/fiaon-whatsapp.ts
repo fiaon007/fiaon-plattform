@@ -19,7 +19,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { graph, MetaFehler } from "./fiaon-meta";
-import { WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, bildName, waBildUrl, type WaVorlage, type WaBild } from "../../shared/fiaon-lead-texte";
+import {
+  WA_VORLAGEN, INKASSO_AUSNAHME, AUSKUNFT_VORLAGEN_ALLE, waBildUrl, type WaVorlage, type WaBild,
+  // E-374: neue Fassungen ohne Bank-Vorbehalt — senden, sobald Meta sie freigibt; die alten nie auffrischen.
+  vorlageFassungen, vorlageZumSenden, vorlageEingefroren,
+} from "../../shared/fiaon-lead-texte";
 import { nummerFuerWhatsApp, waKanonisch } from "../../shared/fiaon-whatsapp-erlaubnis";
 import { wandPruefen } from "../../shared/fiaon-wortverbote";
 import { geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
@@ -617,6 +621,9 @@ export async function vorlagenEinreichenUndAuffrischen(): Promise<{
     if (!da) { neuEinreichen.push(v); continue; }
     erg.schonDa.push(v.name);
     if (da.status !== "APPROVED" && da.status !== "REJECTED") continue; // in Prüfung: nicht anfassbar
+    // E-374: Eine abgelöste Fassung ist der Rückfall, bis Meta die neue (…_v2) freigibt — bearbeitet stünde sie in
+    // Prüfung, und mit ihr die Begrüßung jedes Leads. Ihr freigegebener Wortlaut bleibt unangetastet.
+    if (vorlageEingefroren(v.name)) continue;
     const teile = (da.komponenten ?? []) as any[];
     const kopfDa = String(teile.find((c) => c?.type === "HEADER")?.text ?? "");
     const textDa = String(teile.find((c) => c?.type === "BODY")?.text ?? "");
@@ -916,11 +923,11 @@ export async function waSenden(
   // E-229: Die Aufrufer nennen die Textfassung. Ist die Bildfassung bei Meta
   // freigegeben, geht sie raus — mit denselben Werten, denn der Wortlaut und
   // die Platzhalter sind dieselben, nur in Absätze gegliedert.
-  if (inhalt.vorlage && !inhalt.vorlage.startsWith("fiaon_kkb_")) {
-    const bild = bildName(inhalt.vorlage);
-    if (bild !== inhalt.vorlage && katalog.some((v) => v.name === bild) && (await freigegebeneVorlagen()).has(bild)) {
-      inhalt = { ...inhalt, vorlage: bild };
-    }
+  // E-374 (15.10.2026): ebenso die NEUE Fassung (…_v2, Justins Satz ohne Bank-Vorbehalt, E-373) — sobald Meta sie
+  // freigibt; bis dahin die alte. Reihenfolge: neue Bild-, neue Text-, alte Bild-, alte Textfassung (vorlageFassungen).
+  if (inhalt.vorlage && vorlageFassungen(inhalt.vorlage).length > 1) {
+    const nimm = vorlageZumSenden(inhalt.vorlage, await freigegebeneVorlagen(), (n) => katalog.some((v) => v.name === n));
+    if (nimm && nimm !== inhalt.vorlage) inhalt = { ...inhalt, vorlage: nimm };
   }
   const gewaehlt = inhalt.vorlage ? katalog.find((v) => v.name === inhalt.vorlage) ?? null : null;
   const probe = inhalt.text ?? gewaehlt?.text ?? "";

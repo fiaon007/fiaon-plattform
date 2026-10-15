@@ -369,6 +369,75 @@ abschnitt("WhatsApp — Vorlagen, 24-Stunden-Fenster, keine Mahnung");
   ok(/WhatsApp-Vorlagen freigegeben/.test(ml), "Die Prüfliste zeigt den Stand der Vorlagen");
 }
 
+// ── 8f². Neue Fassungen ohne Bank-Vorbehalt (E-374, 15.10.2026) ────────────
+abschnitt("WhatsApp — neue Fassungen ohne Bank-Vorbehalt (E-373/E-374)");
+{
+  const { createHash } = await import("crypto");
+  const T = await import("../shared/fiaon-lead-texte");
+  const { WA_VORLAGEN, VORLAGE_NACHFOLGER, WA_WUNSCH_SATZ, vorlageStamm, vorlageFassungen, vorlageZumSenden, vorlageNutzbar,
+    vorlageEingefroren, vorlageVorschau, bildName } = T;
+  const { nachDemEingang } = await import("../shared/fiaon-mara-ton");
+  const { waVorlageWerblich } = await import("../server/lib/fiaon-mail-frequenz");
+  const def = (n: string) => WA_VORLAGEN.find((v) => v.name === n);
+  // Justins Satz ohne Betrag — wortgleich mit dem Mailsatz ohne Ziel, fest getippt (eine freigegebene Vorlage ändert sich nie still).
+  gleich(WA_WUNSCH_SATZ, `${nachDemEingang({ anfang: true })}.`, "Vorlagensatz = nachDemEingang ohne Ziel");
+  gleich(JSON.stringify(VORLAGE_NACHFOLGER), JSON.stringify({ fiaon_kk_anfrage: "fiaon_kk_anfrage_v2", fiaon_kk_aktiviert: "fiaon_kk_aktiviert_v2", fiaon_kk_tag3: "fiaon_kk_tag3_v2" }),
+    "drei Vorlagen bekommen eine neue Fassung");
+  // Kein Verkaufstext mit Bank-Vorbehalt: jede Vorlage, die künftig rausgeht (alles außer den eingefrorenen Rückfällen).
+  const VORBEHALT = /zusage der bank|bei zusage|nach der zusage|über den rahmen entscheidet|entscheidet (?:die|unsere) (?:partner)?bank|keine bank\b|kein kreditinstitut|werktag/i;
+  for (const v of WA_VORLAGEN.filter((x) => !vorlageEingefroren(x.name))) {
+    ok(!VORBEHALT.test(v.text), `${v.name}: kein Bank-Vorbehalt, keine Frist (${v.text.match(VORBEHALT)?.[0] ?? ""})`);
+  }
+  for (const [alt, neu] of Object.entries(VORLAGE_NACHFOLGER)) {
+    for (const [a, n] of [[alt, neu], [bildName(alt), bildName(neu)]]) {
+      const va = def(a), vn = def(n);
+      ok(!!va && !!vn, `${n}: steht im Register neben ${a}`);
+      if (!va || !vn) continue;
+      ok(vn.text.includes(WA_WUNSCH_SATZ) || a.includes("aktiviert"), `${n}: trägt Justins Satz`);
+      ok(/Visa-Kreditkarte/.test(vn.text), `${n}: verkauft die Visa-Kreditkarte`);
+      const platz = (t: string) => (t.match(/\{\{\d\}\}/g) ?? []).join(",");
+      gleich(platz(vn.text), platz(va.text), `${n}: dieselben Platzhalter wie ${a} (waSenden schickt dieselben Werte)`);
+      gleich(JSON.stringify(vn.knoepfe), JSON.stringify(va.knoepfe), `${n}: dieselben Knöpfe in derselben Reihenfolge (Knopfwert index 0)`);
+      gleich(vn.beispiele.length, va.beispiele.length, `${n}: gleich viele Beispiele`);
+      gleich(vn.nachfolgerVon, a, `${n}: nachfolgerVon = ${a}`);
+      ok(vorlageEingefroren(a) && !vorlageEingefroren(n), `${a} eingefroren, ${n} nicht`);
+      gleich(vorlageStamm(n), alt, `${n}: Stamm ist ${alt}`);
+      gleich(waVorlageWerblich(n), waVorlageWerblich(alt), `${n}: Werbung/Service wie ${alt}`);
+    }
+    ok(def(neu)?.text.includes("digitale Assistentin") === def(alt)?.text.includes("digitale Assistentin"), `${neu}: KI-Hinweis wie ${alt}`);
+    gleich(vorlageFassungen(alt).join(","), [bildName(neu), neu, bildName(alt), alt].join(","), `${alt}: Reihenfolge neue Bild, neue Text, alte Bild, alte Text`);
+  }
+  // Die alten Wortlaute sind bei Meta freigegeben — sie dürfen sich im Quelltext nie ändern (sonst frischte „Einreichen“ sie auf).
+  const FREIGEGEBEN: Record<string, string> = {
+    fiaon_kk_anfrage: "7423cd9d109d191b", fiaon_kk_aktiviert: "31a611245b16d48b", fiaon_kk_tag3: "ee9a996f0db58ffb",
+    fiaon_kkb_anfrage: "5740b9bab3e66bcf", fiaon_kkb_aktiviert: "70439cd83cf10102", fiaon_kkb_tag3: "ffa56572d94c76a7",
+  };
+  for (const [n, h] of Object.entries(FREIGEGEBEN)) {
+    const v = def(n);
+    gleich(v ? createHash("sha256").update(`${v.kopf ?? ""}|${v.text}|${v.fuss ?? ""}`).digest("hex").slice(0, 16) : null, h, `${n}: Wortlaut wie bei Meta freigegeben (unverändert)`);
+  }
+  // Die Wahl beim Senden: alt, bis Meta die neue freigibt — dann die neue (Bild vor Text).
+  gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set(["fiaon_kk_anfrage", "fiaon_kkb_anfrage"])), "fiaon_kkb_anfrage", "neue noch in Prüfung → alte Bildfassung");
+  gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set(["fiaon_kk_anfrage", "fiaon_kkb_anfrage", "fiaon_kk_anfrage_v2"])), "fiaon_kk_anfrage_v2", "neue Textfassung frei → sie geht raus");
+  gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set(["fiaon_kkb_anfrage", "fiaon_kk_anfrage_v2", "fiaon_kkb_anfrage_v2"])), "fiaon_kkb_anfrage_v2", "neue Bildfassung frei → sie geht raus");
+  gleich(vorlageZumSenden("fiaon_kk_tag3", new Set(["fiaon_kk_tag3"])), "fiaon_kk_tag3", "nur die alte Textfassung frei → sie");
+  gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set()), null, "nichts frei → null (waSenden bleibt beim gerufenen Namen)");
+  gleich(vorlageZumSenden("fiaon_kk_anfrage", new Set(["fiaon_kkb_anfrage_v2"]), (n) => n !== "fiaon_kkb_anfrage_v2"), null, "nur, was im Register steht");
+  gleich(vorlageZumSenden("fiaon_kk_rate", new Set(["fiaon_kk_rate", "fiaon_kkb_rate"])), "fiaon_kkb_rate", "ohne neue Fassung wie bisher: Bild vor Text");
+  gleich(vorlageFassungen("fiaon_eigene_vorlage").join(","), "fiaon_eigene_vorlage", "Werkstatt-Vorlage: nur sie selbst");
+  ok(vorlageNutzbar("fiaon_kk_aktiviert", new Set(["fiaon_kkb_aktiviert_v2"])) && !vorlageNutzbar("fiaon_kk_aktiviert", new Set(["fiaon_kk_tag3"])), "nutzbar, sobald irgendeine Fassung frei ist");
+  gleich(vorlageVorschau("fiaon_kk_tag3", new Set(["fiaon_kk_tag3", "fiaon_kkb_tag3_v2"]))?.name, "fiaon_kk_tag3_v2", "Vorschau zeigt den Text der neuen Fassung, sobald sie rausgeht");
+  gleich(vorlageVorschau("fiaon_kk_tag3", new Set(["fiaon_kk_tag3"]))?.name, "fiaon_kk_tag3", "Vorschau bleibt bei der alten, solange sie rausgeht");
+
+  // Die Wege: waSenden wählt über vorlageZumSenden, „Einreichen“ frischt nie eine abgelöste Fassung auf, die Listen zeigen keine Doppel.
+  const wa = lies("server/lib/fiaon-whatsapp.ts");
+  ok(/vorlageZumSenden\(inhalt\.vorlage, await freigegebeneVorlagen\(\)/.test(wa), "waSenden wählt die Fassung über vorlageZumSenden");
+  ok(/if \(vorlageEingefroren\(v\.name\)\) continue;/.test(wa), "Einreichen frischt abgelöste Fassungen nie auf");
+  ok(/!v\.varianteVon && !v\.nachfolgerVon\)/.test(lies("server/routes/fiaon-vertrieb.ts")), "Akte: neue Fassung keine eigene Zeile");
+  ok(/!v\.varianteVon && !v\.nachfolgerVon && v\.name\.startsWith\("fiaon_kk_"\)/.test(lies("server/lib/fiaon-wa-zentrale.ts")), "Zentrale: neue Fassung keine eigene Zeile");
+  ok(/vorlageStamm\(t\.name\) !== t\.name\) continue;/.test(lies("server/routes/fiaon-whatsapp-postfach.ts")), "Raum: neue Fassung keine eigene Zeile");
+}
+
 // ── 8g. Der WhatsApp-Raum und Mara im Chat ─────────────────────────────────
 abschnitt("WhatsApp-Raum — zwei Türen, ein Raum; Mara antwortet im Fenster");
 {

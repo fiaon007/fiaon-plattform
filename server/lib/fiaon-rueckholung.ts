@@ -91,7 +91,7 @@ import { abmeldeLinkPerson } from "../routes/fiaon-abmelden";
 import { BANK } from "@shared/fiaon-bank";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
-import { KUENDIGUNG_BESTELLUNG_SQL } from "@shared/fiaon-kuendigung-regel";
+import { KUENDIGUNG_BESTELLUNG_SQL, KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 // Mara-Topsales 08.10.2026: die automatische Tür als SQL (Werbesperre an der Adresse, hart unzustellbar).
@@ -250,6 +250,16 @@ function grundmenge() {
        -- Läufe; wer zusätzlich ein bezahltes Stufenpaket hat („gemischt“), bleibt drin. Weil
        -- Segmente, Dauerpflege und Kandidaten alle aus dieser Grundmenge schöpfen, gilt es dort mit.
        AND NOT ${sqlPool.unsafe(globalKundeSql("p.id"))}
+       -- E-367 (15.10.2026): LLC-Gründungen (llc_*) stehen im Katalog als „privat“, sind aber FIAON Global —
+       -- Chehade (3224) bekam S4 und S1 der Privatlinie zu „Gründung LLC Hälfte 1“.
+       AND LEFT(LOWER(COALESCE(a.pack_key, '')), 4) <> 'llc_'
+       -- E-367: ein eingegangener, noch nicht gebuchter Kündigungsantrag — keine Rückhol-Werbung (3 Mails in 7 Tagen).
+       AND NOT ${sqlPool.unsafe(KUENDIGUNG_UNGEBUCHT_SQL("p.id"))}
+       -- E-367: MARA HAT VORRANG. Wer in den letzten 7 Tagen eine Mara-Aktion-Mail bekam („Zahlen Sie jetzt die
+       -- Aktivierung“), bekommt keine Rückhol-Mail („Termin wählen — nichts davon setzt eine Zahlung voraus“): 209
+       -- B-Kunden lasen in derselben Woche beides, 13567 sogar in derselben Minute.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log mv WHERE mv.person_id = p.id AND mv.event = 'mara_aktion'
+                       AND mv.status IN ('gesendet', 'versandt') AND mv.created_at > NOW() - INTERVAL '7 days')
        AND p.ist_test_am IS NULL
        AND p.werbung_gesperrt_am IS NULL
        -- E-240 (25.09.2026): die Vertriebssperre (is_blocked) — GENAU die Bedingung von

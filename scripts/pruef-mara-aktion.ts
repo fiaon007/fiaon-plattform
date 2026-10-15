@@ -76,8 +76,10 @@ for (const [muster, satz] of [
   [/fiaon_mara_ausschluss/, "Aus der Aktion genommen stoppt"],
   [/INTERVAL '7 days'\)/, "Kunde schreibt selbst → 7 Tage Pause"],
   [/INTERVAL '12 hours'/, "Mitarbeiter gerade dran → Pause"],
-  [/INTERVAL '6 hours'/, "Andere Mail gerade raus → Pause"],
-  [/'gebounct', 'blockiert', 'spam'/, "Zustellproblem stoppt"],
+  // E-367 (15.10.2026): Rücksicht auf andere Post am selben Berliner Kalendertag (vorher 6 h); Zustellproblem = harter
+  // Rückläufer/Spam der letzten 30 Tage ohne spätere Zustellung („blockiert“ zählt nicht — Mara sendet über Gmail).
+  [/mail AS \(SELECT DISTINCT person_id FROM fiaon_mail_log WHERE person_id IS NOT NULL AND art = 'echt'\s+AND created_at >= \(\(NOW\(\) AT TIME ZONE 'Europe\/Berlin'\)::date/, "Andere Mail heute schon raus → Pause"],
+  [/zustellung IN \('gebounct', 'spam'\)[\s\S]{0,200}INTERVAL '30 days'/, "Zustellproblem (Rückläufer/Spam, 30 Tage) stoppt"],
   // Mara-Topsales 08.10.2026 (Justin): 2 / 4 / 7 Tage, danach wöchentlich an seinem Wochentag (person_id % 7) statt alle 14 Tage.
   [/aktionTaktSql\("l\.n", "l\.am", "app\.person_id"\)/, "Takt aus aktionTaktSql (2 / 4 / 7, dann wöchentlich je Wochentag)"],
   // Der Anlauf 200/400/800 ist am 22.09.2026 entfallen (fiaon-mara-aktion.ts) — geprüft wird, dass er weg bleibt.

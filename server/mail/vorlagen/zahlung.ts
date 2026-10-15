@@ -65,7 +65,8 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
     betreff: "Ihre Zahlung steht noch aus — {{params.payment_reference}}",
     preheader: "Ihre Akte ist startklar und wartet nur auf die Zahlung.",
     titel: "Ihre Akte wartet auf den Start",
-    marke: "Erinnerung {{params.reminder_number}}",
+    // E-367 (15.10.2026): ohne Nummer — seit E-182 gibt es keine Obergrenze, und „Erinnerung 47“ wirkte wie ein Fehler.
+    marke: "Erinnerung",
     absaetze: [
       "Guten Tag {{params.vorname}}, Ihre erste Zahlung für <b>{{params.paket}}</b> ist noch nicht bei uns eingegangen — und solange können wir für Sie nicht loslegen.",
       // 25.09.2026 (E-240): vorher „… öffnet sich Ihr Bereich automatisch und wir holen Ihre Auskunft." —

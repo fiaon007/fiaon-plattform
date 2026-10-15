@@ -67,6 +67,8 @@ import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
 import { ERINNERBARE_BESTELLUNG_SQL, ratenStornieren } from "../lib/fiaon-raten-storno";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
+import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
 
 
 const router = Router();
@@ -157,6 +159,29 @@ const UNZUSTELLBAR_SQL = unzustellbarSql("a");
 // Widerruf: Die Läufe fragten nur die Rate („offen“?), nie die Bestellung.
 // Jetzt: bezahlt, nicht storniert, nicht archiviert (server/lib/fiaon-raten-storno.ts).
 const ERINNERBAR_SQL = ERINNERBARE_BESTELLUNG_SQL("a");
+
+// ── WAS NIE GEMAHNT WIRD (15.10.2026, E-367, Prüfung aller Mails 08.–15.10.) ─────────────────────────────────────────
+// Justin: „Kunden, die bereits erledigt sind, bittet sie zur Zahlung.“ Gemessen in sieben Tagen:
+//   · 126 Mails zu 65 Raten, die NACH dem Vertragsende eines gekündigten Altvertrags fällig wurden (4.135 €, nicht
+//     geschuldet — rateNachVertragsende in fiaon-kuendigung.ts kannte die Regel, die Läufe nicht);
+//   · 22 Mails an Kunden mit eingegangenem, noch nicht gebuchtem Kündigungsantrag;
+//   · 48 Mails trotz Mahnstopp, den Mara/Postmeister während des Vertrags gesetzt und dem Kunden angekündigt hatte;
+//   · 75 Tage mit zwei Ratenmails an denselben Vertrag (Mahnung zu Rate 2 + Vorabinfo zu Rate 3 um 08:52).
+// RATE_NACH_ENDE_SQL gilt überall (auch für die Mail von Hand), RATE_MAHNBAR_SQL in allen automatischen Läufen.
+const RATE_NACH_ENDE_SQL = `(a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL
+  AND (a.agb_stand IS NULL OR a.agb_stand < DATE '${JAHRESVERTRAG_AB}')
+  AND r.faellig_am > COALESCE((a.vertrag_ende_am AT TIME ZONE 'Europe/Berlin')::date,
+                              ((a.gekuendigt_am + INTERVAL '24 hours') AT TIME ZONE 'Europe/Berlin')::date))`;
+const RATE_MAHNBAR_SQL = `(NOT ${RATE_NACH_ENDE_SQL}
+  AND NOT ${KUENDIGUNG_UNGEBUCHT_SQL("a.person_id")}
+  -- Mahnstopp, den jemand NACH der ersten Zahlung gesetzt hat (Mara/Postmeister: Kunde bestreitet, hat überwiesen,
+  -- hat gekündigt) — Stopps der Rückholung vor der ersten Zahlung gelten für Raten nicht.
+  AND NOT (a.mahnstopp_am IS NOT NULL AND a.mahnstopp_am > COALESCE((SELECT MIN(r1.bezahlt_am) FROM fiaon_abo_raten r1
+            WHERE r1.ref = a.ref AND r1.status = 'bezahlt'), a.paid_at, a.created_at))
+  AND NOT EXISTS (SELECT 1 FROM fiaon_persons pm WHERE pm.id = a.person_id AND pm.ist_test_am IS NOT NULL)
+  -- Eine Mail je Vertrag und Tag: keine zweite Ratenmail, wenn eine andere Rate desselben Vertrags in 20 h schon eine bekam.
+  AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten ro WHERE ro.ref = r.ref AND ro.id <> r.id
+                  AND (ro.letzte_erinnerung_at > NOW() - INTERVAL '20 hours' OR ro.vorab_am > NOW() - INTERVAL '20 hours')))`;
 
 /** Vorab-Erinnerung: Vorgabe drei Tage vor Fälligkeit, abschaltbar (0). */
 export const VORAB_TAGE_VORGABE = 3;
@@ -756,6 +781,8 @@ export async function offeneRateFuerErinnerung(personId: number): Promise<any | 
       AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.status = 'offen'
       AND r.storniert_am IS NULL
+      -- E-367: eine Rate nach dem Vertragsende ist nie die „offene Rate“, auch nicht in der Mail von Hand.
+      AND NOT ${sqlPool.unsafe(RATE_NACH_ENDE_SQL)}
     ORDER BY r.faellig_am ASC, r.rate_nr ASC
     LIMIT 1
   `) as any[];
@@ -791,7 +818,13 @@ export function aboErinnerungPayload(r: any) {
     vorbei: {
       titel_text: "Ihre Monatsrate ist noch offen",
       preheader_text: "Ihre Rate ist noch offen. Betrag und Bankdaten stehen hier bereit.",
-      mahnstufe_text: stufe === 1 ? "Freundliche Erinnerung — Ihre Monatsrate ist noch offen." : MAHN_TEXT[stufe],
+      // E-367 (15.10.2026): Der Satz folgt den echten Tagen — nie mehr „Letzte Erinnerung“. Seit der Dauermahnung (E-182,
+      // alle 3 Tage) stand er in 651 von 784 Mails, bis 70 Tage nach Fälligkeit, und schon am 7. Tag „seit zwei Wochen“.
+      mahnstufe_text: ueberfaellig <= 6
+        ? `Freundliche Erinnerung — Ihre Monatsrate ist seit ${ueberfaellig === 1 ? "einem Tag" : `${ueberfaellig} Tagen`} offen.`
+        : ueberfaellig <= 20
+          ? `Ihre Monatsrate ist seit ${ueberfaellig} Tagen offen — bitte überweisen Sie sie jetzt.`
+          : `Ihre Monatsrate ist seit ${ueberfaellig} Tagen offen — bitte überweisen Sie sie jetzt oder melden Sie sich, wenn etwas unklar ist.`,
       faellig_wort: "war am",
       knopf_text: "Rate bezahlen — QR-Code & Bankdaten",
     },
@@ -873,6 +906,8 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       -- wird nicht gemahnt, sondern in der Gegenprobe einmalkaufMitRaten
       -- (fiaon-abo-pflicht.ts, Seite Team-Zentrale) rot gezeigt.
       AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
+      -- E-367: nach Vertragsende, ungebuchte Kündigung, Mahnstopp im Vertrag, Testkonto, schon heute eine Mail zum Vertrag.
+      AND ${sqlPool.unsafe(RATE_MAHNBAR_SQL)}
       AND r.faellig_am <= ${heute}::date
       AND (r.mahnstufe < ${MAHNSTUFEN.length}
            OR (${dauer} > 0 AND r.letzte_erinnerung_at IS NOT NULL
@@ -1000,7 +1035,11 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
   }
 
   const batch = await faelligeRaten(ABO_BATCH, { abStichtag: stichtag });
+  // E-367: zwei Raten desselben Vertrags im selben Stapel — nur die älteste bekommt heute eine Mail.
+  const schonHeute = new Set<string>();
   for (const r of batch) {
+    if (schonHeute.has(String(r.ref))) continue;
+    schonHeute.add(String(r.ref));
     const erg = await rateErinnern(r);
     if (erg.ok) ergebnis.gesendet++;
     else ergebnis.fehlgeschlagen++;
@@ -1130,6 +1169,12 @@ async function vorabErinnern(heute: string, tage: number): Promise<number> {
       AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
       AND r.faellig_am = ${zielTag}::date
       AND r.vorab_am IS NULL
+      -- E-367: dieselben Grenzen wie die Mahnung — und keine Vorabinfo, solange eine ältere Rate offen ist (dann sagt die
+      -- Mahnung alles; vorher kamen beide Mails um 08:52).
+      AND ${sqlPool.unsafe(RATE_MAHNBAR_SQL)}
+      AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten ra WHERE ra.ref = r.ref AND ra.id <> r.id AND ra.status = 'offen'
+                      AND ra.storniert_am IS NULL AND ra.faellig_am < r.faellig_am)
       -- (Bis 19.09.2026 schützte hier der Einzugsschutz Lastschriftkunden — GoCardless ist beendet, E-194.)
     ORDER BY r.id
     LIMIT ${ABO_BATCH}
@@ -2199,6 +2244,7 @@ async function laufKandidaten(art: LaufArt, opts: { nurSendbare?: boolean } = {}
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     WHERE r.status = 'offen' AND r.storniert_am IS NULL AND ${wo}
+      AND ${RATE_MAHNBAR_SQL}
       ${opts.nurSendbare ? `AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')
         AND (r.letzter_fehler_at IS NULL OR r.letzter_fehler_at < NOW() - INTERVAL '20 hours')
         AND NOT ${UNZUSTELLBAR_SQL}` : ""}
@@ -2310,6 +2356,7 @@ router.get("/admin/abo/sammelversand/vorschau", async (_req, res) => {
       WHERE r.status = 'offen' AND r.faellig_am <= ${heute}::date AND r.faellig_am < ${stichtag}::date
         -- E-245: dieselbe Grenze wie der Versand — sonst zählt die Vorschau Raten, an die nichts rausgeht.
         AND r.storniert_am IS NULL AND ${sqlPool.unsafe(ERINNERBAR_SQL)}
+        AND ${sqlPool.unsafe(RATE_MAHNBAR_SQL)}
         AND r.mahnstufe < ${MAHNSTUFEN.length}
         AND COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) IS NOT NULL
     `;

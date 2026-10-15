@@ -49,6 +49,13 @@ export const NACHFASS_HEIKEL = /kündig|kuendig|widerruf|storn|erstatt|zurück\s
  * Ein klares Nein in den letzten drei Tagen („nein danke“, „mach ich nicht“, „kein Bedarf“) — Mara hat darauf schon
  * geantwortet; ungefragt noch einmal zu schreiben wäre Drängen (Probe 07.10.: „nein danke sowas kenne ich nicht mach ich nicht“).
  */
+/**
+ * E-367 (15.10.2026): Der Kunde sagt, er habe bezahlt oder überweise gerade (oder schickte ein Bild — meist der Beleg).
+ * Dann fragt Mara nicht „Hat es mit der Überweisung geklappt? Zahlen Sie jetzt …“ — 3 von 6 solchen Nachfassern gingen
+ * genau daran (5400 zahlte 11 Minuten später, 13535 „Überweisung dauert“).
+ */
+export const NACHFASS_ZAHLT = /\b(?:überwiesen|ueberwiesen|bezahlt|gezahlt|abgebucht|abbuchung|beleg|quittung|überweisung\s+(?:läuft|laeuft|dauert|ist\s+raus|ist\s+unterwegs)|habe\s+(?:das\s+geld\s+)?(?:geschickt|gesendet))\b/i;
+
 export const NACHFASS_NEIN = /\bnein\W{0,3}danke\b|\bmach(?:e)?\s+ich\s+nicht\b|\bkein(?:en)?\s+bedarf\b|\b(?:will|möchte|moechte)\s+(?:ich\s+)?(?:das\s+|es\s+)?(?:doch\s+)?nicht\b|\bnicht\s+interessiert\b|\bbrauche\s+ich\s+nicht\b/i;
 /** Maras letzte Nachricht übergibt an einen Menschen oder nimmt etwas Heikles auf — dann fasst sie nicht nach. */
 export const NACHFASS_UEBERGABE = /übernimmt|leitung|kündigung|widerruf|erstattung|löschwunsch|beschwerde|rückruf|ruft\s+sie\s+.*an|meldet\s+sich/i;
@@ -98,7 +105,11 @@ export const nachfassKandidatenSql = (abStunden: number = NACHFASS_AB_STUNDEN): 
          (SELECT w.person_id FROM fiaon_whatsapp w WHERE w.nummer = r.nummer AND w.person_id IS NOT NULL ORDER BY w.id DESC LIMIT 1) AS person_id,
          (SELECT w.lead_id FROM fiaon_whatsapp w WHERE w.nummer = r.nummer AND w.lead_id IS NOT NULL ORDER BY w.id DESC LIMIT 1) AS lead_id,
          (SELECT string_agg(COALESCE(h.text, h.knopf, ''), ' | ') FROM fiaon_whatsapp h
-           WHERE h.nummer = r.nummer AND h.richtung = 'rein' AND h.created_at > NOW() - INTERVAL '3 days') AS kunde_3t
+           WHERE h.nummer = r.nummer AND h.richtung = 'rein' AND h.created_at > NOW() - INTERVAL '3 days') AS kunde_3t,
+         -- E-367: ein Bild/Dokument ohne Text (meist ein Überweisungsbeleg) in den letzten 3 Tagen
+         (SELECT COUNT(*)::int FROM fiaon_whatsapp hm
+           WHERE hm.nummer = r.nummer AND hm.richtung = 'rein' AND hm.created_at > NOW() - INTERVAL '3 days'
+             AND COALESCE(TRIM(hm.text), '') = '' AND hm.knopf IS NULL) AS kunde_medien
     FROM r
     LEFT JOIN fiaon_whatsapp_gespraech g ON g.nummer = r.nummer
    WHERE r.am < NOW() - INTERVAL '${Math.max(0, Math.min(NACHFASS_BIS_STUNDEN, Math.round(abStunden)))} hours'
@@ -153,6 +164,7 @@ export async function nachfassLauf(opt: { trocken?: boolean; jetzt?: Date; /** n
       if (!personId && !leadId) { weg("ohne_person"); continue; }
       if (NACHFASS_HEIKEL.test(String(k.kunde_3t ?? ""))) { weg("heikel"); continue; }
       if (NACHFASS_NEIN.test(String(k.kunde_3t ?? ""))) { weg("nein"); continue; }
+      if (NACHFASS_ZAHLT.test(String(k.kunde_3t ?? "")) || Number(k.kunde_medien || 0) > 0) { weg("zahlt_schon"); continue; }
       if (NACHFASS_UEBERGABE.test(String(k.mara ?? ""))) { weg("uebergabe"); continue; }
       if (personId) {
         // Lässt sich die Sperre nicht lesen, schreibt Mara nicht (lieber einmal zu wenig als an einen Gesperrten).

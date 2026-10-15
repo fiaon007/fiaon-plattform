@@ -367,6 +367,12 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
          -- schon bei Schritt 3–5 — 36 Menschen bekamen seit E-248 von hier eine Zahlungsmail ohne Vertrag.
          AND (a.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("a"))})
          AND a.gekuendigt_am IS NULL AND a.cancelled_at IS NULL
+         -- E-367 (15.10.2026): keine archivierte Bestellung (doppelt angelegt, Testeintrag) — 2 Mails in 7 Tagen.
+         AND a.archived_at IS NULL
+         -- E-367: Stufe A (Zahlung gemeldet) schreibt Mara nur in den ersten 14 Tagen nach der Meldung — danach
+         -- erinnert die Zahlungserinnerung ehrlich („steht noch aus“). Vorher: 71 von 105 Stufe-A-Mails an Meldungen,
+         -- die älter als 30 Tage waren („Danke für Ihre Überweisung …“, Pielken: gemeldet am 10.07., nie Geld).
+         AND NOT (a.payment_status = 'claimed_paid' AND COALESCE(a.claimed_paid_at, a.created_at) < NOW() - INTERVAL '14 days')
          -- E-244 (26.09.2026): keine Auskunft-Bestellung. Zwei offene tragen den Paketschlüssel
          -- highend, Maras Mail spricht aber vom Paket. Erkannt wie IST_AUSKUNFT; an die
          -- Auskunft-Zahlung erinnert ein eigener Lauf.
@@ -381,7 +387,12 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
     -- E-244 (26.09.2026): Eine bezahlte Bonitätsauskunft ist kein Paket — wer nur sie bezahlt hat und
     -- einen offenen Paketantrag hat, bleibt in Maras Erinnerung (vorher fiel er dauerhaft heraus).
     bezahlt AS (SELECT DISTINCT person_id FROM fiaon_applications WHERE payment_status = 'paid' AND merged_into IS NULL AND person_id IS NOT NULL
-                  AND COALESCE(type, '') <> 'schufa' AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%'),
+                  AND COALESCE(type, '') <> 'schufa' AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%'
+                -- E-367: auch wer Geld auf eine später stornierte Bestellung gezahlt hat (Rate „bezahlt“) — Dogan Cengiz
+                -- bekam am 08.10. die Klärung „überweisen Sie bitte“, obwohl seine 99,99 € seit 24.08. da waren.
+                UNION SELECT DISTINCT a2.person_id FROM fiaon_abo_raten r2 JOIN fiaon_applications a2 ON a2.ref = r2.ref
+                 WHERE r2.status = 'bezahlt' AND a2.person_id IS NOT NULL
+                   AND COALESCE(a2.type, '') <> 'schufa' AND COALESCE(a2.ref, '') NOT LIKE 'FIAON-SCHUFA-%'),
     ausgenommen AS (SELECT person_id FROM fiaon_mara_ausschluss),
     storniert AS (SELECT DISTINCT person_id FROM fiaon_telefonkartei_storno WHERE zurueck_am IS NULL AND person_id IS NOT NULL),
     -- „Stopp" per Antwort, egal wann (flags steht teils als JSON-Text in der jsonb-Spalte —
@@ -392,7 +403,11 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
     -- zur Zahlung — egal wann. Eine Beschwerde hält die Aktion 30 Tage an.
     einwand AS (SELECT DISTINCT person_id FROM fiaon_postmeister WHERE person_id IS NOT NULL
                   AND (flags::text ~ '(widerruf|bestreitet|droht_anwalt|zahlungsunfaehig)\\\\?"\\s*:\\s*true'
-                    OR (flags::text ~ 'beschwerde\\\\?"\\s*:\\s*true' AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '30 days'))),
+                    OR (flags::text ~ 'beschwerde\\\\?"\\s*:\\s*true' AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '30 days'))
+                -- E-367: dasselbe aus WhatsApp — eine heikle Nachricht (Storno, Kündigung, Beschwerde) der letzten 30 Tage.
+                -- 4180 schrieb am 30.09. „Storno“, bekam am 03.10. und 13.10. „Zahlen Sie jetzt“ (die Liste las nur das Postfach).
+                UNION SELECT DISTINCT person_id FROM fiaon_betreiber_todos WHERE person_id IS NOT NULL
+                  AND art IN ('kuendigung', 'mara_wa_heikel', 'beschwerde', 'mara_mail_heikel') AND created_at > NOW() - INTERVAL '30 days'),
     -- E-248: Werbesperre an der ADRESSE (eine zweite Person, ein Lead oder ein Antrag mit derselben
     -- Adresse) — dieselbe Regel wie werbesperreAnAdresse. Vorher erst direkt vor dem Senden geprüft:
     -- dieselben zwei Menschen wurden jeden Tag erneut „zurückgehalten".
@@ -421,10 +436,17 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
     schrieb AS (SELECT DISTINCT person_id FROM fiaon_postmeister WHERE person_id IS NOT NULL AND empfangen_am > NOW() - INTERVAL '7 days'),
     -- ein Mitarbeiter war in den letzten 12 h dran
     kontakt AS (SELECT DISTINCT person_id FROM fiaon_contact_log WHERE person_id IS NOT NULL AND agent_id IS NOT NULL AND voided_at IS NULL AND created_at > NOW() - INTERVAL '12 hours'),
-    -- eine andere Mail ist in den letzten 6 h raus
-    mail AS (SELECT DISTINCT person_id FROM fiaon_mail_log WHERE person_id IS NOT NULL AND art = 'echt' AND created_at > NOW() - INTERVAL '6 hours'),
-    -- an diese Adressen kommt nichts an
-    kaputt AS (SELECT DISTINCT LOWER(empfaenger) AS adresse FROM fiaon_mail_log WHERE zustellung IN ('gebounct', 'blockiert', 'spam') AND empfaenger IS NOT NULL)
+    -- E-367: eine andere Mail ging HEUTE (Berlin) schon raus — vorher 6 h; 141 von 495 Mara-Mails hatten am selben Tag
+    -- eine zweite automatische Mail (Zahlungserinnerung, Rückholung, Auskunft-Angebot).
+    mail AS (SELECT DISTINCT person_id FROM fiaon_mail_log WHERE person_id IS NOT NULL AND art = 'echt'
+              AND created_at >= ((NOW() AT TIME ZONE 'Europe/Berlin')::date::timestamp AT TIME ZONE 'Europe/Berlin')),
+    -- an diese Adressen kommt nichts an — E-367: nur ein harter Rückläufer oder eine Spam-Meldung der letzten 30 Tage OHNE
+    -- spätere Zustellung (wie unzustellbarSql). „blockiert“ (Brevo-Liste) zählt nicht: Mara sendet über Gmail. Vorher
+    -- waren 184 erreichbare A/B-Kunden dauerhaft stumm, 109 davon mit zugestellter Mail in den letzten 60 Tagen.
+    kaputt AS (SELECT DISTINCT LOWER(TRIM(mb.empfaenger)) AS adresse FROM fiaon_mail_log mb
+                WHERE mb.zustellung IN ('gebounct', 'spam') AND mb.empfaenger IS NOT NULL AND mb.created_at > NOW() - INTERVAL '30 days'
+                  AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log mz WHERE LOWER(TRIM(mz.empfaenger)) = LOWER(TRIM(mb.empfaenger))
+                                    AND mz.zustellung IN ('zugestellt', 'geoeffnet', 'geklickt') AND mz.created_at > mb.created_at))
     SELECT app.*, COALESCE(NULLIF(TRIM(p.primary_email), ''), app.email) AS mail,
            COALESCE(NULLIF(TRIM(p.first_name), ''), app.first_name) AS vor,
            COALESCE(NULLIF(TRIM(p.last_name), ''), app.last_name) AS nach,
@@ -458,7 +480,7 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
        AND app.person_id NOT IN (SELECT person_id FROM stopp)
        AND app.person_id NOT IN (SELECT person_id FROM einwand)
        AND LOWER(TRIM(COALESCE(NULLIF(TRIM(p.primary_email), ''), app.email))) NOT IN (SELECT adresse FROM gesperrte_adresse WHERE adresse IS NOT NULL)
-       AND LOWER(COALESCE(NULLIF(TRIM(p.primary_email), ''), app.email)) NOT IN (SELECT adresse FROM kaputt)
+       AND LOWER(TRIM(COALESCE(NULLIF(TRIM(p.primary_email), ''), app.email))) NOT IN (SELECT adresse FROM kaputt WHERE adresse IS NOT NULL)
        -- E-276: Wände, die auch in der Runde gelten — ungebuchter Eingang, gerade in Arbeit
        AND app.person_id NOT IN (SELECT person_id FROM eingang)
        AND app.person_id NOT IN (SELECT person_id FROM in_arbeit)
@@ -468,8 +490,11 @@ export async function kandidatenLaden(grenze: number, stufen: string[], opt: { r
          AND app.person_id NOT IN (SELECT person_id FROM schrieb)
          AND app.person_id NOT IN (SELECT person_id FROM kontakt)
          AND app.person_id NOT IN (SELECT person_id FROM mail)
-         -- erste Mail frühestens 24 h nach Antrag bzw. Zahlungsmeldung
-         AND (CASE WHEN app.payment_status = 'claimed_paid' THEN COALESCE(app.claimed_paid_at, app.created_at) ELSE app.created_at END) < NOW() - INTERVAL '24 hours'
+         -- erste Mail frühestens 24 h nach dem Antrag — E-367: nach einer Zahlungsmeldung erst ab dem 3. Werktag (eine
+         -- Überweisung braucht 1–2 Werktage; vorher kam die Mail oft am Tag, an dem das Geld eintraf).
+         AND (CASE WHEN app.payment_status = 'claimed_paid'
+                   THEN ${sqlPool.unsafe(werktageSeitSql("COALESCE(app.claimed_paid_at, app.created_at)"))} >= ${KLAERUNG_AB_WERKTAGEN}
+                   ELSE app.created_at < NOW() - INTERVAL '24 hours' END)
          -- Takt (Mara-Topsales 08.10.2026): 2, 4, 7 Tage, danach wöchentlich an seinem Wochentag (person_id % 7, aktionTaktSql) —
          -- oder bei Stufe A die eine Klärung ab dem 3. Werktag, frühestens 2 Tage nach der letzten Aktionsmail.
          AND (${sqlPool.unsafe(aktionTaktSql("l.n", "l.am", "app.person_id"))}
@@ -1120,6 +1145,25 @@ export async function maraAktionLauf(opt: {
           return;
         }
         if (gestoppt || pausiert) { await sqlPool`DELETE FROM fiaon_mara_aktion WHERE id = ${id} AND status = 'in_arbeit'`.catch(() => {}); return; }
+        // ── E-367 (15.10.2026): DIE LAGE DIREKT VOR DEM SENDEN ──────────────────────
+        // Zwischen Schlange und Versand vergehen Minuten (KI schreibt). Gemessen: 5212 bekam um 13:08 die Klärung,
+        // die Zahlung war um 13:07 gebucht; 13567 um 18:18, das Geld kam um 18:53 ins Bankbuch. Jetzt frisch: Bestellung
+        // noch offen, nichts bezahlt, kein ungebuchter Eingang, heute keine andere Mail.
+        {
+          const [frisch] = (await sqlPool`
+            SELECT (SELECT payment_status FROM fiaon_applications WHERE ref = ${k.ref} LIMIT 1) AS status,
+                   EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.person_id = ${k.personId} AND b.payment_status = 'paid' AND b.merged_into IS NULL
+                             AND COALESCE(b.type, '') <> 'schufa' AND COALESCE(b.ref, '') NOT LIKE 'FIAON-SCHUFA-%') AS bezahlt,
+                   EXISTS (SELECT 1 FROM fiaon_mail_log ml WHERE ml.person_id = ${k.personId} AND ml.art = 'echt'
+                             AND ml.created_at >= ((NOW() AT TIME ZONE 'Europe/Berlin')::date::timestamp AT TIME ZONE 'Europe/Berlin')) AS heute_post`.catch(() => [{}])) as any[];
+          const grund = !frisch?.status ? "Lage nicht lesbar — lieber nicht senden"
+            : !["pending_payment", "claimed_paid"].includes(String(frisch.status)) ? `Bestellung inzwischen ${frisch.status}`
+            : frisch.bezahlt ? "inzwischen bezahlt"
+            : frisch.heute_post ? "heute schon andere Post"
+            : (await eingangOffenFuer(k.personId).catch(() => true)) ? "ungebuchter Eingang — buchen statt anschreiben"
+            : null;
+          if (grund) { abgelehnt++; await abschluss(id, "abgelehnt", { grund: `Vor dem Senden: ${grund}`, betreff: m.betreff, text: m.kern, kostenCents: m.kostenCents }); return; }
+        }
         let r: { id: string; threadId: string };
         try {
           r = await neueMailSendenMitFaden(e.postfach, { vonName, an: k.email, betreff: m.betreff, text: m.text, html: m.html, abmelden: e.postfach });

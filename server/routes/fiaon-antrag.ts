@@ -6,6 +6,26 @@ import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, paketPreisEuro } from "@shared/fiaon-pakete";
 import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
+import { eingangOffenSql } from "../lib/fiaon-zahlung-unverbucht";
+
+// ════════════════════════════════════════════════════════════════════════════
+// WER BEZAHLT HAT ODER GEHEN WILL, BEKOMMT KEIN „STEHT NOCH AUS“ (15.10.2026, E-367)
+//
+// Justin: „Kunden, die bereits bezahlt haben, bittet sie zur Zahlung.“ Gemessen 08.–15.10.: 64 falsche Erstzahlungs-
+// Erinnerungen an 13 Menschen — Testkonten und Vertriebssperre täglich (die Auswahl kannte fiaon_persons nicht),
+// „Zahlung gemeldet“ mit Beleg täglich (Mircea: 25 × nach „Überweisen Sie bitte auf keinen Fall ein zweites Mal“),
+// Geld schon im Bankbuch, aber noch nicht gebucht, und offene Kündigungsanträge. Für Versand UND Zählungen:
+//   · „Zahlung gemeldet“: erst nach 5 Tagen ohne Eingang, nie mit hochgeladenem Beleg (die Klärung macht Stufe A);
+//   · ein passender, ungebuchter Bankeingang hält die Erinnerung an (eingangOffenSql);
+//   · Testkonto, Vertriebssperre, offener Kündigungsantrag: nie.
+// ════════════════════════════════════════════════════════════════════════════
+const ERSTZAHLUNG_NIE_SQL = (fa: string) => `(
+  (${fa}.payment_status = 'claimed_paid' AND (${fa}.payment_proof_at IS NOT NULL
+    OR COALESCE(${fa}.claimed_paid_at, ${fa}.updated_at) > NOW() - INTERVAL '5 days'))
+  OR EXISTS (SELECT 1 FROM fiaon_persons ezn WHERE ezn.id = ${fa}.person_id AND (ezn.ist_test_am IS NOT NULL OR COALESCE(ezn.is_blocked, FALSE)))
+  OR (${fa}.person_id IS NOT NULL AND ${fa}.person_id IN (${eingangOffenSql()}))
+  OR (${fa}.person_id IS NOT NULL AND ${KUENDIGUNG_UNGEBUCHT_SQL(`${fa}.person_id`)}))`;
 import { AGB_FASSUNG } from "@shared/fiaon-vertrag-paket";
 // E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
 import { istAuslandsnummer, NUR_DACH_MELDUNG } from "@shared/fiaon-dach-telefon";
@@ -1992,6 +2012,7 @@ async function claimReminderBatch(
         -- laufen beide durch diese Abfrage; die Zählungen unten ebenso.
         -- ════════════════════════════════════════════════════════════════
         AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
+        AND NOT ${sqlPool.unsafe(ERSTZAHLUNG_NIE_SQL("fa"))}
         -- ════════════════════════════════════════════════════════════════
         -- FIAON GLOBAL BEKOMMT DIESE ERINNERUNG NICHT (17.09.2026, E-188)
         --
@@ -2518,6 +2539,7 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
         AND NOT ${sqlPool.unsafe(globalKundeSql("fa.person_id"))}
         -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
         AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
+        AND NOT ${sqlPool.unsafe(ERSTZAHLUNG_NIE_SQL("fa"))}
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
         AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
@@ -2564,6 +2586,7 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
         AND NOT ${sqlPool.unsafe(globalKundeSql("fa.person_id"))}
         -- E-264 (29.09.2026): und nur abgeschickte Anträge (wie claimReminderBatch).
         AND (fa.payment_status = 'claimed_paid' OR ${sqlPool.unsafe(abgeschicktSql("fa"))})
+        AND NOT ${sqlPool.unsafe(ERSTZAHLUNG_NIE_SQL("fa"))}
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)

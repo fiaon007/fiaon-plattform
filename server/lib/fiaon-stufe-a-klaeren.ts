@@ -144,6 +144,17 @@ export function stufeAKlaerenSql(opt: { hoechstens?: number; nurOhneAufgabe?: bo
          -- der Bankabgleich zuerst: ein passender ungebuchter Eingang → buchen, nicht anrufen
          AND fa.person_id NOT IN (${eingangOffenSql()})
          AND ${werktageSeitSql("fa.claimed_paid_at")} >= ${KLAERUNG_AB_WERKTAGEN}
+         -- E-367 (15.10.2026, Justin: „Mara soll ALLES selbst machen … nicht MEHR Arbeit schaffen“): ZUERST klärt Mara per
+         -- Mail. Angerufen wird erst, wenn ihre Klärung seit ${KLAERUNG_AB_WERKTAGEN} Werktagen ohne Eingang und ohne Antwort ist
+         -- — oder wenn sie gar nicht schreiben kann (Sperre, Werbesperre, unzustellbar: keine gesendete Aktionsmail in 7 Tagen
+         -- trotz fälliger Klärung). Vorher: 96 Anrufaufgaben seit 08.10., 92 offen, parallel zu Maras Klärung.
+         AND (EXISTS (SELECT 1 FROM fiaon_mara_aktion mk WHERE mk.person_id = fa.person_id AND mk.status = 'gesendet'
+                        AND COALESCE(mk.pruefung->'wissen'->>'klaerung', '') = 'true'
+                        AND ${werktageSeitSql("mk.gesendet_am")} >= ${KLAERUNG_AB_WERKTAGEN}
+                        AND NOT EXISTS (SELECT 1 FROM fiaon_postmeister pm WHERE pm.person_id = fa.person_id AND pm.empfangen_am > mk.gesendet_am))
+              OR (${werktageSeitSql("fa.claimed_paid_at")} >= ${KLAERUNG_AB_WERKTAGEN} + 5
+                  AND NOT EXISTS (SELECT 1 FROM fiaon_mara_aktion mk2 WHERE mk2.person_id = fa.person_id AND mk2.status = 'gesendet'
+                                    AND mk2.gesendet_am > NOW() - INTERVAL '7 days')))
          ${opt.nurOhneAufgabe === false ? "" : `AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':a-klaeren')
          -- Integration Strang a (08.10.2026): höchstens EINE offene Anrufaufgabe je Mensch — auch über mehrere Bestellungen
          AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t2 WHERE t2.status <> 'erledigt'

@@ -27,12 +27,19 @@ import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
 import { globalKundeBereit, globalKundeSql } from "../lib/fiaon-global-kunde";
 import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
+import { filterBedingungen, type Filter } from "../lib/fiaon-kundenzentrale";
+import { KUNDEN_SPEZIAL_GRUPPEN, KUNDEN_STUFEN, kundenZusatzAus, type KundenZusatzFilter } from "@shared/fiaon-kundenfilter";
 
 const router = Router();
 
 const HEUTE = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
 /** Nur echte Menschen. Ohne diese Zeile zählt man Karteileichen mit. */
 const ECHT = "p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL";
+
+/** E-388: Zusatzfilter aus der Adresse → Filter der Kunden-Zentrale (nur Stufe, Zuständiger, Spezialfilter). */
+function alsZentraleFilter(z: KundenZusatzFilter): Filter {
+  return { stufe: z.stufe, agent: z.agent ?? null, ...z.spezial };
+}
 
 function ganzzahl(v: unknown, standard: number, max: number): number {
   const n = Number(v);
@@ -100,6 +107,11 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
     if (filter === "gesperrt") teile.push(`p.is_blocked = TRUE AND NOT ${globalKundeSql("p.id")}`);
     if (filter === "global") teile.push(globalKundeSql("p.id"));
     if (filter === "inkasso") teile.push("p.inkasso_ab IS NOT NULL");
+    // E-388 (16.10.2026, Florentine): die Filter der Betreuung auch hier — Stufe, Zuständiger, Arbeitslage,
+    // Datenqualität. Bedingungen aus der Kunden-Zentrale (filterBedingungen), kombinierbar mit dem Filter oben.
+    const zusatz = kundenZusatzAus(req.query as Record<string, unknown>);
+    const par = (v: unknown): string => { werte.push(v); return `$${werte.length}`; };
+    teile.push(...filterBedingungen(alsZentraleFilter(zusatz), par));
 
     const wo = teile.join(" AND ");
     const sortierung: Record<string, string> = {
@@ -184,12 +196,33 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
         COUNT(*) FILTER (WHERE p.inkasso_ab IS NOT NULL)::int AS inkasso
       FROM fiaon_persons p WHERE ${ECHT}`)) as any[];
 
+    // E-388: Zahlen für die Zusatzfilter — über DENSELBEN Bestand wie die Liste (ECHT), je Filter allein.
+    const zw: unknown[] = [];
+    const zpar = (v: unknown): string => { zw.push(v); return `$${zw.length}`; };
+    const zaehlteile: string[] = [];
+    for (const st of KUNDEN_STUFEN) {
+      const [bed] = filterBedingungen({ stufe: [st.wert] }, zpar);
+      zaehlteile.push(`COUNT(*) FILTER (WHERE ${bed})::int AS ${st.zahl}`);
+    }
+    for (const o of KUNDEN_SPEZIAL_GRUPPEN.flatMap((g) => g.optionen)) {
+      if (!o.zahl) continue;
+      const [bed] = filterBedingungen({ [o.schluessel]: true } as Filter, zpar);
+      zaehlteile.push(`COUNT(*) FILTER (WHERE ${bed})::int AS ${o.zahl}`);
+    }
+    const [[zahlen], agenten] = await Promise.all([
+      sqlPool.unsafe(`SELECT ${zaehlteile.join(",\n")} FROM fiaon_persons p WHERE ${ECHT}`, zw as any[]) as Promise<any[]>,
+      sqlPool`SELECT id, COALESCE(NULLIF(first_name, ''), name) AS name FROM fiaon_agents
+               WHERE active AND (NOT is_test_account OR pruefkonto) ORDER BY name` as Promise<any[]>,
+    ]);
+
     res.json({
       ok: true,
       gesamt: Number(zaehler?.n ?? 0),
       seite, proSeite,
       seiten: Math.max(1, Math.ceil(Number(zaehler?.n ?? 0) / proSeite)),
       kopf: kopf ?? {},
+      zahlen: zahlen ?? {},
+      agenten,
       zeilen: liste,
     });
   } catch (err) {

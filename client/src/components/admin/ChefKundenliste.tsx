@@ -32,6 +32,12 @@ import { API, Karte, Hochzaehler, eur, zahl, datum, seit, Geruest, Fehlermeldung
 import { akteLink } from "@/lib/akte-link";
 // 14.10.2026 (Florentine): „Nächster Kunde“ in der Akte — die Liste legt ihre Reihe ab und findet beim Zurückkommen die Stelle wieder.
 import { reiheAusZeilen, reiheLesen, reiheSpeichern, reiheZuletzt } from "@/lib/akte-reihe";
+// E-388 (16.10.2026, Florentine): die Filter der Betreuung auch hier — dieselben Schlüssel, Titel und Regeln.
+import { FiaonFilter, FiaonFilterChips } from "@/components/FiaonFilter";
+import {
+  KUNDEN_SPEZIAL_GRUPPEN, KUNDEN_SPEZIAL_SCHLUESSEL, KUNDEN_SPEZIAL_TITEL, KUNDEN_STUFEN,
+  kundenZusatzAlsSuche, kundenZusatzAus, type KundenSpezialSchluessel, type KundenZusatzFilter,
+} from "@shared/fiaon-kundenfilter";
 
 const FILTER = [
   { key: "alle", label: "Alle" },
@@ -109,6 +115,12 @@ export default function ChefKundenliste() {
   const [filter, setFilter] = useState<string>(start?.filter ?? "alle");
   const [sort, setSort] = useState<string>(start?.sort ?? "zuletzt");
   const [seite, setSeite] = useState(start?.seite ?? 1);
+  const [zusatz, setZusatz] = useState<KundenZusatzFilter>(() => kundenZusatzAus(new URLSearchParams(start?.extra ?? "")));
+  const zusatzSuche = kundenZusatzAlsSuche(zusatz);
+  const zusatzSetzen = (neu: Partial<KundenZusatzFilter>) => { setZusatz((z) => ({ ...z, ...neu })); setSeite(1); };
+  const spezialSetzen = (k: string, an: boolean) => zusatzSetzen({
+    spezial: Object.fromEntries(Object.entries({ ...zusatz.spezial, [k]: an }).filter(([, v]) => v)) as KundenZusatzFilter["spezial"],
+  });
   const angesprungen = useRef(false);
   const [d, setD] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
@@ -131,7 +143,7 @@ export default function ChefKundenliste() {
     let weg = false;
     setLaedt(true); setFehler(null);
     const pfad = `/chef/kunden?filter=${filter}&sort=${sort}&seite=${seite}&proSeite=50`
-      + (suche ? `&q=${encodeURIComponent(suche)}` : "");
+      + (suche ? `&q=${encodeURIComponent(suche)}` : "") + (zusatzSuche ? `&${zusatzSuche}` : "");
     fetch(`${API}${pfad}`, { credentials: "include" })
       .then(async (r) => {
         const j = await r.json().catch(() => null);
@@ -141,7 +153,7 @@ export default function ChefKundenliste() {
       .catch(() => { if (!weg) setFehler("Keine Verbindung zum Server."); })
       .finally(() => { if (!weg) setLaedt(false); });
     return () => { weg = true; };
-  }, [filter, sort, seite, suche]);
+  }, [filter, sort, seite, suche, zusatzSuche]);
 
   const zeilen: Zeile[] = d?.zeilen ?? [];
   const kopf = d?.kopf ?? {};
@@ -150,7 +162,7 @@ export default function ChefKundenliste() {
   useEffect(() => {
     if (!d || laedt) return;
     reiheSpeichern({
-      eintraege: reiheAusZeilen(d.zeilen ?? []), filter, sort, suche,
+      eintraege: reiheAusZeilen(d.zeilen ?? []), filter, sort, suche, extra: zusatzSuche,
       seite: Number(d.seite ?? seite), seiten: Number(d.seiten ?? 1), gesamt: Number(d.gesamt ?? 0), proSeite: 50,
     });
     if (angesprungen.current) return;
@@ -226,6 +238,53 @@ export default function ChefKundenliste() {
               {f.label}
             </button>
           ))}
+        </div>
+        {/* ── E-388: die Filter der Betreuung — Stufe, Zuständiger, Arbeitslage, Datenqualität ── */}
+        <div className="ck-zusatz">
+          <div className="ck-filter ck-stufen" role="group" aria-label="Stufe">
+            {KUNDEN_STUFEN.map((st) => {
+              const an = !!zusatz.stufe?.includes(st.wert);
+              const zahlWert = d?.zahlen?.[st.zahl];
+              return (
+                <button key={st.wert} type="button" className={an ? "an" : ""} aria-pressed={an}
+                        onClick={() => {
+                          const alt = zusatz.stufe ?? [];
+                          const neu = an ? alt.filter((x) => x !== st.wert) : [...alt, st.wert];
+                          zusatzSetzen({ stufe: neu.length ? neu : undefined });
+                        }}>
+                  {st.titel}{zahlWert != null && <span className="ck-zahl">{zahl(Number(zahlWert))}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {(d?.agenten?.length ?? 0) > 0 && (
+            <label className="ck-sort ck-zustaendig">
+              <Users size={15} strokeWidth={1.7} aria-hidden="true" />
+              <select value={zusatz.agent ? String(zusatz.agent) : ""} aria-label="Zuständiger"
+                      onChange={(e) => zusatzSetzen({ agent: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">Alle Zuständigen</option>
+                {d.agenten.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </label>
+          )}
+          <FiaonFilter
+            gruppen={KUNDEN_SPEZIAL_GRUPPEN.map((g) => ({
+              titel: g.titel, art: "schalter" as const,
+              optionen: g.optionen.map((o) => ({
+                schluessel: o.schluessel, titel: o.titel, erklaerung: o.erklaerung,
+                anzahl: o.zahl && d?.zahlen?.[o.zahl] != null ? Number(d.zahlen[o.zahl]) : null,
+              })),
+            }))}
+            aktiv={zusatz.spezial as Record<string, boolean>}
+            onAendern={(k, w) => spezialSetzen(k, !!w)}
+            onZuruecksetzen={() => zusatzSetzen({ spezial: {} })}
+          />
+          <FiaonFilterChips
+            chips={KUNDEN_SPEZIAL_SCHLUESSEL.filter((k) => zusatz.spezial[k])
+              .map((k) => ({ schluessel: k, titel: KUNDEN_SPEZIAL_TITEL[k as KundenSpezialSchluessel] }))}
+            onEntfernen={(k) => spezialSetzen(k, false)}
+            onAlle={() => zusatzSetzen({ spezial: {} })}
+          />
         </div>
         <label className="ck-sort">
           <ArrowUpDown size={15} strokeWidth={1.7} aria-hidden="true" />

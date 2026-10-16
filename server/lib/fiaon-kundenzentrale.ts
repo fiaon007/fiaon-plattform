@@ -116,6 +116,18 @@ function bedingungen(f: Filter): { wo: string[]; werte: unknown[] } {
     )`);
   }
 
+  wo.push(...filterBedingungen(f, par));
+  return { wo, werte };
+}
+
+/**
+ * Die kombinierbaren Filter (Stufe, Status, Zuständiger, Paket, Quelle, Zeitraum, Spezialfilter) als
+ * WHERE-Teile über `p` (fiaon_persons). Werte gehen über `par` als Parameter in die Abfrage des Aufrufers.
+ * E-388 (16.10.2026): eigene Funktion, damit Chefbüro › Alle Kunden (/chef/kunden) GENAU dieselben Regeln
+ * benutzt wie die Kunden-Zentrale — eine Bedingung, zwei Ansichten.
+ */
+export function filterBedingungen(f: Filter, par: (v: unknown) => string): string[] {
+  const wo: string[] = [];
   if (f.stufe?.length) {
     const stufen = f.stufe
       .map((s) => ({ A: 1, B: 2, C: 3, bezahlt: 0 } as Record<string, number>)[s])
@@ -170,7 +182,7 @@ function bedingungen(f: Filter): { wo: string[]; werte: unknown[] } {
                        AND a.merged_into IS NULL AND a.documents_uploaded_at IS NOT NULL
                        AND COALESCE(a.kyc_status, 'pending') = 'pending')`);
   }
-  return { wo, werte };
+  return wo;
 }
 
 const SORT: Record<string, string> = {

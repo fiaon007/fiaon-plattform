@@ -322,7 +322,7 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
       const fassung = String(a.fassung || "");
       return {
         id: Number(a.id), angebotRef: String(a.angebot_ref), status: String(a.status),
-        art: fassung.startsWith("IA-FIRMA") ? "firma" : fassung.startsWith("IA-BEGLEIT") ? "begleit" : "individuell",
+        art: fassung.startsWith("IA-FIRMA") ? "firma" : fassung.startsWith("IA-BEGLEIT") ? "begleit" : fassung.startsWith("IA-KOOP") ? "koop" : "individuell",
         kunde: String(k.name || [k.vorname, k.nachname].filter(Boolean).join(" ") || k.firma || "—"),
         firma: k.firma ? String(k.firma) : null,
         gueltigBis: tag(a.gueltig_bis), angenommenAm: iso(a.angenommen_am), personId: a.person_id != null ? Number(a.person_id) : null,

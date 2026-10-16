@@ -13,6 +13,8 @@ export interface ZahlungAuftragKontext {
   gesellschaft: string | null;
   gesellschaftZeile: string;
   satz: string;
+  /** E-384: Zeile unten auf der Urkunde (Vorgabe „Anmeldung nach Ihrer Zahlung“), z. B. „Anmeldung ab Montag, 19.10.2026“. */
+  urkundeStand?: string;
   /** E-320: Stand des Auftrags als Prüfliste (z. B. „Reisepass erhalten und geprüft“) — nie ein Dokument selbst. */
   pruefTitel?: string;
   pruefungen?: { titel: string; text: string; stand: "ok" | "offen" }[];

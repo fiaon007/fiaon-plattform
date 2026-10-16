@@ -66,6 +66,9 @@ const BusinessAngebotFirma = lazy(() => import("@/pages/business-angebot-firma")
 // E-312: Das OFFENE Begleit-Angebot für Bestandskunden (art „begleit“) — eigene Seite, eigener Chunk.
 const BusinessAngebotBegleit = lazy(() => import("@/pages/business-angebot-begleit"));
 import type { BegleitKundenSicht } from "@shared/fiaon-global-angebot-begleit";
+// E-384: Das OFFENE Kooperationsangebot (art „koop“) — eigene Seite, eigener Chunk.
+const BusinessAngebotKoop = lazy(() => import("@/pages/business-angebot-koop"));
+import type { KoopKundenSicht } from "@shared/fiaon-global-angebot-koop";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -360,7 +363,7 @@ export default function BusinessAngebot() {
       <Dunkel seite="business" titel={titel} beschreibung={beschreibung}>
         <div className="gs gia" data-fiaon="angebot-fertig"><div className="dk-rahmen">
           <header className="gs-kopf">
-            <span className="gs-auge">FIAON Global · Auftrag {fertig.auftragRef ?? fertig.ref}</span>
+            <span className="gs-auge">{(fertig as { art?: string }).art === "koop" ? "FIAON · Kooperation" : "FIAON Global · Auftrag"} {fertig.auftragRef ?? fertig.ref}</span>
             <h1 className="gs-h1">{fertig.fertigTitel}</h1>
             <p className="gs-lead">{fertig.hinweis || fertig.fertigText}</p>
           </header>
@@ -399,6 +402,16 @@ export default function BusinessAngebot() {
     return (
       <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
         <BusinessAngebotFirma sicht={firma} token={token}
+          onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
+          onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
+      </Suspense>
+    );
+  }
+  const koop = sicht as unknown as KoopKundenSicht;
+  if (koop.art === "koop" && koop.status === "offen") {
+    return (
+      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+        <BusinessAngebotKoop sicht={koop} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
       </Suspense>

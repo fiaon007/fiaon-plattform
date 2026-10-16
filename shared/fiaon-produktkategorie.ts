@@ -55,7 +55,9 @@ export function produktkategorie(
       || paket(zeile.pack_key)?.zusatz === "auskunft") {
     return "auskunft";
   }
-  return paket(zeile.pack_key)?.art === "global" ? "global" : "konto";
+  // E-384: Einzelrechnungen der Global-Welt (zahlungsseite "global") zählen wie Global — nie als Stufenpaket.
+  const p = paket(zeile.pack_key);
+  return p?.art === "global" || p?.zahlungsseite === "global" ? "global" : "konto";
 }
 
 // E-240: Die vier Auskunft-Schlüssel (schufa, auskunft_privat, auskunft_firma,
@@ -70,7 +72,7 @@ function auskunftSchluesselListe(): string {
 // Die Schlüssel landen als Literale in SQL — sie kommen aus dem eigenen
 // Katalog, die Form wird trotzdem geprüft (wie in fiaon-kein-abo.ts).
 function globalSchluesselListe(): string {
-  const keys = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
+  const keys = PAKETE.filter((p) => p.art === "global" || p.zahlungsseite === "global").map((p) => p.key);
   const falsch = keys.filter((k) => !/^[a-z0-9_]+$/.test(k));
   if (falsch.length > 0) throw new Error(`[KATEGORIE] Paketschlüssel mit unerlaubten Zeichen: ${falsch.join(", ")}`);
   return keys.length > 0 ? keys.map((k) => `'${k}'`).join(", ") : "''";

@@ -3,7 +3,7 @@ import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { ZUSTAND_WIEDER_OFFEN_TAGE } from "../../shared/fiaon-auftrag-arten";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
-import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, paketPreisEuro } from "@shared/fiaon-pakete";
+import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, PAKETE, istGlobalPaket, istAngebotsPaket, istGlobalEinzelrechnung, paketPreisEuro } from "@shared/fiaon-pakete";
 import { istAuskunftSchluessel } from "@shared/fiaon-auskunft";
 import { antragAbgeschickt, abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
@@ -154,6 +154,8 @@ const PAYMENT_DUE_DAYS = 7;
 // jetzt kommt die Liste wirklich aus dem Katalog.
 // ═══════════════════════════════════════════════════════════════════════════
 const GLOBAL_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
+// E-384 (16.10.2026): vereinbarte Einzelrechnungen der Global-Welt — nie als Dublette stilllegen (supersedeSisterOrders).
+const EINZELRECHNUNG_SCHLUESSEL: string[] = PAKETE.filter((p) => istGlobalEinzelrechnung(p.key)).map((p) => p.key);
 
 // ── #20: Kanonische Paket-Kreditlimits (Headline „bis zu X €", identisch zu den
 // PACKS/BUSINESS_PACKS im Frontend). Quelle der Wahrheit fürs Portal, falls das
@@ -425,6 +427,9 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   // keinen Angebotsteil still. Ein Angebotsteil löst deshalb keinen Stilllegungslauf
   // aus, und unten wird keiner stillgelegt (pack_key-Bedingung).
   if (istAngebotsPaket(paid[0].pack_key)) return { count: 0, refs: [] };
+  // E-384 (16.10.2026): Ebenso die vereinbarten Einzelrechnungen der Global-Welt (LLC-Gründung im Begleitvertrag) — am
+  // 11.10. legte die bezahlte erste Hälfte die gestundete zweite still („dieselbe Produktkategorie“), 199 € verschwanden.
+  if (istGlobalEinzelrechnung(paid[0].pack_key)) return { count: 0, refs: [] };
   const kategorieSchluessel = produktkategorie(paid[0]);
   const kategorie = KATEGORIE_TEXT[kategorieSchluessel];
   // Der Auslöser steht im Protokoll, wie er ist: Beim Aufruf aus /payment-order
@@ -474,6 +479,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       -- und umgekehrt. Seit E-188 gilt das genauso für FIAON Global.
       AND ${sqlPool.unsafe(produktkategorieSql())} = ${kategorieSchluessel}::text
       AND COALESCE(pack_key, '') <> 'global_individuell'
+      AND NOT (LOWER(TRIM(COALESCE(pack_key, ''))) = ANY(${EINZELRECHNUNG_SCHLUESSEL}))
     RETURNING ref, assigned_agent_id, pack_name
   `;
   for (const r of rows) {

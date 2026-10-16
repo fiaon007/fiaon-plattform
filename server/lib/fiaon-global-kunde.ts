@@ -130,7 +130,13 @@ export function globalKundeSql(personIdAusdruck: string): string {
                   LEFT JOIN fiaon_persons gk272_p2 ON gk272_p2.id = gk272_p1.merged_into_person_id
                  WHERE gk272_g.person_id IS NOT NULL) gk272_k
                WHERE gk272_k.person_id IS NOT NULL))
-           AND NOT COALESCE(BOOL_OR(gk272_z.kat = 'konto' AND gk272_z.bezahlt), FALSE)
+           AND (NOT COALESCE(BOOL_OR(gk272_z.kat = 'konto' AND gk272_z.bezahlt), FALSE)
+                -- E-384 (16.10.2026): Ein ANGENOMMENER Begleitvertrag (IA-BEGLEIT-) beendet das alte Abo ausdrücklich — wer
+                -- ihn hat, ist Global-Kunde, auch mit bezahlten Raten aus dem alten Konzept (erster Fall: Privat-Rückholung,
+                -- „Zahlung gemeldet“ und Privat-Prüfung trotz Begleitvertrag).
+                OR EXISTS (SELECT 1 FROM fiaon_global_angebote gk272_b
+                            WHERE gk272_b.person_id = (${x}) AND gk272_b.status = 'angenommen'
+                              AND gk272_b.fassung LIKE 'IA-BEGLEIT-%'))
       FROM (
         SELECT ${produktkategorieSql("gk272_a")} AS kat,
                gk272_a.payment_status = 'paid' AS bezahlt

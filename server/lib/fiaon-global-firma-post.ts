@@ -62,7 +62,7 @@ export async function firmaKundinAdresse(email: string): Promise<boolean> {
 
 // ── E-350 (14.10.2026): AUCH MARA ANTWORTET NIE AUTOMATISCH ─────────────────
 // Justin (Fall ULRIKA'S): „wenn sie arbeitet darf Mara nicht automatisiert antworten bei ihr, bitte drauf achten“.
-// Die Global-Regel des Postmeisters (istGlobalKunde, E-272/E-275) hängt an der PERSON — ein Firmenangebot wird aber
+// Die Global-Regel des Postmeisters (E-272/E-275) hängt an der PERSON — ein Firmenangebot wird aber
 // ohne Person angelegt, und die Kundin schreibt von einer anderen Adresse der Firma (ulrika@ im Angebot, ulrikae@ in
 // der Mail). Deshalb erkennt der Postmeister die Kundin am ABSENDER: dieselbe Adresse wie firmaKundinAdresse ODER
 // dieselbe Firmen-Domäne wie die Adresse eines Firmenangebots/einer Firmenakte. Freemail-Domänen zählen nie als Firma

@@ -16,7 +16,7 @@ function ruhig(): boolean {
   try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
 }
 
-function Urkunde({ name, zeile }: { name: string; zeile: string }) {
+function Urkunde({ name, zeile, stand }: { name: string; zeile: string; stand?: string }) {
   const [n, setN] = useState(ruhig() ? name.length : 0);
   useEffect(() => {
     if (ruhig()) return;
@@ -41,7 +41,7 @@ function Urkunde({ name, zeile }: { name: string; zeile: string }) {
         </div>
         <p className="za-name" aria-hidden="true">{name.slice(0, n)}<span className={`za-cursor${n >= name.length ? " aus" : ""}`}>|</span></p>
         <p className="za-zeile">{zeile}</p>
-        <p className="za-status"><span className="za-punkt" />{WORTE.anmeldung}</p>
+        <p className="za-status"><span className="za-punkt" />{stand ?? WORTE.anmeldung}</p>
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ export function AuftragKopf({ a }: { a: ZahlungAuftragKontext }) {
   return (
     <section className="za-block" aria-label={a.auge}>
       <p className="za-block-auge">{a.auge}</p>
-      {a.gesellschaft && <Urkunde name={a.gesellschaft} zeile={a.gesellschaftZeile} />}
+      {a.gesellschaft && <Urkunde name={a.gesellschaft} zeile={a.gesellschaftZeile} stand={a.urkundeStand} />}
       <p className="za-satz">{a.satz}</p>
       {a.pruefungen && a.pruefungen.length > 0 && (
         <div className="za-pruef">

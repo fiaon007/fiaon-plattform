@@ -1,0 +1,87 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business/angebot/:token — DER KOOPERATIONSVERTRAG „TERMINE FÜR IHRE BERATUNG“, Register E-384
+
+   Baut auf global-angebot-firma.css (.gaf) und global-angebot-begleit.css (.gab) auf — aber im FIAON-CI Glasblau
+   (Justin 09.10.2026: „wir sind in unserem CI Glasblau“, kein Gold): Die Gold-Variablen der Grundseite werden in .gak
+   auf das Blau-Paar #288DFA / #1D4ED8 umgelegt, Navy bleibt Tinte. Eigene Teile mit dem Präfix gak-.
+   Am Handy (360–430 px) stapelt alles, kein seitliches Scrollen. Bewegung aus bei prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gak {
+  --gold:#288dfa; --gold-2:#5aa8fb; --gold-3:#cfe4fe; --gold-tief:#1d4ed8; --elfenbein:#f2f8ff;
+  --gold-verlauf:linear-gradient(135deg,#288dfa 0%,#1d4ed8 100%);
+  --gold-text:linear-gradient(120deg,#1d4ed8 0%,#288dfa 55%,#1d4ed8 100%);
+  --glas:rgba(255,255,255,.78);
+}
+.gak .gab-hero { background:radial-gradient(1200px 520px at 85% -10%, rgba(40,141,250,.16), transparent 60%), radial-gradient(900px 480px at -10% 10%, rgba(18,40,74,.07), transparent 60%); }
+
+/* Fest eingebautes Gold der Grundseite (Zeitstrahl, Abzeichen, Leistungszeichen, Auftakt) → Glasblau */
+.gak .gaf-etappe-knoten[data-erreicht] { background:radial-gradient(circle at 50% 30%, #ffffff, #eaf3ff) padding-box, conic-gradient(from 200deg, #cfe4fe, #288dfa, #a8cffd, #1d4ed8, #cfe4fe) border-box;
+  box-shadow:0 0 0 5px rgba(207,228,254,.45), 0 10px 24px rgba(29,78,216,.16); }
+.gak .gaf-weg-gold { background:linear-gradient(180deg, #cfe4fe, #288dfa 30%, #1d4ed8); }
+.gak .gaf-etappe-abzeichen { color:#1d4ed8; background:linear-gradient(135deg, #f2f8ff, #dcecff); border-color:rgba(40,141,250,.35); }
+.gak .gaf-leistung-zeichen { background:radial-gradient(circle at 30% 25%, #fff, #eaf3ff); box-shadow:inset 0 0 0 1px rgba(40,141,250,.3); }
+.gak .gaf-leistung:hover .gaf-leistung-zeichen { color:#1d4ed8; box-shadow:inset 0 0 0 1px rgba(40,141,250,.6), 0 0 0 6px rgba(207,228,254,.5); }
+.gak .gaf-auftakt-weiter { border-color:rgba(40,141,250,.55); }
+.gak .gaf-auftakt-weiter:hover { border-color:#288dfa; box-shadow:0 10px 30px rgba(40,141,250,.22); }
+.gak .gaf-unterschrift-linie { background:linear-gradient(90deg, #288dfa, rgba(40,141,250,0)); }
+
+/* ── Preis-Karte im Hero ───────────────────────────────────────────────── */
+.gak-preis { position:relative; padding:30px; border-radius:22px; background:var(--glas); border:1px solid rgba(40,141,250,.22);
+  box-shadow:0 30px 80px -40px rgba(12,26,46,.35), 0 1px 0 rgba(255,255,255,.95) inset; -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); }
+.gak-preis-auge { font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-tief); font-weight:500; }
+.gak-preis-betrag { margin-top:14px; font-family:var(--serif); font-weight:300; font-size:clamp(54px,7vw,76px); line-height:1; letter-spacing:-.03em;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.gak-preis-zeile { margin-top:8px; font-size:15px; color:var(--tinte); }
+.gak-preis-fein { margin-top:14px; padding-top:14px; border-top:1px solid var(--linie); font-size:13px; line-height:1.6; color:var(--leise); }
+
+/* ── Rechner: Menge je Woche ───────────────────────────────────────────── */
+.gak-rechner { margin-top:22px; padding:20px; border-radius:16px; background:#fff; border:1px solid var(--linie); }
+.gak-stufen { display:flex; flex-wrap:wrap; gap:8px; }
+.gak-stufe { min-width:52px; padding:9px 14px; border-radius:999px; border:1px solid var(--linie-2); background:#fff; color:var(--tinte);
+  font:500 14.5px/1 var(--sans); cursor:pointer; transition:background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease); }
+.gak-stufe:hover { border-color:#288dfa; }
+.gak-stufe[aria-pressed="true"] { background:var(--gold-verlauf); border-color:transparent; color:#fff; box-shadow:0 6px 16px -8px rgba(29,78,216,.6); }
+.gak-stufe:focus-visible { outline:2px solid #288dfa; outline-offset:2px; }
+.gak-eigen { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:13.5px; color:var(--leise); }
+.gak-eigen input { width:88px; padding:8px 10px; border-radius:10px; border:1px solid var(--linie-2); font:500 15px var(--sans); color:var(--tinte); background:#fff; }
+.gak-eigen input:focus { outline:2px solid #288dfa; outline-offset:1px; border-color:#288dfa; }
+.gak-werte { margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.gak-werte div { padding:12px 14px; border-radius:12px; background:var(--elfenbein); }
+.gak-werte dt { font-size:12px; color:var(--leise); }
+.gak-werte dd { margin-top:4px; font-family:var(--serif); font-size:26px; font-weight:400; color:var(--tinte); }
+
+/* ── Was zu jedem Kontakt gehört ───────────────────────────────────────── */
+.gak-felder { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.gak-feld { padding:22px; border-radius:18px; background:var(--glas); border:1px solid var(--linie); }
+.gak-feld svg { color:var(--gold-tief); }
+.gak-feld b { display:block; margin-top:12px; font-weight:500; color:var(--tinte); font-size:16px; }
+.gak-feld span { display:block; margin-top:6px; font-size:14px; line-height:1.55; color:var(--leise); }
+.gak-themen { margin-top:30px; }
+.gak-themen ul { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; }
+.gak-themen li { padding:8px 14px; border-radius:999px; background:var(--elfenbein); border:1px solid var(--gold-3); color:var(--tinte); font-size:14px; }
+
+/* ── Sauber aufgestellt ────────────────────────────────────────────────── */
+.gak-sauber { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.gak-sauber-punkt { padding:24px; border-radius:18px; background:linear-gradient(160deg,#12284a,#0b1c36); color:#e8eef8; }
+.gak-sauber-punkt b { display:block; font-weight:500; font-size:17px; color:#fff; }
+.gak-sauber-punkt p { margin-top:10px; font-size:14.5px; line-height:1.65; color:#c8d4e8; }
+
+/* ── Annahme: Menge ────────────────────────────────────────────────────── */
+.gak-annahme-menge .gak-stufen { margin-top:12px; }
+.gak-annahme-menge .gab-unter { display:block; margin-top:10px; }
+
+@media (max-width:980px) {
+  .gak-felder { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .gak-sauber { grid-template-columns:1fr; }
+}
+@media (max-width:560px) {
+  .gak-felder { grid-template-columns:1fr; }
+  .gak-preis { padding:22px; }
+  .gak-werte dd { font-size:22px; }
+}
+@media (prefers-reduced-motion:reduce) { .gak-stufe { transition:none; } }
+
+/* Annahme und Vertragsleser: Elfenbein/Gold der Grundseite → kühles Glasblau */
+.gak .gaf-abschnitt-annahme::before { background:linear-gradient(180deg, rgba(242,248,255,0), #f2f8ff 26%, #f2f8ff 74%, rgba(242,248,255,0)); }
+.gak .gaf-signatur-feld, .gak .gaf-signatur-vorschau { background:linear-gradient(180deg,#ffffff,#f2f8ff); box-shadow:inset 0 0 0 1px rgba(40,141,250,.28); }
+.gak .gaf-leser-ende { background:linear-gradient(170deg,#f2f8ff,#e8f2ff); box-shadow:inset 0 0 0 1px rgba(40,141,250,.2); }

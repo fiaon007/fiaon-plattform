@@ -660,7 +660,23 @@ export default function ZahlungPage() {
           </div>
         )}
 
-        {!loading && order && order.status === "paid" && (
+        {/* E-384 (16.10.2026): Bezahlte Rechnung mit Auftrag (Begleitvertrag, Angebotsteil) — der Stand des Auftrags statt der
+            Kurzansicht: Gesellschaft, Prüfliste („Zahlung eingegangen“, Gründungsstart), Unterlagen, Schritte, Ansprechpartner. */}
+        {!loading && order && order.status === "paid" && order.auftrag && (
+          <div style={{ animation: "zahlungFadeUp .4s ease" }}>
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(180deg,#eaf3ff,#dcecff)", border: "1px solid rgba(40,141,250,.35)" }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2 leading-tight">{w.bezahltTitel}</h1>
+              <p className="text-[12px] text-slate-400">{order.packName ? `${order.packName.replace(/\n/g, " ")} · ` : ""}{order.paymentReference}</p>
+            </div>
+            <style>{AUFTRAG_CSS}</style><AuftragKopf a={order.auftrag} />
+            <div className="mt-8"><AuftragWeiter a={order.auftrag} /></div>
+          </div>
+        )}
+
+        {!loading && order && order.status === "paid" && !order.auftrag && (
           <div className="text-center py-24">
             <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>

@@ -56,6 +56,7 @@ const isoTag = (v: unknown): string | null => {
   const s = String(v); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const gross = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const text = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 type Ergebnis<T = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; status: number; error: string };
 const nein = (error: string, status = 400) => ({ ok: false as const, status, error });
@@ -371,7 +372,7 @@ export function begleitListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
 // DIE ZAHLUNGSSEITE (E-318, 09.10.2026): Gehört eine Rechnung (llc_paket, llc_gruendung) zu einem angenommenen Begleitvertrag
 // derselben Person, zeigt /zahlung/<Zweck> den Auftrag dazu. Der Vertrag NUR über den signierten Angebotslink.
 // ═══════════════════════════════════════════════════════════════════════════
-export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_reference?: unknown; pack_key?: unknown; pack_name?: unknown; invoice_number?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
+export async function begleitZahlungsKontext(a: { ref?: unknown; person_id?: unknown; payment_reference?: unknown; pack_key?: unknown; pack_name?: unknown; invoice_number?: unknown; payment_status?: unknown; paid_at?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
   const personId = Number(a.person_id);
   if (!Number.isInteger(personId) || personId <= 0) return null;
   const [z] = (await sqlPool`
@@ -394,31 +395,62 @@ export async function begleitZahlungsKontext(a: { person_id?: unknown; payment_r
   const [andere] = halb ? ((await sqlPool`
     SELECT payment_reference, invoice_number, amount_due, payment_due_date, payment_status FROM fiaon_applications
      WHERE person_id = ${personId} AND pack_key = 'llc_gruendung_halb' AND payment_reference <> ${String(a.payment_reference ?? "")}
-       AND payment_status IN ('pending_payment', 'claimed_paid', 'paid') ORDER BY created_at LIMIT 1`.catch(() => [])) as any[]) : [];
+       AND (payment_status IN ('pending_payment', 'claimed_paid', 'paid')
+            -- E-384: eine gestundete Hälfte, die die Dubletten-Stilllegung automatisch beendet hatte, bleibt geschuldet
+            OR (payment_status = 'superseded' AND superseded_by IS NOT NULL))
+     ORDER BY created_at LIMIT 1`.catch(() => [])) as any[]) : [];
   const anderBetrag = andere ? begleitEur(Math.round(Number(andere.amount_due) * 100)) : "";
   const anderBis = andere?.payment_due_date ? begleitTag(new Date(andere.payment_due_date).toISOString().slice(0, 10)) : "";
   const angenommen = zeile.angenommen_am ? begleitTag(new Date(zeile.angenommen_am).toISOString().slice(0, 10)) : "";
+  // E-384 (16.10.2026): Nach dem Zahlungseingang zeigt die Seite den Stand — Zahlung da, und wann die Anmeldung beginnt
+  // (schalter.gruendungAb am Begleitvertrag, JJJJ-MM-TT; fehlt es, „als Nächstes“ ohne Datum — nie ein erfundenes).
+  const bezahlt = String(a.payment_status ?? "") === "paid";
+  const [eingang] = bezahlt ? ((await sqlPool`
+    SELECT booked_at FROM fiaon_bank_txns WHERE matched_ref = ${String(a.ref ?? "")} AND booked_at IS NOT NULL ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[]) : [];
+  const eingangAm = eingang?.booked_at ? begleitTag(berlinToday(new Date(eingang.booked_at))) : (a.paid_at ? begleitTag(berlinToday(new Date(String(a.paid_at)))) : "");
+  const sch = json<Record<string, unknown>>(zeile.schalter, {});
+  const abIso = typeof sch.gruendungAb === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sch.gruendungAb) ? sch.gruendungAb : "";
+  const heute = berlinToday();
+  const wochentag = abIso ? new Date(`${abIso}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "long", timeZone: "Europe/Berlin" }) : "";
+  const abText = abIso ? `${abIso > heute ? "ab" : "seit"} ${wochentag}, ${begleitTag(abIso)}` : "";
+  const name = gesellschaft ?? (begleitWahlAus(zeile)?.llc.wunsch || null);
   return {
     auge: "FIAON Global · Ihr Auftrag",
     gesellschaft,
     gesellschaftZeile: gesellschaft ? `Limited Liability Company · State of ${d.parameter.bundesstaat}` : "",
-    satz: `Diese Rechnung gehört zu Ihrem Begleitvertrag ${d.ref}${angenommen ? `, angenommen am ${angenommen}` : ""}.`,
+    ...(bezahlt && gruendung ? { urkundeStand: abText ? `Anmeldung ${abText}` : "Anmeldung in Vorbereitung" } : {}),
+    satz: bezahlt
+      ? `Ihre Zahlung ist eingegangen — vielen Dank. ${abText ? `${gross(abText)} kümmern wir uns um die Gründung${name ? ` von ${name}` : " Ihrer Gesellschaft"}.` : `Als Nächstes kümmern wir uns um die Gründung${name ? ` von ${name}` : " Ihrer Gesellschaft"}.`} (Begleitvertrag ${d.ref}${angenommen ? `, angenommen am ${angenommen}` : ""})`
+      : `Diese Rechnung gehört zu Ihrem Begleitvertrag ${d.ref}${angenommen ? `, angenommen am ${angenommen}` : ""}.`,
+    ...(bezahlt && gruendung ? {
+      pruefTitel: "Stand Ihres Auftrags",
+      pruefungen: [
+        { titel: "Vertrag angenommen", text: angenommen ? `am ${angenommen} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" as const },
+        ...(name ? [{ titel: "Name geprüft", text: `${name} ist im Register von ${d.parameter.bundesstaat} frei`, stand: "ok" as const }] : []),
+        { titel: "Zahlung eingegangen", text: eingangAm ? `am ${eingangAm} — vielen Dank` : "vielen Dank", stand: "ok" as const },
+        { titel: `Anmeldung in ${d.parameter.bundesstaat}`, text: abText ? `${abText} — wir reichen sie beim Bundesstaat ein` : "als Nächstes — wir reichen sie beim Bundesstaat ein", stand: abIso && abIso <= heute ? "ok" as const : "offen" as const },
+      ],
+    } : {}),
     dokumenteTitel: "Ihre Unterlagen",
     dokumente: [
       { titel: "Ihr Vertrag", unter: `${begleitVertragTitel()} · mit Annahmevermerk`, href: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf` },
       ...(zweck ? [{ titel: zweite ? "Ihre zweite Rechnung (gestundet)" : "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${paketName}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : []),
-      ...(andere && !zweite ? [{ titel: "Ihre zweite Rechnung (gestundet)", unter: `${String(andere.invoice_number ?? "Rechnung")} · ${anderBetrag} · fällig mit dem ersten Geldeingang, spätestens ${anderBis}`, href: signInvoiceUrl(String(andere.payment_reference), 60 * 24 * 3600_000) }] : []),
+      ...(andere && !zweite && String(andere.payment_status) !== "superseded" ? [{ titel: "Ihre zweite Rechnung (gestundet)", unter: `${String(andere.invoice_number ?? "Rechnung")} · ${anderBetrag} · fällig mit dem ersten Geldeingang, spätestens ${anderBis}`, href: signInvoiceUrl(String(andere.payment_reference), 60 * 24 * 3600_000) }] : []),
     ],
     hinweis: halb
       ? (zweite
         ? "Diese zweite Hälfte der Gründungskosten haben wir für Sie vorab übernommen. Sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig, spätestens zum Zahlungsziel oben."
-        : `Wir kommen Ihnen entgegen: Heute ist nur die erste Hälfte fällig. Die zweite Hälfte${anderBetrag ? ` (${anderBetrag})` : ""} übernehmen wir für Sie vorab — sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig${anderBis ? `, spätestens am ${anderBis}` : ""}. Alles zum Selbstkostenpreis, ohne Aufschlag (Ziffer 4 Ihres Vertrags).`)
+        : bezahlt
+          ? `Die zweite Hälfte der Gründungskosten${anderBetrag ? ` (${anderBetrag})` : ""} haben wir für Sie vorab übernommen — sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig${anderBis ? `, spätestens am ${anderBis}` : ""}. Alles zum Selbstkostenpreis, ohne Aufschlag (Ziffer 4 Ihres Vertrags).`
+          : `Wir kommen Ihnen entgegen: Heute ist nur die erste Hälfte fällig. Die zweite Hälfte${anderBetrag ? ` (${anderBetrag})` : ""} übernehmen wir für Sie vorab — sie wird mit dem ersten Geldeingang Ihrer Gesellschaft fällig${anderBis ? `, spätestens am ${anderBis}` : ""}. Alles zum Selbstkostenpreis, ohne Aufschlag (Ziffer 4 Ihres Vertrags).`)
       : "Zum Selbstkostenpreis, ohne Aufschlag — so steht es in Ziffer 4 Ihres Vertrags.",
     hinweisBetont: halb,
     schritteTitel: "So geht es weiter",
     schritte: gruendung
       ? [
-        { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
+        bezahlt
+          ? { titel: "Ihre Zahlung", text: eingangAm ? `Eingegangen am ${eingangAm} — es ist nichts weiter zu tun.` : "Eingegangen — es ist nichts weiter zu tun." }
+          : { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
         { titel: `Anmeldung in ${d.parameter.bundesstaat}`, text: "Wir reichen die Anmeldung beim Bundesstaat (Sunbiz) ein und leiten die Gebühren an Ihren Registered Agent weiter." },
         { titel: "Ihre Gesellschaft steht", text: "Sobald der Bundesstaat einträgt, erhalten Sie Ihre Gründungsunterlagen. Danach folgen US-Steuernummer (EIN) und Geschäftskonto." },
       ]

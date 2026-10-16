@@ -173,6 +173,17 @@ export function istAngebotsPaket(key: unknown): boolean {
   return paket(key)?.preisJeAngebot === true;
 }
 
+/**
+ * E-384 (16.10.2026): Eine vereinbarte Einzelrechnung der Global-Welt (Katalogfeld `zahlungsseite: "global"`, z. B. die
+ * LLC-Gründung eines Begleitvertrags). Sie ist kein Stufenpaket: Produktkategorie „global“ (nie Privat-Erinnerung,
+ * Rückholung oder Kontoaktivierung), und zwei solche Rechnungen derselben Person sind nie Dubletten (die gestundete
+ * zweite Hälfte bleibt offen, wenn die erste bezahlt wird). Den Global-Start nach der Zahlung löst sie NICHT aus —
+ * der hängt an `art: "global"` (istGlobalPaket).
+ */
+export function istGlobalEinzelrechnung(key: unknown): boolean {
+  return paket(key)?.zahlungsseite === "global";
+}
+
 /** Was heute verkauft wird — eingestellte Pakete fehlen. */
 export function verkaufbarePakete(art?: Paket["art"]): Paket[] {
   // E-240: Von der Auskunft steht nur „schufa" in Auswahllisten — EIN Eintrag

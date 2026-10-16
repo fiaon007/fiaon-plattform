@@ -33,13 +33,24 @@ import { ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from 
 import { zahlwort } from "./fiaon-global-angebot-firma";
 import type { FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe } from "./fiaon-global-angebot-firma-typen";
 import { escHtml } from "./fiaon-global-angebot-begleit";
+// E-390 (16.10.2026): die Modelle „platz“ (Recht, Steuern) und „abschluss“ (Energie, Telefon) — der Vorsorge-Vertrag unten bleibt unverändert.
+import {
+  KOOP_FASSUNG_PLATZ, KOOP_FASSUNG_ABSCHLUSS, KOOP_BEREICH, KOOP_THEMEN, koopModellVon, koopBereichAus, koopModellSeite,
+  koopPlatzPraeambel, koopPlatzZiffern, koopAbschlussPraeambel, koopAbschlussZiffern, type KoopBereich, type KoopModell,
+} from "./fiaon-global-angebot-koop-modelle";
+export { koopModellVon, koopBereichAus, KOOP_BEREICH, type KoopBereich, type KoopModell };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FASSUNG
 // ═══════════════════════════════════════════════════════════════════════════
 export const KOOP_FASSUNG_PRAEFIX = "IA-KOOP-";
 export const KOOP_FASSUNG = "IA-KOOP-2026-10-16-A";
-export const KOOP_FASSUNGEN = [KOOP_FASSUNG] as const;
+export const KOOP_FASSUNGEN = [KOOP_FASSUNG, KOOP_FASSUNG_PLATZ, KOOP_FASSUNG_ABSCHLUSS] as const;
+/** Die aktuelle Fassung je Bereich (E-390). Vorsorge behält „IA-KOOP-2026-10-16-A“. */
+export function koopFassungFuer(bereich: unknown): string {
+  const m = koopModellVon(bereich);
+  return m === "platz" ? KOOP_FASSUNG_PLATZ : m === "abschluss" ? KOOP_FASSUNG_ABSCHLUSS : KOOP_FASSUNG;
+}
 export function istKoopFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(KOOP_FASSUNG_PRAEFIX);
 }
@@ -85,6 +96,16 @@ export interface KoopParameter {
   themen: string[];
   /** Ansprechpartner (kuerzel aus ANGEBOT_ANSPRECHPARTNER) */
   ansprechpartner: string[];
+  /** E-390: Bereich des Partner-Netzwerks (bestimmt das Modell); fehlt bei Altangeboten = „vorsorge“ */
+  bereich: KoopBereich;
+  /** E-390: zweiter Preis je Abschluss (Gas bzw. Internet) — nur Modell „abschluss“ */
+  zweitCents: number;
+  /** E-390: Region des Partnerplatzes — nur Modell „platz“ */
+  region: string;
+  /** E-390: Mindestlaufzeit in Monaten — nur Modell „platz“ */
+  mindestMonate: number;
+  /** E-390: höchstens so viele Partner je Region und Gebiet — nur Modell „platz“ */
+  jeRegion: number;
 }
 export const KOOP_VORGABEN: KoopParameter = {
   preisCents: 5_900,
@@ -102,7 +123,15 @@ export const KOOP_VORGABEN: KoopParameter = {
     "Absicherung von Einkommen und Familie",
   ],
   ansprechpartner: ["justin", "daniel"],
+  bereich: "vorsorge", zweitCents: 0, region: "", mindestMonate: 3, jeRegion: 3,
 };
+/** E-390: Vorgaben je Bereich — Preise wie auf den Seiten des Partner-Netzwerks (shared/fiaon-partnernetz.ts). */
+export function koopVorgaben(bereich: unknown): KoopParameter {
+  const b = koopBereichAus(bereich);
+  const preis: Record<KoopBereich, [number, number, number]> = { vorsorge: [5_900, 0, 40], recht: [69_000, 0, 0], steuern: [49_000, 0, 0], energie: [12_900, 15_900, 50], telekom: [9_900, 14_900, 50] };
+  const [cents, zweit, deckel] = preis[b];
+  return { ...KOOP_VORGABEN, bereich: b, preisCents: cents, zweitCents: zweit, startDeckel: deckel || KOOP_VORGABEN.startDeckel, themen: KOOP_THEMEN[b], reklamationTage: KOOP_VORGABEN.reklamationTage };
+}
 export interface KoopDaten {
   ref: string;
   fassung: string;
@@ -169,19 +198,28 @@ export function koopMonatCents(wunschWoche: number, preisCents: number): number 
 const p = (text: string): AngebotAbsatz => ({ art: "p", text });
 const liste = (zeilen: string[], einleitung?: string): AngebotAbsatz => (einleitung ? { art: "liste", einleitung, zeilen } : { art: "liste", zeilen });
 
-export function koopVertragTitel(): string {
-  return "FIAON — Kooperationsvertrag: Termine für Ihre Beratung";
+export function koopVertragTitel(d?: Pick<KoopDaten, "parameter">): string {
+  const b = d ? koopBereichAus(d.parameter?.bereich) : "vorsorge";
+  if (b === "vorsorge") return "FIAON — Kooperationsvertrag: Termine für Ihre Beratung";
+  return koopModellVon(b) === "platz" ? `FIAON — Partnerplatz-Vertrag: ${KOOP_BEREICH[b].name}` : `FIAON — Kooperationsvertrag: ${KOOP_BEREICH[b].titel}`;
 }
-export function koopVertragUnterzeile(d: Pick<KoopDaten, "ref" | "fassung" | "gueltigBis">): string {
-  return `${KOOP_MARKE} · Vertragsfassung ${d.fassung} · Angebot ${d.ref} · gültig bis ${koopTag(d.gueltigBis)}`;
+export function koopVertragUnterzeile(d: Pick<KoopDaten, "ref" | "fassung" | "gueltigBis"> & Partial<Pick<KoopDaten, "parameter">>): string {
+  const b = koopBereichAus(d.parameter?.bereich);
+  return `${b === "vorsorge" ? KOOP_MARKE : KOOP_BEREICH[b].marke} · Vertragsfassung ${d.fassung} · Angebot ${d.ref} · gültig bis ${koopTag(d.gueltigBis)}`;
 }
-export function koopPraeambel(_d: KoopDaten): string[] {
+export function koopPraeambel(d: KoopDaten): string[] {
+  const m = koopModellVon(d.parameter.bereich);
+  if (m === "platz") return koopPlatzPraeambel(d as any);
+  if (m === "abschluss") return koopAbschlussPraeambel(d as any);
   return [
     "FIAON begleitet Menschen dabei, ihre Finanzen zu ordnen und neu aufzubauen. Viele von ihnen möchten in diesem Zuge auch ihre Vorsorge und Absicherung angehen und wünschen dafür ein persönliches Gespräch mit einer Fachperson.",
     "Der Partner ist selbstständig in der Finanz- und Vorsorgeberatung tätig. Die Parteien vereinbaren, dass FIAON dem Partner Interessenten, die ein solches Gespräch ausdrücklich wünschen, mit festem Termin übermittelt — gegen eine feste Vergütung je Kontakt und ohne jede Beteiligung von FIAON an Abschlüssen.",
   ];
 }
 export function koopZiffern(d: KoopDaten): AngebotZiffer[] {
+  const m = koopModellVon(d.parameter.bereich);
+  if (m === "platz") return koopPlatzZiffern(d as any);
+  if (m === "abschluss") return koopAbschlussZiffern(d as any);
   const par = d.parameter;
   const preis = koopEur(par.preisCents);
   const rek = zahlwort(par.reklamationTage);
@@ -306,8 +344,10 @@ function annahmeBlock(d: KoopDaten, a: KoopAnnahmeVermerk | null): string {
     <h3>Annahmevermerk</h3>
     <p>Angenommen am ${escHtml(zeitText(a.am))} mit dem Knopf „${escHtml(KOOP_KNOPF)}“. Der Partner hat bestätigt, als Unternehmer zu handeln (Ziffer 1).</p>
     <ul>
-      <li>Gewünschte Menge (Ziffer 4): <strong>${escHtml(String(a.wahl.wunschWoche))} Kontakte je Woche</strong> — bis zur Zahlung der ersten Monatsrechnung höchstens ${escHtml(String(d.parameter.startDeckel))} Kontakte</li>
-      <li>Vergütung (Ziffer 6): ${escHtml(koopEur(d.parameter.preisCents))} netto je qualifiziertem Kontakt, Abrechnung zum Monatsende, zahlbar binnen ${escHtml(zahlwort(d.parameter.zahlungszielTage))} Tagen</li>
+      ${koopModellVon(d.parameter.bereich) === "kontakt"
+        ? `<li>Gewünschte Menge (Ziffer 4): <strong>${escHtml(String(a.wahl.wunschWoche))} Kontakte je Woche</strong> — bis zur Zahlung der ersten Monatsrechnung höchstens ${escHtml(String(d.parameter.startDeckel))} Kontakte</li>
+      <li>Vergütung (Ziffer 6): ${escHtml(koopEur(d.parameter.preisCents))} netto je qualifiziertem Kontakt, Abrechnung zum Monatsende, zahlbar binnen ${escHtml(zahlwort(d.parameter.zahlungszielTage))} Tagen</li>`
+        : koopModellSeite(d as any).vermerk(a.wahl.wunschWoche).map((x) => `<li>${escHtml(x)}</li>`).join("")}
     </ul>
     <p class="gv-leise">IP-Adresse ${escHtml(a.ip)} · Prüfsumme des Vertragstextes (SHA-256): <span class="hash">${escHtml(a.hash)}</span></p>
   </div>`;
@@ -336,7 +376,7 @@ export function koopVertragInhalt(d: KoopDaten): { anker: string; marke: string;
 export interface KoopSeite {
   auftakt: { auge: string; gruss: string; zeile: string; weiter: string };
   hero: { auge: string; titel: string; lead: string; nutzen: string[]; preis: string; preisZeile: string; preisFein: string };
-  rechner: { titel: string; sub: string; preisCents: number; stufen: number[]; vorschlag: number; woche: string; monat: string; fein: string };
+  rechner: { titel: string; sub: string; preisCents: number; stufen: number[]; vorschlag: number; woche: string; monat: string; fein: string; festMonat?: string };
   ablauf: { titel: string; sub: string; liste: FirmaPhase[] };
   kontakt: { titel: string; sub: string; felder: { titel: string; text: string }[]; themenTitel: string; themen: string[] };
   leistungen: { titel: string; sub: string; karten: FirmaLeistung[] };
@@ -347,6 +387,7 @@ export interface KoopSeite {
   pflicht: string[];
 }
 export function koopSeite(d: KoopDaten): KoopSeite {
+  if (koopModellVon(d.parameter.bereich) !== "kontakt") return koopSeiteModell(d);
   const par = d.parameter; const k = d.partner;
   const preis = koopEur(par.preisCents);
   return {
@@ -444,10 +485,39 @@ export function koopSeite(d: KoopDaten): KoopSeite {
   };
 }
 
+/** E-390: dieselbe Seite für „platz“ und „abschluss“ — Texte aus shared/fiaon-global-angebot-koop-modelle.ts. */
+function koopSeiteModell(d: KoopDaten): KoopSeite {
+  const par = d.parameter; const k = d.partner; const M = koopModellSeite(d as any); const b = KOOP_BEREICH[par.bereich];
+  return {
+    auftakt: { auge: `${b.marke} · Persönlich für Sie`, gruss: `Willkommen als Partner, ${koopPartnerGruss(k)}.`, zeile: M.auftaktZeile, weiter: "Weiter" },
+    hero: M.hero,
+    rechner: { ...M.rechner, preisCents: par.preisCents, stufen: [...KOOP_WUNSCH.stufen], vorschlag: KOOP_WUNSCH.vorschlag },
+    ablauf: M.ablauf,
+    kontakt: { ...M.kontakt, themen: par.themen },
+    leistungen: M.leistungen,
+    sauber: M.sauber,
+    fragen: { titel: "Fragen & Antworten", sub: "Kurz und ehrlich.", sichtbar: 5, liste: M.fragen },
+    ansprechpartner: { titel: "Ihre Ansprechpartner", sub: "Für Fragen zum Vertrag, zu Ihren Zeiten und zu jedem Kunden." },
+    vertrag: { titel: "Ihr Vertrag", sub: "Kurze Ziffern — derselbe Text wie im PDF.", dokument: koopVertragTitel(d), unterzeile: koopVertragUnterzeile(d), inhalt: koopVertragInhalt(d) },
+    pflicht: [
+      "FIAON stellt den Kontakt her und vereinbart Termine; FIAON berät nicht und wirkt an Verträgen bzw. Mandaten nicht mit.",
+      "Übermittelt werden nur Kunden mit ausdrücklicher, dokumentierter Einwilligung.",
+      "Geschäft unter Unternehmern — Preise netto, Reverse Charge.",
+    ],
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ÜBERSICHT UND ANNAHME (unmittelbar über dem Knopf)
 // ═══════════════════════════════════════════════════════════════════════════
 export function koopBestellUebersicht(d: KoopDaten): { titel: string; zeilen: { label: string; wert: string }[] } {
+  if (koopModellVon(d.parameter.bereich) !== "kontakt") {
+    return { titel: "Ihre Kooperation im Überblick", zeilen: [
+      { label: "Vertragspartner", wert: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}` },
+      { label: "Partner", wert: partnerZeile(d.partner) },
+      ...koopModellSeite(d as any).uebersicht,
+    ] };
+  }
   const par = d.parameter;
   return {
     titel: "Ihre Kooperation im Überblick",
@@ -474,6 +544,11 @@ export interface KoopAnnahmeTexte {
 }
 export function koopAnnahmeTexte(d: KoopDaten): KoopAnnahmeTexte {
   const par = d.parameter; const name = koopPartnerName(d.partner);
+  const M = koopModellVon(par.bereich) !== "kontakt" ? koopModellSeite(d as any).annahme : null;
+  const basis = koopAnnahmeTexteVorsorge(d, par, name);
+  return M ? { ...basis, titel: koopModellVon(par.bereich) === "platz" ? "Partnerplatz vereinbaren" : basis.titel, wunsch: M.wunsch, wunschUnter: M.wunschUnter, wunschEinheit: M.wunschEinheit, unterKnopf: M.unterKnopf } : basis;
+}
+function koopAnnahmeTexteVorsorge(d: KoopDaten, par: KoopParameter, name: string): KoopAnnahmeTexte {
   return {
     titel: "Kooperation vereinbaren",
     sub: "Menge wählen, zwei Häkchen, unterschreiben — fertig.",
@@ -514,8 +589,10 @@ export function koopAnsprechpartner(par: KoopParameter): { kuerzel: string; name
   const aus = par.ansprechpartner.map((kz) => ANGEBOT_ANSPRECHPARTNER.find((x) => x.kuerzel === kz)).filter(Boolean) as { kuerzel: string; name: string; rolle: string; email: string; telefon: string }[];
   return aus.length ? aus : ANGEBOT_ANSPRECHPARTNER.filter((x) => x.kuerzel === "justin");
 }
-export function koopParameterAus(roh: Partial<KoopParameter> | null | undefined, basis: KoopParameter = KOOP_VORGABEN): KoopParameter {
+export function koopParameterAus(roh: Partial<KoopParameter> | null | undefined, basisRoh?: KoopParameter): KoopParameter {
   const r = (roh ?? {}) as Record<string, unknown>;
+  const bereich = koopBereichAus(r.bereich ?? basisRoh?.bereich);
+  const basis: KoopParameter = basisRoh ?? (bereich === "vorsorge" ? KOOP_VORGABEN : koopVorgaben(bereich));
   const zahl = (k: keyof KoopParameter, min: number, max: number): number => {
     const v = Number(r[k]); return Number.isFinite(v) && v >= min && v <= max ? Math.round(v) : (basis[k] as number);
   };
@@ -524,7 +601,7 @@ export function koopParameterAus(roh: Partial<KoopParameter> | null | undefined,
     : basis.themen;
   const ap = Array.isArray(r.ansprechpartner) ? (r.ansprechpartner as unknown[]).map(String).filter((kz) => ANGEBOT_ANSPRECHPARTNER.some((x) => x.kuerzel === kz)).slice(0, 3) : basis.ansprechpartner;
   return {
-    preisCents: zahl("preisCents", 1_000, 50_000),
+    preisCents: zahl("preisCents", 1_000, 300_000), // Partnerplatz Recht/Steuern liegt über 500 € im Monat
     startDeckel: zahl("startDeckel", 5, 1_000),
     reklamationTage: zahl("reklamationTage", 3, 30),
     zahlungszielTage: zahl("zahlungszielTage", 7, 30),
@@ -533,11 +610,17 @@ export function koopParameterAus(roh: Partial<KoopParameter> | null | undefined,
     exklusivMonate: zahl("exklusivMonate", 1, 24),
     themen: themen.length ? themen : basis.themen,
     ansprechpartner: ap.length ? ap : basis.ansprechpartner,
+    bereich,
+    zweitCents: zahl("zweitCents", 0, 50_000),
+    region: typeof r.region === "string" ? String(r.region).replace(/\s+/g, " ").trim().slice(0, 120) : (basis.region ?? ""),
+    mindestMonate: zahl("mindestMonate", 1, 24),
+    jeRegion: zahl("jeRegion", 1, 10),
   };
 }
 export function koopParameterFehler(p: KoopParameter): string | null {
   if (!p.preisCents) return "Preis je Kontakt fehlt.";
   if (!p.themen.length) return "Themen fehlen.";
+  if (koopModellVon(p.bereich) === "abschluss" && !p.zweitCents) return "Zweiter Preis (Gas bzw. Internet) fehlt.";
   return null;
 }
 export function koopPflichtFehlen(d: Pick<KoopDaten, "partner" | "parameter">): string[] {
@@ -547,6 +630,7 @@ export function koopPflichtFehlen(d: Pick<KoopDaten, "partner" | "parameter">): 
   if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(String(k.email ?? ""))) fehlt.push("E-Mail-Adresse des Partners");
   const pf = koopParameterFehler(d.parameter);
   if (pf) fehlt.push(pf);
+  if (koopModellVon(d.parameter.bereich) === "platz" && !d.parameter.region) fehlt.push("Region des Partnerplatzes");
   return fehlt;
 }
 
@@ -555,6 +639,8 @@ export function koopPflichtFehlen(d: Pick<KoopDaten, "partner" | "parameter">): 
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KoopKundenSicht {
   ok: true; status: "offen"; art: "koop";
+  /** E-390: Modell und Bereich — die Seite zeigt beim Partnerplatz einen festen Monatspreis statt des Rechners. */
+  modell: KoopModell; bereich: KoopBereich;
   ref: string; fassung: string; gueltigBis: string;
   partner: { anrede: string; vorname: string; nachname: string; email: string };
   partnerAnrede: string;

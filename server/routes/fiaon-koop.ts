@@ -15,6 +15,7 @@
 //   POST /koop/partner/:token/wunsch                 { wunschWoche }
 //   POST /koop/partner/:token/kontakt/:id/reklamation { grund, wahl, text? }
 //   POST /koop/partner/:token/kontakt/:id/kein-kontakt
+//   POST /koop/partner/:token/kontakt/:id/abschluss    { sparte } — Energie/Telefon (E-390)
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
@@ -23,7 +24,7 @@ import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { personFuerRef, keinePerson } from "./fiaon-app";
 import {
   koopAkteLage, koopKontaktAnlegen, koopInteresseVermerken, koopWiderruf, koopKundeLage,
-  koopAngebotAusToken, koopPartnerSicht, koopZeitenSetzen, koopWunschSetzen, koopReklamieren, koopKeinKontakt,
+  koopAngebotAusToken, koopPartnerSicht, koopZeitenSetzen, koopWunschSetzen, koopReklamieren, koopKeinKontakt, koopAbschlussMelden,
 } from "../lib/fiaon-koop-lieferung";
 import { koopDatenAus } from "../lib/fiaon-global-angebot-koop";
 import { koopPartnerName } from "@shared/fiaon-global-angebot-koop";
@@ -154,6 +155,14 @@ router.post("/koop/partner/:token/kontakt/:id/reklamation", async (req: Request,
     const r = await koopReklamieren(z, Number(req.params.id), { grund: req.body?.grund, wahl: req.body?.wahl, text: req.body?.text });
     return r.ok ? res.json(r) : res.status(r.status).json(r);
   } catch (err) { console.error("[KOOP] Reklamation:", err); res.status(500).json({ ok: false, error: "Die Reklamation ließ sich nicht speichern." }); }
+});
+// E-390: Energie und Telefon — der Partner meldet den Abschluss { sparte: "Strom" | "Gas" | … | "kein" }.
+router.post("/koop/partner/:token/kontakt/:id/abschluss", async (req: Request, res: Response) => {
+  try {
+    const z = await partner(req, res); if (!z) return;
+    const r = await koopAbschlussMelden(z, Number(req.params.id), req.body?.sparte);
+    return r.ok ? res.json(r) : res.status(r.status).json(r);
+  } catch (err) { console.error("[KOOP] Abschluss:", err); res.status(500).json({ ok: false, error: "Die Meldung ließ sich nicht speichern." }); }
 });
 router.post("/koop/partner/:token/kontakt/:id/kein-kontakt", async (req: Request, res: Response) => {
   try {

@@ -177,7 +177,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
               <div style={{ marginTop: 14 }}><MengenWahl stufen={R.stufen} wert={menge} setWert={setMenge} idPraefix="gak-hero" /></div>
               <dl className="gak-werte">
                 <div><dt>{R.woche}</dt><dd>{menge}</dd></div>
-                <div><dt>{R.monat}</dt><dd>{koopEur(koopMonatCents(menge, R.preisCents))}</dd></div>
+                <div><dt>{R.monat}</dt><dd>{(R.festMonat ?? koopEur(koopMonatCents(menge, R.preisCents)))}</dd></div>
               </dl>
               <p className="gaf-fein" style={{ marginTop: 12 }}>{R.fein}</p>
             </div>

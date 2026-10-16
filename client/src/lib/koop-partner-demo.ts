@@ -33,6 +33,7 @@ const GRUENDE = [
   { key: "dublette", text: "Schon einmal zum selben Thema übermittelt" },
   { key: "minderjaehrig_ausland", text: "Minderjährig oder wohnt nicht in Deutschland" },
 ];
+const DEMO_SPARTEN: Record<NetzBereich, [string, string]> = { vorsorge: ["", ""], recht: ["", ""], steuern: ["", ""], energie: ["Strom", "Gas"], telekom: ["Mobilfunk", "Internet und Festnetz"] };
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
 const tag = (d: Date) => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -80,6 +81,11 @@ export function demoSicht(bereich: NetzBereich, jetzt = new Date()): any {
         : abgelehnt ? { grund: GRUENDE[3].text, wahl: "gutschrift", ergebnis: "abgelehnt", begruendung: "Abgelehnt — derselbe Interessent wurde in den letzten 6 Monaten zu diesem Thema nicht übermittelt." } : null,
       reklamierbarBis: !reklamiert && !abgelehnt && jetzt < bis && !platz ? bis.toISOString() : null,
       keinKontakt: vorbei && i % 29 === 3,
+      // E-390: Energie und Telefon — Abschlüsse meldet der Partner; ein Teil gemeldet, ein Teil offen, wenige ohne Vertrag.
+      abschluss: preis.modell === "abschluss" ? (vorbei && i % 5 !== 4
+        ? { am: new Date(termin.getTime() + 2 * 864e5).toISOString(), art: (i % 3 === 2 ? DEMO_SPARTEN[bereich][1] : DEMO_SPARTEN[bereich][0]), kein: false, betrag: eur(je(i)), meldbar: false }
+        : vorbei ? { am: null, art: null, kein: true, betrag: null, meldbar: false }
+        : { am: null, art: null, kein: false, betrag: null, meldbar: true }) : null,
     };
   }).sort((a, b) => (a.termin < b.termin ? 1 : -1));
   // Verlauf der letzten sechs Monate (der laufende zuletzt).
@@ -96,7 +102,9 @@ export function demoSicht(bereich: NetzBereich, jetzt = new Date()): any {
   }));
   const woche = Math.min(18, anzahl);
   return {
-    ok: true, demo: true, demoBereich: bereich, demoWorte: { ...w, platz, ohneZeiten: bereich === "energie" || bereich === "telekom" },
+    ok: true, demo: true, demoBereich: bereich, demoWorte: { ...w, platz, ohneZeiten: false },
+    modell: preis.modell === "abschluss" ? "abschluss" : platz ? "platz" : "kontakt",
+    sparten: preis.modell === "abschluss" ? [{ name: DEMO_SPARTEN[bereich][0], betrag: eur(preis.cents) }, { name: DEMO_SPARTEN[bereich][1], betrag: eur(preis.zweitCents ?? preis.cents) }] : [],
     ref: "FIAON-IA-KDEMO01", partner: w.partner, anrede: `Guten Tag ${w.gruss}`, gruss: w.gruss, email: "partner@beispiel.de",
     preis: w.modell, reklamationTage: 7,
     stand: {

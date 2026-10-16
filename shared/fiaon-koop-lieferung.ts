@@ -22,6 +22,19 @@
 
 /** Fassung des Einwilligungstextes — steht an jeder gespeicherten Einwilligung. Neuer Text = neue Fassung. */
 export const KOOP_EINWILLIGUNG_FASSUNG = "KOOP-EW-2026-10-16";
+/** E-390: Fassung der Texte für Recht, Steuern, Energie, Telefon — die Vorsorge-Fassung bleibt. */
+export function koopEinwilligungFassung(bereich: string): string {
+  return bereich === "vorsorge" || !bereich ? KOOP_EINWILLIGUNG_FASSUNG : `KOOP-EW-${bereich.toUpperCase()}-2026-10-16`;
+}
+/**
+ * Was nicht in die Notiz an den Partner gehört (Ziffer 3 Abs. 2). E-390: Bei Recht gehören Schulden und Inkasso zum Anliegen,
+ * bei Steuern Einkommen — dort bleibt nur Gesundheit gesperrt.
+ */
+export function koopNotizGesperrt(notiz: string, bereich: string): boolean {
+  const gesundheit = /\b(krank|diagnose|therapie|behinder)\w*/i;
+  if (bereich === "recht" || bereich === "steuern") return gesundheit.test(notiz);
+  return gesundheit.test(notiz) || /\b(schufa|bonit|insolven|schulden|pfändung|inkasso|einkommen|gehalt)\w*/i.test(notiz);
+}
 /** Der Katalogschlüssel der Monatsrechnung (shared/fiaon-pakete.ts). */
 export const KOOP_RECHNUNG_PAKET = "koop_kontakte";
 
@@ -47,7 +60,30 @@ export function koopPartnerImSatz(p: { anrede?: string; vorname?: string; nachna
  * DER EINWILLIGUNGSTEXT, den der Mitarbeiter vorliest (Art. 6 Abs. 1 Buchst. a, Art. 7 DSGVO; § 7 Abs. 2 Nr. 1 UWG).
  * Er nennt den Empfänger, die Daten, den Zweck, die Kontaktwege und den Widerruf — und dass das Gespräch nichts kostet.
  */
-export function koopEinwilligungText(partner: { anrede?: string; vorname?: string; nachname?: string; firma?: string }, thema: string): string {
+export function koopEinwilligungText(partner: { anrede?: string; vorname?: string; nachname?: string; firma?: string }, thema: string, bereich: string = "vorsorge"): string {
+  // E-390: je Bereich ein eigener Text — Kanzleien nennen ihre Kosten vorab, Versorger/Anbieter machen ein Angebot.
+  const wer = koopPartnerImSatz(partner);
+  const widerruf = "Sie können die Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen — formlos, z. B. an support@fiaon.com oder telefonisch bei FIAON.";
+  if (bereich === "recht" || bereich === "steuern") {
+    const art = bereich === "recht" ? "rechtlich" : "steuerlich";
+    return [
+      `Sie möchten ein Erstgespräch zum Thema „${thema}“ mit ${wer}, ${bereich === "recht" ? "einer Kanzlei" : "einer Steuerkanzlei bzw. einem Lohnsteuerhilfeverein"} im Partner-Netzwerk von FIAON. Die Kosten des Erstgesprächs nennt Ihnen die Kanzlei, bevor es beginnt.`,
+      "Dafür übermittelt FIAON Ihren Vor- und Nachnamen, Ihre Telefonnummer, Ihre E-Mail-Adresse, das Thema, den vereinbarten Termin und eine kurze Notiz zu Ihrem Anliegen an die Kanzlei.",
+      "Sie willigen ein, dass die Kanzlei Sie dazu telefonisch und per E-Mail kontaktiert.",
+      `FIAON berät nicht ${art} und erhält keine Vergütung für ein Mandat. Ihre FIAON-Leistungen hängen nicht davon ab.`,
+      widerruf,
+    ].join(" ");
+  }
+  if (bereich === "energie" || bereich === "telekom") {
+    const was = bereich === "energie" ? `ein Angebot für ${thema === "Gas" ? "Ihren Gasvertrag" : "Ihren Stromvertrag"}` : `ein Angebot für ${thema === "Mobilfunk" ? "einen Mobilfunkvertrag" : "Internet und Festnetz"}`;
+    return [
+      `Sie möchten ${was} von ${wer}, einem Partner von FIAON.`,
+      "Dafür übermittelt FIAON Ihren Vor- und Nachnamen, Ihre Anschrift, Ihre Telefonnummer, Ihre E-Mail-Adresse, die Sparte, den vereinbarten Rückruftermin und eine kurze Notiz zu Ihrem Bedarf.",
+      "Sie willigen ein, dass der Partner Sie dazu telefonisch und per E-Mail kontaktiert. Ein Vertrag entsteht nur, wenn Sie ihn selbst mit dem Partner abschließen.",
+      "FIAON erhält vom Partner eine Vergütung, wenn ein Vertrag zustande kommt — für Sie entstehen dadurch keine Kosten. Ihre FIAON-Leistungen hängen nicht davon ab.",
+      widerruf,
+    ].join(" ");
+  }
   return [
     `Sie möchten ein kostenloses Gespräch zum Thema „${thema}“ mit ${koopPartnerImSatz(partner)}, einem selbstständigen Berater und Partner von FIAON.`,
     "Dafür übermittelt FIAON Ihren Vor- und Nachnamen, Ihre Telefonnummer, Ihre E-Mail-Adresse, Ihr Wunschthema, den vereinbarten Termin und eine kurze Notiz aus diesem Gespräch an den Berater.",

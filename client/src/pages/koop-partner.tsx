@@ -19,6 +19,7 @@ interface Kontakt {
   id: number; name: string; telefon: string; email: string; thema: string; terminText: string; art: string; dauerMin: number; notiz: string | null;
   ersatz: boolean; status: string; reklamation: { grund: string; wahl: string; ergebnis: string; begruendung: string } | null;
   reklamierbarBis: string | null; keinKontakt: boolean;
+  abschluss?: { am: string | null; art: string | null; kein: boolean; betrag: string | null; meldbar: boolean } | null;
 }
 interface Rechnung { monat: string; monatText: string; anzahl: number; betrag: string; gutschrift: string | null; nummer: string | null; status: string; faellig: string | null; zahlung: string | null; pdf: string | null }
 interface Sicht {
@@ -26,6 +27,7 @@ interface Sicht {
   stand: KoopLieferStand & { zeitenText: string };
   gruende: { key: string; text: string }[]; kontakte: Kontakt[]; rechnungen: Rechnung[];
   verlauf?: { monat: string; monatText: string; kontakte: number; reklamiert: number; betragCents: number; laufend: boolean }[];
+  modell?: "kontakt" | "abschluss" | "platz"; einheit?: string; kontakteTitel?: string; sparten?: { name: string; betrag: string }[];
   demo?: boolean; demoBereich?: NetzBereich; demoWorte?: { kontakteTitel: string; einheit: string; partner: string; gruss: string; modell: string; platz?: boolean; ohneZeiten?: boolean };
 }
 const eurKurz = (c: number) => `${Math.round(c / 100).toLocaleString("de-DE")} €`;
@@ -106,7 +108,7 @@ export default function KoopPartnerPage() {
   if (fehler) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><h1>Partnerbereich</h1><p className="kpb-fehler">{fehler}</p></div></main>;
   if (!sicht) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><p>Wird geladen …</p></div></main>;
   const s = sicht.stand;
-  const einheit = sicht.demoWorte?.einheit ?? "Kontakte";
+  const einheit = sicht.demoWorte?.einheit ?? sicht.einheit ?? "Kontakte";
   const zeigen = alle ? sicht.kontakte : sicht.kontakte.slice(0, 12);
   return (
     <main className={`kpb${demo ? " kpb-demo" : ""}`}>
@@ -122,7 +124,7 @@ export default function KoopPartnerPage() {
         )}
         <p className="kpb-marke">FIAON · Partner-Kooperation</p>
         <h1>Willkommen in Ihrem Partnerbereich, {sicht.gruss}.</h1>
-        <p className="kpb-lead">Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick. {demo ? `${sicht.partner} · ${sicht.preis}` : `Vertrag ${sicht.ref} · ${sicht.preis} netto je Kontakt`}.</p>
+        <p className="kpb-lead">{sicht.modell === "abschluss" || sicht.demoWorte?.ohneZeiten ? "Hier geben Sie Ihre Zeiten frei, sehen jeden Kunden und melden Abschlüsse mit einem Klick." : sicht.modell === "platz" || sicht.demoWorte?.platz ? "Hier geben Sie Ihre Zeiten frei und sehen jeden Termin und jede Rechnung." : "Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick."} {demo ? `${sicht.partner} · ${sicht.preis}` : `Vertrag ${sicht.ref} · ${sicht.preis}${sicht.modell && sicht.modell !== "kontakt" ? "" : " netto je Kontakt"}`}.</p>
 
         <section className="kpb-stand" aria-label="Ihr Stand">
           <div><small>Diese Woche</small><b>{s.woche.geliefert} <span>von {s.woche.wunsch}</span></b></div>
@@ -134,7 +136,7 @@ export default function KoopPartnerPage() {
 
         {meldung && <p className="kpb-meldung" role="status">{meldung}</p>}
 
-        {sicht.verlauf && sicht.verlauf.length > 0 && <JahrInZahlen v={sicht.verlauf} einheit={einheit} platz={!!sicht.demoWorte?.platz} />}
+        {sicht.verlauf && sicht.verlauf.length > 0 && <JahrInZahlen v={sicht.verlauf} einheit={einheit} platz={!!sicht.demoWorte?.platz || sicht.modell === "platz"} />}
 
         {!sicht.demoWorte?.ohneZeiten && <section className="kpb-karte">
           <h2>Ihre Zeiten für Termine</h2>
@@ -168,7 +170,7 @@ export default function KoopPartnerPage() {
         </section>
 
         <section className="kpb-karte">
-          <h2>{sicht.demoWorte?.kontakteTitel ?? "Ihre Termine"}{sicht.kontakte.length > 0 && <span className="kpb-zahl-marke">{sicht.kontakte.length}</span>}</h2>
+          <h2>{sicht.demoWorte?.kontakteTitel ?? sicht.kontakteTitel ?? "Ihre Termine"}{sicht.kontakte.length > 0 && <span className="kpb-zahl-marke">{sicht.kontakte.length}</span>}</h2>
           {sicht.kontakte.length === 0 ? <p className="kpb-fein">Noch keine übermittelten Kontakte.</p> : (
             <ul className="kpb-kontakte">
               {zeigen.map((k) => (
@@ -179,6 +181,15 @@ export default function KoopPartnerPage() {
                   {k.notiz && <p className="kpb-notiz">„{k.notiz}“</p>}
                   {k.reklamation && <p className={`kpb-rekl ${k.reklamation.ergebnis}`}>Reklamation ({k.reklamation.grund}): {k.reklamation.begruendung}</p>}
                   {k.keinKontakt && <p className="kpb-fein">Gemeldet: kein Kontakt mehr gewünscht.</p>}
+                  {k.abschluss?.am && <p className="kpb-rekl berechtigt">Abschluss gemeldet: {k.abschluss.art} · {k.abschluss.betrag} netto · {new Date(k.abschluss.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}</p>}
+                  {k.abschluss?.kein && <p className="kpb-fein">Gemeldet: kein Abschluss — nichts berechnet.</p>}
+                  {k.abschluss?.meldbar && (sicht.sparten ?? []).length > 0 && (
+                    <div className="kpb-abschluss">
+                      <span className="kpb-fein">Abschluss melden:</span>
+                      {(sicht.sparten ?? []).map((sp) => <button key={sp.name} type="button" className="kpb-knopf klein" disabled={!!laeuft} onClick={() => void senden(`ab${k.id}`, `/kontakt/${k.id}/abschluss`, { sparte: sp.name }).then((j) => j && setMeldung(j.meldung))}>{sp.name} · {sp.betrag}</button>)}
+                      <button type="button" className="kpb-knopf still klein" disabled={!!laeuft} onClick={() => void senden(`ab${k.id}`, `/kontakt/${k.id}/abschluss`, { sparte: "kein" }).then((j) => j && setMeldung(j.meldung))}>Kein Abschluss</button>
+                    </div>
+                  )}
                   <div className="kpb-tun">
                     {k.reklamierbarBis && !k.reklamation && rekl?.id !== k.id && <button type="button" className="kpb-knopf still klein" onClick={() => setRekl({ id: k.id, grund: "", wahl: "gutschrift", text: "" })}>Reklamieren</button>}
                     {!k.keinKontakt && <button type="button" className="kpb-knopf still klein" disabled={!!laeuft} onClick={() => void senden(`kk${k.id}`, `/kontakt/${k.id}/kein-kontakt`, {}).then((j) => j && setMeldung(j.meldung))}>Wünscht keinen Kontakt mehr</button>}

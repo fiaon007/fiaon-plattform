@@ -82,3 +82,6 @@
 .kpb-demo .kpb-stand{position:relative}
 @media (max-width:640px){.kpb-jahr-kacheln{grid-template-columns:1fr}.kpb-balken{gap:8px;height:160px}}
 @media (prefers-reduced-motion:reduce){.kpb-balken span{animation:none}}
+
+/* E-390: Abschluss melden (Energie, Telefon) */
+.kpb-abschluss{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;border-radius:12px;background:#f0f7ff;border:1px solid rgba(40,141,250,.25)}

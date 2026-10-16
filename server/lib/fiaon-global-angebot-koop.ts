@@ -28,11 +28,12 @@ import {
 } from "./fiaon-global-angebot";
 import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
 import { dachNummer } from "@shared/fiaon-dach-telefon";
+import { koopModellSeite } from "@shared/fiaon-global-angebot-koop-modelle";
 import {
   KOOP_FASSUNG, KOOP_FASSUNGEN, KOOP_GUELTIG_TAGE, KOOP_KNOPF, KOOP_ANNAHME,
   koopParameterAus, koopParameterFehler, koopPflichtFehlen, koopSeite, koopBestellUebersicht, koopAnnahmeTexte,
   koopAnsprechpartner, koopPartnerAnrede, koopPartnerName, koopVertragTitel, koopVertragUnterzeile, koopRumpfHtml,
-  koopHashEingabe, koopEur, koopWunschAus, istKoopFassung,
+  koopHashEingabe, koopEur, koopWunschAus, istKoopFassung, koopFassungFuer, koopModellVon, KOOP_BEREICH,
   type KoopDaten, type KoopPartner, type KoopParameter, type KoopLand, type KoopAnnahmeVermerk, type KoopWahl,
   type KoopUnterschriftVermerk, type KoopKundenSicht,
 } from "@shared/fiaon-global-angebot-koop";
@@ -65,11 +66,13 @@ export function koopAnspracheFehler(par: KoopParameter, partner?: Pick<KoopPartn
 // LESEN
 // ═══════════════════════════════════════════════════════════════════════════
 export function koopDatenAus(z: AngebotZeile): KoopDaten {
+  const parameter = koopParameterAus(json<Partial<KoopParameter>>(z.parameter, {}));
   return {
     ref: String(z.angebot_ref),
-    fassung: String(z.status) === "offen" ? KOOP_FASSUNG : String(z.fassung),
+    // Ein offenes Angebot liest immer die aktuelle Fassung seines Bereichs (E-390: je Modell eine Fassung).
+    fassung: String(z.status) === "offen" ? koopFassungFuer(parameter.bereich) : String(z.fassung),
     partner: json<KoopPartner>(z.kunde, {} as KoopPartner),
-    parameter: koopParameterAus(json<Partial<KoopParameter>>(z.parameter, {})),
+    parameter,
     gueltigBis: isoTag(z.gueltig_bis) ?? berlinToday(),
   };
 }
@@ -88,7 +91,7 @@ const BILDSCHIRM_CSS = `${GLOBAL_VERTRAG_CSS}${ANGEBOT_VERTRAG_CSS}`;
 function escape(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 export function koopVorschauHtml(d: KoopDaten): string {
   return `<style>${BILDSCHIRM_CSS}</style>
-<div class="gv" lang="de"><h1 class="gv-titel">${escape(koopVertragTitel())}</h1><p class="gv-unterzeile">${escape(koopVertragUnterzeile(d))}</p></div>
+<div class="gv" lang="de"><h1 class="gv-titel">${escape(koopVertragTitel(d))}</h1><p class="gv-unterzeile">${escape(koopVertragUnterzeile(d))}</p></div>
 ${koopRumpfHtml(d, null)}`;
 }
 const PDF_CSS = `
@@ -103,7 +106,7 @@ const PDF_CSS = `
 const MARKENZEILE = "FIAON LTD · Company No. 17318250 · 128 City Road, London, EC1V 2NX, United Kingdom";
 const RAND = { oben: "18mm", unten: "20mm", links: "16mm", rechts: "16mm" };
 export async function koopVertragPdf(d: KoopDaten, annahme: KoopAnnahmeVermerk | null): Promise<Buffer> {
-  const titel = koopVertragTitel();
+  const titel = koopVertragTitel(d);
   const html = wrapFiaonDocument({
     documentTitle: titel, subtitle: koopVertragUnterzeile(d), bodyHtml: koopRumpfHtml(d, annahme),
     watermark: annahme ? null : "Angebot — nicht angenommen", markenzeile: MARKENZEILE, zusatzCss: PDF_CSS,
@@ -146,8 +149,9 @@ export function koopPartnerPruefen(k: any): { ok: true; partner: KoopPartner } |
 }
 export async function koopAnlegen(ein: any, wer: string): Promise<Ergebnis<{ id: number; ref: string; link: string }>> {
   await ensureAngebotTabellen();
-  const fassung = String(ein?.fassung || KOOP_FASSUNG);
+  const fassung = String(ein?.fassung || koopFassungFuer(ein?.parameter?.bereich));
   if (!(KOOP_FASSUNGEN as readonly string[]).includes(fassung)) return nein("Diese Fassung des Kooperationsvertrags gibt es nicht.");
+  if (fassung !== koopFassungFuer(ein?.parameter?.bereich)) return nein("Fassung und Bereich passen nicht zusammen.");
   const k = koopPartnerPruefen(ein?.partner ?? ein?.kunde);
   if (!k.ok) return nein(k.error);
   const parameter = koopParameterAus(ein?.parameter);
@@ -192,6 +196,7 @@ export async function koopKundenSicht(token: string, z: AngebotZeile, opts: { le
   const annahme = koopAnnahmeTexte(d);
   const body: KoopKundenSicht = {
     ok: true, status: "offen", art: "koop", ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
+    modell: koopModellVon(d.parameter.bereich), bereich: d.parameter.bereich,
     partner: { anrede: k.anrede, vorname: k.vorname, nachname: k.nachname, email: k.email },
     partnerAnrede: koopPartnerAnrede(k),
     seite: koopSeite(d),
@@ -219,9 +224,11 @@ export async function koopAngenommenAntwort(z: AngebotZeile): Promise<Record<str
     betragCents: 0, zahlungsseite: null, meinAuftrag: null, rechnungUrl: null,
     vertragUrl: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf`,
     fertigTitel: KOOP_ANNAHME.fertigTitel,
-    fertigText: KOOP_ANNAHME.fertigText(d.partner.email, w?.wunschWoche ?? 0),
+    fertigText: koopModellVon(d.parameter.bereich) === "kontakt" ? KOOP_ANNAHME.fertigText(d.partner.email, w?.wunschWoche ?? 0)
+      : (await import("@shared/fiaon-global-angebot-koop-modelle")).koopModellSeite(d as any).annahme.fertigText(d.partner.email, w?.wunschWoche ?? 0),
     teil1Bezahlt: true,
-    fertigZahlung: KOOP_ANNAHME.fertigZahlung,
+    fertigZahlung: koopModellVon(d.parameter.bereich) === "kontakt" ? KOOP_ANNAHME.fertigZahlung
+      : (await import("@shared/fiaon-global-angebot-koop-modelle")).koopModellSeite(d as any).annahme.fertigZahlung,
     fertigFuss: KOOP_ANNAHME.fertigFuss,
     llc: null,
   };
@@ -286,9 +293,17 @@ export async function koopNacharbeit(id: number): Promise<void> {
   if (!z || String(z.status) !== "angenommen" || !istKoopFassung(z.fassung)) return;
   const d = koopDatenAus(z); const w = koopWahlAus(z); const par = d.parameter;
   const name = koopPartnerName(d.partner);
+  const modell = koopModellVon(par.bereich);
   const zeilen = [
-    `MENGE: ${w?.wunschWoche ?? "?"} Kontakte je Woche — bis zur ersten bezahlten Monatsrechnung höchstens ${par.startDeckel}.`,
-    `VERGÜTUNG: ${koopEur(par.preisCents)} netto je qualifiziertem Kontakt (Reverse Charge), Rechnung zum Monatsende, Ziel ${par.zahlungszielTage} Tage; offen ${par.ruhenNachTagen} Tage nach Fälligkeit → Übermittlung ruht.`,
+    `BEREICH: ${KOOP_BEREICH[par.bereich].name} (Modell ${modell}).`,
+    ...(modell === "kontakt" ? [
+      `MENGE: ${w?.wunschWoche ?? "?"} Kontakte je Woche — bis zur ersten bezahlten Monatsrechnung höchstens ${par.startDeckel}.`,
+      `VERGÜTUNG: ${koopEur(par.preisCents)} netto je qualifiziertem Kontakt (Reverse Charge), Rechnung zum Monatsende, Ziel ${par.zahlungszielTage} Tage; offen ${par.ruhenNachTagen} Tage nach Fälligkeit → Übermittlung ruht.`,
+    ] : modell === "platz" ? [
+      `PARTNERPLATZ: ${koopEur(par.preisCents)} netto im Monat ab dem Ersten des Folgemonats, Region ${par.region}, Mindestlaufzeit ${par.mindestMonate} Monate; Rechnung automatisch am Monatsersten.`,
+    ] : [
+      `VERGÜTUNG: ${koopEur(par.preisCents)} / ${koopEur(par.zweitCents)} netto je gemeldetem Abschluss; Partner meldet im Partnerbereich, Rechnung zum Monatsende.`,
+    ]),
     "EINWILLIGUNG: nur Interessenten übermitteln, die ausdrücklich zugestimmt haben (Wortlaut, Datum, Uhrzeit festhalten) — ohne sie kein Kontakt.",
     `NÄCHSTER SCHRITT (läuft automatisch, E-386): Der Partner bekommt seinen Partnerbereich per Mail, trägt dort seine Zeiten ein; danach halten Mitarbeiter in der Akte unter „Partner-Termin“ Kontakte fest (Themen: ${par.themen.join(" · ")}).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK} — bitte per Mail an ${d.partner.email} schicken (es geht keine automatische Mail raus).`,
@@ -296,7 +311,7 @@ export async function koopNacharbeit(id: number): Promise<void> {
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   await auftragFuerKunden({
     personId: z.person_id != null ? Number(z.person_id) : null, ref: null,
-    titel: `Kooperation angenommen: ${name} — ${w?.wunschWoche ?? "?"} Termine je Woche`,
+    titel: `Kooperation angenommen: ${name} — ${modell === "kontakt" ? `${w?.wunschWoche ?? "?"} Termine je Woche` : modell === "platz" ? `Partnerplatz ${KOOP_BEREICH[par.bereich].name}${par.region ? ` (${par.region})` : ""}` : `${KOOP_BEREICH[par.bereich].name} je Abschluss`}`,
     text: [`${name} hat den Kooperationsvertrag ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}). Heute nichts fällig.`, ...zeilen].join("\n"),
     anBetreiber: true, dringend: true, schluessel: `global:${d.ref}:koop-justin`, bereich: "konten", quelle: "global", autorName: "FIAON", link: CHEF_LINK,
     anlageText: `Kooperationsvertrag ${d.ref} angenommen.`,
@@ -306,7 +321,7 @@ export async function koopNacharbeit(id: number): Promise<void> {
      WHERE id = ${id} AND bestaetigung_mail_am IS NULL RETURNING id`) as any[];
   if (!marke) return;
   await import("./fiaon-global-angebot-aufrufe")
-    .then((A) => A.annahmeMelden({ ref: d.ref, name, art: "Kooperationsvertrag", betrag: `heute nichts (${koopEur(par.preisCents)} netto je Kontakt, Abrechnung zum Monatsende)`, zeilen }))
+    .then((A) => A.annahmeMelden({ ref: d.ref, name, art: "Kooperationsvertrag", betrag: modell === "platz" ? `heute nichts (Partnerplatz ${koopEur(par.preisCents)} netto im Monat ab dem Ersten des Folgemonats)` : modell === "abschluss" ? `heute nichts (${koopEur(par.preisCents)} / ${koopEur(par.zweitCents)} netto je gemeldetem Abschluss)` : `heute nichts (${koopEur(par.preisCents)} netto je Kontakt, Abrechnung zum Monatsende)`, zeilen }))
     .then((s) => console.log(`[FIAON-KOOP] ${d.ref}: Annahme — ${s}`))
     .catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Annahme-Mail an Justin:`, e));
 }
@@ -330,7 +345,7 @@ export function koopListenEintrag(z: AngebotZeile, ext: { heute: string; aufrufe
     pruefberichtUrl: null, anlage1Url: null, pruefbericht: null, buergin: null,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
-    koop: { wunschWoche: w?.wunschWoche ?? null, zeile: `${koopEur(d.parameter.preisCents)} netto je Kontakt · Start-Rahmen ${d.parameter.startDeckel} · Abrechnung zum Monatsende` },
+    koop: { wunschWoche: w?.wunschWoche ?? null, zeile: koopModellVon(d.parameter.bereich) === "kontakt" ? `${koopEur(d.parameter.preisCents)} netto je Kontakt · Start-Rahmen ${d.parameter.startDeckel} · Abrechnung zum Monatsende` : `${KOOP_BEREICH[d.parameter.bereich].name} · ${koopModellSeite(d as any).zeile}` },
     auftragRef: null, officeLink: null, teile: [],
     knoepfe: { meilenstein: "Kooperation: keine Teile", erstattung: "Kooperation: keine Erstattung", garantie: "Kooperation: keine Garantie", hemmung: "Kooperation: keine Frist", aendern: String(z.status) === "offen" ? "Kooperation: Ändern per Skript (scripts/angebot-koop-anlegen.ts)" : "Nur solange das Angebot offen ist." },
     verlauf: json<any[]>(z.verlauf, []).slice(-12),

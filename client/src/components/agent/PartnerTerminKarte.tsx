@@ -19,10 +19,11 @@ interface Partner {
   angebotId: number; ref: string; name: string; stand: KoopLieferStand; zeitenText: string;
   themen: { thema: string; belegt: string | null }[]; arten: string[]; dauerMin: number; termine: Slot[];
   partnerFuerText: { anrede?: string; vorname?: string; nachname?: string; firma?: string };
+  bereich: string; modell: "kontakt" | "abschluss" | "platz"; bereichName: string;
 }
 interface Lage {
   ok: boolean; error?: string;
-  kandidat: { vorname: string; nachname: string; telefon: string | null; email: string | null; sperren: string[]; bestaetigen: string[]; hinweise: string[] };
+  kandidat: { vorname: string; nachname: string; telefon: string | null; email: string | null; anschrift: string | null; sperren: string[]; bestaetigen: string[]; hinweise: string[] };
   partner: Partner[]; frage: string;
   einwilligungen: { id: number; art: string; kanal: string; thema: string | null; am: string; von: string | null; widerrufenAm: string | null }[];
   kontakte: { id: number; thema: string; terminText: string; art: string; statusText: string; status: string; partner: string; mailFehler: string | null; reklamation: string | null; keinKontakt: boolean; von: string | null }[];
@@ -92,7 +93,7 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
   return (
     <section className="kp" data-fiaon="partner-termin">
       <div className="kp-kopf">
-        <div><b>Partner-Termin</b><p>Kostenloses Gespräch zu Vorsorge und Absicherung mit einem Partner von FIAON. Wir fragen nur das Thema — wir empfehlen nichts.</p></div>
+        <div><b>Partner-Termin</b><p>Ein Gespräch oder Angebot von einem Partner im FIAON-Netzwerk ({Array.from(new Set(lage.partner.map((x) => x.bereichName))).join(", ")}). Wir fragen nur das Thema — wir empfehlen nichts.</p></div>
         {!offen && !k.sperren.length && <button type="button" className="pi-knopf klein" onClick={() => setOffen(true)}>Termin festhalten</button>}
       </div>
 
@@ -118,7 +119,7 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
           {lage.partner.length > 1 && (
             <label className="kp-feld">Partner
               <select className="pi-eingabe" value={angebotId ?? ""} onChange={(e) => setAngebotId(Number(e.target.value))}>
-                {lage.partner.map((x) => <option key={x.angebotId} value={x.angebotId}>{x.name}</option>)}
+                {lage.partner.map((x) => <option key={x.angebotId} value={x.angebotId}>{x.bereichName} · {x.name}</option>)}
               </select>
             </label>
           )}
@@ -131,7 +132,7 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
           )}
           {p?.stand.sperre ? <p className="kp-warn"><b>Gerade kein neuer Kontakt</b>{p.stand.sperre}</p> : p && (
             <>
-              <label className="kp-feld">1 · Welches Thema wünscht der Kunde?
+              <label className="kp-feld">1 · {p.modell === "platz" ? "Welches Gebiet betrifft das Anliegen?" : p.modell === "abschluss" ? "Welche Sparte?" : "Welches Thema wünscht der Kunde?"}
                 <select className="pi-eingabe" value={thema} onChange={(e) => setThema(e.target.value)}>
                   <option value="">Bitte wählen</option>
                   {p.themen.map((t) => <option key={t.thema} value={t.thema} disabled={!!t.belegt}>{t.thema}{t.belegt ? ` — ${t.belegt}` : ""}</option>)}
@@ -140,7 +141,7 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
               {thema && (
                 <div className="kp-vorlesen">
                   <small>2 · Bitte wörtlich vorlesen</small>
-                  <p>{koopEinwilligungText(p.partnerFuerText, thema)}</p>
+                  <p>{koopEinwilligungText(p.partnerFuerText, thema, p.bereich)}</p>
                   <p><b>{lage.frage}</b></p>
                   <label className="kp-haken"><input type="checkbox" checked={ja} onChange={(e) => setJa(e.target.checked)} /> Ich habe den Text vorgelesen. Der Kunde hat ausdrücklich <b>Ja</b> gesagt.</label>
                   {k.bestaetigen.includes("wohnsitz_de") && <label className="kp-haken"><input type="checkbox" checked={bestaetigt.includes("wohnsitz_de")} onChange={(e) => setBestaetigt((b) => e.target.checked ? [...b, "wohnsitz_de"] : b.filter((x) => x !== "wohnsitz_de"))} /> Der Kunde wohnt in Deutschland.</label>}
@@ -149,7 +150,7 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
               )}
               {thema && ja && (
                 <>
-                  <div className="kp-feld">3 · Termin in den Zeiten des Partners
+                  <div className="kp-feld">3 · {p.modell === "abschluss" ? "Rückruf in den Zeiten des Partners" : "Termin in den Zeiten des Partners"}
                     {p.termine.length === 0 ? <p className="kp-hinweis">Keine freien Termine in den nächsten drei Wochen.</p> : (
                       <>
                         <div className="kp-tage">{tage.map((t) => <button key={t} type="button" className={`pi-knopf klein ${tag === t ? "" : "still"}`} onClick={() => { setTag(t); setSlot(""); }}>{tagText(t)}</button>)}</div>
@@ -164,9 +165,9 @@ export function PartnerTerminKarte({ personId, melden }: { personId: number; mel
                   </label>
                   <label className="kp-feld">4 · Kurze Notiz für den Partner (freiwillig)
                     <textarea className="pi-eingabe kp-notiz" rows={3} maxLength={600} value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="z. B. „zwei Kinder, möchte für beide etwas ansparen“" />
-                    <small>Nichts zu Gesundheit, Einkommen, Schulden oder Bonität — die Notiz geht an den Partner.</small>
+                    <small>{p.modell === "platz" ? "Kurz das Anliegen (z. B. Frist, Art des Schreibens) — nichts zu Gesundheit." : p.modell === "abschluss" ? "Verbrauch, Zählernummer, Tarifwunsch — nichts zu Gesundheit, Einkommen, Schulden oder Bonität." : "Nichts zu Gesundheit, Einkommen, Schulden oder Bonität — die Notiz geht an den Partner."}</small>
                   </label>
-                  <p className="kp-stand">Geht an den Partner: {k.vorname} {k.nachname}, {k.telefon}, {k.email}, Thema, Termin{notiz ? ", Notiz" : ""}. Der Kunde bekommt eine Bestätigung per E-Mail.</p>
+                  <p className="kp-stand">Geht an den Partner: {k.vorname} {k.nachname}{p.modell === "abschluss" ? `, ${k.anschrift ?? "— Anschrift fehlt in der Akte —"}` : ""}, {k.telefon}, {k.email}, Thema, Termin{notiz ? ", Notiz" : ""}. Der Kunde bekommt eine Bestätigung per E-Mail.</p>
                 </>
               )}
               <div className="kp-tun">

@@ -5,6 +5,8 @@
 // Das Repo ist öffentlich (E-242). Deshalb steht hier KEIN Partnerdatum: Partner und Parameter kommen aus einer Datei
 // AUSSERHALB des Repos:
 //   --datei <angebot-daten.json>   { fassung?, gueltigBis?, personId?, partner, parameter? }
+// E-390: parameter.bereich = vorsorge | recht | steuern | energie | telekom wählt Vertrag, Preise und Themen (Vorgaben aus
+//   koopVorgaben); Recht/Steuern brauchen parameter.region (z. B. „Berlin“ oder „PLZ 10–14“).
 //
 // ── AUFRUF ────────────────────────────────────────────────────────────────
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL=postgresql://…@127.0.0.1:…/… SESSION_SECRET=… \
@@ -44,7 +46,7 @@ const pf = S.koopParameterFehler(parameter) ?? B.koopAnspracheFehler(parameter, 
 if (pf) { console.error(`FEHLER Parameter: ${pf}`); process.exit(1); }
 
 // Vorschau des Vertrags (dieselbe Funktion wie Seite und PDF)
-const d = { ref: "FIAON-IA-KVORSCHAU", fassung: String(roh.fassung || S.KOOP_FASSUNG), partner: k.partner, parameter, gueltigBis: String(roh.gueltigBis || "2026-12-31") };
+const d = { ref: "FIAON-IA-KVORSCHAU", fassung: String(roh.fassung || S.koopFassungFuer(parameter.bereich)), partner: k.partner, parameter, gueltigBis: String(roh.gueltigBis || "2026-12-31") };
 const ziel = vorschauDatei ?? path.join(path.dirname(path.resolve(datei)), "vertrag-vorschau.html");
 fs.writeFileSync(ziel, `<!doctype html><meta charset="utf-8"><title>Vorschau</title><body style="max-width:860px;margin:40px auto;font-family:Inter,Arial,sans-serif">${B.koopVorschauHtml(d)}</body>`);
 console.log(`Vorschau des Vertrags: ${ziel}`);

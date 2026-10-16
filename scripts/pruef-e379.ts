@@ -304,7 +304,7 @@ async function main() {
   ok(/bereich=privat/.test(lies("client/src/pages/site/ratgeber.tsx")), "/ratgeber holt nur Privat");
   ok(/bereich=business&sprache=de/.test(lies("client/src/pages/site/global-seite.tsx")) && /RedaktionAktuell/.test(lies("client/src/pages/site/global-seite.tsx")), "/business/wissen zeigt die neuesten Business-Artikel");
   const art = lies("client/src/pages/site/ratgeber-artikel.tsx");
-  ok(/globalPaketePfad\("de"\)/.test(art) && /\{!business && <LeseAufruf \/>\}/.test(art), "Business-Artikel: Weg zu FIAON Global, kein Privat-Aufruf");
+  ok(/globalPaketePfad\("de"\)/.test(art) && /\{!business && <LeseAufruf[^>]*\/>\}/.test(art), "Business-Artikel: Weg zu FIAON Global, kein Privat-Aufruf");
   const adminSeite = lies("client/src/pages/admin-ratgeber.tsx");
   ok(/Tagesartikel jetzt/.test(adminSeite) && /Automatisch veröffentlicht/.test(adminSeite) && !/info\.themenOffen|heuteErzeugt/.test(adminSeite), "Redaktion: „Heute“ statt „Themen offen“, Knopf „Tagesartikel jetzt“");
   ok(!/chat\/completions/.test(lies("server/lib/fiaon-ratgeber-redaktion.ts")) && /openaiFetch\("ratgeber", "\/responses"/.test(lies("server/lib/fiaon-ratgeber-redaktion.ts")), "KI nur über openaiFetch → /v1/responses");

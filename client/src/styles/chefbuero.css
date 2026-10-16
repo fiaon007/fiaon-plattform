@@ -668,6 +668,21 @@ body:has(.cb-ruhig) .fi-raum{display:none}
   font: 300 12.5px/1 'Inter', sans-serif;
 }
 .ck-sort select:focus { outline: none; border-color: rgba(96,165,250,.5); }
+/* E-389 (16.10.2026): die Filter der Betreuung in „Alle Kunden“ — Stufen als Pillen, Zuständiger, Filter-Knopf, Chips. */
+.ck-zusatz { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.ck-zusatz .ck-stufen { gap: 6px; }
+.ck-zahl { margin-left: 7px; color: inherit; opacity: .65; font-variant-numeric: tabular-nums; }
+.ck-zustaendig select { max-width: 220px; }
+.ck .fi-filter-knopf {
+  height: 34px; border-radius: 999px; padding: 0 14px; font-weight: 400; font-size: 12.5px;
+  background: rgba(255,255,255,.04); color: #94a3b8; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+}
+.ck .fi-filter-knopf:hover { background: rgba(255,255,255,.09); color: #e5e7eb; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.ck .fi-filter-knopf[data-an="1"] { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(96,165,250,.55); }
+.ck .fi-chip { color: #bfdbfe; background: rgba(59,130,246,.16); box-shadow: inset 0 0 0 1px rgba(96,165,250,.3); }
+.ck .fi-chip-kreuz { background: rgba(96,165,250,.22); color: #dbeafe; }
+.ck .fi-chip-alle { color: #64748b; }
+.ck .fi-chip-alle:hover { color: #cbd5e1; }
 .ck-lage { margin: 0 0 16px; font: 300 13px/1.5 'Inter', sans-serif; color: #64748b; }
 .ck-lage b { color: #e5e7eb; font-weight: 400; }
 

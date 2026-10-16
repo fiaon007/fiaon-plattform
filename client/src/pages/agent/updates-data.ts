@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-389 (16.10.2026, Florentine): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
+    id: "2026-10-16-alle-kunden-filter",
+    date: "2026-10-16",
+    category: "Verbessert",
+    title: "Chefbüro: Alle Kunden hat jetzt die Filter der Betreuung",
+    summary:
+      "Stufe, Zuständiger und die Arbeitsfilter (KYC, Kündigungen, Ruhend …) gibt es jetzt auch direkt in „Alle Kunden“ — "
+      + "du musst dafür nicht mehr in den Raum „Betreuung“ wechseln.",
+    changes: [
+      "Unter den bisherigen Filtern steht eine zweite Zeile: Stufe A, B, C und Bezahlt (mit Zahl), „Alle Zuständigen“ und der Knopf „Filter“.",
+      "Hinter „Filter“ stehen dieselben Schalter wie in der Betreuung: Ohne Agent, KYC zu prüfen, Zahlung über 7 Tage offen, Kündigungen, Kündigung nicht gebucht, Ruhend, Ohne Telefon, Dubletten-Verdacht, Anonyme Abbrecher.",
+      "Alles lässt sich kombinieren — auch mit Suche, „Zahlende“, „Im Pool“ usw. Es gelten genau dieselben Regeln wie in der Betreuung.",
+      "„Nächster Kunde“ in der Akte blättert in genau dieser Auswahl weiter, und zurück in der Liste ist deine Auswahl noch da.",
+    ],
+    howto: [
+      "Chefbüro → Alle Kunden → in der zweiten Zeile Stufe oder Zuständigen wählen, weitere Schalter unter „Filter“.",
+      "Ein Schalter verschwindet mit dem × an seinem Chip; „Alle entfernen“ setzt die Schalter zurück.",
+    ],
+    link: { href: "/chef/kundenliste", label: "Alle Kunden öffnen" },
+  },
+  {
     // E-386 (16.10.2026): Lieferstrecke der Partner-Kooperation — die Maske „Partner-Termin“ in der Akte.
     id: "2026-10-16-partner-termin",
     date: "2026-10-16",

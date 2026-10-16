@@ -20,6 +20,8 @@ export interface ReiheEintrag { id: number; name: string }
 export interface AkteReihe {
   eintraege: ReiheEintrag[];
   filter: string; sort: string; suche: string;
+  /** E-389: die Zusatzfilter der Betreuung (Stufe, Zuständiger, Schalter) als Adressteil, z. B. „stufe=B&kycOffen=1“. */
+  extra?: string;
   seite: number; seiten: number; gesamt: number; proSeite: number;
   /** Zuletzt in der Akte geöffnet — die Liste springt beim Zurückkommen dorthin. */
   zuletzt: number | null;
@@ -52,7 +54,7 @@ export function reiheZuletzt(id: number): void {
 /** Eine Seite derselben Auswahl nachladen (am Rand der Reihe). */
 export async function reiheSeiteLaden(r: AkteReihe, seite: number): Promise<AkteReihe | null> {
   const pfad = `/api/fiaon/chef/kunden?filter=${encodeURIComponent(r.filter)}&sort=${encodeURIComponent(r.sort)}&seite=${seite}&proSeite=${r.proSeite}`
-    + (r.suche ? `&q=${encodeURIComponent(r.suche)}` : "");
+    + (r.suche ? `&q=${encodeURIComponent(r.suche)}` : "") + (r.extra ? `&${r.extra}` : "");
   try {
     const res = await fetch(pfad, { credentials: "include" });
     const j = await res.json().catch(() => null);

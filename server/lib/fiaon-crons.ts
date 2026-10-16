@@ -446,6 +446,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // E-380 (15.10.2026): Meta-Automatik. Ohne Posting-Rechte läuft der Posten-Lauf leer (Erfolg) — er
   // gehört trotzdem in den Katalog: Fällt er aus, stehen geplante Posts still, und niemand merkt es.
   // E-382: Ohne diesen Lauf bleibt eine Guthaben-Pause nach dem Aufladen stehen, bis jemand den Knopf drückt.
+  // E-386 (16.10.2026): Lieferstrecke der Partner-Kooperation. Fällt der Lauf aus, bleibt die Monatsrechnung liegen.
+  koop_liefer_lauf: {
+    zweck: "Partner-Kooperation: hängende Übermittlungen nachholen, Partnerbereich nach der Annahme schicken, Monatsrechnung am Monatsersten, Zahlungserinnerung",
+    folge: "Kontakte erreichen den Partner nicht, und die Monatsrechnung für gelieferte Kontakte entsteht nicht — Geld bleibt liegen.",
+    fenster: 3,
+  },
   ki_selbstheilung: {
     zweck: "Automatische KI-Pause (Guthaben leer) alle 10 Minuten per Probe prüfen und von selbst aufheben, sobald wieder abgebucht wird",
     folge: "Nach dem Aufladen bleibt die KI pausiert — Mara, Postmeister, Ratgeber und Belegerkennung stehen, bis jemand „KI wieder aktivieren“ drückt.",

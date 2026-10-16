@@ -31,7 +31,7 @@ import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/fiaon-termin-art";
 // E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
 // Individualangebot (01.10.2026): Teile eines Angebots melden nichts an Meta (istAngebotsPaket, onCustomerPaid).
-import { istGlobalPaket, istAngebotsPaket } from "../../shared/fiaon-pakete";
+import { istGlobalPaket, istAngebotsPaket, istKoopRechnung } from "../../shared/fiaon-pakete";
 import { ECHT } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
@@ -1051,6 +1051,13 @@ async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number;
   `;
   if (apps.length === 0) return;
   const app = apps[0];
+  // E-386: Die Monatsrechnung der Partner-Kooperation bezahlt ein Unternehmer für gelieferte Kontakte — kein Verkauf an
+  // einen Kunden: kein Abo, keine Kontostufe, keine Tier-Bewegung, keine Provision. Start-Rahmen und Ruhen liest die
+  // Lieferstrecke selbst am Zahlungsstand (server/lib/fiaon-koop-lieferung.ts).
+  if (istKoopRechnung(app.pack_key)) {
+    console.log(`[FIAON-KOOP] ${ref}: Monatsrechnung der Kooperation bezahlt — keine Provision, keine Kontostufe.`);
+    return;
+  }
   // E-188: FIAON Global ist ein EINMALPREIS für ein Firmenprojekt — kein Abo, kein
   // Kundenbereich, kein Pflicht-Startgespräch mit dem Onboarding-Team.
   const istGlobal = istGlobalPaket(app.pack_key);

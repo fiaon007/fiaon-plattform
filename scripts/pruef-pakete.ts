@@ -101,9 +101,10 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // 01.10.2026 (E-268): dazu „global_individuell" (Individualangebot, kein Abo). Die drei Auskunft-Preise
 // (E-240, abo: false) fehlten hier seit dem 24.09. — die Erwartung kommt jetzt für sie aus dem Katalog.
 // 08.10.2026 (E-314): dazu „llc_paket" (Einzelrechnung Unterlagen-Paket, kein Abo).
-gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket",
+// 16.10.2026 (E-386): dazu „koop_kontakte" (Monatsrechnung der Partner-Kooperation, kein Abo, Betrag aus dem Vertrag).
+gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb"].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "koop_kontakte"].sort());
 // E-314: Das LLC-Paket ist ein Einmalkauf der Art „privat“ (nie Global-Start), nie verkaufbar, mit eigenem Rechnungstext.
 {
   const llc = paket("llc_paket");

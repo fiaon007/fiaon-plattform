@@ -597,6 +597,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_angebot_lauf', async () => await (await import('./lib/fiaon-global-angebot')).globalAngebotLauf(), 60 * 60 * 1000, { beimStartNach: 660_000 });
   });
+  // 🤝 E-386: Lieferstrecke der Partner-Kooperation — Übermittlungen nachholen, Partnerbereich-Mail nach der Annahme,
+  //    Monatsrechnung für jeden abgeschlossenen Monat (genau einmal je Partner und Monat), eine Zahlungserinnerung.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('koop_liefer_lauf', async () => await (await import('./lib/fiaon-koop-lieferung')).koopLieferLauf(), 60 * 60 * 1000, { beimStartNach: 720_000 });
+  });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.
@@ -925,7 +930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader('Cache-Control', 'private, no-store');
     next();
   });
-  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*'], (_req, res, next) => {
+  // E-386: der Partnerbereich der Kooperation (/partner/<signierter Link>) — wie die Angebotsseiten nie im Index, kein Referrer.
+  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*', '/partner/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');
@@ -1038,6 +1044,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📊 E-IT-D (08.10.2026): FIAON Finanz- und Bonitätsauswertung (Akte, Kunde) und der Upload-Link ohne
   //    Anmeldung (/unterlagen/:token, signiert, 14 Tage) — server/routes/fiaon-finanzauswertung.ts.
   app.use('/api/fiaon', (await import('./routes/fiaon-finanzauswertung')).default);
+  // 🤝 E-386: Partner-Kooperation — Akte (Partner-Termin), Kundenbereich (Gespräch wünschen), Partnerbereich (/partner/:token).
+  app.use('/api/fiaon', (await import('./routes/fiaon-koop')).default);
 
   // 📱 /APP — Serverseite des neuen Kundenbereichs (E-150, Scheibe 2): Anspruchs-
   // Check, Brief-Knopf, Post. Liest den Stand weiter aus fiaon-kunde-bereich.

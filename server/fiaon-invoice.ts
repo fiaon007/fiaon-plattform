@@ -48,7 +48,7 @@
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
-import { istGlobalPaket, istAngebotsPaket, paket } from "@shared/fiaon-pakete";
+import { istGlobalPaket, istAngebotsPaket, istKoopRechnung, paket } from "@shared/fiaon-pakete";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
@@ -164,7 +164,10 @@ function groupIban(iban: string): string {
 export type B2bUstModus = "none" | "reverse_charge";
 
 /** Der wirksame USt-Modus einer Firmenrechnung: Reverse Charge nur MIT USt-IdNr. des Kunden. */
-export function b2bUstModus(a: { rechnung_ust_modus?: unknown; tax_id?: unknown }): B2bUstModus {
+export function b2bUstModus(a: { rechnung_ust_modus?: unknown; tax_id?: unknown; pack_key?: unknown }): B2bUstModus {
+  // E-386: Die Monatsrechnung der Partner-Kooperation geht immer an einen Unternehmer (Ziffer 1 des Vertrags, § 14 BGB) —
+  // Reverse Charge nach § 13b UStG gilt dort auch ohne USt-IdNr. (viele Finanzberater haben keine).
+  if (istKoopRechnung(a?.pack_key) && String(a?.rechnung_ust_modus || "") === "reverse_charge") return "reverse_charge";
   return String(a?.rechnung_ust_modus || "") === "reverse_charge" && String(a?.tax_id || "").trim() ? "reverse_charge" : "none";
 }
 
@@ -180,6 +183,15 @@ const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich"
  * darf das die englische Zweitzeile nicht mitreißen. Ohne Akte oder ohne Haken: kein Feld, kein Hinweis.
  */
 export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void> {
+  // E-386: Monatsrechnung der Partner-Kooperation — Beschreibung (Anzahl × Preis, Gutschriften) und Zeitraum (Kalendermonat).
+  if (a?.ref && istKoopRechnung(a.pack_key) && !a.beschreibung) {
+    try {
+      const { koopRechnungsZeile } = await import("./lib/fiaon-koop-lieferung");
+      const z = await koopRechnungsZeile(String(a.ref));
+      if (z) { a.beschreibung = z.beschreibung; a.zeitraum = z.zeitraum; }
+    } catch (e) { console.error(`[FIAON-INVOICE] ${a.ref}: Beschreibung der Kooperationsrechnung nicht gelesen:`, e); }
+    return;
+  }
   if (!a || !istGlobalPaket(a.pack_key) || !a.ref) return;
   // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
   // Jeder Teil hat seine eigene Rechnung (eigene Bestellzeile). Beschreibung und Zeitraum
@@ -233,7 +245,9 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   const packName = a.pack_name ? String(a.pack_name).replace(/\n/g, " ") : "FIAON Zugang";
   const amount = a.amount_due != null ? parseFloat(String(a.amount_due)) : 0;
   // E-188: Firmenkunde = Paket der Art "global" (siehe Kopfkommentar).
-  const firmenkunde = istGlobalPaket(a.pack_key);
+  // E-386: Die Monatsrechnung der Partner-Kooperation ist eine Firmenrechnung (Empfänger = Unternehmer, Reverse Charge).
+  const koop = istKoopRechnung(a.pack_key);
+  const firmenkunde = istGlobalPaket(a.pack_key) || koop;
   const ustModus: B2bUstModus = firmenkunde ? b2bUstModus(a) : "none";
   // Englische Zweitzeile je Kopfbegriff — nur Firmenauftrag, nur wenn der Auftrag englisch geführt wurde.
   const en = firmenkunde && String(a.rechnung_sprache || "").trim().toLowerCase() === "en";
@@ -244,7 +258,7 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   // ── Kopf: FIAON Wortmarke links, Entity-Block rechtsbündig ──
   markeInsPdf(doc, M, M + 1, 20);
   doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
-    .text(firmenkunde ? "FIAON Global" : "SaaS- & E-Learning-Plattform", M, M + 28);
+    .text(koop ? "FIAON Partner-Kooperation" : firmenkunde ? "FIAON Global" : "SaaS- & E-Learning-Plattform", M, M + 28);
 
   const entityW = 210;
   const entityX = M + W - entityW;
@@ -279,7 +293,8 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
     const ansprech = String(a.contact_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || "").trim();
     doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(firma, M, ay, { width: addrW });
     ay = doc.y + 1;
-    if (ansprech && ansprech !== firma) { doc.text(`z. Hd. ${ansprech}`, M, ay, { width: addrW }); ay = doc.y + 1; }
+    // E-386: Beim Einzelunternehmer der Kooperation steht der Name schon in der Firmenzeile — kein doppeltes „z. Hd.“.
+    if (ansprech && ansprech !== firma && !(koop && firma.startsWith(ansprech))) { doc.text(`z. Hd. ${ansprech}`, M, ay, { width: addrW }); ay = doc.y + 1; }
     if (a.street) { doc.text(String(a.street), M, ay, { width: addrW }); ay = doc.y + 1; }
     if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, ay, { width: addrW }); ay = doc.y + 1; }
     const land = String(a.country || "").trim().toUpperCase();
@@ -385,7 +400,9 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   if (firmenkunde) {
     // Sachlich, ohne „folgt nach Registrierung": Was auf dieser Rechnung gilt, steht auf dieser Rechnung.
     const satz = ustModus === "reverse_charge"
-      ? `Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge). USt-IdNr. des Leistungsempfängers: ${String(a.tax_id).trim()}. Der Rechnungsbetrag enthält keine Umsatzsteuer.`
+      ? String(a.tax_id || "").trim()
+        ? `Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge). USt-IdNr. des Leistungsempfängers: ${String(a.tax_id).trim()}. Der Rechnungsbetrag enthält keine Umsatzsteuer.`
+        : "Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge, § 13b UStG). Der Rechnungsbetrag enthält keine Umsatzsteuer."
       : "Rechnungsbetrag ohne gesonderten Ausweis von Umsatzsteuer.";
     doc.font("Helvetica").fontSize(8).fillColor(CI.slate).text(satz, M, y, { width: W, align: "right" });
     if (en) {
@@ -425,7 +442,7 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   const payBoxH = 12 + 20 + (en ? 9 : 0) + payRows.length * payStep + 18 + (en ? 10 : 0); // Titel + Zeilen + Hinweis
   doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
   doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text("Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text(koop ? "Zahlung per SEPA-Banküberweisung" : "Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
   zweit("Payment by SEPA bank transfer (payment in advance)", M + 14, y + 25, W - 28);
   let py = y + 32 + (en ? 9 : 0);
   for (const [label, value, labelEn] of payRows) {

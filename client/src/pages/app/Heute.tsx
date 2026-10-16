@@ -18,6 +18,7 @@ import { api, eur, zeit } from "./Bausteine";
 import { LIMIT_TEXTE } from "@shared/fiaon-limit-gespraech";
 import { FinanzauswertungKarte } from "@/components/finanzen/Finanzauswertung";
 import { AuskunftKaufkarte, fehltText } from "@/components/kunde/AuskunftKauf";
+import { PartnerGespraechKarte } from "@/components/kunde/PartnerGespraechKarte";
 
 interface BerichtKurz { monat: string; monatText: string; grosseZahlCents: number; grosseZahlText: string; gelesen: boolean }
 const DEMO_BERICHT: BerichtKurz = { monat: "2026-08", monatText: "August 2026", grosseZahlCents: 59742, grosseZahlText: "Im August für Sie geholt: 597,42 € im Monat.", gelesen: false };
@@ -164,6 +165,10 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
           <span className="ap-link" style={{ display: "inline-block", marginTop: 10 }}>{lg.grund === "frei" ? `${LIMIT_TEXTE.knopf} →` : "Ansehen →"}</span>
         </Link>
       )}
+
+      {/* E-386 (16.10.2026): Vorsorge und Absicherung — ein kostenloses Partner-Gespräch. Ruhig, nur wenn Zahlung und Raten
+          in Ordnung sind; ob die Karte überhaupt erscheint, entscheidet der Server (Partner aktiv, keine Sperre, kein Global). */}
+      {b.stufe.bezahlt && !rw.raten.ueberfaellig && <PartnerGespraechKarte kundeRef={b.kunde.ref} demo={demo} />}
 
       <section className="ap-abschnitt ap-auf v4">
         <div className="ap-karte" style={{ display: "flex", alignItems: "center", gap: 14 }}>

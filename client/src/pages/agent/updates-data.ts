@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-386 (16.10.2026): Lieferstrecke der Partner-Kooperation — die Maske „Partner-Termin“ in der Akte.
+    id: "2026-10-16-partner-termin",
+    date: "2026-10-16",
+    category: "Neu",
+    title: "Akte: Partner-Termin zu Vorsorge und Absicherung",
+    summary:
+      "Wünscht ein Kunde ein kostenloses Gespräch zu Vorsorge oder Absicherung, hältst du es in der Akte fest: Thema, "
+      + "vorgelesene Einwilligung, Termin in den Zeiten des Partners, kurze Notiz. Speichern übermittelt sofort an den Partner.",
+    changes: [
+      "Die Karte „Partner-Termin“ steht im Überblick der Akte — nur, wenn ein Partner aktiv ist und der Kunde weder gesperrt, werbegesperrt noch Global-Kunde ist.",
+      "Ohne vorgelesenen Text und ausdrückliches Ja des Kunden geht nichts raus. Datum, Uhrzeit, Wortlaut und dein Name werden gespeichert.",
+      "Wir fragen nur das Thema — wir empfehlen keine Versicherung und kein Produkt.",
+      "Die Notiz geht an den Partner: nichts zu Gesundheit, Einkommen, Schulden oder Bonität.",
+      "Kunden können im Kundenbereich selbst ein Gespräch wünschen — dann bekommst du eine Aufgabe „anrufen“.",
+      "Widerruft der Kunde, drückst du „Kunde widerruft die Einwilligung“ — der Partner erfährt es sofort.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → „Partner-Termin“ → „Termin festhalten“.",
+      "Thema wählen, den blauen Text wörtlich vorlesen, „Ja“ abhaken, Tag und Uhrzeit wählen, „Speichern und übermitteln“.",
+    ],
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
+  },
+  {
     // E-IT-A (08.10.2026): Pipeline — eine Wiedervorlage-Regel, Rotation in „Wieder dran".
     id: "2026-10-08-wiedervorlage-regel",
     date: "2026-10-08",

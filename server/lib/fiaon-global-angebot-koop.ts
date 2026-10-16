@@ -290,7 +290,7 @@ export async function koopNacharbeit(id: number): Promise<void> {
     `MENGE: ${w?.wunschWoche ?? "?"} Kontakte je Woche — bis zur ersten bezahlten Monatsrechnung höchstens ${par.startDeckel}.`,
     `VERGÜTUNG: ${koopEur(par.preisCents)} netto je qualifiziertem Kontakt (Reverse Charge), Rechnung zum Monatsende, Ziel ${par.zahlungszielTage} Tage; offen ${par.ruhenNachTagen} Tage nach Fälligkeit → Übermittlung ruht.`,
     "EINWILLIGUNG: nur Interessenten übermitteln, die ausdrücklich zugestimmt haben (Wortlaut, Datum, Uhrzeit festhalten) — ohne sie kein Kontakt.",
-    `NÄCHSTER SCHRITT: freie Terminzeiten des Partners abstimmen; Themen: ${par.themen.join(" · ")}.`,
+    `NÄCHSTER SCHRITT (läuft automatisch, E-386): Der Partner bekommt seinen Partnerbereich per Mail, trägt dort seine Zeiten ein; danach halten Mitarbeiter in der Akte unter „Partner-Termin“ Kontakte fest (Themen: ${par.themen.join(" · ")}).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK} — bitte per Mail an ${d.partner.email} schicken (es geht keine automatische Mail raus).`,
   ];
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");

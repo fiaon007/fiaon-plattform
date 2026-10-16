@@ -1,0 +1,33 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PARTNER-TERMIN IN DER AKTE (E-386, 16.10.2026). Präfix .kp- — dunkle Bühne wie die Akte (.pi-*), Glasblau.
+   Reihenfolge: Kopf mit dem einen Knopf, Sperre/Hinweis, bisherige Kontakte, dann die Maske in vier Schritten.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kp{display:grid;gap:12px;padding:18px 20px;border-radius:18px;background:rgba(37,99,235,.10);border:1px solid rgba(96,165,250,.28)}
+.kp-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.kp-kopf b{font:500 15px/1.35 'Inter',sans-serif;color:#fff}
+.kp-kopf p{margin:2px 0 0;font:300 12.5px/1.55 'Inter',sans-serif;color:#cbd5e1;max-width:560px}
+.kp-warn{margin:0;padding:12px 14px;border-radius:12px;background:rgba(220,38,38,.12);border:1px solid rgba(248,113,113,.35);font:300 12.5px/1.6 'Inter',sans-serif;color:#fecaca}
+.kp-warn b{display:block;font-weight:500;color:#fff;margin-bottom:2px;font-size:13px}
+.kp-hinweis{margin:0;padding:10px 13px;border-radius:12px;background:rgba(217,119,6,.12);border:1px solid rgba(251,191,36,.3);font:300 12.5px/1.55 'Inter',sans-serif;color:#fde68a}
+.kp-liste{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.kp-liste li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 0;border-top:1px solid rgba(255,255,255,.07);font:300 12.5px/1.5 'Inter',sans-serif;color:#cbd5e1}
+.kp-liste li b{font-weight:500;color:#fff}
+.kp-liste em{font-style:normal;font-size:12px}
+.kp-liste em.gut{color:#a7f3d0}.kp-liste em.offen{color:#fde68a}.kp-liste em.still{color:#9ca3af}
+.kp-maske{display:grid;gap:12px;padding:14px 16px;border-radius:14px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.12)}
+.kp-feld{display:grid;gap:6px;font:500 12.5px/1.4 'Inter',sans-serif;color:#e5e7eb}
+.kp-feld small{font:300 11.5px/1.4 'Inter',sans-serif;color:#9ca3af}
+.kp-feld select,.kp-feld textarea{width:100%;max-width:100%}
+.kp-notiz{min-height:72px;resize:vertical;padding:10px 12px;line-height:1.5}
+.kp-stand{margin:0;font:300 12px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.kp-stand b{font-weight:500;color:#fff}
+.kp-vorlesen{display:grid;gap:8px;padding:12px 14px;border-radius:12px;background:rgba(37,99,235,.14);border:1px solid rgba(147,197,253,.3)}
+.kp-vorlesen small{font:500 11px/1.2 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#93c5fd}
+.kp-vorlesen p{margin:0;font:300 13.5px/1.65 'Inter',sans-serif;color:#f1f5f9}
+.kp-vorlesen p b{font-weight:500;color:#fff}
+.kp-haken{display:flex;align-items:flex-start;gap:9px;font:300 12.5px/1.5 'Inter',sans-serif;color:#e5e7eb;cursor:pointer}
+.kp-haken input{margin-top:3px;accent-color:#3b82f6}
+.kp-haken b{font-weight:600;color:#fff}
+.kp-tage{display:flex;gap:6px;flex-wrap:wrap}
+.kp-tun{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kp-fein{font:300 11.5px/1.4 'Inter',sans-serif;color:#9ca3af}

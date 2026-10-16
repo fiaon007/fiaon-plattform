@@ -137,6 +137,14 @@ export const PAKETE: Paket[] = [
   // voraus und er gibt sie uns nach der Gründung“. Hälfte 2 fällig mit dem ersten Geldeingang, spätestens zum Datum an der Bestellung.
   { key: "llc_gruendung_halb",  label: "Gründung US-Gesellschaft (LLC), halbe Rechnung", preisCents: 19900, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" }, zahlungsseite: "global" },
+  // ── MONATSRECHNUNG DER PARTNER-KOOPERATION (16.10.2026, E-386) ─────────────
+  // Der Kooperationsvertrag (E-384) rechnet je übermitteltem Kontakt zum Monatsende ab — der Betrag steht im Vertrag
+  // (Preis je Kontakt × Anzahl, abzüglich Gutschriften) und nie im Katalog: `preisJeAngebot` (keine Preis-Abschrift, die
+  // Wand prüft ihn nicht gegen einen Katalogpreis, keine Messung an Meta, kein Paketwechsel). `zahlungsseite: "global"`:
+  // Kategorie Global — nie Privat-Erinnerung, Rückholung, Kontoaktivierung oder Dublette. Art „privat“, damit kein
+  // Global-Start nach der Zahlung entsteht. Angelegt NUR von server/lib/fiaon-koop-lieferung.ts (koopMonatsrechnung).
+  { key: "koop_kontakte",       label: "FIAON Partner-Kooperation – Kontakte", preisCents: 0, art: "privat", abo: false, eingestellt: true, preisJeAngebot: true,
+    rechnung: { beschreibung: "Qualifizierte Kontakte mit Einwilligung, Wunschthema und Termin (Kooperationsvertrag) — Aufstellung als Anlage", zeitraum: "Kalendermonat" }, zahlungsseite: "global" },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));
@@ -182,6 +190,11 @@ export function istAngebotsPaket(key: unknown): boolean {
  */
 export function istGlobalEinzelrechnung(key: unknown): boolean {
   return paket(key)?.zahlungsseite === "global";
+}
+
+/** E-386: die Monatsrechnung der Partner-Kooperation (Rechnung an einen Unternehmer, Reverse Charge, keine Provision). */
+export function istKoopRechnung(key: unknown): boolean {
+  return String(key ?? "").trim().toLowerCase() === "koop_kontakte";
 }
 
 /** Was heute verkauft wird — eingestellte Pakete fehlen. */

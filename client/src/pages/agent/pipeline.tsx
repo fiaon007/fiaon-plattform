@@ -131,6 +131,7 @@ import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
+import { PartnerTerminKarte } from "@/components/agent/PartnerTerminKarte";
 import { KontoKarteAkte, KontoKarteKurz } from "@/components/agent/KontoKarteAkte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
@@ -3299,6 +3300,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
               selbst und trägt den einen Knopf „Girokonto eröffnet“. */}
           {/* E-IT-B (08.10.2026): Konto & Karte auch im Überblick — Stand der Einladung und „E-Mail erneut senden“. */}
           <KontoKarteKurz personId={k.personId} melden={melden} onAkte={() => setReiter("antrag")} onDaten={() => setReiter("daten")} />
+          {/* E-386 (16.10.2026): Partner-Termin (Kooperationsvertrag) — nur sichtbar, wenn es einen angenommenen Partner gibt. */}
+          <PartnerTerminKarte personId={k.personId} melden={melden} />
           <KundenbereichKarte personId={k.personId} />
         </>}
 

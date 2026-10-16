@@ -197,6 +197,14 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Du musst dir nie merken, was als Nächstes dran ist — es steht immer genau eine Sache da.",
   },
   {
+    // E-386 (16.10.2026): Partner-Termin im Überblick — erscheint nur mit aktivem Partner, deshalb ohne Scheinwerfer.
+    titel: "Partner-Termin: Gespräch zu Vorsorge und Absicherung festhalten.",
+    text: "Wünscht der Kunde ein kostenloses Gespräch mit einem Partner von FIAON, wählst du in der Karte „Partner-Termin“ "
+      + "das Thema, liest den blauen Einwilligungstext wörtlich vor, hakst sein Ja ab und wählst einen freien Termin. "
+      + "Speichern übermittelt sofort an den Partner, der Kunde bekommt eine Bestätigung.",
+    tipp: "Wir fragen nur, worüber er sprechen möchte — wir empfehlen nichts. In die Notiz gehört nichts zu Schulden, Einkommen oder Gesundheit.",
+  },
+  {
     // 07.09.2026 mitgezogen (E-154): die Karte „Mein FIAON“ im Überblick der Akte.
     ziel: ".kbk",
     titel: "Was dein Kunde in seinem Bereich sieht, siehst du hier.",

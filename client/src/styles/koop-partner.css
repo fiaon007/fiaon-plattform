@@ -1,0 +1,59 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /partner/:token — PARTNERBEREICH DER KOOPERATION (E-386). Präfix .kpb-
+   Heller blaustichiger Grund, Blau-Paar #288DFA / #1D4ED8, Navy-Glas an genau EINER Stelle (der Stand), Inter dünn.
+   Am Handy (360–430 px) stapelt alles, kein seitliches Scrollen. Bewegung aus bei prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kpb{min-height:100vh;color-scheme:light only;background:radial-gradient(1100px 520px at 85% -10%,rgba(40,141,250,.14),transparent 60%),linear-gradient(180deg,#f5f9ff,#eef4fd);
+  font-family:'Inter',system-ui,sans-serif;color:#0f2044;padding:40px 16px 64px;box-sizing:border-box}
+.kpb *{box-sizing:border-box}
+.kpb-rahmen{max-width:860px;margin:0 auto;display:grid;gap:18px}
+.kpb-marke{margin:0;font:400 12px/1 'Inter',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#1d4ed8}
+.kpb h1{margin:0;font:400 clamp(24px,4vw,34px)/1.2 'Inter',sans-serif;letter-spacing:-.01em}
+.kpb h2{margin:0 0 6px;font:400 19px/1.3 'Inter',sans-serif}
+.kpb-lead{margin:0;font:300 15.5px/1.6 'Inter',sans-serif;color:#334155}
+.kpb-fein{margin:0;font:300 13px/1.55 'Inter',sans-serif;color:#64748b}
+.kpb-fehler{padding:14px 16px;border-radius:14px;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239}
+.kpb-meldung{margin:0;padding:12px 16px;border-radius:14px;background:#eff6ff;border:1px solid rgba(40,141,250,.35);color:#1d4ed8;font:400 14px/1.5 'Inter',sans-serif}
+/* Das eine Navy-Glas: der Stand */
+.kpb-stand{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;padding:22px 24px;border-radius:22px;
+  background:linear-gradient(145deg,#0b1220,#1a2744);border:1px solid rgba(90,168,251,.25);box-shadow:0 30px 70px -40px rgba(12,26,46,.6),inset 0 1px 0 rgba(255,255,255,.08);color:#e2e8f0}
+.kpb-stand small{display:block;font:400 11px/1.2 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.kpb-stand b{display:block;margin-top:6px;font:300 30px/1 'Inter',sans-serif;color:#fff}
+.kpb-stand b span{font-size:14px;color:#94a3b8}
+.kpb-stand-zeile{grid-column:1/-1;margin:4px 0 0;font:300 14px/1.5 'Inter',sans-serif;color:#cbd5e1}
+.kpb-karte{display:grid;gap:12px;padding:22px 24px;border-radius:20px;background:rgba(255,255,255,.82);border:1px solid rgba(40,141,250,.18);
+  box-shadow:0 20px 50px -36px rgba(12,26,46,.35),inset 0 1px 0 #fff;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.kpb-reihe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.kpb-chip{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid rgba(40,141,250,.3);background:#fff;color:#1e3a8a;font:400 14px/1 'Inter',sans-serif;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+.kpb-chip.an{background:linear-gradient(135deg,#288dfa,#1d4ed8);color:#fff;border-color:transparent;box-shadow:0 8px 20px -10px rgba(29,78,216,.6)}
+.kpb-felder{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpb label{display:grid;gap:6px;font:400 13px/1.3 'Inter',sans-serif;color:#334155}
+.kpb input,.kpb select,.kpb textarea{width:100%;min-height:42px;padding:8px 12px;border-radius:12px;border:1px solid #cbd5e1;background:#fff;color:#0f2044;font:400 15px/1.4 'Inter',sans-serif}
+.kpb textarea{min-height:64px;resize:vertical}
+.kpb-zahl{max-width:110px}
+.kpb-tun{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kpb-knopf{min-height:44px;padding:0 20px;border-radius:999px;border:0;background:linear-gradient(135deg,#288dfa,#1d4ed8);color:#fff;font:400 14.5px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 12px 26px -14px rgba(29,78,216,.7);transition:transform .15s,box-shadow .15s}
+.kpb-knopf:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 16px 30px -14px rgba(29,78,216,.75)}
+.kpb-knopf:disabled{opacity:.45;cursor:default}
+.kpb-knopf.still{background:#fff;color:#1d4ed8;border:1px solid rgba(40,141,250,.4);box-shadow:none}
+.kpb-knopf.klein{min-height:36px;padding:0 14px;font-size:13px}
+.kpb-kontakte,.kpb-rechnungen{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.kpb-kontakte li{display:grid;gap:6px;padding:14px 16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0}
+.kpb-kontakte li.still{opacity:.7}
+.kpb-kontakte p{margin:0;font:300 14px/1.5 'Inter',sans-serif}
+.kpb-kontakt-kopf{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.kpb-kontakt-kopf b{font:500 15px/1.3 'Inter',sans-serif}
+.kpb-kontakt-kopf span{font:300 13.5px/1.3 'Inter',sans-serif;color:#1d4ed8}
+.kpb-notiz{font-style:italic;color:#475569}
+.kpb-rekl{padding:8px 12px;border-radius:10px;font-size:13px!important}
+.kpb-rekl.berechtigt{background:#ecfdf5;color:#065f46}
+.kpb-rekl.abgelehnt{background:#fff7ed;color:#9a3412}
+.kpb-rekl-form{display:grid;gap:10px;padding:12px;border-radius:12px;background:#f8fbff;border:1px dashed rgba(40,141,250,.4)}
+.kpb-rechnungen li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 0;border-top:1px solid #e2e8f0;font:300 14px/1.5 'Inter',sans-serif}
+.kpb-rechnungen b{font-weight:500}
+.kpb-rechnungen em{font-style:normal}
+.kpb-rechnungen em.gut{color:#047857}.kpb-rechnungen em.offen{color:#b45309}
+.kpb a{color:#1d4ed8}
+.kpb-fuss{margin:8px 0 0;text-align:center;font:300 12px/1.5 'Inter',sans-serif;color:#64748b}
+@media (max-width:480px){.kpb{padding:28px 16px 48px}.kpb-karte,.kpb-stand{padding:18px}.kpb-stand b{font-size:26px}}
+@media (prefers-reduced-motion:reduce){.kpb-knopf,.kpb-chip{transition:none}.kpb-knopf:hover:not(:disabled){transform:none}}

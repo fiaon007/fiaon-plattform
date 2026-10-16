@@ -1784,7 +1784,7 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const firmaFreigaben = F ? await F.firmaFreigabenFuer(firmaIds) : new Map();
   const B = zeilen.some((z) => istBegleitFassung(z.fassung)) ? await import("./fiaon-global-angebot-begleit") : null;
   const K = zeilen.some((z) => istKoopFassung(z.fassung)) ? await import("./fiaon-global-angebot-koop") : null;
-  return zeilen.map((z) => {
+  const liste: Record<string, unknown>[] = zeilen.map((z) => {
     if (K && istKoopFassung(z.fassung)) return K.koopListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (B && istBegleitFassung(z.fassung)) return B.begleitListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (F && istFirmenFassung(z.fassung)) {
@@ -1875,6 +1875,16 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
       })(),
     };
   });
+  // E-386: Beim angenommenen Kooperationsvertrag steht die Lieferung in einer Zeile (Monat, Woche, Start-Rahmen, Zeiten,
+  // Ruhen) und der Link zum Partnerbereich — scheitert das Lesen, fehlt nur diese Zeile.
+  if (K) {
+    const L = await import("./fiaon-koop-lieferung");
+    for (let i = 0; i < zeilen.length; i++) {
+      if (!istKoopFassung(zeilen[i].fassung) || String(zeilen[i].status) !== "angenommen") continue;
+      liste[i].lieferung = await L.koopListenLieferung(zeilen[i]).catch((e) => { console.error("[FIAON-KOOP] Lieferung für die Liste:", e); return null; });
+    }
+  }
+  return liste;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

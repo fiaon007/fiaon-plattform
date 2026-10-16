@@ -410,7 +410,11 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "löschen“. Was der Kunde selbst entfernt, ist sofort gelöscht. Bei Ausweis und „Weitere Unterlagen“ "
       + "wählst du erst die Art. „Geprüft“ setzt du, wenn du hingesehen hast: Danach entfernt der Kunde dort nichts "
       + "mehr selbst. Unterlagen aus der Zeit vor dem 08.10. stehen auf „liegt vor“ mit dem Hinweis, sie einmal "
-      + "anzusehen und „Geprüft“ zu setzen. „Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "
+      + "anzusehen und „Geprüft“ zu setzen. "
+      // E-391 (16.10.2026, Florentine): auch die „Bisherige Unterlage“ hat jetzt „Entfernen“.
+      + "Auch eine „Bisherige Unterlage“ nimmst du mit „Entfernen“ heraus — mit denselben Gründen. Ist danach kein "
+      + "Ausweis mehr da, gilt er wieder als ungeprüft (Freigabe, Sichtprüfung und Prüfurteil sind zurückgenommen). "
+      + "„Neu lesen“ stößt Prüfung und Auswertung sofort an — eine schon "
       + "ausgewertete Auskunft wertet nur dieser Knopf neu aus. Bis 50 MB je Datei, auch iPhone-Fotos (HEIC). "
       + "„Weitere Unterlagen“ nimmt Aufenthaltstitel, Einkommensnachweis, Bescheide und Sonstiges — deine Notiz dort ist intern, der Kunde sieht sie nicht. "
       // 14.10.2026 (Florentine): Kontoauszüge, die der Kunde unter „Weitere → Sonstiges“ hochlud.

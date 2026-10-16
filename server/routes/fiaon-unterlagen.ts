@@ -29,11 +29,11 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { darfAnKunde, rolleVon } from "../lib/fiaon-kundenzugriff";
 import { sqlPool } from "../lib/db-pool";
 import { fensterDrossel } from "../lib/fiaon-global-bereich-regeln";
-import { UNTERLAGEN_GRENZEN, istUnterlagenKategorie, kategorieInfo, type UnterlagenKategorie } from "@shared/fiaon-unterlagen";
+import { UNTERLAGEN_GRENZEN, istUnterlagenKategorie, istGebunden, kategorieInfo, type UnterlagenKategorie, type GebundeneKategorie } from "@shared/fiaon-unterlagen";
 import { lesefehlerSatz } from "@shared/fiaon-lesefehler";
 import {
   unterlagenStand, unterlageHinzufuegen, unterlageEntfernen, kategorieGeprueft, sofortLesen, dateiLesen,
-  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, unterlageEndgueltigLoeschen, unterlageUmordnen, type Handelnder,
+  personZuRef, abgewiesenMerken, inhaltErlaubt, traegerRef, unterlageEndgueltigLoeschen, unterlageUmordnen, bestandEntfernen, type Handelnder,
 } from "../lib/fiaon-unterlagen";
 import { istLeitungsRolle } from "../lib/fiaon-geburtsdatum-akte";
 
@@ -125,6 +125,11 @@ function dateiSenden(res: Response, d: { inhalt: Buffer; mime: string; dateiname
 const kategorieAus = (req: Request): UnterlagenKategorie | null => {
   const k = String(req.params.kategorie || "").toLowerCase();
   return istUnterlagenKategorie(k) ? k : null;
+};
+/** E-391: Bestand (eine Fassung nur in der Spalte) gibt es nur bei Kontoauszug, Ausweis und Auskunft — nicht bei „Weitere“. */
+const bestandKategorieAus = (req: Request): GebundeneKategorie | null => {
+  const k = kategorieAus(req);
+  return k && istGebunden(k) ? k : null;
 };
 
 // ═══ DER KUNDE ═══════════════════════════════════════════════════════════════
@@ -300,6 +305,26 @@ router.post("/agent/unterlagen/:personId/datei/:id/entfernen", requireAgent, asy
   }
 });
 
+/**
+ * E-391 (16.10.2026, Florentine): eine „Bisherige Unterlage“ entfernen — Bestand vor dem 08.10., der nur in der Spalte
+ * der Bestellung liegt (keine id, darum ohne /datei/:id). Dieselben Rechte (officeZutritt: Betreuer oder Leitung),
+ * dieselben Gründe und dieselbe Antwort wie das Entfernen einer Datei.
+ */
+router.post("/agent/unterlagen/:personId/:kategorie/bestand/entfernen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const k = bestandKategorieAus(req);
+    if (!k) return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    const z = await officeZutritt(req, res);
+    if (!z) return;
+    const erg = await bestandEntfernen(z.personId, k, z.wer, String(req.body?.grund || ""), sqlPool, { grundArt: req.body?.grundArt ?? null });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(z.personId, "office")), inhaltErlaubt: inhaltErlaubt(z.rolle, true), darfEndgueltig: istLeitungsRolle(z.rolle) } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] office bestand entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** 14.10.2026 (Florentine): Datei in die richtige Kategorie umordnen — z. B. Kontoauszüge, die unter „Weitere“ lagen. */
 router.post("/agent/unterlagen/:personId/datei/:id/umordnen", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -427,6 +452,22 @@ router.post("/admin/unterlagen/:ref/datei/:id/entfernen", async (req: Request, r
     res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
   } catch (err) {
     console.error("[UNTERLAGEN] admin entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** E-391: Chefbüro-Akte (hinter dem Admin-Code, wie alle /admin/unterlagen-Routen) — eine „Bisherige Unterlage“ entfernen. */
+router.post("/admin/unterlagen/:ref/:kategorie/bestand/entfernen", async (req: Request, res: Response) => {
+  try {
+    const k = bestandKategorieAus(req);
+    if (!k) return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    const personId = await adminPerson(req, res);
+    if (!personId) return;
+    const erg = await bestandEntfernen(personId, k, VERWALTUNG, String(req.body?.grund || ""), sqlPool, { grundArt: req.body?.grundArt ?? null });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.satz });
+    res.json({ ok: true, meldung: erg.satz, stand: { ...(await unterlagenStand(personId, "office")), inhaltErlaubt: true, darfEndgueltig: true } });
+  } catch (err) {
+    console.error("[UNTERLAGEN] admin bestand entfernen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

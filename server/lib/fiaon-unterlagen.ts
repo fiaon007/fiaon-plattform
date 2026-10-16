@@ -26,6 +26,8 @@
 // Schreibt jemand außerhalb dieses Moduls in eine Spalte (Zusammenführung,
 // alte Wege), merkt das der Vergleich mit der zuletzt gebundenen Fassung
 // (fiaon_unterlagen_akte) und übernimmt die geänderte Fassung als eine Datei.
+// E-391 (16.10.2026): Bestand lässt sich auch ENTFERNEN (bestandEntfernen: übernehmen, dann
+// der eine Weg unterlageEntfernen) — vorher stand die „Bisherige Unterlage“ ohne Knopf da.
 //
 // ── DER ANSTOSS ───────────────────────────────────────────────────────────
 // Nach der letzten Datei einer Kategorie wartet der Server 45 s, dann läuft
@@ -40,7 +42,7 @@ import { dateiEingang, sha256Hex, pdfEntschluesseln, pdfVerschluesselt, typAmInh
 import {
   UNTERLAGEN_GRENZEN, UNTERLAGEN_KATEGORIEN, STATUS_TEXT, kategorieInfo, istGebunden, unterartSauber, unterartLabel,
   kategorieStatus, monateLeiste, darfKundeEntfernen, ausweisBewerten, groesseText,
-  ENTFERN_GRUENDE, ENTFERNT_AUFBEWAHRUNG_TAGE, entfernenLeertSofort, istUnterlagenKategorie,
+  ENTFERN_GRUENDE, ENTFERNT_AUFBEWAHRUNG_TAGE, entfernenLeertSofort, istUnterlagenKategorie, istEntfernGrundArt,
   type UnterlagenKategorie, type GebundeneKategorie, type DateiBefund, type AusweisUrteil,
   type UnterlagenDatei, type KategorieStand, type UnterlagenStand,
 } from "@shared/fiaon-unterlagen";
@@ -367,7 +369,8 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
         id: null, kategorie: k, unterart: null, unterartLabel: null, name: "Bisherige Unterlage", kb: Math.max(1, Math.round(s.bytes / 1024)),
         groesse: groesseText(s.bytes), seiten: null, am: s.am ?? new Date().toISOString(), von: "sie", herkunft: "bestand", notiz: null,
         zeitraumVon: null, zeitraumBis: null, satz: null, befundText: sicht === "office" ? "Fassung aus der Zeit vor dem 08.10.2026" : null,
-        geprueft: !!verwaltungAm, darfEntfernen: false,
+        // E-391: Das Team entfernt Bestand über bestandEntfernen (eigene Route, ohne id); der Kunde nie.
+        geprueft: !!verwaltungAm, darfEntfernen: sicht === "office",
       });
     }
     // E-IT-C Nachbesserung: der JÜNGSTE Upload — nicht der letzte der Anzeige (Kontoauszüge stehen nach Zeitraum).
@@ -1093,7 +1096,113 @@ export async function unterlageEntfernen(personId: number, id: number, wer: Hand
     : leeren ? "Der Inhalt ist gelöscht — vermerkt bleibt nur, dass es sie gab."
     : `Die Datei bleibt ${ENTFERNT_AUFBEWAHRUNG_TAGE} Tage im Archiv der Akte, danach wird ihr Inhalt gelöscht.`;
   await verlauf(null, personId, wer, `${kategorieInfo(k).kurz}: Datei „${zeile.dateiname}“ entfernt (von ${wer.name}). Grund: ${g}. ${wasMitInhalt}`, lauf);
-  return { ok: true, satz: wer.art === "kunde" ? `„${zeile.dateiname}“ ist entfernt.` : `„${zeile.dateiname}“ entfernt${leeren ? ", der Inhalt ist gelöscht" : ""} — der Grund steht im Verlauf.` };
+  // E-391: War das der letzte Ausweis, gilt nichts mehr, was an ihm hing (KYC-Freigabe, Sichtprüfung, Prüfurteil).
+  const folgen = k === "ausweis"
+    ? await ausweisFolgenNachEntfernen(personId, wer, lauf).catch((e: unknown) => {
+      console.error("[UNTERLAGEN] Ausweis-Folgen:", String((e as Error)?.message || e).slice(0, 200));
+      return null;
+    })
+    : null;
+  return { ok: true, satz: wer.art === "kunde" ? `„${zeile.dateiname}“ ist entfernt.` : `„${zeile.dateiname}“ entfernt${leeren ? ", der Inhalt ist gelöscht" : ""} — der Grund steht im Verlauf.${folgen ? ` ${folgen}` : ""}` };
+}
+
+/**
+ * E-391 (16.10.2026, Nebenbefund zur Team-Meldung von Florentine): Ein entfernter Ausweis ließ alles stehen, was an
+ * ihm hing — die KYC-Freigabe der Verwaltung (kyc_status 'approved'), die Sichtprüfung von Hand und das Urteil der
+ * automatischen Prüfung. Ohne verbleibende Datei galt ein altes Urteil weiter (unterlagenStand: nachUpload ohne
+ * letzten Upload ist immer „aktuell“), die Akte sagte „geprüft“ über einem leeren Ausweis.
+ *
+ * Jetzt — nur wenn KEIN Ausweis der Person mehr da ist (keine aktive Datei UND keine Fassung in einer Spalte):
+ *   · kyc_status 'approved' → 'pending' an den Bestellungen der Person (admin_reviewed_at bleibt als Spur stehen);
+ *   · die Sichtprüfung von Hand widerrufen — dieselbe Spalte widerrufen_am wie sichtpruefungZuruecknehmen
+ *     (fiaon-finanzauswertung.ts), über die Familie der Person (Sichtprüfungen bleiben bei einer Zusammenführung an
+ *     der alten Person hängen);
+ *   · das Ausweis-Urteil in fiaon_dokument_pruefungen verwerfen. Die Tabelle kennt kein „verworfen“ (UNIQUE ref/art,
+ *     jeder Leser nimmt die Zeile wie sie ist) — das Urteil ist abgeleitet und wird gelöscht; was es sagte, steht im Verlauf.
+ * Bleibt eine Datei, passiert hier nichts: Der Anstoß prüft die neue Fassung ohnehin.
+ * Rückgabe: ein Satz fürs Team, wenn etwas zurückgenommen wurde — sonst null.
+ */
+async function ausweisFolgenNachEntfernen(personId: number, wer: Handelnder, lauf: Lauf): Promise<string | null> {
+  const [rest] = (await lauf`
+    SELECT (SELECT count(*)::int FROM fiaon_dokumente WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = 'ausweis'
+                                                       AND entfernt_am IS NULL AND geloescht_am IS NULL) AS dateien,
+           (SELECT count(*)::int FROM fiaon_applications WHERE person_id = ${personId} AND gdpr_deleted_at IS NULL AND LENGTH(id_card_pdf) > 0) AS spalten,
+           to_regclass('public.fiaon_unterlagen_sichtpruefung') IS NOT NULL AS sicht_da,
+           to_regclass('public.fiaon_dokument_pruefungen') IS NOT NULL AS urteil_da`) as any[];
+  if (Number(rest?.dateien) > 0 || Number(rest?.spalten) > 0) return null;
+  const teile: string[] = [];
+  const kyc = (await lauf`
+    UPDATE fiaon_applications SET kyc_status = 'pending', updated_at = NOW()
+     WHERE person_id = ${personId} AND gdpr_deleted_at IS NULL AND kyc_status = 'approved'
+     RETURNING ref`) as any[];
+  if (kyc.length) teile.push(`KYC-Freigabe zurückgesetzt (${kyc.length === 1 ? "eine Bestellung" : `${kyc.length} Bestellungen`}: freigegeben → offen)`);
+  if (rest?.sicht_da) {
+    // Wie sichtpruefungZuruecknehmen über die Familie — aber nur, wenn diese Person der Kopf ist (sonst träfe es die Bestätigung des Gewinners).
+    const { personFamilie } = await import("./fiaon-unterlagen-link");
+    const fam = await personFamilie(personId, lauf).catch(() => [personId]);
+    const familie = fam[0] === personId ? fam : [personId];
+    const sicht = (await lauf`
+      UPDATE fiaon_unterlagen_sichtpruefung SET widerrufen_am = NOW()
+       WHERE person_id = ANY(${familie}) AND art = 'ausweis' AND widerrufen_am IS NULL
+       RETURNING dokumenttyp, von`) as any[];
+    if (sicht.length) {
+      const { SICHT_TYP_TEXT } = await import("@shared/fiaon-finanzauswertung");
+      const typText = (t: unknown) => (SICHT_TYP_TEXT as Record<string, string>)[String(t)] ?? String(t);
+      teile.push(`Sichtprüfung von Hand widerrufen (${sicht.map((s) => `${typText(s.dokumenttyp)}${s.von ? `, bestätigt von ${s.von}` : ""}`).join("; ")})`);
+    }
+  }
+  if (rest?.urteil_da) {
+    const urteil = (await lauf`
+      DELETE FROM fiaon_dokument_pruefungen
+       WHERE art = 'ausweis' AND ref IN (SELECT ref FROM fiaon_applications WHERE person_id = ${personId})
+       RETURNING urteil`) as any[];
+    if (urteil.length) {
+      const u = (() => { const w = urteil[0].urteil; if (typeof w !== "string") return w; try { return JSON.parse(w); } catch { return null; } })();
+      const was = u?.hinweisIntern ? `: „${String(u.hinweisIntern).slice(0, 120)}“` : "";
+      teile.push(`Urteil der automatischen Ausweisprüfung verworfen${was}`);
+    }
+  }
+  if (!teile.length) return null;
+  await verlauf(null, personId, wer, `Ausweis: Es liegt kein Ausweis mehr vor — ${teile.join("; ")}. Der Ausweis gilt wieder als ungeprüft; ein neuer wird wie jeder Upload geprüft.`, lauf);
+  return "Es liegt kein Ausweis mehr vor — KYC-Freigabe, Sichtprüfung und Prüfurteil sind zurückgenommen; der Ausweis gilt wieder als ungeprüft.";
+}
+
+/**
+ * E-391 (16.10.2026, Team-Meldung Florentine: „Bei Unterlagen was Falsches hochgeladen, gerade beim Ausweis, und ich
+ * kann es nicht entfernen.“): Eine „Bisherige Unterlage“ liegt nur in der Spalte der Bestellung (Bestand vor dem
+ * 08.10.2026, id_card_pdf/bank_statement_pdf/schufa_pdf) und hat keine eigene Zeile — die Akte zeigte sie mit id null
+ * und ohne Entfernen-Knopf (16.10.: 121 Ausweise, 133 Kontoauszüge, 60 Auskünfte).
+ *
+ * Jetzt derselbe EINE Weg wie bei jeder Datei: erst übernehmen (bestandUebernehmen, idempotent über doc_hash — macht
+ * aus der Spaltenfassung eine Zeile mit herkunft 'bestand'), dann jede gerade übernommene Datei über unterlageEntfernen
+ * — mit denselben Gründen (ENTFERN_GRUENDE: „falsche Person“/„nicht benötigt“ leeren sofort, „veraltet“ hält 90 Tage
+ * im Archiv), Verlauf, Neu-Binden (die Spalte wird leer) und Anstoß; beim Ausweis mit den Folgen oben.
+ * Nur Team und Verwaltung — der Kunde entfernt Bestand nie selbst.
+ */
+export async function bestandEntfernen(personId: number, k: GebundeneKategorie, wer: Handelnder, grund: string, lauf: Lauf = sqlPool,
+  opt: { grundArt?: string | null } = {}): Promise<AktionErgebnis> {
+  if (wer.art === "kunde") return { ok: false, status: 403, satz: "Eine bisherige Unterlage kann nur Ihr Ansprechpartner entfernen." };
+  if (!istUnterlagenKategorie(k) || !istGebunden(k)) return { ok: false, status: 400, satz: "Unbekannte Unterlage." };
+  if (!(await unterlagenBereit(lauf))) return { ok: false, status: 503, satz: "Gerade nicht möglich." };
+  if (!istEntfernGrundArt(opt.grundArt)) return { ok: false, status: 400, satz: "Bitte wählen, warum die Unterlage entfernt wird." };
+  const g = String(grund || "").trim();
+  if (g.length < 5) return { ok: false, status: 400, satz: "Bitte kurz begründen — der Grund steht im Verlauf." };
+  // Die Akte zeigt die bisherige Unterlage nur, solange die Kategorie KEINE aktive Datei hat. Kam inzwischen eine dazu,
+  // ist der Bestand schon Zeile (Hinzufügen übernimmt ihn zuerst) und hat seinen eigenen Entfernen-Knopf.
+  if ((await aktiveIds(personId, k, lauf)).length) return { ok: false, status: 409, satz: "Die Unterlagen haben sich gerade geändert — bitte die Akte neu laden." };
+  const [da] = (await lauf.unsafe(`SELECT count(*)::int AS n FROM fiaon_applications WHERE person_id = $1 AND gdpr_deleted_at IS NULL AND LENGTH(${spalteVon(k)}) > 0`, [personId])) as any[];
+  if (!Number(da?.n)) return { ok: false, status: 404, satz: "Hier liegt keine bisherige Unterlage (mehr)." };
+  await bestandUebernehmen(personId, k, lauf);
+  // Nur die gerade übernommenen Fassungen — eine gleichzeitig hochgeladene neue Datei bleibt unberührt.
+  const neu = (await lauf`SELECT id FROM fiaon_dokumente WHERE person_id = ${personId} AND art = 'unterlage' AND kategorie = ${k}
+                            AND herkunft IN ('bestand', 'fremd') AND entfernt_am IS NULL AND geloescht_am IS NULL ORDER BY id`) as any[];
+  if (!neu.length) return { ok: false, status: 409, satz: "Die bisherige Unterlage ließ sich nicht als Datei übernehmen — bitte die Akte neu laden. Bleibt es so: an die Leitung." };
+  let letzte: AktionErgebnis = { ok: false, status: 500, satz: "" };
+  for (const z of neu) {
+    letzte = await unterlageEntfernen(personId, Number(z.id), wer, g, lauf, { grundArt: opt.grundArt });
+    if (!letzte.ok) return letzte;
+  }
+  return { ok: true, satz: neu.length === 1 ? `Bisherige Unterlage: ${letzte.satz}` : `${neu.length} bisherige Fassungen entfernt (je ein Eintrag im Verlauf). Zuletzt: ${letzte.satz}` };
 }
 
 /**

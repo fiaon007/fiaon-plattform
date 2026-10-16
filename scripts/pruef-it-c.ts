@@ -352,7 +352,8 @@ console.log("\n8b · Querprüfung: Entfernen durch das Team (Grund, Frist, Leitu
   ok(/export async function entfernteInhalteLeeren/.test(lib) && /entfernt_am < NOW\(\) - make_interval\(days => \$\{tage\}::int\)/.test(lib), "Takt-Funktion leert Inhalte nach der Frist");
   ok(/tageslauf\('unterlagen_frist', async \(\) => await \(await import\('\.\/lib\/fiaon-unterlagen'\)\)\.entfernteInhalteLeeren\(\)/.test(lies("server/routes.ts")), "Takt unterlagen_frist ist eingetragen");
   const r = lies("server/routes/fiaon-unterlagen.ts");
-  ok((r.match(/grundArt: req\.body\?\.grundArt \?\? null/g) ?? []).length === 2 && /datei\/:id\/endgueltig", requireAgent[\s\S]{0,300}istLeitungsRolle\(z\.rolle\)/.test(r) && /\/admin\/unterlagen\/:ref\/datei\/:id\/endgueltig"/.test(r),
+  // E-391 (16.10.2026): + Office- und Chefbüro-Route für die „Bisherige Unterlage“ (…/bestand/entfernen) → 4.
+  ok((r.match(/grundArt: req\.body\?\.grundArt \?\? null/g) ?? []).length === 4 && /datei\/:id\/endgueltig", requireAgent[\s\S]{0,300}istLeitungsRolle\(z\.rolle\)/.test(r) && /\/admin\/unterlagen\/:ref\/datei\/:id\/endgueltig"/.test(r),
     "Routen: Grund-Art in Office und Chefbüro, „endgültig löschen“ nur Leitung (Office) bzw. hinter dem Admin-Code");
   ok(/grundArt: req\.body\?\.grundArt \?\? null \}\)/.test(lies("server/routes/fiaon-telefonie.ts")) && /octet_length\(inhalt\) > 0/.test(lies("server/routes/fiaon-telefonie.ts")), "Alter Knopf „Löschen“ kennt die Grund-Art; Archiv öffnet keine geleerte Fassung");
   const ui = lies("client/src/components/unterlagen/UnterlagenAkte.tsx");

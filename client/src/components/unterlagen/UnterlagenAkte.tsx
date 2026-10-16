@@ -17,6 +17,8 @@
 //   · entfernte Dateien eingeklappt, mit wer/wann/warum;
 //   · „Umordnen“ (14.10.2026, Florentine): eine Datei in die richtige Kategorie legen — z. B. Kontoauszüge,
 //     die der Kunde unter „Weitere → Sonstiges“ hochgeladen hat. Danach wie ein Upload dorthin (binden, lesen).
+//   · E-391 (16.10.2026, Florentine): auch eine „Bisherige Unterlage“ (Bestand vor dem 08.10., nur in der Spalte,
+//     ohne id) lässt sich entfernen — derselbe Dialog, Route …/:kategorie/bestand/entfernen.
 // Ton: dunkel in der Akte (pipeline), hell im Chefbüro.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
@@ -49,7 +51,8 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
   const [wahl, setWahl] = useState<Record<string, string>>({ ausweis: "", weitere: "" });
   const [notiz, setNotiz] = useState("");
   // Querprüfung 08.10.2026: Entfernen mit Grund-Art — „falsche Person“/„nicht benötigt“ löschen den Inhalt sofort.
-  const [weg, setWeg] = useState<{ id: number; art: string; grund: string } | null>(null);
+  // E-391: `schluessel` trägt auch die „Bisherige Unterlage“ ohne id (bestand-<kategorie>).
+  const [weg, setWeg] = useState<{ schluessel: string; id: number | null; kategorie: UnterlagenKategorie; art: string; grund: string } | null>(null);
   const [um, setUm] = useState<{ id: number; ziel: string; unterart: string } | null>(null);
   const sagen: Melden = melden ?? ((t, titel, text) => { if (t === "schlecht") window.alert([titel, text].filter(Boolean).join("\n")); });
 
@@ -99,8 +102,10 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
     if (!weg) return;
     if (!weg.art) { sagen("schlecht", "Grund wählen", "Bitte zuerst wählen, warum die Datei entfernt wird."); return; }
     if (weg.grund.trim().length < 5) { sagen("schlecht", "Grund fehlt", "Bitte kurz begründen (mindestens fünf Zeichen) — der Grund steht im Verlauf."); return; }
-    setArbeit(`weg-${weg.id}`);
-    const j = await post(`/datei/${weg.id}/entfernen`, { grund: weg.grund.trim(), grundArt: weg.art });
+    setArbeit(`weg-${weg.schluessel}`);
+    // E-391: Bestand ohne eigene Zeile über die Kategorie — der Server übernimmt ihn als Datei und entfernt ihn dann.
+    const pfad = weg.id != null ? `/datei/${weg.id}/entfernen` : `/${weg.kategorie}/bestand/entfernen`;
+    const j = await post(pfad, { grund: weg.grund.trim(), grundArt: weg.art });
     setArbeit(null);
     if (j?.ok) { setWeg(null); if (j.stand) setStand(j.stand); sagen("gut", "Entfernt", j.meldung); onGeaendert?.(); }
     else sagen("schlecht", "Nicht entfernt", j?.error || "Bitte erneut versuchen.");
@@ -143,6 +148,9 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
     ? `${basis}/datei/${d.id}`
     : adminRef ? `/api/fiaon/admin/dokumente/${encodeURIComponent(adminRef)}/${d.kategorie}/datei` : `/api/fiaon/agent/dokumente/${personId}/${d.kategorie}/datei`;
   const knopf = ton === "dunkel" ? "pi-knopf still klein" : "ua-knopf";
+  /** E-391: Entfernen-Schlüssel je Datei — die „Bisherige Unterlage“ (id null) heißt bestand-<kategorie>. */
+  const wegSchluessel = (d: UnterlagenDatei) => (d.id != null ? `d-${d.id}` : `bestand-${d.kategorie}`);
+  const darfWeg = (d: UnterlagenDatei) => d.id != null || (d.herkunft === "bestand" && d.darfEntfernen);
   const ohneArt = (k: KategorieStand) => (k.kategorie === "ausweis" || k.kategorie === "weitere") && !wahl[k.kategorie];
   const hauptKnopf = ton === "dunkel" ? "pi-knopf klein" : "ua-knopf haupt";
 
@@ -195,7 +203,8 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                       {stand.inhaltErlaubt !== false && <a className={knopf} href={datei(d)} target="_blank" rel="noreferrer">Öffnen</a>}
                       {d.id != null && <button type="button" className={knopf} disabled={arbeit === `um-${d.id}`} data-fiaon="unterlage-umordnen-knopf"
                         onClick={() => { setWeg(null); setUm(um?.id === d.id ? null : { id: Number(d.id), ziel: "", unterart: "" }); }}>Umordnen</button>}
-                      {d.id != null && <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}`} onClick={() => { setUm(null); setWeg(weg?.id === d.id ? null : { id: Number(d.id), art: "", grund: "" }); }}>Entfernen</button>}
+                      {darfWeg(d) && <button type="button" className={knopf} disabled={arbeit === `weg-${wegSchluessel(d)}`} data-fiaon={d.id == null ? "bestand-entfernen-knopf" : undefined}
+                        onClick={() => { setUm(null); setWeg(weg?.schluessel === wegSchluessel(d) ? null : { schluessel: wegSchluessel(d), id: d.id, kategorie: d.kategorie, art: "", grund: "" }); }}>Entfernen</button>}
                     </span>
                     <small>
                       {[d.seiten ? `${d.seiten} S.` : null, d.groesse, amText(d.am), d.von === "sie" ? "vom Kunden" : d.herkunft === "beschaffung" ? "von FIAON beschafft" : "vom Team",
@@ -222,15 +231,16 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
                         </span>
                       </div>
                     )}
-                    {weg && weg.id === d.id && (
+                    {weg && weg.schluessel === wegSchluessel(d) && (
                       <div className="ua-wahl" data-fiaon="unterlage-entfernen">
                         <select value={weg.art} onChange={(e) => setWeg({ ...weg, art: e.target.value })} aria-label="Warum entfernen?">
                           <option value="" disabled>Warum entfernen? …</option>
                           {ENTFERN_GRUENDE.map((g) => <option key={g.wert} value={g.wert}>{g.label}</option>)}
                         </select>
                         <input type="text" maxLength={300} placeholder="Kurz begründen (steht im Verlauf)" value={weg.grund} onChange={(e) => setWeg({ ...weg, grund: e.target.value })} />
+                        {k.kategorie === "ausweis" && <small className="ua-satz">Ist danach kein Ausweis mehr da, gilt er wieder als ungeprüft (Freigabe, Sichtprüfung, Prüfurteil).</small>}
                         <span style={{ display: "flex", gap: 6 }}>
-                          <button type="button" className={knopf} disabled={arbeit === `weg-${d.id}` || !weg.art || weg.grund.trim().length < 5} onClick={() => void entfernen()}>Entfernen</button>
+                          <button type="button" className={knopf} disabled={arbeit === `weg-${weg.schluessel}` || !weg.art || weg.grund.trim().length < 5} onClick={() => void entfernen()}>Entfernen</button>
                           <button type="button" className={knopf} onClick={() => setWeg(null)}>Abbrechen</button>
                         </span>
                       </div>

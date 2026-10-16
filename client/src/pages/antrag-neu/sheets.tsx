@@ -1,5 +1,6 @@
 // Die Sheets des neuen Antrags (von unten einfahrende Tafeln): Vertrag,
 // Leistungen, Angaben, Terminwahl, Auskunft, Passwort, QR-Code.
+import { einstiegAusThema, leistungenFuerEinstieg } from "@shared/fiaon-antrag-einstieg";
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { BANK_SATZ } from "@/components/antrag/bestelluebersicht-daten";
@@ -53,13 +54,15 @@ export function VertragSheet({ fokus }: { fokus?: "widerruf" | "agb" }) {
 
 // ── Alles, was im Paket enthalten ist ──
 export function LeistungSheet({ P }: { P: AntragNeuPaket }) {
-  const { jetzt, schliesseSheet, deckGehe, paketWaehlen, toast, ereignis } = useAntrag();
+  const { S, jetzt, schliesseSheet, deckGehe, paketWaehlen, toast, ereignis } = useAntrag();
+  // E-381: Für Ratgeber-Leser die Bonitäts-Punkte zuerst — dieselben Leistungen, andere Reihenfolge.
+  const leistungen = leistungenFuerEinstieg(P.leistungen, einstiegAusThema(S.einstiegThema));
   const N = naechstesPaket(P.key);
   return (
     <>
       <h2 id="an-sheetTitel" tabIndex={-1}>{P.name} · Ziel-Limit bis {euro(P.bis, false)}</h2>
       <p className="an-lead" style={{ margin: "0 0 12px", fontSize: ".875rem" }}>{P.intro}</p>
-      <ol className="an-nummern">{P.leistungen.map((l) => <li key={l}><span>{l}</span></li>)}</ol>
+      <ol className="an-nummern">{leistungen.map((l) => <li key={l}><span>{l}</span></li>)}</ol>
       <p className="an-klein" style={{ marginTop: 12 }}>Monatsrate und alle Bedingungen sehen Sie vor dem Abschluss in Ihrem Vertrag. {BANK_SATZ}</p>
       {N ? (
         <button type="button" className="an-pitch" style={{ marginTop: 12 }} onClick={() => {

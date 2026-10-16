@@ -31,6 +31,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { EINSTIEG_KNOPF_ZUSATZ, EINSTIEG_TEXT, antragLinkAusRatgeber, einstiegAusThema } from "@shared/fiaon-antrag-einstieg";
 
 /** Nach dieser Lesezeit erscheint der Aufruf — sichtbare Zeit, nicht Uhrzeit. */
 const SEKUNDEN = 80;
@@ -53,7 +54,12 @@ function darfErscheinen(): boolean {
   }
 }
 
-export default function LeseAufruf() {
+/**
+ * E-381 (15.10.2026): Der Knopf spricht das Thema des Artikels an („Meine Bonität prüfen lassen")
+ * und nimmt es in den Antrag mit — dort beginnt die Erzählung mit der Bonität, die Karte bleibt das Ziel.
+ */
+export default function LeseAufruf({ kategorie, slug }: { kategorie?: string; slug?: string } = {}) {
+  const einstieg = einstiegAusThema(kategorie);
   const [offen, setOffen] = useState(false);
   const [gehtZu, setGehtZu] = useState(false);
   const gelesen = useRef(0);
@@ -161,8 +167,8 @@ export default function LeseAufruf() {
         </ul>
 
         <div className="la-knoepfe">
-          <a className="la-knopf haupt" href="/antrag">
-            Konto eröffnen
+          <a className="la-knopf haupt" href={antragLinkAusRatgeber(kategorie, slug)}>
+            {einstieg ? EINSTIEG_TEXT[einstieg].knopf : "Konto eröffnen"}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14M12 5l7 7-7 7" />
@@ -172,6 +178,8 @@ export default function LeseAufruf() {
             Weiterlesen
           </button>
         </div>
+
+        {einstieg ? <p className="la-zusatz">{EINSTIEG_KNOPF_ZUSATZ}</p> : null}
 
         <p className="la-fuss">
           Kein Abschluss auf dieser Seite, keine Zahlungsdaten. FIAON ist keine

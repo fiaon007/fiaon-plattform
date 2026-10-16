@@ -1,6 +1,7 @@
 // Die Bildschirme nach den Angaben: Prüfung, Ergebnis, Paket, Limit, Vertrag,
 // Unterschrift, Zahlung, Danke (PIN: pin.tsx). Wortlaut aus dem freigegebenen
 // Prototyp v2 — mit echten Daten, echter Prüfung, echter Annahme und Zahlung.
+import { einstiegAusThema, einstiegPaketZeile, leistungenFuerEinstieg } from "@shared/fiaon-antrag-einstieg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -224,6 +225,7 @@ export function SchrittErgebnis() {
 // ═══════════════════════════════════════════════════════════════════════════
 export function SchrittPaket() {
   const { S, gehe, deckIndex, deckGehe, paketWaehlen, oeffneSheet, speichern, ereignis, sitzung } = useAntrag();
+  const einstieg = einstiegAusThema(S.einstiegThema);
   const i = deckIndex;
   const P = ANTRAG_NEU_PAKETE[i] ?? ANTRAG_NEU_PAKETE[1];
   const N = ANTRAG_NEU_PAKETE[i + 1] ?? null;
@@ -246,6 +248,13 @@ export function SchrittPaket() {
           <span className="an-preis-leise">{P.name} · {euro(rate(P.key))} im Monat · 12 Monate · zusammen {euro(rate(P.key) * 12)}</span>
           <span className="an-preis-leise">Ihr Ziel. {BANK_SATZ}</span>
         </div>
+        {einstieg ? (
+          // E-381: Ratgeber-Leser sehen zuerst, was ihr Thema im Paket ist — die Karte bleibt das Ziel darüber.
+          <div className="an-einstieg" aria-live="polite">
+            <p>{einstiegPaketZeile(S.einstiegTitel)}</p>
+            <ul>{leistungenFuerEinstieg(P.leistungen, einstieg).slice(0, 2).map((l) => <li key={l}>{l}</li>)}</ul>
+          </div>
+        ) : null}
         <button type="button" className="an-knopf an-text" style={{ alignSelf: "flex-start" }} onClick={() => { ereignis("leistungen_angesehen", { schritt: "paket", detail: P.key }); oeffneSheet(<LeistungSheet P={P} />); }}>
           Alles, was enthalten ist
         </button>

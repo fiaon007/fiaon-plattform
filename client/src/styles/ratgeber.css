@@ -293,6 +293,8 @@
 .la-knopf:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
 
 .la-fuss { margin: 20px 0 0; font: 300 11.5px/1.6 'Inter', sans-serif; color: #475569; }
+/* E-381: kleine Zeile unter dem Themen-Knopf („inklusive Weg zur eigenen Visa-Kreditkarte") */
+.la-zusatz { margin: 10px 0 0; font-size: 13px; color: rgba(214, 228, 255, .78); letter-spacing: .01em; }
 
 @media (max-width: 520px) {
   .la-fenster { padding: 32px 24px 24px; border-radius: 22px; }

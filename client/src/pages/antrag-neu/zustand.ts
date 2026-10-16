@@ -55,6 +55,13 @@ export interface Zustand extends AntragNeuDaten {
   termin: { text: string; mit: string | null } | null;
   rueckruf: { text: string; mit: string | null } | null;
   passwort: boolean;
+  /**
+   * E-381: Kam der Besuch aus dem Ratgeber (/antrag?thema=…&artikel=…)? Dann beginnt der Antrag mit
+   * der Bonität („Erst Ihre Bonität. Dann Ihre Karte.") — shared/fiaon-antrag-einstieg.ts. Leer = wie immer.
+   */
+  einstiegThema: string;
+  einstiegArtikel: string;
+  einstiegTitel: string;
 }
 
 export const ZUSTAND_LEER: Zustand = {
@@ -63,6 +70,7 @@ export const ZUSTAND_LEER: Zustand = {
   ag1: false, ag3: false, ag4: false, hakenKombi: false, angenommenAm: null, sofortBeginn: null,
   paymentReference: null, betrag: null, faellig: null, verknuepft: false, zahlungGemeldet: false, zahlungGemeldetAm: null, bezahlt: false,
   rueckZu: "", auskunft: "", auskunftVorab: "", ak1: false, ak2: false, termin: null, rueckruf: null, passwort: false,
+  einstiegThema: "", einstiegArtikel: "", einstiegTitel: "",
 };
 
 const SITZUNG = "fiaon_antrag_neu";

@@ -21,6 +21,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 import { appViewport } from "@/lib/app-viewport";
 import { antragEreignis, antragSitzung } from "@/lib/antrag-ereignis";
 import { auskunftVorabAus } from "@shared/fiaon-auskunft-buendel";
+import { artikelSauber, themaSauber } from "@shared/fiaon-antrag-einstieg";
 import {
   ANTRAG_NEU_ABSCHNITTE, ANTRAG_NEU_PAKETE, ANTRAG_NEU_REIHE, ANTRAG_NEU_SCHRITTE, ANTRAG_NEU_SCHRITT_NR,
   antragNeuLuecke, antragNeuPaket, type AntragNeuSchritt,
@@ -402,6 +403,21 @@ export default function AntragNeuSeite() {
       if (p && !zRef.current.ref) { setze({ paket: p.key, limit: p.limits[p.limits.length - 1] }); setDeckIndex(paketIndex(p.key)); }
       const vorab = auskunftVorabAus(q.toString());
       if (vorab) setze({ auskunftVorab: vorab });
+      // E-381: Einstieg aus dem Ratgeber — das Thema (Kategorie) und der Artikel kommen in der Adresse mit.
+      // Ein laufender Antrag behält seinen Einstieg; ein neuer Klick aus einem anderen Artikel setzt ihn neu.
+      const thema = themaSauber(q.get("thema"));
+      if (thema && !zRef.current.angenommenAm) {
+        const artikel = artikelSauber(q.get("artikel"));
+        setze({ einstiegThema: thema, einstiegArtikel: artikel, einstiegTitel: artikel === zRef.current.einstiegArtikel ? zRef.current.einstiegTitel : "" });
+        antragEreignis("neu", "einstieg", { schritt: jetztRef.current, detail: `ratgeber:${thema}` });
+        // Den Titel des Artikels für die Paketwahl („Sie kamen über …") — öffentlich, gecacht, darf fehlen.
+        if (artikel) {
+          void fetch(`/api/fiaon/ratgeber/${encodeURIComponent(artikel)}`).then((r) => r.ok ? r.json() : null).then((j: any) => {
+            const titel = String(j?.artikel?.titel ?? "").trim();
+            if (titel && zRef.current.einstiegArtikel === artikel) setze({ einstiegTitel: titel.slice(0, 160) });
+          }).catch(() => { /* ohne Titel: allgemeiner Satz */ });
+        }
+      }
     } catch { /* egal */ }
 
     // Abgleich: Es gibt schon einen Antrag in diesem Tab — gilt das Antrags-Cookie noch, und was weiß der Server

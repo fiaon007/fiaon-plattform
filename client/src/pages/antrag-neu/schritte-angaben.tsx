@@ -1,5 +1,6 @@
 // Die Bildschirme 1–7 des neuen Antrags: Name, Kontakt, Geburtsdatum, Anschrift,
 // Beruf, Einkommen, Einträge. Wortlaut aus dem freigegebenen Prototyp v2.
+import { EINSTIEG_TEXT, einstiegAusThema } from "@shared/fiaon-antrag-einstieg";
 import { useEffect, useRef, useState } from "react";
 import {
   BERUF_MIT_ARBEITGEBER, BERUF_TEXT, EINTRAEGE_FRAGE, EINTRAG_TEXT, LANDNAME, MONATE, PLZ_STELLEN, STAATEN, STAAT_AUS_LAND,
@@ -27,6 +28,7 @@ const SEIT_WERTE: [Seit, string][] = [["<1", "unter 1 Jahr"], ["1-5", "1–5 Jah
 // wird) und die Anrede als zwei große Felder; ein Tipp darauf führt in den Vornamen.
 export function SchrittName() {
   const { S, setze, buehne, weiter, speichern, weiterText } = useAntrag();
+  const einstieg = einstiegAusThema(S.einstiegThema);
   const f = useFehler("name");
   const anredeWaehlen = (v: "Frau" | "Herr" | "keine") => {
     // Fokus direkt im Tipp — iOS öffnet die Tastatur nur dann, nicht aus einem Zeitgeber.
@@ -44,8 +46,9 @@ export function SchrittName() {
   };
   return (
     <>
-      <Titel text="Ihre Karte. Ihr Name." fokus={false} />
-      <Lead>So, wie es in Ihrem Ausweis steht.</Lead>
+      {/* E-381: Wer aus dem Ratgeber kommt, liest zuerst von seiner Bonität — die Karte bleibt im Bild und bleibt das Ziel. */}
+      <Titel text={einstieg ? EINSTIEG_TEXT[einstieg].titel : "Ihre Karte. Ihr Name."} fokus={false} />
+      <Lead>{einstieg ? <>{EINSTIEG_TEXT[einstieg].lead} Ihr Name, so wie er im Ausweis steht.</> : "So, wie es in Ihrem Ausweis steht."}</Lead>
       {/* Eine leise Zeile statt drei Pillen: schiebt die Anrede am kleinen Handy nicht aus dem Bild.
           Das Land ist hier noch unbekannt — deshalb „Auskunfteien“, nie „SCHUFA“ (AT/CH). */}
       <p className="an-zusage-zeile">Keine Abfrage bei Auskunfteien · Kosten erst mit Ihrer Unterschrift</p>

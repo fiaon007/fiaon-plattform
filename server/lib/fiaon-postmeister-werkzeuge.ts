@@ -1191,7 +1191,7 @@ export const kuendigungVormerken: Werkzeug = {
   name: "kuendigung_vormerken",
   // E-248: Die Beschreibung sagt nicht mehr „zwölf Monate" für alle — Verträge vor dem
   // 03.09.2026 sind monatlich und formlos kündbar (shared/fiaon-wissen.ts).
-  beschreibung: "Nimmt eine Kündigung oder ein Storno entgegen und bucht es sofort — Urkunde und schriftliche Bestätigung verschickt das Haus selbst (E-213). Rufe es, sobald der Kunde klar sagt, dass er kündigen, stornieren, widerrufen oder nicht mehr weitermachen will — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort“), auch „bitte alles stornieren“. Nie bei Fragen („Wie kann ich kündigen?“) oder Überlegungen („ich überlege …“). Zitat = sein wörtlicher Satz. Eine unbezahlte Bestellung wird storniert (nichts offen). Bei einem laufenden Vertrag bleibt die bereits gestellte Rate zu zahlen; mit ihrer Zahlung endet der Vertrag. Auch wenn er schreibt, er habe schon früher gekündigt: aufrufen. Nie bei Verneinung („ich kündige nicht“), Bedingung („sonst kündige ich“, „bevor ich kündige“), fremden Verträgen (Handy, Bank) oder wenn jemand anderes kündigen will. Ein bloßes „Stopp“ ist KEINE Kündigung (dafür werbesperre_setzen). Lehnt das Werkzeug ab, ist NICHTS gebucht — dann bestätigst du keine Kündigung; nachfragen nur, wenn er selbst kündigen/stornieren geschrieben hat.",
+  beschreibung: "Nimmt eine Kündigung oder ein Storno entgegen und bucht es sofort — Urkunde und schriftliche Bestätigung verschickt das Haus selbst (E-213). Rufe es, sobald der Kunde klar sagt, dass er kündigen, stornieren, widerrufen oder nicht mehr weitermachen will — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort“), auch „bitte alles stornieren“. Nie bei Fragen („Wie kann ich kündigen?“) oder Überlegungen („ich überlege …“). Zitat = sein wörtlicher Satz. Eine unbezahlte Bestellung wird storniert (nichts offen). Bei einem laufenden Vertrag bleibt die bereits gestellte Rate zu zahlen; die Kündigung gilt trotzdem, unabhängig von der Zahlung (E-393). Auch wenn er schreibt, er habe schon früher gekündigt: aufrufen. Nie bei Verneinung („ich kündige nicht“), Bedingung („sonst kündige ich“, „bevor ich kündige“), fremden Verträgen (Handy, Bank) oder wenn jemand anderes kündigen will. Ein bloßes „Stopp“ ist KEINE Kündigung (dafür werbesperre_setzen). Lehnt das Werkzeug ab, ist NICHTS gebucht — dann bestätigst du keine Kündigung; nachfragen nur, wenn er selbst kündigen/stornieren geschrieben hat.",
   stufe: "frei",
   // „gesperrt" (05.09.2026): Ein gesperrter Kunde mit unbezahlter Bestellung
   // will meist nur raus — das Storno muss Mara selbst können.
@@ -1612,11 +1612,13 @@ export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { b
     const r = echte[0];
     // E-265 Nachbesserung (29.09.2026, Recht): Beim Vertrag vor dem 03.09.2026 endet der Vertrag zum Ende des
     // Abrechnungsmonats — nie „mit dieser Zahlung endet der Vertrag" (die Beendigung hängt nie an der Zahlung, § 312k BGB).
-    return `${kopf} Offen bleibt Rate ${r.nr} über ${rateEuro(r.cents)}${r.faellig ? ` (fällig ${r.faellig})` : ""}; ${opt.formlos ? `sie bleibt zu zahlen, die Kündigung ${giltZum}.` : "mit dieser Zahlung endet der Vertrag."}`;
+    // E-393 (16.10.2026): Auch beim Jahresvertrag nicht mehr „mit dieser Zahlung endet der Vertrag“ — das Modell übernahm
+    // den Satz als „Sobald die Zahlung eingegangen ist, ist Ihr Vertrag beendet“. Es ist der Kulanz-Ausstieg, und so heißt er.
+    return `${kopf} Offen bleibt Rate ${r.nr} über ${rateEuro(r.cents)}${r.faellig ? ` (fällig ${r.faellig})` : ""}; ${opt.formlos ? `sie bleibt zu zahlen, die Kündigung ${giltZum}.` : "nach dieser Zahlung lassen wir Sie aus Kulanz vorzeitig aus dem Vertrag."}`;
   }
   const liste = echte.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`);
   const summe = echte.reduce((s, r) => s + r.cents, 0);
-  return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; ${opt.formlos ? `sie bleiben zu zahlen, die Kündigung ${giltZum}.` : "mit diesen Zahlungen endet der Vertrag."}`;
+  return `${kopf} Offen bleiben ${liste.slice(0, -1).join(", ")} und ${liste[liste.length - 1]}, zusammen ${rateEuro(summe)}; ${opt.formlos ? `sie bleiben zu zahlen, die Kündigung ${giltZum}.` : "nach diesen Zahlungen lassen wir Sie aus Kulanz vorzeitig aus dem Vertrag."}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2171,7 +2173,9 @@ export const eskalationVorbereiten: Werkzeug = {
         text, dringend: true, schluessel: `postmeister:eskalation:${k.ref ?? k.personId ?? k.postmeisterId ?? "x"}`, quelle: "postmeister",
       }, wer.vt);
     }
-    return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, kuenftig_euro: z ? (Number(z.kuenftig_cents) / 100).toFixed(2) : "0.00", betreuer: wer.kundenName } };
+    // E-393: vorher „ruft Sie an, bevor etwas eskaliert“ — eine Drohung, die das Modell wörtlich übernahm. Was eskaliert,
+    // entscheidet die Leitung; dem Kunden wird nichts angekündigt (so sagt es auch die Beschreibung oben).
+    return { ok: true, ergebnis: `${wer.kundenName} ruft Sie dazu an.`, daten: { offen_euro: summe, kuenftig_euro: z ? (Number(z.kuenftig_cents) / 100).toFixed(2) : "0.00", betreuer: wer.kundenName } };
   },
 };
 

@@ -44,6 +44,7 @@ import {
 } from "../lib/fiaon-gmail";
 import { rueckrufAufnehmen } from "../lib/fiaon-rueckruf";
 import { wissenText } from "@shared/fiaon-wissen";
+import { kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
 import { BANK } from "@shared/fiaon-bank";
 import { getSettings, setSetting } from "./fiaon-agent";
 // Die bedienten Postfächer stehen seit dem 09.09.2026 (E-171) an EINER Stelle —
@@ -472,6 +473,8 @@ ${postfachDef.gruss}`;
     if (kontowechselFall) { darfAuto = false; urteil.dringend = true; }
 
     const antwortText = urteil.antwort ? `${urteil.antwort.trim()}\n\n${postfachDef.gruss}` : null;
+    // E-393: Kopplung des Vertragsendes an eine Zahlung oder Drohung in einer Kündigungsantwort → nie automatisch.
+    if (darfAuto && antwortText && kuendigungSendeUrteil({ antwort: antwortText, eingang: mail.text || mail.snippet || "", betreff: mail.betreff, kategorie: urteil.kategorie }).gesperrt) darfAuto = false;
 
     if (darfAuto && antwortText) {
       await antwortSenden(postfach, mail, antwortText);
@@ -817,6 +820,12 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
   // (derselbe Merker wie im Sendeweg der Zentrale, werbesperreBeiFreigabe).
   await (await import("../lib/fiaon-mara-abstreiten")).werbesperreBeiFreigabe({ id: Number(zeile.id), person_id: zeile.person_id ?? null, handlungen: zeile.handlungen })
     .catch((e) => console.error("[POSTMEISTER] Werbesperre bei Freigabe:", String(e).slice(0, 160)));
+  // E-393: dieselbe Sendesperre wie in der Zentrale — die Zeile fällt beim Aufrufer auf 'entwurf' zurück.
+  const e393 = kuendigungSendeUrteil({
+    antwort: text, eingang: zeile.text ?? null, betreff: zeile.betreff ?? null, flags: zeile.flags ?? null,
+    kundenlage: zeile.kundenlage ?? null, kategorie: zeile.kategorie ?? null, kategorien: zeile.kategorien ?? null,
+  });
+  if (e393.gesperrt) throw new Error(`${e393.grund} — bitte umschreiben, dann senden.`);
   const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
   await antwortSenden(zeile.postfach, mail, text);
   if (zeile.antwort_draft_id) {

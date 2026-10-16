@@ -30,6 +30,7 @@ import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
 import { istGlobalKunde } from "./fiaon-global-kunde";
 // Integration 08.10.2026 (offener Fund zu Strang f): dieselbe Heikel-Regel wie der Auftrags-Katalog.
 import { heikelArt } from "@shared/fiaon-auftrag-arten";
+import { kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
 
 /**
  * E-272 (02.10.2026): Ist der Absender ein Kunde von FIAON Global? Dann geht seine Mail an den
@@ -1430,7 +1431,18 @@ export async function mailBearbeiten(ein: {
       await ablegen(postfach, gmailId, "FIAON/Doppelt");
       return fertig({ ...gemeinsam, kundenlage, aktion: "geordnet", begruendung: `Doppel von Mail #${sperre.doppelVon} — ${sperre.grund}; nur eine Antwort (E-248)` }, "Doppel");
     }
-    const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch;
+    // ── E-393: DIE SENDESPERRE ─────────────────────────────────────────────
+    // Knüpft der fertige Text das Vertragsende an eine Zahlung oder droht er in einer Kündigungs-/Widerrufsantwort
+    // (Gericht, Inkasso, Anwalt, SCHUFA), geht er nie automatisch raus — auch wenn der Agent ihn für sauber hielt.
+    const e393 = kuendigungSendeUrteil({
+      antwort: fertigeAntwort.text, eingang: neuerText, betreff: mail.betreff, flags: einordnung.flags as any,
+      kundenlage, kategorien: einordnung.kategorien as any, kuendigungInAkte: !!akte?.kuendigung,
+    });
+    if (e393.gesperrt) {
+      erg.grund = `${e393.grund}${erg.grund ? ` · ${erg.grund}` : ""}`.slice(0, 900);
+      console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e393.grund}`);
+    }
+    const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
     const felder = {
       ...gemeinsam, kundenlage,
       antwort: fertigeAntwort.text, antwort_html: fertigeAntwort.html,
@@ -1625,6 +1637,19 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
       if (gebaut.fehler.length) console.warn(`[POSTMEISTER] Anhänge ${id} (nachgeholt):`, gebaut.fehler.join("; "));
       const text = String(r.antwort || "");
       if (text.trim().length < 20) throw new Error("Gespeicherte Antwort fehlt oder ist zu kurz");
+      // E-393: Die gespeicherte Antwort geht durch dieselbe Sendesperre — eine Zeile von vor der Sperre holt nichts nach.
+      const e393 = kuendigungSendeUrteil({
+        antwort: text, eingang: r.text ?? null, betreff: r.betreff ?? null, flags: jsonLesen(r.flags),
+        kundenlage: r.kundenlage ?? null, kategorie: r.kategorie ?? null, kategorien: r.kategorien ?? null,
+      });
+      if (e393.gesperrt) {
+        await sqlPool`
+          UPDATE fiaon_postmeister SET aktion = 'entwurf', naechster_versuch_am = NULL, in_arbeit_seit = NULL,
+                 begruendung = ${`Nicht nachgeholt: ${e393.grund}`.slice(0, 900)}, updated_at = NOW() WHERE id = ${id}
+        `.catch((x) => console.error("[POSTMEISTER] E-393 beim Nachholen:", String(x).slice(0, 160)));
+        console.warn(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} nicht nachgeholt: ${e393.grund}`);
+        continue;
+      }
       // Das HTML aus dem Erstversuch. Fehlt es (Altzeile), wird es aus dem Text
       // gebaut — derselbe Weg wie beim Freigeben eines Entwurfs.
       let html: string | null = r.antwort_html ? String(r.antwort_html) : null;

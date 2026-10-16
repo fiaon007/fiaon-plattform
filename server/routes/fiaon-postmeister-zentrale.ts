@@ -16,7 +16,7 @@ import { sqlPool } from "../lib/db-pool";
 import { kiPausiert } from "../lib/fiaon-ki-pause";
 import { akteLesen, kundenlageBerechnen } from "../lib/fiaon-postmeister-dossier";
 import { postmeisterSchema, kostenHeute } from "../lib/fiaon-postmeister-schema";
-import { wandPruefen } from "@shared/fiaon-wortverbote";
+import { wandPruefen, kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
 import { postfachProbe } from "../lib/fiaon-gmail";
 import { postfachAdressen } from "./fiaon-postmeister";
 import { wirdBedient, postfachGruss as postfachGrussVorgabe } from "../lib/fiaon-postmeister-postfaecher";
@@ -363,6 +363,17 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
       UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Nicht gesendet: ${treffer.map((t) => t.treffer).join("; ")}`} WHERE id = ${id}
     `;
     return { ok: false, grund: `Prüfung: ${treffer.map((t) => t.treffer).join("; ")}` };
+  }
+  // E-393: Auch von Hand geht kein Satz raus, der das Vertragsende an eine Zahlung knüpft, und in einer Antwort zu
+  // Kündigung oder Widerruf keine Drohung (Gericht, Inkasso, Anwalt, SCHUFA) — gleich, wer den Text geschrieben hat.
+  const e393 = kuendigungSendeUrteil({
+    antwort: text, eingang: r.text ?? null, betreff: r.betreff ?? null, flags: jsonOderLeer(r.flags, null),
+    kundenlage: r.kundenlage ?? null, kategorie: r.kategorie ?? null, kategorien: r.kategorien ?? null,
+    kuendigungInAkte: gelaufen.includes("kuendigung_vormerken"),
+  });
+  if (e393.gesperrt) {
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Nicht gesendet: ${e393.grund}`.slice(0, 900)} WHERE id = ${id}`;
+    return { ok: false, grund: `${e393.grund} — bitte den Satz umschreiben: Die Kündigung gilt unabhängig von der Zahlung; offene Raten bis zum Vertragsende nur sachlich nennen, ohne Drohung.` };
   }
 
   try {

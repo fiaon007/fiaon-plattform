@@ -24,7 +24,7 @@
 
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "@shared/fiaon-karten-weg";
 import { gedaechtnisText, gedaechtnisMerken, MERKEN_BESCHREIBUNG } from "./fiaon-mara-gedaechtnis";
-import { wandPruefen, wandUrteil, type Wandtreffer } from "@shared/fiaon-wortverbote";
+import { wandPruefen, wandUrteil, kuendigungsWand, kuendigungsLage, kuendigungsSaetzeErsetzen, type Wandtreffer } from "@shared/fiaon-wortverbote";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
   AUTO_LAGEN, LEERE_FLAGS, AUSKUNFT_ANTWORT_LAGEN, KEIN_VERKAUF_FLAGS, warnlampen,
@@ -1055,6 +1055,10 @@ function systemPrompt(ein: {
   vertragGeschlossenAm?: string | null;
   /** „das für Wien zuständige Bezirksgericht" — je Land des Kunden. */
   gerichtText: string;
+  /** E-393: Es geht um Kündigung, Storno oder Widerruf (kuendigungsLage) — dann nie eine Drohung, auch nicht in der Härte-Stufe. */
+  kuendigungsBezug?: boolean;
+  /** E-393: Er hat widerrufen — dann auch kein Kulanz-Ausstieg gegen Zahlung. */
+  widerruf?: boolean;
   name: string;
   /** Justins eigene Anweisung (Steuerpult) — steht ganz oben und gewinnt im Zweifel. */
   hausanweisung?: string;
@@ -1386,14 +1390,19 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // E-265 (29.09.2026, Justin: „NEIN, bezahlen Sie Ihre Rate, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag!!!")
     `  · OFFENE RATE — Justins Satz, je Vertrag (das Werkzeug liefert ihn fertig in so_schreiben): JAHRESVERTRAG (ab 03.09.2026): „Ihre Kündigung ist heute bei uns eingegangen. Bitte begleichen Sie Ihre offene Rate über X €, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag — danach kommt nichts mehr." VERTRAG VOR DEM 03.09.2026 (monatlich kündbar): KEIN „Kulanz" (das Recht hat er ohnehin, § 5 UWG), sondern „Ihre Kündigung ist heute bei uns eingegangen und gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum aus gilt_zum>. Ihre offene Rate vom … über X € zahlen Sie bitte noch, danach kommt nichts mehr." (Der Abrechnungsmonat läuft von Fälligkeit zu Fälligkeit — nie „Monatsende", nie „Ende des Kalendermonats".) Die Kündigung selbst hängt nie an der Zahlung. Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung. (Steht zusätzlich eine der Ausnahmen oben — Widerruf, Beschwerde, Bestreiten … —, gibt es keinen Zahlungsknopf: dann nur der Stand der Kündigung.)
   · Die schriftliche Bestätigung verschickt das Haus selbst: Steht im Ergebnis bestaetigung_gesendet: true, darfst du sagen „Die schriftliche Bestätigung bekommen Sie gleich per E-Mail." — sonst sagst du dazu nichts.
-  · DIE KÜNDIGUNG UND IHRE BESTÄTIGUNG HÄNGEN NIE AN EINER ZAHLUNG (§ 312k BGB, E-265 Schluss-Nachbesserung): nie „sobald der Eingang gebucht ist, kommt das Kündigungsschreiben / die Bestätigung / ist die Kündigung wirksam". Ist er schon gekündigt, liest du die Akte (Feld kuendigung): giltZum, zuZahlen (nur DIESE Raten verlangst du), nachVertragsende (diese Raten verlangst du NIE, nennst sie nie und nie „letzte Rate"), regel.`,
+  · DIE KÜNDIGUNG UND IHRE BESTÄTIGUNG HÄNGEN NIE AN EINER ZAHLUNG (§ 312k BGB, E-265 Schluss-Nachbesserung, E-393): nie „sobald der Eingang gebucht ist, kommt das Kündigungsschreiben / die Bestätigung / ist die Kündigung wirksam", nie „ohne die offene Rate können wir den Vertrag nicht beenden", nie „erst nach Zahlung", nie „der Vertrag läuft bis zur Zahlung weiter", nie „mit dieser Zahlung endet Ihr Vertrag". Richtig ist: „Ihre Kündigung gilt zum <giltZum>, unabhängig von der Zahlung. Die Rate N über X € bleibt bis dahin zu zahlen." Ist er schon gekündigt, liest du die Akte (Feld kuendigung): giltZum, zuZahlen (nur DIESE Raten verlangst du), nachVertragsende (diese Raten verlangst du NIE, nennst sie nie und nie „letzte Rate"), regel.
+  · IN EINER ANTWORT ZU KÜNDIGUNG ODER WIDERRUF DROHST DU NIE (E-393): kein Gericht, kein Amtsgericht, kein Mahnbescheid, kein Inkasso, kein Anwalt, keine SCHUFA-Meldung, keine „rechtlichen Schritte“, kein „die Kosten tragen dann Sie“, kein „bevor etwas eskaliert“. Du nennst sachlich, was bis zum Vertragsende zu zahlen ist (Betrag, Fälligkeit, Zahlungsseite) — mehr nicht. Über weitere Schritte entscheidet die Leitung; dafür rufst du still eskalation_vorbereiten. Der Server lässt jede solche Antwort NICHT hinaus.`,
     `ERSTES NEIN („bezahle ich nicht", „mache ich nicht") — freundlich und motivierend, NICHT hart (21.09.2026, Justin): Du nimmst es ernst, fragst kurz nach dem Grund und zeigst, was er gewinnt, wenn er die Rate jetzt zahlt — Account aktiv, seine Bonitätsauswertung, danach direkt der Link unserer Partnerbank, die Karte meist schon vor dem Versand mit Apple Pay in der App der Bank. Dann der einfache Weg über den Knopf. Die Härte-Stufe unten gilt erst, wenn er im SELBEN Schriftwechsel schon einmal abgelehnt hat.`,
     `HÄRTE-STUFE — erst beim ZWEITEN ausdrücklichen Nein im Schriftwechsel: wenn der Kunde die offene Rate erneut verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." ${ein.formlos
       // E-265 Nachbesserung (29.09.2026, Recht): Die Beendigung hängt nie an der Zahlung (§ 312k BGB). Beim Altvertrag
       // (monatlich kündbar) bleibt nur die fällige Rate; beim Jahresvertrag ist die VORZEITIGE Beendigung Kulanz.
       ? `(2) „Die Rate N über X € ist fällig und bleibt zu zahlen."`
-      : `(2) „Die vorzeitige Beendigung aus Kulanz setzt die Zahlung der offenen Rate N über X € voraus — die Rate selbst bleibt ohnehin zu zahlen."`} (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
-    `WIDERRUF: Liegt der Vertragsschluss (${ein.vertragGeschlossenAm ?? "Datum in der Akte"}) höchstens 14 Tage zurück, gilt der Widerruf: kuendigung_vormerken (unbezahlt → storniert) und, wenn schon gezahlt wurde, IMMER eine Aufgabe an die Leitung (kollege: "Leitung") — dem Kunden sagst du: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht." Du versprichst keine Rückzahlung UND du sagst beim Widerruf NIE, dass nichts erstattet wird (auch wenn im Hauswissen „grundsätzlich nicht erstattet" steht — das gilt für die Kündigung, nicht für den Widerruf). Nach 14 Tagen ist ein „Widerruf" eine Kündigung und wird so behandelt. In einer Antwort auf einen Widerruf forderst du NIE zur Zahlung auf und setzt keinen Zahlungsknopf — auch nicht „falls der Nachweis nicht reicht" (#5633).`,
+      : `(2) „Die vorzeitige Beendigung aus Kulanz setzt die Zahlung der offenen Rate N über X € voraus — die Rate selbst bleibt ohnehin zu zahlen."`} ${ein.kuendigungsBezug
+      // E-393 (16.10.2026): Hat er gekündigt oder widerrufen, droht Mara nie — weder mit Gericht noch mit Kosten.
+      // 79 gesendete Antworten vom 05.–28.09. trugen hier „übergeben wir die Forderung an das … Amtsgericht“ (Person 12314 u. a.).
+      ? `(3) „Ihre Kündigung gilt trotzdem — sie hängt nicht an dieser Zahlung. Die Rate bleibt aber geschuldet." (4) „Bitte begleichen Sie sie über den Weg unten." KEIN Wort über Gericht, Mahnbescheid, Inkasso, Anwalt, SCHUFA, Kosten oder Eskalation. Dazu still eskalation_vorbereiten, damit die Leitung die Verweigerung sieht und entscheidet.`
+      : `(3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Hat er gekündigt oder widerrufen, gilt (3) NICHT — dann keine Drohung (E-393).`} Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
+    `WIDERRUF: Liegt der Vertragsschluss (${ein.vertragGeschlossenAm ?? "Datum in der Akte"}) höchstens 14 Tage zurück, gilt der Widerruf: kuendigung_vormerken (unbezahlt → storniert) und, wenn schon gezahlt wurde, IMMER eine Aufgabe an die Leitung (kollege: "Leitung") — dem Kunden sagst du: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht." Du versprichst keine Rückzahlung UND du sagst beim Widerruf NIE, dass nichts erstattet wird (auch wenn im Hauswissen „grundsätzlich nicht erstattet" steht — das gilt für die Kündigung, nicht für den Widerruf). Nach 14 Tagen ist ein „Widerruf" eine Kündigung und wird so behandelt. In einer Antwort auf einen Widerruf forderst du NIE zur Zahlung auf und setzt keinen Zahlungsknopf — auch nicht „falls der Nachweis nicht reicht" (#5633). Und nie „ohne die Rate können wir den Vertrag nicht beenden“ oder einen Kulanz-Ausstieg gegen Zahlung — der Widerruf beendet den Vertrag ohne unser Zutun (E-393, Person 12314).`,
     `Wortverbote gelten weiter: nichts garantieren, keinen Kredit versprechen oder vermitteln, das Wort „Affiliate" nie.`,
     ``,
     `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
@@ -2255,6 +2264,7 @@ export async function antwortErzeugen(ein: {
       einordnung: ein.einordnung, vertrag: vertrag.text, alterTage: ein.mail.alterTage,
       vertragGeschlossenAm: akte?.vertrag?.geschlossenAm ?? null,
       gerichtText: gerichtFuer(akte?.vertrag?.land, akte?.vertrag?.ort),
+      ...(() => { const kl = kuendigungsLage({ eingang: kontext.kundeText, betreff: ein.mail.betreff, flags: ein.einordnung.flags as any, kundenlage: lage, kuendigungInAkte: !!akte?.kuendigung }); return { kuendigungsBezug: kl.bezug, widerruf: kl.widerruf }; })(),
       werkzeuge: werkzeuge.map((w) => w.name),
       name: await agentName(),
       kundenweg: weg?.text ?? null,
@@ -2407,10 +2417,17 @@ async function pruefenUndAbschliessen(roh: any, k: {
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
+  // E-393: Geht es um Kündigung oder Widerruf? Lampen, Lage, Akte, Kundentext, Betreff — und die Antwort selbst.
+  const kuendigungsLageFuer = (t: string) => kuendigungsLage({
+    antwort: t, eingang: k.kundeText ?? "", betreff: k.kontext?.betreff ?? null, flags: k.einordnung.flags as any, kundenlage: k.lage,
+    kuendigungInAkte: !!k.akte?.kuendigung || k.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken"),
+  });
   const pruefen = (t: string) => {
     // „Ihre Kündigung ist seit dem 04.09. vorgemerkt" ist eine Tatsache aus der
     // Akte, keine Zusage — die Wand darf sie nicht als ungedeckt werten (05.09.2026).
     const treffer = wandPruefen(t, gelaufen).filter((tr) => !(k.akte?.kuendigung && tr.gedecktDurch?.includes("kuendigung_vormerken")));
+    // E-393: Kündigung/Widerruf — Kopplung (beim Widerruf ohne Kulanz-Ausnahme) und jede Drohung sind verboten.
+    for (const tr of kuendigungsWand(t, kuendigungsLageFuer(t))) if (!treffer.some((x) => x.treffer === tr.treffer)) treffer.push(tr);
     const fehlend: string[] = [];
     // Belegpflicht
     const belegte = belege.map((b) => `${b.satz} ${b.feld}`).join(" ").toLowerCase();
@@ -2645,6 +2662,22 @@ async function pruefenUndAbschliessen(roh: any, k: {
       // die eine Rückfrage an. Ein „Ja“ darauf bucht kuendigung_vormerken (jaAufRueckfrage). Kein Mangel: das ist der Weg.
       const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
       text = `${text}\n\n${unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt."}`;
+    }
+  }
+
+  // ── E-393: KOPPLUNG UND DROHUNG VERLASSEN NIE DAS HAUS ────────────────
+  // Hält auch der zweite Entwurf „ohne die Rate können wir den Vertrag nicht beenden“ oder „… an das Amtsgericht“,
+  // nimmt der Server die Sätze heraus und setzt den einen richtigen Satz ein. Die Antwort bleibt Entwurf (Mangel
+  // unten) — ein Mensch sieht, was ersetzt wurde. Die Sendesperre (kuendigungSendeUrteil) hält zusätzlich jeden Versand.
+  {
+    const kl = kuendigungsLageFuer(text);
+    if (kuendigungsWand(text, kl).length) {
+      const ersetzt = kuendigungsSaetzeErsetzen(text, kl);
+      if (ersetzt.entfernt.length) {
+        text = ersetzt.text;
+        treffer = [...treffer.filter((tr) => !ersetzt.entfernt.some((satz) => satz.startsWith(tr.treffer.slice(0, 40)))), ...kuendigungsWand(text, kuendigungsLageFuer(text))];
+        fehlend = [...fehlend, `Server (E-393): ${ersetzt.entfernt.length} Satz/Sätze entfernt, weil sie das Vertragsende an eine Zahlung knüpften oder drohten („${ersetzt.entfernt[0].slice(0, 70)}“) — bitte prüfen`];
+      }
     }
   }
 

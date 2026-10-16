@@ -259,11 +259,11 @@ ${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschlan
 
 
 VERTRAG UND KÜNDIGUNG
-- Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag). FIAON entlässt Kunden auf Kulanz vorzeitig: Ab der Kündigung werden keine weiteren Raten gestellt; die bereits gestellte, offene Rate bleibt zu zahlen. Sobald diese letzte Rate eingegangen ist, geht das Kündigungsschreiben („Ihr Vertrag ist beendet") automatisch raus, und es steht nichts mehr offen.
+- Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag). Jede Kündigung wird sofort gebucht und schriftlich bestätigt (Kündigungsurkunde und Kündigungsschreiben) — unabhängig von jeder Zahlung. FIAON entlässt Kunden auf Kulanz vorzeitig: Ab der Kündigung werden keine weiteren Raten gestellt; die bereits gestellte, offene Rate bleibt zu zahlen. Ist auch sie bezahlt, kommt zusätzlich die Abschlussmail, dass nichts mehr offen ist.
 - Verträge vor dem 03.09.2026: formlos kündbar mit einer Frist von 24 Stunden zum Ende des laufenden Abrechnungsmonats (der läuft von einer Fälligkeit bis zum Tag vor der nächsten — nicht bis zum Monatsletzten); die bis dahin gestellte Rate bleibt zu zahlen, spätere Raten entfallen.
 - Eine unbezahlte Bestellung (noch keine Rate eingegangen) wird auf Wunsch einfach storniert — es bleibt nichts offen.
 - Widerruf: 14 Tage ab Vertragsschluss. Bereits gezahlte Raten werden grundsätzlich nicht erstattet; über Ausnahmen entscheidet allein die Geschäftsführung.
-- Bleibt eine offene Rate trotz Aufforderung unbezahlt, übergibt FIAON die Forderung an das für den Wohnort zuständige Gericht (Deutschland: Amtsgericht, gerichtliches Mahnverfahren; Österreich: Bezirksgericht; Schweiz: Betreibungsamt). Die Kosten trägt dann der Kunde.
+- Bleibt eine offene Rate trotz Aufforderung unbezahlt, übergibt FIAON die Forderung an das für den Wohnort zuständige Gericht (Deutschland: Amtsgericht, gerichtliches Mahnverfahren; Österreich: Bezirksgericht; Schweiz: Betreibungsamt). Die Kosten trägt dann der Kunde. Das ist nie Teil einer Antwort auf eine Kündigung oder einen Widerruf — dort steht nur, was bis zum Vertragsende zu zahlen ist.
 - Bankdaten, QR-Code und Verwendungszweck stehen in jeder Zahlungsmail, auf der Zahlungsseite fiaon.com/zahlung/<Referenz> und im Kundenbereich unter „Abo & Zahlungen“ — nenne sie nie selbst, verweise dorthin. Frühere Bankverbindungen (Wise, Belgien) gelten nicht mehr.
 - Kündigung formlos: im Kundenbereich unter „Abo & Zahlungen" oder per E-Mail an welcome@fiaon.com.
 

@@ -84,6 +84,90 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-391 (16.10.2026, Daniel): „Hab in der Pipeline wieder nur C-Kunden.“
+    id: "2026-10-16-pipeline-dringlichkeit",
+    date: "2026-10-16",
+    category: "Verbessert",
+    title: "Pipeline: die große Karte zeigt, was am dringendsten ist — aus beiden Spalten",
+    summary:
+      "Die große Karte „Jetzt anrufen“ nahm immer die linke Spalte — bei vielen war das ein C-Lead, während rechts eine A-Kundin mit „Zahlung prüfen“ wartete. "
+      + "Jetzt wählt sie nach Dringlichkeit über beide Spalten.",
+    changes: [
+      "Reihenfolge: Termin oder Rückruf jetzt → Sofort-Spur A/B → Zusage/Zahlung prüfen und Termin heute → Rückruf → frische A/B → neue A/B links → der Rest → C.",
+      "Die Spalten selbst bleiben, wie sie sind. Was du selbst antippst, bleibt groß; während eines Anrufs oder bei offener Akte springt nichts.",
+      "Stehen links nur C-Leads, sagt die Spalte, wie viele A/B rechts warten.",
+      "Nachschub aus dem Pool: A/B-Kunden kommen jetzt auch dann, wenn deine Plätze mit C-Leads belegt sind.",
+    ],
+    howto: [
+      "Pipeline öffnen → die große Karte oben ist der nächste Anruf. Wer einen anderen Kunden anrufen will, tippt ihn in der Spalte an.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+  },
+  {
+    // E-391 (16.10.2026, Florentine): Kündigungen aus dem Portal, Raten nach dem Vertragsende.
+    id: "2026-10-16-kuendigung-automatisch",
+    date: "2026-10-16",
+    category: "Neu",
+    title: "Kündigungen aus dem Portal buchen sich selbst — und nicht Geschuldetes ist keine Forderung mehr",
+    summary:
+      "Kündigt ein Kunde über das Formular, ist die Kündigung in klaren Fällen sofort gebucht — mit Urkunde und Bestätigungsmail. "
+      + "Raten, die erst nach dem Vertragsende fällig wären, storniert die Plattform jeden Tag selbst.",
+    changes: [
+      "Sofort gebucht wird, wenn die Identität passt (Geburtsdatum), klar ist, welches Paket gemeint ist, und kein Widerruf im Text steht.",
+      "Eine Karte für die Leitung bleibt bei: Identität offen, Widerruf, bezahltem Jahresvertrag (vorzeitiges Ende ist Kulanz) und bezahlter Bestellung jünger als 14 Tage.",
+      "Altverträge (vor dem 03.09.): Raten nach dem Vertragsende werden storniert, Raten bis zum Vertragsende bleiben offen. Das steht im Verlauf der Akte.",
+      "Forderungsmanagement, Inkasso-Liste, Erinnerung von Hand und Kundenbereich zeigen nur noch geschuldete Raten — nichts nach dem Vertragsende, nichts bei noch nicht gebuchter Kündigung, nichts nach einem Mahnstopp.",
+      "WhatsApp-Vorlagen gehen nicht mehr an Menschen mit eingegangener, noch nicht gebuchter Kündigung.",
+      "Schreibt ein Kunde „lassen Sie mich in Ruhe“, setzt Mara die Werbesperre — auch bei bestehenden Kunden. Rate und Kündigungsbestätigung gehen weiter.",
+      "Erstattungen (z. B. eine nach dem Vertragsende bezahlte Rate, Widerruf) entscheidet weiter die Leitung — nichts wird automatisch ausgezahlt.",
+    ],
+    howto: [
+      "Nichts tun: Die Plattform bucht und storniert selbst. Unklare Fälle erscheinen wie bisher als Karte „Kündigung nie gebucht“.",
+      "Ruft ein Kunde wegen einer Rate nach seiner Kündigung an: Akte öffnen → Verlauf zeigt, welche Raten storniert sind und welche bis zum Vertragsende bleiben.",
+    ],
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
+  },
+  {
+    // E-391 (16.10.2026, Daniel, Florentine): Kontoauszüge mit mehreren Monaten, Fotos, US-Format.
+    id: "2026-10-16-kontoauszug-monate",
+    date: "2026-10-16",
+    category: "Verbessert",
+    title: "Kontoauszüge: alle Monate zählen, doppelte Seiten nur einmal",
+    summary:
+      "Ein PDF mit Juli, August und September zählt jetzt als drei Monate — vorher sah die Auswertung nur den ersten Monat. "
+      + "Doppelt hochgeladene Seiten (PDF und dieselben Fotos) zählen nur einmal.",
+    changes: [
+      "Der Zeitraum kommt aus allen Buchungen, nicht nur aus dem Kopf der ersten Seite. Damit lässt sich die Bonitätsauswertung starten, wenn drei Monate vorliegen.",
+      "Bestehende Auswertungen rechnet die Plattform selbst nach — ohne neuen Upload.",
+      "Fünf Auswertungen mit dreifach gezählten Fotos (u. a. Niko Mühlbauer) liest die Plattform einmal neu.",
+      "Auszüge im US-Format (9.99 statt 9,99) gelten nicht mehr als „nicht lesbar“.",
+      "Stehen vorn Gehaltsabrechnungen und dahinter der Kontoauszug, wird der Auszug trotzdem gelesen.",
+      "Eine Auswertung, die nach einem Neustart hängen blieb, wird nach 30 Minuten neu gestartet.",
+    ],
+    howto: [
+      "Akte öffnen → Unterlagen: Der Zeitraum steht jetzt richtig. Danach wie gewohnt die Bonitätsauswertung starten.",
+    ],
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
+  },
+  {
+    // E-391 (16.10.2026, Florentine): „Bisherige Unterlage“ (Bestand vor dem 08.10.) entfernen.
+    id: "2026-10-16-bestand-entfernen",
+    date: "2026-10-16",
+    category: "Verbessert",
+    title: "Unterlagen: auch „Bisherige Unterlagen“ lassen sich entfernen",
+    summary:
+      "Ein falsch hochgeladener Ausweis oder Kontoauszug aus der Zeit vor dem 08.10. hatte keinen Knopf „Entfernen“. Jetzt schon.",
+    changes: [
+      "Derselbe Dialog wie bei jeder Datei: Grund wählen, kurz begründen, entfernen.",
+      "Wird der letzte Ausweis entfernt, steht die Ausweis-Prüfung wieder auf „offen“ — die Prüfung beginnt mit dem neuen Ausweis neu.",
+      "Der Kunde selbst kann Unterlagen weiter nicht entfernen.",
+    ],
+    howto: [
+      "Akte öffnen → Unterlagen → bei „Bisherige Unterlage“ auf „Entfernen“ → Grund wählen und kurz begründen.",
+    ],
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
+  },
+  {
     // E-389 (16.10.2026, Florentine): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
     id: "2026-10-16-alle-kunden-filter",
     date: "2026-10-16",

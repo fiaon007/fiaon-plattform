@@ -668,7 +668,7 @@ body:has(.cb-ruhig) .fi-raum{display:none}
   font: 300 12.5px/1 'Inter', sans-serif;
 }
 .ck-sort select:focus { outline: none; border-color: rgba(96,165,250,.5); }
-/* E-388 (16.10.2026): die Filter der Betreuung in „Alle Kunden“ — Stufen als Pillen, Zuständiger, Filter-Knopf, Chips. */
+/* E-389 (16.10.2026): die Filter der Betreuung in „Alle Kunden“ — Stufen als Pillen, Zuständiger, Filter-Knopf, Chips. */
 .ck-zusatz { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .ck-zusatz .ck-stufen { gap: 6px; }
 .ck-zahl { margin-left: 7px; color: inherit; opacity: .65; font-variant-numeric: tabular-nums; }

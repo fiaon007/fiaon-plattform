@@ -1,7 +1,7 @@
-// Prüfstand E-388 (16.10.2026): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
+// Prüfstand E-389 (16.10.2026): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
 // Offline: gemeinsame Filterliste (shared/fiaon-kundenfilter.ts), dieselben Titel wie die Kunden-Zentrale,
 // dieselben SQL-Bedingungen (filterBedingungen), Anschluss in Route, Liste und „Nächster Kunde“. Aufruf:
-//   env -i HOME=$HOME PATH=$PATH DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine node_modules/.bin/tsx scripts/pruef-e388.ts
+//   env -i HOME=$HOME PATH=$PATH DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine node_modules/.bin/tsx scripts/pruef-e389.ts
 import { readFileSync } from "node:fs";
 
 let gut = 0, schlecht = 0;

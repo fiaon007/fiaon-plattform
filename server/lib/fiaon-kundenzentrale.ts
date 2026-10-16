@@ -123,7 +123,7 @@ function bedingungen(f: Filter): { wo: string[]; werte: unknown[] } {
 /**
  * Die kombinierbaren Filter (Stufe, Status, Zuständiger, Paket, Quelle, Zeitraum, Spezialfilter) als
  * WHERE-Teile über `p` (fiaon_persons). Werte gehen über `par` als Parameter in die Abfrage des Aufrufers.
- * E-388 (16.10.2026): eigene Funktion, damit Chefbüro › Alle Kunden (/chef/kunden) GENAU dieselben Regeln
+ * E-389 (16.10.2026): eigene Funktion, damit Chefbüro › Alle Kunden (/chef/kunden) GENAU dieselben Regeln
  * benutzt wie die Kunden-Zentrale — eine Bedingung, zwei Ansichten.
  */
 export function filterBedingungen(f: Filter, par: (v: unknown) => string): string[] {

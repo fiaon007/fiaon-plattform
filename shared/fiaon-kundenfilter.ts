@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE FILTER DER BETREUUNG — EINE LISTE FÜR ZWEI ANSICHTEN (16.10.2026, E-388)
+// DIE FILTER DER BETREUUNG — EINE LISTE FÜR ZWEI ANSICHTEN (16.10.2026, E-389)
 //
 // Florentine: „Könnte man die Filter im Chefbüro bei Betreuung auch bei Alle
 // Kunden einfügen? Da mich das jedesmal rüber schiebt und dann komm ich
@@ -11,7 +11,7 @@
 // BEIDE Ansichten anbieten. Die SQL-Bedingungen stehen weiter an EINER Stelle:
 // filterBedingungen() in server/lib/fiaon-kundenzentrale.ts. Die Titel sind
 // wortgleich mit der Kunden-Zentrale (client/src/pages/admin-kunden.tsx) —
-// scripts/pruef-e388.ts hält das fest.
+// scripts/pruef-e389.ts hält das fest.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Stufen A/B/C und „Bezahlt“ (priority_tier 1/2/3/0) — mehrfach wählbar. `zahl` = Schlüssel in den Zählern. */

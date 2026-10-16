@@ -20,7 +20,7 @@ export interface ReiheEintrag { id: number; name: string }
 export interface AkteReihe {
   eintraege: ReiheEintrag[];
   filter: string; sort: string; suche: string;
-  /** E-388: die Zusatzfilter der Betreuung (Stufe, Zuständiger, Schalter) als Adressteil, z. B. „stufe=B&kycOffen=1“. */
+  /** E-389: die Zusatzfilter der Betreuung (Stufe, Zuständiger, Schalter) als Adressteil, z. B. „stufe=B&kycOffen=1“. */
   extra?: string;
   seite: number; seiten: number; gesamt: number; proSeite: number;
   /** Zuletzt in der Akte geöffnet — die Liste springt beim Zurückkommen dorthin. */

@@ -32,7 +32,7 @@ import { API, Karte, Hochzaehler, eur, zahl, datum, seit, Geruest, Fehlermeldung
 import { akteLink } from "@/lib/akte-link";
 // 14.10.2026 (Florentine): „Nächster Kunde“ in der Akte — die Liste legt ihre Reihe ab und findet beim Zurückkommen die Stelle wieder.
 import { reiheAusZeilen, reiheLesen, reiheSpeichern, reiheZuletzt } from "@/lib/akte-reihe";
-// E-388 (16.10.2026, Florentine): die Filter der Betreuung auch hier — dieselben Schlüssel, Titel und Regeln.
+// E-389 (16.10.2026, Florentine): die Filter der Betreuung auch hier — dieselben Schlüssel, Titel und Regeln.
 import { FiaonFilter, FiaonFilterChips } from "@/components/FiaonFilter";
 import {
   KUNDEN_SPEZIAL_GRUPPEN, KUNDEN_SPEZIAL_SCHLUESSEL, KUNDEN_SPEZIAL_TITEL, KUNDEN_STUFEN,
@@ -239,7 +239,7 @@ export default function ChefKundenliste() {
             </button>
           ))}
         </div>
-        {/* ── E-388: die Filter der Betreuung — Stufe, Zuständiger, Arbeitslage, Datenqualität ── */}
+        {/* ── E-389: die Filter der Betreuung — Stufe, Zuständiger, Arbeitslage, Datenqualität ── */}
         <div className="ck-zusatz">
           <div className="ck-filter ck-stufen" role="group" aria-label="Stufe">
             {KUNDEN_STUFEN.map((st) => {

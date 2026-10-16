@@ -36,7 +36,7 @@ const HEUTE = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
 /** Nur echte Menschen. Ohne diese Zeile zählt man Karteileichen mit. */
 const ECHT = "p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL";
 
-/** E-388: Zusatzfilter aus der Adresse → Filter der Kunden-Zentrale (nur Stufe, Zuständiger, Spezialfilter). */
+/** E-389: Zusatzfilter aus der Adresse → Filter der Kunden-Zentrale (nur Stufe, Zuständiger, Spezialfilter). */
 function alsZentraleFilter(z: KundenZusatzFilter): Filter {
   return { stufe: z.stufe, agent: z.agent ?? null, ...z.spezial };
 }
@@ -107,7 +107,7 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
     if (filter === "gesperrt") teile.push(`p.is_blocked = TRUE AND NOT ${globalKundeSql("p.id")}`);
     if (filter === "global") teile.push(globalKundeSql("p.id"));
     if (filter === "inkasso") teile.push("p.inkasso_ab IS NOT NULL");
-    // E-388 (16.10.2026, Florentine): die Filter der Betreuung auch hier — Stufe, Zuständiger, Arbeitslage,
+    // E-389 (16.10.2026, Florentine): die Filter der Betreuung auch hier — Stufe, Zuständiger, Arbeitslage,
     // Datenqualität. Bedingungen aus der Kunden-Zentrale (filterBedingungen), kombinierbar mit dem Filter oben.
     const zusatz = kundenZusatzAus(req.query as Record<string, unknown>);
     const par = (v: unknown): string => { werte.push(v); return `$${werte.length}`; };
@@ -196,7 +196,7 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
         COUNT(*) FILTER (WHERE p.inkasso_ab IS NOT NULL)::int AS inkasso
       FROM fiaon_persons p WHERE ${ECHT}`)) as any[];
 
-    // E-388: Zahlen für die Zusatzfilter — über DENSELBEN Bestand wie die Liste (ECHT), je Filter allein.
+    // E-389: Zahlen für die Zusatzfilter — über DENSELBEN Bestand wie die Liste (ECHT), je Filter allein.
     const zw: unknown[] = [];
     const zpar = (v: unknown): string => { zw.push(v); return `$${zw.length}`; };
     const zaehlteile: string[] = [];

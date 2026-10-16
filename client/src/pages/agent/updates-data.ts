@@ -84,7 +84,7 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
-    // E-388 (16.10.2026, Florentine): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
+    // E-389 (16.10.2026, Florentine): die Filter der Betreuung auch in Chefbüro › Alle Kunden.
     id: "2026-10-16-alle-kunden-filter",
     date: "2026-10-16",
     category: "Verbessert",

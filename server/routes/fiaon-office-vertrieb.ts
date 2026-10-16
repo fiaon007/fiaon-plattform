@@ -58,6 +58,8 @@ import {
   type WiedervorlageGrund,
 } from "@shared/fiaon-wiedervorlage";
 import { berlinToday } from "../lib/fiaon-time";
+// E-391 (16.10.2026): Die große Karte wählt über beide Spalten nach Dringlichkeit — eine Regel für Server und Seite.
+import { fokusWahl, fokusKarte } from "@shared/fiaon-pipeline-fokus";
 // E-IT-A (08.10.2026): RATE_FAELLIG_SQL und EREIGNIS_SQL wohnen jetzt in
 // server/lib/fiaon-pipeline-reihung.ts (tier.ts braucht sie und darf keine
 // Route laden). Die Telefonkartei liest sie weiter HIER (E-201) — unverändert.
@@ -611,8 +613,15 @@ const PAKET_RANG_SQL = `COALESCE((SELECT CASE COALESCE(ap.pack_key, '')
      AND COALESCE(ap.pack_key, '') NOT LIKE 'global%' AND COALESCE(ap.pack_key, '') NOT LIKE 'llc%'
      AND (ap.pack_key IS NOT NULL OR ap.amount_due IS NOT NULL)
    ORDER BY ap.created_at DESC LIMIT 1), 0)`;
+/**
+ * E-391 (16.10.2026): der erste Schlüssel von NEU_ORDNUNG als eigener Baustein. Die linke
+ * Abfrage wählt ihn zusätzlich als Spalte (neu_jetzt_rang) — Postgres erkennt den gleichen
+ * Ausdruck in ORDER BY und rechnet ihn EINMAL je Zeile (geprüft mit EXPLAIN VERBOSE: eine
+ * SubPlan, als Sortierschlüssel wiederverwendet). Die große Karte (fokusWahl) braucht ihn.
+ */
+const NEU_JETZT_RANG = `CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0 ELSE 1 END`;
 const NEU_ORDNUNG = `
-  CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0 ELSE 1 END,
+  ${NEU_JETZT_RANG},
   CASE p.priority_tier WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 ELSE 4 END,
   ${PAKET_RANG_SQL} DESC,
   ${EREIGNIS_SQL} DESC NULLS LAST,
@@ -718,14 +727,24 @@ const KEIN_GLOBAL_KUNDE_SQL = `NOT ${globalKundeSql("p.id")}`;
 // (geradeBearbeitetSql, fiaon-pipeline-reihung.ts), steht nie in Band 3 und
 // innerhalb jedes Bandes hinter allen anderen. Er ist da — aber hinten.
 // ═══════════════════════════════════════════════════════════════════════════
-function wiederOrdnung(lv: string, ev: string): string {
-  return `
-  CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0
+/**
+ * E-391 (16.10.2026): das Band (erster Schlüssel von wiederOrdnung) als eigener Baustein.
+ * Die rechte Abfrage wählt es zusätzlich als Spalte wieder_band — derselbe Ausdruck wie im
+ * ORDER BY, also einmal je Zeile gerechnet (keine neue Unterabfrage). Die große Karte
+ * (shared/fiaon-pipeline-fokus.ts) stellt damit eine A-Kundin „Zahlung prüfen" (Band 1)
+ * vor einen C-Lead links.
+ */
+function wiederBandSql(lv: string, ev: string): string {
+  return `CASE WHEN ${TERMIN_JETZT_SQL} OR ${RUECKRUF_JETZT_SQL} THEN 0
        WHEN ${TERMIN_HEUTE_SQL} OR ${zusageOffenSql(lv)} THEN 1
        WHEN ${rueckrufOffenSql(lv)} THEN 2
        WHEN ${frischUnbearbeitetSql(ev, lv)} THEN 3
        WHEN p.priority_tier = 3 THEN 5
-       ELSE 4 END,
+       ELSE 4 END`;
+}
+function wiederOrdnung(lv: string, ev: string): string {
+  return `
+  ${wiederBandSql(lv, ev)},
   CASE WHEN ${geradeBearbeitetSql(lv)} THEN 1 ELSE 0 END,
   ${FENSTER_ORDNUNG},
   ${lv} ASC,
@@ -850,11 +869,16 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
   await nachschubZiehen(me);
 }
 
-/** Zieht aus dem Pool nach, wenn „Neu für dich“ nicht voll ist (E-162). */
-async function nachschubZiehen(me: number): Promise<void> {
+/**
+ * Zieht aus dem Pool nach, wenn „Neu für dich“ nicht voll ist (E-162).
+ * E-391: exportiert und mit lauf (Verbindung oder Transaktion), damit
+ * scripts/pruef-e391-pipeline.ts den Zug in einer zurückgerollten Transaktion prüft.
+ */
+export async function nachschubZiehen(me: number, lauf: any = sqlPool): Promise<void> {
   // ── Nachschub nach Hitze (E-162): erst wenn „Neu für dich" nicht voll ist ──
-  const [zeile] = (await sqlPool.unsafe(`
-    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+  // E-391: „ab" zählt dieselben Plätze, nur Stufe A/B (unten bei fehltAb).
+  const [zeile] = (await lauf.unsafe(`
+    SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE p.priority_tier IN (1, 2))::int AS ab FROM fiaon_persons p
      WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
        AND p.ist_test_am IS NULL AND NOT p.is_blocked
        AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
@@ -882,18 +906,31 @@ async function nachschubZiehen(me: number): Promise<void> {
        -- Unberührte fallen nach drei Tagen von selbst in den Pool zurück (oben).
        AND ${JETZT_ERREICHBAR_SQL}`, [me])) as any[];
   const fehlt = SLOTS - Number(zeile?.n ?? 0);
-  if (fehlt <= 0) return;
+  // ── C-LEADS SPERREN DEN A/B-NACHSCHUB NICHT MEHR (16.10.2026, E-391) ──────
+  // Daniel: „Hab in der Pipeline wieder nur C-Kunden." Gemessen (Produktion, nur
+  // lesend, 16.10. 19:30): links 6 nie angerufene C-Leads — „fehlt" = 0, also zog
+  // der Nachschub gar nicht mehr, auch nicht, wenn im Pool ein A oder B lag. Ein
+  // C-Lead hielt damit den Platz eines frischen Antrags. Jetzt: A/B werden gegen
+  // die A/B-Plätze gezählt (fehltAb) und unabhängig von besetzten C-Plätzen
+  // gezogen. Danach füllt der alte Zug wie bisher freie Plätze A→B→C auf.
+  // Was bleibt: der Deckel SLOTS * 3 (unten), „nur nie angerufen" (NIE_SQL) und
+  // „nur wer danach links erscheint" — kein schon angerufener Pool-Kunde wird
+  // zugeteilt. Die C-Leads, die dann hinter den A/B stehen, fallen nach drei
+  // Tagen ohne Kontakt von selbst in den Pool zurück (POOL_RUECKFALL_TAGE).
+  const fehltAb = SLOTS - Number(zeile?.ab ?? 0);
+  if (fehlt <= 0 && fehltAb <= 0) return;
   // ── KEIN HORTEN (E-184): Wer außerhalb seines Fensters liegt, zählt oben
   // nicht als besetzt — damit nicht jeder Fensterwechsel sechs neue Menschen
   // zieht, gilt ein Deckel über ALLE unberührten Zugeteilten, und der Pool gibt
   // nur heraus, wer JETZT erreichbar sein will (oder nichts angab).
-  const [alle] = (await sqlPool.unsafe(`
+  const [alle] = (await lauf.unsafe(`
     SELECT COUNT(*)::int AS n FROM fiaon_persons p
      WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
        AND p.ist_test_am IS NULL AND NOT p.is_blocked AND p.mandat_seit IS NULL
        AND ${NIE_SQL} AND p.priority_tier BETWEEN 1 AND 3`, [me])) as any[];
   if (Number(alle?.n ?? 0) >= SLOTS * 3) return;
-  await sqlPool.unsafe(`
+  // nurAb (E-391): nur Stufe A/B — sonst wie bisher Stufe 1–3 in POOL_ORDNUNG (A→B→C).
+  const ziehen = async (nurAb: boolean, fehlt: number): Promise<number> => (await lauf.unsafe(`
     UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW())
      WHERE id IN (
        SELECT p.id FROM fiaon_persons p
@@ -901,6 +938,7 @@ async function nachschubZiehen(me: number): Promise<void> {
           AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
           AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
           AND p.priority_tier BETWEEN 1 AND 3
+          ${nurAb ? "AND p.priority_tier IN (1, 2)" : ""}
           -- NUR NEUE (21.09.2026, E-203): Der Zug füllt „Neu für dich" — und
           -- zählt oben nur Nie-Angerufene. Zog er einen früher Angerufenen, blieb
           -- der Platz leer, und der nächste Aufbau zog wieder: Solange die
@@ -918,7 +956,13 @@ async function nachschubZiehen(me: number): Promise<void> {
           AND ${KEIN_GLOBAL_KUNDE_SQL}
         ORDER BY ${POOL_ORDNUNG}
         LIMIT ${fehlt}
-        FOR UPDATE SKIP LOCKED)`, [me]);
+        FOR UPDATE SKIP LOCKED)
+     RETURNING id`, [me]) as any[]).length;
+  // E-391: erst A/B gegen die A/B-Plätze; dann die freien Plätze wie bisher, soweit A/B sie
+  // nicht schon gefüllt hat. Ohne C auf den Plätzen ist fehltAb = fehlt — dann zieht das
+  // genau dieselben Menschen in derselben Reihenfolge wie vorher.
+  const gezogenAb = fehltAb > 0 ? await ziehen(true, fehltAb) : 0;
+  if (fehlt - gezogenAb > 0) await ziehen(false, fehlt - gezogenAb);
 }
 
 router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentRequest, res: Response) => {
@@ -987,8 +1031,11 @@ export async function arbeitslisteLesen(
 ): Promise<{
   wieder: { gruppe: string; kunde: any }[];
   slots: { gruppe: string; kunde: any }[];
-  vorrat: { neu: number; wieder: number };
+  /** E-391: wiederAb = davon rechts Stufe A/B (Kopfzeile der linken Spalte). */
+  vorrat: { neu: number; wieder: number; wiederAb: number };
   heute: { datum: string; erledigt: number; pausiert: number };
+  /** E-391: die große Karte — die dringendste über beide Spalten (shared/fiaon-pipeline-fokus.ts). */
+  fokusId: number | null;
 }> {
   // (Einrückung bewusst wie im früheren Routenrumpf — kleiner Unterschied für die Zusammenführung.)
     // E-272: Die Regel liest fiaon_global_angebote — einmal je Prozess sichergestellt
@@ -1188,9 +1235,10 @@ export async function arbeitslisteLesen(
     // Wochen als Lead am Telefon war. Genau das prüft NEU_FUER_DICH_SQL.
     const HEISS_SQL = NEU_FUER_DICH_SQL;
     const slotsHolen = async (): Promise<any[]> => {
+      // E-391: neu_jetzt_rang ist der erste Schlüssel von NEU_ORDNUNG — derselbe Ausdruck, einmal gerechnet.
       const heiss = (await lauf.unsafe(
-        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
-           SELECT p.* FROM fiaon_persons p
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL}, p.neu_jetzt_rang FROM (
+           SELECT p.*, ${NEU_JETZT_RANG} AS neu_jetzt_rang FROM fiaon_persons p
             WHERE ${basis} AND ${HEISS_SQL}
             ORDER BY ${NEU_ORDNUNG} LIMIT ${SLOTS}) p`, [me],
       )) as any[];
@@ -1236,26 +1284,38 @@ export async function arbeitslisteLesen(
     const BERLIN_MITTERNACHT = `(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')`;
     const [gSlots, zaehlerR, gWieder, heuteR] = await Promise.all([
       slotsHolen(),
+      // E-391 (16.10.2026): dritte Zahl vorrat_wieder_ab — rechts, Stufe A/B — für die
+      // Kopfzeile der linken Spalte. Damit die Bedingung „steht rechts" dafür nicht ein
+      // zweites Mal je Zeile gerechnet wird, steht sie als Spalte in einer Unterabfrage;
+      // OFFSET 0 hält Postgres davon ab, sie wieder in jede Zählung hineinzukopieren.
+      // Dieselbe Abfrage, ein Durchlauf, dieselben Bedingungen wie vorher.
       lauf.unsafe(
         `SELECT
-           COUNT(*) FILTER (WHERE (COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL})
-                              AND ${KEIN_TERMIN_ZUKUNFT} AND ${NEU_FUER_DICH_SQL})::int AS vorrat_neu,
-           COUNT(*) FILTER (WHERE NOT ${LINKS_SQL}
-                              AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
-                                    AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
-                                    AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)
-                              AND ${WIEDER_TAGESPAUSE}
-                              AND (p.priority_tier BETWEEN 1 AND 3
-                                   OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})))::int AS vorrat_wieder
-         FROM fiaon_persons p CROSS JOIN LATERAL (SELECT ${LETZTER_VERSUCH_SQL} AS lv) v
-         WHERE ${basisGemeinsam}`, [me],
+           COUNT(*) FILTER (WHERE z.neu)::int AS vorrat_neu,
+           COUNT(*) FILTER (WHERE z.wieder)::int AS vorrat_wieder,
+           COUNT(*) FILTER (WHERE z.wieder AND z.stufe IN (1, 2))::int AS vorrat_wieder_ab
+         FROM (
+           SELECT p.priority_tier AS stufe,
+                  ((COALESCE(p.unreachable_count, 0) = 0 OR ${FRISCH_SQL})
+                     AND ${KEIN_TERMIN_ZUKUNFT} AND ${NEU_FUER_DICH_SQL}) AS neu,
+                  (NOT ${LINKS_SQL}
+                     AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
+                           AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
+                           AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+                     AND ${WIEDER_TAGESPAUSE}
+                     AND (p.priority_tier BETWEEN 1 AND 3
+                          OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))) AS wieder
+             FROM fiaon_persons p CROSS JOIN LATERAL (SELECT ${LETZTER_VERSUCH_SQL} AS lv) v
+            WHERE ${basisGemeinsam}
+           OFFSET 0) z`, [me],
       ),
       lauf.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL},
                 NULLIF(p.lv, 'epoch'::timestamptz) AS letzter_versuch, ${LETZTES_ERGEBNIS_SQL} AS letztes_ergebnis,
-                ${zusageOffenSql("p.lv")} AS zusage_offen
+                ${zusageOffenSql("p.lv")} AS zusage_offen, p.wieder_band
          FROM (
-           SELECT p.*, v.lv FROM fiaon_persons p
+           -- E-391: wieder_band = erster Schlüssel von ordnung (derselbe Ausdruck, einmal gerechnet).
+           SELECT p.*, v.lv, ${wiederBandSql("v.lv", "v.ev")} AS wieder_band FROM fiaon_persons p
             CROSS JOIN LATERAL (SELECT ${LETZTER_VERSUCH_SQL} AS lv, ${EREIGNIS_SQL} AS ev) v
             WHERE ${basisWieder} AND (p.priority_tier BETWEEN 1 AND 3
                                       OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
@@ -1288,12 +1348,18 @@ export async function arbeitslisteLesen(
           ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde,
           wiederGrund: String(r.wieder_grund), versuche, hitze: hitzeVon(r),
           letzterVersuch: r.letzter_versuch ?? null, wiederText: GRUND_TEXT[grund], zusageOffen: r.zusage_offen === true,
+          // E-391: das Band der rechten Spalte (0 jetzt … 5 Stufe C) — für die große Karte.
+          band: r.wieder_band == null ? null : Number(r.wieder_band),
         },
       };
     });
     const slots: { gruppe: string; kunde: any }[] = (gSlots as any[]).map((r) => ({
       gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
-      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r), zusageOffen: r.zusage_faellig === true },
+      kunde: {
+        ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r), zusageOffen: r.zusage_faellig === true,
+        // E-391: Termin oder Rückruf mit Uhrzeit jetzt (erster Schlüssel von NEU_ORDNUNG).
+        jetzt: r.neu_jetzt_rang != null && Number(r.neu_jetzt_rang) === 0,
+      },
     }));
 
     const z = (zaehlerR as any[])[0] || {};
@@ -1301,10 +1367,12 @@ export async function arbeitslisteLesen(
     return {
       wieder,
       slots,
-      // E-212: der echte Vorrat hinter den beiden Spalten.
-      vorrat: { neu: Number(z.vorrat_neu || 0), wieder: Number(z.vorrat_wieder || 0) },
+      // E-212: der echte Vorrat hinter den beiden Spalten. E-391: wiederAb = rechts Stufe A/B.
+      vorrat: { neu: Number(z.vorrat_neu || 0), wieder: Number(z.vorrat_wieder || 0), wiederAb: Number(z.vorrat_wieder_ab || 0) },
       // E-IT-A: Kopf der rechten Spalte — „heute erledigt X · Y pausiert".
       heute: { datum: heute, erledigt: Number(h.heute_erledigt || 0), pausiert: Number(h.pausiert || 0) },
+      // E-391: Die große Karte nach Dringlichkeit über BEIDE Spalten — nicht mehr „links zuerst".
+      fokusId: fokusWahl(slots.map((s) => fokusKarte(s.kunde)), wieder.map((s) => fokusKarte(s.kunde))),
     };
 }
 

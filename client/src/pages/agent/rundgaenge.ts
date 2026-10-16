@@ -64,8 +64,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     text: "Sie zeigt dir, wer dran ist, in welcher Lage der Mensch steckt und was dich das Gespräch "
       + "wert ist: den Vertragswert über zwölf Raten und deine Provision daraus. Der Satz darunter "
       + "sagt dir in einem Zug, warum genau dieser Mensch jetzt oben steht. Die kleine Zeile über dem Namen "
-      + "sagt, wie heiß er ist — „Antrag vor 12 Min · noch ohne Anruf“ ist das Beste, was dir passieren kann.",
-    tipp: "Lies den Satz einmal laut, bevor du wählst. Dann weißt du im ersten Moment des Gesprächs, worum es geht.",
+      + "sagt, wie heiß er ist — „Antrag vor 12 Min · noch ohne Anruf“ ist das Beste, was dir passieren kann. "
+      // E-391 (16.10.2026) mitgezogen: Die große Karte wählt über beide Reihen.
+      + "Sie kommt aus BEIDEN Reihen, der dringendste Mensch zuerst: eine Uhrzeit jetzt, ein Antrag von heute, "
+      + "„Zahlung prüfen“, ein Termin heute oder ein fälliger Rückruf schlagen einen Lead ohne Antrag — egal, ob links oder rechts.",
+    tipp: "Lies den Satz einmal laut, bevor du wählst. Dann weißt du im ersten Moment des Gesprächs, worum es geht. "
+      + "Tippst du selbst eine Karte an, bleibt sie oben; während eines Anrufs und bei offener Akte wechselt die große Karte nicht.",
   },
   {
     ziel: ".pi-starten",
@@ -171,7 +175,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "haben, zwei mit offenem Antrag und zwei Neukunden. Sobald du einen abschließt, rückt der "
       + "nächste nach. So arbeitest du nie an einem Berg, sondern immer an sechs Namen.",
     // 25.08.2026 mitgezogen: Der unberührte Vorrat ist seitdem unsichtbar.
-    tipp: "Deine sechs kommen aus dem gemeinsamen Kundenpool — niemand besitzt einen Kunden, bevor das Mandat steht. Wen du anrufst, der bleibt bei dir; was du drei Tage liegen lässt, geht zurück in den Pool.",
+    tipp: "Deine sechs kommen aus dem gemeinsamen Kundenpool — niemand besitzt einen Kunden, bevor das Mandat steht. Wen du anrufst, der bleibt bei dir; was du drei Tage liegen lässt, geht zurück in den Pool. "
+      // E-391 (16.10.2026) mitgezogen: Leads ohne Antrag sperren den A/B-Nachschub nicht mehr.
+      + "Liegt im Pool ein neuer A- oder B-Kunde, kommt er auch dann zu dir, wenn deine Plätze voll mit Leads ohne Antrag sind.",
   },
   {
     ziel: ".pi-kar",
@@ -273,7 +279,10 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "15–18, 18–20 Uhr) — „Flexibel“ oder keine Angabe zählt immer. Wer außerhalb seines Fensters liegt, "
       + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten. Neue Anträge "
       + "erscheinen von selbst: Die Liste lädt jede Minute neu — nur nicht während eines Anrufs und nicht, "
-      + "solange eine Akte offen ist.",
+      + "solange eine Akte offen ist. "
+      // E-391 (16.10.2026) mitgezogen: die Kopfzeile links.
+      + "Steht links kein A oder B mehr, sagt die Reihe „Alle neuen A/B sind angerufen — 12 A/B warten rechts.“: "
+      + "Du warst schnell, die nächsten A/B stehen rechts.",
     tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt — und wann der Mensch angerufen werden will.",
   },
   {

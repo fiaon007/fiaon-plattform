@@ -149,6 +149,7 @@ import {
   WiedervorlageWahl, vorschauFuer, vorschauMitDatum, wahlDatum, heuteBerlin, type WiedervorlageKontext,
 } from "@/components/agent/WiedervorlageWahl";
 import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
+import { grosseKarteId, fokusKarte, neuKopfzeile } from "@shared/fiaon-pipeline-fokus";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
@@ -234,6 +235,10 @@ export interface Kunde {
   wiederText?: string | null;
   /** E-IT-A: Zusage fällig UND seither nicht versucht — nur dann ist sie dringend. */
   zusageOffen?: boolean;
+  /** E-391: rechte Spalte — das Band (0 jetzt, 1 Termin heute/Zusage, 2 Rückruf, 3 frisch, 4 Rest, 5 Stufe C). */
+  band?: number | null;
+  /** E-391: linke Spalte — Termin oder Rückruf mit Uhrzeit jetzt. */
+  jetzt?: boolean;
   wiederGrund?: string;
   versuche?: number;
 }
@@ -650,7 +655,8 @@ function PipelineInnen() {
   // 23.09.2026 (E-212): Wie viele Menschen stehen HINTER den sechs Karten?
   // VORHER wurden vier Stufen-Zähler geladen und nie angezeigt — der Verkäufer
   // sah sechs Karten und wusste nicht, dass 400 dahinter warten.
-  const [vorrat, setVorrat] = useState<{ neu: number; wieder: number }>({ neu: 0, wieder: 0 });
+  // E-391: wiederAb = davon rechts Stufe A/B — für die Kopfzeile der linken Spalte.
+  const [vorrat, setVorrat] = useState<{ neu: number; wieder: number; wiederAb: number }>({ neu: 0, wieder: 0, wiederAb: 0 });
   // E-IT-A (08.10.2026): Kopf der rechten Spalte — „heute erledigt X · Y pausiert",
   // und die Liste der Pausierten (ein Klick auf „Y pausiert").
   const [heuteStand, setHeuteStand] = useState<{ erledigt: number; pausiert: number } | null>(null);
@@ -658,6 +664,8 @@ function PipelineInnen() {
   const [slotsLaedt, setSlotsLaedt] = useState(true);
   const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
   const [fokusId, setFokusId] = useState<number | null>(null);
+  // E-391: der Vorschlag des Servers für die große Karte (dringendste über beide Spalten).
+  const [fokusVorschlag, setFokusVorschlag] = useState<number | null>(null);
   const [geht, setGeht] = useState<Set<number>>(new Set());
   const [meldungA, setMeldungA] = useState<{ art: "gut" | "schlecht" | "info"; text: string } | null>(null);
   // Datenrücken für die Akte (unsichtbar, siehe Kommentar oben)
@@ -731,7 +739,8 @@ function PipelineInnen() {
     if (r.ok) {
       setSlots(r.json.slots || []);
       setWieder(r.json.wieder || []);
-      setVorrat({ neu: Number(r.json.vorrat?.neu || 0), wieder: Number(r.json.vorrat?.wieder || 0) });
+      setVorrat({ neu: Number(r.json.vorrat?.neu || 0), wieder: Number(r.json.vorrat?.wieder || 0), wiederAb: Number(r.json.vorrat?.wiederAb || 0) });
+      setFokusVorschlag(r.json.fokusId != null && Number(r.json.fokusId) > 0 ? Number(r.json.fokusId) : null);
       setHeuteStand(r.json.heute ? { erledigt: Number(r.json.heute.erledigt || 0), pausiert: Number(r.json.heute.pausiert || 0) } : null);
       if (r.json.rolle) setRolle(r.json.rolle);
       if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
@@ -935,8 +944,30 @@ function PipelineInnen() {
   // Bestand-Reiter nach /agent/bestand umgezogen (bestand.tsx).
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || slots.find((s) => s.kunde.personId === offen)?.kunde || fremd || null, [liste, slots, offen, fremd]);
 
-  // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
-  const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? wieder.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? wieder[0] ?? null, [slots, wieder, fokusId]);
+  // ── Arbeitsliste: welche Karte ist groß? (E-391, 16.10.2026) ─────────────
+  // VORHER: der gewählte Slot, sonst slots[0] ?? wieder[0] — die linke Spalte
+  // ging IMMER vor. Daniel sah als nächsten Anruf einen C-Lead, während rechts
+  // oben eine A-Kundin „Zahlung prüfen" wartete („wieder nur C-Kunden").
+  // NACHHER, in dieser Reihenfolge:
+  //   1. Wer selbst eine Karte gewählt hat, behält sie (fokusId).
+  //   2. Während eines Anrufs oder bei offener Akte bleibt die gezeigte Karte
+  //      stehen, auch wenn die Liste im Hintergrund neu lädt.
+  //   3. Sonst die dringendste über beide Spalten — Vorschlag des Servers,
+  //      ersatzweise dieselbe Regel hier.
+  // Die Regel steht in grosseKarteId (shared/fiaon-pipeline-fokus.ts, offline
+  // geprüft in scripts/pruef-e391-pipeline.ts). Spalten und Reihenfolge bleiben.
+  const gezeigterFokus = useRef<number | null>(null);
+  const fokusSlot = useMemo(() => {
+    const id = grosseKarteId({
+      links: slots.map((s) => fokusKarte(s.kunde)), rechts: wieder.map((s) => fokusKarte(s.kunde)),
+      gewaehlt: fokusId, gezeigt: gezeigterFokus.current,
+      halten: offen !== null || anrufAktiv.current, vorschlag: fokusVorschlag,
+    });
+    return id == null ? null : slots.find((s) => s.kunde.personId === id) ?? wieder.find((s) => s.kunde.personId === id) ?? null;
+  }, [slots, wieder, fokusId, fokusVorschlag, offen]);
+  useEffect(() => { gezeigterFokus.current = fokusSlot?.kunde.personId ?? null; }, [fokusSlot]);
+  // E-391: Steht links kein A/B mehr, sagt die Spalte es — und wie viele A/B rechts warten.
+  const neuKopf = useMemo(() => neuKopfzeile(slots.map((s) => s.kunde), vorrat.wiederAb), [slots, vorrat.wiederAb]);
   const kleine = useMemo(() => slots.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [slots, fokusSlot]);
   const wiederOhneFokus = useMemo(() => wieder.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [wieder, fokusSlot]);
 
@@ -1026,6 +1057,12 @@ function PipelineInnen() {
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Neu für dich</b>
                 {vorrat.neu > kleine.length && <span className="pi-vorrat">noch {vorrat.neu}</span>}
                 <span className="linie" aria-hidden="true" /></div>
+              {/* E-391 (16.10.2026): Links steht kein A/B mehr — weil alle neuen A/B schon
+                  angerufen sind und deshalb rechts stehen (Spaltenregel E-168/E-212). Ohne
+                  diesen Satz sah die Spalte aus wie „nur noch C-Kunden". */}
+              {neuKopf && (
+                <div className="pi-spalte-kopfzeile" data-fiaon="neu-kopf"><span>{neuKopf}</span></div>
+              )}
               {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
                   NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
                   perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf

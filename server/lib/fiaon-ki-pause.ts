@@ -501,6 +501,32 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
   return { ok: true, zustand: z, hinweis };
 }
 
+// ── Selbstheilung (E-382, 16.10.2026) ──────────────────────────────────────
+/**
+ * Am 16.10.2026 war das OpenAI-Guthaben um 03:22 leer — Mara, Postmeister, Ratgeber und Belegerkennung standen,
+ * und nach dem Aufladen hätte jemand „KI wieder aktivieren" drücken müssen. Justin (15.10.): „hör auf, mir
+ * Aufgaben zu geben". Deshalb: Eine AUTOMATISCHE Abrechnungs-Pause (Guthaben leer, Limit erreicht) prüft sich
+ * alle zehn Minuten mit einer Probe selbst und hebt sich auf, sobald die Probe durchgeht. Danach holen die
+ * Läufe nach (nachDerPause), wie nach dem Knopf.
+ * Bleibt stehen: jede Hand-Pause, jede Zugangs-Pause (Schlüssel gesperrt/ungültig) und jede Pause außerhalb
+ * des Produktionsdienstes. Die Probe kostet Bruchteile eines Cents (gpt-4.1-mini, 1 Token).
+ */
+export function selbstHeilungErlaubt(z: Pick<KiPauseZustand, "an" | "art" | "von">): boolean {
+  return !!z.an && z.art === "abrechnung" && z.von === "automatisch";
+}
+export async function selbstHeilung(): Promise<{ geprueft: boolean; aufgehoben: boolean; fehler?: string }> {
+  if (!istProduktionsdienst()) return { geprueft: false, aufgehoben: false };
+  const z = await kiPauseRohLesen(true);
+  if (!selbstHeilungErlaubt(z)) return { geprueft: false, aufgehoben: false };
+  const gespeichert = (z.anbieter ?? "openai") as KiAnbieter;
+  const anbieter: KiAnbieter = gespeichert !== aktiverAnbieter() ? aktiverAnbieter() : gespeichert;
+  const p = anbieter === "claude" ? await claudeProbe() : await probe();
+  if (!p.ok) return { geprueft: true, aufgehoben: false, fehler: p.fehler.slice(0, 200) };
+  const r = await aktivieren("automatisch (Probe ok — Guthaben wieder da)", { probe: false });
+  if (r.ok) console.log("[KI-PAUSE] Selbstheilung: Probe ok — KI wieder aktiv, Läufe holen nach.");
+  return { geprueft: true, aufgehoben: r.ok };
+}
+
 /** Ein winziger echter Aufruf — kostet Bruchteile eines Cents. */
 async function probe(): Promise<{ ok: boolean; art: KiPauseArt | null; fehler: string }> {
   try {

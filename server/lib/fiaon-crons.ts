@@ -445,6 +445,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // schreibt der Lauf „fehler" (ratgeberLaufPruefen) — bleibt das 26 Stunden so, wird die Ampel gelb und warnt.
   // E-380 (15.10.2026): Meta-Automatik. Ohne Posting-Rechte läuft der Posten-Lauf leer (Erfolg) — er
   // gehört trotzdem in den Katalog: Fällt er aus, stehen geplante Posts still, und niemand merkt es.
+  // E-382: Ohne diesen Lauf bleibt eine Guthaben-Pause nach dem Aufladen stehen, bis jemand den Knopf drückt.
+  ki_selbstheilung: {
+    zweck: "Automatische KI-Pause (Guthaben leer) alle 10 Minuten per Probe prüfen und von selbst aufheben, sobald wieder abgebucht wird",
+    folge: "Nach dem Aufladen bleibt die KI pausiert — Mara, Postmeister, Ratgeber und Belegerkennung stehen, bis jemand „KI wieder aktivieren“ drückt.",
+    fenster: 1,
+  },
   social_meta_posten: {
     zweck: "Freigegebene Posts aus dem Social-Studio zur Planzeit auf Instagram und Facebook veröffentlichen und im Studio melden",
     folge: "Geplante Posts gehen nicht raus — Instagram und Facebook bleiben still, obwohl im Studio alles freigegeben ist.",

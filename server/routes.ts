@@ -331,6 +331,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', (await import('./routes/fiaon-tagesbericht')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('meta_meldungen', async () => await (await import('./lib/fiaon-meta-leads')).meldungenVerarbeiten(), 2 * 60 * 1000, { beimStartNach: 90_000 });
+    // E-382 (16.10.2026): Ist das KI-Guthaben leer, pausiert die KI automatisch — und schaltet sich jetzt auch selbst
+    // wieder ein, sobald nach dem Aufladen eine Probe durchgeht (nur automatische Abrechnungs-Pausen, nie eine Hand-Pause).
+    tageslauf('ki_selbstheilung', async () => await (await import('./lib/fiaon-ki-pause')).selbstHeilung(), 10 * 60 * 1000, { beimStartNach: 75_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
     tageslauf('meta_waechter', async () => await (await import('./lib/fiaon-meta-leads')).waechterLauf(), 15 * 60 * 1000, { beimStartNach: 180_000 });
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });

@@ -198,7 +198,7 @@ function tagesNummer(tag: number, monat: number, jahr: number): number | null {
 }
 
 /** Einzelne Randtage, durch eine große Lücke vom Rest getrennt, gehören nicht zum Zeitraum. */
-function randBereinigt(tage: number[]): number[] {
+export function randBereinigt(tage: number[]): number[] {
   const t = Array.from(new Set(tage)).sort((a, b) => a - b);
   if (t.length < 4) return t;
   const luecken = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b);

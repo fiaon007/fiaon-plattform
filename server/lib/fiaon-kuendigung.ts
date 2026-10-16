@@ -591,7 +591,17 @@ export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
   `) as any[];
   if (!a?.gekuendigt_am || a.vertrag_ende_am || a.letzte_rate_nr == null) return { beendet: false };
-  if (Number(rateNr) < Number(a.letzte_rate_nr)) return { beendet: false };
+  // E-391 (16.10.2026): Beendet ist der Vertrag erst, wenn KEINE geschuldete Rate (bis zur letzten) mehr offen ist —
+  // vorher genügte „irgendeine Rate ≥ letzte bezahlt“: Eine Zahlung auf Rate 3 beendete den Vertrag, Rate 2 blieb
+  // offen und ging ins Inkasso (Fall Virag). Umgekehrt beendet jetzt auch die Zahlung einer ÄLTEREN Rate den
+  // Vertrag, wenn die letzte schon bezahlt war. Eine noch nicht erzeugte letzte Rate zählt nicht als bezahlt.
+  const letzte = Number(a.letzte_rate_nr);
+  const [st] = (await sqlPool`
+    SELECT COALESCE(bool_or(rate_nr = ${letzte} AND status = 'bezahlt'), FALSE) AS letzte_bezahlt,
+           COALESCE(bool_or(rate_nr <= ${letzte} AND status <> 'bezahlt' AND storniert_am IS NULL AND bezahlt_am IS NULL), FALSE) AS offen_davor
+      FROM fiaon_abo_raten WHERE ref = ${ref}`) as any[];
+  if (st?.offen_davor === true) return { beendet: false };
+  if (Number(rateNr) < letzte && st?.letzte_bezahlt !== true) return { beendet: false };
   const lage = await vertragsendeLesen(ref, { am: a.gekuendigt_am });
   const ende: Date = !lage.jahresvertrag && lage.ende ? berlinTagesende(lage.ende) : new Date();
   const endeText = !lage.jahresvertrag && lage.endeDe ? ` Er endet zum Ende des Abrechnungsmonats (${lage.endeDe}).` : "";

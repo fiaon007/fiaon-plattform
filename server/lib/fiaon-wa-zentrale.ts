@@ -123,6 +123,7 @@ import { angebotSpurenSql } from "./fiaon-auskunft";
 import { OHNE_VERTRAG_SQL, WERBESPERRE_KOEPFE_SQL, WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL, STOPP_KOEPFE_SQL } from "./fiaon-mail-frequenz";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { hostname } from "node:os";
 
 export type Gruppe = "neu" | "ohne_antrag" | "abbrecher" | "zahlung_offen" | "rate_offen" | "auskunft_fehlt";
@@ -490,8 +491,12 @@ export function gruppenBedingung(g: Gruppe, ohneAbstand = false): string {
   // 08.10.2026 (Zahlungspost-Freigabe): JEDE Werbesperre der Familie — auch die aus der Freigabe — hält alle
   // Gruppen außer der Monatsrate auf (die übrigen Werbesperren schließt schon die BASIS aus). Auch „Erste Zahlung
   // offen" bleibt zu: fiaon_kk(b)_rechnung gilt als werblich (WA_NICHT_WERBLICH), die Tür in waSenden lehnte sie ab.
-  return g === "rate_offen" ? kern
-    : `(${kern}) AND b.person_id NOT IN ${WERBESPERRE_KOEPFE_SQL} AND NOT ${OHNE_VERTRAG_SQL("b.person_id")} AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("b.telefon", "b.land")}`;
+  // E-391 (16.10.2026): Wer gekündigt hat, dessen Antrag aber noch nicht gebucht ist, bekommt KEINE Vorlage —
+  // auch nicht die Monatsrate (gemessen: 12 Menschen bekamen nach ihrem Antrag 22 Vorlagen, 8 standen noch in
+  // „Rate offen“). Dieselbe Regel wie der Mahnmotor (E-368). Eindeutige Anträge bucht der Tageslauf ohnehin.
+  const ungebucht = `NOT ${KUENDIGUNG_UNGEBUCHT_SQL("b.person_id")}`;
+  return g === "rate_offen" ? `(${kern}) AND ${ungebucht}`
+    : `(${kern}) AND ${ungebucht} AND b.person_id NOT IN ${WERBESPERRE_KOEPFE_SQL} AND NOT ${OHNE_VERTRAG_SQL("b.person_id")} AND NOT ${WA_WERBUNG_ABBESTELLT_SQL("b.telefon", "b.land")}`;
 }
 
 function gruppenKern(g: Gruppe, ohneAbstand = false): string {

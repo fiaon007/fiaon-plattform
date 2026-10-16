@@ -42,6 +42,8 @@
 // scheitert schon beim Übersetzen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 
 type Lauf = typeof sqlPool;
 
@@ -126,6 +128,24 @@ export async function ratenNachVertragsendeStornieren(ref: string, rateIds: read
 // payment_status = 'paid' fragte. `a` ist der Alias von fiaon_applications.
 export const ERINNERBARE_BESTELLUNG_SQL = (a: string): string =>
   `(${a}.payment_status = 'paid' AND ${a}.cancelled_at IS NULL AND ${a}.archived_at IS NULL)`;
+
+// ── IST DIE FORDERUNG NOCH AKTIV? (E-391, 16.10.2026) ─────────────────────
+// E-368 (15.10.) hat den Mahnmotor auf die geschuldeten Raten beschränkt. Andere Stellen sahen dieselben Raten
+// weiter als Forderung: „überfällig stellen“ (Übergabe ins Forderungsmanagement), die Inkasso-Liste und -Verteilung
+// (SICHTFELD) und die Erinnerung von Hand im Inkasso — gemessen 16.10.: 61 Raten/54 Menschen nach dem Vertragsende,
+// 10/8 mit ungebuchter Kündigung, 22/19 mit Mahnstopp in der Liste (Florentine: „Zahlung überfällig, obwohl
+// fristgerecht gekündigt“). Eine Regel für alle — dieselbe Lesart wie RATE_MAHNBAR_SQL (ohne die Mail-Taktung).
+// `a` = Alias der Bestellung, `r` = Alias der Rate.
+export const RATE_NACH_ENDE_SQL_FUER = (a: string, r: string): string => `(${a}.gekuendigt_am IS NOT NULL AND ${a}.kuendigung_zurueckgenommen_am IS NULL
+  AND (${a}.agb_stand IS NULL OR ${a}.agb_stand < DATE '${JAHRESVERTRAG_AB}')
+  AND ${r}.faellig_am > COALESCE((${a}.vertrag_ende_am AT TIME ZONE 'Europe/Berlin')::date,
+                              ((${a}.gekuendigt_am + INTERVAL '24 hours') AT TIME ZONE 'Europe/Berlin')::date))`;
+
+export const FORDERUNG_AKTIV_SQL_FUER = (a: string, r: string): string => `(NOT ${RATE_NACH_ENDE_SQL_FUER(a, r)}
+  AND NOT ${KUENDIGUNG_UNGEBUCHT_SQL(`${a}.person_id`)}
+  AND NOT (${a}.mahnstopp_am IS NOT NULL AND ${a}.mahnstopp_am > COALESCE((SELECT MIN(fa_r1.bezahlt_am) FROM fiaon_abo_raten fa_r1
+            WHERE fa_r1.ref = ${a}.ref AND fa_r1.status = 'bezahlt'), ${a}.paid_at, ${a}.created_at))
+  AND NOT EXISTS (SELECT 1 FROM fiaon_persons fa_pm WHERE fa_pm.id = ${a}.person_id AND fa_pm.ist_test_am IS NOT NULL))`;
 
 /** Für Probeläufe: Wie viele Raten würde ratenStornieren jetzt stornieren? */
 export async function offeneRatenZaehlen(ref: string, lauf: Lauf = sqlPool): Promise<number> {

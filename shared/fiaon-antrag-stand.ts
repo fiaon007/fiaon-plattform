@@ -215,6 +215,11 @@ export function abrechnungsmonat(
     }
     starts = [ankerTag];
     quelle = "anker";
+  } else if (ankerTag && ankerTag < starts[0] && (Date.parse(`${starts[0]}T00:00:00Z`) - Date.parse(`${ankerTag}T00:00:00Z`)) / 86_400_000 > 20) {
+    // E-391 (16.10.2026): Die erste Zahlung lag VOR der Ratenkette (Stripe-Altbestand: Startzahlung 26.05., Rate 1 am
+    // 24.06.) — dann beginnt der erste Abrechnungsmonat mit ihr, nicht mit Rate 1. Vorher endete der Vertrag einen
+    // Monat zu spät (gemessen: 6 Verträge). Liegt der Anker nah an Rate 1 (≤ 20 Tage), ist Rate 1 die erste Zahlung.
+    starts = [ankerTag, ...starts];
   }
   // Der Monatstag des Ankers für die Kappungs-Ausnahme: die erste bekannte Fälligkeit (bzw. der Anker selbst).
   const ankerMonatstag = Number((ankerTag && ankerTag < starts[0] ? ankerTag : starts[0]).slice(8, 10));
@@ -223,6 +228,9 @@ export function abrechnungsmonat(
   // Der Abrechnungsmonat, der den Wirktag enthält — vor der ersten Fälligkeit ist es der erste.
   let i = 0;
   for (let k = 0; k < starts.length; k++) if (starts[k] <= wirkTag) i = k;
+  // E-391: Liegt der Wirktag VOR dem einzigen Start (Kündigung vor der ersten Zahlung, ohne Kette), fehlte das Ende des
+  // Monats — tagMinusEins(undefined) warf einen RangeError (zwei Verträge). Die Kette reicht immer einen Start weiter.
+  while (starts.length <= i + 1) starts = [...starts, naechsteFaelligkeitNach(starts[starts.length - 1], ankerMonatstag)];
   return { von: starts[i], bis: tagMinusEins(starts[i + 1]), wirkTag, quelle };
 }
 

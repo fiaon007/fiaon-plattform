@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { logger } from "../logger";
 import { geburtsdatumAnzeige, geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
-import { KUENDIGUNG_IDENTITAET_OFFEN_SQL } from "../../shared/fiaon-kuendigung-regel";
+import { KUENDIGUNG_ANTRAEGE_SQL, KUENDIGUNG_IDENTITAET_OFFEN_SQL } from "../../shared/fiaon-kuendigung-regel";
 import {
   kuendigungIdentitaet, kuendigungDrossel, kopfDerKette, KUENDIGUNG_KEIN_TREFFER, KUENDIGUNG_ZU_VIELE, type KuendigungUeber,
   kuendigungEingangInhalt,
@@ -200,11 +200,13 @@ router.post("/abo-kuendigen", async (req, res) => {
     }
 
     // Prevent duplicate pending requests (deduplicate by email)
-    const existing = await sqlPool`
-      SELECT id FROM cancellation_requests
-      WHERE LOWER(email) = LOWER(${email}) AND status = 'pending'
-      LIMIT 1
-    `;
+    // E-391 (16.10.2026): nur ECHTE offene Anträge (KUENDIGUNG_ANTRAEGE_SQL) — 119 längst gebuchte hießen noch
+    // „pending“ und sperrten so einen neuen Antrag, z. B. für ein später gebuchtes Paket.
+    const existing = (await sqlPool.unsafe(
+      `SELECT c.id FROM cancellation_requests c
+        WHERE LOWER(c.email) = LOWER($1) AND c.status = 'pending'
+          AND c.id IN (SELECT kr_u.antrag_id FROM (${KUENDIGUNG_ANTRAEGE_SQL}) kr_u)
+        LIMIT 1`, [String(email)])) as any[];
 
     if (existing.length > 0) {
       return res.status(409).json({
@@ -268,8 +270,17 @@ router.post("/abo-kuendigen", async (req, res) => {
       wunsch: cancellationDate ?? null, grund: reason ?? null, packName: treffer.pack_name ?? null, email: String(email),
     }).catch((e) => { logger.error("[CANCELLATION] Eingangsbestätigung:", e); return { gesendet: false, inhalt: null as Record<string, string> | null }; });
 
+    // E-391 (16.10.2026, Florentine): „wenn er kündigt, kündigt er“ — ein eindeutiger Antrag wird sofort gebucht
+    // (Urkunde, Bestätigung, Verlauf; fiaon-kuendigung-folgen.ts). Offene Identität, Widerruf, bezahlter
+    // Jahresvertrag (Kulanz) und bezahlte Bestellungen unter 14 Tagen bleiben Karte für die Leitung.
+    // Scheitert es, bleibt der Antrag angenommen — der Tageslauf versucht es erneut.
+    const auto = await import("../lib/fiaon-kuendigung-folgen")
+      .then((m) => m.antragAutomatischBuchen(Number(row.id)))
+      .catch((e) => { logger.error("[CANCELLATION] Automatisch buchen:", e); return { gebucht: false, warum: "Fehler" }; });
+    logger.info(`[CANCELLATION] #${row.id} ${auto.gebucht ? "automatisch gebucht" : `bleibt offen: ${auto.warum}`}`);
+
     return res.json({
-      ok: true, id: row.id, ref: row.ref, status: row.status,
+      ok: true, id: row.id, ref: row.ref, status: auto.gebucht ? "confirmed" : row.status,
       eingangAm: eingangAm.toISOString(), eingangText: eingang.inhalt?.eingang_text ?? null, bestaetigungGesendet: eingang.gesendet,
     });
   } catch (err: any) {

@@ -13,6 +13,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { FORDERUNG_AKTIV_SQL_FUER } from "../lib/fiaon-raten-storno";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import { zusageHash, zusageSpeichern, zusageStand } from "../lib/fiaon-vertrieb-zusage";
@@ -735,6 +736,14 @@ router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentReque
         AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
     `) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Diese Rate gibt es nicht mehr." });
+    // E-391 (16.10.2026): Auch von Hand nur geschuldete Raten erinnern — nicht nach dem Vertragsende, nicht bei
+    // ungebuchter Kündigung, nicht nach einem Mahnstopp (dieselbe Regel wie Inkasso-Liste und Mahnmotor).
+    const [aktiv] = (await sqlPool.unsafe(
+      `SELECT 1 AS ja FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+        WHERE r.id = $1 AND ${FORDERUNG_AKTIV_SQL_FUER("a", "r")}`, [id])) as any[];
+    if (!aktiv) {
+      return res.status(409).json({ ok: false, error: "Diese Rate wird nicht erinnert: Sie ist nach dem Vertragsende fällig, die Kündigung ist noch nicht gebucht oder ein Mahnstopp steht — bitte die Akte ansehen." });
+    }
 
     // (Bis 19.09.2026 sperrte hier der Einzugsschutz Lastschriftkunden — GoCardless ist beendet, E-194.)
 

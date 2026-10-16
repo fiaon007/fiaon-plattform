@@ -46,7 +46,9 @@
 // An das Modell geht nur Text, keine Datei, und kein Name des Kunden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { pdfTextUndZeilen, auszugBrauchbar } from "./fiaon-pdf-lesen";
+import { pdfTextUndZeilen, auszugBrauchbar, BETRAG_MUSTER } from "./fiaon-pdf-lesen";
+// E-391: Randtage ohne Zusammenhang gehören nicht zum Zeitraum — dieselbe Regel wie die Dokumentprüfung.
+import { randBereinigt } from "./fiaon-dokument-pruefung";
 import { ocrLesen, ocrZeilen, ohneFotoVermerk, HOECHSTENS_SEITEN } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
@@ -69,7 +71,7 @@ const TOLERANZ_CENTS = 100;
 
 /** Wie sehr sieht eine Seite nach Kontoauszug aus? Beträge zählen einfach, Auszugswörter dreifach. */
 export function auszugWert(text: string): number {
-  const betraege = (text.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).length;
+  const betraege = (text.match(BETRAG_MUSTER) || []).length;
   const woerter = (text.match(/\b(kontostand|saldo|kontoauszug|buchungstag|buchungsdatum|valuta|wertstellung|umsätze|umsatzliste|gutschrift|lastschrift|überweisung|iban|haben|soll)\b/gi) || []).length;
   return betraege + woerter * 3;
 }
@@ -118,10 +120,11 @@ export async function ensureAnalyseTabelle(): Promise<void> {
 
 /**
  * Fassung der Rechnung — 2 = mit Bereinigung (eigenes Konto, Inkasso, Vorzeichen), 3 = dazu Spartöpfe der Bank (E-207),
- * 4 = Bareinzahlung vor eigenem Konto, Name nur als Gegenpartei, Nebenkonto nach Eingängen von außen (E-335, 12.10.2026).
+ * 4 = Bareinzahlung vor eigenem Konto, Name nur als Gegenpartei, Nebenkonto nach Eingängen von außen (E-335, 12.10.2026),
+ * 5 = Zeitraum aus Kopf UND Buchungen (E-391, 16.10.2026: ein gebundenes PDF Juli–September galt als „nur Juli“).
  * Eine höhere Fassung rechnet der Tageslauf `kontoauszug_neu_rechnen` ohne Modellaufruf nach (analysenNeuRechnen).
  */
-export const AUSWERTUNG_VERSION = 4;
+export const AUSWERTUNG_VERSION = 5;
 
 export interface Buchung {
   datum: string;
@@ -160,7 +163,9 @@ export interface Analyse {
   warnungen: { art: string; text: string; betragCents?: number | null }[];
   merksaetze: string[];
   /** Die Cent-Prüfung: Anfangssaldo + Buchungen gegen Endsaldo. */
-  pruefung: { stimmt: boolean | null; differenzCents: number | null; erfasst: number; zeilen: number; durchlaeufe: number; kette?: { geprueft: number; brueche: number; korrigiert?: number }; hinweis: string | null } | null;
+  pruefung: { stimmt: boolean | null; differenzCents: number | null; erfasst: number; zeilen: number; durchlaeufe: number; kette?: { geprueft: number; brueche: number; korrigiert?: number }; hinweis: string | null;
+    /** E-391: Buchungen aus doppelt hochgeladenen Seiten, die nur einmal gezählt wurden. Gesetzt = Lauf mit dieser Prüfung. */
+    doppeltHochgeladen?: number } | null;
   erstelltAm: string;
   /** E-207: Umbuchungen zwischen eigenen Konten (nicht in Einnahmen/Ausgaben). */
   eigenEinCents: number | null; eigenAusCents: number | null;
@@ -384,6 +389,63 @@ export function doppelteBuchungenEntfernen(b: Buchung[]): { buchungen: Buchung[]
     aus.push(x);
   }
   return { buchungen: aus, entfernt };
+}
+
+/**
+ * Doppelt HOCHGELADENE Seiten (E-391, 16.10.2026): Ein Monat, der zweimal im Bündel steht (PDF und dazu Fotos
+ * derselben Seiten), wurde zweimal gezählt — bei Fotos fehlt der gedruckte Saldo je Zeile, also griff
+ * `doppelteBuchungenEntfernen` nicht (gemessen: August 117 Buchungen, 97 davon in Gruppen gleicher Zeilen).
+ * Regel: Zeilen OHNE Saldo mit gleichem Tag, Betrag und Empfänger dürfen insgesamt so oft vorkommen, wie sie
+ * in EINEM gelesenen Stück höchstens vorkommen — echte gleiche Buchungen am selben Tag (zweimal Kaffee) stehen
+ * im selben Stück und bleiben, eine Wiederholung in einem späteren Stück fällt weg. Zeilen MIT Saldo regelt
+ * weiter `doppelteBuchungenEntfernen`.
+ */
+export function ueberStueckeDoppelteEntfernen(stuecke: Buchung[][]): { buchungen: Buchung[]; entfernt: number } {
+  const schluessel = (x: Buchung) => `${x.datum}|${x.betragCents}|${empfaengerKey(x.empfaenger || "")}`;
+  const erlaubt = new Map<string, number>();
+  for (const st of stuecke) {
+    const je = new Map<string, number>();
+    for (const x of st) if (x.saldoDanachCents == null) je.set(schluessel(x), (je.get(schluessel(x)) ?? 0) + 1);
+    je.forEach((n, k) => erlaubt.set(k, Math.max(erlaubt.get(k) ?? 0, n)));
+  }
+  const behalten = new Map<string, number>();
+  const aus: Buchung[] = [];
+  let entfernt = 0;
+  for (const st of stuecke) for (const x of st) {
+    if (x.saldoDanachCents != null) { aus.push(x); continue; }
+    const k = schluessel(x);
+    const schon = behalten.get(k) ?? 0;
+    if (schon >= (erlaubt.get(k) ?? 1)) { entfernt++; continue; }
+    behalten.set(k, schon + 1);
+    aus.push(x);
+  }
+  return { buchungen: aus, entfernt };
+}
+
+const MS_TAG = 86_400_000;
+/**
+ * Der Zeitraum eines Auszugs (E-391, 16.10.2026): Vorher galt nur der Kopf — und der liest die ersten Seiten.
+ * Bei einem gebundenen PDF aus drei Monatsauszügen ist das der ERSTE Monat (gemessen: 28 von 158 Analysen
+ * „unter drei Monaten“, obwohl ihre Buchungen drei Monate abdecken; die Bonitätsauswertung sperrte deshalb).
+ * Jetzt: Kopf und Buchungstage zusammen. Buchungstage zählen nur im Fenster der letzten 24 Monate bis
+ * morgen (ein falsch gelesenes Jahr — „2006“ — dehnt nichts aus) und ohne einzelne Randtage weit ab vom
+ * Rest (randBereinigt, dieselbe Regel wie die Dokumentprüfung).
+ */
+export function zeitraumAusBuchungen(kopfVon: string | null, kopfBis: string | null, buchungen: { datum: string }[], heuteMs = Date.now()): { von: string | null; bis: string | null } {
+  const tagNr = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / MS_TAG);
+  const heute = Math.floor(heuteMs / MS_TAG);
+  const imFenster = (t: number) => Number.isFinite(t) && t >= heute - 730 && t <= heute + 1;
+  const tage = buchungen.map((b) => (ISO.test(String(b?.datum)) ? tagNr(b.datum) : NaN)).filter(imFenster);
+  const rand = randBereinigt(tage);
+  const kv = kopfVon && ISO.test(kopfVon) && imFenster(tagNr(kopfVon)) ? tagNr(kopfVon) : null;
+  const kb = kopfBis && ISO.test(kopfBis) && imFenster(tagNr(kopfBis)) ? tagNr(kopfBis) : null;
+  const kandidatenVon = [kv, rand.length >= 3 ? rand[0] : null].filter((x): x is number => x != null);
+  const kandidatenBis = [kb, rand.length >= 3 ? rand[rand.length - 1] : null].filter((x): x is number => x != null);
+  const iso = (t: number) => new Date(t * MS_TAG).toISOString().slice(0, 10);
+  return {
+    von: kandidatenVon.length ? iso(Math.min(...kandidatenVon)) : (kopfVon && ISO.test(kopfVon) ? kopfVon : null),
+    bis: kandidatenBis.length ? iso(Math.max(...kandidatenBis)) : (kopfBis && ISO.test(kopfBis) ? kopfBis : null),
+  };
 }
 
 /** Schlüssel, unter dem gleichartige Zahlungen zusammenfinden: Telekom Deutschland GmbH ≈ TELEKOM DEUTSCHL. */
@@ -764,7 +826,11 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   const kopfText = seitenText.slice(erste, erste + 2).join("\n\n").slice(0, 20_000)
     + (letzte > erste + 1 ? "\n\n[letzte Seite:]\n" + seitenText[letzte].slice(-4_000) : "");
   const { modell, daten: kopf } = await modellAufruf("kontoauszug_kopf", KOPF_SCHEMA, KOPF_ANWEISUNG, kopfText);
-  if (kopf.ist_kontoauszug === false) {
+  // E-391 (16.10.2026): Das Urteil „kein Kontoauszug“ fiel nach den ersten zwei Seiten — und galt für das ganze
+  // Bündel (ein echter Auszug ab Seite 3 wurde 20-mal abgelehnt). Jetzt wird erst gelesen: Finden sich mindestens
+  // fünf datierte Buchungen, ist es ein Auszug (mit Hinweis in der Akte); sonst bleibt es beim klaren Satz.
+  const kopfAblehnung = kopf.ist_kontoauszug === false;
+  const ablehnen = () => {
     // Dirk Ladewig (11.09.2026) hatte drei Gehaltsabrechnungen als „Kontoauszug"
     // hochgeladen. „Kein Kontoauszug" allein hätte ihn ratlos gelassen — der
     // Satz sagt, was es IST, und was stattdessen gebraucht wird.
@@ -775,7 +841,9 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     const bekannt = ART[String(kopf.dokument_art)];
     return leer("unlesbar", `Diese Datei ist ${bekannt ? `${bekannt}, kein Kontoauszug` : "kein Kontoauszug"}. Bitte laden Sie die Umsätze Ihres Girokontos der letzten drei Monate als PDF aus dem Online-Banking hoch — Ihre Bank nennt das meist „Umsätze exportieren“ oder „Kontoauszug als PDF“.`,
       `Kontoauszug-Analyse: Die Datei ist ${bekannt || "kein Kontoauszug"} (${String(kopf.dokument_art)}). Der Kunde sieht die Bitte um die richtige Datei.`, seiten.length, modell);
-  }
+  };
+  // Kreditkarten- und Depotabrechnungen haben selbst datierte Buchungen — sie sind nie das Girokonto: sofort ablehnen.
+  if (kopfAblehnung && ["kreditkartenabrechnung", "depot_oder_sparkonto"].includes(String(kopf.dokument_art))) return ablehnen();
   const zeitraumVon = ISO.test(String(kopf.zeitraum_von)) ? String(kopf.zeitraum_von) : null;
   const zeitraumBis = ISO.test(String(kopf.zeitraum_bis)) ? String(kopf.zeitraum_bis) : null;
   const saldoAnfang = kopf.saldo_anfang_cents == null ? null : Math.round(Number(kopf.saldo_anfang_cents));
@@ -811,13 +879,18 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
       ];
     }
   };
+  let doppeltHochgeladen = 0;
   const lesen = async (hinweis: string | null): Promise<Buchung[]> => {
-    const alle: Buchung[] = [];
+    const jeStueck: Buchung[][] = [];
     for (let i = 0; i < stuecke.length; i++) {
-      alle.push(...await stueckLesen(stuecke[i], `Teil ${i + 1} von ${stuecke.length}`, hinweis));
+      jeStueck.push(await stueckLesen(stuecke[i], `Teil ${i + 1} von ${stuecke.length}`, hinweis));
     }
+    // E-391: zweimal hochgeladene Seiten ohne gedruckten Saldo (Fotos) nur einmal zählen.
+    const ueber = ueberStueckeDoppelteEntfernen(jeStueck);
+    doppeltHochgeladen = ueber.entfernt;
+    if (ueber.entfernt) console.log(`[ANALYSE] ${ueber.entfernt} Buchung(en) aus doppelt hochgeladenen Seiten entfernt.`);
     // Angehängte Auszüge, die sich überschneiden: dieselbe Zeile nur einmal (die erste bleibt).
-    const d = doppelteBuchungenEntfernen(alle);
+    const d = doppelteBuchungenEntfernen(ueber.buchungen);
     if (d.entfernt) console.log(`[ANALYSE] ${d.entfernt} doppelt gelesene Buchung(en) entfernt (überlappende Auszüge).`);
     return d.buchungen; // Druckreihenfolge — die Saldo-Kette braucht sie
   };
@@ -834,6 +907,8 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
     return rep.buchungen;
   };
   let buchungen = await lesenUndRichten(null);
+  if (kopfAblehnung && buchungen.length < 5) return ablehnen();
+  const kopfZweifel = kopfAblehnung ? String(kopf.dokument_art || "kein Kontoauszug") : null;
   let diff = differenz(buchungen);
   let kette = saldoKette(buchungen, saldoAnfang);
   let durchlaeufe = 1;
@@ -866,15 +941,21 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   buchungen = buchungen.map((b, i) => ({ ...b, _i: i })).sort((p: any, q: any) => p.datum.localeCompare(q.datum) || p._i - q._i).map(({ _i, ...b }: any) => b as Buchung);
   const euroDe = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   const pruefung = {
+    doppeltHochgeladen,
     stimmt, differenzCents: diff, erfasst: buchungen.length, zeilen: seiten.reduce((s, z) => s + z.length, 0), durchlaeufe,
     kette: { geprueft: kette.geprueft, brueche: kette.brueche.length, korrigiert },
     hinweis: stimmt === true ? (ketteVoll ? `Alle ${buchungen.length} Buchungen passen lückenlos zum gedruckten Kontostand.` : "Anfangssaldo, alle Buchungen und Endsaldo stimmen überein.")
       : stimmt === false ? (kette.brueche.length ? `An ${kette.brueche.length} Stelle${kette.brueche.length === 1 ? "" : "n"} passt die Buchungsfolge nicht zum gedruckten Kontostand${diff != null ? `; Differenz zum Endsaldo ${euroDe(Math.abs(diff))}` : ""}.` : `Zwischen Anfangssaldo, Buchungen und Endsaldo bleibt eine Differenz von ${euroDe(Math.abs(diff!))}.`)
       : "Der Auszug nennt keinen Anfangs- oder Endsaldo — die Summe konnte nicht gegengerechnet werden.",
   };
+  // E-391: Was beim Lesen auffiel, steht im Prüfhinweis — für das Team sichtbar, nicht still.
+  if (doppeltHochgeladen) pruefung.hinweis += ` ${doppeltHochgeladen} Buchung${doppeltHochgeladen === 1 ? "" : "en"} aus doppelt hochgeladenen Seiten nur einmal gezählt.`;
+  if (kopfZweifel) pruefung.hinweis += ` Die ersten Seiten sahen nicht wie ein Kontoauszug aus (${kopfZweifel}) — gelesen wurden trotzdem ${buchungen.length} Buchungen.`;
   // ── 4 · Bereinigen (E-207): eigenes Konto, Inkasso, Vorzeichen — mit dem
   //    Namen aus der Akte, auf dem Server. Beträge bleiben, die Prüfung auch.
   buchungen = buchungenBereinigen(buchungen, person);
+  // E-391: Der Zeitraum ist Kopf UND Buchungen — nicht nur der erste Monatsauszug im Bündel.
+  const zeitraum = zeitraumAusBuchungen(zeitraumVon, zeitraumBis, buchungen);
   // ── 5 · Rechnen ───────────────────────────────────────────────────────
   const z = auswerten(buchungen, { saldoAnfang, saldoEnde, dispoLimit: kopf.dispo_limit_cents == null ? null : Math.round(Number(kopf.dispo_limit_cents)) });
 
@@ -882,7 +963,7 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
   let merksaetze: string[] = [];
   try {
     const lage = [
-      `Zeitraum ${zeitraumVon || "?"} bis ${zeitraumBis || "?"}, ${z.monate.length} Monat(e).`,
+      `Zeitraum ${zeitraum.von || "?"} bis ${zeitraum.bis || "?"}, ${z.monate.length} Monat(e).`,
       `Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, bleibt ${((z.einnahmen - z.ausgaben) / 100).toFixed(2)} €.`,
       z.nebenkonto ? `Die Eingänge kommen überwiegend vom eigenen Konto (Umbuchungen ${(z.eigenEin / 100).toFixed(2)} €) — kein Einkommen auf diesem Konto; das Gehaltskonto fehlt.`
         : z.gehalt != null ? `Regelmäßiges Einkommen etwa ${(z.gehalt / 100).toFixed(2)} € im Monat.` : "Kein regelmäßiges Einkommen erkennbar.",
@@ -909,7 +990,7 @@ export async function kontoauszugProbe(buf: Buffer, person: PersonName = { vorna
 
   return { status: "fertig", fehler: null, akte: null, fotoseiten, fotoseitenErkannt,
     modell: ocrModell ? `${modell} (Texterkennung ${ocrModell}${fotoseiten < seiten.length ? `, ${fotoseiten} von ${seiten.length} Seiten` : ""})` : modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
-           zeitraumVon, zeitraumBis, saldoAnfang, saldoEnde, buchungen, pruefung, z, merksaetze };
+           zeitraumVon: zeitraum.von, zeitraumBis: zeitraum.bis, saldoAnfang, saldoEnde, buchungen, pruefung, z, merksaetze };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -937,7 +1018,7 @@ export function merksaetzeAusZahlen(z: ReturnType<typeof auswerten>): string[] {
 export async function analysenNeuRechnen(grenze = 300): Promise<{ gerechnet: number; offen: number }> {
   await ensureAnalyseTabelle();
   const zeilen = (await sqlPool`
-    SELECT k.id, k.buchungen, k.saldo_anfang_cents, k.saldo_ende_cents, k.merksaetze,
+    SELECT k.id, k.buchungen, k.saldo_anfang_cents, k.saldo_ende_cents, k.merksaetze, k.zeitraum_von, k.zeitraum_bis,
            COALESCE(NULLIF(TRIM(p.first_name), ''), a.first_name) AS vorname,
            COALESCE(NULLIF(TRIM(p.last_name), ''), a.last_name) AS nachname
       FROM fiaon_kontoauszug_analysen k
@@ -970,6 +1051,10 @@ export async function analysenNeuRechnen(grenze = 300): Promise<{ gerechnet: num
       eigen_ein_cents: z.eigenEin, eigen_aus_cents: z.eigenAus, nebenkonto: z.nebenkonto,
       inkasso_anzahl: z.inkassoAnzahl, auswertung_version: AUSWERTUNG_VERSION,
     };
+    // E-391 (Fassung 5): Zeitraum aus Kopf UND gespeicherten Buchungen — ohne Modellaufruf.
+    const zr = zeitraumAusBuchungen(tagText(k.zeitraum_von), tagText(k.zeitraum_bis), bereinigt);
+    if (zr.von) felder.zeitraum_von = zr.von;
+    if (zr.bis) felder.zeitraum_bis = zr.bis;
     const JSONB = new Set(["fixkosten", "kategorien", "warnungen", "merksaetze", "buchungen", "monate"]);
     const cols = Object.keys(felder);
     const sets = cols.map((c, i) => `${c} = $${i + 1}${JSONB.has(c) ? "::jsonb" : ""}`).join(", ");
@@ -1052,7 +1137,9 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
     await fertig({ datei_hash: createHash("sha256").update(buf).digest("hex") }).catch(() => {});
     const pr = await kontoauszugProbe(buf, { vorname: a.vorname ?? null, nachname: a.nachname ?? null });
     if (pr.status !== "fertig" || !pr.z) {
-      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten, fotoseiten_erkannt: pr.fotoseitenErkannt });
+      // E-391: auch „unlesbar“ trägt die Fassung — sonst sah die Bonitätsauswertung den Auszug nie als unlesbar
+      // („Startklar“, und erst der Klick endete mit „nicht lesbar“).
+      await fertig({ status: "unlesbar", seiten: pr.seiten, modell: pr.modell, fehler: pr.fehler, fotoseiten: pr.fotoseiten, fotoseiten_erkannt: pr.fotoseitenErkannt, auswertung_version: AUSWERTUNG_VERSION });
       if (pr.akte) await akte(pr.akte);
       return analyseFuer(ref);
     }
@@ -1123,13 +1210,30 @@ async function letzterStand(ref: string): Promise<{ id: number; status: string; 
 
 async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: number; seitenGeprueft: number; offen: number }> {
   await ensureAnalyseTabelle();
+  // E-391 (16.10.2026): Ein Lauf, der seit einer halben Stunde „läuft“, ist tot (Neustart mitten im Lauf). Er stand
+  // sonst für immer als „läuft“ da — die Bonitätsauswertung meldete „wird seit Minuten gelesen“. Als Fehler markiert,
+  // holt dieser Lauf ihn nach der üblichen Regel nach (höchstens drei Läufe in sieben Tagen).
+  await sqlPool`UPDATE fiaon_kontoauszug_analysen
+                   SET status = 'fehler', fehler = 'Lauf abgebrochen (Neustart mitten im Lesen) — wird wiederholt.', updated_at = NOW()
+                 WHERE status = 'laeuft' AND created_at < NOW() - INTERVAL '30 minutes'`.catch((e) => console.warn("[ANALYSE] Hängende Läufe:", (e as Error).message));
   const kandidaten = (await sqlPool`
-    WITH l AS (
+    WITH l0 AS (
       SELECT DISTINCT ON (k.ref) k.ref, k.id, k.status, k.fehler, k.created_at, k.fotoseiten, k.fotoseiten_erkannt, k.modell, k.datei_hash,
              COALESCE(k.auswertung_version, 1) AS fassung,
-             CASE WHEN jsonb_typeof(k.buchungen) = 'array' THEN jsonb_array_length(k.buchungen) ELSE 0 END AS n_buchungen
+             CASE WHEN jsonb_typeof(k.buchungen) = 'array' THEN jsonb_array_length(k.buchungen) ELSE 0 END AS n_buchungen,
+             (jsonb_typeof(k.pruefung) = 'object' AND k.pruefung ? 'doppeltHochgeladen') AS stuecke_geprueft,
+             k.buchungen
         FROM fiaon_kontoauszug_analysen k
        ORDER BY k.ref, k.created_at DESC
+    ),
+    l AS (
+      SELECT l0.*, COALESCE((
+        SELECT SUM(g.n) FILTER (WHERE g.n >= 2)::numeric / NULLIF(l0.n_buchungen, 0)
+          FROM (SELECT COUNT(*) AS n FROM jsonb_array_elements(CASE WHEN l0.status = 'fertig' AND NOT l0.stuecke_geprueft AND l0.n_buchungen >= 30 THEN l0.buchungen ELSE '[]'::jsonb END) b
+                 WHERE (b->>'saldoDanachCents') IS NULL
+                 GROUP BY b->>'datum', b->>'betragCents', lower(regexp_replace(COALESCE(b->>'empfaenger', ''), '[^a-zA-Z0-9]', '', 'g'))) g
+      ), 0) AS doppelt_anteil
+        FROM l0
     )
     SELECT a.ref, l.id AS analyse_id, l.modell, l.fotoseiten,
            -- E-IT-C (08.10.2026, Punkt 13 E): Ist es noch DIESELBE Datei? Mit Fingerabdruck exakt; ohne
@@ -1149,6 +1253,10 @@ async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: numb
                   AND (CASE WHEN l.datei_hash IS NOT NULL THEN l.datei_hash <> encode(sha256(a.bank_statement_pdf), 'hex')
                             ELSE a.documents_uploaded_at IS NOT NULL AND a.documents_uploaded_at > l.created_at END) THEN 'foto_ungelesen'
              WHEN l.status IN ('fertig', 'unlesbar') AND l.fotoseiten_erkannt IS NULL THEN 'seiten_pruefen'
+             -- E-391 (16.10.2026): gelesen VOR der Prüfung auf doppelt hochgeladene Seiten und stark doppelt (über 40 % der
+             -- Zeilen ohne Saldo stehen mehrfach mit gleichem Tag, Betrag, Empfänger; ab 30 Buchungen) — einmal neu lesen.
+             -- Der neue Lauf trägt pruefung.doppeltHochgeladen und fällt danach nie wieder hierher.
+             WHEN l.status = 'fertig' AND NOT l.stuecke_geprueft AND l.n_buchungen >= 30 AND l.doppelt_anteil > 0.4 THEN 'doppelt'
            END AS grund
       FROM fiaon_applications a
       LEFT JOIN l ON l.ref = a.ref
@@ -1159,9 +1267,12 @@ async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: numb
                               WHERE y.person_id = a.person_id AND y.gdpr_deleted_at IS NULL AND y.bank_statement_pdf IS NOT NULL
                               ORDER BY (y.merged_into IS NULL) DESC, y.documents_uploaded_at DESC NULLS LAST, y.created_at DESC
                               LIMIT 1), a.ref)
-       AND (SELECT count(*) FROM fiaon_kontoauszug_analysen k2
+       AND ((SELECT count(*) FROM fiaon_kontoauszug_analysen k2
              WHERE k2.ref = a.ref AND k2.created_at > NOW() - INTERVAL '7 days'
                AND COALESCE(k2.fehler, '') NOT LIKE 'KI pausiert%') < 3
+            -- E-391: der einmalige Neu-Lauf bei doppelt hochgeladenen Seiten hakt sich selbst ab (doppeltHochgeladen) —
+            -- er braucht die Wochengrenze nicht (sonst wartete Nikos Auszug nach vielen Versuchen eine Woche).
+            OR (l.status = 'fertig' AND NOT l.stuecke_geprueft AND l.n_buchungen >= 30 AND l.doppelt_anteil > 0.4))
      ORDER BY a.documents_uploaded_at DESC NULLS LAST
   `) as any[];
   const offen = kandidaten.filter((k) => k.grund);
@@ -1198,7 +1309,7 @@ async function auszuegeNachholenInnen(grenze: number): Promise<{ gestartet: numb
     const warPause = jetzt?.status === "fehler" && /^KI pausiert/.test(String(jetzt.fehler ?? ""));
     gestartet++;
     // Ohne `erzwingen`: kontoauszugAnalysieren erkennt hängende, veraltete und leere Läufe selbst.
-    await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" || k.grund === "foto_ungelesen" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
+    await kontoauszugAnalysieren(k.ref, { erzwingen: k.grund === "ohne_buchungen" || k.grund === "fehler" || k.grund === "foto_ungelesen" || k.grund === "doppelt" }).catch((e) => console.error("[ANALYSE] Nachholen", k.ref, e));
     // Die Pause-Zeile ist noch der letzte Stand (kein neuer Lauf unter dieser ref, etwa
     // weil die Datei inzwischen an einer anderen Bestellung hängt): abhaken, damit sie
     // nicht bei jedem Takt wieder vorn steht. Danach gilt die normale Fehlerregel (1 h, 3 in 7 Tagen).

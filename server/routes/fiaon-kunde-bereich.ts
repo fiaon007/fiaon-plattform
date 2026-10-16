@@ -430,10 +430,12 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
 
     // Abo-Raten
     const raten = (await sqlPool`
-      SELECT rate_nr, betrag_cents, faellig_am, status, bezahlt_am, zahlungsreferenz
+      SELECT rate_nr, betrag_cents, faellig_am, status, bezahlt_am, zahlungsreferenz, storniert_am
       FROM fiaon_abo_raten WHERE ref = ${ref} ORDER BY faellig_am ASC
     `) as any[];
-    const offen = raten.filter((r) => r.status !== "bezahlt");
+    // E-391 (16.10.2026): Stornierte Raten sind nicht offen — der Kundenbereich zählte sie mit (z. B. Raten nach dem
+    // Vertragsende): „offen“ = nicht bezahlt UND nicht storniert, dieselbe Regel wie alle Zählstellen (E-245).
+    const offen = raten.filter((r) => r.status !== "bezahlt" && !r.storniert_am && r.status !== "storniert");
     const naechste = offen.find((r) => new Date(r.faellig_am) >= new Date(new Date().toDateString())) || offen[0] || null;
     const pk = paketVon(a.pack_key);
 

@@ -1661,7 +1661,8 @@ const IN_RUHE: RegExp[] = [
   /\bh(?:ö|oe)r(?:en|t)\s+(?:sie\s+|ihr\s+)?(?:bitte\s+|endlich\s+|sofort\s+)?auf\s*,?\s+mich\s+(?:\w+\s+)?(?:zu\s+)?(?:nerven|belästigen|belaestigen|anzuschreiben|anzurufen|zu\s+kontaktieren)/i,
   /\bnerv(?:en|t|st)\s+(?:sie\s+|ihr\s+|du\s+)?mich\s+(?:nicht|nie)\b/i,
   /\bbel(?:ä|ae)stig(?:en|t)\s+(?:sie\s+|ihr\s+)?mich\b|\bmich\s+(?:\S+\s+){0,2}?(?:zu\s+)?bel(?:ä|ae)stigen\b|\bbel(?:ä|ae)stigung\b/i,
-  /\bwill\s+(?:nichts|nix)\s+(?:mehr\s+)?von\s+(?:ihnen|euch|dir)\b/i,
+  // E-391 (16.10.2026): Satzzeichen zwischen den Wörtern („will nix mehr von.euch“) — vorher nur Leerzeichen.
+  /\bwill[\s.,;:]+(?:nichts|nix)[\s.,;:]+(?:mehr[\s.,;:]+)?von[\s.,;:]+(?:ihnen|euch|dir)\b/i,
   /\bkeinen?\s+kontakt\s+mehr\b|\bnicht\s+mehr\s+kontaktieren\b/i,
 ];
 /** „Hören Sie auf!" — nur allein (kurz, ohne Frage). */

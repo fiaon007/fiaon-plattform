@@ -25,6 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { FORDERUNG_AKTIV_SQL_FUER } from "./fiaon-raten-storno";
 import { berlinToday, berlinPlusTage } from "./fiaon-time";
 import { ECHT } from "./fiaon-umsatz-quelle";
 // EINE Normalisierung für Anzeige UND Wahl — dieselbe, die der Vertrieb benutzt.
@@ -126,6 +127,9 @@ export const SICHTFELD = `
       AND a.merged_into IS NULL
       AND a.archived_at IS NULL
       AND a.gdpr_deleted_at IS NULL
+      -- E-391 (16.10.2026): nur GESCHULDETE Raten — nicht nach dem Vertragsende, nicht bei ungebuchter Kündigung,
+      -- nicht nach einem Mahnstopp, den Mara/Postmeister nach der ersten Zahlung gesetzt hat, kein Testkonto.
+      AND ${FORDERUNG_AKTIV_SQL_FUER("a", "r")}
   )`;
 
 /**

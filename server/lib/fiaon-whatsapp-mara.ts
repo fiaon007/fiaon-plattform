@@ -2568,7 +2568,21 @@ async function abstreitenBeantworten(ein: {
   const { abstreitenLage, abstreitenFolgen, werbesperreSetzen } = await import("./fiaon-mara-abstreiten");
   const lage = await abstreitenLage(ein.personId, ein.leadId);
   const art = ein.loesch ? "loeschen" : ein.abst!.art;
-  if (!ein.loesch && art !== "falsche_nummer" && !["lead", "antrag_offen", "zahlung_offen"].includes(lage.stufe)) return null;
+  if (!ein.loesch && art !== "falsche_nummer" && !["lead", "antrag_offen", "zahlung_offen"].includes(lage.stufe)) {
+    // E-391 (16.10.2026, Fall Rieser): „Lassen Sie mich in Ruhe“ von einem KUNDEN (bezahlt, gekündigt, beendet) ist ein
+    // Widerspruch gegen Werbung (§ 7 UWG, Art. 21 DSGVO) — auch wenn das Modell antwortet. Vorher versprach Mara
+    // „keine Werbung mehr“, gesetzt wurde nichts: danach Verkaufsmails, eine Werbevorlage, ein Partnerbank-Link.
+    // Die Werbesperre hält nur Werbung auf; Vertragspost (Rate, Kündigungsbestätigung) bleibt.
+    if (art === "in_ruhe" && ein.personId) {
+      const gesetzt = await werbesperreSetzen(ein.personId).catch(() => false);
+      if (gesetzt) {
+        await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          SELECT a.ref, ${ein.personId}, NULL, 'Mara', 'system', ${`Werbesperre gesetzt: Der Kunde schrieb per WhatsApp, er wolle in Ruhe gelassen werden („${ein.seinText.replace(/\s+/g, " ").slice(0, 120)}“). Werbung bleibt aus; Vertragspost (Raten, Kündigung) geht weiter.`}
+            FROM fiaon_applications a WHERE a.person_id = ${ein.personId} ORDER BY a.created_at DESC LIMIT 1`.catch(() => {});
+      }
+    }
+    return null;
+  }
   const folgen = abstreitenFolgen(art, lage.abgeschickt);
   const taten: string[] = [];
   if (folgen.werbesperre && ein.personId) {

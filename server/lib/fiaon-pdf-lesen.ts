@@ -220,9 +220,16 @@ export function pdfTextBrauchbar(text: string): boolean {
  * zwei Leser, zwei Regeln: 12 Auszüge „nicht lesbar" laut Prüfung, 10 davon hat
  * die Analyse mit Buchungen gelesen. Jetzt EINE Regel hier, beide lesen sie.
  */
+/**
+ * Ein Betrag in jedem Auszugsformat: „1.234,56“, „-29,24“, „9,99-“, „1'000.00“, „1,234.56“, „9.99“ (E-391,
+ * 16.10.2026: ein US-Auszug mit 2.574 Beträgen im Punktformat galt als „nicht lesbar“, weil nur die deutsche
+ * Schreibweise zählte). Kein Datum („18.08.2026“: nach „18.08“ folgt „.2“), kein Prozentsatz.
+ */
+export const BETRAG_MUSTER = /(?<![\d.,'’])\d{1,3}(?:[.,'’ ]?\d{3})*\s?[,.]\s?\d{2}(?![\d%]|\s?%|[.,]\d)/g;
+
 export function auszugBrauchbar(text: string): boolean {
   if (text.trim().length < 120) return false;
-  const betraege = (text.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).length;
+  const betraege = (text.match(BETRAG_MUSTER) || []).length;
   const vokale = (text.match(/[aeiouäöüAEIOU]/g) || []).length;
   return betraege >= 5 || vokale / text.length > 0.15;
 }

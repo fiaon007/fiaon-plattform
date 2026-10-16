@@ -66,7 +66,7 @@ import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
-import { ERINNERBARE_BESTELLUNG_SQL, ratenStornieren } from "../lib/fiaon-raten-storno";
+import { ERINNERBARE_BESTELLUNG_SQL, FORDERUNG_AKTIV_SQL_FUER, RATE_NACH_ENDE_SQL_FUER, ratenStornieren } from "../lib/fiaon-raten-storno";
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
 
@@ -168,10 +168,9 @@ const ERINNERBAR_SQL = ERINNERBARE_BESTELLUNG_SQL("a");
 //   · 48 Mails trotz Mahnstopp, den Mara/Postmeister während des Vertrags gesetzt und dem Kunden angekündigt hatte;
 //   · 75 Tage mit zwei Ratenmails an denselben Vertrag (Mahnung zu Rate 2 + Vorabinfo zu Rate 3 um 08:52).
 // RATE_NACH_ENDE_SQL gilt überall (auch für die Mail von Hand), RATE_MAHNBAR_SQL in allen automatischen Läufen.
-const RATE_NACH_ENDE_SQL = `(a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL
-  AND (a.agb_stand IS NULL OR a.agb_stand < DATE '${JAHRESVERTRAG_AB}')
-  AND r.faellig_am > COALESCE((a.vertrag_ende_am AT TIME ZONE 'Europe/Berlin')::date,
-                              ((a.gekuendigt_am + INTERVAL '24 hours') AT TIME ZONE 'Europe/Berlin')::date))`;
+// E-391: dieselbe Regel wohnt jetzt in fiaon-raten-storno.ts (RATE_NACH_ENDE_SQL_FUER) — auch Inkasso und
+// „überfällig stellen“ lesen sie (FORDERUNG_AKTIV_SQL_FUER).
+const RATE_NACH_ENDE_SQL = RATE_NACH_ENDE_SQL_FUER("a", "r");
 const RATE_MAHNBAR_SQL = `(NOT ${RATE_NACH_ENDE_SQL}
   AND NOT ${KUENDIGUNG_UNGEBUCHT_SQL("a.person_id")}
   -- Mahnstopp, den jemand NACH der ersten Zahlung gesetzt hat (Mara/Postmeister: Kunde bestreitet, hat überwiesen,
@@ -1212,6 +1211,9 @@ async function ueberfaelligStellen(
       AND r.status = 'offen' AND r.storniert_am IS NULL
       AND r.faellig_am < ${heute}::date
       AND r.ueberfaellig_seit IS NULL
+      -- E-391: Nicht geschuldet (nach dem Vertragsende), ungebuchte Kündigung, Mahnstopp nach der ersten Zahlung
+      -- oder Testkonto → nie ins Forderungsmanagement (dieselbe Lesart wie der Mahnmotor, E-368).
+      AND ${lauf.unsafe(FORDERUNG_AKTIV_SQL_FUER("a", "r"))}
     RETURNING r.id, r.ref, r.rate_nr, r.betrag_cents, r.faellig_am
   `) as any[];
 
@@ -1290,6 +1292,16 @@ export async function aboTageslauf(
 
   // 1. Die Raten des Tages — immer, unabhängig vom Versandfenster.
   erg.ratenErzeugt = await ratenFuerHeuteErzeugen(heute, lauf);
+
+  // 1b. E-391 (16.10.2026): Kündigungsfolgen nachziehen — Raten nach dem Vertragsende gekündigter Altverträge
+  //     stornieren, eindeutige Formular-Anträge buchen, längst gebuchte schließen (fiaon-kuendigung-folgen.ts).
+  //     VOR „überfällig stellen“: Was nicht geschuldet ist, kommt so gar nicht erst ins Forderungsmanagement.
+  //     Nur im echten Lauf (nicht im Prüfstand mit eigenem Griff) — dort ist die Folge eigens geprüft.
+  if (!opts.lauf) {
+    await import("../lib/fiaon-kuendigung-folgen")
+      .then((m) => m.kuendigungsFolgenNachziehen())
+      .catch((e) => console.error("[FIAON-ABO] Kündigungsfolgen:", e));
+  }
 
   // 3. Überfällig und zuteilen — ebenfalls uhrzeitunabhängig. Bewusst VOR dem
   //    Versand: Wer heute überfällig wird, soll auch heute jemandem gehören.

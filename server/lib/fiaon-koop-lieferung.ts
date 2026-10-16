@@ -572,8 +572,24 @@ export async function koopPartnerSicht(z: AngebotZeile, jetzt = new Date()): Pro
       FROM fiaon_koop_rechnungen r LEFT JOIN fiaon_applications a ON a.ref = r.ref
      WHERE r.angebot_id = ${Number(z.id)} ORDER BY r.monat DESC`) as any[];
   const { signInvoiceUrl } = await import("../fiaon-invoice");
+  // E-388: „Ihr Jahr in Zahlen“ — die letzten sechs Monate nach Monat der Übermittlung (berechtigte Reklamationen zählen
+  // als Kontakt, aber nicht zum Betrag).
+  const roh = (await sqlPool`
+    SELECT abrechnung_monat AS m, COUNT(*)::int AS n,
+           COUNT(*) FILTER (WHERE status = 'reklamiert' AND reklamation_ergebnis = 'berechtigt')::int AS r,
+           COALESCE(SUM(preis_cents) FILTER (WHERE NOT (status = 'reklamiert' AND reklamation_ergebnis = 'berechtigt')), 0)::int AS c
+      FROM fiaon_koop_kontakte WHERE angebot_id = ${Number(z.id)} AND abrechnung_monat IS NOT NULL AND status IN ('uebermittelt', 'reklamiert')
+     GROUP BY 1`) as any[];
+  const jetztMonat = monatAus(jetzt);
+  const monate: string[] = [];
+  for (let m = jetztMonat, k = 0; k < 6; k++, m = koopVormonat(m)) monate.unshift(m);
+  const verlauf = roh.length ? monate.map((m) => {
+    const x = roh.find((y) => y.m === m);
+    return { monat: m, monatText: koopMonatText(m), kontakte: Number(x?.n ?? 0), reklamiert: Number(x?.r ?? 0), betragCents: Number(x?.c ?? 0), laufend: m === jetztMonat };
+  }) : [];
   return {
     ok: true,
+    verlauf,
     ref: d.ref, partner: koopPartnerName(d.partner), anrede: koopPartnerAnrede(d.partner), gruss: koopPartnerGruss(d.partner), email: d.partner.email,
     preis: koopEur(d.parameter.preisCents), reklamationTage: d.parameter.reklamationTage,
     stand: { ...stand, zeitenText: koopZeitenText(stand.zeiten) },

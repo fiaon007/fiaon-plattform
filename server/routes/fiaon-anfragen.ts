@@ -24,8 +24,9 @@ import { ensureAnfragenSpalten, bewerbungAuftrag } from "./fiaon-bewerbungen";
 const router = Router();
 // 02.09.2026 (E-083): „termin" = Wunsch nach einem Startgespräch von /termin —
 // Zeitfenster und Anliegen kommen im Feld text mit.
-const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere", "termin", "global"]);
-const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", termin: "Startgespräch gewünscht", karriere: "Bewerbung (Werde Teil des Teams)", global: "FIAON Global: Erstgespräch gewünscht" };
+// E-388 (16.10.2026): „netzwerk“ — Bewerbung für das Partner-Netzwerk der Privatkunden (Bereich, Region, Zulassung im Text).
+const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere", "termin", "global", "netzwerk"]);
+const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", netzwerk: "Partner-Netzwerk: Bewerbung", termin: "Startgespräch gewünscht", karriere: "Bewerbung (Werde Teil des Teams)", global: "FIAON Global: Erstgespräch gewünscht" };
 const letzte = new Map<string, number>();
 
 router.post("/anfrage", async (req: Request, res: Response) => {

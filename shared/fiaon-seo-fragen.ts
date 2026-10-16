@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -472,6 +472,270 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Is my money safe with DKB?",
       "a": "Balances are protected by statutory deposit insurance up to 100,000 euros."
+    }
+  ],
+  "/partnernetzwerk": [
+    {
+      "f": "Was kostet die Teilnahme am Partner-Netzwerk?",
+      "a": "Je nach Bereich: Vorsorge 89 € netto je qualifiziertem Termin-Kontakt, Energie ab 129 € je bestätigtem Wechsel, Telefon und Internet ab 99 € je aktiviertem Vertrag. Anwälte und Steuerberater zahlen einen festen Partnerplatz je Monat (690 € bzw. 490 € netto) — nie etwas je Mandat."
+    },
+    {
+      "f": "Woher kommen die Kontakte?",
+      "a": "Aus dem eigenen Kundenkreis von FIAON: Menschen, die ihre Bonität und ihre Finanzen mit uns neu ordnen. Jeder Kontakt hat einem Gespräch mit Ihnen ausdrücklich zugestimmt."
+    },
+    {
+      "f": "Wie viele Partner nimmt FIAON je Bereich auf?",
+      "a": "Bewusst wenige. Beim Partnerplatz höchstens drei je Region und Fachgebiet, bei den anderen Bereichen so viele, wie wir mit Terminen gut bedienen können. Jeder Kontakt geht nur an einen Partner."
+    },
+    {
+      "f": "Kann ich mir den Partnerbereich vorher ansehen?",
+      "a": "Ja. Der Demo-Zugang zeigt den echten Partnerbereich mit einem Monat Beispieldaten — ohne Anmeldung."
+    },
+    {
+      "f": "Wie schnell geht es nach der Bewerbung los?",
+      "a": "Wir melden uns innerhalb von zwei Werktagen. Nach der Annahme des Vertrags bekommen Sie Ihren Partnerbereich per E-Mail; sobald Ihre Zeiten stehen, vereinbaren wir die ersten Termine."
+    }
+  ],
+  "/en/partner-network": [
+    {
+      "f": "What does taking part in the partner network cost?",
+      "a": "It depends on the area: financial planning €89 net per qualified appointment contact, energy from €129 per confirmed switch, phone and internet from €99 per activated contract. Lawyers and tax advisers pay a fixed partner seat each month (€690 and €490 net) — never anything per mandate."
+    },
+    {
+      "f": "Where do the contacts come from?",
+      "a": "From FIAON's own customers: people who are rebuilding their credit standing and finances with us. Every contact has expressly agreed to a conversation with you."
+    },
+    {
+      "f": "How many partners does FIAON accept per area?",
+      "a": "Deliberately few. With a partner seat, at most three per region and field; in the other areas as many as we can serve well with appointments. Each contact goes to one partner only."
+    },
+    {
+      "f": "Can I see the partner area beforehand?",
+      "a": "Yes. The demo shows the real partner area with a month of sample data — no sign-up needed."
+    },
+    {
+      "f": "How quickly can I start after applying?",
+      "a": "We reply within two working days. Once you accept the agreement you receive your partner area by email; as soon as your times are set, we book the first appointments."
+    }
+  ],
+  "/partnernetzwerk/vorsorge": [
+    {
+      "f": "Was kostet ein Kontakt?",
+      "a": "89 € netto je qualifiziertem Kontakt mit Einwilligung, Wunschthema und festem Termin. Keine Grundgebühr, keine Mindestmenge."
+    },
+    {
+      "f": "Verdient FIAON an meinen Abschlüssen mit?",
+      "a": "Nein. FIAON erhält nur den festen Betrag je Kontakt — unabhängig davon, ob und was abgeschlossen wird. So bleibt FIAON Tippgeber ohne eigene Erlaubnis nach § 34d GewO."
+    },
+    {
+      "f": "Was passiert, wenn der Kunde nicht erscheint?",
+      "a": "Ist er binnen sieben Tagen für keinen Ersatztermin erreichbar, reklamieren Sie den Kontakt im Partnerbereich — Sie wählen Gutschrift oder Ersatzkontakt."
+    },
+    {
+      "f": "Darf ich die Kontakte anrufen?",
+      "a": "Ja. Jeder Kunde hat ausdrücklich eingewilligt, dass Sie ihn zum vereinbarten Gespräch telefonisch und per E-Mail kontaktieren."
+    },
+    {
+      "f": "Gibt es einen Start-Rahmen?",
+      "a": "Ja: Bis Ihre erste Monatsrechnung bezahlt ist, übermitteln wir höchstens 40 Kontakte. Danach gilt allein Ihre Wunschmenge je Woche."
+    }
+  ],
+  "/en/partner-network/financial-planning": [
+    {
+      "f": "What does a contact cost?",
+      "a": "€89 net per qualified contact with consent, chosen topic and a fixed appointment. No base fee, no minimum volume."
+    },
+    {
+      "f": "Does FIAON earn from my contracts?",
+      "a": "No. FIAON only receives the fixed amount per contact — regardless of whether or what is signed. That keeps FIAON an introducer without its own licence under § 34d GewO."
+    },
+    {
+      "f": "What if the customer does not show up?",
+      "a": "If they cannot be reached for a new appointment within seven days, you claim the contact in your partner area — you choose a credit or a replacement contact."
+    },
+    {
+      "f": "May I call the contacts?",
+      "a": "Yes. Every customer has expressly agreed that you contact them by phone and email about the agreed meeting."
+    },
+    {
+      "f": "Is there a starter allowance?",
+      "a": "Yes: until your first monthly invoice is paid we pass on at most 40 contacts. After that only your weekly volume applies."
+    }
+  ],
+  "/partnernetzwerk/recht": [
+    {
+      "f": "Warum zahle ich nicht je Mandat?",
+      "a": "Weil das berufsrechtlich unzulässig wäre: § 49b Abs. 3 BRAO verbietet Entgelte für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation."
+    },
+    {
+      "f": "Was kostet der Partnerplatz?",
+      "a": "690 € netto im Monat je Rechtsgebiet und Region, Mindestlaufzeit drei Monate, danach monatlich kündbar."
+    },
+    {
+      "f": "Wie viele Kanzleien teilen sich eine Region?",
+      "a": "Höchstens drei je Region und Rechtsgebiet. Der Kunde wählt frei."
+    },
+    {
+      "f": "Sagt FIAON eine bestimmte Zahl an Mandaten zu?",
+      "a": "Nein. Wir vereinbaren Termine mit Kunden, die es wünschen — ob ein Mandat entsteht, entscheiden Sie und der Mandant."
+    },
+    {
+      "f": "Berät FIAON die Kunden rechtlich?",
+      "a": "Nein. FIAON ordnet nur zu, welches Rechtsgebiet ein Anliegen betrifft, und vereinbart den Termin. Die Rechtsberatung liegt allein bei Ihrer Kanzlei."
+    }
+  ],
+  "/en/partner-network/legal": [
+    {
+      "f": "Why do I not pay per mandate?",
+      "a": "Because it would breach professional rules: § 49b(3) BRAO prohibits fees for introducing mandates. The partner seat is a fixed price for visibility and appointment organisation."
+    },
+    {
+      "f": "What does the partner seat cost?",
+      "a": "€690 net a month per field of law and region, minimum term three months, then terminable monthly."
+    },
+    {
+      "f": "How many firms share a region?",
+      "a": "At most three per region and field of law. The customer chooses freely."
+    },
+    {
+      "f": "Does FIAON promise a number of mandates?",
+      "a": "No. We book appointments with customers who want them — whether a mandate follows is for you and the client to decide."
+    },
+    {
+      "f": "Does FIAON give customers legal guidance?",
+      "a": "No. FIAON only identifies which field of law a matter concerns and books the appointment. Legal counsel lies solely with your firm."
+    }
+  ],
+  "/partnernetzwerk/steuern": [
+    {
+      "f": "Warum zahle ich nicht je Mandat?",
+      "a": "Weil das berufsrechtlich unzulässig wäre: § 9 Abs. 2 StBerG verbietet Vergütungen für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation."
+    },
+    {
+      "f": "Was kostet der Partnerplatz?",
+      "a": "490 € netto im Monat je Region, Mindestlaufzeit drei Monate, danach monatlich kündbar."
+    },
+    {
+      "f": "Können sich Lohnsteuerhilfevereine bewerben?",
+      "a": "Ja — anerkannte Lohnsteuerhilfevereine mit Beratungsstelle, im Rahmen ihrer Beratungsbefugnis nach § 4 Nr. 11 StBerG."
+    },
+    {
+      "f": "Bekomme ich die Unterlagen digital?",
+      "a": "Wenn der Mandant zustimmt, ja: Belege und Kontoauszüge aus seinem FIAON-Bereich liegen vor dem Termin in Ihrem Partnerbereich."
+    },
+    {
+      "f": "Sagt FIAON eine bestimmte Zahl an Mandaten zu?",
+      "a": "Nein. Wir vereinbaren Termine mit Kunden, die es wünschen — ob ein Mandat entsteht, entscheiden Sie und der Mandant."
+    }
+  ],
+  "/en/partner-network/tax": [
+    {
+      "f": "Why do I not pay per mandate?",
+      "a": "Because it would breach professional rules: § 9(2) StBerG prohibits fees for introducing engagements. The partner seat is a fixed price for visibility and appointment organisation."
+    },
+    {
+      "f": "What does the partner seat cost?",
+      "a": "€490 net a month per region, minimum term three months, then terminable monthly."
+    },
+    {
+      "f": "Can income tax assistance associations apply?",
+      "a": "Yes — recognised associations with an office, within their authority under § 4 No. 11 StBerG."
+    },
+    {
+      "f": "Do I receive the records digitally?",
+      "a": "If the client agrees, yes: receipts and bank statements from their FIAON area are in your partner area before the appointment."
+    },
+    {
+      "f": "Does FIAON promise a number of mandates?",
+      "a": "No. We book appointments with customers who want them — whether a mandate follows is for you and the client to decide."
+    }
+  ],
+  "/partnernetzwerk/energie": [
+    {
+      "f": "Was kostet ein Wechsel?",
+      "a": "129 € netto je bestätigtem Stromwechsel und 159 € netto je bestätigtem Gaswechsel. Berechnet wird erst mit bestätigtem Lieferbeginn."
+    },
+    {
+      "f": "Muss ich jeden Kunden annehmen?",
+      "a": "Nein. Sie prüfen jeden Antrag selbst — wir erwarten nur, dass Sie einzeln prüfen und nicht allein wegen eines Bonitätseintrags ablehnen."
+    },
+    {
+      "f": "Was zählt als bestätigter Wechsel?",
+      "a": "Ein Vertrag, für den der Lieferbeginn bestätigt ist. Storniert der Kunde vor Lieferbeginn, wird nichts berechnet."
+    },
+    {
+      "f": "Welche Daten bekomme ich?",
+      "a": "Name, Anschrift, Telefon, E-Mail, Zählernummer, Jahresverbrauch und bisherigen Versorger — alles mit ausdrücklicher Einwilligung des Kunden."
+    },
+    {
+      "f": "Bekomme ich die Haushalte exklusiv?",
+      "a": "Ja. Jeder Haushalt geht für dieselbe Sparte nur an einen Versorger."
+    }
+  ],
+  "/en/partner-network/energy": [
+    {
+      "f": "What does a switch cost?",
+      "a": "€129 net per confirmed electricity switch and €159 net per confirmed gas switch. Charged only once the start of supply is confirmed."
+    },
+    {
+      "f": "Do I have to accept every customer?",
+      "a": "No. You assess every application yourself — we only expect an individual assessment rather than a rejection for a credit entry alone."
+    },
+    {
+      "f": "What counts as a confirmed switch?",
+      "a": "A contract with a confirmed start of supply. If the customer cancels before supply starts, nothing is charged."
+    },
+    {
+      "f": "Which data do I receive?",
+      "a": "Name, address, phone, email, meter number, annual consumption and current supplier — all with the customer's express consent."
+    },
+    {
+      "f": "Are the households exclusive to me?",
+      "a": "Yes. Each household goes to one supplier only for the same energy type."
+    }
+  ],
+  "/partnernetzwerk/telekommunikation": [
+    {
+      "f": "Was kostet ein Vertrag?",
+      "a": "99 € netto je aktiviertem Mobilfunkvertrag und 149 € netto je aktiviertem Internetanschluss — berechnet nach Ablauf der Widerrufsfrist."
+    },
+    {
+      "f": "Muss ich jeden Kunden annehmen?",
+      "a": "Nein. Sie prüfen jeden Antrag selbst — wir erwarten nur, dass Sie einzeln prüfen und nicht allein wegen eines Bonitätseintrags ablehnen."
+    },
+    {
+      "f": "Was passiert bei Widerruf?",
+      "a": "Widerruft der Kunde in der gesetzlichen Frist, wird der Vertrag nicht berechnet."
+    },
+    {
+      "f": "Welche Daten bekomme ich?",
+      "a": "Name, Anschrift, Telefon, E-Mail, gewünschter Tarif und Angaben zur Rufnummernmitnahme — mit ausdrücklicher Einwilligung des Kunden."
+    },
+    {
+      "f": "Bekomme ich die Kunden exklusiv?",
+      "a": "Ja. Jeder Kunde geht für dieselbe Sparte nur an einen Anbieter."
+    }
+  ],
+  "/en/partner-network/telecoms": [
+    {
+      "f": "What does a contract cost?",
+      "a": "€99 net per activated mobile contract and €149 net per activated broadband connection — charged after the withdrawal period."
+    },
+    {
+      "f": "Do I have to accept every customer?",
+      "a": "No. You assess every application yourself — we only expect an individual assessment rather than a rejection for a credit entry alone."
+    },
+    {
+      "f": "What happens if the customer withdraws?",
+      "a": "If the customer withdraws within the statutory period, the contract is not charged."
+    },
+    {
+      "f": "Which data do I receive?",
+      "a": "Name, address, phone, email, preferred tariff and number porting details — with the customer's express consent."
+    },
+    {
+      "f": "Are the customers exclusive to me?",
+      "a": "Yes. Each customer goes to one provider only for the same service."
     }
   ],
   "/oesterreich": [

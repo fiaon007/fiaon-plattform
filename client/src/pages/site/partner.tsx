@@ -52,7 +52,8 @@ export default function Partner() {
             <ul className="dk-liste" style={{ marginTop: 0 }}>
               {t.vermittler.map((x) => <li key={x}>{x}</li>)}
             </ul>
-            <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={zu("/karriere")} still>{t.einzelperson}</Knopf></div>
+            {/* E-388: Berater, Kanzleien und Versorger für unsere Privatkunden haben ein eigenes Netzwerk mit Bewerbung und Demo. */}
+            <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={zu("/karriere")} still>{t.einzelperson}</Knopf><Knopf href={en ? "/en/partner-network" : "/partnernetzwerk"}>{en ? "Partner network for advisers & suppliers" : "Partner-Netzwerk für Berater & Versorger"}</Knopf></div>
           </Glas>
         </Auf>
       </Block>

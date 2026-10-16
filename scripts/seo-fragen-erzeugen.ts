@@ -42,6 +42,13 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/en-start.tsx": "/en",
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
   "client/src/i18n/partnerbank-dkb.ts": "/partnerbank-dkb|/en/partner-bank-dkb",
+  // E-388 (16.10.2026): Partner-Netzwerk — ein Wörterbuch, sechs Seiten (Block je Seite).
+  "client/src/i18n/partnernetz.ts#hub": "/partnernetzwerk|/en/partner-network@hub",
+  "client/src/i18n/partnernetz.ts#vorsorge": "/partnernetzwerk/vorsorge|/en/partner-network/financial-planning@vorsorge",
+  "client/src/i18n/partnernetz.ts#recht": "/partnernetzwerk/recht|/en/partner-network/legal@recht",
+  "client/src/i18n/partnernetz.ts#steuern": "/partnernetzwerk/steuern|/en/partner-network/tax@steuern",
+  "client/src/i18n/partnernetz.ts#energie": "/partnernetzwerk/energie|/en/partner-network/energy@energie",
+  "client/src/i18n/partnernetz.ts#telekom": "/partnernetzwerk/telekommunikation|/en/partner-network/telecoms@telekom",
   "client/src/i18n/laender.ts#oesterreich": "/oesterreich|/en/austria@oesterreich",
   "client/src/i18n/laender.ts#schweiz": "/schweiz|/en/switzerland@schweiz",
   "client/src/i18n/sicherheit.ts": "/sicherheit|/en/security",

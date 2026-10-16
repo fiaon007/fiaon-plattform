@@ -246,6 +246,8 @@ const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
 const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
 // E-386 (16.10.2026): Partnerbereich der Kooperation — signierter Link ohne Anmeldung.
 const KoopPartnerPage = lazy(() => import("@/pages/koop-partner"));
+// E-388 (16.10.2026): Partner-Netzwerk für Privatkunden — Hub + fünf Bereiche, DE und EN (eine Komponente, der Pfad entscheidet).
+const SitePartnerNetz = lazy(() => import("@/pages/site/partnernetz"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
@@ -539,6 +541,18 @@ function Router() {
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/business/angebot/:token" component={BusinessAngebotPage} />
       <Route path="/partner/:token" component={KoopPartnerPage} />
+      <Route path="/partnernetzwerk" component={SitePartnerNetz} />
+      <Route path="/partnernetzwerk/vorsorge" component={SitePartnerNetz} />
+      <Route path="/partnernetzwerk/recht" component={SitePartnerNetz} />
+      <Route path="/partnernetzwerk/steuern" component={SitePartnerNetz} />
+      <Route path="/partnernetzwerk/energie" component={SitePartnerNetz} />
+      <Route path="/partnernetzwerk/telekommunikation" component={SitePartnerNetz} />
+      <Route path="/en/partner-network" component={SitePartnerNetz} />
+      <Route path="/en/partner-network/financial-planning" component={SitePartnerNetz} />
+      <Route path="/en/partner-network/legal" component={SitePartnerNetz} />
+      <Route path="/en/partner-network/tax" component={SitePartnerNetz} />
+      <Route path="/en/partner-network/energy" component={SitePartnerNetz} />
+      <Route path="/en/partner-network/telecoms" component={SitePartnerNetz} />
       <Route path="/business/lp/:slug" component={GlobalLandingPage} />
       <Route path="/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
       <Route path="/business/mustervertrag" component={GlobalMustervertragPage} />

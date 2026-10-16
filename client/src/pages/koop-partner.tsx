@@ -5,10 +5,14 @@
 // übermittelten Kontakt mit Termin, reklamiert binnen der Frist mit einem Klick (Ziffer 7), meldet „kein Kontakt mehr
 // gewünscht“ (Ziffer 5) und findet seine Monatsrechnungen. Der Link kommt automatisch nach der Annahme per Mail.
 // CI Glasblau (#288DFA / #1D4ED8), Navy-Glas an EINER Stelle (der Stand oben), dünne Schrift, am Handy gestapelt.
+// E-388 (16.10.2026): „Ihr Jahr in Zahlen“ (sechs Monate) und der DEMO-ZUGANG /partner/demo?bereich=… — derselbe Bereich
+// mit Beispieldaten aus client/src/lib/koop-partner-demo.ts, ohne Server, ohne Speichern, klar gekennzeichnet.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { KOOP_TERMIN_ARTEN, KOOP_ZEITEN_DAUER, type KoopLieferStand } from "@shared/fiaon-koop-lieferung";
+import { NETZ_BEREICHE, NETZ_BEREICH_NAME, NETZ_PFAD, type NetzBereich } from "@shared/fiaon-partnernetz";
+import { demoSicht } from "@/lib/koop-partner-demo";
 import "@/styles/koop-partner.css";
 
 interface Kontakt {
@@ -21,6 +25,38 @@ interface Sicht {
   ok: boolean; error?: string; ref: string; partner: string; anrede: string; gruss: string; preis: string; reklamationTage: number;
   stand: KoopLieferStand & { zeitenText: string };
   gruende: { key: string; text: string }[]; kontakte: Kontakt[]; rechnungen: Rechnung[];
+  verlauf?: { monat: string; monatText: string; kontakte: number; reklamiert: number; betragCents: number; laufend: boolean }[];
+  demo?: boolean; demoBereich?: NetzBereich; demoWorte?: { kontakteTitel: string; einheit: string; partner: string; gruss: string; modell: string; platz?: boolean; ohneZeiten?: boolean };
+}
+const eurKurz = (c: number) => `${Math.round(c / 100).toLocaleString("de-DE")} €`;
+const MON_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+/** Ihr Jahr in Zahlen: sechs Monate als Balken, dazu Summe, Quote ohne Reklamation und der laufende Monat. */
+function JahrInZahlen({ v, einheit, platz = false }: { v: NonNullable<Sicht["verlauf"]>; einheit: string; platz?: boolean }) {
+  const max = Math.max(1, ...v.map((x) => x.kontakte));
+  const gesamt = v.reduce((s, x) => s + x.kontakte, 0);
+  const rekl = v.reduce((s, x) => s + x.reklamiert, 0);
+  const summe = v.reduce((s, x) => s + x.betragCents, 0);
+  const quote = gesamt ? Math.round(((gesamt - rekl) / gesamt) * 100) : 100;
+  return (
+    <section className="kpb-karte kpb-jahr" aria-label="Ihr Jahr in Zahlen">
+      <h2>Ihr Jahr in Zahlen</h2>
+      <div className="kpb-jahr-kacheln">
+        <div><small>{einheit} · 6 Monate</small><b>{gesamt.toLocaleString("de-DE")}</b></div>
+        {platz ? <div><small>Ø je Monat</small><b>{Math.round(gesamt / Math.max(1, v.length))}</b></div> : <div><small>Ohne Reklamation</small><b>{quote}<i>%</i></b></div>}
+        <div><small>Abgerechnet netto</small><b>{eurKurz(summe)}</b></div>
+      </div>
+      <div className="kpb-balken" role="img" aria-label={v.map((x) => `${x.monatText}: ${x.kontakte}`).join(", ")}>
+        {v.map((x, i) => (
+          <div key={x.monat} className={x.laufend ? "laufend" : ""}>
+            <em>{x.kontakte}</em>
+            <span style={{ height: `${Math.max(4, (x.kontakte / max) * 100)}%`, animationDelay: `${i * 0.09}s` }} />
+            <small>{MON_KURZ[Number(x.monat.slice(5, 7)) - 1]}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 const TAGE = [{ n: 1, t: "Mo" }, { n: 2, t: "Di" }, { n: 3, t: "Mi" }, { n: 4, t: "Do" }, { n: 5, t: "Fr" }, { n: 6, t: "Sa" }, { n: 7, t: "So" }];
 
@@ -34,18 +70,30 @@ export default function KoopPartnerPage() {
   const [zeiten, setZeiten] = useState({ tage: [1, 2, 3, 4, 5], von: "09:00", bis: "18:00", dauerMin: 60, arten: ["telefon"] as string[] });
   const [wunsch, setWunsch] = useState(10);
   const [rekl, setRekl] = useState<{ id: number; grund: string; wahl: string; text: string } | null>(null);
+  const [alle, setAlle] = useState(false);
+  const demo = token === "demo";
+  const demoBereich = ((): NetzBereich => {
+    const b = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("bereich") : null;
+    return (NETZ_BEREICHE as string[]).includes(String(b)) ? (b as NetzBereich) : "vorsorge";
+  })();
 
   const laden = useCallback(async () => {
+    if (demo) {
+      const d = demoSicht(demoBereich);
+      setSicht(d); setZeiten(d.stand.zeiten); setWunsch(d.stand.woche.wunsch);
+      return;
+    }
     const r = await fetch(`/api/fiaon/koop/partner/${encodeURIComponent(token)}`).catch(() => null);
     const j = r ? await r.json().catch(() => null) : null;
     if (!r?.ok || !j?.ok) { setFehler(j?.error ?? "Ihr Partnerbereich ließ sich gerade nicht laden."); return; }
     setSicht(j);
     if (j.stand.zeiten) setZeiten(j.stand.zeiten);
     if (j.stand.woche.wunsch) setWunsch(j.stand.woche.wunsch);
-  }, [token]);
-  useEffect(() => { document.title = "Ihr Partnerbereich · FIAON"; void laden(); }, [laden]);
+  }, [token, demo, demoBereich]);
+  useEffect(() => { document.title = demo ? "Demo-Zugang Partnerbereich · FIAON" : "Ihr Partnerbereich · FIAON"; void laden(); }, [laden, demo]);
 
   async function senden(was: string, pfad: string, body: unknown) {
+    if (demo) { setMeldung("Demo-Zugang: Im echten Partnerbereich wird das jetzt gespeichert — hier bleibt alles, wie es ist."); setRekl(null); return null; }
     setLaeuft(was); setMeldung(null);
     const r = await fetch(`/api/fiaon/koop/partner/${encodeURIComponent(token)}${pfad}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const j = r ? await r.json().catch(() => null) : null;
@@ -58,16 +106,27 @@ export default function KoopPartnerPage() {
   if (fehler) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><h1>Partnerbereich</h1><p className="kpb-fehler">{fehler}</p></div></main>;
   if (!sicht) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><p>Wird geladen …</p></div></main>;
   const s = sicht.stand;
+  const einheit = sicht.demoWorte?.einheit ?? "Kontakte";
+  const zeigen = alle ? sicht.kontakte : sicht.kontakte.slice(0, 12);
   return (
-    <main className="kpb">
+    <main className={`kpb${demo ? " kpb-demo" : ""}`}>
       <div className="kpb-rahmen">
+        {demo && (
+          <div className="kpb-demoband" role="note">
+            <div><b>Demo-Zugang</b><span>So sieht Ihr Partnerbereich aus — mit erfundenen Beispieldaten. Nichts hier wird gespeichert.</span></div>
+            <div className="kpb-reihe">
+              {NETZ_BEREICHE.map((b) => <a key={b} href={`/partner/demo?bereich=${b}`} className={`kpb-chip${b === demoBereich ? " an" : ""}`}>{NETZ_BEREICH_NAME[b].de}</a>)}
+            </div>
+            <a className="kpb-knopf" href={`${NETZ_PFAD.de[demoBereich]}#bewerbung`}>Jetzt bewerben</a>
+          </div>
+        )}
         <p className="kpb-marke">FIAON · Partner-Kooperation</p>
         <h1>Willkommen in Ihrem Partnerbereich, {sicht.gruss}.</h1>
-        <p className="kpb-lead">Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick. Vertrag {sicht.ref} · {sicht.preis} netto je Kontakt.</p>
+        <p className="kpb-lead">Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick. {demo ? `${sicht.partner} · ${sicht.preis}` : `Vertrag ${sicht.ref} · ${sicht.preis} netto je Kontakt`}.</p>
 
         <section className="kpb-stand" aria-label="Ihr Stand">
           <div><small>Diese Woche</small><b>{s.woche.geliefert} <span>von {s.woche.wunsch}</span></b></div>
-          <div><small>Dieser Monat</small><b>{s.monat.geliefert} <span>Kontakte</span></b></div>
+          <div><small>Dieser Monat</small><b>{s.monat.geliefert} <span>{einheit}</span></b></div>
           {s.startRahmen && <div><small>Start-Rahmen</small><b>{s.startRahmen.geliefert} <span>von {s.startRahmen.deckel}</span></b></div>}
           {s.ersatzOffen > 0 && <div><small>Ersatz offen</small><b>{s.ersatzOffen}</b></div>}
           <p className="kpb-stand-zeile">{s.ruht ? `Die Übermittlung ruht, bis Rechnung ${s.ruht.rechnung} bezahlt ist — vereinbarte Termine bleiben.` : !s.zeiten ? "Bitte geben Sie unten Ihre Zeiten frei — dann vereinbaren wir die ersten Termine." : s.sperre ? s.sperre : "Alles bereit — wir vereinbaren Termine in Ihren Zeiten."}</p>
@@ -75,7 +134,9 @@ export default function KoopPartnerPage() {
 
         {meldung && <p className="kpb-meldung" role="status">{meldung}</p>}
 
-        <section className="kpb-karte">
+        {sicht.verlauf && sicht.verlauf.length > 0 && <JahrInZahlen v={sicht.verlauf} einheit={einheit} platz={!!sicht.demoWorte?.platz} />}
+
+        {!sicht.demoWorte?.ohneZeiten && <section className="kpb-karte">
           <h2>Ihre Zeiten für Termine</h2>
           <p className="kpb-fein">Wir vereinbaren Termine nur in diesen Zeiten und übermitteln jeden Kontakt spätestens am Werktag vorher. Gilt ab sofort für neue Termine.</p>
           <div className="kpb-reihe">{TAGE.map((t) => (
@@ -95,24 +156,24 @@ export default function KoopPartnerPage() {
             <button type="button" className="kpb-knopf" disabled={laeuft === "zeiten"} onClick={() => void senden("zeiten", "/zeiten", zeiten).then((j) => j && setMeldung(`Gespeichert: ${j.zeitenText}`))}>{laeuft === "zeiten" ? "Speichert …" : "Zeiten speichern"}</button>
             <span className="kpb-fein">Aktuell: {s.zeitenText}</span>
           </div>
-        </section>
+        </section>}
 
         <section className="kpb-karte">
           <h2>Ihre Menge je Woche</h2>
           <div className="kpb-tun">
             <input className="kpb-zahl" type="number" min={1} max={500} value={wunsch} onChange={(e) => setWunsch(Number(e.target.value))} aria-label="Kontakte je Woche" />
-            <span>Kontakte je Woche</span>
+            <span>{einheit} je Woche</span>
             <button type="button" className="kpb-knopf still" disabled={laeuft === "wunsch"} onClick={() => void senden("wunsch", "/wunsch", { wunschWoche: wunsch }).then((j) => j && setMeldung(`Gespeichert: ${j.wunschWoche} Kontakte je Woche.`))}>Menge speichern</button>
           </div>
         </section>
 
         <section className="kpb-karte">
-          <h2>Ihre Termine</h2>
+          <h2>{sicht.demoWorte?.kontakteTitel ?? "Ihre Termine"}{sicht.kontakte.length > 0 && <span className="kpb-zahl-marke">{sicht.kontakte.length}</span>}</h2>
           {sicht.kontakte.length === 0 ? <p className="kpb-fein">Noch keine übermittelten Kontakte.</p> : (
             <ul className="kpb-kontakte">
-              {sicht.kontakte.map((k) => (
+              {zeigen.map((k) => (
                 <li key={k.id} className={k.status === "reklamiert" ? "still" : ""}>
-                  <div className="kpb-kontakt-kopf"><b>{k.name}</b><span>{k.terminText} · {k.art} · {k.dauerMin} Min.</span></div>
+                  <div className="kpb-kontakt-kopf"><b>{k.name}</b><span>{k.terminText} · {k.art}{k.dauerMin ? ` · ${k.dauerMin} Min.` : ""}</span></div>
                   <p>{k.thema}{k.ersatz ? " · Ersatzkontakt" : ""}</p>
                   <p className="kpb-fein"><a href={`tel:${k.telefon}`}>{k.telefon}</a> · <a href={`mailto:${k.email}`}>{k.email}</a></p>
                   {k.notiz && <p className="kpb-notiz">„{k.notiz}“</p>}
@@ -142,6 +203,7 @@ export default function KoopPartnerPage() {
               ))}
             </ul>
           )}
+          {sicht.kontakte.length > 12 && <button type="button" className="kpb-knopf still" onClick={() => setAlle((a) => !a)}>{alle ? "Weniger zeigen" : `Alle ${sicht.kontakte.length} anzeigen`}</button>}
         </section>
 
         <section className="kpb-karte">
@@ -150,7 +212,7 @@ export default function KoopPartnerPage() {
             <ul className="kpb-rechnungen">
               {sicht.rechnungen.map((r) => (
                 <li key={r.monat}>
-                  <span><b>{r.monatText}</b> · {r.anzahl} Kontakte{r.gutschrift ? ` · Gutschrift ${r.gutschrift}` : ""}</span>
+                  <span><b>{r.monatText}</b> · {r.anzahl} {einheit}{r.gutschrift ? ` · Gutschrift ${r.gutschrift}` : ""}</span>
                   <span>{r.nummer ? `${r.nummer} · ` : ""}{r.betrag} · <em className={r.status === "bezahlt" ? "gut" : r.status === "offen" ? "offen" : ""}>{r.status}{r.faellig && r.status === "offen" ? ` bis ${r.faellig}` : ""}</em></span>
                   <span className="kpb-reihe">{r.pdf && <a href={r.pdf} target="_blank" rel="noreferrer">PDF</a>}{r.zahlung && <a href={r.zahlung}>Bezahlen</a>}</span>
                 </li>

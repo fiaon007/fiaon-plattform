@@ -60,6 +60,7 @@ const UNTERNEHMEN: [string, string][] = [
   ["/team", "Team"],
   ["/karriere", "Karriere"],
   ["/partner", "Partner"],
+  ["/partnernetzwerk", "Partner-Netzwerk"],
   ["/presse", "Presse"],
   ["/investoren", "Investoren"],
   ["/datenraum", "Datenraum (Due Diligence)"],

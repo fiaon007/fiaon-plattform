@@ -89,6 +89,7 @@ export const EN_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/team", "Team"],
     ["/karriere", "Careers"],
     ["/partner", "Partners"],
+    ["/partnernetzwerk", "Partner network"],
     ["/presse", "Press"],
     ["/investoren", "Investors"],
     ["/kontakt", "Contact & support"],

@@ -269,7 +269,7 @@ export function Abschluss({ titel, text, knoepfe }: { titel: ReactNode; text: Re
 export function Anfrage({ art, felder, knopf, hinweis, vorbelegt, en }: {
   // E-188 (17.09.2026): „global" — ein Unternehmen bittet um ein Erstgespräch zu FIAON Global.
   // Der Server (fiaon-anfragen.ts) verlangt dafür zusätzlich firma und telefon.
-  art: "investor" | "presse" | "datenraum" | "partner" | "karriere" | "termin" | "global";
+  art: "investor" | "presse" | "datenraum" | "partner" | "karriere" | "termin" | "global" | "netzwerk";
   felder: { name: string; label: string; typ?: string; pflicht?: boolean; optionen?: string[]; breit?: boolean }[];
   knopf: string; hinweis?: string; vorbelegt?: Record<string, string>;
   /** Englische Oberflächentexte (02.09.2026 — die Investoren-Seite ist zweisprachig). */

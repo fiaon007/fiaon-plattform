@@ -57,3 +57,28 @@
 .kpb-fuss{margin:8px 0 0;text-align:center;font:300 12px/1.5 'Inter',sans-serif;color:#64748b}
 @media (max-width:480px){.kpb{padding:28px 16px 48px}.kpb-karte,.kpb-stand{padding:18px}.kpb-stand b{font-size:26px}}
 @media (prefers-reduced-motion:reduce){.kpb-knopf,.kpb-chip{transition:none}.kpb-knopf:hover:not(:disabled){transform:none}}
+
+/* ── E-388: Ihr Jahr in Zahlen + Demo-Zugang ─────────────────────────────── */
+.kpb-zahl-marke{display:inline-grid;place-items:center;min-width:28px;height:24px;margin-left:10px;padding:0 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font:500 12.5px/1 'Inter',sans-serif;vertical-align:middle}
+.kpb-jahr-kacheln{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kpb-jahr-kacheln>div{padding:16px 18px;border-radius:16px;background:linear-gradient(180deg,#f8fbff,#eef5ff);border:1px solid rgba(40,141,250,.18)}
+.kpb-jahr-kacheln small{display:block;font:400 11px/1.3 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
+.kpb-jahr-kacheln b{display:block;margin-top:8px;font:300 30px/1 'Inter',sans-serif;color:#0f2044}
+.kpb-jahr-kacheln i{font-style:normal;font-size:16px;color:#64748b}
+.kpb-balken{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;align-items:end;height:200px;padding:8px 4px 0;border-bottom:1px solid #e2e8f0}
+.kpb-balken>div{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.kpb-balken span{width:100%;max-width:64px;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,#93c5fd,#288dfa 55%,#1d4ed8);box-shadow:0 12px 24px -14px rgba(29,78,216,.8);transform-origin:bottom;animation:kpbBalken 1.2s cubic-bezier(.22,1,.36,1) both}
+.kpb-balken .laufend span{background:repeating-linear-gradient(135deg,#bfdbfe 0 8px,#93c5fd 8px 16px);box-shadow:none}
+.kpb-balken em{font:500 12.5px/1 'Inter',sans-serif;font-style:normal;color:#1d4ed8}
+.kpb-balken small{font:400 12px/1 'Inter',sans-serif;color:#64748b;margin-bottom:-22px;padding-bottom:6px}
+.kpb-jahr{padding-bottom:40px}
+@keyframes kpbBalken{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.kpb-demoband{display:grid;gap:14px;padding:18px 20px;border-radius:20px;background:linear-gradient(135deg,#0b1220,#1a2744);color:#e2e8f0;border:1px solid rgba(147,197,253,.3);box-shadow:0 20px 50px -30px rgba(29,78,216,.7)}
+.kpb-demoband b{display:block;font:500 12px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#93c5fd}
+.kpb-demoband span{display:block;margin-top:6px;font:300 14px/1.5 'Inter',sans-serif;color:#cbd5e1}
+.kpb-demoband .kpb-chip{background:rgba(255,255,255,.06);color:#e2e8f0;border-color:rgba(147,197,253,.3);text-decoration:none;display:inline-flex;align-items:center;font-size:13px;min-height:36px}
+.kpb-demoband .kpb-chip.an{background:linear-gradient(135deg,#288dfa,#1d4ed8);color:#fff}
+.kpb-demoband .kpb-knopf{justify-self:start;display:inline-flex;align-items:center;text-decoration:none;color:#fff}
+.kpb-demo .kpb-stand{position:relative}
+@media (max-width:640px){.kpb-jahr-kacheln{grid-template-columns:1fr}.kpb-balken{gap:8px;height:160px}}
+@media (prefers-reduced-motion:reduce){.kpb-balken span{animation:none}}

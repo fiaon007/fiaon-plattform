@@ -23,7 +23,7 @@ const GRUPPEN: Gruppe[] = [
     eintraege: [
       ["/", "Startseite"], ["/was-ist-fiaon", "Was ist FIAON"], ["/privatkunden", "Privatkunden"],
       ["/business", "Business"], ["/preise", "Preise & Pakete"], ["/team", "Team"],
-      ["/karriere", "Karriere"], ["/partner", "Partner"], ["/presse", "Presse"],
+      ["/karriere", "Karriere"], ["/partner", "Partner"], ["/partnernetzwerk", "Partner-Netzwerk (5 Bereiche + Demo)"], ["/presse", "Presse"],
       ["/investoren", "Investoren (zweisprachig)"], ["/datenraum", "Datenraum"],
       ["/kontakt", "Kontakt & KI-Assistent"], ["/sicherheit", "Datenschutz & Sicherheit"],
       ["/fiaon-erfahrungen", "So arbeitet FIAON"], ["/plattform-konzept", "Plattform-Konzept"],

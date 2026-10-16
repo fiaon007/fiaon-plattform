@@ -58,6 +58,7 @@ export default function SocialAutomatik({ onOeffnen }: { onOeffnen: (id: number)
               {" "}<span className="so-auto-zeit">{zeit(s.naechster.plan_zeitpunkt)}</span>
               {" "}{s.naechster.kanaele.map((k) => <span key={k} className="so-kanal" data-k={k}>{KURZ[k] ?? k}</span>)}</>
           : <> · nichts Freigegebenes eingeplant</>)}
+        {s.postenAn && s.naechsterTon ? <> · <span className="so-auto-ton" data-ton={s.naechsterTon}>{s.naechsterTon}</span>{s.letzterTon ? <> nach {s.letzterTon}</> : null}</> : null}
         {s.heuteGepostet > 0 && <> · heute {s.heuteGepostet} online</>}
       </span>
       {fehlerZeile && (

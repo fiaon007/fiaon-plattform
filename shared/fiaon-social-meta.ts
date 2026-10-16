@@ -195,6 +195,96 @@ export function fassungMitTags(c: NonNullable<AnzeigeSicht["creative"]>, name: s
   return p;
 }
 
+// ── E-383: ABGLEICH, FREIGABE UND DER HELL/DUNKEL-WECHSEL (16.10.2026) ──────
+// Justin (16.10.2026): „Ja gebe alle Posts frei bitte und schau dir an was der letzte war, damit wir immer
+// perfekt posten … unser Muster ist immer einmal hell, einmal dunkel, hell, dunkel usw."
+//   · Abgleich: Was schon im Profil steht (von Hand gepostet), erkennt die Automatik am Text und trägt es im
+//     Studio ein — sonst hielte sie es für liegen geblieben und postete es doppelt.
+//   · Freigabe: Posts „zur Freigabe" mit nicht-rotem Wort-Check gibt die Automatik frei (Schalter
+//     social_auto_freigabe, Vorgabe an).
+//   · Wechsel: Die Welt eines Posts bestimmt hell oder dunkel (glas/kanzlei hell, kino/buehne dunkel). Auf
+//     den letzten Post im Profil folgt immer die andere Seite. Feste Termine bleiben; liegen gebliebene Posts
+//     (geplant nach dem letzten geposteten) werden dort eingeschoben, wo sonst zweimal dieselbe Seite käme,
+//     der Rest danach auf freie Plätze (07:30, 12:30, 18:30). Geht es nicht auf, wartet ein Post ohne Uhrzeit.
+
+export type Ton = "hell" | "dunkel";
+export function weltTon(welt: string | null | undefined): Ton | null {
+  const w = String(welt ?? "").trim().toLowerCase();
+  if (w === "glas" || w === "kanzlei") return "hell";
+  if (w === "kino" || w === "buehne") return "dunkel";
+  return null;
+}
+
+/** Text für den Vergleich: nur Buchstaben und Ziffern, klein. */
+export function textKern(t: string | null | undefined): string {
+  return String(t ?? "").toLowerCase().normalize("NFC").replace(/[^a-z0-9äöüß]+/g, "");
+}
+/**
+ * Ist dieser Profil-Beitrag dieser Studio-Post? Gleich, wenn der Beitrag mit den ersten 30 Zeichen der
+ * Studio-Bildunterschrift beginnt — oder mit dem Titel (mindestens 14 Zeichen), falls die Bildunterschrift
+ * vor dem Posten noch angepasst wurde („Über rund 69 Millionen" → „Rund 68 Millionen").
+ */
+export function istDerselbe(profilText: string | null | undefined, studio: { caption?: string | null; titel?: string | null }): boolean {
+  const p = textKern(profilText);
+  if (p.length < 14) return false;
+  const c = textKern(studio.caption).slice(0, 30);
+  if (c.length >= 20 && p.startsWith(c)) return true;
+  const t = textKern(studio.titel);
+  return t.length >= 14 && p.startsWith(t);
+}
+
+export interface PlanPost { id: number; ton: Ton | null; planMs: number | null }
+export interface PlanZug { id: number; nachMs: number | null }
+export const PLAN_PUFFER_MS = 15 * 60_000;
+export const PLAN_ABSTAND_MS = 90 * 60_000;
+
+/**
+ * Der Wechsel-Plan (rein). `kuenftig` = freigegebene, noch nicht gepostete Posts mit Termin in der Zukunft
+ * (nach Termin sortiert, sie behalten ihren Termin), `rueckstand` = liegen gebliebene (Termin vorbei, nach
+ * altem Termin sortiert). `slotNach(ms)` liefert den nächsten freien Platz nach ms. Ergebnis: nur die Züge.
+ */
+export function wechselPlanen(o: {
+  letzterTon: Ton | null; jetztMs: number; kuenftig: readonly PlanPost[]; rueckstand: readonly PlanPost[];
+  slotNach: (ms: number) => number;
+}): PlanZug[] {
+  const zuege: PlanZug[] = [];
+  const rest = [...o.rueckstand];
+  const nimm = (ton: Ton | null) => {
+    const i = rest.findIndex((b) => b.ton !== null && (ton === null || b.ton !== ton));
+    return i < 0 ? null : rest.splice(i, 1)[0];
+  };
+  let w: Ton | null = o.letzterTon;
+  let vorher = o.jetztMs;
+  for (const p of o.kuenftig) {
+    const plan = p.planMs ?? 0;
+    if (p.ton && w && p.ton === w) {
+      const b = nimm(w);
+      const einschub = Math.ceil(Math.max(o.jetztMs + PLAN_PUFFER_MS, vorher + PLAN_ABSTAND_MS) / 300_000) * 300_000;
+      if (b && einschub <= plan - 60 * 60_000) {
+        zuege.push({ id: b.id, nachMs: einschub });
+        w = b.ton;
+      } else {
+        if (b) rest.unshift(b);
+        // Kein Platz und keine andere Seite: dieser Post wartet ohne Uhrzeit, bis ein passender kommt.
+        zuege.push({ id: p.id, nachMs: null });
+        continue;
+      }
+    }
+    if (p.ton) w = p.ton;
+    vorher = Math.max(vorher, plan);
+  }
+  // Der Rest des Rückstands hinter den letzten Termin, abwechselnd.
+  let t = vorher;
+  for (;;) {
+    const b = nimm(w);
+    if (!b) break;
+    t = o.slotNach(Math.max(t, o.jetztMs + PLAN_PUFFER_MS));
+    zuege.push({ id: b.id, nachMs: t });
+    w = b.ton;
+  }
+  return zuege;
+}
+
 // ── DIE ANZEIGE IM STUDIO ──────────────────────────────────────────────────
 export interface MetaAutomatikStand {
   ok: true;
@@ -207,4 +297,8 @@ export interface MetaAutomatikStand {
   heuteGepostet: number;
   letzteFehler: { post_id: number; kanal: string; fehler: string; am: string }[];
   anzeigen: { geaendert: number; zuletzt: string | null; fehler: number };
+  /** E-383: hell/dunkel des letzten Posts im Profil und des nächsten geplanten. */
+  letzterTon?: Ton | null;
+  naechsterTon?: Ton | null;
+  freigabeAuto?: boolean;
 }

@@ -38,10 +38,11 @@ import { socialAktion, ensureSocialTabellen } from "./fiaon-social";
 import { sozialFeedLeeren } from "./fiaon-sozial-feed";
 import { KI_PUNKT, type SocialIch } from "@shared/fiaon-social";
 import {
-  AUFTRAG_HAENGT_MS, AUTO_FENSTER_MS, AUTO_HOECHSTVERSUCHE, CONTAINER_VERFALL_MS, IG_TAGESGRENZE,
-  autoKanaele, captionFuerMeta, istFaellig, medienPlan, rechteAusScopes,
-  type AutoDatei, type AutoKanal, type MedienPlan, type MetaAutomatikStand, type PostingRechte,
+  AUFTRAG_HAENGT_MS, AUTO_FENSTER_MS, AUTO_FORMATE, AUTO_HOECHSTVERSUCHE, CONTAINER_VERFALL_MS, IG_TAGESGRENZE,
+  autoKanaele, captionFuerMeta, istDerselbe, istFaellig, medienPlan, rechteAusScopes, wechselPlanen, weltTon,
+  type AutoDatei, type AutoKanal, type MedienPlan, type MetaAutomatikStand, type PlanPost, type PostingRechte, type Ton,
 } from "@shared/fiaon-social-meta";
+import { berlinDatum, berlinZeitpunkt } from "./fiaon-time";
 
 export type GraphFn = typeof graph;
 
@@ -389,6 +390,155 @@ async function auftragBearbeiten(g: GraphFn, a: Auftrag, rechte: PostingRechte, 
   return "ok";
 }
 
+// ── E-383: ABGLEICH, FREIGABE, HELL/DUNKEL (16.10.2026) ────────────────────
+const FREIGABE = "social_auto_freigabe";
+const WARTEND = "social_wechsel_wartend";
+const LETZTER_TON = "social_letzter_ton";
+/** Steht in der Bildunterschrift schon ein KI-Hinweis („Szene mit KI erstellt", „KI-Figur")? */
+const KI_HINWEIS_IM_TEXT = /mit KI erstellt|KI-Figur|KI-generiert|teilweise mit KI/i;
+
+interface ProfilBeitrag { id: string; text: string; zeitMs: number; permalink: string | null; ki: boolean | null }
+
+/** Das Profil lesen: die letzten 50 Beiträge auf Instagram und auf der Facebook-Seite (nur lesen). */
+async function profilLesen(g: GraphFn, seite: Seite, rechte: PostingRechte): Promise<{ instagram: ProfilBeitrag[]; facebook: ProfilBeitrag[] }> {
+  const instagram: ProfilBeitrag[] = [];
+  const facebook: ProfilBeitrag[] = [];
+  if (rechte.instagram && seite.igId) {
+    const j = await g(`${seite.igId}/media`, { params: { fields: "id,caption,timestamp,permalink,is_ai_generated", limit: 50 } });
+    for (const m of (j?.data ?? []) as any[]) {
+      instagram.push({ id: String(m.id), text: String(m.caption ?? ""), zeitMs: Date.parse(String(m.timestamp)), permalink: m.permalink ? String(m.permalink) : null, ki: typeof m.is_ai_generated === "boolean" ? m.is_ai_generated : null });
+    }
+  }
+  if (rechte.facebook) {
+    const j = await g(`${seite.pageId}/feed`, { token: seite.pageToken, params: { fields: "id,message,created_time,permalink_url", limit: 50 } });
+    for (const m of (j?.data ?? []) as any[]) {
+      facebook.push({ id: String(m.id), text: String(m.message ?? ""), zeitMs: Date.parse(String(m.created_time)), permalink: fbLink(m.permalink_url), ki: null });
+    }
+  }
+  instagram.sort((a, b) => b.zeitMs - a.zeitMs);
+  facebook.sort((a, b) => b.zeitMs - a.zeitMs);
+  return { instagram, facebook };
+}
+
+/**
+ * Abgleich: Was schon im Profil steht, wird im Studio eingetragen (auch von Hand Gepostetes). Zuerst die
+ * Plattform-Kennung (der Schutz gegen doppeltes Posten — autoKanaele lässt den Kanal dann aus), dann die
+ * Meldung über denselben Weg wie ein Mensch (Freigabe nachholen, KI-Haken nur, wenn belegt).
+ * Liefert hell/dunkel und Termin des neuesten Instagram-Beitrags, der ein Studio-Post ist.
+ */
+export async function profilAbgleich(g: GraphFn, seite: Seite, rechte: PostingRechte): Promise<{ eingetragen: number; letzter: { ton: Ton | null; planMs: number | null } | null }> {
+  const profil = await profilLesen(g, seite, rechte);
+  const posts = (await sqlPool`
+    SELECT id, status, titel, caption, welt, ki_noetig, kanaele, veroeffentlicht, plattform_ids, plan_zeitpunkt
+      FROM fiaon_social_posts WHERE status IN ('zur_freigabe', 'freigegeben', 'eingeplant', 'veroeffentlicht')`) as any[];
+  let eingetragen = 0;
+  let letzter: { ton: Ton | null; planMs: number | null } | null = null;
+  for (const kanal of ["instagram", "facebook"] as const) {
+    for (const m of profil[kanal]) {
+      const p = posts.find((x) => (Array.isArray(x.kanaele) ? x.kanaele : []).includes(kanal) && istDerselbe(m.text, x));
+      if (!p) continue;
+      if (kanal === "instagram" && !letzter) letzter = { ton: weltTon(p.welt), planMs: p.plan_zeitpunkt ? Date.parse(p.plan_zeitpunkt) : null };
+      const ids = json(p.plattform_ids) ?? {};
+      const veroeff = json(p.veroeffentlicht) ?? {};
+      if (ids[kanal] || veroeff[kanal]) continue;
+      await sqlPool`
+        UPDATE fiaon_social_posts SET plattform_ids = COALESCE(plattform_ids, '{}'::jsonb) || jsonb_build_object(${kanal}::text, ${m.id}::text)
+         WHERE id = ${Number(p.id)}`;
+      ids[kanal] = m.id; p.plattform_ids = ids;
+      eingetragen++;
+      if (!m.permalink) continue;
+      if (p.status === "zur_freigabe") {
+        const frisch = await postLesen(Number(p.id));
+        try { await socialAktion(Number(p.id), "freigeben", { version: Number(frisch?.version) }, AUTOMATIK); p.status = "freigegeben"; } catch { continue; }
+      }
+      const kiBelegt = kanal === "instagram" ? m.ki === true : KI_HINWEIS_IM_TEXT.test(m.text);
+      await imStudioMelden(Number(p.id), kanal, m.permalink, m.id, kiBelegt);
+    }
+  }
+  return { eingetragen, letzter };
+}
+
+/** Freigabe nach Justins Auftrag (16.10.2026): „zur Freigabe" mit nicht-rotem Wort-Check → freigegeben. Schalter social_auto_freigabe. */
+export async function autoFreigabe(): Promise<number> {
+  if ((await einstellung(FREIGABE)) === "aus") return 0;
+  const offen = (await sqlPool`
+    SELECT id, version FROM fiaon_social_posts WHERE status = 'zur_freigabe' ORDER BY plan_zeitpunkt NULLS LAST, id LIMIT 60`) as any[];
+  let n = 0;
+  for (const r of offen) {
+    try { await socialAktion(Number(r.id), "freigeben", { version: Number(r.version) }, AUTOMATIK); n++; }
+    catch { /* Wort-Check rot oder inzwischen geändert — bleibt beim Menschen */ }
+  }
+  return n;
+}
+
+const PLAN_PLAETZE = [7 * 60 + 30, 12 * 60 + 30, 18 * 60 + 30];
+/** Der nächste feste Platz (07:30, 12:30, 18:30 Berlin), mindestens eine Stunde nach ms. */
+export function naechsterPlatz(ms: number): number {
+  const ab = ms + 60 * 60_000;
+  let tag = berlinDatum(new Date(ab));
+  for (let i = 0; i < 14; i++) {
+    for (const min of PLAN_PLAETZE) {
+      const t = berlinZeitpunkt(tag, min).getTime();
+      if (t >= ab) return t;
+    }
+    tag = berlinDatum(new Date(berlinZeitpunkt(tag, 12 * 60).getTime() + 86_400_000));
+  }
+  return ab;
+}
+const berlinUhr = (ms: number): string => {
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(ms));
+  const h = teile.find((x) => x.type === "hour")?.value ?? "00";
+  const m = teile.find((x) => x.type === "minute")?.value ?? "00";
+  return `${h === "24" ? "00" : h}:${m}`;
+};
+
+/**
+ * Der Hell/Dunkel-Wechsel: plant liegen gebliebene Posts so ein, dass auf jeden Post die andere Seite folgt.
+ * Feste Termine bleiben (Tag 107, Wochenrückblick). Was nicht aufgeht, wartet ohne Uhrzeit (Einstellung
+ * social_wechsel_wartend) und wird eingeplant, sobald ein Post der anderen Seite kommt.
+ */
+export async function wechselAbgleichen(letzter: { ton: Ton | null; planMs: number | null } | null, rechte: PostingRechte, aktivMs: number, jetzt: Date): Promise<number> {
+  if (!rechte.instagram || !letzter?.ton || letzter.planMs == null) return 0;
+  const jetztMs = jetzt.getTime();
+  const wartend = new Set<number>();
+  try { for (const x of JSON.parse((await einstellung(WARTEND)) ?? "[]")) wartend.add(Number(x)); } catch { /* leer */ }
+  const zeilen = (await sqlPool`
+    SELECT p.id, p.version, p.status, p.format, p.kanaele, p.ki_noetig, p.welt, p.veroeffentlicht, p.plattform_ids,
+           p.plan_zeitpunkt, p.plan_datum::text AS pd
+      FROM fiaon_social_posts p
+     WHERE p.status IN ('freigegeben', 'eingeplant') AND 'instagram' = ANY(p.kanaele) AND p.format = ANY(${[...AUTO_FORMATE]}::text[])
+       AND NOT EXISTS (SELECT 1 FROM fiaon_social_meta_auftraege a WHERE a.post_id = p.id AND a.kanal = 'instagram')`) as any[];
+  const offen = zeilen.filter((r) => autoKanaele({
+    status: r.status, format: r.format, kanaele: r.kanaele ?? [], ki_noetig: !!r.ki_noetig, veroeffentlicht: json(r.veroeffentlicht), plattform_ids: json(r.plattform_ids),
+  }, rechte).includes("instagram"));
+  const grenze = Math.max(jetztMs - AUTO_FENSTER_MS, aktivMs);
+  const alsPlan = (r: any): PlanPost => ({ id: Number(r.id), ton: weltTon(r.welt), planMs: r.plan_zeitpunkt ? Date.parse(r.plan_zeitpunkt) : null });
+  const kuenftig = offen.filter((r) => r.plan_zeitpunkt && Date.parse(r.plan_zeitpunkt) >= grenze).map(alsPlan).sort((a, b) => (a.planMs! - b.planMs!) || (a.id - b.id));
+  const rueckstand = offen.filter((r) => (r.plan_zeitpunkt && Date.parse(r.plan_zeitpunkt) < grenze && Date.parse(r.plan_zeitpunkt) > letzter.planMs!) || (!r.plan_zeitpunkt && wartend.has(Number(r.id))))
+    .map(alsPlan).sort((a, b) => ((a.planMs ?? Infinity) - (b.planMs ?? Infinity)) || (a.id - b.id));
+  const zuege = wechselPlanen({ letzterTon: letzter.ton, jetztMs, kuenftig, rueckstand, slotNach: naechsterPlatz });
+  let n = 0;
+  const neuWartend = new Set<number>(Array.from(wartend).filter((id) => offen.some((r) => Number(r.id) === id && !r.plan_zeitpunkt)));
+  for (const z of zuege) {
+    const r = offen.find((x) => Number(x.id) === z.id);
+    if (!r) continue;
+    const datum = z.nachMs == null ? String(r.pd) : berlinDatum(new Date(z.nachMs));
+    const zeit = z.nachMs == null ? null : berlinUhr(z.nachMs);
+    if (z.nachMs == null && !r.plan_zeitpunkt) continue; // wartet schon
+    try {
+      const frisch = await postLesen(z.id);
+      await socialAktion(z.id, "verschieben", { version: Number(frisch?.version), datum, zeit }, AUTOMATIK);
+      if (z.nachMs == null) neuWartend.add(z.id); else neuWartend.delete(z.id);
+      n++;
+    } catch (e: any) {
+      console.warn(`[SOCIAL-META] Wechsel: Post ${z.id} nicht verschoben: ${String(e?.message ?? e).slice(0, 160)}`);
+    }
+  }
+  await einstellungSetzen(WARTEND, neuWartend.size ? JSON.stringify(Array.from(neuWartend)) : null);
+  if (n) console.log(`[SOCIAL-META] Hell/Dunkel: ${n} Posts neu eingeplant (letzter Post ${letzter.ton}).`);
+  return n;
+}
+
 // ── DER LAUF (alle 5 Minuten) ──────────────────────────────────────────────
 export interface PostenErgebnis { zustand: "aus" | "keine_rechte" | "gelaufen"; gepostet: number; wartend: number; fehler: number; unklar: number }
 
@@ -409,6 +559,19 @@ export async function metaPostenLauf(jetzt: Date = new Date(), g: GraphFn = grap
   const kiStopp = !!(await einstellung(KI_STOPP));
   const erg = leer("gelaufen");
   const laufKennung = randomBytes(12).toString("hex");
+
+  // E-383: erst abgleichen (was steht schon im Profil?), dann freigeben, dann den Hell/Dunkel-Wechsel planen.
+  // Scheitert der Abgleich, postet dieser Lauf NICHTS — ohne Abgleich wüsste er nicht, was schon online ist.
+  try {
+    const seite = await seiteLesen(g);
+    const ab = await profilAbgleich(g, seite, rechte);
+    if (ab.letzter?.ton) await einstellungSetzen(LETZTER_TON, ab.letzter.ton);
+    await autoFreigabe();
+    await wechselAbgleichen(ab.letzter, rechte, aktivMs, jetzt);
+  } catch (e: any) {
+    console.warn(`[SOCIAL-META] Abgleich gescheitert — dieser Lauf postet nicht: ${e instanceof MetaFehler ? e.klartext : String(e?.message ?? e).slice(0, 200)}`);
+    return { ...erg, fehler: 1 };
+  }
 
   // 1. Hängengebliebene Aufträge (Absturz vor dem Veröffentlichen) zurück auf „fehler" — „unklar" bleibt unklar.
   await sqlPool`
@@ -482,12 +645,13 @@ export async function metaAutomatikStand(g: GraphFn = graph): Promise<MetaAutoma
   await ensureMetaAutomatikTabellen();
   const [schalter, aktivSeit, rechte] = await Promise.all([einstellung(SCHALTER), einstellung(AKTIV_SEIT), postingRechte(g)]);
   const naechsteRoh = (await sqlPool`
-    SELECT id, titel, plan_zeitpunkt, status, format, kanaele, ki_noetig, veroeffentlicht, plattform_ids FROM fiaon_social_posts
+    SELECT id, titel, plan_zeitpunkt, status, format, kanaele, ki_noetig, veroeffentlicht, plattform_ids, welt FROM fiaon_social_posts
      WHERE status IN ('freigegeben', 'eingeplant') AND plan_zeitpunkt > NOW() ORDER BY plan_zeitpunkt, id LIMIT 10`) as any[];
   let naechster: MetaAutomatikStand["naechster"] = null;
+  let naechsterTon: Ton | null = null;
   for (const r of naechsteRoh) {
     const k = autoKanaele({ status: r.status, format: r.format, kanaele: Array.isArray(r.kanaele) ? r.kanaele.map(String) : [], ki_noetig: !!r.ki_noetig, veroeffentlicht: json(r.veroeffentlicht), plattform_ids: json(r.plattform_ids) }, rechte);
-    if (k.length) { naechster = { id: Number(r.id), titel: String(r.titel ?? ""), plan_zeitpunkt: new Date(r.plan_zeitpunkt).toISOString(), kanaele: k }; break; }
+    if (k.length) { naechster = { id: Number(r.id), titel: String(r.titel ?? ""), plan_zeitpunkt: new Date(r.plan_zeitpunkt).toISOString(), kanaele: k }; naechsterTon = weltTon(r.welt); break; }
   }
   const [heute] = (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_social_meta_auftraege
@@ -508,8 +672,13 @@ export async function metaAutomatikStand(g: GraphFn = graph): Promise<MetaAutoma
     heuteGepostet: Number(heute?.n ?? 0),
     letzteFehler: fehler.map((f) => ({ post_id: Number(f.post_id), kanal: String(f.kanal), fehler: String(f.fehler ?? ""), am: new Date(f.aktualisiert_am).toISOString() })),
     anzeigen: { geaendert: Number(utm?.ok ?? 0), zuletzt: utm?.zuletzt ? new Date(utm.zuletzt).toISOString() : null, fehler: Number(utm?.fehler ?? 0) },
+    letzterTon: weltTonSicher(await einstellung(LETZTER_TON)),
+    naechsterTon,
+    freigabeAuto: (await einstellung(FREIGABE)) !== "aus",
   };
 }
+
+const weltTonSicher = (v: string | null): Ton | null => (v === "hell" || v === "dunkel" ? v : null);
 
 /** Not-Aus im Studio. Wieder an = ab jetzt (nichts aus der Aus-Zeit nachholen); setzt auch den KI-Stopp zurück. */
 export async function postenSchalten(an: boolean): Promise<void> {

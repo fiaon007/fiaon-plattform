@@ -42,6 +42,10 @@
 .so-auto .so-kanal { margin-left: 2px; }
 .so-auto-fehler { cursor: pointer; max-width: 100%; white-space: normal; text-align: left; }
 .so-auto-meldung { color: var(--m-krit, #F07178); font-size: 12.5px; }
+/* E-383: hell/dunkel des nächsten Posts — ein kleines Feld wie im Profilraster */
+.so-auto-ton { display: inline-block; padding: 0 7px; border-radius: 6px; font-size: 12px; border: 1px solid var(--m-linie, rgba(148,170,210,.2)); }
+.so-auto-ton[data-ton="hell"] { background: rgba(230, 237, 247, .9); color: #0B1220; }
+.so-auto-ton[data-ton="dunkel"] { background: #0F1F3D; color: #E6EDF7; }
 @media (max-width: 600px) { .so-auto { width: 100%; } }
 
 /* ── Kanal-Kürzel und Format-Zeichen ─────────────────────────────────── */

@@ -115,6 +115,7 @@ async function main() {
       if (/^m\d+$/.test(pfad)) return { permalink: `https://www.instagram.com/p/${pfad}/`, is_ai_generated: opt.params?.fields?.includes("is_ai_generated") ? true : undefined };
       if (pfad === "seite1/photos") return { id: `f${n++}`, post_id: `seite1_${n++}` };
       if (pfad === "seite1/feed" && methode === "POST") return { id: `seite1_${n++}` };
+      if (pfad === "seite1/feed" && methode === "GET") return { data: [] }; // E-383: Abgleich liest das Profil
       if (pfad === "seite1/videos") return { id: `v${n++}` };
       if (/^seite1_\d+$|^v\d+$/.test(pfad)) return { permalink_url: `https://www.facebook.com/FIAON/posts/${pfad}` };
       throw new Error(`Attrappe kennt ${methode} ${pfad} nicht`);
@@ -216,9 +217,18 @@ async function main() {
     await SM.metaPostenLauf(new Date(), g);
     await sqlPool`UPDATE fiaon_social_posts SET status = 'zur_freigabe', fassung = fassung + 1 WHERE id = ${geaendert}`;
     containerStatus = "FINISHED";
+    // E-383: Mit Auto-Freigabe AUS bleibt die geänderte Fassung beim Menschen — der alte Container geht nie raus.
+    await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES ('social_auto_freigabe', 'aus', NOW()) ON CONFLICT (key) DO UPDATE SET value = 'aus'`;
     log.length = 0;
     await SM.metaPostenLauf(new Date(), g);
-    ok(zaehle(/media_publish/) === 0, "Post während der Verarbeitung geändert → nicht veröffentlicht");
+    ok(zaehle(/media_publish/) === 0, "Post während der Verarbeitung geändert (Freigabe von Hand) → nicht veröffentlicht");
+    // Mit Auto-Freigabe AN (Justin 16.10.) wird die NEUE Fassung freigegeben und genau einmal gepostet — nie die alte.
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'social_auto_freigabe'`;
+    log.length = 0;
+    await SM.metaPostenLauf(new Date(), g);
+    await SM.metaPostenLauf(new Date(), g);
+    const auftraegeG = (await sqlPool`SELECT fassung, zustand FROM fiaon_social_meta_auftraege WHERE post_id = ${geaendert} ORDER BY id`) as any[];
+    ok(zaehle(/media_publish/) === 1 && auftraegeG.filter((x: any) => x.zustand === "ok").length === 1, "mit Auto-Freigabe: neue Fassung freigegeben und genau EINMAL gepostet", JSON.stringify(auftraegeG));
 
     await SM.postenSchalten(false);
     const aus = await neuPost({ id: "aus", format: "bild", kanaele: ["instagram"], planMinAlt: 1, dateien: [datei(81, 0, "bild")] });

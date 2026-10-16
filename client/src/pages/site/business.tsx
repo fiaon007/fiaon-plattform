@@ -50,7 +50,7 @@ import { globalSeite } from "@shared/fiaon-global-seiten";
 import { werbeEreignis } from "@/lib/werbung";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalTafel, { Haken, Pfeil, TAFEL_ETAPPE_AB, TAFEL_ZUERST, tafelEtappenBis } from "@/components/site/global/GlobalTafel";
-import WegLinie from "@/components/site/global/WegLinie";
+import EtappenBuehnen from "@/components/site/global/EtappenBuehnen";
 import SternZentrale from "@/components/site/global/SternZentrale";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
@@ -338,14 +338,22 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <div><span className="fg-auge">{t.paketeAuge}</span><h2 className="fg-h2">{t.paketeH2}</h2></div>
               <p className="fg-lead">{mitBegriffen(t.paketeLead, [begriff("kapitalrahmen")])}</p>
             </div>
-            <WegLinie id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} klammer={t.inJedemPaket} nachweis={t.bilderKi}
-              titelInhalt={(i) => mitBegriffen(t.weg[i].titel, [begriff("kartenleiter")])}
+            {/* E-387 (16.10.2026): die vier Bühnen in 3D statt der Wegleiste — Pakettafeln darunter unverändert. */}
+            <EtappenBuehnen id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} ablauf={t.wegAblauf} sprache={s}
               etappen={t.weg.map((w, i) => ({
                 titel: w.titel,
+                titelInhalt: mitBegriffen(w.titel, [begriff("kartenleiter")]),
+                kurz: t.wegKurz[i],
+                leute: t.wegLeute[i],
+                abzeichen: i < 2 ? t.inJedemPaket : t.abPaket(globalPaket(ETAPPE_AB[i])![s].name),
+                institut: i > 0,
                 dauer: w.dauer,
                 text: mitBegriffen(w.text, [begriff("herausgeber"), begriff("bareinlage"), begriff("registeredAgent"), begriff("operatingAgreement")]),
-                abzeichen: i < 2 ? undefined : t.abPaket(globalPaket(ETAPPE_AB[i])![s].name),
-              }))} />
+              }))}
+              team={{
+                titel: t.teamTitel, sub: t.teamSub, satz: GLOBAL_ROLLEN[s].partner,
+                liste: t.team.map((x) => ({ name: x.name, was: x.was, zusatz: x.vip ? globalPaket("global_vip")![s].name : undefined })),
+              }} />
             <p className="fg-weg-lead">{t.wegLead}</p>
 
             {/* Am Handy: die Viererwahl mit Preis über der Wischreihe — sie klebt nur, solange eine Tafel zu sehen ist. */}

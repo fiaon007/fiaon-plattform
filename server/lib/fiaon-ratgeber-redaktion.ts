@@ -222,7 +222,7 @@ function jaccard(a: string[], b: string[]): number {
   return schnitt / (a.length + b.length - schnitt);
 }
 
-export interface VorhandenesThema { titel: string; keyword: string; slug: string; themaSlug?: string | null; bereich?: string }
+export interface VorhandenesThema { titel: string; keyword: string; slug: string; themaSlug?: string | null; bereich?: string; am?: string | null }
 
 /**
  * Gibt es dieses Thema schon? null = neu, sonst der Grund. Drei Wände: dieselbe Adresse, dasselbe Keyword
@@ -238,6 +238,35 @@ export function themaDoppelt(k: { titel: string; keyword: string }, vorhandene: 
     if (kw && vkw && kw === vkw) return `gleiches Keyword wie „${v.titel}“ (${v.keyword})`;
     const j = jaccard(tw, themenWoerter(v.titel));
     if (j >= 0.5) return `fast derselbe Titel wie „${v.titel}“`;
+  }
+  return null;
+}
+
+// ── E-385: Kein Anlass zweimal in 14 Tagen (16.10.2026) ──────────────────
+// Am 16.10. kamen dieselben Anlässe wie am 15.10. (Ratenkauf/Kreditregeln „ab November 2026“, BOI-Meldung) — erlaubt war
+// „neuer Blickwinkel auf ein bekanntes Feld“. Justin will jeden Tag Neues („immer brandaktuell und PERFEKT passend“).
+// Jetzt: Teilt ein neues Thema ein TRAGENDES Wort mit einem Artikel desselben Bereichs aus den letzten 14 Tagen, ist es
+// derselbe Anlass. Allgemeine Feldwörter (Bonität, SCHUFA, US-Gesellschaft …) zählen nicht — sonst wäre jedes Thema gesperrt.
+export const ANLASS_TAGE = 14;
+const FELDWORTE = new Set(("bonitaet bonitaetspruefung schufa auskunft auskunftei auskunfteien kredit kredite konto karte kreditkarte "
+  + "eintrag eintraege score unternehmen unternehmer gruender gruendung gesellschaft firma firmen dach deutschland oesterreich schweiz "
+  + "llc usa us-llc us-gesellschaft europa wirklich bedeutet aendert gilt wissen sollten melden tun geht steht bleibt kommt fiaon global "
+  + "privat verbraucher kunden geld bank banken jahr jahre monat monate tage regel regeln neue diese dieser dieses daten "
+  + "darf duerfen sollte soll koennen wenn dann damit dabei heisst morgen ihnen euro prozent").split(/\s+/));
+/** Wortstamm für den Vergleich: Endungen -ungen/-ung/-en/-n/-s/-e ab. Rein. */
+const stamm = (w: string) => w.replace(/(ungen|ung|en|n|s|e)$/, "");
+export function anlassWoerter(s: string): string[] {
+  return Array.from(new Set(themenWoerter(s).filter((w) => !FELDWORTE.has(w)).map(stamm).filter((w) => w.length >= 3 && !FELDWORTE.has(w))));
+}
+/** Derselbe Anlass wie ein Artikel desselben Bereichs aus den letzten 14 Tagen? null = frei. Rein. */
+export function anlassDoppelt(k: { titel: string; keyword: string }, kuerzlich: VorhandenesThema[], jetztMs: number): string | null {
+  const neu = anlassWoerter(`${k.titel} ${k.keyword}`);
+  for (const v of kuerzlich) {
+    const am = v.am ? Date.parse(v.am) : NaN;
+    if (!Number.isFinite(am) || jetztMs - am > ANLASS_TAGE * 86_400_000) continue;
+    const alt = new Set(anlassWoerter(`${v.titel} ${v.keyword}`));
+    const gemeinsam = neu.filter((w) => alt.has(w));
+    if (gemeinsam.length) return `derselbe Anlass wie „${v.titel}“ vom ${new Date(am).toISOString().slice(0, 10)} (${gemeinsam.join(", ")}) — in ${ANLASS_TAGE} Tagen nicht noch einmal`;
   }
   return null;
 }
@@ -538,6 +567,9 @@ REGELN
 SCHON ERSCHIENEN (nicht wiederholen):
 ${liste || "- (noch nichts)"}
 
+DIE LETZTEN ${ANLASS_TAGE} TAGE — DIESE ANLÄSSE SIND GESPERRT, auch mit neuem Blickwinkel (wähle ein ANDERES Ereignis, ein anderes Gesetz, ein anderes Urteil, eine andere Zahl):
+${a.vorhandene.filter((v) => v.am && Date.parse(a.heute) - Date.parse(String(v.am)) <= ANLASS_TAGE * 86_400_000).map((v) => `- ${v.titel} [${v.keyword}]`).join("\n") || "- (keine)"}
+
 FESTE SEITEN MIT GRUNDWISSEN (nicht nacherzählen — ein Artikel braucht einen aktuellen Anlass, der über sie hinausgeht):
 ${feste}
 ${a.offenePlanthemen.length ? `\nTHEMENPLAN (noch offen — nur, wenn nichts Aktuelleres da ist):\n${a.offenePlanthemen.map((t) => `- ${t}`).join("\n")}` : ""}
@@ -704,8 +736,8 @@ export async function tagesStand(tag: string, lauf: Lauf = sqlPool): Promise<Rec
 }
 
 async function vorhandeneThemen(lauf: Lauf): Promise<VorhandenesThema[]> {
-  const rows = (await lauf`SELECT titel, keyword, slug, thema_slug, bereich FROM fiaon_ratgeber WHERE COALESCE(inhalt, '') <> '' ORDER BY COALESCE(published_at, created_at) DESC`) as any[];
-  return rows.map((r) => ({ titel: r.titel, keyword: r.keyword || "", slug: r.slug, themaSlug: r.thema_slug, bereich: r.bereich }));
+  const rows = (await lauf`SELECT titel, keyword, slug, thema_slug, bereich, COALESCE(published_at, created_at) AS am FROM fiaon_ratgeber WHERE COALESCE(inhalt, '') <> '' ORDER BY COALESCE(published_at, created_at) DESC`) as any[];
+  return rows.map((r) => ({ titel: r.titel, keyword: r.keyword || "", slug: r.slug, themaSlug: r.thema_slug, bereich: r.bereich, am: r.am ? new Date(r.am).toISOString() : null }));
 }
 
 /** Freie Adresse aus einem Titel — „-2", „-3" …, wenn es sie schon gibt (die eigene Zeile zählt nicht). */
@@ -731,17 +763,17 @@ export interface BereichErgebnis {
   fehler: string[];
 }
 
-/** Recherche mit Wand gegen doppelte Themen: höchstens zwei Suchen, die zweite mit dem abgelehnten Titel. */
+/** Recherche mit Wand gegen doppelte Themen und Anlässe: höchstens drei Suchen, jede weitere mit den abgelehnten Titeln. */
 async function themaMitWand(b: Bereich, heute: string, ki: RedaktionKi, lauf: Lauf, zaehlen: () => Promise<void>): Promise<{ recherche: Recherche; modell: string }> {
   const vorhandene = await vorhandeneThemen(lauf);
   const eigene = vorhandene.filter((v) => (v.bereich === "business" ? "business" : "privat") === b);
   const benutzt = new Set(vorhandene.flatMap((v) => [v.slug, v.themaSlug].filter(Boolean) as string[]));
   const offenePlanthemen = b === "privat" ? THEMEN.filter((t) => !benutzt.has(t.slug)).map((t) => `${t.titel} [${t.keyword}]`) : [];
   const ausschliessen: string[] = [];
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     await zaehlen();
     const r = await ki.themaFinden({ bereich: b, heute, vorhandene: eigene, offenePlanthemen, ausschliessen });
-    const doppelt = themaDoppelt(r.recherche, vorhandene);
+    const doppelt = themaDoppelt(r.recherche, vorhandene) ?? anlassDoppelt(r.recherche, eigene, Date.now());
     if (!r.recherche.titel || !r.recherche.keyword) { ausschliessen.push("(leerer Titel)"); continue; }
     if (r.recherche.fakten.length < 3) { ausschliessen.push(`${r.recherche.titel} — zu wenige belegte Fakten`); continue; }
     if (!doppelt) return r;

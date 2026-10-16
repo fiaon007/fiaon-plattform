@@ -58,6 +58,7 @@ async function main() {
   ok(neu.has(28) && neu.has(30) && neu.has(27), "weitere liegen gebliebene kommen dahinter, abwechselnd");
   ok(!neu.has(29) && !neu.has(31), "was nicht aufgeht (zwei dunkle übrig), wird nicht gequetscht");
   ok([...neu.values()].every((t) => t === null || t > jetzt), "nichts in die Vergangenheit");
+  ok(neu.get(28) === B(21, 12, 30), "eingeschoben wird möglichst spät: #28 auf 12:30 (sechs Stunden vor dem nächsten), nicht 09:00");
   const nurDunkel = R.wechselPlanen({ letzterTon: D, jetztMs: jetzt, kuenftig: [{ id: 1, ton: D, planMs: jetzt + 3_600_000 }], rueckstand: [], slotNach: slot });
   ok(nurDunkel.length === 1 && nurDunkel[0].nachMs === null, "dunkel nach dunkel ohne hellen Ersatz → wartet ohne Uhrzeit");
 
@@ -116,12 +117,25 @@ async function main() {
     const reihe = [{ t: "hell", ms: 0 }, { t: "dunkel", ms: new Date(b.plan_zeitpunkt).getTime() }, { t: "dunkel", ms: new Date(c.plan_zeitpunkt).getTime() }, { t: "hell", ms: new Date(d.plan_zeitpunkt).getTime() }]
       .sort((x, y) => x.ms - y.ms).map((x) => x.t);
     ok(reihe.every((t, i) => i === 0 || t !== reihe[i - 1]), "nach dem hellen A: dunkel, hell, dunkel — der Wechsel hält", reihe.join(","));
-    const stand = await SM.metaAutomatikStand(g);
-    ok(stand.letzterTon === "hell" && stand.freigabeAuto === true, "Stand fürs Studio: letzter Post hell, Freigabe automatisch an");
+
     // Zweiter Lauf: nichts mehr zu tun, nichts doppelt.
     const vorher = log.length;
     await SM.metaPostenLauf(new Date(), g);
     ok(log.slice(vorher).every((l) => l.methode === "GET"), "zweiter Lauf: nur lesen, nichts doppelt");
+    // Ein Post, der gerade auf Instagram geht, zählt als letzter (16.10.: #33 wartete fälschlich). Eigene, leere Bühne.
+    const standVorher = await SM.metaAutomatikStand(g);
+    await sqlPool`DELETE FROM fiaon_social_posts WHERE extern_id LIKE 'pruef-e383-%'`;
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'social_wechsel_wartend'`;
+    const F = await neuPost({ id: "f6", welt: "glas", minuten: -10, caption: "Hell, wird gerade gepostet, Container in Arbeit beim Anbieter." });
+    const G2 = await neuPost({ id: "g7", welt: "kino", minuten: 240, caption: "Dunkel in vier Stunden, passt direkt nach dem hellen Post." });
+    await sqlPool`UPDATE fiaon_social_posts SET status = 'freigegeben' WHERE id IN (${F}, ${G2})`;
+    await sqlPool`INSERT INTO fiaon_social_meta_auftraege (post_id, kanal, fassung, zustand, container_id) VALUES (${F}, 'instagram', 1, 'warten', 'c-f')`;
+    const zuegeVor = (await sqlPool`SELECT plan_zeitpunkt FROM fiaon_social_posts WHERE id = ${G2}`) as any[];
+    await SM.wechselAbgleichen({ ton: "dunkel", planMs: Date.now() - 20 * 3_600_000 }, { instagram: true, facebook: true, kommentare: false }, Date.now() - 3 * 3_600_000, new Date());
+    const g2 = (await sqlPool`SELECT plan_zeitpunkt FROM fiaon_social_posts WHERE id = ${G2}`) as any[];
+    ok(g2[0].plan_zeitpunkt !== null && String(g2[0].plan_zeitpunkt) === String(zuegeVor[0].plan_zeitpunkt), "der Post im Flug (hell) zählt als letzter: der dunkle danach bleibt eingeplant");
+    await sqlPool`DELETE FROM fiaon_social_meta_auftraege WHERE post_id = ${F}`;
+    ok(standVorher.letzterTon === "hell" && standVorher.freigabeAuto === true, "Stand fürs Studio: letzter Post hell, Freigabe automatisch an");
     await sqlPool`DELETE FROM fiaon_social_posts WHERE extern_id LIKE 'pruef-e383-%'`;
     await sqlPool.end();
   }

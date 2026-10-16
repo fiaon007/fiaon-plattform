@@ -259,7 +259,8 @@ export function wechselPlanen(o: {
     const plan = p.planMs ?? 0;
     if (p.ton && w && p.ton === w) {
       const b = nimm(w);
-      const einschub = Math.ceil(Math.max(o.jetztMs + PLAN_PUFFER_MS, vorher + PLAN_ABSTAND_MS) / 300_000) * 300_000;
+      // So spät wie sinnvoll (sechs Stunden vor dem nächsten Termin), nie früher als Puffer und Abstand erlauben.
+      const einschub = Math.ceil(Math.max(o.jetztMs + PLAN_PUFFER_MS, vorher + PLAN_ABSTAND_MS, plan - 6 * 3_600_000) / 300_000) * 300_000;
       if (b && einschub <= plan - 60 * 60_000) {
         zuege.push({ id: b.id, nachMs: einschub });
         w = b.ton;

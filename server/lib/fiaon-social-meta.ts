@@ -497,7 +497,18 @@ const berlinUhr = (ms: number): string => {
  * Feste Termine bleiben (Tag 107, Wochenrückblick). Was nicht aufgeht, wartet ohne Uhrzeit (Einstellung
  * social_wechsel_wartend) und wird eingeplant, sobald ein Post der anderen Seite kommt.
  */
-export async function wechselAbgleichen(letzter: { ton: Ton | null; planMs: number | null } | null, rechte: PostingRechte, aktivMs: number, jetzt: Date): Promise<number> {
+export async function wechselAbgleichen(letzterProfil: { ton: Ton | null; planMs: number | null } | null, rechte: PostingRechte, aktivMs: number, jetzt: Date): Promise<number> {
+  // Ein Post, der gerade auf Instagram geht (Auftrag läuft, Container wartet, Antwort unklar) oder schon ging, aber im
+  // Profil noch fehlt, IST der letzte — sonst plant der Wechsel gegen einen veralteten Stand (16.10.: #33 wartete fälschlich).
+  let letzter = letzterProfil;
+  const [unterwegs] = (await sqlPool`
+    SELECT p.welt, p.plan_zeitpunkt FROM fiaon_social_meta_auftraege a JOIN fiaon_social_posts p ON p.id = a.post_id
+     WHERE a.kanal = 'instagram' AND a.zustand IN ('laeuft', 'warten', 'unklar', 'ok') AND a.begonnen_am > NOW() - INTERVAL '26 hours'
+     ORDER BY a.begonnen_am DESC LIMIT 1`) as any[];
+  if (unterwegs?.plan_zeitpunkt && weltTon(unterwegs.welt)) {
+    const ms = Date.parse(unterwegs.plan_zeitpunkt);
+    if (!letzter || letzter.planMs == null || ms > letzter.planMs) letzter = { ton: weltTon(unterwegs.welt), planMs: ms };
+  }
   if (!rechte.instagram || !letzter?.ton || letzter.planMs == null) return 0;
   const jetztMs = jetzt.getTime();
   const wartend = new Set<number>();

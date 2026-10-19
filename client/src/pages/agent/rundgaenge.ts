@@ -658,6 +658,18 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "mit einem Klick dorthin, wo du etwas damit machen kannst.",
   },
   {
+    // E-406 A (19.10.2026): „Heute dran“ — eine Liste aus allen Orten mit Arbeit, vom Server gerechnet (ohne KI).
+    ziel: ".st-heute",
+    titel: "„Heute dran“ ist dein Tagesplan.",
+    text: "Hier steht alles, was heute zu tun ist: Aufträge, Rückrufe, Termine, Raten, Zahlungsmeldungen, Ausweise, "
+      + "Anliegen, frische Kunden aus der Pipeline und bezahlte Bonitätsauswertungen. Das Wichtigste steht oben: zuerst "
+      + "Termine mit Uhrzeit, dann frisches Geld, dann Fälle mit Frist. Wie viele Einträge du bekommst, richtet sich nach "
+      + "deiner Arbeitszeit — ein voller Tag sind 25. „Öffnen“ bringt dich direkt an die richtige Stelle. Abhaken musst du "
+      + "nichts: Ist die Rate bezahlt, der Auftrag zu oder der Termin geführt, zählt es von selbst als erledigt. Was heute "
+      + "nicht mehr passt, steht unter „Rückstau“ — es geht nicht verloren.",
+    tipp: "„ohne Betreuer – heute für dich“ heißt: Dieser Kunde hat keinen festen Betreuer. Für heute gehört er auf deine Liste.",
+  },
+  {
     ziel: ".st-block",
     titel: "„Jetzt dran“ ist deine Startliste.",
     text: "Zuerst die Termine von heute in ihrer Reihenfolge, danach die Rückrufe, die du zugesagt "

@@ -18,6 +18,7 @@ import "@/styles/office-termintreue.css";
 import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { maraMarke, MARA_NEU_STUNDEN } from "@shared/fiaon-mara-marke";
 import { Rundgang } from "@/components/agent/Rundgang";
+import { HeuteDranBlock } from "@/components/agent/HeuteDran";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
 
@@ -237,6 +238,10 @@ function SchreibtischInnen() {
           )}
         </section>
       )}
+
+      {/* E-406 A (19.10.2026): „Heute dran“ — eine Liste aus allen Orten mit Arbeit (Aufträge, Rückrufe, Termine,
+          Inkasso, Zahlung gemeldet, Ausweis, Anliegen, Pipeline, Bonität), nach Wirkung sortiert, Menge nach Arbeitszeit. */}
+      <HeuteDranBlock />
 
       <section className="st-spalten">
         <div className="st-block">

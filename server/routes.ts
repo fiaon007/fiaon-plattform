@@ -728,6 +728,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonRueckrufRoutes = await import('./routes/fiaon-rueckrufe');
   app.use('/api/fiaon', fiaonRueckrufRoutes.default);
 
+  // 📋 „Heute dran“ (E-406 A, 19.10.2026) — eine Liste je Mitarbeiter aus allen Orten mit Arbeit,
+  //    rein lesend, ohne KI; die Leitung sieht eine Zeile je Mitarbeiter (Chefbüro › Team).
+  const fiaonHeuteDranRoutes = await import('./routes/fiaon-heute-dran');
+  app.use('/api/fiaon', fiaonHeuteDranRoutes.default);
+
   // 🔁 FIAON Abo — die monatliche Paketrate: Ratenketten, Fälligkeiten,
   //    Mahnstufen und der Erinnerungs-Motor (Event `abo_payment_reminder`).
   const fiaonAboRoutes = await import('./routes/fiaon-abo');

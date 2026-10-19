@@ -448,7 +448,12 @@ export async function arbeitsliste(
   // (Zuteilung über inkasso_agent_id). NACHHER arbeitet jeder Bonitätsmanager
   // die überfälligen Raten SEINER Kunden: Filter über den Besitz
   // (fiaon_persons.assigned_agent_id), nicht über die Inkasso-Zuteilung.
-  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null; q?: string | null } = {},
+  opts: {
+    limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null; q?: string | null;
+    // E-406 A („Heute dran“, 19.10.2026): nur Raten bis heute fällig (ohne die nächsten 7 Tage) — und nur Kunden, deren
+    // Betreuer NICHT in dieser Liste steht (kein Betreuer, gesperrt, gegangen). Beides nur lesend; ohne Angabe wie bisher.
+    bisHeute?: boolean; ohneBetreuerAus?: number[] | null;
+  } = {},
   lauf: Lauf = sqlPool,
 ): Promise<any[]> {
   // P15 (01.09.2026): Kundensuche direkt an der Inkasso-Liste — die einzige
@@ -546,6 +551,11 @@ export async function arbeitsliste(
         ? lauf`AND EXISTS (SELECT 1 FROM fiaon_persons pb
                  WHERE pb.id = a.person_id AND pb.assigned_agent_id = ${opts.nurBetreuer}
                    AND pb.merged_into_person_id IS NULL)`
+        : lauf``}
+      ${opts.bisHeute ? lauf`AND r.faellig_am <= ${heute}::date` : lauf``}
+      ${opts.ohneBetreuerAus && opts.ohneBetreuerAus.length
+        ? lauf`AND NOT EXISTS (SELECT 1 FROM fiaon_persons pz
+                 WHERE pz.id = a.person_id AND pz.assigned_agent_id = ANY(${opts.ohneBetreuerAus.map(Number)}::int[]))`
         : lauf``}
     ORDER BY
       -- Die eigenen zuerst: Wer zugeteilt ist, hat Vorrang vor dem, was

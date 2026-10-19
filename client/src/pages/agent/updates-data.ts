@@ -84,6 +84,34 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-406 A (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“, Etappe A): „Heute dran“ auf dem Schreibtisch —
+    // shared/fiaon-heute-dran.ts (Regeln), server/lib/fiaon-heute-dran.ts (Quellen), GET /agent/heute-dran.
+    id: "2026-10-19-heute-dran",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "„Heute dran“: deine Liste für heute",
+    summary:
+      "Auf dem Dashboard steht jetzt eine Liste mit allem, was heute zu tun ist. "
+      + "Höchstens 25 Einträge, das Wichtigste oben.",
+    changes: [
+      "Die Liste sammelt Aufträge, Rückrufe, Termine, Raten, Zahlungsmeldungen, Ausweis-Prüfungen, Anliegen, frische Kunden aus der Pipeline und bezahlte Bonitätsauswertungen.",
+      "Oben stehen Termine und Rückrufe mit Uhrzeit. Dann frisches Geld: eine Rate, die seit höchstens 3 Tagen fällig ist, oder eine Zahlung, die vor höchstens 72 Stunden gemeldet wurde.",
+      "Danach kommen Fälle mit Frist (Kündigung, Widerruf, Beschwerde), dann frische A- und B-Kunden, dann bezahlte Bonitätsauswertungen, dann der Rest. Raten, die seit über 30 Tagen offen sind, stehen ganz unten.",
+      "Ein Kunde steht nur einmal da. Hat er mehrere Gründe, stehen die anderen klein darunter.",
+      "Wie viele Einträge du bekommst, richtet sich nach deiner Arbeitszeit heute. Ein voller Tag sind 25.",
+      "Abhaken musst du nichts. Ist die Rate bezahlt, der Auftrag zu oder der Termin geführt, zählt es von selbst als erledigt.",
+      "Was heute nicht mehr passt, steht unter „Rückstau“. Es geht nicht verloren.",
+      "Die Liste rechnet der Server ohne KI. Sie läuft also auch, wenn Mara Pause hat.",
+    ],
+    howto: [
+      "Öffne das Dashboard. Oben steht „Heute dran“ mit „N von M erledigt“.",
+      "Arbeite von oben nach unten. „Öffnen“ bringt dich direkt in die Akte, ins Inkasso, in den Auftrag oder ins Anliegen.",
+      "Die Liste lädt alle zwei Minuten neu.",
+    ],
+    link: { href: "/agent/start", label: "Zum Dashboard" },
+    important: true,
+  },
+  {
     // E-398 Teil B (19.10.2026): neue AGB-Fassung — Monatsentgelt statt „Gesamtvergütung in Raten“ (CCD2 ab 20.11.2026).
     id: "2026-10-19-agb-monatsentgelt",
     date: "2026-10-19",

@@ -106,3 +106,24 @@
   .st-mara-block{padding:16px 16px}
   .st-wer small.st-notiz{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 }
+
+/* ── Heute dran (E-406 A, 19.10.2026) ───────────────────────────────────────
+   Eine Liste für heute, nach Wirkung sortiert. Derselbe Glasblock wie
+   „Jetzt dran“; Blau nur am Fortschritt und an der Uhrzeit, Bernstein nur
+   an „Frist“. Erledigtes ist leiser, nicht durchgestrichen. */
+.st-heute .st-block-kopf small{color:#93c5fd;font-variant-numeric:tabular-nums}
+.st-heute-balken{height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:-4px 0 6px}
+.st-heute-balken i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .4s ease}
+.st-heute-zeile.s1 .st-zeit b{color:#93c5fd}
+.st-heute-zeile.s3 .st-zeit b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24}
+.st-heute-zeile:not(.s1):not(.s3) .st-zeit b{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#cbd5e1}
+.st-heute-zeile .st-zeit small{color:#e2e8f0;font-variant-numeric:tabular-nums}
+.st-heute-zeile.fertig{opacity:.55}
+.st-heute-zeile.fertig .st-zeit b{color:#34d399}
+.st-heute-knoepfe{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.st-heute-auf{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#e5e7eb;border-radius:999px;
+  min-height:34px;padding:0 14px;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.st-heute-auf:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.st-heute-stau{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.12)}
+.st-heute-hinweis{margin:10px 0 0;font:300 12px/1.5 'Inter',sans-serif;color:#94a3b8}
+.st-heute-stand{margin:12px 0 0;font-size:11px;color:#64748b}

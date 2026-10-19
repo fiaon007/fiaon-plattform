@@ -891,6 +891,65 @@ function AktivitaetTafel() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// „HEUTE DRAN“ JE MITARBEITER (E-406 A, 19.10.2026) — eine Zeile je Mensch:
+// was heute auf seiner Liste steht, was davon erledigt ist, was als Rückstau
+// wartet. Keine eigene Seite (Hausregel), nicht im Lagezimmer. Daten:
+// GET /admin/team/heute-dran — derselbe Plan, den der Schreibtisch zeigt.
+// ═══════════════════════════════════════════════════════════════════════════
+function HeuteDranTeam() {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/team/heute-dran", { credentials: "include" })
+      .then((r) => r.json()).then((j) => setD(j?.ok ? j : null)).catch(() => setD(null));
+  }, []);
+  if (!d || !Array.isArray(d.zeilen) || d.zeilen.length === 0) return null;
+  const stunden = (min: number) => (min > 0 ? `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")} Std.` : "frei");
+  const stand = new Date(d.stand).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-3" data-fiaon="heute-dran-team" style={{ color: "#0f172a" }}>
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <p className="text-[14px] font-bold" style={{ color: "#0f172a" }}>Heute dran</p>
+        <p className="text-[11.5px]" style={{ color: "#64748b" }}
+           title="Die Liste rechnet der Server ohne KI aus Aufträgen, Rückrufen, Terminen, Inkasso, Zahlungsmeldungen, Ausweisen, Anliegen, Pipeline und Bonität.">
+          je Mitarbeiter · Stand {stand} Uhr
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px]" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ color: "#64748b", textAlign: "left" }}>
+              <th className="py-1 pr-3 font-semibold">Mitarbeiter</th>
+              <th className="py-1 pr-3 font-semibold text-right">Heute dran</th>
+              <th className="py-1 pr-3 font-semibold text-right">erledigt</th>
+              <th className="py-1 pr-3 font-semibold text-right" title="Passt heute nicht mehr in die Tagesmenge — bleibt sichtbar.">Rückstau</th>
+              <th className="py-1 font-semibold text-right">Arbeitszeit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.zeilen.map((z: any) => (
+              <tr key={z.agentId} style={{ borderTop: "1px solid #f1f5f9" }}>
+                <td className="py-1.5 pr-3 font-semibold" style={{ color: "#0f172a" }}>{z.name}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{z.heuteDran}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: z.heuteDran > 0 && z.erledigt >= z.heuteDran * 0.8 ? "#047857" : "#0f172a" }}>{z.erledigt}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: z.rueckstau > 0 ? "#b45309" : "#94a3b8" }}>{z.rueckstau}</td>
+                <td className="py-1.5 text-right tabular-nums" style={{ color: "#64748b" }}>{stunden(Number(z.minuten) || 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(d.ohneZustaendigen > 0 || d.beiGeschaeftsfuehrung > 0 || d.fehlend?.length > 0) && (
+        <p className="mt-2 text-[11.5px]" style={{ color: "#64748b" }}>
+          {d.ohneZustaendigen > 0 && <span style={{ color: "#b45309" }}>Ohne Zuständigen (heute arbeitet niemand der Rolle): {d.ohneZustaendigen}. </span>}
+          {d.beiGeschaeftsfuehrung > 0 && <span>Bei der Geschäftsführung: {d.beiGeschaeftsfuehrung}. </span>}
+          {d.fehlend?.length > 0 && <span>Gerade nicht lesbar: {d.fehlend.join(", ")}.</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TeamKosten() {
   const [d, setD] = useState<any>(null);
   useEffect(() => {
@@ -1489,6 +1548,7 @@ export default function AdminTeamZentrale() {
             Und die Erklärzeile darunter ist Pflicht — „Personalkosten" ist kein
             Begriff, den zwei Menschen gleich verstehen.
             ══════════════════════════════════════════════════════════════════ */}
+        {reiter === "menschen" && <HeuteDranTeam />}
         {reiter === "menschen" && <TeamKosten />}
 
         {reiter === "menschen" && (
@@ -1654,7 +1714,8 @@ export default function AdminTeamZentrale() {
                     A {m.stufe_a} · B {m.stufe_b} · C {m.stufe_c}
                     {m.stufe_a_heute != null && (
                       <b className="ml-1.5" style={{ color: "var(--fi-primaer)" }}>
-                        ({Number(m.stufe_a_heute) + Number(m.stufe_b_heute ?? 0) + Number(m.stufe_c_heute ?? 0)} heute dran)
+                        {/* E-406 A: „heute fällig“ statt „heute dran“ — „Heute dran“ heißt seit 19.10. die Tagesliste oben (eine andere Zahl). */}
+                        ({Number(m.stufe_a_heute) + Number(m.stufe_b_heute ?? 0) + Number(m.stufe_c_heute ?? 0)} heute fällig)
                       </b>
                     )}
                   </span>
@@ -1893,11 +1954,11 @@ function MitgliedDetail({
                   // wurden, stellt die falsche Frage. Und der Agent kann sich
                   // nicht wehren, weil er die 58 nie gesehen hat.
                   { t: "Bestand A", w: String(m.stufe_a),
-                    zusatz: m.stufe_a_heute != null ? `${m.stufe_a_heute} heute dran` : null },
+                    zusatz: m.stufe_a_heute != null ? `${m.stufe_a_heute} heute fällig` : null },
                   { t: "Bestand B", w: String(m.stufe_b),
-                    zusatz: m.stufe_b_heute != null ? `${m.stufe_b_heute} heute dran` : null },
+                    zusatz: m.stufe_b_heute != null ? `${m.stufe_b_heute} heute fällig` : null },
                   { t: "Bestand C", w: String(m.stufe_c),
-                    zusatz: m.stufe_c_heute != null ? `${m.stufe_c_heute} heute dran` : null },
+                    zusatz: m.stufe_c_heute != null ? `${m.stufe_c_heute} heute fällig` : null },
                   { t: "Offen", w: eur(m.offen_cents) },
                 ].map((k) => (
                   <div key={k.t} className="p-3 rounded-xl bg-slate-50">

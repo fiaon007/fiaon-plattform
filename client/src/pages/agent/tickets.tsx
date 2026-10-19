@@ -51,6 +51,18 @@ function TicketsInnen() {
     api("/agent/tickets").then((r) => { if (r.ok) { setListe(r.json.tickets || []); setFehler(null); } else setFehler(r.json?.error || "Die Anliegen konnten nicht geladen werden."); }).catch(() => setFehler("Keine Verbindung.")).finally(() => setLaedt(false));
   }, []);
   useEffect(() => { laden(); const iv = setInterval(laden, 90_000); return () => clearInterval(iv); }, [laden]);
+  // E-406 A (19.10.2026): „Heute dran“ springt mit ?ticket=<id> hierher — dieses Anliegen öffnet sich im richtigen Reiter.
+  const [sprung, setSprung] = useState<number | null>(() => {
+    try { const n = Number(new URLSearchParams(window.location.search).get("ticket")); return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
+  });
+  useEffect(() => {
+    if (sprung == null || !liste.length) return;
+    const a = liste.find((x) => Number(x.id) === sprung);
+    setSprung(null);
+    if (!a) return;
+    setReiter(a.status === "erledigt" ? "erledigt" : a.agent_id == null ? "pool" : "meine");
+    setOffenId(Number(a.id));
+  }, [liste, sprung]);
 
   const meine = useMemo(() => liste.filter((a) => a.status !== "erledigt" && a.agent_id != null), [liste]);
   const pool = useMemo(() => liste.filter((a) => a.status !== "erledigt" && a.agent_id == null), [liste]);

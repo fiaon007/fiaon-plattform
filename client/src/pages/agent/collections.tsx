@@ -114,7 +114,17 @@ function CollectionsInnen() {
   const [laedt, setLaedt] = useState(true);
   const [zugang, setZugang] = useState<"pruefe" | "offen" | "kein" | "frei">("pruefe");
   const [reiter, setReiter] = useState<"liste" | "stunden">(() => (new URLSearchParams(window.location.search).get("tab") === "stunden" ? "stunden" : "liste"));
-  const [frist, setFrist] = useState<Frist>("ueberfaellig");
+  // E-406 A (19.10.2026): „Heute dran“ springt mit ?person=<id> (und bei einer heute fälligen Rate &frist=heute) hierher —
+  // die Akte dieses Kunden öffnet sich, sobald die Liste geladen ist. Nur beim Betreten der Seite.
+  const [sprung] = useState<{ person: number | null; frist: Frist | null }>(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const n = Number(q.get("person"));
+      const f = q.get("frist");
+      return { person: Number.isInteger(n) && n > 0 ? n : null, frist: f === "heute" || f === "woche" || f === "zusagen" ? f : null };
+    } catch { return { person: null, frist: null }; }
+  });
+  const [frist, setFrist] = useState<Frist>(() => sprung.frist ?? "ueberfaellig");
   // Die Erklärung ist beim ersten Öffnen zu — sie wird einmal gelesen.
   const [erklaerungAuf, setErklaerungAuf] = useState(false);
   const [aufgeklappt, setAufgeklappt] = useState<string[]>([]);
@@ -173,6 +183,12 @@ function CollectionsInnen() {
     });
     return () => { an = false; };
   }, [offen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [gesprungen, setGesprungen] = useState(false);
+  useEffect(() => {
+    if (gesprungen || sprung.person == null || !daten) return;
+    setGesprungen(true);
+    oeffnen(sprung.person);
+  }, [daten]); // eslint-disable-line react-hooks/exhaustive-deps
   // Speichert die Akte etwas (z. B. die geänderte Adresse), lädt sie den
   // Kunden neu — die Raten-Felder müssen dabei erhalten bleiben, sonst
   // verschwindet der Zweig „Rate überfällig" mitten im Gespräch.

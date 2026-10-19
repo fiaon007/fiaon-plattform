@@ -30,8 +30,9 @@
 //     kein Global-Kunde, keine Vertriebssperre, nicht eskaliert, keine offene Entscheidungskarte bei Justin;
 //   · Ratenpause: die verschobene Rate ist nicht mehr fällig — fällt von selbst heraus;
 //   · keine offene Zahlungszusage, keine Zahlungsmeldung, kein passender unverbuchter Eingang, kein Termin;
-//   · höchstens HOECHSTENS_KONTAKTE (3) Kontakte je Rate über ALLE Wege (Vorabinfo, Rechnung, Mahnung, WhatsApp-Rate,
-//     Anruf) — Maras Mail ist höchstens der dritte. Die Frequenzbremse des Hauses ist seit E-182 aus; diese Grenze
+//   · höchstens HOECHSTENS_KONTAKTE (3) Kontakte je Rate über ALLE Wege AB DER FÄLLIGKEIT (Rechnung, Mahnung,
+//     WhatsApp-Rate, Anruf) — Maras Mail ist höchstens der dritte. Die Vorabinfo vom Tag −3 zählt nicht (Justin
+//     19.10., Abnahme: „100 % auf Verkauf“). Die Frequenzbremse des Hauses ist seit E-182 aus; diese Grenze
 //     gilt nur für Maras eigene Mail, nie für Abo-Motor, Mahnmotor oder WhatsApp-Zentrale;
 //   · nichts am selben Tag doppelt: Ging heute schon eine Rechnung, Mahnung oder WhatsApp-Rate raus — oder kommt
 //     heute die Mahnung des Abo-Motors —, wartet Mara bis zum nächsten Tag;
@@ -61,8 +62,13 @@ export const TAGE_AB = 1;
 export const TAGE_BIS = 3;
 /** Höchstens so viele Kontakte je Rate über alle Wege — Maras Mail eingeschlossen. */
 export const HOECHSTENS_KONTAKTE = 3;
-/** Gezählt wird ab so vielen Tagen vor der Fälligkeit (die Vorabinfo kommt 3 Tage vorher). */
-export const KONTAKT_VORLAUF_TAGE = 7;
+/**
+ * Gezählt wird ab so vielen Tagen VOR der Fälligkeit. 0 = die Zählung beginnt mit der Fälligkeit (Tag 0, die Rechnung).
+ * Justin (19.10.2026, Abnahme Welle 1, „100 % auf Verkauf“, E-182 Dauermahnung): Die Vorabinfo vom Tag −3 ist keine
+ * Erinnerung an eine offene Rate — sie zählt NICHT. Vorher 7 (gemessen: 83 von 134 frisch fälligen Raten hatten so
+ * schon 3 Kontakte, bevor Mara schreiben durfte).
+ */
+export const KONTAKT_VORLAUF_TAGE = 0;
 /** Maras Fenster (Berlin, Minuten seit Mitternacht): 10:00 bis vor 18:00 — innerhalb des Hausfensters 08–20. */
 export const FENSTER_AB_MIN = 10 * 60;
 export const FENSTER_BIS_MIN = 18 * 60;
@@ -185,7 +191,7 @@ export interface RateErinnerungFakten {
   terminSteht: boolean;
   /** Eine zustellbare E-Mail-Adresse. */
   hatEmail: boolean;
-  /** Kontakte zu DIESER Rate über alle Wege seit KONTAKT_VORLAUF_TAGE vor der Fälligkeit (ohne Maras eigene). */
+  /** Kontakte zu DIESER Rate über alle Wege ab der Fälligkeit (KONTAKT_VORLAUF_TAGE = 0; die Vorabinfo zählt nicht). */
   kontakte: number;
   /** Die jüngste eingehende Nachricht des Kunden (WhatsApp, Mail ans Postfach oder Anliegen im Kundenbereich). */
   letzteKundenNachrichtAm: string | Date | null;

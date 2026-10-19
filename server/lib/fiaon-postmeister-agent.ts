@@ -2390,7 +2390,12 @@ export async function antwortErzeugen(ein: {
   // Inkasso. Unklar („am 15.“, „nächste Woche“) → Mara fragt nach, nichts festgehalten. Nur in Raten-Lagen, nie bei
   // Bestreiten, Widerruf, Anwalt oder Recht, nie beim Global-Kunden. Der Mahnmotor bleibt unberührt (E-182).
   const zuM = await import("./fiaon-mara-zahlungszusage");
-  const letzteMara = [...ein.verlauf].reverse().find((v) => v.von === "FIAON")?.text ?? null;
+  // Unsere letzte Antwort im Verlauf — für „Ja“ auf die Rückfrage „Meinen Sie Freitag, den 23.10.?“ und die kurze
+  // Antwort „Am Freitag.“ auf „wann zahlen Sie?“. Im Postfach heißt sie „FIAON“, im Anliegen „FIAON (Mara)“ oder
+  // „FIAON (Team)“ (E-406 Welle 1, Abnahme — Prüfer-Fund: der exakte Vergleich fand im Anliegen nie etwas, das „Ja“
+  // hielt den Zahltag dort nie fest). Die Rückfrage eines Kollegen zählt genauso: Sein „Ja“ bestätigt den Tag, gleich
+  // wer gefragt hat — die Regel (zahltagErkennen) verlangt weiter genau EINEN Tag in der letzten Frage, kein Termin.
+  const letzteMara = [...ein.verlauf].reverse().find((v) => v.von === "FIAON" || v.von.startsWith("FIAON ("))?.text ?? null;
   const zusage = ein.personId && zusageErlaubt({ lage, flags: ein.einordnung.flags as any, global: !!akte?.global, vorgeschichte: !!ein.vorgeschichte?.grund })
     ? await zuM.zahlungszusageBehandeln({
       personId: ein.personId, kundeText: kontext.kundeText ?? "", betreff: ein.mail.betreff, letzteMara,

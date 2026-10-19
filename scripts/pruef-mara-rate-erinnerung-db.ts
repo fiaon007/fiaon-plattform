@@ -75,13 +75,16 @@ async function main() {
       ref, rate_nr: 2, zahlungsreferenz: `${zref}-2`, betrag_cents: 5999, faellig_am: faellig, status: "offen", quelle: "pruefstand",
       mahnstufe: 1, erinnerungen: 2, ...(o.rate ?? {}),
     } as any)} RETURNING id`) as any[];
-    // Vorabinfo (Tag −3) und Rechnung (Tag 0) als Zustellprotokoll — so wie der Abo-Motor sie schreibt; ein dritter
-    // Kontakt (Erinnerung von Hand am Vortag der Fälligkeit) nur, wenn verlangt.
-    const n = o.kontakte ?? 2;
-    const versatz = [3, 0, 1];
+    // Vorabinfo (Tag −3) als Zustellprotokoll — so wie der Abo-Motor sie schreibt. Sie zählt seit der Abnahme NICHT
+    // (Justin 19.10., „100 % auf Verkauf“: die Zählung beginnt mit der Fälligkeit, KONTAKT_VORLAUF_TAGE = 0).
+    // Dazu `kontakte` gezählte Kontakte ab Tag 0: die Rechnung (09:00), weitere Erinnerungen von Hand am selben Tag
+    // (13:00, 17:00) nur, wenn verlangt. Standard: nur die Rechnung (1 Kontakt).
+    await sql`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, art, created_at)
+      VALUES ('abo_payment_reminder', ${pid}, ${mailVon(nn)}, 'versandt', 'echt', (${faellig}::date - 3)::timestamp AT TIME ZONE 'Europe/Berlin' + INTERVAL '9 hours')`;
+    const n = o.kontakte ?? 1;
     for (let i = 0; i < n; i++) {
       await sql`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, art, created_at)
-        VALUES ('abo_payment_reminder', ${pid}, ${mailVon(nn)}, 'versandt', 'echt', (${faellig}::date - ${versatz[i % 3]}::int)::timestamp AT TIME ZONE 'Europe/Berlin' + INTERVAL '9 hours')`;
+        VALUES ('abo_payment_reminder', ${pid}, ${mailVon(nn)}, 'versandt', 'echt', ${faellig}::date::timestamp AT TIME ZONE 'Europe/Berlin' + make_interval(hours => ${9 + 4 * (i % 3)}::int))`;
     }
     return { pid, ref, rateId: Number(r.id), zref: `${zref}-2`, faellig };
   };
@@ -168,8 +171,7 @@ async function main() {
   console.log("── 5 · Nichts doppelt am selben Tag: Rechnung/Mahnung heute → Mara wartet bis morgen");
   const H = await kunde("Heuteprobe");
   await sql`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, art, created_at) VALUES ('abo_payment_reminder', ${H.pid}, ${mailVon("Heuteprobe")}, 'versandt', 'echt', NOW())`;
-  // Diese Mail zählt auch als Kontakt (jetzt 3) — deshalb eine der beiden alten aus dem Fenster nehmen, damit „heute“ allein urteilt.
-  await sql`DELETE FROM fiaon_mail_log WHERE id = (SELECT MIN(id) FROM fiaon_mail_log WHERE person_id = ${H.pid} AND event = 'abo_payment_reminder')`;
+  // Diese Mail zählt auch als Kontakt (jetzt 2: Rechnung + heute; die Vorabinfo zählt nicht) — unter 3, „heute“ urteilt allein.
   await M.rateErinnerungTakt({ jetzt: taktZeit() });
   const mH = await merker(H.rateId);
   ok(mH?.status === "vorgemerkt" && /heute ging schon/.test(String(mH?.grund)) && anBrevo("Heuteprobe").length === 0, "wartet (Grund „heute ging schon …“), keine Mail", mH);
@@ -258,13 +260,26 @@ async function main() {
   ok(st.gruende.length === 5 && st.gruende.every((g) => g.n >= 1 && g.grund.length > 5), "Gründe fürs Nichtschreiben sichtbar (die fünf häufigsten, 7 Tage)", st.gruende);
 
   console.log("── 12 · Rot-Probe: Merker verloren → trotzdem kein zweites Mal (die eigene Mail zählt als Kontakt)");
-  const B2 = await kunde("Zweitprobe");
+  // Rechnung + Erinnerung ab der Fälligkeit (2) + Maras eigene Mail = 3.
+  const B2 = await kunde("Zweitprobe", { kontakte: 2 });
   await M.rateErinnerungTakt({ jetzt: taktZeit() });
   ok(anBrevo("Zweitprobe").length === 1, "erste Mail raus");
   await sql`DELETE FROM fiaon_mara_rate_erinnerung WHERE rate_id = ${B2.rateId}`;
   await M.rateErinnerungTakt({ jetzt: taktZeit() });
   const mB2 = await merker(B2.rateId);
   ok(anBrevo("Zweitprobe").length === 1 && mB2?.status === "ausgelassen" && /3 Kontakte/.test(String(mB2?.grund)), "Merker gelöscht → neuer Merker „ausgelassen (3 Kontakte)“, keine zweite Mail", mB2);
+
+  console.log("── 13 · Abnahme (Justin 19.10., „100 % auf Verkauf“): die Vorabinfo vom Tag −3 zählt nicht — die Zählung beginnt mit der Fälligkeit");
+  // Gemessen (Produktion nur lesend, 30 Tage, 134 nach Tag 0 offene Raten): alte Zählung ab Tag −7 sperrte 83 (3 Kontakte:
+  // Vorabinfo, Rechnung, WhatsApp), ab der Fälligkeit nur noch 6 — 128 statt 51 erreichbar.
+  const V = await kunde("Vorabprobe", { kontakte: 2 });
+  const [mv] = (await sql`SELECT COUNT(*)::int AS n, MIN(created_at) < ${V.faellig}::date::timestamp AT TIME ZONE 'Europe/Berlin' AS vorab
+                          FROM fiaon_mail_log WHERE person_id = ${V.pid} AND event = 'abo_payment_reminder'`) as any[];
+  ok(mv?.n === 3 && mv?.vorab === true, "Lage: 3 Raten-Mails im alten 7-Tage-Fenster (Vorabinfo Tag −3, Rechnung und Erinnerung Tag 0) — alte Zählung: gesperrt", mv);
+  await M.rateErinnerungTakt({ jetzt: taktZeit() });
+  const mV = await merker(V.rateId);
+  ok(mV?.status === "versandt" && Number(mV?.kontakte) === 2 && anBrevo("Vorabprobe").length === 1, "ROT mit der alten Zählung: ab der Fälligkeit nur 2 Kontakte → Mara schreibt (Merker kontakte = 2)", mV);
+  ok(R.KONTAKT_VORLAUF_TAGE === 0, "die Regel sagt es selbst: KONTAKT_VORLAUF_TAGE = 0");
 
   ok(FREMD.length === 0, "kein Netzzugriff außer der Brevo-Attrappe", FREMD);
 

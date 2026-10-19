@@ -5,6 +5,50 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-406 Welle 1 „Mara führt den Betrieb“: Heute dran (A), Mara-Inkasso erste Stufe (B1), Mara beantwortet Anliegen (C1) — abgenommen
+- **Was:** **(A) „Heute dran“** — jeder Mitarbeiter sieht auf /agent/start eine Liste mit höchstens 25 Einträgen aus allen Orten mit Arbeit
+  (Aufträge, vereinbarte Rückrufe und Rückruf-Wünsche, Termine heute, Inkasso, „Zahlung gemeldet“, KYC, Anliegen, Hitze-Liste der Pipeline,
+  bezahlte Bonitätsauswertungen), vom Server gerechnet, nur lesend, ohne KI. Reihenfolge nach Wirkung (Uhrzeit heute, frisches Geld, Fristfälle,
+  frische A/B, Bonität, Rest, Inkasso-Altbestand unten), eine Zeile je Kunde, Tagesmenge nach Arbeitszeit, was nicht passt steht im „Rückstau“,
+  „N von M erledigt“ kommt aus der Quelle (kein Abhak-Speicher). Nachgebessert: Vertriebssperre raus, überfällige Versprechen oben, die
+  Tagesmenge zählt nur eigene Arbeit (per Bank bezahlt oder von der Automatik erledigt = „von allein“), Inkasso ohne 200er-Grenze, kein
+  Zahlungsdruck bei offener Kündigung, bei Arbeitszeit 0 geht Dringendes an den Vertreter. Die Leitung sieht je Mitarbeiter eine Zeile in
+  Chefbüro › Team-Zentrale (Heute dran · erledigt · Rückstau · Arbeitszeit).
+  **(B1) Mara-Inkasso, erste Stufe** — ist eine Rate seit 1–3 Tagen fällig und offen, schickt Mara EINE persönliche, freundliche Mail ohne
+  Druck mit drei Wegen: Zahlungsseite der Rate, kurz antworten (Mail-Mara übernimmt), Rückruf-Zeit wählen (persönlicher Terminlink). Nur bei
+  aktiver Forderung (dieselben Wände wie Mahnmotor und Inkasso), nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zusage, Termin, Test,
+  Global, Vertriebssperre, Härtefall, offener Karte bei Justin, „kann nicht zahlen“/Beschwerde; nur 10–18 Uhr, nie am Tag einer Rechnung oder
+  Mahnung, 24 Stunden Ruhe, wenn der Kunde gerade selbst schreibt; ein Merker je Rate (nie doppelt). Sie schreibt NICHTS an die Rate — Abo-Motor,
+  Mahnmotor und WhatsApp-Zentrale laufen unverändert (E-182). Karte „Frisch fällige Raten“ im Mara-Steuerpult › Mail mit Schalter und Wirkung.
+  Nachgebessert: Antwortet er „ich zahle am Freitag“, hält Mail-Mara den Tag selbst fest (Zusage in Akte, Inkasso und Pipeline); unklar
+  („nächste Woche“, „am 15.“) → Rückfrage mit Wochentag und Datum; „kann nicht zahlen“ → Rückruf statt Pause.
+  **(C1) Mara beantwortet Anliegen** aus dem Kundenbereich („Hilfe & Anliegen“) selbst — dieselbe Maschine wie im Postfach, Kanal „anliegen“,
+  Takt alle 5 Minuten, eigener KI-Dienst mit 10-€-Deckel. Heikles (Kündigung, Widerruf, Erstattung, Löschwunsch, Anwalt, Bestreiten,
+  Beschwerde, Dringend-Kästchen, älter als 14 Tage) bleibt beim Menschen; dieselben Wände wie im Postfach (Mensch nötig, E-393, Wortwand);
+  höchstens 3 Antworten je Mensch und Tag. /agent/anliegen zeigt „Antwort von Mara“, „Mara antwortet nicht: …“ und „Vorschlag übernehmen“
+  (vor dem Speichern geprüft). Schalter im Mara-Steuerpult › Mail.
+  **Zusammenspiel:** Anliegen kennen die Kulanz-Regel aus E-396; „ich zahle morgen“ im Anliegen zählt ab dem Tag, an dem er schrieb (Herkunft
+  „Anliegen #…“); Maras Anliegen-Antwort steht bei „Heute dran“ als erledigt „von allein“; ein frisches Anliegen hält Maras Raten-Mail 24 Stunden
+  zurück.
+  **Abnahme (heute):** (1) Prüfer-Fund bestätigt und behoben — im Anliegen fand der Agent unsere letzte Antwort nicht (dort heißt sie „FIAON
+  (Mara)“, im Postfach „FIAON“), deshalb hielt ein „Ja, genau.“ auf Maras Rückfrage den Zahltag nie fest; jetzt zählt jede Antwort von unserer
+  Seite. (2) Entscheidung Justin: Die Vorabinfo drei Tage vor der Fälligkeit zählt NICHT als Kontakt — die Grenze „höchstens 3 Kontakte je Rate“
+  beginnt mit der Fälligkeit. Gemessen (Produktion nur lesend, 30 Tage, 134 nach dem Fälligkeitstag offene Raten): die alte Zählung sperrte 83,
+  die neue 6 — Mara erreicht 128 statt 51.
+- **Warum:** Justin, 19.10.2026, Vorschlag 3 „Mara führt den Betrieb“: „los, starte Etappe A und alle anderen gleichzeitig … mach einfach mal“;
+  „Frisch zuerst … Mara erinnert freundlich und bietet einen Termin an … höchstens 3 Kontakte je Rate“; zur Abnahme: „100 % auf Verkauf“
+  (E-182 Dauermahnung). Gemessen vorher: an Tag 1 und 2 nach der Fälligkeit kam per Mail fast nichts (5 bzw. 2 Mails); von den nach Tag 0
+  noch offenen Raten zahlten bis Tag 7 nur 8,7 %; 12 Anliegen offen, alle ohne Antwort, erledigte im Schnitt nach 85 Stunden; Daniel hatte 555
+  fällige Aufträge auf keiner geordneten Liste.
+- **Wo:** A: shared/fiaon-heute-dran.ts, server/lib/fiaon-heute-dran.ts, client/src/components/agent/HeuteDran.tsx, Team-Zentrale. B1:
+  shared/fiaon-mara-rate-erinnerung.ts (Regel, KONTAKT_VORLAUF_TAGE = 0), server/lib/fiaon-mara-rate-erinnerung.ts (Takt, Merker
+  fiaon_mara_rate_erinnerung), server/mail/vorlagen/zahlung.ts (mara_rate_erinnerung), shared/fiaon-zahlungszusage.ts +
+  server/lib/fiaon-mara-zahlungszusage.ts (Zahltag), client/src/components/admin/ChefMaraRaten.tsx. C1: shared/fiaon-mara-anliegen.ts,
+  server/lib/fiaon-mara-anliegen.ts, server/lib/fiaon-postmeister-agent.ts (Kanal „anliegen“, letzte Antwort „FIAON (…)“),
+  server/routes/fiaon-tickets.ts, client/src/pages/agent/tickets.tsx. Team-Update und Rundgänge mitgezogen. Prüfstände:
+  scripts/pruef-heute-dran{,-db}.ts, pruef-mara-rate-erinnerung{,-db}.ts (Abschnitt 13: Vorabinfo zählt nicht),
+  pruef-mara-zahlungszusage{,-db}.ts, pruef-mara-anliegen{,-db}.ts (Abschnitt 20: „Ja“ auf die Rückfrage im Anliegen).
+
 ## 19.10.2026 — E-396 Jahresvertrag: Die Kündigung gilt zum Ende der zwölf Monate — Kulanz nur nach Zahlung
 - **Was:** Kündigt ein Kunde mit Jahresvertrag (Vertrag ab 03.09.2026) und ist seine Annahme belegt (Vertrags-PDF aus /antrag-neu
   oder der Knopf „Zahlungspflichtig annehmen“), wird die Kündigung sofort gebucht und bestätigt — der Vertrag läuft aber bis zum Ende

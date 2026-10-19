@@ -213,7 +213,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "mara_rate_erinnerung",
     label: "Mara: frisch fällige Rate — persönlich (zahlen · antworten · Rückruf)",
     description:
-      "Feuert automatisch EINMAL je Rate, an Tag 1–3 nach der Fälligkeit, nur 10–18 Uhr: eine persönliche, freundliche Mail von Mara ohne Druck mit drei Wegen — Zahlungsseite der Rate, kurz antworten (landet im Postfach bei Mail-Mara), Rückruf-Zeit wählen (persönlicher Terminlink). Nur bei aktiver Forderung (nie nach Vertragsende, nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zusage, Global, Test, Vertriebssperre), höchstens 3 Kontakte je Rate über alle Wege, nie am selben Tag wie Rechnung oder Mahnung. Zahlungspost ohne Verkauf (geht auch bei Werbesperre). Nur als Quelltext-Vorlage (Mailwerk). Schalter: Chefbüro › Mara › Mail.",
+      "Feuert automatisch EINMAL je Rate, an Tag 1–3 nach der Fälligkeit, nur 10–18 Uhr: eine persönliche, freundliche Mail von Mara ohne Druck mit drei Wegen — Zahlungsseite der Rate, kurz antworten (landet im Postfach bei Mail-Mara), Rückruf-Zeit wählen (persönlicher Terminlink). Nur bei aktiver Forderung (nie nach Vertragsende, nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zusage, Global, Test, Vertriebssperre), höchstens 3 Kontakte je Rate über alle Wege ab der Fälligkeit (die Vorabinfo zählt nicht), nie am selben Tag wie Rechnung oder Mahnung. Zahlungspost ohne Verkauf (geht auch bei Werbesperre). Nur als Quelltext-Vorlage (Mailwerk). Schalter: Chefbüro › Mara › Mail.",
     customerBound: true,
     example: {
       ...CUSTOMER_EXAMPLE,

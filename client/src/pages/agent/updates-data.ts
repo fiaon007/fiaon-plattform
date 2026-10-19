@@ -126,7 +126,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "kurz antworten, wann er zahlt, oder einen Rückruf wählen.",
     changes: [
       "Die Mail kommt nur zwischen 10 und 18 Uhr und nie am selben Tag wie eine Rechnung oder Mahnung.",
-      "Höchstens 3 Kontakte je Rate über alle Wege — Vorabinfo, Rechnung, WhatsApp, Anruf und Maras Mail zusammen.",
+      "Höchstens 3 Kontakte je Rate ab der Fälligkeit — Rechnung, Mahnung, WhatsApp, Anruf und Maras Mail zusammen. Die Vorabinfo drei Tage vorher zählt nicht mit.",
       "Nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zahlungszusage, Termin, Testkonto oder Kunden von FIAON Global.",
       "Rechnung, Mahnungen und WhatsApp-Erinnerung laufen genau wie vorher weiter.",
       "Wählt der Kunde einen Rückruf, steht der Termin wie immer in deinem Kalender. Antwortet er, übernimmt Mara im Postfach.",

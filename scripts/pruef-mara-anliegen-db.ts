@@ -482,6 +482,45 @@ async function main() {
       ok(v19.length === 1 && v19[0].note.includes(`(Anliegen #${t19})`), "Verlauf der Akte nennt die Herkunft „Anliegen #…“", v19.map((x) => kurz(x.note, 160)));
     }
 
+    console.log("── 20 · Abnahme Welle 1 (Prüfer-Fund B1 × C1): „Ja, genau.“ auf Maras Rückfrage im Anliegen hält den Zahltag fest");
+    {
+      // Anliegen 1 „ich zahle nächste Woche“ → unklar, Mara fragt mit Wochentag und Datum nach (die Attrappe schreibt genau
+      // diese Frage, wie der Hinweis es verlangt). Anliegen 2 „Ja, genau.“ → im Verlauf steht Maras Antwort als
+      // „FIAON (Mara)“ — der Agent muss sie als unsere letzte Antwort erkennen. Vorher verglich er exakt mit „FIAON“
+      // (Postfach): im Anliegen nie wahr, letzteMara immer leer, das „Ja“ hielt nichts fest.
+      const { berlinToday } = await import("../server/lib/fiaon-time");
+      const Z = await import("../shared/fiaon-zahlungszusage");
+      const heute = berlinToday();
+      const tag = Z.plusTage(heute, 5);
+      const wochentag = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"][new Date(`${tag}T12:00:00Z`).getUTCDay()];
+      const frage = `Meinen Sie ${wochentag}, den ${tag.slice(8, 10)}.${tag.slice(5, 7)}.?`;
+      const K20 = await kunde("Q");
+      // Raten-Verwendungszweck in der echten Form (FIAON-XXXXXX-N): In der Raten-Lage holt der Server die Zahlungsseite
+      // der Rate vorab (zahlungslink_bauen) und verlangt sie als Knopf — sonst wird jede Antwort ein Entwurf.
+      const zref = "FIAON-A406Q2-2";
+      await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
+                VALUES (${K20.ref}, 2, ${zref}, 5999, (${heute}::date - 1), 'offen', 'pruefstand')`;
+      const EIN_ZAHLUNG = { ...EIN_FRAGE, kategorien: ["zahlung"], fragen: [], zusammenfassung: "Kunde nennt seinen Zahltag." };
+      const zahlKnopf = { art: "zahlung", url: null, text: "Jetzt bezahlen" };
+      const offen = `Ihre Monatsrate über 59,99 € mit dem Verwendungszweck ${zref} ist noch offen.`;
+      /** Takt, bis DIESES Anliegen bearbeitet ist (der Takt nimmt höchstens vier je Lauf). */
+      const bis = async (sz: Szenario, id: number) => { for (let i = 0; i < 3 && (await ticket(id)).mara_stand == null; i++) await takt(sz); };
+      const t20a = await anliegen(K20, "Meine Rate", "Guten Tag, ich zahle nächste Woche. Viele Grüße", 2);
+      await bis({ einordnung: EIN_ZAHLUNG, antwort: { antwort: `${offen} Sehr gern. ${frage}`, naechster_schritt: zahlKnopf, belege: [], fragen_beantwortet: [], merken: [] } }, t20a);
+      const za = await ticket(t20a);
+      ok(za.status === "beantwortet" && String(za.antwort ?? "").includes(frage), "Anliegen 1 „nächste Woche“ → Mara fragt mit Wochentag und Datum nach", { stand: za.mara_stand, grund: kurz(za.mara_grund, 200), antwort: kurz(za.antwort) });
+      const [p0] = (await sql`SELECT promised_payment_date::text AS zusage FROM fiaon_persons WHERE id = ${K20.pid}`) as any[];
+      ok(p0?.zusage == null, "… nichts festgehalten (unklar — nie geraten)", p0);
+      const t20b = await anliegen(K20, "Re: Meine Rate", "Ja, genau.", 0.1);
+      await bis({ einordnung: { ...EIN_ZAHLUNG, zusammenfassung: "Kunde bestätigt den Zahltag." }, antwort: { antwort: `${offen} Vielen Dank. ${Z.zusageSatz(tag)}`, naechster_schritt: zahlKnopf, belege: [], fragen_beantwortet: [], merken: [] } }, t20b);
+      const zb = await ticket(t20b);
+      const [p] = (await sql`SELECT promised_payment_date::text AS zusage FROM fiaon_persons WHERE id = ${K20.pid}`) as any[];
+      ok(p?.zusage === tag, "ROT ohne den Schritt: „Ja, genau.“ → promised_payment_date = der Tag aus Maras Rückfrage", { zusage: p?.zusage, tag, stand: zb.mara_stand, grund: kurz(zb.mara_grund, 200) });
+      const v20 = (await sql`SELECT note FROM fiaon_contact_log WHERE person_id = ${K20.pid} AND note LIKE 'Zahlungszusage%' ORDER BY id`) as any[];
+      ok(v20.length === 1 && v20[0].note.includes(`(Anliegen #${t20b})`), "Verlauf der Akte: EIN Vermerk mit Herkunft „Anliegen #…“ (das zweite Anliegen)", v20.map((x) => kurz(x.note, 160)));
+      ok(zb.status === "beantwortet" && /notiert|Zahltag/.test(String(zb.antwort ?? "")), "Anliegen 2 beantwortet — mit dem Satz zum festgehaltenen Tag", { status: zb.status, antwort: kurz(zb.antwort) });
+    }
+
     console.log("── 14 · Kein Netz außer der Attrappe");
     ok(fremd === 0, `kein Netzaufruf außer den Attrappen (${fremd})`);
   } finally {

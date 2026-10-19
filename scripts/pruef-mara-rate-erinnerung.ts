@@ -37,7 +37,7 @@ async function main() {
   const U = (f: Partial<typeof basis>, jetzt = ELF) => rateErinnerungUrteil({ ...basis, ...f }, jetzt);
 
   console.log("── 1 · Wer bekommt die Mail (positiv)");
-  ok(U({}).art === "senden", "seit 1 Tag fällig, Vorabinfo + Rechnung (2 Kontakte), 11:00 → senden", U({}));
+  ok(U({}).art === "senden", "seit 1 Tag fällig, Rechnung + Erinnerung (2 Kontakte ab Fälligkeit), 11:00 → senden", U({}));
   ok(U({ faelligAm: "2026-10-18" }).art === "senden", "seit 2 Tagen fällig → senden");
   ok(U({ faelligAm: "2026-10-17" }).art === "senden", "seit 3 Tagen fällig, Motor heute nicht dran → senden");
   ok(U({ kontakte: 0 }).art === "senden" && U({ kontakte: 1 }).art === "senden", "0 oder 1 Kontakt → senden");
@@ -198,6 +198,12 @@ async function main() {
   const waende: (keyof typeof basis)[] = ["nachVertragsende", "kuendigungUngebucht", "kuendigungGebucht", "widerrufOderRecht", "mahnstopp", "testperson", "globalKunde", "vertriebssperre", "eskaliert", "karteOffen", "einwand", "zahlungGemeldet", "eingangPasst", "zusageOffen", "terminSteht", "heuteRatenpost", "motorHeuteDran", "kiPause"];
   ok(waende.every((w) => U({ [w]: true } as any).art !== "senden"), "Rot-Probe Regel: jede der 18 Wände allein verhindert das Senden", waende.filter((w) => U({ [w]: true } as any).art === "senden"));
   ok(U({ kontakte: R.HOECHSTENS_KONTAKTE - 1 }).art === "senden" && U({ kontakte: R.HOECHSTENS_KONTAKTE }).art !== "senden", "Rot-Probe Regel: die Kontaktgrenze liegt genau bei 3");
+  // Abnahme Welle 1 (Justin 19.10., „100 % auf Verkauf“, E-182 Dauermahnung): Die Vorabinfo vom Tag −3 zählt nicht —
+  // die Zählung beginnt mit der Fälligkeit. Gemessen: so hätte Mara 128 statt 51 von 134 frisch fälligen Raten erreicht.
+  ok(R.KONTAKT_VORLAUF_TAGE === 0, "Abnahme: die Zählung beginnt mit der Fälligkeit — KONTAKT_VORLAUF_TAGE = 0, die Vorabinfo vom Tag −3 zählt nicht");
+  ok((ohneKommentar(srv).match(/\(r\.faellig_am - \$\{KONTAKT_VORLAUF_TAGE\}\)::timestamp AT TIME ZONE 'Europe\/Berlin'/g) ?? []).length === 2
+    && /c\.created_at >= r\.faellig_am::timestamp AT TIME ZONE 'Europe\/Berlin'/.test(ohneKommentar(srv)),
+  "Quelltext: Raten-Mails und WhatsApp-Raten zählen ab faellig_am − KONTAKT_VORLAUF_TAGE (zwei Stellen), Anrufe ab dem Fälligkeitstag — kein festes 7");
   const bremst = "UPDATE fiaon_abo_raten SET letzte_erinnerung_at = NOW() WHERE id = 1";
   ok(/UPDATE\s+fiaon_abo_raten/i.test(ohneKommentar(`${srv}\n${bremst}`)), "Rot-Probe Quelltext: eine Zeile, die die Mahnung verschiebt, würde Abschnitt 9 rot machen");
 

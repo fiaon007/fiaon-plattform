@@ -96,7 +96,8 @@ export default function MaraRatenErinnerung() {
           <p>
             <b>Tag 1–3 nach der Fälligkeit</b> schreibt Mara EINMAL je Rate, freundlich und ohne Druck: jetzt zahlen, kurz antworten
             (Mail-Mara übernimmt) oder Rückruf-Zeit wählen. Nur 10–18 Uhr, höchstens {s?.hoechstensKontakte ?? 3} Kontakte je Rate
-            über alle Wege, nie am Tag einer Rechnung oder Mahnung. Rechnung, Mahnungen und WhatsApp-Zentrale laufen unverändert.
+            über alle Wege ab der Fälligkeit (die Vorabinfo zählt nicht), nie am Tag einer Rechnung oder Mahnung. Rechnung,
+            Mahnungen und WhatsApp-Zentrale laufen unverändert.
           </p>
           <p>
             Nie bei Vertragsende, Kündigung, Widerruf, Mahnstopp, Ratenpause, Zusage, Termin, Testkonto, FIAON Global oder

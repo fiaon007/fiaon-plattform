@@ -171,10 +171,11 @@ export async function faktenLaden(rateId: number, heute: string, lauf: Lauf = sq
                         WHERE (cr.person_id = a.person_id OR cr.ref = a.ref)
                           AND cr.outcome = 'rueckruf_termin' AND cr.done_at IS NULL AND cr.voided_at IS NULL
                           AND cr.scheduled_at > NOW())) AS termin,
-           -- KONTAKTE ZU DIESER RATE über alle Wege, ab KONTAKT_VORLAUF_TAGE (7) Tagen vor der Fälligkeit (Vorabinfo ist Tag −3):
-           -- Raten-Mails (Abo-Motor, Mahnmotor, Inkasso von Hand, Sende-Menü — alle als abo_payment_reminder), Maras eigene,
-           -- WhatsApp-Raten-Vorlagen (Zentrale) und Anrufe mit Ergebnis ab dem Fälligkeitstag. Je Person gezählt: Hat er
-           -- daneben eine ältere offene Rate, zählen deren Mahnungen mit — er ist dann kein frischer Fall.
+           -- KONTAKTE ZU DIESER RATE über alle Wege, ab KONTAKT_VORLAUF_TAGE Tagen vor der Fälligkeit — seit der Abnahme
+           -- (19.10., Justin: „100 % auf Verkauf“) ist das 0: Die Zählung beginnt mit der Fälligkeit, die Vorabinfo vom
+           -- Tag −3 zählt nicht. Raten-Mails (Abo-Motor, Mahnmotor, Inkasso von Hand, Sende-Menü — alle als
+           -- abo_payment_reminder), Maras eigene, WhatsApp-Raten-Vorlagen (Zentrale) und Anrufe mit Ergebnis. Je Person
+           -- gezählt: Hat er daneben eine ältere offene Rate, zählen deren Mahnungen mit — er ist dann kein frischer Fall.
            ((SELECT COUNT(*) FROM fiaon_mail_log m
               WHERE m.person_id = a.person_id AND m.event IN ('abo_payment_reminder', '${RATE_ERINNERUNG_EVENT}')
                 AND m.status = 'versandt' AND COALESCE(m.art, 'echt') = 'echt'

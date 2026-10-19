@@ -118,7 +118,11 @@ async function melden(opts: {
   // ══════════════════════════════════════════════════════════════════════
   const vonMara = b.herkunft === "mara_whatsapp" || b.herkunft === "mara_mail";
   const kanal = b.herkunft === "mara_mail" ? "E-Mail" : "WhatsApp";
-  const einleitung = vonMara
+  // E-395 (19.10.2026): Den Termin hat der Kunde genannt, Mara hat ihn nur eingetragen — die Mail sagt das so.
+  const genannt = b.herkunft === "mara_mail_genannt";
+  const einleitung = genannt
+    ? `${b.kunde} hat in einer E-Mail einen Termin mit dir genannt, der mit dem Team vereinbart war. Mara hat ihn in deinen Kalender eingetragen — der Beleg steht unten.`
+    : vonMara
     ? `Mara hat per ${kanal} einen Rückruf mit ${b.kunde} für dich vereinbart. Ruf bitte pünktlich an; was Mara mit dem Kunden besprochen hat, steht unten.`
     : b.herkunft === "mara_whatsapp_link"
       ? `${b.kunde} hat sich über den Terminlink, den Mara per WhatsApp geschickt hat, selbst einen Termin bei dir ausgesucht.`
@@ -130,14 +134,15 @@ async function melden(opts: {
   const akte = !b.personId ? absoluteUrl("/agent/kalender")
     : opts.quelle === "global" ? absoluteUrl(`/agent/firmen?person=${b.personId}`)
     : absoluteUrl(`/agent/kunden?person=${b.personId}`);
-  const quelle = vonMara ? `Rückruf — von Mara per ${kanal} vereinbart` : (QUELLE_TEXT[opts.quelle] ?? opts.quelle);
+  const quelle = genannt ? "Vereinbarter Termin — vom Kunden per E-Mail genannt, von Mara eingetragen"
+    : vonMara ? `Rückruf — von Mara per ${kanal} vereinbart` : (QUELLE_TEXT[opts.quelle] ?? opts.quelle);
 
   // E-260 (29.09.2026, B8): Mara hat den Termin auf Wunsch des Kunden verlegt —
   // der neue kommt als eigene Buchungsmail. Kein „ABGESAGT", kein „Der Kunde hat
   // einen Link bekommen" (er bekommt keinen: Er hat die neue Zeit ja schon).
   const verschoben = opts.art === "absage" && String(opts.wer ?? "").startsWith("verschoben");
   const betreff = opts.art === "buchung"
-    ? `Neuer Termin${vonMara ? " (von Mara)" : ""}: ${b.kunde} — ${wann}`
+    ? `Neuer Termin${vonMara || genannt ? " (von Mara)" : ""}: ${b.kunde} — ${wann}`
     : verschoben ? `Termin verschoben (Mara): ${b.kunde} — war ${wann}` : `Termin ABGESAGT: ${b.kunde} — ${wann}`;
 
   const text = verschoben
@@ -153,7 +158,7 @@ async function melden(opts: {
       + `Art: ${quelle}\n`
       + (b.kundeTelefon ? `Telefon: ${b.kundeTelefon}\n` : "")
       + (b.ref ? `Bestellung: ${b.ref}\n` : "")
-      + (b.notiz ? `\n${vonMara ? "Worum es geht" : "Anliegen"}:\n${b.notiz}\n` : "")
+      + (b.notiz ? `\n${genannt ? "Beleg" : vonMara ? "Worum es geht" : "Anliegen"}:\n${b.notiz}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
       // E-263: „in deinem Kalender" stand direkt über den Knöpfen „In Apple-/Outlook-Kalender" — gemeint ist das Portal.
       + `Der Termin steht im FIAON-Calendar (Portal) und meldet sich dort 30 Minuten vorher.`

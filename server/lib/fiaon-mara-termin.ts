@@ -104,7 +104,11 @@ export type ProtokollArt =
   // Aufgabe an die Leitung; „Löschen Sie meine Daten" — Aufgabe an die Leitung.
   | "abstreiten" | "loeschwunsch"
   // E-265 (29.09.2026): Mara nimmt eine klare Kündigung auf WhatsApp selbst auf (kuendigung_aufnehmen).
-  | "kuendigung";
+  | "kuendigung"
+  // E-395 (19.10.2026): Ein Termin, den der Kunde mit uns hat, aus seiner Mail eingetragen (fiaon-mara-genannter-termin.ts).
+  // Bewusst NICHT „termin_gebucht“: maraTermineNachpruefen prüft Maras eigene Rückrufe (Arbeitszeit, Uhrzeit per WhatsApp) —
+  // ein vereinbarter Termin darf außerhalb der Arbeitszeit liegen, und die Uhrzeit hat der Kunde selbst genannt.
+  | "termin_eingetragen";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {

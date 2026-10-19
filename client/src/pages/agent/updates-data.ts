@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-395 (19.10.2026, Justin, Fall #7131): „Mara muss ab jetzt in mein Kalender den Termin eintragen, den Kunden
+    // einen guten Termin wünschen und sich zurücknehmen.“
+    id: "2026-10-19-mara-genannter-termin",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara trägt Termine ein, die ein Kunde per Mail nennt — und hält sich dann zurück",
+    summary:
+      "Schreibt ein Kunde „wir telefonieren heute um 11 Uhr mit Herrn Schwarzott“ oder passt seine Uhrzeit zu deiner Notiz, "
+      + "trägt Mara den Termin in den Kalender ein, wünscht ihm ein gutes Gespräch und verkauft in dieser Mail nichts.",
+    changes: [
+      "Mara liest vor jeder Antwort die Notizen des Teams der letzten 14 Tage. Was du mit dem Kunden vereinbart hast, gilt für sie.",
+      "Passt die Uhrzeit des Kunden zu deiner Notiz (oder sagt er „mit Ihnen“, „mit Ihrem Berater“, „mit Herrn …“), steht der Termin danach im Kalender — bei dem, der in der Notiz steht, beim Firmenthema bei Justin, sonst beim Betreuer.",
+      "Du bekommst die Mail „Neuer Termin (von Mara)“ mit dem Beleg. Im Kalender steht „von Mara“.",
+      "Termine bei der Bank, beim Notar o. Ä. trägt sie nicht ein — sie wünscht nur viel Erfolg. Ist unklar, mit wem, steht ein Vermerk in der Akte.",
+    ],
+    howto: [
+      "Wenn du am Telefon eine Zeit ausmachst: in der Notiz Tag und Uhrzeit schreiben („Montag 11 Uhr mit Justin“) — dann erkennt Mara den Termin sicher.",
+      "Noch besser: den Termin gleich selbst im Kalender eintragen.",
+    ],
+    link: { href: "/agent/kalender", label: "Kalender öffnen" },
+  },
+  {
     // E-391 (16.10.2026, Daniel): „Hab in der Pipeline wieder nur C-Kunden.“
     id: "2026-10-16-pipeline-dringlichkeit",
     date: "2026-10-16",

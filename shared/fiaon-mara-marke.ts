@@ -22,9 +22,10 @@
 //   mara_whatsapp       „von Mara"          Rückruf, von Mara per WhatsApp vereinbart
 //   mara_mail           „von Mara"          Rückruf, von Mara aus einer E-Mail vereinbart
 //   mara_whatsapp_link  „über Maras Link"   Kunde hat selbst über Maras Link gebucht
+//   mara_mail_genannt   „von Mara"          Kunde nannte in einer Mail einen mit uns vereinbarten Termin (E-395)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type MaraWeg = "mara_whatsapp" | "mara_mail" | "mara_whatsapp_link";
+export type MaraWeg = "mara_whatsapp" | "mara_mail" | "mara_whatsapp_link" | "mara_mail_genannt";
 
 export interface MaraMarke {
   weg: MaraWeg;
@@ -58,6 +59,15 @@ const MARKEN: Record<MaraWeg, MaraMarke> = {
     titel: "Rückruf, den Mara per E-Mail vereinbart hat",
     satz: "Diesen Rückruf hat Mara per E-Mail mit dem Kunden vereinbart. "
       + "Er wartet zu dieser Zeit auf deinen Anruf — worum es geht, steht in der Notiz.",
+    vonMaraEingetragen: true,
+  },
+  // E-395 (19.10.2026): Mara hat ihn nicht vereinbart, sondern eingetragen, was mit dem Team schon feststand.
+  mara_mail_genannt: {
+    weg: "mara_mail_genannt",
+    text: "von Mara",
+    titel: "Termin, den der Kunde per E-Mail genannt hat — von Mara eingetragen",
+    satz: "Diesen Termin hat der Kunde in einer E-Mail genannt; er war mit dem Team vereinbart. "
+      + "Mara hat ihn eingetragen — der Beleg steht in der Notiz.",
     vonMaraEingetragen: true,
   },
   mara_whatsapp_link: {

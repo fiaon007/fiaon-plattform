@@ -225,7 +225,7 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
       const verschobenVon = protokollBeginn && !Number.isNaN(protokollBeginn.getTime())
         && Math.abs(protokollBeginn.getTime() - new Date(z.beginn).getTime()) >= 60_000 ? protokollBeginn.toISOString() : null;
       const nummer = text(p?.nummer) || String(tel.waehlbar ?? "").replace(/\D/g, "");
-      if (!verschobenVon && herkunft !== "mara_mail" && (nummer || personId)) {
+      if (!verschobenVon && herkunft !== "mara_mail" && herkunft !== "mara_mail_genannt" && (nummer || personId)) {
         try {
           // Erst AB der Buchung (vorher −60 s: dann war es oft Maras Angebot), und nur ein Satz,
           // der genau diese Zeit am richtigen Tag zusagt (zusagePasst).
@@ -238,7 +238,7 @@ export async function terminUebersicht(opts: { chefAgentId?: number | null; jetz
         } catch { /* fiaon_whatsapp fehlt (lokal) — dann ohne Zusage */ }
       }
       mara = {
-        weg: herkunft, text: marke.text, kanal: herkunft === "mara_mail" ? "E-Mail" : "WhatsApp",
+        weg: herkunft, text: marke.text, kanal: herkunft === "mara_mail" || herkunft === "mara_mail_genannt" ? "E-Mail" : "WhatsApp",
         zusage,
         verschobenVon,
         anliegen: text(daten?.wunsch?.anliegen) || anliegenAusNotiz(text(z.notiz)),

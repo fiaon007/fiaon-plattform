@@ -482,7 +482,10 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
     // 24.09.2026 (E-236) mitgezogen: Mara trägt Rückrufe selbst ein.
     tipp: "Auf jeder Terminkarte steht außerdem, ob der Kunde selbst gebucht hat oder ob du den Termin eingetragen hast. "
       + "„von Mara“ (im Wochenraster ein blauer Punkt) heißt: Mara hat den Rückruf per WhatsApp oder E-Mail mit dem Kunden "
-      + "vereinbart — die Notiz darunter sagt, worum es geht. „über Maras Link“: der Kunde hat selbst über Maras Terminlink gebucht.",
+      + "vereinbart — die Notiz darunter sagt, worum es geht. „über Maras Link“: der Kunde hat selbst über Maras Terminlink gebucht. "
+      // E-395 (19.10.2026) mitgezogen: Mara trägt auch Termine ein, die der Kunde in einer Mail nennt.
+      + "Nennt ein Kunde in einer Mail einen Termin, den er mit uns hat (passt zu deiner Notiz oder „mit Ihrem Berater“), "
+      + "trägt Mara ihn ebenfalls mit „von Mara“ ein — der Beleg steht in der Notiz. Deshalb: Vereinbarte Zeiten immer mit Uhrzeit notieren.",
   },
   {
     ziel: ".ca-knopf",

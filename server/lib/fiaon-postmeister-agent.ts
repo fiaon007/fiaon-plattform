@@ -71,8 +71,12 @@ import {
   NACH_DEM_EINGANG_SATZ, nachDerZuordnung, mitAntragLuecke,
   // E-373 (15.10.2026): Justins Verkaufssatz mit seinem Wunschlimit.
   nachDemEingang,
+  // E-395 (19.10.2026): der eingetragene Termin muss mit Uhrzeit in der Antwort stehen.
+  uhrzeitenIn,
 } from "@shared/fiaon-mara-ton";
 import { rahmenFuer } from "./fiaon-postmeister-antworttext";
+// E-395 (19.10.2026): Termin genannt → zurücknehmen; „eingetragen“ nur, wenn eingetragen.
+import { verkaufNebenTermin, sagtEingetragen } from "@shared/fiaon-genannter-termin";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -1076,6 +1080,8 @@ function systemPrompt(ein: {
   herkunftHinweis?: string | null;
   /** E-275: zahlender Kunde mit Werbesperre — Service ja, Werbung und Upsell nein. */
   werbesperreZahlend?: boolean;
+  /** E-395: die letzten Notizen der Kollegen (14 Tage) — was dort vereinbart ist, gilt. */
+  teamNotizen?: string | null;
 }): string {
   const schritte = erlaubteSchritte(ein.lage, !!ein.auskunftAntwort).join(", ");
   const spracheAntwort = String(ein.sprache || ein.einordnung.sprache || "de").slice(0, 2).toLowerCase();
@@ -1409,6 +1415,12 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // E-265 (29.09.2026): „Herr Stripling ruft Sie an" — nie der Vorname (auch nicht im Beispiel, das Modell kopiert es).
     `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Herr Stripling ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
     ``,
+    // E-395 (19.10.2026): Daniels Notiz „telefoniert am Montag 11 Uhr mit Justin“ stand nur tief im Kundenweg.
+    ...(ein.teamNotizen ? [
+      `LETZTE GESPRÄCHSNOTIZEN DES TEAMS (14 Tage, neueste zuerst). Was ein Kollege mit ihm besprochen oder vereinbart hat, GILT: Du widersprichst nie, verkaufst nichts dagegen und nimmst Bezug darauf („wie mit Herrn Stripling besprochen“ — Nennform, nie der Vorname). Nennt der Kunde ein Gespräch oder eine Absprache, prüfst du es zuerst hier:`,
+      ein.teamNotizen,
+      ``,
+    ] : []),
     `DIE AKTE (Stand, Bestellungen, Raten, Termine):`,
     // 04.09.2026 (E-118): Bis hierher 9.000 Zeichen hart abgeschnitten, mitten
     // im JSON — und die wichtigen Schlüssel (Sperren, Kündigung) standen hinten.
@@ -2116,7 +2128,8 @@ export async function antwortErzeugen(ein: {
   const lage = akte.kundenlage;
   const sprache = antwortSprache(ein.sprache ?? ein.einordnung.sprache, akte?.sprache ?? null);
   // E-248: Ist diese Antwort eine Zahlungsaufforderung? (Stopp, Widerruf, Beschwerde, Bestreiten …)
-  const ruhe = zahlungsRuhe({ flags: ein.einordnung.flags, vorgeschichte: ein.vorgeschichte ?? null });
+  // E-395: `let` — nennt er einen Termin, wird die Antwort ebenfalls keine Zahlungsaufforderung (unten).
+  let ruhe = zahlungsRuhe({ flags: ein.einordnung.flags, vorgeschichte: ein.vorgeschichte ?? null });
   // E-248 (#5625): Vertrag vor dem 03.09.2026 — formlos kündbar (shared/fiaon-wissen.ts).
   const formlos = !!ein.ref && !vertrag.jahresvertrag && !/FIRMENAUFTRAG/.test(vertrag.text);
   const kontext: WerkzeugKontext = {
@@ -2172,11 +2185,31 @@ export async function antwortErzeugen(ein: {
   const handlungen: AgentErgebnis["handlungen"] = [];
   const werkzeugDaten: Record<string, any> = {};
 
+  // ── E-395 (19.10.2026): DER GENANNTE TERMIN ─────────────────────────────
+  // „ja bitte stornieren, wir haben heute um 11.00 uhr ein neues gespräch für einen firmenkredit“ (#7131): Daniel
+  // hatte notiert „telefoniert am Montag 11 Uhr mit Justin“ — Mara trug nichts ein und schloss mit der Visa-Karte.
+  // Jetzt erkennt der SERVER einen Termin, den der Kunde mit uns hat, trägt ihn ein (fiaon-mara-genannter-termin.ts)
+  // und sagt dem Modell, was geschehen ist. Mara wünscht einen guten Termin und nimmt sich zurück (Justin):
+  // keine Zahlungsbitte, kein Verkauf. Die Notizen des Teams stehen ihr dazu als eigener Block vor Augen.
+  const gtM = await import("./fiaon-mara-genannter-termin");
+  const teamNotizen = ein.personId ? await gtM.teamNotizenLesen(ein.personId).catch(() => []) : [];
+  const genannt = ein.personId
+    ? await gtM.genannterTerminBehandeln({
+      personId: ein.personId, ref: ein.ref, kundeText: kontext.kundeText ?? "", postmeisterId: ein.postmeisterId ?? null, notizen: teamNotizen,
+    }).catch((e) => { console.warn("[POSTMEISTER] Genannter Termin:", String(e?.message || e).slice(0, 160)); return null; })
+    : null;
+  if (genannt?.ruhe && !ruhe) { ruhe = genannt.ruhe; kontext.ruhe = ruhe; }
+  if (genannt?.handlung) {
+    const gutGelaufen = genannt.eingetragen || genannt.erkennung.art === "steht_schon" || (!genannt.fehler && genannt.erkennung.art !== "mit_uns");
+    handlungen.push({ werkzeug: "vereinbarten_termin_eintragen", ergebnis: genannt.handlung, ok: gutGelaufen });
+  }
+
   // 04.09.2026: In Zahlungslagen die Zahlungsseite VORAB holen. Bis hierher
   // vergaß das Modell den Aufruf in jedem siebten Fall („Zahlungsseite nicht
   // geholt") — und die Umformulierung kann keine Werkzeuge mehr rufen.
   const zahlLagen = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"];
   const vorab: string[] = [];
+  if (genannt?.hinweis) vorab.push(genannt.hinweis);
   // E-248: In einer Ruhe-Antwort (Stopp, Widerruf …) wird die Zahlungsseite NICHT vorab geholt —
   // „VORAB GEHOLT: Zahlungsseite" im Auftrag ließ das Modell trotzdem zur Zahlung auffordern (#5633).
   if (zahlLagen.includes(lage) && !ruhe) {
@@ -2272,6 +2305,7 @@ export async function antwortErzeugen(ein: {
       auskunftAntwort: kontext.auskunftAntwort ?? null,
       sprache, ruhe, formlos, antragLink: !!werkzeugDaten.antrag_link?.persoenlich, herkunftHinweis,
       werbesperreZahlend,
+      teamNotizen: gtM.teamNotizenText(teamNotizen),
     }), ...vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
@@ -2315,7 +2349,7 @@ export async function antwortErzeugen(ein: {
       await gedaechtnisMerken(ein.personId, roh?.merken, "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
       return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
-        kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend,
+        kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt,
       });
     }
 
@@ -2376,6 +2410,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   ruhe?: string | null;
   /** E-275: zahlender Kunde mit Werbesperre — kein Verkauf, also auch keine Pflicht zu auskunft_anbieten. */
   werbesperreZahlend?: boolean;
+  /** E-395: Er nennt einen Termin — eingetragen, steht schon, bei Dritten oder unklar (fiaon-mara-genannter-termin.ts). */
+  genannt?: import("./fiaon-mara-genannter-termin").GenanntLage | null;
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
@@ -2470,6 +2506,19 @@ async function pruefenUndAbschliessen(roh: any, k: {
       versucht: k.handlungen.map((h) => h.werkzeug), antwort: auskunftAntwort,
       // E-275: Bei Werbesperre gibt es das Werkzeug nicht (werkzeugeFuerLage) — dann ist „nicht gerufen“ kein Mangel.
     }).filter((f) => !((k.ruhe || k.werbesperreZahlend) && /wurde nicht gerufen/.test(f))));
+    // E-395 (19.10.2026): Nennt er einen Termin — zurücknehmen (kein Verkauf), „eingetragen“ nur, wenn eingetragen,
+    // und der eingetragene Termin steht mit Uhrzeit in der Antwort.
+    const gt = k.genannt;
+    if (gt) {
+      const verkauf = verkaufNebenTermin(t);
+      if (verkauf) fehlend.push(`Verkauf neben einem genannten Termin („${verkauf}“) — Justin: „einen guten Termin wünschen und sich zurücknehmen“; nimm den Satz heraus`);
+      const darfEingetragen = gt.eingetragen || gt.erkennung.art === "steht_schon";
+      const eing = sagtEingetragen(t);
+      if (eing && !darfEingetragen) fehlend.push(`Die Antwort sagt, der Termin sei eingetragen („${eing}“) — eingetragen ist nichts; wünsche nur ein gutes Gespräch`);
+      if (darfEingetragen && gt.erkennung.uhrzeit && !uhrzeitenIn(t).includes(gt.erkennung.uhrzeit)) {
+        fehlend.push(`Die Antwort nennt den eingetragenen Termin nicht — ein Satz: „Ihr Gespräch ${gt.kundenZeit ?? ""}${gt.teilnehmer ? ` mit ${gt.teilnehmer.dat}` : ""} ist bei uns eingetragen — ich wünsche Ihnen ein richtig gutes Gespräch!“`);
+      }
+    }
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
     if (naher && !/termin|gespräch|uhr/i.test(t)) fehlend.push("gebuchter Termin nicht erwähnt");

@@ -147,6 +147,9 @@ export const HERKUENFTE = {
   mara_whatsapp: "Von Mara per WhatsApp vereinbart (Rückruf)",
   mara_whatsapp_link: "Über Maras persönlichen Terminlink (WhatsApp) selbst gebucht",
   mara_mail: "Von Mara aus einer E-Mail vereinbart (Rückruf)",
+  // 19.10.2026 (E-395): Der Kunde nennt in seiner Mail einen Termin, den er mit uns hat (Team-Notiz oder „mit
+  // Ihrem Berater“) — Mara trägt ihn ein (server/lib/fiaon-mara-genannter-termin.ts). Kein Rückruf, den sie vereinbart.
+  mara_mail_genannt: "Vom Kunden in einer E-Mail genannt, von Mara eingetragen (mit dem Team vereinbart)",
   // E-273 (02.10.2026): Das Startgespräch eines Individualangebots (FIAON Global) bucht das System nach der
   // Annahme selbst — beim nächsten freien Termin (server/lib/fiaon-global-angebot-startgespraech.ts).
   individualangebot: "Nach Annahme eines Individualangebots vom System gebucht (Startgespräch FIAON Global)",
@@ -1226,6 +1229,14 @@ export async function terminBuchen(
      * die Grenze nur aus (nie enger als HORIZONT_TAGE), höchstens 120 Tage. Ohne Angabe: wie bisher.
      */
     horizontTage?: number | null;
+    /**
+     * E-395 (19.10.2026): Der Termin IST schon vereinbart (Team-Notiz oder Aussage des Kunden) — der Server trägt
+     * nur ein, was feststeht (fiaon-mara-genannter-termin.ts). Dann gelten weder der Vorlauf noch das Raster:
+     * „heute 11:15“ ist kein Platz, den jemand wählt, sondern ein Gespräch, das stattfindet. Vergangenheit,
+     * Horizont, Rollenwand, Doppelbuchung und Überschneidung (Index) bleiben. NUR serverseitig setzen —
+     * keine Route reicht diesen Schalter von außen durch.
+     */
+    vereinbart?: boolean;
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
@@ -1259,7 +1270,7 @@ export async function terminBuchen(
   // ein Gespräch für „in einer halben Stunde" eintragen, wenn er es gerade
   // telefonisch vereinbart hat.
   const jetzt = Date.now();
-  if (eingabe.quelle !== "agent_manuell" && beginn.getTime() < jetzt + VORLAUF_STUNDEN * 3600_000) {
+  if (eingabe.quelle !== "agent_manuell" && eingabe.vereinbart !== true && beginn.getTime() < jetzt + VORLAUF_STUNDEN * 3600_000) {
     throw new TerminFehler("zu_frueh", `Termine sind frühestens in ${VORLAUF_STUNDEN} Stunden buchbar.`);
   }
   if (beginn.getTime() <= jetzt) {
@@ -1456,7 +1467,8 @@ export async function terminBuchen(
     }
     return false;
   });
-  if (!imRaster) throw new TerminFehler("kein_slot", "Zu dieser Zeit werden keine Gespräche angeboten.");
+  // E-395: Ein vereinbarter Termin wird eingetragen, wie er feststeht — auch außerhalb des Rasters.
+  if (!imRaster && eingabe.vereinbart !== true) throw new TerminFehler("kein_slot", "Zu dieser Zeit werden keine Gespräche angeboten.");
 
   const stornoToken = randomBytes(24).toString("hex");
   const herkunft = herkunftPruefen(eingabe.herkunft);

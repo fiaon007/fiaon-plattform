@@ -23,7 +23,9 @@ import {
   type EntscheidungNeu, type EntscheidungBeleg,
 } from "./fiaon-mara-entscheidungen";
 import { GRUND_KURZ } from "@shared/fiaon-entwurf-frist";
-import { AMPEL_GELB_KOPF, istAmpelGelbEntwurf, istAmpelRotEntwurf } from "@shared/fiaon-mara-ampel";
+import {
+  AMPEL_GELB_KOPF, gelbKarteGrund, istAmpelGelbEntwurf, istAmpelGelbKarte, istAmpelRotEntwurf, mailAmpelGelbKarteGrund,
+} from "@shared/fiaon-mara-ampel";
 
 /** E-369 ging an diesem Zeitpunkt live — ältere Entwürfe kamen aus der alten Übergabe-Regel (Sammelkarte). */
 export const KARTEN_AB = new Date("2026-10-15T09:07:21Z");
@@ -48,7 +50,7 @@ const json = <T>(v: unknown, vorgabe: T): T => {
 const tag = (v: unknown) => (v ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" }).format(new Date(v as any)) : "");
 const epoche = (v: unknown) => Math.floor(new Date((v ?? 0) as any).getTime() / 1000);
 
-type Fall = "widerruf" | "rechtlich" | "global" | "unsicher" | "ampel";
+type Fall = "widerruf" | "rechtlich" | "global" | "unsicher" | "ampel" | "ampel_gelb";
 /** Rein: Welche Art Entscheidung braucht dieser Entwurf? Aus dem Übergabegrund der Zeile. */
 export function entwurfFall(begruendung: string | null | undefined): Fall {
   const g = String(begruendung ?? "");
@@ -57,6 +59,8 @@ export function entwurfFall(begruendung: string | null | undefined): Fall {
   if (/widerruf/i.test(g)) return "widerruf";
   if (/rechtlich|anwalt|beh(?:ö|oe)rde/i.test(g)) return "rechtlich";
   if (/global/i.test(g)) return "global";
+  // E-406 B3 (Nachbesserung): Gelb, aber die 24-Stunden-Regel ließe den Entwurf liegen — eine normale Karte.
+  if (istAmpelGelbKarte(g)) return "ampel_gelb";
   return "unsicher";
 }
 
@@ -66,6 +70,7 @@ const TITEL: Record<Fall, string> = {
   global: "FIAON Global — Kunde schreibt",
   unsicher: "Mara ist unsicher — Antwort ansehen",
   ampel: "Ampel rot — Maras Antwort senden?",
+  ampel_gelb: "Ampel gelb — Maras Antwort senden?",
 };
 const SATZ: Record<Fall, string> = {
   widerruf: "Ob der Widerruf gilt und was mit bereits Gezahltem geschieht, entscheidest du. Maras Antwort sagt nichts zu.",
@@ -73,6 +78,7 @@ const SATZ: Record<Fall, string> = {
   global: "Global-Kunden beantwortet Mara nie selbst.",
   unsicher: "Ihre eigene Prüfung hat die Antwort angehalten.",
   ampel: "Mails beantwortet Mara gerade nur mit deinem Klick (Ampel rot im Steuerpult).",
+  ampel_gelb: "Die Ampel steht auf Gelb — von selbst ginge diese Antwort aber nie raus, nur mit deinem Klick.",
 };
 
 /** Rein: die Karte zu einer Postfach-Zeile (fiaon_postmeister + Name). */
@@ -96,7 +102,7 @@ export function karteAusZeile(z: any): EntscheidungNeu {
     personId: z.person_id != null ? Number(z.person_id) : null,
     ref: z.ref ?? null,
     titel: TITEL[fall],
-    text: `„${kurz(z.betreff || "(ohne Betreff)", 90)}“ — ${SATZ[fall]}${grund && fall === "unsicher" ? ` (${kurz(grund, 140)})` : ""}`,
+    text: `„${kurz(z.betreff || "(ohne Betreff)", 90)}“ — ${SATZ[fall]}${grund && fall === "unsicher" ? ` (${kurz(grund, 140)})` : ""}${fall === "ampel_gelb" && gelbKarteGrund(grund) ? ` (${kurz(gelbKarteGrund(grund), 140)})` : ""}`,
     empfehlung: maengel.length ? "neu" : "senden",
     optionen: [
       { key: "senden", label: "Maras Antwort senden", werkzeug: "postmeister_entwurf_senden", args: { id }, ton: vorsicht ? "vorsicht" : "gut",
@@ -118,10 +124,32 @@ const ZEILE_SQL = `
     FROM fiaon_postmeister pm
    WHERE pm.aktion = 'entwurf' AND pm.gesendet_am IS NULL`;
 
+/** Die gelben Entwürfe — mit dem Merker der 24-Stunden-Regel (frist_ab, frist_neu_am) und den Flags fürs Urteil. */
+const GELB_SQL = `
+  SELECT pm.id, pm.person_id, pm.ref, pm.betreff, pm.text, pm.antwort, pm.begruendung, pm.kundenlage, pm.pruefung,
+         pm.empfangen_am, pm.created_at, pm.entwurf_geprueft_am, pm.frist_ab, pm.frist_neu_am, pm.flags
+    FROM fiaon_postmeister pm
+   WHERE pm.aktion = 'entwurf' AND pm.gesendet_am IS NULL AND COALESCE(pm.begruendung, '') LIKE $1`;
+
+/**
+ * E-406 B3 (Nachbesserung, Prüfer-Fund): Gelbe Entwürfe, die die 24-Stunden-Regel liegen ließe (gelbLiegenLesen: schon
+ * einmal neu geschrieben, inzwischen gesperrt, Kundenmail inzwischen zu alt …), sind DOCH eine Karte — mit dem Grund.
+ * Die übrigen warten in „Mara heute“, bis die Regel sie sendet.
+ */
+async function gelbeAlsKarten(zeilen: any[]): Promise<EntscheidungNeu[]> {
+  if (!zeilen.length) return [];
+  const { gelbLiegenLesen, gelbZeileAus } = await import("./fiaon-postmeister-frist");
+  const liegen = await gelbLiegenLesen(zeilen.map(gelbZeileAus));
+  return zeilen
+    .filter((z) => !!liegen.get(Number(z.id)))
+    .map((z) => karteAusZeile({ ...z, begruendung: mailAmpelGelbKarteGrund(String(liegen.get(Number(z.id)))) }));
+}
+
 /**
  * Detektor: eine Karte je wartendem Entwurf seit E-369 (ohne Rückrufwunsch) — erledigt sich, sobald die Mail weg ist.
  * E-406 B3: Ein GELBER Entwurf (Ampel „Mails beantworten“ auf Gelb) ist keine Karte — er steht in „Mara heute“ im
- * Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus.
+ * Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus. Nachbesserung: außer die Regel
+ * ließe ihn liegen — dann ist er doch eine Karte (gelbeAlsKarten).
  */
 async function findeEntwuerfe(lauf: any): Promise<EntscheidungNeu[]> {
   const zeilen = (await lauf.unsafe(
@@ -129,7 +157,16 @@ async function findeEntwuerfe(lauf: any): Promise<EntscheidungNeu[]> {
        AND POSITION($2 IN COALESCE(pm.begruendung, '')) = 0
        AND COALESCE(pm.begruendung, '') NOT LIKE $3
      ORDER BY pm.id DESC LIMIT 150`, [KARTEN_AB, BETREUER_GRUND, `${AMPEL_GELB_KOPF}%`])) as any[];
-  return zeilen.map(karteAusZeile);
+  let gelb: EntscheidungNeu[] = [];
+  try {
+    const { postmeisterSchema } = await import("./fiaon-postmeister-schema");
+    await postmeisterSchema();
+    // Derselbe Deckel wie die 24-Stunden-Regel (fristZeilenLaden): Hänger dürfen sich nicht hinter einem kleinen LIMIT verstecken.
+    gelb = await gelbeAlsKarten((await lauf.unsafe(`${GELB_SQL} ORDER BY pm.id DESC LIMIT 2000`, [`${AMPEL_GELB_KOPF}%`])) as any[]);
+  } catch (e) {
+    console.error("[POSTMEISTER] Gelbe Entwürfe als Karte:", String((e as Error)?.message ?? e).slice(0, 200));
+  }
+  return [...zeilen.map(karteAusZeile), ...gelb];
 }
 
 /** Detektor: EINE Sammelkarte für die Entwürfe aus der Zeit vor E-369. */
@@ -164,7 +201,13 @@ detektorRegistrieren({ art: "postmeister_altentwuerfe", finden: findeAltentwuerf
 export async function postmeisterKarteJetzt(id: number): Promise<void> {
   try {
     const [z] = (await sqlPool.unsafe(`${ZEILE_SQL} AND pm.id = $1`, [Number(id)])) as any[];
-    if (!z || String(z.begruendung ?? "").includes(BETREUER_GRUND) || istAmpelGelbEntwurf(z.begruendung)) return;
+    if (!z || String(z.begruendung ?? "").includes(BETREUER_GRUND)) return;
+    if (istAmpelGelbEntwurf(z.begruendung)) {
+      // E-406 B3 (Nachbesserung): Gelb ist nur dann keine Karte, wenn die 24-Stunden-Regel ihn später wirklich sendet.
+      const [g] = (await sqlPool.unsafe(`${GELB_SQL} AND pm.id = $2`, [`${AMPEL_GELB_KOPF}%`, Number(id)])) as any[];
+      for (const k of await gelbeAlsKarten(g ? [g] : [])) await entscheidungAnlegen(k);
+      return;
+    }
     await entscheidungAnlegen(karteAusZeile(z));
   } catch (e) {
     console.error("[POSTMEISTER] Entscheidungskarte:", String((e as Error)?.message ?? e).slice(0, 200));

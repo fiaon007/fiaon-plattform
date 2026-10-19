@@ -74,7 +74,7 @@ export const MARA_AMPEL: readonly AmpelWerkzeug[] = [
   {
     key: "mail_antworten", label: "Mails beantworten", satz: "Antworten auf Kundenmails im Postfach", kanal: "Mail",
     start: "gruen", stufen: ["gruen", "gelb", "rot"], rueckgaengig: "Nicht senden",
-    gelb: "Entwurf statt Senden: Nach 24 h sendet Mara selbst, außer du klickst „Nicht senden“.",
+    gelb: "Entwurf statt Senden: Nach 24 h sendet Mara selbst, außer du klickst „Nicht senden“. Geht das nicht (alte Mail, Sperre), kommt eine Karte.",
     rot: "Jede Antwort wird eine Karte „Kundenmail“ — raus geht sie nur mit deinem Klick.",
   },
   {
@@ -246,6 +246,40 @@ export function istAmpelGelbEntwurf(begruendung: string | null | undefined): boo
 }
 export function istAmpelRotEntwurf(begruendung: string | null | undefined): boolean {
   return String(begruendung ?? "").startsWith(AMPEL_ROT_KOPF);
+}
+
+/**
+ * E-406 B3 (Nachbesserung, Prüfer-Fund): Gelb, aber die 24-Stunden-Regel würde den Entwurf liegen lassen
+ * (fristLaesstLiegen: Altbestand, schon einmal neu geschrieben, Sperre, Kundenmail zu alt, Widerruf/Recht) — dann ist er
+ * KEIN gelber Entwurf, sondern eine normale Karte. Eigener Kopf: beginnt bewusst nicht mit AMPEL_GELB_KOPF.
+ */
+export const AMPEL_GELB_KARTE_KOPF = "Ampel gelb, als Karte:";
+const GELB_KARTE_MITTE = "von selbst ginge diese Antwort nie raus — ";
+export function mailAmpelGelbKarteGrund(liegen: string, grund?: string | null): string {
+  const rest = String(grund ?? "").trim();
+  return `${AMPEL_GELB_KARTE_KOPF} ${GELB_KARTE_MITTE}${String(liegen).trim()}${rest ? ` (${rest})` : ""}`.slice(0, 900);
+}
+export function istAmpelGelbKarte(begruendung: string | null | undefined): boolean {
+  return String(begruendung ?? "").startsWith(AMPEL_GELB_KARTE_KOPF);
+}
+/** Nur der Grund aus einer „Ampel gelb, als Karte“-Begründung (für den Kartentext). Andere Begründungen: "". Rein. */
+export function gelbKarteGrund(begruendung: string | null | undefined): string {
+  const s = String(begruendung ?? "");
+  if (!istAmpelGelbKarte(s)) return "";
+  const r = s.slice(AMPEL_GELB_KARTE_KOPF.length).trim();
+  return r.startsWith(GELB_KARTE_MITTE) ? r.slice(GELB_KARTE_MITTE.length).trim() : r;
+}
+
+/**
+ * Der Satz in „Mara heute“ zu einem gelben Entwurf — aus DEMSELBEN Urteil wie Karte und 24-Stunden-Regel
+ * (`liegen` = fristLaesstLiegen; `faellig` = fristFaellig). Rein.
+ */
+export function gelbEntwurfSatz(betreff: string | null | undefined, faellig: Date, liegen: string | null): string {
+  const b = String(betreff ?? "").replace(/\s+/g, " ").trim() || "(ohne Betreff)";
+  const kurzB = b.length > 60 ? `${b.slice(0, 59).trimEnd()} …` : b;
+  if (liegen) return `Antwort auf „${kurzB}“ — geht NICHT von selbst raus (${liegen}); sie kommt als Karte in Mara › Entscheidungen`;
+  const wann = faellig.toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return `Antwort auf „${kurzB}“ — Mara schreibt sie frühestens ${wann} mit heutigem Stand neu und sendet; passt dann etwas nicht, kommt eine Karte`;
 }
 
 /** Ist eine Handlung noch im Rückgängig-Fenster? Rein. */

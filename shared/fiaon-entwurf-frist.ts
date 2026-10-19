@@ -38,7 +38,7 @@
 // Hier steht nur die REGEL — rein, ohne Datenbank, im Prüfstand geprüft (scripts/pruef-entwurf-frist.ts).
 // Ablegen und neu schreiben tut der Server (server/lib/fiaon-postmeister-frist.ts), nie ein Modell.
 // ═══════════════════════════════════════════════════════════════════════════
-import { imVersandfenster } from "./fiaon-nicht-erreicht-nachfass";
+import { imVersandfenster, naechstesFenster } from "./fiaon-nicht-erreicht-nachfass";
 
 /** Nach so vielen Stunden prüft Mara einen neuen Entwurf neu. */
 export const FRIST_STUNDEN = 24;
@@ -220,4 +220,40 @@ export function fristUrteil(f: EntwurfFristFakten, u: FristUmfeld, jetzt: Date =
 /** Die Begründung einer abgelegten Zeile. Rein. */
 export function ablageBegruendung(grund: string): string {
   return `${ABLAGE_KOPF}: ${grund}`.slice(0, 400);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LÄSST DIE REGEL EINEN ENTWURF LIEGEN? (E-406 B3, Nachbesserung nach Prüfer-Fund, 19.10.2026)
+//
+// Ein GELBER Entwurf (Ampel „Mails beantworten“ auf Gelb, shared/fiaon-mara-ampel.ts) ist keine Karte — er verlässt
+// sich darauf, dass diese Regel ihn nach 24 Stunden neu schreibt und sendet. Sagt sie zur Fälligkeit aber „bleibt“
+// (Altbestand ohne Merker, schon einmal neu geschrieben, Widerruf/Recht, Testkonto/Vertriebssperre, Kundenmail älter
+// als NEU_HOECHSTENS_TAGE) oder „auslassen“ (Global), läge er für immer: keine Mail an den Kunden, keine Karte für
+// Justin. Dann muss er eine normale Karte sein. Gerechnet mit DERSELBEN fristUrteil — keine zweite Regel.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Wann die Regel einen Entwurf frühestens neu schreibt: 24 h nach dem Entwurf, frühestens jetzt, im Versandfenster. Rein. */
+export function fristFaellig(entwurfAm: Zeit, jetzt: Date = new Date()): Date {
+  const ab = ms(entwurfAm) ?? jetzt.getTime();
+  return naechstesFenster(new Date(Math.max(jetzt.getTime(), ab + FRIST_STUNDEN * 3_600_000)));
+}
+
+/** Was es für „lässt liegen?“ braucht — die Zeile selbst; „nicht mehr nötig“ erfährt erst der Lauf. */
+export type LiegenFakten = Pick<EntwurfFristFakten, "neu" | "entwurfAm" | "mailAm" | "neuGeschriebenAm" | "begruendung">
+  & Partial<Pick<EntwurfFristFakten, "flags" | "kategorien" | "global">>;
+
+/**
+ * Lässt die 24-Stunden-Regel diesen Entwurf liegen? null = nein (sie schreibt ihn zur Fälligkeit neu und sendet, wenn die
+ * Regeln es erlauben — sonst kommt er als Karte); sonst IHR Grund. fristUrteil zur Fälligkeit (fristFaellig), ohne
+ * KI-Pause und Postfach-Modus (die verschieben nur). `sperre` wie im Lauf (Testkonto, Vertriebssperre, Störung). Rein.
+ */
+export function fristLaesstLiegen(g: LiegenFakten, sperre: string | null, jetzt: Date = new Date()): string | null {
+  const ab = ms(g.entwurfAm) ?? jetzt.getTime();
+  const f: EntwurfFristFakten = {
+    id: 0, neu: g.neu === true, entwurfAm: new Date(ab), mailAm: g.mailAm ?? null, neuGeschriebenAm: g.neuGeschriebenAm ?? null,
+    begruendung: g.begruendung ?? null, kategorien: g.kategorien ?? [], flags: g.flags ?? null, global: g.global === true,
+    spaetereMail: null, stornoAm: null, kuendigungAm: null, gespraechAm: null, zahlungAm: null,
+  };
+  const u = fristUrteil(f, { modus: "auto", kiPausiert: false, altbestandAblegen: false, sperre }, fristFaellig(new Date(ab), jetzt));
+  return u.art === "bleibt" || u.art === "auslassen" ? u.grund : null;
 }

@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-406 B3 (Nachbesserung): Kein gelber Mail-Entwurf bleibt still liegen
+- **Was:** Steht „Mails beantworten“ auf Gelb, wartet eine Antwort nur noch dann als gelber Entwurf (ohne Karte), wenn die
+  24-Stunden-Regel sie später WIRKLICH neu schreibt und sendet. Ließe die Regel sie liegen — alter Entwurf ohne Merker (etwa nach
+  „Neu schreiben lassen“), schon einmal neu geschrieben, Testkonto oder Vertriebssperre, Kundenmail zur Fälligkeit über 7 Tage alt,
+  Widerruf/Recht —, wird sie gleich eine normale Karte „Ampel gelb — Maras Antwort senden?“ mit dem Grund. Wird ein gelber Entwurf
+  erst später zum Hänger (Sperre kommt dazu, Mail altert in der KI-Pause), legt der Sammler die Karte an. „Mara heute“ sagt je
+  Entwurf ehrlich „schreibt frühestens … neu und sendet“ (mit Versandfenster) oder „geht NICHT von selbst raus (Grund)“; über 200
+  Entwürfe steht „und N weitere“ statt stillem Abschneiden bei 40.
+- **Warum:** Prüfer-Fund: Solche Entwürfe gingen nie raus und bekamen keine Karte — der Kunde hätte nie eine Antwort bekommen.
+- **Wo:** shared/fiaon-entwurf-frist.ts (fristLaesstLiegen, fristFaellig — dieselbe fristUrteil), shared/fiaon-mara-ampel.ts
+  („Ampel gelb, als Karte“, Satz für „Mara heute“), server/lib/fiaon-postmeister-frist.ts (gelbLiegenLesen), fiaon-postmeister-lauf.ts,
+  fiaon-postmeister-entscheidungen.ts, fiaon-mara-heute.ts. Prüfstände scripts/pruef-e406-b3-mara-heute(-db).ts (Rot-Probe: 13 schlecht ohne Korrektur).
+
 ## 19.10.2026 — E-406 B3: „Mara heute“ im Lagezimmer, Ampel je Mara-Werkzeug, Wochen-Stichprobe, Maras Aufräum-Vorschläge
 - **Was:** (1) **Lagezimmer › „Mara heute“** (keine neue Seite): was Mara heute selbst erledigt hat (je Art ein Chip mit Link),
   Geld heute aus der EINEN Quelle (Maras Bilanz auf UMSATZ_QUELLE_SQL), offene Entscheidungen, Aufräum-Vorschläge, wo jemand im Team

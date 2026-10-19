@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import {
   MARA_AMPEL, FEST_ROT, AMPEL_STUFEN, ampelVorgabe, ampelLesen, ampelSetzen, ampelSetzenPruefen, ampelVerlaufLesen, ampelWerkzeug,
   mailDarfAuto, mailAmpelGrund, istAmpelGelbEntwurf, istAmpelRotEntwurf, rueckgaengigOffen, editZeileLesen,
+  mailAmpelGelbKarteGrund, istAmpelGelbKarte, gelbKarteGrund, gelbEntwurfSatz,
   HANDLUNG_ARTEN, ERLEDIGT_ARTEN, heuteZeilen, heuteErledigt,
   STICHPROBE_ZAHL, AUFSTIEG_WOCHEN, AUFSTIEG_MIN_FAELLE, wocheBerlin, wochePlus, stichprobeZiehen, urteilPruefen, fehlerquoten, aufstiegVorschlag,
   MELDUNG_AB_TAGE, MELDUNG_BIS_TAGE, AUFRAEUM_ART_ZAHLUNG, meldungImFenster, meldungSuchTage, tageSeit,
@@ -221,6 +222,55 @@ async function main() {
   ok(/Ampel rot/.test(pk.titel) && pk.empfehlung === "senden", "Karte „Ampel rot — Maras Antwort senden?“, Empfehlung senden", pk.titel);
 
   // ═════════════════════════════════════════════════════════════════════════
+  console.log("\n11b. Gelb nur, wenn die 24-Stunden-Regel ihn WIRKLICH sendet (Nachbesserung, Prüfer-Fund)");
+  {
+    const FR = await import("../shared/fiaon-entwurf-frist");
+    const j0 = new Date("2026-10-19T10:00:00Z"); // Mo. 12:00 Berlin
+    const tage = (n: number) => new Date(j0.getTime() - n * 86_400_000);
+    const gelbB = mailAmpelGrund("gelb", "sauber, Automat erlaubt");
+    const basis = { neu: true, entwurfAm: j0, mailAm: new Date(j0.getTime() - 10 * 60_000), neuGeschriebenAm: null, begruendung: gelbB };
+    ok(FR.fristLaesstLiegen(basis, null, j0) === null, "neue Zeile, frisch, frei: die Regel schreibt nach 24 h neu und sendet — Gelb darf warten");
+    const a = FR.fristLaesstLiegen({ ...basis, neu: false }, null, j0);
+    ok(/Altbestand/.test(a ?? ""), "(A) ohne Merker frist_ab (alter Entwurf, „Neu schreiben lassen“): die Regel ließe ihn liegen", a);
+    const b = FR.fristLaesstLiegen({ ...basis, neuGeschriebenAm: new Date(j0.getTime() - 3_600_000) }, null, j0);
+    ok(/schon einmal neu geschrieben/.test(b ?? ""), "(B) schon einmal von der Regel neu geschrieben: liegt", b);
+    const c = FR.fristLaesstLiegen(basis, "Vertriebssperre", j0);
+    ok(/Vertriebssperre/.test(c ?? "") && /Testkonto/.test(FR.fristLaesstLiegen(basis, "Testkonto", j0) ?? ""), "(C) Vertriebssperre oder Testkonto: liegt", c);
+    ok(/nicht möglich/.test(FR.fristLaesstLiegen(basis, "Sperrprüfung nicht möglich", j0) ?? ""), "(C) Sperre nicht lesbar: liegt (lieber eine Karte)");
+    const d = FR.fristLaesstLiegen({ ...basis, mailAm: tage(6.5) }, null, j0);
+    ok(/älter als 7 Tage/.test(d ?? ""), "(D) Kundenmail 6,5 Tage alt: zur Fälligkeit (+24 h) über 7 Tage → liegt", d);
+    ok(FR.fristLaesstLiegen({ ...basis, mailAm: tage(5) }, null, j0) === null, "Kundenmail 5 Tage alt: wird noch gesendet");
+    const nacht = new Date("2026-10-19T19:30:00Z"); // 21:30 Berlin
+    ok(FR.fristFaellig(nacht, nacht).toISOString() === "2026-10-21T06:00:00.000Z", "Fälligkeit im Versandfenster: Entwurf 21:30 → übermorgen 08:00", FR.fristFaellig(nacht, nacht).toISOString());
+    const dn = FR.fristLaesstLiegen({ ...basis, entwurfAm: nacht, mailAm: new Date(nacht.getTime() - 5.6 * 86_400_000) }, null, nacht);
+    ok(/älter als 7 Tage/.test(dn ?? ""), "(D) mit Versandfenster: Mail 5,6 Tage, Entwurf 21:30 → am Morgen der Fälligkeit über 7 Tage → liegt", dn);
+    const w = FR.fristLaesstLiegen({ ...basis, begruendung: mailAmpelGrund("gelb", "Widerruf als Storno gebucht") }, null, j0);
+    ok(/Widerruf/.test(w ?? ""), "Widerruf in der Begründung: die Regel schreibt ihn nicht neu → liegt", w);
+    ok(/Global/.test(FR.fristLaesstLiegen({ ...basis, global: true }, null, j0) ?? ""), "Global-Kunde: liegt (die Regel fasst ihn nie an)");
+    ok(FR.fristLaesstLiegen({ ...basis, entwurfAm: new Date(j0.getTime() - 30 * 3_600_000), mailAm: tage(1.3) }, null, j0) === null,
+      "schon über 24 h, noch nicht dran (Takt, Fenster): kein „liegt“");
+    // Dieselbe Regel wie der Lauf: wo fristLaesstLiegen „liegt“ sagt, sagt fristUrteil zur Fälligkeit „bleibt“/„auslassen“.
+    const faellig = FR.fristFaellig(j0, j0);
+    const fakten = { id: 1, neu: false, entwurfAm: j0, mailAm: basis.mailAm, neuGeschriebenAm: null, begruendung: gelbB, kategorien: [], flags: null,
+      global: false, spaetereMail: null, stornoAm: null, kuendigungAm: null, gespraechAm: null, zahlungAm: null };
+    ok(FR.fristUrteil(fakten, { modus: "auto", kiPausiert: false, altbestandAblegen: false, sperre: null }, faellig).art === "bleibt",
+      "Gegenprobe: der Lauf selbst sagt zur Fälligkeit „bleibt“ (Altbestand) — genau der Fall, der vorher für immer lag");
+
+    const gk = mailAmpelGelbKarteGrund("Testkonto — Mara schreibt nicht von selbst neu", "sauber");
+    ok(istAmpelGelbKarte(gk) && !istAmpelGelbEntwurf(gk) && !istAmpelRotEntwurf(gk), "„Ampel gelb, als Karte“: eigener Kopf — kein gelber Entwurf (keine Ausnahme von der Karte)", gk);
+    ok(!gk.startsWith("Ampel gelb:") && gelbKarteGrund(gk).startsWith("Testkonto") && gelbKarteGrund("Ampel gelb: x") === "", "der Grund lässt sich wieder lesen", gelbKarteGrund(gk));
+    ok(pmE.entwurfFall(gk) === "ampel_gelb", "Postfach: „Ampel gelb, als Karte“ ist ein eigener Fall", pmE.entwurfFall(gk));
+    ok(pmE.entwurfFall(mailAmpelGelbKarteGrund("Widerruf — entscheidest du (Entscheidungskarte)")) === "widerruf", "… mit Widerruf-Grund: die Widerruf-Karte (Vorsicht)");
+    const gkarte = pmE.karteAusZeile({ id: 9002, person_id: 4064, betreff: "Frage", begruendung: gk, text: "Hallo", antwort: "Antwort" });
+    ok(/Ampel gelb/.test(gkarte.titel) && /nie raus/.test(gkarte.text) && /Testkonto/.test(gkarte.text) && gkarte.empfehlung === "senden",
+      "Karte „Ampel gelb — Maras Antwort senden?“ nennt den Grund", gkarte.text);
+    const sOk = gelbEntwurfSatz("Frage zum Stand", FR.fristFaellig(j0, j0), null);
+    ok(/frühestens Di\.?, 20\.10\., 12:00/.test(sOk) && /Karte/.test(sOk) && !/wenn sie darf/.test(sOk), "„Mara heute“: Satz mit Fälligkeit, ehrlich (sonst Karte)", sOk);
+    const sLiegt = gelbEntwurfSatz("Frage zum Stand", FR.fristFaellig(j0, j0), "Vertriebssperre — Mara schreibt nicht von selbst neu");
+    ok(/NICHT von selbst/.test(sLiegt) && /Vertriebssperre/.test(sLiegt) && /Karte/.test(sLiegt) && !/frühestens/.test(sLiegt), "„Mara heute“: liegt → „geht NICHT von selbst raus“ mit Grund", sLiegt);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
   console.log("\n12. Die Liste der Handlungen (SQL-Bau)");
   const heute = await import("../server/lib/fiaon-mara-heute");
   const alle = Object.fromEntries(heute.HANDLUNG_TABELLEN.map((t) => [t, true])) as any;
@@ -242,9 +292,16 @@ async function main() {
   ok(/const darfAuto = darfAutoOhneAmpel && !ampelGrund;/.test(lauf) && /mailDarfAuto\(stufe, \{ fristNeu: !!ein\.ampelFrist \}\)/.test(lauf), "Postfach: die Ampel hält nur an, was sonst rausginge");
   ok(/if \(darfAutoOhneAmpel\) \{/.test(lauf), "Postfach: die Ampel liest nur, wenn sonst gesendet würde (kein Lockern)");
   ok(/\} else if \(!ampelGelb\) \{/.test(lauf), "Postfach: ein gelber Entwurf ist keine Karte");
+  ok(/if \(ampelGelb\) \{[\s\S]{0,400}gelbLiegenLesen[\s\S]{0,900}ampelGrund = mailAmpelGelbKarteGrund\(liegen, erg\.grund\);\s*ampelGelb = false;/.test(lauf),
+    "Postfach: Gelb nur, wenn die 24-Stunden-Regel ihn später sendet — sonst Karte (Nachbesserung)");
   ok(/ampelFrist: true/.test(quelle("server/lib/fiaon-postmeister-frist.ts")), "24-Stunden-Regel: zweiter Anlauf darf bei Gelb senden");
   const pmEq = quelle("server/lib/fiaon-postmeister-entscheidungen.ts");
   ok(/NOT LIKE \$3/.test(pmEq) && /istAmpelGelbEntwurf\(z\.begruendung\)/.test(pmEq), "Karten: gelbe Entwürfe ausgenommen (Detektor und Sofort-Karte)");
+  ok(/gelbeAlsKarten\(\(await lauf\.unsafe\(`\$\{GELB_SQL\}/.test(pmEq) && /for \(const k of await gelbeAlsKarten\(g \? \[g\] : \[\]\)\)/.test(pmEq),
+    "Karten: … außer die 24-Stunden-Regel ließe sie liegen — dann doch eine Karte (Detektor und Sofort-Karte)");
+  const heuteQ = quelle("server/lib/fiaon-mara-heute.ts");
+  ok(!/wenn sie darf/.test(heuteQ) && /gelbEntwurfSatz\(x\.betreff, fristFaellig\(x\.am, jetzt\), liegen\.get/.test(heuteQ) && !/ORDER BY pm\.id DESC LIMIT 40/.test(heuteQ) && /mail_weitere/.test(heuteQ),
+    "„Mara heute“: Satz aus demselben Urteil; kein stilles LIMIT 40 (Deckel mit „und N weitere“)");
   const wa = quelle("server/lib/fiaon-whatsapp-mara.ts");
   ok(/ampelRot\("termin_eintragen"\)/.test(wa) && /vorlegen: `Ampel rot \(Termine eintragen\)/.test(wa), "WhatsApp: Rückruf bei Rot nicht eingetragen, Karte vorgelegt");
   ok(/ampelRot\("ratenpause"\)/.test(wa) && /ohneSperreMoeglich: true, intern: "Ampel rot/.test(wa), "WhatsApp: Ratenpause bei Rot als Karte „Pause setzen“");

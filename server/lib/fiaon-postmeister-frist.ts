@@ -26,7 +26,7 @@
 import { sqlPool } from "./db-pool";
 import {
   ABLAGE_JE_LAUF, ABLAGE_KOPF, ALTBESTAND_SCHALTER, FRIST_GRUENDE, LAUF_ABSTAND_MIN, NEU_JE_LAUF, NEU_KOPF,
-  ablageBegruendung, altbestandSchalterAn, fristUrteil,
+  ablageBegruendung, altbestandSchalterAn, fristUrteil, fristLaesstLiegen,
   type EntwurfFristFakten, type FristGrund, type FristUmfeld, type FristUrteil,
 } from "@shared/fiaon-entwurf-frist";
 import { imVersandfenster } from "@shared/fiaon-nicht-erreicht-nachfass";
@@ -179,19 +179,71 @@ async function umfeldLesen(): Promise<{ modus: (postfach: string) => Promise<Mod
   };
 }
 
+/** Die Sperre als Grund (Testkonto vor Vertriebssperre) — eine Lesart für sperreLesen und gelbLiegenLesen. */
+const sperreText = (s: { test?: boolean; vertriebssperre?: boolean } | null | undefined): string | null =>
+  !s ? null : s.test ? "Testkonto" : s.vertriebssperre ? "Vertriebssperre" : null;
+const SPERRE_STOERUNG = "Sperrprüfung nicht möglich";
+
 /** Testkonto oder Vertriebssperre (Familie bzw. Kopf, E-253) — dann schreibt die Automatik nicht neu. Störung: gesperrt. */
 async function sperreLesen(personId: number | null): Promise<string | null> {
   if (personId == null) return null;
   try {
     const { personSperre } = await import("./fiaon-mail-frequenz");
-    const s = await personSperre(personId);
-    if (!s) return null;
-    if (s.test) return "Testkonto";
-    if (s.vertriebssperre) return "Vertriebssperre";
-    return null;
+    return sperreText(await personSperre(personId));
   } catch {
-    return "Sperrprüfung nicht möglich";
+    return SPERRE_STOERUNG;
   }
+}
+
+/** Eine wartende Zeile, wie gelbLiegenLesen sie braucht. */
+export interface GelbZeile {
+  id: number; personId: number | null; fristAb: unknown; fristNeuAm: unknown; mailAm: unknown; entwurfAm: unknown;
+  begruendung: string | null; flags?: unknown; global?: boolean;
+}
+
+/** Eine fiaon_postmeister-Zeile (mit frist_ab, frist_neu_am, flags) → GelbZeile — dieselben Zeitpunkte wie fristZeilenLaden. */
+export function gelbZeileAus(z: any): GelbZeile {
+  return {
+    id: Number(z.id), personId: z.person_id != null ? Number(z.person_id) : null,
+    fristAb: z.frist_ab ?? null, fristNeuAm: z.frist_neu_am ?? null,
+    mailAm: z.empfangen_am ?? z.created_at ?? null, entwurfAm: z.entwurf_geprueft_am ?? z.created_at ?? null,
+    begruendung: z.begruendung ?? null, flags: z.flags ?? null,
+  };
+}
+
+/**
+ * E-406 B3 (Nachbesserung, Prüfer-Fund): Je gelbem Entwurf — lässt die 24-Stunden-Regel ihn liegen (ihr Grund) oder
+ * schreibt sie ihn zur Fälligkeit neu und sendet (null)? Die eine Antwort für mailBearbeiten (Gelb nur, wenn die Regel
+ * ihn später wirklich sendet — sonst Karte), die Karten (Detektor, Sofort-Karte: was liegen bliebe, wird doch eine) und
+ * den Satz in „Mara heute“. Die Sperre wie im Lauf (sperreLesen), für alle Personen in EINER Abfrage. Wirft nie:
+ * Störung = „liegt“ — lieber eine Karte zu viel als eine Antwort, die nie rausgeht.
+ */
+export async function gelbLiegenLesen(zeilen: GelbZeile[], jetzt: Date = new Date()): Promise<Map<number, string | null>> {
+  const aus = new Map<number, string | null>();
+  if (!zeilen.length) return aus;
+  const personen = Array.from(new Set(zeilen.map((z) => z.personId).filter((n): n is number => n != null && Number.isInteger(n) && n > 0)));
+  let sperren: Map<number, string | null> | null = new Map();
+  if (personen.length) {
+    try {
+      const { personSperren } = await import("./fiaon-mail-frequenz");
+      sperren = new Map((await personSperren(personen)).map((s) => [Number(s.personId), sperreText(s)]));
+    } catch (e) {
+      console.warn("[POSTMEISTER-FRIST] Sperren für gelbe Entwürfe:", String((e as Error)?.message ?? e).slice(0, 160));
+      sperren = null;
+    }
+  }
+  for (const z of zeilen) {
+    try {
+      const sperre = z.personId == null ? null : sperren ? (sperren.get(z.personId) ?? null) : SPERRE_STOERUNG;
+      aus.set(z.id, fristLaesstLiegen({
+        neu: z.fristAb != null, neuGeschriebenAm: (z.fristNeuAm ?? null) as any, mailAm: (z.mailAm ?? null) as any,
+        entwurfAm: (z.entwurfAm ?? null) as any, begruendung: z.begruendung ?? null, flags: jsonTief(z.flags), global: z.global === true,
+      }, sperre, jetzt));
+    } catch {
+      aus.set(z.id, "Prüfung nicht möglich");
+    }
+  }
+  return aus;
 }
 
 /** Gmail-Ordner umhängen: „Entwurf wartet“ → „Nicht mehr nötig“. Nur Ablage — scheitert es, bleibt alles andere. */

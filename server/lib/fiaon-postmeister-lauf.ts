@@ -34,7 +34,7 @@ import { istGlobalKunde } from "./fiaon-global-kunde";
 import { heikelArt } from "@shared/fiaon-auftrag-arten";
 import { kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
 // E-406 B3: die Ampel „Mails beantworten“ (grün/gelb/rot) — rein, eine Weiche vor dem Senden.
-import { mailDarfAuto, mailAmpelGrund } from "@shared/fiaon-mara-ampel";
+import { mailDarfAuto, mailAmpelGrund, mailAmpelGelbKarteGrund } from "@shared/fiaon-mara-ampel";
 
 /**
  * E-272 (02.10.2026): Ist der Absender ein Kunde von FIAON Global? Dann geht seine Mail an den
@@ -1496,6 +1496,24 @@ export async function mailBearbeiten(ein: {
       if (!mailDarfAuto(stufe, { fristNeu: !!ein.ampelFrist })) {
         ampelGrund = mailAmpelGrund(stufe, erg.grund);
         ampelGelb = stufe === "gelb";
+      }
+    }
+    // E-406 B3 (Nachbesserung, Prüfer-Fund): Gelb heißt „wartet 24 h, dann sendet die 24-Stunden-Regel“ — nur, wenn sie das
+    // auch TUT. Lässt sie den Entwurf liegen (Zeile ohne Merker frist_ab, etwa nach „Neu schreiben lassen“ auf einem alten
+    // Entwurf; schon einmal neu geschrieben; Testkonto oder Vertriebssperre; Kundenmail zu alt; Widerruf/Recht), bekäme der
+    // Kunde nie eine Antwort und Justin nie eine Karte. Dann ist es KEIN gelber Entwurf, sondern eine normale Karte.
+    if (ampelGelb) {
+      const { gelbLiegenLesen } = await import("./fiaon-postmeister-frist");
+      const [fz] = (await sqlPool`SELECT frist_ab, frist_neu_am FROM fiaon_postmeister WHERE id = ${id}`.catch(() => [])) as any[];
+      const liegen = fz
+        ? ((await gelbLiegenLesen([{
+            id, personId: wer.personId ?? null, fristAb: fz.frist_ab ?? null, fristNeuAm: fz.frist_neu_am ?? null,
+            mailAm: mail.datum ?? zeileSeit, entwurfAm: new Date(), begruendung: ampelGrund, flags: einordnung.flags, global: !!globalAbsender,
+          }])).get(id) ?? null)
+        : "Merker der 24-Stunden-Regel nicht lesbar";
+      if (liegen) {
+        ampelGrund = mailAmpelGelbKarteGrund(liegen, erg.grund);
+        ampelGelb = false;
       }
     }
     const darfAuto = darfAutoOhneAmpel && !ampelGrund;

@@ -28,9 +28,9 @@
 import { sqlPool } from "./db-pool";
 import {
   HANDLUNG_ARTEN, MARA_AMPEL, ampelWerkzeug, heuteErledigt, heuteZeilen, rueckgaengigOffen, editZeileLesen, AMPEL_GELB_KOPF, AUFRAEUM_ART_ZAHLUNG,
-  type AmpelKey, type AmpelStand, type AmpelStufe, type HandlungArt, type HeuteZeile,
+  gelbEntwurfSatz, type AmpelKey, type AmpelStand, type AmpelStufe, type HandlungArt, type HeuteZeile,
 } from "@shared/fiaon-mara-ampel";
-import { ABLAGE_KOPF } from "@shared/fiaon-entwurf-frist";
+import { ABLAGE_KOPF, fristFaellig } from "@shared/fiaon-entwurf-frist";
 
 type Lauf = typeof sqlPool;
 
@@ -254,11 +254,14 @@ const kurz = (t: unknown, n: number) => {
 };
 const uhr = (d: Date | string) => new Date(d as any).toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
+/** So viele gelbe Mail-Entwürfe stehen einzeln da; was darüber hinausgeht, nennt eine Zeile „und N weitere“. */
+export const GELB_MAIL_DECKEL = 200;
+
 /**
  * Die gelbe Liste: Handlungen der Werkzeuge auf Gelb aus den letzten 24 Stunden — einzeln, mit Rückgängig, wo es sicher
  * geht. Mail-Entwürfe auf Gelb warten, bis die 24-Stunden-Regel sie sendet (oder jemand „Nicht senden“ klickt).
  */
-export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Date } = {}): Promise<GelbEintrag[]> {
+export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Date; mailDeckel?: number } = {}): Promise<GelbEintrag[]> {
   const lauf = o.lauf ?? sqlPool;
   const jetzt = o.jetzt ?? new Date();
   const gelb = MARA_AMPEL.filter((w) => stand[w.key] === "gelb").map((w) => w.key);
@@ -323,20 +326,38 @@ export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Dat
   }
 
   // ── Mail-Entwürfe auf Gelb: warten 24 h → „Jetzt senden“ oder „Nicht senden“ ──
+  // E-406 B3 (Nachbesserung, Prüfer-Fund): Der Satz kommt aus DEMSELBEN Urteil wie Karte und 24-Stunden-Regel
+  // (gelbLiegenLesen): „schreibt frühestens … neu und sendet“ nur, wenn die Regel das wirklich tut — sonst „geht nicht von
+  // selbst raus (Grund)“, und der Entwurf liegt als Karte in Mara › Entscheidungen. Kein stilles Abschneiden: Was über den
+  // Deckel geht, nennt eine Zeile „und N weitere“.
   if (Number(entwuerfe?.n) > 0) {
+    const { postmeisterSchema } = await import("./fiaon-postmeister-schema");
+    await postmeisterSchema().catch(() => {});
+    const deckel = Math.max(1, Math.min(500, Math.round(Number(o.mailDeckel ?? GELB_MAIL_DECKEL)) || GELB_MAIL_DECKEL));
     const m = (await lauf.unsafe(`
-      SELECT pm.id, pm.person_id, pm.betreff, pm.aktion, pm.gesendet_am, COALESCE(pm.entwurf_geprueft_am, pm.created_at) AS am, ${NAME_SQL("p")} AS name
+      SELECT pm.id, pm.person_id, pm.betreff, pm.begruendung, pm.flags, pm.frist_ab, pm.frist_neu_am, pm.empfangen_am, pm.created_at,
+             pm.entwurf_geprueft_am, COALESCE(pm.entwurf_geprueft_am, pm.created_at) AS am, ${NAME_SQL("p")} AS name
         FROM fiaon_postmeister pm LEFT JOIN fiaon_persons p ON p.id = pm.person_id
        WHERE pm.begruendung LIKE $1 AND pm.aktion = 'entwurf' AND pm.gesendet_am IS NULL
-       ORDER BY pm.id DESC LIMIT 40`, [`${AMPEL_GELB_KOPF}%`])) as any[];
+       ORDER BY pm.id DESC LIMIT $2`, [`${AMPEL_GELB_KOPF}%`, deckel])) as any[];
+    const { gelbLiegenLesen, gelbZeileAus } = await import("./fiaon-postmeister-frist");
+    const liegen = await gelbLiegenLesen(m.map(gelbZeileAus), jetzt);
     for (const x of m) {
-      const faellig = new Date(new Date(x.am).getTime() + 24 * 3_600_000);
       aus.push({
         art: "mail_nicht_senden", id: String(x.id), werkzeug: "mail_antworten", am: new Date(x.am).toISOString(),
         personId: x.person_id != null ? Number(x.person_id) : null, name: x.name ?? null,
-        text: `Antwort auf „${kurz(x.betreff || "(ohne Betreff)", 60)}“ — Mara sendet frühestens ${uhr(faellig)}, wenn sie darf`,
+        text: gelbEntwurfSatz(x.betreff, fristFaellig(x.am, jetzt), liegen.get(Number(x.id)) ?? null),
         knoepfe: [{ art: "mail_senden", label: "Jetzt senden" }, { art: "mail_nicht_senden", label: "Nicht senden", vorsicht: true }],
         ohne: null, erledigt: null,
+      });
+    }
+    const weitere = Number(entwuerfe?.n) - m.length;
+    if (weitere > 0 && m.length) {
+      const aeltester = m.reduce((a, x) => Math.min(a, new Date(x.am).getTime()), Number.POSITIVE_INFINITY);
+      aus.push({
+        art: "info", id: "mail_weitere", werkzeug: "mail_antworten", am: new Date(aeltester - 1_000).toISOString(), personId: null, name: null,
+        text: `${weitere === 1 ? "und 1 weiterer gelber Mail-Entwurf" : `und ${weitere} weitere gelbe Mail-Entwürfe`} — alle im Postfach unter „Zu prüfen“`,
+        knoepfe: [], ohne: "einzeln im Postfach", erledigt: null,
       });
     }
   }

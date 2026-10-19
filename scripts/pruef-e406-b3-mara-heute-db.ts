@@ -204,10 +204,10 @@ async function main() {
     antwort: { antwort: "Ihr Vorgang ist vollständig, es fehlt nichts von Ihrer Seite. Melden Sie sich gern, wenn Sie Fragen haben.", naechster_schritt: schritt, belege: [], fragen_beantwortet: ["Wie ist der Stand?"], merken: [] },
   };
   /** Eine frische Kundenmail durch den ECHTEN Postfach-Weg (Modus auto). */
-  const mail = async (k: Kunde) => {
+  const mail = async (k: Kunde, o: { alterMs?: number } = {}) => {
     nr++;
     const gmailId = `q406-${nr}`;
-    NACHRICHTEN.set(gmailId, { thread: `q406-t${nr}`, am: Date.now() - 10 * 60_000, von: k.von, betreff: `Frage ${nr}`, text: `Guten Tag, wie ist der Stand bei mir? (Probe ${nr})` });
+    NACHRICHTEN.set(gmailId, { thread: `q406-t${nr}`, am: Date.now() - (o.alterMs ?? 10 * 60_000), von: k.von, betreff: `Frage ${nr}`, text: `Guten Tag, wie ist der Stand bei mir? (Probe ${nr})` });
     SZ = SAUBER;
     const vorS = GMAIL_SENDEN.length, vorE = GMAIL_ENTWURF.length;
     await lauf.mailBearbeiten({ postfach: "support@fiaon.com", gmailId, gruss: "Freundliche Grüße\nIhr FIAON-Support", modus: "auto" });
@@ -317,6 +317,114 @@ async function main() {
       const K6 = await kunde("M6");
       const g6 = await mail(K6);
       ok(g6.z?.aktion === "auto_beantwortet" && g6.gesendet === 1, "zurück auf Grün: sendet wieder selbst");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    console.log("── 2b · Gelb nur, wenn die 24-Stunden-Regel ihn WIRKLICH sendet — sonst Karte (Nachbesserung, Prüfer-Fund)");
+    {
+      const PZ = await import("../server/routes/fiaon-postmeister-zentrale");
+      await ampel("mail_antworten", "gelb");
+      const zeileVon = async (id: number) => ((await sql`SELECT * FROM fiaon_postmeister WHERE id = ${id}`) as any[])[0];
+      /** Der echte Klick „Neu schreiben lassen“ (Karte/Postfach) — läuft im Hintergrund; warten, bis die Zeile fertig ist. */
+      const neuSchreibenLassen = async (id: number) => {
+        SZ = SAUBER;
+        const vorS = GMAIL_SENDEN.length;
+        const vorher = String((await zeileVon(id))?.begruendung ?? "");
+        let e: any = null;
+        for (let i = 0; i < 50; i++) { // läuft die Neubearbeitung von eben noch aus, kurz warten
+          e = await PZ.entwuerfeNeuSchreiben({ ids: [id], parallel: 1 });
+          if (e.ok || !e.laeuft) break;
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        for (let i = 0; i < 150; i++) {
+          const z = await zeileVon(id);
+          const b = String(z?.begruendung ?? "");
+          if (z && !["vorgeordnet", "in_arbeit"].includes(String(z.aktion)) && b !== "Neu bearbeitet (E-119)" && b !== vorher) break;
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        await new Promise((r) => setTimeout(r, 300));
+        return { e, z: await zeileVon(id), gesendet: GMAIL_SENDEN.length - vorS };
+      };
+      const istKarte = async (id: number, muster: RegExp) => {
+        const k = (await karteZu(id)).filter((x) => x.status === "offen");
+        return { ok: k.length === 1 && /Ampel gelb/.test(k[0].titel) && muster.test(String(k[0].text)), k: k[0] ? { titel: k[0].titel, text: k[0].text } : null };
+      };
+
+      // (A) Ein ALTER Entwurf (ohne Merker frist_ab) — „Neu schreiben lassen“ bei Gelb.
+      const KA = await kunde("G1");
+      nr++;
+      const altGmail = `q406-${nr}`;
+      NACHRICHTEN.set(altGmail, { thread: `q406-t${nr}`, am: Date.now() - 2 * 86_400_000, von: KA.von, betreff: `Alte Frage ${nr}`, text: "Guten Tag, wie ist der Stand bei mir? (alter Entwurf)" });
+      const [alt] = (await sql`
+        INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, von, betreff, empfangen_am, text, aktion, person_id, ref, begruendung, antwort,
+                                       antwort_draft_id, entwurf_geprueft_am, created_at, updated_at, frist_ab, versuche)
+        VALUES ('support@fiaon.com', ${altGmail}, ${`q406-t${nr}`}, ${KA.von}, ${`Alte Frage ${nr}`}, NOW() - INTERVAL '2 days',
+                'Guten Tag, wie ist der Stand bei mir? (alter Entwurf)', 'entwurf', ${KA.pid}, ${KA.ref}, 'sauber, aber Entwurf (alte Regel)',
+                'Alte Antwort', 'entwurf-q406-alt', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days', NULL, 1)
+        RETURNING id`) as any[];
+      const a = await neuSchreibenLassen(Number(alt.id));
+      if (a.z?.aktion !== "entwurf") console.log("     (Weg A:", a.z?.aktion, "—", String(a.z?.begruendung).slice(0, 200), JSON.stringify(a.e), ")");
+      ok(a.z?.aktion === "entwurf" && a.gesendet === 0 && a.z?.frist_ab == null, "(A) alter Entwurf neu geschrieben bei Gelb: nichts gesendet, bleibt ohne Merker", { aktion: a.z?.aktion, frist_ab: a.z?.frist_ab });
+      ok(R.istAmpelGelbKarte(a.z?.begruendung) && !R.istAmpelGelbEntwurf(a.z?.begruendung) && /Altbestand/.test(String(a.z?.begruendung)),
+        "(A) KEIN gelber Entwurf (die Regel ließe ihn liegen) — „Ampel gelb, als Karte: … Altbestand“", a.z?.begruendung);
+      const ka = await istKarte(Number(alt.id), /Altbestand/);
+      ok(ka.ok, "(A) Justin bekommt die Karte „Ampel gelb — Maras Antwort senden?“ mit dem Grund", ka.k);
+
+      // (B) Ein Entwurf, den die 24-Stunden-Regel schon einmal neu geschrieben hat — „Neu schreiben lassen“ bei Gelb.
+      const KB = await kunde("G2");
+      const b0 = await mail(KB);
+      ok(R.istAmpelGelbEntwurf(b0.z?.begruendung) && b0.z?.frist_ab != null, "(B) Ausgang: frischer gelber Entwurf mit Merker", b0.z?.begruendung);
+      await sql`UPDATE fiaon_postmeister SET frist_neu_am = NOW() - INTERVAL '1 hour' WHERE id = ${b0.z.id}`;
+      const b = await neuSchreibenLassen(Number(b0.z.id));
+      ok(b.z?.aktion === "entwurf" && b.gesendet === 0 && R.istAmpelGelbKarte(b.z?.begruendung) && /schon einmal neu geschrieben/.test(String(b.z?.begruendung)),
+        "(B) schon einmal neu geschrieben: kein gelber Entwurf, sondern Karte", { aktion: b.z?.aktion, b: b.z?.begruendung });
+      ok((await istKarte(Number(b0.z.id), /schon einmal neu geschrieben/)).ok, "(B) Karte mit Grund");
+
+      // (C) Testkonto: mailBearbeiten würde ihm bei Grün selbst senden — bei Gelb ließe die Regel den Entwurf liegen.
+      const KC = await kunde("G3", { test: true });
+      const c = await mail(KC);
+      ok(c.z?.aktion === "entwurf" && c.gesendet === 0 && R.istAmpelGelbKarte(c.z?.begruendung) && /Testkonto/.test(String(c.z?.begruendung)),
+        "(C) Testkonto bei Gelb: Karte statt gelber Entwurf", { aktion: c.z?.aktion, b: c.z?.begruendung });
+      ok((await istKarte(Number(c.z.id), /Testkonto/)).ok, "(C) Karte mit Grund „Testkonto“");
+
+      // (D) Kundenmail 6,5 Tage alt: zur Fälligkeit über 7 Tage — die Regel schriebe sie nie neu.
+      const KD = await kunde("G4");
+      const d = await mail(KD, { alterMs: 6.5 * 86_400_000 });
+      ok(d.z?.aktion === "entwurf" && d.gesendet === 0 && R.istAmpelGelbKarte(d.z?.begruendung) && /älter als 7 Tage/.test(String(d.z?.begruendung)),
+        "(D) alte Kundenmail bei Gelb: Karte statt gelber Entwurf", { aktion: d.z?.aktion, b: d.z?.begruendung });
+      ok((await istKarte(Number(d.z.id), /älter als 7 Tage/)).ok, "(D) Karte mit Grund");
+
+      // (E) Ein gelber Entwurf, der später hängen bliebe (Sperre kommt NACH dem Entwurf): der Sammler macht ihn zur Karte.
+      const KE = await kunde("G5");
+      const e = await mail(KE);
+      ok(R.istAmpelGelbEntwurf(e.z?.begruendung) && (await karteZu(Number(e.z.id))).length === 0, "(E) Ausgang: gelber Entwurf, keine Karte");
+      await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
+      ok((await karteZu(Number(e.z.id))).length === 0, "(E) der Sammler lässt einen gelben Entwurf, den die Regel sendet, in Ruhe");
+      const gE0 = (await HE.gelbListe(await A.ampelStand(), {})).find((x) => x.id === String(e.z.id));
+      ok(!!gE0 && /frühestens/.test(gE0.text) && /Karte/.test(gE0.text) && !/wenn sie darf/.test(gE0.text), "(E) „Mara heute“: „schreibt frühestens … neu und sendet“", gE0?.text);
+      await sql`UPDATE fiaon_persons SET ist_test_am = NOW() WHERE id = ${KE.pid}`;
+      await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
+      ok((await istKarte(Number(e.z.id), /Testkonto/)).ok, "(E) Sperre kam danach: der Sammler legt die Karte an (Grund Testkonto)", (await istKarte(Number(e.z.id), /Testkonto/)).k);
+      const gE1 = (await HE.gelbListe(await A.ampelStand(), {})).find((x) => x.id === String(e.z.id));
+      ok(!!gE1 && /NICHT von selbst/.test(gE1.text) && /Testkonto/.test(gE1.text) && !/frühestens/.test(gE1.text), "(E) „Mara heute“ sagt es ehrlich: geht NICHT von selbst raus (Testkonto)", gE1?.text);
+      await altern(Number(e.z.id));
+      const fe = await fristLauf([Number(e.z.id)]);
+      ok(fe.gesendet === 0 && (await zeileVon(Number(e.z.id)))?.aktion === "entwurf", "(E) die 24-Stunden-Regel sendet ihn wirklich nicht (bleibt) — die Karte ist der Weg", fe.e);
+
+      // (F) Ein gelber Entwurf, dessen Kundenmail inzwischen über 7 Tage alt ist (Pause, Fenster): ebenfalls Karte.
+      const KF = await kunde("G6");
+      const f0 = await mail(KF);
+      await sql`UPDATE fiaon_postmeister SET empfangen_am = NOW() - INTERVAL '8 days', entwurf_geprueft_am = NOW() - INTERVAL '30 hours' WHERE id = ${f0.z.id}`;
+      await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
+      ok((await istKarte(Number(f0.z.id), /älter als 7 Tage/)).ok, "(F) Kundenmail inzwischen über 7 Tage alt: der Sammler legt die Karte an");
+
+      // (G) „Mara heute“ schneidet nicht still ab: Deckel 1 → „und N weitere“.
+      const [{ n: gelbeN }] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_postmeister WHERE begruendung LIKE ${`${R.AMPEL_GELB_KOPF}%`} AND aktion = 'entwurf' AND gesendet_am IS NULL`) as any[];
+      const gD = await HE.gelbListe(await A.ampelStand(), { mailDeckel: 1 });
+      const weiter = gD.find((x) => x.id === "mail_weitere");
+      ok(gelbeN >= 2 && gD.filter((x) => x.art === "mail_nicht_senden").length === 1 && !!weiter && weiter.text.includes(`und ${gelbeN - 1} weitere`),
+        "(G) „Mara heute“: über dem Deckel steht „und N weitere“ — kein stilles Abschneiden", { gelbeN, weiter: weiter?.text });
+      await ampel("mail_antworten", "gruen");
     }
 
     // ═════════════════════════════════════════════════════════════════════

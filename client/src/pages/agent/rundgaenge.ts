@@ -2648,7 +2648,8 @@ export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
     titel: "Gelb: 24 Stunden mit einem Klick zurück.",
     text: "Stellst du im Mara-Steuerpult (Chip „Ampel“) ein Werkzeug auf Gelb, steht hier jede seiner Handlungen einzeln — mit "
       + "„Termin absagen“, „Zurück auf alt“ oder bei Mails „Jetzt senden“ und „Nicht senden“. Wo Zurücknehmen nicht sicher geht "
-      + "(die Mail ist schon raus), steht das ehrlich daneben.",
+      + "(die Mail ist schon raus), steht das ehrlich daneben. Ein gelber Mail-Entwurf, den Mara nicht von selbst senden würde "
+      + "(alte Mail, Sperre, schon einmal neu geschrieben), sagt das hier und kommt als Karte unter „Entscheidungen“.",
   },
   {
     ziel: ".al-block",

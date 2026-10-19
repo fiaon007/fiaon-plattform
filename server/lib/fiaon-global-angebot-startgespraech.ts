@@ -423,6 +423,8 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
   // (runTerminErinnerungen). Die Erinnerung gilt deshalb ab der Buchung als erledigt; den Termin nennt der Ansprechpartner selbst.
   const ohneKundenmail = String(z?.fassung ?? "").startsWith("IA-FIRMA-");
   if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return { status: "nicht_bereit", grund: "nicht angenommen oder noch ohne Auftrag" };
+  // E-412: Das Kapital-Angebot hat kein automatisches Startgespräch — Justin teilt den Start persönlich mit. Kein Versuch, keine Aufgabe.
+  if (String(z.fassung ?? "").startsWith("IA-KAPITAL-")) return { status: "nicht_bereit", grund: "Kapital-Angebot: kein automatisches Startgespräch" };
   if (z.startgespraech_termin_id) return { status: "schon", terminId: Number(z.startgespraech_termin_id), beginn: new Date(z.startgespraech_am ?? jetzt).toISOString(), mit: "" };
   const ref = String(z.angebot_ref); const ref1 = String(z.auftrag_ref);
   const kunde = json<AngebotKunde>(z.kunde, {} as AngebotKunde);

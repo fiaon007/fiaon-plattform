@@ -1943,6 +1943,8 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
   // E-273 (02.10.2026): Startgespräch nachholen — angenommen, Auftrag steht, noch kein Termin, und der letzte Versuch
   // scheiterte TECHNISCH (oder es gab keinen). „kein_platz"/„keine_person" nicht: Dafür hat Justin die Aufgabe, und ein
   // zweiter, automatischer Termin neben seinem Handtermin wäre falsch. Nur bis drei Tage nach der Annahme.
+  // E-412: Kapital-Angebote nie — dort gibt es kein automatisches Startgespräch (kapitalSichtZurAkte: startgespraech null);
+  // den Start teilt Justin persönlich mit (Aufgabe aus kapitalNachZahlung).
   let startgespraeche = 0;
   const geradeGebucht = new Set<number>();
   const ohneStart = (await sqlPool`
@@ -1951,6 +1953,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
        AND (startgespraech_fehler IS NULL OR startgespraech_fehler LIKE 'technik:%')
        AND (startgespraech_versuch_am IS NULL OR startgespraech_versuch_am < ${new Date(jetzt.getTime() - 30 * 60_000)})
        AND angenommen_am > ${new Date(jetzt.getTime() - 3 * 864e5)}
+       AND fassung NOT LIKE 'IA-KAPITAL-%'
      LIMIT 10`.catch((e) => { console.error("[FIAON-ANGEBOT] Startgespräche nachholen (Migration 090?):", e); return []; })) as any[];
   for (const o of ohneStart) {
     const SG = await import("./fiaon-global-angebot-startgespraech");
@@ -2024,6 +2027,11 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
       fristende++;
     }
   }
+  // E-412: Kapital-Angebote — eigene Fristwarnung nach Ziffer 4 (14/3 Tage vorher, Tag nach Fristende), nur Aufgaben an Justin.
+  // Ein Fehler dort hält den Lauf nicht an.
+  const kapital = await import("./fiaon-global-angebot-kapital").then((m) => m.kapitalFristLauf(jetzt))
+    .catch((e) => { console.error("[FIAON-ANGEBOT] Fristlauf Kapital-Angebote:", e); return { warnungen: 0, fristende: 0 }; });
+  warnungen += kapital.warnungen; fristende += kapital.fristende;
   // Ruhige Nachfrage zu Teil 2: drei Tage nach Fälligkeit eine Aufgabe „anrufen" — keine Mahnmail.
   const offen2 = (await sqlPool`
     SELECT t.id, t.bestell_ref, a.angebot_ref, a.person_id, a.auftrag_ref, a.kunde, b.payment_due_date, b.payment_reference

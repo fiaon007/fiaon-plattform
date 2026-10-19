@@ -37,7 +37,7 @@ import {
   kapitalAnnahmeTexte, kapitalAnsprechpartner, kapitalAnrede, kapitalVertretungName, kapitalVertragTitel, kapitalVertragUnterzeile,
   kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, kapitalTag, istKapitalFassung,
   KAPITAL_GEBUEHREN, KAPITAL_SPERRGRUND, kapitalGebuehrPruefen, istKapitalGebuehrArt, kapitalMitGebuehren, kapitalMeinAuftrag, type KapitalGebuehrArt,
-  kapitalGarantieWochen, kapitalGarantieFrist, kapitalStartAufgabe, kapitalTeilBezahltVermerk,
+  kapitalGarantieWochen, kapitalGarantieFrist, kapitalStartAufgabe, kapitalTeilBezahltVermerk, kapitalFristSchritt, kapitalFristAufgabe,
   type KapitalDaten, type KapitalParameter, type KapitalBuergin, type KapitalAnnahmeVermerk, type KapitalWahl,
   type KapitalUnterschriftVermerk, type KapitalKundenSicht,
 } from "@shared/fiaon-global-angebot-kapital";
@@ -616,6 +616,57 @@ export async function kapitalNachZahlung(ref: string, t: any, z: AngebotZeile): 
   await verlaufAngebot(Number(z.id), "System", `Gründungskosten bezahlt (${b.payment_reference ?? ref}) — Auftrag gestartet, ${fristSatz}`);
   await globalVerlauf(ref1, `FIAON Global: Gründungskosten des Kapital-Angebots ${d.ref} bezahlt, Auftrag gestartet — ${fristSatz}.`).catch((e: unknown) => console.error(`[FIAON-KAPITAL] ${d.ref}: Verlauf der Akte:`, e));
   return { gestartet: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRISTLAUF (E-412, 19.10.2026) — aus globalAngebotLauf (stündlich). Der Individual-Fristlauf schließt IA-KAPITAL- aus (E-411);
+// hier die eigene Warnung nach Ziffer 4: 14 und 3 Tage vorher, am Tag nach dem Fristende „Garantie prüfen“ — nur Aufgaben an
+// Justin (Schritt und Texte: shared kapitalFristSchritt/kapitalFristAufgabe). KEINE Kundenmail, bewegt KEIN Geld.
+// Marke zuerst (genau einmal auch bei zwei Läufen); scheitert die Aufgabe, wird die Marke zurückgenommen — der nächste Lauf holt nach.
+// ═══════════════════════════════════════════════════════════════════════════
+const FRIST_MARKE = { warnung14: "frist_warnung_14_am", warnung3: "frist_warnung_3_am", abgelaufen: "frist_abgelaufen_am" } as const;
+export async function kapitalFristLauf(jetzt: Date = new Date()): Promise<{ warnungen: number; fristende: number }> {
+  const heute = berlinToday(jetzt);
+  const zeilen = (await sqlPool`
+    SELECT a.id, a.angebot_ref, a.status, a.fassung, a.kunde, a.parameter, a.person_id, a.auftrag_ref, a.frist_beginn, a.frist_ende,
+           a.frist_warnung_14_am, a.frist_warnung_3_am, a.frist_abgelaufen_am, a.garantie_erfuellt_am, a.erstattung_ausgeloest_am,
+           EXISTS (SELECT 1 FROM fiaon_global_angebot_teile t WHERE t.angebot_id = a.id AND t.nr = 3 AND t.meilenstein_am IS NOT NULL) AS teil3_eingetragen
+      FROM fiaon_global_angebote a
+      LEFT JOIN fiaon_global_auftraege g ON g.ref = a.auftrag_ref
+     WHERE a.status = 'angenommen' AND a.fassung LIKE 'IA-KAPITAL-%' AND a.frist_ende IS NOT NULL AND a.frist_abgelaufen_am IS NULL
+       AND a.garantie_erfuellt_am IS NULL AND a.erstattung_ausgeloest_am IS NULL AND (g.status IS NULL OR g.status <> 'storniert')
+     LIMIT 100`) as any[];
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  let warnungen = 0; let fristende = 0;
+  for (const z of zeilen) {
+    const s = kapitalFristSchritt({
+      fristEnde: isoTag(z.frist_ende), heute, warnung14Am: z.frist_warnung_14_am, warnung3Am: z.frist_warnung_3_am, abgelaufenAm: z.frist_abgelaufen_am,
+      garantieErfuelltAm: z.garantie_erfuellt_am, erstattungAusgeloestAm: z.erstattung_ausgeloest_am, teil3Eingetragen: !!z.teil3_eingetragen,
+    });
+    if (!s) continue;
+    const spalte = FRIST_MARKE[s.schritt];
+    const [frei] = (await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NOW() WHERE id = $1 AND ${spalte} IS NULL RETURNING id`, [z.id])) as any[];
+    if (!frei) continue;
+    const d = kapitalDatenAus(z as AngebotZeile); const ref1 = String(z.auftrag_ref || d.ref);
+    const auf = kapitalFristAufgabe({ ...s, angebotRef: d.ref, firma: d.kunde.firma?.name || d.ref, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende)!, parameter: d.parameter });
+    try {
+      await auftragFuerKunden({
+        personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1, titel: auf.titel, text: auf.text,
+        dringend: auf.dringend, anBetreiber: true, ...(s.schritt === "abgelaufen" ? { faelligAm: heute } : {}),
+        schluessel: `global:${ref1}:kapital-${s.schritt === "abgelaufen" ? "fristende" : `frist-${s.schritt === "warnung14" ? 14 : 3}`}`,
+        bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+      });
+    } catch (e) {
+      console.error(`[FIAON-KAPITAL] ${d.ref}: Fristwarnung (${s.schritt}):`, e);
+      await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NULL WHERE id = $1`, [z.id]).catch(() => {});
+      continue;
+    }
+    await verlaufAngebot(Number(z.id), "System", s.schritt === "abgelaufen"
+      ? `Garantiefrist (Ziffer 4) am ${kapitalTag(isoTag(z.frist_ende))} abgelaufen — Aufgabe „Garantie prüfen“ an Justin (kein Geld bewegt, keine Kundenmail).`
+      : `Garantiefrist (Ziffer 4) endet am ${kapitalTag(isoTag(z.frist_ende))} — Erinnerung an Justin (noch ${s.tageBis} Tage).`).catch(() => {});
+    if (s.schritt === "abgelaufen") fristende++; else warnungen++;
+  }
+  return { warnungen, fristende };
 }
 
 /** Knopf-Zustand und Zeilen der Teile für die Liste der Leitung — dieselbe Prüfung wie beim Klick. */

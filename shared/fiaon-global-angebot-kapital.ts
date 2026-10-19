@@ -810,6 +810,65 @@ export function kapitalTeilBezahltVermerk(ein: { angebotRef: string; titel: stri
     + (ein.nachGarantiefall ? " ACHTUNG: Der Teil ist entfallen bzw. der Garantiefall ist vorgemerkt — dieser Betrag ist zu erstatten."
       : ein.fristEnde ? ` Die Garantiefrist (Ziffer 4) bleibt beim ${kapitalTag(ein.fristEnde)}.` : "");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRISTWARNUNG (E-412, 19.10.2026) — der Kapital-Fristlauf (server kapitalFristLauf, aus globalAngebotLauf). Rein.
+// 14 und 3 Tage vor frist_ende eine Aufgabe an Justin, am Tag nach dem Fristende „Frist abgelaufen — Garantie Ziffer 4 prüfen“.
+// Nichts mehr, sobald die Garantie erfüllt, die Erstattung vorgemerkt oder „Finanzierung ausgezahlt“ (Teil 3) eingetragen ist.
+// Die Marken frist_warnung_14_am/frist_warnung_3_am/frist_abgelaufen_am machen jeden Schritt einmalig.
+// KEINE Kundenmail, KEIN Geld: Die Garantie klärt die Leitung (KAPITAL_SPERRGRUND).
+// ═══════════════════════════════════════════════════════════════════════════
+export type KapitalFristSchritt = "warnung14" | "warnung3" | "abgelaufen";
+/** Welcher Schritt heute dran ist — höchstens einer je Lauf; null = nichts zu tun. */
+export function kapitalFristSchritt(ein: {
+  fristEnde: string | null; heute: string;
+  warnung14Am: unknown; warnung3Am: unknown; abgelaufenAm: unknown;
+  garantieErfuelltAm: unknown; erstattungAusgeloestAm: unknown; teil3Eingetragen: boolean;
+}): { schritt: KapitalFristSchritt; tageBis: number } | null {
+  if (!ein.fristEnde || ein.garantieErfuelltAm || ein.erstattungAusgeloestAm || ein.teil3Eingetragen) return null;
+  const tageBis = Math.round((new Date(`${ein.fristEnde.slice(0, 10)}T12:00:00Z`).getTime() - new Date(`${ein.heute.slice(0, 10)}T12:00:00Z`).getTime()) / 864e5);
+  // „Am Tag nach Fristende“: Der letzte Tag der Frist zählt noch.
+  if (tageBis < 0) return ein.abgelaufenAm ? null : { schritt: "abgelaufen", tageBis };
+  if (tageBis <= 3) return ein.warnung3Am ? null : { schritt: "warnung3", tageBis };
+  if (tageBis <= 14) return ein.warnung14Am || ein.warnung3Am ? null : { schritt: "warnung14", tageBis };
+  return null;
+}
+/** Die Aufgabe an Justin zum Schritt — Erstattung „binnen vierzehn Tagen nach Fristende“ (Ziffer 4). */
+export function kapitalFristAufgabe(ein: {
+  schritt: KapitalFristSchritt; tageBis: number; angebotRef: string; firma: string;
+  fristBeginn: string | null; fristEnde: string;
+  parameter: Pick<KapitalParameter, "kapitalChf" | "garantieWochen" | "auszahlungCents">;
+}): { titel: string; text: string; dringend: boolean } {
+  const ende = kapitalTag(ein.fristEnde); const bis = kapitalTag(plusTage(ein.fristEnde, 14));
+  const ziel = kapitalChf(ein.parameter.kapitalChf); const knopf = `„${KAPITAL_GEBUEHREN.auszahlung.knopf}“`;
+  const ruhen = "Ruhte die Frist (Unterlagen nach Ziffer 7 standen aus oder ein marktübliches Finanzierungsangebot wurde nicht angenommen), die Tage bitte mit Datum im Verlauf festhalten.";
+  const ohne = "Das System hat KEIN Geld bewegt und keine Mail an den Kunden geschickt.";
+  if (ein.schritt === "abgelaufen") {
+    return {
+      titel: `Frist abgelaufen — Garantie Ziffer 4 prüfen (Kapital-Angebot ${ein.angebotRef}, ${ein.firma})`,
+      text: [
+        `Die Garantiefrist (Ziffer 4) des Kapital-Angebots ${ein.angebotRef} endete am ${ende}; ${knopf} ist nicht eingetragen.`,
+        `Wurde die Finanzierung über ${ziel} bis zum ${ende} eingeräumt und ausgezahlt: Knopf ${knopf} mit dem Tag der Auszahlung (Rechnung ${kapitalEur(ein.parameter.auszahlungCents)}).`,
+        ruhen,
+        `Sonst ist der Garantiefall da: FIAON erstattet alles Gezahlte (Gründungskosten und eine bezahlte Bürgschaftsgebühr) binnen vierzehn Tagen nach Fristende, also bis ${bis}. Die Vergütung bei Auszahlung entfällt, die Gesellschaft bleibt der Auftraggeberin.`,
+        ohne,
+      ].join("\n"),
+      dringend: true,
+    };
+  }
+  const wochen = ein.parameter.garantieWochen;
+  return {
+    titel: `Kapital-Angebot ${ein.angebotRef}: Garantiefrist endet am ${ende} (noch ${ein.tageBis} ${ein.tageBis === 1 ? "Tag" : "Tage"}) — ${ein.firma}`,
+    text: [
+      `Die Garantie aus Ziffer 4 läuft am ${ende} ab: Finanzierung über ${ziel}${wochen > 0 ? ` binnen ${zahlwort(wochen)} Wochen` : ""}${ein.fristBeginn ? ` (seit dem ${kapitalTag(ein.fristBeginn)})` : ""}.`,
+      `Stand prüfen: Ist die Finanzierung ausgezahlt, Knopf ${knopf} (Rechnung ${kapitalEur(ein.parameter.auszahlungCents)}) — dann endet diese Erinnerung.`,
+      ruhen,
+      `Kommt die Finanzierung bis zum ${ende} nicht, erstattet FIAON alles Gezahlte binnen vierzehn Tagen nach Fristende (bis ${bis}).`,
+      ohne,
+    ].join("\n"),
+    dringend: ein.schritt === "warnung3",
+  };
+}
 export function kapitalMeinAuftrag(ein: {
   fassung: string;
   parameter: Pick<KapitalParameter, "preisCents" | "jahresCents" | "buergschaftCents" | "auszahlungCents" | "garantieWochen" | "kapitalChf">;

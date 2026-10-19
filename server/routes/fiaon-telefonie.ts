@@ -1201,17 +1201,28 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
         WHERE id = ${id}
       `.catch(() => {});
     }
+    // E-406 C2 (19.10.2026): Mara macht die Nacharbeit — mit Häkchen (maraNacharbeit: true) merkt sie die passende Mail
+    // vor; ohne nimmt ein anderes Ergebnis eine wartende zurück. Derselbe Weg wie Kundenkarte und Akte. Wirft nie.
+    let maraNacharbeit: Awaited<ReturnType<typeof import("../lib/fiaon-mara-nacharbeit").nacharbeitNachErgebnis>> | null = null;
+    if (c.person_id && ref && !nach?.uebergabe?.ok) {
+      const { nacharbeitNachErgebnis } = await import("../lib/fiaon-mara-nacharbeit");
+      maraNacharbeit = await nacharbeitNachErgebnis({
+        personId: Number(c.person_id), ref, ergebnis, notiz, zusageDatum: req.body?.zusageDatum || null, terminZeitpunkt,
+        akteur: { id: req.agent!.id, name: req.agent!.name }, gewaehlt: req.body?.maraNacharbeit === true,
+      });
+    }
     // E-397: „Daraus einen Termin machen?“ — auch am Telefon (Vorschlag nur; eingetragen wird nach dem Klick).
     const { terminVorschlagFuerNotiz } = await import("../lib/fiaon-termin-aus-notiz");
     const terminVorschlag = notiz && c.person_id && ergebnis !== "rueckruf_termin" && !nach?.uebergabe?.ok
       ? await terminVorschlagFuerNotiz({ personId: Number(c.person_id), notiz, schreiberId: req.agent!.id }) : null;
     res.json({
       ok: true, ...wirkung,
-      meldung: nach?.meldung ?? (wirkung as any).meldung,
+      meldung: `${nach?.meldung ?? (wirkung as any).meldung}${maraNacharbeit?.hinweis ? ` · ${maraNacharbeit.hinweis}` : ""}`,
       nummerMail: nach?.nummerMail,
       uebergabe: nach?.uebergabe,
       offene: await offeneAnrufe(req.agent!.id),
       terminVorschlag,
+      maraNacharbeit,
     });
   } catch (err) {
     console.error("[TELEFON] ergebnis:", err);

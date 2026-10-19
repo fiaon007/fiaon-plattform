@@ -1698,6 +1698,8 @@ const MAIL_TITEL: Record<string, string> = {
   nicht_erreicht_zweimal: "Maras Terminlink-Mail (2× nicht erreicht)",
   // E-406 B1: Maras persönliche Mail zur frisch fälligen Rate (Tag 1–3).
   mara_rate_erinnerung: "Maras Raten-Mail (frisch fällig)",
+  // E-406 C2: Maras Zusammenfassung nach dem Anruf.
+  mara_nacharbeit: "Maras Zusammenfassung nach dem Anruf",
   number_update_request: "Bitte um neue Rufnummer", payment_reminder: "Zahlungserinnerung",
   payment_confirmed: "Zahlungsbestätigung", lead_followup: "Nachfass-Mail",
   lead_application_link: "Antragslink-Mail",

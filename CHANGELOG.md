@@ -5,6 +5,21 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-406 C2: Nacharbeit nach dem Anruf — ein Klick, Mara schickt die Zusammenfassung
+- **Was:** Beim Gesprächsergebnis (Kundenkarte und Akte) steht das Häkchen **„Mara schickt die Zusammenfassung“** mit einer Zeile
+  Vorschau. Bleibt es an, schickt Mara dem Kunden eine kurze Mail: „Zahlt sofort/am …“ → Betrag, Tag, Verwendungszweck und Knopf zu
+  seiner Zahlungsseite; „Rückruf vereinbart“ → Tag, Uhrzeit, wer anruft; „Erreicht – Sonstiges“ → zwei, drei Sätze aus der Notiz (von
+  Mara geschrieben, vom Server mit Wortwand, E-393, Ton/Nennform und ohne Bank-Satz geprüft, einmal neu geschrieben, sonst nichts);
+  verspricht die Notiz Unterlagen → die bestehende Unterlagen-Bitte mit Upload-Link ohne Anmeldung. Nur 08–20 Uhr (sonst am Morgen),
+  frühestens 3 Minuten nach dem Klick (ein anderes Ergebnis nimmt die Mail zurück), höchstens eine je Kunde in 12 Stunden. Nie bei
+  „nicht erreicht“, FIAON Global, Test, Werbe-/Vertriebssperre, Kündigung, heiklem Thema (Notiz oder offener Auftrag), ohne Adresse.
+  Vermerk in der Akte. Schalter und Zahlen: Chefbüro › Mara › Termine.
+- **Warum:** Justin, Vorschlag 3 „Mara führt den Betrieb“: „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht
+  Mara.“ Gemessen 05.–19.10.: 115 Gespräche mit Zusage, Rückruf oder Absprache — der Kunde bekam danach nichts Schriftliches.
+- **Wo:** shared/fiaon-mara-nacharbeit.ts (Regel), shared/fiaon-mara-nacharbeit-text.ts (Prüfung, Auftrag an Mara),
+  server/lib/fiaon-mara-nacharbeit.ts (vormerken, Takt „mara_nacharbeit_mail“, Stand), server/mail/vorlagen/nacharbeit.ts,
+  client/src/components/agent/MaraNacharbeitHaken.tsx; Prüfstände scripts/pruef-mara-nacharbeit.ts und -db.ts.
+
 ## 19.10.2026 — E-406 Welle 1 „Mara führt den Betrieb“: Heute dran (A), Mara-Inkasso erste Stufe (B1), Mara beantwortet Anliegen (C1) — abgenommen
 - **Was:** **(A) „Heute dran“** — jeder Mitarbeiter sieht auf /agent/start eine Liste mit höchstens 25 Einträgen aus allen Orten mit Arbeit
   (Aufträge, vereinbarte Rückrufe und Rückruf-Wünsche, Termine heute, Inkasso, „Zahlung gemeldet“, KYC, Anliegen, Hitze-Liste der Pipeline,

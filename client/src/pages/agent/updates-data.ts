@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-406 C2 (19.10.2026, Justin: „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht Mara.“)
+    id: "2026-10-19-mara-nacharbeit",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Nach dem Anruf: ein Klick, Mara schickt die Zusammenfassung",
+    summary:
+      "Wenn du ein Gesprächsergebnis einträgst, schickt Mara dem Kunden auf Wunsch eine kurze Mail mit dem, was ihr besprochen habt. "
+      + "Du siehst vorher in einer Zeile, was rausgeht.",
+    changes: [
+      "„Zahlt sofort“ / „Zahlt am …“: Betrag, Tag, Verwendungszweck und ein Knopf zu seiner Zahlungsseite.",
+      "„Rückruf vereinbart“: Tag, Uhrzeit und wer anruft.",
+      "„Erreicht – Sonstiges“: eine kurze Zusammenfassung deiner Notiz. Steht in der Notiz, dass er Unterlagen schickt, bekommt er den Upload-Link.",
+      "Mara schickt zwischen 8 und 20 Uhr, sonst am nächsten Morgen. Der Vermerk steht in der Akte.",
+      "Keine Mail bei „Nicht erreicht“, bei Global-Kunden, Sperren, Kündigung, Beschwerde oder ohne E-Mail-Adresse — die Zeile sagt dir dann warum.",
+    ],
+    howto: [
+      "Akte oder Kundenkarte öffnen, Ergebnis wählen. Unter den Knöpfen steht „Mara schickt die Zusammenfassung · …“.",
+      "Passt es nicht: Häkchen raus, dann speichern. Falsch geklickt? Ein anderes Ergebnis in den nächsten Minuten nimmt die Mail zurück.",
+      "Schreib die Notiz bei „Sonstiges“ so, dass der Kunde sie verstehen darf — Mara macht daraus zwei, drei freundliche Sätze.",
     // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
     id: "2026-10-20-aras-probe",
     date: "2026-10-20",

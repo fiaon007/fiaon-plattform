@@ -297,6 +297,29 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-406 C2 (19.10.2026, Justin: „Mara führt den Betrieb“): Nach dem Anruf ein Klick, Mara macht den Rest.
+    // Auslöser: server/lib/fiaon-mara-nacharbeit.ts (vormerken beim Ergebnis mit Häkchen, senden im Takt).
+    type: "mara_nacharbeit",
+    label: "Nach dem Anruf — Maras Zusammenfassung an den Kunden",
+    description:
+      "Feuert automatisch nach einem Gesprächsergebnis, bei dem das Häkchen „Mara schickt die Zusammenfassung“ an war: „Zahlt sofort/am …“ → Betrag, Tag, Verwendungszweck und Knopf zur Zahlungsseite; „Rückruf vereinbart“ → Tag, Uhrzeit und wer anruft; „Erreicht – Sonstiges“ → eine kurze, geprüfte Zusammenfassung der Notiz (verspricht die Notiz Unterlagen, geht stattdessen die Unterlagen-Bitte mit Upload-Link). Höchstens eine je Kunde in 12 Stunden, nur 08–20 Uhr, nie bei FIAON Global, Test, Werbe-/Vertriebssperre, Kündigung, heiklem Thema oder ohne Adresse. Nur als Quelltext-Vorlage (Mailwerk). Schalter: Chefbüro › Mara › Termine.",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      nachname: "Mustermann",
+      nacharbeit_art: "zusage",
+      einstieg: "Guten Tag Max Mustermann",
+      mitarbeiter: "Herr Stripling", // E-265: Nennform (nie der Vorname)
+      mitarbeiter_dat: "Herrn Stripling",
+      betrag: "59,99",
+      zusage_wann: "bis Mittwoch, 22. Oktober",
+      zusage_tag: "bis Mittwoch, 22. Oktober",
+      verwendungszweck: "FIAON-ABC123",
+      zahlung_url: "https://www.fiaon.com/zahlung/FIAON-ABC123",
+    },
+  },
+  {
     type: "termin_bestaetigung",
     label: "Terminbestätigung (Kunde)",
     description:

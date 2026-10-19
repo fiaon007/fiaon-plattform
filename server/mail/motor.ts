@@ -54,6 +54,8 @@ import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/glo
 import { VERTRAG_VORLAGEN } from "./vorlagen/vertrag";
 // E-IT-D (08.10.2026, 4b): „Ihre Finanz- und Bonitätsauswertung liegt bereit" — ohne Anhang, ohne Zahlen.
 import { FINANZAUSWERTUNG_VORLAGEN } from "./vorlagen/finanzauswertung";
+// E-406 C2 (19.10.2026): Maras Nacharbeit nach dem Anruf — eine Vorlage, drei Fassungen (nacharbeitBaustein).
+import { NACHARBEIT_VORLAGEN, nacharbeitBaustein } from "./vorlagen/nacharbeit";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -74,6 +76,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...GLOBAL_ANGEBOT_VORLAGEN,
   ...VERTRAG_VORLAGEN,
   ...FINANZAUSWERTUNG_VORLAGEN,
+  ...NACHARBEIT_VORLAGEN,
 };
 
 /**
@@ -328,6 +331,8 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   // E-188: Trägt die Nutzlast `sprache: "en"` und gibt es die Vorlage auf Englisch, gilt diese.
   if (String((payload as any)?.sprache ?? "") === "en" && VORLAGEN_EN[event]) vorlage = VORLAGEN_EN[event];
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
+  // E-406 C2: Zahlungszusage, Rückruf oder Zusammenfassung — die Fassung trägt die Nutzlast (nacharbeit_art).
+  if (event === "mara_nacharbeit") vorlage = nacharbeitBaustein(payload);
   // ── DIE AUSKUNFT (24.09.2026, E-240) ────────────────────────────────────────
   // Das Angebot baut sich aus der Nutzlast (Land, Paket, Fassung) — ein Satz,
   // der in Österreich „SCHUFA" sagt, soll gar nicht erst als Platzhalter

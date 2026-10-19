@@ -54,6 +54,9 @@ export type MakeEventType =
   // E-401 (5/6, 19.10.2026): Mara fasst nach dem 2. Fehlversuch selbst nach — EINE kurze Mail mit dem
   // persönlichen Terminlink (server/lib/fiaon-mara-nicht-erreicht.ts, Regel in shared/fiaon-nicht-erreicht-nachfass.ts).
   | "nicht_erreicht_zweimal"  // 2× nicht erreicht → Mara schickt den Terminlink, 08–20 Uhr, nie doppelt
+  // E-406 C2 (19.10.2026): Nach dem Anruf schickt Mara die Zusammenfassung — Zahlungszusage, Rückruf oder kurze
+  // Zusammenfassung der Notiz (server/lib/fiaon-mara-nacharbeit.ts, Regel in shared/fiaon-mara-nacharbeit.ts).
+  | "mara_nacharbeit"         // nach dem Gesprächsergebnis mit Häkchen, 08–20 Uhr, nie doppelt
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
   | "termin_absage"          // Mitarbeiter hat abgesagt — Kunde erhaelt Bescheid + Neu-Buchen-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
@@ -607,6 +610,8 @@ const PRIVATLINIE_PERSON = new Set<string>([
   "nicht_erreicht_zweimal",
   // E-406 B1: Maras Mail zur frisch fälligen Rate (mit Rückruf-Angebot) — Zusatz zur Zahlungspost, nie an Global-Kunden.
   "mara_rate_erinnerung",
+  // E-406 C2: Maras Zusammenfassung nach dem Anruf — Privatlinie; ein Global-Kunde bekommt sie von seinem Ansprechpartner.
+  "mara_nacharbeit",
   // Zweite Wand zur Quelle (Lückensuche 02.10.2026): der Monatsbericht des Privat-Kundenbereichs —
   // ohne Bindung an eine Global-Bestellung. lead_willkommen steht NICHT hier: Es ist eine Pflichtmail
   // (Antwort auf das eben abgeschickte Formular), die Tür lässt Pflichtmails immer durch; für

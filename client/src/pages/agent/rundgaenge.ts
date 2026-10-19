@@ -272,6 +272,16 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
   },
   {
+    // E-406 C2 (19.10.2026): Nach dem Anruf macht Mara die Nacharbeit (server/lib/fiaon-mara-nacharbeit.ts).
+    // Ohne `ziel`: Die Zeile steht nur, wenn Mara für diesen Kunden etwas schicken kann.
+    titel: "Neu: Mara schickt die Zusammenfassung.",
+    text: "Unter den Ergebnis-Knöpfen steht das Häkchen „Mara schickt die Zusammenfassung“ — mit einer Zeile, WAS rausgeht. "
+      + "„Zahlt sofort/am …“: Betrag, Tag und seine Zahlungsseite. „Rückruf vereinbart“: Tag und Uhrzeit. „Erreicht – Sonstiges“: "
+      + "eine kurze Zusammenfassung deiner Notiz (verspricht er Unterlagen: der Upload-Link). Mara schickt 8–20 Uhr, sonst am Morgen. "
+      + "Der Vermerk steht in der Akte.",
+    tipp: "Passt es nicht, nimm das Häkchen raus. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
+  },
+  {
     // E-IT-A (08.10.2026): „heute erledigt · pausiert" am Kopf der rechten Spalte.
     // Ohne `ziel`: Die Zeile erscheint erst, wenn die Liste geladen ist.
     titel: "Wer pausiert, ist nicht verloren.",
@@ -791,6 +801,16 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
       + "nach dem Speichern unten eine Karte. „Ja, eintragen“ setzt den Termin in den Kalender — bei dem Kollegen, den die Notiz nennt, "
       + "sonst bei dir — und der Kunde bekommt eine Bestätigung. „Nein, danke“ lässt alles, wie es ist.",
     tipp: "Das klappt in der Akte, auf der Kundenkarte und am Telefon. Steht für die Zeit schon ein Termin, kommt keine Frage.",
+  },
+  {
+    // E-406 C2 (19.10.2026): Nach dem Anruf macht Mara die Nacharbeit (server/lib/fiaon-mara-nacharbeit.ts).
+    // Ohne `ziel`: Die Zeile steht nur, wenn Mara für diesen Kunden etwas schicken kann.
+    titel: "Neu: Mara schickt die Zusammenfassung.",
+    text: "Unter den Ergebnis-Knöpfen steht das Häkchen „Mara schickt die Zusammenfassung“ — mit einer Zeile, WAS rausgeht. "
+      + "„Zahlt sofort/am …“: Betrag, Tag und seine Zahlungsseite. „Rückruf vereinbart“: Tag und Uhrzeit. „Erreicht – Sonstiges“: "
+      + "eine kurze Zusammenfassung deiner Notiz (verspricht er Unterlagen: der Upload-Link). Mara schickt 8–20 Uhr, sonst am Morgen. "
+      + "Der Vermerk steht in der Akte.",
+    tipp: "Passt es nicht, nimm das Häkchen raus. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
   },
   {
     titel: "Viele Aufträge erledigen sich selbst.",
@@ -1974,6 +1994,15 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
       + "wann passt es Ihnen?“, mit seinem Terminlink. Nur 8–20 Uhr, höchstens einmal in 30 Tagen; nie bei Sperre, Global, "
       + "Forderungsmanagement oder wenn schon ein Termin steht. Daneben: was heute raus ging und wer darüber gebucht hat.",
     tipp: "Der Schalter steht von Anfang an auf an. Aus heißt: nach dem zweiten Versuch keine Mail — die Mail ab dem sechsten Versuch bleibt.",
+  },
+  {
+    // E-406 C2 (19.10.2026): Nach dem Anruf schickt Mara die Zusammenfassung (Häkchen beim Ergebnis).
+    ziel: '[data-mara-schalter="nacharbeit"]',
+    titel: "Nach dem Anruf schickt Mara die Zusammenfassung.",
+    text: "Beim Gesprächsergebnis steht das Häkchen „Mara schickt die Zusammenfassung“. Mara mailt dem Kunden dann Betrag und "
+      + "Zahlungsseite, den Rückruf-Termin, eine kurze Zusammenfassung der Notiz oder den Upload-Link — 8–20 Uhr, höchstens eine in 12 Stunden. "
+      + "Daneben: was raus ging, je Art, und was Mara bewusst nicht geschickt hat.",
+    tipp: "Aus heißt: das Häkchen verschwindet für alle. Maras Zusammenfassungen prüft der Server wie ihre Mail-Antworten — hält ein Text nicht, geht nichts raus.",
   },
   {
     // 29.09.2026 (E-263); Gegenprüfung: die zwei Abos überschneiden sich nicht mehr.

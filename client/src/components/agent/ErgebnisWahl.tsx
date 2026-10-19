@@ -48,6 +48,9 @@ import { WiedervorlageWahl, wahlDatum, heuteBerlin } from "@/components/agent/Wi
 // E-397: Häkchen „damit erledigt“ für die offenen Aufträge dieses Kunden (gelten bei „Erreicht“).
 import { AuftraegeHaken } from "@/components/agent/AuftraegeHaken";
 import { ereignisAusErgebnis } from "@shared/fiaon-auftrag-arten";
+// E-406 C2: Häkchen „Mara schickt die Zusammenfassung“ — eine Zeile Vorschau, Mara macht die Nacharbeit.
+import { MaraNacharbeitHaken, useMaraNacharbeit } from "@/components/agent/MaraNacharbeitHaken";
+import { nacharbeitVorschau } from "@shared/fiaon-mara-nacharbeit";
 
 /** Was ein Aufrufer zurückgibt, damit das Bauteil den Ausgang anzeigen kann. */
 export interface ErgebnisAusgang {
@@ -64,7 +67,7 @@ interface Props {
    */
   onErgebnis: (
     art: Ergebnis,
-    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[] },
+    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[]; maraNacharbeit?: boolean },
   ) => Promise<ErgebnisAusgang>;
   /** Läuft gerade ein Ergebnis? Dann sind alle Knöpfe gesperrt. */
   laeuft?: string | null;
@@ -103,6 +106,10 @@ export function ErgebnisWahl({
   // E-397: die angehakten Aufträge — gehen nur bei einem „Erreicht“-Ergebnis mit.
   const [haken, setHaken] = useState<number[]>([]);
   const [hakenNeu, setHakenNeu] = useState(0);
+  // E-406 C2: „Mara schickt die Zusammenfassung“ — Standard an (wo es passt); nach dem Speichern wieder an.
+  const [mara, setMara] = useState(true);
+  const wahlOrt = useRef<HTMLDivElement | null>(null);
+  const maraDaten = useMaraNacharbeit(personId, hakenNeu, wahlOrt);
 
   // Das Feld bekommt den Schreibzeiger, sobald es aufgeht. Wer am Telefon
   // sitzt, soll tippen können, ohne erst zu klicken.
@@ -116,13 +123,16 @@ export function ErgebnisWahl({
   const speichern = async (art: Ergebnis, zusatz: Parameters<Props["onErgebnis"]>[1]) => {
     setFehler(null);
     const wv = wahlDatum(wahl, heuteBerlin(), stufeA);
-    const mitHaken = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    const mitHaken0 = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    // E-406 C2: Das Häkchen gilt nur, wo die Vorschau eine Mail zeigt — der Server prüft beim Vormerken noch einmal.
+    const vorschau = nacharbeitVorschau(maraDaten, { ergebnis: art, notiz: zusatz.notiz, zusageDatum: zusatz.zusageDatum, terminDatum: zusatz.terminDatum, terminZeit: zusatz.terminZeit, heute });
+    const mitHaken = { ...mitHaken0, maraNacharbeit: !!(maraDaten?.an && vorschau.moeglich && mara) };
     const a = await onErgebnis(art, wv && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: wv } : mitHaken);
     // ── JEDER AUSGANG IST SICHTBAR ────────────────────────────────────────
     // Auch der Fehlerfall: Ein `catch`, das nichts anzeigt, verwandelt einen
     // Serverfehler in „der Knopf geht nicht".
     if (!a.ok) { setFehler(a.fehler || "Nicht gespeichert. Bitte erneut versuchen."); return; }
-    setOffen(null); setNotiz(""); setFehler(null); setHaken([]); setHakenNeu((n) => n + 1);
+    setOffen(null); setNotiz(""); setFehler(null); setHaken([]); setHakenNeu((n) => n + 1); setMara(true);
   };
 
   const fragen = useFragen();
@@ -145,7 +155,7 @@ export function ErgebnisWahl({
   const feldStil = { background: "var(--fi-seite)" };
 
   return (
-    <div data-fiaon="ergebnis-wahl">
+    <div data-fiaon="ergebnis-wahl" ref={wahlOrt}>
       <WiedervorlageWahl wahl={wahl} onWahl={setWahl} stufeA={stufeA}
                          rahmenKlasse={`flex flex-wrap items-center mb-2 ${dicht ? "gap-1" : "gap-1.5"}`}
                          textKlasse="text-[11px] font-semibold mr-1"
@@ -167,6 +177,13 @@ export function ErgebnisWahl({
           </button>
         ))}
       </div>
+
+      {/* E-406 C2: Was Mara dem Kunden nach dem Speichern mailt — eine Zeile, abwählbar. Ohne offenes Feld: „Zahlt sofort“. */}
+      <MaraNacharbeitHaken daten={maraDaten} ergebnis={offen?.art ?? "erreicht_zahlt_gleich"} notiz={notiz}
+                           zusageDatum={offen?.braucht === "zusage" ? datum : undefined}
+                           terminDatum={offen?.braucht === "termin" ? datum : undefined}
+                           terminZeit={offen?.braucht === "termin" ? zeit : undefined}
+                           heute={heute} an={mara} onAn={setMara} />
 
       <AuftraegeHaken personId={personId} gewaehlt={haken} onWahl={setHaken} neu={hakenNeu} />
 

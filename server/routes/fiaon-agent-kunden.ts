@@ -926,6 +926,19 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       }
     }
 
+    // ── E-406 C2 (19.10.2026): NACH DEM ANRUF MACHT MARA DIE NACHARBEIT ─────────────────────────────────────────
+    // Mit dem Häkchen „Mara schickt die Zusammenfassung“ (maraNacharbeit: true) merkt Mara die passende Mail vor
+    // (Zahlungszusage, Rückruf, Zusammenfassung, Upload-Link) — gesendet wird im Takt (08–20 Uhr, nie doppelt).
+    // Ohne Häkchen nimmt ein anderes Ergebnis binnen Minuten eine wartende Mail zurück (berichtigt). Wirft nie.
+    let maraNacharbeit: Awaited<ReturnType<typeof import("../lib/fiaon-mara-nacharbeit").nacharbeitNachErgebnis>> | null = null;
+    if (ergebnis && !uebergabe?.ok) {
+      const { nacharbeitNachErgebnis } = await import("../lib/fiaon-mara-nacharbeit");
+      maraNacharbeit = await nacharbeitNachErgebnis({
+        personId, ref: p.schreib_ref, ergebnis, notiz, zusageDatum, terminZeitpunkt,
+        akteur: { id: req.agent!.id, name: req.agent!.name }, gewaehlt: req.body?.maraNacharbeit === true,
+      });
+    }
+
     // Nach einer geglückten Übergabe gehört der Kunde nicht mehr dem Anfragenden.
     // `meinePerson` liefert dann NULL — das ist richtig so und die Oberfläche
     // nimmt die Karte daraufhin aus der Liste.
@@ -947,11 +960,36 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       // bleibt als Rückfall, weil er die freundlichere Fassung ist.
       meldung: `${nach.meldung !== "Ergebnis festgehalten."
         ? nach.meldung
-        : (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!])}${abgehakt.some((x) => x.ok) ? ` · ${abgehakt.filter((x) => x.ok).length} Auftrag/Aufträge damit erledigt` : ""}${abgehakt.some((x) => !x.ok) ? ` · ${abgehakt.filter((x) => !x.ok).length} offen geblieben (${Array.from(new Set(abgehakt.filter((x) => !x.ok).map((x) => x.grund))).join(", ")})` : ""}`,
+        : (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!])}${abgehakt.some((x) => x.ok) ? ` · ${abgehakt.filter((x) => x.ok).length} Auftrag/Aufträge damit erledigt` : ""}${abgehakt.some((x) => !x.ok) ? ` · ${abgehakt.filter((x) => !x.ok).length} offen geblieben (${Array.from(new Set(abgehakt.filter((x) => !x.ok).map((x) => x.grund))).join(", ")})` : ""}${maraNacharbeit?.hinweis ? ` · ${maraNacharbeit.hinweis}` : ""}`,
       abgehakt,
+      maraNacharbeit,
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET /agent/crm/kunden/:personId/mara-nacharbeit — die Vorschau fürs Häkchen „Mara schickt die Zusammenfassung“
+// (E-406 C2, 19.10.2026). Was an der PERSON hängt (Schalter, Sperren, offene Zahlung, fehlende Unterlagen); die Zeile
+// selbst baut die Oberfläche aus derselben Regel (nacharbeitVorschau, shared/fiaon-mara-nacharbeit.ts). Keine Notiz in
+// der Adresse — die Notiz-Prüfung macht die Oberfläche und beim Vormerken der Server. Zugriff wie die Akte.
+// ───────────────────────────────────────────────────────────────────────────
+router.get("/agent/crm/kunden/:personId/mara-nacharbeit", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Kunde fehlt." });
+    const [p] = (await sqlPool`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL`) as any[];
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (Number(p.assigned_agent_id) !== req.agent!.id) {
+      const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
+    }
+    const { vorschauDaten } = await import("../lib/fiaon-mara-nacharbeit");
+    res.json({ ok: true, ...(await vorschauDaten(personId)) });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] mara-nacharbeit:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

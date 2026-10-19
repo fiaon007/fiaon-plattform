@@ -173,6 +173,13 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Mara nach dem 2. erfolglosen Anruf: kurze Mail mit dem persönlichen Terminlink — geht nur automatisch.",
     vonHand: false, pflichtFelder: ["termin_link"],
   },
+  // E-406 C2 (19.10.2026): Maras Zusammenfassung nach dem Anruf — nur automatisch, nach dem Häkchen beim Ergebnis
+  // (Zahlungszusage, Rückruf, Zusammenfassung der Notiz). Merker in fiaon_mara_nacharbeit.
+  mara_nacharbeit: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Mara nach dem Anruf: Zahlungszusage, Rückruf oder kurze Zusammenfassung — geht nur automatisch, nach dem Häkchen beim Ergebnis.",
+    vonHand: false,
+  },
   termin_bestaetigung: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Bestätigung nach einer Buchung, mit Storno-Link.",

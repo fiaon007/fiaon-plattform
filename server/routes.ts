@@ -361,6 +361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-406 C1 (19.10.2026): Mara beantwortet Anliegen aus dem Kundenbereich selbst (Schalter in Mara › Mail, Standard an;
     // 08–20 Uhr, KI-Pause und Deckel lassen sie warten). Historienzeile nur, wenn ein Anliegen angefasst wurde.
     tageslauf('mara_anliegen', async () => { const m = await import('./lib/fiaon-mara-anliegen'); const e = await m.anliegenTakt(); if (m.taktHatGearbeitet(e)) console.log(`[MARA-ANLIEGEN] ${e.geprueft} angefasst: ${e.beantwortet} beantwortet, ${e.entwuerfe} Vorschläge, ${e.mensch} beim Menschen, ${e.fehler} Fehler`); return m.taktHatGearbeitet(e); }, 5 * 60 * 1000, { beimStartNach: 390_000, nurMitErgebnis: true });
+    // E-406 C2 (19.10.2026): Nach dem Anruf schickt Mara die Zusammenfassung — vorgemerkt beim Ergebnis (Häkchen),
+    // gesendet hier (08–20 Uhr, frühestens 3 Min. nach dem Klick, nie doppelt). Historienzeile nur, wenn etwas geschah.
+    tageslauf('mara_nacharbeit_mail', async () => { const m = await import('./lib/fiaon-mara-nacharbeit'); return m.istBearbeitet(await m.nacharbeitTakt()); }, 2 * 60 * 1000, { beimStartNach: 390_000, nurMitErgebnis: true });
     // E-236: Der Kreislauf — jede von Mara gebuchte Rückruf-Zeit wird alle 5 Minuten nachgeprüft
     // (steht der Termin, Arbeitszeit, Überschneidung, Mail raus, Kunde hat die Uhrzeit).
     tageslauf('mara_termine_pruefen', async () => { await (await import('./lib/fiaon-mara-termin')).maraTermineNachpruefen(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });

@@ -680,6 +680,40 @@ router.post("/chef/mara/anliegen", wache, async (req: ChefRequest, res: Response
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH DEM ANRUF (19.10.2026, E-406 C2) — Karte im Reiter „Termine"
+//
+// Justin (Vorschlag 3): „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht Mara.“ Mit dem
+// Häkchen beim Ergebnis schickt Mara die Zusammenfassung (server/lib/fiaon-mara-nacharbeit.ts).
+//   GET  /chef/mara/nacharbeit   Schalter + Zahlen (heute/7 Tage je Art, wartet, Gründe, KI-Kosten)
+//   POST /chef/mara/nacharbeit   { an: boolean } — Standard „an“; jedes An/Aus im Chef-Protokoll
+// Keine neue Seite (Hausregel „Keine neuen Chef-Seiten“).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/mara/nacharbeit", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { nacharbeitStand } = await import("../lib/fiaon-mara-nacharbeit");
+    res.json({ ok: true, ...(await nacharbeitStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] nacharbeit:", err);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/nacharbeit", wache, async (req: ChefRequest, res: Response) => {
+  if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "an: true oder false." });
+  try {
+    const an = req.body.an === true;
+    const { schalterSetzen, nacharbeitStand } = await import("../lib/fiaon-mara-nacharbeit");
+    await schalterSetzen(an);
+    void chefProtokoll(req, "mara_nacharbeit_mail", an ? "an" : "aus");
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: Nacharbeit nach dem Anruf ${an ? "AN" : "AUS"}`);
+    res.json({ ok: true, ...(await nacharbeitStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] nacharbeit setzen:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht speichern — es bleibt, wie es war." });
+  }
+});
+
 router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, res: Response) => {
   const id = Number(req.params.id);
   const ergebnis = String(req.body?.ergebnis ?? "");

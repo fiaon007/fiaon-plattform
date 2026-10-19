@@ -404,6 +404,87 @@ function NichtErreichtNachfass() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// NACH DEM ANRUF — MARA MACHT DIE NACHARBEIT (19.10.2026, E-406 C2)
+//
+// Justin (Vorschlag 3): „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht Mara.“ Beim Ergebnis
+// steht das Häkchen „Mara schickt die Zusammenfassung“; hier: ein Schalter (Standard an) und eine Zeile Zahlen.
+// Server: GET/POST /chef/mara/nacharbeit (server/routes/fiaon-mara-steuerpult.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+type NacharbeitAntwort = {
+  ok: true; an: boolean; eingerichtet: boolean; heute: number; wartet: number; kostenCents: number;
+  woche: { versandt: number; ausgelassen: number; fehlgeschlagen: number; zurueck: number };
+  jeArt: { zusage: number; termin: number; gespraech: number; unterlagen: number };
+  gruende: { grund: string; n: number }[];
+};
+function NacharbeitSchalter() {
+  const d = useDaten<NacharbeitAntwort>("/chef/mara/nacharbeit");
+  const [stand, setStand] = useState<NacharbeitAntwort | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [infoOffen, setInfoOffen] = useState(false);
+  const { meldung, melden, zu } = useMeldung();
+  const s = stand ?? d.daten;
+
+  const umschalten = async () => {
+    if (!s) return;
+    setBusy(true);
+    try {
+      const j = (await post("/chef/mara/nacharbeit", { an: !s.an })) as NacharbeitAntwort;
+      setStand(j);
+      melden(j.an ? "An — nach dem Anruf schickt Mara die Zusammenfassung, wenn das Häkchen an ist."
+        : "Aus — das Häkchen verschwindet, Mara schickt nach dem Anruf nichts.", "nacharbeit");
+    } catch (e: any) { melden(e.message, "nacharbeit", true); } finally { setBusy(false); }
+  };
+
+  const arten = s ? [
+    s.jeArt.zusage ? `${zahl(s.jeArt.zusage)} Zahlung` : "",
+    s.jeArt.termin ? `${zahl(s.jeArt.termin)} Rückruf` : "",
+    s.jeArt.gespraech ? `${zahl(s.jeArt.gespraech)} Zusammenfassung` : "",
+    s.jeArt.unterlagen ? `${zahl(s.jeArt.unterlagen)} Upload-Link` : "",
+  ].filter(Boolean).join(" · ") : "";
+
+  return (
+    <div className="mt-nachfass">
+      <div className="mara-status mt-status" aria-label="Nach dem Anruf">
+        <div className="st voll">
+          <button type="button" className={`mara-schalter mt-nf-schalter${s?.an ? " an" : ""}`} data-mara-schalter="nacharbeit"
+            aria-pressed={!!s?.an} disabled={busy || !s} onClick={() => void umschalten()}>
+            <span className="bahn" aria-hidden="true" />
+            <span>{!s ? "Nach dem Anruf …" : s.an ? "Nach dem Anruf schickt Mara die Zusammenfassung" : "Nach dem Anruf: Mara schickt nichts"}</span>
+          </button>
+          <InfoKnopf offen={infoOffen} onClick={() => setInfoOffen((x) => !x)} label="Was der Schalter tut" />
+        </div>
+        {s ? (
+          <div className="st mt-st-text">
+            <div className="st-text">
+              <div>{zahl(s.heute)} heute · {zahl(s.woche.versandt)} in 7 Tagen{s.wartet ? ` · ${zahl(s.wartet)} warten` : ""}</div>
+              <small>
+                {arten || "noch keine in 7 Tagen"}
+                {s.woche.ausgelassen ? ` · ${zahl(s.woche.ausgelassen)} bewusst nicht` : ""}
+                {s.woche.fehlgeschlagen ? ` · ${zahl(s.woche.fehlgeschlagen)} nicht zugestellt` : ""}
+                {s.kostenCents ? ` · KI ${eur(s.kostenCents)}` : ""}
+              </small>
+            </div>
+          </div>
+        ) : d.fehler ? (
+          <div className="st mt-st-text"><div className="st-text"><small>{d.fehler}</small></div></div>
+        ) : null}
+      </div>
+      {infoOffen && (
+        <p className="mara-info">
+          <b>Beim Gesprächsergebnis</b> steht das Häkchen „Mara schickt die Zusammenfassung“ mit einer Zeile Vorschau. Bleibt es an,
+          schickt Mara dem Kunden eine kurze Mail: bei „Zahlt sofort/am …“ Betrag, Tag, Verwendungszweck und seine Zahlungsseite; bei
+          „Rückruf vereinbart“ Tag, Uhrzeit und wer anruft; bei „Erreicht – Sonstiges“ eine kurze, geprüfte Zusammenfassung der Notiz
+          (verspricht die Notiz Unterlagen: den Upload-Link). Nur 8–20 Uhr, höchstens eine in 12 Stunden. Nie bei FIAON Global, Test,
+          Sperre, Kündigung, heiklem Thema oder ohne Adresse.
+          {s?.gruende.length ? ` Nicht geschickt in 7 Tagen: ${s.gruende.map((g) => `${g.grund} (${zahl(g.n)})`).join(" · ")}.` : ""}
+        </p>
+      )}
+      <Meldung m={meldung} ort="nacharbeit" onZu={zu} />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TERMINE IN DEINEM KALENDER (29.09.2026, E-263)
 //
 // Justin: „… ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch
@@ -581,6 +662,8 @@ export default function ChefMaraTermine() {
       <Meldung m={meldung} ort="abwesenheit" onZu={zu} />
       {/* E-401 (5/6): Nach 2× nicht erreicht schickt Mara den Terminlink — ein Schalter, eine Zeile Zahlen. */}
       <NichtErreichtNachfass />
+      {/* E-406 C2: Nach dem Anruf schickt Mara die Zusammenfassung — ein Schalter, eine Zeile Zahlen. */}
+      <NacharbeitSchalter />
       {/* E-263: Termine im eigenen Kalender (Abo) — zugeklappt, die Zeile nennt den Zustand. */}
       <KalenderAbos />
 

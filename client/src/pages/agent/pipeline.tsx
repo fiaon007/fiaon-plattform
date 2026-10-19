@@ -116,6 +116,9 @@ import { AgentShell, api, useFragen } from "./shared";
 import { AuftraegeHaken } from "@/components/agent/AuftraegeHaken";
 import { terminVorschlagZeigen } from "@/components/agent/TerminAusNotiz";
 import { ereignisAusErgebnis } from "@shared/fiaon-auftrag-arten";
+// E-406 C2: Häkchen „Mara schickt die Zusammenfassung“ unter den Ergebnis-Knöpfen der Akte.
+import { MaraNacharbeitHaken, useMaraNacharbeit } from "@/components/agent/MaraNacharbeitHaken";
+import { nacharbeitVorschau } from "@shared/fiaon-mara-nacharbeit";
 import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -3924,7 +3927,7 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
 // — nur die Oberfläche ist Office-Glas. Der Endpunkt bleibt der des Aufrufers.
 // ═══════════════════════════════════════════════════════════════════════════
 function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen, kontext, personId = null }: {
-  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[] }) => Promise<boolean>;
+  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[]; maraNacharbeit?: boolean }) => Promise<boolean>;
   /** E-397: der Kunde — seine offenen Aufträge (bei mir) stehen mit Häkchen „damit erledigt“ darunter. */
   personId?: number | null;
   laeuft: string | null; kundeName: string; vorgabeDatum: string;
@@ -3943,14 +3946,21 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
   // E-397: die angehakten Aufträge — gehen nur bei einem „Erreicht“-Ergebnis mit.
   const [haken, setHaken] = useState<number[]>([]);
   const [hakenNeu, setHakenNeu] = useState(0);
+  // E-406 C2: „Mara schickt die Zusammenfassung“ — Standard an (wo es passt); nach dem Speichern wieder an.
+  const [mara, setMara] = useState(true);
+  const maraDaten = useMaraNacharbeit(personId, hakenNeu);
   /** Die Wahl von Hand gilt nur, wo sie Sinn ergibt (zahlt sofort, nicht erreicht, Mailbox, Sonstiges, falsche Nummer). */
-  const mitWahl = <T extends Record<string, unknown>>(art: string, zusatz: T): T & { wiedervorlage?: string } => {
+  const mitWahl = <T extends Record<string, unknown>>(art: string, zusatz: T): T & { wiedervorlage?: string; maraNacharbeit?: boolean } => {
     // Gegenprüfung 08.10.2026: Stufe A kennt kein „1/2 Wochen" (höchstens 3 Werktage).
     const d = wahlDatum(wahl, heute, kontext?.stufeA === true);
-    const mitHaken = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    const mitHaken0 = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    // E-406 C2: Das Häkchen gilt nur, wo die Vorschau eine Mail zeigt — der Server prüft beim Vormerken noch einmal.
+    const z = zusatz as Record<string, unknown>;
+    const v = nacharbeitVorschau(maraDaten, { ergebnis: art, notiz: (z.notiz as string) ?? null, zusageDatum: (z.zusageDatum as string) ?? null, terminDatum: (z.terminDatum as string) ?? null, terminZeit: (z.terminZeit as string) ?? null, heute });
+    const mitHaken = { ...mitHaken0, maraNacharbeit: !!(maraDaten?.an && v.moeglich && mara) };
     return d && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: d } : mitHaken;
   };
-  const gespeichert = () => { setHaken([]); setHakenNeu((n) => n + 1); };
+  const gespeichert = () => { setHaken([]); setHakenNeu((n) => n + 1); setMara(true); };
 
   const anklicken = async (art: string) => {
     const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
@@ -3993,6 +4003,12 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
           );
         })}
       </div>
+      {/* E-406 C2: Was Mara dem Kunden nach dem Speichern mailt — eine Zeile, abwählbar. Ohne offenes Feld: „Zahlt sofort“. */}
+      <MaraNacharbeitHaken daten={maraDaten} ergebnis={offen?.art ?? "erreicht_zahlt_gleich"} notiz={notiz}
+                           zusageDatum={offen?.braucht === "zusage" ? datum : undefined}
+                           terminDatum={offen?.braucht === "termin" ? datum : undefined}
+                           terminZeit={offen?.braucht === "termin" ? zeit : undefined}
+                           heute={heute} an={mara} onAn={setMara} dunkel />
       <AuftraegeHaken personId={personId} gewaehlt={haken} onWahl={setHaken} neu={hakenNeu} dunkel />
       {offen?.braucht === "zusage" && (
         <div className="pi-ew-feld">

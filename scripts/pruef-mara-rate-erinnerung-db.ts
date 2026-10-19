@@ -224,6 +224,13 @@ async function main() {
   await M.rateErinnerungTakt({ jetzt: taktZeit() });
   const mG = await merker(G.rateId);
   ok(mG?.status === "vorgemerkt" && /schreibt gerade selbst/.test(String(mG?.grund)) && anBrevo("Gespraechprobe").length === 0, "wartet, keine Mail", mG);
+  // Integration E-406 Welle 1 (B1 × C1): Ein Anliegen im Kundenbereich zählt genauso — Mara antwortet dort, keine zweite Mail daneben.
+  const GA = await kunde("Anliegenprobe");
+  await sql`INSERT INTO fiaon_tickets (ref, person_id, betreff, text, status) VALUES (${GA.ref}, ${GA.pid}, 'Rate', 'Kann ich später zahlen?', 'offen')`;
+  await M.rateErinnerungTakt({ jetzt: taktZeit() });
+  const mGA = await merker(GA.rateId);
+  ok(mGA?.status === "vorgemerkt" && /schreibt gerade selbst/.test(String(mGA?.grund)) && anBrevo("Anliegenprobe").length === 0, "Anliegen im Kundenbereich → wartet, keine Mail", mGA);
+  await sql`DELETE FROM fiaon_tickets WHERE person_id = ${GA.pid}`;
 
   console.log("── 10 · Schalter aus, Hängengebliebenes, Verfall");
   await M.schalterSetzen(false);

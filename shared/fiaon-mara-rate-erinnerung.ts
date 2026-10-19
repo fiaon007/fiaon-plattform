@@ -187,7 +187,7 @@ export interface RateErinnerungFakten {
   hatEmail: boolean;
   /** Kontakte zu DIESER Rate über alle Wege seit KONTAKT_VORLAUF_TAGE vor der Fälligkeit (ohne Maras eigene). */
   kontakte: number;
-  /** Die jüngste eingehende Nachricht des Kunden (WhatsApp oder Mail ans Postfach). */
+  /** Die jüngste eingehende Nachricht des Kunden (WhatsApp, Mail ans Postfach oder Anliegen im Kundenbereich). */
   letzteKundenNachrichtAm: string | Date | null;
   /** Ging heute (Berlin) schon eine Rechnung, Mahnung oder WhatsApp-Rate an ihn raus? */
   heuteRatenpost: boolean;

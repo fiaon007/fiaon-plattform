@@ -188,7 +188,9 @@ export async function faktenLaden(rateId: number, heute: string, lauf: Lauf = sq
                   AND c.created_at >= r.faellig_am::timestamp AT TIME ZONE 'Europe/Berlin'))::int AS kontakte,
            GREATEST(
              (SELECT MAX(wi.created_at) FROM fiaon_whatsapp wi WHERE wi.person_id = a.person_id AND wi.richtung = 'rein'),
-             (SELECT MAX(COALESCE(pi.empfangen_am, pi.created_at)) FROM fiaon_postmeister pi WHERE pi.person_id = a.person_id)) AS kunde_schrieb,
+             (SELECT MAX(COALESCE(pi.empfangen_am, pi.created_at)) FROM fiaon_postmeister pi WHERE pi.person_id = a.person_id),
+             -- Integration E-406 Welle 1 (B1 × C1): auch ein Anliegen im Kundenbereich ist „er schreibt gerade selbst“.
+             (SELECT MAX(ti.created_at) FROM fiaon_tickets ti WHERE ti.person_id = a.person_id)) AS kunde_schrieb,
            -- Heute (Berlin) schon Ratenpost: Rechnung/Mahnung (Mail), WhatsApp-Rate, oder ein Stempel an einer Rate des Vertrags.
            (EXISTS (SELECT 1 FROM fiaon_mail_log mh WHERE mh.person_id = a.person_id AND mh.event = 'abo_payment_reminder'
                       AND mh.status = 'versandt' AND COALESCE(mh.art, 'echt') = 'echt'

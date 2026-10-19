@@ -72,6 +72,7 @@ import type { KoopKundenSicht } from "@shared/fiaon-global-angebot-koop";
 // E-399: Das OFFENE Kapital-Angebot für Firmenkunden (art „kapital“) — eigene Seite, eigener Chunk.
 const BusinessAngebotKapital = lazy(() => import("@/pages/business-angebot-kapital"));
 import type { KapitalKundenSicht } from "@shared/fiaon-global-angebot-kapital";
+import { useAngebotLesen } from "@/lib/angebot-lesen";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -274,6 +275,8 @@ export default function BusinessAngebot() {
   const anfrage = useRef(0);
   // Angebot-Aufrufe: Nach dem ersten erfolgreichen Laden ist jedes weitere Laden ein Nachladen (?wahl=1), kein neues Öffnen.
   const geladen = useRef(false);
+  // E-406: welcher Abschnitt wie lange gelesen wurde (alle Fassungen — die Abschnitte tragen aria-label).
+  useAngebotLesen(token, stand === "da");
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
 

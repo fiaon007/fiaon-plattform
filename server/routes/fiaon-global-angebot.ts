@@ -98,6 +98,20 @@ router.post("/global/angebot/:token/annehmen", async (req: Request, res: Respons
   }
 });
 
+// E-406: Was wie lange gelesen wurde — die Seite schickt alle 15 s und beim Verlassen die Summen je Abschnitt.
+// Antwortet sofort 204 und verbucht danach (feuern und vergessen); Unlesbares wird still verworfen.
+router.post("/global/angebot/:token/lesen", (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.status(204).end();
+  void (async () => {
+    const { lesenMerken } = await import("../lib/fiaon-global-angebot-lesen");
+    await lesenMerken(String(req.params.token), req.body, {
+      ip: clientIp(req), userAgent: String(req.headers["user-agent"] || ""), kopf: req.headers as AufrufKontext["kopf"], sitzung: await sitzungAus(req),
+      anzahl: Number((req.body as any)?.anzahl) || 0,
+    });
+  })().catch((e) => console.error("[FIAON-ANGEBOT] Lesen nicht verbucht:", e instanceof Error ? e.message : e));
+});
+
 // E-301: „anlage1“ (Bürgschaftszusage allein) nur beim Firmenangebot — beim Individualangebot antwortet die Route 404.
 // Im Protokoll zählt Anlage 1 als Vertrag-PDF (sie ist Teil des Vertrags).
 for (const art of ["vertrag", "pruefbericht", "anlage1"] as const) {

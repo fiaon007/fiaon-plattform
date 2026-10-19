@@ -21,6 +21,9 @@
 // cf-region und die x-vercel-ip-*-Kopfzeilen werden gelesen, FALLS sie kommen —
 // welche es waren, steht je Zeile in geo_quelle. KEIN Geo-Dienst, keine IP an Dritte,
 // keine Cookies, keine Messung im Browser, kein Pixel.
+// E-406 (19.10.2026): Stadt/Region kommen für KUNDENaufrufe zusätzlich aus ip-api.com — nur mit der gekürzten
+// Adresse (ortErgaenzen). Das Cloudflare vor Render ist Renders Zone (fiaon.com = CNAME auf Render) und schickt nur
+// das Land. Welche Abschnitte wie lange gelesen wurden, misst die Seite selbst: fiaon-global-angebot-lesen.ts.
 //
 // ── INTERN („du") ─────────────────────────────────────────────────────────
 // intern = im Aufruf steckt eine gültige Chefbüro-Sitzung (fiaon_chef oder altes
@@ -510,6 +513,60 @@ export interface AufrufKontext {
 export interface AufrufErgebnis { id: number; angebotId: number; intern: boolean; internGrund: InternGrund | null; roboter: boolean; neuerBesuch: boolean; melden: boolean }
 
 /** Eine Zeile je Aufruf; danach (nur beim Kunden) Aufgabe nachführen bzw. melden. Gibt null, wenn nichts zu schreiben war. */
+/** Du/Team (Sitzung) oder ein Chefbüro-Anschluss der letzten 30 Tage — sonst null. Auch für die Lese-Messung (E-406). */
+export async function aufrufIntern(k: AufrufKontext): Promise<{ grund: InternGrund; agentId: number | null } | null> {
+  if (k.sitzung) return { grund: k.sitzung.grund, agentId: k.sitzung.agentId };
+  const imProzess = k.ip ? gemerkt.get(anschlussSchluessel(k.ip)) : undefined;
+  if (imProzess && Date.now() - imProzess.am < CHEF_ANSCHLUSS_TAGE * 864e5) return { grund: "chef-anschluss", agentId: imProzess.agentId };
+  if (k.ip) {
+    await ensureAufrufTabellen();
+    const [m] = (await sqlPool`
+      SELECT agent_id FROM fiaon_chef_anschluesse
+       WHERE ip_hash = ${anschlussHash(k.ip)} AND zuletzt > NOW() - make_interval(days => ${CHEF_ANSCHLUSS_TAGE}) LIMIT 1`) as any[];
+    if (m) return { grund: "chef-anschluss", agentId: m.agent_id != null ? Number(m.agent_id) : null };
+  }
+  return null;
+}
+
+// ── E-406 (19.10.2026): Stadt und Region ────────────────────────────────────
+// Justin: „bau Stadt“. Befund: fiaon.com zeigt per CNAME auf Render; das Cloudflare davor ist Renders Zone und
+// schickt nur cf-ipcountry — die Besucherort-Kopfzeilen lassen sich dort nicht einschalten. Darum fragt der Server
+// für KUNDENaufrufe (nie du/Team/automatisch) ip-api.com — dieselbe Quelle wie /api/fiaon/geo — und zwar nur mit der
+// GEKÜRZTEN Adresse (IPv4 …0, IPv6 /48), nie mit der vollen. 1,5 s Zeitlimit; scheitert es, bleibt das Land.
+const ortCache = new Map<string, { o: { land: string | null; region: string | null; stadt: string | null } | null; bis: number }>();
+export function geoAnfrageAdresse(ip: string | null): string | null {
+  const k = ipKuerzen(ip);
+  if (!k) return null;
+  if (/^(10|127)\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^0\./.test(k)) return null;
+  return k.endsWith("::/48") ? k.replace("::/48", "::") : k;
+}
+async function ortErgaenzen(ort: AufrufOrt, ip: string | null): Promise<AufrufOrt> {
+  const adresse = geoAnfrageAdresse(ip);
+  if (!adresse || /^(fc|fd|fe80|::1)/i.test(adresse)) return ort;
+  let c = ortCache.get(adresse);
+  if (!c || c.bis < Date.now()) {
+    let o: { land: string | null; region: string | null; stadt: string | null } | null = null;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 1500);
+      const r = await fetch(`http://ip-api.com/json/${encodeURIComponent(adresse)}?fields=status,countryCode,regionName,city&lang=de`, { signal: ctrl.signal });
+      clearTimeout(t);
+      const j: any = await r.json().catch(() => null);
+      if (j?.status === "success") {
+        const sauber = (v: unknown) => String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim().slice(0, 80) || null;
+        o = { land: /^[A-Z]{2}$/.test(String(j.countryCode)) ? String(j.countryCode) : null, region: sauber(j.regionName), stadt: sauber(j.city) };
+      }
+    } catch { o = null; }
+    c = { o, bis: Date.now() + 6 * 3600_000 };
+    ortCache.set(adresse, c);
+    if (ortCache.size > 2000) ortCache.clear();
+  }
+  if (!c.o) return ort;
+  // Das Land aus Cloudflare hat Vorrang; widerspricht ip-api, bleibt es beim Land (lieber ungenau als falsch).
+  if (ort.land && c.o.land && ort.land !== c.o.land) return ort;
+  return { land: ort.land ?? c.o.land, region: ort.region ?? c.o.region, stadt: c.o.stadt, quelle: [ort.quelle, "ip-api (gekürzt)"].filter(Boolean).join(", ") };
+}
+
 export async function aufrufProtokollieren(token: string, art: AufrufArt, antwort: number, k: AufrufKontext): Promise<AufrufErgebnis | null> {
   const t = angebotTokenPruefen(token);
   if (!t || !AUFRUF_ARTEN.includes(art)) return null;
@@ -521,17 +578,11 @@ export async function aufrufProtokollieren(token: string, art: AufrufArt, antwor
   // Gegenprüfung 01.10.2026 (F1): Nach der Löschfrist wird nichts mehr protokolliert — sonst entstünden jenseits
   // der Frist neue Kopien (Aufgabe, Mail), die der Kundenseite („Löschung 90 Tage nach Abschluss") widersprechen.
   if ((await loeschfaelligeAngebote([angebotId])).length) return null;
-  const ort = ortAus(k.kopf || {});
+  let ort = ortAus(k.kopf || {});
   const roboter = istRoboterUnterschrift(k.ip || null, k.userAgent || null).roboter;
-  let intern: { grund: InternGrund; agentId: number | null } | null = k.sitzung ? { grund: k.sitzung.grund, agentId: k.sitzung.agentId } : null;
-  const imProzess = k.ip ? gemerkt.get(anschlussSchluessel(k.ip)) : undefined;
-  if (!intern && imProzess && Date.now() - imProzess.am < CHEF_ANSCHLUSS_TAGE * 864e5) intern = { grund: "chef-anschluss", agentId: imProzess.agentId };
-  if (!intern && k.ip) {
-    const [m] = (await sqlPool`
-      SELECT agent_id FROM fiaon_chef_anschluesse
-       WHERE ip_hash = ${anschlussHash(k.ip)} AND zuletzt > NOW() - make_interval(days => ${CHEF_ANSCHLUSS_TAGE}) LIMIT 1`) as any[];
-    if (m) intern = { grund: "chef-anschluss", agentId: m.agent_id != null ? Number(m.agent_id) : null };
-  }
+  const intern = await aufrufIntern(k);
+  // E-406: Stadt/Region für Kundenaufrufe — Cloudflare vor Render gehört Render und schickt nur das Land.
+  if (!intern && !roboter && !ort.stadt) ort = await ortErgaenzen(ort, k.ip || null);
   const erg = await sqlPool.begin(async (tx: any) => {
     // Ein Angebot, eine Entscheidung zur Zeit: Zwei gleichzeitige Aufrufe melden nicht doppelt.
     await tx`SELECT pg_advisory_xact_lock(${SPERRE}::int, ${angebotId}::int)`;
@@ -685,6 +736,7 @@ async function annahmeLeseweg(ref: string): Promise<string[]> {
       `SO HAT ER GELESEN: zuletzt ${zeitLang(z.am)} — ${z.geraet || "Gerät unbekannt"} — ${ortText(z)}`
         + `${m.s.erster ? ` · erster Aufruf ${zeitLang(m.s.erster.am)}` : ""}.`,
       `Seite ${m.s.geoeffnet}× · Vertrag-PDF ${m.s.vertragPdf}× · Prüfbericht-PDF ${m.s.pruefberichtPdf}× · ${m.s.besuche} Besuch${m.s.besuche === 1 ? "" : "e"}.`,
+      ...(await import("./fiaon-global-angebot-lesen").then((l) => l.leseSumme(Number(a.id))).catch(() => [] as string[])),
     ];
   } catch {
     return [];
@@ -727,6 +779,8 @@ export interface AufrufListe {
   aufgabeSchluessel: string;
   /** Die Löschfrist ist erreicht (90 Tage nach Abschluss) — der Reiter sagt dann „gelöscht" statt „Noch nicht geöffnet". */
   geloescht: boolean;
+  /** E-406: Kundenbesuche mit Lesezeit und Abschnitten (fiaon-global-angebot-lesen.ts). */
+  lesen: { amText: string; dauer: string; geraet: string; ort: string; abschnitte: string }[];
   liste: { id: number; am: string; amText: string; art: string; geraet: string; ort: string; ip: string | null; wer: string; kunde: boolean; gemeldet: boolean; meldung: string | null; antwort: number | null }[];
 }
 /** Je Angebot: Zähler, „Kunde zuletzt" und die Liste (neueste zuerst, höchstens 100). „du" = der Betrachter selbst. */
@@ -736,6 +790,7 @@ export async function aufrufeFuerListe(angebote: { id: number; ref: string }[], 
   const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebot_aufrufe') AS tab`) as any[];
   const zeilen = t?.tab ? await zeilenLesen(angebote.map((a) => a.id)) : [];
   const faellig = new Set((await loeschfaelligeAngebote(angebote.map((a) => a.id))).map((f) => f.id));
+  const gelesen = await import("./fiaon-global-angebot-lesen").then((l) => l.leseFuerListe(angebote.map((a) => a.id))).catch(() => new Map());
   const agentIds = Array.from(new Set(zeilen.map((z) => z.intern_agent_id).filter((x): x is number => x != null && x !== betrachterAgentId)));
   const namen = new Map<number, string>();
   if (agentIds.length) {
@@ -757,6 +812,7 @@ export async function aufrufeFuerListe(angebote: { id: number; ref: string }[], 
       kundeErster: s.erster ? { am: alsDatum(s.erster.am).toISOString(), amText: zeitLang(s.erster.am) } : null,
       aufgabeSchluessel: aufrufAufgabeSchluessel(a.ref),
       geloescht: faellig.has(a.id),
+      lesen: gelesen.get(a.id) ?? [],
       liste: eigene.slice(0, 100).map((z) => ({
         id: z.id, am: alsDatum(z.am).toISOString(), amText: zeitLang(z.am), art: AUFRUF_ART_TEXT[z.art] ?? String(z.art),
         geraet: z.geraet || "Gerät unbekannt", ort: ortText(z), ip: z.ip_gekuerzt, wer: werText(z), kunde: istKunde(z),

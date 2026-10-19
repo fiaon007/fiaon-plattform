@@ -52,6 +52,8 @@ type Aufrufe = {
   geoeffnet: number; vertragPdf: number; pruefberichtPdf: number; kundeAufrufe: number; besuche: number; intern: number; automatisch: number; gesamt: number;
   kundeZuletzt: { am: string; amText: string; art: string; geraet: string; ort: string } | null; kundeErster: { am: string; amText: string } | null;
   aufgabeSchluessel: string; liste: AufrufZeile[];
+  /** E-406: Kundenbesuche mit aktiver Lesezeit und den Abschnitten (neueste zuerst). */
+  lesen?: { amText: string; dauer: string; geraet: string; ort: string; abschnitte: string }[];
   /** Gegenprüfung 01.10.2026 (F1): Löschfrist erreicht (90 Tage nach Abschluss) — dann nicht „Noch nicht geöffnet". */
   geloescht?: boolean;
 };
@@ -301,6 +303,16 @@ function AufrufBlock({ x }: { x: Aufrufe | null }) {
     <div className="cg-aufrufe" data-aufrufe-geoeffnet={x.geoeffnet} data-aufrufe-geloescht={x.geloescht ? "ja" : undefined}>
       <p className="cg-aufruf-kopf"><b className={x.kundeAufrufe > 0 ? "cg-gut" : undefined}>{kopf}</b>{neben.length > 0 && <span className="cm-fein"> · {neben.join(" · ")}</span>}</p>
       {x.kundeZuletzt && <p className="cm-klartext">Kunde zuletzt: {x.kundeZuletzt.amText} · {x.kundeZuletzt.art} · {x.kundeZuletzt.geraet} · {x.kundeZuletzt.ort}</p>}
+      {x.lesen && x.lesen.length > 0 && (
+        <details className="cg-verlauf cg-aufruf-liste" open>
+          <summary>Gelesen ({x.lesen.length} Besuch{x.lesen.length === 1 ? "" : "e"})</summary>
+          <ul className="cg-lese-liste">
+            {x.lesen.map((l, i) => (
+              <li key={i} className="cm-klartext"><b>{l.amText}</b> · {l.dauer} aktiv · {l.geraet} · {l.ort}{l.abschnitte && <><br /><span className="cm-fein">{l.abschnitte}</span></>}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {letzteMeldung && <p className="cm-fein">Letzte Meldung an dich: {letzteMeldung.amText} — {letzteMeldung.meldung ?? "läuft gerade"}</p>}
       {x.liste.length > 0 && (
         <details className="cg-verlauf cg-aufruf-liste">
@@ -321,7 +333,7 @@ function AufrufBlock({ x }: { x: Aufrufe | null }) {
           </table></div>
         </details>
       )}
-      <p className="cm-fein" title="Deine eigenen Aufrufe zählen als „du“ und lösen nichts aus. Ort nur laut Netzbetreiber. Die gekürzte IP steht nur hier, nicht in Aufgabe und Mail.">Erster Kundenbesuch und jeder neue nach 30 Min. Pause: Aufgabe + Mail an js@fiaon.com.</p>
+      <p className="cm-fein" title="Deine eigenen Aufrufe zählen als „du“ und lösen nichts aus. Ort nur laut Netzbetreiber. Die gekürzte IP steht nur hier, nicht in Aufgabe und Mail.">Erster Kundenbesuch und jeder neue nach 30 Min. Pause: Aufgabe + Mail an js@fiaon.com. Nach jedem Besuch: Lesebericht per Mail.</p>
     </div>
   );
 }

@@ -1064,7 +1064,7 @@ export const ANGEBOT_ANNAHME = {
  * Cookies, keine Messung im Browser, IP gekürzt, Löschung 90 Tage nach Abschluss.
  */
 export const ANGEBOT_AUFRUF_HINWEIS =
-  "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.";
+  "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region, gelesene Abschnitte; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.";
 
 /**
  * „Ihre Ansprechpartner" (Justin, 01.10.2026, nachmittags): Florentine Lombardi, Daniel Stripling, Justin Schwarzott —

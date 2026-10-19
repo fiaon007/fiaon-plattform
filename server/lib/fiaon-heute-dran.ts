@@ -8,8 +8,9 @@
 //   termin    fiaon_termine (heute, nicht abgesagt)              erledigt = geführt
 //   rueckruf  fiaon_contact_log „rueckruf_termin“ + fiaon_rueckrufe
 //                                                                erledigt = erledigt / heute angerufen
-//   auftrag   fiaon_betreiber_todos (beim Mitarbeiter)          erledigt = heute zu
-//   inkasso   arbeitsliste() aus fiaon-inkasso.ts               erledigt = Rate heute bezahlt oder bearbeitet
+//   auftrag   fiaon_betreiber_todos (beim Mitarbeiter)          erledigt = heute zu (Automatik = „von allein“)
+//   inkasso   offene Raten je Kunde im SICHTFELD (fiaon-inkasso.ts), ohne Grenze
+//                                                                erledigt = Rate heute bezahlt oder bearbeitet
 //   zahlung   fiaon_applications claimed_paid (≤ 14 Tage)       erledigt = Geld gebucht / heute angerufen
 //   kyc       Unterlagen da, kyc pending, Vertrag läuft          erledigt = heute geprüft
 //   anliegen  fiaon_tickets                                     erledigt = heute beantwortet
@@ -20,6 +21,11 @@
 // Plan wird je Aufruf neu gerechnet und zwei Minuten zwischengespeichert.
 // Keine KI: Die Liste läuft auch in der KI-Pause. Eine Quelle, die gerade nicht
 // lesbar ist, fehlt sichtbar („fehlend“) — der Rest steht trotzdem da.
+//
+// Vertriebssperre (fiaon_persons.is_blocked = „kein Kontakt, keine Anrufliste“):
+// offene Termine und Rückrufe solcher Kunden stehen auf keiner Liste — wie auf
+// dem Schreibtisch (fiaon-agent-start.ts). Service (Aufträge, Anliegen, KYC)
+// bleibt. Heute schon Geführtes zählt weiter als erledigt (Prüfer-Fund 19.10.).
 //
 // Wer gehört zum Team? Aktiv, kein Test- oder Prüfkonto, nicht gesperrt, nicht
 // in Schulung, nicht der Gründer. Was bei Justin (Test-/Prüfkonten, Gründer)
@@ -114,47 +120,57 @@ export async function teamLesen(lauf: Lauf = sqlPool, jetzt: Date = new Date()):
     if (!a.aktiv || a.gesperrt || a.schulung) continue;
     const fenster = Array.isArray(a.fenster) ? a.fenster : [];
     const bis = abwesendBis(id);
+    // Team-Abwesenheit: Der Vertreter ruft an — er bekommt Termine und Fristfälle, wenn hier 0 Minuten bleiben.
+    const vertreterId = bis ? Number(abw!.vertreterId) : null;
     let ab = 0;
     if (bis) {
-      if (berlinTag(bis) !== heute) { team.push({ id, name: nameOder(a.name, `#${id}`), rolle: String(a.rolle), minuten: 0 }); continue; }
+      if (berlinTag(bis) !== heute) { team.push({ id, name: nameOder(a.name, `#${id}`), rolle: String(a.rolle), minuten: 0, vertreterId }); continue; }
       const t: Record<string, string> = {};
       for (const p of new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(bis)) t[p.type] = p.value;
       ab = Number(t.hour) * 60 + Number(t.minute);
       if (!Number.isFinite(ab)) ab = 24 * 60; // im Zweifel: heute nicht da
     }
-    team.push({ id, name: nameOder(a.name, `#${id}`), rolle: String(a.rolle), minuten: arbeitsMinuten(fenster, ab) });
+    team.push({ id, name: nameOder(a.name, `#${id}`), rolle: String(a.rolle), minuten: arbeitsMinuten(fenster, ab), vertreterId });
   }
   return { team, betreiberIds };
 }
 
 // ── Die Quellen ────────────────────────────────────────────────────────────
 
-/** 1 · Termine heute (nicht abgesagt). Erledigt = geführt. */
+/** 1 · Termine heute (nicht abgesagt). Erledigt = geführt. Offene Termine mit Vertriebssperre: nicht dabei. */
 async function termine(lauf: Lauf): Promise<HeuteEintrag[]> {
+  const { quelleUmleitbar } = await import("./fiaon-abwesenheit");
   const zeilen = (await lauf.unsafe(`
-    SELECT t.id, t.person_id, t.agent_id, t.beginn, t.status, t.quelle, ${NAME_SQL("p")} AS name
+    SELECT t.id, t.person_id, t.agent_id, t.beginn, t.status, t.quelle, ${NAME_SQL("p")} AS name,
+           COALESCE(p.is_blocked, FALSE) AS gesperrt
       FROM fiaon_termine t LEFT JOIN fiaon_persons p ON p.id = t.person_id
      WHERE (t.beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE_SQL}
        AND t.abgesagt_am IS NULL AND t.status IN ('gebucht', 'erledigt', 'verpasst')
        AND (p.id IS NULL OR (p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL))`)) as any[];
-  return zeilen.map((t) => {
+  const aus: HeuteEintrag[] = [];
+  for (const t of zeilen) {
     const pid = zahl(t.person_id);
     const art = terminArtAusQuelle(t.quelle).text;
     const erledigt = t.status === "erledigt";
-    return {
+    if (!erledigt && t.gesperrt === true) continue;
+    aus.push({
       schluessel: `termin:${t.id}`, quelle: "termin", personId: pid, name: nameOder(t.name, "Termin"),
       grund: erledigt ? `${art} geführt` : t.status === "verpasst" ? "Termin verpasst – nachfassen" : kurzGrund(`${art} um ${uhr(t.beginn)} Uhr`),
       betragCents: null,
       ziel: pid ? (t.quelle === "global" ? `/agent/firmen?person=${pid}` : akte(pid)) : "/agent/kalender",
       zeit: iso(t.beginn), seit: iso(t.beginn), zustaendigId: zahl(t.agent_id), rolle: "vertrieb", erledigt,
-    } satisfies HeuteEintrag;
-  });
+      // Gründer-Gespräch und FIAON Global haben einen festen Gesprächspartner — nie in Vertretung (E-260).
+      nieUmleiten: !quelleUmleitbar(t.quelle),
+    });
+  }
+  return aus;
 }
 
 /** 2a · Vereinbarte Rückrufe (Gesprächsergebnis „Rückruf vereinbart“) heute und der letzten 14 Tage. */
 async function rueckrufeVereinbart(lauf: Lauf): Promise<HeuteEintrag[]> {
   const zeilen = (await lauf.unsafe(`
     SELECT c.id, c.agent_id, c.scheduled_at, c.done_at, p.id AS person_id, p.assigned_agent_id, ${NAME_SQL("p")} AS name,
+           COALESCE(p.is_blocked, FALSE) AS gesperrt,
            -- „beantwortet“: Nach der vereinbarten Zeit (2 Std. Vorlauf) gab es ein Gespräch oder einen Versuch.
            (SELECT MAX(x.created_at) FROM (
               SELECT k1.created_at FROM fiaon_contact_log k1 WHERE k1.person_id = p.id AND ${kontaktZeileSql("k1")} AND k1.voided_at IS NULL
@@ -179,6 +195,7 @@ async function rueckrufeVereinbart(lauf: Lauf): Promise<HeuteEintrag[]> {
     const beantwortetHeute = !!beantwortet && berlinTag(beantwortet) === heute;
     const erledigt = !!c.done_at || beantwortetHeute;
     if (!erledigt && beantwortet) continue; // an einem früheren Tag beantwortet — keine Arbeit mehr
+    if (!erledigt && c.gesperrt === true) continue; // Vertriebssperre: kein Kontakt (wie der Schreibtisch)
     const heuteFaellig = berlinTag(c.scheduled_at) === heute;
     aus.push({
       schluessel: `rueckruf:${c.id}`, quelle: "rueckruf", personId: pid, name: nameOder(c.name, `Kunde #${pid}`),
@@ -194,33 +211,38 @@ async function rueckrufeVereinbart(lauf: Lauf): Promise<HeuteEintrag[]> {
 async function rueckrufWuensche(lauf: Lauf): Promise<HeuteEintrag[]> {
   const zeilen = (await lauf.unsafe(`
     SELECT r.id, r.ref, r.zustaendig_agent_id, r.frist_bis, r.status, r.erledigt_am, r.created_at,
-           p.id AS person_id, p.assigned_agent_id, ${NAME_SQL("p")} AS name
+           p.id AS person_id, p.assigned_agent_id, ${NAME_SQL("p")} AS name, COALESCE(p.is_blocked, FALSE) AS gesperrt
       FROM fiaon_rueckrufe r
       LEFT JOIN fiaon_applications ra ON ra.ref = r.ref AND r.person_id IS NULL
       LEFT JOIN fiaon_persons p ON p.id = COALESCE(r.person_id, ra.person_id)
      WHERE (r.status = 'offen' OR r.erledigt_am >= ${MITTERNACHT_SQL})
        AND (p.id IS NULL OR (p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL))`)) as any[];
   const heute = berlinTag(new Date());
-  return zeilen.map((r) => {
+  const aus: HeuteEintrag[] = [];
+  for (const r of zeilen) {
     const pid = zahl(r.person_id);
     const erledigt = r.status !== "offen";
+    if (!erledigt && r.gesperrt === true) continue; // Vertriebssperre: kein Kontakt
     const fristHeute = !!r.frist_bis && berlinTag(r.frist_bis) === heute;
     const vorbei = !!r.frist_bis && new Date(r.frist_bis).getTime() < Date.now();
-    return {
+    aus.push({
       schluessel: `rueckrufwunsch:${r.id}`, quelle: "rueckruf", personId: pid, name: nameOder(r.name, "Rückruf-Wunsch"),
       grund: erledigt ? "Rückruf-Wunsch erledigt" : vorbei ? "Rückruf-Wunsch, Frist vorbei" : fristHeute ? `Rückruf-Wunsch bis ${uhr(r.frist_bis)} Uhr` : "Rückruf-Wunsch beantworten",
       betragCents: null,
       ziel: pid ? akte(pid) : r.ref ? `/agent/kunden?ref=${encodeURIComponent(String(r.ref))}` : "/agent/aufgaben",
-      zeit: fristHeute && !vorbei ? iso(r.frist_bis) : null, seit: iso(r.created_at),
+      // Die Frist bleibt die Zeit, auch wenn sie vorbei ist: Ein Kunde, der schon zu lange wartet, bleibt oben
+      // (Stufe 1, höchstens 14 Tage — versprechenHeuteDran). Vorher: zeit = null → Stufe 6 (Prüfer-Fund 19.10.).
+      zeit: iso(r.frist_bis), seit: iso(r.created_at),
       zustaendigId: zahl(r.zustaendig_agent_id) ?? zahl(r.assigned_agent_id), rolle: "vertrieb", erledigt,
-    } satisfies HeuteEintrag;
-  });
+    });
+  }
+  return aus;
 }
 
 /** 3 · Aufträge beim Mitarbeiter (offen/in Arbeit; „wartet“ wartet auf eine Antwort der Leitung). */
 async function auftraege(lauf: Lauf): Promise<HeuteEintrag[]> {
   const zeilen = (await lauf.unsafe(`
-    SELECT t.id, t.titel, t.art, t.person_id, t.ref, t.zustaendig_agent_id, t.status, t.faellig_am::text AS faellig_am,
+    SELECT t.id, t.titel, t.art, t.person_id, t.ref, t.zustaendig_agent_id, t.status, t.erledigt_art, t.faellig_am::text AS faellig_am,
            COALESCE(t.eingang_am, t.created_at) AS seit, ${NAME_SQL("p")} AS name
       FROM fiaon_betreiber_todos t LEFT JOIN fiaon_persons p ON p.id = t.person_id
      WHERE t.zustaendig_art = 'agent'
@@ -243,48 +265,52 @@ async function auftraege(lauf: Lauf): Promise<HeuteEintrag[]> {
       ziel: pid ? `/agent/kunden?person=${pid}&auftrag=${t.id}`
         : t.ref ? `/agent/kunden?ref=${encodeURIComponent(String(t.ref))}&auftrag=${t.id}`
           : `/agent/aufgaben?reiter=auftraege&auftrag=${t.id}`,
-      zeit: null, seit: iso(t.seit), zustaendigId: zahl(t.zustaendig_agent_id), rolle: "vertrieb", erledigt, frist,
+      zeit: null, seit: iso(t.seit), zustaendigId: zahl(t.zustaendig_agent_id), rolle: "vertrieb", erledigt, frist, art,
+      // Von der Automatik geschlossen (erledigt_art 'auto'): erledigt, aber keine eigene Arbeit.
+      vonAllein: erledigt && t.erledigt_art === "auto",
     });
   }
   return aus;
 }
 
-/** 4 · Inkasso: die bestehende Arbeitsliste je Betreuer (nur bis heute fällig), eine Zeile je Kunde. */
-async function inkasso(lauf: Lauf, teamIds: number[]): Promise<HeuteEintrag[]> {
-  const { arbeitsliste } = await import("./fiaon-inkasso");
-  const jeBetreuer = await Promise.all(teamIds.map(async (id) => ({ id, raten: await arbeitsliste({ nurBetreuer: id, bisHeute: true, limit: 200 }, lauf) })));
-  // Kunden ohne Betreuer aus dem Team (keiner, gesperrt, gegangen, Geschäftsführung) — einmal für alle.
-  const rest = await arbeitsliste({ ohneBetreuerAus: teamIds, bisHeute: true, limit: 200 }, lauf);
-  const restIds = Array.from(new Set(rest.map((r) => Number(r.person_id)).filter((n) => Number.isFinite(n))));
-  const betreuer = new Map<number, number | null>();
-  if (restIds.length) {
-    for (const p of (await lauf`SELECT id, assigned_agent_id FROM fiaon_persons WHERE id = ANY(${restIds}::int[])`) as any[]) {
-      betreuer.set(Number(p.id), zahl(p.assigned_agent_id));
-    }
-  }
-  const gruppen = new Map<string, { zustaendig: number | null; raten: any[] }>();
-  const sammeln = (r: any, zustaendig: number | null) => {
-    const k = r.person_id != null ? `p:${r.person_id}` : `ref:${r.ref}`;
-    const g = gruppen.get(k) ?? { zustaendig, raten: [] };
-    g.raten.push(r);
-    gruppen.set(k, g);
-  };
-  for (const { id, raten } of jeBetreuer) for (const r of raten) sammeln(r, id);
-  for (const r of rest) sammeln(r, r.person_id != null ? betreuer.get(Number(r.person_id)) ?? null : null);
+/**
+ * 4 · Inkasso: offene Raten bis heute fällig, eine Zeile je Kunde.
+ *
+ * Dieselben Raten wie die Inkasso-Liste (arbeitsliste in fiaon-inkasso.ts): das SICHTFELD (nur geschuldete Raten,
+ * E-391/E-394) und die Wiedervorlage (eine Zusage für morgen nimmt die Rate heute vom Tisch). Aber OHNE Grenze und
+ * gleich je Kunde gezählt — vorher las die Liste je Betreuer höchstens 200 Raten, sortiert „älteste zuerst“; bei mehr
+ * fielen still genau die frischen weg (Prüfer-Fund 19.10., gemessen: #10 hat schon 137). Zusammengeführte Kunden
+ * zählen beim Gewinner.
+ */
+async function inkasso(lauf: Lauf): Promise<HeuteEintrag[]> {
+  const { SICHTFELD } = await import("./fiaon-inkasso");
+  const zeilen = (await lauf.unsafe(`
+    SELECT p.id AS person_id, MIN(a.ref) AS ref, p.assigned_agent_id, ${NAME_SQL("p")} AS name,
+           MIN(COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.contact_name)) AS name_bestellung,
+           COUNT(*)::int AS anzahl, SUM(r.betrag_cents)::bigint AS summe,
+           MIN(${HEUTE_SQL} - r.faellig_am)::int AS juengste_tage,
+           MAX(r.faellig_am)::text AS juengste_faellig,
+           BOOL_AND(r.faellig_am >= ${HEUTE_SQL}) AS nur_heute
+      FROM fiaon_abo_raten r
+      JOIN fiaon_applications a ON a.ref = r.ref
+      LEFT JOIN fiaon_persons p0 ON p0.id = a.person_id
+      LEFT JOIN fiaon_persons p ON p.id = COALESCE(p0.merged_into_person_id, p0.id)
+     WHERE ${SICHTFELD}
+       AND r.faellig_am <= ${HEUTE_SQL}
+       AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${HEUTE_SQL})
+     GROUP BY p.id, (CASE WHEN p.id IS NULL THEN a.ref END)`)) as any[];
   const aus: HeuteEintrag[] = [];
-  for (const [k, g] of Array.from(gruppen.entries())) {
-    const tage = g.raten.map((r) => Number(r.tage_ueberfaellig)).filter((n) => Number.isFinite(n));
-    const juengste = tage.length ? Math.max(0, Math.min(...tage)) : 0;
-    const faellig = g.raten.map((r) => iso(r.faellig_am)).filter(Boolean).sort() as string[];
-    const summe = g.raten.reduce((s, r) => s + Number(r.betrag_cents || 0), 0);
-    const pid = zahl(g.raten[0].person_id);
-    const nurHeute = g.raten.every((r) => r.ueberfaellig !== true);
+  for (const g of zeilen) {
+    const pid = zahl(g.person_id);
+    const juengste = Math.max(0, Number(g.juengste_tage) || 0);
+    const summe = Number(g.summe || 0);
     aus.push({
-      schluessel: `inkasso:${k}`, quelle: "inkasso", personId: pid, name: nameOder(g.raten[0].name, "Kunde"),
-      grund: rateGrund(juengste, g.raten.length), betragCents: summe || null,
-      ziel: pid ? `/agent/inkasso?person=${pid}${nurHeute ? "&frist=heute" : ""}` : "/agent/inkasso",
-      zeit: null, seit: faellig.length ? faellig[faellig.length - 1] : null,
-      zustaendigId: g.zustaendig, rolle: "inkasso", erledigt: false, tageFaellig: juengste,
+      schluessel: pid ? `inkasso:p:${pid}` : `inkasso:ref:${g.ref}`, quelle: "inkasso", personId: pid,
+      name: nameOder(g.name ?? g.name_bestellung, "Kunde"),
+      grund: rateGrund(juengste, Number(g.anzahl) || 1), betragCents: summe || null,
+      ziel: pid ? `/agent/inkasso?person=${pid}${g.nur_heute === true ? "&frist=heute" : ""}` : "/agent/inkasso",
+      zeit: null, seit: g.juengste_faellig ? iso(String(g.juengste_faellig)) : null,
+      zustaendigId: zahl(g.assigned_agent_id), rolle: "inkasso", erledigt: false, tageFaellig: juengste,
     });
   }
   // Erledigt heute: eine fällige Rate wurde heute bezahlt oder bearbeitet (Ergebnis im Raten-Protokoll).
@@ -310,6 +336,8 @@ async function inkasso(lauf: Lauf, teamIds: number[]): Promise<HeuteEintrag[]> {
       grund: f.bezahlt ? (Number(f.anzahl) > 1 ? "Raten bezahlt" : "Rate bezahlt") : "Rate heute bearbeitet",
       betragCents: zahl(f.summe), ziel: `/agent/inkasso?person=${pid}`, zeit: null, seit: null,
       zustaendigId: zahl(f.assigned_agent_id) ?? zahl(f.bearbeiter), rolle: "inkasso", erledigt: true, tageFaellig: null,
+      // Per Bank bezahlt, ohne dass heute jemand die Rate bearbeitet hat: gute Nachricht, keine eigene Arbeit.
+      vonAllein: f.bearbeiter == null,
     });
   }
   return aus;
@@ -350,6 +378,8 @@ async function zahlungGemeldet(lauf: Lauf): Promise<HeuteEintrag[]> {
         : stunden <= MELDUNG_FRISCH_STUNDEN ? "Zahlung gemeldet – Kunde anrufen" : "Zahlung gemeldet, nicht da – klären",
       betragCents: betrag != null && betrag > 0 ? Math.round(betrag * 100) : null,
       ziel: akte(pid), zeit: null, seit: iso(z.claimed_paid_at), zustaendigId: zahl(z.assigned_agent_id), rolle: "vertrieb", erledigt,
+      // Geld eingegangen, ohne heutiges Gespräch: kam von allein (Bank), frisst keinen Platz.
+      vonAllein: z.bezahlt === true && z.kontakt_heute !== true,
     });
   }
   return aus;
@@ -522,7 +552,7 @@ export async function eintraegeLesen(lauf: Lauf, stand: TeamStand): Promise<{ ei
     ["rueckrufe", () => rueckrufeVereinbart(lauf)],
     ["wuensche", () => rueckrufWuensche(lauf)],
     ["auftraege", () => auftraege(lauf)],
-    ["inkasso", () => inkasso(lauf, teamIds)],
+    ["inkasso", () => inkasso(lauf)],
     ["zahlung", () => zahlungGemeldet(lauf)],
     ["kyc", () => kyc(lauf)],
     ["anliegen", () => anliegen(lauf)],

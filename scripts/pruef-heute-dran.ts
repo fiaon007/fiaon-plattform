@@ -2,7 +2,7 @@
 // Aufruf: node_modules/.bin/tsx scripts/pruef-heute-dran.ts
 import {
   planen, stufeVon, zeileAus, vergleich, zusammenfassen, kapazitaet, arbeitsMinuten, zielErlaubt, kurzGrund,
-  auftragGrund, rateGrund, berlinTag, HEUTE_DRAN_HOECHSTENS,
+  auftragGrund, rateGrund, berlinTag, HEUTE_DRAN_HOECHSTENS, leerSatz, KEIN_DRUCK_ZUSATZ,
   type HeuteEintrag, type HeuteZeile, type TeamMitglied, type TeamPlan,
 } from "../shared/fiaon-heute-dran";
 
@@ -46,6 +46,11 @@ ok("Hitze frisch → 4", stufe(e({ quelle: "hitze", hitzeFrisch: true })) === 4)
 ok("Hitze nicht frisch → 6", stufe(e({ quelle: "hitze", hitzeFrisch: false })) === 6);
 ok("Bonität bezahlt → 5", stufe(e({ quelle: "bonitaet" })) === 5);
 ok("KYC → 6", stufe(e({ quelle: "kyc" })) === 6);
+// Nachbesserung (Prüfer-Fund 19.10.): Ein Kunde, der schon zu lange wartet, rutscht nicht nach unten — höchstens 14 Tage.
+ok("Rückruf-Frist heute 10:55, jetzt 11:00 (vorbei) → bleibt 1", stufe(e({ quelle: "rueckruf", zeit: heuteUm("10:55") })) === 1);
+ok("vereinbarter Rückruf gestern, nicht geführt → 1 (vorher 6)", stufe(e({ quelle: "rueckruf", zeit: "2026-10-18T13:00:00Z" })) === 1);
+ok("Rückruf vor 14 Tagen (05.10.) → noch 1", stufe(e({ quelle: "rueckruf", zeit: "2026-10-05T07:00:00Z" })) === 1);
+ok("Rückruf-Frist vor 15 Tagen (04.10.) → nicht 1 (keine Tagesarbeit mehr)", stufe(e({ quelle: "rueckruf", zeit: "2026-10-04T10:00:00Z" })) === 6);
 ok("Anliegen → 6", stufe(e({ quelle: "anliegen" })) === 6);
 
 console.log("2 · Reihenfolge innerhalb der Stufen");
@@ -67,6 +72,14 @@ const reihe = mix.map((x) => zeileAus(x, JETZT)).sort(vergleich).map((z) => z.sc
 const erwartet = ["rueckruf1015", "termin16", "zahl10h", "rate2", "frist1", "frist6", "hitze5h", "boni9", "boni2", "auftrag1", "kyc20", "alt60"];
 ok("Uhrzeit → Geld frisch (frischeste zuerst) → Frist (frische zuerst) → A/B → Bonität (wartet am längsten) → Rest (frisch vor alt) → Altbestand",
   JSON.stringify(reihe) === JSON.stringify(erwartet), reihe);
+{
+  const ueber = [
+    e({ quelle: "rueckruf", zeit: heuteUm("15:00"), schluessel: "heute15" }),
+    e({ quelle: "rueckruf", zeit: "2026-10-17T08:00:00Z", schluessel: "seitSamstag" }),
+    e({ quelle: "zahlung", seit: vorStunden(1), schluessel: "geld" }),
+  ].map((x) => zeileAus(x, JETZT)).sort(vergleich).map((z) => z.schluessel);
+  ok("überfälliges Versprechen steht vor den Uhrzeiten von heute und vor frischem Geld", JSON.stringify(ueber) === JSON.stringify(["seitSamstag", "heute15", "geld"]), ueber);
+}
 
 console.log("3 · Arbeitszeit und Tagesmenge");
 ok("0 Min → 0", kapazitaet(0) === 0);
@@ -183,7 +196,9 @@ console.log("7 · Arbeitszeit 0 → leere Liste mit Hinweis");
   const p = plan.personen.find((x) => x.agentId === 531)!;
   ok("Liste leer", p.offen.length === 0 && p.zahlen.heuteDran === 0);
   ok("Hinweis gesetzt", !!p.hinweis && /keine Arbeitszeit/.test(p.hinweis), p.hinweis);
-  ok("die Arbeit steht im Rückstau (nicht verloren)", p.rueckstau.length === 2);
+  ok("der Auftrag ohne Frist steht in ihrem Rückstau (nicht verloren)", p.rueckstau.length === 1 && p.rueckstau[0].quelle === "auftrag", p.rueckstau);
+  const weiter = plan.personen.flatMap((x) => x.offen).find((z) => z.quelle === "termin");
+  ok("… der Termin heute geht an die Leitung (in Vertretung)", !!weiter && weiter.vertretungFuer === p.name && weiter.verteilt, weiter);
 }
 
 console.log("8 · Klickziele, Gründe");
@@ -197,6 +212,98 @@ ok("Auftragsart → kurzer Grund", auftragGrund("kuendigung", "egal") === "Künd
 ok("unbekannte Art → Titel ohne „Name:“-Vorspann, gekürzt", auftragGrund("xyz", "Max Probe: braucht heute jemanden wegen der Adresse und noch mehr") === "braucht heute jemanden wegen der Adresse …");
 ok("rateGrund", rateGrund(0) === "Rate heute fällig" && rateGrund(1) === "Rate seit gestern offen" && rateGrund(12, 2) === "2 Raten seit 12 Tagen offen");
 ok("berlinTag 22:30 UTC = nächster Berliner Tag", berlinTag("2026-10-19T22:30:00Z") === "2026-10-20");
+
+console.log("10 · Nachbesserung: Erledigtes, das von allein kam, frisst keinen Platz");
+{
+  nr = 0;
+  const flo: TeamMitglied[] = [{ id: 10, name: "Leitung B (halber Tag)", rolle: "vertriebsleiter", minuten: 240 }];
+  const kuend = Array.from({ length: 5 }, (_, i) => e({ quelle: "auftrag", zustaendigId: 10, frist: true, art: "kuendigung", seit: vorTagen(i + 1) }));
+  const bank = Array.from({ length: 13 }, () => e({ quelle: "inkasso", zustaendigId: 10, erledigt: true, vonAllein: true, grund: "Rate bezahlt" }));
+  const a = planen([...kuend, ...bank], flo, { jetzt: JETZT }).personen[0];
+  ok("13 Raten per Bank bezahlt + 5 Kündigungen (13 Plätze) → alle 5 Kündigungen sichtbar, Rückstau 0 (vorher 0 / 5)",
+    a.kapazitaet === 13 && a.offen.length === 5 && a.rueckstau.length === 0, a.zahlen);
+  ok("… die Bank-Zahlungen stehen trotzdem unter „erledigt“", a.erledigt.length === 13 && a.zahlen.erledigt === 13);
+  const selbst = Array.from({ length: 13 }, () => e({ quelle: "auftrag", zustaendigId: 10, erledigt: true, grund: "Hinweis – erledigt" }));
+  const b = planen([...kuend, ...selbst], flo, { jetzt: JETZT }).personen[0];
+  ok("13 SELBST erledigt → Tagesmenge geschafft, die 5 warten im Rückstau", b.offen.length === 0 && b.rueckstau.length === 5, b.zahlen);
+  const satz = leerSatz({ offen: b.offen.length, erledigt: b.zahlen.erledigt, rueckstau: b.zahlen.rueckstau }) ?? "";
+  ok("… dann steht NICHT „Alles für heute erledigt“, sondern der Rückstau wird genannt", !/Alles für heute erledigt/.test(satz) && /Rückstau/.test(satz) && /5/.test(satz), satz);
+  ok("„Alles erledigt“ nur, wenn auch der Rückstau leer ist", leerSatz({ offen: 0, erledigt: 4, rueckstau: 0 }) === "Alles für heute erledigt. Stark!");
+  ok("offene Einträge → kein Leer-Satz", leerSatz({ offen: 2, erledigt: 4, rueckstau: 9 }) === null);
+  const misch = zusammenfassen([
+    zeileAus(e({ quelle: "inkasso", personId: 4242, erledigt: true, vonAllein: true, grund: "Rate bezahlt" }), JETZT),
+    zeileAus(e({ quelle: "termin", personId: 4242, erledigt: true, grund: "Startgespräch geführt" }), JETZT),
+  ]);
+  ok("derselbe Kunde: Bank-Zahlung + selbst geführter Termin → eine Zeile, zählt als eigene Arbeit", misch.length === 1 && misch[0].vonAllein === false, misch);
+}
+
+console.log("11 · Nachbesserung: offene Kündigung/Beschwerde → kein Zahlungsdruck");
+{
+  nr = 0;
+  const T2: TeamMitglied[] = [
+    { id: 8, name: "Leitung A", rolle: "vertriebsleiter", minuten: 480 },
+    { id: 10, name: "Leitung B", rolle: "vertriebsleiter", minuten: 480 },
+  ];
+  const pid = 31_337;
+  const plan = planen([
+    e({ quelle: "inkasso", personId: pid, zustaendigId: 8, tageFaellig: 1, grund: "Rate seit gestern offen", ziel: `/agent/inkasso?person=${pid}`, betragCents: 5999 }),
+    e({ quelle: "auftrag", personId: pid, zustaendigId: 8, frist: true, art: "kuendigung", grund: "Kündigung oder Widerruf bearbeiten", ziel: `/agent/kunden?person=${pid}&auftrag=77` }),
+  ], T2, { jetzt: JETZT });
+  const z = plan.personen[0].offen.find((x) => x.personId === pid);
+  ok("Rate (Geld frisch) + Kündigung beim selben Kunden → die Kündigung ist die Zeile (vorher: die Rate)", z?.quelle === "auftrag" && z.ziel.endsWith("&auftrag=77"), z);
+  ok("… die Rate steht klein darunter: „erst klären, kein Druck“", !!z?.weitere.some((w) => w.startsWith("Rate seit gestern offen") && w.includes(KEIN_DRUCK_ZUSATZ)), z?.weitere);
+  const pid2 = 31_338;
+  const getrennt = planen([
+    e({ quelle: "inkasso", personId: pid2, zustaendigId: 10, tageFaellig: 0, grund: "Rate heute fällig", ziel: `/agent/inkasso?person=${pid2}` }),
+    e({ quelle: "auftrag", personId: pid2, zustaendigId: 8, frist: true, art: "mara_wa_heikel", grund: "WhatsApp: Kündigung oder Beschwerde" }),
+  ], T2, { jetzt: JETZT });
+  const r10 = getrennt.personen.find((x) => x.agentId === 10)!.offen.find((x) => x.personId === pid2);
+  ok("Kündigung liegt bei einem Kollegen: die Rate rutscht nach hinten, Ziel ist die Akte, nicht das Inkasso",
+    r10?.stufe === 6 && r10.ziel === `/agent/kunden?person=${pid2}` && r10.grund.includes(KEIN_DRUCK_ZUSATZ), r10);
+  const pid3 = 31_339;
+  const eskal = planen([
+    e({ quelle: "inkasso", personId: pid3, zustaendigId: 8, tageFaellig: 1, grund: "Rate seit gestern offen" }),
+    e({ quelle: "auftrag", personId: pid3, zustaendigId: 8, frist: true, art: "mara_eskalation", grund: "Zahlung verweigert – anrufen" }),
+  ], T2, { jetzt: JETZT });
+  ok("„Zahlung verweigert“ (Geld-Fall) stellt die Rate NICHT zurück", eskal.personen[0].offen.find((x) => x.personId === pid3)?.quelle === "inkasso");
+  const pid4 = 31_340;
+  const erledigtK = planen([
+    e({ quelle: "inkasso", personId: pid4, zustaendigId: 8, tageFaellig: 1, grund: "Rate seit gestern offen" }),
+    e({ quelle: "auftrag", personId: pid4, zustaendigId: 8, frist: true, art: "kuendigung", erledigt: true, grund: "Kündigung – erledigt" }),
+  ], T2, { jetzt: JETZT });
+  ok("Kündigung heute erledigt → die Rate ist wieder normale Arbeit (Stufe 2)", erledigtK.personen[0].offen.find((x) => x.personId === pid4)?.stufe === 2);
+}
+
+console.log("12 · Nachbesserung: Arbeitszeit 0 → Dringendes geht weiter");
+{
+  nr = 0;
+  const T3: TeamMitglied[] = [
+    { id: 8, name: "Leitung A", rolle: "vertriebsleiter", minuten: 480 },
+    { id: 10, name: "Leitung B", rolle: "vertriebsleiter", minuten: 480 },
+    { id: 13, name: "Kollege C (abwesend)", rolle: "agent", minuten: 0, vertreterId: 8 },
+    { id: 531, name: "Kollegin E (keine Zeit)", rolle: "agent", minuten: 0 },
+  ];
+  const termin13 = e({ quelle: "termin", zustaendigId: 13, zeit: heuteUm("14:00"), grund: "Rückruf um 14:00 Uhr" });
+  const global13 = e({ quelle: "termin", zustaendigId: 13, zeit: heuteUm("15:00"), grund: "FIAON Global", nieUmleiten: true });
+  const kuend531 = e({ quelle: "auftrag", zustaendigId: 531, frist: true, art: "kuendigung", seit: vorTagen(20) });
+  const normal531 = e({ quelle: "auftrag", zustaendigId: 531, seit: vorTagen(3) });
+  const plan = planen([termin13, global13, kuend531, normal531], T3, { jetzt: JETZT });
+  const p = (id: number) => plan.personen.find((x) => x.agentId === id)!;
+  const t = p(8).offen.find((z) => z.schluessel === termin13.schluessel);
+  ok("Abwesenheit: der Termin heute 14:00 des Abwesenden steht beim Vertreter (vorher: nur in seinem Rückstau)",
+    !!t && t.vertretungFuer === "Kollege C (abwesend)" && t.verteilt, p(8).offen);
+  ok("… Gründer-/Global-Termine nie in Vertretung (bleiben im Rückstau)", p(13).rueckstau.some((z) => z.schluessel === global13.schluessel));
+  ok("… der Abwesende sieht: 1 abgegeben", p(13).weitergegeben === 1 && /jemand anderes/.test(p(13).hinweis ?? ""), p(13));
+  const k = [...p(8).offen, ...p(10).offen].find((z) => z.schluessel === kuend531.schluessel);
+  ok("keine Arbeitszeit, kein Vertreter: der Fristfall geht an die Leitung", !!k && k.vertretungFuer === "Kollegin E (keine Zeit)", k);
+  ok("… der Auftrag ohne Frist bleibt in ihrem Rückstau", p(531).rueckstau.length === 1 && p(531).rueckstau[0].schluessel === normal531.schluessel && p(531).zahlen.dringend === 0);
+  const gf = planen([termin13], [T3[0], { ...T3[2], vertreterId: 928 }], { jetzt: JETZT, betreiberIds: [928] });
+  ok("Vertreter ist die Geschäftsführung: der Termin bleibt dort (gezählt), auf keiner Mitarbeiterliste",
+    gf.beiGeschaeftsfuehrung === 1 && gf.personen.every((x) => x.offen.length === 0 && x.rueckstau.length === 0), gf);
+  const niemand = planen([kuend531], [{ id: 531, name: "E", rolle: "agent", minuten: 0 }, { id: 8, name: "A", rolle: "vertriebsleiter", minuten: 0 }], { jetzt: JETZT });
+  ok("arbeitet heute niemand der Rolle: bleibt im Rückstau, die Leitung sieht „1 dringend“",
+    niemand.personen[0].rueckstau.length === 1 && niemand.personen[0].zahlen.dringend === 1, niemand.personen[0].zahlen);
+}
 
 console.log("9 · Rot-Probe (der Prüfstand erkennt einen Fehler)");
 {

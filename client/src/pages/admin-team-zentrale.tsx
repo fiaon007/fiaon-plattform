@@ -932,8 +932,15 @@ function HeuteDranTeam() {
                 <td className="py-1.5 pr-3 font-semibold" style={{ color: "#0f172a" }}>{z.name}</td>
                 <td className="py-1.5 pr-3 text-right tabular-nums">{z.heuteDran}</td>
                 <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: z.heuteDran > 0 && z.erledigt >= z.heuteDran * 0.8 ? "#047857" : "#0f172a" }}>{z.erledigt}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: z.rueckstau > 0 ? "#b45309" : "#94a3b8" }}>{z.rueckstau}</td>
-                <td className="py-1.5 text-right tabular-nums" style={{ color: "#64748b" }}>{stunden(Number(z.minuten) || 0)}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: z.rueckstau > 0 ? "#b45309" : "#94a3b8" }}>
+                  {z.rueckstau}
+                  {/* E-406 A (Nachbesserung): Termine und Fristfälle im Rückstau — bleiben nur liegen, wenn heute niemand übernehmen kann. */}
+                  {Number(z.dringend) > 0 && <b style={{ color: "#b91c1c" }} title="Mit Uhrzeit oder Frist — heute konnte das niemand übernehmen."> ({z.dringend} dringend)</b>}
+                </td>
+                <td className="py-1.5 text-right tabular-nums" style={{ color: "#64748b" }}>
+                  {stunden(Number(z.minuten) || 0)}
+                  {Number(z.weitergegeben) > 0 && <span title="Termine und Fristfälle stehen heute bei einem Kollegen (Vertreter oder Leitung)."> · {z.weitergegeben} abgegeben</span>}
+                </td>
               </tr>
             ))}
           </tbody>

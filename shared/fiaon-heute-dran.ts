@@ -21,7 +21,8 @@
 // dadurch neue Rechte, nichts wird geschrieben, kein eigener Abhak-Speicher.
 //
 // ── DIE REIHENFOLGE NACH WIRKUNG ───────────────────────────────────────────
-//   1  Termine und Rückrufe mit Uhrzeit heute, in Zeitfolge
+//   1  Termine und Rückrufe mit Uhrzeit heute, in Zeitfolge — und Rückruf-
+//      Versprechen, die schon überfällig sind (höchstens 14 Tage alt), davor
 //   2  Geld frisch: Rate seit höchstens 3 Tagen fällig; Zahlung gemeldet,
 //      jünger als 72 Stunden (gestern fällig zahlt ~19 %, 60 Tage alt fast nie)
 //   3  Fälle mit Frist: Kündigung, Widerruf, Beschwerde, Anwalt (frische zuerst)
@@ -34,6 +35,21 @@
 // Rate bezahlt oder heute bearbeitet, Auftrag zu, Termin geführt, Anliegen
 // beantwortet … Der Server liefert jeden Eintrag mit `erledigt`. Hier wird
 // nur gezählt: „N von M erledigt“. M = erledigt + was heute sichtbar offen ist.
+// Gegen die Tagesmenge zählt nur, was der Mensch SELBST getan hat — eine Rate,
+// die per Bank kam, oder ein Auftrag, den die Automatik schloss, frisst keinen
+// Platz (`vonAllein`, Prüfer-Fund 19.10.).
+//
+// ── NACHBESSERUNG (Prüfer-Funde 19.10.2026) ────────────────────────────────
+//   · Überfällige Rückruf-Versprechen bleiben oben (Stufe 1), statt nach dem
+//     Ablauf der Frist nach unten zu rutschen — aber nur 14 Tage lang. Gemessen
+//     19.10.: alle 102 offenen Rückruf-Wünsche stammen vom 02.–09.09.; sie oben
+//     anzuheften hätte jede Liste mit Wochen altem Rückstand gefüllt.
+//   · Hat ein Kunde eine offene Kündigung, einen Widerruf oder eine Beschwerde,
+//     ist DAS seine Zeile. Rate, Zahlungsmeldung und Pipeline-Anruf stehen nur
+//     klein darunter: „erst klären, kein Druck“ (E-391/E-393).
+//   · Wer heute keine Arbeitszeit hat, gibt Termine, überfällige Rückrufe und
+//     Fristfälle ab: bei Team-Abwesenheit an den Vertreter (E-260), sonst an
+//     die Rolle zur Lage. Der Rest bleibt in seinem Rückstau.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Höchstens so viele Einträge stehen heute auf einer Liste. */
@@ -52,6 +68,17 @@ export const MELDUNG_HOECHSTENS_TAGE = 14;
 export const RUECKRUF_RUECKBLICK_TAGE = 14;
 /** Im Rückstau liefert der Server höchstens so viele Zeilen mit (die Zahl stimmt trotzdem). */
 export const RUECKSTAU_ZEILEN = 60;
+
+/**
+ * Auftragsarten, bei denen niemand zum Zahlen oder Kaufen drängt, solange sie offen sind (E-391/E-393):
+ * Kündigung, Widerruf, Beschwerde — auch die heiklen Übergaben aus Mail und WhatsApp. Nicht dabei: „Zahlung
+ * verweigert“ (mara_eskalation, da geht es ums Geld) und der Löschantrag an die Auskunftei (Service).
+ */
+export const KEIN_DRUCK_ARTEN: readonly string[] = ["kuendigung", "beschwerde", "mara_mail_heikel", "mara_wa_heikel"];
+/** Quellen, die zum Zahlen oder Kaufen drängen: Rate, Zahlungsmeldung, Pipeline-Anruf. */
+export const DRUCK_QUELLEN: readonly string[] = ["inkasso", "zahlung", "hitze"];
+/** So steht eine zurückgestellte Rate (o. ä.) unter der Kündigungs-Zeile. */
+export const KEIN_DRUCK_ZUSATZ = "erst klären, kein Druck";
 
 export type HeuteQuelle =
   | "termin" | "rueckruf" | "auftrag" | "inkasso" | "zahlung" | "kyc" | "anliegen" | "hitze" | "bonitaet";
@@ -110,6 +137,15 @@ export interface HeuteEintrag {
   hitzeFrisch?: boolean;
   /** Inkasso: seit so vielen Tagen fällig (die JÜNGSTE fällige Rate des Kunden). */
   tageFaellig?: number | null;
+  /** Auftragsart (nur Quelle „auftrag“) — für KEIN_DRUCK_ARTEN. */
+  art?: string | null;
+  /**
+   * Erledigt OHNE den Mitarbeiter: Geld kam per Bank, die Automatik hat den Auftrag geschlossen. Steht bei
+   * „erledigt“ (gute Nachricht), frisst aber keinen Platz der Tagesmenge.
+   */
+  vonAllein?: boolean;
+  /** Nie an einen anderen Menschen weitergeben: Gründer-Gespräch, FIAON Global (NIE_UMLEITEN_QUELLEN, E-260). */
+  nieUmleiten?: boolean;
 }
 
 /** Ein Eintrag auf einer Liste: mit Stufe, weiteren Gründen desselben Kunden und der Marke „verteilt“. */
@@ -119,6 +155,8 @@ export interface HeuteZeile extends HeuteEintrag {
   weitere: string[];
   /** true = hatte keinen Zuständigen und wurde nach der Rolle zur Lage zugeteilt (nur in dieser Liste, nichts gespeichert). */
   verteilt: boolean;
+  /** Gehört einem Kollegen, der heute keine Arbeitszeit hat — heute in Vertretung auf dieser Liste (sein Name). */
+  vertretungFuer: string | null;
 }
 
 export interface TeamMitglied {
@@ -128,6 +166,8 @@ export interface TeamMitglied {
   rolle: string;
   /** Arbeitszeit heute in Minuten (Verfügbarkeit, Abwesenheit schon abgezogen). */
   minuten: number;
+  /** Team-Abwesenheit (E-260): Wer heute für ihn anruft. Nur gesetzt, solange er abwesend ist. */
+  vertreterId?: number | null;
 }
 
 export interface PersonPlan {
@@ -142,7 +182,10 @@ export interface PersonPlan {
   erledigt: HeuteZeile[];
   /** Was nicht mehr hineinpasst — sichtbar, aufklappbar. */
   rueckstau: HeuteZeile[];
-  zahlen: { heuteDran: number; erledigt: number; rueckstau: number };
+  /** dringend = davon im Rückstau mit Uhrzeit oder Frist (bleibt nur liegen, wenn heute niemand übernehmen kann). */
+  zahlen: { heuteDran: number; erledigt: number; rueckstau: number; dringend: number };
+  /** So viele dringende Einträge (Uhrzeit, Frist) hat heute jemand anderes übernommen — er hat keine Arbeitszeit. */
+  weitergegeben: number;
   /** Ein Satz, wenn die Liste leer ist, weil keine Arbeitszeit eingetragen ist. */
   hinweis: string | null;
 }
@@ -225,10 +268,28 @@ export function zielErlaubt(ziel: string): boolean {
 
 // ── Die Reihenfolge ────────────────────────────────────────────────────────
 
+/** Ein Kalendertag (JJJJ-MM-TT) so viele Tage früher — reine Datumsrechnung, ohne Sommerzeit-Falle. */
+export function tagZurueck(tag: string, tage: number): string {
+  const d = new Date(`${tag}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - tage);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Ist ein Versprechen mit Uhrzeit (Termin, Rückruf, Rückruf-Frist) heute dran? Ja, wenn die Zeit heute ist —
+ * oder schon vorbei, aber höchstens RUECKRUF_RUECKBLICK_TAGE alt. Ein Kunde, der schon zu lange wartet, rutscht
+ * nicht nach unten (Prüfer-Fund 19.10.: Frist 10:00, um 10:05 stand er auf Stufe 6). Ältere sind keine
+ * Tagesarbeit mehr — dieselbe Grenze wie bei den vereinbarten Rückrufen.
+ */
+export function versprechenHeuteDran(zeit: string | null | undefined, jetzt: Date = new Date()): boolean {
+  const tag = berlinTag(zeit), heute = berlinTag(jetzt);
+  if (!tag || !heute) return false;
+  return tag <= heute && tag >= tagZurueck(heute, RUECKRUF_RUECKBLICK_TAGE);
+}
+
 /** Die Stufe eines Eintrags — die EINE Antwort auf „wie wichtig ist das heute?“. */
 export function stufeVon(e: HeuteEintrag, jetzt: Date = new Date()): HeuteStufe {
-  const heute = berlinTag(jetzt);
-  if ((e.quelle === "termin" || e.quelle === "rueckruf") && e.zeit && berlinTag(e.zeit) === heute) return 1;
+  if ((e.quelle === "termin" || e.quelle === "rueckruf") && versprechenHeuteDran(e.zeit, jetzt)) return 1;
   if (e.quelle === "inkasso" && e.tageFaellig != null && e.tageFaellig > ALTBESTAND_TAGE) return 7;
   if (e.quelle === "inkasso" && e.tageFaellig != null && e.tageFaellig >= 0 && e.tageFaellig <= GELD_FRISCH_TAGE) return 2;
   if (e.quelle === "zahlung") {
@@ -258,7 +319,31 @@ export function vergleich(a: HeuteZeile, b: HeuteZeile): number {
 }
 
 export function zeileAus(e: HeuteEintrag, jetzt: Date = new Date()): HeuteZeile {
-  return { ...e, stufe: stufeVon(e, jetzt), weitere: [], verteilt: false };
+  return { ...e, stufe: stufeVon(e, jetzt), weitere: [], verteilt: false, vertretungFuer: null };
+}
+
+/** Kunden mit einem offenen Fall aus KEIN_DRUCK_ARTEN (Kündigung, Widerruf, Beschwerde) — über ALLE Listen hinweg. */
+export function kundenOhneDruck(eintraege: readonly HeuteEintrag[]): Set<number> {
+  const s = new Set<number>();
+  for (const e of eintraege) {
+    if (!e.erledigt && e.personId != null && e.quelle === "auftrag" && !!e.art && KEIN_DRUCK_ARTEN.includes(e.art)) s.add(Number(e.personId));
+  }
+  return s;
+}
+
+/**
+ * Rate, Zahlungsmeldung oder Pipeline-Anruf eines Kunden mit offener Kündigung/Beschwerde: nach hinten (Stufe 6),
+ * mit dem Zusatz „erst klären, kein Druck“ und mit der Akte als Ziel statt des Inkassos. Liegt die Kündigung auf
+ * derselben Liste, ist sie die Zeile und dies steht klein darunter (E-391/E-393, Prüfer-Fund 19.10.).
+ */
+export function ohneDruck(z: HeuteZeile): HeuteZeile {
+  if (z.erledigt || !DRUCK_QUELLEN.includes(z.quelle)) return z;
+  return {
+    ...z,
+    stufe: (z.stufe < 6 ? 6 : z.stufe) as HeuteStufe,
+    grund: `${z.grund} – ${KEIN_DRUCK_ZUSATZ}`,
+    ziel: z.personId != null ? `/agent/kunden?person=${z.personId}` : z.ziel,
+  };
 }
 
 /**
@@ -283,13 +368,16 @@ export function zusammenfassen(zeilen: readonly HeuteZeile[]): HeuteZeile[] {
   }
   const ergebnis: HeuteZeile[] = [];
   const offenJe = new Map<number, HeuteZeile>();
-  const erledigtJe = new Set<number>();
+  const erledigtJe = new Map<number, HeuteZeile>();
   for (const z of sortiert) {
     if (z.personId == null) { ergebnis.push({ ...z, weitere: [...z.weitere] }); continue; }
     if (z.erledigt) {
-      if (erledigtJe.has(z.personId)) continue;
-      erledigtJe.add(z.personId);
-      ergebnis.push({ ...z, weitere: [...z.weitere] });
+      const schon = erledigtJe.get(z.personId);
+      // Eine Zeile je Kunde — hat der Mensch selbst etwas getan, zählt sie als eigene Arbeit (nicht „von allein“).
+      if (schon) { if (!z.vonAllein) schon.vonAllein = false; continue; }
+      const neu = { ...z, weitere: [...z.weitere] };
+      erledigtJe.set(z.personId, neu);
+      ergebnis.push(neu);
       continue;
     }
     if (erledigtQuelle.has(`${z.personId}|${z.quelle}`)) continue;
@@ -308,6 +396,8 @@ export function zusammenfassen(zeilen: readonly HeuteZeile[]): HeuteZeile[] {
       da.weitere.push(g);
     }
     if (da.betragCents == null && z.betragCents != null) da.betragCents = z.betragCents;
+    // Steckt ein Fristfall in der Zeile, ist die ganze Zeile dringend (Weitergabe bei Arbeitszeit 0, Zählung „dringend“).
+    if (z.frist) da.frist = true;
   }
   return ergebnis.sort(vergleich);
 }
@@ -328,8 +418,14 @@ export interface PlanOptionen {
  *  3. Sonst (kein Zuständiger, oder gesperrt/inaktiv) geht er an die Rolle zur Lage mit der geringsten Last —
  *     Last = offene Einträge je Platz der Tagesmenge. Wer heute keine Arbeitszeit hat, bekommt nichts dazu;
  *     arbeitet niemand der Rolle, steht er unter „ohne Zuständigen“ (sichtbar für die Leitung).
- *  4. Je Person: eine Zeile je Kunde, Reihenfolge nach Wirkung, dann die Tagesmenge. Termine und Rückrufe mit
- *     Uhrzeit heute stehen immer drin (bis 25); erledigte zählen mit. Der Rest ist der Rückstau.
+ *  4. Wer heute keine Arbeitszeit hat, gibt das Dringende ab (Uhrzeit heute/überfällig, Fristfall): bei
+ *     Team-Abwesenheit an den Vertreter (ist das die Geschäftsführung, bleibt es dort, gezählt), sonst an die
+ *     Rolle zur Lage. Gründer- und Global-Termine nie (nieUmleiten). Der Rest bleibt in seinem Rückstau.
+ *  5. Je Person: eine Zeile je Kunde, Reihenfolge nach Wirkung, dann die Tagesmenge. Termine und Rückrufe mit
+ *     Uhrzeit stehen immer drin (bis 25); Erledigtes zählt nur mit, wenn der Mensch es selbst getan hat
+ *     (nicht `vonAllein`). Der Rest ist der Rückstau.
+ * Vorher: Rate, Zahlungsmeldung und Pipeline-Anruf eines Kunden mit offener Kündigung/Beschwerde gehen nach
+ * hinten (ohneDruck) — egal, auf wessen Liste die Kündigung liegt.
  */
 export function planen(eintraege: readonly HeuteEintrag[], team: readonly TeamMitglied[], opt: PlanOptionen = {}): TeamPlan {
   const jetzt = opt.jetzt ?? new Date();
@@ -338,9 +434,11 @@ export function planen(eintraege: readonly HeuteEintrag[], team: readonly TeamMi
   const eimer = new Map<number, HeuteZeile[]>(team.map((m) => [Number(m.id), []]));
   let beiGeschaeftsfuehrung = 0;
   const ohneZustaendigenRoh: HeuteZeile[] = [];
+  const keinDruck = kundenOhneDruck(eintraege);
 
   for (const e of eintraege) {
-    const z = zeileAus(e, jetzt);
+    let z = zeileAus(e, jetzt);
+    if (z.personId != null && keinDruck.has(Number(z.personId))) z = ohneDruck(z);
     const id = e.zustaendigId == null ? null : Number(e.zustaendigId);
     if (id != null && mitglieder.has(id)) { eimer.get(id)!.push(z); continue; }
     if (id != null && betreiber.has(id)) { if (!z.erledigt) beiGeschaeftsfuehrung++; continue; }
@@ -353,6 +451,34 @@ export function planen(eintraege: readonly HeuteEintrag[], team: readonly TeamMi
   const last = new Map<number, number>();
   for (const [id, liste] of Array.from(eimer.entries())) last.set(id, zusammenfassen(liste).filter((z) => !z.erledigt).length);
 
+  // Wer heute keine Arbeitszeit hat: Das Dringende geht an den Vertreter bzw. die Rolle zur Lage (Prüfer-Fund 19.10.:
+  // vorher lag es nur im eigenen Rückstau — der Vertreter einer Team-Abwesenheit sah die Termine der Abwesenden nicht).
+  const weitergegeben = new Map<number, number>();
+  for (const m of team) {
+    const id = Number(m.id);
+    if (kapazitaet(m.minuten) > 0) continue;
+    const bleibt: HeuteZeile[] = [];
+    for (const z of zusammenfassen(eimer.get(id) ?? [])) {
+      if (z.erledigt || z.nieUmleiten || !(z.stufe === 1 || z.frist)) { bleibt.push(z); continue; }
+      const vertreter = m.vertreterId != null ? Number(m.vertreterId) : null;
+      let ziel: number | null = null;
+      let zurGeschaeftsfuehrung = false;
+      if (vertreter != null && vertreter !== id) {
+        const v = mitglieder.get(vertreter);
+        if (v && kapazitaet(v.minuten) > 0) ziel = vertreter;
+        else if (betreiber.has(vertreter)) zurGeschaeftsfuehrung = true;
+      }
+      if (ziel == null && !zurGeschaeftsfuehrung) ziel = waehleFuerLage(z.rolle, team, last);
+      if (zurGeschaeftsfuehrung) beiGeschaeftsfuehrung++;
+      else if (ziel != null) {
+        eimer.get(ziel)!.push({ ...z, verteilt: true, vertretungFuer: m.name });
+        last.set(ziel, (last.get(ziel) ?? 0) + 1);
+      } else { bleibt.push(z); continue; }
+      weitergegeben.set(id, (weitergegeben.get(id) ?? 0) + 1);
+    }
+    eimer.set(id, bleibt);
+  }
+
   const ohneZustaendigen: HeuteZeile[] = [];
   for (const z of zusammenfassen(ohneZustaendigenRoh)) {
     const ziel = waehleFuerLage(z.rolle, team, last);
@@ -364,6 +490,8 @@ export function planen(eintraege: readonly HeuteEintrag[], team: readonly TeamMi
   const personen: PersonPlan[] = team.map((m) => {
     const alle = zusammenfassen(eimer.get(Number(m.id)) ?? []);
     const erledigt = alle.filter((z) => z.erledigt);
+    // Gegen die Tagesmenge zählt nur eigene Arbeit — nicht die Rate, die per Bank kam (Prüfer-Fund 19.10.).
+    const eigeneErledigt = erledigt.filter((z) => !z.vonAllein).length;
     const offenAlle = alle.filter((z) => !z.erledigt);
     const kap = kapazitaet(m.minuten);
     const offen: HeuteZeile[] = [];
@@ -371,20 +499,27 @@ export function planen(eintraege: readonly HeuteEintrag[], team: readonly TeamMi
     if (kap === 0) {
       rueckstau.push(...offenAlle);
     } else {
-      // Eine feste Uhrzeit heute ist ein Versprechen an den Kunden — sie steht immer drin, auch wenn die
+      // Eine feste Uhrzeit ist ein Versprechen an den Kunden — sie steht immer drin, auch wenn die
       // Tagesmenge mit Erledigtem schon voll ist (höchstens 25 solcher Einträge).
       let mitUhrzeit = 0;
       for (const z of offenAlle) {
         if (z.stufe === 1 && mitUhrzeit < HEUTE_DRAN_HOECHSTENS) { offen.push(z); mitUhrzeit++; }
-        else if (erledigt.length + offen.length < kap) offen.push(z);
+        else if (eigeneErledigt + offen.length < kap) offen.push(z);
         else rueckstau.push(z);
       }
     }
+    const abgegeben = weitergegeben.get(Number(m.id)) ?? 0;
     return {
       agentId: Number(m.id), name: m.name, minuten: m.minuten, kapazitaet: kap,
       offen, erledigt, rueckstau,
-      zahlen: { heuteDran: erledigt.length + offen.length, erledigt: erledigt.length, rueckstau: rueckstau.length },
-      hinweis: kap === 0 ? "Heute ist keine Arbeitszeit eingetragen — deshalb ist die Liste leer." : null,
+      zahlen: {
+        heuteDran: erledigt.length + offen.length, erledigt: erledigt.length, rueckstau: rueckstau.length,
+        dringend: rueckstau.filter((z) => z.stufe === 1 || z.frist === true).length,
+      },
+      weitergegeben: abgegeben,
+      hinweis: kap === 0
+        ? `Heute ist keine Arbeitszeit eingetragen — deshalb ist die Liste leer.${abgegeben ? ` ${abgegeben} dringende ${abgegeben === 1 ? "Sache übernimmt" : "Sachen übernimmt"} heute jemand anderes.` : ""}`
+        : null,
     };
   });
 
@@ -404,6 +539,17 @@ function waehleFuerLage(rolle: HeuteRolle, team: readonly TeamMitglied[], last: 
     return Number(kandidaten[0].id);
   }
   return null;
+}
+
+/**
+ * Der Satz, wenn nichts Offenes mehr sichtbar ist. „Alles erledigt“ nur, wenn auch der Rückstau leer ist
+ * (Prüfer-Fund 19.10.: vorher stand „Alles für heute erledigt“ über fünf Kündigungen im Rückstau).
+ */
+export function leerSatz(z: { offen: number; erledigt: number; rueckstau: number }): string | null {
+  if (z.offen > 0) return null;
+  if (z.rueckstau > 0) return `Deine Tagesmenge ist geschafft. Stark! Im Rückstau warten noch ${z.rueckstau} — nimm dir davon, wenn du Zeit hast.`;
+  if (z.erledigt > 0) return "Alles für heute erledigt. Stark!";
+  return "Heute steht nichts an. Schau in die Pipeline.";
 }
 
 // ── Die Gründe in 3–6 Wörtern ──────────────────────────────────────────────

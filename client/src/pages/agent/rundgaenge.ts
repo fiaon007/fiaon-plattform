@@ -667,7 +667,8 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "deiner Arbeitszeit — ein voller Tag sind 25. „Öffnen“ bringt dich direkt an die richtige Stelle. Abhaken musst du "
       + "nichts: Ist die Rate bezahlt, der Auftrag zu oder der Termin geführt, zählt es von selbst als erledigt. Was heute "
       + "nicht mehr passt, steht unter „Rückstau“ — es geht nicht verloren.",
-    tipp: "„ohne Betreuer – heute für dich“ heißt: Dieser Kunde hat keinen festen Betreuer. Für heute gehört er auf deine Liste.",
+    tipp: "„ohne Betreuer – heute für dich“ heißt: Dieser Kunde hat keinen festen Betreuer. Für heute gehört er auf deine Liste. "
+      + "„in Vertretung für …“ heißt: Der Kollege arbeitet heute nicht – seinen Termin oder Fall mit Frist machst du.",
   },
   {
     ziel: ".st-block",

@@ -20,6 +20,7 @@ function zeileAusgabe(z: HeuteZeile) {
   return {
     schluessel: z.schluessel, quelle: z.quelle, name: z.name, grund: z.grund, weitere: z.weitere,
     betragCents: z.betragCents, ziel: z.ziel, zeit: z.zeit, stufe: z.stufe, verteilt: z.verteilt, erledigt: z.erledigt,
+    vertretungFuer: z.vertretungFuer,
   };
 }
 
@@ -57,6 +58,7 @@ router.get("/admin/team/heute-dran", async (_req, res: Response) => {
       zeilen: stand.plan.personen.map((p) => ({
         agentId: p.agentId, name: p.name, minuten: p.minuten, kapazitaet: p.kapazitaet,
         heuteDran: p.zahlen.heuteDran, erledigt: p.zahlen.erledigt, rueckstau: p.zahlen.rueckstau,
+        dringend: p.zahlen.dringend, weitergegeben: p.weitergegeben,
       })),
       ohneZustaendigen: stand.plan.ohneZustaendigen.length,
       beiGeschaeftsfuehrung: stand.plan.beiGeschaeftsfuehrung,

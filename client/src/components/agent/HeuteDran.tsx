@@ -14,11 +14,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api } from "@/pages/agent/shared";
-import { HEUTE_DRAN_HOECHSTENS } from "@shared/fiaon-heute-dran";
+import { HEUTE_DRAN_HOECHSTENS, berlinTag, leerSatz } from "@shared/fiaon-heute-dran";
 
 interface Zeile {
   schluessel: string; quelle: string; name: string; grund: string; weitere: string[];
   betragCents: number | null; ziel: string; zeit: string | null; stufe: number; verteilt: boolean; erledigt: boolean;
+  vertretungFuer?: string | null;
 }
 interface Antwort {
   ok: boolean; stand: string; fehlend: string[]; hinweis?: string;
@@ -34,14 +35,18 @@ const QUELLE_KURZ: Record<string, string> = {
   kyc: "Ausweis", anliegen: "Anliegen", hitze: "Anruf", bonitaet: "Bonität",
 };
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const tagMonat = (iso: string) => new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" });
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 
 function HeuteZeile({ z }: { z: Zeile }) {
-  // Links steht, was die Zeile ist: die Uhrzeit bei Terminen und Rückrufen heute, „Frist“ bei Fristfällen, sonst die Art.
-  const marke = z.stufe === 1 && z.zeit ? uhr(z.zeit) : z.stufe === 3 ? "Frist" : (QUELLE_KURZ[z.quelle] ?? "Heute");
+  // Links steht, was die Zeile ist: die Uhrzeit bei Terminen und Rückrufen heute (der Tag, wenn sie schon von
+  // einem früheren Tag überfällig sind), „Frist“ bei Fristfällen, sonst die Art.
+  const marke = z.stufe === 1 && z.zeit
+    ? (berlinTag(z.zeit) === berlinTag(new Date()) ? uhr(z.zeit) : tagMonat(z.zeit))
+    : z.stufe === 3 ? "Frist" : (QUELLE_KURZ[z.quelle] ?? "Heute");
   const zusatz = [
     ...(z.weitere.length ? [`auch: ${z.weitere.join(", ")}`] : []),
-    ...(z.verteilt ? ["ohne Betreuer – heute für dich"] : []),
+    ...(z.vertretungFuer ? [`in Vertretung für ${z.vertretungFuer}`] : z.verteilt ? ["ohne Betreuer – heute für dich"] : []),
   ].join(" · ");
   return (
     <div className={`st-zeile st-heute-zeile s${z.stufe}${z.erledigt ? " fertig" : ""}`}>
@@ -97,7 +102,7 @@ export function HeuteDranBlock() {
       )}
       {p.hinweis && <p className="st-leer">{p.hinweis}</p>}
       {!p.hinweis && p.offen.length === 0 && (
-        <p className="st-leer">{erledigt > 0 ? "Alles für heute erledigt. Stark!" : "Heute steht nichts an. Schau in die Pipeline."}</p>
+        <p className="st-leer">{leerSatz({ offen: 0, erledigt, rueckstau })}</p>
       )}
       {p.offen.map((z) => <HeuteZeile key={z.schluessel} z={z} />)}
       {daten.fehlend.length > 0 && (

@@ -34,11 +34,14 @@ async function main() {
   await sql`UPDATE fiaon_agents SET rolle = 'agent' WHERE id IN (505, 531)`;
   await sql`UPDATE fiaon_agents SET active = TRUE, zugang_gesperrt_am = NULL, schulung_offen = FALSE, is_test_account = FALSE, pruefkonto = FALSE WHERE id IN (8, 10, 13, 505, 531)`;
   await sql`DELETE FROM fiaon_agent_verfuegbarkeit WHERE agent_id IN (8, 10, 13, 505, 531)`;
-  // 8: 9 Std (25 Plätze) · 10: 4 Std (13 Plätze) · 505: 8 Std · 13 und 531: heute keine Zeit.
+  // 8: 9 Std (25 Plätze) · 10: 4 Std (13 Plätze) · 505: 8 Std · 531: heute keine Zeit · 13: hätte Zeit, ist aber abwesend.
   await sql`INSERT INTO fiaon_agent_verfuegbarkeit (agent_id, wochentag, von, bis, aktiv) VALUES
-              (8, ${isodow}, '09:00', '18:00', TRUE), (10, ${isodow}, '09:00', '13:00', TRUE), (505, ${isodow}, '09:00', '17:00', TRUE)`;
-  // Die Team-Abwesenheit ist aus.
+              (8, ${isodow}, '09:00', '18:00', TRUE), (10, ${isodow}, '09:00', '13:00', TRUE), (505, ${isodow}, '09:00', '17:00', TRUE),
+              (13, ${isodow}, '09:00', '17:00', TRUE)`;
+  // Team-Abwesenheit (E-260): 13 ist bis morgen weg, 8 vertritt (Nachbesserung: der Vertreter bekommt die Termine).
   await sql`DELETE FROM fiaon_settings WHERE key = 'team_abwesenheit'`;
+  await sql`INSERT INTO fiaon_settings (key, value) VALUES ('team_abwesenheit',
+              ${JSON.stringify({ an: true, vertreterId: 8, bis: `${morgen}T12:00:00${versatz}`, fuer: [13] })})`;
 
   let n = 0;
   const person = async (vn: string, nn: string, agent: number | null, extra: { tier?: number; test?: boolean; blocked?: boolean } = {}) => {
@@ -95,6 +98,28 @@ async function main() {
   const [rw] = (await sql`INSERT INTO fiaon_rueckrufe (person_id, quelle, anliegen, zustaendig_agent_id, frist_bis, status, created_at)
                           VALUES (${pWunsch}, 'manuell', 'Kundin möchte zur Rate sprechen', 10, NOW() - INTERVAL '1 day', 'offen', NOW() - INTERVAL '2 days') RETURNING id`) as any[];
   void rw;
+  // Nachbesserung: Frist vor einer Stunde (vorbei) und vor 20 Tagen (keine Tagesarbeit mehr).
+  const pWunschJetzt = await person("Wanda", "Fristjetzt", 10);
+  await sql`INSERT INTO fiaon_rueckrufe (person_id, quelle, anliegen, zustaendig_agent_id, frist_bis, status, created_at)
+            VALUES (${pWunschJetzt}, 'manuell', 'Bitte um Rückruf', 10, NOW() - INTERVAL '1 hour', 'offen', NOW() - INTERVAL '25 hours')`;
+  const pWunschAlt = await person("Wolf", "Fristalt", 10);
+  await sql`INSERT INTO fiaon_rueckrufe (person_id, quelle, anliegen, zustaendig_agent_id, frist_bis, status, created_at)
+            VALUES (${pWunschAlt}, 'manuell', 'Bitte um Rückruf', 10, NOW() - INTERVAL '20 days', 'offen', NOW() - INTERVAL '21 days')`;
+  // Nachbesserung: Vertriebssperre — offene Rückrufe und Termine nicht, Geführtes bleibt erledigt.
+  const pSperrWunsch = await person("Sven", "Sperrwunsch", 10, { blocked: true });
+  await sql`INSERT INTO fiaon_rueckrufe (person_id, quelle, anliegen, zustaendig_agent_id, frist_bis, status, created_at)
+            VALUES (${pSperrWunsch}, 'mail_inbound', 'Bitte um Rückruf', 10, NOW() - INTERVAL '1 hour', 'offen', NOW() - INTERVAL '25 hours')`;
+  const pSperrRr = await person("Silke", "Sperrrueckruf", 8, { blocked: true });
+  const refSperrRr = await antrag(pSperrRr, { payment_status: "pending" });
+  await sql`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, scheduled_at, created_at)
+            VALUES (${refSperrRr}, ${pSperrRr}, 8, 'Test', 'result', 'rueckruf_termin', ${heuteUm("16:00")}, NOW() - INTERVAL '2 days')`;
+  const pSperrTermin = await person("Sara", "Sperrtermin", 8, { blocked: true });
+  await sql`INSERT INTO fiaon_termine (person_id, agent_id, beginn, status, quelle) VALUES (${pSperrTermin}, 8, ${heuteUm("17:00")}, 'gebucht', 'agent_manuell')`;
+  const pSperrGefuehrt = await person("Sigi", "Gefuehrtgesperrt", 8, { blocked: true });
+  await sql`INSERT INTO fiaon_termine (person_id, agent_id, beginn, status, quelle, erledigt_am) VALUES (${pSperrGefuehrt}, 8, ${heuteUm("08:45")}, 'erledigt', 'agent_manuell', NOW())`;
+  // Nachbesserung: Abwesenheit — Termin des Abwesenden (13) heute → beim Vertreter (8).
+  const pVertretung = await person("Viktor", "Vertretung", 13);
+  await sql`INSERT INTO fiaon_termine (person_id, agent_id, beginn, status, quelle) VALUES (${pVertretung}, 13, ${heuteUm("16:30")}, 'gebucht', 'agent_manuell')`;
 
   // 3 · Aufträge
   const pKuend = await person("Karl", "Kuendigung", 8);
@@ -115,6 +140,14 @@ async function main() {
             VALUES ('Unterlage anfordern', 'unterlage', ${pSpaeter}, 'agent', 8, 'offen', (NOW() AT TIME ZONE 'Europe/Berlin')::date + 3)`;
   const [aOhne] = (await sql`INSERT INTO fiaon_betreiber_todos (titel, art, zustaendig_art, zustaendig_agent_id, status, eingang_am)
                              VALUES ('Allgemeine Aufgabe ohne Kunden', 'sonstiges', 'agent', 10, 'offen', NOW() - INTERVAL '6 days') RETURNING id`) as any[];
+  // Nachbesserung: von der Automatik geschlossen (erledigt_art 'auto') — erledigt, frisst aber keinen Platz.
+  const pAuto = await person("Arno", "Automatik", 8);
+  await sql`INSERT INTO fiaon_betreiber_todos (titel, art, person_id, zustaendig_art, zustaendig_agent_id, status, erledigt_am, erledigt_art)
+            VALUES ('Zahlung gemeldet, nicht da', 'stufe_a_klaeren', ${pAuto}, 'agent', 8, 'erledigt', NOW(), 'auto')`;
+  // Nachbesserung: keine Arbeitszeit (531), Kündigung offen → geht an die Leitung (in Vertretung).
+  const pOhneZeit = await person("Olaf", "Ohnezeit", 531);
+  const [aOhneZeit] = (await sql`INSERT INTO fiaon_betreiber_todos (titel, art, person_id, zustaendig_art, zustaendig_agent_id, status, eingang_am)
+                                 VALUES ('Kündigung per Mail', 'kuendigung', ${pOhneZeit}, 'agent', 531, 'offen', NOW() - INTERVAL '16 days') RETURNING id`) as any[];
 
   // 4 · Inkasso
   const pRate = await person("Ines", "Ratefrisch", 8);
@@ -135,6 +168,16 @@ async function main() {
   const pGesperrtBetreuer = await person("Gerd", "Gesperrtbetreut", 802);
   const refG = await antrag(pGesperrtBetreuer);
   await rate(refG, 2, 10);
+  // Nachbesserung: 200 ältere offene Raten bei Betreuer 8 — vorher las die Liste je Betreuer höchstens 200, älteste zuerst,
+  // und die frische Rate von „Ines Ratefrisch“ fiel still heraus.
+  const pViel = await person("Vinzenz", "Vielerate", 8);
+  const refViel = await antrag(pViel);
+  await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status)
+            SELECT ${refViel}, 100 + g, ${refViel} || '-R' || (100 + g), 1000, (NOW() AT TIME ZONE 'Europe/Berlin')::date - (4 + g), 'offen'
+              FROM generate_series(1, 200) g`;
+  // Nachbesserung: Kündigung offen + frische Rate beim selben Kunden → die Kündigung ist die Zeile, kein Zahlungsdruck.
+  const refKuend = await antrag(pKuend);
+  await rate(refKuend, 2, 1);
 
   // 5 · Zahlung gemeldet
   const pA = await person("Alma", "Gemeldet", 8, { tier: 1 });
@@ -209,12 +252,31 @@ async function main() {
   const reihe1 = p(8).offen.filter((z) => z.stufe === 1).map((z) => z.personId);
   ok(reihe1.indexOf(pTermin) >= 0 && reihe1.indexOf(pTermin) < reihe1.indexOf(pRr), "Zeitfolge: 12:00 vor 15:00", reihe1);
   ok(p(8).erledigt.some((z) => z.personId === pRrFertig), "geführter Rückruf zählt als erledigt");
-  const w = [...p(10).offen, ...p(10).rueckstau].find((z) => z.personId === pWunsch);
-  ok(w?.quelle === "rueckruf" && /Frist vorbei/.test(w.grund) && w.stufe === 6, "Rückruf-Wunsch mit gerissener Frist → bei 10, „Frist vorbei“", w);
+  const w = p(10).offen.find((z) => z.personId === pWunsch);
+  ok(w?.quelle === "rueckruf" && /Frist vorbei/.test(w.grund) && w.stufe === 1, "Rückruf-Wunsch, Frist seit gestern vorbei → bei 10 OBEN (Stufe 1), „Frist vorbei“", w);
+  const wj = p(10).offen.find((z) => z.personId === pWunschJetzt);
+  ok(wj?.stufe === 1 && !!wj.zeit, "Rückruf-Wunsch, Frist vor einer Stunde vorbei → bleibt oben (vorher: zeit = null, Stufe 6)", wj);
+  const wa = [...p(10).offen, ...p(10).rueckstau].find((z) => z.personId === pWunschAlt);
+  ok(wa?.stufe === 6, "Rückruf-Wunsch, Frist vor 20 Tagen → keine Tagesarbeit mehr (Stufe 6, sichtbar)", wa);
+  ok(von(pSperrWunsch).length === 0, "Vertriebssperre: offener Rückruf-Wunsch steht auf keiner Liste");
+  ok(von(pSperrRr).length === 0, "Vertriebssperre: vereinbarter Rückruf heute steht auf keiner Liste");
+  ok(von(pSperrTermin).length === 0, "Vertriebssperre: offener Termin heute steht auf keiner Liste");
+  ok(p(8).erledigt.some((z) => z.personId === pSperrGefuehrt && z.quelle === "termin"), "… ein heute geführter Termin (danach gesperrt) zählt weiter als erledigt");
+  const vt = p(8).offen.find((z) => z.personId === pVertretung);
+  ok(vt?.stufe === 1 && vt.vertretungFuer === p(13).name && vt.verteilt, "Abwesenheit: Termin des Abwesenden (13) heute → beim Vertreter 8, „in Vertretung“", vt);
+  ok(p(13).weitergegeben >= 1 && !p(13).rueckstau.some((z) => z.personId === pVertretung), "… nicht mehr im Rückstau von 13, dort „abgegeben“ gezählt", p(13).weitergegeben);
 
   console.log("── 3 · Aufträge");
   const k = offenBei(8, pKuend);
-  ok(k?.stufe === 3 && k.ziel === `/agent/kunden?person=${pKuend}&auftrag=${aKuend.id}`, "Kündigung → Stufe 3 (auch vor der Fälligkeit), Ziel Akte mit Auftrag", k);
+  ok(k?.stufe === 3 && k.ziel === `/agent/kunden?person=${pKuend}&auftrag=${aKuend.id}`, "Kündigung → Stufe 3 (auch vor der Fälligkeit), Ziel Akte mit Auftrag — auch mit frischer Rate", k);
+  ok(!!k?.weitere.some((g) => /^Rate seit gestern offen/.test(g) && g.includes(S.KEIN_DRUCK_ZUSATZ)), "… die Rate steht nur klein darunter: „erst klären, kein Druck“", k?.weitere);
+  ok(!alle.some((z) => z.personId === pKuend && z.quelle === "inkasso" && !z.erledigt), "… keine Inkasso-Zeile für diesen Kunden");
+  const az = p(8).erledigt.find((z) => z.personId === pAuto);
+  ok(az?.vonAllein === true, "von der Automatik geschlossener Auftrag: erledigt, „von allein“ (frisst keinen Platz)", az);
+  const oz = [...p(8).offen, ...p(10).offen].find((z) => z.personId === pOhneZeit);
+  ok(oz?.quelle === "auftrag" && oz.vertretungFuer === p(531).name && oz.ziel.endsWith(`&auftrag=${aOhneZeit.id}`),
+    "keine Arbeitszeit (531): die Kündigung geht an die Leitung, „in Vertretung“", oz);
+  ok(p(531).weitergegeben >= 1 && p(531).zahlen.dringend === 0, "… 531: abgegeben gezählt, nichts Dringendes bleibt liegen", { w: p(531).weitergegeben, z: p(531).zahlen });
   const m = offenBei(8, pMail);
   ok(m?.stufe === 6 && m.ziel.endsWith(`&auftrag=${aMail.id}`), "Kunde hat geschrieben → Rest, Ziel mit Auftrag", m);
   ok(p(8).erledigt.some((z) => z.quelle === "auftrag"), "heute geschlossener Auftrag zählt als erledigt");
@@ -224,7 +286,7 @@ async function main() {
 
   console.log("── 4 · Inkasso");
   const i = offenBei(8, pRate);
-  ok(i?.stufe === 2 && i.quelle === "inkasso" && i.betragCents === 5999, "Rate seit gestern → Stufe 2 (Geld frisch), 59,99 €", i);
+  ok(i?.stufe === 2 && i.quelle === "inkasso" && i.betragCents === 5999, "Rate seit gestern → Stufe 2 (Geld frisch), 59,99 € — auch neben 200 älteren Raten desselben Betreuers", i);
   ok(i?.ziel === `/agent/inkasso?person=${pRate}`, "Klickziel: Inkasso mit Kunde", i?.ziel);
   const alt = [...p(10).offen, ...p(10).rueckstau].find((z) => z.personId === pAlt);
   ok(alt?.stufe === 7, "Rate seit 45 Tagen → Altbestand (Stufe 7)", alt);
@@ -235,7 +297,10 @@ async function main() {
   ok(!!ob && ob.verteilt && [8, 10].some((id) => [...p(id).offen, ...p(id).rueckstau].includes(ob)), "Rate ohne Betreuer → an die Leitung verteilt (nie an 505/531)", ob);
   const og = alle.find((z) => z.personId === pGesperrtBetreuer);
   ok(!!og && og.verteilt, "Rate beim gesperrten Konto (802) → verteilt, nicht verloren", og);
-  ok(p(8).erledigt.some((z) => z.personId === pBezahlt && /bezahlt/.test(z.grund)), "heute bezahlte Rate zählt als erledigt");
+  ok(p(8).erledigt.some((z) => z.personId === pBezahlt && /bezahlt/.test(z.grund) && z.vonAllein === true), "heute per Bank bezahlte Rate zählt als erledigt — „von allein“");
+  const viel = alle.find((z) => z.personId === pViel);
+  ok(viel?.quelle === "inkasso" && viel.stufe === 6 && /^200 Raten seit 5 Tagen/.test(viel.grund) && viel.betragCents === 200_000,
+    "200 alte Raten eines Kunden → eine Zeile, gemessen an der jüngsten (5 Tage → Rest), Summe 2.000 €", viel);
   ok(von(pWv).length === 0, "Wiedervorlage morgen: heute nicht dran");
 
   console.log("── 5 · Zahlung gemeldet");
@@ -272,7 +337,7 @@ async function main() {
   const stufen8 = p(8).offen.map((z) => z.stufe);
   ok(stufen8.every((s, idx) => idx === 0 || stufen8[idx - 1] <= s), "8: nach Wirkung sortiert", stufen8);
   ok(p(8).zahlen.heuteDran === p(8).offen.length + p(8).erledigt.length && p(8).zahlen.erledigt === p(8).erledigt.length, "8: „N von M erledigt“ stimmt", p(8).zahlen);
-  ok(p(13).offen.length === 0 && /keine Arbeitszeit/.test(p(13).hinweis ?? ""), "13 (keine Zeit heute): leere Liste mit Hinweis", p(13));
+  ok(p(13).offen.length === 0 && /keine Arbeitszeit/.test(p(13).hinweis ?? ""), "13 (heute abwesend): leere Liste mit Hinweis", p(13));
   ok([...p(505).offen, ...p(505).rueckstau, ...p(531).rueckstau].every((z) => !z.verteilt), "Bonitätsmanager bekommen nichts Fremdes");
   ok(p(10).offen.length <= p(10).kapazitaet, "10: nie mehr als die Tagesmenge (13)", p(10).zahlen);
 

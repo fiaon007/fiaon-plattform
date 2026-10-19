@@ -36,7 +36,7 @@ import {
   kapitalParameterAus, kapitalParameterFehler, kapitalBuerginFehler, kapitalPflichtFehlen, kapitalSeite, kapitalBestellUebersicht,
   kapitalAnnahmeTexte, kapitalAnsprechpartner, kapitalAnrede, kapitalVertretungName, kapitalVertragTitel, kapitalVertragUnterzeile,
   kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, kapitalTag, istKapitalFassung,
-  KAPITAL_GEBUEHREN, KAPITAL_SPERRGRUND, kapitalGebuehrPruefen, istKapitalGebuehrArt, kapitalMitGebuehren, type KapitalGebuehrArt,
+  KAPITAL_GEBUEHREN, KAPITAL_SPERRGRUND, kapitalGebuehrPruefen, istKapitalGebuehrArt, kapitalMitGebuehren, kapitalMeinAuftrag, type KapitalGebuehrArt,
   type KapitalDaten, type KapitalParameter, type KapitalBuergin, type KapitalAnnahmeVermerk, type KapitalWahl,
   type KapitalUnterschriftVermerk, type KapitalKundenSicht,
 } from "@shared/fiaon-global-angebot-kapital";
@@ -570,6 +570,36 @@ function kapitalTeileSicht(z: AngebotZeile, d: KapitalDaten, teile: any[], heute
       rechnungUrl: t.bestell_ref && RECHNUNG_STEHT.includes(String(t.payment_status ?? "")) ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(t.bestell_ref))}/rechnung.pdf` : null,
       zahlungsseite: t.payment_reference ? `/zahlung/${t.payment_reference}?bereich=business` : null,
     })),
+  };
+}
+
+/**
+ * „Mein Auftrag“ und das Office (E-407): Teile mit Stand und Rechnung, Garantie aus Ziffer 4 — dieselben Schlüssel wie beim
+ * Individual-/Firmenangebot, dazu die Sätze, die die Seite statt der Individual-Texte zeigt. Nur lesen.
+ */
+export async function kapitalSichtZurAkte(z: AngebotZeile): Promise<Record<string, unknown>> {
+  const d = kapitalDatenAus(z);
+  const roh = await Promise.all((((z as any).teile as any[] | undefined) ?? []).map(async (x) => {
+    const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;
+    const ps = String(b?.payment_status ?? "");
+    const stand = z.erstattung_ausgeloest_am && x.bezahlt_am ? "erstattet" : x.entfallen_am ? "entfallen"
+      : b ? (ps === "paid" ? "bezahlt" : ["cancelled", "superseded", "refunded"].includes(ps) ? "storniert" : "offen") : "noch nicht fällig";
+    return {
+      nr: Number(x.nr), titel: String(x.titel), betragCents: Number(x.betrag_cents), stand, rechnungsnummer: b?.invoice_number ?? null,
+      bestellRef: x.bestell_ref ?? null, ereignisAm: isoTag(x.meilenstein_am),
+      bezahltAm: isoTag(x.bezahlt_am) ?? (ps === "paid" && b?.completed_at ? isoTag(new Date(b.completed_at)) : null),
+    };
+  }));
+  const sicht = kapitalMeinAuftrag({
+    fassung: String(z.fassung), parameter: d.parameter, angenommenAm: isoTag(z.angenommen_am), teile: roh,
+    garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
+  });
+  return {
+    art: "kapital", ref: d.ref, buergin: d.buergin.name, erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
+    garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungCents: z.erstattung_cents != null ? Number(z.erstattung_cents) : null,
+    // Kein Startgespräch des Individualangebots (wie in der Liste der Leitung) — den Start macht der Ansprechpartner.
+    startgespraech: null,
+    ...sicht,
   };
 }
 

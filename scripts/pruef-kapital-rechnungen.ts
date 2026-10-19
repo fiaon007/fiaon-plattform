@@ -11,10 +11,13 @@
 //   Charge → zweiter Klick legt nichts an → „Finanzierung ausgezahlt“ → Teil 3 über 1.099 € (Prüfregel der Teile alt → getauscht)
 //   → Rechnungstext, Zahlungsseite, Verlauf, Aufgaben, Mail an Justin (protokolliert, ohne Schlüssel nicht versandt), KEINE
 //   Mail an die Kundin → Liste der Leitung (art „kapital“, drei Teile, Knöpfe) → Meilenstein-Route des Individualangebots 409.
+//   E-407: „Mein Auftrag“ (angebotSichtZurAkte + echte Kunden-Route) nach der Annahme, nach „Bürgschaft zugesagt“ und nach
+//   „Finanzierung ausgezahlt“ — drei Teile mit Titel, Betrag, Stand, Rechnung, ruhigem Satz und der Garantie aus Ziffer 4.
 //
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<kopie>?sslmode=require' \
 //     SESSION_SECRET=<wie der Server> PRUEF_BASIS=http://127.0.0.1:5401 npx tsx scripts/pruef-kapital-rechnungen.ts --lokal
 // ═══════════════════════════════════════════════════════════════════════════
+import type { KapitalAuftragTeilEin } from "../shared/fiaon-global-angebot-kapital";
 const LOKAL = process.argv.includes("--lokal");
 if (!LOKAL) process.env.DATABASE_URL = "postgres://pruefstand:ohne@127.0.0.1:1/keine-datenbank";
 else {
@@ -52,6 +55,39 @@ const tx2 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 2, auftra
 const tx3 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 3, auftragRef: "FIAON-X", ereignisAm: "2026-10-19" });
 const tx1 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 1, auftragRef: "FIAON-X" });
 ok(/Bürgschaftsgebühr \(Ziffer 6 Absatz 2\).*19\.10\.2026/.test(tx2.beschreibung) && /Auszahlung der Finanzierung \(Ziffer 6 Absatz 3\).*19\.10\.2026/.test(tx3.beschreibung) && /Ziffer 6 Absatz 1/.test(tx1.beschreibung) && !/von 2/.test(tx1.beschreibung), "Rechnungstexte je Teil (kein „Teil 1 von 2“ mehr)", [tx1, tx2, tx3]);
+
+// E-407: „Mein Auftrag“ — rein. Kein „bis zu“, kein Bank-Vorbehalt, kein Individual-Satz (Kreditrahmen/Karten, Eintragung).
+titel("1b. „Mein Auftrag“ ohne Datenbank (E-407)");
+const VERBOTEN = /bis zu\b|entscheidet|Vorbehalt|Kreditrahmen|ersten Karte|Eintragung der Gesellschaft|Teil 2 wird erst/i;
+const sauber = (m: unknown) => !VERBOTEN.test(JSON.stringify(m));
+const P = { preisCents: 279_900, jahresCents: 69_900, buergschaftCents: 49_900, auszahlungCents: 109_900, garantieWochen: 8, kapitalChf: 50_000 };
+const T1 = (x: Partial<KapitalAuftragTeilEin> = {}): KapitalAuftragTeilEin => ({ nr: 1, titel: S.KAPITAL_TEIL_TITEL, betragCents: 279_900, stand: "offen", rechnungsnummer: "R-1", bestellRef: "FIAON-1", ereignisAm: null, bezahltAm: null, ...x });
+const mA = (teile: KapitalAuftragTeilEin[], x: Record<string, unknown> = {}) => S.kapitalMeinAuftrag({ fassung: S.KAPITAL_FASSUNG, parameter: P, angenommenAm: "2026-10-19", teile, garantieErfuelltAm: null, erstattungAusgeloest: false, ...x } as any);
+const m0 = mA([T1()]);
+ok(m0.teile.length === 3 && m0.teile.map((t) => t.nr).join() === "1,2,3" && m0.teile[0].titel === "Gründungskosten" && m0.teile[1].titel === "Bürgschaftsgebühr" && m0.teile[2].titel === "Vergütung bei Auszahlung der Finanzierung",
+  "nach der Annahme: drei Teile — Gründungskosten, Bürgschaftsgebühr, Vergütung bei Auszahlung", m0.teile.map((t) => t.titel));
+ok(m0.teile[1].betragCents === 49_900 && m0.teile[2].betragCents === 109_900 && m0.teile[1].stand === "noch nicht fällig" && m0.teile[2].stand === "noch nicht fällig" && !m0.teile[1].rechnungsnummer,
+  "Teil 2/3: Betrag aus dem Vertrag, „noch nicht fällig“, keine Rechnung", m0.teile.slice(1));
+ok(/sobald die Bürgschaft .*zugesagt ist/.test(String(m0.teile[1].hinweis)) && /mit der Auszahlung/.test(String(m0.teile[2].hinweis)) && m0.teil2Bedingung === m0.teile[1].hinweis,
+  "ruhige Sätze: „sobald die Bürgschaft zugesagt ist“ / „mit der Auszahlung“", [m0.teile[1].hinweis, m0.teile[2].hinweis]);
+ok(/binnen acht Wochen/.test(m0.garantieSatz) && /alles zurück/.test(m0.garantieSatz) && /Ziffer 4/.test(m0.garantieSatz) && /ab Ihrer Zahlung der Gründungskosten/.test(m0.garantieSatz) && !m0.fristEnde,
+  "Garantie vor der Zahlung: acht Wochen, alles zurück, Ziffer 4, Lauf ab Zahlung", m0.garantieSatz);
+ok(m0.summeCents === 279_900 && /Ziffer 4/.test(m0.garantieZiel) && /699 € je Jahr/.test(m0.jahresZeile) && /Ziffer 4/.test(m0.seiteHinweis), "Summe = nur Gründungskosten; Garantieziel, Jahresbetreuung und Hinweis", { summe: m0.summeCents, ziel: m0.garantieZiel });
+const m1 = mA([T1({ stand: "bezahlt", bezahltAm: "2026-10-21" })]);
+ok(m1.fristBeginn === "2026-10-21" && m1.fristEnde === "2026-12-16" && /bis zum 16\.12\.2026/.test(m1.garantieSatz) && /seit dem 21\.10\.2026/.test(m1.garantieSatz) && /ruht/.test(m1.garantieSatz),
+  "Teil 1 bezahlt: acht Wochen ab Zahlung (21.10. → 16.12.2026), Ruhen bei Unterlagen genannt", m1.garantieSatz);
+const mFrueh = mA([T1({ stand: "bezahlt", bezahltAm: "2026-10-18" })]);
+ok(mFrueh.fristBeginn === "2026-10-19", "Zahlung vor der Annahme (Vorkasse): Frist ab Auftragserteilung", mFrueh.fristBeginn);
+const m2 = mA([T1({ stand: "bezahlt", bezahltAm: "2026-10-21" }), { nr: 2, titel: "Bürgschaftsgebühr", betragCents: 49_900, stand: "offen", rechnungsnummer: "R-2", bestellRef: "FIAON-2", ereignisAm: "2026-11-02", bezahltAm: null }]);
+ok(m2.teile[1].stand === "offen" && m2.teile[1].rechnungsnummer === "R-2" && /Bürgschaft zugesagt am 02\.11\.2026/.test(String(m2.teile[1].hinweis)) && m2.teile[2].stand === "noch nicht fällig" && m2.summeCents === 329_800,
+  "Teil 2 entstanden: Rechnung offen, „Bürgschaft zugesagt am …“, Summe 3.298 €; Teil 3 wartet", m2.teile);
+const m3 = mA([...[T1({ stand: "bezahlt", bezahltAm: "2026-10-21" })], { nr: 3, titel: "Vergütung bei Auszahlung der Finanzierung", betragCents: 109_900, stand: "offen", rechnungsnummer: "R-3", bestellRef: "FIAON-3", ereignisAm: "2026-12-01", bezahltAm: null }]);
+ok(/ausgezahlt/.test(m3.garantieSatz) && /01\.12\.2026/.test(m3.garantieSatz) && /Finanzierung ausgezahlt am 01\.12\.2026/.test(String(m3.teile[2].hinweis)), "Teil 3 entstanden: „Ihre Finanzierung ist am … ausgezahlt“", m3.garantieSatz);
+const mE = mA([T1({ stand: "erstattet", bezahltAm: "2026-10-21" })], { erstattungAusgeloest: true });
+ok(mE.teile[2].stand === "entfallen" && /erstatten Ihnen alles/.test(mE.garantieSatz), "Garantiefall: Teil 3 entfällt, Satz „wir erstatten“", mE.garantieSatz);
+const mAlt = S.kapitalMeinAuftrag({ fassung: "IA-KAPITAL-2026-10-19-A", parameter: { ...P, garantieWochen: 0 }, angenommenAm: "2026-10-19", teile: [T1()], garantieErfuelltAm: null, erstattungAusgeloest: false });
+ok(mAlt.teile.length === 1 && !/acht Wochen/.test(mAlt.garantieSatz), "Fassung A: nur Teil 1, keine Garantie-Behauptung", mAlt);
+ok([m0, m1, m2, m3, mE, mAlt].every(sauber), "kein „bis zu“, kein Bank-Vorbehalt, kein Individual-Satz in allen Fällen");
 
 // ═══ TEIL 2 ════════════════════════════════════════════════════════════════
 if (LOKAL) {
@@ -104,6 +140,26 @@ if (LOKAL) {
     "Teil 1: Rechnung über 2.799 € mit Nummer, Reverse Charge, global_individuell", b1);
   const [mailsVorher] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()}`) as any[];
 
+  // E-407: „Mein Auftrag“ über die echte Kunden-Route (signierter Zugang wie im Link der Annahme-Antwort).
+  const { globalTokenErzeugen } = await import("../server/lib/fiaon-global-auftrag");
+  const auftragRef = String(z1.auftrag_ref);
+  const meinAuftrag = async () => {
+    const r = await fetch(`${BASIS}/api/fiaon/global/mein-auftrag/${encodeURIComponent(auftragRef)}?t=${encodeURIComponent(globalTokenErzeugen(auftragRef))}`, { headers: { "user-agent": UA } });
+    return { status: r.status, body: await r.json().catch(() => ({})) as any };
+  };
+  titel("2b. „Mein Auftrag“ nach der Annahme (E-407)");
+  const ma0 = await meinAuftrag();
+  const ag0 = ma0.body?.auftrag?.angebot;
+  ok(ma0.status === 200 && ag0?.art === "kapital" && ag0.teile.length === 3 && ag0.teile[0].titel === "Gründungskosten" && ag0.teile[0].betragCents === 279_900 && ag0.teile[0].stand === "offen" && ag0.teile[0].rechnungUrl,
+    "Kunden-Route: Kapital-Block, Teil 1 Gründungskosten 2.799 € mit Rechnung", ag0 ?? ma0);
+  ok(ag0?.teile[1].stand === "noch nicht fällig" && /sobald die Bürgschaft/.test(String(ag0?.teile[1].hinweis)) && ag0?.teile[2].stand === "noch nicht fällig" && /mit der Auszahlung/.test(String(ag0?.teile[2].hinweis)) && !ag0?.teile[1].rechnungUrl,
+    "Teil 2/3: noch nicht fällig, ruhiger Satz, keine Rechnung", ag0?.teile?.slice(1));
+  ok(/binnen acht Wochen/.test(String(ag0?.garantieSatz)) && ag0?.summeCents === 279_900 && sauber(ag0) && ma0.body.auftrag.paketName === S.KAPITAL_MARKE && !("bestellRef" in (ag0?.teile[0] ?? {})),
+    "Garantie Ziffer 4, Summe 2.799 €, Name „Kapital für Ihr Unternehmen“, keine Bestell-Kennung beim Kunden, keine verbotenen Sätze", { satz: ag0?.garantieSatz, name: ma0.body?.auftrag?.paketName });
+  const weg = (ma0.body?.auftrag?.etappen ?? []) as { nr: number; titel: string; text: string }[];
+  ok(weg.find((e) => e.nr === 4)?.titel === "Ihre Finanzierung" && /Ziffer 4 und 5/.test(String(weg.find((e) => e.nr === 4)?.text)) && sauber(weg) && !/Ziffer 3 Ihres Vertrags/.test(JSON.stringify(weg)),
+    "„Ihr Weg“ erzählt den Kapital-Vertrag (Etappe 4 „Ihre Finanzierung“, kein Kreditrahmen, keine falsche Ziffer 3)", weg.map((e) => e.titel));
+
   titel("3. „Bürgschaft zugesagt“");
   const rVor = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute }, { cookie: chef() });
   ok(rVor.status === 409 && /Ziffer 5/.test(String(rVor.body.error)), "vor der Zahlung von Teil 1 → 409 (Bedingung der Bürgschaft)", rVor);
@@ -127,6 +183,18 @@ if (LOKAL) {
   const rB2 = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute }, { cookie: chef() });
   ok(rB2.status === 200 && rB2.body.schon === true && rB2.body.ref === rB.body.ref && (await nApps()) === vorDoppel, "zweiter Klick: „schon berechnet“, keine neue Bestellzeile", rB2.body);
 
+  titel("3b. „Mein Auftrag“ mit Teil 2 (E-407)");
+  const ma1 = await meinAuftrag(); const ag1 = ma1.body?.auftrag?.angebot;
+  ok(ag1?.teile.length === 3 && ag1.teile[0].stand === "bezahlt" && ag1.teile[1].titel === "Bürgschaftsgebühr" && ag1.teile[1].betragCents === 49_900 && ag1.teile[1].stand === "offen"
+    && ag1.teile[1].rechnungsnummer === rB.body.rechnungsnummer && ag1.teile[1].rechnungUrl && new RegExp(`Bürgschaft zugesagt am ${heute.split("-").reverse().join("\\.")}`).test(String(ag1.teile[1].hinweis)),
+    "Teil 1 bezahlt, Teil 2 Bürgschaftsgebühr 499 € — Rechnung offen, Nummer, PDF-Link, „Bürgschaft zugesagt am …“", ag1?.teile);
+  ok(ag1?.teile[2].stand === "noch nicht fällig" && /mit der Auszahlung/.test(String(ag1?.teile[2].hinweis)) && ag1?.summeCents === 329_800 && ag1?.fristBeginn === heute && /bis zum/.test(String(ag1?.garantieSatz)) && sauber(ag1),
+    "Teil 3 wartet; Summe 3.298 €; Garantie mit Fristende ab Zahlung", { satz: ag1?.garantieSatz, summe: ag1?.summeCents });
+  const pdf2 = await fetch(`${BASIS}${ag1?.teile[1].rechnungUrl}`, { headers: { "user-agent": UA } });
+  ok(pdf2.status === 200 && Buffer.from(await pdf2.arrayBuffer()).subarray(0, 4).toString() === "%PDF", "Kunde öffnet die Rechnung über Teil 2", pdf2.status);
+  const akteSicht = await A.angebotSichtZurAkte(auftragRef) as any;
+  ok(akteSicht?.art === "kapital" && /Ziffer 4/.test(String(akteSicht?.garantieZiel)) && akteSicht?.teile.length === 3, "Office/Chefbüro (angebotSichtZurAkte): Kapital-Zweig, Garantieziel Ziffer 4", akteSicht?.garantieZiel);
+
   titel("4. „Finanzierung ausgezahlt“");
   const rA = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/auszahlung`, { datum: heute }, { cookie: chef() });
   ok(rA.status === 200 && rA.body.ok && rA.body.betragCents === 109_900 && rA.body.rechnungsnummer && rA.body.rechnungsnummer !== rB.body.rechnungsnummer, "Finanzierung ausgezahlt → 200, eigene Rechnung über 1.099 €", rA.body);
@@ -137,6 +205,10 @@ if (LOKAL) {
     && teile[2].nr === 3 && Number(teile[2].betrag_cents) === 109_900 && teile[2].meilenstein_art === "auszahlung" && teile.every((t) => t.bestell_ref && t.rechnung_am), "drei Teile mit Datum, Art, Beleg, Bestellzeile", teile);
   const nachCheck = (await sqlPool`SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'fiaon_global_angebot_teile_nr_check'`) as any[];
   ok(/500/.test(String(nachCheck[0]?.d)), "Prüfregel der Teile erlaubt Teil 3 (bis 500)", nachCheck);
+
+  const ma2 = await meinAuftrag(); const ag2 = ma2.body?.auftrag?.angebot;
+  ok(ag2?.teile[2].stand === "offen" && ag2.teile[2].rechnungsnummer === rA.body.rechnungsnummer && /Finanzierung ausgezahlt am/.test(String(ag2.teile[2].hinweis)) && /ausgezahlt/.test(String(ag2.garantieSatz)) && ag2.summeCents === 439_700 && sauber(ag2),
+    "„Mein Auftrag“ mit Teil 3: Rechnung offen, „Finanzierung ausgezahlt am …“, Summe 4.397 €", { teil3: ag2?.teile?.[2], satz: ag2?.garantieSatz });
 
   titel("5. Rechnung, Zahlungsseite, Verlauf, Aufgaben, Mails");
   const zeile2 = await A.angebotRechnungsZeile(String(rB.body.ref)); const zeile3 = await A.angebotRechnungsZeile(String(rA.body.ref));

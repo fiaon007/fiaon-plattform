@@ -64,7 +64,9 @@ type Auftrag = {
     ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
     /** E-271 (Kreditgarantie): erfüllt am — dann kein Garantiefall mehr. */
     garantieErfuelltAm?: string | null;
-    teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; rechnungUrl?: string }[];
+    teile: { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; rechnungUrl?: string; hinweis?: string | null }[];
+    /** E-407: Kapital-Angebot — eigene Sätze statt der Individual-Texte (Garantie Ziffer 4, Seite, Jahresbetreuung, Summe). */
+    art?: string; garantieSatz?: string; seiteHinweis?: string; jahresZeile?: string; summeCents?: number;
     /** E-273 (02.10.2026): das vom System gebuchte Startgespräch (startgespraechFuerKunde) — oder der Satz, warum keins da ist. */
     startgespraech?: {
       stand: string; titel: string; zeile: string | null; wie: string | null; satz: string | null;
@@ -265,7 +267,7 @@ export default function BusinessAuftrag() {
                     <ul className="ga-liste">
                       {a.angebot.teile.map((x) => (
                         <li key={x.nr}>
-                          <div><b>{x.titel}</b><span>{(x.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €{x.nr === 2 && x.stand === "noch nicht fällig" ? ` — ${ANGEBOT_MEIN_AUFTRAG.teil2Hinweis}` : ""}</span></div>
+                          <div><b>{x.titel}</b><span>{(x.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €{x.hinweis ? ` — ${x.hinweis}` : x.nr === 2 && x.stand === "noch nicht fällig" ? ` — ${ANGEBOT_MEIN_AUFTRAG.teil2Hinweis}` : ""}</span></div>
                           <div className="ga-rechts">
                             <span className={`ga-marke ${x.stand === "bezahlt" ? "gut" : "offen"}`}>{ANGEBOT_MEIN_AUFTRAG.stand[x.stand] ?? x.stand}</span>
                             {x.rechnungUrl && <a className="ga-knopf" href={x.rechnungUrl} target="_blank" rel="noopener">{ANGEBOT_MEIN_AUFTRAG.rechnung}</a>}
@@ -273,7 +275,7 @@ export default function BusinessAuftrag() {
                         </li>
                       ))}
                     </ul>
-                    <p className="ga-stichtag">{a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
+                    <p className="ga-stichtag">{a.angebot.garantieSatz ? a.angebot.garantieSatz : a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
                     {/* E-273 (02.10.2026): „Ihr Startgespräch" — Tag, Uhrzeit, mit wem; Kalender und Verschieben. */}
                     {a.angebot.startgespraech && (
                       <div className="ga-schritt" data-fiaon="mein-auftrag-startgespraech" data-stand={a.angebot.startgespraech.stand}>
@@ -390,13 +392,19 @@ export default function BusinessAuftrag() {
                 <p className="name">{a.paketName}</p>
                 {/* E-268: Das Individualangebot hat keinen Katalogpreis — es zeigt die Summe seiner Teile (Stand oben im Block „Ihr Angebot"). */}
                 <p className="preis" style={{ fontSize: 24 }}>{a.angebot
-                  ? `${(a.angebot.teile.reduce((summe, x) => summe + x.betragCents, 0) / 100).toLocaleString("de-DE")} €`
+                  ? `${((a.angebot.summeCents ?? a.angebot.teile.reduce((summe, x) => summe + x.betragCents, 0)) / 100).toLocaleString("de-DE")} €`
                   : globalPreisText(a.paket, s)}</p>
                 <div className="ga-zeilen">
                   <div><span>{t.seiteReferenz}</span><b>{a.ref}</b></div>
                 </div>
                 {/* E-196: Jahresbetreuung — gebucht mit Bedingungen, sonst die ruhige Zeile (keine Buchungsstrecke). */}
-                {a.jahresbetreuung ? (
+                {/* E-407: Beim Kapital-Angebot gilt die Jahresbetreuung aus Ziffer 6 (verlängert sich, kündbar zum Jahresende) — nicht der Paket-Satz. */}
+                {a.angebot?.jahresZeile ? (
+                  <div className="ga-jahr">
+                    <h2>{J.titel}</h2>
+                    <p className="klein">{a.angebot.jahresZeile}</p>
+                  </div>
+                ) : a.jahresbetreuung ? (
                   <div className="ga-jahr">
                     <h2>{J.titel}</h2>
                     <p className="ga-jahr-zeile">{J.gebucht}</p>
@@ -414,7 +422,7 @@ export default function BusinessAuftrag() {
                   </>
                 )}
                 {/* E-271: Beim Individualangebot gilt die Kreditgarantie — dort nicht der allgemeine Institut-Satz der Pakete. */}
-                <p className="klein">{a.angebot ? ANGEBOT_MEIN_AUFTRAG.seiteHinweis : t.seiteHinweis}</p>
+                <p className="klein">{a.angebot ? (a.angebot.seiteHinweis ?? ANGEBOT_MEIN_AUFTRAG.seiteHinweis) : t.seiteHinweis}</p>
               </aside>
             </div>
           )}

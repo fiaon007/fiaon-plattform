@@ -714,6 +714,104 @@ export function kapitalRechnungsText(z: { angebotRef: string; nr: number; auftra
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// „MEIN AUFTRAG“ (E-407, 19.10.2026) — die drei Teile und die Garantie aus Ziffer 4, so wie der Kunde sie auf der Seite las:
+// Teil 1 heißt „Gründungskosten“ (E-404), Teil 2 und 3 stehen von Anfang an da, mit einem ruhigen Satz, wann sie entstehen.
+// Rein — der Server liest Teile und Bestellzeilen, diese Funktion baut Sätze, Frist und Summe. Kein „bis zu“, kein Bank-Vorbehalt.
+// ═══════════════════════════════════════════════════════════════════════════
+export const KAPITAL_MEIN_AUFTRAG = {
+  teil1Titel: "Gründungskosten",
+  teil1Hinweis: "inklusive aller Kosten für die ersten zwölf Monate",
+  teil2Warten: "wird erst fällig, sobald die Bürgschaft für Ihre Finanzierung zugesagt ist (Ziffer 6 Absatz 2)",
+  teil2Da: (tag: string) => `Bürgschaft zugesagt am ${kapitalTag(tag)}`,
+  teil3Warten: "wird erst mit der Auszahlung Ihrer Finanzierung fällig; Sie können sie aus den ausgezahlten Mitteln zahlen (Ziffer 6 Absatz 3)",
+  teil3Da: (tag: string) => `Finanzierung ausgezahlt am ${kapitalTag(tag)}`,
+  teil3Entfaellt: "entfällt nach Ziffer 4",
+  seiteHinweis: "Ihre Garantie steht in Ziffer 4 Ihres Vertrags. Steuerliche und rechtliche Fragen klären Ihr Steuerberater und Ihr Anwalt aus Ihrem Experten-Team (Ziffer 3).",
+} as const;
+/**
+ * „Ihr Weg“ beim Kapital-Angebot (E-407): dieselben Etappen-Nummern wie bei den Paketen, die Texte nach diesem Vertrag —
+ * nicht die Kartenleiter/den Kreditrahmen des Individualangebots (dort „Ziffer 3“ = Garantie, hier = Experten-Team).
+ * Titel 1–3 bleiben, wie Office und Mails sie kennen; Etappe 4 heißt, was der Kunde gekauft hat: „Ihre Finanzierung“.
+ */
+export const KAPITAL_ETAPPEN: Record<1 | 2 | 3 | 4, { titel: string; text: string }> = {
+  1: { titel: "Gründung und Dokumente", text: "Ihre LLC mit Staatsgebühr und Operating Agreement, Steuernummer (EIN), Registered Agent, US-Adresse und Telefon. Unser Team bereitet alles vor und reicht ein; Sie unterschreiben, was wir Ihnen fertig zuschicken, und laden hier Ihren Reisepass hoch." },
+  2: { titel: "Die erste Firmenkarte", text: "Wir bereiten das US-Geschäftskonto und den ersten Antrag für eine Business-Kreditkarte Ihrer Gesellschaft vollständig vor — Sie unterschreiben nur." },
+  3: { titel: "Die Kartenleiter", text: "Weitere Business-Kreditkarten bei US-Herausgebern kommen Schritt für Schritt dazu — zusätzlich zu Ihrer Finanzierung (Ziffer 4 Absatz 2)." },
+  4: { titel: "Ihre Finanzierung", text: "Wir bereiten jeden Antrag für Ihre Finanzierung vollständig vor und begleiten Sie bis zur Auszahlung — mit der Bürgschaft unserer US-Partnergesellschaft an Ihrer Seite (Ziffer 4 und 5)." },
+};
+export interface KapitalAuftragTeilEin { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; bestellRef: string | null; ereignisAm: string | null; bezahltAm: string | null }
+export interface KapitalAuftragTeil { nr: number; titel: string; betragCents: number; stand: string; rechnungsnummer: string | null; bestellRef: string | null; hinweis: string | null }
+export interface KapitalMeinAuftrag {
+  teile: KapitalAuftragTeil[];
+  /** Der Satz unter den Teilen: Garantie, Frist oder Ergebnis. */
+  garantieSatz: string;
+  /** Kurz fürs Chefbüro/Office („Garantieziel“). */
+  garantieZiel: string;
+  fristBeginn: string | null; fristEnde: string | null;
+  /** Die Summe der entstandenen Teile (heute groß, später leise — E-402/E-404). */
+  summeCents: number;
+  teil2Bedingung: string;
+  seiteHinweis: string;
+  jahresZeile: string;
+}
+function plusTage(iso: string, n: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
+}
+export function kapitalMeinAuftrag(ein: {
+  fassung: string;
+  parameter: Pick<KapitalParameter, "preisCents" | "jahresCents" | "buergschaftCents" | "auszahlungCents" | "garantieWochen" | "kapitalChf">;
+  angenommenAm: string | null;
+  teile: KapitalAuftragTeilEin[];
+  garantieErfuelltAm: string | null;
+  erstattungAusgeloest: boolean;
+}): KapitalMeinAuftrag {
+  const par = ein.parameter; const T = KAPITAL_MEIN_AUFTRAG;
+  const roh = (nr: number) => ein.teile.find((t) => Number(t.nr) === nr) ?? null;
+  const t1 = roh(1), t2 = roh(2), t3 = roh(3);
+  const teile: KapitalAuftragTeil[] = [{
+    nr: 1, titel: T.teil1Titel, betragCents: t1?.betragCents ?? par.preisCents, stand: t1?.stand ?? "offen",
+    rechnungsnummer: t1?.rechnungsnummer ?? null, bestellRef: t1?.bestellRef ?? null, hinweis: T.teil1Hinweis,
+  }];
+  // Fassung A vereinbart weder Bürgschaftsgebühr noch Vergütung bei Auszahlung — dort stehen nur die Teile, die es gibt.
+  const mit = kapitalMitGebuehren(ein.fassung);
+  const spaeter = (nr: 2 | 3, t: KapitalAuftragTeilEin | null, betragCents: number, titel: string, warten: string, da: (tag: string) => string): KapitalAuftragTeil | null => {
+    if (t) return { nr, titel, betragCents: t.betragCents, stand: t.stand, rechnungsnummer: t.rechnungsnummer, bestellRef: t.bestellRef, hinweis: t.ereignisAm ? da(t.ereignisAm) : null };
+    if (!mit || !(betragCents > 0)) return null;
+    if (nr === 3 && ein.erstattungAusgeloest) return { nr, titel, betragCents, stand: "entfallen", rechnungsnummer: null, bestellRef: null, hinweis: T.teil3Entfaellt };
+    return { nr, titel, betragCents, stand: "noch nicht fällig", rechnungsnummer: null, bestellRef: null, hinweis: warten };
+  };
+  for (const x of [
+    spaeter(2, t2, par.buergschaftCents, KAPITAL_GEBUEHREN.buergschaft.titel, T.teil2Warten, T.teil2Da),
+    spaeter(3, t3, par.auszahlungCents, KAPITAL_GEBUEHREN.auszahlung.titel, T.teil3Warten, T.teil3Da),
+  ]) if (x) teile.push(x);
+
+  // Ziffer 4: binnen N Wochen ab Auftragserteilung; die Frist ruht, solange Teil 1 nicht gezahlt ist — die Wochen laufen also
+  // ab dem späteren der zwei Tage (Annahme, Zahlung). Das Ruhen wegen fehlender Unterlagen nennt der Satz, ohne es zu rechnen.
+  const wochen = par.garantieWochen; const ziel = kapitalChf(par.kapitalChf);
+  const beginn = t1?.bezahltAm ? (ein.angenommenAm && ein.angenommenAm > t1.bezahltAm ? ein.angenommenAm : t1.bezahltAm) : null;
+  const ende = beginn && wochen > 0 ? plusTage(beginn, wochen * 7) : null;
+  const zurueck = "sonst erhalten Sie alles zurück, was Sie an uns gezahlt haben (Ziffer 4)";
+  const garantieSatz = !(wochen > 0)
+    ? (t3?.ereignisAm ? `Ihre Finanzierung ist am ${kapitalTag(t3.ereignisAm)} ausgezahlt.` : `Wir begleiten Sie bis zur Auszahlung Ihrer Finanzierung über ${ziel} (Ziffer 4).`)
+    : ein.garantieErfuelltAm ? `Garantie erfüllt am ${kapitalTag(ein.garantieErfuelltAm)}: Ihre Finanzierung über ${ziel} ist ausgezahlt.`
+    : t3?.ereignisAm ? `Ihre Finanzierung ist am ${kapitalTag(t3.ereignisAm)} ausgezahlt.`
+    : ein.erstattungAusgeloest ? "Die Frist ist abgelaufen, ohne dass Ihre Finanzierung ausgezahlt wurde. Wir erstatten Ihnen alles, was Sie an uns gezahlt haben (Ziffer 4); die Vergütung bei Auszahlung entfällt."
+    : beginn && ende ? `Wir garantieren Ihnen Ihre Finanzierung über ${ziel} bis zum ${kapitalTag(ende)} — ${zurueck}. Ihre ${zahlwort(wochen)} Wochen laufen seit dem ${kapitalTag(beginn)}; solange Unterlagen von Ihnen ausstehen, ruht die Frist.`
+    : `Wir garantieren Ihnen Ihre Finanzierung über ${ziel} binnen ${zahlwort(wochen)} Wochen — ${zurueck}. Die ${zahlwort(wochen)} Wochen laufen ab Ihrer Zahlung der Gründungskosten.`;
+  const garantieZiel = wochen > 0
+    ? `Finanzierung über ${ziel} binnen ${zahlwort(wochen)} Wochen ab Auftragserteilung, sonst alles Gezahlte zurück (Ziffer 4)`
+    : `Finanzierungsplan über ${ziel} (Fassung ohne Garantie)`;
+  // Entstanden: Teil 1 immer, Teil 2/3 sobald ihre Rechnung steht (storniert/entfallen zählt nicht).
+  const summeCents = teile.filter((t) => t.nr === 1 || (t.bestellRef && !["storniert", "entfallen", "noch nicht fällig"].includes(t.stand))).reduce((s, t) => s + t.betragCents, 0);
+  return {
+    teile, garantieSatz, garantieZiel, fristBeginn: beginn, fristEnde: ende, summeCents,
+    teil2Bedingung: teile.find((t) => t.nr === 2)?.hinweis ?? "",
+    seiteHinweis: T.seiteHinweis,
+    jahresZeile: par.jahresCents > 0 ? `Ab dem zweiten Jahr betreuen wir Ihre Gesellschaft für ${kapitalEur(par.jahresCents)} je Jahr (Ziffer 6): Registered Agent, US-Adresse und Telefon, die jährlichen Meldungen und der Pflichtenkalender — beendbar mit einem Monat zum Ende eines Betreuungsjahres.` : "",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE KUNDENSICHT (GET /api/fiaon/global/angebot/:token für ein offenes Kapital-Angebot)
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KapitalKundenSicht {

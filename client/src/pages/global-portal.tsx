@@ -456,7 +456,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     return liste.some((x) => x.status !== "offen") ? "arbeit" : "offen";
   };
   const hatAuftragsblock = !!(a.angebot || a.stichtag || a.widerruf);
-  const preisText = a.angebot ? `${((a.angebot.teile as T[]).reduce((x, y) => x + y.betragCents, 0) / 100).toLocaleString("de-DE")} €` : globalPreisText(a.paket, s);
+  // E-407: Kapital-Angebot — die Summe der entstandenen Teile (Server), nicht die der künftigen.
+  const preisText = a.angebot ? `${((a.angebot.summeCents ?? (a.angebot.teile as T[]).reduce((x, y) => x + y.betragCents, 0)) / 100).toLocaleString("de-DE")} €` : globalPreisText(a.paket, s);
 
   const kachelSatz = (k: PortalSeite): string => {
     const de = s !== "en";
@@ -895,12 +896,12 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 <ul className="gp-teile">
                   {(a.angebot.teile as T[]).map((x) => (
                     <li key={x.nr}>
-                      <div><b>{x.titel}</b><small>{(x.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €{x.nr === 2 && x.stand === "noch nicht fällig" ? ` — ${ANGEBOT_MEIN_AUFTRAG.teil2Hinweis}` : ""}</small></div>
+                      <div><b>{x.titel}</b><small>{(x.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €{x.hinweis ? ` — ${x.hinweis}` : x.nr === 2 && x.stand === "noch nicht fällig" ? ` — ${ANGEBOT_MEIN_AUFTRAG.teil2Hinweis}` : ""}</small></div>
                       <span className={`gp-marke ${x.stand === "bezahlt" ? "gruen" : "blau"}`}>{ANGEBOT_MEIN_AUFTRAG.stand[x.stand] ?? x.stand}</span>
                     </li>
                   ))}
                 </ul>
-                <p className="gp-satz">{a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
+                <p className="gp-satz">{a.angebot.garantieSatz ? a.angebot.garantieSatz : a.angebot.garantieErfuelltAm ? ANGEBOT_MEIN_AUFTRAG.garantieErfuellt(a.angebot.garantieErfuelltAm) : a.angebot.erstattungAusgeloest ? ANGEBOT_MEIN_AUFTRAG.erstattung : a.angebot.fristBeginn && a.angebot.fristEnde ? ANGEBOT_MEIN_AUFTRAG.frist(a.angebot.fristBeginn, a.angebot.fristEnde) : ANGEBOT_MEIN_AUFTRAG.fristNochNicht}</p>
               </>
             )}
             {a.stichtag && <p className="gp-satz">{t.stichtag}: <b>{tag(a.stichtag)}</b></p>}
@@ -920,10 +921,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             <p className="gp-paket">{a.paketName}</p>
             {preisText && !/^0\s?€$|^€\s?0$/.test(preisText.trim()) && <p className="gp-preis">{preisText}</p>}
             <dl className="gp-daten"><Zeile k={t.seiteReferenz} v={a.ref} /></dl>
-            {a.jahresbetreuung ? (
+            {/* E-407: Kapital-Angebot — Jahresbetreuung aus Ziffer 6 (verlängert sich, kündbar zum Jahresende), nicht der Paket-Satz. */}
+            {a.angebot?.jahresZeile ? (
+              <div className="gp-jahr"><b>{J.titel}</b><small>{a.angebot.jahresZeile}</small></div>
+            ) : a.jahresbetreuung ? (
               <div className="gp-jahr"><b>{J.titel}</b><p>{J.gebucht}</p><small>{J.bedingungen}</small></div>
             ) : a.status !== "storniert" && <p className="gp-leise">{t.jahrSpaeter(J.titel, J.preisZeile)}</p>}
-            <p className="gp-leise klein">{a.angebot ? ANGEBOT_MEIN_AUFTRAG.seiteHinweis : t.seiteHinweis}</p>
+            <p className="gp-leise klein">{a.angebot ? (a.angebot.seiteHinweis ?? ANGEBOT_MEIN_AUFTRAG.seiteHinweis) : t.seiteHinweis}</p>
           </div>
                   </aside>
                 </div>

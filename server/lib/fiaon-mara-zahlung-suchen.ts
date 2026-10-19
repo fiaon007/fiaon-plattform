@@ -31,7 +31,8 @@ import { VERTRAGSENDE_SPALTEN_SQL, ratenNachVertragsende } from "@shared/fiaon-k
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 type Lauf = typeof sqlPool;
-export type ZsKanal = "mail" | "whatsapp";
+/** E-406 C1: „anliegen“ = ein Anliegen aus dem Kundenbereich — wie die Mail, nur der Beleg heißt „Anliegen“. */
+export type ZsKanal = "mail" | "whatsapp" | "anliegen";
 
 /** Was der Server Mara und der Akte mitgibt. */
 export interface ZahlungsLage {
@@ -121,7 +122,7 @@ export async function maraFundeFuer(ids: number[], lauf: Lauf = sqlPool): Promis
   const zeilen = (await lauf.unsafe(
     `SELECT * FROM fiaon_mara_zahlung_funde WHERE bank_txn_id = ANY($1::int[]) ORDER BY aktualisiert_am DESC, id DESC`, [nur]).catch(() => [])) as any[];
   return zeilen.map((z) => ({
-    bankTxnId: Number(z.bank_txn_id), personId: Number(z.person_id), kanal: z.kanal === "whatsapp" ? "whatsapp" : "mail",
+    bankTxnId: Number(z.bank_txn_id), personId: Number(z.person_id), kanal: z.kanal === "whatsapp" ? "whatsapp" : z.kanal === "anliegen" ? "anliegen" : "mail",
     quelle: z.quelle ?? null, stand: z.stand === "abweichend" ? "abweichend" : z.stand === "moeglich" ? "moeglich" : "gefunden", ziel: z.ziel ?? null, bestellung: z.bestellung ?? null,
     rateNr: z.rate_nr != null ? Number(z.rate_nr) : null,
     erwartet: z.erwartet ? (typeof z.erwartet === "string" ? JSON.parse(z.erwartet) : z.erwartet) : null,
@@ -221,7 +222,7 @@ async function vermerkEinmal(personId: number, ref: string | null, kanal: ZsKana
   if (schon) return;
   await lauf`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-    VALUES (${r}, ${personId}, NULL, ${kanal === "whatsapp" ? "Mara" : "Postmeister"}, 'system', ${`${text.slice(0, 860)} ${marke}`})`.catch(() => {});
+    VALUES (${r}, ${personId}, NULL, ${kanal === "mail" ? "Postmeister" : "Mara"}, 'system', ${`${text.slice(0, 860)} ${marke}`})`.catch(() => {});
 }
 
 /** Einen Fund festhalten (Trockenprobe für den Knopf) — Karte und Vermerk dazu. Wirft nie. */
@@ -257,7 +258,7 @@ async function fundVorlegen(t: ZsTreffer, o: { personId: number; kanal: ZsKanal;
       return null;
     });
     await vermerkEinmal(o.personId, o.ref ?? t.ziel?.ref ?? null, o.kanal,
-      `Mara hat die gemeldete Zahlung im Bankbuch gesucht (${o.kanal === "whatsapp" ? "WhatsApp" : "Mail"}): ${trefferZeile(t)} `
+      `Mara hat die gemeldete Zahlung im Bankbuch gesucht (${o.kanal === "whatsapp" ? "WhatsApp" : o.kanal === "anliegen" ? "Anliegen" : "Mail"}): ${trefferZeile(t)} `
       + `${erwartet ? `Vorschlag zum Zubuchen auf ${t.ziel?.rateNr ? `Rate ${t.ziel.rateNr}` : ziel} liegt im Mara-Steuerpult (Karte „Geld eingegangen“) — gebucht wird erst mit dem Klick.`
         : t.stand === "moeglich" ? `Eingang über ${(t.eingang.cents / 100).toFixed(2).replace(".", ",")} € vom ${t.eingang.datum.split("-").reverse().join(".")}: nur der Name des Zahlers passt — liegt im Mara-Steuerpult zum Prüfen (kein Zubuchen-Vorschlag).`
         : "Liegt im Mara-Steuerpult (Karte „Geld eingegangen“) zum Zuordnen."}`,

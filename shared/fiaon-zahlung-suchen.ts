@@ -403,9 +403,10 @@ export function trefferZeile(t: ZsTreffer): string {
 
 /**
  * Der Block für Maras Auftrag (vorab, wie „VORAB GEHOLT“). `kanal` steuert nur den Zusatz zur Zahlungsstelle (Mail).
+ * E-406 C1: „anliegen“ (Kundenbereich) wie die Mail — dort gibt Mara dieselben Aufgaben.
  * `kartenGelegt`: der Server hat den Eingang Justin zum Zuordnen vorgelegt (Karte „Geld eingegangen“).
  */
-export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp"; kartenGelegt?: boolean } = { kanal: "mail" }): string {
+export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp" | "anliegen"; kartenGelegt?: boolean } = { kanal: "mail" }): string {
   const satz = zahlungSatz(e);
   const kopf = `ZAHLUNG GESUCHT (zahlung_suchen ist gelaufen — der Server hat eben im Bankbuch nachgesehen, alle Eingänge der letzten ${e.tage} Tage; nicht noch einmal fragen):`;
   const fakten = [
@@ -414,7 +415,7 @@ export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp"; k
   ];
   // E-401 Nachbesserung (Prüfer-Fund): „keine Aufgabe“ nur, wenn wirklich nichts mehr offen ist — fehlt die neu gemeldete
   // Zahlung noch (NOCH OHNE EINGANG) oder passt nur der Name, gilt die Regel zum Zahlungsbeleg wie bisher.
-  const keinMensch = o.kanal === "mail"
+  const keinMensch = o.kanal !== "whatsapp"
     ? (zahlungsstelleUnnoetig(e, o.kartenGelegt ? [e.haupt?.eingang.id ?? 0] : [])
       ? " Keine Aufgabe an die Zahlungsstelle oder einen Kollegen dafür — der Server hat es schon erledigt."
       : " Schickt er einen Beleg mit, gilt die Regel zum Zahlungsbeleg wie bisher (Aufgabe an die Zahlungsstelle).")
@@ -441,7 +442,7 @@ export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp"; k
       tun = `SO ANTWORTEST DU: Seine Zahlung ist schon gebucht — sag es ihm mit Datum und Betrag und danke ihm, so: „${satz}“${offenRest || " Es ist dazu nichts mehr offen — keine Zahlungsbitte."}${keinMensch}`;
       break;
     default:
-      tun = `NICHTS GEFUNDEN: Auf dem Konto ist in den letzten ${e.tage} Tagen KEIN passender Eingang von ihm. Danke ihm ehrlich, ohne Vorwurf: Eine Überweisung braucht oft ein bis zwei Werktage. Bitte ihn um den Beleg (Datum, Betrag, Verwendungszweck) und darum, in seinem Banking nachzusehen, ob sie mit seinem Verwendungszweck ausgeführt wurde — und NICHT noch einmal zu überweisen. Sinngemäß: „${satz}“ Sag NIE, dass sie angekommen, gefunden oder gebucht ist.${o.kanal === "mail" ? " Schickt er einen Beleg mit, gilt die Regel zum Zahlungsbeleg wie bisher." : " Kein Kollege, kein Termin."}`;
+      tun = `NICHTS GEFUNDEN: Auf dem Konto ist in den letzten ${e.tage} Tagen KEIN passender Eingang von ihm. Danke ihm ehrlich, ohne Vorwurf: Eine Überweisung braucht oft ein bis zwei Werktage. Bitte ihn um den Beleg (Datum, Betrag, Verwendungszweck) und darum, in seinem Banking nachzusehen, ob sie mit seinem Verwendungszweck ausgeführt wurde — und NICHT noch einmal zu überweisen. Sinngemäß: „${satz}“ Sag NIE, dass sie angekommen, gefunden oder gebucht ist.${o.kanal !== "whatsapp" ? " Schickt er einen Beleg mit, gilt die Regel zum Zahlungsbeleg wie bisher." : " Kein Kollege, kein Termin."}`;
   }
   return [kopf, ...fakten, `ZU SEINER ZAHLUNG (seine übrigen Fragen beantwortest du wie sonst) — ${tun}`].join("\n");
 }

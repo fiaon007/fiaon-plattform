@@ -36,6 +36,9 @@ async function tabelle() {
     )`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_tickets_ref_idx ON fiaon_tickets (ref, created_at DESC)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_tickets_offen_idx ON fiaon_tickets (status, agent_id)`;
+  // E-406 C1: Maras Spalten (Antwort, Vorschlag, Hinweis, Knopf) — dieselbe Tabelle, idempotent.
+  const { anliegenSchema } = await import("../lib/fiaon-mara-anliegen");
+  await anliegenSchema();
   bereit = true;
 }
 
@@ -44,7 +47,7 @@ router.get("/kunde/:ref/tickets", requireKunde, async (req: KundeRequest, res: R
   try {
     await tabelle();
     const rows = await sqlPool`
-      SELECT id, betreff, text, status, antwort, beantwortet_am, created_at
+      SELECT id, betreff, text, status, antwort, beantwortet_am, created_at, antwort_knopf
       FROM fiaon_tickets WHERE ref = ${req.kundeRef!} ORDER BY created_at DESC LIMIT 50`;
     res.json({ ok: true, tickets: rows });
   } catch (err) { console.error("[TICKETS] liste:", err); res.status(500).json({ ok: false, error: "Anliegen konnten nicht geladen werden." }); }
@@ -112,6 +115,7 @@ router.get("/agent/tickets", requireAgent, async (req: AgentRequest, res: Respon
     const alle = rolle === "admin" || rolle === "vertriebsleiter";
     const rows = await sqlPool`
       SELECT t.id, t.ref, t.betreff, t.text, t.status, t.antwort, t.created_at, t.updated_at, t.agent_id, t.beantwortet_am,
+             t.beantwortet_durch, t.mara_stand, t.mara_grund, t.mara_heikel, t.mara_entwurf,
              TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde,
              p.primary_email AS email, p.primary_phone AS telefon,
              (SELECT g.name FROM fiaon_agents g WHERE g.id = t.agent_id) AS betreuer,
@@ -181,12 +185,22 @@ router.post("/agent/tickets/:id/antwort", requireAgent, async (req: AgentRequest
       if (!darf) return res.status(404).json({ ok: false, error: "Anliegen nicht gefunden." });
     }
 
-    const [t] = (await sqlPool`UPDATE fiaon_tickets SET antwort = ${antwort}, beantwortet_am = NOW(), beantwortet_von = ${req.agent!.id},
-      agent_id = COALESCE(agent_id, ${req.agent!.id}), status = ${erledigt ? "erledigt" : "beantwortet"}, updated_at = NOW()
-      WHERE id = ${id} RETURNING ref, betreff`) as any[];
+    // E-406 C1 (19.10.2026): „Erledigt“ schickt dieselbe Antwort noch einmal — dann nur den Stand ändern. Vorher entstand
+    // dabei ein zweiter Eintrag in der Akte; mit der Benachrichtigung bekäme der Kunde sonst dieselbe Antwort zweimal gemeldet.
+    const [vorher] = (await sqlPool`SELECT antwort FROM fiaon_tickets WHERE id = ${id}`) as any[];
+    if (!vorher) return res.status(404).json({ ok: false, error: "Anliegen nicht gefunden." });
+    if (erledigt && vorher.antwort != null && String(vorher.antwort).trim() === antwort) {
+      await sqlPool`UPDATE fiaon_tickets SET status = 'erledigt', agent_id = COALESCE(agent_id, ${req.agent!.id}), updated_at = NOW() WHERE id = ${id}`;
+      return res.json({ ok: true });
+    }
+    // E-406 C1: EINE Stelle für jede Antwort (Mensch und Mara) — Anliegen, Verlauf der Akte und die Benachrichtigung
+    // „Antwort auf Ihr Anliegen“ (Push), die es im Kundenbereich gab, aber nie gesendet wurde.
+    const { anliegenAntwortSpeichern, nennNameVon } = await import("../lib/fiaon-mara-anliegen");
+    const t = await anliegenAntwortSpeichern({
+      id, antwort, erledigt,
+      von: { agentId: req.agent!.id, agentName: req.agent!.name, nennName: await nennNameVon(req.agent!.id), durch: "mensch" },
+    });
     if (!t) return res.status(404).json({ ok: false, error: "Anliegen nicht gefunden." });
-    await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-      VALUES (${t.ref}, ${req.agent!.id}, ${req.agent!.name}, 'kunde_anliegen_antwort', ${`Antwort auf Anliegen #${id} (${t.betreff}):\n${antwort}`}, NOW())`.catch(() => {});
     res.json({ ok: true });
   } catch (err) { console.error("[TICKETS] antwort:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });

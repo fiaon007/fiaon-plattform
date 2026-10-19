@@ -3,6 +3,8 @@
 // Telefon/E-Mail, häufige Fragen. Keine Rückruf-Zusage („meldet sich“), kein
 // Live-Chat — „Sie sehen die Antwort hier in Ihrem Bereich“ (eine Antwort-Mail gibt es
 // nicht: /agent/tickets/:id/antwort schreibt nur Ticket und Kontaktverlauf, Prüfung 05.09.).
+// E-406 C1 (19.10.2026): Die Antwort kann von Mara kommen (digitale Assistentin, sie unterschreibt so); dazu eine
+// Benachrichtigung (Push, wenn erlaubt) und ggf. ein Knopf unter der Antwort (antwort_knopf: Zahlungsseite, Termin).
 //
 // /app/mehr/termine — Termine (Bauvorlage 3.14): kommende mit Absage-Link,
 // vergangene, Anruf-Termin wählen. Daten: GET /kunde/:ref/termine (vorhanden).
@@ -10,7 +12,9 @@ import { useEffect, useState } from "react";
 import { SUPPORT } from "@shared/fiaon-wissen";
 import { api } from "./Bausteine";
 
-interface Ticket { id: number; betreff: string; text: string; status: string; antwort: string | null; beantwortet_am: string | null; created_at: string }
+interface Ticket { id: number; betreff: string; text: string; status: string; antwort: string | null; beantwortet_am: string | null; created_at: string; antwort_knopf?: { text: string; url: string } | null }
+/** Nur ein Link aus dem Haus (der Server prüft es schon) — https oder ein Pfad. */
+const knopfOk = (k: Ticket["antwort_knopf"]) => !!k && typeof k.url === "string" && (k.url.startsWith("https://") || (k.url.startsWith("/") && !k.url.startsWith("//")));
 // E-283 (05.10.2026): `art` — der Server lieferte sie schon (terminArtAusQuelle: „Limit-Gespräch", „Support", …), die Seite zeigte sie nicht.
 interface Termin { id: number; beginn: string; datumText: string; uhrzeit: string; status: string; mit: string | null; absageLink: string | null; art?: string | null }
 interface Termine { kommende: Termin[]; vergangene: Termin[]; buchungsLink: string | null }
@@ -85,6 +89,7 @@ export function Hilfe({ kundeRef, demo, ansprechpartner, vorgang, buchungsLink }
             <div className="ap-karte-kopf"><h3>{t.betreff}</h3><span className={`ap-status ${t.status === "erledigt" || t.antwort ? "gut" : "offen"}`}>{t.status === "erledigt" || t.antwort ? "Beantwortet" : "In Bearbeitung"}</span></div>
             <p style={{ whiteSpace: "pre-wrap" }}>{t.text}</p>
             {t.antwort && <div className="ap-meldung gut" style={{ whiteSpace: "pre-wrap" }}><b style={{ display: "block", fontWeight: 500 }}>Antwort{t.beantwortet_am ? ` vom ${datum(t.beantwortet_am)}` : ""}</b>{t.antwort}</div>}
+            {t.antwort && knopfOk(t.antwort_knopf) && <a className="ap-knopf still" style={{ marginTop: 10 }} href={t.antwort_knopf!.url}>{t.antwort_knopf!.text}</a>}
             <p className="ap-fuss">gesendet am {datum(t.created_at)}</p>
           </article>
         ))}

@@ -66,7 +66,8 @@ export function claudeKannPfad(url: string, methode?: string | null): boolean {
  * Texterkennung, Analysen, Radar, Ratgeber, Copilot …) läuft auf Sonnet: halber Preis, kein Kundentext (03.10.2026).
  */
 // E-341: „global-berater" (Fachbereiche im Global-Portal) schreibt direkt an Firmenkunden — das große Modell.
-export const KUNDEN_DIENSTE: ReadonlySet<string> = new Set(["mara-whatsapp", "mara-aktion", "postmeister-antwort", "mara-auftrag", "kontakt-chat", "global-berater"]);
+// E-406 C1 (19.10.2026): „mara-anliegen“ — Maras Antwort auf Anliegen im Kundenbereich, ein Kundentext wie die Mail.
+export const KUNDEN_DIENSTE: ReadonlySet<string> = new Set(["mara-whatsapp", "mara-aktion", "postmeister-antwort", "mara-auftrag", "kontakt-chat", "global-berater", "mara-anliegen"]);
 
 /** Das Claude-Modell für ein OpenAI-Modell: claude-* bleibt; interne Dienste → KLEIN; *-mini/*-nano → KLEIN; sonst GROSS. */
 export function claudeModellFuer(modell: string | null | undefined, dienst?: string | null): string {

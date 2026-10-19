@@ -881,6 +881,14 @@ export const RUNDGANG_TICKETS: RundgangSchritt[] = [
     tipp: "Geht es um einen bestimmten Kunden, nenn seinen Namen und die Referenznummer. Das spart eine Rückfrage.",
   },
   {
+    // E-406 C1 (19.10.2026) mitgezogen: Mara beantwortet Anliegen selbst. Ohne `ziel` — der Satz steht nur bei manchen Anliegen.
+    titel: "Mara antwortet mit.",
+    text: "Einfache Anliegen beantwortet Mara selbst — dann steht „Antwort von Mara“ dabei. Passt alles, klick „Erledigt“. "
+      + "Heikles (Kündigung, Beschwerde, Anwalt, Erstattung, Löschwunsch, Post mit Frist) beantwortet sie nicht: "
+      + "Dann steht „Mara antwortet nicht: …“ dabei, und du antwortest wie bisher.",
+    tipp: "Steht „Maras Vorschlag“ da, holt „Vorschlag übernehmen“ ihn in dein Textfeld. Prüfen, anpassen, senden.",
+  },
+  {
     ziel: ".ti-karte-kopf",
     titel: "Der Verlauf bleibt lesbar.",
     text: "Jede Antwort steht im Ticket, mit Namen und Zeitpunkt. Du musst nichts in einem Chat suchen und "
@@ -1865,6 +1873,14 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     text: "„Runde jetzt starten“ schreibt jedem mit offener erster Zahlung (A und B) einmal — ohne die Pausen des Takts, "
       + "im Tempo des Takts (höchstens 60 je Stunde, nur 8–21 Uhr), 24 Stunden lang. Gesperrte, „Stopp“, Global-Kunden und wer womöglich schon ungebucht gezahlt hat, "
       + "bleiben draußen. B liest „Zahlen Sie jetzt die Aktivierung …“, A keine Zahlungsbitte — außer der einen Klärung ab dem 3. Werktag (höchstens 20 am Tag); kein Termin.",
+  },
+  // E-406 C1 (19.10.2026): Mara beantwortet Anliegen aus dem Kundenbereich — der Schalter steht unter den Hinweisen.
+  // Ohne `ziel`: der Schalter lädt nachgeladen (Suspense), die Karte erklärt trotzdem.
+  {
+    titel: "Anliegen aus dem Kundenbereich.",
+    text: "Der Schalter „Mara beantwortet Anliegen im Kundenbereich“ (Standard an): Schreibt ein Kunde unter „Hilfe & Anliegen“, "
+      + "antwortet Mara selbst — 8 bis 20 Uhr, mit derselben Prüfung wie im Postfach. Heikles (Kündigung, Beschwerde, Anwalt, "
+      + "Erstattung, Löschwunsch …), FIAON Global und Testkonten bleiben beim Team.",
   },
   {
     ziel: ".mp-steuer",

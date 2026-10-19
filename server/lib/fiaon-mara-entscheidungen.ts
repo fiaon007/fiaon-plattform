@@ -769,7 +769,7 @@ export function eingangKarte(z: NachholZeile, funde: MaraFund[] = []): Entscheid
   const anderePerson = !!f && vorschlagPerson != null && vorschlagPerson !== f.personId;
   const maraBelege: EntscheidungBeleg[] = [];
   if (f) {
-    maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
+    maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : f.kanal === "anliegen" ? "Anliegen" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
     if (f.wege) maraBelege.push({ text: `Mara: ${kurz(f.wege, 50)}`, ...(f.stand === "moeglich" ? { ton: "warn" as const } : {}) });
     if (anderePerson) {
       maraBelege.push({ text: "Der Vorschlag des Bankbuchs nennt eine andere Person als den Kunden, der zahlte — bitte im Konto prüfen", ton: "warn" });

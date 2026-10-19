@@ -140,6 +140,29 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     ],
   },
   {
+    // E-406 C1 (19.10.2026, Justin: Vorschlag 3 „Mara führt den Betrieb“): Mara beantwortet Anliegen aus dem
+    // Kundenbereich selbst (server/lib/fiaon-mara-anliegen.ts). Heikles bleibt beim Menschen.
+    id: "2026-10-19-mara-anliegen",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara beantwortet Anliegen im Kundenbereich",
+    summary:
+      "Schreibt ein Kunde unter „Hilfe & Anliegen“, antwortet Mara selbst — wie bei den Mails. "
+      + "Heikles bleibt bei dir.",
+    changes: [
+      "Mara liest die Akte, nutzt ihre Werkzeuge und dieselbe Prüfung wie im Postfach. Die Antwort sieht der Kunde in seinem Bereich, dazu bekommt er eine Benachrichtigung.",
+      "Kündigung, Widerruf, Beschwerde, Anwalt, Erstattung, Bestreiten, Löschwunsch und Post mit Frist beantwortet Mara nicht. In der Liste steht dann ein kurzer Satz dazu.",
+      "Darf Mara nicht selbst senden, steht ihr Vorschlag beim Anliegen. Mit „Vorschlag übernehmen“ steht er in deinem Textfeld — du prüfst und sendest.",
+      "Mara antwortet nur von 8 bis 20 Uhr. Kunden von FIAON Global und Testkonten beantwortet sie nie.",
+      "Antwortest du selbst, bekommt der Kunde jetzt auch eine Benachrichtigung.",
+    ],
+    howto: [
+      "Tickets öffnen: „Antwort von Mara“ heißt, das Anliegen ist beantwortet. Passt alles, klick „Erledigt“.",
+      "Steht „Mara antwortet nicht: …“ dabei, antwortest du wie bisher selbst.",
+    ],
+    link: { href: "/agent/anliegen", label: "Zu den Tickets" },
+  },
+  {
     // E-398 Teil B (19.10.2026): neue AGB-Fassung — Monatsentgelt statt „Gesamtvergütung in Raten“ (CCD2 ab 20.11.2026).
     id: "2026-10-19-agb-monatsentgelt",
     date: "2026-10-19",

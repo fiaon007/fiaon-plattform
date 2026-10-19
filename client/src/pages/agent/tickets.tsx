@@ -9,6 +9,10 @@
 //   POST /agent/tickets/:id/antwort { antwort, erledigt },
 //   POST /agent/tickets/:id/uebernehmen. Ereignis `agent-anliegen-geaendert`.
 // Anruf: `fiaon-anrufen`. Akte: /agent/kunden?ref=<REF> (Tickets tragen die Ref).
+//
+// E-406 C1 (19.10.2026): Mara antwortet selbst (server/lib/fiaon-mara-anliegen.ts). Je Anliegen ein Satz, was sie
+// getan hat: geantwortet („Antwort von Mara“), einen Vorschlag geschrieben (übernehmen → Textfeld) oder bewusst
+// nicht (heikel: Kündigung, Beschwerde, Anwalt …; zu alt; ohne Akte). Heikles bleibt beim Menschen wie bisher.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -19,12 +23,17 @@ import "@/styles/office-tickets.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
+// E-406 C1: Maras Stand je Anliegen — schlanke Datei, ohne Maras ganze Regeln.
+import { maraStandSatz } from "@shared/fiaon-mara-anliegen-satz";
 
 interface Anliegen {
   id: number; ref: string; betreff: string; text: string;
   status: "offen" | "beantwortet" | "erledigt"; antwort: string | null;
   created_at: string; updated_at: string; beantwortet_am: string | null;
   agent_id: number | null; kunde: string; email: string | null; telefon: string | null; betreuer: string | null; meins: boolean;
+  /** E-406 C1: Mara — wer geantwortet hat, ihr Stand, ihr Grund, ihr Vorschlag. */
+  beantwortet_durch?: "mara" | "mensch" | null; mara_stand?: string | null; mara_grund?: string | null;
+  mara_heikel?: string | null; mara_entwurf?: string | null;
 }
 const wann = (v: string | null) => v ? new Date(v).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const alter = (v: string) => { const h = Math.floor((Date.now() - +new Date(v)) / 36e5); return h < 1 ? "gerade eben" : h < 24 ? `vor ${h} Std.` : `vor ${Math.floor(h / 24)} Tg.`; };
@@ -105,7 +114,7 @@ function TicketsInnen() {
         <div>
           <span className="ti-pille">Tickets</span>
           <h1>{offenGesamt === 0 ? <>Alles beantwortet – <span className="ti-verlauf">nichts offen.</span></> : aelterAls24h > 0 ? <><span className="ti-verlauf">{aelterAls24h} {aelterAls24h === 1 ? "wartet" : "warten"}</span> schon länger als einen Tag.</> : <><span className="ti-verlauf">{offenFuerMich} {offenFuerMich === 1 ? "Anliegen" : "Anliegen"}</span> wartet auf dich.</>}</h1>
-          <p>Was Kunden über „Hilfe &amp; Anliegen“ schreiben. Deine Antwort sehen sie in ihrem Bereich – und sie steht im Verlauf der Akte, damit der nächste Kollege sie findet.</p>
+          <p>Was Kunden über „Hilfe &amp; Anliegen“ schreiben. Einfaches beantwortet Mara selbst, Heikles bleibt bei dir. Jede Antwort steht im Bereich des Kunden und in der Akte.</p>
         </div>
         <div className="ti-lage">
           <small>Lage</small>
@@ -157,7 +166,20 @@ function TicketsInnen() {
                 <span className={`ti-lage-marke ${marke}`}>{a.status === "erledigt" ? "Erledigt" : a.agent_id == null ? "Pool" : a.status === "beantwortet" ? "Beantwortet" : "Offen"}</span>
               </div>
               <p className="ti-text">{a.text}</p>
-              {a.antwort && <div className="ti-antwort"><small>Antwort{a.beantwortet_am ? ` · ${wann(a.beantwortet_am)}` : ""}</small><p>{a.antwort}</p></div>}
+              {a.antwort && <div className="ti-antwort"><small>{a.beantwortet_durch === "mara" ? "Antwort von Mara" : "Antwort"}{a.beantwortet_am ? ` · ${wann(a.beantwortet_am)}` : ""}</small><p>{a.antwort}</p></div>}
+              {a.status === "offen" && !a.antwort && maraStandSatz(a.mara_stand, a.mara_grund) && (
+                <p className={`ti-mara${a.mara_stand === "mensch" ? " mensch" : ""}`} data-ti-mara title={a.mara_grund || undefined}>{maraStandSatz(a.mara_stand, a.mara_stand === "mensch" ? a.mara_grund : null)}</p>
+              )}
+              {a.status === "offen" && !a.antwort && a.mara_stand === "entwurf" && a.mara_entwurf && !offenHier && (
+                <div className="ti-antwort ti-vorschlag">
+                  <small>Maras Vorschlag</small><p>{a.mara_entwurf}</p>
+                  {a.agent_id != null && (
+                    <div className="ti-knoepfe" style={{ marginTop: 10 }}>
+                      <button type="button" className="ti-knopf" data-ti-vorschlag onClick={() => { setOffenId(a.id); setAntwort(a.mara_entwurf || ""); }}>Vorschlag übernehmen</button>
+                    </div>
+                  )}
+                </div>
+              )}
               {a.status !== "erledigt" && (
                 a.agent_id == null && !offenHier ? (
                   <div className="ti-knoepfe"><button type="button" className="ti-knopf haupt" disabled={busy === a.id} onClick={() => void uebernehmen(a)}>{busy === a.id ? "…" : "Übernehmen"}</button></div>

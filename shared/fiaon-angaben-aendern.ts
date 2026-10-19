@@ -23,7 +23,8 @@
 export type AngabeFeld = "anschrift" | "email" | "telefon";
 export type VerbotenFeld = "name" | "geburtsdatum" | "bank" | "ausweis";
 export type AngabeLand = "DE" | "AT" | "CH";
-export type AngabenKanal = "mail" | "whatsapp";
+/** E-406 C1 (19.10.2026): „anliegen“ = Anliegen aus dem Kundenbereich (angemeldet) — Sätze wie die Mail. */
+export type AngabenKanal = "mail" | "whatsapp" | "anliegen";
 
 export interface Anschrift { strasse: string; plz: string; ort: string; land: AngabeLand | null }
 
@@ -715,14 +716,14 @@ export function angabenHinweis(l: AngabenLageRein): string {
       case "fremder_absender": return l.absenderUnbestaetigt && l.kanal === "mail"
         ? `· ${f}: NICHT geändert — die Mail trägt zwar die gespeicherte Adresse, ließ sich aber NICHT als echt bestätigen (keine Absender-Prüfung bestanden oder eine fremde Antwortadresse) — sie könnte gefälscht sein. Nenn ihm NIE gespeicherte Daten aus der Akte.`
         : `· ${f}: NICHT geändert — die Nachricht kommt NICHT vom gespeicherten Absender (${l.kanal === "whatsapp" ? "andere Nummer" : "andere Mail-Adresse"}). Nenn ihm NIE die gespeicherte ${l.kanal === "whatsapp" ? "Nummer" : "Adresse"} und keine anderen Daten aus der Akte.`;
-      case "mensch": return `· ${f}: NICHT geändert — ${e.grund ?? "ein Mensch trägt es ein"}.${l.kanal === "mail" ? " Dafür gibst du eine Aufgabe (aufgabe_an_betreuer, Fall 4)." : " Der Server legt es Justin vor (Karte)."}`;
+      case "mensch": return `· ${f}: NICHT geändert — ${e.grund ?? "ein Mensch trägt es ein"}.${l.kanal !== "whatsapp" ? " Dafür gibst du eine Aufgabe (aufgabe_an_betreuer, Fall 4)." : " Der Server legt es Justin vor (Karte)."}`;
       case "probe": return `· ${f}: TESTKONTO — nichts gespeichert, nichts verschickt (wäre: ${e.waere ?? "?"}${pfeil}).`;
       default: return "";
     }
   }).filter(Boolean);
-  if (l.verboten.length) zeilen.push(`· ${l.verboten.map((v) => VERBOTEN_INTERN[v]).join(", ")}: ändert Mara NIE selbst — ${l.kanal === "mail" ? "dafür gibst du wie bisher eine Aufgabe (aufgabe_an_betreuer, Fall 4)" : "der Server legt es Justin vor (Karte)"}.`);
+  if (l.verboten.length) zeilen.push(`· ${l.verboten.map((v) => VERBOTEN_INTERN[v]).join(", ")}: ändert Mara NIE selbst — ${l.kanal !== "whatsapp" ? "dafür gibst du wie bisher eine Aufgabe (aufgabe_an_betreuer, Fall 4)" : "der Server legt es Justin vor (Karte)"}.`);
   const satz = angabenSatz(l);
-  const keinWerkzeug = l.kanal === "mail"
+  const keinWerkzeug = l.kanal !== "whatsapp"
     ? "Für Anschrift, E-Mail-Adresse und Telefonnummer gibst du KEINE Aufgabe und rufst kein Werkzeug — der Server hat es erledigt (außer oben steht „Dafür gibst du eine Aufgabe“)."
     : "Für Anschrift, E-Mail-Adresse und Telefonnummer rufst du KEIN Werkzeug (auch nicht angaben_eintragen) — der Server hat es erledigt.";
   return [

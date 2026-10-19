@@ -493,3 +493,33 @@ function unterschrift(gruss: string): string {
 function knopfText(s: NaechsterSchritt, w: Rahmenworte): string {
   return w.knopf[s.art] ?? w.knopf.weiter;
 }
+
+/**
+ * E-406 C1 (19.10.2026): Maras Antwort auf ein ANLIEGEN im Kundenbereich — dieselben Bausteine wie die Mail
+ * (Anrede, gereinigter Kern, Gruß mit ihrem Namen, Knopftext der Sprache), aber als REINER TEXT: Der Kundenbereich
+ * zeigt ihn mit React an (escapt selbst), deshalb hier kein &amp;. Der Knopf steht getrennt (Hilfe zeigt ihn unter der
+ * Antwort) — keine Adresse im Text. Die Mail (antwortBauen) bleibt unverändert.
+ */
+export function anliegenAntwortBauen(ein: {
+  anrede: string; kern: string; gruss: string; schritt?: NaechsterSchritt | null; sprache?: string | null; agentName?: string | null;
+}): { text: string; knopf: { text: string; url: string } | null } {
+  const w = rahmenFuer(ein.sprache);
+  const kern = kernBereinigen(ein.kern, ein.agentName ?? "", ein.schritt?.url);
+  const absaetze = String(kern || "").split(/\n{2,}/).map((a) => a.trim().replace(/\s*\n\s*/g, " ")).filter(Boolean);
+  let gruss = fremdsprachig(ein.sprache) ? [w.abschied, unterschrift(ein.gruss)].filter(Boolean).join("\n") : ein.gruss;
+  // KI-Offenlegung (KI-VO Art. 50, wie Maras Karte in der Mail, E-340): unter ihrem Namen steht „Digitale Assistentin“.
+  const name = String(ein.agentName ?? "").trim();
+  if (name) {
+    const zeilen = gruss.split("\n");
+    const i = zeilen.findIndex((z) => z.trim() === name);
+    if (i >= 0 && !zeilen.some((z) => z.includes(w.assistentin))) {
+      const team = String(zeilen[i + 1] ?? "").trim();
+      if (team && !team.includes("@")) zeilen[i + 1] = `${w.assistentin} · ${team}`;
+      else zeilen.splice(i + 1, 0, w.assistentin);
+      gruss = zeilen.join("\n");
+    }
+  }
+  const text = [ein.anrede, "", ...absaetze, "", gruss].filter((z, i, a) => !(z === "" && a[i - 1] === "")).join("\n").trim();
+  const knopf = ein.schritt?.url ? { text: knopfText(ein.schritt, w), url: String(ein.schritt.url) } : null;
+  return { text, knopf };
+}

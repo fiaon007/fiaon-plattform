@@ -90,11 +90,34 @@ import { angabenAntwortFunde, angabenOhneLageFunde, angabenAufgabeErsetzbar } fr
 import { MARA_JAHRESVERTRAG_REGEL, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
 // E-406 B1 Nachbesserung (19.10.2026): „Ich zahle am Freitag“ — der Server hält den Zahltag fest; nie „notiert“, was nicht notiert ist.
 import { zusageErlaubt, zusageAntwortFunde, schwierigHinweis, ZUSAGE_WERKZEUG } from "@shared/fiaon-zahlungszusage";
+// E-406 C1 (19.10.2026): Maras Antwort auf Anliegen aus dem Kundenbereich — eigener KI-Dienst und Deckel.
+import { ANLIEGEN_DIENST, ANLIEGEN_TAG_EURO_VORGABE } from "@shared/fiaon-mara-anliegen";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
 const SCHLUESSEL = () => process.env.OPENAI_API_KEY || process.env.ASSISTENT_API_KEY || "";
 const MAX_RUNDEN = 6;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-406 C1 (19.10.2026): DER KANAL — MAIL ODER ANLIEGEN AUS DEM KUNDENBEREICH
+//
+// Justin (Vorschlag 3, „Mara führt den Betrieb“): Mara beantwortet auch die Anliegen aus „Hilfe & Anliegen“ selbst.
+// Dieselbe Maschine wie im Postfach — nur wo sie fest auf Mail gebaut war, entscheidet jetzt der Kanal. Ohne
+// Angabe ist es die Mail: Das Mail-Verhalten bleibt Zeichen für Zeichen, wie es war.
+// ═══════════════════════════════════════════════════════════════════════════
+export type AntwortKanal = "mail" | "anliegen";
+/**
+ * Werkzeuge, die es im Anliegen NICHT gibt: Eine Kündigung bucht dort kein Modell (heikel — ein Mensch antwortet),
+ * ein Anhang geht nicht (der Kundenbereich zeigt Text und einen Knopf), FIAON Global bekommt nie eine Mara-Antwort.
+ */
+export const ANLIEGEN_OHNE_WERKZEUGE: readonly string[] = ["kuendigung_vormerken", "rechnung_anhaengen", "global_zugang_senden", "mahnstopp_setzen"];
+/** Der Zusatz im Auftrag, wenn Mara ein Anliegen beantwortet — er geht den Mail-Regeln darunter vor. */
+export const ANLIEGEN_KANAL_BLOCK = [
+  `DIESE ANTWORT IST KEINE E-MAIL: Sie erscheint im Kundenbereich des Kunden unter „Hilfe & Anliegen“, direkt unter seiner Nachricht, und er bekommt dazu eine Benachrichtigung. Wo unten „Mail“ steht, ist hier deine Antwort im Kundenbereich gemeint.`,
+  `· Der Kunde ist angemeldet — er ist es selbst. Anrede und Gruß setzt der Server; der Knopf erscheint unter deiner Antwort.`,
+  `· Es gibt keinen Anhang: keine Rechnung als PDF, kein „anbei“. Betrag, Rate und Verwendungszweck nennst du im Text; der Knopf führt zur Zahlungsseite.`,
+  `· Kündigung, Storno, Widerruf, Beschwerde, Anwalt, Erstattung und Löschwunsch beantwortet hier ein Mensch — solche Anliegen kommen gar nicht zu dir. Biete nichts davon ungefragt an.`,
+].join("\n");
 
 /**
  * Der Name, mit dem der Agent unterschreibt (04.09.2026, Justin: „Gebe den
@@ -1138,15 +1161,21 @@ function systemPrompt(ein: {
   werbesperreZahlend?: boolean;
   /** E-395: die letzten Notizen der Kollegen (14 Tage) — was dort vereinbart ist, gilt. */
   teamNotizen?: string | null;
+  /** E-406 C1: „anliegen“ = Antwort im Kundenbereich statt Mail (ANLIEGEN_KANAL_BLOCK). Fehlt er: Mail, wie bisher. */
+  kanal?: AntwortKanal;
 }): string {
   const schritte = erlaubteSchritte(ein.lage, !!ein.auskunftAntwort).join(", ");
   const spracheAntwort = String(ein.sprache || ein.einordnung.sprache || "de").slice(0, 2).toLowerCase();
   const kundeSprache = String(ein.einordnung.sprache || "de").slice(0, 2).toLowerCase();
+  const anliegen = ein.kanal === "anliegen";
   return [
     ein.hausanweisung || ``,
     // E-248: KI-Offenlegung — Mara ist die digitale Assistentin, nie „ein Mensch am
     // Schreibtisch" (so stand es bis 28.09. hier; WhatsApp sagte das Gegenteil).
-    `Du heißt ${ein.name}, bist die digitale Assistentin von FIAON und schreibst aus dem Postfach ${ein.postfach}. Du hast die Akte und den ganzen bisherigen Schriftwechsel gelesen, bevor du antwortest — der Kunde soll merken, dass ihn hier jemand kennt und sich um ihn kümmert. Fragt er, ob ein Mensch schreibt: „${MARA_PERSONA.offenlegungFrage}" Du gibst dich nie als Mensch aus.`,
+    anliegen
+      ? `Du heißt ${ein.name}, bist die digitale Assistentin von FIAON und beantwortest ein ANLIEGEN, das der Kunde in seinem Kundenbereich unter „Hilfe & Anliegen“ geschrieben hat. Du hast die Akte und den ganzen bisherigen Verlauf gelesen, bevor du antwortest — der Kunde soll merken, dass ihn hier jemand kennt und sich um ihn kümmert. Fragt er, ob ein Mensch schreibt: „${MARA_PERSONA.offenlegungFrage}" Du gibst dich nie als Mensch aus.`
+      : `Du heißt ${ein.name}, bist die digitale Assistentin von FIAON und schreibst aus dem Postfach ${ein.postfach}. Du hast die Akte und den ganzen bisherigen Schriftwechsel gelesen, bevor du antwortest — der Kunde soll merken, dass ihn hier jemand kennt und sich um ihn kümmert. Fragt er, ob ein Mensch schreibt: „${MARA_PERSONA.offenlegungFrage}" Du gibst dich nie als Mensch aus.`,
+    anliegen ? ANLIEGEN_KANAL_BLOCK : ``,
     `Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
     `DU UNTERSCHREIBST NICHT. Kein Name, kein Gruß am Ende — beides hängt der Server an. Dein Text endet mit dem letzten Satz an den Kunden.`,
     `KEINE ADRESSE (URL) IM TEXT. Wenn der Kunde eine Seite braucht, nennst du sie beim Namen („die Zahlungsseite", „Ihren Bereich") — der Knopf darunter trägt die Adresse. Eine URL im Fließtext ist ein Fremdkörper.`,
@@ -1221,7 +1250,7 @@ function systemPrompt(ein: {
     `· Beginne mit dem, was der Kunde will — nie mit einer Eingangsbestätigung.`,
     `· Nenne konkrete Dinge aus der Akte: Paket, Betrag, Datum, Rate, ein gebuchter Termin. Den Betreuer nennst du als Begleiter („Herr Stripling begleitet Sie“), nie als den, der dir die Arbeit abnimmt.`,
     `· Keine Aufzählungszeichen, keine Emojis, keine Betreffzeile, keine Grußformel.`,
-    ein.alterTage > 3 ? `· Diese Mail liegt seit ${ein.alterTage} Tagen. Beginne mit einer kurzen, ehrlichen Entschuldigung dafür.` : ``,
+    ein.alterTage > 3 ? `· ${anliegen ? "Dieses Anliegen" : "Diese Mail"} liegt seit ${ein.alterTage} Tagen. Beginne mit einer kurzen, ehrlichen Entschuldigung dafür.` : ``,
     ``,
     `WAS DU NICHT SAGST: nichts garantieren, nicht beraten, nichts empfehlen, keine Fristen zusagen, keine Bankdaten aus dem Gedächtnis, keine internen Statuswörter, nichts versprechen, was du nicht im selben Zug getan hast. KEINE RÜCKZAHLUNG ODER ERSTATTUNG ZUSAGEN — auch nicht „bei einer Ablehnung der Bank" und nicht als „zugesagte Information": Darüber entscheidet allein die Geschäftsführung; du sagst höchstens, dass sie es entscheidet (#5635). Kein Ergebnis der Bank zusagen („Sie bekommen die Karte") — die Aussicht ja, die Zusage nie.`,
     ``,
@@ -2184,16 +2213,30 @@ export async function antwortErzeugen(ein: {
   sprache?: string | null;
   /** E-248: Offener Widerruf/Einwand aus einer früheren Mail derselben Person (lauf: offeneEinwaende). */
   vorgeschichte?: Vorgeschichte | null;
+  /**
+   * E-406 C1 (19.10.2026): Der Kanal. Fehlt er, ist es die Mail — alles wie bisher. „anliegen“ = ein Anliegen aus
+   * dem Kundenbereich (fiaon_tickets, server/lib/fiaon-mara-anliegen.ts): dieselbe Maschine (Werkzeuge, Prüfung,
+   * Wortwand, E-393, genannter Termin, zahlung_suchen, angaben_aendern), aber eigener KI-Dienst und Deckel, der
+   * Kunde ist angemeldet (kein Absender zu prüfen), keine Anhänge, kein Kündigungs-Werkzeug (Kündigung beantwortet
+   * im Anliegen nur ein Mensch). `anliegenId` steht als Beleg in Vermerken.
+   */
+  kanal?: AntwortKanal;
+  anliegenId?: number | null;
+  /** Wann er das Anliegen schrieb — „heute“/„morgen“ im genannten Termin zählen ab dann. */
+  anliegenAm?: Date | null;
 }): Promise<AgentErgebnis> {
   const leer: AgentErgebnis = {
     ok: false, antwort: null, antwortHtml: null, belege: [], naechsterSchritt: null, handlungen: [],
     pruefung: { treffer: [], fehlend: [], umformuliert: false }, automatischErlaubt: false, grund: "", kostenCents: 0,
   };
+  const anliegen = ein.kanal === "anliegen";
+  const dienst = anliegen ? ANLIEGEN_DIENST : "postmeister-antwort";
 
   // Kostendeckel — die einzige Bremse gegen eine Überraschung auf der Rechnung.
   // E-280 (03.10.2026, Justin: „Ja: WA 30 €, Postfach 35 €“): Claude Opus kostet je Mail ein Mehrfaches von gpt-5.5.
-  const deckel = Number(process.env.POSTMEISTER_TAG_EURO || 35);
-  const heute = await kostenHeute("postmeister-antwort").catch(() => 0);
+  // E-406 C1: Das Anliegen hat seinen eigenen Dienst und Deckel (ANLIEGEN_TAG_EURO, Vorgabe 10 €) — es nimmt der Mail nichts weg.
+  const deckel = anliegen ? Number(process.env.ANLIEGEN_TAG_EURO || ANLIEGEN_TAG_EURO_VORGABE) : Number(process.env.POSTMEISTER_TAG_EURO || 35);
+  const heute = await kostenHeute(dienst).catch(() => 0);
   if (heute > deckel) return { ...leer, grund: `Tagesdeckel erreicht (${heute.toFixed(2)} € von ${deckel} €)` };
 
   const akte = await akteLesen(ein.personId, ein.ref);
@@ -2235,6 +2278,9 @@ export async function antwortErzeugen(ein: {
   const abst = ein.personId ? abstreitenArt(kontext.kundeText ?? "") : null;
   const loesch = !!ein.personId && istLoeschwunsch(kontext.kundeText ?? "", { angeboten: ein.verlauf.some((v) => loeschenAngeboten(v.text)) });
   if (ein.personId && (loesch || abst?.fest)) {
+    // E-406 C1: Im Anliegen beantwortet ein Löschwunsch oder „hab nie etwas beantragt“ ein Mensch — keine feste
+    // Mail-Antwort, keine Aufgabe von hier (der Lauf lässt das Anliegen offen und schreibt den Hinweis).
+    if (anliegen) return { ...leer, grund: loesch ? "Löschwunsch — ein Mensch antwortet." : "Bestreitet einen Antrag — ein Mensch antwortet." };
     const fest = await abstreitenPerMail({ personId: ein.personId, abst: loesch ? null : abst, loesch, kontext }).catch((e) => {
       console.warn("[POSTMEISTER] Abstreiten:", String(e?.message || e).slice(0, 160));
       return null;
@@ -2250,8 +2296,12 @@ export async function antwortErzeugen(ein: {
 
   // E-275 (02.10.2026): zahlender Kunde mit Werbesperre — die Lage ist seine echte (dossier.ts), Verkauf bleibt aus.
   const werbesperreZahlend = !!akte?.sperren?.werbung && !akte?.global && lage !== "gesperrt";
-  const werkzeuge = werkzeugeFuerLage(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend });
-  const tools = werkzeugeAlsTools(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend });
+  // E-406 C1: Im Anliegen ohne die Werkzeuge, die dort nichts zu suchen haben (ANLIEGEN_OHNE_WERKZEUGE) — die Mail unverändert.
+  const werkzeuge = werkzeugeFuerLage(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend })
+    .filter((w) => !anliegen || !ANLIEGEN_OHNE_WERKZEUGE.includes(w.name));
+  const tools = anliegen
+    ? werkzeuge.map((w) => ({ type: "function", function: { name: w.name, description: w.beschreibung, parameters: w.parameter } }))
+    : werkzeugeAlsTools(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend });
 
   // 04.09.2026 (E-118): Der ganze Weg des Kunden — aus zwanzig Quellen, als Zeitleiste.
   const { kundenwegLesen } = await import("./fiaon-kundenweg");
@@ -2273,6 +2323,8 @@ export async function antwortErzeugen(ein: {
   const genannt = ein.personId
     ? await gtM.genannterTerminBehandeln({
       personId: ein.personId, ref: ein.ref, kundeText: kontext.kundeText ?? "", postmeisterId: ein.postmeisterId ?? null, notizen: teamNotizen,
+      // E-406 C1: im Anliegen dieselbe Regel wie in der Mail — nur der Beleg in Notiz und Protokoll heißt „Anliegen #…“.
+      ...(anliegen ? { anliegen: { id: ein.anliegenId ?? null, am: ein.anliegenAm ?? null } } : {}),
     }).catch((e) => { console.warn("[POSTMEISTER] Genannter Termin:", String(e?.message || e).slice(0, 160)); return null; })
     : null;
   if (genannt?.ruhe && !ruhe) { ruhe = genannt.ruhe; kontext.ruhe = ruhe; }
@@ -2297,7 +2349,10 @@ export async function antwortErzeugen(ein: {
   const zsM = await import("./fiaon-mara-zahlung-suchen");
   const zahlungGesucht = ein.personId && !akte?.global
     && zsM.zahlungSuchenNoetig({ flags: ein.einordnung.flags as any, lage, kundeText: kontext.kundeText ?? "" })
-    ? await zsM.zahlungSuchenBehandeln({ personId: ein.personId, ref: ein.ref, kanal: "mail", quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : null })
+    ? await zsM.zahlungSuchenBehandeln({
+      personId: ein.personId, ref: ein.ref, kanal: anliegen ? "anliegen" : "mail",
+      quelle: anliegen ? (ein.anliegenId ? `Anliegen #${ein.anliegenId}` : null) : ein.postmeisterId ? `Mail #${ein.postmeisterId}` : null,
+    })
       .catch((e) => { console.warn("[POSTMEISTER] zahlung_suchen:", String(e?.message || e).slice(0, 160)); return null; })
     : null;
   if (zahlungGesucht) {
@@ -2313,11 +2368,14 @@ export async function antwortErzeugen(ein: {
   // Global-Kunden. Die Antwortprüfung hält jedes „geändert“, das nicht stimmt.
   const agM = await import("./fiaon-mara-angaben-aendern");
   const angaben = ein.personId && !akte?.global && agM.angabenAendernNoetig(kontext.kundeText ?? "")
-    ? await agM.angabenAendernBehandeln({
-      personId: ein.personId, kanal: "mail", kundeText: kontext.kundeText ?? "", absender: ein.mail.von,
-      absenderPruefung: { authErgebnis: ein.mail.authErgebnis ?? null, antwortAn: ein.mail.antwortAn ?? null },
-      quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : "",
-    }).catch((e) => { console.warn("[POSTMEISTER] angaben_aendern:", String(e?.message || e).slice(0, 160)); return null; })
+    ? await agM.angabenAendernBehandeln(anliegen
+      // E-406 C1: Im Kundenbereich ist er angemeldet — dort darf er dieselben Felder ohnehin selbst ändern (Meine Daten).
+      ? { personId: ein.personId, kanal: "anliegen", kundeText: kontext.kundeText ?? "", quelle: ein.anliegenId ? `Anliegen #${ein.anliegenId}` : "" }
+      : {
+        personId: ein.personId, kanal: "mail", kundeText: kontext.kundeText ?? "", absender: ein.mail.von,
+        absenderPruefung: { authErgebnis: ein.mail.authErgebnis ?? null, antwortAn: ein.mail.antwortAn ?? null },
+        quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : "",
+      }).catch((e) => { console.warn("[POSTMEISTER] angaben_aendern:", String(e?.message || e).slice(0, 160)); return null; })
     : null;
   if (angaben) {
     handlungen.push({ werkzeug: "angaben_aendern", ergebnis: angaben.handlung, ok: true });
@@ -2459,6 +2517,7 @@ export async function antwortErzeugen(ein: {
       sprache, ruhe, formlos, antragLink: !!werkzeugDaten.antrag_link?.persoenlich, herkunftHinweis,
       werbesperreZahlend,
       teamNotizen: gtM.teamNotizenText(teamNotizen),
+      kanal: ein.kanal,
     }), ...vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
@@ -2471,14 +2530,16 @@ export async function antwortErzeugen(ein: {
       content: `BISHERIGER SCHRIFTWECHSEL (älteste zuerst, ${ein.verlauf.length} Nachrichten):\n${ein.verlauf.map((v) => `[${v.am}] ${v.von}: ${v.text.slice(0, 3000)}`).join("\n\n")}`,
     });
   }
-  nachrichten.push({ role: "user", content: `NEUE NACHRICHT\nVon: ${ein.mail.von}\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}` });
+  nachrichten.push({ role: "user", content: anliegen
+    ? `NEUES ANLIEGEN (Kundenbereich „Hilfe & Anliegen“, er ist angemeldet${ein.anliegenId ? ` — Anliegen #${ein.anliegenId}` : ""})\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}`
+    : `NEUE NACHRICHT\nVon: ${ein.mail.von}\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}` });
 
   let kosten = 0;
 
   // Werkzeug-Runden
   for (let runde = 0; runde < MAX_RUNDEN; runde++) {
     const j = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, person: ein.personId ?? null,
+      dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, person: ein.personId ?? null,
       nachrichten, tools, schema: runde >= MAX_RUNDEN - 1 ? SCHEMA_B : undefined,
     }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
     if ((j as any).fehler) return { ...leer, grund: `Modell nicht erreichbar: ${(j as any).fehler}`, handlungen };
@@ -2492,24 +2553,28 @@ export async function antwortErzeugen(ein: {
       nachrichten.push(nachricht);
       // Kein Werkzeug mehr — jetzt die Antwort im Schema anfordern.
       const fertig = await kiAufruf({
-        dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B, person: ein.personId ?? null,
+        dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B, person: ein.personId ?? null,
         nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
       }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
       if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
       kosten += kostenCentsAus(MODELL(), (fertig as any)?.usage);
       const roh = antwortLesen(fertig, "Antwort");
       // 21.09.2026: Was Mara Neues über den Menschen weiß, bleibt — auch wenn die Antwort ein Entwurf wird.
-      await gedaechtnisMerken(ein.personId, roh?.merken, "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
+      await gedaechtnisMerken(ein.personId, roh?.merken, anliegen ? "anliegen" : "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
       return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
         kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht, angaben,
         zusage,
+        ...(anliegen ? { kanal: "anliegen" as const, dienst } : {}),
       });
     }
 
     nachrichten.push(nachricht);
     for (const ruf of rufe) {
-      const w = werkzeugVonName(ruf.function?.name);
+      // E-406 C1: Im Anliegen nur die Werkzeuge, die es dort gibt — ein erfundener Aufruf (z. B. kuendigung_vormerken) läuft nie.
+      const w = anliegen
+        ? werkzeuge.find((x) => x.name === String(ruf.function?.name ?? ""))
+        : werkzeugVonName(ruf.function?.name);
       if (!w) {
         nachrichten.push({ role: "tool", tool_call_id: ruf.id, content: JSON.stringify({ ok: false, fehler: "Unbekanntes Werkzeug." }) });
         continue;
@@ -2578,6 +2643,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
   angaben?: import("./fiaon-mara-angaben-aendern").AngabenLage | null;
   /** E-406 B1 Nachbesserung: Was mit seinem genannten Zahltag geschah (fiaon-mara-zahlungszusage.ts). */
   zusage?: import("./fiaon-mara-zahlungszusage").ZusageLage | null;
+  /** E-406 C1: Kanal und KI-Dienst — fehlen sie, ist es die Mail (postmeister-antwort). */
+  kanal?: AntwortKanal;
+  dienst?: string;
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
@@ -2611,7 +2679,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // nicht mehr von selbst an (er liest sie aus einem Zahlungs-Knopf). Die Rate
   // bleibt aber Teil derselben Mail — also hängt der Server sie hier an.
   const rateRef = k.werkzeugDaten.zahlungslink_bauen?.verwendungszweck;
-  if (schrittFinal?.art === "auskunft" && zahlLage && rateRef && !k.handlungen.some((h) => h.ok && h.werkzeug === "rechnung_anhaengen")) {
+  // E-406 C1: Ein Anliegen hat keinen Anhang — dort steht die Rate als Satz im Text (Prüfung unten), nichts wird angehängt.
+  if (k.kanal !== "anliegen" && schrittFinal?.art === "auskunft" && zahlLage && rateRef && !k.handlungen.some((h) => h.ok && h.werkzeug === "rechnung_anhaengen")) {
     const w = werkzeugVonName("rechnung_anhaengen");
     const erg: WerkzeugErgebnis | null = w ? await w.ausfuehren({ referenz: rateRef }, k.kontext).catch(() => null) : null;
     if (erg?.ok) k.handlungen.push({ werkzeug: "rechnung_anhaengen", ergebnis: erg.ergebnis, ok: true });
@@ -2847,7 +2916,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     ].join("\n");
     const weichVorher = weich;
     const neu = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B, person: k.kontext?.personId ?? null,
+      dienst: k.dienst ?? "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B, person: k.kontext?.personId ?? null,
       nachrichten: [...k.nachrichten, { role: "user", content: `Deine Antwort hat diese Mängel:\n${liste}\n\nSchreib sie neu — dieselbe Sache, ohne die Mängel, im Ton von WER DU BIST (warm, mutmachend, mit Aussicht, ohne Zusage). Nichts erfinden.` }],
     }).catch((e) => { if (istKiPause(e)) throw e; return null; }); // E-246: in der Pause liegen lassen, nicht die Mängel-Fassung nehmen
     if (neu) {

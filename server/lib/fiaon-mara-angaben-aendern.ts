@@ -260,7 +260,7 @@ export async function emailBestaetigen(token: string, lauf: Lauf = sqlPool): Pro
       await lauf`UPDATE fiaon_mara_angaben SET stand = 'link_geschickt', bestaetigt_am = NULL, grund = ${erg.error.msg}, aktualisiert_am = NOW() WHERE id = ${z.id}`;
       return r("fehler");
     }
-    await vermerk(Number(z.person_id), g.ref, z.kanal === "whatsapp" ? "whatsapp" : "mail",
+    await vermerk(Number(z.person_id), g.ref, kanalAus(z.kanal),
       `Der Kunde hat seine neue E-Mail-Adresse über den Bestätigungslink bestätigt: ${z.vorher || "leer"} → ${z.nachher}. Gespeichert (Akte, Person, Anmeldung).`,
       `[Angaben bestätigt #${z.id}]`, lauf);
     return r("bestaetigt");
@@ -319,13 +319,13 @@ export async function emailStoppen(token: string, lauf: Lauf = sqlPool): Promise
       // Alle anderen offenen Links derselben Person gelten ebenso nicht mehr (ein Fremder könnte mehrere angefordert haben).
       await lauf`UPDATE fiaon_mara_angaben SET stand = 'gestoppt', grund = 'gestoppt mit #' || ${String(z.id)}, aktualisiert_am = NOW()
                   WHERE person_id = ${Number(z.person_id)} AND feld = 'email' AND stand = 'link_geschickt' AND bestaetigt_am IS NULL`.catch(() => {});
-      await vermerk(Number(z.person_id), z.ref ?? null, z.kanal === "whatsapp" ? "whatsapp" : "mail",
+      await vermerk(Number(z.person_id), z.ref ?? null, kanalAus(z.kanal),
         `ACHTUNG: Der Kunde hat über den Knopf in der Hinweis-Mail an seine bisherige Adresse gemeldet, dass er die Änderung der E-Mail-Adresse (→ ${z.nachher}) NICHT angefordert hat. Gestoppt — nichts geändert, der Bestätigungslink gilt nicht mehr.`,
         `[Angaben gestoppt #${z.id}]`, lauf);
       return r("gestoppt");
     }
     // Schon bestätigt: Alarm für den Menschen.
-    await vermerk(Number(z.person_id), z.ref ?? null, z.kanal === "whatsapp" ? "whatsapp" : "mail",
+    await vermerk(Number(z.person_id), z.ref ?? null, kanalAus(z.kanal),
       `ALARM: Der Kunde meldet über den Stopp-Knopf, dass er die Änderung der E-Mail-Adresse (${z.vorher} → ${z.nachher}) NICHT angefordert hat — sie war schon bestätigt. Bitte sofort prüfen und die bisherige Adresse wiederherstellen.`,
       `[Angaben Alarm #${z.id}]`, lauf);
     try {
@@ -354,6 +354,14 @@ export async function emailStoppen(token: string, lauf: Lauf = sqlPool): Promise
 // ═══════════════════════════════════════════════════════════════════════════
 // HANDELN
 // ═══════════════════════════════════════════════════════════════════════════
+/** E-406 C1: Der gespeicherte Kanal einer Zeile (alte Zeilen kennen nur mail/whatsapp). */
+function kanalAus(roh: unknown): AngabenKanal {
+  return roh === "whatsapp" ? "whatsapp" : roh === "anliegen" ? "anliegen" : "mail";
+}
+/** Wer in der Akte als Bearbeiter steht. */
+function akteurName(kanal: AngabenKanal): string {
+  return kanal === "whatsapp" ? "Mara (WhatsApp)" : kanal === "anliegen" ? "Mara (Anliegen)" : "Mara (Mail)";
+}
 async function vermerk(personId: number, ref: string | null, kanal: AngabenKanal, text: string, marke: string, lauf: Lauf): Promise<void> {
   const [schon] = (await lauf`
     SELECT 1 FROM fiaon_contact_log WHERE person_id = ${personId} AND agent_id IS NULL AND type = 'system'
@@ -361,7 +369,7 @@ async function vermerk(personId: number, ref: string | null, kanal: AngabenKanal
   if (schon) return;
   await lauf`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-    VALUES (${ref}, ${personId}, NULL, ${kanal === "whatsapp" ? "Mara" : "Postmeister"}, 'system', ${`${text.slice(0, 900)} ${marke}`})`.catch(() => {});
+    VALUES (${ref}, ${personId}, NULL, ${kanal === "mail" ? "Postmeister" : "Mara"}, 'system', ${`${text.slice(0, 900)} ${marke}`})`.catch(() => {});
 }
 
 async function mailRaus(e: { personId: number; an: string; name: string | null; betreff: string; text: string; event: string;
@@ -438,7 +446,10 @@ export async function angabenAendernBehandeln(ein: {
       bisher: { anschrift: g.anschrift, email: g.email, telefon: g.telefon },
     });
     if (!erk.wuensche.length && !erk.verboten.length) return null;
-    const absenderBekannt = ein.kanal === "mail"
+    // E-406 C1 (19.10.2026): Im Anliegen ist er im Kundenbereich ANGEMELDET (requireKunde) — dort darf er Anschrift, E-Mail
+    // und Telefon ohnehin selbst ändern (Meine Daten, PATCH /kunde/:ref/stammdaten). Der Absender ist damit er selbst.
+    const absenderBekannt = ein.kanal === "anliegen" ? true
+      : ein.kanal === "mail"
       ? !!absender && g.mails.some((m) => mailGleich(m, absender))
       // WhatsApp: die GANZE Nummer mit Landesvorwahl (nicht nur die letzten neun Ziffern).
       : !!ein.nummer && g.nummern.some((n) => waNummerGleich(ein.nummer, n, landNorm(g.land)));
@@ -456,7 +467,8 @@ export async function angabenAendernBehandeln(ein: {
     const ergebnisse: FeldErgebnis[] = [];
     const vermerkTeile: string[] = [];
     let wiederholt = false;
-    const quelleText = ein.kanal === "whatsapp" ? `WhatsApp von ${absenderOk ? "der hinterlegten Nummer" : `einer anderen Nummer (…${String(ein.nummer ?? "").replace(/\D/g, "").slice(-4)})`}`
+    const quelleText = ein.kanal === "anliegen" ? "Anliegen im Kundenbereich (angemeldet)"
+      : ein.kanal === "whatsapp" ? `WhatsApp von ${absenderOk ? "der hinterlegten Nummer" : `einer anderen Nummer (…${String(ein.nummer ?? "").replace(/\D/g, "").slice(-4)})`}`
       : `Mail ${absenderOk ? "vom hinterlegten Absender" : absenderUnbestaetigt ? `mit der hinterlegten Adresse als Absender, aber NICHT bestätigt (${echtheit?.grund})` : `von ${absender || "unbekannt"} (nicht hinterlegt)`}`;
 
     for (const w of erk.wuensche) {
@@ -517,7 +529,7 @@ export async function angabenAendernBehandeln(ein: {
         if ((neu.ort ?? "") !== (g.anschrift.ort ?? "")) body.city = neu.ort;
         const { updateCustomerContact } = await import("../routes/fiaon-agent");
         const erg = Object.keys(body).length
-          ? await updateCustomerContact(g.ref, body, { id: null, name: ein.kanal === "whatsapp" ? "Mara (WhatsApp)" : "Mara (Mail)" })
+          ? await updateCustomerContact(g.ref, body, { id: null, name: akteurName(ein.kanal) })
           : { changes: [] as any[] };
         if ((erg as any).error) {
           e.stand = "mensch"; e.grund = `Speichern ging nicht: ${(erg as any).error.msg}`;
@@ -527,12 +539,12 @@ export async function angabenAendernBehandeln(ein: {
           await lauf`UPDATE fiaon_persons SET country = ${neu.land}, updated_at = NOW() WHERE id = ${personId}`;
           await lauf`
             INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-            VALUES (${g.ref}, ${personId}, NULL, ${ein.kanal === "whatsapp" ? "Mara (WhatsApp)" : "Mara (Mail)"}, 'edit',
-                    ${`Land korrigiert durch ${ein.kanal === "whatsapp" ? "Mara (WhatsApp)" : "Mara (Mail)"}: ${g.land || "—"} → ${neu.land}`})`.catch(() => {});
+            VALUES (${g.ref}, ${personId}, NULL, ${akteurName(ein.kanal)}, 'edit',
+                    ${`Land korrigiert durch ${akteurName(ein.kanal)}: ${g.land || "—"} → ${neu.land}`})`.catch(() => {});
         }
       } else if (soll === "geaendert" && w.feld === "telefon") {
         const { updateCustomerContact } = await import("../routes/fiaon-agent");
-        const erg = await updateCustomerContact(g.ref, { phone: String((w as any).wert) }, { id: null, name: ein.kanal === "whatsapp" ? "Mara (WhatsApp)" : "Mara (Mail)" });
+        const erg = await updateCustomerContact(g.ref, { phone: String((w as any).wert) }, { id: null, name: akteurName(ein.kanal) });
         if (erg.error) { e.stand = "mensch"; e.grund = `Speichern ging nicht: ${erg.error.msg}`; }
         else if (g.email && !mailPlausibel(g.email)) {
           // Der Hinweis an die gespeicherte Adresse — wer es nicht war, meldet sich.

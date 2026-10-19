@@ -172,12 +172,21 @@ export async function genannterTerminBehandeln(ein: {
   bezug?: Date | null;
   /** E-401 Nachbesserung: Er fragt selbst nach Karte, Link oder Zahlung — Mara erfüllt das (kein „zurücknehmen“ dafür). */
   kundeFragtSelbst?: boolean;
+  /**
+   * E-406 C1 (19.10.2026): Ein Anliegen aus dem Kundenbereich — dieselbe Regel wie die Mail (Kanal „mail“), nur der
+   * Beleg heißt „Anliegen #…“, und „heute“/„morgen“ zählt ab dem Tag, an dem er es geschrieben hat (`am`): Ein
+   * Anliegen kann nach einer KI-Pause oder über Nacht liegen. Fehlt es: alles wie bisher.
+   */
+  anliegen?: { id: number | null; am: Date | null } | null;
 }, lauf: Lauf = sqlPool): Promise<GenanntLage | null> {
   if (!ein.personId || !String(ein.kundeText ?? "").trim()) return null;
   const personId = ein.personId;
   const jetzt = ein.jetzt ?? new Date();
   const kanal: GenanntKanal = ein.kanal === "whatsapp" ? "whatsapp" : "mail";
   const wa = kanal === "whatsapp";
+  const anl = !wa && !!ein.anliegen;
+  // E-406 C1: im Anliegen der Tag, an dem er schrieb (wie `bezug` auf WhatsApp).
+  if (anl && ein.anliegen?.am && !ein.bezug) ein = { ...ein, bezug: ein.anliegen.am };
   // E-401: Ohne Uhrzeit kein genannter Termin — auf WhatsApp (jede Nachricht kommt hierher) dann gar keine Abfrage.
   if (wa && !uhrzeitenGenannt(ein.kundeText).length) return null;
   const [person] = (await lauf`SELECT ist_test_am, assigned_agent_id, COALESCE(is_blocked, FALSE) AS gesperrt FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
@@ -190,7 +199,7 @@ export async function genannterTerminBehandeln(ein: {
      WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW() - INTERVAL '1 hour'`.catch(() => [])) as any[])
     .map((t): BestehenderTerminKurz => ({ id: Number(t.id), beginn: t.beginn, agentId: Number(t.agent_id), status: String(t.status) }));
 
-  const e = genannterTermin({ kundeText: ein.kundeText, jetzt: wa && ein.bezug ? ein.bezug : jetzt, notizen, mitarbeiter: team, bestehende });
+  const e = genannterTermin({ kundeText: ein.kundeText, jetzt: (wa || anl) && ein.bezug ? ein.bezug : jetzt, notizen, mitarbeiter: team, bestehende });
   if (e.art === "keiner" || e.art === "vergangen") return null;
   // E-401: Auf WhatsApp nur ein Termin, der schon feststeht — das Aushandeln mit Mara bleibt der Rückruf-Weg (E-236).
   if (wa && !genanntAufWhatsApp(e, { kundeText: ein.kundeText, letzteRaus: ein.letzteRaus ?? null }).gilt) return null;
@@ -204,12 +213,12 @@ export async function genannterTerminBehandeln(ein: {
   const { parseBerlinInput } = await import("./fiaon-time");
   const beginn = e.wandzeit ? parseBerlinInput(e.wandzeit) : null;
   // E-401: Kam seine Nachricht früher (bezug), kann der Zeitpunkt inzwischen vorbei sein — dann wie „vergangen“.
-  if (wa && ein.bezug && beginn && beginn.getTime() <= jetzt.getTime()) return null;
+  if ((wa || anl) && ein.bezug && beginn && beginn.getTime() <= jetzt.getTime()) return null;
   lage.kundenZeit = beginn ? zeitFuerKunde(beginn, jetzt) : (e.uhrzeit ? `um ${e.uhrzeit.replace(/:00$/, "")} Uhr` : null);
   const wann = lage.kundenZeit ?? "zur genannten Zeit";
   const zurueck = ein.kundeFragtSelbst ? ZURUECK_GEFRAGT : wa ? ZURUECK_WA : ZURUECK;
   const waNotiz = wa ? { marke: ein.waId ? `[WhatsApp #${ein.waId}]` : null } : null;
-  const wo = wa ? "per WhatsApp" : "in seiner Mail";
+  const wo = wa ? "per WhatsApp" : anl ? `in seinem Anliegen im Kundenbereich${ein.anliegen?.id ? ` [Anliegen #${ein.anliegen.id}]` : ""}` : "in seiner Mail";
 
   if (e.art === "steht_schon" && e.bestehend) {
     const a = team.find((x) => x.id === e.bestehend!.agentId);
@@ -280,7 +289,9 @@ export async function genannterTerminBehandeln(ein: {
         lage.uhrzeitTermin = berlinWand(new Date(b.beginn)).hhmm;
         const notiz = wa
           ? `Vom Kunden per WhatsApp genannt${ein.waId ? ` [WhatsApp #${ein.waId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`
-          : `Vom Kunden in einer E-Mail genannt${ein.postmeisterId ? ` [Mail #${ein.postmeisterId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`;
+          : anl
+            ? `Vom Kunden in einem Anliegen im Kundenbereich genannt${ein.anliegen?.id ? ` [Anliegen #${ein.anliegen.id}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`
+            : `Vom Kunden in einer E-Mail genannt${ein.postmeisterId ? ` [Mail #${ein.postmeisterId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`;
         await lauf`UPDATE fiaon_termine SET notiz = ${notiz.slice(0, 1000)}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
         const { buchungMelden } = await import("./fiaon-termin-meldung");
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
@@ -290,6 +301,7 @@ export async function genannterTerminBehandeln(ein: {
           text: `Vereinbarten Termin eingetragen: ${b.datumText} ${b.uhrzeit} Uhr bei ${wer.roh.name} (${e.beleg === "notiz" ? "passt zur Team-Notiz" : "laut Kunde"}).`,
           daten: wa
             ? { beginn: b.beginn, beleg: e.beleg, thema: e.thema, whatsapp: ein.waId ?? null }
+            : anl ? { beginn: b.beginn, beleg: e.beleg, thema: e.thema, anliegen: ein.anliegen?.id ?? null }
             : { beginn: b.beginn, beleg: e.beleg, thema: e.thema, mail: ein.postmeisterId ?? null },
         }, lauf);
         await notizSchreiben(personId, ein.ref, `Mara: Termin ${b.datumText} ${b.uhrzeit} Uhr mit ${wer.roh.name} eingetragen — der Kunde hat ihn ${wo} genannt${e.beleg === "notiz" && e.notiz ? `; passt zur Notiz von ${e.notiz.agentName}` : ""}.`, lauf, waNotiz);

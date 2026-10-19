@@ -48,6 +48,8 @@ const AuskunftVerkauf = lazy(() => import("./ChefAuskunft"));
 const AuskunftBeschaffung = lazy(() => import("./ChefAuskunftBeschaffung"));
 // E-260 (29.09.2026): Maras Termine — der vierte Reiter, erst beim Öffnen geladen.
 const MaraTermine = lazy(() => import("./ChefMaraTermine"));
+// E-406 C1 (19.10.2026): Schalter „Mara beantwortet Anliegen im Kundenbereich“ — im Reiter Mail.
+const MaraAnliegenSchalter = lazy(() => import("./ChefMaraAnliegen"));
 // E-294 (06.10.2026): das Social-Studio — der fünfte Reiter, erst beim Öffnen geladen.
 const MaraSocial = lazy(() => import("./ChefMaraSocial"));
 // E-370 (15.10.2026): Maras Entscheidungen — der sechste Reiter (vorn), erst beim Öffnen geladen.
@@ -494,6 +496,8 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               <p className="mara-hinweis warn"><span className="mara-punkt warn" aria-hidden="true" /><span>Aktion pausiert — Postfach-Antworten laufen weiter.</span></p>
             </div>
           )}
+          {/* E-406 C1: Anliegen aus dem Kundenbereich — Mara antwortet selbst (Schalter, Standard an). */}
+          <Suspense fallback={null}><MaraAnliegenSchalter /></Suspense>
 
           {/* ── Wirkung 14 Tage: die Kette bis zum Geld ───────────────────── */}
           <div className="mara-kette mp-kette" aria-label="Wirkung 14 Tage"

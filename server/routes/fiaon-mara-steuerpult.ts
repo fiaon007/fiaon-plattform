@@ -646,6 +646,40 @@ router.post("/chef/mara/raten-erinnerung", wache, async (req: ChefRequest, res: 
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ANLIEGEN AUS DEM KUNDENBEREICH (19.10.2026, E-406 C1) — Schalter im Reiter „Mail“
+//
+// Justin (Vorschlag 3, Etappe C): Mara beantwortet Anliegen aus „Hilfe & Anliegen“ selbst
+// (server/lib/fiaon-mara-anliegen.ts). Heikles bleibt beim Menschen.
+//   GET  /chef/mara/anliegen   Schalter + Zahlen (heute, 7 Tage, Vorschläge, beim Menschen, wartet, Kosten)
+//   POST /chef/mara/anliegen   { an: boolean } — Standard „an“; jedes An/Aus im Chef-Protokoll
+// Keine neue Seite (Hausregel „Keine neuen Chef-Seiten“).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/mara/anliegen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { anliegenStand } = await import("../lib/fiaon-mara-anliegen");
+    res.json({ ok: true, ...(await anliegenStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] anliegen:", err);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/anliegen", wache, async (req: ChefRequest, res: Response) => {
+  if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "an: true oder false." });
+  try {
+    const an = req.body.an === true;
+    const { anliegenSchalterSetzen, anliegenStand } = await import("../lib/fiaon-mara-anliegen");
+    await anliegenSchalterSetzen(an);
+    void chefProtokoll(req, "mara_anliegen", an ? "an" : "aus");
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: Anliegen aus dem Kundenbereich ${an ? "AN" : "AUS"}`);
+    res.json({ ok: true, ...(await anliegenStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] anliegen setzen:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht speichern — es bleibt, wie es war." });
+  }
+});
+
 router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, res: Response) => {
   const id = Number(req.params.id);
   const ergebnis = String(req.body?.ergebnis ?? "");

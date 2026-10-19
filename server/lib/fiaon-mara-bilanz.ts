@@ -50,7 +50,8 @@ export const STARTS = {
 } as const;
 
 /** Die KI-Dienste, die zu Mara gehören (fiaon_ki_nutzung.dienst). */
-export const MARA_DIENSTE = ["mara-aktion", "mara-whatsapp", "mara-auftrag", "postmeister-antwort", "postmeister-einordnen"] as const;
+/** E-406 C1: dazu „mara-anliegen“ (Anliegen aus dem Kundenbereich). */
+export const MARA_DIENSTE = ["mara-aktion", "mara-whatsapp", "mara-auftrag", "postmeister-antwort", "postmeister-einordnen", "mara-anliegen"] as const;
 
 /** Auskunft-Bestellung erkennen — dieselbe Regel wie fiaon-auskunft-verkauf.ts (IST_AUSKUNFT). */
 export const IST_AUSKUNFT_SQL = (a: string) => `(COALESCE(${a}.type, '') = 'schufa' OR ${a}.ref LIKE 'FIAON-SCHUFA-%')`;

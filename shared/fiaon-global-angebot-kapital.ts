@@ -34,6 +34,7 @@ import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, ty
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
 import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung, FirmaSonderfreigabe } from "./fiaon-global-angebot-firma-typen";
 import { portraitUrl, portraitMitKi } from "./fiaon-portraits";
+import { FIRMA_BILD_NAME, firmaBildPfad } from "./fiaon-global-angebot-firma";
 import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -206,7 +207,7 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
       p(`Gegenstand sind die Gründung einer US-Gesellschaft (Ziffer 2), das Experten-Team (Ziffer 3), die Kapital-Begleitung (Ziffer 4) und die Bürgschaft der US-Partnergesellschaft von FIAON (Ziffer 5). Die Gesellschaft gehört allein ihrem Gesellschafter; FIAON erwirbt an ihr keine Anteile.`),
     ] },
     { nr: 2, titel: "Gründung der US-Gesellschaft", absaetze: [
-      p(`FIAON gründet eine Limited Liability Company (LLC) nach dem Recht des Bundesstaats ${par.bundesstaat}. Gesellschafterin wird die Auftraggeberin; empfiehlt der Steuerberater nach seiner Prüfung (Ziffer 3) eine andere Gestaltung, etwa ihren Vertreter persönlich, entscheidet die Auftraggeberin in Textform. Den Namen bestimmt die Auftraggeberin bei der Annahme (Annahmevermerk): FIAON prüft die Verfügbarkeit im Register und meldet die Gesellschaft unter dem Wunschnamen an, sonst unter dem ersten verfügbaren Ausweichnamen; ist keiner verfügbar, stimmt FIAON einen neuen Namen in Textform ab.`),
+      p(`FIAON gründet eine Limited Liability Company (LLC) nach dem Recht des Bundesstaats ${par.bundesstaat}. Gesellschafter wird auf Wunsch der Auftraggeberin ihr Vertreter, ${v.anrede ? `${v.anrede} ` : ""}${kapitalVertretungName(d.kunde)}, persönlich; mit seiner Unterschrift unter diesem Vertrag erklärt er sich damit einverstanden. Empfiehlt der Steuerberater nach seiner Prüfung (Ziffer 3) eine andere Gestaltung, entscheidet die Auftraggeberin in Textform. Den Namen bestimmt die Auftraggeberin bei der Annahme (Annahmevermerk): FIAON prüft die Verfügbarkeit im Register und meldet die Gesellschaft unter dem Wunschnamen an, sonst unter dem ersten verfügbaren Ausweichnamen; ist keiner verfügbar, stimmt FIAON einen neuen Namen in Textform ab.`),
       liste([
         "Anmeldung der Gesellschaft beim Bundesstaat (Articles of Organization) einschließlich der Staatsgebühr",
         "Operating Agreement, erstellt vom Partner-Anwalt",
@@ -373,25 +374,34 @@ export interface KapitalSeite {
   buergschaft: { auge: string; titel: string; lead: string; betrag: string; freigabe: string; punkte: { titel: string; text: string }[]; bedingungenTitel: string; bedingungen: string[]; fein: string };
   pruefbericht: { titel: string; sub: string; download: string; hinweis: string };
   sonderfreigabe: FirmaSonderfreigabe | null;
-  investition: { titel: string; sub: string; preis: string; preisZeile: string; posten: { betrag: string; titel: string; text: string }[]; inklusive: string[]; garantie: string; fein: string };
+  investition: { titel: string; sub: string; heuteAuge: string; preis: string; preisZeile: string; spaeterTitel: string; posten: { wann: string; betrag: string; titel: string; text: string }[]; jahr: string; inklusive: string[]; garantie: string; fein: string };
   fragen: { titel: string; sub: string; liste: FirmaFrage[]; sichtbar: number };
   ansprechpartner: { titel: string; sub: string; teamTitel: string; teamSub: string; team: { name: string; rolle: string; foto: string | null; initialen: string }[] };
   vertrag: { titel: string; sub: string; dokument: string; unterzeile: string; inhalt: { anker: string; marke: string; titel: string }[] };
   pflicht: string[];
+  bildnachweis: string;
 }
 function initialen(name: string): string {
   return name.replace(/^(Dr\.|Mag\.|Prof\.)\s+/g, "").split(/\s+/).filter(Boolean).map((t) => t[0]).join("").slice(0, 2).toUpperCase();
 }
-/** Das Team aus den Angebotsdaten: ein Foto NUR als „haus:<kürzel>“ eines echten Porträts, sonst Monogramm (wie E-301). */
-export function kapitalTeam(par: KapitalParameter): { name: string; rolle: string; foto: string | null; initialen: string }[] {
+/**
+ * Das Team aus den Angebotsdaten (wie E-301): „haus:<kürzel>“ = echtes Porträt des Hauses; ein Bildname („team-x.webp“) = Foto am
+ * Angebot, ausgeliefert NUR hinter dem Link (token nötig, sonst Monogramm). Bildnamen-Fotos sind teils Symbolbilder — die Seite
+ * nennt das im Bildnachweis (kapitalBildnachweis).
+ */
+export function kapitalTeam(par: KapitalParameter, token?: string): { name: string; rolle: string; foto: string | null; initialen: string }[] {
   return par.team.map((t) => {
     const f = String(t.foto ?? "");
     const k = f.startsWith("haus:") ? f.slice(5) : "";
-    const foto = k && /^[a-z][a-z0-9-]{1,30}$/.test(k) && !portraitMitKi(k) ? portraitUrl(k) : null;
+    const foto = k ? (/^[a-z][a-z0-9-]{1,30}$/.test(k) && !portraitMitKi(k) ? portraitUrl(k) : null)
+      : FIRMA_BILD_NAME.test(f) && token ? firmaBildPfad(token, f) : null;
     return { name: t.name, rolle: t.rolle, foto, initialen: initialen(t.name) };
   });
 }
-export function kapitalSeite(d: KapitalDaten): KapitalSeite {
+export function kapitalBildnachweis(par: KapitalParameter): string {
+  return par.team.some((t) => FIRMA_BILD_NAME.test(String(t.foto ?? ""))) ? "Bildnachweis: Teamfotos teils Symbolbilder." : "";
+}
+export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
   const par = d.parameter; const k = d.kunde;
   const betrag = kapitalChf(par.kapitalChf);
   const karten = `${kapitalUsd(par.kartenVonUsd)} bis ${kapitalUsd(par.kartenBisUsd)}`;
@@ -469,14 +479,16 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
     sonderfreigabe: par.sonderfreigabe,
     investition: {
       titel: "Ihre Investition",
-      sub: "Ein Festpreis für das ganze erste Jahr — und zwei Beträge erst dann, wenn es für Sie arbeitet.",
+      sub: "Heute zahlen Sie nur eines. Alles Weitere erst, wenn es für Sie arbeitet.",
+      heuteAuge: "Heute",
       preis: kapitalEur(par.preisCents),
-      preisZeile: "für das ganze erste Jahr, alles inklusive — fällig mit dem Auftrag",
+      preisZeile: "für das ganze erste Jahr — alles inklusive",
+      spaeterTitel: "Später — erst wenn es so weit ist",
       posten: [
-        { betrag: kapitalEur(par.buergschaftCents), titel: "Bürgschaft", text: "einmalig, sobald die Bürgschaft für Sie steht" },
-        { betrag: kapitalEur(par.auszahlungCents), titel: "Bei Auszahlung", text: "erst wenn das Geld da ist — zahlbar aus der Finanzierung" },
-        { betrag: kapitalEur(par.jahresCents), titel: "Ab dem zweiten Jahr", text: "Jahresbetreuung Ihrer LLC, jährlich kündbar" },
+        { wann: "Wenn Ihre Gesellschaft steht", betrag: kapitalEur(par.buergschaftCents), titel: "Bürgschaft", text: "sobald die Bürgschaft für Sie zugesagt ist" },
+        { wann: "Wenn Ihr Geld da ist", betrag: kapitalEur(par.auszahlungCents), titel: "Bei Auszahlung", text: "bequem aus der Finanzierung bezahlt" },
       ],
+      jahr: `Ab dem zweiten Jahr ${kapitalEur(par.jahresCents)} im Jahr für die Betreuung Ihrer LLC — jährlich kündbar.`,
       inklusive: [
         "Gründung Ihrer LLC mit Staatsgebühr und Operating Agreement",
         "Registered Agent, US-Adresse und Telefon im ersten Jahr",
@@ -499,7 +511,7 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
         { frage: "Wann ist das Geld auf meinem Konto?", antwort: ["Unser Plan: Woche eins die LLC, Woche zwei alle Dokumente, Woche drei Konto und Kreditkarten, Woche vier bis fünf Finanzierung und Auszahlung."] },
         { frage: "Was kostet mich die Bürgschaft?", antwort: [`Einmalig ${kapitalEur(par.buergschaftCents)}, sobald sie steht — ohne Sicherheiten. Nur wenn das Institut die Bürgin tatsächlich in Anspruch nimmt, ersetzen Sie ihr den Betrag, wie bei jeder Bürgschaft.`] },
         { frage: "Und die Kreditkarten?", antwort: [`Kommen dazu: Business-Kreditkarten von Herausgebern wie ${par.kartenHerausgeber}, mit Rahmen von ${karten} je Karte — zusätzlich zu Ihrer Finanzierung.`] },
-        { frage: "Wem gehört die LLC?", antwort: ["Ihnen: Gesellschafterin wird Ihr Unternehmen, oder — wenn der Steuerberater das empfiehlt und Sie es wollen — Sie persönlich. FIAON erwirbt keine Anteile."] },
+        { frage: "Wem gehört die LLC?", antwort: ["Ihnen persönlich: Wir gründen die LLC auf Ihren Namen, den Vertrag schließen wir mit Ihrem Unternehmen. FIAON erwirbt keine Anteile."] },
         { frage: "Was ist mit den Steuern in der Schweiz?", antwort: ["Genau dafür prüft unser Steuerberater die Struktur vor der Gründung — einschließlich Doppelbesteuerungsabkommen und Meldepflichten. Sie bekommen das Ergebnis schriftlich."] },
         { frage: "Mein Prüfbericht zeigt offene Punkte — ist das ein Problem?", antwort: ["Nein. Herr Schwarzott hat die Bürgschaft persönlich freigegeben. Die Nachweise reichen Sie mit Ihren Unterlagen nach."] },
         { frage: "Was passiert nach dem ersten Jahr?", antwort: [`Die Jahresbetreuung für ${kapitalEur(par.jahresCents)} hält Ihre LLC in Ordnung: Registered Agent, Adresse, Jahresmeldungen, Staatsgebühr. Sie können sie jährlich beenden.`] },
@@ -510,7 +522,7 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
       sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage und danach bei jedem Schritt.",
       teamTitel: "Ihr Team",
       teamSub: "Diese Menschen arbeiten an Ihrem Auftrag mit.",
-      team: kapitalTeam(par),
+      team: kapitalTeam(par, token),
     },
     vertrag: {
       titel: "Ihr Vertrag",
@@ -520,6 +532,7 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
       inhalt: kapitalVertragInhalt(d),
     },
     pflicht: [...ANGEBOT_PFLICHTHINWEIS, KAPITAL_PFLICHT_ZUSATZ],
+    bildnachweis: kapitalBildnachweis(par),
   };
 }
 
@@ -557,7 +570,7 @@ export function kapitalAnnahmeTexte(d: KapitalDaten): KapitalAnnahmeTexte {
   return {
     titel: "Auftrag erteilen",
     sub: "Name Ihrer Gesellschaft, zwei Häkchen, unterschreiben — fertig.",
-    vertretung: `Ich bin berechtigt, die ${d.kunde.firma.name} bei diesem Vertrag zu vertreten.`,
+    vertretung: `Ich bin berechtigt, die ${d.kunde.firma.name} bei diesem Vertrag zu vertreten, und bin einverstanden, persönlich Gesellschafter der neuen LLC zu werden.`,
     gelesen: "Ich habe den Vertrag und den Prüfbericht gelesen.",
     unterschrift: {
       titel: "Ihre Unterschrift",
@@ -579,8 +592,11 @@ export const KAPITAL_ANNAHME = {
   neuLaden: "Das Angebot wurde inzwischen geändert — bitte laden Sie die Seite neu und lesen Sie die aktuelle Fassung.",
   fertigTitel: "Glückwunsch — Ihr Auftrag steht.",
   fertigText: (email: string, llc: string) => `Ihre Rechnung über den Festpreis kommt gleich an ${email}. Mit Ihrem Zahlungseingang melden wir ${llc} an — Ihr Ansprechpartner meldet sich heute noch für die nächsten Schritte.`,
-  fertigZahlung: "Fällig ist jetzt nur der Festpreis. Die Bürgschaft und Ihr Team sind darin enthalten; die Jahresbetreuung beginnt erst im zweiten Jahr.",
-  fertigFuss: "Für die Anmeldung brauchen wir Pass, Handelsregister- und Betreibungsauszug — Ihr Ansprechpartner sagt Ihnen, wie Sie sie sicher hochladen. Fragen? support@fiaon.com",
+  fertigZahlung: "Fällig ist jetzt nur der Festpreis für das ganze erste Jahr. Bürgschaftsgebühr und Vergütung bei Auszahlung kommen erst, wenn es so weit ist; die Jahresbetreuung beginnt im zweiten Jahr.",
+  fertigFuss: "Fragen? Ihr Ansprechpartner ist für Sie da — oder schreiben Sie uns an support@fiaon.com.",
+  schrittTitel: "Nächster Schritt: Ihr Reisepass",
+  schrittText: "Wir gründen Ihre LLC auf Ihren Namen. Laden Sie dafür jetzt eine Farbkopie Ihres Reisepasses hoch — in Ihrem persönlichen Auftragsbereich, sicher verschlüsselt. Dort sehen Sie auch Rechnung und jeden weiteren Schritt.",
+  schrittKnopf: "Reisepass jetzt hochladen",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -125,3 +125,21 @@
 /* Freigabe-Block in der Bürgschaft */
 .gkp-buerg-siegel-voll { grid-column:1 / -1; padding:26px 28px; border-radius:20px; background:#fff; border:1px solid rgba(40,141,250,.22); }
 .gkp .gkp-buerg-kopf .gkp-freigabe { display:flex; width:max-content; max-width:100%; margin:12px 0 10px; }
+
+/* ── E-402: Investition als Zahlungsweg — heute groß, später leise ─────── */
+.gkp-weg { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:stretch; }
+.gkp-weg-heute { position:relative; padding:34px 34px 30px; border-radius:24px; background:rgba(255,255,255,.88); border:1px solid rgba(40,141,250,.32); box-shadow:0 30px 70px -40px rgba(29,78,216,.5); }
+.gkp-weg-auge { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-tief); font-weight:500; margin-bottom:12px; }
+.gkp-weg-auge.leise { color:var(--leise); }
+.gkp-weg-punkt { position:absolute; left:-7px; top:38px; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--linie-2); }
+.gkp-weg-punkt.an { background:linear-gradient(135deg,#288dfa,#1d4ed8); border-color:#fff; box-shadow:0 0 0 4px rgba(40,141,250,.18); }
+.gkp-weg-spaeter { position:relative; padding:28px 30px; border-radius:24px; background:rgba(255,255,255,.5); border:1px dashed var(--linie-2); }
+.gkp-weg-schritt { position:relative; display:block; padding:14px 0 14px 22px; border-top:1px solid var(--linie); }
+.gkp-weg-schritt:first-of-type { border-top:0; }
+.gkp-weg-schritt .gkp-weg-punkt { left:0; top:20px; width:10px; height:10px; }
+.gkp-weg-wann { display:block; font-size:13px; color:var(--leise); }
+.gkp-weg-zeile { display:flex; align-items:baseline; gap:12px; margin-top:4px; }
+.gkp-weg-zeile b { font-family:var(--serif); font-weight:400; font-size:24px; color:var(--tinte); white-space:nowrap; }
+.gkp-weg-zeile span { font-size:14px; line-height:1.5; color:var(--leise); }
+.gkp-weg-jahr { margin-top:14px; font-size:13.5px; color:var(--leise); }
+@media (max-width:860px) { .gkp-weg { grid-template-columns:1fr; } .gkp-weg-punkt { display:none; } .gkp-weg-schritt { padding-left:0; } }

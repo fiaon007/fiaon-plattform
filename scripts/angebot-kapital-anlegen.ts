@@ -12,6 +12,8 @@
 //   … --schreiben                → legt an (nur gegen 127.0.0.1/localhost)
 //   … --schreiben --produktion   → gegen die Produktion, NUR mit Justins Go
 //   … --vorschau <datei.html>    → wohin die Vorschau des Vertrags geht (Vorgabe: neben der Datei)
+//   … --bilder <ordner>          → E-402: die Teamfotos (parameter.team[].foto als Bildname, z. B. team-x.webp) aus dem Ordner prüfen,
+//                                   ohne Metadaten an das Angebot binden (fiaon_global_angebot_bilder, nur hinter dem Link)
 // Ein zweiter Lauf legt kein zweites Angebot an: Gibt es für dieselbe E-Mail schon ein OFFENES Kapital-Angebot, trägt er
 // Kunde, Bürgin, Parameter, Prüfbericht und Gültigkeit dort nach (kapitalAendern). Ein angenommenes fasst er nie an.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -21,7 +23,7 @@ import path from "node:path";
 const arg = (name: string): string | null => { const i = process.argv.indexOf(name); return i > 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : null; };
 const schreiben = process.argv.includes("--schreiben");
 const produktion = process.argv.includes("--produktion");
-const datei = arg("--datei"); const complianceDatei = arg("--compliance"); const vorschauDatei = arg("--vorschau");
+const datei = arg("--datei"); const complianceDatei = arg("--compliance"); const vorschauDatei = arg("--vorschau"); const bilderOrdner = arg("--bilder");
 if (!datei) { console.error("ABBRUCH: --datei <angebot-daten.json> fehlt."); process.exit(2); }
 const url = String(process.env.DATABASE_URL ?? "");
 let host = "";
@@ -61,6 +63,21 @@ console.log(fehlt.length ? `Für die Annahme fehlt: ${fehlt.join(" · ")}` : "Pf
 
 if (!schreiben) { console.log("Nur Vorschau — zum Anlegen --schreiben."); await sqlPool.end(); process.exit(0); }
 
+// E-402: Teamfotos aus dem Ordner (nur Bildnamen aus den Daten) — geprüft und ohne Metadaten
+const { bildOhneMetadaten } = await import("../server/lib/fiaon-bild-bereinigen");
+const bilder: { name: string; daten: Buffer; typ: "image/webp" | "image/png" | "image/jpeg" }[] = [];
+if (bilderOrdner) {
+  for (const t of parameter.team) {
+    const n = String(t.foto ?? "");
+    if (!FS.FIRMA_BILD_NAME.test(n)) continue;
+    const pfad = path.join(bilderOrdner, n);
+    if (!fs.existsSync(pfad)) { console.error(`FEHLER Bild fehlt: ${n}`); process.exit(1); }
+    const b = bildOhneMetadaten(fs.readFileSync(pfad), n);
+    bilder.push({ name: n, daten: b.daten, typ: b.typ });
+  }
+  console.log(`Teamfotos: ${bilder.length} geprüft`);
+}
+
 await A.ensureAngebotTabellen();
 const [offen] = (await sqlPool`
   SELECT id, angebot_ref FROM fiaon_global_angebote
@@ -70,10 +87,12 @@ if (offen) {
   if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
   const z = (await A.angebotLesen({ id: Number(offen.id) }))!;
   const dz = C.kapitalDatenAus(z);
+  if (bilder.length) { const bs = await F.firmaBilderSpeichern(Number(offen.id), bilder, "Skript angebot-kapital-anlegen"); console.log(bs.ok ? `Bilder: ${bs.gespeichert} eingespielt` : `FEHLER Bilder: ${bs.error}`); }
   console.log(`Nachgetragen: ${offen.angebot_ref} · Link: ${A.angebotKundenPfad(A.angebotTokenErzeugen(dz.ref, dz.gueltigBis))}`);
 } else {
   const erg = await C.kapitalAnlegen({ ...roh, kunde: k.kunde, buergin, parameter, compliance: complianceRoh }, "Skript angebot-kapital-anlegen");
   if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
+  if (bilder.length) { const bs = await F.firmaBilderSpeichern(erg.id, bilder, "Skript angebot-kapital-anlegen"); console.log(bs.ok ? `Bilder: ${bs.gespeichert} eingespielt` : `FEHLER Bilder: ${bs.error}`); }
   console.log(`Angelegt: ${erg.ref} (id ${erg.id}) · Link: ${erg.link}`);
 }
 await sqlPool.end();

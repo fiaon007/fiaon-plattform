@@ -290,7 +290,8 @@ export interface FirmaBildDatei { name: string; daten: Buffer; typ: "image/webp"
 export async function firmaBilderSpeichern(id: number, bilder: FirmaBildDatei[], wer: string): Promise<Ergebnis<{ gespeichert: number; namen: string[] }>> {
   await ensureAngebotTabellen();
   const z = await angebotLesen({ id });
-  if (!z || !istFirmenAngebot(z)) return nein("Kein Firmenangebot.", 404);
+  // E-402: auch Kapital-Angebote (IA-KAPITAL-) tragen Teamfotos hinter dem Link.
+  if (!z || !(istFirmenAngebot(z) || String(z.fassung ?? "").startsWith("IA-KAPITAL-"))) return nein("Kein Firmen- oder Kapital-Angebot.", 404);
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — Bilder nur, solange es offen ist.`, 409);
   for (const b of bilder) if (!FIRMA_BILD_NAME.test(b.name)) return nein(`Bildname „${b.name}“ ungültig (klein, Ziffern, Bindestriche, .webp/.png/.jpg).`);
   for (const b of bilder) {
@@ -325,7 +326,7 @@ export async function firmaBildFuerToken(token: string, name: string): Promise<{
   if (!z) return { status: 404, error: "Kein Angebot zu diesem Link." };
   if (angebotLinkAbgelaufen(z)) return { status: 410, error: "Dieser Link ist abgelaufen." };
   if (angebotStatusAus(z) === "zurueckgezogen") return { status: 410, error: "Dieses Angebot gilt nicht mehr." };
-  if (!istFirmenAngebot(z)) return { status: 404, error: "Dieses Bild gibt es nicht." };
+  if (!istFirmenAngebot(z) && !String(z.fassung ?? "").startsWith("IA-KAPITAL-")) return { status: 404, error: "Dieses Bild gibt es nicht." };
   const [b] = (await sqlPool`SELECT mime, daten, sha256 FROM fiaon_global_angebot_bilder WHERE angebot_id = ${Number(z.id)} AND name = ${String(name)} LIMIT 1`.catch(() => [])) as any[];
   if (!b || !["image/webp", "image/png", "image/jpeg"].includes(String(b.mime))) return { status: 404, error: "Dieses Bild gibt es nicht." };
   return { status: 200, daten: Buffer.from(b.daten), typ: String(b.mime), sha256: String(b.sha256) };

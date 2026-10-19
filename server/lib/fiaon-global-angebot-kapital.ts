@@ -25,7 +25,7 @@ import {
   ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
 import { firmaUnterschriftPruefen, firmaKundePruefen, firmaBestellzeileAnlegen } from "./fiaon-global-angebot-firma";
-import { globalAkteLesen, globalBestellungLesen } from "./fiaon-global-auftrag";
+import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl } from "./fiaon-global-auftrag";
 import { complianceKundenfassung, complianceHtml } from "@shared/fiaon-global-angebot-firma";
 import type { ComplianceKundenfassung, FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
@@ -209,7 +209,7 @@ export async function kapitalKundenSicht(token: string, z: AngebotZeile, opts: {
     ok: true, status: "offen", art: "kapital", ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
     kunde: { firma: k.firma.name, marke: k.firma.marke || k.firma.name, anrede: k.vertretung.anrede, vorname: k.vertretung.vorname, nachname: k.vertretung.nachname, email: k.email },
     kundeAnrede: kapitalAnrede(k),
-    seite: kapitalSeite(d),
+    seite: kapitalSeite(d, token),
     compliance: d.compliance,
     ansprechpartner: kapitalAnsprechpartner(d.parameter).map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
     uebersicht: kapitalBestellUebersicht(d),
@@ -240,7 +240,9 @@ export async function kapitalAngenommenAntwort(z: AngebotZeile): Promise<Record<
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
     betragCents: d.parameter.preisCents,
     zahlungsseite: zweck ? `/zahlung/${encodeURIComponent(zweck)}?bereich=business` : null,
-    meinAuftrag: null, rechnungUrl: null,
+    // E-402: „Mein Auftrag“ — dort lädt er den Reisepass hoch (wir gründen auf ihn persönlich) und sieht die Rechnung.
+    meinAuftrag: ref1 && (await globalAkteLesen(ref1).catch(() => null)) ? globalMeinAuftragUrl(ref1) : null, rechnungUrl: null,
+    schrittTitel: KAPITAL_ANNAHME.schrittTitel, schrittText: KAPITAL_ANNAHME.schrittText, schrittKnopf: KAPITAL_ANNAHME.schrittKnopf,
     vertragUrl: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf`,
     fertigTitel: KAPITAL_ANNAHME.fertigTitel,
     fertigText: KAPITAL_ANNAHME.fertigText(d.kunde.email, llc),

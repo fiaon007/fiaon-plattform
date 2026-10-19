@@ -107,6 +107,8 @@ type Fertig = {
   startgespraech?: Startgespraech | null;
   /** E-312: Begleitvertrag — die gewählten Namen der Gesellschaft. */
   llc?: { wunsch: string; alternative1: string; alternative2: string } | null;
+  /** E-402: Kapital-Angebot — nächster Schritt nach der Annahme (Reisepass in „Mein Auftrag“). */
+  schrittTitel?: string; schrittText?: string; schrittKnopf?: string;
 };
 /** E-273 (02.10.2026): Was der Server über das Startgespräch schickt (startgespraechFuerKunde) — auch für „Mein Auftrag". */
 type Startgespraech = {
@@ -375,9 +377,17 @@ export default function BusinessAngebot() {
             {/* E-312: Begleitvertrag — der Name der Gesellschaft, wie der Kunde ihn gewählt hat. */}
             {fertig.llc?.wunsch && <p className="gs-ref"><span>Ihre Gesellschaft</span><b>{fertig.llc.wunsch}</b></p>}
             <p className="gia-fertig-satz">{fertig.fertigZahlung}</p>
+            {/* E-402: Kapital-Angebot — der nächste Schritt ist der Reisepass (die LLC entsteht auf seinen Namen), hochgeladen in „Mein Auftrag“. */}
+            {fertig.schrittTitel && fertig.meinAuftrag && (
+              <div className="gia-fertig-schritt" style={{ margin: "22px 0 6px", padding: "22px 24px", borderRadius: 18, background: "linear-gradient(160deg,#ffffff,#eef6ff)", border: "1px solid rgba(40,141,250,.3)" }}>
+                <p style={{ margin: 0, fontSize: 11, letterSpacing: ".2em", textTransform: "uppercase", color: "#1d4ed8", fontWeight: 500 }}>{fertig.schrittTitel}</p>
+                <p style={{ margin: "10px 0 16px", fontSize: 15, lineHeight: 1.65, color: "#0c1a2e" }}>{fertig.schrittText}</p>
+                <a className="gs-knopf" href={fertig.meinAuftrag}>{fertig.schrittKnopf}</a>
+              </div>
+            )}
             <div className="gia-fertig-knoepfe">
               {fertig.zahlungsseite && !fertig.teil1Bezahlt && <a className="gs-knopf" href={fertig.zahlungsseite}>Zur Zahlungsseite</a>}
-              {fertig.meinAuftrag && <a className="gia-knopf-leise" href={fertig.meinAuftrag}>Mein Auftrag öffnen</a>}
+              {fertig.meinAuftrag && !fertig.schrittTitel && <a className="gia-knopf-leise" href={fertig.meinAuftrag}>Mein Auftrag öffnen</a>}
             </div>
             {/* E-273: das Startgespräch, das das System nach der Annahme gebucht hat. */}
             {fertig.startgespraech && <StartgespraechBlock sg={fertig.startgespraech} />}

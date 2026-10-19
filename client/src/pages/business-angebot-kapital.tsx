@@ -319,12 +319,25 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
         <section className="gaf-abschnitt" id="investition" aria-label={I.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={I.titel} sub={I.sub} />
-            <Auf className="gkp-preis gross"><p className="gkp-preis-betrag">{I.preis}</p><p className="gkp-preis-zeile">{I.preisZeile}</p></Auf>
-            <div className="gkp-posten">
-              {I.posten.map((x, i) => (
-                <Auf key={x.titel} verz={i * 80} className="gkp-posten-karte"><b>{x.betrag}</b><span className="t">{x.titel}</span><span>{x.text}</span></Auf>
-              ))}
+            <div className="gkp-weg">
+              <Auf className="gkp-weg-heute">
+                <span className="gkp-weg-punkt an" aria-hidden="true" />
+                <p className="gkp-weg-auge">{I.heuteAuge}</p>
+                <p className="gkp-preis-betrag">{I.preis}</p>
+                <p className="gkp-preis-zeile">{I.preisZeile}</p>
+              </Auf>
+              <div className="gkp-weg-spaeter">
+                <p className="gkp-weg-auge leise">{I.spaeterTitel}</p>
+                {I.posten.map((x, i) => (
+                  <Auf key={x.titel} verz={i * 90} className="gkp-weg-schritt">
+                    <span className="gkp-weg-punkt" aria-hidden="true" />
+                    <span className="gkp-weg-wann">{x.wann}</span>
+                    <span className="gkp-weg-zeile"><b>{x.betrag}</b><span>{x.titel} · {x.text}</span></span>
+                  </Auf>
+                ))}
+              </div>
             </div>
+            <p className="gkp-weg-jahr">{I.jahr}</p>
             <Auf className="gkp-inklusive">
               <p className="gaf-auge">{WORTE.inklusive}</p>
               <ul>{I.inklusive.map((x) => <li key={x}><Zeichen art="haken" groesse={15} /><span>{x}</span></li>)}</ul>
@@ -459,6 +472,7 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
         <div className="gaf-rahmen">
           <MarkeGlobal hoehe={16} className="gaf-marke" />
           <ul className="gaf-pflicht">{S.pflicht.map((x) => <li key={x}>{x}</li>)}</ul>
+          {S.bildnachweis && <p className="gaf-aufruf-hinweis">{S.bildnachweis}</p>}
           <p className="gaf-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           <p className="gaf-fuss-links"><a href="/impressum">{WORTE.impressum}</a> · <a href="/datenschutz">{WORTE.datenschutz}</a></p>
           <p className="gaf-fuss-ref">{WORTE.angebot} {sicht.ref} · {sicht.fassung}</p>

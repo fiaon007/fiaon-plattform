@@ -303,8 +303,10 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
   try {
     const ref = req.kundeRef!;
     await (await import("./fiaon-abo")).ensureAboTabellen();
+    await (await import("../lib/fiaon-kuendigung")).kuendigungSpalten(); // E-396: kuendigung_art, kulanz_rate_nr
     const [a] = (await sqlPool`
-      SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.gekuendigt_am, a.vertrag_ende_am, a.letzte_rate_nr, a.kuendigung_zurueckgenommen_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
+      SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.gekuendigt_am, a.vertrag_ende_am, a.letzte_rate_nr, a.kuendigung_zurueckgenommen_am, a.ref,
+             a.kuendigung_art, a.kulanz_rate_nr, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
              a.street, a.zip, a.city, a.country, a.birthdate,
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
              a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date, a.agb_stand,
@@ -675,6 +677,13 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         gekuendigtAm: tag(a.gekuendigt_am), endeAm: a.vertrag_ende_am ? tag(a.vertrag_ende_am) : null,
         letzteRateNr: a.letzte_rate_nr != null ? Number(a.letzte_rate_nr) : null,
         beendet: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+        // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende (läuft bis endeAm) bzw. aus Kulanz beendet — und die
+        // offene Rechnung aus dem Kulanz-Angebot (Summe in Cent, Referenz der ersten für die Zahlungsseite).
+        art: a.kuendigung_art ?? null,
+        kulanz: a.kuendigung_art === "laufzeit" && a.kulanz_rate_nr != null ? (() => {
+          const k = offen.filter((r) => Number(r.rate_nr) <= Number(a.kulanz_rate_nr));
+          return k.length ? { summeCents: k.reduce((x, r) => x + Number(r.betrag_cents || 0), 0), raten: k.length, referenz: k[0].zahlungsreferenz ?? null } : null;
+        })() : null,
       } : null,
       abo: {
         // E-024: Laufzeit erreicht? Dann zeigt der Bereich die Frage.

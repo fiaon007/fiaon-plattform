@@ -89,15 +89,16 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "kuendigung_bestaetigt",
     label: "Kündigung bestätigt (letzte Rate offen)",
-    description: "E-092: Bestätigt die Kündigung und nennt die letzte, noch offene Rate mit Zahlungsseite. Pflichtmail (Vertragspost), einmalig je Bestellung.",
+    description: "E-092: Bestätigt die Kündigung und nennt die letzte, noch offene Rate mit Zahlungsseite. E-396: beim Jahresvertrag mit dem Vertragsende (Ende der zwölf Monate) und dem Kulanz-Angebot (offene Rechnung bezahlen → vorzeitig raus). Pflichtmail (Vertragspost), einmalig je Bestellung.",
     customerBound: true,
     // 18.09.2026: verwendungszweck (Knopf zur Zahlungsseite) und portal_url fehlten —
     // Galerie und Prüfversand zeigten die Mail ohne ihren Knopf (pruef-mail-knoepfe.ts).
     // E-265 Nachbesserung 2 (01.10.2026): Vertragssatz, offene Raten und Vorzeile kommen fertig (bestaetigungInhalt).
-    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026", verwendungszweck: "FIAON-A1B2C3-3", portal_url: "https://www.fiaon.com/login",
-      raten_text: "Rate 3", preheader_text: "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
-      vertrag_satz: "Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.",
-      offen_satz: "Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen bleibt die bereits gestellte Rechnung — Rate 3 über 59,99 €, fällig am 15.09.2026. Sobald diese Zahlung bei uns verbucht ist, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich." },
+    // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — Enddatum und DIE EINE Kulanz-Fassung (bestaetigungInhalt).
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.11.2026", verwendungszweck: "FIAON-A1B2C3-3", portal_url: "https://www.fiaon.com/login",
+      raten_text: "Rate 3", betrag: "59.99", preheader_text: "Ihr Vertrag endet zum 14.09.2027 — oder vorzeitig aus Kulanz, sobald die offene Rechnung über 59,99 € bezahlt ist.",
+      vertrag_satz: "Ihre Kündigung vom 19.10.2026 ist bei uns eingegangen und eingetragen — sie gilt, unabhängig von jeder Zahlung. Ihr Vertrag hat eine feste Laufzeit von zwölf Monaten und endet deshalb zum 14.09.2027. Bis dahin bleibt Ihr Bereich für Sie da, und die Monatsraten laufen wie vereinbart weiter.",
+      offen_satz: "Unser Angebot an Sie: Wenn Sie die offene Rechnung über 59,99 € bezahlen, entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag — dann endet er mit dem Zahlungseingang, und es kommen keine weiteren Raten. Gemeint ist Ihre offene Rechnung — Rate 3 über 59,99 €, fällig am 15.11.2026. Ihr gesetzliches Widerrufs- und Kündigungsrecht bleibt unberührt." },
   },
   {
     type: "kuendigung_eingegangen",

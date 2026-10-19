@@ -272,7 +272,8 @@ router.post("/abo-kuendigen", async (req, res) => {
 
     // E-391 (16.10.2026, Florentine): „wenn er kündigt, kündigt er“ — ein eindeutiger Antrag wird sofort gebucht
     // (Urkunde, Bestätigung, Verlauf; fiaon-kuendigung-folgen.ts). Offene Identität, Widerruf, bezahlter
-    // Jahresvertrag (Kulanz) und bezahlte Bestellungen unter 14 Tagen bleiben Karte für die Leitung.
+    // Jahresvertrag OHNE belegte Annahme und bezahlte Bestellungen unter 14 Tagen bleiben Karte für die Leitung.
+    // E-396 (19.10.2026): Ein Jahresvertrag mit belegter Annahme wird gebucht — zum Laufzeitende, mit Kulanz-Angebot.
     // Scheitert es, bleibt der Antrag angenommen — der Tageslauf versucht es erneut.
     const auto = await import("../lib/fiaon-kuendigung-folgen")
       .then((m) => m.antragAutomatischBuchen(Number(row.id)))

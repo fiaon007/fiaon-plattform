@@ -280,9 +280,10 @@ titel("2 · Quelltext — keine zweiten Wege");
   pruef("Schreibtisch und Bestand sprechen von „nachfassen“, nicht mehr „Bereit für Konto & Karte“",
     !/>Bereit für Konto &amp; Karte</.test(quelle("client/src/pages/agent/schreibtisch.tsx")) && /Konto & Karte nachfassen/.test(quelle("client/src/pages/agent/bestand.tsx")));
   const kue = quelle("server/lib/fiaon-kuendigung.ts");
-  pruef("kuendigungSetzen setzt den Rücknahmetag bei JEDER Kündigung zurück (alle 5 Wege)",
-    (kue.match(/gekuendigt_am = \$\{wann\}, kuendigung_zurueckgenommen_am = NULL/g) || []).length === 5
-    && (kue.match(/gekuendigt_am = \$\{wann\}/g) || []).length === 5);
+  // E-396 (19.10.2026): ein sechster Weg (Jahresvertrag zum Laufzeitende) — die Regel bleibt: JEDER Weg, der gekuendigt_am setzt, setzt den Rücknahmetag zurück.
+  pruef("kuendigungSetzen setzt den Rücknahmetag bei JEDER Kündigung zurück (alle 6 Wege)",
+    (kue.match(/gekuendigt_am = \$\{wann\}, kuendigung_zurueckgenommen_am = NULL/g) || []).length === 6
+    && (kue.match(/gekuendigt_am = \$\{wann\}/g) || []).length === 6);
   pruef("Akten-Marke „Gekündigt“ aus der einen Regel", /KUENDIGUNG_WIRKSAM_SQL\("p\.id"\)/.test(quelle("server/routes/fiaon-agent-start.ts")));
   pruef("Migration 098 legt die Spalten sperrarm und wiederholbar an", /lock_timeout/.test(quelle("db/migrations/098_konto_karte_erneut.sql")) && /ADD COLUMN IF NOT EXISTS erneut_anzahl/.test(quelle("db/migrations/098_konto_karte_erneut.sql")));
 

@@ -79,7 +79,9 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
                cancelled_at, freigeschaltet_am, onboarding_stufe, documents_uploaded_at, kyc_status, admin_note, admin_reviewed_at,
                welcome_sent_at, payment_email_sent_at, claim_email_sent_at, confirmed_email_sent_at, last_reminder_at, reminder_count,
                mahnstopp_am, abo_gestoppt_am, abo_stopp_grund, gekuendigt_am, kuendigung_quelle, kuendigung_grund, letzte_rate_nr,
-               vertrag_ende_am, kuendigung_zurueckgenommen_am, payment_proof_at, gc_subscription_start, gc_subscription_status
+               vertrag_ende_am, kuendigung_zurueckgenommen_am, payment_proof_at, gc_subscription_start, gc_subscription_status,
+               -- E-396: Art der Kündigung (laufzeit | kulanz | sofort_recht) — auch ohne Migration lesbar
+               to_jsonb(fiaon_applications) ->> 'kuendigung_art' AS kuendigung_art
           FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL ORDER BY created_at ASC LIMIT 12` as unknown as Promise<any[]>)
     : ref
       ? await quelle("bestellung", () => sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${ref} LIMIT 1` as unknown as Promise<any[]>)
@@ -103,9 +105,15 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     add(b.mahnstopp_am, "system", `Mahnstopp gesetzt für ${b.ref}`);
     add(b.abo_gestoppt_am, "vertrag", `Abo gestoppt (${b.ref})${b.abo_stopp_grund ? `: ${kurz(b.abo_stopp_grund, 80)}` : ""}`);
     add(b.gc_subscription_start, "zahlung", `Lastschrift-Abo bei GoCardless gestartet (${b.ref}) — GoCardless ist seit 19.09.2026 beendet, die Raten laufen per Überweisung`);
-    add(b.gekuendigt_am, "vertrag", `KÜNDIGUNG EINGEGANGEN (${b.kuendigung_quelle || "—"}) für ${b.ref}${b.kuendigung_grund ? ` — Grund: „${kurz(b.kuendigung_grund, 120)}"` : ""}${b.letzte_rate_nr ? ` — Rate ${b.letzte_rate_nr} bleibt die letzte` : ""}`);
+    // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — er läuft bis zum Ende; das Ende steht in der Kündigungszeile,
+    // „VERTRAG BEENDET“ erst, wenn es erreicht ist (sonst läse Mara ein künftiges Ende als vergangen).
+    const endeDe = b.vertrag_ende_am ? new Date(b.vertrag_ende_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
+    const laufzeit = b.kuendigung_art === "laufzeit" && !!b.vertrag_ende_am && new Date(b.vertrag_ende_am).getTime() > Date.now();
+    add(b.gekuendigt_am, "vertrag", `KÜNDIGUNG EINGEGANGEN (${b.kuendigung_quelle || "—"}) für ${b.ref}${b.kuendigung_grund ? ` — Grund: „${kurz(b.kuendigung_grund, 120)}"` : ""}${laufzeit
+      ? ` — Jahresvertrag läuft bis zum Laufzeitende (${endeDe}), die Raten laufen weiter; vorzeitig nur aus Kulanz nach Zahlung der offenen Rechnung`
+      : b.letzte_rate_nr ? ` — Rate ${b.letzte_rate_nr} bleibt die letzte` : ""}`);
     add(b.kuendigung_zurueckgenommen_am, "vertrag", `Kündigung zurückgenommen (${b.ref})`);
-    add(b.vertrag_ende_am, "vertrag", `VERTRAG BEENDET (${b.ref})`);
+    if (!laufzeit) add(b.vertrag_ende_am, "vertrag", `VERTRAG BEENDET (${b.ref})${b.kuendigung_art === "kulanz" ? " — aus Kulanz, nach Zahlung der offenen Rechnung" : ""}`);
     add(b.cancelled_at, "vertrag", `Bestellung ${b.ref} storniert`);
   }
 

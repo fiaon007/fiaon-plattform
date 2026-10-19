@@ -5,6 +5,37 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-396 Jahresvertrag: Die Kündigung gilt zum Ende der zwölf Monate — Kulanz nur nach Zahlung
+- **Was:** Kündigt ein Kunde mit Jahresvertrag (Vertrag ab 03.09.2026) und ist seine Annahme belegt (Vertrags-PDF aus /antrag-neu
+  oder der Knopf „Zahlungspflichtig annehmen“), wird die Kündigung sofort gebucht und bestätigt — der Vertrag läuft aber bis zum Ende
+  der zwölf Monate (AGB § 6 Abs. 2: Monatsfrist zum Ende der Erstlaufzeit; danach unbefristet mit Monatsfrist). Die Raten laufen
+  weiter (Gesamtvergütung, § 5 Abs. 2), es gibt keinen Abo- und keinen Mahnstopp, und der Bereich bleibt bis zum Ende offen.
+  Vorzeitig raus kommt er nur aus Kulanz: Die Bestätigung bietet an „Wenn Sie die offene Rechnung über X € bezahlen, entlassen wir
+  Sie aus Kulanz vorzeitig aus dem Vertrag …“ + „Ihr gesetzliches Widerrufs- und Kündigungsrecht bleibt unberührt.“ Geht die
+  Zahlung ein, beendet der Buchungsweg den Vertrag automatisch (Abschlussmail). Ist bei der Kündigung keine Rechnung offen, legt das
+  Haus die nächste Rate an wie nach jeder Zahlung. „Sofort beenden“ gibt es beim Jahresvertrag nur noch bei Widerruf oder wichtigem
+  Grund (Grund wählen) — das Häkchen „Kulanz sofort“ bucht dort zum Laufzeitende. Mara (Mail und WhatsApp) sagt genau das, mit EINER
+  Kulanz-Fassung statt drei (Hauswissen, Dossier, Werkzeug, WhatsApp, Bestätigung, Urkunde, Kundenbereich). Die Sendesperre E-393
+  lässt den Kulanz-Satz beim Jahresvertrag durch und sperrt ihn beim Altvertrag und beim Widerruf.
+  Unverändert: Altverträge (vor 03.09.: monatlich kündbar, wirkt mit Zugang), der Widerruf, Kündigungen in den ersten 14 Tagen und
+  alle Jahresverträge ohne belegte Annahme (bisheriges Verhalten) — für diese gibt es die Karte „Jahresverträge ohne belegte Annahme“
+  im Mara-Steuerpult (Zustimmungs-Link an alle schicken oder so lassen; gemessen 19.10.: 8).
+- **Warum:** Justin, 19.10.2026: „JEDER Kunde, der bei uns einen Antrag akzeptiert, Vertrag akzeptiert hat … hat mit uns einen 12
+  Monats VERTRAG, AUSSER die Kunden, die wir aus Kulanz kündigen. Die Kunden müssen dann noch die letzte offene Rechnung einbezahlen;
+  sobald sie das getan haben = gekündigt. Auch MARA muss das wissen, und das ganz genau!“ Bis heute endete ein Jahresvertrag mit der
+  Kündigung sofort (6 von 6 „Kündigung (Kulanz, sofort)“, alle über das Telefon, ohne Bestätigungsmail) — im Schnitt 1,4–1,5 von 12
+  Raten. Rechtsprüfung 19.10. (Themen 5a–6): für Jahresverträge zulässig, für Altverträge nicht.
+- **Wo:** shared/fiaon-jahresvertrag.ts (neu: Laufzeitende, Weg, Kulanz-Rechnung, DIE EINE Fassung, Regel für Mara, SQL-Bausteine),
+  server/lib/fiaon-kuendigung.ts (Weg „laufzeit_ende“, sofortGrund, kulanzNachZahlungPruefen, jahresvertragLage, kulanzSatzErlaubt,
+  Portalsperre), server/routes/fiaon-abo.ts (Kulanz nach Zahlung im Buchungsweg; keine Verlängerungsfrage nach Kündigung),
+  server/routes/fiaon-kuendigung.ts (Bestätigungsmail, sofortGrund), server/lib/fiaon-kuendigung-urkunde.ts, -folgen.ts (Formular-
+  Anträge mit belegter Annahme automatisch), shared/fiaon-wortverbote.ts (Sendesperre), shared/fiaon-mara-ton.ts, shared/fiaon-wissen.ts,
+  server/lib/fiaon-postmeister-{dossier,agent,werkzeuge,lauf}.ts, server/routes/fiaon-postmeister{,-zentrale}.ts,
+  server/lib/fiaon-whatsapp-{mara,entscheidungen}.ts, server/lib/fiaon-jahresvertrag-entscheidung.ts (neu: Karte),
+  server/routes/fiaon-kunde-bereich.ts + client/src/pages/app/Abo.tsx (Kundenbereich), client/src/pages/agent/pipeline.tsx (Akte:
+  Grund für „sofort“), ChefTelefonkartei/ChefPostfach (Beschriftung), db/migrations/116_kuendigung_art.sql (kuendigung_art,
+  kulanz_rate_nr). Prüfstände scripts/pruef-e396-jahresvertrag.ts (offline) und pruef-e396-jahresvertrag-db.ts (lokale DB).
+
 ## 19.10.2026 — E-398 Teil B (live auf Justins „go“ vom 19.10.; LEXR liest den AGB-Text noch): AGB „Monatsentgelt“ für neue Verträge, Datenschutz „Refinanzierung“
 - **Was:** (1) **AGB-Fassung vom 19.10.2026** (2026-10-15 wörtlich im Archiv): § 5 Abs. 2 Monatsentgelt für die Leistungen des jeweiligen
   Monats, im Voraus fällig, kein Zahlungsaufschub — statt „Gesamtvergütung … zur Zahlungserleichterung in zwölf Monatsraten … kein

@@ -474,7 +474,9 @@ ${postfachDef.gruss}`;
 
     const antwortText = urteil.antwort ? `${urteil.antwort.trim()}\n\n${postfachDef.gruss}` : null;
     // E-393: Kopplung des Vertragsendes an eine Zahlung oder Drohung in einer Kündigungsantwort → nie automatisch.
-    if (darfAuto && antwortText && kuendigungSendeUrteil({ antwort: antwortText, eingang: mail.text || mail.snippet || "", betreff: mail.betreff, kategorie: urteil.kategorie }).gesperrt) darfAuto = false;
+    // E-396: Kulanz-Satz nur beim Jahresvertrag (kulanzSatzErlaubt) — beim Vertrag vor dem 03.09.2026 sperrt die Wand ihn.
+    if (darfAuto && antwortText && kuendigungSendeUrteil({ antwort: antwortText, eingang: mail.text || mail.snippet || "", betreff: mail.betreff, kategorie: urteil.kategorie,
+      kulanzErlaubt: await (await import("../lib/fiaon-kuendigung")).kulanzSatzErlaubt(kunde?.ref ?? null, kunde?.person_id ?? null).catch(() => null) }).gesperrt) darfAuto = false;
 
     if (darfAuto && antwortText) {
       await antwortSenden(postfach, mail, antwortText);
@@ -852,6 +854,8 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
   const e393 = kuendigungSendeUrteil({
     antwort: text, eingang: zeile.text ?? null, betreff: zeile.betreff ?? null, flags: zeile.flags ?? null,
     kundenlage: zeile.kundenlage ?? null, kategorie: zeile.kategorie ?? null, kategorien: zeile.kategorien ?? null,
+    // E-396: Kulanz-Satz nur beim Jahresvertrag.
+    kulanzErlaubt: await (await import("../lib/fiaon-kuendigung")).kulanzSatzErlaubt(zeile.ref ?? null, zeile.person_id ?? null).catch(() => null),
   });
   if (e393.gesperrt) throw new Error(`${e393.grund} — bitte umschreiben, dann senden.`);
   const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);

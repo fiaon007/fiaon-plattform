@@ -4430,6 +4430,9 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
   const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck" | "schliessen">("zu");
   const [grund, setGrund] = useState("");
   const [sofort, setSofort] = useState(false);
+  // E-396 (19.10.2026): Beim Jahresvertrag beendet „sofort“ nur mit Grund — Widerruf oder wichtiger Grund. Kulanz gibt es
+  // dort nur nach Zahlung der offenen Rechnung (Justin 19.10.); ohne Grund bucht der Server zum Laufzeitende.
+  const [sofortGrund, setSofortGrund] = useState<"" | "widerruf" | "wichtiger_grund">("");
   const [busy, setBusy] = useState(false);
   // E-IT-B (08.10.2026, Gegenprüfung): „Jetzt buchen“ bucht GENAU diesen Antrag — seine Bestellung, sein Eingangstag.
   const [ausAntrag, setAusAntrag] = useState<number | null>(null);
@@ -4451,28 +4454,32 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
       : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
     const identPflicht = modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen;
     if (identPflicht && identVermerk.trim().length < 10) { melden("schlecht", "Identität erst prüfen", "Ohne passendes Geburtsdatum angenommen: Erledige zuerst die Aufgabe „Kündigung – Identität prüfen“ oder schreib in einem Satz, wie du die Identität geprüft hast."); return; }
+    if (modus === "kuendigen" && sofort && stand.jahresvertrag && !sofortGrund) { melden("schlecht", "Grund für „sofort“ fehlt", "Beim Jahresvertrag endet der Vertrag nur bei Widerruf oder wichtigem Grund sofort — bitte wählen. Ohne Häkchen läuft er bis zum Laufzeitende, mit Kulanz-Angebot (Kulanz nur nach Zahlung)."); return; }
     setBusy(true);
-    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung, ...(identPflicht ? { identitaetVermerk: identVermerk.trim() } : {}) } : {}) }) });
+    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort, ...(sofort && sofortGrund ? { sofortGrund } : {}), ...(modus === "kuendigen" && ausAntrag ? { ausAntrag, alsLeitung, ...(identPflicht ? { identitaetVermerk: identVermerk.trim() } : {}) } : {}) }) });
     setBusy(false);
     if (!r.ok || r.json?.ok === false) { melden("schlecht", "Nicht möglich", r.json?.error || "Der Server hat abgelehnt."); return; }
     if (modus === "schliessen") melden("gut", "Antrag geschlossen", String(r.json?.meldung || "Ohne Kündigung geschlossen."));
     else if (modus === "kuendigen") {
       const w = String(r.json?.weg || "");
-      const text = w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}`
+      const kl = r.json?.laufzeit?.kulanz;
+      const text = w === "laufzeit_ende"
+        ? `Jahresvertrag: gebucht zum Laufzeitende — er läuft bis ${tag(r.json?.vertragEndeAm)}, die Raten laufen bis dahin weiter.${kl ? ` Kulanz-Angebot: Sobald die offene Rechnung über ${(Number(kl.summeCents) / 100).toFixed(2).replace(".", ",")} € bezahlt ist, endet er automatisch.` : ""} ${r.json?.mailGesendet ? "Die Bestätigung mit Enddatum ist raus." : "Keine Bestätigungsmail (schon bestätigt oder keine Rechnung offen)."}${r.json?.hinweis ? ` ${r.json.hinweis}` : ""}`
+        : w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}${r.json?.hinweis ? ` ${r.json.hinweis}` : ""}`
         : w === "storno_unbezahlt" ? "Die unbezahlte Bestellung ist storniert — keine Erinnerungen mehr."
         : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
       melden("gut", "Kündigung durchgesetzt", `${r.json?.gebuchtAuf ? `Gebucht auf ${r.json.gebuchtAuf} zum ${tag(r.json.gebuchtZum)} (Eingang des Antrags). ` : ""}${text}${r.json?.urkunde ? " Die Kündigungsbestätigung ist ausgefertigt." : r.json?.urkundeFehler ? " Achtung: Die Bestätigung konnte nicht erzeugt werden — bitte unten erneut öffnen." : ""}`);
     } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
-    setModus("zu"); setGrund(""); setSofort(false); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk("");
+    setModus("zu"); setGrund(""); setSofort(false); setSofortGrund(""); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk("");
     await laden(); onFrisch();
   };
   return (
     <div className="pi-reihe" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="pi-pille">{stand.gekuendigt ? (stand.beendet ? "Vertrag beendet" : "Kündigung vorgemerkt") : "Vertrag läuft"}</span>
+        <span className="pi-pille">{stand.gekuendigt ? (stand.beendet ? "Vertrag beendet" : stand.art === "laufzeit" ? `Gekündigt · läuft bis ${tag(stand.vertragEndeAm)}` : "Kündigung vorgemerkt") : "Vertrag läuft"}</span>
         <small style={{ color: "#94a3b8", fontSize: 12 }}>
           {stand.gekuendigt
-            ? `Gekündigt am ${tag(stand.gekuendigtAm)}${stand.letzteRateNr ? ` · letzte Rate ${stand.letzteRateNr}` : ""}${stand.vertragEndeAm ? ` · Ende ${tag(stand.vertragEndeAm)}` : ""}${stand.quelle ? ` · Quelle ${stand.quelle}` : ""}`
+            ? `Gekündigt am ${tag(stand.gekuendigtAm)}${stand.letzteRateNr ? ` · letzte Rate ${stand.letzteRateNr}` : ""}${stand.vertragEndeAm ? ` · Ende ${tag(stand.vertragEndeAm)}` : ""}${stand.art === "laufzeit" && !stand.beendet ? ` · Kulanz nach Zahlung${stand.kulanzRateNr ? ` von Rate ${stand.kulanzRateNr}` : ""}` : stand.art === "kulanz" ? " · aus Kulanz beendet" : ""}${stand.quelle ? ` · Quelle ${stand.quelle}` : ""}`
             : `${stand.paket || "Paket"}${stand.bezahlt ? "" : " · unbezahlt"}${stand.offeneRaten ? ` · ${stand.offeneRaten} offene Rate(n)` : ""}${stand.zurueckgenommenAm ? ` · Kündigung zurückgenommen ${tag(stand.zurueckgenommenAm)}` : ""}`}
         </small>
         {modus === "zu" && (stand.gekuendigt
@@ -4539,16 +4546,27 @@ function KuendigungBlock({ personId, melden, onFrisch }: {
           )}
           {modus === "kuendigen" && (
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#94a3b8" }}>
-              <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} />
-              Kulanz: sofort beenden, offene Raten entfallen (sonst bleibt die letzte Rate fällig)
+              <input type="checkbox" checked={sofort} onChange={(e) => { setSofort(e.target.checked); if (!e.target.checked) setSofortGrund(""); }} />
+              {stand.jahresvertrag
+                ? "Sofort beenden, offene Raten entfallen — beim Jahresvertrag nur bei Widerruf oder wichtigem Grund (Kulanz gibt es nur nach Zahlung)"
+                : "Kulanz: sofort beenden, offene Raten entfallen (sonst bleibt die letzte Rate fällig)"}
             </label>
+          )}
+          {modus === "kuendigen" && sofort && stand.jahresvertrag && (
+            <select className="pi-eingabe" value={sofortGrund} onChange={(e) => setSofortGrund(e.target.value as any)}>
+              <option value="">Grund für das sofortige Ende wählen …</option>
+              <option value="widerruf">Widerruf</option>
+              <option value="wichtiger_grund">Kündigung aus wichtigem Grund</option>
+            </select>
           )}
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="pi-knopf klein" disabled={busy || (modus === "kuendigen" && !!ausAntrag && !!stand.antragUngebucht?.identitaetOffen && identVermerk.trim().length < 10)} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? (ausAntrag ? `Zum ${tag(stand.antragUngebucht?.am)} buchen` : "Jetzt kündigen") : modus === "schliessen" ? "Ohne Kündigung schließen" : "Konto reaktivieren"}</button>
             <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); setAusAntrag(null); setAlsLeitung(false); setIdentVermerk(""); }}>Abbrechen</button>
           </div>
           <span className="pi-fussnote">{modus === "kuendigen"
-            ? "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf."
+            ? (stand.jahresvertrag && !sofort
+              ? "Jahresvertrag (Annahme belegt): gebucht zum Laufzeitende — die Raten laufen bis dahin weiter. Der Kunde bekommt die Bestätigung mit Enddatum und das Kulanz-Angebot; zahlt er die offene Rechnung, endet der Vertrag automatisch. Alles steht im Verlauf."
+              : "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf.")
             : modus === "schliessen" ? "Der Antrag gilt dann als erledigt, ohne Kündigung — der Vertrag läuft weiter. Steht im Verlauf."
             : "Die Raten kommen zurück, Erinnerungen laufen wieder. Alles steht im Verlauf."}</span>
         </div>

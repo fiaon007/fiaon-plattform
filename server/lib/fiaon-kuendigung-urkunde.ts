@@ -34,12 +34,13 @@
 // BESCHREIBT, was `kuendigungSetzen` entschieden hat — sie entscheidet nichts.
 // Zwei Stellen, die dasselbe entscheiden, entscheiden irgendwann verschieden.
 // ═══════════════════════════════════════════════════════════════════════════
+import { laufzeitSatz, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
 import { sqlPool } from "./db-pool";
 import { escapeHtml, docHash, renderDocumentPdf } from "./fiaon-html-pdf";
 // E-265 Nachbesserung 2 (01.10.2026): Vertragsart und Vertragsende aus denselben Regeln wie WhatsApp und Postfach.
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag ist das Ende des Abrechnungsmonats (vertragsendeLesen).
 import { istJahresvertrag, tagDeutsch } from "@shared/fiaon-antrag-stand";
-import { vertragsendeLesen } from "./fiaon-kuendigung";
+import { vertragsendeLesen, kuendigungSpalten } from "./fiaon-kuendigung";
 
 export interface Unterzeichner {
   name: string;
@@ -112,6 +113,9 @@ export function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: D
   // das Vertragsende zum Ende des Abrechnungsmonats statt „mit Zahlung der letzten Rate" (die Kündigung hängt nie an
   // der Zahlung). E-265 (01.10.2026, Recht): `a.ende_tag` (YYYY-MM-DD) liefert urkundeAusfertigen aus vertragsendeLesen.
   const altvertrag = a.altvertrag === true;
+  // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende gekündigt — er läuft bis zum Ende, die offene Rechnung ist das Kulanz-Angebot.
+  const laufzeit = !altvertrag && a.kuendigung_art === "laufzeit";
+  const endeLaufzeit: string | null = laufzeit && a.vertrag_ende_am ? new Date(a.vertrag_ende_am).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null;
   const endeAlt: string | null = altvertrag && a.gekuendigt_am && typeof a.ende_tag === "string" ? a.ende_tag : null;
   const tagVon = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
   const offene: any[] = (Array.isArray(a.offene_raten) ? a.offene_raten : (a.rate_nr != null ? [{ rate_nr: a.rate_nr, betrag_cents: a.betrag_cents, faellig_am: a.faellig_am, zahlungsreferenz: a.zahlungsreferenz }] : []))
@@ -133,6 +137,13 @@ export function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: D
   const wasGilt = beendet
     ? `<p>Der Vertrag ist <strong>beendet</strong>. Es steht nichts mehr offen. Weitere Raten werden nicht mehr gestellt,
        und Sie erhalten keine Zahlungserinnerungen mehr.</p>`
+    : laufzeit
+      ? `<p>${escapeHtml(laufzeitSatz(endeLaufzeit))} Die Kündigung gilt, unabhängig von jeder Zahlung. Bis dahin laufen die Monatsraten
+         wie vereinbart weiter.</p>
+         ${offeneRate ? `<p><strong>Unser Angebot:</strong> ${escapeHtml(kulanzSatz(euro(summe), { mehrere: offene.length > 1 }))}
+           Gemeint ${offene.length === 1 ? `ist die ${rateText(offene[0])}` : `sind ${offene.map(rateText).join(" und ")}`}.</p>
+         <p>Verwendungszweck für die Überweisung: <strong>${zweck}</strong>.</p>` : ""}
+         <p>${escapeHtml(RECHTE_SATZ)}</p>`
     : offeneRate
       ? `<p>${altvertrag
           ? `${giltZumAlt}; Raten für die Zeit danach entfallen.`
@@ -155,16 +166,19 @@ export function rumpfBauen(a: any, unterzeichner: Unterzeichner, gezeichnetAm: D
       ${zeile("Leistung", escapeHtml(paket))}
       ${zeile("Kündigung eingegangen", escapeHtml(datum(a.gekuendigt_am)))}
       ${zeile("Kündigungsweg", escapeHtml(wegInWorten(a.kuendigung_quelle)))}
-      ${zeile("Vertragsende", endeAltText ? `zum Ende des Abrechnungsmonats (${escapeHtml(endeAltText)})` : a.vertrag_ende_am ? escapeHtml(datum(a.vertrag_ende_am)) : "mit Zahlung der letzten Rate")}
+      ${zeile("Vertragsende", endeAltText ? `zum Ende des Abrechnungsmonats (${escapeHtml(endeAltText)})` : laufzeit && endeLaufzeit && !beendet ? `zum Ende der Laufzeit (${escapeHtml(datum(a.vertrag_ende_am))})` : a.vertrag_ende_am ? escapeHtml(datum(a.vertrag_ende_am)) : "mit Zahlung der letzten Rate")}
     </table>
 
     <h2>Was jetzt gilt</h2>
     ${wasGilt}
 
     <h2>Ihr Zugang</h2>
-    <p>Ihr persönlicher Bereich bleibt für Sie geöffnet: Sie finden dort weiterhin Ihre Unterlagen, Ihre Rechnungen und
+    ${laufzeit && !beendet
+      ? `<p>Ihr persönlicher Bereich bleibt bis zum Vertragsende voll für Sie da — mit allen Leistungen Ihres Pakets, Ihren
+    Unterlagen, Ihren Rechnungen und dieser Bestätigung.</p>`
+      : `<p>Ihr persönlicher Bereich bleibt für Sie geöffnet: Sie finden dort weiterhin Ihre Unterlagen, Ihre Rechnungen und
     diese Bestätigung, und Sie können eine offene Rate dort bezahlen. Neue Leistungen können über den Bereich nicht mehr
-    beauftragt werden, und es werden Ihnen keine Termine mehr angeboten.</p>
+    beauftragt werden, und es werden Ihnen keine Termine mehr angeboten.</p>`}
 
     <h2>Wenn Sie es sich anders überlegen</h2>
     <p>Solange der Vertrag nicht beendet ist, können wir die Kündigung auf Ihren Wunsch zurücknehmen — der Vertrag läuft
@@ -208,20 +222,22 @@ export async function urkundeAusfertigen(
   opts: { neuAusfertigen?: boolean } = {},
 ): Promise<UrkundeErgebnis> {
   await urkundeSpalten();
+  await kuendigungSpalten(); // E-396: kuendigung_art, kulanz_rate_nr
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.pack_name,
            a.gekuendigt_am, a.kuendigung_quelle, a.letzte_rate_nr, a.vertrag_ende_am,
            a.kuendigung_zurueckgenommen_am,
            a.kuendigung_pdf_base64, a.kuendigung_doc_hash, a.kuendigung_gezeichnet_von,
            a.kuendigung_gezeichnet_rolle, a.kuendigung_gezeichnet_am,
-           a.agb_stand,
+           a.agb_stand, a.kuendigung_art, a.kulanz_rate_nr,
            r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
            -- E-265 Nachbesserung 2: alle noch zu zahlenden Raten (bis zur letzten), älteste zuerst
            (SELECT COALESCE(json_agg(json_build_object('rate_nr', y.rate_nr, 'betrag_cents', y.betrag_cents, 'faellig_am', y.faellig_am,
                      'zahlungsreferenz', y.zahlungsreferenz) ORDER BY y.rate_nr), '[]'::json)
               FROM fiaon_abo_raten y
              WHERE y.ref = a.ref AND y.status = 'offen' AND y.storniert_am IS NULL
-               AND (a.letzte_rate_nr IS NULL OR y.rate_nr <= a.letzte_rate_nr)) AS offene_raten
+               -- E-396: bei der Laufzeit-Kündigung die offene Rechnung aus dem Kulanz-Angebot (bis kulanz_rate_nr).
+               AND y.rate_nr <= COALESCE(CASE WHEN a.kuendigung_art = 'laufzeit' THEN a.kulanz_rate_nr END, a.letzte_rate_nr, y.rate_nr)) AS offene_raten
       FROM fiaon_applications a
       LEFT JOIN LATERAL (
         SELECT rate_nr, betrag_cents, faellig_am, zahlungsreferenz FROM fiaon_abo_raten x

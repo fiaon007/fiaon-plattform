@@ -24,7 +24,10 @@ muss(`Kartenregel: Auskunft ${SCHUFA_PREIS_EURO} €`, f.includes(`${SCHUFA_PREI
 muss("Kartenregel: erst Konto, dann Karte", /Erst das Girokonto, dann die Karte/.test(f));
 muss("Kartenregel: Bank entscheidet, keine Karte/PIN von FIAON", /entscheidet immer die Bank/.test(f) && /keine Karte oder PIN/.test(f));
 muss("Vertrag: zwölf Monatsraten ab 03.09.2026", /ab dem 03\.09\.2026 laufen über zwölf Monatsraten/.test(f));
-muss("Vertrag: Kulanz, gestellte Rate bleibt", /bereits gestellte, offene Rate bleibt zu zahlen/.test(f));
+// E-396 (19.10.2026): DIE EINE Kulanz-Fassung — der Jahresvertrag läuft bis zum Ende der zwölf Monate, vorzeitig raus nur
+// aus Kulanz nach Zahlung der offenen Rechnung (vorher: „die bereits gestellte, offene Rate bleibt zu zahlen").
+muss("Vertrag: Jahresvertrag läuft bis zum Ende der zwölf Monate", /mit einem Monat Frist zum Ende der zwölf Monate/.test(f) && /bis dahin laufen die Monatsraten weiter/.test(f));
+muss("Vertrag: Kulanz nur nach Zahlung — der eine Satz", /nur nach Zahlung der offenen Rechnung/.test(f) && /entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag — dann endet er mit dem Zahlungseingang/.test(f));
 muss("Vertrag: Kündigungsschreiben nach letzter Rate", /Kündigungsschreiben/.test(f));
 muss("Vertrag: alte Fassung monatlich", /vor dem 03\.09\.2026: monatlich/.test(f));
 muss("Storno unbezahlt", /unbezahlte Bestellung .* storniert/.test(f));

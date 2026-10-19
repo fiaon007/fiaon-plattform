@@ -307,6 +307,34 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     important: true,
   },
   {
+    // E-396 (19.10.2026, Justin): „JEDER Kunde, der … Vertrag akzeptiert hat … hat mit uns einen 12 Monats VERTRAG,
+    // AUSSER die Kunden, die wir aus Kulanz kündigen. Die Kunden müssen dann noch die letzte offene Rechnung einbezahlen;
+    // sobald sie das getan haben = gekündigt.“
+    id: "2026-10-19-jahresvertrag-laufzeit",
+    date: "2026-10-19",
+    category: "Geändert",
+    important: true,
+    title: "Jahresvertrag: Kündigung gilt zum Ende der zwölf Monate — Kulanz nur nach Zahlung",
+    summary:
+      "Kündigt ein Kunde mit Jahresvertrag (Vertrag ab 03.09.2026, angenommen per Knopf oder Unterschrift), ist die Kündigung sofort gebucht — "
+      + "der Vertrag läuft aber bis zum Ende der zwölf Monate, die Raten laufen weiter. Vorzeitig raus kommt er nur aus Kulanz: "
+      + "Zahlt er die offene Rechnung, endet der Vertrag automatisch.",
+    changes: [
+      "Akte → „Kündigung durchsetzen“: Beim Jahresvertrag steht danach „Gekündigt · läuft bis …“. Es entfällt keine Rate, und es gibt keinen Mahnstopp.",
+      "Der Kunde bekommt sofort die Bestätigung mit dem Enddatum und das Angebot: „Wenn Sie die offene Rechnung über X € bezahlen, entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag.“",
+      "Geht die Zahlung ein, beendet das System den Vertrag selbst und schickt die Abschlussmail. Du musst nichts tun.",
+      "Das Häkchen „Kulanz: sofort beenden“ gibt es beim Jahresvertrag nicht mehr. Sofort beenden geht dort nur bei Widerruf oder wichtigem Grund — du wählst den Grund aus.",
+      "Verträge vor dem 03.09.2026 bleiben, wie sie waren: monatlich kündbar, kein „Kulanz“.",
+      "Mara sagt das auf Mail und WhatsApp mit genau demselben Satz. Bis zum Vertragsende bleibt der Bereich des Kunden offen.",
+    ],
+    howto: [
+      "Am Telefon sagst du: „Ihre Kündigung ist eingetragen. Ihr Vertrag läuft bis zum [Datum]. Wenn Sie die offene Rechnung bezahlen, entlassen wir Sie aus Kulanz vorzeitig.“",
+      "Nennt der Kunde einen Widerruf oder einen wichtigen Grund: Häkchen „Sofort beenden“ setzen und den Grund wählen — oder die Leitung fragen.",
+      "Nie sagen: „Ab sofort kommen keine Raten mehr“ oder „Ohne Zahlung können wir nicht kündigen“ — die Kündigung gilt immer, auch ohne Zahlung.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+  },
+  {
     // E-395 (19.10.2026, Justin, Fall #7131): „Mara muss ab jetzt in mein Kalender den Termin eintragen, den Kunden
     // einen guten Termin wünschen und sich zurücknehmen.“
     id: "2026-10-19-mara-genannter-termin",

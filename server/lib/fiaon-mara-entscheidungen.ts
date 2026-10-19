@@ -1068,6 +1068,7 @@ let erweiterungen: Promise<void> | null = null;
 function erweiterungenLaden(): Promise<void> {
   erweiterungen ??= import("./fiaon-postmeister-entscheidungen")
     .then(() => import("./fiaon-whatsapp-entscheidungen")) // E-372: Maras WhatsApp-Fälle (Karten und Werkzeuge)
+    .then(() => import("./fiaon-jahresvertrag-entscheidung")) // E-396: Jahresverträge ohne belegte Annahme
     .then(() => undefined)
     .catch((e) => { erweiterungen = null; console.error("[ENTSCHEIDUNG] Postmeister-Karten nicht geladen:", String((e as Error)?.message ?? e).slice(0, 200)); });
   return erweiterungen;

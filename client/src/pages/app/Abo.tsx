@@ -21,6 +21,8 @@ import { Link } from "wouter";
 import type { Bereich } from "./typen";
 import { api, eur } from "./Bausteine";
 import { ereignisMelden } from "./Bericht";
+// E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — DIE EINE Kulanz-Fassung, wörtlich wie Mail, Urkunde und Mara.
+import { kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
 import "@/styles/app-antraege.css";
 import "@/styles/app-bericht.css";
 
@@ -59,6 +61,8 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
     // 07.09.2026: Kündigung zuerst — sie schlägt jede Verlängerungsfrage.
     if (b.vertrag) {
       if (b.vertrag.beendet) return `Ihr Vertrag ist beendet${b.vertrag.endeAm ? ` (seit ${b.vertrag.endeAm})` : ""}.`;
+      // E-396: Jahresvertrag zum Laufzeitende — er läuft bis zum Ende, die Raten laufen weiter.
+      if (b.vertrag.art === "laufzeit" && b.vertrag.endeAm) return `Ihre Kündigung ist eingetragen${b.vertrag.gekuendigtAm ? ` (${b.vertrag.gekuendigtAm})` : ""} – Ihr Vertrag läuft bis zum ${b.vertrag.endeAm}.`;
       if (b.vertrag.letzteRateNr) return `Ihre Kündigung ist vorgemerkt${b.vertrag.gekuendigtAm ? ` (${b.vertrag.gekuendigtAm})` : ""} – Rate ${b.vertrag.letzteRateNr} ist die letzte, danach endet Ihr Vertrag.`;
       return `Ihre Kündigung ist vorgemerkt${b.vertrag.endeAm ? ` – Ihr Vertrag endet am ${b.vertrag.endeAm}` : ""}.`;
     }
@@ -103,6 +107,13 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
         )}
         {b.paket.abo && <div className="ap-zeile"><span>Zahlungsweg</span><b>Überweisung</b></div>}
         {standSatz() && <div className="ap-zeile"><span>Laufzeit</span><b>{standSatz()}</b></div>}
+        {/* E-396: das Kulanz-Angebot — die offene Rechnung bezahlen, dann endet der Vertrag vorzeitig. */}
+        {b.vertrag?.art === "laufzeit" && !b.vertrag.beendet && b.vertrag.kulanz && (
+          <p className="ap-fuss" style={{ marginTop: 10 }}>
+            {kulanzSatz(eur(b.vertrag.kulanz.summeCents), { mehrere: b.vertrag.kulanz.raten > 1 })} {RECHTE_SATZ}
+            {b.vertrag.kulanz.referenz && !demo ? <>{" "}<a href={`/zahlung/${encodeURIComponent(b.vertrag.kulanz.referenz)}`} className="ap-link">Rechnung bezahlen →</a></> : null}
+          </p>
+        )}
         <Link href={`${basis}/geld`} className="ap-link" style={{ display: "inline-block", marginTop: 12 }}>Alle Raten und Zahlungsweg →</Link>
       </div>
 
@@ -119,7 +130,7 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
       {/* Kündigung: der Satz und ein stiller Link, sonst nichts */}
       {b.paket.abo && !v?.beendet && !(entschieden && !entschieden.verlaengert) && (
         <div className="ap-auf v3" style={{ display: "grid", gap: 2 }}>
-          <p className="ap-fuss">{b.paket.jahresvertrag ? "Zwölf Monatsraten, danach monatlich kündbar — formlos per E-Mail." : "Kündbar zum Monatsende, formlos per E-Mail."}</p>
+          <p className="ap-fuss">{b.paket.jahresvertrag ? "Zwölf Monate Laufzeit — kündbar mit einem Monat Frist zum Ende der zwölf Monate, danach monatlich; formlos per E-Mail." : "Kündbar zum Monatsende, formlos per E-Mail."}</p>
           {/* Nicht /abo-kuendigen: die Seite ist ein Du-Formular mit Pflichtgrund und Prüfvorbehalt — weder „formlos“ noch „per E-Mail“ noch Sie.
               Bis sie umgestellt ist, führt der Link dorthin, was der Satz verspricht: eine formlose E-Mail. */}
           <a href={`mailto:support@fiaon.com?subject=${encodeURIComponent(`Kündigung Kundennummer ${kundeRef}`)}`} className="ap-textknopf still" onClick={() => ereignisMelden(kundeRef, demo, "abo", "knopf")}>Abo kündigen</a>

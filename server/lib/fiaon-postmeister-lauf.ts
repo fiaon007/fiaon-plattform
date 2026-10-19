@@ -1466,9 +1466,11 @@ export async function mailBearbeiten(ein: {
     // ── E-393: DIE SENDESPERRE ─────────────────────────────────────────────
     // Knüpft der fertige Text das Vertragsende an eine Zahlung oder droht er in einer Kündigungs-/Widerrufsantwort
     // (Gericht, Inkasso, Anwalt, SCHUFA), geht er nie automatisch raus — auch wenn der Agent ihn für sauber hielt.
+    // E-396: Der Kulanz-Satz ist nur beim Jahresvertrag frei — beim Vertrag vor dem 03.09.2026 sperrt die Wand ihn.
+    const kulanzErlaubt = await (await import("./fiaon-kuendigung")).kulanzSatzErlaubt(wer.ref, wer.personId).catch(() => null);
     const e393 = kuendigungSendeUrteil({
       antwort: fertigeAntwort.text, eingang: neuerText, betreff: mail.betreff, flags: einordnung.flags as any,
-      kundenlage, kategorien: einordnung.kategorien as any, kuendigungInAkte: !!akte?.kuendigung,
+      kundenlage, kategorien: einordnung.kategorien as any, kuendigungInAkte: !!akte?.kuendigung, kulanzErlaubt,
     });
     if (e393.gesperrt) {
       erg.grund = `${e393.grund}${erg.grund ? ` · ${erg.grund}` : ""}`.slice(0, 900);
@@ -1673,6 +1675,8 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
       const e393 = kuendigungSendeUrteil({
         antwort: text, eingang: r.text ?? null, betreff: r.betreff ?? null, flags: jsonLesen(r.flags),
         kundenlage: r.kundenlage ?? null, kategorie: r.kategorie ?? null, kategorien: r.kategorien ?? null,
+        // E-396: Kulanz-Satz nur beim Jahresvertrag.
+        kulanzErlaubt: await (await import("./fiaon-kuendigung")).kulanzSatzErlaubt(ref, personId).catch(() => null),
       });
       if (e393.gesperrt) {
         await sqlPool`

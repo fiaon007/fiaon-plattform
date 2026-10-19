@@ -23,6 +23,9 @@ import { istJahresvertrag, abrechnungsmonatEnde, tagDeutsch, giltZumSatz } from 
 import { KUENDIGUNG_IDENTITAET_OFFEN_SQL, identitaetVermerkGueltig, kuendigungIdentitaetSchluessel } from "@shared/fiaon-kuendigung-regel";
 // E-213: Die Urkunde zur Kündigung — Papier, Unterschrift, Prüfsumme.
 import { urkundeAusfertigen, urkundeVerwerfen, urkundeStand, rolleInWorten } from "../lib/fiaon-kuendigung-urkunde";
+// E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — Enddatum und DIE EINE Kulanz-Fassung.
+import { VERTRAGSBEGINN_SQL, jahresvertragEnde, laufzeitSatz, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
+import { istSofortGrund, type SofortGrund } from "../lib/fiaon-kuendigung";
 
 const router = Router();
 const QUELLEN: KuendigungQuelle[] = ["mail", "formular", "telefon", "admin", "altbestand"];
@@ -32,22 +35,34 @@ const QUELLEN: KuendigungQuelle[] = ["mail", "formular", "telefon", "admin", "al
  * Exportiert (21.09.2026, E-201): Der Storno der Telefonkartei schickt sie genauso.
  */
 export async function bestaetigungSenden(ref: string): Promise<boolean> {
+  await kuendigungSpalten(); // E-396: kuendigung_art, kulanz_rate_nr
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.pack_name,
            a.letzte_rate_nr, a.kuendigung_bestaetigt_mail_am, a.payment_status, a.agb_stand, a.gekuendigt_am,
+           -- E-396: Laufzeit-Kündigung — Art, Ende, Kulanz-Rate und der Vertragsschluss (für „fristgerecht“).
+           a.kuendigung_art, a.kulanz_rate_nr, a.vertrag_ende_am,
+           (${sqlPool.unsafe(VERTRAGSBEGINN_SQL("a"))})::text AS jv_beginn,
            -- E-265 Nachbesserung 2 (01.10.2026): ALLE noch zu zahlenden Raten (bis zur letzten), älteste zuerst — dieselbe
            -- Liste wie Urkunde, WhatsApp und Postfach (vorher nur die Rate letzte_rate_nr).
+           -- E-396: bei der Laufzeit-Kündigung die offene Rechnung aus dem Kulanz-Angebot (bis kulanz_rate_nr).
            (SELECT COALESCE(json_agg(json_build_object('rate_nr', y.rate_nr, 'betrag_cents', y.betrag_cents, 'faellig_am', y.faellig_am,
                      'zahlungsreferenz', y.zahlungsreferenz) ORDER BY y.rate_nr), '[]'::json)
               FROM fiaon_abo_raten y
              WHERE y.ref = a.ref AND y.status = 'offen' AND y.storniert_am IS NULL AND y.zahlungsreferenz IS NOT NULL
-               AND (a.letzte_rate_nr IS NULL OR y.rate_nr <= a.letzte_rate_nr)) AS offene_raten
+               AND y.rate_nr <= COALESCE(CASE WHEN a.kuendigung_art = 'laufzeit' THEN a.kulanz_rate_nr END, a.letzte_rate_nr, y.rate_nr)) AS offene_raten
     FROM fiaon_applications a
     WHERE a.ref = ${ref} LIMIT 1
   `) as any[];
   if (!a || a.kuendigung_bestaetigt_mail_am) return false;
   // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag aus der einen Rechnung (Abrechnungsmonat).
-  a.ende_tag = istJahresvertrag(a.agb_stand) ? null : (await vertragsendeLesen(ref)).ende;
+  // E-396: beim Jahresvertrag zum Laufzeitende das gebuchte Ende (vertrag_ende_am).
+  const tagB = (v: unknown) => new Date(v as any).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  a.ende_tag = istJahresvertrag(a.agb_stand)
+    ? (a.kuendigung_art === "laufzeit" && a.vertrag_ende_am ? tagB(a.vertrag_ende_am) : null)
+    : (await vertragsendeLesen(ref)).ende;
+  if (a.kuendigung_art === "laufzeit" && a.jv_beginn && a.gekuendigt_am) {
+    a.fristgerecht = jahresvertragEnde({ beginn: String(a.jv_beginn).slice(0, 10), zugang: tagB(a.gekuendigt_am) }).fristgerecht;
+  }
   const inhalt = bestaetigungInhalt(a);
   // Ohne offene Rate gibt es nichts zu bezahlen — dann ist der Vertrag schon beendet und die Abschlussmail hat der
   // Buchungsweg geschickt (bzw. beim Altvertrag endet er zum Ende des Abrechnungsmonats, ohne Forderung).
@@ -81,8 +96,10 @@ export async function bestaetigungSenden(ref: string): Promise<boolean> {
  * E-265 (01.10.2026, Recht): `ende_tag` (YYYY-MM-DD) ist das Vertragsende aus vertragsendeLesen (Abrechnungsmonat);
  * fehlt es, rechnet die Funktion es rein aus gekuendigt_am und den Fälligkeiten der übergebenen Raten.
  */
-export function bestaetigungInhalt(a: { agb_stand?: unknown; gekuendigt_am?: unknown; offene_raten?: any; ende_tag?: string | null }): Record<string, string> | null {
+export function bestaetigungInhalt(a: { agb_stand?: unknown; gekuendigt_am?: unknown; offene_raten?: any; ende_tag?: string | null; kuendigung_art?: string | null; fristgerecht?: boolean }): Record<string, string> | null {
   const alt = !istJahresvertrag(a.agb_stand);
+  // E-396: Jahresvertrag zum Laufzeitende gekündigt — Enddatum + das Kulanz-Angebot (die offene Rechnung).
+  const laufzeit = !alt && a.kuendigung_art === "laufzeit";
   const tag = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) : null);
   const de = (iso: string | null) => tagDeutsch(iso) ?? "";
   const eur = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
@@ -94,16 +111,27 @@ export function bestaetigungInhalt(a: { agb_stand?: unknown; gekuendigt_am?: unk
   const summe = raten.reduce((x, r) => x + r.cents, 0);
   const eine = raten.length === 1;
   const liste = raten.map((r) => `Rate ${r.nr} über ${eur(r.cents)}${eine ? "" : ` (fällig ${de(r.faellig)})`}`).join(" und ");
+  // ── E-396 (19.10.2026): DIE EINE KULANZ-FASSUNG ────────────────────────────────────────────────────────────
+  // Vorher sagte die Mail „Ab sofort stellen wir keine weiteren Raten … Sobald diese Zahlung verbucht ist, ist der Vertrag
+  // beendet" — beim Jahresvertrag eine von drei Fassungen, und ohne Enddatum. Jetzt: zum Laufzeitende gekündigt → das
+  // Ende (AGB § 6) und das Angebot, wörtlich wie bei Mara (kulanzSatz) + der Rechte-Satz. Jahresvertrag ohne belegte
+  // Annahme (bisheriger Weg: Ende mit der Zahlung) bekommt denselben Kulanz-Satz, ohne Datum.
+  const zugangDe = de(a.gekuendigt_am ? tag(a.gekuendigt_am) : null);
+  const kulanz = `${kulanzSatz(eur(summe), { mehrere: !eine })} Gemeint ${eine ? "ist Ihre offene Rechnung" : "sind Ihre offenen Rechnungen"} — ${liste}${eine ? `, fällig am ${de(raten[0].faellig)}` : ""}. ${RECHTE_SATZ}`;
   const vertragSatz = alt
     ? `Ihre Kündigung ist bei uns eingegangen. Ihr Vertrag ist mit einer Frist von 24 Stunden zum Ende des jeweiligen Abrechnungsmonats kündbar — Ihre Kündigung ${giltZumSatz(ende)}.`
-    : "Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.";
+    : laufzeit
+      ? `Ihre Kündigung${zugangDe ? ` vom ${zugangDe}` : ""} ist bei uns eingegangen und eingetragen — sie gilt, unabhängig von jeder Zahlung. ${laufzeitSatz(a.ende_tag ?? null, { fristgerecht: a.fristgerecht })} Bis dahin bleibt Ihr Bereich für Sie da, und die Monatsraten laufen wie vereinbart weiter.`
+      : `Ihre Kündigung${zugangDe ? ` vom ${zugangDe}` : ""} ist bei uns eingegangen und eingetragen — sie gilt, unabhängig von jeder Zahlung.`;
   const offenSatz = alt
     ? `Raten für die Zeit nach dem Ende Ihres Abrechnungsmonats stellen wir nicht. Offen ${eine ? "bleibt die bis dahin fällige Rechnung" : "bleiben die bis dahin fälligen Rechnungen"} — ${liste}${eine ? `, fällig am ${de(raten[0].faellig)}` : `, zusammen ${eur(summe)}`}. Danach kommt nichts mehr.`
-    : `Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen ${eine ? "bleibt die bereits gestellte Rechnung" : "bleiben die bereits gestellten Rechnungen"} — ${liste}${eine ? `, fällig am ${de(raten[0].faellig)}` : `, zusammen ${eur(summe)}`}. Sobald ${eine ? "diese Zahlung" : "diese Zahlungen"} bei uns verbucht ${eine ? "ist" : "sind"}, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich.`;
+    : `Unser Angebot an Sie: ${kulanz}`;
   return {
     vertrag_satz: vertragSatz,
     offen_satz: offenSatz,
-    preheader_text: alt ? `Ihre Kündigung gilt zum Ende Ihres Abrechnungsmonats${ende ? ` (${de(ende)})` : ""} — offen ${eine ? "ist" : "sind"} nur noch ${liste.replace(/ \(fällig [^)]*\)/g, "")}.` : "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
+    preheader_text: alt ? `Ihre Kündigung gilt zum Ende Ihres Abrechnungsmonats${ende ? ` (${de(ende)})` : ""} — offen ${eine ? "ist" : "sind"} nur noch ${liste.replace(/ \(fällig [^)]*\)/g, "")}.`
+      : laufzeit && a.ende_tag ? `Ihr Vertrag endet zum ${de(a.ende_tag)} — oder vorzeitig aus Kulanz, sobald die offene Rechnung über ${eur(summe)} bezahlt ist.`
+        : `Sobald die offene Rechnung über ${eur(summe)} bezahlt ist, entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag.`,
     raten_text: eine ? `Rate ${raten[0].nr}` : `Raten ${raten.map((r) => r.nr).join(" und ")}`,
     rate_nr: raten.map((r) => r.nr).join(" und "),
     betrag: (summe / 100).toFixed(2),
@@ -143,6 +171,10 @@ export interface DurchfuehrenOptionen {
   quelle: KuendigungQuelle;
   grund?: string | null;
   sofort?: boolean;
+  /** E-396: Beim Jahresvertrag gilt „sofort“ nur mit Grund (Widerruf, wichtiger Grund) — sonst Laufzeitende + Kulanz-Angebot. */
+  sofortGrund?: SofortGrund | null;
+  /** E-396: Der Kunde erwähnt einen Widerruf — dann bleibt beim Jahresvertrag der bisherige Weg (nicht die Widerrufs-Wirkung, E-398). */
+  widerrufErwaehnt?: boolean;
   am?: string | null;
   postmeisterId?: number | null;
   /** Wer zeichnet. Ohne Angabe die Gesellschaft selbst. */
@@ -158,6 +190,7 @@ export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOpti
   const erg = await kuendigungSetzen(ref, {
     quelle: opts.quelle, grund: opts.grund ?? null, am: opts.am ?? null,
     postmeisterId: opts.postmeisterId ?? null, sofort: opts.sofort === true,
+    sofortGrund: istSofortGrund(opts.sofortGrund) ? opts.sofortGrund : null, widerrufErwaehnt: opts.widerrufErwaehnt === true,
   });
   if (!erg.ok) return { ...erg, urkunde: false, mailGesendet: false };
 
@@ -184,7 +217,7 @@ export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOpti
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
       VALUES (${ref}, ${opts.personId}, ${opts.unterzeichner?.agentId ?? null}, ${zeichner.name}, 'system',
-              ${`Kündigung durchgeführt (${erg.weg}${opts.sofort ? ", Kulanz sofort" : ""}). Grund: ${String(opts.grund ?? "").slice(0, 200)}. Urkunde: ${urkunde ? "ausgefertigt" : "FEHLT"}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.`}, NOW())`.catch(() => {});
+              ${`Kündigung durchgeführt (${erg.weg}${erg.weg === "kulanz_sofort" ? (istSofortGrund(opts.sofortGrund) ? `, sofort: ${opts.sofortGrund}` : ", Kulanz sofort") : ""}${erg.weg === "laufzeit_ende" && erg.laufzeit ? `, läuft bis ${erg.laufzeit.ende}` : ""}). Grund: ${String(opts.grund ?? "").slice(0, 200)}. Urkunde: ${urkunde ? "ausgefertigt" : "FEHLT"}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.${erg.hinweis ? ` ${erg.hinweis}` : ""}`}, NOW())`.catch(() => {});
   }
   // E-397: „Kündigung gebucht“ schließt die reinen Kündigungs-Aufträge dieses Menschen (Widerruf, Beschwerde,
   // Erstattung bleiben offen); endet der Vertrag damit sofort, zusätzlich „Vertrag beendet“. Wirft nie.
@@ -345,7 +378,7 @@ async function istLeitung(req: AgentRequest): Promise<boolean> {
  * der Antrag kann an einer anderen Referenz hängen).
  */
 export async function antragBuchen(antrag: OffenerAntrag, opts: {
-  grund: string; sofort?: boolean; personId: number | null;
+  grund: string; sofort?: boolean; sofortGrund?: SofortGrund | null; personId: number | null;
   unterzeichner: { name: string; rolle: string; agentId?: number | null };
   /** true = die Leitung bucht auch, wo die Akte selbst nicht buchen darf (mit Ziel). */
   alsLeitung?: boolean; mail?: boolean;
@@ -381,6 +414,9 @@ export async function antragBuchen(antrag: OffenerAntrag, opts: {
   }
   const erg = await kuendigungDurchfuehren(antrag.ziel.ziel, {
     quelle: "formular", am: antrag.am, grund: opts.grund, sofort: opts.sofort === true,
+    sofortGrund: istSofortGrund(opts.sofortGrund) ? opts.sofortGrund : null,
+    // E-396: Nennt der Antrag einen Widerruf, bleibt der bisherige Weg (die Leitung entscheidet).
+    widerrufErwaehnt: /widerruf|wiederruf|rücktritt|ruecktritt/i.test(String(antrag.grund ?? "")),
     personId: opts.personId, unterzeichner: opts.unterzeichner, mail: opts.mail,
   });
   if (erg?.ok) {
@@ -396,9 +432,11 @@ export async function antragBuchen(antrag: OffenerAntrag, opts: {
 router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const b = await bestellungFuerAgent(req, res); if (!b) return;
+    await kuendigungSpalten(); // E-396
     const [a] = (await sqlPool`
       SELECT ref, payment_status, pack_name, gekuendigt_am, kuendigung_quelle, kuendigung_grund, letzte_rate_nr,
              vertrag_ende_am, kuendigung_zurueckgenommen_am, kuendigung_bestaetigt_mail_am, kuendigung_rueckhol_bis,
+             kuendigung_art, kulanz_rate_nr, agb_stand,
              (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = fiaon_applications.ref AND r.status = 'offen') AS offene_raten
       FROM fiaon_applications WHERE ref = ${b.ref} LIMIT 1`) as any[];
     const gekuendigt = !!a.gekuendigt_am;
@@ -428,6 +466,8 @@ router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agent
       letzteRateNr: a.letzte_rate_nr, vertragEndeAm: a.vertrag_ende_am, zurueckgenommenAm: a.kuendigung_zurueckgenommen_am,
       bestaetigungsmailAm: a.kuendigung_bestaetigt_mail_am, rueckholBis: a.kuendigung_rueckhol_bis, offeneRaten: Number(a.offene_raten || 0),
       beendet: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+      // E-396: Jahresvertrag zum Laufzeitende — Art, Kulanz-Rate; „jahresvertrag“ steuert den Hinweis am Häkchen „sofort“.
+      art: a.kuendigung_art ?? null, kulanzRateNr: a.kulanz_rate_nr ?? null, jahresvertrag: istJahresvertrag(a.agb_stand),
       // E-213: Liegt die Urkunde vor, und wer hat sie gezeichnet?
       urkunde: gekuendigt ? await urkundeStand(b.ref) : { da: false, von: null, rolle: null, am: null, hash: null },
     });
@@ -444,6 +484,9 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
     const grund = String(req.body?.grund || "").trim();
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte den Grund in einem Satz — er steht dauerhaft am Kunden." });
     const sofort = req.body?.sofort === true;
+    // E-396 (19.10.2026): Beim Jahresvertrag beendet „sofort“ nur mit Grund (Widerruf, wichtiger Grund) — ohne Grund
+    // wird zum Laufzeitende gebucht, mit Kulanz-Angebot (kuendigungSetzen sagt es im Hinweis).
+    const sofortGrund = istSofortGrund(req.body?.sofortGrund) ? req.body.sofortGrund as SofortGrund : null;
     // ── E-IT-B (08.10.2026, Gegenprüfung): „JETZT BUCHEN“ FÜR EINEN ANTRAG ────
     // Vorher füllte der Knopf nur den Grund vor — gebucht wurde auf die Bestellung
     // der Akte, mit HEUTIGEM Datum, Quelle „telefon“. Ein Antrag vom 06.07. am
@@ -461,7 +504,7 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
       const alsLeitung = req.body?.alsLeitung === true;
       if (alsLeitung && !(await istLeitung(req))) return res.status(403).json({ ok: false, error: "Das entscheidet die Leitung." });
       const erg = await antragBuchen(antrag, {
-        grund: `${grund} (${req.agent!.name})`, sofort, personId: b.personId, alsLeitung, identitaetVermerk: req.body?.identitaetVermerk ?? null,
+        grund: `${grund} (${req.agent!.name})`, sofort, sofortGrund, personId: b.personId, alsLeitung, identitaetVermerk: req.body?.identitaetVermerk ?? null,
         unterzeichner: { name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id },
       });
       if (erg?.ok === false && (erg.leitung || erg.identitaet || !antrag.ziel.ziel)) return res.status(409).json({ ok: false, error: erg.error, identitaet: !!erg.identitaet });
@@ -471,7 +514,7 @@ router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: Agen
     const erg = await kuendigungDurchfuehren(b.ref, {
       quelle: "telefon",
       grund: `${grund} (${req.agent!.name})`,
-      sofort,
+      sofort, sofortGrund,
       personId: b.personId,
       unterzeichner: { name: req.agent!.name, rolle: rolleInWorten((req.agent as any)?.rolle), agentId: req.agent!.id },
     });

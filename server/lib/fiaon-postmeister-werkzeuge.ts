@@ -1256,6 +1256,8 @@ export const kuendigungVormerken: Werkzeug = {
       : await kuendigungDurchfuehren(k.ref, {
         quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null,
         personId: k.personId ?? null, unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, E-Mail)" },
+        // E-396: Erwähnt er einen Widerruf, bleibt beim Jahresvertrag der bisherige Weg — die Leitung entscheidet.
+        widerrufErwaehnt: /wi(?:e)?der(?:r)?uf|r(?:ü|ue)cktritt/i.test(eigen ?? zitat),
       });
     if (!erg.ok) return { ok: false, ergebnis: "", fehler: `${erg.grund} — NICHTS ist gebucht; bestätige keine Kündigung.` };
     // ── E-246: „bereits" aus dem ERSTEN Anlauf DIESER Mail ist keine alte Kündigung.
@@ -1294,7 +1296,7 @@ export const kuendigungVormerken: Werkzeug = {
     if (weg === "bereits") {
       beendet = !!stand && (["cancelled", "canceled", "storniert", "refunded"].includes(String(stand.payment_status)) || stand.vorbei === true);
     }
-    const offene = (["letzte_rate", "bereits"].includes(weg)
+    const offene = (["letzte_rate", "bereits", "laufzeit_ende"].includes(weg)
       ? await sqlPool`
           SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig, to_char(faellig_am, 'YYYY-MM-DD') AS faellig_iso
             FROM fiaon_abo_raten
@@ -1333,8 +1335,17 @@ export const kuendigungVormerken: Werkzeug = {
         schluessel: `postmeister:kuendigung-raten:${k.ref}`,
       }).catch((e) => console.error("[POSTMEISTER] Prüffall Raten:", String(e).slice(0, 160)));
     }
-    const raten: OffeneRate[] | null = beendet ? [] : gelesen;
-    const t = fester ?? kuendigungSatz(weg, raten, { beendet, formlos: !!k.formlosKuendbar, endeTag });
+    // ── E-396 (19.10.2026): JAHRESVERTRAG ZUM LAUFZEITENDE ──────────────────────────────────────────────────────
+    // Gebucht (oder schon gebucht) zum Laufzeitende: Es zählt das Ende aus der Buchung und die offene Rechnung aus dem
+    // Kulanz-Angebot (bis kulanz_rate_nr) — nicht jede offene Rate. Mara sagt das Ende und den EINEN Kulanz-Satz.
+    const jl = !k.formlosKuendbar && !beendet
+      ? await (await import("./fiaon-kuendigung")).jahresvertragLage(k.ref).catch(() => null) : null;
+    const laufzeit = jl?.art === "laufzeit" && jl.ende ? jl : null;
+    const deTT = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : null);
+    const raten: OffeneRate[] | null = beendet ? []
+      : laufzeit ? (laufzeit.kulanz?.raten ?? []).map((r) => ({ nr: r.nr, cents: r.cents, faellig: deTT(r.faellig) }))
+      : gelesen;
+    const t = fester ?? kuendigungSatz(weg, raten, { beendet, formlos: !!k.formlosKuendbar, endeTag, laufzeitEnde: laufzeit?.ende ?? null });
     const echte = raten ? echteOffeneRaten(raten) : [];
     const letzte = echte.length ? echte[echte.length - 1] : null;
     await protokoll(k, "kuendigung_vormerken", `Kündigung per E-Mail entgegengenommen. ${t}`, !schonVermerkt);
@@ -1355,6 +1366,8 @@ export const kuendigungVormerken: Werkzeug = {
       nichtsMehr: !(!beendet && nachEnde.length), nachEnde: !beendet && nachEnde.length > 0,
       // E-265 (01.10.2026, Recht): „… gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>".
       giltZum: endeTag,
+      // E-396: Jahresvertrag zum Laufzeitende — das Ende und die EINE Kulanz-Fassung.
+      laufzeitEnde: laufzeit?.ende ?? null, fristgerecht: laufzeit?.fristgerecht,
     });
     return {
       ok: true, ergebnis: t,
@@ -1372,9 +1385,13 @@ export const kuendigungVormerken: Werkzeug = {
         urkunde: !!(erg as any).urkunde,
         bestaetigung_gesendet: !!(erg as any).mailGesendet,
         // E-265: Justins Satz für diese Kündigung (Jahresvertrag: Kulanz; Altvertrag: gilt zum Ende des Abrechnungsmonats) — genau so schreiben.
-        ...(soSchreiben ? { so_schreiben: soSchreiben, vertrag: k.formlosKuendbar ? `vor dem 03.09.2026 (kündbar zum Ende des Abrechnungsmonats${tagDeutsch(endeTag) ? `, dem ${tagDeutsch(endeTag)}` : ""} — KEIN „Kulanz“)` : "Jahresvertrag (Kulanz-Satz)" } : {}),
+        ...(soSchreiben ? { so_schreiben: soSchreiben, vertrag: k.formlosKuendbar ? `vor dem 03.09.2026 (kündbar zum Ende des Abrechnungsmonats${tagDeutsch(endeTag) ? `, dem ${tagDeutsch(endeTag)}` : ""} — KEIN „Kulanz“)`
+          : laufzeit ? `Jahresvertrag — gekündigt zum Laufzeitende, dem ${deTT(laufzeit.ende)}; vorzeitig nur aus Kulanz nach Zahlung der offenen Rechnung (Satz aus so_schreiben, wörtlich)`
+          : "Jahresvertrag (Kulanz-Satz)" } : {}),
         // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag (TT.MM.JJJJ) — für die Prüfung und das Modell.
         ...(endeTag ? { gilt_zum: tagDeutsch(endeTag) } : {}),
+        // E-396: das Vertragsende beim Jahresvertrag zum Laufzeitende (TT.MM.JJJJ).
+        ...(laufzeit ? { gilt_zum: deTT(laufzeit.ende), laufzeit_ende: deTT(laufzeit.ende), kulanz_offen: !!laufzeit.kulanz } : {}),
       },
     };
   },
@@ -1593,8 +1610,18 @@ const echteOffeneRaten = (raten: OffeneRate[]) =>
  * Die Raten konnten nicht gelesen werden — dann steht dort nur der Stand der
  * Kündigung, keine Zahl.
  */
-export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { beendet?: boolean; formlos?: boolean; endeTag?: string | null } = {}): string {
+export function kuendigungSatz(weg: string, raten: OffeneRate[] | null, opt: { beendet?: boolean; formlos?: boolean; endeTag?: string | null; laufzeitEnde?: string | null } = {}): string {
   if (weg === "storno_unbezahlt") return "Die Bestellung wurde storniert; es bleibt nichts offen.";
+  // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — er läuft bis zum Ende, die offene Rechnung ist das Kulanz-Angebot.
+  if (opt.laufzeitEnde && !opt.beendet && (weg === "laufzeit_ende" || weg === "bereits")) {
+    const kopf = weg === "bereits" ? "Die Kündigung lag bereits vor." : "Die Kündigung ist gebucht.";
+    const ende = `Der Jahresvertrag läuft bis zum Laufzeitende (${tagDeutsch(opt.laufzeitEnde) ?? opt.laufzeitEnde}); die Raten bis dahin laufen weiter.`;
+    if (raten == null) return `${kopf} ${ende} Die offene Rechnung konnte gerade nicht gelesen werden.`;
+    const echteL = echteOffeneRaten(raten);
+    if (!echteL.length) return `${kopf} ${ende} Es ist keine Rechnung offen.`;
+    const summeL = echteL.reduce((s, r) => s + r.cents, 0);
+    return `${kopf} ${ende} Kulanz-Angebot: Bezahlt er ${echteL.map((r) => `Rate ${r.nr}`).join(" und ")} über ${rateEuro(summeL)}${echteL.length === 1 && echteL[0].faellig ? ` (fällig ${echteL[0].faellig})` : ""}, endet der Vertrag aus Kulanz vorzeitig — mit dem Zahlungseingang.`;
+  }
   // E-265 (01.10.2026, Recht): Altvertrag — „gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>" (giltZumSatz).
   const giltZum = giltZumSatz(opt.endeTag);
   // E-265 Nachbesserung 2 (01.10.2026): Altvertrag — die Kündigung gilt zum Ende des Abrechnungsmonats; Raten danach entfallen mit ihr.

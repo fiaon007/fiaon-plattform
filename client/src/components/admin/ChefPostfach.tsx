@@ -614,7 +614,7 @@ export default function ChefPostfach() {
                               {W.kuendigung && (
                                 <label className={`klein einzug ${W.nachZahlung ? "an" : ""}`}>
                                   <input type="checkbox" checked={W.nachZahlung} onChange={(e) => wahlSetzen(E.id, E, A, { nachZahlung: e.target.checked })} />
-                                  <span>Storno erst nach Zahlung der offenen Rate <small>· aus = Kulanz: endet sofort, offene Raten entfallen</small></span>
+                                  <span>Storno erst nach Zahlung der offenen Rate <small>· aus = Kulanz: endet sofort, offene Raten entfallen — nur Vertrag vor dem 03.09.2026; ein Jahresvertrag läuft bis zum Laufzeitende, Kulanz erst nach Zahlung (E-396)</small></span>
                                 </label>
                               )}
                             </>

@@ -41,6 +41,12 @@ import { kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
 import { KUENDIGUNG_WIRKSAM_SQL, KUENDIGUNG_ANTRAEGE_SQL, antragZiel, type AntragZiel,
   VERTRAGSENDE_SPALTEN_SQL, vertragsendeAusZeile } from "@shared/fiaon-kuendigung-regel";
 import { produktkategorieSql } from "@shared/fiaon-produktkategorie";
+// E-396 (19.10.2026): Jahresvertrag — läuft nach der Kündigung bis zum Laufzeitende, Kulanz nur nach Zahlung.
+import { ANNAHME_BELEGT_SQL, VERTRAGSBEGINN_SQL, LAEUFT_BIS_LAUFZEITENDE_SQL, kuendigungsWeg, jahresvertragEnde,
+  kulanzRechnung, letzteGeschuldeteRate, kulanzSatz, euro as euroJv, tagDe as tagDeJv, type KulanzRate } from "@shared/fiaon-jahresvertrag";
+
+/** Jetzt (für Vergleiche mit gespeicherten Zeitpunkten). */
+function wannJetzt(): number { return Date.now(); }
 
 /** YYYY-MM-DD (Berlin) eines Zeitpunkts. */
 function berlinTag(d: Date | string | number): string {
@@ -108,11 +114,20 @@ export async function vertragsendeLesen(ref: string, opt: { am?: Date | string |
  * Jahresvertrag: nie. Ergebnis: Nummer, Fälligkeit und Vertragsende (TT.MM.JJJJ) — sonst null.
  */
 export async function rateNachVertragsende(referenz: string): Promise<{ nr: number; faellig: string; ende: string } | null> {
+  await kuendigungSpalten();
   const [r] = (await sqlPool`
-    SELECT r.ref, r.rate_nr, r.faellig_am, a.agb_stand, a.gekuendigt_am, a.kuendigung_zurueckgenommen_am
+    SELECT r.ref, r.rate_nr, r.faellig_am, a.agb_stand, a.gekuendigt_am, a.kuendigung_zurueckgenommen_am,
+           a.kuendigung_art, a.letzte_rate_nr, a.vertrag_ende_am
       FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
      WHERE UPPER(r.zahlungsreferenz) = ${String(referenz || "").trim().toUpperCase()}
      ORDER BY r.id DESC LIMIT 1`.catch(() => [])) as any[];
+  // E-396: Jahresvertrag zum Laufzeitende (oder aus Kulanz) gekündigt — geschuldet sind die Raten bis letzte_rate_nr
+  // (Gesamtvergütung der Erstlaufzeit bzw. bis zur Kulanz-Rate); eine Rate darüber hinaus nie.
+  if (r?.gekuendigt_am && istJahresvertrag(r.agb_stand) && ["laufzeit", "kulanz"].includes(String(r.kuendigung_art ?? "")) && r.letzte_rate_nr != null) {
+    if (Number(r.rate_nr) <= Number(r.letzte_rate_nr) || !r.faellig_am) return null;
+    const ende = r.vertrag_ende_am ? berlinTag(r.vertrag_ende_am) : null;
+    return { nr: Number(r.rate_nr), faellig: tagDeutsch(berlinTag(r.faellig_am))!, ende: tagDeutsch(ende) ?? "" };
+  }
   if (!r?.gekuendigt_am || r.kuendigung_zurueckgenommen_am || istJahresvertrag(r.agb_stand) || !r.faellig_am) return null;
   const { ende, endeDe } = await vertragsendeLesen(String(r.ref));
   if (!ende || !endeDe) return null;
@@ -127,13 +142,33 @@ export type KuendigungQuelle = "mail" | "formular" | "telefon" | "admin" | "altb
 export interface KuendigungErgebnis {
   ok: boolean;
   ref: string;
-  weg: "storno_unbezahlt" | "letzte_rate" | "sofort_beendet" | "kulanz_sofort" | "bereits" | "prueffall" | "unbekannt";
+  // E-396: „laufzeit_ende“ — Jahresvertrag mit belegter Annahme läuft bis zum Laufzeitende, Kulanz-Angebot steht.
+  weg: "storno_unbezahlt" | "letzte_rate" | "sofort_beendet" | "kulanz_sofort" | "laufzeit_ende" | "bereits" | "prueffall" | "unbekannt";
   letzteRateNr: number | null;
   letzteRateBetragCents: number | null;
   letzteRateFaellig: string | null;
   stornierteRaten: number;
   vertragEndeAm: string | null;
   grund: string;
+  /** E-396, nur bei „laufzeit_ende“: das Vertragsende (JJJJ-MM-TT, Berlin) und das Kulanz-Angebot. */
+  laufzeit?: {
+    ende: string;
+    fristgerecht: boolean;
+    /** Die offene Rechnung, nach deren Zahlung der Vertrag aus Kulanz endet — null, wenn nichts mehr offen ist. */
+    kulanz: { bisNr: number; summeCents: number; raten: KulanzRate[] } | null;
+  };
+  /** E-396: Warum ein Jahresvertrag den bisherigen Weg nahm bzw. warum „sofort“ nicht galt (steht auch im Verlauf). */
+  hinweis?: string | null;
+}
+
+/** E-396: Gründe, aus denen ein Jahresvertrag SOFORT endet — nie Kulanz (die gibt es nur nach Zahlung). */
+export type SofortGrund = "widerruf" | "wichtiger_grund";
+export const SOFORT_GRUENDE: Record<SofortGrund, string> = {
+  widerruf: "Widerruf",
+  wichtiger_grund: "Kündigung aus wichtigem Grund",
+};
+export function istSofortGrund(v: unknown): v is SofortGrund {
+  return v === "widerruf" || v === "wichtiger_grund";
 }
 
 /** Spalten nachrüsten — idempotent, beim ersten Aufruf. */
@@ -150,7 +185,11 @@ export async function kuendigungSpalten(): Promise<void> {
       ADD COLUMN IF NOT EXISTS kuendigung_zurueckgenommen_am TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS kuendigung_bestaetigt_mail_am TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS kuendigung_rueckhol_bis TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS kuendigung_postmeister_id INTEGER
+      ADD COLUMN IF NOT EXISTS kuendigung_postmeister_id INTEGER,
+      -- E-396 (19.10.2026): Art der Kündigung (laufzeit | kulanz | sofort_recht) und die Rate, deren Zahlung den
+      -- Jahresvertrag aus Kulanz beendet (die offene Rechnung zum Zeitpunkt der Kündigung).
+      ADD COLUMN IF NOT EXISTS kuendigung_art TEXT,
+      ADD COLUMN IF NOT EXISTS kulanz_rate_nr INTEGER
   `.catch((e) => console.error("[KÜNDIGUNG] Spalten:", String(e).slice(0, 200)));
   spaltenBereit = true;
 }
@@ -232,8 +271,18 @@ export async function kuendigungSetzen(ref: string, opts: {
    * entfallen. Das ist eine Geldentscheidung; nur ein Mensch im Postfach darf
    * sie treffen (Schalter „Storno erst nach Zahlungseingang" ausgeschaltet).
    * Mara bekommt diesen Weg nicht angeboten.
+   * E-396 (19.10.2026): Beim Jahresvertrag mit belegter Annahme gilt „sofort“ NUR mit `sofortGrund` (Widerruf oder
+   * wichtiger Grund) — eine Kulanz ohne Zahlung gibt es dort nicht mehr (Justin 19.10.). Ohne Grund wird die
+   * Kündigung zum Laufzeitende gebucht, mit dem Kulanz-Angebot.
    */
   sofort?: boolean;
+  /** E-396: Der rechtliche Grund für „sofort“ beim Jahresvertrag. */
+  sofortGrund?: SofortGrund | null;
+  /**
+   * E-396: Der Kunde ERWÄHNT einen Widerruf (Text des Antrags, der Mail) — dann bleibt beim Jahresvertrag der bisherige
+   * Weg, die Leitung entscheidet. Nicht zu verwechseln mit der Wirkung eines Widerrufs selbst (eigener Weg, E-398).
+   */
+  widerrufErwaehnt?: boolean;
 }): Promise<KuendigungErgebnis> {
   await kuendigungSpalten();
   const leer = (weg: KuendigungErgebnis["weg"], grund: string): KuendigungErgebnis =>
@@ -246,16 +295,54 @@ export async function kuendigungSetzen(ref: string, opts: {
            -- mit „undefined“. Jetzt gelesen, und jede neue Kündigung setzt ihn zurück (siehe SET unten).
            kuendigung_zurueckgenommen_am,
            -- E-265 (01.10.2026): der Anker für den Abrechnungsmonat, falls keine Ratenkette da ist
-           COALESCE(paid_at, completed_at, created_at) AS anker
+           COALESCE(paid_at, completed_at, created_at) AS anker,
+           -- E-396 (19.10.2026): Art der Kündigung, Annahme belegt (PDF oder Knopf), Tag des Vertragsschlusses.
+           kuendigung_art,
+           ${sqlPool.unsafe(ANNAHME_BELEGT_SQL("fiaon_applications"))} AS jv_belegt,
+           (${sqlPool.unsafe(VERTRAGSBEGINN_SQL("fiaon_applications"))})::text AS jv_beginn
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
   `) as any[];
   if (!a) return leer("unbekannt", "Bestellung nicht gefunden");
+  // E-396: „sofort“ beim Jahresvertrag nur mit rechtlichem Grund (Widerruf, wichtiger Grund) — nie als Kulanz.
+  const sofortRecht = opts.sofort === true && istSofortGrund(opts.sofortGrund);
   // E-IT-B (08.10.2026): Nach einer Rücknahme und einer erneuten Kündigung blieb kuendigung_zurueckgenommen_am
   // stehen — elf Leser („gekündigt und nicht zurückgenommen“) hielten den Menschen dann für ungekündigt. Jede
   // Kündigung unten setzt den Rücknahmetag deshalb auf NULL; die Regel selbst liest nur noch gekuendigt_am
   // (shared/fiaon-kuendigung-regel.ts — die Rücknahme setzt gekuendigt_am auf NULL). Ein gesetztes gekuendigt_am
   // IST die geltende Kündigung — auch wenn ein alter Rücknahmetag daneben steht.
   if (a.gekuendigt_am) {
+    // ── E-396: EIN LAUFENDER JAHRESVERTRAG ENDET NACHTRÄGLICH SOFORT — NUR BEI WIDERRUF ODER WICHTIGEM GRUND ──
+    // Er ist ordentlich gekündigt und läuft bis zum Laufzeitende; erklärt der Kunde danach den Widerruf (die Frist kann
+    // ohne Widerrufsknopf noch laufen, Rechtsprüfung 19.10. Thema 2) oder liegt ein wichtiger Grund vor, beendet die
+    // Leitung ihn mit Grund sofort. Offene Raten entfallen (Grund „kuendigung“ — eine Rücknahme holt sie zurück).
+    if (a.kuendigung_art === "laufzeit" && sofortRecht && !(a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= wannJetzt())) {
+      const grundText = SOFORT_GRUENDE[opts.sofortGrund as SofortGrund];
+      const [n] = (await sqlPool`SELECT COUNT(*)::int AS n, COALESCE(MAX(rate_nr) FILTER (WHERE status = 'bezahlt'), 0)::int AS bezahlt_bis
+                                     FROM fiaon_abo_raten WHERE ref = ${ref} AND storniert_am IS NULL AND (status = 'offen' OR status = 'bezahlt')`) as any[];
+      const [offenN] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_abo_raten WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL`) as any[];
+      if (opts.probe) return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: Number(n?.bezahlt_bis) || null, letzteRateBetragCents: null, letzteRateFaellig: null,
+        stornierteRaten: Number(offenN?.n || 0), vertragEndeAm: new Date().toISOString(), grund: `${grundText} — der laufende Jahresvertrag endet sofort` };
+      await sqlPool.begin(async (tx) => {
+        await tx`
+          UPDATE fiaon_applications
+             SET vertrag_ende_am = NOW(), kuendigung_art = 'sofort_recht', letzte_rate_nr = ${Number(n?.bezahlt_bis) || null},
+                 abo_gestoppt_am = COALESCE(abo_gestoppt_am, NOW()), abo_stopp_grund = ${`Kündigung (sofort: ${grundText})`},
+                 mahnstopp_am = COALESCE(mahnstopp_am, NOW()), updated_at = NOW()
+           WHERE ref = ${ref}`;
+        await tx`
+          UPDATE fiaon_abo_raten
+             SET status = 'storniert', storniert_am = NOW(), storno_grund = 'kuendigung', mahnstufe = 0,
+                 inkasso_agent_id = NULL, inkasso_wiedervorlage = NULL, inkasso_zusage_am = NULL, updated_at = NOW()
+           WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL`;
+        await tx`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+                  ${`${grundText}: Der zum Laufzeitende gekündigte Jahresvertrag endet SOFORT; ${Number(offenN?.n || 0)} offene Rate(n) entfallen. Ein Mensch hat das mit Grund entschieden (E-396).${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+        `.catch(() => {});
+      });
+      return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: Number(n?.bezahlt_bis) || null, letzteRateBetragCents: null, letzteRateFaellig: null,
+        stornierteRaten: Number(offenN?.n || 0), vertragEndeAm: new Date().toISOString(), grund: `Vertrag beendet (${grundText})` };
+    }
     return { ok: true, ref, weg: "bereits", letzteRateNr: a.letzte_rate_nr ?? null, letzteRateBetragCents: null,
       letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: a.vertrag_ende_am ?? null, grund: "bereits gekündigt" };
   }
@@ -300,7 +387,7 @@ export async function kuendigungSetzen(ref: string, opts: {
 
   // ── Weg 2: bezahlt → letzte Rate bestimmen ──────────────────────────────
   const raten = (await sqlPool`
-    SELECT id, rate_nr, betrag_cents, status, faellig_am
+    SELECT id, rate_nr, betrag_cents, status, faellig_am, zahlungsreferenz
     FROM fiaon_abo_raten WHERE ref = ${ref} AND storniert_am IS NULL ORDER BY rate_nr ASC
   `) as any[];
   const offen = raten.filter((r) => r.status === "offen");
@@ -311,6 +398,95 @@ export async function kuendigungSetzen(ref: string, opts: {
   if (kettenLuecke(raten)) {
     return leer("prueffall", `Lücke in der Ratenkette (${raten.map((r) => r.rate_nr).join(",")}) — ein Mensch muss entscheiden`);
   }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════════════════════════
+  // E-396 (19.10.2026): DER JAHRESVERTRAG LÄUFT BIS ZUM LAUFZEITENDE — KULANZ NUR NACH ZAHLUNG
+  //
+  // Justin: „JEDER Kunde, der … Vertrag akzeptiert hat … hat mit uns einen 12 Monats VERTRAG, AUSSER die Kunden, die wir
+  // aus Kulanz kündigen. Die Kunden müssen dann noch die letzte offene Rechnung einbezahlen; sobald sie das getan haben
+  // = gekündigt.“ Jahresvertrag mit belegter Annahme (PDF oder Knopf), bezahlt, nicht in den ersten 14 Tagen, kein
+  // Widerruf (kuendigungsWeg, shared/fiaon-jahresvertrag.ts):
+  //   · Die Kündigung wird JETZT gebucht und gilt zum Laufzeitende (AGB § 6 Abs. 2) — vertrag_ende_am steht ab sofort,
+  //     unabhängig von jeder Zahlung. Die Raten bis dahin laufen weiter (letzte_rate_nr = 12, Gesamtvergütung § 5
+  //     Abs. 2); kein Abo-Stopp, kein Mahnstopp, nichts wird storniert.
+  //   · Das Kulanz-Angebot: die offene Rechnung jetzt (kulanz_rate_nr). Ist sie bezahlt, beendet kulanzNachZahlungPruefen
+  //     den Vertrag aus Kulanz (rateBezahltBuchen) — mit der Abschlussmail. Ist keine offen, legt das Haus die nächste
+  //     Rate an wie nach jeder Zahlung (naechsteRateAnlegen), damit das Angebot Betrag und Zahlungsseite hat.
+  //   · „sofort“ ohne Widerruf oder wichtigen Grund gibt es hier nicht mehr (die sechs „Kulanz sofort“ vom Telefon) —
+  //     die Buchung geht zum Laufzeitende, der Hinweis steht im Verlauf und in der Antwort.
+  // ══════════════════════════════════════════════════════════════════════════════════════════════════════════
+  const jvWeg = kuendigungsWeg({
+    jahresvertrag: istJahresvertrag(a.agb_stand), bezahlt: true, annahmeBelegt: a.jv_belegt === true,
+    beginn: a.jv_beginn ? String(a.jv_beginn).slice(0, 10) : null, zugang: berlinTag(wann), widerrufErwaehnt: opts.widerrufErwaehnt === true,
+  });
+  let hinweis: string | null = jvWeg.warum;
+  if (jvWeg.weg === "laufzeit" && !sofortRecht) {
+    if (opts.sofort) hinweis = "„Sofort beenden“ gibt es beim Jahresvertrag nur bei Widerruf oder wichtigem Grund — Kulanz nur nach Zahlung der offenen Rechnung (E-396). Gebucht zum Laufzeitende, mit Kulanz-Angebot.";
+    const beginn = String(a.jv_beginn).slice(0, 10);
+    const { ende, fristgerecht } = jahresvertragEnde({ beginn, zugang: berlinTag(wann) });
+    const tagVon = (v: unknown): string | null => (v ? berlinTag(v as any) : null);
+    let kette = raten;
+    let offenJetzt = offen;
+    if (!offenJetzt.length && !opts.probe) {
+      const hoechste = [...raten].filter((r) => r.status === "bezahlt").sort((x, y) => Number(y.rate_nr) - Number(x.rate_nr))[0];
+      if (hoechste) {
+        const { naechsteRateAnlegen } = await import("../routes/fiaon-abo");
+        await naechsteRateAnlegen(ref, hoechste).catch((e) => console.error("[KÜNDIGUNG] Kulanz-Rate anlegen:", String(e).slice(0, 160)));
+        kette = (await sqlPool`
+          SELECT id, rate_nr, betrag_cents, status, faellig_am, zahlungsreferenz
+            FROM fiaon_abo_raten WHERE ref = ${ref} AND storniert_am IS NULL ORDER BY rate_nr ASC`) as any[];
+        offenJetzt = kette.filter((r) => r.status === "offen");
+      }
+    }
+    const kulanz = kulanzRechnung(offenJetzt.map((r) => ({
+      nr: Number(r.rate_nr), cents: Number(r.betrag_cents) || 0, faellig: tagVon(r.faellig_am), referenz: r.zahlungsreferenz ?? null,
+    })));
+    const letzte = letzteGeschuldeteRate({
+      fristgerecht, ende, kette: kette.map((r) => ({ nr: Number(r.rate_nr), faellig: tagVon(r.faellig_am), bezahlt: r.status === "bezahlt" })),
+    });
+    const nachEnde = offenJetzt.filter((r) => Number(r.rate_nr) > letzte);
+    const endeZeit = berlinTagesende(ende);
+    const kulanzText = kulanz
+      ? `${kulanz.raten.map((r) => `Rate ${r.nr}`).join(" und ")} über ${euroJv(kulanz.summeCents)}${kulanz.raten.length === 1 && kulanz.raten[0].faellig ? ` (fällig ${tagDeJv(kulanz.raten[0].faellig)})` : ""}`
+      : null;
+    const ergebnis: KuendigungErgebnis = {
+      ok: true, ref, weg: "laufzeit_ende", letzteRateNr: letzte, letzteRateBetragCents: kulanz?.summeCents ?? null,
+      letzteRateFaellig: kulanz ? kulanz.raten[kulanz.raten.length - 1].faellig : null, stornierteRaten: nachEnde.length,
+      vertragEndeAm: endeZeit.toISOString(),
+      grund: `Jahresvertrag läuft bis zum Laufzeitende (${tagDeJv(ende)})${kulanzText ? `; Kulanz nach Zahlung von ${kulanzText}` : "; keine Rechnung offen"}`,
+      laufzeit: { ende, fristgerecht, kulanz }, hinweis,
+    };
+    if (opts.probe) return ergebnis;
+    await sqlPool.begin(async (tx) => {
+      await tx`
+        UPDATE fiaon_applications
+           SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+               kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${letzte},
+               vertrag_ende_am = ${endeZeit}, kuendigung_art = 'laufzeit', kulanz_rate_nr = ${kulanz?.bisNr ?? null},
+               kuendigung_rueckhol_bis = ${rueckholBis}, updated_at = NOW()
+         WHERE ref = ${ref}
+      `;
+      if (nachEnde.length) {
+        await tx`
+          UPDATE fiaon_abo_raten
+             SET status = 'storniert', storniert_am = NOW(), storno_grund = 'kuendigung', mahnstufe = 0,
+                 inkasso_agent_id = NULL, inkasso_wiedervorlage = NULL, inkasso_zusage_am = NULL, updated_at = NOW()
+           WHERE ref = ${ref} AND rate_nr > ${letzte} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL
+        `;
+      }
+      await tx`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+                ${`Kündigung (${opts.quelle}) — Jahresvertrag (Annahme belegt, Vertragsschluss ${tagDeJv(beginn)}): Die Kündigung ist gebucht und gilt zum Laufzeitende, dem ${tagDeJv(ende)}${fristgerecht ? "" : " (nach den zwölf Monaten, mit einem Monat Frist)"}; die Raten bis dahin laufen weiter (bis Rate ${letzte}). `
+                  + `${kulanzText ? `Kulanz-Angebot: Sobald ${kulanzText} bezahlt ${kulanz!.raten.length === 1 ? "ist" : "sind"}, endet der Vertrag aus Kulanz vorzeitig (automatisch, mit Abschlussmail).` : "Es ist keine Rechnung offen."}`
+                  + `${hinweis ? ` ${hinweis}` : ""}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+      `.catch(() => {});
+    });
+    return ergebnis;
+  }
+  // Jahresvertrag mit belegter Annahme und Widerruf/wichtigem Grund (sofortRecht) — Art für Leser und Verlauf.
+  const artSofort: string | null = sofortRecht && istJahresvertrag(a.agb_stand) ? "sofort_recht" : null;
+  const sofortGrundText = sofortRecht ? SOFORT_GRUENDE[opts.sofortGrund as SofortGrund] : null;
 
   // E-265 Nachbesserung 2 (01.10.2026): EINE Rechnung — was bleibt, was entfällt (kuendigungRatenPlan).
   // E-265 (01.10.2026, Recht): Altvertrag — Vertragsende = Ende des Abrechnungsmonats, in dem die 24-Stunden-Frist abläuft.
@@ -323,39 +499,41 @@ export async function kuendigungSetzen(ref: string, opts: {
   if (offen.length === 0) {
     const hoechste = raten.length ? Math.max(...raten.map((r) => Number(r.rate_nr))) : 0;
     if (opts.probe) return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechste || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "keine offene Rate — Vertrag endet sofort" };
+      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "keine offene Rate — Vertrag endet sofort", hinweis };
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
            SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechste || null},
                vertrag_ende_am = ${endeOhneRate}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
-               abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung'), kuendigung_rueckhol_bis = ${rueckholBis},
+               abo_stopp_grund = COALESCE(abo_stopp_grund, ${sofortGrundText ? `Kündigung (sofort: ${sofortGrundText})` : "Kündigung"}), kuendigung_rueckhol_bis = ${rueckholBis},
+               kuendigung_art = ${artSofort}, kulanz_rate_nr = NULL,
                mahnstopp_am = COALESCE(mahnstopp_am, ${wann}), updated_at = NOW()
          WHERE ref = ${ref}
       `;
       await tx`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-                ${`Kündigung (${opts.quelle}) — alle Raten bezahlt, Vertrag endet ${endeText ?? "sofort"}.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+                ${`Kündigung (${opts.quelle}${sofortGrundText ? `, ${sofortGrundText}` : ""}) — alle Raten bezahlt, Vertrag endet ${endeText ?? "sofort"}.${hinweis ? ` ${hinweis}` : ""}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
     });
     return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechste || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet" };
+      letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet", hinweis };
   }
 
   // ── Kulanz (nur Mensch): sofort beenden, offene Raten entfallen ────────
   if (opts.sofort) {
     const hoechsteBezahlt = raten.filter((r) => r.status === "bezahlt").reduce((m, r) => Math.max(m, Number(r.rate_nr)), 0);
     if (opts.probe) return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: `Kulanz — ${offen.length} offene Rate(n) entfallen, Vertrag endet sofort` };
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: `${sofortGrundText ?? "Kulanz"} — ${offen.length} offene Rate(n) entfallen, Vertrag endet sofort`, hinweis };
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_applications
            SET gekuendigt_am = ${wann}, kuendigung_zurueckgenommen_am = NULL, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
                kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechsteBezahlt || null},
                vertrag_ende_am = ${wann}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
-               abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung (Kulanz, sofort)'), kuendigung_rueckhol_bis = ${rueckholBis},
+               abo_stopp_grund = COALESCE(abo_stopp_grund, ${sofortGrundText ? `Kündigung (sofort: ${sofortGrundText})` : "Kündigung (Kulanz, sofort)"}), kuendigung_rueckhol_bis = ${rueckholBis},
+               kuendigung_art = ${artSofort}, kulanz_rate_nr = NULL,
                mahnstopp_am = COALESCE(mahnstopp_am, ${wann}), updated_at = NOW()
          WHERE ref = ${ref}
       `;
@@ -367,11 +545,11 @@ export async function kuendigungSetzen(ref: string, opts: {
       await tx`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-                ${`Kündigung (${opts.quelle}), KULANZ — Vertrag endet sofort, ${offen.length} offene Rate(n) entfallen. Ein Mensch hat das im Postfach entschieden.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+                ${`Kündigung (${opts.quelle}), ${sofortGrundText ? sofortGrundText.toUpperCase() : "KULANZ"} — Vertrag endet sofort, ${offen.length} offene Rate(n) entfallen. Ein Mensch hat das ${sofortGrundText ? "mit Grund" : "im Postfach"} entschieden.${hinweis ? ` ${hinweis}` : ""}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
     });
     return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet (Kulanz)" };
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: `Vertrag beendet (${sofortGrundText ?? "Kulanz"})`, hinweis };
   }
 
   // ── E-265 Nachbesserung 2 (01.10.2026): NICHTS MEHR ZU ZAHLEN ──────────────────────────────────────────────
@@ -402,11 +580,11 @@ export async function kuendigungSetzen(ref: string, opts: {
       await tx`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-                ${`Kündigung (${opts.quelle}) — nichts mehr fällig: ${offen.length} spätere Rate(n) entfallen (${plan.jahresvertrag ? "Jahresvertrag, Kulanz: nur fällige Raten" : `Vertrag vor dem 03.09.2026, Vertragsende ${endeText}`}).${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+                ${`Kündigung (${opts.quelle}) — nichts mehr fällig: ${offen.length} spätere Rate(n) entfallen (${plan.jahresvertrag ? "Jahresvertrag, Kulanz: nur fällige Raten" : `Vertrag vor dem 03.09.2026, Vertragsende ${endeText}`}).${hinweis ? ` ${hinweis}` : ""}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
     });
     return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
-      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet — nichts mehr fällig" };
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: endeOhneRate.toISOString(), grund: "Vertrag beendet — nichts mehr fällig", hinweis };
   }
 
   // Welche offene Rate ist „die letzte"? Standard: die höchste der ZU ZAHLENDEN (kuendigungRatenPlan) — Altvertrag
@@ -443,13 +621,13 @@ export async function kuendigungSetzen(ref: string, opts: {
     await tx`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
       VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
-              ${`Kündigung (${opts.quelle}) — letzte Rate ${letzteNr} über ${(Number(gewaehlt.betrag_cents) / 100).toFixed(2)} € bleibt fällig${gewaehlt.faellig_am ? ` (fällig ${String(gewaehlt.faellig_am).slice(0, 10)})` : ""}; ${danach.length} spätere Rate(n) storniert. ${endeText ? `Die Kündigung gilt ${endeText}.` : "Mit der Zahlung endet der Vertrag."}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+              ${`Kündigung (${opts.quelle}) — letzte Rate ${letzteNr} über ${(Number(gewaehlt.betrag_cents) / 100).toFixed(2)} € bleibt fällig${gewaehlt.faellig_am ? ` (fällig ${String(gewaehlt.faellig_am).slice(0, 10)})` : ""}; ${danach.length} spätere Rate(n) storniert. ${endeText ? `Die Kündigung gilt ${endeText}.` : "Mit der Zahlung endet der Vertrag."}${hinweis ? ` ${hinweis}` : ""}${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
     `.catch(() => {});
   });
 
   return { ok: true, ref, weg: "letzte_rate", letzteRateNr: letzteNr, letzteRateBetragCents: Number(gewaehlt.betrag_cents),
     letzteRateFaellig: gewaehlt.faellig_am, stornierteRaten: danach.length, vertragEndeAm: null,
-    grund: `letzte Rate ${letzteNr} bleibt fällig` };
+    grund: `letzte Rate ${letzteNr} bleibt fällig`, hinweis };
 }
 
 /** Kündigung zurücknehmen — stornierte Raten leben wieder auf. */
@@ -465,7 +643,8 @@ export async function kuendigungZuruecknehmen(ref: string, grund?: string | null
     await tx`
       UPDATE fiaon_applications
          SET kuendigung_zurueckgenommen_am = NOW(), gekuendigt_am = NULL, letzte_rate_nr = NULL,
-             vertrag_ende_am = NULL, abo_gestoppt_am = NULL, abo_stopp_grund = NULL, updated_at = NOW()
+             vertrag_ende_am = NULL, abo_gestoppt_am = NULL, abo_stopp_grund = NULL,
+             kuendigung_art = NULL, kulanz_rate_nr = NULL, updated_at = NOW()
        WHERE ref = ${ref}
     `;
     // E-IT-B (08.10.2026, Gegenprüfung): Ein offener Formular-Antrag dieses Menschen ist mit der Rücknahme
@@ -619,6 +798,115 @@ export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{
   return { beendet: true, person_id: a.person_id };
 }
 
+/**
+ * DER KULANZ-AUSSTIEG NACH ZAHLUNG (E-396, 19.10.2026) — aus rateBezahltBuchen gerufen, VOR der nächsten Rate: dort
+ * steht fest, dass Geld angekommen ist. Ein ordentlich gekündigter Jahresvertrag (kuendigung_art „laufzeit“) endet aus
+ * Kulanz, sobald die offene Rechnung aus der Kündigung (bis kulanz_rate_nr) vollständig bezahlt ist: vertrag_ende_am =
+ * jetzt, Art „kulanz“, Abo-Stopp, spätere offene Raten entfallen (Grund „kuendigung“ — eine Rücknahme holt sie zurück).
+ * Die Abschlussmail (vertrag_beendet: „Ihre letzte Rechnung ist bei uns eingegangen … vorzeitig, wie zugesagt“) schickt
+ * der Aufrufer. Provisionen bleiben. `lauf` für Prüfstände.
+ */
+export async function kulanzNachZahlungPruefen(ref: string, lauf: typeof sqlPool = sqlPool): Promise<{ beendet: boolean; person_id?: number | null; storniert?: number; kulanzRateNr?: number }> {
+  await kuendigungSpalten();
+  const [a] = (await lauf`
+    SELECT ref, person_id, gekuendigt_am, kuendigung_art, kulanz_rate_nr, vertrag_ende_am
+      FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+  if (!a?.gekuendigt_am || a.kuendigung_art !== "laufzeit" || a.kulanz_rate_nr == null) return { beendet: false };
+  if (a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now()) return { beendet: false };
+  const k = Number(a.kulanz_rate_nr);
+  const [st] = (await lauf`
+    SELECT COALESCE(bool_or(rate_nr = ${k} AND status = 'bezahlt'), FALSE) AS kulanz_bezahlt,
+           COALESCE(bool_or(rate_nr <= ${k} AND status <> 'bezahlt' AND storniert_am IS NULL AND bezahlt_am IS NULL), FALSE) AS offen_davor
+      FROM fiaon_abo_raten WHERE ref = ${ref}`) as any[];
+  if (st?.offen_davor === true || st?.kulanz_bezahlt !== true) return { beendet: false };
+  let storniert = 0;
+  const geaendert = await lauf.begin(async (tx: any) => {
+    const w = (await tx`
+      UPDATE fiaon_applications
+         SET vertrag_ende_am = NOW(), kuendigung_art = 'kulanz', letzte_rate_nr = ${k},
+             abo_gestoppt_am = COALESCE(abo_gestoppt_am, NOW()), abo_stopp_grund = 'Kündigung (Kulanz nach Zahlung)',
+             mahnstopp_am = COALESCE(mahnstopp_am, NOW()), updated_at = NOW()
+       WHERE ref = ${ref} AND kuendigung_art = 'laufzeit' RETURNING ref`) as any[];
+    if (!w.length) return false;
+    const r = (await tx`
+      UPDATE fiaon_abo_raten
+         SET status = 'storniert', storniert_am = NOW(), storno_grund = 'kuendigung', mahnstufe = 0,
+             inkasso_agent_id = NULL, inkasso_wiedervorlage = NULL, inkasso_zusage_am = NULL, updated_at = NOW()
+       WHERE ref = ${ref} AND rate_nr > ${k} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL
+      RETURNING id`) as any[];
+    storniert = r.length;
+    await tx`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+              ${`Rate ${k} bezahlt — Kulanz: Der zum Laufzeitende gekündigte Jahresvertrag ist damit vorzeitig beendet (Angebot aus der Kündigung vom ${new Date(a.gekuendigt_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}, E-396).${storniert ? ` ${storniert} spätere Rate(n) entfallen.` : ""} Provisionen bleiben bestehen.`})
+    `.catch(() => {});
+    return true;
+  });
+  return geaendert ? { beendet: true, person_id: a.person_id ?? null, storniert, kulanzRateNr: k } : { beendet: false };
+}
+
+/**
+ * DER JAHRESVERTRAG IN ZAHLEN (E-396) — für Mara, Akte und Kundenbereich: Annahme belegt?, Vertragsschluss, Ende der
+ * Erstlaufzeit und das Ende, das eine Kündigung HEUTE hätte; bei einer Kündigung zum Laufzeitende das gebuchte Ende und
+ * die offene Kulanz-Rechnung. null beim Altvertrag oder ohne Bestellung.
+ */
+export async function jahresvertragLage(ref: string | null, opt: { lauf?: typeof sqlPool; heute?: string } = {}): Promise<null | {
+  belegt: boolean; beginn: string | null; erstEnde: string | null; endeBeiKuendigungHeute: string | null; fristgerechtHeute: boolean;
+  art: string | null; gekuendigt: boolean; ende: string | null; kulanz: { bisNr: number; summeCents: number; raten: KulanzRate[] } | null;
+  /** Bei einer Laufzeit-Kündigung: kam sie fristgerecht zum Ende der Erstlaufzeit (sonst danach, mit Monatsfrist)? */
+  fristgerecht: boolean;
+}> {
+  if (!ref) return null;
+  const lauf = opt.lauf ?? sqlPool;
+  await kuendigungSpalten();
+  const [a] = (await lauf.unsafe(`
+    SELECT a.agb_stand, a.gekuendigt_am, a.vertrag_ende_am, a.kuendigung_art, a.kulanz_rate_nr, a.payment_status,
+           ${ANNAHME_BELEGT_SQL("a")} AS belegt, (${VERTRAGSBEGINN_SQL("a")})::text AS beginn
+      FROM fiaon_applications a WHERE a.ref = $1 AND a.merged_into IS NULL LIMIT 1`, [ref]).catch(() => [])) as any[];
+  if (!a || !istJahresvertrag(a.agb_stand)) return null;
+  const heute = opt.heute ?? berlinTag(new Date());
+  const beginn = a.beginn ? String(a.beginn).slice(0, 10) : null;
+  const vorschau = beginn ? jahresvertragEnde({ beginn, zugang: heute }) : null;
+  let kulanz: { bisNr: number; summeCents: number; raten: KulanzRate[] } | null = null;
+  if (a.kuendigung_art === "laufzeit" && a.kulanz_rate_nr != null) {
+    const r = (await lauf`
+      SELECT rate_nr, betrag_cents, faellig_am, zahlungsreferenz FROM fiaon_abo_raten
+       WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL AND rate_nr <= ${Number(a.kulanz_rate_nr)}
+       ORDER BY rate_nr`.catch(() => [])) as any[];
+    kulanz = kulanzRechnung(r.map((x) => ({ nr: Number(x.rate_nr), cents: Number(x.betrag_cents) || 0, faellig: x.faellig_am ? berlinTag(x.faellig_am) : null, referenz: x.zahlungsreferenz ?? null })));
+  }
+  return {
+    belegt: a.belegt === true, beginn, erstEnde: vorschau?.erstEnde ?? null,
+    endeBeiKuendigungHeute: vorschau?.ende ?? null, fristgerechtHeute: vorschau?.fristgerecht ?? true,
+    art: a.kuendigung_art ?? null, gekuendigt: !!a.gekuendigt_am,
+    ende: a.vertrag_ende_am ? berlinTag(a.vertrag_ende_am) : null, kulanz,
+    fristgerecht: beginn && a.gekuendigt_am ? jahresvertragEnde({ beginn, zugang: berlinTag(a.gekuendigt_am) }).fristgerecht : true,
+  };
+}
+
+/**
+ * Der Kulanz-Satz für eine gebuchte Laufzeit-Kündigung, aus der Datenbank (E-396) — für Mara, wenn ein schon gekündigter
+ * Kunde fragt („Muss ich noch zahlen?“). null, wenn nichts offen ist oder es keine Laufzeit-Kündigung ist.
+ */
+export function kulanzSatzAus(kulanz: { summeCents: number; raten: readonly unknown[] } | null): string | null {
+  return kulanz ? kulanzSatz(euroJv(kulanz.summeCents), { mehrere: kulanz.raten.length > 1 }) : null;
+}
+
+/**
+ * E-396 (19.10.2026): Darf eine Antwort an diesen Kunden den Kulanz-Satz tragen? Nur beim Jahresvertrag (true); beim
+ * Vertrag vor dem 03.09.2026 nie (false — die Sendesperre E-393 sperrt ihn dann); ohne Stufenpaket null (unbekannt,
+ * wie bisher). Die Bestellung: `ref`, sonst das jüngste Stufenpaket der Person (bezahlte zuerst).
+ */
+export async function kulanzSatzErlaubt(ref: string | null | undefined, personId?: number | null): Promise<boolean | null> {
+  if (!ref && !personId) return null;
+  const [a] = (await sqlPool.unsafe(`
+    SELECT a.agb_stand FROM fiaon_applications a
+     WHERE a.merged_into IS NULL AND ${produktkategorieSql("a")} = 'konto'
+       AND (a.ref = $1 OR ($1::text IS NULL AND $2::int IS NOT NULL AND a.person_id = $2::int))
+     ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1`, [ref ?? null, personId ?? null]).catch(() => [])) as any[];
+  return a ? istJahresvertrag(a.agb_stand) : null;
+}
+
 // 19.09.2026 (E-194): Hier stand `lastschriftBeendenMerken` (E-115) — bei Vertragsende eine
 // Aufgabe „GoCardless-Abo beenden“. GoCardless ist beendet; die Abos beendet Justin gesammelt.
 
@@ -675,6 +963,15 @@ export async function neueLeistungGesperrt(ref: string): Promise<boolean> {
     SELECT person_id, (gekuendigt_am IS NOT NULL AND merged_into IS NULL AND ${sqlPool.unsafe(produktkategorieSql())} = 'konto') AS selbst
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
   if (!b) return false;
+  // ── E-396 (19.10.2026): DER JAHRESVERTRAG LÄUFT BIS ZUM LAUFZEITENDE — DER LADEN BLEIBT OFFEN ─────────────────
+  // Zum Laufzeitende gekündigt heißt: Er zahlt seine Raten weiter, also bekommt er bis dahin die volle Leistung
+  // (ohne sie würde die Forderung angreifbar, § 320 BGB). Erst mit dem Ende (oder dem Kulanz-Ausstieg) schließt der Laden.
+  await kuendigungSpalten();
+  const [l] = (await sqlPool.unsafe(`
+    SELECT 1 FROM fiaon_applications jl WHERE jl.payment_status = 'paid' AND jl.merged_into IS NULL
+       AND ${LAEUFT_BIS_LAUFZEITENDE_SQL("jl")}
+       AND (jl.ref = $1 OR ($2::int IS NOT NULL AND jl.person_id = $2::int)) LIMIT 1`, [ref, b.person_id ?? null]).catch(() => [])) as any[];
+  if (l) return false;
   if (b.person_id == null) return b.selbst === true;
   const [a] = (await sqlPool.unsafe(`SELECT ${KUENDIGUNG_WIRKSAM_SQL("$1::int")} AS gesperrt`, [Number(b.person_id)]).catch(() => [])) as any[];
   return a?.gesperrt === true;

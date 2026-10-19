@@ -323,7 +323,12 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     titel: "Kündigen und reaktivieren kannst du selbst — im Reiter „Antrag“.",
     text: "Sagt ein Kunde am Telefon, er will raus, drückst du „Kündigung durchsetzen“ und schreibst seinen Satz dazu. "
       + "Ab da kommen keine Zahlungsmails mehr, nur die Bestätigung; die letzte Rate bleibt fällig, spätere entfallen "
-      + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). War die Bestellung nie bezahlt, wird sie storniert — "
+      + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). "
+      // E-396 (19.10.2026): Jahresvertrag — läuft bis zum Ende der zwölf Monate, Kulanz nur nach Zahlung.
+      + "Beim Jahresvertrag (ab 03.09.2026, angenommen per Knopf oder Unterschrift) ist es anders: Die Kündigung ist sofort "
+      + "gebucht, der Vertrag läuft aber bis zum Ende der zwölf Monate, und die Raten laufen weiter. Der Kunde bekommt das "
+      + "Enddatum und das Angebot: Zahlt er die offene Rechnung, endet der Vertrag aus Kulanz — das System macht das selbst. "
+      + "Sofort beenden geht dort nur bei Widerruf oder wichtigem Grund (Grund wählen). War die Bestellung nie bezahlt, wird sie storniert — "
       + "mit allen offenen Raten, es bleibt keine Forderung. Überlegt er es sich im Gespräch anders, drückst du "
       + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter (Raten einer nie bezahlten "
       + "Bestellung bleiben storniert). Beides steht im Verlauf und der Kunde sieht es in seinem Bereich. "
@@ -1729,6 +1734,8 @@ export const RUNDGANG_TELEFONKARTEI: RundgangSchritt[] = [
     // 27.09.2026 (E-245): Offene Raten einer unbezahlten Bestellung kommen beim Zurückholen nicht wieder.
     text: "Unter „Storniert“ steht jeder mit Grund und Datum. „Zurückholen“ nimmt genau das zurück, was der Storno getan hat — "
       + "Bestellung, Lead, Sperren. Bezahlte Verträge folgen der Kündigungsregel: Die laufende Rate bleibt fällig, außer du setzt „Kulanz“. "
+      // E-396: Jahresvertrag — läuft bis zum Laufzeitende, Kulanz nur nach Zahlung.
+      + "Ein Jahresvertrag läuft bis zum Ende der zwölf Monate; „Kulanz“ heißt dort: Zahlt er die offene Rechnung, endet er vorzeitig. "
       + "Offene Raten einer nie bezahlten Bestellung fallen mit dem Storno weg und kommen beim Zurückholen nicht wieder.",
   },
 ];

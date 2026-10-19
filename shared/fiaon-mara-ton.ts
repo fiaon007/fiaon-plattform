@@ -93,6 +93,8 @@ import { paket, paketPreisCents } from "./fiaon-pakete";
 import { euroText, auskunftWort, type AuskunftLand } from "./fiaon-auskunft";
 import { SEO_BASIS } from "./fiaon-seo-seiten";
 import { antragAbgeschickt, giltZumSatz } from "./fiaon-antrag-stand";
+// E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — das Ende und DIE EINE Kulanz-Fassung.
+import { laufzeitSatz, kulanzSatz, RECHTE_SATZ, MARA_JAHRESVERTRAG_REGEL } from "./fiaon-jahresvertrag";
 import { limitZiel } from "./fiaon-telefonkartei";
 // E-275 (02.10.2026): Justins wahrer Kartensatz — freigegeben seit E-205/E-206, eine Stelle für Mail, WhatsApp, Kartei.
 import { KARTE_LINK_SATZ, KARTE_ZEIT_SATZ } from "./fiaon-karten-weg";
@@ -447,7 +449,7 @@ export const TON_REGELN: TonRegel[] = [
     beispiel: "„Vertrag und Rechnung kamen damals per E-Mail.“", hinweis: "Eine Vertragsmail gibt es nicht — sag nie, Vertrag oder Unterlagen seien per E-Mail gekommen. Nenn das Datum aus SEINE LAGE und biete an: „Ihre Vertragsunterlagen lasse ich Ihnen gern schicken.“ (mensch true)." },
   // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): die Kündigung und ihre Bestätigung nie an die Zahlung gebunden (§ 312k BGB).
   { id: "kuendigung_an_zahlung", schwere: "hart", muster: KUENDIGUNG_AN_ZAHLUNG,
-    beispiel: "„Sobald der Eingang gebucht ist, wird das Kündigungsschreiben automatisch verschickt.“", hinweis: "Die Kündigung und ihre Bestätigung hängen nie an einer Zahlung. Altvertrag: „Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>“; offene Raten bis dahin nennst du als eigenen Satz. Jahresvertrag: nur Justins Kulanz-Satz („…, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag“)." },
+    beispiel: "„Sobald der Eingang gebucht ist, wird das Kündigungsschreiben automatisch verschickt.“", hinweis: "Die Kündigung und ihre Bestätigung hängen nie an einer Zahlung. Altvertrag: „Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>“; offene Raten bis dahin nennst du als eigenen Satz. Jahresvertrag (E-396): das Laufzeitende („… endet deshalb zum <Datum>“) und der Kulanz-Satz („Wenn Sie die offene Rechnung über X € bezahlen, entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag …“) — die Kündigung selbst gilt ohne Zahlung." },
   // ── Die alten Rückfall- und Werkzeugsätze (E-248, Fall K.) ───────────
   { id: "rueckfall_genau", schwere: "hart", muster: /das\s+möchte\s+ich\s+ihnen\s+ganz\s+genau\s+beantworten/i,
     beispiel: "„Das möchte ich Ihnen ganz genau beantworten.“", hinweis: "Beantworte die Frage — oder schweige, wenn nur „Ok“ kam." },
@@ -2341,6 +2343,14 @@ export interface KuendigungSatzLage {
    * vertragsendeLesen; der Satz lautet dann „… gilt zum Ende Ihres laufenden Abrechnungsmonats, dem 27.10.2026".
    */
   giltZum?: string | null;
+  /**
+   * E-396 (19.10.2026): Jahresvertrag zum Laufzeitende gekündigt — das Vertragsende (YYYY-MM-DD oder TT.MM.JJJJ). Dann
+   * lautet der Satz „Ihr Vertrag hat eine feste Laufzeit von zwölf Monaten und endet deshalb zum …“ + die EINE
+   * Kulanz-Fassung (kulanzSatz, shared/fiaon-jahresvertrag.ts) + der Rechte-Satz. `raten` sind dann die offene Rechnung.
+   */
+  laufzeitEnde?: string | null;
+  /** E-396: false = nach den zwölf Monaten gekündigt (Monatsfrist) — anderer Laufzeit-Satz. */
+  fristgerecht?: boolean;
 }
 
 /** „119,98 €" aus Cent. */
@@ -2384,6 +2394,25 @@ export function bausteinKuendigung(l: KuendigungSatzLage): string {
   const zumEnde = !l.jahresvertrag && l.weg !== "bereits" ? ` und ${giltZumSatz(giltZum)}` : "";
   const raten: KuendigungRate[] = l.raten?.length ? l.raten
     : l.betrag ? [{ vom: l.rateVom ?? null, betrag: l.betrag, cents: 0 }] : [];
+  // ── E-396 (19.10.2026): JAHRESVERTRAG ZUM LAUFZEITENDE ─────────────────────────────────────────────────────────
+  // Justin: „… hat mit uns einen 12 Monats VERTRAG, AUSSER die Kunden, die wir aus Kulanz kündigen. Die Kunden müssen
+  // dann noch die letzte offene Rechnung einbezahlen; sobald sie das getan haben = gekündigt.“ Der Satz nennt das Ende
+  // (AGB § 6) und das Angebot — wörtlich wie Bestätigungsmail, Urkunde und Kundenbereich.
+  const laufzeitTag = l.laufzeitEnde && /^\d{2}\.\d{2}\.\d{4}$/.test(l.laufzeitEnde)
+    ? `${l.laufzeitEnde.slice(6, 10)}-${l.laufzeitEnde.slice(3, 5)}-${l.laufzeitEnde.slice(0, 2)}` : l.laufzeitEnde ?? null;
+  if (l.jahresvertrag && laufzeitTag && (l.weg === "laufzeit_ende" || l.weg === "bereits")) {
+    const lauf = laufzeitSatz(laufzeitTag, { fristgerecht: l.fristgerecht });
+    const zurueck = " Wenn Sie es sich anders überlegen, schreiben Sie mir einfach — dann läuft alles weiter wie bisher.";
+    if (!raten.length) return `${eingang}. ${lauf}${best}${zurueck}`;
+    // Kann er nicht zahlen oder widerruft er: kein Angebot gegen Zahlung — nur der Stand.
+    if (l.ohneZahlung) return `${eingang}. ${lauf}${best}`;
+    const summe = raten.every((r) => r.cents > 0) ? euroCent(raten.reduce((x, r) => x + r.cents, 0)) : null;
+    const betragText = raten.length === 1 ? raten[0].betrag : summe ?? raten.map((r) => r.betrag).join(" und ");
+    const angebot = `${kulanzSatz(betragText, { mehrere: raten.length > 1 })} ${RECHTE_SATZ}`;
+    return mail
+      ? `${eingang}. ${lauf}${best}\n\n${angebot} Betrag, Verwendungszweck und QR-Code stehen auf der Zahlungsseite unter dem Knopf.`
+      : `${eingang}. ${lauf}${best} ${angebot}${l.link ? ` Ihre Zahlungsseite: ${l.link}` : ""}`;
+  }
   const nichtsMehr = l.nichtsMehr !== false;
   // Altvertrag mit Raten nach dem Vertragsende (Altbestand): die verlangen wir nie — der Satz sagt es, statt
   // „danach kommt nichts mehr" zu behaupten, während das System sie noch als offen führt (Prüffall an Justin).
@@ -2404,10 +2433,13 @@ export function bausteinKuendigung(l: KuendigungSatzLage): string {
     const link = !mail && l.link ? `: ${l.link}` : ".";
     const nm = nichtsMehr ? " — danach kommt nichts mehr" : "";
     const nmAlt = nichtsMehr ? ", danach kommt nichts mehr" : "";
+    // E-396: Jahresvertrag auf dem bisherigen Weg (ohne belegte Annahme, Widerruf erwähnt, erste 14 Tage) — dieselbe
+    // Kulanz-Fassung wie überall: Mit der Zahlung endet er (so wirkt der bisherige Weg, kuendigungSetzen „letzte_rate“).
     if (l.jahresvertrag) {
+      const angebot = `${kulanzSatz(r.betrag)} ${RECHTE_SATZ}`;
       return mail
-        ? `${eingang}.${best}${tuer}\n\nBitte begleichen Sie ${rate}, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag${nm}.${knopf}`
-        : `${eingang}.${best}${tuer} Bitte begleichen Sie ${rate}, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag${nm}${link}`;
+        ? `${eingang}.${best}${tuer}\n\n${angebot}${knopf}`
+        : `${eingang}.${best}${tuer} ${angebot}${!mail && l.link ? ` Ihre Zahlungsseite: ${l.link}` : ""}`;
     }
     return mail
       ? `${eingang}${zumEnde}.${best}${tuer}\n\n${rate} zahlen Sie bitte noch${nmAlt}.${nachEndeSatz}${knopf}`
@@ -2418,9 +2450,12 @@ export function bausteinKuendigung(l: KuendigungSatzLage): string {
   const liste = `${mail ? "Ihre offenen Raten" : "Ihre Raten"} ${raten.map((r) => `${r.vom ? `vom ${r.vom} ` : ""}über ${r.betrag}`).join(", ").replace(/, ([^,]*)$/, " und $1")}${summe}`;
   const link = !mail && l.link ? ` — die Zahlungsseite der ersten: ${l.link}` : ".";
   if (l.jahresvertrag) {
+    // E-396: dieselbe Kulanz-Fassung, bei mehreren Raten mit der Summe.
+    const betragText = raten.every((r) => r.cents > 0) ? euroCent(raten.reduce((s, r) => s + r.cents, 0)) : raten.map((r) => r.betrag).join(" und ");
+    const angebot = `${kulanzSatz(betragText, { mehrere: true })} ${RECHTE_SATZ}`;
     return mail
-      ? `${eingang}.${best}${tuer}\n\nBitte begleichen Sie ${liste}, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag.${knopf}`
-      : `${eingang}.${best}${tuer} Bitte begleichen Sie ${liste}, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag${link}`;
+      ? `${eingang}.${best}${tuer}\n\n${angebot}${knopf}`
+      : `${eingang}.${best}${tuer} ${angebot}${l.link ? ` Die Zahlungsseite der ersten: ${l.link}` : ""}`;
   }
   return mail
     ? `${eingang}${zumEnde}.${best}${tuer}\n\n${liste} zahlen Sie bitte noch.${nachEndeSatz}${knopf}`
@@ -3047,8 +3082,10 @@ export const KUENDIGUNG_REGEL_TEXT = [
   `· SCHRITT 1 — Er will klar kündigen („ich kündige“, „bitte kündigen“) oder fragt, ob er kann: Du buchst NOCH NICHTS und rufst KEIN Werkzeug. Du stellst genau diese eine Frage, wörtlich und als EINZIGE Frage deiner Nachricht: „${KUENDIGUNG_RUECKFRAGE}“ — bei einer UNBEZAHLTEN Bestellung (kein Vertrag, nichts bezahlt) stattdessen wörtlich „${STORNO_RUECKFRAGE}“. Keine zweite Frage, kein Terminangebot, kein Umstimmen, nie „ich gebe es weiter“, keine andere Form.`,
   `· SCHRITT 2 — Erst wenn er DARAUF mit einem klaren Ja antwortet (ohne weiteren Inhalt), rufst du kuendigung_aufnehmen und schreibst den Satz aus so_schreiben. Nie von einer Zahlung abhängig machen. „Ok“, „Ja, aber …“, „ich überlege noch“, ein Knopf sind kein Ja.`,
   `· Verneint er oder nimmt er zurück („doch nicht“, „lass mal“, „kündigen Sie nicht“, „ich nehme das zurück“, „war ein Scherz“) — irgendwo in seinen Nachrichten: keine Kündigung, keine Rückfrage zur Kündigung; geh auf sein eigentliches Anliegen ein. Bestreitet er den Vertrag oder schreibt von einer falschen Nummer: nie eine Kündigung oder ein Storno — ein Mensch aus der Leitung übernimmt.`,
-  `· Bleibt danach EINE Rate offen: JAHRESVERTRAG (ab 03.09.2026) — „Bitte begleichen Sie Ihre offene Rate über X €, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag“ (auf WhatsApp „Ihre Rate vom … über X €“ — nie „offene Rate“) + Zahlungsseite. VERTRAG VOR DEM 03.09.2026 (monatlich kündbar) — KEIN „Kulanz“ (das Recht hat er ohnehin), sondern „Ihre Rate vom … über X € zahlen Sie bitte noch, Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>“ + Zahlungsseite. „Danach kommt nichts mehr“ NUR, wenn das Werkzeug es so schreibt (nach dieser Rate ist wirklich nichts mehr offen). Bleiben MEHRERE: jede mit Datum und Betrag und die Summe — ohne „danach kommt nichts mehr“. Das Werkzeug liefert genau diesen Satz (so_schreiben) — nimm ihn.`,
-  `· Beim Vertrag vor dem 03.09.2026 endet der Vertrag zum Ende des laufenden ABRECHNUNGSMONATS (von Fälligkeit zu Fälligkeit, Frist 24 Stunden — nie „Monatsende“ oder „Ende des Kalendermonats“); das Datum liefert das Werkzeug. Es zählt nur, was bis dahin fällig ist — eine Rate für die Zeit danach verlangst du nie. „Kulanz“ sagst du NUR beim Jahresvertrag und nur mit dem Satz aus dem Werkzeug.`,
+  // E-396 (19.10.2026): Justins Regel vom 19.10. — der Jahresvertrag läuft bis zum Laufzeitende, Kulanz nur nach Zahlung.
+  `· ${MARA_JAHRESVERTRAG_REGEL}`,
+  `· Nach der Buchung: JAHRESVERTRAG — das Werkzeug liefert den fertigen Satz (so_schreiben): das Laufzeitende („Ihr Vertrag hat eine feste Laufzeit von zwölf Monaten und endet deshalb zum <Datum>“), dann wörtlich „${kulanzSatz("X €")} ${RECHTE_SATZ}“ + Zahlungsseite. VERTRAG VOR DEM 03.09.2026 (monatlich kündbar) — KEIN „Kulanz“ (das Recht hat er ohnehin), sondern „Ihre Rate vom … über X € zahlen Sie bitte noch, Ihre Kündigung gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>“ + Zahlungsseite. „Danach kommt nichts mehr“ NUR, wenn das Werkzeug es so schreibt (nach dieser Rate ist wirklich nichts mehr offen). Bleiben MEHRERE: jede mit Datum und Betrag und die Summe — ohne „danach kommt nichts mehr“. Das Werkzeug liefert genau diesen Satz (so_schreiben) — nimm ihn.`,
+  `· Beim Vertrag vor dem 03.09.2026 endet der Vertrag zum Ende des laufenden ABRECHNUNGSMONATS (von Fälligkeit zu Fälligkeit, Frist 24 Stunden — nie „Monatsende“ oder „Ende des Kalendermonats“); das Datum liefert das Werkzeug. Es zählt nur, was bis dahin fällig ist — eine Rate für die Zeit danach verlangst du nie. „Kulanz“ sagst du NUR beim Jahresvertrag und nur mit dem Satz aus dem Werkzeug. Beim Jahresvertrag sagst du nie „ab sofort keine Raten mehr“ oder „Ihr Vertrag ist beendet“, solange er bis zum Laufzeitende läuft.`,
   `· Kann er nicht zahlen oder widerruft er: keine Zahlungsbitte, kein Link — nur der Stand der Kündigung.`,
   `· Nie ein Zahlungslink in einem Kündigungssatz ohne diese Formel, und nie „Kündigung eingegangen“, ohne dass das Werkzeug sie gebucht hat.`,
   `· Fragt er nur („Kann ich kündigen?“): ehrlich Ja, die Karte vorn und am Ende genau die Rückfrage („${KUENDIGUNG_RUECKFRAGE}“), kein Link, kein zweites Angebot in derselben Nachricht.`,
@@ -3391,9 +3428,9 @@ export const MUSTERDIALOGE: Musterdialog[] = [
   },
   {
     id: "kuendigung_klar",
-    titel: "Klares Ja auf die verbindliche Rückfrage, Jahresvertrag, Rate offen — jetzt gebucht, dann Justins Kulanz-Satz mit Zahlungsseite",
+    titel: "Klares Ja auf die verbindliche Rückfrage, Jahresvertrag, Rate offen — jetzt gebucht: Laufzeitende + der Kulanz-Satz mit Zahlungsseite (E-396)",
     kanal: "whatsapp",
-    lage: "Kunde mit FIAON Ultra, Jahresvertrag (AGB ab 03.09.2026), Rate vom 13.09. über 79,99 € offen. Mara hat die Kündigung gebucht (kuendigung_aufnehmen), die Bestätigung ging per E-Mail raus.",
+    lage: "Kunde mit FIAON Ultra, Jahresvertrag (AGB ab 03.09.2026, Annahme per Knopf, Vertragsschluss 13.09.2026), Rate vom 13.10. über 79,99 € offen. Mara hat die Kündigung gebucht (kuendigung_aufnehmen): Sie gilt zum Laufzeitende, dem 12.09.2027; die Bestätigung ging per E-Mail raus.",
     linkLage: { stufe: "kunde", ratenReferenz: `${BSP_ZAHLUNG}-2` },
     betreuer: "Herr Stripling",
     verlauf: [
@@ -3401,8 +3438,12 @@ export const MUSTERDIALOGE: Musterdialog[] = [
       { von: "mara", text: bausteinKuendigungFrage({ kanal: "whatsapp", ziel: BSP_ZIEL_ULTRA }) },
     ],
     kunde: "Ja, bitte.",
-    soll: { art: "antworten", text: bausteinKuendigung({ kanal: "whatsapp", weg: "letzte_rate", jahresvertrag: true, heute: "29.09.", rateVom: "13.09.", betrag: "79,99 €", link: "{LINK}", bestaetigung: true }) },
-    nie: ["Gern, ich gebe Ihren Kündigungswunsch an Daniel weiter. Daniel meldet sich dazu schriftlich bei Ihnen; Ihre Zahlungsseite zur aktuellen Rate bleibt hier: https://fiaon.com/zahlung/FIAON-BSP4KX-2"],
+    soll: { art: "antworten", text: bausteinKuendigung({ kanal: "whatsapp", weg: "laufzeit_ende", jahresvertrag: true, heute: "19.10.", rateVom: "13.10.", betrag: "79,99 €", link: "{LINK}", bestaetigung: true, laufzeitEnde: "2027-09-12" }) },
+    nie: [
+      "Gern, ich gebe Ihren Kündigungswunsch an Daniel weiter. Daniel meldet sich dazu schriftlich bei Ihnen; Ihre Zahlungsseite zur aktuellen Rate bleibt hier: https://fiaon.com/zahlung/FIAON-BSP4KX-2",
+      // E-396: nie „ab sofort keine Raten mehr“ beim Jahresvertrag, nie eine Kulanz ohne Zahlung.
+      "Ihre Kündigung ist eingegangen, ab sofort stellen wir keine weiteren Raten — Ihr Vertrag ist beendet.",
+    ],
   },
   {
     id: "kuendigung_erklaert",

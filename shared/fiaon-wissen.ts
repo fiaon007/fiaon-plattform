@@ -26,6 +26,8 @@
 // erst nach der Widerrufsfrist (fiaon-konto-karte.ts, einladungenAutomatisch).
 // ═══════════════════════════════════════════════════════════════════════════
 import { PAKETE } from "./fiaon-pakete";
+// E-396 (19.10.2026): Jahresvertrag — zwölf Monate, Kulanz nur nach Zahlung, DIE EINE Fassung.
+import { kulanzSatz, RECHTE_SATZ } from "./fiaon-jahresvertrag";
 import {
   AUSKUNFT_PREISE_CENTS, AUSKUNFT_KOSTENLOS_ANTWORT, AUSKUNFT_NUTZEN_SATZ,
   AUSWERTUNG_NAME, AUSWERTUNG_UNTERZEILE, AUSWERTUNG_UNTERLAGEN_SATZ, AUSWERTUNG_KEINE_AUSKUNFT_SATZ, AUSWERTUNG_INKLUSIVE_SATZ,
@@ -259,7 +261,7 @@ ${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschlan
 
 
 VERTRAG UND KÜNDIGUNG
-- Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag). Jede Kündigung wird sofort gebucht und schriftlich bestätigt (Kündigungsurkunde und Kündigungsschreiben) — unabhängig von jeder Zahlung. FIAON entlässt Kunden auf Kulanz vorzeitig: Ab der Kündigung werden keine weiteren Raten gestellt; die bereits gestellte, offene Rate bleibt zu zahlen. Ist auch sie bezahlt, kommt zusätzlich die Abschlussmail, dass nichts mehr offen ist.
+- Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag): zwölf Monate feste Laufzeit; die Vergütung ist eine Gesamtvergütung in zwölf Monatsraten (AGB § 5, § 6). Jede Kündigung wird sofort gebucht und schriftlich bestätigt (Kündigungsurkunde und Kündigungsschreiben, mit dem Vertragsende) — unabhängig von jeder Zahlung. Sie wirkt mit einem Monat Frist zum Ende der zwölf Monate (danach läuft der Vertrag unbefristet und ist mit einem Monat Frist kündbar); bis dahin laufen die Monatsraten weiter. Vorzeitig raus nur aus Kulanz, und die gibt es nur nach Zahlung der offenen Rechnung: „${kulanzSatz("X €")}“ Mit dem Zahlungseingang beendet FIAON den Vertrag und schickt die Abschlussmail. Das gesetzliche Widerrufs- und Kündigungsrecht bleibt immer unberührt (im Kundensatz: „${RECHTE_SATZ}“).
 - Verträge vor dem 03.09.2026: formlos kündbar mit einer Frist von 24 Stunden zum Ende des laufenden Abrechnungsmonats (der läuft von einer Fälligkeit bis zum Tag vor der nächsten — nicht bis zum Monatsletzten); die bis dahin gestellte Rate bleibt zu zahlen, spätere Raten entfallen.
 - Eine unbezahlte Bestellung (noch keine Rate eingegangen) wird auf Wunsch einfach storniert — es bleibt nichts offen.
 - Widerruf: 14 Tage ab Vertragsschluss. Bereits gezahlte Raten werden grundsätzlich nicht erstattet; über Ausnahmen entscheidet allein die Geschäftsführung.

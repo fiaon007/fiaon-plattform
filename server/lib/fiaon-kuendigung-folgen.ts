@@ -32,6 +32,7 @@
 import { sqlPool } from "./db-pool";
 import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
 import { KUENDIGUNG_ANTRAEGE_SQL, KUENDIGUNG_WIRKSAM_SQL, tagDe } from "@shared/fiaon-kuendigung-regel";
+import { ANNAHME_BELEGT_SQL } from "@shared/fiaon-jahresvertrag";
 
 type Lauf = typeof sqlPool;
 
@@ -50,6 +51,11 @@ export interface AutoBuchenLage {
   bezahlt: boolean;
   bestellungAm: string | Date | null;
   antragAm: string | Date;
+  /**
+   * E-396 (19.10.2026): Annahme belegt (Vertrags-PDF oder Knopf). Dann ist die Kündigung eines bezahlten Jahresvertrags
+   * keine Kulanzfrage mehr — sie wird zum Laufzeitende gebucht (mit Kulanz-Angebot) und gilt sofort, § 312k BGB.
+   */
+  annahmeBelegt?: boolean;
 }
 
 /**
@@ -61,12 +67,13 @@ export function automatischBuchbar(l: AutoBuchenLage): { ja: boolean; warum: str
   if (!l.zielBuchbar) return { ja: false, warum: "Kein eindeutiges Paket — die Leitung entscheidet." };
   if (l.grund && WIDERRUF_WORT.test(l.grund)) return { ja: false, warum: "Der Text nennt einen Widerruf — Widerruf und Erstattung entscheidet die Leitung." };
   const agb = l.agbStand ? String(l.agbStand).slice(0, 10) : null;
-  if (l.bezahlt && agb && agb >= JAHRESVERTRAG_AB) return { ja: false, warum: "Bezahlter Jahresvertrag — ein vorzeitiges Ende ist Kulanz, die entscheidet die Leitung." };
+  if (l.bezahlt && agb && agb >= JAHRESVERTRAG_AB && !l.annahmeBelegt) return { ja: false, warum: "Bezahlter Jahresvertrag ohne belegte Annahme — ein vorzeitiges Ende ist Kulanz, die entscheidet die Leitung." };
   const tage = (Date.parse(String(l.antragAm instanceof Date ? l.antragAm.toISOString() : l.antragAm))
     - Date.parse(String(l.bestellungAm instanceof Date ? l.bestellungAm.toISOString() : l.bestellungAm ?? ""))) / 86_400_000;
   if (l.bezahlt && Number.isFinite(tage) && tage < WIDERRUFSFRIST_TAGE) {
     return { ja: false, warum: "Bezahlt und binnen 14 Tagen nach Vertragsschluss — möglicher Widerruf (Erstattung), die Leitung entscheidet." };
   }
+  if (l.bezahlt && agb && agb >= JAHRESVERTRAG_AB) return { ja: true, warum: "Eindeutig: Jahresvertrag mit belegter Annahme — gebucht zum Laufzeitende, mit Kulanz-Angebot (E-396)." };
   return { ja: true, warum: "Eindeutig: Identität bestätigt, ein Paket, keine Kulanz- oder Widerrufsfrage." };
 }
 
@@ -79,12 +86,14 @@ export async function antragAutomatischBuchen(antragId: number): Promise<{ gebuc
   const [antrag] = await offeneKuendigungsantraege(null, antragId);
   if (!antrag) return { gebucht: false, warum: "Antrag nicht mehr offen." };
   const [b] = antrag.ziel.ziel
-    ? ((await sqlPool`SELECT agb_stand, payment_status, created_at FROM fiaon_applications WHERE ref = ${antrag.ziel.ziel} LIMIT 1`) as any[])
+    ? ((await sqlPool`SELECT agb_stand, payment_status, created_at, ${sqlPool.unsafe(ANNAHME_BELEGT_SQL("fiaon_applications"))} AS belegt
+                         FROM fiaon_applications WHERE ref = ${antrag.ziel.ziel} LIMIT 1`) as any[])
     : [null];
   const urteil = automatischBuchbar({
     identitaetOffen: antrag.identitaetOffen, zielBuchbar: !!antrag.ziel.ziel && antrag.ziel.buchbar, grund: antrag.grund,
     agbStand: b?.agb_stand ? (b.agb_stand instanceof Date ? b.agb_stand.toISOString().slice(0, 10) : String(b.agb_stand)) : null,
     bezahlt: String(b?.payment_status ?? "") === "paid", bestellungAm: b?.created_at ?? null, antragAm: antrag.am,
+    annahmeBelegt: b?.belegt === true,
   });
   if (!urteil.ja) return { gebucht: false, warum: urteil.warum };
   const { antragBuchen } = await import("../routes/fiaon-kuendigung");

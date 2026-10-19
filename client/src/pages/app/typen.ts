@@ -20,7 +20,9 @@ export interface Bereich {
   /** `auskunftKauf` ist derselbe Block wie `auskunft` — der Unterlagen-Schirm bekommt nur `unterlagen`. */
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; auskunftKauf?: AuskunftKauf | null; erneutKontoauszug?: boolean; erneutAusweis?: boolean; kycStatus: string; kontoStatus: string; hinweise?: string[] };
   /** 07.09.2026: Kündigung sichtbar — null, solange keine vorliegt. */
-  vertrag?: { gekuendigtAm: string | null; endeAm: string | null; letzteRateNr: number | null; beendet: boolean } | null;
+  // E-396: art „laufzeit“ = Jahresvertrag läuft bis endeAm (kulanz = die offene Rechnung aus dem Kulanz-Angebot), „kulanz“ = aus Kulanz beendet.
+  vertrag?: { gekuendigtAm: string | null; endeAm: string | null; letzteRateNr: number | null; beendet: boolean;
+    art?: string | null; kulanz?: { summeCents: number; raten: number; referenz: string | null } | null } | null;
   abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: Rate[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
   onboardingGelaufen?: boolean;

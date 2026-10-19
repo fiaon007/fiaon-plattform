@@ -369,12 +369,14 @@ if (!NUR || NUR === "a") {
 
   console.log("── A8. Kündigungssätze ─────────────────────────────────────────────");
   const kj = ton.bausteinKuendigung({ kanal: "whatsapp", weg: "letzte_rate", jahresvertrag: true, heute: "29.09.", rateVom: "12.09.", betrag: "99,99 €", link: LINK, bestaetigung: true });
-  ok(/heute, am 29\.09\., bei uns eingegangen/.test(kj) && /aus Kulanz gerne aus dem Vertrag/.test(kj) && kj.includes(LINK) && /Rate vom 12\.09\. über 99,99 €/.test(kj) && !/offene Rate/.test(kj), `Jahresvertrag: Eingang, Kulanz, Rate vom …, Link, nie „offene Rate“ — „${kurz(kj, 120)}“`);
+  // E-396 (19.10.2026): DIE EINE Kulanz-Fassung („Wenn Sie die offene Rechnung über X € bezahlen, entlassen wir Sie aus Kulanz
+  // vorzeitig aus dem Vertrag …“ + Rechte-Satz) — vorher „Bitte begleichen Sie Ihre Rate vom …, dann lasse ich Sie aus Kulanz gerne …“.
+  ok(/heute, am 29\.09\., bei uns eingegangen/.test(kj) && /aus Kulanz vorzeitig aus dem Vertrag/.test(kj) && kj.includes(LINK) && /offene Rechnung über 99,99 €/.test(kj) && !/offene Rate/.test(kj) && /Widerrufs- und Kündigungsrecht bleibt unberührt/.test(kj), `Jahresvertrag: Eingang, der eine Kulanz-Satz, Betrag, Link, Rechte-Satz, nie „offene Rate“ — „${kurz(kj, 120)}“`);
   const ka = ton.bausteinKuendigung({ kanal: "whatsapp", weg: "letzte_rate", jahresvertrag: false, heute: "29.09.", rateVom: "12.09.", betrag: "59,99 €", link: LINK });
   // E-265 (01.10.2026, Recht): Altvertrag — Ende des Abrechnungsmonats, nie „Monatsende".
   ok(!/kulanz/i.test(ka) && /gilt zum Ende Ihres laufenden Abrechnungsmonats/.test(ka) && !/Monatsende/.test(ka) && /danach kommt nichts mehr/.test(ka) && ka.includes(LINK), `Altvertrag: kein „Kulanz“, Ende des Abrechnungsmonats, nichts mehr — „${kurz(ka, 140)}“`);
   const km = ton.bausteinKuendigung({ kanal: "mail", weg: "letzte_rate", jahresvertrag: true, heute: "29.09.", rateVom: "12.09.", betrag: "99,99 €", link: LINK });
-  ok(/offene Rate/.test(km) && !km.includes("https://") && /Knopf/.test(km), "Mail: „offene Rate“ erlaubt, kein Link im Text (der Knopf trägt ihn)");
+  ok(/offene Rechnung über 99,99 €/.test(km) && !km.includes("https://") && /Knopf/.test(km), "Mail: der eine Kulanz-Satz, kein Link im Text (der Knopf trägt ihn)");
   const ks = ton.bausteinKuendigung({ kanal: "whatsapp", weg: "storno_unbezahlt", jahresvertrag: true, heute: "29.09.", betrag: "59,99 €", link: LINK });
   ok(!ks.includes("https://") && !/59,99/.test(ks) && /storniert/.test(ks), "Storno: kein Link, kein Betrag");
   ok(!ton.bausteinKuendigung({ kanal: "whatsapp", weg: "sofort_beendet", jahresvertrag: true, heute: "29.09." }).includes("https://"), "ohne offene Rate: kein Link");
@@ -494,7 +496,8 @@ if (!NUR || NUR === "a") {
   console.log("── A11. Mehrere Raten, Altvertrag nach Vertragsende, „bereits“ ──────");
   const R2 = [{ vom: "12.09.", betrag: "59,99 €", cents: 5999 }, { vom: "12.10.", betrag: "59,99 €", cents: 5999 }];
   const km2 = ton.bausteinKuendigung({ kanal: "whatsapp", weg: "letzte_rate", jahresvertrag: true, heute: "29.09.", raten: R2, link: LINK });
-  ok(/vom 12\.09\./.test(km2) && /vom 12\.10\./.test(km2) && /zusammen 119,98 €/.test(km2) && !/danach kommt nichts mehr/.test(km2), `zwei Raten: beide mit Summe, ohne „danach kommt nichts mehr“ — „${kurz(km2, 120)}“`);
+  // E-396: beim Jahresvertrag der eine Kulanz-Satz mit der Summe („die offenen Rechnungen über zusammen 119,98 €“).
+  ok(/offenen Rechnungen über zusammen 119,98 €/.test(km2) && !/danach kommt nichts mehr/.test(km2), `zwei Raten: Summe im Kulanz-Satz, ohne „danach kommt nichts mehr“ — „${kurz(km2, 120)}“`);
   // E-265 (01.10.2026, Recht): Raten am 12.; Kündigung 29.09. → Frist 30.09. → Abrechnungsmonat 12.09.–11.10. → Ende 11.10.
   const ende12 = abrechnungsmonatEnde("2026-09-29T10:00:00Z", ["2026-08-12", "2026-09-12", "2026-10-12"]);
   const auf = ton.kuendigungRatenAufteilen([{ faellig: "2026-09-12" }, { faellig: "2026-10-12" }], { jahresvertrag: false, vertragsEnde: ende12 });

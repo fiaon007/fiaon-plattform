@@ -143,6 +143,8 @@ import { nennform, vornamenErsetzen, mitarbeiterVornameFunde, MITARBEITER_NAMEN_
 import { mitarbeiterListe } from "./fiaon-mitarbeiter-namen";
 // E-265 (01.10.2026, Paket Recht): Das Vertragsende beim Altvertrag — Ende des Abrechnungsmonats (vertragsendeLesen), giltZumSatz.
 import { istJahresvertrag, giltZumSatz, tagDeutsch } from "@shared/fiaon-antrag-stand";
+// E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — das Ende und DIE EINE Kulanz-Fassung.
+import { laufzeitSatz, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
 import { schweigen, abschlussSatz, istBestaetigung, msVon, type SchweigenUrteil } from "./fiaon-mara-schweigen";
 import { WA_VORLAGEN, AUSKUNFT_VORLAGE } from "@shared/fiaon-lead-texte";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
@@ -1338,7 +1340,7 @@ function auftrag(ein: {
     `· „Wo stelle ich den Antrag?" / „Wie kann man bestellen?" → Sein persönlicher Link (DEIN LINK), dazu: etwa fünf Minuten. Nicht erst fragen, was er wissen will.`,
     `· „Wie läuft das?" → Antrag abschließen, mit der ersten Rate den Account aktivieren, Ausweis und Kontoauszüge hochladen — nach seiner Bonitätsauswertung kommt direkt der Link unserer Partnerbank für seinen Kartenantrag (erst das Girokonto, dann im Banking die Visa-Kreditkarte dazubuchen), nach der Zusage der Bank in der Regel 2–5 Werktage; sein Betreuer begleitet ihn dabei.`,
     `· „Wie lange dauert das?" → Antrag etwa fünf Minuten. Nach der Zahlung ist sein Account aktiv; mit Ausweis und Kontoauszügen entwickeln wir seine Bonitätsauswertung, danach kommt der Link der Partnerbank. Nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher schon Apple Pay.`,
-    `· „Was kostet das?" → Die Preise aus den Fakten, immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Laufzeit und Kündigung nur, wenn er danach fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt SEINE LAGE. Kulanz sagst du nie zu.`,
+    `· „Was kostet das?" → Die Preise aus den Fakten, immer mit „zwölf zinsfreie Monatsraten", jede überweist er selbst, nichts wird abgebucht. Laufzeit und Kündigung nur, wenn er danach fragt: Neue Verträge laufen zwölf Monate; gekündigt wird mit einem Monat Frist zum Ende der zwölf Monate, sonst läuft der Vertrag weiter und ist dann jederzeit mit einem Monat Frist kündbar (AGB § 6). Bei bestehenden Kunden gilt SEINE LAGE. Kulanz sagst du nie von dir aus zu — vorzeitig raus kommt ein Jahresvertrags-Kunde nur aus Kulanz NACH Zahlung der offenen Rechnung, und den Satz dafür liefert das Werkzeug (E-396).`,
     `· „Welches Paket?" → Du ordnest zu, du wählst nicht für ihn: Je höher das Paket, desto höher das Ziel im Programm (Start 500 €, Pro 5.000 €, Ultra 15.000 €, High-End 25.000 €); den Rahmen legt die Partnerbank fest. Das Paket lässt sich im Antrag und im Startgespräch ändern.`,
     `· „Kredit? Geld ausgezahlt? Wie schnell ist das Geld auf meinem Konto?" → Noch besser: seine eigene Kreditkarte bei unserer Partnerbank, mit einem Rahmen, den er immer wieder nutzen kann; den Rahmen legt die Bank fest, wir bereiten seinen Antrag stark vor. Nie mit „kein Kredit", „wir sind keine Bank", „nicht unser Produkt" beginnen.`,
     `· „Im Antrag stand 25.000 €" oder „mir wurde etwas genehmigt" → Die Zahl im Antrag ist sein Ziel im Programm, darauf arbeiten wir hin; über Karte und Rahmen entscheidet die Partnerbank.`,
@@ -1736,7 +1738,25 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
       // nur, was bis zum Vertragsende fällig ist (§ 6 Abs. 8 alte Fassung). Ist der Vertrag beendet (Ende erreicht),
       // wird nichts verlangt (E-244).
       const vorbei = !!b.vertrag_ende_am && new Date(b.vertrag_ende_am).getTime() <= Date.now();
-      const alle = b.gekuendigt_am && String(b.payment_status) === "paid" && !vorbei ? await offeneRatenAlle() : [];
+      // ── E-396 (19.10.2026): JAHRESVERTRAG ZUM LAUFZEITENDE — ER LÄUFT NOCH ──────────────────────────────────────
+      // Gekündigt, aber der Vertrag läuft bis zum Laufzeitende: Raten laufen weiter, sein Bereich bleibt offen. Fragt er
+      // „Muss ich noch zahlen?", ist die Antwort das Ende + die EINE Kulanz-Fassung (offene Rechnung → aus Kulanz raus).
+      const jlLage = erg.jahresvertrag && b.gekuendigt_am && !vorbei
+        ? await (await import("./fiaon-kuendigung")).jahresvertragLage(String(b.ref)).catch(() => null) : null;
+      if (jlLage?.art === "laufzeit" && jlLage.ende) {
+        const endeDe = tagDeutsch(jlLage.ende);
+        const k = jlLage.kulanz;
+        const kulanzText = k ? `${kulanzSatz(`${(k.summeCents / 100).toFixed(2).replace(".", ",")} €`, { mehrere: k.raten.length > 1 })} ${RECHTE_SATZ}` : null;
+        erg.lage = `Vertrag gekündigt${paket ? ` (${paket})` : ""} — Jahresvertrag, läuft bis zum Laufzeitende, dem ${endeDe}; die Monatsraten laufen bis dahin weiter, sein Bereich bleibt offen.${k ? ` Offene Rechnung aus dem Kulanz-Angebot: ${k.raten.map((r) => `Rate vom ${r.faellig ? `${r.faellig.slice(8, 10)}.${r.faellig.slice(5, 7)}.` : "?"}`).join(" und ")} (Verwendungszweck ${k.raten[0]?.referenz ?? "?"}).` : " Keine Rechnung offen."}`;
+        erg.ziel = `Kein Verkauf. Fragt er nach Ende oder Zahlung: „${laufzeitSatz(jlLage.ende, { fristgerecht: jlLage.fristgerecht })}${kulanzText ? ` ${kulanzText}` : ""}"${k ? " — mit seiner Zahlungsseite (DEIN LINK)." : ""} Nie „ab sofort keine Raten mehr“, nie „Ihr Vertrag ist beendet“. Sonst beantwortest du seine Frage.`;
+        if (k?.raten[0]?.referenz) {
+          erg.rate = { betrag: `${(k.raten[0].cents / 100).toFixed(2).replace(".", ",")} €`, faellig: k.raten[0].faellig ? `${k.raten[0].faellig.slice(8, 10)}.${k.raten[0].faellig.slice(5, 7)}.` : null, referenz: k.raten[0].referenz };
+          erg.linkLage = { stufe: "beendet", ratenReferenz: k.raten[0].referenz };
+        }
+      }
+      const laufzeitLage = jlLage?.art === "laufzeit" && !!jlLage.ende;
+      // Beim Jahresvertrag zum Laufzeitende steht alles schon oben — keine zweite Raten-Formel.
+      const alle = b.gekuendigt_am && String(b.payment_status) === "paid" && !vorbei && !laufzeitLage ? await offeneRatenAlle() : [];
       // E-265 (01.10.2026, Recht): das Vertragsende beim Altvertrag = Ende des Abrechnungsmonats (Fälligkeit zu
       // Fälligkeit) — dieselbe Rechnung wie kuendigungSetzen, Urkunde und Bestätigungsmail (vertragsendeLesen).
       const ende = !erg.jahresvertrag && b.gekuendigt_am
@@ -1762,10 +1782,11 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
         const nm = erg.nichtsMehr !== false;
         const satz = n.length === 1
           ? (erg.jahresvertrag
-            ? `Bitte begleichen Sie Ihre Rate${bleibt.vom ? ` vom ${bleibt.vom}` : ""} über ${bleibt.betrag}, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag${nm ? " — danach kommt nichts mehr" : ""}.`
+            // E-396: dieselbe Kulanz-Fassung wie überall.
+            ? `${kulanzSatz(bleibt.betrag)} ${RECHTE_SATZ}`
             : `Ihre Rate${bleibt.vom ? ` vom ${bleibt.vom}` : ""} über ${bleibt.betrag} zahlen Sie bitte noch, Ihre Kündigung ${giltZum}${nm ? ", danach kommt nichts mehr" : ". Eine Rate für die Zeit nach Ihrem Vertragsende verlangen wir nicht"}.`)
           : (erg.jahresvertrag
-            ? `Bitte begleichen Sie Ihre Raten ${liste} (zusammen ${summe}), dann lasse ich Sie aus Kulanz gerne aus dem Vertrag.`
+            ? `${kulanzSatz(summe, { mehrere: true })} ${RECHTE_SATZ}`
             : `Ihre Raten ${liste} (zusammen ${summe}) zahlen Sie bitte noch; Ihre Kündigung ${giltZum}.`);
         erg.ziel = `Kein Verkauf. Fragt er, ob er noch zahlen muss: „${satz}" — mit seiner Zahlungsseite (DEIN LINK). Sonst beantwortest du seine Frage.${erg.jahresvertrag ? "" : " „Kulanz“ sagst du hier NIE (Vertrag vor dem 03.09.2026)."}`;
         erg.linkLage = { stufe: "beendet", ratenReferenz: bleibt.referenz };
@@ -1779,8 +1800,10 @@ export async function lageFuer(personId: number | null, leadId: number | null, l
         : "Die Einladung der Partnerbank (Link für Konto und Karte) ist bei ihm noch NICHT raus — fragt er nach Karte, Konto oder Link, schickst du sie selbst (karte_link_schicken). Nie „sein Betreuer sieht nach“.";
       const seit = b.created_at ? new Date(b.created_at).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null;
       const neu = istJahresvertrag(b.agb_stand);
+      // E-396 (19.10.2026): Das Ende der zwölf Monate und das Ende, das eine Kündigung heute hätte — aus der Akte, nie geraten.
+      const jlKunde = neu ? await (await import("./fiaon-kuendigung")).jahresvertragLage(String(b.ref)).catch(() => null) : null;
       const vertrag = neu
-        ? `Jahresvertrag${seit ? ` vom ${seit}` : ""}: zwölf Monate, Kündigung mit einem Monat Frist zum Ende, danach monatlich.`
+        ? `Jahresvertrag${seit ? ` vom ${seit}` : ""}: zwölf Monate, Kündigung mit einem Monat Frist zum Ende, danach monatlich.${jlKunde?.erstEnde ? ` Die zwölf Monate enden am ${tagDeutsch(jlKunde.erstEnde)}; eine Kündigung heute gilt zum ${tagDeutsch(jlKunde.endeBeiKuendigungHeute)}.` : ""} Vorzeitig raus nur aus Kulanz nach Zahlung der offenen Rechnung (E-396).`
         // E-265 (01.10.2026, Recht): Abrechnungsmonat (Fälligkeit zu Fälligkeit, Frist 24 Stunden) — nie „Monatsende".
         : `Vertrag${seit ? ` vom ${seit}` : ""} (vor dem 03.09.2026): formlos kündbar mit 24 Stunden Frist zum Ende des laufenden Abrechnungsmonats (von Fälligkeit zu Fälligkeit, nicht Kalendermonat).`;
       erg.lage = `Kunde mit ${paket ?? "einem Paket"}, erste Zahlung gebucht, Account aktiv. ${vertrag} ${kartenStand}`;
@@ -4641,6 +4664,8 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
     : await kuendigungDurchfuehren(String(b.ref), {
       quelle: "whatsapp", grund, personId: ctx.personId,
       unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, WhatsApp)" },
+      // E-396: Erwähnt er einen Widerruf, bleibt beim Jahresvertrag der bisherige Weg — die Leitung entscheidet.
+      widerrufErwaehnt: /wi(?:e)?der(?:r)?uf|r(?:ü|ue)cktritt/i.test(`${anlass}\n${kunde}`),
     });
   // E-372: Ließ sich die Kündigung nicht buchen (Prüffall), legt der Server es Justin vor (vorlegen → Karte).
   if (!erg?.ok) {
@@ -4664,7 +4689,12 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
   // fällig wird, ist für die Zeit danach und wird nie verlangt (E-265 Nachbesserung, Recht). Ob sie storniert wird,
   // entscheidet Justin (Geldentscheidung) — Prüffall an den Betreiber, im Kundentext steht sie nicht.
   const ende = formlos ? (await (await import("./fiaon-kuendigung")).vertragsendeLesen(String(b.ref)).catch(() => ({ ende: null as string | null }))).ende : null;
-  const { zuZahlen, nachEnde } = beendet ? { zuZahlen: [] as typeof raten, nachEnde: [] as typeof raten } : kuendigungRatenAufteilen(raten, { jahresvertrag: !formlos, vertragsEnde: ende });
+  // E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — das Ende aus der Buchung, und verlangt wird nur die offene
+  // Rechnung aus dem Kulanz-Angebot (bis kulanz_rate_nr); der Satz ist die EINE Kulanz-Fassung.
+  const jl = !formlos && !beendet ? await (await import("./fiaon-kuendigung")).jahresvertragLage(String(b.ref)).catch(() => null) : null;
+  const laufzeit = jl?.art === "laufzeit" && jl.ende ? jl : null;
+  const ratenAngebot = laufzeit ? raten.filter((r) => (laufzeit.kulanz?.raten ?? []).some((x) => x.nr === r.nr)) : raten;
+  const { zuZahlen, nachEnde } = beendet ? { zuZahlen: [] as typeof raten, nachEnde: [] as typeof raten } : kuendigungRatenAufteilen(ratenAngebot, { jahresvertrag: !formlos, vertragsEnde: ende });
   const tt = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.` : null);
   const eur = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
   const pruefFall = async (titel: string, text: string, schluessel: string) => {
@@ -4699,6 +4729,8 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
     nichtsMehr: nachEnde.length === 0, nachEnde: nachEnde.length > 0,
     // E-265 (01.10.2026, Recht): „… gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum>".
     giltZum: ende,
+    // E-396: Jahresvertrag zum Laufzeitende — das Ende und die EINE Kulanz-Fassung.
+    laufzeitEnde: laufzeit?.ende ?? null, fristgerecht: laufzeit?.fristgerecht,
   });
   const mt = await import("./fiaon-mara-termin");
   await mt.protokollieren({
@@ -4707,7 +4739,9 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
     daten: { ref: b.ref, weg, jahresvertrag: !formlos, urkunde: !!erg.urkunde, bestaetigung: !!erg.mailGesendet, raten: zuZahlen.map((r) => r.referenz), nach_ende: nachEnde.map((r) => r.referenz), ohne_zahlung: ohneZahlung, beendet },
   }).catch(() => {});
   return {
-    ergebnis: { ok: true, weg, vertrag: formlos ? "vor dem 03.09.2026 (monatlich kündbar — KEIN „Kulanz“)" : "Jahresvertrag (Kulanz-Satz)", bestaetigung_gesendet: !!erg.mailGesendet, so_schreiben: satz },
+    ergebnis: { ok: true, weg, vertrag: formlos ? "vor dem 03.09.2026 (monatlich kündbar — KEIN „Kulanz“)"
+      : laufzeit ? `Jahresvertrag — gekündigt zum Laufzeitende, dem ${tagDeutsch(laufzeit.ende)}; vorzeitig nur aus Kulanz nach Zahlung der offenen Rechnung (Satz aus so_schreiben, wörtlich)`
+      : "Jahresvertrag (Kulanz-Satz)", bestaetigung_gesendet: !!erg.mailGesendet, so_schreiben: satz },
     aktion: { werkzeug: name, ok: true, zeiten: [], ...(link ? { link } : {}), satz, ...(ohneZahlung ? { ohneZahlung: true } : {}) },
   };
 }
@@ -4988,7 +5022,8 @@ export function handlungsPruefung(
   // die Formel nur, wenn kuendigung_aufnehmen gebucht hat oder die Lage „beendet" mit offener Rate vorliegt — nie bei
   // Widerruf oder „kann nicht zahlen".
   const kuendigungGebucht = aktionen.some((x) => x.werkzeug === "kuendigung_aufnehmen" && x.ok);
-  const kuendigungsFormel = /aus\s+kulanz\s+gerne\s+aus\s+dem\s+vertrag|danach\s+kommt\s+nichts\s+mehr|zahlen\s+sie\s+bitte\s+noch/i.test(a);
+  // E-396 (19.10.2026): dazu DIE EINE Kulanz-Fassung („… entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag …“).
+  const kuendigungsFormel = /aus\s+kulanz\s+gerne\s+aus\s+dem\s+vertrag|aus\s+kulanz\s+vorzeitig\s+aus\s+dem\s+vertrag|danach\s+kommt\s+nichts\s+mehr|zahlen\s+sie\s+bitte\s+noch/i.test(a);
   const widerrufJetzt = /wi(?:e)?der(?:r)?uf/i.test(kunde);
   const formelGedeckt = kuendigungsFormel && (kuendigungGebucht || !!bekannt.beendetMitRate) && !widerrufJetzt && !kannNichtZahlen(kunde);
   // Nachbesserung (r2.mts): Ein aktuelles Kaufsignal („Ich zahle jetzt") oder die Bitte um den Link hebt die Ruhe

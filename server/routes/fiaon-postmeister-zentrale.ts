@@ -318,7 +318,10 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
       await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Kündigung nicht vorgemerkt: ${erg.grund}`} WHERE id = ${id}`;
       return { ok: false, grund: `Kündigung: ${erg.grund}` };
     }
-    const satz = erg.weg === "letzte_rate"
+    // E-396: Jahresvertrag — zum Laufzeitende gebucht; „Storno erst nach Zahlung“ aus heißt dort NICHT mehr sofort.
+    const satz = erg.weg === "laufzeit_ende" && erg.laufzeit
+      ? `Kündigung gebucht — Jahresvertrag läuft bis ${erg.laufzeit.ende.split("-").reverse().join(".")}${erg.laufzeit.kulanz ? `; Kulanz-Ausstieg, sobald die offene Rechnung über ${(erg.laufzeit.kulanz.summeCents / 100).toFixed(2).replace(".", ",")} € bezahlt ist` : ""}.${erg.hinweis ? ` ${erg.hinweis}` : ""}`
+      : erg.weg === "letzte_rate"
       ? `Kündigung vorgemerkt — Rate ${erg.letzteRateNr} bleibt offen, mit ihrer Zahlung endet der Vertrag.`
       : erg.weg === "kulanz_sofort" ? `Kündigung mit Kulanz — Vertrag sofort beendet, ${erg.stornierteRaten} offene Rate(n) entfallen.`
       : erg.weg === "storno_unbezahlt" ? "Bestellung storniert (war unbezahlt)."
@@ -370,6 +373,8 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     antwort: text, eingang: r.text ?? null, betreff: r.betreff ?? null, flags: jsonOderLeer(r.flags, null),
     kundenlage: r.kundenlage ?? null, kategorie: r.kategorie ?? null, kategorien: r.kategorien ?? null,
     kuendigungInAkte: gelaufen.includes("kuendigung_vormerken"),
+    // E-396: Kulanz-Satz nur beim Jahresvertrag — beim Vertrag vor dem 03.09.2026 sperrt die Wand ihn auch von Hand.
+    kulanzErlaubt: await (await import("../lib/fiaon-kuendigung")).kulanzSatzErlaubt(r.ref ?? null, (r as any).person_id ?? null).catch(() => null),
   });
   if (e393.gesperrt) {
     await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Nicht gesendet: ${e393.grund}`.slice(0, 900)} WHERE id = ${id}`;

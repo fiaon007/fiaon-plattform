@@ -1498,7 +1498,8 @@ function StornoBlatt({ k, laeuft, onAbbrechen, onStornieren }: {
         {bezahlt && (
           <label className="tk-kulanz">
             <input type="checkbox" checked={kulanz} onChange={(e) => setKulanz(e.target.checked)} />
-            <span>Kulanz: sofort beenden — offene Raten entfallen</span>
+            {/* E-396: Beim Jahresvertrag gibt es Kulanz nur nach Zahlung — dort bucht der Server zum Laufzeitende. */}
+            <span>Kulanz: sofort beenden — offene Raten entfallen (nur Vertrag vor dem 03.09.2026; ein Jahresvertrag läuft bis zum Laufzeitende, Kulanz erst nach Zahlung)</span>
           </label>
         )}
         <div className="tk-blatt-tun">

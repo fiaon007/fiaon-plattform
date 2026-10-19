@@ -30,6 +30,8 @@ import { eingangOffenFuer } from "./fiaon-zahlung-unverbucht";
 import { auskunftWort, auskunfteienText, euroText, AUSKUNFT_PREISE_CENTS, AUSWERTUNG_NAME } from "@shared/fiaon-auskunft";
 import { nennform, nennformSql } from "@shared/fiaon-mitarbeiter-name";
 import { kartenZiel, kartenzielText, kuendigungRatenAufteilen } from "@shared/fiaon-mara-ton";
+// E-396 (19.10.2026): Jahresvertrag zum Laufzeitende — das Ende, die Regel und DIE EINE Kulanz-Fassung.
+import { kulanzSatz, RECHTE_SATZ, MARA_JAHRESVERTRAG_REGEL, tagDe as tagDeJv } from "@shared/fiaon-jahresvertrag";
 // E-272 (02.10.2026): Global-Kunde als Merkmal der PERSON — die eine Regel (fiaon-global-kunde.ts).
 import { istGlobalKunde } from "./fiaon-global-kunde";
 import { produktkategorie, produktkategorieSql } from "./fiaon-produktkategorie";
@@ -363,6 +365,7 @@ async function kundenlageRoh(personId: number | null, ref: string | null, opt: {
   const [a] = ref ? (await sqlPool`
     SELECT ref, payment_status, claimed_paid_at, payment_proof_at, gekuendigt_am, kuendigung_zurueckgenommen_am, vertrag_ende_am,
            account_status, onboarding_stufe, freigeschaltet_am, gdpr_deleted_at, agb_stand,
+           to_jsonb(fiaon_applications) ->> 'kuendigung_art' AS kuendigung_art,
            status, current_step, submitted_at, created_at, person_id, type, pack_key
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
   `) as any[] : [null];
@@ -434,6 +437,11 @@ async function kundenlageOhneWerbesperre(
   if (!a) return { lage: personId ? "interessent" : "fremd", grund: personId ? "Person bekannt, keine Bestellung" : "unbekannt" };
   if (a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am && !a.vertrag_ende_am) {
     return { lage: "gekuendigt", grund: "hat gekündigt, letzte Rechnung noch offen" };
+  }
+  // E-396 (19.10.2026): Ein Jahresvertrag zum Laufzeitende hat sein Ende schon in vertrag_ende_am — er läuft bis dahin
+  // (Raten laufen weiter). Vorher hieß jedes gesetzte Ende „Vertrag beendet“.
+  if (a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am && a.kuendigung_art === "laufzeit" && a.payment_status !== "cancelled" && a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() > Date.now()) {
+    return { lage: "gekuendigt", grund: `hat gekündigt, der Vertrag läuft bis zum ${new Date(a.vertrag_ende_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}` };
   }
   if (a.payment_status === "cancelled" || a.vertrag_ende_am) return { lage: "gesperrt", grund: "Vertrag beendet oder storniert" };
   if (a.payment_status === "claimed_paid") {
@@ -511,6 +519,8 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   const bestellungen = personId ? (await sqlPool`
     SELECT ref, pack_key, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
            city, country, status, current_step, submitted_at, wanted_limit, kuendigung_zurueckgenommen_am,
+           -- E-396: Art der Kündigung und die Kulanz-Rate (Jahresvertrag zum Laufzeitende)
+           kuendigung_art, kulanz_rate_nr,
            -- E-265 (01.10.2026): der Anker für den Abrechnungsmonat (Rückfall ohne Ratenkette)
            COALESCE(paid_at, completed_at, created_at) AS anker
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
@@ -576,13 +586,17 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     : null;
   const kPlan = aktuelle?.gekuendigt_am && !aktuelle?.kuendigung_zurueckgenommen_am ? (() => {
     const jahresvertrag = istJahresvertrag(aktuelle.agb_stand);
-    const ende = jahresvertrag ? null
+    // E-396: Jahresvertrag zum Laufzeitende — das gebuchte Ende, und verlangt wird nur die offene Rechnung aus dem
+    // Kulanz-Angebot (bis kulanz_rate_nr).
+    const laufzeit = jahresvertrag && aktuelle.kuendigung_art === "laufzeit" && !!aktuelle.vertrag_ende_am;
+    const grenze = laufzeit && aktuelle.kulanz_rate_nr != null ? Number(aktuelle.kulanz_rate_nr) : aktuelle.letzte_rate_nr;
+    const ende = jahresvertrag ? (laufzeit ? tagBerlin(aktuelle.vertrag_ende_am) : null)
       : (endeAltLese ?? abrechnungsmonatEnde(aktuelle.gekuendigt_am, raten.map((r) => r.faellig_am), { anker: aktuelle.anker ?? null }));
     const offen = raten
-      .filter((r) => r.status === "offen" && (aktuelle.letzte_rate_nr == null || Number(r.rate_nr) <= Number(aktuelle.letzte_rate_nr)))
+      .filter((r) => r.status === "offen" && (grenze == null || Number(r.rate_nr) <= Number(grenze)))
       .map((r) => ({ nr: Number(r.rate_nr), cents: Number(r.betrag_cents) || 0, faellig: tagBerlin(r.faellig_am), referenz: r.zahlungsreferenz ?? null }));
-    const { zuZahlen, nachEnde } = kuendigungRatenAufteilen(offen, { jahresvertrag, vertragsEnde: ende });
-    return { jahresvertrag, ende, zuZahlen, nachEnde, letzte: zuZahlen.length ? Math.max(...zuZahlen.map((r) => r.nr)) : null };
+    const { zuZahlen, nachEnde } = kuendigungRatenAufteilen(offen, { jahresvertrag, vertragsEnde: jahresvertrag ? null : ende });
+    return { jahresvertrag, laufzeit, ende, zuZahlen, nachEnde, letzte: zuZahlen.length ? Math.max(...zuZahlen.map((r) => r.nr)) : null };
   })() : null;
   const deTag = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : null);
 
@@ -748,8 +762,15 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
         giltZum: deTag(kPlan.ende),
         zuZahlen: kPlan.zuZahlen.map((r) => ({ nr: r.nr, betrag: eur(r.cents), faellig: deTag(r.faellig), referenz: r.referenz })),
         nachVertragsende: kPlan.nachEnde.map((r) => ({ nr: r.nr, betrag: eur(r.cents), faellig: deTag(r.faellig) })),
-        regel: kPlan.jahresvertrag
-          ? "Jahresvertrag: zu zahlen sind die Raten in zuZahlen; die vorzeitige Beendigung aus Kulanz setzt ihre Zahlung voraus (Justins Satz). Die Kündigung selbst und ihre Bestätigung hängen nie an einer Zahlung."
+        regel: kPlan.jahresvertrag && kPlan.laufzeit
+          ? `Jahresvertrag, gekündigt zum Laufzeitende, dem ${deTag(kPlan.ende)} (E-396): Die Kündigung ist gebucht und gilt — unabhängig von jeder Zahlung. Bis dahin läuft der Vertrag, die Monatsraten laufen weiter, sein Bereich bleibt offen. `
+            + (kPlan.zuZahlen.length
+              ? `Vorzeitig raus nur aus Kulanz: Zahlt er die offene Rechnung in zuZahlen, endet der Vertrag mit dem Zahlungseingang (das Haus beendet ihn automatisch). Dein Satz, wörtlich: „${kulanzSatz(`${eur(kPlan.zuZahlen.reduce((s2, r) => s2 + r.cents, 0))} €`, { mehrere: kPlan.zuZahlen.length > 1 })} ${RECHTE_SATZ}“ Nie „ab sofort keine Raten mehr“, nie „Ihr Vertrag ist beendet“.`
+              : "Es ist keine Rechnung offen — kein Kulanz-Angebot; der Vertrag endet zum Laufzeitende.")
+          : kPlan.jahresvertrag
+          ? `Jahresvertrag (bisheriger Weg — ohne belegte Annahme, Widerruf erwähnt oder in den ersten 14 Tagen): ${kPlan.zuZahlen.length
+              ? `zu zahlen sind die Raten in zuZahlen; mit ihrer Zahlung endet der Vertrag aus Kulanz. Dein Satz, wörtlich: „${kulanzSatz(`${eur(kPlan.zuZahlen.reduce((s2, r) => s2 + r.cents, 0))} €`, { mehrere: kPlan.zuZahlen.length > 1 })} ${RECHTE_SATZ}“`
+              : "nichts mehr offen."} Die Kündigung selbst und ihre Bestätigung hängen nie an einer Zahlung.`
           : `Vertrag vor dem 03.09.2026: Die Kündigung gilt zum Ende seines laufenden Abrechnungsmonats, dem ${deTag(kPlan.ende)} (Fälligkeit zu Fälligkeit, AGB § 6 — nie „Monatsende") — unabhängig von jeder Zahlung. Zu zahlen sind nur die Raten in zuZahlen${kPlan.zuZahlen.length ? "" : " (keine — nichts mehr zu zahlen)"}. Raten in nachVertragsende verlangst du NIE (nicht nennen, keine Zahlungsseite, nie „letzte Rate"). Kündigungsschreiben und Bestätigung hängen nie an einer Buchung.`,
       } : {}),
     } : null,
@@ -901,10 +922,17 @@ export async function vertragsfassung(ref: string | null): Promise<{ jahresvertr
   }
   // E-265 Nachbesserung: dieselbe Rechnung wie WhatsApp und Kundenbereich (shared/fiaon-antrag-stand.ts).
   const neu = istJahresvertrag(a?.agb_stand);
+  // E-396 (19.10.2026): Justins Regel vom 19.10. — mit den Daten SEINES Vertrags (Vertragsschluss, Ende der zwölf
+  // Monate, Ende bei einer Kündigung heute). Vorher: „Vorzeitige Beendigung ist Kulanz und wird wirksam, sobald die
+  // bereits gestellte Rate bezahlt ist“ — ohne Laufzeitende (Mail-Mara kannte die Monatsfrist nicht).
+  const jl = neu ? await (await import("./fiaon-kuendigung")).jahresvertragLage(ref).catch(() => null) : null;
+  const daten = jl?.beginn && jl.erstEnde
+    ? ` SEIN VERTRAG: geschlossen am ${tagDeJv(jl.beginn)}, die zwölf Monate enden am ${tagDeJv(jl.erstEnde)}; eine Kündigung heute gilt zum ${tagDeJv(jl.endeBeiKuendigungHeute)}.${jl.belegt ? "" : " (Annahme nicht belegt — bei einer Kündigung bisheriger Weg: mit Zahlung der offenen Rechnung endet er.)"}`
+    : "";
   return {
     jahresvertrag: neu,
     text: neu
-      ? "Zwölf Monate Erstlaufzeit, in zwölf Monatsraten gestellt. Vorzeitige Beendigung ist Kulanz und wird wirksam, sobald die bereits gestellte Rate bezahlt ist."
+      ? `${MARA_JAHRESVERTRAG_REGEL}${daten}`
       : "Vertrag nach der bis 02.09.2026 gültigen Fassung: kündbar mit einer Frist von 24 Stunden zum Ende des jeweiligen Abrechnungsmonats (von Fälligkeit zu Fälligkeit — nie „Monatsende“). Die bis dahin gestellte Rate bleibt zu zahlen.",
   };
 }

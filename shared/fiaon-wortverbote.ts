@@ -81,6 +81,11 @@ export const DROHUNG_HINWEIS = "In einer Antwort zu Kündigung oder Widerruf dro
 export const KOPPLUNG_ERSATZ = "Ihre Kündigung hängt nicht an einer Zahlung — sie gilt auch, solange noch eine Rate offen ist.";
 /** Beim Widerruf: der Satz aus der Widerrufsregel des Postmeisters. */
 export const WIDERRUF_ERSATZ = "Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht.";
+/**
+ * E-396 (19.10.2026): Beim Vertrag vor dem 03.09.2026 gibt es keinen Kulanz-Ausstieg gegen Zahlung — die Kündigung ist
+ * sein Recht und gilt zum Ende seines Abrechnungsmonats (§ 5 UWG: kein „Kulanz“ für ein bestehendes Recht).
+ */
+export const ALTVERTRAG_KULANZ_HINWEIS = "Sein Vertrag ist vor dem 03.09.2026 geschlossen (monatlich kündbar): KEIN Kulanz-Ausstieg gegen Zahlung — die Kündigung gilt zum Ende seines Abrechnungsmonats, unabhängig von der Zahlung; offene Raten bis dahin nennst du als eigenen Satz.";
 
 /** Die Sätze eines Kundentexts. Datum („15.10.2026“) und Betrag trennen nicht. Rein. */
 export function kundenSaetze(text: string): string[] {
@@ -145,6 +150,8 @@ const GRUND_ZAHLUNG = new RegExp([
 ].join("|"), "i");
 /** Der Kulanz-Ausstieg aus dem Jahresvertrag darf an die offene Rechnung gebunden sein (Justin 01.10.2026) — nie beim Widerruf. */
 const KULANZ = /\bkulanz\w*|\bvorzeitig\w*|\bgoodwill\b|\bearly\s+(?:exit|release|termination)\b/i;
+/** E-396: die Zahlung im Kulanz-Satz („bezahlen“, „begleichen“, „Zahlung“ …). */
+const KULANZ_ZAHLT = /\b(?:bezahl\w*|begleich\w*|beglichen|(?:ü|ue)berweis\w*|zahlung\w*|zahlen|zahlt|pay|paid|payment)\b/i;
 
 /** Kundenzitat „…“ / "…" gehört nicht uns — bleibt außen vor. */
 function ohneZitate(s: string): string {
@@ -160,9 +167,10 @@ function endeVerneint(s: string): boolean {
 
 /**
  * Der erste Satz, der das Vertragsende, die Kündigung oder ihre Bestätigung an eine Zahlung knüpft — sonst null.
- * `widerruf`: Antwort auf einen Widerruf — dann gilt auch die Kulanz-Ausnahme nicht. Rein.
+ * `widerruf`: Antwort auf einen Widerruf — dann gilt auch die Kulanz-Ausnahme nicht.
+ * `ohneKulanz` (E-396): Vertrag vor dem 03.09.2026 — dort gibt es keinen Kulanz-Ausstieg, die Ausnahme gilt nicht. Rein.
  */
-export function kopplungFinden(text: string, opt: { widerruf?: boolean } = {}): string | null {
+export function kopplungFinden(text: string, opt: { widerruf?: boolean; ohneKulanz?: boolean } = {}): string | null {
   // Ein Semikolon trennt zwei Aussagen („Die Rate bleibt offen; Ihre Kündigung gilt zum …“) — jede wird für sich
   // geprüft, der Treffer ist der ganze Satz.
   const saetze: string[] = [];
@@ -173,12 +181,18 @@ export function kopplungFinden(text: string, opt: { widerruf?: boolean } = {}): 
     const s = ohneZitate(saetze[i]).replace(UNABHAENGIG, " ");
     // „…; der Vertrag läuft bis dahin weiter“ — das „dahin“ ist die Zahlung aus dem Teil davor.
     if (!ZAHLUNG.test(s) && !(/\bbis\s+dahin\b/i.test(s) && ZAHLUNG.test(ohneZitate(roh)))) continue;
+    // E-396 (19.10.2026): Beim Altvertrag und beim Widerruf gibt es KEINEN Kulanz-Ausstieg gegen Zahlung. Ein Satz mit
+    // „Kulanz“, einer Zahlung und dem Vertragsende ist dort immer eine Kopplung — auch wenn das Bedingungswort weiter weg
+    // steht, als BEDINGUNG greift („Wenn Sie die offene Rechnung über 59,99 € bezahlen, entlassen wir Sie aus Kulanz
+    // vorzeitig aus dem Vertrag …“ — sieben Wörter zwischen „wenn“ und „bezahlen“). Nur das Wort „Kulanz“ zählt hier
+    // („vorzeitig“ allein steht auch in einer Widerrufsantwort).
+    if ((opt.widerruf || opt.ohneKulanz) && /\bkulanz\w*/i.test(s) && KULANZ_ZAHLT.test(s) && ENDE_FOLGE.test(s)) return roh.slice(0, 160);
     const verneint = endeVerneint(s);
     // „Das geht erst nach der Zahlung.“ — das „das“ meint die Kündigung im Satz davor.
     const bezugDavor = i > 0 && /^(?:das|dies|diese|dieser|sie|es)\s+(?:\S+\s+){0,2}?(?:geht|klappt|funktioniert|machen|erledigen|passiert|gilt|ist\s+(?:\S+\s+)?m(?:ö|oe)glich|wird\s+(?:\S+\s+)?wirksam)\b/i.test(s.trim())
       && (ENDE_FOLGE.test(ohneZitate(saetze[i - 1])) || ENDE_OBJEKT.test(ohneZitate(saetze[i - 1])));
     if (!verneint && !(BEDINGUNG.test(s) && (ENDE_FOLGE.test(s) || bezugDavor))) continue;
-    if (!verneint && !opt.widerruf && KULANZ.test(s)) continue;
+    if (!verneint && !opt.widerruf && !opt.ohneKulanz && KULANZ.test(s)) continue;
     // Der Kunde stellt die Bedingung selbst („weil Sie schreiben, dass Sie erst nach der Überweisung kündigen möchten“).
     if (!verneint && /\b(?:sie|you)\s+(?:\S+\s+){0,3}?(?:schreiben|schrieben|m(?:ö|oe)chten|wollen|wrote|want)\b[^.!?]{0,80}\bk(?:ü|ue)ndigen\b/i.test(s)) continue;
     return roh.slice(0, 160);
@@ -246,10 +260,13 @@ export function kuendigungsBezug(...texte: (string | null | undefined)[]): boole
  * Die Wand für Antworten zu Kündigung oder Widerruf: Kopplung (beim Widerruf ohne Kulanz-Ausnahme) und — wenn
  * es um Kündigung oder Widerruf geht — jede Drohung. Treffer sind „verboten“: nie automatisch, nie von Hand. Rein.
  */
-export function kuendigungsWand(text: string, opt: { bezug: boolean; widerruf?: boolean }): Wandtreffer[] {
+export function kuendigungsWand(text: string, opt: { bezug: boolean; widerruf?: boolean; kulanzErlaubt?: boolean | null }): Wandtreffer[] {
   const funde: Wandtreffer[] = [];
-  const k = kopplungFinden(text, { widerruf: !!opt.widerruf });
-  if (k) funde.push({ art: "verboten", treffer: k.slice(0, 60), hinweis: opt.widerruf ? `${KOPPLUNG_HINWEIS} Beim Widerruf gibt es keinen Ausstieg gegen Zahlung — sag: „${WIDERRUF_ERSATZ}“` : KOPPLUNG_HINWEIS });
+  // E-396: Der Kulanz-Satz („Wenn Sie die offene Rechnung … bezahlen, entlassen wir Sie aus Kulanz vorzeitig …“) bleibt
+  // beim Jahresvertrag frei; beim Altvertrag (kulanzErlaubt === false) und beim Widerruf ist er eine Kopplung.
+  const ohneKulanz = opt.kulanzErlaubt === false;
+  const k = kopplungFinden(text, { widerruf: !!opt.widerruf, ohneKulanz });
+  if (k) funde.push({ art: "verboten", treffer: k.slice(0, 60), hinweis: opt.widerruf ? `${KOPPLUNG_HINWEIS} Beim Widerruf gibt es keinen Ausstieg gegen Zahlung — sag: „${WIDERRUF_ERSATZ}“` : ohneKulanz ? `${KOPPLUNG_HINWEIS} ${ALTVERTRAG_KULANZ_HINWEIS}` : KOPPLUNG_HINWEIS });
   const d = opt.bezug || !!k ? drohungFinden(text) : null;
   if (d) funde.push({ art: "verboten", treffer: d.slice(0, 60), hinweis: DROHUNG_HINWEIS });
   return funde;
@@ -260,13 +277,15 @@ export function kuendigungsLage(ein: {
   antwort?: string | null; eingang?: string | null; betreff?: string | null;
   flags?: Record<string, unknown> | null; kundenlage?: string | null; kategorie?: string | null; kategorien?: readonly string[] | null;
   kuendigungInAkte?: boolean;
-}): { bezug: boolean; widerruf: boolean } {
+  /** E-396: true = Jahresvertrag (Kulanz-Satz frei), false = Vertrag vor dem 03.09.2026 (Kulanz-Satz gesperrt), leer = unbekannt (frei wie bisher). */
+  kulanzErlaubt?: boolean | null;
+}): { bezug: boolean; widerruf: boolean; kulanzErlaubt?: boolean | null } {
   const f = (ein.flags && typeof ein.flags === "object" ? ein.flags : {}) as Record<string, unknown>;
   const kat = [ein.kategorie, ...(ein.kategorien ?? [])].filter(Boolean).join(" ");
   const widerruf = !!f.widerruf || /\bwiderruf\w*|\bwithdraw\w*/i.test(`${ein.eingang ?? ""}\n${ein.betreff ?? ""}`);
   const bezug = widerruf || !!f.kuendigung || !!ein.kuendigungInAkte || ein.kundenlage === "gekuendigt"
     || /k(?:ü|ue)ndig|widerruf|storn/i.test(kat) || kuendigungsBezug(ein.eingang, ein.betreff, ein.antwort);
-  return { bezug, widerruf };
+  return { bezug, widerruf, kulanzErlaubt: ein.kulanzErlaubt ?? null };
 }
 
 /**
@@ -286,7 +305,8 @@ export function kuendigungSendeUrteil(ein: Parameters<typeof kuendigungsLage>[0]
  * Nimmt Kopplungs- und Drohsätze aus dem Text und setzt den einen richtigen Satz ein (Kündigung: KOPPLUNG_ERSATZ,
  * Widerruf: WIDERRUF_ERSATZ). Für den Entwurf, der beim Menschen landet — die Prüfung zeigt, was ersetzt wurde. Rein.
  */
-export function kuendigungsSaetzeErsetzen(text: string, opt: { bezug: boolean; widerruf?: boolean }): { text: string; entfernt: string[] } {
+export function kuendigungsSaetzeErsetzen(text: string, opt: { bezug: boolean; widerruf?: boolean; kulanzErlaubt?: boolean | null }): { text: string; entfernt: string[] } {
+  const ohneKulanz = opt.kulanzErlaubt === false;
   const entfernt: string[] = [];
   const absaetze = String(text || "").split(/\n{2,}/);
   let ersatzGesetzt = /h(?:ä|ae)ngt\s+nicht\s+an\s+einer\s+zahlung|unabh(?:ä|ae)ngig\s+von\s+(?:der|einer|jeder)\s+zahlung/i.test(text)
@@ -297,8 +317,8 @@ export function kuendigungsSaetzeErsetzen(text: string, opt: { bezug: boolean; w
     for (let i = 0; i < saetze.length; i++) {
       const s = saetze[i];
       // „Das geht erst nach der Zahlung.“ trifft nur mit dem Satz davor — dann zählt der Treffer, wenn er DIESER Satz ist.
-      const mitDavor = i > 0 ? kopplungFinden(`${saetze[i - 1]}\n${s}`, { widerruf: !!opt.widerruf }) : null;
-      const k = kopplungFinden(s, { widerruf: !!opt.widerruf }) || (mitDavor === s.slice(0, 160) ? mitDavor : null);
+      const mitDavor = i > 0 ? kopplungFinden(`${saetze[i - 1]}\n${s}`, { widerruf: !!opt.widerruf, ohneKulanz }) : null;
+      const k = kopplungFinden(s, { widerruf: !!opt.widerruf, ohneKulanz }) || (mitDavor === s.slice(0, 160) ? mitDavor : null);
       const d = opt.bezug || k ? drohungFinden(s) : null;
       if (!k && !d) { behalten.push(s); continue; }
       entfernt.push(s);

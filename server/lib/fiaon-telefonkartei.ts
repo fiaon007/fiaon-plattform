@@ -1747,6 +1747,8 @@ export async function stornieren(personId: number, opts: { grund: string; kulanz
     else if (erg.weg === "storno_unbezahlt") punkte.push(`${paketName}: Bestellung storniert, keine Zahlungserinnerungen mehr`);
     else if (erg.weg === "letzte_rate") punkte.push(`${paketName}: gekündigt — Rate ${erg.letzteRateNr} bleibt fällig, ${erg.stornierteRaten} spätere entfallen`);
     else if (erg.weg === "kulanz_sofort") punkte.push(`${paketName}: sofort beendet (Kulanz), ${erg.stornierteRaten} offene Rate(n) entfallen`);
+    // E-396: Jahresvertrag — läuft bis zum Laufzeitende; „Kulanz sofort“ gibt es dort nicht mehr (Kulanz nur nach Zahlung).
+    else if (erg.weg === "laufzeit_ende") punkte.push(`${paketName}: gekündigt zum Laufzeitende (${String(erg.laufzeit?.ende ?? "").split("-").reverse().join(".")}) — die Raten laufen bis dahin weiter${erg.laufzeit?.kulanz ? `; Kulanz-Ausstieg, sobald die offene Rechnung über ${(erg.laufzeit.kulanz.summeCents / 100).toFixed(2).replace(".", ",")} € bezahlt ist` : ""}${opts.kulanz ? " (beim Jahresvertrag gibt es Kulanz nur nach Zahlung)" : ""}`);
     else if (erg.weg === "sofort_beendet") punkte.push(`${paketName}: Vertrag beendet (alles bezahlt)`);
     if (erg.mailGesendet) stand.mails.push(String(b.ref));
   }

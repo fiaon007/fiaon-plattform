@@ -381,10 +381,13 @@ werkzeugRegistrieren("wa_widerruf_annehmen", async (args, k) => {
   if (!ref) return ausfuehrErgebnis.fehler("Die Karte nennt keine Bestellung.");
   const a = await bestellung(k.lauf, ref);
   if (!a) return ausfuehrErgebnis.vonSelbst("Die Bestellung gibt es so nicht mehr (zusammengeführt oder gelöscht).");
-  if (a.gekuendigt_am) return ausfuehrErgebnis.vonSelbst("Der Vertrag ist schon gekündigt oder beendet.");
+  // E-396: Ein zum Laufzeitende gekündigter Jahresvertrag läuft noch — der Widerruf beendet ihn trotzdem sofort.
+  const [art] = (await k.lauf`SELECT kuendigung_art, vertrag_ende_am FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  const laeuftNoch = art?.kuendigung_art === "laufzeit" && !(art?.vertrag_ende_am && new Date(art.vertrag_ende_am).getTime() <= Date.now());
+  if (a.gekuendigt_am && !laeuftNoch) return ausfuehrErgebnis.vonSelbst("Der Vertrag ist schon gekündigt oder beendet.");
   const { kuendigungDurchfuehren } = await import("../routes/fiaon-kuendigung");
   const erg: any = await kuendigungDurchfuehren(ref, {
-    quelle: "whatsapp", sofort: true, personId: Number(args?.personId) || (a.person_id ?? null),
+    quelle: "whatsapp", sofort: true, sofortGrund: "widerruf", personId: Number(args?.personId) || (a.person_id ?? null),
     grund: `Widerruf (WhatsApp) — angenommen im Mara-Steuerpult: ${k.von}`.slice(0, 300),
     unterzeichner: unterzeichner(k),
   });

@@ -1763,6 +1763,16 @@ export async function rateBezahltBuchen(opts: {
     console.log(`[FIAON-ABO] Rate ${opts.rateId} (${rate.zahlungsreferenz}): alte Wise-Nummer(n) ${entschaerft.nummern.join(", ")} in der Notiz entschärft — gehören zu einer anderen bezahlten Rate (E-278).`);
   }
 
+  // ── E-396 (19.10.2026): DER KULANZ-AUSSTIEG AUS DEM JAHRESVERTRAG ──────
+  // Justin: „Die Kunden müssen dann noch die letzte offene Rechnung einbezahlen; sobald sie das getan haben =
+  // gekündigt." Zum Laufzeitende gekündigt und die offene Rechnung aus der Kündigung ist jetzt bezahlt → der Vertrag
+  // endet aus Kulanz (Abo-Stopp) — VOR der nächsten Rate, damit keine mehr entsteht. Die Abschlussmail folgt unten.
+  let kulanzBeendet = false;
+  try {
+    const { kulanzNachZahlungPruefen } = await import("../lib/fiaon-kuendigung");
+    kulanzBeendet = (await kulanzNachZahlungPruefen(rate.ref)).beendet;
+  } catch (e) { console.error("[FIAON-ABO] Kulanz-Ausstieg:", e); }
+
   // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
   // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
   // 30 Tage nach seiner Zahlung.
@@ -1774,7 +1784,7 @@ export async function rateBezahltBuchen(opts: {
   let vertragBeendet = false;
   try {
     const { vertragEndePruefen } = await import("../lib/fiaon-kuendigung");
-    const erg = await vertragEndePruefen(rate.ref, Number(rate.rate_nr));
+    const erg = kulanzBeendet ? { beendet: true } : await vertragEndePruefen(rate.ref, Number(rate.rate_nr));
     vertragBeendet = erg.beendet;
     if (erg.beendet) {
       const [k] = (await sqlPool`
@@ -1797,9 +1807,12 @@ export async function rateBezahltBuchen(opts: {
   if (!vertragBeendet && Number(rate.rate_nr) > 0 && Number(rate.rate_nr) % ABO_LAUFZEIT_RATEN === 0) {
     try {
       const [k] = (await sqlPool`
-        SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.amount_due, a.pack_name, a.abo_verlaengerung_gefragt_am
+        SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.amount_due, a.pack_name, a.abo_verlaengerung_gefragt_am,
+               a.gekuendigt_am
         FROM fiaon_applications a WHERE a.ref = ${rate.ref}`) as any[];
-      if (k && !k.abo_verlaengerung_gefragt_am) {
+      // E-396: Ein gekündigter Jahresvertrag läuft bis zum Laufzeitende weiter (Rate 12 wird bezahlt) — gefragt wird
+      // trotzdem nicht: Er hat gekündigt.
+      if (k && !k.abo_verlaengerung_gefragt_am && !k.gekuendigt_am) {
         await sqlPool`UPDATE fiaon_applications SET abo_verlaengerung_gefragt_am = NOW(), updated_at = NOW() WHERE ref = ${rate.ref}`;
         await sendMakeWebhookMitGrund("abo_verlaengerung_frage", {
           ...makePayloadFromRow(k), paket: k.pack_name || null,

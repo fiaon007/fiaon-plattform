@@ -86,6 +86,8 @@ import { verkaufNebenTermin, sagtEingetragen } from "@shared/fiaon-genannter-ter
 import { zahlungAntwortFunde, zahlungsstelleUnnoetig, aufgabeAnZahlungsstelle } from "@shared/fiaon-zahlung-suchen";
 // E-401 (4/6, 19.10.2026): Anschrift, E-Mail, Telefon ändert der Server selbst — nie „geändert“, was nicht geändert ist.
 import { angabenAntwortFunde, angabenOhneLageFunde, angabenAufgabeErsetzbar } from "@shared/fiaon-angaben-aendern";
+// E-396 (19.10.2026): Justins Regel vom 19.10. — Jahresvertrag zwölf Monate, Kulanz nur nach Zahlung, EINE Fassung.
+import { MARA_JAHRESVERTRAG_REGEL, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -1446,7 +1448,8 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt. Bei einer UNBEZAHLTEN Bestellung zählt JEDE klare Absage als Storno-Wunsch („brauche ich nicht mehr", „kein Interesse", „bitte löschen", „nein danke", „möchte das Angebot nicht") — Werkzeug rufen und bestätigen, NICHT den Kunden bitten, es noch einmal anders zu formulieren.`,
     `  · Alle Raten bezahlt: „Ihr Vertrag ist beendet." Fertig.`,
     // E-265 (29.09.2026, Justin: „NEIN, bezahlen Sie Ihre Rate, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag!!!")
-    `  · OFFENE RATE — Justins Satz, je Vertrag (das Werkzeug liefert ihn fertig in so_schreiben): JAHRESVERTRAG (ab 03.09.2026): „Ihre Kündigung ist heute bei uns eingegangen. Bitte begleichen Sie Ihre offene Rate über X €, dann lasse ich Sie aus Kulanz gerne aus dem Vertrag — danach kommt nichts mehr." VERTRAG VOR DEM 03.09.2026 (monatlich kündbar): KEIN „Kulanz" (das Recht hat er ohnehin, § 5 UWG), sondern „Ihre Kündigung ist heute bei uns eingegangen und gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum aus gilt_zum>. Ihre offene Rate vom … über X € zahlen Sie bitte noch, danach kommt nichts mehr." (Der Abrechnungsmonat läuft von Fälligkeit zu Fälligkeit — nie „Monatsende", nie „Ende des Kalendermonats".) Die Kündigung selbst hängt nie an der Zahlung. Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung. (Steht zusätzlich eine der Ausnahmen oben — Widerruf, Beschwerde, Bestreiten … —, gibt es keinen Zahlungsknopf: dann nur der Stand der Kündigung.)
+    `  · JAHRESVERTRAG (Justin 19.10.2026, E-396): ${MARA_JAHRESVERTRAG_REGEL}
+  · OFFENE RATE — der Satz je Vertrag (das Werkzeug liefert ihn fertig in so_schreiben): JAHRESVERTRAG (ab 03.09.2026): „Ihre Kündigung ist heute bei uns eingegangen. Ihr Vertrag hat eine feste Laufzeit von zwölf Monaten und endet deshalb zum <Datum>. ${kulanzSatz("X €")} ${RECHTE_SATZ}" VERTRAG VOR DEM 03.09.2026 (monatlich kündbar): KEIN „Kulanz" (das Recht hat er ohnehin, § 5 UWG), sondern „Ihre Kündigung ist heute bei uns eingegangen und gilt zum Ende Ihres laufenden Abrechnungsmonats, dem <Datum aus gilt_zum>. Ihre offene Rate vom … über X € zahlen Sie bitte noch, danach kommt nichts mehr." (Der Abrechnungsmonat läuft von Fälligkeit zu Fälligkeit — nie „Monatsende", nie „Ende des Kalendermonats".) Die Kündigung selbst hängt nie an der Zahlung. Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung. (Steht zusätzlich eine der Ausnahmen oben — Widerruf, Beschwerde, Bestreiten … —, gibt es keinen Zahlungsknopf: dann nur der Stand der Kündigung.)
   · Die schriftliche Bestätigung verschickt das Haus selbst: Steht im Ergebnis bestaetigung_gesendet: true, darfst du sagen „Die schriftliche Bestätigung bekommen Sie gleich per E-Mail." — sonst sagst du dazu nichts.
   · DIE KÜNDIGUNG UND IHRE BESTÄTIGUNG HÄNGEN NIE AN EINER ZAHLUNG (§ 312k BGB, E-265 Schluss-Nachbesserung, E-393): nie „sobald der Eingang gebucht ist, kommt das Kündigungsschreiben / die Bestätigung / ist die Kündigung wirksam", nie „ohne die offene Rate können wir den Vertrag nicht beenden", nie „erst nach Zahlung", nie „der Vertrag läuft bis zur Zahlung weiter", nie „mit dieser Zahlung endet Ihr Vertrag". Richtig ist: „Ihre Kündigung gilt zum <giltZum>, unabhängig von der Zahlung. Die Rate N über X € bleibt bis dahin zu zahlen." Ist er schon gekündigt, liest du die Akte (Feld kuendigung): giltZum, zuZahlen (nur DIESE Raten verlangst du), nachVertragsende (diese Raten verlangst du NIE, nennst sie nie und nie „letzte Rate"), regel.
   · IN EINER ANTWORT ZU KÜNDIGUNG ODER WIDERRUF DROHST DU NIE (E-393): kein Gericht, kein Amtsgericht, kein Mahnbescheid, kein Inkasso, kein Anwalt, keine SCHUFA-Meldung, keine „rechtlichen Schritte“, kein „die Kosten tragen dann Sie“, kein „bevor etwas eskaliert“. Du nennst sachlich, was bis zum Vertragsende zu zahlen ist (Betrag, Fälligkeit, Zahlungsseite) — mehr nicht. Über weitere Schritte entscheidet die Leitung; dafür rufst du still eskalation_vorbereiten. Der Server lässt jede solche Antwort NICHT hinaus.`,
@@ -1455,7 +1458,8 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
       // E-265 Nachbesserung (29.09.2026, Recht): Die Beendigung hängt nie an der Zahlung (§ 312k BGB). Beim Altvertrag
       // (monatlich kündbar) bleibt nur die fällige Rate; beim Jahresvertrag ist die VORZEITIGE Beendigung Kulanz.
       ? `(2) „Die Rate N über X € ist fällig und bleibt zu zahlen."`
-      : `(2) „Die vorzeitige Beendigung aus Kulanz setzt die Zahlung der offenen Rate N über X € voraus — die Rate selbst bleibt ohnehin zu zahlen."`} ${ein.kuendigungsBezug
+      // E-396: beim Jahresvertrag die feste Laufzeit — und NUR nach einer Kündigung der eine Kulanz-Satz.
+      : `(2) „Die Rate N über X € ist fällig und bleibt zu zahlen — Ihr Vertrag hat eine feste Laufzeit von zwölf Monaten."${ein.kuendigungsBezug ? ` Hat er gekündigt, gilt dazu wörtlich: „${kulanzSatz("X €")} ${RECHTE_SATZ}"` : ""}`} ${ein.kuendigungsBezug
       // E-393 (16.10.2026): Hat er gekündigt oder widerrufen, droht Mara nie — weder mit Gericht noch mit Kosten.
       // 79 gesendete Antworten vom 05.–28.09. trugen hier „übergeben wir die Forderung an das … Amtsgericht“ (Person 12314 u. a.).
       ? `(3) „Ihre Kündigung gilt trotzdem — sie hängt nicht an dieser Zahlung. Die Rate bleibt aber geschuldet." (4) „Bitte begleichen Sie sie über den Weg unten." KEIN Wort über Gericht, Mahnbescheid, Inkasso, Anwalt, SCHUFA, Kosten oder Eskalation. Dazu still eskalation_vorbereiten, damit die Leitung die Verweigerung sieht und entscheidet.`
@@ -1954,7 +1958,8 @@ export function schrittBestimmen(
   // E-265 Nachbesserung (29.09.2026, Recht): Nach der Kündigung ist bis zum Vertragsende nichts mehr zu zahlen
   // (Altvertrag: die offene Rate liegt NACH dem Monatsende; beendeter Vertrag) — dann auch kein Zahlknopf.
   const kv = werkzeugDaten.kuendigung_vormerken;
-  const nichtsZuZahlen = !!kv && ["letzte_rate", "bereits"].includes(String(kv.weg || "")) && Array.isArray(kv.offene_raten) && kv.offene_raten.length === 0;
+  // E-396: auch beim Jahresvertrag zum Laufzeitende, wenn keine Rechnung offen ist (dann gibt es kein Kulanz-Angebot zu zahlen).
+  const nichtsZuZahlen = !!kv && ["letzte_rate", "bereits", "laufzeit_ende"].includes(String(kv.weg || "")) && Array.isArray(kv.offene_raten) && kv.offene_raten.length === 0;
   const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(werkzeugDaten.kuendigung_vormerken?.weg || "")) || nichtsZuZahlen;
   // ── E-248: RUHE — Stopp, Widerruf, Beschwerde … bekommen keinen Zahl- und keinen Verkaufsknopf.
   if (opt.ruhe) {
@@ -2570,6 +2575,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   const kuendigungsLageFuer = (t: string) => kuendigungsLage({
     antwort: t, eingang: k.kundeText ?? "", betreff: k.kontext?.betreff ?? null, flags: k.einordnung.flags as any, kundenlage: k.lage,
     kuendigungInAkte: !!k.akte?.kuendigung || k.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken"),
+    // E-396: Vertrag vor dem 03.09.2026 → kein Kulanz-Satz (die Wand sperrt ihn); Jahresvertrag/unbekannt → frei.
+    kulanzErlaubt: k.kontext?.formlosKuendbar ? false : null,
   });
   const pruefen = (t: string) => {
     // „Ihre Kündigung ist seit dem 04.09. vorgemerkt" ist eine Tatsache aus der

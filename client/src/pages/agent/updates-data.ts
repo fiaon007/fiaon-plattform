@@ -256,7 +256,8 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "was das Gespräch erledigt hat. Rot heißt nur noch: echte Frist.",
     changes: [
       "Neu beim Gesprächsergebnis (Akte und Kundenkarte): Unter den Ergebnis-Knöpfen stehen die offenen Aufträge dieses Kunden, die bei dir liegen — mit Häkchen „damit erledigt“. Bei „Erreicht …“ gehen die angehakten mit zu.",
-      "Diese Dinge schließen jetzt von selbst: Kündigung gebucht oder Vertrag beendet (nur reine Kündigungs-Fälle), Unterlage geprüft, Maras Antwort ist raus, Mara hat den Kartenlink geschickt, neue E-Mail-Adresse gespeichert („Mail unzustellbar“), Kunde archiviert oder Testkonto.",
+      "Neu: „Daraus einen Termin machen?“ — Schreibst du in eine Notiz einen Tag mit Uhrzeit (z. B. „telefoniert am Montag 11 Uhr mit Justin“ oder „Rückruf morgen 14:30“), erscheint unten eine Karte. Ein Klick auf „Ja, eintragen“ trägt den Termin ein — bei dem Kollegen, den die Notiz nennt, sonst bei dir. Der Kunde bekommt eine Bestätigung.",
+      "Diese Dinge schließen jetzt von selbst: Kündigung gebucht oder Vertrag beendet (nur reine Kündigungs-Fälle), Unterlage geprüft, Maras Antwort ist raus (Mail — und auf WhatsApp, wenn der Kunde nur auf eine Antwort wartete), Mara hat den Kartenlink geschickt (Mail oder WhatsApp), neue E-Mail-Adresse gespeichert („Mail unzustellbar“), Kunde archiviert oder Testkonto.",
       "Ein Gesprächsergebnis „erreicht“ erledigt auch den offenen Rückruf-Wunsch in deiner Rückruf-Liste. Läuft die 24-Stunden-Frist ab, entsteht kein neuer „Frist gerissen“-Eintrag mehr — der Rückruf wird einfach rot.",
       "Schnell-Gründe statt Pflichtsatz: Beim Erledigen reicht ein Tipp auf „Kunde informiert“, „Kündigung gebucht und bestätigt“, „Neue E-Mail-Adresse eingetragen“ … Freitext geht weiterhin.",
       "„Dringend“ (rot) nur noch bei echter Frist: Kündigung und Widerruf, Beschwerde, Löschantrag, Eskalation, WhatsApp heikel.",
@@ -265,6 +266,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     ],
     howto: [
       "Kunde anrufen → in der Akte das Ergebnis wählen. Vorher unter den Knöpfen abhaken, was das Gespräch erledigt hat (bei Kündigung, Widerruf, Beschwerde mit Notiz).",
+      "Notiz mit Tag und Uhrzeit speichern → unten erscheint „Daraus einen Termin machen?“ → „Ja, eintragen“ (oder „Nein, danke“).",
       "Aufgaben → Aufträge: Auftrag aufklappen → „Mit Ergebnis erledigen“ → einen Schnell-Grund antippen → „Als erledigt melden“.",
       "Ist etwas zu früh zu: Aufgaben → Erledigt → „Wieder öffnen“.",
     ],

@@ -759,6 +759,13 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
       + "Widerruf, Beschwerde und Lage-Aufträgen nur mit einer Notiz zum Gespräch. So zählt jeder Anruf.",
   },
   {
+    titel: "Neu: „Daraus einen Termin machen?“",
+    text: "Steht in deiner Notiz ein Tag mit Uhrzeit („telefoniert am Montag 11 Uhr mit Justin“, „Rückruf morgen 14:30“), erscheint "
+      + "nach dem Speichern unten eine Karte. „Ja, eintragen“ setzt den Termin in den Kalender — bei dem Kollegen, den die Notiz nennt, "
+      + "sonst bei dir — und der Kunde bekommt eine Bestätigung. „Nein, danke“ lässt alles, wie es ist.",
+    tipp: "Das klappt in der Akte, auf der Kundenkarte und am Telefon. Steht für die Zeit schon ein Termin, kommt keine Frage.",
+  },
+  {
     titel: "Viele Aufträge erledigen sich selbst.",
     text: "Erfasst du in der Akte ein Gesprächsergebnis („erreicht“, „Rückruf vereinbart“), erledigst du einen Rückruf, "
       + "führst einen Termin, antwortest selbst auf WhatsApp, forderst eine Unterlage an oder schickst den Kartenlink, "
@@ -772,8 +779,9 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
   {
     titel: "Seit dem 19.10. schließen auch diese Tatsachen.",
     text: "Kündigung gebucht oder Vertrag beendet (nur reine Kündigungs-Fälle — Widerruf, Beschwerde und Erstattung bleiben offen), "
-      + "Unterlage geprüft („Unterlagen eingegangen“), Maras Antwort ist raus („Kunde hat geschrieben“, wenn nur die Antwort fehlte), "
-      + "Mara hat den Kartenlink geschickt, eine neue E-Mail-Adresse ist gespeichert („Mail unzustellbar“), der Kunde ist archiviert oder ein Testkonto. "
+      + "Unterlage geprüft („Unterlagen eingegangen“), Maras Antwort ist raus („Kunde hat geschrieben“, wenn nur die Antwort fehlte — per Mail "
+      + "und auf WhatsApp bei „Mara war unsicher“ oder einer Technik-Panne, nie bei einem WhatsApp-Anliegen), "
+      + "Mara hat den Kartenlink geschickt (Mail oder WhatsApp), eine neue E-Mail-Adresse ist gespeichert („Mail unzustellbar“), der Kunde ist archiviert oder ein Testkonto. "
       + "Ein Gesprächsergebnis „erreicht“ erledigt außerdem den offenen Rückruf-Wunsch in deiner Rückruf-Liste.",
     tipp: "Eine Erstattung schließt nie das System. Und was du selbst wieder geöffnet hast, schließt kein Ereignis mehr.",
   },

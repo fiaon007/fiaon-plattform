@@ -930,8 +930,14 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     // `meinePerson` liefert dann NULL — das ist richtig so und die Oberfläche
     // nimmt die Karte daraufhin aus der Liste.
     const neu = uebergabe?.ok ? null : await meinePerson(personId, req.agent!.id);
+    // E-397: „Daraus einen Termin machen?“ — steht ein künftiger Tag mit Uhrzeit in der Notiz, kommt der Vorschlag
+    // mit. Eingetragen wird erst nach dem Klick (POST …/termin-aus-notiz). Ein „Rückruf vereinbart“ hat seine Zeit schon.
+    const { terminVorschlagFuerNotiz } = await import("../lib/fiaon-termin-aus-notiz");
+    const terminVorschlag = notiz && ergebnis !== "rueckruf_termin" && !uebergabe?.ok
+      ? await terminVorschlagFuerNotiz({ personId, notiz, schreiberId: req.agent!.id }) : null;
     res.json({
       ok: true,
+      terminVorschlag,
       kunde: neu ? kartePayload(neu, await letzteAktivitaetVon(personId)) : null,
       wirkung,
       nummerMail,
@@ -946,6 +952,47 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/kunden/:personId/termin-aus-notiz — „Daraus einen Termin machen?“ (E-397, 19.10.2026)
+//
+// Der Klick nach einer Notiz mit Tag und Uhrzeit. Der Server rechnet den Vorschlag aus derselben Notiz neu und
+// bucht nur, wenn Zeit und Teilnehmer gleich sind (server/lib/fiaon-termin-aus-notiz.ts). Zugriff wie beim
+// Termin von Hand (POST /agent/termine): eigener Kunde, sonst `darfAnKunde`.
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/agent/crm/kunden/:personId/termin-aus-notiz", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const notiz = String(req.body?.notiz ?? "").trim();
+    const wandzeit = String(req.body?.wandzeit ?? "");
+    const teilnehmerId = Number(req.body?.teilnehmerId);
+    if (!personId || !notiz || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(wandzeit) || !Number.isInteger(teilnehmerId)) {
+      return res.status(400).json({ ok: false, error: "Notiz, Zeitpunkt oder Teilnehmer fehlen." });
+    }
+    const [person] = (await sqlPool`
+      SELECT id, assigned_agent_id FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL`) as any[];
+    if (!person) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+    if (person.assigned_agent_id && Number(person.assigned_agent_id) !== req.agent!.id) {
+      const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+      if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+        return res.status(403).json({ ok: false, error: "Dieser Kunde wird von einem Kollegen betreut." });
+      }
+    }
+    const { terminAusNotizEintragen } = await import("../lib/fiaon-termin-aus-notiz");
+    const erg = await terminAusNotizEintragen({ personId, notiz, wandzeit, teilnehmerId, agent: { id: req.agent!.id, name: req.agent!.name } });
+    if (!erg.ok) return res.status(400).json(erg);
+    // Wie beim Termin von Hand: Der Kunde bekommt die Bestätigung (mit Kalender-Knöpfen).
+    const { bestaetigungSenden } = await import("./fiaon-termin");
+    await bestaetigungSenden(erg.buchung, { ausgeloestVon: req.agent!.name, ausgeloestAgentId: req.agent!.id }).catch((e) => console.error("[TERMIN-AUS-NOTIZ] Bestätigung:", e));
+    res.json({
+      ok: true, terminId: erg.terminId,
+      meldung: `Termin eingetragen: ${erg.wannText}${erg.teilnehmerId === req.agent!.id ? " bei dir" : ` bei ${erg.teilnehmerName}`}. Der Kunde bekommt eine Bestätigung.`,
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] termin-aus-notiz:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

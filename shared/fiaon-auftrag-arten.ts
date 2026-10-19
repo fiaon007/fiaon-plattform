@@ -823,3 +823,20 @@ export function auftragDringend(a: { art?: string | null; quelle?: string | null
   if (istAuftragArt(a.art) && (AUFTRAG_ARTEN[a.art] as AuftragArtRegel).frist) return true;
   return String(a.quelle || "") === "hand" && Number(a.prioritaet) === 1;
 }
+
+// ── „MARA HAT GEANTWORTET“ AUCH PER WHATSAPP (E-397, Nachtrag 19.10.2026) ────────────────────────────────────
+// Bei der Mail schließt Maras gesendete Antwort „Kunde hat geschrieben (E-Mail)“ (uebergabeSchliessen). Auf
+// WhatsApp gibt es dieselbe Lage nur bei den Klassen, in denen der Kunde BLOSS auf eine Antwort wartet: Mara war
+// unsicher (pruefung), die KI war aus (ki), der Versand scheiterte (versand), Deckel oder Pause. Gemessen am
+// 19.10.2026 (59 offene „Anliegen“): Widerruf, Löschwunsch, Bestreiten, Insolvenz, „Justin soll den Kartenlink
+// schicken“ liefen als „anliegen“ — die schließt eine Antwort von Mara NIE, auch keine Rückrufwünsche, nichts
+// Heikles, kein Geld, keine Erstattung. Und nur ohne neue Kundennachricht (prüft der Server).
+export const WA_WARTET_KLASSEN: readonly string[] = ["pruefung", "ki", "versand", "deckel", "pause"];
+export function maraWaAntwortSchliesst(z: { art?: unknown; schluessel?: string | null; quelle?: string | null; bereich?: string | null; titel?: string | null; text?: string | null }): boolean {
+  const m = String(z.schluessel || "").match(/^wa-n?\d+-([a-z_]+)-\d{4}-\d{2}-\d{2}$/);
+  if (!m || !WA_WARTET_KLASSEN.includes(m[1])) return false;
+  const jetzt = artNachInhalt(z.art, { schluessel: z.schluessel, quelle: z.quelle, bereich: z.bereich, titel: z.titel, text: z.text });
+  if (jetzt !== "mara_wa_pruefung" && jetzt !== "mara_wa_anliegen") return false;
+  const inhalt = `${z.titel || ""}\n${z.text || ""}`;
+  return !istErstattung(inhalt) && !heikelArt(inhalt);
+}

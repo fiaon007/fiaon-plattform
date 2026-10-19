@@ -141,7 +141,8 @@ export function tagGenannt(text: string, jetzt: Date): { tag: string; art: "rela
   if (/\b(vorgestern)\b/.test(t)) return { tag: iso(tagPlus(n.j, n.m, n.t, -2)), art: "relativ" };
   if (/\b(gestern|yesterday)\b/.test(t)) return { tag: iso(tagPlus(n.j, n.m, n.t, -1)), art: "relativ" };
   if (/\b(heute|today)\b/.test(t)) return { tag: iso(n), art: "relativ" };
-  if (/\b(übermorgen|uebermorgen)\b/.test(t)) return { tag: iso(tagPlus(n.j, n.m, n.t, 2)), art: "relativ" };
+  // E-397 (19.10.2026): „\bü…“ greift nie — ü ist für \b kein Wortzeichen, „übermorgen“ wurde nicht erkannt.
+  if (/(?:^|[^a-zäöüß])(übermorgen|uebermorgen)\b/.test(t)) return { tag: iso(tagPlus(n.j, n.m, n.t, 2)), art: "relativ" };
   if (/\b(morgen|tomorrow)\b/.test(t)) return { tag: iso(tagPlus(n.j, n.m, n.t, 1)), art: "relativ" };
   const datum = t.match(/(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})?(?![\d])/);
   if (datum) {

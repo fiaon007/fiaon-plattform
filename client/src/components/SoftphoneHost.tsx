@@ -23,6 +23,9 @@ import { agentSitzung } from "@/lib/office-zustand";
 // ins Bündel der öffentlichen Seiten.
 // ═══════════════════════════════════════════════════════════════════════════
 const Softphone = lazy(() => import("@/components/Softphone").then((m) => ({ default: m.Softphone })));
+// E-397 (19.10.2026): „Daraus einen Termin machen?“ — die Frage nach einer Notiz mit Tag und Uhrzeit steht hier,
+// damit sie stehen bleibt, wenn die Kundenkarte nach dem Ergebnis die Liste verlässt.
+const TerminAusNotizHost = lazy(() => import("@/components/agent/TerminAusNotiz").then((m) => ({ default: m.TerminAusNotizHost })));
 
 export function SoftphoneHost() {
   const sitzung = useSyncExternalStore(agentSitzung.abonnieren, agentSitzung.lesen, agentSitzung.lesen);
@@ -30,5 +33,5 @@ export function SoftphoneHost() {
   // Nur im Office — und in der EINEN Akte (/akte/…, E-315), sobald dort eine Office-Sitzung derselben Person besteht
   // (ZentraleAkte setzt sie). /admin hat sein eigenes Telefon im AdminShell.
   if (!sitzung || !/^\/(agent|akte)(\/|$)/.test(pfad)) return null;
-  return <Suspense fallback={null}><Softphone /></Suspense>;
+  return <><Suspense fallback={null}><Softphone /></Suspense><Suspense fallback={null}><TerminAusNotizHost /></Suspense></>;
 }

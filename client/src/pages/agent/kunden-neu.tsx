@@ -11,6 +11,7 @@ import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { MarkeFunke, anrufStarten } from "@/components/Softphone";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { ErgebnisWahl, type ErgebnisAusgang } from "@/components/agent/ErgebnisWahl";
+import { terminVorschlagZeigen } from "@/components/agent/TerminAusNotiz";
 import { ERGEBNIS_TEXT, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { geburtsdatumMitAlter } from "@shared/fiaon-geburtsdatum";
 
@@ -977,6 +978,8 @@ function KundenKarte({
     // blockiert wurde, muss der Agent das lesen und nicht ein grünes Häkchen.
     zeige(r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "erfolg",
       r.json.meldung || "Gespeichert", k.name);
+    // E-397: Steht ein künftiger Tag mit Uhrzeit in der Notiz → „Daraus einen Termin machen?“
+    terminVorschlagZeigen(r.json.terminVorschlag, k.name);
     setNotiz("");
     // „Abgelehnt" nimmt den Kunden aus jeder Liste; eine geglückte Übergabe
     // ebenso — er gehört dann einem Kollegen. Alles andere bleibt sichtbar,

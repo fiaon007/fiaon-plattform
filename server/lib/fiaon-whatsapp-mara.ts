@@ -5790,6 +5790,8 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
         if (!istRueckfall(g.antwort_text)) {
           await sqlPool`UPDATE fiaon_whatsapp_gespraech SET ki_rueckfall_auf_id = NULL, ki_rueckfall_am = NULL WHERE nummer = ${nummer}`;
         }
+        // E-397: „Mara hat geantwortet“ zählt auch auf WhatsApp — schließt nur „Kunde wartet auf Antwort“ (eng, fiaon-auftraege.ts).
+        await import("./fiaon-auftraege").then((m) => m.maraWaGeantwortet({ nummer, personId: w?.person_id ? Number(w.person_id) : null, aufId, antwortText: String(g.antwort_text ?? ""), rueckfall: istRueckfall(g.antwort_text) })).catch(() => {});
         gesendet++;
       } else if (Number(g.versuche) + 1 < 3) {
         // Die fertige Antwort bleibt — nur der Versand wird in 5 Minuten wiederholt, ohne neu zu denken.

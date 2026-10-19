@@ -1201,12 +1201,17 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
         WHERE id = ${id}
       `.catch(() => {});
     }
+    // E-397: „Daraus einen Termin machen?“ — auch am Telefon (Vorschlag nur; eingetragen wird nach dem Klick).
+    const { terminVorschlagFuerNotiz } = await import("../lib/fiaon-termin-aus-notiz");
+    const terminVorschlag = notiz && c.person_id && ergebnis !== "rueckruf_termin" && !nach?.uebergabe?.ok
+      ? await terminVorschlagFuerNotiz({ personId: Number(c.person_id), notiz, schreiberId: req.agent!.id }) : null;
     res.json({
       ok: true, ...wirkung,
       meldung: nach?.meldung ?? (wirkung as any).meldung,
       nummerMail: nach?.nummerMail,
       uebergabe: nach?.uebergabe,
       offene: await offeneAnrufe(req.agent!.id),
+      terminVorschlag,
     });
   } catch (err) {
     console.error("[TELEFON] ergebnis:", err);

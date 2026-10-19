@@ -31,7 +31,7 @@
 import { sqlPool } from "./db-pool";
 import {
   AUFTRAG_ARTEN, AUFTRAG_EREIGNISSE, artenFuerEreignis, artNachInhalt, auftragArtVon, autoErledigtText, berlinTagZeit,
-  ereignisSchliesstArt, ereignisUeberPerson, istAuftragArt, istKontaktEreignis, kandidatArtenFuerEreignis, kundeAusAuftrag,
+  ereignisSchliesstArt, ereignisUeberPerson, istAuftragArt, istKontaktEreignis, kandidatArtenFuerEreignis, kundeAusAuftrag, maraWaAntwortSchliesst,
   TATSACHEN_EREIGNISSE, unterlagePasst, type AuftragArt, type AuftragArtRegel, type AuftragEreignis,
 } from "../../shared/fiaon-auftrag-arten";
 
@@ -671,6 +671,61 @@ async function unterlagenVermerkeSchliessen(personIds: number[], ein: EreignisEi
   let n = 0;
   for (const x of v) if (await vermerkErledigen(Number(x.id), { art: "auto", von: wer, grund }, lauf)) n += 1;
   return n;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „MARA HAT GEANTWORTET“ — AUCH PER WHATSAPP (E-397, Nachtrag 19.10.2026)
+//
+// Bei der Mail schließt Maras gesendete Antwort „Kunde hat geschrieben“ (uebergabeSchliessen im Postmeister-Lauf).
+// Hier dasselbe für WhatsApp — aufgerufen nach einem erfolgreichen Versand (versandLauf, fiaon-whatsapp-mara.ts).
+// Eng (Regel: maraWaAntwortSchliesst): nur Aufträge, in denen der Kunde bloß auf eine Antwort wartete (Mara
+// unsicher, KI aus, Versand gescheitert, Deckel, Pause) — nie „Anliegen“, Rückruf, Heikles, Geld, Erstattung.
+// Und nur ohne neue Kundennachricht:
+//   · Mara hat die NEUESTE Nachricht des Kunden beantwortet (sonst nichts),
+//   · der Auftrag ist älter als diese Nachricht — hat Mara sie erneut übergeben (Auffrischen setzt updated_at),
+//     bleibt er offen,
+//   · kein Rückfallsatz („ich melde mich gleich“) zählt als Antwort.
+// Schließt mit erledigt_art „auto“ und dem Ereignis im Klartext; „Wieder öffnen“ geht wie immer.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function maraWaGeantwortet(ein: {
+  nummer: string;
+  personId: number | null;
+  /** Die Kundennachricht (fiaon_whatsapp.id), auf die Mara geantwortet hat. */
+  aufId: number | null;
+  antwortText: string;
+  /** Maras Rückfallsatz nach einem KI-Ausfall — keine Antwort in der Sache. */
+  rueckfall?: boolean;
+}, lauf: Lauf = sqlPool): Promise<number[]> {
+  const zu: number[] = [];
+  try {
+    if (ein.rueckfall || !ein.aufId || !String(ein.antwortText || "").trim()) return zu;
+    const [k] = (await lauf`
+      SELECT id, created_at FROM fiaon_whatsapp WHERE nummer = ${ein.nummer} AND richtung = 'rein' ORDER BY id DESC LIMIT 1`) as any[];
+    if (!k || Number(k.id) !== Number(ein.aufId)) return zu;
+    const ziffern = String(ein.nummer).replace(/\D/g, "");
+    const wer = [ein.personId ? String(Number(ein.personId)) : null, ziffern ? `n${ziffern}` : null].filter(Boolean) as string[];
+    if (!wer.length) return zu;
+    const zeilen = (await lauf`
+      SELECT id, art, schluessel, quelle, bereich, titel, text, frage_offen, frage_an_agent
+        FROM fiaon_betreiber_todos
+       WHERE status <> 'erledigt' AND schluessel LIKE 'wa-%'
+         AND substring(schluessel from '^wa-(n?[0-9]+)-') = ANY(${wer}::text[])
+         AND updated_at < ${k.created_at}`) as any[];
+    const satz = String(ein.antwortText).replace(/\s+/g, " ").trim().slice(0, 220);
+    for (const t of zeilen) {
+      if (t.frage_offen || t.frage_an_agent) continue;
+      if (!maraWaAntwortSchliesst(t)) continue;
+      const ok = await auftragErledigen(Number(t.id), {
+        art: "auto", von: "Mara", autorArt: "system",
+        ereignis: `Mara hat per WhatsApp geantwortet (auf Nachricht #${ein.aufId})`,
+        beitragText: `Mara hat dem Kunden per WhatsApp geantwortet: „${satz}“ — keine neue Nachricht von ihm offen. Damit erledigt.`,
+      }, lauf);
+      if (ok) zu.push(Number(t.id));
+    }
+  } catch (err) {
+    console.error("[AUFTRAEGE] maraWaGeantwortet:", err);
+  }
+  return zu;
 }
 
 // Die Übersetzung Gesprächs-/Ratenergebnis → Ereignis steht in shared (eine Quelle mit dem Katalog).

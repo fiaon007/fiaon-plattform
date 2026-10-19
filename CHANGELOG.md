@@ -18,7 +18,12 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   beim Gesprächsergebnis. (4) Aufräum-Lauf: Probelauf zählt je Regel (nichts ändert sich), der Lauf läuft nur mit Freigabe
   (HAUSPUTZ_FREIGABE nach Justins „go“), jede Änderung steht mit dem Zustand vorher in fiaon_hausputz_log und ist 30 Tage
   rückholbar. (5) Rot nur bei echter Frist, Schnell-Gründe statt Pflichtsatz, Filter „heikel“ in Meine Liste, KYC-Liste nur
-  laufende Verträge.
+  laufende Verträge. (6) Nachtrag: „Daraus einen Termin machen?“ — nach einer Notiz mit künftigem Tag und Uhrzeit (Akte,
+  Kundenkarte, Telefon) ein Klick, der den Termin einträgt (beim genannten Kollegen, sonst beim Schreiber; Herkunft agent_notiz,
+  vereinbart, Bestätigung an den Kunden, Kunde wird nicht umgehängt). Maras WhatsApp-Antwort zählt als „Mara hat geantwortet“ —
+  eng: nur „Mara war unsicher“ und Technik-Pannen (KI, Versand, Deckel, Pause), nie ein Anliegen, und nur ohne neue
+  Kundennachricht. Kartenlink per WhatsApp zählte schon (karteEinladungFuerPerson). Fund nebenbei: tagGenannt (E-395) erkannte
+  „übermorgen“ nie (ü bricht \b) — behoben.
 - **Warum:** Justin am 19.10.: „Jeder hat dutzende, hunderte Aufgaben, aber niemand kann diese erledigen, weiß nicht wie, sie
   sind veraltet oder bereits erledigt.“ Gemessen: 2.180 offen, nur 5,6 % jünger als 7 Tage, 1.057 bei Justin, 70 Karten seit
   dem 16.10. unentschieden. Probelauf (nur lesend gegen Produktion, 19.10.): 2.180 → 972, bei Justin 1.162 → 232.

@@ -128,6 +128,9 @@ async function melden(opts: {
     ? `Mara hat per ${kanal} einen Rückruf mit ${b.kunde} für dich vereinbart. Ruf bitte pünktlich an; was Mara mit dem Kunden besprochen hat, steht unten.`
     : b.herkunft === "mara_whatsapp_link"
       ? `${b.kunde} hat sich über den Terminlink, den Mara per WhatsApp geschickt hat, selbst einen Termin bei dir ausgesucht.`
+      // E-397: aus der Gesprächsnotiz eines Kollegen („telefoniert am Montag 11 Uhr mit Justin“) — die Notiz steht unten.
+      : b.herkunft === "agent_notiz"
+        ? `Ein Kollege hat mit ${b.kunde} ein Gespräch mit dir vereinbart und es aus seiner Gesprächsnotiz in deinen Kalender eingetragen — die Notiz steht unten.`
       : opts.quelle === "agent_manuell"
         ? `Für ${b.kunde} wurde ein Termin bei dir eingetragen.`
         : `${b.kunde} hat sich selbst einen Termin bei dir ausgesucht.`;

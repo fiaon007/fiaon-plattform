@@ -114,6 +114,7 @@ import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft,
 import { AgentShell, api, useFragen } from "./shared";
 // E-397: Häkchen „damit erledigt“ beim Gesprächsergebnis.
 import { AuftraegeHaken } from "@/components/agent/AuftraegeHaken";
+import { terminVorschlagZeigen } from "@/components/agent/TerminAusNotiz";
 import { ereignisAusErgebnis } from "@shared/fiaon-auftrag-arten";
 import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
@@ -2593,6 +2594,8 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
       r.json.meldung || "Gespeichert",
       wohin ?? k.name,
     );
+    // E-397: Steht ein künftiger Tag mit Uhrzeit in der Notiz → „Daraus einen Termin machen?“
+    terminVorschlagZeigen(r.json.terminVorschlag, k.name);
     setNotiz("");
     const VERABREDET = ["nicht_erreicht", "mailbox", "rueckruf_termin", "nummer_falsch", "nummer_blockiert"];
     if (art === "erreicht_abgelehnt" || r.json.uebergabe?.ok) onWeg();

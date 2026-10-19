@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { terminVorschlagZeigen } from "@/components/agent/TerminAusNotiz";
 import { useLocation } from "wouter";
 // Meldet dem Office-Rahmen, ob ein Gespräch läuft (Nachfrage vor „Abmelden“).
 import { telefon } from "@/lib/office-zustand";
@@ -1888,6 +1889,8 @@ export function Softphone() {
           + "Das Ergebnis ist nicht gespeichert."));
     setDatumFeld(null); setDatum("");
     if (!j?.ok) return;
+    // E-397: Steht ein künftiger Tag mit Uhrzeit in der Notiz → „Daraus einen Termin machen?“ (Host neben dem Telefon).
+    terminVorschlagZeigen(j.terminVorschlag, kunde?.name ?? null);
     setNotiz(""); setNotizFuer(null); setNotizFehler(null);
 
     setCallId(null);

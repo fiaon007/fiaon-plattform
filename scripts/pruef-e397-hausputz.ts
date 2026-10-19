@@ -136,6 +136,42 @@ async function teilA() {
   ok(z.vorher.gesamt === 3 && z.nachher.gesamt === 1, "Zählung: vorher 3 → nachher 1", z);
   const sql = H.hausputzAuftraegeSql() + H.hausputzVermerkeSql() + H.hausputzRueckrufeSql();
   ok(!/\b(UPDATE|INSERT|DELETE|ALTER|DROP|TRUNCATE)\b/i.test(sql), "Kandidaten-Abfragen sind reine SELECTs");
+
+  console.log("── A9 · „Daraus einen Termin machen?“ — Tag und Uhrzeit aus der Notiz");
+  const { terminAusNotiz } = await import("../shared/fiaon-termin-aus-notiz");
+  const team = [{ id: 928, vorname: "Justin", nachname: "Schwarzott" }, { id: 8, vorname: "Daniel", nachname: "Stripling" }];
+  const fr = new Date("2026-10-16T13:00:00Z"); // Freitag 15:00 Berlin — Daniels Notiz
+  const TN = (notiz: string, jetzt = fr, bestehende: any[] = []) => terminAusNotiz({ notiz, jetzt, schreiberId: 8, mitarbeiter: team, bestehende });
+  const daniel = TN("telefoniert am Montag 11 Uhr mit Justin");
+  ok(daniel?.wandzeit === "2026-10-19 11:00" && daniel.teilnehmerId === 928 && daniel.genannt, "Daniels Notiz (Fr 16.10.) → Mo 19.10. 11:00 bei Justin", daniel);
+  ok(TN("telefoniert am Montag 11 Uhr mit Justin", new Date("2026-10-19T08:00:00Z"))?.wandzeit === "2026-10-19 11:00", "am Montag um 10 gelesen → heute 11:00");
+  ok(TN("telefoniert am Montag 11 Uhr mit Justin", new Date("2026-10-19T10:00:00Z"))?.wandzeit === "2026-10-26 11:00", "am Montag nach 11 gelesen → nächster Montag");
+  const selbst = TN("Rückruf morgen 14:30, Kunde sucht die Kontoauszüge raus");
+  ok(selbst?.wandzeit === "2026-10-17 14:30" && selbst.teilnehmerId === 8 && !selbst.genannt, "„Rückruf morgen 14:30“ → beim Schreiber selbst", selbst);
+  ok(TN("Termin am 22.10. um 9 vereinbart")?.wandzeit === "2026-10-22 09:00", "„am 22.10. um 9“ → 22.10. 09:00 (Datum ist keine Uhrzeit)");
+  ok(TN("Gespräch am 22.10., Uhrzeit offen") === null, "Datum ohne Uhrzeit → kein Vorschlag (22.10. ist nicht 22:10)");
+  ok(TN("Rückruf Montag 11.30 Uhr")?.wandzeit === "2026-10-19 11:30", "„11.30 Uhr“ → 11:30");
+  ok(TN("Rückruf übermorgen um 11 Uhr")?.wandzeit === "2026-10-18 11:00", "„übermorgen“ wird erkannt (vorher: ü brach die Wortgrenze)");
+  ok(TN("Kunde zahlt am Freitag") === null, "kein Uhrzeit → nichts");
+  ok(TN("Kunde hat gestern um 10 Uhr überwiesen") === null, "Vergangenheit → nichts");
+  ok(TN("Termin am 15.11. um 10 Uhr") === null, "mehr als 14 Tage voraus → nichts");
+  ok(TN("Kunde ruft um 11 Uhr zurück") === null, "Uhrzeit ohne Tag → nichts");
+  ok(TN("telefoniert am Montag 11 Uhr mit Justin", fr, [{ id: 1, beginn: "2026-10-19T09:15:00Z", agentId: 928, status: "gebucht" }]) === null, "steht schon ein Termin (±30 Min.) → nichts");
+  ok(TN("telefoniert am Montag 11 Uhr mit Justin", fr, [{ id: 1, beginn: "2026-10-19T09:15:00Z", agentId: 928, status: "abgesagt" }])?.wandzeit === "2026-10-19 11:00", "abgesagter Termin zählt nicht");
+
+  console.log("── A10 · Maras WhatsApp-Antwort schließt nur „Kunde wartet auf Antwort“");
+  const { maraWaAntwortSchliesst } = await import("../shared/fiaon-auftrag-arten");
+  const W = (klasse: string, text: string, art = klasse === "pruefung" ? "mara_wa_pruefung" : "mara_wa_anliegen", titel = "WhatsApp") =>
+    maraWaAntwortSchliesst({ art, schluessel: klasse ? `wa-123-${klasse}-2026-10-14` : "wa-123-2026-10-14", quelle: "mara_whatsapp", titel, text });
+  ok(W("pruefung", "Mara konnte nicht sicher antworten (Regel). Letzte Nachricht: „Wann kommt meine Karte?“"), "„Mara war unsicher“ → schließt");
+  ok(W("ki", "Die KI war aus — bitte selbst antworten."), "KI-Ausfall → schließt");
+  ok(W("versand", "Maras Antwort ging dreimal nicht raus (Netz). Bitte selbst antworten."), "Versand gescheitert → schließt");
+  ok(!W("anliegen", "Kunde fragt verärgert nach der Karte; Justin soll den Kartenlink schicken."), "„Anliegen“ → bleibt (Inhalt braucht einen Menschen)");
+  ok(!W("rueckruf", "Kunde bittet um Rückruf", "mara_wa_rueckruf"), "Rückrufwunsch → bleibt");
+  ok(!W("heikel", "Kunde kündigt", "mara_wa_heikel"), "heikel → bleibt");
+  ok(!W("pruefung", "Mara war unsicher. Letzte Nachricht: „Ich widerrufe den Vertrag“"), "unsicher bei einem Widerruf → bleibt");
+  ok(!W("pruefung", "Mara war unsicher. Letzte Nachricht: „Bitte Geld zurück“"), "unsicher bei einer Erstattung → bleibt");
+  ok(!W("", "Alter Tages-Schlüssel ohne Klasse"), "alter Schlüssel ohne Klasse → bleibt");
 }
 
 async function teilB() {
@@ -331,6 +367,54 @@ async function teilB() {
   ok(zurV.zurueck >= 1 && Number(vz?.zustaendig_agent_id) === 12, "Umhängen zurückgeholt → wieder bei Lucas", vz);
   const stand2 = await HP.hausputzStand();
   ok(!!stand2.probelauf && !!stand2.lauf && !!stand2.lauf.zurueckBis, "Stand fürs Lagezimmer: Probelauf, Lauf, zurückholbar bis");
+
+  console.log("── B11 · „Daraus einen Termin machen?“ — Vorschlag, Klick, Termin bei Justin; nichts ohne Notiz");
+  const TA = await import("../server/lib/fiaon-termin-aus-notiz");
+  const tn = await person("TerminNotiz");
+  const notizJ = "Kunde will Firmenkredit besprechen, telefoniert übermorgen um 11 Uhr mit Justin";
+  const vj = await TA.terminVorschlagFuerNotiz({ personId: tn.pid, notiz: notizJ, schreiberId: 8 });
+  ok(!!vj && vj.teilnehmerId === 928 && vj.genannt && /um 11:00 Uhr/.test(vj.wannText), "Vorschlag: übermorgen 11:00 bei Justin", vj);
+  const falsch = await TA.terminAusNotizEintragen({ personId: tn.pid, notiz: notizJ, wandzeit: vj!.wandzeit, teilnehmerId: 8, agent: { id: 8, name: "Daniel Stripling" } });
+  ok(!falsch.ok, "anderer Teilnehmer als die Notiz nennt → abgewiesen", falsch);
+  const leer = await TA.terminAusNotizEintragen({ personId: tn.pid, notiz: "Kunde war freundlich", wandzeit: vj!.wandzeit, teilnehmerId: 928, agent: { id: 8, name: "Daniel Stripling" } });
+  ok(!leer.ok, "Notiz ohne Tag/Uhrzeit → abgewiesen", leer);
+  const ein = await TA.terminAusNotizEintragen({ personId: tn.pid, notiz: notizJ, wandzeit: vj!.wandzeit, teilnehmerId: 928, agent: { id: 8, name: "Daniel Stripling" } });
+  ok(ein.ok, "Klick → eingetragen", ein);
+  const [tt] = (await sql`SELECT agent_id, herkunft, quelle, status, notiz FROM fiaon_termine WHERE person_id = ${tn.pid} ORDER BY id DESC LIMIT 1`) as any[];
+  ok(Number(tt?.agent_id) === 928 && tt?.herkunft === "agent_notiz" && tt?.status === "gebucht" && /Gesprächsnotiz von Daniel Stripling/.test(String(tt?.notiz)), "Termin bei Justin, Herkunft „agent_notiz“, Notiz dabei", tt);
+  const [pz] = (await sql`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${tn.pid}`) as any[];
+  ok(Number(pz?.assigned_agent_id) === 8, "Kunde bleibt bei Daniel (Termin im Kalender eines Kollegen hängt nicht um)", pz);
+  ok((await TA.terminVorschlagFuerNotiz({ personId: tn.pid, notiz: notizJ, schreiberId: 8 })) === null, "danach kein zweiter Vorschlag (steht schon)");
+  const vs = await TA.terminVorschlagFuerNotiz({ personId: tn.pid, notiz: "Rückruf übermorgen 15 Uhr, sucht die Unterlagen", schreiberId: 8 });
+  ok(!!vs && vs.teilnehmerId === 8 && !vs.genannt, "ohne Namen → beim Schreiber", vs);
+
+  console.log("── B12 · Maras WhatsApp-Antwort: „unsicher“/KI zu, „Anliegen“ bleibt; neue Kundennachricht oder Rückfallsatz → nichts");
+  const wa = await person("WaAntwort");
+  const nummer = `49176${String(NR).padStart(5, "0")}11`;
+  const waAuftrag = async (schluessel: string, titel: string, text: string, pid: number | null = wa.pid) => {
+    const id = await auftrag({ pid, titel, text, schluessel, quelle: "mara_whatsapp", agent: 8, vorTagen: 2 });
+    await sql`UPDATE fiaon_betreiber_todos SET updated_at = NOW() - INTERVAL '2 days' WHERE id = ${id}`;
+    return id;
+  };
+  const wP = await waAuftrag(`wa-${wa.pid}-pruefung-2026-10-14`, "WhatsApp: Mara war unsicher", "Mara konnte nicht sicher antworten (Regel). Letzte Nachricht: „Wann kommt die Karte?“");
+  const wK = await waAuftrag(`wa-n${nummer}-ki-2026-10-14`, "WhatsApp: KI aus", "Die KI war aus — bitte selbst antworten.", null);
+  const wA = await waAuftrag(`wa-${wa.pid}-anliegen-2026-10-14`, "WhatsApp: Anliegen", "Kunde fragt verärgert nach der Karte; Justin soll den Kartenlink schicken.");
+  const wF = await waAuftrag(`wa-${wa.pid}-pruefung-2026-10-15`, "WhatsApp: Mara war unsicher", "Frage offen");
+  await sql`UPDATE fiaon_betreiber_todos SET frage_offen = TRUE WHERE id = ${wF}`;
+  const [m1] = (await sql`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, text, status, created_at) VALUES ('rein', ${nummer}, ${wa.pid}, 'Und, wann kommt sie?', 'empfangen', NOW() - INTERVAL '1 hour') RETURNING id`) as any[];
+  const [m2] = (await sql`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, text, status, created_at) VALUES ('rein', ${nummer}, ${wa.pid}, 'Hallo?', 'empfangen', NOW() - INTERVAL '30 minutes') RETURNING id`) as any[];
+  ok((await AU.maraWaGeantwortet({ nummer, personId: wa.pid, aufId: Number(m1.id), antwortText: "Ihre Karte ist unterwegs." })).length === 0, "Antwort auf eine ältere Nachricht (neue Kundennachricht da) → nichts");
+  ok((await AU.maraWaGeantwortet({ nummer, personId: wa.pid, aufId: Number(m2.id), antwortText: "Einen Moment bitte", rueckfall: true })).length === 0, "Rückfallsatz → nichts");
+  const zuW = await AU.maraWaGeantwortet({ nummer, personId: wa.pid, aufId: Number(m2.id), antwortText: "Ihre Karte ist unterwegs — der Link kam heute per E-Mail." });
+  const sp = await status(wP), sk = await status(wK);
+  ok(sp.status === "erledigt" && sp.erledigt_art === "auto" && /Mara hat per WhatsApp geantwortet/.test(String(sp.erledigt_ereignis)), "„Mara war unsicher“ → erledigt (auto, Grund)", sp);
+  ok(sk.status === "erledigt", "KI-Ausfall (Nummern-Schlüssel) → erledigt", sk);
+  ok((await status(wA)).status !== "erledigt", "„Anliegen“ → bleibt offen");
+  ok((await status(wF)).status !== "erledigt", "offene Frage → bleibt offen");
+  ok(zuW.length === 2, "genau 2 geschlossen", zuW);
+  const wR = await waAuftrag(`wa-${wa.pid}-pruefung-2026-10-19`, "WhatsApp: Mara war unsicher", "Wieder unsicher");
+  await sql`UPDATE fiaon_betreiber_todos SET updated_at = NOW() WHERE id = ${wR}`;
+  ok((await AU.maraWaGeantwortet({ nummer, personId: wa.pid, aufId: Number(m2.id), antwortText: "Antwort" })).length === 0 && (await status(wR)).status !== "erledigt", "nach der Kundennachricht neu übergeben → bleibt offen");
 
   await sql.end({ timeout: 2 }).catch(() => {});
 }

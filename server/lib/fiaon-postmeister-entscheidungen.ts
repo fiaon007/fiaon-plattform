@@ -22,6 +22,7 @@ import {
   entscheidungAnlegen, entscheidungArt, werkzeugRegistrieren, detektorRegistrieren, ausfuehrErgebnis,
   type EntscheidungNeu, type EntscheidungBeleg,
 } from "./fiaon-mara-entscheidungen";
+import { GRUND_KURZ } from "@shared/fiaon-entwurf-frist";
 
 /** E-369 ging an diesem Zeitpunkt live — ältere Entwürfe kamen aus der alten Übergabe-Regel (Sammelkarte). */
 export const KARTEN_AB = new Date("2026-10-15T09:07:21Z");
@@ -204,6 +205,61 @@ werkzeugRegistrieren("postmeister_verwerfen", async (args, k) => {
   const { uebergabeSchliessen } = await import("./fiaon-postmeister-lauf");
   await uebergabeSchliessen({ id, personId: r.person_id ?? null, ref: r.ref ?? null }, k.von, `Nicht beantwortet (Entscheidung ${k.von}), Mail #${id}.`).catch(() => false);
   return ausfuehrErgebnis.erledigt("Abgelegt — keine Antwort.");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-401 (6/6, 19.10.2026) — DER ALTBESTAND: „nicht mehr nötig“ ablegen? Justin entscheidet mit einem Klick.
+// Der Probelauf (fristStand, fiaon-postmeister-frist.ts) zählt die alten Entwürfe (von vor der 24-Stunden-Regel), die
+// nicht mehr nötig sind — der Kunde schrieb danach, Storno/Kündigung gebucht, Gespräch geführt, Zahlung gebucht.
+// Die Karte steht nur, solange der Schalter AUS ist und es etwas abzulegen gibt; ein fester Schlüssel: einmal
+// entschieden, kommt sie nicht wieder (der Schalter steht dann im Postfach). Abgelegt wird nur, gesendet nie.
+// ═══════════════════════════════════════════════════════════════════════════
+entscheidungArt("postmeister_altbestand", "Liegengebliebene Entwürfe", 64);
+export const ALTBESTAND_KARTE = "postmeister_altbestand:e401";
+
+/** Rein: die Karte aus dem Probelauf — null, wenn nichts abzulegen ist oder der Schalter schon an ist. */
+export function altbestandKarte(s: {
+  altbestandAblegen: boolean;
+  altbestand: { gesamt: number; nichtMehrNoetig: number; jeGrund: Record<string, number>; offen: number; aeltester: string | null };
+}, grundKurz: Record<string, string>): EntscheidungNeu | null {
+  const a = s.altbestand;
+  if (s.altbestandAblegen || !(a.nichtMehrNoetig > 0)) return null;
+  const gruende = Object.entries(a.jeGrund).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]);
+  return {
+    schluessel: ALTBESTAND_KARTE,
+    art: "postmeister_altbestand",
+    titel: `${a.nichtMehrNoetig} alte Entwürfe sind nicht mehr nötig — ablegen?`,
+    text: `Mara hat die ${a.gesamt} Antwort-Entwürfe von vor der 24-Stunden-Regel geprüft (Probelauf, nichts verändert). `
+      + `${a.nichtMehrNoetig} brauchen keine Antwort mehr — meist hat der Kunde danach noch einmal geschrieben und seine neuere Mail `
+      + `trägt den Fall. ${a.offen} brauchen noch eine Antwort oder deine Entscheidung und bleiben liegen. `
+      + "„Ablegen“ legt nur die nicht mehr nötigen ab — es geht KEINE Mail an Kunden — und schaltet die Ablage für den Altbestand an "
+      + "(ausschalten im Postfach).",
+    empfehlung: "ablegen",
+    optionen: [
+      { key: "ablegen", label: `${a.nichtMehrNoetig} ablegen`, werkzeug: "postmeister_altbestand_ablegen", ton: "gut",
+        titel: "Legt die nicht mehr nötigen alten Entwürfe ab — ohne Mail an Kunden. Mit Grund in der Zeile und einem Vermerk in der Akte." },
+      { key: "lassen", label: "So lassen", werkzeug: "nichts", ton: "neutral" },
+    ],
+    belege: [
+      ...gruende.map(([g, n]) => ({ text: `${grundKurz[g] ?? g}: ${n}` })),
+      { text: `${a.offen} bleiben`, ton: "warn" as const },
+      ...(a.aeltester ? [{ text: `älteste ${tag(a.aeltester)}` }] : []),
+    ],
+  };
+}
+
+async function findeAltbestand(): Promise<EntscheidungNeu[]> {
+  const { fristStand } = await import("./fiaon-postmeister-frist");
+  const k = altbestandKarte(await fristStand(), GRUND_KURZ);
+  return k ? [k] : [];
+}
+detektorRegistrieren({ art: "postmeister_altbestand", finden: findeAltbestand, erledigtText: "Hat sich erledigt — nichts mehr abzulegen, oder die Ablage ist schon an." });
+
+werkzeugRegistrieren("postmeister_altbestand_ablegen", async () => {
+  const { altbestandAblegenStarten } = await import("./fiaon-postmeister-frist");
+  const r = await altbestandAblegenStarten();
+  return ausfuehrErgebnis.erledigt(`Mara legt ${r.erwartet ? `${r.erwartet} ` : ""}alte Entwürfe ab, die nicht mehr nötig sind — keine Mail an Kunden. `
+    + "Die Ablage für den Altbestand ist jetzt an (aus im Postfach).");
 });
 
 werkzeugRegistrieren("postmeister_alle_neu", async () => {

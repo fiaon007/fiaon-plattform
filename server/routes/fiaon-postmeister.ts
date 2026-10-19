@@ -646,6 +646,22 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
       console.error("[POSTMEISTER] Versand nachholen:", String(e?.message || e).slice(0, 200));
     }
   }
+  // ── ENTWÜRFE BLEIBEN NICHT LIEGEN (19.10.2026, E-401 6/6) ───────────────
+  // Derselbe Takt, kein eigener Cron, selbst höchstens alle 15 Minuten: Ein neuer Entwurf, der 24 Stunden liegt,
+  // wird abgelegt (nicht mehr nötig) oder einmal mit heutigem Stand neu geschrieben und — wenn die Regeln es
+  // erlauben — gesendet (server/lib/fiaon-postmeister-frist.ts). Nur im regulären Takt (nicht beim Ordnen, nicht im
+  // Aufhol- oder Nachhol-Lauf mit eigener Suche, nicht für ein einzelnes Postfach).
+  if (!opts.nurOrdnen && !opts.q && !opts.postfach) {
+    try {
+      const { entwurfFristLauf } = await import("../lib/fiaon-postmeister-frist");
+      const f = await entwurfFristLauf();
+      if (f.abgelegt) aktionen.frist_abgelegt = (aktionen.frist_abgelegt || 0) + f.abgelegt;
+      if (f.neuGeschrieben) aktionen.frist_neu = (aktionen.frist_neu || 0) + f.neuGeschrieben;
+      if (f.gesendet) aktionen.frist_gesendet = (aktionen.frist_gesendet || 0) + f.gesendet;
+    } catch (e: any) {
+      console.error("[POSTMEISTER] 24-Stunden-Regel:", String(e?.message || e).slice(0, 200));
+    }
+  }
   letzterLauf = { wann: new Date().toISOString(), verarbeitet, fehler: aktionen.fehler || 0 };
   if (verarbeitet > 0) console.log(`[POSTMEISTER] Lauf: ${verarbeitet} Mails — ${JSON.stringify(aktionen)}`);
   return { verarbeitet, aktionen };

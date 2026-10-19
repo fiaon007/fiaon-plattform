@@ -215,6 +215,19 @@ export default function ChefPostfach() {
     try { await hole("/admin/postmeister/neu-bearbeiten/stopp", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); await neuLaufLaden(); } catch { /* still */ }
   }, [neuLaufLaden]);
 
+  // E-401 (6/6, 19.10.2026): Entwürfe bleiben nicht liegen — die 24-Stunden-Regel. Die Zahlen kommen mit dem Kopf
+  // (Probelauf), der Schalter legt den Altbestand ab, der nicht mehr nötig ist (Vorgabe aus; nie eine Mail an Kunden).
+  const fristSchalten = useCallback(async (an: boolean) => {
+    const n = Number(kopf?.frist?.altbestand?.nichtMehrNoetig || 0);
+    if (an && !window.confirm(`${n} alte Entwürfe ablegen, die nicht mehr nötig sind?\n\nEs geht keine Mail an Kunden. Jede Zeile behält ihren Text und bekommt den Grund dazu.`)) return;
+    setLaeuft("frist");
+    try {
+      const j = await hole("/admin/postmeister/frist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ altbestand: an }) });
+      setMeldung({ art: "gut", text: an ? `Mara legt ${j?.erwartet ?? n} alte Entwürfe ab — keine Mail an Kunden. Die Ablage für den Altbestand ist an.` : "Die Ablage für den Altbestand ist aus." });
+      await laden(true);
+    } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); setLaeuft(null); }
+  }, [kopf, laden]);
+
   // 04.09.2026 (E-117): Die Agentin hat Vor- und Nachnamen — beides hier änderbar.
   const agentinUmbenennen = useCallback(async () => {
     const vor = window.prompt("Vorname der Agentin", kopf?.agent?.vorname || "Mara"); if (vor == null) return;
@@ -353,6 +366,20 @@ export default function ChefPostfach() {
           <b>{p.adresse}</b> ist nicht erreichbar. {p.hinweis}{p.fehler ? <span className="pf-kopfwarn-roh"> ({p.fehler})</span> : null}
         </div>
       ))}
+
+      {/* E-401 (6/6): die 24-Stunden-Regel — was Mara mit liegenden Entwürfen tat und was im Altbestand noch liegt. */}
+      {kopf?.frist && (
+        <div className="pf-frist" title="Liegt ein neuer Entwurf 24 Stunden, prüft Mara neu: nicht mehr nötig → ablegen, sonst einmal mit heutigem Stand neu schreiben und senden, wenn sie darf.">
+          <span><b>24-Stunden-Regel</b> · 7 Tage: {kopf.frist.woche?.neuGeschrieben ?? 0} neu geschrieben ({kopf.frist.woche?.davonGesendet ?? 0} gesendet), {kopf.frist.woche?.abgelegt ?? 0} abgelegt</span>
+          <span>Alte Entwürfe: <b>{kopf.frist.altbestand?.nichtMehrNoetig ?? 0}</b> nicht mehr nötig · <b>{kopf.frist.altbestand?.offen ?? 0}</b> offen</span>
+          {(kopf.frist.altbestandAblegen || Number(kopf.frist.altbestand?.nichtMehrNoetig || 0) > 0) && (
+            <button type="button" className={`pf-knopf${kopf.frist.altbestandAblegen ? " still" : ""}`} disabled={laeuft === "frist"}
+                    onClick={() => void fristSchalten(!kopf.frist.altbestandAblegen)}>
+              {laeuft === "frist" ? "Legt ab …" : kopf.frist.altbestandAblegen ? "Ablage an — ausschalten" : `${kopf.frist.altbestand?.nichtMehrNoetig ?? 0} ablegen`}
+            </button>
+          )}
+        </div>
+      )}
 
       {(fehler || meldung) && (
         <div className={`pf-meldung ${fehler ? "warn" : meldung?.art}`}>{fehler || meldung?.text}</div>

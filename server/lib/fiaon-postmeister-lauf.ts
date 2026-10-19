@@ -549,7 +549,8 @@ export function schliessKandidaten(ein: { id: number; personId: number | null; r
 export async function uebergabeSchliessen(
   ein: { id: number; personId: number | null; ref: string | null },
   wer: string, ergebnis: string,
-  opt: { menschEntscheidet?: boolean } = {},
+  /** abgelegt (E-401 6/6): Die Mail bekam keine Antwort, ihr Entwurf ist „nicht mehr nötig“ — der Hinweis sagt das, nicht „gesendet“. */
+  opt: { menschEntscheidet?: boolean; abgelegt?: boolean } = {},
 ): Promise<boolean> {
   const bedient = POSTFAECHER.map((p) => p.adresse.toLowerCase());
   let geschlossen = false;
@@ -593,7 +594,9 @@ export async function uebergabeSchliessen(
           await sqlPool`
             INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
             VALUES (${Number(t.id)}, 'system', 'Mara', 'kommentar',
-                    ${`Antwort auf Mail #${ein.id} ist gesendet (${wer.slice(0, 80)}). Die Aufgabe bleibt offen — ${urteil.grund}. Bitte selbst nachfassen und dann erledigen.`})
+                    ${opt.abgelegt
+                      ? `Maras Entwurf zu Mail #${ein.id} ist abgelegt — nicht mehr nötig (${wer.slice(0, 80)}). Die Aufgabe bleibt offen — ${urteil.grund}. Bitte selbst nachfassen und dann erledigen.`
+                      : `Antwort auf Mail #${ein.id} ist gesendet (${wer.slice(0, 80)}). Die Aufgabe bleibt offen — ${urteil.grund}. Bitte selbst nachfassen und dann erledigen.`})
           `.catch((e) => console.error("[POSTMEISTER] Übergabe-Hinweis:", String(e).slice(0, 160)));
           await sqlPool`UPDATE fiaon_betreiber_todos SET letzte_aktivitaet = NOW(), updated_at = NOW() WHERE id = ${Number(t.id)}`.catch(() => {});
         }
@@ -1091,6 +1094,10 @@ export async function mailBearbeiten(ein: {
   const id = Number(anspruch[0].id);
   /** E-246: Beim Zurücklegen in der Pause wird der Zähler auf den Stand vor diesem Anspruch gebracht. */
   const neuAngelegt = Number(anspruch[0].versuche ?? 0) === 0; // frisch angelegt: 0, erneut beansprucht: alter Wert + 1
+  // E-401 (6/6, 19.10.2026): Eine Zeile, die ab heute NEU entsteht, trägt den Merker der 24-Stunden-Regel (frist_ab). Nur
+  // solche Entwürfe darf Mara nach 24 Stunden neu schreiben und senden (fiaon-postmeister-frist.ts); der Altbestand ohne
+  // Merker wird nie automatisch gesendet. Eigene Anweisung mit .catch: Fehlt die Spalte, bleibt die Zeile Altbestand.
+  if (neuAngelegt) await sqlPool`UPDATE fiaon_postmeister SET frist_ab = NOW() WHERE id = ${id} AND frist_ab IS NULL`.catch(() => {});
   /** Bisherige Anläufe (0 beim ersten) — der laufende ist Nummer versuche + 1. */
   const versuche = Number(anspruch[0].versuche ?? 0);
   /** E-246 (Nachprüfung 27.09.): Diese Mail lag aus der KI-Pause — ein früherer Anlauf kann den Aktenvermerk schon geschrieben haben. */

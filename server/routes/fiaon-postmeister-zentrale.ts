@@ -744,8 +744,13 @@ router.get("/admin/postmeister/kopf", async (_req: Request, res: Response) => {
     const threads = await sqlPool`
       SELECT COUNT(*) FILTER (WHERE status = 'offen')::int AS offen, COUNT(*)::int AS gesamt FROM fiaon_postfach_threads
     `.then((r: any) => r[0] ?? { offen: 0, gesamt: 0 }).catch(() => ({ offen: 0, gesamt: 0 }));
+    // E-401 (6/6): die 24-Stunden-Regel — Probelauf (60 s zwischengespeichert, höchstens 1,5 s abgewartet), nie ein Grund für einen leeren Kopf.
+    const frist = await (await import("../lib/fiaon-postmeister-frist")).fristStandSchnell().catch((e) => {
+      console.error("[ZENTRALE] 24-Stunden-Regel:", String(e?.message || e).slice(0, 160));
+      return null;
+    });
     res.json({
-      ok: true, zahlen: z ?? {}, jePostfach,
+      ok: true, zahlen: z ?? {}, jePostfach, frist,
       rueckstand: threads ?? { offen: 0, gesamt: 0 },
       kostenHeuteEuro: Number((await kostenHeute("postmeister-antwort")).toFixed(2)),
       postfaecher: await postfaecherProbe().catch(() => []),
@@ -753,6 +758,38 @@ router.get("/admin/postmeister/kopf", async (_req: Request, res: Response) => {
     });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-401 (6/6, 19.10.2026) — ENTWÜRFE BLEIBEN NICHT LIEGEN (24-Stunden-Regel)
+//   GET  /admin/postmeister/frist   der Probelauf frisch: neue Entwürfe, Altbestand (nicht mehr nötig / offen), 7 Tage
+//   POST /admin/postmeister/frist   { altbestand: boolean } — der Schalter (Vorgabe aus). An legt den Altbestand, der
+//                                   nicht mehr nötig ist, sofort im Hintergrund ab (Antwort: erwartet); gesendet wird daraus nie.
+// Die Regel: shared/fiaon-entwurf-frist.ts, der Server: server/lib/fiaon-postmeister-frist.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/postmeister/frist", async (_req: Request, res: Response) => {
+  try {
+    const { fristStand } = await import("../lib/fiaon-postmeister-frist");
+    res.json({ ok: true, ...(await fristStand({ frisch: true })) });
+  } catch (e: any) {
+    console.error("[ZENTRALE] frist:", e);
+    res.status(500).json({ ok: false, error: "Der Stand der 24-Stunden-Regel ließ sich nicht rechnen." });
+  }
+});
+
+router.post("/admin/postmeister/frist", async (req: Request, res: Response) => {
+  if (typeof req.body?.altbestand !== "boolean") return res.status(400).json({ ok: false, error: "altbestand: true oder false." });
+  try {
+    const f = await import("../lib/fiaon-postmeister-frist");
+    let erwartet = 0;
+    if (req.body.altbestand === true) erwartet = (await f.altbestandAblegenStarten()).erwartet;
+    else await f.altbestandSchalterSetzen(false);
+    console.log(`[ZENTRALE] 24-Stunden-Regel: Altbestand ablegen ${req.body.altbestand ? `AN (${erwartet} werden abgelegt)` : "AUS"}`);
+    res.json({ ok: true, erwartet, altbestandAblegen: req.body.altbestand === true });
+  } catch (e: any) {
+    console.error("[ZENTRALE] frist setzen:", e);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht speichern — es bleibt, wie es war." });
   }
 });
 

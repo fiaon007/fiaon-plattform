@@ -46,7 +46,11 @@ export async function postmeisterSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS versand_aufgegeben_am TIMESTAMPTZ,
       -- E-401 (19.10.2026): eine Mail — eine Einordnung, ein Aktenvermerk (fiaon-postmeister-einmal.ts).
       ADD COLUMN IF NOT EXISTS einordnung_merker JSONB,
-      ADD COLUMN IF NOT EXISTS akte_vermerk_am TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS akte_vermerk_am TIMESTAMPTZ,
+      -- E-401 (6/6, 19.10.2026): die 24-Stunden-Regel (fiaon-postmeister-frist.ts). frist_ab = die Zeile entstand ab dem
+      -- Einbau (nur solche Entwürfe darf Mara nach 24 h neu schreiben und senden); frist_neu_am = einmal neu geschrieben.
+      ADD COLUMN IF NOT EXISTS frist_ab TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS frist_neu_am TIMESTAMPTZ
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] fiaon_postmeister:", String(e).slice(0, 200)));
 
   await sqlPool`

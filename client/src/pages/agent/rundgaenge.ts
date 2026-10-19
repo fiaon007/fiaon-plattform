@@ -693,6 +693,9 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Aufgabe von selbst, sobald die Antwort auf genau diese Mail draußen ist: wenn du sendest oder „Übernommen“ wählst, wenn die "
       + "Leitung sie im Postfach freigibt oder wenn Mara sie selbst sendet. Bei Rückrufwunsch, Beschwerde, bestrittener Forderung, "
       + "Widerruf, rechtlichen Fragen oder Zahlungsunfähigkeit bleibt sie offen („Antwort gesendet — bitte selbst nachfassen“). "
+      // E-401 (6/6, 19.10.2026): die 24-Stunden-Regel — ein abgelegter Entwurf schließt die Aufgabe ebenso.
+      + "Liegt Maras Entwurf 24 Stunden und ist nicht mehr nötig (der Kunde schrieb danach, Kündigung, Gespräch oder Zahlung "
+      + "gebucht), legt Mara ihn ab — dann schließt sich die Aufgabe ebenso; sonst schreibt Mara ihn einmal neu. "
       + "Schreibt der Kunde danach erneut, öffnet sie sich wieder."
       // E-IT-F (08.10.2026): Öffnen führt in die Akte MIT der Leiste dieses Auftrags; Arbeit in der Akte erledigt ihn.
       + " „Öffnen“ bringt dich in die Akte — unten steht dann eine schmale Leiste mit genau diesem Auftrag: „Erledigt“ "
@@ -1767,7 +1770,10 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "gebuchte Kündigung — und nur, wenn die Antwort sauber ist und keine andere Lampe brennt. Alles andere liegt als "
       + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort."
       // E-401 (19.10.2026) mitgezogen: jede Kundenmail genau einmal in der Akte, einmal eingeordnet.
-      + " Jede Kundenmail steht genau einmal im Verlauf der Akte; eine von Hand beantwortete holt Mara nicht wieder hervor.",
+      + " Jede Kundenmail steht genau einmal im Verlauf der Akte; eine von Hand beantwortete holt Mara nicht wieder hervor."
+      // E-401 (6/6, 19.10.2026): die 24-Stunden-Regel.
+      + " Liegt ein Entwurf 24 Stunden, prüft Mara neu: nicht mehr nötig → abgelegt (ohne Mail), sonst einmal mit heutigem "
+      + "Stand neu geschrieben und gesendet, wenn sie darf (8–20 Uhr). Widerruf, Anwalt und Global bleiben bei dir.",
   },
   {
     ziel: ".mp-kette",
@@ -1824,6 +1830,13 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
     text: "Schreibt ein Kunde „habe bezahlt“, sucht Mara die Überweisung selbst im Bankbuch (21 Tage). Findet sie sie, steht auf der Karte "
       + "„Geld eingegangen“ der Beleg „Kunde meldet Zahlung“ — und wenn Betrag und Name oder Referenz passen, der Knopf „Zubuchen auf Rate …“. "
       + "Gebucht wird erst mit deinem Klick; der Kunde hat schon gehört: „wir ordnen sie jetzt zu“.",
+  },
+  // E-401 (6/6, 19.10.2026): die 24-Stunden-Regel — der Altbestand wartet auf Justins Klick.
+  {
+    titel: "„Alte Entwürfe ablegen?“: einmal fragt Mara.",
+    text: "Neue Entwürfe prüft Mara nach 24 Stunden selbst. Die alten von vorher zählt sie nur: wie viele nicht mehr nötig sind "
+      + "(der Kunde schrieb danach, Kündigung, Gespräch oder Zahlung gebucht) und wie viele offen bleiben. „Ablegen“ schickt "
+      + "keine Mail an Kunden; ausschalten kannst du die Ablage im Postfach.",
   },
   {
     ziel: ".me-entschieden",

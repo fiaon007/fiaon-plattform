@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (6/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Maras
+    // Antwort-Entwürfe bleiben nicht mehr liegen — nach 24 Stunden prüft sie selbst neu (server/lib/fiaon-postmeister-frist.ts).
+    id: "2026-10-19-mara-entwurf-24h",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Maras Entwürfe bleiben nicht mehr liegen",
+    summary:
+      "Liegt eine Antwort von Mara 24 Stunden als Entwurf, prüft sie selbst neu: Ist sie nicht mehr nötig, legt Mara sie ab. "
+      + "Sonst schreibt sie die Antwort mit dem heutigen Stand neu und schickt sie, wenn sie darf.",
+    changes: [
+      "„Nicht mehr nötig“ heißt: Der Kunde hat danach noch einmal geschrieben, die Kündigung oder der Storno ist gebucht, ein Gespräch fand statt — oder bei einer Zahlungsfrage: die Zahlung ist gebucht.",
+      "Beim Ablegen bekommt der Kunde keine Mail. In der Akte steht dann „Mara: Antwort-Entwurf … nicht gesendet — nicht mehr nötig“ mit dem Grund.",
+      "Neu geschrieben wird höchstens einmal je Mail, nur zwischen 8 und 20 Uhr und nur, wenn die Kundenmail höchstens 7 Tage alt ist. Gesendet wird nur, was Mara sonst auch selbst senden darf.",
+      "Widerruf, Anwalt oder Behörde und Kunden von FIAON Global fasst Mara dabei nicht an — das entscheidet weiter die Geschäftsführung.",
+      "Die Aufgabe „Kunde hat geschrieben — bitte antworten“ schließt sich jetzt auch, wenn Mara den Entwurf als nicht mehr nötig ablegt.",
+      "Alte Entwürfe von vor heute schickt Mara nie von selbst. Ob sie abgelegt werden, entscheidet die Geschäftsführung.",
+    ],
+    howto: [
+      "Nichts extra tun. Eine Aufgabe „Kunde hat geschrieben“ kann sich jetzt von selbst erledigen.",
+      "Warum ein Entwurf nicht gesendet wurde, steht als Vermerk im Verlauf der Akte.",
+    ],
+  },
+  {
     // E-401 (5/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Nach dem
     // 2. erfolglosen Anruf schickt Mara selbst EINE kurze Mail mit dem Terminlink — vorher kam die erste Mail erst ab dem 6.
     id: "2026-10-19-mara-nicht-erreicht-mail",

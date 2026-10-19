@@ -141,7 +141,11 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "ein anderes angegeben hat (der Antrag überschreibt die Akte nicht). Lass dir den Ausweis zeigen und übernimm das richtige mit "
       + "einem Klick. Steht dort „Eine Bestellung trägt einen anderen Namen“, erst klären — womöglich zwei Menschen. Ein halb "
       + "gelöschtes Datum löscht nichts; ganz entfernen kann nur die Leitung. Auch „+ Kunde anlegen“ nimmt das Geburtsdatum in "
-      + "denselben drei Feldern.",
+      + "denselben drei Feldern."
+      // E-401 (4/6, 19.10.2026) mitgezogen: Anschrift, E-Mail und Telefon ändert Mara selbst (angaben_aendern).
+      + " Schreibt der Kunde Mara seine neue Anschrift oder Nummer (von seiner gespeicherten Mail-Adresse oder Nummer), steht sie "
+      + "schon drin — mit Vermerk „Mara hat einen Änderungswunsch bearbeitet“. Eine neue E-Mail-Adresse gilt erst nach seinem Klick "
+      + "auf den Bestätigungslink.",
   },
   {
     // 21.09.2026 (E-202): die Boni-Ampel im Kopf der Akte. Ohne `ziel` — sie
@@ -1752,7 +1756,10 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "„Stopp“ heißt nur: keine Werbung. Auf Stopp, Widerruf, Beschwerde oder „kann nicht zahlen“ gibt es keinen Zahlknopf; "
       + "beim Widerruf sagt sie „Ihren Widerruf prüft unsere Geschäftsführung“ und gibt dir eine Aufgabe. Links sind immer "
       + "seine persönlichen (Zahlungsseite, Antragslink mit Code), nie fiaon.com/antrag. Eine abgelaufene Bestellung schaltet "
-      + "sie selbst neu frei, bevor sie die Zahlungsseite schickt.",
+      + "sie selbst neu frei, bevor sie die Zahlungsseite schickt. "
+      // E-401 (4/6, 19.10.2026) mitgezogen: angaben_aendern.
+      + "Neue Anschrift oder Telefonnummer trägt sie selbst ein, eine neue E-Mail-Adresse erst nach dem Bestätigungslink an die "
+      + "neue Adresse — nur, wenn die Mail von der gespeicherten Adresse kommt. Name, Geburtsdatum, Bank und Ausweis ändert sie nie.",
     tipp: "Ohne dich raus gehen nur: „Stopp“ mit gesetzter Werbesperre, der Storno einer unbezahlten Bestellung und eine "
       + "gebuchte Kündigung — und nur, wenn die Antwort sauber ist und keine andere Lampe brennt. Alles andere liegt als "
       + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort."
@@ -1983,7 +1990,11 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
       + "einen freien Platz desselben Betreuers. Klappt seine Wunschzeit nicht, sagt sie den wahren Grund („schon vergeben“ "
       + "nur, wenn der Platz belegt war; sonst „so kurzfristig klappt es nicht“). Eine abgelaufene Bestellung schaltet sie "
       + "neu frei, bevor sie die Zahlungsseite schickt. Auf Absage, Verschieben eines Team-Termins, Kündigung, Widerruf oder "
-      + "„kann nicht zahlen“ schickt sie keinen Zahlungslink und gibt dir eine Aufgabe.",
+      + "„kann nicht zahlen“ schickt sie keinen Zahlungslink und gibt dir eine Aufgabe. "
+      // E-401 (4/6, 19.10.2026) mitgezogen: angaben_aendern auf WhatsApp.
+      + "Schreibt er von seiner gespeicherten Nummer eine neue Anschrift oder Nummer, trägt Mara sie selbst ein; eine neue "
+      + "E-Mail-Adresse gilt erst nach dem Bestätigungslink. Ein Nummernwechsel von einer fremden Nummer und Name, Geburtsdatum, "
+      + "Bank oder Ausweis landen als Karte bei der Geschäftsführung.",
     tipp: "Auf eine echte Autoantwort (Firma, Abwesenheit) und ein reines „Ok“ nach erledigter Sache schweigt sie. Hast "
       + "DU zuletzt eine Frage gestellt und der Kunde antwortet „Ok passt“, schweigt Mara ebenfalls — aber du bekommst "
       + "eine Aufgabe „Kunde hat zugestimmt“, und das Gespräch bleibt in der Warteliste. Schreibt ein Mensch „bitte "

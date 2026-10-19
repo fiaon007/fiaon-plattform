@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (4/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Anschrift,
+    // E-Mail-Adresse und Telefonnummer ändert Mara selbst (angaben_aendern) — statt einer Aufgabe an euch.
+    id: "2026-10-19-mara-angaben-aendern",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara ändert Anschrift, E-Mail und Telefon selbst",
+    summary:
+      "Schreibt ein Kunde „ich bin umgezogen“ oder „ich habe eine neue Nummer“, trägt Mara es selbst ein — sicher und mit Vermerk "
+      + "in der Akte. Eine Aufgabe an dich gibt es dafür nicht mehr.",
+    changes: [
+      "Neue Anschrift: Mara speichert sie sofort und schreibt dem Kunden, was jetzt gespeichert ist.",
+      "Neue Telefonnummer: Mara speichert sie sofort. An die gespeicherte E-Mail-Adresse geht ein kurzer Hinweis („Waren Sie das nicht? Dann antworten Sie einfach.“).",
+      "Neue E-Mail-Adresse: Die gilt erst, wenn der Kunde auf den Bestätigungslink klickt. Den Link schickt Mara an die NEUE Adresse (48 Stunden gültig), an die alte geht ein Hinweis.",
+      "Sicherheit: Mara ändert nur, wenn die Nachricht von der gespeicherten Mail-Adresse oder Nummer kommt. Sonst ändert sie nichts und verweist auf den Kundenbereich.",
+      "Name, Geburtsdatum, Bankverbindung und Ausweisdaten ändert Mara nie — die bleiben bei einem Menschen wie bisher.",
+      "Die alte Nummer und die alte Mail-Adresse bleiben im Hintergrund gespeichert — ruft der Kunde von der alten Nummer an, wird er weiter erkannt.",
+    ],
+    howto: [
+      "In der Akte steht dazu ein Vermerk „Mara hat einen Änderungswunsch bearbeitet …“ mit vorher → nachher.",
+      "Sagt dir ein Kunde am Telefon eine neue Anschrift oder Nummer: Trag sie wie bisher in der Akte unter „Daten“ ein.",
+    ],
+  },
+  {
     // E-401 (3/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Schreibt ein
     // Kunde „habe bezahlt“, sieht Mara selbst im Bankbuch nach (zahlung_suchen) — statt nur um den Beleg zu bitten.
     id: "2026-10-19-mara-zahlung-suchen",

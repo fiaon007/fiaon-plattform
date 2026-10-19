@@ -785,6 +785,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📍 Adress-Vorschläge für den Antrag (Photon/OSM über unseren Server, 23.08.2026).
   const fiaonAdresse = await import('./routes/fiaon-adresse');
   app.use('/api/fiaon', fiaonAdresse.default);
+  // ✉️ E-401 (4/6, 19.10.2026): die neue E-Mail-Adresse bestätigen — Einmal-Link aus Maras angaben_aendern
+  //    (GET zeigt den Knopf und ändert nichts, POST ändert genau einmal).
+  app.use('/api/fiaon', (await import('./routes/fiaon-angaben')).default);
 
   // 📅 Termin mit dem Vertrieb aus dem Antrag (23.08.2026).
   const fiaonAntragTermin = await import('./routes/fiaon-antrag-termin');

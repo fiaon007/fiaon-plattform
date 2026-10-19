@@ -84,6 +84,8 @@ import { rahmenFuer } from "./fiaon-postmeister-antworttext";
 import { verkaufNebenTermin, sagtEingetragen } from "@shared/fiaon-genannter-termin";
 // E-401 (3/6, 19.10.2026): „habe bezahlt“ — der Server sucht im Bankbuch; nie eine Zusage, die dort nicht steht.
 import { zahlungAntwortFunde } from "@shared/fiaon-zahlung-suchen";
+// E-401 (4/6, 19.10.2026): Anschrift, E-Mail, Telefon ändert der Server selbst — nie „geändert“, was nicht geändert ist.
+import { angabenAntwortFunde } from "@shared/fiaon-angaben-aendern";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -1289,7 +1291,7 @@ function systemPrompt(ein: {
     // Zugang (Passwort-vergessen-Seite) erledigt sie selbst; „FIAON gibt keine Karte aus, die Bank entscheidet“ und
     // „konto_freischalten“ (braucht die Freigabe eines Menschen, lief per Modell nie) stehen hier nicht mehr.
     `DAS ERLEDIGST DU IMMER SELBST, ohne jemanden einzuschalten: Zahlungsfragen (Zahlungsseite holen; Betrag, Rate, Fälligkeit, Verwendungszweck nennen; Rechnung anhängen, wenn verlangt; klar um die Zahlung bitten). Karte und Kartenlink (karte_senden — es prüft den Stand und schickt dem zahlenden Kunden den Link der Partnerbank, auch erneut; dazu der Weg: Antrag online in wenigen Minuten, nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay). Kündigung, Storno, Widerruf, „ich will nicht mehr" (Werkzeug kuendigung_vormerken — es storniert eine unbezahlte Bestellung oder merkt die Kündigung mit der letzten Rate vor; du erklärst dem Kunden das Ergebnis). Fragen zu Konto, Leistung, Ablauf, Kosten, Fristen (Haus-Wissen und Akte; welche Etappe der Kunde gerade hat, steht in der Akte). Zugang und Passwort („Passwort vergessen“ auf der Anmeldeseite — mit Vorname, Nachname, E-Mail-Adresse und Geburtsdatum legt er sofort ein neues Passwort fest, es kommt kein Link per E-Mail; Knopf „bereich“). Unterlagen und Bilder per Mail (Eingang bestätigen, still notieren mit notiz_an_betreuer). Terminwunsch (terminlink_bauen — der Kunde wählt selbst eine Zeit). Doppelte oder unpassende Mails erklären und die Werbesperre setzen, wenn der Kunde es AUSDRÜCKLICH will. Stand der Unterlagen nennen.`,
-    `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht AUSDRÜCKLICH einen Rückruf oder ein Gespräch — dann Aufgabe mit Uhrzeitwunsch (Parameter rueckruf_am als YYYY-MM-DD HH:MM, heute ist ${ein.akte?.heute ?? "unbekannt"}; nennt er keine Uhrzeit, bleibt es leer), und dem Kunden klar sagen, wer sich meldet (mit Namen, wie unter NAMEN). (2) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Erstattung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. (3) Ein Zahlungsbeleg oder eine Buchungsfrage („ich habe überwiesen, hier der Beleg") — die geht an die Zahlungsstelle (kollege: "Zahlung"); dem Kunden sagst du, dass die Zahlungsstelle den Eingang prüft und verbucht. AUSNAHME (E-401): Steht unten ZAHLUNG GESUCHT mit einem Eingang (gebucht, angekommen, unterwegs), hat der Server schon im Bankbuch nachgesehen — dann keine Aufgabe, du sagst ihm, was dort steht. (4) Eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast. (5) Ein Technik-Fehler, den du nicht selbst lösen kannst (ein Werkzeug scheitert). Unterlagen sind KEIN Grund für eine Aufgabe (notiz_an_betreuer, still), eine angebliche frühere Kündigung oder ein „Widerruf“ auch nicht: die prüfst du selbst gegen die Akte (siehe DEIN ERSTER AUFTRAG). Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
+    `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht AUSDRÜCKLICH einen Rückruf oder ein Gespräch — dann Aufgabe mit Uhrzeitwunsch (Parameter rueckruf_am als YYYY-MM-DD HH:MM, heute ist ${ein.akte?.heute ?? "unbekannt"}; nennt er keine Uhrzeit, bleibt es leer), und dem Kunden klar sagen, wer sich meldet (mit Namen, wie unter NAMEN). (2) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Erstattung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. (3) Ein Zahlungsbeleg oder eine Buchungsfrage („ich habe überwiesen, hier der Beleg") — die geht an die Zahlungsstelle (kollege: "Zahlung"); dem Kunden sagst du, dass die Zahlungsstelle den Eingang prüft und verbucht. AUSNAHME (E-401): Steht unten ZAHLUNG GESUCHT mit einem Eingang (gebucht, angekommen, unterwegs), hat der Server schon im Bankbuch nachgesehen — dann keine Aufgabe, du sagst ihm, was dort steht. (4) Eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast — Name, Geburtsdatum, Bankverbindung, Ausweisdaten. Anschrift, E-Mail-Adresse und Telefonnummer ändert der SERVER selbst (E-401, siehe ANGABEN unten, wenn er es getan hat) — dafür keine Aufgabe, außer ANGABEN sagt, dass ein Mensch es eintragen muss. (5) Ein Technik-Fehler, den du nicht selbst lösen kannst (ein Werkzeug scheitert). Unterlagen sind KEIN Grund für eine Aufgabe (notiz_an_betreuer, still), eine angebliche frühere Kündigung oder ein „Widerruf“ auch nicht: die prüfst du selbst gegen die Akte (siehe DEIN ERSTER AUFTRAG). Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
     `NIE: „Herr X meldet sich", „ich habe Herrn X gebeten", „X prüft das" als Ersatz für eine Antwort — außer bei einem Rückruf, den er wollte. Wenn du eine Aufgabe gibst, beantwortest du trotzdem JETZT alles, was du beantworten kannst. Nie eine Kündigung, ein Storno, eine Zahlungsfrage, eine Kartenfrage oder Unterlagen „zur Prüfung" weitergeben — das erledigst du selbst. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer), und der Kunde erfährt davon nichts.`,
     `MAHNSTOPP gibt es für dich nicht (08.09.2026, Justin): Die Zahlungserinnerungen laufen, bis die Zahlung gebucht ist — du hältst sie nie an. Belegt der Kunde eine Zahlung, gibst du den Beleg an die Zahlungsstelle (aufgabe_an_betreuer, kollege "Zahlung") und sagst ihm, dass bis zur Buchung noch eine Erinnerung kommen kann und dann gegenstandslos ist — außer ZAHLUNG GESUCHT zeigt seinen Eingang schon (E-401): dann keine Aufgabe, du sagst ihm, was im Bankbuch steht. Alles andere — Ärger, „erst eine Antwort“, „ich zahle nicht“ — ändert an der Forderung nichts; die Antwort gibst du jetzt.`,
     ``,
@@ -2278,6 +2280,29 @@ export async function antwortErzeugen(ein: {
     werkzeugDaten.zahlung_suchen = zahlungGesucht.daten;
     vorab.push(zahlungGesucht.hinweis);
   }
+  // ── E-401 (4/6, 19.10.2026): MARA ÄNDERT ANSCHRIFT, E-MAIL UND TELEFON SELBST (angaben_aendern) ──────────
+  // „Ich bin umgezogen, neue Adresse …“ war bisher eine Aufgabe an einen Menschen (Fall 4). Jetzt erledigt der SERVER es
+  // vor Maras Antwort (fiaon-mara-angaben-aendern.ts): nur von einer gespeicherten Absenderadresse; Anschrift und
+  // Telefon sofort über den Speicherweg der Akte (Telefon mit Hinweis-Mail), die E-Mail-Adresse erst nach dem Klick auf
+  // den Bestätigungslink an die NEUE Adresse; Name, Geburtsdatum, Bank, Ausweis nie (Aufgabe wie bisher). Nie beim
+  // Global-Kunden. Die Antwortprüfung hält jedes „geändert“, das nicht stimmt.
+  const agM = await import("./fiaon-mara-angaben-aendern");
+  const angaben = ein.personId && !akte?.global && agM.angabenAendernNoetig(kontext.kundeText ?? "")
+    ? await agM.angabenAendernBehandeln({
+      personId: ein.personId, kanal: "mail", kundeText: kontext.kundeText ?? "", absender: ein.mail.von,
+      quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : "",
+    }).catch((e) => { console.warn("[POSTMEISTER] angaben_aendern:", String(e?.message || e).slice(0, 160)); return null; })
+    : null;
+  if (angaben) {
+    handlungen.push({ werkzeug: "angaben_aendern", ergebnis: angaben.handlung, ok: true });
+    werkzeugDaten.angaben_aendern = angaben.daten;
+    vorab.push(angaben.hinweis);
+  }
+  // Hat der Server Anschrift, E-Mail oder Telefon bearbeitet und braucht es keinen Menschen, gibt es dafür keine Aufgabe
+  // (ein Rückrufwunsch bleibt eine).
+  const angabenAufgabeUnnoetig = (name: string, p: any) => name === "aufgabe_an_betreuer" && !!angaben && !angaben.mensch
+    && !String(p?.rueckruf_am ?? "").trim() && !/r(?:ü|ue)ckruf|zur(?:ü|ue)ckruf|anruf/i.test(`${p?.titel ?? ""} ${p?.text ?? ""}`)
+    && /\b(?:adress\w*|anschrift\w*|umzug|umgezogen|e-?mail(?:-?adresse)?|mailadresse|telefon\w*|handy\w*|(?:handy|mobil|telefon)?nummer|stammdaten)\b|daten(?:ä|ae)nderung/i.test(`${p?.titel ?? ""} ${p?.text ?? ""}`);
   // Ist die Zahlung im Bankbuch (gebucht, gefunden, unterwegs, abweichend), braucht es keine Aufgabe an die Zahlungsstelle —
   // der Server hat nachgesehen und den Fund vorgelegt. Das Werkzeug läuft dann nicht (Rückmeldung ans Modell).
   const zahlungsAufgabeUnnoetig = (name: string, p: any) => name === "aufgabe_an_betreuer" && !!zahlungGesucht
@@ -2422,7 +2447,7 @@ export async function antwortErzeugen(ein: {
       await gedaechtnisMerken(ein.personId, roh?.merken, "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
       return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
-        kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht,
+        kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht, angaben,
       });
     }
 
@@ -2438,6 +2463,9 @@ export async function antwortErzeugen(ein: {
       const erg = w.stufe === "bestaetigen"
         ? { ok: false, ergebnis: "", fehler: "Dieses Werkzeug braucht die Freigabe eines Menschen. Schreib die Antwort so, dass ein Kollege sie mit einem Klick auslösen kann." }
         // E-401 (3/6): Die Zahlung ist im Bankbuch — keine Aufgabe an die Zahlungsstelle.
+        // E-401 (4/6): Anschrift, E-Mail, Telefon hat der Server schon bearbeitet — keine Aufgabe dafür.
+        : angabenAufgabeUnnoetig(w.name, p)
+          ? { ok: false, ergebnis: "", fehler: "Nicht nötig: angaben_aendern hat seinen Änderungswunsch schon bearbeitet (siehe ANGABEN) — keine Aufgabe dafür. Sag ihm, was dort steht." }
         : zahlungsAufgabeUnnoetig(w.name, p)
           ? { ok: false, ergebnis: "", fehler: "Nicht nötig: zahlung_suchen hat seine Zahlung im Bankbuch gefunden (siehe ZAHLUNG GESUCHT) — keine Aufgabe an die Zahlungsstelle. Sag ihm, was dort steht." }
         : await w.ausfuehren(p, kontext).catch((e: any) => ({ ok: false, ergebnis: "", fehler: String(e?.message || e).slice(0, 200) }));
@@ -2490,6 +2518,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   genannt?: import("./fiaon-mara-genannter-termin").GenanntLage | null;
   /** E-401 (3/6): Was zahlung_suchen im Bankbuch gefunden hat (fiaon-mara-zahlung-suchen.ts). */
   zahlung?: import("./fiaon-mara-zahlung-suchen").ZahlungsLage | null;
+  /** E-401 (4/6): Was angaben_aendern mit seinem Änderungswunsch getan hat (fiaon-mara-angaben-aendern.ts). */
+  angaben?: import("./fiaon-mara-angaben-aendern").AngabenLage | null;
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
@@ -2600,6 +2630,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // E-401 (3/6, 19.10.2026): „gebucht“, „angekommen“, „gefunden“ — nur, was zahlung_suchen im Bankbuch gefunden hat,
     // mit Datum und Betrag von dort; und nie „kein Eingang“, wenn er da ist.
     if (k.zahlung) fehlend.push(...zahlungAntwortFunde(t, k.zahlung.ergebnis, { frueher: k.zahlung.frueher }));
+    // E-401 (4/6, 19.10.2026): nie „geändert/gespeichert“, was der Server nicht gespeichert hat; die neue E-Mail-Adresse
+    // erst nach dem Klick; Name, Geburtsdatum, Bank, Ausweis nie; einem fremden Absender nie die gespeicherten Daten.
+    if (k.angaben) fehlend.push(...angabenAntwortFunde(t, k.angaben));
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
     if (naher && !/termin|gespräch|uhr/i.test(t)) fehlend.push("gebuchter Termin nicht erwähnt");

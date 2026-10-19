@@ -173,6 +173,8 @@ import type { WaEntscheidungsLage } from "./fiaon-whatsapp-entscheidungen";
 import { genanntAntwortFunde, uhrzeitenGenannt } from "@shared/fiaon-genannter-termin";
 // E-401 (3/6, 19.10.2026): „habe bezahlt“ — der Server sucht im Bankbuch (fiaon-mara-zahlung-suchen.ts).
 import { zahlungAntwortFunde, type ZsErgebnis } from "@shared/fiaon-zahlung-suchen";
+// E-401 (4/6, 19.10.2026): Anschrift, E-Mail, Telefon ändert der Server selbst (fiaon-mara-angaben-aendern.ts).
+import { angabenAntwortFunde, angabenWunsch, type AngabenLageRein, type AngabeFeld } from "@shared/fiaon-angaben-aendern";
 import type { GenanntLage } from "./fiaon-mara-genannter-termin";
 
 export const DIENST_WA = "mara-whatsapp";
@@ -1298,7 +1300,7 @@ function auftrag(ein: {
     // E-275 (02.10.2026): Hier stand „… Ihre Nachricht gebe ich an unser Team weiter.“ und mensch true — jede Nachricht in
     // gebrochenem Deutsch oder Englisch ging an einen Menschen (Fall 6120: „I have not your kaditkarte“).
     `· Du schreibst immer auf Deutsch — auch wenn er in einer anderen Sprache schreibt, kein einziger Satz in seiner Sprache. Dann antwortest du in sehr einfachem Deutsch mit kurzen Sätzen und erledigst sein Anliegen trotzdem selbst (Link, Zahlungsseite, Link der Partnerbank). Nur wenn du gar nicht verstehst, was er will, fragst du einmal kurz nach — kein Mensch dafür.`,
-    `· Du fragst nie nach Name, Geburtsdatum, Adresse, E-Mail oder Telefonnummer — das erledigt der Antrag. Ausnahme (E-372): Sagt dir der Server, dass für den Link der Partnerbank etwas fehlt, fragst du genau danach und trägst es mit angaben_eintragen ein. Kein Menü („Privat oder geschäftlich?"). Im Zweifel ist er Privatkunde.`,
+    `· Du fragst nie nach Name, Geburtsdatum, Adresse, E-Mail oder Telefonnummer — das erledigt der Antrag. Ausnahme (E-372): Sagt dir der Server, dass für den Link der Partnerbank etwas fehlt, fragst du genau danach und trägst es mit angaben_eintragen ein. Ausnahme (E-401): Steht unter HINWEISE ein Block ANGABEN, hat der Server seinen Änderungswunsch (Anschrift, E-Mail, Telefon) schon bearbeitet — fehlt dort etwas, fragst du genau danach. Kein Menü („Privat oder geschäftlich?"). Im Zweifel ist er Privatkunde.`,
     // E-275 (02.10.2026): Ein konkreter Zahltag ist keine Stundung — den hältst du selbst fest.
     // E-372 (15.10.2026): Hier stand „Eine Ratenpause oder Stundung sagst du nie zu; die entscheidet ein Mensch … (mensch true)“ —
     // jetzt der vorhandene Weg (fiaon-ratenpause.ts) als Werkzeug; nur der Härtefall geht an Justin.
@@ -3425,6 +3427,20 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
           ? "ER SAGT, ER HAT BEZAHLT — auf unserem Konto ist dazu noch kein Eingang zu sehen. Danke ihm ehrlich, ohne Vorwurf: Eine Überweisung braucht oft ein bis zwei Werktage. Bitte ihn um den Beleg (Datum, Betrag, Verwendungszweck) und, in seinem Banking nachzusehen, ob sie mit seinem Verwendungszweck ausgeführt wurde — sobald sie eingeht, ordnet das System sie zu. Keine Zahlungsbitte, kein Kollege, kein Termin."
           : null;
     }
+    // ── E-401 (4/6, 19.10.2026): ANSCHRIFT, E-MAIL, TELEFON — DER SERVER ÄNDERT SELBST (angaben_aendern, wie im Postfach) ──
+    // Nur von der gespeicherten Nummer: Anschrift und Telefon sofort über den Speicherweg der Akte (Telefon mit Hinweis-Mail),
+    // die E-Mail-Adresse erst nach dem Klick auf den Bestätigungslink an die NEUE Adresse. Von einer anderen Nummer: nichts
+    // geändert — ein Nummernwechsel geht als Karte an Justin (Leitung). Name, Geburtsdatum, Bank, Ausweis: nie Mara (Karte).
+    let angabenLage: import("./fiaon-mara-angaben-aendern").AngabenLage | null = null;
+    if (personId && angabenWunsch(kundeFrei)) {
+      const agM = await import("./fiaon-mara-angaben-aendern");
+      angabenLage = await agM.angabenAendernBehandeln({ personId: Number(personId), kanal: "whatsapp", kundeText: kundeFrei, nummer, quelle: `WhatsApp #${neuesteRein.id}` })
+        .catch(() => null);
+      if (angabenLage && !angabenLage.wiederholt) {
+        await protokolliere({ art: "angaben", ok: !angabenLage.mensch, nummer, personId: Number(personId), leadId: leadId ? Number(leadId) : null,
+          text: angabenLage.handlung.slice(0, 600), daten: { felder: angabenLage.daten.felder, verboten: angabenLage.verboten, absender_ok: angabenLage.absenderOk } });
+      }
+    }
     // ── E-372: „KANN NICHT ZAHLEN“ — DER VORHANDENE WEG IST DIE RATENPAUSE (fiaon-ratenpause.ts) ──
     // ── E-372: WIDERRUF EINER UNBEZAHLTEN BESTELLUNG = STORNO — Mara fragt verbindlich und bucht nach seinem Ja selbst ──
     const widerrufStornoHinweis = personId && unbezahltJetzt && stufeJetzt !== "lead" && stufeJetzt !== "antrag_offen" && waWiderruf(kundeFrei) && !kuendigungJetzt
@@ -3438,6 +3454,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // (dann trägt Mara den Rückruf ein, oder der Betreuer ruft an), ein Termin steht, Justin entscheidet ohnehin (offene
     // Karte), ein Ausschluss des Kartenwegs liegt Justin vor oder die Herkunft seiner Nummer ist nicht belegt.
     const zusageOk = anrufGewuenscht || !!terminKurz || !!verpasst || offeneKarten.length > 0 || !!herkunftHinweis
+      // E-401 (4/6): Den Änderungswunsch, den Mara nie selbst erledigt, legt der Server Justin vor (Karte, unten).
+      || !!angabenLage?.mensch
       || (!!vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail", "adresse_gesperrt", "nicht_kunde"].includes(String(vorabKarte.kartenArt)));
     const zusageNamen = [lage.anruferN?.nom, lage.betreuerN?.nom, lage.betreuerN?.vorname, lage.anrufer, lage.betreuer, terminKurz ? terminNenn(terminKurz).nom : null]
       .filter(Boolean) as string[];
@@ -3464,6 +3482,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       stand, hinweise: [
         // E-401 (2/6): was der Server mit dem genannten Termin getan hat — vor allem anderen.
         ...(genannt?.hinweis ? [genannt.hinweis] : []),
+        // E-401 (4/6): was der Server mit seinem Änderungswunsch (Anschrift, E-Mail, Telefon) getan hat.
+        ...(angabenLage ? [angabenLage.hinweis] : []),
         ...urteil.hinweise, ...(herkunftHinweis ? [herkunftHinweis] : []),
         // E-265 Schluss-Nachbesserung (f06): vom Server schon eingetragen — nicht noch einmal fragen oder buchen.
         ...(vorabGebucht ? [`SCHON EINGETRAGEN: Er hat die angebotene Zeit bestätigt, der Rückruf steht im Kalender — „${vorabGebucht}" Frag NICHT noch einmal und ruf rueckruf_eintragen nicht erneut. Bestätige den Termin in einem Satz und schließ mit deinem Abschluss (Betrag, Zahlungsseite) ab.`] : []),
@@ -3560,6 +3580,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       } : null,
       // E-401 (3/6): „gebucht/angekommen/gefunden“ nur, was zahlung_suchen im Bankbuch gefunden hat.
       zahlung: zahlungGesucht ? { ergebnis: zahlungGesucht.ergebnis, frueher: zahlungGesucht.frueher } : null,
+      // E-401 (4/6): nie „geändert“, was der Server nicht gespeichert hat; die E-Mail-Adresse erst nach dem Klick.
+      angaben: angabenLage ? { kanal: "whatsapp", ergebnisse: angabenLage.ergebnisse, verboten: angabenLage.verboten, geheim: angabenLage.geheim } : null,
     }, personId ? {
       personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer,
       kunde, letzteDu: letzteDu[0] ?? "", auskunft,
@@ -3573,6 +3595,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       kartenSchon: !!vorabKarte,
       // E-401 (2/6): neben einem genannten Termin kein Kartenlink und kein Auskunft-Angebot.
       ohneVerkauf: !!genannt,
+      // E-401 (4/6): Felder, die der Server eben bearbeitet hat — angaben_eintragen fasst sie in diesem Lauf nicht an.
+      angabenServer: angabenLage ? angabenLage.ergebnisse.map((x) => x.feld) : [],
     } : null);
     let roh = e.roh;
     let antwort = e.antwort;
@@ -3643,6 +3667,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         ? (genannt.satz && !heikelAnliegen(kunde) && !kannNichtZahlen(kunde) && !abstreitenArt(kunde) ? genannt.satz : null)
         // E-401 (3/6): Er meldet eine Zahlung — der Satz aus dem Bankbuch (zahlung_suchen) ist der sichere Satz.
         : zahlungGesucht && !werkzeugSatz && !heikelAnliegen(kunde) && !abstreitenArt(kunde) ? zahlungGesucht.satz
+        // E-401 (4/6): Er will Angaben ändern — der Satz aus dem, was der Server getan hat, ist der sichere Satz.
+        : angabenLage && angabenLage.satz && !werkzeugSatz && !heikelAnliegen(kunde) && !abstreitenArt(kunde) ? angabenLage.satz
         : basisSatz;
       // E-253 (28.09.2026): bewusst OHNE die Namen des Kunden — der sichere Satz nennt nur den Namen des
       // Betreuers (E-265: Nennform) und Links, nie den Kunden; ungemaskt prüft die Wand hier strenger.
@@ -3788,6 +3814,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       ...(kuendigungJetzt === "bestreitet" ? [{ anlass: "kuendigung_bestreitet" as const, grund: kuendigungSatz! }] : []),
       ...(kartenAusschluss ? [{ anlass: "karte_ausschluss" as const, grund: `${kartenAusschluss} Kunde: „${frage.slice(0, 200)}"` }] : []),
       ...(e.aktionen.filter((x) => x.vorlegen).slice(0, 1).map((x) => ({ anlass: "vorlegen" as const, grund: `${x.vorlegen} Kunde: „${frage.slice(0, 200)}"` }))),
+      // E-401 (4/6): Was Mara nie selbst ändert (Name, Geburtsdatum, Bank, Ausweis, Nummernwechsel von einer anderen Nummer) — Karte.
+      ...(angabenLage?.mensch && angabenLage.menschGrund ? [{ anlass: "vorlegen" as const, grund: `Änderungswunsch: ${angabenLage.menschGrund}` }] : []),
       ...(pauseAktion ? [{ anlass: "ratenpause_haertefall" as const, grund: `Ratenpause über die Grenze (${String(pauseAktion.intern ?? "").slice(0, 160)}). Kunde: „${frage.slice(0, 200)}"` }] : []),
       ...(zusageSatz ? [{ anlass: "zusage" as const, uebergabe: zusageSatz, grund: zusageSatz }] : []),
       ...(mensch && roh ? [{ anlass: "modell" as const, uebergabe, grund: uebergabe || "Der Mensch möchte mit jemandem aus dem Team sprechen (WhatsApp)." }] : []),
@@ -3832,6 +3860,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       ...(vorabKarte ? [`Link der Partnerbank vorab (${vorabKarte.kartenArt ?? "?"}${vorabKarte.ok ? "" : ", nicht geschickt"})`] : []),
       // E-401 (2/6): der genannte Termin — eingetragen, steht schon, bei Dritten oder unklar.
       ...(genannt?.handlung ? [genannt.handlung] : []),
+      // E-401 (4/6): was angaben_aendern getan hat.
+      ...(angabenLage ? [angabenLage.handlung.slice(0, 300)] : []),
       ...(sicher ? ["sicherer Satz aus der Lage"] : funde.length || e.kiFehler ? ["Rückfallsatz"] : []),
       // E-372: wohin — eine Karte für Justin, der Betreuer (nur Rückruf/Technik) oder nichts (Mara hat es erledigt).
       ...(weg?.weg === "karte" ? [`Karte für Justin (${weg.fall}): ${weg.grund}`] : weg?.weg === "betreuer" ? [`an ${lage.anrufer ?? "das Team"} übergeben: ${(wegGrund || weg.grund).slice(0, 140)}`] : []),
@@ -4107,6 +4137,8 @@ export interface WerkzeugKontext {
   kartenSchon?: boolean;
   /** E-401 (2/6): Er nennt einen Termin — Mara nimmt sich zurück: kein Kartenlink, kein Auskunft-Angebot in diesem Lauf. */
   ohneVerkauf?: boolean;
+  /** E-401 (4/6): Felder, die angaben_aendern in diesem Lauf bearbeitet hat — angaben_eintragen lässt sie liegen. */
+  angabenServer?: AngabeFeld[];
 }
 
 /** „15:00" → „15 Uhr", „15:10" → „15:10 Uhr". */
@@ -4471,6 +4503,20 @@ async function angabenEintragen(args: any, ctx: WerkzeugKontext): Promise<{ erge
     const an = await kk.karteEmpfaenger(stand.personId).catch(() => null);
     const lage = an ? await kk.zustellLage(stand.personId, an).catch(() => null) : null;
     adresseProblem = !an || !!lage?.problem;
+  }
+  // E-401 (4/6): Was angaben_aendern in diesem Lauf schon bearbeitet hat (die neue E-Mail-Adresse gilt erst nach dem
+  // Bestätigungslink), fasst angaben_eintragen nicht noch einmal an.
+  const serverFelder = new Set(ctx.angabenServer ?? []);
+  if (serverFelder.size) {
+    const weg = { ...(args ?? {}) };
+    if (serverFelder.has("email")) delete weg.email;
+    if (serverFelder.has("anschrift")) { delete weg.strasse; delete weg.plz; delete weg.ort; }
+    const vorher = ["email", "strasse", "plz", "ort"].filter((k) => String(args?.[k] ?? "").trim()).length;
+    const nachher = ["email", "strasse", "plz", "ort"].filter((k) => String(weg[k] ?? "").trim()).length;
+    if (vorher > nachher && !String(weg.geburtsdatum ?? "").trim() && nachher === 0) {
+      return nein("Das hat der Server schon bearbeitet (siehe ANGABEN in deinen Hinweisen) — sag ihm, was dort steht; die neue E-Mail-Adresse gilt erst nach dem Bestätigungslink. Eingetragen ist hier nichts.");
+    }
+    args = weg;
   }
   const p = angabenPruefen(args, { kunde, fehlend: stand.fehlendeAngaben, adresseProblem });
   if (!p.ok) return nein(p.grund);
@@ -5176,6 +5222,11 @@ export async function entwerfen(
      * steht, hart (zahlungAntwortFunde). Ohne: keine Prüfung.
      */
     zahlung?: { ergebnis: ZsErgebnis; frueher?: { datum: string; cents: number }[] } | null;
+    /**
+     * E-401 (4/6, 19.10.2026): Er will Anschrift, E-Mail oder Telefon ändern und angaben_aendern hat es bearbeitet
+     * (fiaon-mara-angaben-aendern.ts) — dann ist jedes „geändert/gespeichert“, das nicht stimmt, hart (angabenAntwortFunde).
+     */
+    angaben?: AngabenLageRein | null;
   },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
@@ -5214,7 +5265,9 @@ export async function entwerfen(
         uhrzeitPflicht: pruef.genannt.uhrzeitTermin, satz: pruef.genannt.satz, linkVerboten: true,
       }) : []),
       // E-401 (3/6): nie eine Zusage, die nicht im Bankbuch steht.
-      ...(pruef.zahlung ? zahlungAntwortFunde(a, pruef.zahlung.ergebnis, { frueher: pruef.zahlung.frueher }) : [])];
+      ...(pruef.zahlung ? zahlungAntwortFunde(a, pruef.zahlung.ergebnis, { frueher: pruef.zahlung.frueher }) : []),
+      // E-401 (4/6): nie „geändert“, was nicht gespeichert ist.
+      ...(pruef.angaben ? angabenAntwortFunde(a, pruef.angaben) : [])];
     const hart = [...wand, ...wahr.map((f) => f.text), ...hand, ...tl.hart];
     return {
       hart,

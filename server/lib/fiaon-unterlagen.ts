@@ -1328,6 +1328,9 @@ export async function kategorieGeprueft(personId: number, k: UnterlagenKategorie
                          RETURNING id`) as any[];
   if (!r.length) return { ok: false, status: 409, satz: "Hier gibt es nichts (mehr) zu prüfen." };
   await verlauf(null, personId, wer, `${kategorieInfo(k).kurz} geprüft (${r.length} Datei${r.length === 1 ? "" : "en"}) — von ${wer.name}.`, lauf);
+  // E-397: „Unterlage geprüft“ — die Aufgabe „Unterlagen eingegangen“ geht zu, sobald nichts Ungeprüftes mehr da ist.
+  const { ereignisMelden } = await import("./fiaon-auftraege");
+  await ereignisMelden({ ereignis: "unterlage_geprueft", personId, akteur: { id: wer.agentId ?? null, name: wer.name }, detail: kategorieInfo(k).kurz }, lauf);
   return { ok: true, satz: `${kategorieInfo(k).kurz}: als geprüft vermerkt.` };
 }
 

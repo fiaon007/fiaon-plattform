@@ -180,10 +180,18 @@ export function filterBedingungen(f: Filter, par: (v: unknown) => string): strin
   if (f.kycOffen) {
     wo.push(`EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id
                        AND a.merged_into IS NULL AND a.documents_uploaded_at IS NOT NULL
-                       AND COALESCE(a.kyc_status, 'pending') = 'pending')`);
+                       AND COALESCE(a.kyc_status, 'pending') = 'pending' AND ${KYC_VERTRAG_LAEUFT_SQL})`);
   }
   return wo;
 }
+
+/**
+ * E-397 (19.10.2026): „KYC zu prüfen“ nur bei laufendem Vertrag — 71 Personen mit beendetem Vertrag standen in der
+ * Prüfliste (bei ihnen fordert niemand etwas nach). Ihr kyc_status bleibt gespeichert, sie fallen nur aus der Liste.
+ * Beendet = storniert, archiviert, Abo gestoppt oder Vertragsende erreicht (alias a).
+ */
+const KYC_VERTRAG_LAEUFT_SQL = `a.cancelled_at IS NULL AND a.archived_at IS NULL AND a.abo_gestoppt_am IS NULL
+                       AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW())`;
 
 const SORT: Record<string, string> = {
   // Arbeit: Stufe zuerst, dann was am längsten liegt.
@@ -289,7 +297,7 @@ export async function filterZahlen(lauf: Lauf = sqlPool): Promise<Record<string,
           AND a.payment_status = 'claimed_paid' AND a.updated_at < NOW() - INTERVAL '7 days'))::int AS zahlung_unbestaetigt,
       COUNT(*) FILTER (WHERE EXISTS (
         SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
-          AND a.documents_uploaded_at IS NOT NULL AND COALESCE(a.kyc_status, 'pending') = 'pending'))::int AS kyc_offen,
+          AND a.documents_uploaded_at IS NOT NULL AND COALESCE(a.kyc_status, 'pending') = 'pending' AND ${KYC_VERTRAG_LAEUFT_SQL}))::int AS kyc_offen,
       COUNT(*) FILTER (WHERE EXISTS (
         SELECT 1 FROM cancellation_requests c JOIN fiaon_applications a ON a.ref = c.ref
           WHERE a.person_id = p.id AND c.status = 'pending'))::int AS kuendigungen,

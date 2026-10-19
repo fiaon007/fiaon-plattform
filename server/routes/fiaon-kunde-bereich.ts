@@ -835,6 +835,11 @@ router.patch("/kunde/:ref/stammdaten", requireKunde, async (req: KundeRequest, r
                 'intern', 'kunde', 'Kundenbereich', NOW())`.catch(() => {});
       console.log(`[MEIN-BEREICH] Stammdaten ${ref}: ${geaendert.join("; ")}`);
     }
+    // E-397: Der Kunde hat selbst eine neue E-Mail-Adresse gespeichert — „Mail unzustellbar“ geht zu.
+    if (geaendert.some((g) => g.startsWith("E-Mail:"))) {
+      const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+      await ereignisMelden({ ereignis: "mail_gespeichert", ref, personId: null, akteur: { id: null, name: "Kunde (Kundenbereich)" }, detail: String(email ?? "") || null });
+    }
 
     res.json({ ok: true, geaendert });
   } catch (err) {

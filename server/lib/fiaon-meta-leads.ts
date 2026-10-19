@@ -812,15 +812,28 @@ async function alarm(art: string, an: boolean, text: string, lauf: Lauf, opts: {
         erstellt_am = CASE WHEN fiaon_meta_alarme.erledigt_am IS NULL THEN fiaon_meta_alarme.erstellt_am ELSE NOW() END,
         erledigt_am = NULL
       RETURNING zaehler`) as any[];
-    if (Number(z?.zaehler) === 1) {
-      const anlegen: AufgabeAnlegen = opts.aufgabe ?? (await import("../routes/fiaon-betreiber-todo")).todoAnlegen;
-      await anlegen(`lead-motor:${art}:${(opts.jetzt ?? new Date()).toISOString().slice(0, 10)}`, {
-        titel: `Lead-Motor: ${text.split(" — ")[0]}`, text, bereich: "vertrieb", prioritaet: 1,
-        link: "/chef/s/lead-motor", quelle: "lead-motor",
-      }).catch((e) => console.error("[LEAD-MOTOR] Aufgabe:", e));
+    // E-397 (19.10.2026): kein Auftrag mehr je Tag (lead-motor:<art>:<Tag>, 41 offen am 19.10., obwohl die Leads
+    // normal ankamen), sondern EINE Zeile in der Alarm-Tafel (Ampel im Lagezimmer) mit festem Schlüssel.
+    // Ein Prüfstand kann weiter einen Zähler einhängen (opts.aufgabe).
+    if (opts.aufgabe) {
+      if (Number(z?.zaehler) === 1) {
+        await opts.aufgabe(`lead-motor:${art}`, {
+          titel: `Lead-Motor: ${text.split(" — ")[0]}`, text, bereich: "vertrieb", prioritaet: 1, link: "/chef/s/lead-motor", quelle: "lead-motor",
+        }).catch((e) => console.error("[LEAD-MOTOR] Aufgabe:", e));
+      }
+    } else {
+      const { alarmMelden } = await import("./fiaon-system-alarme");
+      await alarmMelden(`lead-motor:${art}`, { quelle: "lead-motor", titel: `Lead-Motor: ${text.split(" — ")[0]}`, text, stufe: "rot", link: "/chef/s/lead-motor" }, lauf);
     }
   } else {
-    await lauf`UPDATE fiaon_meta_alarme SET erledigt_am = NOW() WHERE art = ${art} AND erledigt_am IS NULL`;
+    const r = (await lauf`UPDATE fiaon_meta_alarme SET erledigt_am = NOW() WHERE art = ${art} AND erledigt_am IS NULL RETURNING art`) as any[];
+    // E-397: Der Alarm ist vorbei — die Zeile in der Tafel geht aus, und die alten Tages-Aufträge dieses Alarms
+    // (lead-motor:<art>:<Tag>) schließen mit „Alarm vorbei“ — auch der Altbestand ohne offene Meta-Zeile.
+    if (!opts.aufgabe) {
+      const { alarmVorbei } = await import("./fiaon-system-alarme");
+      await alarmVorbei(`lead-motor:${art}`, r.length ? "Leads kommen wieder an" : "kein Alarm mehr", lauf,
+        { auftraege: { quelle: "lead-motor", schluesselWie: `lead-motor:${art}:%` } });
+    }
   }
 }
 

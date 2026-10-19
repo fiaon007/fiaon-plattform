@@ -182,6 +182,7 @@ async function aufraeumen() {
   await sqlPool`DELETE FROM fiaon_whatsapp_gespraech WHERE nummer LIKE '49159009926%'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_wa_tagesplatz WHERE schluessel LIKE 'n:49159009926%' OR schluessel LIKE 'p:9262%'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_betreiber_todos WHERE created_at >= ${START} AND (quelle = 'wa-pause' OR schluessel LIKE 'wa-pause-%' OR schluessel LIKE 'wa-rot-%' OR schluessel LIKE 'wa-n49159009926%')`.catch(() => {});
+  await sqlPool`DELETE FROM fiaon_system_alarme WHERE quelle = 'wa-pause' AND zuletzt_am >= ${START}`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_meta_ereignisse WHERE seite_id = 'pruef-waba'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_abo_raten WHERE ref LIKE 'WB261-%'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${IDS}) OR ref LIKE 'WB261-%'`.catch(() => {});
@@ -259,7 +260,16 @@ const scheitert = async (waId: string, code: number | null, details = "") => {
   await wa.waEingang({ statuses: [{ id: waId, status: "failed", errors: [code ? { code, title: code === 131042 ? "Business eligibility payment issue" : "Prüfstand-Fehler", error_data: { details } } : { title: "Message undeliverable" }] }] });
   await wa.waEingangNachlauf();
 };
-const alarme = async () => (await sqlPool`SELECT id, schluessel, titel, text, prioritaet FROM fiaon_betreiber_todos WHERE quelle = 'wa-pause' AND created_at >= ${START} ORDER BY id`) as any[];
+// E-397 (19.10.2026): Der Alarm ist kein Auftrag mehr, sondern EINE Zeile je Alarm in der Alarm-Tafel (fiaon_system_alarme,
+// „wa-pause“ bzw. „wa-rot“), die je Pause eine neue Episode zählt. Für die Zählungen unten: ein Eintrag je Episode (wie
+// früher ein Auftrag je Pause), der jüngste zuletzt, mit dem aktuellen Titel und Text.
+const alarme = async () => {
+  const rows = (await sqlPool`SELECT schluessel, titel, text, stufe, episoden FROM fiaon_system_alarme
+                               WHERE quelle = 'wa-pause' AND zuletzt_am >= ${START} ORDER BY erstmals_am, schluessel`.catch(() => [])) as any[];
+  const aus: any[] = [];
+  for (const r of rows) for (let i = 0; i < Number(r.episoden || 1); i++) aus.push({ schluessel: r.schluessel, titel: r.titel, text: r.text, prioritaet: r.stufe === "rot" ? 1 : 2 });
+  return aus;
+};
 const pauseDb = async () => { const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'wa_pause'`) as any[]; return r ? JSON.parse(String(r.value)) : null; };
 const aktionen = async (personId: number) => (await sqlPool`SELECT ok, grund, fehler_code, fehler_am, quelle FROM fiaon_wa_aktion WHERE person_id = ${personId} ORDER BY id`) as any[];
 const vorlagenBeiMeta = () => metaSendungen.filter((s) => s.vorlage !== "text");
@@ -385,7 +395,7 @@ try {
   pruef(`2. #131042 → Pause „${p2.art}“ (#${p2.code}, über ${p2.quelle})`, p2.an && p2.art === "zahlung" && p2.code === 131042 && p2.quelle === "webhook", p2);
   pruef(`… Link aus Metas Fehlertext: ${p2.link}`, p2.link === "https://business.facebook.com/billing_hub/pruef");
   const al1 = (await alarme()).slice(alarmeVor);
-  pruef(`Genau EINE dringende Aufgabe an Justin („${al1[0]?.titel}“)`, al1.length === 1 && Number(al1[0]?.prioritaet) === 1 && String(al1[0]?.schluessel) === `wa-pause-${p2.seit}`, al1);
+  pruef(`Genau EIN roter Alarm in der Tafel („${al1[0]?.titel}“, E-397: fester Schlüssel „wa-pause“)`, al1.length === 1 && Number(al1[0]?.prioritaet) === 1 && String(al1[0]?.schluessel) === "wa-pause", al1);
   pruef("… Text: Abrechnung, /chef/s/mara, „WhatsApp wieder aktivieren“, nichts als Ersatz",
     /Abrechnung/.test(al1[0]?.text) && /\/chef\/s\/mara/.test(al1[0]?.text) && /WhatsApp wieder aktivieren/.test(al1[0]?.text) && /Ersatz/.test(al1[0]?.text));
   await scheitert("wamid.PRUEF261.K3", 131042);
@@ -763,10 +773,10 @@ try {
   pruef(`… und fragt danach 2 Minuten lang nicht bei jedem Lesen neu (${metaAnfragen.length - anfragenNachFehl} neue Anfragen, Stand ${f2b.qualitaet})`,
     metaAnfragen.length === anfragenNachFehl && f2b.qualitaet === "YELLOW");
   await stand("GREEN", 20); metaQualitaet = "RED";
-  const rotVor = (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot-")).length;
+  const rotVor = (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot")).length;
   const f3 = await b.metaStandAuffrischen("takt");
   const f4 = await b.metaStandAuffrischen("takt");
-  const rotNach = (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot-")).length;
+  const rotNach = (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot")).length;
   pruef(`Takt: Wechsel GRÜN → ROT meldet „geändert“ (${f3.geaendert}), der nächste nicht (${f4.geaendert})`, f3.geaendert && !f4.geaendert);
   pruef("… genau eine Aufgabe „Meta bewertet die Nummer mit ROT“", rotNach - rotVor === 1);
   const qb = await b.waBremse({ vorlage: "fiaon_kk_anfrage" });
@@ -788,7 +798,7 @@ try {
   // ═════════════════════════════════════════════════════════════════════════
   // Gemessen am 29.09.: 14:48 ROT, 15:00 UNKNOWN, 15:04 ROT — in den vier Minuten galt „keine Bremse".
   {
-    const rotZahl = async () => (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot-")).length;
+    const rotZahl = async () => (await alarme()).filter((a) => String(a.schluessel).startsWith("wa-rot")).length;
     const dbStand = async () => JSON.parse(String(((await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'wa_meta_stand'`) as any[])[0]?.value ?? "{}"));
     await stand("RED", 20); metaQualitaet = "UNKNOWN";
     const rotVor9b = await rotZahl();

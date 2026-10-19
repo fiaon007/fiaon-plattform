@@ -893,6 +893,39 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     const nummerMail = nach.nummerMail;
     const uebergabe = nach.uebergabe;
 
+    // ── E-397 (19.10.2026): HÄKCHEN „DAMIT ERLEDIGT“ ─────────────────────────────────────────────────────
+    // Gemessen: Daniel trug in 14 Tagen 499 Gesprächsergebnisse ein und erledigte 17 Aufträge — die Arbeit kam
+    // nicht an. Jetzt hakt er beim „Erreicht“ die offenen Aufträge dieses Kunden ab, die das Gespräch erledigt hat.
+    // Nur bei einem erreichten Gespräch, nur eigene Aufträge dieses Menschen, derselbe Weg wie der Knopf „Erledigt“
+    // (Pflichtsatz: die Notiz des Gesprächs). Was nicht geht, steht in der Antwort — nichts still.
+    const abgehakt: { id: number; ok: boolean; grund?: string }[] = [];
+    const haken: number[] = Array.isArray(req.body?.erledigtAuftraege)
+      ? Array.from(new Set((req.body.erledigtAuftraege as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0))).slice(0, 30) : [];
+    if (haken.length && ergebnis) {
+      const { ereignisAusErgebnis, personenKreis } = await import("../lib/fiaon-auftraege");
+      if (ereignisAusErgebnis(ergebnis) === "ergebnis_erreicht") {
+        const { auftragDurchMitarbeiterErledigen } = await import("./fiaon-betreiber-todo");
+        const kreis = await personenKreis(personId);
+        const zeilen = (await sqlPool`
+          SELECT * FROM fiaon_betreiber_todos
+           WHERE id = ANY(${haken}::int[]) AND zustaendig_art = 'agent' AND zustaendig_agent_id = ${req.agent!.id}
+             AND person_id = ANY(${kreis.ids.length ? kreis.ids : [personId]}::int[])`) as any[];
+        const satz = `Im Gespräch erledigt (${ERGEBNIS_TEXT[ergebnis] ?? ergebnis})${notiz ? `: ${notiz}` : ""}`;
+        for (const id of haken) {
+          const t = zeilen.find((z) => Number(z.id) === id);
+          if (!t) { abgehakt.push({ id, ok: false, grund: "liegt nicht bei dir" }); continue; }
+          if (t.status === "erledigt") { abgehakt.push({ id, ok: true }); continue; }
+          // Der Pflichtsatz (Recht, Lage, Frage) ist die Notiz des Gesprächs — ohne Notiz bleibt so ein Auftrag offen.
+          const { artNachInhalt, artRegel } = await import("@shared/fiaon-auftrag-arten");
+          const pflicht = artRegel(artNachInhalt(t.art, { schluessel: t.schluessel, quelle: t.quelle, bereich: t.bereich, titel: t.titel, text: t.text })).ergebnisPflicht;
+          const erg = await auftragDurchMitarbeiterErledigen(t, { id: Number(req.agent!.id), name: req.agent!.name }, notiz || !(pflicht || t.frage_offen || t.frage_an_agent) ? satz : "");
+          abgehakt.push(erg.ok ? { id, ok: true } : { id, ok: false, grund: erg.code === "ERGEBNIS_PFLICHT" ? "braucht eine Notiz zum Gespräch" : (erg.error || "nicht erledigt") });
+        }
+      } else {
+        for (const id of haken) abgehakt.push({ id, ok: false, grund: "nur bei einem erreichten Gespräch" });
+      }
+    }
+
     // Nach einer geglückten Übergabe gehört der Kunde nicht mehr dem Anfragenden.
     // `meinePerson` liefert dann NULL — das ist richtig so und die Oberfläche
     // nimmt die Karte daraufhin aus der Liste.
@@ -906,9 +939,10 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       // Klartext für die Rückmeldung — der Agent soll sehen, was sein Klick bewirkt hat.
       // Die Kette formuliert die Meldung; der Ergebnistext dieser Ansicht
       // bleibt als Rückfall, weil er die freundlichere Fassung ist.
-      meldung: nach.meldung !== "Ergebnis festgehalten."
+      meldung: `${nach.meldung !== "Ergebnis festgehalten."
         ? nach.meldung
-        : (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!]),
+        : (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!])}${abgehakt.some((x) => x.ok) ? ` · ${abgehakt.filter((x) => x.ok).length} Auftrag/Aufträge damit erledigt` : ""}${abgehakt.some((x) => !x.ok) ? ` · ${abgehakt.filter((x) => !x.ok).length} offen geblieben (${Array.from(new Set(abgehakt.filter((x) => !x.ok).map((x) => x.grund))).join(", ")})` : ""}`,
+      abgehakt,
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);

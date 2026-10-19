@@ -1111,6 +1111,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📊 Chefbüro-Lagezimmer: alle Zahlen des Unternehmens an einem Ort.
   const chefLage = await import('./routes/fiaon-chef-lage');
   app.use('/api/fiaon', chefLage.default);
+  // 🧹 E-397 (19.10.2026): Aufgaben-Lage im Lagezimmer — Ampel (Alarme, Termintreue), Maras Karten des Tages,
+  //    „heikel neu“, neu gegen erledigt je Woche und der Große Hausputz (Probelauf, Lauf nur mit Freigabe, Zurückholen).
+  app.use('/api/fiaon', (await import('./routes/fiaon-aufgaben-lage')).default);
 
   // 🛠 Chefbüro-Werkzeuge: Wahrheits-Check, Maschinenraum, Freigabestapel,
   // Posteingang. Alle vier binden Fähigkeiten an, die bereits gebaut waren.

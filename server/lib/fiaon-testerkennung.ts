@@ -190,6 +190,9 @@ export async function alsTestMarkieren(
     VALUES (NULL, 'kunde_als_test_markiert',
             ${JSON.stringify({ person_id: personId, grund })}, ${von}, ${grund})
   `.catch(() => {});
+  // E-397: Ein Testeintrag braucht keine Aufträge — sie gehen zu (auch Heikles; nur eine Erstattung nie). Wirft nie.
+  const { ereignisMelden } = await import("./fiaon-auftraege");
+  await ereignisMelden({ ereignis: "testkonto", personId, akteur: { id: null, name: von || "Verwaltung" }, detail: grund }, lauf);
   return true;
 }
 

@@ -382,9 +382,12 @@ function zeitBerlin(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
-/** Genau EINE dringende Aufgabe an Justin je Pause (Schlüssel wa-pause-<seit>). */
+/**
+ * Der Alarm einer Pause. E-397 (19.10.2026): kein Auftrag „wa-pause-<seit>“ mehr in Justins Liste, sondern EINE
+ * Zeile „wa-pause“ in der Alarm-Tafel (Ampel im Lagezimmer) — sie zählt jede Pause und geht beim Aktivieren aus.
+ */
 async function alarm(z: WaPauseZustand): Promise<void> {
-  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const { alarmMelden } = await import("./fiaon-system-alarme");
   const c = z.code ? ` (#${z.code})` : "";
   const titel = z.art === "gesperrt" ? `WhatsApp: Meta hat das Konto gesperrt${c} — alles pausiert`
     : z.art === "zugang" ? `WhatsApp: Meta-Zugang (Token) abgelaufen${c} — alles pausiert`
@@ -412,11 +415,7 @@ async function alarm(z: WaPauseZustand): Promise<void> {
       ? "Vor dem Aktivieren fragt das System Meta mit dem Token nach dem Kontostand (ohne Nachricht). Lehnt Meta den Token weiter ab (#190) oder antwortet gar nicht, bleibt die Pause."
       : "Vor dem Aktivieren fragt das System Meta nach dem Kontostand (health_status, ohne Nachricht). Sagt Meta „gesperrt“, bleibt die Pause.",
   ].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
-  await auftragFuerKunden({
-    personId: null, ref: null, anBetreiber: true, dringend: true,
-    titel, text, quelle: "wa-pause", bereich: "technik", link: WA_PAUSE_KLICKWEG,
-    schluessel: `wa-pause-${z.seit}`, autorName: "System",
-  } as any);
+  await alarmMelden("wa-pause", { quelle: "wa-pause", stufe: "rot", titel, text, link: WA_PAUSE_KLICKWEG, neueEpisode: true });
 }
 
 // ── Kontofehler melden (Webhook + Senden) ───────────────────────────────────
@@ -636,6 +635,12 @@ export async function aktivieren(von: string, opt: { probe?: boolean } = {}): Pr
   lokalePause = null; lokalNurHier = false; nachtragOffen = false;
   await speichern(z);
   console.log(`[WA-BREMSE] AKTIVIERT von ${von} (Pause seit ${vorher.seit ?? "—"}).`);
+  // E-397: Der Alarm in der Tafel geht aus; alte Pause-Aufträge „wa-pause-<seit>“ (nicht die Sammelaufgabe
+  // „wa-pause-wa-…“ mit echten Nachrichten) schließen mit „Alarm vorbei“. Wirft nie.
+  {
+    const { alarmVorbei } = await import("./fiaon-system-alarme");
+    await alarmVorbei("wa-pause", `WhatsApp wieder aktiviert (${von})`, sqlPool, { auftraege: { quelle: "wa-pause", schluesselWie: "wa-pause-2%" } });
+  }
   // Nichts eigens nachholen: gescheiterte Vorlagen zählen in der Zentrale nicht als Kontakt, die Menschen kommen
   // von selbst wieder dran; offene Gespräche nimmt der Takt mara_wa_nachholen (jede Minute). Nach einer Kontosperre
   // oder einem abgelaufenen Zugang (Mara hat gar nicht gedacht): erst die Sammelaufgabe für Nachrichten aus der
@@ -862,26 +867,31 @@ export async function metaStandAuffrischen(quelle = "takt"): Promise<{ stand: Wa
     if (geaendert) {
       console.log(`[WA-BREMSE] Meta-Qualität ${vorherWirksam.q ?? vorher.qualitaet ?? "unbekannt"} → ${neu} (${quelle}).`);
       if (neu === "RED") await rotAlarm(stand, vorherWirksam.q ?? vorher.qualitaet).catch((e) => console.error("[WA-BREMSE] ROT-Alarm:", e));
+      else {
+        // E-397: wieder GELB/GRÜN — der ROT-Alarm geht aus, alte Tages-Aufträge „wa-rot-<Tag>“ schließen mit „Alarm vorbei“.
+        const { alarmVorbei } = await import("./fiaon-system-alarme");
+        await alarmVorbei("wa-rot", `Meta meldet wieder ${neu}`, sqlPool, { auftraege: { quelle: "wa-pause", schluesselWie: "wa-rot-%" } });
+      }
     }
     return { stand, geaendert };
   })().finally(() => { frischFlug = null; });
   return frischFlug;
 }
 
+// E-397: „Meta bewertet ROT“ ist EINE Zeile in der Alarm-Tafel (vorher ein Auftrag „wa-rot-<Tag>“ je Tag) und geht
+// aus, sobald Meta wieder GELB oder GRÜN meldet (metaStandAuffrischen).
 async function rotAlarm(stand: WaMetaStand, vorher: string | null): Promise<void> {
-  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-  const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  await auftragFuerKunden({
-    personId: null, ref: null, anBetreiber: true, dringend: true,
+  const { alarmMelden } = await import("./fiaon-system-alarme");
+  await alarmMelden("wa-rot", {
+    quelle: "wa-pause", stufe: "rot",
     titel: "WhatsApp: Meta bewertet die Nummer mit ROT — Werbe-Vorlagen gestoppt",
     text: [
       `Meta-Qualität ${vorher ?? "unbekannt"} → ROT (${zeitBerlin(stand.am)}).`,
       "Was jetzt gilt: Keine Werbe-Vorlage an bestehende Kontakte — auf keinem Weg (Zentrale, Automatik, Lead-Kette, Verkaufstakt, Telefonkartei, Akte, Raum, Mara-Auftrag). Die Zentrale schickt nur noch die Monatsrate (auch keine Termin-Einladung an Lead-Gruppen); die Begrüßung frischer Leads (Formular ≤ 24 h), einzelne Termin-Nachrichten aus Akte und Raum und Antworten im offenen Fenster laufen weiter.",
       "Sobald Meta wieder GELB oder GRÜN meldet, läuft die Werbung von selbst wieder an (GELB halbiert). Im Business-Manager → WhatsApp-Manager → Kontoqualität steht, welche Vorlagen Meta abwertet.",
     ].join("\n"),
-    quelle: "wa-pause", bereich: "technik", link: WA_PAUSE_KLICKWEG,
-    schluessel: `wa-rot-${tag}`, autorName: "System",
-  } as any);
+    link: WA_PAUSE_KLICKWEG, neueEpisode: true,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

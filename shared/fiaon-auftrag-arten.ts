@@ -49,6 +49,18 @@ export const AUFTRAG_EREIGNISSE = {
   kartenlink_gesendet: { label: "Kartenlink gesendet" },
   unterlage_angefordert: { label: "Unterlage angefordert" },
   unterlage_erhalten: { label: "Unterlage erhalten" },
+  // ── E-397 (19.10.2026, Großer Hausputz): Tatsachen, die Aufträge schließen ─────────────────────────────
+  // Eng gefasst (Sonderregeln in ereignisSchliesstArt): Kündigung schließt nur Kündigungs-Fälle, Widerruf,
+  // Beschwerde und Erstattung bleiben offen; „Mara hat geantwortet“ schließt nur „Kunde hat geschrieben“,
+  // wenn dort nur die Antwort fehlte.
+  kuendigung_gebucht: { label: "Kündigung gebucht" },
+  vertrag_beendet: { label: "Vertrag beendet" },
+  unterlage_geprueft: { label: "Unterlage geprüft" },
+  alarm_vorbei: { label: "Alarm vorbei" },
+  mara_geantwortet: { label: "Mara hat geantwortet" },
+  mail_gespeichert: { label: "Neue E-Mail-Adresse gespeichert" },
+  kunde_archiviert: { label: "Kunde archiviert" },
+  testkonto: { label: "Als Testkonto stillgelegt" },
 } as const;
 export type AuftragEreignis = keyof typeof AUFTRAG_EREIGNISSE;
 
@@ -148,11 +160,14 @@ export const AUFTRAG_ARTEN = {
   // durch Freigabe, Verwerfen oder eine neuere Fassung (fiaon-finanzauswertung.ts, vierAugenAufgabenAbgleichen) — kein
   // Gespräch und keine Unterlage schließen sie.
   vier_augen: { label: "Bonitätsauswertung prüfen und übergeben", nurHand: true, ergebnisPflicht: false, zustand: false, schliesstBei: [], bezug: "ref" },
-  unzustellbar_erstzahlung: { label: "Erstzahlung: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: ["zahlung_gebucht"], bezug: "ref" },
+  // E-397: Eine neu gespeicherte E-Mail-Adresse ist die Klärung der Lage („Mail unzustellbar“). Bounct auch die
+  // neue Adresse, meldet der Erzeuger die Lage nach ZUSTAND_WIEDER_OFFEN_TAGE erneut — sichtbar, mit Grund.
+  unzustellbar_erstzahlung: { label: "Erstzahlung: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: ["zahlung_gebucht", "mail_gespeichert"], bezug: "ref" },
   // Eine bezahlte Rate heilt die Adresse NICHT: Für die nächste Rate geht wieder keine Mail raus
-  // (UNZUSTELLBAR_SQL). Zu ist der Auftrag erst, wenn ein Mensch die Adresse geklärt hat — mit Satz.
+  // (UNZUSTELLBAR_SQL). Zu ist der Auftrag erst, wenn die Adresse geklärt ist — neue Adresse gespeichert (E-397)
+  // oder ein Mensch schreibt in einem Satz, was geklärt ist.
   // (Bei der Erstzahlung oben ist die Zahlung das Ende der Sache: danach keine Erstzahlungs-Mail mehr.)
-  unzustellbar_rate: { label: "Rate: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: [], bezug: "ref" },
+  unzustellbar_rate: { label: "Rate: E-Mail unzustellbar", nurHand: false, ergebnisPflicht: true, zustand: true, schliesstBei: ["mail_gespeichert"], bezug: "ref" },
   einladung_fehlt: { label: "Einladung zum Startgespräch fehlt", nurHand: false, ergebnisPflicht: true, zustand: true,
     schliesstBei: ["ergebnis_erreicht", "termin_gefuehrt"], bezug: "person" },
   unterlage: { label: "Unterlage anfordern", nurHand: false, ergebnisPflicht: false, zustand: false,
@@ -219,6 +234,7 @@ export function artenFuerEreignis(e: AuftragEreignis): AuftragArt[] {
     return !r.nurHand && r.schliesstBei.includes(e);
   });
 }
+
 
 /**
  * Passt die erhaltene/angeforderte Unterlage zum Auftrag „Unterlage anfordern"?
@@ -544,6 +560,8 @@ export interface SortierbarerAuftrag {
   prioritaet?: number | null;
   /** Die Art — Recht mit Frist (Katalog: frist) steht vor allem Dringenden. */
   art?: string | null;
+  /** E-397: Woher — nur Justins eigene Aufträge („hand“) zählen mit P1 als dringend. */
+  quelle?: string | null;
   /** ISO — Beginn der jetzigen offenen Episode. */
   eingangAm?: string | null;
   createdAt?: string | null;
@@ -556,6 +574,9 @@ function zeitwert(v: string | null | undefined): number {
 
 function rangDringend(a: SortierbarerAuftrag): number {
   if (istAuftragArt(a.art) && (AUFTRAG_ARTEN[a.art] as AuftragArtRegel).frist) return 0;
+  // E-397: ehrliche Priorität — „P1“ zählt nur, wenn ein Mensch sie von Hand gesetzt hat (quelle „hand“);
+  // ohne bekannte Quelle (ältere Aufrufer) bleibt es beim gespeicherten Wert.
+  if (a.quelle !== undefined) return auftragDringend({ art: a.art, quelle: a.quelle, prioritaet: a.prioritaet }) ? 1 : 2;
   return Number(a.prioritaet) === 1 ? 1 : 2;
 }
 
@@ -644,9 +665,10 @@ export type StatusTon = "frage" | "neu" | "wieder" | "arbeit" | "offen" | "warte
 /** Spalte „Status" — ein Wort und, wo nötig, der Grund. */
 export function auftragStatus(a: StatusQuelle): { text: string; ton: StatusTon; grund: string | null } {
   if (a.status === "erledigt") {
-    const auto = a.erledigtArt === "auto";
+    // E-397: Der Hausputz zeigt seinen Grund wie ein Ereignis („Hausputz: …“).
+    const auto = a.erledigtArt === "auto" || a.erledigtArt === "hausputz";
     return {
-      text: auto ? "Automatisch erledigt" : "Erledigt",
+      text: a.erledigtArt === "hausputz" ? "Beim Hausputz erledigt" : auto ? "Automatisch erledigt" : "Erledigt",
       ton: "erledigt",
       grund: auto ? (a.erledigtEreignis || a.erledigtVon || null) : (a.erledigtVon ? `von ${a.erledigtVon}` : null),
     };
@@ -681,4 +703,123 @@ export function auftragHerkunft(quelle: unknown): { vonMara: boolean; kanal: str
     bestellung: "Bestellung", kundenbereich: "Kundenbereich", bankbuch: "Bankbuch", kontakt: "Kontaktformular",
   };
   return { vonMara: false, kanal: HAUS[q] ?? "Verwaltung" };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-397 (19.10.2026) — GROSSER HAUSPUTZ: TATSACHEN, DIE AUFTRÄGE SCHLIESSEN
+//
+// Gemessen am 19.10.2026: 91 Aufträge mit schon gebuchter Kündigung, 74 „Unterlagen
+// eingegangen“ mit schon geprüften Dokumenten, 41 Lead-Alarme ohne Alarm — alle
+// offen, weil kein Ereignis sie fand. Die neuen Ereignisse sind TATSACHEN über den
+// Kunden (keine Gespräche): Sie gelten, egal wer sie auslöst, auch für Aufträge auf
+// Justins Board. Eng gefasst, damit nichts Heikles still zugeht:
+//   · Kündigung gebucht / Vertrag beendet → nur Kündigungs-Fälle (nurKuendigung):
+//     Widerruf, Beschwerde, Erstattung, Recht, Löschung und Werbewiderspruch bleiben.
+//   · Kunde archiviert → nur Arten, die ohnehin ein Ereignis schließen darf, ohne
+//     heiklen Inhalt.
+//   · Testkonto → alles, außer einer Erstattung (die schließt NIE das System).
+//   · Alarm vorbei → die alten Alarm-Aufträge der Verwaltung.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Recht und Geld: Der Hausputz und „Kunde archiviert“ schließen sie nie (nur bei Testkonten). */
+export const HEIKLE_ARTEN: readonly AuftragArt[] = [
+  "kuendigung", "beschwerde", "mara_mail_heikel", "mara_wa_heikel", "loeschantrag", "mara_eskalation",
+  "mara_wa_geld", "auskunft_lieferung", "zahlung",
+];
+
+/** Tatsachen-Ereignisse (E-397): gelten unabhängig vom Handelnden und auch auf Justins Board. */
+export const TATSACHEN_EREIGNISSE: readonly AuftragEreignis[] = [
+  "kuendigung_gebucht", "vertrag_beendet", "unterlage_geprueft", "alarm_vorbei", "mail_gespeichert", "kunde_archiviert", "testkonto",
+];
+/** Diese Ereignisse finden „ihre“ Aufträge auch über die Bestellungen der Person (Arten mit bezug „ref“). */
+export function ereignisUeberPerson(e: AuftragEreignis): boolean {
+  return TATSACHEN_EREIGNISSE.includes(e);
+}
+
+/** Quellen der alten Alarm-Aufträge — seit E-397 eine Zeile in der Alarm-Tafel statt eines Auftrags. */
+export const ALARM_QUELLEN: readonly string[] = ["lead-motor", "ki-pause", "wa-pause", "telefon-abgleich", "lauf-waechter"];
+
+/**
+ * Erstattung, Geld zurück, Rückbuchung — schließt NIE das System, auch nicht beim Testkonto. Bewusst weit gefasst
+ * (Gegenlesen am Produktionsabzug 19.10.: „bittet darum, 99,99 Euro noch heute auf sein Konto zurückzusenden“,
+ * türkisch „geri ödeme talebi“): Lieber bleibt eine Rückzahlungsfrage offen, als dass eine Erstattung still zugeht.
+ */
+const ERSTATTUNG_WORTE = /(erstatt|geld\s+zur(?:ü|ue)ck|zur(?:ü|ue)ck\s*(?:zu\s*)?(?:ü|ue)berweis|zur(?:ü|ue)ck(?:zu|ge)?(?:zahl|send|schick|buch|geben|holen)|r(?:ü|ue)ckzahlung|r(?:ü|ue)ckbuchung|r(?:ü|ue)ck(?:ü|ue)berweis|gutschrift|chargeback|refund|money\s+back|geri\s+(?:ö|o)deme|para\s+iade|\biade\b|reembolso|rimborso|remboursement|zwrot)/i;
+export function istErstattung(s: string | null | undefined): boolean {
+  return ERSTATTUNG_WORTE.test(String(s || ""));
+}
+
+/** Alles, was über eine Kündigung hinausgeht — dann bleibt der Auftrag offen. */
+const MEHR_ALS_KUENDIGUNG = /(widerruf|widerspruch|widersprech|beschwer|anwalt|anwält|klage|bestreit|betrug|betrüg|abzock|fake|polizei|strafanzeige|verbraucherzentrale|datenschutz|dsgvo|lösch|loesch|rechtlich|\bgericht|mahnbescheid|abmahn|schlichtung|bafin)/i;
+/**
+ * Geht es in diesem Auftrag NUR um die Kündigung? Ja, wenn eine Kündigung genannt ist und nichts von Widerruf,
+ * Beschwerde, Erstattung, Recht, Löschung oder Werbewiderspruch. Unlesbar oder leer = nein (lieber offen).
+ */
+export function nurKuendigung(s: string | null | undefined): boolean {
+  const t = String(s || "").replace(/an(kündig|kuendig)/gi, "");
+  if (!KUENDIGUNG_WORTE.test(t)) return false;
+  return !MEHR_ALS_KUENDIGUNG.test(t) && !istErstattung(t) && !WERBEWIDERSPRUCH_WORTE.test(t);
+}
+
+/** Mail-Übergabegründe, die eine gebuchte Kündigung erledigt (Wortlaut UEBERGABE_GRUND, fiaon-postmeister-lauf.ts). */
+export const KUENDIGUNG_MAIL_GRUENDE: readonly string[] = [...MAIL_GRUENDE_KONTAKT, "Kündigung angesprochen, aber nicht gebucht"];
+
+/** Welche Arten KÖNNTE dieses Ereignis schließen? Die Feinprüfung je Auftrag macht ereignisSchliesstArt. */
+export function kandidatArtenFuerEreignis(e: AuftragEreignis): AuftragArt[] {
+  if (e === "testkonto") return [...AUFTRAG_ART_LISTE];
+  const basis = artenFuerEreignis(e);
+  if (e === "kuendigung_gebucht" || e === "vertrag_beendet") return Array.from(new Set([...basis, "kuendigung", "mara_mail_heikel", "mara_wa_heikel"] as AuftragArt[]));
+  if (e === "kunde_archiviert") return AUFTRAG_ART_LISTE.filter((a) => !(AUFTRAG_ARTEN[a] as AuftragArtRegel).nurHand);
+  if (e === "alarm_vorbei") return Array.from(new Set([...basis, "verwaltung"] as AuftragArt[]));
+  return basis;
+}
+
+/**
+ * Schließt dieses Ereignis DIESEN Auftrag? Die eine Regel für Ereignis-Motor, Prüfstand und Hausputz.
+ * `art` ist die JETZT geltende Art (artNachInhalt) — Heikles, das seit der Anlage dazukam, zählt.
+ */
+export function ereignisSchliesstArt(e: AuftragEreignis, art: AuftragArt, z: { titel?: string | null; text?: string | null; schluessel?: string | null; quelle?: string | null }): boolean {
+  const regel: AuftragArtRegel = AUFTRAG_ARTEN[art];
+  const inhalt = `${z.titel || ""}\n${z.text || ""}`;
+  if (e === "testkonto") return !istErstattung(inhalt);
+  if (istErstattung(inhalt) && (HEIKLE_ARTEN.includes(art) || regel.nurHand)) return false;
+  if (!regel.nurHand && regel.schliesstBei.includes(e)) return e === "kunde_archiviert" ? !heikelArt(inhalt) : true;
+  if (e === "kuendigung_gebucht" || e === "vertrag_beendet") {
+    if (art === "kuendigung") return nurKuendigung(inhalt);
+    if (art === "mara_mail_heikel") {
+      const g = mailUebergabeGruende(z.text);
+      return !!g && g.every((x) => KUENDIGUNG_MAIL_GRUENDE.includes(x)) && nurKuendigung(inhalt);
+    }
+    // WhatsApp: nur die Klasse „heikel“ (Kündigung/Widerruf/Beschwerde) — nie Bestreiten, Löschwunsch, „in Ruhe lassen“, Wut.
+    if (art === "mara_wa_heikel") return /^wa-n?\d+-heikel-/.test(String(z.schluessel || "")) && nurKuendigung(inhalt);
+    return false;
+  }
+  if (e === "kunde_archiviert") return !regel.nurHand && !heikelArt(inhalt);
+  if (e === "alarm_vorbei") return art === "verwaltung" && ALARM_QUELLEN.includes(String(z.quelle || "").trim().toLowerCase());
+  return false;
+}
+
+// ── SCHNELL-GRÜNDE STATT PFLICHTSATZ (E-397) ────────────────────────────────
+// Gemessen am 19.10.2026: 672 offene Aufträge verlangen beim Schließen einen Satz. Ein Knopf mit dem
+// häufigsten Ergebnis ersetzt ihn — der Text landet als Ergebnis im Verlauf (mindestens fünf Zeichen,
+// die Prüfung im Server bleibt). Freitext geht weiterhin.
+export function schnellGruende(art: unknown): string[] {
+  const a = istAuftragArt(art) ? art : "sonstiges";
+  if (a === "kuendigung") return ["Kündigung gebucht und bestätigt", "Widerruf bearbeitet und bestätigt", "Kunde hat die Kündigung zurückgenommen"];
+  if (a === "beschwerde" || a === "mara_mail_heikel" || a === "mara_wa_heikel") return ["Kunde angerufen, Anliegen geklärt", "Schriftlich beantwortet, Anliegen geklärt", "Kündigung gebucht und bestätigt"];
+  if (a === "loeschantrag") return ["Löschantrag an die Auskunftei gestellt", "Kunde informiert, kein Antrag nötig"];
+  if (a === "mara_eskalation") return ["Kunde erreicht, zahlt", "Vertrag beendet, nichts mehr offen", "Ratenpause vereinbart"];
+  if (a === "unzustellbar_erstzahlung" || a === "unzustellbar_rate") return ["Neue E-Mail-Adresse eingetragen", "Kunde erreicht, Adresse stimmt"];
+  if (a === "stufe_a_klaeren") return ["Zahlung im Bankbuch gefunden", "Kunde erreicht, zahlt nach", "Kunde zahlt nicht, Vertrag beendet"];
+  if (a === "einladung_fehlt") return ["Startgespräch vereinbart", "Kunde erreicht, Einladung neu geschickt"];
+  return ["Kunde informiert", "Hat sich erledigt", "Doppelt, steht schon in einem anderen Auftrag"];
+}
+
+// ── EHRLICHE PRIORITÄT (E-397) ──────────────────────────────────────────────
+// Gemessen am 19.10.2026: 66 % der offenen Aufträge waren „dringend“ — Rot sagte nichts mehr. Rot heißt
+// jetzt: echte Frist (Katalog: frist — Kündigung und Widerruf, Beschwerde, Löschantrag, Eskalation,
+// WhatsApp heikel). Ausnahme: Was Justin selbst von Hand als „P1“ anlegt oder setzt (quelle „hand“).
+export function auftragDringend(a: { art?: string | null; quelle?: string | null; prioritaet?: number | null }): boolean {
+  if (istAuftragArt(a.art) && (AUFTRAG_ARTEN[a.art] as AuftragArtRegel).frist) return true;
+  return String(a.quelle || "") === "hand" && Number(a.prioritaet) === 1;
 }

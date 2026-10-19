@@ -269,7 +269,8 @@ console.log("── Hebel 7: Lauf-Wächter ────────────�
   }
   const cr = quelle("server/lib/fiaon-crons.ts");
   ok(/meldung: \(e\) => laufMeldung\(name, e\)/.test(cr) && /async \(\) => await fn\(\)/.test(cr), "tageslauf schreibt das Ergebnis als Meldung");
-  ok(/const stumm = await verkaufsLaeufeWachen/.test(cr) && /lauf:\$\{name\}:null-versand:\$\{tag\}/.test(cr), "Alarm als Betreiber-Aufgabe, einmal je Lauf und Tag");
+  // E-397: kein Auftrag je Tag mehr, sondern EINE Zeile in der Alarm-Tafel (fester Schlüssel), die beim nächsten Versand ausgeht.
+  ok(/const stumm = await verkaufsLaeufeWachen/.test(cr) && /alarmMelden\(`lauf:\$\{name\}:null-versand`/.test(cr) && /alarmVorbei\(`lauf:\$\{name\}:null-versand`/.test(cr), "Alarm in der Tafel (fester Schlüssel je Lauf), geht beim nächsten Versand aus");
   const r = quelle("server/routes.ts");
   ok(/tageslauf\('wa_zentrale_takt', async \(\) => await \(await import\('\.\/lib\/fiaon-wa-zentrale'\)\)\.automatikTakt\(\)/.test(r) && /tageslauf\('mara_wa_nachfass', async \(\) => await/.test(r), "WA-Takt und Nachfass geben ihr Ergebnis zurück");
   ok(/const erg = await maybeRunScheduledFollowups\(\);[\s\S]{0,200}return erg;/.test(quelle("server/routes/fiaon-leads.ts")), "Lead-Takt gibt das Slot-Ergebnis zurück");

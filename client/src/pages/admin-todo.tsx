@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { akteLinkHeben } from "@shared/fiaon-akte-aufloesung";
 import { Plus, X, Check, Undo2, Trash2, ExternalLink, Send, UserRound, MessageCircleQuestion, ArrowRightLeft } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
-import { eingangText } from "@shared/fiaon-auftrag-arten";
+import { eingangText, HEIKLE_ARTEN } from "@shared/fiaon-auftrag-arten";
 
 type Spalte = "offen" | "team" | "rueckfrage" | "erledigt";
 interface Beitrag { id: number; autorArt: "betreiber" | "agent" | "system"; autorName: string; art: "kommentar" | "frage" | "antwort" | "ergebnis" | "status"; text: string; am: string }
@@ -31,6 +31,8 @@ interface Todo {
   // E-IT-F (08.10.2026): Kunde, Art und Eingang als Datenfeld — das Board zeigte bisher gar keinen Kunden.
   kunde?: string | null; kundeAnzeige?: string; personId?: number | null; ref?: string | null; kundeTelefon?: string | null;
   artLabel?: string; eingangAm?: string | null; erledigtArt?: string | null; erledigtEreignis?: string | null;
+  /** E-397: Art (Katalog) und ehrliche Priorität (rot nur bei echter Frist). */
+  art?: string; dringend?: boolean;
   wiederOffenGrund?: string | null; wiederOffenZahl?: number;
 }
 interface Agent { id: number; name: string; rolle: string }
@@ -136,12 +138,17 @@ export default function AdminTodoPage() {
   /** Eine Aufgabe im Zustand ersetzen — nach jeder Antwort des Servers. */
   const ersetzen = (t: Todo) => setTodos((alt) => (alt || []).map((x) => (x.id === t.id ? { ...x, ...t } : x)));
 
+  // E-397: Filter „heikel“ (Recht und Geld) — dorthin führt im Lagezimmer die Zahl „heikel neu“ statt der Kopien „Zur Kenntnis“.
+  const [nurHeikel, setNurHeikel] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("filter") === "heikel"; } catch { return false; }
+  });
+  const sichtbar = useMemo(() => (todos || []).filter((t) => !nurHeikel || (!!t.art && (HEIKLE_ARTEN as readonly string[]).includes(t.art))), [todos, nurHeikel]);
   const nachSpalte = useMemo(() => {
     const m: Record<Spalte, Todo[]> = { offen: [], team: [], rueckfrage: [], erledigt: [] };
-    for (const t of todos || []) m[t.spalte].push(t);
+    for (const t of sichtbar) m[t.spalte].push(t);
     m.erledigt.sort((a, b) => +new Date(b.erledigtAm || 0) - +new Date(a.erledigtAm || 0));
     return m;
-  }, [todos]);
+  }, [sichtbar]);
   const heute = new Date().toISOString().slice(0, 10);
   const offenes = useMemo(() => (todos || []).find((t) => t.id === offenId) || null, [todos, offenId]);
 
@@ -175,6 +182,12 @@ export default function AdminTodoPage() {
       </div>
 
       {fehler && <div className="td-fehler">{fehler}</div>}
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-[12.5px]">
+        <button type="button" className="a3-knopf inline-flex" data-haupt={nurHeikel ? "1" : undefined} onClick={() => setNurHeikel((v) => !v)}>
+          {nurHeikel ? "Filter „heikel“ aufheben" : "Nur heikel (Recht und Geld)"}
+        </button>
+        {nurHeikel && <span className="text-slate-500">Kündigung, Widerruf, Beschwerde, Löschantrag, Eskalation, Geld — {(todos || []).filter((t) => t.spalte !== "erledigt" && !!t.art && (HEIKLE_ARTEN as readonly string[]).includes(t.art)).length} offen.</span>}
+      </div>
 
       <div className="td-segment">
         {SPALTEN.map((s) => <button key={s.key} type="button" data-an={spalteMobil === s.key ? "1" : undefined} onClick={() => setSpalteMobil(s.key)}>{s.label} {nachSpalte[s.key].length ? `(${nachSpalte[s.key].length})` : ""}</button>)}
@@ -187,7 +200,8 @@ export default function AdminTodoPage() {
             {todos === null && !fehler && <p className="td-leer">Lädt …</p>}
             {todos && nachSpalte[s.key].length === 0 && <p className="td-leer">{s.leer}</p>}
             {nachSpalte[s.key].map((t) => {
-              const kante = t.spalte === "erledigt" ? "#cbd5e1" : t.frageOffen ? "#f59e0b" : t.faelligAm && t.faelligAm < heute ? "#dc2626" : t.prioritaet === 1 ? "#d97706" : BEREICH[t.bereich]?.farbe || "#2563eb";
+              // E-397: Rot nur bei echter Frist (dringend vom Server) — vorher war fast jede Karte überfällig und damit rot.
+              const kante = t.spalte === "erledigt" ? "#cbd5e1" : t.frageOffen ? "#f59e0b" : t.dringend ? "#dc2626" : BEREICH[t.bereich]?.farbe || "#2563eb";
               return (
                 <div key={t.id} className="td-karte" data-an={offenId === t.id ? "1" : undefined} data-fertig={t.spalte === "erledigt" ? "1" : undefined} style={{ ["--kante" as any]: kante }} onClick={() => setOffenId(t.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setOffenId(t.id); }}>
                   <p className="td-titel">{t.titel}</p>

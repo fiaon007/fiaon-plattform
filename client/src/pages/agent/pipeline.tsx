@@ -112,6 +112,9 @@ import { raumPfad } from "@shared/fiaon-wa-raum";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
 import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
+// E-397: Häkchen „damit erledigt“ beim Gesprächsergebnis.
+import { AuftraegeHaken } from "@/components/agent/AuftraegeHaken";
+import { ereignisAusErgebnis } from "@shared/fiaon-auftrag-arten";
 import { akteFehlerAus } from "@/lib/akte-link";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -3257,7 +3260,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
                 )}
               </div>
             )}
-            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen}
+            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} personId={k.personId}
                                                    kontext={sit?.wiedervorlage ? { versuche: Number(sit.wiedervorlage.versuche || 0), stufeA: sit.wiedervorlage.stufeA === true, frisch: sit.wiedervorlage.frisch === true } : null} />}
           </Sek>
 
@@ -3917,8 +3920,10 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
 // Datum, Termin, Notiz ab NOTIZ_MINDESTLAENGE Zeichen, Rückfrage bei Übergabe)
 // — nur die Oberfläche ist Office-Glas. Der Endpunkt bleibt der des Aufrufers.
 // ═══════════════════════════════════════════════════════════════════════════
-function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen, kontext }: {
-  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string }) => Promise<boolean>;
+function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen, kontext, personId = null }: {
+  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[] }) => Promise<boolean>;
+  /** E-397: der Kunde — seine offenen Aufträge (bei mir) stehen mit Häkchen „damit erledigt“ darunter. */
+  personId?: number | null;
   laeuft: string | null; kundeName: string; vorgabeDatum: string;
   fragen: ReturnType<typeof useFragen>;
   /** E-IT-A: Zählerstand, Stufe A, Frische — für „→ Mi 15.10." unter jedem Knopf. */
@@ -3932,12 +3937,17 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
   const [wahl, setWahl] = useState("regel");
   const fehlt = Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length);
   const heute = heuteBerlin();
+  // E-397: die angehakten Aufträge — gehen nur bei einem „Erreicht“-Ergebnis mit.
+  const [haken, setHaken] = useState<number[]>([]);
+  const [hakenNeu, setHakenNeu] = useState(0);
   /** Die Wahl von Hand gilt nur, wo sie Sinn ergibt (zahlt sofort, nicht erreicht, Mailbox, Sonstiges, falsche Nummer). */
   const mitWahl = <T extends Record<string, unknown>>(art: string, zusatz: T): T & { wiedervorlage?: string } => {
     // Gegenprüfung 08.10.2026: Stufe A kennt kein „1/2 Wochen" (höchstens 3 Werktage).
     const d = wahlDatum(wahl, heute, kontext?.stufeA === true);
-    return d && handwahlErlaubt(art) ? { ...zusatz, wiedervorlage: d } : zusatz;
+    const mitHaken = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    return d && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: d } : mitHaken;
   };
+  const gespeichert = () => { setHaken([]); setHakenNeu((n) => n + 1); };
 
   const anklicken = async (art: string) => {
     const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
@@ -3949,14 +3959,14 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
       folge: "Die Provision folgt dem, der den Abschluss dokumentiert.",
       ja: "Übergeben",
     }))) return;
-    if (await onErgebnis(art, mitWahl(art, {}))) setOffen(null);
+    if (await onErgebnis(art, mitWahl(art, {}))) { setOffen(null); gespeichert(); }
   };
   const speichern = async () => {
     if (!offen) return;
     const zusatz = offen.braucht === "zusage" ? { zusageDatum: datum }
       : offen.braucht === "termin" ? { terminDatum: datum, terminZeit: zeit }
       : { notiz: notiz.trim() };
-    if (await onErgebnis(offen.art, mitWahl(offen.art, zusatz))) { setOffen(null); setNotiz(""); }
+    if (await onErgebnis(offen.art, mitWahl(offen.art, zusatz))) { setOffen(null); setNotiz(""); gespeichert(); }
   };
 
   return (
@@ -3980,6 +3990,7 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
           );
         })}
       </div>
+      <AuftraegeHaken personId={personId} gewaehlt={haken} onWahl={setHaken} neu={hakenNeu} dunkel />
       {offen?.braucht === "zusage" && (
         <div className="pi-ew-feld">
           <label>Zahlt am<input type="date" className="pi-eingabe" value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} /></label>

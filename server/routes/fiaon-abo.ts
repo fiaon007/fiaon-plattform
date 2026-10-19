@@ -1786,6 +1786,9 @@ export async function rateBezahltBuchen(opts: {
           rate_nr: String(rate.rate_nr), portal_url: absoluteUrl("/login"),
         } as any).catch(() => {});
       }
+      // E-397: „Vertrag beendet“ schließt die reinen Kündigungs-Aufträge dieses Menschen (wirft nie).
+      const { vertragBeendetMelden } = await import("../lib/fiaon-auftraege");
+      await vertragBeendetMelden(rate.ref, { personId: k?.person_id ?? null, wer: "System (letzte Rate bezahlt)" });
     }
   } catch (e) { console.error("[FIAON-ABO] Vertragsende:", e); }
 

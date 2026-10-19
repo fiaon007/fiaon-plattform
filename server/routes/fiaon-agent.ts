@@ -1680,6 +1680,12 @@ export async function updateCustomerContact(
   const loginEmailChanged = hasPassword && changes.some((c) => c.field === "E-Mail");
 
   console.log(`[FIAON-CONTACT-EDIT] ${ref} durch ${actor.name}: ${changes.map((c) => c.field).join(", ")}${duplicate ? ` (DUBLETTE mit ${duplicate.ref})` : ""}`);
+  // E-397: Eine neue E-Mail-Adresse klärt „Mail unzustellbar“ (Erstzahlung und Rate) — der Auftrag geht zu.
+  // Bounct auch die neue Adresse, meldet der Erzeuger die Lage nach 7 Tagen wieder (sichtbar, mit Grund).
+  if (changes.some((c) => c.field === "E-Mail")) {
+    const { ereignisMelden } = await import("../lib/fiaon-auftraege");
+    await ereignisMelden({ ereignis: "mail_gespeichert", ref, personId: null, akteur: { id: actor.id ?? null, name: actor.name }, detail: emailRaw ?? null });
+  }
   return { changes, duplicate, loginEmailChanged };
 }
 

@@ -245,6 +245,33 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
   },
   {
+    // E-397 (19.10.2026, Justin): „Jeder hat dutzende, hunderte Aufgaben, aber niemand kann diese erledigen,
+    // weiß nicht wie, sie sind veraltet oder bereits erledigt.“ — Großer Hausputz, Bausteine 1–3 und 5.
+    id: "2026-10-19-hausputz-aufgaben",
+    date: "2026-10-19",
+    category: "Verbessert",
+    title: "Deine Aufgaben: weniger, ehrlicher — und jeder Anruf zählt",
+    summary:
+      "Viele Aufträge erledigen sich jetzt selbst, sobald die Sache in der Akte erledigt ist. Beim Gesprächsergebnis hakst du ab, "
+      + "was das Gespräch erledigt hat. Rot heißt nur noch: echte Frist.",
+    changes: [
+      "Neu beim Gesprächsergebnis (Akte und Kundenkarte): Unter den Ergebnis-Knöpfen stehen die offenen Aufträge dieses Kunden, die bei dir liegen — mit Häkchen „damit erledigt“. Bei „Erreicht …“ gehen die angehakten mit zu.",
+      "Diese Dinge schließen jetzt von selbst: Kündigung gebucht oder Vertrag beendet (nur reine Kündigungs-Fälle), Unterlage geprüft, Maras Antwort ist raus, Mara hat den Kartenlink geschickt, neue E-Mail-Adresse gespeichert („Mail unzustellbar“), Kunde archiviert oder Testkonto.",
+      "Ein Gesprächsergebnis „erreicht“ erledigt auch den offenen Rückruf-Wunsch in deiner Rückruf-Liste. Läuft die 24-Stunden-Frist ab, entsteht kein neuer „Frist gerissen“-Eintrag mehr — der Rückruf wird einfach rot.",
+      "Schnell-Gründe statt Pflichtsatz: Beim Erledigen reicht ein Tipp auf „Kunde informiert“, „Kündigung gebucht und bestätigt“, „Neue E-Mail-Adresse eingetragen“ … Freitext geht weiterhin.",
+      "„Dringend“ (rot) nur noch bei echter Frist: Kündigung und Widerruf, Beschwerde, Löschantrag, Eskalation, WhatsApp heikel.",
+      "Widerruf, Beschwerde, Anwalt, Löschantrag und Erstattung schließt nie das System — die bleiben bei dir, bis du sie erledigst.",
+      "Jeder automatisch geschlossene Auftrag zeigt im Reiter „Erledigt“ seinen Grund. „Wieder öffnen“ holt ihn zurück — dann schließt ihn kein Ereignis mehr.",
+    ],
+    howto: [
+      "Kunde anrufen → in der Akte das Ergebnis wählen. Vorher unter den Knöpfen abhaken, was das Gespräch erledigt hat (bei Kündigung, Widerruf, Beschwerde mit Notiz).",
+      "Aufgaben → Aufträge: Auftrag aufklappen → „Mit Ergebnis erledigen“ → einen Schnell-Grund antippen → „Als erledigt melden“.",
+      "Ist etwas zu früh zu: Aufgaben → Erledigt → „Wieder öffnen“.",
+    ],
+    link: { href: "/agent/aufgaben?reiter=auftraege", label: "Aufträge öffnen" },
+    important: true,
+  },
+  {
     // E-395 (19.10.2026, Justin, Fall #7131): „Mara muss ab jetzt in mein Kalender den Termin eintragen, den Kunden
     // einen guten Termin wünschen und sich zurücknehmen.“
     id: "2026-10-19-mara-genannter-termin",

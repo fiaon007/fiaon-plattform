@@ -404,18 +404,26 @@ export async function pausieren(ein: { art: KiPauseArt; fehler: string; dienst: 
   return { neu: true, zustand: z };
 }
 
+/** E-397: der feste Schlüssel des KI-Pause-Alarms in der Alarm-Tafel (eine Zeile je Anbieter, nicht je Pause). */
+export function kiPauseAlarmSchluessel(anbieter: string | null | undefined): string {
+  return `ki-pause:${anbieter ?? "openai"}`;
+}
+
+// E-397 (19.10.2026): Der Alarm ist kein Auftrag mehr („ki-pause-<seit>“ in Justins Liste, 10 offen am 19.10.),
+// sondern EINE Zeile in der Alarm-Tafel (Ampel im Lagezimmer) — fester Schlüssel je Anbieter, zählt jede Pause
+// mit und geht beim Aktivieren (auch durch die Selbstheilung) von selbst aus. Band oben im Chefbüro und Mail bleiben.
 async function alarm(z: KiPauseZustand): Promise<void> {
-  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const { alarmMelden } = await import("./fiaon-system-alarme");
   const zeit = z.seit ? new Date(z.seit).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   const claude = z.anbieter === "claude";
   const wer = anbieterName(z.anbieter);
   // E-279: Pausiert ein Anbieter, der die KI gerade NICHT trägt (OpenAI, während Claude trägt), steht nur Whisper.
   if ((z.anbieter ?? "openai") !== aktiverAnbieter()) {
-    await auftragFuerKunden({
-      personId: null, ref: null, anBetreiber: true, dringend: false,
+    await alarmMelden(kiPauseAlarmSchluessel(z.anbieter), {
+      quelle: "ki-pause", stufe: "gelb",
       titel: `${wer} lehnt ab — nur Telefon-Transkripte warten (Mara läuft über ${anbieterName(aktiverAnbieter())})`,
       text: `Seit ${zeit} · ${wer} meldet: ${String(z.fehler || "").slice(0, 240)}\n\nBetroffen sind nur die Telefon-Transkripte (Sprache zu Text gibt es bei Claude nicht). Alles andere — Mara, Postfach, Auswertungen — läuft über ${anbieterName(aktiverAnbieter())}.`,
-      quelle: "ki-pause", bereich: "technik", link: KI_PAUSE_KLICKWEG, schluessel: `ki-pause-${z.seit}`, autorName: "System",
+      link: KI_PAUSE_KLICKWEG, neueEpisode: true,
     });
     return;
   }
@@ -441,11 +449,7 @@ async function alarm(z: KiPauseZustand): Promise<void> {
       ? "So geht es weiter: Schlüssel/Konto unter platform.openai.com prüfen, dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara)."
       : "So geht es weiter: platform.openai.com → Settings → Billing → Guthaben aufladen, dann Chefbüro → Band oben ‚KI wieder aktivieren' (oder Mara-Steuerpult /chef/s/mara). Vor dem Aktivieren macht das System einen Probe-Aufruf; liegen Gebliebenes holen die normalen Läufe danach von selbst nach.",
   ].join("\n");
-  await auftragFuerKunden({
-    personId: null, ref: null, anBetreiber: true, dringend: true,
-    titel, text, quelle: "ki-pause", bereich: "technik", link: KI_PAUSE_KLICKWEG,
-    schluessel: `ki-pause-${z.seit}`, autorName: "System",
-  });
+  await alarmMelden(kiPauseAlarmSchluessel(z.anbieter), { quelle: "ki-pause", stufe: "rot", titel, text, link: KI_PAUSE_KLICKWEG, neueEpisode: true });
 }
 
 // ── Wieder aktivieren (mit Probe) ─────────────────────────────────────────
@@ -494,6 +498,12 @@ export async function aktivieren(von: string, opt: { probe?: boolean; nachholen?
   lokalePause = null; lokalNurHier = false; alarmOffen = false;
   await speichern(z);
   console.log(`[KI-PAUSE] AKTIVIERT von ${von} (Pause seit ${vorher.seit ?? "—"}).`);
+  // E-397: Der Alarm in der Tafel geht aus; alte Pause-Aufträge („ki-pause-<seit>“, nicht die Sammelaufgabe
+  // „ki-pause-wa-…“ mit echten Nachrichten) schließen mit „Alarm vorbei“. Wirft nie.
+  {
+    const { alarmVorbei } = await import("./fiaon-system-alarme");
+    await alarmVorbei("ki-pause:%", `KI wieder aktiviert (${von})`, sqlPool, { auftraege: { quelle: "ki-pause", schluesselWie: "ki-pause-2%" } });
+  }
   if (opt.nachholen !== false) {
     // Nicht warten: Die Läufe holen im Hintergrund nach, der Knopf antwortet sofort.
     void nachDerPause(vorher).catch((e) => console.error("[KI-PAUSE] Nachholen:", e));

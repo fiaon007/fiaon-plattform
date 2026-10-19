@@ -25,7 +25,8 @@
 //      Heikles + Leitung zusätzlich aufs Board, ohne Person → /agent/whatsapp;
 //      Vertreter = Betreiber (928) → Board wie E-260; aus → Betreuer.
 //   4. Postfach: aufgabe_an_betreuer, notiz_an_betreuer, Übergabe aus dem Lauf
-//      (anBetreuerUebergeben) → Vertreter; Heikles/Leitung → Kopie aufs Board.
+//      (anBetreuerUebergeben) → Vertreter; Heikles/Leitung → seit E-397 (19.10.2026) KEINE Kopie mehr aufs Board
+//      (Justin sieht es im Lagezimmer unter „heikel neu“ / Filter „heikel“ in Meine Liste).
 //   5. Zugriff: darfAnKunde (Akte) und vertreterSiehtBetreuer (WhatsApp-Raum).
 //   6. Übersicht und reine Regeln (heikleUebergabe, quelleUmleitbar, Quelltext).
 //   Gegenprüfung (01.10.2026, nachgezogen): Rückruf aus dem Postfach NACH „bis" →
@@ -458,7 +459,7 @@ try {
     const P2 = await person({ betreuer: ABWESEND });
     await wa.aufgabeFuerMenschen("4915177700002", P2, null, `Ich will kündigen, sonst geht das zum Anwalt ${MARKE}`, true, "heikel");
     const a2 = await aufgabenVon(P2);
-    ok("Heikel (Kündigung/Anwalt): bei 13 UND als Kopie aufs Board", a2.some((x) => anVertreter(x) && !istKopie(x)) && a2.some((x) => aufsBoard(x) && istKopie(x) && /^Zur Kenntnis \(heikel\)/.test(x.titel)), a2);
+    ok("Heikel (Kündigung/Anwalt): bei 13, KEINE Kopie aufs Board (E-397)", a2.some((x) => anVertreter(x) && !istKopie(x)) && !a2.some(istKopie), a2);
     await wa.aufgabeFuerMenschen("4915177700002", P2, null, `Nachtrag zur Kündigung ${MARKE}`, true, "heikel");
     const a2b = await aufgabenVon(P2);
     ok("… eine zweite Nachricht hängt sich an (keine neuen Karten)", a2b.length === a2.length, { vorher: a2.length, nachher: a2b.length });
@@ -466,7 +467,7 @@ try {
     const P3 = await person({ betreuer: ABWESEND });
     await wa.aufgabeFuerMenschen("4915177700003", P3, null, `Kunde bestreitet Antrag ${MARKE}`, true, "bestreitet", { leitung: true });
     const a3 = await aufgabenVon(P3);
-    ok("Bestreiten (an die Leitung): bei 13 statt Leitung 8, Kopie aufs Board", a3.some((x) => anVertreter(x) && !istKopie(x)) && a3.some((x) => aufsBoard(x) && istKopie(x)) && !a3.some((x) => Number(x.zustaendig_agent_id) === ABWESEND), a3);
+    ok("Bestreiten (an die Leitung): bei 13 statt Leitung 8, keine Kopie aufs Board (E-397)", a3.some((x) => anVertreter(x) && !istKopie(x)) && !a3.some(istKopie) && !a3.some((x) => Number(x.zustaendig_agent_id) === ABWESEND), a3);
 
     await wa.aufgabeFuerMenschen("4915177700009", null, null, `Unbekannte Nummer fragt nach dem Antrag ${MARKE}`, false, "anliegen");
     const a4 = await aufgabenVon(null, "4915177700009");
@@ -485,14 +486,14 @@ try {
     if (k8) await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt' WHERE id = ${k8.id}`;
     await wa.aufgabeFuerMenschen("4915177700011", P8, null, `Noch eine Nachricht dazu ${MARKE}`, false, "bestreitet");
     const [k8b] = k8 ? (await sqlPool`SELECT status, text FROM fiaon_betreiber_todos WHERE id = ${k8.id}`) as any[] : [];
-    ok("Board-Kopie (bestreitet): die zweite Nachricht hängt still an — erledigt bleibt erledigt", !!k8 && k8b?.status === "erledigt" && /Noch eine Nachricht dazu/.test(String(k8b?.text)), { k8, k8b });
+    ok("Keine Board-Kopie mehr (E-397), auch nicht bei der zweiten Nachricht", !k8 && !(await aufgabenVon(P8)).some(istKopie), { k8, k8b });
     const P9 = await person({ betreuer: ABWESEND });
     await wa.aufgabeFuerMenschen("4915177700012", P9, null, `Ich kündige ${MARKE}`, true, "heikel");
     const k9 = (await aufgabenVon(P9)).find(istKopie);
     if (k9) await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt' WHERE id = ${k9.id}`;
     await wa.aufgabeFuerMenschen("4915177700012", P9, null, `Und zwar sofort ${MARKE}`, true, "heikel");
     const [k9b] = k9 ? (await sqlPool`SELECT status FROM fiaon_betreiber_todos WHERE id = ${k9.id}`) as any[] : [];
-    ok("Rot-Probe: „heikel“ (nie still) öffnet die Kopie wieder — wie die Aufgabe selbst", !!k9 && k9b?.status === "offen", { k9, k9b });
+    ok("Heikel (nie still): weiter keine Kopie (E-397) — die Aufgabe selbst liegt beim Vertreter", !k9 && (await aufgabenVon(P9)).some((x) => anVertreter(x)), { k9, k9b });
 
     // Vertreter = Betreiber: Board wie E-260, keine Kopie.
     await setzen(BETREIBER);
@@ -522,11 +523,11 @@ try {
     const Q2 = await person({ betreuer: ABWESEND });
     await pw.aufgabeAnBetreuer.ausfuehren({ titel: `Geld zurück? ${MARKE}`, text: `Kunde will sein Geld zurück (Widerruf) ${MARKE}.`, faellig_in_tagen: 0, dringend: true, kollege: "Leitung", rueckruf_am: "" }, k(Q2) as any);
     const q2 = await aufgabenVon(Q2);
-    ok("… „Leitung“ (8 abwesend): bei 13 + Kopie aufs Board", q2.some((x) => anVertreter(x)) && q2.some((x) => aufsBoard(x) && istKopie(x)) && !q2.some((x) => Number(x.zustaendig_agent_id) === ABWESEND), q2);
+    ok("… „Leitung“ (8 abwesend): bei 13, keine Kopie (E-397)", q2.some((x) => anVertreter(x)) && !q2.some(istKopie) && !q2.some((x) => Number(x.zustaendig_agent_id) === ABWESEND), q2);
     const Q3 = await person({ betreuer: ABWESEND });
     await pw.notizAnBetreuer.ausfuehren({ text: `Kunde droht mit dem Anwalt wegen der Mahnung ${MARKE}`, dringend: true, anrufen: false }, k(Q3) as any);
     const q3 = await aufgabenVon(Q3);
-    ok("notiz_an_betreuer (Anwaltsdrohung): bei 13 + Kopie aufs Board", q3.some((x) => anVertreter(x)) && q3.some((x) => aufsBoard(x) && istKopie(x)), q3);
+    ok("notiz_an_betreuer (Anwaltsdrohung): bei 13, keine Kopie (E-397)", q3.some((x) => anVertreter(x)) && !q3.some(istKopie), q3);
     const Q4 = await person({ betreuer: ABWESEND });
     await pw.notizAnBetreuer.ausfuehren({ text: `Kunde hat seinen Ausweis hochgeladen ${MARKE}`, dringend: false, anrufen: false }, k(Q4) as any);
     const q4 = await aufgabenVon(Q4);
@@ -538,7 +539,7 @@ try {
     const Q6 = await person({ betreuer: ABWESEND });
     await pl.anBetreuerUebergeben({ id: 990002, personId: Q6, ref: null, postfach: "support@fiaon.com", betreff: `Widerruf ${MARKE}`, zusammenfassung: `Kunde widerruft den Vertrag ${MARKE}`, grund: "Widerruf", dringend: true });
     const q6 = await aufgabenVon(Q6);
-    ok("… Widerruf: bei 13 + Kopie aufs Board", q6.some((x) => anVertreter(x)) && q6.some((x) => aufsBoard(x) && istKopie(x)), q6);
+    ok("… Widerruf: bei 13, keine Kopie (E-397)", q6.some((x) => anVertreter(x)) && !q6.some(istKopie), q6);
     const Q7 = await person({ betreuer: ANDERER });
     await pl.anBetreuerUebergeben({ id: 990003, personId: Q7, ref: null, postfach: "support@fiaon.com", betreff: `Frage ${MARKE}`, zusammenfassung: `Kunde von 505 ${MARKE}`, grund: "Rückfrage", dringend: false });
     ok("… auch für Kunden eines anderen Abwesenden (505)", (await aufgabenVon(Q7)).some(anVertreter));
@@ -576,7 +577,7 @@ try {
     const QE = await person({ betreuer: ABWESEND });
     await pw.eskalationVorbereiten.ausfuehren({ zitat: `Ich zahle keinen Cent ${MARKE}` }, k(QE) as any);
     const qe = (await sqlPool`SELECT zustaendig_art, zustaendig_agent_id, schluessel FROM fiaon_betreiber_todos WHERE created_at >= ${START} AND schluessel LIKE ${`postmeister:eskalation:${QE}%`}`) as any[];
-    ok("Eskalation „Zahlung verweigert“: bei 13 + Kopie aufs Board", qe.some(anVertreter) && qe.some((x) => aufsBoard(x) && istKopie(x)), qe);
+    ok("Eskalation „Zahlung verweigert“: bei 13, keine Kopie (E-397)", qe.some(anVertreter) && !qe.some(istKopie), qe);
   }
 
   // ═══ 5. Zugriff ════════════════════════════════════════════════════════════

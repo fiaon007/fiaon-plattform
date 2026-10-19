@@ -55,6 +55,8 @@ export interface Auftrag {
   zeitleiste: Beitrag[]; zeitleisteGekuerzt?: boolean; beitraege?: number;
   // E-029 (24.08.2026): der Austausch geht in beide Richtungen.
   frageAnAgent: boolean; neuFuerAgent: number; ergebnisPflicht: boolean; erledigtVon: string | null;
+  /** E-397: Schnell-Gründe statt Pflichtsatz (shared schnellGruende je Art). */
+  schnellGruende?: string[];
   /** Der Kunde hinter der Aufgabe (05.09.2026; E-IT-F: aus person_id, nie leer in kundeAnzeige). */
   ref?: string | null; kunde?: string | null; kundeTelefon?: string | null; personId?: number | null; kundeAnzeige?: string;
   // E-IT-F (08.10.2026)
@@ -466,7 +468,7 @@ function Auftraege({ daten, onGeaendert }: { daten: AuftraegeDaten; onGeaendert:
           ))}
         </div>
       )}
-      <p className="ta-fuss">„Erledigt“ schließt mit einem Klick; einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken – Pflicht ist er nur, wo eine Frage im Spiel war oder bei Kündigung, Widerruf, Beschwerde und Lage-Aufträgen. Viele Aufträge erledigen sich auch selbst, sobald du in der Akte ein Ergebnis erfasst, zurückrufst, auf WhatsApp antwortest oder eine Unterlage anforderst – das steht dann im Reiter „Erledigt“.</p>
+      <p className="ta-fuss">„Erledigt“ schließt mit einem Klick; einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken – Pflicht ist er nur, wo eine Frage im Spiel war oder bei Kündigung, Widerruf, Beschwerde und Lage-Aufträgen. Dafür gibt es Schnell-Gründe zum Antippen. Viele Aufträge erledigen sich auch selbst – sobald du in der Akte ein Ergebnis erfasst (dort mit Häkchen „damit erledigt“), zurückrufst, auf WhatsApp antwortest, eine Unterlage anforderst oder prüfst, eine Kündigung gebucht wird oder eine neue E-Mail-Adresse gespeichert ist. Den Grund siehst du im Reiter „Erledigt“. Rot heißt: echte Frist (Kündigung, Widerruf, Beschwerde, Löschantrag, Eskalation).</p>
     </div>
   );
 }
@@ -631,6 +633,12 @@ function AuftragInhalt({ a, pflicht, fehlerVonAussen, sperre, onErledigen, onCha
             {modus === "zurueck" && "Warum kannst du den Auftrag nicht übernehmen? Er geht mit deiner Begründung zurück an Justin."}
             {modus === "kommentar" && "Eine Notiz für die Zeitleiste – Justin sieht sie, der Auftrag läuft weiter."}
           </p>
+          {/* E-397: Schnell-Gründe — ein Tipp füllt den Satz (Pflicht erfüllt), Freitext geht weiterhin. */}
+          {modus === "ergebnis" && !!z.schnellGruende?.length && !(z.frageOffen || z.frageAnAgent || zl.some((b) => b.art === "frage")) && (
+            <div className="ta-schnell" data-fiaon="schnell-gruende">
+              {z.schnellGruende.map((g) => <button key={g} type="button" className={`ta-knopf klein${text === g ? " gut" : ""}`} onClick={() => setText(g)}>{g}</button>)}
+            </div>
+          )}
           <textarea className="ta-feld" rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus
             placeholder={modus === "frage" ? "Deine Frage …" : modus === "antwort" ? "Deine Antwort …" : modus === "ergebnis" ? (z.ergebnisPflicht ? "Das Ergebnis …" : "Was hast du gemacht? (freiwillig)") : modus === "zurueck" ? "Der Grund …" : "Deine Notiz …"} />
           <div className="ta-knoepfe" style={{ marginTop: 0 }}>

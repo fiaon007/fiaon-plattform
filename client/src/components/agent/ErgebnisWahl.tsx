@@ -45,6 +45,9 @@ import {
 // E-IT-A (08.10.2026): „Wieder dran" — nach Regel oder von Hand (1 / 2 Wochen).
 import { handwahlErlaubt } from "@shared/fiaon-wiedervorlage";
 import { WiedervorlageWahl, wahlDatum, heuteBerlin } from "@/components/agent/WiedervorlageWahl";
+// E-397: Häkchen „damit erledigt“ für die offenen Aufträge dieses Kunden (gelten bei „Erreicht“).
+import { AuftraegeHaken } from "@/components/agent/AuftraegeHaken";
+import { ereignisAusErgebnis } from "@shared/fiaon-auftrag-arten";
 
 /** Was ein Aufrufer zurückgibt, damit das Bauteil den Ausgang anzeigen kann. */
 export interface ErgebnisAusgang {
@@ -61,7 +64,7 @@ interface Props {
    */
   onErgebnis: (
     art: Ergebnis,
-    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string },
+    zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string; wiedervorlage?: string; erledigtAuftraege?: number[] },
   ) => Promise<ErgebnisAusgang>;
   /** Läuft gerade ein Ergebnis? Dann sind alle Knöpfe gesperrt. */
   laeuft?: string | null;
@@ -78,10 +81,12 @@ interface Props {
    * sind dann ausgegraut, die Wiedervorlage liegt höchstens 3 Werktage entfernt.
    */
   stufeA?: boolean;
+  /** E-397: Der Kunde — dann stehen seine offenen Aufträge (bei mir) mit Häkchen „damit erledigt“ darunter. */
+  personId?: number | null;
 }
 
 export function ErgebnisWahl({
-  onErgebnis, laeuft, kundeName, heute, vorgabeDatum, dicht, stufeA = false,
+  onErgebnis, laeuft, kundeName, heute, vorgabeDatum, dicht, stufeA = false, personId = null,
 }: Props) {
   // ── ALLE HAKEN STEHEN ÜBER DEM ERSTEN RETURN ────────────────────────────
   // AGENTS.md, zweimal in Softphone.tsx gelernt: „Rendered more hooks than
@@ -95,6 +100,9 @@ export function ErgebnisWahl({
   // E-IT-A: die Wahl „wieder dran" — gilt für das nächste Ergebnis, wo sie Sinn ergibt.
   const [wahl, setWahl] = useState("regel");
   const notizFeld = useRef<HTMLTextAreaElement | null>(null);
+  // E-397: die angehakten Aufträge — gehen nur bei einem „Erreicht“-Ergebnis mit.
+  const [haken, setHaken] = useState<number[]>([]);
+  const [hakenNeu, setHakenNeu] = useState(0);
 
   // Das Feld bekommt den Schreibzeiger, sobald es aufgeht. Wer am Telefon
   // sitzt, soll tippen können, ohne erst zu klicken.
@@ -108,12 +116,13 @@ export function ErgebnisWahl({
   const speichern = async (art: Ergebnis, zusatz: Parameters<Props["onErgebnis"]>[1]) => {
     setFehler(null);
     const wv = wahlDatum(wahl, heuteBerlin(), stufeA);
-    const a = await onErgebnis(art, wv && handwahlErlaubt(art) ? { ...zusatz, wiedervorlage: wv } : zusatz);
+    const mitHaken = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
+    const a = await onErgebnis(art, wv && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: wv } : mitHaken);
     // ── JEDER AUSGANG IST SICHTBAR ────────────────────────────────────────
     // Auch der Fehlerfall: Ein `catch`, das nichts anzeigt, verwandelt einen
     // Serverfehler in „der Knopf geht nicht".
     if (!a.ok) { setFehler(a.fehler || "Nicht gespeichert. Bitte erneut versuchen."); return; }
-    setOffen(null); setNotiz(""); setFehler(null);
+    setOffen(null); setNotiz(""); setFehler(null); setHaken([]); setHakenNeu((n) => n + 1);
   };
 
   const fragen = useFragen();
@@ -158,6 +167,8 @@ export function ErgebnisWahl({
           </button>
         ))}
       </div>
+
+      <AuftraegeHaken personId={personId} gewaehlt={haken} onWahl={setHaken} neu={hakenNeu} />
 
       {/* ── DER FEHLER STEHT AM BAUTEIL, NICHT IN EINEM TOOLTIP ───────────
           AGENTS.md: „Der Grund steht als TEXT am Knopf, nicht im Tooltip" —

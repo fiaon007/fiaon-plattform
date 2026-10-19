@@ -951,12 +951,14 @@ router.post("/telefon/aufnahme", async (req: Request, res: Response) => {
         // Eine Aufnahme ohne Zeile ist ein Datenschutz-Vorfall in Wartestellung:
         // Sie darf NIRGENDS hingeraten werden. Laut melden + in Justins Liste.
         console.error(`[TELEFON] AUFNAHME OHNE ZEILE: CallSid ${sid}, RecordingSid ${String(b?.RecordingSid || "")}, anruf=${anrufId} — nicht zugeordnet.`);
-        await sqlPool`
-          INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, letzte_aktivitaet)
-          VALUES ('Telefon: Aufnahme ohne Zuordnung',
-                  ${`Twilio meldete eine Aufnahme, die zu keiner Anruf-Zeile passt. CallSid ${sid}, RecordingSid ${String(b?.RecordingSid || "")}, anruf-Kennung ${anrufId ?? "fehlt"}. In Twilio prüfen und von Hand zuordnen — nichts raten.`},
-                  'telefon', 1, 'telefon-abgleich', NOW())
-        `.catch(() => {});
+        // E-397 (19.10.2026): EINE Zeile in der Alarm-Tafel (Ampel im Lagezimmer) statt eines neuen Auftrags je
+        // Aufnahme — jede Aufnahme hängt sich mit ihrer Kennung an; ohne neue Meldung geht der Alarm nach 72 h aus.
+        const { alarmMelden } = await import("../lib/fiaon-system-alarme");
+        await alarmMelden("telefon:aufnahme-ohne-zuordnung", {
+          quelle: "telefon-abgleich", stufe: "rot", titel: "Telefon: Aufnahme ohne Zuordnung", link: "/chef/s/team",
+          text: `Twilio meldete eine Aufnahme, die zu keiner Anruf-Zeile passt. CallSid ${sid}, RecordingSid ${String(b?.RecordingSid || "")}, anruf-Kennung ${anrufId ?? "fehlt"}. In Twilio prüfen und von Hand zuordnen — nichts raten.`,
+          anhaengen: true, endetNachStunden: 72,
+        });
       }
       // Nachbereitung im Hintergrund: Der Rückruf von Twilio darf nicht
       // minutenlang offen bleiben, sonst wiederholt Twilio ihn.
@@ -2697,14 +2699,18 @@ tageslauf("anruf-twilio-abgleich", async () => {
         await new Promise((x) => setTimeout(x, 150)); // Twilio-Ratenlimit schonen
       } catch { /* nächster */ }
     }
+    // E-397 (19.10.2026): EINE Zeile in der Alarm-Tafel (vorher ein Auftrag je Lauf ohne Schlüssel, 35 gleiche offen
+    // am 19.10.). Findet ein Lauf keine neue Abweichung, ist der Alarm vorbei — die alten Aufträge schließen mit.
+    const { alarmMelden, alarmVorbei } = await import("../lib/fiaon-system-alarme");
     if (falsch > 0) {
       console.warn(`[TELEFON] Twilio-Abgleich: ${falsch} von ${geprueft} Anrufen passen NICHT zu Twilios Aufzeichnung — als „Zuordnung unklar" markiert.`);
-      await sqlPool`
-        INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, letzte_aktivitaet)
-        VALUES ('Telefon: Zuordnungs-Abgleich meldet Abweichungen',
-                ${`${falsch} Anruf(e) der letzten 48 Stunden tragen eine andere Nummer als Twilios eigene Aufzeichnung. In der Team-Zentrale unter „Zuordnung prüfen" ansehen.`},
-                'telefon', 1, 'telefon-abgleich', NOW())
-      `.catch(() => {});
+      await alarmMelden("telefon:abgleich", {
+        quelle: "telefon-abgleich", stufe: "gelb", titel: "Telefon: Zuordnungs-Abgleich meldet Abweichungen", link: "/chef/s/team",
+        text: `${falsch} Anruf(e) der letzten 48 Stunden tragen eine andere Nummer als Twilios eigene Aufzeichnung. In der Team-Zentrale unter „Zuordnung prüfen" ansehen.`,
+      });
+    } else if (geprueft > 0) {
+      await alarmVorbei("telefon:abgleich", `Abgleich ohne neue Abweichung (${geprueft} Anrufe geprüft)`, sqlPool,
+        { auftraege: { quelle: "telefon-abgleich", schluesselWie: null } });
     }
   })();
 }, 24 * 60 * 60 * 1000, { beimStartNach: 10 * 60_000 });

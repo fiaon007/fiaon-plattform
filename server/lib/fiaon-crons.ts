@@ -673,20 +673,27 @@ export async function verkaufsLaeufeWachen(opts: { nichtSenden?: boolean } = {})
     `.catch(() => [])) as any[];
     const liefen = Number(z?.liefen || 0);
     const erster = z?.erster ? new Date(z.erster).getTime() : null;
+    // E-397 (19.10.2026): Hat der Lauf wieder verschickt, ist der Alarm vorbei — die Zeile in der Tafel geht aus,
+    // alte Tages-Aufträge „lauf:<name>:null-versand:<Tag>“ schließen mit „Alarm vorbei“.
+    if (liefen && Number(z?.versandt || 0) > 0 && !opts.nichtSenden) {
+      const { alarmVorbei } = await import("./fiaon-system-alarme");
+      await alarmVorbei(`lauf:${name}:null-versand`, `verschickt wieder (${Number(z?.versandt)} in 24 h)`, sqlPool,
+        { auftraege: { quelle: "lauf-waechter", schluesselWie: `lauf:${name}:null-versand:%` } });
+    }
     if (!liefen || Number(z?.versandt || 0) > 0 || erster == null || Date.now() - erster < (VERKAUF_STUMM_STUNDEN - 4) * 3_600_000) continue;
     stumm.push(name);
     if (opts.nichtSenden) continue;
-    const tag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
     try {
-      const { todoAnlegen } = await import("../routes/fiaon-betreiber-todo");
-      await todoAnlegen(`lauf:${name}:null-versand:${tag}`, {
+      // E-397: EINE Zeile in der Alarm-Tafel (Ampel im Lagezimmer) statt eines Auftrags je Tag.
+      const { alarmMelden } = await import("./fiaon-system-alarme");
+      await alarmMelden(`lauf:${name}:null-versand`, {
+        quelle: "lauf-waechter", stufe: "rot", link: "/admin/hub",
         titel: `Verkaufslauf „${name}“: seit 24 Stunden nichts verschickt`,
         text: `Der Lauf „${name}“ lief in den letzten 24 Stunden ${liefen}-mal ohne Fehler, hat aber keine einzige Nachricht verschickt. `
           + `Zweck: ${LAUF_FOLGEN[name]?.zweck ?? name}. Was ausfällt: ${LAUF_FOLGEN[name]?.folge ?? "—"} `
           + "Bitte prüfen: Schalter, KI-Pause, Deckel, WhatsApp-Bremse, Auswahl (Meldungen in fiaon_lauf_historie, Stand unter /admin/hub).",
-        bereich: "technik", prioritaet: 1, link: "/admin/hub", quelle: "lauf-waechter",
       });
-      console.warn(`[CRONS] Verkaufslauf ${name}: 24 h ohne Versand — Betreiber-Aufgabe angelegt.`);
+      console.warn(`[CRONS] Verkaufslauf ${name}: 24 h ohne Versand — Alarm in der Tafel.`);
     } catch (e) {
       console.error(`[CRONS] Wächter ${name}:`, e instanceof Error ? e.message : e);
     }

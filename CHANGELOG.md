@@ -5,6 +5,36 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-397 Großer Hausputz der Aufgaben: Alarme als Ampel, Karten leicht, neue Ereignisse, Aufräum-Lauf mit Probelauf
+- **Was:** (1) Hahn zu: System-Alarme (Lead-Motor, KI-Pause, WhatsApp-Bremse/ROT, Telefon-Abgleich, Lauf-Wächter) sind keine
+  Aufträge mehr, sondern EINE Zeile je Alarm in fiaon_system_alarme (fester Schlüssel, zählt, geht von selbst aus; alte Aufträge
+  schließen mit „Alarm vorbei“). Keine Kopien „Zur Kenntnis“ mehr an Justin. Termintreue ohne Aufträge (die Ampel liest
+  fiaon_termin_treue). Keine „FRIST GERISSEN“-Vermerke mehr (der Rückruf wird rot, die Leitung bekommt weiter die Mail).
+  (2) Karten leicht: „Heute N Entscheidungen, etwa M Minuten“ (Reiter Entscheidungen und Lagezimmer), Sammelkarten für gleiche
+  Fälle (Kündigung ungebucht, Mahnstopp, Werbesperre — je Fall seine eigene Empfehlung, einzeln abwählbar), der Sammler läuft alle
+  30 Minuten. (3) Neue Ereignisse: Kündigung gebucht / Vertrag beendet (nur reine Kündigungs-Fälle), Unterlage geprüft,
+  Alarm vorbei, Kartenlink von Mara, neue E-Mail-Adresse („Mail unzustellbar“), Kunde archiviert, Testkonto; „Mara hat
+  geantwortet“ zeigt seinen Grund; ein Gesprächsergebnis „erreicht“ schließt den Rückruf-Wunsch; Häkchen „damit erledigt“
+  beim Gesprächsergebnis. (4) Aufräum-Lauf: Probelauf zählt je Regel (nichts ändert sich), der Lauf läuft nur mit Freigabe
+  (HAUSPUTZ_FREIGABE nach Justins „go“), jede Änderung steht mit dem Zustand vorher in fiaon_hausputz_log und ist 30 Tage
+  rückholbar. (5) Rot nur bei echter Frist, Schnell-Gründe statt Pflichtsatz, Filter „heikel“ in Meine Liste, KYC-Liste nur
+  laufende Verträge.
+- **Warum:** Justin am 19.10.: „Jeder hat dutzende, hunderte Aufgaben, aber niemand kann diese erledigen, weiß nicht wie, sie
+  sind veraltet oder bereits erledigt.“ Gemessen: 2.180 offen, nur 5,6 % jünger als 7 Tage, 1.057 bei Justin, 70 Karten seit
+  dem 16.10. unentschieden. Probelauf (nur lesend gegen Produktion, 19.10.): 2.180 → 972, bei Justin 1.162 → 232.
+- **Leitplanken:** Erstattung schließt nie das System; Heikles nur beim Testkonto (Kündigung nur als reiner Kündigungs-Fall);
+  Doppel werden zusammengeführt, nie gelöscht; Einträge bei Gesperrten umgehängt, nie an Justin; offene Frage oder von Hand
+  wieder geöffnet → unberührt.
+- **Wo:** shared/fiaon-auftrag-arten.ts (Ereignisse, ereignisSchliesstArt, nurKuendigung, istErstattung, schnellGruende,
+  auftragDringend), shared/fiaon-hausputz-regeln.ts (Regeln, Kandidaten-SELECTs, Bewertung, Zählung), server/lib/fiaon-auftraege.ts,
+  server/lib/fiaon-system-alarme.ts, server/lib/fiaon-hausputz.ts, server/routes/fiaon-aufgaben-lage.ts (GET /chef/aufgaben-lage,
+  POST /chef/hausputz/probelauf|zurueck, Läufe), server/lib/fiaon-mara-entscheidungen.ts (tagesLast, sammelGruppen,
+  entscheidenSammel) + Route /chef/mara/entscheidungen/sammel, Erzeuger (meta-leads, ki-pause, wa-bremse, telefonie, crons,
+  termintreue, rueckruf, abwesenheit), Ereignis-Stellen (kuendigung, abo, unterlagen, konto-karte, agent, kunde-bereich,
+  antrag-archiv, testerkennung, postmeister-lauf), client ChefAufgabenLage.tsx (Lagezimmer), ChefMaraEntscheidungen.tsx,
+  AuftraegeHaken.tsx, ErgebnisWahl.tsx, pipeline.tsx, tasks.tsx, AuftragLeiste.tsx, admin-todo.tsx, Rundgänge, Team-Update,
+  db/migrations/115_hausputz.sql; Prüfstand scripts/pruef-e397-hausputz.ts, Nachrechnung scripts/hausputz-probelauf.ts.
+
 ## 15.10.2026 — E-379 Ratgeber: jeden Tag ein neuer Artikel für Privat und für Business — selbst recherchiert, geprüft, veröffentlicht
 - **Was:** Die Redaktion arbeitet wieder — und zwar selbst. Ab 06:00 (Berlin) sucht sie je Bereich das Thema des Tages mit der
   Websuche (OpenAI /v1/responses, Modell gpt-5.5, über openaiFetch: Anbieter-Weiche, KI-Pause, Kosten in fiaon_ki_nutzung), prüft,

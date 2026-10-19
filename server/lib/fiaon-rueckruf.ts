@@ -172,11 +172,9 @@ export async function rueckrufErledigen(
 /**
  * Der Tageslauf: Wer die Frist gerissen hat, eskaliert.
  *
- * Zwei Wirkungen, und beide sind nötig:
- *   · Eine Karte im Admin — der Betreiber SIEHT es.
- *   · Eine Team-Nachricht an die Leitung — jemand wird ANGESPROCHEN.
- * Eine Karte allein wird übersehen, eine Nachricht allein verschwindet im
- * Posteingang.
+ * Seit E-397 (19.10.2026) eine Wirkung: eine Nachricht an die Leitung — jemand
+ * wird ANGESPROCHEN. Die frühere Karte „FRIST GERISSEN“ im Admin entfällt: Der
+ * Rückruf steht in /agent/rueckrufe rot, und das Gesprächsergebnis schließt ihn.
  *
  * Idempotent über `eskaliert_am`: Ein zweiter Lauf eskaliert nicht erneut.
  */
@@ -203,16 +201,10 @@ export async function rueckrufeEskalieren(lauf: Lauf = sqlPool): Promise<{
     await lauf`
       UPDATE fiaon_rueckrufe SET eskaliert_am = NOW(), updated_at = NOW() WHERE id = ${r.id}
     `;
-    // Die Karte für den Betreiber: eine Aufgabe „für den Betreiber".
-    await lauf`
-      INSERT INTO fiaon_vermerke
-        (art, ref, text, sicht, fuer_betreiber, faellig_am, dringend, autor_art, autor_name)
-      VALUES ('aufgabe', ${r.ref ?? null},
-              ${`FRIST GERISSEN — Rückruf an ${r.kunde} seit ${formatBerlin(r.frist_bis)} offen.`
-                + `${r.agent_name ? ` Zuständig: ${r.agent_name}.` : " Niemand zuständig."}`
-                + ` Anliegen: ${String(r.anliegen).slice(0, 600)}`},
-              'team', TRUE, (NOW() AT TIME ZONE 'Europe/Berlin')::date, TRUE, 'system', 'System')
-    `.catch((e) => console.error("[RUECKRUF] Eskalationskarte:", e));
+    // E-397 (19.10.2026): KEINE Karte „FRIST GERISSEN“ mehr (102 offen am 19.10., alle vom 03.–10.09., keine je
+    // erledigt — rueckrufErledigen schloss nur „RÜCKRUF binnen 24 h“). Der Rückruf selbst steht in /agent/rueckrufe
+    // ab jetzt rot (ueberfaellig), ein Gesprächsergebnis schließt ihn (fiaon-auftraege.ts, rueckrufeDurchGespraech).
+    // Die Mail an die Leitung bleibt: Jemand wird angesprochen.
 
     // Und die Nachricht an die Leitung.
     try {

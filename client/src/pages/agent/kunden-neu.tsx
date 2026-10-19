@@ -2141,6 +2141,7 @@ function KundenKarte({
             `shared/fiaon-kontakt-ergebnis-liste.ts`.
             ══════════════════════════════════════════════════════════════ */}
         <ErgebnisWahl
+          personId={k.personId}
           onErgebnis={(art, zusatz) => ergebnis(art, zusatz)}
           laeuft={laeuft}
           kundeName={k.name}

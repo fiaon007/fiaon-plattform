@@ -602,9 +602,15 @@ export async function uebergabeSchliessen(
         }
         continue;
       }
+      // E-397: mit Art und Grund wie jedes Ereignis — „Automatisch erledigt durch Mara hat geantwortet (Mail #id)“,
+      // sichtbar in „Erledigt“ und mit „Wieder öffnen“ rückholbar. Antwortet ein Mensch (Zentrale, Betreuer),
+      // heißt der Grund „Antwort gesendet (<Name>)“.
+      const vonMara = /^Mara/i.test(wer);
+      const ereignisText = vonMara ? `Mara hat geantwortet (Mail #${ein.id}) – ${wer}` : `Antwort gesendet (Mail #${ein.id}) – ${wer}`;
       const fertig = (await sqlPool`
         UPDATE fiaon_betreiber_todos t
            SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${wer.slice(0, 120)},
+               erledigt_art = ${opt.menschEntscheidet ? "hand" : "auto"}, erledigt_ereignis = ${ereignisText.slice(0, 300)},
                ergebnis = ${ergebnis.slice(0, 500)}, updated_at = NOW(), letzte_aktivitaet = NOW()
          WHERE t.id = ${Number(t.id)} AND t.status <> 'erledigt'
            -- Hat sich inzwischen eine weitere Mail angehängt, entscheidet der nächste Versand.
@@ -620,7 +626,13 @@ export async function uebergabeSchliessen(
                   OR (${k.sperreRef}::text IS NOT NULL AND p.ref = ${k.sperreRef}::text)))
          RETURNING t.id
       `) as any[];
-      if (fertig.length) geschlossen = true;
+      if (fertig.length) {
+        geschlossen = true;
+        await sqlPool`
+          INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
+          VALUES (${Number(t.id)}, 'system', ${wer.slice(0, 120)}, 'status', ${`Automatisch erledigt durch ${ereignisText}`})
+        `.catch(() => {});
+      }
     } catch (e) {
       console.error("[POSTMEISTER] Übergabe schließen:", String(e).slice(0, 160));
     }

@@ -186,6 +186,12 @@ export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOpti
       VALUES (${ref}, ${opts.personId}, ${opts.unterzeichner?.agentId ?? null}, ${zeichner.name}, 'system',
               ${`Kündigung durchgeführt (${erg.weg}${opts.sofort ? ", Kulanz sofort" : ""}). Grund: ${String(opts.grund ?? "").slice(0, 200)}. Urkunde: ${urkunde ? "ausgefertigt" : "FEHLT"}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.`}, NOW())`.catch(() => {});
   }
+  // E-397: „Kündigung gebucht“ schließt die reinen Kündigungs-Aufträge dieses Menschen (Widerruf, Beschwerde,
+  // Erstattung bleiben offen); endet der Vertrag damit sofort, zusätzlich „Vertrag beendet“. Wirft nie.
+  if (erg.weg !== "bereits") {
+    const { kuendigungGebuchtMelden } = await import("../lib/fiaon-auftraege");
+    await kuendigungGebuchtMelden(ref, { weg: erg.weg, personId: opts.personId ?? null, wer: zeichner.name, agentId: opts.unterzeichner?.agentId ?? null });
+  }
   return { ...erg, urkunde, urkundeFehler, mailGesendet };
 }
 
@@ -238,6 +244,11 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
                  admin_note = COALESCE(admin_note, '') || ' [E-092 nach neuer Regel bearbeitet]'
            WHERE ref = ${k.ref} AND status = 'pending'
         `.catch(() => {});
+        // E-397: auch der Altbestand-Lauf meldet „Kündigung gebucht“ (er geht an kuendigungDurchfuehren vorbei).
+        if (erg.weg !== "bereits") {
+          const { kuendigungGebuchtMelden } = await import("../lib/fiaon-auftraege");
+          await kuendigungGebuchtMelden(k.ref, { weg: erg.weg, personId: null, wer: "Verwaltung (Altbestand)", agentId: null });
+        }
       }
       if (schreiben && mailSenden && erg.ok) { if (await bestaetigungSenden(k.ref).catch(() => false)) mails += 1; }
       ergebnisse.push({ ref: k.ref, weg: erg.weg, letzteRate: erg.letzteRateNr, storniert: erg.stornierteRaten, grund: erg.grund });

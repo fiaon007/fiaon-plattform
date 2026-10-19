@@ -763,6 +763,16 @@ a.mp-name:hover { text-decoration: underline; }
 .me-verlauf li > :not(.mara-etikett) { grid-column: 2; }
 .me-verlauf-was b { font-weight: 400; color: var(--m-text); }
 .me-verlauf-ergebnis { color: var(--m-text-2); }
+/* E-397: Sammelkarte (gleiche Fälle, Häkchen zum Abwählen) und die Zeile „Heute N Entscheidungen, etwa M Minuten“. */
+.me-sammel { border-color: rgba(96, 165, 250, .38); }
+.me-sammel-liste { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
+.me-sammel-liste li { display: flex; flex-direction: column; gap: 1px; padding: 7px 0; border-top: 1px solid var(--m-linie); font-size: 13px; }
+.me-sammel-liste li:first-child { border-top: 0; }
+.me-sammel-liste label { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; color: var(--m-text); }
+.me-sammel-liste label input { width: 16px; height: 16px; accent-color: #3b82f6; }
+.me-sammel-liste .mara-still { padding-left: 25px; line-height: 1.45; }
+.me-last .st-text > div { color: var(--m-text); }
+.me-last .me-warn { color: var(--m-warn, #fcd34d); }
 @media (max-width: 760px) {
   .me-knoepfe .mara-knopf:not(.text) { flex: 1 1 auto; justify-content: center; text-align: center; }
   .me-verlauf li { grid-template-columns: minmax(0, 1fr); }

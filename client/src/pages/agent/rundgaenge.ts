@@ -732,7 +732,8 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
     ziel: '[data-reiter="auftraege"]',
     titel: "Aufträge: nur, was wirklich offen ist.",
     text: "Hier steht jeder offene Auftrag in einer Zeile: Kunde, Art, Eingang und Status. Dringende stehen oben, "
-      + "darin die ältesten zuerst — so kommt auch der Rückstand dran. Oben rechts schaltest du auf „Neueste zuerst“ um; "
+      + "darin die ältesten zuerst — so kommt auch der Rückstand dran. „Dringend“ (rot) heißt seit dem 19.10.: echte Frist — "
+      + "Kündigung und Widerruf, Beschwerde, Löschantrag, Eskalation, WhatsApp heikel. Oben rechts schaltest du auf „Neueste zuerst“ um; "
       + "die Wahl merkt sich dein Gerät.",
     tipp: "Der Eingang steht immer dabei („Eingang: 08.10. 14:32“). Steht daneben „neue Nachricht …“, hat der Kunde inzwischen noch einmal geschrieben.",
   },
@@ -748,6 +749,14 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
       + "klappt auf. Einen Satz zum Ergebnis kannst du in der aufgeklappten Zeile mitschicken. Pflicht ist er nur, wenn es "
       + "eine Frage gab, bei Kündigung, Widerruf, Beschwerde oder Löschantrag und bei Lage-Aufträgen wie „E-Mail unzustellbar“ "
       + "— dann öffnet sich das Feld von selbst.",
+    tipp: "Statt selbst zu tippen: die Schnell-Gründe über dem Feld antippen („Kunde informiert“, „Kündigung gebucht und bestätigt“, "
+      + "„Neue E-Mail-Adresse eingetragen“ …). Freitext geht weiterhin.",
+  },
+  {
+    titel: "Neu: Häkchen „damit erledigt“ beim Gesprächsergebnis.",
+    text: "In der Akte stehen unter den Ergebnis-Knöpfen die offenen Aufträge dieses Kunden, die bei dir liegen — jeweils mit einem "
+      + "Häkchen. Hake an, was das Gespräch erledigt hat, dann wähle „Erreicht …“. Die angehakten Aufträge gehen mit zu; bei Kündigung, "
+      + "Widerruf, Beschwerde und Lage-Aufträgen nur mit einer Notiz zum Gespräch. So zählt jeder Anruf.",
   },
   {
     titel: "Viele Aufträge erledigen sich selbst.",
@@ -761,10 +770,19 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
     tipp: "„Nicht erreicht“ schließt nichts — der Versuch steht im Verlauf. Arbeitet ein Kollege an deinem Kunden (Gespräch, Kartenlink, Unterlage), steht bei dir nur ein Hinweis „… – bitte prüfen“.",
   },
   {
+    titel: "Seit dem 19.10. schließen auch diese Tatsachen.",
+    text: "Kündigung gebucht oder Vertrag beendet (nur reine Kündigungs-Fälle — Widerruf, Beschwerde und Erstattung bleiben offen), "
+      + "Unterlage geprüft („Unterlagen eingegangen“), Maras Antwort ist raus („Kunde hat geschrieben“, wenn nur die Antwort fehlte), "
+      + "Mara hat den Kartenlink geschickt, eine neue E-Mail-Adresse ist gespeichert („Mail unzustellbar“), der Kunde ist archiviert oder ein Testkonto. "
+      + "Ein Gesprächsergebnis „erreicht“ erledigt außerdem den offenen Rückruf-Wunsch in deiner Rückruf-Liste.",
+    tipp: "Eine Erstattung schließt nie das System. Und was du selbst wieder geöffnet hast, schließt kein Ereignis mehr.",
+  },
+  {
     ziel: '[data-reiter="erledigt"]',
     titel: "Erledigt — und wieder öffnen.",
-    text: "Hier stehen deine erledigten Aufgaben und die Aufträge der letzten 30 Tage, jeweils mit „von …“ oder "
-      + "„automatisch durch …“. War etwas zu früh zu, holt „Wieder öffnen“ den Auftrag zurück in die Liste. Öffnet das System "
+    text: "Hier stehen deine erledigten Aufgaben und die Aufträge der letzten 30 Tage, jeweils mit „von …“, "
+      + "„automatisch durch …“ oder „Beim Hausputz erledigt: …“ (der einmalige Aufräum-Lauf, immer mit Grund). War etwas zu früh zu, "
+      + "holt „Wieder öffnen“ den Auftrag zurück in die Liste. Öffnet das System "
       + "einen Auftrag wieder — etwa weil der Kunde noch einmal schreibt —, steht er als „Wieder offen“ mit Grund in der Liste.",
   },
 ];
@@ -1727,7 +1745,7 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: "[aria-controls=\"mara-p-wa\"]",
     titel: "Der Chip „WhatsApp“: die Bremse.",
     text: "Kann Meta nicht abbuchen (#131042, zweimal in 60 Minuten) oder sperrt Meta das Konto, pausiert WhatsApp von selbst: "
-      + "keine Vorlage mehr, auf keinem Weg — und du bekommst genau eine Aufgabe. Ein Klick auf den Chip zeigt Zustand, "
+      + "keine Vorlage mehr, auf keinem Weg — und im Lagezimmer steht eine rote Zeile in der Ampel (seit 19.10. kein Auftrag mehr; sie geht beim Aktivieren von selbst aus). Ein Klick auf den Chip zeigt Zustand, "
       + "Meta-Qualität und die Fehler der letzten 24 Stunden; dort und im roten Band steht „WhatsApp wieder aktivieren“.",
     tipp: "Vor dem Aktivieren fragt das System Metas Kontostand ab, ohne eine Nachricht zu schicken — meldet Meta „gesperrt“ "
       + "oder lehnt den Zugang ab (#190), bleibt die Pause. Meta GELB halbiert die Automatik, Meta ROT stoppt die Werbung an bestehende "
@@ -1823,8 +1841,16 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
   {
     ziel: ".me-status",
     titel: "Oben: was auf dich wartet.",
-    text: "Die Zahl sind die offenen Entscheidungen — Geld und Recht stehen vorn. Mara sucht sie selbst, höchstens alle zehn Minuten; "
-      + "„Neu prüfen“ sofort.",
+    text: "Die Zahl sind die offenen Entscheidungen — Geld und Recht stehen vorn. Daneben: „Heute N Entscheidungen, etwa M Minuten“ "
+      + "(Sammelkarten zählen als eine) und ob eine Karte älter als 2 Tage ist — das Ziel ist: keine. Mara sucht sie alle 30 Minuten "
+      + "von selbst, auch wenn niemand hier ist; „Neu prüfen“ sofort. Dieselbe Zeile steht im Lagezimmer.",
+  },
+  {
+    titel: "Sammelkarten: gleiche Fälle, ein Klick.",
+    text: "Gleiche Fälle (z. B. mehrere ungebuchte Kündigungen oder Mahnstopps mit derselben Empfehlung) kommen als EINE Karte. "
+      + "Der blaue Knopf führt je Fall seine eigene Empfehlung aus — wie auf der Einzelkarte. Häkchen weg: Dieser Fall bleibt offen. "
+      + "„Einzeln entscheiden“ zeigt die Fälle wieder als eigene Karten.",
+    tipp: "Geld (Eingänge, Raten, Erstattungen) und Mail-Entwürfe bleiben immer Einzelkarten.",
   },
   {
     ziel: ".me-karte .me-knoepfe",
@@ -1871,7 +1897,8 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
       + "in seinem Raster, nie gleichzeitig mit einem Termin, den er für das Team anruft; auch die Terminseite (der Kunden-Link "
       + "„Termin buchen“) zeigt Kunden der Abwesenden bis dahin nur seine Zeiten. Danach geht es wie sonst zum Betreuer oder ins Team. "
       + "Ihre Übergaben bekommt der Vertreter — er öffnet dafür Akte und WhatsApp der Vertretenen; Heikles (Kündigung, Beschwerde, "
-      + "Bestreiten, Zahlungsverweigerung, Löschwunsch, Anwalt) liegt zusätzlich auf deinem Board. Bist du selbst der Vertreter, landet alles auf deinem "
+      + "Bestreiten, Zahlungsverweigerung, Löschwunsch, Anwalt) zählt im Lagezimmer unter „heikel neu“ (Filter „heikel“ in Meine Liste) — "
+      + "seit dem 19.10. ohne zusätzliche Kopie auf deinem Board. Bist du selbst der Vertreter, landet alles auf deinem "
       + "Board. Die Kunden bleiben bei ihren Betreuern — auch die eines gesperrten Betreuers.",
     tipp: "Beim Einschalten wählst du „bis“ (Vorgabe: der nächste Freitag 09:00), wer anruft und für wen. Nach „bis“ geht "
       + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll. Gründer-Gespräche und FIAON Global bleiben "
@@ -2136,8 +2163,8 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
     ziel: "[aria-controls=\"mara-p-wa\"]",
     titel: "Der Chip „WhatsApp“: die Bremse.",
     text: "Grün heißt: WhatsApp läuft. Kann Meta nicht abbuchen (#131042, zweimal in 60 Minuten), sperrt Meta das Konto oder ist "
-      + "der Meta-Zugang abgelaufen (#190), pausiert WhatsApp von selbst — keine Vorlage mehr, auf keinem Weg, und du bekommst "
-      + "genau eine Aufgabe. Ein Klick zeigt Zustand, Meta-Qualität und die Fehler der letzten 24 Stunden; dort steht auch "
+      + "der Meta-Zugang abgelaufen (#190), pausiert WhatsApp von selbst — keine Vorlage mehr, auf keinem Weg, und im Lagezimmer steht "
+      + "eine rote Zeile in der Ampel (kein Auftrag mehr, E-397). Ein Klick zeigt Zustand, Meta-Qualität und die Fehler der letzten 24 Stunden; dort steht auch "
       + "„WhatsApp wieder aktivieren“.",
     tipp: "Vor dem Aktivieren fragt das System Metas Kontostand ab, ohne eine Nachricht zu schicken — meldet Meta „gesperrt“ "
       + "oder lehnt den Zugang ab, bleibt die Pause.",

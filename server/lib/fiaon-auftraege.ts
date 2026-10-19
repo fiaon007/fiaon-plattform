@@ -31,7 +31,8 @@
 import { sqlPool } from "./db-pool";
 import {
   AUFTRAG_ARTEN, AUFTRAG_EREIGNISSE, artenFuerEreignis, artNachInhalt, auftragArtVon, autoErledigtText, berlinTagZeit,
-  istAuftragArt, istKontaktEreignis, kundeAusAuftrag, unterlagePasst, type AuftragArt, type AuftragArtRegel, type AuftragEreignis,
+  ereignisSchliesstArt, ereignisUeberPerson, istAuftragArt, istKontaktEreignis, kandidatArtenFuerEreignis, kundeAusAuftrag,
+  TATSACHEN_EREIGNISSE, unterlagePasst, type AuftragArt, type AuftragArtRegel, type AuftragEreignis,
 } from "../../shared/fiaon-auftrag-arten";
 
 type Lauf = typeof sqlPool;
@@ -99,7 +100,8 @@ export async function auftragBeitrag(todoId: number, b: BeitragEin, lauf: Lauf =
 // ERLEDIGEN UND WIEDER ÖFFNEN — DER EINE WEG
 // ───────────────────────────────────────────────────────────────────────────
 export interface ErledigenEin {
-  art: "hand" | "auto" | "verwaltung";
+  /** E-397: „hausputz“ = der einmalige Aufräum-Lauf (zählt als System, 30 Tage rückholbar). */
+  art: "hand" | "auto" | "verwaltung" | "hausputz";
   /** Name, der in „erledigt von" steht. */
   von: string;
   autorArt: "agent" | "betreiber" | "system";
@@ -343,6 +345,25 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
     // Stunde. Den Altbestand trägt der Hintergrundlauf nach dem Start nach (auftraegeZuordnenNachholen).
     await auftraegeZuordnen({ nurOffen: true, grenze: 40 }, lauf);
 
+    // ── E-397: was neben den Aufträgen zugeht ─────────────────────────────────────────────────────────────
+    // Ein ERREICHTES Gespräch erledigt auch den offenen Rückruf-Wunsch (fiaon_rueckrufe) — beim Zuständigen
+    // selbst oder wenn niemand (mehr) zuständig ist; eine geprüfte Unterlage die Aufgabe „Unterlagen
+    // eingegangen“, sobald nichts Ungeprüftes mehr da ist. Ein Fehler dort hält die Aufträge nicht auf.
+    if (ein.ereignis === "ergebnis_erreicht" && kreis.ids.length) {
+      wirkung.vermerkt += await rueckrufeDurchGespraech(kreis.ids, ein, am, lauf).catch((e) => { console.error("[AUFTRÄGE] Rückrufe:", String(e).slice(0, 160)); return 0; });
+    }
+    if (ein.ereignis === "unterlage_geprueft" && kreis.ids.length) {
+      wirkung.vermerkt += await unterlagenVermerkeSchliessen(kreis.ids, ein, lauf).catch((e) => { console.error("[AUFTRÄGE] Unterlagen-Vermerke:", String(e).slice(0, 160)); return 0; });
+    }
+    // „Kunde archiviert“ gilt erst, wenn der Mensch KEINE laufende Bestellung mehr hat (archiviert wird je Bestellung).
+    if (ein.ereignis === "kunde_archiviert" && kreis.ids.length) {
+      const [aktiv] = (await lauf`
+        SELECT 1 AS da FROM fiaon_applications
+         WHERE person_id = ANY(${kreis.ids}::int[]) AND merged_into IS NULL AND archived_at IS NULL AND COALESCE(ist_entwurf, FALSE) = FALSE
+         LIMIT 1`) as any[];
+      if (aktiv) return wirkung;
+    }
+
     if (ein.ereignis === "ergebnis_versuch") {
       if (!kreis.ids.length) return wirkung;
       const arten = artenFuerEreignis("ergebnis_erreicht");
@@ -376,18 +397,25 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
       }
     }
 
-    const arten = artenFuerEreignis(ein.ereignis);
+    // E-397: Kandidaten auch für die Sonderregeln (Kündigung gebucht schließt „Kündigung“, Testkonto alles außer
+    // Erstattung …); die Feinprüfung je Auftrag macht ereignisSchliesstArt (shared/fiaon-auftrag-arten.ts).
+    const arten = kandidatArtenFuerEreignis(ein.ereignis);
     if (!arten.length) return wirkung;
     const artenPerson = arten.filter((a) => AUFTRAG_ARTEN[a].bezug === "person");
     const artenRef = arten.filter((a) => AUFTRAG_ARTEN[a].bezug === "ref");
-    const nurTeam = ein.ereignis !== "zahlung_gebucht";
+    // Tatsachen (E-397) gelten auch auf Justins Board und finden Bestellungs-Aufträge über alle Bestellungen der Person.
+    const tatsache = TATSACHEN_EREIGNISSE.includes(ein.ereignis);
+    const nurTeam = ein.ereignis !== "zahlung_gebucht" && !tatsache;
+    const ueberPerson = ereignisUeberPerson(ein.ereignis) && kreis.ids.length > 0;
     const kandidaten = (await lauf`
       SELECT id, schluessel, quelle, bereich, titel, LEFT(text, 20000) AS text, art, zustaendig_art, zustaendig_agent_id, frage_offen, frage_an_agent, status,
              COALESCE(neu_seit, eingang_am, created_at) AS neu_seit, wieder_offen_grund, ref AS auftrag_ref
         FROM fiaon_betreiber_todos
        WHERE status <> 'erledigt'
          AND ((art = ANY(${artenPerson}::text[]) AND person_id = ANY(${kreis.ids}::int[]))
-           OR (art = ANY(${artenRef}::text[]) AND ${ref}::text IS NOT NULL AND ref = ${ref}::text))
+           OR (art = ANY(${artenRef}::text[]) AND ${ref}::text IS NOT NULL AND ref = ${ref}::text)
+           OR (${ueberPerson} AND art = ANY(${artenRef}::text[]) AND (person_id = ANY(${kreis.ids}::int[])
+               OR ref IN (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ANY(${kreis.ids}::int[])))))
          AND (${!nurTeam} OR zustaendig_art = 'agent')
        ORDER BY id`) as any[];
     let entwurf: boolean | null = null;
@@ -405,7 +433,10 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
       if (abgeleitet !== t.art) await lauf`UPDATE fiaon_betreiber_todos SET art = ${abgeleitet} WHERE id = ${id}`;
       const artName: unknown = abgeleitet;
       const regel: AuftragArtRegel | null = istAuftragArt(artName) ? AUFTRAG_ARTEN[artName] : null;
-      if (!regel || regel.nurHand) { wirkung.ausgelassen.push({ id, grund: "nur von Hand" }); continue; }
+      // E-397: EINE Regel (ereignisSchliesstArt) — nurHand-Arten nur über die engen Sonderregeln (Kündigung, Testkonto, Alarm).
+      if (!regel || !istAuftragArt(artName) || !ereignisSchliesstArt(ein.ereignis, artName, { titel: t.titel, text: t.text, schluessel: t.schluessel, quelle: t.quelle })) {
+        wirkung.ausgelassen.push({ id, grund: regel?.nurHand ? "nur von Hand" : "Ereignis passt nicht" }); continue;
+      }
       const wasDetail = `${AUFTRAG_EREIGNISSE[ein.ereignis].label}${ein.detail ? ` (${ein.detail})` : ""}`;
       // ── Querprüfung 08.10.2026 (E-303 × Strang f): „Zahlung gemeldet, nicht da“ gehört zu EINER Bestellung ──────
       // Der Auftrag hat bezug „person“ (ein erreichtes Gespräch klärt ihn), aber seine Zahlung ist die der Bestellung im
@@ -436,8 +467,10 @@ async function durchEreignisRoh(ein: EreignisEin, lauf: Lauf): Promise<EreignisW
       // Fertigstellung 08.10. (Justins Regel: Aufträge anderer Mitarbeiter schließt das System nie): Handelt ein
       // MITARBEITER, gilt das für jedes Ereignis — auch Kartenlink und Unterlage eines Kollegen sind nur ein Hinweis.
       // Ohne Mitarbeiter (System, Kunde lädt hoch, Zahlung gebucht) bleiben Tatsachen Tatsachen.
+      // E-397: Tatsachen (Kündigung gebucht, Vertrag beendet, neue E-Mail, Archiv, Testkonto, Unterlage geprüft,
+      // Alarm vorbei) sind kein Kontakt — sie gelten, egal wer sie auslöst.
       const kontakt = istKontaktEreignis(ein.ereignis);
-      const fremd = ein.akteur?.id ? Number(t.zustaendig_agent_id) !== Number(ein.akteur.id) : kontakt;
+      const fremd = tatsache ? false : ein.akteur?.id ? Number(t.zustaendig_agent_id) !== Number(ein.akteur.id) : kontakt;
       if (fremd) {
         const ok = await auftragBeitrag(id, {
           autorArt: "system", autorName: wer, art: "kommentar",
@@ -527,6 +560,117 @@ export async function uebergabeEntwuerfeUebernehmen(text: string | null | undefi
        AND aktion IN ('entwurf', 'fehler', 'versand_wartet', 'versand_fehlgeschlagen')
      RETURNING id, postfach, antwort_draft_id`) as any[];
   return r.map((z) => ({ id: Number(z.id), postfach: String(z.postfach || ""), draftId: z.antwort_draft_id ? String(z.antwort_draft_id) : null }));
+}
+
+/** Wege aus kuendigungSetzen, bei denen der Vertrag SOFORT endet (keine Rate läuft mehr). */
+const SOFORT_BEENDET = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"];
+
+/**
+ * E-397: Die Kündigung ist gebucht — „Kündigung gebucht“ (und bei sofortigem Ende „Vertrag beendet“) an den
+ * Ereignis-Motor. Eine Tatsache: gilt unabhängig vom Handelnden, auch auf Justins Board. Wirft nie.
+ */
+export async function kuendigungGebuchtMelden(ref: string, ein: { weg: string; personId?: number | null; wer: string; agentId?: number | null }, lauf: Lauf = sqlPool): Promise<number> {
+  const akteur = { id: ein.agentId ?? null, name: String(ein.wer || "System") };
+  const a = await ereignisMelden({ ereignis: "kuendigung_gebucht", personId: ein.personId ?? null, ref, akteur, detail: ref }, lauf);
+  let n = a.geschlossen.length;
+  if (SOFORT_BEENDET.includes(String(ein.weg))) {
+    const b = await ereignisMelden({ ereignis: "vertrag_beendet", personId: ein.personId ?? null, ref, akteur, detail: ref }, lauf);
+    n += b.geschlossen.length;
+  }
+  return n;
+}
+
+/** E-397: Der Vertrag ist zu Ende (letzte Rate bezahlt, Abo gestoppt, Einwand anerkannt) — „Vertrag beendet“. Wirft nie. */
+export async function vertragBeendetMelden(ref: string, ein: { personId?: number | null; wer: string; agentId?: number | null }, lauf: Lauf = sqlPool): Promise<number> {
+  const w = await ereignisMelden({ ereignis: "vertrag_beendet", personId: ein.personId ?? null, ref, akteur: { id: ein.agentId ?? null, name: String(ein.wer || "System") }, detail: ref }, lauf);
+  return w.geschlossen.length;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-397 (19.10.2026) — „ZU TUN“ (fiaon_vermerke) UND RÜCKRUFE SCHLIESSEN, MIT GRUND
+//
+// Die Vermerk-Aufgaben kannten bis heute nur „erledigt von <Name>“ — kein Ereignis
+// schloss sie (gemessen 19.10.: 5 Erledigungen in 30 Tagen, 682 offen). Jetzt tragen
+// sie wie die Aufträge Art und Grund (erledigt_art, erledigt_grund) — sichtbar im
+// Reiter „Erledigt“ und 30 Tage rückholbar (Status wieder „offen“, Grund bleibt).
+// ═══════════════════════════════════════════════════════════════════════════
+let vermerkSpaltenBereit: Promise<void> | null = null;
+export function ensureVermerkErledigtSpalten(lauf: Lauf = sqlPool): Promise<void> {
+  if (!vermerkSpaltenBereit) {
+    vermerkSpaltenBereit = (async () => {
+      await lauf`ALTER TABLE fiaon_vermerke
+        ADD COLUMN IF NOT EXISTS erledigt_art VARCHAR,
+        ADD COLUMN IF NOT EXISTS erledigt_grund TEXT`;
+    })().catch((e) => { vermerkSpaltenBereit = null; throw e; });
+  }
+  return vermerkSpaltenBereit;
+}
+
+/** Eine Vermerk-Aufgabe schließen — nur wenn sie offen ist. false = war schon zu. */
+export async function vermerkErledigen(id: number, ein: { art: "auto" | "hausputz" | "hand"; von: string; grund: string }, lauf: Lauf = sqlPool): Promise<boolean> {
+  await ensureVermerkErledigtSpalten(lauf);
+  const r = (await lauf`
+    UPDATE fiaon_vermerke
+       SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${String(ein.von || "System").slice(0, 120)},
+           erledigt_art = ${ein.art}, erledigt_grund = ${String(ein.grund || "").slice(0, 600) || null}, updated_at = NOW()
+     WHERE id = ${id} AND art = 'aufgabe' AND status = 'offen' AND entfernt_am IS NULL
+     RETURNING id`) as any[];
+  return r.length > 0;
+}
+
+/**
+ * Ein ERREICHTES Gespräch erledigt den offenen Rückruf-Wunsch dieses Menschen (fiaon_rueckrufe) samt seiner
+ * Aufgabe „RÜCKRUF binnen 24 h“ — wenn das Gespräch NACH dem Wunsch kam und der Handelnde zuständig ist (oder
+ * niemand mehr: kein Zuständiger, gesperrt, inaktiv). Bei einem Kollegen bleibt der Rückruf offen (wie die
+ * Aufträge — der Kollege soll selbst sehen, ob das Anliegen besprochen ist). Die Notiz nennt den Grund.
+ */
+async function rueckrufeDurchGespraech(personIds: number[], ein: EreignisEin, am: Date, lauf: Lauf): Promise<number> {
+  const offen = (await lauf`
+    SELECT r.id, r.zustaendig_agent_id, r.anliegen,
+           (r.zustaendig_agent_id IS NULL OR ag.id IS NULL OR COALESCE(ag.active, TRUE) = FALSE OR ag.zugang_gesperrt_am IS NOT NULL) AS niemand
+      FROM fiaon_rueckrufe r LEFT JOIN fiaon_agents ag ON ag.id = r.zustaendig_agent_id
+     WHERE r.status = 'offen' AND r.person_id = ANY(${personIds}::int[]) AND r.created_at <= ${am}`) as any[];
+  let n = 0;
+  const wer = String(ein.akteur?.name || "System").slice(0, 120);
+  for (const r of offen) {
+    const selbst = !!ein.akteur?.id && Number(r.zustaendig_agent_id) === Number(ein.akteur.id);
+    if (!selbst && !r.niemand) continue;
+    const notiz = `Erledigt durch Gesprächsergebnis${ein.detail ? ` (${ein.detail})` : ""} – ${wer}, ${berlinTagZeit(am)}.`;
+    const z = (await lauf`
+      UPDATE fiaon_rueckrufe SET status = 'erledigt', ergebnis_notiz = ${notiz}, erledigt_am = NOW(), erledigt_von = ${wer}, updated_at = NOW()
+       WHERE id = ${r.id} AND status = 'offen' RETURNING id`) as any[];
+    if (!z.length) continue;
+    n += 1;
+    const v = (await lauf`
+      SELECT id FROM fiaon_vermerke
+       WHERE art = 'aufgabe' AND status = 'offen' AND entfernt_am IS NULL
+         AND text LIKE ${`RÜCKRUF binnen%${String(r.anliegen || "").slice(0, 40)}%`}`.catch(() => [])) as any[];
+    for (const x of v) await vermerkErledigen(Number(x.id), { art: "auto", von: wer, grund: notiz }, lauf).catch(() => false);
+  }
+  if (n) console.log(`[AUFTRÄGE] Gesprächsergebnis (${wer}): ${n} Rückruf(e) erledigt.`);
+  return n;
+}
+
+/**
+ * „Unterlagen eingegangen – bitte prüfen“ (Vermerk an die Verwaltung, fiaon-unterlagen.ts) geht zu, sobald von
+ * diesem Menschen KEINE ungeprüfte Kunden-Unterlage mehr da ist. Ist noch eine Kategorie offen, bleibt sie offen.
+ */
+async function unterlagenVermerkeSchliessen(personIds: number[], ein: EreignisEin, lauf: Lauf): Promise<number> {
+  const [rest] = (await lauf`
+    SELECT 1 AS da FROM fiaon_dokumente
+     WHERE person_id = ANY(${personIds}::int[]) AND art = 'unterlage' AND quelle = 'kunde'
+       AND geprueft_am IS NULL AND entfernt_am IS NULL AND geloescht_am IS NULL
+     LIMIT 1`) as any[];
+  if (rest) return 0;
+  const v = (await lauf`
+    SELECT v.id FROM fiaon_vermerke v
+     WHERE v.art = 'aufgabe' AND v.status = 'offen' AND v.entfernt_am IS NULL AND v.text LIKE 'Unterlagen eingegangen%'
+       AND v.ref IN (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ANY(${personIds}::int[]))`) as any[];
+  const wer = String(ein.akteur?.name || "System").slice(0, 120);
+  const grund = autoErledigtText("unterlage_geprueft", wer, ein.am ?? new Date(), ein.detail ?? null);
+  let n = 0;
+  for (const x of v) if (await vermerkErledigen(Number(x.id), { art: "auto", von: wer, grund }, lauf)) n += 1;
+  return n;
 }
 
 // Die Übersetzung Gesprächs-/Ratenergebnis → Ereignis steht in shared (eine Quelle mit dem Katalog).

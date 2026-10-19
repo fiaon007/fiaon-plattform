@@ -44,6 +44,11 @@ const PUENKTLICH_SEK = 2 * 60;
 const VERSPAETET_SEK = 15 * 60;
 /** Wie viele Minuten VOR dem Beginn zählt ein Anruf schon zum Termin? */
 const VORLAUF_MIN = 10;
+/**
+ * E-397 (19.10.2026): Meldungen als Aufträge an Justin — aus. Die Ampel im Lagezimmer liest fiaon_termin_treue
+ * selbst. Der Vermerk an den Mitarbeiter bei 3 verpassten bleibt (er ist an IHN gerichtet). Zurück: true.
+ */
+const TERMINTREUE_AUFTRAEGE = false;
 
 let geprueft = false;
 export async function ensureTreueTabelle(): Promise<void> {
@@ -143,12 +148,17 @@ export async function termintreueBewerten(): Promise<void> {
       `Termin: ${wannText}`,
       `Verzug: ${verzug}`,
     ].join("\n");
-    await sqlPool`
-      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, quelle, letzte_aktivitaet)
-      VALUES (${`termintreue-termin-${t.id}`}, ${titel}, ${body}, 'termintreue',
-              ${status === "verpasst" ? 1 : 2}, CURRENT_DATE, 'termintreue', NOW())
-      ON CONFLICT (schluessel) DO NOTHING
-    `.catch((e) => console.error("[TERMINTREUE] Meldung nicht geschrieben:", e));
+    // E-397 (19.10.2026): KEIN Auftrag mehr je verspätetem/verpasstem Termin in Justins Liste (241 offen am 19.10.,
+    // 216 älter als 7 Tage). Die Bewertungszeile oben IST die Meldung: Das Lagezimmer zeigt sie als Ampel
+    // (server/routes/fiaon-aufgaben-lage.ts — verpasst/verspätet in 7 Tagen je Mitarbeiter, ab 3/5 in 30 Tagen gelb/rot).
+    if (TERMINTREUE_AUFTRAEGE) {
+      await sqlPool`
+        INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, quelle, letzte_aktivitaet)
+        VALUES (${`termintreue-termin-${t.id}`}, ${titel}, ${body}, 'termintreue',
+                ${status === "verpasst" ? 1 : 2}, CURRENT_DATE, 'termintreue', NOW())
+        ON CONFLICT (schluessel) DO NOTHING
+      `.catch((e) => console.error("[TERMINTREUE] Meldung nicht geschrieben:", e));
+    }
 
     if (status !== "verpasst") continue;
 
@@ -160,7 +170,7 @@ export async function termintreueBewerten(): Promise<void> {
     const n = Number(z?.n || 0);
 
     if (n === 3) {
-      await sqlPool`
+      if (TERMINTREUE_AUFTRAEGE) await sqlPool`
         INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, quelle, letzte_aktivitaet)
         VALUES (${`termintreue-warnung3-${t.agent_id}`},
                 ${`Warnung an Mitarbeiter: ${t.mitarbeiter} hat 3 Termine verpasst`},
@@ -180,7 +190,7 @@ export async function termintreueBewerten(): Promise<void> {
       `.catch((e) => console.error("[TERMINTREUE] Vermerk nicht geschrieben:", e));
     }
 
-    if (n === 5) {
+    if (n === 5 && TERMINTREUE_AUFTRAEGE) {
       await sqlPool`
         INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, quelle, letzte_aktivitaet)
         VALUES (${`termintreue-eskalation5-${t.agent_id}`},

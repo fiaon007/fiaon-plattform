@@ -2147,6 +2147,13 @@ export async function karteEinladungFuerPerson(personId: number, akteur: KarteEi
       betreff = mailRendern("konto_karte_einladung", { vorname: p?.vorname ?? "" })?.betreff ?? null;
     } catch { /* ohne Betreff: der Satz kommt ohne ihn aus */ }
 
+    // E-397: Maras Kartenlink (Mail- und WhatsApp-Werkzeug) zählt wie der eines Menschen — „Konto & Karte“ geht zu.
+    // Vorher kam das Ereignis nur aus der Mitarbeiter-Route (/agent/karte/:personId/senden). Wirft nie.
+    try {
+      const { ereignisMelden } = await import("./fiaon-auftraege");
+      await ereignisMelden({ ereignis: "kartenlink_gesendet", personId: stand.personId, akteur: { id: null, name: wer }, detail: wer });
+    } catch { /* die Einladung ist raus — das Ereignis ist ein Zusatz */ }
+
     const nachher = (await karteEinladungStand(stand.personId)) ?? stand;
     const aktion: KarteEinladungAktion = schonDraussen ? "erneut_gesendet" : "gesendet";
     return antwort({

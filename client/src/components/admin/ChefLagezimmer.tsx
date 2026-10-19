@@ -31,6 +31,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lazy, Suspense } from "react";
 const Seitenverzeichnis = lazy(() => import("./ChefSeitenverzeichnis"));
+// E-397: Aufgaben & Ampel (Alarme, Termintreue, Maras Karten, heikel neu, Woche, Hausputz) — lädt sich selbst.
+const AufgabenLage = lazy(() => import("./ChefAufgabenLage"));
 import {
   TrendingUp, TrendingDown, Users, Landmark, AlertTriangle, ArrowRight,
   Wallet, CalendarClock, Copy, PhoneOff, FileWarning, Sparkles,
@@ -335,6 +337,9 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
           </div>
         </section>
       )}
+
+      {/* ── E-397: Aufgaben & Ampel — statt 377 Meldungen in Meine Liste ─ */}
+      <Suspense fallback={null}><AufgabenLage /></Suspense>
 
       {/* ── Verlauf und Team nebeneinander ─────────────────────────────── */}
       <div className="cl-zwei">

@@ -33,10 +33,14 @@ interface Karte {
   spaeterBis: string | null; entschiedenAm: string | null; entschiedenVon: string | null;
   gewaehlt: string | null; gewaehltLabel: string | null; ergebnis: string | null; fehler: string | null; createdAt: string;
 }
+// E-397: „Heute N Entscheidungen, etwa M Minuten“ und Sammelkarten (gleiche Fälle, ein Klick, einzeln abwählbar).
+interface Last { entscheidungen: number; minuten: number; karten: number; sammelkarten: number; aelterAlsZiel: number; aeltesteTage: number }
+interface Gruppe { schluessel: string; art: string; artText: string; empfehlung: string; empfehlungLabel: string; empfehlungTitel: string | null; ids: number[]; anzahl: number; aeltesteAm: string }
 interface Daten {
   offen: Karte[]; spaeter: Karte[]; entschieden: Karte[];
   zaehler: { offen: number; geldRecht: number; spaeter: number };
   stand: { gesammeltAm: string | null; laeuft: boolean; fehler: Record<string, string> };
+  last?: Last; gruppen?: Gruppe[];
 }
 
 const ARTEN_TEXT: Record<string, string> = {
@@ -130,6 +134,51 @@ function KarteAnsicht({ k, glas, busy, onEntscheiden, onSpaeter }: {
   );
 }
 
+/**
+ * E-397: Eine Sammelkarte — gleiche Fälle (gleiche Art, gleiche Empfehlung). Ein Klick führt je Fall SEINE Empfehlung
+ * aus (dieselbe Wirkung wie der blaue Knopf auf der Einzelkarte); Häkchen weg = dieser Fall bleibt offen.
+ */
+function SammelKarte({ g, karten, busy, onAlle, onEinzeln }: {
+  g: Gruppe; karten: Karte[]; busy: string | null;
+  onAlle: (g: Gruppe, ids: number[]) => void; onEinzeln: (g: Gruppe) => void;
+}) {
+  const [ab, setAb] = useState<Set<number>>(new Set());
+  const gewaehlt = karten.filter((k) => !ab.has(k.id)).map((k) => k.id);
+  const laeuft = busy === `sammel:${g.schluessel}`;
+  return (
+    <article className="me-karte mara-karte me-sammel" data-art={g.art} id={`me-sammel-${g.art}`}>
+      <header className="me-kopf">
+        <span className="mara-etikett">Sammelkarte · {g.artText}</span>
+        <span className="mara-still mara-klein">{zahl(karten.length)} gleiche Fälle</span>
+      </header>
+      <h3 className="me-titel">{zahl(karten.length)} × {g.artText}: Mara empfiehlt „{g.empfehlungLabel}“</h3>
+      <p className="me-text">Ein Klick entscheidet alle angehakten Fälle — jeder mit seiner eigenen Empfehlung, wie auf der Einzelkarte. Häkchen weg: Der Fall bleibt offen.{g.empfehlungTitel ? ` ${g.empfehlungTitel}` : ""}</p>
+      <ul className="me-sammel-liste">
+        {karten.map((k) => {
+          const l = k.personId ? akteLink(k.personId, "chef") : null;
+          return (
+            <li key={k.id}>
+              <label>
+                <input type="checkbox" checked={!ab.has(k.id)} disabled={laeuft}
+                  onChange={(e) => setAb((alt) => { const n = new Set(alt); if (e.target.checked) n.delete(k.id); else n.add(k.id); return n; })} />
+                {l ? <a href={l} target="_blank" rel="noreferrer">{k.name || `Person ${k.personId}`}</a> : <b>{k.name || k.ref || "—"}</b>}
+              </label>
+              <span className="mara-still">{k.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="me-knoepfe">
+        <span className="me-empf">Mara empfiehlt</span>
+        <button type="button" className="mara-knopf haupt" disabled={!!busy || gewaehlt.length === 0} onClick={() => onAlle(g, gewaehlt)}>
+          {laeuft ? "läuft …" : `${g.empfehlungLabel} · ${zahl(gewaehlt.length)} ${gewaehlt.length === 1 ? "Fall" : "Fälle"}`}
+        </button>
+        <button type="button" className="mara-knopf text" disabled={!!busy} onClick={() => onEinzeln(g)}>Einzeln entscheiden</button>
+      </div>
+    </article>
+  );
+}
+
 export default function ChefMaraEntscheidungen() {
   const d = useMaraDaten<Daten>("entscheidungen", MARA_QUELLEN.entscheidungen);
   const rg = useMaraRundgang();
@@ -139,6 +188,9 @@ export default function ChefMaraEntscheidungen() {
   const [frisch, setFrisch] = useState<Record<number, Karte>>({});
   const reihe = useRef<number[]>([]);
   const daten = d.daten;
+  // E-397: Sammelkarten, die Justin lieber einzeln sehen will (bis zum Neuladen der Seite).
+  const [einzeln, setEinzeln] = useState<Set<string>>(new Set());
+  const gruppen = useMemo(() => (daten?.gruppen ?? []).filter((g) => !einzeln.has(g.schluessel)), [daten, einzeln]);
 
   // Mara prüft gerade (Sammler läuft) — gleich noch einmal nachsehen.
   useEffect(() => {
@@ -159,6 +211,19 @@ export default function ChefMaraEntscheidungen() {
     return aus;
   }, [daten, frisch]);
   useEffect(() => { reihe.current = liste.map((k) => k.id); }, [liste]);
+  // Karten einer Sammelkarte stehen nicht noch einmal einzeln da (solange sie offen sind).
+  const inGruppe = useMemo(() => new Set(gruppen.flatMap((g) => g.ids)), [gruppen]);
+  const einzelListe = useMemo(() => liste.filter((k) => !(inGruppe.has(k.id) && k.status === "offen")), [liste, inGruppe]);
+
+  const sammel = async (g: Gruppe, ids: number[]) => {
+    if (!ids.length) return;
+    setBusy(`sammel:${g.schluessel}`);
+    try {
+      const j = await senden("/chef/mara/entscheidungen/sammel", { gruppe: g.schluessel, ids });
+      setFrisch((f) => { const n = { ...f }; for (const k of (j.karten ?? []) as Karte[]) n[k.id] = k; return n; });
+      melden(`${zahl(j.erledigt)} ${j.erledigt === 1 ? "Fall" : "Fälle"} entschieden${j.fehler?.length ? ` · ${zahl(j.fehler.length)} mit Fehler (stehen einzeln da)` : ""}.`, "kopf", !!j.fehler?.length);
+    } catch (e: any) { melden(e.message, "kopf", true); } finally { setBusy(null); d.neu(); }
+  };
 
   const entscheiden = async (k: Karte, o: Option) => {
     if (o.ton === "vorsicht" && o.key !== k.empfehlung && !window.confirm(`${o.label}?${o.titel ? `\n\n${o.titel}` : ""}`)) return;
@@ -203,6 +268,14 @@ export default function ChefMaraEntscheidungen() {
           <span className={`gross${offen ? "" : " wort"}`}>{offen ? zahl(offen) : "nichts"}</span>
           <div className="st-text"><div>offen</div><small>{offen ? (geldRecht ? `${zahl(geldRecht)} davon Geld oder Recht` : "nur Komfort") : "Mara erledigt den Rest"}</small></div>
         </div>
+        {daten.last && daten.last.karten > 0 ? (
+          <div className="st me-last" title={`${zahl(daten.last.karten)} Karten, davon ${zahl(daten.last.sammelkarten)} Sammelkarten. Ziel: keine Karte älter als 2 Tage.`}>
+            <div className="st-text">
+              <div>Heute {zahl(daten.last.entscheidungen)} {daten.last.entscheidungen === 1 ? "Entscheidung" : "Entscheidungen"}, etwa {zahl(daten.last.minuten)} {daten.last.minuten === 1 ? "Minute" : "Minuten"}</div>
+              <small className={daten.last.aelterAlsZiel ? "me-warn" : undefined}>{daten.last.aelterAlsZiel ? `${zahl(daten.last.aelterAlsZiel)} älter als 2 Tage · älteste ${zahl(daten.last.aeltesteTage)} Tage` : "keine älter als 2 Tage"}</small>
+            </div>
+          </div>
+        ) : null}
         {daten.zaehler.spaeter > 0 ? (
           <div className="st"><span className="gross">{zahl(daten.zaehler.spaeter)}</span><div className="st-text"><div>später</div><small>kommen von selbst wieder</small></div></div>
         ) : null}
@@ -228,8 +301,12 @@ export default function ChefMaraEntscheidungen() {
         <p className="mp-leer me-leer">Nichts zu entscheiden.</p>
       ) : (
         <div className="me-liste-karten">
-          {liste.map((k, i) => (
-            <KarteAnsicht key={k.id} k={k} glas={i === 0} busy={busy} onEntscheiden={(x, o) => void entscheiden(x, o)} onSpaeter={(x) => void spaeter(x)} />
+          {gruppen.map((g) => (
+            <SammelKarte key={g.schluessel} g={g} karten={liste.filter((k) => g.ids.includes(k.id) && k.status === "offen")} busy={busy}
+              onAlle={(x, ids) => void sammel(x, ids)} onEinzeln={(x) => setEinzeln((alt) => new Set(alt).add(x.schluessel))} />
+          ))}
+          {einzelListe.map((k, i) => (
+            <KarteAnsicht key={k.id} k={k} glas={i === 0 && gruppen.length === 0} busy={busy} onEntscheiden={(x, o) => void entscheiden(x, o)} onSpaeter={(x) => void spaeter(x)} />
           ))}
         </div>
       )}

@@ -200,11 +200,19 @@ export async function archiviereAntrag(
 
     return { ref: String(a.ref), personId: a.person_id != null ? Number(a.person_id) : null };
   };
-  if (opts.tx) return arbeit(opts.tx);
+  // E-397: „Kunde archiviert“ — gilt erst, wenn der Mensch keine laufende Bestellung mehr hat (prüft der Motor);
+  // schließt nur Aufträge, die ohnehin ein Ereignis schließen darf, ohne heiklen Inhalt. Wirft nie.
+  const archivMelden = async (e: { ref: string; personId: number | null }, lauf: Lauf) => {
+    if (e.personId == null) return;
+    const { ereignisMelden } = await import("./fiaon-auftraege");
+    await ereignisMelden({ ereignis: "kunde_archiviert", personId: e.personId, ref: e.ref, akteur: { id: null, name: akteur.name || "Verwaltung" }, detail: GRUND_TEXT[grund] ?? grund }, lauf);
+  };
+  if (opts.tx) { const e = await arbeit(opts.tx); await archivMelden(e, opts.tx); return e; }
   const erg = await sqlPool.begin(arbeit) as { ref: string; personId: number | null };
   // Die Dubletten-Liste zeigt Bestellzahlen — nach einem Archiveintrag sind sie
   // veraltet.
   (await import("./fiaon-dubletten-kandidaten")).kandidatenCacheLeeren();
+  await archivMelden(erg, sqlPool);
   return erg;
 }
 

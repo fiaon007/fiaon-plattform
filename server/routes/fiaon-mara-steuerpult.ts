@@ -767,6 +767,22 @@ router.post("/chef/mara/entscheidungen/entscheiden", wache, async (req: ChefRequ
   }
 });
 
+// E-397: Sammelkarte — je Karte ihre eigene Empfehlung, abgewählte schickt die Oberfläche nicht mit.
+router.post("/chef/mara/entscheidungen/sammel", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
+    const gruppe = String(req.body?.gruppe ?? "").slice(0, 120);
+    const { entscheidenSammel } = await import("../lib/fiaon-mara-entscheidungen");
+    const von = await chefName(req);
+    const erg = await entscheidenSammel(ids, gruppe, { von, agentId: req.chef?.agentId ?? null });
+    void chefProtokoll(req, `mara_sammelkarte:${gruppe}`, `${erg.erledigt} erledigt${erg.fehler.length ? `, ${erg.fehler.length} Fehler` : ""}`);
+    res.status(erg.ok ? 200 : erg.status).json(erg.ok ? { ok: true, erledigt: erg.erledigt, fehler: erg.fehler, karten: erg.karten } : { ok: false, error: erg.error });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] sammelkarte:", err);
+    res.status(500).json({ ok: false, error: "Die Sammelkarte ist abgebrochen — bitte noch einmal." });
+  }
+});
+
 router.post("/chef/mara/entscheidungen/spaeter", wache, async (req: ChefRequest, res: Response) => {
   try {
     const id = Number(req.body?.id);

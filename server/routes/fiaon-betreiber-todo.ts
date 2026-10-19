@@ -24,8 +24,8 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 // (shared/fiaon-auftrag-arten.ts); Erledigen, Wieder-Öffnen, Zuordnen und die
 // automatische Erledigung durch Ereignisse aus server/lib/fiaon-auftraege.ts.
 import {
-  AUFTRAG_ARTEN, artNachInhalt, artRegel, auftragArtVon, auftragHerkunft, auftraegeSortieren, naechsterAuftrag,
-  nameAusTitel, refAusLink as refAusLinkQuelle, ZUSTAND_WIEDER_OFFEN_TAGE, berlinTagZeit, type AuftragRichtung,
+  AUFTRAG_ARTEN, artNachInhalt, artRegel, auftragArtVon, auftragDringend, auftragHerkunft, auftraegeSortieren, naechsterAuftrag,
+  nameAusTitel, refAusLink as refAusLinkQuelle, schnellGruende, ZUSTAND_WIEDER_OFFEN_TAGE, berlinTagZeit, type AuftragRichtung,
 } from "../../shared/fiaon-auftrag-arten";
 import {
   auftragBeitrag, auftragErledigen, auftragWiederOeffnen, auftraegeZuordnen, auftraegeZuordnenNachholen,
@@ -757,7 +757,11 @@ function zeile(r: any) {
     kundeAnzeige: kundeName || nameAusTitel(r.titel) || "ohne Kundenbezug",
     art, artLabel: regel.label, nurHand: regel.nurHand, zustand: regel.zustand,
     herkunft: herkunft.vonMara ? `von Mara${herkunft.kanal ? ` · ${herkunft.kanal}` : ""}` : (herkunft.kanal || "Verwaltung"),
-    prioritaet: Number(r.prioritaet || 2), dringend: Number(r.prioritaet || 2) === 1, faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
+    // E-397: Rot nur bei echter Frist (Katalog: frist) oder wenn Justin selbst „P1“ setzt — vorher waren 66 % „dringend“.
+    prioritaet: Number(r.prioritaet || 2), dringend: auftragDringend({ art, quelle: r.quelle, prioritaet: Number(r.prioritaet || 2) }),
+    faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
+    // E-397: Schnell-Gründe statt Pflichtsatz — ein Knopf füllt den Ergebnis-Satz.
+    schnellGruende: schnellGruende(art),
     link: r.link ?? null, quelle: r.quelle, erledigtAm: r.erledigt_am ?? null, createdAt: r.created_at,
     eingangAm: r.eingang_am ?? r.created_at ?? null, neuSeit: r.neu_seit ?? null,
     ungelesen: !!r.neu_seit && (!r.agent_gelesen_am || new Date(r.neu_seit).getTime() > new Date(r.agent_gelesen_am).getTime()),
@@ -1224,6 +1228,52 @@ router.post("/agent/auftraege/:id/kommentar", requireAgent, async (req: AgentReq
 // Erledigen ist IDEMPOTENT: War der Auftrag schon erledigt (im Hintergrund: Antwort gesendet,
 // Ereignis in der Akte, Verwaltung), antwortet die Route 200 mit schonErledigt — die Karte geht
 // weg, statt mit „Schon erledigt." stehen zu bleiben. Jede Antwort trägt den NÄCHSTEN Auftrag.
+/**
+ * Ein Mitarbeiter erledigt SEINEN Auftrag — der eine Weg für den Knopf „Erledigt“ und (E-397) für die Häkchen
+ * „damit erledigt“ beim Gesprächsergebnis. Prüft den Pflichtsatz (Frage im Verlauf, Recht, Lage-Auftrag) und
+ * übernimmt bei „Kunde hat geschrieben“ Maras wartenden Entwurf. Wirft nicht für fachliche Ablehnungen.
+ */
+export async function auftragDurchMitarbeiterErledigen(t: any, agent: { id: number; name: string }, ergebnisRoh: string):
+  Promise<{ ok: boolean; zu?: boolean; code?: string; error?: string }> {
+  const ergebnis = String(ergebnisRoh || "").trim();
+  const [f] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${t.id} AND art = 'frage'`) as any[];
+  const frage = !!t.frage_offen || !!t.frage_an_agent || Number(f?.n || 0) > 0;
+  // Die strengere Art aus Speicher und jetzigem Text (Gegenprüfung 08.10.: ein angehängter Widerruf verlangt den Satz).
+  const artJetzt = artNachInhalt(t.art, { schluessel: t.schluessel, quelle: t.quelle, bereich: t.bereich, titel: t.titel, text: t.text });
+  const regel = artRegel(artJetzt);
+  if ((frage || regel.ergebnisPflicht) && ergebnis.length < 5) {
+    return {
+      ok: false, code: "ERGEBNIS_PFLICHT",
+      error: frage
+        ? "Zu diesem Auftrag gab es eine Frage — bitte in einem Satz festhalten, wie sie ausgegangen ist."
+        : regel.zustand
+          ? "Bitte in einem Satz festhalten, was geklärt ist (z. B. neue Adresse eingetragen, Kunde erreicht) — sonst meldet sich der Auftrag wieder."
+          : "Bei Kündigung, Widerruf, Beschwerde oder Löschantrag bitte in einem Satz festhalten, was veranlasst ist.",
+    };
+  }
+  if (ergebnis.length > 0 && ergebnis.length < 2) return { ok: false, error: "Bitte etwas mehr schreiben oder das Feld leer lassen." };
+  const text = ergebnis.slice(0, 4000);
+  const zu = await auftragErledigen(Number(t.id), {
+    art: "hand", von: agent.name, autorArt: "agent", autorAgentId: agent.id,
+    ergebnis: text || null, beitragText: text || "Als erledigt gemeldet.", gelesen: true,
+  });
+  // „Kunde hat geschrieben“ von Hand erledigt = vom Betreuer übernommen: Maras wartender Entwurf wird
+  // verworfen (wie unter E-Mails „Übernommen“) — sonst kann ihn die Zentrale später doch noch senden.
+  if (zu && (artJetzt === "mara_mail" || artJetzt === "mara_mail_heikel" || /^postmeister:antwort:/.test(String(t.schluessel || "")))) {
+    try {
+      const verworfen = await uebergabeEntwuerfeUebernehmen(t.text, agent.name, text || "im Auftrag als erledigt gemeldet");
+      if (verworfen.length) {
+        const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+        for (const v of verworfen) if (v.draftId) await entwurfLoeschen(v.postfach, v.draftId).catch(() => {});
+        await beitrag(Number(t.id), { autorArt: "system", autorName: "System", art: "kommentar",
+          text: `Maras Entwurf zu ${verworfen.map((v) => `Mail #${v.id}`).join(", ")} verworfen — vom Betreuer übernommen (${agent.name}).` });
+      }
+    } catch (e) { console.error("[TODO] erledigt: Entwurf verwerfen:", String(e).slice(0, 200)); }
+  }
+  return { ok: true, zu };
+}
+
 router.post("/agent/auftraege/:id/erledigt", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureTodoTabelle();
@@ -1232,46 +1282,29 @@ router.post("/agent/auftraege/:id/erledigt", requireAgent, async (req: AgentRequ
     if (t.status === "erledigt") {
       return res.json({ ok: true, schonErledigt: true, todo: await todoLaden(Number(t.id)), naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtung) });
     }
-    const ergebnis = String(req.body?.ergebnis || "").trim();
-    const [f] = (await sqlPool`
-      SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${t.id} AND art = 'frage'`) as any[];
-    const frage = !!t.frage_offen || !!t.frage_an_agent || Number(f?.n || 0) > 0;
-    // Die strengere Art aus Speicher und jetzigem Text (Gegenprüfung 08.10.: ein angehängter Widerruf verlangt den Satz).
-    const artJetzt = artNachInhalt(t.art, { schluessel: t.schluessel, quelle: t.quelle, bereich: t.bereich, titel: t.titel, text: t.text });
-    const regel = artRegel(artJetzt);
-    if ((frage || regel.ergebnisPflicht) && ergebnis.length < 5) {
-      return res.status(400).json({
-        ok: false, code: "ERGEBNIS_PFLICHT",
-        error: frage
-          ? "Zu diesem Auftrag gab es eine Frage — bitte in einem Satz festhalten, wie sie ausgegangen ist."
-          : regel.zustand
-            ? "Bitte in einem Satz festhalten, was geklärt ist (z. B. neue Adresse eingetragen, Kunde erreicht) — sonst meldet sich der Auftrag wieder."
-            : "Bei Kündigung, Widerruf, Beschwerde oder Löschantrag bitte in einem Satz festhalten, was veranlasst ist.",
-      });
-    }
-    if (ergebnis.length > 0 && ergebnis.length < 2) {
-      return res.status(400).json({ ok: false, error: "Bitte etwas mehr schreiben oder das Feld leer lassen." });
-    }
-    const text = ergebnis.slice(0, 4000);
-    const zu = await auftragErledigen(Number(t.id), {
-      art: "hand", von: req.agent!.name, autorArt: "agent", autorAgentId: req.agent!.id,
-      ergebnis: text || null, beitragText: text || "Als erledigt gemeldet.", gelesen: true,
-    });
-    // „Kunde hat geschrieben“ von Hand erledigt = vom Betreuer übernommen: Maras wartender Entwurf wird
-    // verworfen (wie unter E-Mails „Übernommen“) — sonst kann ihn die Zentrale später doch noch senden.
-    if (zu && (artJetzt === "mara_mail" || artJetzt === "mara_mail_heikel" || /^postmeister:antwort:/.test(String(t.schluessel || "")))) {
-      try {
-        const verworfen = await uebergabeEntwuerfeUebernehmen(t.text, req.agent!.name, text || "im Auftrag als erledigt gemeldet");
-        if (verworfen.length) {
-          const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
-          for (const v of verworfen) if (v.draftId) await entwurfLoeschen(v.postfach, v.draftId).catch(() => {});
-          await beitrag(Number(t.id), { autorArt: "system", autorName: "System", art: "kommentar",
-            text: `Maras Entwurf zu ${verworfen.map((v) => `Mail #${v.id}`).join(", ")} verworfen — vom Betreuer übernommen (${req.agent!.name}).` });
-        }
-      } catch (e) { console.error("[TODO] erledigt: Entwurf verwerfen:", String(e).slice(0, 200)); }
-    }
+    const erg = await auftragDurchMitarbeiterErledigen(t, { id: Number(req.agent!.id), name: req.agent!.name }, String(req.body?.ergebnis || ""));
+    if (!erg.ok) return res.status(400).json({ ok: false, code: erg.code, error: erg.error });
     res.json({ ok: true, todo: await todoLaden(Number(t.id)), naechster: await naechsterFuer(Number(req.agent!.id), [Number(t.id)], richtung) });
   } catch (err) { console.error("[TODO] erledigt:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
+// E-397: Die offenen Aufträge dieses Kunden, die bei MIR liegen — für die Häkchen „damit erledigt“ beim Gesprächsergebnis.
+router.get("/agent/auftraege/kunde/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureTodoTabelle();
+    const pid = Number(req.params.personId);
+    if (!Number.isInteger(pid) || pid <= 0) return res.status(400).json({ ok: false, error: "Welcher Kunde?" });
+    const { personenKreis } = await import("../lib/fiaon-auftraege");
+    const kreis = await personenKreis(pid);
+    if (!kreis.ids.length) return res.json({ ok: true, auftraege: [] });
+    const rows = (await sqlPool`${LISTE_SQL}
+      WHERE t.zustaendig_art = 'agent' AND t.zustaendig_agent_id = ${req.agent!.id} AND t.status <> 'erledigt'
+        AND t.status <> 'wartet' AND NOT COALESCE(t.frage_offen, FALSE) AND t.person_id = ANY(${kreis.ids}::int[])
+      ORDER BY t.id`) as any[];
+    res.json({ ok: true, auftraege: rows.map(zeile).map((z) => ({
+      id: z.id, titel: z.titel, artLabel: z.artLabel, art: z.art, ergebnisPflicht: z.ergebnisPflicht, dringend: z.dringend, eingangAm: z.eingangAm,
+    })) });
+  } catch (err) { console.error("[TODO] agent kunde:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
 /** E-IT-F: Wieder öffnen — aus dem Reiter „Erledigt". Der Grund steht in der Zeitleiste, nichts geht still. */

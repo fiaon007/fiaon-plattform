@@ -532,6 +532,13 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-ew-feld{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
 .pi-ew-feld label{display:grid;gap:4px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
 .pi-ew-feld.breit{display:grid}
+/* E-397: Häkchen „damit erledigt“ — die offenen Aufträge dieses Kunden unter den Ergebnis-Knöpfen. */
+.pi-haken{margin-top:10px;padding:10px 14px;border-radius:14px;background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.22)}
+.pi-haken-kopf{margin:0 0 6px;font-size:11.5px;color:#94a3b8;line-height:1.45}
+.pi-haken-liste{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.pi-haken-zeile{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#e2e8f0;cursor:pointer;line-height:1.4}
+.pi-haken-zeile b{font-weight:600;color:#93c5fd}
+.pi-haken-hinweis{color:#fcd34d}
 .pi-ew-feld textarea{min-height:88px}
 .pi-produkt{display:grid;gap:12px;padding:16px 18px;border-radius:16px;background:rgba(37,99,235,.1);border:1px solid rgba(96,165,250,.3)}
 .pi-anruf{display:grid;gap:8px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}

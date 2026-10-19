@@ -1162,6 +1162,9 @@ export interface EntscheidungenStand {
   entschieden: EntscheidungSicht[];
   zaehler: { offen: number; geldRecht: number; spaeter: number };
   stand: { gesammeltAm: string | null; laeuft: boolean; fehler: Record<string, string> };
+  /** E-397: „Heute N Entscheidungen, etwa M Minuten“ und die Sammelkarten (gleiche Fälle). */
+  last: TagesLast;
+  gruppen: SammelGruppe[];
 }
 
 /** Offen (Gewicht, dann Alter), später, und was in den letzten 7 Tagen entschieden wurde oder sich erledigt hat. */
@@ -1175,6 +1178,8 @@ export async function entscheidungenLesen(lauf: Lauf = sqlPool): Promise<Entsche
   ]) as any[][];
   const o = offen.map(sicht);
   return {
+    last: tagesLast(o.map((k) => ({ ...k, status: "offen" as EntscheidungStatus }))),
+    gruppen: sammelGruppen(o.map((k) => ({ ...k, status: "offen" as EntscheidungStatus }))),
     offen: o, spaeter: spaeter.map(sicht), entschieden: entschieden.map(sicht),
     zaehler: { offen: o.length, geldRecht: o.filter((k) => k.gewicht >= GEWICHT_GELD_RECHT).length, spaeter: spaeter.length },
     stand: {
@@ -1265,4 +1270,113 @@ export async function entscheidungSpaeter(id: number, opts: { tage?: number; lau
   if (!z.length) return null;
   const [neu] = (await lauf.unsafe(`${SICHT_SQL} WHERE e.id = $1`, [id])) as any[];
   return neu ? sicht(neu) : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-397 (19.10.2026) — KARTEN LEICHT MACHEN (Großer Hausputz, Baustein 2)
+//
+// Gemessen am 19.10.2026: 70 Karten offen (Mail-Entwürfe 24, „Kündigung ungebucht“
+// 18, Mahnstopp 15), seit dem 16.10. keine entschieden — und Karten entstanden nur,
+// wenn jemand das Steuerpult öffnete. Drei Dinge:
+//   · tagesLast(): EINE Zeile „Heute N Entscheidungen, etwa M Minuten“ (Lagezimmer
+//     und Kopf des Reiters) — Sammelkarten zählen als eine Entscheidung.
+//   · sammelGruppen(): gleiche Fälle (gleiche Art UND gleiche Empfehlung) als EINE
+//     Sammelkarte; entscheidenSammel() führt je Karte ihre EIGENE Empfehlung aus
+//     (mit ihren eigenen Argumenten) — einzelne lassen sich vorher abwählen. Nur für
+//     Arten, deren Empfehlung je Fall gleich gemeint ist; Geld (Eingänge, Raten,
+//     Erstattungen) und Mail-Entwürfe bleiben Einzelkarten.
+//   · Ein Lauf sammelt alle 30 Minuten (tageslauf in fiaon-aufgaben-lage.ts), damit die
+//     Zahl stimmt, auch wenn niemand den Reiter öffnet. Ziel: keine Karte älter als 2 Tage.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Arten, die als Sammelkarte kommen dürfen (gleiche Empfehlung = gleiche Handlung je Fall). */
+export const SAMMEL_ARTEN: readonly string[] = ["kuendigung_ungebucht", "mahnstopp", "werbesperre_zahlungspost"];
+/** Ab so vielen gleichen Fällen eine Sammelkarte. */
+export const SAMMEL_AB = 2;
+/** Ziel: keine Karte älter als so viele Tage. */
+export const KARTE_ZIEL_TAGE = 2;
+
+/** Geschätzte Sekunden je Einzelkarte (Lesen + Klick) — für „etwa M Minuten“. */
+const SEKUNDEN_JE_ART: Record<string, number> = {
+  postmeister_entwurf: 60, postmeister_altentwuerfe: 45, raten_nach_ende: 60, eingang_unverbucht: 45,
+  kuendigung_ungebucht: 30, mahnstopp: 40, werbesperre_zahlungspost: 30, wa_vorlagen: 20,
+};
+const sekundenFuer = (art: string) => SEKUNDEN_JE_ART[art] ?? (art.startsWith("wa_") ? 40 : 40);
+
+export interface SammelGruppe {
+  schluessel: string; art: string; artText: string; empfehlung: string; empfehlungLabel: string;
+  empfehlungTitel: string | null; ids: number[]; anzahl: number; aeltesteAm: string;
+}
+
+/** Gleiche Fälle bündeln — rein, auf der Sicht der offenen Karten. */
+export function sammelGruppen(offen: EntscheidungSicht[]): SammelGruppe[] {
+  const m = new Map<string, EntscheidungSicht[]>();
+  for (const k of offen) {
+    if (k.status !== "offen" || !SAMMEL_ARTEN.includes(k.art) || !k.empfehlung) continue;
+    const o = k.optionen.find((x) => x.key === k.empfehlung);
+    if (!o || o.link) continue;
+    const key = `${k.art}|${k.empfehlung}`;
+    m.set(key, [...(m.get(key) ?? []), k]);
+  }
+  const aus: SammelGruppe[] = [];
+  for (const [key, karten] of Array.from(m.entries())) {
+    if (karten.length < SAMMEL_AB) continue;
+    const o = karten[0].optionen.find((x) => x.key === karten[0].empfehlung)!;
+    const aelteste = karten.reduce((a, k) => (k.createdAt < a ? k.createdAt : a), karten[0].createdAt);
+    aus.push({ schluessel: key, art: karten[0].art, artText: karten[0].artText, empfehlung: String(karten[0].empfehlung),
+      empfehlungLabel: o.label, empfehlungTitel: o.titel, ids: karten.map((k) => k.id), anzahl: karten.length, aeltesteAm: aelteste });
+  }
+  return aus.sort((a, b) => b.anzahl - a.anzahl);
+}
+
+export interface TagesLast { entscheidungen: number; minuten: number; karten: number; sammelkarten: number; aelterAlsZiel: number; aeltesteTage: number }
+
+/** „Heute N Entscheidungen, etwa M Minuten“ — Sammelkarten zählen als eine (30 s + 5 s je Fall). */
+export function tagesLast(offen: EntscheidungSicht[], jetzt = Date.now()): TagesLast {
+  const aktiv = offen.filter((k) => k.status === "offen");
+  const gruppen = sammelGruppen(aktiv);
+  const inGruppe = new Set(gruppen.flatMap((g) => g.ids));
+  let sek = 0;
+  for (const k of aktiv) if (!inGruppe.has(k.id)) sek += sekundenFuer(k.art);
+  for (const g of gruppen) sek += 30 + 5 * g.anzahl;
+  const alter = aktiv.map((k) => (jetzt - new Date(k.createdAt).getTime()) / 864e5).filter((t) => Number.isFinite(t));
+  return {
+    entscheidungen: aktiv.length - inGruppe.size + gruppen.length, minuten: aktiv.length ? Math.max(1, Math.ceil(sek / 60)) : 0,
+    karten: aktiv.length, sammelkarten: gruppen.length,
+    aelterAlsZiel: alter.filter((t) => t > KARTE_ZIEL_TAGE).length, aeltesteTage: alter.length ? Math.floor(Math.max(...alter)) : 0,
+  };
+}
+
+/** Nur lesen (ohne den Sammler anzustoßen) — für das Lagezimmer (Stufe Leitung). */
+export async function tagesLastLesen(lauf: Lauf = sqlPool): Promise<TagesLast & { gesammeltAm: string | null }> {
+  await entscheidungTabellen();
+  const offen = (await lauf.unsafe(`${SICHT_SQL} WHERE e.status = 'offen' OR (e.status = 'spaeter' AND e.spaeter_bis <= NOW()) ORDER BY e.gewicht DESC, e.created_at ASC LIMIT 400`)) as any[];
+  return { ...tagesLast(offen.map(sicht).map((k) => ({ ...k, status: "offen" as EntscheidungStatus }))), gesammeltAm: letztesErgebnis?.am ?? null };
+}
+
+/**
+ * Eine Sammelkarte entscheiden: je Karte IHRE Empfehlung (mit ihren eigenen Argumenten) — nacheinander, über
+ * denselben Weg wie ein Einzelklick (entscheiden). Der Server prüft, dass alle Karten zur Gruppe gehören (gleiche
+ * Sammel-Art, gleiche Empfehlung, offen). Abgewählte Karten schickt die Oberfläche gar nicht mit.
+ */
+export async function entscheidenSammel(ids: number[], gruppe: string, opts: { von: string; agentId?: number | null }): Promise<{
+  ok: boolean; status: number; error?: string; erledigt: number; fehler: { id: number; text: string }[]; karten: EntscheidungSicht[];
+}> {
+  await entscheidungTabellen();
+  const [art, empfehlung] = String(gruppe || "").split("|");
+  const liste = Array.from(new Set((ids ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))).slice(0, 100);
+  if (!SAMMEL_ARTEN.includes(art) || !empfehlung || !liste.length) return { ok: false, status: 400, error: "Keine gültige Sammelkarte.", erledigt: 0, fehler: [], karten: [] };
+  const zeilen = (await sqlPool.unsafe(`${SICHT_SQL} WHERE e.id = ANY($1::bigint[])`, [liste])) as any[];
+  const fremd = zeilen.filter((z) => z.art !== art || z.empfehlung !== empfehlung);
+  if (fremd.length || zeilen.length !== liste.length) return { ok: false, status: 409, error: "Die Auswahl passt nicht mehr zur Sammelkarte — bitte neu laden.", erledigt: 0, fehler: [], karten: [] };
+  let erledigt = 0;
+  const fehlerListe: { id: number; text: string }[] = [];
+  const karten: EntscheidungSicht[] = [];
+  for (const id of liste) {
+    const r = await entscheiden(id, empfehlung, { von: opts.von, agentId: opts.agentId ?? null });
+    if (r.karte) karten.push(r.karte);
+    if (r.ok) erledigt += 1; else fehlerListe.push({ id, text: String(r.error || "Fehler") });
+  }
+  console.log(`[ENTSCHEIDUNG] Sammelkarte ${art} → ${empfehlung} (${opts.von}): ${erledigt} erledigt, ${fehlerListe.length} mit Fehler.`);
+  return { ok: true, status: 200, erledigt, fehler: fehlerListe, karten };
 }

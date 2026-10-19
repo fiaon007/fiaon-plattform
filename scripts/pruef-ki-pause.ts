@@ -159,7 +159,11 @@ const NACHHOL_TAKTE = ["kontoauszug_nachholen", "schufa_nachholen", "transkript_
 let personId = 0, personB = 0, personS = 0, callId = 0, dauerId = 0;
 const extraCalls: number[] = [];
 
-const alarme = async () => (await sql`SELECT id, schluessel, titel, text, prioritaet, status FROM fiaon_betreiber_todos WHERE quelle = 'ki-pause' AND created_at >= ${START} AND schluessel LIKE 'ki-pause-2%'`) as any[];
+// E-397 (19.10.2026): Der Alarm ist kein Auftrag mehr, sondern EINE Zeile in der Alarm-Tafel (fiaon_system_alarme,
+// fester Schlüssel je Anbieter „ki-pause:<anbieter>“, neue Episode je Pause). Für die Prüfungen in derselben Form wie früher.
+const alarme = async () => ((await sql`SELECT schluessel, titel, text, stufe, anzahl, episoden, vorbei_am FROM fiaon_system_alarme
+                                        WHERE schluessel LIKE 'ki-pause:%' AND zuletzt_am >= ${START}`.catch(() => [])) as any[])
+  .map((a) => ({ ...a, prioritaet: a.stufe === "rot" ? 1 : 2, status: a.vorbei_am ? "erledigt" : "offen" }));
 const zustand = () => kp.kiPauseLesen(true);
 const aktivierenOhneNachholen = async () => { await kp.aktivieren("Prüfstand", { probe: false, nachholen: false }); kp.kiPauseZwischenspeicherLeeren(); };
 
@@ -260,14 +264,14 @@ try {
   ok(Number(rausC.n) === 0, "Keine ausgehende WhatsApp");
   const aC = await alarme();
   ok(aC.length === 1, `Genau EIN Alarm: ${aC.length}`);
-  ok(aC[0] && Number(aC[0].prioritaet) === 1 && aC[0].schluessel === `ki-pause-${zC.seit}`, "Alarm mit Priorität 1 und Schlüssel je Pause");
+  ok(aC[0] && Number(aC[0].prioritaet) === 1 && aC[0].schluessel === "ki-pause:openai" && !aC[0].vorbei_am, "Alarm rot, fester Schlüssel je Anbieter (E-397: Zeile in der Alarm-Tafel)");
   ok(aC[0] && String(aC[0].text).startsWith(kp.KI_PAUSE_ALARM_TEXT), "Alarmtext: „OpenAI konnte nicht abbuchen — alle KI-Funktionen pausiert. Nach dem Aufladen … ‚KI wieder aktivieren‘ drücken.“");
   const fp = kp.schluesselFingerabdruck(HAUS_SCHLUESSEL);
   ok(fp === `…${HAUS_SCHLUESSEL.slice(-6)}` && zC.schluessel === fp, `I/1 Fingerabdruck des Schlüssels im Zustand: ${zC.schluessel}`);
   ok(aC[0] && String(aC[0].text).includes(`Schlüssel ${fp}`) && !String(aC[0].text).includes(HAUS_SCHLUESSEL), "I/1 Fingerabdruck im Alarm (nie der ganze Schlüssel)");
   ok(aC[0] && String(aC[0].text).includes(kp.KI_PAUSE_MAIL_HINWEIS), "I/6 Alarm: „Mails an support@/welcome@ … von Hand beantworten UND in Gmail archivieren oder liegen lassen — Mara holt nach.“");
   const [neuTodosC] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos`) as any[];
-  ok(Number(neuTodosC.n) - todosVorC === 1, `Keine Aufgabe je Nachricht (nur der Alarm): ${Number(neuTodosC.n) - todosVorC} neu`);
+  ok(Number(neuTodosC.n) - todosVorC === 0, `Keine Aufgabe je Nachricht und kein Alarm-Auftrag (E-397: der Alarm steht in der Tafel): ${Number(neuTodosC.n) - todosVorC} neu`);
   const [kiZeile] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_ki_nutzung WHERE dienst = 'ki-pause' AND created_at >= ${START}`) as any[];
   ok(Number(kiZeile.n) === 1, "Eine Zeile „ki-pause“ im Kostenprotokoll");
   // Ein zweiter Abrechnungsfehler (zweiter Prozess, gleicher Moment) → kein zweiter Alarm.
@@ -355,7 +359,7 @@ try {
   const [tE] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE quelle IN ('postmeister') AND created_at >= ${START}`) as any[];
   ok(Number(tE.n) === 0, "Keine Aufgabe aus dem Postfach");
   ok(GMAIL_SENDEN.length === 0, "Keine Gmail-Sendung");
-  ok((await alarme()).filter((a) => a.schluessel === `ki-pause-${zE.seit}`).length === 1, "Neue Pause → genau ihr eigener Alarm");
+  { const aE = await alarme(); ok(aE.length === 1 && Number(aE[0].episoden) >= 2 && !aE[0].vorbei_am, "Neue Pause → dieselbe Zeile, neue Episode (E-397)"); }
 
   // ═══ F. Erster Fehler in der Mara-Aktion ═══════════════════════════════
   console.log("── F. Erster Abrechnungsfehler in der Mara-Aktion ─────────────────");
@@ -736,6 +740,7 @@ try {
   await sql`DELETE FROM fiaon_applications WHERE ref IN (${REF}, ${REF_B})`.catch(() => {});
   if (personId || personB) await sql`DELETE FROM fiaon_persons WHERE id = ANY(${[personId, personB].filter(Boolean)})`.catch(() => {});
   await sql`DELETE FROM fiaon_betreiber_todos WHERE created_at >= ${START} AND (quelle = 'ki-pause' OR schluessel LIKE 'ki-pause-%' OR schluessel LIKE 'wa-n49159002460%')`.catch(() => {});
+  await sql`DELETE FROM fiaon_system_alarme WHERE schluessel LIKE 'ki-pause:%' AND zuletzt_am >= ${START}`.catch(() => {});
   await sql`DELETE FROM fiaon_ki_nutzung WHERE created_at >= ${START}`.catch(() => {});
   await sql`DELETE FROM fiaon_settings WHERE key = ANY(${EINSTELLUNGEN})`.catch(() => {});
   for (const z of einstellungVorher) await sql`INSERT INTO fiaon_settings (key, value) VALUES (${z.key}, ${z.value}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`.catch(() => {});

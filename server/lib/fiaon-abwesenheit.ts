@@ -484,11 +484,19 @@ export function heikleUebergabe(text: string | null | undefined): boolean {
  * `still` (Gegenprüfung 01.10.2026): wie bei der Aufgabe selbst — eine weitere
  * Nachricht hängt sich an, ohne die erledigte Karte wieder zu öffnen.
  */
+// ── E-397 (19.10.2026, Großer Hausputz): KEINE KOPIEN „ZUR KENNTNIS“ MEHR ───────────────────────────────
+// Gemessen am 19.10.2026: 106 Kopien auf Justins Board, bei 102 davon lag das Original beim Mitarbeiter noch
+// offen — dieselbe Arbeit doppelt, und Justin schloss sie nie. Statt der Kopie zeigt das Lagezimmer die Zahl
+// „heikel neu“ mit einem Link auf den Filter „heikel“ in Meine Liste (/chef/s/todo?filter=heikel). Die
+// Funktion bleibt (alle Aufrufer laufen unverändert), legt aber nichts mehr an. Zurück: KOPIEN_AN = true.
+const KOPIEN_AN = false;
+
 export async function betreiberKopie(
   ein: { personId: number | null; ref: string | null; titel: string; text: string; dringend?: boolean; schluessel?: string | null; quelle: string; link?: string | null; autorName?: string; still?: boolean },
   v: UebergabeVertretung | null,
 ): Promise<number | null> {
   if (!v?.anVertreter) return null;
+  if (!KOPIEN_AN) return null;
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     const erg = await auftragFuerKunden({

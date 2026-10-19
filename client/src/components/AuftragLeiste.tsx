@@ -35,6 +35,8 @@ interface LeistenAuftrag {
   kundeAnzeige?: string; kunde?: string | null; artLabel?: string; eingangAm?: string | null; createdAt?: string | null;
   frageAnAgent?: boolean; frageOffen?: boolean; ergebnisPflicht?: boolean; erledigtArt?: string | null; erledigtVon?: string | null;
   erledigtEreignis?: string | null; wiederOffenAm?: string | null; wiederOffenGrund?: string | null; ungelesen?: boolean; weitereZumKunden?: number;
+  /** E-397: Schnell-Gründe statt Pflichtsatz. */
+  schnellGruende?: string[];
 }
 interface Naechster { id: number; personId: number | null; ref: string | null; kunde: string; artLabel: string }
 
@@ -199,6 +201,12 @@ export function AuftragLeiste() {
               onKeyDown={(e) => { if (e.key === "Enter" && satz.trim().length >= 5) void erledigen(); }} placeholder="Das Ergebnis …" />
             <button type="button" className="fi-al-knopf gut" disabled={busy || satz.trim().length < 5} onClick={() => void erledigen()}>Melden</button>
           </div>
+          {/* E-397: Schnell-Gründe — ein Tipp füllt den Satz, Freitext geht weiterhin. */}
+          {!!a.schnellGruende?.length && !(a.frageAnAgent || a.frageOffen) && (
+            <div className="fi-al-schnell" data-fiaon="schnell-gruende">
+              {a.schnellGruende.map((g) => <button key={g} type="button" className="fi-al-knopf still" onClick={() => setSatz(g)}>{g}</button>)}
+            </div>
+          )}
         </div>
       )}
       {meldung && <p className="fi-al-meldung" role="status">{meldung}</p>}

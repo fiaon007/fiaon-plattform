@@ -2214,8 +2214,10 @@ export async function antwortErzeugen(ein: {
     // Integration 25.09.2026 (E-240): „Re:" auf das Angebot — die gemeinsame Bremse lässt Maras Link dann durch.
     betreff: ein.mail.betreff,
     formlosKuendbar: formlos, ruhe,
-    // E-396 Teil 2: Ein „Ja“ auf die Kündigungs-Rückfrage bucht nur vom gespeicherten Absender.
+    // E-396 Teil 2: Ein „Ja“ auf die Kündigungs-Rückfrage bucht nur vom gespeicherten Absender — und (wie E-401
+    // angaben_aendern) nur, wenn Gmails Absender-Prüfung die Adresse bestätigt.
     absender: ein.mail.von,
+    absenderPruefung: { authErgebnis: ein.mail.authErgebnis ?? null, antwortAn: ein.mail.antwortAn ?? null },
   };
   // 25.09.2026 (E-241): Antwortet er auf das Angebot der Auskunft oder fragt er selbst?
   // Nur dann gibt es Werkzeug, Schritt und Verkaufsblock auch bei einem offenen Antrag

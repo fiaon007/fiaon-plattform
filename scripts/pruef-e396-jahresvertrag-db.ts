@@ -251,7 +251,12 @@ async function main() {
   const kontext = (absender: string) => ({ personId: pF1, ref: F1, postfach: "welcome@fiaon.com", postmeisterId: null, kundenlage: "aktiv" as any, kundeText: "Ja", absender });
   const jaFremd = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" }, kontext("Jemand <fremd@test.invalid>"));
   ok(!jaFremd.ok && /nicht von einer E-Mail-Adresse, die bei ihm gespeichert ist/.test(String(jaFremd.fehler)) && !(await zeile(F1)).gekuendigt_am, "„Ja“ von fremder Adresse → NICHTS gebucht", JSON.stringify(jaFremd.fehler));
-  const jaEigen = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" }, kontext(`Test Person <${bestellF1}>`));
+  // E-401-Prüfung: gespeicherte Adresse, aber Gmails Absender-Prüfung bestätigt sie nicht (gefälschte Absenderzeile) → nichts.
+  const jaGefaelscht = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" },
+    { ...kontext(`Test Person <${bestellF1}>`), absenderPruefung: { authErgebnis: "mx.google.com; spf=fail smtp.mailfrom=boese.example; dkim=none; dmarc=fail header.from=test.invalid", antwortAn: null } });
+  ok(!jaGefaelscht.ok && /Absender-Prüfung bestätigt sie aber nicht/.test(String(jaGefaelscht.fehler)) && !(await zeile(F1)).gekuendigt_am, "„Ja“ mit gespeicherter Adresse, aber Absender-Prüfung durchgefallen → NICHTS gebucht (E-401)", JSON.stringify(jaGefaelscht.fehler));
+  const jaEigen = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" },
+    { ...kontext(`Test Person <${bestellF1}>`), absenderPruefung: { authErgebnis: "mx.google.com; dkim=pass header.i=@test.invalid; spf=pass smtp.mailfrom=fiaon-e396-f1@test.invalid; dmarc=pass (p=NONE) header.from=test.invalid", antwortAn: null } });
   const aF1 = await zeile(F1);
   const [antragNach] = (await sql`SELECT status, admin_note FROM cancellation_requests WHERE id = ${antragF1}`) as any[];
   ok(jaEigen.ok && !!aF1.gekuendigt_am && aF1.kuendigung_art === "laufzeit", "„Ja“ vom eigenen Absender → Mara bucht (Jahresvertrag: läuft bis zum Laufzeitende)", JSON.stringify({ ok: jaEigen.ok, f: jaEigen.fehler, art: aF1.kuendigung_art }));

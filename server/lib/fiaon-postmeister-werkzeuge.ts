@@ -100,6 +100,11 @@ export interface WerkzeugKontext {
    * bucht nur, wenn es von einer Adresse kommt, die bei ihm gespeichert ist (absenderGehoertZurPerson).
    */
   absender?: string | null;
+  /**
+   * E-396 Teil 2 × E-401: Gmails Absender-Prüfung (oberstes „Authentication-Results“) und Reply-To. Liegt sie vor, zählt
+   * das „Ja“ nur, wenn sie die Adresse bestätigt (absenderEcht, dieselbe Prüfung wie angaben_aendern).
+   */
+  absenderPruefung?: { authErgebnis: string | null; antwortAn: string | null } | null;
 }
 
 /**
@@ -1259,6 +1264,15 @@ export const kuendigungVormerken: Werkzeug = {
         const { absenderGehoertZurPerson } = await import("./fiaon-postmeister-dossier");
         if (!(await absenderGehoertZurPerson(k.absender, k.personId).catch(() => false))) {
           return { ok: false, ergebnis: "", fehler: "Das „Ja“ kommt nicht von einer E-Mail-Adresse, die bei ihm gespeichert ist — NICHTS ist gebucht (E-396: nur vom eigenen Absender). Bestätige keine Kündigung. Bitte ihn in EINEM freundlichen Satz, kurz von seiner bei uns hinterlegten E-Mail-Adresse mit „Ja“ zu antworten." };
+        }
+        // E-401: Liegt Gmails Absender-Prüfung vor, muss sie die Adresse bestätigen — sonst könnte jeder mit einer
+        // gefälschten Absenderzeile kündigen (dieselbe Prüfung wie bei angaben_aendern).
+        if (k.absenderPruefung?.authErgebnis) {
+          const { absenderEcht } = await import("@shared/fiaon-angaben-aendern");
+          const echt = absenderEcht({ authErgebnis: k.absenderPruefung.authErgebnis, von: k.absender ?? null, antwortAn: k.absenderPruefung.antwortAn ?? null });
+          if (!echt.echt) {
+            return { ok: false, ergebnis: "", fehler: `Das „Ja“ trägt zwar seine gespeicherte Adresse, die Absender-Prüfung bestätigt sie aber nicht (${echt.grund}) — NICHTS ist gebucht. Bestätige keine Kündigung. Bitte ihn in EINEM freundlichen Satz, direkt aus seinem Postfach mit „Ja“ zu antworten.` };
+          }
         }
         wille = true;
       }

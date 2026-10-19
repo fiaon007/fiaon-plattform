@@ -11,7 +11,8 @@ export function maraStandSatz(stand: MaraStand | string | null | undefined, grun
   const g = String(grund ?? "").trim();
   switch (stand) {
     case "beantwortet": return "Mara hat geantwortet.";
-    case "entwurf": return "Mara hat einen Vorschlag geschrieben — bitte prüfen und senden.";
+    // E-406 Nachbesserung: Der Grund steht sichtbar da (vorher nur als Tooltip) — wer übernimmt, weiß, was zu prüfen ist.
+    case "entwurf": return g ? `Mara hat nicht gesendet: ${g.length > 140 ? `${g.slice(0, 139).trimEnd()}…` : g}` : "Mara hat einen Vorschlag geschrieben — bitte prüfen und senden.";
     case "mensch": return g ? `Mara antwortet nicht: ${g}` : "Mara antwortet nicht — bitte selbst antworten.";
     case "fehler": return "Mara kam noch nicht durch — sie versucht es gleich noch einmal.";
     default: return null;

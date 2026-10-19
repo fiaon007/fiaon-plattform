@@ -54,7 +54,8 @@ function TicketsInnen() {
   const [antwort, setAntwort] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [meldung, setMeldung] = useState<{ text: string; warn?: boolean } | null>(null);
-  const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), 4500); };
+  // E-406 Nachbesserung: Hält die Prüfung eine Antwort an, steht der Hinweis länger da (er sagt, was umzuschreiben ist).
+  const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), warn ? 12000 : 4500); };
 
   const laden = useCallback(() => {
     api("/agent/tickets").then((r) => { if (r.ok) { setListe(r.json.tickets || []); setFehler(null); } else setFehler(r.json?.error || "Die Anliegen konnten nicht geladen werden."); }).catch(() => setFehler("Keine Verbindung.")).finally(() => setLaedt(false));
@@ -168,7 +169,7 @@ function TicketsInnen() {
               <p className="ti-text">{a.text}</p>
               {a.antwort && <div className="ti-antwort"><small>{a.beantwortet_durch === "mara" ? "Antwort von Mara" : "Antwort"}{a.beantwortet_am ? ` · ${wann(a.beantwortet_am)}` : ""}</small><p>{a.antwort}</p></div>}
               {a.status === "offen" && !a.antwort && maraStandSatz(a.mara_stand, a.mara_grund) && (
-                <p className={`ti-mara${a.mara_stand === "mensch" ? " mensch" : ""}`} data-ti-mara title={a.mara_grund || undefined}>{maraStandSatz(a.mara_stand, a.mara_stand === "mensch" ? a.mara_grund : null)}</p>
+                <p className={`ti-mara${a.mara_stand === "mensch" ? " mensch" : ""}`} data-ti-mara title={a.mara_grund || undefined}>{maraStandSatz(a.mara_stand, a.mara_stand === "mensch" || a.mara_stand === "entwurf" ? a.mara_grund : null)}</p>
               )}
               {a.status === "offen" && !a.antwort && a.mara_stand === "entwurf" && a.mara_entwurf && !offenHier && (
                 <div className="ti-antwort ti-vorschlag">

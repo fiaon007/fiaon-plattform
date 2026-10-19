@@ -523,3 +523,28 @@ export function anliegenAntwortBauen(ein: {
   const knopf = ein.schritt?.url ? { text: knopfText(ein.schritt, w), url: String(ein.schritt.url) } : null;
   return { text, knopf };
 }
+
+/**
+ * E-406 Nachbesserung (Prüfer 19.10.): Der Verweis im älteren Anliegen eines Bündels („habe ich mit beantwortet“) —
+ * in der Sprache der Antwort. Vorher fest Deutsch, während Anrede und Gruß in der Sprache des Kunden standen
+ * (Mischsprache, E-248 #5591). Dieselben Sprachen wie RAHMEN; sonst Deutsch (wie rahmenFuer). Rein.
+ */
+const VERWEIS: Record<string, { ort: string; satz: (betreff: string, datum: string) => string }> = {
+  de: { ort: "de-DE", satz: (b, d) => `Ihre Nachricht habe ich in meiner Antwort auf Ihr Anliegen „${b}“ vom ${d} mit beantwortet — Sie finden sie gleich darüber.` },
+  en: { ort: "en-GB", satz: (b, d) => `I have answered your message together with your request “${b}” of ${d} — you will find my reply just above.` },
+  fr: { ort: "fr-FR", satz: (b, d) => `J'ai répondu à votre message dans ma réponse à votre demande « ${b} » du ${d} — vous la trouverez juste au-dessus.` },
+  es: { ort: "es-ES", satz: (b, d) => `He respondido a su mensaje en mi respuesta a su solicitud «${b}» del ${d}; la encontrará justo encima.` },
+  it: { ort: "it-IT", satz: (b, d) => `Ho risposto al suo messaggio nella mia risposta alla sua richiesta «${b}» del ${d}: la trova qui sopra.` },
+  nl: { ort: "nl-NL", satz: (b, d) => `Uw bericht heb ik beantwoord in mijn antwoord op uw verzoek „${b}” van ${d} — u vindt het hierboven.` },
+  pl: { ort: "pl-PL", satz: (b, d) => `Odpowiedź na tę wiadomość znajduje się w mojej odpowiedzi na zgłoszenie „${b}” z dnia ${d} — tuż powyżej.` },
+  ro: { ort: "ro-RO", satz: (b, d) => `Răspunsul la acest mesaj se află în răspunsul meu la solicitarea „${b}” din ${d} — îl găsiți chiar mai sus.` },
+  tr: { ort: "tr-TR", satz: (b, d) => `Bu mesajınızı ${d} tarihli “${b}” talebinize verdiğim yanıtta birlikte yanıtladım — yanıtı hemen yukarıda bulabilirsiniz.` },
+  bg: { ort: "bg-BG", satz: (b, d) => `На това съобщение отговорих в отговора си на запитването Ви „${b}“ от ${d} — ще го намерите точно отгоре.` },
+  ru: { ort: "ru-RU", satz: (b, d) => `На это сообщение я ответила в своём ответе на Ваше обращение «${b}» от ${d} — Вы найдёте его чуть выше.` },
+};
+export function anliegenVerweisKern(ein: { sprache?: string | null; betreff: string; am: Date }): string {
+  const v = VERWEIS[String(ein.sprache || "de").slice(0, 2).toLowerCase()] ?? VERWEIS.de;
+  // Monat als Wort („19 October 2026“): „19/10/2026“ hält kernBereinigen für einen Pfad und nimmt es heraus.
+  const datum = ein.am.toLocaleDateString(v.ort, { timeZone: "Europe/Berlin", day: "numeric", month: "long", year: "numeric" });
+  return v.satz(String(ein.betreff ?? "").trim().slice(0, 120), datum);
+}

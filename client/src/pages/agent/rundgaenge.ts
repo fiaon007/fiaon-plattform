@@ -884,9 +884,10 @@ export const RUNDGANG_TICKETS: RundgangSchritt[] = [
     // E-406 C1 (19.10.2026) mitgezogen: Mara beantwortet Anliegen selbst. Ohne `ziel` — der Satz steht nur bei manchen Anliegen.
     titel: "Mara antwortet mit.",
     text: "Einfache Anliegen beantwortet Mara selbst — dann steht „Antwort von Mara“ dabei. Passt alles, klick „Erledigt“. "
-      + "Heikles (Kündigung, Beschwerde, Anwalt, Erstattung, Löschwunsch, Post mit Frist) beantwortet sie nicht: "
+      + "Heikles (Kündigung, Beschwerde, Anwalt, Inkasso, Erstattung, Löschwunsch, Post mit Frist) und Anliegen älter als 14 Tage beantwortet sie nicht: "
       + "Dann steht „Mara antwortet nicht: …“ dabei, und du antwortest wie bisher.",
-    tipp: "Steht „Maras Vorschlag“ da, holt „Vorschlag übernehmen“ ihn in dein Textfeld. Prüfen, anpassen, senden.",
+    tipp: "Steht „Maras Vorschlag“ da, steht der Grund darüber, und „Vorschlag übernehmen“ holt ihn in dein Textfeld. Prüfen, anpassen, senden — "
+      + "die Wortwand prüft jede Antwort wie bei der Mail und sagt dir, was du umschreiben sollst.",
   },
   {
     ziel: ".ti-karte-kopf",

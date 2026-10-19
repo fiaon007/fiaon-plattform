@@ -151,8 +151,9 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "Heikles bleibt bei dir.",
     changes: [
       "Mara liest die Akte, nutzt ihre Werkzeuge und dieselbe Prüfung wie im Postfach. Die Antwort sieht der Kunde in seinem Bereich, dazu bekommt er eine Benachrichtigung.",
-      "Kündigung, Widerruf, Beschwerde, Anwalt, Erstattung, Bestreiten, Löschwunsch und Post mit Frist beantwortet Mara nicht. In der Liste steht dann ein kurzer Satz dazu.",
-      "Darf Mara nicht selbst senden, steht ihr Vorschlag beim Anliegen. Mit „Vorschlag übernehmen“ steht er in deinem Textfeld — du prüfst und sendest.",
+      "Kündigung, Widerruf, Beschwerde, Anwalt, Inkasso, Erstattung, Bestreiten, Löschwunsch und Post mit Frist beantwortet Mara nicht — auch nicht auf Englisch. Anliegen, die älter als 14 Tage sind, bleiben bei dir. In der Liste steht dann ein kurzer Satz dazu.",
+      "Darf Mara nicht selbst senden, steht ihr Vorschlag beim Anliegen — und darüber der Grund. Mit „Vorschlag übernehmen“ steht er in deinem Textfeld — du prüfst und sendest.",
+      "Jede Antwort im Anliegen läuft jetzt durch dieselbe Wortwand wie die Mail: Ein Satz, der die Kündigung an eine Zahlung knüpft, oder ein verbotenes Wort hält sie an. Der Hinweis sagt dir, was du umschreiben sollst.",
       "Mara antwortet nur von 8 bis 20 Uhr. Kunden von FIAON Global und Testkonten beantwortet sie nie.",
       "Antwortest du selbst, bekommt der Kunde jetzt auch eine Benachrichtigung.",
     ],

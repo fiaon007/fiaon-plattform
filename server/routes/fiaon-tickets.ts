@@ -193,9 +193,14 @@ router.post("/agent/tickets/:id/antwort", requireAgent, async (req: AgentRequest
       await sqlPool`UPDATE fiaon_tickets SET status = 'erledigt', agent_id = COALESCE(agent_id, ${req.agent!.id}), updated_at = NOW() WHERE id = ${id}`;
       return res.json({ ok: true });
     }
+    // E-406 Nachbesserung (Prüfer 19.10.): Vorher ging hier jeder Text ungeprüft zum Kunden — auch Maras gesperrter
+    // Vorschlag nach einem Klick auf „Vorschlag übernehmen“. Jetzt dieselbe Wand wie in der Zentrale: E-393 und
+    // Wortwand (immer), Zusagen aus Maras Vorschlag nur gedeckt durch ihre Werkzeuge. Der Hinweis sagt, was umzuschreiben ist.
+    const { anliegenAntwortSpeichern, nennNameVon, anliegenHandPruefen } = await import("../lib/fiaon-mara-anliegen");
+    const pruefung = await anliegenHandPruefen(id, antwort);
+    if (!pruefung.ok) return res.status(400).json({ ok: false, error: pruefung.grund });
     // E-406 C1: EINE Stelle für jede Antwort (Mensch und Mara) — Anliegen, Verlauf der Akte und die Benachrichtigung
     // „Antwort auf Ihr Anliegen“ (Push), die es im Kundenbereich gab, aber nie gesendet wurde.
-    const { anliegenAntwortSpeichern, nennNameVon } = await import("../lib/fiaon-mara-anliegen");
     const t = await anliegenAntwortSpeichern({
       id, antwort, erledigt,
       von: { agentId: req.agent!.id, agentName: req.agent!.name, nennName: await nennNameVon(req.agent!.id), durch: "mensch" },

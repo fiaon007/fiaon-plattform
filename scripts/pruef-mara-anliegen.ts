@@ -20,7 +20,8 @@ const lies = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "u
 
 async function main() {
   const R = await import("../shared/fiaon-mara-anliegen");
-  const { anliegenHeikel, heikelAusEinordnung, anliegenUrteil, anliegenSendeUrteil, anliegenKnopfErlaubt, anliegenSchalterAn, maraStandSatz } = R;
+  const { anliegenHeikel, heikelAusEinordnung, anliegenUrteil, anliegenSendeUrteil, anliegenKnopfErlaubt, anliegenSchalterAn, maraStandSatz,
+    anliegenHandPruefung, anliegenBuendelTeilen, anliegenZuAlt } = R;
 
   console.log("── 1 · Schalter (Standard AN)");
   ok(anliegenSchalterAn(undefined) && anliegenSchalterAn(null) && anliegenSchalterAn(""), "fehlt / leer → an");
@@ -66,8 +67,32 @@ async function main() {
     ["Ankündigung", "Rate", "Danke für die Ankündigung der Rate."],
     ["überwiesen", "Zahlung", "Ich habe gestern überwiesen."],
     ["Passwort", "Login", "Ich komme nicht in meinen Bereich, Passwort vergessen."],
+    // E-406 Nachbesserung: die neuen Erstattungs-Regeln greifen nicht bei jedem „zurück“.
+    ["Rückruf + bezahlt", "Rückruf", "Bitte rufen Sie mich zurück, ich habe die Rate bezahlt."],
+    ["Urlaub zurück", "Zahlung", "Ich komme aus dem Urlaub zurück und zahle dann."],
+    ["Unterlagen zurück", "Unterlagen", "Ich schicke Ihnen die Unterlagen zurück."],
+    ["Englisch harmlos", "Card", "When will I get my card? I paid everything."],
   ];
   for (const [name, b, t] of harmlos) ok(H(b, t) === null, `${name} → nicht heikel`, anliegenHeikel({ betreff: b, text: t }));
+
+  console.log("── 3b · ROT-FÄLLE Nachbesserung (Prüfer 19.10.): was heikelArt nicht sieht — vorher alle „nicht heikel“");
+  const rotFaelle: [string, string, string][] = [
+    ["Rückzahlung", "Ich möchte eine Rückzahlung meiner Gebühr.", "erstattung"],
+    ["überweisen … zurück", "Bitte überweisen Sie mir die 49 € zurück, ich habe zu viel bezahlt.", "erstattung"],
+    ["zahlen … zurück", "Zahlen Sie mir den Betrag bitte zurück.", "erstattung"],
+    ["zurücküberweisen", "Können Sie mir das Geld zurücküberweisen?", "erstattung"],
+    ["refund", "I want a refund of my payment please.", "erstattung"],
+    ["pay back", "Can you pay me back the fee?", "erstattung"],
+    ["delete (englisch)", "Please delete my account and all my data.", "loeschen"],
+    ["GDPR", "According to the GDPR, I request that you remove my data.", "loeschen"],
+    ["Inkasso", "Ich habe einen Brief vom Inkasso bekommen", "recht"],
+    ["Inkassobüro", "Ein Inkassobüro schreibt mir wegen Ihrer Forderung.", "recht"],
+    ["cancel (englisch)", "I want to cancel my contract.", "kuendigung"],
+    ["withdrawal (englisch)", "I exercise my right of withdrawal.", "widerruf"],
+    ["lawyer (englisch)", "I will take legal action and call my lawyer.", "recht"],
+    ["complaint (englisch)", "I want to make a complaint about your service.", "beschwerde"],
+  ];
+  for (const [name, t, art] of rotFaelle) ok(H("Frage", t) === art, `${name} → ${art}`, H("Frage", t));
 
   console.log("── 4 · Heikel nach der Einordnung (KI + Riegel)");
   const E = (flags: Record<string, boolean>, kategorien: string[] = []) => heikelAusEinordnung({ flags, kategorien })?.art ?? null;
@@ -106,6 +131,20 @@ async function main() {
   ok(U({ heuteBeantwortet: R.ANLIEGEN_JE_PERSON_TAG }).art === "warten", `${R.ANLIEGEN_JE_PERSON_TAG} Antworten heute → warten bis morgen`);
   ok(U({ kiPause: true, global: true }).art === "warten", "Reihenfolge: erst die Bremsen, dann die Wände");
 
+  console.log("── 5b · Bündel: zu alte Anliegen bleiben beim Menschen (Nachbesserung, Prüfer 19.10.)");
+  const J = new Date("2026-10-19T12:00:00+02:00");
+  const alt27 = { id: 1, created_at: new Date("2026-09-22T10:00:00+02:00") };
+  const alt20 = { id: 2, created_at: new Date("2026-09-29T10:00:00+02:00") };
+  const neu = { id: 3, created_at: new Date("2026-10-19T09:00:00+02:00") };
+  const vor14 = { id: 4, created_at: new Date(J.getTime() - R.ANLIEGEN_MAX_TAGE * 86_400_000 - 3_600_000) };
+  const b1 = anliegenBuendelTeilen([alt27, neu], J);
+  ok(b1.buendel.map((x) => x.id).join() === "3" && b1.zuAlt.map((x) => x.id).join() === "1", "27 Tage alt + heute → Bündel nur das neue, das alte beim Menschen", b1);
+  const b2 = anliegenBuendelTeilen([alt27, alt20], J);
+  ok(b2.buendel.map((x) => x.id).join() === "2" && b2.zuAlt.map((x) => x.id).join() === "1", "alle zu alt → nur das jüngste im Bündel (Urteil: zu alt)", b2);
+  const b3 = anliegenBuendelTeilen([vor14, neu], J);
+  ok(b3.buendel.map((x) => x.id).join() === "4,3" && b3.zuAlt.length === 0, `genau ${R.ANLIEGEN_MAX_TAGE} Tage → noch im Bündel (dieselbe Grenze wie das Urteil)`, b3);
+  ok(anliegenZuAlt(R.ANLIEGEN_MAX_TAGE + 1) && !anliegenZuAlt(R.ANLIEGEN_MAX_TAGE), "eine Grenze: anliegenZuAlt");
+
   console.log("── 6 · Senden oder beim Menschen lassen");
   const S = (f: Partial<Parameters<typeof anliegenSendeUrteil>[0]>) => anliegenSendeUrteil({
     text: "Guten Tag", automatischErlaubt: true, mensch: null, e393Gesperrt: false, heikel: null, ...f,
@@ -116,6 +155,21 @@ async function main() {
   ok(S({ e393Gesperrt: true, e393Grund: "E-393" }).senden === false, "E-393-Sperre → Vorschlag");
   ok(S({ heikel: { art: "kuendigung", grund: "k" } }).senden === false, "heikel → nie senden");
   ok(S({ text: "  " }).senden === false, "leerer Text → nie senden");
+
+  console.log("── 6b · Wenn ein MENSCH antwortet (Nachbesserung, Prüfer 19.10.: vorher ungeprüft)");
+  const HP = (o: Partial<Parameters<typeof anliegenHandPruefung>[0]>) => anliegenHandPruefung({ antwort: "Guten Tag, Ihr Vorgang ist vollständig.", eingang: "Wie ist der Stand?", betreff: "Stand", ...o });
+  ok(HP({}).ok === true, "sauberer Text → speichern");
+  const rest = HP({ antwort: "Guten Tag, Ihre Kündigung wird wirksam, sobald die letzte Rate bezahlt ist.", eingang: "Ich möchte kündigen.", betreff: "Kündigung" });
+  ok(rest.ok === false && /E-393/.test((rest as any).grund) && /umschreiben/.test((rest as any).grund), "ROT: Rest-Kopplung „wirksam, sobald die letzte Rate bezahlt ist“ → angehalten, mit Hinweis", rest);
+  const gar = HP({ antwort: "Ich garantiere Ihnen, dass Sie Ihre Karte bekommen." });
+  ok(gar.ok === false && /garantiere/.test((gar as any).grund), "ROT: Wortwand „garantiere“ → angehalten", gar);
+  ok(HP({ antwort: "Bitte überweisen Sie an BE09 9058 0000 0000." }).ok === false, "ROT: gesperrte Bankverbindung → angehalten");
+  ok(HP({ antwort: "Guten Tag, ich rufe Sie morgen um 10 Uhr an." }).ok === true, "eigene Zusage des Mitarbeiters („ich rufe Sie an“) → speichern (er tut es selbst)");
+  const vorschlag = "Guten Tag Frau Probe,\n\nIhre Betreuerin ruft Sie morgen an und klärt das.\n\nFreundliche Grüße\nMara";
+  const uebernommen = HP({ antwort: vorschlag, maraEntwurf: vorschlag, maraWerkzeuge: [] });
+  ok(uebernommen.ok === false && /Maras Vorschlag/.test((uebernommen as any).grund), "ROT: übernommener Vorschlag mit ungedeckter Zusage → angehalten", uebernommen);
+  ok(HP({ antwort: vorschlag, maraEntwurf: vorschlag, maraWerkzeuge: ["aufgabe_an_betreuer"] }).ok === true, "dieselbe Zusage, gedeckt durch Maras Werkzeug (Aufgabe lief) → speichern");
+  ok(HP({ antwort: "Guten Tag Frau Probe,\n\nich rufe Sie morgen selbst an.\n\nFreundliche Grüße", maraEntwurf: vorschlag, maraWerkzeuge: [] }).ok === true, "Vorschlag umgeschrieben (eigener Satz) → speichern");
 
   console.log("── 7 · Der Knopf im Kundenbereich");
   ok(anliegenKnopfErlaubt("https://fiaon.com/zahlen/FIAON-X1"), "fiaon.com → erlaubt");
@@ -131,6 +185,9 @@ async function main() {
     ok(t.length > 0 && t.length <= 90, `${s}: „${t}“ (${t.length} Zeichen)`);
   }
   ok(maraStandSatz(null) === null, "ohne Stand kein Satz");
+  const mitGrund = maraStandSatz("entwurf", "E-393 gesperrt — Kündigung an Zahlung geknüpft") ?? "";
+  ok(/E-393 gesperrt/.test(mitGrund), "Vorschlag: der Grund steht sichtbar im Satz (nicht nur im Tooltip)", mitGrund);
+  ok((maraStandSatz("entwurf", "x".repeat(400)) ?? "").length <= 170, "Vorschlag: langer Grund gekürzt");
 
   console.log("── 9 · Antworttext für den Kundenbereich (anliegenAntwortBauen)");
   const { anliegenAntwortBauen, antwortBauen } = await import("../server/lib/fiaon-postmeister-antworttext");
@@ -147,6 +204,20 @@ async function main() {
   ok(!/Digitale Assistentin/.test(en.text) && /Mara Lindner\n.+ · FIAON-Team$/.test(en.text), "in Englisch die Rolle der Sprache", en.text.slice(-60));
   ok(a.knopf?.url === "https://fiaon.com/zahlen/FIAON-X1" && a.knopf?.text === "Rechnung ansehen und bezahlen", "Knopf getrennt, Text der Sprache", a.knopf);
   ok(anliegenAntwortBauen({ anrede: "Hallo,", kern: "Danke.", gruss: "Gruß" }).knopf === null, "ohne Schritt kein Knopf");
+  // E-406 Nachbesserung: der Verweis im älteren Bündel-Anliegen in der Sprache der Antwort (vorher fest Deutsch).
+  const { anliegenVerweisKern, grussMitAgent } = await import("../server/lib/fiaon-postmeister-antworttext");
+  const am = new Date("2026-10-19T10:00:00+02:00");
+  const gr = grussMitAgent("Freundliche Grüße\nIhr FIAON-Team", "Mara Lindner");
+  const vEn = anliegenAntwortBauen({ anrede: "Dear Ms Sample,", gruss: gr, sprache: "en", agentName: "Mara Lindner", kern: anliegenVerweisKern({ sprache: "en", betreff: "Card", am }) }).text;
+  ok(/I have answered your message/.test(vEn) && /19 October 2026/.test(vEn) && /Kind regards/.test(vEn), "ROT: Verweis auf Englisch — Satz, Datum, Gruß", vEn);
+  ok(!/Ihre|Anliegen|Grüße|beantwortet|Digitale/.test(vEn), "ROT: keine deutschen Wörter im englischen Verweis (E-248 #5591)", vEn);
+  const vDe = anliegenVerweisKern({ sprache: "de", betreff: "Karte", am });
+  ok(/mit beantwortet/.test(vDe) && /„Karte“/.test(vDe) && /19\. Oktober 2026/.test(vDe), "Verweis auf Deutsch wie bisher (Datum ausgeschrieben)", vDe);
+  for (const sp of ["fr", "es", "it", "nl", "pl", "ro", "tr", "bg", "ru"]) {
+    const v = anliegenVerweisKern({ sprache: sp, betreff: "Karte", am });
+    ok(v !== vDe && v.includes("Karte") && v.includes("2026"), `Verweis in ${sp}`, v);
+  }
+  ok(anliegenVerweisKern({ sprache: "xx", betreff: "Karte", am }) === vDe, "unbekannte Sprache → Deutsch (wie rahmenFuer)");
   // Die Mail bleibt, wie sie war (Knopfzeile im Text, &amp; im HTML-Teil).
   const m = antwortBauen({ anrede: "Guten Tag Frau Muster,", kern: "Ihre Rate & Ihr Link.", gruss: "Freundliche Grüße\nIhr FIAON-Support", schritt: { art: "zahlung", url: "https://fiaon.com/zahlen/FIAON-X1", text: "" } as any, betreff: "x", sprache: "de" });
   ok(m.text.includes("Rechnung ansehen und bezahlen: https://fiaon.com/zahlen/FIAON-X1"), "Mail-Text unverändert: Knopfzeile mit Adresse");
@@ -190,12 +261,19 @@ async function main() {
   const tickets = lies("server/routes/fiaon-tickets.ts");
   ok(/anliegenAntwortSpeichern\(/.test(tickets), "Menschen-Antwort über dieselbe Stelle wie Mara (Anliegen, Akte, Benachrichtigung)");
   ok(/antwort_knopf/.test(tickets), "Kunde bekommt den Knopf mit");
+  const iPruef = tickets.indexOf("anliegenHandPruefen(id, antwort)"), iSpeichern = tickets.indexOf("anliegenAntwortSpeichern({");
+  ok(iPruef > 0 && iSpeichern > iPruef && /if \(!pruefung\.ok\) return res\.status\(400\)/.test(tickets), "ROT: Menschen-Antwort wird VOR dem Speichern geprüft (400 mit Hinweis)");
   ok(/mara_stand, t\.mara_grund, t\.mara_heikel, t\.mara_entwurf/.test(tickets), "Mitarbeiter sehen Maras Stand und Vorschlag");
   const lib = lies("server/lib/fiaon-mara-anliegen.ts");
   ok(/pushBeiEreignis\(Number\(t\.person_id\), "antwort_anliegen"/.test(lib), "Benachrichtigung „Antwort auf Ihr Anliegen“ wird gesendet");
   ok(/WHERE id = \$\{ein\.id\} AND status = 'offen' AND antwort IS NULL/.test(lib), "Mara speichert nur, solange niemand geantwortet hat");
   ok(/NOT \$\{globalKundeSql\(/.test(lib) && /p\.ist_test_am IS NULL/.test(lib), "Takt holt Global-Kunden und Testpersonen gar nicht erst");
   ok(/kuendigungSendeUrteil\(/.test(lib) && /menschNoetig\(/.test(lib), "E-393-Sperre und menschNoetig wie im Postfach");
+  ok(/anliegenBuendelTeilen\(/.test(lib) && /!imVerlauf\.has\(bid\)/.test(lib), "Bündel ohne zu alte Anliegen; „mit beantwortet“ nur, was Mara im Verlauf sah");
+  ok(/ORDER BY \(t\.id = ANY\(\$\{ids\}::int\[\]\)\) DESC, t\.created_at DESC/.test(lib), "Verlauf: Bündel immer, dann die jüngsten (nicht die 20 ältesten)");
+  ok(/anliegenVerweisKern\(\{ sprache,/.test(lib) && !/sprache: "de", agentName: name/.test(lib), "Verweis in der Sprache der Antwort (nicht fest Deutsch)");
+  ok(/mara_werkzeuge = \$\{lauf\.json\(handlungKurz/.test(lib), "Vorschlag merkt sich die Werkzeuge seines Laufs");
+  ok(!/JSON\.stringify\([^)]*\)\}::jsonb/.test(lib), "JSON-Spalten mit lauf.json (kein Text in jsonb — sonst fehlt der Knopf im Kundenbereich)");
   const pult = lies("server/routes/fiaon-mara-steuerpult.ts");
   ok(/router\.get\("\/chef\/mara\/anliegen"/.test(pult) && /router\.post\("\/chef\/mara\/anliegen"/.test(pult), "Schalter im Steuerpult (GET/POST /chef/mara/anliegen)");
   const chefMara = lies("client/src/components/admin/ChefMara.tsx");
@@ -207,6 +285,7 @@ async function main() {
   ok(/path="\/agent\/anliegen" component=\{AgentTicketsPage\}/.test(lies("client/src/App.tsx")), "/agent/anliegen ist tickets.tsx");
   ok(/mara_entwurf/.test(seite) && /Vorschlag übernehmen/.test(seite), "/agent/anliegen: Maras Vorschlag übernehmen");
   ok(/maraStandSatz/.test(seite), "/agent/anliegen: Maras Hinweis (heikel, zu alt …)");
+  ok(/a\.mara_stand === "mensch" \|\| a\.mara_stand === "entwurf" \? a\.mara_grund/.test(seite), "/agent/anliegen: beim Vorschlag steht der Grund sichtbar");
   const rg = lies("client/src/pages/agent/rundgaenge.ts");
   ok(/E-406/.test(rg) && /Mara/.test(rg.slice(rg.indexOf("E-406"), rg.indexOf("E-406") + 900)), "Rundgang /agent/anliegen erklärt Mara");
   const upd = lies("client/src/pages/agent/updates-data.ts");

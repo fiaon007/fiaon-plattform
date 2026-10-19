@@ -400,6 +400,66 @@ async function main() {
       ok(st.gruende.some((g) => /Kündigung/.test(g.grund)), "Gründe beim Team: Kündigung", st.gruende);
     }
 
+    console.log("── 15 · ROT-PROBE Bündel (Prüfer 19.10.): ein 27 Tage altes offenes Anliegen wird NICHT „mit beantwortet“");
+    const K15 = await kunde("M");
+    const t15alt = await anliegen(K15, "Alte Frage", "Wo bleibt mein Zugang? Ich warte seit Wochen.", 27 * 24);
+    const t15neu = await anliegen(K15, "Neue Frage", "Wann kommt meine Karte?", 0.2);
+    {
+      const r = await takt(SAUBER);
+      const alt = await ticket(t15alt), neu = await ticket(t15neu);
+      ok(neu.status === "beantwortet" && neu.beantwortet_durch === "mara", "das neue Anliegen beantwortet Mara", { st: neu.status, g: kurz(neu.mara_grund, 120) });
+      ok(alt.status === "offen" && alt.antwort == null, "das alte bleibt offen, ohne Verweis (vorher: „mit beantwortet“, weg aus der Liste)", { st: alt.status, a: kurz(alt.antwort, 80) });
+      ok(alt.mara_stand === "mensch" && /Älter als 14 Tage/.test(String(alt.mara_grund)), "das alte steht beim Menschen: „Älter als 14 Tage“", { st: alt.mara_stand, g: alt.mara_grund });
+      // Im selben Takt läuft auch das offene Anliegen aus Abschnitt 13 — den Aufruf zu DIESEM Anliegen nehmen.
+      const auftrag = r.ki.filter((k) => k.art === "antwort").map((k) => k.alles).find((x) => x.includes("Neue Frage")) ?? "";
+      ok(/liegt bei einem Kollegen/.test(auftrag) && !new RegExp(`Anliegen #${t15alt}, noch offen — deine Antwort gilt auch dafür`).test(auftrag), "Mara sieht das alte, soll aber nicht darauf eingehen");
+      const st = await A.anliegenStand();
+      ok(st.woche.mensch >= 1 && st.offen >= 1, "Zähler: das alte zählt weiter als offen beim Team", st.woche);
+    }
+
+    console.log("── 16 · ROT-PROBE Sprache (Prüfer 19.10.): englischer Kunde mit zwei offenen Anliegen → Verweis auf Englisch");
+    const K16 = await kunde("N");
+    const t16a = await anliegen(K16, "Question", "When will my card arrive?", 3);
+    const t16b = await anliegen(K16, "Follow-up", "And how long does it usually take?", 0.2);
+    {
+      const EN: Szenario = {
+        einordnung: { ...EIN_FRAGE, sprache: "en", fragen: ["When will my card arrive?"], zusammenfassung: "Customer asks about the card." },
+        antwort: { antwort: "Your application is complete, nothing is missing on your side. You will hear from us as soon as there is news.", naechster_schritt: schritt, belege: [], fragen_beantwortet: [], merken: [] },
+      };
+      await takt(EN);
+      const a = await ticket(t16a), b = await ticket(t16b);
+      if (b.status !== "beantwortet") console.log("     (Weg:", b.mara_stand, "—", kurz(b.mara_grund, 300), ")");
+      console.log("     Verweis:", JSON.stringify(String(a.antwort ?? "")));
+      ok(b.status === "beantwortet" && /Your application is complete/.test(String(b.antwort)), "das jüngste trägt die englische Antwort", kurz(b.antwort, 120));
+      ok(a.status === "beantwortet" && /I have answered your message/.test(String(a.antwort)) && /“Follow-up”/.test(String(a.antwort)), "das ältere: Verweis auf Englisch", kurz(a.antwort, 200));
+      ok(!/Ihre Nachricht|\bAnliegen\b|Freundliche Grüße|Digitale Assistentin|Guten Tag/.test(String(a.antwort)), "keine Mischsprache im Verweis (E-248 #5591)", kurz(a.antwort, 200));
+    }
+
+    console.log("── 17 · ROT-PROBE Menschen-Antwort (Prüfer 19.10.): Maras gesperrter Vorschlag geht auch per Klick nicht durch");
+    {
+      const z7 = await ticket(t7);
+      const p7 = await A.anliegenHandPruefen(t7, String(z7.mara_entwurf ?? ""));
+      ok(p7.ok === false && /garantiere/.test((p7 as any).grund), "„Vorschlag übernehmen“ mit „garantiere“ → angehalten (vorher gespeichert)", p7);
+      ok(Array.isArray(z7.mara_werkzeuge), "der Vorschlag kennt die Werkzeuge seines Laufs (als Liste, nicht als Text)", z7.mara_werkzeuge);
+      const p6 = await A.anliegenHandPruefen(t6, "Guten Tag, Ihre Kündigung wird wirksam, sobald die letzte Rate bezahlt ist.");
+      ok(p6.ok === false && /E-393/.test((p6 as any).grund), "Rest-Kopplung von Hand → angehalten (E-393, gleich wer schreibt)", p6);
+      const z6 = await ticket(t6);
+      const p6b = await A.anliegenHandPruefen(t6, String(z6.mara_entwurf ?? ""));
+      ok(p6b.ok === true, "Maras bereinigter Vorschlag (Satz ersetzt) → darf gespeichert werden", p6b);
+      ok((await A.anliegenHandPruefen(t7, "Guten Tag, Ihre Karte kommt, sobald die Bank zugestimmt hat. Ich rufe Sie morgen an.")).ok === true, "eigener, sauberer Text des Mitarbeiters → speichern");
+      ok((await ticket(t7)).antwort == null, "die Prüfung selbst schreibt nichts");
+    }
+
+    console.log("── 18 · Der Knopf unter der Antwort kommt als Objekt an (Hilfe.tsx liest k.url)");
+    {
+      const K18 = await kunde("O");
+      const t18 = await anliegen(K18, "Rechnung", "Wo kann ich bezahlen?");
+      await A.anliegenAntwortSpeichern({ id: t18, antwort: "Guten Tag, hier geht es zur Zahlung.", knopf: { text: "Rechnung ansehen und bezahlen", url: "https://fiaon.com/zahlen/FIAON-A406O" },
+        von: { agentId: null, agentName: "Prüf Mensch", nennName: "Frau Prüf", durch: "mensch" } });
+      const [z] = (await sql`SELECT jsonb_typeof(antwort_knopf) AS typ, antwort_knopf FROM fiaon_tickets WHERE id = ${t18}`) as any[];
+      ok(z.typ === "object" && z.antwort_knopf?.url === "https://fiaon.com/zahlen/FIAON-A406O", "ROT: antwort_knopf ist ein Objekt mit url (vorher Text — der Knopf erschien nie)", { typ: z.typ, k: z.antwort_knopf });
+    }
+
     console.log("── 14 · Kein Netz außer der Attrappe");
     ok(fremd === 0, `kein Netzaufruf außer den Attrappen (${fremd})`);
   } finally {

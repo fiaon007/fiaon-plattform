@@ -22,6 +22,7 @@ import { sqlPool } from "./db-pool";
 import {
   ANLIEGEN_SCHALTER, ANLIEGEN_DIENST, ANLIEGEN_TAG_EURO_VORGABE, ANLIEGEN_JE_TAKT, ANLIEGEN_VERSUCHE,
   anliegenSchalterAn, anliegenHeikel, heikelAusEinordnung, anliegenUrteil, anliegenSendeUrteil, anliegenKnopfErlaubt,
+  anliegenAlterTage, anliegenBuendelTeilen, anliegenHandPruefung, ANLIEGEN_MAX_TAGE,
   HEIKEL_NAME, type AnliegenHeikel, type AnliegenUrteil,
 } from "@shared/fiaon-mara-anliegen";
 import { imVersandfenster } from "@shared/fiaon-nicht-erreicht-nachfass";
@@ -38,6 +39,8 @@ let schemaBereit: Promise<void> | null = null;
  *   mara_heikel   die Art (Kündigung, Beschwerde …), wenn heikel — sperrt auch spätere Anliegen desselben Menschen
  *   mara_entwurf  Maras Vorschlag, wenn sie nicht selbst antworten durfte (auf /agent/anliegen übernehmbar)
  *   mara_einordnung  der Merker der Einordnung (E-401: einmal je Text, nicht je Takt)
+ *   mara_werkzeuge   die Werkzeuge, die in Maras Lauf zum Vorschlag wirklich liefen (decken dessen Zusagen, wenn ein
+ *                    Mensch ihn übernimmt — anliegenHandPruefen)
  *   antwort_knopf {text,url} — der Knopf unter der Antwort im Kundenbereich (Zahlungsseite, Terminlink, Bereich)
  *   beantwortet_durch  'mara' | 'mensch'
  */
@@ -55,6 +58,7 @@ export function anliegenSchema(lauf: Lauf = sqlPool): Promise<void> {
         ADD COLUMN IF NOT EXISTS mara_heikel TEXT,
         ADD COLUMN IF NOT EXISTS mara_entwurf TEXT,
         ADD COLUMN IF NOT EXISTS mara_einordnung JSONB,
+        ADD COLUMN IF NOT EXISTS mara_werkzeuge JSONB,
         ADD COLUMN IF NOT EXISTS mara_versuche INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS mara_am TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS mara_in_arbeit_seit TIMESTAMPTZ,
@@ -88,18 +92,20 @@ export async function anliegenAntwortSpeichern(ein: {
 }, lauf: Lauf = sqlPool): Promise<{ ref: string; betreff: string; personId: number | null } | null> {
   await anliegenSchema(lauf);
   const knopf = ein.knopf && anliegenKnopfErlaubt(ein.knopf.url) ? { text: String(ein.knopf.text).slice(0, 80), url: String(ein.knopf.url).slice(0, 600) } : null;
+  // E-406 Nachbesserung: lauf.json — JSON.stringify(…) mit „::jsonb“ legte einen TEXT ab (jsonb_typeof = string); der
+  // Kundenbereich (Hilfe.tsx, knopfOk) las darin keine url und zeigte den Knopf nie.
   const status = ein.erledigt ? "erledigt" : "beantwortet";
   const [t] = (ein.nurWennOffen
     ? await lauf`
         UPDATE fiaon_tickets SET antwort = ${ein.antwort}, beantwortet_am = NOW(), beantwortet_von = ${ein.von.agentId},
-               status = ${status}, antwort_knopf = ${knopf ? JSON.stringify(knopf) : null}::jsonb, beantwortet_durch = ${ein.von.durch},
+               status = ${status}, antwort_knopf = ${knopf ? lauf.json(knopf as any) : null}, beantwortet_durch = ${ein.von.durch},
                updated_at = NOW()
          WHERE id = ${ein.id} AND status = 'offen' AND antwort IS NULL
          RETURNING ref, betreff, person_id`
     : await lauf`
         UPDATE fiaon_tickets SET antwort = ${ein.antwort}, beantwortet_am = NOW(), beantwortet_von = ${ein.von.agentId},
                agent_id = COALESCE(agent_id, ${ein.von.agentId}), status = ${status},
-               antwort_knopf = ${knopf ? JSON.stringify(knopf) : null}::jsonb, beantwortet_durch = ${ein.von.durch}, updated_at = NOW()
+               antwort_knopf = ${knopf ? lauf.json(knopf as any) : null}, beantwortet_durch = ${ein.von.durch}, updated_at = NOW()
          WHERE id = ${ein.id}
          RETURNING ref, betreff, person_id`) as any[];
   if (!t) return null;
@@ -119,6 +125,31 @@ export async function nennNameVon(agentId: number, lauf: Lauf = sqlPool): Promis
   if (!a) return "Ihr FIAON-Team";
   const { nennform } = await import("@shared/fiaon-mitarbeiter-name");
   return nennform(a).nom;
+}
+
+/**
+ * Vor jeder Antwort eines MITARBEITERS im Anliegen (POST /agent/tickets/:id/antwort, E-406 Nachbesserung): E-393 und
+ * Wortwand wie in der Zentrale — auch für Maras Vorschlag nach „Vorschlag übernehmen“. Die Regeln stehen rein in
+ * anliegenHandPruefung; hier nur das Lesen (Text, Betreff, Maras Einordnung, Vorschlag und Werkzeuge, Kündigung
+ * vorgemerkt?). Lesefehler: geprüft wird trotzdem, nur ohne diese Angaben.
+ */
+export async function anliegenHandPruefen(id: number, antwort: string, lauf: Lauf = sqlPool): Promise<{ ok: true } | { ok: false; grund: string }> {
+  await anliegenSchema(lauf).catch(() => {});
+  const [t] = (await lauf`
+    SELECT ref, betreff, text, mara_einordnung, mara_entwurf, mara_werkzeuge FROM fiaon_tickets WHERE id = ${id}`.catch(() => [])) as any[];
+  const json = (w: unknown): any => { if (typeof w !== "string") return w ?? null; try { return JSON.parse(w); } catch { return null; } };
+  let merker = json(t?.mara_einordnung);
+  if (typeof merker === "string") merker = json(merker);
+  const roh = (merker && typeof merker === "object" ? (merker.roh ?? merker) : {}) as { flags?: Record<string, unknown>; kategorien?: string[] };
+  const werkzeuge = json(t?.mara_werkzeuge);
+  const [k] = t?.ref ? (await lauf`SELECT 1 AS ja FROM cancellation_requests WHERE ref = ${String(t.ref)} LIMIT 1`.catch(() => [])) as any[] : [];
+  return anliegenHandPruefung({
+    antwort, eingang: t?.text ?? null, betreff: t?.betreff ?? null,
+    flags: roh.flags && typeof roh.flags === "object" ? roh.flags : null,
+    kategorien: Array.isArray(roh.kategorien) ? roh.kategorien.map(String) : null,
+    kuendigungInAkte: !!k, maraEntwurf: t?.mara_entwurf ?? null,
+    maraWerkzeuge: Array.isArray(werkzeuge) ? werkzeuge.map(String) : [],
+  });
 }
 
 // ── SCHALTER, DECKEL ────────────────────────────────────────────────────────
@@ -153,7 +184,7 @@ export type AnliegenErgebnis =
   | { art: "fehler"; grund: string }
   | { art: "weg"; grund: string };
 
-const tageAlt = (am: Date, jetzt: Date) => Math.max(0, Math.floor((jetzt.getTime() - am.getTime()) / 86_400_000));
+const tageAlt = anliegenAlterTage;
 const datumDe = (d: Date) => d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
 
 /**
@@ -172,8 +203,9 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
   if (String(t.status) !== "offen" || t.antwort != null) return { art: "weg", grund: "schon beantwortet oder erledigt" };
   const personId: number | null = t.pid != null ? Number(t.pid) : null;
 
-  // Das Bündel: alle offenen, unbeantworteten, von Mara noch nicht entschiedenen Anliegen desselben Menschen.
-  const buendel = personId
+  // Alle offenen, unbeantworteten, von Mara noch nicht entschiedenen Anliegen desselben Menschen. Das Bündel daraus
+  // sind nur die nicht zu alten (E-406 Nachbesserung: anliegenBuendelTeilen) — zu alte bleiben beim Menschen.
+  const offenAlle = personId
     ? ((await lauf`
         SELECT t.id, t.ref, t.betreff, t.text, t.created_at, t.mara_stand
           FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
@@ -182,10 +214,12 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
            AND (t.mara_stand IS NULL OR t.mara_stand = 'fehler' OR t.id = ${id})
          ORDER BY t.created_at ASC, t.id ASC`) as any[])
     : [t];
+  const { buendel, zuAlt } = anliegenBuendelTeilen(offenAlle.length ? offenAlle : [t], jetzt);
   const leit = buendel[buendel.length - 1] ?? t;
   const leitId = Number(leit.id);
   const ids = buendel.map((b: any) => Number(b.id));
-  const freigeben = async () => { await lauf`UPDATE fiaon_tickets SET mara_in_arbeit_seit = NULL WHERE id = ANY(${ids}::int[])`.catch(() => {}); };
+  const zuAltIds = zuAlt.map((b: any) => Number(b.id));
+  const freigeben = async () => { await lauf`UPDATE fiaon_tickets SET mara_in_arbeit_seit = NULL WHERE id = ANY(${Array.from(new Set([...ids, id]))}::int[])`.catch(() => {}); };
   const setzen = async (stand: string, grund: string, felder: { heikel?: AnliegenHeikel | null; entwurf?: string | null; versuche?: boolean; nur?: number[] } = {}) => {
     const welche = felder.nur ?? ids;
     await lauf`
@@ -208,11 +242,16 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     SELECT COUNT(*)::int AS n FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
      WHERE COALESCE(p.merged_into_person_id, t.person_id) = ${personId} AND t.beantwortet_durch = 'mara'
        AND t.beantwortet_am > date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'`) as any[] : [{ n: 0 }];
-  // Heikel: jeder Text des Bündels — und ein früheres heikles Anliegen, das noch beim Menschen liegt.
+  // Heikel: jeder Text des Bündels — ein zu altes offenes Anliegen mit Heiklem (das beim Menschen bleibt) — und ein
+  // früheres heikles Anliegen, das noch beim Menschen liegt.
   let heikel = null as { art: AnliegenHeikel; grund: string } | null;
   for (const b of buendel) {
     heikel = anliegenHeikel({ betreff: b.betreff, text: b.text });
     if (heikel) break;
+  }
+  for (const b of heikel ? [] : zuAlt) {
+    const h = anliegenHeikel({ betreff: b.betreff, text: b.text });
+    if (h) { heikel = { art: h.art, grund: `Ein früheres Anliegen (${HEIKEL_NAME[h.art]}) wartet auf einen Menschen — er antwortet auf beide.` }; break; }
   }
   if (!heikel && personId) {
     const [frueher] = (await lauf`
@@ -232,6 +271,11 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
   if (urteil.art === "warten") { await freigeben(); return urteil; }
   // Global und Testperson: Mara schreibt NICHTS — keine Zeile, kein Vermerk.
   if (urteil.art === "nie") { await freigeben(); return urteil; }
+  // Zu alte offene Anliegen desselben Menschen: beim Menschen (mit ihrer Heikel-Art, falls heikel) — nie „mit beantwortet“.
+  for (const b of zuAlt) {
+    const h = anliegenHeikel({ betreff: b.betreff, text: b.text });
+    await setzen("mensch", h?.grund ?? `Älter als ${ANLIEGEN_MAX_TAGE} Tage — ein Mensch antwortet.`, { heikel: h?.art ?? null, nur: [Number(b.id)] });
+  }
   if (urteil.art === "mensch") {
     await setzen("mensch", urteil.grund, { heikel: urteil.heikel });
     return urteil;
@@ -242,7 +286,7 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     const agent = await import("./fiaon-postmeister-agent");
     const { akteLesen } = await import("./fiaon-postmeister-dossier");
     const { menschNoetig, offeneEinwaende, UEBERGABE_GRUND } = await import("./fiaon-postmeister-lauf");
-    const { anredeBestimmen, anliegenAntwortBauen, grussMitAgent } = await import("./fiaon-postmeister-antworttext");
+    const { anredeBestimmen, anliegenAntwortBauen, anliegenVerweisKern, grussMitAgent } = await import("./fiaon-postmeister-antworttext");
     const { kuendigungSendeUrteil } = await import("@shared/fiaon-wortverbote");
 
     const ref = String(leit.ref ?? t.ref);
@@ -256,7 +300,7 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     const einText = buendel.length > 1 ? buendel.map((b: any) => `${b.betreff}\n${b.text}`).join("\n\n— nächstes Anliegen —\n\n") : text;
     const [merkerZeile] = (await lauf`SELECT mara_einordnung FROM fiaon_tickets WHERE id = ${leitId}`) as any[];
     const eo = await agent.einordnenMitMerker({ betreff, text: einText, von, alterTage }, merkerZeile?.mara_einordnung ?? null);
-    if (!eo.wiederverwendet) await lauf`UPDATE fiaon_tickets SET mara_einordnung = ${JSON.stringify(eo.merker)}::jsonb WHERE id = ${leitId}`.catch(() => {});
+    if (!eo.wiederverwendet) await lauf`UPDATE fiaon_tickets SET mara_einordnung = ${lauf.json(eo.merker as any)} WHERE id = ${leitId}`.catch(() => {});
     const einordnung = eo.einordnung;
     const heikelNachher = heikelAusEinordnung(einordnung);
     if (heikelNachher) {
@@ -264,17 +308,21 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
       return { art: "mensch", grund: heikelNachher.grund, heikel: heikelNachher.art };
     }
 
-    // 2. Der Verlauf: frühere Anliegen und Antworten dieses Menschen, dazu die übrigen offenen des Bündels.
-    const frueher = (await lauf`
+    // 2. Der Verlauf: die übrigen offenen des Bündels IMMER (E-406 Nachbesserung: vorher die 20 ÄLTESTEN aus 90 Tagen —
+    //    ein Bündel-Anliegen konnte fehlen und bekam trotzdem „mit beantwortet“), dazu die jüngsten früheren Anliegen.
+    const frueher = ((await lauf`
       SELECT t.id, t.betreff, t.text, t.antwort, t.created_at, t.beantwortet_am, t.beantwortet_durch
         FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
        WHERE COALESCE(p.merged_into_person_id, t.person_id) = ${personId} AND t.id <> ${leitId}
-         AND t.created_at > NOW() - INTERVAL '90 days'
-       ORDER BY t.created_at ASC LIMIT 20`) as any[];
+         AND (t.created_at > NOW() - INTERVAL '90 days' OR t.id = ANY(${ids}::int[]))
+       ORDER BY (t.id = ANY(${ids}::int[])) DESC, t.created_at DESC, t.id DESC LIMIT 20`) as any[])
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || Number(a.id) - Number(b.id));
+    const imVerlauf = new Set(frueher.map((f: any) => Number(f.id)));
     const verlauf: { von: string; am: string; text: string }[] = [];
     for (const f of frueher) {
       const offen = ids.includes(Number(f.id));
-      verlauf.push({ von: `Kunde (Anliegen #${f.id}${offen ? ", noch offen — deine Antwort gilt auch dafür" : ""})`, am: datumDe(new Date(f.created_at)), text: `${f.betreff}\n${f.text}` });
+      const beimTeam = zuAltIds.includes(Number(f.id));
+      verlauf.push({ von: `Kunde (Anliegen #${f.id}${offen ? ", noch offen — deine Antwort gilt auch dafür" : beimTeam ? ", noch offen — liegt bei einem Kollegen, geh nicht darauf ein" : ""})`, am: datumDe(new Date(f.created_at)), text: `${f.betreff}\n${f.text}` });
       if (f.antwort) verlauf.push({ von: f.beantwortet_durch === "mara" ? "FIAON (Mara)" : "FIAON (Team)", am: f.beantwortet_am ? datumDe(new Date(f.beantwortet_am)) : "", text: String(f.antwort) });
     }
     const akte = await akteLesen(personId, ref);
@@ -329,6 +377,8 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
 
     if (!senden.senden) {
       await setzen("entwurf", senden.grund, { entwurf: fertig.text });
+      // Die Werkzeuge ihres Laufs — sie decken die Zusagen des Vorschlags, wenn ein Mensch ihn übernimmt (anliegenHandPruefen).
+      await lauf`UPDATE fiaon_tickets SET mara_werkzeuge = ${lauf.json(handlungKurz as any)} WHERE id = ANY(${ids}::int[])`.catch(() => {});
       await vermerk(ref, personId, `Mara: Vorschlag zu Anliegen #${leitId} liegt auf /agent/anliegen — ${senden.grund.slice(0, 200)}${handlungKurz.length ? ` (schon getan: ${handlungKurz.join(", ")})` : ""}`, lauf);
       return { art: "entwurf", grund: senden.grund };
     }
@@ -340,14 +390,15 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     }, lauf);
     if (!gespeichert) { await freigeben(); return { art: "weg", grund: "inzwischen von einem Menschen beantwortet" }; }
     await lauf`UPDATE fiaon_tickets SET mara_stand = 'beantwortet', mara_grund = ${String(erg.grund || "").slice(0, 400)}, mara_am = NOW(), mara_in_arbeit_seit = NULL WHERE id = ${leitId}`;
-    // Die älteren offenen Anliegen des Bündels: ein kurzer Verweis auf die eine Antwort (ohne zweite Benachrichtigung).
+    // Die älteren offenen Anliegen des Bündels: ein kurzer Verweis auf die eine Antwort (ohne zweite Benachrichtigung) —
+    // nur, wenn Mara sie im Verlauf sah, und in der Sprache der Antwort (E-248 #5591: keine Mischsprache).
     const mitgenommen: number[] = [];
     for (const b of buendel) {
       const bid = Number(b.id);
-      if (bid === leitId) continue;
+      if (bid === leitId || !imVerlauf.has(bid)) continue;
       const verweis = anliegenAntwortBauen({
-        anrede: anrede.zeile, gruss, sprache: "de", agentName: name,
-        kern: `Ihre Nachricht habe ich in meiner Antwort auf Ihr Anliegen „${betreff}“ vom ${datumDe(new Date(leit.created_at))} mit beantwortet — Sie finden sie gleich darüber.`,
+        anrede: anrede.zeile, gruss, sprache, agentName: name,
+        kern: anliegenVerweisKern({ sprache, betreff, am: new Date(leit.created_at) }),
       }).text;
       const [m] = (await lauf`
         UPDATE fiaon_tickets SET antwort = ${verweis}, beantwortet_am = NOW(), beantwortet_von = NULL, status = 'beantwortet',

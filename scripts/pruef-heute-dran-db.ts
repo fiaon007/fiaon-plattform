@@ -212,6 +212,12 @@ async function main() {
   const refT = await antrag(pTicket);
   const [tk] = (await sql`INSERT INTO fiaon_tickets (ref, person_id, agent_id, betreff, text, status) VALUES (${refT}, ${pTicket}, 10, 'Frage zur Karte', 'Wann kommt meine Karte?', 'offen') RETURNING id`) as any[];
   await sql`INSERT INTO fiaon_tickets (ref, person_id, agent_id, betreff, text, status, beantwortet_am, beantwortet_von) VALUES (${refT}, ${pTicket}, 10, 'Adresse', 'Neue Adresse', 'erledigt', NOW(), 10)`;
+  // Integration E-406 Welle 1 (A × C1): Mara hat heute ein Anliegen beantwortet (Spalten aus C1s anliegenSchema).
+  await (await import("../server/lib/fiaon-mara-anliegen")).anliegenSchema(sql as any);
+  const pTicketMara = await person("Mia", "Maraantwort", 10);
+  const refTM = await antrag(pTicketMara);
+  const [tkM] = (await sql`INSERT INTO fiaon_tickets (ref, person_id, agent_id, betreff, text, status, antwort, beantwortet_am, beantwortet_durch)
+    VALUES (${refTM}, ${pTicketMara}, NULL, 'Karte', 'Wann kommt meine Karte?', 'beantwortet', 'Guten Tag …', NOW(), 'mara') RETURNING id`) as any[];
 
   // 8 · Hitze: ein frischer B-Antrag (vor 2 Std. abgeschickt, noch nie angerufen) bei 505.
   const pHitze = await person("Hanna", "Hitzeprobe", 505, { tier: 2 });
@@ -323,6 +329,8 @@ async function main() {
     ?? [...p(10).offen, ...p(10).rueckstau].find((z) => z.personId === pTicket);
   ok(an?.ziel === `/agent/anliegen?ticket=${tk.id}` || an?.weitere.some((g) => /Anliegen/.test(g)), "offenes Anliegen → Ziel Anliegen mit Nummer", an);
   ok(p(10).erledigt.some((z) => z.quelle === "anliegen"), "heute beantwortet → erledigt");
+  const anM = p(10).erledigt.find((z) => z.schluessel === `anliegen:${tkM.id}`) ?? p(10).erledigt.find((z) => z.personId === pTicketMara);
+  ok(!!anM && anM.vonAllein === true && /Mara/.test(anM.grund), "Mara hat geantwortet → erledigt, „von allein“ (frisst keinen Platz der Tagesmenge)", anM);
 
   console.log("── 8 · Hitze (Pipeline)");
   const hz = offenBei(505, pHitze);

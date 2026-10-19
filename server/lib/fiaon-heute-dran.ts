@@ -421,22 +421,29 @@ async function kyc(lauf: Lauf): Promise<HeuteEintrag[]> {
   return aus;
 }
 
-/** 7 · Anliegen (fiaon_tickets). Erledigt = heute beantwortet. */
+/**
+ * 7 · Anliegen (fiaon_tickets). Erledigt = heute beantwortet.
+ * Integration E-406 Welle 1 (A × C1): Hat MARA geantwortet (beantwortet_durch = 'mara'), ist es erledigt, aber keine
+ * eigene Arbeit (`vonAllein`) — es frisst keinen Platz der Tagesmenge. Die Spalte legt C1 beim ersten Gebrauch an
+ * (anliegenSchema); to_jsonb liest sie, ohne an ihr zu scheitern, solange sie noch fehlt.
+ */
 async function anliegen(lauf: Lauf): Promise<HeuteEintrag[]> {
   const zeilen = (await lauf.unsafe(`
     SELECT t.id, t.person_id, t.agent_id, t.betreff, t.status, t.beantwortet_am, t.beantwortet_von, t.created_at,
+           (to_jsonb(t) ->> 'beantwortet_durch') AS beantwortet_durch,
            p.assigned_agent_id, ${NAME_SQL("p")} AS name
       FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
      WHERE (t.status = 'offen' OR t.beantwortet_am >= ${MITTERNACHT_SQL})
        AND (p.id IS NULL OR (p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL))`)) as any[];
   return zeilen.map((t) => {
     const erledigt = !!t.beantwortet_am && berlinTag(t.beantwortet_am) === berlinTag(new Date());
+    const vonMara = erledigt && t.beantwortet_durch === "mara";
     return {
       schluessel: `anliegen:${t.id}`, quelle: "anliegen", personId: zahl(t.person_id), name: nameOder(t.name, "Anliegen"),
-      grund: erledigt ? "Anliegen beantwortet" : kurzGrund(`Anliegen: ${String(t.betreff ?? "").trim() || "beantworten"}`),
+      grund: vonMara ? "Anliegen: Mara hat geantwortet" : erledigt ? "Anliegen beantwortet" : kurzGrund(`Anliegen: ${String(t.betreff ?? "").trim() || "beantworten"}`),
       betragCents: null, ziel: `/agent/anliegen?ticket=${t.id}`, zeit: null, seit: iso(t.created_at),
       zustaendigId: (erledigt ? zahl(t.beantwortet_von) : null) ?? zahl(t.agent_id) ?? zahl(t.assigned_agent_id),
-      rolle: "vertrieb", erledigt,
+      rolle: "vertrieb", erledigt, vonAllein: vonMara,
     } satisfies HeuteEintrag;
   });
 }

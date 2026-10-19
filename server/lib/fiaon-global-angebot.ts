@@ -1215,6 +1215,8 @@ export async function angebotNachZahlung(ref: string, opts: { jetzt?: Date } = {
   if (!t) return { gestartet: false, grund: "kein Angebotsteil an dieser Bestellung" };
   const z = (await angebotLesen({ id: Number(t.a_id) }))!;
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaNachZahlung(ref, t, z); }
+  // E-411: Das Kapital-Angebot hat seinen eigenen Zahlungsweg (Frist nach Ziffer 4, Aufgabe nach Ziffer 2, Teil 2/3 nur Vermerk).
+  if (istKapitalFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-kapital"); return K.kapitalNachZahlung(ref, t, z); }
   const d = angebotDatenAus(z);
   const b = await globalBestellungLesen(ref);
   if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
@@ -1979,6 +1981,9 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
      WHERE a.status = 'angenommen' AND a.frist_ende IS NOT NULL AND a.erstattung_ausgeloest_am IS NULL
        AND a.garantie_erfuellt_am IS NULL AND (g.status IS NULL OR g.status <> 'storniert')
        AND a.fassung NOT LIKE 'IA-FIRMA-%'
+       -- E-411: Das Kapital-Angebot schreibt seit E-411 frist_ende (Ziffer 4) — die Warnungen hier sprechen den Individualvertrag
+       -- (Kreditrahmen, Karten, Ziffer 6), und dessen Garantiefall-Knopf ist für Kapital gesperrt.
+       AND a.fassung NOT LIKE 'IA-KAPITAL-%'
      LIMIT 100`) as any[];
   // E-271: Die Frist wird bis zur erfüllten Garantie überwacht — auch nach dem Meilenstein (erstes Kapital/erste Karte).
   let warnungen = 0; let fristende = 0;

@@ -13,6 +13,11 @@
 //   Mail an die Kundin → Liste der Leitung (art „kapital“, drei Teile, Knöpfe) → Meilenstein-Route des Individualangebots 409.
 //   E-407: „Mein Auftrag“ (angebotSichtZurAkte + echte Kunden-Route) nach der Annahme, nach „Bürgschaft zugesagt“ und nach
 //   „Finanzierung ausgezahlt“ — drei Teile mit Titel, Betrag, Stand, Rechnung, ruhigem Satz und der Garantie aus Ziffer 4.
+//   E-411: ZAHLUNG über die echte Route POST /api/fiaon/admin/payments/<Zweck>/mark-paid (nur in der Prüfstand-Kopie) —
+//   Teil 1 bezahlt → frist_beginn/frist_ende nach Ziffer 4, Aufgabe an Justin mit Ziffer 2/7 und „Garantie läuft bis …“, Akte
+//   „gestartet“, kein Individual-Text; zweiter Lauf legt nichts doppelt an. Teil 2/3 bezahlt → nur Vermerk, Frist unverändert.
+//   Stundenlauf des Individualangebots warnt Kapital nicht (auch bei abgelaufener Frist), „Mein Auftrag“ liest eine verlängerte
+//   Frist aus der Datenbank.
 //
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<kopie>?sslmode=require' \
 //     SESSION_SECRET=<wie der Server> PRUEF_BASIS=http://127.0.0.1:5401 npx tsx scripts/pruef-kapital-rechnungen.ts --lokal
@@ -89,6 +94,36 @@ const mAlt = S.kapitalMeinAuftrag({ fassung: "IA-KAPITAL-2026-10-19-A", paramete
 ok(mAlt.teile.length === 1 && !/acht Wochen/.test(mAlt.garantieSatz), "Fassung A: nur Teil 1, keine Garantie-Behauptung", mAlt);
 ok([m0, m1, m2, m3, mE, mAlt].every(sauber), "kein „bis zu“, kein Bank-Vorbehalt, kein Individual-Satz in allen Fällen");
 
+// E-411: die Frist nach Ziffer 4 als EINE Rechnung — Zahlungsweg und „Mein Auftrag“; die gespeicherte Frist gilt nur vom Kapital-Weg.
+titel("1c. Frist nach Ziffer 4 und Texte nach der Zahlung ohne Datenbank (E-411)");
+ok(S.kapitalGarantieWochen("IA-KAPITAL-2026-10-19-A", { garantieWochen: 8 }) === 0 && S.kapitalGarantieWochen(S.KAPITAL_FASSUNG, { garantieWochen: 8 }) === 8 && S.kapitalGarantieWochen(S.KAPITAL_FASSUNG, { garantieWochen: 0 }) === 0,
+  "Garantie-Wochen: Fassung A immer 0 (auch mit Vorgabe 8), Fassung B aus dem Vertrag");
+const gf = S.kapitalGarantieFrist;
+ok(gf({ angenommenAm: "2026-10-19", bezahltAm: "2026-10-21", wochen: 8 })?.beginn === "2026-10-21" && gf({ angenommenAm: "2026-10-19", bezahltAm: "2026-10-21", wochen: 8 })?.ende === "2026-12-16"
+  && gf({ angenommenAm: "2026-10-19", bezahltAm: "2026-10-18", wochen: 8 })?.beginn === "2026-10-19" && gf({ angenommenAm: "2026-10-19", bezahltAm: null, wochen: 8 }) === null && gf({ angenommenAm: "2026-10-19", bezahltAm: "2026-10-21", wochen: 0 }) === null,
+  "Frist: späterer Tag von Annahme und Zahlung + 8 × 7 Tage; ohne Zahlung oder ohne Garantie keine Frist");
+const mAltB = S.kapitalMeinAuftrag({ fassung: "IA-KAPITAL-2026-10-19-A", parameter: P, angenommenAm: "2026-10-19", teile: [T1({ stand: "bezahlt", bezahltAm: "2026-10-21" })], garantieErfuelltAm: null, erstattungAusgeloest: false });
+ok(!mAltB.fristEnde && !/acht Wochen/.test(mAltB.garantieSatz), "Fassung A mit Vorgabe 8 Wochen: keine Frist, keine Garantie-Behauptung", mAltB.garantieSatz);
+const bez = [T1({ stand: "bezahlt", bezahltAm: "2026-10-21" })];
+const mDbLang = mA(bez, { gespeichert: { beginn: "2026-10-21", ende: "2026-12-23" } });
+const mDbAlt = mA(bez, { gespeichert: { beginn: "2026-10-19", ende: "2027-01-11" } });
+const mDbKurz = mA(bez, { gespeichert: { beginn: "2026-10-21", ende: "2026-12-01" } });
+ok(mDbLang.fristEnde === "2026-12-23" && /bis zum 23\.12\.2026/.test(mDbLang.garantieSatz), "gespeichertes Fristende vom Kapital-Weg (gleicher Beginn, später = Ruhezeit) gilt", mDbLang.garantieSatz);
+ok(mDbAlt.fristEnde === "2026-12-16" && mDbKurz.fristEnde === "2026-12-16", "Werte des alten Individualwegs (anderer Beginn) und ein kürzeres Ende gelten nie", [mDbAlt.fristEnde, mDbKurz.fristEnde]);
+const aufOhne = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma Beispiel GmbH", vertretung: "Frau Martina Muster", fassung: S.KAPITAL_FASSUNG, parameter: P, bezahltAm: "2026-10-21", zweck: "FIAON-ZWECK", frist: { beginn: "2026-10-21", ende: "2026-12-16" }, reisepassAm: null });
+const aufMit = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma Beispiel GmbH", vertretung: "Frau Martina Muster", fassung: S.KAPITAL_FASSUNG, parameter: P, bezahltAm: "2026-10-21", zweck: null, frist: { beginn: "2026-10-21", ende: "2026-12-16" }, reisepassAm: "2026-10-22" });
+const aufA = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma Beispiel GmbH", vertretung: "Frau Martina Muster", fassung: "IA-KAPITAL-2026-10-19-A", parameter: P, bezahltAm: "2026-10-21", zweck: null, frist: null, reisepassAm: null });
+const INDIVIDUAL = /Individualangebot|Kreditrahmen|Widerruf|Meilenstein|Ziffer 6 Absatz 2\)|zwölf Wochen/;
+ok(/Gründungskosten bezahlt/.test(aufOhne.titel) && /Teil 1/.test(aufOhne.text) && /fünf Werktagen/.test(aufOhne.text) && /Ziffer 2/.test(aufOhne.text) && /Ziffer 7/.test(aufOhne.text) && /Reisepass fehlt noch/.test(aufOhne.text)
+  && /Garantie läuft bis 16\.12\.2026/.test(aufOhne.text) && /seit dem 21\.10\.2026/.test(aufOhne.text) && /FIAON-ZWECK/.test(aufOhne.text) && !INDIVIDUAL.test(aufOhne.titel + aufOhne.text),
+  "Aufgabe Teil 1 (ohne Reisepass): Ziffer 2 fünf Werktage, Ziffer 7, „Garantie läuft bis 16.12.2026“, kein Individual-Text", aufOhne);
+ok(/seit dem 22\.10\.2026/.test(aufMit.text) && /einreichen bis 29\.10\.2026/.test(aufMit.text) && /Bürgschaft zugesagt/.test(aufMit.text) && /Finanzierung ausgezahlt/.test(aufMit.text),
+  "Aufgabe mit Reisepass: Anmeldung bis zum fünften Werktag nach Pass-Eingang (Do 22.10. → Do 29.10.), Knöpfe für Teil 2/3", aufMit.text);
+ok(/keine Garantie/.test(aufA.text) && !/Garantie läuft bis/.test(aufA.text) && !/Bürgschaft zugesagt/.test(aufA.text), "Fassung A: keine Frist, keine Knöpfe für 499/1.099", aufA.text);
+const verm = S.kapitalTeilBezahltVermerk({ angebotRef: "FIAON-IA-CTEST", titel: "Bürgschaftsgebühr", betragCents: 49_900, zweck: "Z2", fristEnde: "2026-12-16", nachGarantiefall: false });
+const vermG = S.kapitalTeilBezahltVermerk({ angebotRef: "FIAON-IA-CTEST", titel: "Bürgschaftsgebühr", betragCents: 49_900, zweck: "Z2", fristEnde: "2026-12-16", nachGarantiefall: true });
+ok(/Bürgschaftsgebühr .* bezahlt \(499 €, Z2\)/.test(verm) && /bleibt beim 16\.12\.2026/.test(verm) && /zu erstatten/.test(vermG), "Vermerk Teil 2/3: bezahlt, Frist bleibt; nach Garantiefall „zu erstatten“", [verm, vermG]);
+
 // ═══ TEIL 2 ════════════════════════════════════════════════════════════════
 if (LOKAL) {
   const BASIS = String(process.env.PRUEF_BASIS || "http://127.0.0.1:5401");
@@ -102,13 +137,20 @@ if (LOKAL) {
   const IP = `84.115.${10 + Math.floor(Math.random() * 200)}.${10 + Math.floor(Math.random() * 200)}`;
   const heute = berlinToday();
   const lauf = Date.now().toString(36);
-  const chef = () => { const agentId = 999_001; const exp = Date.now() + 3_600_000; const stufe = "leitung";
+  const chef = (stufe = "leitung") => { const agentId = 999_001; const exp = Date.now() + 3_600_000;
     const sig = createHmac("sha256", process.env.SESSION_SECRET || "fiaon-dev-admin-zugang-secret").update(`chefzugang:${agentId}:${stufe}:${exp}`).digest("hex").slice(0, 40);
     return `fiaon_chef=${agentId}.${stufe}.${exp}.${sig}`; };
   const post = async (pfad: string, body: unknown, kopf: Record<string, string> = {}) => {
     const r = await fetch(`${BASIS}${pfad}`, { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, ...kopf }, body: JSON.stringify(body) });
     return { status: r.status, body: await r.json().catch(() => ({})) as any };
   };
+
+  const warte = async (f: () => Promise<boolean>, ms = 20_000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await f()) return true; await new Promise((r) => setTimeout(r, 400)); } return false; };
+  const tagDe = (iso: string | null) => (iso ? iso.split("-").reverse().join(".") : "—");
+  const plus = (iso: string, n: number) => { const x = new Date(`${iso}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const fristDb = async (aid: number) => ((await sqlPool`SELECT frist_beginn::text AS beginn, frist_ende::text AS ende, frist_hemmung_tage AS ruht FROM fiaon_global_angebote WHERE id = ${aid}`) as any[])[0] as { beginn: string | null; ende: string | null; ruht: number };
+  // Buchungen sind der Geschäftsführung vorbehalten (NUR_GESCHAEFTSFUEHRUNG: /admin/payments).
+  const bezahlen = (zweck: string) => post(`/api/fiaon/admin/payments/${encodeURIComponent(zweck)}/mark-paid`, {}, { cookie: chef("inhaber") });
 
   titel("2. Kapital-Angebot anlegen (Musterfirma, keine Kundendaten) und annehmen");
   const email = `pruef+${lauf}@musterfirma-beispiel.example`;
@@ -138,7 +180,8 @@ if (LOKAL) {
   const [b1] = (await sqlPool`SELECT ref, amount_due, invoice_number, payment_status, payment_reference, rechnung_ust_modus, pack_key FROM fiaon_applications WHERE ref = ${String(t1?.bestell_ref)}`) as any[];
   ok(z1.status === "angenommen" && z1.fassung === S.KAPITAL_FASSUNG && b1 && Number(b1.amount_due) === 2799 && b1.invoice_number && b1.rechnung_ust_modus === "reverse_charge" && b1.pack_key === "global_individuell",
     "Teil 1: Rechnung über 2.799 € mit Nummer, Reverse Charge, global_individuell", b1);
-  const [mailsVorher] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()}`) as any[];
+  // Gezählt wird, was rausginge — „uebersprungen“ heißt: die Firmen-Sperre (E-301) hat die Mail abgefangen.
+  const [mailsVorher] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()} AND status <> 'uebersprungen'`) as any[];
 
   // E-407: „Mein Auftrag“ über die echte Kunden-Route (signierter Zugang wie im Link der Annahme-Antwort).
   const { globalTokenErzeugen } = await import("../server/lib/fiaon-global-auftrag");
@@ -167,8 +210,28 @@ if (LOKAL) {
   ok(rOhne.status === 401 || rOhne.status === 403, "ohne Chef-Ausweis → gesperrt", rOhne.status);
   const rArt = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/irgendwas`, { datum: heute }, { cookie: chef() });
   ok(rArt.status === 404, "unbekannte Rechnung → 404", rArt);
-  // Nur in der Prüfstand-Kopie: Teil 1 als bezahlt markieren (in der Produktion bucht das die Zahlungsstelle).
-  await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid', completed_at = NOW() WHERE ref = ${b1.ref}`;
+  // E-411: Teil 1 über die echte Buchungsroute bezahlen (nur in der Prüfstand-Kopie; in der Produktion bucht die Zahlungsstelle).
+  titel("2c. Teil 1 bezahlt (mark-paid) → Kapital-Zahlungsweg (E-411)");
+  const fVor = await fristDb(id);
+  ok(!fVor.beginn && !fVor.ende, "vor der Zahlung: keine Frist in der Datenbank", fVor);
+  const pay1 = await bezahlen(String(b1.payment_reference));
+  ok(pay1.status === 200 && pay1.body.ok, "mark-paid Teil 1 → 200", pay1);
+  const gestartet = await warte(async () => ((await sqlPool`SELECT status FROM fiaon_global_auftraege WHERE ref = ${auftragRef}`) as any[])[0]?.status === "gestartet");
+  const f1 = await fristDb(id);
+  const ende1 = plus(heute, 56);
+  ok(gestartet, "Akte „gestartet“ (Unternehmen: keine Widerrufsfrist)");
+  ok(f1.beginn === heute && f1.ende === ende1 && Number(f1.ruht) === 0, `Frist nach Ziffer 4: ${tagDe(heute)} bis ${tagDe(ende1)} (8 × 7 Tage ab Zahlung = Annahme)`, f1);
+  const start = (await sqlPool`SELECT titel, text, link FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${auftragRef}:start`}`) as any[];
+  ok(start.length === 1 && /Gründungskosten bezahlt/.test(start[0].titel) && /fünf Werktagen/.test(start[0].text) && /Ziffer 2/.test(start[0].text) && /Ziffer 7/.test(start[0].text)
+    && start[0].text.includes(`Garantie läuft bis ${tagDe(ende1)}`) && !INDIVIDUAL.test(start[0].titel + start[0].text),
+    "Aufgabe an Justin: Kapital-Text (Ziffer 2, fünf Werktage, Ziffer 7, „Garantie läuft bis …“), kein Individual-Text", start[0]);
+  const ze1 = (await A.angebotLesen({ id }))!;
+  ok(/Gründungskosten bezahlt .* Garantie \(Ziffer 4\) bis/.test(JSON.stringify(ze1.verlauf)) && !/gestartet — Frist bis/.test(JSON.stringify(ze1.verlauf)), "Verlauf am Angebot: Kapital-Vermerk statt „gestartet — Frist bis“ des Individualwegs");
+  // Wiederholbar: ein zweiter Lauf (Kontoabgleich, Nachbuchung) setzt nichts neu und legt keine zweite Aufgabe an.
+  const nochmal = await A.angebotNachZahlung(String(b1.ref));
+  const f1b = await fristDb(id);
+  const start2 = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`global:${auftragRef}:start%`}`) as any[];
+  ok(!nochmal.gestartet && /schon gestartet/.test(String(nochmal.grund)) && f1b.beginn === f1.beginn && f1b.ende === f1.ende && start2[0].n === 1, "zweiter Lauf: „schon gestartet“, Frist unverändert, eine Aufgabe", { nochmal, f1b });
   const rZuk = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: "2099-01-01" }, { cookie: chef() });
   ok(rZuk.status === 409 && /Zukunft/.test(String(rZuk.body.error)), "Datum in der Zukunft → 409", rZuk);
   const vorCheck = (await sqlPool`SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'fiaon_global_angebot_teile_nr_check'`) as any[];
@@ -195,6 +258,20 @@ if (LOKAL) {
   const akteSicht = await A.angebotSichtZurAkte(auftragRef) as any;
   ok(akteSicht?.art === "kapital" && /Ziffer 4/.test(String(akteSicht?.garantieZiel)) && akteSicht?.teile.length === 3, "Office/Chefbüro (angebotSichtZurAkte): Kapital-Zweig, Garantieziel Ziffer 4", akteSicht?.garantieZiel);
 
+  titel("3c. Teil 2 bezahlt (mark-paid) → nur Vermerk, keine neue Frist (E-411)");
+  const pay2 = await bezahlen(String(b2.payment_reference));
+  ok(pay2.status === 200 && pay2.body.ok, "mark-paid Teil 2 → 200", pay2);
+  const t2bez = await warte(async () => !!((await sqlPool`SELECT bezahlt_am FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = 2`) as any[])[0]?.bezahlt_am);
+  await new Promise((r) => setTimeout(r, 800));
+  const f2 = await fristDb(id);
+  ok(t2bez && f2.beginn === f1.beginn && f2.ende === f1.ende && Number(f2.ruht) === 0, "Teil 2 bezahlt: Frist unverändert, keine Ruhezeit", f2);
+  const ze2 = JSON.stringify((await A.angebotLesen({ id }))!.verlauf);
+  ok(/Bürgschaftsgebühr des Kapital-Angebots .* bezahlt \(499 €/.test(ze2) && ze2.includes(`bleibt beim ${tagDe(ende1)}`) && !/Teil 2 bezahlt \(/.test(ze2), "Verlauf: Kapital-Vermerk „Bürgschaftsgebühr … bezahlt, Frist bleibt“ statt Individual-Satz", ze2.slice(-400));
+  const ind2 = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel IN (${`global:${auftragRef}:teil2-bezahlt`}, ${`global:${auftragRef}:teil2-nach-garantiefall`})`) as any[];
+  ok(ind2[0].n === 0, "keine Individual-Aufgabe „Teil 2 bezahlt“", ind2[0]);
+  const maB = await meinAuftrag(); const agB = maB.body?.auftrag?.angebot;
+  ok(agB?.teile[1].stand === "bezahlt" && agB?.fristEnde === ende1 && agB?.summeCents === 329_800, "„Mein Auftrag“: Bürgschaftsgebühr bezahlt, Fristende unverändert", { teil2: agB?.teile?.[1], ende: agB?.fristEnde });
+
   titel("4. „Finanzierung ausgezahlt“");
   const rA = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/auszahlung`, { datum: heute }, { cookie: chef() });
   ok(rA.status === 200 && rA.body.ok && rA.body.betragCents === 109_900 && rA.body.rechnungsnummer && rA.body.rechnungsnummer !== rB.body.rechnungsnummer, "Finanzierung ausgezahlt → 200, eigene Rechnung über 1.099 €", rA.body);
@@ -209,6 +286,31 @@ if (LOKAL) {
   const ma2 = await meinAuftrag(); const ag2 = ma2.body?.auftrag?.angebot;
   ok(ag2?.teile[2].stand === "offen" && ag2.teile[2].rechnungsnummer === rA.body.rechnungsnummer && /Finanzierung ausgezahlt am/.test(String(ag2.teile[2].hinweis)) && /ausgezahlt/.test(String(ag2.garantieSatz)) && ag2.summeCents === 439_700 && sauber(ag2),
     "„Mein Auftrag“ mit Teil 3: Rechnung offen, „Finanzierung ausgezahlt am …“, Summe 4.397 €", { teil3: ag2?.teile?.[2], satz: ag2?.garantieSatz });
+
+  titel("4b. Teil 3 bezahlt (mark-paid) → nur Vermerk, keine neue Frist (E-411)");
+  const [b3z] = (await sqlPool`SELECT payment_reference FROM fiaon_applications WHERE ref = ${String(rA.body.ref)}`) as any[];
+  const pay3 = await bezahlen(String(b3z.payment_reference));
+  ok(pay3.status === 200 && pay3.body.ok, "mark-paid Teil 3 → 200", pay3);
+  const t3bez = await warte(async () => !!((await sqlPool`SELECT bezahlt_am FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = 3`) as any[])[0]?.bezahlt_am);
+  await new Promise((r) => setTimeout(r, 800));
+  const f3 = await fristDb(id);
+  const ze3 = JSON.stringify((await A.angebotLesen({ id }))!.verlauf);
+  const [akte3] = (await sqlPool`SELECT status FROM fiaon_global_auftraege WHERE ref = ${auftragRef}`) as any[];
+  ok(t3bez && f3.beginn === f1.beginn && f3.ende === f1.ende && /Vergütung bei Auszahlung der Finanzierung des Kapital-Angebots .* bezahlt \(1\.099 €/.test(ze3) && akte3?.status === "gestartet",
+    "Teil 3 bezahlt: Vermerk, Frist unverändert, Akte bleibt „gestartet“ (nicht als „Teil 1“ behandelt)", { f3, akte: akte3?.status });
+
+  titel("4c. Stundenlauf des Individualangebots und gespeicherte Frist (E-411)");
+  // Frist künstlich abgelaufen (nur Prüfstand) — der Individual-Lauf darf Kapital weder warnen noch den Garantiefall melden.
+  await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${plus(heute, -1)}::date WHERE id = ${id}`;
+  const laufErg = await A.globalAngebotLauf();
+  const warn = (await sqlPool`SELECT schluessel FROM fiaon_betreiber_todos WHERE schluessel IN (${`global:${auftragRef}:fristende`}, ${`global:${auftragRef}:frist-14`}, ${`global:${auftragRef}:frist-3`}, ${`global:${auftragRef}:frist-14-justin`}, ${`global:${auftragRef}:frist-3-justin`})`) as any[];
+  const [abg] = (await sqlPool`SELECT frist_abgelaufen_am FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
+  ok(warn.length === 0 && !abg.frist_abgelaufen_am, "Individual-Stundenlauf: keine Fristwarnung, kein „Frist abgelaufen“ für Kapital", { warn, lauf: laufErg });
+  // Ruhezeit nach Ziffer 4 (gleicher Beginn, späteres Ende) → „Mein Auftrag“ liest die Datenbank.
+  await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${plus(ende1, 7)}::date WHERE id = ${id}`;
+  const maR = await meinAuftrag();
+  ok(maR.body?.auftrag?.angebot?.fristEnde === plus(ende1, 7), "„Mein Auftrag“: verlängertes Fristende aus der Datenbank (Ruhezeit)", maR.body?.auftrag?.angebot?.fristEnde);
+  await sqlPool`UPDATE fiaon_global_angebote SET frist_ende = ${ende1}::date WHERE id = ${id}`;
 
   titel("5. Rechnung, Zahlungsseite, Verlauf, Aufgaben, Mails");
   const zeile2 = await A.angebotRechnungsZeile(String(rB.body.ref)); const zeile3 = await A.angebotRechnungsZeile(String(rA.body.ref));
@@ -225,8 +327,10 @@ if (LOKAL) {
   const auf = (await sqlPool`SELECT schluessel, titel, text FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`global:${an.ref}:kapital-teil%`} ORDER BY schluessel`) as any[];
   ok(auf.length === 2 && auf.every((a) => /\/zahlung\/FIAON|Zahlungsseite http/.test(a.text) && /Keine automatische Kundenmail/.test(a.text)), "Aufgaben an Justin für Teil 2 und Teil 3 mit Zahlungslink", auf.map((a) => [a.schluessel, a.titel]));
   const justin = (await sqlPool`SELECT betreff, status FROM fiaon_mail_log WHERE empfaenger = 'js@fiaon.com' AND betreff LIKE ${`%(${an.ref})%`} ORDER BY id`.catch(() => [])) as any[];
-  const [mailsNach] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()}`) as any[];
-  ok(mailsNach.n === mailsVorher.n, "keine Mail an die Kundin durch die zwei Knöpfe (Firmenangebot)", { vorher: mailsVorher.n, nachher: mailsNach.n });
+  const [mailsNach] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()} AND status <> 'uebersprungen'`) as any[];
+  const gesperrt = (await sqlPool`SELECT event FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()} AND status = 'uebersprungen' ORDER BY id`) as any[];
+  ok(mailsNach.n === mailsVorher.n, "keine Mail an die Kundin durch die zwei Knöpfe und die drei Zahlungen (Firmenangebot)", { vorher: mailsVorher.n, nachher: mailsNach.n });
+  console.log(`        (von der Firmen-Sperre abgefangen: ${gesperrt.length ? gesperrt.map((g) => g.event).join(", ") : "nichts"})`);
   console.log(`        (Mail an Justin im Protokoll: ${justin.length ? justin.map((j) => `${j.status} · ${j.betreff}`).join(" | ") : "keine Zeile — eigeneMailSenden ohne Schlüssel protokolliert ggf. nicht"}; Meldung: ${rA.body.meldung})`);
   ok(/Mail an Justin/.test(String(rA.body.meldung)), "Meldung nennt den Stand der Mail an Justin", rA.body.meldung);
 

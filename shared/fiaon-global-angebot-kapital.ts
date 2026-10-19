@@ -36,6 +36,7 @@ import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTex
 import { portraitUrl, portraitMitKi } from "./fiaon-portraits";
 import { FIRMA_BILD_NAME, firmaBildPfad } from "./fiaon-global-angebot-firma";
 import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
+import { plusWerktage } from "./fiaon-wiedervorlage";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FASSUNG
@@ -757,6 +758,58 @@ export interface KapitalMeinAuftrag {
 function plusTage(iso: string, n: number): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
+/** Die Garantie (Ziffer 4) kam mit Fassung B — Fassung A hatte keine, auch wenn die Vorgaben heute acht Wochen tragen. */
+export function kapitalGarantieWochen(fassung: unknown, par: Pick<KapitalParameter, "garantieWochen">): number {
+  return kapitalMitGebuehren(fassung) && par.garantieWochen > 0 ? par.garantieWochen : 0;
+}
+/**
+ * Die Frist nach Ziffer 4 (E-411): „binnen N Wochen ab Auftragserteilung“, und sie ruht, solange Teil 1 nicht gezahlt ist —
+ * also ab dem späteren der zwei Tage (Annahme, Zahlung von Teil 1). Ohne Zahlung oder ohne Garantie: keine Frist.
+ * EINE Rechnung für den Zahlungsweg (schreibt frist_beginn/frist_ende) und „Mein Auftrag“.
+ */
+export function kapitalGarantieFrist(ein: { angenommenAm: string | null; bezahltAm: string | null; wochen: number }): { beginn: string; ende: string } | null {
+  if (!ein.bezahltAm || !(ein.wochen > 0)) return null;
+  const beginn = ein.angenommenAm && ein.angenommenAm > ein.bezahltAm ? ein.angenommenAm : ein.bezahltAm;
+  return { beginn, ende: plusTage(beginn, ein.wochen * 7) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH DER ZAHLUNG (E-411, 19.10.2026) — die Texte, die der Kapital-Zahlungsweg (server kapitalNachZahlung) schreibt. Rein.
+// Teil 1 bezahlt: Aufgabe an Justin mit Ziffer 2 (Anmeldung binnen fünf Werktagen nach Zahlung UND Unterlagen nach Ziffer 7)
+// und der Garantie aus Ziffer 4. Teil 2/3 bezahlt: nur ein Vermerk — die Frist bleibt, wie sie ist.
+// ═══════════════════════════════════════════════════════════════════════════
+export function kapitalStartAufgabe(ein: {
+  angebotRef: string; firma: string; vertretung: string; fassung: string;
+  parameter: Pick<KapitalParameter, "preisCents" | "kapitalChf" | "buergschaftCents" | "auszahlungCents" | "garantieWochen">;
+  bezahltAm: string; zweck: string | null;
+  frist: { beginn: string; ende: string } | null;
+  /** Tag, an dem der Reisepass im Auftragsbereich liegt (fiaon_global_dokumente) — null = fehlt noch. */
+  reisepassAm: string | null;
+}): { titel: string; text: string } {
+  const par = ein.parameter; const wochen = kapitalGarantieWochen(ein.fassung, par);
+  const anmeldung = ein.reisepassAm
+    ? `ANMELDUNG (Ziffer 2): Der Reisepass liegt seit dem ${kapitalTag(ein.reisepassAm)} im Auftragsbereich. FIAON reicht die Anmeldung binnen fünf Werktagen ein, nachdem bezahlt ist UND die Unterlagen nach Ziffer 7 vorliegen (dazu auch Adressnachweis, Handelsregisterauszug, Betreibungsauszug mit Jahresrechnung, Beschreibung der Tätigkeit). Liegen sie heute vollständig vor: einreichen bis ${kapitalTag(plusWerktage(ein.reisepassAm > ein.bezahltAm ? ein.reisepassAm : ein.bezahltAm, 5))}.`
+    : "ANMELDUNG (Ziffer 2): Der Reisepass fehlt noch — bitte anfordern (Upload in „Mein Auftrag“). FIAON reicht die Anmeldung binnen fünf Werktagen ein, nachdem bezahlt ist UND die Unterlagen nach Ziffer 7 vorliegen (Reisepass, Adressnachweis, Handelsregisterauszug, Betreibungsauszug mit Jahresrechnung, Beschreibung der Tätigkeit).";
+  const garantie = wochen > 0 && ein.frist
+    ? `GARANTIE (Ziffer 4): Finanzierung über ${kapitalChf(par.kapitalChf)} — die ${zahlwort(wochen)} Wochen laufen seit dem ${kapitalTag(ein.frist.beginn)}, die Garantie läuft bis ${kapitalTag(ein.frist.ende)}. Kommt sie bis dahin nicht, erstattet FIAON alles Gezahlte binnen vierzehn Tagen. Die Frist ruht, solange Unterlagen nach Ziffer 7 ausstehen oder ein marktübliches Finanzierungsangebot nicht angenommen wird — solche Tage bitte mit Datum im Verlauf festhalten.`
+    : "GARANTIE: Diese Fassung hat keine Garantie (Ziffer 4 ohne Frist) — keine Frist gesetzt.";
+  return {
+    titel: `Kapital-Angebot ${ein.angebotRef}: Gründungskosten bezahlt — LLC anmelden (${ein.firma})`,
+    text: [
+      `${ein.vertretung} (${ein.firma}) hat die Gründungskosten bezahlt (${kapitalEur(par.preisCents)}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). Der Auftrag läuft.`,
+      anmeldung,
+      garantie,
+      ...(kapitalMitGebuehren(ein.fassung) ? [`DANACH: Sagt die Bürgin gegenüber dem Institut zu → Knopf „${KAPITAL_GEBUEHREN.buergschaft.knopf}“ (Rechnung ${kapitalEur(par.buergschaftCents)}). Ist die Finanzierung ausgezahlt → Knopf „${KAPITAL_GEBUEHREN.auszahlung.knopf}“ (Rechnung ${kapitalEur(par.auszahlungCents)}).`] : []),
+      "Keine automatische Kundenmail (Firmenangebot) — den Start bitte persönlich mitteilen.",
+    ].join("\n"),
+  };
+}
+/** Der Vermerk, wenn Teil 2 oder Teil 3 bezahlt ist — ohne neue Frist (Ziffer 4 rechnet ab Teil 1). */
+export function kapitalTeilBezahltVermerk(ein: { angebotRef: string; titel: string; betragCents: number; zweck: string | null; fristEnde: string | null; nachGarantiefall: boolean }): string {
+  return `${ein.titel} des Kapital-Angebots ${ein.angebotRef} bezahlt (${kapitalEur(ein.betragCents)}${ein.zweck ? `, ${ein.zweck}` : ""}).`
+    + (ein.nachGarantiefall ? " ACHTUNG: Der Teil ist entfallen bzw. der Garantiefall ist vorgemerkt — dieser Betrag ist zu erstatten."
+      : ein.fristEnde ? ` Die Garantiefrist (Ziffer 4) bleibt beim ${kapitalTag(ein.fristEnde)}.` : "");
+}
 export function kapitalMeinAuftrag(ein: {
   fassung: string;
   parameter: Pick<KapitalParameter, "preisCents" | "jahresCents" | "buergschaftCents" | "auszahlungCents" | "garantieWochen" | "kapitalChf">;
@@ -764,6 +817,8 @@ export function kapitalMeinAuftrag(ein: {
   teile: KapitalAuftragTeilEin[];
   garantieErfuelltAm: string | null;
   erstattungAusgeloest: boolean;
+  /** frist_beginn/frist_ende aus der Datenbank (E-411) — gelten nur, wenn der Kapital-Weg sie geschrieben hat (siehe unten). */
+  gespeichert?: { beginn: string | null; ende: string | null };
 }): KapitalMeinAuftrag {
   const par = ein.parameter; const T = KAPITAL_MEIN_AUFTRAG;
   const roh = (nr: number) => ein.teile.find((t) => Number(t.nr) === nr) ?? null;
@@ -787,9 +842,14 @@ export function kapitalMeinAuftrag(ein: {
 
   // Ziffer 4: binnen N Wochen ab Auftragserteilung; die Frist ruht, solange Teil 1 nicht gezahlt ist — die Wochen laufen also
   // ab dem späteren der zwei Tage (Annahme, Zahlung). Das Ruhen wegen fehlender Unterlagen nennt der Satz, ohne es zu rechnen.
-  const wochen = par.garantieWochen; const ziel = kapitalChf(par.kapitalChf);
-  const beginn = t1?.bezahltAm ? (ein.angenommenAm && ein.angenommenAm > t1.bezahltAm ? ein.angenommenAm : t1.bezahltAm) : null;
-  const ende = beginn && wochen > 0 ? plusTage(beginn, wochen * 7) : null;
+  const wochen = kapitalGarantieWochen(ein.fassung, par); const ziel = kapitalChf(par.kapitalChf);
+  const frist = kapitalGarantieFrist({ angenommenAm: ein.angenommenAm, bezahltAm: t1?.bezahltAm ?? null, wochen });
+  const beginn = frist?.beginn ?? null;
+  // E-411: Das gespeicherte Fristende gilt, wenn der Kapital-Weg es geschrieben hat — erkennbar am selben Beginn — und es nur
+  // später liegt (eine Ruhezeit nach Ziffer 4 verlängert, nie verkürzt). Werte des alten Individualwegs (anderer Beginn,
+  // zwölf Wochen) gelten nie.
+  const g = ein.gespeichert;
+  const ende = frist && g?.ende && g.beginn === frist.beginn && g.ende >= frist.ende ? g.ende : frist?.ende ?? null;
   const zurueck = "sonst erhalten Sie alles zurück, was Sie an uns gezahlt haben (Ziffer 4)";
   const garantieSatz = !(wochen > 0)
     ? (t3?.ereignisAm ? `Ihre Finanzierung ist am ${kapitalTag(t3.ereignisAm)} ausgezahlt.` : `Wir begleiten Sie bis zur Auszahlung Ihrer Finanzierung über ${ziel} (Ziffer 4).`)

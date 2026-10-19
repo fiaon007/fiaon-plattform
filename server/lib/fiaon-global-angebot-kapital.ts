@@ -37,6 +37,7 @@ import {
   kapitalAnnahmeTexte, kapitalAnsprechpartner, kapitalAnrede, kapitalVertretungName, kapitalVertragTitel, kapitalVertragUnterzeile,
   kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, kapitalTag, istKapitalFassung,
   KAPITAL_GEBUEHREN, KAPITAL_SPERRGRUND, kapitalGebuehrPruefen, istKapitalGebuehrArt, kapitalMitGebuehren, kapitalMeinAuftrag, type KapitalGebuehrArt,
+  kapitalGarantieWochen, kapitalGarantieFrist, kapitalStartAufgabe, kapitalTeilBezahltVermerk,
   type KapitalDaten, type KapitalParameter, type KapitalBuergin, type KapitalAnnahmeVermerk, type KapitalWahl,
   type KapitalUnterschriftVermerk, type KapitalKundenSicht,
 } from "@shared/fiaon-global-angebot-kapital";
@@ -547,6 +548,76 @@ export async function kapitalGebuehrBerechnen(id: number, artRoh: unknown, ein: 
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ZAHLUNG (E-411, 19.10.2026) — aus angebotNachZahlung; alle Buchungswege gehen durch onCustomerPaid.
+//
+// VORHER lief ein bezahltes Kapital-Angebot durch den Weg des Individualangebots: Frist mit dessen Wochen und
+// Widerrufslogik, Aufgabe „Individualangebot starten“ mit Kreditrahmen/Karten, Teil 2 mit Ruhezeit-Rechnung, Teil 3 als
+// „Teil 1“. JETZT: Teil 1 bezahlt → Frist nach Ziffer 4 (kapitalGarantieFrist, dieselbe Rechnung wie „Mein Auftrag“),
+// Aufgabe an Justin (Ziffer 2 + Ziffer 4), Akte „gestartet“, Etappe 1. Teil 2/3 bezahlt → nur Vermerk, keine neue Frist.
+// Unternehmen: keine Widerrufsfrist. Keine Kundenmail (Firmenangebot). Wiederholbar: bezahlt_am/frist_beginn nur einmal,
+// die Start-Aufgabe nur, solange die Akte nicht „gestartet“ ist.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function kapitalNachZahlung(ref: string, t: any, z: AngebotZeile): Promise<{ gestartet: boolean; grund?: string }> {
+  const d = kapitalDatenAus(z);
+  const b = await globalBestellungLesen(ref);
+  if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
+  const [erstmals] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET bezahlt_am = ${b.completed_at ?? new Date()} WHERE id = ${t.id} AND bezahlt_am IS NULL RETURNING id`) as any[];
+  const ref1 = String(z.auftrag_ref || ref);
+  const nr = Number(t.nr);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+
+  // ── Teil 2 (Bürgschaftsgebühr) / Teil 3 (Vergütung bei Auszahlung): Vermerk, keine neue Frist ──
+  if (nr !== 1) {
+    if (!erstmals) return { gestartet: false, grund: `${String(t.titel)} schon als bezahlt vermerkt` };
+    const nachGarantiefall = !!(z.erstattung_ausgeloest_am || t.entfallen_am);
+    const satz = kapitalTeilBezahltVermerk({ angebotRef: d.ref, titel: String(t.titel), betragCents: Number(t.betrag_cents), zweck: b.payment_reference ?? null, fristEnde: isoTag(z.frist_ende), nachGarantiefall });
+    await verlaufAngebot(Number(z.id), "System", satz, { teil: nr, bestellRef: ref });
+    await globalVerlauf(ref1, `FIAON Global: ${satz}`).catch((e: unknown) => console.error(`[FIAON-KAPITAL] ${d.ref}: Verlauf der Akte:`, e));
+    if (nachGarantiefall) {
+      await auftragFuerKunden({
+        personId: b.person_id != null ? Number(b.person_id) : null, ref: ref1,
+        titel: `Kapital-Angebot ${d.ref}: ${String(t.titel)} nach dem Garantiefall bezahlt — ${kapitalEur(Number(t.betrag_cents))} erstatten`,
+        text: `${satz} Das System hat KEIN Geld bewegt.`,
+        dringend: true, anBetreiber: true, schluessel: `global:${d.ref}:kapital-teil${nr}-nach-garantiefall`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+      }).catch((e) => console.error(`[FIAON-KAPITAL] ${d.ref}: Aufgabe Teil ${nr} nach Garantiefall:`, e));
+    }
+    return { gestartet: false, grund: `${String(t.titel)} bezahlt — keine neue Frist` };
+  }
+
+  // ── Teil 1 (Gründungskosten): Frist nach Ziffer 4, Aufgabe an Justin, Auftrag gestartet ──
+  await sqlPool`UPDATE fiaon_global_auftraege SET status = 'bezahlt', bezahlt_am = COALESCE(bezahlt_am, ${b.completed_at ?? new Date()}), updated_at = NOW() WHERE ref = ${ref1} AND status = 'offen'`;
+  const akte = await globalAkteLesen(ref1);
+  if (!akte) return { gestartet: false, grund: "Akte fehlt" };
+  const bezahltAm = berlinToday(new Date(b.completed_at ?? new Date()));
+  const frist = kapitalGarantieFrist({ angenommenAm: isoTag(z.angenommen_am), bezahltAm, wochen: kapitalGarantieWochen(z.fassung, d.parameter) });
+  if (frist) await sqlPool`UPDATE fiaon_global_angebote SET frist_beginn = ${frist.beginn}::date, frist_ende = ${frist.ende}::date, updated_at = NOW() WHERE id = ${z.id} AND frist_beginn IS NULL`;
+  if (String(akte.status) === "gestartet") return { gestartet: false, grund: "schon gestartet" };
+  const z2 = (await angebotLesen({ id: Number(z.id) }))!;
+  const fristJetzt = frist ? { beginn: isoTag(z2.frist_beginn) ?? frist.beginn, ende: isoTag(z2.frist_ende) ?? frist.ende } : null;
+  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${ref1} AND art = 'reisepass' AND geloescht_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
+  const auf = kapitalStartAufgabe({
+    angebotRef: d.ref, firma: d.kunde.firma.name, vertretung: kapitalVertretungName(d.kunde), fassung: String(z.fassung), parameter: d.parameter,
+    bezahltAm, zweck: b.payment_reference ?? null, frist: fristJetzt, reisepassAm: pass?.created_at ? isoTag(new Date(pass.created_at)) : null,
+  });
+  let aufgabeId: number | null = null;
+  try {
+    const erg = await auftragFuerKunden({
+      personId: b.person_id != null ? Number(b.person_id) : null, ref: ref1, titel: auf.titel, text: auf.text,
+      dringend: true, anBetreiber: true, schluessel: `global:${ref1}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: CHEF_LINK, anlageText: "Zahlungseingang Teil 1 — Kapital-Angebot startet.",
+    });
+    aufgabeId = erg.id;
+  } catch (e) { console.error(`[FIAON-KAPITAL] ${d.ref}: Aufgabe „Gründungskosten bezahlt“:`, e); }
+  if (!aufgabeId) return { gestartet: false, grund: "Aufgabe nicht angelegt" };
+  await sqlPool`UPDATE fiaon_global_auftraege SET status = 'gestartet', gestartet_am = COALESCE(gestartet_am, NOW()), updated_at = NOW() WHERE ref = ${ref1} AND status IN ('offen', 'bezahlt')`;
+  await import("./fiaon-global-bereich").then((m) => m.globalStartVermerken(ref1)).catch((e) => console.error(`[FIAON-KAPITAL] ${ref1}: Etappe 1:`, e));
+  const fristSatz = fristJetzt ? `Garantie (Ziffer 4) bis ${kapitalTag(fristJetzt.ende)}` : "ohne Garantiefrist (Fassung A)";
+  await verlaufAngebot(Number(z.id), "System", `Gründungskosten bezahlt (${b.payment_reference ?? ref}) — Auftrag gestartet, ${fristSatz}`);
+  await globalVerlauf(ref1, `FIAON Global: Gründungskosten des Kapital-Angebots ${d.ref} bezahlt, Auftrag gestartet — ${fristSatz}.`).catch((e: unknown) => console.error(`[FIAON-KAPITAL] ${d.ref}: Verlauf der Akte:`, e));
+  return { gestartet: true };
+}
+
 /** Knopf-Zustand und Zeilen der Teile für die Liste der Leitung — dieselbe Prüfung wie beim Klick. */
 function kapitalTeileSicht(z: AngebotZeile, d: KapitalDaten, teile: any[], heute: string) {
   const t1 = teile.find((t) => Number(t.nr) === 1);
@@ -593,6 +664,8 @@ export async function kapitalSichtZurAkte(z: AngebotZeile): Promise<Record<strin
   const sicht = kapitalMeinAuftrag({
     fassung: String(z.fassung), parameter: d.parameter, angenommenAm: isoTag(z.angenommen_am), teile: roh,
     garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
+    // E-411: frist_* aus der Datenbank — gilt nur, wenn der Kapital-Zahlungsweg sie geschrieben hat (Prüfung in kapitalMeinAuftrag).
+    gespeichert: { beginn: isoTag(z.frist_beginn), ende: isoTag(z.frist_ende) },
   });
   return {
     art: "kapital", ref: d.ref, buergin: d.buergin.name, erstattungAusgeloest: !!z.erstattung_ausgeloest_am,

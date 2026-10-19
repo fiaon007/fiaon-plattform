@@ -460,6 +460,28 @@ async function main() {
       ok(z.typ === "object" && z.antwort_knopf?.url === "https://fiaon.com/zahlen/FIAON-A406O", "ROT: antwort_knopf ist ein Objekt mit url (vorher Text — der Knopf erschien nie)", { typ: z.typ, k: z.antwort_knopf });
     }
 
+    console.log("── 19 · Integration E-406 Welle 1 (B1 × C1): „Ich zahle morgen“ im Anliegen von gestern → Zahltag = HEUTE");
+    {
+      // Mail-Mara hält den genannten Zahltag fest (B1 Nachbesserung) — im Anliegen gilt dieselbe Maschine. Bezug für
+      // „morgen“ ist der Tag, an dem er schrieb (wie der genannte Termin im Anliegen), nicht der Tag, an dem Mara liest.
+      const { berlinToday } = await import("../server/lib/fiaon-time");
+      const heute = berlinToday();
+      const d = new Date(`${heute}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1);
+      const gestern = d.toISOString().slice(0, 10);
+      const K19 = await kunde("P");
+      await sql`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
+                VALUES (${K19.ref}, 2, ${`${M}P-2`}, 5999, ${gestern}::date, 'offen', 'pruefstand')`;
+      // Gestern gegen Mittag (Berlin) geschrieben.
+      const vorStd = (Date.now() - Date.parse(`${gestern}T10:30:00Z`)) / 3_600_000;
+      const t19 = await anliegen(K19, "Meine Rate", "Guten Tag, ich zahle morgen. Viele Grüße", vorStd);
+      await takt(SAUBER);
+      const [p] = (await sql`SELECT promised_payment_date::text AS zusage FROM fiaon_persons WHERE id = ${K19.pid}`) as any[];
+      const z = await ticket(t19);
+      ok(p?.zusage === heute, "Zahltag = Tag des Anliegens + 1 = heute (ohne den Schritt: morgen, vom Lauf aus gerechnet)", { zusage: p?.zusage, heute, stand: z.mara_stand, grund: kurz(z.mara_grund, 200) });
+      const v19 = (await sql`SELECT note FROM fiaon_contact_log WHERE person_id = ${K19.pid} AND note LIKE 'Zahlungszusage%' ORDER BY id`) as any[];
+      ok(v19.length === 1 && v19[0].note.includes(`(Anliegen #${t19})`), "Verlauf der Akte nennt die Herkunft „Anliegen #…“", v19.map((x) => kurz(x.note, 160)));
+    }
+
     console.log("── 14 · Kein Netz außer der Attrappe");
     ok(fremd === 0, `kein Netzaufruf außer den Attrappen (${fremd})`);
   } finally {

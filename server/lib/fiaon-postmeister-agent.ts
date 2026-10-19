@@ -2394,7 +2394,9 @@ export async function antwortErzeugen(ein: {
   const zusage = ein.personId && zusageErlaubt({ lage, flags: ein.einordnung.flags as any, global: !!akte?.global, vorgeschichte: !!ein.vorgeschichte?.grund })
     ? await zuM.zahlungszusageBehandeln({
       personId: ein.personId, kundeText: kontext.kundeText ?? "", betreff: ein.mail.betreff, letzteMara,
-      geschriebenAm: ein.mail.am ?? null, quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : null,
+      // Integration E-406 Welle 1 (B1 × C1): im Anliegen steht die Herkunft „Anliegen #…“ am Verlaufseintrag.
+      geschriebenAm: ein.mail.am ?? null,
+      quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : anliegen && ein.anliegenId ? `Anliegen #${ein.anliegenId}` : null,
     }).catch((e) => { console.warn("[POSTMEISTER] zahlungszusage_merken:", String(e?.message || e).slice(0, 160)); return null; })
     : null;
   if (zusage) {

@@ -335,7 +335,8 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     // 3. Der Agent — Kanal „anliegen“.
     const erg = await agent.antwortErzeugen({
       kanal: "anliegen", anliegenId: leitId, anliegenAm: new Date(leit.created_at),
-      postfach: "kundenbereich", mail: { betreff, text, von, alterTage },
+      // Integration E-406 Welle 1 (B1 × C1): am = wann er schrieb — Bezug für „morgen“, „am Freitag“ beim genannten Zahltag.
+      postfach: "kundenbereich", mail: { betreff, text, von, alterTage, am: new Date(leit.created_at) },
       verlauf, einordnung, personId, ref, postmeisterId: null, sprache, vorgeschichte,
     });
     if (!erg.ok || !erg.antwort) {

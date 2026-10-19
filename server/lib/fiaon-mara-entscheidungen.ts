@@ -39,6 +39,9 @@ import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
 import {
   VERTRAGSENDE_SPALTEN_SQL, ratenNachVertragsende, KUENDIGUNG_ANTRAEGE_SQL, KUENDIGUNG_WIRKSAM_SQL, antragZiel, tagDe,
 } from "@shared/fiaon-kuendigung-regel";
+// E-401 (3/6): nur Typen — die Module selbst werden dynamisch geladen (kein Kreis).
+import type { NachholZeile } from "./fiaon-bank-nachholen";
+import type { MaraFund } from "./fiaon-mara-zahlung-suchen";
 
 type Lauf = typeof sqlPool;
 
@@ -705,66 +708,135 @@ entscheidungWerkzeug({
 // bucht der Server nicht. Eindeutig heißt: die Trockenprobe bucht aus dem Zweck
 // selbst, oder der Vorschlag ist „sicher“. Alles andere: „Im Konto zuordnen“ mit
 // Vorauswahl (/chef/s/konto?eingang=<id>).
+//
+// E-401 (3/6, 19.10.2026): Meldet ein Kunde „habe bezahlt“ und findet zahlung_suchen
+// (fiaon-mara-zahlung-suchen.ts) seinen Eingang, steht Maras Fund auf DIESER Karte —
+// keine zweite Karte: Beleg „Kunde meldet Zahlung“, und fehlt ein Buchungsknopf, dazu
+// „Zubuchen auf Rate N“ (nur wenn Maras Trockenprobe „würde buchen“ sagte). Mara legt
+// die Karte sofort an (eingangKarteJetzt); gebucht wird nur mit dem Klick.
 // ═══════════════════════════════════════════════════════════════════════════
 async function findeEingaenge(_lauf: Lauf): Promise<EntscheidungNeu[]> {
   // nachholListe liest über den Pool — gegen die Produktion nur im Betrieb, nicht in der lesenden Messung.
   const { nachholListe } = await import("./fiaon-bank-nachholen");
   const zeilen = await nachholListe({ mitVorschlag: true });
+  // E-401 (3/6): Maras Funde (Kunde meldet Zahlung, zahlung_suchen) gehören auf dieselbe Karte.
+  const { maraFundeFuer } = await import("./fiaon-mara-zahlung-suchen");
+  const funde = await maraFundeFuer(zeilen.map((z) => z.id)).catch(() => []);
   const aus: EntscheidungNeu[] = [];
   for (const z of zeilen) {
-    if (z.schonVerbucht) continue;
-    const v = z.vorschlag;
-    const optionen: EntscheidungOption[] = [];
-    let empfehlung = "konto";
-    let titel = "Eingang ohne Zuordnung";
-    if (z.buchen && !z.unklar) {
-      titel = "Geld da — noch nicht gebucht";
-      optionen.push({ key: "buchen", label: `Buchen${z.rateNr ? `: Rate ${z.rateNr}` : z.ziel ? `: ${z.ziel}` : ""}`, werkzeug: "bankeingang_buchen", ton: "gut",
-        titel: z.ergebnis, args: { id: z.id, ziel: null, dazu: [], erwartet: { regel: z.regel ?? null, ziel: z.ziel ?? null, rateId: z.rateId ?? null } } });
-      empfehlung = "buchen";
-    } else if (v?.aktion === "buchen" && v.sicherheit === "sicher" && v.ziel && v.erwartet) {
-      titel = "Geld da — Zuordnung eindeutig";
-      optionen.push({ key: "buchen", label: `Zubuchen auf ${v.rateNr ? `Rate ${v.rateNr}` : v.ziel}`, werkzeug: "bankeingang_buchen", ton: "gut",
-        titel: v.text, args: { id: z.id, ziel: v.ziel, dazu: v.dazu ?? [], erwartet: v.erwartet } });
-      empfehlung = "buchen";
-    } else if (v?.aktion === "zuordnen" && v.sicherheit === "sicher" && v.ziel) {
-      titel = "Schon gebucht — Beleg fehlt";
-      optionen.push({ key: "zuordnen", label: "Nur zuordnen", werkzeug: "bankeingang_zuordnen", ton: "gut",
-        titel: "Keine zweite Buchung — der Eingang wird der bezahlten Rate als Beleg zugeordnet.",
-        args: { id: z.id, ziel: v.ziel, erwartet: v.erwartet ? { ziel: v.erwartet.ziel, rateId: v.erwartet.rateId } : null } });
-      empfehlung = "zuordnen";
-    } else if (v && (v.art === "ueberzahlung" || v.art === "rueckzahlung_noetig" || v.art === "teilzahlung")) {
-      titel = v.art === "ueberzahlung" ? "Überzahlung" : v.art === "teilzahlung" ? "Teilzahlung" : "Rückzahlung nötig";
-    }
-    optionen.push({ key: "konto", label: "Im Konto zuordnen", werkzeug: "link", link: `/chef/s/konto?eingang=${z.id}`, ton: "neutral",
-      titel: "Öffnet das Geschäftskonto mit diesem Eingang — Vorschlag, Kundensuche, Prüfen." });
-    const unbekannt = !v?.personId && !z.personId;
-    if (unbekannt) {
-      optionen.push({ key: "kein_kunde", label: "Kein Kundengeld", werkzeug: "bankeingang_kein_kunde", ton: "neutral",
-        titel: "Kennzeichnet den Eingang als „Sonstiger Eingang“ — keine Buchung, jederzeit zurücknehmbar.", args: { id: z.id } });
-      // Kleinbeträge ohne jeden Treffer (Prüfbetrag einer Bank, 0,18 €) sind kein Kundengeld.
-      if (empfehlung === "konto" && z.betragCents < 100) empfehlung = "kein_kunde";
-    }
-    aus.push({
-      schluessel: `eingang:${z.id}`,
-      art: "eingang_unverbucht",
-      personId: v?.personId ?? z.personId ?? null,
-      ref: v?.bestellung ?? z.bestellung ?? null,
-      titel,
-      text: `${euroText(z.betragCents)} am ${tagKurz(z.datum)}${z.absender ? ` von ${kurz(z.absender, 40)}` : ""}. ${kurz(v?.text || z.ergebnis || "Keine Bestellung erkannt.", 220)}`,
-      empfehlung,
-      optionen,
-      belege: [
-        { text: euroText(z.betragCents) },
-        { text: `eingegangen ${tagKurz(z.datum)}` },
-        ...(z.zweck ? [{ text: `Zweck „${kurz(z.zweck, 50)}“` } as EntscheidungBeleg] : []),
-        ...(v ? [{ text: `Vorschlag ${v.sicherheit}`, ton: v.sicherheit === "sicher" ? "gut" : "warn" } as EntscheidungBeleg] : []),
-        ...((v?.gruende ?? []).slice(0, 3).map((g) => ({ text: kurz(g, 60) }) as EntscheidungBeleg)),
-        ...((v?.hinweise ?? z.hinweise ?? []).slice(0, 2).map((h) => ({ text: kurz(h, 90), ton: "warn" }) as EntscheidungBeleg)),
-      ],
-    });
+    const k = eingangKarte(z, funde.filter((f) => f.bankTxnId === z.id));
+    if (k) aus.push(k);
   }
   return aus;
+}
+
+
+/**
+ * Die Karte zu EINEM liegengebliebenen Eingang (null: schon verbucht). E-401 (3/6): Hat Mara den Eingang zu einer
+ * gemeldeten Zahlung gefunden (`funde`), steht das als Beleg darauf („Kunde meldet Zahlung“) — und fehlt ein
+ * Buchungsknopf, kommt „Zubuchen auf Rate N“ dazu, wenn ihre Trockenprobe „würde buchen“ sagte (Erwartungs-Stempel:
+ * bankeingangBuchen prüft beim Klick noch einmal). Nennt der Vorschlag des Bankbuchs eine ANDERE Person, gibt es
+ * keinen Knopf, nur die Warnung.
+ */
+export function eingangKarte(z: NachholZeile, funde: MaraFund[] = []): EntscheidungNeu | null {
+  if (z.schonVerbucht) return null;
+  const v = z.vorschlag;
+  const optionen: EntscheidungOption[] = [];
+  let empfehlung = "konto";
+  let titel = "Eingang ohne Zuordnung";
+  if (z.buchen && !z.unklar) {
+    titel = "Geld da — noch nicht gebucht";
+    optionen.push({ key: "buchen", label: `Buchen${z.rateNr ? `: Rate ${z.rateNr}` : z.ziel ? `: ${z.ziel}` : ""}`, werkzeug: "bankeingang_buchen", ton: "gut",
+      titel: z.ergebnis, args: { id: z.id, ziel: null, dazu: [], erwartet: { regel: z.regel ?? null, ziel: z.ziel ?? null, rateId: z.rateId ?? null } } });
+    empfehlung = "buchen";
+  } else if (v?.aktion === "buchen" && v.sicherheit === "sicher" && v.ziel && v.erwartet) {
+    titel = "Geld da — Zuordnung eindeutig";
+    optionen.push({ key: "buchen", label: `Zubuchen auf ${v.rateNr ? `Rate ${v.rateNr}` : v.ziel}`, werkzeug: "bankeingang_buchen", ton: "gut",
+      titel: v.text, args: { id: z.id, ziel: v.ziel, dazu: v.dazu ?? [], erwartet: v.erwartet } });
+    empfehlung = "buchen";
+  } else if (v?.aktion === "zuordnen" && v.sicherheit === "sicher" && v.ziel) {
+    titel = "Schon gebucht — Beleg fehlt";
+    optionen.push({ key: "zuordnen", label: "Nur zuordnen", werkzeug: "bankeingang_zuordnen", ton: "gut",
+      titel: "Keine zweite Buchung — der Eingang wird der bezahlten Rate als Beleg zugeordnet.",
+      args: { id: z.id, ziel: v.ziel, erwartet: v.erwartet ? { ziel: v.erwartet.ziel, rateId: v.erwartet.rateId } : null } });
+    empfehlung = "zuordnen";
+  } else if (v && (v.art === "ueberzahlung" || v.art === "rueckzahlung_noetig" || v.art === "teilzahlung")) {
+    titel = v.art === "ueberzahlung" ? "Überzahlung" : v.art === "teilzahlung" ? "Teilzahlung" : "Rückzahlung nötig";
+  }
+  // ── E-401 (3/6): Maras Fund ───────────────────────────────────────────────
+  const f = funde[0] ?? null;
+  const vorschlagPerson = v?.personId ?? z.personId ?? null;
+  const anderePerson = !!f && vorschlagPerson != null && vorschlagPerson !== f.personId;
+  const maraBelege: EntscheidungBeleg[] = [];
+  if (f) {
+    maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
+    if (f.wege) maraBelege.push({ text: `Mara: ${kurz(f.wege, 50)}` });
+    if (anderePerson) {
+      maraBelege.push({ text: "Der Vorschlag des Bankbuchs nennt eine andere Person als den Kunden, der zahlte — bitte im Konto prüfen", ton: "warn" });
+    } else if (!optionen.some((o) => o.key === "buchen" || o.key === "zuordnen") && f.erwartet && f.ziel) {
+      titel = "Geld da — Kunde hat Zahlung gemeldet";
+      optionen.unshift({ key: "buchen", label: `Zubuchen auf ${f.rateNr ? `Rate ${f.rateNr}` : f.ziel}`, werkzeug: "bankeingang_buchen", ton: "gut",
+        titel: "Der Kunde hat diese Zahlung gemeldet; Betrag und Name/Referenz passen. Der Server prüft beim Klick noch einmal.",
+        args: { id: z.id, ziel: f.ziel, dazu: [], erwartet: f.erwartet } });
+      empfehlung = "buchen";
+    } else if (titel === "Eingang ohne Zuordnung") {
+      titel = f.stand === "abweichend" ? "Kunde hat gezahlt — Betrag weicht ab" : "Kunde hat gezahlt — bitte zuordnen";
+    }
+  }
+  optionen.push({ key: "konto", label: "Im Konto zuordnen", werkzeug: "link", link: `/chef/s/konto?eingang=${z.id}`, ton: "neutral",
+    titel: "Öffnet das Geschäftskonto mit diesem Eingang — Vorschlag, Kundensuche, Prüfen." });
+  // Meldet ein Kunde genau diese Zahlung, ist sie Kundengeld — dann kein „Kein Kundengeld“.
+  const unbekannt = !v?.personId && !z.personId && !f;
+  if (unbekannt) {
+    optionen.push({ key: "kein_kunde", label: "Kein Kundengeld", werkzeug: "bankeingang_kein_kunde", ton: "neutral",
+      titel: "Kennzeichnet den Eingang als „Sonstiger Eingang“ — keine Buchung, jederzeit zurücknehmbar.", args: { id: z.id } });
+    // Kleinbeträge ohne jeden Treffer (Prüfbetrag einer Bank, 0,18 €) sind kein Kundengeld.
+    if (empfehlung === "konto" && z.betragCents < 100) empfehlung = "kein_kunde";
+  }
+  const grundText = kurz(v?.text || z.ergebnis || "Keine Bestellung erkannt.", 220);
+  return {
+    schluessel: `eingang:${z.id}`,
+    art: "eingang_unverbucht",
+    personId: v?.personId ?? z.personId ?? f?.personId ?? null,
+    ref: v?.bestellung ?? z.bestellung ?? f?.bestellung ?? null,
+    titel,
+    text: `${euroText(z.betragCents)} am ${tagKurz(z.datum)}${z.absender ? ` von ${kurz(z.absender, 40)}` : ""}. `
+      + (f ? `Der Kunde meldet diese Zahlung (Mara hat sie im Bankbuch gefunden${f.ziel ? `: ${f.rateNr ? `Rate ${f.rateNr}` : f.ziel}` : ""}). ` : "")
+      + grundText,
+    empfehlung,
+    optionen,
+    belege: [
+      { text: euroText(z.betragCents) },
+      { text: `eingegangen ${tagKurz(z.datum)}` },
+      ...maraBelege,
+      ...(z.zweck ? [{ text: `Zweck „${kurz(z.zweck, 50)}“` } as EntscheidungBeleg] : []),
+      ...(v ? [{ text: `Vorschlag ${v.sicherheit}`, ton: v.sicherheit === "sicher" ? "gut" : "warn" } as EntscheidungBeleg] : []),
+      ...((v?.gruende ?? []).slice(0, 3).map((g) => ({ text: kurz(g, 60) }) as EntscheidungBeleg)),
+      ...((v?.hinweise ?? z.hinweise ?? []).slice(0, 2).map((h) => ({ text: kurz(h, 90), ton: "warn" }) as EntscheidungBeleg)),
+    ],
+  };
+}
+
+/**
+ * E-401 (3/6): Die Karte zu einem Eingang SOFORT anlegen bzw. auffrischen (Mara hat ihn eben gefunden) — nur, wenn
+ * der Sammler ihn auch sähe (sonst schlösse er sie gleich wieder). Liefert das Ergebnis von entscheidungAnlegen.
+ */
+export async function eingangKarteJetzt(id: number): Promise<{ id: number; neu: boolean; status: EntscheidungStatus } | null> {
+  if (!Number.isInteger(id) || id <= 0) return null;
+  await entscheidungTabellen();
+  const { nachholListe, NACHHOLEN_SEIT_VORGABE } = await import("./fiaon-bank-nachholen");
+  // Dieselbe Auswahl wie nachholListe ohne ids (der Sammler).
+  const [da] = (await sqlPool`
+    SELECT 1 AS ja FROM fiaon_bank_txns
+     WHERE id = ${id} AND NOT applied AND amount_cents > 0 AND booked_at >= ${NACHHOLEN_SEIT_VORGABE}::date
+       AND COALESCE(note, '') NOT LIKE 'Airwallex: Geld ist UNTERWEGS%'
+       AND COALESCE(match_status, '') <> 'ignored'`) as any[];
+  if (!da) return null;
+  const [z] = await nachholListe({ ids: [id], mitVorschlag: true });
+  if (!z) return null;
+  const { maraFundeFuer } = await import("./fiaon-mara-zahlung-suchen");
+  const k = eingangKarte(z, await maraFundeFuer([id]).catch(() => []));
+  return k ? entscheidungAnlegen(k) : null;
 }
 
 const WER_BANK = (von: string) => `Mara-Entscheidung (${von})`.slice(0, 80);

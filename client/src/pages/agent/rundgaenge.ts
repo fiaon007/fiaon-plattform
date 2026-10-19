@@ -253,7 +253,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "dazu EINE Aufgabe „Zahlung gemeldet, nicht da — anrufen und klären“: Erreichst du den Kunden und trägst das "
       + "Ergebnis ein (auch aus der Pipeline) oder ist die Zahlung gebucht, ist sie von selbst erledigt; ab dem 9. "
       + "Fehlversuch übernimmt sie die Leitung. Buchst du denselben Anruf zweimal (Telefon "
-      + "und Akte), zählt er einmal.",
+      + "und Akte), zählt er einmal. "
+      // E-401 (3/6, 19.10.2026) mitgezogen: Mara sucht die gemeldete Zahlung selbst.
+      + "Schreibt der Kunde „habe bezahlt“, sieht Mara vorher selbst auf dem Konto nach und sagt ihm, ob das Geld da ist — der Vermerk steht in der Akte.",
     tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
   },
   {
@@ -1805,6 +1807,13 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
     text: "Jeder Knopf erledigt die Sache über denselben Weg wie Akte und Konto — mit Urkunde, Mail und Vermerk. Gelb umrandet heißt "
       + "endgültig, mit Rückfrage. „Später“ legt die Karte drei Tage weg.",
     tipp: "Hat sich die Lage inzwischen erledigt (bezahlt, schon gebucht), tut der Knopf nichts und sagt das.",
+  },
+  // E-401 (3/6, 19.10.2026): Mara sucht die gemeldete Zahlung selbst (zahlung_suchen) — der Fund steht auf derselben Karte.
+  {
+    titel: "„Kunde meldet Zahlung“: Mara hat schon nachgesehen.",
+    text: "Schreibt ein Kunde „habe bezahlt“, sucht Mara die Überweisung selbst im Bankbuch (21 Tage). Findet sie sie, steht auf der Karte "
+      + "„Geld eingegangen“ der Beleg „Kunde meldet Zahlung“ — und wenn Betrag und Name oder Referenz passen, der Knopf „Zubuchen auf Rate …“. "
+      + "Gebucht wird erst mit deinem Klick; der Kunde hat schon gehört: „wir ordnen sie jetzt zu“.",
   },
   {
     ziel: ".me-entschieden",

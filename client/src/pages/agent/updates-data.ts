@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (3/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Schreibt ein
+    // Kunde „habe bezahlt“, sieht Mara selbst im Bankbuch nach (zahlung_suchen) — statt nur um den Beleg zu bitten.
+    id: "2026-10-19-mara-zahlung-suchen",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara sucht die Zahlung selbst, wenn ein Kunde „habe bezahlt“ schreibt",
+    summary:
+      "Schreibt ein Kunde per Mail oder WhatsApp „ich habe überwiesen“, schaut Mara vor ihrer Antwort selbst auf unser Konto "
+      + "und sagt ihm, was dort steht — mit Datum und Betrag.",
+    changes: [
+      "Mara sieht alle Eingänge der letzten 21 Tage durch: passt der Betrag genau und stehen sein Name oder seine Referenz dabei, ist es seine Zahlung.",
+      "Ist das Geld schon gebucht, sagt sie es ihm: „Ihre Zahlung über 59,99 € ist am 16.10. bei uns eingegangen und gebucht.“",
+      "Ist es angekommen, aber noch nicht gebucht, schreibt sie: „Ich habe Ihre Überweisung über … gefunden, wir ordnen sie jetzt zu.“ Die Zuordnung liegt dann bei der Geschäftsführung (ein Klick). Mara selbst bucht nie.",
+      "Ist nichts da, bittet sie wie bisher um Datum und Beleg — und darum, nicht doppelt zu überweisen.",
+      "„Gebucht“ oder „angekommen“ schreibt Mara nur, wenn es wirklich auf dem Konto steht. Sonst bleibt ihre Antwort ein Entwurf.",
+      "Für eine gefundene Zahlung legt Mara keine Aufgabe „Zahlungsbeleg prüfen“ mehr an.",
+    ],
+    howto: [
+      "In der Akte steht dazu ein Vermerk „Mara hat die gemeldete Zahlung im Bankbuch gesucht …“ — so siehst du sofort, was sie gefunden hat.",
+      "Sagt dir ein Kunde am Telefon „habe bezahlt“: Schau zuerst in diesen Vermerk, bevor du nach dem Beleg fragst.",
+    ],
+  },
+  {
     // E-401 (2/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Was E-395
     // für die Mail kann, kann Mara jetzt auch auf WhatsApp — die Notizen des Teams lesen und genannte Termine eintragen.
     id: "2026-10-19-mara-wa-genannter-termin",

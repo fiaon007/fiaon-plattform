@@ -171,6 +171,8 @@ import type { WaEntscheidungsLage } from "./fiaon-whatsapp-entscheidungen";
 // E-401 (2/6, 19.10.2026): der genannte Termin auch auf WhatsApp — Erkennung und Antwortprüfung rein (shared), das
 // Eintragen im Server-Modul (nur der Typ statisch; geladen wird es beim Aufruf, wie im Postfach).
 import { genanntAntwortFunde, uhrzeitenGenannt } from "@shared/fiaon-genannter-termin";
+// E-401 (3/6, 19.10.2026): „habe bezahlt“ — der Server sucht im Bankbuch (fiaon-mara-zahlung-suchen.ts).
+import { zahlungAntwortFunde, type ZsErgebnis } from "@shared/fiaon-zahlung-suchen";
 import type { GenanntLage } from "./fiaon-mara-genannter-termin";
 
 export const DIENST_WA = "mara-whatsapp";
@@ -3397,7 +3399,19 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // Eingang auf dem Konto, ist er angekommen (die Karte „Geld eingegangen“ bucht ihn mit einem Klick); sonst bittet sie
     // um den Beleg. Im Zweifel (Abfrage scheitert) sagt sie nichts über den Eingang.
     let zahlungsHinweis: string | null = null;
+    // ── E-401 (3/6, 19.10.2026): MARA SUCHT DIE ZAHLUNG SELBST (zahlung_suchen, derselbe Weg wie im Postfach) ──
+    // Der Server sieht im Bankbuch nach (alle Eingänge der letzten 21 Tage, fiaon-mara-zahlung-suchen.ts): schon gebucht →
+    // Datum und Betrag; gefunden, nicht gebucht → Vorschlag auf die Karte „Geld eingegangen“ (ein Mensch bucht, nie Mara)
+    // und „Ich habe Ihre Überweisung … gefunden, wir ordnen sie jetzt zu“; nichts → Beleg erbitten, nicht doppelt zahlen.
+    // Scheitert die Suche, gilt der E-372-Abgleich unten wie bisher.
+    let zahlungGesucht: import("./fiaon-mara-zahlung-suchen").ZahlungsLage | null = null;
     if (personId && waSelbstThema(kundeFrei) === "bezahlt") {
+      const zsM = await import("./fiaon-mara-zahlung-suchen");
+      zahlungGesucht = await zsM.zahlungSuchenBehandeln({ personId: Number(personId), kanal: "whatsapp", quelle: `WhatsApp #${neuesteRein.id}` })
+        .catch(() => null);
+    }
+    if (zahlungGesucht) zahlungsHinweis = zahlungGesucht.hinweis;
+    else if (personId && waSelbstThema(kundeFrei) === "bezahlt") {
       const eingang = await (async () => {
         try {
           const { eingangOffenSql } = await import("./fiaon-zahlung-unverbucht");
@@ -3544,6 +3558,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         uhrzeitTermin: genannt.eingetragen || genannt.erkennung.art === "steht_schon" ? genannt.uhrzeitTermin : null,
         satz: genannt.satz,
       } : null,
+      // E-401 (3/6): „gebucht/angekommen/gefunden“ nur, was zahlung_suchen im Bankbuch gefunden hat.
+      zahlung: zahlungGesucht ? { ergebnis: zahlungGesucht.ergebnis, frueher: zahlungGesucht.frueher } : null,
     }, personId ? {
       personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer,
       kunde, letzteDu: letzteDu[0] ?? "", auskunft,
@@ -3625,6 +3641,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       const werkzeugSatz = e.aktionen.some((x) => (x.werkzeug === "kuendigung_aufnehmen" || x.werkzeug === "ratenpause_setzen") && x.ok && x.satz);
       const kandidat = genannt && !werkzeugSatz
         ? (genannt.satz && !heikelAnliegen(kunde) && !kannNichtZahlen(kunde) && !abstreitenArt(kunde) ? genannt.satz : null)
+        // E-401 (3/6): Er meldet eine Zahlung — der Satz aus dem Bankbuch (zahlung_suchen) ist der sichere Satz.
+        : zahlungGesucht && !werkzeugSatz && !heikelAnliegen(kunde) && !abstreitenArt(kunde) ? zahlungGesucht.satz
         : basisSatz;
       // E-253 (28.09.2026): bewusst OHNE die Namen des Kunden — der sichere Satz nennt nur den Namen des
       // Betreuers (E-265: Nennform) und Links, nie den Kunden; ungemaskt prüft die Wand hier strenger.
@@ -5152,6 +5170,12 @@ export async function entwerfen(
      * eingetragener Rückruf zählt), der eingetragene bzw. stehende Termin mit seiner Uhrzeit. Ohne: keine Prüfung.
      */
     genannt?: { eingetragen: boolean; uhrzeitTermin: string | null; satz: string | null } | null;
+    /**
+     * E-401 (3/6, 19.10.2026): Er meldet eine Zahlung und zahlung_suchen hat im Bankbuch nachgesehen
+     * (fiaon-mara-zahlung-suchen.ts) — dann ist jede Zusage („gebucht“, „angekommen“, Datum, Betrag), die dort nicht
+     * steht, hart (zahlungAntwortFunde). Ohne: keine Prüfung.
+     */
+    zahlung?: { ergebnis: ZsErgebnis; frueher?: { datum: string; cents: number }[] } | null;
   },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
@@ -5188,7 +5212,9 @@ export async function entwerfen(
       ...(pruef.genannt ? genanntAntwortFunde(a, {
         darfEingetragen: pruef.genannt.eingetragen || aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok),
         uhrzeitPflicht: pruef.genannt.uhrzeitTermin, satz: pruef.genannt.satz, linkVerboten: true,
-      }) : [])];
+      }) : []),
+      // E-401 (3/6): nie eine Zusage, die nicht im Bankbuch steht.
+      ...(pruef.zahlung ? zahlungAntwortFunde(a, pruef.zahlung.ergebnis, { frueher: pruef.zahlung.frueher }) : [])];
     const hart = [...wand, ...wahr.map((f) => f.text), ...hand, ...tl.hart];
     return {
       hart,

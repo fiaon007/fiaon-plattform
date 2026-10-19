@@ -298,14 +298,17 @@ function unterschriftHtml(z: AnnahmeZeile): string {
   const bild = unterschriftDataUrl(z.unterschrift_png);
   const name = [z.vorname, z.nachname].map((x) => String(x ?? "").trim()).filter(Boolean).join(" ");
   const { datum, uhrzeit } = berlinDatumUhrzeit(z.angenommen_am);
+  // E-398 (19.10.2026): Die Bestätigung eines bestehenden Vertrags (/vertrag-bestaetigen, Knopf „Zahlungspflichtig
+  // bestellen“) kommt ohne Unterschrift aus — dann steht hier, womit bestätigt wurde, nicht „kein Bild“.
+  const bestaetigt = !bild && /bestellen/i.test(String(z.knopf_text ?? ""));
   const feld = bild
     ? `<img class="vn-sig" src="${escapeHtml(bild)}" alt="Unterschrift" />`
-    : `<span class="vn-leer">${z.unterschrift_getippt ? "Unterschrift elektronisch gezeichnet" : "Kein Unterschriftsbild gespeichert"}</span>`;
+    : `<span class="vn-leer">${bestaetigt ? `Bestätigt mit der Schaltfläche „${escapeHtml(z.knopf_text)}“` : z.unterschrift_getippt ? "Unterschrift elektronisch gezeichnet" : "Kein Unterschriftsbild gespeichert"}</span>`;
   return `
 <section class="vn-unterschrift">
-  <div class="vn-kopf">Unterschrift des Kunden</div>
+  <div class="vn-kopf">${bestaetigt ? "Bestätigung des Kunden" : "Unterschrift des Kunden"}</div>
   <div class="vn-feld">${feld}</div>
-  <div class="vn-linie">${name ? `${escapeHtml(name)} · ` : ""}angenommen am ${escapeHtml(datum)} um ${escapeHtml(uhrzeit)} Uhr</div>
+  <div class="vn-linie">${name ? `${escapeHtml(name)} · ` : ""}${bestaetigt ? "bestätigt" : "angenommen"} am ${escapeHtml(datum)} um ${escapeHtml(uhrzeit)} Uhr</div>
   ${bild && z.unterschrift_getippt ? `<div class="vn-hinweis">Unterschrift elektronisch gezeichnet</div>` : ""}
 </section>`;
 }
@@ -678,16 +681,19 @@ export async function vertragBestaetigungSenden(ref: string, lauf: Lauf = sqlPoo
 /**
  * Für den Nachhol-Lauf (alle 10 Minuten): Bestätigungen, die nicht rausgingen —
  * Annahme älter als 3 Minuten (der erste Versuch der Route hat Vorrang) und
- * jünger als 3 Tage, weniger als fünf Fehlversuche. Nacheinander, höchstens 20
+ * jünger als 30 Tage, weniger als fünf Fehlversuche. Nacheinander, höchstens 20
  * je Lauf. Gibt die Zahl der gesendeten Bestätigungen zurück. Idempotent: Eine
  * gesendete Zeile fällt aus der Auswahl, eine belegte überspringt der Versand.
+ * E-398 (19.10.2026): vorher 3 Tage — fiel der Versand länger aus (Brevo, Chromium), blieb der Vertrag ohne
+ * Bestätigung (§ 312f Abs. 2 BGB: spätestens vor Beginn der Leistung). Gemessen 19.10.: 0 offene Zeilen — das
+ * Aufspielen schickt also nichts Altes los. Die Strecke /vertrag-bestaetigen schreibt in dieselbe Tabelle.
  */
 export async function vertragBestaetigungNachholen(lauf: Lauf = sqlPool): Promise<number> {
   const zeilen = (await lauf`
     SELECT ref, bestaetigung_fehler FROM fiaon_vertragsannahmen
      WHERE bestaetigung_gesendet_am IS NULL
        AND angenommen_am < NOW() - INTERVAL '3 minutes'
-       AND angenommen_am > NOW() - INTERVAL '3 days'
+       AND angenommen_am > NOW() - INTERVAL '30 days'
        AND (CASE WHEN split_part(COALESCE(bestaetigung_fehler, ''), '|', 1) ~ '^[0-9]+$'
                  THEN split_part(bestaetigung_fehler, '|', 1)::int ELSE 0 END) < ${BESTAETIGUNG_MAX_VERSUCHE}
      ORDER BY angenommen_am ASC

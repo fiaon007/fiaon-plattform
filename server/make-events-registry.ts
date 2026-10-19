@@ -109,6 +109,20 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       erklaerung_text: "Kündigung von Max Mustermann, Grund: „Ich brauche den Service nicht mehr“", antrag_nr: "142" },
   },
   {
+    type: "vertrag_unterschreiben",
+    label: "Vertrag zum Unterschreiben (ohne /antrag-neu)",
+    description: "E-398 (19.10.2026): Für Bestellungen, die nicht über /antrag-neu entstanden sind (Betreuer-Anlage, alter Antrag): der persönliche Link zur Seite /vertrag-bestaetigen — derselbe Vertrag, Unterschrift, „Zahlungspflichtig annehmen“, danach die Vertragsbestätigung mit PDF. Lauf alle 10 Minuten, einmal je Bestellung, direkt über den Motor.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, paket: "FIAON Pro", rate_text: "59,99 €", gesamt_text: "719,88 €", bestellt_text: "19.10.2026", link_url: "https://www.fiaon.com/vertrag-bestaetigen/BEISPIEL" },
+  },
+  {
+    type: "vertrag_bestaetigen_bitte",
+    label: "Vertrag bitte bestätigen (Bestand, Entwurf LEXR)",
+    description: "E-398 (19.10.2026): Bezahlte Jahresverträge ohne Vertragsnachweis — der Kunde bestätigt seinen bestehenden Vertrag mit „Zahlungspflichtig bestellen“ (EuGH C-400/22). Geht erst raus, wenn BESTAND_FREIGABE gesetzt ist (Justins „go“ nach LEXR).",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, paket: "FIAON Ultra", rate_text: "79,99 €", gesamt_text: "959,88 €", bestellt_text: "10.09.2026", link_url: "https://www.fiaon.com/vertrag-bestaetigen/BEISPIEL" },
+  },
+  {
     type: "vertrag_beendet",
     label: "Vertrag beendet (letzte Rate bezahlt)",
     description: "E-092: Die letzte Rate ist eingegangen, der Vertrag ist aus. Unterlagen bleiben 90 Tage einsehbar. Pflichtmail, ausgelöst im Buchungsweg.",

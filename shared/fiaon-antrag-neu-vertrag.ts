@@ -35,7 +35,19 @@ export interface VertragDaten {
   sofortBeginn: boolean;
   /** Zeitpunkt der Annahme (nur im angenommenen Vertrag). */
   angenommenAm?: Date | null;
+  /**
+   * E-398 (19.10.2026), ENTWURF FÜR LEXR: Bestätigung eines schon bestehenden Vertrags (EuGH C-400/22) — Kunden, die
+   * ohne diesen Vertragstext bestellt haben (alter Antrag mit altem Knopf, Anlage durch den Betreuer). Nur § 13 Abs. 1/2
+   * und die Zeichnung ändern sich; der Knopf heißt „Zahlungspflichtig bestellen“. Ohne Angabe bleibt der Text Byte für
+   * Byte, wie er ist (scripts/pruef-vertrag-bestaetigen.ts prüft das).
+   */
+  bestaetigung?: { bestelltAm: Date | null } | null;
 }
+
+/** E-398: der Knopf der Bestätigungsstrecke für bestehende Verträge (§ 312j Abs. 3 BGB, EuGH C-249/21 und C-400/22). */
+export const KNOPF_BESTAETIGUNG = "Zahlungspflichtig bestellen";
+/** E-398: Die Fassung einer Bestätigung trägt dieses Zeichen hinter der Vertragsfassung. */
+export const BESTAETIGUNG_FASSUNG_ZEICHEN = "-B";
 
 function esc(t: unknown): string {
   return String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c] as string));
@@ -79,7 +91,7 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   const p = (t: string) => `<p>${t}</p>`;
   const h = (t: string) => `<h4>${esc(t)}</h4>`;
   const teile: string[] = [];
-  teile.push(`<p class="vt-fassung">Vertragsfassung ${esc(ANTRAG_NEU_VERTRAG_FASSUNG)} · Vorgang ${esc(d.ref)} · AGB-Fassung ${esc(AGB_FASSUNG)}</p>`);
+  teile.push(`<p class="vt-fassung">Vertragsfassung ${esc(ANTRAG_NEU_VERTRAG_FASSUNG)}${d.bestaetigung ? BESTAETIGUNG_FASSUNG_ZEICHEN : ""} · Vorgang ${esc(d.ref)} · AGB-Fassung ${esc(AGB_FASSUNG)}</p>`);
   teile.push(`<h3>Vertrag über die FIAON-Begleitung · Paket ${esc(P?.name ?? d.paketKey)}</h3>`);
   teile.push(h("§ 1 Vertragspartner"));
   teile.push(p(`(1) ${esc(f.name)}, ${esc(f.strasse)}, ${esc(f.ortZeile)}, Vereinigtes Königreich, eingetragen im ${esc(f.register)} unter der Company No. ${esc(f.companyNo)}, vertreten durch den Director ${esc(f.director)}, Telefon ${esc(f.telefon)}, E-Mail ${esc(f.email)} – nachfolgend „FIAON“.`));
@@ -129,11 +141,20 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   teile.push(h("§ 12 Datenschutz und Vertraulichkeit"));
   teile.push(p("FIAON verarbeitet personenbezogene Daten nach der Datenschutzerklärung unter fiaon.com/privacy und behandelt alle Angaben des Kunden vertraulich. Die Unterschrift wird nur als Bild gespeichert, ohne Schreibzeiten oder Druckdaten."));
   teile.push(h("§ 13 Vertragsschluss, Nachweis und Schlussbestimmungen"));
-  teile.push(p("(1) Dieser Text ist das verbindliche Angebot von FIAON. Der Vertrag kommt zustande, wenn der Kunde nach seiner Unterschrift die Schaltfläche „Zahlungspflichtig annehmen“ anklickt."));
-  teile.push(p("(2) FIAON speichert den Vertragstext, den Zeitpunkt der Annahme, die Unterschrift und eine Prüfsumme und sendet dem Kunden Vertrag, Bestellbestätigung und Widerrufsbelehrung unverzüglich per E-Mail. Der Kunde kann den Vertrag jederzeit im Kundenbereich abrufen."));
+  if (d.bestaetigung) {
+    // E-398, ENTWURF FÜR LEXR (Wortlaut der Bestätigungsstrecke, EuGH C-400/22).
+    const bestellt = d.bestaetigung.bestelltAm ? berlinZeit(d.bestaetigung.bestelltAm).replace(/, \d{2}:\d{2} Uhr$/, "") : "";
+    teile.push(p(`(1) Der Kunde hat dieses Paket${bestellt ? ` am ${esc(bestellt)}` : ""} bestellt. Dieser Text fasst den Vertrag mit allen Bedingungen zusammen. Der Kunde bestätigt ihn, indem er die Schaltfläche „${KNOPF_BESTAETIGUNG}“ anklickt. Erstlaufzeit (§ 7) und Fälligkeiten (§ 5) rechnen ab der Bestellung; bereits gezahlte Monatsraten zählen mit. Bestätigt der Kunde nicht, ändert sich an seinem bisherigen Vertrag nichts.`));
+    teile.push(p("(2) FIAON speichert den Vertragstext, den Zeitpunkt der Bestätigung und eine Prüfsumme und sendet dem Kunden Vertrag, Bestätigung und Widerrufsbelehrung unverzüglich per E-Mail. Der Kunde kann den Vertrag jederzeit im Kundenbereich abrufen."));
+  } else {
+    teile.push(p("(1) Dieser Text ist das verbindliche Angebot von FIAON. Der Vertrag kommt zustande, wenn der Kunde nach seiner Unterschrift die Schaltfläche „Zahlungspflichtig annehmen“ anklickt."));
+    teile.push(p("(2) FIAON speichert den Vertragstext, den Zeitpunkt der Annahme, die Unterschrift und eine Prüfsumme und sendet dem Kunden Vertrag, Bestellbestätigung und Widerrufsbelehrung unverzüglich per E-Mail. Der Kunde kann den Vertrag jederzeit im Kundenbereich abrufen."));
+  }
   teile.push(p(`(3) Ergänzend gelten die Allgemeinen Geschäftsbedingungen von FIAON in der Fassung vom ${esc(agbDatumLang(AGB_FASSUNG))} (abrufbar und speicherbar unter ${esc(agbAdresse(AGB_FASSUNG))}). Widersprechen sie diesem Vertrag, geht dieser Vertrag vor. Vertragssprache ist Deutsch.`));
   teile.push(p("(4) Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts; ist der Kunde Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz der zwingenden Bestimmungen des Staates seines gewöhnlichen Aufenthalts entzogen wird. FIAON ist weder bereit noch verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt der Vertrag im Übrigen wirksam; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."));
-  teile.push(`<div class="vt-kasten"><div><span class="vt-klein">Für FIAON</span><br>${esc(f.name)} – elektronisch ausgefertigt<br>${esc(f.director)}, Director</div><div><span class="vt-klein">Kunde</span><br>${angenommen ? `${esc(name)} – unterschrieben und angenommen am ${esc(angenommen)}` : "Ihre Unterschrift folgt im nächsten Schritt."}</div></div>`);
+  teile.push(`<div class="vt-kasten"><div><span class="vt-klein">Für FIAON</span><br>${esc(f.name)} – elektronisch ausgefertigt<br>${esc(f.director)}, Director</div><div><span class="vt-klein">Kunde</span><br>${d.bestaetigung
+    ? (angenommen ? `${esc(name)} – bestätigt am ${esc(angenommen)}` : `Ihre Bestätigung folgt mit der Schaltfläche „${KNOPF_BESTAETIGUNG}“.`)
+    : (angenommen ? `${esc(name)} – unterschrieben und angenommen am ${esc(angenommen)}` : "Ihre Unterschrift folgt im nächsten Schritt.")}</div></div>`);
   teile.push(`<h3 id="vt-widerruf">Anlage 1 – Widerrufsbelehrung</h3>`);
   for (const a of wb.abschnitte) { teile.push(`<p><b>${esc(a.h)}</b></p>`); for (const t of a.absaetze) teile.push(p(esc(t))); }
   teile.push(`<h3 id="vt-formular">Anlage 2 – ${esc(wb.formular.titel)}</h3>`);

@@ -139,6 +139,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   kuendigung_bestaetigt: "legal",
   // Querprüfung 08.10.2026: die Eingangsbestätigung der Kündigungsseite ist Vertragspost wie die Bestätigung.
   kuendigung_eingegangen: "legal",
+  vertrag_unterschreiben: "legal",
+  vertrag_bestaetigen_bitte: "legal",
   vertrag_beendet: "legal",
   // 05.10.2026 (E-282): Die Vertragsbestätigung des neuen Antrags ist Vertragspost wie Kündigung und
   // Vertragsende — sie kommt von „FIAON Legal“; die Zahlungsdaten daneben weiter aus der Buchhaltung.

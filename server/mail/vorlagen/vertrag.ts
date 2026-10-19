@@ -61,4 +61,48 @@ export const VERTRAG_VORLAGEN: Record<string, MailBaustein> = {
     ],
     fussnote: "Bitte bewahren Sie diese E-Mail und das PDF im Anhang auf – es ist Ihre Ausfertigung des Vertrags.",
   },
+
+  // ── DER VERTRAG ZUM UNTERSCHREIBEN (19.10.2026, E-398) ──────────────────────
+  // Für Bestellungen, die NICHT über /antrag-neu entstanden sind (Betreuer-Anlage, alter Antrag): der Kunde liest
+  // denselben Vertrag wie in /antrag-neu, unterschreibt und klickt „Zahlungspflichtig annehmen“ — danach kommt die
+  // Vertragsbestätigung mit PDF (vertrag_bestaetigung). Der Link ist persönlich (60 Tage). Lauf: einladungenSenden
+  // (server/lib/fiaon-vertrag-bestaetigen.ts), direkt über den Motor.
+  vertrag_unterschreiben: {
+    betreff: "Ihr FIAON-Vertrag zum Unterschreiben",
+    preheader: "{{params.paket}} – bitte lesen und mit Ihrer Unterschrift annehmen.",
+    titel: "Ihr Vertrag liegt bereit",
+    marke: "Vertragspost",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, für Sie ist das Paket <b>{{params.paket}}</b> angelegt. Damit alles klar und sicher geregelt ist, liegt Ihr Vertrag jetzt zum Lesen und Unterschreiben bereit.",
+      "Mit Ihrer Unterschrift und dem Knopf „Zahlungspflichtig annehmen“ kommt der Vertrag zustande. Danach bekommen Sie ihn sofort als PDF – mit Leistungsbeschreibung und Widerrufsbelehrung.",
+    ],
+    knopf: { text: "Vertrag lesen und unterschreiben", url: "{{params.link_url}}" },
+    daten: [
+      { label: "Paket", wert: "{{params.paket}}" },
+      { label: "Monatlicher Betrag", wert: "{{params.rate_text}}" },
+      { label: "Laufzeit", wert: "12 Monate, zusammen {{params.gesamt_text}}" },
+    ],
+    fussnote: "Der Link ist persönlich und 60 Tage gültig. Diese Nachricht ist keine Werbung, sondern Vertragspost.",
+  },
+
+  // ── BITTE BESTÄTIGEN: BESTAND OHNE VERTRAGSNACHWEIS (19.10.2026, E-398) — ENTWURF FÜR LEXR ──
+  // Bezahlte Jahresverträge, die ohne diesen Vertragstext entstanden (alter Knopf „Vertrag annehmen“, Betreuer-Anlage):
+  // Der Kunde bestätigt seinen bestehenden Vertrag mit „Zahlungspflichtig bestellen“ (EuGH C-400/22). Geht erst raus,
+  // wenn BESTAND_FREIGABE gesetzt ist (Justins „go“ nach LEXR).
+  vertrag_bestaetigen_bitte: {
+    betreff: "Bitte bestätigen Sie Ihren FIAON-Vertrag",
+    preheader: "Ein Klick – danach haben Sie Ihren Vertrag vollständig als PDF.",
+    titel: "Ihr Vertrag – bitte kurz bestätigen",
+    marke: "Vertragspost",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, Sie haben am {{params.bestellt_text}} das Paket <b>{{params.paket}}</b> bestellt. Wir schicken Ihnen Ihren Vertrag jetzt vollständig: mit allen Bedingungen und der Widerrufsbelehrung.",
+      "Bitte lesen Sie ihn und bestätigen Sie ihn mit dem Knopf „Zahlungspflichtig bestellen“. An Ihrem Paket, Ihrem Monatsbetrag und Ihrer Laufzeit ändert sich nichts. Bestätigen Sie nicht, bleibt Ihr bisheriger Vertrag, wie er ist.",
+    ],
+    knopf: { text: "Vertrag ansehen und bestätigen", url: "{{params.link_url}}" },
+    daten: [
+      { label: "Paket", wert: "{{params.paket}}" },
+      { label: "Monatlicher Betrag", wert: "{{params.rate_text}}" },
+    ],
+    fussnote: "Der Link ist persönlich und 60 Tage gültig. Diese Nachricht ist keine Werbung, sondern Vertragspost.",
+  },
 };

@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-398 Teil A (19.10.2026): Vertrag für jeden Abschlussweg — Betreuer-Anlage bekommt denselben Vertrag wie /antrag-neu.
+    id: "2026-10-19-vertrag-unterschreiben",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Wenn du ein Paket anlegst, bekommt der Kunde seinen Vertrag zum Unterschreiben",
+    summary:
+      "Legst du für einen Kunden ein Paket an, kommt bei ihm automatisch eine Mail „Ihr FIAON-Vertrag zum Unterschreiben“. "
+      + "Er liest denselben Vertrag wie im Online-Antrag, unterschreibt und bekommt ihn sofort als PDF.",
+    changes: [
+      "Die Mail geht einmal je Bestellung raus, ein paar Minuten nach dem Anlegen.",
+      "Nach der Unterschrift steht der Vertrag als PDF im Kundenbereich und in der Akte („Vertrag unterschrieben …“).",
+    ],
+    howto: [
+      "Sag dem Kunden am Telefon: „Sie bekommen gleich eine Mail mit Ihrem Vertrag — bitte lesen und unterschreiben, dann haben Sie alles schriftlich.“",
+    ],
+  },
+  {
     // E-401 (Nachbesserung, 19.10.2026): die Funde der unabhängigen Prüfer zu Maras sechs neuen Bausteinen — alle behoben.
     id: "2026-10-19-mara-nachbesserung",
     date: "2026-10-19",

@@ -298,6 +298,16 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false, pflichtFelder: ["eingang_text", "zeitpunkt_text", "erklaerung_text"],
     klartext: "Kündigungsseite: Eingangsbestätigung mit Datum und Uhrzeit, gewünschtem Zeitpunkt und der Erklärung — geht sofort nach jedem angenommenen Antrag (§ 312k BGB).",
   },
+  vertrag_unterschreiben: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["link_url", "paket"],
+    klartext: "Bestellung ohne /antrag-neu (Betreuer-Anlage, alter Antrag): der Vertrag zum Lesen und Unterschreiben — persönlicher Link, danach die Vertragsbestätigung mit PDF. Lauf alle 10 Minuten.",
+  },
+  vertrag_bestaetigen_bitte: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false, pflichtFelder: ["link_url", "paket", "bestellt_text"],
+    klartext: "Bestand ohne Vertragsnachweis: bitte den bestehenden Vertrag mit „Zahlungspflichtig bestellen“ bestätigen (EuGH C-400/22). Entwurf für LEXR — geht erst nach Justins „go“.",
+  },
   vertrag_bestaetigung: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
     vonHand: false, pflichtFelder: ["anrede_zeile", "angenommen_datum", "angenommen_uhrzeit", "beginn_satz"],

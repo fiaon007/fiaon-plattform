@@ -80,6 +80,8 @@ export type MakeEventType =
   | "bankverbindung_neu"     // NOTFALL 02.09.2026: Konto gewechselt — neue IBAN an alle mit Bankdaten der letzten 24 h
   | "kuendigung_bestaetigt"  // E-092: Kündigung eingegangen — letzte Rate bleibt fällig
   | "kuendigung_eingegangen" // Querprüfung 08.10.2026: Eingangsbestätigung der Kündigungsseite, sofort (§ 312k Abs. 4 BGB)
+  | "vertrag_unterschreiben" // E-398: Bestellung ohne /antrag-neu (Betreuer-Anlage, alter Antrag) — Vertrag zum Unterschreiben (nur direkt über den Motor)
+  | "vertrag_bestaetigen_bitte" // E-398: Bestand ohne Vertragsnachweis — bitte bestätigen (erst nach Justins „go“; nur direkt über den Motor)
   | "vertrag_beendet"        // E-092: letzte Rate bezahlt — der Vertrag ist aus
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller

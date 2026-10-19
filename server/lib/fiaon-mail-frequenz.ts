@@ -66,6 +66,8 @@ export const PFLICHTMAILS = new Set<string>([
   "bankverbindung_neu",      // 02.09.2026: Kontowechsel — wer die alte IBAN hat, MUSS die neue bekommen.
   "kuendigung_bestaetigt",   // Vertragspost: Eingang der Kündigung und was noch offen ist.
   "kuendigung_eingegangen",  // Querprüfung 08.10.2026: Eingangsbestätigung der Kündigungsseite (§ 312k Abs. 4 BGB) — sofort, Textform.
+  "vertrag_unterschreiben",  // E-398: der Vertrag zum Unterschreiben (Bestellung ohne /antrag-neu) — Vertragspost.
+  "vertrag_bestaetigen_bitte", // E-398: Bestand bitte bestätigen (EuGH C-400/22) — Vertragspost, erst nach „go“.
   "vertrag_beendet",         // Vertragspost: der Vertrag ist beendet.
   "vertrag_bestaetigung",    // E-282 (05.10.2026): Vertragspost — Antwort auf die eben erklärte Annahme, mit dem Vertrag als PDF (§ 312f BGB).
   "finanzauswertung_bereit", // E-IT-D (08.10.2026): Leistung aus dem Vertrag — die freigegebene Auswertung liegt im Bereich (seit E-357 mit PDF, ohne Zahlen im Text).

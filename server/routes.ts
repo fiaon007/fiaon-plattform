@@ -1101,6 +1101,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('antrag-ereignisse-aufraeumen', async () => await (await import('./lib/fiaon-antrag-weiche')).antragEreignisseAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 630_000 });
     // E-282: Vertragsbestätigung mit PDF nachholen, falls der Versand bei der Annahme scheiterte (höchstens 5 Versuche).
     tageslauf('antrag_neu_bestaetigung', async () => (await (await import('./lib/fiaon-antrag-neu-bestaetigung')).vertragBestaetigungNachholen()) > 0, 10 * 60 * 1000, { beimStartNach: 330_000, nurMitErgebnis: true });
+    // E-398 (19.10.2026): Bestellungen ohne /antrag-neu (Betreuer-Anlage, alter Antrag) bekommen den Vertrag zum Unterschreiben —
+    // einmal je Bestellung; der Bestand erst nach Justins „go“ (BESTAND_FREIGABE in server/lib/fiaon-vertrag-bestaetigen.ts).
+    tageslauf('vertrag_einladungen', async () => (await (await import('./lib/fiaon-vertrag-bestaetigen')).einladungenSenden()) > 0, 10 * 60 * 1000, { beimStartNach: 390_000, nurMitErgebnis: true });
   });
 
   // 💶 GoCardless (Lastschrift, Sofortzahlung) ist seit 19.09.2026 beendet (E-194). Übrig
@@ -1242,6 +1245,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ❌ FIAON Cancellation Routes — Public submit + Admin review
   const cancellationRoutes = await import('./routes/cancellation');
   app.use('/api/fiaon', cancellationRoutes.default);
+
+  // E-398: derselbe Vertrag für jeden Abschlussweg (Betreuer-Anlage, alter Antrag) — /vertrag-bestaetigen/<Link>.
+  const vertragBestaetigenRoutes = await import('./routes/fiaon-vertrag-bestaetigen');
+  app.use('/api/fiaon', vertragBestaetigenRoutes.default);
 
   // 🔒 NDA Gate — Public Routes (no auth, cookie-based access)
   const ndaRoutes = await import('./routes/nda');

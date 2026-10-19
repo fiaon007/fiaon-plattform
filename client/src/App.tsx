@@ -57,6 +57,8 @@ import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 import EinwilligungsHinweis from "@/components/site/EinwilligungsHinweis";
 import PasswortVergessenPage from "@/pages/passwort-vergessen";
 const AboKuendigenPage = lazy(() => import("@/pages/abo-kuendigen"));
+// E-398: derselbe Vertrag für jeden Abschlussweg (Betreuer-Anlage, alter Antrag) — persönlicher Link.
+const VertragBestaetigenPage = lazy(() => import("@/pages/vertrag-bestaetigen"));
 // 24.09.2026 (E-240): Die Auskunft wird nur noch auf /bonitaet-antrag bestellt. /bonitaet ist
 // die (neu geschriebene, Sie-Form) Vorstellungsseite, deren Knöpfe alle dorthin führen;
 // /bonitaet-service und /bonitaet-danke (Du-Form, „Express am selben Werktag", Stripe) leiten dorthin.
@@ -874,6 +876,7 @@ function Router() {
       <Route path="/zugang/uebergabe" component={ZugangUebergabePage} />
       <Route path="/zugang/:ref" component={ZugangSetzenPage} />
       <Route path="/abo-kuendigen" component={AboKuendigenPage} />
+      <Route path="/vertrag-bestaetigen/:token" component={VertragBestaetigenPage} />
       {/* E-240: Die alten Auskunft-Seiten versprachen „Express am selben Werktag" und eine
           „garantierte" Bearbeitung (Wortwand) — Service und Danke führen jetzt auf die eine
           Bestellseite. /bonitaet bleibt: Sie ist neu geschrieben, steht im SEO-Register

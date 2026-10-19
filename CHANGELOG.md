@@ -5,6 +5,21 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-398 Teil A: Derselbe Vertrag für jeden Abschlussweg (§ 312f BGB)
+- **Was:** Bestellungen, die nicht über /antrag-neu entstehen (Betreuer-Anlage, alter Antrag), bekommen ab heute einmal per Mail
+  einen persönlichen Link auf **/vertrag-bestaetigen/<Link>**: derselbe Vertrag wie in /antrag-neu, Unterschrift, „Zahlungspflichtig
+  annehmen“, danach dieselbe Vertragsbestätigung mit PDF (fiaon_vertragsannahmen, vertragBestaetigungSenden). Lauf
+  „vertrag_einladungen“ alle 10 Minuten, nur abgeschickte Privatpaket-Bestellungen ab dem 19.10. ohne Annahme. Der Bestand
+  (22 bezahlte Jahresverträge ohne Vertragsnachweis) ist vorbereitet — Bestätigung des bestehenden Vertrags mit „Zahlungspflichtig
+  bestellen“ (EuGH C-400/22), Wortlaut Entwurf für LEXR — und bleibt gesperrt (BESTAND_FREIGABE), bis Justin „go“ sagt.
+  Der Nachhol-Lauf der Vertragsbestätigung schaut 30 statt 3 Tage zurück (gemessen 19.10.: 0 offene — nichts Altes geht los).
+  Widerrufsbelehrung und Widerrufsrecht bleiben unverändert (Justin 19.10.: kein Widerrufsknopf, keine Nachbelehrung).
+- **Warum:** Für einen Finanzierer ist eine Forderung nur so viel wert wie ihr Nachweis (Vertragstext, Knopf, Zeitpunkt, Bestätigung) —
+  Rechtsrecherche 19.10.2026, Themen 1e und 7. /antrag-neu hatte das schon (86/86), die anderen Wege nicht.
+- **Wo:** server/lib/fiaon-vertrag-bestaetigen.ts, server/routes/fiaon-vertrag-bestaetigen.ts, client/src/pages/vertrag-bestaetigen.tsx,
+  shared/fiaon-antrag-neu-vertrag.ts (Variante „-B“, sonst Byte für Byte gleich), server/mail/vorlagen/vertrag.ts (zwei Vertragspost-Mails),
+  server/lib/fiaon-antrag-neu-bestaetigung.ts, db/migrations/113_vertrag_einladungen.sql. Prüfstand scripts/pruef-vertrag-bestaetigen.ts.
+
 ## 19.10.2026 — E-397 Großer Hausputz der Aufgaben: Alarme als Ampel, Karten leicht, neue Ereignisse, Aufräum-Lauf mit Probelauf
 - **Was:** (1) Hahn zu: System-Alarme (Lead-Motor, KI-Pause, WhatsApp-Bremse/ROT, Telefon-Abgleich, Lauf-Wächter) sind keine
   Aufträge mehr, sondern EINE Zeile je Alarm in fiaon_system_alarme (fester Schlüssel, zählt, geht von selbst aus; alte Aufträge

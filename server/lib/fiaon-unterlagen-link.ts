@@ -308,8 +308,9 @@ export async function unterlagenAnfrageSenden(ein: {
   saetze?: Partial<Record<LinkArt, string>>;
   akteur: { name: string; agentId: number | null; rolle: string };
   /** E-365: „auskunft" = automatisch nach der Zahlung der Bonitätsauswertung bzw. ihre Erinnerung (fiaon-bonitaet-ablauf.ts).
-   *  E-406 C2: „mara_nacharbeit" = Mara nach dem Anruf, weil die Notiz Unterlagen verspricht (fiaon-mara-nacharbeit.ts). */
-  quelle: "akte" | "betreiber" | "kunde_neu" | "auskunft" | "mara_nacharbeit";
+   *  E-406 C2: „mara_nacharbeit" = Mara nach dem Anruf, weil die Notiz Unterlagen verspricht (fiaon-mara-nacharbeit.ts).
+   *  E-406 B2: „mara_kyc" = Maras Erinnerung an fehlende KYC-Unterlagen (fiaon-mara-kyc.ts). */
+  quelle: "akte" | "betreiber" | "kunde_neu" | "auskunft" | "mara_nacharbeit" | "mara_kyc";
   /** Ohne Drossel (nur der alte Betreiber-Knopf, der seine eigene 72-Stunden-Sperre hat). */
   ohneDrossel?: boolean;
   /** E-365: ein Satz zum Anlass unter der Liste (z. B. „Für Ihre FIAON-Bonitätsauswertung …“) — keine Werbung, kein Preis. */

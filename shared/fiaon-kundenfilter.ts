@@ -42,7 +42,7 @@ export const KUNDEN_SPEZIAL_GRUPPEN: { titel: string; optionen: KundenSpezialFil
     titel: "Arbeitslage",
     optionen: [
       { schluessel: "ohneAgent", titel: "Ohne Agent", zahl: "ohne_agent", erklaerung: "Niemand ist zuständig — die teuerste Lücke im Haus." },
-      { schluessel: "kycOffen", titel: "KYC zu prüfen", zahl: "kyc_offen", erklaerung: "Unterlagen liegen vor, geprüft ist nichts — nur laufende Verträge (E-397)." },
+      { schluessel: "kycOffen", titel: "KYC zu prüfen", zahl: "kyc_offen", erklaerung: "Unterlagen liegen vor, geprüft ist nichts — nur laufende Verträge, ohne Gekündigte (E-397, E-406)." },
       { schluessel: "zahlungUnbestaetigt", titel: "Zahlung über 7 Tage offen", zahl: "zahlung_unbestaetigt", erklaerung: "Gemeldet, aber nicht gebucht." },
       { schluessel: "kuendigungen", titel: "Kündigungen", zahl: "kuendigungen" },
       { schluessel: "kuendigungUngebucht", titel: "Kündigung nicht gebucht", zahl: "kuendigung_ungebucht",

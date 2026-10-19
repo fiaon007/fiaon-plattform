@@ -191,6 +191,13 @@ export function UnterlagenAkte({ personId, adminRef, ton = "dunkel", melden, onG
             {k.satz && <p className={k.status === "bitte_neu" ? "ua-warn" : "ua-satz"}>{k.satz}</p>}
             {k.ausweis && k.ausweis.hinweisIntern !== k.satz && <p className="ua-satz">Regel: {k.ausweis.hinweisIntern}</p>}
             {k.akteHinweis && <p className="ua-warn">{k.akteHinweis}</p>}
+            {/* E-406 B2: Maras Vorprüfung — nur ein Hinweis, „Geprüft“ setzt weiter ein Mensch. */}
+            {k.vorpruefung && !k.geprueft && (
+              <p className={k.vorpruefung.ampel === "rot" ? "ua-warn" : "ua-satz"} data-fiaon="unterlage-vorpruefung"
+                title="Vorprüfung durch Mara: Art, lesbar, vollständig, Name aus der Akte. Ausweisfotos liest keine KI. Freigeben tust du mit „Geprüft“.">
+                Vorprüfung: {k.vorpruefung.notiz}
+              </p>
+            )}
             {k.monate && (
               <div className="ua-monate">{k.monate.map((m) => <span key={m.monat} className={m.da ? "da" : "fehlt"}>{m.label} {m.da ? "✓" : "fehlt"}</span>)}</div>
             )}

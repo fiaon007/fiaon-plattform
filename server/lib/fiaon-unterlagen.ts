@@ -353,6 +353,10 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
   const titelUnterWeitere = aktiv.some((z) => z.kategorie === "weitere" && z.unterart === "aufenthaltstitel");
 
   const bonitaetPflicht = sicht === "office" ? await bonitaetPflichtLage(personId, aktiv.some((z) => z.kategorie === "schufa"), lauf) : null;
+  // E-406 B2: Maras Vorprüfung je Unterlage — nur im Office, nie für den Kunden.
+  const vorpruefungen = sicht === "office"
+    ? await import("./fiaon-unterlagen-pruefer").then((m) => m.vorpruefungenLesen(personId, lauf)).catch(() => ({} as Record<string, { notiz: string; ampel: string; am: string }>))
+    : {} as Record<string, { notiz: string; ampel: string; am: string }>;
   const kategorien: KategorieStand[] = UNTERLAGEN_KATEGORIEN.map((info) => {
     const k = info.kategorie;
     const eigene = aktiv.filter((z) => z.kategorie === k);
@@ -448,6 +452,10 @@ export async function unterlagenStand(personId: number, sicht: "kunde" | "office
       darfHinzufuegen: !sperrSatz, sperrSatz, liestGerade,
       erneutAngefordert: k === "kontoauszug" ? lage.erneut.kontoauszug : k === "ausweis" ? lage.erneut.ausweis : false,
       ...(sicht === "office" ? { ausweis, akteHinweis, pflichtTeam: info.pflichtTeam ? bonitaetPflicht : null } : {}),
+      // E-406 B2: nur eine Vorprüfung, die NACH dem jüngsten Upload entstand — sonst spräche sie von einer alten Fassung.
+      ...(sicht === "office" && dateien.length && vorpruefungen[k] && nachUpload(vorpruefungen[k].am)
+        ? { vorpruefung: { notiz: vorpruefungen[k].notiz, ampel: (["gruen", "gelb", "rot"].includes(vorpruefungen[k].ampel) ? vorpruefungen[k].ampel : "gelb") as "gruen" | "gelb" | "rot", am: vorpruefungen[k].am } }
+        : {}),
       geprueft: verwaltungGeprueft,
     };
   });
@@ -1458,15 +1466,20 @@ export async function anstossAusfuehren(personId: number, k: UnterlagenKategorie
   const stand = await unterlagenStand(personId, "office", lauf).catch(() => null);
   const kat = stand?.kategorien.find((x) => x.kategorie === k);
   let befund = "";
+  // E-406 B2: Urteil und Fassung bleiben für die Vorprüfung (Notiz an der Unterlage, Namensabgleich ohne KI).
+  let vpUrteil: import("./fiaon-dokument-pruefung").DokumentUrteil | null = null;
+  let vpPdf: Buffer | null = null;
   if (istGebunden(k)) {
     const spalte = spalteVon(k);
     const [z] = (await lauf.unsafe(`SELECT ${spalte} AS pdf FROM fiaon_applications WHERE ref = $1 AND LENGTH(${spalte}) > 0`, [traeger])) as any[];
     if (z?.pdf) {
       const pdf: Buffer = Buffer.isBuffer(z.pdf) ? z.pdf : Buffer.from(z.pdf);
+      vpPdf = pdf;
       try {
         const { pruefungAnstossen } = await import("./fiaon-dokument-pruefung");
         const ctx = k === "ausweis" ? await ausweisKontextFuerRef(traeger, lauf) : undefined;
         const u = await pruefungAnstossen(traeger, k as DokumentArt, pdf, 180_000, ctx);
+        vpUrteil = u;
         if (u && (u.erkannt === false || u.vollstaendig === false) && u.hinweisIntern) befund = u.hinweisIntern;
       } catch (e) { console.error("[UNTERLAGEN] Prüfung:", String((e as Error)?.message || e).slice(0, 160)); }
       if (k === "kontoauszug") {
@@ -1486,26 +1499,42 @@ export async function anstossAusfuehren(personId: number, k: UnterlagenKategorie
       }
     }
   }
-  // EINE Aufgabe an die Verwaltung je Stapel — und keine zweite, solange eine offene da ist: Die offene
+  // E-406 B2 (19.10.2026): die Vorprüfung — Art, lesbar, vollständig, Name aus der Akte — als Notiz an der Unterlage.
+  // Ohne KI und ohne Ausweisbilder; gibt nie frei (Vier-Augen). Ein Fehler hält nichts auf.
+  if ((kat?.dateien.length ?? 0) > 0) {
+    const { vorpruefen } = await import("./fiaon-unterlagen-pruefer");
+    await vorpruefen(personId, k, vpUrteil, vpPdf, lauf);
+  }
+  // EINE Aufgabe je Stapel — und keine zweite, solange eine offene da ist: Die offene
   // System-Aufgabe der letzten 24 Stunden bekommt dann den neuen Stand (alle Kategorien des Stapels).
+  // E-406 B2: Sie geht an die Person im Team, die Unterlagen prüft (prueferLesen) — nicht mehr an Justin.
+  // Findet sich niemand (keine Leitung, die prüft), bleibt es wie bisher beim Betreiber.
   if (vomKunden && (kat?.dateien.length ?? 0) > 0) {
     const stapel = (await lauf`
       SELECT kategorie, count(*)::int AS n FROM fiaon_dokumente
        WHERE person_id = ${personId} AND art = 'unterlage' AND quelle = 'kunde' AND entfernt_am IS NULL AND geloescht_am IS NULL
          AND hochgeladen_am > NOW() - INTERVAL '24 hours'
        GROUP BY kategorie ORDER BY kategorie`) as any[];
-    const was = (stapel.length ? stapel : [{ kategorie: k, n: kat?.dateien.length ?? 1 }])
+    const kats = (stapel.length ? stapel : [{ kategorie: k, n: kat?.dateien.length ?? 1 }]) as { kategorie: string; n: number }[];
+    const was = kats
       .map((z: any) => `${kategorieInfo(String(z.kategorie) as UnterlagenKategorie).kurz}: ${z.n} Datei${Number(z.n) === 1 ? "" : "en"}`).join(", ");
-    const text = `Unterlagen eingegangen (${was}) — bitte prüfen und in der Akte unter Dokumente „Geprüft“ setzen. Der Kunde sieht „Wird geprüft“.${befund ? ` ⚠ Automatische Prüfung meldet: ${befund}` : ""}`;
+    const { vorpruefungenLesen, prueferLesen } = await import("./fiaon-unterlagen-pruefer");
+    const vp = await vorpruefungenLesen(personId, lauf);
+    const frisch = Date.now() - 24 * 3_600_000;
+    const notizen = kats.map((z) => vp[String(z.kategorie)]).filter((x) => x && new Date(x.am).getTime() > frisch).map((x) => x!.notiz);
+    const { unterlagenAufgabeText } = await import("@shared/fiaon-unterlagen-vorpruefung");
+    const text = unterlagenAufgabeText(was, notizen, befund || null);
     const [offen] = (await lauf`SELECT id FROM fiaon_vermerke WHERE ref = ${traeger} AND art = 'aufgabe' AND status = 'offen' AND autor_art = 'system'
                                  AND text LIKE 'Unterlagen eingegangen%' AND created_at > NOW() - INTERVAL '24 hours' ORDER BY id DESC LIMIT 1`) as any[];
     if (offen) {
       await lauf`UPDATE fiaon_vermerke SET text = ${text}, dringend = (dringend OR ${!!befund}), updated_at = NOW() WHERE id = ${offen.id}`
         .catch((e: any) => console.error("[UNTERLAGEN] Aufgabe nicht ergänzt:", e?.message));
     } else {
+      const pruefer = await prueferLesen(lauf);
       await lauf`
-        INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
-        VALUES ('aufgabe', ${traeger}, ${text}, 'betreiber', TRUE, ${!!befund}, 'offen', 'system', 'System', ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))`
+        INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
+        VALUES ('aufgabe', ${traeger}, ${text}, 'betreiber', ${pruefer ? [pruefer.id] : []}::int[], ${pruefer?.id ?? null}, ${!pruefer},
+                ${!!befund}, 'offen', 'system', 'System', ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))`
         .catch((e: any) => console.error("[UNTERLAGEN] Aufgabe nicht angelegt:", e?.message));
     }
   }

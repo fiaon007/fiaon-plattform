@@ -1,0 +1,12 @@
+/* E-406 B2 (19.10.2026): Karte „Unterlagen“ im Reiter Bonitätsauskunft (ChefMaraUnterlagen.tsx).
+   Dieselben Bausteine wie der Reiter Termine (Statuszeile .mt-status, Schalter, (i), Meldung) — keine Glasfläche. */
+.mku { margin: 0 0 18px; }
+.mku .mara-status + .mara-status { border-top: 0; }
+.mku-label { flex: none; font-size: 13.5px; color: var(--m-text-2); }
+.mku select.mara-eingabe { min-height: 36px; padding: 6px 10px; font-size: 13.5px; }
+.mku-laeufe { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.mku-laeufe li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--m-text-3); }
+@media (max-width: 760px) {
+  .mku .st.voll { flex-wrap: wrap; }
+  .mku select.mara-eingabe { width: 100%; }
+}

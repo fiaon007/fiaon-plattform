@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-406 B2 (19.10.2026): Mara fordert fehlende KYC-Unterlagen selbst nach, prüft Unterlagen vor; die Prüf-Aufgabe geht ins Team.
+    id: "2026-10-19-mara-unterlagen",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Unterlagen: Mara erinnert die Kunden und prüft vor",
+    summary:
+      "Fehlt bei einem laufenden Paket der Ausweis oder der Kontoauszug, erinnert Mara den Kunden selbst — höchstens zweimal. "
+      + "Kommt eine Unterlage, schreibt Mara eine kurze Vorprüfung dazu. Freigeben tust weiter du mit „Geprüft“.",
+    changes: [
+      "Mara schickt die Mail mit dem Upload-Link ohne Anmeldung — nur 8 bis 20 Uhr, mit 4 Tagen Abstand, nie bei gekündigtem oder beendetem Vertrag.",
+      "Unter jeder neuen Unterlage steht „Vorprüfung: …“ (Art, lesbar, vollständig, Name aus der Akte). Ausweisfotos liest keine KI.",
+      "Die Aufgabe „Unterlagen eingegangen“ geht an die Person aus der Leitung, die Unterlagen prüft — nicht mehr an Justin.",
+      "Die Liste „KYC zu prüfen“ zeigt keine gekündigten Verträge mehr. Ihr Status bleibt gespeichert.",
+    ],
+    howto: [
+      "Aufgabe „Unterlagen eingegangen“ öffnen → „Kunde öffnen“ → unter Dokumente die Vorprüfung lesen und die Datei ansehen.",
+      "Passt alles: „Geprüft“ klicken. Die Aufgabe geht dann von selbst zu.",
+      "Fehlt etwas: nichts extra anfordern — Mara erinnert den Kunden selbst.",
+    ],
+  },
+  {
     // E-406 C2 (19.10.2026, Justin: „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht Mara.“)
     id: "2026-10-19-mara-nacharbeit",
     date: "2026-10-19",

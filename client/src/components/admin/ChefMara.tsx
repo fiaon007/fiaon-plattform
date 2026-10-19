@@ -56,6 +56,8 @@ const MaraSocial = lazy(() => import("./ChefMaraSocial"));
 const MaraEntscheidungen = lazy(() => import("./ChefMaraEntscheidungen"));
 // E-406 B1 (19.10.2026): „Frisch fällige Raten: Mara schreibt persönlich“ — Karte im Reiter „Mail“ (Schalter + Wirkung).
 const MaraRatenErinnerung = lazy(() => import("./ChefMaraRaten"));
+// E-406 B2 (19.10.2026): „Unterlagen“ — Mara erinnert an fehlende KYC-Unterlagen, wer prüft, alte Prüf-Aufgaben umhängen.
+const MaraUnterlagen = lazy(() => import("./ChefMaraUnterlagen"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
@@ -1574,6 +1576,8 @@ function Steuerpult() {
       {reiter === "mail" && <div role="tabpanel" aria-labelledby="mara-tab-mail"><MaraMailAktion onAnweisungZeigen={anweisungZeigen} /></div>}
       {reiter === "auskunft" && (
         <div role="tabpanel" aria-labelledby="mara-tab-auskunft">
+          {/* E-406 B2: Unterlagen — Erinnern, wer prüft, Umhängen (für Verkauf und Beschaffung gleich). */}
+          <Suspense fallback={null}><MaraUnterlagen /></Suspense>
           <div className="mara-reiter-zeile">
             <div className="mara-ansicht" role="group" aria-label="Bonitätsauskunft">
               <button type="button" aria-pressed={ansicht === "verkauf"} onClick={() => wechseln("auskunft", "verkauf")}>Verkauf</button>

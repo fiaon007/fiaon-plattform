@@ -462,6 +462,13 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     tipp: "Ausweisfotos liest keine KI — schau sie selbst an. Reisepass: die Datenseite genügt (ein nur gewählter Reisepass als Foto steht auf „wird geprüft“, bis du hingesehen hast). Personalausweis: vorn und hinten. Ein Aufenthaltstitel zählt nur zusammen mit dem Reisepass.",
   },
   {
+    // E-406 B2 (19.10.2026): Maras Vorprüfung — erscheint nur, wenn eine Unterlage gelesen wurde (darum ohne Ziel).
+    titel: "Neu: „Vorprüfung“ an der Unterlage.",
+    text: "Kommt eine Unterlage, liest Mara sie vor und schreibt eine Zeile darunter, z. B. „Kontoauszug · erkannt · lesbar · vollständig · "
+      + "Name passt“. Rot heißt: falsche Art, unvollständig oder nicht lesbar. Bei Ausweisfotos steht „Foto — bitte selbst ansehen“.",
+    tipp: "Die Vorprüfung gibt nie frei. Erst wenn du hingesehen hast, setzt du „Geprüft“ — dann geht die Aufgabe „Unterlagen eingegangen“ von selbst zu.",
+  },
+  {
     // E-IT-D (08.10.2026, 4b/4c): Die Auswertung für den Kunden und das Anfordern mit einem Klick.
     // Kein ziel: Der Block steht nur im Reiter „Dokumente“ — der Rundgang zeigt die Karte mittig.
     titel: "Unter „Dokumente“: die FIAON Finanz- und Bonitätsauswertung.",
@@ -831,6 +838,13 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
       + "Mara hat den Kartenlink geschickt (Mail oder WhatsApp), eine neue E-Mail-Adresse ist gespeichert („Mail unzustellbar“), der Kunde ist archiviert oder ein Testkonto. "
       + "Ein Gesprächsergebnis „erreicht“ erledigt außerdem den offenen Rückruf-Wunsch in deiner Rückruf-Liste.",
     tipp: "Eine Erstattung schließt nie das System. Und was du selbst wieder geöffnet hast, schließt kein Ereignis mehr.",
+  },
+  {
+    // E-406 B2 (19.10.2026): „Unterlagen eingegangen“ geht an die Person, die Unterlagen prüft — nicht mehr an Justin.
+    titel: "„Unterlagen eingegangen“ kommt zu der Person, die prüft.",
+    text: "Lädt ein Kunde etwas hoch, landet die Aufgabe unter „Zu tun“ bei der Person aus der Leitung, die Unterlagen prüft — mit Maras "
+      + "Vorprüfung im Text (Art, lesbar, Name). „Kunde öffnen“, ansehen, in der Akte „Geprüft“ setzen: Dann ist die Aufgabe von selbst erledigt.",
+    tipp: "Fehlen Ausweis oder Kontoauszug, erinnert Mara den Kunden selbst (höchstens zweimal). Du musst nicht extra anfordern.",
   },
   {
     ziel: '[data-reiter="erledigt"]',
@@ -2365,6 +2379,15 @@ export const RUNDGANG_WA_ZENTRALE: RundgangSchritt[] = [
 // Umschalter (.mara-ansicht). Die langen Texte stehen hinter den (i) der Seite — die
 // Zahlungserinnerung wortgleich an der Karte „Bestellt, nicht bezahlt".
 export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
+  {
+    // E-406 B2 (19.10.2026): Unterlagen — Mara erinnert an fehlende KYC-Unterlagen, wer prüft, alte Prüf-Aufgaben umhängen.
+    ziel: '[data-fiaon="mara-unterlagen"]',
+    titel: "Unterlagen: Mara erinnert, das Team prüft.",
+    text: "Oben drei Zeilen. Erstens: Fehlt bei einem laufenden Paket Ausweis oder Kontoauszug, erinnert Mara den Kunden — höchstens zweimal, "
+      + "mit dem Upload-Link ohne Anmeldung. Zweitens: wer die Prüf-Aufgaben bekommt (nie du). Drittens: der Schalter, der die alten "
+      + "Prüf-Aufgaben von dir zu dieser Person umhängt — vorher steht die Zahl aus dem Probelauf da.",
+    tipp: "„Geprüft“ setzt immer ein Mensch. Was du umgehängt hast, holst du 30 Tage lang mit „Zurückholen“ zurück.",
+  },
   {
     ziel: ".mara-ansicht",
     titel: "Verkauf oder Beschaffung.",

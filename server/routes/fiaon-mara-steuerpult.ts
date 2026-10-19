@@ -911,6 +911,114 @@ router.post("/chef/mara/entscheidungen/pruefen", wache, async (_req: ChefRequest
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// E-406 B2 (19.10.2026) — UNTERLAGEN: Mara fordert KYC nach, Vorprüfung, wer prüft, alte Prüf-Aufgaben umhängen
+// Keine neue Seite (Hausregel): Karte im Reiter „Bonitätsauskunft“ (client ChefMaraUnterlagen.tsx).
+//   GET  /chef/mara/unterlagen             Stand: KYC-Schalter + Zahlen, Prüfer + Auswahl, Umhängen (Probelauf, Läufe)
+//   POST /chef/mara/unterlagen/kyc         { an }  — Mara fordert fehlende Ausweise/Kontoauszüge nach (Standard an)
+//   POST /chef/mara/unterlagen/pruefer     { agentId | null } — wer prüft (null = Vorschlag)
+//   POST /chef/mara/unterlagen/umhaengen   { an }  — Standard AUS; „an“ hängt die alten Prüf-Aufgaben sofort um
+//   POST /chef/mara/unterlagen/zurueck     { laufId } — holt einen Lauf zurück (Hausputz-Motor) und schaltet aus
+// ═══════════════════════════════════════════════════════════════════════════
+async function unterlagenStandChef() {
+  const { kycStand } = await import("../lib/fiaon-mara-kyc");
+  const P = await import("../lib/fiaon-unterlagen-pruefer");
+  const { darfPruefen, PRUEFER_EINSTELLUNG } = await import("@shared/fiaon-unterlagen-vorpruefung");
+  const [kyc, kandidaten, aktuell, an, probelauf, laeufe] = await Promise.all([
+    kycStand(), P.prueferKandidaten(), P.prueferLesen(), P.umhaengenSchalterLesen(), P.umhaengenProbelauf(), P.umhaengenLaeufe(),
+  ]);
+  const [e] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${PRUEFER_EINSTELLUNG}`.catch(() => [])) as any[];
+  return {
+    kyc,
+    pruefer: {
+      aktuell, eingestellt: Number(e?.value) > 0 ? Number(e.value) : null,
+      auswahl: kandidaten.filter(darfPruefen).map((k) => ({ id: k.id, name: k.name, geprueft30: k.geprueft30 })),
+    },
+    umhaengen: { an, probelauf, laeufe },
+  };
+}
+
+router.get("/chef/mara/unterlagen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    res.json({ ok: true, ...(await unterlagenStandChef()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] unterlagen:", err);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/unterlagen/kyc", wache, async (req: ChefRequest, res: Response) => {
+  if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "an: true oder false." });
+  try {
+    const { kycSchalterSetzen } = await import("../lib/fiaon-mara-kyc");
+    await kycSchalterSetzen(req.body.an === true);
+    void chefProtokoll(req, "mara_kyc_nachfordern", req.body.an ? "an" : "aus");
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: KYC nachfordern ${req.body.an ? "AN" : "AUS"}`);
+    res.json({ ok: true, ...(await unterlagenStandChef()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] unterlagen kyc:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht speichern — es bleibt, wie es war." });
+  }
+});
+
+router.post("/chef/mara/unterlagen/pruefer", wache, async (req: ChefRequest, res: Response) => {
+  const roh = req.body?.agentId;
+  const agentId = roh == null || roh === "" ? null : Number(roh);
+  if (agentId !== null && (!Number.isInteger(agentId) || agentId <= 0)) return res.status(400).json({ ok: false, error: "agentId: Zahl oder leer." });
+  try {
+    const { prueferSetzen } = await import("../lib/fiaon-unterlagen-pruefer");
+    const r = await prueferSetzen(agentId);
+    if (!r.ok) return res.status(409).json({ ok: false, error: r.grund });
+    void chefProtokoll(req, "unterlagen_pruefer", agentId == null ? "Vorschlag" : String(agentId));
+    res.json({ ok: true, ...(await unterlagenStandChef()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] unterlagen prüfer:", err);
+    res.status(500).json({ ok: false, error: "Das ließ sich nicht speichern." });
+  }
+});
+
+router.post("/chef/mara/unterlagen/umhaengen", wache, async (req: ChefRequest, res: Response) => {
+  if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "an: true oder false." });
+  try {
+    const P = await import("../lib/fiaon-unterlagen-pruefer");
+    const an = req.body.an === true;
+    await P.umhaengenSchalterSetzen(an);
+    let lauf: Awaited<ReturnType<typeof P.umhaengenAusfuehren>> | null = null;
+    if (an) lauf = await P.umhaengenAusfuehren({ von: wer(req) });
+    void chefProtokoll(req, "unterlagen_umhaengen", an ? `an: ${lauf?.umgehaengt ?? 0} umgehängt${lauf?.an ? ` an ${lauf.an}` : ""}${lauf && !lauf.ok ? ` (${lauf.grund})` : ""}` : "aus");
+    res.json({ ok: true, lauf, ...(await unterlagenStandChef()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] unterlagen umhängen:", err);
+    res.status(500).json({ ok: false, error: "Das Umhängen ist abgebrochen — was schon umgehängt ist, steht im Protokoll." });
+  }
+});
+
+router.post("/chef/mara/unterlagen/zurueck", wache, async (req: ChefRequest, res: Response) => {
+  const laufId = Number(req.body?.laufId);
+  if (!Number.isInteger(laufId) || laufId <= 0) return res.status(400).json({ ok: false, error: "laufId fehlt." });
+  try {
+    const { UMHAENGEN_LAUF_ART } = await import("@shared/fiaon-unterlagen-vorpruefung");
+    const [l] = (await sqlPool`SELECT id FROM fiaon_hausputz_laeufe WHERE id = ${laufId} AND art = ${UMHAENGEN_LAUF_ART}`.catch(() => [])) as any[];
+    if (!l) return res.status(404).json({ ok: false, error: "Diesen Lauf gibt es nicht (oder er ist kein Umhängen der Unterlagen)." });
+    const P = await import("../lib/fiaon-unterlagen-pruefer");
+    await P.umhaengenSchalterSetzen(false);
+    const { hausputzZurueckholen } = await import("../lib/fiaon-hausputz");
+    const erg = await hausputzZurueckholen({ laufId }, wer(req));
+    void chefProtokoll(req, `unterlagen_umhaengen:zurueck:${laufId}`, String(erg.zurueck));
+    res.json({ ok: true, zurueck: erg.zurueck, ...(await unterlagenStandChef()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] unterlagen zurück:", err);
+    res.status(500).json({ ok: false, error: "Das Zurückholen ist abgebrochen." });
+  }
+});
+
+// Mara fordert fehlende KYC-Unterlagen nach (08–20 Uhr, höchstens 10 je Lauf und 30 am Tag); Historie nur, wenn etwas geschah.
+tageslauf("mara_kyc_nachfordern", async () => { const m = await import("../lib/fiaon-mara-kyc"); return m.istBearbeitet(await m.kycTakt()); },
+  30 * 60 * 1000, { beimStartNach: 420_000, nurMitErgebnis: true });
+// Nur mit dem Schalter „alte Prüf-Aufgaben umhängen“: was seither bei Justin gelandet ist, geht an die prüfende Person.
+tageslauf("unterlagen_pruefer_umhaengen", async () => !!(await (await import("../lib/fiaon-unterlagen-pruefer")).umhaengenTakt()),
+  15 * 60 * 1000, { beimStartNach: 480_000, nurMitErgebnis: true });
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DER TAKT FÜR DIE DAUERAUFTRÄGE (23.09.2026, E-219)
 //
 // Alle zehn Minuten nachsehen, ob einer dran ist. Die Uhrzeit prüft der Lauf

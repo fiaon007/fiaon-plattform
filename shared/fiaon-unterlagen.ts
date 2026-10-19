@@ -474,6 +474,8 @@ export interface KategorieStand {
   akteHinweis?: string | null;
   /** Office (14.10.2026): Pflicht im Team — und ob sie erfüllt ist (Bonitätsauskunft). */
   pflichtTeam?: { erfuellt: boolean; satz: string } | null;
+  /** Office (E-406 B2): die Vorprüfung — Art, lesbar, vollständig, Name aus der Akte. Nie eine Freigabe. */
+  vorpruefung?: { notiz: string; ampel: "gruen" | "gelb" | "rot"; am: string } | null;
   geprueft: boolean;
 }
 

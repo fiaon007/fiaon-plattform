@@ -21,6 +21,7 @@ import { echtePersonSql } from "./fiaon-bestand-filter";
 import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 // E-IT-B (08.10.2026): „nie gebuchter Kündigungsantrag“ aus der einen Regel.
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
+import { kycVertragLaeuftSql } from "@shared/fiaon-kyc-nachfordern";
 
 type Lauf = typeof sqlPool;
 
@@ -188,10 +189,11 @@ export function filterBedingungen(f: Filter, par: (v: unknown) => string): strin
 /**
  * E-397 (19.10.2026): „KYC zu prüfen“ nur bei laufendem Vertrag — 71 Personen mit beendetem Vertrag standen in der
  * Prüfliste (bei ihnen fordert niemand etwas nach). Ihr kyc_status bleibt gespeichert, sie fallen nur aus der Liste.
- * Beendet = storniert, archiviert, Abo gestoppt oder Vertragsende erreicht (alias a).
+ * E-406 B2 (19.10.2026): EINE Regel mit Maras Nachforderung (shared/fiaon-kyc-nachfordern.ts) — und „gekündigt“
+ * zählt jetzt mit. Gemessen: E-397 nahm 40 der 72 heraus (194 → 154); die 32 Gekündigten standen weiter da (→ 122).
+ * Beendet = storniert, archiviert, Abo gestoppt, Vertragsende erreicht oder gekündigt (alias a).
  */
-const KYC_VERTRAG_LAEUFT_SQL = `a.cancelled_at IS NULL AND a.archived_at IS NULL AND a.abo_gestoppt_am IS NULL
-                       AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW())`;
+const KYC_VERTRAG_LAEUFT_SQL = kycVertragLaeuftSql("a");
 
 const SORT: Record<string, string> = {
   // Arbeit: Stufe zuerst, dann was am längsten liegt.

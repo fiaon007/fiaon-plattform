@@ -35,6 +35,8 @@ const KEINE_ANTWORT = [
   "payment_reminder", "abo_payment_reminder", "lead_followup", "sepa_einrichten",
   "bankverbindung_neu", "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5",
   "termin_erinnerung", "abo_rate_faellig", "welcome", "onboarding_einladung",
+  // E-406 B1 (19.10.2026): Maras Mail zur frisch fälligen Rate geht an jeden gleich — sie beantwortet keine Kundenfrage.
+  "mara_rate_erinnerung",
 ];
 
 function berlinStunde(): number {

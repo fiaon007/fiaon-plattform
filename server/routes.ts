@@ -355,6 +355,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-401 (5/6, 19.10.2026): Nach dem 2. erfolglosen Anruf schickt Mara EINE Mail mit dem Terminlink — vorgemerkt beim
     // Ergebnis, gesendet hier (08–20 Uhr, nie doppelt). Historienzeile nur, wenn etwas geschah.
     tageslauf('mara_nicht_erreicht_mail', async () => { const m = await import('./lib/fiaon-mara-nicht-erreicht'); return m.istBearbeitet(await m.nachfassTakt()); }, 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
+    // E-406 B1 (19.10.2026): Mara-Inkasso, erste Stufe — EINE persönliche Mail je frisch fälliger Rate (Tag 1–3, 10–18 Uhr,
+    // nie doppelt, höchstens 3 Kontakte je Rate, nie am Tag einer Rechnung/Mahnung). Historienzeile nur, wenn etwas geschah.
+    tageslauf('mara_rate_erinnerung', async () => { const m = await import('./lib/fiaon-mara-rate-erinnerung'); return m.istBearbeitet(await m.rateErinnerungTakt()); }, 10 * 60 * 1000, { beimStartNach: 420_000, nurMitErgebnis: true });
     // E-236: Der Kreislauf — jede von Mara gebuchte Rückruf-Zeit wird alle 5 Minuten nachgeprüft
     // (steht der Termin, Arbeitszeit, Überschneidung, Mail raus, Kunde hat die Uhrzeit).
     tageslauf('mara_termine_pruefen', async () => { await (await import('./lib/fiaon-mara-termin')).maraTermineNachpruefen(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });

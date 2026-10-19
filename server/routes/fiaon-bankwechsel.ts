@@ -28,6 +28,8 @@ const BANK_EREIGNISSE = [
   "payment_details", "payment_reminder", "abo_payment_reminder", "claim_received",
   "sepa_einrichten", "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5",
   "schufa_requested", "abo_rate_faellig", "abo_rate_erinnerung", "rechnung",
+  // E-406 B1 (19.10.2026): Maras Mail zur frisch fälligen Rate trägt den Datenkasten mit IBAN.
+  "mara_rate_erinnerung",
 ];
 
 async function betroffene(stunden: number): Promise<any[]> {

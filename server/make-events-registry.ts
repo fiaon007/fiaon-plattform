@@ -208,6 +208,29 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-406 B1 (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“): Mara-Inkasso, erste Stufe. Auslöser:
+    // server/lib/fiaon-mara-rate-erinnerung.ts (Takt alle 10 Min., Regel in shared/fiaon-mara-rate-erinnerung.ts).
+    type: "mara_rate_erinnerung",
+    label: "Mara: frisch fällige Rate — persönlich (zahlen · antworten · Rückruf)",
+    description:
+      "Feuert automatisch EINMAL je Rate, an Tag 1–3 nach der Fälligkeit, nur 10–18 Uhr: eine persönliche, freundliche Mail von Mara ohne Druck mit drei Wegen — Zahlungsseite der Rate, kurz antworten (landet im Postfach bei Mail-Mara), Rückruf-Zeit wählen (persönlicher Terminlink). Nur bei aktiver Forderung (nie nach Vertragsende, nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zusage, Global, Test, Vertriebssperre), höchstens 3 Kontakte je Rate über alle Wege, nie am selben Tag wie Rechnung oder Mahnung. Zahlungspost ohne Verkauf (geht auch bei Werbesperre). Nur als Quelltext-Vorlage (Mailwerk). Schalter: Chefbüro › Mara › Mail.",
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      payment_reference: "FIAON-A1B2C3-2",
+      betrag: "59.99",
+      rate_nr: 2,
+      faellig_am: "2026-10-18",
+      faellig_am_text: "18.10.2026",
+      tage_ueberfaellig: 1,
+      empfaenger: BANK.empfaenger,
+      iban: BANK.ibanDisplay,
+      bic: BANK.bic,
+      verwendungszweck: "FIAON-A1B2C3-2",
+      termin_link: "https://www.fiaon.com/termin/7f3a…?von=mara_rate_mail",
+    },
+  },
+  {
     type: "aufgabe_zugewiesen",
     label: "Aufgabe zugewiesen (Mitarbeiter)",
     description:

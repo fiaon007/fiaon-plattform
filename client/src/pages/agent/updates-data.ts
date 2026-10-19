@@ -115,6 +115,28 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     important: true,
   },
   {
+    // E-406 B1 (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“): Mara-Inkasso, erste Stufe — an Tag 1–3 nach der
+    // Fälligkeit schickt Mara EINE persönliche Mail je Rate (server/lib/fiaon-mara-rate-erinnerung.ts).
+    id: "2026-10-19-mara-rate-frisch",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Frisch fällige Rate: Mara schreibt zuerst",
+    summary:
+      "Ist eine Rate seit 1 bis 3 Tagen offen, schickt Mara dem Kunden EINE freundliche Mail. Er kann sofort zahlen, "
+      + "kurz antworten, wann er zahlt, oder einen Rückruf wählen.",
+    changes: [
+      "Die Mail kommt nur zwischen 10 und 18 Uhr und nie am selben Tag wie eine Rechnung oder Mahnung.",
+      "Höchstens 3 Kontakte je Rate über alle Wege — Vorabinfo, Rechnung, WhatsApp, Anruf und Maras Mail zusammen.",
+      "Nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zahlungszusage, Termin, Testkonto oder Kunden von FIAON Global.",
+      "Rechnung, Mahnungen und WhatsApp-Erinnerung laufen genau wie vorher weiter.",
+      "Wählt der Kunde einen Rückruf, steht der Termin wie immer in deinem Kalender. Antwortet er, übernimmt Mara im Postfach.",
+    ],
+    howto: [
+      "Nichts extra tun.",
+      "In der Akte steht der Vermerk „Mara: freundliche Mail zur Rate …“. So weißt du vor dem Anruf, was der Kunde schon bekommen hat.",
+    ],
+  },
+  {
     // E-398 Teil B (19.10.2026): neue AGB-Fassung — Monatsentgelt statt „Gesamtvergütung in Raten“ (CCD2 ab 20.11.2026).
     id: "2026-10-19-agb-monatsentgelt",
     date: "2026-10-19",

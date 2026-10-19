@@ -124,6 +124,10 @@ const ZAHLUNGSPOST = new Set<string>([
   // Werbung: Die Werbesperre hält sie nicht auf, hart unzustellbar schon. Wer nicht mehr erinnert
   // werden will, bekommt einen Mahnstopp an der Bestellung (Chefseite, Knopf „Mahnstopp").
   "auskunft_zahlung_erinnerung",
+  // E-406 B1 (19.10.2026): Maras persönliche Mail zur frisch fälligen Rate (Tag 1–3) — dieselbe Forderung wie
+  // abo_payment_reminder, ohne Verkauf (Vorlage ohne Karten-Block, Paket oder Limit). Werbesperre: Service ja,
+  // Verkauf nein — sie geht. Hart unzustellbar und der Mahnstopp halten sie auf (der Mahnstopp schon in der Regel).
+  "mara_rate_erinnerung",
 ]);
 
 // ── ZAHLUNGSPOST-FREIGABE (08.10.2026, Justin: „Ja, Zahlungspost zustellen.") ──────────────────────────────
@@ -151,6 +155,9 @@ export const ZAHLUNGSPOST_FREIGABE_EVENT = "zahlungspost_freigabe";
  */
 export function istZahlungspost(event: string): boolean {
   if (event === "global_zahlung_erinnerung") return false;
+  // E-406 B1: Maras Raten-Mail ist ein freiwilliger Zusatz zur Raten-Erinnerung — sie hebt nie selbst eine Brevo-Sperre
+  // auf und setzt dabei keine Werbesperre (das tut, wenn nötig, schon die Rechnung am Fälligkeitstag).
+  if (event === "mara_rate_erinnerung") return false;
   return ZAHLUNGSPOST.has(event) || ZAHLUNGSPOST_NACH_FREIGABE.has(event);
 }
 /** Adressen mit einem Freigabe-Vermerk — der Nachweis, dass die Freigabe einer Adresse festgehalten ist. */

@@ -1696,6 +1696,8 @@ const MAIL_TITEL: Record<string, string> = {
   nicht_erreicht_termin: "Terminlink-Mail", onboarding_einladung: "Einladung zum Startgespräch",
   // E-401 (5/6): Maras Mail nach dem 2. erfolglosen Anruf.
   nicht_erreicht_zweimal: "Maras Terminlink-Mail (2× nicht erreicht)",
+  // E-406 B1: Maras persönliche Mail zur frisch fälligen Rate (Tag 1–3).
+  mara_rate_erinnerung: "Maras Raten-Mail (frisch fällig)",
   number_update_request: "Bitte um neue Rufnummer", payment_reminder: "Zahlungserinnerung",
   payment_confirmed: "Zahlungsbestätigung", lead_followup: "Nachfass-Mail",
   lead_application_link: "Antragslink-Mail",

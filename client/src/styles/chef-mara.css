@@ -526,6 +526,19 @@ a.mp-name:hover { text-decoration: underline; }
 .mt-nachfass { margin-top: 10px; }
 .mt-nf-schalter { white-space: normal; text-align: left; line-height: 1.35; min-width: 0; flex: 0 1 auto; }
 .mt-nf-schalter .bahn { align-self: center; }
+/* E-406 B1 (19.10.2026): Reiter „Mail“ — „Frisch fällige Raten: Mara schreibt persönlich“ (ChefMaraRaten.tsx). */
+.mr-raten { margin-top: 14px; padding-top: 4px; border-top: 1px solid var(--m-linie); }
+.mr-status .st.voll { gap: 4px; flex-wrap: nowrap; min-width: 0; }
+.mr-schalter { white-space: normal; text-align: left; line-height: 1.35; min-width: 0; flex: 0 1 auto; }
+.mr-schalter .bahn { align-self: center; }
+.mr-status .mr-st-text { min-width: 0; }
+.mr-tage { margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.mr-raten .mara-info p { margin: 0 0 6px; }
+.mr-raten .mara-info p:last-child { margin-bottom: 0; }
+@media (max-width: 760px) {
+  .mr-status > .st { padding-left: 0; border-right: 0; }
+  .mr-status > .st.mr-st-text { flex-basis: 100%; min-height: 0; padding-top: 0; }
+}
 .mt-status .mt-st-text { min-width: 0; }
 .mt-status .st.rechts { gap: 8px; }
 .mt-leise { margin-top: 8px; }

@@ -154,6 +154,13 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Monatliche Rate fällig oder überfällig, in drei Mahnstufen. "
       + "Enthält Betrag, Bankdaten und den Verwendungszweck der Rate.",
   },
+  // E-406 B1 (19.10.2026): Maras persönliche Mail an Tag 1–3 nach der Fälligkeit — nur automatisch, einmal je Rate
+  // (Merker in fiaon_mara_rate_erinnerung). Von Hand gibt es dafür die Raten-Erinnerung oben.
+  mara_rate_erinnerung: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Mara an Tag 1–3 nach der Fälligkeit: freundlich, ohne Druck — zahlen, kurz antworten oder Rückruf wählen. Geht nur automatisch.",
+    vonHand: false, pflichtFelder: ["termin_link", "verwendungszweck", "betrag"],
+  },
   nicht_erreicht_termin: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
     // E-401 (5/6): Automatisch geht sie ab dem SECHSTEN Versuch; nach dem zweiten schickt Mara nicht_erreicht_zweimal.

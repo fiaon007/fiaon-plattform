@@ -131,6 +131,9 @@ export const HERKUENFTE = {
   nicht_erreicht_mail: "Mail „Wir haben Sie nicht erreicht“",
   // 19.10.2026 (E-401 5/6): Maras kurze Mail nach dem 2. erfolglosen Anruf (server/lib/fiaon-mara-nicht-erreicht.ts).
   nicht_erreicht_2_mail: "Maras Mail nach 2× nicht erreicht (Terminlink)",
+  // 19.10.2026 (E-406 B1): Maras persönliche Mail zur frisch fälligen Rate — „Rückruf-Zeit wählen“
+  // (server/lib/fiaon-mara-rate-erinnerung.ts).
+  mara_rate_mail: "Maras Mail zur frisch fälligen Rate (Rückruf gewählt)",
   nummer_korrektur: "Mail zur Nummern-Korrektur",
   onboarding_einladung: "Einladung zum Startgespräch",
   termin_verpasst_mail: "Einladung nach einem verpassten Termin",

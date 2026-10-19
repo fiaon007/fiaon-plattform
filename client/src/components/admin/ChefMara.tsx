@@ -52,6 +52,8 @@ const MaraTermine = lazy(() => import("./ChefMaraTermine"));
 const MaraSocial = lazy(() => import("./ChefMaraSocial"));
 // E-370 (15.10.2026): Maras Entscheidungen — der sechste Reiter (vorn), erst beim Öffnen geladen.
 const MaraEntscheidungen = lazy(() => import("./ChefMaraEntscheidungen"));
+// E-406 B1 (19.10.2026): „Frisch fällige Raten: Mara schreibt persönlich“ — Karte im Reiter „Mail“ (Schalter + Wirkung).
+const MaraRatenErinnerung = lazy(() => import("./ChefMaraRaten"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
@@ -511,6 +513,9 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               <span className="mara-still mara-klein" title="Menschen, die nach Maras Mail „Zahlung gemeldet“ haben (noch kein Geld nötig).">{zahl(z.gemeldet)} × Zahlung gemeldet</span>
             )}
           </div>
+
+          {/* E-406 B1: frisch fällige Raten (Tag 1–3) — Maras persönliche Mail, Schalter und Wirkung. */}
+          <Suspense fallback={null}><MaraRatenErinnerung /></Suspense>
 
           <div className="mara-spalten">
             {/* ── WEN ─────────────────────────────────────────────────── */}

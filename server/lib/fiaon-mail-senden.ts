@@ -305,6 +305,8 @@ async function linkBaustein(
   if (eventType === "nicht_erreicht_termin") setze("termin_link", terminLink(personId, "nicht_erreicht_mail"));
   // E-401 (5/6): Maras Mail nach 2× nicht erreicht — eigene Herkunft, damit man sieht, welche Buchung sie gebracht hat.
   if (eventType === "nicht_erreicht_zweimal") setze("termin_link", terminLink(personId, "nicht_erreicht_2_mail"));
+  // E-406 B1: Maras Mail zur frisch fälligen Rate — „Rückruf-Zeit wählen“ mit eigener Herkunft (Wirkung im Steuerpult).
+  if (eventType === "mara_rate_erinnerung") setze("termin_link", terminLink(personId, "mara_rate_mail"));
   if (eventType === "onboarding_einladung") setze("termin_link", terminLink(personId, "onboarding_einladung"));
   if (eventType === "termin_verpasst") {
     setze("termin_link", terminLink(personId, "termin_verpasst_mail"));

@@ -612,6 +612,40 @@ router.post("/chef/mara/nicht-erreicht", wache, async (req: ChefRequest, res: Re
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RATEN: FRISCH FÄLLIG (19.10.2026, E-406 B1) — Karte im Reiter „Mail“
+//
+// Justin (Vorschlag 3): „Mara erinnert freundlich und bietet einen Termin an.“ An Tag 1–3 nach der Fälligkeit schickt
+// Mara EINE persönliche Mail je Rate (server/lib/fiaon-mara-rate-erinnerung.ts).
+//   GET  /chef/mara/raten-erinnerung   Schalter + Wirkung (heute / 7 Tage: angeschrieben, danach bezahlt; Gründe)
+//   POST /chef/mara/raten-erinnerung   { an: boolean } — Standard „an“; jedes An/Aus im Chef-Protokoll
+// Keine neue Seite (Hausregel „Keine neuen Chef-Seiten“).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/mara/raten-erinnerung", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { rateErinnerungStand } = await import("../lib/fiaon-mara-rate-erinnerung");
+    res.json({ ok: true, ...(await rateErinnerungStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] raten-erinnerung:", err);
+    res.status(500).json({ ok: false, error: "Der Stand ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/mara/raten-erinnerung", wache, async (req: ChefRequest, res: Response) => {
+  if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "an: true oder false." });
+  try {
+    const an = req.body.an === true;
+    const { schalterSetzen, rateErinnerungStand } = await import("../lib/fiaon-mara-rate-erinnerung");
+    await schalterSetzen(an);
+    void chefProtokoll(req, "mara_rate_erinnerung", an ? "an" : "aus");
+    console.log(`[MARA-STEUERPULT] ${wer(req)}: Raten frisch fällig ${an ? "AN" : "AUS"}`);
+    res.json({ ok: true, ...(await rateErinnerungStand()) });
+  } catch (err) {
+    console.error("[MARA-STEUERPULT] raten-erinnerung setzen:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht speichern — es bleibt, wie es war." });
+  }
+});
+
 router.post("/chef/mara/termine/:id/ergebnis", wache, async (req: ChefRequest, res: Response) => {
   const id = Number(req.params.id);
   const ergebnis = String(req.body?.ergebnis ?? "");

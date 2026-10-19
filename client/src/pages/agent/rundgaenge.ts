@@ -629,6 +629,14 @@ export const RUNDGANG_COLLECTIONS: RundgangSchritt[] = [
       + "hier nicht — dort gibt es nichts zurückzuholen.",
     tipp: "Einsteigen mit „ist mir aufgefallen, ich wollte kurz nachfragen“ — nie mit „Sie haben nicht bezahlt“.",
   },
+  // E-406 B1 (19.10.2026): Mara-Inkasso, erste Stufe — kein Element auf dieser Seite, deshalb ohne `ziel`.
+  {
+    titel: "Tag 1–3: Mara schreibt zuerst.",
+    text: "Ist eine Rate seit 1 bis 3 Tagen offen, schickt Mara dem Kunden EINE freundliche Mail: jetzt zahlen, "
+      + "kurz antworten oder einen Rückruf wählen. Ohne Druck, nur 10–18 Uhr, nie am Tag einer Rechnung oder Mahnung. "
+      + "In der Akte steht dann „Mara: freundliche Mail zur Rate …“.",
+    tipp: "Wählt der Kunde einen Rückruf, steht der Termin in deinem Kalender. Ruf pünktlich an — ein Termin wirkt 6-mal besser.",
+  },
   {
     ziel: ".co-fenster",
     titel: "Überfällig, heute, nächste sieben Tage.",
@@ -1834,6 +1842,14 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mp-kette",
     titel: "Die Wirkung in 14 Tagen.",
     text: "Die Wirkung zeigt: angeschrieben, Antworten, gebuchtes Geld in 14 Tagen.",
+  },
+  // E-406 B1 (19.10.2026): Mara-Inkasso, erste Stufe — Schalter und Wirkung unter der Kette.
+  {
+    ziel: ".mr-raten",
+    titel: "Frisch fällige Raten: Mara schreibt persönlich.",
+    text: "Ist eine Rate seit 1–3 Tagen offen, schreibt Mara EINMAL freundlich: zahlen, kurz antworten oder Rückruf wählen. "
+      + "Die Zeile zeigt: angeschrieben, danach bezahlt. Der Schalter stellt es an oder aus.",
+    tipp: "Rechnung, Mahnungen und WhatsApp-Zentrale laufen davon unberührt weiter. Das (i) zeigt, wem Mara nicht schrieb und warum.",
   },
   {
     ziel: ".mp-wen",

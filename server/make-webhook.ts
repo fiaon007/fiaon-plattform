@@ -42,6 +42,9 @@ export type MakeEventType =
   | "lead_application_link"
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3
+  // E-406 B1 (19.10.2026): Mara-Inkasso, erste Stufe — EINE persönliche Mail an Tag 1–3 nach der Fälligkeit
+  // (server/lib/fiaon-mara-rate-erinnerung.ts, Regel in shared/fiaon-mara-rate-erinnerung.ts). Zahlungspost ohne Verkauf.
+  | "mara_rate_erinnerung"  // frisch fällige Rate: zahlen · kurz antworten · Rückruf wählen — 10–18 Uhr, nie doppelt
   | "aufgabe_zugewiesen"    // Vorgesetzter weist einem Mitarbeiter eine Aufgabe zu
   // Bewerbungen (E-177, 11.09.2026): an BEWERBER, gesiezt, ohne Fristen — nur von Hand aus /chef/s/bewerbungen.
   | "bewerbung_zusage"      // die Leitung sagt zu; der Zugangslink folgt getrennt mit agent_invite
@@ -538,6 +541,8 @@ const PRIVATLINIE = new Set<string>([
   "welcome", "zugang_link", "bereich_freigeschaltet",
   "payment_details", "followup_48h", "payment_reminder", "claim_received", "payment_confirmed",
   "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage",
+  // E-406 B1: Maras Mail zur frisch fälligen Rate — Monatsrate eines Privatpakets.
+  "mara_rate_erinnerung",
   "onboarding_einladung", "konto_karte_einladung", "zustimmung_link", "antrag_erinnerung",
   "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
   // E-240: Die Bonitätsauskunft ist ein Produkt der Privatkundenlinie — ihr Angebot
@@ -600,6 +605,8 @@ const PRIVATLINIE_PERSON = new Set<string>([
   "auskunft_angebot", "nicht_erreicht_termin", "lead_followup", "lead_application_link",
   // E-401 (5/6): Maras Terminlink nach 2× nicht erreicht — Privatberatung, nie an Global-Kunden.
   "nicht_erreicht_zweimal",
+  // E-406 B1: Maras Mail zur frisch fälligen Rate (mit Rückruf-Angebot) — Zusatz zur Zahlungspost, nie an Global-Kunden.
+  "mara_rate_erinnerung",
   // Zweite Wand zur Quelle (Lückensuche 02.10.2026): der Monatsbericht des Privat-Kundenbereichs —
   // ohne Bindung an eine Global-Bestellung. lead_willkommen steht NICHT hier: Es ist eine Pflichtmail
   // (Antwort auf das eben abgeschickte Formular), die Tür lässt Pflichtmails immer durch; für

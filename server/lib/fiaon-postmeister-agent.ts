@@ -88,6 +88,8 @@ import { zahlungAntwortFunde, zahlungsstelleUnnoetig, aufgabeAnZahlungsstelle } 
 import { angabenAntwortFunde, angabenOhneLageFunde, angabenAufgabeErsetzbar } from "@shared/fiaon-angaben-aendern";
 // E-396 (19.10.2026): Justins Regel vom 19.10. — Jahresvertrag zwölf Monate, Kulanz nur nach Zahlung, EINE Fassung.
 import { MARA_JAHRESVERTRAG_REGEL, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon-jahresvertrag";
+// E-406 B1 Nachbesserung (19.10.2026): „Ich zahle am Freitag“ — der Server hält den Zahltag fest; nie „notiert“, was nicht notiert ist.
+import { zusageErlaubt, zusageAntwortFunde, schwierigHinweis, ZUSAGE_WERKZEUG } from "@shared/fiaon-zahlungszusage";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -2171,7 +2173,8 @@ export async function abstreitenPerMail(ein: {
 export async function antwortErzeugen(ein: {
   postfach: string;
   /** E-401 Nachbesserung: authErgebnis (Gmails Absender-Prüfung) und antwortAn (Reply-To) — für angaben_aendern. */
-  mail: { betreff: string; text: string; von: string; alterTage: number; authErgebnis?: string | null; antwortAn?: string | null };
+  /** E-406 B1 Nachbesserung: am — wann er schrieb (Bezug für „am Freitag“, „morgen“). */
+  mail: { betreff: string; text: string; von: string; alterTage: number; authErgebnis?: string | null; antwortAn?: string | null; am?: Date | string | null };
   verlauf: { von: string; am: string; text: string }[];
   einordnung: Einordnung;
   personId: number | null;
@@ -2320,6 +2323,32 @@ export async function antwortErzeugen(ein: {
     handlungen.push({ werkzeug: "angaben_aendern", ergebnis: angaben.handlung, ok: true });
     werkzeugDaten.angaben_aendern = angaben.daten;
     vorab.push(angaben.hinweis);
+  }
+  // ── E-406 B1 Nachbesserung (19.10.2026): DER GENANNTE ZAHLTAG (zahlungszusage_merken) ─────────────────────
+  // Maras Raten-Mail sagt „Schreiben Sie mir einfach, wann Sie zahlen“ — bis hierher hielt Mail-Mara den Tag nirgends
+  // fest (Prüfer-Fund). Jetzt liest der SERVER seine Mail (fiaon-mara-zahlungszusage.ts, Regel in
+  // shared/fiaon-zahlungszusage.ts): klarer Tag → promised_payment_date + Wiedervorlage an der Person, inkasso_zusage_am
+  // an jeder offenen Rate, die bis dahin fällig ist, Verlauf in der Akte — dieselben Felder wie WhatsApp-Mara und das
+  // Inkasso. Unklar („am 15.“, „nächste Woche“) → Mara fragt nach, nichts festgehalten. Nur in Raten-Lagen, nie bei
+  // Bestreiten, Widerruf, Anwalt oder Recht, nie beim Global-Kunden. Der Mahnmotor bleibt unberührt (E-182).
+  const zuM = await import("./fiaon-mara-zahlungszusage");
+  const letzteMara = [...ein.verlauf].reverse().find((v) => v.von === "FIAON")?.text ?? null;
+  const zusage = ein.personId && zusageErlaubt({ lage, flags: ein.einordnung.flags as any, global: !!akte?.global, vorgeschichte: !!ein.vorgeschichte?.grund })
+    ? await zuM.zahlungszusageBehandeln({
+      personId: ein.personId, kundeText: kontext.kundeText ?? "", betreff: ein.mail.betreff, letzteMara,
+      geschriebenAm: ein.mail.am ?? null, quelle: ein.postmeisterId ? `Mail #${ein.postmeisterId}` : null,
+    }).catch((e) => { console.warn("[POSTMEISTER] zahlungszusage_merken:", String(e?.message || e).slice(0, 160)); return null; })
+    : null;
+  if (zusage) {
+    handlungen.push({ werkzeug: ZUSAGE_WERKZEUG, ergebnis: zusage.handlung, ok: zusage.urteil.art === "merken" });
+    werkzeugDaten[ZUSAGE_WERKZEUG] = zusage.daten;
+    vorab.push(zusage.hinweis);
+  }
+  // „Gerade schwierig diesen Monat?“ — kann er nicht zahlen und nennt keinen Tag, führt Mara ihn zum Rückruf (eine
+  // Ratenpause setzt per Mail niemand von selbst; am Telefon ist sie im Inkasso ein Klick).
+  if (ein.einordnung.flags?.zahlungsunfaehig && zusage?.urteil.art !== "merken"
+    && zusageErlaubt({ lage, flags: ein.einordnung.flags as any, global: !!akte?.global, vorgeschichte: !!ein.vorgeschichte?.grund })) {
+    vorab.push(schwierigHinweis());
   }
   // Hat der Server Anschrift, E-Mail oder Telefon bearbeitet und braucht es keinen Menschen, gibt es dafür keine Aufgabe
   // (ein Rückrufwunsch bleibt eine). E-401 Nachbesserung (Prüfer-Fund): nur eine REINE Stammdaten-Aufgabe — nie die
@@ -2474,6 +2503,7 @@ export async function antwortErzeugen(ein: {
       return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
         kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht, angaben,
+        zusage,
       });
     }
 
@@ -2546,6 +2576,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
   zahlung?: import("./fiaon-mara-zahlung-suchen").ZahlungsLage | null;
   /** E-401 (4/6): Was angaben_aendern mit seinem Änderungswunsch getan hat (fiaon-mara-angaben-aendern.ts). */
   angaben?: import("./fiaon-mara-angaben-aendern").AngabenLage | null;
+  /** E-406 B1 Nachbesserung: Was mit seinem genannten Zahltag geschah (fiaon-mara-zahlungszusage.ts). */
+  zusage?: import("./fiaon-mara-zahlungszusage").ZusageLage | null;
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
@@ -2663,6 +2695,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
     if (k.angaben) fehlend.push(...angabenAntwortFunde(t, k.angaben));
     // E-401 Nachbesserung (Prüfer-Fund): Ohne ANGABEN hat niemand etwas geändert — „Ihre Adresse ist geändert“ ist dann falsch.
     else fehlend.push(...angabenOhneLageFunde(t));
+    // E-406 B1 Nachbesserung (19.10.2026): „notiert“ nur, wenn der Server den Zahltag festgehalten hat (auch ohne Lage:
+    // dann hat niemand etwas festgehalten), genau dieser Tag, und nie „bis dahin keine Erinnerung“.
+    fehlend.push(...zusageAntwortFunde(t, k.zusage?.urteil ?? null));
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
     if (naher && !/termin|gespräch|uhr/i.test(t)) fehlend.push("gebuchter Termin nicht erwähnt");

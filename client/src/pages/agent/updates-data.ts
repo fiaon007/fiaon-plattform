@@ -130,10 +130,13 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Nie bei Kündigung, Widerruf, Mahnstopp, Ratenpause, Zahlungszusage, Termin, Testkonto oder Kunden von FIAON Global.",
       "Rechnung, Mahnungen und WhatsApp-Erinnerung laufen genau wie vorher weiter.",
       "Wählt der Kunde einen Rückruf, steht der Termin wie immer in deinem Kalender. Antwortet er, übernimmt Mara im Postfach.",
+      "Schreibt er zurück, wann er zahlt („am Freitag“), hält Mara den Tag selbst fest: Zahlungszusage in der Akte, in Collections unter „Zusagen offen“. Am Werktag danach steht er wieder in deiner Liste.",
+      "Nennt er keinen klaren Tag („nächste Woche“, „am 15.“), fragt Mara nach dem genauen Datum. Kann er gerade nicht zahlen, bietet sie ihm einen Rückruf an.",
     ],
     howto: [
       "Nichts extra tun.",
       "In der Akte steht der Vermerk „Mara: freundliche Mail zur Rate …“. So weißt du vor dem Anruf, was der Kunde schon bekommen hat.",
+      "Ruft dich ein Kunde wegen „gerade schwierig“ an: Ergebnis „Ratenpause — einen Monat aussetzen“ in Collections ist der Weg.",
     ],
   },
   {

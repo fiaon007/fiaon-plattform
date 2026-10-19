@@ -1392,7 +1392,7 @@ export async function mailBearbeiten(ein: {
       }
     }
     const erg = await antwortErzeugen({
-      postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage, authErgebnis: mail.authErgebnis ?? null, antwortAn: mail.antwortAn ?? null },
+      postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage, authErgebnis: mail.authErgebnis ?? null, antwortAn: mail.antwortAn ?? null, am: mail.datum ?? null },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
       sprache: antwortSpracheCode, vorgeschichte,
     });

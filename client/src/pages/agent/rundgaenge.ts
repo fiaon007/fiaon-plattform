@@ -635,7 +635,8 @@ export const RUNDGANG_COLLECTIONS: RundgangSchritt[] = [
     text: "Ist eine Rate seit 1 bis 3 Tagen offen, schickt Mara dem Kunden EINE freundliche Mail: jetzt zahlen, "
       + "kurz antworten oder einen Rückruf wählen. Ohne Druck, nur 10–18 Uhr, nie am Tag einer Rechnung oder Mahnung. "
       + "In der Akte steht dann „Mara: freundliche Mail zur Rate …“.",
-    tipp: "Wählt der Kunde einen Rückruf, steht der Termin in deinem Kalender. Ruf pünktlich an — ein Termin wirkt 6-mal besser.",
+    tipp: "Wählt der Kunde einen Rückruf, steht der Termin in deinem Kalender. Ruf pünktlich an — ein Termin wirkt 6-mal besser. "
+      + "Schreibt er Mara, wann er zahlt, steht seine Rate unter „Zusagen offen“.",
   },
   {
     ziel: ".co-fenster",

@@ -123,8 +123,9 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
   // ── E-406 B1 (19.10.2026): MARA-INKASSO, ERSTE STUFE — FRISCH FÄLLIGE RATE, PERSÖNLICH ──────────────────────
   // Justin (Vorschlag 3): „Mara erinnert freundlich und bietet einen Termin an.“ Tag 1–3 nach der Fälligkeit, EINE
   // Mail je Rate (server/lib/fiaon-mara-rate-erinnerung.ts, Regel in shared/fiaon-mara-rate-erinnerung.ts). Kein Druck,
-  // drei Wege: zahlen (Knopf = Zahlungsseite der RATE), kurz antworten (landet bei Mail-Mara), Rückruf wählen (knopf2 =
-  // persönlicher Terminlink, Herkunft mara_rate_mail — laut Rückhol-Messung wirkt ein Termin 6-mal besser).
+  // drei Wege: zahlen (Knopf = Zahlungsseite der RATE), kurz antworten (landet bei Mail-Mara; den genannten Zahltag hält
+  // der Server fest — fiaon-mara-zahlungszusage.ts), Rückruf wählen (knopf2 = persönlicher Terminlink, Herkunft
+  // mara_rate_mail — laut Rückhol-Messung wirkt ein Termin 6-mal besser).
   // Zahlungspost ohne Verkauf: kein Karten-Block, kein Paket, kein Limit (geht auch an eine Werbesperre). Keine Mahn-,
   // Droh- oder Fristwörter; Mara nennt sich digitale Assistentin (KI-VO Art. 50). textPruefen() hält das im Prüfstand fest.
   // Der Gruß steht am Ende der Absätze — darunter folgen Datenkasten und die beiden Knöpfe (Reihenfolge des Gerüsts).
@@ -137,7 +138,7 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
       "Guten Tag {{params.vorname}} {{params.nachname}}, hier ist Mara, die digitale Assistentin von FIAON. Ihre Monatsrate über <b>{{params.betrag}} €</b> vom <b>{{params.faellig_am_text}}</b> ist bei uns noch nicht eingegangen. Das passiert schnell — machen Sie sich keine Sorgen.",
       "Sie haben drei einfache Wege, ganz wie es Ihnen passt:",
       "<b>1. Jetzt bezahlen:</b> Über den blauen Knopf unten öffnen Sie Ihre Zahlungsseite mit QR-Code. Betrag und Verwendungszweck sind schon ausgefüllt.",
-      "<b>2. Kurz antworten:</b> Schreiben Sie mir einfach auf diese E-Mail, wann Sie zahlen, zum Beispiel „am Freitag“. Ein Satz genügt.",
+      "<b>2. Kurz antworten:</b> Schreiben Sie mir einfach auf diese E-Mail, wann Sie zahlen, zum Beispiel „am Freitag“. Ein Satz genügt — ich notiere mir den Tag.",
       "<b>3. Rückruf wählen:</b> Lieber kurz sprechen? Unter dem Knopf wählen Sie Ihre Zeit, und wir rufen Sie genau dann an.",
       "Schon überwiesen? Dann hat sich meine Nachricht mit Ihrer Zahlung überschnitten — Sie müssen nichts weiter tun.",
       "Herzliche Grüße\nMara · digitale Assistentin von FIAON",
@@ -151,7 +152,10 @@ knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fi
     ],
     knopf: { text: "Jetzt bezahlen", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
     knopf2: { text: "Rückruf-Zeit wählen", url: "{{params.termin_link}}" },
-    fussnote: "Gerade schwierig diesen Monat? Schreiben Sie es mir einfach — gemeinsam findet sich fast immer eine Lösung.",
+    // E-406 B1 Nachbesserung (Prüfer-Fund): Eine Ratenpause setzt per Mail niemand von selbst — „schwierig“ führt zum
+    // Rückruf (Weg 3); am Telefon ist die Pause im Inkasso ein Klick. Den Tag aus Weg 2 hält der Server fest
+    // (server/lib/fiaon-mara-zahlungszusage.ts).
+    fussnote: "Gerade schwierig diesen Monat? Wählen Sie einfach eine Rückruf-Zeit — am Telefon findet sich gemeinsam fast immer eine Lösung.",
   },
 
   // ── HIER STEHT BEWUSST KEIN ZAHLKNOPF UND KEIN QR-CODE ───────────────────

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// E-406 (19.10.2026): Welcher Abschnitt eines persönlichen Angebots stand wie lange auf dem Bildschirm?
+// E-410 (19.10.2026): Welcher Abschnitt eines persönlichen Angebots stand wie lange auf dem Bildschirm?
 // Jede Sekunde: der Abschnitt (<section aria-label>) in der Bildschirmmitte bekommt eine Sekunde — nur wenn die Seite
 // sichtbar ist UND sich in der letzten Minute etwas bewegt hat. Alle 15 s und beim Verlassen gehen die SUMMEN an
 // POST /api/fiaon/global/angebot/:token/lesen. Kein Cookie, kein Speicher im Browser: der Besuch ist eine Zufallszahl

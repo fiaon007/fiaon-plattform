@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 116 · WAS HAT DER KUNDE IM ANGEBOT WIE LANGE GELESEN? (19.10.2026, E-406)
+-- 116 · WAS HAT DER KUNDE IM ANGEBOT WIE LANGE GELESEN? (19.10.2026, E-410)
 --
 -- Der Server legt die Tabelle beim ersten Gebrauch selbst an (dieselbe DDL in
 -- server/lib/fiaon-global-angebot-lesen.ts, ensureLeseTabelle). Diese Datei ist die Beschreibung dazu.

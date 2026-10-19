@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — WAS HAT DER KUNDE IM ANGEBOT WIE LANGE GELESEN?
-// Register E-406 (19.10.2026), Nachtrag zu den Angebot-Aufrufen (fiaon-global-angebot-aufrufe.ts)
+// Register E-410 (19.10.2026), Nachtrag zu den Angebot-Aufrufen (fiaon-global-angebot-aufrufe.ts)
 //
 // Justin (WEiTSICHT SWISS, Angebot versendet): „Ich möchte live wissen, was er wie, wo macht — wie lange, was hat er
 // sich angesehen?“

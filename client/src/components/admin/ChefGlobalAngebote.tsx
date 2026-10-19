@@ -52,7 +52,7 @@ type Aufrufe = {
   geoeffnet: number; vertragPdf: number; pruefberichtPdf: number; kundeAufrufe: number; besuche: number; intern: number; automatisch: number; gesamt: number;
   kundeZuletzt: { am: string; amText: string; art: string; geraet: string; ort: string } | null; kundeErster: { am: string; amText: string } | null;
   aufgabeSchluessel: string; liste: AufrufZeile[];
-  /** E-406: Kundenbesuche mit aktiver Lesezeit und den Abschnitten (neueste zuerst). */
+  /** E-410: Kundenbesuche mit aktiver Lesezeit und den Abschnitten (neueste zuerst). */
   lesen?: { amText: string; dauer: string; geraet: string; ort: string; abschnitte: string }[];
   /** Gegenprüfung 01.10.2026 (F1): Löschfrist erreicht (90 Tage nach Abschluss) — dann nicht „Noch nicht geöffnet". */
   geloescht?: boolean;

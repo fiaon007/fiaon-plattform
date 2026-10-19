@@ -98,7 +98,7 @@ router.post("/global/angebot/:token/annehmen", async (req: Request, res: Respons
   }
 });
 
-// E-406: Was wie lange gelesen wurde — die Seite schickt alle 15 s und beim Verlassen die Summen je Abschnitt.
+// E-410: Was wie lange gelesen wurde — die Seite schickt alle 15 s und beim Verlassen die Summen je Abschnitt.
 // Antwortet sofort 204 und verbucht danach (feuern und vergessen); Unlesbares wird still verworfen.
 router.post("/global/angebot/:token/lesen", (req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-store");

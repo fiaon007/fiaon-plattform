@@ -275,7 +275,7 @@ export default function BusinessAngebot() {
   const anfrage = useRef(0);
   // Angebot-Aufrufe: Nach dem ersten erfolgreichen Laden ist jedes weitere Laden ein Nachladen (?wahl=1), kein neues Öffnen.
   const geladen = useRef(false);
-  // E-406: welcher Abschnitt wie lange gelesen wurde (alle Fassungen — die Abschnitte tragen aria-label).
+  // E-410: welcher Abschnitt wie lange gelesen wurde (alle Fassungen — die Abschnitte tragen aria-label).
   useAngebotLesen(token, stand === "da");
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);

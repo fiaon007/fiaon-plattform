@@ -2051,7 +2051,7 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
   // Ein Fehler hier hält den Lauf nicht an.
   const aufraeumen = await import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAufraeumen())
     .catch((e) => { console.error("[FIAON-ANGEBOT] Aufrufe aufräumen:", e); return { aufrufe: 0, anschluesse: 0, aufgaben: 0, beitraege: 0 }; });
-  // E-406: liegengebliebene Leseberichte (Neustart) nachholen, Lesezeilen nach derselben Frist löschen.
+  // E-410: liegengebliebene Leseberichte (Neustart) nachholen, Lesezeilen nach derselben Frist löschen.
   await import("./fiaon-global-angebot-lesen").then((m) => m.leseLauf()).catch(() => null);
   // E-301: Firmenangebote — Monatsrechnung am Fälligkeitstag (Berlin), Verlängerung, Fristende der Garantie. Ein Fehler dort hält den Lauf nicht an.
   const firma = await import("./fiaon-global-angebot-firma").then((m) => m.firmaStundenlauf(jetzt))

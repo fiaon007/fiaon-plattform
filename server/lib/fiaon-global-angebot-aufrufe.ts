@@ -21,7 +21,7 @@
 // cf-region und die x-vercel-ip-*-Kopfzeilen werden gelesen, FALLS sie kommen —
 // welche es waren, steht je Zeile in geo_quelle. KEIN Geo-Dienst, keine IP an Dritte,
 // keine Cookies, keine Messung im Browser, kein Pixel.
-// E-406 (19.10.2026): Stadt/Region kommen für KUNDENaufrufe zusätzlich aus ip-api.com — nur mit der gekürzten
+// E-410 (19.10.2026): Stadt/Region kommen für KUNDENaufrufe zusätzlich aus ip-api.com — nur mit der gekürzten
 // Adresse (ortErgaenzen). Das Cloudflare vor Render ist Renders Zone (fiaon.com = CNAME auf Render) und schickt nur
 // das Land. Welche Abschnitte wie lange gelesen wurden, misst die Seite selbst: fiaon-global-angebot-lesen.ts.
 //
@@ -513,7 +513,7 @@ export interface AufrufKontext {
 export interface AufrufErgebnis { id: number; angebotId: number; intern: boolean; internGrund: InternGrund | null; roboter: boolean; neuerBesuch: boolean; melden: boolean }
 
 /** Eine Zeile je Aufruf; danach (nur beim Kunden) Aufgabe nachführen bzw. melden. Gibt null, wenn nichts zu schreiben war. */
-/** Du/Team (Sitzung) oder ein Chefbüro-Anschluss der letzten 30 Tage — sonst null. Auch für die Lese-Messung (E-406). */
+/** Du/Team (Sitzung) oder ein Chefbüro-Anschluss der letzten 30 Tage — sonst null. Auch für die Lese-Messung (E-410). */
 export async function aufrufIntern(k: AufrufKontext): Promise<{ grund: InternGrund; agentId: number | null } | null> {
   if (k.sitzung) return { grund: k.sitzung.grund, agentId: k.sitzung.agentId };
   const imProzess = k.ip ? gemerkt.get(anschlussSchluessel(k.ip)) : undefined;
@@ -528,7 +528,7 @@ export async function aufrufIntern(k: AufrufKontext): Promise<{ grund: InternGru
   return null;
 }
 
-// ── E-406 (19.10.2026): Stadt und Region ────────────────────────────────────
+// ── E-410 (19.10.2026): Stadt und Region ────────────────────────────────────
 // Justin: „bau Stadt“. Befund: fiaon.com zeigt per CNAME auf Render; das Cloudflare davor ist Renders Zone und
 // schickt nur cf-ipcountry — die Besucherort-Kopfzeilen lassen sich dort nicht einschalten. Darum fragt der Server
 // für KUNDENaufrufe (nie du/Team/automatisch) ip-api.com — dieselbe Quelle wie /api/fiaon/geo — und zwar nur mit der
@@ -581,7 +581,7 @@ export async function aufrufProtokollieren(token: string, art: AufrufArt, antwor
   let ort = ortAus(k.kopf || {});
   const roboter = istRoboterUnterschrift(k.ip || null, k.userAgent || null).roboter;
   const intern = await aufrufIntern(k);
-  // E-406: Stadt/Region für Kundenaufrufe — Cloudflare vor Render gehört Render und schickt nur das Land.
+  // E-410: Stadt/Region für Kundenaufrufe — Cloudflare vor Render gehört Render und schickt nur das Land.
   if (!intern && !roboter && !ort.stadt) ort = await ortErgaenzen(ort, k.ip || null);
   const erg = await sqlPool.begin(async (tx: any) => {
     // Ein Angebot, eine Entscheidung zur Zeit: Zwei gleichzeitige Aufrufe melden nicht doppelt.
@@ -779,7 +779,7 @@ export interface AufrufListe {
   aufgabeSchluessel: string;
   /** Die Löschfrist ist erreicht (90 Tage nach Abschluss) — der Reiter sagt dann „gelöscht" statt „Noch nicht geöffnet". */
   geloescht: boolean;
-  /** E-406: Kundenbesuche mit Lesezeit und Abschnitten (fiaon-global-angebot-lesen.ts). */
+  /** E-410: Kundenbesuche mit Lesezeit und Abschnitten (fiaon-global-angebot-lesen.ts). */
   lesen: { amText: string; dauer: string; geraet: string; ort: string; abschnitte: string }[];
   liste: { id: number; am: string; amText: string; art: string; geraet: string; ort: string; ip: string | null; wer: string; kunde: boolean; gemeldet: boolean; meldung: string | null; antwort: number | null }[];
 }

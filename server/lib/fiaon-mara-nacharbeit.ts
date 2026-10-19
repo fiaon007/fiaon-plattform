@@ -8,8 +8,11 @@
 //   1. VORMERKEN — nacharbeitNachErgebnis, aus jeder Route, die ein Gesprächsergebnis bucht (Kundenkarte, Akte,
 //      Telefon). Mit Häkchen merkt Mara die Mail vor (oder hält fest, warum nicht — der Mitarbeiter liest es in
 //      der Meldung). Ohne Häkchen nimmt ein ANDERES Ergebnis binnen KORREKTUR_MINUTEN eine noch wartende Mail
-//      zurück (berichtigt). Kein Versand im Klick: die Buchung bleibt schnell, und das Ergebnis lässt sich
-//      noch REIF_MINUTEN lang berichtigen (ein neueres Ergebnis mit Häkchen ersetzt die wartende Mail).
+//      zurück (berichtigt), ebenso dasselbe Ergebnis mit BEWUSST abgewähltem Häkchen (Kundenkarte/Akte schicken
+//      dann `false`, das Telefon schickt nichts) und jede heikle Notiz. Kein Versand im Klick: die Buchung bleibt
+//      schnell, und das Ergebnis lässt sich noch REIF_MINUTEN lang berichtigen (ein neueres Ergebnis mit Häkchen
+//      ersetzt die wartende Mail). Der Merker kennt seinen Verlaufseintrag (log_id): „Irrtümlich?“ daran nimmt die
+//      Mail zurück (nacharbeitZuEintragZuruecknehmen, POST /agent/log/:id/void), und der Takt prüft ihn noch einmal.
 //   2. SENDEN — der Takt nacharbeitTakt (routes.ts, tageslauf „mara_nacharbeit_mail“, alle 2 Min.) nimmt fällige
 //      Merker atomar (FOR UPDATE SKIP LOCKED), prüft die Regel NOCH EINMAL (bezahlt? gekündigt? gesperrt? Rückruf
 //      verworfen?) und schickt über den einen Weg des Hauses: versendenUndProtokollieren → Tür (Adresse,
@@ -26,14 +29,14 @@
 import { sqlPool } from "./db-pool";
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
-import { schalterAn, imVersandfenster } from "@shared/fiaon-nicht-erreicht-nachfass";
+import { schalterAn, imVersandfenster, naechstesFenster } from "@shared/fiaon-nicht-erreicht-nachfass";
 import { nennform } from "@shared/fiaon-mitarbeiter-name";
 import { datumFuerKunde, uhrText, zeitFuerKunde } from "@shared/fiaon-mara-ton";
 import { LINK_ART_TEXT, istLinkArt, type LinkArt } from "@shared/fiaon-unterlagen-anfrage";
 import {
   ART_TEXT, DOPPELT_STUNDEN, ERGEBNISSE_MIT_NACHARBEIT, GRUND, KI_PAUSE_WARTEN_MINUTEN, KORREKTUR_MINUTEN, NACHARBEIT_EVENT,
   NACHARBEIT_SCHALTER, VERFALL_STUNDEN, berlinTag, betragText, heikleNotiz, hinweisFuerMitarbeiter, istNacharbeitArt, kurzDatum,
-  nacharbeitArt, nacharbeitUrteil, unterlagenAusNotiz, unterlagenFuerLink,
+  nacharbeitArt, nacharbeitUrteil, unterlagenAusNotiz, unterlagenFuerLink, zuSpaetGrund,
   type NacharbeitArt, type NacharbeitFakten, type NacharbeitUrteil, type NacharbeitVorschauDaten,
 } from "@shared/fiaon-mara-nacharbeit";
 import {
@@ -80,11 +83,15 @@ export function nacharbeitTabelle(): Promise<boolean> {
             bearbeitet_am TIMESTAMPTZ,
             erledigt_am TIMESTAMPTZ,
             text TEXT,
-            kosten_cents INTEGER
+            kosten_cents INTEGER,
+            log_id BIGINT
           )`;
+        // Nachbesserung 19.10.2026: der Verlaufseintrag des Ergebnisses (für „Irrtümlich?“).
+        await tx`ALTER TABLE fiaon_mara_nacharbeit ADD COLUMN IF NOT EXISTS log_id BIGINT`;
         await tx`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_mara_nacharbeit_offen_je_person ON fiaon_mara_nacharbeit (person_id) WHERE status IN ('vorgemerkt', 'in_arbeit')`;
         await tx`CREATE INDEX IF NOT EXISTS fiaon_mara_nacharbeit_status ON fiaon_mara_nacharbeit (status, nicht_vor)`;
         await tx`CREATE INDEX IF NOT EXISTS fiaon_mara_nacharbeit_person ON fiaon_mara_nacharbeit (person_id, vorgemerkt_am DESC)`;
+        await tx`CREATE INDEX IF NOT EXISTS fiaon_mara_nacharbeit_log ON fiaon_mara_nacharbeit (log_id) WHERE log_id IS NOT NULL`;
       });
       return true;
     })().catch((e) => {
@@ -238,6 +245,8 @@ interface MerkerZeile {
   id: number; person_id: number; ref: string | null; art: string; ergebnis: string; notiz: string | null;
   zusage_tag: string | Date | null; termin_am: string | Date | null; unterlagen: string[] | null;
   agent_id: number | null; agent_name: string | null; vorgemerkt_am: string | Date;
+  /** Der Verlaufseintrag des Ergebnisses (fiaon_contact_log.id) — null bei Merkern ohne Eintrag. */
+  log_id?: number | string | null;
 }
 
 /** Stunde und Minute in Berlin (nur formatToParts — Zeit-Falle 01.09.2026). */
@@ -254,8 +263,14 @@ const tagIso = (d: string | Date | null | undefined): string | null => {
 };
 
 /** Die vollständigen Fakten für das Urteil — beim Vormerken und noch einmal beim Senden. */
-async function faktenFuer(m: Pick<MerkerZeile, "person_id" | "art" | "notiz" | "zusage_tag" | "termin_am" | "unterlagen" | "vorgemerkt_am">, lauf: Lauf = sqlPool): Promise<{ f: NacharbeitFakten; zahlung: OffeneZahlung | null }> {
+async function faktenFuer(m: Pick<MerkerZeile, "person_id" | "art" | "notiz" | "zusage_tag" | "termin_am" | "unterlagen" | "vorgemerkt_am" | "log_id">, lauf: Lauf = sqlPool): Promise<{ f: NacharbeitFakten; zahlung: OffeneZahlung | null }> {
   const pl = await personLage(m.person_id, lauf);
+  // „Irrtümlich?“ am Verlaufseintrag des Ergebnisses → nichts senden. Eintrag weg oder nicht lesbar: vorsichtig = gestrichen.
+  let ergebnisGestrichen = false;
+  if (m.log_id != null && Number(m.log_id) > 0) {
+    const [e] = (await lauf`SELECT voided_at FROM fiaon_contact_log WHERE id = ${Number(m.log_id)}`.catch(() => [])) as any[];
+    ergebnisGestrichen = !e || e.voided_at != null;
+  }
   const art = istNacharbeitArt(m.art) ? m.art : null;
   let zahlung: OffeneZahlung | null = null;
   let terminSteht = false;
@@ -275,7 +290,7 @@ async function faktenFuer(m: Pick<MerkerZeile, "person_id" | "art" | "notiz" | "
   return {
     zahlung,
     f: {
-      ...pl, art,
+      ...pl, art, ergebnisGestrichen,
       notizHeikel: heikleNotiz(m.notiz),
       zahlung: zahlung ? { status: zahlung.status, betrag: zahlung.betrag } : null,
       zusageTag: tagIso(m.zusage_tag),
@@ -303,6 +318,13 @@ export interface NacharbeitEingabe {
   akteur: { id: number | null; name: string };
   /** Das Häkchen „Mara schickt die Zusammenfassung“ — nur `true` merkt vor. */
   gewaehlt: boolean;
+  /**
+   * Das Häkchen stand zur Wahl und wurde BEWUSST abgewählt (Kundenkarte/Akte schicken dann `maraNacharbeit: false`;
+   * das Telefon und eine noch ladende Vorschau schicken nichts). Nimmt eine wartende Mail zurück — auch beim gleichen Ergebnis.
+   */
+  abgewaehlt?: boolean;
+  /** Der Verlaufseintrag dieses Ergebnisses (ergebnisNachbereiten → logId) — „Irrtümlich?“ daran nimmt die Mail zurück. */
+  logId?: number | null;
 }
 
 export interface NacharbeitWirkung {
@@ -325,15 +347,28 @@ export async function nacharbeitNachErgebnis(ein: NacharbeitEingabe, jetzt: Date
   try {
     if (!(await nacharbeitTabelle())) return nichts;
     if (!ein.gewaehlt || !ERGEBNISSE_MIT_NACHARBEIT.includes(ein.ergebnis)) {
-      // Berichtigung: ein ANDERES Ergebnis binnen KORREKTUR_MINUTEN nimmt die wartende Mail zurück. Dasselbe Ergebnis
-      // ist derselbe Anruf, zweimal gebucht (Telefon UND Akte) — die Mail bleibt.
+      // Berichtigung — die wartende Mail geht zurück, wenn
+      //   · eine heikle Notiz kommt (Kündigung, Beschwerde, Anwalt …) — egal, wie alt die wartende ist;
+      //   · das Häkchen BEWUSST abgewählt ist (auch beim gleichen Ergebnis) — egal, wie alt;
+      //   · ein ANDERES Ergebnis binnen KORREKTUR_MINUTEN kommt.
+      // Dasselbe Ergebnis ohne Wahl (Telefon UND Akte, derselbe Anruf zweimal gebucht) lässt die Mail stehen.
+      const heikel = heikleNotiz(ein.notiz);
+      const abgewaehlt = ein.abgewaehlt === true && ERGEBNISSE_MIT_NACHARBEIT.includes(ein.ergebnis);
+      const grund = heikel
+        ? `zurückgenommen: neueres Ergebnis mit heikler Notiz (${heikel})`
+        : abgewaehlt ? `zurückgenommen: Häkchen bei „${ein.ergebnis}“ bewusst aus` : `berichtigt: neueres Ergebnis „${ein.ergebnis}“ ohne Häkchen`;
       const weg = (await sqlPool`
         UPDATE fiaon_mara_nacharbeit
-           SET status = 'zurueckgenommen', grund = ${`berichtigt: neueres Ergebnis „${ein.ergebnis}“ ohne Häkchen`}, erledigt_am = NOW()
-         WHERE person_id = ${pid} AND status = 'vorgemerkt' AND ergebnis <> ${ein.ergebnis}
-           AND vorgemerkt_am > NOW() - (${KORREKTUR_MINUTEN}::int * INTERVAL '1 minute')
+           SET status = 'zurueckgenommen', grund = ${grund}, erledigt_am = NOW()
+         WHERE person_id = ${pid} AND status = 'vorgemerkt'
+           AND (${heikel !== null}::boolean OR ${abgewaehlt}::boolean
+                OR (ergebnis <> ${ein.ergebnis} AND vorgemerkt_am > ${new Date(jetzt.getTime() - KORREKTUR_MINUTEN * 60_000)}))
         RETURNING id`) as any[];
-      return weg.length ? { ...nichts, ersetzt: true, hinweis: "Maras wartende Zusammenfassung ist zurückgenommen (neues Ergebnis)." } : nichts;
+      if (!weg.length) return nichts;
+      const hinweis = heikel
+        ? `Maras wartende Zusammenfassung ist zurückgenommen (${heikel}).`
+        : abgewaehlt ? "Häkchen aus: Maras wartende Zusammenfassung ist zurückgenommen." : "Maras wartende Zusammenfassung ist zurückgenommen (neues Ergebnis).";
+      return { ...nichts, ersetzt: true, hinweis };
     }
     if (!(await schalterLesen())) return nichts;
 
@@ -365,6 +400,7 @@ export async function nacharbeitNachErgebnis(ein: NacharbeitEingabe, jetzt: Date
       person_id: pid, ref: ein.ref ?? null, art, ergebnis: ein.ergebnis, notiz,
       zusage_tag: zusageTag, termin_am: terminAm, unterlagen,
       agent_id: ein.akteur.id ?? null, agent_name: String(ein.akteur.name || "").slice(0, 120) || null,
+      log_id: Number.isInteger(Number(ein.logId)) && Number(ein.logId) > 0 ? Number(ein.logId) : null,
       status: offen ? "vorgemerkt" : "ausgelassen",
       grund: u.art === "senden" ? null : u.grund,
       nicht_vor: u.art === "warten" ? u.nichtVor : null,
@@ -386,6 +422,28 @@ export async function nacharbeitNachErgebnis(ein: NacharbeitEingabe, jetzt: Date
   }
 }
 
+/**
+ * „Irrtümlich?“ am Verlaufseintrag (POST /agent/log/:id/void): eine dazu noch wartende Mail zurücknehmen.
+ * Der Satz für den Mitarbeiter, oder null (nichts wartete). Wirft nie. Ist die Mail schon unterwegs, prüft der Takt
+ * den Eintrag beim Senden noch einmal (faktenFuer → ergebnisGestrichen).
+ */
+export async function nacharbeitZuEintragZuruecknehmen(logId: number): Promise<string | null> {
+  const id = Number(logId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  try {
+    if (!(await nacharbeitTabelle())) return null;
+    const weg = (await sqlPool`
+      UPDATE fiaon_mara_nacharbeit
+         SET status = 'zurueckgenommen', grund = ${GRUND.gestrichen}, erledigt_am = NOW()
+       WHERE log_id = ${id} AND status = 'vorgemerkt'
+      RETURNING id`) as any[];
+    return weg.length ? "Maras wartende Zusammenfassung an den Kunden ist zurückgenommen." : null;
+  } catch (e) {
+    console.error(`[MARA-NACHARBEIT] Zurücknehmen zu Eintrag ${id}:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE VORSCHAU FÜRS HÄKCHEN (GET /agent/crm/kunden/:personId/mara-nacharbeit)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -400,7 +458,9 @@ export async function vorschauDaten(personId: number, jetzt: Date = new Date()):
   let zahlungGrund: string | null = null;
   if (!sperrGrund) {
     const z = await offeneZahlung(personId).catch(() => null);
-    const zu = nacharbeitUrteil({ ...pl, art: "zusage", notizHeikel: null, zahlung: z ? { status: z.status, betrag: z.betrag } : null, zusageTag: berlinTag(jetzt), vorgemerktAm: new Date(0) }, jetzt);
+    // Ohne Tag: hier zählt nur die ZAHLUNG. Ob der Tag bis zum Versand vorbei wäre, rechnet die Vorschau mit dem
+    // gewählten Tag (zuSpaetGrund) — sonst sperrte „heute“ um 20:30 auch „Zahlt am Donnerstag“.
+    const zu = nacharbeitUrteil({ ...pl, art: "zusage", notizHeikel: null, zahlung: z ? { status: z.status, betrag: z.betrag } : null, zusageTag: null, vorgemerktAm: new Date(0) }, jetzt);
     if (zu.art === "auslassen" || zu.art === "erledigt") zahlungGrund = zu.grund;
     else betrag = betragText(z?.betrag ?? null);
   }
@@ -490,7 +550,14 @@ async function nacharbeitEinen(m: MerkerZeile, jetzt: Date, e: TaktErgebnis, ki:
   const { f, zahlung } = await faktenFuer(m);
   const u = nacharbeitUrteil(f, jetzt);
   if (u.art === "warten") { await merkerSetzen(m.id, "vorgemerkt", u.grund, { nichtVor: u.nichtVor }); e.wartet++; return; }
-  if (u.art === "erledigt") { await merkerSetzen(m.id, "erledigt", u.grund); e.erledigt++; return; }
+  // „Irrtümlich?“ am Ergebnis: zurückgenommen (den Vermerk schreibt die Route selbst).
+  if (u.art === "auslassen" && u.grund === GRUND.gestrichen) { await merkerSetzen(m.id, "zurueckgenommen", u.grund); e.ausgelassen++; return; }
+  if (u.art === "erledigt") {
+    // Das Häkchen war an — die Akte sagt, warum nichts kam (bezahlt, Tag vorbei, Rückruf verworfen oder gleich dran).
+    await merkerSetzen(m.id, "erledigt", u.grund); e.erledigt++;
+    await akteVermerk(m, `Mara hat nach dem Gespräch keine Zusammenfassung geschickt: ${u.grund}.`);
+    return;
+  }
   if (u.art === "auslassen") {
     await merkerSetzen(m.id, "ausgelassen", u.grund); e.ausgelassen++;
     await akteVermerk(m, `Mara hat nach dem Gespräch keine Zusammenfassung geschickt: ${u.grund}.`);
@@ -621,8 +688,16 @@ async function nacharbeitEinen(m: MerkerZeile, jetzt: Date, e: TaktErgebnis, ki:
   const erg = await versenden(m, nutzlast, ref, verlaufText);
   if (erg.status === "versandt") { await merkerSetzen(m.id, "versandt", null, { text: pr.text.slice(0, 4000), kosten }); e.versandt++; return; }
   // Die Frequenzbremse hält nur auf — dann später noch einmal (bis VERFALL_STUNDEN), sonst ist es ein echtes Nein.
+  // Wäre die Mail bis dahin überholt (Zusage-Tag vorbei, Rückruf dran), gleich auslassen — mit Vermerk.
   if (/^Frequenzbremse/.test(String(erg.grund ?? ""))) {
-    await merkerSetzen(m.id, "vorgemerkt", erg.grund, { nichtVor: new Date(jetzt.getTime() + 2 * 3_600_000), kosten }); e.wartet++;
+    const spaeter = new Date(jetzt.getTime() + 2 * 3_600_000);
+    const spaet = zuSpaetGrund(f, imVersandfenster(spaeter) ? spaeter : naechstesFenster(spaeter), !imVersandfenster(spaeter));
+    if (spaet) {
+      await merkerSetzen(m.id, "ausgelassen", `${erg.grund} · ${spaet}`, { kosten }); e.ausgelassen++;
+      await akteVermerk(m, `Mara hat nach dem Gespräch keine Zusammenfassung geschickt: ${spaet}.`);
+      return;
+    }
+    await merkerSetzen(m.id, "vorgemerkt", erg.grund, { nichtVor: spaeter, kosten }); e.wartet++;
     return;
   }
   // Ein Nein der Tür (Sperre, Global-Wand, keine Adresse) ist bewusst nicht gesendet — kein Zustellfehler.
@@ -662,7 +737,7 @@ export async function nacharbeitTakt(opts: { jetzt?: Date; hoechstens?: number; 
         ORDER BY vorgemerkt_am
         LIMIT ${n}
         FOR UPDATE SKIP LOCKED)
-    RETURNING id, person_id, ref, art, ergebnis, notiz, zusage_tag, termin_am, unterlagen, agent_id, agent_name, vorgemerkt_am`) as any[];
+    RETURNING id, person_id, ref, art, ergebnis, notiz, zusage_tag, termin_am, unterlagen, agent_id, agent_name, vorgemerkt_am, log_id`) as any[];
   for (const z of faellig) {
     const m = { ...z, id: Number(z.id), person_id: Number(z.person_id), agent_id: z.agent_id == null ? null : Number(z.agent_id) } as MerkerZeile;
     try {

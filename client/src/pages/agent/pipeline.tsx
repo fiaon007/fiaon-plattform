@@ -3957,7 +3957,8 @@ function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, frage
     // E-406 C2: Das Häkchen gilt nur, wo die Vorschau eine Mail zeigt — der Server prüft beim Vormerken noch einmal.
     const z = zusatz as Record<string, unknown>;
     const v = nacharbeitVorschau(maraDaten, { ergebnis: art, notiz: (z.notiz as string) ?? null, zusageDatum: (z.zusageDatum as string) ?? null, terminDatum: (z.terminDatum as string) ?? null, terminZeit: (z.terminZeit as string) ?? null, heute });
-    const mitHaken = { ...mitHaken0, maraNacharbeit: !!(maraDaten?.an && v.moeglich && mara) };
+    // true = Mara schickt; false = stand zur Wahl und ist BEWUSST aus (nimmt eine wartende Mail zurück); sonst nichts.
+    const mitHaken = { ...mitHaken0, maraNacharbeit: maraDaten?.an && v.moeglich ? mara : undefined };
     return d && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: d } : mitHaken;
   };
   const gespeichert = () => { setHaken([]); setHakenNeu((n) => n + 1); setMara(true); };

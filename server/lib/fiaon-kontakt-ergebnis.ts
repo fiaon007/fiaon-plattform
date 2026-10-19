@@ -477,6 +477,8 @@ export interface NachbereitungErgebnis {
   nummerMail?: { sent: boolean; reason?: string };
   uebergabe?: { ok: boolean; an: string | null; grund: string };
   meldung: string;
+  /** Der Verlaufseintrag (fiaon_contact_log.id) — E-406 C2: Maras Nacharbeit hängt daran („Irrtümlich?“ nimmt sie zurück). */
+  logId?: number | null;
 }
 
 /**
@@ -494,7 +496,7 @@ export async function ergebnisNachbereiten(
   // ── 1. DER VERLAUFSEINTRAG ────────────────────────────────────────────
   // Er ist das, was ein Mensch später liest. Ohne ihn hat der Kunde in der
   // Akte kein Ergebnis, und ein Rückruf bekommt keinen Kalendereintrag.
-  await sqlPool`
+  const [eintrag] = (await sqlPool`
     INSERT INTO fiaon_contact_log
       (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
     VALUES (${ein.ref}, ${ein.akteur.id}, ${ein.akteur.name},
@@ -502,7 +504,8 @@ export async function ergebnisNachbereiten(
             ${ein.notiz ? String(ein.notiz).slice(0, 4000) : null},
             ${parseBerlinInput(ein.zusageDatum ?? null)},
             ${parseBerlinInput(ein.terminZeitpunkt ?? null)}, NOW())
-  `;
+    RETURNING id
+  `) as any[];
 
   // ── 2. DER ZUSTAND ────────────────────────────────────────────────────
   let wirkung: ErgebnisWirkung | null = null;
@@ -585,6 +588,7 @@ export async function ergebnisNachbereiten(
     wirkung,
     nummerMail,
     uebergabe,
+    logId: eintrag?.id != null ? Number(eintrag.id) : null,
     meldung: uebergabe
       ? (uebergabe.ok ? `Übergeben an ${uebergabe.an}. ${uebergabe.grund}` : uebergabe.grund)
       : (wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : "Ergebnis festgehalten.")),

@@ -18,7 +18,11 @@
 // Werbesperre, „Stopp“, Vertriebssperre, gekündigt; eingegangener Kündigung; heiklem Thema in der Notiz
 // (Kündigung, Widerruf, Beschwerde, Anwalt, Erstattung, Gesundheit, Weitergabe an die Leitung …) oder einem offenen
 // heiklen Auftrag; ohne Mail-Adresse. Nie doppelt (höchstens eine je DOPPELT_STUNDEN; ein neueres Ergebnis ersetzt
-// eine noch wartende), nur 08–20 Uhr — sonst am nächsten Morgen.
+// eine noch wartende), nur 08–20 Uhr — sonst am nächsten Morgen. Wäre die Mail bis dahin überholt („Zahlt sofort“
+// nach 20 Uhr: morgen früh ist der Tag vorbei; Rückruf vor dem nächsten Versand), schickt Mara keine und sagt es
+// gleich beim Speichern — nie „morgen 08:00“ versprechen und dann still nichts (Nachbesserung 19.10.2026).
+// Zurück nimmt die wartende Mail: ein anderes Ergebnis binnen KORREKTUR_MINUTEN, dasselbe Ergebnis mit bewusst
+// abgewähltem Häkchen, eine heikle Notiz oder „Irrtümlich?“ am Verlaufseintrag (der Merker kennt seinen Eintrag).
 //
 // Hier steht nur die REGEL — rein, ohne Datenbank (Oberfläche, Server und Prüfstand lesen sie):
 // scripts/pruef-mara-nacharbeit.ts. Texte und Textprüfung: shared/fiaon-mara-nacharbeit-text.ts (nur Server).
@@ -197,6 +201,8 @@ export interface NacharbeitFakten {
   unterlagen?: readonly LinkArt[] | null;
   /** Wann vorgemerkt (für die Wartezeit REIF_MINUTEN) — null beim Vormerken selbst = jetzt. */
   vorgemerktAm?: string | Date | null;
+  /** Der Verlaufseintrag des Ergebnisses ist als irrtümlich markiert („Irrtümlich?“) — dann geht nichts raus. */
+  ergebnisGestrichen?: boolean;
 }
 
 export type NacharbeitUrteil =
@@ -219,6 +225,9 @@ export const GRUND = {
   zusageVorbei: "der zugesagte Tag ist vorbei",
   terminWeg: "der Rückruf steht nicht mehr",
   terminGleich: "der Rückruf steht gleich an — keine Mail nötig",
+  zusageNachFenster: "sie schreibt erst ab 8 Uhr wieder, dann ist der zugesagte Tag vorbei",
+  terminNachFenster: "sie schreibt erst ab 8 Uhr wieder, dann steht der Rückruf schon an",
+  gestrichen: "das Ergebnis ist als irrtümlich markiert",
   keineUnterlage: "keine Unterlage, um die Mara bitten könnte",
   reif: "wartet ein paar Minuten (Zeit zum Berichtigen)",
   fenster: "außerhalb 08:00–20:00 — geht ab 8 Uhr raus",
@@ -226,12 +235,47 @@ export const GRUND = {
 
 const zeit = (d: string | Date | null | undefined): number => (d ? new Date(d).getTime() : NaN);
 
+/** Der früheste Versand für eine JETZT vorgemerkte Mail: REIF_MINUTEN später, im Fenster 08–20 Uhr (sonst 08:00). */
+export function versandPlan(vorgemerktAm: Date): { ab: Date; wegenFenster: boolean } {
+  const reif = new Date(vorgemerktAm.getTime() + REIF_MINUTEN * 60_000);
+  return imVersandfenster(reif) ? { ab: reif, wegenFenster: false } : { ab: naechstesFenster(reif), wegenFenster: true };
+}
+
+/**
+ * Wäre die Mail beim frühesten Versand `ab` schon überholt? „Zahlt sofort“ um 20:30 → morgen 08:00 ist „heute“
+ * vorbei; ein Rückruf, der dann keine TERMIN_MINDEST_MINUTEN mehr entfernt ist, braucht keine Bestätigung. Dann der
+ * Grund (Mara lässt die Mail SOFORT aus und sagt es), sonst null. Dieselbe Prüfung in Vorschau, Vormerken und Takt.
+ */
+export function zuSpaetGrund(f: Pick<NacharbeitFakten, "art" | "zusageTag" | "terminAm">, ab: Date, wegenFenster: boolean): string | null {
+  if (f.art === "zusage" && f.zusageTag && f.zusageTag < berlinTag(ab)) return GRUND.zusageNachFenster;
+  if (f.art === "termin") {
+    const t = zeit(f.terminAm);
+    if (Number.isFinite(t) && t - ab.getTime() < TERMIN_MINDEST_MINUTEN * 60_000) return wegenFenster ? GRUND.terminNachFenster : GRUND.terminGleich;
+  }
+  return null;
+}
+
+/** „JJJJ-MM-TT“ + „HH:MM“ (Berliner Wandzeit) als Zeitpunkt — sommer- und winterzeitfest, nur formatToParts. */
+export function berlinWandzeit(tag: string, uhr: string): Date | null {
+  const m = String(tag || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const u = String(uhr || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m || !u) return null;
+  const ziel = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(u[1]), Number(u[2]));
+  let guess = ziel - 3_600_000;
+  for (let i = 0; i < 3; i++) {
+    const b = berlinTeile(new Date(guess));
+    guess += ziel - Date.UTC(b.j, b.m - 1, b.t, b.h, b.min);
+  }
+  return new Date(guess);
+}
+
 /**
  * Die eine Regel: Was tut Mara jetzt mit dieser Nacharbeit? Rein — dieselbe Prüfung beim Vormerken (nach dem Klick)
  * und beim Senden (im Takt), damit sich zwischendurch Geändertes (bezahlt, gekündigt, gesperrt) durchsetzt.
  */
 export function nacharbeitUrteil(f: NacharbeitFakten, jetzt: Date = new Date()): NacharbeitUrteil {
   if (!f.personDa) return { art: "auslassen", grund: GRUND.personWeg };
+  if (f.ergebnisGestrichen) return { art: "auslassen", grund: GRUND.gestrichen };
   if (!f.art) return { art: "auslassen", grund: GRUND.keineArt };
   if (f.globalKunde) return { art: "auslassen", grund: GRUND.global };
   if (f.sperre) return { art: "auslassen", grund: f.sperre };
@@ -260,12 +304,18 @@ export function nacharbeitUrteil(f: NacharbeitFakten, jetzt: Date = new Date()):
 
   const vorgemerkt = zeit(f.vorgemerktAm);
   const reifAb = (Number.isFinite(vorgemerkt) ? vorgemerkt : jetzt.getTime()) + REIF_MINUTEN * 60_000;
+  let warten: { nichtVor: Date; grund: string } | null = null;
   if (reifAb > jetzt.getTime()) {
     const ab = new Date(reifAb);
-    return { art: "warten", nichtVor: imVersandfenster(ab) ? ab : naechstesFenster(ab), grund: imVersandfenster(ab) ? GRUND.reif : GRUND.fenster };
+    warten = imVersandfenster(ab) ? { nichtVor: ab, grund: GRUND.reif } : { nichtVor: naechstesFenster(ab), grund: GRUND.fenster };
+  } else if (!imVersandfenster(jetzt)) {
+    warten = { nichtVor: naechstesFenster(jetzt), grund: GRUND.fenster };
   }
-  if (!imVersandfenster(jetzt)) return { art: "warten", nichtVor: naechstesFenster(jetzt), grund: GRUND.fenster };
-  return { art: "senden" };
+  if (!warten) return { art: "senden" };
+  // Bis zum Versand überholt? Dann nicht warten (und am Morgen still „erledigt“), sondern gleich auslassen — mit Grund.
+  const spaet = zuSpaetGrund(f, warten.nichtVor, warten.grund === GRUND.fenster);
+  if (spaet) return { art: "auslassen", grund: spaet };
+  return { art: "warten", ...warten };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -294,6 +344,8 @@ export interface VorschauEin {
   terminDatum?: string | null;
   terminZeit?: string | null;
   heute: string;
+  /** Die Uhr (Vorgabe: jetzt) — für „bis zum Versand überholt?“ (abends „Zahlt sofort“, Rückruf vor 9 Uhr). */
+  jetzt?: Date;
 }
 
 /** Die Zeile (ohne „Mara mailt:“) und ob gesendet werden kann. Rein — die Oberfläche zeigt sie, der Server prüft neu. */
@@ -304,12 +356,20 @@ export function nacharbeitVorschau(d: NacharbeitVorschauDaten | null, e: Vorscha
   if (d.sperrGrund) return { moeglich: false, art, zeile: `nichts — ${d.sperrGrund}` };
   const heikel = heikleNotiz(e.notiz);
   if (heikel) return { moeglich: false, art, zeile: `nichts — ${heikel}` };
+  // Dieselbe Uhr wie beim Vormerken: frühestens REIF_MINUTEN nach dem Speichern, nur 08–20 Uhr.
+  const plan = versandPlan(e.jetzt ?? new Date());
   if (art === "zusage") {
     if (d.zahlungGrund || !d.betrag) return { moeglich: false, art, zeile: `nichts — ${d.zahlungGrund ?? GRUND.keineZahlung}` };
     const tag = e.ergebnis === "erreicht_zahlt_am" ? (e.zusageDatum || "") : e.heute;
+    const spaet = zuSpaetGrund({ art, zusageTag: tag || e.heute }, plan.ab, plan.wegenFenster);
+    if (spaet) return { moeglich: false, art, zeile: `nichts — ${spaet}` };
     return { moeglich: true, art, zeile: `${d.betrag} ${!tag || tag === e.heute ? "heute" : `bis ${kurzDatum(tag)}`} + Zahlungsseite` };
   }
   if (art === "termin") {
+    // Ohne Uhrzeit trägt der Server 10:00 ein (fiaon-agent-kunden.ts, fiaon-telefonie.ts) — die Vorschau rechnet genauso.
+    const am = e.terminDatum ? berlinWandzeit(e.terminDatum, /^\d{1,2}:\d{2}$/.test(String(e.terminZeit || "")) ? String(e.terminZeit) : "10:00") : null;
+    const spaet = am ? zuSpaetGrund({ art, terminAm: am }, plan.ab, plan.wegenFenster) : null;
+    if (spaet) return { moeglich: false, art, zeile: `nichts — ${spaet}` };
     const zeitText = /^\d{1,2}:\d{2}$/.test(String(e.terminZeit || "")) ? `, ${e.terminZeit} Uhr` : "";
     return { moeglich: !!e.terminDatum, art, zeile: e.terminDatum ? `Rückruf ${kurzDatum(e.terminDatum)}${zeitText} bestätigen` : "Rückruf bestätigen (Tag fehlt noch)" };
   }
@@ -325,6 +385,6 @@ export function hinweisFuerMitarbeiter(u: NacharbeitUrteil, art: NacharbeitArt, 
   const was = art === "unterlagen" ? "den Upload-Link" : art === "gespraech" ? "eine kurze Zusammenfassung" : `die Zusammenfassung (${ART_TEXT[art]})`;
   if (u.art === "senden") return `Mara schickt dem Kunden gleich ${was}.`;
   if (u.art === "warten") return u.grund === GRUND.reif ? `Mara schickt dem Kunden in ein paar Minuten ${was}.` : `Mara schickt dem Kunden ${wannText(u.nichtVor, jetzt)} Uhr ${was}.`;
-  if (u.art === "auslassen") return `Mara schickt keine Mail: ${u.grund}.`;
-  return null;
+  // Auch „erledigt“ (bezahlt, Rückruf gleich dran) sagt den Grund — das Häkchen war an, der Mitarbeiter soll wissen, warum nichts kommt.
+  return `Mara schickt keine Mail: ${u.grund}.`;
 }

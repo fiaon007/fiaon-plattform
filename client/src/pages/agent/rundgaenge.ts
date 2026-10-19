@@ -279,7 +279,7 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "„Zahlt sofort/am …“: Betrag, Tag und seine Zahlungsseite. „Rückruf vereinbart“: Tag und Uhrzeit. „Erreicht – Sonstiges“: "
       + "eine kurze Zusammenfassung deiner Notiz (verspricht er Unterlagen: der Upload-Link). Mara schickt 8–20 Uhr, sonst am Morgen. "
       + "Der Vermerk steht in der Akte.",
-    tipp: "Passt es nicht, nimm das Häkchen raus. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
+    tipp: "Passt es nicht, nimm das Häkchen raus. Falsch geklickt? „Irrtümlich?“ am Eintrag nimmt die wartende Mail zurück. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
   },
   {
     // E-IT-A (08.10.2026): „heute erledigt · pausiert" am Kopf der rechten Spalte.
@@ -810,7 +810,7 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
       + "„Zahlt sofort/am …“: Betrag, Tag und seine Zahlungsseite. „Rückruf vereinbart“: Tag und Uhrzeit. „Erreicht – Sonstiges“: "
       + "eine kurze Zusammenfassung deiner Notiz (verspricht er Unterlagen: der Upload-Link). Mara schickt 8–20 Uhr, sonst am Morgen. "
       + "Der Vermerk steht in der Akte.",
-    tipp: "Passt es nicht, nimm das Häkchen raus. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
+    tipp: "Passt es nicht, nimm das Häkchen raus. Falsch geklickt? „Irrtümlich?“ am Eintrag nimmt die wartende Mail zurück. Bei Global, Sperre, Kündigung, Beschwerde oder ohne Adresse schickt Mara nichts — die Zeile sagt warum.",
   },
   {
     titel: "Viele Aufträge erledigen sich selbst.",

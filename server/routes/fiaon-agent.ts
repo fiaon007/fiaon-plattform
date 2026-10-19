@@ -2740,10 +2740,14 @@ router.post("/agent/log/:id/void", requireAgent, async (req: AgentRequest, res) 
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Eintrag nicht gefunden, fremd oder bereits korrigiert" });
     const label = rows[0].type === "note" ? "Notiz" : `Kontakt-Ergebnis „${rows[0].outcome || "—"}"`;
+    // E-406 C2 (Nachbesserung 19.10.2026): Wartet zu diesem Ergebnis Maras Nacharbeit-Mail, geht sie zurück — der Satz
+    // steht im Verlauf und in der Antwort. Schon unterwegs: Der Takt prüft den Eintrag beim Senden noch einmal. Wirft nie.
+    const { nacharbeitZuEintragZuruecknehmen } = await import("../lib/fiaon-mara-nacharbeit");
+    const maraHinweis = rows[0].type === "result" ? await nacharbeitZuEintragZuruecknehmen(id) : null;
     const entry = await logAction(rows[0].ref, req.agent!, "system", {
-      note: `${label} (Eintrag #${id}) als irrtümlich markiert durch ${req.agent!.name}`,
+      note: `${label} (Eintrag #${id}) als irrtümlich markiert durch ${req.agent!.name}${maraHinweis ? ` — ${maraHinweis}` : ""}`,
     });
-    res.json({ ok: true, entry });
+    res.json({ ok: true, entry, maraHinweis });
   } catch (err) {
     console.error("[FIAON-AGENT] log void:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

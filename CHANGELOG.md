@@ -19,6 +19,12 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 - **Wo:** shared/fiaon-mara-nacharbeit.ts (Regel), shared/fiaon-mara-nacharbeit-text.ts (Prüfung, Auftrag an Mara),
   server/lib/fiaon-mara-nacharbeit.ts (vormerken, Takt „mara_nacharbeit_mail“, Stand), server/mail/vorlagen/nacharbeit.ts,
   client/src/components/agent/MaraNacharbeitHaken.tsx; Prüfstände scripts/pruef-mara-nacharbeit.ts und -db.ts.
+- **Nachbesserung (Prüfer-Funde, 19.10.2026):** (1) Wäre die Mail bis zum nächsten Versand überholt — „Zahlt sofort“ ab ca. 19:57
+  (morgen früh ist „heute“ vorbei), ein Rückruf, der dann keine Stunde mehr entfernt ist —, schickt Mara keine und sagt es gleich
+  („Mara schickt keine Mail: sie schreibt erst ab 8 Uhr wieder, dann ist der zugesagte Tag vorbei.“); die Vorschau zeigt dann kein
+  Häkchen. Wird ein Merker im Takt „erledigt“, steht der Grund in der Akte. (2) Rückgängig nimmt wirklich zurück: „Irrtümlich?“ am
+  Verlaufseintrag (der Merker kennt seinen Eintrag, `ergebnisNachbereiten` gibt `logId` zurück; der Takt prüft ihn beim Senden
+  noch einmal), dasselbe Ergebnis mit bewusst abgewähltem Häkchen und jede heikle Notiz — jeweils mit Satz an den Mitarbeiter.
 
 ## 19.10.2026 — E-406 Welle 1 „Mara führt den Betrieb“: Heute dran (A), Mara-Inkasso erste Stufe (B1), Mara beantwortet Anliegen (C1) — abgenommen
 - **Was:** **(A) „Heute dran“** — jeder Mitarbeiter sieht auf /agent/start eine Liste mit höchstens 25 Einträgen aus allen Orten mit Arbeit

@@ -126,7 +126,8 @@ export function ErgebnisWahl({
     const mitHaken0 = haken.length && ereignisAusErgebnis(art) === "ergebnis_erreicht" ? { ...zusatz, erledigtAuftraege: haken } : zusatz;
     // E-406 C2: Das Häkchen gilt nur, wo die Vorschau eine Mail zeigt — der Server prüft beim Vormerken noch einmal.
     const vorschau = nacharbeitVorschau(maraDaten, { ergebnis: art, notiz: zusatz.notiz, zusageDatum: zusatz.zusageDatum, terminDatum: zusatz.terminDatum, terminZeit: zusatz.terminZeit, heute });
-    const mitHaken = { ...mitHaken0, maraNacharbeit: !!(maraDaten?.an && vorschau.moeglich && mara) };
+    // true = Mara schickt; false = stand zur Wahl und ist BEWUSST aus (nimmt eine wartende Mail zurück); sonst nichts.
+    const mitHaken = { ...mitHaken0, maraNacharbeit: maraDaten?.an && vorschau.moeglich ? mara : undefined };
     const a = await onErgebnis(art, wv && handwahlErlaubt(art) ? { ...mitHaken, wiedervorlage: wv } : mitHaken);
     // ── JEDER AUSGANG IST SICHTBAR ────────────────────────────────────────
     // Auch der Fehlerfall: Ein `catch`, das nichts anzeigt, verwandelt einen

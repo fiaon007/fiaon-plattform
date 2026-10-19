@@ -1209,6 +1209,7 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
       maraNacharbeit = await nacharbeitNachErgebnis({
         personId: Number(c.person_id), ref, ergebnis, notiz, zusageDatum: req.body?.zusageDatum || null, terminZeitpunkt,
         akteur: { id: req.agent!.id, name: req.agent!.name }, gewaehlt: req.body?.maraNacharbeit === true,
+        abgewaehlt: req.body?.maraNacharbeit === false, logId: nach?.logId ?? null,
       });
     }
     // E-397: „Daraus einen Termin machen?“ — auch am Telefon (Vorschlag nur; eingetragen wird nach dem Klick).

@@ -139,9 +139,38 @@ async function main() {
   ok(U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-20", vorgemerktAm: VORHIN }, B("2026-10-21T08:05:00+02:00")).art === "erledigt",
     "„Zahlt sofort“ um 20:30, der Morgen danach → erledigt (kein „heute“ von gestern)");
 
+  console.log("── 6b · Nachbesserung: bis zum Versand überholt → gleich auslassen, nie „morgen 08:00“ versprechen");
+  // Prüfer-Fund 19.10.2026: „Zahlt sofort“ um 20:30 → „Mara schickt morgen 08:00 Uhr …“, am Morgen still „erledigt“.
+  const a2030 = B("2026-10-20T20:30:00+02:00");
+  const uZ = U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-20", vorgemerktAm: a2030 }, a2030);
+  ok(uZ.art === "auslassen" && (uZ as any).grund === GRUND.zusageNachFenster, "„Zahlt sofort“ um 20:30 → auslassen (morgen früh wäre der Tag vorbei)", uZ);
+  const hZ = String(hinweisFuerMitarbeiter(uZ, "zusage", a2030));
+  ok(/^Mara schickt keine Mail: sie schreibt erst ab 8 Uhr wieder, dann ist der zugesagte Tag vorbei\.$/.test(hZ) && !/morgen 08:00/.test(hZ), `Satz an den Mitarbeiter: „${hZ}“`);
+  const a1958 = B("2026-10-20T19:58:00+02:00");
+  ok(U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-20", vorgemerktAm: a1958 }, a1958).art === "auslassen", "„Zahlt sofort“ um 19:58 (reif erst 20:01) → auslassen");
+  const a1950 = B("2026-10-20T19:50:00+02:00");
+  ok(U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-20", vorgemerktAm: a1950 }, a1950).art === "warten", "„Zahlt sofort“ um 19:50 (reif 19:53) → wartet, geht heute raus");
+  const uZm = U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-21", vorgemerktAm: a2030 }, a2030);
+  ok(uZm.art === "warten" && (uZm as any).nichtVor.toISOString() === B("2026-10-21T08:00:00+02:00").toISOString(), "„Zahlt am <morgen>“ um 20:30 → wartet bis morgen 08:00 (der Tag ist dann noch offen)", uZm);
+  const a0030 = B("2026-10-21T00:30:00+02:00");
+  ok(U({ art: "zusage", zahlung: zahlungOffen, zusageTag: "2026-10-21", vorgemerktAm: a0030 }, a0030).art === "warten", "„Zahlt sofort“ um 00:30 → wartet bis 08:00 desselben Tages");
+  const uT = U({ art: "termin", terminSteht: true, terminAm: B("2026-10-21T08:30:00+02:00"), vorgemerktAm: a2030 }, a2030);
+  ok(uT.art === "auslassen" && (uT as any).grund === GRUND.terminNachFenster, "Rückruf morgen 08:30, gebucht 20:30 → auslassen (um 8 Uhr steht er an)", uT);
+  ok(U({ art: "termin", terminSteht: true, terminAm: B("2026-10-21T10:00:00+02:00"), vorgemerktAm: a2030 }, a2030).art === "warten", "Rückruf morgen 10:00, gebucht 20:30 → wartet bis 08:00");
+  const a1400 = B("2026-10-20T14:00:00+02:00");
+  const uT2 = U({ art: "termin", terminSteht: true, terminAm: B("2026-10-20T15:02:00+02:00"), vorgemerktAm: a1400 }, a1400);
+  ok(uT2.art === "auslassen" && (uT2 as any).grund === GRUND.terminGleich, "Rückruf 15:02, gebucht 14:00 (nach der Wartezeit < 60 Min.) → auslassen", uT2);
+  ok(/^Mara schickt keine Mail: der Rückruf steht gleich an/.test(String(hinweisFuerMitarbeiter(U({ art: "termin", terminSteht: true, terminAm: new Date(MITTAG.getTime() + 30 * 60_000) }), "termin", MITTAG))),
+    "auch „erledigt“ beim Speichern sagt den Grund (Rückruf in 30 Min.)");
+  ok(U({ art: "gespraech", vorgemerktAm: a2030 }, a2030).art === "warten", "Zusammenfassung um 20:30 → wartet (nichts daran wird überholt)");
+  ok(U({ ergebnisGestrichen: true }).art === "auslassen" && (U({ ergebnisGestrichen: true }) as any).grund === GRUND.gestrichen, "Ergebnis „Irrtümlich?“ → nichts senden");
+  ok(/irrtümlich/.test((U({ ergebnisGestrichen: true, globalKunde: true }) as any).grund), "„Irrtümlich?“ geht vor allem anderen (außer Person weg)");
+  ok(R.berlinWandzeit("2026-10-25", "08:30")?.toISOString() === B("2026-10-25T08:30:00+01:00").toISOString() && R.berlinWandzeit("2026-10-24", "08:30")?.toISOString() === B("2026-10-24T08:30:00+02:00").toISOString(),
+    "Berliner Wandzeit über die Zeitumstellung");
+
   console.log("── 7 · Die Vorschau-Zeile (eine Zeile, vor dem Speichern)");
   const D: import("../shared/fiaon-mara-nacharbeit").NacharbeitVorschauDaten = { an: true, sperrGrund: null, betrag: "59,99 €", zahlungGrund: null, fehlende: ["kontoauszug"] };
-  const V = (e: Partial<Parameters<typeof nacharbeitVorschau>[1]>, d: typeof D | null = D) => nacharbeitVorschau(d, { ergebnis: null, heute: "2026-10-20", ...e } as any);
+  const V = (e: Partial<Parameters<typeof nacharbeitVorschau>[1]>, d: typeof D | null = D) => nacharbeitVorschau(d, { ergebnis: null, heute: "2026-10-20", jetzt: MITTAG, ...e } as any);
   const vg = V({ ergebnis: "erreicht_zahlt_gleich" });
   ok(vg.moeglich && vg.zeile === "59,99 € heute + Zahlungsseite", `Zahlt sofort → „${vg.zeile}“`);
   const va = V({ ergebnis: "erreicht_zahlt_am", zusageDatum: "2026-10-22" });
@@ -163,6 +192,19 @@ async function main() {
   ok(!V({ ergebnis: "nicht_erreicht" }).art, "nicht erreicht → keine Zeile");
   ok(!V({ ergebnis: "erreicht_zahlt_gleich" }, null).moeglich, "Daten noch nicht geladen → kein Häkchen");
   for (const v of [vg, va, vt, vs, vu]) ok(v.zeile.length <= 60, `Zeile knapp (${v.zeile.length} Zeichen): „${v.zeile}“`);
+  // Nachbesserung: dieselbe Uhr wie beim Vormerken — abends kein Häkchen, wo die Mail bis 8 Uhr überholt wäre.
+  const VA = (e: Partial<Parameters<typeof nacharbeitVorschau>[1]>) => V({ jetzt: a2030, ...e });
+  const vgA = VA({ ergebnis: "erreicht_zahlt_gleich" });
+  ok(!vgA.moeglich && /ab 8 Uhr.*Tag vorbei/.test(vgA.zeile), `20:30 „Zahlt sofort“ → kein Häkchen („${vgA.zeile}“)`);
+  ok(!VA({ ergebnis: "erreicht_zahlt_am", zusageDatum: "2026-10-20" }).moeglich, "20:30 „Zahlt am <heute>“ → kein Häkchen");
+  const vaA = VA({ ergebnis: "erreicht_zahlt_am", zusageDatum: "2026-10-22" });
+  ok(vaA.moeglich && vaA.zeile === "59,99 € bis Do 22.10. + Zahlungsseite", `20:30 „Zahlt am 22.10.“ → Häkchen („${vaA.zeile}“)`);
+  const vtA = VA({ ergebnis: "rueckruf_termin", terminDatum: "2026-10-21", terminZeit: "08:30" });
+  ok(!vtA.moeglich && /Rückruf schon an/.test(vtA.zeile), `20:30, Rückruf morgen 08:30 → kein Häkchen („${vtA.zeile}“)`);
+  ok(VA({ ergebnis: "rueckruf_termin", terminDatum: "2026-10-21", terminZeit: "" }).moeglich, "20:30, Rückruf morgen ohne Uhrzeit (Server: 10:00) → Häkchen");
+  ok(VA({ ergebnis: "rueckruf_termin", terminDatum: "2026-10-21", terminZeit: "10:00" }).moeglich, "20:30, Rückruf morgen 10:00 → Häkchen");
+  ok(!V({ ergebnis: "rueckruf_termin", terminDatum: "2026-10-20", terminZeit: "12:30", jetzt: MITTAG }).moeglich, "12:00, Rückruf 12:30 → kein Häkchen (gleich dran)");
+  ok(V({ ergebnis: "erreicht_zahlt_gleich", jetzt: MITTAG }).moeglich, "12:00 „Zahlt sofort“ → Häkchen");
 
   console.log("── 8 · Der Satz nach dem Speichern");
   ok(/in ein paar Minuten die Zusammenfassung \(Zahlungszusage\)/.test(String(hinweisFuerMitarbeiter({ art: "warten", nichtVor: MITTAG, grund: GRUND.reif }, "zusage", MITTAG))), "reif → „in ein paar Minuten“");
@@ -244,15 +286,21 @@ async function main() {
   ok(/tageslauf\('mara_nacharbeit_mail'[\s\S]{0,200}nacharbeitTakt\(\)[\s\S]{0,80}2 \* 60 \* 1000/.test(routes), "Takt alle 2 Min. (nur mit Ergebnis in der Historie)");
   const ak = lies("server/routes/fiaon-agent-kunden.ts");
   ok(/nacharbeitNachErgebnis\(\{[\s\S]{0,300}gewaehlt: req\.body\?\.maraNacharbeit === true/.test(ak), "Kundenkarte/Akte: Häkchen → vormerken (nur bei true)");
+  ok(/abgewaehlt: req\.body\?\.maraNacharbeit === false, logId: nach\.logId \?\? null/.test(ak), "Kundenkarte/Akte: bewusst abgewählt + Verlaufseintrag an Mara");
   ok(/maraNacharbeit\?\.hinweis \? ` · \$\{maraNacharbeit\.hinweis\}`/.test(ak), "Kundenkarte/Akte: der Satz hängt an der Meldung");
   ok(/router\.get\("\/agent\/crm\/kunden\/:personId\/mara-nacharbeit"[\s\S]{0,700}darfAnKunde/.test(ak), "Vorschau-Daten: nur für den eigenen Kunden (darfAnKunde)");
   ok(!/mara-nacharbeit\?[^"`]*notiz/.test(ak + lies("client/src/components/agent/MaraNacharbeitHaken.tsx")), "keine Notiz in der Adresse (Vorschau ohne Query)");
   const tel = lies("server/routes/fiaon-telefonie.ts");
   ok(/nacharbeitNachErgebnis\(\{[\s\S]{0,300}gewaehlt: req\.body\?\.maraNacharbeit === true/.test(tel), "Telefon-Route: derselbe Weg");
+  ok(/abgewaehlt: req\.body\?\.maraNacharbeit === false, logId: nach\?\.logId \?\? null/.test(tel), "Telefon-Route: Verlaufseintrag an Mara");
+  const ke = lies("server/lib/fiaon-kontakt-ergebnis.ts");
+  ok(/INSERT INTO fiaon_contact_log[\s\S]{0,500}RETURNING id/.test(ke) && /logId: eintrag\?\.id != null \? Number\(eintrag\.id\) : null/.test(ke), "ergebnisNachbereiten gibt den Verlaufseintrag zurück (logId)");
+  const ag = lies("server/routes/fiaon-agent.ts");
+  ok(/router\.post\("\/agent\/log\/:id\/void"[\s\S]{0,1200}nacharbeitZuEintragZuruecknehmen\(id\)[\s\S]{0,400}res\.json\(\{ ok: true, entry, maraHinweis \}\)/.test(ag), "„Irrtümlich?“ (void-Route) nimmt die wartende Mail zurück und sagt es");
   const ew = lies("client/src/components/agent/ErgebnisWahl.tsx");
-  ok(/<MaraNacharbeitHaken/.test(ew) && /maraNacharbeit: !!\(maraDaten\?\.an && vorschau\.moeglich && mara\)/.test(ew), "ErgebnisWahl: Häkchen mit Vorschau, schickt maraNacharbeit");
+  ok(/<MaraNacharbeitHaken/.test(ew) && /maraNacharbeit: maraDaten\?\.an && vorschau\.moeglich \? mara : undefined/.test(ew), "ErgebnisWahl: Häkchen mit Vorschau, schickt true/false nur, wenn es zur Wahl stand");
   const pl = lies("client/src/pages/agent/pipeline.tsx");
-  ok(/<MaraNacharbeitHaken[\s\S]{0,800}?dunkel \/>/.test(pl) && /maraNacharbeit: !!\(maraDaten\?\.an && v\.moeglich && mara\)/.test(pl), "Akte (dunkel): dasselbe Häkchen");
+  ok(/<MaraNacharbeitHaken[\s\S]{0,800}?dunkel \/>/.test(pl) && /maraNacharbeit: maraDaten\?\.an && v\.moeglich \? mara : undefined/.test(pl), "Akte (dunkel): dasselbe Häkchen");
   const sp = lies("server/routes/fiaon-mara-steuerpult.ts");
   ok(/router\.get\("\/chef\/mara\/nacharbeit"/.test(sp) && /router\.post\("\/chef\/mara\/nacharbeit"[\s\S]{0,400}chefProtokoll/.test(sp), "Mara-Einstellungen: GET/POST /chef/mara/nacharbeit mit Chef-Protokoll");
   ok(/data-mara-schalter="nacharbeit"/.test(lies("client/src/components/admin/ChefMaraTermine.tsx")), "Chefbüro › Mara › Termine: der Schalter (keine neue Seite)");
@@ -265,6 +313,8 @@ async function main() {
   ok(/versendenUndProtokollieren\(NACHARBEIT_EVENT/.test(srv) && /verlaufRef: ref, verlaufText/.test(srv), "Versand über den einen Weg (Protokoll + Verlauf in der Akte)");
   ok(/unterlagenAnfrageSenden\(\{[\s\S]{0,200}quelle: "mara_nacharbeit"/.test(srv) && /ereignis: "unterlage_angefordert"/.test(srv), "Unterlagen: bestehende Bitte mit Upload-Link + Ereignis an die Aufträge (E-397)");
   ok(/kiPausiert/.test(srv) && /istKiPause\(err\)/.test(srv), "KI-Pause: die Zusammenfassung wartet");
+  ok(/if \(u\.art === "erledigt"\) \{[\s\S]{0,250}akteVermerk\(m, `Mara hat nach dem Gespräch keine Zusammenfassung geschickt: \$\{u\.grund\}\.`\)/.test(srv), "Takt: auch „erledigt“ schreibt den Vermerk in die Akte");
+  ok(/ergebnisGestrichen = !e \|\| e\.voided_at != null/.test(srv) && /RETURNING id, person_id[^`]*log_id`/.test(srv), "Takt: prüft den Verlaufseintrag (voided_at) beim Senden");
   ok(!/zahlungBuchen|markPaid|mark-paid|erstattung(?:Buchen|Ausloesen)/i.test(srv), "Geld bucht Mara nie (kein Buchungsweg im Modul)");
 
   console.log("── 12 · Kündigungs-Code nicht angefasst (Jahresvertrag-Sitzung, E-396)");

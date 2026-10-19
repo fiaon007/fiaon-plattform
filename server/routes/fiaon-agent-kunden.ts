@@ -929,13 +929,16 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     // ── E-406 C2 (19.10.2026): NACH DEM ANRUF MACHT MARA DIE NACHARBEIT ─────────────────────────────────────────
     // Mit dem Häkchen „Mara schickt die Zusammenfassung“ (maraNacharbeit: true) merkt Mara die passende Mail vor
     // (Zahlungszusage, Rückruf, Zusammenfassung, Upload-Link) — gesendet wird im Takt (08–20 Uhr, nie doppelt).
-    // Ohne Häkchen nimmt ein anderes Ergebnis binnen Minuten eine wartende Mail zurück (berichtigt). Wirft nie.
+    // Ohne Häkchen nimmt ein anderes Ergebnis binnen Minuten eine wartende Mail zurück (berichtigt); ein BEWUSST
+    // abgewähltes Häkchen (maraNacharbeit: false) auch beim gleichen Ergebnis. Der Merker kennt seinen Verlaufseintrag
+    // (logId) — „Irrtümlich?“ daran nimmt die Mail zurück. Wirft nie.
     let maraNacharbeit: Awaited<ReturnType<typeof import("../lib/fiaon-mara-nacharbeit").nacharbeitNachErgebnis>> | null = null;
     if (ergebnis && !uebergabe?.ok) {
       const { nacharbeitNachErgebnis } = await import("../lib/fiaon-mara-nacharbeit");
       maraNacharbeit = await nacharbeitNachErgebnis({
         personId, ref: p.schreib_ref, ergebnis, notiz, zusageDatum, terminZeitpunkt,
         akteur: { id: req.agent!.id, name: req.agent!.name }, gewaehlt: req.body?.maraNacharbeit === true,
+        abgewaehlt: req.body?.maraNacharbeit === false, logId: nach.logId ?? null,
       });
     }
 

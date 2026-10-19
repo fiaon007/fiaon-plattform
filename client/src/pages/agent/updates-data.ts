@@ -96,12 +96,12 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "„Zahlt sofort“ / „Zahlt am …“: Betrag, Tag, Verwendungszweck und ein Knopf zu seiner Zahlungsseite.",
       "„Rückruf vereinbart“: Tag, Uhrzeit und wer anruft.",
       "„Erreicht – Sonstiges“: eine kurze Zusammenfassung deiner Notiz. Steht in der Notiz, dass er Unterlagen schickt, bekommt er den Upload-Link.",
-      "Mara schickt zwischen 8 und 20 Uhr, sonst am nächsten Morgen. Der Vermerk steht in der Akte.",
+      "Mara schickt zwischen 8 und 20 Uhr, sonst am nächsten Morgen. Wäre es dann zu spät (z. B. „Zahlt sofort“ nach 20 Uhr), schickt sie nichts und sagt es dir gleich. Der Vermerk steht in der Akte.",
       "Keine Mail bei „Nicht erreicht“, bei Global-Kunden, Sperren, Kündigung, Beschwerde oder ohne E-Mail-Adresse — die Zeile sagt dir dann warum.",
     ],
     howto: [
       "Akte oder Kundenkarte öffnen, Ergebnis wählen. Unter den Knöpfen steht „Mara schickt die Zusammenfassung · …“.",
-      "Passt es nicht: Häkchen raus, dann speichern. Falsch geklickt? Ein anderes Ergebnis in den nächsten Minuten nimmt die Mail zurück.",
+      "Passt es nicht: Häkchen raus, dann speichern. Falsch geklickt? „Irrtümlich?“ am Eintrag, dasselbe Ergebnis ohne Häkchen oder ein anderes Ergebnis in den nächsten Minuten nimmt die wartende Mail zurück.",
       "Schreib die Notiz bei „Sonstiges“ so, dass der Kunde sie verstehen darf — Mara macht daraus zwei, drei freundliche Sätze.",
     // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
     id: "2026-10-20-aras-probe",

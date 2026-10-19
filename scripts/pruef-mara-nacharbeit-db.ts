@@ -142,7 +142,7 @@ async function main() {
 
   console.log("── 3 · Berichtigen: ein anderes Ergebnis ohne Häkchen nimmt die wartende Mail zurück");
   const K = await person("Karl", "Korrekturprobe");
-  await nach(K, "erreicht_zahlt_gleich");
+  await nach(K, "erreicht_zahlt_am", { zusageDatum: tagPlus(2) });
   const wK = await nach(K, "nicht_erreicht", { gewaehlt: false });
   ok(wK.ersetzt === true && (await letzter(K.pid))?.status === "zurueckgenommen", "„Nicht erreicht“ gleich danach → zurückgenommen", await letzter(K.pid));
   const K2 = await person("Kira", "Doppelbuchprobe");
@@ -157,7 +157,7 @@ async function main() {
   ok(wK3.ersetzt === true && mK3[0].status === "ersetzt" && mK3[1].status === "ausgelassen", "neueres Ergebnis mit Häkchen, aber heikel → die wartende ist ersetzt, nichts wartet mehr", mK3.map((x: any) => `${x.status}:${x.grund}`));
   // „Nicht erreicht“ MIT Häkchen (direkter Aufruf) merkt nichts vor, berichtigt aber wie ohne.
   const K4 = await person("Kurt", "Direktaufrufprobe");
-  await nach(K4, "erreicht_zahlt_gleich");
+  await nach(K4, "erreicht_zahlt_am", { zusageDatum: tagPlus(2) });
   const wK4 = await nach(K4, "nicht_erreicht", { gewaehlt: true });
   ok(wK4.ersetzt === true && (await merker(K4.pid)).length === 1 && (await letzter(K4.pid))?.status === "zurueckgenommen", "„Nicht erreicht“ mit Häkchen → kein Merker, die wartende ist zurückgenommen");
   await takt();
@@ -301,7 +301,8 @@ async function main() {
   const VZ = await person("Vali", "Vorschauprobe");
   const vd = await N.vorschauDaten(VZ.pid);
   ok(vd.an && !vd.sperrGrund && vd.betrag === "59,99 €" && !vd.zahlungGrund, "offene Zahlung → „59,99 €“", vd);
-  const vs = R.nacharbeitVorschau(vd, { ergebnis: "erreicht_zahlt_gleich", heute: R.berlinTag(new Date()) });
+  // Mittags gerechnet (die Uhr der Vorschau zählt seit der Nachbesserung: abends kein „Zahlt sofort“) — zeitunabhängig.
+  const vs = R.nacharbeitVorschau(vd, { ergebnis: "erreicht_zahlt_gleich", heute: R.berlinTag(new Date()), jetzt: new Date(`${R.berlinTag(new Date())}T10:00:00Z`) });
   ok(vs.moeglich && vs.zeile === "59,99 € heute + Zahlungsseite", `Zeile: „${vs.zeile}“`);
   const vdM = await N.vorschauDaten(negativ[6].pid);
   ok(/keine E-Mail-Adresse/.test(vdM.sperrGrund ?? ""), "ohne Adresse → Grund statt Häkchen", vdM);
@@ -331,6 +332,81 @@ async function main() {
   const st = await N.nacharbeitStand();
   ok(st.an && st.eingerichtet && st.woche.versandt >= 6 && st.jeArt.zusage >= 3 && st.jeArt.termin >= 1 && st.jeArt.gespraech >= 2 && st.jeArt.unterlagen >= 1, "Zahlen je Art", st);
   ok(st.gruende.length > 0 && st.kostenCents > 0, "Gründe fürs Auslassen und KI-Kosten", { g: st.gruende, k: st.kostenCents });
+
+  console.log("── 13 · Nachbesserung (Prüfer-Fund 19.10.2026): abends nie „morgen 08:00“ versprechen, Rückgängig nimmt wirklich zurück");
+  const um2030 = ["+02:00", "+01:00"].map((v) => new Date(`${heute}T20:30:00${v}`)).find((d) => NE.berlinMinuten(d) === 20 * 60 + 30)!;
+  // a) „Zahlt sofort“ um 20:30 → sofort ausgelassen, mit ehrlichem Satz (vorher: „morgen 08:00 Uhr …“, am Morgen still nichts).
+  const A1 = await person("Anton", "Spaetzusageprobe");
+  const wA1 = await nach(A1, "erreicht_zahlt_gleich", {}, um2030);
+  ok(wA1.urteil?.art === "auslassen" && (wA1.urteil as any).grund === R.GRUND.zusageNachFenster, "„Zahlt sofort“ um 20:30 → ausgelassen (morgen früh wäre der Tag vorbei)", wA1);
+  ok(/^Mara schickt keine Mail: sie schreibt erst ab 8 Uhr wieder/.test(wA1.hinweis ?? "") && !/morgen 08:00/.test(wA1.hinweis ?? ""), `Satz ohne leeres Versprechen: „${wA1.hinweis}“`);
+  ok((await letzter(A1.pid))?.status === "ausgelassen", "Merker „ausgelassen“ (nichts wartet bis morgen)");
+  const A2 = await person("Alma", "Morgenzusageprobe");
+  const wA2 = await nach(A2, "erreicht_zahlt_am", { zusageDatum: tagPlus(1) }, um2030);
+  ok(wA2.urteil?.art === "warten" && /08:00 Uhr/.test(wA2.hinweis ?? ""), "„Zahlt am <morgen>“ um 20:30 → wartet bis 08:00 (der Tag ist dann offen)", wA2);
+  // b) Rückruf morgen 08:30, gebucht 20:30 → ausgelassen; morgen 11:00 → wartet.
+  const A3 = await person("Arne", "Fruehrueckrufprobe");
+  const frueh830 = `${tagPlus(1)}T08:30:00`;
+  await sql`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, scheduled_at, created_at) VALUES (${A3.ref}, ${AGENT}, 'Daniel Stripling', 'result', 'rueckruf_termin', ${parseBerlinInput(frueh830)}, NOW())`;
+  const wA3 = await nach(A3, "rueckruf_termin", { terminZeitpunkt: frueh830 }, um2030);
+  ok(wA3.urteil?.art === "auslassen" && (wA3.urteil as any).grund === R.GRUND.terminNachFenster && /keine Mail/.test(wA3.hinweis ?? ""), "Rückruf morgen 08:30, gebucht 20:30 → ausgelassen", wA3);
+  const A4 = await person("Asta", "Elfuhrrueckrufprobe");
+  const spaet11 = `${tagPlus(1)}T11:00:00`;
+  await sql`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, scheduled_at, created_at) VALUES (${A4.ref}, ${AGENT}, 'Daniel Stripling', 'result', 'rueckruf_termin', ${parseBerlinInput(spaet11)}, NOW())`;
+  const wA4 = await nach(A4, "rueckruf_termin", { terminZeitpunkt: spaet11 }, um2030);
+  ok(wA4.urteil?.art === "warten", "Rückruf morgen 11:00, gebucht 20:30 → wartet bis 08:00", wA4);
+  // c) Ein Merker, der im Takt „erledigt“ wird (Tag vorbei), schreibt den Vermerk in die Akte.
+  const A5 = await person("Abel", "Erledigtvermerkprobe");
+  await sql`INSERT INTO fiaon_mara_nacharbeit (person_id, ref, art, ergebnis, zusage_tag, status, vorgemerkt_am, agent_id)
+            VALUES (${A5.pid}, ${A5.ref}, 'zusage', 'erreicht_zahlt_gleich', ${tagPlus(-1)}::date, 'vorgemerkt', NOW() - INTERVAL '1 hour', ${AGENT})`;
+  await takt();
+  ok((await letzter(A5.pid))?.status === "erledigt" && anBrevo("Erledigtvermerkprobe").length === 0, "Zusage von gestern im Takt → erledigt, keine Mail", await letzter(A5.pid));
+  ok((await vermerke(A5, "Mara hat nach dem Gespräch keine Zusammenfassung geschickt: der zugesagte Tag ist vorbei.")).length === 1, "… und die Akte sagt warum (Vermerk)");
+  // d) „Irrtümlich?“ am Verlaufseintrag: ergebnisNachbereiten gibt den Eintrag, der Merker kennt ihn, die void-Route nimmt zurück.
+  const { ergebnisNachbereiten } = await import("../server/lib/fiaon-kontakt-ergebnis");
+  const I1 = await person("Ida", "Irrtumprobe");
+  const nI1 = await ergebnisNachbereiten({ ref: I1.ref!, personId: I1.pid, ergebnis: "erreicht_zahlt_am" as any, zusageDatum: tagPlus(2), akteur, herkunft: "liste" });
+  const [eI1] = (await sql`SELECT id, outcome FROM fiaon_contact_log WHERE id = ${nI1.logId ?? 0}`) as any[];
+  ok(Number.isInteger(nI1.logId) && eI1?.outcome === "erreicht_zahlt_am", "ergebnisNachbereiten gibt den Verlaufseintrag zurück (logId)", nI1.logId);
+  await nach(I1, "erreicht_zahlt_am", { zusageDatum: tagPlus(2), logId: nI1.logId });
+  ok(Number((await letzter(I1.pid))?.log_id) === nI1.logId && (await letzter(I1.pid))?.status === "vorgemerkt", "der Merker kennt seinen Eintrag (log_id)");
+  // So wie POST /agent/log/:id/void: Eintrag streichen, dann zurücknehmen.
+  await sql`UPDATE fiaon_contact_log SET voided_at = NOW(), voided_by = ${AGENT} WHERE id = ${nI1.logId}`;
+  const hI1 = await N.nacharbeitZuEintragZuruecknehmen(nI1.logId!);
+  ok(/zurückgenommen/.test(hI1 ?? "") && (await letzter(I1.pid))?.status === "zurueckgenommen", `„Irrtümlich?“ → zurückgenommen („${hI1}“)`, await letzter(I1.pid));
+  ok((await N.nacharbeitZuEintragZuruecknehmen(nI1.logId!)) === null, "zweimal „Irrtümlich?“ → nichts mehr zurückzunehmen (null)");
+  // Schon gestrichen, aber der Merker wartet noch (oder ist schon im Takt): der Takt prüft den Eintrag selbst.
+  const I2 = await person("Ines", "Irrtumtaktprobe");
+  const [eI2] = (await sql`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, created_at) VALUES (${I2.ref}, ${AGENT}, 'Daniel Stripling', 'result', 'erreicht_zahlt_am', NOW()) RETURNING id`) as any[];
+  await nach(I2, "erreicht_zahlt_am", { zusageDatum: tagPlus(2), logId: Number(eI2.id) });
+  await sql`UPDATE fiaon_contact_log SET voided_at = NOW() WHERE id = ${eI2.id}`;
+  await takt();
+  ok(anBrevo("Irrtumtaktprobe").length === 0 && (await letzter(I2.pid))?.status === "zurueckgenommen", "gestrichener Eintrag → der Takt sendet nicht (zurückgenommen)", await letzter(I2.pid));
+  // e) Dasselbe Ergebnis noch einmal, Häkchen BEWUSST aus → zurückgenommen, mit Satz. Ohne Wahl (Telefon) bleibt sie (Abschnitt 3).
+  const H1 = await person("Hans", "Hakenausprobe");
+  await nach(H1, "erreicht_zahlt_am", { zusageDatum: tagPlus(2) });
+  const wH1 = await nach(H1, "erreicht_zahlt_am", { zusageDatum: tagPlus(2), gewaehlt: false, abgewaehlt: true });
+  ok(wH1.ersetzt === true && /^Häkchen aus: Maras wartende Zusammenfassung ist zurückgenommen/.test(wH1.hinweis ?? "") && (await letzter(H1.pid))?.status === "zurueckgenommen",
+    "dasselbe Ergebnis, Häkchen bewusst aus → zurückgenommen + Satz", { wH1, m: await letzter(H1.pid) });
+  const H2 = await person("Hedi", "Altwartendprobe");
+  await nach(H2, "erreicht_zahlt_am", { zusageDatum: tagPlus(2) }, new Date(Date.now() - 40 * 60_000));
+  await nach(H2, "erreicht_zahlt_am", { zusageDatum: tagPlus(2), gewaehlt: false, abgewaehlt: true });
+  ok((await letzter(H2.pid))?.status === "zurueckgenommen", `bewusst aus nimmt auch eine ältere (> ${R.KORREKTUR_MINUTEN} Min.) wartende zurück`);
+  // f) Eine heikle Notiz ohne Häkchen nimmt die wartende Mail zurück — auch beim gleichen Ergebnis.
+  const H3 = await person("Holger", "Heikelnachtragprobe");
+  await nach(H3, "erreicht_zahlt_am", { zusageDatum: tagPlus(2) });
+  const wH3 = await nach(H3, "erreicht_zahlt_am", { zusageDatum: tagPlus(2), gewaehlt: false, notiz: "Kunde will doch kündigen." });
+  ok((await letzter(H3.pid))?.status === "zurueckgenommen" && /Kündigung/.test(wH3.hinweis ?? ""), `heikle Notiz → zurückgenommen („${wH3.hinweis}“)`, await letzter(H3.pid));
+  await takt();
+  ok(anBrevo("Irrtumprobe").length === 0 && anBrevo("Hakenausprobe").length === 0 && anBrevo("Altwartendprobe").length === 0 && anBrevo("Heikelnachtragprobe").length === 0 && anBrevo("Spaetzusageprobe").length === 0 && anBrevo("Fruehrueckrufprobe").length === 0,
+    "Takt: nichts von alledem geht raus");
+  // g) Die Vorschau-Daten um 20:30: die ZAHLUNG zählt, nicht die Uhr (sonst sperrte „heute“ auch „Zahlt am Donnerstag“).
+  const A6 = await person("Alva", "Abendvorschauprobe");
+  const vdA = await N.vorschauDaten(A6.pid, um2030);
+  ok(vdA.betrag === "59,99 €" && !vdA.zahlungGrund, "Vorschau-Daten um 20:30: Betrag da, kein Zahlungsgrund", vdA);
+  ok(R.nacharbeitVorschau(vdA, { ergebnis: "erreicht_zahlt_am", zusageDatum: tagPlus(2), heute: R.berlinTag(um2030), jetzt: um2030 }).moeglich
+     && !R.nacharbeitVorschau(vdA, { ergebnis: "erreicht_zahlt_gleich", heute: R.berlinTag(um2030), jetzt: um2030 }).moeglich,
+    "20:30: „Zahlt am <übermorgen>“ mit Häkchen, „Zahlt sofort“ ohne");
 
   ok(FREMD.length === 0, "kein Netzaufruf außer der Brevo-Attrappe", FREMD);
   console.log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut}/${gut + schlecht} Prüfungen bestanden.`);

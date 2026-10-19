@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business/angebot/:token — DAS KAPITAL-ANGEBOT FÜR FIRMENKUNDEN, Register E-399
+
+   Baut auf global-angebot-firma.css (.gaf), global-angebot-begleit.css (.gab) und dem Glasblau-Umbau aus
+   global-angebot-koop.css (.gak, kein Gold) auf. Eigene Teile mit gkp-: Hero mit Lichtfahnen und dem Kapitalplan
+   (Zähler, Glasring), Name mit Live-Urkunde, Bürgschaft als helle Glastafel mit Siegel, zwei Preiskarten.
+   Navy genau EINMAL: die Compliance-Bühne. Am Handy stapelt alles, Bewegung aus bei prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gkp .gaf-abschnitt { padding-top:120px; }
+@media (max-width:720px) { .gkp .gaf-abschnitt { padding-top:80px; } }
+
+/* ── Hero ──────────────────────────────────────────────────────────────── */
+.gkp-hero { position:relative; overflow:hidden; padding:64px 0 40px; }
+.gkp-licht { position:absolute; inset:0; pointer-events:none; }
+.gkp-licht span { position:absolute; width:70vw; height:70vw; border-radius:50%; filter:blur(10px); opacity:.55; }
+.gkp-licht span:nth-child(1) { right:-22vw; top:-30vw; background:radial-gradient(circle, rgba(40,141,250,.22), rgba(40,141,250,0) 62%); animation:gkpSchweben 14s ease-in-out infinite alternate; }
+.gkp-licht span:nth-child(2) { left:-30vw; top:8vw; background:radial-gradient(circle, rgba(29,78,216,.12), rgba(29,78,216,0) 60%); animation:gkpSchweben 18s ease-in-out infinite alternate-reverse; }
+@keyframes gkpSchweben { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(-3vw,2vw,0) scale(1.06); } }
+.gkp-hero .gab-hero-raster { position:relative; align-items:center; }
+.gkp-hero-knoepfe { margin-top:30px; display:flex; flex-wrap:wrap; gap:12px; }
+.gkp-knopf { display:inline-flex; align-items:center; gap:10px; min-height:48px; padding:0 22px; border-radius:999px; border:0; cursor:pointer;
+  font:500 15px/1 var(--sans); color:#fff; background:linear-gradient(135deg,#288dfa,#1d4ed8); box-shadow:0 14px 30px -14px rgba(29,78,216,.7); transition:transform .3s var(--ease), box-shadow .3s; }
+.gkp-knopf:hover { transform:translateY(-2px); box-shadow:0 18px 36px -14px rgba(29,78,216,.8); }
+.gkp-knopf-leise { min-height:48px; padding:0 20px; border-radius:999px; border:1px solid var(--linie-2); background:rgba(255,255,255,.7); color:var(--tinte); font:500 15px/1 var(--sans); cursor:pointer; }
+.gkp-knopf:focus-visible, .gkp-knopf-leise:focus-visible { outline:2px solid #288dfa; outline-offset:3px; }
+
+.gkp-plan { position:relative; padding:40px 36px 30px; border-radius:28px; background:rgba(255,255,255,.72); border:1px solid rgba(40,141,250,.22);
+  box-shadow:0 40px 90px -40px rgba(12,26,46,.42), 0 1px 0 rgba(255,255,255,.95) inset; -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); overflow:hidden; container-type:inline-size; }
+.gkp-plan-ring { position:absolute; right:-90px; top:-90px; width:260px; height:260px; border-radius:50%;
+  background:conic-gradient(from 0deg, rgba(40,141,250,0), rgba(40,141,250,.35), rgba(29,78,216,.05), rgba(40,141,250,0)); animation:gkpDreh 16s linear infinite; }
+.gkp-plan-ring::after { content:""; position:absolute; inset:14px; border-radius:50%; background:rgba(255,255,255,.86); }
+@keyframes gkpDreh { to { transform:rotate(360deg); } }
+.gkp-plan-auge { position:relative; font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-tief); font-weight:500; }
+.gkp-plan-betrag { position:relative; margin-top:16px; font-family:var(--serif); font-weight:300; font-size:min(84px, 17cqw); line-height:1; letter-spacing:-.03em;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; font-variant-numeric:tabular-nums; }
+.gkp-plan-usd { position:relative; margin-top:10px; font-size:19px; color:var(--tinte); }
+.gkp-plan-kurs { position:relative; margin-top:4px; font-size:12.5px; color:var(--leise); }
+.gkp-plan-linie { position:relative; height:1px; margin:22px 0 18px; background:linear-gradient(90deg, rgba(40,141,250,.0), rgba(40,141,250,.55), rgba(40,141,250,0)); }
+.gkp-plan-saeulen { position:relative; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.gkp-plan-saeulen li { padding:12px; border-radius:14px; background:var(--elfenbein); }
+.gkp-plan-saeulen span { display:block; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-tief); }
+.gkp-plan-saeulen b { display:block; margin-top:6px; font-weight:500; font-size:14px; line-height:1.35; color:var(--tinte); }
+
+/* ── Name ──────────────────────────────────────────────────────────────── */
+.gkp-name-raster { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:56px; align-items:center; }
+
+/* ── Bürgschaft ────────────────────────────────────────────────────────── */
+.gkp-buerg { position:relative; display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr); gap:28px 48px; padding:48px; border-radius:28px;
+  background:linear-gradient(160deg, rgba(255,255,255,.9), #eef6ff); border:1px solid rgba(40,141,250,.22); box-shadow:0 40px 90px -50px rgba(29,78,216,.45); }
+.gkp-buerg-siegel { display:grid; justify-items:center; align-content:center; gap:10px; }
+.gkp-buerg-siegel span { font-family:var(--serif); font-size:30px; color:var(--tinte); letter-spacing:-.01em; }
+.gkp-dreh { transform-origin:60px 60px; animation:gkpDreh 30s linear infinite; }
+.gkp-buerg-punkte { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.gkp-buerg-punkte li { padding:18px 20px; border-radius:16px; background:#fff; border:1px solid var(--linie); }
+.gkp-buerg-punkte b { display:block; font-weight:500; color:var(--tinte); font-size:15.5px; }
+.gkp-buerg-punkte span { display:block; margin-top:6px; font-size:14px; line-height:1.55; color:var(--leise); }
+.gkp-buerg-bed { grid-column:1 / -1; }
+.gkp-buerg-bed ol { margin-top:12px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.gkp-buerg-bed li { display:flex; gap:12px; align-items:flex-start; font-size:14.5px; line-height:1.55; color:var(--tinte); }
+.gkp-buerg-bed i { flex:0 0 auto; display:grid; place-items:center; width:24px; height:24px; border-radius:50%; font:600 12px/1 var(--sans); font-style:normal; color:#fff; background:var(--gold-verlauf); }
+.gkp-buerg > .gaf-fein { grid-column:1 / -1; }
+
+/* ── Investition ───────────────────────────────────────────────────────── */
+.gkp-preise { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); gap:16px; }
+.gkp-preis { padding:34px; border-radius:24px; background:rgba(255,255,255,.8); border:1px solid var(--linie); }
+.gkp-preis.gross { border-color:rgba(40,141,250,.3); box-shadow:0 30px 70px -40px rgba(29,78,216,.45); }
+.gkp-preis-betrag { font-family:var(--serif); font-weight:300; font-size:clamp(46px,6vw,64px); line-height:1; letter-spacing:-.02em;
+  background:var(--gold-text); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.gkp-preis-betrag.klein { font-size:clamp(34px,4vw,44px); color:var(--tinte); background:none; -webkit-text-fill-color:currentColor; }
+.gkp-preis-zeile { margin-top:12px; font-size:14.5px; color:var(--leise); }
+.gkp-inklusive { margin-top:20px; padding:28px 30px; border-radius:22px; background:var(--elfenbein); }
+.gkp-inklusive ul { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 22px; }
+.gkp-inklusive li { display:flex; gap:10px; align-items:flex-start; font-size:15px; line-height:1.5; color:var(--tinte); }
+.gkp-inklusive li svg { flex:0 0 auto; margin-top:3px; color:var(--gold-tief); }
+.gkp-inklusive .gaf-fein { margin-top:16px; }
+
+@media (max-width:980px) {
+  .gkp-name-raster, .gkp-buerg, .gkp-preise { grid-template-columns:1fr; }
+  .gkp-buerg { padding:30px 22px; }
+  .gkp-buerg-punkte, .gkp-buerg-bed ol { grid-template-columns:1fr; }
+}
+@media (max-width:560px) {
+  .gkp-plan { padding:30px 20px 22px; }
+  .gkp-plan-saeulen { grid-template-columns:1fr; }
+  .gkp-inklusive ul { grid-template-columns:1fr; }
+  .gkp-preis { padding:24px 20px; }
+}
+@media (prefers-reduced-motion:reduce) { .gkp-licht span, .gkp-plan-ring, .gkp-dreh { animation:none; } }
+/* Urkunde: Platzhalter und Rahmen im Glasblau statt Elfenbein/Gold */
+.gkp .gab-urkunde-name.leer { color:rgba(29,78,216,.32); }
+/* Compliance-Bühne: Gold-Akzente der Firmenseite → Glasblau (die Ampelfarben bleiben, sie tragen Bedeutung) */
+.gkp .gaf-knopf-gold { color:#fff; background:linear-gradient(120deg,#1d4ed8 0%,#288dfa 45%,#5aa8fb 70%,#1d4ed8 100%); background-size:200% 100%; box-shadow:0 14px 36px rgba(40,141,250,.3), inset 0 1px 0 rgba(255,255,255,.35); }
+.gkp .gaf-knopf-gold:hover { box-shadow:0 20px 44px rgba(40,141,250,.42), inset 0 1px 0 rgba(255,255,255,.35); }
+.gkp .gaf-belegt-balken i { background:linear-gradient(90deg,#1d4ed8,#5aa8fb); }
+.gkp .gaf-kachel:hover { border-color:rgba(90,168,251,.45); }
+.gkp .gaf-kachel.auf { border-color:rgba(90,168,251,.6); background:linear-gradient(160deg, rgba(40,141,250,.14), rgba(255,255,255,.03)); }
+.gkp .gaf-kernzahlen > div:hover { border-color:rgba(90,168,251,.45); }
+.gkp .gaf-buehne-grund .b { background:radial-gradient(circle, rgba(40,141,250,.18), rgba(40,141,250,0) 65%); }
+.gkp .gaf-bereich-detail { border-color:rgba(90,168,251,.35); }

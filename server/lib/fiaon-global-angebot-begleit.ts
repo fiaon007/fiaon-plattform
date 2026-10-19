@@ -468,13 +468,13 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const ref = String(a.ref ?? "");
   if (!ref) return null;
   const [t] = (await sqlPool`
-    SELECT t.nr, t.titel, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref
+    SELECT t.nr, t.titel, t.zahlungsziel_tage, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref, g.fassung
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote g ON g.id = t.angebot_id
      WHERE t.bestell_ref = ${ref} AND g.status = 'angenommen' LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
   const akteRef = String(t.auftrag_ref || ref);
   const [akte] = (await sqlPool`SELECT gesellschaft FROM fiaon_global_auftraege WHERE ref = ${akteRef} LIMIT 1`.catch(() => [])) as any[];
-  const ges = json<{ name?: string | null; bundesstaat?: string | null }>(akte?.gesellschaft, {});
+  const ges = json<{ name?: string | null; bundesstaat?: string | null; geprueft?: boolean }>(akte?.gesellschaft, {});
   const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${akteRef} AND art = 'reisepass' AND geloescht_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
   const { signInvoiceUrl } = await import("../fiaon-invoice");
   const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
@@ -484,20 +484,27 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const name = ges.name ? String(ges.name).toUpperCase().replace(/\s*,?\s*L\.?L\.?C\.?$/, "").trim() + " LLC" : null;
   const tag = (v: unknown) => (v ? begleitTag(new Date(String(v)).toISOString().slice(0, 10)) : "");
   const bezahlt = String(a.payment_status) === "paid";
+  const kapital = String(t.fassung ?? "").startsWith("IA-KAPITAL-");
   return {
     auge: "FIAON Global · Ihr Auftrag",
     gesellschaft: name,
     gesellschaftZeile: name ? `Limited Liability Company · State of ${staat}` : "",
+    // E-399: Das Kapital-Angebot beginnt laut Vertrag mit dem Zahlungseingang (Ziffer 6) — kein „bereits begonnen“, und das Zahlungsziel aus dem Teil.
     satz: bezahlt
-      ? `Ihre Zahlung ist eingegangen — vielen Dank. Individualangebot ${t.angebot_ref}, ${String(t.titel)}.`
-      : `Wir haben mit der Umsetzung Ihres Auftrags bereits begonnen — offen ist nur noch diese Rechnung (Individualangebot ${t.angebot_ref}, ${String(t.titel)}).`,
+      ? `Ihre Zahlung ist eingegangen — vielen Dank. ${kapital ? "Angebot" : "Individualangebot"} ${t.angebot_ref}, ${String(t.titel)}.`
+      : kapital
+        ? `Ihr Auftrag steht — mit Ihrer Zahlung legen wir los (Angebot ${t.angebot_ref}, ${String(t.titel)}).`
+        : `Wir haben mit der Umsetzung Ihres Auftrags bereits begonnen — offen ist nur noch diese Rechnung (Individualangebot ${t.angebot_ref}, ${String(t.titel)}).`,
     pruefTitel: "Stand Ihres Auftrags",
     pruefungen: [
       { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
-      ...(name ? [{ titel: "Name geprüft", text: `${name} ist im Register von ${staat} frei`, stand: "ok" as const }] : []),
+      // E-399: Ein bei der Annahme gewählter Name ist erst „vorgemerkt“ (geprueft: false), bis ihn jemand im Register geprüft hat.
+      ...(name ? [ges.geprueft === false
+        ? { titel: "Wunschname vorgemerkt", text: `${name} — wir prüfen ihn vor der Anmeldung im Register von ${staat}`, stand: "offen" as const }
+        : { titel: "Name geprüft", text: `${name} ist im Register von ${staat} frei`, stand: "ok" as const }] : []),
       ...(pass ? [{ titel: "Reisepass erhalten und geprüft", text: `am ${tag(pass.created_at)} — liegt sicher in Ihrem Auftragsbereich`, stand: "ok" as const }] : []),
-      ...(name && pass && !bezahlt ? [{ titel: "Anmeldung vorbereitet", text: "im Eilverfahren — wir reichen sie direkt nach Ihrer Zahlung ein", stand: "ok" as const }] : []),
-      { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : "heute überweisen — dann geht die Anmeldung raus", stand: bezahlt ? "ok" : "offen" },
+      ...(name && pass && !bezahlt && ges.geprueft !== false ? [{ titel: "Anmeldung vorbereitet", text: "im Eilverfahren — wir reichen sie direkt nach Ihrer Zahlung ein", stand: "ok" as const }] : []),
+      { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : kapital && Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen — mit dem Eingang melden wir Ihre Gesellschaft an` : "heute überweisen — dann geht die Anmeldung raus", stand: bezahlt ? "ok" : "offen" },
     ],
     dokumenteTitel: "Ihre Unterlagen",
     // NUR die Rechnung: Vertrag (mit Prüfbericht) und Auftragsbereich (mit dem Reisepass im Dokumentenraum) sind über die öffentliche

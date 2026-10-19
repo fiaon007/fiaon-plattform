@@ -74,6 +74,8 @@ import { FIRMA_FASSUNG, istFirmenFassung } from "@shared/fiaon-global-angebot-fi
 import { istBegleitFassung } from "@shared/fiaon-global-angebot-begleit";
 // E-384 (16.10.2026): Kooperationsvertrag (IA-KOOP-) — eigener Pfad wie der Begleitvertrag.
 import { istKoopFassung } from "@shared/fiaon-global-angebot-koop";
+// E-399 (19.10.2026): Kapital-Angebot für Firmenkunden (IA-KAPITAL-) — eigener Pfad, Abschluss wie das Firmenangebot.
+import { istKapitalFassung } from "@shared/fiaon-global-angebot-kapital";
 
 export type AngebotStatus = "offen" | "angenommen" | "zurueckgezogen" | "abgelaufen";
 export const ANGEBOT_PAKET_KEY = "global_individuell";
@@ -528,6 +530,7 @@ export async function angebotAendern(id: number, ein: any, wer: string): Promise
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaAendern(id, ein, wer); }
   if (istBegleitFassung(z.fassung)) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitAendern(id, ein, wer); }
   if (istKoopFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-koop"); return K.koopAendern(id, ein, wer); }
+  if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalAendern(id, ein, wer); }
   const alt = angebotDatenAus(z);
   const altHash = angebotTextHash(alt, { sofortBeginn: false, jahresbetreuung: false });
   const neu: AngebotDaten = { ...alt };
@@ -554,6 +557,7 @@ export async function angebotPruefberichtBoniNeu(id: number, wer: string): Promi
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Der Prüfbericht (Kundenfassung) kommt aus dem Import-Skript scripts/angebot-firma-anlegen.ts.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: ohne Prüfbericht.", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: ohne Prüfbericht.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: Prüfbericht per Skript (scripts/angebot-kapital-anlegen.ts --compliance).", 409);
   if (!z.person_id) return nein("Ohne Person keine Auswertung.");
   const { boniAmpelFuerPerson } = await import("./fiaon-boni-ampel");
   const ampel = await boniAmpelFuerPerson(Number(z.person_id));
@@ -584,6 +588,7 @@ export async function angebotPruefberichtSetzen(id: number, pb: Pruefbericht, we
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Der Prüfbericht (Kundenfassung) kommt aus dem Import-Skript scripts/angebot-firma-anlegen.ts.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: ohne Prüfbericht.", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: ohne Prüfbericht.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: Prüfbericht per Skript (scripts/angebot-kapital-anlegen.ts --compliance).", 409);
   const altHash = angebotTextHash(angebotDatenAus(z), { sofortBeginn: false, jahresbetreuung: false });
   await sqlPool`UPDATE fiaon_global_angebote SET pruefbericht = ${jsonb(pb)}, updated_at = NOW() WHERE id = ${id} AND status = 'offen'`;
   await verlaufAngebot(id, wer, `Prüfbericht (Anlage 2) aus der Saat gesetzt — ${pruefberichtErgebnis(pb).satz}`, { alterHash: altHash });
@@ -651,6 +656,15 @@ export async function angebotKundenSicht(token: string, s: AngebotSchalter, opts
   if (status === "zurueckgezogen") return { status: 410, body: { ok: false, error: "Dieses Angebot gilt nicht mehr. Bei Fragen erreichen Sie uns unter support@fiaon.com." } };
   if (status === "abgelaufen") return { status: 410, body: { ok: false, error: `Dieses Angebot galt bis zum ${angebotTag(z.gueltig_bis instanceof Date ? berlinToday(z.gueltig_bis) : String(z.gueltig_bis))}. Möchten Sie es weiter annehmen, schreiben Sie uns an support@fiaon.com.` } };
   // E-312: Begleitvertrag — eigene Sicht (offen) bzw. eigene Antwort (angenommen; keine Bestellung zum Nachholen).
+  // E-399: Kapital-Angebot — eigene Sicht (offen) bzw. eigene Antwort (angenommen; hängt die Rechnung, holt der Aufruf nach).
+  if (istKapitalFassung(z.fassung)) {
+    const C = await import("./fiaon-global-angebot-kapital");
+    if (status === "angenommen") {
+      if (!z.auftrag_ref || z.nacharbeit_fehler) await C.kapitalFertigstellen(Number(z.id)).catch((e) => console.error(`[FIAON-KAPITAL] ${z.angebot_ref}: Nachholen beim Lesen:`, e));
+      return { status: 200, body: { ok: true, status, ...(await C.kapitalAngenommenAntwort((await angebotLesen({ id: Number(z.id) }))!)) } };
+    }
+    return C.kapitalKundenSicht(token, z, opts);
+  }
   // E-384: Kooperationsvertrag — eigene Sicht (offen) bzw. eigene Antwort (angenommen).
   if (istKoopFassung(z.fassung)) {
     const K = await import("./fiaon-global-angebot-koop");
@@ -699,6 +713,7 @@ async function angenommenAntwort(z: AngebotZeile): Promise<Record<string, unknow
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaAngenommenAntwort(z); }
   if (istBegleitFassung(z.fassung)) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitAngenommenAntwort(z); }
   if (istKoopFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-koop"); return K.koopAngenommenAntwort(z); }
+  if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalAngenommenAntwort(z); }
   const ref1 = z.auftrag_ref ? String(z.auftrag_ref) : null;
   const b = ref1 ? await globalBestellungLesen(ref1) : null;
   const sch = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
@@ -752,6 +767,7 @@ export async function angebotPdfErzeugen(z: AngebotZeile, art: "vertrag" | "prue
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaPdfErzeugen(z, art); }
   if (istBegleitFassung(z.fassung)) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitPdfErzeugen(z, art); }
   if (istKoopFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-koop"); return K.koopPdfErzeugen(z, art); }
+  if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalPdfErzeugen(z, art); }
   const d = angebotDatenAus(z);
   if (art === "pruefbericht") {
     if (!d.pruefbericht) return { status: 404, error: "Zu diesem Angebot liegt noch kein Prüfbericht vor." };
@@ -812,6 +828,7 @@ async function annehmen(t: { ref: string; urteil: "gueltig" | "abgelaufen" }, bo
   // E-312: Begleitvertrag — Name der LLC, „gelesen“, Unterschrift, zwei freiwillige Haken (shared/fiaon-global-angebot-begleit.ts).
   if (istBegleitFassung(z.fassung)) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitAnnehmen(z, body, kontext, { zuViel }); }
   if (istKoopFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-koop"); return K.koopAnnehmen(z, body, kontext, { zuViel }); }
+  if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalAnnehmen(z, body, kontext, { zuViel }); }
   const d = angebotDatenAus(z);
   const fehlt = angebotPflichtFehlen(d);
   if (fehlt.length) return fehler(409, ANGEBOT_ANNAHME.gesperrt, { code: "PFLICHTFELDER" });
@@ -927,6 +944,7 @@ export async function angebotFertigstellen(id: number): Promise<{ ok: boolean; g
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaFertigstellen(id); }
   // E-312: Beim Begleitvertrag entsteht keine Bestellung und keine Akte — nichts fertigzustellen.
   if (istBegleitFassung(z.fassung) || istKoopFassung(z.fassung)) return { ok: true };
+  if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalFertigstellen(id); }
   const d = angebotDatenAus(z);
   const s = json<AngebotSchalter>(z.schalter, { sofortBeginn: false, jahresbetreuung: false });
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
@@ -1007,6 +1025,7 @@ export async function angebotNacharbeit(id: number): Promise<void> {
   const z = await angebotLesen({ id });
   if (z && istBegleitFassung(z.fassung)) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitNacharbeit(id); }
   if (z && istKoopFassung(z.fassung)) { const K = await import("./fiaon-global-angebot-koop"); return K.koopNacharbeit(id); }
+  if (z && istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalNacharbeit(id); }
   if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return;
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaNacharbeit(id); }
   const ref1 = String(z.auftrag_ref);
@@ -1106,6 +1125,7 @@ export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; gru
   if (istFirmenFassung(fa?.fassung)) return { ok: true, grund: "Firmenangebot — keine automatische Bestätigungsmail", firma: true };
   if (istBegleitFassung(fa?.fassung)) return { ok: true, grund: "Begleitvertrag — keine automatische Bestätigungsmail", begleit: true };
   if (istKoopFassung(fa?.fassung)) return { ok: true, grund: "Kooperationsvertrag — keine automatische Bestätigungsmail", begleit: true };
+  if (istKapitalFassung(fa?.fassung)) return { ok: true, grund: "Kapital-Angebot (Firmenkunde) — keine automatische Bestätigungsmail", begleit: true };
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NOW(), bestaetigung_mail_fehler = NULL, updated_at = NOW()
      WHERE id = ${id} AND status = 'angenommen' AND bestaetigung_mail_am IS NULL AND auftrag_ref IS NOT NULL RETURNING auftrag_ref`) as any[];
@@ -1374,6 +1394,7 @@ export async function angebotMeilenstein(id: number, ein: any, wer: string): Pro
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1466,6 +1487,7 @@ export async function angebotFristHemmen(id: number, ein: any, wer: string): Pro
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   if (!z.frist_ende) return nein("Die Frist läuft noch nicht — sie beginnt mit dem Start.", 409);
   // E-271: Die Frist läuft auch nach dem Meilenstein weiter (Garantie bis zum Fristende) — Hemmen geht bis zur
@@ -1587,6 +1609,7 @@ export async function angebotGarantieErfuellt(id: number, ein: any, wer: string)
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1634,6 +1657,7 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
+  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1784,7 +1808,9 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const firmaFreigaben = F ? await F.firmaFreigabenFuer(firmaIds) : new Map();
   const B = zeilen.some((z) => istBegleitFassung(z.fassung)) ? await import("./fiaon-global-angebot-begleit") : null;
   const K = zeilen.some((z) => istKoopFassung(z.fassung)) ? await import("./fiaon-global-angebot-koop") : null;
+  const C = zeilen.some((z) => istKapitalFassung(z.fassung)) ? await import("./fiaon-global-angebot-kapital") : null;
   const liste: Record<string, unknown>[] = zeilen.map((z) => {
+    if (C && istKapitalFassung(z.fassung)) return C.kapitalListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (K && istKoopFassung(z.fassung)) return K.koopListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (B && istBegleitFassung(z.fassung)) return B.begleitListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (F && istFirmenFassung(z.fassung)) {

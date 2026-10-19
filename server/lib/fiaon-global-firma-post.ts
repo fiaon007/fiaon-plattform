@@ -47,7 +47,7 @@ export async function firmaKundinAdresse(email: string): Promise<boolean> {
   if (!t?.angebote) return false;
   const [x] = (await sqlPool`
     SELECT 1 AS treffer FROM fiaon_global_angebote
-     WHERE fassung LIKE 'IA-FIRMA-%' AND status IN ('offen', 'abgelaufen', 'angenommen')
+     WHERE (fassung LIKE 'IA-FIRMA-%' OR fassung LIKE 'IA-KAPITAL-%') AND status IN ('offen', 'abgelaufen', 'angenommen')
        AND LOWER(TRIM(COALESCE(kunde->>'email', CASE WHEN jsonb_typeof(kunde) = 'string' THEN (kunde #>> '{}')::jsonb ->> 'email' END, ''))) = ${a}
      LIMIT 1`) as any[];
   if (x) return true;
@@ -55,7 +55,7 @@ export async function firmaKundinAdresse(email: string): Promise<boolean> {
   const [y] = (await sqlPool`
     SELECT 1 AS treffer FROM fiaon_global_auftraege g
      WHERE LOWER(TRIM(COALESCE(g.email, ''))) = ${a}
-       AND g.angebot_id IN (SELECT id FROM fiaon_global_angebote WHERE fassung LIKE 'IA-FIRMA-%')
+       AND g.angebot_id IN (SELECT id FROM fiaon_global_angebote WHERE (fassung LIKE 'IA-FIRMA-%' OR fassung LIKE 'IA-KAPITAL-%'))
      LIMIT 1`) as any[];
   return !!y;
 }
@@ -93,7 +93,7 @@ export async function firmaKundinAbsender(email: string | null | undefined): Pro
   const endung = `%@${d}`;
   const [x] = (await sqlPool`
     SELECT 1 AS treffer FROM fiaon_global_angebote
-     WHERE fassung LIKE 'IA-FIRMA-%' AND status IN ('offen', 'abgelaufen', 'angenommen')
+     WHERE (fassung LIKE 'IA-FIRMA-%' OR fassung LIKE 'IA-KAPITAL-%') AND status IN ('offen', 'abgelaufen', 'angenommen')
        AND LOWER(TRIM(COALESCE(kunde->>'email', CASE WHEN jsonb_typeof(kunde) = 'string' THEN (kunde #>> '{}')::jsonb ->> 'email' END, ''))) LIKE ${endung}
      LIMIT 1`) as any[];
   if (x) return true;
@@ -101,7 +101,7 @@ export async function firmaKundinAbsender(email: string | null | undefined): Pro
   const [y] = (await sqlPool`
     SELECT 1 AS treffer FROM fiaon_global_auftraege g
      WHERE LOWER(TRIM(COALESCE(g.email, ''))) LIKE ${endung}
-       AND g.angebot_id IN (SELECT id FROM fiaon_global_angebote WHERE fassung LIKE 'IA-FIRMA-%')
+       AND g.angebot_id IN (SELECT id FROM fiaon_global_angebote WHERE (fassung LIKE 'IA-FIRMA-%' OR fassung LIKE 'IA-KAPITAL-%'))
      LIMIT 1`) as any[];
   return !!y;
 }

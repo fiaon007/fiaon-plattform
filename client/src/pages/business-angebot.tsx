@@ -69,6 +69,9 @@ import type { BegleitKundenSicht } from "@shared/fiaon-global-angebot-begleit";
 // E-384: Das OFFENE Kooperationsangebot (art „koop“) — eigene Seite, eigener Chunk.
 const BusinessAngebotKoop = lazy(() => import("@/pages/business-angebot-koop"));
 import type { KoopKundenSicht } from "@shared/fiaon-global-angebot-koop";
+// E-399: Das OFFENE Kapital-Angebot für Firmenkunden (art „kapital“) — eigene Seite, eigener Chunk.
+const BusinessAngebotKapital = lazy(() => import("@/pages/business-angebot-kapital"));
+import type { KapitalKundenSicht } from "@shared/fiaon-global-angebot-kapital";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
 // „Wann sollen wir beginnen?" (Justin, 01.10.2026): zwei Kästchen, keins vorgewählt.
@@ -402,6 +405,16 @@ export default function BusinessAngebot() {
     return (
       <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
         <BusinessAngebotFirma sicht={firma} token={token}
+          onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
+          onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
+      </Suspense>
+    );
+  }
+  const kapital = sicht as unknown as KapitalKundenSicht;
+  if (kapital.art === "kapital" && kapital.status === "offen") {
+    return (
+      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+        <BusinessAngebotKapital sicht={kapital} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
       </Suspense>

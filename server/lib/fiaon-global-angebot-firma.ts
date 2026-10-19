@@ -571,7 +571,8 @@ export async function firmaAnnehmen(z: AngebotZeile, body: any, kontext: Annahme
 }
 
 /** Bestellzeile anlegen — derselbe Weg wie /business/start (Loopback auf POST /api/fiaon/application), mit Firma und UID. */
-async function firmaBestellzeileAnlegen(ref: string, d: FirmaDaten, titel: string, kontext: { ip: string; userAgent: string }): Promise<boolean> {
+// E-399: auch vom Kapital-Angebot genutzt (liest nur d.kunde).
+export async function firmaBestellzeileAnlegen(ref: string, d: Pick<FirmaDaten, "kunde">, titel: string, kontext: { ip: string; userAgent: string }): Promise<boolean> {
   const k = d.kunde; const f = k.firma;
   const port = process.env.PORT || 5000;
   const antwort = await fetch(`http://127.0.0.1:${port}/api/fiaon/application`, {

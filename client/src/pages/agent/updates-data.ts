@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (1/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet“): Dieselbe Kundenmail
+    // stand bis zu 45-mal am Tag in der Akte (eine Mail 21-mal in zwei Minuten) — jedes Mal mit neuer KI-Einordnung.
+    id: "2026-10-19-akte-mail-einmal",
+    date: "2026-10-19",
+    category: "Behoben",
+    title: "Akte: Jede Kundenmail steht nur noch einmal im Verlauf",
+    summary:
+      "Bisher konnte dieselbe Mail eines Kunden viele Male im Verlauf stehen („E-Mail an welcome@ …“) — einmal 21-mal in zwei Minuten. "
+      + "Jetzt steht jede Mail genau einmal da.",
+    changes: [
+      "Zu jeder Kundenmail gibt es genau einen Eintrag „E-Mail an …“ mit Maras kurzer Zusammenfassung — auch wenn Mara die Mail kurz zurücklegt, weil der Kunde gleich weiterschreibt.",
+      "Eine Mail, die schon jemand im Postfach von Hand beantwortet hat, holt Mara nicht mehr immer wieder hervor.",
+      "Mara liest und ordnet jede Mail nur einmal ein. Das spart KI-Kosten — ihre Antworten bleiben, wie sie sind.",
+      "Alte doppelte Einträge bleiben im Verlauf stehen; neue kommen nicht mehr dazu.",
+    ],
+    howto: [
+      "Nichts tun. Akte öffnen → Verlauf: Jede Mail des Kunden steht dort einmal, darunter Maras Antwort oder ihr Entwurf.",
+    ],
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
+  },
+  {
     // E-395 (19.10.2026, Justin, Fall #7131): „Mara muss ab jetzt in mein Kalender den Termin eintragen, den Kunden
     // einen guten Termin wünschen und sich zurücknehmen.“
     id: "2026-10-19-mara-genannter-termin",

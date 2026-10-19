@@ -19,7 +19,9 @@ import {
   nachrichtLesen, nachrichtLabeln, labelSicherstellen, entwurfAnlegen, antwortSenden, nachrichtenSuchen,
   type GmailNachricht,
 } from "./fiaon-gmail";
-import { einordnen, antwortErzeugen, maraMailVermerk, antwortSprache, type Vorgeschichte } from "./fiaon-postmeister-agent";
+import { einordnenMitMerker, antwortErzeugen, maraMailVermerk, antwortSprache, type Vorgeschichte } from "./fiaon-postmeister-agent";
+// E-401 (19.10.2026): eine Mail — eine Einordnung, ein Aktenvermerk.
+import { einordnungMerken, akteVermerkEinmal } from "./fiaon-postmeister-einmal";
 import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
@@ -1026,7 +1028,14 @@ export async function schonGetan(postmeisterId: number): Promise<{ werkzeug: str
     .map((h: any) => ({ werkzeug: String(h.werkzeug), ergebnis: String(h.ergebnis ?? "").slice(0, 300) }));
 }
 
-export interface LaufErgebnis { aktion: Aktion; grund: string; id: number | null }
+export interface LaufErgebnis {
+  aktion: Aktion; grund: string; id: number | null;
+  /**
+   * E-401: Die Mail wartet nur einen Takt (Bündeln, E-369) — sie ist NICHT verarbeitet. Der Nachhol-Lauf nach der
+   * KI-Pause zählte sie mit und drehte deshalb 20 Runden in zwei Minuten über dieselbe Mail (#7110, 19.10.).
+   */
+  wartet?: boolean;
+}
 
 /**
  * Eine Mail verarbeiten. `nurOrdnen` schreibt keine Antwort — für den ersten
@@ -1065,7 +1074,7 @@ export async function mailBearbeiten(ein: {
   let anspruch = (await sqlPool`
     INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, in_arbeit_seit)
     VALUES (${postfach}, ${gmailId}, '', 'in_arbeit', NOW())
-    ON CONFLICT (gmail_id) DO NOTHING RETURNING id, versuche, gesendet_am, begruendung, created_at
+    ON CONFLICT (gmail_id) DO NOTHING RETURNING id, versuche, gesendet_am, begruendung, created_at, einordnung_merker, akte_vermerk_am
   `) as any[];
   if (!anspruch.length) {
     anspruch = (await sqlPool`
@@ -1075,7 +1084,7 @@ export async function mailBearbeiten(ein: {
               OR (aktion = 'fehler' AND (naechster_versuch_am IS NULL OR naechster_versuch_am <= NOW()))
               OR (aktion = 'in_arbeit' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '15 minutes'))
          AND versuche < 3
-       RETURNING id, versuche, gesendet_am, begruendung, created_at
+       RETURNING id, versuche, gesendet_am, begruendung, created_at, einordnung_merker, akte_vermerk_am
     `) as any[];
     if (!anspruch.length) return { aktion: "geordnet", grund: "schon bearbeitet", id: null };
   }
@@ -1216,9 +1225,15 @@ export async function mailBearbeiten(ein: {
     fuerAufgabe = { personId: wer.personId, ref: wer.ref, betreff: mail.betreff };
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 
-    // 4. Einordnen.
-    const einordnung = await einordnen({ betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage })
+    // 4. Einordnen — E-401 (19.10.2026): EINMAL je Mail. Vorher lief die KI-Einordnung in JEDEM Anlauf neu, auch
+    //    wenn die Mail danach nur einen Takt wartete (Bündeln) oder ein Takt sie wieder hervorholte. Der Merker an
+    //    der Zeile (einordnung_merker) trägt die rohe Modellantwort; passt er zu dieser Mail, fragt der Server das
+    //    Modell nicht noch einmal (der Riegel läuft trotzdem neu). Gemerkt wird sofort — auch wenn die Mail gleich
+    //    wartet, als Werbung abgelegt oder gebündelt wird.
+    const eo = await einordnenMitMerker({ betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage }, anspruch[0].einordnung_merker)
       .catch((e) => { if (istKiPause(e)) throw e; throw new Error(`Einordnung: ${String(e?.message || e).slice(0, 160)}`); });
+    const einordnung = eo.einordnung;
+    if (!eo.wiederverwendet) await einordnungMerken(id, eo.merker);
 
     const gemeinsam = {
       ...basis,
@@ -1250,24 +1265,17 @@ export async function mailBearbeiten(ein: {
       return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Spam" }, "Spam");
     }
 
-    // 5. Akte-Vermerk — JEDE Kundenmail wird nachgetragen.
+    // 5. Akte-Vermerk — JEDE Kundenmail wird nachgetragen, und zwar GENAU EINMAL (E-401, 19.10.2026).
+    //    Vorher schrieb jeder Anlauf derselben Mail einen neuen Vermerk (Mail #7110: 21 in zwei Minuten; eine alte,
+    //    von Hand beantwortete Mail 36 bis 45 am Tag). Jetzt trägt die Zeile einen Merker (akte_vermerk_am); Merker
+    //    und Vermerk entstehen in einer Anweisung. Altbestand ohne Merker (darunter die Mail aus der KI-Pause,
+    //    Nachprüfung E-246 vom 27.09.): erst nach dem alten Vermerk suchen, dann nur den Merker setzen.
     const akte = await akteLesen(wer.personId, wer.ref);
-    if (wer.ref) {
-      // E-246 (Nachprüfung 27.09.): Lag die Mail aus der KI-Pause und steht der
-      // Vermerk zu dieser Mail schon da (erster Anlauf kam bis hierher, die Pause
-      // traf erst die Antwort), keinen zweiten schreiben.
-      const kopf = `E-Mail an ${postfach}: „${mail.betreff.slice(0, 90)}" — `;
-      const schonDa = ausDerPause && ((await sqlPool`
-        SELECT 1 FROM fiaon_contact_log
-         WHERE ref = ${wer.ref} AND agent_name = 'Postmeister' AND created_at >= ${zeileSeit}
-           AND LEFT(note, ${kopf.length}) = ${kopf}
-         LIMIT 1`.catch(() => [])) as any[]).length > 0;
-      if (!schonDa) await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-        VALUES (${wer.ref}, ${wer.personId}, NULL, 'Postmeister', 'system',
-                ${`${kopf}${einordnung.zusammenfassung.slice(0, 400)}`})
-      `.catch(() => {});
-    }
+    await akteVermerkEinmal({
+      postmeisterId: id, ref: wer.ref, personId: wer.personId,
+      postfach, betreff: mail.betreff, zusammenfassung: einordnung.zusammenfassung,
+      neuAngelegt, vermerkMerker: anspruch[0].akte_vermerk_am, einordnungMerker: anspruch[0].einordnung_merker, zeileSeit,
+    });
 
     const kundenlage = akte.kundenlage;
     // E-248 (#5591): EINE Sprache je Antwort — eine, die unsere Mail ganz kann, sonst Deutsch.
@@ -1328,7 +1336,7 @@ export async function mailBearbeiten(ein: {
              SET aktion = 'vorgeordnet', in_arbeit_seit = NULL, versuche = GREATEST(versuche - ${neuAngelegt ? 0 : 1}, 0),
                  begruendung = ${"Bündeln: wartet einen Takt auf weitere Mails desselben Kunden (E-369)"}, updated_at = NOW()
            WHERE id = ${id} AND gesendet_am IS NULL`.catch((x) => console.error("[POSTMEISTER] Bündeln zurücklegen:", String(x).slice(0, 160)));
-        return { aktion: "geordnet", grund: "wartet auf weitere Mails (Bündeln)", id };
+        return { aktion: "geordnet", grund: "wartet auf weitere Mails (Bündeln)", id, wartet: true };
       }
       if (buendel?.art === "mitgenommen") {
         await ablegen(postfach, gmailId, "FIAON/Gebündelt");

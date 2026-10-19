@@ -43,7 +43,10 @@ export async function postmeisterSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS versand_versuche INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS versand_fehler TEXT,
       ADD COLUMN IF NOT EXISTS naechster_versuch_am TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS versand_aufgegeben_am TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS versand_aufgegeben_am TIMESTAMPTZ,
+      -- E-401 (19.10.2026): eine Mail — eine Einordnung, ein Aktenvermerk (fiaon-postmeister-einmal.ts).
+      ADD COLUMN IF NOT EXISTS einordnung_merker JSONB,
+      ADD COLUMN IF NOT EXISTS akte_vermerk_am TIMESTAMPTZ
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] fiaon_postmeister:", String(e).slice(0, 200)));
 
   await sqlPool`

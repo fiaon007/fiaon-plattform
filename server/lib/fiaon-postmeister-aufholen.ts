@@ -123,7 +123,7 @@ export async function offeneUnterhaltungen(grenze = 200): Promise<any[]> {
   return (await sqlPool`
     WITH letzte AS (
       SELECT DISTINCT ON (thread_id) id, thread_id, postfach, gmail_id, von, betreff,
-             empfangen_am, person_id, ref, aktion, kategorie
+             empfangen_am, person_id, ref, aktion, kategorie, begruendung
         FROM fiaon_postmeister
        WHERE aktion IN ('vorgeordnet', 'geordnet')
          -- ── NUR BEDIENTE POSTFÄCHER (09.09.2026, E-171) ──────────────────
@@ -145,6 +145,12 @@ export async function offeneUnterhaltungen(grenze = 200): Promise<any[]> {
       FROM letzte l
       LEFT JOIN fiaon_applications a ON a.ref = l.ref
      WHERE l.kategorie IS DISTINCT FROM 'werbung_newsletter'
+       -- ── VON HAND IN GMAIL BEANTWORTET (E-401, 19.10.2026) ─────────────
+       -- Diese Antwort steht nur in Gmail, nicht in unserer Datenbank — „eigene“ und „echte_mails“ sehen sie
+       -- nie. mailBearbeiten fand sie jedes Mal (5b) und legte die Mail wieder auf „geordnet“; der Takt holte
+       -- sie 20 Minuten später erneut: Mail #5712 (28.09.) drei Wochen lang 36 bis 45 Mal am Tag — mit Gmail-
+       -- Lesen, KI-Einordnung und Aktenvermerk. Die Unterhaltung ist beantwortet; nichts ist offen.
+       AND NOT (l.aktion = 'geordnet' AND COALESCE(l.begruendung, '') LIKE 'vom Menschen beantwortet%')
      ORDER BY
        -- Nach Ertrag: wer Geld melden will oder offen hat, zuerst; dann nach Alter.
        CASE

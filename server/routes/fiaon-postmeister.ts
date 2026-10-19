@@ -606,9 +606,21 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
       const [v2] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'postmeister_v2' LIMIT 1`) as any[];
       const neuerWeg = String(v2?.value ?? "1") !== "0";
       for (const id of neue) {
-        const a = neuerWeg
-          ? (await mailBearbeiten({ postfach: pf.adresse, gmailId: id, gruss: pf.gruss, modus: modus as any, nurOrdnen: opts.nurOrdnen })).aktion
-          : await mailVerarbeiten(pfWirksam, id, { nurOrdnen: opts.nurOrdnen });
+        let a: string;
+        if (neuerWeg) {
+          const e = await mailBearbeiten({ postfach: pf.adresse, gmailId: id, gruss: pf.gruss, modus: modus as any, nurOrdnen: opts.nurOrdnen });
+          // E-401 (19.10.2026): Eine Mail, die nur einen Takt wartet (Bündeln) oder gar nicht beansprucht wurde,
+          // ist NICHT verarbeitet. Vorher zählte sie mit — und postmeisterNachDerPause („so oft, bis nichts mehr
+          // offen ist“) drehte am 19.10. zwanzig Runden in zwei Minuten über dieselbe wartende Mail (#7110).
+          if (e.wartet || e.id == null) {
+            const k = e.wartet ? "wartet" : "nicht_beansprucht";
+            aktionen[k] = (aktionen[k] || 0) + 1;
+            continue;
+          }
+          a = e.aktion;
+        } else {
+          a = await mailVerarbeiten(pfWirksam, id, { nurOrdnen: opts.nurOrdnen });
+        }
         aktionen[a] = (aktionen[a] || 0) + 1;
         verarbeitet += 1;
       }

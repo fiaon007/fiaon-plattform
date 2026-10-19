@@ -1749,7 +1749,9 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "sie selbst neu frei, bevor sie die Zahlungsseite schickt.",
     tipp: "Ohne dich raus gehen nur: „Stopp“ mit gesetzter Werbesperre, der Storno einer unbezahlten Bestellung und eine "
       + "gebuchte Kündigung — und nur, wenn die Antwort sauber ist und keine andere Lampe brennt. Alles andere liegt als "
-      + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort.",
+      + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort."
+      // E-401 (19.10.2026) mitgezogen: jede Kundenmail genau einmal in der Akte, einmal eingeordnet.
+      + " Jede Kundenmail steht genau einmal im Verlauf der Akte; eine von Hand beantwortete holt Mara nicht wieder hervor.",
   },
   {
     ziel: ".mp-kette",

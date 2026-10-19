@@ -47,6 +47,11 @@ import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { openaiFetch, istKiPause, aktiverAnbieter } from "./fiaon-ki-pause";
 import { maraModell } from "./fiaon-ki-claude";
+import { createHash } from "node:crypto";
+// E-401: eine Mail — eine Einordnung (Merker an der Postmeister-Zeile).
+import {
+  einordnungRohSaeubern, einordnungMerkerLesen, einordnungMerkerBauen, type EinordnungRohGemerkt, type EinordnungMerker,
+} from "@shared/fiaon-postmeister-merker";
 import { wissenFakten } from "@shared/fiaon-wissen";
 // E-248: EINE Quelle für Maras Stimme, ihre Links und ihre Verkaufssätze — Mail und WhatsApp.
 import {
@@ -579,24 +584,38 @@ const SCHEMA_A = {
   required: ["kategorien", "dringend", "sprache", "fragen", "zusammenfassung", "flags"],
 };
 
-export async function einordnen(mail: { betreff: string; text: string; von: string; alterTage: number }): Promise<Einordnung> {
-  // E-240: Haben wir ihn zuletzt um die Auskunft gebeten? Dann ist „Ich hab keine." eine Antwort darauf.
-  const auskunftAngefordert = await auskunftZuletztAngefordert(mail.von);
-  const system = [
-    "Du ordnest eingehende Kundenmails eines deutschen Dienstleisters ein. Du antwortest NICHT, du beschreibst nur.",
-    "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, auskunft, sonstiges.",
-    "auskunft = der Kunde spricht über seine Bonitätsauskunft oder seine FIAON-Bonitätsauswertung (SCHUFA, KSV, CRIF, Datenkopie, Auswertung): hat keine, will eine, weiß nicht, wie er an eine kommt, fragt nach Preis, Lieferung oder Inhalt.",
-    "Flag auskunft_fehlt = true, wenn der Kunde sagt, er habe keine Bonitätsauskunft/SCHUFA/Datenkopie oder wisse nicht, wie er an eine kommt — auch knapp als Antwort auf unsere Bitte um die Auskunft („Ich hab keine.“, „nicht vorhanden“). „Keine Einträge“ oder „keine Schulden“ ist NICHT gemeint.",
-    "werbung_newsletter = Newsletter, Angebote, Rundschreiben von Firmen an uns. spam = unerbetene Kaltakquise an uns (SEO, Webdesign, Leads, Krypto, Kreditangebote, Massenmails), Phishing, wirre Texte ohne Bezug zu uns. Beides ist KEIN Kunde und bekommt genau eine Kategorie. Ein Mensch, der über sein Anliegen bei FIAON schreibt — auch wütend, auch knapp, auch in schlechtem Deutsch — ist NIE werbung_newsletter oder spam.",
-    "fragen: jede Frage des Kunden als eigener kurzer Satz, in seinen Worten. Keine Frage erfinden.",
-    "zusammenfassung: ein bis zwei Sätze, was der Kunde will und in welcher Stimmung er ist.",
-    "sprache: der ISO-Code der Sprache, in der die Mail geschrieben ist (de, en, …).",
-    "dringend: true nur, wenn heute jemand handeln muss.",
-  ].join("\n");
+/** Der Auftrag der Einordnung (Aufruf A) — fest, ohne Mail-Daten. Er geht in den Fingerabdruck des Merkers (E-401). */
+const EINORDNEN_AUFTRAG = [
+  "Du ordnest eingehende Kundenmails eines deutschen Dienstleisters ein. Du antwortest NICHT, du beschreibst nur.",
+  "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, auskunft, sonstiges.",
+  "auskunft = der Kunde spricht über seine Bonitätsauskunft oder seine FIAON-Bonitätsauswertung (SCHUFA, KSV, CRIF, Datenkopie, Auswertung): hat keine, will eine, weiß nicht, wie er an eine kommt, fragt nach Preis, Lieferung oder Inhalt.",
+  "Flag auskunft_fehlt = true, wenn der Kunde sagt, er habe keine Bonitätsauskunft/SCHUFA/Datenkopie oder wisse nicht, wie er an eine kommt — auch knapp als Antwort auf unsere Bitte um die Auskunft („Ich hab keine.“, „nicht vorhanden“). „Keine Einträge“ oder „keine Schulden“ ist NICHT gemeint.",
+  "werbung_newsletter = Newsletter, Angebote, Rundschreiben von Firmen an uns. spam = unerbetene Kaltakquise an uns (SEO, Webdesign, Leads, Krypto, Kreditangebote, Massenmails), Phishing, wirre Texte ohne Bezug zu uns. Beides ist KEIN Kunde und bekommt genau eine Kategorie. Ein Mensch, der über sein Anliegen bei FIAON schreibt — auch wütend, auch knapp, auch in schlechtem Deutsch — ist NIE werbung_newsletter oder spam.",
+  "fragen: jede Frage des Kunden als eigener kurzer Satz, in seinen Worten. Keine Frage erfinden.",
+  "zusammenfassung: ein bis zwei Sätze, was der Kunde will und in welcher Stimmung er ist.",
+  "sprache: der ISO-Code der Sprache, in der die Mail geschrieben ist (de, en, …).",
+  "dringend: true nur, wenn heute jemand handeln muss.",
+].join("\n");
+
+type EinordnenMail = { betreff: string; text: string; von: string; alterTage: number };
+
+/**
+ * E-401 (19.10.2026): Der Fingerabdruck der Anfrage ans Modell — Auftrag, Antwortschema, Absender, Betreff und
+ * der ganze Text (der Riegel liest ihn ganz). Das Alter der Mail zählt nicht: Die Mail ändert sich nicht, nur der
+ * Takt, in dem sie wieder vorkommt. Ändert jemand den Auftrag, gilt kein alter Merker mehr — ohne Nachdenken.
+ */
+export function einordnungFingerabdruck(mail: { betreff: string; text: string; von: string }): string {
+  return createHash("sha256")
+    .update(JSON.stringify([EINORDNEN_AUFTRAG, SCHEMA_A, String(mail.von ?? ""), String(mail.betreff ?? ""), String(mail.text ?? "")]))
+    .digest("hex").slice(0, 32);
+}
+
+/** Aufruf A — nur das Modell (teuer). Liefert die rohe Antwort, gesäubert wie seit E-094. */
+async function einordnungVomModell(mail: EinordnenMail, auskunftAngefordert: boolean): Promise<EinordnungRohGemerkt> {
   const j = await kiAufruf({
     dienst: "postmeister-einordnen", modell: MODELL_KLEIN(), aufwand: "low", maxTokens: 3000, schema: SCHEMA_A,
     nachrichten: [
-      { role: "system", content: system },
+      { role: "system", content: EINORDNEN_AUFTRAG },
       {
         role: "user",
         content: `VON: ${mail.von}\nBETREFF: ${mail.betreff}\nALTER: ${mail.alterTage} Tage\n`
@@ -605,23 +624,52 @@ export async function einordnen(mail: { betreff: string; text: string; von: stri
       },
     ],
   });
-  const roh = antwortLesen(j, "Einordnung");
+  const roh = einordnungRohSaeubern(antwortLesen(j, "Einordnung"));
+  if (!roh) throw new Error("Einordnung: Antwort des Modells ist kein Objekt");
+  return roh;
+}
 
-  // Der Riegel gewinnt immer.
+/**
+ * Aus der rohen Antwort die Einordnung — rein, ohne Modell. Der Riegel gewinnt immer und läuft bei JEDEM
+ * Gebrauch neu, auch für eine gemerkte Einordnung (E-401).
+ */
+export function einordnungAusRoh(mail: { betreff: string; text: string }, roh: EinordnungRohGemerkt, auskunftAngefordert: boolean): Einordnung {
   const { kategorien, flags } = riegelAnwenden({
     betreff: mail.betreff, text: mail.text, auskunftAngefordert,
-    kategorien: (Array.isArray(roh.kategorien) ? roh.kategorien : ["sonstiges"]) as Kategorie[],
+    kategorien: roh.kategorien as Kategorie[],
     flags: { ...LEERE_FLAGS, ...(roh.flags ?? {}) },
   });
-
   return {
     kategorien,
     dringend: !!roh.dringend || flags.droht_anwalt || flags.beschwerde || flags.bestreitet,
     sprache: String(roh.sprache || "de").slice(0, 5),
-    fragen: Array.isArray(roh.fragen) ? roh.fragen.slice(0, 8).map(String) : [],
+    fragen: roh.fragen.slice(0, 8).map(String),
     flags,
     zusammenfassung: String(roh.zusammenfassung || "").slice(0, 500),
   };
+}
+
+/**
+ * E-401 (19.10.2026): Einordnen — EINMAL je Mail. `gespeichert` ist der Merker an der Postmeister-Zeile
+ * (Spalte einordnung_merker). Passt er zu dieser Anfrage, ruft der Server das Modell NICHT noch einmal: Vorher
+ * ordnete jeder Takt dieselbe Mail neu ein (Bündeln, Nachhol-Runden, Rückstands-Takt) — mit neuem KI-Text und
+ * neuen Kosten. Der neue Merker (wiederverwendet = false) gehört an die Zeile; das tut der Lauf.
+ */
+export async function einordnenMitMerker(mail: EinordnenMail, gespeichert: unknown): Promise<{
+  einordnung: Einordnung; merker: EinordnungMerker; wiederverwendet: boolean;
+}> {
+  const fp = einordnungFingerabdruck(mail);
+  const alt = einordnungMerkerLesen(gespeichert, fp);
+  if (alt) return { einordnung: einordnungAusRoh(mail, alt.roh, alt.auskunft), merker: alt, wiederverwendet: true };
+  // E-240: Haben wir ihn zuletzt um die Auskunft gebeten? Dann ist „Ich hab keine." eine Antwort darauf.
+  const auskunftAngefordert = await auskunftZuletztAngefordert(mail.von);
+  const roh = await einordnungVomModell(mail, auskunftAngefordert);
+  const merker = einordnungMerkerBauen(fp, roh, auskunftAngefordert, new Date());
+  return { einordnung: einordnungAusRoh(mail, merker.roh, auskunftAngefordert), merker, wiederverwendet: false };
+}
+
+export async function einordnen(mail: EinordnenMail): Promise<Einordnung> {
+  return (await einordnenMitMerker(mail, null)).einordnung;
 }
 
 // ── B: Handeln und antworten ──────────────────────────────────────────────

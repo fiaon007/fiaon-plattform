@@ -335,12 +335,13 @@ export function aufrufZusammenfassung(zeilenRoh: AufrufZeile[]): AufrufZusammenf
 
 // ── Titel, Aufgabe, Mail (rein) ─────────────────────────────────────────────
 export interface MeldungLage {
-  ref: string; kunde: Pick<AngebotKunde, "anrede" | "vorname" | "nachname">; status: string; gueltigBis: string | null;
+  ref: string; kunde: Pick<AngebotKunde, "anrede" | "vorname" | "nachname"> & { firma?: string }; status: string; gueltigBis: string | null;
   angenommenAm: Date | string | null; s: AufrufZusammenfassung; letzte: AufrufZeile[];
 }
 const wer = (k: MeldungLage["kunde"]) => (k.anrede === "Herr" || k.anrede === "Frau") && String(k.nachname || "").trim()
   ? `${k.anrede} ${String(k.nachname).trim()}` : angebotKundeName(k) || "Der Kunde";
 const sein = (k: MeldungLage["kunde"]) => (k.anrede === "Herr" ? "sein" : k.anrede === "Frau" ? "ihr" : "das");
+const firmaZusatz = (k: MeldungLage["kunde"]) => (k.firma ? ` (${k.firma})` : "");
 const geraetKurz = (g: string | null) => String(g || "Gerät unbekannt").split(" · ")[0];
 
 /** „Herr Hildbrand hat sein Angebot geöffnet (2×, zuletzt 15:42, iPhone, Heidelberg)" — höchstens 160 Zeichen. */
@@ -379,7 +380,7 @@ const FUSS = [
 /** Der Text der EINEN Aufgabe (wird bei jedem Aufruf neu geschrieben, nicht angehängt). */
 export function aufgabeText(m: MeldungLage): string {
   return [
-    `${angebotKundeName(m.kunde) || "Der Kunde"} hat ${sein(m.kunde)} persönliches Angebot ${m.ref} über den Link geöffnet.`,
+    `${angebotKundeName(m.kunde) || "Der Kunde"}${firmaZusatz(m.kunde)} hat ${sein(m.kunde)} persönliches Angebot ${m.ref} über den Link geöffnet.`,
     ...lageZeilen(m),
     "",
     "Letzte Aufrufe des Kunden (Zeit Berlin):",
@@ -398,7 +399,7 @@ export function meldungMail(m: MeldungLage, jetzt: Date = new Date()): { betreff
       "Hallo Justin,",
       "",
       z
-        ? `${angebotKundeName(m.kunde) || "Der Kunde"} hat ${sein(m.kunde)} persönliches Angebot ${m.ref} ${m.s.besuche > 1 ? "wieder" : "gerade"} geöffnet — ${zeitLang(z.am)}, ${z.geraet || "Gerät unbekannt"}, ${ortText(z)}.`
+        ? `${angebotKundeName(m.kunde) || "Der Kunde"}${firmaZusatz(m.kunde)} hat ${sein(m.kunde)} persönliches Angebot ${m.ref} ${m.s.besuche > 1 ? "wieder" : "gerade"} geöffnet — ${zeitLang(z.am)}, ${z.geraet || "Gerät unbekannt"}, ${ortText(z)}.`
         : `Zum Angebot ${m.ref} gibt es noch keinen Aufruf des Kunden.`,
       "",
       ...lageZeilen(m),
@@ -571,12 +572,25 @@ async function zeilenLesen(angebotIds: number[]): Promise<AufrufZeile[]> {
   return r.map((x) => ({ ...x, id: Number(x.id), angebot_id: Number(x.angebot_id), intern_agent_id: x.intern_agent_id != null ? Number(x.intern_agent_id) : null, antwort: x.antwort != null ? Number(x.antwort) : null }));
 }
 
+/**
+ * Firmen-, Kapital- und Kooperationsangebote tragen Anrede und Namen unter `kunde.vertretung` (die Firma unter `kunde.firma`).
+ * Ohne diese Brücke hieß die Meldung „Der Kunde hat das Angebot geöffnet" statt „Herr Widmer hat sein Angebot geöffnet" (19.10.2026).
+ */
+export function meldungKunde(k: any): MeldungLage["kunde"] {
+  const roh = k && typeof k === "object" ? k : {};
+  const v = roh.vertretung && typeof roh.vertretung === "object" ? roh.vertretung : null;
+  const quelle = v && String(v.nachname || "").trim() ? v : roh;
+  const firma = String(roh.firma?.name || "").trim();
+  return { anrede: quelle.anrede, vorname: quelle.vorname, nachname: quelle.nachname, ...(firma ? { firma } : {}) } as MeldungLage["kunde"];
+}
+
 /** Die Lage für Titel, Aufgabe und Mail. */
 async function meldungLage(angebotId: number): Promise<MeldungLage | null> {
   const [a] = (await sqlPool`SELECT id, angebot_ref, kunde, status, gueltig_bis, angenommen_am FROM fiaon_global_angebote WHERE id = ${angebotId} LIMIT 1`) as any[];
   if (!a) return null;
   let kunde: any = a.kunde;
   if (typeof kunde === "string") { try { kunde = JSON.parse(kunde); if (typeof kunde === "string") kunde = JSON.parse(kunde); } catch { kunde = {}; } }
+  kunde = meldungKunde(kunde);
   const zeilen = await zeilenLesen([angebotId]);
   const s = aufrufZusammenfassung(zeilen);
   const gueltigBis = a.gueltig_bis instanceof Date ? berlinToday(a.gueltig_bis) : a.gueltig_bis ? String(a.gueltig_bis).slice(0, 10) : null;
@@ -646,11 +660,34 @@ const meldungKnoepfe = () => [{ text: "Alle Aufrufe ansehen", url: absoluteUrl(A
 export async function annahmeMelden(m: { ref: string; name: string; art: "Individualangebot" | "Firmenangebot" | "Begleitvertrag" | "Kooperationsvertrag" | "Kapital-Angebot"; betrag: string; zeilen: string[] }): Promise<string> {
   try {
     const { eigeneMailSenden } = await import("./fiaon-brevo");
-    const text = [`${m.name} hat das ${m.art} ${m.ref} soeben angenommen. Erwartet: ${m.betrag}.`, ...m.zeilen.map((z) => String(z ?? "").trim()).filter(Boolean)].join("\n\n");
+    const text = [`${m.name} hat das ${m.art} ${m.ref} soeben angenommen. Erwartet: ${m.betrag}.`, ...m.zeilen.map((z) => String(z ?? "").trim()).filter(Boolean), ...(await annahmeLeseweg(m.ref))].join("\n\n");
     const v = await eigeneMailSenden({ an: AUFRUF_MELDUNG_AN, name: "Justin", betreff: `Angenommen: ${m.name} — ${m.art} ${m.ref}`, text, knoepfe: meldungKnoepfe() });
     return v.ok ? `Mail an ${AUFRUF_MELDUNG_AN} gesendet` : `Mail an ${AUFRUF_MELDUNG_AN} nicht gesendet (${String(v.grund || "unbekannt").slice(0, 160)})`;
   } catch (e) {
     return `Mail an ${AUFRUF_MELDUNG_AN} nicht gesendet (${(e instanceof Error ? e.message : String(e)).slice(0, 160)})`;
+  }
+}
+
+/**
+ * Justin 19.10.2026 („ich möchte live wissen, was er wie, wo macht"): Die Annahme-Mail sagt auch, WIE und WO — Gerät und Ort
+ * des letzten Aufrufs vor der Annahme, wie oft er Seite und PDFs geöffnet hat, seit wann er liest. Wirft nie; ohne Aufrufe leer.
+ */
+async function annahmeLeseweg(ref: string): Promise<string[]> {
+  try {
+    const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebot_aufrufe') AS tab`) as any[];
+    if (!t?.tab) return [];
+    const [a] = (await sqlPool`SELECT id FROM fiaon_global_angebote WHERE angebot_ref = ${ref} LIMIT 1`) as any[];
+    if (!a) return [];
+    const m = await meldungLage(Number(a.id));
+    if (!m || !m.s.zuletzt) return [];
+    const z = m.s.zuletzt;
+    return [
+      `SO HAT ER GELESEN: zuletzt ${zeitLang(z.am)} — ${z.geraet || "Gerät unbekannt"} — ${ortText(z)}`
+        + `${m.s.erster ? ` · erster Aufruf ${zeitLang(m.s.erster.am)}` : ""}.`,
+      `Seite ${m.s.geoeffnet}× · Vertrag-PDF ${m.s.vertragPdf}× · Prüfbericht-PDF ${m.s.pruefberichtPdf}× · ${m.s.besuche} Besuch${m.s.besuche === 1 ? "" : "e"}.`,
+    ];
+  } catch {
+    return [];
   }
 }
 

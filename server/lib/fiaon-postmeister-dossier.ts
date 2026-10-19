@@ -180,6 +180,28 @@ export function nummernImText(betreffUndText: string): { art: NummerArt; wert: s
   return aus.map(({ art, wert, imBetreff }) => ({ art, wert, imBetreff }));
 }
 
+/**
+ * E-396 Teil 2 (19.10.2026): Gehört diese Absender-Adresse zur Person — als ihre gespeicherte Adresse (Person, eine ihrer
+ * Bestellungen; Gmail-Grundform zählt)? Für „eigener Absender“: Ein „Ja“ auf Maras Kündigungs-Rückfrage bucht nur von
+ * der gespeicherten Adresse, und die Rückfrage zu einem Formular-Antrag geht nur an eine gespeicherte Adresse.
+ */
+export async function absenderGehoertZurPerson(absender: string | null | undefined, personId: number | null | undefined): Promise<boolean> {
+  const adresse = String(absender || "").toLowerCase().match(/<([^>]+)>/)?.[1] ?? String(absender || "").toLowerCase().trim();
+  if (!personId || !adresse.includes("@")) return false;
+  const grund = adresseGrundform(adresse);
+  const [z] = (await sqlPool.unsafe(`
+    SELECT 1 AS ja FROM fiaon_persons p
+     WHERE (p.id = $1 OR p.merged_into_person_id = $1)
+       AND (LOWER(TRIM(COALESCE(p.primary_email, ''))) = $2 OR ${GRUNDFORM_SQL("p.primary_email")} = $3)
+    UNION ALL
+    SELECT 1 FROM fiaon_applications a
+     WHERE (a.person_id = $1 OR a.person_id IN (SELECT d.id FROM fiaon_persons d WHERE d.merged_into_person_id = $1))
+       AND ($2 IN (LOWER(TRIM(COALESCE(a.email, ''))), LOWER(TRIM(COALESCE(a.contact_email, ''))), LOWER(TRIM(COALESCE(a.billing_email, ''))))
+            OR $3 IN (${GRUNDFORM_SQL("a.email")}, ${GRUNDFORM_SQL("a.contact_email")}, ${GRUNDFORM_SQL("a.billing_email")}))
+    LIMIT 1`, [Number(personId), adresse, grund]).catch(() => [])) as any[];
+  return !!z;
+}
+
 export async function personSuchen(absender: string, text: string, opts: { kette?: string | null; betreff?: string | null } = {}): Promise<{
   personId: number | null; ref: string | null; sicher: boolean; wie: string;
   kandidaten: { personId: number; name: string; wie: string }[];

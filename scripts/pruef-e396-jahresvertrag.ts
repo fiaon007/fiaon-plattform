@@ -167,6 +167,44 @@ async function main() {
   ok(!TON.KUENDIGUNG_REGEL_TEXT.includes("dann lasse ich Sie aus Kulanz gerne aus dem Vertrag“ (auf WhatsApp"), "WhatsApp-Regel trägt die alte Fassung nicht mehr");
   ok(TON.KUENDIGUNG_REGEL_TEXT.includes(JV.MARA_JAHRESVERTRAG_REGEL), "WhatsApp-Regel trägt Justins Regel vom 19.10.");
 
+  console.log("── 12 · Teil 2: Rückfrage statt Auftrag ────────────────────────────────────");
+  const AG = await import("../server/lib/fiaon-postmeister-agent");
+  const { istWillenserklaerung } = await import("../server/lib/fiaon-kuendigung");
+  // Formular: Fehlt NUR die Identität, fragt Mara an der gespeicherten Adresse nach — gebucht wird erst auf sein Ja.
+  const offenId = auto({ annahmeBelegt: true, identitaetOffen: true });
+  ok(!offenId.ja && offenId.rueckfrage === true && /fragt an der gespeicherten Adresse nach/.test(offenId.warum), "Formular, Identität offen → nicht gebucht, Rückfrage an die gespeicherte Adresse");
+  ok(auto({ identitaetOffen: true, agbStand: "2026-08-15" }).rueckfrage === true, "auch beim Altvertrag: Identität offen → Rückfrage");
+  ok(auto({ identitaetOffen: true }).rueckfrage === false, "Identität offen UND ohne belegte Annahme → keine Rückfrage, Karte (die Leitung entscheidet)");
+  ok(auto({ annahmeBelegt: true, identitaetOffen: true, grund: "Ich widerrufe" }).rueckfrage === false, "Identität offen UND Widerruf → keine Rückfrage, Karte");
+  ok(auto({ annahmeBelegt: true, identitaetOffen: true, zielBuchbar: false }).rueckfrage === false, "Identität offen UND kein eindeutiges Paket → keine Rückfrage, Karte");
+  // Die Rückfrage-Mail und das Ja darauf.
+  const kern = FOLGEN.formularRueckfrageKern({ am: "17.10.2026", paket: "FIAON Pro" });
+  ok(kern.includes("Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.") && /zum 17\.10\.2026/.test(kern), "Rückfrage-Mail: Justins Satz und der Eingangstag");
+  ok(!WV.kopplungFinden(kern) && !AG.zahltOderVerkauft(kern), "Rückfrage-Mail: keine Kopplung, keine Zahlungsbitte");
+  ok(PMW.jaAufRueckfrage("Ja", FOLGEN.KUENDIGUNG_RUECKFRAGE) && PMW.jaAufRueckfrage("Ja bitte", kern), "„Ja“ auf die neue Rückfrage → Kündigung");
+  ok(!PMW.jaAufRueckfrage("Nein", kern) && !PMW.jaAufRueckfrage("Ja aber erst später?", kern), "„Nein“ / Frage → keine Kündigung");
+  ok(AG.rueckfrageGestellt(FOLGEN.KUENDIGUNG_RUECKFRAGE), "Die neue Rückfrage gilt als Rückfrage (kein zweites Anhängen)");
+  // Mail-Mara: wann der Server die Rückfrage anhängt.
+  const kk = (flags: any, ref: string | null = "FIAON-REF") => ({ einordnung: { flags }, handlungen: [], akte: {}, kontext: { ref } });
+  ok(AG.kuendigungNichtGebucht(kk({ kuendigung: true })), "unklare Kündigung, nichts gebucht → Rückfrage");
+  ok(!AG.kuendigungNichtGebucht(kk({ kuendigung: true }, null)), "#7092: ohne Bestellung → keine Rückfrage");
+  ok(!AG.kuendigungNichtGebucht(kk({ kuendigung: true, widerruf: true })), "Widerruf → keine Rückfrage (Mensch/Karte)");
+  ok(!AG.kuendigungNichtGebucht(kk({ kuendigung: true, bestreitet: true })), "Bestreiten → keine Rückfrage (Mensch/Karte)");
+  ok(!AG.kuendigungNichtGebucht(kk({ kuendigung: true, droht_anwalt: true })), "Anwalt → keine Rückfrage (Mensch/Karte)");
+  // Senden: die reine Rückfrage darf trotz offenem „Stopp“ raus, ein Werbeversprechen nie (E-371).
+  const RF = `Danke für Ihre Nachricht.\n\n${FOLGEN.KUENDIGUNG_RUECKFRAGE}`;
+  ok(AG.maraSelbstSendbar({ flags: { stopp: true, kuendigung: true }, lage: "aktiv", global: false, text: RF, ruhe: true, stoppOffen: true, kuendigungRueckfrage: true }), "„Stopp“ offen + reine Rückfrage → Mara sendet selbst");
+  ok(!AG.maraSelbstSendbar({ flags: { stopp: true, kuendigung: true }, lage: "aktiv", global: false, text: `${RF}\nSie bekommen keine Werbung mehr.`, ruhe: true, stoppOffen: true, kuendigungRueckfrage: true }), "„Stopp“ offen + Werbeversprechen → nie automatisch (E-371)");
+  ok(!AG.maraSelbstSendbar({ flags: { stopp: true }, lage: "aktiv", global: false, text: "Danke.", ruhe: true, stoppOffen: true }), "„Stopp“ offen ohne Rückfrage → wie bisher Entwurf");
+  ok(!AG.maraSelbstSendbar({ flags: { kuendigung: true, widerruf: true }, lage: "aktiv", global: false, text: RF, ruhe: true, kuendigungRueckfrage: true }), "Widerruf bleibt beim Menschen, auch mit Rückfrage");
+  // #6821 „Danke kein Bedarf“ — eine klare Absage bei unbezahlter Bestellung.
+  ok(istWillenserklaerung("Danke kein Bedarf", { unbezahlt: true }) && istWillenserklaerung("Kein Bedarf mehr, danke.", { unbezahlt: true }), "#6821 „Danke kein Bedarf“ (unbezahlt) → Storno");
+  ok(!istWillenserklaerung("Keine Ahnung, ich habe Bedarf an einer Karte", { unbezahlt: true }) && !istWillenserklaerung("Danke kein Bedarf", {}), "„… habe Bedarf“ → keine Absage; laufender Vertrag → keine Kündigung");
+  // Maras Anweisung: unklare Kündigung nie als Auftrag.
+  const QUELLE = (await import("node:fs")).readFileSync(new URL("../server/lib/fiaon-postmeister-agent.ts", import.meta.url), "utf8");
+  ok(QUELLE.includes("Eine unklare Kündigung gibst du NIE als Aufgabe oder Auftrag an einen Kollegen weiter"), "Prompt: unklare Kündigung nie als Auftrag — die Rückfrage ist der Weg");
+  ok(!/dass ich Ihren Vertrag jetzt kündige\? Ein kurzes Ja/.test(QUELLE.replace(/\/\/.*$/gm, "")), "Server und Prompt fragen mit Justins Wortlaut (nicht mehr „… dass ich … jetzt kündige?“)");
+
   console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (offline)`);
   if (schlecht) { console.log("Rot:"); for (const r of rot) console.log(`  · ${r}`); process.exitCode = 1; }
   process.exit(process.exitCode ?? 0);

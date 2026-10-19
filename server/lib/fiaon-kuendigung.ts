@@ -224,7 +224,8 @@ export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean }
   // („dsd ich dad Angebot nlcht möchte", „wird nicht mehr benötigt",
   // „hiermit wiederufe ich"). Ein Storno kostet nichts; Nachfragen kostet
   // den Kunden Geduld und uns eine Mail.
-  const absage = /(^\s*nein[, ]*danke|(nicht|nlcht|kein(e|en|s)?|nein)[^.!?\n]{0,40}(möcht|moecht|will|brauch|benötig|benoetig|interess|angebot|vertrag|bestellung|antrag|auftrag|weiter|nehmen|abschließen|abschliessen|paket|finanzierung|konto bei ihnen)|(möcht|moecht|will|brauch|benötig|benoetig)[^.!?\n]{0,30}(nicht|nlcht|kein)|storn|abbrech|zurücktret|zuruecktret|beenden|lösch|loesch|wie?derr?uf|verzicht)/;
+  // E-396 Teil 2 (19.10.2026, #6821 „Danke kein Bedarf“): „kein Bedarf“ ist eine klare Absage — nur direkt hintereinander.
+  const absage = /(^\s*nein[, ]*danke|(nicht|nlcht|kein(e|en|s)?|nein)[^.!?\n]{0,40}(möcht|moecht|will|brauch|benötig|benoetig|interess|angebot|vertrag|bestellung|antrag|auftrag|weiter|nehmen|abschließen|abschliessen|paket|finanzierung|konto bei ihnen)|(möcht|moecht|will|brauch|benötig|benoetig)[^.!?\n]{0,30}(nicht|nlcht|kein)|storn|abbrech|zurücktret|zuruecktret|beenden|lösch|loesch|wie?derr?uf|verzicht|kein(?:en)? bedarf)/;
   if (opts.unbezahlt && !zweifel.test(t) && absage.test(t)) return true;
   if (storno.test(t) && !zweifel.test(t)) {
     if (opts.unbezahlt) return true;

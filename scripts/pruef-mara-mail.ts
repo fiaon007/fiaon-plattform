@@ -580,7 +580,8 @@ if (MIT_DB) {
       const vJ = await vertragsendeLesen("FIAON-P248MAJ");
       ok(eJ.ok && eJ.weg === "letzte_rate" && eJ.letzteRateNr === 2 && stJ[3] === "storniert/kuendigung" && eJ.vertragEndeAm === null && vJ.jahresvertrag && vJ.ende === null, `Jahresvertrag unverändert: fällige Rate 2 bleibt (Kulanz), Rate 3 entfällt, kein Abrechnungsmonat (${eJ.weg}, letzte ${eJ.letzteRateNr}, Ende ${vJ.ende})`);
       const inhJ = bestaetigungInhalt({ agb_stand: "2026-09-10", gekuendigt_am: "2026-10-15T08:00:00Z", offene_raten: [{ rate_nr: 2, betrag_cents: 5999, faellig_am: "2026-10-10", zahlungsreferenz: "FIAON-P248MAJ-2" }] });
-      ok(!!inhJ && /zwölf Monatsraten/.test(inhJ.vertrag_satz) && !/Abrechnungsmonat/.test(`${inhJ.vertrag_satz} ${inhJ.offen_satz}`), "… Bestätigungsmail Jahresvertrag ohne Abrechnungsmonat");
+      // E-396 (19.10.2026): Jahresvertrag ohne belegte Annahme (bisheriger Weg) — DIE EINE Kulanz-Fassung statt „zwölf Monatsraten … entlassen Sie vorzeitig“.
+      ok(!!inhJ && /entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag/.test(inhJ.offen_satz) && /unabhängig von jeder Zahlung/.test(inhJ.vertrag_satz) && !/Abrechnungsmonat/.test(`${inhJ.vertrag_satz} ${inhJ.offen_satz}`), "… Bestätigungsmail Jahresvertrag ohne Abrechnungsmonat");
       // Nachbesserung Recht (M2): beim Jahresvertrag bleibt der Zahltag das Vertragsende (Justins Kulanz) — unverändert.
       {
         const { vertragEndePruefen } = await import("../server/lib/fiaon-kuendigung");

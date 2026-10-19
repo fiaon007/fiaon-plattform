@@ -95,6 +95,11 @@ export interface WerkzeugKontext {
    * Rechnet der Server (zahlungsRuhe), nie das Modell.
    */
   ruhe?: string | null;
+  /**
+   * E-396 Teil 2 (19.10.2026): Der Absender der Mail („Name <adresse>“). Ein kurzes „Ja“ auf unsere Kündigungs-Rückfrage
+   * bucht nur, wenn es von einer Adresse kommt, die bei ihm gespeichert ist (absenderGehoertZurPerson).
+   */
+  absender?: string | null;
 }
 
 /**
@@ -1230,6 +1235,9 @@ export const kuendigungVormerken: Werkzeug = {
       && !(eigen && kuendigungRuecknahme(eigen));
     // Ein kurzes „Ja" auf UNSERE Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt
     // kündige? Ein kurzes Ja genügt.") ist die Erklärung — sonst Kündigungsschleife.
+    // E-396 Teil 2 (19.10.2026): auch auf die Rückfrage zu einem Formular-Antrag (formularRueckfrageSenden) — dann wird
+    // DIESER Antrag gebucht, zum Tag seines Eingangs. Und das Ja zählt nur vom gespeicherten Absender (Justin: „eigener Absender“).
+    let formularAntrag: import("./fiaon-kuendigung").OffenerAntrag | null = null;
     if (!wille && eigen && k.personId && eigen.trim().length <= 90) {
       const [letzte] = (await sqlPool`
         SELECT antwort FROM fiaon_postmeister
@@ -1237,7 +1245,23 @@ export const kuendigungVormerken: Werkzeug = {
            AND id <> ${k.postmeisterId ?? -1}
            AND created_at > NOW() - INTERVAL '21 days'
          ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
-      wille = jaAufRueckfrage(eigen, letzte?.antwort ?? null);
+      let ja = jaAufRueckfrage(eigen, letzte?.antwort ?? null);
+      if (!ja) {
+        const { formularRueckfrageOffen, KUENDIGUNG_RUECKFRAGE } = await import("./fiaon-kuendigung-folgen");
+        const antragNr = jaAufRueckfrage(eigen, KUENDIGUNG_RUECKFRAGE) ? await formularRueckfrageOffen(k.personId).catch(() => null) : null;
+        if (antragNr != null) {
+          const { offeneKuendigungsantraege } = await import("./fiaon-kuendigung");
+          formularAntrag = (await offeneKuendigungsantraege(k.personId, antragNr).catch(() => []))[0] ?? null;
+          ja = !!formularAntrag?.ziel.ziel;
+        }
+      }
+      if (ja) {
+        const { absenderGehoertZurPerson } = await import("./fiaon-postmeister-dossier");
+        if (!(await absenderGehoertZurPerson(k.absender, k.personId).catch(() => false))) {
+          return { ok: false, ergebnis: "", fehler: "Das „Ja“ kommt nicht von einer E-Mail-Adresse, die bei ihm gespeichert ist — NICHTS ist gebucht (E-396: nur vom eigenen Absender). Bestätige keine Kündigung. Bitte ihn in EINEM freundlichen Satz, kurz von seiner bei uns hinterlegten E-Mail-Adresse mit „Ja“ zu antworten." };
+        }
+        wille = true;
+      }
     }
     if (!wille) {
       return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — NICHTS ist gebucht. Bestätige keine Kündigung. Hat der Kunde selbst „kündigen“, „stornieren“ oder „widerrufen“ geschrieben (ohne „nicht“), frag in EINEM freundlichen Satz nach, ob du es jetzt für ihn erledigen sollst. Hat er das NICHT selbst geschrieben (z. B. nur „Stopp“, eine Frage, eine Beschwerde), sprich Kündigung und Storno überhaupt NICHT an — beantworte nur sein Anliegen." };
@@ -1248,12 +1272,21 @@ export const kuendigungVormerken: Werkzeug = {
     // nur Urkunde oder Bestätigungsmail, steht die Kündigung trotzdem.
     // Steht die Kündigung schon, gibt es nichts durchzuführen — dann nur der Stand
     // (kuendigungSetzen meldet „bereits"), ohne zweiten Aktenvermerk (E-246).
-    const [schon] = (await sqlPool`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+    // E-396 Teil 2: Beim Ja auf die Formular-Rückfrage ist das Ziel die Bestellung des Antrags (gebucht zum Eingangstag).
+    const ziel: string = formularAntrag?.ziel.ziel ?? k.ref;
+    const [schon] = (await sqlPool`SELECT gekuendigt_am FROM fiaon_applications WHERE ref = ${ziel} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
     const { kuendigungSetzen } = await import("./fiaon-kuendigung");
-    const { kuendigungDurchfuehren } = await import("../routes/fiaon-kuendigung");
-    const erg = schon?.gekuendigt_am
-      ? await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null })
-      : await kuendigungDurchfuehren(k.ref, {
+    const { kuendigungDurchfuehren, antragBuchen } = await import("../routes/fiaon-kuendigung");
+    const erg = formularAntrag && !schon?.gekuendigt_am
+      ? await antragBuchen(formularAntrag, {
+        grund: `${formularAntrag.grund ? `${String(formularAntrag.grund).slice(0, 160)} ` : ""}(Formular, per „Ja“ von der gespeicherten Adresse bestätigt — Mara, E-Mail)`,
+        personId: k.personId ?? null, mail: true,
+        identitaetVermerk: "Per E-Mail-Rückfrage an die gespeicherte Adresse bestätigt: Der Kunde hat von seiner hinterlegten Adresse mit „Ja“ geantwortet (Mara, E-396).",
+        unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, E-Mail)" },
+      })
+      : schon?.gekuendigt_am
+      ? await kuendigungSetzen(ziel, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null })
+      : await kuendigungDurchfuehren(ziel, {
         quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null,
         personId: k.personId ?? null, unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, E-Mail)" },
         // E-396: Erwähnt er einen Widerruf, bleibt beim Jahresvertrag der bisherige Weg — die Leitung entscheidet.
@@ -1292,7 +1325,7 @@ export const kuendigungVormerken: Werkzeug = {
     let beendet = false;
     const [stand] = (await sqlPool`
       SELECT payment_status, (vertrag_ende_am IS NOT NULL AND vertrag_ende_am <= NOW()) AS vorbei, gekuendigt_am
-        FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+        FROM fiaon_applications WHERE ref = ${ziel} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
     if (weg === "bereits") {
       beendet = !!stand && (["cancelled", "canceled", "storniert", "refunded"].includes(String(stand.payment_status)) || stand.vorbei === true);
     }
@@ -1300,7 +1333,7 @@ export const kuendigungVormerken: Werkzeug = {
       ? await sqlPool`
           SELECT rate_nr, betrag_cents, to_char(faellig_am, 'DD.MM.YYYY') AS faellig, to_char(faellig_am, 'YYYY-MM-DD') AS faellig_iso
             FROM fiaon_abo_raten
-           WHERE ref = ${k.ref} AND storniert_am IS NULL AND status = 'offen'
+           WHERE ref = ${ziel} AND storniert_am IS NULL AND status = 'offen'
            ORDER BY rate_nr ASC`.catch(() => null)
       : []) as any[] | null;
     // ── E-265 Nachbesserung (29.09.2026, Recht): VERTRAG VOR DEM 03.09.2026 ENDET ZUM ENDE DES ABRECHNUNGSMONATS ──
@@ -1312,7 +1345,7 @@ export const kuendigungVormerken: Werkzeug = {
     // Nachbesserung Recht (01.10.2026, Gegenprüfung M2): immer die EINE Lesestelle — nie die rohe Spalte vertrag_ende_am
     // (Altdaten mit Zahltag statt Ende des Abrechnungsmonats).
     const endeTag: string | null = k.formlosKuendbar
-      ? (await (await import("./fiaon-kuendigung")).vertragsendeLesen(k.ref)).ende
+      ? (await (await import("./fiaon-kuendigung")).vertragsendeLesen(ziel)).ende
       : null;
     const { zuZahlen: offenBisEnde, nachEnde } = kuendigungRatenAufteilen(
       (offene ?? []).map((r) => ({ ...r, faellig: r.faellig_iso ?? null })),
@@ -1328,18 +1361,18 @@ export const kuendigungVormerken: Werkzeug = {
       const wider = echteOffeneRaten(gelesen);
       const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
       await auftragFuerKunden({
-        personId: k.personId, ref: k.ref, anBetreiber: true, quelle: "postmeister", autorName: "Mara",
-        titel: `Prüffall: offene Rate trotz beendetem Vertrag (${k.ref})`.slice(0, 160),
-        text: `Die Bestellung ${k.ref} ist storniert oder beendet, trotzdem steht noch ${wider.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`).join(", ")} als offen (nicht storniert). `
+        personId: k.personId, ref: ziel, anBetreiber: true, quelle: "postmeister", autorName: "Mara",
+        titel: `Prüffall: offene Rate trotz beendetem Vertrag (${ziel})`.slice(0, 160),
+        text: `Die Bestellung ${ziel} ist storniert oder beendet, trotzdem steht noch ${wider.map((r) => `Rate ${r.nr} über ${rateEuro(r.cents)}`).join(", ")} als offen (nicht storniert). `
           + `Mara hat dem Kunden keine Zahlung genannt. Bitte prüfen: Rate stornieren oder Bestellung richtigstellen.`,
-        schluessel: `postmeister:kuendigung-raten:${k.ref}`,
+        schluessel: `postmeister:kuendigung-raten:${ziel}`,
       }).catch((e) => console.error("[POSTMEISTER] Prüffall Raten:", String(e).slice(0, 160)));
     }
     // ── E-396 (19.10.2026): JAHRESVERTRAG ZUM LAUFZEITENDE ──────────────────────────────────────────────────────
     // Gebucht (oder schon gebucht) zum Laufzeitende: Es zählt das Ende aus der Buchung und die offene Rechnung aus dem
     // Kulanz-Angebot (bis kulanz_rate_nr) — nicht jede offene Rate. Mara sagt das Ende und den EINEN Kulanz-Satz.
     const jl = !k.formlosKuendbar && !beendet
-      ? await (await import("./fiaon-kuendigung")).jahresvertragLage(k.ref).catch(() => null) : null;
+      ? await (await import("./fiaon-kuendigung")).jahresvertragLage(ziel).catch(() => null) : null;
     const laufzeit = jl?.art === "laufzeit" && jl.ende ? jl : null;
     const deTT = (iso: string | null) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : null);
     const raten: OffeneRate[] | null = beendet ? []
@@ -1527,7 +1560,7 @@ export function keinKuendigungsSatz(s: string): string | null {
   return null;
 }
 
-/** Unsere Rückfrage „Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt." (und die Storno-Fassung). */
+/** Unsere Rückfrage „Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt." (bis 19.10.2026: „… dass ich Ihren Vertrag jetzt kündige?") (und die Storno-Fassung). */
 export const RUECKFRAGE_KUENDIGUNG = /\b(?:möchten|moechten|wollen)\s+sie[^?]{0,60}?\b(?:k(?:ü|ue)ndige|storniere|k(?:ü|ue)ndigen|stornieren)\b[^?]{0,20}\?|\bsoll\s+ich\b[^?]{0,60}?\b(?:k(?:ü|ue)ndigen|stornieren)\b[^?]{0,20}\?/i;
 /**
  * Ein kurzes Ja auf unsere Rückfrage (Nachbesserung E-248): „Ja", „Ja bitte",

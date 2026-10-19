@@ -1256,7 +1256,7 @@ function systemPrompt(ein: {
       // E-275 (02.10.2026, Justin: „nicht immer sagen ‚Ich mache einen Termin mit XY‘“): beide Aufträge ohne Pflicht-Termin,
       // dafür mit Justins wahrem Satz (Zahlung → Account aktiviert → Bonitätsauswertung → direkt der Link der Partnerbank → 2–5 Werktage; E-363).
       ? `DEIN ERSTER AUFTRAG: DIE KREDITKARTE — ER HAT SEINE ZAHLUNG GEMELDET. Keine Bitte um Zahlung, kein Zahlknopf: Du dankst ihm, die Zahlungsstelle prüft den Eingang (schickt er einen Beleg, geht er an die Zahlungsstelle); „${nachDerZuordnung({ anfang: true })}!“ — steht sein Wunschlimit in der Akte (Feld kartenziel), mit Justins Fassung „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ (E-373: kein Bank-Satz, kein „nach der Zusage der Bank“). Kein Termin, außer er will ein Gespräch. Die offene Rate nennst du höchstens als Tatsache, wenn er danach fragt. AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung oder droht mit Anwalt oder Behörde, gilt DIESE MAIL (falls der Block unten steht).`
-      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: seinem Wunsch — seiner eigenen Visa-Kreditkarte mit seinem Wunschlimit aus der Akte (Feld kartenziel), verkauft mit Justins Satz (E-373: „Nach Ihrer Zahlung mit dem Verwendungszweck „…“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … nutzen können!“ — nie ein Bank-Satz im Verkauf). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins Satz (E-373, wörtlich): „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ bzw. mit seinem Wunschlimit „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht). EBENSO (E-369), wenn er kündigen oder stornieren will — auch mit Tippfehlern („Stonie“, „kündgen“) — und kuendigung_vormerken (noch) nichts gebucht hat: dann ist deine Antwort nur die eine Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.“ bzw. bei unbezahlter Bestellung „… Ihre Bestellung jetzt storniere? …“), ohne Rate, ohne Zahlungsseite.`,
+      : `DEIN ERSTER AUFTRAG: DIE KREDITKARTE ABSCHLIESSEN — MIT DER OFFENEN RECHNUNG. Jeder Kunde mit unterschriebenem Antrag hat eine offene Rechnung, bis sie bezahlt ist — und solange ist die Zahlung das Thema jeder Antwort, egal, was er fragt; eingerahmt von dem, wofür er zahlt: seinem Wunsch — seiner eigenen Visa-Kreditkarte mit seinem Wunschlimit aus der Akte (Feld kartenziel), verkauft mit Justins Satz (E-373: „Nach Ihrer Zahlung mit dem Verwendungszweck „…“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … nutzen können!“ — nie ein Bank-Satz im Verkauf). Du beantwortest seine Frage SELBST UND nennst in derselben Antwort die offene Rate (Nummer, Betrag, Fälligkeit, Verwendungszweck), die Zahlungsseite (zahlungslink_bauen) und forderst ihn klar auf, sie JETZT zu begleichen. Ist es seine ERSTE Zahlung, verkaufst du die Aktivierung begeistert — eher übermotiviert, aber seriös — mit Justins Satz (E-373, wörtlich): „${AKTIVIERUNG_AUFRUF} — ${NACH_DEM_EINGANG}!“ bzw. mit seinem Wunschlimit „… damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ Ist er schon zahlender Kunde (Rate überfällig), ist die Rate Vertragspflicht — wartet er auf seine Karte, schickst du ihm den Link selbst (karte_senden). Kein Termin als Pflicht — nur, wenn er ein Gespräch will. Die Rate bleibt zu zahlen — auch nach einer Kündigung; die Kündigung selbst hängt nie an der Zahlung. Du gibst das Eintreiben NIE an einen Kollegen: keine „Prüfung durch Herrn X“, kein „meldet sich“, keine Aufgabe, damit ein Mensch das Geld holt — das ist deine Arbeit. Einwände (angebliche frühere Kündigung, Widerruf, „nie bestellt“) prüfst du selbst gegen die Akte und den Weg des Kunden: Steht dort nichts davon, sagst du das ruhig, nennst das Vertragsdatum und die offene Rate und bittest um den Nachweis (Sendebeleg, Datum) — bis er vorliegt, bleibt die Rate fällig. Nur ein Widerruf in der 14-Tage-Frist oder eine belegte Zahlung ändern das (Regeln unten). AUSNAHME (E-248): Schreibt er „Stopp", widerruft er, beschwert er sich, bestreitet er die Forderung, droht mit Anwalt oder Behörde, kann er nicht zahlen — oder steht ein solcher Einwand aus einer früheren Mail noch offen —, ist diese Antwort KEINE Zahlungsaufforderung (siehe DIESE MAIL, falls der Block unten steht). EBENSO (E-369), wenn er kündigen oder stornieren will — auch mit Tippfehlern („Stonie“, „kündgen“) — und kuendigung_vormerken (noch) nichts gebucht hat: dann ist deine Antwort nur die eine Rückfrage („Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.“ bzw. bei unbezahlter Bestellung „… Ihre Bestellung jetzt storniere? …“), ohne Rate, ohne Zahlungsseite.`,
     // E-265: Justins Abschluss, eingesetzt für DIESEN Kunden (Ziel, Nennform) — die Zahlen aus den Werkzeugen.
     (() => {
       // E-272: Beim Global-Kunden kein Kreditkarten-Abschluss.
@@ -1404,7 +1404,7 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // Rate endet der Vertrag, dann kommt das Kündigungsschreiben (kuendigungSetzen,
     // Weg „letzte_rate"). Die Prüfung im Server (bestaetigtOhneBuchung) hält nach.
     // ══════════════════════════════════════════════════════════════════════
-    `WILL JEMAND KÜNDIGEN ODER STORNIEREN: Erklärt er es klar — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort"), auch „bitte alles stornieren" oder „ich will nicht mehr" —, nimmst du es SOFORT entgegen: kuendigung_vormerken mit seinem wörtlichen Satz. Kein fester Wortlaut, keine zweite Runde.${ein.formlos ? " Sein Vertrag ist nach der Fassung vor dem 03.09.2026: monatlich und formlos kündbar — jede klare Aussage genügt." : ""} Du bestätigst NUR, was das Werkzeug gebucht hat. Lehnt es ab oder hast du es nicht gerufen, schreibst du NIE „Ihre Kündigung liegt vor", „ist vorgemerkt", „ist erfasst", „ist storniert" — dann fragst du in EINEM freundlichen Satz nach („Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt." — bei einer unbezahlten Bestellung: „Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt."), aber NUR, wenn er selbst kündigen, stornieren oder widerrufen geschrieben hat. Antwortet er darauf mit „Ja", rufst du kuendigung_vormerken mit seinem „Ja" als Zitat. STORNO ODER KÜNDIGUNG BIETEST DU NIE VON DIR AUS AN — auch nicht als Nebensatz („Wenn Sie auch die Bestellung stornieren möchten …"). „Stopp" heißt nur: keine Werbung (werbesperre_setzen), sonst nichts. Verneint er („ich kündige nicht", „ich will nicht kündigen, sondern …") oder knüpft er es an eine Bedingung („sonst kündige ich", „bevor ich kündige …"), ist das KEINE Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst Mut. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes (Regel WIDERRUF unten).`,
+    `WILL JEMAND KÜNDIGEN ODER STORNIEREN: Erklärt er es klar — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort"), auch „bitte alles stornieren" oder „ich will nicht mehr" —, nimmst du es SOFORT entgegen: kuendigung_vormerken mit seinem wörtlichen Satz. Kein fester Wortlaut, keine zweite Runde.${ein.formlos ? " Sein Vertrag ist nach der Fassung vor dem 03.09.2026: monatlich und formlos kündbar — jede klare Aussage genügt." : ""} Du bestätigst NUR, was das Werkzeug gebucht hat. Lehnt es ab oder hast du es nicht gerufen, schreibst du NIE „Ihre Kündigung liegt vor", „ist vorgemerkt", „ist erfasst", „ist storniert" — dann fragst du in EINEM freundlichen Satz nach („Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt." — bei einer unbezahlten Bestellung: „Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt."), aber NUR, wenn er selbst kündigen, stornieren oder widerrufen geschrieben hat. Antwortet er darauf mit „Ja", rufst du kuendigung_vormerken mit seinem „Ja" als Zitat. Auch sein „Ja“ auf unsere Rückfrage zu seinem Kündigungsformular (Betreff „Ihre Kündigung — eine kurze Rückfrage“) ist so ein Ja. Eine unklare Kündigung gibst du NIE als Aufgabe oder Auftrag an einen Kollegen weiter — die Rückfrage ist der Weg, und sein Ja bucht das Werkzeug selbst (E-396; es zählt nur von seiner gespeicherten Adresse). STORNO ODER KÜNDIGUNG BIETEST DU NIE VON DIR AUS AN — auch nicht als Nebensatz („Wenn Sie auch die Bestellung stornieren möchten …"). „Stopp" heißt nur: keine Werbung (werbesperre_setzen), sonst nichts. Verneint er („ich kündige nicht", „ich will nicht kündigen, sondern …") oder knüpft er es an eine Bedingung („sonst kündige ich", „bevor ich kündige …"), ist das KEINE Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst Mut. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes (Regel WIDERRUF unten).`,
 
     // E-272 (02.10.2026, Gegenprüfung): Karte und Konto der Partnerbank sind ein Privatprodukt — beim Global-Kunden fehlt der Block.
     // E-275 (02.10.2026): „erneut schicken kann sein Betreuer“ und „FIAON verschickt keine Karte und keine PIN“ sind raus —
@@ -1809,6 +1809,12 @@ export function spracheStimmt(text: string, sprache: string): boolean {
  */
 export function kuendigungNichtGebucht(k: { einordnung: { flags?: Partial<Flags> | null }; handlungen: { ok: boolean; werkzeug: string }[]; akte?: any; kontext?: { ref?: string | null } }): boolean {
   if (!k.einordnung.flags?.kuendigung) return false;
+  // E-396 Teil 2 (19.10.2026): Ohne Bestellung gibt es nichts zu kündigen — keine Rückfrage (#7092: Interessent ohne
+  // Bestellung bekam „Möchten Sie, dass ich Ihren Vertrag jetzt kündige?“). Widerruf, Bestreiten, Anwalt/Behörde gehen an
+  // einen Menschen bzw. auf eine Karte (Justin) — dort hängt der Server keine Rückfrage an.
+  if (!k.kontext?.ref) return false;
+  const f: Partial<Flags> = k.einordnung.flags ?? {};
+  if (f.widerruf || f.bestreitet || f.rechtlich || f.droht_anwalt) return false;
   if (k.handlungen.some((h) => h.ok && h.werkzeug === "kuendigung_vormerken")) return false;
   if (k.akte?.kuendigung) return false;
   const ref = k.kontext?.ref ?? null;
@@ -1820,6 +1826,9 @@ export function rueckfrageGestellt(text: string): boolean {
   const t = String(text || "");
   return /ein\s+kurzes\s+ja\s+gen(?:ü|ue)gt/i.test(t) || /(?:kündig|kuendig|storn|beend|widerruf)[^.!?\n]{0,120}\?/i.test(t);
 }
+
+/** Sagt der Text etwas über Werbung/Newsletter oder „keine Mails mehr“? (E-396 Teil 2 — dann gilt E-371 weiter.) */
+export const WERBUNG_VERSPROCHEN = /werb|newsletter|keine\s+(?:weiteren\s+)?(?:e-?mails?|mails?|nachrichten|post)\b/i;
 
 /** Lampen, bei denen ein Mensch entscheiden muss (Entscheidungskarte bei Justin) — alles andere erledigt Mara selbst (E-369). */
 export const MENSCH_LAMPEN: (keyof Flags)[] = ["rechtlich", "droht_anwalt", "widerruf"];
@@ -1833,10 +1842,13 @@ export const MENSCH_LAMPEN: (keyof Flags)[] = ["rechtlich", "droht_anwalt", "wid
  *    Antwort in den Lagen „bestreitet“/„gesperrt“ KEINE Zahlungsbitte enthält.
  * Die Prüfung (sauber: Wand, Belege, Pflichten, Ton) entscheidet der Aufrufer. Rein.
  */
-export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean; stoppOffen?: boolean }): boolean {
+export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean; stoppOffen?: boolean; kuendigungRueckfrage?: boolean }): boolean {
   const f = ein.flags as Record<string, unknown>;
   if (ein.global || ein.lage === "fremd" || ein.lage === "unklar") return false;
-  if (ein.stoppOffen) return false;
+  // E-396 Teil 2 (19.10.2026, Justin: „Ist die Mail unklar, fragt Mara sofort zurück“): Eine Antwort, die nur nach der
+  // Kündigung fragt („… Ein kurzes Ja genügt.“), darf trotz offenem „Stopp“ raus — solange sie nichts über Werbung
+  // verspricht (E-371 bleibt: nie „Sie bekommen keine Werbung mehr“ ohne gesetzte Sperre).
+  if (ein.stoppOffen && !(ein.kuendigungRueckfrage && !WERBUNG_VERSPROCHEN.test(ein.text))) return false;
   const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht));
   if (mensch.length) return false;
   if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && zahltOderVerkauft(ein.text)) return false;
@@ -2202,6 +2214,8 @@ export async function antwortErzeugen(ein: {
     // Integration 25.09.2026 (E-240): „Re:" auf das Angebot — die gemeinsame Bremse lässt Maras Link dann durch.
     betreff: ein.mail.betreff,
     formlosKuendbar: formlos, ruhe,
+    // E-396 Teil 2: Ein „Ja“ auf die Kündigungs-Rückfrage bucht nur vom gespeicherten Absender.
+    absender: ein.mail.von,
   };
   // 25.09.2026 (E-241): Antwortet er auf das Angebot der Auskunft oder fragt er selbst?
   // Nur dann gibt es Werkzeug, Schritt und Verkaufsblock auch bei einem offenen Antrag
@@ -2831,14 +2845,14 @@ async function pruefenUndAbschliessen(roh: any, k: {
       // Nachbesserung E-248: je nach Lage — unbezahlt heißt „Bestellung stornieren".
       // Ein „Ja" darauf nimmt kuendigung_vormerken an (jaAufRueckfrage).
       const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
-      const frage = unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.";
+      const frage = unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.";
       text = [rest, de ? frage : ""].filter(Boolean).join("\n\n");
       fehlend = [...fehlend.filter((f) => !/NICHT gebucht/.test(f)), "Server: Satz „Kündigung liegt vor/ist erfasst“ ohne Buchung entfernt und durch die Rückfrage ersetzt — bitte prüfen"];
     } else if (!gebuchtJetzt && kuendigungOffen && !rueckfrageGestellt(text) && String(k.sprache || "de").startsWith("de")) {
       // E-369: Er will kündigen/stornieren, gebucht ist nichts, und die Antwort fragt nicht zurück — dann hängt der Server
       // die eine Rückfrage an. Ein „Ja“ darauf bucht kuendigung_vormerken (jaAufRueckfrage). Kein Mangel: das ist der Weg.
       const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
-      text = `${text}\n\n${unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt."}`;
+      text = `${text}\n\n${unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt."}`;
     }
   }
 
@@ -2894,6 +2908,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // E-371: Brennt „Stopp“ noch (sichereSelbstErledigung hat ihn nicht gelöscht), ist die Werbesperre NICHT gesetzt —
     // dann nie „Sie bekommen keine Werbung mehr“ automatisch (Prüfstand: werbesperre_setzen scheiterte, Antwort ging raus).
     stoppOffen: !!flags.stopp,
+    // E-396 Teil 2: Die Antwort ist die Kündigungs-Rückfrage (nichts gebucht, die Antwort fragt nach dem Ja).
+    kuendigungRueckfrage: kuendigungOffen && rueckfrageGestellt(text),
     stornoGebucht: String(k.werkzeugDaten.kuendigung_vormerken?.weg || "") === "storno_unbezahlt" && gelaufen.includes("kuendigung_vormerken"),
   });
   const automatisch = sauber && urteil.automatisch

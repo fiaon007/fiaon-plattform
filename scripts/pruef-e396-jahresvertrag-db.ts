@@ -218,6 +218,52 @@ async function main() {
   const kU = await KU.kuendigungSetzen(U1, { quelle: "mail", grund: "Test" });
   ok(kU.weg === "storno_unbezahlt" && (await zeile(U1)).payment_status === "cancelled", "unbezahlter Jahresvertrag → Storno wie bisher");
 
+  console.log("── 11 · Teil 2: Rückfrage statt Auftrag — Formular, Ja vom eigenen Absender ───");
+  const DO = await import("../server/lib/fiaon-postmeister-dossier");
+  const FO = await import("../server/lib/fiaon-kuendigung-folgen");
+  const PMW = await import("../server/lib/fiaon-postmeister-werkzeuge");
+  const F1 = "FIAON-E396-F1";
+  const pF1 = await bestellung(F1, { agb: "2026-09-03", knopf: true, erstelltLog: tagPlus(-40), created: tagPlus(-40), completed: tagPlus(-39) });
+  await rate(F1, 1, tagPlus(-39), tagPlus(-39));
+  await rate(F1, 2, tagPlus(-9), null);
+  const hauptF1 = String(((await sql`SELECT primary_email FROM fiaon_persons WHERE id = ${pF1}`) as any[])[0].primary_email);
+  const bestellF1 = `${F1.toLowerCase()}@test.invalid`;
+  ok(await DO.absenderGehoertZurPerson(`Test Person <${hauptF1.toUpperCase()}>`, pF1), "Absender: gespeicherte Hauptadresse (Name <…>, Groß/Klein egal) → gehört zu ihm");
+  ok(await DO.absenderGehoertZurPerson(bestellF1, pF1), "Absender: Adresse der Bestellung → gehört zu ihm");
+  ok(!(await DO.absenderGehoertZurPerson("fremd@test.invalid", pF1)) && !(await DO.absenderGehoertZurPerson(hauptF1, null)), "Absender: fremde Adresse oder ohne Person → nicht");
+  const pG = await person("GMAILE396");
+  await sql`UPDATE fiaon_persons SET primary_email = 'e396.pruef+fiaon@gmail.com' WHERE id = ${pG}`;
+  ok(await DO.absenderGehoertZurPerson("E396Pruef@googlemail.com", pG), "Absender: Gmail-Grundform (Punkte, +Zusatz, googlemail) → gehört zu ihm");
+  // Formular-Antrag ohne passendes Geburtsdatum — Mara fragt an der gespeicherten Adresse nach.
+  const [cF1] = (await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status, identifiziert_ueber, created_at)
+                           VALUES (${F1}, 'Test', 'Person', ${bestellF1}, 'Ich möchte kündigen.', 'pending', 'name_email_abweichend', NOW() - INTERVAL '2 days') RETURNING id`) as any[];
+  const antragF1 = Number(cF1.id);
+  const gesendet: any[] = [];
+  const sender = async (postfach: string, m: any) => { gesendet.push({ postfach, ...m }); return { id: "g1", threadId: "t1" }; };
+  const r1 = await FO.antragAutomatischBuchen(antragF1, { senden: sender });
+  ok(!r1.gebucht && r1.rueckfrage === true && !(await zeile(F1)).gekuendigt_am, "Identität offen → nicht gebucht, Rückfrage gesendet", JSON.stringify(r1));
+  ok(gesendet.length === 1 && gesendet[0].postfach === "welcome@fiaon.com" && gesendet[0].an === bestellF1, "Rückfrage aus welcome@ an die gespeicherte Adresse aus dem Formular", JSON.stringify(gesendet.map((g) => `${g.postfach}→${g.an}`)));
+  ok(String(gesendet[0]?.text).includes("Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.") && /Guten Tag|Hallo|Sehr geehrte/.test(String(gesendet[0]?.text)), "Rückfrage-Mail: Anrede und Justins Satz");
+  ok((await FO.formularRueckfrageOffen(pF1)) === antragF1, "Vermerk im Verlauf: Rückfrage zu diesem Antrag offen");
+  const r1b = await FO.antragAutomatischBuchen(antragF1, { senden: sender });
+  ok(!r1b.gebucht && gesendet.length === 1 && /schon raus/.test(r1b.warum), "zweiter Lauf → keine zweite Rückfrage");
+  // Das Ja — erst von einer fremden Adresse, dann vom eigenen Absender.
+  const kontext = (absender: string) => ({ personId: pF1, ref: F1, postfach: "welcome@fiaon.com", postmeisterId: null, kundenlage: "aktiv" as any, kundeText: "Ja", absender });
+  const jaFremd = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" }, kontext("Jemand <fremd@test.invalid>"));
+  ok(!jaFremd.ok && /nicht von einer E-Mail-Adresse, die bei ihm gespeichert ist/.test(String(jaFremd.fehler)) && !(await zeile(F1)).gekuendigt_am, "„Ja“ von fremder Adresse → NICHTS gebucht", JSON.stringify(jaFremd.fehler));
+  const jaEigen = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" }, kontext(`Test Person <${bestellF1}>`));
+  const aF1 = await zeile(F1);
+  const [antragNach] = (await sql`SELECT status, admin_note FROM cancellation_requests WHERE id = ${antragF1}`) as any[];
+  ok(jaEigen.ok && !!aF1.gekuendigt_am && aF1.kuendigung_art === "laufzeit", "„Ja“ vom eigenen Absender → Mara bucht (Jahresvertrag: läuft bis zum Laufzeitende)", JSON.stringify({ ok: jaEigen.ok, f: jaEigen.fehler, art: aF1.kuendigung_art }));
+  ok(antragNach?.status === "confirmed" && tagB(aF1.gekuendigt_am) === tagPlus(-2), "der Formular-Antrag ist gebucht — zum Tag seines Eingangs", `${antragNach?.status} ${tagB(aF1.gekuendigt_am)}`);
+  ok(((await sql`SELECT note FROM fiaon_contact_log WHERE person_id = ${pF1} AND note LIKE 'Identität zum Kündigungsantrag Nr.%'`) as any[]).some((x) => /gespeicherte Adresse/.test(x.note)), "Verlauf: Identität per Ja von der gespeicherten Adresse bestätigt");
+  // Ohne offene Rückfrage ist ein bloßes „Ja“ keine Kündigung.
+  const F2 = "FIAON-E396-F2";
+  const pF2 = await bestellung(F2, { agb: "2026-09-03", knopf: true, erstelltLog: tagPlus(-40), created: tagPlus(-40), completed: tagPlus(-39) });
+  await rate(F2, 1, tagPlus(-39), tagPlus(-39));
+  const jaOhne = await PMW.kuendigungVormerken.ausfuehren({ zitat: "Ja", grund: "" }, { ...kontext(`${F2.toLowerCase()}@test.invalid`), personId: pF2, ref: F2 });
+  ok(!jaOhne.ok && !(await zeile(F2)).gekuendigt_am, "„Ja“ ohne offene Rückfrage → keine Kündigung");
+
   console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (lokale Datenbank)`);
   if (schlecht) { console.log("Rot:"); for (const r of rot) console.log(`  · ${r}`); }
   await sql.end({ timeout: 2 }).catch(() => {});

@@ -326,6 +326,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Das Häkchen „Kulanz: sofort beenden“ gibt es beim Jahresvertrag nicht mehr. Sofort beenden geht dort nur bei Widerruf oder wichtigem Grund — du wählst den Grund aus.",
       "Verträge vor dem 03.09.2026 bleiben, wie sie waren: monatlich kündbar, kein „Kulanz“.",
       "Mara sagt das auf Mail und WhatsApp mit genau demselben Satz. Bis zum Vertragsende bleibt der Bereich des Kunden offen.",
+      "Unklare Kündigung? Mara fragt sofort zurück: „Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.“ Kommt das Ja von seiner gespeicherten Adresse (oder per WhatsApp), bucht sie selbst — es entsteht kein Auftrag für dich.",
     ],
     howto: [
       "Am Telefon sagst du: „Ihre Kündigung ist eingetragen. Ihr Vertrag läuft bis zum [Datum]. Wenn Sie die offene Rechnung bezahlen, entlassen wir Sie aus Kulanz vorzeitig.“",

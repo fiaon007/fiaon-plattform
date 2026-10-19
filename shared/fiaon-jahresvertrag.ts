@@ -205,7 +205,7 @@ export function kulanzAngebot(r: { summeCents: number; raten: readonly unknown[]
  * Ohne Kundendaten; die Daten (Ende, offene Rechnung) stehen in der Akte bzw. kommen aus dem Werkzeug.
  */
 export const MARA_JAHRESVERTRAG_REGEL =
-  "JAHRESVERTRAG (Vertrag ab dem 03.09.2026, AGB § 6): Zwölf Monate feste Laufzeit; die Vergütung ist eine Gesamtvergütung in zwölf Monatsraten. "
+  "JAHRESVERTRAG (Vertrag ab dem 03.09.2026, AGB § 6): Zwölf Monate Mindestlaufzeit; für jeden Monat der Mindestlaufzeit ist das Monatsentgelt geschuldet (AGB-Fassung ab 19.10.2026; bei Abschluss vom 03.09. bis 18.10.2026: Gesamtvergütung in zwölf Monatsraten). "
   + "Eine Kündigung nimmst du sofort entgegen — sie ist damit gebucht und gilt, unabhängig von jeder Zahlung. Sie wirkt mit einem Monat Frist zum Ende der zwölf Monate "
   + "(danach läuft der Vertrag unbefristet und ist mit einem Monat Frist kündbar); bis dahin laufen die Monatsraten weiter, und sein Bereich bleibt für ihn da. "
   + "Das Enddatum steht in der Akte (kuendigung.giltZum) bzw. kommt aus dem Werkzeug. "

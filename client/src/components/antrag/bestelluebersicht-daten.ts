@@ -133,7 +133,8 @@ export const ZUSATZ_LEISTUNG: Record<AuskunftArt, string> = {
 
 /** Der Vertrags-Haken (Antrag ag3, /zustimmung consent_contract): Er bestätigt das PRÜFEN — angenommen wird mit dem Knopf (AGB § 3 Abs. 3). */
 export const HAKEN_VERTRAG_TITEL = "Bestellung geprüft";
-export const HAKEN_VERTRAG_TEXT = "Ich habe Paket, Monatsrate, Laufzeit, Gesamtbetrag und Kündigungsregel in der Bestellübersicht geprüft.";
+// E-398 (19.10.2026, live auf Justins „go“; LEXR liest noch): „Monatsentgelt“ statt „Monatsrate“ — die AGB-Fassung vom 19.10.2026 kennt keine Raten mehr (CCD2).
+export const HAKEN_VERTRAG_TEXT = "Ich habe Paket, Monatsentgelt, Laufzeit, Gesamtbetrag und Kündigungsregel in der Bestellübersicht geprüft.";
 
 /**
  * Zahlungsweise — AGB § 5 Abs. 2–4. E-283 (05.10.2026): Stichtag der weiteren Raten ist der Kalendertag,
@@ -142,7 +143,7 @@ export const HAKEN_VERTRAG_TEXT = "Ich habe Paket, Monatsrate, Laufzeit, Gesamtb
  * und im neuen Vertrag § 5 Abs. 2.
  */
 export const ZAHLUNG_ZEILE =
-  "Überweisung. Die erste Rate ist mit Vertragsschluss fällig, die weiteren jeweils monatlich im Voraus am Kalendertag, an dem die erste Rate bei FIAON eingegangen ist.";
+  "Überweisung. Das erste Monatsentgelt ist mit Vertragsschluss fällig, die weiteren jeweils monatlich im Voraus am Kalendertag, an dem das erste Monatsentgelt bei FIAON eingegangen ist.";
 
 /** Kündigung — AGB § 6 Abs. 2 und 3. */
 export const KUENDIGUNG_ZEILE =
@@ -166,9 +167,10 @@ export function bestellUebersicht(packKey: unknown, zusatz: AuskunftArt | null =
   const zeilen: BestellZeile[] = [
     { id: "paket", titel: "Paket", wert: name },
     { id: "leistung", titel: "Leistung", wert: leistungZeile(p.key) },
-    { id: "rate", titel: "Monatliche Rate", wert: `${euro(rate)} (zinsfrei)` },
-    { id: "laufzeit", titel: "Laufzeit", wert: `${LAUFZEIT_MONATE} Monate fest (Jahresvertrag), ab Vertragsschluss` },
-    { id: "gesamt", titel: "Gesamtbetrag", wert: `${euro(gesamt)} (${LAUFZEIT_MONATE} × ${euro(rate)})`, stark: true },
+    // E-398 (live auf Justins „go“): Monatsentgelt für die Leistungen des Monats, Mindestlaufzeit — kein „zinsfrei“, keine „Raten“ (CCD2).
+    { id: "rate", titel: "Monatsentgelt", wert: `${euro(rate)} im Monat, jeweils im Voraus` },
+    { id: "laufzeit", titel: "Laufzeit", wert: `${LAUFZEIT_MONATE} Monate Mindestlaufzeit (Jahresvertrag), ab Vertragsschluss` },
+    { id: "gesamt", titel: "Gesamtbetrag", wert: `${euro(gesamt)} über die Mindestlaufzeit (${LAUFZEIT_MONATE} × ${euro(rate)})`, stark: true },
     { id: "zahlung", titel: "Zahlungsweise", wert: ZAHLUNG_ZEILE },
     { id: "kuendigung", titel: "Kündigung", wert: KUENDIGUNG_ZEILE },
   ];

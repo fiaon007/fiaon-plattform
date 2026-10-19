@@ -32,6 +32,7 @@ import { FassungenListe } from "./ArchivKopf";
 // Der Typ verlangt für JEDE Fassung aus AGB_FRUEHERE_FASSUNGEN eine Seite — wer dort eine
 // einträgt und die Datei vergisst, bekommt einen Typfehler statt eines toten Links.
 const ARCHIV: Record<(typeof AGB_FRUEHERE_FASSUNGEN)[number], LazyExoticComponent<ComponentType>> = {
+  "2026-10-15": lazy(() => import("./fassung-2026-10-15")),
   "2026-10-05": lazy(() => import("./fassung-2026-10-05")),
   "2026-09-26": lazy(() => import("./fassung-2026-09-26")),
   "2026-09-03": lazy(() => import("./fassung-2026-09-03")),

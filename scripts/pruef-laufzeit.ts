@@ -122,8 +122,15 @@ for (const [datei, kennung] of [
 // ── 5. Die AGB tragen noch, worauf sich die Texte stützen ──────────────────
 abschnitt("AGB — die Quelle der Aussage");
 const agb = lies("client/src/pages/agb.tsx");
-ok(/festen Erstlaufzeit von zwölf \(12\) Monaten/.test(agb), "§ 6 Abs. 1: zwölf Monate Erstlaufzeit");
-ok(/Die Ratenzahlung begründet kein monatliches Vertragsverhältnis/.test(agb), "§ 5 Abs. 2: kein monatliches Vertragsverhältnis");
+// E-398 (19.10.2026, Fassung vom 19.10.2026 — live auf Justins „go“): Monatsentgelt statt „Gesamtvergütung … in Raten“ (CCD2,
+// § 506 BGB n.F. ab 20.11.2026). Die alte Formel steht nur noch im Archiv (agb-archiv/fassung-2026-10-15.tsx und älter).
+ok(/Mindestlaufzeit von zwölf \(12\) Monaten/.test(agb), "§ 6 Abs. 1: zwölf Monate Mindestlaufzeit");
+ok(/für die Leistungen des jeweiligen Monats ein monatliches Entgelt \(Monatsentgelt\), jeweils im Voraus/.test(agb), "§ 5 Abs. 2: Monatsentgelt für die Leistungen des Monats, im Voraus");
+ok(/keinen Zahlungsaufschub und keine sonstige Finanzierungshilfe/.test(agb), "§ 5 Abs. 2: kein Zahlungsaufschub, keine Finanzierungshilfe");
+ok(!/Gesamtvergütung|Zahlungserleichterung|kein monatliches Vertragsverhältnis|zinsfrei/.test(agb.replace(/^\s*\/\/.*$/gm, "")), "§ 5: keine Gesamtvergütung, keine Zahlungserleichterung, kein „zinsfrei“ mehr (außer in Kommentaren)");
+ok(/Monatsentgelt für die Leistungen|ein Monatsentgelt von/.test(lies("shared/fiaon-antrag-neu-vertrag.ts")) && !/Die Ratenzahlung begründet kein monatliches Vertragsverhältnis/.test(lies("shared/fiaon-antrag-neu-vertrag.ts")),
+  "Vertrag § 5: dieselbe Formel wie die AGB");
+ok(/Die Ratenzahlung begründet kein monatliches Vertragsverhältnis/.test(lies("client/src/pages/agb-archiv/fassung-2026-10-15.tsx")), "Archiv 15.10.2026: die alte Formel bleibt wörtlich");
 ok(/verlängert sich der Vertrag auf unbestimmte Zeit und kann danach von beiden Seiten jederzeit mit einer Frist von einem \(1\) Monat gekündigt werden/.test(agb),
   "§ 6 Abs. 2: danach unbefristet, ein Monat Frist");
 ok(/Ein Anspruch auf vorzeitige Aufhebung besteht nicht/.test(agb), "§ 6 Abs. 4: Kulanz ist kein Anspruch — nie als Zusage bewerben");

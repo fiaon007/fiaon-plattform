@@ -1,6 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // DATENSCHUTZERKLÄRUNG — /datenschutz und /privacy (eine Seite, deutsch)
 //
+// 19.10.2026 (E-398), live auf Justins „go“ vom 19.10.2026 (LEXR liest den Text noch): neuer Abschnitt V a „Refinanzierung“ —
+// Zahlungsansprüche dürfen an Finanzierungspartner (Bank, Factoring) verkauft werden; nur Vertrags- und
+// Forderungsdaten, Art. 6 Abs. 1 lit. f DSGVO, Widerspruchsrecht nach Art. 21 DSGVO ausdrücklich und getrennt
+// (Art. 21 Abs. 4). Der Einleitungssatz „Wir verkaufen keine Daten an Banken …“ ist genauer gefasst: Daten
+// verkaufen wir nicht; eine Forderung kann verkauft werden. Bestandskunden werden VOR der ersten Übermittlung
+// informiert (Art. 13 Abs. 3) — eigene Mail, noch nicht gebaut (kein Finanzierer ausgewählt).
+// Rechtsrecherche 19.10.2026, Thema 1b.
+//
 // 17.09.2026 (E-188): zwei Abschnitte ergänzt, weil /business seit heute FIAON
 // Global ist und dort Daten anfallen, die die Erklärung bisher nicht nannte:
 //   VII a  FIAON Global — Auftrag für Unternehmen (Firma, Register, Unterzeichner,
@@ -95,7 +103,7 @@ export default function PrivacyPage() {
             }} />
             <div className="relative z-10">
               <p className="text-gray-700 leading-relaxed">
-                Der Schutz Ihrer personenbezogenen Daten ist für uns nicht nur eine gesetzliche Pflicht, sondern ein zentrales Prinzip unseres Geschäftsmodells. Als Anbieterin einer unabhängigen Software-as-a-Service (SaaS) Plattform für finanzielle Strategien (Credit-Building) verarbeiten wir hochsensible Daten. Wir verkaufen keine Daten an Banken, Werbenetzwerke oder Auskunfteien und führen keine eigenständigen Bonitätsabfragen durch.
+                Der Schutz Ihrer personenbezogenen Daten ist für uns nicht nur eine gesetzliche Pflicht, sondern ein zentrales Prinzip unseres Geschäftsmodells. Als Anbieterin einer unabhängigen Software-as-a-Service (SaaS) Plattform für finanzielle Strategien (Credit-Building) verarbeiten wir hochsensible Daten. Wir verkaufen keine personenbezogenen Daten — weder an Banken noch an Werbenetzwerke oder Auskunfteien — und führen keine eigenständigen Bonitätsabfragen durch. Verkaufen wir eine Zahlungsforderung aus Ihrem Vertrag an einen Finanzierungspartner, übermitteln wir dafür nur die nötigen Vertrags- und Forderungsdaten (Abschnitt V a).
               </p>
               <p className="text-gray-700 leading-relaxed mt-4">
                 Die nachfolgende Datenschutzerklärung informiert Sie ausführlich, transparent und lückenlos darüber, welche Daten wir erheben, zu welchem Zweck dies geschieht und auf welcher Rechtsgrundlage die Verarbeitung beruht.
@@ -313,6 +321,36 @@ export default function PrivacyPage() {
                   <div>
                     <h3 className="font-semibold mb-2">4. Information über eigene ähnliche Dienstleistungen (§ 7 Abs. 3 UWG)</h3>
                     <p className="text-sm">Wir nutzen die bei Ihrem Antrag angegebene E-Mail-Adresse, um Sie über Ihren Vorgang und über eigene ähnliche Dienstleistungen zu informieren (§ 7 Abs. 3 UWG, Art. 6 Abs. 1 lit. f DSGVO). Dem können Sie jederzeit widersprechen — mit einer Antwort „Stopp“ auf jede E-Mail oder über den Abmeldelink am Ende jeder Nachricht, ohne dass hierfür andere als die Übermittlungskosten nach den Basistarifen entstehen. Nachrichten zu einer laufenden Bestellung (Zugangsdaten, Rechnungen, Terminbestätigungen) sind davon nicht berührt.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* V a. Refinanzierung — E-398 (19.10.2026), live auf Justins „go“ */}
+            <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden" data-datenschutz="refinanzierung">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">V a. Refinanzierung: Verkauf von Zahlungsansprüchen</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Umfang der Verarbeitung</h3>
+                    <p className="text-sm">Wir können Zahlungsansprüche aus Ihrem Vertrag (z. B. künftige Monatsentgelte) an Finanzierungspartner verkaufen und abtreten — an Banken oder Factoringgesellschaften mit Sitz in der Europäischen Union oder im Vereinigten Königreich. Dafür übermitteln wir nur die Daten, die für Kauf und Verwaltung der Forderung nötig sind: Name, Anschrift, Vertragsnummer, Paket, Vertragsbeginn und Laufzeit, Höhe und Fälligkeit der Forderung sowie den Zahlungsstand. Kontoauszüge, Ausweise, Ihre Bonitätsauswertung, Unterlagen aus Ihrem Kundenbereich und besondere Kategorien personenbezogener Daten (Art. 9 DSGVO) übermitteln wir nicht.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Zweck und Rechtsgrundlage</h3>
+                    <p className="text-sm">Zweck ist die Finanzierung unseres Geschäftsbetriebs. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse liegt darin, Forderungen zu verkaufen und so unsere Liquidität zu sichern. Solange der Finanzierungspartner nichts anderes mitteilt, zahlen Sie weiter wie gewohnt an uns; Ihr Vertrag, Ihre Ansprechpartner und Ihre Rechte (auch Widerruf und Kündigung) bleiben unverändert.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Empfänger</h3>
+                    <p className="text-sm">Empfänger sind die jeweiligen Finanzierungspartner (Kategorie: Kreditinstitute und Factoringunternehmen). Den konkreten Partner und den Link zu seinen Datenschutzhinweisen nennen wir hier, sobald ein Vertrag mit ihm besteht, und informieren Sie vor der ersten Übermittlung Ihrer Daten.</p>
+                  </div>
+                  <div className="rounded-xl border border-blue-200 bg-white/60 p-4">
+                    <h3 className="font-semibold mb-2">4. Ihr Widerspruchsrecht (Art. 21 Abs. 1 DSGVO)</h3>
+                    <p className="text-sm">Weil diese Übermittlung auf unserem berechtigten Interesse beruht, können Sie ihr aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit widersprechen — formlos an support@fiaon.com. Wir übermitteln Ihre Daten dann nicht mehr, es sei denn, wir können zwingende schutzwürdige Gründe nachweisen, die Ihre Interessen, Rechte und Freiheiten überwiegen.</p>
                   </div>
                 </div>
               </div>
@@ -572,7 +610,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 8. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 19. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

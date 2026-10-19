@@ -217,7 +217,8 @@ ok(L.LIMIT_TEXTE.startFehlt === "Zuerst führen Sie Ihr Startgespräch – danac
 ok(L.LIMIT_TEXTE.keineZeit === "Gerade ist keine Zeit frei. Schauen Sie morgen wieder vorbei – oder schreiben Sie uns an support@fiaon.com.", "Keine Zeit frei wörtlich");
 ok(!/(melden uns|rufen sie (zurück|an)|rückruf)/i.test(L.LIMIT_TEXTE.keineZeit), "keine Rückruf-Zusage bei leerem Kalender");
 // Vertrag § 3 — wörtlich, nur bei Paketen mit der Leistung, und nur in § 3.
-const SATZ_3 = "Das erste Limit-Gespräch ist drei Monate nach Eingang der ersten Monatsrate im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt.";
+// E-398 (19.10.2026, Fassung PV-2026-10-19): „Monatsentgelt“ statt „Monatsrate“ — die Regel ist dieselbe.
+const SATZ_3 = "Das erste Limit-Gespräch ist drei Monate nach Eingang des ersten Monatsentgelts im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt.";
 const vertrag = (paketKey: string) => antragNeuVertragHtml({
   ref: "FIAON-PRUEF", anrede: "Frau", vorname: "Erika", nachname: "Muster", geburt: "", strasse: "", nr: "", plz: "", ort: "",
   land: "DE", email: "", paketKey, limit: 1000, sofortBeginn: true,
@@ -233,8 +234,8 @@ for (const p of ANTRAG_NEU_PAKETE) {
     ok(html.split(SATZ_3).length === 2, `Vertrag ${p.key}: der Satz steht genau einmal`);
   }
 }
-ok(ANTRAG_NEU_LEISTUNG_FASSUNG === "AN-2026-10-15" && ANTRAG_NEU_VERTRAG_FASSUNG === "PV-2026-10-15", "Fassungen hochgezählt (AN-2026-10-15, PV-2026-10-15 seit E-365)");
-ok(vertrag("pro").includes("Vertragsfassung PV-2026-10-15"), "der Vertrag trägt die neue Fassung");
+ok(ANTRAG_NEU_LEISTUNG_FASSUNG === "AN-2026-10-15" && ANTRAG_NEU_VERTRAG_FASSUNG === "PV-2026-10-19", "Fassungen hochgezählt (AN-2026-10-15, PV-2026-10-15 seit E-365)");
+ok(vertrag("pro").includes("Vertragsfassung PV-2026-10-19"), "der Vertrag trägt die neue Fassung (E-398: PV-2026-10-19)");
 
 // ═══════════════════════════════════════════════════════════════════════════
 abschnitt("5 · Art, Legende, Leitfaden — und Quelltext-Wachen");
@@ -332,7 +333,7 @@ ok(/setGewaehlt\(null\);/.test(erfolg) && /setEbenGebucht\(true\);/.test(erfolg)
   "Limit-Seite: nach der Buchung Auswahl leer und Knopf gesperrt, bis der neue Stand da ist");
 // #15: AGB § 4 Abs. 1 sagt dieselbe Regel wie Vertrag und Code.
 const agb = lies("client/src/pages/agb.tsx");
-ok(agb.includes("Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang der ersten Monatsrate buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch.")
+ok(agb.includes("Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang des ersten Monatsentgelts buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch.")
   && !agb.includes("höchstens einmal je drei Monate anfragen"), "AGB § 4 Abs. 1: erste Rate + 3 Monate, danach 3 Monate nach dem letzten GEFÜHRTEN");
 const mig = lies("db/migrations/092_limit_gespraech.sql");
 ok(/CREATE UNIQUE INDEX IF NOT EXISTS fiaon_termine_ein_limit_offen/.test(mig) && /WHERE quelle = 'limit_gespraech' AND status = 'gebucht'/.test(mig) && !/REFERENCES|DROP/i.test(mig.replace(/^--.*$/gm, "")),

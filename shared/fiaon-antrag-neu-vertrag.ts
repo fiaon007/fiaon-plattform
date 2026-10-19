@@ -107,31 +107,34 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   // E-283 (05.10.2026, Fassung PV-2026-10-05b): Wie und ab wann das Limit-Gespräch gebucht wird — nur bei
   // Paketen, die es enthalten (Pro, Ultra, High-End). Die Regel im Code: shared/fiaon-limit-gespraech.ts.
   if (P?.leistungen.includes(LIMIT_GESPRAECH)) {
-    teile.push(p("Das erste Limit-Gespräch ist drei Monate nach Eingang der ersten Monatsrate im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt."));
+    teile.push(p("Das erste Limit-Gespräch ist drei Monate nach Eingang des ersten Monatsentgelts im Kundenbereich buchbar, jedes weitere drei Monate nach dem letzten geführten. Nicht genutzte Gespräche werden nicht nachgeholt."));
   }
   // E-363 (14.10.2026, Fassung PV-2026-10-14): der Link erst, wenn auch die FIAON-Bonitätsauswertung vorliegt (§ 4: Ausweis, Kontoauszug).
-  teile.push(p(`Den Antragslink der Partnerbank schickt FIAON dem Kunden ${d.sofortBeginn ? "nach Eingang der ersten Monatsrate" : "nach Eingang der ersten Monatsrate und Ablauf der Widerrufsfrist (§ 6)"}, sobald seine FIAON-Bonitätsauswertung vorliegt (dafür stellt der Kunde Ausweis und Kontoauszug bereit, § 4), per E-Mail; auf Wunsch schickt FIAON ihn erneut. Den Antrag bei der Bank stellt der Kunde selbst und im eigenen Namen. FIAON erhält von der Partnerbank für eine Kontoeröffnung eine Vergütung; für den Kunden entstehen dadurch keine Kosten.`));
+  teile.push(p(`Den Antragslink der Partnerbank schickt FIAON dem Kunden ${d.sofortBeginn ? "nach Eingang des ersten Monatsentgelts" : "nach Eingang des ersten Monatsentgelts und Ablauf der Widerrufsfrist (§ 6)"}, sobald seine FIAON-Bonitätsauswertung vorliegt (dafür stellt der Kunde Ausweis und Kontoauszug bereit, § 4), per E-Mail; auf Wunsch schickt FIAON ihn erneut. Den Antrag bei der Bank stellt der Kunde selbst und im eigenen Namen. FIAON erhält von der Partnerbank für eine Kontoeröffnung eine Vergütung; für den Kunden entstehen dadurch keine Kosten.`));
   teile.push(h("§ 4 Mitwirkung des Kunden"));
   // E-365 (15.10.2026, Fassung PV-2026-10-15): Für die FIAON-Bonitätsauswertung braucht es Ausweis und Kontoauszug; eine
   // Datenkopie einer Auskunftei nur, wenn der Kunde eine hat (FIAON fordert sie nicht an).
   teile.push(p("Der Kunde macht vollständige und wahre Angaben und stellt die für die Leistungen benötigten Unterlagen bereit, insbesondere Ausweis und Kontoauszüge; eine Datenkopie einer Auskunftei, soweit er sie hat und ausgewertet haben möchte. Gegenüber Banken macht er nur wahre Angaben. Verzögert sich seine Mitwirkung, verschieben sich die davon abhängigen Leistungen entsprechend."));
+  // E-398 (19.10.2026), live auf Justins „go“ (Fassung PV-2026-10-19): Monatsentgelt für die Leistungen des Monats statt
+  // „Gesamtvergütung … in zwölf Monatsraten … kein monatliches Vertragsverhältnis“ — die alte Formel klang nach einem
+  // Zahlungsaufschub (§ 506 BGB n.F. ab 20.11.2026, CCD2). Rechtsrecherche 19.10., Thema 3a.
   teile.push(h("§ 5 Vergütung und Zahlung"));
-  teile.push(p(`(1) Die Vergütung für die Erstlaufzeit von zwölf Monaten beträgt insgesamt ${esc(euroCent(gesamt))}. Sie wird zinsfrei in zwölf gleich hohen Monatsraten zu je ${esc(euroCent(rate))} gezahlt. Die Ratenzahlung begründet kein monatliches Vertragsverhältnis.`));
-  teile.push(p("(2) Die erste Rate ist mit Vertragsschluss fällig. Die weiteren Raten sind jeweils monatlich im Voraus fällig, und zwar am Kalendertag, an dem die erste Rate bei FIAON eingegangen ist; fehlt dieser Tag in einem Monat, am letzten Tag des Monats."));
+  teile.push(p(`(1) Der Kunde zahlt für die Leistungen des jeweiligen Monats ein Monatsentgelt von ${esc(euroCent(rate))}, jeweils im Voraus fällig. Über die Mindestlaufzeit von zwölf Monaten (§ 7) sind das zusammen ${esc(euroCent(gesamt))}. FIAON gewährt keinen Zahlungsaufschub; für die monatliche Zahlung fallen keine Zinsen oder sonstigen Kosten an.`));
+  teile.push(p("(2) Das erste Monatsentgelt ist mit Vertragsschluss fällig. Die weiteren Monatsentgelte sind jeweils monatlich im Voraus fällig, und zwar am Kalendertag, an dem das erste Monatsentgelt bei FIAON eingegangen ist; fehlt dieser Tag in einem Monat, am letzten Tag des Monats."));
   teile.push(p(`(3) Gezahlt wird per Überweisung auf das in der Rechnung und auf der Zahlungsseite genannte Konto der ${esc(f.name)}, Verwendungszweck ${esc(d.ref)}.`));
   teile.push(p("(4) Alle Preise sind Endpreise einschließlich einer etwaig anfallenden Umsatzsteuer."));
   teile.push(p("(5) Bei Zahlungsverzug gelten Verzugszinsen in gesetzlicher Höhe (§ 288 BGB); eine Mahnpauschale wird gegenüber Verbrauchern nicht erhoben. Die weiteren Folgen regelt § 5 Absatz 5 und 6 der AGB."));
   teile.push(h("§ 6 Beginn der Leistungen"));
   teile.push(p(d.sofortBeginn
-    ? "Der Kunde hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. FIAON schaltet das Konto deshalb mit Eingang der ersten Monatsrate frei. Dem Kunden ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt."
-    : "Der Kunde hat keinen früheren Beginn verlangt. FIAON beginnt mit den Leistungen nach § 3 deshalb erst nach Ablauf der Widerrufsfrist, frühestens mit Eingang der ersten Monatsrate. Den Zugang zum Kundenbereich erhält der Kunde schon mit Eingang der ersten Monatsrate; dafür schuldet er im Fall des Widerrufs keinen Wertersatz."));
+    ? "Der Kunde hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. FIAON schaltet das Konto deshalb mit Eingang des ersten Monatsentgelts frei. Dem Kunden ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt."
+    : "Der Kunde hat keinen früheren Beginn verlangt. FIAON beginnt mit den Leistungen nach § 3 deshalb erst nach Ablauf der Widerrufsfrist, frühestens mit Eingang des ersten Monatsentgelts. Den Zugang zum Kundenbereich erhält der Kunde schon mit Eingang des ersten Monatsentgelts; dafür schuldet er im Fall des Widerrufs keinen Wertersatz."));
   teile.push(h("§ 7 Laufzeit und Kündigung"));
-  teile.push(p("(1) Der Vertrag wird mit einer festen Erstlaufzeit von zwölf Monaten geschlossen; sie beginnt mit dem Vertragsschluss."));
+  teile.push(p("(1) Der Vertrag wird mit einer Mindestlaufzeit von zwölf Monaten geschlossen; sie beginnt mit dem Vertragsschluss."));
   teile.push(p(`(2) ${esc(KUENDIGUNG_ZEILE)}`));
   teile.push(p("(3) FIAON bestätigt den Zugang einer Kündigung und den Zeitpunkt der Vertragsbeendigung unverzüglich in Textform."));
   teile.push(p("(4) Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt."));
   teile.push(h("§ 8 Paketwechsel"));
-  teile.push(p("Der Kunde kann jederzeit in ein höheres Paket wechseln. Der Wechsel wird mit der nächsten fälligen Rate wirksam; ab dann gilt die Rate des höheren Pakets für die verbleibenden Raten der Erstlaufzeit. Die Erstlaufzeit verlängert sich dadurch nicht."));
+  teile.push(p("Der Kunde kann jederzeit in ein höheres Paket wechseln. Der Wechsel wird mit dem nächsten fälligen Monatsentgelt wirksam; ab dann gilt das Monatsentgelt des höheren Pakets für die verbleibenden Monate der Mindestlaufzeit. Die Mindestlaufzeit verlängert sich dadurch nicht."));
   teile.push(h("§ 9 Persönliche FIAON-PIN"));
   teile.push(p("Der Kunde legt eine vierstellige persönliche PIN fest. Mit ihr erkennt FIAON den Kunden am Telefon. FIAON speichert die PIN nur als geschützten Prüfwert, nie im Klartext; sie wird nirgends angezeigt, gemailt oder protokolliert. Der Kunde nennt sie nur am Telefon, wenn FIAON ihn erkennen soll. Der Kunde kann sie jederzeit in seinem Kundenbereich ändern und hält sie geheim. Die PIN ist keine PIN einer Bankkarte; diese vergibt allein die Bank."));
   teile.push(h("§ 10 Widerrufsrecht"));
@@ -144,7 +147,7 @@ export function antragNeuVertragHtml(d: VertragDaten): string {
   if (d.bestaetigung) {
     // E-398, ENTWURF FÜR LEXR (Wortlaut der Bestätigungsstrecke, EuGH C-400/22).
     const bestellt = d.bestaetigung.bestelltAm ? berlinZeit(d.bestaetigung.bestelltAm).replace(/, \d{2}:\d{2} Uhr$/, "") : "";
-    teile.push(p(`(1) Der Kunde hat dieses Paket${bestellt ? ` am ${esc(bestellt)}` : ""} bestellt. Dieser Text fasst den Vertrag mit allen Bedingungen zusammen. Der Kunde bestätigt ihn, indem er die Schaltfläche „${KNOPF_BESTAETIGUNG}“ anklickt. Erstlaufzeit (§ 7) und Fälligkeiten (§ 5) rechnen ab der Bestellung; bereits gezahlte Monatsraten zählen mit. Bestätigt der Kunde nicht, ändert sich an seinem bisherigen Vertrag nichts.`));
+    teile.push(p(`(1) Der Kunde hat dieses Paket${bestellt ? ` am ${esc(bestellt)}` : ""} bestellt. Dieser Text fasst den Vertrag mit allen Bedingungen zusammen. Der Kunde bestätigt ihn, indem er die Schaltfläche „${KNOPF_BESTAETIGUNG}“ anklickt. Erstlaufzeit (§ 7) und Fälligkeiten (§ 5) rechnen ab der Bestellung; bereits gezahlte Monatsentgelte zählen mit. Bestätigt der Kunde nicht, ändert sich an seinem bisherigen Vertrag nichts.`));
     teile.push(p("(2) FIAON speichert den Vertragstext, den Zeitpunkt der Bestätigung und eine Prüfsumme und sendet dem Kunden Vertrag, Bestätigung und Widerrufsbelehrung unverzüglich per E-Mail. Der Kunde kann den Vertrag jederzeit im Kundenbereich abrufen."));
   } else {
     teile.push(p("(1) Dieser Text ist das verbindliche Angebot von FIAON. Der Vertrag kommt zustande, wenn der Kunde nach seiner Unterschrift die Schaltfläche „Zahlungspflichtig annehmen“ anklickt."));

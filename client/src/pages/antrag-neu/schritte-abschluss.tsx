@@ -673,7 +673,7 @@ export function SchrittUnterschrift() {
         <h3>Ihre Bestellung</h3>
         <Zeile a="Paket" b={P.name} />
         <div className="an-zeile"><span>Leistung</span><span style={{ textAlign: "left", maxWidth: "68%" }}>{P.zeile} {BANK_SATZ}</span></div>
-        <div className="an-zeile"><span>Monatsrate</span><span>{euro(r)} · zinsfrei<small style={{ display: "block", color: "var(--tinte-2)", fontSize: ".8125rem" }}>12 Raten · zusammen {euro(r * 12)}</small></span></div>
+        <div className="an-zeile"><span>Monatsentgelt</span><span>{euro(r)} im Monat<small style={{ display: "block", color: "var(--tinte-2)", fontSize: ".8125rem" }}>12 Monate Mindestlaufzeit · zusammen {euro(r * 12)}</small></span></div>
         <Zeile a="Laufzeit" b="12 Monate, danach monatlich kündbar" />
         <Zeile a="Erste Rate" b={`per Überweisung, bitte bis ${datum(faelligBis)}`} />
         <p className="an-bank">Kündigung: {KUENDIGUNG_ZEILE}</p>

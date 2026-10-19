@@ -5,6 +5,23 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-398 Teil B (live auf Justins „go“ vom 19.10.; LEXR liest den AGB-Text noch): AGB „Monatsentgelt“ für neue Verträge, Datenschutz „Refinanzierung“
+- **Was:** (1) **AGB-Fassung vom 19.10.2026** (2026-10-15 wörtlich im Archiv): § 5 Abs. 2 Monatsentgelt für die Leistungen des jeweiligen
+  Monats, im Voraus fällig, kein Zahlungsaufschub — statt „Gesamtvergütung … zur Zahlungserleichterung in zwölf Monatsraten … kein
+  monatliches Vertragsverhältnis“; § 6 Mindestlaufzeit 12 Monate, danach jederzeit mit einem Monat kündbar (Satz wörtlich wie bisher);
+  § 6 Abs. 8: wer vom 03.09.2026 bis zu dieser Fassung abgeschlossen hat, behält seine Fassung; § 5 Abs. 6 ohne festen Verweis auf
+  § 31 BDSG (fällt am 20.11.2026 weg). § 10 (Widerrufsbelehrung) bleibt wörtlich. Vertrag PV-2026-10-19 (§ 3, § 5, § 6, § 7, § 8),
+  Bestellübersicht, Antrag, AGB-Haken und Vertragsbestätigung sagen „Monatsentgelt“ und „Mindestlaufzeit“.
+  (2) **Datenschutz V a „Refinanzierung“:** Forderungen dürfen an Finanzierungspartner verkauft werden, nur Vertrags- und
+  Forderungsdaten, Art. 6 Abs. 1 lit. f DSGVO, Widerspruchsrecht nach Art. 21 getrennt hervorgehoben; Einleitungssatz genauer
+  („keine personenbezogenen Daten“ statt „keine Daten an Banken“).
+- **Warum:** Ab 20.11.2026 (CCD2, BGBl. 2026 I Nr. 139) zählt auch ein zinsfreier Zahlungsaufschub als Finanzierungshilfe (§ 506 BGB n.F.)
+  — die alte Formel klang danach. Ausnahme für wiederkehrende Dienstleistungen (Art. 3 Nr. 3 RL 2023/2225). Ein Finanzierer braucht
+  zudem eine Datenschutzerklärung, die den Verkauf der Forderung nennt (Rechtsrecherche 19.10., Themen 1b, 3a).
+- **Wo:** client/src/pages/agb.tsx + agb-archiv/fassung-2026-10-15.tsx, shared/fiaon-vertrag-paket.ts, shared/fiaon-antrag-neu-vertrag.ts,
+  shared/fiaon-antrag-neu.ts, client/src/components/antrag/bestelluebersicht-daten.ts, client/src/pages/antrag-neu/schritte-abschluss.tsx,
+  server/mail/vorlagen/vertrag.ts, client/src/pages/privacy.tsx; Wächter scripts/pruef-laufzeit.ts und pruef-limit-gespraech.ts nachgezogen.
+
 ## 19.10.2026 — E-398 Teil A: Derselbe Vertrag für jeden Abschlussweg (§ 312f BGB)
 - **Was:** Bestellungen, die nicht über /antrag-neu entstehen (Betreuer-Anlage, alter Antrag), bekommen ab heute einmal per Mail
   einen persönlichen Link auf **/vertrag-bestaetigen/<Link>**: derselbe Vertrag wie in /antrag-neu, Unterschrift, „Zahlungspflichtig

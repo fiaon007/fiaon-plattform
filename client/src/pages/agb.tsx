@@ -1,5 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ALLGEMEINE GESCHÄFTSBEDINGUNGEN — FASSUNG VOM 15.10.2026 (E-365)
+// ALLGEMEINE GESCHÄFTSBEDINGUNGEN — FASSUNG VOM 19.10.2026 (E-398)
+//
+// E-398 (19.10.2026), live auf Justins „go“ vom 19.10.2026 (LEXR liest den Text noch). Rechtsrecherche 19.10.2026
+// (02_Finanzen/2026-10-19_Liquiditaet-Recherche, Themen 2, 3a, 7). Neu gefasst:
+//   · § 5 Abs. 2: MONATSENTGELT für die Leistungen des jeweiligen Monats, im Voraus fällig — statt „Gesamtvergütung
+//     … zur Zahlungserleichterung in zwölf Monatsraten … kein monatliches Vertragsverhältnis“. Die alte Formel klang
+//     nach einem Zahlungsaufschub; ab 20.11.2026 (CCD2, BGBl. 2026 I Nr. 139) zählen auch zinsfreie Zahlungsaufschübe
+//     als Finanzierungshilfe (§ 506 Abs. 1 BGB n.F.). Ausnahme für wiederkehrende Dienstleistungen: Art. 3 Nr. 3
+//     RL (EU) 2023/2225, AT § 39 Abs. 2 Z 1 VKrG 2026. Dazu § 5 Abs. 3/5 und § 6 im selben Wort („Monatsentgelt“,
+//     „Mindestlaufzeit“). § 6 Abs. 2 (danach jederzeit mit einem Monat kündbar) bleibt wörtlich.
+//   · § 5 Abs. 6: Auskunfteien — § 31 BDSG fällt am 20.11.2026 weg (§ 37a BDSG n.F.); jetzt „gesetzliche Voraussetzungen“.
+//   · § 6 Abs. 8: Wer vom 03.09.2026 bis zu dieser Fassung abgeschlossen hat, behält seine Fassung (Gesamtvergütung).
+//   · § 10 (Widerrufsbelehrung) bleibt WÖRTLICH — Justin 19.10.2026: kein Widerrufsknopf, keine neue Belehrung.
+// Die Fassung vom 15.10.2026 liegt wörtlich unter client/src/pages/agb-archiv/fassung-2026-10-15.tsx.
+//
+// ── FASSUNG VOM 15.10.2026 (E-365) ─────────────────────────────────────────
 //
 // E-365 (15.10.2026): Die Bonitätsauskunft als Zusatzleistung ist seit E-353 die FIAON-Bonitätsauswertung (Bericht aus
 // Ausweis und Kontoauszug, keine Datenkopie). Geändert sind NUR § 4 Abs. 1 (Beispiel der Leistungen), § 4 Abs. 3
@@ -94,7 +109,7 @@ export default function AGBPage() {
           <div className="fiaon-glass-panel rounded-2xl p-6" data-agb-fassung={AGB_FASSUNG}>
             <p className="text-sm text-gray-600 leading-relaxed">
               <strong>Fassung vom {agbDatumLang(AGB_FASSUNG)}.</strong> Diese Bedingungen gelten für Verträge, die ab diesem Tag geschlossen werden; nennt Ihr Vertrag oder Ihre Vertragsbestätigung eine andere Fassung, gilt jene.
-              Gegenüber der Fassung vom 26. September 2026 sind neu gefasst: Präambel, § 2, § 3, § 4, § 5 Absatz 3 und 4, § 7 (Weiterverwertung), § 8 (Entscheidungen Dritter), § 9 (Bonitätsanfragen), § 10 und § 12 (Streitbeilegung).
+              Gegenüber der Fassung vom 15. Oktober 2026 sind neu gefasst: § 3 Absatz 2 und 4, § 4 Absatz 1, § 5 Absatz 2, 3, 5 und 6 (Monatsentgelt) und § 6 Absatz 1, 2, 4, 5, 7 und 8 (Mindestlaufzeit).
               Für früher geschlossene Verträge gelten die jeweils bei Vertragsschluss vereinbarten Bedingungen fort.
             </p>
             <p className="text-sm text-gray-600 leading-relaxed mt-2">
@@ -183,13 +198,13 @@ export default function AGBPage() {
                 <strong>(1)</strong> Die Darstellung der Leistungspakete (z. B. Start, Pro, Ultra, High-End) auf der Website ist noch kein rechtlich bindendes Angebot.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(2) Angebot der Anbieterin.</strong> Im Antrag wählt der Nutzer ein Leistungspaket und macht seine Angaben. Danach unterbreitet die Anbieterin ihm im Antrag ein verbindliches Angebot zum Abschluss des Vertrages über das gewählte Paket; legt sie dazu einen ausformulierten Vertrag vor, ist dieser ihr Angebot. Paket, Leistung, Höhe der Monatsrate, Gesamtvergütung, Laufzeit, Zahlungsweise und Kündigungsregel stehen in der Bestellübersicht unmittelbar über der Schaltfläche nach Absatz 3.
+                <strong>(2) Angebot der Anbieterin.</strong> Im Antrag wählt der Nutzer ein Leistungspaket und macht seine Angaben. Danach unterbreitet die Anbieterin ihm im Antrag ein verbindliches Angebot zum Abschluss des Vertrages über das gewählte Paket; legt sie dazu einen ausformulierten Vertrag vor, ist dieser ihr Angebot. Paket, Leistung, Höhe des Monatsentgelts, Gesamtbetrag über die Mindestlaufzeit, Laufzeit, Zahlungsweise und Kündigungsregel stehen in der Bestellübersicht unmittelbar über der Schaltfläche nach Absatz 3.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(3) Annahme durch den Nutzer.</strong> Der Nutzer nimmt das Angebot an, indem er die Schaltfläche „Zahlungspflichtig annehmen" anklickt; sieht der Antrag eine Unterschrift vor, unterschreibt er vorher im dafür vorgesehenen Feld. Mit dem Klick kommt der Vertrag zustande. Bis dahin kann der Nutzer seine Angaben und das gewählte Paket prüfen und über die dafür vorgesehenen Schaltflächen (z. B. „Angaben ändern", „Paket ändern") oder durch Zurückgehen im Antrag berichtigen.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(4) Nachgeholte Erklärung.</strong> Fehlt nach dem Antrag noch die Annahme des Vertrages, kann der Nutzer sie über einen persönlichen Bestätigungslink nachholen, sofern Paket und Monatsrate feststehen. Auch dort stehen die Angaben nach Absatz 2 unmittelbar über der Schaltfläche „Zahlungspflichtig annehmen", und der Vertrag kommt mit deren Anklicken zustande.
+                <strong>(4) Nachgeholte Erklärung.</strong> Fehlt nach dem Antrag noch die Annahme des Vertrages, kann der Nutzer sie über einen persönlichen Bestätigungslink nachholen, sofern Paket und Monatsentgelt feststehen. Auch dort stehen die Angaben nach Absatz 2 unmittelbar über der Schaltfläche „Zahlungspflichtig annehmen", und der Vertrag kommt mit deren Anklicken zustande.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(5)</strong> Der Nutzer verpflichtet sich, bei der Registrierung wahrheitsgemäße und vollständige Angaben zu machen.
@@ -216,7 +231,7 @@ export default function AGBPage() {
                   „§ 4 Abs. 2 (Bank entscheidet)"). Der Satz zu den Paketgesprächen gilt, seit die Buchung des
                   Limit-Gesprächs im Kundenbereich live ist (derselbe Deploy). Kein „Garantie" mehr (Wortwand). */}
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(1) Leistungsbeschreibung.</strong> Der genaue Leistungsumfang ergibt sich aus der Leistungsbeschreibung des gebuchten Pakets zum Zeitpunkt des Vertragsschlusses, wie sie in der Bestellübersicht und – wo die Anbieterin einen ausformulierten Vertrag vorlegt – im Vertrag steht (z. B. FIAON-Bonitätsauswertung, Auswertung einer selbst angeforderten Bonitätsauskunft, persönlicher Fahrplan im Kundenbereich, feste Ansprechpartnerin, Limit-Gespräch). Gespräche, die zum Paket gehören (z. B. Startgespräch, Limit-Gespräch), bucht der Nutzer in seinem Kundenbereich. Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang der ersten Monatsrate buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch. Voraussetzung ist, dass das Startgespräch geführt ist; ist eine Rate überfällig, erst nach deren Ausgleich. Nicht genutzte Gespräche werden nicht nachgeholt.
+                <strong>(1) Leistungsbeschreibung.</strong> Der genaue Leistungsumfang ergibt sich aus der Leistungsbeschreibung des gebuchten Pakets zum Zeitpunkt des Vertragsschlusses, wie sie in der Bestellübersicht und – wo die Anbieterin einen ausformulierten Vertrag vorlegt – im Vertrag steht (z. B. FIAON-Bonitätsauswertung, Auswertung einer selbst angeforderten Bonitätsauskunft, persönlicher Fahrplan im Kundenbereich, feste Ansprechpartnerin, Limit-Gespräch). Gespräche, die zum Paket gehören (z. B. Startgespräch, Limit-Gespräch), bucht der Nutzer in seinem Kundenbereich. Das erste Limit-Gespräch kann er dort frühestens drei Monate nach Eingang des ersten Monatsentgelts buchen, jedes weitere frühestens drei Monate nach dem letzten geführten Limit-Gespräch. Voraussetzung ist, dass das Startgespräch geführt ist; ist ein Monatsentgelt überfällig, erst nach dessen Ausgleich. Nicht genutzte Gespräche werden nicht nachgeholt.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(2) Kein geschuldeter Erfolg.</strong> Die Anbieterin schuldet keinen bestimmten wirtschaftlichen Erfolg, insbesondere nicht, dass der Nutzer eine bestimmte Kreditkarte, ein bestimmtes Kreditlimit oder eine Veränderung seines Scores bei Auskunfteien (z. B. SCHUFA, KSV1870, CRIF) erreicht. Ein im Antrag angegebenes Ziel-Limit ist die Angabe des Nutzers. Über Konto, Karte und Rahmen entscheidet allein die Bank, über Einträge und Scores die jeweilige Auskunftei.
@@ -238,7 +253,7 @@ export default function AGBPage() {
               animation: "limitGlow 6s ease-in-out infinite"
             }} />
             <div className="relative z-10">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 5 Preise, Ratenzahlung und Zahlungsverzug</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 5 Preise, Monatsentgelt und Zahlungsverzug</h2>
               {/* E-283: Absatz 3 — Stichtag ist der Eingang der ersten Rate (server/lib/fiaon-abo-zyklus.ts: Anker = Tag der
                   bankbestätigten Buchung; Vertrag § 5 Abs. 2; ZAHLUNG_ZEILE in bestelluebersicht-daten.ts). Absatz 4 — keine
                   Lastschrift mehr (E-194). Absatz 2 bleibt unverändert: Was nach Rate 12 gezahlt wird, ist offen (golive A6). */}
@@ -246,19 +261,19 @@ export default function AGBPage() {
                 <strong>(1)</strong> Es gelten die im Zeitpunkt der Bestellung auf der Website ausgewiesenen Preise des gewählten Leistungspakets. Alle Preise verstehen sich in Euro. Gegenüber Verbrauchern verstehen sich die Preise als Endpreise einschließlich einer etwaig anfallenden Umsatzsteuer.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(2) Gesamtvergütung und Ratenzahlung.</strong> Die Vergütung für die Erstlaufzeit nach § 6 Absatz 1 ist eine Gesamtvergütung. Sie wird dem Nutzer aus Gründen der Zahlungserleichterung in zwölf gleich hohen Monatsraten zur Zahlung gestellt; die Ratenzahlung ist zinsfrei. Die Höhe der Monatsrate und die Gesamtvergütung werden vor Vertragsschluss in der Bestellübersicht ausgewiesen und in der Bestellbestätigung wiederholt. Die Ratenzahlung begründet kein monatliches Vertragsverhältnis.
+                <strong>(2) Monatsentgelt.</strong> Der Nutzer zahlt für die Leistungen des jeweiligen Monats ein monatliches Entgelt (Monatsentgelt), jeweils im Voraus. Die Höhe des Monatsentgelts und der Betrag, der sich über die Mindestlaufzeit nach § 6 Absatz 1 insgesamt ergibt, werden vor Vertragsschluss in der Bestellübersicht ausgewiesen und in der Vertragsbestätigung wiederholt. Die Anbieterin gewährt keinen Zahlungsaufschub und keine sonstige Finanzierungshilfe; für die monatliche Zahlung fallen keine Zinsen oder sonstigen Kosten an.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(3) Fälligkeit.</strong> Die erste Rate ist mit Vertragsschluss fällig; der Zugang zur Plattform wird nach ihrem Eingang freigeschaltet. Die weiteren Raten sind jeweils monatlich im Voraus fällig, und zwar jeweils am Kalendertag, an dem die erste Rate bei der Anbieterin eingegangen ist. Fällt dieser Tag in einem Monat nicht an, tritt der letzte Tag des Monats an seine Stelle.
+                <strong>(3) Fälligkeit.</strong> Das erste Monatsentgelt ist mit Vertragsschluss fällig; der Zugang zur Plattform wird nach seinem Eingang freigeschaltet. Die weiteren Monatsentgelte sind jeweils monatlich im Voraus fällig, und zwar jeweils am Kalendertag, an dem das erste Monatsentgelt bei der Anbieterin eingegangen ist. Fällt dieser Tag in einem Monat nicht an, tritt der letzte Tag des Monats an seine Stelle.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(4) Zahlungsweg.</strong> Die Zahlung erfolgt per Überweisung auf das in der Rechnung und auf der Zahlungsseite genannte Konto der Anbieterin unter Angabe des dort genannten Verwendungszwecks.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(5) Verzug.</strong> Gerät der Nutzer mit einer Rate in Verzug, ist die Anbieterin berechtigt, Verzugszinsen in gesetzlicher Höhe (§ 288 BGB) zu verlangen. Die Anbieterin ist ferner berechtigt, den Zugang zur Plattform bis zur vollständigen Begleichung der offenen Forderung zu sperren; die Zahlungspflicht bleibt hiervon unberührt. Eine Mahnpauschale wird gegenüber Verbrauchern nicht erhoben.
+                <strong>(5) Verzug.</strong> Gerät der Nutzer mit einem Monatsentgelt in Verzug, ist die Anbieterin berechtigt, Verzugszinsen in gesetzlicher Höhe (§ 288 BGB) zu verlangen. Die Anbieterin ist ferner berechtigt, den Zugang zur Plattform bis zur vollständigen Begleichung der offenen Forderung zu sperren; die Zahlungspflicht bleibt hiervon unberührt. Eine Mahnpauschale wird gegenüber Verbrauchern nicht erhoben.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(6) Abgabe an ein Inkassounternehmen.</strong> Bleibt eine fällige Forderung nach zwei erfolglosen Mahnungen in Textform und nach Ablauf einer jeweils gesetzten angemessenen Zahlungsfrist unbeglichen, ist die Anbieterin berechtigt, die Forderung zur Einziehung an ein Inkassounternehmen oder einen Rechtsanwalt zu übergeben. Die dadurch entstehenden Kosten der zweckentsprechenden Rechtsverfolgung trägt der Nutzer nach Maßgabe der gesetzlichen Bestimmungen; die Höhe erstattungsfähiger Inkassokosten richtet sich nach § 13e RDG. Eine Übermittlung von Daten an Auskunfteien erfolgt ausschließlich unter den Voraussetzungen des § 31 Absatz 2 Bundesdatenschutzgesetz und nur, soweit die Forderung nicht bestritten ist; der Nutzer wird hierauf zuvor gesondert hingewiesen.
+                <strong>(6) Abgabe an ein Inkassounternehmen.</strong> Bleibt eine fällige Forderung nach zwei erfolglosen Mahnungen in Textform und nach Ablauf einer jeweils gesetzten angemessenen Zahlungsfrist unbeglichen, ist die Anbieterin berechtigt, die Forderung zur Einziehung an ein Inkassounternehmen oder einen Rechtsanwalt zu übergeben. Die dadurch entstehenden Kosten der zweckentsprechenden Rechtsverfolgung trägt der Nutzer nach Maßgabe der gesetzlichen Bestimmungen; die Höhe erstattungsfähiger Inkassokosten richtet sich nach § 13e RDG. Eine Übermittlung von Daten an Auskunfteien erfolgt ausschließlich unter den jeweils geltenden gesetzlichen Voraussetzungen (bis zum 19. November 2026 § 31 Absatz 2 Bundesdatenschutzgesetz, danach die an seine Stelle tretende Regelung) und nur, soweit die Forderung nicht bestritten ist; der Nutzer wird hierauf zuvor gesondert hingewiesen.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 <strong>(7) Aufrechnung und Zurückbehaltung.</strong> Der Nutzer kann nur mit unbestrittenen oder rechtskräftig festgestellten Forderungen aufrechnen. Ein Zurückbehaltungsrecht steht ihm nur zu, soweit es auf demselben Vertragsverhältnis beruht.
@@ -276,28 +291,28 @@ export default function AGBPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 6 Laufzeit, Kündigung und Upgrades</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(1) Erstlaufzeit.</strong> Der Vertrag über ein Leistungspaket wird mit einer festen Erstlaufzeit von zwölf (12) Monaten geschlossen. Die Laufzeit beginnt mit dem Vertragsschluss. Die Vergütung für die Erstlaufzeit wird nach § 5 Absatz 2 in zwölf Monatsraten gestellt.
+                <strong>(1) Mindestlaufzeit.</strong> Der Vertrag über ein Leistungspaket wird mit einer Mindestlaufzeit von zwölf (12) Monaten geschlossen. Die Laufzeit beginnt mit dem Vertragsschluss. Das Monatsentgelt nach § 5 Absatz 2 ist für jeden Monat geschuldet, in dem die Anbieterin ihre Leistungen bereitstellt.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(2) Kündigung zum Ende der Erstlaufzeit.</strong> Der Vertrag kann von beiden Seiten mit einer Frist von einem (1) Monat zum Ende der Erstlaufzeit gekündigt werden. Wird nicht gekündigt, verlängert sich der Vertrag auf unbestimmte Zeit und kann danach von beiden Seiten jederzeit mit einer Frist von einem (1) Monat gekündigt werden.
+                <strong>(2) Kündigung zum Ende der Mindestlaufzeit.</strong> Der Vertrag kann von beiden Seiten mit einer Frist von einem (1) Monat zum Ende der Mindestlaufzeit gekündigt werden. Wird nicht gekündigt, verlängert sich der Vertrag auf unbestimmte Zeit und kann danach von beiden Seiten jederzeit mit einer Frist von einem (1) Monat gekündigt werden.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(3) Form und Weg der Kündigung.</strong> Die Kündigung bedarf der Textform. Sie kann jederzeit über die Kündigungsschaltfläche auf der Website (fiaon.com/abo-kuendigen), im Kundenbereich oder formlos per E-Mail an support@fiaon.com erklärt werden. Die Anbieterin bestätigt den Zugang der Kündigung sowie den Zeitpunkt der Vertragsbeendigung unverzüglich in Textform.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(4) Vorzeitige Beendigung aus Kulanz.</strong> Wünscht der Nutzer die Beendigung des Vertrages vor Ablauf der Erstlaufzeit, kann die Anbieterin einer vorzeitigen Aufhebung zustimmen. Die Zustimmung setzt voraus, dass sämtliche zum Zeitpunkt des Kündigungswunsches bereits fälligen oder in Rechnung gestellten Raten vollständig ausgeglichen sind. Mit dem Eingang der letzten in Rechnung gestellten Rate endet der Vertrag; weitere Raten werden nicht mehr gestellt. Ein Anspruch auf vorzeitige Aufhebung besteht nicht; die Anbieterin entscheidet nach billigem Ermessen. Ein Verzicht auf bereits entstandene Forderungen ist mit der Aufhebung nicht verbunden.
+                <strong>(4) Vorzeitige Beendigung aus Kulanz.</strong> Wünscht der Nutzer die Beendigung des Vertrages vor Ablauf der Mindestlaufzeit, kann die Anbieterin einer vorzeitigen Aufhebung zustimmen. Die Zustimmung setzt voraus, dass sämtliche zum Zeitpunkt des Kündigungswunsches bereits fälligen oder in Rechnung gestellten Monatsentgelte vollständig ausgeglichen sind. Mit dem Eingang des letzten in Rechnung gestellten Monatsentgelts endet der Vertrag; weitere Monatsentgelte werden nicht mehr gestellt. Ein Anspruch auf vorzeitige Aufhebung besteht nicht; die Anbieterin entscheidet nach billigem Ermessen. Ein Verzicht auf bereits entstandene Forderungen ist mit der Aufhebung nicht verbunden.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(5) Außerordentliche Kündigung.</strong> Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund liegt für die Anbieterin insbesondere vor, wenn der Nutzer die Plattform missbräuchlich nutzt, das Verbot der Weitergabe von Zugangsdaten verletzt oder mit mindestens zwei aufeinanderfolgenden Raten in Verzug gerät und trotz Fristsetzung nicht zahlt. Für den Nutzer liegt ein wichtiger Grund insbesondere vor, wenn die Anbieterin die geschuldete Leistung trotz angemessener Fristsetzung dauerhaft nicht erbringt.
+                <strong>(5) Außerordentliche Kündigung.</strong> Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund liegt für die Anbieterin insbesondere vor, wenn der Nutzer die Plattform missbräuchlich nutzt, das Verbot der Weitergabe von Zugangsdaten verletzt oder mit mindestens zwei aufeinanderfolgenden Monatsentgelten in Verzug gerät und trotz Fristsetzung nicht zahlt. Für den Nutzer liegt ein wichtiger Grund insbesondere vor, wenn die Anbieterin die geschuldete Leistung trotz angemessener Fristsetzung dauerhaft nicht erbringt.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 <strong>(6) Widerrufsrecht.</strong> Das gesetzliche Widerrufsrecht für Verbraucher nach § 355 BGB bleibt von den Regelungen dieses Paragrafen unberührt. Einzelheiten regelt die Widerrufsbelehrung.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>(7) Upgrades.</strong> Der Nutzer kann jederzeit in ein höheres Leistungspaket wechseln. Das Upgrade wird mit der nächsten fälligen Rate wirksam; ab diesem Zeitpunkt gilt der Preis des höheren Pakets für die verbleibenden Raten der Erstlaufzeit. Bereits gezahlte Beträge des laufenden Monats werden angerechnet. Die Erstlaufzeit verlängert sich durch ein Upgrade nicht.
+                <strong>(7) Upgrades.</strong> Der Nutzer kann jederzeit in ein höheres Leistungspaket wechseln. Das Upgrade wird mit dem nächsten fälligen Monatsentgelt wirksam; ab diesem Zeitpunkt gilt das Monatsentgelt des höheren Pakets für die verbleibenden Monate der Mindestlaufzeit. Bereits gezahlte Beträge des laufenden Monats werden angerechnet. Die Mindestlaufzeit verlängert sich durch ein Upgrade nicht.
               </p>
               <p className="text-gray-700 leading-relaxed">
-                <strong>(8) Bestandsverträge.</strong> Für Verträge, die vor dem 3. September 2026 geschlossen wurden, gelten die zum Zeitpunkt des jeweiligen Vertragsschlusses vereinbarten Bedingungen fort, insbesondere hinsichtlich Laufzeit und Kündigungsfrist. Absatz 1 bis 3 dieser Fassung finden auf solche Verträge keine Anwendung.
+                <strong>(8) Bestandsverträge.</strong> Für Verträge, die vor dem 3. September 2026 geschlossen wurden, gelten die zum Zeitpunkt des jeweiligen Vertragsschlusses vereinbarten Bedingungen fort, insbesondere hinsichtlich Laufzeit und Kündigungsfrist. Absatz 1 bis 3 dieser Fassung finden auf solche Verträge keine Anwendung. Für Verträge, die vom 3. September 2026 bis zum Erscheinen dieser Fassung geschlossen wurden, gilt die bei ihrem Abschluss vereinbarte Fassung fort; ihre Vertragsbestätigung nennt sie.
               </p>
             </div>
           </div>

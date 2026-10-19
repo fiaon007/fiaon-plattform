@@ -33,7 +33,9 @@ export const ANTRAG_NEU_LEISTUNG_FASSUNG = "AN-2026-10-15";
 // (KARTE_ZUSAGE_ERSTE_RATE, shared/fiaon-karten-weg.ts).
 // E-365 (15.10.2026): § 3 nennt die Bonitätsauswertung als Teil des Pakets (Leistungen AN-2026-10-15), § 4 die Unterlagen
 // dafür (Ausweis, Kontoauszug; eine Datenkopie nur, wenn vorhanden).
-export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-15";
+// E-398 (19.10.2026), live auf Justins „go“ vom 19.10.2026 (LEXR liest den Text noch): § 5 Monatsentgelt statt Gesamtvergütung in Raten
+// (CCD2), § 3/§ 6/§ 7/§ 8 Mindestlaufzeit und „erstes Monatsentgelt“. Widerrufsbelehrung (§ 10, Anlage 1/2) unverändert.
+export const ANTRAG_NEU_VERTRAG_FASSUNG = "PV-2026-10-19";
 
 export type AntragNeuPaketKey = "start" | "pro" | "ultra" | "highend";
 export const ANTRAG_NEU_PAKET_KEYS: AntragNeuPaketKey[] = ["start", "pro", "ultra", "highend"];
@@ -453,7 +455,8 @@ export const ANTRAG_NEU_HAKEN_GEPRUEFT = "Ich habe Paket, Monatsrate, Laufzeit, 
 // geprüft" sind jetzt EIN Haken. Gespeichert wird wörtlich dieser Satz (Nachweis
 // im Vertrags-PDF); die Seite setzt ihn aus denselben Teilen zusammen.
 export const ANTRAG_NEU_HAKEN_KOMBI_VOR = "Ich akzeptiere die";
-export const ANTRAG_NEU_HAKEN_KOMBI_NACH = "und habe Paket, Monatsrate, Laufzeit, Gesamtbetrag und Kündigungsregel oben geprüft.";
+// E-398 (19.10.2026, live auf Justins „go“; LEXR liest noch): „Monatsentgelt“ statt „Monatsrate“ (AGB-Fassung vom 19.10.2026, CCD2).
+export const ANTRAG_NEU_HAKEN_KOMBI_NACH = "und habe Paket, Monatsentgelt, Laufzeit, Gesamtbetrag und Kündigungsregel oben geprüft.";
 export function antragNeuHakenKombi(agbDatumText: string): string {
   return `${ANTRAG_NEU_HAKEN_KOMBI_VOR} AGB (Fassung vom ${agbDatumText}) ${ANTRAG_NEU_HAKEN_KOMBI_NACH}`;
 }

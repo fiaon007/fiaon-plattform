@@ -84,6 +84,22 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-398 Teil B (19.10.2026): neue AGB-Fassung — Monatsentgelt statt „Gesamtvergütung in Raten“ (CCD2 ab 20.11.2026).
+    id: "2026-10-19-agb-monatsentgelt",
+    date: "2026-10-19",
+    category: "Geändert",
+    title: "Neue AGB: „Monatsentgelt“ und „Mindestlaufzeit“ statt „Raten“",
+    summary:
+      "Für neue Verträge zahlt der Kunde ein Monatsentgelt für die Leistungen des Monats, mit 12 Monaten Mindestlaufzeit, danach monatlich kündbar. "
+      + "An Preis und Laufzeit ändert sich nichts — nur das Wort. Bestehende Verträge behalten ihre Fassung.",
+    changes: [
+      "Bestellübersicht, Vertrag und Vertragsmail sagen „Monatsentgelt“ statt „Monatliche Rate (zinsfrei)“.",
+    ],
+    howto: [
+      "Am Telefon: „59,99 € im Monat, zwölf Monate Mindestlaufzeit, danach monatlich kündbar.“ Nicht mehr „zwölf zinsfreie Raten“ — das klingt nach Kredit.",
+    ],
+  },
+  {
     // E-398 Teil A (19.10.2026): Vertrag für jeden Abschlussweg — Betreuer-Anlage bekommt denselben Vertrag wie /antrag-neu.
     id: "2026-10-19-vertrag-unterschreiben",
     date: "2026-10-19",

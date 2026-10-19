@@ -170,6 +170,11 @@ async function main() {
   ok(uebernommen.ok === false && /Maras Vorschlag/.test((uebernommen as any).grund), "ROT: übernommener Vorschlag mit ungedeckter Zusage → angehalten", uebernommen);
   ok(HP({ antwort: vorschlag, maraEntwurf: vorschlag, maraWerkzeuge: ["aufgabe_an_betreuer"] }).ok === true, "dieselbe Zusage, gedeckt durch Maras Werkzeug (Aufgabe lief) → speichern");
   ok(HP({ antwort: "Guten Tag Frau Probe,\n\nich rufe Sie morgen selbst an.\n\nFreundliche Grüße", maraEntwurf: vorschlag, maraWerkzeuge: [] }).ok === true, "Vorschlag umgeschrieben (eigener Satz) → speichern");
+  // Integration E-406 Welle 1 × E-396: der Kulanz-Satz — frei beim Jahresvertrag, gesperrt beim Vertrag vor dem 03.09.2026.
+  const kulanzText = "Guten Tag, Ihre Kündigung ist eingegangen. Wenn Sie die offene Rechnung über 59,99 € bezahlen, entlassen wir Sie aus Kulanz vorzeitig aus dem Vertrag — dann endet er mit dem Zahlungseingang, und es kommen keine weiteren Raten.";
+  ok(HP({ antwort: kulanzText, eingang: "Ich kündige.", betreff: "Kündigung", kulanzErlaubt: true }).ok === true, "E-396: Kulanz-Satz beim Jahresvertrag → speichern");
+  const altK = HP({ antwort: kulanzText, eingang: "Ich kündige.", betreff: "Kündigung", kulanzErlaubt: false });
+  ok(altK.ok === false && /E-393/.test((altK as any).grund), "ROT: E-396 Kulanz-Satz beim Vertrag vor dem 03.09.2026 → angehalten", altK);
 
   console.log("── 7 · Der Knopf im Kundenbereich");
   ok(anliegenKnopfErlaubt("https://fiaon.com/zahlen/FIAON-X1"), "fiaon.com → erlaubt");
@@ -290,8 +295,12 @@ async function main() {
   ok(/E-406/.test(rg) && /Mara/.test(rg.slice(rg.indexOf("E-406"), rg.indexOf("E-406") + 900)), "Rundgang /agent/anliegen erklärt Mara");
   const upd = lies("client/src/pages/agent/updates-data.ts");
   const listeAb = upd.indexOf("export const AGENT_UPDATES");
-  const erstesId = upd.indexOf('id: "', listeAb);
-  ok(listeAb > -1 && upd.slice(erstesId, erstesId + 40).includes("2026-10-19-mara-anliegen"), "Team-Update ganz oben", upd.slice(erstesId, erstesId + 40));
+  // Integration E-406 Welle 1: Drei Einträge vom selben Tag (A, B1, C1) können nicht alle „ganz oben“ stehen — der Eintrag
+  // gehört in den obersten Block, vor jeden älteren Tag.
+  const kopf = [...upd.slice(listeAb).matchAll(/id: "([^"]+)",\s*date: "(\d{4}-\d{2}-\d{2})"/g)].map((m) => ({ id: m[1], date: m[2] }));
+  const hier = kopf.findIndex((e) => e.id === "2026-10-19-mara-anliegen");
+  const erstesAelteres = kopf.findIndex((e) => e.date < "2026-10-19");
+  ok(listeAb > -1 && hier > -1 && (erstesAelteres === -1 || hier < erstesAelteres), "Team-Update oben (im Block des 19.10., vor jedem älteren Tag)", { hier, erstesAelteres, oben: kopf.slice(0, 4).map((e) => e.id) });
 
   console.log(`\n${gut} gut, ${schlecht} schlecht`);
   console.log(schlecht ? `✗ ${gut}/${gut + schlecht} Prüfungen bestanden` : `✓ ${gut}/${gut} Prüfungen bestanden (offline)`);

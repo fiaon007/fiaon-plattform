@@ -277,11 +277,15 @@ export function anliegenHandPruefung(e: {
   kuendigungInAkte?: boolean;
   maraEntwurf?: string | null;
   maraWerkzeuge?: readonly string[] | null;
+  /** E-396 (Integration E-406 Welle 1): true = Jahresvertrag, false = Vertrag vor dem 03.09.2026 (Kulanz-Satz gesperrt), leer = unbekannt. */
+  kulanzErlaubt?: boolean | null;
 }): { ok: true } | { ok: false; grund: string } {
   const antwort = String(e.antwort ?? "");
   const e393 = kuendigungSendeUrteil({
     antwort, eingang: e.eingang ?? null, betreff: e.betreff ?? null, flags: e.flags ?? null,
     kategorien: e.kategorien ?? null, kuendigungInAkte: !!e.kuendigungInAkte,
+    // E-396: wie jeder andere Sendeweg — der Kulanz-Satz ist nur beim Jahresvertrag frei.
+    kulanzErlaubt: e.kulanzErlaubt ?? null,
   });
   if (e393.gesperrt) {
     return { ok: false, grund: `${e393.grund} — bitte umschreiben: Die Kündigung gilt unabhängig von der Zahlung; offene Raten bis zum Vertragsende nur sachlich nennen, ohne Drohung.` };

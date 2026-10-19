@@ -143,12 +143,15 @@ export async function anliegenHandPruefen(id: number, antwort: string, lauf: Lau
   const roh = (merker && typeof merker === "object" ? (merker.roh ?? merker) : {}) as { flags?: Record<string, unknown>; kategorien?: string[] };
   const werkzeuge = json(t?.mara_werkzeuge);
   const [k] = t?.ref ? (await lauf`SELECT 1 AS ja FROM cancellation_requests WHERE ref = ${String(t.ref)} LIMIT 1`.catch(() => [])) as any[] : [];
+  // E-396 (Integration E-406 Welle 1): Kulanz-Satz nur beim Jahresvertrag — wie Zentrale, Postfach und Nachholen.
+  const kulanzErlaubt = t?.ref ? await (await import("./fiaon-kuendigung")).kulanzSatzErlaubt(String(t.ref), null).catch(() => null) : null;
   return anliegenHandPruefung({
     antwort, eingang: t?.text ?? null, betreff: t?.betreff ?? null,
     flags: roh.flags && typeof roh.flags === "object" ? roh.flags : null,
     kategorien: Array.isArray(roh.kategorien) ? roh.kategorien.map(String) : null,
     kuendigungInAkte: !!k, maraEntwurf: t?.mara_entwurf ?? null,
     maraWerkzeuge: Array.isArray(werkzeuge) ? werkzeuge.map(String) : [],
+    kulanzErlaubt,
   });
 }
 
@@ -368,6 +371,8 @@ export async function anliegenBearbeiten(id: number, opt: { jetzt?: Date; ohneSc
     const e393 = kuendigungSendeUrteil({
       antwort: fertig.text, eingang: einText, betreff, flags: einordnung.flags as any,
       kundenlage: akte.kundenlage, kategorien: einordnung.kategorien as any, kuendigungInAkte: !!akte?.kuendigung,
+      // E-396 (Integration E-406 Welle 1): Kulanz-Satz nur beim Jahresvertrag — beim Vertrag vor dem 03.09.2026 sperrt die Wand ihn.
+      kulanzErlaubt: await (await import("./fiaon-kuendigung")).kulanzSatzErlaubt(ref, personId).catch(() => null),
     });
     const senden = anliegenSendeUrteil({
       text: fertig.text, automatischErlaubt: erg.automatischErlaubt, mensch, e393Gesperrt: e393.gesperrt,

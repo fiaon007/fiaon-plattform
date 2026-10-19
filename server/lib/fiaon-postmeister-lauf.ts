@@ -33,6 +33,8 @@ import { istGlobalKunde } from "./fiaon-global-kunde";
 // Integration 08.10.2026 (offener Fund zu Strang f): dieselbe Heikel-Regel wie der Auftrags-Katalog.
 import { heikelArt } from "@shared/fiaon-auftrag-arten";
 import { kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
+// E-406 B3: die Ampel „Mails beantworten“ (grün/gelb/rot) — rein, eine Weiche vor dem Senden.
+import { mailDarfAuto, mailAmpelGrund } from "@shared/fiaon-mara-ampel";
 
 /**
  * E-272 (02.10.2026): Ist der Absender ein Kunde von FIAON Global? Dann geht seine Mail an den
@@ -1060,6 +1062,11 @@ export async function mailBearbeiten(ein: {
   postfach: string; gmailId: string; gruss: string;
   modus: "auto" | "hybrid" | "entwurf" | "aus";
   nurOrdnen?: boolean;
+  /**
+   * E-406 B3: Der zweite Anlauf der 24-Stunden-Regel (fiaon-postmeister-frist.ts). Steht „Mails beantworten“ auf
+   * Gelb, sendet Mara erst hier — vorher wartete die Antwort 24 Stunden als Entwurf in „Mara heute“.
+   */
+  ampelFrist?: boolean;
 }): Promise<LaufErgebnis> {
   await postmeisterSchema();
   const { postfach, gmailId } = ein;
@@ -1476,7 +1483,22 @@ export async function mailBearbeiten(ein: {
       erg.grund = `${e393.grund}${erg.grund ? ` · ${erg.grund}` : ""}`.slice(0, 900);
       console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e393.grund}`);
     }
-    const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
+    const darfAutoOhneAmpel = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
+    // ── E-406 B3: DIE AMPEL „MAILS BEANTWORTEN“ (Mara-Steuerpult, Chip „Ampel“) ─────────────────────────────
+    // Grün (Startwert = heutiges Verhalten): wie bisher. Gelb: Entwurf statt Senden — er steht in „Mara heute“ im
+    // Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus (ampelFrist). Rot: jede
+    // Antwort wird eine Karte „Kundenmail“. Die Ampel hält nur an, was sonst rausginge — nie lässt sie etwas raus.
+    let ampelGrund: string | null = null;
+    let ampelGelb = false;
+    if (darfAutoOhneAmpel) {
+      const { ampelStufe } = await import("./fiaon-mara-ampel");
+      const stufe = await ampelStufe("mail_antworten");
+      if (!mailDarfAuto(stufe, { fristNeu: !!ein.ampelFrist })) {
+        ampelGrund = mailAmpelGrund(stufe, erg.grund);
+        ampelGelb = stufe === "gelb";
+      }
+    }
+    const darfAuto = darfAutoOhneAmpel && !ampelGrund;
     const felder = {
       ...gemeinsam, kundenlage,
       antwort: fertigeAntwort.text, antwort_html: fertigeAntwort.html,
@@ -1537,12 +1559,14 @@ export async function mailBearbeiten(ein: {
 
     const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien).catch(() => null);
     await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
-    const ergebnis = await fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund }, erg.grund);
+    // E-406 B3: Hält NUR die Ampel die Antwort an, steht das als Begründung da („Ampel gelb: …“ / „Ampel rot: …“).
+    const begruendungEntwurf = mensch ? `Übergabe an den Betreuer: ${mensch}` : (ampelGrund ?? erg.grund);
+    const ergebnis = await fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: begruendungEntwurf }, erg.grund);
     // E-240: Auch der Entwurf steht in der Akte — der Betreuer, der anruft, sieht,
     // was Mara vorgeschlagen und schon getan hat (Angebot, Aufgabe, Rechnung).
     await maraMailVermerk({
       personId: wer.personId, ref: wer.ref, kundeText: neuerText, antwort: erg.antwort, art: "entwurf",
-      handlungen: erg.handlungen, grund: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund,
+      handlungen: erg.handlungen, grund: begruendungEntwurf,
     });
     // E-371 (15.10.2026, Justin: „nichts weitergeben an die Mitarbeiter … mit 1 Klick entscheiden“): Was Mara nicht
     // selbst senden darf, wird eine Karte in Mara › Entscheidungen (fiaon-postmeister-entscheidungen.ts) — senden, neu
@@ -1553,7 +1577,8 @@ export async function mailBearbeiten(ein: {
         zusammenfassung: einordnung.zusammenfassung, grund: mensch,
         dringend: einordnung.dringend || !!mensch,
       });
-    } else {
+    } else if (!ampelGelb) {
+      // E-406 B3: Ein gelber Entwurf ist KEINE Karte — er steht in „Mara heute“ und geht nach 24 h selbst raus.
       const { postmeisterKarteJetzt } = await import("./fiaon-postmeister-entscheidungen");
       await postmeisterKarteJetzt(id);
     }

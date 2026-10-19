@@ -33,6 +33,8 @@ import { lazy, Suspense } from "react";
 const Seitenverzeichnis = lazy(() => import("./ChefSeitenverzeichnis"));
 // E-397: Aufgaben & Ampel (Alarme, Termintreue, Maras Karten, heikel neu, Woche, Hausputz) — lädt sich selbst.
 const AufgabenLage = lazy(() => import("./ChefAufgabenLage"));
+// E-406 B3: „Mara heute“ — was Mara heute erledigt hat, Geld, Karten, wo jemand hängt, KI, Gelb zum Zurücknehmen.
+const MaraHeute = lazy(() => import("./ChefMaraHeute"));
 import {
   TrendingUp, TrendingDown, Users, Landmark, AlertTriangle, ArrowRight,
   Wallet, CalendarClock, Copy, PhoneOff, FileWarning, Sparkles,
@@ -340,6 +342,9 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
 
       {/* ── E-397: Aufgaben & Ampel — statt 377 Meldungen in Meine Liste ─ */}
       <Suspense fallback={null}><AufgabenLage /></Suspense>
+
+      {/* ── E-406 B3: Mara heute — was Mara selbst erledigt hat, und was Gelb ist (24 h zurück) ─ */}
+      <Suspense fallback={null}><MaraHeute /></Suspense>
 
       {/* ── Verlauf und Team nebeneinander ─────────────────────────────── */}
       <div className="cl-zwei">

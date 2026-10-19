@@ -270,6 +270,21 @@ export async function genannterTerminBehandeln(ein: {
       lage.fehler = "Vertriebssperre — nicht automatisch eingetragen";
       await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ${wo} ein Gespräch ${wann} mit ${wer.roh.name} — er hat die Vertriebssperre, deshalb nichts eingetragen. Falls es stimmt: bitte selbst prüfen und in den Kalender setzen.`, lauf, waNotiz);
       lage.handlung = `Genannter Termin ${wann} bei ${wer.roh.name} NICHT eingetragen: ${lage.fehler}`;
+    } else if (wer && beginn && e.wandzeit && (await import("./fiaon-mara-ampel").then((m) => m.ampelRot("termin_eintragen", lauf === sqlPool ? undefined : lauf)).catch(() => false))) {
+      // ── E-406 B3: Ampel „Termine eintragen“ auf Rot (Mara-Steuerpult) — Mara trägt nichts ein. Justin bekommt die Karte
+      // „Termin eintragen?“ (fiaon-mara-aufraeumen.ts) mit genau dieser Buchung; der Kunde hört nur „ein gutes Gespräch“.
+      const nf = nennform(wer.roh);
+      lage.teilnehmer = { id: wer.id, nom: nf.nom, dat: nf.dat };
+      lage.fehler = "Ampel rot — liegt der Geschäftsführung als Karte vor";
+      const { terminRotKarteAnlegen } = await import("./fiaon-mara-aufraeumen");
+      await terminRotKarteAnlegen({
+        personId, ref: ein.ref, agentId: wer.id, agentName: String(wer.roh.name ?? nf.nom), wandzeit: e.wandzeit, beginn,
+        herkunft: wa ? GENANNT_HERKUNFT_WA : GENANNT_HERKUNFT, vereinbart: e.beleg === "notiz" || !wa || starkVereinbart(ein.kundeText),
+        kanal, kundeText: String(ein.kundeText), beleg: belegSatz(e) || "laut Kunde",
+        quelle: wa ? (ein.waId ? `WhatsApp #${ein.waId}` : "WhatsApp") : (ein.postmeisterId ? `Mail #${ein.postmeisterId}` : "Mail"),
+      }, lauf);
+      await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ${wo} ein Gespräch ${wann} mit ${wer.roh.name} — „Termine eintragen“ steht auf Rot, deshalb nichts eingetragen. Die Karte „Termin eintragen?“ liegt im Mara-Steuerpult.`, lauf, waNotiz);
+      lage.handlung = `Genannter Termin ${wann} bei ${wer.roh.name} NICHT eingetragen: ${lage.fehler}`;
     } else if (wer && beginn) {
       const nf = nennform(wer.roh);
       lage.teilnehmer = { id: wer.id, nom: nf.nom, dat: nf.dat };

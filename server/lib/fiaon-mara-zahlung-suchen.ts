@@ -31,8 +31,9 @@ import { VERTRAGSENDE_SPALTEN_SQL, ratenNachVertragsende } from "@shared/fiaon-k
 import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 
 type Lauf = typeof sqlPool;
-/** E-406 C1: „anliegen“ = ein Anliegen aus dem Kundenbereich — wie die Mail, nur der Beleg heißt „Anliegen“. */
-export type ZsKanal = "mail" | "whatsapp" | "anliegen";
+/** E-406 C1: „anliegen“ = ein Anliegen aus dem Kundenbereich — wie die Mail, nur der Beleg heißt „Anliegen“.
+ *  E-406 B3: „meldung“ = Maras Aufräum-Vorschlag zu einer alten Zahlungsmeldung (fiaon-mara-aufraeumen.ts), kein Kundentext. */
+export type ZsKanal = "mail" | "whatsapp" | "anliegen" | "meldung";
 
 /** Was der Server Mara und der Akte mitgibt. */
 export interface ZahlungsLage {
@@ -122,7 +123,7 @@ export async function maraFundeFuer(ids: number[], lauf: Lauf = sqlPool): Promis
   const zeilen = (await lauf.unsafe(
     `SELECT * FROM fiaon_mara_zahlung_funde WHERE bank_txn_id = ANY($1::int[]) ORDER BY aktualisiert_am DESC, id DESC`, [nur]).catch(() => [])) as any[];
   return zeilen.map((z) => ({
-    bankTxnId: Number(z.bank_txn_id), personId: Number(z.person_id), kanal: z.kanal === "whatsapp" ? "whatsapp" : z.kanal === "anliegen" ? "anliegen" : "mail",
+    bankTxnId: Number(z.bank_txn_id), personId: Number(z.person_id), kanal: z.kanal === "whatsapp" ? "whatsapp" : z.kanal === "anliegen" ? "anliegen" : z.kanal === "meldung" ? "meldung" : "mail",
     quelle: z.quelle ?? null, stand: z.stand === "abweichend" ? "abweichend" : z.stand === "moeglich" ? "moeglich" : "gefunden", ziel: z.ziel ?? null, bestellung: z.bestellung ?? null,
     rateNr: z.rate_nr != null ? Number(z.rate_nr) : null,
     erwartet: z.erwartet ? (typeof z.erwartet === "string" ? JSON.parse(z.erwartet) : z.erwartet) : null,
@@ -258,7 +259,7 @@ async function fundVorlegen(t: ZsTreffer, o: { personId: number; kanal: ZsKanal;
       return null;
     });
     await vermerkEinmal(o.personId, o.ref ?? t.ziel?.ref ?? null, o.kanal,
-      `Mara hat die gemeldete Zahlung im Bankbuch gesucht (${o.kanal === "whatsapp" ? "WhatsApp" : o.kanal === "anliegen" ? "Anliegen" : "Mail"}): ${trefferZeile(t)} `
+      `Mara hat die gemeldete Zahlung im Bankbuch gesucht (${o.kanal === "whatsapp" ? "WhatsApp" : o.kanal === "anliegen" ? "Anliegen" : o.kanal === "meldung" ? "alte Zahlungsmeldung, Aufräumen" : "Mail"}): ${trefferZeile(t)} `
       + `${erwartet ? `Vorschlag zum Zubuchen auf ${t.ziel?.rateNr ? `Rate ${t.ziel.rateNr}` : ziel} liegt im Mara-Steuerpult (Karte „Geld eingegangen“) — gebucht wird erst mit dem Klick.`
         : t.stand === "moeglich" ? `Eingang über ${(t.eingang.cents / 100).toFixed(2).replace(".", ",")} € vom ${t.eingang.datum.split("-").reverse().join(".")}: nur der Name des Zahlers passt — liegt im Mara-Steuerpult zum Prüfen (kein Zubuchen-Vorschlag).`
         : "Liegt im Mara-Steuerpult (Karte „Geld eingegangen“) zum Zuordnen."}`,
@@ -305,7 +306,7 @@ export async function zahlungSuchenBehandeln(ein: {
       : `zahlung_suchen: kein passender Eingang in den letzten ${ergebnis.tage} Tagen — Mara bittet um Datum und Beleg.`;
     return {
       ergebnis, satz, handlung, vorgelegt, frueher: d.frueher, test: d.person.test,
-      hinweis: zahlungHinweis(ergebnis, { kanal: ein.kanal, kartenGelegt: vorgelegt.length > 0 }),
+      hinweis: zahlungHinweis(ergebnis, { kanal: ein.kanal === "whatsapp" ? "whatsapp" : ein.kanal === "anliegen" ? "anliegen" : "mail", kartenGelegt: vorgelegt.length > 0 }),
       daten: zahlungKurz(ergebnis),
     };
   } catch (e) {

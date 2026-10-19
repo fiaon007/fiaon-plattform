@@ -876,8 +876,10 @@ router.post("/chef/mara/entscheidungen/sammel", wache, async (req: ChefRequest, 
     const gruppe = String(req.body?.gruppe ?? "").slice(0, 120);
     const { entscheidenSammel } = await import("../lib/fiaon-mara-entscheidungen");
     const von = await chefName(req);
-    const erg = await entscheidenSammel(ids, gruppe, { von, agentId: req.chef?.agentId ?? null });
-    void chefProtokoll(req, `mara_sammelkarte:${gruppe}`, `${erg.erledigt} erledigt${erg.fehler.length ? `, ${erg.fehler.length} Fehler` : ""}`);
+    // E-406 B3: optional „option“ = „Nein, so lassen“ für alle (nur das harmlose Werkzeug „nichts“ — der Server prüft).
+    const option = req.body?.option ? String(req.body.option).slice(0, 60) : null;
+    const erg = await entscheidenSammel(ids, gruppe, { von, agentId: req.chef?.agentId ?? null, option });
+    void chefProtokoll(req, `mara_sammelkarte:${gruppe}`, `${option ? `${option}: ` : ""}${erg.erledigt} erledigt${erg.fehler.length ? `, ${erg.fehler.length} Fehler` : ""}`);
     res.status(erg.ok ? 200 : erg.status).json(erg.ok ? { ok: true, erledigt: erg.erledigt, fehler: erg.fehler, karten: erg.karten } : { ok: false, error: erg.error });
   } catch (err) {
     console.error("[MARA-STEUERPULT] sammelkarte:", err);

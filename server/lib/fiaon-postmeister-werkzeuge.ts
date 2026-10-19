@@ -521,8 +521,13 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // (weniger als 20 Minuten, wie auf WhatsApp) wird nicht gebucht.
     const bestehend = rueckrufAm && k.personId ? await bestehenderTermin(k.personId) : null;
     const wunschZeit = rueckrufAm ? berlinZeitLesen(rueckrufAm) : null;
+    // E-406 B3: Ampel „Termine eintragen“ auf Rot (Mara-Steuerpult) — kein Termin im Kalender; die Aufgabe bleibt (der
+    // Betreuer ruft an und macht die Zeit fest). Startwert grün = wie bisher.
+    const terminRot = !!rueckrufAm && !bestehend ? await import("./fiaon-mara-ampel").then((m) => m.ampelRot("termin_eintragen")).catch(() => false) : false;
     if (bestehend) {
       terminSatz = ` Es steht schon ein Termin: ${bestehend.vorname ? `${bestehend.vorname} ruft Sie ` : ""}${bestehend.kundenText}${bestehend.vorname ? " an" : ""}. Kein zweiter wurde eingetragen.`;
+    } else if (terminRot) {
+      terminSatz = " (Termine trägt gerade die Geschäftsführung selbst ein — KEIN Termin eingetragen; nenne dem Kunden keine Uhrzeit, der Betreuer meldet sich und macht die Zeit fest.)";
     } else if (rueckrufAm && (!wunschZeit || wunschZeit.getTime() < Date.now() + 20 * 60_000)) {
       terminSatz = ` (Rückruf-Zeit ${rueckrufAm} liegt nicht mindestens 20 Minuten in der Zukunft oder ist unlesbar — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit.)`;
     } else if (rueckrufAm && k.personId && zielAbwesend && wunschZeit && wunschZeit.getTime() < abw!.bis.getTime()) {

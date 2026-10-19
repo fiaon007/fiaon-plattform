@@ -285,7 +285,8 @@ async function bearbeitenUndAufraeumen(z: Pick<FristZeile, "id" | "postfach" | "
   const { postfachGruss } = await import("./fiaon-postmeister-postfaecher");
   let erg: { aktion: string; grund?: string | null } = { aktion: "fehler", grund: "" };
   try {
-    erg = await mailBearbeiten({ postfach: z.postfach, gmailId: z.gmailId, gruss: postfachGruss(z.postfach), modus: modus as any, nurOrdnen: false });
+    // E-406 B3: ampelFrist — steht „Mails beantworten“ auf Gelb, sendet Mara erst in diesem zweiten Anlauf (nach 24 h).
+    erg = await mailBearbeiten({ postfach: z.postfach, gmailId: z.gmailId, gruss: postfachGruss(z.postfach), modus: modus as any, nurOrdnen: false, ampelFrist: true });
   } finally {
     // E-401 Nachbesserung (Prüfer-Fund): Steht die Zeile noch in der Neufassung (kein Anspruch, KI-Pause, Ausnahme), zurück.
     if (zurueck && (await zuruecklegen(z.id, zurueck))) {

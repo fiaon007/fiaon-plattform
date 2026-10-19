@@ -23,6 +23,7 @@ import {
   type EntscheidungNeu, type EntscheidungBeleg,
 } from "./fiaon-mara-entscheidungen";
 import { GRUND_KURZ } from "@shared/fiaon-entwurf-frist";
+import { AMPEL_GELB_KOPF, istAmpelGelbEntwurf, istAmpelRotEntwurf } from "@shared/fiaon-mara-ampel";
 
 /** E-369 ging an diesem Zeitpunkt live — ältere Entwürfe kamen aus der alten Übergabe-Regel (Sammelkarte). */
 export const KARTEN_AB = new Date("2026-10-15T09:07:21Z");
@@ -47,10 +48,12 @@ const json = <T>(v: unknown, vorgabe: T): T => {
 const tag = (v: unknown) => (v ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" }).format(new Date(v as any)) : "");
 const epoche = (v: unknown) => Math.floor(new Date((v ?? 0) as any).getTime() / 1000);
 
-type Fall = "widerruf" | "rechtlich" | "global" | "unsicher";
+type Fall = "widerruf" | "rechtlich" | "global" | "unsicher" | "ampel";
 /** Rein: Welche Art Entscheidung braucht dieser Entwurf? Aus dem Übergabegrund der Zeile. */
 export function entwurfFall(begruendung: string | null | undefined): Fall {
   const g = String(begruendung ?? "");
+  // E-406 B3: „Mails beantworten“ steht auf Rot — die Antwort wäre sauber, nur die Ampel hält sie an.
+  if (istAmpelRotEntwurf(g)) return "ampel";
   if (/widerruf/i.test(g)) return "widerruf";
   if (/rechtlich|anwalt|beh(?:ö|oe)rde/i.test(g)) return "rechtlich";
   if (/global/i.test(g)) return "global";
@@ -62,12 +65,14 @@ const TITEL: Record<Fall, string> = {
   rechtlich: "Anwalt, Behörde oder Recht — Maras Antwort senden?",
   global: "FIAON Global — Kunde schreibt",
   unsicher: "Mara ist unsicher — Antwort ansehen",
+  ampel: "Ampel rot — Maras Antwort senden?",
 };
 const SATZ: Record<Fall, string> = {
   widerruf: "Ob der Widerruf gilt und was mit bereits Gezahltem geschieht, entscheidest du. Maras Antwort sagt nichts zu.",
   rechtlich: "Rechtliches entscheidest du — Maras Antwort ist vorsichtig und sagt nichts zu.",
   global: "Global-Kunden beantwortet Mara nie selbst.",
   unsicher: "Ihre eigene Prüfung hat die Antwort angehalten.",
+  ampel: "Mails beantwortet Mara gerade nur mit deinem Klick (Ampel rot im Steuerpult).",
 };
 
 /** Rein: die Karte zu einer Postfach-Zeile (fiaon_postmeister + Name). */
@@ -113,12 +118,17 @@ const ZEILE_SQL = `
     FROM fiaon_postmeister pm
    WHERE pm.aktion = 'entwurf' AND pm.gesendet_am IS NULL`;
 
-/** Detektor: eine Karte je wartendem Entwurf seit E-369 (ohne Rückrufwunsch) — erledigt sich, sobald die Mail weg ist. */
+/**
+ * Detektor: eine Karte je wartendem Entwurf seit E-369 (ohne Rückrufwunsch) — erledigt sich, sobald die Mail weg ist.
+ * E-406 B3: Ein GELBER Entwurf (Ampel „Mails beantworten“ auf Gelb) ist keine Karte — er steht in „Mara heute“ im
+ * Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus.
+ */
 async function findeEntwuerfe(lauf: any): Promise<EntscheidungNeu[]> {
   const zeilen = (await lauf.unsafe(
     `${ZEILE_SQL} AND COALESCE(pm.entwurf_geprueft_am, pm.created_at) >= $1
        AND POSITION($2 IN COALESCE(pm.begruendung, '')) = 0
-     ORDER BY pm.id DESC LIMIT 150`, [KARTEN_AB, BETREUER_GRUND])) as any[];
+       AND COALESCE(pm.begruendung, '') NOT LIKE $3
+     ORDER BY pm.id DESC LIMIT 150`, [KARTEN_AB, BETREUER_GRUND, `${AMPEL_GELB_KOPF}%`])) as any[];
   return zeilen.map(karteAusZeile);
 }
 
@@ -154,7 +164,7 @@ detektorRegistrieren({ art: "postmeister_altentwuerfe", finden: findeAltentwuerf
 export async function postmeisterKarteJetzt(id: number): Promise<void> {
   try {
     const [z] = (await sqlPool.unsafe(`${ZEILE_SQL} AND pm.id = $1`, [Number(id)])) as any[];
-    if (!z || String(z.begruendung ?? "").includes(BETREUER_GRUND)) return;
+    if (!z || String(z.begruendung ?? "").includes(BETREUER_GRUND) || istAmpelGelbEntwurf(z.begruendung)) return;
     await entscheidungAnlegen(karteAusZeile(z));
   } catch (e) {
     console.error("[POSTMEISTER] Entscheidungskarte:", String((e as Error)?.message ?? e).slice(0, 200));
@@ -189,21 +199,30 @@ werkzeugRegistrieren("postmeister_neu_schreiben", async (args) => {
   return ausfuehrErgebnis.erledigt("Mara schreibt neu — sie sendet selbst, wenn sie darf; sonst kommt die Mail als neue Karte.");
 });
 
-werkzeugRegistrieren("postmeister_verwerfen", async (args, k) => {
-  const id = Number(args?.id);
-  if (!(id > 0)) return ausfuehrErgebnis.fehler("Die Karte nennt keine Mail.");
+/**
+ * „Nichts senden“: den wartenden Entwurf ablegen, den Gmail-Entwurf löschen, die Übergabe schließen. Derselbe Weg für
+ * die Karte (postmeister_verwerfen) und für „Mara heute“ (E-406 B3, gelber Entwurf). false = schon gesendet/abgelegt.
+ */
+export async function entwurfVerwerfen(id: number, von: string): Promise<boolean> {
   const [r] = (await sqlPool`
     UPDATE fiaon_postmeister SET aktion = 'geordnet', naechster_versuch_am = NULL,
-           begruendung = ${`Nicht beantwortet — Entscheidung ${k.von} (E-371)`.slice(0, 300)}, updated_at = NOW()
+           begruendung = ${`Nicht beantwortet — Entscheidung ${von} (E-371)`.slice(0, 300)}, updated_at = NOW()
      WHERE id = ${id} AND aktion = 'entwurf' AND gesendet_am IS NULL
     RETURNING postfach, antwort_draft_id, person_id, ref`) as any[];
-  if (!r) return ausfuehrErgebnis.vonSelbst("Diese Mail ist schon beantwortet oder abgelegt.");
+  if (!r) return false;
   if (r.antwort_draft_id) {
     const { entwurfLoeschen } = await import("./fiaon-gmail");
     await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
   }
   const { uebergabeSchliessen } = await import("./fiaon-postmeister-lauf");
-  await uebergabeSchliessen({ id, personId: r.person_id ?? null, ref: r.ref ?? null }, k.von, `Nicht beantwortet (Entscheidung ${k.von}), Mail #${id}.`).catch(() => false);
+  await uebergabeSchliessen({ id, personId: r.person_id ?? null, ref: r.ref ?? null }, von, `Nicht beantwortet (Entscheidung ${von}), Mail #${id}.`).catch(() => false);
+  return true;
+}
+
+werkzeugRegistrieren("postmeister_verwerfen", async (args, k) => {
+  const id = Number(args?.id);
+  if (!(id > 0)) return ausfuehrErgebnis.fehler("Die Karte nennt keine Mail.");
+  if (!(await entwurfVerwerfen(id, k.von))) return ausfuehrErgebnis.vonSelbst("Diese Mail ist schon beantwortet oder abgelegt.");
   return ausfuehrErgebnis.erledigt("Abgelegt — keine Antwort.");
 });
 

@@ -26,6 +26,10 @@ import { AgentShell } from "./shared";
 import { Link } from "wouter";
 import { katalogFuerLeitung, anzahlNurVerwaltung } from "@/pages/admin-funktionen";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
+// E-406 B3 (19.10.2026): die Wochen-Stichprobe von Maras Handlungen — für Trainerin und Vertriebsleitung.
+import { MaraStichprobe } from "@/components/agent/MaraStichprobe";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
 
 const GRUND = "#F7F9FC";
 const HELL = "#0F172A";
@@ -136,6 +140,10 @@ export default function AgentSchulungPage() {
             </div>
           </section>
         )}
+        {/* E-406 B3 (19.10.2026): Jede Woche 20 Dinge, die Mara getan hat — ok oder nicht ok, mit Grund. Die Fehlerquote
+            je Werkzeug steht auch in der Ampel im Mara-Steuerpult (Vorschlag „auf Grün“ erst nach 4 Wochen unter 2 %). */}
+        <MaraStichprobe />
+        <Rundgang raum="schulung" titel="Schulung" schritte={RUNDGAENGE.schulung.schritte} />
         <section style={{ marginTop: 26 }}>
           <h2 style={{ color: HELL, fontSize: 16, fontWeight: 800, margin: "0 0 10px" }}>
             Die Kernbotschaft

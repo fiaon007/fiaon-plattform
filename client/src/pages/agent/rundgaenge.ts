@@ -1819,7 +1819,19 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
     // E-260 (29.09.2026): vier Reiter — dazu „Termine". E-294 (06.10.2026): fünf — dazu „Social". E-370 (15.10.2026): sechs — dazu „Entscheidungen".
-    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand und „Mara anweisen“ (dort auch Maras Ton) — das gilt für alle sechs Reiter.",
+    // E-406 B3 (19.10.2026): dazu der Chip „Ampel“.
+    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand, „Mara anweisen“ (dort auch Maras Ton) und die Ampel — das gilt für alle sechs Reiter.",
+  },
+  // E-406 B3 (19.10.2026), Vorschlag 3 „Mara führt den Betrieb“: die Ampel je Werkzeug.
+  {
+    ziel: "[aria-controls=\"mara-p-ampel\"]",
+    titel: "Der Chip „Ampel“: was Mara allein darf.",
+    text: "Je Werkzeug drei Stufen. Grün: Mara macht es allein. Gelb: Mara macht es, es steht im Lagezimmer unter „Mara heute“, "
+      + "und du nimmst es 24 Stunden lang mit einem Klick zurück (Termin absagen, Anschrift zurück, Mail-Entwurf „Nicht senden“). "
+      + "Rot: nur als Karte unter „Entscheidungen“. Wählbar ist nur, was der Server wirklich kann — grau heißt: gibt es hier nicht, "
+      + "der Grund steht beim Darüberfahren. Geld buchen und Erstattung sind fest rot.",
+    tipp: "Gestartet ist alles so, wie Mara heute arbeitet. Daneben steht die Stichprobe der Trainerin: Erst nach 4 Wochen "
+      + "unter 2 % Fehlern schlägt das System „auf Grün“ vor — umstellen tust immer du.",
   },
   // E-261 (29.09.2026): die WhatsApp-Bremse — der Chip steht immer da (grün, gelb oder rot).
   {
@@ -1971,6 +1983,15 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
     text: "Neue Entwürfe prüft Mara nach 24 Stunden selbst. Die alten von vorher zählt sie nur: wie viele nicht mehr nötig sind "
       + "(der Kunde schrieb danach, Kündigung, Gespräch oder Zahlung gebucht) und wie viele offen bleiben. „Ablegen“ schickt "
       + "keine Mail an Kunden; ausschalten kannst du die Ablage im Postfach.",
+  },
+  // E-406 B3 (19.10.2026): Maras Aufräum-Vorschläge und die Karten aus der Ampel.
+  {
+    titel: "Maras Vorschläge: „Soll ich …? Ja / Nein“.",
+    text: "Mara legt dir Aufräum-Arbeit selbst vor — zum Beispiel alte Zahlungsmeldungen (über 14 Tage, kein Eingang) als eine "
+      + "Sammelkarte. „Ja, im Bankbuch nachsehen“ sucht die Überweisungen; was sie findet, liegt danach als „Geld eingegangen“ "
+      + "zum Buchen da. Sie bucht nichts, schreibt dem Kunden nichts und storniert nichts. „Nein, so lassen“ schließt die "
+      + "angehakten Fälle. Steht ein Werkzeug auf Rot (Chip „Ampel“), kommt seine Arbeit ebenfalls hierher — etwa „Termin "
+      + "eintragen?“ mit dem Knopf „Eintragen“.",
   },
   {
     ziel: ".me-entschieden",
@@ -2605,7 +2626,70 @@ export const RUNDGANG_SOCIAL_VORSCHAU: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef (Lagezimmer) — „Mara heute“ und „Aufgaben & Ampel“ (E-406 B3, 19.10.2026) ─────────────────────
+// Vorschlag 3: „Karte ‚Mara heute‘ — nur Auffälliges, kein langer Bericht.“ Ziele: .mh-block, .mh-chips, .mh-geld,
+// .al-block (E-397). Die gelbe Liste steht nur, wenn ein Werkzeug auf Gelb steht — deshalb ohne Ziel.
+export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
+  {
+    ziel: ".mh-block",
+    titel: "„Mara heute“: was Mara heute selbst erledigt hat.",
+    text: "Oben die Zahl: alles, was Mara heute ohne einen Menschen geschafft hat. Darunter je Art ein Chip — Mails, WhatsApp, "
+      + "Termine, Kartenlinks, Kündigungen … Jeder Chip führt in den Raum, in dem du es nachsiehst.",
+  },
+  {
+    ziel: ".mh-geld",
+    titel: "Geld, Karten, wo es hängt, KI.",
+    text: "Geld heute kommt aus derselben Quelle wie überall im Chefbüro (gebucht, nicht gemeldet). Dann: wie viele "
+      + "Entscheidungen auf dich warten, Maras Aufräum-Vorschläge, wo jemand im Team hängt (Termine ohne Ergebnis, überfällige "
+      + "Aufträge) und was die KI heute gekostet hat.",
+    tipp: "„nach Maras Kontakt“ heißt: Die Zahlung kam in den 14 Tagen nach einer Nachricht von Mara — eine zeitliche Folge, kein Beweis.",
+  },
+  {
+    titel: "Gelb: 24 Stunden mit einem Klick zurück.",
+    text: "Stellst du im Mara-Steuerpult (Chip „Ampel“) ein Werkzeug auf Gelb, steht hier jede seiner Handlungen einzeln — mit "
+      + "„Termin absagen“, „Zurück auf alt“ oder bei Mails „Jetzt senden“ und „Nicht senden“. Wo Zurücknehmen nicht sicher geht "
+      + "(die Mail ist schon raus), steht das ehrlich daneben.",
+  },
+  {
+    ziel: ".al-block",
+    titel: "Aufgaben & Ampel.",
+    text: "System-Alarme und Termintreue als Ampel, „heikel neu“ und Woche für Woche: neu gegen erledigt. Meldungen sind keine "
+      + "Aufgaben mehr — sie gehen von selbst aus, wenn alles wieder gut ist.",
+  },
+];
+
+// ── /agent/schulung — die Mara-Stichprobe (E-406 B3, 19.10.2026) ────────────────────────────────────────
+// Für Trainerin und Vertriebsleitung. Ziele: #mara-stichprobe, [data-fiaon="stichprobe-fall"], [data-fiaon="stichprobe-quoten"].
+export const RUNDGANG_SCHULUNG: RundgangSchritt[] = [
+  {
+    ziel: "#mara-stichprobe",
+    titel: "Die Mara-Stichprobe: 10 Minuten pro Woche.",
+    text: "Jeden Montag liegen hier 20 Dinge, die Mara in der Woche davor getan hat — Mails, WhatsApp, Termine, Kartenlinks, "
+      + "Nachfassen. Du liest, was der Kunde schrieb und was Mara tat.",
+  },
+  {
+    ziel: "[data-fiaon=\"stichprobe-fall\"]",
+    titel: "ok oder nicht ok.",
+    text: "Passt es, tippe „ok“. Passt es nicht, tippe „nicht ok“ und schreib in einem Satz, was falsch war (falscher Name, "
+      + "falsches Datum, zu viel Verkauf …) — dann „Speichern“. Ändern geht jederzeit.",
+    tipp: "Ein kurzer, genauer Grund hilft am meisten: „hat Vornamen des Kollegen genannt“ statt „schlecht“.",
+  },
+  {
+    ziel: "[data-fiaon=\"stichprobe-quoten\"]",
+    titel: "Die Fehlerquote je Werkzeug.",
+    text: "Daraus entsteht die Fehlerquote je Werkzeug. Liegt ein Werkzeug 4 Wochen hintereinander unter 2 %, bekommt Justin "
+      + "den Vorschlag, Mara dort mehr zu erlauben. Entscheiden tut immer Justin.",
+  },
+  {
+    titel: "Schulung und Freigabe.",
+    text: "Stehen oben neue Kollegen „in Schulung“, bekommen sie noch keine Kunden. „Freigeben“ heißt: ab jetzt eigenständig.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“) und Schulung (Mara-Stichprobe).
+  lagezimmer:  { titel: "Lagezimmer", schritte: RUNDGANG_LAGEZIMMER },
+  schulung:    { titel: "Schulung", schritte: RUNDGANG_SCHULUNG },
   auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },
   auskunftBeschaffung: { titel: "Auskunft-Beschaffung", schritte: RUNDGANG_AUSKUNFT_BESCHAFFUNG },
   waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },

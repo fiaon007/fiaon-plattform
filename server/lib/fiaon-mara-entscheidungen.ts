@@ -109,7 +109,8 @@ export interface EntscheidungSicht {
   id: number; art: string; artText: string; gewicht: number;
   personId: number | null; name: string | null; ref: string | null;
   titel: string; text: string; empfehlung: string | null;
-  optionen: { key: string; label: string; ton: OptionTon; link: string | null; titel: string | null }[];
+  /** E-406 B3: harmlos = das Werkzeug „nichts“ (So lassen) — nur so eine Option darf eine Sammelkarte als „Nein“ zeigen. */
+  optionen: { key: string; label: string; ton: OptionTon; link: string | null; titel: string | null; harmlos?: boolean }[];
   belege: EntscheidungBeleg[];
   status: EntscheidungStatus; spaeterBis: string | null; entschiedenAm: string | null; entschiedenVon: string | null;
   gewaehlt: string | null; gewaehltLabel: string | null; ergebnis: string | null; fehler: string | null; createdAt: string;
@@ -769,7 +770,7 @@ export function eingangKarte(z: NachholZeile, funde: MaraFund[] = []): Entscheid
   const anderePerson = !!f && vorschlagPerson != null && vorschlagPerson !== f.personId;
   const maraBelege: EntscheidungBeleg[] = [];
   if (f) {
-    maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : f.kanal === "anliegen" ? "Anliegen" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
+    maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : f.kanal === "anliegen" ? "Anliegen" : f.kanal === "meldung" ? "Meldung" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
     if (f.wege) maraBelege.push({ text: `Mara: ${kurz(f.wege, 50)}`, ...(f.stand === "moeglich" ? { ton: "warn" as const } : {}) });
     if (anderePerson) {
       maraBelege.push({ text: "Der Vorschlag des Bankbuchs nennt eine andere Person als den Kunden, der zahlte — bitte im Konto prüfen", ton: "warn" });
@@ -1069,6 +1070,8 @@ function erweiterungenLaden(): Promise<void> {
   erweiterungen ??= import("./fiaon-postmeister-entscheidungen")
     .then(() => import("./fiaon-whatsapp-entscheidungen")) // E-372: Maras WhatsApp-Fälle (Karten und Werkzeuge)
     .then(() => import("./fiaon-jahresvertrag-entscheidung")) // E-396: Jahresverträge ohne belegte Annahme
+    // E-406 B3: Maras Aufräum-Vorschläge (alte Zahlungsmeldungen) und die Karte „Termin eintragen?“ (Ampel rot).
+    .then(() => import("./fiaon-mara-aufraeumen"))
     .then(() => undefined)
     .catch((e) => { erweiterungen = null; console.error("[ENTSCHEIDUNG] Postmeister-Karten nicht geladen:", String((e as Error)?.message ?? e).slice(0, 200)); });
   return erweiterungen;
@@ -1147,7 +1150,7 @@ function sicht(z: EntscheidungZeile): EntscheidungSicht {
     id: Number(z.id), art: z.art, artText: artText(z.art), gewicht: Number(z.gewicht),
     personId: z.person_id != null ? Number(z.person_id) : null, name: z.name ?? null, ref: z.ref ?? null,
     titel: z.titel, text: z.text, empfehlung: z.empfehlung,
-    optionen: optionen.map((o) => ({ key: o.key, label: o.label, ton: o.ton ?? "neutral", link: o.werkzeug === "link" ? (o.link ?? null) : null, titel: o.titel ?? null })),
+    optionen: optionen.map((o) => ({ key: o.key, label: o.label, ton: o.ton ?? "neutral", link: o.werkzeug === "link" ? (o.link ?? null) : null, titel: o.titel ?? null, harmlos: o.werkzeug === "nichts" })),
     belege: json<EntscheidungBeleg[]>(z.belege, []),
     status: z.status, spaeterBis: iso(z.spaeter_bis), entschiedenAm: iso(z.entschieden_am), entschiedenVon: z.entschieden_von ?? null,
     gewaehlt: z.gewaehlt ?? null, gewaehltLabel: optionen.find((o) => o.key === z.gewaehlt)?.label ?? null,
@@ -1171,6 +1174,8 @@ export interface EntscheidungenStand {
 /** Offen (Gewicht, dann Alter), später, und was in den letzten 7 Tagen entschieden wurde oder sich erledigt hat. */
 export async function entscheidungenLesen(lauf: Lauf = sqlPool): Promise<EntscheidungenStand> {
   await entscheidungTabellen();
+  // E-406 B3: Module, die Arten und Sammel-Arten anmelden, sind auch ohne Sammellauf geladen (Sammelkarten stimmen).
+  await erweiterungenLaden();
   const [offen, spaeter, entschieden] = await Promise.all([
     lauf.unsafe(`${SICHT_SQL} WHERE e.status = 'offen' OR (e.status = 'spaeter' AND e.spaeter_bis <= NOW()) ORDER BY e.gewicht DESC, e.created_at ASC, e.id ASC LIMIT 200`),
     lauf.unsafe(`${SICHT_SQL} WHERE e.status = 'spaeter' AND e.spaeter_bis > NOW() ORDER BY e.spaeter_bis ASC LIMIT 100`),
@@ -1291,7 +1296,12 @@ export async function entscheidungSpaeter(id: number, opts: { tage?: number; lau
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Arten, die als Sammelkarte kommen dürfen (gleiche Empfehlung = gleiche Handlung je Fall). */
-export const SAMMEL_ARTEN: readonly string[] = ["kuendigung_ungebucht", "mahnstopp", "werbesperre_zahlungspost"];
+const SAMMEL_ARTEN_LISTE: string[] = ["kuendigung_ungebucht", "mahnstopp", "werbesperre_zahlungspost"];
+export const SAMMEL_ARTEN: readonly string[] = SAMMEL_ARTEN_LISTE;
+/** E-406 B3: Eine Art aus einem anderen Modul als Sammelkarte zulassen (Maras Aufräum-Vorschläge). Nie Geld oder Entwürfe. */
+export function sammelArtRegistrieren(art: string): void {
+  if (art && !SAMMEL_ARTEN_LISTE.includes(art)) SAMMEL_ARTEN_LISTE.push(art);
+}
 /** Ab so vielen gleichen Fällen eine Sammelkarte. */
 export const SAMMEL_AB = 2;
 /** Ziel: keine Karte älter als so viele Tage. */
@@ -1307,6 +1317,8 @@ const sekundenFuer = (art: string) => SEKUNDEN_JE_ART[art] ?? (art.startsWith("w
 export interface SammelGruppe {
   schluessel: string; art: string; artText: string; empfehlung: string; empfehlungLabel: string;
   empfehlungTitel: string | null; ids: number[]; anzahl: number; aeltesteAm: string;
+  /** E-406 B3: „Nein, so lassen“ für alle — nur, wenn JEDE Karte dieselbe harmlose Option trägt (Werkzeug „nichts“). */
+  nein: { key: string; label: string } | null;
 }
 
 /** Gleiche Fälle bündeln — rein, auf der Sicht der offenen Karten. */
@@ -1324,8 +1336,10 @@ export function sammelGruppen(offen: EntscheidungSicht[]): SammelGruppe[] {
     if (karten.length < SAMMEL_AB) continue;
     const o = karten[0].optionen.find((x) => x.key === karten[0].empfehlung)!;
     const aelteste = karten.reduce((a, k) => (k.createdAt < a ? k.createdAt : a), karten[0].createdAt);
+    const neinErste = karten[0].optionen.find((x) => x.harmlos && x.key !== karten[0].empfehlung) ?? null;
+    const nein = neinErste && karten.every((k) => k.optionen.some((x) => x.key === neinErste.key && x.harmlos)) ? { key: neinErste.key, label: neinErste.label } : null;
     aus.push({ schluessel: key, art: karten[0].art, artText: karten[0].artText, empfehlung: String(karten[0].empfehlung),
-      empfehlungLabel: o.label, empfehlungTitel: o.titel, ids: karten.map((k) => k.id), anzahl: karten.length, aeltesteAm: aelteste });
+      empfehlungLabel: o.label, empfehlungTitel: o.titel, ids: karten.map((k) => k.id), anzahl: karten.length, aeltesteAm: aelteste, nein });
   }
   return aus.sort((a, b) => b.anzahl - a.anzahl);
 }
@@ -1351,6 +1365,7 @@ export function tagesLast(offen: EntscheidungSicht[], jetzt = Date.now()): Tages
 /** Nur lesen (ohne den Sammler anzustoßen) — für das Lagezimmer (Stufe Leitung). */
 export async function tagesLastLesen(lauf: Lauf = sqlPool): Promise<TagesLast & { gesammeltAm: string | null }> {
   await entscheidungTabellen();
+  await erweiterungenLaden();
   const offen = (await lauf.unsafe(`${SICHT_SQL} WHERE e.status = 'offen' OR (e.status = 'spaeter' AND e.spaeter_bis <= NOW()) ORDER BY e.gewicht DESC, e.created_at ASC LIMIT 400`)) as any[];
   return { ...tagesLast(offen.map(sicht).map((k) => ({ ...k, status: "offen" as EntscheidungStatus }))), gesammeltAm: letztesErgebnis?.am ?? null };
 }
@@ -1360,7 +1375,7 @@ export async function tagesLastLesen(lauf: Lauf = sqlPool): Promise<TagesLast & 
  * denselben Weg wie ein Einzelklick (entscheiden). Der Server prüft, dass alle Karten zur Gruppe gehören (gleiche
  * Sammel-Art, gleiche Empfehlung, offen). Abgewählte Karten schickt die Oberfläche gar nicht mit.
  */
-export async function entscheidenSammel(ids: number[], gruppe: string, opts: { von: string; agentId?: number | null }): Promise<{
+export async function entscheidenSammel(ids: number[], gruppe: string, opts: { von: string; agentId?: number | null; option?: string | null }): Promise<{
   ok: boolean; status: number; error?: string; erledigt: number; fehler: { id: number; text: string }[]; karten: EntscheidungSicht[];
 }> {
   await entscheidungTabellen();
@@ -1370,14 +1385,19 @@ export async function entscheidenSammel(ids: number[], gruppe: string, opts: { v
   const zeilen = (await sqlPool.unsafe(`${SICHT_SQL} WHERE e.id = ANY($1::bigint[])`, [liste])) as any[];
   const fremd = zeilen.filter((z) => z.art !== art || z.empfehlung !== empfehlung);
   if (fremd.length || zeilen.length !== liste.length) return { ok: false, status: 409, error: "Die Auswahl passt nicht mehr zur Sammelkarte — bitte neu laden.", erledigt: 0, fehler: [], karten: [] };
+  // E-406 B3: „Nein, so lassen“ für alle — nur eine Option, die auf JEDER Karte das harmlose Werkzeug „nichts“ ist.
+  const wahl = opts.option && opts.option !== empfehlung ? String(opts.option) : empfehlung;
+  if (wahl !== empfehlung && !zeilen.every((z) => json<EntscheidungOption[]>(z.optionen, []).some((o) => o.key === wahl && o.werkzeug === "nichts"))) {
+    return { ok: false, status: 400, error: "Diese Wahl gibt es auf der Sammelkarte nicht.", erledigt: 0, fehler: [], karten: [] };
+  }
   let erledigt = 0;
   const fehlerListe: { id: number; text: string }[] = [];
   const karten: EntscheidungSicht[] = [];
   for (const id of liste) {
-    const r = await entscheiden(id, empfehlung, { von: opts.von, agentId: opts.agentId ?? null });
+    const r = await entscheiden(id, wahl, { von: opts.von, agentId: opts.agentId ?? null });
     if (r.karte) karten.push(r.karte);
     if (r.ok) erledigt += 1; else fehlerListe.push({ id, text: String(r.error || "Fehler") });
   }
-  console.log(`[ENTSCHEIDUNG] Sammelkarte ${art} → ${empfehlung} (${opts.von}): ${erledigt} erledigt, ${fehlerListe.length} mit Fehler.`);
+  console.log(`[ENTSCHEIDUNG] Sammelkarte ${art} → ${wahl} (${opts.von}): ${erledigt} erledigt, ${fehlerListe.length} mit Fehler.`);
   return { ok: true, status: 200, erledigt, fehler: fehlerListe, karten };
 }

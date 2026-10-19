@@ -524,6 +524,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Die Aktion selbst: alle 10 Minuten, rund um die Uhr, A vor B, Takt und Kostendeckel in fiaon-mara-aktion.ts.
   const fiaonMaraSteuerpultRoutes = await import('./routes/fiaon-mara-steuerpult');
   app.use('/api/fiaon', fiaonMaraSteuerpultRoutes.default);
+  // 🚦 E-406 B3 (19.10.2026): „Mara heute“ im Lagezimmer, die Ampel je Mara-Werkzeug im Steuerpult (Chip „Ampel“),
+  //    die Wochen-Stichprobe in der Schulung (/agent/schulung). Regeln: shared/fiaon-mara-ampel.ts.
+  app.use('/api/fiaon', (await import('./routes/fiaon-mara-heute')).default);
   // 📲 Social-Studio (06.10.2026, E-294): Reiter „Social" im Mara-Steuerpult — Plan, Post-Detail,
   //    Freigabe mit Wort-Check, Instagram-Vorschau. POST /api/fiaon/social/import (Bearer
   //    SOCIAL_IMPORT_TOKEN, darf NUR importieren) liegt bewusst NICHT unter /api/admin — dort fängt

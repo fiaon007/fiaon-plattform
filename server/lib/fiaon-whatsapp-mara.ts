@@ -4234,6 +4234,18 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
   if (name === "rueckruf_eintragen") {
     const sperre = rueckrufHeuteSperre(args, ctx, new Date());
     if (sperre) return { ergebnis: { ok: false, grund: sperre }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+    // E-406 B3: Ampel „Termine eintragen“ auf Rot (Mara-Steuerpult) — Mara trägt nichts ein, keine Uhrzeit wird
+    // zugesagt; der Wunsch liegt Justin als Karte vor (vorlegen → „Mara braucht eine Antwort von dir“). Startwert grün.
+    const { ampelRot } = await import("./fiaon-mara-ampel");
+    if (await ampelRot("termin_eintragen")) {
+      const fenster = args?.von && args?.bis ? `${args.von}–${args.bis}` : (args?.von || args?.bis || "");
+      const wunsch = [args?.zeit, fenster].filter(Boolean).join(" / ") || "ohne Uhrzeit";
+      return {
+        ergebnis: { ok: false, grund: "Rückrufe trägt gerade die Geschäftsführung selbst ein (Ampel rot). Sag ihm: Sein Wunsch ist angekommen, wir melden uns und machen die Zeit fest. Nenne KEINE Uhrzeit als fest und schreib nicht, dass etwas eingetragen ist." },
+        aktion: { werkzeug: name, ok: false, zeiten: [],
+          vorlegen: `Ampel rot (Termine eintragen): Rückruf NICHT eingetragen — Wunsch ${wunsch}${args?.verschieben === true ? " (verschieben)" : ""}. Anliegen: ${String(args?.anliegen ?? "").slice(0, 200)}` },
+      };
+    }
     const r = await mt.rueckrufBuchen(ctx, {
       zeit: args?.zeit || null, von: args?.von || null, bis: args?.bis || null,
       anliegen: String(args?.anliegen ?? ""), verschieben: args?.verschieben === true,
@@ -4437,6 +4449,15 @@ async function ratenpauseSetzen(args: any, ctx: WerkzeugKontext): Promise<{ erge
     ergebnis: { ok: false, grund: "Eine weitere Pause entscheidet unsere Geschäftsführung — sag ihm genau das: Er bekommt dazu Bescheid. Keine Zusage, keine Zahlungsbitte, NICHTS ist verschoben." },
     aktion: { werkzeug: name, ok: false, zeiten: [], haertefall: true, ohneSperreMoeglich: ohneSperre, intern } as Aktion,
   });
+  // E-406 B3: Ampel „Ratenpause“ auf Rot (Mara-Steuerpult) — jede Bitte kommt als Karte „Ratenpause“ mit dem Knopf
+  // „Pause trotzdem setzen“ (derselbe Weg wie der Härtefall). Mara sagt nichts zu. Startwert grün.
+  const { ampelRot } = await import("./fiaon-mara-ampel");
+  if (await ampelRot("ratenpause")) {
+    return {
+      ergebnis: { ok: false, grund: "Eine Ratenpause entscheidet gerade unsere Geschäftsführung — sag ihm genau das: Er bekommt dazu Bescheid. Keine Zusage, keine Zahlungsbitte, NICHTS ist verschoben." },
+      aktion: { werkzeug: name, ok: false, zeiten: [], haertefall: true, ohneSperreMoeglich: true, intern: "Ampel rot: Ratenpausen nur mit deinem Klick" } as Aktion,
+    };
+  }
   // Höchstens eine Pause in 60 Tagen — auch eine, die Mara selbst gesetzt hat (ratenpauseAnwenden schreibt sie in den
   // Verlauf, nicht in fiaon_raten_arbeit, deren Sperre es selbst prüft).
   const [vorher] = (await sqlPool`

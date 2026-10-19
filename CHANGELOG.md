@@ -5,6 +5,26 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.10.2026 — E-406 B3: „Mara heute“ im Lagezimmer, Ampel je Mara-Werkzeug, Wochen-Stichprobe, Maras Aufräum-Vorschläge
+- **Was:** (1) **Lagezimmer › „Mara heute“** (keine neue Seite): was Mara heute selbst erledigt hat (je Art ein Chip mit Link),
+  Geld heute aus der EINEN Quelle (Maras Bilanz auf UMSATZ_QUELLE_SQL), offene Entscheidungen, Aufräum-Vorschläge, wo jemand im Team
+  hängt (Termine ohne Ergebnis, überfällige Aufträge), KI-Kosten heute. (2) **Mara-Steuerpult › Chip „Ampel“:** je Werkzeug grün /
+  gelb / rot — nur, was der Server wirklich durchsetzt; Startwerte = heutiges Verhalten (nichts verschärft oder gelockert). Gelb steht
+  einzeln in „Mara heute“ und ist 24 h mit einem Klick zurück: Termin absagen (Kunde bekommt die Absage mit Link), Anschrift/Telefon
+  zurück auf alt, Mail-Entwurf „Nicht senden“ / „Jetzt senden“ (gelbe Mails gehen sonst nach 24 h über die 24-Stunden-Regel raus).
+  Rot: Mails nur noch als Karte, Termine nicht eingetragen (genannter Termin → Karte „Termin eintragen?“), Ratenpause als Karte
+  „Pause setzen“. Geld buchen und Erstattung fest rot. (3) **Schulung › Mara-Stichprobe:** jede Woche 20 zufällige Handlungen der
+  Vorwoche (gleichmäßig über die Werkzeuge) für Trainerin und Vertriebsleitung: ok / nicht ok mit Grund, Fehlerquote je Werkzeug;
+  Vorschlag „auf Grün“ erst nach 4 Wochen unter 2 % — nie automatisch. (4) **Maras Aufräum-Vorschlag:** alte Zahlungsmeldungen
+  (14–75 Tage, kein Eingang) als E-397-Sammelkarte „Ja, im Bankbuch nachsehen / Nein, so lassen“ — sucht über zahlung_suchen, bucht
+  nichts, schreibt dem Kunden nichts.
+- **Warum:** Justin 19.10.2026, Vorschlag 3 „Mara führt den Betrieb“: sehen, was Mara tut, ihr Schritt für Schritt mehr zutrauen —
+  mit einem Menschen, der stichprobenartig prüft, und ohne neue Seiten.
+- **Wo:** shared/fiaon-mara-ampel.ts (Regeln), server/lib/fiaon-mara-ampel.ts, fiaon-mara-heute.ts, fiaon-mara-stichprobe.ts,
+  fiaon-mara-aufraeumen.ts, server/routes/fiaon-mara-heute.ts; Weichen in fiaon-postmeister-lauf.ts (+ frist, entscheidungen),
+  fiaon-whatsapp-mara.ts (Rückruf, Ratenpause), fiaon-postmeister-werkzeuge.ts (Rückruf-Termin), fiaon-mara-genannter-termin.ts;
+  Oberfläche ChefMaraHeute.tsx, ChefMaraAmpel.tsx, components/agent/MaraStichprobe.tsx. Prüfstände scripts/pruef-e406-b3-mara-heute(-db).ts.
+
 ## 19.10.2026 — E-406 C2: Nacharbeit nach dem Anruf — ein Klick, Mara schickt die Zusammenfassung
 - **Was:** Beim Gesprächsergebnis (Kundenkarte und Akte) steht das Häkchen **„Mara schickt die Zusammenfassung“** mit einer Zeile
   Vorschau. Bleibt es an, schickt Mara dem Kunden eine kurze Mail: „Zahlt sofort/am …“ → Betrag, Tag, Verwendungszweck und Knopf zu

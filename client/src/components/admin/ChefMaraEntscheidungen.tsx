@@ -22,7 +22,7 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import { akteLink } from "@/lib/akte-link";
 
 type Ton = "gut" | "neutral" | "vorsicht";
-interface Option { key: string; label: string; ton: Ton; link: string | null; titel: string | null }
+interface Option { key: string; label: string; ton: Ton; link: string | null; titel: string | null; harmlos?: boolean }
 interface Beleg { text: string; art?: "chip" | "zitat" | "zeile"; ton?: "gut" | "warn" | "krit"; name?: string | null; personId?: number | null }
 interface Karte {
   id: number; art: string; artText: string; gewicht: number;
@@ -35,7 +35,8 @@ interface Karte {
 }
 // E-397: „Heute N Entscheidungen, etwa M Minuten“ und Sammelkarten (gleiche Fälle, ein Klick, einzeln abwählbar).
 interface Last { entscheidungen: number; minuten: number; karten: number; sammelkarten: number; aelterAlsZiel: number; aeltesteTage: number }
-interface Gruppe { schluessel: string; art: string; artText: string; empfehlung: string; empfehlungLabel: string; empfehlungTitel: string | null; ids: number[]; anzahl: number; aeltesteAm: string }
+// E-406 B3: `nein` — „Nein, so lassen“ für alle (nur ein harmloses „nichts“, der Server prüft es noch einmal).
+interface Gruppe { schluessel: string; art: string; artText: string; empfehlung: string; empfehlungLabel: string; empfehlungTitel: string | null; ids: number[]; anzahl: number; aeltesteAm: string; nein?: { key: string; label: string } | null }
 interface Daten {
   offen: Karte[]; spaeter: Karte[]; entschieden: Karte[];
   zaehler: { offen: number; geldRecht: number; spaeter: number };
@@ -46,6 +47,8 @@ interface Daten {
 const ARTEN_TEXT: Record<string, string> = {
   kuendigung_ungebucht: "Kündigungen", raten_nach_ende: "Raten nach Vertragsende", eingang_unverbucht: "Geld eingegangen",
   mahnstopp: "Mahnstopps", werbesperre_zahlungspost: "Werbesperren", wa_vorlagen: "WhatsApp-Vorlagen",
+  // E-406 B3: Maras Aufräum-Vorschläge und die Karte „Termin eintragen?“ (Ampel rot).
+  mara_aufraeumen_zahlung: "Alte Zahlungsmeldungen", mara_termin_rot: "Termine (Ampel rot)",
 };
 
 async function senden(pfad: string, body: unknown): Promise<any> {
@@ -140,7 +143,7 @@ function KarteAnsicht({ k, glas, busy, onEntscheiden, onSpaeter }: {
  */
 function SammelKarte({ g, karten, busy, onAlle, onEinzeln }: {
   g: Gruppe; karten: Karte[]; busy: string | null;
-  onAlle: (g: Gruppe, ids: number[]) => void; onEinzeln: (g: Gruppe) => void;
+  onAlle: (g: Gruppe, ids: number[], option?: string) => void; onEinzeln: (g: Gruppe) => void;
 }) {
   const [ab, setAb] = useState<Set<number>>(new Set());
   const gewaehlt = karten.filter((k) => !ab.has(k.id)).map((k) => k.id);
@@ -173,6 +176,10 @@ function SammelKarte({ g, karten, busy, onAlle, onEinzeln }: {
         <button type="button" className="mara-knopf haupt" disabled={!!busy || gewaehlt.length === 0} onClick={() => onAlle(g, gewaehlt)}>
           {laeuft ? "läuft …" : `${g.empfehlungLabel} · ${zahl(gewaehlt.length)} ${gewaehlt.length === 1 ? "Fall" : "Fälle"}`}
         </button>
+        {g.nein ? (
+          <button type="button" className="mara-knopf" disabled={!!busy || gewaehlt.length === 0} onClick={() => onAlle(g, gewaehlt, g.nein!.key)}
+            title="Alle angehakten Fälle bleiben, wie sie sind — die Karten gehen zu.">{g.nein.label}</button>
+        ) : null}
         <button type="button" className="mara-knopf text" disabled={!!busy} onClick={() => onEinzeln(g)}>Einzeln entscheiden</button>
       </div>
     </article>
@@ -215,11 +222,11 @@ export default function ChefMaraEntscheidungen() {
   const inGruppe = useMemo(() => new Set(gruppen.flatMap((g) => g.ids)), [gruppen]);
   const einzelListe = useMemo(() => liste.filter((k) => !(inGruppe.has(k.id) && k.status === "offen")), [liste, inGruppe]);
 
-  const sammel = async (g: Gruppe, ids: number[]) => {
+  const sammel = async (g: Gruppe, ids: number[], option?: string) => {
     if (!ids.length) return;
     setBusy(`sammel:${g.schluessel}`);
     try {
-      const j = await senden("/chef/mara/entscheidungen/sammel", { gruppe: g.schluessel, ids });
+      const j = await senden("/chef/mara/entscheidungen/sammel", { gruppe: g.schluessel, ids, ...(option ? { option } : {}) });
       setFrisch((f) => { const n = { ...f }; for (const k of (j.karten ?? []) as Karte[]) n[k.id] = k; return n; });
       melden(`${zahl(j.erledigt)} ${j.erledigt === 1 ? "Fall" : "Fälle"} entschieden${j.fehler?.length ? ` · ${zahl(j.fehler.length)} mit Fehler (stehen einzeln da)` : ""}.`, "kopf", !!j.fehler?.length);
     } catch (e: any) { melden(e.message, "kopf", true); } finally { setBusy(null); d.neu(); }
@@ -303,7 +310,7 @@ export default function ChefMaraEntscheidungen() {
         <div className="me-liste-karten">
           {gruppen.map((g) => (
             <SammelKarte key={g.schluessel} g={g} karten={liste.filter((k) => g.ids.includes(k.id) && k.status === "offen")} busy={busy}
-              onAlle={(x, ids) => void sammel(x, ids)} onEinzeln={(x) => setEinzeln((alt) => new Set(alt).add(x.schluessel))} />
+              onAlle={(x, ids, option) => void sammel(x, ids, option)} onEinzeln={(x) => setEinzeln((alt) => new Set(alt).add(x.schluessel))} />
           ))}
           {einzelListe.map((k, i) => (
             <KarteAnsicht key={k.id} k={k} glas={i === 0 && gruppen.length === 0} busy={busy} onEntscheiden={(x, o) => void entscheiden(x, o)} onSpaeter={(x) => void spaeter(x)} />

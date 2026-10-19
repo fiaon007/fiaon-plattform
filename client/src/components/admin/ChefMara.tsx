@@ -58,6 +58,8 @@ const MaraEntscheidungen = lazy(() => import("./ChefMaraEntscheidungen"));
 const MaraRatenErinnerung = lazy(() => import("./ChefMaraRaten"));
 // E-406 B2 (19.10.2026): „Unterlagen“ — Mara erinnert an fehlende KYC-Unterlagen, wer prüft, alte Prüf-Aufgaben umhängen.
 const MaraUnterlagen = lazy(() => import("./ChefMaraUnterlagen"));
+// E-406 B3 (19.10.2026): die Ampel je Werkzeug — ein Aufklapper wie KI und Bilanz, erst beim Öffnen geladen.
+const MaraAmpel = lazy(() => import("./ChefMaraAmpel"));
 
 interface Einstellungen { an: boolean; jeStunde: number; tagEuro: number; stufen: string[]; emojis: boolean; postfach: string; start: string | null; rundeSeit?: string | null }
 interface Stand {
@@ -1481,7 +1483,7 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
 // offenen Karten (ohne „später").
 // ═══════════════════════════════════════════════════════════════════════════
 // E-261 (29.09.2026): der Chip „WhatsApp" neben „KI" — Pause, Meta-Qualität, „WhatsApp wieder aktivieren".
-type Aufklapper = "ki" | "wa" | "bilanz" | "anweisen";
+type Aufklapper = "ki" | "wa" | "bilanz" | "anweisen" | "ampel";
 const REITER: { r: MaraReiter; lang: string; kurz: string }[] = [
   // E-370: am Handy (390 px) „Fragen“ — „Entscheiden“ sprengte mit drei zweistelligen Zahlmarken die Zeile.
   { r: "entscheidungen", lang: "Entscheidungen", kurz: "Fragen" },
@@ -1535,6 +1537,10 @@ function Steuerpult() {
             Mara anweisen
             {wartend > 0 && <span className="mara-zahlmarke" title={`${wartend} ${wartend === 1 ? "Auftrag wartet" : "Aufträge warten"} auf dich`}>{wartend}</span>}
           </button>
+          {/* E-406 B3: grün / gelb / rot je Mara-Werkzeug (Startwerte = heutiges Verhalten). */}
+          <button type="button" className="mara-chip" aria-expanded={offen === "ampel"} aria-controls="mara-p-ampel" onClick={() => umschalten("ampel")}>
+            Ampel
+          </button>
           <button type="button" className="mara-chip" onClick={rundgangStarten}>Rundgang</button>
         </div>
       </header>
@@ -1546,6 +1552,7 @@ function Steuerpult() {
       {offen === "ki" && <KiPauseKarte imAufklapper />}
       {offen === "wa" && <WaPauseKarte imAufklapper />}
       {offen === "bilanz" && <MarasBilanz />}
+      {offen === "ampel" && <Suspense fallback={<Geruest zeilen={6} />}><MaraAmpel /></Suspense>}
       {(offen === "anweisen" || anweisenDa) && <MaraBefehl verborgen={offen !== "anweisen"}><Anweisungen /></MaraBefehl>}
 
       <div className="mara-reiter" role="tablist" aria-label="Maras Wege">

@@ -458,7 +458,7 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
       freigabe: par.sonderfreigabe ? `Persönlich freigegeben von ${par.sonderfreigabe.unterzeichner}` : "",
       punkte: [
         { titel: "Höchstbetrag", text: `${kapitalChf(par.buergschaftChf)} in der Währung Ihrer Finanzierung — kein Kursrisiko.` },
-        { titel: "Ohne Sicherheiten", text: `Einmalig ${kapitalEur(par.buergschaftCents)}, sobald die Bürgschaft steht — keine Sicherheiten, keine laufende Gebühr.` },
+        { titel: "Ohne Sicherheiten", text: "Keine Sicherheiten, keine laufende Gebühr — wir stehen für Sie ein." },
         { titel: "Klare Laufzeit", text: `Längstens ${zahlwort(par.buergschaftMonate)} Monate.` },
       ],
       bedingungenTitel: "So einfach geht es",
@@ -479,16 +479,15 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
     sonderfreigabe: par.sonderfreigabe,
     investition: {
       titel: "Ihre Investition",
-      sub: "Heute zahlen Sie nur eines. Alles Weitere erst, wenn es für Sie arbeitet.",
-      heuteAuge: "Heute",
+      // E-404 (Justin): auf der Seite NUR die Gründungskosten — Bürgschaftsgebühr, Vergütung bei Auszahlung und Jahresbetreuung
+      // stehen im Vertrag (Ziffer 6) und in der Übersicht direkt über dem Knopf.
+      sub: "Ein Betrag für Ihren Start — alles für die ersten zwölf Monate inklusive.",
+      heuteAuge: "Gründungskosten",
       preis: kapitalEur(par.preisCents),
-      preisZeile: "für das ganze erste Jahr — alles inklusive",
-      spaeterTitel: "Später — erst wenn es so weit ist",
-      posten: [
-        { wann: "Wenn Ihre Gesellschaft steht", betrag: kapitalEur(par.buergschaftCents), titel: "Bürgschaft", text: "sobald die Bürgschaft für Sie zugesagt ist" },
-        { wann: "Wenn Ihr Geld da ist", betrag: kapitalEur(par.auszahlungCents), titel: "Bei Auszahlung", text: "bequem aus der Finanzierung bezahlt" },
-      ],
-      jahr: `Ab dem zweiten Jahr ${kapitalEur(par.jahresCents)} im Jahr für die Betreuung Ihrer LLC — jährlich kündbar.`,
+      preisZeile: "inkl. aller Kosten für 12 Monate",
+      spaeterTitel: "",
+      posten: [],
+      jahr: "",
       inklusive: [
         "Gründung Ihrer LLC mit Staatsgebühr und Operating Agreement",
         "Registered Agent, US-Adresse und Telefon im ersten Jahr",
@@ -509,7 +508,7 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
           ? `Ja. Wir sind uns so sicher, dass es als Garantie in Ihrem Vertrag steht: Kommt Ihre Finanzierung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.`
           : "Wir bereiten Ihren Antrag vollständig vor und stehen mit unserer Bürgschaft ein."] },
         { frage: "Wann ist das Geld auf meinem Konto?", antwort: ["Unser Plan: Woche eins die LLC, Woche zwei alle Dokumente, Woche drei Konto und Kreditkarten, Woche vier bis fünf Finanzierung und Auszahlung."] },
-        { frage: "Was kostet mich die Bürgschaft?", antwort: [`Einmalig ${kapitalEur(par.buergschaftCents)}, sobald sie steht — ohne Sicherheiten. Nur wenn das Institut die Bürgin tatsächlich in Anspruch nimmt, ersetzen Sie ihr den Betrag, wie bei jeder Bürgschaft.`] },
+        { frage: "Brauche ich Sicherheiten für die Bürgschaft?", antwort: ["Nein. Nur wenn das Institut die Bürgin tatsächlich in Anspruch nimmt, ersetzen Sie ihr den Betrag — wie bei jeder Bürgschaft. Alle Einzelheiten stehen in Ziffer 5 und 6 Ihres Vertrags."] },
         { frage: "Und die Kreditkarten?", antwort: [`Kommen dazu: Business-Kreditkarten von Herausgebern wie ${par.kartenHerausgeber}, mit Rahmen von ${karten} je Karte — zusätzlich zu Ihrer Finanzierung.`] },
         { frage: "Wem gehört die LLC?", antwort: ["Ihnen persönlich: Wir gründen die LLC auf Ihren Namen, den Vertrag schließen wir mit Ihrem Unternehmen. FIAON erwirbt keine Anteile."] },
         { frage: "Was ist mit den Steuern in der Schweiz?", antwort: ["Genau dafür prüft unser Steuerberater die Struktur vor der Gründung — einschließlich Doppelbesteuerungsabkommen und Meldepflichten. Sie bekommen das Ergebnis schriftlich."] },
@@ -550,7 +549,7 @@ export function kapitalBestellUebersicht(d: KapitalDaten): { titel: string; zeil
       ...(par.garantieWochen ? [{ label: "Garantie", wert: `Finanzierung über ${kapitalChf(par.kapitalChf)} binnen ${zahlwort(par.garantieWochen)} Wochen ab Auftragserteilung — sonst alles Gezahlte zurück (Ziffer 4)` }] : []),
       { label: "Bürgschaft", wert: `${d.buergin.name}, Höchstbetrag ${kapitalChf(par.buergschaftChf)}, längstens ${zahlwort(par.buergschaftMonate)} Monate, ohne Sicherheiten (Ziffer 5)` },
       { label: "Vergütung", wert: `${kapitalEur(par.preisCents)} einmalig, netto — fällig mit Vertragsschluss, Rechnung sofort, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen` },
-      { label: "Später", wert: `${kapitalEur(par.buergschaftCents)} Bürgschaftsgebühr, sobald die Bürgschaft steht · ${kapitalEur(par.auszahlungCents)} mit der Auszahlung der Finanzierung — beide netto` },
+      { label: "Weitere Vergütung", wert: `laut Ziffer 6 Ihres Vertrags: ${kapitalEur(par.buergschaftCents)} Bürgschaftsgebühr mit der Zusage der Bürgschaft und ${kapitalEur(par.auszahlungCents)} mit der Auszahlung der Finanzierung — beide netto` },
       { label: "Ab dem zweiten Jahr", wert: `Jahresbetreuung ${kapitalEur(par.jahresCents)} je Jahr, netto — jährlich im Voraus, mit einem Monat zum Ende des Betreuungsjahres kündbar` },
       { label: "Umsatzsteuer", wert: "Rechnungen ohne Umsatzsteuer (Leistung aus London an ein Unternehmen; in der Schweiz Bezugsteuer beim Empfänger)" },
       { label: "Beginn", wert: "mit Ihrem Zahlungseingang" },
@@ -582,7 +581,7 @@ export function kapitalAnnahmeTexte(d: KapitalDaten): KapitalAnnahmeTexte {
       fehltName: `Bitte tippen Sie Ihren Namen mit Nachnamen (${String(d.kunde.vertretung.nachname ?? "").trim()}).`,
     },
     knopf: KAPITAL_KNOPF,
-    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig wird heute nur ${kapitalEur(par.preisCents)} (netto, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen); Bürgschaftsgebühr und Vergütung bei Auszahlung erst, wenn es so weit ist.`,
+    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig sind jetzt nur die Gründungskosten von ${kapitalEur(par.preisCents)} (netto, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen).`,
     gesperrt: "Dieses Angebot wird gerade vervollständigt. Ihr Ansprechpartner gibt Ihnen Bescheid, sobald Sie es annehmen können.",
   };
 }
@@ -592,7 +591,7 @@ export const KAPITAL_ANNAHME = {
   neuLaden: "Das Angebot wurde inzwischen geändert — bitte laden Sie die Seite neu und lesen Sie die aktuelle Fassung.",
   fertigTitel: "Glückwunsch — Ihr Auftrag steht.",
   fertigText: (email: string, llc: string) => `Ihre Rechnung über den Festpreis kommt gleich an ${email}. Mit Ihrem Zahlungseingang melden wir ${llc} an — Ihr Ansprechpartner meldet sich heute noch für die nächsten Schritte.`,
-  fertigZahlung: "Fällig ist jetzt nur der Festpreis für das ganze erste Jahr. Bürgschaftsgebühr und Vergütung bei Auszahlung kommen erst, wenn es so weit ist; die Jahresbetreuung beginnt im zweiten Jahr.",
+  fertigZahlung: "Fällig sind jetzt nur die Gründungskosten — inklusive aller Kosten für die ersten zwölf Monate.",
   fertigFuss: "Fragen? Ihr Ansprechpartner ist für Sie da — oder schreiben Sie uns an support@fiaon.com.",
   schrittTitel: "Nächster Schritt: Ihr Reisepass",
   schrittText: "Wir gründen Ihre LLC auf Ihren Namen. Laden Sie dafür jetzt eine Farbkopie Ihres Reisepasses hoch — in Ihrem persönlichen Auftragsbereich, sicher verschlüsselt. Dort sehen Sie auch Rechnung und jeden weiteren Schritt.",

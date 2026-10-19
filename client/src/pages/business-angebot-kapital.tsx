@@ -319,14 +319,14 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
         <section className="gaf-abschnitt" id="investition" aria-label={I.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={I.titel} sub={I.sub} />
-            <div className="gkp-weg">
+            <div className={`gkp-weg${I.posten.length ? "" : " allein"}`}>
               <Auf className="gkp-weg-heute">
                 <span className="gkp-weg-punkt an" aria-hidden="true" />
                 <p className="gkp-weg-auge">{I.heuteAuge}</p>
                 <p className="gkp-preis-betrag">{I.preis}</p>
                 <p className="gkp-preis-zeile">{I.preisZeile}</p>
               </Auf>
-              <div className="gkp-weg-spaeter">
+              {I.posten.length > 0 && <div className="gkp-weg-spaeter">
                 <p className="gkp-weg-auge leise">{I.spaeterTitel}</p>
                 {I.posten.map((x, i) => (
                   <Auf key={x.titel} verz={i * 90} className="gkp-weg-schritt">
@@ -335,9 +335,9 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
                     <span className="gkp-weg-zeile"><b>{x.betrag}</b><span>{x.titel} · {x.text}</span></span>
                   </Auf>
                 ))}
-              </div>
+              </div>}
             </div>
-            <p className="gkp-weg-jahr">{I.jahr}</p>
+            {I.jahr && <p className="gkp-weg-jahr">{I.jahr}</p>}
             <Auf className="gkp-inklusive">
               <p className="gaf-auge">{WORTE.inklusive}</p>
               <ul>{I.inklusive.map((x) => <li key={x}><Zeichen art="haken" groesse={15} /><span>{x}</span></li>)}</ul>

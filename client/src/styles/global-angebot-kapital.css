@@ -143,3 +143,6 @@
 .gkp-weg-zeile span { font-size:14px; line-height:1.5; color:var(--leise); }
 .gkp-weg-jahr { margin-top:14px; font-size:13.5px; color:var(--leise); }
 @media (max-width:860px) { .gkp-weg { grid-template-columns:1fr; } .gkp-weg-punkt { display:none; } .gkp-weg-schritt { padding-left:0; } }
+/* E-404: nur die Gründungskosten — eine breite Karte */
+.gkp-weg.allein { grid-template-columns:1fr; }
+.gkp-weg.allein .gkp-weg-punkt { display:none; }

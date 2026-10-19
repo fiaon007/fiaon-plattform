@@ -46,6 +46,20 @@ import {
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { openaiFetch, istKiPause, aktiverAnbieter } from "./fiaon-ki-pause";
+
+/**
+ * E-409 (19.10.2026): Der Tagesdeckel des Postfachs ist ein Schalter im KI-Raum (fiaon_settings.postmeister_tag_euro,
+ * Register shared/fiaon-ki-schalter.ts) — die Umgebungsvariable POSTMEISTER_TAG_EURO gilt nur noch, solange nichts gespeichert ist.
+ */
+export async function postmeisterTagEuro(): Promise<number> {
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'postmeister_tag_euro'`) as any[];
+    const n = Number(z?.value);
+    if (z?.value != null && String(z.value) !== "" && Number.isFinite(n) && n >= 0) return Math.min(200, n);
+  } catch { /* Vorgabe gilt */ }
+  return Number(process.env.POSTMEISTER_TAG_EURO || 35);
+}
 import { maraModell } from "./fiaon-ki-claude";
 import { createHash } from "node:crypto";
 // E-401: eine Mail — eine Einordnung (Merker an der Postmeister-Zeile).
@@ -2235,7 +2249,8 @@ export async function antwortErzeugen(ein: {
   // Kostendeckel — die einzige Bremse gegen eine Überraschung auf der Rechnung.
   // E-280 (03.10.2026, Justin: „Ja: WA 30 €, Postfach 35 €“): Claude Opus kostet je Mail ein Mehrfaches von gpt-5.5.
   // E-406 C1: Das Anliegen hat seinen eigenen Dienst und Deckel (ANLIEGEN_TAG_EURO, Vorgabe 10 €) — es nimmt der Mail nichts weg.
-  const deckel = anliegen ? Number(process.env.ANLIEGEN_TAG_EURO || ANLIEGEN_TAG_EURO_VORGABE) : Number(process.env.POSTMEISTER_TAG_EURO || 35);
+  // E-409: Der Mail-Deckel kommt aus dem Schalter-Register (postmeister_tag_euro, KI-Team › Einstellungen & Kasse).
+  const deckel = anliegen ? Number(process.env.ANLIEGEN_TAG_EURO || ANLIEGEN_TAG_EURO_VORGABE) : await postmeisterTagEuro();
   const heute = await kostenHeute(dienst).catch(() => 0);
   if (heute > deckel) return { ...leer, grund: `Tagesdeckel erreicht (${heute.toFixed(2)} € von ${deckel} €)` };
 
@@ -2588,7 +2603,11 @@ export async function antwortErzeugen(ein: {
       }
       let p: any = {};
       try { p = JSON.parse(ruf.function?.arguments || "{}"); } catch { /* leere Parameter */ }
-      const erg = w.stufe === "bestaetigen"
+      // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums — rot sperrt wie „bestaetigen“, gelb protokolliert für „Heute“.
+      const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", w.name, { kanal: "mail", personId: kontext.personId ?? null }).catch(() => ({ gesperrt: false, text: null as string | null }));
+      const erg = ampel.gesperrt
+        ? { ok: false, ergebnis: "", fehler: ampel.text ?? "Dieses Werkzeug ist gerade gesperrt (Ampel rot)." }
+        : w.stufe === "bestaetigen"
         ? { ok: false, ergebnis: "", fehler: "Dieses Werkzeug braucht die Freigabe eines Menschen. Schreib die Antwort so, dass ein Kollege sie mit einem Klick auslösen kann." }
         // E-401 (3/6): Die Zahlung ist im Bankbuch — keine Aufgabe an die Zahlungsstelle.
         // E-401 (4/6): Anschrift, E-Mail, Telefon hat der Server schon bearbeitet — keine Aufgabe dafür.

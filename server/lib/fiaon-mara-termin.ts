@@ -110,7 +110,9 @@ export type ProtokollArt =
   // E-395 (19.10.2026): Ein Termin, den der Kunde mit uns hat, aus seiner Mail eingetragen (fiaon-mara-genannter-termin.ts).
   // Bewusst NICHT „termin_gebucht“: maraTermineNachpruefen prüft Maras eigene Rückrufe (Arbeitszeit, Uhrzeit per WhatsApp) —
   // ein vereinbarter Termin darf außerhalb der Arbeitszeit liegen, und die Uhrzeit hat der Kunde selbst genannt.
-  | "termin_eingetragen";
+  | "termin_eingetragen"
+  // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums — gelb = ausgeführt, steht in „Heute“; rot = abgelehnt (fiaon-ki-ampel.ts).
+  | "ampel_gelb" | "ampel_rot";
 
 let tabelleBereit: Promise<void> | null = null;
 export function protokollTabelle(lauf: Lauf = sqlPool): Promise<void> {

@@ -1134,6 +1134,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧹 E-397 (19.10.2026): Aufgaben-Lage im Lagezimmer — Ampel (Alarme, Termintreue), Maras Karten des Tages,
   //    „heikel neu“, neu gegen erledigt je Woche und der Große Hausputz (Probelauf, Lauf nur mit Freigabe, Zurückholen).
   app.use('/api/fiaon', (await import('./routes/fiaon-aufgaben-lage')).default);
+  // 🤖 E-409 (19.10.2026): der KI-Raum „KI-Team“ im Chefbüro — Heute, Aras, Werkzeuge (Ampel), Qualität (Prüf-Mara),
+  //    Einstellungen & Kasse (Schalter-Register). Aras-Routen laufen über die Anbindung (fiaon-ki-aras-anbindung.ts) und
+  //    antworten „noch nicht verbunden“, bis Team 1 (E-408) den Kern anmeldet. Prüf-Mara alle 2 Minuten.
+  app.use('/api/fiaon', (await import('./routes/fiaon-chef-ki')).default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('ki_pruefung', async () => await (await import('./lib/fiaon-ki-pruefung')).pruefungTakt(), 2 * 60 * 1000, { beimStartNach: 150_000 });
+  });
 
   // 🛠 Chefbüro-Werkzeuge: Wahrheits-Check, Maschinenraum, Freigabestapel,
   // Posteingang. Alle vier binden Fähigkeiten an, die bereits gebaut waren.

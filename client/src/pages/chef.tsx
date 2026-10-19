@@ -35,6 +35,8 @@ import ChefRueckholung from "@/components/admin/ChefRueckholung";
 import { Suspense, lazy } from "react";
 // E-338: der Global-Arbeitsraum — eigene Seite, erst beim Betreten geladen.
 const ChefGlobal = lazy(() => import("@/components/admin/ChefGlobal"));
+// E-409: der Raum „KI-Team“ öffnet auf „Heute“ (Mara und Aras) — dieselbe Seite wie /chef/s/ki-heute.
+const ChefKiHeute = lazy(() => import("@/components/admin/ChefKiHeute"));
 
 /**
  * Welche Raeume eine eigene Seite haben statt einer Kachelliste.
@@ -50,6 +52,7 @@ const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   besucher: () => <ChefBesucher />,
   wert: () => <ChefZahlen />,
   rueckholung: () => <ChefRueckholung />,
+  ki: () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><div className="cbs-eigen"><ChefKiHeute /></div></Suspense>,
   global: () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><ChefGlobal /></Suspense>,
 };
 

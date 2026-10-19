@@ -84,6 +84,24 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-409 (19.10.2026): der KI-Raum im Chefbüro — Mara und Aras; Prüf-Mara prüft automatisch (keine Pflicht fürs Team).
+    id: "2026-10-19-ki-team",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara bekommt Kontrolle von einer zweiten KI — nicht von dir",
+    summary:
+      "Im Chefbüro gibt es den Raum „KI-Team“: Mara und bald Aras (der Kollege am Telefon) an einem Ort. "
+      + "Eine zweite KI, „Prüf-Mara“, liest Stichproben von Maras Mails und WhatsApps und meldet nur Auffälliges an die Leitung. Für dich ändert sich nichts.",
+    changes: [
+      "Niemand im Team muss Maras Texte gegenlesen — das macht Prüf-Mara alle zwei Minuten.",
+      "Die Leitung kann Maras Werkzeuge auf grün, gelb oder rot stellen. Rot heißt: Mara macht es nicht, ein Mensch entscheidet per Karte.",
+      "Aras ruft später Kunden an (Raten, Zahlungen, Rückrufe). Er sagt im ersten Satz, dass er eine KI ist, und zählt bei „Versuche je Person“ mit dir zusammen — eine Person bekommt am Tag höchstens einen Anruf.",
+    ],
+    howto: [
+      "Sagt ein Kunde am Telefon, er habe schon mit „Aras“ gesprochen: Das ist unser digitaler Assistent — in der Akte steht sein Gespräch wie jeder andere Anruf.",
+    ],
+  },
+  {
     // E-406 B3 (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“): Wochen-Stichprobe in der Schulung, Ampel im Steuerpult.
     id: "2026-10-19-mara-stichprobe",
     date: "2026-10-19",

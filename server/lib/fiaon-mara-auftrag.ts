@@ -150,17 +150,30 @@ export const WERKZEUGE: AuftragWerkzeug[] = [
   },
   {
     name: "einstellung_setzen",
-    beschreibung: "Ändert einen Text oder Schalter, der in der Datenbank steht (z. B. Maras eigene Anweisung oder ein Schalter). NICHT für Texte im Quelltext der Website.",
+    beschreibung: "Ändert einen Schalter aus dem Schalter-Register des KI-Raums (shared/fiaon-ki-schalter.ts) — nur diese Schlüssel, mit ihren Grenzen. NICHT für Texte im Quelltext der Website.",
     klasse: "endgueltig",
     felder: "schluessel, wert",
     async ausfuehren(p, von) {
       const k = String(p.schluessel ?? "").trim();
       if (!k) return { ok: false, text: "Ohne Schlüssel geht das nicht." };
+      // E-409 (19.10.2026): Bis heute schrieb dieses Werkzeug JEDEN Schlüssel ohne Liste. Jetzt gilt das Register —
+      // ein Schalter außerhalb bleibt unberührt, und jeder Wert geht durch dieselbe Grenze wie im Chefbüro.
+      const { registerEintrag, wertPruefen, KI_SCHLUESSEL, ARAS_SCHLUESSEL } = await import("@shared/fiaon-ki-schalter");
+      const e = registerEintrag(k);
+      if (!e) return { ok: false, text: `„${k}“ steht nicht im Schalter-Register — Mara ändert nur Schalter, die dort stehen.` };
+      const g = wertPruefen(e, p.wert);
+      if (!g.ok) return { ok: false, text: `„${k}“: ${g.fehler}` };
+      if (KI_SCHLUESSEL.includes(k) || ARAS_SCHLUESSEL.includes(k)) {
+        const { einstellungSetzen } = await import("./fiaon-ki-einstellungen");
+        const r = await einstellungSetzen(k, g.wert, `Mara-Auftrag (${von})`);
+        return r.ok ? { ok: true, text: `Einstellung „${k}“ = ${r.wert.slice(0, 60)}.` } : { ok: false, text: r.fehler };
+      }
+      // Schlüssel mit eigenem Setzer (Mail-Aktion, Postmeister, Rückholung, Auskunft): derselbe Wert, dieselbe Zeile.
       await sqlPool`
-        INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${k}, ${String(p.wert ?? "")}, NOW())
+        INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${k}, ${g.wert}, NOW())
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
-      console.log(`[MARA-AUFTRAG] Einstellung ${k} gesetzt (${von}).`);
-      return { ok: true, text: `Einstellung „${k}" gesetzt.` };
+      console.log(`[MARA-AUFTRAG] Einstellung ${k} = ${g.wert.slice(0, 60)} (${von}).`);
+      return { ok: true, text: `Einstellung „${k}“ = ${g.wert.slice(0, 60)}.` };
     },
   },
 ];
@@ -420,6 +433,9 @@ export async function auftragAusfuehren(id: number, von: string): Promise<{ ok: 
     const w = werkzeugFinden(String(s.werkzeug));
     if (!w) { ergebnis.push({ ...s, ok: false, text: "Dieses Werkzeug gibt es nicht mehr." }); continue; }
     try {
+      // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums — rot = der Schritt läuft nicht, gelb = er steht in „Heute“.
+      const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", w.name, { kanal: "auftrag", von });
+      if (ampel.gesperrt) { ergebnis.push({ werkzeug: w.name, wen: s.wen, ok: false, text: "Ampel rot — dieses Werkzeug darf Mara gerade nicht nutzen (KI-Team › Werkzeuge)." }); continue; }
       const r = await w.ausfuehren(s.argumente ?? {}, von);
       ergebnis.push({ werkzeug: w.name, wen: s.wen, ok: r.ok, text: r.text });
       console.log(`[MARA-AUFTRAG] ${id} · ${w.name} · ${r.ok ? "ok" : "FEHLER"}: ${r.text}`);

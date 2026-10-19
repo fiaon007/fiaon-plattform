@@ -601,6 +601,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Gespräche, die mit „mache ich später“ enden, verlaufen im Sand — die kostenlose Nachricht im offenen Fenster bleibt ungenutzt.",
     fenster: 2,
   },
+  // E-409 (19.10.2026): Prüf-Mara — die zweite KI prüft Maras Mails/WhatsApps (Stichprobe) und jeden Aras-Anruf.
+  ki_pruefung: {
+    zweck: "Prüf-Mara: Wortwand, Ton, Druck, Telefon-Pflichten — Befunde in fiaon_ki_pruefung, Karten nur bei Auffälligem",
+    folge: "Niemand prüft mehr, was Mara und Aras an Kunden schicken — Fehler fallen erst beim Kunden auf.",
+    fenster: 2,
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

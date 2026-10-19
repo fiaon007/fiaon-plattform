@@ -1,0 +1,185 @@
+/* ═══ KI-Team — der Raum /chef/ki (E-409, 19.10.2026) — Präfix .ki- ═══
+   Läuft in der ruhigen Chefbüro-Hülle (eigenes Design, Grund steht still).
+   Regeln (Justins Vorgaben, fiaon-chefbuero-glas / justin-design-geschmack):
+   · EINE Navy-Glas-Bühne je Seite (.ki-buehne) — die EINZIGE Regel dieser
+     Datei mit backdrop-filter. Alles andere matt (.ki-karte).
+   · Glasblau-Paar #288DFA / #1D4ED8, Navy; KEIN Gold. Farbe nur als Punkt (Ampel).
+   · Inter dünn: Überschriften 400, große Zahlen 300. Wenig Text, Tooltips.
+   · Einblendungen NUR „backwards" (sonst schaltet der Füllmodus das Glas ab).
+   · Handy 375 px ohne Querrolle, Tippziele ≥ 36 px.
+   · prefers-reduced-motion: keine Wellen, keine Einblendung. */
+
+.ki {
+  --k-text: #E6EDF7; --k-text-2: #A7B4CA; --k-text-3: #74839E;
+  --k-linie: rgba(148, 170, 210, .11); --k-linie-2: rgba(148, 170, 210, .2);
+  --k-matt: rgba(255, 255, 255, .022); --k-matt-2: rgba(255, 255, 255, .045);
+  --k-licht: #288DFA; --k-tiefe: #1D4ED8; --k-licht-text: #8CC2FF;
+  --k-gut: #3DD68C; --k-warn: #F2B64C; --k-krit: #F07178;
+  --k-r: 16px;
+  color: var(--k-text-2);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400; font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; color-scheme: dark; min-width: 0;
+  padding-bottom: 64px;
+}
+.ki, .ki *, .ki *::before, .ki *::after { box-sizing: border-box; }
+.ki h1, .ki h2, .ki h3 { margin: 0; font-weight: 400; color: var(--k-text); letter-spacing: -.005em; }
+.ki h1 { font-size: 22px; line-height: 1.2; }
+.ki h2 { font-size: 16px; line-height: 1.3; }
+.ki h3 { font-size: 14px; }
+.ki p { margin: 0; }
+.ki a { color: var(--k-licht-text); text-decoration: none; }
+.ki a:hover { text-decoration: underline; }
+.ki button, .ki input, .ki select, .ki textarea { font: inherit; }
+.ki button:focus-visible, .ki a:focus-visible, .ki input:focus-visible, .ki select:focus-visible, .ki textarea:focus-visible { outline: 2px solid var(--k-licht); outline-offset: 2px; }
+.ki-leise { color: var(--k-text-2); } .ki-still { color: var(--k-text-3); } .ki-klein { font-size: 12.5px; }
+.ki-etikett { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--k-text-3); }
+.ki-zahl { font-weight: 300; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--k-text); }
+.ki-gut-t { color: var(--k-gut); } .ki-warn-t { color: var(--k-warn); } .ki-krit-t { color: var(--k-krit); } .ki-akz-t { color: var(--k-licht-text); }
+
+/* ── Kopf: Titel, EIN Satz, Chips rechts ───────────────────────────────── */
+.ki-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px 0 18px; }
+.ki-kopf .ki-satz { margin-top: 4px; font-size: 13.5px; color: var(--k-text-2); max-width: 62ch; }
+.ki-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ── DIE BÜHNE (eine je Seite) ──────────────────────────────────────────── */
+.ki-buehne {
+  position: relative; min-width: 0; padding: 22px 24px; border-radius: 20px; border: 1px solid rgba(120, 170, 255, .24);
+  background: linear-gradient(180deg, rgba(40, 141, 250, .13) 0%, rgba(29, 78, 216, .06) 55%, rgba(18, 40, 74, .18) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 26px 64px -30px rgba(0, 0, 0, .8), 0 0 46px -30px rgba(40, 141, 250, .35);
+  -webkit-backdrop-filter: blur(18px) saturate(120%); backdrop-filter: blur(18px) saturate(120%);
+  animation: kiAuf .5s cubic-bezier(.2, .8, .2, 1) backwards;
+}
+.ki-buehne::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(120% 60% at 12% -10%, rgba(255, 255, 255, .08), transparent 55%); }
+@keyframes kiAuf { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ki-buehne { animation: none; } }
+
+/* ── Matte Karten ────────────────────────────────────────────────────────── */
+.ki-karte { min-width: 0; padding: 18px 20px; border-radius: var(--k-r); border: 1px solid var(--k-linie); background: var(--k-matt); }
+.ki-karte + .ki-karte { margin-top: 12px; }
+.ki-karte h2 { margin-bottom: 10px; }
+.ki-raster { display: grid; gap: 12px; }
+.ki-raster.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ki-raster.drei { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ki-abstand { margin-top: 14px; }
+
+/* ── Zahlen-Zeile (große dünne Zahlen) ──────────────────────────────────── */
+.ki-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 14px 18px; }
+.ki-zahlen > div { min-width: 0; }
+.ki-zahlen .ki-zahl { display: block; font-size: 34px; line-height: 1.05; }
+.ki-zahlen small { display: block; margin-top: 4px; font-size: 12px; color: var(--k-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ki-zahlen .ki-zahl.klein { font-size: 24px; }
+
+/* ── Knöpfe, Pillen, Punkte, Schalter ───────────────────────────────────── */
+.ki-knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 8px 14px;
+  border: 1px solid var(--k-linie-2); border-radius: 10px; background: rgba(255, 255, 255, .03); color: var(--k-text);
+  font-size: 13.5px; line-height: 1.3; white-space: nowrap; cursor: pointer; text-decoration: none;
+}
+.ki-knopf.haupt { background: var(--k-licht); border-color: var(--k-licht); color: #fff; }
+.ki-knopf.klein { min-height: 32px; padding: 5px 11px; font-size: 12.5px; border-radius: 8px; }
+.ki-knopf.warn { color: var(--k-warn); border-color: rgba(242, 182, 76, .45); }
+.ki-knopf.krit { color: var(--k-krit); border-color: rgba(240, 113, 120, .45); }
+.ki-knopf.text { min-height: 0; padding: 4px 0; border: 0; background: none; color: var(--k-licht-text); white-space: normal; }
+.ki-knopf:disabled { opacity: .5; cursor: not-allowed; }
+a.ki-knopf:hover { text-decoration: none; }
+@media (hover: hover) {
+  .ki-knopf:not(:disabled):not(.text):hover { border-color: rgba(125, 184, 255, .45); }
+  .ki-knopf.haupt:not(:disabled):hover { background: #1f7ee8; }
+}
+.ki-pille { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--k-linie-2); font-size: 12px; line-height: 1.35; color: var(--k-text-2); white-space: nowrap; }
+.ki-pille.gut { color: var(--k-gut); border-color: rgba(61, 214, 140, .35); } .ki-pille.warn { color: var(--k-warn); border-color: rgba(242, 182, 76, .38); }
+.ki-pille.krit { color: var(--k-krit); border-color: rgba(240, 113, 120, .4); } .ki-pille.akz { color: #9CC8FF; border-color: rgba(40, 141, 250, .45); }
+a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border-color: rgba(125, 184, 255, .5); }
+.ki-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--k-text-3); display: inline-block; flex: none; }
+.ki-punkt.gruen, .ki-punkt.gut { background: var(--k-gut); box-shadow: 0 0 0 3px rgba(61, 214, 140, .14); }
+.ki-punkt.gelb, .ki-punkt.warn { background: var(--k-warn); box-shadow: 0 0 0 3px rgba(242, 182, 76, .14); }
+.ki-punkt.rot, .ki-punkt.krit { background: var(--k-krit); box-shadow: 0 0 0 3px rgba(240, 113, 120, .15); }
+.ki-schalter { display: inline-flex; align-items: center; gap: 9px; min-height: 34px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .03); color: var(--k-text); font-size: 13px; white-space: nowrap; cursor: pointer; }
+.ki-schalter .bahn { position: relative; width: 36px; height: 20px; border-radius: 999px; background: rgba(255, 255, 255, .12); flex: none; transition: background .2s; }
+.ki-schalter .bahn::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.ki-schalter.an .bahn { background: var(--k-licht); } .ki-schalter.an .bahn::after { transform: translateX(16px); }
+.ki-schalter:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Segment (Ampel-Stufen, Reiter) ─────────────────────────────────────── */
+.ki-segment { display: inline-flex; border: 1px solid var(--k-linie-2); border-radius: 10px; overflow: hidden; }
+.ki-segment button { min-height: 34px; padding: 6px 12px; border: 0; background: none; color: var(--k-text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.ki-segment button + button { border-left: 1px solid var(--k-linie); }
+.ki-segment button.an { background: rgba(40, 141, 250, .14); color: #fff; }
+.ki-segment button:disabled { opacity: .45; cursor: not-allowed; }
+.ki-reiter { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+.ki-reiter button { min-height: 36px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .03); color: var(--k-text-2); cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 7px; }
+.ki-reiter button.an { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .14); color: #fff; }
+.ki-reiter .ki-marke { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: rgba(255, 255, 255, .12); font-size: 11px; display: inline-grid; place-items: center; }
+
+/* ── Listen und Zeilen ───────────────────────────────────────────────────── */
+.ki-liste { list-style: none; margin: 0; padding: 0; }
+.ki-zeile { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--k-linie); min-width: 0; }
+.ki-zeile:first-child { border-top: 0; }
+.ki-zeile .ki-zeile-kopf { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.ki-zeile .ki-zeile-kopf b { font-weight: 400; color: var(--k-text); }
+.ki-zeile .ki-zeile-satz { font-size: 12.5px; color: var(--k-text-3); grid-column: 1 / -1; }
+.ki-zeile.ki-zeile-rechts > :last-child { justify-self: end; }
+.ki-leer { padding: 22px 18px; border-radius: var(--k-r); border: 1px dashed var(--k-linie-2); color: var(--k-text-2); font-size: 13.5px; text-align: center; }
+.ki-leer b { display: block; color: var(--k-text); font-weight: 400; margin-bottom: 4px; }
+.ki-meldung { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px; border-radius: 10px; font-size: 12.5px; border: 1px solid var(--k-linie-2); color: var(--k-text-2); }
+.ki-meldung.fehler { color: var(--k-krit); border-color: rgba(240, 113, 120, .4); }
+.ki-meldung.gut { color: var(--k-gut); border-color: rgba(61, 214, 140, .35); }
+
+/* ── Balken (Kosten, Quote) ──────────────────────────────────────────────── */
+.ki-balken { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.ki-balken > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--k-tiefe), var(--k-licht)); }
+.ki-balken > i.warn { background: linear-gradient(90deg, #b8842f, var(--k-warn)); }
+.ki-balken > i.krit { background: linear-gradient(90deg, #a04a4f, var(--k-krit)); }
+.ki-verlauf { display: flex; align-items: flex-end; gap: 3px; height: 54px; }
+.ki-verlauf > div { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; height: 100%; }
+.ki-verlauf i { display: block; border-radius: 3px 3px 0 0; background: rgba(40, 141, 250, .55); }
+.ki-verlauf i.tel { background: rgba(255, 255, 255, .18); }
+
+/* ── Einstellungen: ein Schalter je Zeile ────────────────────────────────── */
+.ki-feld { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; padding: 11px 0; border-top: 1px solid var(--k-linie); }
+.ki-feld:first-child { border-top: 0; }
+.ki-feld label { color: var(--k-text); cursor: help; }
+.ki-feld small { grid-column: 1; font-size: 12.5px; color: var(--k-text-3); }
+.ki-feld .ki-eingabe { display: flex; align-items: center; gap: 8px; grid-column: 2; grid-row: 1 / span 2; }
+.ki input[type="text"], .ki input[type="number"], .ki select, .ki textarea {
+  min-height: 36px; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .04); color: var(--k-text); max-width: 100%;
+}
+.ki input[type="number"] { width: 92px; }
+.ki input[type="text"].breit, .ki textarea.breit { width: min(100%, 420px); }
+.ki textarea { min-height: 64px; resize: vertical; }
+.ki-feld.geaendert label::after { content: " ·"; color: var(--k-licht-text); }
+
+/* ── Aras: Live-Wellen und Transkript ───────────────────────────────────── */
+.ki-live { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.ki-sitzung { padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(120, 170, 255, .2); background: rgba(10, 20, 40, .35); min-width: 0; }
+.ki-sitzung canvas { width: 100%; height: 44px; display: block; border-radius: 8px; }
+.ki-ticker { margin-top: 8px; font-size: 12.5px; line-height: 1.45; max-height: 96px; overflow: hidden; }
+.ki-ticker p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ki-ticker p b { font-weight: 400; color: var(--k-licht-text); }
+.ki-sitzung-knoepfe { display: flex; gap: 8px; margin-top: 10px; }
+.ki-tabelle { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ki-tabelle th, .ki-tabelle td { padding: 8px 10px; text-align: left; border-top: 1px solid var(--k-linie); vertical-align: top; }
+.ki-tabelle th { color: var(--k-text-3); font-weight: 400; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; border-top: 0; }
+.ki-tabelle td.zahl, .ki-tabelle th.zahl { text-align: right; font-variant-numeric: tabular-nums; }
+.ki-tabelle-rahmen { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ki-stunden { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 3px; }
+.ki-stunden > div { min-width: 0; text-align: center; font-size: 11px; color: var(--k-text-3); }
+.ki-stunden > div i { display: block; height: 36px; border-radius: 6px; background: rgba(255, 255, 255, .06); position: relative; overflow: hidden; margin-bottom: 3px; }
+.ki-stunden > div i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--h, 0%); background: rgba(40, 141, 250, .5); }
+.ki-sterne { display: inline-flex; gap: 2px; }
+.ki-sterne button { border: 0; background: none; color: var(--k-text-3); cursor: pointer; padding: 2px; font-size: 16px; line-height: 1; }
+.ki-sterne button.an { color: var(--k-warn); }
+
+/* ── Handy ───────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .ki-buehne, .ki-karte { padding: 15px 14px; }
+  .ki-raster.zwei, .ki-raster.drei { grid-template-columns: 1fr; }
+  .ki-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ki-zahlen .ki-zahl { font-size: 28px; }
+  .ki-feld { grid-template-columns: 1fr; }
+  .ki-feld .ki-eingabe { grid-column: 1; grid-row: auto; flex-wrap: wrap; }
+  .ki-zeile { grid-template-columns: 1fr; }
+  .ki-zeile.ki-zeile-rechts > :last-child { justify-self: start; }
+  .ki-stunden { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

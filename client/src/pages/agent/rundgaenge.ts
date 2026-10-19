@@ -1940,6 +1940,15 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     titel: "Jede Mail, vollständig.",
     text: "Unten jede Mail, die rausging, hängen blieb oder scheiterte.",
   },
+  // E-409 (19.10.2026): das Steuerpult wohnt jetzt im Raum „KI-Team“ — die Schalter ohne Oberfläche (WhatsApp an/aus,
+  // Nachfassen, Postfach-Modus, Deckel) stehen dort unter „Einstellungen & Kasse“; die Werkzeug-Ampel unter „Werkzeuge“.
+  {
+    titel: "Neu: der Raum „KI-Team“.",
+    text: "Dieses Steuerpult ist jetzt eine Seite im Raum „KI-Team“ (Menü, direkt nach „Heute“). Dort stehen auch „Heute“ (Mara und Aras an einem Tag), "
+      + "„Werkzeuge“ (grün/gelb/rot — was Mara allein darf), „Qualität“ (Prüf-Mara prüft jede Stichprobe automatisch) und „Einstellungen & Kasse“ "
+      + "(jeder Schalter, der wirkt: WhatsApp an/aus, Nachfassen, Postfach-Modus, Deckel je Dienst).",
+    tipp: "Mara anhalten in einem Zug (Mail-Aktion, WhatsApp, Postfach): KI-Team › Heute › Not-Aus.",
+  },
 ];
 
 // ── /chef/s/mara?reiter=entscheidungen (15.10.2026, E-370) ──────────────────
@@ -2687,6 +2696,151 @@ export const RUNDGANG_SCHULUNG: RundgangSchritt[] = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-409 (19.10.2026): DER RAUM „KI-TEAM“ — Heute · Aras · Werkzeuge · Qualität · Einstellungen & Kasse
+// Justin: „ein eigener Bereich (wie ein Labs, einfach geil gemacht) für ALLE KI-Mitarbeiter — Mara und ARAS — in dem
+// wir ins Detail steuern können, mit allen Sachen, die auch wirklich funktionieren.“ Ein Satz je Schritt; bedingte
+// Elemente (Aras erst nach der Anbindung) ohne `ziel`.
+// ═══════════════════════════════════════════════════════════════════════════
+export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
+  {
+    ziel: "[data-ki=\"buehne\"]",
+    titel: "Mara und Aras — ein Tag.",
+    text: "Links Mara (Mails, WhatsApps, Termine, offene Entscheidungen), rechts Aras (gewählt, Gespräche, Zusagen, Kosten). Der Not-Aus hält Mara in einem Zug an: Mail-Aktion, WhatsApp-Antworten, Postfach.",
+    tipp: "„Wieder an“ stellt alle drei zurück — Laufendes endet immer normal.",
+  },
+  {
+    titel: "Aras erscheint, sobald er verbunden ist.",
+    text: "Bis der Telefon-Kern (E-408) angebunden ist, steht hier „Aras ist noch nicht verbunden“ — die Zahlen füllen sich dann von selbst.",
+  },
+  {
+    ziel: "[data-ki=\"karten\"]",
+    titel: "Was dich braucht.",
+    text: "Maras Karten des Tages (Geld/Recht zuerst) und die Karten von Prüf-Mara. Der blaue Knopf ist die Empfehlung — ein Klick, erledigt. „Später“ legt die Karte drei Tage weg.",
+  },
+  {
+    ziel: "[data-ki=\"kosten\"]",
+    titel: "Kosten heute, je Dienst.",
+    text: "KI-Kosten aller Dienste und das Telefon (geschätzt) — der Balken zeigt, wie viel vom Tagesdeckel verbraucht ist.",
+    tipp: "Deckel ändern: Einstellungen & Kasse.",
+  },
+  {
+    ziel: "[data-ki=\"pruef\"]",
+    titel: "Prüf-Mara und gelbe Werkzeuge.",
+    text: "Wie viele Stichproben die zweite KI heute geprüft hat und was auffiel. Darunter jedes gelbe Werkzeug der letzten 24 Stunden — gelb heißt: Mara macht es, du siehst es hier.",
+  },
+];
+
+export const RUNDGANG_ARAS: RundgangSchritt[] = [
+  {
+    ziel: "[data-ki=\"live\"]",
+    titel: "Die Live-Karte.",
+    text: "Jedes laufende Gespräch als Welle, das Transkript tickt mit. „Übernehmen“ holt den Kunden in dein Softphone, „Beenden“ lässt Aras sich verabschieden.",
+  },
+  {
+    titel: "Oben: an, Not-Aus, Leerlauf.",
+    text: "„Wählt“ heißt: Aras ruft nach Plan an. Not-Aus beendet auch laufende Gespräche (mit Abschiedssatz). Leerlauf: kein neues Wählen, Laufendes endet normal — vor jedem Deploy.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"plan\"]",
+    titel: "Plan: wann er wen anruft.",
+    text: "Stundenplan je Spielart (Raten und Stufe A morgens, Verkauf nachmittags, nie Sonntag), Mengen je Spielart und sonntags ein Lernvorschlag — nur Anzeige, nichts ändert sich allein.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"warteschlange\"]",
+    titel: "Warteschlange: wer als Nächstes, und warum.",
+    text: "Jede Zeile trägt Spielart, Priorität, Versuch und Rechtsgrund. Verschieben, entfernen oder von Hand einreihen — der Server prüft Sperre, Global, Rechtsgrund und Zeitfenster.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"anrufe\"]",
+    titel: "Anrufe: jedes Gespräch mit Ergebnis.",
+    text: "Spielart, Ergebnis, Dauer, Kosten — im Detail Transkript (nur nach Aufnahme-Ja), Werkzeuge, Prüf-Urteil und die Aufnahme.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"stimme\"]",
+    titel: "Stimme: dein Ohr entscheidet.",
+    text: "Derselbe Satz mit mehreren Stimmen nebeneinander — Sterne vergeben, „Diese nehmen“. Darunter die Regie: Füllwörter, Lachen, Tempo, Zuhör-Laute.",
+    tipp: "Flitz ist die Vorgabe (männlich). Es gibt keinen unabhängigen deutschen Hörtest — du hörst, bevor ein Kunde hört.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"probe\"]",
+    titel: "Probeanruf: nur deine Nummer.",
+    text: "„Mich anrufen“ ruft deine Nummer an — reden, unterbrechen, drei Sekunden schweigen, „Nein“ zur Aufnahme sagen. Eine andere Nummer ist nicht möglich.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"einstellungen\"]",
+    titel: "Einstellungen: alle Aras-Schalter.",
+    text: "Spielarten (lead, stufe_b, rueckholung erst nach LEXR), Zeitfenster, Mengen, Deckel, Übergabe, KI-Hinweis-Satz, Aufnahme-Frage — jeder mit Vorgabe und Grenze.",
+  },
+];
+
+export const RUNDGANG_KI_WERKZEUGE: RundgangSchritt[] = [
+  {
+    ziel: "[data-ki=\"buehne\"]",
+    titel: "Drei Stufen, eine Regel.",
+    text: "Grün: macht es allein. Gelb: macht es, und es steht in „Heute“. Rot: nur per Karte an dich. Geld, Erstattung, Storno, Vertrag, Lastschrift sind fest rot.",
+  },
+  {
+    ziel: "[data-ki=\"mara\"]",
+    titel: "Maras Werkzeuge.",
+    text: "Je Werkzeug klickst du die Stufe — nur Stufen, die der Server wirklich durchsetzt, sind klickbar. Rot wirkt sofort beim nächsten Werkzeug-Ruf (WhatsApp, Postfach, Aufträge).",
+    tipp: "Eine Ampel macht nichts freier, als der Code heute ist — „Konto freischalten“ braucht immer einen Menschen.",
+  },
+  {
+    ziel: "[data-ki=\"aras\"]",
+    titel: "Aras’ Werkzeuge.",
+    text: "Erscheinen, sobald der Telefon-Kern angebunden ist: Akte nachsehen, Zahlungslink, Zusage, Rückruf, Ratenpause (gelb), Übergabe, Sperre.",
+  },
+];
+
+export const RUNDGANG_KI_QUALITAET: RundgangSchritt[] = [
+  {
+    ziel: "[data-ki=\"buehne\"]",
+    titel: "Prüf-Mara: die zweite KI prüft die erste.",
+    text: "Alle zwei Minuten zieht sie Stichproben aus Maras Mails und WhatsApps (Quote je Kanal) und prüft jeden Aras-Anruf: Wortwand, Ton, Limit, Druck, Lastschrift, KI-Hinweis, Aufnahme nur nach Ja. Nur Auffälliges wird eine Karte.",
+    tipp: "Keine Mitarbeiter-Pflicht — niemand im Team muss gegenlesen.",
+  },
+  {
+    ziel: "[data-ki=\"jetzt\"]",
+    titel: "Jetzt prüfen.",
+    text: "Startet einen Lauf sofort, statt auf den Takt zu warten.",
+  },
+  {
+    ziel: "[data-ki=\"quote\"]",
+    titel: "Fehlerquote je Werkzeug und Spielart.",
+    text: "7, 28 oder 90 Tage. Unter 2 % über vier Wochen schlägt die Seite „gelb → grün“ vor — nur ein Satz, du entscheidest unter Werkzeuge.",
+  },
+  {
+    ziel: "[data-ki=\"befunde\"]",
+    titel: "Die Befunde.",
+    text: "Je Zeile das Urteil, der Kanal, die Punkte (rot = harte Regel, gelb = Hinweis). Bei Auffälligem: „In Ordnung“, „Mara/Aras anweisen“ (der Hinweis wandert in die Hausanweisung) oder „Person für Aras sperren“.",
+  },
+];
+
+export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
+  {
+    ziel: "[data-ki=\"kasse\"]",
+    titel: "Die Kasse.",
+    text: "KI-Kosten je Dienst heute, der Verlauf über 14 Tage (blau KI, grau Telefon) und der Deckel je Dienst. Der Anbieter steht daneben; die KI-Pause schaltest du im Mara-Steuerpult.",
+  },
+  {
+    ziel: "[data-ki=\"gruppe-mara_mail\"]",
+    titel: "Jeder Schalter wirkt.",
+    text: "Hier steht nur, was einen Setzer und einen Leser im Code hat — ein Satz je Schalter, Vorgabe und Grenze im Tooltip. Speichern geht über den Weg, der den Schalter schon immer schreibt.",
+    tipp: "Die Mail-Aktion und das Postfach haben ihre eigenen Setzer; WhatsApp an/aus, Nachfassen und die Deckel sind hier zum ersten Mal bedienbar.",
+  },
+  {
+    ziel: "[data-ki=\"gruppe-leitplanken\"]",
+    titel: "Leitplanken.",
+    text: "Prüf-Mara an/aus und die Prüfquote je Kanal, die Empfänger-Bremse, der Anruf-statt-Mahnung-Tag und die Termine auf deiner Buchungsseite.",
+  },
+  {
+    ziel: "[data-ki=\"protokoll\"]",
+    titel: "Wer hat was geschaltet.",
+    text: "Jede Schaltung im Chef-Protokoll (wer, wann, welcher Schalter) und darunter Maras und Aras’ Ereignisse der letzten sieben Tage.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“) und Schulung (Mara-Stichprobe).
   lagezimmer:  { titel: "Lagezimmer", schritte: RUNDGANG_LAGEZIMMER },
@@ -2729,4 +2883,10 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   availability: { titel: "Availability", schritte: RUNDGANG_AVAILABILITY },
   mails:        { titel: "Unsere E-Mails", schritte: RUNDGANG_MAILS },
   assistent:    { titel: "Copilot",        schritte: RUNDGANG_ASSISTENT },
+  // E-409 (19.10.2026): der Raum „KI-Team“.
+  kiHeute:        { titel: "KI-Team · Heute", schritte: RUNDGANG_KI_HEUTE },
+  aras:           { titel: "Aras", schritte: RUNDGANG_ARAS },
+  kiWerkzeuge:    { titel: "Werkzeuge", schritte: RUNDGANG_KI_WERKZEUGE },
+  kiQualitaet:    { titel: "Qualität", schritte: RUNDGANG_KI_QUALITAET },
+  kiEinstellungen: { titel: "Einstellungen & Kasse", schritte: RUNDGANG_KI_EINSTELLUNGEN },
 };

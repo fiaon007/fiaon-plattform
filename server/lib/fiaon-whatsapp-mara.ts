@@ -4208,6 +4208,10 @@ export function zahltagEindeutig(datumIso: string, kunde: string, letzteDu = "")
 
 export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
   const mt = await import("./fiaon-mara-termin");
+  // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums (KI-Team › Werkzeuge). Rot = das Modell bekommt „gesperrt“ und
+  // übergibt; gelb = läuft, steht als Zeile in „Heute“. Grün (Vorgabe) = wie bisher. Lesefehler = grün.
+  const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", name, { kanal: "whatsapp", personId: ctx.personId, nummer: ctx.nummer }).catch(() => ({ gesperrt: false, text: null as string | null }));
+  if (ampel.gesperrt) return { ergebnis: { ok: false, meldung: ampel.text }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
   if (name === "freie_zeiten") {
     const ang = await mt.freieZeiten(ctx.personId);
     const von = args?.von ? mt.wunschLesen(args.von) : null;

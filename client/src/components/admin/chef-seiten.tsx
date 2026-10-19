@@ -53,6 +53,13 @@ const Termine = lazy(() => import("@/pages/admin-termine"));
 const LeadAutomatik = lazy(() => import("@/pages/admin-leads"));
 const Mailwerk = lazy(() => import("@/components/admin/ChefMailwerk"));
 const Postmeister = lazy(() => import("@/components/admin/ChefPostfach"));
+// E-409 (19.10.2026): der KI-Raum „KI-Team“ — Heute, Aras, Werkzeuge (Ampel), Qualität (Prüf-Mara), Einstellungen & Kasse.
+// Justin hat die Regel „keine neuen Chef-Seiten“ für diesen Bereich ausdrücklich aufgehoben (fiaon-aras-telefon).
+const KiHeute = lazy(() => import("@/components/admin/ChefKiHeute"));
+const KiAras = lazy(() => import("@/components/admin/ChefKiAras"));
+const KiWerkzeuge = lazy(() => import("@/components/admin/ChefKiWerkzeuge"));
+const KiQualitaet = lazy(() => import("@/components/admin/ChefKiQualitaet"));
+const KiEinstellungen = lazy(() => import("@/components/admin/ChefKiEinstellungen"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraege"));
 const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
@@ -195,7 +202,14 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // (Wunsch der Vertriebs-Sitzung: das Radar ist die Global-Akquise; Slug /chef/s/firmen-radar bleibt, Aufgaben und Rundgang verlinken darauf).
   // Die Adressen /chef/s/<slug> bleiben, wie sie waren — nur der Raum (und damit Kachel und Menü) ist neu.
   // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
-  { slug: "mara", label: "Mara-Steuerpult", kurz: "Mara", volltext: true, satz: "WhatsApp, Mail-Aktion, Auskunft, Termine, Social.", Seite: Mara, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
+  // ── KI-Team (E-409, 19.10.2026) — Raum „ki“: Mara und Aras an einem Ort ──
+  { slug: "ki-heute", label: "KI-Team · Heute", kurz: "Heute", satz: "Mara und Aras heute — Zahlen, Karten, Not-Aus.", Seite: KiHeute, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki team heute mara aras karten entscheidungen notaus not-aus kosten prüf-mara pruef-mara gelb" },
+  { slug: "aras", label: "Aras", kurz: "Aras", volltext: true, satz: "Der Kollege am Telefon — Plan, Live, Stimme, Probe.", Seite: KiAras, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "aras telefon anruf anrufe stimme hörprobe hoerprobe stimmen-studio warteschlange live transkript probeanruf mich anrufen plan spielart rate zusage zuruf notaus leerlauf" },
+  // E-409: Das Mara-Steuerpult zieht in den Raum „ki“ um (Adresse /chef/s/mara bleibt — alte Links gehen weiter).
+  { slug: "mara", label: "Mara-Steuerpult", kurz: "Mara", volltext: true, satz: "WhatsApp, Mail-Aktion, Auskunft, Termine, Social.", Seite: Mara, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
+  { slug: "ki-werkzeuge", label: "Werkzeuge", kurz: "Werkzeuge", satz: "Was Mara und Aras allein dürfen: grün, gelb, rot.", Seite: KiWerkzeuge, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki werkzeuge ampel grün gelb rot mara aras erlaubnis freigabe geld erstattung storno" },
+  { slug: "ki-qualitaet", label: "Qualität", kurz: "Qualität", satz: "Prüf-Mara: Fehlerquote, Befunde, Karten.", Seite: KiQualitaet, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki qualität qualitaet prüf-mara pruef-mara prüfung fehlerquote befund wortwand ton druck stichprobe transkript" },
+  { slug: "ki-einstellungen", label: "Einstellungen & Kasse", kurz: "Einstellungen", satz: "Jeder Schalter, der wirkt — und die Kosten je Dienst.", Seite: KiEinstellungen, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "ki einstellungen kasse kosten deckel schalter register anbieter openai ki-pause protokoll whatsapp postfach mail-aktion rückholung auskunft prüfquote" },
   { slug: "lead-motor", label: "Lead-Motor", satz: "Facebook-Leads direkt von Meta.", Seite: LeadMotor, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
   { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass: Sendefenster, Versand, Verteilung.", Seite: LeadAutomatik, raum: "vertrieb" },
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat zum Nachfassen.", Seite: Kunden, raum: "vertrieb", suche: "stufe=C", auch: "vorrat kalt" },

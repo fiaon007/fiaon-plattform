@@ -1072,6 +1072,7 @@ function erweiterungenLaden(): Promise<void> {
     .then(() => import("./fiaon-jahresvertrag-entscheidung")) // E-396: Jahresverträge ohne belegte Annahme
     // E-406 B3: Maras Aufräum-Vorschläge (alte Zahlungsmeldungen) und die Karte „Termin eintragen?“ (Ampel rot).
     .then(() => import("./fiaon-mara-aufraeumen"))
+    .then(() => import("./fiaon-ki-pruefung").then((p) => p.anmelden()).catch(() => undefined)) // E-409: Prüf-Mara-Karten (in Ordnung · anweisen · sperren)
     .then(() => undefined)
     .catch((e) => { erweiterungen = null; console.error("[ENTSCHEIDUNG] Postmeister-Karten nicht geladen:", String((e as Error)?.message ?? e).slice(0, 200)); });
   return erweiterungen;

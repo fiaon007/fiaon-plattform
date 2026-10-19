@@ -24,7 +24,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2, Bot,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad, type ChefSeite } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
@@ -92,9 +92,11 @@ export interface ChefRaum {
 // Raum zu genau einer Überschrift, und die Reihenfolge folgt dem Tag:
 // Heute → Kunden → Vertrieb → Geld → Team → System. Die Adressen
 // (/chef/<raum>, /chef/s/<seite>) bleiben unverändert — alte Links gehen weiter.
-export type ChefGruppe = "heute" | "kunden" | "global" | "vertrieb" | "geld" | "team" | "system";
+export type ChefGruppe = "heute" | "ki" | "kunden" | "global" | "vertrieb" | "geld" | "team" | "system";
 export const CHEF_GRUPPEN: { key: ChefGruppe; label: string }[] = [
   { key: "heute", label: "Heute" },
+  // E-409 (19.10.2026): Mara und Aras — Justin: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter“.
+  { key: "ki", label: "KI-Team" },
   { key: "kunden", label: "Kunden" },
   // E-338: Firmenkunden für sich — Justin: „so, dass sich das NICHT vermischt".
   { key: "global", label: "FIAON Global" },
@@ -118,6 +120,13 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung", gruppe: "heute",
     satz: "Werkzeuge auf den echten Daten.",
+    punkte: [],
+  },
+  // ── KI-Team (E-409, 19.10.2026) ─────────────────────────────────────────
+  // Mara und Aras in einem Raum: Heute, Aras, Mara, Werkzeuge (Ampel), Qualität (Prüf-Mara), Einstellungen & Kasse.
+  {
+    key: "ki", label: "KI-Team", Icon: Bot, mindest: "leitung", gruppe: "ki",
+    satz: "Mara und Aras — der Tag, die Schalter.",
     punkte: [],
   },
   // ── Kunden ──────────────────────────────────────────────────────────────

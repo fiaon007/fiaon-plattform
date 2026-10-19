@@ -243,6 +243,22 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-401 (5/6, 19.10.2026, Justin: „Mara … selbst arbeitet“): Mara fasst nach dem ZWEITEN erfolglosen
+    // Anruf selbst nach. Auslöser: server/lib/fiaon-mara-nicht-erreicht.ts (vormerken beim Ergebnis, senden im Takt).
+    type: "nicht_erreicht_zweimal",
+    label: "Nach 2× nicht erreicht — Maras Terminlink an den Kunden",
+    description:
+      "Feuert automatisch nach dem ZWEITEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox) — genau einmal je Kunde in 30 Tagen, nur 08–20 Uhr, nur Vertrieb und Onboarding (nie Forderungsmanagement, FIAON Global, Werbesperre, Vertriebssperre, Test, Kündigung), nicht wenn schon ein Termin oder Rückruf steht. Der Kunde bekommt seinen persönlichen Buchungslink und wählt selbst eine Uhrzeit. Nur als Quelltext-Vorlage (Mailwerk); die Mail ab dem sechsten Versuch (nicht_erreicht_termin) bleibt. Schalter: Chefbüro › Mara › Termine.",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      nachname: "Mustermann",
+      agent_vorname: "Herr Stripling", // E-265: Wert = Nennform (nie der Vorname)
+      termin_link: "https://www.fiaon.com/termin/7f3a…?von=nicht_erreicht_2_mail",
+    },
+  },
+  {
     type: "termin_bestaetigung",
     label: "Terminbestätigung (Kunde)",
     description:

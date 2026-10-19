@@ -156,7 +156,15 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   },
   nicht_erreicht_termin: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
-    klartext: "Terminlink nach zwei erfolglosen Anrufen — der Kunde wählt selbst eine Uhrzeit.",
+    // E-401 (5/6): Automatisch geht sie ab dem SECHSTEN Versuch; nach dem zweiten schickt Mara nicht_erreicht_zweimal.
+    klartext: "Terminlink nach erfolglosen Anrufen — der Kunde wählt selbst eine Uhrzeit.",
+  },
+  // E-401 (5/6, 19.10.2026): Maras Mail nach dem 2. Fehlversuch — nur automatisch (einmal je 30 Tage, Merker
+  // in fiaon_nicht_erreicht_nachfass). Von Hand gibt es dafür die „Terminlink-Mail“ oben.
+  nicht_erreicht_zweimal: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Mara nach dem 2. erfolglosen Anruf: kurze Mail mit dem persönlichen Terminlink — geht nur automatisch.",
+    vonHand: false, pflichtFelder: ["termin_link"],
   },
   termin_bestaetigung: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],

@@ -47,7 +47,10 @@ export type MakeEventType =
   | "bewerbung_zusage"      // die Leitung sagt zu; der Zugangslink folgt getrennt mit agent_invite
   | "bewerbung_absage"      // die Leitung sagt ab
   // ── Lead-Pipeline und Terminsystem ────────────────────────────────────────
-  | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
+  | "nicht_erreicht_termin"  // ab dem 6. Fehlversuch (SCHWELLE_MAIL) → Kunde bucht selbst einen Termin
+  // E-401 (5/6, 19.10.2026): Mara fasst nach dem 2. Fehlversuch selbst nach — EINE kurze Mail mit dem
+  // persönlichen Terminlink (server/lib/fiaon-mara-nicht-erreicht.ts, Regel in shared/fiaon-nicht-erreicht-nachfass.ts).
+  | "nicht_erreicht_zweimal"  // 2× nicht erreicht → Mara schickt den Terminlink, 08–20 Uhr, nie doppelt
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
   | "termin_absage"          // Mitarbeiter hat abgesagt — Kunde erhaelt Bescheid + Neu-Buchen-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
@@ -593,6 +596,8 @@ const PRIVATLINIE_PERSON = new Set<string>([
   "onboarding_einladung", "konto_karte_einladung", "abo_verlaengerung_frage",
   // Werbung der Privatlinie
   "auskunft_angebot", "nicht_erreicht_termin", "lead_followup", "lead_application_link",
+  // E-401 (5/6): Maras Terminlink nach 2× nicht erreicht — Privatberatung, nie an Global-Kunden.
+  "nicht_erreicht_zweimal",
   // Zweite Wand zur Quelle (Lückensuche 02.10.2026): der Monatsbericht des Privat-Kundenbereichs —
   // ohne Bindung an eine Global-Bestellung. lead_willkommen steht NICHT hier: Es ist eine Pflichtmail
   // (Antwort auf das eben abgeschickte Formular), die Tür lässt Pflichtmails immer durch; für

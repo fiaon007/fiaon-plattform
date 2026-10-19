@@ -250,7 +250,10 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "„Zahlt sofort“ — nach 3 Werktagen (Mo–Fr) „Zahlung prüfen“, falls kein Geld kam. „Zahlt am …“ — am Werktag "
       + "danach „Zusage prüfen“. „Erreicht – Sonstiges“ — nach 3 Werktagen. „Nicht erreicht“ und „Mailbox“ — der "
       + "Abstand wächst: 2, 3, dann 5 Werktage, dann 7 Tage, ab dem 6. Fehlversuch 14 Tage Pause (mit Terminlink-Mail), "
-      + "ab dem 9. ruht der Mensch. Wer gerade einen Antrag oder eine Zahlungsmeldung geschickt hat (bis 3 Tage), kommt "
+      // E-401 (5/6, 19.10.2026): Mara fasst nach dem 2. Fehlversuch selbst nach.
+      + "ab dem 9. ruht der Mensch. Nach dem 2. Fehlversuch schickt Mara ihm von selbst EINE kurze Mail mit seinem "
+      + "Terminlink (8–20 Uhr, nicht bei Sperre, Global, Forderungsmanagement oder wenn schon ein Termin steht) — die "
+      + "Meldung sagt es dir. Wer gerade einen Antrag oder eine Zahlungsmeldung geschickt hat (bis 3 Tage), kommt "
       + "bis zum 5. Fehlversuch schon am nächsten Werktag wieder in die Liste — dort aber hinten, hinter allen, die länger "
       + "niemand versucht hat. Stufe A (Zahlung gemeldet) wartet höchstens 3 Werktage, auch wenn du „in 1 Woche“ wählst; "
       + "ab dem 9. Fehlversuch bekommt zusätzlich die Leitung eine Aufgabe. Ist nach 3 Werktagen kein Geld da, kommt "
@@ -1832,7 +1835,7 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
 // ── /chef/s/mara?reiter=termine (29.09.2026, E-260) ─────────────────────────
 // Justin: „ALLE Termine, die MARA macht, muss ich sehen können … Die anderen
 // Mitarbeiter arbeiten erst wieder am Freitag. Bis dahin schupfe ich das ganze."
-// Ein Satz je Schritt wie im Steuerpult (E-252). Ziele: .mt-schalter, .mt-abo (E-263),
+// Ein Satz je Schritt wie im Steuerpult (E-252). Ziele: .mt-schalter, .mt-nf-schalter (E-401 5/6), .mt-abo (E-263),
 // .mt-filter, .mt-jetzt, .mt-knoepfe; „Kunde wartet" steht nur, wenn jemand
 // wartet — deshalb ohne Ziel.
 export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
@@ -1849,6 +1852,15 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
     tipp: "Beim Einschalten wählst du „bis“ (Vorgabe: der nächste Freitag 09:00), wer anruft und für wen. Nach „bis“ geht "
       + "er von selbst aus; jedes An und Aus steht mit Namen im Chef-Protokoll. Gründer-Gespräche und FIAON Global bleiben "
       + "immer bei dem, der gebucht ist.",
+  },
+  {
+    // E-401 (5/6, 19.10.2026): Mara fasst nach 2× nicht erreicht selbst nach (server/lib/fiaon-mara-nicht-erreicht.ts).
+    ziel: ".mt-nf-schalter",
+    titel: "Nach 2× nicht erreicht schickt Mara den Terminlink.",
+    text: "Nach dem zweiten erfolglosen Anruf bekommt der Kunde von Mara EINE kurze Mail: „Wir haben Sie zweimal nicht erreicht — "
+      + "wann passt es Ihnen?“, mit seinem Terminlink. Nur 8–20 Uhr, höchstens einmal in 30 Tagen; nie bei Sperre, Global, "
+      + "Forderungsmanagement oder wenn schon ein Termin steht. Daneben: was heute raus ging und wer darüber gebucht hat.",
+    tipp: "Der Schalter steht von Anfang an auf an. Aus heißt: nach dem zweiten Versuch keine Mail — die Mail ab dem sechsten Versuch bleibt.",
   },
   {
     // 29.09.2026 (E-263); Gegenprüfung: die zwei Abos überschneiden sich nicht mehr.

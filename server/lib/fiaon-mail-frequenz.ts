@@ -475,7 +475,8 @@ export const NUR_MIT_VERTRAG = new Set<string>(["documents_change_request"]);
  * und 31 „nicht erreicht" — alle von Hand, an keiner Sperre vorbei, weil es
  * keine gab.
  */
-export const NUR_BIS_VERTRAGSENDE = new Set<string>(["onboarding_einladung", "konto_karte_einladung", "nicht_erreicht_termin"]);
+// E-401 (5/6): dazu Maras Terminlink nach 2× nicht erreicht (nicht_erreicht_zweimal) — dieselbe Grenze.
+export const NUR_BIS_VERTRAGSENDE = new Set<string>(["onboarding_einladung", "konto_karte_einladung", "nicht_erreicht_termin", "nicht_erreicht_zweimal"]);
 
 /**
  * Seit wann der Antrag auf das Widerspruchsrecht hinweist (§ 7 Abs. 3 Nr. 4

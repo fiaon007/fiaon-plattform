@@ -332,6 +332,78 @@ function Abwesenheit({ a, neu, melden }: { a: AbwesenheitSicht; neu: () => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// NACH 2× NICHT ERREICHT — MARA FASST SELBST NACH (19.10.2026, E-401 5/6)
+//
+// Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet.“ Nach dem zweiten
+// erfolglosen Anruf schickt Mara EINE kurze Mail mit dem Terminlink. Hier: ein Schalter (Standard an)
+// und eine Zeile Zahlen — was raus ging, was wartet, wer darüber gebucht hat. Keine neue Seite.
+// Server: GET/POST /chef/mara/nicht-erreicht (server/routes/fiaon-mara-steuerpult.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+type NachfassAntwort = {
+  ok: true; an: boolean; eingerichtet: boolean; heute: number; wartet: number; gebucht7: number; gebucht30: number;
+  woche: { versandt: number; fehlgeschlagen: number; ausgelassen: number; erledigt: number };
+  gruende: { grund: string; n: number }[];
+};
+function NichtErreichtNachfass() {
+  const d = useDaten<NachfassAntwort>("/chef/mara/nicht-erreicht");
+  const [stand, setStand] = useState<NachfassAntwort | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [infoOffen, setInfoOffen] = useState(false);
+  const { meldung, melden, zu } = useMeldung();
+  const s = stand ?? d.daten;
+
+  const umschalten = async () => {
+    if (!s) return;
+    setBusy(true);
+    try {
+      const j = (await post("/chef/mara/nicht-erreicht", { an: !s.an })) as NachfassAntwort;
+      setStand(j);
+      melden(j.an ? "An — nach dem 2. erfolglosen Anruf schickt Mara dem Kunden seinen Terminlink."
+        : "Aus — nach 2× nicht erreicht schickt Mara nichts mehr. Die Mail ab dem 6. Versuch bleibt.", "nachfass");
+    } catch (e: any) { melden(e.message, "nachfass", true); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-nachfass">
+      <div className="mara-status mt-status" aria-label="Nach 2× nicht erreicht">
+        <div className="st voll">
+          <button type="button" className={`mara-schalter mt-nf-schalter${s?.an ? " an" : ""}`} data-mara-schalter="nicht-erreicht"
+            aria-pressed={!!s?.an} disabled={busy || !s} onClick={() => void umschalten()}>
+            <span className="bahn" aria-hidden="true" />
+            <span>{!s ? "Nach 2× nicht erreicht …" : s.an ? "Nach 2× nicht erreicht schickt Mara den Terminlink" : "Nach 2× nicht erreicht: Mara schickt nichts"}</span>
+          </button>
+          <InfoKnopf offen={infoOffen} onClick={() => setInfoOffen((x) => !x)} label="Was der Schalter tut" />
+        </div>
+        {s ? (
+          <div className="st mt-st-text">
+            <div className="st-text">
+              <div>{zahl(s.heute)} heute · {zahl(s.woche.versandt)} in 7 Tagen{s.wartet ? ` · ${zahl(s.wartet)} warten auf 8 Uhr` : ""}</div>
+              <small>
+                {s.gebucht7 ? `${zahl(s.gebucht7)} ${s.gebucht7 === 1 ? "hat" : "haben"} darüber einen Termin gebucht (7 Tage)` : "noch keine Buchung über diesen Link (7 Tage)"}
+                {s.woche.ausgelassen ? ` · ${zahl(s.woche.ausgelassen)} bewusst ausgelassen` : ""}
+                {s.woche.fehlgeschlagen ? ` · ${zahl(s.woche.fehlgeschlagen)} nicht zugestellt` : ""}
+              </small>
+            </div>
+          </div>
+        ) : d.fehler ? (
+          <div className="st mt-st-text"><div className="st-text"><small>{d.fehler}</small></div></div>
+        ) : null}
+      </div>
+      {infoOffen && (
+        <p className="mara-info">
+          <b>Nach dem zweiten erfolglosen Anruf</b> („Nicht erreicht“ oder „Mailbox“) schickt Mara dem Kunden eine kurze Mail:
+          „Wir haben Sie zweimal nicht erreicht — wann passt es Ihnen?“, mit seinem persönlichen Terminlink. Nur von 8 bis 20 Uhr,
+          höchstens einmal in 30 Tagen und nicht, wenn schon ein Termin oder Rückruf steht. Nie an Kunden im Forderungsmanagement,
+          von FIAON Global, mit Werbe- oder Vertriebssperre, Testkonten oder Gekündigte. Die Mail ab dem sechsten Versuch bleibt.
+          {s?.gruende.length ? ` Ausgelassen in 7 Tagen: ${s.gruende.map((g) => `${g.grund} (${zahl(g.n)})`).join(" · ")}.` : ""}
+        </p>
+      )}
+      <Meldung m={meldung} ort="nachfass" onZu={zu} />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TERMINE IN DEINEM KALENDER (29.09.2026, E-263)
 //
 // Justin: „… ‚Alle Termine zu Kalender hinzufügen' … pflegen sich automatisch
@@ -507,6 +579,8 @@ export default function ChefMaraTermine() {
 
       <Abwesenheit a={daten.abwesenheit} neu={d.neu} melden={(t, f) => melden(t, "abwesenheit", f)} />
       <Meldung m={meldung} ort="abwesenheit" onZu={zu} />
+      {/* E-401 (5/6): Nach 2× nicht erreicht schickt Mara den Terminlink — ein Schalter, eine Zeile Zahlen. */}
+      <NichtErreichtNachfass />
       {/* E-263: Termine im eigenen Kalender (Abo) — zugeklappt, die Zeile nennt den Zustand. */}
       <KalenderAbos />
 

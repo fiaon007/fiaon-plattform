@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (5/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Nach dem
+    // 2. erfolglosen Anruf schickt Mara selbst EINE kurze Mail mit dem Terminlink — vorher kam die erste Mail erst ab dem 6.
+    id: "2026-10-19-mara-nicht-erreicht-mail",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Nach 2× nicht erreicht schreibt Mara dem Kunden",
+    summary:
+      "Erreichst du einen Kunden zum zweiten Mal nicht, schickt Mara ihm von selbst eine kurze Mail mit seinem Terminlink: "
+      + "„Wir haben Sie zweimal nicht erreicht — wann passt es Ihnen?“ Er wählt seine Zeit selbst.",
+    changes: [
+      "Gilt für „Nicht erreicht“ und „Mailbox“ — beim zweiten Versuch, egal ob aus Akte, Telefon oder Pipeline.",
+      "Die Mail geht nur zwischen 8 und 20 Uhr raus. Klickst du abends, kommt sie am nächsten Morgen ab 8 Uhr.",
+      "Höchstens einmal in 30 Tagen. Nicht bei Werbe- oder Vertriebssperre, Testkonten, Gekündigten, Kunden von FIAON Global, im Forderungsmanagement oder wenn schon ein Termin oder Rückruf steht.",
+      "Bucht der Kunde über den Link, steht der Termin wie immer in deinem Kalender. Schreibt er zurück, antwortet Mara wie gewohnt.",
+      "Die Mail ab dem sechsten Versuch bleibt wie bisher.",
+    ],
+    howto: [
+      "Nichts extra tun: Trag „Nicht erreicht“ wie immer ein. Die Meldung danach sagt dir, ob und wann Mara die Mail schickt.",
+      "Steht dort „Keine E-Mail-Adresse hinterlegt“: Trag die Adresse in der Akte nach.",
+      "In der Akte siehst du danach den Vermerk „Mara: kurze Mail mit dem Terminlink versandt“.",
+    ],
+  },
+  {
     // E-401 (4/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Anschrift,
     // E-Mail-Adresse und Telefonnummer ändert Mara selbst (angaben_aendern) — statt einer Aufgabe an euch.
     id: "2026-10-19-mara-angaben-aendern",

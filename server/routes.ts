@@ -352,6 +352,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-299 (07.10.2026): Mara fasst einmal nach — im offenen 24-h-Fenster, wenn er nach ihrer Antwort verstummt ist.
     // Mara-Topsales 08.10.2026: das Ergebnis zurückgeben — die Historie schreibt es als Meldung (laufMeldung), der Wächter liest „versandt“.
     tageslauf('mara_wa_nachfass', async () => await (await import('./lib/fiaon-mara-nachfass')).nachfassLauf(), 10 * 60 * 1000, { beimStartNach: 330_000 });
+    // E-401 (5/6, 19.10.2026): Nach dem 2. erfolglosen Anruf schickt Mara EINE Mail mit dem Terminlink — vorgemerkt beim
+    // Ergebnis, gesendet hier (08–20 Uhr, nie doppelt). Historienzeile nur, wenn etwas geschah.
+    tageslauf('mara_nicht_erreicht_mail', async () => { const m = await import('./lib/fiaon-mara-nicht-erreicht'); return m.istBearbeitet(await m.nachfassTakt()); }, 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
     // E-236: Der Kreislauf — jede von Mara gebuchte Rückruf-Zeit wird alle 5 Minuten nachgeprüft
     // (steht der Termin, Arbeitszeit, Überschneidung, Mail raus, Kunde hat die Uhrzeit).
     tageslauf('mara_termine_pruefen', async () => { await (await import('./lib/fiaon-mara-termin')).maraTermineNachpruefen(); }, 5 * 60 * 1000, { beimStartNach: 240_000 });

@@ -129,6 +129,8 @@ export const HERKUENFTE = {
   // 05.10.2026 (E-282): der neue Antrag /antrag-neu — Rückruf vor der Überweisung und Gespräch nach der Annahme.
   antrag_neu: "Aus dem neuen Antrag (/antrag-neu) gebucht",
   nicht_erreicht_mail: "Mail „Wir haben Sie nicht erreicht“",
+  // 19.10.2026 (E-401 5/6): Maras kurze Mail nach dem 2. erfolglosen Anruf (server/lib/fiaon-mara-nicht-erreicht.ts).
+  nicht_erreicht_2_mail: "Maras Mail nach 2× nicht erreicht (Terminlink)",
   nummer_korrektur: "Mail zur Nummern-Korrektur",
   onboarding_einladung: "Einladung zum Startgespräch",
   termin_verpasst_mail: "Einladung nach einem verpassten Termin",

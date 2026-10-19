@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: TERMINE (7) — Absender „FIAON Welcome"
+// VORLAGEN: TERMINE (8 — E-401: dazu nicht_erreicht_zweimal) — Absender „FIAON Welcome"
 //
 // Schreibregeln: siehe konto.ts. Zusätzlich hier:
 // · Termin-Mails nennen Datum, Uhrzeit und Gesprächspartner im Datenkasten —
@@ -125,17 +125,38 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     fussnote: "Der Kalender zeigt nur Zeiten, die wirklich frei sind — Sie können nichts falsch machen.",
   },
 
+  // E-401 (5/6, 19.10.2026): Vorher „hat ZWEIMAL versucht“ / „Zwei Anrufe“ — ein Rest aus der Zeit, als diese Mail
+  // nach dem 2. Versuch ging (SCHWELLE_MAIL = 2). Seit dem 19.08. geht sie ab dem SECHSTEN (und von Hand jederzeit);
+  // nach dem zweiten schickt jetzt Mara „nicht_erreicht_zweimal“ (unten). Ohne Zählwort stimmt der Satz immer.
   nicht_erreicht_termin: {
     betreff: "Wir erreichen Sie nicht — wählen Sie Ihre Zeit selbst",
-    preheader: "Zwei Anrufe, kein Glück. Ein Klick, und der Termin gehört Ihnen.",
+    preheader: "Bisher kein Glück am Telefon. Ein Klick, und der Termin gehört Ihnen.",
     titel: "Sagen Sie uns, wann es passt",
     absaetze: [
-      "Guten Tag {{params.vorname}} {{params.nachname}}, {{params.agent_vorname}} hat zweimal versucht, Sie telefonisch zu erreichen — bisher ohne Glück.",
+      "Guten Tag {{params.vorname}} {{params.nachname}}, {{params.agent_vorname}} hat versucht, Sie telefonisch zu erreichen — bisher ohne Glück.",
       "Machen wir es andersherum: Sie wählen die Zeit, wir rufen pünktlich an. Im Kalender sehen Sie alle freien Termine — ein Klick, und die Sache ist fest.",
     ],
     knopf: { text: "Meine Zeit auswählen", url: "{{params.termin_link}}" },
     fussnote: "Das Gespräch dauert etwa fünfzehn Minuten und bringt Ihre Akte den nächsten großen Schritt voran.",
     karteZiel: true,
+  },
+
+  // ── E-401 (5/6, 19.10.2026): MARA FASST NACH DEM ZWEITEN ANRUF SELBST NACH ──────────────────────────────
+  // Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet.“ Kurz und ohne Druck:
+  // wir haben es zweimal versucht, hier wählen Sie Ihre Zeit. Der Knopf ist der persönliche Terminlink
+  // (Slots des Betreuers, bei Abwesenheit des Vertreters). {{params.agent_vorname}} trägt die Nennform
+  // („Herr Stripling“, E-265) und steht im Nominativ. BEWUSST ohne Karten-Block (karteZiel): Dessen Satz
+  // trägt den Bank-Vorbehalt, und das hier ist eine Terminfrage, kein Verkauf (E-373).
+  nicht_erreicht_zweimal: {
+    betreff: "Wir haben Sie zweimal nicht erreicht — wann passt es Ihnen?",
+    preheader: "Hier wählen Sie Ihre Zeit — ein Klick, und wir rufen genau dann an.",
+    titel: "Wann passt es Ihnen?",
+    absaetze: [
+      "Guten Tag {{params.vorname}} {{params.nachname}}, wir haben zweimal versucht, Sie anzurufen, und Sie leider nicht erreicht.",
+      "Hier wählen Sie Ihre Zeit selbst: Im Kalender sehen Sie alle freien Termine. Ein Klick genügt, und <b>{{params.agent_vorname}}</b> ruft Sie genau dann an.",
+    ],
+    knopf: { text: "Meine Zeit wählen", url: "{{params.termin_link}}" },
+    fussnote: "Das Gespräch dauert etwa fünfzehn Minuten — danach wissen Sie genau, wie es für Sie weitergeht.",
   },
 
   onboarding_einladung: {

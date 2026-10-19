@@ -73,7 +73,7 @@ export const KAPITEL_9: KapitelInhalt = {
         ul(
           "Anruf auslösen: In jedem Raum über den Anruf-Knopf an der Akte. Technisch ein Ereignis `fiaon-anrufen` an das Softphone – du musst die Nummer nie tippen.",
           "Aufzeichnung: Der Kunde wird zu Beginn informiert (Ansage). Aufzeichnungen sind Teil der Akte und dienen Qualität und Nachweis.",
-          "Nicht erreicht: Ergebnis klicken → das System sendet automatisch einen Terminlink (`nicht_erreicht_termin`). Falsche Nummer: Ergebnis klicken → der Kunde wird per Mail nach der richtigen gefragt (`number_update_request`), der Fall schläft bis zur Antwort.",
+          "Nicht erreicht: Ergebnis klicken → nach dem 2. erfolglosen Versuch schickt Mara dem Kunden automatisch eine kurze Mail mit seinem Terminlink (`nicht_erreicht_zweimal`, 8–20 Uhr, einmal), ab dem 6. kommt die Terminlink-Mail (`nicht_erreicht_termin`). Falsche Nummer: Ergebnis klicken → der Kunde wird per Mail nach der richtigen gefragt (`number_update_request`), der Fall schläft bis zur Antwort.",
           "Status Pause = keine Anrufe, keine neuen Kunden. Wer telefoniert, ist Online.",
         ),
         warn("Bekannter Fehler, der gerade behoben wird (E-012): Eingehende Anrufe gingen an den Betreuer der Bestellung statt der Person. Wenn ein Anruf bei dir landet, der nicht zu dir gehört: Kollegen im Team-Raum suchen, weiterleiten, nichts selbst verändern – und melden."),

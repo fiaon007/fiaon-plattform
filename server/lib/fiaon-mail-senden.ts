@@ -303,6 +303,8 @@ async function linkBaustein(
   // HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026): Der zweite Parameter trägt
   // den WEG und landet als `?von=` im Link; die Gesprächsart bleibt abgeleitet.
   if (eventType === "nicht_erreicht_termin") setze("termin_link", terminLink(personId, "nicht_erreicht_mail"));
+  // E-401 (5/6): Maras Mail nach 2× nicht erreicht — eigene Herkunft, damit man sieht, welche Buchung sie gebracht hat.
+  if (eventType === "nicht_erreicht_zweimal") setze("termin_link", terminLink(personId, "nicht_erreicht_2_mail"));
   if (eventType === "onboarding_einladung") setze("termin_link", terminLink(personId, "onboarding_einladung"));
   if (eventType === "termin_verpasst") {
     setze("termin_link", terminLink(personId, "termin_verpasst_mail"));

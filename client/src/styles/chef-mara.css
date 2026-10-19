@@ -522,6 +522,10 @@ a.mp-name:hover { text-decoration: underline; }
 /* Der Schalter trägt einen ganzen Satz — er bricht um, statt den (i)-Knopf aus dem Bild zu schieben. */
 .mt-schalter { white-space: normal; text-align: left; line-height: 1.35; min-width: 0; flex: 0 1 auto; }
 .mt-schalter .bahn { align-self: center; }
+/* E-401 (5/6, 19.10.2026): der zweite Schalter „Nach 2× nicht erreicht schickt Mara den Terminlink“ — wie oben. */
+.mt-nachfass { margin-top: 10px; }
+.mt-nf-schalter { white-space: normal; text-align: left; line-height: 1.35; min-width: 0; flex: 0 1 auto; }
+.mt-nf-schalter .bahn { align-self: center; }
 .mt-status .mt-st-text { min-width: 0; }
 .mt-status .st.rechts { gap: 8px; }
 .mt-leise { margin-top: 8px; }

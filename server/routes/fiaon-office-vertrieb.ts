@@ -1694,6 +1694,8 @@ const MAIL_TITEL: Record<string, string> = {
   payment_details: "Zahlungsdaten-Mail", welcome: "Mail „Antrag eingegangen“",
   zugang_link: "Zugangs-Mail", bereich_freigeschaltet: "Mail „Bereich freigeschaltet“",
   nicht_erreicht_termin: "Terminlink-Mail", onboarding_einladung: "Einladung zum Startgespräch",
+  // E-401 (5/6): Maras Mail nach dem 2. erfolglosen Anruf.
+  nicht_erreicht_zweimal: "Maras Terminlink-Mail (2× nicht erreicht)",
   number_update_request: "Bitte um neue Rufnummer", payment_reminder: "Zahlungserinnerung",
   payment_confirmed: "Zahlungsbestätigung", lead_followup: "Nachfass-Mail",
   lead_application_link: "Antragslink-Mail",

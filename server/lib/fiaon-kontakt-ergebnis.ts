@@ -138,6 +138,12 @@ export interface ErgebnisWirkung {
    * Ruhe-Pool). `null`, wenn nichts geschah — der Normalfall.
    */
   automatik?: import("./fiaon-nicht-erreicht").AutomatikWirkung | null;
+  /**
+   * E-401 (5/6, 19.10.2026): Mara fasst nach dem 2. Fehlversuch selbst nach — was sie vorgemerkt
+   * (oder warum sie es ausgelassen) hat. `null`, wenn nichts geschah (nicht der 2. Versuch, Schalter aus,
+   * in den letzten 30 Tagen schon gemerkt). Gesendet wird im Takt (fiaon-mara-nicht-erreicht.ts).
+   */
+  maraNachfass?: import("./fiaon-mara-nicht-erreicht").VormerkWirkung | null;
 }
 
 // ── DER DATUMSFEHLER BEI „ZAHLT AM" (E-IT-A, 08.10.2026) ──────────────────
@@ -381,6 +387,7 @@ export async function ergebnisAnwenden(
   // später doch bestellt, soll er nicht mit einer Altlast von vier
   // Fehlversuchen starten.
   let automatik: import("./fiaon-nicht-erreicht").AutomatikWirkung | null = null;
+  let maraNachfass: import("./fiaon-mara-nicht-erreicht").VormerkWirkung | null = null;
   if (personId) {
     const istErreicht = ergebnis.startsWith("erreicht_");
     if (istErreicht) {
@@ -396,6 +403,15 @@ export async function ergebnisAnwenden(
       if (automatik.ruht) wiedervorlage = null;
       else if (automatik.wiedervorlage) wiedervorlage = automatik.wiedervorlage;
       if (automatik.hinweis) meldung = `${meldung} ${automatik.hinweis}`;
+      // ── E-401 (5/6, 19.10.2026): MARA FASST NACH DEM ZWEITEN VERSUCH SELBST NACH ──────────────
+      // Vorher kam die erste Mail an den Kunden erst ab dem SECHSTEN Versuch — dazwischen geschah für
+      // ihn nichts. Jetzt merkt Mara beim zweiten (gezählten) Versuch EINE kurze Mail mit seinem
+      // Terminlink vor; der Takt sendet sie (08–20 Uhr, nie doppelt). Die Regel steht in
+      // shared/fiaon-nicht-erreicht-nachfass.ts, das Handeln in fiaon-mara-nicht-erreicht.ts. Wirft nie,
+      // und in einer Transaktion arbeitet sie in einem Sicherungspunkt.
+      const { nachfassVormerken } = await import("./fiaon-mara-nicht-erreicht");
+      maraNachfass = await nachfassVormerken(personId, versuche, lauf);
+      if (maraNachfass.hinweis) meldung = `${meldung} ${maraNachfass.hinweis}`;
     }
   }
 
@@ -405,6 +421,7 @@ export async function ergebnisAnwenden(
     gesperrt,
     meldung,
     automatik,
+    maraNachfass,
     grund: regel.grund,
     text: regel.text,
     gezaehlt,

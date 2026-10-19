@@ -484,7 +484,8 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "„von Mara“ (im Wochenraster ein blauer Punkt) heißt: Mara hat den Rückruf per WhatsApp oder E-Mail mit dem Kunden "
       + "vereinbart — die Notiz darunter sagt, worum es geht. „über Maras Link“: der Kunde hat selbst über Maras Terminlink gebucht. "
       // E-395 (19.10.2026) mitgezogen: Mara trägt auch Termine ein, die der Kunde in einer Mail nennt.
-      + "Nennt ein Kunde in einer Mail einen Termin, den er mit uns hat (passt zu deiner Notiz oder „mit Ihrem Berater“), "
+      // E-401 (2/6, 19.10.2026) mitgezogen: ebenso auf WhatsApp.
+      + "Nennt ein Kunde in einer Mail oder per WhatsApp einen Termin, den er mit uns hat (passt zu deiner Notiz oder „mit Ihrem Berater“), "
       + "trägt Mara ihn ebenfalls mit „von Mara“ ein — der Beleg steht in der Notiz. Deshalb: Vereinbarte Zeiten immer mit Uhrzeit notieren.",
   },
   {
@@ -658,7 +659,10 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
     titel: "Neu von Mara.",
     text: "Hier stehen die Rückrufe, die Mara in den letzten 72 Stunden per WhatsApp oder E-Mail für dich vereinbart hat, "
       + "und Termine, die Kunden über Maras Terminlink gewählt haben — mit "
-      + "Uhrzeit, Name und der Notiz, worum es geht. Du bekommst dazu auch eine Mail. „Gesehen“ blendet den "
+      + "Uhrzeit, Name und der Notiz, worum es geht. "
+      // E-395/E-401 (19.10.2026) mitgezogen: auch Termine, die der Kunde selbst genannt hat (Mail oder WhatsApp).
+      + "Dazu Termine, die ein Kunde per Mail oder WhatsApp genannt hat und die zu deiner Notiz passen — Mara hat sie eingetragen, der Beleg steht in der Notiz. "
+      + "Du bekommst dazu auch eine Mail. „Gesehen“ blendet den "
       + "Eintrag auf diesem Gerät aus; der Termin selbst bleibt im Kalender.",
     tipp: "Ruf pünktlich an: Mara hat dem Kunden genau diese Uhrzeit bestätigt.",
   },

@@ -168,6 +168,10 @@ import type { KarteEinladungAkteur, KarteEinladungErgebnis } from "./fiaon-konto
 import { BEHOERDE, rueckrufGewollt } from "./fiaon-postmeister-lauf";
 // E-372: nur der Typ — das Modul selbst wird dynamisch geladen (es importiert dieses hier).
 import type { WaEntscheidungsLage } from "./fiaon-whatsapp-entscheidungen";
+// E-401 (2/6, 19.10.2026): der genannte Termin auch auf WhatsApp — Erkennung und Antwortprüfung rein (shared), das
+// Eintragen im Server-Modul (nur der Typ statisch; geladen wird es beim Aufruf, wie im Postfach).
+import { genanntAntwortFunde, uhrzeitenGenannt } from "@shared/fiaon-genannter-termin";
+import type { GenanntLage } from "./fiaon-mara-genannter-termin";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -1106,6 +1110,8 @@ function auftrag(ein: {
   stufe?: LinkStufe;
   /** E-275 (02.10.2026): zahlender Kunde — Mara schickt den Link der Partnerbank selbst (karte_link_schicken). */
   kartenWerkzeug?: boolean;
+  /** E-401 (2/6): die letzten Gesprächsnotizen der Kollegen (14 Tage, teamNotizenText) — was dort vereinbart ist, gilt. */
+  teamNotizen?: string | null;
 }): string {
   const vorname = ein.name.split(" ")[0];
   // E-264 (29.09.2026, Gegenlesen): Die Muster sahen auch Leads — „… auf Ihrer Zahlungsseite" setzt eine
@@ -1403,6 +1409,13 @@ function auftrag(ein: {
     `SEINE LAGE: ${ein.lage}`,
     `WAS DU ÜBER IHN WEISST: ${ein.gedaechtnis || "noch nichts"}`,
     ``,
+    // E-401 (2/6, 19.10.2026): wie im Postfach (E-395) — Daniels Notiz „telefoniert am Montag 11 Uhr mit Justin“ stand
+    // nur in der Akte; Mara sah sie nicht und verkaufte gegen die Absprache.
+    ...(ein.teamNotizen ? [
+      `LETZTE GESPRÄCHSNOTIZEN DES TEAMS (14 Tage, neueste zuerst). Was ein Kollege mit ihm besprochen oder vereinbart hat, GILT: Du widersprichst nie, verkaufst nichts dagegen und nimmst Bezug darauf („wie mit Herrn Stripling besprochen“ — Nennform, nie der Vorname). Nennt er ein Gespräch oder eine Absprache, prüfst du es zuerst hier. Telefonnummern und Interna daraus schreibst du ihm nie:`,
+      ein.teamNotizen,
+      ``,
+    ] : []),
     ...(ein.stand?.length ? [`STAND DES GESPRÄCHS (vom Server, wahr):`, ...ein.stand.map((z) => `· ${z}`), ``] : []),
     ...(ein.hinweise?.length ? [`JETZT BEACHTEN:`, ...ein.hinweise.map((z) => `· ${z}`), ``] : []),
     `DIE LETZTEN NACHRICHTEN (oben alt, unten neu; mit Tag und Uhrzeit, Berliner Zeit):`,
@@ -1523,6 +1536,11 @@ async function auskunftLage(personId: number, segment: AuskunftSegment): Promise
  */
 // E-275 (02.10.2026): ohne „dazu der Termin“ — die Bitte um die Überweisung; Kartenfragen erledigt Mara selbst (Link der Partnerbank).
 // E-372: Hier stand „Ratenpause oder Stundung sagst du nie zu — das übergibst du.“ — jetzt bietet Mara die Ratenpause selbst an.
+/**
+ * E-401 (2/6, 19.10.2026): das Ziel, wenn er einen Termin nennt (JETZT BEACHTEN sagt, was der Server getan hat).
+ * Justin (E-395): „einen guten Termin wünschen und sich zurücknehmen“.
+ */
+export const GENANNT_ZIEL = "Er nennt ein Gespräch (siehe JETZT BEACHTEN): Beantworte sein übriges Anliegen, wünsch ihm ein richtig gutes Gespräch und nimm dich zurück — kein Verkauf, keine Zahlungsbitte, kein Link, keine Abschlussfrage. Die Nachricht endet mit dem guten Wunsch.";
 const RATE_ZIEL = "Seine Visa-Kreditkarte vorn (sie bleibt das Ziel, mit dem Satz über die Bank) und seine fällige Rate („Ihre Rate vom … über …“) mit ihrer Zahlungsseite (DEIN LINK) und der Bitte, sie heute zu überweisen. Fragt er etwas anderes, beantworte es zuerst — fragt er nach Karte, Konto oder Link, schickst du ihm den Link unserer Partnerbank selbst (karte_link_schicken). Kann er gerade nicht zahlen, bietest du ihm an, seine Raten einmal um einen Monat zu verschieben (ratenpause_setzen nach seinem Ja) — keine Zahlungsbitte. Eine Kündigung nimmst du selbst auf — erst die verbindliche Rückfrage, nach seinem klaren Ja kuendigung_aufnehmen; „Kulanz“ nur mit dem Satz aus dem Werkzeug. „Schon überwiesen“: danken, die Zahlungsstelle prüft den Eingang.";
 
 export async function lageFuer(personId: number | null, leadId: number | null, letzteVorlage: { name: string; text: string | null } | null, kundeText = ""): Promise<Lage> {
@@ -3091,13 +3109,38 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const kunde = echteOffene.slice().reverse().map((v) => String(v.text || v.knopf || "")).join("\n");
     const kontext = verlauf.filter((v) => v.richtung === "rein" && !autoSet.has(Number(v.id))).slice(0, 5).map((v) => String(v.text || v.knopf || "")).join("\n");
     const verlaufText = verlauf.map((v) => String(v.text ?? "")).join("\n");
+
+    // ── E-401 (2/6, 19.10.2026): WAS DAS TEAM VEREINBART HAT — UND DER TERMIN, DEN ER NENNT ─────────────────────────
+    // Wie im Postfach (E-395, Fall #7131): Mara liest die Gesprächsnotizen der Kollegen (14 Tage) — was dort vereinbart
+    // ist, gilt. Nennt er einen Termin, der mit uns schon feststeht („wir telefonieren heute um 11 mit Herrn …“, passt zu
+    // einer Notiz), trägt der SERVER ihn ein (fiaon-mara-genannter-termin.ts, kanal whatsapp) und sagt dem Modell, was
+    // geschehen ist; Mara wünscht ein gutes Gespräch und nimmt sich zurück — kein Verkauf, keine Zahlungsbitte, kein Link.
+    // Das Aushandeln einer Zeit mit Mara (Antwort auf ihr Zeitangebot, „Können wir um 14 Uhr telefonieren?“) bleibt der
+    // Rückruf-Weg (rueckruf_eintragen, E-236) — das entscheidet genanntAufWhatsApp. Nur seine Worte (keine Knöpfe).
+    const gtM = await import("./fiaon-mara-genannter-termin");
+    const teamNotizenWa = personId ? await gtM.teamNotizenLesen(Number(personId)).catch(() => []) : [];
+    let genannt: GenanntLage | null = null;
+    {
+      const seineWorte = echteOffene.filter((v) => !v.knopf).slice().reverse().map((v) => String(v.text || "")).join("\n").trim();
+      if (personId && seineWorte) {
+        // Die Nachricht mit der Uhrzeit — ihr Zeitpunkt ist der Bezug für „heute/morgen“, wenn sie schon älter ist (Pause).
+        const traeger = echteOffene.find((v) => !v.knopf && uhrzeitenGenannt(String(v.text || "")).length > 0) ?? letzteEchte;
+        const lrG = verlauf.find((v) => v.richtung === "raus" && v.status !== "fehler" && Number(v.id) < Number(ersteOffene.id)) ?? null;
+        genannt = await gtM.genannterTerminBehandeln({
+          personId: Number(personId), ref: null, kundeText: seineWorte, notizen: teamNotizenWa, kanal: "whatsapp", nummer,
+          waId: Number(traeger.id), letzteRaus: lrG ? String(lrG.text ?? "") : null,
+          bezug: Date.now() - new Date(traeger.am).getTime() > 3 * 3_600_000 ? new Date(traeger.am) : null,
+        }).catch((e) => { console.warn("[MARA-WA] Genannter Termin:", String(e?.message || e).slice(0, 160)); return null; });
+      }
+    }
     // E-240: Angebot „jetzt", wenn er gerade über Bonität, Limit, Karte oder die Auskunft schreibt
     // (seine offenen Nachrichten) oder Maras letzte Frage zur Auskunft beantwortet. Bei Werbesperre
     // nur, wenn er sie ausdrücklich will — dann ist es seine Anfrage, keine Werbung.
     // Gegenlesen 24.09.2026: dieselbe Zurückhaltung bei Vertriebssperre (is_blocked, „kein
     // Interesse") — das Werkzeug lehnte dort ohnehin ab (werbungVerboten), der Auftrag bot aber an.
     // Und nach dem ersten Angebot nur noch, wenn er selbst auf die Auskunft zurückkommt (auskunftJetzt).
-    const ohneAngebot = lage.werbesperre || lage.vertriebssperre;
+    // E-401 (2/6): Nennt er einen Termin, bietet Mara in dieser Antwort nichts an (zurücknehmen).
+    const ohneAngebot = lage.werbesperre || lage.vertriebssperre || !!genannt;
     const segment: AuskunftSegment = lage.auskunft?.segment ?? "kunde";
     // Integration 25.09.2026 (E-240): die gemeinsame Bremse — kam das Angebot in den letzten drei
     // Tagen schon (Angebots-Mail, Unterlagen-Mail, Vorlage, Mara per Mail), bietet Mara nur noch an,
@@ -3138,7 +3181,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // (oder ein kurzes Ja darauf), bucht der Server sie vorab über denselben Weg (rueckruf_eintragen) — danach steht der
     // Termin im Kalender, STAND und Abschluss nennen ihn („… und Ihr Termin mit … steht heute um 10:20 Uhr").
     let vorabGebucht: string | null = null;
-    if (personId) {
+    // E-401: Nennt er einen festen Termin, ist es keine Bestätigung von Maras Zeitangebot (genanntAufWhatsApp schließt das aus).
+    if (personId && !genannt) {
       const angebot = verlauf.find((v) => v.richtung === "raus" && v.status !== "fehler" && !v.vorlage && Number(v.id) < Number(ersteOffene.id)) ?? null;
       const bestaetigt = angebot && echteOffene.length === 1 && !heikelAnliegen(kunde) && !abstreitenArt(kunde)
         ? angeboteneZeitBestaetigt(kunde, { text: angebot.text, am: angebot.am }) : null;
@@ -3161,7 +3205,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // Auch ein kurzes Ja auf Maras Frage „Soll ich Ihnen den Link unserer Partnerbank … schicken?“ (bausteinLimitFrage).
     const jaAufKartenLink = /link\s+unserer\s+partnerbank[^?]{0,80}schicken\s*\?/i.test(letzteDu[0] ?? "")
       && /^\s*(?:ja|jawohl|gern|gerne|bitte|ok|okay|klar|jo|jep)\b/i.test(kunde.trim()) && kunde.trim().length <= 40;
-    if (personId && lage.linkLage.stufe === "kunde" && (fragtNachKarte(kunde) || jaAufKartenLink) && !heikelAnliegen(kunde) && !abstreitenArt(kunde)) {
+    // E-401 (2/6): neben einem genannten Termin kein Link der Partnerbank in diesem Lauf (zurücknehmen, wie im Postfach).
+    if (personId && !genannt && lage.linkLage.stufe === "kunde" && (fragtNachKarte(kunde) || jaAufKartenLink) && !heikelAnliegen(kunde) && !abstreitenArt(kunde)) {
       const r = await werkzeugAusfuehren("karte_link_schicken", {}, {
         personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer, kunde, letzteDu: letzteDu[0] ?? "", stufe: "kunde",
       }).catch((e) => { console.error("[MARA-WA] Vorab-Kartenlink:", String(e).slice(0, 160)); return null; });
@@ -3209,7 +3254,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const gemeldet = stufeJetzt === "zahlung_offen" && meldetZahlung(kunde);
     // E-265 Nachbesserung: auch bei Vertriebssperre (is_blocked, „kein Interesse") kein Abschluss an B/C/Abbrecher —
     // wie beim Auskunft-Angebot (Gegenlesen 24.09.).
-    const abschlussArt: AbschlussArt | null = heikelJetzt || ((lage.werbesperre || lage.vertriebssperre) && stufeJetzt !== "kunde") ? null
+    // E-401 (2/6): neben einem genannten Termin kein Abschluss (Justin: „einen guten Termin wünschen und sich zurücknehmen“).
+    const abschlussArt: AbschlussArt | null = heikelJetzt || !!genannt || ((lage.werbesperre || lage.vertriebssperre) && stufeJetzt !== "kunde") ? null
       : stufeJetzt === "zahlung_gemeldet" || gemeldet ? "a" : abschlussArtAus(stufeJetzt, { rateOffen: !!lage.rate });
     // E-275 (02.10.2026): Hier holte der Server den nächsten freien Platz für „… und ich vereinbare Ihren Termin mit Herrn X.
     // Passt Ihnen [Zeit]?" — der Abschluss bittet jetzt ums Zahlen (Justin: „nicht immer sagen ‚Ich mache einen Termin mit
@@ -3255,7 +3301,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         link: abschlussArt === "a" ? null : lage.link,
       }), antragLuecke);
     // „Was ist FIAON?" — die Karte vorn. Kunden und B kennen uns: dort keine Herkunftsfrage (E-264 „wer").
-    const wasIstFiaon = fragtWasIstFiaon(kunde) && !lage.werbesperre
+    const wasIstFiaon = fragtWasIstFiaon(kunde) && !lage.werbesperre && !genannt
       ? bausteinWasIstFiaon({ kanal: "whatsapp", stufe: stufeJetzt, ziel: lage.kartenziel, betreuer: lage.betreuerN, link: stufeJetzt === "lead" || stufeJetzt === "antrag_offen" ? lage.link : null })
       : null;
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 l01/l02): Fragt er nach seinem Limit, bekommt das Modell die feste
@@ -3264,7 +3310,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // E-275 Endkontrolle (02.10.2026, Wahrheit): auch hier die Lücken-Fassung — bei offener erster Rate (B) trägt die
     // Antwort auf die Limit-Frage Justins Satz „… und Sie bekommen direkt den fertigen Link …“, und sichererSatz schickt
     // sie notfalls wörtlich. Mit unvollständigem Antrag wäre „direkt“ unwahr (wie bei vorkasseMuster und abschlussFormel).
-    const limitFrage = fragtLimit(kunde) && lage.kartenziel && !heikelJetzt && stufeJetzt !== "lead" && stufeJetzt !== "antrag_offen"
+    const limitFrage = fragtLimit(kunde) && lage.kartenziel && !heikelJetzt && !genannt && stufeJetzt !== "lead" && stufeJetzt !== "antrag_offen"
       ? mitAntragLuecke(bausteinLimitFrage({
         // E-275: `zeit` nur noch, wenn sein Termin schon steht (dann als Tatsache, kein Angebot).
         kanal: "whatsapp", ziel: lage.kartenziel, mit: mitAbschluss,
@@ -3284,7 +3330,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // E-275 Endkontrolle (02.10.2026, Wahrheit): bei offener ERSTER Rate dieselbe Lücken-Fassung wie im Abschluss — sonst
     // stünde hier „… Ihr Account ist sofort nach Zahlungseingang aktiv, und Sie bekommen direkt den fertigen Link …!“ auch
     // bei unvollständigem Antrag. antragLuecke ist nur bei zahlung_offen/zahlung_gemeldet gefüllt, der Kunde bleibt unberührt.
-    const keineKarte = (fragtKeineKarte(kunde) || !!kartenSatz) && ((stufeJetzt === "kunde" && (lage.rate || kartenSatz)) || stufeJetzt === "zahlung_offen")
+    const keineKarte = !genannt && (fragtKeineKarte(kunde) || !!kartenSatz) && ((stufeJetzt === "kunde" && (lage.rate || kartenSatz)) || stufeJetzt === "zahlung_offen")
       ? mitAntragLuecke(bausteinKeineKarte({
         kanal: "whatsapp", betrag: stufeJetzt === "kunde" ? lage.rate?.betrag ?? null : lage.zahlung?.betrag ?? lage.ersteRate,
         rateVom: stufeJetzt === "kunde" ? lage.rate?.faellig ?? null : null, erste: stufeJetzt === "zahlung_offen",
@@ -3395,11 +3441,16 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       } : null,
       wasIstFiaon, keineKarte, limitFrage, kuendigung: kuendigungJetzt, kuendigungUnbezahlt: unbezahltJetzt,
       einwandMuster: { vorkasse: vorkasseMuster, zuTeuer: zuTeuerMuster },
-      wer: lage.wer, lage: lage.lage, ziel: lage.ziel, link: lage.link, verkaufen: lage.verkaufen, auskunft,
+      // E-401 (2/6): neben einem genannten Termin kein Verkaufsteil und ein eigenes Ziel (zurücknehmen).
+      wer: lage.wer, lage: lage.lage, ziel: genannt ? GENANNT_ZIEL : lage.ziel, link: lage.link, verkaufen: lage.verkaufen && !genannt, auskunft,
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
+      teamNotizen: gtM.teamNotizenText(teamNotizenWa),
       wissen: wissenFuerWhatsApp(),
       hausanweisung: await anweisungBlock("whatsapp").catch(() => ""),
-      stand, hinweise: [...urteil.hinweise, ...(herkunftHinweis ? [herkunftHinweis] : []),
+      stand, hinweise: [
+        // E-401 (2/6): was der Server mit dem genannten Termin getan hat — vor allem anderen.
+        ...(genannt?.hinweis ? [genannt.hinweis] : []),
+        ...urteil.hinweise, ...(herkunftHinweis ? [herkunftHinweis] : []),
         // E-265 Schluss-Nachbesserung (f06): vom Server schon eingetragen — nicht noch einmal fragen oder buchen.
         ...(vorabGebucht ? [`SCHON EINGETRAGEN: Er hat die angebotene Zeit bestätigt, der Rückruf steht im Kalender — „${vorabGebucht}" Frag NICHT noch einmal und ruf rueckruf_eintragen nicht erneut. Bestätige den Termin in einem Satz und schließ mit deinem Abschluss (Betrag, Zahlungsseite) ab.`] : []),
         // E-275 (02.10.2026): der Link der Partnerbank ist vom Server schon geschickt — sag es ihm, kein Kollege, kein Termin.
@@ -3420,7 +3471,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail", "adresse_gesperrt"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass unsere Geschäftsführung sich das ansieht und er dazu Bescheid bekommt; der Server legt es ihr vor. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
       land: lage.land, stufe: lage.linkLage.stufe,
       // E-275: der Link der Partnerbank als Werkzeug — nur beim zahlenden Kunden, und nicht, wenn der Server ihn eben geschickt hat.
-      kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte,
+      kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte && !genannt,
       verlauf: verlauf.slice().reverse()
         .filter((v) => v.status !== "fehler")
         .map((v) => {
@@ -3446,7 +3497,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // E-275 (02.10.2026): Ein Anruf ist hier richtig, wenn er telefonieren will, ein Anruf ausfiel oder ansteht, es um
       // eine Zeit geht oder der Fall heikel ist — sonst ist ein Terminangebot oder „X meldet sich“ ein weicher Mangel.
       // Ließ sich der Link der Partnerbank nicht schicken (Ausschluss, Fehler), IST es ein Fall für einen Menschen.
-      anrufOk: anrufGewuenscht || !!verpasst || !!terminKurz || heikelJetzt || !!kuendigungJetzt || !!vorabGebucht
+      anrufOk: anrufGewuenscht || !!verpasst || !!terminKurz || heikelJetzt || !!kuendigungJetzt || !!vorabGebucht || !!genannt
         || (!!vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail"].includes(String(vorabKarte.kartenArt)))
         || /\b(?:anruf\w*|rückruf\w*|ruft|anrufen|termin\w*|telefon\w*)\b/i.test(letzteDu[0] ?? ""),
       auskunftAngebot: auskunftWerkzeugAn(auskunft), werbesperre: lage.werbesperre,
@@ -3465,9 +3516,12 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
           : null,
         land: auskunftImGespraech ? auskunft?.land ?? null : null,
         termin: terminKurz ? { uhrzeit: terminKurz.uhrzeit ?? "", vorname: terminKurz.vorname } : null,
-        zeiten: [],
+        // E-401 (2/6): die Uhrzeit des eingetragenen bzw. stehenden genannten Termins ist wahr.
+        zeiten: genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [],
         // E-372: Liegt Recht, Widerruf, Geld zurück, Löschen, Bestreiten oder eine Rücknahme offen bei Justin, keine Zahlungsbitte.
-        ruhe: ruhe24 || karteRuhe(offeneKarten),
+        // E-401 (2/6): neben einem genannten Termin ebenso (Postfach: genannt.ruhe).
+        ruhe: ruhe24 || karteRuhe(offeneKarten) || !!genannt,
+        ruheGrund: genannt && !ruhe24 && !karteRuhe(offeneKarten) ? "einen Termin, den er hat (er nennt ihn gerade — Justin: „sich zurücknehmen“)" : null,
         // E-265 Nachbesserung: Kündigung und „Kulanz" nur, wenn es stimmt (handlungsPruefung).
         gekuendigt: lage.gekuendigt, jahresvertrag: lage.jahresvertrag,
         beendetMitRate: lage.linkLage.stufe === "beendet" && !!lage.linkLage.ratenReferenz,
@@ -3481,9 +3535,15 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       erlaubt: {
         // E-265 Nachbesserung (f02): ohne „Genau," — das Modell hängte den Satz hinter andere, dort beantwortet „Genau" nichts.
         termin: terminKurz ? `${terminKurz.kundenText} mit ${terminNenn(terminKurz).dat} — „${terminNenn(terminKurz).nom} ruft Sie ${terminKurz.kundenText} an."` : null,
-        zeiten: [...(terminKurz?.uhrzeit ? [terminKurz.uhrzeit] : [])],
+        zeiten: [...(terminKurz?.uhrzeit ? [terminKurz.uhrzeit] : []), ...(genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [])],
         link: lage.link,
       },
+      // E-401 (2/6): der genannte Termin — zurücknehmen, „eingetragen“ nur, wenn eingetragen, mit seiner Uhrzeit.
+      genannt: genannt ? {
+        eingetragen: genannt.eingetragen || genannt.erkennung.art === "steht_schon",
+        uhrzeitTermin: genannt.eingetragen || genannt.erkennung.art === "steht_schon" ? genannt.uhrzeitTermin : null,
+        satz: genannt.satz,
+      } : null,
     }, personId ? {
       personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer,
       kunde, letzteDu: letzteDu[0] ?? "", auskunft,
@@ -3495,6 +3555,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       stufe: lage.linkLage.stufe,
       // E-275: Hat der Server den Link der Partnerbank eben geschickt, fällt das Werkzeug weg (kein zweiter Versand im Lauf).
       kartenSchon: !!vorabKarte,
+      // E-401 (2/6): neben einem genannten Termin kein Kartenlink und kein Auskunft-Angebot.
+      ohneVerkauf: !!genannt,
     } : null);
     let roh = e.roh;
     let antwort = e.antwort;
@@ -3557,12 +3619,24 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     if (funde.length && !e.kiFehler) {
       // E-265: auf ein Kaufsignal Justins Abschluss (ohne erfundene Uhrzeit — die kommt aus freie_zeiten).
       // E-275: der vorab geschickte Kartenlink zählt wie ein Werkzeug — sein Satz ist dann der sichere Satz.
-      const kandidat = sichererSatz({ kunde, aktionen: [...e.aktionen, ...(vorabKarte ? [vorabKarte] : [])], termin: terminKurz, link: lage.link, stufe: lage.linkLage.stufe, abschluss: abschlussFormel, limitFrage });
+      const basisSatz = sichererSatz({ kunde, aktionen: [...e.aktionen, ...(vorabKarte ? [vorabKarte] : [])], termin: terminKurz, link: lage.link, stufe: lage.linkLage.stufe, abschluss: abschlussFormel, limitFrage });
+      // E-401 (2/6): Nennt er einen Termin, ist der warme Satz dazu der sichere Satz (ohne Verkauf) — außer ein Werkzeug hat
+      // eine Kündigung oder Ratenpause gebucht (dann gilt dessen Satz) oder sein Anliegen ist heikel (dann der Rückfallsatz).
+      const werkzeugSatz = e.aktionen.some((x) => (x.werkzeug === "kuendigung_aufnehmen" || x.werkzeug === "ratenpause_setzen") && x.ok && x.satz);
+      const kandidat = genannt && !werkzeugSatz
+        ? (genannt.satz && !heikelAnliegen(kunde) && !kannNichtZahlen(kunde) && !abstreitenArt(kunde) ? genannt.satz : null)
+        : basisSatz;
       // E-253 (28.09.2026): bewusst OHNE die Namen des Kunden — der sichere Satz nennt nur den Namen des
       // Betreuers (E-265: Nennform) und Links, nie den Kunden; ungemaskt prüft die Wand hier strenger.
       if (kandidat && !sendePruefung(kandidat).length && !tonUndLink(kandidat, { land: lage.land, kunde, linkLage: lage.linkLage, mitarbeiter }).hart.length
-        && !handlungsPruefung(kandidat, e.aktionen, kunde, verlaufText, { links: [lage.link ?? "", ...e.aktionen.map((x) => x.link ?? "").filter(Boolean)], termin: terminKurz ? { uhrzeit: terminKurz.uhrzeit ?? "" } : null, zeiten: [], ruhe: ruhe24,
-          gekuendigt: lage.gekuendigt, jahresvertrag: lage.jahresvertrag, beendetMitRate: lage.linkLage.stufe === "beendet" && !!lage.linkLage.ratenReferenz }).length) {
+        && !handlungsPruefung(kandidat, e.aktionen, kunde, verlaufText, { links: [lage.link ?? "", ...e.aktionen.map((x) => x.link ?? "").filter(Boolean)], termin: terminKurz ? { uhrzeit: terminKurz.uhrzeit ?? "" } : null,
+          zeiten: genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [], ruhe: ruhe24 || !!genannt,
+          gekuendigt: lage.gekuendigt, jahresvertrag: lage.jahresvertrag, beendetMitRate: lage.linkLage.stufe === "beendet" && !!lage.linkLage.ratenReferenz }).length
+        // E-401 (2/6): auch der sichere Satz hält die Regeln neben dem genannten Termin.
+        && !(genannt && genanntAntwortFunde(kandidat, {
+          darfEingetragen: genannt.eingetragen || genannt.erkennung.art === "steht_schon" || e.aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok),
+          uhrzeitPflicht: genannt.eingetragen || genannt.erkennung.art === "steht_schon" ? genannt.uhrzeitTermin : null, satz: genannt.satz, linkVerboten: true,
+        }).length)) {
         sicher = kandidat;
       }
     }
@@ -3738,6 +3812,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         : x.werkzeug),
       // E-275: der vom Server vorab geschickte Link der Partnerbank.
       ...(vorabKarte ? [`Link der Partnerbank vorab (${vorabKarte.kartenArt ?? "?"}${vorabKarte.ok ? "" : ", nicht geschickt"})`] : []),
+      // E-401 (2/6): der genannte Termin — eingetragen, steht schon, bei Dritten oder unklar.
+      ...(genannt?.handlung ? [genannt.handlung] : []),
       ...(sicher ? ["sicherer Satz aus der Lage"] : funde.length || e.kiFehler ? ["Rückfallsatz"] : []),
       // E-372: wohin — eine Karte für Justin, der Betreuer (nur Rückruf/Technik) oder nichts (Mara hat es erledigt).
       ...(weg?.weg === "karte" ? [`Karte für Justin (${weg.fall}): ${weg.grund}`] : weg?.weg === "betreuer" ? [`an ${lage.anrufer ?? "das Team"} übergeben: ${(wegGrund || weg.grund).slice(0, 140)}`] : []),
@@ -3948,7 +4024,9 @@ const WERKZEUG_ANGABEN = {
 function werkzeugeFuer(ctx: WerkzeugKontext | null): any[] {
   const basis = auskunftWerkzeugAn(ctx?.auskunft) ? [...WERKZEUGE, WERKZEUG_AUSKUNFT] : [...WERKZEUGE];
   // E-275: der Kartenlink nur für zahlende Kunden (nicht B, nicht gekündigt — dort gilt die Lage), und nicht zweimal im Lauf.
-  const mitKarte = ctx?.stufe === "kunde" && !ctx.kartenSchon ? [...basis, WERKZEUG_KARTE] : basis;
+  // E-401 (2/6): Nennt er einen Termin (ohneVerkauf), gibt es in diesem Lauf weder Kartenlink noch Auskunft-Angebot.
+  const basisJetzt = ctx?.ohneVerkauf ? [...WERKZEUGE] : basis;
+  const mitKarte = ctx?.stufe === "kunde" && !ctx.kartenSchon && !ctx.ohneVerkauf ? [...basisJetzt, WERKZEUG_KARTE] : basisJetzt;
   // E-372: die Ratenpause nur für zahlende Kunden; Angaben eintragen ab dem abgeschickten Antrag.
   return [
     ...mitKarte,
@@ -4009,6 +4087,8 @@ export interface WerkzeugKontext {
   kuendigungAnlass?: string;
   /** E-275: Der Server hat den Link der Partnerbank in diesem Lauf schon geschickt (vorab) — das Werkzeug fällt weg. */
   kartenSchon?: boolean;
+  /** E-401 (2/6): Er nennt einen Termin — Mara nimmt sich zurück: kein Kartenlink, kein Auskunft-Angebot in diesem Lauf. */
+  ohneVerkauf?: boolean;
 }
 
 /** „15:00" → „15 Uhr", „15:10" → „15:10 Uhr". */
@@ -4724,6 +4804,8 @@ export function handlungsPruefung(
      * Beschwerde die Rede (vorher nur die offene Nachricht: #1401 „Bitte tun sie das" nach der Kündigung).
      */
     ruhe?: boolean;
+    /** E-401 (2/6): Warum Ruhe gilt, wenn nicht wegen Kündigung/Widerruf/Stopp/Beschwerde (z. B. „er nennt einen Termin“) — für den Hinweis. */
+    ruheGrund?: string | null;
     /** E-265 Nachbesserung: sein Vertrag ist gekündigt (gekuendigt_am) — „Ihre Kündigung liegt vor" ist dann wahr. */
     gekuendigt?: boolean;
     /** E-265 Nachbesserung: Jahresvertrag (agb_stand ab 03.09.2026) — nur dann darf „Kulanz" stehen. */
@@ -4854,7 +4936,7 @@ export function handlungsPruefung(
       // „Herr Stripling klärt das persönlich" — bis Fr 02.10. klärt es niemand. Auf „kann nicht zahlen" der leichteste Weg.
       funde.push(kannNichtZahlen(kunde)
         ? "Er schreibt „kann nicht zahlen“ — darauf keine Zahlungsseite und keine Bitte um Zahlung. Zeig den leichtesten Weg: das kleinere Paket mit seinem Ziel, oder frag, wann es ihm passt (zahlungszusage_merken), und biete den Anruf mit einer Zeit an. Übergeben nur, wenn er eine Stundung oder Ratenpause will."
-        : `Er schreibt über ${heikelHier ? "Kündigung, Storno, Widerruf oder Erstattung" : "Kündigung, Widerruf, Stopp oder Beschwerde (in den letzten 24 Stunden)"} — darauf keine Zahlungsseite und keine Bitte um Zahlung. Zeig Verständnis und beantworte sein Anliegen; eine Kündigung nimmst du erst nach seinem Ja auf die verbindliche Rückfrage mit kuendigung_aufnehmen auf (der Satz kommt aus dem Werkzeug).`);
+        : `Er schreibt über ${heikelHier ? "Kündigung, Storno, Widerruf oder Erstattung" : bekannt.ruheGrund ?? "Kündigung, Widerruf, Stopp oder Beschwerde (in den letzten 24 Stunden)"} — darauf keine Zahlungsseite und keine Bitte um Zahlung. Zeig Verständnis und beantworte sein Anliegen; eine Kündigung nimmst du erst nach seinem Ja auf die verbindliche Rückfrage mit kuendigung_aufnehmen auf (der Satz kommt aus dem Werkzeug).`);
     }
   }
   // E-265 (Fall 5627, 29.09.): „Verstanden, dann stoppen wir hier" — gesetzt war nichts, Rechnung und Mahnung liefen
@@ -5035,7 +5117,7 @@ export async function entwerfen(
     auskunftAngebot?: boolean; werbesperre?: boolean; bankLinkOk?: boolean;
     /** E-275: Ein Anruf ist hier richtig (verkaufsPruefung) — maraAntwortet gibt ihn mit; der Typ fehlte (Gegenprüfung Verkauf). */
     anrufOk?: boolean;
-    bekannt?: { links?: string[]; auskunftPreise?: string[] | null; land?: AuskunftLand | null; termin?: { uhrzeit: string; vorname?: string | null } | null; zeiten?: string[]; ruhe?: boolean;
+    bekannt?: { links?: string[]; auskunftPreise?: string[] | null; land?: AuskunftLand | null; termin?: { uhrzeit: string; vorname?: string | null } | null; zeiten?: string[]; ruhe?: boolean; ruheGrund?: string | null;
       gekuendigt?: boolean; jahresvertrag?: boolean | null; beendetMitRate?: boolean;
       /** E-265 Nachbesserung 2: false = nach den genannten Raten bleibt noch etwas offen; die Kündigungs-Lage. */
       nichtsMehr?: boolean; kuendigung?: KuendigungEinordnung | null; kuendigungThema?: boolean;
@@ -5064,6 +5146,12 @@ export async function entwerfen(
      * das Team prüft“ eine harte Wand. `namen`: Betreuer und Anrufer (Nennform und Vorname). Ohne: keine Prüfung (wie vorher).
      */
     zusageVerboten?: { namen: readonly string[] } | null;
+    /**
+     * E-401 (2/6, 19.10.2026): Er nennt einen Termin (fiaon-mara-genannter-termin.ts) — dieselben Regeln wie im Postfach
+     * (E-395), hart: kein Verkauf und kein Link daneben, „eingetragen“ nur, wenn eingetragen (auch ein in diesem Lauf
+     * eingetragener Rückruf zählt), der eingetragene bzw. stehende Termin mit seiner Uhrzeit. Ohne: keine Prüfung.
+     */
+    genannt?: { eingetragen: boolean; uhrzeitTermin: string | null; satz: string | null } | null;
   },
   werkzeugKontext?: WerkzeugKontext | null,
 ): Promise<{ roh: any; antwort: string; funde: string[]; hinweise: string[]; zweiter: boolean; kiFehler: string | null; aktionen: Aktion[] }> {
@@ -5095,7 +5183,12 @@ export async function entwerfen(
     const zusageRoh = pruef.zusageVerboten && !zusageGedeckt ? zusageTreffer(a, pruef.zusageVerboten.namen) : null;
     const zusage = zusageRoh && !(mensch && zusageGeschaeftsfuehrung(zusageRoh)) ? zusageRoh : null;
     const hand = [...handlungsPruefung(a, aktionen, pruef.kunde, pruef.verlaufText, pruef.bekannt),
-      ...(zusage ? [`Du sagst zu, dass sich jemand meldet, kümmert, prüft oder Bescheid bekommt („${zusage}“) — das löst hier kein Werkzeug ein. Erledige es selbst (Antwort, Link, Werkzeug) oder sag ehrlich, was jetzt passiert; einen Anruf gibt es nur, wenn er telefonieren will (dann rueckruf_eintragen).`] : [])];
+      ...(zusage ? [`Du sagst zu, dass sich jemand meldet, kümmert, prüft oder Bescheid bekommt („${zusage}“) — das löst hier kein Werkzeug ein. Erledige es selbst (Antwort, Link, Werkzeug) oder sag ehrlich, was jetzt passiert; einen Anruf gibt es nur, wenn er telefonieren will (dann rueckruf_eintragen).`] : []),
+      // E-401 (2/6): der genannte Termin — zurücknehmen, „eingetragen“ nur, wenn eingetragen, der Termin mit Uhrzeit.
+      ...(pruef.genannt ? genanntAntwortFunde(a, {
+        darfEingetragen: pruef.genannt.eingetragen || aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok),
+        uhrzeitPflicht: pruef.genannt.uhrzeitTermin, satz: pruef.genannt.satz, linkVerboten: true,
+      }) : [])];
     const hart = [...wand, ...wahr.map((f) => f.text), ...hand, ...tl.hart];
     return {
       hart,

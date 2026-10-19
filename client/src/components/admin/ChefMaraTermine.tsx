@@ -184,7 +184,7 @@ function Termin({ t, gross, busy, frage, handy, gespeichert, onGespeichert, onEr
         )}
         {frage === t.id && offen && (
           <div className="mara-rueckfrage mt-frage" role="group" aria-label="Nicht erreicht bestätigen">
-            Zählt als erfolgloser Anrufversuch — ab dem sechsten bekommt der Kunde die Mail mit seinem Terminlink.{t.mara && t.mara.weg !== "mara_mail" ? " Schreibt er Mara wieder, bietet sie ihm von sich aus neue Zeiten an." : ""}
+            Zählt als erfolgloser Anrufversuch — ab dem sechsten bekommt der Kunde die Mail mit seinem Terminlink.{t.mara && (t.mara.weg === "mara_whatsapp" || t.mara.weg === "mara_whatsapp_link") ? " Schreibt er Mara wieder, bietet sie ihm von sich aus neue Zeiten an." : ""}
             <div className="mara-knoepfe">
               <button type="button" className="mara-knopf warn" disabled={!!busy} onClick={() => onErgebnis(t, "verpasst")}>{busy === `v${t.id}` ? "Speichert …" : "Ja, nicht erreicht"}</button>
               <button type="button" className="mara-knopf" onClick={() => onFrage(null)}>Abbrechen</button>

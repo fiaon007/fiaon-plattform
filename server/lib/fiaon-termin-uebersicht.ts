@@ -7,7 +7,9 @@
 //
 // WELCHE TERMINE: alle Termine des Hauses (nicht nur Maras) — Justin ruft bis
 // Freitag alle an. Maras Termine erkennt NUR fiaon_termine.herkunft
-// (mara_whatsapp, mara_mail, mara_whatsapp_link): Das Mara-Protokoll kennt die
+// (MARA_WEGE: mara_whatsapp, mara_mail, mara_whatsapp_link, dazu die genannten Termine mara_mail_genannt
+// (E-395) und mara_whatsapp_genannt (E-401 2/6) — beim WhatsApp-Weg sucht die Zeile Maras Satz mit
+// genau dieser Zeit, wie beim Rückruf): Das Mara-Protokoll kennt die
 // Mail-Buchung und zwei frühe WhatsApp-Buchungen nicht (Analyse E-260, 1.2).
 //   · gebucht, Beginn −3 Tage bis +14 Tage,
 //   · verpasst und von niemandem abgearbeitet (erledigt_am leer), 14 Tage —

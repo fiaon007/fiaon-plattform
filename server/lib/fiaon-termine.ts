@@ -150,6 +150,8 @@ export const HERKUENFTE = {
   // 19.10.2026 (E-395): Der Kunde nennt in seiner Mail einen Termin, den er mit uns hat (Team-Notiz oder „mit
   // Ihrem Berater“) — Mara trägt ihn ein (server/lib/fiaon-mara-genannter-termin.ts). Kein Rückruf, den sie vereinbart.
   mara_mail_genannt: "Vom Kunden in einer E-Mail genannt, von Mara eingetragen (mit dem Team vereinbart)",
+  // 19.10.2026 (E-401 2/6): dasselbe auf WhatsApp — er nennt einen Termin, der mit uns feststeht; Mara trägt ihn ein.
+  mara_whatsapp_genannt: "Vom Kunden per WhatsApp genannt, von Mara eingetragen (mit dem Team vereinbart)",
   // E-273 (02.10.2026): Das Startgespräch eines Individualangebots (FIAON Global) bucht das System nach der
   // Annahme selbst — beim nächsten freien Termin (server/lib/fiaon-global-angebot-startgespraech.ts).
   individualangebot: "Nach Annahme eines Individualangebots vom System gebucht (Startgespräch FIAON Global)",

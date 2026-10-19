@@ -16,10 +16,17 @@
 // Eingetragen wird mit `vereinbart: true` (terminBuchen): keine 2-Stunden-Vorlaufzeit, kein Raster — der
 // Termin IST vereinbart, Mara bucht keinen neuen Platz. Vergangenheit, Doppelbuchung und Überschneidung
 // bleiben gesperrt. Nicht in MARA_EIGENE_HERKUNFT: Mara verschiebt so einen Termin nie selbst.
+//
+// E-401 (2/6, 19.10.2026): auch auf WhatsApp (`kanal: "whatsapp"`, server/lib/fiaon-whatsapp-mara.ts). Dort zählt der
+// Termin nur, wenn er schon feststeht (genanntAufWhatsApp — das Aushandeln einer Zeit mit Mara bleibt der Rückruf-Weg,
+// E-236), Herkunft mara_whatsapp_genannt, Protokoll mit Kanal und Nummer, Notiz „per WhatsApp genannt“. Eine Person mit
+// Vertriebssperre (is_blocked) bekommt auf WhatsApp keinen Termin von Mara — ein Vermerk sagt es dem Menschen. Weil
+// WhatsApp-Mara dieselbe Nachricht nach einem KI-Fehler erneut anfasst, schreibt sie je Nachricht höchstens einen
+// Vermerk ([WhatsApp #id]). Das Mail-Verhalten ist unverändert (kanal fehlt = "mail").
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  genannterTermin, istTeamNotiz,
+  genannterTermin, istTeamNotiz, genanntAufWhatsApp, genanntSatz, berlinWand, uhrzeitenGenannt,
   type GenanntErgebnis, type TeamNotiz, type TerminMitarbeiter, type BestehenderTerminKurz,
 } from "@shared/fiaon-genannter-termin";
 import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
@@ -28,6 +35,9 @@ import { nennform } from "@shared/fiaon-mitarbeiter-name";
 type Lauf = typeof sqlPool;
 
 export const GENANNT_HERKUNFT = "mara_mail_genannt";
+/** E-401 (2/6): derselbe Weg auf WhatsApp. */
+export const GENANNT_HERKUNFT_WA = "mara_whatsapp_genannt";
+export type GenanntKanal = "mail" | "whatsapp";
 /** Notiz-Arten, die ein Mensch aus dem Team schreibt (fiaon_contact_log.type). */
 const NOTIZ_ARTEN = ["result", "note", "startgespraech", "kunde_anliegen_antwort"];
 
@@ -46,6 +56,12 @@ export interface GenanntLage {
   handlung: string | null;
   /** Diese Antwort ist keine Zahlungsaufforderung — der Grund (wie zahlungsRuhe). */
   ruhe: string | null;
+  /** E-401 (2/6): der Kanal, auf dem er den Termin genannt hat. */
+  kanal: GenanntKanal;
+  /** E-401: „HH:MM“ (Berlin) des eingetragenen bzw. schon stehenden Termins — so muss er in der Antwort stehen. */
+  uhrzeitTermin: string | null;
+  /** E-401: der eine warme Satz, den die Antwort sagen soll (auch der sichere Satz auf WhatsApp). */
+  satz: string | null;
 }
 
 /** Die Notizen der letzten 14 Tage — Menschen aus dem Team, neueste zuerst. */
@@ -90,13 +106,22 @@ async function gruenderId(lauf: Lauf): Promise<number> {
   return Number.isInteger(n) && n > 0 ? n : 928;
 }
 
-async function notizSchreiben(personId: number, ref: string | null, text: string, lauf: Lauf): Promise<void> {
+async function notizSchreiben(personId: number, ref: string | null, text: string, lauf: Lauf, wa: { marke: string | null } | null = null): Promise<void> {
   const { akteRef } = await import("./fiaon-postmeister-werkzeuge");
   const r = await akteRef(personId, ref).catch(() => null);
   if (!r) return;
+  const marke = wa?.marke ?? null;
+  // E-401: Mit Marke („[WhatsApp #id]“) höchstens ein Vermerk je Nachricht — auch wenn Mara sie erneut anfasst.
+  if (marke) {
+    const [schon] = (await lauf`
+      SELECT 1 FROM fiaon_contact_log WHERE person_id = ${personId} AND agent_id IS NULL AND type = 'system'
+         AND created_at > NOW() - INTERVAL '3 days' AND POSITION(${marke} IN note) > 0 LIMIT 1`.catch(() => [])) as any[];
+    if (schon) return;
+  }
+  const notiz = marke ? `${text.slice(0, 880)} ${marke}` : text.slice(0, 900);
   await lauf`
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-    VALUES (${r}, ${personId}, NULL, 'Postmeister', 'system', ${text.slice(0, 900)})`.catch(() => {});
+    VALUES (${r}, ${personId}, NULL, ${wa ? "Mara" : "Postmeister"}, 'system', ${notiz})`.catch(() => {});
 }
 
 function belegSatz(e: GenanntErgebnis): string {
@@ -109,6 +134,8 @@ function belegSatz(e: GenanntErgebnis): string {
 }
 
 const ZURUECK = `Danach NICHTS verkaufen: keine Karte, keine Kreditkarte, kein Wunschlimit, keine Partnerbank, keine Zahlungsbitte, kein Link, kein „wenn Sie später doch …“. Kurz und warm bleiben. Nächster Schritt: erledigt.`;
+/** E-401: auf WhatsApp endet die Nachricht mit dem guten Wunsch — nicht mit dem Link und der Frage, die der Auftrag sonst verlangt. */
+const ZURUECK_WA = `Danach NICHTS verkaufen: keine Karte, keine Kreditkarte, kein Wunschlimit, keine Partnerbank, keine Zahlungsbitte, kein Link, keine Abschlussfrage, kein „wenn Sie später doch …“. Kurz und warm bleiben — diese Nachricht endet mit dem guten Wunsch, nicht mit einer Frage.`;
 
 /**
  * Erkennen, eintragen, Spuren schreiben. Liefert null, wenn er keinen Termin nennt (oder einen vergangenen).
@@ -117,16 +144,31 @@ const ZURUECK = `Danach NICHTS verkaufen: keine Karte, keine Kreditkarte, kein W
 export async function genannterTerminBehandeln(ein: {
   personId: number | null;
   ref: string | null;
-  /** NUR sein eigener Teil der Mail (kontext.kundeText). */
+  /** NUR sein eigener Teil der Mail (kontext.kundeText) bzw. seine offenen WhatsApp-Nachrichten ohne Knöpfe. */
   kundeText: string;
   postmeisterId?: number | null;
   jetzt?: Date;
   notizen?: TeamNotiz[];
+  /** E-401 (2/6): "whatsapp" — sonst Mail (wie bisher). */
+  kanal?: GenanntKanal;
+  /** E-401: WhatsApp — die Nummer (Protokoll), die Nachricht (Beleg, ein Vermerk je Nachricht), unsere letzte Nachricht davor. */
+  nummer?: string | null;
+  waId?: number | null;
+  letzteRaus?: string | null;
+  /**
+   * E-401: Wann er es geschrieben hat, wenn das nicht eben war (Nachricht aus einer Pause) — „morgen“ zählt ab dann.
+   * Ob der Zeitpunkt schon vorbei ist, entscheidet weiter `jetzt`.
+   */
+  bezug?: Date | null;
 }, lauf: Lauf = sqlPool): Promise<GenanntLage | null> {
   if (!ein.personId || !String(ein.kundeText ?? "").trim()) return null;
   const personId = ein.personId;
   const jetzt = ein.jetzt ?? new Date();
-  const [person] = (await lauf`SELECT ist_test_am, assigned_agent_id FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
+  const kanal: GenanntKanal = ein.kanal === "whatsapp" ? "whatsapp" : "mail";
+  const wa = kanal === "whatsapp";
+  // E-401: Ohne Uhrzeit kein genannter Termin — auf WhatsApp (jede Nachricht kommt hierher) dann gar keine Abfrage.
+  if (wa && !uhrzeitenGenannt(ein.kundeText).length) return null;
+  const [person] = (await lauf`SELECT ist_test_am, assigned_agent_id, COALESCE(is_blocked, FALSE) AS gesperrt FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
   if (!person || person.ist_test_am) return null;
 
   const notizen = ein.notizen ?? await teamNotizenLesen(personId, lauf);
@@ -136,17 +178,25 @@ export async function genannterTerminBehandeln(ein: {
      WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW() - INTERVAL '1 hour'`.catch(() => [])) as any[])
     .map((t): BestehenderTerminKurz => ({ id: Number(t.id), beginn: t.beginn, agentId: Number(t.agent_id), status: String(t.status) }));
 
-  const e = genannterTermin({ kundeText: ein.kundeText, jetzt, notizen, mitarbeiter: team, bestehende });
+  const e = genannterTermin({ kundeText: ein.kundeText, jetzt: wa && ein.bezug ? ein.bezug : jetzt, notizen, mitarbeiter: team, bestehende });
   if (e.art === "keiner" || e.art === "vergangen") return null;
+  // E-401: Auf WhatsApp nur ein Termin, der schon feststeht — das Aushandeln mit Mara bleibt der Rückruf-Weg (E-236).
+  if (wa && !genanntAufWhatsApp(e, { kundeText: ein.kundeText, letzteRaus: ein.letzteRaus ?? null }).gilt) return null;
 
   const lage: GenanntLage = {
     erkennung: e, eingetragen: false, terminId: null, teilnehmer: null, kundenZeit: null, fehler: null,
     hinweis: null, handlung: null, ruhe: "einen Termin, den er nennt — heute keine Zahlungsbitte und kein Verkauf",
+    kanal, uhrzeitTermin: null, satz: null,
   };
   const { parseBerlinInput } = await import("./fiaon-time");
   const beginn = e.wandzeit ? parseBerlinInput(e.wandzeit) : null;
+  // E-401: Kam seine Nachricht früher (bezug), kann der Zeitpunkt inzwischen vorbei sein — dann wie „vergangen“.
+  if (wa && ein.bezug && beginn && beginn.getTime() <= jetzt.getTime()) return null;
   lage.kundenZeit = beginn ? zeitFuerKunde(beginn, jetzt) : (e.uhrzeit ? `um ${e.uhrzeit.replace(/:00$/, "")} Uhr` : null);
   const wann = lage.kundenZeit ?? "zur genannten Zeit";
+  const zurueck = wa ? ZURUECK_WA : ZURUECK;
+  const waNotiz = wa ? { marke: ein.waId ? `[WhatsApp #${ein.waId}]` : null } : null;
+  const wo = wa ? "per WhatsApp" : "in seiner Mail";
 
   if (e.art === "steht_schon" && e.bestehend) {
     const a = team.find((x) => x.id === e.bestehend!.agentId);
@@ -154,7 +204,9 @@ export async function genannterTerminBehandeln(ein: {
     lage.teilnehmer = a ? { id: a.id, nom: nf.nom, dat: nf.dat } : null;
     lage.terminId = e.bestehend.id;
     lage.kundenZeit = zeitFuerKunde(new Date(e.bestehend.beginn), jetzt);
-    lage.hinweis = `VEREINBARTER TERMIN — STEHT SCHON IM KALENDER (Termin #${e.bestehend.id}; nichts eintragen, kein Rückruf-Werkzeug): Er hat ${lage.kundenZeit} ein Gespräch${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""}. SO ANTWORTEST DU (Justin, 19.10.2026: „einen guten Termin wünschen und sich zurücknehmen“): Erledige sein übriges Anliegen wie sonst. Dann ein warmer Satz: „Ihr Gespräch ${lage.kundenZeit}${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""} steht bei uns — ich wünsche Ihnen ein richtig gutes Gespräch!“ ${ZURUECK}`;
+    lage.uhrzeitTermin = berlinWand(new Date(e.bestehend.beginn)).hhmm;
+    lage.satz = genanntSatz({ art: e.art, eingetragen: false, zeit: lage.kundenZeit, mit: lage.teilnehmer?.dat ?? null });
+    lage.hinweis = `VEREINBARTER TERMIN — STEHT SCHON IM KALENDER (Termin #${e.bestehend.id}; nichts eintragen, kein Rückruf-Werkzeug): Er hat ${lage.kundenZeit} ein Gespräch${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""}. SO ANTWORTEST DU (Justin, 19.10.2026: „einen guten Termin wünschen und sich zurücknehmen“): Erledige sein übriges Anliegen wie sonst. Dann ein warmer Satz: „${lage.satz}“ ${zurueck}`;
     lage.handlung = `Genannter Termin ${lage.kundenZeit} steht schon (Termin #${e.bestehend.id}) — nichts eingetragen.`;
     return lage;
   }
@@ -166,32 +218,44 @@ export async function genannterTerminBehandeln(ein: {
     if (!wer && e.thema === "global") wer = aktiv(await gruenderId(lauf));
     if (!wer) wer = aktiv(person.assigned_agent_id);
     if (!wer) wer = aktiv(await gruenderId(lauf));
-    if (wer && beginn) {
+    // E-401: Vertriebssperre (is_blocked = kein Termin) — auf WhatsApp trägt Mara nichts ein; der Mensch entscheidet.
+    if (wa && wer && beginn && person.gesperrt) {
+      const nf = nennform(wer.roh);
+      lage.teilnehmer = { id: wer.id, nom: nf.nom, dat: nf.dat };
+      lage.fehler = "Vertriebssperre — nicht automatisch eingetragen";
+      await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ${wo} ein Gespräch ${wann} mit ${wer.roh.name} — er hat die Vertriebssperre, deshalb nichts eingetragen. Falls es stimmt: bitte selbst prüfen und in den Kalender setzen.`, lauf, waNotiz);
+      lage.handlung = `Genannter Termin ${wann} bei ${wer.roh.name} NICHT eingetragen: ${lage.fehler}`;
+    } else if (wer && beginn) {
       const nf = nennform(wer.roh);
       lage.teilnehmer = { id: wer.id, nom: nf.nom, dat: nf.dat };
       try {
         const { terminBuchen } = await import("./fiaon-termine");
         const b = await terminBuchen({
-          personId, agentId: wer.id, beginn: e.wandzeit!, quelle: "agent_manuell", herkunft: GENANNT_HERKUNFT, vereinbart: true,
+          personId, agentId: wer.id, beginn: e.wandzeit!, quelle: "agent_manuell", herkunft: wa ? GENANNT_HERKUNFT_WA : GENANNT_HERKUNFT, vereinbart: true,
         }, lauf);
         lage.eingetragen = true;
         lage.terminId = b.id;
         lage.kundenZeit = zeitFuerKunde(new Date(b.beginn), jetzt);
-        const notiz = `Vom Kunden in einer E-Mail genannt${ein.postmeisterId ? ` [Mail #${ein.postmeisterId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`;
+        lage.uhrzeitTermin = berlinWand(new Date(b.beginn)).hhmm;
+        const notiz = wa
+          ? `Vom Kunden per WhatsApp genannt${ein.waId ? ` [WhatsApp #${ein.waId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`
+          : `Vom Kunden in einer E-Mail genannt${ein.postmeisterId ? ` [Mail #${ein.postmeisterId}]` : ""}: „${String(ein.kundeText).replace(/\s+/g, " ").slice(0, 220)}“ — ${belegSatz(e) || "laut Kunde"}`;
         await lauf`UPDATE fiaon_termine SET notiz = ${notiz.slice(0, 1000)}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
         const { buchungMelden } = await import("./fiaon-termin-meldung");
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
         const { protokollieren } = await import("./fiaon-mara-termin");
         await protokollieren({
-          art: "termin_eingetragen", kanal: "mail", personId, terminId: b.id,
+          art: "termin_eingetragen", kanal, personId, terminId: b.id, ...(wa ? { nummer: ein.nummer ?? null } : {}),
           text: `Vereinbarten Termin eingetragen: ${b.datumText} ${b.uhrzeit} Uhr bei ${wer.roh.name} (${e.beleg === "notiz" ? "passt zur Team-Notiz" : "laut Kunde"}).`,
-          daten: { beginn: b.beginn, beleg: e.beleg, thema: e.thema, mail: ein.postmeisterId ?? null },
+          daten: wa
+            ? { beginn: b.beginn, beleg: e.beleg, thema: e.thema, whatsapp: ein.waId ?? null }
+            : { beginn: b.beginn, beleg: e.beleg, thema: e.thema, mail: ein.postmeisterId ?? null },
         }, lauf);
-        await notizSchreiben(personId, ein.ref, `Mara: Termin ${b.datumText} ${b.uhrzeit} Uhr mit ${wer.roh.name} eingetragen — der Kunde hat ihn in seiner Mail genannt${e.beleg === "notiz" && e.notiz ? `; passt zur Notiz von ${e.notiz.agentName}` : ""}.`, lauf);
+        await notizSchreiben(personId, ein.ref, `Mara: Termin ${b.datumText} ${b.uhrzeit} Uhr mit ${wer.roh.name} eingetragen — der Kunde hat ihn ${wo} genannt${e.beleg === "notiz" && e.notiz ? `; passt zur Notiz von ${e.notiz.agentName}` : ""}.`, lauf, waNotiz);
         lage.handlung = `Vereinbarten Termin eingetragen: ${b.datumText} ${b.uhrzeit} Uhr bei ${wer.roh.name} (Termin #${b.id}).`;
       } catch (err: any) {
         lage.fehler = String(err?.message || err).slice(0, 160);
-        await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ein Gespräch ${wann} mit ${wer.roh.name} — eintragen ging nicht (${lage.fehler}). Bitte selbst in den Kalender setzen.`, lauf);
+        await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ein Gespräch ${wann} mit ${wer.roh.name} — eintragen ging nicht (${lage.fehler}). Bitte selbst in den Kalender setzen.`, lauf, waNotiz);
         lage.handlung = `Genannter Termin ${wann} bei ${wer.roh.name} NICHT eingetragen: ${lage.fehler}`;
       }
     } else {
@@ -199,17 +263,20 @@ export async function genannterTerminBehandeln(ein: {
       lage.handlung = `Genannter Termin ${wann} nicht eingetragen: ${lage.fehler}`;
     }
     if (lage.eingetragen && lage.teilnehmer) {
-      lage.hinweis = `VEREINBARTER TERMIN — VOM SERVER ERKANNT UND EINGETRAGEN (Termin #${lage.terminId}; nicht noch einmal buchen, kein Rückruf-Werkzeug): Er hat ${lage.kundenZeit} ein Gespräch mit ${lage.teilnehmer.dat}. ${belegSatz(e)} Der Termin steht jetzt im Kalender von ${lage.teilnehmer.dat}. SO ANTWORTEST DU (Justin, 19.10.2026: „einen guten Termin wünschen und sich zurücknehmen“): Erledige sein übriges Anliegen wie sonst (ein Storno nur, wenn er es ausdrücklich will). Dann genau ein warmer Satz: „Ihr Gespräch ${lage.kundenZeit} mit ${lage.teilnehmer.dat} ist bei uns eingetragen — ich wünsche Ihnen ein richtig gutes Gespräch!“ ${ZURUECK}`;
+      lage.satz = genanntSatz({ art: e.art, eingetragen: true, zeit: lage.kundenZeit, mit: lage.teilnehmer.dat });
+      lage.hinweis = `VEREINBARTER TERMIN — VOM SERVER ERKANNT UND EINGETRAGEN (Termin #${lage.terminId}; nicht noch einmal buchen, kein Rückruf-Werkzeug): Er hat ${lage.kundenZeit} ein Gespräch mit ${lage.teilnehmer.dat}. ${belegSatz(e)} Der Termin steht jetzt im Kalender von ${lage.teilnehmer.dat}. SO ANTWORTEST DU (Justin, 19.10.2026: „einen guten Termin wünschen und sich zurücknehmen“): Erledige sein übriges Anliegen wie sonst (ein Storno nur, wenn er es ausdrücklich will). Dann genau ein warmer Satz: „${lage.satz}“ ${zurueck}`;
     } else {
-      lage.hinweis = `GENANNTER TERMIN — NICHT EINGETRAGEN (${lage.fehler ?? "unbekannt"}): Er hat ${wann} ein Gespräch mit uns. Schreibe NICHT, dass es eingetragen ist. Wünsche ihm in einem Satz ein gutes Gespräch. ${ZURUECK}`;
+      lage.satz = genanntSatz({ art: e.art, eingetragen: false, zeit: wann, mit: null });
+      lage.hinweis = `GENANNTER TERMIN — NICHT EINGETRAGEN (${lage.fehler ?? "unbekannt"}): Er hat ${wann} ein Gespräch mit uns. Schreibe NICHT, dass es eingetragen ist. Wünsche ihm in einem Satz ein gutes Gespräch. ${zurueck}`;
     }
     return lage;
   }
 
   // Dritte oder unklar: nichts eintragen, gut wünschen, zurücknehmen. Bei „unklar“ sieht der Betreuer es in der Akte.
   if (e.art === "unklar") {
-    await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ein Gespräch ${wann}, ohne dass klar ist, mit wem — nichts eingetragen. Falls es unser Termin ist: bitte selbst in den Kalender setzen.`, lauf);
+    await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ein Gespräch ${wann}, ohne dass klar ist, mit wem — nichts eingetragen. Falls es unser Termin ist: bitte selbst in den Kalender setzen.`, lauf, waNotiz);
   }
+  lage.satz = genanntSatz({ art: e.art, eingetragen: false, zeit: wann, mit: null });
   lage.hinweis = e.art === "dritte"
     ? `ER NENNT EINEN TERMIN BEI DRITTEN (${wann}, z. B. Bank, Notar, Behörde): Wünsche ihm in einem Satz viel Erfolg. Schreibe NICHT, dass etwas eingetragen ist. In dieser Antwort nichts verkaufen und keine Zahlungsbitte.`
     : `ER NENNT EIN GESPRÄCH (${wann}), OHNE DASS KLAR IST, MIT WEM: Wünsche ihm in einem Satz ein gutes Gespräch. Schreibe NICHT, dass etwas eingetragen ist. In dieser Antwort nichts verkaufen und keine Zahlungsbitte.`;

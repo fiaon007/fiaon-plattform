@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (2/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Was E-395
+    // für die Mail kann, kann Mara jetzt auch auf WhatsApp — die Notizen des Teams lesen und genannte Termine eintragen.
+    id: "2026-10-19-mara-wa-genannter-termin",
+    date: "2026-10-19",
+    category: "Neu",
+    title: "Mara auf WhatsApp: liest deine Notizen und trägt Termine ein, die ein Kunde nennt",
+    summary:
+      "Schreibt ein Kunde auf WhatsApp „wir telefonieren heute um 11 Uhr mit Herrn Schwarzott“ oder passt seine Uhrzeit zu deiner Notiz, "
+      + "trägt Mara den Termin in den Kalender ein, wünscht ihm ein gutes Gespräch und verkauft in dieser Nachricht nichts — wie schon bei der Mail.",
+    changes: [
+      "Mara liest auch auf WhatsApp vor jeder Antwort die Notizen des Teams der letzten 14 Tage. Was du mit dem Kunden vereinbart hast, gilt für sie.",
+      "Nennt der Kunde einen Termin, der mit uns feststeht, steht er danach im Kalender — bei dem, der in der Notiz steht, beim Firmenthema bei Justin, sonst beim Betreuer. Du bekommst die Mail „Neuer Termin (von Mara)“ mit dem Beleg.",
+      "Neben so einem Termin schickt Mara keinen Zahlungslink, keinen Kartenlink und kein Angebot — nur einen guten Wunsch.",
+      "Fragt der Kunde nur nach einem Anruf („Können wir um 14 Uhr telefonieren?“) oder antwortet er auf Maras Zeitvorschlag, bleibt alles wie bisher: Mara bucht den Rückruf selbst.",
+      "Termine bei der Bank, beim Notar o. Ä. trägt sie nicht ein. Ist unklar, mit wem, oder hat der Kunde eine Vertriebssperre, steht ein Vermerk in der Akte.",
+    ],
+    howto: [
+      "Wenn du am Telefon eine Zeit ausmachst: in der Notiz Tag und Uhrzeit schreiben („Montag 11 Uhr mit Justin“) — dann erkennt Mara den Termin sicher, egal ob er per Mail oder WhatsApp schreibt.",
+      "Im Kalender steht so ein Termin mit „von Mara“; die Notiz zeigt, was der Kunde geschrieben hat.",
+    ],
+    link: { href: "/agent/kalender", label: "Kalender öffnen" },
+  },
+  {
     // E-401 (1/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet“): Dieselbe Kundenmail
     // stand bis zu 45-mal am Tag in der Akte (eine Mail 21-mal in zwei Minuten) — jedes Mal mit neuer KI-Einordnung.
     id: "2026-10-19-akte-mail-einmal",

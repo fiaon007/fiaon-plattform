@@ -14,7 +14,7 @@
 import { uhrzeitenIn } from "./fiaon-mara-ton";
 
 /** Die Wege, auf denen Mara einen Termin macht — maßgeblich ist NUR fiaon_termine.herkunft (Analyse E-260, 1.2). */
-export const MARA_WEGE = ["mara_whatsapp", "mara_mail", "mara_whatsapp_link", "mara_mail_genannt"] as const;
+export const MARA_WEGE = ["mara_whatsapp", "mara_mail", "mara_whatsapp_link", "mara_mail_genannt", "mara_whatsapp_genannt"] as const;
 export type MaraWegTermin = (typeof MARA_WEGE)[number];
 export const istMaraWeg = (h: unknown): h is MaraWegTermin => (MARA_WEGE as readonly string[]).includes(String(h ?? ""));
 

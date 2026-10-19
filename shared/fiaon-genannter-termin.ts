@@ -278,3 +278,123 @@ export function sagtEingetragen(antwort: string): string | null {
   const m = t.match(/(?:termin|gespr[äa]ch|telefonat|call)[^.!?\n]{0,80}\b(eingetragen|im\s+kalender|notiert|vorgemerkt|festgehalten)\b|\b(eingetragen|notiert|vorgemerkt)\b[^.!?\n]{0,40}(?:termin|gespr[äa]ch|telefonat)/i);
   return m ? m[0] : null;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUF WHATSAPP (19.10.2026, E-401 2/6) — derselbe genannte Termin, aber im Gespräch
+//
+// Auf WhatsApp handelt Mara Zeiten selbst aus (E-236: freie_zeiten → rueckruf_eintragen). Eine Uhrzeit ist dort
+// darum oft KEIN vereinbarter Termin, sondern die Antwort auf Maras Zeitangebot („Morgen 14 Uhr passt“) oder ein
+// Wunsch („Können wir morgen um 14 Uhr telefonieren?“) — das bleibt der Rückruf-Weg, unverändert. Der genannte
+// Termin gilt auf WhatsApp nur, wenn er schon feststeht:
+//   · nie als Antwort auf eine Nachricht von uns mit Uhrzeit oder Zeitfrage (das ist das Aushandeln, E-236),
+//   · „steht_schon“ immer (er nennt einen Termin, der im Kalender steht — auch als Frage „steht morgen 14 Uhr?“),
+//   · nie, wenn jeder Satz mit der Uhrzeit eine Frage oder ein Wunsch ist („Können wir …?“, „Ich möchte …“),
+//   · mit Team-Notiz derselben Uhrzeit: ja; „mit Herrn …/mit Ihnen“ ohne Notiz und „unklar“: nur, wenn der Satz
+//     sagt, dass es vereinbart ist („wir haben … ein Gespräch“, „wie besprochen“, „ist ausgemacht“),
+//   · bei Dritten (Bank, Notar …): ja — es wird nichts eingetragen, Mara wünscht nur Erfolg und verkauft nicht.
+// Rein, ohne Datenbank (scripts/pruef-mara-wa-genannter-termin.ts). Die Mail-Erkennung oben bleibt unverändert.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ausdrücklich vereinbart — gilt auch in einem Satz mit „können/möchte“ („wie besprochen, können wir um 11 …“). */
+const STARK_VEREINBART = /\bwie\s+(?:\S+\s+){0,2}?(?:besprochen|vereinbart|ausgemacht|abgesprochen|verabredet)\b|\b(?:ist|sind|wurde|war|haben\s+wir|hatten\s+wir|hab(?:e)?\s+(?:ich|wir))\s+(?:\S+\s+){0,4}?(?:vereinbart|ausgemacht|abgesprochen|verabredet|festgelegt|festgemacht)\b|\b(?:vereinbart|ausgemacht|abgesprochen|verabredet)(?:e[nrs]?)?\b/i;
+/** Vereinbart, wenn der Satz kein Wunsch ist: „wir haben heute um 11.00 uhr ein Gespräch“, „wir telefonieren morgen um 14“ (Punkt nur zwischen Ziffern). */
+const VEREINBART_WA = new RegExp([
+  String.raw`\b(?:wir\s+haben|ich\s+habe|hab(?:e)?\s+ich|haben\s+wir|ich\s+hab)\b(?:[^.!?\n]|\.(?=\d)){0,70}\b(?:termin\w*|gespr(?:ä|ae|a)ch\w*|telefonat\w*|call|meeting|besprechung|treffen|beratung\w*|videocall|zoom)`,
+  String.raw`\b(?:wir\s+)?(?:telefonieren|sprechen|h(?:ö|oe)ren|treffen)\s+(?:uns\s+)?(?:ja\s+|doch\s+)*(?:heute|morgen|(?:ü|ue)bermorgen|am|um)\b`,
+  String.raw`\b(?:i|we)\s+have\b(?:[^.!?\n]|\.(?=\d)){0,50}\b(?:call|meeting|appointment)\b`,
+].join("|"), "i");
+/** Ein Wunsch oder eine Bitte — kein vereinbarter Termin („Können wir …“, „Ich möchte …“, „Wäre 14 Uhr möglich“). */
+const WUNSCH_WA = /\b(?:k(?:ö|oe)nn(?:en|te|ten|t)|kann\s+(?:ich|man)|w(?:ü|ue)rde(?:n)?|m(?:ö|oe)chte(?:n)?|h(?:ä|ae)tte(?:n)?\s+gern|w(?:ä|ae)re|ginge|wollen|will|w(?:ü|ue)nsche|bitte\s+um|geht\s+(?:es|das|auch))\b|\bcould\s+we\b|\bcan\s+(?:we|you)\b/i;
+/**
+ * Fragt unsere letzte Nachricht nach einer Zeit für ein Gespräch? („Wann passt es Ihnen?“, „Welche Uhrzeit …?“,
+ * „Wann erreiche ich Sie?“) — nicht „Wann können Sie die Rate zahlen?“.
+ */
+export function fragtNachZeit(raus: string): boolean {
+  return (String(raus ?? "").match(/[^.!?\n]*\?/g) ?? []).some((f) =>
+    /\b(?:wann|welche[nrs]?\s+(?:zeit|uhrzeit|tageszeit)|uhrzeit|zeitfenster|passt\s+(?:es\s+|das\s+)?ihnen)\b/i.test(f)
+    && /\b(?:anruf\w*|r(?:ü|ue)ckruf\w*|zur(?:ü|ue)ckruf\w*|telefon\w*|sprech\w*|erreich\w*|zeit\w*|uhr\w*|termin\w*|gespr(?:ä|ae)ch\w*|melde\w*|ruf\w*|passt|passen|besten)\b/i.test(f));
+}
+
+/** Ein Satz seiner Nachricht mit Uhrzeit — und der Teilsatz (an Komma, „und“, „aber“ getrennt), in dem sie steht. */
+export interface UhrzeitSatz { satz: string; teil: string; frage: boolean }
+/**
+ * Die Sätze seiner Nachricht, in denen eine Uhrzeit steht — getrennt an ! ? und Zeilenende (Punkte stehen in
+ * „11.00 Uhr“ und „23.10.“). `frage`: der Teilsatz mit der Uhrzeit ist der letzte eines Fragesatzes
+ * („Können wir um 11 telefonieren?“ ja; „Ich habe um 11 einen Termin, können Sie …?“ nein).
+ */
+export function saetzeMitUhrzeit(text: string): UhrzeitSatz[] {
+  const aus: UhrzeitSatz[] = [];
+  for (const roh of String(text ?? "").replace(/https?:\/\/\S+/g, " ").match(/[^!?\n]+[!?]*/g) ?? []) {
+    const satz = roh.trim();
+    if (!satz || !uhrzeitenGenannt(satz).length) continue;
+    const teile = satz.split(/,\s*|;\s*|\s+und\s+|\s+aber\s+/i).map((x) => x.trim()).filter(Boolean);
+    const i = Math.max(0, teile.findIndex((x) => uhrzeitenGenannt(x).length > 0));
+    aus.push({ satz, teil: teile[i] ?? satz, frage: /\?\s*$/.test(satz) && i === teile.length - 1 });
+  }
+  return aus;
+}
+
+/**
+ * Gilt der erkannte Termin auf WhatsApp? `letzteRaus` = unsere letzte Nachricht vor seiner (Mara, Team oder Vorlage).
+ * false heißt: nichts eintragen, kein Hinweis — der bisherige Weg (Rückruf, Termin im STAND) läuft unverändert.
+ */
+export function genanntAufWhatsApp(e: GenanntErgebnis, ein: { kundeText: string; letzteRaus?: string | null }): { gilt: boolean; grund: string } {
+  if (e.art === "keiner" || e.art === "vergangen") return { gilt: false, grund: e.grund || e.art };
+  const raus = String(ein.letzteRaus ?? "").replace(/https?:\/\/\S+/g, " ");
+  if (raus && (uhrzeitenGenannt(raus).length > 0 || fragtNachZeit(raus))) {
+    return { gilt: false, grund: "Antwort auf unsere Nachricht mit Uhrzeit oder Zeitfrage — das Aushandeln läuft über rueckruf_eintragen (E-236)" };
+  }
+  if (e.art === "steht_schon") return { gilt: true, grund: "Termin steht schon" };
+  const saetze = saetzeMitUhrzeit(ein.kundeText);
+  const wunsch = (s: UhrzeitSatz) => s.frage || WUNSCH_WA.test(s.teil);
+  const vereinbart = saetze.some((s) => STARK_VEREINBART.test(s.satz) || (VEREINBART_WA.test(s.satz) && !wunsch(s)));
+  if (saetze.length > 0 && saetze.every((s) => wunsch(s) && !STARK_VEREINBART.test(s.satz))) {
+    return { gilt: false, grund: "Frage oder Wunsch nach einem Gespräch — das ist der Rückruf-Weg" };
+  }
+  if (e.beleg === "notiz") return { gilt: true, grund: "Team-Notiz mit derselben Uhrzeit" };
+  if (e.art === "dritte") return { gilt: true, grund: "Gespräch mit Dritten — nichts eintragen, nichts verkaufen" };
+  if (vereinbart) return { gilt: true, grund: e.art === "mit_uns" ? "Er sagt, dass es mit uns vereinbart ist" : "vereinbart, aber unklar, mit wem" };
+  return { gilt: false, grund: e.art === "mit_uns" ? "Wunsch, mit uns zu sprechen — nicht vereinbart (Rückruf-Weg)" : "unklar und nicht als vereinbart gesagt" };
+}
+
+/**
+ * Der eine warme Satz zum genannten Termin (E-395 im Hinweis, E-401 auch als sicherer Satz auf WhatsApp).
+ * `mit` = Nennform im Dativ („Herrn Stripling“), `zeit` = so, wie der Kunde es liest („heute um 11 Uhr“).
+ */
+export function genanntSatz(ein: { art: GenanntArt; eingetragen: boolean; zeit: string | null; mit: string | null }): string {
+  const zeit = ein.zeit ?? "zur genannten Zeit";
+  if (ein.art === "steht_schon") return `Ihr Gespräch ${zeit}${ein.mit ? ` mit ${ein.mit}` : ""} steht bei uns — ich wünsche Ihnen ein richtig gutes Gespräch!`;
+  if (ein.art === "mit_uns" && ein.eingetragen) return `Ihr Gespräch ${zeit}${ein.mit ? ` mit ${ein.mit}` : ""} ist bei uns eingetragen — ich wünsche Ihnen ein richtig gutes Gespräch!`;
+  if (ein.art === "dritte") return `Ich wünsche Ihnen für Ihren Termin ${zeit} viel Erfolg!`;
+  return `Ich wünsche Ihnen für Ihr Gespräch ${zeit} alles Gute!`;
+}
+
+/**
+ * Die Antwortprüfung neben einem genannten Termin — dieselben Regeln wie im Postfach (fiaon-postmeister-agent.ts,
+ * E-395), für WhatsApp gebündelt: kein Verkauf, „eingetragen“ nur, wenn eingetragen, der eingetragene Termin steht
+ * mit Uhrzeit drin. Auf WhatsApp dazu kein Verkaufs- oder Zahlungslink (der WhatsApp-Auftrag endet sonst mit dem
+ * persönlichen Link); sein Bereich (fiaon.com/login) und Rechtstexte bleiben erlaubt.
+ */
+export function genanntAntwortFunde(antwort: string, gt: {
+  /** true = eingetragen, steht schon, oder ein Rückruf wurde in diesem Lauf eingetragen. */
+  darfEingetragen: boolean;
+  /** „HH:MM“ des eingetragenen bzw. stehenden Termins — muss in der Antwort stehen (null = keine Pflicht). */
+  uhrzeitPflicht: string | null;
+  /** Der Satz, den die Antwort sonst sagen soll. */
+  satz: string | null;
+  linkVerboten?: boolean;
+}): string[] {
+  const t = String(antwort ?? "");
+  const funde: string[] = [];
+  const verkauf = verkaufNebenTermin(t);
+  if (verkauf) funde.push(`Verkauf neben einem genannten Termin („${verkauf}“) — Justin: „einen guten Termin wünschen und sich zurücknehmen“; nimm den Satz heraus`);
+  // Sein Bereich (Login, Unterlagen) und Rechtstexte sind Service — Zahlungsseite, Antrag, Auskunft, Terminlink nicht.
+  const link = gt.linkVerboten ? t.match(/(?:https?:\/\/)?(?:www\.)?fiaon\.com\/(?!(?:login|app|mein-bereich|dashboard|agb|datenschutz|impressum|widerruf\w*|kontakt|ratgeber)(?:[\/?#\s.,;:!)“"]|$))\S+/i) : null;
+  if (link) funde.push(`Kein Link neben einem genannten Termin („${link[0].slice(0, 60)}“) — wünsche ein gutes Gespräch und nimm dich zurück`);
+  const eing = sagtEingetragen(t);
+  if (eing && !gt.darfEingetragen) funde.push(`Die Antwort sagt, der Termin sei eingetragen („${eing}“) — eingetragen ist nichts; wünsche nur ein gutes Gespräch`);
+  if (gt.uhrzeitPflicht && !uhrzeitenIn(t).includes(gt.uhrzeitPflicht)) {
+    funde.push(`Die Antwort nennt den eingetragenen Termin nicht — ein Satz: „${gt.satz ?? "Ihr Gespräch ist bei uns eingetragen — ich wünsche Ihnen ein richtig gutes Gespräch!"}“`);
+  }
+  return funde;
+}

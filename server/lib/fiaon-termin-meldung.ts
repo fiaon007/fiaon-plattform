@@ -119,9 +119,11 @@ async function melden(opts: {
   const vonMara = b.herkunft === "mara_whatsapp" || b.herkunft === "mara_mail";
   const kanal = b.herkunft === "mara_mail" ? "E-Mail" : "WhatsApp";
   // E-395 (19.10.2026): Den Termin hat der Kunde genannt, Mara hat ihn nur eingetragen — die Mail sagt das so.
-  const genannt = b.herkunft === "mara_mail_genannt";
+  // E-401 (2/6): ebenso per WhatsApp (mara_whatsapp_genannt).
+  const genannt = b.herkunft === "mara_mail_genannt" || b.herkunft === "mara_whatsapp_genannt";
+  const genanntWo = b.herkunft === "mara_whatsapp_genannt" ? "per WhatsApp" : "in einer E-Mail";
   const einleitung = genannt
-    ? `${b.kunde} hat in einer E-Mail einen Termin mit dir genannt, der mit dem Team vereinbart war. Mara hat ihn in deinen Kalender eingetragen — der Beleg steht unten.`
+    ? `${b.kunde} hat ${genanntWo} einen Termin mit dir genannt, der mit dem Team vereinbart war. Mara hat ihn in deinen Kalender eingetragen — der Beleg steht unten.`
     : vonMara
     ? `Mara hat per ${kanal} einen Rückruf mit ${b.kunde} für dich vereinbart. Ruf bitte pünktlich an; was Mara mit dem Kunden besprochen hat, steht unten.`
     : b.herkunft === "mara_whatsapp_link"
@@ -134,7 +136,7 @@ async function melden(opts: {
   const akte = !b.personId ? absoluteUrl("/agent/kalender")
     : opts.quelle === "global" ? absoluteUrl(`/agent/firmen?person=${b.personId}`)
     : absoluteUrl(`/agent/kunden?person=${b.personId}`);
-  const quelle = genannt ? "Vereinbarter Termin — vom Kunden per E-Mail genannt, von Mara eingetragen"
+  const quelle = genannt ? `Vereinbarter Termin — vom Kunden per ${b.herkunft === "mara_whatsapp_genannt" ? "WhatsApp" : "E-Mail"} genannt, von Mara eingetragen`
     : vonMara ? `Rückruf — von Mara per ${kanal} vereinbart` : (QUELLE_TEXT[opts.quelle] ?? opts.quelle);
 
   // E-260 (29.09.2026, B8): Mara hat den Termin auf Wunsch des Kunden verlegt —

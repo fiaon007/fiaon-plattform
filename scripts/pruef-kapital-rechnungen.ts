@@ -1,0 +1,172 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// PRÜFSTAND: DIE ZWEI SPÄTEREN RECHNUNGEN DES KAPITAL-ANGEBOTS (Register E-401, 19.10.2026)
+//
+// ── TEIL 1 — OHNE DATENBANK (immer) ───────────────────────────────────────
+//   kapitalMitGebuehren (Fassung A nein, B ja), kapitalGebuehrPruefen (nicht angenommen, Fassung A, Betrag 0, Bürgschaft vor
+//   Zahlung von Teil 1, Datum in der Zukunft / vor der Annahme, schon berechnet, gut), kapitalRechnungsText je Teil.
+//
+// ── TEIL 2 — MIT --lokal (Prüfstand-DB auf 127.0.0.1 + laufender lokaler Server mit demselben SESSION_SECRET) ──
+//   Musterfirma anlegen → Annahme über die echte Route → Teil 1 mit Rechnung → „Bürgschaft zugesagt“ vor Zahlung 409 →
+//   Teil 1 bezahlt (nur in der Prüfstand-Kopie) → „Bürgschaft zugesagt“ → Teil 2 mit Rechnungsnummer über 499 €, Reverse
+//   Charge → zweiter Klick legt nichts an → „Finanzierung ausgezahlt“ → Teil 3 über 1.099 € (Prüfregel der Teile alt → getauscht)
+//   → Rechnungstext, Zahlungsseite, Verlauf, Aufgaben, Mail an Justin (protokolliert, ohne Schlüssel nicht versandt), KEINE
+//   Mail an die Kundin → Liste der Leitung (art „kapital“, drei Teile, Knöpfe) → Meilenstein-Route des Individualangebots 409.
+//
+//   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<kopie>?sslmode=require' \
+//     SESSION_SECRET=<wie der Server> PRUEF_BASIS=http://127.0.0.1:5401 npx tsx scripts/pruef-kapital-rechnungen.ts --lokal
+// ═══════════════════════════════════════════════════════════════════════════
+const LOKAL = process.argv.includes("--lokal");
+if (!LOKAL) process.env.DATABASE_URL = "postgres://pruefstand:ohne@127.0.0.1:1/keine-datenbank";
+else {
+  let host = "";
+  try { host = new URL(String(process.env.DATABASE_URL)).hostname; } catch { /* unten */ }
+  if (!["127.0.0.1", "localhost"].includes(host)) { console.error("ABBRUCH: --lokal läuft nur gegen eine Datenbank auf 127.0.0.1/localhost."); process.exit(2); }
+  if (process.env.BREVO_API_KEY || process.env.MAKE_WEBHOOK_URL) { console.error("ABBRUCH: Ein Mail-Weg ist gesetzt — bitte mit env -i starten."); process.exit(2); }
+}
+
+let gut = 0; const fehler: string[] = [];
+const ok = (b: unknown, was: string, zeige?: unknown) => { if (b) { gut++; console.log(`  ok    ${was}`); } else { fehler.push(was); console.log(`  FEHLT ${was}${zeige !== undefined ? ` — ${JSON.stringify(zeige).slice(0, 400)}` : ""}`); } };
+const titel = (t: string) => console.log(`\n${t}`);
+
+const S = await import("../shared/fiaon-global-angebot-kapital");
+
+// ═══ TEIL 1 ════════════════════════════════════════════════════════════════
+titel("1. Regeln ohne Datenbank");
+ok(!S.kapitalMitGebuehren("IA-KAPITAL-2026-10-19-A") && S.kapitalMitGebuehren("IA-KAPITAL-2026-10-19-B") && !S.kapitalMitGebuehren("IA-FIRMA-2026-10-07-D"), "Gebühren nur ab Fassung B, nur Kapital-Angebote");
+const PAR = { buergschaftCents: 49_900, auszahlungCents: 109_900 };
+const lage = { status: "angenommen", fassung: S.KAPITAL_FASSUNG, parameter: PAR, angenommenAm: "2026-10-10", heute: "2026-10-19", teil1Bezahlt: true, vorhanden: null };
+const pr = (l: Partial<typeof lage> & Record<string, unknown>, art: "buergschaft" | "auszahlung", ein: unknown) => S.kapitalGebuehrPruefen({ ...lage, ...l } as any, art, ein);
+ok(!pr({ status: "offen" }, "buergschaft", { datum: "2026-10-19" }).ok, "nicht angenommen → nein");
+ok(/vereinbart keine/.test(String((pr({ fassung: "IA-KAPITAL-2026-10-19-A" }, "buergschaft", { datum: "2026-10-19" }) as any).error)), "Fassung A → keine Bürgschaftsgebühr");
+ok(/kein Betrag/.test(String((pr({ parameter: { ...PAR, auszahlungCents: 0 } }, "auszahlung", { datum: "2026-10-19" }) as any).error)), "Betrag 0 → nein");
+ok(/Ziffer 5/.test(String((pr({ teil1Bezahlt: false }, "buergschaft", { datum: "2026-10-19" }) as any).error)), "Bürgschaft vor Zahlung von Teil 1 → nein (Ziffer 5)");
+ok(pr({ teil1Bezahlt: false }, "auszahlung", { datum: "2026-10-19" }).ok, "Auszahlung hängt nicht an Teil 1 (Ziffer 6 Absatz 3)");
+ok(/Zukunft/.test(String((pr({}, "auszahlung", { datum: "2026-10-20" }) as any).error)), "Datum in der Zukunft → nein");
+ok(/vor der Annahme/.test(String((pr({}, "auszahlung", { datum: "2026-10-09" }) as any).error)), "Datum vor der Annahme → nein");
+ok(/Datum fehlt/.test(String((pr({}, "auszahlung", { datum: "19.10.2026" }) as any).error)), "Datum nicht ISO → nein");
+const schon = pr({ vorhanden: { rechnungSteht: true } } as any, "buergschaft", { datum: "2026-10-19" }) as any;
+ok(!schon.ok && schon.schon === true, "Rechnung steht schon → schon (nichts Neues)");
+const gutB = pr({}, "buergschaft", { datum: "2026-10-19", beleg: "  Institut   X  " }) as any;
+ok(gutB.ok && gutB.daten.betragCents === 49_900 && gutB.daten.beleg === "Institut X", "gut: Betrag aus dem Vertrag, Beleg geglättet", gutB);
+const tx2 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 2, auftragRef: "FIAON-X", ereignisAm: "2026-10-19" });
+const tx3 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 3, auftragRef: "FIAON-X", ereignisAm: "2026-10-19" });
+const tx1 = S.kapitalRechnungsText({ angebotRef: "FIAON-IA-CTEST", nr: 1, auftragRef: "FIAON-X" });
+ok(/Bürgschaftsgebühr \(Ziffer 6 Absatz 2\).*19\.10\.2026/.test(tx2.beschreibung) && /Auszahlung der Finanzierung \(Ziffer 6 Absatz 3\).*19\.10\.2026/.test(tx3.beschreibung) && /Ziffer 6 Absatz 1/.test(tx1.beschreibung) && !/von 2/.test(tx1.beschreibung), "Rechnungstexte je Teil (kein „Teil 1 von 2“ mehr)", [tx1, tx2, tx3]);
+
+// ═══ TEIL 2 ════════════════════════════════════════════════════════════════
+if (LOKAL) {
+  const BASIS = String(process.env.PRUEF_BASIS || "http://127.0.0.1:5401");
+  process.env.PORT = process.env.PORT || new URL(BASIS).port;
+  const { sqlPool } = await import("../server/lib/db-pool");
+  const C = await import("../server/lib/fiaon-global-angebot-kapital");
+  const A = await import("../server/lib/fiaon-global-angebot");
+  const { berlinToday } = await import("../server/lib/fiaon-time");
+  const { createHmac } = await import("node:crypto");
+  const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15";
+  const IP = `84.115.${10 + Math.floor(Math.random() * 200)}.${10 + Math.floor(Math.random() * 200)}`;
+  const heute = berlinToday();
+  const lauf = Date.now().toString(36);
+  const chef = () => { const agentId = 999_001; const exp = Date.now() + 3_600_000; const stufe = "leitung";
+    const sig = createHmac("sha256", process.env.SESSION_SECRET || "fiaon-dev-admin-zugang-secret").update(`chefzugang:${agentId}:${stufe}:${exp}`).digest("hex").slice(0, 40);
+    return `fiaon_chef=${agentId}.${stufe}.${exp}.${sig}`; };
+  const post = async (pfad: string, body: unknown, kopf: Record<string, string> = {}) => {
+    const r = await fetch(`${BASIS}${pfad}`, { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, ...kopf }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => ({})) as any };
+  };
+
+  titel("2. Kapital-Angebot anlegen (Musterfirma, keine Kundendaten) und annehmen");
+  const email = `pruef+${lauf}@musterfirma-beispiel.example`;
+  const befund = (id: string) => ({ id, aussage: `Prüfaussage ${id}.`, quelle_name: "Prüfquelle", quelle_url: "https://example.org/quelle", stand: "19.10.2026", art: "primär", pruefung: "bestätigt" });
+  const compliance = {
+    absender: "FIAON LTD",
+    meta: { firma: "Musterfirma Beispiel GmbH", kurz: "Musterfirma", anlass: "Prüfung vor einem Mandat", pruefdatum: "19.10.2026", datenstand: "Abrufe am 19.10.2026", kopf: [["Firmenwortlaut", "Musterfirma Beispiel GmbH"]] },
+    gesamt: { ampel: "GELB", titel: "Zusammenarbeit möglich.", text: ["Ein echter Betrieb."], zusatz: [], kernzahlen: [], auflagen: [] },
+    bereiche: [1, 2, 3, 4, 5, 6, 7].map((nr) => ({ nr, titel: `Bereich ${nr}`, ampel: "GELB", kurz: `Kurz ${nr}.`, urteil: [`Urteil ${nr}.`], befunde: [befund(`B${nr}`)], nicht_geprueft: [], chancen: [], risiken: [] })),
+    chancen: [], schwaechen: [], methodik: ["Öffentliche Quellen."], fuss: "FIAON LTD · Prüfbericht",
+  };
+  const an = await C.kapitalAnlegen({
+    kunde: { art: "firma", firma: { name: "Musterfirma Beispiel GmbH", marke: "BEISPIEL", rechtsform: "GmbH", registergericht: "Landesgericht Musterstadt", registernummer: "FN 999999z", uid: "ATU12345675", strasse: "Musterweg 7", plz: "1010", ort: "Musterstadt", land: "AT" },
+      vertretung: { anrede: "Frau", vorname: "Martina", nachname: "Muster", funktion: "Geschäftsführerin" }, email, telefon: "" },
+    buergin: { name: "Prüfstand Bürgin LLC", bundesstaat: "Florida", anschrift: "1 Test Street, Miami, FL", registernummer: "L00000000", vertreter: "Test Vertreter", funktion: "Manager" },
+    parameter: {}, compliance,
+  }, "Prüfstand");
+  ok(an.ok, "angelegt (Fassung B, Gebühren aus den Vorgaben)", an);
+  if (!an.ok) throw new Error("Anlegen gescheitert");
+  const id = an.id; const token = decodeURIComponent(an.link.split("/").pop()!);
+  const sicht = await fetch(`${BASIS}/api/fiaon/global/angebot/${encodeURIComponent(token)}`, { headers: { "user-agent": UA, "x-forwarded-for": IP } }).then((r) => r.json()) as any;
+  ok(sicht.art === "kapital" && sicht.annahmeBereit === true, "Kundensicht: Kapital-Angebot, annahmebereit", { art: sicht.art, bereit: sicht.annahmeBereit, grund: sicht.gesperrtGrund });
+  const ann = await post(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, { llc: { wunsch: `Pruefstand Atlas ${lauf}` }, vertretung: true, gelesen: true, unterschrift: { art: "getippt", name: "Martina Muster" }, textHash: sicht.textHash }, { "x-forwarded-for": IP });
+  ok(ann.status === 200 && ann.body.ok, "Annahme über die echte Route", ann);
+  const z1 = (await A.angebotLesen({ id }))!;
+  const t1 = (z1.teile as any[]).find((t) => Number(t.nr) === 1);
+  const [b1] = (await sqlPool`SELECT ref, amount_due, invoice_number, payment_status, payment_reference, rechnung_ust_modus, pack_key FROM fiaon_applications WHERE ref = ${String(t1?.bestell_ref)}`) as any[];
+  ok(z1.status === "angenommen" && z1.fassung === S.KAPITAL_FASSUNG && b1 && Number(b1.amount_due) === 2799 && b1.invoice_number && b1.rechnung_ust_modus === "reverse_charge" && b1.pack_key === "global_individuell",
+    "Teil 1: Rechnung über 2.799 € mit Nummer, Reverse Charge, global_individuell", b1);
+  const [mailsVorher] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()}`) as any[];
+
+  titel("3. „Bürgschaft zugesagt“");
+  const rVor = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute }, { cookie: chef() });
+  ok(rVor.status === 409 && /Ziffer 5/.test(String(rVor.body.error)), "vor der Zahlung von Teil 1 → 409 (Bedingung der Bürgschaft)", rVor);
+  const rOhne = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute });
+  ok(rOhne.status === 401 || rOhne.status === 403, "ohne Chef-Ausweis → gesperrt", rOhne.status);
+  const rArt = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/irgendwas`, { datum: heute }, { cookie: chef() });
+  ok(rArt.status === 404, "unbekannte Rechnung → 404", rArt);
+  // Nur in der Prüfstand-Kopie: Teil 1 als bezahlt markieren (in der Produktion bucht das die Zahlungsstelle).
+  await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid', completed_at = NOW() WHERE ref = ${b1.ref}`;
+  const rZuk = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: "2099-01-01" }, { cookie: chef() });
+  ok(rZuk.status === 409 && /Zukunft/.test(String(rZuk.body.error)), "Datum in der Zukunft → 409", rZuk);
+  const vorCheck = (await sqlPool`SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'fiaon_global_angebot_teile_nr_check'`) as any[];
+  console.log(`        (Prüfregel der Teile vorher: ${vorCheck[0]?.d ?? "—"})`);
+  const rB = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute, beleg: "Prüfbank AG, Zusage per Mail an die Bürgin" }, { cookie: chef() });
+  ok(rB.status === 200 && rB.body.ok && rB.body.betragCents === 49_900 && /^FIAON-/.test(String(rB.body.ref)) && rB.body.rechnungsnummer, "Bürgschaft zugesagt → 200, Rechnung mit Nummer über 499 €", rB.body);
+  const [b2] = (await sqlPool`SELECT amount_due, invoice_number, payment_status, payment_reference, rechnung_ust_modus, tax_id, pack_key, pack_name, person_id FROM fiaon_applications WHERE ref = ${String(rB.body.ref)}`) as any[];
+  ok(b2 && Number(b2.amount_due) === 499 && b2.payment_status === "pending_payment" && b2.invoice_number === rB.body.rechnungsnummer && b2.rechnung_ust_modus === "reverse_charge" && b2.tax_id === "ATU12345675" && b2.pack_key === "global_individuell",
+    "Teil 2 in fiaon_applications: 499 €, offen, Reverse Charge mit UID", b2);
+  const nApps = async () => ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_applications WHERE lower(email) = ${email.toLowerCase()}`) as any[])[0].n as number;
+  const vorDoppel = await nApps();
+  const rB2 = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/buergschaft`, { datum: heute }, { cookie: chef() });
+  ok(rB2.status === 200 && rB2.body.schon === true && rB2.body.ref === rB.body.ref && (await nApps()) === vorDoppel, "zweiter Klick: „schon berechnet“, keine neue Bestellzeile", rB2.body);
+
+  titel("4. „Finanzierung ausgezahlt“");
+  const rA = await post(`/api/fiaon/admin/global/angebote/${id}/kapital/auszahlung`, { datum: heute }, { cookie: chef() });
+  ok(rA.status === 200 && rA.body.ok && rA.body.betragCents === 109_900 && rA.body.rechnungsnummer && rA.body.rechnungsnummer !== rB.body.rechnungsnummer, "Finanzierung ausgezahlt → 200, eigene Rechnung über 1.099 €", rA.body);
+  const [b3] = (await sqlPool`SELECT amount_due, invoice_number, payment_status, rechnung_ust_modus FROM fiaon_applications WHERE ref = ${String(rA.body.ref)}`) as any[];
+  ok(b3 && Number(b3.amount_due) === 1099 && b3.payment_status === "pending_payment" && b3.rechnung_ust_modus === "reverse_charge", "Teil 3 in fiaon_applications: 1.099 €, offen, Reverse Charge", b3);
+  const teile = (await sqlPool`SELECT nr, titel, betrag_cents, faelligkeit, bestell_ref, meilenstein_am::text AS am, meilenstein_art, meilenstein_beleg, rechnung_am FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} ORDER BY nr`) as any[];
+  ok(teile.length === 3 && teile[1].nr === 2 && Number(teile[1].betrag_cents) === 49_900 && teile[1].meilenstein_art === "buergschaft" && teile[1].am === heute && /Prüfbank/.test(teile[1].meilenstein_beleg)
+    && teile[2].nr === 3 && Number(teile[2].betrag_cents) === 109_900 && teile[2].meilenstein_art === "auszahlung" && teile.every((t) => t.bestell_ref && t.rechnung_am), "drei Teile mit Datum, Art, Beleg, Bestellzeile", teile);
+  const nachCheck = (await sqlPool`SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'fiaon_global_angebot_teile_nr_check'`) as any[];
+  ok(/500/.test(String(nachCheck[0]?.d)), "Prüfregel der Teile erlaubt Teil 3 (bis 500)", nachCheck);
+
+  titel("5. Rechnung, Zahlungsseite, Verlauf, Aufgaben, Mails");
+  const zeile2 = await A.angebotRechnungsZeile(String(rB.body.ref)); const zeile3 = await A.angebotRechnungsZeile(String(rA.body.ref));
+  ok(/Bürgschaftsgebühr \(Ziffer 6 Absatz 2\)/.test(String(zeile2?.beschreibung)) && /Ziffer 6 Absatz 3/.test(String(zeile3?.beschreibung)), "Rechnungszeilen nennen Ziffer und Anlass", [zeile2, zeile3]);
+  const pdf = await fetch(`${BASIS}/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(rB.body.ref))}/rechnung.pdf`, { headers: { "user-agent": UA, cookie: chef() } });
+  const pdfBuf = Buffer.from(await pdf.arrayBuffer());
+  ok(pdf.status === 200 && pdfBuf.subarray(0, 4).toString() === "%PDF", "Rechnungs-PDF Teil 2 abrufbar", { status: pdf.status, art: pdf.headers.get("content-type") });
+  const { angebotTeilZahlungsKontext } = await import("../server/lib/fiaon-global-angebot-begleit");
+  const kx = await angebotTeilZahlungsKontext({ ref: rB.body.ref, payment_reference: b2.payment_reference, invoice_number: b2.invoice_number, payment_status: "pending_payment" });
+  ok(/Bürgschaft für Ihre Finanzierung steht/.test(String(kx?.satz)) && !/Anmeldung/.test(JSON.stringify(kx?.pruefungen)), "Zahlungsseite Teil 2 spricht von der Bürgschaft, nicht von der Anmeldung", kx?.satz);
+  const z2 = (await A.angebotLesen({ id }))!;
+  const verlauf = JSON.stringify(z2.verlauf);
+  ok(/Bürgschaft gegenüber dem Institut zugesagt am/.test(verlauf) && /Finanzierung ausgezahlt am/.test(verlauf) && (verlauf.match(/Rechnung Bürgschaftsgebühr/g) ?? []).length === 1, "Verlauf am Angebot: je ein Eintrag (kein doppelter beim zweiten Klick)");
+  const auf = (await sqlPool`SELECT schluessel, titel, text FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`global:${an.ref}:kapital-teil%`} ORDER BY schluessel`) as any[];
+  ok(auf.length === 2 && auf.every((a) => /\/zahlung\/FIAON|Zahlungsseite http/.test(a.text) && /Keine automatische Kundenmail/.test(a.text)), "Aufgaben an Justin für Teil 2 und Teil 3 mit Zahlungslink", auf.map((a) => [a.schluessel, a.titel]));
+  const justin = (await sqlPool`SELECT betreff, status FROM fiaon_mail_log WHERE empfaenger = 'js@fiaon.com' AND betreff LIKE ${`%(${an.ref})%`} ORDER BY id`.catch(() => [])) as any[];
+  const [mailsNach] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE lower(empfaenger) = ${email.toLowerCase()}`) as any[];
+  ok(mailsNach.n === mailsVorher.n, "keine Mail an die Kundin durch die zwei Knöpfe (Firmenangebot)", { vorher: mailsVorher.n, nachher: mailsNach.n });
+  console.log(`        (Mail an Justin im Protokoll: ${justin.length ? justin.map((j) => `${j.status} · ${j.betreff}`).join(" | ") : "keine Zeile — eigeneMailSenden ohne Schlüssel protokolliert ggf. nicht"}; Meldung: ${rA.body.meldung})`);
+  ok(/Mail an Justin/.test(String(rA.body.meldung)), "Meldung nennt den Stand der Mail an Justin", rA.body.meldung);
+
+  titel("6. Liste der Leitung und Sperre des Individualwegs");
+  const liste = await fetch(`${BASIS}/api/fiaon/admin/global/angebote`, { headers: { "user-agent": UA, cookie: chef() } }).then((r) => r.json()) as any;
+  const e = (liste.angebote as any[]).find((x) => x.id === id);
+  ok(e?.art === "kapital" && e.teile.length === 3 && e.teile.every((t: any) => t.rechnungUrl && t.rechnungsnummer) && /schon berechnet/.test(String(e.knoepfe.buergschaft)) && /schon berechnet/.test(String(e.knoepfe.auszahlung)),
+    "Liste: art „kapital“, drei Teile mit Rechnung, beide Knöpfe „schon berechnet“", e ? { teile: e.teile.map((t: any) => [t.nr, t.betragCents, t.rechnungsnummer]), knoepfe: e.knoepfe } : null);
+  const mst = await post(`/api/fiaon/admin/global/angebote/${id}/meilenstein`, { art: "kapital", datum: heute, eingetragenAm: heute, beleg: "x".repeat(20) }, { cookie: chef() });
+  ok(mst.status === 409 && mst.body.error === S.KAPITAL_SPERRGRUND, "Meilenstein des Individualangebots bleibt für Kapital gesperrt (zeigt auf die neuen Knöpfe)", mst);
+  await sqlPool.end({ timeout: 5 });
+}
+
+console.log(`\n${fehler.length ? `${fehler.length} FEHLER, ` : ""}${gut} Prüfungen bestanden.`);
+process.exit(fehler.length ? 1 : 0);

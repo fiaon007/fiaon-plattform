@@ -468,7 +468,7 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const ref = String(a.ref ?? "");
   if (!ref) return null;
   const [t] = (await sqlPool`
-    SELECT t.nr, t.titel, t.zahlungsziel_tage, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref, g.fassung
+    SELECT t.nr, t.titel, t.zahlungsziel_tage, t.meilenstein_am, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref, g.fassung
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote g ON g.id = t.angebot_id
      WHERE t.bestell_ref = ${ref} AND g.status = 'angenommen' LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
@@ -485,6 +485,43 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const tag = (v: unknown) => (v ? begleitTag(new Date(String(v)).toISOString().slice(0, 10)) : "");
   const bezahlt = String(a.payment_status) === "paid";
   const kapital = String(t.fassung ?? "").startsWith("IA-KAPITAL-");
+  // E-401: Die zwei späteren Rechnungen des Kapital-Angebots (Teil 2 Bürgschaftsgebühr, Teil 3 bei Auszahlung) — die Gesellschaft
+  // steht längst; die Seite spricht vom Anlass der Rechnung statt von der Anmeldung.
+  if (kapital && Number(t.nr) >= 2) {
+    const buergschaft = Number(t.nr) === 2;
+    const am = t.meilenstein_am ? ` am ${tag(t.meilenstein_am)}` : "";
+    const ziel = Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen` : "bitte überweisen";
+    return {
+      auge: "FIAON Global · Ihr Auftrag",
+      gesellschaft: name,
+      gesellschaftZeile: name ? `Limited Liability Company · State of ${staat}` : "",
+      satz: bezahlt
+        ? `Ihre Zahlung ist eingegangen — vielen Dank. Angebot ${t.angebot_ref}, ${String(t.titel)}.`
+        : buergschaft
+          ? `Die Bürgschaft für Ihre Finanzierung steht — offen ist nur noch die Bürgschaftsgebühr (Angebot ${t.angebot_ref}).`
+          : `Ihre Finanzierung ist ausgezahlt — offen ist nur noch die vereinbarte Vergütung (Angebot ${t.angebot_ref}).`,
+      pruefTitel: "Stand Ihres Auftrags",
+      pruefungen: [
+        { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
+        buergschaft
+          ? { titel: "Bürgschaft zugesagt", text: `gegenüber dem Institut${am} (Ziffer 5 und Ziffer 6 Absatz 2)`, stand: "ok" as const }
+          : { titel: "Finanzierung ausgezahlt", text: `${am ? am.trim() : "ausgezahlt"} — Sie können die Rechnung aus den Mitteln zahlen (Ziffer 6 Absatz 3)`, stand: "ok" as const },
+        { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : ziel, stand: bezahlt ? "ok" : "offen" },
+      ],
+      dokumenteTitel: "Ihre Unterlagen",
+      dokumente: zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${String(t.titel)}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : [],
+      hinweis: "Ihren Vertrag und Ihren Auftragsbereich öffnen Sie über die persönlichen Links in unseren E-Mails.",
+      schritteTitel: "So geht es weiter",
+      schritte: [
+        { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
+        buergschaft
+          ? { titel: "Auszahlung", text: "Das Institut stimmt die Form der Bürgschaft ab und zahlt die Finanzierung an Sie aus — wir begleiten jeden Schritt." }
+          : { titel: "Begleitung läuft weiter", text: "Wir begleiten Ihre Gesellschaft weiter — Pflichtenkalender, Meldungen und die nächsten Schritte mit Ihnen." },
+      ],
+      ansprechTitel: "Ihre Ansprechpartner",
+      ansprechpartner: ANGEBOT_ANSPRECHPARTNER.map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
+    };
+  }
   return {
     auge: "FIAON Global · Ihr Auftrag",
     gesellschaft: name,

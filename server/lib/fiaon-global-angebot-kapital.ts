@@ -22,10 +22,12 @@ import { GLOBAL_VERTRAG_CSS } from "./fiaon-global-vertrag";
 import { ANGEBOT_VERTRAG_CSS } from "./fiaon-global-angebot-vertrag";
 import {
   ensureAngebotTabellen, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStatusAus, verlaufAngebot,
-  ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
+  ANGEBOT_PAKET_KEY, firmaTeileCheckSichern, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
 import { firmaUnterschriftPruefen, firmaKundePruefen, firmaBestellzeileAnlegen } from "./fiaon-global-angebot-firma";
-import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl } from "./fiaon-global-auftrag";
+import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl, globalVerlauf } from "./fiaon-global-auftrag";
+import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
+import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { complianceKundenfassung, complianceHtml } from "@shared/fiaon-global-angebot-firma";
 import type { ComplianceKundenfassung, FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
@@ -33,7 +35,8 @@ import {
   KAPITAL_FASSUNG, KAPITAL_FASSUNGEN, KAPITAL_GUELTIG_TAGE, KAPITAL_KNOPF, KAPITAL_ANNAHME, KAPITAL_TEIL_TITEL,
   kapitalParameterAus, kapitalParameterFehler, kapitalBuerginFehler, kapitalPflichtFehlen, kapitalSeite, kapitalBestellUebersicht,
   kapitalAnnahmeTexte, kapitalAnsprechpartner, kapitalAnrede, kapitalVertretungName, kapitalVertragTitel, kapitalVertragUnterzeile,
-  kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, istKapitalFassung,
+  kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, kapitalTag, istKapitalFassung,
+  KAPITAL_GEBUEHREN, KAPITAL_SPERRGRUND, kapitalGebuehrPruefen, istKapitalGebuehrArt, kapitalMitGebuehren, type KapitalGebuehrArt,
   type KapitalDaten, type KapitalParameter, type KapitalBuergin, type KapitalAnnahmeVermerk, type KapitalWahl,
   type KapitalUnterschriftVermerk, type KapitalKundenSicht,
 } from "@shared/fiaon-global-angebot-kapital";
@@ -426,13 +429,159 @@ export async function kapitalNacharbeit(id: number): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DIE ZWEI SPÄTEREN RECHNUNGEN (E-401) — Knöpfe „Bürgschaft zugesagt“ (Teil 2) und „Finanzierung ausgezahlt“ (Teil 3)
+//
+// Derselbe Weg wie der Meilenstein des Individualangebots: Teil anlegen → Bestellzeile global_individuell (Betrag aus dem
+// Teil, angebotTeilZurBestellung) → binden → bestellungFuerAntrag mit Rechnungsnummer → Reverse Charge wie Teil 1.
+// Keine Kundenmail (Akte trägt bestaetigungen.firmenangebot): Aufgabe + einmal Mail an Justin mit Zahlungslink.
+// WIEDERHOLBAR: Hing ein Schritt, nimmt der nächste Klick den angelegten Teil und macht dort weiter; steht die Rechnung,
+// legt ein weiterer Klick nichts Neues an. Die Garantie (Ziffer 4) berührt das nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+const RECHNUNG_STEHT = ["pending_payment", "claimed_paid", "paid"];
+export async function kapitalGebuehrBerechnen(id: number, artRoh: unknown, ein: any, wer: string): Promise<Ergebnis<{ ref: string; rechnungsnummer: string | null; betragCents: number; zahlungsseite: string | null; meldung: string; schon?: true }>> {
+  if (!istKapitalGebuehrArt(artRoh)) return nein("Diese Rechnung gibt es nicht — „buergschaft“ oder „auszahlung“.", 404);
+  const art: KapitalGebuehrArt = artRoh; const g = KAPITAL_GEBUEHREN[art];
+  const z = await angebotLesen({ id });
+  if (!z || !istKapitalFassung(z.fassung)) return nein("Dieses Kapital-Angebot gibt es nicht.", 404);
+  const d = kapitalDatenAus(z);
+  const teile = ((z as any).teile as any[] | undefined) ?? [];
+  const t1 = teile.find((x) => Number(x.nr) === 1);
+  const vorher = teile.find((x) => Number(x.nr) === g.nr);
+  const b1 = t1?.bestell_ref ? await globalBestellungLesen(String(t1.bestell_ref)) : null;
+  const bVorher = vorher?.bestell_ref ? await globalBestellungLesen(String(vorher.bestell_ref)) : null;
+  const p = kapitalGebuehrPruefen({
+    status: String(z.status), fassung: String(z.fassung), parameter: d.parameter, angenommenAm: isoTag(z.angenommen_am), heute: berlinToday(),
+    teil1Bezahlt: String(b1?.payment_status) === "paid", vorhanden: vorher ? { rechnungSteht: !!bVorher && RECHNUNG_STEHT.includes(String(bVorher.payment_status)) } : null,
+  }, art, ein);
+  if (!p.ok) {
+    if (p.schon && vorher) {
+      return { ok: true, schon: true, ref: String(vorher.bestell_ref), rechnungsnummer: bVorher?.invoice_number ?? null, betragCents: Number(vorher.betrag_cents),
+        zahlungsseite: bVorher?.payment_reference ? absoluteUrl(`/zahlung/${bVorher.payment_reference}?bereich=business`) : null,
+        meldung: `${g.titel} ist schon berechnet (${bVorher?.invoice_number ?? vorher.bestell_ref}) — nichts Neues angelegt.` };
+    }
+    return nein(p.error, 409);
+  }
+  const ref1 = z.auftrag_ref ? String(z.auftrag_ref) : null;
+  if (!ref1 || !(await globalAkteLesen(ref1))) return nein("Bestellung und Akte von Teil 1 fehlen noch — bitte erst „Nachholen“.", 409);
+  // Teil 3 braucht die Prüfregel „nr bis 500“ (Migration 096; in der Produktion seit E-301 getauscht).
+  if (g.nr > 2 && !(await firmaTeileCheckSichern())) return nein("Die Datenbank nimmt Teil 3 gerade nicht an (Prüfregel der Teile) — bitte gleich noch einmal.", 503);
+  await sqlPool`
+    INSERT INTO fiaon_global_angebot_teile (angebot_id, nr, titel, betrag_cents, faelligkeit, zahlungsziel_tage, meilenstein_am, meilenstein_art, meilenstein_beleg, meilenstein_von)
+    VALUES (${id}, ${g.nr}, ${g.titel}, ${p.daten.betragCents}, 'meilenstein', ${d.parameter.zahlungszielTage}, ${p.daten.datum}::date, ${art}, ${p.daten.beleg || null}, ${wer})
+    ON CONFLICT (angebot_id, nr) DO NOTHING`;
+  // Ein früherer Versuch ohne Bestellzeile: Tag und Beleg dieses Klicks gelten.
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET meilenstein_am = ${p.daten.datum}::date, meilenstein_beleg = ${p.daten.beleg || null}, meilenstein_von = ${wer}
+                 WHERE angebot_id = ${id} AND nr = ${g.nr} AND bestell_ref IS NULL`;
+  const [teil] = (await sqlPool`SELECT * FROM fiaon_global_angebot_teile WHERE angebot_id = ${id} AND nr = ${g.nr}`) as any[];
+  if (!teil) return nein(`Teil ${g.nr} ließ sich nicht anlegen — bitte noch einmal.`, 502);
+  if (teil.entfallen_am) return nein(`Teil ${g.nr} ist entfallen (${teil.entfallen_grund ?? "ohne Grund"}) — keine Rechnung.`, 409);
+  let ref = teil.bestell_ref ? String(teil.bestell_ref) : null;
+  if (!ref) {
+    const neu = `FIAON-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").slice(0, 4).toUpperCase()}`;
+    const ok = await firmaBestellzeileAnlegen(neu, { kunde: d.kunde } as any, g.titel, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
+    if (!ok) return nein(`Die Bestellzeile für die ${g.titel} ließ sich nicht anlegen — bitte noch einmal.`, 502);
+    const [gebunden] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${neu} WHERE id = ${teil.id} AND bestell_ref IS NULL AND entfallen_am IS NULL RETURNING id`) as any[];
+    if (!gebunden) {
+      // Ein zweiter Klick war schneller — seine Zeile gilt, diese wird nie berechnet.
+      await sqlPool`UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW() WHERE ref = ${neu} AND payment_status IN ('pending', 'pending_payment')`.catch(() => {});
+      const [jetzt] = (await sqlPool`SELECT bestell_ref FROM fiaon_global_angebot_teile WHERE id = ${teil.id}`) as any[];
+      if (!jetzt?.bestell_ref) return nein(`Teil ${g.nr} ist inzwischen entfallen — keine Rechnung.`, 409);
+      ref = String(jetzt.bestell_ref);
+    } else ref = neu;
+  }
+  const uid = d.kunde.firma.uid || null;
+  await sqlPool`UPDATE fiaon_applications SET rechnung_ust_modus = ${uid ? "reverse_charge" : "none"}, tax_id = ${uid} WHERE ref = ${ref}`;
+  const b0 = await globalBestellungLesen(ref);
+  if (!b0?.payment_reference || !RECHNUNG_STEHT.includes(String(b0.payment_status))) {
+    const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
+    const erg = await bestellungFuerAntrag(ref, { globalMailFolgt: true });
+    if (erg.status !== 200) return nein(`Die Rechnung über die ${g.titel} ließ sich nicht anlegen: ${String((erg.body as any)?.error || erg.status)} — ein weiterer Klick macht hier weiter.`, 502);
+  }
+  await sqlPool`UPDATE fiaon_applications SET rechnung_ust_modus = ${uid ? "reverse_charge" : "none"}, tax_id = ${uid} WHERE ref = ${ref}`;
+  const [person] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+  if (!person?.person_id) {
+    const { bindePersonAnAntrag } = await import("../fiaon-person-model");
+    await bindePersonAnAntrag(ref).catch((e) => console.error(`[FIAON-KAPITAL] ${d.ref}: Person an Teil ${g.nr}:`, e));
+  }
+  // Der erste Klick, nach dem die Rechnung steht, schreibt Verlauf und Mail — genau einmal.
+  const [erst] = (await sqlPool`UPDATE fiaon_global_angebot_teile SET rechnung_am = NOW() WHERE id = ${teil.id} AND rechnung_am IS NULL RETURNING id`) as any[];
+  const b = await globalBestellungLesen(ref);
+  const betrag = kapitalEur(Number(teil.betrag_cents));
+  const tag = kapitalTag(isoTag(teil.meilenstein_am) ?? p.daten.datum);
+  const zahlungsseite = b?.payment_reference ? absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`) : null;
+  const satz = `${g.ereignis} am ${tag} — Rechnung ${g.titel} ${betrag} netto (${b?.invoice_number ?? ref})`;
+  const name = kapitalVertretungName(d.kunde);
+  if (erst) {
+    await verlaufAngebot(id, wer, satz, { teil: g.nr, bestellRef: ref, ...(teil.meilenstein_beleg ? { beleg: String(teil.meilenstein_beleg) } : {}) });
+    await globalVerlauf(ref1, `FIAON Global: ${satz}, ${g.ziffer} des Kapital-Angebots ${d.ref}, zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen (eingetragen von ${wer}).`)
+      .catch((e: unknown) => console.error(`[FIAON-KAPITAL] ${d.ref}: Verlauf der Akte:`, e));
+  }
+  const zeilen = [
+    `${name} (${d.kunde.firma.name}) · ${satz}.`,
+    `Zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen${b?.payment_reference ? ` · Verwendungszweck ${b.payment_reference}` : ""}${zahlungsseite ? ` · Zahlungsseite ${zahlungsseite}` : ""}.`,
+    `Keine automatische Kundenmail (Firmenangebot) — Rechnung und Zahlungsseite bitte persönlich an ${d.kunde.email} schicken.`,
+    ...(teil.meilenstein_beleg ? [`Beleg (intern): ${String(teil.meilenstein_beleg)}`] : []),
+    `Chefbüro: ${absoluteUrl(CHEF_LINK)}`,
+  ];
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: z.person_id != null ? Number(z.person_id) : null, ref: null,
+    titel: `Kapital-Angebot ${d.ref}: ${g.titel} ${betrag} an ${d.kunde.firma.name} schicken`,
+    text: zeilen.join("\n"), anBetreiber: true, dringend: true, schluessel: `global:${d.ref}:kapital-teil${g.nr}`, bereich: "konten", quelle: "global",
+    autorName: "FIAON Global", link: CHEF_LINK, anlageText: `${g.knopf} im Chefbüro eingetragen (${wer}).`,
+  }).catch((e) => console.error(`[FIAON-KAPITAL] ${d.ref}: Aufgabe ${g.titel}:`, e));
+  let mailSatz = "";
+  if (erst) {
+    try {
+      const { eigeneMailSenden } = await import("./fiaon-brevo");
+      const v = await eigeneMailSenden({
+        an: "js@fiaon.com", name: "Justin", betreff: `${g.titel} berechnet: ${d.kunde.firma.name} — ${betrag} (${d.ref})`, text: zeilen.join("\n\n"),
+        knoepfe: [...(zahlungsseite ? [{ text: "Zahlungsseite öffnen", url: zahlungsseite }] : []), { text: "Im Chefbüro ansehen", url: absoluteUrl(CHEF_LINK), leise: true }],
+      });
+      mailSatz = v.ok ? " Mail an Justin ist raus." : ` Mail an Justin ging nicht raus (${String(v.grund || "unbekannt").slice(0, 120)}) — die Aufgabe steht.`;
+    } catch (e) { mailSatz = ` Mail an Justin ging nicht raus (${e instanceof Error ? e.message : String(e)}) — die Aufgabe steht.`; }
+  }
+  return {
+    ok: true, ref, rechnungsnummer: b?.invoice_number ?? null, betragCents: Number(teil.betrag_cents), zahlungsseite,
+    meldung: `Rechnung ${b?.invoice_number ?? ref} über die ${g.titel} (${betrag} netto) steht, zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen. Keine Kundenmail — Aufgabe mit Zahlungslink liegt bei Justin.${mailSatz}`,
+  };
+}
+
+/** Knopf-Zustand und Zeilen der Teile für die Liste der Leitung — dieselbe Prüfung wie beim Klick. */
+function kapitalTeileSicht(z: AngebotZeile, d: KapitalDaten, teile: any[], heute: string) {
+  const t1 = teile.find((t) => Number(t.nr) === 1);
+  const teil1Bezahlt = String(t1?.payment_status) === "paid";
+  const knopf = (art: KapitalGebuehrArt): string | null => {
+    const t = teile.find((x) => Number(x.nr) === KAPITAL_GEBUEHREN[art].nr);
+    const p = kapitalGebuehrPruefen({
+      status: String(z.status), fassung: String(z.fassung), parameter: d.parameter, angenommenAm: isoTag(z.angenommen_am), heute, teil1Bezahlt,
+      vorhanden: t ? { rechnungSteht: RECHNUNG_STEHT.includes(String(t.payment_status ?? "")) } : null,
+    }, art, { datum: heute });
+    return p.ok ? null : p.error;
+  };
+  return {
+    knoepfe: { buergschaft: knopf("buergschaft"), auszahlung: knopf("auszahlung") },
+    teile: [...teile].sort((a, b) => Number(a.nr) - Number(b.nr)).map((t) => ({
+      nr: Number(t.nr), titel: String(t.titel), betragCents: Number(t.betrag_cents), bestellRef: t.bestell_ref ?? null,
+      verwendungszweck: t.payment_reference ?? null, rechnungsnummer: t.invoice_number ?? null, zahlungsstatus: t.payment_status ?? null,
+      zahlbarBis: t.payment_due_date ? berlinToday(new Date(t.payment_due_date)) : null,
+      bezahltAm: t.bezahlt_am ? new Date(t.bezahlt_am).toISOString() : (String(t.payment_status) === "paid" && t.completed_at ? new Date(t.completed_at).toISOString() : null),
+      ereignisAm: isoTag(t.meilenstein_am), entfallenAm: t.entfallen_am ? new Date(t.entfallen_am).toISOString() : null,
+      rechnungUrl: t.bestell_ref && RECHNUNG_STEHT.includes(String(t.payment_status ?? "")) ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(t.bestell_ref))}/rechnung.pdf` : null,
+      zahlungsseite: t.payment_reference ? `/zahlung/${t.payment_reference}?bereich=business` : null,
+    })),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE LISTE DER LEITUNG (Reiter „Individualangebote“)
 // ═══════════════════════════════════════════════════════════════════════════
-export function kapitalListenEintrag(z: AngebotZeile, ext: { heute: string; aufrufe: unknown }): Record<string, unknown> {
+export function kapitalListenEintrag(z: AngebotZeile, ext: { heute: string; aufrufe: unknown; teile?: any[] }): Record<string, unknown> {
   const d = kapitalDatenAus(z);
   const status = angebotStatusAus(z, ext.heute);
   const fehlt = kapitalPflichtFehlen(d);
   const w = kapitalWahlAus(z);
+  const ts = kapitalTeileSicht(z, d, ext.teile ?? [], ext.heute);
   return {
     art: "kapital",
     id: Number(z.id), ref: d.ref, status, fassung: d.fassung, personId: z.person_id ?? null,
@@ -446,8 +595,15 @@ export function kapitalListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
     kapital: { llc: w?.llc ?? null, zeile: `${kapitalEur(d.parameter.preisCents)} + ${kapitalEur(d.parameter.jahresCents)}/Jahr ab Jahr 2 · Plan ${kapitalChf(d.parameter.kapitalChf)} · Bürgschaft ${kapitalChf(d.parameter.buergschaftChf)}` },
-    auftragRef: z.auftrag_ref ?? null, officeLink: null, teile: [],
-    knoepfe: { meilenstein: "Kapital-Angebot: ein Teil", erstattung: "Kapital-Angebot: keine Erstattung", garantie: "Kapital-Angebot: keine Garantie", hemmung: "Kapital-Angebot: keine Frist", aendern: String(z.status) === "offen" ? "Ändern per Skript (scripts/angebot-kapital-anlegen.ts)" : "Nur solange das Angebot offen ist." },
+    auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
+    // E-401: Teil 1 (Festpreis), Teil 2 (Bürgschaftsgebühr), Teil 3 (Vergütung bei Auszahlung) — mit Rechnung und Stand.
+    teile: ts.teile, nacharbeitFehler: z.nacharbeit_fehler ?? null,
+    gebuehren: { buergschaftCents: d.parameter.buergschaftCents, auszahlungCents: d.parameter.auszahlungCents, vereinbart: kapitalMitGebuehren(z.fassung) || String(z.status) === "offen", garantieWochen: d.parameter.garantieWochen },
+    knoepfe: {
+      buergschaft: ts.knoepfe.buergschaft, auszahlung: ts.knoepfe.auszahlung,
+      meilenstein: KAPITAL_SPERRGRUND, erstattung: KAPITAL_SPERRGRUND, garantie: KAPITAL_SPERRGRUND, hemmung: KAPITAL_SPERRGRUND,
+      aendern: String(z.status) === "offen" ? "Ändern per Skript (scripts/angebot-kapital-anlegen.ts)" : "Nur solange das Angebot offen ist.",
+    },
     verlauf: json<any[]>(z.verlauf, []).slice(-12),
     aufrufe: ext.aufrufe ?? null,
     startgespraech: null,

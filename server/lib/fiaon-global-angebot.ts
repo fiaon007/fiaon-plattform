@@ -75,7 +75,7 @@ import { istBegleitFassung } from "@shared/fiaon-global-angebot-begleit";
 // E-384 (16.10.2026): Kooperationsvertrag (IA-KOOP-) — eigener Pfad wie der Begleitvertrag.
 import { istKoopFassung } from "@shared/fiaon-global-angebot-koop";
 // E-399 (19.10.2026): Kapital-Angebot für Firmenkunden (IA-KAPITAL-) — eigener Pfad, Abschluss wie das Firmenangebot.
-import { istKapitalFassung } from "@shared/fiaon-global-angebot-kapital";
+import { istKapitalFassung, KAPITAL_SPERRGRUND, kapitalRechnungsText } from "@shared/fiaon-global-angebot-kapital";
 
 export type AngebotStatus = "offen" | "angenommen" | "zurueckgezogen" | "abgelaufen";
 export const ANGEBOT_PAKET_KEY = "global_individuell";
@@ -383,6 +383,8 @@ export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung
   if (!t) return null;
   // E-301: Rechnungstexte des Firmenangebots (Gründung, Monat n, Umsatz-/Verkaufsbeteiligung).
   if (istFirmenFassung(t.fassung)) return (await import("./fiaon-global-angebot-firma")).firmaRechnungsZeile(ref);
+  // E-401: Kapital-Angebot — Festpreis (Teil 1), Bürgschaftsgebühr (Teil 2), Vergütung bei Auszahlung (Teil 3).
+  if (istKapitalFassung(t.fassung)) return kapitalRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr), auftragRef: String(t.auftrag_ref || ref), ereignisAm: isoTag(t.meilenstein_am) });
   return angebotRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr) === 2 ? 2 : 1, auftragRef: String(t.auftrag_ref || ref), meilensteinArt: t.meilenstein_art, meilensteinAm: isoTag(t.meilenstein_am) });
 }
 
@@ -1394,7 +1396,7 @@ export async function angebotMeilenstein(id: number, ein: any, wer: string): Pro
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
-  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
+  if (istKapitalFassung(z.fassung)) return nein(KAPITAL_SPERRGRUND, 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1487,7 +1489,7 @@ export async function angebotFristHemmen(id: number, ein: any, wer: string): Pro
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
-  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
+  if (istKapitalFassung(z.fassung)) return nein(KAPITAL_SPERRGRUND, 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   if (!z.frist_ende) return nein("Die Frist läuft noch nicht — sie beginnt mit dem Start.", 409);
   // E-271: Die Frist läuft auch nach dem Meilenstein weiter (Garantie bis zum Fristende) — Hemmen geht bis zur
@@ -1609,7 +1611,7 @@ export async function angebotGarantieErfuellt(id: number, ein: any, wer: string)
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
-  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
+  if (istKapitalFassung(z.fassung)) return nein(KAPITAL_SPERRGRUND, 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1657,7 +1659,7 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
   if (istFirmenFassung(z.fassung)) return nein("Firmenangebot: Bitte die Knöpfe des Firmenangebots verwenden (Bedingungen, erste Runde, Garantiefall).", 409);
   if (istKoopFassung(z.fassung)) return nein("Kooperationsvertrag: keine Teile, keine Frist, keine Garantie — abgerechnet wird je Kontakt zum Monatsende.", 409);
-  if (istKapitalFassung(z.fassung)) return nein("Kapital-Angebot: ein Teil (Festpreis), keine Frist, keine Garantie — Jahresbetreuung ab dem zweiten Jahr.", 409);
+  if (istKapitalFassung(z.fassung)) return nein(KAPITAL_SPERRGRUND, 409);
   if (istBegleitFassung(z.fassung)) return nein("Begleitvertrag: keine Teile, keine Frist, keine Garantie — Gründungsrechnung und Erfolgshonorar stellt die Leitung von Hand.", 409);
   const teil1 = (z.teile as any[]).find((x) => Number(x.nr) === 1);
   const teil2 = (z.teile as any[]).find((x) => Number(x.nr) === 2);
@@ -1810,7 +1812,7 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const K = zeilen.some((z) => istKoopFassung(z.fassung)) ? await import("./fiaon-global-angebot-koop") : null;
   const C = zeilen.some((z) => istKapitalFassung(z.fassung)) ? await import("./fiaon-global-angebot-kapital") : null;
   const liste: Record<string, unknown>[] = zeilen.map((z) => {
-    if (C && istKapitalFassung(z.fassung)) return C.kapitalListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
+    if (C && istKapitalFassung(z.fassung)) return C.kapitalListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null, teile: alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)) });
     if (K && istKoopFassung(z.fassung)) return K.koopListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (B && istBegleitFassung(z.fassung)) return B.begleitListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (F && istFirmenFassung(z.fassung)) {

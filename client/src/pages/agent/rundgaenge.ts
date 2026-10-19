@@ -1348,6 +1348,16 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "das System keine Rechnungen mehr.",
     tipp: "An die Kundin eines Firmenangebots geht KEINE automatische Mail — auch keine Zahlungs- oder Terminerinnerung. Vertrag, Rechnungen und Termine schickt der Ansprechpartner von Hand (er bekommt je Rechnung eine Aufgabe; am zehnten Tag ohne Zahlung die Aufgabe „anrufen“).",
   },
+  // E-399/E-401 (19.10.2026) — ohne `ziel`: Der Block steht nur, wenn es ein Kapital-Angebot gibt.
+  {
+    titel: "Kapital-Angebote: zwei Knöpfe für die späteren Rechnungen.",
+    text: "Ein Kapital-Angebot (Ref FIAON-IA-C…, „Kapital-Angebot“ neben der Ref) legt nur das Import-Skript an. Mit der Annahme entsteht "
+      + "Teil 1 (Festpreis) mit Rechnung. Später zwei Knöpfe: „Bürgschaft zugesagt“ — sobald die Bürgin die Bürgschaft dem Institut "
+      + "zugesagt hat, erst nach Zahlung von Teil 1 — stellt Teil 2, die Bürgschaftsgebühr. „Finanzierung ausgezahlt“ stellt Teil 3, die "
+      + "Vergütung bei Auszahlung. Je Knopf: Datum, Beleg freiwillig (intern), dann „Rechnung stellen“. Ein zweiter Klick legt nichts "
+      + "doppelt an; hing ein Schritt, macht er dort weiter.",
+    tipp: "An die Firma geht KEINE automatische Mail. Justin bekommt je Rechnung eine Aufgabe und eine Mail mit dem Zahlungslink und schickt beides persönlich.",
+  },
   // Angebot-Aufrufe (01.10.2026, E-268) — ohne `ziel`: Der Kasten steht nur, wenn es ein Angebot gibt.
   {
     titel: "Wann, wie oft und wo hat der Kunde geöffnet?",

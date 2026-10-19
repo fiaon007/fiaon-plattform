@@ -175,6 +175,107 @@ function KoopAngebotBlock({ a, kopieren }: { a: KoopAngebot; kopieren: (t: strin
   );
 }
 
+// ── E-399/E-401 (19.10.2026): DAS KAPITAL-ANGEBOT — Teile mit Rechnung und die zwei Knöpfe „Bürgschaft zugesagt“ / „Finanzierung
+// ausgezahlt“. Ohne eigenen Block lief der Eintrag durch den Block des Individualangebots (dort fehlen Anlage 1 und Garantiefelder).
+type KapitalTeil = {
+  nr: number; titel: string; betragCents: number; bestellRef: string | null; verwendungszweck: string | null; rechnungsnummer: string | null;
+  zahlungsstatus: string | null; zahlbarBis: string | null; bezahltAm: string | null; ereignisAm: string | null; entfallenAm: string | null;
+  rechnungUrl: string | null; zahlungsseite: string | null;
+};
+type KapitalAngebot = {
+  art: "kapital"; id: number; ref: string; status: Angebot["status"]; fassung: string; kundeName: string; gueltigBis: string;
+  link: string | null; vertragUrl: string; pruefberichtUrl: string | null; officeLink: string | null; auftragRef: string | null;
+  angenommenAm: string | null; ip: string | null; textHash: string | null; fehlt: string[]; nacharbeitFehler: string | null;
+  kunde: { email: string }; pruefbericht: { ampel: string } | null; buergin: { name: string };
+  kapital: { llc: { wunsch: string; alternative1: string; alternative2: string } | null; zeile: string };
+  gebuehren?: { buergschaftCents: number; auszahlungCents: number; vereinbart: boolean; garantieWochen: number };
+  teile: KapitalTeil[]; knoepfe: { buergschaft?: string | null; auszahlung?: string | null };
+  aufrufe: Aufrufe | null; verlauf: { am: string; wer: string; was: string }[];
+  zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null;
+};
+const KAPITAL_KNOEPFE = [
+  { art: "buergschaft", knopf: "Bürgschaft zugesagt", datum: "Zugesagt am (gegenüber dem Institut)", nr: 2, cents: "buergschaftCents", hinweis: "Ziffer 6 Absatz 2: fällig mit der Zusage der Bürgin an das Institut." },
+  { art: "auszahlung", knopf: "Finanzierung ausgezahlt", datum: "Ausgezahlt am", nr: 3, cents: "auszahlungCents", hinweis: "Ziffer 6 Absatz 3: fällig mit der Auszahlung; zahlbar aus den Mitteln." },
+] as const;
+function kapitalTeilStand(t: KapitalTeil): { text: string; rot?: boolean } {
+  if (t.entfallenAm) return { text: "entfallen", rot: true };
+  if (t.zahlungsstatus === "paid") return { text: `bezahlt${t.bezahltAm ? ` am ${datum(t.bezahltAm)}` : ""}` };
+  if (t.zahlungsstatus === "cancelled" || t.zahlungsstatus === "superseded") return { text: "storniert", rot: true };
+  if (t.rechnungUrl) return { text: `offen · zahlbar bis ${datum(t.zahlbarBis)}` };
+  if (t.bestellRef || t.nr > 1) return { text: "Rechnung hängt — den Knopf noch einmal drücken", rot: true };
+  return { text: "Rechnung folgt mit der Annahme" };
+}
+function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
+  a: KapitalAngebot; busy: string | null; kopieren: (t: string) => void;
+  aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any>;
+}) {
+  const [offen, setOffen] = useState<"buergschaft" | "auszahlung" | null>(null);
+  const [form, setForm] = useState<{ datum: string; beleg: string }>({ datum: "", beleg: "" });
+  const llc = a.kapital.llc; const g = a.gebuehren;
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const k = KAPITAL_KNOEPFE.find((x) => x.art === offen);
+  return (
+    <section className={`cz-block cg-angebot cg-${a.status}`} data-angebot={a.ref} data-art="kapital">
+      <header className="cg-angebot-kopf">
+        <div>
+          <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Kapital-Angebot</span></h3>
+          <p className="cm-klartext">{a.kapital.zeile}{g?.vereinbart ? ` · später ${eur(g.buergschaftCents)} bei Bürgschaftszusage, ${eur(g.auszahlungCents)} bei Auszahlung` : ""} · gültig bis {datum(a.gueltigBis)} · {a.kunde.email}</p>
+          {a.fehlt.length > 0 && <p className="cm-klartext cg-rot">Fehlt für die Annahme: {a.fehlt.join(" · ")}</p>}
+        </div>
+        <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
+      </header>
+      <div className="cg-links">
+        {a.link && <span className="cg-linkzeile"><a href={a.link} target="_blank" rel="noreferrer" title="Vorschau — nimmt nicht an">Kundenseite (Vorschau)</a><button type="button" className="cg-knopf" onClick={() => kopieren(a.link!)}>Link kopieren</button></span>}
+        <a href={a.vertragUrl} target="_blank" rel="noreferrer">{a.status === "angenommen" ? "Vertrag mit Annahmevermerk (PDF)" : "Vertragsentwurf (PDF)"}</a>
+        {a.pruefberichtUrl && <a href={a.pruefberichtUrl} target="_blank" rel="noreferrer">Prüfbericht (PDF){a.pruefbericht ? ` · Ampel ${a.pruefbericht.ampel}` : ""}</a>}
+        {a.officeLink && <a href={a.officeLink}>Auftrag im Office ({a.auftragRef})</a>}
+      </div>
+      {a.status === "angenommen" && (
+        <div className="cg-annahme" data-kapital-teile={a.teile.length}>
+          <p className="cm-klartext"><b>Gesellschaft: {llc?.wunsch ?? "—"}</b>{llc && (llc.alternative1 || llc.alternative2) ? ` · Ausweichnamen: ${[llc.alternative1, llc.alternative2].filter(Boolean).join(" · ")}` : ""} · Bürgin {a.buergin.name}</p>
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}…{g?.garantieWochen ? ` · Garantie (Ziffer 4): Finanzierung binnen ${g.garantieWochen} Wochen ab Auftrag, sonst alles zurück — Frist ruht ohne Zahlung oder Unterlagen` : ""}</p>
+          {a.nacharbeitFehler && <p className="cm-klartext cg-rot">Nach der Annahme hing etwas: {a.nacharbeitFehler}</p>}
+          <div className="cm-tab-halter"><table className="cm-tab cg-teile">
+            <thead><tr><th>Teil</th><th>Posten</th><th>Betrag</th><th>Stand</th><th>Rechnung</th></tr></thead>
+            <tbody>
+              {a.teile.map((t) => { const st = kapitalTeilStand(t); return (
+                <tr key={t.nr} data-teil={t.nr}>
+                  <td>{t.nr}</td>
+                  <td><b>{t.titel}</b>{t.ereignisAm ? <span className="cm-klartext">{t.nr === 2 ? "zugesagt" : "ausgezahlt"} am {datum(t.ereignisAm)}</span> : null}</td>
+                  <td>{eur(t.betragCents)}</td>
+                  <td className={st.rot ? "cg-rot" : undefined}>{st.text}</td>
+                  <td>{t.rechnungUrl ? <a href={t.rechnungUrl} target="_blank" rel="noreferrer">{t.rechnungsnummer ?? "Rechnung"}</a> : "—"}{t.verwendungszweck ? <span className="cm-klartext">Zweck {t.verwendungszweck}</span> : null}{t.zahlungsseite && t.rechnungUrl ? <span className="cm-klartext"><a href={t.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite</a></span> : null}</td>
+                </tr>); })}
+            </tbody>
+          </table></div>
+          <div className="cg-knoepfe cg-knoepfe-reihe">
+            {KAPITAL_KNOEPFE.map((x) => { const grund = a.knoepfe[x.art] ?? null; const teil = a.teile.find((t) => t.nr === x.nr); const nochmal = !!teil && !teil.rechnungUrl && !teil.entfallenAm; return (
+              <span key={x.art}><button type="button" className="cg-knopf cg-knopf-haupt" data-knopf={x.art} disabled={!!grund} onClick={() => { setOffen(x.art); setForm({ datum: teil?.ereignisAm ?? heute, beleg: "" }); }}>{x.knopf}{g ? ` → Rechnung ${eur(g[x.cents])}` : ""}{nochmal ? " (fortsetzen)" : ""}</button>{grund && <span className="cm-fein">{grund}</span>}</span>
+            ); })}
+          </div>
+          {k && (
+            <div className="cg-form" data-form={k.art}>
+              <div className="cg-raster">
+                <label>{k.datum}<input type="date" max={heute} value={form.datum} onChange={(e) => setForm({ ...form, datum: e.target.value })} /></label>
+                <label>Beleg (intern, freiwillig)<input value={form.beleg} placeholder="z. B. Institut und Zusage per Mail vom …" onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
+              </div>
+              <p className="cm-fein" title={k.hinweis}>Legt Teil {k.nr} an und stellt die Rechnung (Reverse Charge wie Teil 1). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.</p>
+              <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kg${a.id}${k.art}` || !form.datum} onClick={async () => { const r = await aktion(`kg${a.id}${k.art}`, `/admin/global/angebote/${a.id}/kapital/${k.art}`, form); if (r.ok) setOffen(null); }}>Rechnung stellen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
+            </div>
+          )}
+        </div>
+      )}
+      {a.status === "zurueckgezogen" && <p className="cm-klartext">Zurückgezogen am {datum(a.zurueckgezogenAm)}: {a.zurueckgezogenGrund}</p>}
+      <AufrufBlock x={a.aufrufe} />
+      {a.verlauf.length > 0 && (
+        <details className="cg-verlauf"><summary>Verlauf ({a.verlauf.length})</summary>
+          <ul>{a.verlauf.slice().reverse().map((v, i) => <li key={i}><span className="cm-wann">{datumZeit(v.am)} · {v.wer}</span> {v.was}</li>)}</ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
 const STATUS_TEXT: Record<Angebot["status"], string> = { offen: "Wartet auf Annahme", angenommen: "Angenommen", zurueckgezogen: "Zurückgezogen", abgelaufen: "Abgelaufen" };
 // E-IT-G (08.10.2026): „Geburtsdatum (JJJJ-MM-TT)“ als Freitext ist raus — es steht als eigenes Bauteil darunter.
 const KUNDE_FELDER: [string, string][] = [["anrede", "Anrede"], ["vorname", "Vorname"], ["nachname", "Nachname"], ["strasse", "Straße"], ["plz", "PLZ"], ["ort", "Ort"], ["land", "Land (DE/AT/CH)"], ["email", "E-Mail"], ["telefon", "Telefon"]];
@@ -646,6 +747,7 @@ export default function ChefGlobalAngebote() {
         // E-312: Begleitverträge für Bestandskunden — schlanker Block (LLC-Namen, Wahl, Link, Vertrag).
         if ((a as unknown as { art?: string }).art === "begleit") return <BegleitAngebotBlock key={a.id} a={a as unknown as BegleitAngebot} kopieren={kopieren} />;
         if ((a as unknown as { art?: string }).art === "koop") return <KoopAngebotBlock key={a.id} a={a as unknown as KoopAngebot} kopieren={kopieren} />;
+        if ((a as unknown as { art?: string }).art === "kapital") return <KapitalAngebotBlock key={a.id} a={a as unknown as KapitalAngebot} aktion={aktion} busy={busy} kopieren={kopieren} />;
         if ((a as unknown as { art?: string }).art === "firma") return <FirmaAngebotBlock key={a.id} a={a as unknown as FirmaAngebot} aktion={aktion} busy={busy} kopieren={kopieren} buerginFelder={V.buerginFelder} />;
         const t1 = a.teile.find((t) => t.nr === 1); const t2 = a.teile.find((t) => t.nr === 2);
         return (

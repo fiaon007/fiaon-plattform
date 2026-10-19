@@ -665,6 +665,56 @@ export function kapitalPflichtFehlen(d: Pick<KapitalDaten, "kunde" | "parameter"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DIE ZWEI SPÄTEREN RECHNUNGEN (E-401, 19.10.2026) — Bürgschaftsgebühr (Ziffer 6 Absatz 2) und Vergütung bei Auszahlung
+// (Ziffer 6 Absatz 3). Je ein Knopf im Chefbüro legt Teil 2 bzw. Teil 3 an und stellt darüber die Rechnung — wie der
+// Meilenstein des Individualangebots, aber ohne Kundenmail (Firmenangebot). Fassung A kennt beide Beträge nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+export type KapitalGebuehrArt = "buergschaft" | "auszahlung";
+export const KAPITAL_GEBUEHREN: Record<KapitalGebuehrArt, { nr: 2 | 3; titel: string; ziffer: string; ereignis: string; knopf: string; datumLabel: string }> = {
+  buergschaft: { nr: 2, titel: "Bürgschaftsgebühr", ziffer: "Ziffer 6 Absatz 2", ereignis: "Bürgschaft gegenüber dem Institut zugesagt", knopf: "Bürgschaft zugesagt", datumLabel: "Zugesagt am" },
+  auszahlung: { nr: 3, titel: "Vergütung bei Auszahlung der Finanzierung", ziffer: "Ziffer 6 Absatz 3", ereignis: "Finanzierung ausgezahlt", knopf: "Finanzierung ausgezahlt", datumLabel: "Ausgezahlt am" },
+};
+/** Was die Knöpfe des Individualangebots (Meilenstein, Frist, Garantie, Erstattung) beim Kapital-Angebot sagen. */
+export const KAPITAL_SPERRGRUND = "Kapital-Angebot: Rechnungen über „Bürgschaft zugesagt“ und „Finanzierung ausgezahlt“ im Block des Angebots; die Garantie (Ziffer 4) klärt die Leitung.";
+export function istKapitalGebuehrArt(v: unknown): v is KapitalGebuehrArt { return v === "buergschaft" || v === "auszahlung"; }
+/** Nur Fassungen ab B vereinbaren die zwei Beträge — Fassung A sagte „keine gesonderte Vergütung“ für die Bürgschaft. */
+export function kapitalMitGebuehren(fassung: unknown): boolean {
+  return istKapitalFassung(fassung) && String(fassung) !== "IA-KAPITAL-2026-10-19-A";
+}
+export function kapitalGebuehrCents(par: Pick<KapitalParameter, "buergschaftCents" | "auszahlungCents">, art: KapitalGebuehrArt): number {
+  return art === "buergschaft" ? par.buergschaftCents : par.auszahlungCents;
+}
+/**
+ * Darf die Rechnung entstehen? Rein — Knopf-Zustand in der Liste und Klick prüfen dasselbe. `vorhanden` ist der schon
+ * angelegte Teil (null = noch keiner); steht seine Rechnung, ist nichts mehr zu tun (`schon`).
+ */
+export function kapitalGebuehrPruefen(
+  lage: { status: string; fassung: string; parameter: Pick<KapitalParameter, "buergschaftCents" | "auszahlungCents">; angenommenAm: string | null; heute: string; teil1Bezahlt: boolean; vorhanden: { rechnungSteht: boolean } | null },
+  art: KapitalGebuehrArt, ein: any,
+): { ok: true; daten: { datum: string; beleg: string; betragCents: number } } | { ok: false; error: string; schon?: true } {
+  const g = KAPITAL_GEBUEHREN[art];
+  if (lage.status !== "angenommen") return { ok: false, error: "Erst nach der Annahme." };
+  if (!kapitalMitGebuehren(lage.fassung)) return { ok: false, error: `Fassung ${lage.fassung} vereinbart keine ${g.titel} — keine Rechnung.` };
+  const betragCents = kapitalGebuehrCents(lage.parameter, art);
+  if (!(betragCents > 0)) return { ok: false, error: `Im Vertrag ist für die ${g.titel} kein Betrag vereinbart.` };
+  if (lage.vorhanden?.rechnungSteht) return { ok: false, error: `${g.titel} ist schon berechnet.`, schon: true };
+  if (art === "buergschaft" && !lage.teil1Bezahlt) return { ok: false, error: "Erst wenn die Vergütung nach Ziffer 6 Absatz 1 bezahlt ist — vorher übernimmt die Bürgin nicht (Ziffer 5)." };
+  const datum = String(ein?.datum ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return { ok: false, error: `${g.datumLabel}: Datum fehlt (JJJJ-MM-TT).` };
+  if (datum > lage.heute) return { ok: false, error: "Das Datum liegt in der Zukunft." };
+  if (lage.angenommenAm && datum < lage.angenommenAm) return { ok: false, error: `Das Datum liegt vor der Annahme (${kapitalTag(lage.angenommenAm)}).` };
+  const beleg = String(ein?.beleg ?? "").replace(/\s+/g, " ").trim().slice(0, 600);
+  return { ok: true, daten: { datum, beleg, betragCents } };
+}
+/** Die Zeile auf der Rechnung (fiaon-invoice über angebotRechnungsZeile) — je Teil des Kapital-Angebots. */
+export function kapitalRechnungsText(z: { angebotRef: string; nr: number; auftragRef: string; ereignisAm?: string | null }): { beschreibung: string; zeitraum: string } {
+  const am = z.ereignisAm ? ` am ${kapitalTag(z.ereignisAm)}` : "";
+  if (z.nr === 2) return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: Bürgschaftsgebühr (Ziffer 6 Absatz 2) — Bürgschaft gegenüber dem Institut zugesagt${am} (Auftrag ${z.auftragRef})`, zeitraum: "einmalig" };
+  if (z.nr === 3) return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: Vergütung bei Auszahlung der Finanzierung (Ziffer 6 Absatz 3) — ausgezahlt${am} (Auftrag ${z.auftragRef})`, zeitraum: "einmalig" };
+  return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: ${KAPITAL_TEIL_TITEL} — Vergütung erstes Jahr (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE KUNDENSICHT (GET /api/fiaon/global/angebot/:token für ein offenes Kapital-Angebot)
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KapitalKundenSicht {

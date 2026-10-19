@@ -283,6 +283,20 @@ router.post("/admin/global/angebote/:id/meilenstein", requireChef("leitung"), as
   }
 });
 
+// E-401 (Kapital-Angebot): „Bürgschaft zugesagt“ (:art = buergschaft, Teil 2) und „Finanzierung ausgezahlt“ (:art = auszahlung,
+// Teil 3) — je ein Teil mit Rechnung, ohne Kundenmail. Body: { datum: "JJJJ-MM-TT", beleg?: string }. Wiederholbar.
+router.post("/admin/global/angebote/:id/kapital/:art", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const { kapitalGebuehrBerechnen } = await import("../lib/fiaon-global-angebot-kapital");
+    const erg = await kapitalGebuehrBerechnen(idAus(req), String(req.params.art || ""), req.body ?? {}, await chefName(req));
+    if (!erg.ok) return res.status(erg.status).json(erg);
+    res.json(erg);
+  } catch (err) {
+    console.error("[FIAON-KAPITAL] Rechnung Bürgschaft/Auszahlung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // E-271 (Kreditgarantie): „Garantie erfüllt“ — Kreditrahmen ≥ Ziel und Karten ≥ Ziel bis zum Fristende, mit Belegen.
 // Body: { erfuelltAm: "JJJJ-MM-TT", rahmenUsd: number, karten: number, beleg: string }.
 router.post("/admin/global/angebote/:id/garantie", requireChef("leitung"), async (req: ChefRequest, res: Response) => {

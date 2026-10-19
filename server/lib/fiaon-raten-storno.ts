@@ -136,10 +136,29 @@ export const ERINNERBARE_BESTELLUNG_SQL = (a: string): string =>
 // 10/8 mit ungebuchter Kündigung, 22/19 mit Mahnstopp in der Liste (Florentine: „Zahlung überfällig, obwohl
 // fristgerecht gekündigt“). Eine Regel für alle — dieselbe Lesart wie RATE_MAHNBAR_SQL (ohne die Mail-Taktung).
 // `a` = Alias der Bestellung, `r` = Alias der Rate.
-export const RATE_NACH_ENDE_SQL_FUER = (a: string, r: string): string => `(${a}.gekuendigt_am IS NOT NULL AND ${a}.kuendigung_zurueckgenommen_am IS NULL
+//
+// E-394 (19.10.2026): Dieselbe Regel für eine Fälligkeit, die es noch NICHT gibt. Die Raten-Erzeuger fragen sie vor
+// dem Anlegen (faelligNachVertragsende unten, ratenFuerHeuteErzeugen, ketteSicherstellen) — vorher legte der
+// Ketten-Nachzieher (aboNachziehen, quelle „nachgezogen“) für gekündigte Altverträge neue Raten an, die der Tageslauf
+// eine Stunde später wieder stornierte (17.10.: 35 Raten, 2.207,65 €). `tag` = SQL-Ausdruck eines Kalendertags.
+export const FAELLIG_NACH_ENDE_SQL_FUER = (a: string, tag: string): string => `(${a}.gekuendigt_am IS NOT NULL AND ${a}.kuendigung_zurueckgenommen_am IS NULL
   AND (${a}.agb_stand IS NULL OR ${a}.agb_stand < DATE '${JAHRESVERTRAG_AB}')
-  AND ${r}.faellig_am > COALESCE((${a}.vertrag_ende_am AT TIME ZONE 'Europe/Berlin')::date,
+  AND ${tag} > COALESCE((${a}.vertrag_ende_am AT TIME ZONE 'Europe/Berlin')::date,
                               ((${a}.gekuendigt_am + INTERVAL '24 hours') AT TIME ZONE 'Europe/Berlin')::date))`;
+export const RATE_NACH_ENDE_SQL_FUER = (a: string, r: string): string => FAELLIG_NACH_ENDE_SQL_FUER(a, `${r}.faellig_am`);
+
+/**
+ * Läge eine Rate dieser Bestellung, fällig am `tag` (JJJJ-MM-TT), nach dem Vertragsende? Dann legt sie kein Erzeuger
+ * an — sie wäre nie geschuldet (AGB § 6 a. F.). Dieselbe Regel wie RATE_NACH_ENDE_SQL_FUER, kein zweiter Text.
+ */
+export async function faelligNachVertragsende(ref: string, tag: string, lauf: Lauf = sqlPool): Promise<boolean> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tag)) return false;
+  const [z] = (await lauf`
+    SELECT ${lauf.unsafe(FAELLIG_NACH_ENDE_SQL_FUER("a", "f.tag"))} AS nach_ende
+      FROM fiaon_applications a, (SELECT ${tag}::date AS tag) f
+     WHERE a.ref = ${ref}`) as any[];
+  return z?.nach_ende === true;
+}
 
 export const FORDERUNG_AKTIV_SQL_FUER = (a: string, r: string): string => `(NOT ${RATE_NACH_ENDE_SQL_FUER(a, r)}
   AND NOT ${KUENDIGUNG_UNGEBUCHT_SQL(`${a}.person_id`)}

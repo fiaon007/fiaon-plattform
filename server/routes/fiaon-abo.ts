@@ -66,7 +66,7 @@ import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
-import { ERINNERBARE_BESTELLUNG_SQL, FORDERUNG_AKTIV_SQL_FUER, RATE_NACH_ENDE_SQL_FUER, ratenStornieren } from "../lib/fiaon-raten-storno";
+import { ERINNERBARE_BESTELLUNG_SQL, FAELLIG_NACH_ENDE_SQL_FUER, FORDERUNG_AKTIV_SQL_FUER, RATE_NACH_ENDE_SQL_FUER, faelligNachVertragsende, ratenStornieren } from "../lib/fiaon-raten-storno";
 import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import { JAHRESVERTRAG_AB } from "@shared/fiaon-antrag-stand";
 
@@ -513,6 +513,8 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
       WHERE ref = ${ref} AND rate_nr > 1 AND storniert_am IS NULL
     `;
     if (Number(vorhanden.c) > 0) return { angelegt: false, grund: "Kette existiert bereits" };
+    // E-394: Nach dem Vertragsende eines gekündigten Altvertrags entsteht keine Rate (fiaon-raten-storno.ts).
+    if (await faelligNachVertragsende(ref, faelligkeit(anker, 1))) return { angelegt: false, grund: "Fällig nach dem Vertragsende — nicht geschuldet" };
 
     await sqlPool`
       INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
@@ -622,6 +624,9 @@ export async function naechsteRateAnlegen(
   const wirktGekappt = amMonatsende && ankerTagZahl > letzterTag;
   const rhythmus = wirktGekappt ? anker : bisher;
   const faellig = naechsteFaelligkeit(rhythmus, bisher);
+  // E-394 (19.10.2026): Nach dem Vertragsende eines gekündigten Altvertrags kommt keine Rate mehr — auch wenn
+  // „letzte Rate“ fehlt (Regel und Text in fiaon-raten-storno.ts). Vor dem Guthaben: das bleibt unangetastet.
+  if (await faelligNachVertragsende(ref, faellig)) return;
   // E-354 (14.10.2026): Ein Rest aus einer Anrechnung (bezahltes Guthaben einer stornierten Bestellung) mindert
   // die neue Rate — z. B. Rate 13 nach einer Verlängerung. Ohne Guthaben ändert sich nichts.
   const { guthabenVerbrauchen } = await import("../lib/fiaon-anrechnung");
@@ -668,6 +673,10 @@ export async function ketteSicherstellen(): Promise<{ neu: number }> {
       AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
                        WHERE r.ref = a.ref AND r.rate_nr > 1 AND r.storniert_am IS NULL)
+      -- E-394 (19.10.2026): Ein gekündigter Altvertrag, dessen Ende HEUTE schon vorbei ist, hat keine Kette mehr zu
+      -- bekommen — die nächste Fälligkeit (aboNachziehen: strikt nach heute) läge nach dem Ende. Vorher zählte er hier
+      -- als „ohne Kette“, sobald der Tageslauf seine Raten nach dem Ende storniert hatte, und bekam stündlich neu eine.
+      AND NOT ${sqlPool.unsafe(FAELLIG_NACH_ENDE_SQL_FUER("a", "(NOW() AT TIME ZONE 'Europe/Berlin')::date"))}
   `;
   if (Number(offen.c) === 0) return { neu: 0 };
   const erg = await aboNachziehen({ rueckwirkend: false });
@@ -717,6 +726,8 @@ export async function aboNachziehen(opts: { rueckwirkend?: boolean; nurZaehlen?:
     const zyklusNr = opts.rueckwirkend ? Math.max(1, vergangen) : vergangen + 1;
     const rateNr = zyklusNr + 1;
     const faellig = faelligkeit(anker, zyklusNr);
+    // E-394: Nach dem Vertragsende eines gekündigten Altvertrags ist die Rate nie geschuldet — nicht anlegen.
+    if (await faelligNachVertragsende(app.ref, faellig)) { uebersprungen++; continue; }
 
     if (opts.nurZaehlen) { neu++; continue; }
 
@@ -1092,8 +1103,10 @@ export interface TageslaufErgebnis {
  * Eine Rate entsteht nur für ein bezahltes Paket. `aboNachziehen` hält diese
  * Grenze (payment_status = 'paid', kein SCHUFA, kein Abo-Stopp) — hier wird
  * sie deshalb nicht ein zweites Mal formuliert.
+ *
+ * Exportiert für den Prüfstand (scripts/pruef-e394-raten-erzeuger.ts) — `heute` ist dort ein fester Tag.
  */
-async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Promise<number> {
+export async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Promise<number> {
   const kandidaten = (await lauf.unsafe(`
     SELECT a.ref, a.payment_reference, a.pack_key, a.amount_due,
            ${ABO_ANKER_SQL} AS anker_at,
@@ -1106,6 +1119,9 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
       AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL
            OR a.letzte_rate_nr IS NULL
            OR COALESCE((SELECT MAX(r2.rate_nr) FROM fiaon_abo_raten r2 WHERE r2.ref = a.ref), 0) < a.letzte_rate_nr)
+      -- E-394: Die Rate entstünde heute (faellig_am = heute). Liegt das nach dem Vertragsende eines gekündigten
+      -- Altvertrags, ist sie nie geschuldet — dann gar nicht erst anlegen (dieselbe Regel wie Storno und Mahnung).
+      AND NOT ${FAELLIG_NACH_ENDE_SQL_FUER("a", "$1::date")}
       AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
       -- E-188: kein Einmalkauf des Katalogs (Bonitätsauskunft, FIAON Global)
       AND NOT ${KEIN_ABO_SQL}
@@ -1116,7 +1132,7 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
       -- E-024: nach der Laufzeit keine neue Rate ohne Ja des Kunden
       AND COALESCE((SELECT MAX(r.rate_nr) FROM fiaon_abo_raten r WHERE r.ref = a.ref), 0)
           < ${ABO_LAUFZEIT_RATEN} + COALESCE(a.abo_verlaengert_raten, 0)
-  `)) as any[];
+  `, [heute])) as any[];
 
   let erzeugt = 0;
   for (const k of kandidaten) {

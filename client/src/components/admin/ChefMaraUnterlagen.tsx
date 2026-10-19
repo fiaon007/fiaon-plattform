@@ -6,7 +6,8 @@
 //   1. Schalter „Mara erinnert an fehlende Ausweise und Kontoauszüge“ (Standard an) + Wirkung.
 //   2. „Unterlagen prüft: …“ — wer die Prüf-Aufgaben bekommt (Vorschlag: wer am meisten prüft; nie du).
 //   3. Schalter „Alte Prüf-Aufgaben umhängen“ (Standard AUS — du entscheidest) mit der Zahl aus dem Probelauf,
-//      danach „Zurückholen“ (30 Tage).
+//      danach „Zurückholen“ (30 Tage) je Lauf — und „Alle zurückholen“ (Nachbesserung: erreicht auch Läufe, die
+//      nicht mehr unter den 10 jüngsten stehen).
 // Keine neue Seite (Hausregel „Keine neuen Chef-Seiten“). Server: /chef/mara/unterlagen (fiaon-mara-steuerpult.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
@@ -29,6 +30,8 @@ type Stand = {
     an: boolean;
     probelauf: { beiJustin: number; umhaengen: number; personen: number };
     laeufe: { id: number; am: string; umgehaengt: number; zurueck: number }[];
+    /** Was „Alle zurückholen“ zurückholt — jeder Lauf der 30 Tage, auch einer, der nicht mehr in der Liste steht. */
+    offen?: { aufgaben: number; laeufe: number };
   };
   lauf?: { ok: boolean; grund?: string; umgehaengt: number; an?: string } | null;
   zurueck?: number;
@@ -134,8 +137,18 @@ export default function MaraUnterlagen() {
           </div>
         ) : null}
       </div>
-      {u && u.laeufe.length > 0 && (
+      {u && (u.laeufe.length > 0 || (u.offen?.aufgaben ?? 0) > 0) && (
         <ul className="mku-laeufe">
+          {(u.offen?.aufgaben ?? 0) > 0 && (
+            <li data-mku="alle-zurueck">
+              <span>{zahl(u.offen!.aufgaben)} umgehängt (30 Tage{u.offen!.laeufe > 1 ? `, ${zahl(u.offen!.laeufe)} Läufe` : ""})</span>
+              <button type="button" className="mara-knopf klein" disabled={!!busy}
+                onClick={() => void machen("zurueck-alle", "/chef/mara/unterlagen/zurueck", { alle: true },
+                  (j) => `${zahl(j.zurueck ?? 0)} Prüf-Aufgaben liegen wieder bei dir. Der Schalter ist aus.`)}>
+                Alle zurückholen
+              </button>
+            </li>
+          )}
           {u.laeufe.map((l) => (
             <li key={l.id}>
               <span>{tagUhr(l.am)} · {zahl(l.umgehaengt)} umgehängt{l.zurueck ? ` · ${zahl(l.zurueck)} zurück` : ""}</span>
@@ -157,7 +170,8 @@ export default function MaraUnterlagen() {
           von 8 bis 20 Uhr. Nie bei beendetem oder gekündigtem Vertrag, FIAON Global, Testkonto oder Vertriebssperre.
           {" "}<b>Prüfen:</b> Kommt eine Unterlage, schreibt Mara eine Vorprüfung an die Unterlage (Art, lesbar, vollständig, Name aus der Akte).
           Ausweisfotos liest keine KI. Freigeben tut immer ein Mensch mit „Geprüft“.
-          {" "}<b>Umhängen:</b> Nur offene Prüf-Aufgaben mit Ungeprüftem und laufendem Vertrag; „Zurückholen“ geht 30 Tage.
+          {" "}<b>Umhängen:</b> Nur offene Prüf-Aufgaben mit Ungeprüftem und laufendem Vertrag; „Zurückholen“ geht 30 Tage —
+          je Lauf oder mit „Alle zurückholen“ alles auf einmal.
         </p>
       )}
       <Meldung m={meldung} ort="unterlagen" onZu={zu} />

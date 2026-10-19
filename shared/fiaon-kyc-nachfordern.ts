@@ -33,6 +33,8 @@
 // Kandidaten lesen und senden tut der Server (server/lib/fiaon-mara-kyc.ts), nie ein Modell.
 // ═══════════════════════════════════════════════════════════════════════════
 import { imVersandfenster, naechstesFenster } from "./fiaon-nicht-erreicht-nachfass";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { NICHT_ABO_SCHLUESSEL } from "./fiaon-pakete";
 
 /** Die KYC-Unterlagen: Ausweis und Kontoauszug (beide gibt die Verwaltung mit kyc_status frei). */
 export type KycArt = "ausweis" | "kontoauszug";
@@ -79,11 +81,21 @@ export function kycVertragLaeuftSql(a = "a"): string {
     + ` AND (${a}.gekuendigt_am IS NULL OR ${a}.kuendigung_zurueckgenommen_am IS NOT NULL))`;
 }
 
-/** Ein bezahltes Privat-Paket (keine reine Auskunftsbestellung, keine Firma), nicht Entwurf, nicht gelöscht. */
+/**
+ * Ein bezahltes Privat-Paket mit LAUFENDEM Vertrag (keine Auskunft, kein Global, keine Firma), nicht Entwurf, nicht gelöscht.
+ * Nachbesserung E-406 B2: „Paket“ heißt die EINE Regel des Hauses — die Produktkategorie „konto“ (Stufenpaket,
+ * shared/fiaon-produktkategorie.ts) und kein Einmalkauf aus dem Katalog (wie keinAboSql, fiaon-kein-abo.ts: ein
+ * unbekannter oder leerer Schlüssel bleibt Abo — Altbestand). Vorher reichten type 'private' und eine Referenz ohne
+ * FIAON-SCHUFA-: Ein alter Auskunft-Kauf (bis E-240 type 'private', pack_key 'schufa', 74 €) galt als „laufender Vertrag“,
+ * und Mara hätte um Ausweis und Kontoauszug „für Ihren laufenden Vertrag“ gebeten. Gemessen 19.10.: heute 0 solche Zeilen.
+ */
 export function kycPrivatPaketSql(a = "a"): string {
   if (!/^[a-z_][a-z0-9_]*$/.test(a)) throw new Error(`[KYC] Ungültiger Alias: ${a}`);
+  const einmal = NICHT_ABO_SCHLUESSEL.filter((k) => /^[a-z0-9_]+$/.test(k));
   return `(${a}.merged_into IS NULL AND ${a}.payment_status = 'paid' AND NOT COALESCE(${a}.ist_entwurf, FALSE)`
-    + ` AND ${a}.gdpr_deleted_at IS NULL AND COALESCE(${a}.type, '') = 'private' AND ${a}.ref NOT LIKE 'FIAON-SCHUFA-%')`;
+    + ` AND ${a}.gdpr_deleted_at IS NULL AND COALESCE(${a}.type, '') = 'private' AND ${a}.ref NOT LIKE 'FIAON-SCHUFA-%'`
+    + ` AND ${produktkategorieSql(a)} = 'konto'`
+    + ` AND LOWER(TRIM(COALESCE(${a}.pack_key, ''))) NOT IN (${einmal.length ? einmal.map((k) => `'${k}'`).join(", ") : "''"}))`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

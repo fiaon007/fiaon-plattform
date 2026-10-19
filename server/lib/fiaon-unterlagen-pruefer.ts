@@ -2,10 +2,13 @@
 // UNTERLAGEN: VORPRÜFUNG, WER PRÜFT, UMHÄNGEN (E-406 B2, 19.10.2026)
 //
 // Die Regeln stehen rein in shared/fiaon-unterlagen-vorpruefung.ts. Hier läuft, was die Datenbank braucht:
-//   vorpruefen()            nach Prüfung und Analyse einer Unterlage (anstossAusfuehren, fiaon-unterlagen.ts):
+//   vorpruefen()            nach Prüfung und Analyse einer Unterlage (anstossAusfuehren, fiaon-unterlagen.ts, und
+//                           unterlageAnnehmen, fiaon-unterlagen-link.ts — der Upload-Link aus Maras Mail):
 //                           Namensabgleich auf der Textschicht (ohne KI, ohne Ausweisbilder) + die Notiz in
 //                           fiaon_unterlagen_vorpruefung (eine Zeile je Mensch und Unterlage). Wirft nie.
 //   prueferLesen()          wer die Prüf-Aufgaben bekommt (Einstellung, sonst Vorschlag, sonst niemand).
+//   pruefAufgabeMelden()    die EINE Prüf-Aufgabe „Unterlagen eingegangen“ je Stapel — für Kundenbereich UND Link.
+//   umhaengenAllesZurueck() „Alle zurückholen“ über jeden Lauf der 30 Tage (die Takt-Runden eines Tages = ein Lauf).
 //   umhaengenProbelauf()    wie viele alte Prüf-Aufgaben bei Justin umgehängt würden — ändert nichts.
 //   umhaengenAusfuehren()   NUR mit dem Schalter (Standard AUS): hängt sie über den Hausputz-Motor (E-397) um —
 //                           jede Änderung mit dem Zustand VORHER in fiaon_hausputz_log, 30 Tage zurückholbar
@@ -18,6 +21,7 @@ import {
   vorpruefName, vorpruefNotiz, type PrueferKandidat, type PrueferWahl, type VorpruefKategorie, type VorpruefUrteil, type Vorpruefung,
 } from "@shared/fiaon-unterlagen-vorpruefung";
 import { kycVertragLaeuftSql } from "@shared/fiaon-kyc-nachfordern";
+import type { UnterlagenKategorie } from "@shared/fiaon-unterlagen";
 
 type Lauf = typeof sqlPool;
 
@@ -144,6 +148,59 @@ export async function prueferLesen(lauf: Lauf = sqlPool): Promise<PrueferWahl | 
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PRÜF-AUFGABE „UNTERLAGEN EINGEGANGEN“ — EIN Weg für JEDEN Upload eines Kunden
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * EINE Prüf-Aufgabe je Stapel (24 Stunden) — für jeden Weg, auf dem ein Kunde etwas hochlädt: Kundenbereich
+ * (anstossAusfuehren, fiaon-unterlagen.ts) UND Upload-Link ohne Anmeldung (unterlageAnnehmen, fiaon-unterlagen-link.ts —
+ * genau dorthin führt Maras KYC-Mail). Nachbesserung E-406 B2: Der Link legte seine Aufgabe weiter selbst bei Justin
+ * an (fuer_betreiber, niemand zuständig, ohne Vorprüfung) — gerade für die Antworten auf Maras Mails.
+ * Liegt an der Bestellung schon eine offene System-Aufgabe der letzten 24 Stunden, bekommt SIE den neuen Stand
+ * (alle Kategorien des Stapels, alle frischen Vorprüfungen); sonst eine neue bei der prüfenden Person (prueferLesen),
+ * nur ohne sie (wie bisher) beim Betreiber. Wirft nie — die Aufgabe hält keinen Upload auf.
+ */
+export async function pruefAufgabeMelden(ein: {
+  personId: number; ref: string; kategorie: string;
+  /** Wie viele Dateien die Kategorie hat — nur, falls der Stapel (fiaon_dokumente) leer bliebe. */
+  dateien: number;
+  /** Was die automatische Prüfung meldet (falsche Art, unvollständig …) — macht die Aufgabe dringend. */
+  befund: string | null;
+}, lauf: Lauf = sqlPool): Promise<{ id: number | null; neu: boolean; an: PrueferWahl | null }> {
+  try {
+    const { kategorieInfo } = await import("@shared/fiaon-unterlagen");
+    const { unterlagenAufgabeText } = await import("@shared/fiaon-unterlagen-vorpruefung");
+    const stapel = (await lauf`
+      SELECT kategorie, count(*)::int AS n FROM fiaon_dokumente
+       WHERE person_id = ${ein.personId} AND art = 'unterlage' AND quelle = 'kunde' AND entfernt_am IS NULL AND geloescht_am IS NULL
+         AND hochgeladen_am > NOW() - INTERVAL '24 hours'
+       GROUP BY kategorie ORDER BY kategorie`) as any[];
+    const kats = (stapel.length ? stapel : [{ kategorie: ein.kategorie, n: Math.max(1, ein.dateien) }]) as { kategorie: string; n: number }[];
+    const was = kats
+      .map((z) => `${kategorieInfo(String(z.kategorie) as UnterlagenKategorie).kurz}: ${z.n} Datei${Number(z.n) === 1 ? "" : "en"}`).join(", ");
+    const vp = await vorpruefungenLesen(ein.personId, lauf);
+    const frisch = Date.now() - 24 * 3_600_000;
+    const notizen = kats.map((z) => vp[String(z.kategorie)]).filter((x) => x && new Date(x.am).getTime() > frisch).map((x) => x!.notiz);
+    const text = unterlagenAufgabeText(was, notizen, ein.befund || null);
+    const [offen] = (await lauf`SELECT id FROM fiaon_vermerke WHERE ref = ${ein.ref} AND art = 'aufgabe' AND status = 'offen' AND autor_art = 'system'
+                                 AND text LIKE 'Unterlagen eingegangen%' AND created_at > NOW() - INTERVAL '24 hours' ORDER BY id DESC LIMIT 1`) as any[];
+    if (offen) {
+      await lauf`UPDATE fiaon_vermerke SET text = ${text}, dringend = (dringend OR ${!!ein.befund}), updated_at = NOW() WHERE id = ${offen.id}`;
+      return { id: Number(offen.id), neu: false, an: null };
+    }
+    const pruefer = await prueferLesen(lauf);
+    const [n] = (await lauf`
+      INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
+      VALUES ('aufgabe', ${ein.ref}, ${text}, 'betreiber', ${pruefer ? [pruefer.id] : []}::int[], ${pruefer?.id ?? null}, ${!pruefer},
+              ${!!ein.befund}, 'offen', 'system', 'System', ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
+      RETURNING id`) as any[];
+    return { id: n?.id != null ? Number(n.id) : null, neu: true, an: pruefer };
+  } catch (e) {
+    console.error("[UNTERLAGEN-PRÜFER] Prüf-Aufgabe:", String((e as Error)?.message || e).slice(0, 200));
+    return { id: null, neu: false, an: null };
+  }
+}
+
 /** Im Chefbüro gewählt (null = zurück auf den Vorschlag). Nur erlaubte Personen. */
 export async function prueferSetzen(agentId: number | null): Promise<{ ok: boolean; grund?: string }> {
   if (agentId == null) {
@@ -220,8 +277,11 @@ let laeuft = false;
  * Der Lauf — nur mit dem Schalter und mit einer prüfenden Person. Jede Zeile in EINER Transaktion: Umhängen und
  * Protokoll (fiaon_hausputz_log, regel „unterlagen_pruefer“, Zustand vorher) — so holt „Zurückholen“ (Hausputz-Motor)
  * jede Zeile 30 Tage lang zurück. Ein Lauf-Eintrag nur, wenn etwas umgehängt wurde.
+ * Nachbesserung E-406 B2: Die Runden des 15-Minuten-Takts (`takt`) legen nicht je Runde einen Lauf an — sie hängen sich
+ * an den Takt-Lauf desselben Tages (Berlin), solange er der jüngste Lauf ist und nichts daraus zurückgeholt wurde.
+ * Sonst schob jede einzelne Link-Aufgabe den großen ersten Lauf aus der Liste (nur die 10 jüngsten).
  */
-export async function umhaengenAusfuehren(opt: { von?: string; ohneSchalter?: boolean } = {}): Promise<{ ok: boolean; grund?: string; laufId?: number; umgehaengt: number; an?: string }> {
+export async function umhaengenAusfuehren(opt: { von?: string; ohneSchalter?: boolean; takt?: boolean } = {}): Promise<{ ok: boolean; grund?: string; laufId?: number; umgehaengt: number; an?: string }> {
   if (laeuft) return { ok: false, grund: "läuft schon", umgehaengt: 0 };
   laeuft = true;
   try {
@@ -232,8 +292,8 @@ export async function umhaengenAusfuehren(opt: { von?: string; ohneSchalter?: bo
     if (!kandidaten.length) return { ok: true, umgehaengt: 0, an: pruefer.name };
     const { ensureHausputzTabellen } = await import("./fiaon-hausputz");
     await ensureHausputzTabellen();
-    const [l] = (await sqlPool`INSERT INTO fiaon_hausputz_laeufe (art, freigabe) VALUES (${UMHAENGEN_LAUF_ART}, ${`Schalter ${opt.von ?? "Chefbüro"}`.slice(0, 200)}) RETURNING id`) as any[];
-    const laufId = Number(l.id);
+    const laufId = (opt.takt ? await taktLaufHeute() : null)
+      ?? Number(((await sqlPool`INSERT INTO fiaon_hausputz_laeufe (art, freigabe) VALUES (${UMHAENGEN_LAUF_ART}, ${(opt.takt ? TAKT_FREIGABE : `Schalter ${opt.von ?? "Chefbüro"}`).slice(0, 200)}) RETURNING id`) as any[])[0].id);
     let n = 0;
     for (const z of kandidaten) {
       try {
@@ -256,7 +316,9 @@ export async function umhaengenAusfuehren(opt: { von?: string; ohneSchalter?: bo
         console.error(`[UNTERLAGEN-PRÜFER] Umhängen #${z.id}:`, String((e as Error)?.message || e).slice(0, 160));
       }
     }
-    await sqlPool`UPDATE fiaon_hausputz_laeufe SET fertig_am = NOW(), zahlen = ${sqlPool.json({ umgehaengt: n, geplant: kandidaten.length, an: pruefer } as any)} WHERE id = ${laufId}`;
+    // Die Zahlen des Laufs zählen das Protokoll (beim Takt-Lauf des Tages: alle Runden zusammen).
+    const [g] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_hausputz_log WHERE lauf_id = ${laufId}`) as any[];
+    await sqlPool`UPDATE fiaon_hausputz_laeufe SET fertig_am = NOW(), zahlen = ${sqlPool.json({ umgehaengt: Number(g?.n ?? n), zuletzt: n, geplant: kandidaten.length, an: pruefer } as any)} WHERE id = ${laufId}`;
     console.log(`[UNTERLAGEN-PRÜFER] Lauf #${laufId}: ${n} von ${kandidaten.length} Prüf-Aufgaben an ${pruefer.name} umgehängt.`);
     return { ok: true, laufId, umgehaengt: n, an: pruefer.name };
   } finally {
@@ -264,10 +326,25 @@ export async function umhaengenAusfuehren(opt: { von?: string; ohneSchalter?: bo
   }
 }
 
+const TAKT_FREIGABE = "Schalter Takt";
+
+/**
+ * Der Takt-Lauf von heute (Berlin), an den sich die nächste Takt-Runde hängt — nur, wenn er der jüngste Lauf des
+ * Umhängens ist (kein Lauf aus dem Chefbüro danach) und nichts daraus zurückgeholt wurde. Sonst null = neuer Lauf.
+ */
+async function taktLaufHeute(): Promise<number | null> {
+  const [l] = (await sqlPool`
+    SELECT l.id, l.freigabe,
+           (l.gestartet_am >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')) AS heute,
+           EXISTS (SELECT 1 FROM fiaon_hausputz_log g WHERE g.lauf_id = l.id AND g.zurueck_am IS NOT NULL) AS zurueck
+      FROM fiaon_hausputz_laeufe l WHERE l.art = ${UMHAENGEN_LAUF_ART} ORDER BY l.id DESC LIMIT 1`) as any[];
+  return l && l.freigabe === TAKT_FREIGABE && l.heute && !l.zurueck ? Number(l.id) : null;
+}
+
 /** Takt (routes.ts): nur mit Schalter — holt nach, was seit dem letzten Lauf bei Justin gelandet ist. */
 export async function umhaengenTakt(): Promise<{ umgehaengt: number } | null> {
   if (!(await umhaengenSchalterLesen())) return null;
-  const r = await umhaengenAusfuehren({ von: "Takt" });
+  const r = await umhaengenAusfuehren({ von: "Takt", takt: true });
   return r.umgehaengt > 0 ? { umgehaengt: r.umgehaengt } : null;
 }
 
@@ -288,4 +365,50 @@ export async function umhaengenLaeufe(lauf: Lauf = sqlPool): Promise<{ id: numbe
   } catch {
     return [];
   }
+}
+
+/**
+ * Was „Alle zurückholen“ zurückholen würde: umgehängte Prüf-Aufgaben aus ALLEN Läufen der letzten 30 Tage, die noch
+ * nicht zurück sind (Nachbesserung E-406 B2 — die Liste zeigt nur die 10 jüngsten Läufe, das hier erreicht alle).
+ */
+export async function umhaengenOffen(lauf: Lauf = sqlPool): Promise<{ aufgaben: number; laeufe: number }> {
+  try {
+    const [t] = (await lauf`SELECT to_regclass('fiaon_hausputz_log') IS NOT NULL AND to_regclass('fiaon_hausputz_laeufe') IS NOT NULL AS da`) as any[];
+    if (!t?.da) return { aufgaben: 0, laeufe: 0 };
+    const { ZURUECK_TAGE } = await import("./fiaon-hausputz");
+    const [z] = (await lauf`
+      SELECT COUNT(*)::int AS n, COUNT(DISTINCT g.lauf_id)::int AS l
+        FROM fiaon_hausputz_log g JOIN fiaon_hausputz_laeufe l ON l.id = g.lauf_id
+       WHERE l.art = ${UMHAENGEN_LAUF_ART} AND g.regel = ${UMHAENGEN_REGEL} AND g.zurueck_am IS NULL
+         AND g.am > NOW() - make_interval(days => ${ZURUECK_TAGE})`) as any[];
+    return { aufgaben: Number(z?.n || 0), laeufe: Number(z?.l || 0) };
+  } catch {
+    return { aufgaben: 0, laeufe: 0 };
+  }
+}
+
+/**
+ * „Alle zurückholen“: schaltet das Umhängen AUS (zuerst — sonst hinge der Takt dazwischen wieder um) und holt jede
+ * umgehängte Prüf-Aufgabe der letzten 30 Tage über den Hausputz-Motor zurück, Lauf für Lauf (nur Regel
+ * „unterlagen_pruefer“). Zurückgeholtes hängt nie wieder um. Zwei Durchgänge: Ein Takt, der gerade lief, ist danach mit drin.
+ */
+export async function umhaengenAllesZurueck(von: string): Promise<{ zurueck: number; laeufe: number }> {
+  await umhaengenSchalterSetzen(false);
+  const { ensureHausputzTabellen, hausputzZurueckholen, ZURUECK_TAGE } = await import("./fiaon-hausputz");
+  await ensureHausputzTabellen();
+  let zurueck = 0;
+  const gesehen = new Set<number>();
+  for (let runde = 0; runde < 2; runde++) {
+    const ids = (await sqlPool`
+      SELECT DISTINCT g.lauf_id FROM fiaon_hausputz_log g JOIN fiaon_hausputz_laeufe l ON l.id = g.lauf_id
+       WHERE l.art = ${UMHAENGEN_LAUF_ART} AND g.regel = ${UMHAENGEN_REGEL} AND g.zurueck_am IS NULL
+         AND g.am > NOW() - make_interval(days => ${ZURUECK_TAGE})
+       ORDER BY g.lauf_id DESC`) as any[];
+    if (!ids.length) break;
+    for (const r of ids) {
+      gesehen.add(Number(r.lauf_id));
+      zurueck += (await hausputzZurueckholen({ laufId: Number(r.lauf_id), regel: UMHAENGEN_REGEL }, von)).zurueck;
+    }
+  }
+  return { zurueck, laeufe: gesehen.size };
 }

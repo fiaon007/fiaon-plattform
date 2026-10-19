@@ -1509,34 +1509,10 @@ export async function anstossAusfuehren(personId: number, k: UnterlagenKategorie
   // System-Aufgabe der letzten 24 Stunden bekommt dann den neuen Stand (alle Kategorien des Stapels).
   // E-406 B2: Sie geht an die Person im Team, die Unterlagen prüft (prueferLesen) — nicht mehr an Justin.
   // Findet sich niemand (keine Leitung, die prüft), bleibt es wie bisher beim Betreiber.
+  // Nachbesserung: derselbe EINE Weg wie der Upload-Link (pruefAufgabeMelden, fiaon-unterlagen-pruefer.ts).
   if (vomKunden && (kat?.dateien.length ?? 0) > 0) {
-    const stapel = (await lauf`
-      SELECT kategorie, count(*)::int AS n FROM fiaon_dokumente
-       WHERE person_id = ${personId} AND art = 'unterlage' AND quelle = 'kunde' AND entfernt_am IS NULL AND geloescht_am IS NULL
-         AND hochgeladen_am > NOW() - INTERVAL '24 hours'
-       GROUP BY kategorie ORDER BY kategorie`) as any[];
-    const kats = (stapel.length ? stapel : [{ kategorie: k, n: kat?.dateien.length ?? 1 }]) as { kategorie: string; n: number }[];
-    const was = kats
-      .map((z: any) => `${kategorieInfo(String(z.kategorie) as UnterlagenKategorie).kurz}: ${z.n} Datei${Number(z.n) === 1 ? "" : "en"}`).join(", ");
-    const { vorpruefungenLesen, prueferLesen } = await import("./fiaon-unterlagen-pruefer");
-    const vp = await vorpruefungenLesen(personId, lauf);
-    const frisch = Date.now() - 24 * 3_600_000;
-    const notizen = kats.map((z) => vp[String(z.kategorie)]).filter((x) => x && new Date(x.am).getTime() > frisch).map((x) => x!.notiz);
-    const { unterlagenAufgabeText } = await import("@shared/fiaon-unterlagen-vorpruefung");
-    const text = unterlagenAufgabeText(was, notizen, befund || null);
-    const [offen] = (await lauf`SELECT id FROM fiaon_vermerke WHERE ref = ${traeger} AND art = 'aufgabe' AND status = 'offen' AND autor_art = 'system'
-                                 AND text LIKE 'Unterlagen eingegangen%' AND created_at > NOW() - INTERVAL '24 hours' ORDER BY id DESC LIMIT 1`) as any[];
-    if (offen) {
-      await lauf`UPDATE fiaon_vermerke SET text = ${text}, dringend = (dringend OR ${!!befund}), updated_at = NOW() WHERE id = ${offen.id}`
-        .catch((e: any) => console.error("[UNTERLAGEN] Aufgabe nicht ergänzt:", e?.message));
-    } else {
-      const pruefer = await prueferLesen(lauf);
-      await lauf`
-        INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
-        VALUES ('aufgabe', ${traeger}, ${text}, 'betreiber', ${pruefer ? [pruefer.id] : []}::int[], ${pruefer?.id ?? null}, ${!pruefer},
-                ${!!befund}, 'offen', 'system', 'System', ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))`
-        .catch((e: any) => console.error("[UNTERLAGEN] Aufgabe nicht angelegt:", e?.message));
-    }
+    const { pruefAufgabeMelden } = await import("./fiaon-unterlagen-pruefer");
+    await pruefAufgabeMelden({ personId, ref: traeger, kategorie: k, dateien: kat?.dateien.length ?? 1, befund: befund || null }, lauf);
   }
   return true;
 }

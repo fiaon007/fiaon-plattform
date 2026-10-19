@@ -842,7 +842,8 @@ export const RUNDGANG_TASKS: RundgangSchritt[] = [
   {
     // E-406 B2 (19.10.2026): „Unterlagen eingegangen“ geht an die Person, die Unterlagen prüft — nicht mehr an Justin.
     titel: "„Unterlagen eingegangen“ kommt zu der Person, die prüft.",
-    text: "Lädt ein Kunde etwas hoch, landet die Aufgabe unter „Zu tun“ bei der Person aus der Leitung, die Unterlagen prüft — mit Maras "
+    text: "Lädt ein Kunde etwas hoch (im Kundenbereich oder über den Link aus Maras Mail), landet die Aufgabe unter „Zu tun“ bei der Person "
+      + "aus der Leitung, die Unterlagen prüft — eine Aufgabe je Kunde und Tag, mit Maras "
       + "Vorprüfung im Text (Art, lesbar, Name). „Kunde öffnen“, ansehen, in der Akte „Geprüft“ setzen: Dann ist die Aufgabe von selbst erledigt.",
     tipp: "Fehlen Ausweis oder Kontoauszug, erinnert Mara den Kunden selbst (höchstens zweimal). Du musst nicht extra anfordern.",
   },
@@ -2386,7 +2387,7 @@ export const RUNDGANG_AUSKUNFT: RundgangSchritt[] = [
     text: "Oben drei Zeilen. Erstens: Fehlt bei einem laufenden Paket Ausweis oder Kontoauszug, erinnert Mara den Kunden — höchstens zweimal, "
       + "mit dem Upload-Link ohne Anmeldung. Zweitens: wer die Prüf-Aufgaben bekommt (nie du). Drittens: der Schalter, der die alten "
       + "Prüf-Aufgaben von dir zu dieser Person umhängt — vorher steht die Zahl aus dem Probelauf da.",
-    tipp: "„Geprüft“ setzt immer ein Mensch. Was du umgehängt hast, holst du 30 Tage lang mit „Zurückholen“ zurück.",
+    tipp: "„Geprüft“ setzt immer ein Mensch. Was du umgehängt hast, holst du 30 Tage lang zurück — je Lauf oder mit „Alle zurückholen“.",
   },
   {
     ziel: ".mara-ansicht",

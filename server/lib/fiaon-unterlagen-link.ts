@@ -637,13 +637,23 @@ export async function unterlageAnnehmen(ein: {
   // Prüfung (synchron, mit Zeitgrenze) — der Kunde erfährt sofort, wenn etwas fehlt.
   let kundenSatz = "";
   let internSatz = "";
+  // E-406 B2 (Nachbesserung): Urteil bleibt für Maras Vorprüfung und die Prüf-Aufgabe (unten).
+  let urteil: import("./fiaon-dokument-pruefung").DokumentUrteil | null = null;
+  let befund: string | null = null;
   try {
     const { pruefungAnstossen } = await import("./fiaon-dokument-pruefung");
     const u = await pruefungAnstossen(ref, ein.art, pdf);
+    urteil = u ?? null;
     if (u?.hinweisKunde) kundenSatz = ` ${u.hinweisKunde}`;
-    if (u && (u.erkannt === false || u.vollstaendig === false) && u.hinweisIntern) internSatz = ` ⚠ ${u.hinweisIntern}`;
+    if (u && (u.erkannt === false || u.vollstaendig === false) && u.hinweisIntern) { internSatz = ` ⚠ ${u.hinweisIntern}`; befund = u.hinweisIntern; }
   } catch (e) {
     console.error("[UNTERLAGEN-LINK] Prüfung:", String(e).slice(0, 160));
+  }
+  // E-406 B2 (Nachbesserung): die Vorprüfung — Art, lesbar, vollständig, Name aus der Akte — wie beim Upload im
+  // Kundenbereich (anstossAusfuehren). Ohne KI, nie ein Ausweisbild, gibt nie frei. Wirft nie.
+  {
+    const { vorpruefen } = await import("./fiaon-unterlagen-pruefer");
+    await vorpruefen(ein.personId, ein.art, urteil, pdf, lauf);
   }
   if (ein.art === "kontoauszug") {
     void import("./fiaon-kontoauszug-analyse").then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(ref, { erzwingen: true }))
@@ -679,13 +689,13 @@ export async function unterlageAnnehmen(ein: {
     INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
     VALUES (${ref}, ${ein.personId}, ${ein.quelle.art === "mitarbeiter" ? ein.quelle.agentId : null}, ${ein.quelle.art === "mitarbeiter" ? ein.quelle.name : "Kunde (Upload-Link)"}, 'system', ${intern})`
     .catch(() => {});
-  // Die Prüfaufgabe der Verwaltung — derselbe Vermerk wie beim Upload im Bereich (/upload-kyc).
-  await lauf`
-    INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
-    VALUES ('aufgabe', ${ref},
-            ${`Unterlagen eingegangen (${titel}, ${herkunft}) — bitte prüfen und freigeben (Verwaltung → Kunden → Prüfung).${internSatz ? ` Automatische Prüfung meldet:${internSatz}` : ""}`},
-            'betreiber', TRUE, ${!!internSatz}, 'offen', 'system', 'System', ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))`
-    .catch((e: unknown) => console.error("[UNTERLAGEN-LINK] Verwaltungs-Aufgabe:", String((e as Error)?.message || e).slice(0, 160)));
+  // Die Prüfaufgabe — derselbe EINE Weg wie beim Upload im Kundenbereich (E-406 B2, Nachbesserung): an die Person im
+  // Team, die Unterlagen prüft (nicht mehr an Justin), mit Vorprüfung, und EINE Aufgabe je Stapel (24 Stunden) —
+  // lädt der Kunde Ausweis und Kontoauszug nacheinander hoch, bleibt es eine Aufgabe.
+  {
+    const { pruefAufgabeMelden } = await import("./fiaon-unterlagen-pruefer");
+    await pruefAufgabeMelden({ personId: ein.personId, ref, kategorie: ein.art, dateien: n, befund }, lauf);
+  }
   if (ein.quelle.art === "link") {
     await lauf`UPDATE fiaon_unterlagen_links SET nutzungen = nutzungen + 1, dateien = dateien + ${n}, letzte_nutzung = NOW() WHERE id = ${ein.quelle.linkId}`.catch(() => {});
     // Eine Aufgabe an den Betreuer — idempotent je Person: „Unterlagen eingegangen – Auswertung erzeugen".

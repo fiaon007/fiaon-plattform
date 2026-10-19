@@ -95,7 +95,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     changes: [
       "Mara schickt die Mail mit dem Upload-Link ohne Anmeldung — nur 8 bis 20 Uhr, mit 4 Tagen Abstand, nie bei gekündigtem oder beendetem Vertrag.",
       "Unter jeder neuen Unterlage steht „Vorprüfung: …“ (Art, lesbar, vollständig, Name aus der Akte). Ausweisfotos liest keine KI.",
-      "Die Aufgabe „Unterlagen eingegangen“ geht an die Person aus der Leitung, die Unterlagen prüft — nicht mehr an Justin.",
+      "Die Aufgabe „Unterlagen eingegangen“ geht an die Person aus der Leitung, die Unterlagen prüft — nicht mehr an Justin. Auch beim Upload über den Link aus Maras Mail, eine Aufgabe je Kunde und Tag.",
       "Die Liste „KYC zu prüfen“ zeigt keine gekündigten Verträge mehr. Ihr Status bleibt gespeichert.",
     ],
     howto: [

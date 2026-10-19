@@ -917,14 +917,15 @@ router.post("/chef/mara/entscheidungen/pruefen", wache, async (_req: ChefRequest
 //   POST /chef/mara/unterlagen/kyc         { an }  — Mara fordert fehlende Ausweise/Kontoauszüge nach (Standard an)
 //   POST /chef/mara/unterlagen/pruefer     { agentId | null } — wer prüft (null = Vorschlag)
 //   POST /chef/mara/unterlagen/umhaengen   { an }  — Standard AUS; „an“ hängt die alten Prüf-Aufgaben sofort um
-//   POST /chef/mara/unterlagen/zurueck     { laufId } — holt einen Lauf zurück (Hausputz-Motor) und schaltet aus
+//   POST /chef/mara/unterlagen/zurueck     { laufId } | { alle: true } — holt einen Lauf (oder ALLE der 30 Tage) zurück
+//                                          (Hausputz-Motor) und schaltet aus
 // ═══════════════════════════════════════════════════════════════════════════
 async function unterlagenStandChef() {
   const { kycStand } = await import("../lib/fiaon-mara-kyc");
   const P = await import("../lib/fiaon-unterlagen-pruefer");
   const { darfPruefen, PRUEFER_EINSTELLUNG } = await import("@shared/fiaon-unterlagen-vorpruefung");
-  const [kyc, kandidaten, aktuell, an, probelauf, laeufe] = await Promise.all([
-    kycStand(), P.prueferKandidaten(), P.prueferLesen(), P.umhaengenSchalterLesen(), P.umhaengenProbelauf(), P.umhaengenLaeufe(),
+  const [kyc, kandidaten, aktuell, an, probelauf, laeufe, offen] = await Promise.all([
+    kycStand(), P.prueferKandidaten(), P.prueferLesen(), P.umhaengenSchalterLesen(), P.umhaengenProbelauf(), P.umhaengenLaeufe(), P.umhaengenOffen(),
   ]);
   const [e] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${PRUEFER_EINSTELLUNG}`.catch(() => [])) as any[];
   return {
@@ -933,7 +934,7 @@ async function unterlagenStandChef() {
       aktuell, eingestellt: Number(e?.value) > 0 ? Number(e.value) : null,
       auswahl: kandidaten.filter(darfPruefen).map((k) => ({ id: k.id, name: k.name, geprueft30: k.geprueft30 })),
     },
-    umhaengen: { an, probelauf, laeufe },
+    umhaengen: { an, probelauf, laeufe, offen },
   };
 }
 
@@ -993,6 +994,18 @@ router.post("/chef/mara/unterlagen/umhaengen", wache, async (req: ChefRequest, r
 });
 
 router.post("/chef/mara/unterlagen/zurueck", wache, async (req: ChefRequest, res: Response) => {
+  // Nachbesserung E-406 B2: „Alle zurückholen“ — jeder Lauf der letzten 30 Tage, auch wenn er nicht mehr in der Liste steht.
+  if (req.body?.alle === true) {
+    try {
+      const P = await import("../lib/fiaon-unterlagen-pruefer");
+      const erg = await P.umhaengenAllesZurueck(wer(req));
+      void chefProtokoll(req, "unterlagen_umhaengen:zurueck:alle", `${erg.zurueck} aus ${erg.laeufe} Läufen`);
+      return res.json({ ok: true, zurueck: erg.zurueck, ...(await unterlagenStandChef()) });
+    } catch (err) {
+      console.error("[MARA-STEUERPULT] unterlagen alle zurück:", err);
+      return res.status(500).json({ ok: false, error: "Das Zurückholen ist abgebrochen — was schon zurück ist, bleibt zurück. Bitte noch einmal." });
+    }
+  }
   const laufId = Number(req.body?.laufId);
   if (!Number.isInteger(laufId) || laufId <= 0) return res.status(400).json({ ok: false, error: "laufId fehlt." });
   try {

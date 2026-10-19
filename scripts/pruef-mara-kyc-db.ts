@@ -44,6 +44,7 @@ async function main() {
   const Z = await import("../server/lib/fiaon-kundenzentrale");
   const H = await import("../server/lib/fiaon-hausputz");
   const R = await import("../shared/fiaon-kyc-nachfordern");
+  const LK = await import("../server/lib/fiaon-unterlagen-link");
   const N = await import("../shared/fiaon-nicht-erreicht-nachfass");
 
   const stempel = Date.now().toString(36).toUpperCase();
@@ -176,9 +177,18 @@ async function main() {
   await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, status, reason) VALUES (${J.ref}, 'Jan', 'Kuendigungsantragprobe', ${mailVon("Kuendigungsantragprobe")}, 'pending', 'Prüfstand')`;
   const S = await person("Sven", "Storniertprobe", { antrag: { cancelled_at: new Date() } });
   const M = await person("Mia", "Ohnemailprobe", { mail: false });
+  // Nachbesserung (Prüfer-Fund): ein alter Auskunft-Kauf (bis E-240: type 'private', pack_key 'schufa', Referenz FIAON-…) und
+  // ein Einmalkauf (LLC-Paket) sind kein „laufender Vertrag“ — vorher bat Mara sie um Unterlagen „für Ihren laufenden Vertrag“.
+  const O = await person("Olga", "Altauskunftprobe", { antrag: { pack_key: "schufa", pack_name: "FIAON-Bonitätsauswertung" } });
+  const Lc = await person("Lea", "Llcprobe", { antrag: { pack_key: "llc_paket", pack_name: "GLOBAL LLC Package" } });
+  const kand = new Set(((await sql.unsafe(KYC.kycKandidatenSql())) as any[]).map((z) => Number(z.person_id)));
+  ok(!kand.has(O.pid), "alte Auskunft-Zeile (type private, pack_key schufa) → kein Kandidat (Produktkategorie „auskunft“)");
+  ok(!kand.has(Lc.pid), "Einmalkauf (LLC-Paket) → kein Kandidat");
+  ok(kand.has(M.pid) && kand.has(I.pid), "… ein Abo-Paket (pro) bleibt Kandidat");
   await KYC.kycTakt({ jetzt: taktZeit() });
   for (const [x, was] of [[B, "gekündigt"], [C, "Testkonto"], [D, "Vertriebssperre"], [E, "FIAON Global (Begleitvertrag)"], [G, "Ausweis und Kontoauszug liegen vor"],
-    [I, "bezahlt vor 2 Tagen (wartet)"], [J, "Kündigungsantrag offen"], [S, "storniert"], [M, "ohne Mail-Adresse"]] as const) {
+    [I, "bezahlt vor 2 Tagen (wartet)"], [J, "Kündigungsantrag offen"], [S, "storniert"], [M, "ohne Mail-Adresse"],
+    [O, "alter Auskunft-Kauf (type private, pack_key schufa)"], [Lc, "Einmalkauf LLC-Paket"]] as const) {
     ok(anBrevo(x.nn).length === 0 && (await protokoll(x.pid)).filter((z) => z.ergebnis === "gesendet").length === 0, `${was} → keine Mail`);
   }
 
@@ -268,6 +278,41 @@ async function main() {
   ok(!FREMD.some((u) => /openai|anthropic/.test(u)), "kein Aufruf an eine KI (Ausweisbilder gehen nirgends hin)", FREMD);
 
   // ═══════════════════════════════════════════════════════════════════════
+  console.log("── 6b · Upload über den Link aus Maras Mail → Aufgabe bei der Prüferin, mit Vorprüfung, EINE je Stapel (Prüfer-Fund)");
+  {
+    const X = await person("Xaver", "Linkprobe");
+    const anf = await LK.unterlagenAnfrageSenden({ personId: X.pid, arten: ["ausweis", "kontoauszug"], kanaele: ["mail"], quelle: "mara_kyc",
+      anlassSatz: R.kycAnlassSatz(1), akteur: { name: "Mara", agentId: null, rolle: "admin" } });
+    const [lx] = (await sql`SELECT link_id FROM fiaon_unterlagen_anfragen WHERE person_id = ${X.pid} AND quelle = 'mara_kyc' ORDER BY id DESC LIMIT 1`) as any[];
+    ok(anf.ok && Number(lx?.link_id) > 0, "Maras Mail mit Upload-Link ist raus", { anf: anf.meldung, lx });
+    const linkId = Number(lx?.link_id ?? 0);
+    const r1 = await LK.unterlageAnnehmen({ personId: X.pid, art: "kontoauszug", quelle: { art: "link", linkId },
+      dateien: [{ buffer: await pdf(auszugZeilen(X.vn, X.nn)), name: "auszug.pdf", mimetype: "application/pdf" }] });
+    ok(r1.ok, "Kunde lädt den Kontoauszug über den Link hoch (ohne Anmeldung)", r1);
+    const aufgabenX = async () => (await sql`SELECT id, text, zustaendig_agent_id, fuer_betreiber, sicht_agenten, status FROM fiaon_vermerke
+      WHERE ref = ${X.ref} AND art = 'aufgabe' AND text LIKE 'Unterlagen eingegangen%' ORDER BY id`) as any[];
+    const a1 = await aufgabenX();
+    ok(a1.length === 1 && Number(a1[0].zustaendig_agent_id) === 10 && a1[0].fuer_betreiber === false, "Aufgabe liegt bei der Prüferin — NICHT bei Justin (vorher: fuer_betreiber, niemand zuständig)", a1);
+    ok(a1.length === 1 && (a1[0].sicht_agenten ?? []).map(Number).includes(10), "… und sie sieht sie (sicht_agenten)", a1[0]?.sicht_agenten);
+    ok(a1.length === 1 && /Vorprüfung: Kontoauszug · erkannt/.test(a1[0].text), "die Aufgabe trägt die Vorprüfung", a1[0]?.text);
+    const [vpX] = (await sql`SELECT notiz FROM fiaon_unterlagen_vorpruefung WHERE person_id = ${X.pid} AND kategorie = 'kontoauszug'`) as any[];
+    ok(vpX && /Name passt/.test(vpX.notiz), "Vorprüfung an der Unterlage geschrieben (Name aus der Akte passt)", vpX);
+    const stX = await U.unterlagenStand(X.pid, "office");
+    ok(/Kontoauszug · erkannt/.test(stX.kategorien.find((k) => k.kategorie === "kontoauszug")?.vorpruefung?.notiz ?? ""), "Akte (Office) zeigt die Vorprüfung des Link-Uploads");
+    const r2 = await LK.unterlageAnnehmen({ personId: X.pid, art: "ausweis", quelle: { art: "link", linkId },
+      dateien: [{ buffer: await pdf([`Personalausweis Identity Card · ${X.nn.toUpperCase()} ${X.vn.toUpperCase()}`, "Geburtstag 01.01.1980 Staatsangehörigkeit DEUTSCH Gültig bis 01.01.2030", "Anschrift Musterweg 3 Ausstellungsbehörde Berlin"]), name: "ausweis.pdf", mimetype: "application/pdf" }] });
+    const a2 = await aufgabenX();
+    ok(r2.ok && a2.filter((z) => z.status === "offen").length === 1, "danach der Ausweis über denselben Link → weiter EINE Aufgabe (je Stapel), keine zweite", a2.map((z) => z.text));
+    ok(a2.length === 1 && /Ausweis: 1 Datei/.test(a2[0].text) && /Kontoauszug: 1 Datei/.test(a2[0].text) && /Vorprüfung: Ausweis/.test(a2[0].text), "… mit beiden Unterlagen und beiden Vorprüfungen", a2[0]?.text);
+    await U.kategorieGeprueft(X.pid, "kontoauszug", { art: "mitarbeiter", name: "Florentine Lombardi", agentId: 10 });
+    await U.kategorieGeprueft(X.pid, "ausweis", { art: "mitarbeiter", name: "Florentine Lombardi", agentId: 10 });
+    const a3 = await aufgabenX();
+    ok(a3.length === 1 && a3[0].status === "erledigt", "die Prüferin setzt „Geprüft“ → die Aufgabe geht von selbst zu (E-397)", a3);
+    ok(Number((await sql`SELECT COUNT(*)::int AS n FROM fiaon_dokumente WHERE person_id = ${X.pid} AND art = 'unterlage' AND geprueft_von_agent_id IS NULL AND geprueft_am IS NOT NULL`)[0]?.n) === 0,
+      "Mara gibt NIE frei (geprüft hat nur die Prüferin)");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   console.log("── 7 · Alte Prüf-Aufgaben umhängen — nur mit Schalter, Probelauf, Zurückholen");
   const altVermerk = async (p: { ref: string }) => {
     const [v] = (await sql`INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, status, autor_art, autor_name, created_at)
@@ -308,6 +353,37 @@ async function main() {
   const [w3] = (await sql`SELECT fuer_betreiber FROM fiaon_vermerke WHERE id = ${v1}`) as any[];
   ok(w3?.fuer_betreiber === true && !(await P.umhaengenZeilen()).find((z) => z.id === v1)?.passt, "einmal zurückgeholt → hängt nie wieder um (kein Pendeln)", { r2, w3 });
   await P.umhaengenSchalterSetzen(false);
+
+  console.log("── 7b · Der große erste Lauf bleibt erreichbar: Takt-Runden = ein Lauf je Tag, „Alle zurückholen“ (Prüfer-Fund)");
+  {
+    const T = await person("Theo", "Taktprobe"); await hochladen(T, "ausweis"); await anstossWeg(T.pid);
+    await P.umhaengenSchalterSetzen(true);
+    const vGross = await altVermerk(T);
+    const gross = await P.umhaengenAusfuehren({ von: "Prüfstand" });
+    ok(gross.ok && gross.umgehaengt >= 1 && !!gross.laufId, "der große erste Lauf (Chefbüro)", gross);
+    const taktIds: number[] = [];
+    for (let i = 0; i < 11; i++) {
+      taktIds.push(await altVermerk(T));
+      await P.umhaengenTakt();
+    }
+    const taktLaeufe = (await sql`SELECT DISTINCT lauf_id FROM fiaon_hausputz_log WHERE zeile_id = ANY(${taktIds}::int[]) AND tabelle = 'vermerk' AND regel = 'unterlagen_pruefer'`) as any[];
+    ok(taktLaeufe.length === 1, "11 Takt-Runden am selben Tag → EIN Lauf (vorher: 11 Läufe)", taktLaeufe.map((z) => Number(z.lauf_id)));
+    const umgehaengtT = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_vermerke WHERE id = ANY(${taktIds}::int[]) AND zustaendig_agent_id = 10 AND fuer_betreiber = FALSE`) as any[];
+    ok(Number(umgehaengtT[0]?.n) === 11, "… und alle 11 Aufgaben hängen an der Prüferin", umgehaengtT[0]);
+    const liste = await P.umhaengenLaeufe();
+    ok(liste.some((l) => l.id === gross.laufId), "der große erste Lauf steht weiter in der Liste („Zurückholen“ erreichbar)", liste.map((l) => l.id));
+    const takt1 = liste.find((l) => l.id === Number(taktLaeufe[0]?.lauf_id));
+    ok(!!takt1 && takt1.umgehaengt >= 11, "der Takt-Lauf zählt alle Runden zusammen", takt1);
+    const offen = typeof (P as any).umhaengenOffen === "function" ? await (P as any).umhaengenOffen() : null;
+    ok(offen && offen.aufgaben >= 12 && offen.laeufe >= 2, "Zahl für „Alle zurückholen“ (jeder Lauf der 30 Tage)", offen);
+    const alle = typeof (P as any).umhaengenAllesZurueck === "function" ? await (P as any).umhaengenAllesZurueck("Prüfstand") : null;
+    const zurueckT = (await sql`SELECT COUNT(*) FILTER (WHERE fuer_betreiber AND zustaendig_agent_id IS NULL)::int AS n FROM fiaon_vermerke WHERE id = ANY(${[vGross, ...taktIds]}::int[])`) as any[];
+    ok(!!alle && alle.zurueck >= 12 && Number(zurueckT[0]?.n) === 12, "„Alle zurückholen“ → alle 12 wieder beim Betreiber, aus beiden Läufen", { alle, zurueckT: zurueckT[0] });
+    ok(!(await P.umhaengenSchalterLesen()) && (offen ? (await (P as any).umhaengenOffen()).aufgaben === 0 : false), "… der Schalter ist aus, nichts mehr offen");
+    await P.umhaengenTakt();
+    const [nochT] = (await sql`SELECT COUNT(*) FILTER (WHERE fuer_betreiber)::int AS n FROM fiaon_vermerke WHERE id = ANY(${[vGross, ...taktIds]}::int[])`) as any[];
+    ok(Number(nochT?.n) === 12, "der Takt hängt danach nichts wieder um", nochT);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   console.log("── 8 · „KYC zu prüfen“: nur laufende Verträge, Gekündigte fallen heraus, der Status bleibt");

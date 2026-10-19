@@ -10,6 +10,7 @@ import {
   type PrueferKandidat,
 } from "../shared/fiaon-unterlagen-vorpruefung";
 import { berlinMinuten } from "../shared/fiaon-nicht-erreicht-nachfass";
+import { produktkategorieSql } from "../shared/fiaon-produktkategorie";
 import { readFileSync } from "node:fs";
 
 let gut = 0, schlecht = 0;
@@ -41,6 +42,9 @@ console.log("── 1 · „Der Vertrag läuft“ — eine Regel für Prüfliste
   ok(wirft, "fremder Alias wirft (kein SQL von außen)");
   const p = kycPrivatPaketSql("a");
   ok(/payment_status = 'paid'/.test(p) && /type, ''\) = 'private'/.test(p) && /FIAON-SCHUFA-/.test(p) && /ist_entwurf/.test(p), "nur bezahlte Privat-Pakete (keine Auskunft, keine Firma, kein Entwurf)");
+  // Nachbesserung (Prüfer-Fund): „Paket“ = die eine Regel des Hauses, nicht type + Referenz.
+  ok(p.includes(`${produktkategorieSql("a")} = 'konto'`), "Paket = Produktkategorie „konto“ — ein alter Auskunft-Kauf (type private, pack_key schufa) ist kein laufender Vertrag");
+  ok(/NOT IN \([^)]*'schufa'[^)]*\)/.test(p) && /NOT IN \([^)]*'llc_paket'[^)]*\)/.test(p) && !/NOT IN \([^)]*'pro'[^)]*\)/.test(p), "kein Einmalkauf aus dem Katalog (Auskunft, LLC …) — die Abo-Pakete bleiben");
 }
 
 console.log("── 2 · Der Schalter");
@@ -196,8 +200,14 @@ console.log("── 12 · Quelltext-Belege (Routen, Takte, Oberfläche, Rundgang
     'router.post("/chef/mara/unterlagen/umhaengen", wache', 'router.post("/chef/mara/unterlagen/zurueck", wache']) ok(pult.includes(r), `Route ${r.split('"')[1]} nur für den Inhaber (wache)`);
   ok(/tageslauf\("mara_kyc_nachfordern"[\s\S]{0,200}nurMitErgebnis: true/.test(pult) && /tageslauf\("unterlagen_pruefer_umhaengen"[\s\S]{0,200}nurMitErgebnis: true/.test(pult), "Takte registriert (Historie nur mit Ergebnis)");
   ok(/art = \$\{UMHAENGEN_LAUF_ART\}/.test(pult) && /umhaengenSchalterSetzen\(false\)[\s\S]{0,200}hausputzZurueckholen/.test(pult), "Zurückholen nur für Umhäng-Läufe, schaltet dabei aus");
+  ok(/req\.body\?\.alle === true[\s\S]{0,200}umhaengenAllesZurueck/.test(pult) && /umhaengenOffen\(\)/.test(pult), "„Alle zurückholen“ (jeder Lauf der 30 Tage) + Zahl dazu");
   const unt = lies("server/lib/fiaon-unterlagen.ts");
-  ok(/unterlagenAufgabeText\(was, notizen, befund \|\| null\)/.test(unt) && /zustaendig_agent_id, fuer_betreiber/.test(unt) && /\$\{!pruefer\}/.test(unt), "Aufgabe an die prüfende Person (sonst wie bisher an den Betreiber)");
+  const prf = lies("server/lib/fiaon-unterlagen-pruefer.ts");
+  ok(/unterlagenAufgabeText\(was, notizen, ein\.befund \|\| null\)/.test(prf) && /zustaendig_agent_id, fuer_betreiber/.test(prf) && /\$\{!pruefer\}/.test(prf), "Aufgabe an die prüfende Person (sonst wie bisher an den Betreiber)");
+  // Nachbesserung (Prüfer-Fund): EIN Weg für jeden Upload — Kundenbereich UND Upload-Link (Maras KYC-Mail).
+  const lnk = lies("server/lib/fiaon-unterlagen-link.ts");
+  ok(/pruefAufgabeMelden\(/.test(unt) && /pruefAufgabeMelden\(/.test(lnk) && /vorpruefen\(ein\.personId, ein\.art, urteil, pdf, lauf\)/.test(lnk), "Upload-Link: Vorprüfung + Prüf-Aufgabe über denselben Weg wie der Kundenbereich");
+  ok(!/INSERT INTO fiaon_vermerke/.test(unt + lnk), "kein zweiter, eigener Aufgaben-Weg mehr (nie wieder still bei Justin)");
   ok(!/geprueft_am\s*=/.test(lies("server/lib/fiaon-unterlagen-pruefer.ts")) && !/geprueft_am\s*=/.test(lies("server/lib/fiaon-mara-kyc.ts")), "Mara setzt nirgends geprueft_am (Vier-Augen)");
   ok(!/kyc_status\s*=/.test(lies("server/lib/fiaon-mara-kyc.ts") + lies("server/lib/fiaon-unterlagen-pruefer.ts")), "Mara ändert nie den kyc_status");
   ok(/ocrLesen|openai|anthropic/i.test(lies("server/lib/fiaon-unterlagen-pruefer.ts")) === false, "die Vorprüfung ruft keine KI und keine Texterkennung");
@@ -207,6 +217,7 @@ console.log("── 12 · Quelltext-Belege (Routen, Takte, Oberfläche, Rundgang
   ok(/const MaraUnterlagen = lazy\(\(\) => import\("\.\/ChefMaraUnterlagen"\)\)/.test(mara) && /<MaraUnterlagen \/>/.test(mara), "Karte im Reiter Bonitätsauskunft (keine neue Seite)");
   const karte = lies("client/src/components/admin/ChefMaraUnterlagen.tsx");
   ok(/data-fiaon="mara-unterlagen"/.test(karte) && /\/chef\/mara\/unterlagen\/umhaengen/.test(karte) && /Zurückholen/.test(karte), "Karte: Schalter, Prüfer-Wahl, Umhängen mit Zurückholen");
+  ok(/\{ alle: true \}/.test(karte) && /Alle zurückholen/.test(karte), "Karte: „Alle zurückholen“ — auch Läufe außerhalb der Liste");
   const akte = lies("client/src/components/unterlagen/UnterlagenAkte.tsx");
   ok(/data-fiaon="unterlage-vorpruefung"/.test(akte) && /k\.vorpruefung && !k\.geprueft/.test(akte), "Akte zeigt die Vorprüfung (bis „Geprüft“)");
   const rg = lies("client/src/pages/agent/rundgaenge.ts");

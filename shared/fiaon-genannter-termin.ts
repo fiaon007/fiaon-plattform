@@ -74,6 +74,19 @@ const MIT_UNS = /\bmit\s+(?:ihnen|euch|dir|ihrem\s+(?:berater|kollegen|team|chef
 const DRITTE = /\b(bank|hausbank|sparkasse|volksbank|raiffeisen\w*|ubs|postfinance|credit\s+suisse|commerzbank|deutsche\s+bank|ing\b|dkb|notar\w*|anwalt|anw[äa]lt\w*|rechtsanw\w*|steuerberat\w*|treuh[äa]nd\w*|treuhand|arzt|[äa]rztin|amt\b|beh[öo]rde|jobcenter|finanzamt|gericht|schuldnerberat\w*|makler\w*|versicherung)\b/i;
 /** Firmenthema → FIAON Global. */
 const GLOBAL_THEMA = /\b(firmenkredit\w*|gesch[äa]ftskredit\w*|unternehmens\w*|firma|firmen\w*|gmbh|ag\b|business|global|betrieb\w*|kmu|startkapital|investor\w*)\b/i;
+/**
+ * Absage oder Verschiebung eines Termins (aus fiaon-whatsapp-mara.ts hierher gezogen — E-401 Nachbesserung; dort
+ * unverändert im Gebrauch). Breit: auch „kann … nicht“, „passt … nicht“, „schaffe … nicht“, „andere Zeit“.
+ */
+export const TERMIN_AENDERN = /\babsag\w*|\bsag\w*\s+(?:\w+\s+){0,3}?ab\b|\bverschieb\w*|\bverleg\w*|\bandere[nrs]?\s+(?:zeit|termin|tag|uhrzeit)|\bkann\s+(?:\w+\s+){0,4}?nicht\b|\bpasst\s+(?:\w+\s+){0,2}?nicht\b|\bschaffe\s+(?:\w+\s+){0,2}?nicht\b/i;
+/** Dieselbe Absicht, aber nur als ausdrückliches Verb — im ganzen Text (die „Absage der Bank“ ist kein Absagen). */
+const TERMIN_AENDERN_VERB = /\b(?:absagen|abzusagen|abgesagt|sage\s+(?:\w+\s+){0,3}?ab|verschieben|verschiebe|verschoben|verlegen|verlege)\b/i;
+/**
+ * Ein ZEITANGEBOT des Kunden — „Ich habe morgen um 14 Uhr Zeit“, „bin ab 14 Uhr erreichbar“, „um 14 Uhr passt es mir“,
+ * „ich kann um 14 Uhr“. Das ist ein Rückrufwunsch (E-236: läuft über rueckruf_am / rueckruf_eintragen), kein Termin,
+ * der schon feststeht — auch wenn „mit Ihnen“ dabeisteht (Prüfer-Fund E-401: wurde als vereinbart eingetragen).
+ */
+const ZEIT_ANGEBOT = /\b(?:zeit|erreichbar|frei|verf(?:ü|ue)gbar)\b|\bpasst\s+(?:es\s+|das\s+)?(?:mir|uns)\b|\b(?:ich|wir)\s+(?:kann|k(?:ö|oe)nn(?:en|te|ten))\b|\bkann\s+(?:ich|wir)\b/i;
 
 const WOCHENTAGE: Record<string, number> = {
   sonntag: 0, montag: 1, dienstag: 2, mittwoch: 3, donnerstag: 4, freitag: 5, samstag: 6,
@@ -202,6 +215,9 @@ export function genannterTermin(ein: {
   const zeiten = uhrzeitenGenannt(text);
   if (!zeiten.length) return { ...leer, grund: "keine Uhrzeit" };
   if (RUECKRUF_WUNSCH.test(text) && !VEREINBART.test(text)) return { ...leer, grund: "Rückrufwunsch (läuft über rueckruf_am)" };
+  // E-401 Nachbesserung (Prüfer-Fund): Er will einen Termin ABSAGEN oder VERSCHIEBEN — das ist kein genannter Termin.
+  // Vorher wurde daraus „steht schon“: Mara wünschte ein gutes Gespräch zur alten Zeit, das Verschieben ging verloren.
+  if (terminAendernIn(text)) return { ...leer, grund: "Er will einen Termin absagen oder verschieben — das läuft über den Termin-Weg (E-236/E-260)" };
 
   const uhrzeit = zeiten[0];
   const thema = GLOBAL_THEMA.test(text) ? "global" as const : null;
@@ -225,6 +241,13 @@ export function genannterTermin(ein: {
     .filter((n) => istTeamNotiz(n) && new Date(n.am).getTime() >= vierzehn && uhrzeitenGenannt(n.text).includes(uhrzeit))
     .filter((n) => { const nt = tagVon(n.text, new Date(n.am)); return !seinTag || !nt || nt === seinTag; })
     .sort((a, b) => new Date(b.am).getTime() - new Date(a.am).getTime())[0] ?? null;
+
+  // E-401 Nachbesserung (Prüfer-Fund): „Ich habe morgen um 14 Uhr Zeit für ein Gespräch mit Ihnen“ ist ein ZEITANGEBOT —
+  // ein Rückrufwunsch (E-236), kein vereinbarter Termin. Ohne Team-Notiz derselben Uhrzeit und ohne „wie besprochen /
+  // vereinbart“ bleibt es der Rückruf-Weg (rueckruf_am bzw. rueckruf_eintragen mit Raster und Arbeitszeiten).
+  if (!notiz && zeitAngebotIn(text) && !STARK_VEREINBART.test(text)) {
+    return { ...leer, grund: "Zeitangebot — ein Rückrufwunsch (läuft über rueckruf_am / rueckruf_eintragen)" };
+  }
 
   // Der Tag: aus seinem Text; sonst aus der Notiz (relativ zum Notiztag); sonst heute, wenn die Uhrzeit noch kommt.
   let tag = seinTag;
@@ -304,7 +327,9 @@ const VEREINBART_WA = new RegExp([
   String.raw`\b(?:i|we)\s+have\b(?:[^.!?\n]|\.(?=\d)){0,50}\b(?:call|meeting|appointment)\b`,
 ].join("|"), "i");
 /** Ein Wunsch oder eine Bitte — kein vereinbarter Termin („Können wir …“, „Ich möchte …“, „Wäre 14 Uhr möglich“). */
-const WUNSCH_WA = /\b(?:k(?:ö|oe)nn(?:en|te|ten|t)|kann\s+(?:ich|man)|w(?:ü|ue)rde(?:n)?|m(?:ö|oe)chte(?:n)?|h(?:ä|ae)tte(?:n)?\s+gern|w(?:ä|ae)re|ginge|wollen|will|w(?:ü|ue)nsche|bitte\s+um|geht\s+(?:es|das|auch))\b|\bcould\s+we\b|\bcan\s+(?:we|you)\b/i;
+const WUNSCH_WA = /\b(?:k(?:ö|oe)nn(?:en|te|ten|t)|kann\s+(?:ich|man)|w(?:ü|ue)rde(?:n)?|m(?:ö|oe)chte(?:n)?|h(?:ä|ae)tte(?:n)?\s+gern|w(?:ä|ae)re|ginge|wollen|will|w(?:ü|ue)nsche|bitte\s+um|geht\s+(?:es|das|auch))\b|\bcould\s+we\b|\bcan\s+(?:we|you)\b|\b(?:zeit|erreichbar|frei|verf(?:ü|ue)gbar)\b/i;
+/** „Steht morgen 14 Uhr?“, „Bleibt es bei 14 Uhr?“ — eine Rückfrage zum stehenden Termin, kein Wunsch nach einem anderen. */
+const BESTAETIGUNGS_FRAGE = /\b(?:steht|bleibt\s+es|gilt|klappt|findet\s+(?:\w+\s+){0,3}statt|ist\s+(?:\w+\s+){0,3}(?:noch\s+)?(?:aktuell|g(?:ü|ue)ltig|fest))\b/i;
 /**
  * Fragt unsere letzte Nachricht nach einer Zeit für ein Gespräch? („Wann passt es Ihnen?“, „Welche Uhrzeit …?“,
  * „Wann erreiche ich Sie?“) — nicht „Wann können Sie die Rate zahlen?“.
@@ -334,6 +359,31 @@ export function saetzeMitUhrzeit(text: string): UhrzeitSatz[] {
   return aus;
 }
 
+/** Will er einen Termin absagen oder verschieben? Ausdrückliches Verb im Text oder TERMIN_AENDERN im Teilsatz mit der Uhrzeit. Rein. */
+export function terminAendernIn(text: string): boolean {
+  const t = String(text ?? "");
+  if (TERMIN_AENDERN_VERB.test(t)) return true;
+  return saetzeMitUhrzeit(t).some((s) => TERMIN_AENDERN.test(s.teil));
+}
+/** Bietet er eine Zeit an („habe um 14 Uhr Zeit“, „bin erreichbar“)? Geprüft im Teilsatz mit der Uhrzeit. Rein. */
+export function zeitAngebotIn(text: string): boolean {
+  return saetzeMitUhrzeit(text).some((s) => ZEIT_ANGEBOT.test(s.teil));
+}
+/** „wie besprochen“, „ist vereinbart“ … — ausdrücklich vereinbart. Rein. */
+export function starkVereinbart(text: string): boolean {
+  return STARK_VEREINBART.test(String(text ?? ""));
+}
+/**
+ * Fragt er SELBST nach Karte, Link oder Zahlung („schicken Sie mir bitte den Link für die Karte“, „wie kann ich die Rate
+ * zahlen?“)? Dann ist das Erfüllen seiner Bitte kein Verkauf — auch neben einem genannten Termin (Prüfer-Fund E-401). Rein.
+ */
+export function fragtSelbstNachLinkOderZahlung(text: string): boolean {
+  const t = String(text ?? "");
+  const sache = /\b(?:link\w*|zahlungs\w*|überweisungs\w*|ueberweisungs\w*|kartenlink|kreditkarte|karte|konto|iban|bankverbindung|rechnung|rate|zahlen|bezahlen|überweisen|ueberweisen)\b/i;
+  const bitte = /\b(?:schick\w*|send\w*|geben\s+sie|brauche|br(?:ä|ae)uchte|h(?:ä|ae)tte\s+gern\w*|wo\s+(?:finde|ist|sehe|kann)|wie\s+(?:kann|zahle|bezahle|überweise|ueberweise|komme)|m(?:ö|oe)chte\s+(?:\w+\s+){0,3}(?:zahlen|bezahlen|überweisen|ueberweisen|beantragen|haben))\b/i;
+  return t.split(/(?<=[.!?])\s+|\n+/).some((satz) => sache.test(satz) && bitte.test(satz));
+}
+
 /**
  * Gilt der erkannte Termin auf WhatsApp? `letzteRaus` = unsere letzte Nachricht vor seiner (Mara, Team oder Vorlage).
  * false heißt: nichts eintragen, kein Hinweis — der bisherige Weg (Rückruf, Termin im STAND) läuft unverändert.
@@ -344,9 +394,17 @@ export function genanntAufWhatsApp(e: GenanntErgebnis, ein: { kundeText: string;
   if (raus && (uhrzeitenGenannt(raus).length > 0 || fragtNachZeit(raus))) {
     return { gilt: false, grund: "Antwort auf unsere Nachricht mit Uhrzeit oder Zeitfrage — das Aushandeln läuft über rueckruf_eintragen (E-236)" };
   }
-  if (e.art === "steht_schon") return { gilt: true, grund: "Termin steht schon" };
   const saetze = saetzeMitUhrzeit(ein.kundeText);
   const wunsch = (s: UhrzeitSatz) => s.frage || WUNSCH_WA.test(s.teil);
+  if (e.art === "steht_schon") {
+    // E-401 Nachbesserung (Prüfer-Fund): Will er ändern (Absage/Verschieben — oder eine ZWEITE Uhrzeit, ein Wunsch, der
+    // keine Rückfrage zum stehenden Termin ist), gilt der genannte Termin NICHT: Das Verschieben läuft über
+    // rueckruf_eintragen (verschieben: true) — vorher wünschte Mara ein gutes Gespräch zur alten Zeit.
+    if (terminAendernIn(ein.kundeText)) return { gilt: false, grund: "Er will den stehenden Termin absagen oder verschieben (Termin-Weg)" };
+    if (uhrzeitenGenannt(ein.kundeText).length > 1) return { gilt: false, grund: "Er nennt eine zweite Uhrzeit — ein Wunsch, den Termin zu ändern (Termin-Weg)" };
+    if (saetze.some((s) => wunsch(s) && !BESTAETIGUNGS_FRAGE.test(s.satz))) return { gilt: false, grund: "Wunsch zum stehenden Termin — das ist der Termin-Weg" };
+    return { gilt: true, grund: "Termin steht schon" };
+  }
   const vereinbart = saetze.some((s) => STARK_VEREINBART.test(s.satz) || (VEREINBART_WA.test(s.satz) && !wunsch(s)));
   if (saetze.length > 0 && saetze.every((s) => wunsch(s) && !STARK_VEREINBART.test(s.satz))) {
     return { gilt: false, grund: "Frage oder Wunsch nach einem Gespräch — das ist der Rückruf-Weg" };
@@ -383,10 +441,15 @@ export function genanntAntwortFunde(antwort: string, gt: {
   /** Der Satz, den die Antwort sonst sagen soll. */
   satz: string | null;
   linkVerboten?: boolean;
+  /**
+   * E-401 Nachbesserung: Er fragt SELBST nach Karte, Link oder Zahlung (fragtSelbstNachLinkOderZahlung) — dann ist das
+   * Erfüllen seiner Bitte kein Verkauf: „Visa“, „Kreditkarte“, „Partnerbank“ und sein Link sind dann frei.
+   */
+  verkaufErlaubt?: boolean;
 }): string[] {
   const t = String(antwort ?? "");
   const funde: string[] = [];
-  const verkauf = verkaufNebenTermin(t);
+  const verkauf = gt.verkaufErlaubt ? null : verkaufNebenTermin(t);
   if (verkauf) funde.push(`Verkauf neben einem genannten Termin („${verkauf}“) — Justin: „einen guten Termin wünschen und sich zurücknehmen“; nimm den Satz heraus`);
   // Sein Bereich (Login, Unterlagen) und Rechtstexte sind Service — Zahlungsseite, Antrag, Auskunft, Terminlink nicht.
   const link = gt.linkVerboten ? t.match(/(?:https?:\/\/)?(?:www\.)?fiaon\.com\/(?!(?:login|app|mein-bereich|dashboard|agb|datenschutz|impressum|widerruf\w*|kontakt|ratgeber)(?:[\/?#\s.,;:!)“"]|$))\S+/i) : null;

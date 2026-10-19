@@ -29,6 +29,7 @@ import {
   angabenErkennen, angabenWunsch, angabenSatz, angabenHinweis, angabenAntwortFunde, angabenMenschNoetig, feldSatz, verbotenErkennen,
   telefonNorm, telefonText, telefonMaske, nummerE164, waNummerGleich, mailGrundform, mailGleich, mailPlausibel, mailMaske, nummerGleich, plzPlausibel, landNorm, landAus,
   grossSchreiben, strasseAus, anschriftText, anschriftSchluessel, bestaetigungsMail, hinweisAlteMail, hinweisTelefonMail, LINK_STUNDEN,
+  absenderEcht, angabenOhneLageFunde, angabenAufgabeErsetzbar,
   type AngabenLageRein, type FeldErgebnis, type FeldWunsch,
 } from "../shared/fiaon-angaben-aendern";
 import { tonPruefung } from "../shared/fiaon-mara-ton";
@@ -215,10 +216,11 @@ async function main() {
   const iA = pm.indexOf("angabenAendernBehandeln(");
   ok(iA > 0 && iA < pm.indexOf("const nachrichten: any[] = [") && pm.includes("vorab.push(angaben.hinweis)") && /absender: ein\.mail\.von/.test(pm), "Postfach: angaben_aendern läuft VOR dem Modell, mit dem Absender, Hinweis vorab");
   ok(/!akte\?\.global/.test(pm.slice(iA - 300, iA)), "Postfach: nie beim Global-Kunden");
-  const sperre = pm.match(/const angabenAufgabeUnnoetig = [\s\S]*?;\n/)?.[0] ?? "";
-  const reSperre = new RegExp(sperre.match(/&& \/(\\b\(\?:adress[\s\S]*?)\/i\.test/)?.[1] ?? "§§§", "i");
-  ok(reSperre.test("Adresse ändern") && reSperre.test("Neue Handynummer eintragen") && reSperre.test("neue Nummer") && !reSperre.test("Vertragsnummer für Bescheinigung") && !reSperre.test("Kündigung prüfen"),
-    "Postfach: die Aufgabensperre greift bei Anschrift/Nummer/Mail, nicht bei „Vertragsnummer“", sperre.slice(0, 200));
+  // E-401 Nachbesserung: die Sperre ist jetzt eine reine Funktion (angabenAufgabeErsetzbar) — geprüft in Abschnitt 12.
+  ok(/angabenAufgabeErsetzbar\(p\)/.test(pm.match(/const angabenAufgabeUnnoetig = [\s\S]*?;\n/)?.[0] ?? ""), "Postfach: die Aufgabensperre nutzt angabenAufgabeErsetzbar");
+  const ae = (titel: string, kollege = "", text = "Bitte erledigen.") => angabenAufgabeErsetzbar({ titel, text, kollege, rueckruf_am: "" });
+  ok(ae("Adresse ändern") && ae("Neue Handynummer eintragen") && ae("neue Nummer") && !ae("Vertragsnummer für Bescheinigung") && !ae("Kündigung prüfen"),
+    "Postfach: die Aufgabensperre greift bei Anschrift/Nummer/Mail, nicht bei „Vertragsnummer“");
   ok(/angabenAntwortFunde\(t, k\.angaben\)/.test(pm) && /zahlung: zahlungGesucht, angaben,/.test(pm) && /angabenAufgabeUnnoetig\(w\.name, p\)/.test(pm), "Postfach: Antwortprüfung und keine Aufgabe für Erledigtes");
   ok(/Anschrift, E-Mail-Adresse und Telefonnummer ändert der SERVER selbst/.test(q("server/lib/fiaon-postmeister-agent.ts")) && /ändert der Server selbst, E-401/.test(q("server/lib/fiaon-postmeister-werkzeuge.ts")),
     "Postfach: Fall 4 nennt nur noch Name, Geburtsdatum, Bank, Ausweis");
@@ -240,6 +242,70 @@ async function main() {
   ok(/emailLinkPruefen\(/.test(get) && !/emailBestaetigen\(/.test(get) && /<form method="post">/.test(rt) && /emailBestaetigen\(/.test(rt.slice(rt.indexOf("router.post"))),
     "Route: GET zeigt nur den Knopf (Link-Vorschauen ändern nichts), POST bestätigt");
   ok(/fiaon-angaben'\)\)\.default/.test(q("server/routes.ts")), "Route eingehängt (/api/fiaon/angaben/email/:token)");
+
+  abschnitt("12 · E-401 Nachbesserung (Prüfer-Funde)");
+  {
+    const bisherHS = { anschrift: { strasse: "Hauptstr. 5", plz: "10115", ort: "Berlin" } };
+    // Ort am Satzende (Rot vorher: „Neustadt Die Karte“, „Neustadt Herzliche“, „Neustadt Max Mustermann“, „Neustadt Können“).
+    for (const [t, ort] of [["Meine neue Adresse: Neuweg 2, 54321 Neustadt. Die Karte bitte dorthin schicken.", "Neustadt"], ["Meine neue Adresse: Neuweg 2, 54321 Neustadt. Herzliche Grüße Max", "Neustadt"],
+      ["Meine neue Adresse: Neuweg 2, 54321 Neustadt Max Mustermann", "Neustadt"], ["Meine neue Adresse: Neuweg 2, 54321 Neustadt. Können Sie das ändern?", "Neustadt"],
+      ["Meine neue Adresse: Neuweg 2, 60311 Frankfurt a.M.", "Frankfurt a.M."], ["Meine neue Adresse: Neuweg 2, 79098 Freiburg i.Br.", "Freiburg i.Br."],
+      ["Meine neue Adresse: Kurweg 2, 61348 Bad Homburg", "Bad Homburg"], ["neue adresse: hauptstr 5, 10115 berlin bitte ändern", "Berlin"]] as const) {
+      ok(voll(wunsch(t, "anschrift"))?.ort === ort, `Ort „${ort}“: „${t.slice(0, 64)}“`, voll(wunsch(t, "anschrift")));
+    }
+    // Umzug Dritter / künftig (Rot vorher: sofort gespeichert, „Umzug meiner Mutter in den Lindenweg 3“ als Straße).
+    ok(!angabenErkennen("Wir helfen gerade beim Umzug meiner Mutter in den Lindenweg 3, 54321 Neustadt, deshalb zahle ich die Rate erst am Freitag.").wuensche.length,
+      "„beim Umzug meiner Mutter …“ → kein Wunsch");
+    ok(!angabenErkennen("Ich werde im Dezember umziehen nach Lindenweg 3, 54321 Neustadt. Bis dahin bitte alles an die alte Adresse.").wuensche.length, "„ich werde im Dezember umziehen …“ → kein Wunsch (nur „umziehen“)");
+    const spaeter = wunsch("Meine neue Adresse ab dem 01.12.: Lindenweg 3, 54321 Neustadt", "anschrift");
+    ok(spaeter?.art === "unklar" && (spaeter as any).spaeter === true, "„neue Adresse ab dem 01.12.“ → gilt erst später (ein Mensch trägt sie ein)", spaeter);
+    ok(!angabenErkennen("Neue Adresse meiner Mutter: Lindenweg 3, 54321 Neustadt").wuensche.length, "„Neue Adresse meiner Mutter: …“ → nicht seine");
+    ok(voll(wunsch("Meine Frau und ich sind umgezogen: Lindenweg 3, 54321 Neustadt", "anschrift"))?.strasse === "Lindenweg 3", "„Meine Frau und ich sind umgezogen“ → er selbst (voll)");
+    ok(strasseAus("Umzug meiner Mutter in den Lindenweg 3") === "Lindenweg 3", "strasseAus: „in den“ schneidet", strasseAus("Umzug meiner Mutter in den Lindenweg 3"));
+    // Telefon (Rot vorher: +493012345678, +4981547112233, +491765555555 gespeichert).
+    for (const t of ["Ich habe ein neues Handy. Ihr Kollege hat mich gestern von 030 12345678 angerufen, bitte rufen Sie zurück.",
+      "Ich habe ein neues Handy und finde die App nicht mehr. Meine Bestellnummer ist 0815-4711-2233.", "Mein Sohn hat eine neue Handynummer 0176 5555555, bitte rufen Sie ihn an"]) {
+      ok(!wunsch(t, "telefon"), `keine Telefonänderung: „${t.slice(0, 60)}“`, angabenErkennen(t));
+    }
+    ok(voll(wunsch("Meine neue Handynummer ist 0176 5555555, meine Kundennummer 4711", "telefon")) === "+491765555555", "Kundennummer daneben stört nicht");
+    // Str. mit Punkt (Rot vorher: die alte „Hauptstr 5“ wurde als neue gespeichert).
+    const vonAuf = wunsch("Bitte ändern Sie meine Adresse von Hauptstr. 5, 10115 Berlin auf Neuweg 2 in Neustadt", "anschrift", { bisher: bisherHS });
+    ok(vonAuf?.art === "unvollstaendig", "„von Hauptstr. 5 … auf Neuweg 2 in Neustadt“ (neue ohne PLZ) → unvollständig, nie die alte als neue", vonAuf);
+    ok(strasseAus("Hauptstr. 5") === "Hauptstr. 5" && anschriftSchluessel({ strasse: "Hauptstr 5", plz: "1", ort: "x" }) === anschriftSchluessel({ strasse: "Hauptstraße 5", plz: "1", ort: "x" }),
+      "„Hauptstr. 5“ behält den Punkt; „Hauptstr 5“ = „Hauptstraße 5“");
+    // Aufgabensperre (Rot vorher: „Kunde widerruft per E-Mail …“ an die Leitung gesperrt).
+    ok(!ae("Widerruf und Geld zurück", "Leitung", "Kunde widerruft per E-Mail und verlangt sein Geld zurück") && !ae("Neue Adresse", "Leitung") && !ae("Adresse ändern", "Zahlung")
+      && !ae("Kunde schreibt per E-Mail", "", "Bitte die E-Mail beantworten") && !ae("Herrn Probe zurückrufen — neue Adresse"), "nie Leitung/Zahlungsstelle, nie wegen „E-Mail“ allein, nie ein Rückruf");
+    // Wunsch-Muster (Rot vorher: nicht erkannt → kein ANGABEN, und der Prompt sagte „keine Aufgabe“).
+    for (const t of ["Ich habe die Telefonnummer gewechselt: 0151 99887766", "Meine Mailadresse ändert sich, bitte nehmen Sie neu.probe@beispiel.de", "Bitte schreiben Sie mir nur noch an neu.probe@beispiel.de",
+      "Ich bin unter 0151 99887766 zu erreichen, die alte Nummer gibt es nicht mehr", "Ich wohne nicht mehr in Berlin, sondern Neuweg 2, 54321 Neustadt"]) ok(angabenWunsch(t), `Wunsch erkannt: „${t.slice(0, 60)}“`);
+    ok(angabenOhneLageFunde("Ich habe Ihre neue Adresse gespeichert.").length === 1 && angabenOhneLageFunde("Ihre Telefonnummer wurde geändert.").length === 1,
+      "ohne ANGABEN: „Adresse gespeichert“ / „Telefonnummer geändert“ → harter Mangel");
+    ok(!angabenOhneLageFunde("Ihre E-Mail habe ich erhalten und den Beleg gespeichert.").length && !angabenOhneLageFunde("Ein Kollege trägt Ihre neue Adresse für Sie ein.").length
+      && !angabenOhneLageFunde("Die Karte geht an Ihre hinterlegte Adresse.").length, "… nicht bei „Ihre E-Mail … Beleg gespeichert“, „ein Kollege trägt ein“, „hinterlegte Adresse“");
+    // Absender echt? (Rot vorher: nur der From-Kopf zählte — fälschbar, Antwort an Reply-To.)
+    const AR = (x: string) => `mx.google.com; ${x}`;
+    ok(absenderEcht({ authErgebnis: AR("dkim=pass header.i=@kunde.invalid header.s=dbaedf; spf=pass (google.com: domain of probe@kunde.invalid designates 1.2.3.4 as permitted sender) smtp.mailfrom=probe@kunde.invalid; dmarc=pass (p=QUARANTINE) header.from=kunde.invalid"), von: "Max Probe <probe@kunde.invalid>" }).echt,
+      "dmarc/dkim/spf=pass zur Absender-Domain → echt");
+    ok(absenderEcht({ authErgebnis: AR("spf=pass smtp.mailfrom=bounce@mail.kunde.invalid"), von: "probe@mail.kunde.invalid" }).echt && absenderEcht({ authErgebnis: AR("dkim=pass header.d=kunde.invalid"), von: "probe@mail.kunde.invalid" }).echt,
+      "Ober-Domain passt (relaxed)");
+    ok(!absenderEcht({ authErgebnis: AR("dkim=pass header.i=@versand.invalid; spf=pass smtp.mailfrom=bounce@versand.invalid; dmarc=fail header.from=kunde.invalid"), von: "probe@kunde.invalid" }).echt, "fremde Domain bestanden, dmarc=fail → NICHT echt");
+    ok(!absenderEcht({ authErgebnis: null, von: "probe@kunde.invalid" }).echt && !absenderEcht({ authErgebnis: "evil.example; dmarc=pass header.from=kunde.invalid", von: "probe@kunde.invalid" }).echt, "ohne Gmail-Prüfung oder fremde Prüfstelle → NICHT echt");
+    const ok1 = AR("dmarc=pass header.from=kunde.invalid");
+    ok(!absenderEcht({ authErgebnis: ok1, von: "probe@kunde.invalid", antwortAn: "angreifer@x.de" }).echt && absenderEcht({ authErgebnis: ok1, von: "probe@kunde.invalid", antwortAn: "Probe <probe@kunde.invalid>" }).echt
+      && absenderEcht({ authErgebnis: ok1, von: "probe@kunde.invalid", antwortAn: "zweit.probe@kunde.invalid", bekannte: ["zweit.probe@kunde.invalid"] }).echt, "fremdes Reply-To → NICHT echt; eigenes/bekanntes → echt");
+    const { authErgebnisAus } = await import("../server/lib/fiaon-gmail");
+    ok(authErgebnisAus([{ name: "Authentication-Results", value: "mx.google.com; dmarc=pass header.from=kunde.invalid" }, { name: "Authentication-Results", value: "mx.google.com; dmarc=pass header.from=evil.de" }]) === "mx.google.com; dmarc=pass header.from=kunde.invalid"
+      && authErgebnisAus([{ name: "Authentication-Results", value: "boese.example; dmarc=pass" }, { name: "Authentication-Results", value: "mx.google.com; dmarc=pass" }]) === null,
+      "authErgebnisAus: nur der OBERSTE Kopf, nur von mx.google.com");
+    const LU: AngabenLageRein = { kanal: "mail", ergebnisse: [{ feld: "anschrift", stand: "fremder_absender", grund: "Absender nicht bestätigt" }], verboten: [], geheim: ["probe@kunde.invalid"], absenderUnbestaetigt: true };
+    ok(/nicht allein auf eine E-Mail hin/.test(angabenSatz(LU)) && /Kundenbereich/.test(angabenSatz(LU)) && /gefälscht/.test(angabenHinweis(LU)), "unbestätigter Absender: eigener Satz (Kundenbereich) und Hinweis „könnte gefälscht sein“");
+    const ham = hinweisAlteMail({ name: null, neu: "neu@beispiel.de" });
+    ok(/stoppen/i.test(ham.knopf) && /Knopf/.test(ham.text), "Hinweis an die bisherige Adresse: Stopp-Knopf „Das war ich nicht“", ham.knopf);
+    const pmq = q("server/lib/fiaon-postmeister-agent.ts");
+    ok(/absenderPruefung: \{ authErgebnis: ein\.mail\.authErgebnis/.test(pmq) && /authErgebnis: mail\.authErgebnis/.test(q("server/lib/fiaon-postmeister-lauf.ts")), "Einbau: Gmails Prüfung reist von der Mail bis angaben_aendern");
+    ok(/Steht KEIN Block ANGABEN da/.test(pmq) && /else fehlend\.push\(\.\.\.angabenOhneLageFunde\(t\)\)/.test(pmq), "Prompt: ohne ANGABEN wie bisher Fall 4; harte Prüfung ohne ANGABEN");
+  }
 
   abschnitt("11 · WhatsApp-Entwurf (entwerfen, Modell-Attrappe): die Wand hält jedes falsche „geändert“");
   {

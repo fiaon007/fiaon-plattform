@@ -84,6 +84,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-401 (Nachbesserung, 19.10.2026): die Funde der unabhängigen Prüfer zu Maras sechs neuen Bausteinen — alle behoben.
+    id: "2026-10-19-mara-nachbesserung",
+    date: "2026-10-19",
+    category: "Verbessert",
+    title: "Mara arbeitet sicherer: Termine, Zahlungen, Angaben",
+    summary:
+      "Mara macht weniger Fehler bei Terminen, Zahlungen und neuen Angaben. "
+      + "Was ein Mensch schon erledigt hat, fasst sie nicht mehr an.",
+    changes: [
+      "„Ich habe morgen um 14 Uhr Zeit“ ist ein Rückrufwunsch, kein fester Termin. Mara bucht ihn wie jeden Rückruf in deine Arbeitszeit.",
+      "Will der Kunde einen Termin absagen oder verschieben, wünscht Mara kein „gutes Gespräch“. Das Verschieben läuft wie immer.",
+      "Steht schon ein Termin, trägt Mara keinen zweiten ein. Sie nennt dem Kunden den Termin, der steht.",
+      "Bei einer Zahlung zählt der Name nur als ganzes Wort. Passt nur der Name, sagt Mara „wir prüfen“, und es gibt keinen Zubuchen-Knopf.",
+      "Fragt der Kunde nur „Ist die Rate schon bezahlt?“, gilt das nicht als Zahlungsmeldung.",
+      "Neue Anschrift, Nummer oder E-Mail ändert Mara nur, wenn Gmail bestätigt, dass die Mail wirklich vom Kunden kommt.",
+      "„Neues Handy“, die Nummer vom Sohn oder eine Bestellnummer sind keine neue Telefonnummer. Eine künftige Anschrift trägt ein Mensch ein.",
+      "Mails, die du mit „Nichts senden“, „Verwerfen“ oder „Erledigt“ geschlossen hast, holt Mara nicht wieder hervor.",
+      "Die „2× nicht erreicht“-Mail geht nicht raus, wenn der Kunde gekündigt hat — auch wenn die Kündigung noch nicht gebucht ist.",
+    ],
+    howto: [
+      "Nichts extra tun.",
+      "Steht in der Akte „ACHTUNG“ zu einer E-Mail-Änderung, hat der Kunde gemeldet: „Das war ich nicht“. Bitte kurz prüfen.",
+    ],
+  },
+  {
     // E-401 (6/6) (19.10.2026, Justin: „Mach Mara … fertig, damit sie wirklich gut arbeitet und selbst arbeitet“): Maras
     // Antwort-Entwürfe bleiben nicht mehr liegen — nach 24 Stunden prüft sie selbst neu (server/lib/fiaon-postmeister-frist.ts).
     id: "2026-10-19-mara-entwurf-24h",

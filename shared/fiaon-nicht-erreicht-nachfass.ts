@@ -52,6 +52,11 @@ export const VERFALL_STUNDEN = 48;
 export const TERMINLINK_EREIGNISSE: readonly string[] = [
   "nicht_erreicht_termin", "termin_verpasst", "onboarding_einladung", "number_update_request", NACHFASS_EVENT,
 ];
+/**
+ * E-401 Nachbesserung (Prüfer-Fund): Auch nach diesen Mails wartet Mara den Abstand ab — Mara-Aktion („Zahlen Sie jetzt
+ * die Aktivierung“, Status „gesendet“), Lead-Nachfassen und Antrags-Erinnerung. Zwei Mails an einem Tag sind eine zu viel.
+ */
+export const ABSTAND_AUCH: readonly string[] = ["mara_aktion", "lead_followup", "antrag_erinnerung"];
 export function istTerminlinkEreignis(event: string): boolean {
   const e = String(event || "");
   return TERMINLINK_EREIGNISSE.includes(e) || e.startsWith("rueckhol_");
@@ -126,8 +131,16 @@ export interface NachfassFakten {
   terminOffen: boolean;
   /** Gibt es eine zustellbare E-Mail-Adresse (dieselbe Rangfolge wie der Versand)? */
   hatEmail: boolean;
-  /** Die jüngste VERSANDTE Mail mit Terminlink an ihn (TERMINLINK_EREIGNISSE, rueckhol_*). */
+  /**
+   * Die jüngste VERSANDTE Mail mit Terminlink an ihn (TERMINLINK_EREIGNISSE, rueckhol_*) — E-401 Nachbesserung: dazu die
+   * anderen Verkaufs-/Erinnerungsmails (ABSTAND_AUCH: Mara-Aktion, Lead-Nachfassen, Antrags-Erinnerung).
+   */
   letzteTerminMailAm: string | Date | null;
+  /**
+   * E-401 Nachbesserung (Prüfer-Fund): Ein eingegangener, noch NICHT gebuchter Kündigungsantrag (KUENDIGUNG_UNGEBUCHT_SQL).
+   * Die Kündigung wirkt mit Zugang — „Wann passt es Ihnen?“ an jemanden, der gekündigt hat, ist falsch.
+   */
+  kuendigungOffen?: boolean;
 }
 
 export type NachfassUrteil =
@@ -143,6 +156,7 @@ export const GRUND = {
   global: "Kunde von FIAON Global — sein Ansprechpartner fasst persönlich nach",
   inkasso: "Forderungsmanagement — dort fasst das Raten-Team nach",
   keineMail: "keine E-Mail-Adresse hinterlegt",
+  kuendigung: "Kündigung eingegangen (noch nicht gebucht) — keine Terminmail",
   fenster: "außerhalb 08:00–20:00 — geht ab 8 Uhr raus",
   abstand: "vor kurzem ging schon eine Mail mit Terminlink raus — wartet den Abstand ab",
 } as const;
@@ -159,6 +173,8 @@ export function nachfassUrteil(f: NachfassFakten, jetzt: Date = new Date()): Nac
   if (f.globalKunde) return { art: "auslassen", grund: GRUND.global };
   if (f.rolle === "inkasso") return { art: "auslassen", grund: GRUND.inkasso };
   if (f.sperre) return { art: "auslassen", grund: f.sperre };
+  // E-401 Nachbesserung: Die Sperre kennt nur die GEBUCHTE Kündigung — ein eingegangener Antrag zählt genauso (E-368).
+  if (f.kuendigungOffen) return { art: "auslassen", grund: GRUND.kuendigung };
   if (!f.hatEmail) return { art: "auslassen", grund: GRUND.keineMail };
   const letzte = f.letzteTerminMailAm ? new Date(f.letzteTerminMailAm).getTime() : NaN;
   if (Number.isFinite(letzte) && jetzt.getTime() - letzte < ABSTAND_STUNDEN * 3_600_000) {

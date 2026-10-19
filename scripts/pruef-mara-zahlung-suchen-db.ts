@@ -165,9 +165,9 @@ async function main() {
   await sql`INSERT INTO fiaon_agents (id, name, email, active, commission_rate_bp) VALUES (${AG}, 'Prüf Betreuer Q401', 'betreuer@q401.invalid', TRUE, 2500)`;
   await sql`INSERT INTO fiaon_settings (key, value) VALUES ('provision_automatik', 'aus') ON CONFLICT (key) DO UPDATE SET value = 'aus'`;
 
-  console.log("── 1 · Gefunden, nicht gebucht (Erstzahlung, Name + Betrag): Fund, Karte, Vermerk — nichts gebucht");
+  console.log("── 1 · Gefunden, nicht gebucht (Erstzahlung, Referenz + Betrag): Fund, Karte, Vermerk — nichts gebucht");
   const A = await kunde("A", { vorname: "Edith", nachname: "Quarzmeier", pr: `FIAON${M}A1`, cents: 5999 });
-  const eA = await eingang("a", tag(-1), 5999, "Gesendet mit N26", "EDITH QUARZMEIER");
+  const eA = await eingang("a", tag(-1), 5999, `Erstzahlung FIAON${M}A1`, "EDITH QUARZMEIER");
   const lA = await Z.zahlungSuchenBehandeln({ personId: A.personId, kanal: "mail", quelle: "Mail #401" });
   ok(lA?.ergebnis.art === "gefunden" && lA.ergebnis.haupt?.eingang.id === eA.id, "zahlung_suchen: gefunden (sein Eingang)", lA?.ergebnis.art);
   ok(lA?.satz === `Ich habe Ihre Überweisung über 59,99 € gefunden (bei uns eingegangen am ${de(tag(-1))}), wir ordnen sie jetzt zu.`, "Satz mit Betrag und Eingangstag", lA?.satz);
@@ -222,7 +222,10 @@ async function main() {
   await rate(C.ref, 3, `FIAON-${M}C3-3`, 7999, tag(-1));
   const lC = await Z.zahlungSuchenBehandeln({ personId: C.personId, kanal: "mail", quelle: "Mail #403" });
   ok(lC?.ergebnis.art === "gebucht" && lC.ergebnis.haupt?.eingang.rateNr === 2, "gebucht, Rate 2 aus der Ratennotiz", lC?.ergebnis.haupt);
-  ok(lC?.satz === `Ihre Zahlung über 79,99 € ist am ${de(tag(-3))} bei uns eingegangen und gebucht (Rate 2).`, "Satz: Datum, Betrag, Rate 2", lC?.satz);
+  // E-401 Nachbesserung: dazu die NEU gemeldete Rate 3, die noch fehlt.
+  ok(lC?.satz === `Ihre Zahlung über 79,99 € ist am ${de(tag(-3))} bei uns eingegangen und gebucht (Rate 2). Zu Ihrer Rate 3 über 79,99 € sehe ich noch keinen Eingang — schicken Sie mir gern den Beleg, und bitte überweisen Sie nicht noch einmal.`,
+    "Satz: Datum, Betrag, Rate 2 — und Rate 3 noch ohne Eingang", lC?.satz);
+  ok(!/Keine Aufgabe an die Zahlungsstelle/.test(lC?.hinweis ?? "") && /Regel zum Zahlungsbeleg wie bisher/.test(lC?.hinweis ?? ""), "Hinweis: Rate 3 fehlt → die Belegregel gilt (kein „keine Aufgabe“)");
   ok(lC?.ergebnis.ohneEingang.length === 1 && lC.ergebnis.ohneEingang[0].rateNr === 3 && /NOCH OHNE EINGANG: seine Rate 3/.test(lC.hinweis), "Rate 3 (fällig gestern) ohne Eingang — im Hinweis", lC?.ergebnis.ohneEingang);
   ok(!(await fundeVon(C.personId)).length && !(await vermerke(C.personId)).length && !(await karte(eC.id)), "gebucht: kein Fund, kein Vermerk, keine Karte");
   ok(lC?.frueher.some((f) => f.datum === tag(-40) && f.cents === 7999), "Akte: Rate 1 (vor 40 Tagen) als ältere Zahlung bekannt (für die Antwortprüfung)", lC?.frueher);
@@ -241,7 +244,7 @@ async function main() {
 
   console.log("── 7 · Betrag weicht ab: angekommen, Fund ohne Knopf");
   const H = await kunde("H", { vorname: "Hanna", nachname: "Quitzow", pr: `FIAON${M}H8`, cents: 5999 });
-  const eH = await eingang("h", tag(-2), 5000, "Teil", "HANNA QUITZOW");
+  const eH = await eingang("h", tag(-2), 5000, `Teil FIAON${M}H8`, "HANNA QUITZOW");
   const lH = await Z.zahlungSuchenBehandeln({ personId: H.personId, kanal: "mail", quelle: "Mail #408" });
   ok(lH?.ergebnis.art === "abweichend" && /über 50,00 € ist bei uns angekommen/.test(lH.satz), "abweichend: „über 50,00 € ist bei uns angekommen“", lH?.satz);
   const fH = await fundeVon(H.personId);
@@ -256,7 +259,7 @@ async function main() {
   ok(lD?.ergebnis.art === "nicht_gefunden" && /NICHTS GEFUNDEN/.test(lD.hinweis) && /noch kein Eingang zu sehen/.test(lD.satz), "nicht gefunden: Hinweis + Satz wie bisher (Beleg, nicht doppelt)", lD?.satz);
   ok(!(await fundeVon(D.personId)).length && !(await vermerke(D.personId)).length, "nichts geschrieben");
   const T = await kunde("T", { vorname: "Tilo", nachname: "Quaestor", pr: `FIAON${M}T5`, cents: 5999, test: true });
-  const eT = await eingang("t", tag(-1), 5999, "x", "TILO QUAESTOR");
+  const eT = await eingang("t", tag(-1), 5999, `FIAON${M}T5`, "TILO QUAESTOR");
   const lT = await Z.zahlungSuchenBehandeln({ personId: T.personId, kanal: "mail", quelle: "Mail #405" });
   ok(lT?.ergebnis.art === "gefunden" && lT.test && !lT.vorgelegt.length, "Testperson: gerechnet, nichts vorgelegt", { art: lT?.ergebnis.art, test: lT?.test });
   ok(!(await fundeVon(T.personId)).length && !(await vermerke(T.personId)).length && !(await karte(eT.id)), "Testperson: kein Fund, kein Vermerk, keine Karte");
@@ -278,11 +281,32 @@ async function main() {
   const lG = await Z.zahlungSuchenBehandeln({ personId: G.personId, kanal: "mail", quelle: "Mail #409" });
   ok(lG === null && !(await fundeVon(G.personId)).length, "Global-Kunde: keine Suche, nichts geschrieben (E-272)", lG?.ergebnis.art);
 
+  console.log("── 8b · E-401 Nachbesserung: NUR der Name → „moeglich“ (Prüfauftrag ohne Zubuchen); fremde Referenz → nicht seiner");
+  {
+    // Rot vorher: art „gefunden“, Fund mit Ziel und Erwartungs-Stempel, Karte mit „Zubuchen“, Kundensatz „gefunden“.
+    const N = await kunde("N", { vorname: "Nina", nachname: "Quelle", pr: `FIAON${M}N3`, cents: 5999 });
+    const eN = await eingang("n", tag(-1), 5999, "Gesendet mit N26", "NINA QUELLE");
+    const lN = await Z.zahlungSuchenBehandeln({ personId: N.personId, kanal: "mail", quelle: "Mail #410" });
+    ok(lN?.ergebnis.art === "moeglich" && /wir prüfen/i.test(lN.satz) && !/gefunden|angekommen|59,99/.test(lN.satz), "nur der Name: „moeglich“, neutraler Satz", { art: lN?.ergebnis.art, satz: lN?.satz });
+    const fN = await fundeVon(N.personId);
+    ok(fN[0]?.stand === "moeglich" && fN[0]?.ziel == null && fN[0]?.erwartet == null && fN[0]?.probe == null && /nur Name/.test(String(fN[0]?.wege)), "Fund: „moeglich“, kein Ziel, keine Trockenprobe, kein Stempel", fN[0]);
+    const kN = await karte(eN.id);
+    const optN = ((typeof kN?.optionen === "string" ? JSON.parse(kN.optionen) : kN?.optionen) ?? []) as any[];
+    ok(kN && !optN.some((o) => o.key === "buchen" && /Kunde hat diese Zahlung gemeldet/.test(String(o.titel ?? ""))) && /nur der Name des Zahlers/.test(String(kN.text)), "Karte: Prüfauftrag „nur der Name passt“, kein Zubuchen von Mara", { o: optN.map((o) => o.key), t: kN?.titel });
+    ok((await vermerke(N.personId)).some((v) => /nur der Name des Zahlers passt/.test(v.note)), "Akte: Vermerk „nur der Name des Zahlers passt“");
+    ok((await bank(eN.id)).applied === false, "nichts gebucht");
+    const P = await kunde("P", { vorname: "Paula", nachname: "Quast", pr: `FIAON${M}P4`, cents: 5999 });
+    await eingang("p", tag(-1), 5999, "FIAON-ZZZ999-3", "PAULA QUAST");
+    const lP = await Z.zahlungSuchenBehandeln({ personId: P.personId, kanal: "mail", quelle: "Mail #411" });
+    ok(lP?.ergebnis.art === "nicht_gefunden" && !(await fundeVon(P.personId)).length, "Name passt, aber die FIAON-Referenz eines ANDEREN im Zweck → nicht ihrer, kein Fund", lP?.ergebnis.treffer);
+  }
+
   console.log("── 9 · Wann gesucht wird (zahlungSuchenNoetig)");
   ok(Z.zahlungSuchenNoetig({ flags: { zahlung_behauptet: true }, lage: "unbezahlt", kundeText: "" }), "Lampe zahlung_behauptet → suchen");
   ok(Z.zahlungSuchenNoetig({ flags: {}, lage: "zahlung_gemeldet", kundeText: "Wo ist meine Karte?" }), "Lage „Zahlung gemeldet“ → suchen");
   ok(Z.zahlungSuchenNoetig({ flags: {}, lage: "rate_ueberfaellig", kundeText: "Habe gestern überwiesen." }), "seine Worte „habe gestern überwiesen“ → suchen");
   ok(!Z.zahlungSuchenNoetig({ flags: {}, lage: "aktiv", kundeText: "Wann kommt meine Karte?" }), "sonst nicht");
+  ok(!Z.zahlungSuchenNoetig({ flags: {}, lage: "rate_ueberfaellig", kundeText: "Ist die Rate schon bezahlt?" }), "E-401 Nachbesserung: eine Frage („Ist die Rate schon bezahlt?“) ist keine Meldung → nicht suchen");
 
   console.log("── 10 · Ende zu Ende im Postfach (Modell- und Gmail-Attrappe): der Server sucht VOR dem Modell, die Wand hält „gebucht“");
   {
@@ -314,7 +338,7 @@ async function main() {
     // K: Zahlung gemeldet (claimed_paid), Eingang da (Name + Betrag), noch nicht gebucht.
     const K = await kunde("K", { vorname: "Kai", nachname: "Quermann", pr: `FIAON${M}K1`, cents: 5999 });
     await sql`UPDATE fiaon_applications SET payment_status = 'claimed_paid', claimed_paid_at = NOW() - INTERVAL '1 day' WHERE ref = ${K.ref}`;
-    const eK = await eingang("k", tag(-1), 5999, "Danke", "KAI QUERMANN");
+    const eK = await eingang("k", tag(-1), 5999, `FIAON${M}K1 Danke`, "KAI QUERMANN");
     const satzK = `Ich habe Ihre Überweisung über 59,99 € gefunden (bei uns eingegangen am ${de(tag(-1))}), wir ordnen sie jetzt zu.`;
     const todosVorher = ((await sql`SELECT COUNT(*)::int n FROM fiaon_betreiber_todos WHERE person_id = ${K.personId}`.catch(() => [{ n: 0 }])) as any[])[0].n;
     const r1 = await mail(`kunde-k@q401.invalid`, "Kai Quermann", "Hallo, ich habe gestern die 59,99 € überwiesen. Gruß Kai", {
@@ -334,6 +358,31 @@ async function main() {
     ok(!!(await karte(eK.id)) && (await bank(eK.id)).applied === false, "Karte liegt vor, nichts gebucht");
     if (process.env.ZEIGEN) console.log(JSON.stringify({ antwort: r1.z?.antwort, pruefung: r1.pruefung, ki: r1.ki.length }, null, 1));
     console.log(`     (Weg der Antwort: ${r1.z?.aktion} — ${String(r1.z?.begruendung ?? "").slice(0, 120)}; gesendet ${r1.gesendet})`);
+
+    // E-401 Nachbesserung (Prüfer-Funde): Die Sperre trifft nur die Aufgabe AN DIE ZAHLUNGSSTELLE — „Erstattung der doppelten
+    // Überweisung“ an die Leitung läuft (vorher: „Nicht nötig: zahlung_suchen …“).
+    const K2 = await kunde("K2", { vorname: "Konrad", nachname: "Quiel", pr: `FIAON${M}K2`, cents: 5999 });
+    await sql`UPDATE fiaon_applications SET payment_status = 'claimed_paid', claimed_paid_at = NOW() - INTERVAL '1 day' WHERE ref = ${K2.ref}`;
+    await eingang("k2", tag(-1), 5999, `FIAON${M}K2`, "KONRAD QUIEL");
+    const rLeitung = await mail(`kunde-k2@q401.invalid`, "Konrad Quiel", "Ich habe doppelt überwiesen, bitte zurück.", {
+      einordnung,
+      werkzeuge: [{ name: "aufgabe_an_betreuer", args: { titel: "Erstattung der doppelten Überweisung", text: "Kunde hat doppelt überwiesen und will das Geld zurück.", kollege: "Leitung", faellig_in_tagen: 1, dringend: true, rueckruf_am: "" } }],
+      antwort: { antwort: "Vielen Dank! Unsere Leitung prüft die Erstattung.", naechster_schritt: schritt, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    const aufgL = rLeitung.handlungen.find((h) => h.werkzeug === "aufgabe_an_betreuer");
+    ok(aufgL && !/Nicht nötig: zahlung_suchen/.test(String(aufgL.ergebnis)), "Aufgabe an die LEITUNG (Erstattung) wird nicht gesperrt", aufgL);
+    // F8: alte Rate gebucht, die gemeldete fehlt → der Beleg darf an die Zahlungsstelle.
+    const Q = await kunde("Q", { vorname: "Quentin", nachname: "Quabbe", pr: `FIAON-${M}Q5`, cents: 5999, bezahlt: true });
+    const eQ = await eingang("q", tag(-10), 5999, `FIAON-${M}Q5-2`, "QUENTIN QUABBE", { applied: true, matchedRef: Q.ref });
+    await rate(Q.ref, 2, `FIAON-${M}Q5-2`, 5999, tag(-12), { am: tag(-10), notiz: `Bankeingang ${eQ.txnId}` });
+    await rate(Q.ref, 3, `FIAON-${M}Q5-3`, 5999, tag(-2));
+    const rQ = await mail(`kunde-q@q401.invalid`, "Quentin Quabbe", "Habe Rate 3 überwiesen, Beleg anbei.", {
+      einordnung,
+      werkzeuge: [{ name: "aufgabe_an_betreuer", args: { titel: "Zahlungsbeleg Rate 3 prüfen", text: "Kunde meldet Rate 3 mit Beleg.", kollege: "Zahlung", faellig_in_tagen: 1, dringend: false, rueckruf_am: "" } }],
+      antwort: { antwort: "Vielen Dank! Ihren Beleg hat unsere Zahlungsstelle.", naechster_schritt: schritt, belege: [], fragen_beantwortet: [], merken: [] },
+    });
+    const aufgQ = rQ.handlungen.find((h) => h.werkzeug === "aufgabe_an_betreuer");
+    ok(aufgQ && !/Nicht nötig: zahlung_suchen/.test(String(aufgQ.ergebnis)), "alte Rate gebucht, die gemeldete Rate 3 fehlt → der Beleg geht an die Zahlungsstelle (vorher gesperrt)", aufgQ);
 
     // L: nichts auf dem Konto — Mara sagt hartnäckig „angekommen“ → bleibt Entwurf, der Mangel steht in der Prüfung.
     const L = await kunde("L", { vorname: "Lena", nachname: "Quistorp", pr: `FIAON${M}L2`, cents: 5999 });

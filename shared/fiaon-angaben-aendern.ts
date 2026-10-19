@@ -33,7 +33,7 @@ export type FeldWunsch =
   | { feld: "email"; art: "voll"; wert: string }
   | { feld: "telefon"; art: "voll"; wert: string }
   | { feld: AngabeFeld; art: "unvollstaendig"; fehlt: string[]; grund: string }
-  | { feld: AngabeFeld; art: "unklar"; grund: string; ausland?: boolean };
+  | { feld: AngabeFeld; art: "unklar"; grund: string; ausland?: boolean; spaeter?: boolean };
 
 export interface AngabenErkennung {
   wuensche: FeldWunsch[];
@@ -70,6 +70,11 @@ export interface AngabenLageRein {
   verboten: VerbotenFeld[];
   /** Gespeicherte Werte, die in einer Antwort an einen FREMDEN Absender nie stehen dürfen. */
   geheim?: string[];
+  /**
+   * E-401 Nachbesserung: Die Mail trägt die gespeicherte Adresse als Absender, aber Gmail konnte sie nicht bestätigen
+   * (kein dmarc/dkim/spf=pass zur Absender-Domain) oder ein fremdes Reply-To steht darin — dann gilt sie als fremd.
+   */
+  absenderUnbestaetigt?: boolean;
 }
 
 export const LINK_STUNDEN = 48;
@@ -94,12 +99,35 @@ const ANSCHRIFT_STARK: RegExp[] = [
   new RegExp(`\\badress-?${AE}nderung\\b|\\banschrift${AE}nderung\\b`, "i"),
   /\b(?:my\s+)?new\s+address\b|\bchange\s+(?:of\s+)?(?:my\s+)?address\b/i,
 ];
-/** „umgezogen“, „Umzug“, „wohne jetzt …“ — zählt nur, wenn auch eine Anschrift (PLZ und Ort) dasteht. */
+/**
+ * „ich bin umgezogen“, „wir sind umgezogen“, „wohne jetzt …“, „wohne nicht mehr in …“ — zählt nur, wenn auch eine Anschrift
+ * (PLZ und Ort) dasteht. E-401 Nachbesserung (Prüfer-Fund): nur ER selbst, nur vollzogen. „Umzug“ / „umziehen“ allein
+ * („beim Umzug meiner Mutter“, „ich werde im Dezember umziehen“) ist kein Wunsch, seine Anschrift jetzt zu ändern.
+ */
 const ANSCHRIFT_SCHWACH: RegExp[] = [
-  /\bumgezogen\b/i, /\bumzug\b/i, /\bumziehen\b/i,
-  /\bwohne\s+(?:jetzt|nun|ab\s+sofort|seit\s+\w+|inzwischen|mittlerweile|neu)\b/i,
-  /\b(?:i\s+)?moved\b/i,
+  /\b(?:bin|sind)\s+(?:\S+\s+){0,4}?umgezogen\b/i,
+  /\b(?:ich|wir)\s+(?:\S+\s+){0,3}?umgezogen\b/i,
+  /\bwohne(?:n)?\s+(?:jetzt|nun|ab\s+sofort|seit\s+\w+|inzwischen|mittlerweile|neu)\b/i,
+  /\bwohne(?:n)?\s+nicht\s+mehr\s+(?:in|im|am|an|bei)\b/i,
+  /\b(?:i|we)\s+(?:have\s+|'ve\s+)?moved\b/i,
 ];
+/** Die neue Anschrift gilt erst später („werde im Dezember umziehen“, „ab dem 01.12.“, „bis dahin bitte die alte“). */
+const MONAT = "(?:januar|februar|m(?:ä|ae)rz|april|mai|juni|juli|august|september|oktober|november|dezember)";
+const ZUKUNFT = new RegExp(String.raw`\b(?:werde|werden)\s+(?:\S+\s+){0,4}?(?:umziehen|wohnen)\b|\bziehe(?:n)?\s+(?:\S+\s+){0,5}?um\b|\bab\s+(?:dem\s+)?\d{1,2}\.\s?(?:\d{1,2}\.|${MONAT})|\b(?:ab|im)\s+${MONAT}\b|\bab\s+n(?:ä|ae)chste[nmr]?\s+(?:woche|monat|jahr)\b|\bdemn(?:ä|ae)chst\b|\bbis\s+dahin\b`, "i");
+/**
+ * Jemand anderes — „meine Mutter“, „mein Sohn“, „Ihr Kollege“, „von … angerufen“. Steht das im Satz mit dem Wunsch oder
+ * dem Wert, sind es nicht SEINE Angaben: dann ändert der Server nichts (Prüfer-Fund: Nummer des Sohnes, Anschrift der
+ * Mutter). „Meine Frau und ich“ ist er selbst.
+ */
+const DRITTE = /\b(?:meine[rsmn]?|unsere[rsmn]?|mein|unser)\s+(?:mutter|mama|vater|papa|eltern|sohn|tochter|kind(?:er)?|frau|ehefrau|mann|ehemann|partner(?:in)?|freund(?:in)?|bruder|schwester|oma|opa|gro(?:ß|ss)(?:mutter|vater|eltern)|tante|onkel|nachbar(?:in)?|chef(?:in)?|firma|arbeitgeber(?:in)?|schwieger\w+|enkel\w*|neffe|nichte|cousin\w*)\b(?!\s+und\s+ich\b)|\bihr(?:e[rsmn]?)?\s+(?:kollege|kollegin|mitarbeiter\w*|berater\w*)\b|\bvon\s+[^.!?\n]{0,40}\bangerufen\b|\bangerufen\s+(?:von|hat)\b/i;
+/** Der Satz um eine Stelle (bis zu Zeilenende, „!“, „?“ oder einem Punkt mit Leerzeichen dahinter). Rein. */
+function satzUm(t: string, i: number): string {
+  let a = 0;
+  for (const m of Array.from(t.slice(0, Math.max(0, i)).matchAll(/[\n!?]|\.\s/g))) a = (m.index ?? 0) + m[0].length;
+  const rest = t.slice(Math.max(0, i));
+  const e = rest.search(/[\n!?]|\.\s|\.$/);
+  return t.slice(a, e >= 0 ? Math.max(0, i) + e : t.length);
+}
 const EMAIL_STARK: RegExp[] = [
   /\bneue[nrs]?\s+(?:e-?mail-?adresse|mail-?adresse|email-?adresse)\b/i,
   /\bneue[nrs]?\s+(?:e-?mail|mail)\s*(?:ist|lautet|:)/i,
@@ -109,10 +137,16 @@ const EMAIL_STARK: RegExp[] = [
   /\b(?:ab\s+(?:jetzt|sofort)|künftig|kuenftig|zukünftig)\b[^.!?\n]{0,30}\b(?:e-?mail|mail)(?:-?adresse)?\b/i,
   /\bmeine\s+(?:e-?mail|mail)(?:-?adresse)?\s+(?:ist|lautet)\s+(?:jetzt|nun|neu|ab\s+sofort)\b/i,
   /\bnew\s+e-?mail(?:\s+address)?\b/i,
+  // E-401 Nachbesserung (Prüfer-Fund): „Meine Mailadresse ändert sich“, „… gewechselt“, „schreiben Sie mir nur noch an …“.
+  new RegExp(`\\b(?:e-?mail|mail)(?:-?adresse)?\\b[^.!?\\n]{0,30}(?:${WA}${AE}ndert\\s+sich|\\bhat\\s+sich\\s+ge${AE}ndert|\\bgewechselt\\b)`, "i"),
+  /\b(?:schreiben|senden|schicken)\s+sie\s+(?:mir\s+)?(?:bitte\s+)?nur\s+noch\s+an\b/i,
 ];
 const TELEFON_STARK: RegExp[] = [
   /\bneue[nrs]?\s+(?:handy|mobil|telefon|tel\.?|ruf|whatsapp)?-?\s?(?:nummer|nr\.?)(?![a-zäöüß])/i,
-  /\bneue[nrs]?\s+(?:handy|mobil|telefon)\b/i,
+  // E-401 Nachbesserung (Prüfer-Fund): „neues Handy“ (ein Gerät) ist KEINE neue Nummer — gestrichen.
+  // „… Nummer gewechselt“, „die alte Nummer gibt es nicht mehr“ (Prüfer-Fund: wurde nicht erkannt).
+  /\b(?:telefon|handy|mobil|ruf)?-?nummer\b[^.!?\n]{0,30}\bgewechselt\b/i,
+  /\balte\s+(?:handy|telefon|mobil|ruf)?-?nummer\b[^.!?\n]{0,30}(?:gibt\s+es\s+nicht\s+mehr|existiert\s+nicht\s+mehr|ist\s+(?:nicht\s+mehr\s+aktiv|abgemeldet|gek(?:ü|ue)ndigt|weg))/i,
   new RegExp(`\\b(?:handy|mobil|telefon|ruf|whatsapp)-?(?:nummer|nr)\\b[^.!?\\n]{0,40}${WA}${AENDERN}`, "i"),
   new RegExp(`\\b(?:meine|die)\\s+nummer\\b[^.!?\\n]{0,30}${WA}${AENDERN}`, "i"),
   new RegExp(`${WA}${AE}ndern?\\s+sie\\s+(?:bitte\\s+)?(?:meine|die)\\s+(?:handy|mobil|telefon)?-?nummer`, "i"),
@@ -201,14 +235,19 @@ const INTRO_KLEIN = new Set([...Array.from(INTRO_GROSS), "lautet", "ist", "jetzt
   "hab", "eine", "einen", "is", "now", "to", "moved", "und", "mit"]);
 
 /** Klein geschriebene Bindewörter, hinter denen (bei sonst richtiger Großschreibung) erst die Straße beginnt. */
-const SCHNITT = new Set(["nach", "von", "auf", "ist", "lautet", "und", "bei", "zu", "nun", "jetzt", "wohne", "wohnen", "ab", "sofort", "neu", "neue", "jetzige"]);
+const SCHNITT = new Set(["nach", "von", "auf", "ist", "lautet", "und", "bei", "zu", "nun", "jetzt", "wohne", "wohnen", "ab", "sofort", "neu", "neue", "jetzige",
+  // E-401 Nachbesserung: „… Umzug meiner Mutter in den Lindenweg 3“ — klein geschriebenes „in/im“ vor der Straße schneidet.
+  "in", "im"]);
 /** Die Straße mit Hausnummer am Ende eines Stücks Text — Einleitungsworte vorn abgeschnitten. null: keine. Rein. */
 export function strasseAus(stueck: string): string | null {
   const s = String(stueck ?? "").replace(/[\t ]+/g, " ").replace(/^[\s,;:.\-–—]+|[\s,;:\-–—]+$/g, "").trim();
   const m = s.match(STRASSE_ENDE);
   if (!m) return null;
   const nummer = m[2].replace(/\s+/g, " ").trim();
-  let worte = m[1].replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  // E-401 Nachbesserung (Prüfer-Fund): „Hauptstr. 5“ behält seinen Punkt — sonst erkannte der Vergleich die gespeicherte
+  // „Hauptstr. 5“ nicht wieder und hielt die alte Anschrift für die neue.
+  const punkt = s.charAt(m[1].length) === "." && /(?:str|pl|g|w)$/i.test(m[1]) ? "." : "";
+  let worte = `${m[1]}${punkt}`.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   // Nur, was nach der letzten Zahl steht („Tel 0151 Neuweg 2“ → „Neuweg 2“).
   const letzteZahl = worte.map((w) => /\d/.test(w)).lastIndexOf(true);
   if (letzteZahl >= 0) worte = worte.slice(letzteZahl + 1);
@@ -228,14 +267,26 @@ export function strasseAus(stueck: string): string | null {
   return grossSchreiben(`${name} ${nummer}`).replace(/\s+/g, " ").trim();
 }
 
-/** PLZ und Ort ab einer Fundstelle; der Ort endet an Satzzeichen, Ziffern, Füllwörtern oder dem Land. Rein. */
+/** Vorsilben mehrteiliger Orte: „Bad Homburg“, „Sankt Augustin“, „St. Gallen“, „Bergisch Gladbach“, „Lutherstadt Wittenberg“. */
+const ORT_VORSILBE = new Set(["bad", "sankt", "st", "groß", "gross", "klein", "neu", "alt", "hohen", "schwäbisch", "schwaebisch", "bergisch",
+  "lutherstadt", "hansestadt", "königs", "koenigs", "markt", "ober", "nieder", "hann", "wendisch", "deutsch", "windisch",
+  "bayerisch", "fränkisch", "fraenkisch", "märkisch", "maerkisch"]);
+/** „a.M.“, „i.Br.“, „a.d.“, „a.“ — Kürzel im Ortsnamen (Punkt INNEN oder ein einzelner Buchstabe). */
+const ORT_KUERZEL = /^(?:[A-Za-zÄÖÜäöü]{1,3}\.){2,}$|^[a-zäöü]\.$/;
+/**
+ * PLZ und Ort ab einer Fundstelle; der Ort endet an Satzzeichen, Ziffern, Füllwörtern oder dem Land. Rein.
+ * E-401 Nachbesserung (Prüfer-Fund): Der Ort endet auch am SATZENDE („54321 Neustadt. Die Karte bitte …“ ergab „Neustadt
+ * Die Karte“) — ein Wort mit Punkt beendet ihn (außer Kürzeln wie „a.M.“, „i.Br.“, „St.“). Ein zweites großes Wort gehört
+ * nur nach einer Vorsilbe (Bad, Sankt …) oder einem Kürzel dazu — „Neustadt Max Mustermann“ ist „Neustadt“.
+ */
 function ortAb(rest: string, allesKlein: boolean): { ort: string; land: AngabeLand | null } {
   const zeile = rest.split(/[\n,;:!?()]|\s[-–—]\s/)[0] ?? "";
   const worte = zeile.replace(/\s+/g, " ").trim().split(" ");
   const ort: string[] = [];
   let land: AngabeLand | null = null;
   for (const w0 of worte) {
-    const w = w0.replace(/[.]+$/, "");
+    const kuerzel = ORT_KUERZEL.test(w0) || /^st\.$/i.test(w0);
+    const w = kuerzel ? w0 : w0.replace(/[.]+$/, "");
     if (!w) break;
     const l = landNorm(w);
     if (l && (w.length > 3 || /^(DE|AT|CH)$/.test(w))) { land = l; break; }
@@ -243,7 +294,15 @@ function ortAb(rest: string, allesKlein: boolean): { ort: string; land: AngabeLa
     if (!/^[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'’.\-/]*$/.test(w)) break;
     // Ein Ort beginnt groß — außer er schreibt alles klein („54321 neustadt“).
     if (!ort.length && !allesKlein && /^[a-zäöüß]/.test(w)) break;
+    if (ort.length) {
+      // Ein weiteres Wort nur nach einer Vorsilbe oder einem Kürzel — oder als Kürzel selbst („Frankfurt a.M.“).
+      const vor = ort[ort.length - 1];
+      const passt = kuerzel || ORT_KUERZEL.test(vor) || /^st\.$/i.test(vor) || (ort.length === 1 && ORT_VORSILBE.has(vor.toLowerCase().replace(/\.$/, "")));
+      if (!passt) break;
+    }
     ort.push(w);
+    // Satzende: ein Wort mit Punkt (kein Kürzel) beendet den Ort.
+    if (!kuerzel && /\.$/.test(w0)) break;
     if (ort.length >= 5) break;
   }
   return { ort: grossSchreiben(ort.join(" ")), land };
@@ -290,9 +349,17 @@ export function anschriftenFinden(text: string): AnschriftFund[] {
   return aus;
 }
 
+/** Steht außerhalb der gefundenen Anschriften noch eine Straße mit Hausnummer („… auf Neuweg 2 in Neustadt“)? Rein. */
+function andereStrasseAusser(text: string, funde: AnschriftFund[]): boolean {
+  let rest = String(text ?? "");
+  for (const f of funde) rest = rest.slice(0, f.start) + " ".repeat(Math.max(0, f.ende - f.start)) + rest.slice(f.ende);
+  return /[A-Za-zÄÖÜäöüß](?:str(?:\.|a(?:ß|ss)e)?|weg|gasse|platz|allee|ring|damm|ufer|chaussee|steig|pfad|stieg|markt|hof|berg|feld|garten|park|zeile|kai)\s*\d{1,4}\s?[a-zA-Z]?(?![\d])/i.test(rest);
+}
+
 /** „Musterstr. 5“ = „musterstraße 5“ — für den Vergleich mit dem Gespeicherten. Rein. */
 export function anschriftSchluessel(a: Partial<Anschrift> | null | undefined): string {
-  const s = (x: unknown) => String(x ?? "").toLowerCase().replace(/ß/g, "ss").replace(/str\.(?=\s|$)/g, "strasse").replace(/[^a-z0-9äöü]/g, "");
+  // E-401 Nachbesserung: auch „str“ OHNE Punkt vor der Hausnummer („Hauptstr 5“) ist „straße“.
+  const s = (x: unknown) => String(x ?? "").toLowerCase().replace(/ß/g, "ss").replace(/str\.(?=\s|$)|str(?=\s*\d)/g, "strasse").replace(/[^a-z0-9äöü]/g, "");
   return `${s(a?.strasse)}|${s(a?.plz)}|${s(a?.ort)}`;
 }
 /** Eine Zeile: „Neuweg 2, 54321 Neustadt“ (+ Land, wenn nicht DE). Rein. */
@@ -421,7 +488,9 @@ function ohneFremdeZahlen(t: string): string {
     .replace(/\bFIAON-?[A-Z0-9-]+\b/gi, leer)                                              // Referenzen
     .replace(/\b\d{1,2}\.\d{1,2}\.(?:\d{2,4})?/g, leer)                                    // Datum
     .replace(/\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\s*(?:€|eur\w*)?/gi, leer)                  // Betrag
-    .replace(/\b\d{1,2}[:.]\d{2}\s*uhr\b/gi, leer);                                        // Uhrzeit
+    .replace(/\b\d{1,2}[:.]\d{2}\s*uhr\b/gi, leer)                                         // Uhrzeit
+    // E-401 Nachbesserung (Prüfer-Fund): „Meine Bestellnummer ist 0815-4711-2233“ ist keine Telefonnummer.
+    .replace(/\b(?:bestell|kunden|vertrags|auftrags|rechnungs|referenz|antrags|ticket|sendungs|order|konto|mitglieds|versicherungs|steuer)-?\s?(?:nummer|nr\.?)[\s:#.-]*(?:ist|lautet)?\s*:?\s*\d[\d\s\-\/.]{2,}\d/gi, leer);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -486,7 +555,11 @@ export function angabenErkennen(text: string, o: ErkennenOpts = {}): AngabenErke
   const funde = anschriftenFinden(maskiert);
   const anschriftStark = ANSCHRIFT_STARK.some((r) => r.test(t));
   const anschriftSchwach = ANSCHRIFT_SCHWACH.some((r) => r.test(t));
-  if (anschriftStark || (anschriftSchwach && funde.length)) {
+  // E-401 Nachbesserung (Prüfer-Fund): Steht im Satz mit dem Wunsch oder der Anschrift jemand anderes („meiner Mutter“),
+  // sind es nicht SEINE Angaben — dann kein Wunsch (Mara antwortet wie bisher, ein Mensch sieht es im Verlauf).
+  const anschriftDritte = funde.some((f) => DRITTE.test(satzUm(t, f.start)) || DRITTE.test(satzUm(t, f.ende)))
+    || (!funde.length && ANSCHRIFT_STARK.some((r) => { const m = r.exec(t); return !!m && DRITTE.test(satzUm(t, m.index)); }));
+  if ((anschriftStark || (anschriftSchwach && funde.length)) && !anschriftDritte) {
     const bisherSchl = o.bisher?.anschrift ? anschriftSchluessel(o.bisher.anschrift) : null;
     // „von der Altstraße 1, 12345 A nach Neuweg 2, 54321 B“: die gespeicherte fällt weg; bleibt eine, ist sie die neue.
     const neue = funde.filter((f) => !(bisherSchl && f.anschrift.strasse && anschriftSchluessel(f.anschrift) === bisherSchl));
@@ -497,9 +570,16 @@ export function angabenErkennen(text: string, o: ErkennenOpts = {}): AngabenErke
       wuensche.push({ feld: "anschrift", art: "unklar", grund: "Mehrere Anschriften in seiner Nachricht — welche gilt?" });
     } else if (!kandidaten.length) {
       wuensche.push({ feld: "anschrift", art: "unvollstaendig", fehlt: ["Straße mit Hausnummer", "Postleitzahl", "Ort"], grund: "Er will die Anschrift ändern, nennt aber keine vollständige." });
-    } else if (!neue.length && !anschriftStark) {
+    } else if (!neue.length && (!anschriftStark || andereStrasseAusser(maskiert, funde))) {
       // „Ich bin umgezogen“ — und in der Nachricht steht nur die gespeicherte (alte) Anschrift, etwa in der Signatur.
-      wuensche.push({ feld: "anschrift", art: "unvollstaendig", fehlt: ["die neue Anschrift"], grund: "Er ist umgezogen, nennt aber nur die bisherige Anschrift." });
+      // E-401 Nachbesserung (Prüfer-Fund): auch bei einem ausdrücklichen Wunsch, wenn daneben eine weitere Straße steht
+      // („von Hauptstr. 5, 10115 Berlin auf Neuweg 2 in Neustadt“ — die neue ohne PLZ): Die gespeicherte Anschrift ist dann
+      // NIE der neue Wert; es fehlt die neue. (Schickt er nur die gespeicherte noch einmal, bleibt es „schon so“.)
+      wuensche.push({ feld: "anschrift", art: "unvollstaendig", fehlt: ["die neue Anschrift"], grund: "Er will die Anschrift ändern, nennt aber nur die bisherige (die neue fehlt oder ist unvollständig)." });
+    } else if (ZUKUNFT.test(t)) {
+      // E-401 Nachbesserung (Prüfer-Fund): „Ich werde im Dezember umziehen … bis dahin bitte die alte“ — die neue gilt erst
+      // später. Sofort speichern wäre falsch; ein Mensch trägt sie zum richtigen Zeitpunkt ein.
+      wuensche.push({ feld: "anschrift", art: "unklar", grund: "Die neue Anschrift gilt erst später — ein Kollege trägt sie zum richtigen Zeitpunkt ein; bis dahin bleibt die bisherige.", spaeter: true });
     } else {
       const f = kandidaten[kandidaten.length - 1];
       const a = f.anschrift;
@@ -524,9 +604,14 @@ export function angabenErkennen(text: string, o: ErkennenOpts = {}): AngabenErke
   }
 
   // ── TELEFON ──
-  if (TELEFON_STARK.some((r) => r.test(t))) {
+  const telStark = TELEFON_STARK.map((r) => r.exec(t)).find((m) => !!m) ?? null;
+  if (telStark) {
     const rein = ohneFremdeZahlen(maskiert);
-    const roh = Array.from(rein.matchAll(/(?:\+|\b00|\b0|\b(?:49|43|41))[\d\s/().\-–]{5,}\d/g)).map((m) => m[0]);
+    const rohFunde = Array.from(rein.matchAll(/(?:\+|\b00|\b0|\b(?:49|43|41))[\d\s/().\-–]{5,}\d/g));
+    // E-401 Nachbesserung (Prüfer-Fund): „Mein Sohn hat eine neue Handynummer …“, „Ihr Kollege hat mich von … angerufen“ —
+    // nicht SEINE Nummer: kein Wunsch (phone_key9 und die Zuordnung von Anrufen und WhatsApp blieben sonst falsch).
+    const telDritte = DRITTE.test(satzUm(t, telStark.index)) || rohFunde.some((m) => DRITTE.test(satzUm(t, m.index ?? 0)));
+    const roh = telDritte ? [] : rohFunde.map((m) => m[0]);
     const landTel = landBisher ?? null;
     const normal = Array.from(new Set(roh.map((r) => telefonNorm(r, landTel)).filter((x): x is string => !!x)));
     const neue = normal.filter((n) => !nummerGleich(n, o.bisher?.telefon));
@@ -534,7 +619,7 @@ export function angabenErkennen(text: string, o: ErkennenOpts = {}): AngabenErke
     else if (neue.length > 1) wuensche.push({ feld: "telefon", art: "unklar", grund: "Mehrere neue Nummern in seiner Nachricht — welche gilt?" });
     else if (normal.length === 1) wuensche.push({ feld: "telefon", art: "voll", wert: normal[0] });
     else if (roh.length) wuensche.push({ feld: "telefon", art: "unklar", grund: "Die neue Nummer ist nicht eindeutig lesbar (bitte mit Vorwahl)." });
-    else wuensche.push({ feld: "telefon", art: "unvollstaendig", fehlt: ["die neue Telefonnummer"], grund: "Er will die Nummer ändern, nennt aber keine neue." });
+    else if (!telDritte) wuensche.push({ feld: "telefon", art: "unvollstaendig", fehlt: ["die neue Telefonnummer"], grund: "Er will die Nummer ändern, nennt aber keine neue." });
   }
 
   return { wuensche, verboten };
@@ -593,7 +678,10 @@ export function angabenSatz(l: AngabenLageRein): string {
   const teile: string[] = [];
   const fremd = l.ergebnisse.filter((e) => e.stand === "fremder_absender");
   for (const e of l.ergebnisse) if (e.stand !== "fremder_absender") { const s = feldSatz(e, l.kanal); if (s) teile.push(s); }
-  if (fremd.length) {
+  if (fremd.length && l.absenderUnbestaetigt && l.kanal === "mail") {
+    // E-401 Nachbesserung: Die Mail trägt seine Adresse, ließ sich aber nicht als echt bestätigen — nie ändern, nie Daten nennen.
+    teile.push(`Aus Sicherheitsgründen ändere ich Ihre ${fremd.map((e) => FELD_NAME[e.feld]).join(" und ")} nicht allein auf eine E-Mail hin — bitte ändern Sie sie selbst in Ihrem Kundenbereich unter ${KUNDENBEREICH_DATEN}.`);
+  } else if (fremd.length) {
     teile.push(l.kanal === "whatsapp"
       ? `Aus Sicherheitsgründen ändere ich Ihre ${fremd.map((e) => FELD_NAME[e.feld]).join(" und ")} nur, wenn Sie mir von Ihrer bei uns hinterlegten Telefonnummer schreiben — oder Sie ändern sie selbst in Ihrem Kundenbereich unter ${KUNDENBEREICH_DATEN}.`
       : `Aus Sicherheitsgründen ändere ich Ihre ${fremd.map((e) => FELD_NAME[e.feld]).join(" und ")} nur, wenn Sie uns von Ihrer bei uns hinterlegten E-Mail-Adresse schreiben — oder Sie ändern sie selbst in Ihrem Kundenbereich unter ${KUNDENBEREICH_DATEN}.`);
@@ -624,7 +712,9 @@ export function angabenHinweis(l: AngabenLageRein): string {
       case "schon_so": return `· ${f}: schon genau so gespeichert — nichts zu tun.`;
       case "unvollstaendig": return `· ${f}: NICHT geändert — es fehlt ${fehltText(e.fehlt)}. Frag genau danach.`;
       case "unklar": return `· ${f}: NICHT geändert — ${e.grund ?? "nicht eindeutig"}. Bitte ihn, es noch einmal genau zu schicken.`;
-      case "fremder_absender": return `· ${f}: NICHT geändert — die Nachricht kommt NICHT vom gespeicherten Absender (${l.kanal === "whatsapp" ? "andere Nummer" : "andere Mail-Adresse"}). Nenn ihm NIE die gespeicherte ${l.kanal === "whatsapp" ? "Nummer" : "Adresse"} und keine anderen Daten aus der Akte.`;
+      case "fremder_absender": return l.absenderUnbestaetigt && l.kanal === "mail"
+        ? `· ${f}: NICHT geändert — die Mail trägt zwar die gespeicherte Adresse, ließ sich aber NICHT als echt bestätigen (keine Absender-Prüfung bestanden oder eine fremde Antwortadresse) — sie könnte gefälscht sein. Nenn ihm NIE gespeicherte Daten aus der Akte.`
+        : `· ${f}: NICHT geändert — die Nachricht kommt NICHT vom gespeicherten Absender (${l.kanal === "whatsapp" ? "andere Nummer" : "andere Mail-Adresse"}). Nenn ihm NIE die gespeicherte ${l.kanal === "whatsapp" ? "Nummer" : "Adresse"} und keine anderen Daten aus der Akte.`;
       case "mensch": return `· ${f}: NICHT geändert — ${e.grund ?? "ein Mensch trägt es ein"}.${l.kanal === "mail" ? " Dafür gibst du eine Aufgabe (aufgabe_an_betreuer, Fall 4)." : " Der Server legt es Justin vor (Karte)."}`;
       case "probe": return `· ${f}: TESTKONTO — nichts gespeichert, nichts verschickt (wäre: ${e.waere ?? "?"}${pfeil}).`;
       default: return "";
@@ -723,15 +813,103 @@ export function bestaetigungsMail(e: { name: string | null; neu: string }): { be
     fuss: `Der Link ist ${LINK_STUNDEN} Stunden gültig. Haben Sie das nicht angefordert? Dann ignorieren Sie diese E-Mail einfach — es ändert sich nichts.`,
   };
 }
-export function hinweisAlteMail(e: { name: string | null; neu: string }): { betreff: string; text: string } {
+export function hinweisAlteMail(e: { name: string | null; neu: string }): { betreff: string; text: string; knopf: string; fuss: string } {
   return {
     betreff: "Ihre E-Mail-Adresse bei FIAON soll geändert werden",
-    text: `Guten Tag${e.name ? ` ${e.name}` : ""},\n\nwir haben die Bitte erhalten, Ihre E-Mail-Adresse bei FIAON auf ${mailMaske(e.neu)} zu ändern. An diese neue Adresse haben wir einen Bestätigungslink geschickt — erst nach dem Klick darauf gilt sie. Bis dahin bleibt alles, wie es ist.\n\nWaren Sie das nicht? Dann antworten Sie bitte einfach auf diese E-Mail — wir kümmern uns sofort darum.`,
+    text: `Guten Tag${e.name ? ` ${e.name}` : ""},\n\nwir haben die Bitte erhalten, Ihre E-Mail-Adresse bei FIAON auf ${mailMaske(e.neu)} zu ändern. An diese neue Adresse haben wir einen Bestätigungslink geschickt — erst nach dem Klick darauf gilt sie. Bis dahin bleibt alles, wie es ist.\n\nWaren Sie das nicht? Dann stoppen Sie die Änderung mit einem Klick auf den Knopf unten — oder antworten Sie einfach auf diese E-Mail, wir kümmern uns sofort darum.`,
+    // E-401 Nachbesserung (Prüfer-Fund): ein Stopp-Knopf — wer es nicht war, hält die Änderung selbst an.
+    knopf: "Das war ich nicht — Änderung stoppen",
+    fuss: "Der Knopf stoppt die Änderung sofort; Ihre bisherige Adresse bleibt hinterlegt.",
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IST DIE MAIL ECHT? — Gmails Absender-Prüfung (E-401 Nachbesserung, Prüfer-Fund)
+//
+// „Vom gespeicherten Absender“ hieß bisher nur: Die From-Zeile trägt seine Adresse. Die lässt sich fälschen — und Mara
+// antwortet an Reply-To. So hätte ein Fremder Anschrift und Nummer ändern und die E-Mail-Adresse auf seine umstellen
+// können. Gmail prüft beim Empfang SPF, DKIM und DMARC und schreibt das Ergebnis in den OBERSTEN Kopf
+// „Authentication-Results: mx.google.com; …“. Echt ist die Mail nur, wenn eine dieser Prüfungen zur Absender-Domain
+// besteht — und ein Reply-To fehlt, gleich dem Absender ist oder selbst eine gespeicherte Adresse ist.
+// ═══════════════════════════════════════════════════════════════════════════
+function domainAus(x: string | null | undefined): string {
+  const t = String(x ?? "").trim().toLowerCase().replace(/^.*<([^>]+)>.*$/, "$1");
+  return (t.includes("@") ? t.slice(t.lastIndexOf("@") + 1) : t).replace(/[>\s;,()]+$/g, "").replace(/^@/, "");
+}
+/** Passt die geprüfte Domain zur Absender-Domain (gleich oder deren Ober-Domain, „relaxed alignment“)? */
+function domainPasst(geprueft: string, absender: string): boolean {
+  const g = geprueft.toLowerCase(), a = absender.toLowerCase();
+  return !!g && !!a && (g === a || a.endsWith(`.${g}`));
+}
+/**
+ * Ist die Mail wirklich von dieser Adresse? `authErgebnis` = Wert des obersten „Authentication-Results“ (nur, wenn er
+ * mit „mx.google.com“ beginnt — das liest fiaon-gmail.ts). Rein.
+ */
+export function absenderEcht(e: { authErgebnis: string | null | undefined; von: string | null | undefined; antwortAn?: string | null; bekannte?: string[] }): { echt: boolean; grund: string } {
+  const vonAdresse = String(e.von ?? "").toLowerCase().replace(/^.*<([^>]+)>.*$/, "$1").trim();
+  const vonDomain = domainAus(vonAdresse);
+  if (!vonDomain) return { echt: false, grund: "kein Absender" };
+  const reply = String(e.antwortAn ?? "").toLowerCase().replace(/^.*<([^>]+)>.*$/, "$1").trim();
+  if (reply && !mailGleich(reply, vonAdresse) && !(e.bekannte ?? []).some((b) => mailGleich(b, reply))) {
+    return { echt: false, grund: "fremde Antwortadresse (Reply-To)" };
+  }
+  const auth = String(e.authErgebnis ?? "");
+  if (!/^\s*mx\.google\.com\b/i.test(auth)) return { echt: false, grund: "keine Absender-Prüfung von Gmail" };
+  for (const teil of auth.split(";")) {
+    const dmarc = teil.match(/\bdmarc=(\w+)[\s\S]*?\bheader\.from=([^\s;]+)/i);
+    if (dmarc && dmarc[1].toLowerCase() === "pass" && domainPasst(domainAus(dmarc[2]), vonDomain)) return { echt: true, grund: "dmarc=pass" };
+    const dkim = teil.match(/\bdkim=(\w+)[\s\S]*?\bheader\.[id]=([^\s;]+)/i);
+    if (dkim && dkim[1].toLowerCase() === "pass" && domainPasst(domainAus(dkim[2]), vonDomain)) return { echt: true, grund: "dkim=pass" };
+    const spf = teil.match(/\bspf=(\w+)[\s\S]*?\bsmtp\.mailfrom=([^\s;]+)/i);
+    if (spf && spf[1].toLowerCase() === "pass" && domainPasst(domainAus(spf[2]), vonDomain)) return { echt: true, grund: "spf=pass" };
+  }
+  return { echt: false, grund: "keine bestandene Absender-Prüfung (SPF/DKIM/DMARC) für die Absender-Domain" };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OHNE BLOCK „ANGABEN“ — nie „geändert“ behaupten (E-401 Nachbesserung, Prüfer-Fund)
+// ═══════════════════════════════════════════════════════════════════════════
+// Nur die Angaben selbst — nicht „Ihre E-Mail“ (die Nachricht) oder „am Telefon“.
+const FELD_WORT_STRENG: Record<AngabeFeld, RegExp> = {
+  anschrift: /\b(?:anschrift|wohnadresse|meldeadresse|postanschrift)\b|(?<![-\w])adresse\b(?![-\w])/i,
+  email: /\b(?:e-?mail-?adresse|e-?mail\s+adresse|mail-?adresse)\b/i,
+  telefon: /\b(?:telefonnummer|handynummer|rufnummer|mobilnummer|telefon-?nummer|handy-?nummer)\b/i,
+};
+const GEAENDERT_STRENG = /\b(?:habe|hab|haben|ist|sind|wurde|wurden)\b[^.!?\n]{0,80}(?:^|[^A-Za-zÄÖÜäöüß])(?:ge(?:ä|ae)ndert|aktualisiert|gespeichert|eingetragen|(?:ü|ue)bernommen|korrigiert|umgestellt)\b/i;
+/**
+ * Ist angaben_aendern NICHT gelaufen (kein Block ANGABEN — der Wunsch wurde nicht erkannt), darf die Antwort nie
+ * behaupten, Anschrift, E-Mail-Adresse oder Telefonnummer seien geändert: Dann hat niemand etwas geändert. Rein.
+ */
+export function angabenOhneLageFunde(antwort: string): string[] {
+  const funde: string[] = [];
+  for (const s of saetze(antwort)) {
+    for (const f of Object.keys(FELD_WORT_STRENG) as AngabeFeld[]) {
+      if (FELD_WORT_STRENG[f].test(s) && GEAENDERT_STRENG.test(s) && !NICHT_ERLEDIGT.test(s)) {
+        funde.push(`Die Antwort sagt, die ${FELD_NAME[f]} sei geändert („${s.slice(0, 90)}“) — geändert hat niemand etwas (kein Block ANGABEN). Gib dafür wie bisher eine Aufgabe (aufgabe_an_betreuer, Fall 4) und schreib, dass ein Kollege es für ihn einträgt.`);
+        return funde;
+      }
+    }
+  }
+  return funde;
 }
 export function hinweisTelefonMail(e: { name: string | null; alt: string | null; neu: string }): { betreff: string; text: string } {
   return {
     betreff: "Ihre Telefonnummer bei FIAON wurde geändert",
     text: `Guten Tag${e.name ? ` ${e.name}` : ""},\n\nauf Ihre Nachricht hin haben wir Ihre Telefonnummer bei FIAON geändert: ${e.alt ? `${telefonMaske(e.alt)} → ` : ""}${telefonMaske(e.neu)}.\n\nWaren Sie das nicht? Dann antworten Sie bitte einfach auf diese E-Mail — wir kümmern uns sofort darum.`,
   };
+}
+
+/**
+ * Ersetzt angaben_aendern diese aufgabe_an_betreuer? Nur eine reine Stammdaten-Aufgabe (Anschrift, E-Mail-Adresse,
+ * Telefonnummer) an den Betreuer oder einen genannten Kollegen — nie an die Leitung oder die Zahlungsstelle, nie mit
+ * Rückruf, nie, wenn Geld, Erstattung, Widerruf, Kulanz, Beleg, Zahlung, Kündigung, Storno, Beschwerde oder Anwalt darin
+ * stehen. E-401 Nachbesserung (Prüfer-Fund): Vorher reichte das Wort „E-Mail“ — „Kunde widerruft per E-Mail und verlangt
+ * sein Geld zurück“ an die Leitung wurde gesperrt. Rein.
+ */
+export function angabenAufgabeErsetzbar(p: { titel?: unknown; text?: unknown; kollege?: unknown; rueckruf_am?: unknown } | null | undefined): boolean {
+  const inhalt = `${String(p?.titel ?? "")} ${String(p?.text ?? "")}`;
+  if (String(p?.rueckruf_am ?? "").trim()) return false;
+  if (/\b(?:leitung|chef|gesch[äa]ftsf[üu]hr\w*|management|zahlung|beleg|buchhaltung|inkasso|forderung|bankbuch)\b/i.test(String(p?.kollege ?? ""))) return false;
+  if (/r(?:ü|ue)ckruf|zur(?:ü|ue)ckruf|anruf|\bgeld\b|erstatt|widerruf|kulanz|beleg|zahlung|überweis|ueberweis|k(?:ü|ue)ndig|storn|beschwerde|anwalt|rechtlich/i.test(inhalt)) return false;
+  return /\b(?:adress\w*|anschrift\w*|umzug|umgezogen|e-?mail-?adresse\w*|mailadresse\w*|telefonnummer\w*|handynummer\w*|rufnummer\w*|mobilnummer\w*|stammdaten)\b|\bneue[nrs]?\s+(?:handy|telefon|mobil)?-?nummer\b|daten(?:ä|ae)nderung/i.test(inhalt);
 }

@@ -170,7 +170,7 @@ import { BEHOERDE, rueckrufGewollt } from "./fiaon-postmeister-lauf";
 import type { WaEntscheidungsLage } from "./fiaon-whatsapp-entscheidungen";
 // E-401 (2/6, 19.10.2026): der genannte Termin auch auf WhatsApp — Erkennung und Antwortprüfung rein (shared), das
 // Eintragen im Server-Modul (nur der Typ statisch; geladen wird es beim Aufruf, wie im Postfach).
-import { genanntAntwortFunde, uhrzeitenGenannt } from "@shared/fiaon-genannter-termin";
+import { genanntAntwortFunde, uhrzeitenGenannt, TERMIN_AENDERN, fragtSelbstNachLinkOderZahlung } from "@shared/fiaon-genannter-termin";
 // E-401 (3/6, 19.10.2026): „habe bezahlt“ — der Server sucht im Bankbuch (fiaon-mara-zahlung-suchen.ts).
 import { zahlungAntwortFunde, type ZsErgebnis } from "@shared/fiaon-zahlung-suchen";
 // E-401 (4/6, 19.10.2026): Anschrift, E-Mail, Telefon ändert der Server selbst (fiaon-mara-angaben-aendern.ts).
@@ -2415,8 +2415,8 @@ export function kannNichtZahlen(kundeText: string): boolean {
     .replace(/(?:\b|(?<=\s))(?:zahle|bezahle|überweise|ueberweise)\s+(?:\w+\s+){0,2}?nicht\s+(?:mal\s+|einfach\s+|so\s+)?(?:\d+(?:[.,]\d+)?\s*(?:€|euro\b|eur\b)|€\s*\d+)/gi, " ");
   return /\b(?:kann|könnte|koennte|werde)\s+(?:\w+\s+){0,3}?nicht\s+(?:\w+\s+){0,2}?(?:be)?zahlen\b|\bkein(?:e|en)?\s+geld\b|\b(?:zahle|bezahle|überweise|ueberweise)\s+(?:\w+\s+){0,2}?nicht(?:s)?\b|\bnicht\s+(?:be)?zahlen\s+k(?:ö|oe)nnen\b|\bpleite\b|\barbeitslos\b|\bnicht\s+leisten\b/i.test(t);
 }
-/** Absage oder Verschiebung eines Termins. */
-const TERMIN_AENDERN = /\babsag\w*|\bsag\w*\s+(?:\w+\s+){0,3}?ab\b|\bverschieb\w*|\bverleg\w*|\bandere[nrs]?\s+(?:zeit|termin|tag|uhrzeit)|\bkann\s+(?:\w+\s+){0,4}?nicht\b|\bpasst\s+(?:\w+\s+){0,2}?nicht\b|\bschaffe\s+(?:\w+\s+){0,2}?nicht\b/i;
+// Absage oder Verschiebung eines Termins: TERMIN_AENDERN steht seit der E-401-Nachbesserung in shared/fiaon-genannter-termin.ts
+// (wortgleich) — dort braucht ihn auch die Erkennung des genannten Termins.
 /** Ein Einwand gegen die Zahlung — dann keine Zahlungsseite als fester Satz. */
 // E-264: jede Verneinung („nie", „nix", „nichts") und jede Beschwerde — „Hab nix beantragt" ist nie eine Link-Frage.
 const EINWAND_ZAHLUNG = /\bnicht\b|\bkein\w*\b|\bnie(?:mals)?\b|\bnix\b|\bnichts\b|\bwarum\b|\bwieso\b|\bweshalb\b|\bvorher\b|\bvorab\b|\bim\s+voraus\b|\bzu\s+teuer\b|\babzocke\b|\bbetrug|\bspam\b|\bfake\b|\bfalsch|\bruhe\b|\bstorn|\bwiderruf|\bk(?:ü|ue)ndig|\bl(?:ö|oe)sch/i;
@@ -3124,6 +3124,11 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const gtM = await import("./fiaon-mara-genannter-termin");
     const teamNotizenWa = personId ? await gtM.teamNotizenLesen(Number(personId)).catch(() => []) : [];
     let genannt: GenanntLage | null = null;
+    // E-401 Nachbesserung (Prüfer-Fund): Fragt er SELBST nach Karte, Link oder Zahlung, erfüllt Mara das auch neben einem
+    // genannten Termin — „sich zurücknehmen“ heißt nichts anbieten, nicht seine Bitte verweigern.
+    const jaAufKartenLink = /link\s+unserer\s+partnerbank[^?]{0,80}schicken\s*\?/i.test(letzteDu[0] ?? "")
+      && /^\s*(?:ja|jawohl|gern|gerne|bitte|ok|okay|klar|jo|jep)\b/i.test(kunde.trim()) && kunde.trim().length <= 40;
+    const kundeFragtSelbst = fragtNachKarte(kunde) || jaAufKartenLink || fragtSelbstNachLinkOderZahlung(kunde);
     {
       const seineWorte = echteOffene.filter((v) => !v.knopf).slice().reverse().map((v) => String(v.text || "")).join("\n").trim();
       if (personId && seineWorte) {
@@ -3134,9 +3139,12 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
           personId: Number(personId), ref: null, kundeText: seineWorte, notizen: teamNotizenWa, kanal: "whatsapp", nummer,
           waId: Number(traeger.id), letzteRaus: lrG ? String(lrG.text ?? "") : null,
           bezug: Date.now() - new Date(traeger.am).getTime() > 3 * 3_600_000 ? new Date(traeger.am) : null,
+          kundeFragtSelbst,
         }).catch((e) => { console.warn("[MARA-WA] Genannter Termin:", String(e?.message || e).slice(0, 160)); return null; });
       }
     }
+    /** E-401 Nachbesserung: neben dem genannten Termin zurücknehmen — außer er fragt selbst nach Karte, Link oder Zahlung. */
+    const genanntZurueck = !!genannt && genannt.zurueck;
     // E-240: Angebot „jetzt", wenn er gerade über Bonität, Limit, Karte oder die Auskunft schreibt
     // (seine offenen Nachrichten) oder Maras letzte Frage zur Auskunft beantwortet. Bei Werbesperre
     // nur, wenn er sie ausdrücklich will — dann ist es seine Anfrage, keine Werbung.
@@ -3206,11 +3214,11 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // das Modell den Satz (SCHON ERLEDIGT) und ruft das Werkzeug nicht noch einmal. Nie bei Kündigung, Widerruf,
     // Beschwerde oder Bestreiten (fragtNachKarte und heikelAnliegen schließen das aus).
     let vorabKarte: Aktion | null = null;
-    // Auch ein kurzes Ja auf Maras Frage „Soll ich Ihnen den Link unserer Partnerbank … schicken?“ (bausteinLimitFrage).
-    const jaAufKartenLink = /link\s+unserer\s+partnerbank[^?]{0,80}schicken\s*\?/i.test(letzteDu[0] ?? "")
-      && /^\s*(?:ja|jawohl|gern|gerne|bitte|ok|okay|klar|jo|jep)\b/i.test(kunde.trim()) && kunde.trim().length <= 40;
-    // E-401 (2/6): neben einem genannten Termin kein Link der Partnerbank in diesem Lauf (zurücknehmen, wie im Postfach).
-    if (personId && !genannt && lage.linkLage.stufe === "kunde" && (fragtNachKarte(kunde) || jaAufKartenLink) && !heikelAnliegen(kunde) && !abstreitenArt(kunde)) {
+    // Auch ein kurzes Ja auf Maras Frage „Soll ich Ihnen den Link unserer Partnerbank … schicken?“ (bausteinLimitFrage) —
+    // jaAufKartenLink steht seit der E-401-Nachbesserung oben (beim genannten Termin).
+    // E-401 (2/6): neben einem genannten Termin kein Link der Partnerbank in diesem Lauf (zurücknehmen, wie im Postfach) —
+    // Nachbesserung: außer er fragt selbst danach (genanntZurueck).
+    if (personId && !genanntZurueck && lage.linkLage.stufe === "kunde" && (fragtNachKarte(kunde) || jaAufKartenLink) && !heikelAnliegen(kunde) && !abstreitenArt(kunde)) {
       const r = await werkzeugAusfuehren("karte_link_schicken", {}, {
         personId: Number(personId), leadId: leadId ? Number(leadId) : null, nummer, kunde, letzteDu: letzteDu[0] ?? "", stufe: "kunde",
       }).catch((e) => { console.error("[MARA-WA] Vorab-Kartenlink:", String(e).slice(0, 160)); return null; });
@@ -3259,7 +3267,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // E-265 Nachbesserung: auch bei Vertriebssperre (is_blocked, „kein Interesse") kein Abschluss an B/C/Abbrecher —
     // wie beim Auskunft-Angebot (Gegenlesen 24.09.).
     // E-401 (2/6): neben einem genannten Termin kein Abschluss (Justin: „einen guten Termin wünschen und sich zurücknehmen“).
-    const abschlussArt: AbschlussArt | null = heikelJetzt || !!genannt || ((lage.werbesperre || lage.vertriebssperre) && stufeJetzt !== "kunde") ? null
+    const abschlussArt: AbschlussArt | null = heikelJetzt || genanntZurueck || ((lage.werbesperre || lage.vertriebssperre) && stufeJetzt !== "kunde") ? null
       : stufeJetzt === "zahlung_gemeldet" || gemeldet ? "a" : abschlussArtAus(stufeJetzt, { rateOffen: !!lage.rate });
     // E-275 (02.10.2026): Hier holte der Server den nächsten freien Platz für „… und ich vereinbare Ihren Termin mit Herrn X.
     // Passt Ihnen [Zeit]?" — der Abschluss bittet jetzt ums Zahlen (Justin: „nicht immer sagen ‚Ich mache einen Termin mit
@@ -3474,7 +3482,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       wasIstFiaon, keineKarte, limitFrage, kuendigung: kuendigungJetzt, kuendigungUnbezahlt: unbezahltJetzt,
       einwandMuster: { vorkasse: vorkasseMuster, zuTeuer: zuTeuerMuster },
       // E-401 (2/6): neben einem genannten Termin kein Verkaufsteil und ein eigenes Ziel (zurücknehmen).
-      wer: lage.wer, lage: lage.lage, ziel: genannt ? GENANNT_ZIEL : lage.ziel, link: lage.link, verkaufen: lage.verkaufen && !genannt, auskunft,
+      wer: lage.wer, lage: lage.lage, ziel: genanntZurueck ? GENANNT_ZIEL : lage.ziel, link: lage.link, verkaufen: lage.verkaufen && !genannt, auskunft,
       gedaechtnis: personId ? await gedaechtnisText(Number(personId)).catch(() => "") : "",
       teamNotizen: gtM.teamNotizenText(teamNotizenWa),
       wissen: wissenFuerWhatsApp(),
@@ -3505,7 +3513,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         ...(vorabKarte && !vorabKarte.ok && !["nicht_bereit", "ohne_mail", "adresse_gesperrt"].includes(String(vorabKarte.kartenArt)) ? [`DEN LINK DER PARTNERBANK KANNST DU IHM HIER NICHT SELBST SCHICKEN (Grund intern) — sag freundlich und ohne Grund, dass unsere Geschäftsführung sich das ansieht und er dazu Bescheid bekommt; der Server legt es ihr vor. Keine Zusage, dass der Link kommt, keine Zeit, nichts zur Karte (E-275 Endkontrolle: bei einem Ausschluss entscheidet der Mensch).`] : [])],
       land: lage.land, stufe: lage.linkLage.stufe,
       // E-275: der Link der Partnerbank als Werkzeug — nur beim zahlenden Kunden, und nicht, wenn der Server ihn eben geschickt hat.
-      kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte && !genannt,
+      kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte && !genanntZurueck,
       verlauf: verlauf.slice().reverse()
         .filter((v) => v.status !== "fehler")
         .map((v) => {
@@ -3554,8 +3562,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         zeiten: genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [],
         // E-372: Liegt Recht, Widerruf, Geld zurück, Löschen, Bestreiten oder eine Rücknahme offen bei Justin, keine Zahlungsbitte.
         // E-401 (2/6): neben einem genannten Termin ebenso (Postfach: genannt.ruhe).
-        ruhe: ruhe24 || karteRuhe(offeneKarten) || !!genannt,
-        ruheGrund: genannt && !ruhe24 && !karteRuhe(offeneKarten) ? "einen Termin, den er hat (er nennt ihn gerade — Justin: „sich zurücknehmen“)" : null,
+        ruhe: ruhe24 || karteRuhe(offeneKarten) || genanntZurueck,
+        ruheGrund: genanntZurueck && !ruhe24 && !karteRuhe(offeneKarten) ? "einen Termin, den er hat (er nennt ihn gerade — Justin: „sich zurücknehmen“)" : null,
         // E-265 Nachbesserung: Kündigung und „Kulanz" nur, wenn es stimmt (handlungsPruefung).
         gekuendigt: lage.gekuendigt, jahresvertrag: lage.jahresvertrag,
         beendetMitRate: lage.linkLage.stufe === "beendet" && !!lage.linkLage.ratenReferenz,
@@ -3577,6 +3585,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         eingetragen: genannt.eingetragen || genannt.erkennung.art === "steht_schon",
         uhrzeitTermin: genannt.eingetragen || genannt.erkennung.art === "steht_schon" ? genannt.uhrzeitTermin : null,
         satz: genannt.satz,
+        // E-401 Nachbesserung: fragt er selbst nach Karte/Link/Zahlung, sind Kartenwort und Link seine Bitte, kein Verkauf.
+        verkaufErlaubt: !genannt.zurueck,
       } : null,
       // E-401 (3/6): „gebucht/angekommen/gefunden“ nur, was zahlung_suchen im Bankbuch gefunden hat.
       zahlung: zahlungGesucht ? { ergebnis: zahlungGesucht.ergebnis, frueher: zahlungGesucht.frueher } : null,
@@ -3594,7 +3604,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // E-275: Hat der Server den Link der Partnerbank eben geschickt, fällt das Werkzeug weg (kein zweiter Versand im Lauf).
       kartenSchon: !!vorabKarte,
       // E-401 (2/6): neben einem genannten Termin kein Kartenlink und kein Auskunft-Angebot.
-      ohneVerkauf: !!genannt,
+      ohneVerkauf: genanntZurueck,
       // E-401 (4/6): Felder, die der Server eben bearbeitet hat — angaben_eintragen fasst sie in diesem Lauf nicht an.
       angabenServer: angabenLage ? angabenLage.ergebnisse.map((x) => x.feld) : [],
     } : null);
@@ -3663,7 +3673,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // E-401 (2/6): Nennt er einen Termin, ist der warme Satz dazu der sichere Satz (ohne Verkauf) — außer ein Werkzeug hat
       // eine Kündigung oder Ratenpause gebucht (dann gilt dessen Satz) oder sein Anliegen ist heikel (dann der Rückfallsatz).
       const werkzeugSatz = e.aktionen.some((x) => (x.werkzeug === "kuendigung_aufnehmen" || x.werkzeug === "ratenpause_setzen") && x.ok && x.satz);
-      const kandidat = genannt && !werkzeugSatz
+      const kandidat = genanntZurueck && genannt && !werkzeugSatz
         ? (genannt.satz && !heikelAnliegen(kunde) && !kannNichtZahlen(kunde) && !abstreitenArt(kunde) ? genannt.satz : null)
         // E-401 (3/6): Er meldet eine Zahlung — der Satz aus dem Bankbuch (zahlung_suchen) ist der sichere Satz.
         : zahlungGesucht && !werkzeugSatz && !heikelAnliegen(kunde) && !abstreitenArt(kunde) ? zahlungGesucht.satz
@@ -3674,12 +3684,14 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // Betreuers (E-265: Nennform) und Links, nie den Kunden; ungemaskt prüft die Wand hier strenger.
       if (kandidat && !sendePruefung(kandidat).length && !tonUndLink(kandidat, { land: lage.land, kunde, linkLage: lage.linkLage, mitarbeiter }).hart.length
         && !handlungsPruefung(kandidat, e.aktionen, kunde, verlaufText, { links: [lage.link ?? "", ...e.aktionen.map((x) => x.link ?? "").filter(Boolean)], termin: terminKurz ? { uhrzeit: terminKurz.uhrzeit ?? "" } : null,
-          zeiten: genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [], ruhe: ruhe24 || !!genannt,
+          zeiten: genannt?.uhrzeitTermin ? [genannt.uhrzeitTermin] : [], ruhe: ruhe24 || genanntZurueck,
           gekuendigt: lage.gekuendigt, jahresvertrag: lage.jahresvertrag, beendetMitRate: lage.linkLage.stufe === "beendet" && !!lage.linkLage.ratenReferenz }).length
         // E-401 (2/6): auch der sichere Satz hält die Regeln neben dem genannten Termin.
         && !(genannt && genanntAntwortFunde(kandidat, {
           darfEingetragen: genannt.eingetragen || genannt.erkennung.art === "steht_schon" || e.aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok),
-          uhrzeitPflicht: genannt.eingetragen || genannt.erkennung.art === "steht_schon" ? genannt.uhrzeitTermin : null, satz: genannt.satz, linkVerboten: true,
+          // E-401 Nachbesserung: Hat rueckruf_eintragen in diesem Lauf gebucht oder verschoben, gilt die NEUE Zeit — keine Pflicht zur alten.
+          uhrzeitPflicht: (genannt.eingetragen || genannt.erkennung.art === "steht_schon") && !e.aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok) ? genannt.uhrzeitTermin : null,
+          satz: genannt.satz, linkVerboten: genanntZurueck, verkaufErlaubt: !genanntZurueck,
         }).length)) {
         sicher = kandidat;
       }
@@ -5215,7 +5227,7 @@ export async function entwerfen(
      * (E-395), hart: kein Verkauf und kein Link daneben, „eingetragen“ nur, wenn eingetragen (auch ein in diesem Lauf
      * eingetragener Rückruf zählt), der eingetragene bzw. stehende Termin mit seiner Uhrzeit. Ohne: keine Prüfung.
      */
-    genannt?: { eingetragen: boolean; uhrzeitTermin: string | null; satz: string | null } | null;
+    genannt?: { eingetragen: boolean; uhrzeitTermin: string | null; satz: string | null; verkaufErlaubt?: boolean } | null;
     /**
      * E-401 (3/6, 19.10.2026): Er meldet eine Zahlung und zahlung_suchen hat im Bankbuch nachgesehen
      * (fiaon-mara-zahlung-suchen.ts) — dann ist jede Zusage („gebucht“, „angekommen“, Datum, Betrag), die dort nicht
@@ -5262,7 +5274,9 @@ export async function entwerfen(
       // E-401 (2/6): der genannte Termin — zurücknehmen, „eingetragen“ nur, wenn eingetragen, der Termin mit Uhrzeit.
       ...(pruef.genannt ? genanntAntwortFunde(a, {
         darfEingetragen: pruef.genannt.eingetragen || aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok),
-        uhrzeitPflicht: pruef.genannt.uhrzeitTermin, satz: pruef.genannt.satz, linkVerboten: true,
+        // E-401 Nachbesserung (Prüfer-Fund): nach einem Verschieben/Buchen in diesem Lauf gilt die neue Zeit, nicht die alte.
+        uhrzeitPflicht: aktionen.some((x) => x.werkzeug === "rueckruf_eintragen" && x.ok) ? null : pruef.genannt.uhrzeitTermin,
+        satz: pruef.genannt.satz, linkVerboten: !pruef.genannt.verkaufErlaubt, verkaufErlaubt: !!pruef.genannt.verkaufErlaubt,
       }) : []),
       // E-401 (3/6): nie eine Zusage, die nicht im Bankbuch steht.
       ...(pruef.zahlung ? zahlungAntwortFunde(a, pruef.zahlung.ergebnis, { frueher: pruef.zahlung.frueher }) : []),

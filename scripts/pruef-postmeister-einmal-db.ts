@@ -195,6 +195,36 @@ try {
   ok(!offen.includes("e401a-m2"), "Rückstands-Takt: die von Hand beantwortete Unterhaltung ist NICHT mehr offen");
   ok(offen.includes("e401a-m9"), "… eine wirklich offene Unterhaltung bleibt Kandidat (Gegenprobe)");
 
+  // ── B2 · Nachbesserung: JEDER Weg, auf dem ein Mensch eine Mail schließt, bleibt geschlossen ──
+  // Vorher kannte der Filter nur „vom Menschen beantwortet“ — „Nichts senden“ (E-371), „Verworfen“, „Vom Betreuer
+  // übernommen“, die 24-Stunden-Ablage und die Doppel-Zeilen holte der Takt alle 20 Minuten wieder hervor.
+  console.log("── B2 · Nichts senden, Verworfen, Übernommen, 24-Stunden-Ablage, Doppel → nicht mehr offen");
+  const B2 = await kunde("B2");
+  const geschlossen: [string, string][] = [
+    ["e401a-m21", "Nicht beantwortet — Entscheidung Justin (E-371)"],
+    ["e401a-m22", "Verworfen: doppelt"],
+    ["e401a-m23", "Vom Betreuer übernommen (Herr Probe): per Telefon erledigt"],
+    ["e401a-m24", "Nicht mehr nötig (24-Stunden-Regel): Der Kunde hat danach noch einmal geschrieben"],
+    ["e401a-m25", "Dieselbe Mail liegt auch in welcome@fiaon.com"],
+    ["e401a-m26", "Doppel von Mail #1 — derselbe Text noch einmal geschickt; nur eine Antwort (E-248)"],
+  ];
+  for (const [gid, grund] of geschlossen) {
+    await sql`INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, begruendung, versuche, person_id, ref, von, betreff, empfangen_am, kategorie)
+              VALUES (${PF}, ${gid}, ${`${gid}-t`}, 'geordnet', ${grund}, 0, ${B2.id}, ${B2.ref}, ${B2.von}, 'Frage', NOW() - INTERVAL '1 day', 'status_frage')`;
+  }
+  // Gegenprobe: ein verworfener ALT-Entwurf (aufholen.ts) soll ausdrücklich wieder offen werden — neu beantwortet.
+  await sql`INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, begruendung, versuche, person_id, ref, von, betreff, empfangen_am, kategorie)
+            VALUES (${PF}, 'e401a-m27', 'e401a-m27-t', 'geordnet', 'Alt-Entwurf ohne Belege (erste Fassung, ungedeckt)', 0, ${B2.id}, ${B2.ref}, ${B2.von}, 'Frage', NOW() - INTERVAL '1 day', 'status_frage')`;
+  const offen2 = (await auf.offeneUnterhaltungen(500)).map((k: any) => String(k.gmail_id));
+  for (const [gid, grund] of geschlossen) ok(!offen2.includes(gid), `nicht offen: „${grund.slice(0, 48)}…“`);
+  ok(offen2.includes("e401a-m27"), "… ein verworfener Alt-Entwurf bleibt offen (wird neu beantwortet — Gegenprobe)");
+  // Rot-Probe: mit dem alten Filter (nur „vom Menschen beantwortet“) wären alle sechs Kandidaten.
+  const altFilter = (await sql`
+    SELECT gmail_id FROM fiaon_postmeister
+     WHERE gmail_id = ANY(${geschlossen.map((g) => g[0])}) AND aktion = 'geordnet'
+       AND NOT (COALESCE(begruendung, '') LIKE 'vom Menschen beantwortet%')`) as any[];
+  ok(altFilter.length === geschlossen.length, `Rot-Probe: der alte Filter ließ alle ${geschlossen.length} durch (${altFilter.length})`);
+
   // Holt man sie trotzdem dreimal (so wie der Takt bisher alle 20 Minuten): kein Vermerk, EINE Einordnung.
   sentListe = ["e401a-s2"];
   const kiVorB = OPENAI.length;

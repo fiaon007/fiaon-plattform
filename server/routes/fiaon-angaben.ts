@@ -8,9 +8,11 @@
 //   GET  /angaben/email/:token   die Seite mit dem Knopf — ändert NICHTS (Link-Vorschauen und Virenscanner rufen
 //                                Links aus Mails ungefragt auf; ein GET, das ändert, wäre ein Klick ohne Kunden)
 //   POST /angaben/email/:token   der Klick — prüft den Link noch einmal und ändert genau einmal
+//   GET/POST /angaben/email-stopp/:token  E-401 Nachbesserung: der Stopp-Knopf in der Hinweis-Mail an die BISHERIGE
+//                                Adresse („Das war ich nicht“) — GET zeigt nur den Knopf, POST stoppt (oder schlägt Alarm)
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
-import { emailLinkPruefen, emailBestaetigen } from "../lib/fiaon-mara-angaben-aendern";
+import { emailLinkPruefen, emailBestaetigen, stoppPruefen, emailStoppen } from "../lib/fiaon-mara-angaben-aendern";
 
 const router = Router();
 
@@ -46,6 +48,24 @@ router.post("/angaben/email/:token", async (req: Request, res: Response) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   const p = await emailBestaetigen(String(req.params.token ?? ""));
   const titel = p.art === "bestaetigt" ? "Danke — bestätigt" : p.art === "schon" ? "Schon bestätigt" : "Das hat nicht geklappt";
+  return res.status(p.art === "fehler" ? 500 : p.art === "ungueltig" ? 400 : 200).send(seite(titel, p.text));
+});
+
+router.get("/angaben/email-stopp/:token", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  const p = await stoppPruefen(String(req.params.token ?? ""));
+  if (p.art === "offen") return res.send(seite("Änderung stoppen", p.text, "Änderung stoppen"));
+  return res.status(p.art === "fehler" ? 500 : p.art === "ungueltig" ? 400 : 200).send(seite(p.art === "schon_gestoppt" ? "Schon gestoppt" : "Link nicht mehr gültig", p.text));
+});
+
+router.post("/angaben/email-stopp/:token", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  const p = await emailStoppen(String(req.params.token ?? ""));
+  const titel = p.art === "gestoppt" || p.art === "schon_gestoppt" ? "Gestoppt" : p.art === "schon_bestaetigt" ? "Danke — wir kümmern uns" : "Das hat nicht geklappt";
   return res.status(p.art === "fehler" ? 500 : p.art === "ungueltig" ? 400 : 200).send(seite(titel, p.text));
 });
 

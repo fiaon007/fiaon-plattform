@@ -770,17 +770,19 @@ export function eingangKarte(z: NachholZeile, funde: MaraFund[] = []): Entscheid
   const maraBelege: EntscheidungBeleg[] = [];
   if (f) {
     maraBelege.push({ text: `Kunde meldet Zahlung (${f.kanal === "whatsapp" ? "WhatsApp" : "Mail"} ${tagKurz(f.am)})`, ton: "gut" });
-    if (f.wege) maraBelege.push({ text: `Mara: ${kurz(f.wege, 50)}` });
+    if (f.wege) maraBelege.push({ text: `Mara: ${kurz(f.wege, 50)}`, ...(f.stand === "moeglich" ? { ton: "warn" as const } : {}) });
     if (anderePerson) {
       maraBelege.push({ text: "Der Vorschlag des Bankbuchs nennt eine andere Person als den Kunden, der zahlte — bitte im Konto prüfen", ton: "warn" });
     } else if (!optionen.some((o) => o.key === "buchen" || o.key === "zuordnen") && f.erwartet && f.ziel) {
       titel = "Geld da — Kunde hat Zahlung gemeldet";
       optionen.unshift({ key: "buchen", label: `Zubuchen auf ${f.rateNr ? `Rate ${f.rateNr}` : f.ziel}`, werkzeug: "bankeingang_buchen", ton: "gut",
-        titel: "Der Kunde hat diese Zahlung gemeldet; Betrag und Name/Referenz passen. Der Server prüft beim Klick noch einmal.",
+        // E-401 Nachbesserung: Den Knopf gibt es nur bei Referenz oder Zuordnung (nie bei „nur der Name“).
+        titel: "Der Kunde hat diese Zahlung gemeldet; Betrag und Referenz (bzw. Zuordnung im Bankbuch) passen. Der Server prüft beim Klick noch einmal.",
         args: { id: z.id, ziel: f.ziel, dazu: [], erwartet: f.erwartet } });
       empfehlung = "buchen";
     } else if (titel === "Eingang ohne Zuordnung") {
-      titel = f.stand === "abweichend" ? "Kunde hat gezahlt — Betrag weicht ab" : "Kunde hat gezahlt — bitte zuordnen";
+      titel = f.stand === "moeglich" ? "Kunde meldet Zahlung — Eingang prüfen (nur der Name passt)"
+        : f.stand === "abweichend" ? "Kunde hat gezahlt — Betrag weicht ab" : "Kunde hat gezahlt — bitte zuordnen";
     }
   }
   optionen.push({ key: "konto", label: "Im Konto zuordnen", werkzeug: "link", link: `/chef/s/konto?eingang=${z.id}`, ton: "neutral",
@@ -801,7 +803,9 @@ export function eingangKarte(z: NachholZeile, funde: MaraFund[] = []): Entscheid
     ref: v?.bestellung ?? z.bestellung ?? f?.bestellung ?? null,
     titel,
     text: `${euroText(z.betragCents)} am ${tagKurz(z.datum)}${z.absender ? ` von ${kurz(z.absender, 40)}` : ""}. `
-      + (f ? `Der Kunde meldet diese Zahlung (Mara hat sie im Bankbuch gefunden${f.ziel ? `: ${f.rateNr ? `Rate ${f.rateNr}` : f.ziel}` : ""}). ` : "")
+      + (f ? (f.stand === "moeglich"
+        ? "Ein Kunde meldet eine Zahlung — bei diesem Eingang passt nur der Name des Zahlers (keine Referenz); bitte prüfen, ob er zu ihm gehört. "
+        : `Der Kunde meldet diese Zahlung (Mara hat sie im Bankbuch gefunden${f.ziel ? `: ${f.rateNr ? `Rate ${f.rateNr}` : f.ziel}` : ""}). `) : "")
       + grundText,
     empfehlung,
     optionen,

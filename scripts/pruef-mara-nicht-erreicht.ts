@@ -150,6 +150,16 @@ async function main() {
   ok(nachfassUrteil(ohneFenster, B("2026-10-20T21:00:00+02:00")).art !== "senden", "Rot-Probe: um 21:00 würde ein Urteil ohne Fensterprüfung senden — dieses nicht");
   ok(nachfassUrteil({ ...basis, globalKunde: true }).art !== "senden", "Rot-Probe: Global-Kunde würde ohne Prüfung eine Privat-Mail bekommen — dieses nicht");
 
+  console.log("── 9 · E-401 Nachbesserung (Prüfer-Funde)");
+  // Rot vorher: ein eingegangener, noch nicht gebuchter Kündigungsantrag → „senden“ („Wann passt es Ihnen?“).
+  const ko = nachfassUrteil({ ...basis, kuendigungOffen: true }, B("2026-10-20T10:00:00+02:00"));
+  ok(ko.art === "auslassen" && /Kündigung eingegangen/.test((ko as any).grund), "Kündigung eingegangen (noch nicht gebucht) → auslassen", ko);
+  ok(/KUENDIGUNG_UNGEBUCHT_SQL\("p\.id"\)/.test(srv) && /kuendigungOffen: p\.kuendigung_offen === true/.test(srv), "nachfassFakten liest den ungebuchten Kündigungsantrag (wie Rückholung, WA-Zentrale)");
+  ok(/ABSTAND_AUCH/.test(srv) && /'versandt', 'gesendet'/.test(srv), "Abstand auch nach Mara-Aktion („gesendet“), Lead-Nachfassen, Antrags-Erinnerung");
+  const rh = lies("server/lib/fiaon-rueckholung.ts");
+  ok((rh.match(/ne\.event = \$\{NACHFASS_EVENT\}/g) ?? []).length === 2 && /ABSTAND_STUNDEN\}::int \* INTERVAL '1 hour'/.test(rh),
+    "Rückholung (Segmente UND Dauerpflege) wartet 20 Stunden nach Maras „2× nicht erreicht“-Mail");
+
   console.log(`\n${gut} gut, ${schlecht} schlecht`);
   process.exit(schlecht ? 1 : 0);
 }

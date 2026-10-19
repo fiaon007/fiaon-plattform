@@ -484,6 +484,48 @@ async function main() {
       ok(nochmal.aktion === "uebersprungen" && GMAIL_SENDEN.length - vorS === 1, "entwurfNeuSchreiben ein zweites Mal → übersprungen", nochmal);
     }
 
+    console.log("── 9b · E-401 Nachbesserung (Prüfer-Funde): Doppelzustellung, KI-Pause mitten im Lauf, Neufassung ohne Ergebnis");
+    {
+      // Rot vorher: die Neufassung fand die Schwesterzeile („Dieselbe Mail liegt auch in …“) als Original → 'geordnet', der
+      // Gmail-Entwurf gelöscht, die Kundenmail ohne Antwort.
+      const Dz = await kunde("DZ");
+      const dz = await entwurf(Dz, { neu: true });
+      await sql`UPDATE fiaon_postmeister SET message_id = ${`<${dz.gmail}@kunde.invalid>`} WHERE id = ${dz.id}`;
+      await sql`INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, von, betreff, empfangen_am, aktion, person_id, ref, begruendung, message_id, created_at)
+                VALUES ('welcome@fiaon.com', ${`${dz.gmail}-w`}, ${`${dz.gmail}-tw`}, ${Dz.von}, 'Frage', NOW() - INTERVAL '26 hours', 'geordnet', ${Dz.pid}, ${Dz.ref},
+                        'Dieselbe Mail liegt auch in support@fiaon.com', ${`<${dz.gmail}@kunde.invalid>`}, NOW() - INTERVAL '26 hours')`;
+      const r = await lauf1([dz.id], SAUBER);
+      const z = await zeile(dz.id);
+      ok(z.aktion === "auto_beantwortet" && r.gesendet === 1, "Doppelzustellung: die Neufassung antwortet (nicht „geordnet“ als Doppel)", { aktion: z.aktion, begr: String(z.begruendung).slice(0, 80), e: r.e });
+      const zDrei = (await sql`SELECT aktion FROM fiaon_postmeister WHERE message_id = ${`<${dz.gmail}@kunde.invalid>`} ORDER BY id`) as any[];
+      ok(zDrei.length === 2 && zDrei.some((x) => x.aktion === "auto_beantwortet"), "von den zwei Zeilen derselben Mail ist eine beantwortet", zDrei.map((x) => x.aktion));
+
+      // KI-Pause mitten im Lauf: entwurfNeuSchreiben prüft frisch — der Entwurf bleibt unberührt.
+      const Kp = await kunde("KPM");
+      const kpE = await entwurf(Kp, { neu: true });
+      await setzen("ki_pause", JSON.stringify({ an: true, art: "hand", grund: "Prüfstand E-401", anbieter: "openai", seit: new Date().toISOString(), von: "Prüfstand" }));
+      (kp as any).kiPauseZwischenspeicherLeeren?.();
+      const nP = await F.entwurfNeuSchreiben({ id: kpE.id, postfach: "support@fiaon.com", gmailId: kpE.gmail }, "auto");
+      const zP = await zeile(kpE.id);
+      ok(nP.aktion === "uebersprungen" && zP.aktion === "entwurf" && zP.frist_neu_am == null && zP.antwort_draft_id === kpE.draft, "KI-Pause: nichts angefasst (Entwurf, kein Merker)", { nP, aktion: zP.aktion, neu: zP.frist_neu_am });
+      await setzen("ki_pause", null);
+      (kp as any).kiPauseZwischenspeicherLeeren?.();
+
+      // Neufassung ohne Ergebnis (mailBearbeiten kehrt ohne Anspruch zurück — hier: ein Postfach, das Mara nicht bedient).
+      // Rot vorher: die Zeile blieb 'vorgeordnet' mit frist_neu_am — unsichtbar für Postfach, Regel und Nachholen.
+      const Kq = await kunde("KQO");
+      const kq = await entwurf(Kq, { neu: true, begruendung: "sauber, aber Entwurf (Prüfstand alt)" });
+      await sql`UPDATE fiaon_postmeister SET anhaenge = ${JSON.stringify([{ art: "agb" }])}::text::jsonb WHERE id = ${kq.id}`;
+      const nQ = await F.entwurfNeuSchreiben({ id: kq.id, postfach: "js@fiaon.com", gmailId: kq.gmail }, "auto");
+      const zQ = await zeile(kq.id);
+      const anh = lies(zQ.anhaenge);
+      ok(nQ.aktion === "uebersprungen" && zQ.aktion === "entwurf" && zQ.frist_neu_am == null && zQ.begruendung === "sauber, aber Entwurf (Prüfstand alt)"
+        && zQ.antwort_draft_id === kq.draft && Array.isArray(anh) && anh[0]?.art === "agb",
+        "kein Ergebnis → zurück auf den Entwurf von vorher (Begründung, Anhänge, Gmail-Entwurf), nicht als „neu geschrieben“ gezählt", { nQ, aktion: zQ.aktion, neu: zQ.frist_neu_am, b: zQ.begruendung, anh });
+      const nochmalQ = await lauf1([kq.id], SAUBER);
+      ok((await zeile(kq.id)).aktion === "auto_beantwortet" && nochmalQ.gesendet === 1, "… und der nächste Lauf schreibt ihn neu und sendet", nochmalQ.e);
+    }
+
     console.log("── 10 · Der Stand im Postfach-Kopf (Probelauf) und die Woche");
     {
       const st = await F.fristStand({ frisch: true });

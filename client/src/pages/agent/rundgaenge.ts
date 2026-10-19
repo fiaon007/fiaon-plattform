@@ -145,7 +145,11 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       // E-401 (4/6, 19.10.2026) mitgezogen: Anschrift, E-Mail und Telefon ändert Mara selbst (angaben_aendern).
       + " Schreibt der Kunde Mara seine neue Anschrift oder Nummer (von seiner gespeicherten Mail-Adresse oder Nummer), steht sie "
       + "schon drin — mit Vermerk „Mara hat einen Änderungswunsch bearbeitet“. Eine neue E-Mail-Adresse gilt erst nach seinem Klick "
-      + "auf den Bestätigungslink.",
+      + "auf den Bestätigungslink."
+      // E-401 Nachbesserung (19.10.2026): Absender-Prüfung, Stopp-Knopf, nur seine eigenen Angaben.
+      + " Eine Mail ändert nur etwas, wenn Gmail bestätigt, dass sie wirklich von seiner Adresse kommt. Gilt die neue Anschrift erst "
+      + "später oder gehört sie jemand anderem (Mutter, Sohn), ändert Mara nichts. War er es nicht, stoppt er die Änderung mit "
+      + "dem Knopf in der Hinweis-Mail — dann steht „ACHTUNG“ in der Akte.",
   },
   {
     // 21.09.2026 (E-202): die Boni-Ampel im Kopf der Akte. Ohne `ziel` — sie
@@ -262,7 +266,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Fehlversuch übernimmt sie die Leitung. Buchst du denselben Anruf zweimal (Telefon "
       + "und Akte), zählt er einmal. "
       // E-401 (3/6, 19.10.2026) mitgezogen: Mara sucht die gemeldete Zahlung selbst.
-      + "Schreibt der Kunde „habe bezahlt“, sieht Mara vorher selbst auf dem Konto nach und sagt ihm, ob das Geld da ist — der Vermerk steht in der Akte.",
+      + "Schreibt der Kunde „habe bezahlt“, sieht Mara vorher selbst auf dem Konto nach und sagt ihm, ob das Geld da ist — der Vermerk steht in der Akte. "
+      // E-401 Nachbesserung (19.10.2026): nur der Name ist kein Fund.
+      + "Passt nur der Name des Zahlers (keine Referenz), sagt Mara nur „wir prüfen“ — ein Mensch ordnet zu.",
     tipp: "Über den Ergebnis-Knöpfen der Akte („anderes Ergebnis“) wählst du „nach Regel“, „in 1 Woche“ oder „in 2 Wochen“ — unter jedem Knopf steht, wann der Mensch danach wieder dran ist. Bei Stufe A sind „1 Woche“ und „2 Wochen“ ausgegraut.",
   },
   {
@@ -671,6 +677,8 @@ export const RUNDGANG_DASHBOARD: RundgangSchritt[] = [
       + "Uhrzeit, Name und der Notiz, worum es geht. "
       // E-395/E-401 (19.10.2026) mitgezogen: auch Termine, die der Kunde selbst genannt hat (Mail oder WhatsApp).
       + "Dazu Termine, die ein Kunde per Mail oder WhatsApp genannt hat und die zu deiner Notiz passen — Mara hat sie eingetragen, der Beleg steht in der Notiz. "
+      // E-401 Nachbesserung (19.10.2026): kein zweiter Termin, keine Zeit außerhalb deiner Arbeitszeit ohne Beleg.
+      + "Steht schon ein Termin, trägt Mara keinen zweiten ein — sie nennt dem Kunden den, der steht. "
       + "Du bekommst dazu auch eine Mail. „Gesehen“ blendet den "
       + "Eintrag auf diesem Gerät aus; der Termin selbst bleibt im Kalender.",
     tipp: "Ruf pünktlich an: Mara hat dem Kunden genau diese Uhrzeit bestätigt.",
@@ -1770,7 +1778,8 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
       + "gebuchte Kündigung — und nur, wenn die Antwort sauber ist und keine andere Lampe brennt. Alles andere liegt als "
       + "Entwurf. Schickt jemand dieselbe Mail mehrmals, bekommt er EINE Antwort."
       // E-401 (19.10.2026) mitgezogen: jede Kundenmail genau einmal in der Akte, einmal eingeordnet.
-      + " Jede Kundenmail steht genau einmal im Verlauf der Akte; eine von Hand beantwortete holt Mara nicht wieder hervor."
+      + " Jede Kundenmail steht genau einmal im Verlauf der Akte. Eine Mail, die ein Mensch erledigt hat (in Gmail beantwortet, "
+      + "„Nichts senden“, verworfen oder übernommen), holt Mara nicht wieder hervor."
       // E-401 (6/6, 19.10.2026): die 24-Stunden-Regel.
       + " Liegt ein Entwurf 24 Stunden, prüft Mara neu: nicht mehr nötig → abgelegt (ohne Mail), sonst einmal mit heutigem "
       + "Stand neu geschrieben und gesendet, wenn sie darf (8–20 Uhr). Widerruf, Anwalt und Global bleiben bei dir.",
@@ -1828,8 +1837,10 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
   {
     titel: "„Kunde meldet Zahlung“: Mara hat schon nachgesehen.",
     text: "Schreibt ein Kunde „habe bezahlt“, sucht Mara die Überweisung selbst im Bankbuch (21 Tage). Findet sie sie, steht auf der Karte "
-      + "„Geld eingegangen“ der Beleg „Kunde meldet Zahlung“ — und wenn Betrag und Name oder Referenz passen, der Knopf „Zubuchen auf Rate …“. "
-      + "Gebucht wird erst mit deinem Klick; der Kunde hat schon gehört: „wir ordnen sie jetzt zu“.",
+      + "„Geld eingegangen“ der Beleg „Kunde meldet Zahlung“ — und wenn Betrag und Referenz passen, der Knopf „Zubuchen auf Rate …“. "
+      + "Gebucht wird erst mit deinem Klick; der Kunde hat schon gehört: „wir ordnen sie jetzt zu“. "
+      // E-401 Nachbesserung (19.10.2026): nur der Name → Prüfauftrag ohne Knopf.
+      + "Passt nur der Name, heißt die Karte „Eingang prüfen (nur der Name passt)“ — ohne Zubuchen-Knopf; der Kunde hörte nur „wir prüfen“.",
   },
   // E-401 (6/6, 19.10.2026): die 24-Stunden-Regel — der Altbestand wartet auf Justins Klick.
   {

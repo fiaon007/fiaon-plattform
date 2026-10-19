@@ -96,6 +96,7 @@ import { abgeschicktSql } from "@shared/fiaon-antrag-stand";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 // Mara-Topsales 08.10.2026: die automatische Tür als SQL (Werbesperre an der Adresse, hart unzustellbar).
 import { tuerNeinSql } from "./fiaon-mail-frequenz";
+import { NACHFASS_EVENT, ABSTAND_STUNDEN } from "@shared/fiaon-nicht-erreicht-nachfass";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -491,6 +492,11 @@ async function dauerpflegeKandidaten(limit: number): Promise<RueckholFall[]> {
     SELECT d.* FROM (${dauerpflegeMenge(abstand)}) d
      -- Mara-Topsales 08.10.2026: dieselbe Sperrprüfung wie die Tür (wie rueckholKandidaten).
      WHERE NOT ${sqlPool.unsafe(tuerNeinSql("LOWER(TRIM(d.email))", "rueckhol_s5"))}
+       -- E-401 Nachbesserung: nicht binnen 20 Stunden nach Maras „2× nicht erreicht“-Mail (wie rueckholKandidaten).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log ne
+          WHERE ne.event = ${NACHFASS_EVENT} AND ne.status = 'versandt' AND COALESCE(ne.art, 'echt') = 'echt'
+            AND ne.person_id = d.person_id AND ne.created_at > NOW() - (${ABSTAND_STUNDEN}::int * INTERVAL '1 hour'))
      ORDER BY d.letzte_rueckhol ASC NULLS FIRST, d.amount_due DESC NULLS LAST, d.ref ASC
      LIMIT ${limit}
   `) as any[];
@@ -535,6 +541,12 @@ export async function rueckholKandidaten(segment: Segment, limit: number): Promi
          SELECT 1 FROM fiaon_mail_log dp
           WHERE dp.event LIKE 'rueckhol_%' AND dp.status = 'versandt' AND dp.art = 'echt'
             AND dp.person_id = b.person_id AND dp.created_at > NOW() - INTERVAL '24 hours')
+       -- E-401 Nachbesserung (Prüfer-Fund): Maras „2× nicht erreicht“-Mail trägt schon einen Terminlink — binnen ihres
+       -- Abstands (20 Stunden) keine Rückhol-Mail hinterher (vorher: zwei Terminlink-Mails in 25 Minuten).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log ne
+          WHERE ne.event = ${NACHFASS_EVENT} AND ne.status = 'versandt' AND COALESCE(ne.art, 'echt') = 'echt'
+            AND ne.person_id = b.person_id AND ne.created_at > NOW() - (${ABSTAND_STUNDEN}::int * INTERVAL '1 hour'))
        -- Wen die Frequenzbremse HEUTE schon zurückgehalten hat, versucht der
        -- Lauf heute nicht noch einmal — sonst hängt er alle 30 Minuten an
        -- denselben zehn Blockierten fest und kommt nie zu den Nächsten

@@ -31,7 +31,7 @@ import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
-  angabenErkennen, angabenWunsch, angabenHinweis, angabenSatz, angabenMenschNoetig, anschriftSchluessel, anschriftText,
+  angabenErkennen, angabenWunsch, angabenHinweis, absenderEcht, angabenSatz, angabenMenschNoetig, anschriftSchluessel, anschriftText,
   bestaetigungsMail, hinweisAlteMail, hinweisTelefonMail, landNorm, mailGleich, mailMaske, mailPlausibel, nummerGleich, waNummerGleich, telefonMaske,
   telefonText, LINK_STUNDEN,
   type Anschrift, type AngabeFeld, type AngabenKanal, type AngabenLageRein, type FeldErgebnis, type FeldStand, type FeldWunsch,
@@ -175,8 +175,21 @@ export function emailToken(id: number, personId: number, neu: string, ablauf: Da
 export function emailLink(token: string): string {
   return absoluteUrl(`/api/fiaon/angaben/email/${token}`);
 }
+/**
+ * E-401 Nachbesserung (Prüfer-Fund): der Stopp-Knopf in der Hinweis-Mail an die BISHERIGE Adresse. Eigene Signatur (Zweck
+ * „stopp“, gebunden an die bisherige Adresse) — mit dem Bestätigungslink lässt er sich nicht verwechseln.
+ */
+function stoppSignatur(id: number, personId: number, alt: string, ablaufSek: number): string {
+  return createHmac("sha256", geheimnis()).update(`angaben-email-stopp.${id}.${personId}.${alt.toLowerCase()}.${ablaufSek}`).digest("base64url").slice(0, 32);
+}
+export function stoppToken(id: number, personId: number, alt: string, ablauf: Date): string {
+  return `${id}.${stoppSignatur(id, personId, alt, Math.floor(ablauf.getTime() / 1000))}`;
+}
+export function stoppLink(token: string): string {
+  return absoluteUrl(`/api/fiaon/angaben/email-stopp/${token}`);
+}
 
-export type LinkArt = "offen" | "bestaetigt" | "schon" | "abgelaufen" | "ungueltig" | "veraltet" | "vergeben" | "fehler";
+export type LinkArt = "offen" | "bestaetigt" | "schon" | "abgelaufen" | "ungueltig" | "veraltet" | "vergeben" | "fehler" | "gestoppt";
 export interface LinkPruefung { art: LinkArt; text: string; neuMaske?: string; zeile?: any }
 
 const LINK_TEXT: Record<LinkArt, string> = {
@@ -188,6 +201,7 @@ const LINK_TEXT: Record<LinkArt, string> = {
   veraltet: "Dieser Link gilt nicht mehr, weil sich Ihre Angaben inzwischen geändert haben. Schreiben Sie uns einfach noch einmal — oder ändern Sie die Adresse selbst in Ihrem Kundenbereich unter fiaon.com/app/mehr/daten.",
   vergeben: "Diese E-Mail-Adresse können wir leider nicht übernehmen. Bitte schreiben Sie uns kurz — ein Kollege hilft Ihnen gern.",
   fehler: "Das hat gerade nicht geklappt. Bitte versuchen Sie es in einer Minute noch einmal.",
+  gestoppt: "Diese Änderung wurde gestoppt — Ihre bisherige E-Mail-Adresse bleibt hinterlegt.",
 };
 
 /** Den Link prüfen, ohne etwas zu ändern (GET: die Seite mit dem Knopf). */
@@ -204,6 +218,7 @@ export async function emailLinkPruefen(token: string, lauf: Lauf = sqlPool): Pro
     const a = Buffer.from(erwartet), b = Buffer.from(sig);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return r("ungueltig");
     if (z.bestaetigt_am || z.stand === "bestaetigt") return r("schon", z);
+    if (z.stand === "gestoppt") return r("gestoppt", z);
     if (z.stand !== "link_geschickt") return r("veraltet", z);
     if (new Date(z.ablauf_am).getTime() < Date.now()) return r("abgelaufen", z);
     return r("offen", z);
@@ -255,6 +270,87 @@ export async function emailBestaetigen(token: string, lauf: Lauf = sqlPool): Pro
   }
 }
 
+export type StoppArt = "offen" | "gestoppt" | "schon_bestaetigt" | "schon_gestoppt" | "ungueltig" | "fehler";
+export interface StoppPruefung { art: StoppArt; text: string; zeile?: any }
+const STOPP_TEXT: Record<StoppArt, string> = {
+  offen: "Haben Sie die Änderung Ihrer E-Mail-Adresse nicht selbst angefordert? Dann stoppen Sie sie hier — Ihre bisherige Adresse bleibt hinterlegt.",
+  gestoppt: "Danke — die Änderung ist gestoppt. Ihre bisherige E-Mail-Adresse bleibt hinterlegt. Ein Kollege sieht sich den Vorgang an.",
+  schon_bestaetigt: "Die neue Adresse war schon bestätigt. Wir haben Ihre Meldung sofort an unsere Geschäftsführung gegeben — sie meldet sich bei Ihnen.",
+  schon_gestoppt: "Diese Änderung ist schon gestoppt. Ihre bisherige E-Mail-Adresse bleibt hinterlegt.",
+  ungueltig: "Dieser Link ist ungültig. Bitte antworten Sie einfach auf unsere E-Mail — wir kümmern uns sofort darum.",
+  fehler: "Das hat gerade nicht geklappt. Bitte versuchen Sie es in einer Minute noch einmal — oder antworten Sie auf unsere E-Mail.",
+};
+/** Den Stopp-Link prüfen (GET — ändert nichts). Gültig 7 Tage über den Bestätigungslink hinaus. */
+export async function stoppPruefen(token: string, lauf: Lauf = sqlPool): Promise<StoppPruefung> {
+  const r = (art: StoppArt, zeile?: any): StoppPruefung => ({ art, text: STOPP_TEXT[art], zeile });
+  try {
+    const [idRoh, sig] = String(token ?? "").split(".");
+    const id = Number(idRoh);
+    if (!Number.isInteger(id) || id <= 0 || !sig || sig.length !== 32) return r("ungueltig");
+    await angabenTabelle(lauf);
+    const [z] = (await lauf`SELECT * FROM fiaon_mara_angaben WHERE id = ${id} AND feld = 'email' LIMIT 1`) as any[];
+    if (!z || !z.ablauf_am || !z.vorher) return r("ungueltig");
+    const erwartet = stoppSignatur(id, Number(z.person_id), String(z.vorher), Math.floor(new Date(z.ablauf_am).getTime() / 1000));
+    const a = Buffer.from(erwartet), b = Buffer.from(sig);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return r("ungueltig");
+    if (new Date(z.ablauf_am).getTime() + 7 * 86_400_000 < Date.now()) return r("ungueltig");
+    if (z.stand === "gestoppt") return r("schon_gestoppt", z);
+    return r("offen", z);
+  } catch (e) {
+    console.warn("[MARA-ANGABEN] Stopp prüfen:", String((e as Error)?.message ?? e).slice(0, 160));
+    return r("fehler");
+  }
+}
+/**
+ * Der Klick auf „Das war ich nicht“ (POST). Noch nicht bestätigt: die Zeile wird „gestoppt“ (der Bestätigungslink gilt
+ * nicht mehr), ein Vermerk. Schon bestätigt: nichts zurückdrehen (das entscheidet ein Mensch) — ein Vermerk und eine
+ * Karte für Justin („E-Mail-Adresse geändert — der Kunde sagt, er war es nicht“).
+ */
+export async function emailStoppen(token: string, lauf: Lauf = sqlPool): Promise<StoppPruefung> {
+  const p = await stoppPruefen(token, lauf);
+  if (p.art !== "offen" || !p.zeile) return p;
+  const z = p.zeile;
+  const r = (art: StoppArt): StoppPruefung => ({ art, text: STOPP_TEXT[art], zeile: z });
+  try {
+    const gestoppt = (await lauf`
+      UPDATE fiaon_mara_angaben SET stand = 'gestoppt', grund = 'Kunde: „Das war ich nicht“ (Stopp-Knopf)', aktualisiert_am = NOW()
+       WHERE id = ${z.id} AND stand IN ('link_geschickt', 'ersetzt', 'veraltet', 'laeuft') AND bestaetigt_am IS NULL RETURNING id`) as any[];
+    if (gestoppt.length) {
+      // Alle anderen offenen Links derselben Person gelten ebenso nicht mehr (ein Fremder könnte mehrere angefordert haben).
+      await lauf`UPDATE fiaon_mara_angaben SET stand = 'gestoppt', grund = 'gestoppt mit #' || ${String(z.id)}, aktualisiert_am = NOW()
+                  WHERE person_id = ${Number(z.person_id)} AND feld = 'email' AND stand = 'link_geschickt' AND bestaetigt_am IS NULL`.catch(() => {});
+      await vermerk(Number(z.person_id), z.ref ?? null, z.kanal === "whatsapp" ? "whatsapp" : "mail",
+        `ACHTUNG: Der Kunde hat über den Knopf in der Hinweis-Mail an seine bisherige Adresse gemeldet, dass er die Änderung der E-Mail-Adresse (→ ${z.nachher}) NICHT angefordert hat. Gestoppt — nichts geändert, der Bestätigungslink gilt nicht mehr.`,
+        `[Angaben gestoppt #${z.id}]`, lauf);
+      return r("gestoppt");
+    }
+    // Schon bestätigt: Alarm für den Menschen.
+    await vermerk(Number(z.person_id), z.ref ?? null, z.kanal === "whatsapp" ? "whatsapp" : "mail",
+      `ALARM: Der Kunde meldet über den Stopp-Knopf, dass er die Änderung der E-Mail-Adresse (${z.vorher} → ${z.nachher}) NICHT angefordert hat — sie war schon bestätigt. Bitte sofort prüfen und die bisherige Adresse wiederherstellen.`,
+      `[Angaben Alarm #${z.id}]`, lauf);
+    try {
+      const { entscheidungAnlegen, entscheidungArt, entscheidungTabellen } = await import("./fiaon-mara-entscheidungen");
+      const { akteAdresse } = await import("@shared/fiaon-akte-aufloesung");
+      await entscheidungTabellen();
+      entscheidungArt("angaben_alarm", "E-Mail-Adresse — Alarm", 95);
+      await entscheidungAnlegen({
+        schluessel: `angaben_alarm:${z.id}`, art: "angaben_alarm", personId: Number(z.person_id), ref: z.ref ?? null,
+        titel: "E-Mail-Adresse geändert — der Kunde sagt, er war es nicht",
+        text: `Die E-Mail-Adresse wurde über Maras Bestätigungslink auf ${mailMaske(z.nachher)} geändert. Jetzt meldet der Kunde über den Stopp-Knopf an seine bisherige Adresse (${mailMaske(z.vorher)}): Das war er nicht. Bitte prüfen und in der Akte die bisherige Adresse wieder eintragen.`,
+        empfehlung: "akte",
+        optionen: [{ key: "akte", label: "Akte öffnen", werkzeug: "link", link: akteAdresse(Number(z.person_id)), ton: "neutral", titel: "Öffnet seine Akte — dort die Adresse prüfen und zurücksetzen." }],
+        belege: [{ text: "Stopp-Knopf der Hinweis-Mail", ton: "warn" }],
+      }, lauf);
+    } catch (e) {
+      console.warn("[MARA-ANGABEN] Alarm-Karte:", String((e as Error)?.message ?? e).slice(0, 160));
+    }
+    return r("schon_bestaetigt");
+  } catch (e) {
+    console.warn("[MARA-ANGABEN] Stoppen:", String((e as Error)?.message ?? e).slice(0, 200));
+    return r("fehler");
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HANDELN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -296,11 +392,11 @@ async function standSetzen(id: number, stand: FeldStand, grund: string | null, l
   await lauf`UPDATE fiaon_mara_angaben SET stand = ${stand}, grund = COALESCE(${grund}, grund), aktualisiert_am = NOW() WHERE id = ${id}`.catch(() => {});
 }
 function ausZeile(z: any): FeldErgebnis {
-  const stand = String(z.stand) as FeldStand | "laeuft" | "bestaetigt" | "veraltet" | "ersetzt";
+  const stand = String(z.stand) as FeldStand | "laeuft" | "bestaetigt" | "veraltet" | "ersetzt" | "gestoppt";
   return {
     feld: z.feld as AngabeFeld,
     // Eine bestätigte E-Mail-Zeile ist gespeichert; eine hängengebliebene („laeuft“) gilt als Fehler (ein Mensch).
-    stand: stand === "bestaetigt" ? "geaendert" : stand === "laeuft" || stand === "veraltet" || stand === "ersetzt" ? "mensch" : stand,
+    stand: stand === "bestaetigt" ? "geaendert" : stand === "laeuft" || stand === "veraltet" || stand === "ersetzt" || stand === "gestoppt" ? "mensch" : stand,
     vorher: z.vorher ?? null, nachher: z.nachher ?? null, grund: z.grund ?? null,
   };
 }
@@ -318,6 +414,11 @@ export async function angabenAendernBehandeln(ein: {
   kundeText: string;
   /** Mail: der Absender („Name <a@b.de>“). */
   absender?: string | null;
+  /**
+   * E-401 Nachbesserung (Prüfer-Fund): Mail — Gmails Absender-Prüfung (oberster „Authentication-Results“) und Reply-To.
+   * Fehlt sie, gilt die Mail als NICHT bestätigt: Der From-Kopf allein lässt sich fälschen.
+   */
+  absenderPruefung?: { authErgebnis: string | null; antwortAn: string | null } | null;
   /** WhatsApp: die Nummer des Gesprächs. */
   nummer?: string | null;
   /** „Mail #7110“ / „WhatsApp #123“ — je Nachricht einmal. */
@@ -337,10 +438,17 @@ export async function angabenAendernBehandeln(ein: {
       bisher: { anschrift: g.anschrift, email: g.email, telefon: g.telefon },
     });
     if (!erk.wuensche.length && !erk.verboten.length) return null;
-    const absenderOk = ein.kanal === "mail"
+    const absenderBekannt = ein.kanal === "mail"
       ? !!absender && g.mails.some((m) => mailGleich(m, absender))
       // WhatsApp: die GANZE Nummer mit Landesvorwahl (nicht nur die letzten neun Ziffern).
       : !!ein.nummer && g.nummern.some((n) => waNummerGleich(ein.nummer, n, landNorm(g.land)));
+    // E-401 Nachbesserung (Prüfer-Fund): Auf die Mail hin ändert der Server nur, wenn Gmail den Absender bestätigt hat
+    // (dmarc/dkim/spf=pass zur Absender-Domain) und kein fremdes Reply-To darin steht — sonst gilt sie als fremd.
+    const echtheit = ein.kanal === "mail" && absenderBekannt
+      ? absenderEcht({ authErgebnis: ein.absenderPruefung?.authErgebnis ?? null, von: absender, antwortAn: ein.absenderPruefung?.antwortAn ?? null, bekannte: g.mails })
+      : null;
+    const absenderUnbestaetigt = !!echtheit && !echtheit.echt;
+    const absenderOk = absenderBekannt && !absenderUnbestaetigt;
     const quelle = String(ein.quelle || `${ein.kanal}:${personId}:${createHash("sha1").update(ein.kundeText).digest("hex").slice(0, 12)}`).slice(0, 120);
     const jetzt = ein.jetzt ?? new Date();
 
@@ -349,7 +457,7 @@ export async function angabenAendernBehandeln(ein: {
     const vermerkTeile: string[] = [];
     let wiederholt = false;
     const quelleText = ein.kanal === "whatsapp" ? `WhatsApp von ${absenderOk ? "der hinterlegten Nummer" : `einer anderen Nummer (…${String(ein.nummer ?? "").replace(/\D/g, "").slice(-4)})`}`
-      : `Mail ${absenderOk ? "vom hinterlegten Absender" : `von ${absender || "unbekannt"} (nicht hinterlegt)`}`;
+      : `Mail ${absenderOk ? "vom hinterlegten Absender" : absenderUnbestaetigt ? `mit der hinterlegten Adresse als Absender, aber NICHT bestätigt (${echtheit?.grund})` : `von ${absender || "unbekannt"} (nicht hinterlegt)`}`;
 
     for (const w of erk.wuensche) {
       // Fehlt die E-Mail-Adresse ganz, ist es kein Ändern, sondern Eintragen — das macht angaben_eintragen (E-372) wie bisher.
@@ -364,7 +472,8 @@ export async function angabenAendernBehandeln(ein: {
           : w.feld === "email" ? mailGleich((w as any).wert, g.email)
           : nummerGleich((w as any).wert, g.telefon);
         soll = gleich ? "schon_so" : w.feld === "email" ? "link_geschickt" : "geaendert";
-      } else if (w.art === "unklar" && (w as any).ausland) {
+      } else if (w.art === "unklar" && ((w as any).ausland || (w as any).spaeter)) {
+        // E-401 Nachbesserung: auch eine Anschrift, die erst später gilt — ein Mensch trägt sie zum richtigen Zeitpunkt ein.
         soll = "mensch";
       } else {
         soll = w.art;
@@ -374,7 +483,8 @@ export async function angabenAendernBehandeln(ein: {
       if (!absenderOk) {
         const leitung = ein.kanal === "whatsapp" && w.feld === "telefon" && w.art === "voll";
         soll = leitung ? "mensch" : "fremder_absender";
-        grund = leitung ? "Nummernwechsel per WhatsApp — die Nachricht kommt nicht von der hinterlegten Nummer; die Leitung prüft und trägt ein." : "Nicht vom hinterlegten Absender.";
+        grund = leitung ? "Nummernwechsel per WhatsApp — die Nachricht kommt nicht von der hinterlegten Nummer; die Leitung prüft und trägt ein."
+          : absenderUnbestaetigt ? `Absender nicht bestätigt (${echtheit?.grund}).` : "Nicht vom hinterlegten Absender.";
       }
       if (g.test) {
         ergebnisse.push({ feld: w.feld, stand: "probe", waere: soll, vorher: vorherText, nachher: nachherText, grund });
@@ -456,7 +566,11 @@ export async function angabenAendernBehandeln(ein: {
             if (!v.ok) { e.stand = "mensch"; e.grund = `Der Bestätigungslink ging nicht raus (${String(v.grund ?? "").slice(0, 100)}) — ein Mensch klärt das.`; }
             else if (g.email) {
               const h = hinweisAlteMail({ name: g.name, neu });
-              const v2 = await mailRaus({ personId, an: g.email, name: g.name, betreff: h.betreff, text: h.text, event: "angaben_email_hinweis" }, lauf);
+              // E-401 Nachbesserung: mit Stopp-Knopf („Das war ich nicht“) — er hält die Änderung selbst an.
+              let stopp: { text: string; url: string }[] | undefined;
+              try { stopp = [{ text: h.knopf, url: stoppLink(stoppToken(anspruch.id, personId, String(g.email), ablauf)) }]; } catch { stopp = undefined; }
+              const v2 = await mailRaus({ personId, an: g.email, name: g.name, betreff: h.betreff, text: h.text, event: "angaben_email_hinweis",
+                ...(stopp ? { knoepfe: stopp, knopfFuss: h.fuss } : {}) }, lauf);
               vermerkTeile.push(`Hinweis an die bisherige Adresse ${v2.ok ? "verschickt" : `ging nicht raus (${String(v2.grund ?? "").slice(0, 80)})`}.`);
             }
           }
@@ -468,7 +582,7 @@ export async function angabenAendernBehandeln(ein: {
 
     if (!ergebnisse.length && !erk.verboten.length) return null;
     const rein: AngabenLageRein = {
-      kanal: ein.kanal, ergebnisse, verboten: erk.verboten,
+      kanal: ein.kanal, ergebnisse, verboten: erk.verboten, absenderUnbestaetigt,
       geheim: absenderOk ? [] : [g.email ?? "", ...g.mails, g.telefon ?? "", ...g.nummern, g.anschrift.strasse ?? ""].filter(Boolean),
     };
     const mensch = angabenMenschNoetig(rein);

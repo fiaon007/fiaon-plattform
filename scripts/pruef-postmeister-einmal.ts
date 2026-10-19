@@ -78,6 +78,17 @@ async function main() {
   const ohneAuskunft = agent.einordnungAusRoh({ betreff: "Re: Ihre Unterlagen", text: "Ich hab keine." }, M.einordnungRohSaeubern({ kategorien: ["sonstiges"], flags: {}, dringend: false, sprache: "de", fragen: [], zusammenfassung: "Kurz." })!, false);
   ok(mitAuskunft.flags.auskunft_fehlt && mitAuskunft.kategorien.includes("auskunft") && !ohneAuskunft.flags.auskunft_fehlt, "Auskunft-Stand des ersten Laufs reist im Merker mit (E-240: „Ich hab keine.“)");
 
+  console.log("── 7 · Nachbesserung: von einem Menschen erledigt — alle Wege (menschErledigt)");
+  for (const b of ["vom Menschen beantwortet (Gmail, 28.09. 14:08) — keine zweite Antwort", "Nicht beantwortet — Entscheidung Justin (E-371)",
+    "Verworfen: ohne Angabe", "Vom Betreuer übernommen (Herr Probe): selbst beantwortet", "Nicht mehr nötig (24-Stunden-Regel): Gespräch geführt",
+    "Dieselbe Mail liegt auch in welcome@fiaon.com", "Doppel von Mail #7 — derselbe Text noch einmal geschickt; nur eine Antwort (E-248)"]) {
+    ok(M.menschErledigt("geordnet", b), `erledigt: „${b.slice(0, 50)}“`);
+  }
+  ok(!M.menschErledigt("geordnet", "Alt-Entwurf ohne Belege (erste Fassung, ungedeckt)") && !M.menschErledigt("geordnet", "KI pausiert — wartet")
+    && !M.menschErledigt("entwurf", "Verworfen: x") && !M.menschErledigt("geordnet", null), "offen bleiben: Alt-Entwurf (neu beantworten), KI-Pause, andere Aktion, leer");
+  const { ablageBegruendung } = await import("../shared/fiaon-entwurf-frist");
+  ok(M.menschErledigt("geordnet", ablageBegruendung("Der Kunde hat danach geschrieben")), "die Ablage der 24-Stunden-Regel trägt genau den erkannten Kopf (ablageBegruendung)");
+
   console.log(`\n${gut} gut, ${schlecht} schlecht`);
   process.exit(schlecht ? 1 : 0);
 }

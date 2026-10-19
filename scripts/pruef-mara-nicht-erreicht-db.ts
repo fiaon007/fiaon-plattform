@@ -150,10 +150,15 @@ async function main() {
   const pBu = await fall("Termin steht schon", "Terminprobe", {}, /Termin oder vereinbarter Rückruf/, async (p) => {
     await sql`INSERT INTO fiaon_termine ${sql({ person_id: p.pid, agent_id: 8, beginn: new Date(Date.now() + 2 * 86_400_000), status: "gebucht", quelle: "nichterreicht_mail", storno_token: `e401n${p.pid}${stempel}` } as any)}`;
   });
-  const negativ = [pW, pB, pT, pI, pG, pK, pS, pM, pBu];
+  // E-401 Nachbesserung (Prüfer-Fund): ein eingegangener, NIE gebuchter Kündigungsantrag (gekuendigt_am leer) — vorher „senden“.
+  const pKo = await fall("Kündigung eingegangen, nicht gebucht", "Kuendantragprobe", { antrag: { payment_status: "paid", status: "payment_completed", paid_at: new Date(Date.now() - 20 * 86_400_000) } },
+    /Kündigung eingegangen/, async (p) => {
+      await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status) VALUES (${p.ref}, 'Test', 'Kuendantragprobe', ${mailVon("Kuendantragprobe")}, 'Prüfstand E-401', 'pending')`;
+    });
+  const negativ = [pW, pB, pT, pI, pG, pK, pS, pM, pBu, pKo];
   await N.nachfassTakt({ jetzt: taktZeit() });
   const negMails = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = ${R.NACHFASS_EVENT} AND person_id = ANY(${negativ.map((x) => x.pid)})`) as any[];
-  ok(Number(negMails[0].n) === 0, "keiner der neun bekommt eine Mail (auch nicht durch den Takt)", negMails[0].n);
+  ok(Number(negMails[0].n) === 0, "keiner der zehn bekommt eine Mail (auch nicht durch den Takt)", negMails[0].n);
 
   console.log("── 5 · Zwischendurch erreicht oder gebucht → der Takt sendet nicht mehr");
   const E = await person("Emil", "Erreichtprobe");
@@ -195,6 +200,21 @@ async function main() {
   ok(wR.maraNachfass?.urteil?.art === "warten" && /Terminlink/.test(String((wR.maraNachfass?.urteil as any)?.grund)), "warten (Abstand)", wR.maraNachfass?.urteil);
   await N.nachfassTakt({ jetzt: taktZeit() });
   ok(anBrevo("Abstandprobe").length === 0 && (await merker(Rh.pid))?.status === "vorgemerkt", "Takt sendet noch nicht");
+
+  // E-401 Nachbesserung (Prüfer-Fund): auch nach einer Mara-Aktion-Mail (Status „gesendet“) wartet Mara den Abstand ab.
+  const Ma = await person("Mia", "Aktionsabstandprobe");
+  await sql`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, created_at) VALUES ('mara_aktion', ${Ma.pid}, ${mailVon("Aktionsabstandprobe")}, 'gesendet', NOW() - INTERVAL '3 hours')`;
+  await versuch(Ma); const wMa = await versuch(Ma);
+  ok(wMa.maraNachfass?.urteil?.art === "warten", "Mara-Aktion vor 3 h → warten (vorher: sofort senden)", wMa.maraNachfass?.urteil);
+  // … und umgekehrt: die Rückholung sendet binnen 20 h nach Maras Mail nicht (die SQL läuft, die Person ist ausgeschlossen).
+  {
+    const RH = await import("../server/lib/fiaon-rueckholung");
+    let fehlerRh = "";
+    const s4 = await RH.rueckholKandidaten("s4_nie_gemahnt", 500).catch((e: any) => { fehlerRh = String(e?.message ?? e); return []; });
+    const s5 = await RH.rueckholKandidaten("s5_altbestand", 500).catch((e: any) => { fehlerRh = String(e?.message ?? e); return []; });
+    ok(!fehlerRh, "rueckholKandidaten (S4 und Dauerpflege) laufen mit der neuen 20-Stunden-Sperre", fehlerRh);
+    ok(![...s4, ...s5].some((f: any) => Number(f.personId ?? f.person_id) === A.pid), "Person A (Maras Mail eben versandt) steht in keiner Rückhol-Liste");
+  }
 
   console.log("── 8 · Schalter aus, Hängengebliebenes, Verfall");
   await N.schalterSetzen(false);

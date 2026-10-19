@@ -28,6 +28,7 @@ import { mailBearbeiten, istFremdpost } from "./fiaon-postmeister-lauf";
 import { postfachAdressen } from "./fiaon-postmeister-postfaecher";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
 import { kiPausiert } from "./fiaon-ki-pause";
+import { MENSCH_ERLEDIGT_MUSTER } from "@shared/fiaon-postmeister-merker";
 
 /** Serienmails — sie beantworten nie eine Kundenfrage. */
 const KEINE_ANTWORT = [
@@ -145,12 +146,15 @@ export async function offeneUnterhaltungen(grenze = 200): Promise<any[]> {
       FROM letzte l
       LEFT JOIN fiaon_applications a ON a.ref = l.ref
      WHERE l.kategorie IS DISTINCT FROM 'werbung_newsletter'
-       -- ── VON HAND IN GMAIL BEANTWORTET (E-401, 19.10.2026) ─────────────
+       -- ── VON EINEM MENSCHEN ERLEDIGT (E-401, 19.10.2026; Nachbesserung: alle Wege) ──────────────
        -- Diese Antwort steht nur in Gmail, nicht in unserer Datenbank — „eigene“ und „echte_mails“ sehen sie
        -- nie. mailBearbeiten fand sie jedes Mal (5b) und legte die Mail wieder auf „geordnet“; der Takt holte
        -- sie 20 Minuten später erneut: Mail #5712 (28.09.) drei Wochen lang 36 bis 45 Mal am Tag — mit Gmail-
        -- Lesen, KI-Einordnung und Aktenvermerk. Die Unterhaltung ist beantwortet; nichts ist offen.
-       AND NOT (l.aktion = 'geordnet' AND COALESCE(l.begruendung, '') LIKE 'vom Menschen beantwortet%')
+       -- Nachbesserung: genauso „Nichts senden“ (E-371), „Verworfen“, „Vom Betreuer übernommen“, die 24-Stunden-
+       -- Ablage und die Doppel-Zeilen — sonst schrieb der Takt alle 20 Minuten einen neuen Entwurf mit neuer Karte
+       -- und hob Justins Ein-Klick-Entscheidung wieder auf (MENSCH_ERLEDIGT_MUSTER, shared/fiaon-postmeister-merker.ts).
+       AND NOT (l.aktion = 'geordnet' AND COALESCE(l.begruendung, '') LIKE ANY(${[...MENSCH_ERLEDIGT_MUSTER]}::text[]))
      ORDER BY
        -- Nach Ertrag: wer Geld melden will oder offen hat, zuerst; dann nach Alter.
        CASE

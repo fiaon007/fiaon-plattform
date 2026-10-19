@@ -192,6 +192,48 @@ console.log("   … und wann NICHT (der bisherige Weg läuft unverändert)");
   const r = auf("Ich hatte gestern um 11 Uhr ein Gespräch mit Herrn Stripling.");
   ok(r.e.art === "vergangen" && !r.g.gilt, "vergangen → nichts", r);
 }
+console.log("   … E-401 Nachbesserung (Prüfer-Funde): Zeitangebot, Absage, Verschieben, zweite Uhrzeit");
+{
+  // Rot vorher: „Zeit … mit Ihnen“ wurde mit_uns + gilt (eingetragen mit vereinbart: true, außerhalb des Rasters).
+  for (const t of ["Ich habe morgen um 14 Uhr Zeit für ein Gespräch mit Ihnen", "Ich habe am Mittwoch um 18 Uhr Zeit für einen Termin mit Ihnen",
+    "Ich habe morgen ab 14 Uhr Zeit für ein Telefonat", "Ich bin morgen ab 14 Uhr erreichbar für ein Gespräch mit Herrn Stripling"]) {
+    const r = auf(t);
+    ok(r.e.art === "keiner" && !r.g.gilt && /Zeitangebot/.test(r.e.grund), `Zeitangebot ist ein Rückrufwunsch: „${t}“`, r);
+  }
+  const wieBesprochen = auf("Wie besprochen habe ich morgen um 14 Uhr Zeit für das Gespräch mit Herrn Stripling.");
+  ok(wieBesprochen.e.art === "mit_uns" && wieBesprochen.g.gilt, "… „wie besprochen“ + Zeit → bleibt vereinbart (gilt)", wieBesprochen);
+  const mitNotiz = auf("Ich habe morgen um 11 Uhr Zeit für das Gespräch.", { notizen: [{ am: "2026-10-18T09:00:00Z", text: "Rückruf am Dienstag 11 Uhr vereinbart.", agentId: 8, agentName: "Daniel Stripling" }] });
+  ok(mitNotiz.e.beleg === "notiz" && mitNotiz.e.art === "mit_uns", "… mit Team-Notiz derselben Uhrzeit bleibt es der vereinbarte Termin", mitNotiz.e);
+}
+{
+  const STEHT = [{ id: 77, beginn: "2026-10-20T12:00:00Z", agentId: 8, status: "gebucht" }];
+  // Rot vorher: steht_schon + gilt → „ich wünsche Ihnen ein richtig gutes Gespräch“ zur ALTEN Zeit, Verschieben verloren.
+  for (const t of ["Ich habe morgen um 14 Uhr den Termin mit Herrn Stripling, können wir den auf 16 Uhr verschieben?",
+    "Ich schaffe den Termin morgen um 14 Uhr nicht, bitte absagen", "Der Termin morgen um 14 Uhr passt mir leider nicht. Geht auch 17 Uhr?"]) {
+    const r = auf(t, { bestehende: STEHT });
+    ok(!r.g.gilt && r.e.art === "keiner", `Absage/Verschieben ist nie „steht schon“: „${kurz(t, 70)}“`, r);
+  }
+  const zweite = G.genanntAufWhatsApp({ ...G.genannterTermin({ kundeText: "Steht morgen 14 Uhr noch? Sonst ginge auch 16 Uhr.", jetzt: JETZT, notizen: [], mitarbeiter: TEAM, bestehende: STEHT }) },
+    { kundeText: "Steht morgen 14 Uhr noch? Sonst ginge auch 16 Uhr.", letzteRaus: VORSTELLUNG });
+  ok(!zweite.gilt, "steht_schon + zweite Uhrzeit (ein Änderungswunsch) → gilt nicht (Termin-Weg)", zweite);
+  const frage = auf("Steht unser Gespräch morgen um 14 Uhr noch?", { bestehende: STEHT });
+  ok(frage.e.art === "steht_schon" && frage.g.gilt, "… eine reine Rückfrage zum stehenden Termin bleibt „steht schon“ (Gegenprobe)", frage);
+  ok(G.terminAendernIn("Bitte den Termin morgen um 14 Uhr absagen") && !G.terminAendernIn("Ich habe eine Absage von der Bank bekommen, wir haben morgen um 14 Uhr ein Gespräch mit Herrn Stripling")
+    && !G.terminAendernIn("ja bitte stornieren, wir haben heute um 11.00 uhr ein neues gespräch"), "terminAendernIn: „absagen“ ja — „Absage der Bank“ und „stornieren“ (Fall #7131) nein");
+}
+{
+  // Rot vorher: der Wunsch des Kunden nach Karte/Link galt neben einem genannten Termin als Verkauf (hart).
+  ok(G.fragtSelbstNachLinkOderZahlung("Ich habe um 14 Uhr ein Meeting, schicken Sie mir bitte den Link für die Karte")
+    && G.fragtSelbstNachLinkOderZahlung("Ich habe morgen um 10 Uhr einen Termin bei der Bank, schicken Sie mir bitte den Zahlungslink")
+    && G.fragtSelbstNachLinkOderZahlung("Wie kann ich die Rate bezahlen? Morgen um 11 telefoniere ich mit Herrn Stripling."),
+  "fragtSelbstNachLinkOderZahlung: „schicken Sie mir bitte den Link …“, „wie kann ich die Rate bezahlen?“");
+  ok(!G.fragtSelbstNachLinkOderZahlung("Wir haben morgen um 11 ein Gespräch mit Herrn Stripling.") && !G.fragtSelbstNachLinkOderZahlung("Die Karte ist schön."),
+    "… nicht ohne eigene Bitte");
+  const satz = "Ihr Gespräch morgen um 14 Uhr steht bei uns — ich wünsche Ihnen ein richtig gutes Gespräch!";
+  const antwort = `${satz} Den Link unserer Partnerbank für Ihre Visa-Kreditkarte habe ich Ihnen eben geschickt.`;
+  ok(G.genanntAntwortFunde(antwort, { darfEingetragen: true, uhrzeitPflicht: "14:00", satz, linkVerboten: true }).some((f) => /Verkauf/.test(f)), "ohne seine Bitte: Visa/Partnerbank neben dem Termin → Verkauf (wie bisher)");
+  ok(!G.genanntAntwortFunde(antwort, { darfEingetragen: true, uhrzeitPflicht: "14:00", satz, linkVerboten: false, verkaufErlaubt: true }).length, "mit seiner Bitte (verkaufErlaubt): frei — er bekommt, worum er bittet");
+}
 
 console.log("── A2. Hilfen ──────────────────────────────────────────────────────");
 ok(G.fragtNachZeit("Wann passt es Ihnen am besten?") && G.fragtNachZeit("Welche Uhrzeit passt Ihnen?") && G.fragtNachZeit("Wann erreiche ich Sie am besten?"),
@@ -269,9 +311,13 @@ console.log("── A6. Auftrag und Quelltext ───────────�
     && pos("genannterTerminBehandeln(") > pos("kostenHeute(DIENST_WA)"), "… nach Global-Weiche, KI-Pause und Kostendeckel (kein Eintrag ohne Antwort)");
   ok(pos("genannterTerminBehandeln(") < pos("const termin = personId ? await mt.kuenftigerTermin("), "… vor dem Blick in den Kalender (STAND kennt den neuen Termin)");
   ok(pos("genannterTerminBehandeln(") < pos("werkzeugAusfuehren(\"rueckruf_eintragen\""), "… vor dem Vorab-Rückruf (der dann nicht läuft)");
-  ok(/ohneVerkauf: !!genannt/.test(rumpf) && /verkaufen: lage\.verkaufen && !genannt/.test(rumpf) && /heikelJetzt \|\| !!genannt/.test(rumpf),
+  ok(/ohneVerkauf: genanntZurueck/.test(rumpf) && /verkaufen: lage\.verkaufen && !genannt/.test(rumpf) && /heikelJetzt \|\| genanntZurueck/.test(rumpf),
     "neben dem genannten Termin: kein Kartenlink/Auskunft-Werkzeug, kein Verkaufsteil, kein Abschluss");
-  ok(/ruhe: ruhe24 \|\| karteRuhe\(offeneKarten\) \|\| !!genannt/.test(rumpf), "… und keine Zahlungsbitte (Ruhe)");
+  ok(/ruhe: ruhe24 \|\| karteRuhe\(offeneKarten\) \|\| genanntZurueck/.test(rumpf), "… und keine Zahlungsbitte (Ruhe)");
+  ok(/const genanntZurueck = !!genannt && genannt\.zurueck/.test(rumpf) && /kundeFragtSelbst,/.test(rumpf),
+    "E-401 Nachbesserung: „zurücknehmen“ gilt nicht für seine eigene Bitte um Karte, Link oder Zahlung (kundeFragtSelbst)");
+  ok(/uhrzeitPflicht: \(genannt\.eingetragen \|\| genannt\.erkennung\.art === "steht_schon"\) && !e\.aktionen\.some/.test(rumpf),
+    "E-401 Nachbesserung: nach einem Verschieben in diesem Lauf keine Pflicht zur alten Uhrzeit (sicherer Satz)");
   const ew = q.slice(q.indexOf("export async function entwerfen("), q.indexOf("\n}\n", q.indexOf("export async function entwerfen(")));
   ok(/genanntAntwortFunde\(a,/.test(ew) && /x\.werkzeug === "rueckruf_eintragen" && x\.ok/.test(ew), "Entwurfsprüfung: genanntAntwortFunde hart — ein eingetragener Rückruf darf „eingetragen“ heißen");
   const mail = quelle("server/lib/fiaon-postmeister-agent.ts");
@@ -444,7 +490,8 @@ if (MIT_DB) {
       const t3 = zeitIn(185);
       const bezug = new Date(Date.now() + 185 * 60_000 - 24 * 3_600_000);
       const kZ = await kunde("d7");
-      const lZ = await GT.genannterTerminBehandeln({ personId: kZ.personId, ref: null, kundeText: `Wir telefonieren morgen um ${t3.text} mit Herrn Schwarzott.`, kanal: "whatsapp", waId: 40108, letzteRaus: VORSTELLUNG, bezug });
+      // E-401 Nachbesserung: „wie besprochen“ — seine Aussage allein bucht auf WhatsApp nicht mehr außerhalb des Rasters (siehe d9).
+      const lZ = await GT.genannterTerminBehandeln({ personId: kZ.personId, ref: null, kundeText: `Wir telefonieren morgen um ${t3.text} mit Herrn Schwarzott, wie besprochen.`, kanal: "whatsapp", waId: 40108, letzteRaus: VORSTELLUNG, bezug });
       const [tZ] = (await sql`SELECT beginn FROM fiaon_termine WHERE person_id = ${kZ.personId}`) as any[];
       ok(lZ?.eingetragen && tZ && berlinWand(new Date(tZ.beginn)).hhmm === t3.hhmm && berlinWand(new Date(tZ.beginn)).t === berlinWand(new Date(Date.now() + 185 * 60_000)).t,
         `eingetragen am Tag NACH seiner Nachricht (${t3.hhmm}), nicht einen Tag später`, { lZ: lZ?.fehler, tZ });
@@ -452,6 +499,27 @@ if (MIT_DB) {
       const lV = await GT.genannterTerminBehandeln({ personId: kV.personId, ref: null, kundeText: `Wir telefonieren heute um ${zeitIn(-200).text} mit Herrn Schwarzott.`, kanal: "whatsapp", waId: 40109, letzteRaus: VORSTELLUNG,
         bezug: new Date(Date.now() - 6 * 3_600_000) });
       ok(lV === null, "Bezug: die genannte Zeit ist inzwischen vorbei → nichts", lV);
+
+      console.log("   E-401 Nachbesserung: nur seine Aussage, außerhalb des Rasters → nichts eingetragen (Arbeitszeiten gelten)");
+      const t9 = zeitIn(140);
+      const k9 = await kunde("d9");
+      const l9 = await GT.genannterTerminBehandeln({ personId: k9.personId, ref: null, kundeText: `Wir telefonieren ${t9.wort} um ${t9.text} mit Herrn Stripling.`, kanal: "whatsapp", waId: 40110, letzteRaus: VORSTELLUNG });
+      const [{ n: n9 }] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_termine WHERE person_id = ${k9.personId}`) as any[];
+      const [v9] = (await sql`SELECT note FROM fiaon_contact_log WHERE person_id = ${k9.personId} AND agent_name = 'Mara' ORDER BY id DESC LIMIT 1`) as any[];
+      ok(l9 && l9.erkennung.art === "mit_uns" && l9.erkennung.beleg === "kunde" && !l9.eingetragen && n9 === 0 && /NICHT EINGETRAGEN/.test(String(l9.hinweis)) && /eintragen ging nicht/.test(String(v9?.note)),
+        "seine Aussage ohne Notiz und ohne „wie besprochen“ zu einer Zeit außerhalb des Rasters → kein Termin, Vermerk für den Menschen (vorher: eingetragen)", { f: l9?.fehler, n9, note: v9?.note });
+
+      console.log("   E-401 Nachbesserung: er nennt eine ANDERE Zeit als den Termin, der steht → kein zweiter Termin");
+      const tA = zeitIn(300), tB = zeitIn(360);
+      const k10 = await kunde("d10");
+      const l10a = await GT.genannterTerminBehandeln({ personId: k10.personId, ref: null, kundeText: `Wir telefonieren ${tA.wort} um ${tA.text} mit Herrn Stripling, wie besprochen.`, kanal: "whatsapp", waId: 40111, letzteRaus: VORSTELLUNG });
+      const l10b = await GT.genannterTerminBehandeln({ personId: k10.personId, ref: null, kundeText: `Wir haben ${tB.wort} um ${tB.text} ein Gespräch mit Herrn Stripling, wie besprochen.`, kanal: "whatsapp", waId: 40112, letzteRaus: VORSTELLUNG });
+      const t10 = (await sql`SELECT id, beginn FROM fiaon_termine WHERE person_id = ${k10.personId} ORDER BY id`) as any[];
+      const [v10] = (await sql`SELECT note FROM fiaon_contact_log WHERE person_id = ${k10.personId} AND agent_name = 'Mara' AND note LIKE '%schon sein Termin%' LIMIT 1`) as any[];
+      ok(l10a?.eingetragen && t10.length === 1 && l10b && !l10b.eingetragen && Number(l10b.terminId) === Number(t10[0]?.id),
+        "der erste wird eingetragen, der zweite (60 Minuten später genannt) NICHT — es bleibt bei einem Termin (vorher: zwei)", { n: t10.length, b: l10b?.fehler });
+      ok(/ANDERE ZEIT ALS SEIN TERMIN/.test(String(l10b?.hinweis)) && /meinen Sie diesen Termin\?/.test(String(l10b?.satz)) && l10b?.uhrzeitTermin === tA.hhmm && !!v10,
+        `Hinweis nennt den stehenden Termin (${tA.hhmm}), Satz „${kurz(l10b?.satz, 90)}“, Vermerk für den Menschen`, { satz: l10b?.satz, note: v10?.note });
     }
 
     console.log("\n── B2. maraAntwortet mit der Modell-Attrappe ───────────────────────");
@@ -512,6 +580,17 @@ if (MIT_DB) {
       const s0 = r.modell[0]?.system ?? "";
       ok(/BEI DRITTEN/.test(s0) && s0.includes(wa.GENANNT_ZIEL) && !/═══ DEIN ABSCHLUSS/.test(s0), "Hinweis „bei Dritten“, Ziel zurücknehmen, kein Abschluss");
       ok(r.modell.some((x) => x.zweiter) && r.antwort === "Ich wünsche Ihnen viel Erfolg bei Ihrem Termin!" && !r.termine.length, `zweiter Entwurf geht raus, kein Termin: „${kurz(r.antwort)}“`);
+    }
+    {
+      console.log("   e6 E-401 Nachbesserung: er nennt einen Termin UND bittet selbst um den Link für die Karte → seine Bitte wird erfüllt");
+      const k = await kunde("e6");
+      await gespraech("4915900401006", k.personId, ["Ich habe um 14 Uhr ein Meeting, schicken Sie mir bitte den Link für die Karte"]);
+      plan = { antworten: ["{SATZ} Den Link unserer Partnerbank für Ihre Visa-Kreditkarte bekommen Sie per E-Mail."] };
+      const r = await lauf("4915900401006", k.personId);
+      const s0 = r.modell[0]?.system ?? "";
+      ok(/Er fragt SELBST nach Karte, Link oder Zahlung/.test(s0) && !s0.includes(wa.GENANNT_ZIEL), "Hinweis: seine Bitte erfüllen (kein „zurücknehmen“-Ziel)",
+        { n: r.modell.length, s: (s0.match(/(?:ER NENNT|GENANNTER|VEREINBARTER)[^\n]{0,300}/) ?? [""])[0], z: s0.includes(wa.GENANNT_ZIEL), h: kurz(r.handlung, 200) });
+      ok(!r.modell.some((x) => x.zweiter && x.nutzer.some((n) => /Verkauf neben einem genannten Termin/.test(n))), "Visa/Partnerbank in der Antwort auf SEINE Bitte ist kein „Verkauf neben einem Termin“ (vorher hart verworfen)");
     }
     {
       console.log("   e5 Testperson → normaler Weg, kein Eintrag");

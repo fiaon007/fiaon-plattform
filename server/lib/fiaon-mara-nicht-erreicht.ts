@@ -25,8 +25,9 @@
 // bringt — Fehler stehen im Server-Log und im Merker.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "@shared/fiaon-kuendigung-regel";
 import {
-  ABSTAND_STUNDEN, NACHFASS_EVENT, NACHFASS_HERKUNFT, NACHFASS_NACH_VERSUCH, NACHFASS_SCHALTER, SPERRE_TAGE,
+  ABSTAND_STUNDEN, ABSTAND_AUCH, NACHFASS_EVENT, NACHFASS_HERKUNFT, NACHFASS_NACH_VERSUCH, NACHFASS_SCHALTER, SPERRE_TAGE,
   TERMINLINK_EREIGNISSE, VERFALL_STUNDEN, hinweisFuerMitarbeiter, imVersandfenster, naechstesFenster,
   nachfassUrteil, schalterAn, type NachfassFakten, type NachfassUrteil, type Zustaendigkeit,
 } from "@shared/fiaon-nicht-erreicht-nachfass";
@@ -99,6 +100,7 @@ export async function nachfassFakten(personId: number, lauf: Lauf = sqlPool): Pr
   const { zustaendigeRolleSql } = await import("./fiaon-zustaendigkeit");
   // Feste Namen aus dem Quelltext (nur [a-z_]) — als Literal-Liste, kein Wert von außen.
   const ereignisse = TERMINLINK_EREIGNISSE.filter((n) => /^[a-z_0-9]+$/.test(n)).map((n) => `'${n}'`).join(", ");
+  const auch = ABSTAND_AUCH.filter((n) => /^[a-z_0-9]+$/.test(n)).map((n) => `'${n}'`).join(", ");
   const [p] = (await lauf.unsafe(`
     SELECT p.id, COALESCE(p.unreachable_count, 0)::int AS versuche,
            (${zustaendigeRolleSql("p")}) AS rolle,
@@ -110,12 +112,16 @@ export async function nachfassFakten(personId: number, lauf: Lauf = sqlPool): Pr
                           AND c.outcome = 'rueckruf_termin' AND c.done_at IS NULL AND c.voided_at IS NULL
                           AND c.scheduled_at > NOW())) AS termin_offen,
            (SELECT MAX(m.created_at) FROM fiaon_mail_log m
-             WHERE m.person_id = p.id AND m.status = 'versandt' AND COALESCE(m.art, 'echt') = 'echt'
-               AND (m.event IN (${ereignisse}) OR LEFT(m.event, 9) = 'rueckhol_')) AS letzte_terminmail
+             WHERE m.person_id = p.id AND COALESCE(m.art, 'echt') = 'echt'
+               AND ((m.status = 'versandt' AND (m.event IN (${ereignisse}) OR LEFT(m.event, 9) = 'rueckhol_'))
+                    -- E-401 Nachbesserung: auch Mara-Aktion („gesendet“), Lead-Nachfassen, Antrags-Erinnerung.
+                    OR (m.status IN ('versandt', 'gesendet') AND m.event IN (${auch})))) AS letzte_terminmail,
+           -- E-401 Nachbesserung (Prüfer-Fund): ein eingegangener, noch nicht gebuchter Kündigungsantrag (E-368).
+           ${KUENDIGUNG_UNGEBUCHT_SQL("p.id")} AS kuendigung_offen
       FROM fiaon_persons p
      WHERE p.id = $1 AND p.merged_into_person_id IS NULL`, [personId])) as any[];
   if (!p) {
-    return { personDa: false, versuche: 0, rolle: null, globalKunde: false, sperre: null, terminOffen: false, hatEmail: false, letzteTerminMailAm: null };
+    return { personDa: false, versuche: 0, rolle: null, globalKunde: false, sperre: null, terminOffen: false, hatEmail: false, letzteTerminMailAm: null, kuendigungOffen: false };
   }
   const { istGlobalKunde } = await import("./fiaon-global-kunde");
   const { menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
@@ -136,6 +142,7 @@ export async function nachfassFakten(personId: number, lauf: Lauf = sqlPool): Pr
     terminOffen: p.termin_offen === true,
     hatEmail,
     letzteTerminMailAm: p.letzte_terminmail ?? null,
+    kuendigungOffen: p.kuendigung_offen === true,
   };
 }
 

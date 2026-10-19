@@ -70,7 +70,7 @@ export async function fristZeilenLaden(opts: { ids?: number[] | null; lauf?: Lau
   const zeilen = (await lauf.unsafe(`
     WITH e AS (
       SELECT pm.id, pm.postfach, pm.gmail_id, pm.person_id, pm.ref, pm.betreff, pm.antwort_draft_id,
-             pm.kategorien, pm.flags, pm.begruendung, pm.frist_ab, pm.frist_neu_am,
+             pm.kategorien, pm.flags, pm.begruendung, pm.frist_ab, pm.frist_neu_am, pm.message_id,
              COALESCE(pm.empfangen_am, pm.created_at) AS mail_am,
              COALESCE(pm.entwurf_geprueft_am, pm.created_at) AS entwurf_am,
              LOWER(TRIM(COALESCE(substring(pm.von from '<([^>]+)>'), pm.von, ''))) AS adresse
@@ -113,6 +113,9 @@ export async function fristZeilenLaden(opts: { ids?: number[] | null; lauf?: Lau
         SELECT x.id, COALESCE(x.empfangen_am, x.created_at) AS am FROM fiaon_postmeister x
          WHERE x.id <> e.id AND x.aktion <> 'ignoriert'
            AND COALESCE(x.begruendung, '') NOT LIKE 'Doppel von Mail #%'
+           -- E-401 Nachbesserung: dieselbe Mail in einem zweiten Postfach (Doppelzustellung) ist keine spätere Nachricht.
+           AND COALESCE(x.begruendung, '') NOT LIKE 'Dieselbe Mail liegt auch in%'
+           AND (e.message_id IS NULL OR x.message_id IS DISTINCT FROM e.message_id)
            AND COALESCE(x.empfangen_am, x.created_at) > e.mail_am
            AND ((e.person_id IS NOT NULL AND x.person_id = e.person_id)
              OR (e.person_id IS NULL AND e.adresse <> ''
@@ -240,26 +243,74 @@ export async function entwurfAblegen(z: Pick<FristZeile, "id" | "betreff">, grun
  * alte Fassung im Postfach (Zu prüfen) weiter senden; ersetzt sie sie, wird der alte Gmail-Entwurf gelöscht.
  */
 export async function entwurfNeuSchreiben(z: Pick<FristZeile, "id" | "postfach" | "gmailId">, modus: Modus): Promise<{ aktion: string; grund: string }> {
+  // E-401 Nachbesserung (Prüfer-Fund): die KI-Pause FRISCH prüfen — begann sie mitten im Lauf, bleibt der Entwurf unberührt.
+  const { kiPausiert } = await import("./fiaon-ki-pause");
+  if (await kiPausiert()) return { aktion: "uebersprungen", grund: "KI pausiert" };
+  // Den alten Stand merken (Begründung, Anhänge) — kommt mailBearbeiten zu keinem Ergebnis, wird genau er wiederhergestellt.
   const [r] = (await sqlPool`
-    UPDATE fiaon_postmeister
+    WITH alt AS (
+      SELECT id, begruendung, anhaenge FROM fiaon_postmeister
+       WHERE id = ${z.id} AND aktion = 'entwurf' AND gesendet_am IS NULL AND frist_ab IS NOT NULL AND frist_neu_am IS NULL
+       FOR UPDATE)
+    UPDATE fiaon_postmeister p
        SET aktion = 'vorgeordnet', versuche = 0, anhaenge = NULL, in_arbeit_seit = NULL, naechster_versuch_am = NULL,
            frist_neu_am = NOW(), begruendung = ${NEU_KOPF}, updated_at = NOW()
-     WHERE id = ${z.id} AND aktion = 'entwurf' AND gesendet_am IS NULL
-       AND frist_ab IS NOT NULL AND frist_neu_am IS NULL
-    RETURNING antwort_draft_id`) as any[];
+      FROM alt
+     WHERE p.id = alt.id
+    RETURNING p.antwort_draft_id, alt.begruendung AS alt_begruendung, alt.anhaenge AS alt_anhaenge`) as any[];
   if (!r) return { aktion: "uebersprungen", grund: "nicht mehr im Entwurf oder schon neu geschrieben" };
-  return await bearbeitenUndAufraeumen(z, modus, r.antwort_draft_id ?? null);
+  const zurueck = { begruendung: (r.alt_begruendung ?? null) as string | null, anhaenge: r.alt_anhaenge ?? null };
+  return await bearbeitenUndAufraeumen(z, modus, r.antwort_draft_id ?? null, zurueck);
+}
+
+/**
+ * Kam mailBearbeiten zu KEINEM Ergebnis (KI-Pause mitten im Lauf, Ausnahme vor dem Anspruch), steht die Zeile noch auf
+ * 'vorgeordnet' mit dem Kopf der Neufassung — unsichtbar für Postfach, 24-Stunden-Regel und Pausen-Nachholen. Dann zurück auf
+ * den Entwurf von vorher (Begründung, Anhänge), frist_neu_am leer: Der nächste Lauf versucht es wieder. (E-401 Nachbesserung)
+ */
+async function zuruecklegen(id: number, zurueck: { begruendung: string | null; anhaenge: unknown }): Promise<boolean> {
+  const r = (await sqlPool`
+    UPDATE fiaon_postmeister
+       SET aktion = 'entwurf', begruendung = ${zurueck.begruendung}, anhaenge = ${zurueck.anhaenge == null ? null : JSON.stringify(zurueck.anhaenge)}::text::jsonb,
+           frist_neu_am = NULL, in_arbeit_seit = NULL, updated_at = NOW()
+     WHERE id = ${id} AND aktion = 'vorgeordnet' AND begruendung = ${NEU_KOPF} AND gesendet_am IS NULL
+    RETURNING id`.catch((e) => { console.error(`[POSTMEISTER-FRIST] Zurücklegen #${id}:`, String(e).slice(0, 160)); return []; })) as any[];
+  return r.length > 0;
 }
 
 /** mailBearbeiten, danach den alten Gmail-Entwurf löschen, wenn er ersetzt ist (neuer Entwurf, gesendet, abgelegt). */
-async function bearbeitenUndAufraeumen(z: Pick<FristZeile, "id" | "postfach" | "gmailId">, modus: Modus, alterEntwurf: string | null): Promise<{ aktion: string; grund: string }> {
+async function bearbeitenUndAufraeumen(z: Pick<FristZeile, "id" | "postfach" | "gmailId">, modus: Modus, alterEntwurf: string | null,
+  zurueck: { begruendung: string | null; anhaenge: unknown } | null = null): Promise<{ aktion: string; grund: string }> {
   const { mailBearbeiten } = await import("./fiaon-postmeister-lauf");
   const { postfachGruss } = await import("./fiaon-postmeister-postfaecher");
-  const erg = await mailBearbeiten({ postfach: z.postfach, gmailId: z.gmailId, gruss: postfachGruss(z.postfach), modus: modus as any, nurOrdnen: false });
-  const [jetzt] = (await sqlPool`SELECT aktion, antwort_draft_id FROM fiaon_postmeister WHERE id = ${z.id}`) as any[];
+  let erg: { aktion: string; grund?: string | null } = { aktion: "fehler", grund: "" };
+  try {
+    erg = await mailBearbeiten({ postfach: z.postfach, gmailId: z.gmailId, gruss: postfachGruss(z.postfach), modus: modus as any, nurOrdnen: false });
+  } finally {
+    // E-401 Nachbesserung (Prüfer-Fund): Steht die Zeile noch in der Neufassung (kein Anspruch, KI-Pause, Ausnahme), zurück.
+    if (zurueck && (await zuruecklegen(z.id, zurueck))) {
+      console.warn(`[POSTMEISTER-FRIST] Mail #${z.id}: Neufassung kam zu keinem Ergebnis (${String(erg?.grund ?? "").slice(0, 80)}) — der Entwurf bleibt, wie er war.`);
+    }
+  }
+  const [jetzt] = (await sqlPool`SELECT aktion, antwort_draft_id, begruendung FROM fiaon_postmeister WHERE id = ${z.id}`) as any[];
   const aktion = String(jetzt?.aktion ?? "");
+  // Zurückgelegt: nichts ist geschehen — nicht als „neu geschrieben“ zählen.
+  if (zurueck && aktion === "entwurf" && String(jetzt?.begruendung ?? "") === String(zurueck.begruendung ?? "") && String(jetzt?.antwort_draft_id ?? "") === String(alterEntwurf ?? "")) {
+    return { aktion: "uebersprungen", grund: `Neufassung ohne Ergebnis (${String(erg?.grund ?? "").slice(0, 120)}) — Entwurf unverändert` };
+  }
+  // E-401 Nachbesserung (Prüfer-Fund): Als „Doppelzustellung“ abgelegt ist NICHT ersetzt — die Schwesterzeile antwortet ja
+  // nicht. Dann zurück auf den Entwurf (der alte Gmail-Entwurf bleibt) statt die Kundenmail still verschwinden zu lassen.
+  const doppelAbgelegt = aktion === "geordnet" && /^Dieselbe Mail liegt auch in/.test(String(jetzt?.begruendung ?? ""));
+  if (doppelAbgelegt && zurueck) {
+    await sqlPool`
+      UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${zurueck.begruendung}, anhaenge = ${zurueck.anhaenge == null ? null : JSON.stringify(zurueck.anhaenge)}::text::jsonb,
+             frist_neu_am = NULL, updated_at = NOW()
+       WHERE id = ${z.id} AND aktion = 'geordnet' AND gesendet_am IS NULL`.catch(() => {});
+    return { aktion: "uebersprungen", grund: "als Doppelzustellung eingeordnet — der Entwurf bleibt stehen" };
+  }
   // Ersetzt: gesendet oder abgelegt (der alte Entwurf ist überholt) — oder ein NEUER Gmail-Entwurf steht an seiner Stelle.
-  const ersetzt = ["auto_beantwortet", "gesendet", "geordnet", "ignoriert"].includes(aktion)
+  // (Eine „Doppelzustellung“ ersetzt nie — dann bleibt der alte Gmail-Entwurf in jedem Fall stehen.)
+  const ersetzt = (["auto_beantwortet", "gesendet", "geordnet", "ignoriert"].includes(aktion) && !doppelAbgelegt)
     || (aktion === "entwurf" && String(jetzt?.antwort_draft_id ?? "") !== String(alterEntwurf ?? ""));
   if (alterEntwurf && ersetzt) {
     const { entwurfLoeschen } = await import("./fiaon-gmail");

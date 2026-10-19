@@ -13,8 +13,15 @@
 //   · zuordnung — das Bankbuch hat ihn schon einer seiner Bestellungen zugeordnet (matched_ref), oder
 //   · referenz  — die sechs Zeichen seiner Zahlungsreferenz (FIAON-XXXXXX / FIAONXXXXXX) oder seiner
 //                 Bestellnummer stehen im Verwendungszweck bzw. in der erkannten Referenz, oder
-//   · name      — der Zahlername enthält Vor- UND Nachname (ohne Umlaute/Akzente, „ae“ = „ä“).
-// Ist ein Eingang schon einer FREMDEN Bestellung zugeordnet, gehört er nicht zu ihm (das Bankbuch weiß es besser).
+//   · name      — der Zahlername enthält Vor- UND Nachname als GANZE Wörter (ohne Umlaute/Akzente, „ae“ = „ä“).
+// Ist ein Eingang schon einer FREMDEN Bestellung zugeordnet, gehört er nicht zu ihm (das Bankbuch weiß es besser). Steht im
+// Zweck (oder in der erkannten Referenz) nur die FIAON-Referenz eines ANDEREN, ebenso nicht (E-401 Nachbesserung).
+//
+// ── NUR DER NAME (E-401 Nachbesserung, Prüfer-Fund) ──────────────────────
+// Ein Eingang, bei dem NUR der Name passt (keine Referenz, keine Zuordnung im Bankbuch), ist „moeglich“: Mara sieht ihn
+// sich nicht als „gefunden“ an — zwei Menschen können gleich heißen. Er kommt als Prüfauftrag auf die Karte (ohne
+// „Zubuchen“-Knopf), der Kunde hört nur „wir prüfen den Eingang“, nie „gefunden/angekommen“. Sicher ist ein Eingang erst
+// über Referenz oder Zuordnung (auch „abweichend“ nur so). Vorher: „Susanna Bergmann“ galt als „Anna Berg“ (Teilstück).
 // Dieselbe Normalform wie der Bankabgleich E-276 (server/lib/fiaon-zahlung-unverbucht.ts).
 //
 // ── WAS ER BEDEUTET (Betrag GLEICH, centgenau) ────────────────────────────
@@ -23,7 +30,8 @@
 //                Karte „Geld eingegangen“ (ein Mensch bucht mit einem Klick, nie Mara) + „Ich habe Ihre
 //                Überweisung … gefunden, wir ordnen sie jetzt zu.“
 //   unterwegs  — angekündigt (Airwallex: „Geld ist UNTERWEGS“), noch nicht auf dem Konto.
-//   abweichend — da, noch nicht gebucht, er ist es — aber der Betrag passt zu keiner offenen Forderung.
+//   abweichend — da, noch nicht gebucht, er ist es (Referenz/Zuordnung) — aber der Betrag passt zu keiner offenen Forderung.
+//   moeglich   — da, noch nicht gebucht, aber NUR der Name passt → ein Mensch prüft; dem Kunden nur „wir prüfen“.
 //   nicht_gefunden — wie bisher: Datum/Beleg erbitten, nicht doppelt zahlen.
 // Jede offene Forderung nimmt höchstens EINEN Eingang (zwei Überweisungen über 59,99 € → Rate 2 und Rate 3).
 //
@@ -116,7 +124,7 @@ export interface ZsEingang {
 export interface ZsPerson { vorname: string | null; nachname: string | null }
 
 export type ZsWeg = "zuordnung" | "referenz" | "name";
-export type ZsStand = "gebucht" | "gefunden" | "unterwegs" | "abweichend";
+export type ZsStand = "gebucht" | "gefunden" | "unterwegs" | "abweichend" | "moeglich";
 export type ZsArt = ZsStand | "nicht_gefunden";
 
 export interface ZsZiel {
@@ -151,7 +159,32 @@ export interface ZsErgebnis {
 // ═══════════════════════════════════════════════════════════════════════════
 // DER ABGLEICH
 // ═══════════════════════════════════════════════════════════════════════════
-const RANG: Record<ZsStand, number> = { gefunden: 0, unterwegs: 1, abweichend: 2, gebucht: 3 };
+const RANG: Record<ZsStand, number> = { gefunden: 0, unterwegs: 1, abweichend: 2, gebucht: 3, moeglich: 4 };
+
+/** Die Wörter eines Zahlernamens in Namensform („KALINA KAYALI“ → kalina, kayali; „Anna-Lena Berg“ → anna, lena, berg). */
+function namensWorte(x: string | null | undefined): string[] {
+  return String(x ?? "").split(/[\s,;/.\-–]+/).map((w) => namensForm(w)).filter(Boolean);
+}
+/**
+ * Stehen Vor- UND Nachname als GANZE Wörter im Zahlernamen? Ein Doppelname darf getrennt stehen („Anna-Lena“ = „ANNA
+ * LENA“). Vorher reichte ein Teilstück: „Susanna Bergmann“ enthält „anna“ und „berg“, „KALINA KAYALI“ enthält „ali“
+ * und „kaya“ (Prüfer-Fund E-401). Rein.
+ */
+export function nameTrifft(zahler: string | null | undefined, p: { vn: string; nn: string }): boolean {
+  const w = namensWorte(zahler);
+  const hat = (x: string) => w.includes(x) || w.some((a, i) => i + 1 < w.length && a + w[i + 1] === x);
+  return hat(p.vn) && hat(p.nn);
+}
+/** Die FIAON-Codes (sechs Zeichen) in Verwendungszweck und erkannter Referenz — „FIAON-ZZZ999-3“ → ZZZ999. Rein. */
+export function fiaonCodesIn(...texte: (string | null | undefined)[]): string[] {
+  const aus: string[] = [];
+  for (const t of texte) {
+    for (const m of Array.from(String(t ?? "").toUpperCase().matchAll(/FIAON[\s\-_.:]*([A-Z0-9]{6})(?![A-Z0-9])/g))) {
+      if (m[1] !== "SCHUFA" && !aus.includes(m[1])) aus.push(m[1]);
+    }
+  }
+  return aus;
+}
 
 function plusTage(t: string, n: number): string {
   const d = new Date(`${t}T12:00:00Z`);
@@ -212,9 +245,13 @@ export function zahlungSuchen(ein: {
     const zf = zweckForm(e.zweck);
     const ef = zweckForm(e.erkannteRef);
     if (codes.some((c) => zf.includes(c) || ef.startsWith(`FIAON${c}`))) w.push("referenz");
-    const zahler = namensForm(e.zahler);
-    if (zahler && paare.some((p) => zahler.includes(p.vn) && zahler.includes(p.nn))) w.push("name");
+    if (e.zahler && paare.some((p) => nameTrifft(e.zahler, p))) w.push("name");
     return w;
+  };
+  /** Steht im Zweck nur die FIAON-Referenz eines ANDEREN (keiner seiner Codes)? Dann ist es nicht seiner. */
+  const fremdeReferenz = (e: ZsEingang): boolean => {
+    const imZweck = fiaonCodesIn(e.zweck, e.erkannteRef);
+    return imZweck.length > 0 && !imZweck.some((c) => codes.includes(c));
   };
 
   // Was er schuldet: Erstzahlungen und offene Raten — Erstzahlung zuerst, Raten nach Fälligkeit.
@@ -237,11 +274,21 @@ export function zahlungSuchen(ein: {
   for (const e of kandidaten) {
     // Einer fremden Bestellung zugeordnet: nicht seiner.
     if (e.zugeordnet && !seins(e.zugeordnet)) continue;
+    // E-401 Nachbesserung: Nennt der Zweck die FIAON-Referenz eines anderen Kunden (und keine seiner), ist es nicht seiner —
+    // auch wenn der Name passt (das Bankbuch hat ihn nur noch nicht zugeordnet).
+    if (!seins(e.zugeordnet) && fremdeReferenz(e)) continue;
     const wege = wegeFuer(e);
     if (!wege.length) continue;
     if (e.gebucht) {
       // Verbucht zählt nur, wenn das Bankbuch ihn SEINER Bestellung zugeordnet hat.
       if (wege.includes("zuordnung")) treffer.push({ eingang: e, stand: "gebucht", wege, ziel: null });
+      continue;
+    }
+    // E-401 Nachbesserung: NUR der Name — „moeglich“ (ein Mensch prüft); bindet keine Forderung, die ein sicherer Eingang
+    // (Referenz) braucht. Auch „abweichend“ und „unterwegs“ gibt es nur über Referenz oder Zuordnung.
+    if (!wege.includes("zuordnung") && !wege.includes("referenz")) {
+      const gleich = ziele.find((z) => z.cents === e.cents && !vergeben.includes(zielKey(z))) ?? null;
+      treffer.push({ eingang: e, stand: "moeglich", wege, ziel: gleich });
       continue;
     }
     const zf = zweckForm(e.zweck);
@@ -298,7 +345,14 @@ export function zahlungSatz(e: ZsErgebnis): string {
   }
   const b = euroDe(h.eingang.cents);
   const t = tagDe(h.eingang.datum);
+  // E-401 Nachbesserung: Die ältere, gebuchte Zahlung ist da — die NEU gemeldete fehlt noch: auch das sagt der Satz.
+  const offen = e.ohneEingang[0] ?? null;
+  const offenSatz = offen
+    ? ` Zu Ihrer ${offen.art === "rate" ? `Rate ${offen.rateNr}` : "Zahlung"} über ${euroDe(offen.cents)} sehe ich noch keinen Eingang — schicken Sie mir gern den Beleg, und bitte überweisen Sie nicht noch einmal.`
+    : "";
   switch (h.stand) {
+    case "moeglich":
+      return "Danke für Ihre Nachricht! Wir prüfen gerade die Eingänge auf unserem Konto und ordnen Ihre Zahlung zu — Sie hören von uns, sobald das erledigt ist. Bitte überweisen Sie nicht noch einmal.";
     case "gefunden":
       return `Ich habe Ihre Überweisung über ${b} gefunden (bei uns eingegangen am ${t}), wir ordnen sie jetzt zu.`;
     case "abweichend":
@@ -307,7 +361,7 @@ export function zahlungSatz(e: ZsErgebnis): string {
       return `Ihre Überweisung über ${b} ist auf dem Weg zu uns (angekündigt am ${t}) — sobald sie angekommen ist, ordnen wir sie zu.`;
     case "gebucht":
     default:
-      return `Ihre Zahlung über ${b} ist am ${t} bei uns eingegangen und gebucht${h.eingang.rateNr ? ` (Rate ${h.eingang.rateNr})` : ""}.`;
+      return `Ihre Zahlung über ${b} ist am ${t} bei uns eingegangen und gebucht${h.eingang.rateNr ? ` (Rate ${h.eingang.rateNr})` : ""}.${offenSatz}`;
   }
 }
 
@@ -333,6 +387,8 @@ export function trefferZeile(t: ZsTreffer): string {
   const d = tagDe(t.eingang.datum);
   const wie = t.wege.map((w) => WEG_TEXT[w]).join(", ");
   switch (t.stand) {
+    case "moeglich":
+      return "MÖGLICHER EINGANG (NUR der Name des Zahlers passt, keine Referenz) — ob er zu ihm gehört, prüft ein Mensch (Karte im Mara-Steuerpult). Betrag und Datum dieses Eingangs nennst du NICHT.";
     case "gebucht":
       return `GEBUCHT: ${b}, bei uns eingegangen am ${d}${t.eingang.rateNr ? ` (Rate ${t.eingang.rateNr})` : ""} — schon verbucht.`;
     case "gefunden":
@@ -356,7 +412,13 @@ export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp"; k
     ...e.treffer.slice(0, 4).map((t) => `· ${trefferZeile(t)}`),
     ...e.ohneEingang.slice(0, 3).map((z) => `· NOCH OHNE EINGANG: seine ${zielText(z)} über ${euroDe(z.cents)}${z.faellig ? `, fällig ${tagDe(z.faellig)}` : ""}.`),
   ];
-  const keinMensch = o.kanal === "mail" ? " Keine Aufgabe an die Zahlungsstelle oder einen Kollegen dafür — der Server hat es schon erledigt." : " Kein Kollege, kein Termin.";
+  // E-401 Nachbesserung (Prüfer-Fund): „keine Aufgabe“ nur, wenn wirklich nichts mehr offen ist — fehlt die neu gemeldete
+  // Zahlung noch (NOCH OHNE EINGANG) oder passt nur der Name, gilt die Regel zum Zahlungsbeleg wie bisher.
+  const keinMensch = o.kanal === "mail"
+    ? (zahlungsstelleUnnoetig(e, o.kartenGelegt ? [e.haupt?.eingang.id ?? 0] : [])
+      ? " Keine Aufgabe an die Zahlungsstelle oder einen Kollegen dafür — der Server hat es schon erledigt."
+      : " Schickt er einen Beleg mit, gilt die Regel zum Zahlungsbeleg wie bisher (Aufgabe an die Zahlungsstelle).")
+    : " Kein Kollege, kein Termin.";
   const nieGebucht = "Sag nicht „gebucht“, „verbucht“ oder „freigeschaltet“ — das geschieht erst mit der Zuordnung.";
   const offenRest = e.ohneEingang.length
     ? " Für das, was NOCH OHNE EINGANG ist, siehst du keinen Eingang: das sagst du ruhig dazu (eine Überweisung braucht oft ein bis zwei Werktage) und bittest um den Beleg (Datum, Betrag, Verwendungszweck) — und darum, nicht doppelt zu überweisen."
@@ -371,6 +433,9 @@ export function zahlungHinweis(e: ZsErgebnis, o: { kanal: "mail" | "whatsapp"; k
       break;
     case "unterwegs":
       tun = `SO ANTWORTEST DU: Danke ihm — seine Überweisung ist angekündigt und auf dem Weg. Sag es so: „${satz}“ Nicht „angekommen“, nicht „gebucht“. Keine Zahlungsbitte; bitte ihn, nicht noch einmal zu überweisen.${keinMensch}`;
+      break;
+    case "moeglich":
+      tun = `SO ANTWORTEST DU: Danke ihm. Auf dem Konto ist ein Eingang, bei dem NUR der Name passt — ob es seiner ist, prüft ein Mensch. Sag es so: „${satz}“ Sag NICHT, dass sie angekommen, gefunden oder gebucht ist, und nenn keinen Betrag und kein Datum dieses Eingangs. Keine Zahlungsbitte.${keinMensch}`;
       break;
     case "gebucht":
       tun = `SO ANTWORTEST DU: Seine Zahlung ist schon gebucht — sag es ihm mit Datum und Betrag und danke ihm, so: „${satz}“${offenRest || " Es ist dazu nichts mehr offen — keine Zahlungsbitte."}${keinMensch}`;
@@ -437,6 +502,9 @@ export function zahlungAntwortFunde(text: string, e: ZsErgebnis, o: { frueher?: 
   const erlaubteTage = new Set<string>();
   const erlaubteCents = new Set<number>();
   for (const t of e.treffer) {
+    // E-401 Nachbesserung: Ein nur „möglicher“ Eingang (nur der Name) kann einem anderen gehören — sein Datum und Betrag
+    // sind nie eine Aussage über SEINE Zahlung.
+    if (t.stand === "moeglich") continue;
     erlaubteTage.add(tagMonat(t.eingang.datum.slice(8, 10), t.eingang.datum.slice(5, 7)));
     erlaubteCents.add(t.eingang.cents);
     if (t.ziel) erlaubteCents.add(t.ziel.cents);
@@ -490,11 +558,53 @@ export function zahlungAntwortFunde(text: string, e: ZsErgebnis, o: { frueher?: 
   return funde;
 }
 
-/** Hat er eine Zahlung gemeldet? (Mail und WhatsApp — nur seine eigenen Worte). Rein. */
+const MELDUNG = new RegExp(String.raw`(?<![\p{L}])(?:habe|hab|hatte|haben|wurde|ist|sind|schon|bereits|gestern|heute|soeben|eben)\s+(?:[^\s.!?]+\s+){0,5}?(?:bezahlt|überwiesen|ueberwiesen|gezahlt|eingezahlt|beglichen|abgebucht)(?![\p{L}])|(?<![\p{L}])(?:zahlungsbeleg|überweisungsbeleg|ueberweisungsbeleg|zahlungsnachweis|überweisungsnachweis)(?![\p{L}])|(?<![\p{L}])(?:i\s+(?:have\s+)?(?:already\s+)?(?:paid|transferred)|payment\s+(?:has\s+been\s+)?(?:sent|made))(?![\p{L}])`, "iu");
+const VERNEINT = new RegExp(String.raw`(?<![\p{L}])(?:nicht|kein\p{L}*|nie|noch\s+nicht|not)(?![\p{L}])`, "iu");
+/** Ein Fragesatz: endet mit „?“ oder beginnt mit einem Fragewort / Verb zuerst („Ist die Rate schon bezahlt“). */
+const FRAGE_ANFANG = /^\s*(?:ist|sind|wurde|wurden|muss|m(?:ü|ue)ssen|soll|sollte|sollen|kann|k(?:ö|oe)nnen|hat|habt|haben\s+sie|bis\s+wann|wann|wie|wo|warum|wieso|was|has|have\s+you|did|is|was)\b/i;
+/** Er selbst meldet: „ich/wir habe(n) …“, „habe … bezahlt“ (ohne „ich“ am Satzanfang) — nicht „Habe ich …?“. */
+const ICH_MELDET = new RegExp(String.raw`(?:^|[^\p{L}])(?:ich|wir)\s+(?:[^\s.!?]+\s+){0,2}?(?:habe|hab|haben|hatte|hatten)(?![\p{L}])|^\s*(?:habe|hab|hatte)\s+(?!ich\b|wir\b)|(?:^|[^\p{L}])i\s+(?:have\s+)?(?:already\s+)?(?:paid|transferred)(?![\p{L}])`, "iu");
+
+/**
+ * Hat er eine Zahlung gemeldet? (Mail und WhatsApp — nur seine eigenen Worte). Rein.
+ * E-401 Nachbesserung (Prüfer-Fund): Eine FRAGE ist keine Meldung — „Ist die Rate schon bezahlt?“, „Muss die Rate heute
+ * bezahlt werden?“, „Wurde meine Rate schon abgebucht?“ lösten die Suche aus, und Mara bat einen Kunden, der nie gezahlt
+ * hatte, „bitte nicht noch einmal überweisen“. In einer Frage zählt nur, was er selbst meldet („Ich habe heute bezahlt,
+ * ist das angekommen?“).
+ */
 export function meldetBezahlt(text: string): boolean {
   const k = String(text ?? "");
   if (!k.trim()) return false;
-  const m = k.match(new RegExp(String.raw`(?<![\p{L}])(?:habe|hab|hatte|haben|wurde|ist|sind|schon|bereits|gestern|heute|soeben|eben)\s+(?:[^\s.!?]+\s+){0,5}?(?:bezahlt|überwiesen|ueberwiesen|gezahlt|eingezahlt|beglichen|abgebucht)(?![\p{L}])|(?<![\p{L}])(?:zahlungsbeleg|überweisungsbeleg|ueberweisungsbeleg|zahlungsnachweis|überweisungsnachweis)(?![\p{L}])|(?<![\p{L}])(?:i\s+(?:have\s+)?(?:already\s+)?(?:paid|transferred)|payment\s+(?:has\s+been\s+)?(?:sent|made))(?![\p{L}])`, "iu"));
-  // „Ich habe noch nicht bezahlt“ / „habe es nie überwiesen“ ist keine Meldung.
-  return !!m && !new RegExp(String.raw`(?<![\p{L}])(?:nicht|kein\p{L}*|nie|noch\s+nicht|not)(?![\p{L}])`, "iu").test(m[0]);
+  for (const satz of k.split(/(?<=[.!?])\s+|\n+/)) {
+    const m = satz.match(MELDUNG);
+    // „Ich habe noch nicht bezahlt“ / „habe es nie überwiesen“ ist keine Meldung.
+    if (!m || VERNEINT.test(m[0])) continue;
+    const frage = /\?\s*$/.test(satz) || FRAGE_ANFANG.test(satz);
+    if (!frage || ICH_MELDET.test(satz.slice(0, (m.index ?? 0) + m[0].length))) return true;
+  }
+  return false;
+}
+
+/**
+ * Braucht es für seine gemeldete Zahlung KEINE Aufgabe an die Zahlungsstelle mehr? Nur, wenn nichts Fälliges mehr ohne
+ * Eingang ist UND der Eingang gebucht, angekündigt (unterwegs) oder gefunden UND dem Menschen vorgelegt ist (Karte).
+ * Bei „abweichend“, „moeglich“ (nur der Name) oder einer noch fehlenden Zahlung bleibt die Regel zum Zahlungsbeleg.
+ * (E-401 Nachbesserung, Prüfer-Fund: vorher sperrte schon ein älterer, gebuchter Eingang die Weitergabe des Belegs.) Rein.
+ */
+export function zahlungsstelleUnnoetig(e: ZsErgebnis, vorgelegt: number[]): boolean {
+  if (e.ohneEingang.length || !e.haupt) return false;
+  if (e.art === "gebucht" || e.art === "unterwegs") return true;
+  if (e.art === "gefunden") return vorgelegt.includes(e.haupt.eingang.id);
+  return false;
+}
+/**
+ * Meint eine aufgabe_an_betreuer die Zahlungsstelle (kollege „Zahlung“ — dieselbe Regel wie im Werkzeug) — ohne Rückruf
+ * und nicht die Leitung? Nur dann kann zahlung_suchen sie ersetzen. Titel und Text zählen NICHT (Prüfer-Fund: „Erstattung
+ * der doppelten Überweisung“ an die Leitung wurde gesperrt). Rein.
+ */
+export function aufgabeAnZahlungsstelle(p: { kollege?: unknown; rueckruf_am?: unknown } | null | undefined): boolean {
+  const kollege = String(p?.kollege ?? "");
+  if (String(p?.rueckruf_am ?? "").trim()) return false;
+  if (/\b(leitung|chef|gesch[äa]ftsf[üu]hr\w*|management)\b/i.test(kollege)) return false;
+  return /\b(zahlung|beleg|buchhaltung|inkasso|forderung|bankbuch)\b/i.test(kollege);
 }

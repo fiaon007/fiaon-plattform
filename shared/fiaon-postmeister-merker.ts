@@ -116,3 +116,36 @@ export function akteVermerkText(postfach: string, betreff: string, zusammenfassu
 export function altenVermerkSuchen(z: { neuAngelegt: boolean; vermerkMerker: unknown; einordnungMerker: unknown }): boolean {
   return !z.neuAngelegt && !z.vermerkMerker && !objektAus(z.einordnungMerker);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VON EINEM MENSCHEN ERLEDIGT — der Rückstands-Takt holt sie nie wieder hervor (E-401 Nachbesserung, 19.10.2026)
+//
+// Der Rückstands-Takt (offeneUnterhaltungen, fiaon-postmeister-aufholen.ts) nimmt die letzte 'geordnet'-Zeile je
+// Unterhaltung, auf die wir nie geantwortet haben. Eine Mail, die ein MENSCH geschlossen hat, ist aber erledigt —
+// sie hat nur keine gesendete Antwort in unserer Datenbank. Bisher kannte der Filter nur einen der Wege („vom
+// Menschen beantwortet“ in Gmail); „Nichts senden“ (E-371), „Verworfen“ (Zentrale), „Vom Betreuer übernommen“ und
+// die 24-Stunden-Ablage holte der Takt alle 20 Minuten wieder hervor — neuer Entwurf, neue Karte, neuer Vermerk.
+// Die Grund-Texte sind die, die diese Wege seit jeher schreiben (keiner davon wird umgetextet). Dazu die zwei
+// Fälle, in denen eine ANDERE Zeile die Antwort trägt (Doppelzustellung, Doppel E-248) — dort ist nichts offen.
+// ═══════════════════════════════════════════════════════════════════════════
+export const MENSCH_ERLEDIGT_MUSTER: readonly string[] = [
+  "vom Menschen beantwortet%",          // Antwort von Hand in Gmail (mailBearbeiten 5b)
+  "Nicht beantwortet — Entscheidung%",  // „Nichts senden“ auf der Entscheidungskarte (E-371)
+  "Verworfen:%",                         // „Verwerfen“ in der Zentrale
+  "Vom Betreuer übernommen%",            // „Erledigt“ beim Betreuer, Auftrag „Kunde hat geschrieben“ erledigt
+  "Nicht mehr nötig (24-Stunden-Regel)%", // die 24-Stunden-Regel hat abgelegt (E-401 6/6)
+  "Dieselbe Mail liegt auch in%",        // Doppelzustellung — die Schwesterzeile im anderen Postfach antwortet
+  "Doppel von Mail #%",                  // derselbe Text noch einmal (E-248) — nur eine Antwort
+];
+
+/** SQL-LIKE (nur % am Ende) als reine Prüfung — für den Prüfstand und für Code ohne Datenbank. */
+function likeTrifft(text: string, muster: string): boolean {
+  return muster.endsWith("%") ? text.startsWith(muster.slice(0, -1)) : text === muster;
+}
+
+/** Hat ein Mensch (oder eine Schwesterzeile) diese 'geordnet'-Zeile erledigt? Dann ist die Unterhaltung nicht offen. Rein. */
+export function menschErledigt(aktion: string | null | undefined, begruendung: string | null | undefined): boolean {
+  if (String(aktion ?? "") !== "geordnet") return false;
+  const b = String(begruendung ?? "");
+  return MENSCH_ERLEDIGT_MUSTER.some((m) => likeTrifft(b, m));
+}

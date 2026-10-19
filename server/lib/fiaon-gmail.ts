@@ -123,6 +123,12 @@ export interface GmailNachricht {
   antwortAufId?: string | null;
   /** Dateien an der Mail (04.09.2026): Belege, Ausweise, Verträge — ein Mensch sähe sie, Mara auch. */
   anhaenge: GmailAnhang[];
+  /**
+   * E-401 Nachbesserung: Gmails Absender-Prüfung beim Empfang — der Wert des OBERSTEN „Authentication-Results“, nur wenn er
+   * von Gmail selbst stammt („mx.google.com; dkim=pass …; spf=pass …; dmarc=pass …“), sonst null. Tiefer stehende Köpfe
+   * kann der Absender selbst hineinschreiben; der oberste setzt Gmail.
+   */
+  authErgebnis?: string | null;
 }
 
 export interface GmailAnhang { name: string; typ: string; groesse: number; attachmentId: string }
@@ -188,7 +194,15 @@ export async function nachrichtLesen(postfach: string, id: string): Promise<Gmai
     text: textAusTeilen(j.payload).slice(0, 20_000),
     snippet: String(j.snippet || ""), autoHinweis: auto,
     anhaenge: anhaengeAusTeilen(j.payload),
+    authErgebnis: authErgebnisAus(h),
   };
+}
+
+/** Der oberste „Authentication-Results“-Kopf — nur, wenn Gmail ihn gesetzt hat (authserv-id mx.google.com). Rein. */
+export function authErgebnisAus(headers: any[]): string | null {
+  const erster = (Array.isArray(headers) ? headers : []).find((x) => String(x?.name ?? "").toLowerCase() === "authentication-results");
+  const wert = String(erster?.value ?? "").replace(/\s+/g, " ").trim();
+  return /^mx\.google\.com\b/i.test(wert) ? wert.slice(0, 2000) : null;
 }
 
 // ── Labels — der Postmeister legt seine Ordnung selbst an ───────────────────

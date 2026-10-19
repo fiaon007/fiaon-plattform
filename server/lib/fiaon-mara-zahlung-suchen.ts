@@ -58,8 +58,9 @@ export interface MaraFund {
   personId: number;
   kanal: ZsKanal;
   quelle: string | null;
-  stand: "gefunden" | "abweichend";
-  /** Ziel in der Schreibweise der Datenbank — nur bei gleichem Betrag. */
+  /** E-401 Nachbesserung: „moeglich“ = nur der Name passt — ein Prüfauftrag, nie ein Zubuchen-Knopf. */
+  stand: "gefunden" | "abweichend" | "moeglich";
+  /** Ziel in der Schreibweise der Datenbank — nur bei gleichem Betrag (und nie bei „moeglich“). */
   ziel: string | null;
   bestellung: string | null;
   rateNr: number | null;
@@ -121,7 +122,7 @@ export async function maraFundeFuer(ids: number[], lauf: Lauf = sqlPool): Promis
     `SELECT * FROM fiaon_mara_zahlung_funde WHERE bank_txn_id = ANY($1::int[]) ORDER BY aktualisiert_am DESC, id DESC`, [nur]).catch(() => [])) as any[];
   return zeilen.map((z) => ({
     bankTxnId: Number(z.bank_txn_id), personId: Number(z.person_id), kanal: z.kanal === "whatsapp" ? "whatsapp" : "mail",
-    quelle: z.quelle ?? null, stand: z.stand === "abweichend" ? "abweichend" : "gefunden", ziel: z.ziel ?? null, bestellung: z.bestellung ?? null,
+    quelle: z.quelle ?? null, stand: z.stand === "abweichend" ? "abweichend" : z.stand === "moeglich" ? "moeglich" : "gefunden", ziel: z.ziel ?? null, bestellung: z.bestellung ?? null,
     rateNr: z.rate_nr != null ? Number(z.rate_nr) : null,
     erwartet: z.erwartet ? (typeof z.erwartet === "string" ? JSON.parse(z.erwartet) : z.erwartet) : null,
     probe: z.probe ?? null, wege: String(z.wege ?? ""), am: new Date(z.aktualisiert_am ?? z.created_at).toISOString(),
@@ -229,6 +230,8 @@ async function fundVorlegen(t: ZsTreffer, o: { personId: number; kanal: ZsKanal;
     await fundTabelle(lauf);
     let erwartet: MaraFund["erwartet"] = null;
     let probe: string | null = null;
+    // E-401 Nachbesserung: Nur bei einem SICHEREN Fund (Referenz/Zuordnung, Betrag gleich) ein Ziel und die Trockenprobe —
+    // „moeglich“ (nur der Name) bekommt nie den Zubuchen-Knopf.
     const ziel = t.stand === "gefunden" && t.ziel ? t.ziel.referenz : null;
     if (ziel) {
       // Die Trockenprobe mit SEINEM Ziel — bucht nichts. Sagt sie „würde buchen“, bekommt die Karte den Knopf.
@@ -237,10 +240,12 @@ async function fundVorlegen(t: ZsTreffer, o: { personId: number; kanal: ZsKanal;
       probe = String(p.zeile?.ergebnis || p.error || "").slice(0, 300) || null;
       if (p.ok && p.zeile?.buchen) erwartet = { regel: p.zeile.regel ?? null, ziel: p.zeile.ziel ?? null, rateId: p.zeile.rateId ?? null };
     }
-    const wege = t.wege.map((w) => WEG_KURZ[w] ?? w).join(" + ") + (t.stand === "gefunden" ? " + Betrag gleich" : " (Betrag weicht ab)");
+    const wege = t.stand === "moeglich"
+      ? `nur Name — bitte prüfen${t.ziel && t.ziel.cents === t.eingang.cents ? " (Betrag gleich)" : " (Betrag weicht ab)"}`
+      : t.wege.map((w) => WEG_KURZ[w] ?? w).join(" + ") + (t.stand === "gefunden" ? " + Betrag gleich" : " (Betrag weicht ab)");
     await lauf`
       INSERT INTO fiaon_mara_zahlung_funde (bank_txn_id, person_id, kanal, quelle, stand, ziel, bestellung, rate_nr, erwartet, probe, wege)
-      VALUES (${t.eingang.id}, ${o.personId}, ${o.kanal}, ${o.quelle}, ${t.stand}, ${ziel}, ${t.ziel?.ref ?? null}, ${t.ziel?.rateNr ?? null},
+      VALUES (${t.eingang.id}, ${o.personId}, ${o.kanal}, ${o.quelle}, ${t.stand}, ${ziel}, ${t.stand === "moeglich" ? null : t.ziel?.ref ?? null}, ${t.stand === "moeglich" ? null : t.ziel?.rateNr ?? null},
               ${erwartet ? JSON.stringify(erwartet) : null}::text::jsonb, ${probe}, ${wege})
       ON CONFLICT (bank_txn_id, person_id) DO UPDATE
          SET kanal = EXCLUDED.kanal, quelle = EXCLUDED.quelle, stand = EXCLUDED.stand, ziel = EXCLUDED.ziel, bestellung = EXCLUDED.bestellung,
@@ -253,7 +258,9 @@ async function fundVorlegen(t: ZsTreffer, o: { personId: number; kanal: ZsKanal;
     });
     await vermerkEinmal(o.personId, o.ref ?? t.ziel?.ref ?? null, o.kanal,
       `Mara hat die gemeldete Zahlung im Bankbuch gesucht (${o.kanal === "whatsapp" ? "WhatsApp" : "Mail"}): ${trefferZeile(t)} `
-      + `${erwartet ? `Vorschlag zum Zubuchen auf ${t.ziel?.rateNr ? `Rate ${t.ziel.rateNr}` : ziel} liegt im Mara-Steuerpult (Karte „Geld eingegangen“) — gebucht wird erst mit dem Klick.` : "Liegt im Mara-Steuerpult (Karte „Geld eingegangen“) zum Zuordnen."}`,
+      + `${erwartet ? `Vorschlag zum Zubuchen auf ${t.ziel?.rateNr ? `Rate ${t.ziel.rateNr}` : ziel} liegt im Mara-Steuerpult (Karte „Geld eingegangen“) — gebucht wird erst mit dem Klick.`
+        : t.stand === "moeglich" ? `Eingang über ${(t.eingang.cents / 100).toFixed(2).replace(".", ",")} € vom ${t.eingang.datum.split("-").reverse().join(".")}: nur der Name des Zahlers passt — liegt im Mara-Steuerpult zum Prüfen (kein Zubuchen-Vorschlag).`
+        : "Liegt im Mara-Steuerpult (Karte „Geld eingegangen“) zum Zuordnen."}`,
       `[Zahlungsfund #${t.eingang.id}]`, lauf);
     return !!karte;
   } catch (e) {
@@ -286,7 +293,7 @@ export async function zahlungSuchenBehandeln(ein: {
     const ergebnis = zahlungSuchen({ person: d.person, bestellungen: d.bestellungen, raten: d.raten, eingaenge: d.eingaenge, heute, tage: ein.tage });
     const vorgelegt: number[] = [];
     if (!d.person.test) {
-      for (const t of ergebnis.treffer.filter((x) => x.stand === "gefunden" || x.stand === "abweichend").slice(0, 3)) {
+      for (const t of ergebnis.treffer.filter((x) => x.stand === "gefunden" || x.stand === "abweichend" || x.stand === "moeglich").slice(0, 3)) {
         if (await fundVorlegen(t, { personId, kanal: ein.kanal, quelle: ein.quelle ?? null, ref: ein.ref ?? null }, lauf)) vorgelegt.push(t.eingang.id);
       }
     }

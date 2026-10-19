@@ -1216,10 +1216,15 @@ export async function mailBearbeiten(ein: {
     }
 
     // 2. Dieselbe Mail an zwei Postfächer? Nur einmal bearbeiten.
+    // E-401 Nachbesserung (Prüfer-Fund): Eine Schwesterzeile, die selbst nur „Doppelzustellung“ ist, ist NICHT das Original.
+    // Sonst legte die Neufassung (24-Stunden-Regel, „Neu schreiben“, Rückstands-Takt) den echten Entwurf als „Doppel“ ab —
+    // beide Zeilen 'geordnet', der Gmail-Entwurf gelöscht, die Kundenmail ohne Antwort.
     if (mail.messageIdHeader) {
       const [doppelt] = (await sqlPool`
         SELECT postfach FROM fiaon_postmeister
-         WHERE message_id = ${mail.messageIdHeader} AND id <> ${id} AND aktion NOT IN ('fehler', 'in_arbeit') LIMIT 1
+         WHERE message_id = ${mail.messageIdHeader} AND id <> ${id} AND aktion NOT IN ('fehler', 'in_arbeit')
+           AND NOT (aktion = 'geordnet' AND COALESCE(begruendung, '') LIKE 'Dieselbe Mail liegt auch in%')
+         LIMIT 1
       `) as any[];
       if (doppelt) {
         return fertig({ ...basis, aktion: "geordnet", begruendung: `Dieselbe Mail liegt auch in ${doppelt.postfach}` }, "Doppelzustellung");
@@ -1375,7 +1380,7 @@ export async function mailBearbeiten(ein: {
       }
     }
     const erg = await antwortErzeugen({
-      postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage },
+      postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage, authErgebnis: mail.authErgebnis ?? null, antwortAn: mail.antwortAn ?? null },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
       sprache: antwortSpracheCode, vorgeschichte,
     });

@@ -27,6 +27,7 @@ globalThis.fetch = (async (u: any) => {
 import { readFileSync } from "node:fs";
 import {
   zahlungSuchen, zahlungSatz, zahlungHinweis, zahlungAntwortFunde, zahlungKurz, meldetBezahlt, rateImZweck, namensForm, zweckForm, referenzCode,
+  nameTrifft, fiaonCodesIn, zahlungsstelleUnnoetig, aufgabeAnZahlungsstelle,
   ZAHLUNG_SUCHEN_TAGE, type ZsEingang, type ZsBestellung, type ZsRate, type ZsErgebnis,
 } from "../shared/fiaon-zahlung-suchen";
 import { tonPruefung } from "../shared/fiaon-mara-ton";
@@ -61,12 +62,25 @@ async function main() {
   for (const t of ["Ich habe gestern überwiesen", "Habe die Rate bereits bezahlt.", "Zahlungsbeleg anbei", "Hab heute 59,99 überwiesen", "I have already paid", "Die Zahlung ist schon abgebucht worden"]) ok(meldetBezahlt(t), `meldet: „${t}“`);
   for (const t of ["Ich habe noch nicht bezahlt", "Wann soll ich bezahlen?", "Wo ist meine Karte?", "Ich habe es nie überwiesen", ""]) ok(!meldetBezahlt(t), `meldet nicht: „${t}“`);
 
-  abschnitt("3 · Gefunden: Name + Betrag (Erstzahlung, Zweck ohne Referenz)");
+  abschnitt("3 · Gefunden: Referenz + Betrag (Erstzahlung) — und NUR der Name ist „möglich“ (E-401 Nachbesserung)");
   const A_B = [best({ ref: "FIAON-MQ401A1-TEST", zahlungsreferenz: "FIAONQ401A1", vorname: "Edith", nachname: "Quarzmeier", erstzahlungOffen: true, sollCents: 5999 })];
-  const eA = eingang({ cents: 5999, zahler: "EDITH QUARZMEIER", zweck: "Gesendet mit N26", datum: tag(-1) });
+  const eA = eingang({ cents: 5999, zahler: "EDITH QUARZMEIER", zweck: "Erstzahlung FIAONQ401A1", datum: tag(-1) });
   const rA = zahlungSuchen({ person: { vorname: "Edith", nachname: "Quarzmeier" }, bestellungen: A_B, raten: [], eingaenge: [eA, eingang({ cents: 5999, zahler: "JEMAND ANDERES" })], heute: HEUTE });
   ok(rA.art === "gefunden" && rA.haupt?.eingang.id === eA.id, "art gefunden, der Eingang von Edith", rA.art);
-  ok(rA.haupt?.ziel?.art === "erstzahlung" && rA.haupt.ziel.referenz === "FIAONQ401A1" && rA.haupt.wege.join() === "name", "Ziel: Erstzahlung in der DB-Schreibweise, Weg: Name", rA.haupt);
+  ok(rA.haupt?.ziel?.art === "erstzahlung" && rA.haupt.ziel.referenz === "FIAONQ401A1" && rA.haupt.wege.includes("referenz"), "Ziel: Erstzahlung in der DB-Schreibweise, Weg: Referenz", rA.haupt);
+  {
+    // Rot vorher: NUR der Name → „gefunden … wir ordnen sie jetzt zu“ an den Kunden (zwei Menschen können gleich heißen).
+    const eAn = eingang({ cents: 5999, zahler: "EDITH QUARZMEIER", zweck: "Gesendet mit N26", datum: tag(-1) });
+    const rAn = zahlungSuchen({ person: { vorname: "Edith", nachname: "Quarzmeier" }, bestellungen: A_B, raten: [], eingaenge: [eAn], heute: HEUTE });
+    ok(rAn.art === "moeglich" && rAn.haupt?.wege.join() === "name" && rAn.ohneEingang.length === 1, "nur der Name → „moeglich“ (bindet die Erstzahlung nicht)", rAn);
+    const sAn = zahlungSatz(rAn);
+    ok(/wir prüfen/i.test(sAn) && !/gefunden|angekommen|eingegangen|59,99/.test(sAn), `Satz neutral, ohne Betrag/Datum: „${sAn}“`);
+    ok(zahlungAntwortFunde("Ich habe Ihre Überweisung über 59,99 € gefunden, wir ordnen sie jetzt zu.", rAn).length >= 1, "„gefunden“ bei nur-Name → harter Mangel");
+    ok(!zahlungAntwortFunde(sAn, rAn).length, "der neutrale Satz besteht die Prüfung");
+    const hAn = zahlungHinweis(rAn, { kanal: "mail", kartenGelegt: true });
+    const zeileAn = hAn.split("\n").find((z) => /MÖGLICHER EINGANG/.test(z)) ?? "";
+    ok(!!zeileAn && !/\d+,\d{2}\s*€|\d{2}\.\d{2}\.\d{4}/.test(zeileAn) && /Regel zum Zahlungsbeleg wie bisher/.test(hAn), "Hinweis: möglicher Eingang ohne Betrag/Datum, die Belegregel bleibt", hAn);
+  }
   ok(rA.ohneEingang.length === 0, "nichts mehr ohne Eingang (die Erstzahlung ist gedeckt)");
   const sA = zahlungSatz(rA);
   ok(/Ich habe Ihre Überweisung über 59,99 € gefunden \(bei uns eingegangen am 18\.10\.2026\), wir ordnen sie jetzt zu\./.test(sA), "Satz: „Ich habe Ihre Überweisung über 59,99 € gefunden (… am 18.10.2026), wir ordnen sie jetzt zu.“", sA);
@@ -78,8 +92,8 @@ async function main() {
   const rB = zahlungSuchen({ person: { vorname: "Berta", nachname: "Quellmann" }, bestellungen: B_B, raten: B_R, eingaenge: [eB3], heute: HEUTE });
   ok(rB.art === "gefunden" && rB.haupt?.ziel?.rateNr === 3 && rB.haupt.wege.includes("referenz"), "Referenz ohne Strich + „3“ → Rate 3 (nicht die ältere Rate 2)", rB.haupt?.ziel);
   ok(rB.ohneEingang.length === 1 && rB.ohneEingang[0].rateNr === 2, "Rate 2 (fällig) bleibt ohne Eingang", rB.ohneEingang);
-  const e1 = eingang({ cents: 5999, zahler: "Berta Quellmann", datum: tag(-6) });
-  const e2 = eingang({ cents: 5999, zahler: "Berta Quellmann", datum: tag(-1) });
+  const e1 = eingang({ cents: 5999, zahler: "Berta Quellmann", zweck: "FIAON-Q401B2", datum: tag(-6) });
+  const e2 = eingang({ cents: 5999, zahler: "Berta Quellmann", zweck: "FIAON-Q401B2", datum: tag(-1) });
   const rB2 = zahlungSuchen({ person: { vorname: "Berta", nachname: "Quellmann" }, bestellungen: B_B, raten: B_R, eingaenge: [e2, e1], heute: HEUTE });
   const zu = (id: number) => rB2.treffer.find((t) => t.eingang.id === id)?.ziel?.rateNr;
   ok(zu(e1.id) === 2 && zu(e2.id) === 3, "Zwei gleiche Überweisungen: die ältere → Rate 2, die neuere → Rate 3 (jede Forderung nur einmal)", rB2.treffer.map((t) => [t.eingang.id, t.ziel?.rateNr]));
@@ -90,7 +104,9 @@ async function main() {
   const C_B = [best({ ref: "FIAON-MQ401C3-TEST", zahlungsreferenz: "FIAON-Q401C3", vorname: "Cord", nachname: "Quintus" })];
   const rC = zahlungSuchen({ person: { vorname: "Cord", nachname: "Quintus" }, bestellungen: C_B, raten: [rate({ ref: "FIAON-MQ401C3-TEST", nr: 3, cents: 7999, faellig: tag(-1), zahlungsreferenz: "FIAON-Q401C3-3" })], eingaenge: [eC], heute: HEUTE });
   ok(rC.art === "gebucht" && rC.haupt?.eingang.id === eC.id, "art gebucht");
-  ok(zahlungSatz(rC) === "Ihre Zahlung über 79,99 € ist am 16.10.2026 bei uns eingegangen und gebucht (Rate 2).", "Satz mit Datum, Betrag und Rate", zahlungSatz(rC));
+  // E-401 Nachbesserung (Prüfer-Fund): die NEU gemeldete Rate fehlt noch — das sagt der Satz dazu (vorher nur die alte Rate).
+  ok(zahlungSatz(rC) === "Ihre Zahlung über 79,99 € ist am 16.10.2026 bei uns eingegangen und gebucht (Rate 2). Zu Ihrer Rate 3 über 79,99 € sehe ich noch keinen Eingang — schicken Sie mir gern den Beleg, und bitte überweisen Sie nicht noch einmal.",
+    "Satz mit Datum, Betrag und Rate — und der noch fehlenden Rate 3", zahlungSatz(rC));
   ok(rC.ohneEingang.length === 1 && rC.ohneEingang[0].rateNr === 3, "Rate 3 (fällig gestern) steht ohne Eingang daneben");
   const eCfremd = eingang({ cents: 7999, zahler: "Cord Quintus", zugeordnet: "FIAON-MFREMD99-TEST", gebucht: true, datum: tag(-2) });
   const eCohne = eingang({ cents: 7999, zahler: "Cord Quintus", zugeordnet: null, gebucht: true, datum: tag(-2) });
@@ -100,7 +116,7 @@ async function main() {
   abschnitt("6 · Unterwegs, abweichend, zu alt, „kein Kundengeld“, fremd zugeordnet");
   const D_B = [best({ ref: "FIAON-MQ401D4-TEST", zahlungsreferenz: "FIAON-Q401D4", erstzahlungOffen: true, sollCents: 9999 })];
   const person = { vorname: "Dora", nachname: "Quendt" };
-  const rU = zahlungSuchen({ person, bestellungen: D_B, raten: [], eingaenge: [eingang({ cents: 9999, zahler: "DORA QUENDT", unterwegs: true })], heute: HEUTE });
+  const rU = zahlungSuchen({ person, bestellungen: D_B, raten: [], eingaenge: [eingang({ cents: 9999, zahler: "DORA QUENDT", zweck: "FIAON-Q401D4", unterwegs: true })], heute: HEUTE });
   ok(rU.art === "unterwegs" && /auf dem Weg zu uns/.test(zahlungSatz(rU)), "unterwegs: angekündigt, „auf dem Weg zu uns“", zahlungSatz(rU));
   const rW = zahlungSuchen({ person, bestellungen: D_B, raten: [], eingaenge: [eingang({ cents: 5000, zweck: "Q401D4 Teil 1" })], heute: HEUTE });
   ok(rW.art === "abweichend" && rW.haupt?.ziel?.cents === 9999 && /über 50,00 € ist bei uns angekommen/.test(zahlungSatz(rW)), "abweichend: 50 € statt 99,99 € — angekommen, Vergleich mit der Erstzahlung", rW.haupt);
@@ -116,13 +132,60 @@ async function main() {
   abschnitt("7 · Namen: nur Vor- UND Nachname; Namenszusätze; nur Vorname reicht nie");
   const E_B = [best({ ref: "FIAON-MQ401E5-TEST", erstzahlungOffen: true, sollCents: 5999 })];
   const rN1 = zahlungSuchen({ person: { vorname: "Max", nachname: "Müller" }, bestellungen: E_B, raten: [], eingaenge: [eingang({ cents: 5999, zahler: "MUELLER MAX" })], heute: HEUTE });
-  ok(rN1.art === "gefunden", "„MUELLER MAX“ = Max Müller (Reihenfolge egal, ue = ü)");
+  ok(rN1.art === "moeglich" && rN1.haupt?.wege.join() === "name", "„MUELLER MAX“ = Max Müller (Reihenfolge egal, ue = ü) — nur der Name: „moeglich“");
   const rN2 = zahlungSuchen({ person: { vorname: "Max", nachname: "Müller" }, bestellungen: E_B, raten: [], eingaenge: [eingang({ cents: 5999, zahler: "MAX SCHMIDT" })], heute: HEUTE });
   ok(rN2.art === "nicht_gefunden", "Nur der Vorname passt → nicht seiner");
   const rN3 = zahlungSuchen({ person: { vorname: "Anna", nachname: "von der Heide" }, bestellungen: E_B, raten: [], eingaenge: [eingang({ cents: 5999, zahler: "ANNA HEIDE" })], heute: HEUTE });
-  ok(rN3.art === "gefunden", "„von der Heide“: das tragende Wort ist „Heide“");
+  ok(rN3.art === "moeglich", "„von der Heide“: das tragende Wort ist „Heide“ (nur der Name: „moeglich“)");
   const rN4 = zahlungSuchen({ person: { vorname: "Anna", nachname: "von der Heide" }, bestellungen: E_B, raten: [], eingaenge: [eingang({ cents: 5999, zahler: "ANNA VON DER LINDE" })], heute: HEUTE });
   ok(rN4.art === "nicht_gefunden", "„von der …“ allein ist kein Nachname");
+
+  abschnitt("7b · E-401 Nachbesserung (Prüfer-Funde): ganze Wörter, fremde Referenz, kein „abweichend“ über den Namen");
+  {
+    const AB = [best({ ref: "FIAON-MQ401AB-TEST", zahlungsreferenz: "FIAON-Q401AB", vorname: "Anna", nachname: "Berg" })];
+    const AR = [rate({ ref: "FIAON-MQ401AB-TEST", nr: 2, cents: 5999, faellig: tag(-4), zahlungsreferenz: "FIAON-Q401AB-2" })];
+    const pAB = { vorname: "Anna", nachname: "Berg" };
+    // Rot vorher: alle drei → gefunden / abweichend mit „Ihre Überweisung … ist bei uns angekommen“.
+    const r1 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 5999, zahler: "Susanna Bergmann", zweck: "FIAON-ZZZ999-3", datum: tag(-2) })], heute: HEUTE });
+    ok(r1.art === "nicht_gefunden", "„Susanna Bergmann“ mit fremder FIAON-Referenz ist nicht Anna Berg", r1.treffer);
+    const r2 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 5999, zahler: "Susanna Bergmann", zweck: "Miete", datum: tag(-2) })], heute: HEUTE });
+    ok(r2.art === "nicht_gefunden", "„Susanna Bergmann“ enthält „anna“ und „berg“ nur als Teilstück → nicht ihrer", r2.treffer);
+    const r3 = zahlungSuchen({ person: { vorname: "Ali", nachname: "Kaya" }, bestellungen: [best({ ref: "FIAON-MQ401AK-TEST", vorname: "Ali", nachname: "Kaya" })], raten: AR, eingaenge: [eingang({ cents: 5999, zahler: "KALINA KAYALI" })], heute: HEUTE });
+    ok(r3.art === "nicht_gefunden", "„KALINA KAYALI“ ist nicht Ali Kaya", r3.treffer);
+    const r4 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 799, zahler: "Johanna Bergmann", zweck: "FIAON-QQQ222", datum: tag(-14) })], heute: HEUTE });
+    ok(r4.art === "nicht_gefunden", "„Johanna Bergmann“, 7,99 € mit fremder Referenz → nicht „angekommen“", r4.treffer);
+    const r5 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 799, zahler: "ANNA BERG", zweck: "Danke", datum: tag(-1) })], heute: HEUTE });
+    ok(r5.art === "moeglich" && !/angekommen/.test(zahlungSatz(r5)), "nur der Name, Betrag weicht ab → „moeglich“, nie „abweichend/angekommen“", r5.art);
+    const r6 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 5999, zahler: "Fremder Zahler", zweck: "FIAON-Q401AB-2 und FIAON-ZZZ999", datum: tag(-1) })], heute: HEUTE });
+    ok(r6.art === "gefunden", "seine Referenz UND eine fremde im Zweck → seiner (nicht ausgeschlossen)", r6.art);
+    const r7 = zahlungSuchen({ person: pAB, bestellungen: AB, raten: AR, eingaenge: [eingang({ cents: 5999, zahler: "X", zweck: "FIAON-ZZZ999", zugeordnet: "FIAON-MQ401AB-TEST" })], heute: HEUTE });
+    ok(r7.art === "gefunden" && r7.haupt?.wege.includes("zuordnung"), "fremder Code im Zweck, aber das Bankbuch hat ihn SEINER Bestellung zugeordnet → seiner", r7.haupt?.wege);
+    ok(nameTrifft("ANNA-LENA BERG", { vn: "annalena", nn: "berg" }) && nameTrifft("Berg, Anna", { vn: "anna", nn: "berg" }) && !nameTrifft("Susanna Bergmann", { vn: "anna", nn: "berg" }),
+      "nameTrifft: Doppelname getrennt ja, Reihenfolge egal, Teilstück nein");
+    ok(fiaonCodesIn("FIAON-ZZZ999-3", "Fiaon Ltd Rate 2", "FIAON-SCHUFA-AB12CD34").join() === "ZZZ999", "fiaonCodesIn: „FIAON-ZZZ999-3“ ja, „Fiaon Ltd“ und SCHUFA nein", fiaonCodesIn("FIAON-ZZZ999-3", "Fiaon Ltd Rate 2", "FIAON-SCHUFA-AB12CD34"));
+  }
+
+  abschnitt("7c · E-401 Nachbesserung: Fragen sind keine Zahlungsmeldung (meldetBezahlt)");
+  for (const t of ["Ist die Rate schon bezahlt?", "Muss die Rate heute bezahlt werden?", "Wurde meine Rate schon abgebucht?", "Sind die 59,99 schon bezahlt?", "Habe ich schon bezahlt?"]) {
+    ok(!meldetBezahlt(t), `keine Meldung (Frage): „${t}“`);
+  }
+  for (const t of ["Ich habe heute bezahlt, ist das angekommen?", "Habe gestern überwiesen. Ist das schon da?", "Die Rate ist bezahlt", "Rate 2 ist überwiesen, Beleg anbei"]) {
+    ok(meldetBezahlt(t), `Meldung: „${t}“`);
+  }
+
+  abschnitt("7d · E-401 Nachbesserung: Aufgabe an die Zahlungsstelle nur, wenn sie wirklich unnötig ist");
+  {
+    ok(aufgabeAnZahlungsstelle({ kollege: "Zahlung", rueckruf_am: "" }) && aufgabeAnZahlungsstelle({ kollege: "Buchhaltung" }), "kollege „Zahlung“/„Buchhaltung“ → die Zahlungsstelle");
+    ok(!aufgabeAnZahlungsstelle({ kollege: "Leitung" }) && !aufgabeAnZahlungsstelle({ kollege: "" }) && !aufgabeAnZahlungsstelle({ kollege: "Herr Probe" })
+      && !aufgabeAnZahlungsstelle({ kollege: "Zahlung", rueckruf_am: "2026-10-20 10:00" }), "nie die Leitung (Geld zurück), nie leer/ein Name, nie ein Rückruf — der Titel zählt nicht");
+    const eGeb = eingang({ cents: 5999, zweck: "FIAON-Q401C3-1", zugeordnet: "FIAON-MQ401C3-TEST", gebucht: true, datum: tag(-18), rateNr: 1 });
+    const C_B2 = [best({ ref: "FIAON-MQ401C3-TEST", zahlungsreferenz: "FIAON-Q401C3", vorname: "Cord", nachname: "Quintus" })];
+    const rAlt2 = zahlungSuchen({ person: { vorname: "Cord", nachname: "Quintus" }, bestellungen: C_B2, raten: [rate({ ref: "FIAON-MQ401C3-TEST", nr: 2, cents: 5999, faellig: tag(-4), zahlungsreferenz: "FIAON-Q401C3-2" })], eingaenge: [eGeb], heute: HEUTE });
+    // Rot vorher: art gebucht → Aufgabe gesperrt, Hinweis „keine Aufgabe an die Zahlungsstelle“, der Beleg ging an niemanden.
+    ok(rAlt2.art === "gebucht" && rAlt2.ohneEingang.length === 1 && !zahlungsstelleUnnoetig(rAlt2, []), "alte Rate 1 gebucht, gemeldete Rate 2 fehlt → die Aufgabe an die Zahlungsstelle bleibt erlaubt");
+    ok(!/Keine Aufgabe an die Zahlungsstelle/.test(zahlungHinweis(rAlt2, { kanal: "mail" })) && /Regel zum Zahlungsbeleg wie bisher/.test(zahlungHinweis(rAlt2, { kanal: "mail" })), "… und der Hinweis sagt das (Belegregel wie bisher)");
+    ok(zahlungsstelleUnnoetig(rA, [rA.haupt!.eingang.id]) && !zahlungsstelleUnnoetig(rA, []), "gefunden + dem Menschen vorgelegt → unnötig; ohne Vorlage → nicht");
+  }
 
   abschnitt("8 · Nichts gefunden: Satz und Hinweis wie bisher (Beleg, nicht doppelt zahlen)");
   const rNix = zahlungSuchen({ person, bestellungen: D_B, raten: [], eingaenge: [], heute: HEUTE });
@@ -192,7 +255,7 @@ async function main() {
   });
   const fund = (o: Record<string, unknown> = {}): any => ({
     bankTxnId: 4011, personId: 77, kanal: "mail", quelle: "Mail #401", stand: "gefunden", ziel: "FIAONQ401A1", bestellung: "FIAON-MQ401A1-TEST", rateNr: null,
-    erwartet: { regel: "erstzahlung", ziel: "FIAONQ401A1", rateId: null }, probe: "würde buchen: …", wege: "Name + Betrag gleich", am: "2026-10-19T08:00:00Z", ...o,
+    erwartet: { regel: "erstzahlung", ziel: "FIAONQ401A1", rateId: null }, probe: "würde buchen: …", wege: "Referenz + Betrag gleich", am: "2026-10-19T08:00:00Z", ...o,
   });
   const k0 = me.eingangKarte(zeile(), []);
   ok(k0 && !k0.optionen.some((o) => o.key === "buchen") && k0.optionen.some((o) => o.key === "kein_kunde"), "ohne Fund: kein Buchungsknopf, „Kein Kundengeld“ möglich (wie bisher)", k0?.optionen.map((o) => o.key));
@@ -211,6 +274,9 @@ async function main() {
   const k5 = me.eingangKarte(zeile({ vorschlag: { ...zeile().vorschlag, art: "teilzahlung" } }), [fund({ stand: "abweichend", ziel: null, erwartet: null })])!;
   ok(k5.titel === "Teilzahlung" && !k5.optionen.some((o) => o.key === "buchen"), "Teilzahlung bleibt „Teilzahlung“ (Maras Titel überschreibt nichts)", k5.titel);
   ok(me.eingangKarte(zeile({ schonVerbucht: true }), [fund()]) === null, "schon verbucht → keine Karte");
+  const k6 = me.eingangKarte(zeile(), [fund({ stand: "moeglich", ziel: null, bestellung: null, erwartet: null, probe: null, wege: "nur Name — bitte prüfen (Betrag gleich)" })])!;
+  ok(!k6.optionen.some((o) => o.key === "buchen") && k6.titel === "Kunde meldet Zahlung — Eingang prüfen (nur der Name passt)" && /nur der Name des Zahlers/.test(k6.text)
+    && k6.belege?.some((b) => b.ton === "warn" && /nur Name/.test(b.text)), "E-401 Nachbesserung: nur-Name-Fund → kein Zubuchen-Knopf, Titel „Eingang prüfen“, Warnung", { t: k6.titel, o: k6.optionen.map((o) => o.key) });
 
   abschnitt("12 · Einbau (Quelltext): der Server sucht vor dem Modell, kein Kreis, nie buchen");
   const q = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
@@ -219,7 +285,8 @@ async function main() {
   const iSuche = pm.indexOf("zahlungSuchenBehandeln(");
   ok(iSuche > 0 && iSuche < pm.indexOf("const nachrichten: any[] = [") && pm.includes("vorab.push(zahlungGesucht.hinweis)"), "Postfach: zahlung_suchen läuft VOR dem Modell, der Hinweis steht vorab");
   ok(/zahlungAntwortFunde\(t, k\.zahlung\.ergebnis/.test(pm) && pm.includes("zahlung: zahlungGesucht"), "Postfach: Antwortprüfung mit dem Ergebnis");
-  ok(/zahlungsAufgabeUnnoetig\(w\.name, p\)/.test(pm), "Postfach: keine Aufgabe an die Zahlungsstelle, wenn die Zahlung im Bankbuch ist");
+  ok(/zahlungsAufgabeUnnoetig\(w\.name, p\)/.test(pm) && /zahlungsstelleUnnoetig\(zahlungGesucht\.ergebnis, zahlungGesucht\.vorgelegt\) && aufgabeAnZahlungsstelle\(p\)/.test(pm),
+    "Postfach: keine Aufgabe an die Zahlungsstelle, wenn die Zahlung im Bankbuch ist — nur kollege „Zahlung“, nur wenn nichts mehr fehlt");
   ok(/!akte\?\.global/.test(pm.slice(iSuche - 400, iSuche)), "Postfach: nicht beim Global-Kunden");
   const wq = ohneKommentare(q("server/lib/fiaon-whatsapp-mara.ts"));
   ok(wq.includes('kanal: "whatsapp", quelle: `WhatsApp #${neuesteRein.id}`') && wq.includes("zahlungsHinweis = zahlungGesucht.hinweis"), "WhatsApp: derselbe Weg (zahlungSuchenBehandeln) bei „habe bezahlt“");
@@ -245,7 +312,7 @@ async function main() {
     const vorher = modellRufe;
     ANTWORTEN.length = 0; ANTWORTEN.push(`Vielen Dank! ${zahlungSatz(rC)}`);
     const w3 = await ew(rC);
-    ok(!w3.zweiter && !w3.funde.length && modellRufe - vorher === 1, "gebucht + richtiger Satz → kein zweiter Entwurf", { zweiter: w3.zweiter, rufe: modellRufe - vorher });
+    ok(!w3.zweiter && !w3.funde.length && modellRufe - vorher === 1, "gebucht + richtiger Satz → kein zweiter Entwurf", { zweiter: w3.zweiter, rufe: modellRufe - vorher, funde: w3.funde, a: w3.antwort });
     ok(netz === 0, `kein Netz außer der Attrappe (${netz})`);
   }
 

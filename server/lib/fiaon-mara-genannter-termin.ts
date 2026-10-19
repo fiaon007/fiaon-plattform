@@ -26,7 +26,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  genannterTermin, istTeamNotiz, genanntAufWhatsApp, genanntSatz, berlinWand, uhrzeitenGenannt,
+  genannterTermin, istTeamNotiz, genanntAufWhatsApp, genanntSatz, berlinWand, uhrzeitenGenannt, starkVereinbart,
   type GenanntErgebnis, type TeamNotiz, type TerminMitarbeiter, type BestehenderTerminKurz,
 } from "@shared/fiaon-genannter-termin";
 import { zeitFuerKunde } from "@shared/fiaon-mara-ton";
@@ -62,6 +62,11 @@ export interface GenanntLage {
   uhrzeitTermin: string | null;
   /** E-401: der eine warme Satz, den die Antwort sagen soll (auch der sichere Satz auf WhatsApp). */
   satz: string | null;
+  /**
+   * E-401 Nachbesserung: true = Mara nimmt sich zurück (kein Kartenlink, kein Zahlungslink, kein Verkaufswort). false nur,
+   * wenn er SELBST nach Karte, Link oder Zahlung fragt (kundeFragtSelbst) — dann erfüllt sie seine Bitte sachlich.
+   */
+  zurueck: boolean;
 }
 
 /** Die Notizen der letzten 14 Tage — Menschen aus dem Team, neueste zuerst. */
@@ -134,6 +139,11 @@ function belegSatz(e: GenanntErgebnis): string {
 }
 
 const ZURUECK = `Danach NICHTS verkaufen: keine Karte, keine Kreditkarte, kein Wunschlimit, keine Partnerbank, keine Zahlungsbitte, kein Link, kein „wenn Sie später doch …“. Kurz und warm bleiben. Nächster Schritt: erledigt.`;
+/**
+ * E-401 Nachbesserung (Prüfer-Fund): Fragt er SELBST nach Karte, Link oder Zahlung, ist das Erfüllen seiner Bitte kein
+ * Verkauf — Justins „sich zurücknehmen“ heißt „nichts anbieten“, nicht „seine Bitte nicht erfüllen“.
+ */
+const ZURUECK_GEFRAGT = `Er fragt SELBST nach Karte, Link oder Zahlung — das erfüllst du sachlich, wie sonst (den Link bzw. die Zahlungsseite), aber ohne zusätzliches Angebot, ohne Wunschlimit-Werbung, ohne „wenn Sie später doch …“. Kurz und warm bleiben.`;
 /** E-401: auf WhatsApp endet die Nachricht mit dem guten Wunsch — nicht mit dem Link und der Frage, die der Auftrag sonst verlangt. */
 const ZURUECK_WA = `Danach NICHTS verkaufen: keine Karte, keine Kreditkarte, kein Wunschlimit, keine Partnerbank, keine Zahlungsbitte, kein Link, keine Abschlussfrage, kein „wenn Sie später doch …“. Kurz und warm bleiben — diese Nachricht endet mit dem guten Wunsch, nicht mit einer Frage.`;
 
@@ -160,6 +170,8 @@ export async function genannterTerminBehandeln(ein: {
    * Ob der Zeitpunkt schon vorbei ist, entscheidet weiter `jetzt`.
    */
   bezug?: Date | null;
+  /** E-401 Nachbesserung: Er fragt selbst nach Karte, Link oder Zahlung — Mara erfüllt das (kein „zurücknehmen“ dafür). */
+  kundeFragtSelbst?: boolean;
 }, lauf: Lauf = sqlPool): Promise<GenanntLage | null> {
   if (!ein.personId || !String(ein.kundeText ?? "").trim()) return null;
   const personId = ein.personId;
@@ -186,15 +198,16 @@ export async function genannterTerminBehandeln(ein: {
   const lage: GenanntLage = {
     erkennung: e, eingetragen: false, terminId: null, teilnehmer: null, kundenZeit: null, fehler: null,
     hinweis: null, handlung: null, ruhe: "einen Termin, den er nennt — heute keine Zahlungsbitte und kein Verkauf",
-    kanal, uhrzeitTermin: null, satz: null,
+    kanal, uhrzeitTermin: null, satz: null, zurueck: !ein.kundeFragtSelbst,
   };
+  if (ein.kundeFragtSelbst) lage.ruhe = null;
   const { parseBerlinInput } = await import("./fiaon-time");
   const beginn = e.wandzeit ? parseBerlinInput(e.wandzeit) : null;
   // E-401: Kam seine Nachricht früher (bezug), kann der Zeitpunkt inzwischen vorbei sein — dann wie „vergangen“.
   if (wa && ein.bezug && beginn && beginn.getTime() <= jetzt.getTime()) return null;
   lage.kundenZeit = beginn ? zeitFuerKunde(beginn, jetzt) : (e.uhrzeit ? `um ${e.uhrzeit.replace(/:00$/, "")} Uhr` : null);
   const wann = lage.kundenZeit ?? "zur genannten Zeit";
-  const zurueck = wa ? ZURUECK_WA : ZURUECK;
+  const zurueck = ein.kundeFragtSelbst ? ZURUECK_GEFRAGT : wa ? ZURUECK_WA : ZURUECK;
   const waNotiz = wa ? { marke: ein.waId ? `[WhatsApp #${ein.waId}]` : null } : null;
   const wo = wa ? "per WhatsApp" : "in seiner Mail";
 
@@ -208,6 +221,29 @@ export async function genannterTerminBehandeln(ein: {
     lage.satz = genanntSatz({ art: e.art, eingetragen: false, zeit: lage.kundenZeit, mit: lage.teilnehmer?.dat ?? null });
     lage.hinweis = `VEREINBARTER TERMIN — STEHT SCHON IM KALENDER (Termin #${e.bestehend.id}; nichts eintragen, kein Rückruf-Werkzeug): Er hat ${lage.kundenZeit} ein Gespräch${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""}. SO ANTWORTEST DU (Justin, 19.10.2026: „einen guten Termin wünschen und sich zurücknehmen“): Erledige sein übriges Anliegen wie sonst. Dann ein warmer Satz: „${lage.satz}“ ${zurueck}`;
     lage.handlung = `Genannter Termin ${lage.kundenZeit} steht schon (Termin #${e.bestehend.id}) — nichts eingetragen.`;
+    return lage;
+  }
+
+  // ── E-401 Nachbesserung (Prüfer-Fund): ER NENNT EINE ANDERE ZEIT ALS DEN TERMIN, DER STEHT ─────────────────────
+  // Nur seine Aussage (keine Team-Notiz) und im Kalender steht schon ein künftiger Termin von ihm (nicht ±30 Minuten,
+  // sonst wäre es „steht schon“): Er hat die Zeit vermutlich falsch im Kopf. Vorher buchte der Server einen ZWEITEN
+  // Termin (ohne Raster) — und jede weitere Nachricht „wir haben … mit Justin“ noch einen. Jetzt: nichts eintragen,
+  // den stehenden Termin nennen, ein Vermerk für den Menschen. Das deckelt auch „höchstens ein genannter Termin“.
+  const kuenftig = bestehende.filter((b) => new Date(b.beginn).getTime() > jetzt.getTime())
+    .sort((a, b) => new Date(a.beginn).getTime() - new Date(b.beginn).getTime());
+  if (e.art === "mit_uns" && e.beleg === "kunde" && kuenftig.length) {
+    const t = kuenftig[0];
+    const a = team.find((x) => x.id === t.agentId);
+    const nf = nennform(a?.roh ?? null);
+    lage.teilnehmer = a ? { id: a.id, nom: nf.nom, dat: nf.dat } : null;
+    lage.terminId = t.id;
+    const steht = zeitFuerKunde(new Date(t.beginn), jetzt);
+    lage.uhrzeitTermin = berlinWand(new Date(t.beginn)).hhmm;
+    lage.fehler = "Es steht schon ein anderer Termin — nichts eingetragen";
+    lage.satz = `Bei uns steht Ihr Gespräch ${steht}${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""} — meinen Sie diesen Termin?`;
+    lage.hinweis = `ER NENNT EINE ANDERE ZEIT ALS SEIN TERMIN (nichts eingetragen, kein zweiter Termin): Er schreibt ${wann}; im Kalender steht sein Gespräch ${steht}${lage.teilnehmer ? ` mit ${lage.teilnehmer.dat}` : ""} (Termin #${t.id}). SO ANTWORTEST DU: Erledige sein übriges Anliegen wie sonst. Dann freundlich, sinngemäß: „${lage.satz}“ Schreib NICHT, dass ${wann} eingetragen ist. Will er wirklich eine andere Zeit, gilt der Termin-Weg (verschieben), nicht dieser. ${zurueck}`;
+    await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ${wo} ein Gespräch ${wann}${lage.teilnehmer ? ` mit ${a?.roh?.name ?? lage.teilnehmer.nom}` : ""} — im Kalender steht aber schon sein Termin ${steht} (Termin #${t.id}). Nichts eingetragen, kein zweiter Termin. Bitte prüfen, welche Zeit gilt.`, lauf, waNotiz);
+    lage.handlung = `Genannter Termin ${wann} NICHT eingetragen — es steht schon Termin #${t.id} (${steht}).`;
     return lage;
   }
 
@@ -230,8 +266,13 @@ export async function genannterTerminBehandeln(ein: {
       lage.teilnehmer = { id: wer.id, nom: nf.nom, dat: nf.dat };
       try {
         const { terminBuchen } = await import("./fiaon-termine");
+        // E-401 Nachbesserung (Prüfer-Fund): Auf WhatsApp bucht nur seine Aussage („mit Herrn …“) ohne Team-Notiz und ohne
+        // „wie besprochen / vereinbart“ NICHT außerhalb des Rasters: Dann gelten die Arbeitszeiten des Mitarbeiters wie bei
+        // jedem Rückruf (kein_slot → nichts eingetragen, ein Mensch sieht den Vermerk). Mit Notiz oder ausdrücklich
+        // vereinbart (und in der Mail, E-395) bleibt es wie bisher: eingetragen, wie es feststeht.
+        const belegt = e.beleg === "notiz" || !wa || starkVereinbart(ein.kundeText);
         const b = await terminBuchen({
-          personId, agentId: wer.id, beginn: e.wandzeit!, quelle: "agent_manuell", herkunft: wa ? GENANNT_HERKUNFT_WA : GENANNT_HERKUNFT, vereinbart: true,
+          personId, agentId: wer.id, beginn: e.wandzeit!, quelle: "agent_manuell", herkunft: wa ? GENANNT_HERKUNFT_WA : GENANNT_HERKUNFT, vereinbart: belegt,
         }, lauf);
         lage.eingetragen = true;
         lage.terminId = b.id;
@@ -277,9 +318,11 @@ export async function genannterTerminBehandeln(ein: {
     await notizSchreiben(personId, ein.ref, `Mara: Der Kunde nennt ein Gespräch ${wann}, ohne dass klar ist, mit wem — nichts eingetragen. Falls es unser Termin ist: bitte selbst in den Kalender setzen.`, lauf, waNotiz);
   }
   lage.satz = genanntSatz({ art: e.art, eingetragen: false, zeit: wann, mit: null });
+  // E-401 Nachbesserung: Fragt er selbst nach Karte, Link oder Zahlung, erfüllt Mara das (ZURUECK_GEFRAGT) — sonst wie bisher.
+  const ruheSatz = ein.kundeFragtSelbst ? ZURUECK_GEFRAGT : "In dieser Antwort nichts verkaufen und keine Zahlungsbitte.";
   lage.hinweis = e.art === "dritte"
-    ? `ER NENNT EINEN TERMIN BEI DRITTEN (${wann}, z. B. Bank, Notar, Behörde): Wünsche ihm in einem Satz viel Erfolg. Schreibe NICHT, dass etwas eingetragen ist. In dieser Antwort nichts verkaufen und keine Zahlungsbitte.`
-    : `ER NENNT EIN GESPRÄCH (${wann}), OHNE DASS KLAR IST, MIT WEM: Wünsche ihm in einem Satz ein gutes Gespräch. Schreibe NICHT, dass etwas eingetragen ist. In dieser Antwort nichts verkaufen und keine Zahlungsbitte.`;
+    ? `ER NENNT EINEN TERMIN BEI DRITTEN (${wann}, z. B. Bank, Notar, Behörde): Wünsche ihm in einem Satz viel Erfolg. Schreibe NICHT, dass etwas eingetragen ist. ${ruheSatz}`
+    : `ER NENNT EIN GESPRÄCH (${wann}), OHNE DASS KLAR IST, MIT WEM: Wünsche ihm in einem Satz ein gutes Gespräch. Schreibe NICHT, dass etwas eingetragen ist. ${ruheSatz}`;
   lage.handlung = `Genannter Termin ${wann} (${e.art === "dritte" ? "bei Dritten" : "unklar, mit wem"}) — nichts eingetragen.`;
   return lage;
 }

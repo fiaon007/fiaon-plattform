@@ -97,3 +97,31 @@
 .gkp .gaf-kernzahlen > div:hover { border-color:rgba(90,168,251,.45); }
 .gkp .gaf-buehne-grund .b { background:radial-gradient(circle, rgba(40,141,250,.18), rgba(40,141,250,0) 65%); }
 .gkp .gaf-bereich-detail { border-color:rgba(90,168,251,.35); }
+
+/* ── Fassung B: Funding-Karte, Freigabe, Preisposten, Team ─────────────── */
+.gkp-plan-garantie { position:relative; margin-top:14px; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--leise); }
+.gkp-plan-garantie svg { color:var(--gold-tief); flex:0 0 auto; }
+.gkp-freigabe { display:inline-flex; align-items:center; gap:8px; margin:0 0 14px; padding:7px 14px; border-radius:999px; font-size:13px; font-weight:500;
+  color:#1d4ed8; background:#fff; border:1px solid rgba(40,141,250,.35); box-shadow:0 8px 20px -12px rgba(29,78,216,.5); }
+.gkp-posten { margin-top:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.gkp-posten-karte { padding:22px 24px; border-radius:20px; background:rgba(255,255,255,.8); border:1px solid var(--linie); }
+.gkp-posten-karte b { display:block; font-family:var(--serif); font-weight:400; font-size:30px; line-height:1; color:var(--tinte); }
+.gkp-posten-karte .t { display:block; margin-top:10px; font-weight:500; font-size:14.5px; color:var(--tinte); }
+.gkp-posten-karte span:last-child { display:block; margin-top:4px; font-size:13.5px; line-height:1.5; color:var(--leise); }
+.gkp-garantie-zeile { margin-top:16px; font-size:14px; line-height:1.6; color:var(--tinte); }
+.gkp-team { margin-top:64px; }
+.gkp .gaf-team-mono { color:#1d4ed8; background:linear-gradient(160deg,#ffffff,#e8f2ff); }
+@media (max-width:980px) { .gkp-posten { grid-template-columns:1fr; } }
+
+/* Siegel der Sonderfreigabe: Gold der Prägung → Glasblau (CSS schlägt die stopColor-Attribute im SVG) */
+.gkp .gaf-siegel-svg linearGradient[id^="g-"] stop:nth-child(1) { stop-color:#e8f3ff; }
+.gkp .gaf-siegel-svg linearGradient[id^="g-"] stop:nth-child(2) { stop-color:#5aa8fb; }
+.gkp .gaf-siegel-svg linearGradient[id^="g-"] stop:nth-child(3) { stop-color:#1d4ed8; }
+.gkp .gaf-siegel-svg linearGradient[id^="g-"] stop:nth-child(4) { stop-color:#cfe4fe; }
+.gkp .gaf-siegel-svg circle[stroke="#7a5716"] { stroke:#1d4ed8; }
+.gkp .gaf-siegel-datum { fill:#cfe4fe; }
+/* Team: Ring im Glasblau statt Gold */
+.gkp .gaf-team-bild { background:linear-gradient(140deg, #9cc8ff, #e6e9ef 60%, #5aa8fb); }
+/* Freigabe-Block in der Bürgschaft */
+.gkp-buerg-siegel-voll { grid-column:1 / -1; padding:26px 28px; border-radius:20px; background:#fff; border:1px solid rgba(40,141,250,.22); }
+.gkp .gkp-buerg-kopf .gkp-freigabe { display:flex; width:max-content; max-width:100%; margin:12px 0 10px; }

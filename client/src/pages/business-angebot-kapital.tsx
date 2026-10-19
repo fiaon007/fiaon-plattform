@@ -18,6 +18,7 @@ import LeistungsKarten from "@/components/angebot-firma/LeistungsKarten";
 import FragenAntworten from "@/components/angebot-firma/FragenAntworten";
 import VertragsLeser from "@/components/angebot-firma/VertragsLeser";
 import ComplianceBuehne from "@/components/angebot-firma/ComplianceBuehne";
+import SonderfreigabeSiegel from "@/components/angebot-firma/SonderfreigabeSiegel";
 import UnterschriftFeld, { type UnterschriftStand } from "@/components/angebot-firma/UnterschriftFeld";
 import { Auf, MarkeGlobal, Zeichen, ruhig, tagDe } from "@/components/angebot-firma/gemeinsam";
 import "@/styles/global-angebot-firma.css";
@@ -246,10 +247,9 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
             <p className="gkp-plan-kurs">{H.kurs}</p>
             <div className="gkp-plan-linie" aria-hidden="true" />
             <ul className="gkp-plan-saeulen">
-              <li><span>LLC</span><b>in rund zwei Wochen</b></li>
-              <li><span>Team</span><b>Steuer · Recht · Strategie</b></li>
-              <li><span>Bürgschaft</span><b>{B.betrag}</b></li>
+              {H.saeulen.map((x) => <li key={x.titel}><span>{x.titel}</span><b>{x.wert}</b></li>)}
             </ul>
+            {H.garantie && <p className="gkp-plan-garantie"><Zeichen art="haken" groesse={13} /><span>{H.garantie}</span></p>}
           </div>
         </div>
       </section>
@@ -289,6 +289,7 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
             <Auf className="gkp-buerg">
               <div className="gkp-buerg-kopf">
                 <p className="gaf-auge">{B.auge}</p>
+                {B.freigabe && <p className="gkp-freigabe"><Zeichen art="siegel" groesse={15} /><span>{B.freigabe}</span></p>}
                 <h2 className="gaf-h2">{B.titel}</h2>
                 <p className="gaf-sub">{B.lead}</p>
               </div>
@@ -301,6 +302,7 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
                 <span>{B.betrag}</span>
               </div>
               <ul className="gkp-buerg-punkte">{B.punkte.map((x) => <li key={x.titel}><b>{x.titel}</b><span>{x.text}</span></li>)}</ul>
+              {S.sonderfreigabe && <div className="gkp-buerg-siegel-voll"><SonderfreigabeSiegel sf={S.sonderfreigabe} /></div>}
               <div className="gkp-buerg-bed">
                 <p className="gaf-auge">{B.bedingungenTitel}</p>
                 <ol>{B.bedingungen.map((x, i) => <li key={x}><i>{i + 1}</i><span>{x}</span></li>)}</ol>
@@ -311,19 +313,22 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
         </section>
 
         {/* 6 — Compliance-Prüfung */}
-        <ComplianceBuehne c={sicht.compliance} texte={S.pruefbericht} pdf={sicht.pruefberichtPdf ?? sicht.vertragPdf} />
+        <ComplianceBuehne c={sicht.compliance} texte={S.pruefbericht} pdf={sicht.pruefberichtPdf ?? sicht.vertragPdf} sonderfreigabe={S.sonderfreigabe} />
 
         {/* 7 — Investition */}
         <section className="gaf-abschnitt" id="investition" aria-label={I.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={I.titel} sub={I.sub} />
-            <div className="gkp-preise">
-              <Auf className="gkp-preis gross"><p className="gkp-preis-betrag">{I.preis}</p><p className="gkp-preis-zeile">{I.preisZeile}</p></Auf>
-              <Auf className="gkp-preis" verz={90}><p className="gkp-preis-betrag klein">{I.jahr}</p><p className="gkp-preis-zeile">{I.jahrZeile}</p></Auf>
+            <Auf className="gkp-preis gross"><p className="gkp-preis-betrag">{I.preis}</p><p className="gkp-preis-zeile">{I.preisZeile}</p></Auf>
+            <div className="gkp-posten">
+              {I.posten.map((x, i) => (
+                <Auf key={x.titel} verz={i * 80} className="gkp-posten-karte"><b>{x.betrag}</b><span className="t">{x.titel}</span><span>{x.text}</span></Auf>
+              ))}
             </div>
             <Auf className="gkp-inklusive">
               <p className="gaf-auge">{WORTE.inklusive}</p>
               <ul>{I.inklusive.map((x) => <li key={x}><Zeichen art="haken" groesse={15} /><span>{x}</span></li>)}</ul>
+              {I.garantie && <p className="gkp-garantie-zeile">{I.garantie}</p>}
               <p className="gaf-fein">{I.fein}</p>
             </Auf>
           </div>
@@ -357,6 +362,24 @@ export default function BusinessAngebotKapital({ sicht, token, onAngenommen, onN
                 </Auf>
               ))}
             </ul>
+            {S.ansprechpartner.team.length > 0 && (
+              <div className="gaf-team gkp-team" data-fiaon="kapital-team">
+                <Kopf titel={S.ansprechpartner.teamTitel} sub={S.ansprechpartner.teamSub} />
+                <ul className="gaf-team-raster">
+                  {S.ansprechpartner.team.map((t, i) => (
+                    <Auf als="li" key={t.name} verz={(i % 4) * 70} className="gaf-team-person">
+                      <span className="gaf-team-bild">
+                        {t.foto && !ohneBild[`team:${t.name}`]
+                          ? <img src={t.foto} alt={t.name} width={240} height={240} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [`team:${t.name}`]: true }))} />
+                          : <span className="gaf-team-mono" aria-hidden="true">{t.initialen}</span>}
+                      </span>
+                      <span className="gaf-team-name">{t.name}</span>
+                      <span className="gaf-team-rolle">{t.rolle}</span>
+                    </Auf>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
 

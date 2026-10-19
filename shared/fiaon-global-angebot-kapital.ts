@@ -32,15 +32,18 @@
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
-import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung } from "./fiaon-global-angebot-firma-typen";
+import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung, FirmaSonderfreigabe } from "./fiaon-global-angebot-firma-typen";
+import { portraitUrl, portraitMitKi } from "./fiaon-portraits";
 import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FASSUNG
 // ═══════════════════════════════════════════════════════════════════════════
 export const KAPITAL_FASSUNG_PRAEFIX = "IA-KAPITAL-";
-export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-19-A";
-export const KAPITAL_FASSUNGEN = [KAPITAL_FASSUNG] as const;
+// B (19.10.2026, E-400, Justin): Garantie „Finanzierung binnen acht Wochen — sonst alles zurück“, Bürgschaftsgebühr und Vergütung bei
+// Auszahlung, Zeitplan in Wochen, Sonderfreigabe trotz offener Punkte im Prüfbericht, Kreditkarten dazu.
+export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-19-B";
+export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", KAPITAL_FASSUNG] as const;
 export function istKapitalFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(KAPITAL_FASSUNG_PRAEFIX);
 }
@@ -81,6 +84,19 @@ export interface KapitalParameter {
   zahlungszielTage: number;
   /** Ansprechpartner (kuerzel aus ANGEBOT_ANSPRECHPARTNER) — der erste ist „Ihr Ansprechpartner“ */
   ansprechpartner: string[];
+  /** B: Bürgschaftsgebühr (einmalig, netto) und Vergütung bei Auszahlung der Finanzierung (netto) */
+  buergschaftCents: number;
+  auszahlungCents: number;
+  /** B: Garantie — Finanzierung binnen so vielen Wochen ab Auftragserteilung, sonst alles zurück (0 = keine Garantie) */
+  garantieWochen: number;
+  /** B: Business-Kreditkarten dazu — Rahmen je Karte (USD) und Herausgeber als Beispiel */
+  kartenVonUsd: number;
+  kartenBisUsd: number;
+  kartenHerausgeber: string;
+  /** B: das Team (aus der privaten Angebotsdatei — nie im Code); foto nur „haus:<kürzel>“ eines ECHTEN Porträts */
+  team: { name: string; rolle: string; foto?: string | null }[];
+  /** B: Sonderfreigabe der Leitung trotz offener Punkte im Prüfbericht (erscheint als Siegel an der Compliance-Bühne) */
+  sonderfreigabe: FirmaSonderfreigabe | null;
 }
 export const KAPITAL_VORGABEN: KapitalParameter = {
   preisCents: 279_900,
@@ -94,6 +110,14 @@ export const KAPITAL_VORGABEN: KapitalParameter = {
   bundesstaat: "Florida",
   zahlungszielTage: 7,
   ansprechpartner: ["justin", "daniel"],
+  buergschaftCents: 49_900,
+  auszahlungCents: 109_900,
+  garantieWochen: 8,
+  kartenVonUsd: 5_000,
+  kartenBisUsd: 30_000,
+  kartenHerausgeber: "Capital One oder Bank of America",
+  team: [],
+  sonderfreigabe: null,
 };
 export interface KapitalDaten {
   ref: string;
@@ -169,9 +193,10 @@ export function kapitalPraeambel(d: KapitalDaten): string[] {
   const par = d.parameter;
   return [
     `Die Auftraggeberin möchte für ihr Unternehmen Kapital über ${kapitalChf(par.kapitalChf)} aufnehmen und dafür eine eigene US-Gesellschaft nutzen.`,
-    `FIAON gründet diese Gesellschaft, stellt der Auftraggeberin einen Steuerberater, einen Anwalt und einen Unternehmensberater zur Seite und begleitet den Weg zur Finanzierung. Damit ein Institut die Finanzierung leichter einräumen kann, übernimmt die US-Partnergesellschaft von FIAON auf dessen Anforderung eine Bürgschaft mit vereinbartem Höchstbetrag.`,
+    `FIAON gründet diese Gesellschaft, stellt der Auftraggeberin einen Steuerberater, einen Anwalt und einen Unternehmensberater zur Seite und führt sie zur Finanzierung. Die US-Partnergesellschaft von FIAON übernimmt dafür eine Bürgschaft${par.garantieWochen ? `, und FIAON steht für das Ergebnis mit einer Garantie ein: Kommt die Finanzierung nicht rechtzeitig, erhält die Auftraggeberin alles Gezahlte zurück` : ""}.`,
   ];
 }
+const KAPITAL_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut; für die Finanzierung gilt die Garantie nach Ziffer 4.";
 export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
   const par = d.parameter; const b = d.buergin; const v = d.kunde.vertretung;
   const kapital = `${kapitalChf(par.kapitalChf)} (umgerechnet rund ${kapitalUsd(par.kapitalUsd)}; ${par.kursText})`;
@@ -191,7 +216,7 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
         "die erste jährliche US-Meldung der Gesellschaft durch einen US-CPA aus dem Partnernetz von FIAON",
         "die Gründungsunterlagen in digitaler Form und ein Pflichtenkalender für das erste Jahr",
       ], "Die Gründung umfasst:"),
-      p("FIAON reicht die Anmeldung binnen fünf Werktagen ein, nachdem die Vergütung (Ziffer 6) eingegangen ist und die Unterlagen nach Ziffer 7 vorliegen."),
+      p("FIAON reicht die Anmeldung binnen fünf Werktagen ein, nachdem die Vergütung nach Ziffer 6 Absatz 1 eingegangen ist und die Unterlagen nach Ziffer 7 vorliegen."),
     ] },
     { nr: 3, titel: "Das Experten-Team", absaetze: [
       liste([
@@ -201,23 +226,30 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
       ], "Der Auftraggeberin stehen für die Dauer der Kapital-Begleitung zur Seite:"),
       p("Steuerliche und rechtliche Leistungen erbringen Steuerberater, US-CPA und Anwälte aus dem Partnernetz von FIAON auf eigenes Mandat der Auftraggeberin bzw. der Gesellschaft. Die Honorare dieser Partner für die hier genannten Leistungen trägt FIAON; sie sind in der Vergütung enthalten. Leistungen darüber hinaus vereinbart die Auftraggeberin unmittelbar mit dem Partner."),
     ] },
-    { nr: 4, titel: "Kapital-Begleitung", absaetze: [
-      p(`FIAON begleitet die Auftraggeberin bzw. die Gesellschaft ab der Eintragung ${monateWort(par.begleitMonate)} lang auf dem Weg zu einer Finanzierung über ${kapital}: Auswahl geeigneter Institute und Produkte, vollständige Vorbereitung jedes Antrags, Begleitung bei Rückfragen bis zur Entscheidung, ein fester Ansprechpartner.`),
-      p(`FIAON schuldet die sorgfältige Begleitung, nicht einen bestimmten Finanzierungserfolg. Über jede Finanzierung, ihren Betrag und ihre Bedingungen entscheidet allein das jeweilige Institut. Der Betrag von ${kapitalChf(par.kapitalChf)} ist der gemeinsame Plan der Parteien. Anträge stellen die Auftraggeberin bzw. die Gesellschaft im eigenen Namen; ob sie ein Angebot annehmen, entscheiden sie allein.`),
+    { nr: 4, titel: par.garantieWochen ? "Finanzierung und Garantie" : "Kapital-Begleitung", absaetze: [
+      p(`FIAON führt die Auftraggeberin bzw. die Gesellschaft zu einer Finanzierung über ${kapital}: Auswahl geeigneter Institute und Produkte, vollständige Vorbereitung jedes Antrags, Begleitung bei Rückfragen bis zur Auszahlung, ein fester Ansprechpartner — und danach ${monateWort(par.begleitMonate)} lang ab der Eintragung bei jedem weiteren Schritt. Anträge stellen die Auftraggeberin bzw. die Gesellschaft im eigenen Namen; ob sie ein Angebot annehmen, entscheiden sie allein.`),
+      p(`Zusätzlich beantragt FIAON für die Gesellschaft Business-Kreditkarten bei US-Herausgebern wie ${par.kartenHerausgeber}. Die Rahmen liegen je Karte erfahrungsgemäß zwischen ${kapitalUsd(par.kartenVonUsd)} und ${kapitalUsd(par.kartenBisUsd)} und kommen zur Finanzierung hinzu; über Karten und Rahmen entscheidet der jeweilige Herausgeber.`),
+      ...(par.garantieWochen ? [
+        p(`FIAON garantiert der Auftraggeberin, dass ihr oder der Gesellschaft binnen ${zahlwort(par.garantieWochen)} Wochen ab Auftragserteilung eine Finanzierung über ${kapitalChf(par.kapitalChf)} eingeräumt und ausgezahlt wird. Andernfalls erstattet FIAON der Auftraggeberin alles, was sie bis dahin an FIAON gezahlt hat (Ziffer 6 Absatz 1 und 2), binnen vierzehn Tagen nach Fristende; die Vergütung nach Ziffer 6 Absatz 3 entfällt, und die Gesellschaft bleibt der Auftraggeberin. Für die Kreditkarten nach Absatz 2 gilt die Garantie nicht.`),
+        p("Die Frist ruht, solange die Vergütung nach Ziffer 6 Absatz 1 nicht gezahlt ist, solange Unterlagen nach Ziffer 7 ausstehen und solange die Auftraggeberin ein ihr vorgelegtes Finanzierungsangebot über den Betrag zu marktüblichen Bedingungen nicht annimmt. Die Garantie entfällt, wenn die Auftraggeberin vorsätzlich falsche Angaben macht."),
+      ] : [p(`Über jede Finanzierung, ihren Betrag und ihre Bedingungen entscheidet das jeweilige Institut; der Betrag von ${kapitalChf(par.kapitalChf)} ist der gemeinsame Plan der Parteien.`)]),
     ] },
     { nr: 5, titel: "Bürgschaft der US-Partnergesellschaft", absaetze: [
       p(`Die ${b.name}, ${b.anschrift}, eingetragen im Bundesstaat ${b.bundesstaat} unter ${b.registernummer} (nachfolgend „Bürgin“), übernimmt auf Anforderung eines Instituts eine Bürgschaft für eine Finanzierung, die der Gesellschaft oder der Auftraggeberin in der Kapital-Begleitung eingeräumt wird. Höchstbetrag ist ${kapitalChf(par.buergschaftChf)}; die Bürgschaft lautet auf die Währung der Finanzierung und läuft längstens ${zahlwort(par.buergschaftMonate)} Monate. Die Bürgin ist ein mit FIAON verbundenes Unternehmen und tritt diesem Vertrag für Ziffer 5 bei.`),
+      p(`FIAON hat den Prüfbericht (Anlage) mit seinen offenen Punkten zur Kenntnis genommen und die Bürgschaft gleichwohl freigegeben${par.sonderfreigabe?.datum ? ` (Sonderfreigabe vom ${kapitalTag(par.sonderfreigabe.datum)})` : ""}; die offenen Punkte stehen der Übernahme nicht entgegen.`),
       liste([
-        "die Vergütung nach Ziffer 6 ist bezahlt",
-        "die Identifizierung des Vertreters der Auftraggeberin und der wirtschaftlich Berechtigten ist abgeschlossen, und die Auflagen des Prüfberichts (Anlage) sind erfüllt",
+        "die Vergütung nach Ziffer 6 Absatz 1 ist bezahlt",
+        "die Identifizierung des Vertreters der Auftraggeberin und der wirtschaftlich Berechtigten ist abgeschlossen, und die Unterlagen nach Ziffer 7 liegen vor",
         "die Finanzierung dient dem Plan für die Verwendung der Mittel, den die Auftraggeberin mit dem Unternehmensberater aufgestellt hat",
         "die Bürgin ist zum Zeitpunkt der Übernahme im Register ihres Bundesstaats als aktiv geführt",
-      ], "Die Pflicht zur Übernahme entsteht, sobald alles Folgende vorliegt (aufschiebende Bedingungen):"),
-      p("Für die Bürgschaft verlangen FIAON und die Bürgin keine gesonderte Vergütung, keine Avalprovision und keine Sicherheiten. Ob ein Institut eine Bürgschaft annimmt und welche Form es verlangt, entscheidet allein das Institut; liegen die Bedingungen vor, stimmt die Bürgin eine marktübliche Form ab."),
+      ], "Die Bürgin übernimmt die Bürgschaft, sobald Folgendes vorliegt:"),
+      p("Sicherheiten verlangen FIAON und die Bürgin nicht. Die Vergütung für die Bürgschaft regelt Ziffer 6 Absatz 2. Die Form der Bürgschaft stimmt die Bürgin mit dem Institut ab."),
       p("Nimmt ein Institut die Bürgin in Anspruch, ersetzen die Gesellschaft und die Auftraggeberin der Bürgin als Gesamtschuldner den gezahlten Betrag mit den Kosten der Inanspruchnahme (Rückgriff). Solange die Bürgschaft besteht, teilt die Auftraggeberin FIAON einmal im Quartal den Stand der Finanzierung und der Rückzahlungen in Textform mit."),
     ] },
     { nr: 6, titel: "Vergütung und Fälligkeit", absaetze: [
-      p(`Die Vergütung für die Leistungen nach Ziffer 2 bis 5 im ersten Jahr beträgt einmalig ${kapitalEur(par.preisCents)}. Sie ist mit Vertragsschluss fällig. FIAON stellt die Rechnung bei Annahme dieses Vertrags; sie ist binnen ${zahlwort(par.zahlungszielTage)} Tagen ohne Abzug per Überweisung zu zahlen. FIAON beginnt mit dem Zahlungseingang.`),
+      p(`Die Vergütung für die Leistungen nach Ziffer 2 bis 4 im ersten Jahr beträgt einmalig ${kapitalEur(par.preisCents)}. Sie ist mit Vertragsschluss fällig. FIAON stellt die Rechnung bei Annahme dieses Vertrags; sie ist binnen ${zahlwort(par.zahlungszielTage)} Tagen ohne Abzug per Überweisung zu zahlen. FIAON beginnt mit dem Zahlungseingang.`),
+      p(`Für die Bürgschaft (Ziffer 5) zahlt die Auftraggeberin einmalig ${kapitalEur(par.buergschaftCents)} (Bürgschaftsgebühr), fällig sobald die Bürgin die Bürgschaft gegenüber dem Institut zusagt; FIAON berechnet sie mit Rechnung, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen.`),
+      p(`Mit der Auszahlung der Finanzierung wird einmalig ${kapitalEur(par.auszahlungCents)} fällig; FIAON berechnet sie mit Rechnung, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen, und die Auftraggeberin kann sie aus den ausgezahlten Mitteln zahlen.`),
       p(`Ab dem zweiten Jahr nach der Eintragung betreut FIAON die Gesellschaft für ${kapitalEur(par.jahresCents)} je Jahr (Jahresbetreuung): Registered Agent und US-Geschäftsadresse, US-Telefonnummer, die jährliche US-Meldung durch einen US-CPA aus dem Partnernetz von FIAON, die Jahresmeldung beim Bundesstaat einschließlich der Staatsgebühr und der Pflichtenkalender. Die Jahresbetreuung wird jährlich im Voraus berechnet, jeweils zum Jahrestag der Eintragung, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen. Die Auftraggeberin kann sie mit einer Frist von einem Monat zum Ende eines Betreuungsjahres in Textform beenden.`),
       p("Alle Beträge sind Nettobeträge. Die Leistungen erbringt FIAON aus dem Vereinigten Königreich an ein Unternehmen; die Rechnungen weisen deshalb keine Umsatzsteuer aus. Eine Steuer, die im Sitzstaat der Auftraggeberin auf den Bezug anfällt (in der Schweiz die Bezugsteuer), trägt die Auftraggeberin."),
     ] },
@@ -231,15 +263,15 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
       p("Die Auftraggeberin macht wahre und vollständige Angaben, unterschreibt die vorbereiteten Unterlagen nach Prüfung und teilt Änderungen, die für die Gesellschaft, die Finanzierung oder die Bürgschaft erheblich sind, unverzüglich in Textform mit."),
     ] },
     { nr: 8, titel: "Pflichthinweise", absaetze: [
-      liste([...ANGEBOT_PFLICHTHINWEIS, "Über Konto, Karte, Finanzierung und Rahmen entscheidet allein das jeweilige Institut."], "Die Auftraggeberin nimmt die folgenden Hinweise zur Kenntnis:"),
+      liste([...ANGEBOT_PFLICHTHINWEIS, KAPITAL_PFLICHT_ZUSATZ], "Die Auftraggeberin nimmt die folgenden Hinweise zur Kenntnis:"),
       p("FIAON reicht keine Unterlagen ein, deren Angaben es für unzutreffend hält. Vor Beginn gleicht FIAON die Auftraggeberin, ihren Vertreter und die wirtschaftlich Berechtigten mit den Sanktionslisten der Europäischen Union, der Vereinten Nationen, der Schweiz, des Vereinigten Königreichs und der USA ab."),
     ] },
     { nr: 9, titel: "Laufzeit und Ende", absaetze: [
-      p(`Der Vertrag beginnt mit der Annahme. Die Kapital-Begleitung endet ${monateWort(par.begleitMonate)} nach der Eintragung der Gesellschaft; die Bürgschaft endet nach Ziffer 5, die Jahresbetreuung nach Ziffer 6 Absatz 2.`),
-      p("Das Recht beider Parteien zur fristlosen Kündigung aus wichtigem Grund bleibt unberührt, insbesondere wenn die Auftraggeberin vorsätzlich falsche Angaben macht oder sie, ihr Vertreter oder ein wirtschaftlich Berechtigter auf einer Sanktionsliste geführt wird. Eine bereits übernommene Bürgschaft bleibt davon unberührt; der Rückgriff nach Ziffer 5 Absatz 4 gilt fort."),
+      p(`Der Vertrag beginnt mit der Annahme. Die Kapital-Begleitung endet ${monateWort(par.begleitMonate)} nach der Eintragung der Gesellschaft; die Bürgschaft endet nach Ziffer 5, die Jahresbetreuung nach Ziffer 6 Absatz 4.`),
+      p("Das Recht beider Parteien zur fristlosen Kündigung aus wichtigem Grund bleibt unberührt, insbesondere wenn die Auftraggeberin vorsätzlich falsche Angaben macht oder sie, ihr Vertreter oder ein wirtschaftlich Berechtigter auf einer Sanktionsliste geführt wird. Eine bereits übernommene Bürgschaft bleibt davon unberührt; der Rückgriff nach Ziffer 5 Absatz 5 gilt fort."),
     ] },
     { nr: 10, titel: "Haftung", absaetze: [
-      p("FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen von Instituten und Behörden haftet FIAON nicht; für die Leistungen der Partner haften diese aus ihrem eigenen Mandat."),
+      p("FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen von Behörden haftet FIAON nicht; für das Ergebnis der Finanzierung gilt allein die Garantie nach Ziffer 4; für die Leistungen der Partner haften diese aus ihrem eigenen Mandat."),
     ] },
     { nr: 11, titel: "Vertraulichkeit und Datenschutz", absaetze: [
       p("Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich, auch nach dem Ende des Vertrags. FIAON gibt Unterlagen nur weiter, soweit es die Leistung erfordert: an Behörden, an den Registered Agent, an die Partner aus Ziffer 3, an die Bürgin und an Institute, bei denen ein Antrag gestellt wird."),
@@ -333,21 +365,37 @@ export function kapitalVertragInhalt(d: KapitalDaten): { anker: string; marke: s
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KapitalSeite {
   auftakt: { auge: string; gruss: string; zeile: string; weiter: string };
-  hero: { auge: string; titel: string; lead: string; nutzen: string[]; betrag: string; umrechnung: string; kurs: string; siegel: string; staat: string };
+  hero: { auge: string; titel: string; lead: string; nutzen: string[]; betrag: string; umrechnung: string; kurs: string; siegel: string; staat: string;
+    saeulen: { titel: string; wert: string }[]; garantie: string };
   llc: typeof BEGLEIT_LLC_TEXTE;
   ablauf: { titel: string; sub: string; liste: FirmaPhase[] };
   team: { titel: string; sub: string; karten: FirmaLeistung[] };
-  buergschaft: { auge: string; titel: string; lead: string; betrag: string; punkte: { titel: string; text: string }[]; bedingungenTitel: string; bedingungen: string[]; fein: string };
+  buergschaft: { auge: string; titel: string; lead: string; betrag: string; freigabe: string; punkte: { titel: string; text: string }[]; bedingungenTitel: string; bedingungen: string[]; fein: string };
   pruefbericht: { titel: string; sub: string; download: string; hinweis: string };
-  investition: { titel: string; sub: string; preis: string; preisZeile: string; jahr: string; jahrZeile: string; inklusive: string[]; fein: string };
+  sonderfreigabe: FirmaSonderfreigabe | null;
+  investition: { titel: string; sub: string; preis: string; preisZeile: string; posten: { betrag: string; titel: string; text: string }[]; inklusive: string[]; garantie: string; fein: string };
   fragen: { titel: string; sub: string; liste: FirmaFrage[]; sichtbar: number };
-  ansprechpartner: { titel: string; sub: string };
+  ansprechpartner: { titel: string; sub: string; teamTitel: string; teamSub: string; team: { name: string; rolle: string; foto: string | null; initialen: string }[] };
   vertrag: { titel: string; sub: string; dokument: string; unterzeile: string; inhalt: { anker: string; marke: string; titel: string }[] };
   pflicht: string[];
+}
+function initialen(name: string): string {
+  return name.replace(/^(Dr\.|Mag\.|Prof\.)\s+/g, "").split(/\s+/).filter(Boolean).map((t) => t[0]).join("").slice(0, 2).toUpperCase();
+}
+/** Das Team aus den Angebotsdaten: ein Foto NUR als „haus:<kürzel>“ eines echten Porträts, sonst Monogramm (wie E-301). */
+export function kapitalTeam(par: KapitalParameter): { name: string; rolle: string; foto: string | null; initialen: string }[] {
+  return par.team.map((t) => {
+    const f = String(t.foto ?? "");
+    const k = f.startsWith("haus:") ? f.slice(5) : "";
+    const foto = k && /^[a-z][a-z0-9-]{1,30}$/.test(k) && !portraitMitKi(k) ? portraitUrl(k) : null;
+    return { name: t.name, rolle: t.rolle, foto, initialen: initialen(t.name) };
+  });
 }
 export function kapitalSeite(d: KapitalDaten): KapitalSeite {
   const par = d.parameter; const k = d.kunde;
   const betrag = kapitalChf(par.kapitalChf);
+  const karten = `${kapitalUsd(par.kartenVonUsd)} bis ${kapitalUsd(par.kartenBisUsd)}`;
+  const garantie = par.garantieWochen > 0;
   return {
     auftakt: {
       auge: "FIAON Global · Persönlich für Sie",
@@ -358,24 +406,29 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
     hero: {
       auge: k.firma.marke || k.firma.name,
       titel: "Ihre US-Gesellschaft. Ihr Kapital. Ein Team, das den Weg kennt.",
-      lead: `Wir gründen Ihre LLC in ${par.bundesstaat}, stellen Ihnen Steuerberater, Anwalt und Unternehmensberater zur Seite und bereiten jeden Antrag vollständig vor. Und damit ein Institut leichter Ja sagt, bürgt unsere US-Partnergesellschaft für Ihre Finanzierung.`,
-      nutzen: ["Eigene US-Gesellschaft — in rund zwei Wochen", "Steuerberater, Anwalt und Unternehmensberater inklusive", `Bürgschaft über ${kapitalChf(par.buergschaftChf)} — ohne Sicherheiten`],
+      lead: `Wir gründen Ihre LLC in ${par.bundesstaat}, stellen Ihnen Steuerberater, Anwalt und Unternehmensberater zur Seite und bereiten jeden Antrag vollständig vor. Und damit Ihre Finanzierung ${garantie ? "garantiert " : ""}über die Bühne geht, bürgen wir mit unserer US-Partnergesellschaft für Sie.`,
+      nutzen: ["Ihre US-Gesellschaft — in der ersten Woche", "Steuerberater, Anwalt und Unternehmensberater inklusive", "Auszahlung in Woche vier bis fünf — mit unserer Bürgschaft"],
       betrag,
-      umrechnung: `rund ${kapitalUsd(par.kapitalUsd)}`,
+      umrechnung: `≈ ${kapitalUsd(par.kapitalUsd)}`,
       kurs: par.kursText,
-      siegel: "Unser gemeinsamer Kapitalplan",
+      siegel: "Ihr Funding",
       staat: par.bundesstaat,
+      saeulen: [
+        { titel: "Auszahlung", wert: "in Woche vier bis fünf" },
+        { titel: "Bürgschaft", wert: kapitalChf(par.buergschaftChf) },
+        { titel: "Dazu Kreditkarten", wert: `je ${kapitalUsd(par.kartenVonUsd)}–${kapitalUsd(par.kartenBisUsd).replace(" USD", "")} USD` },
+      ],
+      garantie: garantie ? "Mit Geld-zurück-Garantie im Vertrag" : "",
     },
     llc: BEGLEIT_LLC_TEXTE,
     ablauf: {
       titel: "Ihr Weg",
-      sub: `In fünf Schritten zu ${betrag} für Ihr Unternehmen.`,
+      sub: `In fünf Wochen zu ${betrag} für Ihr Unternehmen.`,
       liste: [
-        { nr: 1, titel: "Ihre LLC entsteht", dauer: "Woche eins bis zwei", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, Operating Agreement vom Anwalt, Registered Agent, US-Adresse und Steuernummer (EIN).` },
-        { nr: 2, titel: "Struktur geprüft", dauer: "vor der Gründung", text: "Unser Steuerberater prüft, wie Gesellschaft und Beteiligung in den USA und in der Schweiz behandelt werden — schriftlich, bevor wir anmelden." },
-        { nr: 3, titel: "Kapitalplan", dauer: "Woche zwei bis vier", text: "Mit dem Unternehmensberater entsteht Ihr Plan: wofür die Mittel sind, wie sie zurückfließen und welches Institut passt." },
-        { nr: 4, titel: "Anträge mit Bürgschaft", dauer: "ab Monat zwei", text: `Jeder Antrag vollständig vorbereitet — mit der Bürgschaft unserer US-Partnergesellschaft über ${kapitalChf(par.buergschaftChf)} im Rücken.` },
-        { nr: 5, titel: "Ihr Kapital", dauer: `im Verlauf von ${monateWort(par.begleitMonate)}`, text: "Wir begleiten jede Rückfrage bis zur Entscheidung. Der Anwalt sieht den Finanzierungsvertrag, bevor Sie unterschreiben.", abzeichen: betrag },
+        { nr: 1, titel: "Ihre LLC entsteht", dauer: "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen — Registered Agent, US-Adresse und Telefon inklusive.` },
+        { nr: 2, titel: "Alle Dokumente", dauer: "Woche zwei", text: "Operating Agreement vom Anwalt, Steuernummer (EIN), Prüfung der Struktur durch den Steuerberater und Ihr Kapitalplan mit dem Unternehmensberater." },
+        { nr: 3, titel: "Firmenkonto und Kreditkarten", dauer: "Woche drei", text: `Ihr US-Geschäftskonto — dazu Business-Kreditkarten von Herausgebern wie ${par.kartenHerausgeber}, mit Rahmen von ${karten} je Karte, zusätzlich zu Ihrer Finanzierung.` },
+        { nr: 4, titel: "Finanzierung und Auszahlung", dauer: "Woche vier bis fünf", text: `Antrag mit unserer Bürgschaft über ${kapitalChf(par.buergschaftChf)} im Rücken — der Anwalt sieht den Vertrag, bevor Sie unterschreiben. Dann wird ausgezahlt.`, abzeichen: betrag },
       ],
     },
     team: {
@@ -383,67 +436,82 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
       sub: "Drei Fachleute, ein Ansprechpartner — alle Honorare sind im Preis enthalten.",
       karten: [
         { schluessel: "strategie", titel: "Steuerberater", text: "Damit Ihre Struktur in den USA und in der Schweiz sauber ist.", punkte: ["Prüfung vor der Gründung", "Doppelbesteuerung und Meldepflichten", "Schriftliche Zusammenfassung"], mehr: ["Erste US-Jahresmeldung durch einen US-CPA"] },
-        { schluessel: "gesellschaft", titel: "Anwalt", text: "Damit jedes Dokument hält, was es verspricht.", punkte: ["Operating Agreement Ihrer LLC", "Durchsicht der Finanzierungsverträge", "Vor jeder Unterschrift"] },
-        { schluessel: "kapital", titel: "Unternehmensberater", text: "Damit Ihr Antrag überzeugt — und die Mittel wirken.", punkte: ["Kapitalplan und Mittelverwendung", "Unterlagen für die Institute", "Vorbereitung der Gespräche"] },
+        { schluessel: "gesellschaft", titel: "Anwalt", text: "Damit jedes Dokument hält, was es verspricht.", punkte: ["Operating Agreement Ihrer LLC", "Durchsicht des Finanzierungsvertrags", "Vor jeder Unterschrift"] },
+        { schluessel: "kapital", titel: "Unternehmensberater", text: "Damit Ihr Antrag überzeugt — und die Mittel wirken.", punkte: ["Kapitalplan und Mittelverwendung", "Unterlagen für das Institut", "Vorbereitung der Gespräche"] },
       ],
     },
     buergschaft: {
       auge: "Die Bürgschaft",
       titel: "Wir stehen mit Ihnen ein.",
-      lead: "Ein Institut entscheidet leichter, wenn jemand mitträgt. Unsere US-Partnergesellschaft übernimmt auf Anforderung des Instituts eine Bürgschaft für Ihre Finanzierung.",
+      lead: `Unsere US-Partnergesellschaft bürgt gegenüber dem Institut für Ihre Finanzierung — damit die ${betrag} schnell und sicher auf Ihrem Konto ankommen.`,
       betrag: kapitalChf(par.buergschaftChf),
+      freigabe: par.sonderfreigabe ? `Persönlich freigegeben von ${par.sonderfreigabe.unterzeichner}` : "",
       punkte: [
         { titel: "Höchstbetrag", text: `${kapitalChf(par.buergschaftChf)} in der Währung Ihrer Finanzierung — kein Kursrisiko.` },
-        { titel: "Ohne Sicherheiten", text: "Keine Avalprovision, keine Sicherheiten, keine gesonderte Vergütung." },
+        { titel: "Ohne Sicherheiten", text: `Einmalig ${kapitalEur(par.buergschaftCents)}, sobald die Bürgschaft steht — keine Sicherheiten, keine laufende Gebühr.` },
         { titel: "Klare Laufzeit", text: `Längstens ${zahlwort(par.buergschaftMonate)} Monate.` },
       ],
-      bedingungenTitel: "Wann die Bürgschaft greift",
+      bedingungenTitel: "So einfach geht es",
       bedingungen: [
-        "Ihre Rechnung ist bezahlt",
-        "Identifizierung und die Auflagen des Prüfberichts sind erfüllt",
-        "die Finanzierung folgt Ihrem Plan für die Mittel",
-        "unsere Partnergesellschaft ist im US-Register aktiv",
+        "Ihre erste Rechnung ist bezahlt",
+        "Pass und Unterlagen liegen vor",
+        "Ihr Plan für die Mittel steht",
+        "wir sagen die Bürgschaft dem Institut zu",
       ],
-      fein: "Zahlt die Bürgin an das Institut, ersetzen Gesellschaft und Auftraggeberin ihr den Betrag — so steht es im Gesetz, und so steht es offen im Vertrag (Ziffer 5).",
+      fein: "Zahlt die Bürgin an das Institut, ersetzen Gesellschaft und Auftraggeberin ihr den Betrag — so ist es bei jeder Bürgschaft, und so steht es offen im Vertrag (Ziffer 5).",
     },
     pruefbericht: {
       titel: "Ihre Compliance-Prüfung",
-      sub: "Bevor wir für Sie bürgen, prüfen wir jedes Unternehmen aus öffentlichen Quellen — hier ist Ihr Ergebnis.",
+      sub: "Bevor wir bürgen, prüfen wir jedes Unternehmen aus öffentlichen Quellen. Ihr Bericht zeigt offene Punkte — Herr Schwarzott hat dennoch zugestimmt, denn die Finanzierung ist im Verhältnis zu Ihrem Geschäft klein und Ihr Plan überzeugt.",
       download: "Prüfbericht als PDF",
-      hinweis: "Der Prüfbericht ist Anlage Ihres Vertrags. Aussagen mit Quelle und Datum; was öffentlich nicht prüfbar war, steht als Auflage darin.",
+      hinweis: "Der Prüfbericht ist Anlage Ihres Vertrags. Die offenen Punkte reichen Sie mit Ihren Unterlagen nach — sie stehen Ihrer Bürgschaft nicht im Weg.",
     },
+    sonderfreigabe: par.sonderfreigabe,
     investition: {
       titel: "Ihre Investition",
-      sub: "Ein Festpreis für das erste Jahr — alles Genannte inklusive.",
+      sub: "Ein Festpreis für das ganze erste Jahr — und zwei Beträge erst dann, wenn es für Sie arbeitet.",
       preis: kapitalEur(par.preisCents),
-      preisZeile: "einmalig, netto — fällig mit dem Auftrag",
-      jahr: kapitalEur(par.jahresCents),
-      jahrZeile: "je Jahr ab dem zweiten Jahr — jährlich kündbar",
+      preisZeile: "für das ganze erste Jahr, alles inklusive — fällig mit dem Auftrag",
+      posten: [
+        { betrag: kapitalEur(par.buergschaftCents), titel: "Bürgschaft", text: "einmalig, sobald die Bürgschaft für Sie steht" },
+        { betrag: kapitalEur(par.auszahlungCents), titel: "Bei Auszahlung", text: "erst wenn das Geld da ist — zahlbar aus der Finanzierung" },
+        { betrag: kapitalEur(par.jahresCents), titel: "Ab dem zweiten Jahr", text: "Jahresbetreuung Ihrer LLC, jährlich kündbar" },
+      ],
       inklusive: [
         "Gründung Ihrer LLC mit Staatsgebühr und Operating Agreement",
         "Registered Agent, US-Adresse und Telefon im ersten Jahr",
-        "Steuernummer (EIN) und Begleitung zum US-Geschäftskonto",
+        "Steuernummer (EIN), US-Geschäftskonto und Kreditkarten-Anträge",
         "Steuerberater, Anwalt und Unternehmensberater",
-        `Kapital-Begleitung ${monateWort(par.begleitMonate)} lang`,
-        `Bürgschaft über ${kapitalChf(par.buergschaftChf)}`,
+        "Begleitung bis zur Auszahlung und das ganze erste Jahr",
+        "ein fester Ansprechpartner",
       ],
-      fein: "Rechnung ohne Umsatzsteuer (Leistung aus London an Ihr Unternehmen; in der Schweiz Bezugsteuer). Überweisung, keine Lastschrift.",
+      garantie: garantie ? `Kommt Ihre Finanzierung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.` : "",
+      fein: "Alle Beträge netto, Rechnung ohne Umsatzsteuer (Leistung aus London an Ihr Unternehmen; in der Schweiz Bezugsteuer). Überweisung, keine Lastschrift.",
     },
     fragen: {
       titel: "Fragen & Antworten",
       sub: "Kurz und ehrlich.",
       sichtbar: 6,
       liste: [
-        { frage: "Bekomme ich die 50.000 CHF sicher?", antwort: ["Über jede Finanzierung entscheidet das Institut. Wir sorgen dafür, dass Ihr Antrag vollständig, gut begründet und mit unserer Bürgschaft kommt — das ist der stärkste Weg, den wir kennen."] },
-        { frage: "Was kostet mich die Bürgschaft?", antwort: ["Nichts extra: keine Avalprovision, keine Sicherheiten. Nur wenn das Institut die Bürgin tatsächlich in Anspruch nimmt, ersetzen Sie ihr den Betrag — wie bei jeder Bürgschaft."] },
+        { frage: `Bekomme ich die ${betrag} sicher?`, antwort: [garantie
+          ? `Ja. Wir sind uns so sicher, dass es als Garantie in Ihrem Vertrag steht: Kommt Ihre Finanzierung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.`
+          : "Wir bereiten Ihren Antrag vollständig vor und stehen mit unserer Bürgschaft ein."] },
+        { frage: "Wann ist das Geld auf meinem Konto?", antwort: ["Unser Plan: Woche eins die LLC, Woche zwei alle Dokumente, Woche drei Konto und Kreditkarten, Woche vier bis fünf Finanzierung und Auszahlung."] },
+        { frage: "Was kostet mich die Bürgschaft?", antwort: [`Einmalig ${kapitalEur(par.buergschaftCents)}, sobald sie steht — ohne Sicherheiten. Nur wenn das Institut die Bürgin tatsächlich in Anspruch nimmt, ersetzen Sie ihr den Betrag, wie bei jeder Bürgschaft.`] },
+        { frage: "Und die Kreditkarten?", antwort: [`Kommen dazu: Business-Kreditkarten von Herausgebern wie ${par.kartenHerausgeber}, mit Rahmen von ${karten} je Karte — zusätzlich zu Ihrer Finanzierung.`] },
         { frage: "Wem gehört die LLC?", antwort: ["Ihnen: Gesellschafterin wird Ihr Unternehmen, oder — wenn der Steuerberater das empfiehlt und Sie es wollen — Sie persönlich. FIAON erwirbt keine Anteile."] },
         { frage: "Was ist mit den Steuern in der Schweiz?", antwort: ["Genau dafür prüft unser Steuerberater die Struktur vor der Gründung — einschließlich Doppelbesteuerungsabkommen und Meldepflichten. Sie bekommen das Ergebnis schriftlich."] },
-        { frage: "Wie schnell geht es los?", antwort: ["Mit Ihrem Zahlungseingang. Liegen Pass, Handelsregister- und Betreibungsauszug vor, reichen wir die Anmeldung binnen fünf Werktagen ein."] },
-        { frage: "Was passiert nach dem ersten Jahr?", antwort: ["Die Jahresbetreuung für 699 € hält Ihre LLC in Ordnung: Registered Agent, Adresse, Jahresmeldungen, Staatsgebühr. Sie können sie jährlich beenden."] },
-        { frage: "Warum eine Compliance-Prüfung?", antwort: ["Weil wir mit unserer Bürgschaft einstehen. Die Prüfung schützt beide Seiten — und Sie sehen sie offen, Bereich für Bereich."] },
+        { frage: "Mein Prüfbericht zeigt offene Punkte — ist das ein Problem?", antwort: ["Nein. Herr Schwarzott hat die Bürgschaft persönlich freigegeben. Die Nachweise reichen Sie mit Ihren Unterlagen nach."] },
+        { frage: "Was passiert nach dem ersten Jahr?", antwort: [`Die Jahresbetreuung für ${kapitalEur(par.jahresCents)} hält Ihre LLC in Ordnung: Registered Agent, Adresse, Jahresmeldungen, Staatsgebühr. Sie können sie jährlich beenden.`] },
       ],
     },
-    ansprechpartner: { titel: "Ihre Ansprechpartner", sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage und danach bei jedem Schritt." },
+    ansprechpartner: {
+      titel: "Ihre Ansprechpartner",
+      sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage und danach bei jedem Schritt.",
+      teamTitel: "Ihr Team",
+      teamSub: "Diese Menschen arbeiten an Ihrem Auftrag mit.",
+      team: kapitalTeam(par),
+    },
     vertrag: {
       titel: "Ihr Vertrag",
       sub: "Zwölf klare Ziffern und der Prüfbericht als Anlage — derselbe Text wie im PDF.",
@@ -451,7 +519,7 @@ export function kapitalSeite(d: KapitalDaten): KapitalSeite {
       unterzeile: kapitalVertragUnterzeile(d),
       inhalt: kapitalVertragInhalt(d),
     },
-    pflicht: [...ANGEBOT_PFLICHTHINWEIS, "Über Konto, Karte, Finanzierung und Rahmen entscheidet allein das jeweilige Institut."],
+    pflicht: [...ANGEBOT_PFLICHTHINWEIS, KAPITAL_PFLICHT_ZUSATZ],
   };
 }
 
@@ -465,9 +533,11 @@ export function kapitalBestellUebersicht(d: KapitalDaten): { titel: string; zeil
     zeilen: [
       { label: "Vertragspartner", wert: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}` },
       { label: "Auftraggeberin", wert: firmaZeile(d.kunde) },
-      { label: "Leistung", wert: `Gründung einer LLC in ${par.bundesstaat}, Steuerberater, Anwalt und Unternehmensberater, Kapital-Begleitung ${monateWort(par.begleitMonate)} lang (Plan: ${kapitalChf(par.kapitalChf)})` },
-      { label: "Bürgschaft", wert: `${d.buergin.name}, auf Anforderung eines Instituts, Höchstbetrag ${kapitalChf(par.buergschaftChf)}, längstens ${zahlwort(par.buergschaftMonate)} Monate, ohne Sicherheiten — unter den Bedingungen der Ziffer 5` },
+      { label: "Leistung", wert: `Gründung einer LLC in ${par.bundesstaat}, Steuerberater, Anwalt und Unternehmensberater, Finanzierung über ${kapitalChf(par.kapitalChf)} mit Begleitung bis zur Auszahlung, Business-Kreditkarten dazu` },
+      ...(par.garantieWochen ? [{ label: "Garantie", wert: `Finanzierung über ${kapitalChf(par.kapitalChf)} binnen ${zahlwort(par.garantieWochen)} Wochen ab Auftragserteilung — sonst alles Gezahlte zurück (Ziffer 4)` }] : []),
+      { label: "Bürgschaft", wert: `${d.buergin.name}, Höchstbetrag ${kapitalChf(par.buergschaftChf)}, längstens ${zahlwort(par.buergschaftMonate)} Monate, ohne Sicherheiten (Ziffer 5)` },
       { label: "Vergütung", wert: `${kapitalEur(par.preisCents)} einmalig, netto — fällig mit Vertragsschluss, Rechnung sofort, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen` },
+      { label: "Später", wert: `${kapitalEur(par.buergschaftCents)} Bürgschaftsgebühr, sobald die Bürgschaft steht · ${kapitalEur(par.auszahlungCents)} mit der Auszahlung der Finanzierung — beide netto` },
       { label: "Ab dem zweiten Jahr", wert: `Jahresbetreuung ${kapitalEur(par.jahresCents)} je Jahr, netto — jährlich im Voraus, mit einem Monat zum Ende des Betreuungsjahres kündbar` },
       { label: "Umsatzsteuer", wert: "Rechnungen ohne Umsatzsteuer (Leistung aus London an ein Unternehmen; in der Schweiz Bezugsteuer beim Empfänger)" },
       { label: "Beginn", wert: "mit Ihrem Zahlungseingang" },
@@ -499,7 +569,7 @@ export function kapitalAnnahmeTexte(d: KapitalDaten): KapitalAnnahmeTexte {
       fehltName: `Bitte tippen Sie Ihren Namen mit Nachnamen (${String(d.kunde.vertretung.nachname ?? "").trim()}).`,
     },
     knopf: KAPITAL_KNOPF,
-    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig wird heute ${kapitalEur(par.preisCents)} (netto, Rechnung sofort per E-Mail, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen); die Jahresbetreuung erst ab dem zweiten Jahr.`,
+    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig wird heute nur ${kapitalEur(par.preisCents)} (netto, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen); Bürgschaftsgebühr und Vergütung bei Auszahlung erst, wenn es so weit ist.`,
     gesperrt: "Dieses Angebot wird gerade vervollständigt. Ihr Ansprechpartner gibt Ihnen Bescheid, sobald Sie es annehmen können.",
   };
 }
@@ -539,6 +609,22 @@ export function kapitalParameterAus(roh: Partial<KapitalParameter> | null | unde
     bundesstaat: text("bundesstaat", 40),
     zahlungszielTage: zahl("zahlungszielTage", 0, 30),
     ansprechpartner: ap.length ? ap : basis.ansprechpartner,
+    buergschaftCents: zahl("buergschaftCents", 0, 10_000_000),
+    auszahlungCents: zahl("auszahlungCents", 0, 10_000_000),
+    garantieWochen: zahl("garantieWochen", 0, 52),
+    kartenVonUsd: zahl("kartenVonUsd", 0, 10_000_000),
+    kartenBisUsd: zahl("kartenBisUsd", 0, 10_000_000),
+    kartenHerausgeber: text("kartenHerausgeber", 120),
+    team: Array.isArray(r.team)
+      ? (r.team as any[]).filter((t) => t && t.bestaetigt !== false).slice(0, 20)
+        .map((t) => ({ name: String(t.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80), rolle: String(t.rolle ?? "").replace(/\s+/g, " ").trim().slice(0, 100), foto: typeof t.foto === "string" ? t.foto.slice(0, 40) : null }))
+        .filter((t) => t.name && t.rolle)
+      : basis.team,
+    sonderfreigabe: r.sonderfreigabe && typeof r.sonderfreigabe === "object" && String((r.sonderfreigabe as any).text ?? "").trim()
+      ? { titel: String((r.sonderfreigabe as any).titel ?? "Sonderfreigabe").slice(0, 80), text: String((r.sonderfreigabe as any).text).slice(0, 900),
+          unterzeichner: String((r.sonderfreigabe as any).unterzeichner ?? "").slice(0, 80), funktion: String((r.sonderfreigabe as any).funktion ?? "").slice(0, 120),
+          datum: /^\d{4}-\d{2}-\d{2}$/.test(String((r.sonderfreigabe as any).datum ?? "")) ? String((r.sonderfreigabe as any).datum) : "" }
+      : basis.sonderfreigabe,
   };
 }
 export function kapitalParameterFehler(p: KapitalParameter): string | null {

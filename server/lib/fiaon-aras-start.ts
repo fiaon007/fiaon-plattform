@@ -11,7 +11,7 @@
 //      sie da ist, und ohne sie fängt der Start das „nicht gefunden“ ab. Kein
 //      Handgriff beim Zusammenführen; die Probe-Bedienung (/chef/s/aras-probe) läuft
 //      ohne den Raum über die eigenen Routen /chef/aras/probe/*.
-//   4. die Takte: aras_plan_fuellen (5 Min.), aras_waehler (20 s), aras_nachbereitung (1 Min.)
+//   4. die Takte: aras_plan_fuellen (5 Min.), aras_waehler (20 s), aras_nachbereitung (1 Min.), aras_stufe_ampel (30 Min.)
 //      Standard AUS: ohne aras_an = an und Stufe ≥ 1 wählt der Takt keinen Kunden.
 // Dazu der geordnete Abschied beim Herunterfahren (Deploy): laufende Gespräche
 // enden mit einem Satz statt mitten im Wort (alleSauberBeenden).
@@ -59,6 +59,8 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   tageslauf("aras_plan_fuellen", async () => await planFuellen(), 5 * 60_000, { beimStartNach: 60_000 });
   tageslauf("aras_waehler", async () => (await waehlerTakt()).gewaehlt > 0, 20_000, { beimStartNach: 45_000, nurMitErgebnis: true });
   tageslauf("aras_nachbereitung", async () => (await haengendeSchliessen()) > 0, 60_000, { beimStartNach: 90_000, nurMitErgebnis: true });
+  // Scheibe 3 Teil 2: die Stufen-Ampel (Rot → eine Stufe zurück + Karte; Grün über Tage → eine hoch), alle 30 Minuten.
+  tageslauf("aras_stufe_ampel", async () => (await (await import("./fiaon-aras-stufe")).stufeAutomatik()).geaendert, 30 * 60_000, { beimStartNach: 150_000, nurMitErgebnis: true });
 
   console.log("[ARAS] Kern gestartet: Twilio-Rückrufe, Ton-Strom, Probe-Routen, Takte registriert.");
 }

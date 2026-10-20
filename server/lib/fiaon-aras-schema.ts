@@ -107,6 +107,17 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
 
+      // Scheibe 3 Teil 2: die Stufen-Ampel je Tag (Werte, Farbe, Stufe des Tages) und die Entscheidung — höchstens EINE je Tag,
+      // höchstens EINE Karte je Tag an Justin (karte_am).
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_aras_stufe_tag (
+          tag DATE PRIMARY KEY,
+          stufe SMALLINT NOT NULL,
+          werte JSONB NOT NULL, farbe TEXT NOT NULL, punkte JSONB NOT NULL,
+          entscheidung TEXT, entscheidung_am TIMESTAMPTZ, karte_am TIMESTAMPTZ,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
+
       await lauf`
         CREATE TABLE IF NOT EXISTS fiaon_aras_werkzeug (
           id BIGSERIAL PRIMARY KEY,

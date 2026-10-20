@@ -86,6 +86,15 @@ router.post("/chef/aras/probe/nummer", wache, async (req: ChefRequest, res: Resp
   } catch (e) { fehler(res, 400, text(e)); }
 });
 
+/** Scheibe 3 Teil 2: die Stufen-Ampel der letzten 14 Tage (Werte je Tag, Farbe, Entscheidung) — zum Anzeigen im KI-Team. */
+router.get("/chef/aras/stufe", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { stufeLage } = await import("../lib/fiaon-aras-stufe");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...(await stufeLage()) });
+  } catch (e) { fehler(res, 500, text(e)); }
+});
+
 /** Nur diese Schlüssel setzt die Probe-Seite — alles andere gehört in die Einstellungen des KI-Raums. */
 const PROBE_SCHLUESSEL = new Set<string>([...PROBE_TON_SCHLUESSEL, "aras_stimme", "aras_tag_euro"]);
 router.post("/chef/aras/probe/einstellung", wache, async (req: ChefRequest, res: Response) => {

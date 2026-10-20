@@ -136,6 +136,43 @@ titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Le
   ok("Unsinnige Stufe (7, -1, „x“) → nie mehr als 3, nie weniger als 0", stufenGrenzen({ stufe: 7, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 3 && stufenGrenzen({ stufe: -1, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0 && stufenGrenzen({ stufe: Number("x"), parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0);
 }
 
+titel("7c. STUFEN-AMPEL (Scheibe 3 Teil 2): Werte mit Rot-Probe, hoch nur nach 3/5 grünen Tagen, nie aus 0, nie über 3");
+{
+  const { tagesAmpel, stufenEntscheidung, tagAbgeschlossen, tagMinus, fensterTage } = await import("../shared/fiaon-aras-stufe");
+  type TW = Parameters<typeof tagesAmpel>[0];
+  const tag = (o: Partial<TW> = {}): TW => ({
+    tag: "2026-10-10", stufe: 1, versuche: 20, gespraeche: 8,
+    je: { rate: { versuche: 12, erreicht: 4, zahlungen48: 1 }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: 2 } },
+    kostenEuro: 6, zahlungen48: 3, sekundenGespraeche: 8 * 180, abbrueche: 0, uebergaben: 1, pruefFehler: 0, ...o,
+  });
+  const gruen = tagesAmpel(tag());
+  ok("Ein guter Tag ist grün (Erreicht ≥ 25 %, Zahlung ≥ 20/30 %, 2 € je Zahlung, 3 Minuten, wenig Übergaben)", gruen.farbe === "gruen", JSON.stringify(gruen.punkte.filter((x) => x.farbe !== "gruen")));
+  ok("ROT-PROBE: zwei Abbrüche / „nicht mehr anrufen“ (≥ 3 %) → rot", tagesAmpel(tag({ abbrueche: 2 })).farbe === "rot");
+  ok("Ein einzelner Abbruch ist noch nicht rot (erst ab zwei Fällen)", tagesAmpel(tag({ abbrueche: 1 })).farbe !== "rot");
+  ok("ROT-PROBE: ein harter Prüf-Fehler bei 8 Gesprächen (≥ 2 %) → rot", tagesAmpel(tag({ pruefFehler: 1 })).farbe === "rot");
+  ok("Gelb: Erreicht-Quote Rate unter 25 %", tagesAmpel(tag({ je: { rate: { versuche: 12, erreicht: 2, zahlungen48: 1 }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: 2 } } })).farbe === "gelb");
+  ok("Gelb: Zahlung binnen 48 h bei Stufe A unter 30 %", tagesAmpel(tag({ je: { rate: { versuche: 12, erreicht: 4, zahlungen48: 1 }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: 1 } } })).farbe === "gelb");
+  ok("Gelb: Übergaben ab 30 %", tagesAmpel(tag({ uebergaben: 3 })).farbe === "gelb");
+  ok("Gelb: Kosten je Zahlung ab 8 €", tagesAmpel(tag({ kostenEuro: 30 })).farbe === "gelb");
+  ok("Gelb: Minuten je Gespräch außerhalb 2–5", tagesAmpel(tag({ sekundenGespraeche: 8 * 30 })).farbe === "gelb");
+  ok("Grau: ohne Kundenanrufe", tagesAmpel(tag({ versuche: 0, gespraeche: 0, je: {} })).farbe === "leer");
+  ok("Zahlungen noch nicht messbar (jünger als 48 h) → grau, nicht gelb", tagesAmpel(tag({ zahlungen48: null, je: { rate: { versuche: 12, erreicht: 4, zahlungen48: null }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: null } } })).farbe === "gruen");
+  ok("Fenster: je ein Abbruch an zwei Tagen → zusammen rot", tagesAmpel(tag({ abbrueche: 1 }), [tag({ abbrueche: 1 }), tag({ tag: "2026-10-09", abbrueche: 1 })]).farbe === "rot");
+  const T = (n: number, farbe: "gruen" | "gelb" | "rot" | "leer", stufe = 1, abgeschlossen = true) => ({ tag: tagMinus("2026-10-20", n), stufe, farbe, versuche: farbe === "leer" ? 0 : 20, abgeschlossen });
+  const frisch = [T(0, "gruen", 1, false), T(1, "gruen", 1, false), T(2, "gruen", 1, false)];
+  ok("ROT-PROBE: Rot → eine Stufe zurück (2 → 1 und 1 → 0)", stufenEntscheidung({ stufe: 2, auto: true, rotJetzt: true, tage: [] }).neu === 1 && stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: true, tage: [] }).neu === 0);
+  ok("3 grüne, abgeschlossene Tage in Stufe 1 → Stufe 2", stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: false, tage: [...frisch, T(3, "gruen"), T(4, "gruen"), T(5, "gruen")] }).neu === 2);
+  ok("Zwei grüne reichen nicht; ein gelber Tag bricht die Folge", stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: false, tage: [...frisch, T(3, "gruen"), T(4, "gruen")] }).neu === null && stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: false, tage: [...frisch, T(3, "gruen"), T(4, "gelb"), T(5, "gruen"), T(6, "gruen")] }).neu === null);
+  ok("Junge Tage (Zahlungen noch offen) zählen nicht mit", stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: false, tage: [T(0, "gruen", 1, false), T(1, "gruen", 1, false), T(2, "gruen", 1, false), T(3, "gruen")] }).neu === null);
+  ok("Stufe 2 → 3 erst nach 5 grünen Tagen", stufenEntscheidung({ stufe: 2, auto: true, rotJetzt: false, tage: [3, 4, 5, 6].map((n) => T(n, "gruen", 2)) }).neu === null && stufenEntscheidung({ stufe: 2, auto: true, rotJetzt: false, tage: [3, 4, 5, 6, 7].map((n) => T(n, "gruen", 2)) }).neu === 3);
+  ok("ROT-PROBE: nie aus Stufe 0 hoch — auch nach zehn grünen Tagen", stufenEntscheidung({ stufe: 0, auto: true, rotJetzt: false, tage: Array.from({ length: 10 }, (_, n) => T(n + 3, "gruen", 0)) }).neu === null);
+  ok("ROT-PROBE: nie über 3 — auch nach zehn grünen Tagen in Stufe 3", stufenEntscheidung({ stufe: 3, auto: true, rotJetzt: false, tage: Array.from({ length: 10 }, (_, n) => T(n + 3, "gruen", 3)) }).neu === null);
+  ok("Tage aus einer anderen Stufe zählen nicht", stufenEntscheidung({ stufe: 2, auto: true, rotJetzt: false, tage: [T(3, "gruen", 2), T(4, "gruen", 2), T(5, "gruen", 1), T(6, "gruen", 1), T(7, "gruen", 1)] }).neu === null);
+  ok("Ein Tag ohne Anrufe (Sonntag) bricht die Folge nicht und zählt nicht", stufenEntscheidung({ stufe: 1, auto: true, rotJetzt: false, tage: [T(3, "gruen"), T(4, "leer"), T(5, "gruen"), T(6, "gruen")] }).neu === 2);
+  ok("Automatik aus: weder hoch noch zurück", stufenEntscheidung({ stufe: 2, auto: false, rotJetzt: true, tage: [] }).neu === null && stufenEntscheidung({ stufe: 1, auto: false, rotJetzt: false, tage: [3, 4, 5].map((n) => T(n, "gruen")) }).neu === null);
+  ok("Abgeschlossen = Tag + 3 ≤ heute; Fenster Stufe 1 drei Tage, sonst fünf", tagAbgeschlossen("2026-10-17", "2026-10-20") && !tagAbgeschlossen("2026-10-18", "2026-10-20") && fensterTage(1) === 3 && fensterTage(2) === 5 && fensterTage(3) === 5);
+}
+
 titel("8. EINSTELLUNGEN: VORGABE, GRENZE, ERLAUBNISLISTE");
 ok("Jeder Schlüssel hat Vorgabe und Satz", Object.entries(ARAS_SCHLUESSEL).every(([, d]) => typeof d.vorgabe === "string" && d.satz.length > 0 && d.satz.length <= 120));
 ok("Jede Vorgabe besteht ihre eigene Prüfung", Object.keys(ARAS_SCHLUESSEL).every((k) => { try { einstellungPruefen(k, ARAS_SCHLUESSEL[k].vorgabe); return true; } catch (e) { log(`        ${k}: ${(e as Error).message}`); return false; } }));

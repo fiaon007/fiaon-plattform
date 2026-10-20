@@ -951,6 +951,106 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 
+  titel("17. STUFEN-AMPEL (Teil 2): Rot → eine Stufe zurück + EINE Karte; 3 grüne Tage → hoch; nie aus 0, nie über 3");
+  {
+    const { stufeAutomatik } = await import("../server/lib/fiaon-aras-stufe");
+    const { berlinTeile } = await import("../shared/fiaon-aras");
+    const { tagMinus } = await import("../shared/fiaon-aras-stufe");
+    const heute = berlinTeile(new Date()).datum;
+    // Saubere Ausgangslage: keine Kundenanrufe in den letzten 10 Tagen, keine Ampel-Zeilen, keine Stufen-Karten
+    await sqlPool`UPDATE fiaon_aras_anruf SET created_at = created_at - INTERVAL '30 days' WHERE spielart <> 'probe'`;
+    await sqlPool`DELETE FROM fiaon_aras_stufe_tag`;
+    await sqlPool`DELETE FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`.catch(() => null);
+    const pAmp = await person(71); const rAmp = await antrag(pAmp, 71, { payment_status: "paid" });
+    let lfd = 0;
+    /** Ein erfundener Tag mit Kundenanrufen (n Tage zurück, 11 Uhr Berlin). */
+    const tagAnlegen = async (n: number, e: { versuche: number; erreicht: number; zahlungen: number; sperr?: number; pruefHart?: number; spielart?: string }) => {
+      const tag = tagMinus(heute, n);
+      for (let i = 0; i < e.versuche; i++) {
+        lfd += 1;
+        const erreicht = i < e.erreicht;
+        const [c] = (await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ref)
+                      VALUES (${pAmp}, ${ausweis}, '+491700000071', 'raus', 'beendet', (${tag}::date + TIME '11:00') AT TIME ZONE 'Europe/Berlin', 'aras', ${rAmp}) RETURNING id`) as any[];
+        const [aa] = (await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version, ergebnis, ende_grund, sekunden_sitzung, kosten_ki_cents, kosten_telefon_cents, pruefung_status, pruefung, created_at)
+                      VALUES (${c.id}, ${e.spielart ?? "rate"}, '{}'::jsonb, 'attrappe', 'flitz', 'pruefstand', ${erreicht ? "erreicht_zahlt_am" : "nicht_erreicht"}, 'aras_beendet', ${erreicht ? 180 : 20}, 20, 10,
+                              ${erreicht && i < (e.pruefHart ?? 0) ? "fehler" : "ok"}, NULL, (${tag}::date + TIME '11:00') AT TIME ZONE 'Europe/Berlin') RETURNING id`) as any[];
+        if (erreicht && i < (e.sperr ?? 0)) await sqlPool`INSERT INTO fiaon_aras_werkzeug (aras_anruf_id, werkzeug, aufruf_id, eingabe, ergebnis, ok) VALUES (${aa.id}, 'nicht_mehr_anrufen', ${`pruef-${lfd}`}, '{}'::jsonb, '{}'::jsonb, TRUE)`;
+      }
+      // Zahlungen binnen 48 h: Raten des Antrags, bezahlt am Folgetag
+      for (let i = 0; i < e.zahlungen; i++) {
+        await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am)
+                      VALUES (${rAmp}, ${100 + lfd + i}, ${`${rAmp}-${100 + lfd + i}`}, 5999, ${tag}::date, 'bezahlt', (${tag}::date + TIME '18:00') AT TIME ZONE 'Europe/Berlin' + INTERVAL '1 day')`;
+      }
+      // Die Ampel-Zeile des Tages (die Automatik lief an dem Tag in dieser Stufe)
+      await sqlPool`INSERT INTO fiaon_aras_stufe_tag (tag, stufe, werte, farbe, punkte) VALUES (${tag}::date, ${1}, '{}'::jsonb, 'leer', '[]'::jsonb) ON CONFLICT (tag) DO UPDATE SET stufe = 1`;
+    };
+    // Die Stufe gilt seit zehn Tagen (sonst zählen die Tage davor nicht)
+    const stufeSeit = async (stufe: string, tageZurueck: number) => {
+      await einstellungSetzen("aras_stufe", stufe, "pruefstand");
+      await sqlPool`UPDATE fiaon_settings SET updated_at = NOW() - make_interval(days => ${tageZurueck}) WHERE key = 'aras_stufe'`;
+      arasEinstellungenVergessen();
+    };
+    await einstellungSetzen("aras_stufe_auto", "an", "pruefstand");
+
+    // a) Drei grüne, abgeschlossene Tage in Stufe 1 → Stufe 2, genau EINE Karte
+    await stufeSeit("1", 10);
+    for (const n of [3, 4, 5]) await tagAnlegen(n, { versuche: 10, erreicht: 4, zahlungen: 1 });
+    const a1 = await stufeAutomatik(sqlPool);
+    ok("3 grüne Tage in Stufe 1 → automatisch Stufe 2, mit Karte an Justin", a1.geaendert && a1.neu === 2 && a1.richtung === "hoch" && a1.karte, JSON.stringify({ g: a1.geaendert, neu: a1.neu, grund: a1.grund }));
+    ok("aras_stufe steht jetzt auf 2", (await arasEinstellungenLesen(true)).stufe === 2);
+    const a2 = await stufeAutomatik(sqlPool);
+    const karten = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`) as any[])[0]?.n ?? 0);
+    ok("Zweiter Lauf am selben Tag: keine zweite Änderung, keine zweite Karte", !a2.geaendert && !a2.karte && karten === 1, `${a2.grund} · Karten ${karten}`);
+
+    // b) ROT-PROBE: am nächsten Tag zwei „nicht mehr anrufen“ seit der neuen Stufe → eine Stufe zurück + EINE Karte
+    const morgen0 = new Date(Date.now() + 24 * 3600_000);
+    await sqlPool`UPDATE fiaon_settings SET updated_at = NOW() - INTERVAL '1 hour' WHERE key = 'aras_stufe'`;
+    arasEinstellungenVergessen();
+    for (let i = 0; i < 2; i++) {
+      lfd += 1;
+      const [c] = (await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ref) VALUES (${pAmp}, ${ausweis}, '+491700000071', 'raus', 'beendet', NOW(), 'aras', ${rAmp}) RETURNING id`) as any[];
+      const [aa] = (await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version, ergebnis, ende_grund, sekunden_sitzung) VALUES (${c.id}, 'rate', '{}'::jsonb, 'attrappe', 'flitz', 'pruefstand', 'erreicht_abgelehnt', 'aras_beendet', 60) RETURNING id`) as any[];
+      await sqlPool`INSERT INTO fiaon_aras_werkzeug (aras_anruf_id, werkzeug, aufruf_id, eingabe, ergebnis, ok) VALUES (${aa.id}, 'nicht_mehr_anrufen', ${`pruef-rot-${lfd}`}, '{}'::jsonb, '{}'::jsonb, TRUE)`;
+    }
+    const r1 = await stufeAutomatik(sqlPool, morgen0);
+    ok("ROT-PROBE: zwei „nicht mehr anrufen“ seit der Stufe → eine Stufe zurück (2 → 1), Karte an Justin", r1.rotJetzt && r1.geaendert && r1.neu === 1 && r1.richtung === "runter" && r1.karte, JSON.stringify({ rot: r1.rotJetzt, neu: r1.neu, grund: r1.grund }));
+    const r2 = await stufeAutomatik(sqlPool, morgen0);
+    ok("Kein Kaskaden-Absturz, keine Kartenflut: der nächste Lauf ändert nichts mehr und schickt keine Karte", !r2.geaendert && !r2.karte && (await arasEinstellungenLesen(true)).stufe === 1, r2.grund);
+    // Die alten roten Anrufe zählen für die neue Stufe nicht mehr (nur Anrufe SEIT der Änderung)
+    const r3 = await stufeAutomatik(sqlPool, new Date(Date.now() + 2 * 24 * 3600_000));
+    ok("Übermorgen: die alten Abbrüche zählen nicht für Stufe 1 — keine weitere Stufe zurück", !r3.geaendert && !r3.rotJetzt && (await arasEinstellungenLesen(true)).stufe === 1, JSON.stringify({ rot: r3.rotJetzt, grund: r3.grund }));
+
+    // c) ROT-PROBE: nie aus Stufe 0 hoch — auch nach grünen Tagen (die roten Anrufe aus b liegen jetzt weit zurück)
+    await sqlPool`UPDATE fiaon_aras_anruf SET created_at = created_at - INTERVAL '30 days' WHERE created_at > NOW() - INTERVAL '1 hour' AND spielart <> 'probe'`;
+    await sqlPool`DELETE FROM fiaon_aras_stufe_tag`;
+    await stufeSeit("0", 10);
+    for (const n of [3, 4, 5, 6]) await sqlPool`INSERT INTO fiaon_aras_stufe_tag (tag, stufe, werte, farbe, punkte) VALUES (${tagMinus(heute, n)}::date, 0, '{}'::jsonb, 'leer', '[]'::jsonb) ON CONFLICT (tag) DO UPDATE SET stufe = 0`;
+    const z0 = await stufeAutomatik(sqlPool);
+    ok("ROT-PROBE: aus Stufe 0 geht es nie automatisch hoch", !z0.geaendert && (await arasEinstellungenLesen(true)).stufe === 0, z0.grund);
+
+    // d) ROT-PROBE: nie über 3
+    await sqlPool`UPDATE fiaon_aras_stufe_tag SET stufe = 3`;
+    await stufeSeit("3", 10);
+    const z3 = await stufeAutomatik(sqlPool);
+    ok("ROT-PROBE: aus Stufe 3 geht es nie höher", !z3.geaendert && (await arasEinstellungenLesen(true)).stufe === 3, z3.grund);
+
+    // e) Automatik aus + Rot: Stufe bleibt, aber Justin bekommt EINE Karte
+    await sqlPool`DELETE FROM fiaon_aras_stufe_tag`;
+    await sqlPool`DELETE FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`.catch(() => null);
+    await einstellungSetzen("aras_stufe_auto", "aus", "pruefstand");
+    await stufeSeit("2", 2);
+    for (let i = 0; i < 2; i++) {
+      const [c] = (await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ref) VALUES (${pAmp}, ${ausweis}, '+491700000071', 'raus', 'beendet', NOW(), 'aras', ${rAmp}) RETURNING id`) as any[];
+      await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version, ergebnis, ende_grund, sekunden_sitzung, pruefung_status) VALUES (${c.id}, 'rate', '{}'::jsonb, 'attrappe', 'flitz', 'pruefstand', 'erreicht_sonstiges', 'aras_beendet', 120, 'fehler')`;
+    }
+    const x1 = await stufeAutomatik(sqlPool);
+    const x2 = await stufeAutomatik(sqlPool);
+    const kartenAus = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`) as any[])[0]?.n ?? 0);
+    ok("Automatik aus + Prüf-Fehler rot: Stufe bleibt 2, genau EINE Karte (auch beim zweiten Lauf keine weitere)", x1.rotJetzt && !x1.geaendert && x1.karte && !x2.karte && kartenAus === 1 && (await arasEinstellungenLesen(true)).stufe === 2, JSON.stringify({ x1: x1.karte, x2: x2.karte, kartenAus }));
+    await einstellungSetzen("aras_stufe_auto", "an", "pruefstand");
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

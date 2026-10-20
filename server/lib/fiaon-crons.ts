@@ -586,6 +586,11 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Geister in fiaon_calls — die Deploy-Wache hält den Push, Versuche werden doppelt gezählt.",
     fenster: 24,
   },
+  "aras_stufe_ampel": {
+    zweck: "ARAS: Stufen-Ampel je Tag — bei Rot eine Stufe zurück + Karte an Justin, nach 3/5 grünen Tagen eine hoch (nie aus 0, nie über 3)",
+    folge: "Rote Werte (Abbrüche, Prüf-Fehler) bremsen Aras nicht mehr von selbst; grüne Tage schalten nicht hoch.",
+    fenster: 24,
+  },
   wa_zentrale_takt: {
     zweck: "WhatsApp-Automatik: Vorlagen an die freigegebenen Gruppen, bei ROT nur die Monatsrate (Service)",
     folge: "Fällige Monatsraten werden nicht per WhatsApp erinnert, neue Leads nicht begrüßt.",

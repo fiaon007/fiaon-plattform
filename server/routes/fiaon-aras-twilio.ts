@@ -18,7 +18,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { arasSchema } from "../lib/fiaon-aras-schema";
 import { twilioSignaturPruefen, streamTokenPruefen, streamToken, twimlStream, twimlAuflegen, xml } from "../lib/fiaon-aras-twilio-client";
-import { laeuft, mailboxErkannt, sitzungBeenden, uebergabeLaeuft, vorbereiten } from "../lib/fiaon-aras-bruecke";
+import { laeuft, hatteSitzung, mailboxErkannt, sitzungBeenden, uebergabeLaeuft, vorbereiten } from "../lib/fiaon-aras-bruecke";
 import { nachbereiten } from "../lib/fiaon-aras-nachbereitung";
 import { arasEinstellungenLesen } from "../lib/fiaon-aras-plan";
 import { arasEreignis } from "../lib/fiaon-aras-ereignis";
@@ -39,16 +39,23 @@ function signiert(req: Request, res: Response): boolean {
 const anrufId = (req: Request): number | null => Number(String(req.query?.anruf ?? "").replace(/\D/g, "")) || null;
 const twiml = (res: Response, body: string) => res.status(200).type("text/xml").send(body);
 
-async function arasZeile(callId: number): Promise<{ id: number; call_id: number; spielart: Spielart; nachbereitet_am: unknown; person_id: number | null; twilio_sid: string | null } | null> {
-  const [z] = (await sqlPool`SELECT aa.id, aa.call_id, aa.spielart, aa.nachbereitet_am, c.person_id, c.twilio_sid FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id WHERE aa.call_id = ${callId}`) as any[];
+async function arasZeile(callId: number): Promise<{ id: number; call_id: number; spielart: Spielart; nachbereitet_am: unknown; person_id: number | null; twilio_sid: string | null; sitzung_id: string | null } | null> {
+  const [z] = (await sqlPool`SELECT aa.id, aa.call_id, aa.spielart, aa.nachbereitet_am, aa.sitzung_id, c.person_id, c.twilio_sid FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id WHERE aa.call_id = ${callId}`) as any[];
   return z ? { ...z, id: Number(z.id), call_id: Number(z.call_id), person_id: z.person_id != null ? Number(z.person_id) : null } : null;
 }
 
-/** Ein Anruf, der nie eine Sitzung hatte (nicht abgenommen, besetzt, Fehler): trotzdem nachbereiten — Zähler, Plan, Akte. */
+/**
+ * Ein Anruf, der nie eine Sitzung hatte (nicht abgenommen, besetzt, Fehler): trotzdem nachbereiten — Zähler, Plan, Akte.
+ * Hatte er eine Sitzung, macht das die Brücke selbst (mit dem echten Verlauf). Anrufe 12, 15, 16 (20.10.): Legten WIR auf
+ * (Chefbüro, Abschied), kam Twilios „completed“, während die Brücke noch nachbereitete — diese Stelle war schneller und
+ * schrieb „nicht_erreicht · Niemand hat gesprochen“ über 90–187 s echtes Gespräch.
+ */
 async function ohneSitzungAbschliessen(callId: number, grund: string): Promise<void> {
   const z = await arasZeile(callId);
-  if (!z || z.nachbereitet_am || laeuft(callId)) return;
+  if (!z || z.nachbereitet_am || laeuft(callId) || hatteSitzung(callId) || z.sitzung_id) return;
   await nachbereiten(z.id, { zeilen: [], ausgefuehrt: [], endeGrund: grund, sekunden: 0, aufnahmeJa: false, ergebnis: grund === "mailbox" ? "mailbox" : null, ergebnisNotiz: null, ergebnisGesetzt: false, kundeHatGesprochen: false });
+  // Die Live-Karte kennt den Anruf schon seit „gewählt“ — auch ohne Gespräch bekommt sie ihr Ende (kein Kasten bleibt stehen).
+  await arasEreignis({ art: "aras_ende", callId, arasAnrufId: z.id, personId: z.person_id, spielart: z.spielart, text: `Ende: ${grund} (ohne Gespräch)`, daten: { grund, ohneSitzung: true } });
 }
 
 // ── Abheben → Ton-Strom ────────────────────────────────────────────────────

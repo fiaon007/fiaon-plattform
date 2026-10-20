@@ -19,9 +19,37 @@ function rede(ms: number): Buffer {
 }
 import type { Werkzeug } from "../../shared/fiaon-aras";
 
+/** Sprachähnlicher Ton (Grundton 150 Hz mit Obertönen, Silben 4 Hz) auf `dbfs` RMS — wie GPT-Live ihn liefert (8 kHz PCM). */
+function silben(ms: number, dbfs: number, start = 0): Int16Array {
+  const n = Math.round(ms * 8), roh = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = (start + i) / 8000;
+    let v = 0;
+    for (let k = 1; k <= 14; k++) v += Math.sin(2 * Math.PI * 150 * k * t + k) / k;
+    roh[i] = v * (0.35 + 0.65 * Math.sin(Math.PI * 4 * t) ** 2);
+  }
+  let s = 0; for (const v of roh) s += v * v;
+  const f = (10 ** (dbfs / 20) * 32767) / Math.sqrt(s / Math.max(1, n)), x = new Int16Array(n);
+  for (let i = 0; i < n; i++) x[i] = Math.max(-32768, Math.min(32767, Math.round(roh[i] * f)));
+  return x;
+}
+function alsMulaw(x: Int16Array): Buffer {
+  const b = Buffer.alloc(x.length);
+  for (let i = 0; i < x.length; i++) {
+    let v = Math.max(-32768, Math.min(32767, x[i]));
+    const sign = v < 0 ? 0x80 : 0; if (v < 0) v = -v; if (v > 32635) v = 32635; v += 0x84;
+    let e = 7; for (let m = 0x4000; (v & m) === 0 && e > 0; m >>= 1) e -= 1;
+    b[i] = ~(sign | (e << 4) | ((v >> (e + 3)) & 0x0f)) & 0xff;
+  }
+  return b;
+}
+/** Lieferung wie gemessen (20.10.): 100-ms-Stücke mit Schwankung OHNE späteres Aufholen — oder stoßweise (300 ms Stoß, 250 ms Pause). */
+export type Liefermuster = "echtzeit_schwankend" | "stossweise";
+function zufall(start: number): () => number { let a = start >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
 export type Schritt =
   | { kunde: string; nachMs?: number }
-  | { aras: string; ms?: number }
+  | { aras: string; ms?: number; /** Echter Sprach-Ton statt Rechteck: Pegel und Lieferart (Ton-Werk, 20.10.). */ ton?: { dbfs?: number; muster?: Liefermuster } }
   | { werkzeug: Werkzeug; eingabe?: unknown }
   | { erwarteWerkzeug: Werkzeug; eingabe?: unknown }   // Alias (Vertrag § 13)
   | { unterbrechen: true }
@@ -58,6 +86,29 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
       const t = () => Date.now() - start;
       const emit = (ev: SitzungEreignis) => { if (!beendet) e.ereignis(ev); };
       const schlafen = (ms: number) => new Promise<void>((l) => setTimeout(l, ms));
+      let redet = false;
+      const r = zufall(1020);
+      /** Wie GPT-Live: Sprach-Ton in 100-ms-Stücken, Abstände wie gemessen — die Stille pausiert so lange (ein Strom). */
+      const arasSagtEcht = async (text: string, ms: number, ton: { dbfs?: number; muster?: Liefermuster }) => {
+        redet = true;
+        emit({ art: "spricht_an" });
+        emit({ art: "transkript", wer: "aras", text, final: false, t: t() });
+        const pcm = silben(ms, ton.dbfs ?? -24);
+        const t0 = Date.now();
+        let soll = 0;
+        for (let k = 0; k * 800 < pcm.length; k++) {
+          if (beendet) break;
+          if (ton.muster === "stossweise") soll = Math.floor(k / 6) * 600 + (k % 6) * 55;
+          else { const w = r(); soll += k === 0 ? 0 : w < 0.70 ? 100 + (r() - 0.5) * 16 : w < 0.95 ? 108 + r() * 18 : w < 0.99 ? 70 + r() * 20 : 200 + r() * 145; }
+          const warte = t0 + soll - Date.now();
+          if (warte > 0) await schlafen(warte);
+          const stueck = pcm.subarray(k * 800, (k + 1) * 800);
+          emit({ art: "audio", chunk: alsMulaw(stueck), pcm: stueck, sprache: true });
+        }
+        emit({ art: "transkript", wer: "aras", text: "", final: true, t: t() });
+        emit({ art: "spricht_aus" });
+        redet = false;
+      };
       const arasSagt = async (text: string, ms = 300) => {
         emit({ art: "spricht_an" });
         emit({ art: "transkript", wer: "aras", text, final: false, t: t() });
@@ -66,7 +117,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
         emit({ art: "transkript", wer: "aras", text: "", final: true, t: t() });
         emit({ art: "spricht_aus" });
       };
-      const stilleTakt = setInterval(() => { if (!beendet && aktiv) emit({ art: "audio", chunk: stille(100), sprache: false }); }, 100);
+      const stilleTakt = setInterval(() => { if (!beendet && aktiv && !redet) emit({ art: "audio", chunk: stille(100), sprache: false }); }, 100);
       const lauf = (async () => {
         await schlafen(30);
         emit({ art: "bereit", sitzungId: `attrappe-${e.callId}` });
@@ -86,7 +137,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
             while (!beendet && Date.now() - t0 < 8000 && !(zuletztLautRein > 0 && Date.now() - zuletztLautRein >= schritt.nachKundeStillMs)) await schlafen(10);
             continue;
           }
-          if ("aras" in schritt) { await arasSagt(schritt.aras, schritt.ms); continue; }
+          if ("aras" in schritt) { if (schritt.ton) await arasSagtEcht(schritt.aras, schritt.ms ?? 2000, schritt.ton); else await arasSagt(schritt.aras, schritt.ms); continue; }
           if ("kunde" in schritt) {
             await schlafen(schritt.nachMs ?? 60);
             emit({ art: "kunde_spricht" });

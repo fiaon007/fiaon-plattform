@@ -17,12 +17,15 @@ export type AtmoArt = "buero_leise" | "buero";
 export const ATMO_ARTEN: readonly AtmoArt[] = ["buero_leise", "buero"];
 export const ATMO_RATE = 8000;
 /**
- * Ungefähre Lautheit (RMS in dBFS) je Art — Sprache am Telefon liegt bei etwa −16 dBFS (Prüfstand: ±2,5 dB).
- * Justin 20.10.2026 (abends): „Büro leiser“ — jede Art 6 dB leiser als zuerst (−43/−37 → −49/−43).
+ * Abstand der Atmo zur Rede (dB). Justin 20.10.2026 (abends): „Büro leiser“ — gehört bei Rede um −24 dBFS (so laut kam
+ * GPT-Live damals an) und Atmo bei −49/−43 dBFS: 25 bzw. 19 dB darunter. Seit die Brücke die Rede auf −16 dBFS regelt
+ * (Ton-Werk, 20.10. nachmittags: „zu leise“), bleibt GENAU dieser Abstand — die Atmo steigt mit (+8 dB).
  */
-export const ATMO_PEGEL_DBFS: Record<AtmoArt, number> = { buero_leise: -49, buero: -43 };
-/** Höchste Spitze je Art (dBFS) — ein Tastenklick bleibt deutlich unter Aras' Stimme (ebenfalls 6 dB leiser). */
-export const ATMO_SPITZE_DBFS: Record<AtmoArt, number> = { buero_leise: -32, buero: -27 };
+export const ATMO_ABSTAND_DB: Record<AtmoArt, number> = { buero_leise: 25, buero: 19 };
+/** Lautheit (RMS in dBFS) je Art = Ziel der Rede (−16 dBFS, fiaon-aras-ton.ts) minus Abstand (Prüfstand: ±2,5 dB). */
+export const ATMO_PEGEL_DBFS: Record<AtmoArt, number> = { buero_leise: -41, buero: -35 };
+/** Höchste Spitze je Art (dBFS) — ein Tastenklick bleibt deutlich unter Aras' Stimme (ebenfalls +8 dB mit der Rede). */
+export const ATMO_SPITZE_DBFS: Record<AtmoArt, number> = { buero_leise: -24, buero: -19 };
 /** Länge der Schleife in Sekunden (lang genug, dass sich nichts hörbar wiederholt). */
 export const ATMO_SEKUNDEN = 75;
 
@@ -172,11 +175,12 @@ const spitzeVon = (a: Float32Array) => { let m = 0; for (let i = 0; i < a.length
 const aufRms = (a: Float32Array, dbfs: number) => { const z = 10 ** (dbfs / 20), ist = rms(a) || 1; for (let i = 0; i < a.length; i++) a[i] *= z / ist; return a; };
 const aufSpitze = (a: Float32Array, dbfs: number) => { const z = 10 ** (dbfs / 20), ist = spitzeVon(a) || 1; for (let i = 0; i < a.length; i++) a[i] *= z / ist; return a; };
 
-/** Pegel je Schicht in dBFS (RMS bzw. Spitze) — Sprache am Telefon: ca. −16 dBFS RMS, Spitzen um −3 dBFS. */
-// Justin 20.10.2026 (abends): jede Schicht 6 dB leiser („Büro leiser“); die Zahl der Stimmen im Gemurmel bleibt.
+/** Pegel je Schicht in dBFS (RMS bzw. Spitze) — die Rede kommt nach der Regelung bei −16 dBFS RMS an, Spitzen bis −1 dBFS. */
+// Justin 20.10.2026 (abends): jede Schicht 6 dB leiser („Büro leiser“); seit der Pegel-Regelung (Rede +8 dB) alle +8 dB mit —
+// der hörbare Abstand zur Stimme bleibt genau der, den Justin freigegeben hat. Die Zahl der Stimmen im Gemurmel bleibt.
 const SCHICHT_PEGEL: Record<AtmoArt, { raum: number; lueftung: number; murmel: number; tippen: number; papier: number; stimmen: number }> = {
-  buero_leise: { raum: -54, lueftung: -58, murmel: -52, tippen: -37, papier: -42, stimmen: 2 },
-  buero:       { raum: -50, lueftung: -55, murmel: -45, tippen: -32, papier: -37, stimmen: 4 },
+  buero_leise: { raum: -46, lueftung: -50, murmel: -44, tippen: -29, papier: -34, stimmen: 2 },
+  buero:       { raum: -42, lueftung: -47, murmel: -37, tippen: -24, papier: -29, stimmen: 4 },
 };
 
 /**

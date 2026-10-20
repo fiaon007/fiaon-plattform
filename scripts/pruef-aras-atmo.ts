@@ -3,7 +3,8 @@
 // Hörproben schreiben:      npx tsx scripts/pruef-aras-atmo.ts --wav <ordner>
 import fs from "node:fs";
 import path from "node:path";
-import { atmoErzeugen, atmoSchleife, atmoMischen, alsWav, ATMO_ARTEN, ATMO_PEGEL_DBFS, ATMO_SPITZE_DBFS, ATMO_RATE, ATMO_SEKUNDEN } from "../server/lib/fiaon-aras-atmo";
+import { atmoErzeugen, atmoSchleife, atmoMischen, alsWav, ATMO_ARTEN, ATMO_PEGEL_DBFS, ATMO_SPITZE_DBFS, ATMO_ABSTAND_DB, ATMO_RATE, ATMO_SEKUNDEN } from "../server/lib/fiaon-aras-atmo";
+import { TON_ZIEL_DBFS } from "../server/lib/fiaon-aras-ton";
 
 let gut = 0, schlecht = 0;
 const ok = (b: unknown, was: string, extra = "") => { if (b) { gut++; console.log(`  ✓ ${was}`); } else { schlecht++; console.log(`  ✗ ${was}${extra ? ` — ${extra}` : ""}`); } };
@@ -53,11 +54,14 @@ console.log("── Mischen");
   ok(atmoMischen(null, 160, "buero_leise", -5).pos === 155, "negative Position wird in die Schleife gelegt");
 }
 
-// Justin 20.10.2026 (abends): „Büro leiser“ — jede Art 6 dB leiser als zuerst (−43/−37 → −49/−43 dBFS, Spitzen −32/−27)
-ok(ATMO_PEGEL_DBFS.buero_leise === -49 && ATMO_PEGEL_DBFS.buero === -43 && ATMO_SPITZE_DBFS.buero_leise === -32 && ATMO_SPITZE_DBFS.buero === -27, "Justin 20.10. abends: jede Art 6 dB leiser (−49 / −43 dBFS, Spitzen −32 / −27)");
+// Justin 20.10.2026 (abends): „Büro leiser“ — gehört bei Rede um −24 dBFS mit Atmo −49 / −43 dBFS (25 / 19 dB darunter).
+// Seit dem Ton-Werk (Rede auf −16 dBFS geregelt) bleibt genau dieser ABSTAND: Atmo −41 / −35 dBFS, Spitzen −24 / −19.
+ok(ATMO_ABSTAND_DB.buero_leise === 25 && ATMO_ABSTAND_DB.buero === 19 && ATMO_ARTEN.every((a) => ATMO_PEGEL_DBFS[a] === TON_ZIEL_DBFS - ATMO_ABSTAND_DB[a]),
+  "Abstand zur Rede wie von Justin freigegeben (25 / 19 dB unter der Rede, Rede jetzt −16 dBFS → −41 / −35 dBFS)");
+ok(ATMO_SPITZE_DBFS.buero_leise === -24 && ATMO_SPITZE_DBFS.buero === -19, "Spitzen mit der Rede +8 dB (−24 / −19 dBFS) — ein Tastenklick bleibt weit unter Aras' Stimme");
 {
-  const alt = atmoErzeugen("buero").map((v) => Math.max(-32767, Math.min(32767, v * 2))) as Int16Array; // +6 dB = die alte Lautstärke
-  ok(Math.abs(rmsDb(alt) - ATMO_PEGEL_DBFS.buero) > 2.5, "Rot-Probe: die alte Lautstärke (+6 dB) fällt im Pegel-Test auf", `${rmsDb(alt).toFixed(1)} dBFS`);
+  const alt = atmoErzeugen("buero").map((v) => Math.round(v * 10 ** (-8 / 20))) as Int16Array; // −8 dB = die Atmo ohne Mitziehen
+  ok(Math.abs(rmsDb(alt) - ATMO_PEGEL_DBFS.buero) > 2.5, "Rot-Probe: Atmo NICHT mitgezogen (−8 dB, Abstand zur lauteren Rede zu groß) fällt im Pegel-Test auf", `${rmsDb(alt).toFixed(1)} dBFS`);
 }
 
 // Rot-Probe: eine absichtlich zu laute Atmo würde den Pegel-Test reißen

@@ -97,6 +97,11 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_grund TEXT`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_am TIMESTAMPTZ`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_von TEXT`;
+      // Ton-Messung je Anruf (Justin 20.10. nachmittags, Anruf 16: „bricht ab, zu leise“): Pegel, Lücken, Vorrat, Lieferung,
+      // Unterbrechungen — und die Antwortzeit (Kunde fertig → erstes hörbares Wort von Aras).
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS ton JSONB`;
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS antwort_ms_median INTEGER`;
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS antwort_ms_max INTEGER`;
       // Scheibe 2 (Akte): je Kunde „Was Aras wissen muss“ und der Schalter „Aras für diesen Kunden aus“ (wirkt sofort auf die
       // Warteschlange). Anders als fiaon_telefon_sperre („nicht mehr anrufen“ = niemand ruft an) gilt das nur für Aras.
       await lauf`

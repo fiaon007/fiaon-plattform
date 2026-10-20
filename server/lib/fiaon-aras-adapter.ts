@@ -27,6 +27,8 @@ export interface SitzungStart {
   stimme: string; modell: string; modellGehirn: string;
   werkzeuge: WerkzeugDef[];
   audio: { rein: "pcmu_8k"; raus: "pcmu_8k" };
+  /** Tonquelle beim Anbieter (Vorgabe: tonQuelle() aus fiaon-aras-ton.ts) — Prüfstände und Vergleich setzen sie fest. */
+  quelle?: import("./fiaon-aras-ton").TonQuelle;
   regie: Regie;
   fortsetzung?: "uebergabe_gescheitert" | "wiederaufbau";
   ereignis: (e: SitzungEreignis) => void;
@@ -44,11 +46,17 @@ export interface Sitzung {
    */
   textEinschieben(text: string, art: "vorlesen" | "still" | "anweisung"): void;
   beenden(grund: string): Promise<{ sekunden: number; kostenCents: number }>;
+  /** Wie der Anbieter liefert (Quelle, Stückgrößen, Abstände) — für die Ton-Messung je Anruf (optional). */
+  lieferung?(): Record<string, unknown>;
 }
 
 export type SitzungEreignis =
   | { art: "bereit"; sitzungId: string }
-  | { art: "audio"; chunk: Buffer; /** Trägt der Rahmen Rede (Lautstärke) — GPT-Live schickt auch Stille durchgehend. */ sprache?: boolean }
+  | {
+      art: "audio"; chunk: Buffer; /** Trägt der Rahmen Rede (Lautstärke) — GPT-Live schickt auch Stille durchgehend. */ sprache?: boolean;
+      /** Derselbe Ton als PCM16 8 kHz — bei der Quelle „pcm24k“ sauber heruntergerechnet (besser als `chunk`, das µ-law ist). */
+      pcm?: Int16Array;
+    }
   | { art: "spricht_an" } | { art: "spricht_aus" }
   | { art: "kunde_spricht" }
   | { art: "transkript"; wer: "kunde" | "aras"; text: string; final: boolean; t: number }
@@ -63,6 +71,8 @@ export interface HoerprobeEin {
   stimme: string; beschreibung?: string; text: string; modell?: string;
   /** Akzent für die Sprechprobe (aras_dialekt) — Justin 20.10.2026. */
   dialekt?: import("../../shared/fiaon-aras").Dialekt | null;
+  /** Tonquelle (Vergleich „wie bisher“ / „neu“) — sonst die Vorgabe. */
+  quelle?: import("./fiaon-aras-ton").TonQuelle;
 }
 export interface HoerprobeAus { mime: string; bytes: Buffer; dauerMs: number; kostenCents: number }
 

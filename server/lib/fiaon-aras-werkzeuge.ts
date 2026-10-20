@@ -45,6 +45,8 @@ export interface WerkzeugKontext {
   letzteKundenZeile: () => string | null;
   /** Hat der Kunde auf die Frage nach der Aufzeichnung eindeutig Ja gesagt? (Brücke, Live-Transkript) */
   kundeSagteJa?: () => boolean;
+  /** … oder klar Nein? (Anrufe 11 und 16: Unklares, „Ja, und …“ oder ein „nicht“ irgendwo sind KEIN Nein.) */
+  kundeSagteNein?: () => boolean;
   /** Brücke: das Nein zur Aufnahme vermerken (dann wertet sie die Antwort nicht mehr selbst). */
   aufnahmeAbgelehnt?: () => void;
   /** Probeanruf: Werkzeuge ohne Wirkung nach außen. */
@@ -93,10 +95,16 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
 
   async aufnahme_starten(ctx, _e, lauf) {
     const [z] = (await lauf`SELECT aufnahme_ja_am, aufnahme_nein_am, aufnahme_gestartet_am FROM fiaon_aras_anruf WHERE id = ${ctx.arasAnrufId}`) as any[];
-    if (z?.aufnahme_nein_am) return { ok: false, vorlesen: "Der Kunde hat Nein gesagt — keine Aufnahme.", fehler: "aufnahme_nein" };
     if (z?.aufnahme_gestartet_am) return { ok: true, vorlesen: "Die Aufzeichnung läuft schon." };
     // § 201 StGB: nur nach einem hörbaren, eindeutigen Ja. Das Live-Transkript ist der Beweis — fehlt es, keine Aufnahme.
-    if (ctx.kundeSagteJa && !ctx.kundeSagteJa()) return { ok: false, vorlesen: "Ich habe kein eindeutiges Ja gehört — frag noch einmal kurz nach, oder mach ohne Aufzeichnung weiter.", fehler: "kein_ja" };
+    const ja = ctx.kundeSagteJa ? ctx.kundeSagteJa() : !z?.aufnahme_nein_am;
+    // Ein früheres Nein bleibt — außer Aras hat noch einmal gefragt und der Kunde sagt JETZT klar Ja (Anruf 16: „Ja, zeichnen Sie auf“).
+    if (z?.aufnahme_nein_am && !ja) return { ok: false, vorlesen: "Der Kunde hat Nein gesagt — keine Aufnahme.", fehler: "aufnahme_nein" };
+    if (!ja) return { ok: false, vorlesen: "Ich habe kein eindeutiges Ja gehört — frag noch einmal kurz nach, oder mach ohne Aufzeichnung weiter.", fehler: "kein_ja" };
+    if (z?.aufnahme_nein_am) {
+      await lauf`UPDATE fiaon_aras_anruf SET aufnahme_nein_am = NULL, updated_at = NOW() WHERE id = ${ctx.arasAnrufId}`;
+      await lauf`UPDATE fiaon_calls SET ohne_aufzeichnung_am = NULL, transkript_status = 'offen', transkript_grund = NULL, updated_at = NOW() WHERE id = ${ctx.callId} AND transkript_status = 'entfaellt'`.catch(() => null);
+    }
     const jaText = kurz(ctx.letzteKundenZeile() ?? "", 120);
     const r = await ctx.aufnahmeStarten();
     // Hat ein gleichzeitiger Aufruf (Ja-Erkennung der Brücke) schon gestartet, zählt dieser hier nicht noch einmal.
@@ -108,6 +116,9 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
   },
 
   async aufnahme_abgelehnt(ctx, _e, lauf) {
+    // Nur ein KLARES Nein (Anrufe 11 und 16): „Ja, und …“, ein Zögern oder eine Gegenfrage ist keins — dann bleibt alles offen,
+    // Aras beantwortet die Frage und fragt noch einmal (aufgezeichnet wird ohnehin nur nach einem klaren Ja).
+    if (ctx.kundeSagteNein && !ctx.kundeSagteNein()) return { ok: false, vorlesen: "", still: "Kein klares Nein gehört — beantworte seine Frage und frag dann noch einmal kurz nach der Aufzeichnung. Ohne klares Ja wird ohnehin nicht aufgezeichnet.", fehler: "kein_nein" };
     ctx.aufnahmeAbgelehnt?.();
     const [vorher] = (await lauf`SELECT aufnahme_nein_am FROM fiaon_aras_anruf WHERE id = ${ctx.arasAnrufId}`) as any[];
     if (vorher?.aufnahme_nein_am) return { ok: true, vorlesen: "Ist vermerkt — ohne Aufzeichnung." };

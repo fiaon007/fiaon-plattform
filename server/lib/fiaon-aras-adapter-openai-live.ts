@@ -41,7 +41,9 @@
 import WebSocket from "ws";
 import type { StimmAdapter, Sitzung, SitzungStart, SitzungEreignis, HoerprobeEin, HoerprobeAus } from "./fiaon-aras-adapter";
 import { dialektAnweisung, LACHEN_NACH_KI } from "../../shared/fiaon-aras-prompt";
-import { mulawAlsWav, stille, pegel } from "./fiaon-aras-adapter";
+import { mulawAlsWav, stille, mulawZuPcm16, pcm16ZuMulaw } from "./fiaon-aras-adapter";
+import { tonQuelle, Abwaerts24zu8, Aufwaerts8zu24, pcmAusPuffer, pcmAlsPuffer, Lieferstatistik, Pegelwerk, Begrenzer, RAHMEN, type TonQuelle } from "./fiaon-aras-ton";
+import { alsWav } from "./fiaon-aras-atmo";
 import { kiSchluessel, kiBereit, pausieren, abrechnungsFehler, istKiPause, istProduktionsdienst } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
 import { ARAS_DIENSTE, stimmKostenCents } from "../../shared/fiaon-aras";
@@ -57,6 +59,13 @@ const VORLAUF_HOECHSTENS_MS = 3000;
  * Schnittstelle: 15 s Rede, danach 8 s Stille-Rahmen). „Spricht“ heißt darum: Lautstärke über dieser Schwelle.
  */
 export const SPRACH_SCHWELLE = 0.012;
+/** Mittlere Lautstärke (0–1) von PCM16 — wie `pegel` für µ-law. */
+function pegelPcm(x: Int16Array): number {
+  if (!x.length) return 0;
+  let s = 0;
+  for (let i = 0; i < x.length; i++) s += Math.abs(x[i]);
+  return s / x.length / 32768;
+}
 
 type Ereignis = (e: SitzungEreignis) => void;
 
@@ -97,6 +106,15 @@ export class LiveSitzung implements Sitzung {
   private erledigteAufrufe = new Set<string>();
   readonly modell: string;
   readonly modellGehirn: string;
+  /**
+   * Tonquelle (E-408, 20.10. nachmittags — „schlechte Qualität, zu leise“): PCM16 24 kHz mit eigener sauberer Wandlung auf
+   * 8 kHz (Vorgabe) oder µ-law 8 kHz wie bisher (ARAS_TON_QUELLE=pcmu8k). Das Format gilt bei GPT-Live für beide Richtungen —
+   * darum wird der Telefon-Eingang (µ-law 8 kHz) dann auf 24 kHz hochgerechnet.
+   */
+  readonly quelle: TonQuelle;
+  private abwaerts: Abwaerts24zu8 | null = null;
+  private aufwaerts: Aufwaerts8zu24 | null = null;
+  private readonly liefer = new Lieferstatistik();
   /** Für Prüfstände und Protokoll: die gesendete session.start (ohne Schlüssel). */
   startNachricht: Record<string, unknown> | null = null;
   schlussGrund: string | null = null;
@@ -104,6 +122,8 @@ export class LiveSitzung implements Sitzung {
   constructor(private readonly e: SitzungStart & { begruessung?: string | null }, private readonly ereignis: Ereignis) {
     this.modell = e.modell || "gpt-live-1";
     this.modellGehirn = e.modellGehirn || GEHIRN_VORGABE;
+    this.quelle = e.quelle ?? tonQuelle();
+    if (this.quelle === "pcm24k") { this.abwaerts = new Abwaerts24zu8(); this.aufwaerts = new Aufwaerts8zu24(); }
     this.geschlossen = new Promise<void>((l) => { this.geschlossenMelden = l; });
   }
 
@@ -135,7 +155,7 @@ export class LiveSitzung implements Sitzung {
         const session: Record<string, unknown> = {
           model: this.modell,
           instructions: this.e.anweisung,
-          audio: { format: { type: "audio/pcmu", rate: 8000 }, output: { voice: this.stimmeFeld() } },
+          audio: { format: this.quelle === "pcm24k" ? { type: "audio/pcm", rate: 24000 } : { type: "audio/pcmu", rate: 8000 }, output: { voice: this.stimmeFeld() } },
           store: false,
         };
         if (this.e.begruessung) {
@@ -207,13 +227,17 @@ export class LiveSitzung implements Sitzung {
         return typ;
       }
       case "session.output_audio.delta": {
-        if (Date.now() < this.stummBis) return typ;
         const roh = ev?.delta ?? ev?.audio;
         if (typeof roh !== "string" || !roh) return typ;
-        const chunk = Buffer.from(roh, "base64");
-        const sprache = pegel(chunk) > SPRACH_SCHWELLE;
+        const b = Buffer.from(roh, "base64");
+        // Erst wandeln (das Filter-Gedächtnis läuft weiter), dann ggf. verwerfen (kurz nach einem Unterbrechen).
+        const pcm = this.abwaerts ? this.abwaerts.push(pcmAusPuffer(b)) : mulawZuPcm16(b);
+        this.liefer.stueck(Math.round((pcm.length / 8000) * 1000));
+        if (Date.now() < this.stummBis) return typ;
+        const chunk = this.abwaerts ? pcm16ZuMulaw(pcm) : b;
+        const sprache = pegelPcm(pcm) > SPRACH_SCHWELLE;
         if (sprache) this.sprichtAn();
-        this.ereignis({ art: "audio", chunk, sprache });
+        this.ereignis({ art: "audio", chunk, pcm, sprache });
         return typ;
       }
       case "session.input_transcript.delta": {
@@ -332,14 +356,20 @@ export class LiveSitzung implements Sitzung {
 
   audioRein(chunk: Buffer): void {
     if (this.beendet || !chunk.length) return;
+    // Telefon-Ton (µ-law 8 kHz) im Format der Sitzung: bei „pcm24k“ hochgerechnet auf PCM16 24 kHz.
+    const ton = this.aufwaerts ? pcmAlsPuffer(this.aufwaerts.push(mulawZuPcm16(chunk))) : chunk;
     if (!this.gestartet) {
       // Vor session.started kein Ton an den Anbieter (Doku) — wir sammeln höchstens VORLAUF_HOECHSTENS_MS.
-      this.vorlauf.push(chunk); this.vorlaufBytes += chunk.length;
-      while (this.vorlaufBytes > VORLAUF_HOECHSTENS_MS * 8 && this.vorlauf.length) this.vorlaufBytes -= this.vorlauf.shift()!.length;
+      const jeMs = this.aufwaerts ? 48 : 8;
+      this.vorlauf.push(ton); this.vorlaufBytes += ton.length;
+      while (this.vorlaufBytes > VORLAUF_HOECHSTENS_MS * jeMs && this.vorlauf.length) this.vorlaufBytes -= this.vorlauf.shift()!.length;
       return;
     }
-    this.senden({ type: "session.input_audio.append", audio: chunk.toString("base64") });
+    this.senden({ type: "session.input_audio.append", audio: ton.toString("base64") });
   }
+
+  /** Wie GPT-Live liefert (Quelle, Stückgrößen, Abstände, Echtzeit-Anteil) — für die Ton-Messung je Anruf. */
+  lieferung(): Record<string, unknown> { return { quelle: this.quelle, ...this.liefer.werte() }; }
 
   unterbrechen(): void {
     // GPT-Live hört selbst auf, wenn der Kunde dazwischen spricht. Was von der alten Rede noch unterwegs ist,
@@ -403,6 +433,16 @@ export function mulawZuPcmWav(roh: Buffer): Buffer {
   return Buffer.concat([kopf, pcm]);
 }
 
+/** Ton so, wie ihn der Kunde hört: sanft geregelt (−16 dBFS), begrenzt (−1 dBFS), einmal durch µ-law (Telefon). */
+export function wieAmTelefon(pcm8: Int16Array): Int16Array {
+  const pw = new Pegelwerk(), bg = new Begrenzer(), aus = new Int16Array(pcm8.length);
+  for (let i = 0; i < pcm8.length; i += RAHMEN) {
+    const r = pw.rahmen(pcm8.subarray(i, Math.min(pcm8.length, i + RAHMEN)));
+    aus.set(mulawZuPcm16(pcm16ZuMulaw(bg.anwenden(r.pcm))), i);
+  }
+  return aus;
+}
+
 export function openaiLiveAdapter(): StimmAdapter {
   return {
     name: "openai_live",
@@ -422,15 +462,18 @@ export function openaiLiveAdapter(): StimmAdapter {
      * Höchstens 25 s; fertig, sobald nach dem ersten Ton 1,6 s Ruhe ist.
      */
     async hoerprobe(e: HoerprobeEin): Promise<HoerprobeAus> {
-      const teile: Buffer[] = [];
+      // Dieselbe Strecke wie am Telefon (E-408, 20.10. nachmittags): Quelle → 8 kHz → sanfte Regelung auf −16 dBFS →
+      // Begrenzer → µ-law → zurück zu PCM — so klingt die Probe im Stimmen-Studio genau wie beim Kunden.
+      const teile: Int16Array[] = [];
+      const laut: boolean[] = [];
       let fehler: Error | null = null;
-      let zuletztTon = 0, ersteRede = -1, letzteRede = -1, gesagt = "";
+      let zuletztTon = 0, gesagt = "";
       let fertigMelden: () => void = () => {};
       const fertig = new Promise<void>((l) => { fertigMelden = l; });
       const ereignis = (ev: SitzungEreignis) => {
         if (ev.art === "audio") {
-          teile.push(ev.chunk);
-          if (ev.sprache) { zuletztTon = Date.now(); letzteRede = teile.length - 1; if (ersteRede < 0) ersteRede = teile.length - 1; }
+          teile.push(ev.pcm ?? mulawZuPcm16(ev.chunk)); laut.push(!!ev.sprache);
+          if (ev.sprache) zuletztTon = Date.now();
         }
         else if (ev.art === "transkript" && ev.wer === "aras") gesagt += ev.text;
         else if (ev.art === "fehler" && ev.fatal) { fehler = new Error(ev.text); fertigMelden(); }
@@ -450,27 +493,36 @@ export function openaiLiveAdapter(): StimmAdapter {
         ].filter(Boolean).join("\n"),
         begruessung: `Sag jetzt sofort, genau einmal und wörtlich: „${satz}“ Danach sagst du nichts mehr.`,
         hintergrundAnweisung: "", stimme: e.stimme, modell: e.modell || "gpt-live-1", modellGehirn: "",
-        werkzeuge: [], audio: { rein: "pcmu_8k", raus: "pcmu_8k" },
+        werkzeuge: [], audio: { rein: "pcmu_8k", raus: "pcmu_8k" }, quelle: e.quelle,
         regie: { fuellwoerter: "normal", lachen: false, tempo: "normal", zuhoerlaute: "sparsam", energie: "lebendig", abschluss: "klar", dialekt: e.dialekt ?? "hochdeutsch" },
         ereignis, werkzeugAusfuehren: async () => ({ ok: false, vorlesen: "" }),
       }, ereignis);
       await sitzung.verbinden();
       const t0 = Date.now();
+      // Ungestört gestartet? GPT-Live spricht nicht immer zuerst (Doku) — nach 3,5 s Stille den Satz nachschieben.
+      let nachgeschoben = false;
       await Promise.race([fertig, new Promise<void>((l) => {
         const takt = setInterval(() => {
           sitzung.stilleSchicken(100);
+          if (!zuletztTon && !nachgeschoben && Date.now() - t0 > 3500) { nachgeschoben = true; sitzung.textEinschieben(`Sag jetzt genau einmal und wörtlich: „${satz}“`, "vorlesen"); }
           const ruhig = zuletztTon > 0 && Date.now() - zuletztTon > 1400;
           if (ruhig || Date.now() - t0 > 25_000) { clearInterval(takt); l(); }
         }, 100);
       })]);
       const { sekunden, kostenCents } = await sitzung.beenden("hoerprobe");
       if (fehler) throw fehler;
+      const ersteRede = laut.indexOf(true), letzteRede = laut.lastIndexOf(true);
       if (ersteRede < 0) throw new Error("Die Hörprobe blieb stumm — kein gesprochener Ton vom Anbieter.");
       // Zuschneiden: 150 ms vor der ersten Rede bis 350 ms nach der letzten (der Rest ist Leitungsstille).
-      const davor = Buffer.concat(teile.slice(0, ersteRede)), rede = Buffer.concat(teile.slice(ersteRede, letzteRede + 1)), danach = Buffer.concat(teile.slice(letzteRede + 1));
-      const roh = Buffer.concat([davor.subarray(Math.max(0, davor.length - 1200)), rede, danach.subarray(0, 2800)]);
+      const alles = (von: number, bis: number) => { const t = teile.slice(von, bis); const n = t.reduce((s, x) => s + x.length, 0), a = new Int16Array(n); let o = 0; for (const x of t) { a.set(x, o); o += x.length; } return a; };
+      const davor = alles(0, ersteRede), rede = alles(ersteRede, letzteRede + 1), danach = alles(letzteRede + 1, teile.length);
+      const roh = new Int16Array(Math.min(1200, davor.length) + rede.length + Math.min(2800, danach.length));
+      roh.set(davor.subarray(Math.max(0, davor.length - 1200)), 0);
+      roh.set(rede, Math.min(1200, davor.length));
+      roh.set(danach.subarray(0, 2800), Math.min(1200, davor.length) + rede.length);
+      const telefon = wieAmTelefon(roh);
       if (gesagt.trim()) console.log(`[ARAS-LIVE] Hörprobe ${e.stimme}: „${gesagt.replace(/\s+/g, " ").trim().slice(0, 200)}“`);
-      return { mime: "audio/wav", bytes: mulawZuPcmWav(roh), dauerMs: Math.round(roh.length / 8), kostenCents: Math.max(kostenCents, stimmKostenCents(e.modell || "gpt-live-1", sekunden)) };
+      return { mime: "audio/wav", bytes: alsWav(telefon), dauerMs: Math.round(telefon.length / 8), kostenCents: Math.max(kostenCents, stimmKostenCents(e.modell || "gpt-live-1", sekunden)) };
     },
   };
 }

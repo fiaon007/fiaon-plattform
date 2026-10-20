@@ -595,17 +595,43 @@ export function sperrwunsch(text: string): boolean {
 }
 
 /** Die Zeile mit einem Ja zur Aufnahme? Rein — die Brücke merkt sich den Wortlaut als Nachweis. */
+/** Ausdrücklich FÜR die Aufzeichnung — irgendwo im Satz („Ja, zeichnen Sie auf“, „nehmen Sie ruhig auf“, „einverstanden“). */
+const JA_AUSDRUECKLICH = /(?<![a-zäöüß])(?:(?:das )?(?:ist|wäre|waere) (?:in ordnung|okay|ok|kein problem)|passt schon|geht klar|zeichnen sie(?: ruhig| gerne?| ruhig)? auf|nehmen sie(?: ruhig| gerne?)? auf|dürfen sie(?: gerne?)? aufzeichnen|duerfen sie(?: gerne?)? aufzeichnen|können sie(?: gerne?| ruhig)? aufzeichnen|koennen sie(?: gerne?| ruhig)? aufzeichnen|einverstanden|von mir aus)(?![a-zäöüß])/;
+/** Ein Ja-Wort am Satzanfang („Ja“, „Ja klar“, „Gerne“, „Passt“, „Freilich“ …) — der erste Teil bis zum ersten Satzzeichen. */
+const JA_ANFANG = /^(?:ja|jo|jap|jep|jawohl|klar|gerne?|okay|ok|passt|sicher|freilich|natürlich|natuerlich|selbstverständlich|in ordnung|kein problem|na klar|na sicher|na eh|eh klar|machen sie(?: ruhig)?|mach(?:en)? ruhig)(?:\s+(?:klar|gerne?|sicher|freilich|passt|okay|ok|bitte|natürlich|doch|eh|schon|ja))*$/;
+/**
+ * Ein klares JA zur Aufzeichnung. Rauchtest 20.10.: „Ja, aber um was geht's dabei?“ ist KEIN klares Ja (Vorbehalt — erst die
+ * Frage beantworten, dann noch einmal fragen); ein „Ja?“ ist eine Rückfrage. Justins Anruf 16 (20.10.): „Ja, und ein weiteres
+ * Feedback gleich …“ und „Ja, zeichnen Sie auf …“ SIND ein Ja — ein „und“ hängt nur etwas an. Ein „nicht“ irgendwo im Satz
+ * macht aus einem Ja kein Nein; nur ein ausdrückliches Nein (istAufnahmeNein) zählt dagegen. Rein.
+ */
 export function istAufnahmeJa(text: string): boolean {
-  const t = String(text ?? "").trim().toLowerCase();
-  if (!t) return false;
-  if (/\b(nein|nicht|kein|lieber nicht|ohne)\b/.test(t)) return false;
-  // Rauchtest 20.10.: „Ja, aber um was geht's dabei?“ ist kein klares Ja — ein Vorbehalt oder eine Gegenfrage heißt: nachfragen.
-  if (/\baber\b|\?\s*$/.test(t)) return false;
-  return /\b(ja|jawohl|klar|gerne|gern|in ordnung|okay|ok|passt|einverstanden|von mir aus|machen sie)\b/.test(t);
+  // Füllwörter am Anfang zählen nicht („Mm … Ja“, „Äh, ja, gerne“).
+  const t = String(text ?? "").trim().toLowerCase().replace(/[’`´]/g, "'").replace(/^(?:(?:m+|hm+|mhm|ä+h*m*|eh+m*|ehm|also)(?![a-zäöüß])[\s,.…]*)+/, "").trim();
+  if (!t || istAufnahmeNein(t)) return false;
+  if (JA_AUSDRUECKLICH.test(t)) return true;
+  const m = /^([^,.;:!?—–-]+)([,.;:!?—–-]?)([\s\S]*)$/.exec(t);
+  if (!m || !JA_ANFANG.test(m[1].trim())) return false;
+  if (m[2] === "?") return false;                                   // „Ja?“ — eine Rückfrage
+  const rest = m[3].trim();
+  if (/^aber(?![a-zäöüß])/.test(rest)) return false;                // „Ja, aber …“ — ein Vorbehalt
+  // Ein Ja mit Gegenfrage („Ja, worum geht's?“) ist unklar — außer er hängt mit „und“ nur etwas an („Ja, und was kostet das?“).
+  if (/\?\s*$/.test(rest) && !/^und(?![a-zäöüß])/.test(rest)) return false;
+  return true;
 }
+/**
+ * Ein KLARES Nein zur Aufzeichnung. Justins Anruf 11 (20.10.): Er sagte Ja, war aber unsicher („… ich weiß nicht, worum es
+ * geht?“) — das „nicht“ darin zählte als Nein, die Aufzeichnung war abgelehnt. Ein „nicht“ irgendwo, ein Zögern oder eine
+ * Gegenfrage ist KEIN Nein: Aras beantwortet die Frage und fragt noch einmal. Rein.
+ */
+const NEIN_IRGENDWO = /(?<![a-zäöüß])(?:lieber nicht|bitte nicht|auf keinen fall|nein danke|ohne aufzeichnung|ohne aufnahme|keine aufzeichnung|keine aufnahme|nicht aufzeichnen|nicht aufnehmen|nicht mitschneiden|möchte ich nicht|moechte ich nicht|will ich nicht|mag ich nicht|lieber ohne|lassen sie das|lass(?:en sie)? es lieber)(?![a-zäöüß])/;
+/** „Nein, kein Problem“ / „nö, passt schon“ heißt: es stört nicht — unklar, also kein Nein. */
+const NEIN_ABER_OK = /(?<![a-zäöüß])(?:kein problem|passt|gerne|gern|klar|okay|ok|macht nichts|in ordnung|von mir aus)(?![a-zäöüß])/;
 export function istAufnahmeNein(text: string): boolean {
   const t = String(text ?? "").trim().toLowerCase();
-  return /\b(nein|nicht|lieber nicht|ohne aufzeichnung|keine aufnahme|keine aufzeichnung|bitte nicht)\b/.test(t);
+  if (!t) return false;
+  if (NEIN_IRGENDWO.test(t)) return true;
+  return /^(?:nein|nö|nee|naa|na)(?![a-zäöüß])/.test(t) && !NEIN_ABER_OK.test(t) && !/^na(?![a-zäöüß])[\s,]*(?:eh|klar|freilich|gut|schön|sicher|ja|und|also)(?![a-zäöüß])/.test(t);
 }
 
 // ── JSON-Formen für die Oberfläche (§ 5) ───────────────────────────────────

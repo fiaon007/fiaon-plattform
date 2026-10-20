@@ -277,7 +277,7 @@ async function main(): Promise<void> {
     ok("Protokoll: gewählt, angenommen, KI-Hinweis, Aufnahme-Ja, Zusage, Sperre, Ende", ["aras_gewaehlt", "aras_angenommen", "aras_ki_hinweis", "aras_aufnahme_ja", "aras_zusage", "aras_sperre", "aras_ende"].every((x) => arten.includes(x)), arten.join(","));
     ok("Genau EIN Protokoll „Aufnahme-Ja“ (kein Doppelstart)", arten.filter((x) => x === "aras_aufnahme_ja").length === 1, arten.join(","));
     ok("Prüfstatus „offen“ — Prüf-Mara (E-409) prüft das Gespräch mit Transkript", a?.pruefung_status === "offen", String(a?.pruefung_status));
-    ok("Voraus-Takt: nie mehr als 5 Marken (500 ms) bei Twilio offen", tz.maxOffen <= 5, String(tz.maxOffen));
+    ok("Ton-Werk: Vorrat bei Twilio nie über 1,5 s (Justin 20.10.: früher höchstens 500 ms — und meist nur ~100 ms)", tw.maxVorratMs <= 1540 && tz.maxOffen <= 16, `${Math.round(tw.maxVorratMs)} ms · ${tz.maxOffen} Marken`);
     const zeilenBus = busZeilen.filter((z) => z.callId === callId);
     ok("Live-Strom: ganze Sätze (keine Fetzen) — Kunde und Aras", zeilenBus.some((z) => z.wer === "kunde" && /Ja, am Apparat/.test(z.text)) && zeilenBus.some((z) => z.wer === "aras" && /\bKI\b/.test(z.text)), zeilenBus.map((z) => `${z.wer}:${z.text.slice(0, 20)}`).join(" | "));
     const liste = await anrufListe({});
@@ -292,9 +292,11 @@ async function main(): Promise<void> {
     const [pl] = (await sqlPool`SELECT id FROM fiaon_aras_plan WHERE person_id = ${p2} AND spielart = 'stufe_a' AND status = 'wartet'`) as any[];
     const { tw, callId } = await gespraech(Number(pl.id), { schritte: [
       { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja." }, { aras: "Darf ich aufzeichnen? Sagen Sie einfach Ja.", ms: 200 },
-      { kunde: "Nein, lieber nicht." }, { werkzeug: "aufnahme_abgelehnt" }, { kunde: "Ich habe gestern überwiesen." }, { werkzeug: "zahlung_gemeldet", eingabe: { am: vor(1) } },
+      { kunde: "Nein, lieber nicht.", nachMs: 700 }, { werkzeug: "aufnahme_abgelehnt" }, { kunde: "Ich habe gestern überwiesen." }, { werkzeug: "zahlung_gemeldet", eingabe: { am: vor(1) } },
       { warteMs: 150 },
     ] });
+    // Der Kunde antwortet erst, wenn er die Frage gehört hat (Ton-Werk: 300 ms Vorrat) — darum etwas länger bis zum Auflegen.
+    await warten(() => (sitzungFertig(callId) !== null && (laufZahlen(callId)?.aufnahmeNein ?? false)), 4000);
     await schlafen(900);
     tw.aufhaengen();
     await warten(async () => !!(await anruf(callId))?.nachbereitet_am, 8000);
@@ -518,12 +520,18 @@ async function main(): Promise<void> {
     // a) Pegel nach µ-law: reine Atmo (8 s) liegt bei ihrer festen Lautheit (±3 dB), auch nach Kodieren/Dekodieren
     const atmoLeise = mulawZuPcm16(pcm16ZuMulaw(atmoMischen(null, 64000, "buero_leise", 0).pcm));
     ok("Atmo „Büro leise“ nach µ-law: Lautheit wie festgelegt (±3 dB)", Math.abs(dbfs(atmoLeise) - ATMO_PEGEL_DBFS.buero_leise) < 3, `${dbfs(atmoLeise).toFixed(1)} dBFS`);
-    // Justin 20.10. (abends): „Büro leiser“ — beide Arten 6 dB leiser; auch „Büro“ hält seine Lautheit nach µ-law.
+    // Justin 20.10. (abends): „Büro leiser“ — der damals gehörte Abstand zur Rede (25 / 19 dB) bleibt, seit das Ton-Werk die Rede
+    // auf −16 dBFS regelt (20.10. nachmittags): Atmo −41 / −35 dBFS. Auch „Büro“ hält seine Lautheit nach µ-law.
     const atmoBuero = mulawZuPcm16(pcm16ZuMulaw(atmoMischen(null, 64000, "buero", 0).pcm));
-    ok("Atmo „Büro“ nach µ-law: Lautheit wie festgelegt (±3 dB), beide 6 dB leiser als zuerst (−49 / −43 dBFS)", Math.abs(dbfs(atmoBuero) - ATMO_PEGEL_DBFS.buero) < 3 && ATMO_PEGEL_DBFS.buero_leise === -49 && ATMO_PEGEL_DBFS.buero === -43, `${dbfs(atmoBuero).toFixed(1)} dBFS`);
-    // b) Reine Atmo gilt NIE als „Aras redet“ (Rede-Erkennung liest den ungemischten Rahmen; die Schwelle bleibt frei)
-    const rahmen = pcm16ZuMulaw(atmoMischen(null, 800, "buero", 1234).pcm);
-    ok("Reine Atmo liegt unter der Rede-Schwelle (0,012)", pegel(rahmen) < 0.012, pegel(rahmen).toFixed(4));
+    ok("Atmo „Büro“ nach µ-law: Lautheit wie festgelegt (±3 dB) — Abstand zur geregelten Rede wie freigegeben (−41 / −35 dBFS)", Math.abs(dbfs(atmoBuero) - ATMO_PEGEL_DBFS.buero) < 3 && ATMO_PEGEL_DBFS.buero_leise === -41 && ATMO_PEGEL_DBFS.buero === -35, `${dbfs(atmoBuero).toFixed(1)} dBFS`);
+    // b) Reine Atmo gilt NIE als „Aras redet“: das Ton-Werk erkennt Rede am Rahmen VOR der Atmo
+    {
+      const { Tonwerk } = await import("../server/lib/fiaon-aras-ton");
+      let T = 0; const w = new Tonwerk({ senden: () => {}, marke: () => {}, atmo: "buero", jetzt: () => T });
+      for (; T < 2000; T += 10) { if (T % 100 === 0) w.einspeisen(new Int16Array(800)); w.takt(); }
+      ok("Reine Atmo zählt nie als Rede (Erkennung am Rahmen vor der Atmo) — auch nicht bei „Büro“", w.statistik().rede.rahmen === 0 && w.statistik().fuellRahmen > 0, JSON.stringify(w.statistik().rede));
+      void pegel;
+    }
     // c) Laute Rede + Atmo: kein Übersteuern (weiche Grenze), Rede bleibt erhalten
     const laut = new Int16Array(800).map((_, i) => Math.round(31000 * Math.sin(i / 3)));
     const gemischt = atmoMischen(laut, 800, "buero", 99).pcm;
@@ -550,16 +558,17 @@ async function main(): Promise<void> {
     ok("Nach clear (Unterbrechen): binnen 150 ms wieder Ton bei Twilio — Atmo ohne Lücke", g.tw.gesendet().clear >= 1 && g.tw.gesendet().media > mediaNachClear0, `${mediaNachClear0} → ${g.tw.gesendet().media}`);
     await schlafen(1500);
     const z1 = laufZahlen(g.callId);
-    ok("In der Pause: reine Atmo-Stücke in Echtzeit, Voraus-Takt ≤ 5 Marken", (z1?.atmoStuecke ?? 0) >= 3 && g.tw.gesendet().maxOffen <= 5, JSON.stringify({ stuecke: z1?.atmoStuecke, maxOffen: g.tw.gesendet().maxOffen }));
+    ok("In der Pause: Atmo in Echtzeit, der Vorrat bei Twilio bleibt beim Vorlauf (~300 ms)", (z1?.atmoStuecke ?? 0) >= 3 && (z1?.vorratMs ?? 0) <= 360 && g.tw.maxVorratMs <= 1540, JSON.stringify({ fuell: z1?.atmoStuecke, vorratMs: z1?.vorratMs, max: Math.round(g.tw.maxVorratMs) }));
     g.tw.aufhaengen();
     await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 8000);
     ok("Nach dem Auflegen: kein Atmo-Takt mehr (Sitzung weg)", laufZahlen(g.callId) === null);
     await einstellungSetzen("aras_hintergrund", "aus", "pruefstand");
-    // f) Rot-Probe: ohne Atmo kommen in der Pause KEINE Füll-Stücke (der Füll-Takt hängt am Schalter)
+    // f) Rot-Probe: ohne Atmo ist der Vorrat in der Pause reine Stille (µ-law 0xFF) — nie ein Geräusch
     const e2 = await planEinreihen({ personId: pAtmo, nummer: "+491700000033", spielart: "zusage", grund: "Prüfstand ohne Atmo", erzeugtVon: "chef" });
     const g2 = await gespraech(Number(e2.id), { schritte: [{ warteMs: 2500 }] });
     await schlafen(1200);
-    ok("Rot-Probe: ohne Atmo keine Füll-Stücke", (laufZahlen(g2.callId)?.atmoStuecke ?? 0) === 0 && laufZahlen(g2.callId)?.atmo === null);
+    const stillRahmen = g2.tw.gespielt();
+    ok("Rot-Probe: ohne Atmo ist der Vorrat in der Pause reine Stille", laufZahlen(g2.callId)?.atmo === null && stillRahmen.length > 0 && stillRahmen.every((r) => r.pcm.every((v) => v === 0)), `${stillRahmen.length} Rahmen`);
     g2.tw.aufhaengen();
     await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 8000);
     void stille;
@@ -1089,6 +1098,130 @@ async function main(): Promise<void> {
     const kartenAus = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`) as any[])[0]?.n ?? 0);
     ok("Automatik aus + Prüf-Fehler rot: Stufe bleibt 2, genau EINE Karte (auch beim zweiten Lauf keine weitere)", x1.rotJetzt && !x1.geaendert && x1.karte && !x2.karte && kartenAus === 1 && (await arasEinstellungenLesen(true)).stufe === 2, JSON.stringify({ x1: x1.karte, x2: x2.karte, kartenAus }));
     await einstellungSetzen("aras_stufe_auto", "an", "pruefstand");
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
+  titel("18. TON (Justin 20.10. nachmittags, Anruf 16: „bricht ab wie Funkprobleme … zu leise“) + EINWILLIGUNG + ERGEBNIS");
+  {
+    await einstellungSetzen("aras_stufe", "3", "pruefstand");
+    await einstellungSetzen("aras_hintergrund", "aus", "pruefstand");
+    await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
+    let nr = 80;
+    const anruf18 = async (skript: Parameters<typeof attrappeMitSkript>[0]) => {
+      nr += 1;
+      const pid = await person(nr); await antrag(pid, nr, { payment_status: "paid" });
+      const e = await planEinreihen({ personId: pid, nummer: `+4917000000${nr}`, spielart: "zusage", grund: `Prüfstand Ton ${nr}`, erzeugtVon: "chef" });
+      if (!e.ok) throw new Error(`einreihen: ${e.grund}`);
+      return gespraech(Number(e.id), skript);
+    };
+    const ende18 = async (g: { tw: InstanceType<typeof TwilioAttrappe>; callId: number }) => {
+      g.tw.aufhaengen();
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 12_000);
+      return anruf(g.callId);
+    };
+    const satz = { dbfs: -24 };
+    // a) Wie GPT-Live liefert (Echtzeit mit Schwankung, ohne Aufholen) und stoßweise (300 ms Stoß, 250 ms Pause): durch die echte Brücke
+    for (const muster of ["echtzeit_schwankend", "stossweise"] as const) {
+      const g = await anruf18({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 2600, ton: { ...satz, muster } }, { kunde: "Ja, hallo.", nachMs: 900 }, { warteMs: 400 },
+        { aras: "Super, schön, dass ich Sie erreiche — ich erzähl Ihnen kurz, worum es geht und wie es jetzt weitergeht.", ms: 4500, ton: { ...satz, muster } }, { warteMs: 1500 },
+      ] });
+      await schlafen(10_500);
+      const l = g.tw.luecken(5), pegel18 = g.tw.redePegel();
+      ok(`${muster}: 0 Lücken mitten in der Rede beim Kunden (ab 5 ms)`, l.length === 0, `${l.length} Lücken${l.length ? ` (${l.slice(0, 6).join(", ")} ms)` : ""}`);
+      ok(`${muster}: Rede beim Kunden ≈ −16 dBFS (±3) — GPT-Live liefert −24`, Math.abs(pegel18 + 16) <= 3, `${pegel18.toFixed(1)} dBFS`);
+      ok(`${muster}: Vorrat bei Twilio ≤ 1,5 s`, g.tw.maxVorratMs <= 1540, `${Math.round(g.tw.maxVorratMs)} ms`);
+      const a = await ende18(g);
+      const ton = a?.ton ?? null;
+      ok(`${muster}: Messung je Anruf gespeichert (Pegel, Lücken, Vorrat, Antwortzeit)`, !!ton && Math.abs(Number(ton.rede?.rmsDbfs) + 16) <= 3 && ton.luecken?.anzahl === 0 && ton.vorrat?.medianMs != null && a?.antwort_ms_median != null && Number(a.antwort_ms_median) > 0,
+        JSON.stringify({ rede: ton?.rede?.rmsDbfs, luecken: ton?.luecken, vorrat: ton?.vorrat, antwort: a?.antwort_ms_median }));
+    }
+    // Rot-Probe: der alte Weg (sofort weiter, ≤ 500 ms, ohne Regelung) reißt mit derselben Lieferung Lücken und bleibt zu leise
+    {
+      process.env.ARAS_TON_ALT = "1";
+      const g = await anruf18({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 2600, ton: { ...satz, muster: "echtzeit_schwankend" } }, { kunde: "Ja, hallo.", nachMs: 900 }, { warteMs: 400 },
+        { aras: "Super, schön, dass ich Sie erreiche — ich erzähl Ihnen kurz, worum es geht und wie es jetzt weitergeht.", ms: 4500, ton: { ...satz, muster: "echtzeit_schwankend" } }, { warteMs: 1500 },
+      ] });
+      await schlafen(10_500);
+      delete process.env.ARAS_TON_ALT;
+      const l = g.tw.luecken(5), pegel18 = g.tw.redePegel();
+      ok("Rot-Probe alter Weg: Lücken mitten in der Rede („Funkprobleme“) und zu leise (≈ −24 dBFS)", l.length > 0 && pegel18 < -21, `${l.length} Lücken, längste ${l.length ? Math.max(...l) : 0} ms · ${pegel18.toFixed(1)} dBFS`);
+      await ende18(g);
+    }
+
+    // b) Einwilligung (Anruf 16): „Ja, und ein weiteres Feedback gleich …“ IST ein Ja — die Aufnahme startet, kein Nein
+    const frage = "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist?";
+    {
+      const g = await anruf18({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 600 }, { warteMs: 300 }, { aras: frage, ms: 400 }, { warteMs: 1200 },
+        { kunde: "Ja, und ein weiteres Feedback gleich: Du sollst nicht so oft Super sagen.", nachMs: 100 }, { warteMs: 2000 },
+      ] });
+      await warten(() => !!laufZahlen(g.callId)?.aufnahmeJa, 6000);
+      const z = laufZahlen(g.callId);
+      const a = await ende18(g);
+      ok("Anruf 16: „Ja, und ein weiteres Feedback gleich …“ → Aufnahme startet, kein Nein", !!z?.aufnahmeJa && !z?.aufnahmeNein && a?.aufnahme_nein_am == null && !!a?.aufnahme_gestartet_am, JSON.stringify({ z: { ja: z?.aufnahmeJa, nein: z?.aufnahmeNein }, nein: a?.aufnahme_nein_am }));
+    }
+    // c) Erst Nein, dann fragt Aras noch einmal und er sagt „Ja, zeichnen Sie auf“ → das neue Ja gilt (das Nein wird aufgehoben)
+    {
+      const g = await anruf18({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 600 }, { warteMs: 300 }, { aras: frage, ms: 400 }, { warteMs: 1200 },
+        { kunde: "Nein, lieber nicht.", nachMs: 100 }, { warteMs: 1500 }, { aras: frage, ms: 400 }, { warteMs: 1200 },
+        { kunde: "Ja, zeichnen Sie auf.", nachMs: 100 }, { warteMs: 2000 },
+      ] });
+      await warten(() => !!laufZahlen(g.callId)?.aufnahmeJa, 9000);
+      const z = laufZahlen(g.callId);
+      const a = await ende18(g);
+      const wz = (await sqlPool`SELECT werkzeug, ok FROM fiaon_aras_werkzeug WHERE aras_anruf_id = ${a?.id ?? 0} ORDER BY id`) as any[];
+      ok("Anruf 16: erst „Nein, lieber nicht“, auf die neue Frage „Ja, zeichnen Sie auf“ → Aufnahme läuft, Nein aufgehoben", !!z?.aufnahmeJa && a?.aufnahme_nein_am == null && !!a?.aufnahme_gestartet_am && wz.some((w) => w.werkzeug === "aufnahme_abgelehnt" && w.ok) && wz.some((w) => w.werkzeug === "aufnahme_starten" && w.ok),
+        `${wz.map((w) => `${w.werkzeug}:${w.ok}`).join(",")} · nein ${a?.aufnahme_nein_am}`);
+      ok("… und das Transkript ist gespeichert (seit dem Ja)", Array.isArray(a?.transkript) && a.transkript.length > 0, String(a?.transkript?.length ?? 0));
+    }
+    // d) Rot-Probe: „Ja, aber um was geht's dabei?“ ist weder Ja noch Nein — kein Start, und aufnahme_abgelehnt des Modells wird abgewiesen
+    {
+      const g = await anruf18({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 600 }, { warteMs: 300 }, { aras: frage, ms: 400 }, { warteMs: 1200 },
+        { kunde: "Ja, aber um was geht's dabei?", nachMs: 100 }, { warteMs: 300 }, { werkzeug: "aufnahme_abgelehnt" }, { warteMs: 1200 },
+      ] });
+      await schlafen(3800);
+      const z = laufZahlen(g.callId);
+      const w = g.att.spur.werkzeuge.find((x) => x.name === "aufnahme_abgelehnt");
+      const a = await ende18(g);
+      ok("Rot-Probe Anruf 11: unsicher („Ja, aber …?“) ist KEIN Nein — kein Start, kein Nein, das Werkzeug wird abgewiesen (kein_nein)", !z?.aufnahmeJa && !z?.aufnahmeNein && w?.ergebnis.ok === false && w?.ergebnis.fehler === "kein_nein" && a?.aufnahme_nein_am == null,
+        JSON.stringify({ ja: z?.aufnahmeJa, nein: z?.aufnahmeNein, w: w?.ergebnis.fehler }));
+    }
+
+    // e) Ergebnis (Anrufe 12, 15, 16): Chefbüro legt nach echtem Gespräch auf, Twilio meldet „completed“ sofort hinterher
+    const status = async (callId: number) => {
+      const url = `${process.env.APP_BASE_URL}/api/fiaon/aras/status?anruf=${callId}`;
+      const body = { CallSid: `ATTRAPPE-${callId}`, CallStatus: "completed", CallDuration: "30" };
+      await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": signaturBauen(process.env.TWILIO_AUTH_TOKEN!, url, body) }, body: new URLSearchParams(body).toString() });
+    };
+    const { sitzungBeenden } = await import("../server/lib/fiaon-aras-bruecke");
+    {
+      const g = await anruf18({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, hallo, worum geht's?", nachMs: 700 }, { aras: "Es geht um Ihre geplante Überweisung.", ms: 400 }, { warteMs: 6000 }] });
+      await schlafen(2000);
+      const fertig = sitzungBeenden(g.callId, "Chefbüro");
+      await schlafen(30);
+      await status(g.callId);
+      await fertig;
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 10_000);
+      await schlafen(800);
+      const a = await anruf(g.callId);
+      ok("Anrufe 12/15/16: im Chefbüro aufgelegt + Twilio „completed“ gleich hinterher → erreicht_sonstiges (nie „nicht_erreicht · Niemand hat gesprochen“)", a?.ergebnis === "erreicht_sonstiges" && !/Niemand hat gesprochen/.test(String(a?.ergebnis_notiz)), `${a?.ergebnis} · ${a?.ergebnis_notiz}`);
+      ok("Ende-Grund einheitlich: „Chefbüro“ wird „chef“", a?.ende_grund === "chef", String(a?.ende_grund));
+    }
+    {
+      const g = await anruf18({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { warteMs: 6000 }] });
+      await schlafen(1500);
+      const fertig = sitzungBeenden(g.callId, "chef");
+      await schlafen(30);
+      await status(g.callId);
+      await fertig;
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 10_000);
+      const a = await anruf(g.callId);
+      ok("Rot-Probe: ohne ein Wort des Kunden bleibt es „nicht_erreicht“", a?.ergebnis === "nicht_erreicht", `${a?.ergebnis} · ${a?.ergebnis_notiz}`);
+    }
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 

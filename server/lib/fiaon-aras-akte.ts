@@ -17,9 +17,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema } from "./fiaon-aras-schema";
-import { arasEinstellungenLesen, planEinreihen, versucheHeute, vertragsKunde, arasKostenHeute } from "./fiaon-aras-plan";
+import { arasEinstellungenLesen, planEinreihen, versucheHeute, vertragsLage, arasKostenHeute } from "./fiaon-aras-plan";
 import { telefonGesperrt, nummerKern } from "./fiaon-aras-sperre";
-import { einwilligungGueltig } from "./fiaon-telefon-einwilligung";
 import { arasEreignis } from "./fiaon-aras-ereignis";
 import { waehlbareNummer } from "./fiaon-telefon";
 import { istGlobalKunde } from "./fiaon-global-kunde";
@@ -31,7 +30,7 @@ import { ERGEBNIS_TEXT, istErgebnis } from "../../shared/fiaon-kontakt-ergebnis-
 import { auftragPruefen } from "../../shared/fiaon-aras-regeln";
 import {
   SPIELART_TEXT, BLEIBT_BEI_DIR, AUFTRAG_GUELTIG_STUNDEN, AUFTRAG_VERSUCHE, ARAS_NOTIZ_MAX_ZEICHEN, berlinTeile, istSpielart, kundenAnrufeAn, offenReihen, stufenGrenzen,
-  auftragSaubern, istOffenArt, type OffenPunkt, type OffenArt, type AuftragWann,
+  auftragSaubern, istOffenArt, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, type OffenPunkt, type OffenArt, type AuftragWann,
 } from "../../shared/fiaon-aras";
 
 type Lauf = typeof sqlPool;
@@ -157,10 +156,10 @@ export async function arasAkteLage(personId: number, agentId: number | null, lei
   else if (einst.notaus) grund = "Not-Aus ist an — Aras ruft gerade niemanden an.";
   else if (!kundenAn) grund = "Aras ruft noch keine Kunden an — er ist in der Testphase. Sobald Justin ihn freischaltet, geht es hier mit einem Klick.";
   else if (!einst.spielarten.auftrag) grund = "Aufträge an Aras sind gerade ausgeschaltet.";
-  else if (!(await vertragsKunde(personId, lauf))) {
-    // Ohne Vertrag ist jeder Anruf Werbung: nur mit seinem Ja — und nie bei Werbesperre.
-    if (p.werbesperre) grund = "Werbesperre — ohne Vertrag ruft Aras hier nicht an.";
-    else if (!(nummer && await einwilligungGueltig(nummerKern(nummer), personId, lauf))) grund = "Für diesen Kontakt braucht Aras ein Ja zum Anruf (Kästchen im Antrag, JA per Nachricht oder ein gebuchter Anruf) — bis dahin schreibt Mara.";
+  else {
+    // Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“ — Interessenten (auch mit Ja zum Anruf) schreibt Mara.
+    const v = await vertragsLage(personId, lauf);
+    if (v !== "laeuft") grund = v === "ehemalig" ? KEIN_VERTRAG_MEHR_SATZ : KEIN_VERTRAG_SATZ;
   }
   let hinweis: string | null = null;
   if (!grund) {

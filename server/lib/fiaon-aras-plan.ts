@@ -24,7 +24,7 @@ import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwill
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
-  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen,
+  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -147,6 +147,30 @@ export async function vertragsKunde(personId: number, lauf: Lauf = sqlPool): Pro
 }
 
 /**
+ * Hat die Person einen Vertrag? (Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“.) „laeuft“ = unterschrieben (Vertragsannahme
+ * oder consent_contract), bezahlt oder Zahlung gemeldet — und nicht beendet — ODER eine offene Rate (der Vertrag läuft bis zum
+ * Ende). „ehemalig“ = hatte einen Vertrag, der beendet ist. „keiner“ = Interessent. Fehlt die Tabelle der Vertragsannahmen,
+ * zählt nur consent_contract.
+ */
+export async function vertragsLage(personId: number, lauf: Lauf = sqlPool): Promise<"laeuft" | "ehemalig" | "keiner"> {
+  const sql = (mitAnnahme: boolean) => {
+    const unterschrieben = `(a.consent_contract IS TRUE${mitAnnahme ? " OR EXISTS (SELECT 1 FROM fiaon_vertragsannahmen v WHERE v.ref = a.ref AND COALESCE(v.weg, '') NOT LIKE '%pruefstand%')" : ""})`;
+    return lauf.unsafe(`
+      SELECT COALESCE(bool_or(
+               ((${unterschrieben} OR COALESCE(a.payment_status, '') IN ('paid', 'claimed_paid') OR a.claimed_paid_at IS NOT NULL)
+                 AND a.archived_at IS NULL AND a.gekuendigt_am IS NULL AND a.abo_gestoppt_am IS NULL
+                 AND COALESCE(a.payment_status, '') NOT IN ('cancelled', 'refunded', 'superseded'))
+               OR EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL)
+             ), FALSE) AS laeuft,
+             COALESCE(bool_or(${unterschrieben} OR COALESCE(a.payment_status, '') IN ('paid', 'completed', 'claimed_paid', 'refunded') OR a.claimed_paid_at IS NOT NULL), FALSE) AS war
+        FROM fiaon_applications a
+       WHERE a.person_id = ${Number(personId)} AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL`);
+  };
+  const [z] = ((await sql(true).catch(() => null)) ?? (await sql(false).catch(() => []))) as any[];
+  return z?.laeuft ? "laeuft" : z?.war ? "ehemalig" : "keiner";
+}
+
+/**
  * Go-live (20.10.2026, Koordination): „Willkommen nach Antrag“ nur nach dem UNTERSCHRIEBENEN Antrag — eine Vertragsannahme
  * (/antrag-neu „Zahlungspflichtig annehmen“) oder consent_contract (/vertrag-bestaetigen). Nie für Leads, nie nach Kündigung.
  * Fehlt die Tabelle der Vertragsannahmen, gilt nur consent_contract.
@@ -227,10 +251,11 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
     if (g?.global) return { ok: false, grund: "Firmenkunde (FIAON Global) — ARAS ruft nicht an." };
     if (g?.test) return { ok: false, grund: "Testperson." };
     if (g?.werbesperre && istWerbeSpielart(e.spielart)) return { ok: false, grund: "Werbesperre — keine Werbe-Spielart." };
-    // Auftrag aus der Akte: Kunde mit Vertrag (bezahlt oder Zahlung gemeldet) = Vertragssache, sonst nur mit seinem Ja.
+    // Auftrag aus der Akte: NUR Kunden mit Vertrag (Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“) — Interessenten schreibt Mara.
     if (e.spielart === "auftrag") {
-      rechtsgrund = (await vertragsKunde(e.personId, lauf)) ? "vertrag" : "einwilligung";
-      if (rechtsgrund === "einwilligung" && g?.werbesperre) return { ok: false, grund: "Werbesperre — ohne Vertrag ruft Aras hier nicht an." };
+      const v = await vertragsLage(e.personId, lauf);
+      if (v !== "laeuft") return { ok: false, grund: v === "ehemalig" ? KEIN_VERTRAG_MEHR_SATZ : KEIN_VERTRAG_SATZ };
+      rechtsgrund = "vertrag";
     }
     if (e.spielart === "willkommen" && !(await willkommenBereit(e.personId, lauf))) return { ok: false, grund: "Willkommen nur nach dem unterschriebenen Antrag." };
   } else if (e.spielart === "auftrag") return { ok: false, grund: "Ein Auftrag braucht einen Kunden." };
@@ -239,7 +264,7 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
   if (rechtsgrund === "einwilligung") {
     if (!einwilligungId) {
       const ew = await einwilligungGueltig(kern, e.personId, lauf);
-      if (!ew) return { ok: false, grund: e.spielart === "auftrag" ? "Für diesen Kontakt braucht Aras ein Ja zum Anruf (Kästchen im Antrag, JA per Nachricht oder ein gebuchter Anruf) — bis dahin schreibt Mara." : "Keine gültige Telefon-Einwilligung (§ 7a UWG) — Werbe-Spielart ohne Ja." };
+      if (!ew) return { ok: false, grund: "Keine gültige Telefon-Einwilligung (§ 7a UWG) — Werbe-Spielart ohne Ja." };
       einwilligungId = ew.id;
     }
     if (land === "CH" && !einst.callerIdCh) return { ok: false, grund: "Schweiz: keine eingetragene CH-Nummer (UWG lit. v) — keine Werbe-Spielart." };

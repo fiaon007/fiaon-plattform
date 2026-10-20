@@ -41,6 +41,12 @@ export const RECHTSGRUND: Record<Spielart, Rechtsgrund> = {
   auftrag: "vertrag",
 };
 export function istWerbeSpielart(s: Spielart): boolean { return RECHTSGRUND[s] === "einwilligung"; }
+/**
+ * Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“ — ARAS ruft auf Auftrag aus der Akte NUR Kunden mit Vertrag an
+ * (unterschrieben, bezahlt oder mit offener Rate). Interessenten schreibt Mara. Die zwei Sätze für die Akte:
+ */
+export const KEIN_VERTRAG_SATZ = "Noch kein Vertrag – ARAS ruft nur Kunden mit Vertrag an. Mara schreibt stattdessen.";
+export const KEIN_VERTRAG_MEHR_SATZ = "Kein laufender Vertrag mehr – ARAS ruft nur Kunden mit Vertrag an. Mara schreibt stattdessen.";
 /** Vertragssachen (Rate, Zusage, Zahlung gemeldet, Auftrag aus der Akte) wählen im Raten-Fenster, alles andere im Verkaufs-Fenster. */
 export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag" || s === "willkommen"; }
 

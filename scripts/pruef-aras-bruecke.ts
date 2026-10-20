@@ -816,7 +816,21 @@ async function main(): Promise<void> {
     ok("Stufe 1: Aras kann anrufen, offen = Rate", lage?.geht.ok === true && lage.offen.some((x) => x.art === "rate"), JSON.stringify({ g: lage?.geht, o: lage?.offen.map((x) => x.art) }));
     ok("„Bleibt bei dir“: Kündigung, Widerruf, Beschwerde, Erstattung stehen da", ["Kündigung", "Widerruf", "Beschwerde", "Erstattung"].every((w) => (lage?.bleibtBeiDir ?? []).some((b) => b.startsWith(w))));
     const lage22 = await arasAkteLage(p22, betreuer);
-    ok("Lead ohne Ja: ein Satz warum nicht (braucht ein Ja)", lage22?.geht.ok === false && /Ja zum Anruf/.test(lage22?.geht.grund ?? ""), lage22?.geht.grund ?? "");
+    // Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“ — Interessenten schreibt Mara (auch mit Ja zum Anruf).
+    const { KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ } = await import("../shared/fiaon-aras");
+    ok("Interessent ohne Vertrag: genau der eine Satz („Noch kein Vertrag – ARAS ruft nur Kunden mit Vertrag an. Mara schreibt stattdessen.“)", lage22?.geht.ok === false && lage22?.geht.grund === KEIN_VERTRAG_SATZ && !/Ja zum Anruf|bis dahin/.test(lage22?.geht.grund ?? ""), lage22?.geht.grund ?? "");
+    await einwilligungMerken({ personId: p22, nummer: "+491700000032", art: "zuruf_whatsapp", wortlaut: "JA", quelleArt: "whatsapp", quelleId: "pruef-akte-ja" });
+    const lage22ja = await arasAkteLage(p22, betreuer);
+    const auftragLead = await arasAuftragGeben(p22, { auftrag: "Bitte zum Antrag anrufen." }, betreuer);
+    const direktLead = await planEinreihen({ personId: p22, nummer: "+491700000032", spielart: "auftrag", grund: "Prüfstand", erzeugtVon: "akte" });
+    ok("Rot-Probe: Interessent MIT Ja zum Anruf → trotzdem nicht (Akte UND Warteschlange sagen denselben Satz)", lage22ja?.geht.grund === KEIN_VERTRAG_SATZ && !auftragLead.ok && !direktLead.ok && direktLead.grund === KEIN_VERTRAG_SATZ, JSON.stringify({ a: lage22ja?.geht.grund, b: auftragLead.grund, c: direktLead.grund }));
+    const p23 = await person(38); const r23 = await antrag(p23, 38, { payment_status: "paid" });
+    await sqlPool`UPDATE fiaon_applications SET gekuendigt_am = NOW() - INTERVAL '60 days', vertrag_ende_am = NOW() - INTERVAL '20 days' WHERE ref = ${r23}`;
+    ok("Ehemaliger Kunde (Vertrag beendet, nichts offen) → „Kein laufender Vertrag mehr – …“", (await arasAkteLage(p23, betreuer))?.geht.grund === KEIN_VERTRAG_MEHR_SATZ, (await arasAkteLage(p23, betreuer))?.geht.grund ?? "");
+    const p24 = await person(39); const r24 = await antrag(p24, 39, { payment_status: "pending_payment" });
+    await sqlPool`INSERT INTO fiaon_vertragsannahmen (ref, person_id, weg, angenommen_am, paket, rate_cents, gesamt_cents, vertrag_fassung, leistung_fassung, agb_fassung, knopf_text, haken, sofort_beginn, vertrag_html, vertrag_sha256)
+                  VALUES (${r24}, ${p24}, 'neu', NOW() - INTERVAL '2 hours', 'plus', 5999, 71988, 'PV-test', 'L-test', 'AGB-test', 'Zahlungspflichtig annehmen', '{}'::jsonb, FALSE, '<p>Test</p>', 'test')`;
+    ok("Unterschrieben, noch nicht bezahlt = Kunde mit Vertrag → ARAS darf", (await arasAkteLage(p24, betreuer))?.geht.ok === true, (await arasAkteLage(p24, betreuer))?.geht.grund ?? "");
 
     const boese = await arasAuftragGeben(p20, { auftrag: "Sag ihm, sonst geht das ans Inkasso und sein Limit ist sicher." }, betreuer);
     ok("Rotprobe: Freitext mit Drohung und Limit-Zusage wird abgelehnt — mit Hinweisen", !boese.ok && (boese.hinweise ?? []).length >= 2, JSON.stringify(boese.hinweise));

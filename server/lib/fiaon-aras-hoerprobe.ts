@@ -11,11 +11,11 @@ import { arasSchema } from "./fiaon-aras-schema";
 import { adapterFuer } from "./fiaon-aras-adapter";
 import { arasEinstellungenLesen, einstellungSetzen } from "./fiaon-aras-plan";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
-import { ADAPTER, ARAS_DIENSTE, stimmeGueltig, type AdapterName, type HoerprobeZeile } from "../../shared/fiaon-aras";
+import { ADAPTER, ARAS_DIENSTE, stimmeGueltig, istDialekt, type AdapterName, type HoerprobeZeile, type Dialekt } from "../../shared/fiaon-aras";
 
 type Lauf = typeof sqlPool;
 
-export async function hoerprobeErzeugen(e: { adapter: AdapterName; stimme: string; beschreibung?: string; text: string }, lauf: Lauf = sqlPool): Promise<{ id: number }> {
+export async function hoerprobeErzeugen(e: { adapter: AdapterName; stimme: string; beschreibung?: string; text: string; dialekt?: Dialekt | null }, lauf: Lauf = sqlPool): Promise<{ id: number }> {
   await arasSchema(lauf);
   if (!(ADAPTER as readonly string[]).includes(e.adapter)) throw new Error("Unbekannter Adapter.");
   const stimme = String(e.stimme ?? "").trim();
@@ -26,10 +26,12 @@ export async function hoerprobeErzeugen(e: { adapter: AdapterName; stimme: strin
   const b = await adapter.bereit();
   if (!b.ok) throw new Error(b.grund ?? "Adapter nicht bereit.");
   const einst = await arasEinstellungenLesen(false, lauf);
-  const probe = await adapter.hoerprobe({ stimme, beschreibung: e.beschreibung?.trim() || undefined, text, modell: einst.modellStimme });
+  // Ohne Angabe: der eingestellte Akzent (so klingt Aras gerade am Telefon).
+  const dialekt: Dialekt = istDialekt(e.dialekt) ? e.dialekt : einst.regie.dialekt ?? "hochdeutsch";
+  const probe = await adapter.hoerprobe({ stimme, beschreibung: e.beschreibung?.trim() || undefined, text, modell: einst.modellStimme, dialekt });
   const [z] = (await lauf`
-    INSERT INTO fiaon_aras_hoerprobe (adapter, stimme, beschreibung, text, audio, mime, dauer_ms, kosten_cents)
-    VALUES (${e.adapter}, ${stimme}, ${e.beschreibung?.trim() || null}, ${text}, ${probe.bytes}, ${probe.mime}, ${probe.dauerMs}, ${probe.kostenCents})
+    INSERT INTO fiaon_aras_hoerprobe (adapter, stimme, beschreibung, text, audio, mime, dauer_ms, kosten_cents, dialekt)
+    VALUES (${e.adapter}, ${stimme}, ${e.beschreibung?.trim() || null}, ${text}, ${probe.bytes}, ${probe.mime}, ${probe.dauerMs}, ${probe.kostenCents}, ${dialekt})
     RETURNING id`) as any[];
   return { id: Number(z.id) };
 }
@@ -47,13 +49,14 @@ export async function hoerprobeAblegen(e: { adapter: AdapterName; stimme: string
 export async function hoerprobenListe(lauf: Lauf = sqlPool): Promise<HoerprobeZeile[]> {
   await arasSchema(lauf);
   const zeilen = (await lauf`
-    SELECT id, adapter, stimme, beschreibung, text, dauer_ms, kosten_cents, bewertung, kommentar, gewaehlt_am, created_at, (audio IS NOT NULL) AS hat_audio
+    SELECT id, adapter, stimme, beschreibung, text, dauer_ms, kosten_cents, bewertung, kommentar, gewaehlt_am, created_at, (audio IS NOT NULL) AS hat_audio, dialekt
       FROM fiaon_aras_hoerprobe ORDER BY created_at DESC LIMIT 60`) as any[];
   return zeilen.map((z) => ({
     id: Number(z.id), adapter: String(z.adapter), stimme: String(z.stimme), beschreibung: z.beschreibung ?? null, text: String(z.text),
     dauerMs: z.dauer_ms != null ? Number(z.dauer_ms) : null, kostenCents: z.kosten_cents != null ? Number(z.kosten_cents) : null,
     bewertung: z.bewertung != null ? Number(z.bewertung) : null, kommentar: z.kommentar ?? null,
     gewaehltAm: z.gewaehlt_am ? new Date(z.gewaehlt_am).toISOString() : null, am: new Date(z.created_at).toISOString(), createdAt: new Date(z.created_at).toISOString(), hatAudio: z.hat_audio === true,
+    dialekt: istDialekt(z.dialekt) ? z.dialekt : null,
   }));
 }
 
@@ -66,11 +69,13 @@ export async function hoerprobeAudio(id: number, lauf: Lauf = sqlPool): Promise<
 
 export async function hoerprobeWaehlen(id: number, von: string, lauf: Lauf = sqlPool): Promise<void> {
   await arasSchema(lauf);
-  const [z] = (await lauf`SELECT adapter, stimme, beschreibung FROM fiaon_aras_hoerprobe WHERE id = ${id}`) as any[];
+  const [z] = (await lauf`SELECT adapter, stimme, beschreibung, dialekt FROM fiaon_aras_hoerprobe WHERE id = ${id}`) as any[];
   if (!z) throw new Error("Hörprobe nicht gefunden.");
   await einstellungSetzen("aras_adapter", String(z.adapter), von, lauf);
   await einstellungSetzen("aras_stimme", String(z.stimme), von, lauf);
   await einstellungSetzen("aras_stimme_beschreibung", z.beschreibung ? String(z.beschreibung) : "", von, lauf);
+  // „Diese nehmen“ übernimmt auch den Akzent der Probe (Justin hört Stimme + Akzent zusammen).
+  if (istDialekt(z.dialekt)) await einstellungSetzen("aras_dialekt", String(z.dialekt), von, lauf);
   await lauf`UPDATE fiaon_aras_hoerprobe SET gewaehlt_am = CASE WHEN id = ${id} THEN NOW() ELSE NULL END`;
 }
 

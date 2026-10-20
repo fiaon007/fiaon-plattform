@@ -40,6 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import WebSocket from "ws";
 import type { StimmAdapter, Sitzung, SitzungStart, SitzungEreignis, HoerprobeEin, HoerprobeAus } from "./fiaon-aras-adapter";
+import { dialektAnweisung } from "../../shared/fiaon-aras-prompt";
 import { mulawAlsWav, stille, pegel } from "./fiaon-aras-adapter";
 import { kiSchluessel, kiBereit, pausieren, abrechnungsFehler, istKiPause, istProduktionsdienst } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
@@ -442,12 +443,13 @@ export function openaiLiveAdapter(): StimmAdapter {
           "Du bist Aras von FIAON. Das hier ist eine Sprechprobe für die Stimmauswahl — es hört niemand live zu.",
           "Sprich Deutsch, natürlich und warm wie ein Mensch am Telefon, mit kleinen echten Pausen.",
           e.beschreibung ? `Stimme und Art: ${e.beschreibung.slice(0, 300)}` : "",
+          dialektAnweisung(e.dialekt ?? null),
           "Du sagst den vorgegebenen Satz genau einmal, wörtlich und vollständig. Danach schweigst du.",
         ].filter(Boolean).join("\n"),
         begruessung: `Sag jetzt sofort, genau einmal und wörtlich: „${satz}“ Danach sagst du nichts mehr.`,
         hintergrundAnweisung: "", stimme: e.stimme, modell: e.modell || "gpt-live-1", modellGehirn: "",
         werkzeuge: [], audio: { rein: "pcmu_8k", raus: "pcmu_8k" },
-        regie: { fuellwoerter: "normal", lachen: false, tempo: "normal", zuhoerlaute: "sparsam", energie: "lebendig", abschluss: "klar" },
+        regie: { fuellwoerter: "normal", lachen: false, tempo: "normal", zuhoerlaute: "sparsam", energie: "lebendig", abschluss: "klar", dialekt: e.dialekt ?? "hochdeutsch" },
         ereignis, werkzeugAusfuehren: async () => ({ ok: false, vorlesen: "" }),
       }, ereignis);
       await sitzung.verbinden();

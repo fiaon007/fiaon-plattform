@@ -213,6 +213,8 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   // Ton-Regler aus dem Nachtrag „Persona & Skalierung“ (Justin 19.10.2026): Energie und Abschluss-Härte.
   aras_energie: { typ: "enum", vorgabe: "lebendig", enum: ["ruhig", "lebendig", "vollgas"], satz: "Wie viel Schwung: ruhig, lebendig (Vorgabe) oder Vollgas — erst nach dem Test." },
   aras_abschluss: { typ: "enum", vorgabe: "klar", enum: ["sanft", "klar", "hartnaeckig"], satz: "Wie oft er nach einem Nein nachfragt: sanft 0, klar 1, hartnäckig 2 — nie 3." },
+  // Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent und ein paar Wörter, die jeder versteht, nie tiefer Dialekt.
+  aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], satz: "Akzent: Hochdeutsch, leicht österreichisch oder österreichisch — nie ein starker Dialekt." },
   aras_ki_hinweis_satz: { typ: "text", vorgabe: KI_HINWEIS_VORGABE, maxZeichen: 400, satz: "Der erste Satz — muss „KI“ oder „digitale“ enthalten.", pruefen: (w) => (/\bKI\b|digitale/i.test(w) ? null : "Der KI-Hinweis muss „KI“ oder „digitale“ enthalten.") },
   aras_aufnahme_frage: { typ: "text", vorgabe: AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, satz: "Die Frage vor der Aufnahme — muss „Ja“ enthalten.", pruefen: (w) => (/\bJa\b/.test(w) ? null : "Die Aufnahme-Frage muss „Ja“ enthalten.") },
   aras_spielarten: { typ: "json", vorgabe: JSON.stringify(SPIELARTEN_VORGABE), satz: "Welche Gesprächsarten ARAS führt.", pruefen: (w) => {
@@ -295,11 +297,17 @@ export function einstellungPruefen(schluessel: string, wert: unknown): string {
 }
 
 /** Die Ton-Regler (Stimmregie) — sie schreiben den Regie-Text der Sitzung, kein Code-Pfad sonst. */
+export const DIALEKTE = ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"] as const;
+export type Dialekt = (typeof DIALEKTE)[number];
+export function istDialekt(v: unknown): v is Dialekt { return typeof v === "string" && (DIALEKTE as readonly string[]).includes(v); }
+export const DIALEKT_TEXT: Record<Dialekt, string> = { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch" };
 export interface Regie {
   fuellwoerter: "sparsam" | "normal" | "viel"; lachen: boolean; tempo: "ruhig" | "normal" | "zuegig"; zuhoerlaute: "sparsam" | "normal";
   energie: "ruhig" | "lebendig" | "vollgas"; abschluss: "sanft" | "klar" | "hartnaeckig";
+  /** Akzent (Justin 20.10.2026) — Vorgabe Hochdeutsch, bis er wählt. */
+  dialekt: Dialekt;
 }
-export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar" };
+export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch" };
 export type Stufe = 0 | 1 | 2 | 3;
 
 export interface ArasEinstellungen {
@@ -348,6 +356,7 @@ export function einstellungenAnwenden(roh: Record<string, string | null | undefi
     regie: {
       fuellwoerter: w("aras_fuellwoerter") as Regie["fuellwoerter"], lachen: an("aras_lachen"), tempo: w("aras_tempo") as Regie["tempo"],
       zuhoerlaute: w("aras_zuhoerlaute") as Regie["zuhoerlaute"], energie: w("aras_energie") as Regie["energie"], abschluss: w("aras_abschluss") as Regie["abschluss"],
+      dialekt: (istDialekt(w("aras_dialekt")) ? w("aras_dialekt") : "hochdeutsch") as Dialekt,
     },
     kiHinweisSatz: w("aras_ki_hinweis_satz"), aufnahmeFrage: w("aras_aufnahme_frage"),
     spielarten,
@@ -552,8 +561,10 @@ export interface HoerprobeZeile {
   kostenCents: number | null; bewertung: number | null; kommentar: string | null; gewaehltAm: string | null; am: string; hatAudio: boolean;
   /** Dieselbe Zeit unter dem Namen, den der KI-Raum liest (shared/fiaon-ki-team.ts HoerprobeZeile). */
   createdAt: string;
+  /** Akzent der Sprechprobe (aras_dialekt) — null bei alten Proben. */
+  dialekt?: Dialekt | null;
 }
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
-export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss"] as const;
+export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
 export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";

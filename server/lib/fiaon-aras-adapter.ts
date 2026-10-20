@@ -59,7 +59,11 @@ export type SitzungEreignis =
 
 export interface WerkzeugErgebnis { ok: boolean; vorlesen: string; still?: string; daten?: unknown; fehler?: string }
 
-export interface HoerprobeEin { stimme: string; beschreibung?: string; text: string; modell?: string }
+export interface HoerprobeEin {
+  stimme: string; beschreibung?: string; text: string; modell?: string;
+  /** Akzent für die Sprechprobe (aras_dialekt) — Justin 20.10.2026. */
+  dialekt?: import("../../shared/fiaon-aras").Dialekt | null;
+}
 export interface HoerprobeAus { mime: string; bytes: Buffer; dauerMs: number; kostenCents: number }
 
 export interface StimmAdapter {

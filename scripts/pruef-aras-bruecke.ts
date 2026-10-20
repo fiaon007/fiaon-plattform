@@ -439,6 +439,16 @@ async function main(): Promise<void> {
     arasEinstellungenVergessen();
     const e = await arasEinstellungenLesen(true);
     ok("„Diese nehmen“ setzt Adapter + Stimme", e.adapter === "attrappe" && e.stimme === "flitz" && (await hoerprobenListe()).find((z) => z.id === h.id)?.gewaehltAm != null);
+    // Justin 20.10.: Sprechprobe mit Akzent — „Diese nehmen“ übernimmt Stimme UND Akzent
+    const hd = await hoerprobeAblegen({ adapter: "attrappe", stimme: "nuri", text: "Grüß Gott, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI.", bytes: Buffer.from("RIFFpruef"), dauerMs: 900 });
+    await sqlPool`UPDATE fiaon_aras_hoerprobe SET dialekt = 'oesterreichisch_leicht' WHERE id = ${hd.id}`;
+    ok("Hörprobe trägt den Akzent in der Liste", (await hoerprobenListe()).find((z) => z.id === hd.id)?.dialekt === "oesterreichisch_leicht");
+    await hoerprobeWaehlen(hd.id, "pruefstand");
+    arasEinstellungenVergessen();
+    const e2 = await arasEinstellungenLesen(true);
+    ok("„Diese nehmen“ mit Akzent: Stimme nuri + aras_dialekt leicht österreichisch", e2.stimme === "nuri" && e2.regie.dialekt === "oesterreichisch_leicht", `${e2.stimme}/${e2.regie.dialekt}`);
+    await einstellungSetzen("aras_dialekt", "hochdeutsch", "pruefstand");
+    await hoerprobeWaehlen(h.id, "pruefstand");
   }
 
   titel("11. SPERRE: gesperrte Person wird nie wieder gewählt");

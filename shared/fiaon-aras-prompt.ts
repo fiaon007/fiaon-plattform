@@ -23,9 +23,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE,
-  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie,
+  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt,
 } from "./fiaon-aras";
-import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, verkaufsNutzen, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
+import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEingang, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
 import { paketPreisCents } from "./fiaon-pakete";
 import { MITARBEITER_NAMEN_KURZ } from "./fiaon-mitarbeiter-name";
 import { KOPPLUNG_HINWEIS, DROHUNG_HINWEIS } from "./fiaon-wortverbote";
@@ -137,14 +137,16 @@ export function betragAusFeld(b: Briefing): string | null {
 }
 
 /**
- * Justins Verkaufssatz (E-373: den Wunsch verkaufen) — gesprochen: erst der Nutzen, dann der Link, und genau EINE
- * Frage am Schluss (Probe 20.10.: nach der Frage kam noch ein Satz). Keine Freischalt-Zusage („Account frei“), sondern
- * „dann geht es automatisch weiter“; der Betrag nur aus einem Betragsfeld.
+ * Justins Verkaufssatz (E-373) — EINE Quelle mit Mara: nachDemEingang („Nach Ihrer Zahlung mit Ihrem Verwendungszweck
+ * schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich … nutzen können“; wahr, E-276), gesprochen um den
+ * Betrag aus dem Betragsfeld ergänzt. Dann der Link und genau EINE Frage am Schluss (Probe 20.10.: nach der Frage kam
+ * noch ein Satz).
  */
 export function verkaufssatz(b: Briefing): string {
   const betrag = betragAusFeld(b);
-  return `Sobald Ihre erste Zahlung${betrag ? ` über ${betrag}` : ""} da ist, geht es automatisch weiter — damit Sie schnellstmöglich ${verkaufsNutzen(b.kartenZiel ?? null)}. `
-    + `Im Link steht alles drin, Preis, Laufzeit und Widerruf. ${LINK_ANGEBOT}`;
+  const kern = nachDemEingang({ anfang: true, ziel: b.kartenZiel ?? null });
+  const gesprochen = betrag ? kern.replace(/^Nach Ihrer Zahlung/, `Nach Ihrer Zahlung über ${betrag}`) : kern;
+  return `${gesprochen}. Im Link steht alles drin, Preis, Laufzeit und Widerruf. ${LINK_ANGEBOT}`;
 }
 
 /**
@@ -186,6 +188,16 @@ const FUELL_HOERBAR: Record<Regie["fuellwoerter"], string> = {
   normal: "NORMAL — etwa jeder dritte Satz hat ein „hm“, „also“ oder „genau“.",
   viel: "VIEL — fast jeder zweite Satz beginnt locker mit „Also“, „Ähm“, „Na ja“ oder „Okay“ oder hat ein „hm“, „genau“, „ach so“ drin — wie ein entspannter Mensch; nie zwei Füllwörter hintereinander.",
 };
+/** Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent und ein paar Wörter, die jeder versteht. */
+export const DIALEKT_HOERBAR: Record<Dialekt, string> = {
+  hochdeutsch: "HOCHDEUTSCH — klares, freundliches Hochdeutsch ohne Dialekt.",
+  oesterreichisch_leicht: "LEICHT ÖSTERREICHISCH — ein warmer, leichter österreichischer Akzent (Wiener Satzmelodie, weiche Vokale) und ab und zu ein typisches Wort, das jeder in Deutschland versteht: „Grüß Gott“ zur Begrüßung, „passt“, „a bissl“, „gell?“. Kein Dialekt-Wortschatz, den man nicht versteht — jeder muss dich mühelos verstehen.",
+  oesterreichisch: "ÖSTERREICHISCH — deutlich österreichischer Akzent und Satzmelodie, öfter typische Wörter, die Deutsche auch verstehen: „Grüß Gott“, „passt“, „a bissl“, „gell?“, „heuer“. Trotzdem kein tiefer Dialekt — jeder in Deutschland muss dich mühelos verstehen.",
+};
+/** Für die Sprechprobe im Stimmen-Studio (eine Quelle mit der Anweisung). */
+export function dialektAnweisung(d: Dialekt | null | undefined): string {
+  return d && d !== "hochdeutsch" ? `Sprich mit Akzent: ${DIALEKT_HOERBAR[d]}` : "";
+}
 const TEMPO_HOERBAR: Record<Regie["tempo"], string> = {
   ruhig: "RUHIG — eher langsam, mit kleinen Pausen zwischen den Gedanken.",
   normal: "NORMAL — ganz normales Gesprächstempo.",
@@ -221,6 +233,16 @@ export function kiHinweisSauber(satz: string): string {
   return vor.replace(/\[[^\]]*\]/g, "").replace(/\s{2,}/g, " ").replace(/\s+([.,!?…])/g, "$1").trim() || "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
 }
 
+/**
+ * Der erste Satz für DIESEN Anruf: gesäubert, und mit Dialekt „Grüß Gott“ statt „Hallo“/„Guten Tag“ (Justin 20.10.2026).
+ * Der KI-Hinweis bleibt drin (KI-VO Art. 50).
+ */
+export function kiHinweisFuer(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">): string {
+  const satz = kiHinweisSauber(e.kiHinweisSatz);
+  const d = e.regie?.dialekt ?? "hochdeutsch";
+  return d === "hochdeutsch" ? satz : satz.replace(/^(?:Hallo|Guten Tag|Guten Morgen|Hi)\b/i, "Grüß Gott");
+}
+
 // ── Die Bausteine der STIMME ───────────────────────────────────────────────
 function rolle(e: ArasEinstellungen, r: Regie): string {
   const name = e.nachname ? `${e.name} ${e.nachname}` : e.name;
@@ -239,7 +261,7 @@ function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
   const anlass = anlassSatz(spielart, b);
   const z = [
     `DER ANFANG (Pflicht, in dieser Reihenfolge — jeder Schritt ist EIN Redebeitrag, danach hörst du zu):`,
-    `1. Dein erster Satz ist immer dieser (so oder fast wörtlich): „${kiHinweisSauber(e.kiHinweisSatz)}“`,
+    `1. Dein erster Satz ist immer dieser (so oder fast wörtlich): „${kiHinweisFuer(e)}“`,
     spielart === "eingehend"
       ? `2. Dann fragst du, worum es geht, und wer dran ist.`
       : `2. Dann: „Bin ich richtig bei ${wer ?? "…"}?“${wer ? "" : " (Den Namen kennst du nicht — frag locker, mit wem du sprichst.)"} Erst wenn der Kunde bestätigt, dass er selbst dran ist, nennst du den Anlass — nie Rate, Antrag, Paket oder Betrag vorher.`,
@@ -271,6 +293,7 @@ function stimmeHeute(r: Regie): string {
     `· Energie: ${ENERGIE_HOERBAR[r.energie]}`,
     `· Füllwörter: ${FUELL_HOERBAR[r.fuellwoerter]}`,
     `· Tempo: ${TEMPO_HOERBAR[r.tempo]}`,
+    `· Sprache: ${DIALEKT_HOERBAR[r.dialekt ?? "hochdeutsch"]}${r.dialekt && r.dialekt !== "hochdeutsch" ? " „Servus“ sagst du nur zum Abschied und nur zu Kunden aus Österreich." : ""}`,
     r.lachen ? `· Lachen: ein kurzes, warmes Lachen ist erlaubt, wenn der Kunde etwas Lustiges sagt.` : `· Lachen: keins.`,
   ].join("\n");
 }
@@ -430,7 +453,6 @@ function grenzen(): string {
     `· Einen Vertrag schließt du nie am Telefon — der Kunde bekommt den Link und unterschreibt selbst am Handy.`,
     `· Nach dem Vertragsende mahnst du nie. Bankdaten, Links, Codes und Internetadressen liest du nie vor (nie „fiaon punkt com slash …“) — der Link kommt aufs Handy.`,
     `· BETRÄGE: Einen Betrag nennst du NUR, wenn er oben mit „€“ steht (Rate über …, erste Zahlung …). Eine Anzahl (Raten, Tage) ist nie ein Betrag. Nie die Null als Betrag nennen und nie einen Betrag raten — kennst du ihn nicht: „Den genauen Betrag sehen Sie auf Ihrer Zahlungsseite, der Link kommt gleich.“`,
-    `· Du versprichst keine Freischaltung (kein „wir schalten Sie frei“). Du sagst: „Sobald Ihre Zahlung da ist, geht es automatisch weiter.“`,
     `· Erreichst du eine Mailbox: auflegen, keine Nachricht.`,
     `· „Nicht mehr anrufen“, „lassen Sie mich in Ruhe“ → sofort an den Hintergrund (nicht_mehr_anrufen), kurz bestätigen, freundlich Schluss.`,
   ].join("\n");
@@ -517,9 +539,9 @@ function begruessung(e: ArasEinstellungen, b: Briefing, spielart: Spielart): str
   const wer = b.nachname ? `${b.anrede ? `${b.anrede === "Herr" ? "Herrn" : "Frau"} ` : ""}${b.nachname}` : null;
   const sprache = b.sprache === "en" ? "auf Englisch (britisch), mit demselben Inhalt" : "auf Deutsch";
   if (spielart === "eingehend") {
-    return `Ein Kunde ruft gerade bei FIAON an. Melde dich jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisSauber(e.kiHinweisSatz)}“ Frag dann, worum es geht — und hör zu.`;
+    return `Ein Kunde ruft gerade bei FIAON an. Melde dich jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisFuer(e)}“ Frag dann, worum es geht — und hör zu.`;
   }
-  return `Der Anruf ist gerade angenommen worden. Begrüße jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisSauber(e.kiHinweisSatz)}“ `
+  return `Der Anruf ist gerade angenommen worden. Begrüße jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisFuer(e)}“ `
     + (wer ? `Frag direkt danach: „Bin ich richtig bei ${wer}?“` : `Frag direkt danach locker, mit wem du sprichst.`)
     + ` Dann mach eine Pause und hör zu. Nenne den Anlass erst, wenn die Person bestätigt ist.`;
 }

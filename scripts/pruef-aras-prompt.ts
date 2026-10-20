@@ -11,7 +11,9 @@ import {
   HOERPROBE_SATZ, anlassSatz, ratenText, betragAusFeld, MENSCH_FRAGE_ANTWORT, type Briefing,
 } from "../shared/fiaon-aras-prompt";
 import { einstellungenAnwenden, SPIELARTEN, WERKZEUGE, WERKZEUGE_GLOBAL, druckFinden, REGIE_VORGABE, AUFNAHME_FRAGE_VORGABE, KI_HINWEIS_VORGABE } from "../shared/fiaon-aras";
-import { nullBetragFinden, urlFinden, freischaltZusageFinden, zahlOhneEinheitFinden, fragenImBeitrag, telefonRegeln } from "../shared/fiaon-aras-regeln";
+import { nullBetragFinden, urlFinden, zahlOhneEinheitFinden, fragenImBeitrag, telefonRegeln } from "../shared/fiaon-aras-regeln";
+import { nachDemEingang } from "../shared/fiaon-mara-ton";
+import { kiHinweisFuer, dialektAnweisung } from "../shared/fiaon-aras-prompt";
 import { akteVorlesen } from "../shared/fiaon-aras-prompt";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { mitarbeiterVornameFunde, type MitarbeiterEintrag } from "../shared/fiaon-mitarbeiter-name";
@@ -66,7 +68,10 @@ for (const spielart of SPIELARTEN) {
 titel("2. VERKAUFSSATZ (E-373): Wunsch ohne Bank-Vorbehalt, keine Limit-Zusage");
 {
   const s = verkaufssatz(briefing);
-  ok("E-373 gesprochen: Nutzen statt Freischalt-Zusage („geht es automatisch weiter“)", /geht es automatisch weiter/.test(s) && freischaltZusageFinden(s) === null, s);
+  // E-373 (Justin): „Nach Ihrer Zahlung mit dem Verwendungszweck … schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich …“
+  // — EINE Quelle mit Mara (nachDemEingang), gesprochen nur um den Betrag aus dem Betragsfeld ergänzt.
+  const kern = nachDemEingang({ anfang: true, ziel: briefing.kartenZiel ?? null });
+  ok("E-373: eine Quelle mit Mara (nachDemEingang), nur um den Betrag ergänzt", s.replace(" über 59,99 €", "").startsWith(kern) && /schalten wir umgehend Ihren Account frei/.test(s), s);
   ok("kein Bank-Vorbehalt im Verkaufssatz", !/bank/i.test(s));
   ok("keine Limit-Zusage (limitZusage)", limitZusage(s) === null, limitZusage(s) ?? "");
   ok("nennt den Betrag aus dem Feld und dass im Link Preis, Laufzeit und Widerruf stehen", /über 59,99 €/.test(s) && /Preis, Laufzeit und Widerruf/.test(s));
@@ -154,8 +159,8 @@ titel("6. PROBE 20.10.2026 (Justins erster Anruf): Wahrheit, Anlass, Aufzeichnun
     const a = anweisungBauen({ spielart: "probe", briefing: pb, einstellungen: justin, hausanweisung: null });
     const alles = `${a.text}\n${a.backend}\n${a.begruessung}`;
     ok(`Probe ${art}: keine Anzahl ohne Wort, kein „null Euro“, keine Freischalt-Zusage, keine Internetadresse im Gesprochenen`,
-      zahlOhneEinheitFinden(alles) === null && nullBetragFinden(alles) === null && freischaltZusageFinden(a.text) === null,
-      zahlOhneEinheitFinden(alles) ?? nullBetragFinden(alles) ?? freischaltZusageFinden(a.text) ?? "");
+      zahlOhneEinheitFinden(alles) === null && nullBetragFinden(alles) === null,
+      zahlOhneEinheitFinden(alles) ?? nullBetragFinden(alles) ?? "");
     ok(`Probe ${art}: echtes Paket (FIAON Pro, 59,99 €), Betrag nur aus dem Feld`, (art === "lead" || /59,99 €/.test(a.text)) && !/plus/i.test(pb.paketKey ?? ""), pb.paketKey ?? "");
   }
   const leer = anweisungBauen({ spielart: "zuruf", briefing: { ...leeresBriefing("DE"), paketKey: "plus", paketName: "Plus", stufe: "zahlung_offen" }, einstellungen, hausanweisung: null });
@@ -163,10 +168,10 @@ titel("6. PROBE 20.10.2026 (Justins erster Anruf): Wahrheit, Anlass, Aufzeichnun
   ok("Ohne Raten keine Raten-Zeile (eine 0 klingt sonst wie ein Betrag)", ratenText(leeresBriefing("DE")) === null && !/Raten \(nur die ANZAHL/.test(leer.text));
   ok("Mit Raten: Anzahl in Worten, ausdrücklich „kein Betrag“", /nur die ANZAHL, kein Betrag\): 1 bezahlt, 1 noch ausstehend/.test(ratenText(briefing) ?? ""), ratenText(briefing) ?? "");
   ok("akte_nachsehen ohne Raten: keine nackte Null", zahlOhneEinheitFinden(akteVorlesen(leeresBriefing("DE"), "zahlungen")) === null && nullBetragFinden(akteVorlesen(leeresBriefing("DE"), "zahlungen")) === null, akteVorlesen(leeresBriefing("DE"), "zahlungen"));
-  ok("Wahrheitswand steht in der Anweisung (Beträge nur mit €, nie die Null als Betrag, keine Freischalt-Zusage)", /NUR, wenn er oben mit „€“ steht/.test(leer.text) && /Nie die Null als Betrag/.test(leer.text) && /keine Freischaltung/.test(leer.text));
+  ok("Wahrheitswand steht in der Anweisung (Beträge nur mit €, nie die Null als Betrag)", /NUR, wenn er oben mit „€“ steht/.test(leer.text) && /Nie die Null als Betrag/.test(leer.text));
+  ok("Rot-Probe: Verkaufssatz mit unbekanntem Paket nennt keinen Betrag (statt „0 €“)", nullBetragFinden(verkaufssatz({ ...leeresBriefing("DE"), paketKey: "plus", stufe: "zahlung_offen" })) === null && /^Nach Ihrer Zahlung mit Ihrem Verwendungszweck/.test(verkaufssatz({ ...leeresBriefing("DE"), paketKey: "plus", stufe: "zahlung_offen" })));
   ok("Rot-Probe: „die erste Rate beträgt null Euro“ wird gefunden", nullBetragFinden("die erste Rate beträgt null Euro") !== null && nullBetragFinden("Die erste Rate sind 0 €.") !== null);
   ok("Rot-Probe: „Raten: 0 bezahlt, 0 offen“ wird gefunden", zahlOhneEinheitFinden("Raten: 0 bezahlt, 0 offen.") !== null && zahlOhneEinheitFinden("offen: 0") !== null);
-  ok("Rot-Probe: „schalten wir umgehend Ihren Account frei“ wird gefunden", freischaltZusageFinden("Nach Ihrer Zahlung schalten wir umgehend Ihren Account frei.") !== null);
   ok("Nachbereitung: „null Euro“ im Live-Transkript ist ein harter Befund", telefonRegeln("Die erste Rate beträgt null Euro.").some((p) => p.regel === "betrag_null" && p.schwere === "hart"));
 
   // b) Anlass VOR der Aufzeichnung, und „Worum geht's?“ wird immer mit dem Anlass beantwortet
@@ -240,6 +245,21 @@ titel("6b. JUSTIN 20.10. (nach seinen Tests): kein Dranbleiben, menschliche Wör
   ok("Abschluss: Link anbieten, dann den Tag nennen lassen, herzlich bestätigen", /zahlungslink_senden/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text) && /Wann schaffen Sie die Überweisung — heute noch\?/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text));
   ok("Rot-Probe: der alte Dranbleib-Satz würde erkannt", /ich bleibe? (?:gern )?dran|während Sie überweisen/i.test("Ich bleibe gern dran, während Sie überweisen."));
   ok("Mensch-Frage: ehrlich KI, ohne Belehrung", /ich bin eine KI/i.test(MENSCH_FRAGE_ANTWORT) && MENSCH_FRAGE_ANTWORT.length < 140);
+}
+
+titel("6c. DIALEKT (aras_dialekt, Justin 20.10.): Hochdeutsch als Vorgabe, Österreichisch leicht oder deutlich — nie tiefer Dialekt");
+{
+  const hd = einstellungenAnwenden({});
+  ok("Vorgabe: Hochdeutsch, „Hallo“, kein „Grüß Gott“", hd.regie.dialekt === "hochdeutsch" && /^Hallo, hier ist Aras/.test(kiHinweisFuer(hd)) && dialektAnweisung("hochdeutsch") === "");
+  const leicht = einstellungenAnwenden({ aras_dialekt: "oesterreichisch_leicht" });
+  const a = anweisungBauen({ spielart: "rate", briefing, einstellungen: leicht, hausanweisung: null });
+  ok("Leicht österreichisch: „Grüß Gott“ statt „Hallo“, KI-Hinweis bleibt (Art. 50)", /^Grüß Gott, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI/.test(kiHinweisFuer(leicht)) && a.begruessung.includes("Grüß Gott") && /\bKI\b/.test(a.begruessung));
+  ok("Leicht österreichisch: Akzent + Wörter, die jeder versteht („passt“, „a bissl“, „gell“), nie tiefer Dialekt", /LEICHT ÖSTERREICHISCH/.test(a.text) && /a bissl/.test(a.text) && /jeder muss dich mühelos verstehen/.test(a.text));
+  ok("„Servus“ nur zum Abschied und nur für Kunden aus Österreich", /„Servus“ sagst du nur zum Abschied und nur zu Kunden aus Österreich/.test(a.text) && !/Servus/.test(anweisungBauen({ spielart: "rate", briefing, einstellungen: hd, hausanweisung: null }).text));
+  const voll = einstellungenAnwenden({ aras_dialekt: "oesterreichisch" });
+  ok("Österreichisch: deutlicher Akzent, trotzdem verständlich; Sprechprobe kennt den Akzent", /ÖSTERREICHISCH — deutlich/.test(anweisungBauen({ spielart: "rate", briefing, einstellungen: voll, hausanweisung: null }).text) && /Wiener Satzmelodie/.test(dialektAnweisung("oesterreichisch_leicht")));
+  ok("Rot-Probe: unbekannter Dialekt fällt auf Hochdeutsch", einstellungenAnwenden({ aras_dialekt: "bairisch_tief" }).regie.dialekt === "hochdeutsch");
+  ok("Wortwand frei mit Dialekt", hart(a.text).length === 0 && hart(a.begruessung).length === 0, hart(a.text).map((f) => f.treffer).join(","));
 }
 
 titel("7. ROT-PROBE: die Prüfungen schlagen an, wenn etwas falsch ist");

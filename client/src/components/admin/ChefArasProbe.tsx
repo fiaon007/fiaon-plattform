@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { API, Geruest, Fehlermeldung, useDaten, seit } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGANG_ARAS_PROBE } from "@/pages/agent/rundgaenge";
-import { SPIELART_TEXT, type HoerprobeZeile, type Spielart } from "@shared/fiaon-aras";
+import { SPIELART_TEXT, DIALEKTE, DIALEKT_TEXT, type HoerprobeZeile, type Spielart, type Dialekt } from "@shared/fiaon-aras";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-aras-probe.css";
 
@@ -53,6 +53,8 @@ const TON: { key: string; label: string; werte: { w: string; t: string }[] }[] =
   { key: "aras_tempo", label: "Tempo", werte: [{ w: "ruhig", t: "ruhig" }, { w: "normal", t: "normal" }, { w: "zuegig", t: "zügig" }] },
   { key: "aras_zuhoerlaute", label: "Zuhör-Laute", werte: [{ w: "sparsam", t: "wenige" }, { w: "normal", t: "normal" }] },
   { key: "aras_abschluss", label: "Nachfragen", werte: [{ w: "sanft", t: "sanft" }, { w: "klar", t: "klar" }, { w: "hartnaeckig", t: "hartnäckig" }] },
+  // Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent + ein paar Wörter, die jeder versteht.
+  { key: "aras_dialekt", label: "Dialekt", werte: [{ w: "hochdeutsch", t: "Hochdeutsch" }, { w: "oesterreichisch_leicht", t: "leicht österreichisch" }, { w: "oesterreichisch", t: "österreichisch" }] },
 ];
 const ZUSTAND_TEXT: Record<string, string> = {
   hallo: "verbunden", gewaehlt: "wählt …", angenommen: "du bist dran", ki_hinweis: "KI-Hinweis gesagt", aufnahme_ja: "Aufnahme: Ja", aufnahme_nein: "Aufnahme: Nein",
@@ -117,6 +119,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   const [freitext, setFreitext] = useState("");
   const [aktiv, setAktiv] = useState<number | null>(null);
   const [deckel, setDeckel] = useState("");
+  const [studioDialekt, setStudioDialekt] = useState<Dialekt>("hochdeutsch");
   const neuRef = useRef(stand.neu);
   neuRef.current = stand.neu;
 
@@ -133,6 +136,8 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   }, [laeuft, aktiv]);
   useEffect(() => { if (s && !satz) setSatz(s.satzVorgabe); }, [s, satz]);
   useEffect(() => { if (s && !deckel) setDeckel(String(s.schalter.tagEuro)); }, [s, deckel]);
+  const dialektGesetzt = useRef(false);
+  useEffect(() => { if (s && !dialektGesetzt.current) { dialektGesetzt.current = true; const d = s.ton.aras_dialekt as Dialekt | undefined; if (d && (DIALEKTE as readonly string[]).includes(d)) setStudioDialekt(d); } }, [s]);
   // Der gewählte Anruf ist vorbei → zurück zur Ansicht „Letzter Probeanruf“ (mit dem Daumen).
   useEffect(() => { if (letzter && aktiv === letzter.callId && !letzter.laeuft) setAktiv(null); }, [letzter, aktiv]);
 
@@ -169,7 +174,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   const alleVorsprechen = () => tun("alle", async () => {
     for (const st of s?.stimmen?.length ? s.stimmen : ["flitz", "nuri", "juni"]) {
       melden(`${stimmeName(st)} spricht …`);
-      await senden("/chef/aras/probe/hoerprobe", { stimme: st, text: satz });
+      await senden("/chef/aras/probe/hoerprobe", { stimme: st, text: satz, dialekt: studioDialekt });
       proben.neu();
     }
     melden("Alle Stimmen sind da — hör sie dir nebeneinander an.");
@@ -188,11 +193,12 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
     melden(an ? "Leerlauf an: kein neuer Anruf, ein laufendes Gespräch endet normal." : "Leerlauf aus.");
   });
 
-  // Je Stimme die neueste Hörprobe mit dem aktuellen Satz (sonst die neueste überhaupt)
+  // Je Stimme die neueste Hörprobe mit dem aktuellen Satz und Akzent (sonst die neueste überhaupt)
   const jeStimme: HoerprobeZeile[] = [];
   for (const st of s?.stimmen ?? ["flitz", "nuri", "juni"]) {
     const z = proben.daten?.zeilen ?? [];
-    const h = z.find((x) => x.stimme === st && x.text === satz) ?? z.find((x) => x.stimme === st);
+    const gleicherAkzent = (x: HoerprobeZeile) => (x.dialekt ?? "hochdeutsch") === studioDialekt;
+    const h = z.find((x) => x.stimme === st && x.text === satz && gleicherAkzent(x)) ?? z.find((x) => x.stimme === st && gleicherAkzent(x)) ?? z.find((x) => x.stimme === st);
     if (h) jeStimme.push(h);
   }
 
@@ -318,6 +324,11 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
             <label className="ap-feld">Derselbe Satz für jede Stimme
               <textarea value={satz} onChange={(e) => setSatz(e.target.value)} maxLength={400} />
             </label>
+            <div className="ap-feld">Akzent der Sprechprobe
+              <div className="ap-segment" role="group" aria-label="Akzent der Sprechprobe">
+                {DIALEKTE.map((d) => <button key={d} type="button" className={studioDialekt === d ? "an" : ""} onClick={() => setStudioDialekt(d)}>{DIALEKT_TEXT[d]}</button>)}
+              </div>
+            </div>
             <div className="ap-zeile">
               <button type="button" className="ap-knopf voll" disabled={!!busy || satz.trim().length < 10 || !s.bereit.stimme.ok} onClick={alleVorsprechen}>{busy === "alle" ? "Spricht …" : "Alle vorsprechen lassen"}</button>
               <span className="ap-still">in Telefon-Qualität, so wie der Kunde ihn hört</span>
@@ -327,13 +338,13 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
               {jeStimme.length === 0 && <p className="ap-leer">Noch keine Hörprobe — ein Klick, und du hörst Flitz, Nuri und Juni nebeneinander.</p>}
               {jeStimme.map((h) => (
                 <div key={h.id} className={`ap-hoer${h.gewaehltAm ? " gewaehlt" : ""}`} data-ap-hoerprobe={h.id}>
-                  <div className="ap-zeile"><b style={{ color: "var(--ap-text)", fontWeight: 500 }}>{stimmeText(h.stimme)}</b><span className="ap-still">{h.dauerMs ? `${(h.dauerMs / 1000).toFixed(1)} s` : ""}{h.gewaehltAm ? " · gewählt" : ""}</span></div>
+                  <div className="ap-zeile"><b style={{ color: "var(--ap-text)", fontWeight: 500 }}>{stimmeText(h.stimme)}</b><span className="ap-still">{h.dauerMs ? `${(h.dauerMs / 1000).toFixed(1)} s` : ""}{h.dialekt && h.dialekt !== "hochdeutsch" ? ` · ${DIALEKT_TEXT[h.dialekt]}` : ""}{h.gewaehltAm ? " · gewählt" : ""}</span></div>
                   {h.hatAudio && <audio controls preload="none" src={`${API}/chef/aras/probe/hoerprobe/${h.id}/audio`} />}
                   <div className="ap-zeile">
                     <span className="ap-sterne" role="group" aria-label="Bewertung">
                       {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={(h.bewertung ?? 0) >= n ? "an" : ""} aria-label={`${n} Sterne`} onClick={() => tun(`stern-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/bewerten`, { bewertung: n }); proben.neu(); })}>★</button>)}
                     </span>
-                    {!h.gewaehltAm && <button type="button" className="ap-knopf klein" disabled={!!busy} onClick={() => tun(`nehmen-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/waehlen`); proben.neu(); stand.neu(); melden(`Aras spricht ab jetzt mit ${stimmeName(h.stimme)}.`); })}>Diese nehmen</button>}
+                    {!h.gewaehltAm && <button type="button" className="ap-knopf klein" disabled={!!busy} onClick={() => tun(`nehmen-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/waehlen`); proben.neu(); stand.neu(); melden(`Aras spricht ab jetzt mit ${stimmeName(h.stimme)}${h.dialekt && h.dialekt !== "hochdeutsch" ? `, ${DIALEKT_TEXT[h.dialekt]}` : ""}.`); })}>Diese nehmen</button>}
                   </div>
                 </div>
               ))}

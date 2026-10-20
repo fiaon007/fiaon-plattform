@@ -109,6 +109,8 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
           bewertung SMALLINT, kommentar TEXT, gewaehlt_am TIMESTAMPTZ,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
+      // Justin 20.10.2026: Sprechproben mit Akzent (aras_dialekt) — „Diese nehmen“ übernimmt Stimme UND Akzent.
+      await lauf`ALTER TABLE fiaon_aras_hoerprobe ADD COLUMN IF NOT EXISTS dialekt TEXT`;
 
       await lauf`CREATE TABLE IF NOT EXISTS fiaon_softphone_praesenz (agent_id INTEGER PRIMARY KEY, zuletzt_am TIMESTAMPTZ NOT NULL)`;
 

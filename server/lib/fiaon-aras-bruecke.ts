@@ -41,7 +41,7 @@ import { arasEinstellungenLesen } from "./fiaon-aras-plan";
 import { werkzeugAusfuehren, type WerkzeugKontext } from "./fiaon-aras-werkzeuge";
 import { arasEreignis, transkriptMelden } from "./fiaon-aras-ereignis";
 import { streamTokenPruefen, twilioClient, arasCallerId, rueckrufUrl, twimlUebergabe } from "./fiaon-aras-twilio-client";
-import { anweisungBauen, kiHinweisSauber, NOTAUS_SATZ, type Briefing } from "../../shared/fiaon-aras-prompt";
+import { anweisungBauen, kiHinweisFuer, NOTAUS_SATZ, type Briefing } from "../../shared/fiaon-aras-prompt";
 import {
   ANRUF_ZEITLIMIT_SEK, telefonKostenCents, istAufnahmeJa, istAufnahmeNein,
   type AdapterName, type Spielart, type Land, type LiveSitzung, type ArasEinstellungen, type ArasErgebnis,
@@ -449,7 +449,7 @@ function wachen(l: Lauf): void {
   // Begrüßung nachschieben: GPT-Live spricht laut Doku nicht garantiert zuerst.
   if (!l.grussNachgeschoben && !l.arasErsteRedeAm && !l.kundeHatGesprochen && seitBereit > GRUSS_NACH_MS && l.ws) {
     l.grussNachgeschoben = true;
-    l.sitzung?.textEinschieben(`Begrüße den Angerufenen jetzt sofort mit genau diesem Satz: „${kiHinweisSauber(l.einstellungen.kiHinweisSatz)}“ und frag dann, ob du mit der richtigen Person sprichst.`, "anweisung");
+    l.sitzung?.textEinschieben(`Begrüße den Angerufenen jetzt sofort mit genau diesem Satz: „${kiHinweisFuer(l.einstellungen)}“ und frag dann, ob du mit der richtigen Person sprichst.`, "anweisung");
   }
   // KI-Hinweis nachschieben, wenn Aras schon 12 s redet und ihn noch nicht gesagt hat (Pflicht, Art. 50 KI-VO).
   if (!l.kiHinweisAm && !l.hinweisNachgeschoben && l.arasErsteRedeAm && jetzt - l.arasErsteRedeAm > 12_000) {

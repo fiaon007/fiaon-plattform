@@ -105,11 +105,6 @@ export function urlFinden(text: string): string | null {
   const m = /\bhttps?:\/\/\S+|\bwww\.\S+|\b[a-z0-9-]+\.(?:com|de|at|ch|net|org)\/\S*|\bpunkt\s+(?:com|de|at|ch)\b|\bslash\b/i.exec(String(text ?? ""));
   return m ? m[0] : null;
 }
-/** Eine Freischalt-Zusage („schalten wir Ihren Account frei“) — Aras sagt stattdessen „dann geht es automatisch weiter“. */
-export function freischaltZusageFinden(text: string): string | null {
-  const m = /\b(?:account|konto|zugang)\b[^.!?\n]{0,40}\bfrei(?:geschaltet|schalten)?\b|\bschalten\s+wir\b[^.!?\n]{0,40}\bfrei\b/i.exec(String(text ?? ""));
-  return m ? m[0] : null;
-}
 /** Eine Anzahl ohne ihr Wort („0 offen“, „offen: 0“) — die Vorstufe zu „null Euro“. */
 export function zahlOhneEinheitFinden(text: string): string | null {
   const m = /\b0\s+(?:offen|bezahlt|ausstehend)\b|\b(?:offen|bezahlt|ausstehend)\s*:\s*\d+\b/i.exec(String(text ?? ""));
@@ -150,7 +145,6 @@ export function telefonRegeln(text: string, tel: TelefonLage | null = null): Reg
   const v = vertragZusageFinden(t); if (v) push("vertrag_zusage", "hart", v, "Vertrag nie per Stimme schließen — Link zum Unterschreiben.");
   const nb = nullBetragFinden(t); if (nb) push("betrag_null", "hart", nb, "„Null Euro“ / „0 €“ gesagt — ein Betrag nur aus einem Betragsfeld, eine Anzahl ist nie ein Betrag.");
   const url = urlFinden(t); if (url) push("url_vorgelesen", "weich", url, "Internetadresse vorgelesen — der Link kommt aufs Handy.");
-  const fz = freischaltZusageFinden(t); if (fz) push("freischalt_zusage", "weich", fz, "Freischaltung zugesagt — „dann geht es automatisch weiter“.");
   if (tel) {
     const zeilen = tel.transkript ?? null;
     if (tel.kiHinweisSek == null && zeilen && !kiHinweisGesagt(zeilen)) push("ki_hinweis_fehlt", "hart", "", "KI-Hinweis nicht gesagt (KI-VO Art. 50).");

@@ -22,6 +22,7 @@
 //   POST /chef/aras/probe/notaus | /wieder-an | /leerlauf
 //   POST /chef/aras/plan-fuellen             Warteschlange jetzt füllen (sonst alle 5 Min. von selbst)
 //   POST /chef/aras/takt                     einen Wähl-Takt jetzt (sagt je Wand, warum jemand liegen blieb)
+//   GET  /chef/aras/ergebnisse?tag=&probe=1  Reiter „Ergebnisse“ (Go-live G): je Gesprächsart und Tag, jede Zahl mit ihren Anrufen
 //
 // Wache: alles requireChef("inhaber") — die Seite ist nur für den Inhaber; jede
 // Nicht-GET landet durch requireChef im Chef-Protokoll. Antworten { ok, … } / { ok:false, error }.
@@ -48,6 +49,15 @@ const text = (e: unknown) => String((e as Error)?.message ?? e).slice(0, 300);
 
 /** Die Gesprächsarten, die Justin im Probeanruf spielen lassen kann (eingehend gibt es nicht als Probe). */
 const PROBE_ARTEN = SPIELARTEN.filter((s) => s !== "eingehend");
+
+// Go-live G (Koordination 20.10.2026): „Ergebnisse“ — je Gesprächsart und Tag, jede Zahl mit den Anrufen dazu. Nur lesen.
+router.get("/chef/aras/ergebnisse", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { ergebnisseTag } = await import("../lib/fiaon-aras-ergebnisse");
+    const tag = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.tag ?? "")) ? String(req.query.tag) : new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+    res.json({ ok: true, ...(await ergebnisseTag(tag, { mitProbe: String(req.query.probe ?? "") === "1" })) });
+  } catch (e) { fehler(res, 500, text(e)); }
+});
 
 router.get("/chef/aras/probe/stand", wache, async (_req: ChefRequest, res: Response) => {
   try {

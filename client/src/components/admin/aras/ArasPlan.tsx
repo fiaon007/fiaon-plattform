@@ -59,9 +59,9 @@ export default function ArasPlan({ verbunden }: { verbunden: boolean }) {
                   <tbody>{arten.map((a) => <tr key={a.sp}><td>{spielartText(a.sp)}</td><td className="zahl">{zahl(a.pool)}</td><td className="zahl">{zahl(a.geplant)}</td><td className="zahl">{zahl(a.gewaehlt)}</td><td className="zahl">{zahl(a.erreicht)}</td><td className="zahl">{zahl(a.gespraeche)}</td></tr>)}</tbody>
                 </table>
               </div>
-            ) : <p className="ar-leise">Noch keine Kundenanrufe geplant — in Stufe 0 ruft Aras nur dich an.</p>}
+            ) : <p className="ar-leise">Noch keine Kundenanrufe geplant — in Stufe 0 ruft ARAS nur dich an.</p>}
           </Karte>
-          <Karte titel="Lernvorschlag" satz="Sonntags ein Vorschlag, zu welchen Stunden Aras besser anruft — nur zum Lesen.">
+          <Karte titel="Lernvorschlag" satz="Sonntags ein Vorschlag, zu welchen Stunden ARAS besser anruft — nur zum Lesen.">
             {lern ? <p className="ar-text">{lern}</p> : <p className="ar-leise">Noch keiner — der Plan lernt aus den ersten zwei Wochen mit Kundenanrufen.</p>}
           </Karte>
         </>

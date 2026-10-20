@@ -51,7 +51,7 @@ export default function ArasFeedback({ neuSignal = 0 }: { neuSignal?: number }) 
   const offen = (punkte ?? []).filter((p) => p.status === "offen");
   const erledigt = (punkte ?? []).filter((p) => p.status !== "offen");
   return (
-    <Karte titel="Dein Feedback aus Probeanrufen" satz="Was dir auffällt, sammelt Aras hier — du entscheidest, was er übernimmt." data="feedback"
+    <Karte titel="Dein Feedback aus Probeanrufen" satz="Was dir auffällt, sammelt ARAS hier — du entscheidest, was sie übernimmt." data="feedback"
       rechts={punkte && offen.length ? <span className="ar-marke leise">{offen.length} offen</span> : null}>
       <Hinweis h={hinweis.h} onWeg={hinweis.weg} />
       {kommtGleich ? (

@@ -38,7 +38,7 @@ export function endeText(grund: string | null | undefined, probe = false): strin
   const g = String(grund ?? "");
   if (!g) return "";
   const T: Record<string, string> = {
-    kunde_aufgelegt: probe ? "beendet von dir" : "Kunde hat aufgelegt", aras_beendet: "Aras hat aufgelegt", chef: "hier beendet", "Chefbüro": "hier beendet",
+    kunde_aufgelegt: probe ? "beendet von dir" : "Kunde hat aufgelegt", aras_beendet: "ARAS hat aufgelegt", chef: "hier beendet", "Chefbüro": "hier beendet",
     mailbox: "Mailbox", stille: "Stille — aufgelegt", notaus: "Not-Aus", fehler: "Technik-Fehler", zeitlimit: "Zeitlimit erreicht",
     uebergabe: "ans Team übergeben", uebergabe_gescheitert_neu: "Übergabe klappte nicht", deploy: "Neustart der Plattform", kein_stream: "kein Ton",
     nicht_erreicht: probe ? "nicht abgenommen" : "nicht erreicht", haengend: "abgebrochen", besetzt: "besetzt", abgebrochen: "abgebrochen",
@@ -58,7 +58,7 @@ export const pruefText = (s: string | null | undefined) => PRUEF_TEXT[String(s ?
 
 /** Die Regeln der Live-Prüfung (Schlüssel aus fiaon_aras_anruf.pruefung bzw. fiaon_ki_pruefung.punkte) in einem Satz. */
 export const REGEL_TEXT: Record<string, string> = {
-  ki_hinweis_fehlt: "Den KI-Hinweis hat Aras nicht gesagt.", ki_hinweis_spaet: "Der KI-Hinweis kam zu spät.", ki_hinweis_unbelegt: "Der KI-Hinweis ist nicht belegt.",
+  ki_hinweis_fehlt: "Den KI-Hinweis hat ARAS nicht gesagt.", ki_hinweis_spaet: "Der KI-Hinweis kam zu spät.", ki_hinweis_unbelegt: "Der KI-Hinweis ist nicht belegt.",
   aufnahme_vor_ja: "Aufnahme lief vor dem Ja.", aufnahme_trotz_nein: "Aufnahme trotz Nein.", sperrwunsch_ohne_sperre: "Kunde wollte keine Anrufe mehr — Sperre fehlte.",
   anliegen_vor_identitaet: "Anliegen genannt, bevor klar war, wer dran ist.", vertrag_zusage: "Vertrag am Telefon zugesagt.", druck: "Druck gemacht.",
   drohung: "Gedroht (Gericht, Inkasso, SCHUFA …).", lastschrift: "Lastschrift angeboten.", kopplung: "Kündigung an Zahlung gekoppelt.",
@@ -82,7 +82,7 @@ export const werkzeugText = (w: string | null | undefined): string => (w ? WERKZ
 
 /** Was gerade im Live-Gespräch passiert (Zustand der Brücke oder Ereignisart ohne „aras_“). */
 export const ZUSTAND_TEXT: Record<string, string> = {
-  waehlt: "wählt …", gewaehlt: "klingelt …", klingelt: "klingelt …", angenommen: "verbunden", hallo: "verbunden", spricht: "Aras spricht", hoert: "hört zu",
+  waehlt: "wählt …", gewaehlt: "klingelt …", klingelt: "klingelt …", angenommen: "verbunden", hallo: "verbunden", spricht: "ARAS spricht", hoert: "hört zu",
   werkzeug: "erledigt etwas …", ki_hinweis: "KI-Hinweis gesagt", aufnahme_ja: "Aufnahme: Ja", aufnahme_nein: "ohne Aufnahme", zusage: "Zusage notiert",
   link: "Link geschickt", termin: "Rückruf eingetragen", uebergabe: "übergibt …", sperre: "Sperre gesetzt", fehler: "Technik-Problem",
   amd_widerspruch: "läuft weiter", ende: "beendet", endet: "legt auf …",
@@ -178,13 +178,13 @@ export function zusammenfassungText(text: string | null | undefined, probe = fal
 /** Der eine Satz oben im Cockpit: was Aras gerade tut. Rein (Prüfstand). */
 export function statusSatz(l: { an: boolean; notaus: boolean; leerlauf?: boolean; stufe?: number }, live: { probe: boolean; zustand: string; zeilen: unknown[] }[]): { satz: string; klasse: "" | "gut" | "warn" | "krit" } {
   if (live.length) {
-    if (live.length === 1 && live[0].probe) return { satz: !live[0].zeilen.length && /^(|waehlt|gewaehlt|klingelt)$/.test(live[0].zustand) ? "Aras ruft dich gerade an" : "Probeanruf läuft", klasse: "gut" };
-    return { satz: live.length === 1 ? "Aras telefoniert gerade" : `Aras telefoniert gerade · ${live.length} Gespräche`, klasse: "gut" };
+    if (live.length === 1 && live[0].probe) return { satz: !live[0].zeilen.length && /^(|waehlt|gewaehlt|klingelt)$/.test(live[0].zustand) ? "ARAS ruft dich gerade an" : "Probeanruf läuft", klasse: "gut" };
+    return { satz: live.length === 1 ? "ARAS telefoniert gerade" : `ARAS telefoniert gerade · ${live.length} Gespräche`, klasse: "gut" };
   }
-  if (l.notaus) return { satz: "Not-Aus — Aras ist gestoppt", klasse: "krit" };
-  if (l.leerlauf) return { satz: "Leerlauf — Aras beginnt kein neues Gespräch", klasse: "warn" };
-  if (l.an && Number(l.stufe ?? 0) >= 1) return { satz: "Aras ruft Kunden an — gerade ist niemand dran", klasse: "gut" };
-  return { satz: "Aras ruft gerade niemanden an", klasse: "" };
+  if (l.notaus) return { satz: "Not-Aus — ARAS ist gestoppt", klasse: "krit" };
+  if (l.leerlauf) return { satz: "Leerlauf — ARAS beginnt kein neues Gespräch", klasse: "warn" };
+  if (l.an && Number(l.stufe ?? 0) >= 1) return { satz: "ARAS ruft Kunden an — gerade ist niemand dran", klasse: "gut" };
+  return { satz: "ARAS ruft gerade niemanden an", klasse: "" };
 }
 
 

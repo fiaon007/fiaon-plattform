@@ -29,7 +29,7 @@ export function ArasCockpit({ lage, live, onNeu, onReiter }: { lage: CockpitLage
   if (!verbunden) {
     return (
       <section className="ar-cockpit" data-ki="cockpit">
-        <div className="ar-status"><Punkt /><b>Aras ist noch nicht verbunden</b></div>
+        <div className="ar-status"><Punkt /><b>ARAS ist noch nicht verbunden</b></div>
         <p className="ar-cockpit-leise">Die Probe unten läuft trotzdem — der Rest füllt sich, sobald der Telefon-Kern angemeldet ist.</p>
       </section>
     );
@@ -45,7 +45,7 @@ export function ArasCockpit({ lage, live, onNeu, onReiter }: { lage: CockpitLage
   const heuteSatz = anrufe === 0 ? "Heute noch kein Anruf"
     : [h.gewaehlt ? `${h.gewaehlt} Kundenanruf${h.gewaehlt === 1 ? "" : "e"}` : "", h.zusagen ? `${h.zusagen} Zusage${h.zusagen === 1 ? "" : "n"}` : "", h.proben ? `${h.proben} Probe${h.proben === 1 ? "" : "n"}` : ""].filter(Boolean).join(" · ");
   return (
-    <section className={`ar-cockpit${live.sitzungen.length ? " mit-live" : ""}`} data-ki="cockpit" aria-label="Was Aras gerade tut">
+    <section className={`ar-cockpit${live.sitzungen.length ? " mit-live" : ""}`} data-ki="cockpit" aria-label="Was ARAS gerade tut">
       <div className="ar-cockpit-oben">
         <div className="ar-status" data-ar="status">
           <Punkt klasse={s.klasse} puls={live.sitzungen.length > 0} />
@@ -54,23 +54,23 @@ export function ArasCockpit({ lage, live, onNeu, onReiter }: { lage: CockpitLage
         <div className="ar-cockpit-knoepfe">
           <button type="button" className={`ar-knopf klein${lage.leerlauf ? " an" : ""}`} aria-pressed={!!lage.leerlauf} data-ar="leerlauf"
             title="Leerlauf: kein neues Gespräch, ein laufendes endet normal — z. B. vor einem Deploy."
-            onClick={() => void schalten("/chef/aras/leerlauf", { an: !lage.leerlauf }, lage.leerlauf ? "Leerlauf aus — Aras darf wieder neu anrufen." : "Leerlauf an — kein neues Gespräch.")}>
+            onClick={() => void schalten("/chef/aras/leerlauf", { an: !lage.leerlauf }, lage.leerlauf ? "Leerlauf aus — ARAS darf wieder neu anrufen." : "Leerlauf an — kein neues Gespräch.")}>
             {lage.leerlauf ? "Leerlauf aus" : "Leerlauf"}
           </button>
           {lage.notaus ? (
-            <FrageKnopf klasse="haupt" frage="Aras wieder wählen lassen?" ja="Wieder an" data="wieder-an" onJa={() => void schalten("/chef/aras/start", {}, "Not-Aus aufgehoben.")}>Wieder an</FrageKnopf>
+            <FrageKnopf klasse="haupt" frage="ARAS wieder wählen lassen?" ja="Wieder an" data="wieder-an" onJa={() => void schalten("/chef/aras/start", {}, "Not-Aus aufgehoben.")}>Wieder an</FrageKnopf>
           ) : (
-            <FrageKnopf klasse="rot" frage="Aras sofort stoppen?" ja="Stoppen" data="notaus" titel="Not-Aus: Aras wählt nicht mehr, laufende Gespräche enden mit einem Abschiedssatz."
-              onJa={() => void schalten("/chef/aras/notaus", { grund: "Chefbüro" }, "Not-Aus ist an — Aras ist gestoppt.")}>Not-Aus</FrageKnopf>
+            <FrageKnopf klasse="rot" frage="ARAS sofort stoppen?" ja="Stoppen" data="notaus" titel="Not-Aus: ARAS wählt nicht mehr, laufende Gespräche enden mit einem Abschiedssatz."
+              onJa={() => void schalten("/chef/aras/notaus", { grund: "Chefbüro" }, "Not-Aus ist an — ARAS ist gestoppt.")}>Not-Aus</FrageKnopf>
           )}
         </div>
       </div>
       <div className="ar-cockpit-fakten">
-        <button type="button" className="ar-fakt" onClick={() => onReiter("stufe")} title={STUFEN[stufe].versucheJeTag ? `${STUFEN[stufe].versucheJeTag} Anrufe am Tag · ${STUFEN[stufe].parallel} gleichzeitig` : "Stufe 0: Aras ruft nur dich an (Probe)."}>
+        <button type="button" className="ar-fakt" onClick={() => onReiter("stufe")} title={STUFEN[stufe].versucheJeTag ? `${STUFEN[stufe].versucheJeTag} Anrufe am Tag · ${STUFEN[stufe].parallel} gleichzeitig` : "Stufe 0: ARAS ruft nur dich an (Probe)."}>
           Stufe {stufe} · {STUFEN[stufe].name}
         </button>
         <button type="button" className="ar-fakt" onClick={() => onReiter("einstellungen")}
-          title={kundenAn ? "Aras ruft Kunden nach Plan an." : stufe === 0 ? "In Stufe 0 ruft Aras keine Kunden an." : !lage.an ? "„Aras wählt“ ist aus (Einstellungen)." : "Not-Aus ist an."}>
+          title={kundenAn ? "ARAS ruft Kunden nach Plan an." : stufe === 0 ? "In Stufe 0 ruft ARAS keine Kunden an." : !lage.an ? "„ARAS wählt“ ist aus (Einstellungen)." : "Not-Aus ist an."}>
           <Punkt klasse={kundenAn ? "gut" : ""} />Kunden {kundenAn ? "an" : "aus"}
         </button>
         <span className="ar-fakt ar-fakt-geld" title={`KI ${euroText(h.euroKi)} · Telefon ${euroText(h.euroTelefon)}${deckel ? ` · Deckel ${euroText(deckel)}` : ""}`}>

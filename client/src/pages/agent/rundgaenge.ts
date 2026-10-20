@@ -2685,14 +2685,14 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
 export const RUNDGANG_ARAS: RundgangSchritt[] = [
   {
     ziel: "[data-ki-reiter=\"probe\"]",
-    titel: "Probe: hier hörst du Aras.",
-    text: "„Mich anrufen“ — Aras ruft nur deine Nummer an. Danach gibst du Daumen hoch oder runter, darunter stehen dein Feedback, der Ton und die Stimmen.",
-    tipp: "Kunden ruft er erst an, wenn du „Aras wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist.",
+    titel: "Probe: hier hörst du ARAS.",
+    text: "„Mich anrufen“ — ARAS ruft nur deine Nummer an. Danach gibst du Daumen hoch oder runter, darunter stehen dein Feedback, der Ton und die Stimmen.",
+    tipp: "Kunden ruft sie erst an, wenn du „ARAS wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist — und nur Kunden mit Vertrag.",
   },
   {
     ziel: "[data-ki=\"cockpit\"]",
-    titel: "Oben: was Aras gerade tut.",
-    text: "Ein Satz sagt es („Aras ruft gerade niemanden an“), daneben Stufe, Kunden an/aus und die Kosten von heute. „Leerlauf“: kein neues Gespräch. „Not-Aus“: sofort stoppen (fragt kurz nach).",
+    titel: "Oben: was ARAS gerade tut.",
+    text: "Ein Satz sagt es („ARAS ruft gerade niemanden an“), daneben Stufe, Kunden an/aus und die Kosten von heute. „Leerlauf“: kein neues Gespräch. „Not-Aus“: sofort stoppen (fragt kurz nach).",
     tipp: "Vor einem Deploy: Leerlauf an — ein laufendes Gespräch endet dann ganz normal.",
   },
   {
@@ -2702,13 +2702,19 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
   {
     // Ohne Ziel: Die Karte steht nur im Reiter „Probe“ (bedingt sichtbar → kein Scheinwerfer ins Leere, AGENTS.md).
     titel: "Mich anrufen.",
-    text: "Nummer, Gesprächsart (z. B. „Rate fällig“) und Stimme wählen, dann der große Knopf. Das Gespräch siehst du oben live.",
-    tipp: "Teste die schweren Fälle: unterbrich ihn, schweig drei Sekunden, sag „Nein“ zur Aufzeichnung, frag „Sind Sie ein Mensch?“.",
+    text: "Nummer, Gesprächsart (z. B. „Willkommen nach Antrag“ oder „Rate offen“) und Stimme wählen, dann der große Knopf. Das Gespräch siehst du oben live.",
+    tipp: "Teste die schweren Fälle: unterbrich sie, schweig drei Sekunden, sag „Nein“ zur Aufzeichnung, frag „Sind Sie ein Mensch?“.",
   },
   {
     ziel: "[data-ki-reiter=\"anrufe\"]",
     titel: "Anrufe: jedes Gespräch in Klartext.",
-    text: "Tag im Kalender wählen, filtern (Probe, Kunden, Daumen runter). Ein Klick öffnet die Details: Zusammenfassung, das Gespräch als Sprechblasen (nur nach Ja zur Aufnahme), was Aras erledigt hat und das Urteil von Prüf-Mara.",
+    text: "Tag im Kalender wählen, filtern (Probe, Kunden, Daumen runter). Ein Klick öffnet die Details: Zusammenfassung, das Gespräch als Sprechblasen (nur nach Ja zur Aufnahme), was ARAS erledigt hat und das Urteil von Prüf-Mara.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"ergebnisse\"]",
+    titel: "Ergebnisse: was die Gespräche gebracht haben.",
+    text: "Je Gesprächsart und Tag: Anrufe, erreicht, Zusagen, Zahlungen binnen 48 Stunden, Aufgaben für dich (z. B. „Karte nicht erhalten“), Kündigungen und Beschwerden. Jede Zahl ist ein Knopf — darunter stehen genau die Gespräche dazu.",
+    tipp: "„mit Probe“ zählt deine Probeanrufe unter der gespielten Gesprächsart mit.",
   },
   {
     ziel: "[data-ki-reiter=\"warteschlange\"]",
@@ -2718,19 +2724,19 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
   },
   {
     ziel: "[data-ki-reiter=\"plan\"]",
-    titel: "Tagesplan: wann er wen anruft.",
+    titel: "Tagesplan: wann sie wen anruft.",
     text: "Je Stunde geplant und erreicht, die Mengen je Gesprächsart und sonntags ein Lernvorschlag — nur zum Lesen.",
   },
   {
     ziel: "[data-ki-reiter=\"stufe\"]",
-    titel: "Ausbaustufe: wie weit Aras schon darf.",
-    text: "Vier Stufen von „nur Probe“ bis „Voll“ und die Ampel der letzten 14 Tage. Nach grünen Tagen geht er von selbst eine Stufe hoch, bei Rot sofort eine zurück — dann bekommst du eine Karte.",
+    titel: "Ausbaustufe: wie weit ARAS schon darf.",
+    text: "Vier Stufen von „nur Probe“ bis „Voll“ und die Ampel der letzten 14 Tage. Nach grünen Tagen geht sie von selbst eine Stufe hoch (nur mehr Menge, nie Interessenten), bei Rot sofort eine zurück — dann bekommst du eine Karte.",
     tipp: "Aus Stufe 0 schaltest nur du — „Stufe ändern“ führt zum Schalter.",
   },
   {
     ziel: "[data-ki-reiter=\"einstellungen\"]",
     titel: "Einstellungen: die übrigen Schalter.",
-    text: "In vier Gruppen: An und aus · Wen und wann · Was Aras sagt · Technik. Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein.",
+    text: "In vier Gruppen: An und aus · Wen und wann · Was ARAS sagt · Technik. Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein.",
   },
 ];
 

@@ -9,7 +9,7 @@
 //   1. Das Cockpit (aras/ArasCockpit.tsx): EINE Statusleiste — was Aras gerade tut, Stufe, Kunden an/aus, Kosten
 //      heute, Leerlauf und Not-Aus. Live erscheint nur, wenn ein Gespräch läuft (dann groß: wer, wie lange, Text,
 //      Übernehmen/Auflegen) und verschwindet Sekunden nach dem Auflegen (Regeln: aras/aras-live.ts).
-//   2. Reiter: Probe (zuerst) · Anrufe · Als Nächstes · Tagesplan · Ausbaustufe · Einstellungen (?reiter=… oder #probe —
+//   2. Reiter: Probe (zuerst) · Anrufe · Ergebnisse (Go-live G) · Als Nächstes · Tagesplan · Ausbaustufe · Einstellungen (?reiter=… oder #probe —
 //      die Schlüssel sind dieselben wie vorher, alte Links und Alarme gehen weiter).
 // Der Grund hinter der Seite ist ruhig (chef-seiten.tsx: stillerGrund) — kein großes Foto hinter den Daten.
 //
@@ -27,18 +27,20 @@ import "@/styles/chef-aras.css";
 const ArasPlan = lazy(() => import("./aras/ArasPlan"));
 const ArasWarteschlange = lazy(() => import("./aras/ArasWarteschlange"));
 const ArasAnrufe = lazy(() => import("./aras/ArasAnrufe"));
+const ArasErgebnisse = lazy(() => import("./aras/ArasErgebnisse"));
 const ArasStufe = lazy(() => import("./aras/ArasStufe"));
 const ArasEinstellungen = lazy(() => import("./aras/ArasEinstellungen"));
 const ArasProbe = lazy(() => import("./ChefArasProbe"));
 
-type Reiter = "probe" | "anrufe" | "warteschlange" | "plan" | "stufe" | "einstellungen";
+type Reiter = "probe" | "anrufe" | "ergebnisse" | "warteschlange" | "plan" | "stufe" | "einstellungen";
 const REITER: { key: Reiter; label: string; titel: string }[] = [
   { key: "probe", label: "Probe", titel: "Mich anrufen, dein Urteil, Ton und Stimme" },
   { key: "anrufe", label: "Anrufe", titel: "Jedes Gespräch mit Ergebnis — Probe und Kunden" },
+  { key: "ergebnisse", label: "Ergebnisse", titel: "Was die Gespräche gebracht haben — je Gesprächsart und Tag, jede Zahl öffnet die Gespräche" },
   { key: "warteschlange", label: "Als Nächstes", titel: "Wer als Nächstes dran ist (Warteschlange)" },
-  { key: "plan", label: "Tagesplan", titel: "Wann Aras wen anruft" },
-  { key: "stufe", label: "Ausbaustufe", titel: "Wie weit Aras schon darf — und die Ampel" },
-  { key: "einstellungen", label: "Einstellungen", titel: "Die übrigen Aras-Schalter" },
+  { key: "plan", label: "Tagesplan", titel: "Wann ARAS wen anruft" },
+  { key: "stufe", label: "Ausbaustufe", titel: "Wie weit ARAS schon darf — und die Ampel" },
+  { key: "einstellungen", label: "Einstellungen", titel: "Die übrigen ARAS-Schalter" },
 ];
 /** Was der Reiter „Probe“ selbst einstellt (Ton, Dialekt, Hintergrund, Zuhören, Stimme, Probe-Nummer, Deckel) — in „Einstellungen“ nicht noch einmal. */
 export const IM_PROBE_REITER: readonly string[] = PROBE_SCHLUESSEL;
@@ -76,9 +78,9 @@ export default function ChefKiAras() {
       <ArasLageKontext.Provider value={lageSchluessel}>
       <div className="ki ki-aras ar">
         <KiRundgang schluessel="aras" raum="aras-cockpit" />
-        <Kopf titel="Aras" satz="Dein KI-Kollege am Telefon." kinder={<Stand am={geladenAm} neu={neu} fehler={fehler} />} />
+        <Kopf titel="ARAS" satz="Deine digitale Mitarbeiterin am Telefon." kinder={<Stand am={geladenAm} neu={neu} fehler={fehler} />} />
         <ArasCockpit lage={daten} live={live} onNeu={neu} onReiter={zu} />
-        <nav className="ar-reiter" aria-label="Aras-Reiter">
+        <nav className="ar-reiter" aria-label="ARAS-Reiter">
           {REITER.map((r) => (
             <button key={r.key} type="button" className={reiter === r.key ? "an" : ""} aria-pressed={reiter === r.key} data-ki-reiter={r.key} title={r.titel}
               onClick={() => { setReiter(r.key); setFokus(null); }}>
@@ -89,6 +91,7 @@ export default function ChefKiAras() {
         <Suspense fallback={<div className="ar-karte" aria-busy="true"><div className="ar-zeile-lade" /><div className="ar-zeile-lade" /></div>}>
           {reiter === "probe" ? <ArasProbe eingebettet ohneSchalter={verbunden} />
             : reiter === "anrufe" ? <ArasAnrufe verbunden={verbunden} />
+            : reiter === "ergebnisse" ? <ArasErgebnisse verbunden={verbunden} />
             : reiter === "warteschlange" ? <ArasWarteschlange verbunden={verbunden} />
             : reiter === "plan" ? <ArasPlan verbunden={verbunden} />
             : reiter === "stufe" ? <ArasStufe verbunden={verbunden} onEinstellungen={() => zu("einstellungen")} />

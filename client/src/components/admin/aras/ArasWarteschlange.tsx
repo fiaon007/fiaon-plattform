@@ -56,7 +56,7 @@ export default function ArasWarteschlange({ verbunden }: { verbunden: boolean })
   const auffuellen = () => tun("auffuellen", async () => {
     const r = await senden<{ eingereiht: Record<string, number>; uebersprungen: Record<string, number>; verfallen: number }>("/chef/aras/plan-fuellen", {});
     const n = Object.values(r.eingereiht ?? {}).reduce((a, b) => a + b, 0);
-    if (r.uebersprungen?.stufe_0) return "Stufe 0: Aras reiht keine Kunden ein — nur Probeanrufe.";
+    if (r.uebersprungen?.stufe_0) return "Stufe 0: ARAS reiht keine Kunden ein — nur Probeanrufe.";
     const welche = Object.entries(r.eingereiht ?? {}).map(([s, k]) => `${spielartText(s)} ${k}`).join(", ");
     return n ? `${n} eingereiht (${welche}).${r.verfallen ? ` ${r.verfallen} abgelaufen.` : ""}` : `Niemand Neues fällig.${r.verfallen ? ` ${r.verfallen} abgelaufen.` : ""}`;
   });
@@ -76,7 +76,7 @@ export default function ArasWarteschlange({ verbunden }: { verbunden: boolean })
       {fehler && !daten ? <Leer titel="Die Warteschlange ließ sich nicht laden.">{fehler} <button type="button" className="ar-knopf-text" onClick={neu}>Nochmal</button></Leer> : null}
       {!daten && !fehler ? <div className="ar-karte" aria-busy="true"><div className="ar-zeile-lade" /><div className="ar-zeile-lade" /></div> : null}
       {daten ? (
-        zeilen.length === 0 ? <Leer titel={status === "wartet" ? "Gerade wartet niemand." : "Niemand in dieser Liste."}>{status === "wartet" ? "Aras füllt die Liste von selbst, sobald die Stufe Kundenanrufe erlaubt." : null}</Leer> : (
+        zeilen.length === 0 ? <Leer titel={status === "wartet" ? "Gerade wartet niemand." : "Niemand in dieser Liste."}>{status === "wartet" ? "ARAS füllt die Liste von selbst, sobald die Stufe Kundenanrufe erlaubt." : null}</Leer> : (
           <div className="ar-karte ar-liste-karte">
             <ul className="ar-plan-liste">
               {zeilen.map((z) => {
@@ -92,10 +92,10 @@ export default function ArasWarteschlange({ verbunden }: { verbunden: boolean })
                     </div>
                     <div className="ar-plan-knoepfe">
                       {kannVerschieben ? <button type="button" className="ar-knopf klein" disabled={!!busy} onClick={() => void verschieben(z, new Date(), z.status === "wartet" ? "Ist jetzt dran — beim nächsten Durchgang." : "Wieder eingereiht — jetzt dran.")} data-ar="jetzt"
-                        title="Sofort dran: Aras ruft beim nächsten Durchgang an (wenn Stufe und Zeitfenster es erlauben).">{z.status === "wartet" ? "Jetzt" : "Wieder einreihen"}</button> : null}
+                        title="Sofort dran: ARAS ruft beim nächsten Durchgang an (wenn Stufe und Zeitfenster es erlauben).">{z.status === "wartet" ? "Jetzt" : "Wieder einreihen"}</button> : null}
                       {kannVerschieben ? <button type="button" className={`ar-knopf klein${verschiebenId === z.id ? " an" : ""}`} disabled={!!busy} onClick={() => setVerschiebenId(verschiebenId === z.id ? null : z.id)} data-ar="verschieben">Verschieben</button> : null}
                       {z.status === "wartet" ? <FrageKnopf klasse="rot" frage="Aus der Liste nehmen?" ja="Entfernen" disabled={!!busy} data="entfernen"
-                        onJa={() => void tun(`e-${z.id}`, async () => { await senden(`/chef/aras/warteschlange/${z.id}/entfernen`, { grund: "Chefbüro" }); return "Entfernt — Aras ruft hier nicht an."; })}>Entfernen</FrageKnopf> : null}
+                        onJa={() => void tun(`e-${z.id}`, async () => { await senden(`/chef/aras/warteschlange/${z.id}/entfernen`, { grund: "Chefbüro" }); return "Entfernt — ARAS ruft hier nicht an."; })}>Entfernen</FrageKnopf> : null}
                     </div>
                     {verschiebenId === z.id ? <Verschieben busy={!!busy} onAbbrechen={() => setVerschiebenId(null)} onWahl={(bis, satz) => void verschieben(z, bis, satz)} /> : null}
                   </li>
@@ -159,7 +159,7 @@ function Einreihen({ onFertig, onFehler }: { onFertig: (satz: string) => void; o
     } catch (e) { onFehler((e as Error).message); } finally { setBusy(false); }
   };
   return (
-    <Karte titel="Von Hand einreihen" satz="Aras ruft diese Person an, sobald Stufe und Zeitfenster es erlauben." data="einreihen"
+    <Karte titel="Von Hand einreihen" satz="ARAS ruft diese Person an, sobald Stufe und Zeitfenster es erlauben." data="einreihen"
       rechts={<button type="button" className="ar-knopf klein" onClick={() => setOffen(!offen)} aria-expanded={offen}>{offen ? "Schließen" : "Jemanden einreihen"}</button>}>
       {offen ? (
         <div className="ar-einreihen">

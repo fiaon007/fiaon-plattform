@@ -16,7 +16,7 @@ import {
 } from "./aras-texte";
 import { Leer, Punkt, Segment, TagWahl, Verlauf, Zeichen } from "./aras-teile";
 
-interface Zeile extends AnrufZeile { gespielt?: string | null }
+export interface Zeile extends AnrufZeile { gespielt?: string | null }
 interface Detail extends Zeile {
   briefing?: { probeSpielart?: string } | null;
   transkript?: { t: number; wer: string; text: string }[] | null;
@@ -104,7 +104,8 @@ export default function ArasAnrufe({ verbunden }: { verbunden: boolean }) {
 /** Prüf-Mara in der Zeile: ein Punkt und ein Wort — „nichts zu prüfen“ bleibt leer. */
 const PRUEF_KURZ: Record<string, string> = { ok: "in Ordnung", auffaellig: "auffällig", fehler: "Fehler", offen: "prüft noch" };
 
-function AnrufZeileAnsicht({ z, offen, onKlick }: { z: Zeile; offen: boolean; onKlick: () => void }) {
+/** Auch der Reiter „Ergebnisse“ zeigt die Gespräche zu einer Zahl mit genau dieser Zeile (und ihrem Detail). */
+export function AnrufZeileAnsicht({ z, offen, onKlick }: { z: Zeile; offen: boolean; onKlick: () => void }) {
   const p = pruefText(z.pruefung);
   const kurz = PRUEF_KURZ[String(z.pruefung ?? "")];
   return (
@@ -192,7 +193,7 @@ function AnrufDetail({ z }: { z: Zeile }) {
       </div>
       {werkzeuge.length ? (
         <div className="ar-detail-block">
-          <h3>Was Aras erledigt hat</h3>
+          <h3>Was ARAS erledigt hat</h3>
           <ul className="ar-erledigt">{werkzeuge.map((w, i) => <li key={i}><Punkt klasse={w.ok === false ? "krit" : "gut"} />{werkzeugText(w.werkzeug)}{w.ok === false ? " — hat nicht geklappt" : ""}</li>)}</ul>
         </div>
       ) : null}

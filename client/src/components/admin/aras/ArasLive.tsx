@@ -112,7 +112,7 @@ export function useArasLive(verbunden: boolean, opt: { quelle?: string | null; a
     tun({ typ: "endet", callId: s.callId });
     try {
       await senden(auflegenPfad ? auflegenPfad(s.callId) : `/chef/aras/live/${s.callId}/beenden`, { grund: "chef" });
-      setMeldung({ text: s.probe ? "Aufgelegt." : "Aras verabschiedet sich und legt auf.", rot: false });
+      setMeldung({ text: s.probe ? "Aufgelegt." : "ARAS verabschiedet sich und legt auf.", rot: false });
     } catch (e) {
       setMeldung({ text: `Auflegen ging nicht: ${(e as Error).message}`, rot: true });
     } finally {
@@ -125,7 +125,7 @@ export function useArasLive(verbunden: boolean, opt: { quelle?: string | null; a
     setBusy(s.callId);
     try {
       await senden(`/chef/aras/live/${s.callId}/uebernehmen`, { grund: "Chefbüro" });
-      setMeldung({ text: "Aras verbindet — dein Softphone klingelt gleich.", rot: false });
+      setMeldung({ text: "ARAS verbindet — dein Softphone klingelt gleich.", rot: false });
     } catch (e) {
       setMeldung({ text: `Übernehmen ging nicht: ${(e as Error).message}`, rot: true });
     } finally { setBusy(null); abgleichJetzt.current(); }
@@ -173,12 +173,12 @@ export function LiveKaesten({ live }: { live: ArasLiveHaken }) {
             {!klingelt ? (
               <footer className="ar-live-knoepfe">
                 {!s.probe ? (
-                  <button type="button" className="ar-knopf haupt" disabled={live.busy === s.callId || s.endet} title="Aras übergibt an dein Softphone." onClick={() => void live.uebernehmen(s)}>Übernehmen</button>
+                  <button type="button" className="ar-knopf haupt" disabled={live.busy === s.callId || s.endet} title="ARAS übergibt an dein Softphone." onClick={() => void live.uebernehmen(s)}>Übernehmen</button>
                 ) : null}
                 {s.probe ? (
                   <button type="button" className="ar-knopf rot" disabled={live.busy === s.callId || s.endet} onClick={() => void live.auflegen(s)} data-ar="auflegen">{s.endet ? "legt auf …" : "Auflegen"}</button>
                 ) : (
-                  <FrageKnopf klasse="rot" frage="Aras verabschiedet sich und legt auf. Jetzt?" ja="Auflegen" disabled={live.busy === s.callId || s.endet} onJa={() => void live.auflegen(s)} data="auflegen">{s.endet ? "legt auf …" : "Auflegen"}</FrageKnopf>
+                  <FrageKnopf klasse="rot" frage="ARAS verabschiedet sich und legt auf. Jetzt?" ja="Auflegen" disabled={live.busy === s.callId || s.endet} onJa={() => void live.auflegen(s)} data="auflegen">{s.endet ? "legt auf …" : "Auflegen"}</FrageKnopf>
                 )}
               </footer>
             ) : null}

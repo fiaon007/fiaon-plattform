@@ -88,7 +88,7 @@ export function Verlauf({ zeilen, probe = false, kompakt = false }: { zeilen: re
     <div ref={ref} className={`ar-verlauf${kompakt ? " kompakt" : ""}`}>
       {zeilen.map((z, i) => (
         <div key={i} className={`ar-blase ${z.wer === "kunde" ? "kunde" : "aras"}`}>
-          <small>{z.wer === "kunde" ? (probe ? "Du" : "Kunde") : "Aras"}</small>
+          <small>{z.wer === "kunde" ? (probe ? "Du" : "Kunde") : "ARAS"}</small>
           <p>{z.text}</p>
         </div>
       ))}

@@ -325,7 +325,24 @@ button.ar-fakt { cursor: pointer; }
 @keyframes arHervor { 0% { background: rgba(40, 141, 250, .22); } 100% { background: transparent; } }
 
 /* ── Handy (375 px) ──────────────────────────────────────────────────────── */
+/* Reiter „Ergebnisse“ (Go-live G, 20.10.2026): je Gesprächsart eine Zeile, jede Zahl ein Knopf zu den Gesprächen. */
+.ar-erg-karte { padding: 8px 12px 12px; overflow-x: auto; }
+.ar-erg-tabelle { display: grid; gap: 2px; min-width: 640px; }
+.ar-erg-zeile { display: grid; grid-template-columns: minmax(150px, 1.6fr) repeat(7, minmax(72px, 1fr)); gap: 8px; align-items: center; padding: 8px 6px; border-bottom: 1px solid var(--k-linie); }
+.ar-erg-zeile.kopf { font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--k-text-3); border-bottom-color: var(--k-linie-2); }
+.ar-erg-zeile.summe { font-weight: 600; border-bottom: none; }
+.ar-erg-zahl { min-height: 32px; min-width: 44px; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .04); color: var(--k-text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ar-erg-zahl:hover, .ar-erg-zahl:focus-visible { border-color: rgba(40, 141, 250, .55); }
+.ar-erg-zahl.an { background: rgba(40, 141, 250, .16); border-color: rgba(40, 141, 250, .55); color: #fff; }
+.ar-erg-null { color: var(--k-text-3); font-variant-numeric: tabular-nums; padding: 0 10px; }
+
 @media (max-width: 760px) {
+  .ar-erg-tabelle { min-width: 0; }
+  .ar-erg-zeile.kopf { display: none; }
+  .ar-erg-zeile { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; padding: 10px 4px; }
+  .ar-erg-zeile > [role="rowheader"] { grid-column: 1 / -1; }
+  .ar-erg-zeile > [role="cell"] { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .ar-erg-zeile > [role="cell"]::before { content: attr(data-spalte); color: var(--k-text-3); font-size: 12px; }
   .ar-cockpit { padding: 14px 14px 12px; border-radius: 18px; }
   .ar-status b { font-size: 16.5px; }
   .ar-cockpit-oben { align-items: flex-start; }

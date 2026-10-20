@@ -420,7 +420,9 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_leerlauf", "aus", "pruefstand");
     await einstellungSetzen("aras_tag_euro", "0", "pruefstand");
     const rd = await probeanruf({ spielart: "probe", von: "pruefstand" });
-    ok("Tagesdeckel erreicht → kein Probeanruf", !rd.ok && /Tagesdeckel/.test(rd.grund ?? ""), rd.grund);
+    // Nach 23 Uhr greift zuerst die Nachtruhe der Probe (7 bis 23 Uhr) — dann zählt dieselbe Ablehnung.
+    const nachtRuhe = (() => { const h = new Date().toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }); return h < "07:00" || h >= "23:00"; })();
+    ok("Tagesdeckel erreicht → kein Probeanruf", !rd.ok && (/Tagesdeckel/.test(rd.grund ?? "") || (nachtRuhe && /7 bis 23/.test(rd.grund ?? ""))), rd.grund);
     await einstellungSetzen("aras_tag_euro", "60", "pruefstand");
     await einstellungSetzen("aras_probe_nummer", "", "pruefstand");
     const r2 = await probeanruf({ spielart: "probe", von: "pruefstand" });
@@ -1864,6 +1866,34 @@ async function main(): Promise<void> {
     await sqlPool`UPDATE fiaon_konto_karte SET bestaetigt_am = NOW() - INTERVAL '1 day' WHERE person_id = ${pE}`.catch(() => null);
     const b3 = await briefingBauen({ personId: pE, nummer: "+4917000000442", spielart: "rate" });
     ok("Konto bei der Partnerbank bestätigt → Karte „konto_eroeffnet“", b3.karte?.stand === "konto_eroeffnet", JSON.stringify(b3.karte));
+  }
+
+  titel("26. ERGEBNISSE (Go-live G): je Gesprächsart und Tag — Anrufe, erreicht, Zusagen, Zahlung ≤ 48 h, Aufgaben, Kündigung, Beschwerde; jede Zahl mit ihren Anrufen");
+  {
+    const { ergebnisseTag } = await import("../server/lib/fiaon-aras-ergebnisse");
+    const TAG = "2026-01-15";
+    const pG = await person(444); const rG = await antrag(pG, 444, { payment_status: "paid" });
+    const anruf = async (o: { spielart: string; ergebnis: string | null; briefing?: object; um: string; person?: number | null }) => {
+      const [c] = (await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von) VALUES (${o.person === undefined ? pG : o.person}, ${ausweis}, '+4917000000444', 'raus', 'beendet', ${o.um}::timestamptz, 'aras') RETURNING id`) as any[];
+      const [a] = (await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version, ergebnis, angenommen_am, created_at)
+                                 VALUES (${c.id}, ${o.spielart}, ${sqlPool.json((o.briefing ?? {}) as any)}, 'attrappe', 'juni', 'pruefstand', ${o.ergebnis}, ${o.ergebnis && o.ergebnis !== "nicht_erreicht" ? o.um : null}::timestamptz, ${o.um}::timestamptz) RETURNING id`) as any[];
+      return Number(a.id);
+    };
+    const wz = async (arasAnrufId: number, werkzeug: string, eingabe: object = {}) => sqlPool`INSERT INTO fiaon_aras_werkzeug (aras_anruf_id, werkzeug, aufruf_id, eingabe, ergebnis, ok, dauer_ms) VALUES (${arasAnrufId}, ${werkzeug}, ${`pruef-${arasAnrufId}-${werkzeug}`}, ${sqlPool.json(eingabe as any)}, ${sqlPool.json({} as any)}, TRUE, 5)`;
+    const a1 = await anruf({ spielart: "rate", ergebnis: "erreicht_zahlt_am", um: "2026-01-15T10:00:00+01:00" });
+    await wz(a1, "zahlungszusage_merken", { datum: "2026-01-16" }); await wz(a1, "aufgabe_fuer_justin", { art: "karte_nicht_erhalten", text: "keine Karte" });
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am) VALUES (${rG}, 2, ${`${rG}-2`}, 5999, DATE '2026-01-10', 'bezahlt', TIMESTAMPTZ '2026-01-16 09:00:00+01')`;
+    const a2 = await anruf({ spielart: "rate", ergebnis: "nicht_erreicht", um: "2026-01-15T11:00:00+01:00" });
+    const a3 = await anruf({ spielart: "willkommen", ergebnis: "erreicht_sonstiges", um: "2026-01-15T12:00:00+01:00", briefing: { kuendigung: { am: "10.01.2026", art: "jahresvertrag", endeAm: null, offenBetrag: null } } });
+    await wz(a3, "nicht_mehr_anrufen");
+    const a4 = await anruf({ spielart: "probe", ergebnis: "erreicht_sonstiges", um: "2026-01-15T13:00:00+01:00", briefing: { probe: true, probeSpielart: "rate" }, person: null });
+    const e = await ergebnisseTag(TAG);
+    const rate = e.zeilen.find((z) => z.spielart === "rate"), wk = e.zeilen.find((z) => z.spielart === "willkommen");
+    ok("Rate offen: 2 Anrufe, 1 erreicht, 1 Zusage, 1 Zahlung ≤ 48 h (59,99 €), 1 Aufgabe für Justin", !!rate && rate.zellen.anrufe.n === 2 && rate.zellen.erreicht.n === 1 && rate.zellen.zusagen.n === 1 && rate.zellen.zahlungen.n === 1 && rate.euro48h === 59.99 && rate.zellen.aufgaben.n === 1, JSON.stringify(rate));
+    ok("Willkommen: 1 Anruf, erreicht, Kündigung in der Akte, „nicht mehr anrufen“ → Beschwerde/Sperre", !!wk && wk.zellen.anrufe.n === 1 && wk.zellen.erreicht.n === 1 && wk.zellen.kuendigung.n === 1 && wk.zellen.beschwerde.n === 1, JSON.stringify(wk));
+    ok("Jede Zahl trägt ihre Anrufe (für die Gespräche dazu) — Willkommen und Rate stehen zuerst", rate!.zellen.anrufe.ids.includes(a1) && rate!.zellen.anrufe.ids.includes(a2) && rate!.zellen.zahlungen.ids.join() === String(a1) && wk!.zellen.beschwerde.ids.join() === String(a3) && e.zeilen[0].spielart === "willkommen" && e.zeilen[1].spielart === "rate");
+    ok("Probeanrufe zählen nur auf Wunsch — dann unter der gespielten Art (Rate: 3 Anrufe), zusammen 4", !e.zeilen.some((z) => z.zellen.anrufe.ids.includes(a4)) && e.summe.zellen.anrufe.n === 3 && (await ergebnisseTag(TAG, { mitProbe: true })).zeilen.find((z) => z.spielart === "rate")?.zellen.anrufe.n === 3 && (await ergebnisseTag(TAG, { mitProbe: true })).summe.zellen.anrufe.n === 4);
+    ok("Ein anderer Tag: leer (nichts doppelt gezählt)", (await ergebnisseTag("2026-01-14")).zeilen.length === 0);
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

@@ -130,9 +130,9 @@ async function main() {
     ok(T.tagPlus("2026-10-31", 1) === "2026-11-01" && T.tagPlus("2026-03-29", -1) === "2026-03-28" && T.tagName("2026-10-19", "2026-10-20") === "Gestern" && T.tagName("2026-10-20", "2026-10-20") === "Heute", "Tage blättern (auch über Monats- und Zeitumstellung)");
     const liste = [{ spielart: "probe", probeUrteil: "runter" }, { spielart: "rate", probeUrteil: null }, { spielart: "probe", probeUrteil: "hoch" }];
     ok(T.anrufFiltern(liste, "probe").length === 2 && T.anrufFiltern(liste, "kunden").length === 1 && T.anrufFiltern(liste, "daumen").length === 1 && T.anrufFiltern(liste, "alle").length === 3, "Filter Alle · Probe · Kunden · Daumen runter");
-    ok(T.statusSatz({ an: false, notaus: false, stufe: 0 }, []).satz === "Aras ruft gerade niemanden an", "Statussatz in Ruhe: „Aras ruft gerade niemanden an“");
+    ok(T.statusSatz({ an: false, notaus: false, stufe: 0 }, []).satz === "ARAS ruft gerade niemanden an", "Statussatz in Ruhe: „ARAS ruft gerade niemanden an“");
     ok(T.statusSatz({ an: false, notaus: true }, []).satz.startsWith("Not-Aus") && T.statusSatz({ an: true, notaus: false, leerlauf: true, stufe: 1 }, []).satz.startsWith("Leerlauf"), "Statussatz bei Not-Aus und Leerlauf");
-    ok(T.statusSatz({ an: false, notaus: false }, [{ probe: true, zustand: "gewaehlt", zeilen: [] }]).satz === "Aras ruft dich gerade an" && T.statusSatz({ an: true, notaus: false }, [{ probe: false, zustand: "spricht", zeilen: [1] }, { probe: false, zustand: "hoert", zeilen: [1] }]).satz === "Aras telefoniert gerade · 2 Gespräche", "Statussatz während Gesprächen");
+    ok(T.statusSatz({ an: false, notaus: false }, [{ probe: true, zustand: "gewaehlt", zeilen: [] }]).satz === "ARAS ruft dich gerade an" && T.statusSatz({ an: true, notaus: false }, [{ probe: false, zustand: "spricht", zeilen: [1] }, { probe: false, zustand: "hoert", zeilen: [1] }]).satz === "ARAS telefoniert gerade · 2 Gespräche", "Statussatz während Gesprächen");
     const fb = T.feedbackLesen({ ok: true, feedback: [{ id: 3, grund: "Begrüßung zu lang", aenderung: "Kürzer grüßen", created_at: "2026-10-20T10:00:00Z", status: "Übernommen" }, { schluessel: "x", titel: "Zu schnell" }, { id: 9 }] });
     ok(fb.length === 2 && fb[0].status === "uebernommen" && fb[0].vorschlag === "Kürzer grüßen" && fb[1].status === "offen" && fb[1].id === "x", "Feedback des Kerns: verschiedene Feldnamen werden verstanden, leere Punkte fallen weg");
     ok(T.PROBE_SCHLUESSEL.includes("aras_dialekt") && T.PROBE_SCHLUESSEL.includes("aras_hintergrund") && T.PROBE_SCHLUESSEL.includes("aras_zuhoeren") && T.COCKPIT_SCHLUESSEL.includes("aras_leerlauf"), "Dialekt/Hintergrund/Zuhören stehen nur in „Probe“, Leerlauf nur oben");
@@ -165,6 +165,13 @@ async function main() {
     const aras = rg.slice(rg.indexOf("export const RUNDGANG_ARAS: RundgangSchritt[]"), rg.indexOf("export const RUNDGANG_KI_WERKZEUGE"));
     ok(/data-ki=\\"cockpit\\"/.test(aras) && /Als Nächstes/.test(aras) && !/RUNDGANG_ARAS_PROBE/.test(rg), "Rundgang: Cockpit, „Als Nächstes“ — EIN Rundgang für die Seite");
     ok(/raum="aras-cockpit"/.test(datei("client/src/components/admin/ChefKiAras.tsx")), "neuer Rundgang-Merker „aras-cockpit“ (Justin sieht ihn nach dem Umbau einmal)");
+    // Go-live G (Koordination 20.10.2026): Reiter „Ergebnisse“, jede Zahl ein Knopf zu den Gesprächen; überall „ARAS“
+    const seite = datei("client/src/components/admin/ChefKiAras.tsx");
+    const erg = datei("client/src/components/admin/aras/ArasErgebnisse.tsx");
+    ok(/\{ key: "anrufe"[^\n]*\n\s*\{ key: "ergebnisse", label: "Ergebnisse"/.test(seite) && /reiter === "ergebnisse" \? <ArasErgebnisse verbunden=\{verbunden\} \/>/.test(seite), "Reiter „Ergebnisse“ direkt nach „Anrufe“");
+    ok(/className=\{`ar-erg-zahl/.test(erg) && /AnrufZeileAnsicht/.test(erg) && /\/chef\/aras\/ergebnisse\?tag=/.test(erg) && ["Anrufe", "Erreicht", "Zusagen", "Zahlung ≤ 48 h", "Aufgabe für dich", "Kündigung", "Beschwerde / Sperre"].every((t) => erg.includes(`t: "${t}"`)), "Ergebnisse: sieben Spalten, jede Zahl ein Knopf, darunter die Gespräche mit derselben Zeile wie in „Anrufe“");
+    ok(/data-ki-reiter=\\"ergebnisse\\"/.test(aras) && /Jede Zahl ist ein Knopf/.test(aras), "Rundgang: Schritt für „Ergebnisse“");
+    ok(/<Kopf titel="ARAS" satz="Deine digitale Mitarbeiterin am Telefon\."/.test(seite) && !/(?<![\w-])Aras(?=[\s'’“”".,!?:;—–)\]}<])/.test(client) && !/(?<![\w-])Aras(?=[\s'’“”".,!?:;—–)\]}<])/.test(ohneKommentar(erg)), "Überall „ARAS“ (Kopf, Cockpit, Reiter) — kein „Aras“ mehr in sichtbaren Texten");
   }
 
   console.log(`\n${gut} gut, ${schlecht} schlecht`);

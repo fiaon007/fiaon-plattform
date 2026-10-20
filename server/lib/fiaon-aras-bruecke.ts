@@ -72,6 +72,8 @@ interface Lauf {
   twilioSid: string | null; streamSid: string | null; ws: WebSocket | null; sitzung: Sitzung | null;
   seit: number; bereitAm: number | null; zustand: LiveSitzung["zustand"]; spricht: boolean; zuletztAusgabe: number; zuletztSprache: number; zuletztRede: number;
   zeilen: TranskriptZeile[]; aufnahmeJa: boolean; aufnahmeNein: boolean; aufnahmeFrageAm: number | null;
+  /** Single-Flight: der eine laufende Aufnahme-Start (Ja-Erkennung der Brücke und Werkzeug des Modells kommen oft gleichzeitig). */
+  aufnahmeStart: Promise<{ ok: boolean; grund?: string }> | null;
   kundeHatGesprochen: boolean; kundeLaut: boolean; kiHinweisAm: number | null; abschiedAm: number | null; arasErsteRedeAm: number | null; grussNachgeschoben: boolean; hinweisNachgeschoben: boolean;
   puffer: Buffer[]; pufferBytes: number; offeneMarks: number; markNr: number; markGen: number; clears: number;
   pruefUnterbrechen: NodeJS.Timeout | null; pruefNochmal: boolean; clearSprache: number; lautFrames: number; rauschen: number;
@@ -247,7 +249,7 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
     trocken: probe && !(await testperson(z.person_id)),
     twilioSid: z.twilio_sid ?? null, streamSid: e.streamSid ?? null, ws: e.ws, sitzung: null,
     seit: Date.now(), bereitAm: null, zustand: "waehlt", spricht: false, zuletztAusgabe: 0, zuletztSprache: 0, zuletztRede: Date.now(),
-    zeilen: [], aufnahmeJa: false, aufnahmeNein: false, aufnahmeFrageAm: null,
+    zeilen: [], aufnahmeJa: false, aufnahmeNein: false, aufnahmeFrageAm: null, aufnahmeStart: null,
     kundeHatGesprochen: false, kundeLaut: false, kiHinweisAm: null, abschiedAm: null, arasErsteRedeAm: null, grussNachgeschoben: false, hinweisNachgeschoben: false,
     puffer: [], pufferBytes: 0, offeneMarks: 0, markNr: 0, markGen: 1, clears: 0,
     pruefUnterbrechen: null, pruefNochmal: false, clearSprache: 0, lautFrames: 0, rauschen: 0.004,
@@ -307,14 +309,23 @@ function kontextFuer(l: Lauf): WerkzeugKontext {
     letzteKundenZeile: () => [...l.zeilen].reverse().find((z) => z.wer === "kunde" && z.text.trim())?.text ?? null,
     kundeSagteJa: () => kundeSagteJaZurAufnahme(l),
     aufnahmeStarten: async () => {
-      if (l.aufnahmeJa) return { ok: true };
-      if (!l.twilioSid || l.twilioSid.startsWith("ATTRAPPE")) { l.aufnahmeJa = true; return { ok: true }; }
-      try {
-        const c = await twilioClient();
-        await c.calls(l.twilioSid).recordings.create({ recordingChannels: "dual", recordingStatusCallback: rueckrufUrl("/api/fiaon/aras/aufnahme", l.callId), recordingStatusCallbackEvent: ["completed"] });
-        l.aufnahmeJa = true;
-        return { ok: true };
-      } catch (err) { return { ok: false, grund: String((err as Error)?.message ?? err).slice(0, 200) }; }
+      if (l.aufnahmeJa) return { ok: true, schon: true };
+      // Nur EIN Start: sagt der Kunde „Ja“, starten Brücke und Modell fast gleichzeitig — der zweite wartet auf den ersten
+      // (sonst zwei Twilio-Aufnahmen). Schlägt der Start fehl, darf ein späterer Versuch es noch einmal probieren.
+      if (l.aufnahmeStart) { const r = await l.aufnahmeStart; return r.ok ? { ok: true, schon: true } : r; }
+      const start = (async (): Promise<{ ok: boolean; grund?: string }> => {
+        if (!l.twilioSid || l.twilioSid.startsWith("ATTRAPPE")) { l.aufnahmeJa = true; return { ok: true }; }
+        try {
+          const c = await twilioClient();
+          await c.calls(l.twilioSid).recordings.create({ recordingChannels: "dual", recordingStatusCallback: rueckrufUrl("/api/fiaon/aras/aufnahme", l.callId), recordingStatusCallbackEvent: ["completed"] });
+          l.aufnahmeJa = true;
+          return { ok: true };
+        } catch (err) { return { ok: false, grund: String((err as Error)?.message ?? err).slice(0, 200) }; }
+      })();
+      l.aufnahmeStart = start;
+      const r = await start;
+      if (!r.ok) l.aufnahmeStart = null;
+      return r;
     },
     aufnahmeAbgelehnt: () => { l.aufnahmeNein = true; },
     uebergabe: (agentId, grund) => uebergabeStarten(l, agentId, grund),

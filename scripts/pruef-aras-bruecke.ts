@@ -252,9 +252,13 @@ async function main(): Promise<void> {
     ok("Ende-Grund aras_beendet, Ergebnis erreicht_zahlt_am, nachbereitet", a?.ende_grund === "aras_beendet" && a?.ergebnis === "erreicht_zahlt_am" && !!a?.nachbereitet_am, `${a?.ende_grund}/${a?.ergebnis}`);
     ok("fiaon_calls: beendet, Ergebnis, Zusammenfassung", a?.call_status === "beendet" && a?.call_ergebnis === "erreicht_zahlt_am" && String(a?.zusammenfassung ?? "").length > 10);
     const wz = (await sqlPool`SELECT werkzeug, ok FROM fiaon_aras_werkzeug WHERE aras_anruf_id = ${a.id} ORDER BY id`) as any[];
-    const wzAuf = (await sqlPool`SELECT aufruf_id FROM fiaon_aras_werkzeug WHERE aras_anruf_id = ${a.id} AND werkzeug = 'aufnahme_starten' ORDER BY id`) as any[];
-    ok("Sechs Werkzeug-Zeilen, alle ok — die Aufnahme startete die Brücke selbst beim Ja (Werkzeug danach: „läuft schon“)",
-      wz.length === 6 && wz.every((w) => w.ok === true) && String(wzAuf[0]?.aufruf_id).startsWith("bruecke_ja_"), wz.map((w) => `${w.werkzeug}:${w.ok}`).join(","));
+    const wzAuf = (await sqlPool`SELECT aufruf_id, ergebnis FROM fiaon_aras_werkzeug WHERE aras_anruf_id = ${a.id} AND werkzeug = 'aufnahme_starten' ORDER BY id`) as any[];
+    // Ja-Erkennung der Brücke und Werkzeug des Modells kommen fast gleichzeitig — welche Zeile zuerst steht, ist Zufall.
+    // Fest ist: die Brücke hat selbst beim Ja gestartet, und es gab genau EINEN Start (der andere Aufruf: „läuft schon“).
+    const starts = wzAuf.filter((w) => /zeichne ich jetzt auf/.test(String(w.ergebnis?.vorlesen ?? "")));
+    ok("Sechs Werkzeug-Zeilen, alle ok — die Brücke startete selbst beim Ja, genau EIN Start (der andere Aufruf: „läuft schon“)",
+      wz.length === 6 && wz.every((w) => w.ok === true) && wzAuf.some((w) => String(w.aufruf_id).startsWith("bruecke_ja_")) && starts.length === 1,
+      `${wz.map((w) => `${w.werkzeug}:${w.ok}`).join(",")} · Starts: ${starts.length}`);
     const [cl] = (await sqlPool`SELECT outcome, promised_date, agent_name FROM fiaon_contact_log WHERE ref = ${r1} AND type = 'result' ORDER BY id DESC LIMIT 1`) as any[];
     ok("Akte: Ergebnis erreicht_zahlt_am mit Zusage-Datum, Akteur Aras", cl?.outcome === "erreicht_zahlt_am" && !!cl?.promised_date && cl?.agent_name === "Aras", JSON.stringify(cl));
     ok("Telefonsperre gesetzt + Werbesperre an der Person", (await telefonGesperrt("700000001", p1)) && !!((await sqlPool`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${p1}`) as any[])[0].werbung_gesperrt_am);
@@ -265,6 +269,7 @@ async function main(): Promise<void> {
     const proto = (await sqlPool`SELECT art FROM fiaon_mara_protokoll WHERE kanal = 'telefon' AND (daten->>'callId')::int = ${callId} ORDER BY id`) as any[];
     const arten = proto.map((p) => p.art);
     ok("Protokoll: gewählt, angenommen, KI-Hinweis, Aufnahme-Ja, Zusage, Sperre, Ende", ["aras_gewaehlt", "aras_angenommen", "aras_ki_hinweis", "aras_aufnahme_ja", "aras_zusage", "aras_sperre", "aras_ende"].every((x) => arten.includes(x)), arten.join(","));
+    ok("Genau EIN Protokoll „Aufnahme-Ja“ (kein Doppelstart)", arten.filter((x) => x === "aras_aufnahme_ja").length === 1, arten.join(","));
     ok("Prüfstatus „offen“ — Prüf-Mara (E-409) prüft das Gespräch mit Transkript", a?.pruefung_status === "offen", String(a?.pruefung_status));
     ok("Voraus-Takt: nie mehr als 5 Marken (500 ms) bei Twilio offen", tz.maxOffen <= 5, String(tz.maxOffen));
     const zeilenBus = busZeilen.filter((z) => z.callId === callId);

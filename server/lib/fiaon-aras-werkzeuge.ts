@@ -50,7 +50,7 @@ export interface WerkzeugKontext {
   /** Probeanruf: Werkzeuge ohne Wirkung nach außen. */
   trocken?: boolean;
   /** Brücke: Twilio-Aufnahme starten (recordings.create). */
-  aufnahmeStarten: () => Promise<{ ok: boolean; grund?: string }>;
+  aufnahmeStarten: () => Promise<{ ok: boolean; grund?: string; schon?: boolean }>;
   /** Brücke: ins Softphone eines Menschen verbinden. */
   uebergabe: (agentId: number, grund: string) => Promise<{ ok: boolean; grund?: string }>;
   /** Brücke: nach dem Abschied auflegen. */
@@ -99,8 +99,10 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     if (ctx.kundeSagteJa && !ctx.kundeSagteJa()) return { ok: false, vorlesen: "Ich habe kein eindeutiges Ja gehört — frag noch einmal kurz nach, oder mach ohne Aufzeichnung weiter.", fehler: "kein_ja" };
     const jaText = kurz(ctx.letzteKundenZeile() ?? "", 120);
     const r = await ctx.aufnahmeStarten();
+    // Hat ein gleichzeitiger Aufruf (Ja-Erkennung der Brücke) schon gestartet, zählt dieser hier nicht noch einmal.
+    if (r.ok && r.schon) return { ok: true, vorlesen: "Die Aufzeichnung läuft schon." };
     await lauf`UPDATE fiaon_aras_anruf SET aufnahme_ja_am = COALESCE(aufnahme_ja_am, NOW()), aufnahme_ja_text = COALESCE(aufnahme_ja_text, ${jaText || null}),
-                aufnahme_gestartet_am = CASE WHEN ${r.ok} THEN NOW() ELSE aufnahme_gestartet_am END, updated_at = NOW() WHERE id = ${ctx.arasAnrufId}`;
+                aufnahme_gestartet_am = CASE WHEN ${r.ok} THEN COALESCE(aufnahme_gestartet_am, NOW()) ELSE aufnahme_gestartet_am END, updated_at = NOW() WHERE id = ${ctx.arasAnrufId}`;
     await arasEreignis({ art: "aras_aufnahme_ja", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart, text: r.ok ? "Aufnahme nach Ja gestartet" : `Aufnahme-Ja, Start fehlgeschlagen: ${r.grund ?? ""}`, ok: r.ok, daten: { jaText } });
     return r.ok ? { ok: true, vorlesen: "Danke, dann zeichne ich jetzt auf." } : { ok: false, vorlesen: "Die Aufzeichnung ließ sich gerade nicht starten — wir machen ohne weiter.", fehler: r.grund };
   },

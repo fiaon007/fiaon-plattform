@@ -502,6 +502,60 @@ async function main(): Promise<void> {
     await warten(async () => !!(await anruf(g4.callId))?.nachbereitet_am, 8000);
   }
 
+  titel("13. BÜRO-ATMOSPHÄRE (aras_hintergrund): gemischt, in Pausen in Echtzeit, nach clear ohne Lücke");
+  {
+    const { mulawZuPcm16, pcm16ZuMulaw, pegel, stille } = await import("../server/lib/fiaon-aras-adapter");
+    const { atmoMischen, ATMO_PEGEL_DBFS } = await import("../server/lib/fiaon-aras-atmo");
+    const { mitAtmo } = await import("../server/lib/fiaon-aras-hoerprobe");
+    const rms = (x: Int16Array) => Math.sqrt(x.reduce((a, v) => a + v * v, 0) / Math.max(1, x.length));
+    const dbfs = (x: Int16Array) => 20 * Math.log10(Math.max(1e-9, rms(x) / 32768));
+    // a) Pegel nach µ-law: reine Atmo (8 s) liegt bei ihrer festen Lautheit (±3 dB), auch nach Kodieren/Dekodieren
+    const atmoLeise = mulawZuPcm16(pcm16ZuMulaw(atmoMischen(null, 64000, "buero_leise", 0).pcm));
+    ok("Atmo „Büro leise“ nach µ-law: Lautheit wie festgelegt (±3 dB)", Math.abs(dbfs(atmoLeise) - ATMO_PEGEL_DBFS.buero_leise) < 3, `${dbfs(atmoLeise).toFixed(1)} dBFS`);
+    // b) Reine Atmo gilt NIE als „Aras redet“ (Rede-Erkennung liest den ungemischten Rahmen; die Schwelle bleibt frei)
+    const rahmen = pcm16ZuMulaw(atmoMischen(null, 800, "buero", 1234).pcm);
+    ok("Reine Atmo liegt unter der Rede-Schwelle (0,012)", pegel(rahmen) < 0.012, pegel(rahmen).toFixed(4));
+    // c) Laute Rede + Atmo: kein Übersteuern (weiche Grenze), Rede bleibt erhalten
+    const laut = new Int16Array(800).map((_, i) => Math.round(31000 * Math.sin(i / 3)));
+    const gemischt = atmoMischen(laut, 800, "buero", 99).pcm;
+    ok("Laute Rede + Atmo: kein Übersteuern, Rede bleibt (Korrelation hoch)", gemischt.every((v) => v <= 32767 && v >= -32767) && Math.abs(rms(gemischt) - rms(laut)) / rms(laut) < 0.05);
+    // d) Sprechprobe mit Atmo: halbe Sekunde Raum davor/danach, Rede in der Mitte unverändert hörbar
+    const wav = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(40), Buffer.alloc(1600)]);
+    wav.writeUInt16LE(1, 20); wav.writeUInt32LE(8000, 24); wav.writeUInt16LE(16, 34); wav.write("WAVE", 8); wav.write("data", 36);
+    const mit = mitAtmo(wav, "buero_leise");
+    ok("Sprechprobe mit Atmo: WAV, 0,5 s Raum davor und danach", mit.length === 44 + 1600 + 2 * 4000 * 2 && mit.toString("ascii", 0, 4) === "RIFF");
+
+    // e) Im Gespräch: Atmo an → reine Atmo-Stücke in Pausen; nach clear sofort weiter (keine Lücke)
+    await einstellungSetzen("aras_hintergrund", "buero_leise", "pruefstand");
+    const pAtmo = await person(33); await antrag(pAtmo, 33, { payment_status: "paid" });
+    const e = await planEinreihen({ personId: pAtmo, nummer: "+491700000033", spielart: "rate", grund: "Prüfstand Atmo", erzeugtVon: "chef" });
+    const g = await gespraech(Number(e.id), { schritte: [{ aras: "Ich erzähle Ihnen jetzt etwas Längeres über Ihren Vertrag und die nächsten Schritte.", ms: 1500 }, { warteMs: 4000 }] });
+    await schlafen(700);
+    const z0 = laufZahlen(g.callId);
+    ok("Atmo im Gespräch an (buero_leise)", z0?.atmo === "buero_leise", String(z0?.atmo));
+    g.tw.laut(400);
+    await warten(() => (laufZahlen(g.callId)?.clears ?? 0) >= 1 || g.tw.gesendet().clear >= 1, 3000);
+    const vorClear = g.tw.gesendet();
+    const mediaNachClear0 = vorClear.media;
+    await schlafen(150);
+    ok("Nach clear (Unterbrechen): binnen 150 ms wieder Ton bei Twilio — Atmo ohne Lücke", g.tw.gesendet().clear >= 1 && g.tw.gesendet().media > mediaNachClear0, `${mediaNachClear0} → ${g.tw.gesendet().media}`);
+    await schlafen(1500);
+    const z1 = laufZahlen(g.callId);
+    ok("In der Pause: reine Atmo-Stücke in Echtzeit, Voraus-Takt ≤ 5 Marken", (z1?.atmoStuecke ?? 0) >= 3 && g.tw.gesendet().maxOffen <= 5, JSON.stringify({ stuecke: z1?.atmoStuecke, maxOffen: g.tw.gesendet().maxOffen }));
+    g.tw.aufhaengen();
+    await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 8000);
+    ok("Nach dem Auflegen: kein Atmo-Takt mehr (Sitzung weg)", laufZahlen(g.callId) === null);
+    await einstellungSetzen("aras_hintergrund", "aus", "pruefstand");
+    // f) Rot-Probe: ohne Atmo kommen in der Pause KEINE Füll-Stücke (der Füll-Takt hängt am Schalter)
+    const e2 = await planEinreihen({ personId: pAtmo, nummer: "+491700000033", spielart: "zusage", grund: "Prüfstand ohne Atmo", erzeugtVon: "chef" });
+    const g2 = await gespraech(Number(e2.id), { schritte: [{ warteMs: 2500 }] });
+    await schlafen(1200);
+    ok("Rot-Probe: ohne Atmo keine Füll-Stücke", (laufZahlen(g2.callId)?.atmoStuecke ?? 0) === 0 && laufZahlen(g2.callId)?.atmo === null);
+    g2.tw.aufhaengen();
+    await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 8000);
+    void stille;
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

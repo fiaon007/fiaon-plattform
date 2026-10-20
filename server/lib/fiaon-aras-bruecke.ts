@@ -36,7 +36,8 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, WebSocket } from "ws";
 import { sqlPool } from "./db-pool";
 import { arasSchema } from "./fiaon-aras-schema";
-import { adapterFuer, pegel, type Sitzung, type SitzungEreignis } from "./fiaon-aras-adapter";
+import { adapterFuer, pegel, mulawZuPcm16, pcm16ZuMulaw, type Sitzung, type SitzungEreignis } from "./fiaon-aras-adapter";
+import { atmoMischen, type AtmoArt } from "./fiaon-aras-atmo";
 import { arasEinstellungenLesen } from "./fiaon-aras-plan";
 import { werkzeugAusfuehren, type WerkzeugKontext } from "./fiaon-aras-werkzeuge";
 import { arasEreignis, transkriptMelden } from "./fiaon-aras-ereignis";
@@ -81,6 +82,8 @@ interface Lauf {
   ergebnis: ArasErgebnis | null; ergebnisNotiz: string | null;
   sekunden: number; kostenCents: number;
   ctx: WerkzeugKontext | null; timer: NodeJS.Timeout[]; takt: NodeJS.Timeout | null;
+  /** Büro-Atmosphäre (aras_hintergrund): Art, Position in der Schleife, Füll-Takt, gesendete reine Atmo-Stücke. */
+  atmo: AtmoArt | null; atmoPos: number; atmoTakt: NodeJS.Timeout | null; atmoStuecke: number;
   fertig: Promise<void>; fertigMelden: () => void;
 }
 
@@ -99,9 +102,9 @@ export function laeuft(callId: number): boolean { return LAUFENDE.has(callId); }
 export function kundeSprachSchon(callId: number): boolean { return LAUFENDE.get(callId)?.kundeHatGesprochen === true; }
 export function uebergabeLaeuft(callId: number): boolean { return LAUFENDE.get(callId)?.uebergabeLaeuft === true; }
 /** Für Prüfstände: Kennzahlen eines laufenden Gesprächs. */
-export function laufZahlen(callId: number): { clears: number; offeneMarks: number; pufferBytes: number; aufnahmeJa: boolean; kiHinweis: boolean } | null {
+export function laufZahlen(callId: number): { clears: number; offeneMarks: number; pufferBytes: number; aufnahmeJa: boolean; kiHinweis: boolean; atmo: string | null; atmoStuecke: number } | null {
   const l = LAUFENDE.get(callId);
-  return l ? { clears: l.clears, offeneMarks: l.offeneMarks, pufferBytes: l.pufferBytes, aufnahmeJa: l.aufnahmeJa, kiHinweis: !!l.kiHinweisAm } : null;
+  return l ? { clears: l.clears, offeneMarks: l.offeneMarks, pufferBytes: l.pufferBytes, aufnahmeJa: l.aufnahmeJa, kiHinweis: !!l.kiHinweisAm, atmo: l.atmo, atmoStuecke: l.atmoStuecke } : null;
 }
 
 // ── WebSocket-Anbindung ────────────────────────────────────────────────────
@@ -254,10 +257,14 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
     puffer: [], pufferBytes: 0, offeneMarks: 0, markNr: 0, markGen: 1, clears: 0,
     pruefUnterbrechen: null, pruefNochmal: false, clearSprache: 0, lautFrames: 0, rauschen: 0.004,
     uebergabeLaeuft: false, notaus: false, beendet: false, endeGrund: null, ergebnis: null, ergebnisNotiz: null,
-    sekunden: 0, kostenCents: 0, ctx: null, timer: [], takt: null, fertig, fertigMelden,
+    sekunden: 0, kostenCents: 0, ctx: null, timer: [], takt: null,
+    atmo: einstellungen.hintergrund && einstellungen.hintergrund !== "aus" ? einstellungen.hintergrund : null, atmoPos: 0, atmoTakt: null, atmoStuecke: 0,
+    fertig, fertigMelden,
   };
   lauf.ctx = kontextFuer(lauf);
   LAUFENDE.set(lauf.callId, lauf);
+  // Büro-Atmosphäre: in Pausen läuft sie in Echtzeit weiter (ein Füll-Takt hält 200 ms bei Twilio vorrätig).
+  if (lauf.atmo) lauf.atmoTakt = setInterval(() => atmoFuellen(lauf), ATMO_TAKT_MS);
 
   await sqlPool`UPDATE fiaon_aras_anruf SET prompt_version = ${anweisung.version}, stream_sid = COALESCE(${e.streamSid ?? null}, stream_sid), modell = ${einstellungen.modellStimme}, stimme = ${stimme},
                  angenommen_am = COALESCE(angenommen_am, NOW()), updated_at = NOW() WHERE id = ${lauf.arasAnrufId}`;
@@ -359,7 +366,9 @@ function adapterEreignis(l: Lauf, ev: SitzungEreignis): void {
       void sqlPool`UPDATE fiaon_aras_anruf SET sitzung_id = ${ev.sitzungId}, updated_at = NOW() WHERE id = ${l.arasAnrufId}`.catch(() => null);
       return;
     case "audio": {
-      l.puffer.push(ev.chunk); l.pufferBytes += ev.chunk.length; l.zuletztAusgabe = Date.now();
+      // Mit Büro-Atmosphäre: unter jeden Rahmen mischen (die Rede-Erkennung unten liest den ungemischten Rahmen).
+      const raus = l.atmo ? atmoUnter(l, ev.chunk) : ev.chunk;
+      l.puffer.push(raus); l.pufferBytes += raus.length; l.zuletztAusgabe = Date.now();
       // GPT-Live schickt auch Stille durchgehend — „Aras redet“ heißt: dieser Rahmen trägt Rede.
       const sprache = ev.sprache ?? pegel(ev.chunk) > 0.012;
       if (sprache) { l.zuletztSprache = Date.now(); l.zuletztRede = Date.now(); if (!l.arasErsteRedeAm) l.arasErsteRedeAm = Date.now(); }
@@ -473,6 +482,8 @@ function pumpen(l: Lauf): void {
     return;
   }
   while (l.offeneMarks < VORAUS_MARKS && l.pufferBytes >= MARK_BYTES) senden(l, naechstesStueck(l, MARK_BYTES));
+  // Büro-Atmosphäre: ist nichts mehr zu sagen, sofort mit Atmo nachfüllen (keine Lücke zwischen den Takten).
+  if (l.atmo && l.pufferBytes === 0) atmoFuellen(l, false);
   // Rest unter 100 ms (Satzende): nach 120 ms ohne Nachschub trotzdem schicken.
   if (l.pufferBytes > 0 && l.pufferBytes < MARK_BYTES && l.offeneMarks < VORAUS_MARKS) {
     l.timer.push(setTimeout(() => {
@@ -499,6 +510,37 @@ function naechstesStueck(l: Lauf, n: number): Buffer {
   const b = Buffer.concat(teile);
   l.pufferBytes -= b.length;
   return b;
+}
+
+// ── Büro-Atmosphäre (aras_hintergrund, Justin 20.10.2026) ───────────────────
+// Unter jeden Ton-Rahmen von GPT-Live gemischt (µ-law → PCM16 → + Schleife → µ-law; Pegel fest in fiaon-aras-atmo.ts).
+// In Pausen und direkt nach einem `clear` füllt der Takt mit reiner Atmo — so viel, dass Twilio 200 ms vorrätig hat,
+// nie mehr (der Voraus-Takt von 500 ms bleibt). Ein Rest unter 100 ms (Satzende) wird mit Atmo aufgefüllt, nie überholt.
+const ATMO_TAKT_MS = 40, ATMO_VORRAT_MARKS = 2;
+function atmoUnter(l: Lauf, chunk: Buffer): Buffer {
+  if (!l.atmo || !chunk.length) return chunk;
+  const { pcm, pos } = atmoMischen(mulawZuPcm16(chunk), chunk.length, l.atmo, l.atmoPos);
+  l.atmoPos = pos;
+  return pcm16ZuMulaw(pcm);
+}
+function atmoStueck(l: Lauf, bytes: number): Buffer {
+  const { pcm, pos } = atmoMischen(null, bytes, l.atmo!, l.atmoPos);
+  l.atmoPos = pos;
+  return pcm16ZuMulaw(pcm);
+}
+function atmoFuellen(l: Lauf, ausTakt = true): void {
+  if (!l.atmo || l.beendet || !l.ws || l.ws.readyState !== WebSocket.OPEN || !l.streamSid || l.uebergabeLaeuft) return;
+  while (l.offeneMarks < ATMO_VORRAT_MARKS && l.pufferBytes < MARK_BYTES) {
+    if (l.pufferBytes > 0) {
+      // Ein Satzende-Rest wird nie überholt: kommt kein Nachschub mehr (110 ms), geht er aufgefüllt mit Atmo raus.
+      if (!ausTakt || Date.now() - l.zuletztAusgabe < 110) return;
+      const rest = naechstesStueck(l, l.pufferBytes);
+      senden(l, Buffer.concat([rest, atmoStueck(l, MARK_BYTES - rest.length)]));
+      continue;
+    }
+    senden(l, atmoStueck(l, MARK_BYTES));
+    l.atmoStuecke += 1;
+  }
 }
 
 // ── Unterbrechen ───────────────────────────────────────────────────────────
@@ -544,6 +586,8 @@ function unterbrechen(l: Lauf, ausloeser: string): void {
   l.clearSprache = l.zuletztSprache; l.pruefNochmal = false;
   l.sitzung?.unterbrechen();
   if (l.ws && l.ws.readyState === WebSocket.OPEN) l.ws.send(JSON.stringify({ event: "clear", streamSid: l.streamSid }));
+  // Nach dem Leeren keine Lücke: die Büro-Atmosphäre läuft sofort weiter.
+  atmoFuellen(l);
   // Die unterbrochene Aras-Zeile ist zu Ende (abgebrochen) — was Aras danach sagt, ist eine neue Zeile.
   const letzte = [...l.zeilen].reverse().find((z) => z.wer === "aras");
   if (letzte && !letzte.final) { letzte.abgebrochen = true; zeileFertig(l, letzte); }
@@ -640,6 +684,7 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   l.beendet = true; l.zustand = "ende"; l.endeGrund = l.endeGrund ?? grund;
   for (const t of l.timer) clearTimeout(t);
   if (l.takt) clearInterval(l.takt);
+  if (l.atmoTakt) clearInterval(l.atmoTakt);
   if (l.pruefUnterbrechen) clearTimeout(l.pruefUnterbrechen);
   for (const z of l.zeilen) if (!z.final) zeileFertig(l, z);
   let sekunden = l.sekunden, kostenCents = l.kostenCents;

@@ -63,7 +63,7 @@ router.get("/chef/aras/probe/stand", wache, async (_req: ChefRequest, res: Respo
       stimme: einst.stimme, stimmen: STIMMEN_OPENAI, satzVorgabe: HOERPROBE_SATZ_VORGABE, arten: PROBE_ARTEN,
       ton: {
         aras_energie: r.energie, aras_fuellwoerter: r.fuellwoerter, aras_lachen: r.lachen ? "an" : "aus", aras_tempo: r.tempo,
-        aras_zuhoerlaute: r.zuhoerlaute, aras_abschluss: r.abschluss, aras_dialekt: r.dialekt ?? "hochdeutsch",
+        aras_zuhoerlaute: r.zuhoerlaute, aras_abschluss: r.abschluss, aras_dialekt: r.dialekt ?? "hochdeutsch", aras_hintergrund: einst.hintergrund ?? "aus",
       },
       letzter: letzter ? { ...letzter, laeuft: laeuft(letzter.callId) || ["gewaehlt", "laeuft"].includes(letzter.status) } : null,
     });
@@ -152,7 +152,9 @@ router.post("/chef/aras/probe/hoerprobe", wache, async (req: ChefRequest, res: R
 });
 router.get("/chef/aras/probe/hoerprobe/:id/audio", wache, async (req: ChefRequest, res: Response) => {
   try {
-    const a = await hoerprobeAudio(Number(req.params.id));
+    // ?atmo=buero_leise|buero: dieselbe Probe mit Büro-Atmosphäre darunter (den Unterschied hören).
+    const atmo = req.query.atmo === "buero_leise" || req.query.atmo === "buero" ? req.query.atmo : null;
+    const a = await hoerprobeAudio(Number(req.params.id), undefined, atmo);
     if (!a) return fehler(res, 404, "Kein Audio.");
     res.setHeader("Content-Type", a.mime); res.setHeader("Cache-Control", "private, max-age=600"); res.send(a.bytes);
   } catch (e) { fehler(res, 500, text(e)); }

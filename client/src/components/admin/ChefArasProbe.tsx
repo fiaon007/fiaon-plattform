@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { API, Geruest, Fehlermeldung, useDaten, seit } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGANG_ARAS_PROBE } from "@/pages/agent/rundgaenge";
-import { SPIELART_TEXT, DIALEKTE, DIALEKT_TEXT, type HoerprobeZeile, type Spielart, type Dialekt } from "@shared/fiaon-aras";
+import { SPIELART_TEXT, DIALEKTE, DIALEKT_TEXT, HINTERGRUENDE, HINTERGRUND_TEXT, type HoerprobeZeile, type Spielart, type Dialekt, type Hintergrund } from "@shared/fiaon-aras";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-aras-probe.css";
 
@@ -55,6 +55,8 @@ const TON: { key: string; label: string; werte: { w: string; t: string }[] }[] =
   { key: "aras_abschluss", label: "Nachfragen", werte: [{ w: "sanft", t: "sanft" }, { w: "klar", t: "klar" }, { w: "hartnaeckig", t: "hartnäckig" }] },
   // Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent + ein paar Wörter, die jeder versteht.
   { key: "aras_dialekt", label: "Dialekt", werte: [{ w: "hochdeutsch", t: "Hochdeutsch" }, { w: "oesterreichisch_leicht", t: "leicht österreichisch" }, { w: "oesterreichisch", t: "österreichisch" }] },
+  // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — leise Büro-Atmosphäre unter der Stimme (im echten Anruf).
+  { key: "aras_hintergrund", label: "Hintergrund", werte: [{ w: "aus", t: "aus" }, { w: "buero_leise", t: "Büro leise" }, { w: "buero", t: "Büro" }] },
 ];
 const ZUSTAND_TEXT: Record<string, string> = {
   hallo: "verbunden", gewaehlt: "wählt …", angenommen: "du bist dran", ki_hinweis: "KI-Hinweis gesagt", aufnahme_ja: "Aufnahme: Ja", aufnahme_nein: "Aufnahme: Nein",
@@ -120,6 +122,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   const [aktiv, setAktiv] = useState<number | null>(null);
   const [deckel, setDeckel] = useState("");
   const [studioDialekt, setStudioDialekt] = useState<Dialekt>("hochdeutsch");
+  const [studioAtmo, setStudioAtmo] = useState<Hintergrund>("aus");
   const neuRef = useRef(stand.neu);
   neuRef.current = stand.neu;
 
@@ -329,6 +332,11 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
                 {DIALEKTE.map((d) => <button key={d} type="button" className={studioDialekt === d ? "an" : ""} onClick={() => setStudioDialekt(d)}>{DIALEKT_TEXT[d]}</button>)}
               </div>
             </div>
+            <div className="ap-feld">Beim Anhören mit Hintergrund
+              <div className="ap-segment" role="group" aria-label="Hintergrund beim Anhören">
+                {HINTERGRUENDE.map((h) => <button key={h} type="button" className={studioAtmo === h ? "an" : ""} onClick={() => setStudioAtmo(h)}>{HINTERGRUND_TEXT[h]}</button>)}
+              </div>
+            </div>
             <div className="ap-zeile">
               <button type="button" className="ap-knopf voll" disabled={!!busy || satz.trim().length < 10 || !s.bereit.stimme.ok} onClick={alleVorsprechen}>{busy === "alle" ? "Spricht …" : "Alle vorsprechen lassen"}</button>
               <span className="ap-still">in Telefon-Qualität, so wie der Kunde ihn hört</span>
@@ -339,7 +347,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
               {jeStimme.map((h) => (
                 <div key={h.id} className={`ap-hoer${h.gewaehltAm ? " gewaehlt" : ""}`} data-ap-hoerprobe={h.id}>
                   <div className="ap-zeile"><b style={{ color: "var(--ap-text)", fontWeight: 500 }}>{stimmeText(h.stimme)}</b><span className="ap-still">{h.dauerMs ? `${(h.dauerMs / 1000).toFixed(1)} s` : ""}{h.dialekt && h.dialekt !== "hochdeutsch" ? ` · ${DIALEKT_TEXT[h.dialekt]}` : ""}{h.gewaehltAm ? " · gewählt" : ""}</span></div>
-                  {h.hatAudio && <audio controls preload="none" src={`${API}/chef/aras/probe/hoerprobe/${h.id}/audio`} />}
+                  {h.hatAudio && <audio key={`${h.id}-${studioAtmo}`} controls preload="none" src={`${API}/chef/aras/probe/hoerprobe/${h.id}/audio${studioAtmo !== "aus" ? `?atmo=${studioAtmo}` : ""}`} />}
                   <div className="ap-zeile">
                     <span className="ap-sterne" role="group" aria-label="Bewertung">
                       {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={(h.bewertung ?? 0) >= n ? "an" : ""} aria-label={`${n} Sterne`} onClick={() => tun(`stern-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/bewerten`, { bewertung: n }); proben.neu(); })}>★</button>)}

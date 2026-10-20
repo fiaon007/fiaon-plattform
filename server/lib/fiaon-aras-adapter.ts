@@ -127,5 +127,29 @@ export function mulawAlsWav(roh: Buffer): Buffer {
   kopf.write("data", 36); kopf.writeUInt32LE(roh.length, 40);
   return Buffer.concat([kopf, roh]);
 }
+/** 16-bit-Probe → µ-law (G.711, BIAS 0x84, CLIP 32635) — für das Mischen der Büro-Atmosphäre in der Brücke. */
+export function pcmZuMulaw(s: number): number {
+  let v = Math.max(-32768, Math.min(32767, Math.round(s)));
+  const sign = v < 0 ? 0x80 : 0;
+  if (v < 0) v = -v;
+  if (v > 32635) v = 32635;
+  v += 0x84;
+  let exp = 7;
+  for (let maske = 0x4000; (v & maske) === 0 && exp > 0; maske >>= 1) exp -= 1;
+  const mant = (v >> (exp + 3)) & 0x0f;
+  return ~(sign | (exp << 4) | mant) & 0xff;
+}
+/** µ-law-Rahmen → PCM16. */
+export function mulawZuPcm16(chunk: Buffer): Int16Array {
+  const aus = new Int16Array(chunk.length);
+  for (let i = 0; i < chunk.length; i++) aus[i] = mulawZuPcm(chunk[i]);
+  return aus;
+}
+/** PCM16 → µ-law-Rahmen. */
+export function pcm16ZuMulaw(pcm: Int16Array): Buffer {
+  const b = Buffer.alloc(pcm.length);
+  for (let i = 0; i < pcm.length; i++) b[i] = pcmZuMulaw(pcm[i]);
+  return b;
+}
 /** Stille in µ-law (0xFF) — n Millisekunden. */
 export function stille(ms: number): Buffer { return Buffer.alloc(Math.round(ms * 8), 0xff); }

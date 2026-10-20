@@ -12,6 +12,7 @@ import { adapterFuer } from "./fiaon-aras-adapter";
 import { arasEinstellungenLesen, einstellungSetzen } from "./fiaon-aras-plan";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
 import { ADAPTER, ARAS_DIENSTE, stimmeGueltig, istDialekt, type AdapterName, type HoerprobeZeile, type Dialekt } from "../../shared/fiaon-aras";
+import { atmoMischen, alsWav, type AtmoArt } from "./fiaon-aras-atmo";
 
 type Lauf = typeof sqlPool;
 
@@ -60,11 +61,28 @@ export async function hoerprobenListe(lauf: Lauf = sqlPool): Promise<HoerprobeZe
   }));
 }
 
-export async function hoerprobeAudio(id: number, lauf: Lauf = sqlPool): Promise<{ mime: string; bytes: Buffer } | null> {
+export async function hoerprobeAudio(id: number, lauf: Lauf = sqlPool, atmo: AtmoArt | null = null): Promise<{ mime: string; bytes: Buffer } | null> {
   await arasSchema(lauf);
   const [z] = (await lauf`SELECT mime, audio FROM fiaon_aras_hoerprobe WHERE id = ${id}`) as any[];
   if (!z?.audio) return null;
-  return { mime: String(z.mime), bytes: Buffer.from(z.audio) };
+  const bytes = Buffer.from(z.audio);
+  return atmo ? { mime: "audio/wav", bytes: mitAtmo(bytes, atmo) } : { mime: String(z.mime), bytes };
+}
+
+/**
+ * Dieselbe Sprechprobe mit Büro-Atmosphäre darunter (Justin 20.10.2026: den Unterschied hören) — gemischt wie am Telefon
+ * (fiaon-aras-atmo.ts), mit einer halben Sekunde Raum davor und danach. Nur PCM16-WAV (8 kHz) aus dem Studio; sonst unverändert.
+ */
+export function mitAtmo(wav: Buffer, atmo: AtmoArt): Buffer {
+  const istPcm = wav.length > 44 && wav.toString("ascii", 0, 4) === "RIFF" && wav.readUInt16LE(20) === 1 && wav.readUInt16LE(34) === 16 && wav.readUInt32LE(24) === 8000;
+  if (!istPcm) return wav;
+  const daten = wav.subarray(44);
+  const rede = new Int16Array(Math.floor(daten.length / 2));
+  for (let i = 0; i < rede.length; i++) rede[i] = daten.readInt16LE(i * 2);
+  const rand = 4000; // 0,5 s
+  const mitRand = new Int16Array(rede.length + 2 * rand);
+  mitRand.set(rede, rand);
+  return alsWav(atmoMischen(mitRand, mitRand.length, atmo, 0).pcm);
 }
 
 export async function hoerprobeWaehlen(id: number, von: string, lauf: Lauf = sqlPool): Promise<void> {

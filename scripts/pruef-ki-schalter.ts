@@ -106,6 +106,10 @@ ok(wertPruefen(fen, fen.vorgabe).ok, "Fenster: Vorgabe gültig");
 ok(wertPruefen(fen, '{"rate":{"1-6":["09:30","21:00"]}}').ok && wertPruefen(fen, '{"verkauf":{"1-7":["09:30","21:00"]}}').ok && !wertPruefen(fen, '{"rate":{"1-6":["09:30","21:30"]}}').ok, "Fenster: bis 21:00 und Sonntag (7) möglich, 21:30 nie");
 const sp = REGISTER.find((e) => e.schluessel === "aras_spielarten")!;
 ok(wertPruefen(sp, '{"willkommen":"an","rate":"an","termin":"aus"}').ok && JSON.parse(sp.vorgabe).willkommen === "an", "Spielarten: „willkommen“ ist bekannt (Vorgabe an)");
+// Justin 20.10.2026 („nur Vertragskunden“): im KI-Raum gesperrt, nicht schaltbar — nur eine Code-Änderung hebt das auf
+const gesp = ["zuruf", "lead", "stufe_b", "rueckholung"].map((k) => wertPruefen(sp, JSON.stringify({ [k]: "an" })));
+ok(gesp.every((r) => !r.ok && /gesperrt – nur Vertragskunden \(Justin 20\.10\.\)/.test((r as any).fehler ?? "")) && /gesperrt – nur Vertragskunden \(Justin 20\.10\.\)/.test(sp.satz) && JSON.parse(sp.vorgabe).zuruf === "aus" && wertPruefen(sp, '{"zuruf":"aus","lead":"aus"}').ok,
+  "ROT-PROBE: Zuruf, Lead, Stufe B, Rückholung lassen sich nicht einschalten („gesperrt – nur Vertragskunden (Justin 20.10.)“), Vorgabe aus");
 const dia = REGISTER.find((e) => e.schluessel === "aras_dialekt")!;
 ok(wertPruefen(dia, "oesterreichisch_stark").ok && dia.enumText?.oesterreichisch_stark === "Wien ultra", "Dialekt: „Wien ultra“ wählbar");
 const vg = (k: string) => REGISTER.find((e) => e.schluessel === k)!.vorgabe;

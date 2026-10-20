@@ -25,7 +25,7 @@ import { twilioBereit, twilioClient, arasCallerId, rueckrufUrl, streamToken } fr
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
-import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
+import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
 
 /** Eine beim Klingeln vorbereitete Sitzung endet spätestens so lange danach (Twilio klingelt 30 s). */
 const KLINGELN_FRIST_MS = 45_000;
@@ -93,6 +93,8 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
     if (frei <= 0) break;
     const z = k.zeile;
     const land = (z.land as Land) || "DE";
+    // Justin 20.10.2026 („nur Vertragskunden“): gesperrte Arten fallen aus der Reihe — nie gewählt, egal wer sie eingereiht hat.
+    if (istGesperrteSpielart(k.spielart)) { merken(`gesperrt:${k.spielart}`); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = ${GESPERRT_TEXT}, updated_at = NOW() WHERE id = ${k.id}`; continue; }
     if (!einst.spielarten[k.spielart]) { merken(`spielart_aus:${k.spielart}`); continue; }
     if (!grenzen.spielartErlaubt(k.spielart)) { merken(`stufe:${k.spielart}`); continue; }
     if (k.spielart === "rate" && grenzen.regel.rateTage) {
@@ -167,6 +169,7 @@ export async function waehlen(planId: number, opt: { probe?: boolean; spielartFu
     // Stufenplan (hart, auch hier — nicht nur im Takt): Stufe 0 wählt NIE einen Kunden; darüber nur die Arten der Stufe.
     const g = stufenGrenzen(einst);
     if (g.stufe === 0) return { ok: false, grund: "Stufe 0: Aras führt nur Probeanrufe — keine Kunden." };
+    if (istGesperrteSpielart(String(z.spielart))) return { ok: false, grund: `${z.spielart}: ${GESPERRT_TEXT}.` };
     if (!g.spielartErlaubt(z.spielart as Spielart)) return { ok: false, grund: `Stufe ${g.stufe}: „${z.spielart}“ ist in dieser Stufe noch nicht erlaubt.` };
   }
   const adapter = adapterFuer(einst.adapter);

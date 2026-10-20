@@ -46,6 +46,14 @@ export function istWerbeSpielart(s: Spielart): boolean { return RECHTSGRUND[s] =
  * (unterschrieben, bezahlt oder mit offener Rate). Interessenten schreibt Mara. Die zwei Sätze für die Akte:
  */
 export const KEIN_VERTRAG_SATZ = "Noch kein Vertrag – ARAS ruft nur Kunden mit Vertrag an. Mara schreibt stattdessen.";
+/**
+ * Gesperrt IM CODE (Justin 20.10.2026: „nur Vertragskunden“ — gilt in JEDER Stufe): Gesprächsarten an Menschen ohne Vertrag.
+ * Kein Schalter, keine Stufe und kein Einreihen von Hand schaltet sie frei — nur eine Code-Änderung. Der Aufstieg auf Stufe 2/3
+ * bringt damit nur mehr Menge, nie neue Personengruppen. (Der Probeanruf an Justins eigene Nummer darf sie weiter spielen.)
+ */
+export const GESPERRTE_SPIELARTEN: readonly Spielart[] = ["zuruf", "lead", "stufe_b", "rueckholung"];
+export const GESPERRT_TEXT = "gesperrt – nur Vertragskunden (Justin 20.10.)";
+export function istGesperrteSpielart(s: string): boolean { return (GESPERRTE_SPIELARTEN as readonly string[]).includes(s); }
 export const KEIN_VERTRAG_MEHR_SATZ = "Kein laufender Vertrag mehr – ARAS ruft nur Kunden mit Vertrag an. Mara schreibt stattdessen.";
 /** Vertragssachen (Rate, Zusage, Zahlung gemeldet, Auftrag aus der Akte) wählen im Raten-Fenster, alles andere im Verkaufs-Fenster. */
 export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag" || s === "willkommen"; }
@@ -234,7 +242,7 @@ export function aufnahmeFrageFehler(w: string): string | null {
 
 /** Vertrag § 3: JSON { spielart: "an" | "aus" } — lead, stufe_b, rueckholung erst nach LEXR. Fehlende Spielarten = Vorgabe. */
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
-  termin: "an", willkommen: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
+  termin: "an", willkommen: "an", zuruf: "aus", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
   lead: "aus", stufe_b: "aus", rueckholung: "aus", eingehend: "aus",
 };
 /** „an“, true, 1 → an. */
@@ -307,6 +315,7 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
     for (const [k, v] of Object.entries(j)) {
       if (!istSpielart(k)) return `Spielarten: „${k}“ gibt es nicht.`;
       if (!(v === true || v === false || v === "an" || v === "aus")) return `Spielarten: ${k} an oder aus.`;
+      if (istGesperrteSpielart(k) && (v === true || v === "an")) return `${SPIELART_TEXT[k as Spielart]}: ${GESPERRT_TEXT}.`;
     }
     return null;
   } },
@@ -437,8 +446,10 @@ export const STUFEN: Record<Stufe, StufenRegel> = {
   // Stufe 1 „Test“: Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Willkommen, Stufe A und Raten an Tag 1–3 (Koordination 20.10.).
   // Go-live 21.10.2026 (Koordination): 40 Anrufe am Tag, einer gleichzeitig, 20 € am Tag — damit beide Szenarien hineinpassen.
   1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: [1, 2, 3], zurufNurNachricht: true },
-  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zuruf", "zusage"], rateTage: null, zurufNurNachricht: true },
-  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zuruf", "zusage", "lead", "stufe_b", "rueckholung"], rateTage: null, zurufNurNachricht: false },
+  // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): Stufe 2/3 bringen nur MEHR MENGE — nie Interessenten (Zuruf, Lead,
+  // Stufe B, Rückholung sind im Code gesperrt, GESPERRTE_SPIELARTEN).
+  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: null, zurufNurNachricht: true },
+  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: null, zurufNurNachricht: false },
 };
 /** Die wirksamen Grenzen: immer das Engere aus Stufe und Schalter. Rein. */
 export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: number; spielarten: Partial<Record<Spielart, boolean>> }): {
@@ -451,7 +462,7 @@ export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: num
     parallel: Math.max(0, Math.min(Number(e.parallel) || 0, regel.parallel)),
     tagEuro: Math.max(0, Math.min(Number(e.tagEuro) || 0, regel.tagEuro)),
     versucheJeTag: regel.versucheJeTag,
-    spielartErlaubt: (s) => s === "probe" || (!!e.spielarten[s] && regel.spielarten.includes(s)),
+    spielartErlaubt: (s) => s === "probe" || (!istGesperrteSpielart(s) && !!e.spielarten[s] && regel.spielarten.includes(s)),
   };
 }
 /** Stufe 1: eine Rate nur an Tag 1–3 nach Fälligkeit. Sonst gelten die Raten-Takte. Rein. */
@@ -494,8 +505,12 @@ export function einstellungenAnwenden(roh: Record<string, string | null | undefi
   const an = (k: string) => w(k) === "an";
   const zahl = (k: string) => Number(w(k));
   const json = <T,>(k: string, sonst: T): T => { const j = jsonLesen(w(k)); return (j === undefined ? sonst : (j as T)); };
-  const spielartenRoh = json<Record<string, unknown>>("aras_spielarten", SPIELARTEN_VORGABE);
-  const spielarten = Object.fromEntries(SPIELARTEN.map((s) => [s, istAn(spielartenRoh?.[s] ?? SPIELARTEN_VORGABE[s])])) as Record<Spielart, boolean>;
+  // Gesperrte Arten (nur Vertragskunden) sind IMMER aus — auch wenn ein alter Wert „an“ sagt; der Rest des Werts gilt weiter.
+  const spielartenRoh = ((): Record<string, unknown> => {
+    const j = jsonLesen(String(roh.aras_spielarten ?? "")) as any;
+    return j && typeof j === "object" && !Array.isArray(j) ? j : json<Record<string, unknown>>("aras_spielarten", SPIELARTEN_VORGABE);
+  })();
+  const spielarten = Object.fromEntries(SPIELARTEN.map((s) => [s, !istGesperrteSpielart(s) && istAn(spielartenRoh?.[s] ?? SPIELARTEN_VORGABE[s])])) as Record<Spielart, boolean>;
   const ampelRoh = json<any>("aras_ampel", { stufen: {} });
   const ampel: Record<string, AmpelStufe> = {};
   for (const a of ARAS_AMPEL) {

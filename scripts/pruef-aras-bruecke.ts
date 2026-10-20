@@ -156,7 +156,8 @@ async function main(): Promise<void> {
   const hat = (pid: number, s: string) => plan.some((z) => Number(z.person_id) === pid && z.spielart === s);
   ok("P1 Rate (Tag 3) eingereiht, mit Betrag, Rechtsgrund vertrag", hat(p1, "rate") && plan.find((z) => Number(z.person_id) === p1)?.rechtsgrund === "vertrag" && Number(plan.find((z) => Number(z.person_id) === p1)?.betrag_cents) === 5999);
   ok("P2 Stufe A eingereiht", hat(p2, "stufe_a"));
-  ok("P3 Zuruf eingereiht mit Einwilligungs-Kennung", hat(p3, "zuruf") && plan.find((z) => Number(z.person_id) === p3)?.einwilligung_id != null);
+  // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): ein Interessent mit Ja per WhatsApp wird trotzdem NIE eingereiht.
+  ok("P3 (Interessent mit Ja per WhatsApp) NICHT eingereiht — Zuruf ist im Code gesperrt (nur Vertragskunden)", !plan.some((z) => Number(z.person_id) === p3));
   ok("P4 (Werbesperre) NICHT eingereiht", !hat(p4, "zuruf"));
   ok("P5 Zusage nachfassen eingereiht", hat(p5, "zusage"));
   ok("P6 (Testperson) NICHT eingereiht", !plan.some((z) => Number(z.person_id) === p6));
@@ -166,11 +167,11 @@ async function main(): Promise<void> {
   const [n1] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_aras_plan WHERE person_id = ${p1} AND status = 'wartet'`) as any[];
   ok("Zweiter Füller-Lauf reiht nichts doppelt ein", f2.eingereiht.rate == null && Number(n1?.n) === 1, `${JSON.stringify(f2.eingereiht)} / ${n1?.n}`);
   const lage = await planLage();
-  ok("planLage: wartet ≥ 4, nächste 20 mit Namen", lage.wartet >= 4 && lage.naechste.length >= 4 && lage.naechste[0].name.length > 0, `${lage.wartet} / ${lage.naechste.length}`);
+  ok("planLage: wartet ≥ 3 (Rate, Stufe A, Zusage), nächste 20 mit Namen", lage.wartet >= 3 && lage.naechste.length >= 3 && lage.naechste[0].name.length > 0, `${lage.wartet} / ${lage.naechste.length}`);
   const chefEinreihen = await planEinreihen({ personId: p4, nummer: "+491700000004", spielart: "rate", grund: "Chef", erzeugtVon: "chef" });
   ok("Chef reiht Vertragssache (rate) trotz Werbesperre ein", chefEinreihen.ok, chefEinreihen.grund);
   const sperreVersuch = await planEinreihen({ personId: p4, nummer: "+491700000004", spielart: "zuruf", grund: "Chef", erzeugtVon: "chef" });
-  ok("Werbe-Spielart an Werbesperre wird abgelehnt", !sperreVersuch.ok && /Werbesperre/.test(sperreVersuch.grund ?? ""));
+  ok("Werbe-Spielart wird abgelehnt (gesperrt – nur Vertragskunden)", !sperreVersuch.ok && /gesperrt – nur Vertragskunden/.test(sperreVersuch.grund ?? ""), sperreVersuch.grund ?? "");
 
   titel("3. WÄNDE DES WÄHLERS");
   adapterSetzen("attrappe", attrappeMitSkript({ schritte: [] }));
@@ -320,8 +321,11 @@ async function main(): Promise<void> {
     await warten(async () => !!(await anruf(callId))?.nachbereitet_am, 6000);
     const a = await anruf(callId);
     ok("AMD „Maschine“ ohne Kundenstimme → aufgelegt, Ergebnis mailbox, fiaon_calls niemand_erreicht", r === "aufgelegt" && a?.ergebnis === "mailbox" && a?.call_status === "niemand_erreicht", `${r}/${a?.ergebnis}/${a?.call_status}`);
-    const neu = await planEinreihen({ personId: p3, nummer: "+491700000003", spielart: "zuruf", grund: "Prüfstand AMD", erzeugtVon: "chef" });
-    const [pl3] = (await sqlPool`SELECT id FROM fiaon_aras_plan WHERE person_id = ${p3} AND spielart = 'zuruf' AND status = 'wartet'`) as any[];
+    // Ein frischer Vertragskunde (Zuruf an Interessenten ist seit 20.10. gesperrt — nur Vertragskunden)
+    const pAmd = await person(9); await antrag(pAmd, 9, { payment_status: "paid" });
+    const neu = await planEinreihen({ personId: pAmd, nummer: "+491700000009", spielart: "zusage", grund: "Prüfstand AMD", erzeugtVon: "chef" });
+    if (!neu.ok) throw new Error(`AMD-Eintrag: ${neu.grund}`);
+    const [pl3] = (await sqlPool`SELECT id FROM fiaon_aras_plan WHERE person_id = ${pAmd} AND spielart = 'zusage' AND status = 'wartet'`) as any[];
     const g2 = await gespraech(Number(pl3?.id ?? neu.id), { schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 200 }, { kunde: "Hallo, ja?", nachMs: 1200 }, { warteMs: 3000 }] });
     await warten(() => laufendeSitzungen().some((l) => l.callId === g2.callId && l.letzteZeilen.some((z) => z.wer === "kunde")), 4000);
     const r2 = await mailboxErkannt(g2.callId);
@@ -912,7 +916,7 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_an", "an", "pruefstand");
     await einstellungSetzen("aras_parallel", "3", "pruefstand");
     await einstellungSetzen("aras_tag_euro", "60", "pruefstand");
-    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an" }), "pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an" }), "pruefstand");
     // Saubere Reihe: nur die Einträge dieses Abschnitts warten — und ein „neuer Tag“: die Kundenanrufe der Abschnitte 4–15
     // zählen sonst schon gegen die Tagesmenge der Stufe 1 (nur in der Prüf-DB zurückdatiert).
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW() WHERE status IN ('wartet', 'verschoben')`;
@@ -966,10 +970,15 @@ async function main(): Promise<void> {
     ok("Stufe 1 (Füller): Rate Tag 2 ja, Rate Tag 5 nein, kein Zuruf", plan1.some((z) => Number(z.person_id) === pR2 && z.spielart === "rate") && !plan1.some((z) => Number(z.person_id) === pR5) && !plan1.some((z) => z.spielart === "zuruf"), `Tag 2 = ${pR2}, Tag 5 = ${pR5} · ${JSON.stringify(f1)} · ${JSON.stringify(plan1.map((z) => `${z.person_id}:${z.spielart}`))}`);
     // Takt: Zuruf und Rate Tag 5 bleiben liegen — auch wenn ein Mensch sie von Hand eingereiht hat
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
-    await planEinreihen({ personId: pZw, nummer: "+491700000063", spielart: "zuruf", grund: "Prüfstand Stufe 1 Zuruf", erzeugtVon: "chef" });
+    const zuVonHand = await planEinreihen({ personId: pZw, nummer: "+491700000063", spielart: "zuruf", grund: "Prüfstand Stufe 1 Zuruf", erzeugtVon: "chef" });
+    ok("Rot-Probe: Zuruf von Hand eingereiht → abgelehnt (gesperrt – nur Vertragskunden)", !zuVonHand.ok && /gesperrt – nur Vertragskunden/.test(zuVonHand.grund ?? ""), zuVonHand.grund ?? "");
+    // Ein alter Zuruf-Eintrag (von vor der Sperre) fällt beim Takt aus der Reihe — nie gewählt
+    await sqlPool`INSERT INTO fiaon_aras_plan (person_id, nummer, land, spielart, prioritaet, grund, rechtsgrund, frueh_ab, spaet_bis, erzeugt_von)
+                  VALUES (${pZw}, '+491700000063', 'DE', 'zuruf', 2, 'Altlast vor der Sperre', 'einwilligung', NOW() - INTERVAL '1 minute', NOW() + INTERVAL '4 hours', 'chef')`;
     await planEinreihen({ personId: pR5, nummer: "+491700000062", spielart: "rate", grund: "Prüfstand Stufe 1 Tag 5", erzeugtVon: "chef", anlassAm: new Date(`${vor(5)}T10:00:00Z`) });
     const t1 = await waehlerTakt();
-    ok("Stufe 1 (Takt): Zuruf und Rate Tag 5 bleiben liegen (stufe:zuruf, stufe:rate_tag) — 0 gewählt", t1.gewaehlt === 0 && t1.ausgelassen.some((a) => a.grund === "stufe:zuruf") && t1.ausgelassen.some((a) => a.grund === "stufe:rate_tag"), JSON.stringify(t1));
+    const [alt1] = (await sqlPool`SELECT status, verschoben_grund FROM fiaon_aras_plan WHERE person_id = ${pZw} AND spielart = 'zuruf' ORDER BY id DESC LIMIT 1`) as any[];
+    ok("Stufe 1 (Takt): alter Zuruf → „gesperrt“ (nie gewählt), Rate Tag 5 bleibt liegen (stufe:rate_tag) — 0 gewählt", t1.gewaehlt === 0 && t1.ausgelassen.some((a) => a.grund === "gesperrt:zuruf") && t1.ausgelassen.some((a) => a.grund === "stufe:rate_tag") && alt1?.status === "gesperrt" && /nur Vertragskunden/.test(String(alt1?.verschoben_grund)), JSON.stringify({ t1, alt1 }));
     // Gleichzeitig 1: zwei erlaubte Raten (Tag 2) warten — der Takt wählt höchstens EINE
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const pR1 = await person(65); const rR1 = await antrag(pR1, 65, { payment_status: "paid" });
@@ -999,25 +1008,32 @@ async function main(): Promise<void> {
     // c) Stufe 2 „Leise“: Zuruf nur mit JA per Nachricht — das Antrag-Kästchen erst ab Stufe 3
     await einstellungSetzen("aras_stufe", "2", "pruefstand");
     const g2 = stufenGrenzen(await arasEinstellungenLesen(true));
-    ok("Stufe 2: Gleichzeitig 2, Deckel 60 €, 150 je Tag, Zuruf erlaubt, Lead nicht", g2.parallel === 2 && g2.tagEuro === 60 && g2.versucheJeTag === 150 && g2.spielartErlaubt("zuruf") && !g2.spielartErlaubt("lead"));
+    ok("Stufe 2: Gleichzeitig 2, Deckel 60 €, 150 je Tag — nur mehr Menge: KEIN Zuruf, kein Lead (nur Vertragskunden)", g2.parallel === 2 && g2.tagEuro === 60 && g2.versucheJeTag === 150 && !g2.spielartErlaubt("zuruf") && !g2.spielartErlaubt("lead"));
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     // Ein frisches WhatsApp-JA (das von oben ist schon „verbraucht“: ein Ja = ein Anruf)
     const pZw2 = await person(67); await antrag(pZw2, 67, { payment_status: "pending_payment" });
     await einwilligungMerken({ personId: pZw2, nummer: "+491700000067", art: "zuruf_whatsapp", wortlaut: "JA", quelleArt: "whatsapp", quelleId: "pruef67" });
     await planFuellen();
     const plan2 = (await sqlPool`SELECT person_id, spielart FROM fiaon_aras_plan WHERE status = 'wartet' AND spielart = 'zuruf'`) as any[];
-    ok("Stufe 2 (Füller): Zuruf mit WhatsApp-JA ja, mit Antrag-Kästchen nein", plan2.some((z) => Number(z.person_id) === pZw2) && !plan2.some((z) => Number(z.person_id) === pZk), JSON.stringify(plan2));
+    ok("ROT-PROBE Stufe 2 (Füller): auch mit WhatsApp-JA und Antrag-Kästchen KEIN Zuruf — 0 Werbe-Gesprächsarten", plan2.length === 0, JSON.stringify(plan2));
 
     // Takt: ein von Hand eingereihter Zuruf mit Antrag-Kästchen bleibt in Stufe 2 liegen
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const ek = await planEinreihen({ personId: pZk, nummer: "+491700000064", spielart: "zuruf", grund: "Prüfstand Stufe 2 Kästchen", erzeugtVon: "chef" });
     const t2 = await waehlerTakt();
     log(`  Stufe 2, Zuruf mit Kästchen: eingereiht=${ek.ok}${ek.grund ? ` (${ek.grund})` : ""} · Takt ${JSON.stringify(t2)}`);
-    ok("Stufe 2 (Takt): Zuruf mit Antrag-Kästchen bleibt liegen (stufe:zuruf_kaestchen) — erst ab Stufe 3", !ek.ok || (t2.gewaehlt === 0 && t2.ausgelassen.some((a) => a.grund === "stufe:zuruf_kaestchen")), `${ek.ok ? "" : `eingereiht abgelehnt: ${ek.grund} · `}${JSON.stringify(t2)}`);
+    ok("Rot-Probe Stufe 2: Zuruf mit Antrag-Kästchen von Hand → abgelehnt (gesperrt – nur Vertragskunden), 0 gewählt", !ek.ok && /gesperrt – nur Vertragskunden/.test(ek.grund ?? "") && t2.gewaehlt === 0, `${ek.grund ?? ""} · ${JSON.stringify(t2)}`);
     await aufraeumen();
 
     // d) Stufe 3: Obergrenzen fest (430 je Tag, höchstens 5 gleichzeitig, 150 €) — nie mehr, auch wenn der Schalter mehr will
     ok("Stufe 3: 430 je Tag, Gleichzeitig ≤ 5, Deckel ≤ 150 €", STUFEN[3].versucheJeTag === 430 && STUFEN[3].parallel === 5 && STUFEN[3].tagEuro === 150);
+    // ROT-PROBE (Justin 20.10.2026, „nur Vertragskunden“ in jeder Stufe): Stufe 3 automatisch — Interessenten mit Ja, Kästchen,
+    // frischem Antrag sind da — und trotzdem kein einziger Werbe-Eintrag.
+    await einstellungSetzen("aras_stufe", "3", "pruefstand");
+    await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+    const f3 = await planFuellen();
+    const werbe3 = (await sqlPool`SELECT spielart, COUNT(*)::int AS n FROM fiaon_aras_plan WHERE status = 'wartet' AND spielart IN ('zuruf', 'lead', 'stufe_b', 'rueckholung') GROUP BY 1`) as any[];
+    ok("ROT-PROBE Stufe 3 (Füller): 0 Werbe-Gesprächsarten — Stufe 3 bringt nur mehr Menge", werbe3.length === 0 && !Object.keys(f3.eingereiht).some((k) => ["zuruf", "lead", "stufe_b", "rueckholung"].includes(k)), JSON.stringify({ werbe3, f3: f3.eingereiht }));
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     await aufraeumen();
     await einstellungSetzen("aras_stufe", "0", "pruefstand");

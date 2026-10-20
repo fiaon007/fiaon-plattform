@@ -339,9 +339,11 @@ async function main() {
       ok(!s1.ok && (s1 as any).status === 400 && !(await wert("aras_spielarten")), "ohne Vermerk: lead lässt sich nicht einschalten (vorher ging es durch)", s1);
       const s2 = await E.einstellungSetzen("ki_lexr_freigabe", "LEXR-Freigabe am 25.10.2026 (Prüfstand)", "Prüfstand Q419");
       const s3 = await E.einstellungSetzen("aras_spielarten", JSON.stringify({ lead: "an" }), "Prüfstand Q419");
-      ok(s2.ok && s3.ok && /"lead":"an"/.test(String(await wert("aras_spielarten"))), "mit Vermerk: geht — über Teams 1 Setzer", { s2, s3 });
+      // E-408 (Justin 20.10.2026, „nur Vertragskunden“): Lead, Stufe B, Rückholung und Zuruf sind im CODE gesperrt — auch mit
+      // LEXR-Vermerk bleibt lead aus (nur eine Code-Änderung hebt das auf).
+      ok(s2.ok && !s3.ok && (s3 as any).status === 400 && /gesperrt – nur Vertragskunden/.test(String((s3 as any).fehler ?? "")) && !/"lead":"an"/.test(String(await wert("aras_spielarten") ?? "")), "mit Vermerk: lead bleibt trotzdem aus (gesperrt – nur Vertragskunden)", { s2, s3 });
       const s4 = await E.einstellungSetzen("ki_lexr_freigabe", "", "Prüfstand Q419");
-      ok(!s4.ok && (s4 as any).status === 409, "den Vermerk löschen, solange lead an ist: nein", s4);
+      ok(s4.ok, "den Vermerk löschen geht (lead war nie an)", s4);
       const s5 = await E.einstellungSetzen("aras_spielarten", JSON.stringify({ lead: "aus" }), "Prüfstand Q419");
       const s6 = await E.einstellungSetzen("ki_lexr_freigabe", "", "Prüfstand Q419");
       ok(s5.ok && s6.ok, "lead aus → dann lässt sich der Vermerk löschen", { s5, s6 });

@@ -24,7 +24,7 @@ import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwill
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
-  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ,
+  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -236,6 +236,8 @@ export async function personNummer(personId: number, lauf: Lauf = sqlPool): Prom
 export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Promise<{ ok: boolean; id?: number; grund?: string }> {
   await arasSchema(lauf);
   if (!istSpielart(e.spielart)) return { ok: false, grund: "Unbekannte Spielart." };
+  // Justin 20.10.2026 („nur Vertragskunden“): Zuruf, Lead, Stufe B und Rückholung sind im Code gesperrt — auch von Hand.
+  if (istGesperrteSpielart(e.spielart)) return { ok: false, grund: `${e.spielart}: ${GESPERRT_TEXT}.` };
   const einst = await arasEinstellungenLesen(false, lauf);
   if (!einst.spielarten[e.spielart] && e.spielart !== "probe") return { ok: false, grund: `Spielart „${e.spielart}“ ist ausgeschaltet.` };
   const nummer = e.spielart === "probe" ? e.nummer : (waehlbareNummer([{ nummer: e.nummer }]).waehlbar ?? null);

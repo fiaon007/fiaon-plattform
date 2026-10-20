@@ -131,9 +131,18 @@ titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Le
   ok("Stufe 1 (Go-live): 40 je Tag, Gleichzeitig 1, Deckel 20 €, nur Termin/Willkommen/Auftrag/Stufe A/Rate", g1.versucheJeTag === 40 && g1.parallel === 1 && g1.tagEuro === 20 && ["termin", "willkommen", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
   ok("Stufe 1: Rate nur Tag 1–3 nach Fälligkeit; Stufe 2/3 ohne diese Grenze", [1, 2, 3].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 5) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20));
   const g2 = stufenGrenzen({ stufe: 2, parallel: 5, tagEuro: 300, spielarten: alle });
-  ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 €, Zuruf nur per Nachricht, kein Lead", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zuruf") && g2.regel.zurufNurNachricht && !g2.spielartErlaubt("lead"));
+  ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 € — nur mehr Menge (Zusage dazu), KEIN Zuruf, kein Lead (nur Vertragskunden)", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zusage") && !g2.spielartErlaubt("zuruf") && !g2.spielartErlaubt("lead"));
   const g3 = stufenGrenzen({ stufe: 3, parallel: 9, tagEuro: 999, spielarten: alle });
   ok("Stufe 3: 430 je Tag, Gleichzeitig höchstens 5, Deckel höchstens 150 € — nie mehr, auch wenn der Schalter mehr will", g3.versucheJeTag === 430 && g3.parallel === 5 && g3.tagEuro === 150 && STUFEN[3].zurufNurNachricht === false);
+  // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): auch mit ALLEN Schaltern an bringt Stufe 2/3 nie eine Werbe-Gesprächsart
+  {
+    const { GESPERRTE_SPIELARTEN, GESPERRT_TEXT, einstellungPruefen, einstellungenAnwenden } = await import("../shared/fiaon-aras");
+    const werbung = [2, 3].flatMap((st) => GESPERRTE_SPIELARTEN.filter((x) => stufenGrenzen({ stufe: st, parallel: 5, tagEuro: 300, spielarten: alle }).spielartErlaubt(x)).map((x) => `${st}:${x}`));
+    ok("ROT-PROBE: Stufe 2 und 3 automatisch, alle Schalter an → 0 Werbe-Gesprächsarten (Zuruf, Lead, Stufe B, Rückholung)", werbung.length === 0 && [2, 3].every((st) => !STUFEN[st as 2 | 3].spielarten.some((x) => (GESPERRTE_SPIELARTEN as readonly string[]).includes(x))), werbung.join(", "));
+    let wirft = false; try { einstellungPruefen("aras_spielarten", JSON.stringify({ zuruf: "an" })); } catch (err) { wirft = String((err as Error).message).includes(GESPERRT_TEXT); }
+    const alt = einstellungenAnwenden({ aras_spielarten: JSON.stringify({ zuruf: "an", lead: "an", rate: "an", willkommen: "aus" }) });
+    ok("ROT-PROBE: „zuruf: an“ lässt sich nicht speichern (gesperrt – nur Vertragskunden), und ein alter Wert mit „an“ bleibt beim Lesen aus — der Rest gilt", wirft && !alt.spielarten.zuruf && !alt.spielarten.lead && alt.spielarten.rate && !alt.spielarten.willkommen);
+  }
   ok("Das Engere gilt: Schalter kleiner als die Stufe → der Schalter", stufenGrenzen({ stufe: 3, parallel: 2, tagEuro: 40, spielarten: alle }).parallel === 2 && stufenGrenzen({ stufe: 3, parallel: 2, tagEuro: 40, spielarten: alle }).tagEuro === 40);
   ok("Ausgeschaltete Spielart bleibt aus, auch in Stufe 3", !stufenGrenzen({ stufe: 3, parallel: 3, tagEuro: 60, spielarten: { ...alle, zuruf: false } }).spielartErlaubt("zuruf"));
   ok("Unsinnige Stufe (7, -1, „x“) → nie mehr als 3, nie weniger als 0", stufenGrenzen({ stufe: 7, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 3 && stufenGrenzen({ stufe: -1, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0 && stufenGrenzen({ stufe: Number("x"), parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0);
@@ -201,8 +210,8 @@ ok("Unbekannter Schlüssel → wirft", wirft("mara_aktion_an", "an"));
 ok("Spielarten mit fremdem Namen → wirft", wirft("aras_spielarten", JSON.stringify({ kaltakquise: true })));
 {
   const e = einstellungenAnwenden({});
-  ok("Leere Tabelle → Vorgaben: aus, openai_live, juni, parallel 2, Deckel 60, Spielarten leise (Willkommen an)", !e.an && e.adapter === "openai_live" && e.stimme === "juni" && e.parallel === 2 && e.tagEuro === 60 && e.spielarten.willkommen
-    && e.spielarten.termin && e.spielarten.rate && e.spielarten.zusage && e.spielarten.stufe_a && e.spielarten.zuruf && e.spielarten.probe
+  ok("Leere Tabelle → Vorgaben: aus, openai_live, juni, parallel 2, Deckel 60, Spielarten leise (Willkommen an, Zuruf aus)", !e.an && e.adapter === "openai_live" && e.stimme === "juni" && e.parallel === 2 && e.tagEuro === 60 && e.spielarten.willkommen
+    && e.spielarten.termin && e.spielarten.rate && e.spielarten.zusage && e.spielarten.stufe_a && !e.spielarten.zuruf && e.spielarten.probe
     && !e.spielarten.lead && !e.spielarten.stufe_b && !e.spielarten.rueckholung && !e.spielarten.eingehend);
   const f = einstellungenAnwenden({ aras_parallel: "99", aras_an: "an", aras_ampel: JSON.stringify({ stufen: { zahlungslink_senden: "rot", aufnahme_starten: "rot" } }) });
   ok("Grenze beim Lesen: parallel 99 → Vorgabe 2; an → true", f.parallel === 2 && f.an);

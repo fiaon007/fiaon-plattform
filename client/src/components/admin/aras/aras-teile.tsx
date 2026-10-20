@@ -4,11 +4,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ARAS_SPIELARTEN, type ArasSpielart } from "@shared/fiaon-ki-team";
+import { istGesperrteSpielart } from "@shared/fiaon-aras";
 import { berlinHeute, spielartText, tagName, tagPlus } from "./aras-texte";
 
 /** Gesprächsarten, die man von Hand einreihen kann (der Server prüft dieselbe Liste; Probe/Eingehend nie). */
-// „auftrag“ kommt nur aus der Akte (mit dem Text des Betreuers) — nie über das Einreihen im Cockpit.
-export const EINREIH_ARTEN: readonly ArasSpielart[] = ARAS_SPIELARTEN.filter((s) => s !== "probe" && s !== "eingehend" && s !== "auftrag");
+// „auftrag“ kommt nur aus der Akte (mit dem Text des Betreuers) — nie über das Einreihen im Cockpit. Zuruf, Lead, Stufe B und
+// Rückholung sind gesperrt (Justin 20.10.2026: nur Vertragskunden) — sie stehen gar nicht erst zur Wahl.
+export const EINREIH_ARTEN: readonly ArasSpielart[] = ARAS_SPIELARTEN.filter((s) => s !== "probe" && s !== "eingehend" && s !== "auftrag" && !istGesperrteSpielart(s));
 
 export function SpielartWahl({ wert, onChange, arten = EINREIH_ARTEN, alle }: { wert: string; onChange: (s: string) => void; arten?: readonly string[]; alle?: string }) {
   return (

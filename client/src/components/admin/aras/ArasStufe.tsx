@@ -12,7 +12,8 @@ import { Karte, Leer, Punkt } from "./aras-teile";
 interface StufeLage { ok: boolean; stufe: number; auto: boolean; naechste?: string; tage: { tag: string; stufe: number; farbe: string; entscheidung: string | null; punkte: AmpelPunkt[] }[] }
 const KLASSE: Record<string, "" | "gut" | "warn" | "krit"> = { gruen: "gut", gelb: "warn", rot: "krit", leer: "" };
 const FARBE_TEXT: Record<string, string> = { gruen: "grün", gelb: "gelb", rot: "rot", leer: "keine Kundenanrufe" };
-const STUFE_SATZ: Record<number, string> = { 0: "nur Probeanrufe an dich", 1: "Rückrufe, Zahlung gemeldet, Raten", 2: "dazu Verkauf nach JA und Zusagen", 3: "alle Gesprächsarten" };
+// Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): höhere Stufen bringen nur mehr Menge — nie Interessenten.
+const STUFE_SATZ: Record<number, string> = { 0: "nur Probeanrufe an dich", 1: "Willkommen, Rückrufe, Zahlung gemeldet, Raten", 2: "dazu Zusagen nachfassen — mehr Menge, nur Vertragskunden", 3: "noch mehr Menge — nur Vertragskunden" };
 
 export default function ArasStufe({ verbunden, onEinstellungen }: { verbunden: boolean; onEinstellungen: () => void }) {
   const { daten, fehler, status, neu } = useTakt<StufeLage>(verbunden ? "/chef/aras/stufe" : null, 60_000);

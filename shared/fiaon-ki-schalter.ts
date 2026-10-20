@@ -15,7 +15,7 @@
 // Server anwendet — eine Wahrheit für Oberfläche und Route.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { ARAS_SCHLUESSEL as ARAS_KERN_SCHLUESSEL, SPIELARTEN_VORGABE as ARAS_KERN_SPIELARTEN, FENSTER_VORGABE as ARAS_KERN_FENSTER, fensterPruefen as arasFensterPruefen } from "./fiaon-aras";
+import { ARAS_SCHLUESSEL as ARAS_KERN_SCHLUESSEL, SPIELARTEN_VORGABE as ARAS_KERN_SPIELARTEN, FENSTER_VORGABE as ARAS_KERN_FENSTER, fensterPruefen as arasFensterPruefen, istGesperrteSpielart, GESPERRT_TEXT } from "./fiaon-aras";
 
 export type SchalterGruppe = "mara_mail" | "mara_whatsapp" | "aras" | "leitplanken" | "kasse";
 export const GRUPPEN: { key: SchalterGruppe; label: string; satz: string }[] = [
@@ -102,6 +102,7 @@ const spielartenJson = (o: unknown): string | null => {
   for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
     if (!(k in ARAS_SPIELARTEN_VORGABE)) return `Unbekannte Spielart „${k}“.`;
     if (v !== "an" && v !== "aus") return `${k}: an oder aus.`;
+    if (v === "an" && istGesperrteSpielart(k)) return `${k}: ${GESPERRT_TEXT} — nicht schaltbar.`;
   }
   return null;
 };
@@ -225,7 +226,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_ki_hinweis_satz", gruppe: "aras", label: "Erster Satz (KI-Hinweis)", satz: "Pflicht nach KI-VO Art. 50 — muss „KI“ oder „digitale“ enthalten.", typ: "text", vorgabe: ARAS_KI_HINWEIS_VORGABE, maxZeichen: 400, muss: /\b(?:KI|digitale)\b/, mussText: "Der Satz muss „KI“ oder „digitale“ enthalten.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // Justins Test 20.10. (Anruf 6): „Ein kurzes Ja reicht.“ als zweiter Teil klang wie Drängeln — EIN Satz, der fragt; das Ja wertet die Brücke.
   { schluessel: "aras_aufnahme_frage", gruppe: "aras", label: "Aufnahme-Frage", satz: "EIN Satz, der nach der Aufzeichnung fragt — aufgenommen wird nur nach einem Ja.", typ: "text", vorgabe: ARAS_AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, muss: /(?:aufzeichn|aufnehm|aufnahme)[^?]*\?\s*$/i, mussText: "EIN Satz, der nach der Aufzeichnung fragt und mit „?“ endet.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
-  { schluessel: "aras_spielarten", gruppe: "aras", label: "Spielarten", satz: "Welche Gesprächsarten ARAS führt (lead/stufe_b/rueckholung erst nach LEXR).", typ: "json", vorgabe: JSON.stringify(ARAS_SPIELARTEN_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: spielartenJson },
+  { schluessel: "aras_spielarten", gruppe: "aras", label: "Spielarten", satz: "zuruf/lead/stufe_b/rueckholung: gesperrt – nur Vertragskunden (Justin 20.10.)", typ: "json", vorgabe: JSON.stringify(ARAS_SPIELARTEN_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: spielartenJson },
   { schluessel: "aras_parallel", gruppe: "aras", label: "Gleichzeitig", satz: "Höchstens so viele Gespräche zugleich (1–5).", typ: "zahl", vorgabe: "2", min: 1, max: 5, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_je_stunde", gruppe: "aras", label: "Wählversuche je Stunde", satz: "Deckel der Wählversuche je Stunde.", typ: "zahl", vorgabe: "40", min: 1, max: 120, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_fenster", gruppe: "aras", label: "Zeitfenster", satz: "Mo–Sa 09:30–21:00; Sonntag/Feiertag nur gebuchte Rückrufe (7 = Sonntag).", typ: "json", vorgabe: JSON.stringify(ARAS_FENSTER_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: fensterJson },

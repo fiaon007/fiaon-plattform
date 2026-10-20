@@ -15,7 +15,7 @@
 import { sqlPool } from "./db-pool";
 import { arasSchema, arasAusweisId } from "./fiaon-aras-schema";
 import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson } from "./fiaon-aras-plan";
-import { laufendeSitzungen, notausAlle } from "./fiaon-aras-bruecke";
+import { laufendeSitzungen, notausAlle, vorbereiten } from "./fiaon-aras-bruecke";
 import { briefingBauen } from "./fiaon-aras-briefing";
 import { adapterFuer } from "./fiaon-aras-adapter";
 import { arasEreignis } from "./fiaon-aras-ereignis";
@@ -26,6 +26,9 @@ import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
+
+/** Eine beim Klingeln vorbereitete Sitzung endet spätestens so lange danach (Twilio klingelt 30 s). */
+const KLINGELN_FRIST_MS = 45_000;
 
 type Lauf = typeof sqlPool;
 export { versucheHeute };
@@ -220,6 +223,10 @@ export async function waehlen(planId: number, opt: { probe?: boolean; spielartFu
     }
   }
   await lauf`UPDATE fiaon_calls SET twilio_sid = ${sid}, updated_at = NOW() WHERE id = ${callId}`;
+  // Eröffnung schon beim Klingeln vorbereiten (Koordination 20.10. abends, Ziel ≤ 0,8 s nach seinem „Hallo“): GPT-Live braucht
+  // vom Start bis zum ersten Ton ~1–1,5 s — beim Abheben gestartet, hörte er Aras erst ~1–2 s nach dem Hallo. Kostet die
+  // Klingelzeit (gpt-live-1: 5 US-Cent je Minute); geht nicht ran, endet die Sitzung mit Twilios Status (spätestens nach 45 s).
+  if (!attrappe && einst.vorbereiten === "klingeln") vorbereiten(callId, undefined, KLINGELN_FRIST_MS);
   await arasEreignis({ art: "aras_gewaehlt", callId, arasAnrufId: Number(aa.id), personId, spielart, text: `Gewählt (${spielart}, ${land})${opt.probe ? " — Probeanruf" : ""}`, nummer: z.nummer, daten: { planId, probe: opt.probe === true } });
   return { ok: true, callId };
 }

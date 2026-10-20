@@ -12,7 +12,7 @@ import {
   LACHEN_NACH_KI, begruessungText, nennformDativ, wirksameSpielart, DIALEKT_HOERBAR, eroeffnung, anrufGrund, nummerEndeGesprochen, menschHinweis, MENSCH_ABSTAND, MENSCH_ARTEN,
   fuerStimme, fiaonSchreibweise, FIAON_GESPROCHEN, type Briefing,
 } from "../shared/fiaon-aras-prompt";
-import { HOERPROBE_SAETZE, DIALEKTE } from "../shared/fiaon-aras";
+import { HOERPROBE_SAETZE, DIALEKTE, QUITTUNGEN, QUITTUNG_NACH_MS, quittungErlaubt, istKundenFrage, quittungWaehlen } from "../shared/fiaon-aras";
 import {
   einstellungenAnwenden, SPIELARTEN, WERKZEUGE, WERKZEUGE_GLOBAL, druckFinden, REGIE_VORGABE, AUFNAHME_FRAGE_VORGABE, KI_HINWEIS_VORGABE,
   aufnahmeFrageSauber, aufnahmeFrageFehler, GEDULD_MS,
@@ -67,7 +67,7 @@ for (const spielart of SPIELARTEN) {
     // Justin 20.10. (Anruf 16): „sagt bitte in Zukunft, dass es auch um die Kreditkarte geht, wenn du anrufst“ — in JEDER Art.
     const er = eroeffnung(einstellungen, briefing, spielart);
     ok(`${spielart}: Eröffnung nennt die Kreditkarte, FIAON mitten im Satz, KI-Hinweis, eine Frage am Schluss`, /Kreditkarte/.test(er.bisKi) && /von FIAON aus dem/.test(er.bisKi) && /\bKI\b/.test(er.bisKi) && /\?$/.test(er.frage), er.ganz);
-    ok(`${spielart}: der Angerufene spricht zuerst (Aras wartet auf sein „Hallo?“)`, /meldet sich ZUERST/.test(a.bausteine["2_anfang"]) && /sprich nie in sein „Hallo“ hinein/.test(a.bausteine["2_anfang"]));
+    ok(`${spielart}: der Angerufene spricht zuerst — die Eröffnung kommt erst nach seinem „Hallo?“ (vorab gesprochen, die Technik spielt sie danach ab)`, /meldet sich ZUERST/.test(a.bausteine["2_anfang"]) && /die Technik spielt deine Eröffnung erst nach seinem „Hallo“ ab, du fällst ihm also nie ins Wort/.test(a.bausteine["2_anfang"]) && /Der Angerufene hat sich gerade gemeldet\. Sag jetzt sofort/.test(a.begruessung));
   }
   ok(`${spielart}: GPT-Live-Überschriften da`, ["Backchannel policy:", "Interruption policy:", "Delegation policy:", "Backend tools:", "Delegate to the backend when:", "Do not delegate to the backend when:"].every((h) => a.text.includes(h)));
   ok(`${spielart}: kein Mitarbeiter-Vorname (Stimme + Hintergrund)`, mitarbeiterVornameFunde(`${a.text}\n${a.backend}`, TEAM).length === 0, mitarbeiterVornameFunde(a.text, TEAM).map((f) => f.treffer).join(","));
@@ -444,6 +444,17 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
   ok("Wink der Brücke: wechselt die Art (nie zweimal dieselbe hintereinander), alle vier Arten kommen vor, nie bei Beträgen/Daten/Aufnahme-Frage/Kündigung/Widerruf", winks.every((w, i) => i === 0 || w.art !== winks[i - 1].art) && MENSCH_ARTEN.every((a) => winks.some((w) => w.art === a)) && winks.every((w) => /Geht es in dieser Antwort um Geld, ein Datum, eine Uhrzeit, die Aufzeichnung, Kündigung oder Widerruf: dann lass ihn weg/.test(w.text) && /^Menschlicher Moment — in deiner nächsten Antwort, genau einer/.test(w.text)), winks.map((w) => w.art).join(","));
   ok("Rot-Probe: aras_lachen = aus → nie ein Lach-Wink", Array.from({ length: 12 }, (_, i) => menschHinweis({ lachen: false, zuletzt: null, nr: i })).every((w) => w.art !== "lachen" && !/\[chuckle\]/.test(w.text)));
   ok("Abstand je Stufe: wenig 6–9, normal 3–5, viel 2–3 Beiträge", MENSCH_ABSTAND.wenig[0] === 6 && MENSCH_ABSTAND.normal[0] === 3 && MENSCH_ABSTAND.normal[1] === 5 && MENSCH_ABSTAND.viel[1] === 3);
+  // Quittungs-Laute (Koordination 20.10. abends: Schnelligkeit)
+  {
+    const da = new Set<string>(QUITTUNGEN);
+    ok("Quittung: „Mhm,“ „Okay,“ „Hm,“ — kein „Gute Frage“ (Leersatz-Liste), kein „Ja,“ (sonst „Ja, Ja, …“), ab 550 ms Schweigen", QUITTUNGEN.length === 3 && !QUITTUNGEN.some((q) => /gute frage|^ja/i.test(q)) && QUITTUNG_NACH_MS === 550);
+    ok("Quittung: nie auf Nein, Kündigung, Widerruf, Beschwerde, „nicht mehr anrufen“, Abschied — sonst ja", !quittungErlaubt("Nein, das will ich nicht.") && !quittungErlaubt("Ich möchte kündigen") && !quittungErlaubt("Ich widerrufe das") && !quittungErlaubt("Ich beschwere mich") && !quittungErlaubt("Rufen Sie mich nicht mehr an") && !quittungErlaubt("Danke, tschüss") && quittungErlaubt("Vor allem für Reisen") && quittungErlaubt("Wie viel ist offen") && !quittungErlaubt(""));
+    ok("Frage erkannt — auch ohne Fragezeichen (die Abschrift lässt es oft weg)", istKundenFrage("Wie viel ist offen") && istKundenFrage("Ist mein Antrag schon genehmigt") && istKundenFrage("Und wohin schicken Sie mir das?") && !istKundenFrage("Vor allem für Reisen") && !istKundenFrage("Ja, passt."));
+    const folge = Array.from({ length: 8 }, (_, i) => i).reduce((acc: string[], i) => { acc.push(quittungWaehlen({ frage: i % 3 === 0, zuletzt: (acc[acc.length - 1] ?? null) as any, da, nr: i })!); return acc; }, []);
+    ok("Nie zweimal derselbe Laut hintereinander; nach einer Frage nie „Okay,“ (klänge schief)", folge.every((w, i) => i === 0 || w !== folge[i - 1]) && [0, 3, 6].every((i) => ["Mhm,", "Hm,"].includes(folge[i])), folge.join(" "));
+    ok("Ohne Bibliothek kein Laut", quittungWaehlen({ frage: false, zuletzt: null, da: new Set(), nr: 1 }) === null);
+    ok("Anweisung: Lief schon ein Laut, fängt die Stimme nicht noch einmal damit an", /Manchmal sagt die Technik für dich schon einen kurzen Laut/.test(a.text) && /Fang deine Antwort dann NICHT noch einmal mit diesem Laut an/.test(a.text));
+  }
   // FIAON für die Stimme (Punkt 1 — Spracherkennung 20.10.: „FIAON“ wurde zu „Fion“, „Fiaaon“ behält das a)
   const st = fuerStimme("Hier ist Aras von FIAON aus dem Kundenteam — FIAON Pro, die FIAON-Kreditkarte, FIAONs Team, fiaon.com, FIAONX");
   ok("Stimme liest „Fiaaon“ — auch „FIAON Pro“, „FIAON-Kreditkarte“, „FIAONs“; Adresse und fremde Wörter bleiben", FIAON_GESPROCHEN === "Fiaaon" && st === "Hier ist Aras von Fiaaon aus dem Kundenteam — Fiaaon Pro, die Fiaaon-Kreditkarte, Fiaaons Team, fiaon.com, FIAONX", st);

@@ -248,6 +248,7 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   // Justin 20.10. (Anruf 16): „das Lachen am Anfang ist schon sehr gut, aber wir brauchen von dem viel mehr im ganzen Gespräch
   // verteilt, da mal ein Lachen, dort mal ein Versprecher“ — menschliche Momente, gesteuert und nie im Muster.
   aras_menschlich: { typ: "enum", vorgabe: "normal", enum: ["wenig", "normal", "viel"], satz: "Menschliche Momente (Lachen, kleiner Versprecher, kurzes „hm“): wenig, normal oder viel." },
+  aras_vorbereiten: { typ: "enum", vorgabe: "klingeln", enum: ["klingeln", "abheben"], satz: "Eröffnung vorbereiten: beim Klingeln (nach dem „Hallo“ sofort da, kostet die Klingelzeit) oder beim Abheben." },
   aras_ki_hinweis_satz: { typ: "text", vorgabe: KI_HINWEIS_VORGABE, maxZeichen: 400, satz: "Der erste Satz — muss „KI“ oder „digitale“ enthalten.", pruefen: (w) => (/\bKI\b|digitale/i.test(w) ? null : "Der KI-Hinweis muss „KI“ oder „digitale“ enthalten.") },
   aras_aufnahme_frage: { typ: "text", vorgabe: AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, satz: "Die Frage vor der Aufnahme — EIN Satz mit „?“, aufgenommen wird nur nach einem Ja.", pruefen: aufnahmeFrageFehler },
   aras_spielarten: { typ: "json", vorgabe: JSON.stringify(SPIELARTEN_VORGABE), satz: "Welche Gesprächsarten ARAS führt.", pruefen: (w) => {
@@ -427,6 +428,8 @@ export interface ArasEinstellungen {
   stufe: Stufe; stufeAuto: boolean;
   lernenAn: boolean; callerIdAt: string; callerIdCh: string;
   ampel: Record<string, AmpelStufe>;
+  /** Wann die Sitzung (und die Eröffnung) vorbereitet wird: beim Klingeln (Vorgabe, schnell) oder beim Abheben (spart Kosten). */
+  vorbereiten: "klingeln" | "abheben";
 }
 
 /** Rohwerte aus fiaon_settings → typisiert, Grenzen angewandt (ungültige Werte fallen auf die Vorgabe). Rein. */
@@ -472,6 +475,7 @@ export function einstellungenAnwenden(roh: Record<string, string | null | undefi
     stufe: Math.max(0, Math.min(3, Math.round(zahl("aras_stufe")))) as Stufe, stufeAuto: an("aras_stufe_auto"),
     lernenAn: an("aras_lernen_an"), callerIdAt: w("aras_caller_id_at"), callerIdCh: w("aras_caller_id_ch"),
     ampel,
+    vorbereiten: w("aras_vorbereiten") === "abheben" ? "abheben" : "klingeln",
   };
 }
 
@@ -650,6 +654,42 @@ export function istAufnahmeNein(text: string): boolean {
   if (!t) return false;
   if (NEIN_IRGENDWO.test(t)) return true;
   return /^(?:nein|nö|nee|naa|na)(?![a-zäöüß])/.test(t) && !NEIN_ABER_OK.test(t) && !/^na(?![a-zäöüß])[\s,]*(?:eh|klar|freilich|gut|schön|sicher|ja|und|also)(?![a-zäöüß])/.test(t);
+}
+
+// ── Quittungs-Laute (E-408, 20.10. abends — Schnelligkeit, Prio 3) ──────────
+/**
+ * GPT-Live braucht nach seinem letzten Laut im Median ~1,4 s, bis es spricht (Rauchtest 20.10., unabhängig an Twilio
+ * gemessen). Ein Mensch sagt in so einer Pause längst „Mhm,“. Die Brücke spielt darum einen kurzen Laut in Aras' Stimme
+ * (je Stimme und Akzent einmal gesprochen), wenn GPT-Live nach QUITTUNG_NACH_MS noch schweigt — die Antwort folgt nahtlos.
+ * „Gute Frage,“ ist bewusst NICHT dabei: das steht auf Justins Leersatz-Liste („keine Füllsätze“, 20.10.). „Ja,“ auch nicht:
+ * Rauchtest 20.10. abends — GPT-Live fängt selbst oft mit „Ja,“ an, dann hieß es „Ja, Ja, danke …“.
+ */
+export const QUITTUNGEN = ["Mhm,", "Okay,", "Hm,"] as const;
+export type Quittung = (typeof QUITTUNGEN)[number];
+/** Nach einer Frage klingt „Okay,“ schief (und „Ja,“ wie eine Antwort): nur „Mhm,“ / „Hm,“. */
+export const QUITTUNG_NACH_FRAGE: readonly Quittung[] = ["Mhm,", "Hm,"];
+export const QUITTUNG_NACH_AUSSAGE: readonly Quittung[] = ["Mhm,", "Okay,"];
+/** So lange nach seinem letzten Laut, ohne dass GPT-Live spricht → Quittung (Koordination: 500–600 ms) … */
+export const QUITTUNG_NACH_MS = 550;
+/** … und nicht mehr später als so lange danach (dann ist GPT-Live gleich da — ein Laut käme quer). */
+export const QUITTUNG_SPAETESTENS_MS = 1300;
+/** Wann NIE ein Laut: Nein, Ärger, Beschwerde, Kündigung, Widerruf, „nicht mehr anrufen“ — und beim Abschied. Rein. */
+const QUITTUNG_NIE = /(?<![a-zäöüß])(?:nein|nö|nee|kein(?:e|en)?\s+interesse|nicht\s+interessiert|kündig\w*|kuendig\w*|widerruf\w*|storn\w*|beschwer\w*|anwalt|polizei|betrug|betrüger|abzocke|frechheit|unverschämt\w*|sauer|ärger\w*|wütend|aufhören|lassen\s+sie\s+mich|nicht\s+mehr\s+an(?:rufen)?|tsch(?:ü|ue)ss|wiederh(?:ö|oe)ren|wiederschau\w*|ciao|servus|baba|bye)(?![a-zäöüß])/i;
+export function quittungErlaubt(kundeText: string): boolean {
+  const t = String(kundeText ?? "").trim();
+  return t.length > 0 && !QUITTUNG_NIE.test(t);
+}
+/** Hat der Kunde gefragt? („…?“ oder ein Frage-Anfang — die Abschrift lässt das Fragezeichen oft weg.) Rein. */
+export function istKundenFrage(kundeText: string): boolean {
+  const t = String(kundeText ?? "").trim().toLowerCase();
+  if (/\?\s*["“”»]?\s*$/.test(t)) return true;
+  const letzter = t.split(/(?<=[.!?])\s+/).pop() ?? t;
+  return /^(?:und\s+|aber\s+|also\s+)?(?:wie|was|wann|wo|wohin|woher|warum|wieso|weshalb|wer|wem|wen|welche\w*|kann|können|koennen|könnten|ist|sind|hab|habe|haben|hat|gibt|gibt's|muss|müssen|soll|sollen|darf|dürfen|bekomme|bekomm|kriege?|kommt|geht|wird|werden|stimmt)(?![a-zäöüß])/.test(letzter);
+}
+/** Welcher Laut — nie zweimal derselbe hintereinander, nur aus der Bibliothek (da). Rein. */
+export function quittungWaehlen(e: { frage: boolean; zuletzt: Quittung | null; da: ReadonlySet<string>; nr: number }): Quittung | null {
+  const wahl = (e.frage ? QUITTUNG_NACH_FRAGE : QUITTUNG_NACH_AUSSAGE).filter((w) => w !== e.zuletzt && e.da.has(w));
+  return wahl.length ? wahl[Math.abs(e.nr) % wahl.length] : null;
 }
 
 // ── JSON-Formen für die Oberfläche (§ 5) ───────────────────────────────────

@@ -143,6 +143,15 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
         )`;
       // Justin 20.10.2026: Sprechproben mit Akzent (aras_dialekt) — „Diese nehmen“ übernimmt Stimme UND Akzent.
       await lauf`ALTER TABLE fiaon_aras_hoerprobe ADD COLUMN IF NOT EXISTS dialekt TEXT`;
+      // Quittungs-Laute (E-408, 20.10. abends): „Mhm,“ „Okay,“ „Ja,“ „Hm,“ je Stimme und Akzent EINMAL gesprochen —
+      // die Brücke spielt einen, wenn GPT-Live nach seinem letzten Laut noch schweigt. PCM 16 bit, 8 kHz, roh (−24 dBFS).
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_aras_laut (
+          stimme TEXT NOT NULL, dialekt TEXT NOT NULL, wort TEXT NOT NULL,
+          pcm BYTEA NOT NULL, ms INTEGER NOT NULL, gesagt TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (stimme, dialekt, wort)
+        )`;
 
       await lauf`CREATE TABLE IF NOT EXISTS fiaon_softphone_praesenz (agent_id INTEGER PRIMARY KEY, zuletzt_am TIMESTAMPTZ NOT NULL)`;
 

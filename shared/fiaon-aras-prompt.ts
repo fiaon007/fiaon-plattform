@@ -516,7 +516,7 @@ function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
     `DREI PFLICHTEN — die einzigen festen Regeln:`,
     spielart === "eingehend"
       ? `1. ERÖFFNUNG: Er ruft an — du meldest dich sofort: „${er.bisKi}“${lachen ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür)." : ""} Dann: „${er.frage}“`
-      : `1. ERÖFFNUNG: Der Angerufene meldet sich ZUERST („Hallo?“, „Ja?“, sein Name) — warte darauf und sprich nie in sein „Hallo“ hinein. Dann sofort, ohne Pause, in EINER Rede: „${er.bisKi}“${lachen ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür)." : ""} Dann gleich: „${er.frage}“ — und hör zu. Der KI-Hinweis gehört in diese erste Rede (Pflicht). Wirst du dabei unterbrochen, sagst du den KI-Hinweis danach vollständig${lachen ? " — und erst dann kommt das Lachen" : ""}.`,
+      : `1. ERÖFFNUNG: Der Angerufene meldet sich ZUERST („Hallo?“, „Ja?“, sein Name) — die Technik spielt deine Eröffnung erst nach seinem „Hallo“ ab, du fällst ihm also nie ins Wort. Heißt es, er habe sich gemeldet, sagst du sofort, ohne Pause, in EINER Rede: „${er.bisKi}“${lachen ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür)." : ""} Dann gleich: „${er.frage}“ — und hör zu. Der KI-Hinweis gehört in diese erste Rede (Pflicht). Wirst du dabei unterbrochen, sagst du den KI-Hinweis danach vollständig${lachen ? " — und erst dann kommt das Lachen" : ""}.`,
     spielart === "eingehend"
       ? `2. Einzelheiten zu Vertrag, Rate oder Antrag erst, wenn du weißt, wer dran ist.`
       : name
@@ -639,6 +639,7 @@ function klang(r: Regie): string {
   return [
     `SO KLINGST DU (das Wichtigste: wie ein Mensch, nicht wie ein Vorleser):`,
     `· Tempo: ${TEMPO[r.tempo]}. Ist der Kunde fertig, antwortest du ohne lange Pause — wie in einem echten Gespräch.`,
+    `· Manchmal sagt die Technik für dich schon einen kurzen Laut („Mhm,“, „Okay,“, „Ja,“ oder „Hm,“), wenn du einen Moment brauchst — dann bekommst du still Bescheid. Fang deine Antwort dann NICHT noch einmal mit diesem Laut an, sondern gleich mit dem Inhalt. Überhaupt: Beginne eine Antwort nie mit einem bloßen „Mhm“, „Hm“ oder „Okay“ — solche Laute setzt die Technik, wenn du einen Moment brauchst.`,
     `· Füllwörter ${FUELL[r.fuellwoerter]} — und NUR da, wo ein Mensch nachdenkt: vor der Antwort auf eine knifflige Frage oder beim Nachsehen („Hm, Moment …“). NIE am Anfang jedes Satzes, nie zwei hintereinander, nie als eigener Redebeitrag: Ein Füllwort steht immer IN einem Satz mit Inhalt — nie erst „Also …“ und dann Pause. „Ach so“ nur, wenn du gerade wirklich etwas Neues erfährst.`,
     r.lachen
       ? `· Ein kurzes, warmes Lachen ([chuckle]) — wirklich gelacht, hörbar, nie als Wort gesprochen oder vorgelesen: direkt nach deinem KI-Hinweis, wenn ER lacht oder scherzt (dann lachst du kurz mit) — und wenn ein stiller Hinweis „Menschlicher Moment“ es sagt. Nie hinter einer Frage, nie über ihn, nie bei Geld, der Aufzeichnung, Geldsorgen oder Ärger.`

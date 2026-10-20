@@ -24,6 +24,12 @@ export interface SitzungStart {
   hintergrundAnweisung: string;
   /** Die Begrüßungs-Anweisung (developer-Nachricht in session.input): erster Satz mit KI-Hinweis, dann zuhören. */
   begruessung?: string | null;
+  /**
+   * Eingang stumm ab Start (E-408, 20.10. abends — Eröffnung vorab): Die Stimme spricht die Eröffnung sofort beim Abheben,
+   * hört sein „Hallo“ aber nicht (sonst bräche sie ab). Die Brücke hält den Ton, bis er still ist, und schaltet den Eingang
+   * mit eingang(true) wieder an.
+   */
+  eingangStumm?: boolean;
   stimme: string; modell: string; modellGehirn: string;
   werkzeuge: WerkzeugDef[];
   audio: { rein: "pcmu_8k"; raus: "pcmu_8k" };
@@ -45,6 +51,8 @@ export interface Sitzung {
    * „anweisung“ = Anweisung, die laufende Rede unterbrechen darf (instructions — Notaus, Übergabe, genauer Wortlaut).
    */
   textEinschieben(text: string, art: "vorlesen" | "still" | "anweisung"): void;
+  /** Den Eingang (sein Ton an die Stimme) an- oder stummschalten — der Ton fließt weiter, die Stimme hört ihn nur nicht. */
+  eingang?(an: boolean): void;
   beenden(grund: string): Promise<{ sekunden: number; kostenCents: number }>;
   /** Wie der Anbieter liefert (Quelle, Stückgrößen, Abstände) — für die Ton-Messung je Anruf (optional). */
   lieferung?(): Record<string, unknown>;
@@ -73,8 +81,10 @@ export interface HoerprobeEin {
   dialekt?: import("../../shared/fiaon-aras").Dialekt | null;
   /** Tonquelle (Vergleich „wie bisher“ / „neu“) — sonst die Vorgabe. */
   quelle?: import("./fiaon-aras-ton").TonQuelle;
+  /** Roh (für die Quittungs-Laute): PCM 8 kHz wie von der Stimme, ohne Telefon-Strecke — die regelt später das Ton-Werk. */
+  roh?: boolean;
 }
-export interface HoerprobeAus { mime: string; bytes: Buffer; dauerMs: number; kostenCents: number }
+export interface HoerprobeAus { mime: string; bytes: Buffer; dauerMs: number; kostenCents: number; /** Was die Stimme laut Abschrift sagte. */ text?: string }
 
 export interface StimmAdapter {
   name: AdapterName;

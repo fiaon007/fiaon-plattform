@@ -18,7 +18,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { arasSchema } from "../lib/fiaon-aras-schema";
 import { twilioSignaturPruefen, streamTokenPruefen, streamToken, twimlStream, twimlAuflegen, xml } from "../lib/fiaon-aras-twilio-client";
-import { laeuft, hatteSitzung, mailboxErkannt, sitzungBeenden, uebergabeLaeuft, vorbereiten } from "../lib/fiaon-aras-bruecke";
+import { laeuft, hatStrom, hatteSitzung, mailboxErkannt, sitzungBeenden, uebergabeLaeuft, vorbereiten } from "../lib/fiaon-aras-bruecke";
 import { nachbereiten } from "../lib/fiaon-aras-nachbereitung";
 import { arasEinstellungenLesen } from "../lib/fiaon-aras-plan";
 import { arasEreignis } from "../lib/fiaon-aras-ereignis";
@@ -99,7 +99,8 @@ router.post("/aras/status", async (req: Request, res: Response) => {
     if (neu === "laeuft") { await sqlPool`UPDATE fiaon_calls SET status = 'laeuft', updated_at = NOW() WHERE id = ${id} AND status = 'gewaehlt'`; return; }
     await sqlPool`UPDATE fiaon_calls SET status = CASE WHEN status IN ('gewaehlt', 'laeuft') THEN ${neu} ELSE status END, ende = COALESCE(ende, NOW()),
                    dauer_sek = COALESCE(dauer_sek, ${dauer}), updated_at = NOW() WHERE id = ${id}`;
-    if (laeuft(id)) { await sitzungBeenden(id, uebergabeLaeuft(id) ? "uebergabe" : "kunde_aufgelegt"); return; }
+    // Beim Klingeln vorbereitet und nie abgenommen (besetzt, keiner ran, abgebrochen): das ist kein Auflegen — der Grund von Twilio.
+    if (laeuft(id)) { await sitzungBeenden(id, uebergabeLaeuft(id) ? "uebergabe" : !hatStrom(id) && neu !== "beendet" ? (neu === "niemand_erreicht" ? "nicht_erreicht" : neu) : "kunde_aufgelegt"); return; }
     await ohneSitzungAbschliessen(id, neu === "beendet" ? "kunde_aufgelegt" : neu === "niemand_erreicht" ? "nicht_erreicht" : neu);
   } catch (err) { console.error("[ARAS-STATUS]", String((err as Error)?.message ?? err).slice(0, 200)); }
 });

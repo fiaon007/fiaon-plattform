@@ -223,6 +223,9 @@ export class LiveSitzung implements Sitzung {
         this.gestartet = true;
         this.sitzungId = String(ev?.session?.id ?? ev?.session_id ?? "live");
         this.ereignis({ art: "bereit", sitzungId: this.sitzungId });
+        // Eröffnung vorab: erst stumm schalten, DANN den gepufferten Ton — so hört die Stimme sein „Hallo“ nicht (Doku: der
+        // Eingang ist stumm, die Sitzung läuft, die Stimme spricht weiter).
+        if (this.e.eingangStumm) this.eingang(false);
         // Der Ton, der vor dem Start kam (sein „Hallo?“), geht jetzt in einem Stück hinterher.
         if (this.vorlaufBytes) { const b = Buffer.concat(this.vorlauf); this.vorlauf = []; this.vorlaufBytes = 0; this.senden({ type: "session.input_audio.append", audio: b.toString("base64") }); }
         return typ;
@@ -379,6 +382,12 @@ export class LiveSitzung implements Sitzung {
     this.sprichtAus();
   }
 
+  private stummNr = 0;
+  eingang(an: boolean): void {
+    this.stummNr += 1;
+    this.senden({ type: an ? "session.input_audio.unmute" : "session.input_audio.mute", event_id: `${an ? "laut" : "stumm"}_${this.e.callId}_${this.stummNr}` });
+  }
+
   textEinschieben(text: string, art: "vorlesen" | "still" | "anweisung"): void {
     const t = fuerStimme(String(text ?? "").replace(/\s+/g, " ").trim().slice(0, 1800));
     if (!t) return;
@@ -521,9 +530,10 @@ export function openaiLiveAdapter(): StimmAdapter {
       roh.set(davor.subarray(Math.max(0, davor.length - 1200)), 0);
       roh.set(rede, Math.min(1200, davor.length));
       roh.set(danach.subarray(0, 2800), Math.min(1200, davor.length) + rede.length);
-      const telefon = wieAmTelefon(roh);
+      // Roh (Quittungs-Laute): ohne Telefon-Strecke — das Ton-Werk regelt den Pegel im Gespräch selbst.
+      const telefon = e.roh ? roh : wieAmTelefon(roh);
       if (gesagt.trim()) console.log(`[ARAS-LIVE] Hörprobe ${e.stimme}: „${gesagt.replace(/\s+/g, " ").trim().slice(0, 200)}“`);
-      return { mime: "audio/wav", bytes: alsWav(telefon), dauerMs: Math.round(telefon.length / 8), kostenCents: Math.max(kostenCents, stimmKostenCents(e.modell || "gpt-live-1", sekunden)) };
+      return { mime: "audio/wav", bytes: alsWav(telefon), dauerMs: Math.round(telefon.length / 8), kostenCents: Math.max(kostenCents, stimmKostenCents(e.modell || "gpt-live-1", sekunden)), text: gesagt.replace(/\s+/g, " ").trim() };
     },
   };
 }

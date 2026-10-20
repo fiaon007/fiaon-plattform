@@ -246,6 +246,8 @@ export interface TonwerkOpt {
   vorlaufMs?: number;
   /** Aras' Rede beginnt hörbar (Uhrzeit, wann der Kunde den ersten Rede-Rahmen hört) — für die Antwortzeit. */
   beiRedeBeginn?: (gehoertAm: number) => void;
+  /** Eine Lücke mitten in der Rede wurde überbrückt (ms) — für Protokoll und Fehlersuche. */
+  beiLuecke?: (ms: number) => void;
   /** Rot-Probe im Prüfstand: der alte Weg (keine Regelung, kein Vorrat, sofort weiter, höchstens 500 ms). */
   alt?: boolean;
 }
@@ -311,6 +313,8 @@ export class Tonwerk {
   redeAusstehend(): boolean { return this.q.some((r) => r.rede) || this.redeSpielEnde > this.jetzt(); }
   /** Wann der Kunde alles bisher Gesagte gehört hat (Uhrzeit). */
   redeGehoertBis(): number { return Math.max(this.redeSpielEnde, this.jetzt()) + this.q.filter((r) => r.rede).length * RAHMEN_MS; }
+  /** Wann der zuletzt gesendete Rede-Rahmen beim Kunden zu Ende gespielt ist/war (Uhrzeit, 0 = noch nie Rede). */
+  redeZuletztGespielt(): number { return this.redeSpielEnde; }
   get vorlaufAktuell(): number { return this.vorlauf; }
 
   /** Beim Reinreden: alles verwerfen (die Brücke schickt dazu `clear` an Twilio). */
@@ -365,6 +369,7 @@ export class Tonwerk {
         const ms = this.lueckeMs;
         if (r.rede && this.letzterWarRede && ms >= LUECKE_AB_MS) {
           this.stat.luecken += 1; this.stat.lueckenMsMax = Math.max(this.stat.lueckenMsMax, ms); this.stat.lueckenMsSumme += ms;
+          this.o.beiLuecke?.(ms);
           this.vorlauf = Math.min(VORLAUF_MAX_MS, this.vorlauf + VORLAUF_SCHRITT_MS);
         }
         this.lueckeSeit = 0; this.lueckeMs = 0; this.einblenden = true;

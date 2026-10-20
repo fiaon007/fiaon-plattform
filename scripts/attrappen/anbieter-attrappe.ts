@@ -20,7 +20,7 @@ function rede(ms: number): Buffer {
 import type { Werkzeug } from "../../shared/fiaon-aras";
 
 /** Sprachähnlicher Ton (Grundton 150 Hz mit Obertönen, Silben 4 Hz) auf `dbfs` RMS — wie GPT-Live ihn liefert (8 kHz PCM). */
-function silben(ms: number, dbfs: number, start = 0): Int16Array {
+export function silben(ms: number, dbfs: number, start = 0): Int16Array {
   const n = Math.round(ms * 8), roh = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const t = (start + i) / 8000;
@@ -67,7 +67,7 @@ export interface Skript {
   abschiedIgnorieren?: boolean;
 }
 
-export interface AttrappeSpur { werkzeuge: { name: Werkzeug; ergebnis: WerkzeugErgebnis }[]; eingeschoben: { text: string; art: string; am?: number }[]; /** Wann der Kunde jeweils zu reden begann (Transkript). */ kundeAm?: number[]; unterbrochen: number; beendet: string | null; audioReinBytes: number; /** Was die Brücke als Begrüßung (developer-Nachricht) mitgab — ausgehend: keine. */ begruessung?: string | null }
+export interface AttrappeSpur { werkzeuge: { name: Werkzeug; ergebnis: WerkzeugErgebnis }[]; eingeschoben: { text: string; art: string; am?: number }[]; /** Wann der Kunde jeweils zu reden begann (Transkript). */ kundeAm?: number[]; /** Eingang stumm ab Start? und jedes An/Aus danach. */ stumm?: boolean; eingang?: { an: boolean; am: number }[]; unterbrochen: number; beendet: string | null; audioReinBytes: number; /** Was die Brücke als Begrüßung (developer-Nachricht) mitgab — ausgehend: keine. */ begruessung?: string | null }
 
 export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpur; fertig: Promise<void> } {
   const spur: AttrappeSpur = { werkzeuge: [], eingeschoben: [], kundeAm: [], unterbrochen: 0, beendet: null, audioReinBytes: 0 };
@@ -80,6 +80,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
     async hoerprobe(e) { const roh = stille(1200); return { mime: "audio/wav", bytes: Buffer.concat([Buffer.from("RIFF"), roh]), dauerMs: 1200, kostenCents: 0 }; },
     async sitzungStarten(e: SitzungStart): Promise<Sitzung> {
       spur.begruessung = e.begruessung ?? null;
+      spur.stumm = !!e.eingangStumm; spur.eingang = [];
       const start = Date.now();
       let beendet = false;
       let aktiv = false;
@@ -175,6 +176,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
       return {
         audioRein(chunk) { spur.audioReinBytes += chunk.length; if (chunk.some((x) => x !== 0xff && x !== 0x7f)) zuletztLautRein = Date.now(); },
         unterbrechen() { /* der Ton stoppt — die Brücke zählt das clear */ },
+        eingang(an: boolean) { spur.eingang!.push({ an, am: Date.now() }); },
         textEinschieben(text, art) {
           spur.eingeschoben.push({ text, art, am: Date.now() });
           // Eine Anweisung mit genauem Wortlaut (Notaus, Übergabe) spricht die Attrappe kurz — wie GPT-Live.

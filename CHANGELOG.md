@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.10.2026 — /business „Pakete und Preise“: die vier Etappen ohne 3D, als ruhige Karten zum Aufklappen
+- **Was:** Die vier Karten I–IV über den Pakettafeln (Gründung und Dokumente · Die erste Firmenkarte · Die Kartenleiter ·
+  Das Bankdarlehen) haben keine 3D-Objekte mehr (Urkunde, Karte, Treppe, Tresor, Schatten-Ellipsen sind weg; three.js wird
+  für diese Sektion nicht mehr geladen, die Datei `etappen-szene.ts` ist gelöscht). Sichtbar ist je Karte nur noch:
+  Abzeichen („In jedem Paket“ / „Ab Global Banking“), Titel, EIN Satz und ab Etappe II „Hier entscheidet das Institut“.
+  Ablauf und Dauer, der lange Text und wer dabei ist klappen mit **„Mehr“** auf (Klick auf die Karte oder den Knopf).
+  **Rechner (ab 1024 px):** eine feine Linie mit den Knoten I–IV über den vier Karten; die geöffnete Etappe zeigt ihre
+  Details in EINER Fläche über die volle Breite (immer nur eine offen, ein kleiner Zipfel zeigt auf die Karte).
+  **Darunter (Tablet, Handy):** Karten untereinander, die Linie läuft links senkrecht, jede Karte klappt in sich auf.
+  **Bewegung:** Beim Hineinscrollen zeichnet sich die Linie von I nach IV, die Knoten leuchten nacheinander auf, die Karten
+  kommen gestaffelt; beim Darüberfahren leichter Hub mit Lichtkante; Auf- und Zuklappen weich. Bei „weniger Bewegung“
+  steht alles sofort still da. **Team-Band** „Ihr Team im Festpreis“ bleibt: Namen sichtbar („Global VIP“ immer am
+  Namen), was jeder macht, klappt mit „Mehr“ auf; der Satz zu Mandat und Honoraren steht immer offen.
+  Kein Wort geändert: Alle Texte kommen unverändert aus `i18n/global.ts`; neu sind nur die Knopfwörter Mehr/Weniger
+  (More/Less). SEO-Texte, Preise, Pflichtsätze und die Pakettafeln darunter sind unberührt.
+- **Warum:** Justin, 20.10.2026 (Bild von /en/business): „Entferne die 3D Projekte, die sehen total beschissen aus“ und
+  „Mach es cleaner, mit Animationen und mit ausklappbaren Karten oder so, damit nicht so viel Text ist bitte“.
+- **Wo:** /business, /en/business, /business/privatpersonen, /en/business/private-individuals → Abschnitt „Pakete und
+  Preise“. Code: `client/src/components/site/global/EtappenBuehnen.tsx`, Stil `client/src/styles/global-grafik.css`
+  (Block „DIE VIER ETAPPEN“), Knopfwörter `wegMehr`/`wegWeniger` in `client/src/i18n/global.ts`, Aufruf in
+  `client/src/pages/site/business.tsx`. Fotos vorher/nachher: `~/Desktop/FIAON/10_Nacharbeit/business-etappen/`.
+
 ## 20.10.2026 — KI-Team › Aras als ruhiges Cockpit; der Live-Kasten verschwindet nach dem Auflegen
 - **Was:** Die Seite Aras ist neu aufgebaut. Oben steht **eine** Statusleiste: ein Satz, was Aras gerade tut („Aras ruft gerade
   niemanden an“), dazu Stufe, Kunden an/aus, Kosten von heute und die Knöpfe **Leerlauf** und **Not-Aus** (Not-Aus und „Wieder an“

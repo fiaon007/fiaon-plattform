@@ -1,31 +1,51 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE VIER BÜHNEN ÜBER DEN PAKETTAFELN (16.10.2026, E-387) — ersetzt WegLinie
+// DIE VIER ETAPPEN ÜBER DEN PAKETTAFELN (E-387, neu gebaut 20.10.2026)
 //
-// Justin wählte aus drei Entwürfen „A · Vier Bühnen“: je Etappe eine helle
-// Kachel mit einem echten 3D-Objekt (etappen-szene.ts), darunter Titel, ein
-// Satz, wer dabei ist (nur Namen — „keine Icons“) und „In jedem Paket“ bzw.
-// „Ab …“. Unter den Kacheln ein Navy-Band „Ihr Team im Festpreis“: wer in
-// jedem Paket mitarbeitet, Honorare inklusive (Sätze aus GLOBAL_ROLLEN). Die
-// Pakettafeln darunter bleiben unverändert.
+// Justin, 20.10.2026 (Bild von /en/business): „Entferne die 3D Projekte, die
+// sehen total beschissen aus“ und „Mach es cleaner, mit Animationen und mit
+// ausklappbaren Karten oder so, damit nicht so viel Text ist bitte“.
 //
-// Rechner: vier Spalten (721–1120 px zwei), Handy: die Kacheln wischen seitlich
-// (scroll-snap) mit Punkten darunter — so bleibt Platz für jede Bühne, ohne
-// vier Bildschirme Weg vor den Paketen. Am Handy werden Etappen außerhalb des
-// gewählten Pakets blass (`bis`), wie bisher an der Wegleiste.
+// Seitdem: vier ruhige Karten I–IV an einer feinen Linie — kein three.js, kein
+// Canvas, keine Schatten-Ellipsen (etappen-szene.ts ist gelöscht). Sichtbar je
+// Karte nur Abzeichen („In jedem Paket“ / „Ab …“), Titel, EIN Satz (`kurz`)
+// und ab Etappe II „Hier entscheidet das Institut“. Ablauf und Dauer, der
+// lange Text und wer dabei ist (nur Namen — „keine Icons“) stehen in der
+// Klappe hinter „Mehr“. Die Texte selbst kommen unverändert aus i18n/global.ts.
 //
-// three.js kommt per import() als eigener Chunk und nur mit WebGL; der Takt
-// läuft nur im Bild (beobachteSichtbar). Bei „weniger Bewegung“ steht ein
-// ruhiges Einzelbild. Ohne WebGL zeigt die Bühne die römische Ziffer groß.
+// Rechner (ab 1024 px): oben die Linie mit den Knoten I–IV, darunter die vier
+// Karten gleich hoch, darunter EINE Klappe über die volle Breite — dort liest
+// sich der lange Text in zwei, drei Zeilen statt in einer schmalen Spalte.
+// Immer nur eine Etappe offen; ein Zipfel zeigt auf ihre Karte. Technik: Die
+// Hüllen sind dort `display: contents`, damit Knoten, Karten und Klappen
+// Zellen EINES Rasters sind (Reihe 1 Linie, 2 Karten, 3 Klappe).
+// Bis 1023 px: die Karten untereinander, die Linie läuft links senkrecht von
+// Knoten zu Knoten, jede Karte klappt in sich auf (unabhängig voneinander).
+// Am Handy (bis 720 px) werden Etappen außerhalb des gewählten Pakets blass
+// (`bis`), wie bisher.
+//
+// Bewegung (bewegung.ts, einmal beim Hineinscrollen): die Linie zeichnet sich
+// von I nach IV, die Knoten leuchten nacheinander auf, die Karten kommen
+// gestaffelt (Einblenden + kleiner Weg nach oben). Hover: leichter Hub und die
+// Lichtkante der Pakettafeln. Auf- und Zuklappen: Höhe über grid-template-rows.
+// Bei „weniger Bewegung“ steht alles sofort im Endzustand, ohne Übergänge.
+// Stil: styles/global-grafik.css, Block „DIE VIER ETAPPEN“ (Präfix fg-eb-).
+//
+// Das Navy-Band „Ihr Team im Festpreis“ bleibt: Namen sichtbar (der Zusatz
+// „Global VIP“ steht immer am Namen), was jeder tut, klappt mit „Mehr“ auf;
+// der Partnersatz (Mandat, Honorare trägt FIAON) steht immer offen da.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { beobachteSichtbar, ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
-import type { EtappenSzene } from "./etappen-szene";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
 
 const ROEMISCH = ["I", "II", "III", "IV"];
+/** Ab hier stehen die Karten nebeneinander und teilen sich EINE Klappe — dieselbe Grenze wie im Stilblatt. */
+const BREIT = "(min-width: 1024px)";
+/** Am Handy werden Etappen außerhalb des gewählten Pakets blass (dort wählt man darunter ein Paket). */
+const HANDY = "(max-width: 720px)";
+/** So lange dauert das Aufklappen im Stilblatt (.fg-eb-klappe) — danach dürfen Begriff-Erklärungen über den Rand. */
+const AUFKLAPPEN_MS = 560;
 
-const webglDa = () => {
-  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
-};
+const passt = (abfrage: string) => typeof window !== "undefined" && !!window.matchMedia?.(abfrage).matches;
 
 export interface BuehnenEtappe {
   titel: string;
@@ -41,7 +61,27 @@ export interface BuehnenEtappe {
   text: ReactNode;
 }
 
-export default function EtappenBuehnen({ id, label, etappen, bis = 4, stempel, ablauf, sprache, team }: {
+/** Der Winkel an „Mehr“: selbst gezeichnet, 1,5 px Strich, currentColor (AGENTS.md). */
+function Winkel() {
+  return (
+    <svg className="fg-eb-winkel" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 4.5 6 7.5 9 4.5" />
+    </svg>
+  );
+}
+
+/** „Mehr“ / „Weniger“ übereinander, sichtbar ist eins: Der Knopf ist immer so breit wie das längere Wort — so rutscht
+ *  er beim Aufklappen nicht in die nächste Zeile. Das verdeckte Wort ist unsichtbar und zählt nicht zum Namen. */
+function Wort({ auf, mehr, weniger }: { auf: boolean; mehr: string; weniger: string }) {
+  return (
+    <span className="fg-eb-wort">
+      <span className={auf ? "weg" : undefined}>{mehr}</span>
+      <span className={auf ? undefined : "weg"}>{weniger}</span>
+    </span>
+  );
+}
+
+export default function EtappenBuehnen({ id, label, etappen, bis = 4, stempel, ablauf, mehr, weniger, team }: {
   id?: string;
   label: string;
   etappen: BuehnenEtappe[];
@@ -49,141 +89,152 @@ export default function EtappenBuehnen({ id, label, etappen, bis = 4, stempel, a
   bis?: number;
   /** „Hier entscheidet das Institut“. */
   stempel: string;
-  /** Beschriftung der Klappe mit Dauer und Ablauf. */
+  /** Überschrift in der Klappe: „Ablauf und Dauer“. */
   ablauf: string;
-  sprache: "de" | "en";
+  /** Beschriftung der Klappen-Knöpfe: „Mehr“ / „Weniger“. */
+  mehr: string;
+  weniger: string;
   team: { titel: string; sub: string; satz: string; liste: { name: string; was: string; zusatz?: string }[] };
 }) {
   const wurzel = useRef<HTMLDivElement>(null);
-  const reihe = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const plaetze = useRef<(HTMLDivElement | null)[]>([]);
-  const szene = useRef<EtappenSzene | null>(null);
-  const [modus, setModus] = useState<"laedt" | "3d" | "flach">(() => (typeof window !== "undefined" && webglDa() ? "laedt" : "flach"));
-  const [aktuell, setAktuell] = useState(0);
-  const [handy, setHandy] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 720px)").matches);
-  useEinmalSichtbar(wurzel, 0.2);
+  const klappen = useRef<(HTMLDivElement | null)[]>([]);
+  const gehtUhr = useRef(0);
+  const kennung = useId();
+  /** Welche Etappen offen sind — am Rechner höchstens eine. */
+  const [offen, setOffen] = useState<number[]>([]);
+  /** Am Rechner beim Wechsel: die bisher offene Etappe klappt erst zu, wenn die neue steht (sonst „atmet“ die Klappe). */
+  const [geht, setGeht] = useState<number | null>(null);
+  const [teamAuf, setTeamAuf] = useState(false);
+  const [breit, setBreit] = useState(() => passt(BREIT));
+  const [handy, setHandy] = useState(() => passt(HANDY));
+  /** Der Auftritt ist durch (das Band kam als Letztes) — danach hängt keine Einblend-Animation mehr an den Elementen,
+   *  sonst spielte ein Wechsel über 1024 px (Fenster ziehen, Tablet drehen) den Auftritt noch einmal ab. */
+  const [aufgetreten, setAufgetreten] = useState(false);
+  useEinmalSichtbar(wurzel, 0, "0px 0px -18% 0px");
 
   useEffect(() => {
-    const mq = window.matchMedia?.("(max-width: 720px)");
-    if (!mq) return;
-    const neu = () => setHandy(mq.matches);
-    mq.addEventListener?.("change", neu);
-    return () => mq.removeEventListener?.("change", neu);
+    const mqBreit = window.matchMedia?.(BREIT);
+    const mqHandy = window.matchMedia?.(HANDY);
+    if (!mqBreit || !mqHandy) return;
+    const neu = () => {
+      setBreit(mqBreit.matches);
+      setHandy(mqHandy.matches);
+      // Am Rechner teilen sich alle Karten EINE Klappe: Waren am Handy mehrere offen, bleibt die zuletzt geöffnete.
+      if (mqBreit.matches) setOffen((o) => o.slice(-1));
+    };
+    mqBreit.addEventListener?.("change", neu);
+    mqHandy.addEventListener?.("change", neu);
+    return () => { mqBreit.removeEventListener?.("change", neu); mqHandy.removeEventListener?.("change", neu); };
   }, []);
 
-  // three.js laden, sobald die Leiste in die Nähe kommt; aufräumen beim Verlassen.
-  useEffect(() => {
-    if (modus === "flach" || !canvas.current || !wurzel.current) return;
-    let weg = false;
-    let stoppSicht = () => {};
-    let stoppNah = () => {};
-    const laden = async () => {
-      try {
-        const { etappenSzeneBauen } = await import("./etappen-szene");
-        if (weg || !canvas.current) return;
-        const s = await etappenSzeneBauen(canvas.current, () => plaetze.current, { sprache, ruhig: ruhigGewuenscht() });
-        if (weg) { s.dispose(); return; }
-        szene.current = s;
-        setModus("3d");
-        let erstesMal = true;
-        stoppSicht = beobachteSichtbar(wurzel.current!, (an) => {
-          if (an && erstesMal) { erstesMal = false; s.auftritt(); }
-          s.takt(an);
-        });
-      } catch {
-        if (!weg) setModus("flach");
-      }
-    };
-    if (typeof IntersectionObserver === "undefined") void laden();
-    else {
-      const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); void laden(); } }, { rootMargin: "800px 0px" });
-      io.observe(wurzel.current);
-      stoppNah = () => io.disconnect();
+  useEffect(() => () => window.clearTimeout(gehtUhr.current), []);
+
+  // Begriff-Erklärungen in einer offenen Klappe dürfen über ihren Rand hinaus — aber erst, wenn das Aufklappen fertig
+  // ist (vorher schneidet overflow: hidden die Höhe zu). Beim Zuklappen wird sofort wieder abgeschnitten, vor dem Bild.
+  useLayoutEffect(() => {
+    const uhren: number[] = [];
+    klappen.current.forEach((el, i) => {
+      if (!el) return;
+      if (!offen.includes(i)) { el.removeAttribute("data-fertig"); return; }
+      if (el.hasAttribute("data-fertig")) return;
+      uhren.push(window.setTimeout(() => el.setAttribute("data-fertig", ""), ruhigGewuenscht() ? 0 : AUFKLAPPEN_MS));
+    });
+    return () => uhren.forEach((u) => window.clearTimeout(u));
+  }, [offen]);
+
+  const umschalten = (i: number) => {
+    const war = offen.includes(i);
+    window.clearTimeout(gehtUhr.current);
+    if (!breit) {
+      setGeht(null);
+      setOffen((o) => (war ? o.filter((x) => x !== i) : [...o, i]));
+      return;
     }
-    return () => { weg = true; stoppNah(); stoppSicht(); szene.current?.dispose(); szene.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sprache]);
-
-  // Blass nur am Handy (dort wählt man oben ein Paket); am Rechner zeigt jede Tafel ihren eigenen Umfang.
-  useEffect(() => {
-    etappen.forEach((_, i) => szene.current?.aktiv(i, !handy || i < bis));
-  }, [bis, handy, modus, etappen.length]);
-
-  // Handy: welche Kachel steht vorn (für die Punkte), und ohne Dauerlauf neu zeichnen.
-  useEffect(() => {
-    const r = reihe.current;
-    if (!r) return;
-    let rahmen = 0;
-    const bei = () => {
-      cancelAnimationFrame(rahmen);
-      rahmen = requestAnimationFrame(() => {
-        const kinder = Array.from(r.children) as HTMLElement[];
-        const mitte = r.scrollLeft + r.clientWidth / 2;
-        let best = 0, abstand = Infinity;
-        kinder.forEach((k, i) => { const d = Math.abs(k.offsetLeft + k.offsetWidth / 2 - mitte); if (d < abstand) { abstand = d; best = i; } });
-        setAktuell(best);
-        szene.current?.zeichnen();
-      });
-    };
-    r.addEventListener("scroll", bei, { passive: true });
-    return () => { r.removeEventListener("scroll", bei); cancelAnimationFrame(rahmen); };
-  }, []);
-
-  const fein = typeof window !== "undefined" && !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
-  const zeiger = (i: number) => (e: React.PointerEvent<HTMLElement>) => {
-    if (!fein) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    szene.current?.zeiger(i, [((e.clientX - r.left) / r.width) * 2 - 1, ((e.clientY - r.top) / r.height) * 2 - 1]);
+    const vorher = offen[0];
+    const wechsel = !war && vorher !== undefined && vorher !== i;
+    setOffen(war ? [] : [i]);
+    setGeht(wechsel ? vorher : null);
+    if (wechsel) gehtUhr.current = window.setTimeout(() => setGeht(null), 1100);
   };
-  const springen = (i: number) => {
-    const r = reihe.current, k = r?.children[i] as HTMLElement | undefined;
-    if (r && k) r.scrollTo({ left: k.offsetLeft - (r.clientWidth - k.offsetWidth) / 2, behavior: ruhigGewuenscht() ? "auto" : "smooth" });
+
+  /** Ein Klick irgendwo auf die Karte klappt — außer auf eigene Knöpfe (Mehr, Begriffe) und beim Markieren von Text. */
+  const kartenKlick = (i: number) => (e: React.MouseEvent<HTMLElement>) => {
+    if (e.detail > 1) return;
+    if ((e.target as Element).closest("a,button,input,select,textarea,label,[role='tooltip'],.fg-begriff-rahmen")) return;
+    if (window.getSelection && !window.getSelection()?.isCollapsed) return;
+    umschalten(i);
   };
+
+  const teamKnopf = `${kennung}-team-knopf`;
+  const teamTitel = `${kennung}-team-titel`;
+  const teamListe = `${kennung}-team-liste`;
 
   return (
-    <div ref={wurzel} id={id} className={`fg-eb${modus === "3d" ? " mit-3d" : ""}${modus === "flach" ? " flach" : ""}`} role="group" aria-label={label} style={{ scrollMarginTop: 96 }}>
-      <div className="fg-eb-flaeche">
-        <div className="fg-eb-reihe" ref={reihe}>
-          {etappen.map((e, i) => {
-            const an = !handy || i < bis;
-            return (
-              <article key={e.titel} className={`fg-eb-kachel${an ? "" : " aus"}`} style={{ "--i": i } as React.CSSProperties}
-                onPointerMove={zeiger(i)} onPointerLeave={() => szene.current?.zeiger(i, null)}>
-                <div className="fg-eb-buehne" ref={(el) => { plaetze.current[i] = el; }}>
-                  <span className="fg-eb-nr" aria-hidden="true">{ROEMISCH[i]}</span>
-                  {e.institut && <span className="fg-eb-institut">{stempel}</span>}
-                  {modus === "flach" && <span className="fg-eb-ersatz" aria-hidden="true">{ROEMISCH[i]}</span>}
-                </div>
-                <div className="fg-eb-text">
+    <div ref={wurzel} id={id} className={`fg-eb${aufgetreten ? " aufgetreten" : ""}`} role="group" aria-label={label} data-fiaon="etappen" style={{ scrollMarginTop: 96 }}>
+      <div className={`fg-eb-reihe${breit && offen.length ? " mit-klappe" : ""}`}>
+        {etappen.map((e, i) => {
+          const auf = offen.includes(i);
+          const an = !handy || i < bis;
+          const titelId = `${kennung}-titel-${i}`;
+          const knopfId = `${kennung}-knopf-${i}`;
+          const klappeId = `${kennung}-klappe-${i}`;
+          return (
+            <div key={e.titel} className={`fg-eb-etappe${an ? "" : " aus"}${auf ? " auf" : ""}`} style={{ "--i": i, "--spalte": i + 1 } as React.CSSProperties}>
+              <div className="fg-eb-spur" aria-hidden="true"><span className="fg-eb-knoten">{ROEMISCH[i]}</span></div>
+              <div className="fg-eb-huelle">
+                <div className="fg-eb-karte" onClick={kartenKlick(i)}>
                   <span className={`fg-eb-ab${i < 2 ? " jedes" : ""}`}>{e.abzeichen}</span>
-                  <h3 className="fg-eb-titel">{e.titelInhalt ?? e.titel}</h3>
+                  <h3 className="fg-eb-titel" id={titelId}>{e.titelInhalt ?? e.titel}</h3>
                   <p className="fg-eb-kurz">{e.kurz}</p>
-                  <ul className="fg-eb-leute">{e.leute.map((l) => <li key={l}>{l}</li>)}</ul>
-                  <details className="fg-eb-mehr">
-                    <summary>{ablauf}</summary>
-                    <b>{e.dauer}</b>
-                    <p>{e.text}</p>
-                  </details>
+                  <div className="fg-eb-fuss">
+                    {e.institut && <span className="fg-eb-institut">{stempel}</span>}
+                    <button type="button" id={knopfId} className="fg-eb-mehr" aria-expanded={auf} aria-controls={klappeId}
+                      aria-labelledby={`${knopfId} ${titelId}`} onClick={() => umschalten(i)}>
+                      <Wort auf={auf} mehr={mehr} weniger={weniger} />
+                      <span className="fg-eb-mehr-kreis"><Winkel /></span>
+                    </button>
+                  </div>
                 </div>
-              </article>
-            );
-          })}
-        </div>
-        <canvas ref={canvas} className="fg-eb-leinwand" aria-hidden="true" />
-      </div>
-      <div className="fg-eb-punkte" aria-hidden="true">
-        {etappen.map((e, i) => <button key={e.titel} type="button" tabIndex={-1} className={i === aktuell ? "an" : undefined} onClick={() => springen(i)} />)}
+                <div ref={(el) => { klappen.current[i] = el; }} id={klappeId} data-fiaon="etappe-klappe"
+                  className={`fg-eb-klappe${auf ? " auf" : ""}${geht === i ? " geht" : ""}`}>
+                  <div className="fg-eb-klappe-innen">
+                    <div className="fg-eb-klappe-inhalt">
+                      <div className="fg-eb-ablauf">
+                        <span className="fg-eb-ablauf-titel">{ablauf}</span>
+                        <b className="fg-eb-dauer">{e.dauer}</b>
+                        <p className="fg-eb-text">{e.text}</p>
+                      </div>
+                      <ul className="fg-eb-leute">{e.leute.map((l) => <li key={l}>{l}</li>)}</ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="fg-eb-team">
-        <div className="fg-eb-team-kopf"><b>{team.titel}</b><span>{team.sub}</span></div>
-        <ul className="fg-eb-team-liste">
-          {team.liste.map((x) => (
-            <li key={x.name}><b>{x.name}</b><span>{x.was}{x.zusatz ? <em> · {x.zusatz}</em> : null}</span></li>
-          ))}
-        </ul>
-        <p className="fg-eb-team-satz">{team.satz}</p>
+      <div className={`fg-eb-team${teamAuf ? " auf" : ""}`} data-fiaon="team-band"
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget && e.animationName === "fg-eb-rein") setAufgetreten(true); }}>
+        <div className="fg-eb-team-kopf">
+          <b id={teamTitel}>{team.titel}</b>
+          <span>{team.sub}</span>
+          <button type="button" id={teamKnopf} className="fg-eb-team-mehr" aria-expanded={teamAuf} aria-controls={teamListe}
+            aria-labelledby={`${teamKnopf} ${teamTitel}`} onClick={() => setTeamAuf((a) => !a)}>
+            <Wort auf={teamAuf} mehr={mehr} weniger={weniger} /><Winkel />
+          </button>
+        </div>
+        <div className="fg-eb-team-rumpf">
+          <ul className="fg-eb-team-liste" id={teamListe}>
+            {team.liste.map((x) => (
+              <li key={x.name}>
+                <b>{x.name}{x.zusatz ? <em> · {x.zusatz}</em> : null}</b>
+                <span className="fg-eb-team-was"><span>{x.was}</span></span>
+              </li>
+            ))}
+          </ul>
+          <p className="fg-eb-team-satz">{team.satz}</p>
+        </div>
       </div>
     </div>
   );

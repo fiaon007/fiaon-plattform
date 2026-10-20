@@ -123,6 +123,9 @@ const de = {
     ["Partner-Anwalt", "Partner-Steuerberater", "Team vor Ort mit Vorrang"],
   ],
   wegAblauf: "Ablauf und Dauer",
+  // 20.10.2026 (E-387 ohne 3D): Ablauf, Dauer und wer dabei ist klappen je Karte auf — ebenso die Aufgaben im Team-Band.
+  wegMehr: "Mehr",
+  wegWeniger: "Weniger",
   teamTitel: "Ihr Team im Festpreis",
   teamSub: "Alle Honorare für die Leistungen Ihres Pakets inklusive",
   team: [
@@ -389,6 +392,8 @@ const en: typeof de = {
     ["Partner lawyer", "Partner tax adviser", "Team on the ground, with priority"],
   ],
   wegAblauf: "Process and timing",
+  wegMehr: "More",
+  wegWeniger: "Less",
   teamTitel: "Your team in the fixed price",
   teamSub: "All fees for the services in your package included",
   team: [

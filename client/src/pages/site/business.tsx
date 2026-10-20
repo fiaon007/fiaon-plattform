@@ -338,8 +338,10 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
               <div><span className="fg-auge">{t.paketeAuge}</span><h2 className="fg-h2">{t.paketeH2}</h2></div>
               <p className="fg-lead">{mitBegriffen(t.paketeLead, [begriff("kapitalrahmen")])}</p>
             </div>
-            {/* E-387 (16.10.2026): die vier Bühnen in 3D statt der Wegleiste — Pakettafeln darunter unverändert. */}
-            <EtappenBuehnen id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} ablauf={t.wegAblauf} sprache={s}
+            {/* E-387 (16.10.2026) statt der Wegleiste; seit 20.10.2026 ohne 3D: vier ruhige Karten an der Linie I–IV, Ablauf und
+                Dauer hinter „Mehr“ (Justin: „cleaner … ausklappbare Karten“). Pakettafeln darunter unverändert. */}
+            <EtappenBuehnen id="ablauf" label={t.wegLabel} stempel={t.stempelInstitut} bis={etappenBis(mobilIndex)} ablauf={t.wegAblauf}
+              mehr={t.wegMehr} weniger={t.wegWeniger}
               etappen={t.weg.map((w, i) => ({
                 titel: w.titel,
                 titelInhalt: mitBegriffen(w.titel, [begriff("kartenleiter")]),

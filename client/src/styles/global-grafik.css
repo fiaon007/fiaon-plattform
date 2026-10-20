@@ -822,97 +822,240 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DIE VIER BÜHNEN ÜBER DEN PAKETTAFELN (16.10.2026, E-387) — EtappenBuehnen.tsx
-   Helle Kacheln mit 3D-Objekt (ein Canvas über allen, etappen-szene.ts), ohne
-   Zeichen; darunter das Navy-Band „Ihr Team im Festpreis“. Rechner vier Spalten,
-   721–1120 px zwei, Handy seitlich wischen (scroll-snap) mit Punkten.
+   DIE VIER ETAPPEN ÜBER DEN PAKETTAFELN (E-387, neu gebaut 20.10.2026) — EtappenBuehnen.tsx
+   Justin: „Entferne die 3D Projekte … Mach es cleaner, mit Animationen und mit ausklappbaren
+   Karten“. Vier ruhige Karten an einer feinen Linie I–IV; Ablauf, Dauer und wer dabei ist
+   stehen in der Klappe. Kasten, Hub und Lichtkante wie die Pakettafeln (.fg-tarif).
+   Ab 1024 px EIN Raster: Reihe 1 Linie mit Knoten, Reihe 2 Karten (gleich hoch), Reihe 3 EINE
+   Klappe über die volle Breite (die Hüllen sind dort display: contents). Bis 1023 px: Karten
+   untereinander, die Linie läuft links senkrecht, jede Karte klappt in sich auf.
+   Darunter das Navy-Band „Ihr Team im Festpreis“ (Namen sichtbar, Aufgaben klappen auf).
+   Bewegung nur über transform, opacity und grid-template-rows — nichts verschiebt die Seite.
    ═══════════════════════════════════════════════════════════════════════════ */
-.fg-eb{margin-top:48px}
-.fg-eb-flaeche{position:relative}
-.fg-eb-reihe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
-.fg-eb-leinwand{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;display:block}
-.fg-eb-kachel{position:relative;display:grid;grid-template-rows:286px auto;min-width:0;border-radius:26px;
-  background:linear-gradient(180deg,#f6f9ff 0%,#fff 62%);border:1px solid var(--linie);
-  box-shadow:0 1px 2px rgba(29,78,216,.04),0 22px 44px -26px rgba(29,78,216,.28);
-  transition:opacity .6s var(--fg-ease),transform .7s var(--fg-ease),box-shadow .6s var(--fg-ease),border-color .6s var(--fg-ease)}
-.fg-eb-kachel::before{content:"";position:absolute;left:50%;top:196px;width:74%;height:70px;transform:translateX(-50%);border-radius:50%;
-  background:radial-gradient(closest-side,rgba(40,141,250,.16),rgba(40,141,250,0));pointer-events:none}
-@media(hover:hover) and (pointer:fine){
-  .fg-eb-kachel:hover{transform:translateY(-4px);border-color:#d3def0;box-shadow:0 1px 2px rgba(29,78,216,.05),0 30px 56px -26px rgba(29,78,216,.36)}
-}
-.fg-eb-buehne{position:relative}
-.fg-eb-nr{position:absolute;left:24px;top:20px;font:300 24px/1 var(--serif);color:var(--blau)}
-.fg-eb-institut{position:absolute;right:20px;top:22px;max-width:52%;text-align:right;font-size:10.5px;line-height:1.35;letter-spacing:.04em;color:var(--leise)}
-.fg-eb-ersatz{position:absolute;inset:0;display:grid;place-items:center;font:200 104px/1 var(--serif);color:rgba(29,78,216,.16)}
-.fg-eb-text{display:grid;gap:10px;align-content:start;padding:4px 24px 26px}
-.fg-eb-ab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--blau)}
-.fg-eb-ab.jedes{color:var(--leise)}
-.fg-eb-titel{font:400 21px/1.2 var(--serif);letter-spacing:-.01em;color:var(--tinte)}
-.fg-eb-kurz{font-size:14px;line-height:1.55;color:var(--text)}
-.fg-eb-leute{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
-.fg-eb-leute li{padding:7px 11px;border-radius:999px;background:var(--blau-hell);border:1px solid rgba(29,78,216,.12);font-size:12px;line-height:1.1;color:var(--navy)}
-.fg-eb-mehr{margin-top:2px}
-.fg-eb-mehr summary{display:inline-flex;align-items:center;gap:8px;cursor:pointer;list-style:none;font-size:12.5px;color:var(--leise);padding:4px 0}
-.fg-eb-mehr summary::-webkit-details-marker{display:none}
-.fg-eb-mehr summary::after{content:"";width:7px;height:7px;border-right:1.4px solid currentColor;border-bottom:1.4px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .3s var(--fg-ease)}
-.fg-eb-mehr[open] summary::after{transform:translateY(1px) rotate(-135deg)}
-.fg-eb-mehr b{display:block;margin-top:6px;font-weight:500;font-size:12.5px;color:var(--tinte)}
-.fg-eb-mehr p{margin-top:4px;font-size:12.5px;line-height:1.55;color:var(--leise)}
-.fg-eb-punkte{display:none}
+.fg-eb{margin-top:52px}
+.fg-eb-reihe{display:grid;position:relative}
 
-/* Das Band: wer in jedem Paket mitarbeitet. */
-.fg-eb-team{position:relative;overflow:hidden;isolation:isolate;margin-top:22px;display:grid;grid-template-columns:minmax(210px,.85fr) minmax(0,3fr);gap:20px 40px;align-items:start;
-  padding:30px 32px;border-radius:26px;background:linear-gradient(118deg,var(--navy-2) 0%,var(--navy) 58%,#1b3c7e 100%);color:#fff;
+/* Knoten der Linie: die römische Ziffer im hellen Glaskreis. */
+.fg-eb-spur{position:relative;min-width:0}
+.fg-eb-knoten{position:absolute;z-index:1;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;
+  font:400 15px/1 var(--serif);color:var(--blau);background:linear-gradient(180deg,#fff 0%,#f2f6fe 100%);border:1px solid #d3def0;
+  box-shadow:0 6px 14px -8px rgba(29,78,216,.45),inset 0 1px 0 #fff;
+  transition:background .4s var(--fg-ease),color .4s var(--fg-ease),border-color .4s var(--fg-ease),box-shadow .4s var(--fg-ease)}
+/* Die Linie zum nächsten Knoten — von Rand zu Rand, nie über einen Knoten: heller Grund (::before), darüber die blaue
+   Linie (::after), die sich beim Hineinscrollen einmal von I nach IV zeichnet. */
+.fg-eb-etappe:not(:last-child) .fg-eb-spur::before,
+.fg-eb-etappe:not(:last-child) .fg-eb-spur::after{content:"";position:absolute;border-radius:2px;pointer-events:none}
+.fg-eb-etappe:not(:last-child) .fg-eb-spur::before{background:rgba(29,78,216,.13)}
+.fg-eb-etappe:not(:last-child) .fg-eb-spur::after{background:linear-gradient(90deg,#1d4ed8,#288dfa);box-shadow:0 0 10px rgba(40,141,250,.35)}
+
+/* Die Karte: Abzeichen, Titel, ein Satz, „Hier entscheidet das Institut“, unten „Mehr“. */
+.fg-eb-karte{position:relative;display:flex;flex-direction:column;gap:10px;min-width:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fg-eb-ab{font-size:10.5px;font-weight:500;line-height:1.3;letter-spacing:.16em;text-transform:uppercase;color:var(--blau)}
+.fg-eb-ab.jedes{color:var(--leise)}
+.fg-eb-titel{font:400 21px/1.2 var(--serif);letter-spacing:-.01em;color:var(--tinte);text-wrap:balance}
+.fg-eb-kurz{font-size:14px;line-height:1.55;color:var(--text)}
+.fg-eb-fuss{display:grid;justify-items:start;gap:14px;margin-top:auto;padding-top:6px}
+.fg-eb-institut{display:inline-flex;align-items:center;gap:8px;padding:5px 11px 5px 9px;border-radius:999px;background:#f3f7fe;border:1px solid #dde6f4;
+  font-size:11px;line-height:1.25;letter-spacing:.01em;color:var(--navy)}
+.fg-eb-institut::before{content:"";flex:0 0 auto;width:5px;height:5px;border-radius:50%;background:#288dfa;box-shadow:0 0 0 3px rgba(40,141,250,.16)}
+.fg-eb-mehr{appearance:none;-webkit-appearance:none;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:12px 0 14px;
+  background:none;border:0;border-top:1px solid var(--linie);border-radius:0;cursor:pointer;font:500 12.5px/1.2 var(--sans);letter-spacing:.02em;color:var(--navy);text-align:left}
+.fg-eb-mehr-kreis{display:grid;place-items:center;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:1px solid #d6e0f0;background:#fff;color:var(--blau);
+  transition:transform .45s var(--fg-ease),background-color .3s var(--fg-ease),border-color .3s var(--fg-ease),color .3s var(--fg-ease)}
+.fg-eb-winkel{display:block}
+/* „Mehr“ und „Weniger“ übereinander — der Knopf behält seine Breite, beim Aufklappen springt nichts um. */
+.fg-eb-wort{display:inline-grid}
+.fg-eb-wort>span{grid-area:1/1}
+.fg-eb-wort>.weg{visibility:hidden}
+.fg-eb-team-mehr .fg-eb-wort{justify-items:center}
+.fg-eb-etappe.auf .fg-eb-mehr-kreis{transform:rotate(180deg);background:var(--blau);border-color:var(--blau);color:#fff}
+.fg-eb-etappe.auf .fg-eb-knoten{background:linear-gradient(135deg,#1d4ed8 0%,#288dfa 100%);border-color:transparent;color:#fff;
+  box-shadow:0 0 0 5px rgba(40,141,250,.14),0 10px 20px -10px rgba(29,78,216,.7)}
+
+/* Die Klappe: Höhe 0fr → 1fr (kein Messen, kein Springen); der Inhalt blendet etwas später ein. */
+.fg-eb-klappe{display:grid;grid-template-rows:0fr;min-width:0;visibility:hidden;
+  transition:grid-template-rows .5s var(--fg-ease),visibility 0s linear .5s}
+.fg-eb-klappe:not(.auf){pointer-events:none}
+.fg-eb-klappe.auf{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .5s var(--fg-ease),visibility 0s}
+/* Wechsel am Rechner: die bisherige Klappe bleibt stehen, bis die neue offen ist — so wächst oder schrumpft die eine
+   Klappe in einem Zug, statt zwischendurch einzuknicken. Ihr Inhalt ist da schon ausgeblendet. */
+.fg-eb-klappe.geht{transition:grid-template-rows .45s var(--fg-ease) .45s,visibility 0s linear .9s}
+.fg-eb-klappe-innen{min-height:0;overflow:hidden;overflow:clip}
+.fg-eb-klappe[data-fertig] .fg-eb-klappe-innen{overflow:visible}
+.fg-eb-klappe-inhalt{opacity:0;transform:translateY(-6px);transition:opacity .18s ease,transform .45s var(--fg-ease)}
+.fg-eb-klappe.auf .fg-eb-klappe-inhalt{opacity:1;transform:none;transition:opacity .35s ease .14s,transform .5s var(--fg-ease) .1s}
+.fg-eb-ablauf{display:grid;gap:6px;align-content:start;min-width:0}
+.fg-eb-ablauf-titel{font-size:10.5px;font-weight:500;line-height:1.3;letter-spacing:.16em;text-transform:uppercase;color:var(--leise)}
+.fg-eb-dauer{font-weight:500;font-size:14px;line-height:1.4;color:var(--tinte)}
+.fg-eb-text{margin-top:2px;font-size:13.5px;line-height:1.65;color:var(--text);max-width:68ch}
+.fg-eb-leute{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-content:start;gap:6px}
+.fg-eb-leute li{padding:7px 11px;border-radius:999px;background:var(--blau-hell);border:1px solid rgba(29,78,216,.12);font-size:12px;line-height:1.1;color:var(--navy)}
+
+/* ── Rechner: ein Raster, eine Klappe ── */
+@media(min-width:1024px){
+  .fg-eb-reihe{grid-template-columns:repeat(4,minmax(0,1fr));column-gap:20px;row-gap:14px}
+  .fg-eb-etappe,.fg-eb-huelle{display:contents}
+  .fg-eb-spur{grid-row:1;grid-column:var(--spalte);height:34px}
+  .fg-eb-knoten{left:22px;top:0}
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::before,
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::after{left:62px;top:16.25px;width:calc(100% - 26px);height:1.5px}
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::after{transform-origin:left center}
+  .fg-eb-karte{grid-row:2;grid-column:var(--spalte);z-index:2;padding:22px 22px 0;border-radius:18px;
+    background:linear-gradient(180deg,#f8fbff 0%,#fff 58%);border:1px solid var(--linie);
+    box-shadow:0 1px 2px rgba(12,26,46,.04),0 12px 32px rgba(18,40,74,.05);
+    transition:transform .35s var(--fg-ease),box-shadow .35s var(--fg-ease),border-color .35s var(--fg-ease)}
+  .fg-eb-karte:hover,.fg-eb-karte:focus-within{z-index:3}
+  .fg-eb-karte::before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:2px;border-radius:2px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(40,141,250,0),#288dfa,rgba(40,141,250,0));opacity:0;transition:opacity .35s var(--fg-ease)}
+  .fg-eb-etappe.auf .fg-eb-karte{border-color:rgba(40,141,250,.5);box-shadow:0 1px 2px rgba(12,26,46,.04),0 18px 40px -18px rgba(29,78,216,.35)}
+  .fg-eb-etappe.auf .fg-eb-karte::before{opacity:1}
+  /* Der Zipfel: zeigt von der Klappe auf die offene Karte (über der Linie der Klappe, gleiche Farbe). */
+  .fg-eb-karte::after{content:"";position:absolute;left:32px;top:calc(100% + 9px);width:12px;height:12px;pointer-events:none;
+    background:#fbfdff;border-left:1px solid #d6e1f3;border-top:1px solid #d6e1f3;border-top-left-radius:3px;
+    opacity:0;transform:rotate(45deg) scale(.4);transition:opacity .2s ease,transform .35s var(--fg-ease)}
+  .fg-eb-etappe.auf .fg-eb-karte::after{opacity:1;transform:rotate(45deg) scale(1);transition:opacity .25s ease .12s,transform .4s var(--fg-ease) .12s}
+  /* EINE Klappe für alle vier: der Kasten ist das ::after des Rasters, so hoch wie Reihe 3. */
+  .fg-eb-klappe{grid-row:3;grid-column:1/-1;align-self:start;position:relative;z-index:1}
+  .fg-eb-reihe::after{content:"";grid-row:3;grid-column:1/-1;z-index:0;border-radius:18px;pointer-events:none;
+    background:linear-gradient(180deg,#fbfdff 0%,#f3f7fe 100%);border:1px solid #d6e1f3;
+    box-shadow:inset 0 1px 0 #fff,0 22px 46px -30px rgba(29,78,216,.4);opacity:0;transition:opacity .25s ease .3s}
+  .fg-eb-reihe.mit-klappe::after{opacity:1;transition:opacity .2s ease}
+  .fg-eb-klappe-inhalt{display:grid;grid-template-columns:minmax(0,1fr) minmax(200px,.45fr);gap:16px 48px;padding:26px 30px 28px}
+  .fg-eb-leute{padding-top:20px}
+}
+@media(min-width:1024px) and (hover:hover) and (pointer:fine){
+  .fg-eb-etappe:not(.auf) .fg-eb-karte:hover{transform:translateY(-4px);border-color:#c3cfe0;box-shadow:0 2px 4px rgba(12,26,46,.05),0 26px 60px rgba(18,40,74,.12)}
+  .fg-eb-karte:hover::before{opacity:1}
+  .fg-eb-etappe:not(.auf):hover .fg-eb-knoten{border-color:#288dfa;box-shadow:0 0 0 5px rgba(40,141,250,.12),0 6px 14px -8px rgba(29,78,216,.45)}
+}
+
+/* ── Bis 1023 px: untereinander, Linie links senkrecht, jede Karte klappt in sich auf ── */
+@media(max-width:1023px){
+  .fg-eb-reihe{grid-template-columns:minmax(0,1fr);row-gap:12px}
+  .fg-eb-etappe{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);column-gap:14px}
+  .fg-eb-etappe.auf{z-index:2}
+  .fg-eb-etappe:focus-within{z-index:3}
+  .fg-eb-spur{grid-column:1;grid-row:1}
+  .fg-eb-knoten{left:0;top:16px}
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::before,
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::after{left:16.25px;top:56px;width:1.5px;height:calc(100% - 34px)}
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::after{transform-origin:center top;background:linear-gradient(180deg,#1d4ed8,#288dfa)}
+  .fg-eb-huelle{grid-column:2;grid-row:1;position:relative;min-width:0;border-radius:18px;
+    background:linear-gradient(180deg,#f8fbff 0%,#fff 58%);border:1px solid var(--linie);
+    box-shadow:0 1px 2px rgba(12,26,46,.04),0 12px 32px rgba(18,40,74,.05);
+    transition:transform .35s var(--fg-ease),box-shadow .35s var(--fg-ease),border-color .35s var(--fg-ease),opacity .4s var(--fg-ease)}
+  .fg-eb-huelle::before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:2px;border-radius:2px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(40,141,250,0),#288dfa,rgba(40,141,250,0));opacity:0;transition:opacity .35s var(--fg-ease)}
+  .fg-eb-etappe.auf .fg-eb-huelle{border-color:rgba(40,141,250,.5);box-shadow:0 1px 2px rgba(12,26,46,.04),0 18px 40px -18px rgba(29,78,216,.32)}
+  .fg-eb-etappe.auf .fg-eb-huelle::before{opacity:1}
+  .fg-eb-karte{padding:18px 20px 0;gap:8px}
+  .fg-eb-fuss{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:4px 0 14px}
+  .fg-eb-mehr{width:auto;margin-left:auto;padding:4px 0;border-top:0;gap:10px}
+  .fg-eb-mehr .fg-eb-wort{justify-items:end}
+  .fg-eb-klappe-inhalt{display:grid;gap:14px;margin:0 20px;padding:16px 0 20px;border-top:1px solid var(--linie)}
+}
+@media(max-width:1023px) and (hover:hover) and (pointer:fine){
+  .fg-eb-etappe:not(.auf) .fg-eb-huelle:hover{transform:translateY(-2px);border-color:#c3cfe0;box-shadow:0 2px 4px rgba(12,26,46,.05),0 22px 48px rgba(18,40,74,.11)}
+  .fg-eb-huelle:hover::before{opacity:1}
+  .fg-eb-etappe:not(.auf):hover .fg-eb-knoten{border-color:#288dfa;box-shadow:0 0 0 5px rgba(40,141,250,.12),0 6px 14px -8px rgba(29,78,216,.45)}
+}
+@media(max-width:720px){
+  .fg-eb{margin-top:36px}
+  .fg-eb-etappe{grid-template-columns:30px minmax(0,1fr);column-gap:10px}
+  .fg-eb-knoten{width:30px;height:30px;top:15px;font-size:13.5px}
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::before,
+  .fg-eb-etappe:not(:last-child) .fg-eb-spur::after{left:14.25px;top:51px;height:calc(100% - 30px)}
+  .fg-eb-titel{font-size:20px}
+  .fg-eb-karte{padding:16px 14px 0}
+  .fg-eb-fuss{padding-bottom:12px;gap:8px}
+  .fg-eb-mehr{gap:8px}
+  .fg-eb-mehr-kreis{width:26px;height:26px}
+  /* Am Handy ohne Pille — so passen Hinweis und „Mehr“ in eine Zeile (unter 375 px bricht „Mehr“ sauber um). */
+  .fg-eb-institut{padding:0;background:none;border:0;gap:6px;font-size:10.5px}
+  .fg-eb-klappe-inhalt{margin:0 14px;padding:14px 0 18px}
+  /* Etappen außerhalb des gewählten Pakets blass — offen oder angetippt wieder voll lesbar. */
+  .fg-eb-etappe.aus .fg-eb-huelle,.fg-eb-etappe.aus .fg-eb-knoten{opacity:.6}
+  .fg-eb-etappe.aus.auf .fg-eb-huelle,.fg-eb-etappe.aus:focus-within .fg-eb-huelle,.fg-eb-etappe.aus.auf .fg-eb-knoten{opacity:1}
+  .fg-eb-etappe:has(+ .fg-eb-etappe.aus) .fg-eb-spur::after{opacity:.35}
+}
+
+/* ── Das Band: wer in jedem Paket mitarbeitet. Namen sichtbar, die Aufgaben klappen mit „Mehr“ auf. ── */
+.fg-eb-team{position:relative;overflow:hidden;overflow:clip;isolation:isolate;margin-top:24px;display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,3fr);gap:18px 40px;align-items:start;
+  padding:28px 32px;border-radius:18px;background:linear-gradient(118deg,var(--navy-2) 0%,var(--navy) 58%,#1b3c7e 100%);color:#fff;
   box-shadow:0 26px 54px -30px rgba(11,28,54,.6)}
 .fg-eb-team::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
   background:linear-gradient(100deg,transparent 35%,rgba(140,194,255,.13) 48%,transparent 61%);transform:translateX(-100%);animation:fg-eb-glanz 8s var(--fg-ease-io) 1.5s infinite}
 @keyframes fg-eb-glanz{45%,100%{transform:translateX(100%)}}
-.fg-eb-team-kopf b{display:block;font:300 26px/1.15 var(--serif);letter-spacing:-.01em}
-.fg-eb-team-kopf span{display:block;margin-top:8px;font-size:13px;line-height:1.45;color:#a9c6f5}
-.fg-eb-team-liste{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 24px}
-.fg-eb-team-liste li{padding-left:13px;border-left:1px solid rgba(140,194,255,.3);min-width:0}
-.fg-eb-team-liste b{display:block;font-weight:500;font-size:14px;line-height:1.3;color:#fff}
-.fg-eb-team-liste span{display:block;margin-top:3px;font-size:12.5px;line-height:1.4;color:#9fb5da}
-.fg-eb-team-liste em{font-style:normal;color:#cfe3ff}
-.fg-eb-team-satz{grid-column:2;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;line-height:1.55;color:#8ea6cf}
+.fg-eb-team-kopf{display:grid;justify-items:start;gap:8px;min-width:0}
+.fg-eb-team-kopf>b{display:block;font:300 25px/1.15 var(--serif);letter-spacing:-.01em}
+.fg-eb-team-kopf>span{display:block;font-size:13px;line-height:1.45;color:#a9c6f5}
+.fg-eb-team-mehr{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;gap:8px;margin:6px 0 0;padding:7px 12px 7px 14px;border-radius:999px;
+  border:1px solid rgba(140,194,255,.32);background:rgba(255,255,255,.04);font:500 12px/1.2 var(--sans);letter-spacing:.02em;color:#dbe8ff;cursor:pointer;
+  transition:background-color .3s var(--fg-ease),border-color .3s var(--fg-ease)}
+.fg-eb-team-mehr .fg-eb-winkel{transition:transform .45s var(--fg-ease)}
+.fg-eb-team.auf .fg-eb-team-mehr .fg-eb-winkel{transform:rotate(180deg)}
+.fg-eb-team .fg-eb-team-mehr:focus-visible{outline-color:#8cc2ff}
+.fg-eb-team-rumpf{display:grid;gap:16px;min-width:0}
+.fg-eb-team-liste{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 24px;min-width:0}
+.fg-eb-team-liste li{display:grid;align-content:start;padding-left:13px;border-left:1px solid rgba(140,194,255,.3);min-width:0}
+.fg-eb-team-liste b{display:block;font-weight:500;font-size:14px;line-height:1.35;color:#fff}
+.fg-eb-team-liste em{font-style:normal;font-weight:400;color:#cfe3ff}
+.fg-eb-team-was{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .45s var(--fg-ease),visibility 0s linear .45s}
+.fg-eb-team-was>span{min-height:0;overflow:hidden;overflow:clip;font-size:12.5px;line-height:1.45;color:#9fb5da;opacity:0;transition:opacity .18s ease}
+.fg-eb-team.auf .fg-eb-team-was{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .45s var(--fg-ease),visibility 0s}
+.fg-eb-team.auf .fg-eb-team-was>span{opacity:1;transition:opacity .35s ease .12s}
+.fg-eb-team-satz{padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;line-height:1.55;color:#8ea6cf}
+@media(hover:hover) and (pointer:fine){
+  .fg-eb-team-mehr:hover{background:rgba(255,255,255,.1);border-color:rgba(140,194,255,.6)}
+}
 .fg-eb~.fg-weg-lead{margin-top:14px}
 
-/* Auftritt einmal beim Hineinscrollen (bewegung.ts setzt data-an). */
-.fg-eb[data-an="0"] .fg-eb-kachel,.fg-eb[data-an="0"] .fg-eb-team{opacity:0}
-.fg-eb[data-an="1"] .fg-eb-kachel{animation:fg-eb-rein .9s var(--fg-ease) calc(var(--i,0) * 110ms) backwards}
-.fg-eb[data-an="1"] .fg-eb-team{animation:fg-eb-rein .9s var(--fg-ease) .45s backwards}
-@keyframes fg-eb-rein{from{opacity:0;transform:translateY(22px)}}
+/* Auftritt einmal beim Hineinscrollen (bewegung.ts setzt data-an): Knoten nacheinander, die Linie zeichnet sich von I
+   nach IV — jedes Stück erreicht den nächsten Knoten, wenn er erscheint —, die Karten gestaffelt, zuletzt das Band. */
+.fg-eb[data-an="0"] .fg-eb-knoten{opacity:0;transform:scale(.6)}
+.fg-eb[data-an="0"] .fg-eb-team{opacity:0}
+.fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-knoten{animation:fg-eb-knoten .6s var(--fg-ease) calc(var(--i,0) * 260ms) backwards}
+.fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-team{animation:fg-eb-rein .9s var(--fg-ease) .75s backwards}
+@keyframes fg-eb-knoten{from{opacity:0;transform:scale(.6)}}
+@keyframes fg-eb-rein{from{opacity:0;transform:translateY(18px)}}
+@keyframes fg-eb-linie-x{from{transform:scaleX(0)}}
+@keyframes fg-eb-linie-y{from{transform:scaleY(0)}}
+@media(min-width:1024px){
+  .fg-eb[data-an="0"] .fg-eb-karte{opacity:0}
+  .fg-eb[data-an="0"] .fg-eb-spur::after{transform:scaleX(0)}
+  .fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-karte{animation:fg-eb-rein .8s var(--fg-ease) calc(var(--i,0) * 110ms + 150ms) backwards}
+  .fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-spur::after{animation:fg-eb-linie-x .22s cubic-bezier(.4,0,.6,1) calc(var(--i,0) * 260ms + 50ms) backwards}
+}
+@media(max-width:1023px){
+  .fg-eb[data-an="0"] .fg-eb-huelle{opacity:0}
+  .fg-eb[data-an="0"] .fg-eb-spur::after{transform:scaleY(0)}
+  .fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-huelle{animation:fg-eb-rein .8s var(--fg-ease) calc(var(--i,0) * 110ms + 150ms) backwards}
+  .fg-eb[data-an="1"]:not(.aufgetreten) .fg-eb-spur::after{animation:fg-eb-linie-y .22s cubic-bezier(.4,0,.6,1) calc(var(--i,0) * 260ms + 50ms) backwards}
+}
 
-@media(min-width:721px) and (max-width:1120px){
-  .fg-eb-reihe{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+@media(max-width:1023px){
   .fg-eb-team{grid-template-columns:minmax(0,1fr)}
+  /* Kopf: Titel und „Mehr“ in einer Zeile, darunter der Satz. */
+  .fg-eb-team-kopf{grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:14px}
+  .fg-eb-team-kopf>b{grid-column:1;grid-row:1}
+  .fg-eb-team-kopf>span{grid-column:1/-1;grid-row:2}
+  .fg-eb-team-mehr{grid-column:2;grid-row:1;margin:0}
+}
+@media(min-width:721px) and (max-width:1023px){
   .fg-eb-team-liste{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .fg-eb-team-satz{grid-column:1}
 }
 @media(max-width:720px){
-  .fg-eb{margin-top:36px}
-  .fg-eb-flaeche{margin:0 -24px}
-  .fg-eb-reihe{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:84%;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;
-    scroll-snap-type:x mandatory;scroll-padding:0 24px;padding:6px 24px 10px;scrollbar-width:none}
-  .fg-eb-reihe::-webkit-scrollbar{display:none}
-  .fg-eb-kachel{scroll-snap-align:center;grid-template-rows:254px auto}
-  .fg-eb-kachel::before{top:170px}
-  .fg-eb-kachel.aus{opacity:.5}
-  .fg-eb-text{padding:2px 22px 24px}
-  .fg-eb-punkte{display:flex;justify-content:center;gap:2px;margin-top:8px}
-  .fg-eb-punkte button{width:26px;height:22px;padding:0;border:0;background:none;display:grid;place-items:center;cursor:pointer}
-  .fg-eb-punkte button::after{content:"";width:7px;height:7px;border-radius:4px;background:var(--linie-2);transition:width .35s var(--fg-ease),background .35s var(--fg-ease)}
-  .fg-eb-punkte button.an::after{width:20px;background:var(--navy)}
-  .fg-eb-team{grid-template-columns:minmax(0,1fr);padding:24px 22px;gap:18px;margin-top:18px}
-  .fg-eb-team-kopf b{font-size:23px}
-  .fg-eb-team-liste{grid-template-columns:minmax(0,1fr);gap:0}
-  .fg-eb-team-liste li{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr);gap:12px;align-items:baseline;padding:10px 0;border-left:0;border-top:1px solid rgba(140,194,255,.14)}
-  .fg-eb-team-liste li:first-child{border-top:0;padding-top:0}
+  .fg-eb-team{grid-template-columns:minmax(0,1fr);padding:22px 20px;gap:16px;margin-top:20px}
+  .fg-eb-team-kopf>b{font-size:22px}
+  .fg-eb-team-liste{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+  .fg-eb-team-liste li{padding-left:10px}
   .fg-eb-team-liste b{font-size:13px}
-  .fg-eb-team-liste span{margin-top:0;font-size:12px}
-  .fg-eb-team-satz{grid-column:1}
+  .fg-eb-team-was>span{font-size:12px}
+  .fg-eb-team-satz{padding-top:12px}
 }
+/* Weniger Bewegung: alles steht sofort im Endzustand — keine Übergänge, kein Hub, kein Glanz (AGENTS.md). */
 @media(prefers-reduced-motion:reduce){
-  .fg-eb-team::after{animation:none;display:none}
-  .fg-eb-kachel{transition:none}
+  .fg-eb,.fg-eb *,.fg-eb *::before,.fg-eb *::after{animation:none!important;transition:none!important}
+  .fg-eb .fg-eb-karte,.fg-eb .fg-eb-huelle{transform:none!important}
+  .fg-eb-team::after{display:none}
 }

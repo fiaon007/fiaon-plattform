@@ -1,0 +1,379 @@
+/* ═══ KI-Team › Aras — das Cockpit (20.10.2026) — Präfix .ar- ═══
+   Justin: „die gesamte Seite ist total unübersichtlich … UI VIEL übersichtlicher, cleaner“.
+   Regeln (justin-design-geschmack, justin-wenig-text-gefuehrt):
+   · EIN Glas je Seite: das Cockpit oben (.ar-cockpit) — alles andere matt (.ar-karte).
+   · Glasblau-Paar #288DFA / #1D4ED8 auf Navy, KEIN Gold, kein Orange. Farbe nur als kleiner Punkt (Ampel).
+   · Inter dünn, Zahlen tabellarisch (tabular-nums), viel Luft, ein Satz je Abschnitt.
+   · Ruhiger Grund (ChefShell stillerGrund → .cb-still), kein Foto hinter den Daten.
+   · Einblendungen nur „backwards“ (sonst schaltet der Füllmodus das Glas ab); „Bewegung reduzieren“ = alles still.
+   · Handy 375 px: nichts abgeschnitten, keine Querrolle, Tippziele ≥ 36 px.
+   Baut auf den Farben von chef-ki.css (.ki: --k-text, --k-linie, --k-licht …). */
+
+.ar { --ar-r: 16px; --ar-glas-kante: rgba(130, 180, 255, .24); --ar-matt: rgba(255, 255, 255, .032); --ar-matt-2: rgba(255, 255, 255, .055); font-variant-numeric: tabular-nums; }
+.ar .ki-kopf { margin: 2px 0 14px; align-items: center; }
+.ar .ki-kopf .ki-satz { margin-top: 2px; }
+
+/* ── Knöpfe ──────────────────────────────────────────────────────────────── */
+.ar-knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 7px 14px;
+  border-radius: 10px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .04); color: var(--k-text);
+  font: inherit; font-size: 13.5px; line-height: 1.25; white-space: nowrap; cursor: pointer; text-decoration: none;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.ar-knopf.klein { min-height: 32px; padding: 5px 11px; font-size: 12.5px; border-radius: 9px; }
+.ar-knopf.gross { min-height: 48px; padding: 11px 24px; font-size: 15.5px; border-radius: 12px; }
+.ar-knopf.haupt { background: linear-gradient(180deg, #3497FF, #1F7AE8); border-color: rgba(120, 180, 255, .55); color: #fff; box-shadow: 0 10px 24px -14px rgba(40, 141, 250, .9), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.ar-knopf.rot { color: var(--k-krit); border-color: rgba(240, 113, 120, .42); background: rgba(240, 113, 120, .05); }
+.ar-knopf.an { background: rgba(40, 141, 250, .16); border-color: rgba(40, 141, 250, .55); color: #fff; }
+.ar-knopf.still { color: var(--k-text-2); background: none; }
+.ar-knopf:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+a.ar-knopf:hover { text-decoration: none; }
+@media (hover: hover) {
+  .ar-knopf:not(:disabled):hover { border-color: rgba(125, 184, 255, .5); background: rgba(255, 255, 255, .07); }
+  .ar-knopf.haupt:not(:disabled):hover { background: linear-gradient(180deg, #44A0FF, #2584F0); }
+  .ar-knopf.rot:not(:disabled):hover { background: rgba(240, 113, 120, .1); border-color: rgba(240, 113, 120, .6); }
+}
+.ar-knopf-text { border: 0; background: none; padding: 2px 4px; color: var(--k-licht-text); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(140, 194, 255, .35); }
+.ar-rund { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .03); color: var(--k-text-2); cursor: pointer; flex: none; }
+.ar-rund:disabled { opacity: .35; cursor: not-allowed; }
+@media (hover: hover) { .ar-rund:not(:disabled):hover { color: #fff; border-color: rgba(125, 184, 255, .5); } }
+.ar-frage { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--k-text); padding: 2px 4px 2px 10px; border-radius: 10px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .04); }
+.ar-chip { min-height: 32px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--k-linie-2); background: none; color: var(--k-text-2); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ar-chip.an { border-color: rgba(40, 141, 250, .6); background: rgba(40, 141, 250, .16); color: #fff; }
+
+/* ── Punkte, Marken, Zahlen ──────────────────────────────────────────────── */
+.ar-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--k-text-3); display: inline-block; flex: none; }
+.ar-punkt.gut { background: var(--k-gut); box-shadow: 0 0 0 3px rgba(61, 214, 140, .14); }
+.ar-punkt.warn { background: var(--k-warn); box-shadow: 0 0 0 3px rgba(242, 182, 76, .14); }
+.ar-punkt.krit { background: var(--k-krit); box-shadow: 0 0 0 3px rgba(240, 113, 120, .15); }
+.ar-punkt.puls { animation: arPuls 1.6s ease-in-out infinite; }
+@keyframes arPuls { 0%, 100% { box-shadow: 0 0 0 3px rgba(61, 214, 140, .16); } 50% { box-shadow: 0 0 0 7px rgba(61, 214, 140, 0); } }
+.ar-marke { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--k-linie-2); font-size: 12px; color: var(--k-text-2); white-space: nowrap; }
+.ar-marke.leise { border-color: transparent; padding: 2px 4px; }
+.ar-marke.warn { color: #F6CE87; border-color: rgba(242, 182, 76, .3); }
+.ar-marke.krit { color: var(--k-krit); border-color: rgba(240, 113, 120, .35); }
+.ar-marke.gut { color: var(--k-gut); border-color: rgba(61, 214, 140, .3); }
+.ar-marke.daumen { border-color: transparent; padding: 2px; color: var(--k-text-2); }
+.ar-marke.daumen.runter { color: #F6A3A8; }
+.ar-marke.daumen.hoch { color: #8FE5BC; }
+.ar-anzahl { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 7px; border-radius: 999px; background: rgba(255, 255, 255, .09); font-size: 11.5px; color: var(--k-text-2); }
+.ar-leise { color: var(--k-text-3); font-size: 13px; }
+.ar-text { color: var(--k-text-2); font-size: 13.5px; line-height: 1.55; }
+.ar-fehler-text { color: var(--k-krit); font-size: 13px; }
+.ar-hinweis { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; font-size: 13px; color: #CFE3FF; background: rgba(40, 141, 250, .1); border: 1px solid rgba(40, 141, 250, .26); cursor: pointer; animation: arEin .3s ease-out backwards; }
+.ar-hinweis.rot { color: #F8B4B8; background: rgba(240, 113, 120, .08); border-color: rgba(240, 113, 120, .3); }
+@keyframes arEin { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.ar-zeile-lade { height: 14px; margin: 10px 0; border-radius: 7px; background: linear-gradient(90deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .09), rgba(255, 255, 255, .04)); background-size: 200% 100%; animation: arLade 1.4s linear infinite; }
+.ar-zeile-lade:nth-child(2) { width: 78%; } .ar-zeile-lade:nth-child(3) { width: 56%; }
+@keyframes arLade { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.ar-leer { padding: 22px 18px; border-radius: var(--ar-r); border: 1px dashed var(--k-linie-2); color: var(--k-text-2); font-size: 13.5px; text-align: center; display: grid; gap: 4px; justify-items: center; }
+.ar-leer b { color: var(--k-text); font-weight: 400; }
+
+/* ── DAS COCKPIT (das eine Glas) ─────────────────────────────────────────── */
+.ar-cockpit {
+  position: relative; min-width: 0; padding: 18px 22px 14px; border-radius: 20px; border: 1px solid var(--ar-glas-kante);
+  background: linear-gradient(180deg, rgba(40, 141, 250, .13) 0%, rgba(29, 78, 216, .07) 55%, rgba(11, 18, 32, .3) 100%), rgba(12, 22, 42, .5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09), 0 26px 60px -34px rgba(0, 0, 0, .85), 0 0 46px -30px rgba(40, 141, 250, .42);
+  -webkit-backdrop-filter: blur(16px) saturate(125%); backdrop-filter: blur(16px) saturate(125%);
+  animation: arEin .45s cubic-bezier(.2, .8, .2, 1) backwards;
+}
+.ar-cockpit::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(110% 70% at 8% -20%, rgba(255, 255, 255, .07), transparent 55%); }
+.ar-cockpit.lade { min-height: 92px; }
+.ar-cockpit-oben { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.ar-status { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.ar-status b { font-weight: 400; font-size: 19px; line-height: 1.3; color: #fff; letter-spacing: -.005em; }
+.ar-status .ar-punkt { width: 10px; height: 10px; }
+.ar-cockpit-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ar-cockpit-fakten { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; }
+.ar-fakt { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 4px 11px; border-radius: 999px; border: 1px solid rgba(148, 170, 210, .16); background: rgba(255, 255, 255, .025); color: var(--k-text-2); font: inherit; font-size: 12.5px; white-space: nowrap; }
+button.ar-fakt { cursor: pointer; }
+@media (hover: hover) { button.ar-fakt:hover { color: #fff; border-color: rgba(125, 184, 255, .45); } }
+.ar-balken { display: inline-block; width: 64px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.ar-balken i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--k-tiefe), var(--k-licht)); }
+.ar-balken i.voll { background: linear-gradient(90deg, #a04a4f, var(--k-krit)); }
+.ar-cockpit-leise { margin-top: 6px; color: var(--k-text-3); font-size: 13px; }
+.ar-cockpit-live { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(148, 170, 210, .12); }
+.ar-ruhig-zeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: var(--k-text-3); font-size: 13px; }
+.ar-strom { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.ar-strom .ar-punkt { width: 6px; height: 6px; box-shadow: none; }
+
+/* ── Live-Kasten: nur während eines Gesprächs ────────────────────────────── */
+.ar-cockpit.mit-live { border-color: rgba(120, 190, 255, .38); }
+.ar-live-liste { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; }
+.ar-live { min-width: 0; padding: 14px 16px 12px; border-radius: 16px; border: 1px solid rgba(120, 180, 255, .24); background: rgba(5, 11, 24, .5); display: grid; gap: 10px; animation: arEin .3s ease-out backwards; }
+.ar-live.endet { opacity: .6; }
+.ar-live-kopf { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; min-width: 0; }
+.ar-live-marke { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #9CCBFF; }
+.ar-live-marke i { width: 8px; height: 8px; border-radius: 50%; background: var(--k-licht); box-shadow: 0 0 0 0 rgba(40, 141, 250, .6); animation: arLive 1.4s ease-out infinite; }
+@keyframes arLive { 0% { box-shadow: 0 0 0 0 rgba(40, 141, 250, .6); } 100% { box-shadow: 0 0 0 9px rgba(40, 141, 250, 0); } }
+.ar-live-kopf b { font-weight: 400; font-size: 16px; color: #fff; }
+.ar-live-art { color: var(--k-text-2); font-size: 13px; }
+.ar-live-uhr { color: #fff; font-size: 14px; letter-spacing: .02em; }
+.ar-live-zustand { color: var(--k-text-3); font-size: 12.5px; }
+.ar-live-klingelt { color: var(--k-text-2); font-size: 13.5px; }
+.ar-live-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.ar-welle { display: inline-flex; align-items: center; gap: 3px; height: 22px; margin-left: auto; }
+.ar-welle i { width: 3px; height: 4px; border-radius: 2px; background: rgba(140, 194, 255, .5); }
+.ar-welle.aktiv i { animation: arWelle 1s ease-in-out infinite; background: rgba(140, 194, 255, .85); }
+.ar-welle.aktiv i:nth-child(2n) { animation-delay: .12s; } .ar-welle.aktiv i:nth-child(3n) { animation-delay: .27s; } .ar-welle.aktiv i:nth-child(5n) { animation-delay: .4s; }
+@keyframes arWelle { 0%, 100% { height: 4px; } 50% { height: 20px; } }
+
+/* ── Gesprächsverlauf als Sprechblasen ───────────────────────────────────── */
+.ar-verlauf { display: flex; flex-direction: column; gap: 6px; max-width: 880px; }
+.ar-verlauf.kompakt { max-height: 230px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.ar-blase { max-width: min(78%, 560px); padding: 7px 12px 8px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; }
+.ar-blase small { display: block; font-size: 11px; color: var(--k-text-3); margin-bottom: 1px; }
+.ar-blase p { color: var(--k-text); overflow-wrap: anywhere; }
+.ar-blase.aras { align-self: flex-start; background: rgba(40, 141, 250, .13); border: 1px solid rgba(40, 141, 250, .24); border-bottom-left-radius: 5px; }
+.ar-blase.kunde { align-self: flex-end; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .08); border-bottom-right-radius: 5px; }
+
+/* ── Reiter ──────────────────────────────────────────────────────────────── */
+.ar-reiter { display: flex; gap: 4px; padding: 4px; margin: 18px 0 14px; border-radius: 14px; border: 1px solid var(--k-linie); background: rgba(255, 255, 255, .022); }
+.ar-reiter button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--k-text-2); font: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
+.ar-reiter button.an { background: rgba(40, 141, 250, .16); color: #fff; box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .45); }
+@media (hover: hover) { .ar-reiter button:not(.an):hover { color: #fff; background: rgba(255, 255, 255, .04); } }
+.ar-reiter button.an .ar-anzahl { background: rgba(255, 255, 255, .16); color: #fff; }
+
+/* ── Karten und Inhalt ───────────────────────────────────────────────────── */
+.ar-reiter-inhalt, .ar-probe { display: grid; gap: 14px; min-width: 0; }
+.ar-karte { min-width: 0; padding: 18px 20px; border-radius: var(--ar-r); border: 1px solid var(--k-linie); background: var(--ar-matt); }
+.ar-karte-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.ar-karte-titel { min-width: 0; }
+.ar-karte-titel h2 { font-size: 16px; font-weight: 400; color: var(--k-text); }
+.ar-karte-titel p { margin-top: 3px; font-size: 13px; color: var(--k-text-3); }
+.ar-karte-rechts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ar-liste-karte { padding: 6px 12px 10px; }
+.ar-werkzeugleiste { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.ar-zwei { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 1100px) { .ar-zwei { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
+.ar-zeile-knopf { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ar input[type="text"], .ar input[type="tel"], .ar input[type="search"], .ar input[type="number"], .ar input[type="date"], .ar input[type="time"], .ar select.ar-wahl, .ar textarea {
+  min-height: 36px; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .045); color: var(--k-text); font: inherit; font-size: 13.5px; max-width: 100%;
+}
+.ar input[type="number"] { width: 84px; }
+.ar input.ar-breit { flex: 1 1 220px; min-width: 0; }
+.ar textarea { width: 100%; min-height: 64px; resize: vertical; }
+.ar input:focus-visible, .ar select:focus-visible, .ar textarea:focus-visible, .ar button:focus-visible, .ar a:focus-visible { outline: 2px solid var(--k-licht); outline-offset: 2px; }
+
+/* ── Segment ─────────────────────────────────────────────────────────────── */
+.ar-segment { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 11px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .02); max-width: 100%; }
+.ar-segment button { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border: 0; border-radius: 8px; background: none; color: var(--k-text-2); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ar-segment.klein button { min-height: 30px; padding: 3px 10px; font-size: 12.5px; }
+.ar-segment button.an { background: rgba(40, 141, 250, .2); color: #fff; }
+.ar-segment button:disabled { opacity: .5; cursor: wait; }
+.ar-segment button .ar-anzahl { margin-left: 6px; min-width: 18px; height: 18px; font-size: 11px; }
+
+/* ── Tageswahl ───────────────────────────────────────────────────────────── */
+.ar-tagwahl { display: inline-flex; align-items: center; gap: 6px; }
+.ar-tag { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px 0 12px; border-radius: 10px; border: 1px solid var(--k-linie-2); background: rgba(255, 255, 255, .045); cursor: pointer; }
+.ar-tag-name { color: var(--k-text); font-size: 13.5px; white-space: nowrap; }
+.ar .ar-tag input[type="date"] { border: 0; background: none; min-height: 34px; padding: 4px 6px; color: var(--k-text-2); font-size: 13px; width: 132px; }
+.ar-tag input::-webkit-calendar-picker-indicator { filter: invert(.75); cursor: pointer; }
+
+/* ── Anrufe ──────────────────────────────────────────────────────────────── */
+.ar-anrufe { list-style: none; margin: 0; padding: 0; }
+.ar-anruf-kopf, .ar-anruf-zeile { display: grid; grid-template-columns: minmax(170px, 2.2fr) 64px 84px 72px minmax(120px, 1.6fr) 112px 52px; gap: 12px; align-items: center; }
+.ar-anruf-kopf { padding: 10px 8px 8px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--k-text-3); }
+.ar-anruf { border-top: 1px solid var(--k-linie); }
+.ar-anruf-zeile { width: 100%; padding: 12px 8px; border: 0; border-radius: 10px; background: none; color: var(--k-text-2); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+@media (hover: hover) { .ar-anruf-zeile:hover { background: rgba(255, 255, 255, .03); } }
+.ar-anruf.offen > .ar-anruf-zeile { background: rgba(40, 141, 250, .07); }
+.ar-wer { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-wer b { font-weight: 400; color: var(--k-text); }
+.ar-zeit, .ar-dauer, .ar-kosten { white-space: nowrap; }
+.ar-ausgang { color: var(--k-text); min-width: 0; }
+.ar-pruef { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--k-text-3); white-space: nowrap; }
+.ar-pruef.warn { color: #F6CE87; } .ar-pruef.krit { color: #F6A3A8; } .ar-pruef.gut { color: var(--k-text-2); }
+.ar-marken { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.ar-auf { color: var(--k-text-3); display: inline-flex; transition: transform .2s; }
+.ar-anruf.offen .ar-auf { transform: rotate(180deg); }
+.ar-mehr { margin: 10px auto 2px; display: flex; }
+
+.ar-detail { display: grid; gap: 14px; margin: 2px 0 12px; padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(40, 141, 250, .2); background: rgba(8, 16, 34, .45); animation: arEin .25s ease-out backwards; }
+.ar-detail-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ar-detail-kopf b { display: block; font-weight: 400; font-size: 15.5px; color: #fff; }
+.ar-detail-kopf span { color: var(--k-text-3); font-size: 13px; }
+.ar-zusammenfassung { color: var(--k-text); font-size: 14px; line-height: 1.55; }
+.ar-fakten { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ar-fakten li { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--k-linie-2); font-size: 12.5px; color: var(--k-text-2); }
+.ar-detail-block { display: grid; gap: 8px; }
+.ar-detail-block h3, .ar-ton-gruppe h3 { font-size: 11.5px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; color: var(--k-text-3); }
+.ar-erledigt { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; color: var(--k-text); }
+.ar-erledigt li { display: inline-flex; align-items: center; gap: 8px; }
+.ar-urteil-zeile, .ar-pruef-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--k-text); font-size: 13.5px; }
+.ar-punkte { margin: 0; padding-left: 18px; color: var(--k-text-2); font-size: 13.5px; display: grid; gap: 3px; }
+.ar-audio { width: 100%; max-width: 440px; height: 36px; }
+
+/* ── Probe ───────────────────────────────────────────────────────────────── */
+.ar-anrufen { border-color: rgba(40, 141, 250, .28); background: linear-gradient(180deg, rgba(40, 141, 250, .07), rgba(255, 255, 255, .02)); }
+.ar-anrufen .ar-karte-titel h2 { font-size: 18px; }
+.ar-bereit { display: inline-flex; gap: 14px; font-size: 12.5px; color: var(--k-text-2); }
+.ar-bereit > span { display: inline-flex; align-items: center; gap: 7px; }
+.ar-anrufen-wahl { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; }
+.ar-nummer { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 36px; color: var(--k-text-2); font-size: 13.5px; flex-basis: 100%; }
+.ar-nummer b { font-weight: 400; color: #fff; letter-spacing: .02em; }
+.ar-nummer.offen input { width: 190px; }
+.ar-feld { display: grid; gap: 5px; font-size: 12px; color: var(--k-text-3); min-width: 0; }
+.ar-anrufen-los { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin-top: 18px; }
+.ar-anrufen-los .ar-leise { max-width: 60ch; }
+.ar-rueckfall { display: grid; gap: 10px; margin-top: 14px; }
+.ar-letzter { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--k-linie); }
+.ar-letzter-kopf { display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: baseline; }
+.ar-letzter-kopf b { font-weight: 400; color: #fff; font-size: 14.5px; }
+.ar-letzter-kopf span { color: var(--k-text-3); font-size: 13px; }
+.ar-daumen-wahl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--k-text); font-size: 14px; }
+.ar-daumen-wahl > span { margin-right: 4px; }
+.ar-gruende-feld { display: grid; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--k-linie); background: rgba(255, 255, 255, .02); }
+.ar-gruende { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Das Freitextfeld nicht bis an den Rand — sonst liegt „Speichern“ unter dem festen Rundgang-Knopf unten rechts. */
+.ar-gruende-feld input.ar-breit { flex: 0 1 520px; }
+.ar-ton-gruppe { display: grid; gap: 2px; }
+.ar-ton-gruppe + .ar-ton-gruppe { margin-top: 12px; }
+.ar-ton-zeile { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 6px 12px; align-items: center; padding: 5px 0; font-size: 13.5px; color: var(--k-text-2); }
+.ar-fest { margin-top: 14px; font-size: 12.5px; }
+.ar-satz { margin: 6px 0 10px; display: grid; gap: 8px; }
+.ar-satz p { line-height: 1.5; }
+.ar-stimmen { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.ar-stimmen li { display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--k-linie); background: rgba(255, 255, 255, .02); }
+.ar-stimmen li.gewaehlt { border-color: rgba(61, 214, 140, .32); }
+.ar-stimme-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ar-stimme-kopf b { font-weight: 400; color: var(--k-text); }
+.ar-stimmen audio { width: 100%; height: 34px; }
+.ar-sterne { display: inline-flex; gap: 2px; }
+.ar-sterne button { border: 0; background: none; padding: 2px 3px; color: var(--k-text-3); font-size: 17px; line-height: 1; cursor: pointer; min-width: 28px; min-height: 28px; }
+.ar-sterne button.an { color: var(--k-licht-text); }
+
+/* ── Feedback ────────────────────────────────────────────────────────────── */
+.ar-feedback { list-style: none; margin: 0; padding: 0; display: grid; }
+.ar-feedback li { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--k-linie); }
+.ar-feedback li:first-child { border-top: 0; }
+.ar-feedback-text { display: flex; gap: 10px; align-items: flex-start; min-width: 0; flex: 1 1 260px; }
+.ar-feedback-text b { font-weight: 400; color: var(--k-text); }
+.ar-feedback-text p { color: var(--k-text-2); font-size: 13px; margin-top: 2px; }
+.ar-feedback-text small { display: block; color: var(--k-text-3); font-size: 12px; margin-top: 2px; }
+.ar-feedback-knoepfe { display: inline-flex; gap: 6px; }
+.ar-feedback.leise b { color: var(--k-text-2); }
+.ar-erledigt-feedback { margin-top: 6px; }
+.ar-kommt { padding: 4px 0; }
+
+/* ── Als Nächstes (Warteschlange) ────────────────────────────────────────── */
+.ar-plan-liste { list-style: none; margin: 0; padding: 0; }
+.ar-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 12px 8px; border-top: 1px solid var(--k-linie); }
+.ar-plan:first-child { border-top: 0; }
+.ar-plan-text { min-width: 0; display: grid; gap: 3px; }
+.ar-plan-wer { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; color: var(--k-text-2); font-size: 13.5px; }
+.ar-plan-wer b, .ar-plan-wer a { font-weight: 400; color: var(--k-text); font-size: 14.5px; }
+.ar-plan-text p { color: var(--k-text-2); font-size: 13.5px; }
+.ar-plan-text small { color: var(--k-text-3); font-size: 12.5px; }
+.ar-plan-knoepfe { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ar-verschieben { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(40, 141, 250, .22); background: rgba(40, 141, 250, .05); }
+.ar-verschieben-frei { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ar-einreihen { display: grid; gap: 12px; }
+.ar-einreihen-zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ar-suche { display: grid; gap: 6px; max-width: 460px; }
+.ar-suche input { width: 100%; }
+.ar-treffer { list-style: none; margin: 0; padding: 4px; border-radius: 12px; border: 1px solid var(--k-linie-2); background: rgba(8, 16, 34, .7); }
+.ar-treffer button { width: 100%; text-align: left; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 8px; background: none; color: var(--k-text); font: inherit; font-size: 13.5px; cursor: pointer; }
+.ar-treffer button span { color: var(--k-text-3); }
+@media (hover: hover) { .ar-treffer button:hover { background: rgba(40, 141, 250, .14); } }
+.ar-gewaehlt { color: var(--k-text); }
+.ar-gewaehlt b { font-weight: 400; }
+
+/* ── Tagesplan ───────────────────────────────────────────────────────────── */
+.ar-stunden { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
+.ar-stunden > div { display: grid; justify-items: center; gap: 4px; min-width: 0; }
+.ar-saeule { position: relative; display: block; width: 100%; max-width: 34px; height: 72px; border-radius: 8px; background: rgba(255, 255, 255, .05); overflow: hidden; }
+.ar-saeule i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px 8px 0 0; background: linear-gradient(180deg, var(--k-licht), var(--k-tiefe)); opacity: .8; }
+.ar-stunden small { font-size: 11.5px; color: var(--k-text-3); }
+.ar-stunden b { font-weight: 400; font-size: 12px; color: var(--k-text); min-height: 16px; }
+.ar-stunden .jetzt small { color: #fff; }
+.ar-stunden .jetzt .ar-saeule { box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .6); }
+.ar-tabelle-rahmen { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ar-tabelle { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ar-tabelle th, .ar-tabelle td { padding: 9px 10px; text-align: left; border-top: 1px solid var(--k-linie); color: var(--k-text-2); }
+.ar-tabelle td:first-child { color: var(--k-text); }
+.ar-tabelle th { border-top: 0; font-weight: 400; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--k-text-3); }
+.ar-tabelle .zahl { text-align: right; }
+
+/* ── Ausbaustufe ─────────────────────────────────────────────────────────── */
+.ar-leiter { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ar-leiter li { display: grid; gap: 3px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--k-linie); background: rgba(255, 255, 255, .02); }
+.ar-leiter li b { font-weight: 400; color: var(--k-text-2); font-size: 14px; }
+.ar-leiter li span { color: var(--k-text-3); font-size: 12.5px; }
+.ar-leiter li.an { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .12); }
+.ar-leiter li.an b { color: #fff; }
+.ar-leiter li.fertig b { color: var(--k-text); }
+.ar-ampel-liste { list-style: none; margin: 0; padding: 0; }
+.ar-ampel-liste li { display: grid; grid-template-columns: 110px 150px 70px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--k-linie); font-size: 13.5px; color: var(--k-text-2); }
+.ar-ampel-liste li:first-child { border-top: 0; }
+.ar-ampel-tag { color: var(--k-text); }
+.ar-ampel-farbe { display: inline-flex; align-items: center; gap: 8px; }
+.ar-ampel-was b { font-weight: 400; color: var(--k-text); }
+.ar-mehr-text { margin-top: 12px; color: var(--k-text-3); font-size: 13px; }
+.ar-mehr-text summary { cursor: pointer; color: var(--k-licht-text); }
+.ar-mehr-text p { margin-top: 6px; line-height: 1.55; }
+
+/* ── Einstellungen ───────────────────────────────────────────────────────── */
+.ar-felder .ki-feld:first-child { border-top: 0; padding-top: 2px; }
+/* Lange Texte und JSON (Zeitfenster, Spielarten, erster Satz) bekommen die ganze Breite unter dem Namen statt eines schmalen Kästchens. */
+.ar-felder .ki-feld:has(textarea) { grid-template-columns: minmax(0, 1fr); }
+.ar-felder .ki-feld:has(textarea) .ki-eingabe { grid-column: 1; grid-row: auto; align-items: flex-start; }
+.ar-felder .ki-feld textarea { width: 100%; min-height: 54px; font-size: 13px; line-height: 1.45; }
+.ar-felder .ki-feld input[type="text"].breit { width: min(420px, 100%); }
+.ar-ton-zeile > .ar-segment, .ar-feld > .ar-segment { justify-self: start; }
+.ar-hervor { animation: arHervor 2.4s ease-out backwards; border-radius: 10px; }
+@keyframes arHervor { 0% { background: rgba(40, 141, 250, .22); } 100% { background: transparent; } }
+
+/* ── Handy (375 px) ──────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .ar-cockpit { padding: 14px 14px 12px; border-radius: 18px; }
+  .ar-status b { font-size: 16.5px; }
+  .ar-cockpit-oben { align-items: flex-start; }
+  .ar-cockpit-knoepfe { width: 100%; }
+  .ar-cockpit-knoepfe > * { flex: 1 1 0; }
+  .ar-cockpit-knoepfe .ar-frage { flex-basis: 100%; }
+  .ar-fakt { white-space: normal; }
+  .ar-reiter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ar-reiter button { padding: 6px 4px; font-size: 13px; min-width: 0; }
+  .ar-reiter .ar-anzahl { margin-left: 5px; min-width: 18px; height: 18px; padding: 0 5px; }
+  .ar-karte { padding: 15px 14px; }
+  .ar-liste-karte { padding: 4px 6px 8px; }
+  .ar-werkzeugleiste { align-items: stretch; }
+  .ar-werkzeugleiste > .ar-segment { width: 100%; }
+  .ar-werkzeugleiste > .ar-segment button { flex: 1 1 auto; justify-content: center; }
+  .ar-anruf-kopf { display: none; }
+  .ar-anruf-zeile { grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "wer wer wer marken" "zeit dauer kosten kosten" "ausgang ausgang ausgang pruef"; gap: 3px 12px; padding: 11px 6px; }
+  .ar-anruf-zeile .ar-pruef { grid-area: pruef; justify-self: end; }
+  .ar-anruf-zeile .ar-wer { grid-area: wer; white-space: normal; }
+  .ar-anruf-zeile .ar-marken { grid-area: marken; }
+  .ar-anruf-zeile .ar-zeit { grid-area: zeit; }
+  .ar-anruf-zeile .ar-dauer { grid-area: dauer; }
+  .ar-anruf-zeile .ar-kosten { grid-area: kosten; }
+  .ar-anruf-zeile .ar-zeit, .ar-anruf-zeile .ar-dauer, .ar-anruf-zeile .ar-kosten { font-size: 12.5px; color: var(--k-text-3); }
+  .ar-anruf-zeile .ar-ausgang { grid-area: ausgang; font-size: 13px; }
+  .ar-detail { padding: 14px 12px; }
+  .ar-blase { max-width: 90%; }
+  .ar-ton-zeile { grid-template-columns: 1fr; gap: 4px; padding: 7px 0; }
+  .ar-anrufen-los .ar-knopf.gross { width: 100%; }
+  .ar-nummer.offen input { width: 100%; }
+  .ar-plan { grid-template-columns: 1fr; }
+  .ar-plan-knoepfe { justify-content: flex-start; }
+  .ar-stunden { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 12px; }
+  .ar-leiter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-ampel-liste li { grid-template-columns: 1fr auto; gap: 2px 10px; }
+  .ar-ampel-liste li .ar-ampel-stufe { text-align: right; }
+  .ar-ampel-liste li .ar-ampel-was { grid-column: 1 / -1; font-size: 12.5px; }
+  .ar-tagwahl { width: 100%; }
+  .ar-tag { flex: 1 1 auto; justify-content: space-between; }
+  .ar-verschieben-frei { width: 100%; }
+}
+@media (max-width: 380px) {
+  .ar-reiter button { font-size: 12.5px; }
+  .ar .ar-tag input[type="date"] { width: 118px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ar-cockpit, .ar-live, .ar-detail, .ar-hinweis { animation: none; }
+  .ar-punkt.puls, .ar-live-marke i, .ar-welle.aktiv i, .ar-zeile-lade, .ar-hervor { animation: none; }
+  .ar-welle.aktiv i { height: 12px; }
+}

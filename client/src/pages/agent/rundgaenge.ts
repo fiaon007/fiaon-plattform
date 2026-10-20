@@ -2299,42 +2299,6 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   },
 ];
 
-// ── Aras · Probe (20.10.2026, E-408 Scheibe 1) — Probeanruf, Stimmen-Studio, Ton ──
-// Justin hört Aras NUR hier. Ein Satz je Schritt; Ziele über data-ap (ChefArasProbe.tsx).
-// E-409 × E-408 (20.10.2026): wohnt jetzt im Reiter „Probe“ von KI-Team › Aras (/chef/s/aras-probe leitet dorthin) —
-// derselbe Merker (raum "aras-probe"), wer ihn gesehen hat, sieht ihn nicht noch einmal.
-export const RUNDGANG_ARAS_PROBE: RundgangSchritt[] = [
-  {
-    titel: "Aras — dein KI-Kollege am Telefon.",
-    text: "Hier rufst du dich selbst an und hörst, wie Aras klingt. Kunden ruft er noch nicht an — das schaltest du erst frei, wenn dein Ohr Ja sagt.",
-  },
-  {
-    ziel: "[data-ap='kopf']",
-    titel: "Oben: läuft alles?",
-    text: "„Stimme“ und „Telefon“ grün heißt: Aras kann sprechen und wählen. Daneben die Kosten von heute und der Deckel je Tag. "
-      + "„Not-Aus“ (oben rechts auf der Seite) hält Aras sofort an, „Leerlauf“ lässt nur kein neues Gespräch mehr zu.",
-    tipp: "Vor einem Deploy: Leerlauf an — ein laufendes Gespräch endet dann ganz normal.",
-  },
-  {
-    ziel: "[data-ap='mich-anrufen']",
-    titel: "Mich anrufen.",
-    text: "Deine Nummer trägst du einmal ein — nur sie ruft Aras im Test an, jede andere lehnt der Server ab. Wähle eine Gesprächsart "
-      + "(zum Beispiel „Rate fällig“), drück „Mich anrufen“, und unten laufen die Sätze live mit. Danach gibst du Daumen hoch oder runter.",
-    tipp: "Teste die schweren Fälle: unterbrich ihn, schweig drei Sekunden, sag „Nein“ zur Aufzeichnung, frag „Sind Sie ein Mensch?“.",
-  },
-  {
-    ziel: "[data-ap='studio']",
-    titel: "Stimmen-Studio: derselbe Satz, jede Stimme.",
-    text: "Ein Klick, und Flitz, Nuri und Juni sprechen denselben Satz — in Telefon-Qualität. „Diese nehmen“ macht sie zu Aras' Stimme ab dem nächsten Anruf.",
-  },
-  {
-    ziel: "[data-ap='ton']",
-    titel: "Der Ton.",
-    text: "Energie, Füllwörter, Lachen, Tempo, Zuhör-Laute und wie oft er nach einem Nein nachfragt — jede Änderung gilt ab dem nächsten Anruf. "
-      + "Fest eingebaut und ohne Schalter: KI-Hinweis im ersten Satz, Aufnahme nur nach Ja, kein Druck, keine Lastschrift.",
-  },
-];
-
 // WhatsApp-Zentrale (23.09.2026, E-229) — Maras Versand an Kundengruppen.
 // E-252 (28.09.2026): ein Satz je Schritt (Entwurf E-250). Meta steht jetzt links in der
 // Statuszeile (.wz-status), die Wirkung als Kette (.wz-kette); Rechnung und Stufe stehen
@@ -2714,47 +2678,59 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
   },
 ];
 
+// Cockpit-Umbau (20.10.2026, Justin: „total unübersichtlich … viel cleaner“): EIN Rundgang für die ganze Seite (der frühere
+// Probe-Rundgang ist hier aufgegangen), neuer Merker „aras-cockpit“ — Justin sieht ihn nach dem Umbau einmal. Zuerst die
+// Probe (Justin: Aras an EINEM Ort, die Probe ist das Wichtigste), dann Cockpit, Live (nur während eines Gesprächs, ohne
+// Ziel), die Reiter. Ziele über data-ki / data-ki-reiter / data-ap (ChefKiAras.tsx, ArasCockpit.tsx, ChefArasProbe.tsx).
 export const RUNDGANG_ARAS: RundgangSchritt[] = [
   {
     ziel: "[data-ki-reiter=\"probe\"]",
     titel: "Probe: hier hörst du Aras.",
-    text: "Deine Nummer, „Mich anrufen“, live mitlesen, danach Daumen hoch oder runter — dazu das Stimmen-Studio und der Ton. Früher war das eine eigene Seite im Vertrieb; jetzt steht Aras an EINEM Ort.",
+    text: "„Mich anrufen“ — Aras ruft nur deine Nummer an. Danach gibst du Daumen hoch oder runter, darunter stehen dein Feedback, der Ton und die Stimmen.",
     tipp: "Kunden ruft er erst an, wenn du „Aras wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist.",
   },
   {
-    ziel: "[data-ki=\"live\"]",
-    titel: "Die Live-Karte.",
-    text: "Jedes laufende Gespräch als Welle, das Transkript tickt mit. „Übernehmen“ holt den Kunden in dein Softphone, „Beenden“ lässt Aras sich verabschieden.",
+    ziel: "[data-ki=\"cockpit\"]",
+    titel: "Oben: was Aras gerade tut.",
+    text: "Ein Satz sagt es („Aras ruft gerade niemanden an“), daneben Stufe, Kunden an/aus und die Kosten von heute. „Leerlauf“: kein neues Gespräch. „Not-Aus“: sofort stoppen (fragt kurz nach).",
+    tipp: "Vor einem Deploy: Leerlauf an — ein laufendes Gespräch endet dann ganz normal.",
   },
   {
-    titel: "Oben: an, Not-Aus, Leerlauf.",
-    text: "„Wählt“ heißt: Aras ruft nach Plan an. Not-Aus beendet auch laufende Gespräche (mit Abschiedssatz). Leerlauf: kein neues Wählen, Laufendes endet normal — vor jedem Deploy.",
+    titel: "Live erscheint nur während eines Gesprächs.",
+    text: "Dann wächst die Leiste oben: wer, wie lange, der Text live als Sprechblasen, „Übernehmen“ (in dein Softphone) und „Auflegen“. Legt jemand auf, ist der Kasten nach wenigen Sekunden weg.",
   },
   {
-    ziel: "[data-ki-reiter=\"plan\"]",
-    titel: "Plan: wann er wen anruft.",
-    text: "Stundenplan je Spielart (Raten und Stufe A morgens, Verkauf nachmittags, nie Sonntag), Mengen je Spielart und sonntags ein Lernvorschlag — nur Anzeige, nichts ändert sich allein.",
-  },
-  {
-    ziel: "[data-ki-reiter=\"warteschlange\"]",
-    titel: "Warteschlange: wer als Nächstes, und warum.",
-    text: "Jede Zeile trägt Spielart, Priorität, Versuch und Rechtsgrund. Verschieben, entfernen oder von Hand einreihen — der Server prüft Sperre, Global, Rechtsgrund und Zeitfenster.",
+    // Ohne Ziel: Die Karte steht nur im Reiter „Probe“ (bedingt sichtbar → kein Scheinwerfer ins Leere, AGENTS.md).
+    titel: "Mich anrufen.",
+    text: "Nummer, Gesprächsart (z. B. „Rate fällig“) und Stimme wählen, dann der große Knopf. Das Gespräch siehst du oben live.",
+    tipp: "Teste die schweren Fälle: unterbrich ihn, schweig drei Sekunden, sag „Nein“ zur Aufzeichnung, frag „Sind Sie ein Mensch?“.",
   },
   {
     ziel: "[data-ki-reiter=\"anrufe\"]",
-    titel: "Anrufe: jedes Gespräch mit Ergebnis.",
-    text: "Spielart, Ergebnis, Dauer, Kosten — im Detail Transkript (nur nach Aufnahme-Ja), Werkzeuge, Prüf-Urteil und die Aufnahme.",
+    titel: "Anrufe: jedes Gespräch in Klartext.",
+    text: "Tag im Kalender wählen, filtern (Probe, Kunden, Daumen runter). Ein Klick öffnet die Details: Zusammenfassung, das Gespräch als Sprechblasen (nur nach Ja zur Aufnahme), was Aras erledigt hat und das Urteil von Prüf-Mara.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"warteschlange\"]",
+    titel: "Als Nächstes: wer dran ist.",
+    text: "Die Warteschlange. Je Person „Jetzt“, „Verschieben“ (Kalender und Uhrzeit) oder „Entfernen“. „Jemanden einreihen“ sucht nach Namen, „Jetzt auffüllen“ holt fällige Kunden sofort aus den Akten.",
+    tipp: "Gewählt wird nur, was die Ausbaustufe erlaubt — in Stufe 0 bleibt die Liste leer.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"plan\"]",
+    titel: "Tagesplan: wann er wen anruft.",
+    text: "Je Stunde geplant und erreicht, die Mengen je Gesprächsart und sonntags ein Lernvorschlag — nur zum Lesen.",
   },
   {
     ziel: "[data-ki-reiter=\"stufe\"]",
-    titel: "Stufe: wie Aras wächst — und wann er bremst.",
-    text: "Die Ampel der letzten 14 Tage: erreicht, Zahlungen binnen 48 h, Kosten je Zahlung, Abbrüche, Prüf-Fehler. Nach 3 (Stufe 1) bzw. 5 (Stufe 2) grünen Tagen geht er von selbst eine Stufe hoch; bei Rot sofort eine zurück, und du bekommst eine Karte.",
-    tipp: "Aus Stufe 0 schaltest nur du — im Reiter „Einstellungen“ (Ausbaustufe).",
+    titel: "Ausbaustufe: wie weit Aras schon darf.",
+    text: "Vier Stufen von „nur Probe“ bis „Voll“ und die Ampel der letzten 14 Tage. Nach grünen Tagen geht er von selbst eine Stufe hoch, bei Rot sofort eine zurück — dann bekommst du eine Karte.",
+    tipp: "Aus Stufe 0 schaltest nur du — „Stufe ändern“ führt zum Schalter.",
   },
   {
     ziel: "[data-ki-reiter=\"einstellungen\"]",
-    titel: "Einstellungen: die übrigen Aras-Schalter.",
-    text: "Spielarten (lead, stufe_b, rueckholung erst nach LEXR), Zeitfenster, Mengen, Übergabe, KI-Hinweis-Satz, Aufnahme-Frage — jeder mit Vorgabe und Grenze. Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein.",
+    titel: "Einstellungen: die übrigen Schalter.",
+    text: "In vier Gruppen: An und aus · Wen und wann · Was Aras sagt · Technik. Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein.",
   },
 ];
 

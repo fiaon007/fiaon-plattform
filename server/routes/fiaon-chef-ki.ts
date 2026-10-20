@@ -216,6 +216,8 @@ router.get("/chef/aras/lage", lesen, async (_req: ChefRequest, res: Response) =>
     res.json({
       ok: true, verbunden: true,
       an: ein.an === true || ein.aras_an === "an", notaus: ein.notaus === true || ein.aras_notaus === "an", leerlauf: ein.leerlauf === true || ein.aras_leerlauf === "an",
+      // Cockpit (20.10.2026): die Ausbaustufe steht in der Statuszeile („Stufe 0 · Probe“) — ohne eigenen Abruf.
+      stufe: Math.max(0, Math.min(3, Number(ein.stufe ?? ein.aras_stufe ?? 0) || 0)),
       adapter: ein.adapter ?? ein.aras_adapter ?? null, stimme: ein.stimme ?? ein.aras_stimme ?? null,
       plan, laufend: a.waehler?.laufendeSitzungen?.() ?? [],
       heute: { ...heute, deckel: Number(ein.tagEuro ?? ein.aras_tag_euro ?? 0) || null },
@@ -245,7 +247,9 @@ router.get("/chef/aras/warteschlange", lesen, async (req: ChefRequest, res: Resp
   try {
     const zeilen = await a.plan.planListe({ status: req.query.status ? String(req.query.status) : undefined, spielart: req.query.spielart ? String(req.query.spielart) : undefined, seite: Number(req.query.seite) || 0 });
     const zeig = nameZeigen(req);
-    res.json({ ok: true, zeilen: (zeilen as any[]).map((z) => ({ ...z, name: zeig ? z.name ?? null : null })) });
+    // Cockpit (20.10.2026): Vor- und Nachname wie in der Anrufliste.
+    const namen = zeig ? await vollnamen((zeilen as any[]).map((z) => Number(z.personId)).filter((n) => n > 0)) : new Map<number, string>();
+    res.json({ ok: true, zeilen: (zeilen as any[]).map((z) => ({ ...z, name: zeig ? (z.personId && namen.get(Number(z.personId))) || z.name || null : null })) });
   } catch (e) {
     console.error("[CHEF-KI] aras/warteschlange:", e);
     fehler(res, 500, "Die Warteschlange ließ sich nicht laden.");
@@ -300,6 +304,61 @@ router.get("/chef/aras/live", lesen, (req: ChefRequest, res: Response) => {
   req.on("close", () => { clearInterval(herz); if (bus) bus.off("aras", hoerer); });
 });
 
+// ── Cockpit (20.10.2026, Justin: „wenn ich auflege, läuft der Kasten dennoch weiter“) ───────────────────────────────
+// Der leichte Gegencheck zum Live-Strom: Welche Gespräche laufen WIRKLICH (Brücke) und welche klingeln noch (gewählt,
+// noch keine Sitzung, kein Ende in der Datenbank)? Die Seite fragt das alle 2 s, solange ein Live-Kasten steht, und
+// nimmt jeden Kasten weg, den es hier nicht mehr gibt — auch wenn ein Ende-Ereignis verloren ging oder ein spätes
+// Ereignis (Prüf-Mara, Daumen) den Kasten neu angelegt hätte. Eine kleine Abfrage über den Index von fiaon_aras_anruf.
+async function liveNamen(ids: number[]): Promise<Map<number, { name: string | null; gespielt: string | null; personId: number | null }>> {
+  const m = new Map<number, { name: string | null; gespielt: string | null; personId: number | null }>();
+  if (!ids.length) return m;
+  const zeilen = (await sqlPool`
+    SELECT aa.call_id, aa.briefing->>'probeSpielart' AS gespielt, c.person_id, p.first_name, p.last_name, p.company_name
+      FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id LEFT JOIN fiaon_persons p ON p.id = c.person_id
+     WHERE aa.call_id = ANY(${ids})`.catch(() => [])) as any[];
+  for (const z of zeilen) {
+    const name = [z.first_name, z.last_name].filter(Boolean).join(" ").trim() || z.company_name || null;
+    m.set(Number(z.call_id), { name, gespielt: z.gespielt ?? null, personId: z.person_id != null ? Number(z.person_id) : null });
+  }
+  return m;
+}
+
+router.get("/chef/aras/live/stand", lesen, async (req: ChefRequest, res: Response) => {
+  const a = aras();
+  res.setHeader("Cache-Control", "no-store");
+  if (!a?.waehler) return res.json({ ok: true, verbunden: false, am: new Date().toISOString(), laufend: [], klingelt: [] });
+  try {
+    const laufend = ((a.waehler.laufendeSitzungen?.() ?? []) as any[]).filter((s) => Number(s?.callId) > 0);
+    const klingeltRoh = (await sqlPool`
+      SELECT aa.call_id, aa.spielart, EXTRACT(EPOCH FROM (NOW() - aa.created_at))::int AS sek, (aa.angenommen_am IS NOT NULL) AS angenommen
+        FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id
+       WHERE aa.created_at > NOW() - INTERVAL '3 minutes' AND aa.ende_grund IS NULL AND aa.nachbereitet_am IS NULL
+         AND c.status IN ('gewaehlt', 'laeuft')
+       ORDER BY aa.created_at DESC LIMIT 10`.catch(() => [])) as any[];
+    const imKern = new Set(laufend.map((s) => Number(s.callId)));
+    const klingelt = klingeltRoh.filter((z) => !imKern.has(Number(z.call_id)));
+    const zeig = nameZeigen(req);
+    const namen = await liveNamen([...Array.from(imKern), ...klingelt.map((z) => Number(z.call_id))]);
+    const info = (callId: number) => namen.get(callId);
+    res.json({
+      ok: true, verbunden: true, am: new Date().toISOString(),
+      laufend: laufend.map((s) => ({
+        callId: Number(s.callId), personId: s.personId ?? null, spielart: s.spielart, probe: s.spielart === "probe",
+        name: zeig ? info(Number(s.callId))?.name ?? null : null, gespielt: info(Number(s.callId))?.gespielt ?? null,
+        seitSek: Number(s.seitSek ?? 0), zustand: String(s.zustand ?? ""), letzteZeilen: Array.isArray(s.letzteZeilen) ? s.letzteZeilen : [],
+      })),
+      klingelt: klingelt.map((z) => ({
+        callId: Number(z.call_id), personId: info(Number(z.call_id))?.personId ?? null, spielart: String(z.spielart), probe: z.spielart === "probe",
+        name: zeig ? info(Number(z.call_id))?.name ?? null : null, gespielt: info(Number(z.call_id))?.gespielt ?? null,
+        seitSek: Number(z.sek ?? 0), angenommen: z.angenommen === true,
+      })),
+    });
+  } catch (e) {
+    console.error("[CHEF-KI] aras/live/stand:", e);
+    fehler(res, 500, "Der Live-Stand ließ sich nicht laden.");
+  }
+});
+
 router.post("/chef/aras/live/:callId/uebernehmen", wache, async (req: ChefRequest, res: Response) => {
   const a = aras();
   if (!a?.bruecke) return nichtVerbunden(res);
@@ -324,17 +383,47 @@ router.get("/chef/aras/anrufe", lesen, async (req: ChefRequest, res: Response) =
   try {
     const zeilen = await a.nachbereitung.anrufListe({ tag: req.query.tag ? String(req.query.tag) : undefined, spielart: req.query.spielart ? String(req.query.spielart) : undefined, ergebnis: req.query.ergebnis ? String(req.query.ergebnis) : undefined, seite: Number(req.query.seite) || 0 });
     const zeig = nameZeigen(req);
-    res.json({ ok: true, zeilen: (zeilen as any[]).map((z) => ({ ...z, name: zeig ? z.name ?? null : null })) });
+    // Cockpit (20.10.2026): Vor- UND Nachname statt nur „Muster“ — lesbar wie ein Satz („Mila Muster · Rate fällig“).
+    const namen = zeig ? await vollnamen((zeilen as any[]).map((z) => Number(z.personId)).filter((n) => n > 0)) : new Map<number, string>();
+    // … und beim Probeanruf die gespielte Art („Probe · Rate fällig“) aus dem Briefing.
+    const probeIds = (zeilen as any[]).filter((z) => z.spielart === "probe").map((z) => Number(z.id));
+    const gespielt = new Map<number, string>();
+    if (probeIds.length) {
+      for (const z of (await sqlPool`SELECT id, briefing->>'probeSpielart' AS g FROM fiaon_aras_anruf WHERE id = ANY(${probeIds})`.catch(() => [])) as any[]) if (z.g) gespielt.set(Number(z.id), String(z.g));
+    }
+    res.json({ ok: true, zeilen: (zeilen as any[]).map((z) => ({ ...z, gespielt: gespielt.get(Number(z.id)) ?? null, name: zeig ? (z.personId && namen.get(Number(z.personId))) || z.name || null : null })) });
   } catch (e) { fehler(res, 500, String((e as Error)?.message ?? e).slice(0, 200)); }
 });
+
+async function vollnamen(ids: number[]): Promise<Map<number, string>> {
+  const m = new Map<number, string>();
+  if (!ids.length) return m;
+  const zeilen = (await sqlPool`SELECT id, first_name, last_name, company_name FROM fiaon_persons WHERE id = ANY(${Array.from(new Set(ids))})`.catch(() => [])) as any[];
+  for (const z of zeilen) {
+    const n = [z.first_name, z.last_name].filter(Boolean).join(" ").trim() || z.company_name;
+    if (n) m.set(Number(z.id), String(n));
+  }
+  return m;
+}
 
 router.get("/chef/aras/anrufe/:id", lesen, async (req: ChefRequest, res: Response) => {
   const a = aras();
   if (!a?.nachbereitung) return nichtVerbunden(res);
   try {
-    const d = await a.nachbereitung.anrufDetail(Number(req.params.id));
+    const id = Number(req.params.id);
+    const d = await a.nachbereitung.anrufDetail(id);
     if (!d) return fehler(res, 404, "Diesen Anruf gibt es nicht.");
-    res.json({ ok: true, ...(d as object), ...(nameZeigen(req) ? {} : { name: null }) });
+    // Cockpit (20.10.2026): das Urteil von Prüf-Mara in Klartext (Urteil, Punkte mit Hinweis, Begründung) — vorher stand
+    // im Detail nur „Prüf-Mara:“ ohne Inhalt, weil die Liste nur den Status kennt. Wortlaut-Treffer bleiben weg.
+    const [pm] = (await sqlPool`
+      SELECT urteil, punkte, begruendung, created_at FROM fiaon_ki_pruefung
+       WHERE bezug_art = 'aras_anruf' AND bezug_id = ${id} ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
+    const punkte = (Array.isArray(pm?.punkte) ? pm.punkte : []).slice(0, 8).map((p: any) => ({ regel: String(p?.regel ?? ""), schwere: p?.schwere === "hart" ? "hart" : "weich", hinweis: String(p?.hinweis ?? "").slice(0, 240) }));
+    const pruefMara = pm ? { urteil: String(pm.urteil), punkte, begruendung: pm.begruendung ? String(pm.begruendung).slice(0, 600) : null, am: new Date(pm.created_at).toISOString() } : null;
+    const zeig = nameZeigen(req);
+    const pid = Number((d as any).personId) || 0;
+    const voll = zeig && pid ? (await vollnamen([pid])).get(pid) : null;
+    res.json({ ok: true, ...(d as object), pruefMara, ...(zeig ? (voll ? { name: voll } : {}) : { name: null }) });
   } catch (e) { fehler(res, 500, String((e as Error)?.message ?? e).slice(0, 200)); }
 });
 

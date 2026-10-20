@@ -103,7 +103,8 @@ async function main() {
     ok(!seiten.split("\n").some((z) => /slug: "aras-probe"/.test(z) && /raum: "vertrieb"/.test(z)), "keine Aras-Kachel im Raum „Vertrieb“");
     const kiAras = datei("client/src/components/admin/ChefKiAras.tsx");
     ok(/lazy\(\(\) => import\("\.\/ChefArasProbe"\)\)/.test(kiAras) && /reiter === "probe" \? <ArasProbe eingebettet ohneSchalter=\{verbunden\} \/>/.test(kiAras), "KI-Team › Aras zeigt die Probe aus Teil 1 (dieselbe Komponente)");
-    ok(/\{ key: "probe", label: "Probe" \}, \{ key: "plan"/.test(kiAras) && !/key: "stimme"/.test(kiAras), "Reiter „Probe“ zuerst, kein doppelter Reiter „Stimme“");
+    // Cockpit-Umbau 20.10.2026: Reihenfolge danach Anrufe · Als Nächstes · Tagesplan · Ausbaustufe · Einstellungen — „Probe“ bleibt zuerst.
+    ok(/const REITER[^=]*= \[\s*\{ key: "probe", label: "Probe"/.test(kiAras) && !/key: "stimme"/.test(kiAras), "Reiter „Probe“ zuerst, kein doppelter Reiter „Stimme“");
     ok(/if \(\/\^#probe\\b\/\.test\(hash\)\) return "probe";/.test(kiAras), "#probe öffnet den Reiter „Probe“ (Ziel der Weiterleitung)");
     ok(!existsSync("client/src/components/admin/aras/ArasStimme.tsx") && !existsSync("client/src/components/admin/aras/ArasProbe.tsx"), "die doppelten KI-Team-Teile „Stimme“/„Probeanruf“ sind weg");
     const probe = datei("client/src/components/admin/ChefArasProbe.tsx");

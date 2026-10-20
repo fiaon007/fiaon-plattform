@@ -1,41 +1,47 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /chef/s/aras — ARAS, DER TELEFON-KOLLEGE (E-409, 19.10.2026)
+// /chef/s/aras — ARAS, DER TELEFON-KOLLEGE (E-409, 19.10.2026 · Cockpit-Umbau 20.10.2026)
 //
-// Die Bühne ist die Live-Karte (laufende Gespräche als Wellen, Transkript tickt
-// mit). Darunter Reiter: Probe · Plan · Warteschlange · Anrufe · Einstellungen
-// (?reiter=… oder #probe). Plan, Warteschlange, Anrufe und Einstellungen laufen gegen
-// die Routen des Vertrags § 5 — solange Team 1 den Kern (E-408) nicht angebunden hat,
-// zeigen sie „Aras ist noch nicht verbunden“. Oben: an/aus, Not-Aus, Leerlauf.
+// Justin (20.10.2026, Screenshot ?reiter=anrufe): „Also die gesamte Seite ist total unübersichtlich, vieles geht
+// nicht – wenn ich auflege läuft der Kasten da mit ‚übernehmen‘ dennoch weiter … und das gesamte Layout, UI VIEL
+// übersichtlicher, cleaner“.
+//
+// Aufbau jetzt:
+//   1. Das Cockpit (aras/ArasCockpit.tsx): EINE Statusleiste — was Aras gerade tut, Stufe, Kunden an/aus, Kosten
+//      heute, Leerlauf und Not-Aus. Live erscheint nur, wenn ein Gespräch läuft (dann groß: wer, wie lange, Text,
+//      Übernehmen/Auflegen) und verschwindet Sekunden nach dem Auflegen (Regeln: aras/aras-live.ts).
+//   2. Reiter: Probe (zuerst) · Anrufe · Als Nächstes · Tagesplan · Ausbaustufe · Einstellungen (?reiter=… oder #probe —
+//      die Schlüssel sind dieselben wie vorher, alte Links und Alarme gehen weiter).
+// Der Grund hinter der Seite ist ruhig (chef-seiten.tsx: stillerGrund) — kein großes Foto hinter den Daten.
 //
 // E-409 × E-408 (20.10.2026, Justin: EIN Ort für Aras): Der Reiter „Probe“ IST die Probe-Ansicht aus Aras Teil 1
-// (ChefArasProbe: deine Nummer, „Mich anrufen“, live mitlesen, Daumen, Stimmen-Studio, Ton) — dieselben Routen
-// /chef/aras/probe/*. Die frühere Seite /chef/s/aras-probe (Raum Vertrieb) leitet hierher (#probe); die doppelten
-// Reiter „Stimme“ und „Probeanruf“ des KI-Teams sind weg. Ton, Stimme, Probe-Nummer und Tagesdeckel stellst du nur
-// noch im Reiter „Probe“ ein — der Reiter „Einstellungen“ zeigt die übrigen Aras-Schalter.
+// (ChefArasProbe) — dieselben Routen /chef/aras/probe/*. /chef/s/aras-probe leitet hierher (#probe).
 // ═══════════════════════════════════════════════════════════════════════════
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import type { ArasLage } from "@shared/fiaon-ki-team";
-import { setzerKoerper, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
-import { Rundgang } from "@/components/agent/Rundgang";
-import { RUNDGANG_ARAS_PROBE } from "@/pages/agent/rundgaenge";
-import { Kopf, KiRundgang, NichtVerbunden, Stand, Meldung, useMeldung, useTakt, senden, euro, zahl } from "./ki-teile";
-import { Feld } from "./ChefKiEinstellungen";
-import ArasLive from "./aras/ArasLive";
+import { KiRundgang, Kopf, Stand, useTakt } from "./ki-teile";
+import { ArasCockpit, type CockpitLage } from "./aras/ArasCockpit";
+import { ArasLageKontext, ArasLiveKontext, useArasLive } from "./aras/ArasLive";
+import { PROBE_SCHLUESSEL } from "./aras/aras-texte";
+import "@/styles/chef-aras.css";
 
 const ArasPlan = lazy(() => import("./aras/ArasPlan"));
 const ArasWarteschlange = lazy(() => import("./aras/ArasWarteschlange"));
 const ArasAnrufe = lazy(() => import("./aras/ArasAnrufe"));
 const ArasStufe = lazy(() => import("./aras/ArasStufe"));
+const ArasEinstellungen = lazy(() => import("./aras/ArasEinstellungen"));
 const ArasProbe = lazy(() => import("./ChefArasProbe"));
 
-type Reiter = "probe" | "plan" | "warteschlange" | "anrufe" | "stufe" | "einstellungen";
-const REITER: { key: Reiter; label: string }[] = [
-  { key: "probe", label: "Probe" }, { key: "plan", label: "Plan" }, { key: "warteschlange", label: "Warteschlange" },
-  { key: "anrufe", label: "Anrufe" }, { key: "stufe", label: "Stufe" }, { key: "einstellungen", label: "Einstellungen" },
+type Reiter = "probe" | "anrufe" | "warteschlange" | "plan" | "stufe" | "einstellungen";
+const REITER: { key: Reiter; label: string; titel: string }[] = [
+  { key: "probe", label: "Probe", titel: "Mich anrufen, dein Urteil, Ton und Stimme" },
+  { key: "anrufe", label: "Anrufe", titel: "Jedes Gespräch mit Ergebnis — Probe und Kunden" },
+  { key: "warteschlange", label: "Als Nächstes", titel: "Wer als Nächstes dran ist (Warteschlange)" },
+  { key: "plan", label: "Tagesplan", titel: "Wann Aras wen anruft" },
+  { key: "stufe", label: "Ausbaustufe", titel: "Wie weit Aras schon darf — und die Ampel" },
+  { key: "einstellungen", label: "Einstellungen", titel: "Die übrigen Aras-Schalter" },
 ];
-/** Was der Reiter „Probe“ selbst einstellt (Ton, Stimme, Probe-Nummer, Deckel) — im Reiter „Einstellungen“ nicht noch einmal. */
-export const IM_PROBE_REITER: readonly string[] = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_stimme", "aras_probe_nummer", "aras_tag_euro"];
+/** Was der Reiter „Probe“ selbst einstellt (Ton, Dialekt, Hintergrund, Zuhören, Stimme, Probe-Nummer, Deckel) — in „Einstellungen“ nicht noch einmal. */
+export const IM_PROBE_REITER: readonly string[] = PROBE_SCHLUESSEL;
 /** Der Start-Reiter: #probe (Weiterleitung von /chef/s/aras-probe), sonst ?reiter=…, sonst „Probe“. Rein. */
 export function startReiter(hash: string, suche: string): Reiter {
   if (/^#probe\b/.test(hash)) return "probe";
@@ -43,83 +49,53 @@ export function startReiter(hash: string, suche: string): Reiter {
   return REITER.some((x) => x.key === r) ? (r as Reiter) : "probe";
 }
 
-function ArasEinstellungen({ verbunden }: { verbunden: boolean }) {
-  const { daten, neu } = useTakt<{ ok: boolean; register: any[]; werte: Record<string, string>; gesetzt: Record<string, boolean>; arasVerbunden: boolean }>(verbunden ? "/chef/ki/einstellungen" : null, 0);
-  const [busy, setBusy] = useState<string | null>(null);
-  const meld = useMeldung();
-  if (!verbunden) return <NichtVerbunden />;
-  const liste = (daten?.register ?? []).filter((e) => e.dienst === "aras" && !IM_PROBE_REITER.includes(e.schluessel));
-  const speichern = async (e: any, w: string) => {
-    setBusy(e.schluessel);
-    try { await senden(e.setzer.route, setzerKoerper(e as RegisterEintrag, w)); meld.gut(`${e.label}: gespeichert.`); neu(); }
-    catch (err) { meld.fehler(`${e.label}: ${(err as Error).message}`); } finally { setBusy(null); }
-  };
-  return (
-    <div className="ki-karte" data-ki="aras-einstellungen">
-      <h2>Aras-Schalter <span className="ki-still ki-klein">· Vorgabe und Grenze im Tooltip · Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein</span> <Meldung m={meld.m} /></h2>
-      {liste.map((e) => <Feld key={e.schluessel} e={e} wert={daten!.werte[e.schluessel]} gesetzt={!!daten!.gesetzt[e.schluessel]} busy={busy === e.schluessel} onSpeichern={speichern} />)}
-    </div>
-  );
-}
-
 export default function ChefKiAras() {
   const [location, navigate] = useLocation();
   const [reiter, setReiter] = useState<Reiter>(() => (typeof window !== "undefined" ? startReiter(window.location.hash, window.location.search) : "probe"));
+  const [fokus, setFokus] = useState<string | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search); q.set("reiter", reiter);
     navigate(`${location.split("?")[0]}?${q.toString()}`, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reiter]);
-  const { daten, neu, geladenAm, fehler } = useTakt<ArasLage & { ok: boolean; hinweis?: string }>("/chef/aras/lage", 15_000);
-  const [busy, setBusy] = useState<string | null>(null);
-  const meld = useMeldung();
+  const [schnell, setSchnell] = useState(false);
+  const { daten, neu, geladenAm, fehler } = useTakt<CockpitLage & { ok: boolean }>("/chef/aras/lage", schnell ? 5000 : 15_000);
   const verbunden = !!daten?.verbunden;
-  const neuLage = useCallback(() => neu(), [neu]);
-  const schalten = async (pfad: string, body: unknown, text: string, frage?: string) => {
-    if (frage && !window.confirm(frage)) return;
-    setBusy(pfad);
-    try { await senden(pfad, body); meld.gut(text); neu(); } catch (e) { meld.fehler((e as Error).message); } finally { setBusy(null); }
-  };
-  const h = daten?.heute;
+  const live = useArasLive(verbunden);
+  // Läuft ein Gespräch, frischen Kosten und Zahlen oben alle 5 s auf (sonst alle 15 s).
+  const laufend = live.sitzungen.length > 0;
+  useEffect(() => { setSchnell(laufend); }, [laufend]);
+  const zu = useCallback((r: "anrufe" | "stufe" | "einstellungen") => { setReiter(r); setFokus(r === "einstellungen" ? "aras_stufe" : null); }, []);
+  const anzahl: Partial<Record<Reiter, number>> = daten?.verbunden ? {
+    anrufe: (Number(daten.heute?.gewaehlt) || 0) + (Number(daten.heute?.proben) || 0) || undefined,
+    warteschlange: Number(daten.plan?.wartet) || undefined,
+  } : {};
+  const lageSchluessel = daten ? `${daten.notaus}-${daten.leerlauf}-${daten.an}-${daten.stufe}` : "";
   return (
-    <div className="ki ki-aras">
-      {/* Im Reiter „Probe“ der Rundgang der Probe (derselbe wie früher auf /chef/s/aras-probe), sonst der des Raums. */}
-      {reiter === "probe" ? <Rundgang raum="aras-probe" titel="Aras · Probe" schritte={RUNDGANG_ARAS_PROBE} /> : <KiRundgang schluessel="aras" raum="aras" />}
-      <Kopf titel="Aras" satz="Der Kollege am Telefon — menschlich, pünktlich, den ganzen Tag." kinder={
-        <>
-          {verbunden ? (
-            <>
-              <span className={`ki-pille ${daten!.notaus ? "krit" : daten!.an ? "gut" : "warn"}`} title={`Technik: ${daten!.adapter ?? "—"} · Stimme: ${daten!.stimme ?? "—"}`}><span className={`ki-punkt ${daten!.notaus ? "krit" : daten!.an ? "gut" : "warn"}`} aria-hidden="true" />{daten!.notaus ? "Not-Aus" : daten!.leerlauf ? "Leerlauf" : daten!.an ? "wählt" : "aus"}</span>
-              {daten!.notaus
-                ? <button type="button" className="ki-knopf klein haupt" disabled={!!busy} onClick={() => schalten("/chef/aras/start", {}, "Aras darf wieder wählen.")}>Wieder an</button>
-                : <button type="button" className="ki-knopf klein krit" data-ki="notaus" disabled={!!busy} onClick={() => schalten("/chef/aras/notaus", { grund: "Chefbüro" }, "Aras gestoppt.", "Not-Aus? Laufende Gespräche enden mit einem Abschiedssatz.")}>Not-Aus</button>}
-              <button type="button" className="ki-knopf klein" disabled={!!busy} title="Kein neues Wählen, laufende Gespräche enden normal — vor jedem Deploy." onClick={() => schalten("/chef/aras/leerlauf", { an: !daten!.leerlauf }, daten!.leerlauf ? "Leerlauf aus." : "Leerlauf an.")}>{daten!.leerlauf ? "Leerlauf aus" : "Leerlauf"}</button>
-            </>
-          ) : <span className="ki-pille">noch nicht verbunden</span>}
-          <Meldung m={meld.m} />
-          <Stand am={geladenAm} neu={neu} fehler={fehler} />
-        </>
-      } />
-      {verbunden && h ? (
-        <div className="ki-zahlen" style={{ marginBottom: 14 }}>
-          <div><span className="ki-zahl klein">{zahl(h.gewaehlt)}</span><small title={`${zahl(h.erreicht)} erreicht`}>gewählt heute</small></div>
-          <div><span className="ki-zahl klein">{zahl(h.gespraeche)}</span><small>Gespräche</small></div>
-          <div><span className="ki-zahl klein">{zahl(h.zusagen)}</span><small>Zusagen</small></div>
-          <div><span className="ki-zahl klein">{euro(h.euroKi + h.euroTelefon)}</span><small title={`KI ${euro(h.euroKi)} · Telefon ${euro(h.euroTelefon)}`}>{h.deckel ? `von ${euro(h.deckel)}` : "Kosten heute"}</small></div>
-        </div>
-      ) : null}
-      <ArasLive verbunden={verbunden} start={daten?.laufend ?? []} darfUebernehmen={verbunden} onAenderung={neuLage} />
-      <nav className="ki-reiter ki-abstand" aria-label="Aras-Reiter">
-        {REITER.map((r) => <button key={r.key} type="button" className={reiter === r.key ? "an" : ""} aria-pressed={reiter === r.key} data-ki-reiter={r.key} onClick={() => setReiter(r.key)}>{r.label}</button>)}
-      </nav>
-      <Suspense fallback={<div className="ki-leer">lädt …</div>}>
-        {reiter === "probe" ? <ArasProbe eingebettet ohneSchalter={verbunden} />
-          : reiter === "plan" ? <ArasPlan verbunden={verbunden} />
-          : reiter === "warteschlange" ? <ArasWarteschlange verbunden={verbunden} />
-          : reiter === "anrufe" ? <ArasAnrufe verbunden={verbunden} />
-          : reiter === "stufe" ? <ArasStufe verbunden={verbunden} />
-          : <ArasEinstellungen verbunden={verbunden} />}
-      </Suspense>
-    </div>
+    <ArasLiveKontext.Provider value={live}>
+      <ArasLageKontext.Provider value={lageSchluessel}>
+      <div className="ki ki-aras ar">
+        <KiRundgang schluessel="aras" raum="aras-cockpit" />
+        <Kopf titel="Aras" satz="Dein KI-Kollege am Telefon." kinder={<Stand am={geladenAm} neu={neu} fehler={fehler} />} />
+        <ArasCockpit lage={daten} live={live} onNeu={neu} onReiter={zu} />
+        <nav className="ar-reiter" aria-label="Aras-Reiter">
+          {REITER.map((r) => (
+            <button key={r.key} type="button" className={reiter === r.key ? "an" : ""} aria-pressed={reiter === r.key} data-ki-reiter={r.key} title={r.titel}
+              onClick={() => { setReiter(r.key); setFokus(null); }}>
+              {r.label}{anzahl[r.key] ? <span className="ar-anzahl">{anzahl[r.key]}</span> : null}
+            </button>
+          ))}
+        </nav>
+        <Suspense fallback={<div className="ar-karte" aria-busy="true"><div className="ar-zeile-lade" /><div className="ar-zeile-lade" /></div>}>
+          {reiter === "probe" ? <ArasProbe eingebettet ohneSchalter={verbunden} />
+            : reiter === "anrufe" ? <ArasAnrufe verbunden={verbunden} />
+            : reiter === "warteschlange" ? <ArasWarteschlange verbunden={verbunden} />
+            : reiter === "plan" ? <ArasPlan verbunden={verbunden} />
+            : reiter === "stufe" ? <ArasStufe verbunden={verbunden} onEinstellungen={() => zu("einstellungen")} />
+            : <ArasEinstellungen verbunden={verbunden} fokus={fokus} />}
+        </Suspense>
+      </div>
+      </ArasLageKontext.Provider>
+    </ArasLiveKontext.Provider>
   );
 }

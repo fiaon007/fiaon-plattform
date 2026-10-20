@@ -290,7 +290,7 @@ function buehneWaehlen(): ChefBuehne | null {
   } catch { return STANDARD_BUEHNE; }
 }
 
-export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false, seiteSlug = null, volltext = false }: {
+export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, ruhigeHuelle = false, vollflaeche = false, stillerGrund = false, seiteSlug = null, volltext = false }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
   /** E-342: die offene Seite (/chef/s/<slug>) — markiert ihren Unterpunkt im Menü. */
   seiteSlug?: string | null;
@@ -310,6 +310,12 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   ruhigeHuelle?: boolean;
   /** E-IT-H (08.10.2026): Die offene Seite füllt das Fenster (Klasse `cb-voll`, chefbuero.css) — heute nur /chef/s/whatsapp. */
   vollflaeche?: boolean;
+  /**
+   * Aras-Cockpit (20.10.2026, Justin: „UI VIEL übersichtlicher, cleaner“): Hinter dieser Seite liegt KEIN Bild (kein
+   * Alpen-Foto, kein Film), nur ein ruhiger Navy-Verlauf (Klasse `cb-still`, Ende von chefbuero-apple.css) — Daten
+   * vor einem großen Foto lesen sich schlecht. Gilt nur für Seiten mit `stillerGrund` (chef-seiten.tsx), heute /chef/s/aras.
+   */
+  stillerGrund?: boolean;
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
@@ -499,7 +505,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
   );
 
   return (
-    <div className={`cb cb-glas${buehne ? ` cb-apple cb-buehne-${buehne}${raumKey === "lage" && !seiteSlug ? " cb-start" : ""}` : ""}${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}`}>
+    <div className={`cb cb-glas${buehne ? ` cb-apple cb-buehne-${buehne}${raumKey === "lage" && !seiteSlug ? " cb-start" : ""}` : ""}${schmal ? " cb-schmal" : ""}${ruhigeHuelle ? " cb-ruhig" : ""}${vollflaeche ? " cb-voll" : ""}${stillerGrund ? " cb-still" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum
@@ -512,7 +518,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           ══════════════════════════════════════════════════════════════════ */}
       <div className="cb-buehne" aria-hidden="true">
         {/* E-345: Apple-Bühne — Film im Loop; ruhige Seiten und „Bewegung reduzieren“ sehen das Standbild. */}
-        {buehne ? (
+        {stillerGrund ? null : buehne ? (
           (ruhigeHuelle || vollflaeche || ruhig)
             ? <img src={`/film/chef-${buehne}.jpg`} alt="" decoding="async" />
             : <video key={buehne} src={`/film/chef-${buehne}.mp4`} poster={`/film/chef-${buehne}.jpg`}

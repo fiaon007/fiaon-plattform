@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.10.2026 — KI-Team › Aras als ruhiges Cockpit; der Live-Kasten verschwindet nach dem Auflegen
+- **Was:** Die Seite Aras ist neu aufgebaut. Oben steht **eine** Statusleiste: ein Satz, was Aras gerade tut („Aras ruft gerade
+  niemanden an“), dazu Stufe, Kunden an/aus, Kosten von heute und die Knöpfe **Leerlauf** und **Not-Aus** (Not-Aus und „Wieder an“
+  fragen kurz nach — ohne Browser-Fenster). Die vier großen Zahlen und der halbe Bildschirm „Strom verbunden · 0 Gespräche“ sind weg.
+  **Live** erscheint nur, wenn ein Gespräch läuft: wer, wie lange, der Text als Sprechblasen, „Übernehmen“ (nur bei Kunden) und
+  „Auflegen“ (bei Kunden mit Rückfrage). Die Reiter heißen **Probe · Anrufe · Als Nächstes · Tagesplan · Ausbaustufe · Einstellungen**
+  (alte Links mit ?reiter=… gehen weiter). **Probe:** „Mich anrufen“ groß, darüber Nummer, Gesprächsart, Stimme; danach Daumen hoch
+  oder „Noch nicht“ mit Gründen; neu „Dein Feedback aus Probeanrufen“ (Übernehmen/Verwerfen — solange der Telefon-Kern die Routen
+  noch nicht hat, steht dort leise „Kommt gleich“); Ton und Stimme als ruhige Regler. **Anrufe:** Kalender statt Textfeld, Filter
+  Alle · Probe · Kunden · Daumen runter, Zeilen wie „Probe · Rate fällig · 14:27 · 1:30 Min · 0,16 € · beendet von dir“; Details mit
+  Zusammenfassung, Gespräch als Sprechblasen, „Was Aras erledigt hat“ und Prüf-Mara in Klartext — keine Systemwörter („entfaellt“,
+  „aufnahme_abgelehnt · 21 ms“) mehr. **Als Nächstes:** je Person „Jetzt“, „Verschieben“ (Kalender + Uhrzeit statt Eingabefenster)
+  und „Entfernen“ (mit Rückfrage), Einreihen mit Namenssuche, „Jetzt auffüllen“. **Tagesplan, Ausbaustufe, Einstellungen** aufgeräumt
+  (Lernvorschlag als Satz, Stufen-Leiter, Einstellungen in vier Gruppen, nichts doppelt). Hinter der Seite liegt kein Foto mehr,
+  nur ein ruhiger Navy-Verlauf. Am Handy (375 px) passt alles, nichts ragt heraus. EIN Rundgang für die Seite (zeigt sich einmal neu).
+- **Warum:** Justin (20.10.): „Die gesamte Seite ist total unübersichtlich, vieles geht nicht — wenn ich auflege, läuft der Kasten
+  mit ‚Übernehmen‘ dennoch weiter.“ Ursache des Kastens: Nach dem Ende kamen noch Ereignisse zu demselben Anruf (Prüf-Mara-Urteil,
+  dein Daumen), und die alte Live-Karte legte dafür einen neuen Kasten an, der nie verschwand; ein nicht abgenommener Anruf hatte gar
+  kein Ende-Ereignis. Jetzt: Ende-Ereignis nimmt den Kasten sofort weg, spätere Ereignisse zu einem beendeten Anruf wecken nichts, und
+  ein Gegencheck mit dem Server (alle 2 s, solange ein Kasten steht) nimmt jeden Kasten weg, den es auf dem Server nicht mehr gibt.
+  Weitere Funde: „Verschieben“ warf bei einem Tippfehler still einen Fehler, „Entfernen“ fragte nicht, Prüf-Mara im Detail war leer,
+  Dialekt/Hintergrund/Zuhören standen doppelt (Probe und Einstellungen), die Aufnahme brauchte eine Office-Anmeldung, die im
+  Chefbüro fehlte (jetzt öffnet „Aufnahme anhören“ sie still dazu — wie die Akte, E-352).
+- **Wo:** Chefbüro › KI-Team › Aras (/chef/s/aras). Server: GET /chef/aras/live/stand (neu, leichter Gegencheck), Lage mit Stufe,
+  Anrufliste mit Vor- und Nachname, Anruf-Detail mit Prüf-Mara-Urteil (server/routes/fiaon-chef-ki.ts). Oberfläche:
+  client/src/components/admin/ChefKiAras.tsx, ChefArasProbe.tsx, aras/*, client/src/styles/chef-aras.css; ruhiger Grund über
+  `stillerGrund` (chef-seiten.tsx, ChefShell.tsx, chefbuero-apple.css). Prüfstand: scripts/pruef-aras-cockpit.ts (66 Prüfungen).
+
 ## 20.10.2026 — WhatsApp-Raum neu: sieht aus wie WhatsApp, nur in FIAON-Blau
 - **Was:** Der Raum ist neu gebaut wie WhatsApp Web: EIN Rahmen mit Liste · Chat · Kontaktinfo. **Liste:** rundes Bild mit
   Initialen (grüner Punkt = 24-Stunden-Fenster offen), Name mit Stufe, Zeit, eine Zeile Vorschau mit Häkchen und Absender,

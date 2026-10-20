@@ -150,6 +150,12 @@ export interface ChefSeite {
    * `cb-voll`, chefbuero.css). Heute nur der WhatsApp-Raum.
    */
   vollflaeche?: boolean;
+  /**
+   * Aras-Cockpit (20.10.2026): kein Bild hinter der Seite (kein Alpen-Foto/Film), nur ein ruhiger Navy-Verlauf
+   * (ChefShell `stillerGrund`, Klasse `cb-still`). Justin: „UI VIEL übersichtlicher, cleaner“ — Daten vor einem großen
+   * Foto lesen sich schlecht. Heute nur /chef/s/aras.
+   */
+  stillerGrund?: boolean;
   /** E-342: kurzer Name für Menü und Wegeleiste (ohne Raum-Vorsilbe). */
   kurz?: string;
   /** E-342: keine Kachel, kein Reiter — nur Ziel von Suche und Links (die Kundenakte). */
@@ -206,7 +212,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
   // ── KI-Team (E-409, 19.10.2026) — Raum „ki“: Mara und Aras an einem Ort ──
   { slug: "ki-heute", label: "KI-Team · Heute", kurz: "Heute", satz: "Mara und Aras heute — Zahlen, Karten, Not-Aus.", Seite: KiHeute, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki team heute mara aras karten entscheidungen notaus not-aus kosten prüf-mara pruef-mara gelb" },
-  { slug: "aras", label: "Aras", kurz: "Aras", volltext: true, satz: "Der Kollege am Telefon — Probe, Plan, Anrufe.", Seite: KiAras, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "aras telefon anruf anrufe stimme stimmen hörprobe hoerprobe stimmen-studio studio flitz nuri juni ton tempo energie füllwörter fuellwoerter daumen deckel warteschlange live transkript probe probeanruf mich anrufen plan spielart rate zusage zuruf notaus not-aus leerlauf ki kollege" },
+  { slug: "aras", label: "Aras", kurz: "Aras", volltext: true, satz: "Dein KI-Kollege am Telefon — Probe, Anrufe, Plan.", Seite: KiAras, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, stillerGrund: true, auch: "aras telefon anruf anrufe stimme stimmen hörprobe hoerprobe stimmen-studio studio flitz nuri juni ton tempo energie füllwörter fuellwoerter daumen deckel warteschlange live transkript probe probeanruf mich anrufen plan spielart rate zusage zuruf notaus not-aus leerlauf ki kollege als nächstes naechstes tagesplan ausbaustufe stufe ampel feedback cockpit auflegen übernehmen uebernehmen" },
   // E-409: Das Mara-Steuerpult zieht in den Raum „ki“ um (Adresse /chef/s/mara bleibt — alte Links gehen weiter).
   { slug: "mara", label: "Mara-Steuerpult", kurz: "Mara", volltext: true, satz: "WhatsApp, Mail-Aktion, Auskunft, Termine, Social.", Seite: Mara, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
   { slug: "ki-werkzeuge", label: "Werkzeuge", kurz: "Werkzeuge", satz: "Was Mara und Aras allein dürfen: grün, gelb, rot.", Seite: KiWerkzeuge, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki werkzeuge ampel grün gelb rot mara aras erlaubnis freigabe geld erstattung storno" },

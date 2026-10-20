@@ -231,3 +231,18 @@
 /* Leise Kartentexte auf Milchglas: etwas heller, sonst verschwimmen sie im Blau. */
 .cb.cb-apple .cl-karte em,
 .cb.cb-apple .cl-karte small { color: rgba(255, 255, 255, .68); }
+
+/* ── Ruhiger Grund (Aras-Cockpit, 20.10.2026) ─────────────────────────────────────────────────────────────────────────
+   Justin: „die gesamte Seite ist total unübersichtlich … UI VIEL übersichtlicher, cleaner“. Seiten mit `stillerGrund`
+   (chef-seiten.tsx, heute /chef/s/aras) tragen .cb-still: kein Foto, kein Film hinter den Daten (ChefShell rendert
+   keins), nur ein ruhiger Navy-Verlauf mit einem Hauch Glasblau oben links. Gilt mit und ohne Apple-Bühne. */
+.cb.cb-glas.cb-still,
+.cb.cb-glas.cb-apple.cb-still {
+  background:
+    radial-gradient(1100px 620px at 10% -14%, rgba(40, 141, 250, .15), rgba(40, 141, 250, 0) 62%),
+    radial-gradient(900px 560px at 100% 0%, rgba(29, 78, 216, .11), rgba(29, 78, 216, 0) 60%),
+    linear-gradient(165deg, #0B1220 0%, #0E1729 48%, #121E35 100%) fixed,
+    #0B1220;
+}
+.cb.cb-glas.cb-still .cb-buehne,
+.cb.cb-glas.cb-apple.cb-still .cb-buehne { display: none; }

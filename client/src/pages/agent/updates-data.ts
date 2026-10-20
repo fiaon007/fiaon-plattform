@@ -102,27 +102,6 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     ],
   },
   {
-    // E-406 B3 (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“): Wochen-Stichprobe in der Schulung, Ampel im Steuerpult.
-    id: "2026-10-19-mara-stichprobe",
-    date: "2026-10-19",
-    category: "Neu",
-    title: "Mara-Stichprobe: jede Woche 20 Fälle zum Bewerten",
-    summary:
-      "In der Schulung liegen jeden Montag 20 Dinge, die Mara in der Woche davor getan hat. "
-      + "Die Schulungsleitung sagt je Fall: ok oder nicht ok — mit Grund.",
-    changes: [
-      "Zu sehen für die Trainerin und die Vertriebsleitung unter Mehr → Schulung, Abschnitt „Mara-Stichprobe“.",
-      "Daraus entsteht die Fehlerquote je Werkzeug (Mails, WhatsApp, Termine, Kartenlinks …).",
-      "Die Geschäftsführung kann Mara je Werkzeug mehr oder weniger erlauben. Ein Termin, den Mara eingetragen hat, kann dann innerhalb "
-        + "von 24 Stunden wieder abgesagt werden — der Kunde bekommt eine Absage mit Link zum Neubuchen, du eine Meldung wie immer.",
-    ],
-    howto: [
-      "Mehr → Schulung öffnen, nach unten zu „Mara-Stichprobe“.",
-      "Lesen, was der Kunde schrieb und was Mara tat. Dann „ok“ — oder „nicht ok“, einen Satz zum Grund, „Speichern“.",
-    ],
-    link: { href: "/agent/schulung", label: "Zur Schulung" },
-  },
-  {
     // E-406 B2 (19.10.2026): Mara fordert fehlende KYC-Unterlagen selbst nach, prüft Unterlagen vor; die Prüf-Aufgabe geht ins Team.
     id: "2026-10-19-mara-unterlagen",
     date: "2026-10-19",

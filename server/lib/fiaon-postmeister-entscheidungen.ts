@@ -77,7 +77,7 @@ const SATZ: Record<Fall, string> = {
   rechtlich: "Rechtliches entscheidest du — Maras Antwort ist vorsichtig und sagt nichts zu.",
   global: "Global-Kunden beantwortet Mara nie selbst.",
   unsicher: "Ihre eigene Prüfung hat die Antwort angehalten.",
-  ampel: "Mails beantwortet Mara gerade nur mit deinem Klick (Ampel rot im Steuerpult).",
+  ampel: "Die Ampel steht auf Rot (KI-Team › Werkzeuge) — Maras Antwort geht nur mit deinem Klick raus.",
   ampel_gelb: "Die Ampel steht auf Gelb — von selbst ginge diese Antwort aber nie raus, nur mit deinem Klick.",
 };
 
@@ -102,7 +102,7 @@ export function karteAusZeile(z: any): EntscheidungNeu {
     personId: z.person_id != null ? Number(z.person_id) : null,
     ref: z.ref ?? null,
     titel: TITEL[fall],
-    text: `„${kurz(z.betreff || "(ohne Betreff)", 90)}“ — ${SATZ[fall]}${grund && fall === "unsicher" ? ` (${kurz(grund, 140)})` : ""}${fall === "ampel_gelb" && gelbKarteGrund(grund) ? ` (${kurz(gelbKarteGrund(grund), 140)})` : ""}`,
+    text: `„${kurz(z.betreff || "(ohne Betreff)", 90)}“ — ${SATZ[fall]}${grund && fall === "unsicher" ? ` (${kurz(grund, 140)})` : ""}${fall === "ampel_gelb" && gelbKarteGrund(grund) ? ` (${kurz(gelbKarteGrund(grund), 140)})` : ""}${fall === "ampel" ? ` (${kurz(grund.replace(/^Ampel rot:\s*/, ""), 160)})` : ""}`,
     empfehlung: maengel.length ? "neu" : "senden",
     optionen: [
       { key: "senden", label: "Maras Antwort senden", werkzeug: "postmeister_entwurf_senden", args: { id }, ton: vorsicht ? "vorsicht" : "gut",

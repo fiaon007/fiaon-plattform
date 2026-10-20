@@ -3,7 +3,8 @@
    Regeln (Justins Vorgaben, fiaon-chefbuero-glas / justin-design-geschmack):
    · EINE Navy-Glas-Bühne je Seite (.ki-buehne) — die EINZIGE Regel dieser
      Datei mit backdrop-filter. Alles andere matt (.ki-karte).
-   · Glasblau-Paar #288DFA / #1D4ED8, Navy; KEIN Gold. Farbe nur als Punkt (Ampel).
+   · Glasblau-Paar #288DFA / #1D4ED8, Navy; KEIN Gold, kein Orange (E-409 Fund 18: Text, Knöpfe,
+     Pillen, Balken und Sterne in Glasblau — Gelb gibt es NUR als kleinen Ampel-Punkt).
    · Inter dünn: Überschriften 400, große Zahlen 300. Wenig Text, Tooltips.
    · Einblendungen NUR „backwards" (sonst schaltet der Füllmodus das Glas ab).
    · Handy 375 px ohne Querrolle, Tippziele ≥ 36 px.
@@ -35,7 +36,7 @@
 .ki-leise { color: var(--k-text-2); } .ki-still { color: var(--k-text-3); } .ki-klein { font-size: 12.5px; }
 .ki-etikett { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--k-text-3); }
 .ki-zahl { font-weight: 300; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--k-text); }
-.ki-gut-t { color: var(--k-gut); } .ki-warn-t { color: var(--k-warn); } .ki-krit-t { color: var(--k-krit); } .ki-akz-t { color: var(--k-licht-text); }
+.ki-gut-t { color: var(--k-gut); } .ki-warn-t { color: var(--k-licht-text); } .ki-krit-t { color: var(--k-krit); } .ki-akz-t { color: var(--k-licht-text); }
 
 /* ── Kopf: Titel, EIN Satz, Chips rechts ───────────────────────────────── */
 .ki-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px 0 18px; }
@@ -78,7 +79,7 @@
 }
 .ki-knopf.haupt { background: var(--k-licht); border-color: var(--k-licht); color: #fff; }
 .ki-knopf.klein { min-height: 32px; padding: 5px 11px; font-size: 12.5px; border-radius: 8px; }
-.ki-knopf.warn { color: var(--k-warn); border-color: rgba(242, 182, 76, .45); }
+.ki-knopf.warn { color: var(--k-text); border-color: rgba(140, 194, 255, .5); }
 .ki-knopf.krit { color: var(--k-krit); border-color: rgba(240, 113, 120, .45); }
 .ki-knopf.text { min-height: 0; padding: 4px 0; border: 0; background: none; color: var(--k-licht-text); white-space: normal; }
 .ki-knopf:disabled { opacity: .5; cursor: not-allowed; }
@@ -88,7 +89,7 @@ a.ki-knopf:hover { text-decoration: none; }
   .ki-knopf.haupt:not(:disabled):hover { background: #1f7ee8; }
 }
 .ki-pille { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--k-linie-2); font-size: 12px; line-height: 1.35; color: var(--k-text-2); white-space: nowrap; }
-.ki-pille.gut { color: var(--k-gut); border-color: rgba(61, 214, 140, .35); } .ki-pille.warn { color: var(--k-warn); border-color: rgba(242, 182, 76, .38); }
+.ki-pille.gut { color: var(--k-gut); border-color: rgba(61, 214, 140, .35); } .ki-pille.warn { color: var(--k-text-2); border-color: rgba(140, 194, 255, .4); }
 .ki-pille.krit { color: var(--k-krit); border-color: rgba(240, 113, 120, .4); } .ki-pille.akz { color: #9CC8FF; border-color: rgba(40, 141, 250, .45); }
 a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border-color: rgba(125, 184, 255, .5); }
 .ki-punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--k-text-3); display: inline-block; flex: none; }
@@ -129,7 +130,7 @@ a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border
 /* ── Balken (Kosten, Quote) ──────────────────────────────────────────────── */
 .ki-balken { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
 .ki-balken > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--k-tiefe), var(--k-licht)); }
-.ki-balken > i.warn { background: linear-gradient(90deg, #b8842f, var(--k-warn)); }
+.ki-balken > i.warn, .ki-balken > i.voll { background: linear-gradient(90deg, var(--k-licht), #8CC2FF); }
 .ki-balken > i.krit { background: linear-gradient(90deg, #a04a4f, var(--k-krit)); }
 .ki-verlauf { display: flex; align-items: flex-end; gap: 3px; height: 54px; }
 .ki-verlauf > div { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; height: 100%; }
@@ -169,7 +170,7 @@ a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border
 .ki-stunden > div i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--h, 0%); background: rgba(40, 141, 250, .5); }
 .ki-sterne { display: inline-flex; gap: 2px; }
 .ki-sterne button { border: 0; background: none; color: var(--k-text-3); cursor: pointer; padding: 2px; font-size: 16px; line-height: 1; }
-.ki-sterne button.an { color: var(--k-warn); }
+.ki-sterne button.an { color: var(--k-licht-text); }
 
 /* ── Handy ───────────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {

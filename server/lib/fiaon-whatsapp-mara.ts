@@ -4206,12 +4206,38 @@ export function zahltagEindeutig(datumIso: string, kunde: string, letzteDu = "")
   return /\?/.test(String(letzteDu)) && mitMonat(letzteDu) && /^\s*(ja|jo|jep|genau|richtig|stimmt|korrekt|gern|gerne|ok|okay|passt)\b/i.test(kunde);
 }
 
+/**
+ * Die Werkzeuge mit eigenem Rot-Weg: Sie prüfen die Ampel selbst und legen Justin eine passende Karte vor
+ * (Rückruf: „vorlegen“ mit dem Wunsch; Ratenpause: Härtefall-Karte „Pause setzen“).
+ */
+const EIGENER_ROT_WEG = new Set(["rueckruf_eintragen", "ratenpause_setzen"]);
+
+/**
+ * E-409 × E-406 (Integration, 20.10.2026): DIE EINE Werkzeug-Ampel (KI-Team › Werkzeuge, fiaon-ki-ampel.ts).
+ * Rot: das Werkzeug läuft nicht — mit Rot-Weg „karte“ legt der Server Justin eine echte Karte vor (vorlegen →
+ * „Mara braucht eine Antwort von dir“), mit „weglassen“ antwortet Mara ohne es. Gelb: läuft und steht DANACH in
+ * „Heute“ — nur, wenn es wirklich lief. Grün (Vorgabe) = wie bisher. Lesefehler = die strengste Stufe.
+ */
 export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
+  const A = await import("./fiaon-ki-ampel");
+  const ein = { kanal: "whatsapp" as const, personId: ctx.personId, nummer: ctx.nummer };
+  const ampel = await A.ampelPruefen("mara", name, ein).catch(() => null);
+  if (ampel?.gesperrt && !EIGENER_ROT_WEG.has(name)) {
+    const karte = ampel.rotWeg === "karte";
+    const wunsch = Object.entries(args ?? {}).filter(([, v]) => v != null && String(v).trim() !== "").map(([k, v]) => `${k}: ${String(v).slice(0, 80)}`).join(" · ").slice(0, 300);
+    return {
+      ergebnis: { ok: false, meldung: ampel.text },
+      aktion: { werkzeug: name, ok: false, zeiten: [],
+        ...(karte ? { vorlegen: `Ampel rot (${ampel.werkzeug?.label ?? name}): Mara hat es NICHT getan${wunsch ? ` — ${wunsch}` : ""}.` } : {}) },
+    };
+  }
+  const r = await werkzeugAusfuehrenKern(name, args, ctx);
+  if (ampel && !ampel.gesperrt) await A.ampelGelbMerken(ampel, r.aktion.ok === true, ein, r.aktion.satz ?? r.aktion.termin?.text ?? null).catch(() => {});
+  return r;
+}
+
+async function werkzeugAusfuehrenKern(name: string, args: any, ctx: WerkzeugKontext): Promise<{ ergebnis: any; aktion: Aktion }> {
   const mt = await import("./fiaon-mara-termin");
-  // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums (KI-Team › Werkzeuge). Rot = das Modell bekommt „gesperrt“ und
-  // übergibt; gelb = läuft, steht als Zeile in „Heute“. Grün (Vorgabe) = wie bisher. Lesefehler = grün.
-  const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", name, { kanal: "whatsapp", personId: ctx.personId, nummer: ctx.nummer }).catch(() => ({ gesperrt: false, text: null as string | null }));
-  if (ampel.gesperrt) return { ergebnis: { ok: false, meldung: ampel.text }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
   if (name === "freie_zeiten") {
     const ang = await mt.freieZeiten(ctx.personId);
     const von = args?.von ? mt.wunschLesen(args.von) : null;
@@ -4238,16 +4264,16 @@ export async function werkzeugAusfuehren(name: string, args: any, ctx: WerkzeugK
   if (name === "rueckruf_eintragen") {
     const sperre = rueckrufHeuteSperre(args, ctx, new Date());
     if (sperre) return { ergebnis: { ok: false, grund: sperre }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
-    // E-406 B3: Ampel „Termine eintragen“ auf Rot (Mara-Steuerpult) — Mara trägt nichts ein, keine Uhrzeit wird
-    // zugesagt; der Wunsch liegt Justin als Karte vor (vorlegen → „Mara braucht eine Antwort von dir“). Startwert grün.
-    const { ampelRot } = await import("./fiaon-mara-ampel");
-    if (await ampelRot("termin_eintragen")) {
+    // E-406 B3 / E-409: Ampel „Rückruf eintragen“ auf Rot (KI-Team › Werkzeuge) — Mara trägt nichts ein, keine Uhrzeit
+    // wird zugesagt; der Wunsch liegt Justin als Karte vor (vorlegen → „Mara braucht eine Antwort von dir“). Vorgabe grün.
+    const { ampelRot } = await import("./fiaon-ki-ampel");
+    if (await ampelRot("rueckruf_eintragen")) {
       const fenster = args?.von && args?.bis ? `${args.von}–${args.bis}` : (args?.von || args?.bis || "");
       const wunsch = [args?.zeit, fenster].filter(Boolean).join(" / ") || "ohne Uhrzeit";
       return {
         ergebnis: { ok: false, grund: "Rückrufe trägt gerade die Geschäftsführung selbst ein (Ampel rot). Sag ihm: Sein Wunsch ist angekommen, wir melden uns und machen die Zeit fest. Nenne KEINE Uhrzeit als fest und schreib nicht, dass etwas eingetragen ist." },
         aktion: { werkzeug: name, ok: false, zeiten: [],
-          vorlegen: `Ampel rot (Termine eintragen): Rückruf NICHT eingetragen — Wunsch ${wunsch}${args?.verschieben === true ? " (verschieben)" : ""}. Anliegen: ${String(args?.anliegen ?? "").slice(0, 200)}` },
+          vorlegen: `Ampel rot (Rückruf eintragen): Rückruf NICHT eingetragen — Wunsch ${wunsch}${args?.verschieben === true ? " (verschieben)" : ""}. Anliegen: ${String(args?.anliegen ?? "").slice(0, 200)}` },
       };
     }
     const r = await mt.rueckrufBuchen(ctx, {
@@ -4453,10 +4479,10 @@ async function ratenpauseSetzen(args: any, ctx: WerkzeugKontext): Promise<{ erge
     ergebnis: { ok: false, grund: "Eine weitere Pause entscheidet unsere Geschäftsführung — sag ihm genau das: Er bekommt dazu Bescheid. Keine Zusage, keine Zahlungsbitte, NICHTS ist verschoben." },
     aktion: { werkzeug: name, ok: false, zeiten: [], haertefall: true, ohneSperreMoeglich: ohneSperre, intern } as Aktion,
   });
-  // E-406 B3: Ampel „Ratenpause“ auf Rot (Mara-Steuerpult) — jede Bitte kommt als Karte „Ratenpause“ mit dem Knopf
-  // „Pause trotzdem setzen“ (derselbe Weg wie der Härtefall). Mara sagt nichts zu. Startwert grün.
-  const { ampelRot } = await import("./fiaon-mara-ampel");
-  if (await ampelRot("ratenpause")) {
+  // E-406 B3 / E-409: Ampel „Ratenpause setzen“ auf Rot (KI-Team › Werkzeuge) — jede Bitte kommt als Karte „Ratenpause“
+  // mit dem Knopf „Pause trotzdem setzen“ (derselbe Weg wie der Härtefall). Mara sagt nichts zu.
+  const { ampelRot } = await import("./fiaon-ki-ampel");
+  if (await ampelRot("ratenpause_setzen")) {
     return {
       ergebnis: { ok: false, grund: "Eine Ratenpause entscheidet gerade unsere Geschäftsführung — sag ihm genau das: Er bekommt dazu Bescheid. Keine Zusage, keine Zahlungsbitte, NICHTS ist verschoben." },
       aktion: { werkzeug: name, ok: false, zeiten: [], haertefall: true, ohneSperreMoeglich: true, intern: "Ampel rot: Ratenpausen nur mit deinem Klick" } as Aktion,

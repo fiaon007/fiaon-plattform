@@ -18,9 +18,12 @@ interface Kosten { ok: boolean; heute: KostenDienst[]; verlauf: { tag: string; k
 interface Protokoll { ok: boolean; schaltungen: { am: string; wer: string; methode: string; pfad: string; ziel: string | null; notiz: string | null }[]; ereignisse: { id: number; am: string; kanal: string; art: string; ok: boolean; text: string; personId: number | null; name: string | null }[] }
 
 export function Feld({ e, wert, gesetzt, busy, onSpeichern }: { e: Eintrag; wert: string; gesetzt: boolean; busy: boolean; onSpeichern: (e: Eintrag, w: string) => Promise<void> }) {
-  const [w, setW] = useState(wert);
-  useEffect(() => { setW(wert); }, [wert]);
-  const geaendert = w !== wert;
+  // E-409 Fund 11: Geheime Werte (Justins Probe-Nummer) kommen nur verdeckt an („••• 678“) — das Feld startet leer,
+  // die verdeckte Nummer steht als Platzhalter; gespeichert wird nur, was neu eingetippt wurde.
+  const start = e.geheim ? "" : wert;
+  const [w, setW] = useState(start);
+  useEffect(() => { setW(start); }, [start]);
+  const geaendert = w !== start;
   // Dieselbe Grenze wie auf dem Server — hier nur zur Anzeige (muss als Quelltext, kein RegExp-Objekt nach JSON).
   const pruef = useMemo(() => wertPruefen({ ...(e as any), muss: e.muss ? new RegExp(e.muss) : undefined } as RegisterEintrag, w), [e, w]);
   const titel = grenzeText({ ...(e as any), muss: undefined } as RegisterEintrag);
@@ -52,7 +55,7 @@ export function Feld({ e, wert, gesetzt, busy, onSpeichern }: { e: Eintrag; wert
           </>
         ) : (
           <>
-            <input id={`ks-${e.schluessel}`} type="text" className="breit" value={w} maxLength={e.maxZeichen} disabled={busy} onChange={(ev) => setW(ev.target.value)} onKeyDown={(ev) => ev.key === "Enter" && speichern()} />
+            <input id={`ks-${e.schluessel}`} type="text" className="breit" value={w} maxLength={e.maxZeichen} disabled={busy} placeholder={e.geheim ? (wert ? `${wert} (gesetzt) — neue eintippen` : "noch keine") : undefined} autoComplete={e.geheim ? "off" : undefined} onChange={(ev) => setW(ev.target.value)} onKeyDown={(ev) => ev.key === "Enter" && speichern()} />
             {geaendert ? <button type="button" className="ki-knopf klein haupt" disabled={busy || !pruef.ok} onClick={speichern} title={pruef.ok ? "Speichern" : pruef.fehler}>OK</button> : null}
           </>
         )}

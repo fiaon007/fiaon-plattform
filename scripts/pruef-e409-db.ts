@@ -101,21 +101,24 @@ async function main() {
   const s2 = await A.ampelSetzen("mara", "zahlungszusage_merken", "gelb", "Prüfstand");
   const g2 = await A.ampelPruefen("mara", "zahlungszusage_merken", { kanal: "whatsapp", personId: pid });
   ok(s2.ok && !g2.gesperrt && g2.stufe === "gelb", "gelb lässt durch");
+  // E-409 Fund 6: Gelb steht erst NACH dem Lauf im Protokoll — und nur, wenn das Werkzeug wirklich lief.
+  await A.ampelGelbMerken(g2, false, { kanal: "whatsapp", personId: pid }, "lief nicht");
+  await A.ampelGelbMerken(g2, true, { kanal: "whatsapp", personId: pid }, "Zahltag festgehalten");
   await new Promise((r) => setTimeout(r, 150));
   const prot = (await sql`SELECT art FROM fiaon_mara_protokoll WHERE person_id = ${pid} AND art IN ('ampel_rot','ampel_gelb') ORDER BY id`) as any[];
-  ok(prot.some((x) => x.art === "ampel_rot") && prot.some((x) => x.art === "ampel_gelb"), `Protokoll ampel_rot + ampel_gelb (${prot.map((x) => x.art).join(",")})`);
+  ok(prot.some((x) => x.art === "ampel_rot") && prot.filter((x) => x.art === "ampel_gelb").length === 1, `Protokoll ampel_rot + EIN ampel_gelb (nur der Lauf, der wirklich lief) (${prot.map((x) => x.art).join(",")})`);
   const s3 = await A.ampelSetzen("mara", "geld_buchen", "gruen", "Prüfstand");
   ok(!s3.ok, "fest rot lässt sich nicht umschalten");
   const s4 = await A.ampelSetzen("mara", "konto_freischalten", "gruen", "Prüfstand");
-  ok(!s4.ok, "konto_freischalten kennt kein grün (braucht einen Menschen)");
+  ok(!s4.ok, "konto_freischalten ist fest (braucht immer einen Menschen)");
   const g3 = await A.ampelPruefen("mara", "unbekanntes_werkzeug", { kanal: "mail" });
   ok(!g3.gesperrt && g3.stufe === "gruen", "unbekanntes Werkzeug → grün (die Ampel bremst nur, was sie kennt)");
   const zeilen = await A.ampelZeilenLesen("mara");
   ok(zeilen.find((x) => x.key === "rueckruf_eintragen")?.geaendertAm != null, "Zeile trägt „geändert am“");
-  // Der WhatsApp-Werkzeugweg selbst: rot kommt als Meldung ans Modell zurück, ohne zu buchen.
+  // Der WhatsApp-Werkzeugweg selbst: rot bucht nichts und legt Justin eine echte Karte vor (vorlegen) — E-409 Fund 6.
   const WA = await import("../server/lib/fiaon-whatsapp-mara");
   const wz = await WA.werkzeugAusfuehren("rueckruf_eintragen", { zeit: "2030-01-01 10:00" }, { personId: pid, leadId: null, nummer: "+49151000E409" } as any);
-  ok(wz.ergebnis?.ok === false && String(wz.ergebnis?.meldung ?? "").includes("gesperrt") && wz.aktion.ok === false, "werkzeugAusfuehren: rot → Meldung, kein Termin");
+  ok(wz.ergebnis?.ok === false && /Ampel rot/.test(String(wz.aktion.vorlegen ?? "")) && wz.aktion.ok === false, "werkzeugAusfuehren: rot → kein Termin, Karte vorgelegt", wz.aktion.vorlegen ?? "");
   const [termine] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_termine WHERE person_id = ${pid}`) as any[];
   ok(Number(termine.n) === 0, "kein Termin gebucht");
 
@@ -149,10 +152,10 @@ async function main() {
   ok((await PM.postmeisterTagEuro()) === 12, "postmeister_tag_euro wird vom Postfach gelesen");
   const n1 = await E.maraNotaus(true, "Prüfstand");
   const notaus = (await sql`SELECT key, value FROM fiaon_settings WHERE key IN ('mara_aktion_an','mara_wa_an','postmeister_an')`) as any[];
-  ok(n1.aktion === "aus" && notaus.length === 3 && notaus.every((x) => x.value === "aus"), "Not-Aus Mara setzt drei Schalter auf aus");
+  ok(n1.ok && notaus.length === 3 && notaus.every((x) => x.value === "aus"), "Not-Aus Mara setzt (u. a.) die drei Schalter auf aus");
   await E.maraNotaus(false, "Prüfstand");
   const wieder = (await sql`SELECT value FROM fiaon_settings WHERE key IN ('mara_aktion_an','mara_wa_an','postmeister_an')`) as any[];
-  ok(wieder.every((x) => x.value === "an"), "… und „wieder an“ stellt an");
+  ok(wieder.length === 0, "… und „Wieder an“ stellt den Stand von vorher her (vorher: Vorgabe — also kein Eintrag)");
 
   console.log("── 4 · Heute und Kosten");
   const h = await H.kiHeute();
@@ -174,6 +177,8 @@ async function main() {
   await sql`DELETE FROM fiaon_whatsapp WHERE id = ${waId}`;
   await sql`DELETE FROM fiaon_persons WHERE id = ${pid}`;
   console.log(`\n${gut} Prüfungen bestanden, ${schlecht} rot.`);
+  // „Heute“ stößt im Hintergrund den Karten-Sammler an (tagesLastLesen) — erst ausklingen lassen, dann die Verbindung schließen.
+  await new Promise((r) => setTimeout(r, 4000));
   await sql.end({ timeout: 2 }).catch(() => {});
   process.exit(schlecht ? 1 : 0);
 }

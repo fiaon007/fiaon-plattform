@@ -166,7 +166,8 @@ export const WERKZEUGE: AuftragWerkzeug[] = [
       if (KI_SCHLUESSEL.includes(k) || ARAS_SCHLUESSEL.includes(k)) {
         const { einstellungSetzen } = await import("./fiaon-ki-einstellungen");
         const r = await einstellungSetzen(k, g.wert, `Mara-Auftrag (${von})`);
-        return r.ok ? { ok: true, text: `Einstellung „${k}“ = ${r.wert.slice(0, 60)}.` } : { ok: false, text: r.fehler };
+        // E-409 Fund 11: geheime Werte (Probe-Nummer) nur verdeckt im Auftrags-Ergebnis.
+        return r.ok ? { ok: true, text: `Einstellung „${k}“ = ${(await import("@shared/fiaon-ki-schalter")).wertOeffentlich(k, r.wert).slice(0, 60)}.` } : { ok: false, text: r.fehler };
       }
       // Schlüssel mit eigenem Setzer (Mail-Aktion, Postmeister, Rückholung, Auskunft): derselbe Wert, dieselbe Zeile.
       await sqlPool`
@@ -433,10 +434,13 @@ export async function auftragAusfuehren(id: number, von: string): Promise<{ ok: 
     const w = werkzeugFinden(String(s.werkzeug));
     if (!w) { ergebnis.push({ ...s, ok: false, text: "Dieses Werkzeug gibt es nicht mehr." }); continue; }
     try {
-      // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums — rot = der Schritt läuft nicht, gelb = er steht in „Heute“.
-      const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", w.name, { kanal: "auftrag", von });
-      if (ampel.gesperrt) { ergebnis.push({ werkzeug: w.name, wen: s.wen, ok: false, text: "Ampel rot — dieses Werkzeug darf Mara gerade nicht nutzen (KI-Team › Werkzeuge)." }); continue; }
+      // E-409 (19.10.2026): die EINE Werkzeug-Ampel (KI-Team › Werkzeuge) — rot = der Schritt läuft nicht (Justin sieht es
+      // sofort im Auftrag), gelb = er läuft und steht DANACH in „Heute“ (nur, wenn er wirklich lief).
+      const A = await import("./fiaon-ki-ampel");
+      const ampel = await A.ampelPruefen("mara", w.name, { kanal: "auftrag", von });
+      if (ampel.gesperrt) { ergebnis.push({ werkzeug: w.name, wen: s.wen, ok: false, text: "Ampel rot — dieser Schritt läuft gerade nicht (KI-Team › Werkzeuge)." }); continue; }
       const r = await w.ausfuehren(s.argumente ?? {}, von);
+      await A.ampelGelbMerken(ampel, r.ok, { kanal: "auftrag" }, r.text).catch(() => {});
       ergebnis.push({ werkzeug: w.name, wen: s.wen, ok: r.ok, text: r.text });
       console.log(`[MARA-AUFTRAG] ${id} · ${w.name} · ${r.ok ? "ok" : "FEHLER"}: ${r.text}`);
     } catch (e) {
@@ -504,6 +508,9 @@ export async function dauerauftragLoeschen(id: number): Promise<void> {
 /** Welche Daueraufträge sind jetzt dran? Läuft im Tageslauf. */
 export async function dauerauftraegeLaufen(): Promise<{ geplant: number; ausgefuehrt: number; wartend: number }> {
   await auftragTabellen();
+  // E-409 Fund 9 (20.10.2026): Steht Maras Not-Aus (KI-Team › Heute), laufen auch ihre Daueraufträge nicht — sie bleiben
+  // fällig und laufen im ersten Takt nach „Wieder an“.
+  if (await (await import("./fiaon-ki-einstellungen")).maraNotausAktiv()) return { geplant: 0, ausgefuehrt: 0, wartend: 0 };
   const [jetzt] = (await sqlPool`
     SELECT TO_CHAR(NOW() AT TIME ZONE 'Europe/Berlin', 'HH24:MI') AS uhr,
            EXTRACT(ISODOW FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int AS wochentag,
@@ -584,19 +591,23 @@ export async function maraTag(tag?: string): Promise<MaraTag> {
     SELECT COALESCE(${tag ?? null}::text, (NOW() AT TIME ZONE 'Europe/Berlin')::date::text) AS tag`) as any[];
   const t = String(z.tag);
 
+  // E-409 Fund 3 (20.10.2026): Die Spalte „entwurf“ gibt es nicht — die Abfrage scheiterte still und zeigte immer 0.
+  // Jetzt: Entwurf = aktion 'entwurf'; „geschrieben“ zählt auch Maras Mail-Aktion; WhatsApp „raus“ nur, was MARA schrieb
+  // (nicht Mitarbeiter, nicht Vorlagen-Strecken). Tagesgrenze als Zeitraum (nutzt die Indizes).
   const [mails] = (await sqlPool`
-    SELECT COUNT(*) FILTER (WHERE gesendet_am IS NOT NULL)::int AS geschrieben,
-           COUNT(*) FILTER (WHERE gesendet_am IS NULL AND entwurf IS NOT NULL)::int AS entwuerfe
-      FROM fiaon_postmeister
-     WHERE (COALESCE(gesendet_am, created_at) AT TIME ZONE 'Europe/Berlin')::date = ${t}::date`
+    WITH tag AS (SELECT (${t}::date::timestamp AT TIME ZONE 'Europe/Berlin') AS ab, ((${t}::date + 1)::timestamp AT TIME ZONE 'Europe/Berlin') AS bis)
+    SELECT (SELECT COUNT(*) FROM fiaon_postmeister p, tag WHERE p.gesendet_am >= tag.ab AND p.gesendet_am < tag.bis)::int
+         + COALESCE((SELECT COUNT(*) FROM fiaon_mara_aktion m, tag WHERE m.status = 'gesendet' AND m.gesendet_am >= tag.ab AND m.gesendet_am < tag.bis), 0)::int AS geschrieben,
+           (SELECT COUNT(*) FROM fiaon_postmeister p WHERE p.aktion = 'entwurf' AND p.gesendet_am IS NULL)::int AS entwuerfe`
     .catch(() => [{ geschrieben: 0, entwuerfe: 0 }])) as any[];
 
   const [wa] = (await sqlPool`
-    SELECT COUNT(*) FILTER (WHERE richtung = 'raus')::int AS raus,
+    WITH tag AS (SELECT (${t}::date::timestamp AT TIME ZONE 'Europe/Berlin') AS ab, ((${t}::date + 1)::timestamp AT TIME ZONE 'Europe/Berlin') AS bis)
+    SELECT COUNT(*) FILTER (WHERE richtung <> 'rein' AND von ILIKE 'mara%' AND COALESCE(status, '') <> 'fehler')::int AS raus,
            COUNT(*) FILTER (WHERE richtung = 'rein')::int AS rein,
-           COUNT(DISTINCT nummer)::int AS menschen
-      FROM fiaon_whatsapp
-     WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = ${t}::date`
+           COUNT(DISTINCT nummer) FILTER (WHERE richtung <> 'rein' AND von ILIKE 'mara%')::int AS menschen
+      FROM fiaon_whatsapp w, tag
+     WHERE w.created_at >= tag.ab AND w.created_at < tag.bis`
     .catch(() => [{ raus: 0, rein: 0, menschen: 0 }])) as any[];
 
   const [auf] = (await sqlPool`

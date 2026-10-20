@@ -792,3 +792,6 @@ a.mp-name:hover { text-decoration: underline; }
   .me-verlauf li > :not(.mara-etikett) { grid-column: 1; }
   .me .mara-klappe > summary { min-height: 40px; }
 }
+
+/* E-409 × E-406 (20.10.2026): der Chip „Ampel“ ist ein Link nach KI-Team › Werkzeuge. */
+a.mara-chip { text-decoration: none; }

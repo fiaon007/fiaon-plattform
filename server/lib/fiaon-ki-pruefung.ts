@@ -333,6 +333,14 @@ export async function pruefungStand(): Promise<{ heute: number; auffaellig: numb
 }
 
 // ── Entscheiden ────────────────────────────────────────────────────────────
+/** Welche Hausanweisung ein „anweisen“ trifft: Aktionsmail → „aktion“, Postfach → „postfach“, WhatsApp, Telefon. Rein. */
+export function pruefBereich(bezugArt: string | null | undefined, kanal: string | null | undefined): "aktion" | "postfach" | "whatsapp" | "telefon" {
+  if (bezugArt === "mara_aktion") return "aktion";
+  if (kanal === "mail") return "postfach";
+  if (kanal === "whatsapp") return "whatsapp";
+  return "telefon";
+}
+
 export async function pruefungEntscheiden(id: number, was: "in_ordnung" | "anweisen" | "sperren", von: string, text?: string, opt: { karteSchliessen?: boolean } = {}): Promise<{ ok: true; hinweis?: string }> {
   await pruefungTabellen();
   const [z] = (await sqlPool`SELECT k.*, p.phone_key9 FROM fiaon_ki_pruefung k LEFT JOIN fiaon_persons p ON p.id = k.person_id WHERE k.id = ${id}`) as any[];
@@ -341,7 +349,9 @@ export async function pruefungEntscheiden(id: number, was: "in_ordnung" | "anwei
   if (was === "anweisen") {
     const punkte: PruefPunkt[] = Array.isArray(z.punkte) ? z.punkte : [];
     const satz = String(text ?? "").trim() || punkte.map((p) => p.hinweis).filter(Boolean)[0] || "Bitte diesen Fall künftig vermeiden.";
-    const bereich = z.kanal === "mail" ? "postfach" : z.kanal === "whatsapp" ? "whatsapp" : "telefon";
+    // E-409 Fund 4 (20.10.2026): Die Mail-Aktion liest ihre EIGENE Hausanweisung (Bereich „aktion“, fiaon-mara-aktion.ts) —
+    // ein Hinweis zu einer Aktionsmail landete bisher in der Postfach-Anweisung und wirkte nie.
+    const bereich = pruefBereich(z.bezug_art, z.kanal);
     try {
       const A = await import("./fiaon-mara-anweisung");
       if ((A.BEREICHE as string[]).includes(bereich)) {

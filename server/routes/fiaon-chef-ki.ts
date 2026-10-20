@@ -18,6 +18,7 @@ import { ampelZeilenLesen, ampelSetzen } from "../lib/fiaon-ki-ampel";
 import { kiHeute, kiKostenJeDienst, kiKostenVerlauf } from "../lib/fiaon-ki-heute";
 import { pruefungen, fehlerquote, pruefungEntscheiden, pruefungTakt, pruefungStand } from "../lib/fiaon-ki-pruefung";
 import { AMPEL_STUFEN, ARAS_SPIELARTEN, type AmpelStufe } from "@shared/fiaon-ki-team";
+import { wertOeffentlich, nummerMaskiert } from "@shared/fiaon-ki-schalter";
 
 const router = Router();
 const lesen = requireChef("leitung");
@@ -30,7 +31,10 @@ const nichtVerbunden = (res: Response) => fehler(res, 404, NICHT_VERBUNDEN, { ve
 // ── Heute ──────────────────────────────────────────────────────────────────
 router.get("/chef/ki/heute", lesen, async (req: ChefRequest, res: Response) => {
   try {
-    const h = await kiHeute({ karten: Number(req.query.karten) || 6 });
+    // E-409 Fund 11: Kundennamen nur für Inhaber/Geschäftsführung (wie auf „Qualität“); entscheiden, „Rückgängig“ und
+    // Not-Aus nur Inhaber (dieselbe Wache wie das Mara-Steuerpult).
+    const h = await kiHeute({ karten: Number(req.query.karten) || 6, nameZeigen: nameZeigen(req), entscheiden: req.chef?.stufe === "inhaber" });
+    res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true, ...h });
   } catch (e) {
     console.error("[CHEF-KI] heute:", e);
@@ -40,10 +44,12 @@ router.get("/chef/ki/heute", lesen, async (req: ChefRequest, res: Response) => {
 
 router.post("/chef/ki/mara/notaus", wache, async (req: ChefRequest, res: Response) => {
   try {
+    // { an: true } = Mara anhalten (alle Wege, Stand wird gemerkt) · { an: false } = „Wieder an“ (genau der Stand von vorher).
     const an = req.body?.an !== false;
     const r = await maraNotaus(an, wer(req));
-    void chefProtokoll(req, "mara_notaus", an ? "an" : "aus");
-    res.json({ ok: true, ...r });
+    if (!r.ok) return fehler(res, r.status, r.fehler);
+    void chefProtokoll(req, "mara_notaus", `${an ? "an" : "aus (Stand von vorher)"}: ${r.geaendert.map((g) => g.schluessel).join(", ") || "nichts geändert"}`.slice(0, 300));
+    res.json({ ok: true, aktiv: r.aktiv, geaendert: r.geaendert });
   } catch (e) {
     console.error("[CHEF-KI] mara/notaus:", e);
     fehler(res, 500, "Der Not-Aus ließ sich nicht schalten.");
@@ -66,8 +72,10 @@ router.post("/chef/ki/einstellung", wache, async (req: ChefRequest, res: Respons
   try {
     const r = await einstellungSetzen(schluessel, req.body?.wert, wer(req));
     if (!r.ok) return fehler(res, r.status, r.fehler);
-    void chefProtokoll(req, schluessel, String(r.wert).slice(0, 120));
-    res.json({ ok: true, schluessel: r.schluessel, wert: r.wert });
+    // E-409 Fund 11: die Probe-Nummer steht im Chef-Protokoll und in der Antwort nur verdeckt.
+    const sichtbar = wertOeffentlich(schluessel, r.wert);
+    void chefProtokoll(req, schluessel, sichtbar.slice(0, 120));
+    res.json({ ok: true, schluessel: r.schluessel, wert: sichtbar });
   } catch (e) {
     console.error("[CHEF-KI] einstellung:", e);
     fehler(res, 500, "Die Einstellung ließ sich nicht speichern — es bleibt, wie es war.");
@@ -350,7 +358,7 @@ router.get("/chef/aras/mich-anrufen", lesen, async (req: ChefRequest, res: Respo
     const [ag] = (await sqlPool`SELECT phone FROM fiaon_agents WHERE id = ${req.chef.agentId}`.catch(() => [])) as any[];
     nummer = String(ag?.phone ?? "").trim();
   }
-  const maskiert = nummer ? `${nummer.slice(0, 4)}…${nummer.slice(-3)}` : null;
+  const maskiert = nummer ? nummerMaskiert(nummer) : null;
   res.json({ ok: true, verbunden: !!a?.nachbereitung, nummer: maskiert, gesetzt: !!z?.value, hinweis: a?.nachbereitung ? null : NICHT_VERBUNDEN });
 });
 

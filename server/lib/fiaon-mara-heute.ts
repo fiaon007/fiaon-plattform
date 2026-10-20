@@ -6,7 +6,8 @@
 // Kachel im Lagezimmer (client/src/components/admin/ChefMaraHeute.tsx), GET /chef/mara-heute.
 //
 // ── DIE EINE LISTE DER HANDLUNGEN (handlungenSql) ───────────────────────────
-// Dieselbe Abfrage zählt „heute“, füllt die gelbe Liste und zieht die Wochen-Stichprobe (fiaon-mara-stichprobe.ts):
+// Dieselbe Abfrage zählt „heute“ und füllt die gelbe Liste — für das Lagezimmer (kurz) UND KI-Team › Heute (ausführlich):
+// EINE Quelle für Maras Zahlen (E-409 × E-406, 20.10.2026; die Wochen-Stichprobe für die Trainerin gibt es nicht mehr).
 //   Mails beantwortet (fiaon_postmeister auto_beantwortet) · Kartenlink, Werbesperre, Kündigung (Handlungen der
 //   Postfach-Zeile) · WhatsApp-Antworten und WhatsApp-Nachfassen (fiaon_whatsapp, von „Mara …“) · Mara-Aktion
 //   (fiaon_mara_aktion) · Termine, Kartenlink, Ratenpause, Zahlungszusage, Kündigung, Angaben, Übergaben
@@ -22,16 +23,18 @@
 // KI-Kosten heute: Maras Dienste und alle zusammen (fiaon_ki_nutzung).
 //
 // ── GELB — 24 STUNDEN RÜCKGÄNGIG ────────────────────────────────────────────
-// Steht ein Werkzeug auf Gelb (fiaon-mara-ampel.ts), stehen seine Handlungen der letzten 24 Stunden einzeln hier —
+// Steht ein Werkzeug auf Gelb (die EINE Ampel, fiaon-ki-ampel.ts), stehen seine Handlungen der letzten 24 Stunden hier —
 // mit einem Klick zurück, wo das sicher geht: Termin absagen (Kunde bekommt die Absage mit Link), Anschrift/Telefon
 // zurück auf alt (derselbe Speicherweg wie die Akte), Mail-Entwurf „Nicht senden“ bzw. „Jetzt senden“. Wo es nicht
 // geht (Mail ist raus, Pause zugesagt), steht es ehrlich daneben. Jeder Klick einmal (fiaon_mara_rueckgaengig).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  HANDLUNG_ARTEN, MARA_AMPEL, ampelWerkzeug, heuteErledigt, heuteZeilen, rueckgaengigOffen, editZeileLesen, AMPEL_GELB_KOPF, AUFRAEUM_ART_ZAHLUNG,
-  gelbEntwurfSatz, type AmpelKey, type AmpelStand, type AmpelStufe, type HandlungArt, type HeuteZeile,
+  HANDLUNG_ARTEN, heuteErledigt, heuteZeilen, rueckgaengigOffen, editZeileLesen, AMPEL_GELB_KOPF, AUFRAEUM_ART_ZAHLUNG,
+  gelbEntwurfSatz, type HandlungArt, type HeuteZeile,
 } from "@shared/fiaon-mara-ampel";
+// E-409 × E-406 (20.10.2026): DIE EINE Ampel — Liste und Stufen aus shared/fiaon-ki-team.ts (echte Werkzeugnamen).
+import { MARA_AMPEL, ampelStufeAus, type AmpelStand, type AmpelStufe } from "@shared/fiaon-ki-team";
 import { ABLAGE_KOPF, fristFaellig } from "@shared/fiaon-entwurf-frist";
 
 type Lauf = typeof sqlPool;
@@ -80,14 +83,14 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
   const teile: string[] = [];
   if (da.fiaon_postmeister) {
     teile.push(`
-      SELECT 'mail_antworten'::text AS werkzeug, 'mail_beantwortet'::text AS art, 'postmeister'::text AS quelle, pm.id::text AS quelle_id,
+      SELECT 'antwort_senden'::text AS werkzeug, 'mail_beantwortet'::text AS art, 'postmeister'::text AS quelle, pm.id::text AS quelle_id,
              pm.person_id::int AS person_id, pm.gesendet_am::timestamptz AS am, 'mail'::text AS kanal, ${T("pm.betreff", 200)} AS titel,
              ${T("pm.text", 1500)} AS kunde, ${T("pm.antwort", 2500)} AS mara, NULL::int AS termin_id
         FROM fiaon_postmeister pm
        WHERE pm.aktion = 'auto_beantwortet' AND pm.gesendet_am >= $1 AND pm.gesendet_am < $2`);
     teile.push(`
       SELECT DISTINCT ON (pm.id, h->>'werkzeug')
-             (CASE h->>'werkzeug' WHEN 'karte_senden' THEN 'karte_link' WHEN 'werbesperre_setzen' THEN 'werbesperre' ELSE 'kuendigung' END)::text,
+             (h->>'werkzeug')::text,
              (CASE h->>'werkzeug' WHEN 'karte_senden' THEN 'karte_link' WHEN 'werbesperre_setzen' THEN 'werbesperre' ELSE 'kuendigung' END)::text,
              'postmeister_handlung'::text, pm.id::text || ':' || (h->>'werkzeug'), pm.person_id::int,
              COALESCE(pm.entwurf_geprueft_am, pm.created_at)::timestamptz, 'mail'::text, ${T("pm.betreff", 200)},
@@ -99,14 +102,14 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
        WHERE COALESCE(pm.entwurf_geprueft_am, pm.created_at) >= $1 AND COALESCE(pm.entwurf_geprueft_am, pm.created_at) < $2
          AND h->>'werkzeug' IN ('karte_senden', 'werbesperre_setzen', 'kuendigung_vormerken') AND h->>'ok' = 'true'`);
     teile.push(`
-      SELECT 'mail_antworten'::text, 'entwurf_abgelegt'::text, 'postmeister_ablage'::text, pm.id::text, pm.person_id::int,
+      SELECT NULL::text, 'entwurf_abgelegt'::text, 'postmeister_ablage'::text, pm.id::text, pm.person_id::int,
              pm.updated_at::timestamptz, 'mail'::text, ${T("pm.betreff", 200)}, ${T("pm.text", 1500)}, ${T("pm.begruendung", 600)}, NULL::int
         FROM fiaon_postmeister pm
        WHERE pm.aktion = 'geordnet' AND pm.begruendung LIKE '${ABLAGE_KOPF.replace(/'/g, "''")}%' AND pm.updated_at >= $1 AND pm.updated_at < $2`);
   }
   if (da.fiaon_whatsapp) {
     teile.push(`
-      SELECT 'whatsapp_antworten'::text, 'wa_antwort'::text, 'whatsapp'::text, w.id::text, w.person_id::int,
+      SELECT NULL::text, 'wa_antwort'::text, 'whatsapp'::text, w.id::text, w.person_id::int,
              COALESCE(w.gesendet_am, w.created_at)::timestamptz, 'whatsapp'::text, NULL::text,
              ${kundeWa("w.nummer", "COALESCE(w.gesendet_am, w.created_at)")}, ${T("w.text", 2500)}, NULL::int
         FROM fiaon_whatsapp w
@@ -114,7 +117,7 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
          AND COALESCE(w.status, '') <> 'fehler'
          AND COALESCE(w.gesendet_am, w.created_at) >= $1 AND COALESCE(w.gesendet_am, w.created_at) < $2`);
     teile.push(`
-      SELECT 'nachfassen'::text, 'nachfass_wa'::text, 'whatsapp'::text, w.id::text, w.person_id::int,
+      SELECT NULL::text, 'nachfass_wa'::text, 'whatsapp'::text, w.id::text, w.person_id::int,
              COALESCE(w.gesendet_am, w.created_at)::timestamptz, 'whatsapp'::text, NULL::text,
              ${kundeWa("w.nummer", "COALESCE(w.gesendet_am, w.created_at)")}, ${T("w.text", 2500)}, NULL::int
         FROM fiaon_whatsapp w
@@ -123,16 +126,17 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
   }
   if (da.fiaon_mara_aktion) {
     teile.push(`
-      SELECT 'aktion_mails'::text, 'aktion_mail'::text, 'aktion'::text, m.id::text, m.person_id::int, m.gesendet_am::timestamptz,
+      SELECT NULL::text, 'aktion_mail'::text, 'aktion'::text, m.id::text, m.person_id::int, m.gesendet_am::timestamptz,
              'mail'::text, ${T("m.betreff", 200)}, NULL::text, ${T("m.text", 2500)}, NULL::int
         FROM fiaon_mara_aktion m
        WHERE m.status = 'gesendet' AND m.gesendet_am >= $1 AND m.gesendet_am < $2`);
   }
   if (da.fiaon_mara_protokoll) {
     teile.push(`
-      SELECT (CASE WHEN p.art IN ('termin_gebucht', 'termin_verschoben', 'termin_eingetragen') THEN 'termin_eintragen'
-                   WHEN p.art = 'karte_link' THEN 'karte_link' WHEN p.art = 'ratenpause' THEN 'ratenpause'
-                   WHEN p.art = 'zahlungszusage' THEN 'whatsapp_antworten' WHEN p.art = 'kuendigung' THEN 'kuendigung'
+      SELECT (CASE WHEN p.art IN ('termin_gebucht', 'termin_verschoben') THEN 'rueckruf_eintragen'
+                   WHEN p.art = 'termin_eingetragen' THEN 'vereinbarten_termin_eintragen'
+                   WHEN p.art = 'karte_link' THEN 'karte_link_schicken' WHEN p.art = 'ratenpause' THEN 'ratenpause_setzen'
+                   WHEN p.art = 'zahlungszusage' THEN 'zahlungszusage_merken' WHEN p.art = 'kuendigung' THEN 'kuendigung_aufnehmen'
                    WHEN p.art = 'angaben' THEN 'angaben_aendern' ELSE NULL END)::text,
              (CASE WHEN p.art IN ('termin_gebucht', 'termin_verschoben', 'termin_eingetragen') THEN 'termin' ELSE p.art END)::text,
              'protokoll'::text, p.id::text, p.person_id::int, p.am::timestamptz, p.kanal::text, NULL::text,
@@ -159,7 +163,7 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
   }
   if (da.fiaon_nicht_erreicht_nachfass) {
     teile.push(`
-      SELECT 'nachfassen'::text, 'nachfass_mail'::text, 'nachfass'::text,
+      SELECT NULL::text, 'nachfass_mail'::text, 'nachfass'::text,
              n.person_id::text || ':' || to_char(n.vorgemerkt_am, 'YYYYMMDDHH24MISS'), n.person_id::int, n.bearbeitet_am::timestamptz,
              'mail'::text, 'Nach 2× nicht erreicht'::text, NULL::text, ${T("n.grund", 600)}, NULL::int
         FROM fiaon_nicht_erreicht_nachfass n
@@ -215,13 +219,13 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
 }
 
 export interface Handlung {
-  werkzeug: AmpelKey | null; art: HandlungArt; quelle: string; quelleId: string; personId: number | null;
+  werkzeug: string | null; art: HandlungArt; quelle: string; quelleId: string; personId: number | null;
   am: string; kanal: string | null; titel: string | null; kunde: string | null; mara: string | null; terminId: number | null;
 }
 
 export function handlungAusZeile(z: any): Handlung {
   return {
-    werkzeug: (z.werkzeug ?? null) as AmpelKey | null, art: String(z.art) as HandlungArt, quelle: String(z.quelle), quelleId: String(z.quelle_id),
+    werkzeug: z.werkzeug ?? null, art: String(z.art) as HandlungArt, quelle: String(z.quelle), quelleId: String(z.quelle_id),
     personId: z.person_id != null ? Number(z.person_id) : null, am: new Date(z.am).toISOString(), kanal: z.kanal ?? null,
     titel: z.titel || null, kunde: z.kunde || null, mara: z.mara || null, terminId: z.termin_id != null ? Number(z.termin_id) : null,
   };
@@ -279,7 +283,7 @@ export interface GelbEintrag {
   /** Schlüssel für den Knopf: art + id. */
   art: RueckArt | "info";
   id: string;
-  werkzeug: AmpelKey;
+  werkzeug: string;
   am: string;
   personId: number | null;
   name: string | null;
@@ -308,13 +312,17 @@ export const GELB_MAIL_DECKEL = 200;
 export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Date; mailDeckel?: number } = {}): Promise<GelbEintrag[]> {
   const lauf = o.lauf ?? sqlPool;
   const jetzt = o.jetzt ?? new Date();
-  const gelb = MARA_AMPEL.filter((w) => stand[w.key] === "gelb").map((w) => w.key);
+  const gelb = gelbeWerkzeuge(stand);
   const da = await tabellenDa(lauf);
   // Gelbe Mail-Entwürfe, die noch warten, stehen auch dann hier, wenn die Ampel inzwischen wieder grün ist.
   const [entwuerfe] = da.fiaon_postmeister
     ? (await lauf.unsafe(`SELECT COUNT(*)::int AS n FROM fiaon_postmeister WHERE begruendung LIKE $1 AND aktion = 'entwurf' AND gesendet_am IS NULL`, [`${AMPEL_GELB_KOPF}%`])) as any[]
     : [{ n: 0 }];
-  if (!gelb.length && !Number(entwuerfe?.n)) return [];
+  // E-409: Werkzeuge, die unter Gelb WIRKLICH liefen, schreiben eine Zeile ampel_gelb ins Protokoll (fiaon-ki-ampel.ts).
+  const [protGelb] = da.fiaon_mara_protokoll
+    ? (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_mara_protokoll WHERE art = 'ampel_gelb' AND am > ${new Date(jetzt.getTime() - 24 * 3_600_000)}`) as any[]
+    : [{ n: 0 }];
+  if (!gelb.length && !Number(entwuerfe?.n) && !Number(protGelb?.n)) return [];
   await rueckTabelle(lauf);
   const aus: GelbEintrag[] = [];
   const ab = new Date(jetzt.getTime() - 24 * 3_600_000);
@@ -326,18 +334,23 @@ export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Dat
   const erl = (r: any) => (r ? { am: new Date(r.am).toISOString(), von: r.von ?? null, ergebnis: r.ergebnis ?? null } : null);
 
   // ── Termine: von Mara eingetragen, noch nicht vorbei → „Termin absagen“ ──
-  if (gelb.includes("termin_eintragen") && da.fiaon_termine) {
+  // Rückruf (WhatsApp/Mail) gehört zu rueckruf_eintragen, der genannte Termin (E-395) zu vereinbarten_termin_eintragen.
+  const terminHerkuenfte = [
+    ...(gelb.includes("rueckruf_eintragen") ? RUECKRUF_HERKUENFTE : []),
+    ...(gelb.includes("vereinbarten_termin_eintragen") ? GENANNT_HERKUENFTE : []),
+  ];
+  if (terminHerkuenfte.length && da.fiaon_termine) {
     const t = (await lauf.unsafe(`
       SELECT t.id, t.person_id, t.beginn, t.status, t.herkunft, t.created_at, a.name AS agent, ${NAME_SQL("p")} AS name
         FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id LEFT JOIN fiaon_persons p ON p.id = t.person_id
        WHERE t.herkunft = ANY($1::text[]) AND t.created_at >= $2 ORDER BY t.created_at DESC LIMIT 40`,
-      [MARA_TERMIN_HERKUENFTE as unknown as string[], ab])) as any[];
+      [terminHerkuenfte, ab])) as any[];
     const schon = await erledigtLesen("termin", t.map((x) => String(x.id)));
     for (const x of t) {
       const r = schon.get(String(x.id));
       const offen = !r && x.status === "gebucht" && new Date(x.beginn).getTime() > jetzt.getTime() && rueckgaengigOffen(x.created_at, jetzt);
       aus.push({
-        art: "termin", id: String(x.id), werkzeug: "termin_eintragen", am: new Date(x.created_at).toISOString(),
+        art: "termin", id: String(x.id), werkzeug: terminWerkzeug(x.herkunft), am: new Date(x.created_at).toISOString(),
         personId: x.person_id != null ? Number(x.person_id) : null, name: x.name ?? null,
         text: `Termin ${uhr(x.beginn)}${x.agent ? ` bei ${x.agent}` : ""}${x.status !== "gebucht" ? ` (${x.status})` : ""}`,
         knoepfe: offen ? [{ art: "termin", label: "Termin absagen", vorsicht: true }] : [],
@@ -388,7 +401,7 @@ export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Dat
     const liegen = await gelbLiegenLesen(m.map(gelbZeileAus), jetzt);
     for (const x of m) {
       aus.push({
-        art: "mail_nicht_senden", id: String(x.id), werkzeug: "mail_antworten", am: new Date(x.am).toISOString(),
+        art: "mail_nicht_senden", id: String(x.id), werkzeug: "antwort_senden", am: new Date(x.am).toISOString(),
         personId: x.person_id != null ? Number(x.person_id) : null, name: x.name ?? null,
         text: gelbEntwurfSatz(x.betreff, fristFaellig(x.am, jetzt), liegen.get(Number(x.id)) ?? null),
         knoepfe: [{ art: "mail_senden", label: "Jetzt senden" }, { art: "mail_nicht_senden", label: "Nicht senden", vorsicht: true }],
@@ -399,29 +412,43 @@ export async function gelbListe(stand: AmpelStand, o: { lauf?: Lauf; jetzt?: Dat
     if (weitere > 0 && m.length) {
       const aeltester = m.reduce((a, x) => Math.min(a, new Date(x.am).getTime()), Number.POSITIVE_INFINITY);
       aus.push({
-        art: "info", id: "mail_weitere", werkzeug: "mail_antworten", am: new Date(aeltester - 1_000).toISOString(), personId: null, name: null,
+        art: "info", id: "mail_weitere", werkzeug: "antwort_senden", am: new Date(aeltester - 1_000).toISOString(), personId: null, name: null,
         text: `${weitere === 1 ? "und 1 weiterer gelber Mail-Entwurf" : `und ${weitere} weitere gelbe Mail-Entwürfe`} — alle im Postfach unter „Zu prüfen“`,
         knoepfe: [], ohne: "einzeln im Postfach", erledigt: null,
       });
     }
   }
 
-  // ── Alles andere auf Gelb: einzeln sichtbar, ehrlich ohne Rückgängig ──
-  const rest: AmpelKey[] = gelb.filter((k) => k !== "termin_eintragen" && k !== "angaben_aendern" && k !== "mail_antworten");
-  if (rest.length) {
-    const h = (await handlungenLesen(ab, new Date(jetzt.getTime() + 60_000), { lauf, mitText: true })).filter((x) => x.werkzeug && rest.includes(x.werkzeug));
-    const namen = await namenLesen(h.map((x) => x.personId).filter((n): n is number => n != null), lauf);
-    for (const x of h.slice(0, 40)) {
-      const w = ampelWerkzeug(x.werkzeug!);
+  // ── Alles andere auf Gelb: jedes Werkzeug, das unter Gelb WIRKLICH lief (Protokoll ampel_gelb, auch Aras) — ehrlich
+  //    ohne Rückgängig (die Nachricht ist raus, die Pause zugesagt …). Termine, Angaben und Mails stehen oben mit Knopf.
+  if (Number(protGelb?.n) > 0) {
+    const p = (await lauf`
+      SELECT id, am, kanal, text, person_id, daten->>'werkzeug' AS werkzeug FROM fiaon_mara_protokoll
+       WHERE art = 'ampel_gelb' AND am > ${ab} ORDER BY am DESC LIMIT 40`) as any[];
+    const namen = await namenLesen(p.map((x) => (x.person_id != null ? Number(x.person_id) : null)).filter((n): n is number => n != null), lauf);
+    for (const x of p) {
+      const key = String(x.werkzeug ?? "");
+      const w = MARA_AMPEL.find((m) => m.key === key);
+      const personId = x.person_id != null ? Number(x.person_id) : null;
       aus.push({
-        art: "info", id: `${x.quelle}:${x.quelleId}`, werkzeug: x.werkzeug!, am: x.am, personId: x.personId,
-        name: x.personId != null ? namen.get(x.personId) ?? null : null,
-        text: `${HANDLUNG_ARTEN[x.art]?.eins ?? x.art}${x.mara ? ` — ${kurz(x.mara, 110)}` : ""}`,
-        knoepfe: [], ohne: w?.ohneRueckgaengig ?? "Nicht rückgängig zu machen.", erledigt: null,
+        art: "info", id: `protokoll:${x.id}`, werkzeug: key || "werkzeug", am: new Date(x.am).toISOString(), personId,
+        name: personId != null ? namen.get(personId) ?? null : null,
+        text: `${String(x.text ?? "").slice(0, 200)}${x.kanal === "telefon" ? " (Aras)" : ""}`,
+        knoepfe: [], ohne: w?.gelb ?? "Nicht rückgängig zu machen — es ist schon geschehen.", erledigt: null,
       });
     }
   }
   return aus.sort((a, b) => (a.am < b.am ? 1 : a.am > b.am ? -1 : 0));
+}
+
+/** Die Rückruf-Herkünfte (Mara bucht über rueckruf_eintragen) und die des genannten Termins (E-395). */
+const RUECKRUF_HERKUENFTE = ["mara_whatsapp", "mara_mail"];
+const GENANNT_HERKUENFTE = ["mara_mail_genannt", "mara_whatsapp_genannt"];
+const terminWerkzeug = (herkunft: unknown) => (GENANNT_HERKUENFTE.includes(String(herkunft)) ? "vereinbarten_termin_eintragen" : "rueckruf_eintragen");
+
+/** Die Werkzeuge der EINEN Ampel, die gerade auf Gelb stehen. Rein. */
+export function gelbeWerkzeuge(stand: AmpelStand): string[] {
+  return MARA_AMPEL.filter((w) => !w.fest && ampelStufeAus(MARA_AMPEL, stand, w.key) === "gelb").map((w) => w.key);
 }
 
 async function namenLesen(ids: number[], lauf: Lauf): Promise<Map<number, string>> {
@@ -464,8 +491,7 @@ export async function rueckgaengigMachen(art: RueckArt, idRoh: string, von: stri
   const id = Number(idRoh);
   if (!Number.isInteger(id) || id <= 0) return { ok: false, status: 400, text: "Ungültiger Eintrag." };
   await rueckTabelle(lauf);
-  const { ampelStand } = await import("./fiaon-mara-ampel");
-  const stand = await ampelStand({ frisch: true, lauf: o.lauf });
+  const { ampelStufe } = await import("./fiaon-ki-ampel");
   // Schon einmal zurückgenommen? Dann zuerst das sagen (nicht „inzwischen geändert“).
   if (art === "termin" || art === "angaben") {
     const [schon] = (await lauf`SELECT ergebnis FROM fiaon_mara_rueckgaengig WHERE art = ${art} AND quelle_id = ${String(id)}`) as any[];
@@ -473,11 +499,14 @@ export async function rueckgaengigMachen(art: RueckArt, idRoh: string, von: stri
   }
 
   if (art === "termin") {
-    if (stand.termin_eintragen !== "gelb") return { ok: false, status: 409, text: "„Termine eintragen“ steht nicht auf Gelb." };
     const [t] = (await lauf`
       SELECT id, person_id, beginn, status, storno_token, herkunft, created_at FROM fiaon_termine
        WHERE id = ${id} AND herkunft = ANY(${MARA_TERMIN_HERKUENFTE as unknown as string[]})`) as any[];
     if (!t) return { ok: false, status: 404, text: "Diesen Mara-Termin gibt es nicht." };
+    const werkzeug = terminWerkzeug(t.herkunft);
+    if ((await ampelStufe("mara", werkzeug, o.lauf)) !== "gelb") {
+      return { ok: false, status: 409, text: `„${MARA_AMPEL.find((w) => w.key === werkzeug)?.label ?? werkzeug}“ steht nicht auf Gelb.` };
+    }
     if (t.status !== "gebucht") return { ok: false, status: 409, text: "Der Termin ist nicht mehr gebucht." };
     if (new Date(t.beginn).getTime() <= jetzt.getTime()) return { ok: false, status: 409, text: "Der Termin liegt schon zurück." };
     if (!rueckgaengigOffen(t.created_at, jetzt)) return { ok: false, status: 409, text: "Älter als 24 Stunden — bitte in der Akte absagen." };
@@ -500,7 +529,7 @@ export async function rueckgaengigMachen(art: RueckArt, idRoh: string, von: stri
   }
 
   if (art === "angaben") {
-    if (stand.angaben_aendern !== "gelb") return { ok: false, status: 409, text: "„Anschrift und Telefon ändern“ steht nicht auf Gelb." };
+    if ((await ampelStufe("mara", "angaben_aendern", o.lauf)) !== "gelb") return { ok: false, status: 409, text: "„Anschrift, E-Mail, Telefon ändern“ steht nicht auf Gelb." };
     const [da] = (await lauf`SELECT to_regclass('public.fiaon_mara_angaben') IS NOT NULL AS da`) as any[];
     if (!da?.da) return { ok: false, status: 404, text: "Diese Änderung gibt es nicht." };
     const [g] = (await lauf`SELECT * FROM fiaon_mara_angaben WHERE id = ${id}`) as any[];
@@ -602,8 +631,23 @@ export interface MaraHeute {
   ki: { maraCents: number; alleCents: number; wocheCents: number } | null;
   gelb: GelbEintrag[];
   ampel: AmpelStand;
-  gelbWerkzeuge: AmpelKey[];
+  gelbWerkzeuge: string[];
+  /**
+   * E-409 × E-406 (Fund 1 + 3): DIE Kennzahlen für KI-Team › Heute und das Lagezimmer — aus derselben Liste der
+   * Handlungen, nicht aus einer zweiten Zählung. „geschrieben“ = Mails, die Mara heute selbst geschickt hat (Postfach,
+   * Mail-Aktion, Raten-Mail, Nacharbeit, KYC, Nachfass) und beantwortete Anliegen; „entwuerfe“ = Postfach-Entwürfe, die
+   * jetzt warten; WhatsApp „raus“ = Maras eigene Antworten und Nachfassen (Vorlagen der Strecken zählen nicht).
+   */
+  kennzahlen: {
+    mails: { geschrieben: number; entwuerfe: number; rein: number };
+    whatsapps: { raus: number; rein: number; menschen: number };
+    termine: number;
+  };
 }
+
+/** Die Arten, die als „Mail geschrieben“ zählen (rein). */
+export const MAIL_ARTEN: readonly HandlungArt[] = ["mail_beantwortet", "aktion_mail", "rate_mail", "nacharbeit_mail", "kyc_mail", "nachfass_mail", "anliegen_antwort"];
+export const WA_ARTEN: readonly HandlungArt[] = ["wa_antwort", "nachfass_wa"];
 
 /** Wo im Team jemand hängt: vergangene Termine ohne Ergebnis (14 Tage) und überfällige Aufträge — die fünf größten. */
 export async function haengtLesen(lauf: Lauf = sqlPool): Promise<HaengtZeile[]> {
@@ -659,10 +703,10 @@ export async function maraHeuteLesen(o: { lauf?: Lauf; ohneGeld?: boolean } = {}
   const lauf = o.lauf ?? sqlPool;
   const [t] = (await lauf.unsafe(`SELECT date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' AS ab, NOW() AS jetzt`)) as any[];
   const ab = new Date(t.ab), jetzt = new Date(t.jetzt);
-  const { ampelStand } = await import("./fiaon-mara-ampel");
-  const ampel = await ampelStand(o.lauf ? { lauf } : {});
+  const { ampelStand } = await import("./fiaon-ki-ampel");
+  const ampel = await ampelStand("mara", false, o.lauf);
   const fehlerLog = (was: string) => (e: unknown) => { console.warn(`[MARA-HEUTE] ${was}:`, String((e as Error)?.message ?? e).slice(0, 200)); return null; };
-  const [zahlen, geld, karten, aufraeumen, haengt, ki, gelb] = await Promise.all([
+  const [zahlen, geld, karten, aufraeumen, haengt, ki, gelb, nebenher] = await Promise.all([
     handlungenZaehlen(ab, new Date(jetzt.getTime() + 60_000), lauf).catch(fehlerLog("Handlungen")),
     o.ohneGeld ? Promise.resolve(null) : (async () => {
       const { maraBilanz } = await import("./fiaon-mara-bilanz");
@@ -678,18 +722,39 @@ export async function maraHeuteLesen(o: { lauf?: Lauf; ohneGeld?: boolean } = {}
     haengtLesen(lauf).catch(fehlerLog("Hängt")),
     kiKostenLesen(lauf).catch(fehlerLog("KI")),
     gelbListe(ampel, { lauf, jetzt }).catch(fehlerLog("Gelb")),
+    nebenzahlenLesen(ab, lauf).catch(fehlerLog("Nebenzahlen")),
   ]);
   const z = zahlen ?? {};
+  const n = (art: string) => Math.max(0, Number(z[art] ?? 0) || 0);
   return {
     stand: jetzt.toISOString(),
     erledigt: heuteErledigt(z),
     zeilen: heuteZeilen(z),
     geld, karten, aufraeumen: aufraeumen ?? [], haengt: haengt ?? [], ki, gelb: gelb ?? [],
-    ampel, gelbWerkzeuge: MARA_AMPEL.filter((w) => ampel[w.key] === "gelb").map((w) => w.key),
+    ampel, gelbWerkzeuge: gelbeWerkzeuge(ampel),
+    kennzahlen: {
+      mails: { geschrieben: MAIL_ARTEN.reduce((sum, a) => sum + n(a), 0), entwuerfe: nebenher?.entwuerfe ?? 0, rein: nebenher?.mailsRein ?? 0 },
+      whatsapps: { raus: WA_ARTEN.reduce((sum, a) => sum + n(a), 0), rein: nebenher?.waRein ?? 0, menschen: nebenher?.waMenschen ?? 0 },
+      termine: n("termin"),
+    },
   };
 }
 
+/** Was nicht aus Maras eigenen Handlungen kommt: wartende Entwürfe, Mails und WhatsApps herein, Menschen auf WhatsApp. */
+async function nebenzahlenLesen(ab: Date, lauf: Lauf): Promise<{ entwuerfe: number; mailsRein: number; waRein: number; waMenschen: number }> {
+  const da = await tabellenDa(lauf);
+  const [pm] = da.fiaon_postmeister ? (await lauf`
+    SELECT COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL)::int AS entwuerfe,
+           COUNT(*) FILTER (WHERE created_at >= ${ab})::int AS rein
+      FROM fiaon_postmeister WHERE (aktion = 'entwurf' AND gesendet_am IS NULL) OR created_at >= ${ab}`) as any[] : [{}];
+  const [wa] = da.fiaon_whatsapp ? (await lauf`
+    SELECT COUNT(*) FILTER (WHERE richtung = 'rein')::int AS rein,
+           COUNT(DISTINCT nummer) FILTER (WHERE richtung <> 'rein' AND von LIKE 'Mara%' AND COALESCE(status, '') <> 'fehler')::int AS menschen
+      FROM fiaon_whatsapp WHERE created_at >= ${ab}`) as any[] : [{}];
+  return { entwuerfe: Number(pm?.entwuerfe ?? 0), mailsRein: Number(pm?.rein ?? 0), waRein: Number(wa?.rein ?? 0), waMenschen: Number(wa?.menschen ?? 0) };
+}
+
 /** Für die Anzeige: die Stufe eines Werkzeugs (oder null bei Karten und Übergaben). */
-export function stufeFuer(stand: AmpelStand, werkzeug: AmpelKey | null): AmpelStufe | null {
-  return werkzeug ? stand[werkzeug] : null;
+export function stufeFuer(stand: AmpelStand, werkzeug: string | null): AmpelStufe | null {
+  return werkzeug ? ampelStufeAus(MARA_AMPEL, stand, werkzeug) : null;
 }

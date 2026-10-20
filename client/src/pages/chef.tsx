@@ -90,7 +90,7 @@ export default function ChefPage() {
 
   return (
     <ChefShell stufe={stufe} name={status.name} titel={(status as any).titel ?? null} raumKey={raum.key} onAbmelden={abmelden}
-               ruhigeHuelle={!!seite?.ruhig /* E-252: nur Seiten mit `ruhig` (heute /chef/s/mara) */}
+               ruhigeHuelle={!!seite?.ruhig || (!istSeite && raum.key === "ki") /* E-252: nur Seiten mit `ruhig`; E-409 Fund 18: auch /chef/ki (Heute) — kein Alpen-Film unter dem Glas */}
                vollflaeche={!!seite?.vollflaeche /* E-IT-H: nur Seiten mit `vollflaeche` (heute /chef/s/whatsapp) */}
                seiteSlug={seite?.slug ?? null} volltext={!!seite?.volltext /* E-342: Kurzmodus aus, wo langer Text Inhalt ist */}>
       {istSeite && !seite ? (

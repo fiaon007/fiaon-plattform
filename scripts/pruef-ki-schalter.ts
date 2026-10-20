@@ -26,6 +26,11 @@ const SETZER_DATEI: Record<string, string[]> = {
   "/chef/auskunft/einstellung": ["server/lib/fiaon-auskunft-verkauf.ts"],
   "/chef/mara/nicht-erreicht": ["shared/fiaon-nicht-erreicht-nachfass.ts"],
   "/admin/postmeister/frist": ["shared/fiaon-entwurf-frist.ts"],
+  // E-409 × E-406 (20.10.2026): die Schalter der Wege aus Welle 1 und 2 (ihre Konstanten stehen in shared/).
+  "/chef/mara/raten-erinnerung": ["shared/fiaon-mara-rate-erinnerung.ts"],
+  "/chef/mara/anliegen": ["shared/fiaon-mara-anliegen.ts"],
+  "/chef/mara/nacharbeit": ["shared/fiaon-mara-nacharbeit.ts"],
+  "/chef/mara/unterlagen/kyc": ["shared/fiaon-kyc-nachfordern.ts"],
 };
 
 console.log("── 1 · Register: Form, Grenzen, Eindeutigkeit");
@@ -99,10 +104,18 @@ ok(registerSetzer("gibt_es_nicht") === null, "unbekannter Schlüssel → kein Se
 
 console.log("── 5 · Werkzeug-Ampel: jedes Werkzeug existiert im Code, feste Zeilen bleiben");
 const wa = lese("server/lib/fiaon-whatsapp-mara.ts"), pm = lese("server/lib/fiaon-postmeister-werkzeuge.ts"), au = lese("server/lib/fiaon-mara-auftrag.ts");
+// E-409 × E-406: die Server-Schritte der EINEN Ampel heißen so, wie der Code sie nennt (keine erfundenen Namen).
+const SCHRITT: Record<string, [string, string]> = {
+  antwort_senden: ["server/lib/fiaon-gmail.ts", "export async function antwortSenden("],
+  vereinbarten_termin_eintragen: ["server/lib/fiaon-postmeister-agent.ts", `werkzeug: "vereinbarten_termin_eintragen"`],
+  angaben_aendern: ["server/lib/fiaon-postmeister-agent.ts", `werkzeug: "angaben_aendern"`],
+  zahlung_suchen: ["server/lib/fiaon-postmeister-agent.ts", `werkzeug: "zahlung_suchen"`],
+};
 for (const w of MARA_AMPEL) {
-  if (w.fest && w.stufen.length === 1 && w.stufen[0] === "rot") { ok(true, `${w.key}: fest rot (nie ein Werkzeug)`); continue; }
+  if (w.fest && w.stufen.length === 1 && w.stufen[0] === "rot" && w.key !== "konto_freischalten") { ok(true, `${w.key}: fest rot (nie ein Werkzeug)`); continue; }
   const quelle = w.kanal === "whatsapp" ? wa : w.kanal === "mail" ? pm : w.kanal === "auftrag" ? au : wa + pm;
-  ok(quelle.includes(`name: "${w.key}"`), `${w.key}: Werkzeug im Code (${w.kanal})`);
+  const schritt = SCHRITT[w.key];
+  ok(schritt ? lese(schritt[0]).includes(schritt[1]) : quelle.includes(`name: "${w.key}"`), `${w.key}: Werkzeug im Code (${w.kanal})`);
   ok(w.stufen.includes(w.vorgabe), `${w.key}: Vorgabe ${w.vorgabe} ist erlaubt`);
 }
 const gate = ["server/lib/fiaon-whatsapp-mara.ts", "server/lib/fiaon-postmeister-agent.ts", "server/lib/fiaon-mara-auftrag.ts"].every((p) => lese(p).includes("ampelPruefen"));

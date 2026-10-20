@@ -1484,15 +1484,15 @@ export async function mailBearbeiten(ein: {
       console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e393.grund}`);
     }
     const darfAutoOhneAmpel = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
-    // ── E-406 B3: DIE AMPEL „MAILS BEANTWORTEN“ (Mara-Steuerpult, Chip „Ampel“) ─────────────────────────────
+    // ── E-406 B3 / E-409: DIE AMPEL „MAILS BEANTWORTEN“ (Werkzeug antwort_senden, KI-Team › Werkzeuge) ─────────
     // Grün (Startwert = heutiges Verhalten): wie bisher. Gelb: Entwurf statt Senden — er steht in „Mara heute“ im
     // Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus (ampelFrist). Rot: jede
     // Antwort wird eine Karte „Kundenmail“. Die Ampel hält nur an, was sonst rausginge — nie lässt sie etwas raus.
     let ampelGrund: string | null = null;
     let ampelGelb = false;
     if (darfAutoOhneAmpel) {
-      const { ampelStufe } = await import("./fiaon-mara-ampel");
-      const stufe = await ampelStufe("mail_antworten");
+      const { ampelStufe } = await import("./fiaon-ki-ampel");
+      const stufe = await ampelStufe("mara", "antwort_senden");
       if (!mailDarfAuto(stufe, { fristNeu: !!ein.ampelFrist })) {
         ampelGrund = mailAmpelGrund(stufe, erg.grund);
         ampelGelb = stufe === "gelb";

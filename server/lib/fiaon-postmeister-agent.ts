@@ -106,6 +106,8 @@ import { MARA_JAHRESVERTRAG_REGEL, kulanzSatz, RECHTE_SATZ } from "@shared/fiaon
 import { zusageErlaubt, zusageAntwortFunde, schwierigHinweis, ZUSAGE_WERKZEUG } from "@shared/fiaon-zahlungszusage";
 // E-406 C1 (19.10.2026): Maras Antwort auf Anliegen aus dem Kundenbereich — eigener KI-Dienst und Deckel.
 import { ANLIEGEN_DIENST, ANLIEGEN_TAG_EURO_VORGABE } from "@shared/fiaon-mara-anliegen";
+// E-409 (Fund 6): Ein rotes Werkzeug macht die Antwort zur Karte — eigener Kopf „Ampel rot:“ (Karte in Mara › Entscheidungen).
+import { mailAmpelWerkzeugRotGrund } from "@shared/fiaon-mara-ampel";
 
 export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -2326,6 +2328,8 @@ export async function antwortErzeugen(ein: {
 
   const handlungen: AgentErgebnis["handlungen"] = [];
   const werkzeugDaten: Record<string, any> = {};
+  /** E-409 (Fund 6): Werkzeuge, die die Ampel auf Rot (Rot-Weg „karte“) angehalten hat — dann wird die Antwort eine Karte. */
+  const ampelRotWerkzeuge: string[] = [];
 
   // ── E-395 (19.10.2026): DER GENANNTE TERMIN ─────────────────────────────
   // „ja bitte stornieren, wir haben heute um 11.00 uhr ein neues gespräch für einen firmenkredit“ (#7131): Daniel
@@ -2583,12 +2587,18 @@ export async function antwortErzeugen(ein: {
       const roh = antwortLesen(fertig, "Antwort");
       // 21.09.2026: Was Mara Neues über den Menschen weiß, bleibt — auch wenn die Antwort ein Entwurf wird.
       await gedaechtnisMerken(ein.personId, roh?.merken, anliegen ? "anliegen" : "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));
-      return await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
+      const fertigErg = await pruefenUndAbschliessen(roh, { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
         kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht, angaben,
         zusage,
         ...(anliegen ? { kanal: "anliegen" as const, dienst } : {}),
       });
+      // E-409 (Fund 6): Ein rotes Werkzeug mit Rot-Weg „karte“ — die Antwort geht NIE von selbst raus, sie wird eine
+      // echte Karte „Ampel rot — Maras Antwort senden?“ (Postfach) bzw. ein Vorschlag (Anliegen).
+      if (ampelRotWerkzeuge.length && fertigErg.automatischErlaubt) {
+        return { ...fertigErg, automatischErlaubt: false, grund: mailAmpelWerkzeugRotGrund(ampelRotWerkzeuge, fertigErg.grund) };
+      }
+      return fertigErg;
     }
 
     nachrichten.push(nachricht);
@@ -2603,9 +2613,13 @@ export async function antwortErzeugen(ein: {
       }
       let p: any = {};
       try { p = JSON.parse(ruf.function?.arguments || "{}"); } catch { /* leere Parameter */ }
-      // E-409 (19.10.2026): die Werkzeug-Ampel des KI-Raums — rot sperrt wie „bestaetigen“, gelb protokolliert für „Heute“.
-      const ampel = await (await import("./fiaon-ki-ampel")).ampelPruefen("mara", w.name, { kanal: "mail", personId: kontext.personId ?? null }).catch(() => ({ gesperrt: false, text: null as string | null }));
-      const erg = ampel.gesperrt
+      // E-409 × E-406 (20.10.2026): DIE EINE Werkzeug-Ampel (KI-Team › Werkzeuge). Rot: das Werkzeug läuft nicht — mit
+      // Rot-Weg „karte“ geht die ganze Antwort als Karte an Justin (ampelRotWerkzeuge, unten), mit „weglassen“ antwortet
+      // Mara ohne es. Gelb: läuft und steht DANACH in „Heute“ — nur, wenn es wirklich lief.
+      const ampelMod = await import("./fiaon-ki-ampel");
+      const ampel = await ampelMod.ampelPruefen("mara", w.name, { kanal: "mail", personId: kontext.personId ?? null }).catch(() => null);
+      if (ampel?.gesperrt && ampel.rotWeg === "karte") ampelRotWerkzeuge.push(ampel.werkzeug?.label ?? w.name);
+      const erg = ampel?.gesperrt
         ? { ok: false, ergebnis: "", fehler: ampel.text ?? "Dieses Werkzeug ist gerade gesperrt (Ampel rot)." }
         : w.stufe === "bestaetigen"
         ? { ok: false, ergebnis: "", fehler: "Dieses Werkzeug braucht die Freigabe eines Menschen. Schreib die Antwort so, dass ein Kollege sie mit einem Klick auslösen kann." }
@@ -2618,6 +2632,7 @@ export async function antwortErzeugen(ein: {
         : await w.ausfuehren(p, kontext).catch((e: any) => ({ ok: false, ergebnis: "", fehler: String(e?.message || e).slice(0, 200) }));
       handlungen.push({ werkzeug: w.name, ergebnis: erg.ok ? erg.ergebnis : (erg.fehler ?? "fehlgeschlagen"), ok: !!erg.ok });
       if (erg.ok && (erg as any).daten) werkzeugDaten[w.name] = (erg as any).daten;
+      if (ampel && !ampel.gesperrt) await ampelMod.ampelGelbMerken(ampel, !!erg.ok, { kanal: anliegen ? "anliegen" : "mail", personId: kontext.personId ?? null }, erg.ok ? erg.ergebnis : null).catch(() => {});
       nachrichten.push({ role: "tool", tool_call_id: ruf.id, content: JSON.stringify(erg).slice(0, 2000) });
     }
   }

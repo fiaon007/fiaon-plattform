@@ -58,6 +58,8 @@ export interface RegisterEintrag {
   dienst: "mara" | "aras" | "pruef";
   /** Für JSON: was drinstehen darf. */
   jsonPruefen?: (o: unknown) => string | null;
+  /** E-409 Fund 11: eine persönliche Telefonnummer — überall nur die letzten 3 Ziffern (Anzeige, Protokoll, Logs). */
+  geheim?: boolean;
 }
 
 const KI: Setzer = { route: "/chef/ki/einstellung", form: "schluessel_wert", mindest: "inhaber" };
@@ -131,6 +133,11 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "mara_aktion_postfach", gruppe: "mara_mail", label: "Absender-Postfach", satz: "Von welcher Adresse die Aktion schreibt.", typ: "text", vorgabe: "support@fiaon.com", maxZeichen: 80, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
   { schluessel: "mara_aktion_runde_seit", gruppe: "mara_mail", label: "Runde", satz: "„jetzt“ startet eine Runde an alle offenen Erstzahler, „aus“ beendet sie.", typ: "text", vorgabe: "", maxZeichen: 40, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:rundeAktiv", dienst: "mara" },
   { schluessel: "mara_nicht_erreicht_mail", gruppe: "mara_mail", label: "Nachfassen nach 2× nicht erreicht", satz: "Nach dem zweiten Fehlversuch eine Mail mit Terminlink.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/nicht-erreicht", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-nicht-erreicht.ts:schalterLesen", dienst: "mara" },
+  // E-409 × E-406 (20.10.2026): die Wege aus Welle 1 und 2 — derselbe Schalter wie im Mara-Steuerpult (dessen Route).
+  { schluessel: "mara_rate_erinnerung", gruppe: "mara_mail", label: "Raten-Mail (frisch fällig)", satz: "Tag 1–3 nach der Fälligkeit: eine persönliche Mail je Rate.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/raten-erinnerung", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-rate-erinnerung.ts:schalterLesen", dienst: "mara" },
+  { schluessel: "mara_anliegen", gruppe: "mara_mail", label: "Anliegen beantworten", satz: "Mara beantwortet Anliegen aus dem Kundenbereich selbst.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/anliegen", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-anliegen.ts:anliegenSchalterLesen", dienst: "mara" },
+  { schluessel: "mara_nacharbeit_mail", gruppe: "mara_mail", label: "Zusammenfassung nach dem Anruf", satz: "Nach dem Ergebnis-Klick schickt Mara dem Kunden die Zusammenfassung.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/nacharbeit", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-nacharbeit.ts:schalterLesen", dienst: "mara" },
+  { schluessel: "mara_kyc_nachfordern", gruppe: "mara_mail", label: "Unterlagen nachfordern", satz: "Mara erinnert an fehlenden Ausweis oder Kontoauszug (höchstens 2×).", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/unterlagen/kyc", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-kyc.ts:kycSchalterLesen", dienst: "mara" },
   { schluessel: "postmeister_an", gruppe: "mara_mail", label: "Postfach (Not-Aus)", satz: "Aus hält ALLES an — auch das Ordnen der Postfächer.", typ: "an_aus", vorgabe: "an", setzer: POSTMEISTER, leser: "fiaon-postmeister.ts:wirksamerModus", dienst: "mara" },
   { schluessel: "postmeister_modus_support", gruppe: "mara_mail", label: "Modus support@", satz: "Wie Mara im Support-Postfach arbeitet.", typ: "enum", vorgabe: "auto", enum: MODUS, enumText: MODUS_TEXT, setzer: POSTMEISTER, leser: "fiaon-postmeister.ts:wirksamerModus", dienst: "mara" },
   { schluessel: "postmeister_modus_welcome", gruppe: "mara_mail", label: "Modus welcome@", satz: "Wie Mara im Welcome-Postfach arbeitet.", typ: "enum", vorgabe: "auto", enum: MODUS, enumText: MODUS_TEXT, setzer: POSTMEISTER, leser: "fiaon-postmeister.ts:wirksamerModus", dienst: "mara" },
@@ -202,17 +209,47 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_mailbox_nachricht", gruppe: "aras", label: "Mailbox-Nachricht", satz: "Aus = auflegen ohne Nachricht (Dritte könnten mithören).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-bruecke.ts", dienst: "aras" },
   { schluessel: "aras_eingehend_modus", gruppe: "aras", label: "Eingehend", satz: "aus · nach_team (Team zuerst, dann Aras) · immer (Aras nimmt ab).", typ: "enum", vorgabe: "nach_team", enum: ["aus", "nach_team", "immer"], setzer: KI, leser: "fiaon-aras-twilio.ts", dienst: "aras" },
   { schluessel: "aras_uebergabe", gruppe: "aras", label: "Übergabe an Menschen", satz: "{ rate: [Ids], verkauf: [Ids], sonst: \"betreuer\" }.", typ: "json", vorgabe: JSON.stringify({ sonst: "betreuer" }), setzer: KI, leser: "fiaon-aras-werkzeuge.ts:mensch_verbinden", dienst: "aras", jsonPruefen: uebergabeJson },
-  { schluessel: "aras_probe_nummer", gruppe: "aras", label: "Probe-Nummer", satz: "Die einzige Nummer für Probeanrufe (deine, E.164).", typ: "text", vorgabe: "", maxZeichen: 20, muss: /^(?:\+(?:49|43|41)\d{6,14})?$/, mussText: "E.164 aus DE/AT/CH, z. B. +4915112345678 — oder leer.", setzer: KI, leser: "fiaon-aras-nachbereitung.ts:probeanruf", dienst: "aras" },
+  { schluessel: "aras_probe_nummer", gruppe: "aras", label: "Probe-Nummer", satz: "Die einzige Nummer für Probeanrufe (deine, E.164).", typ: "text", vorgabe: "", maxZeichen: 20, muss: /^(?:\+(?:49|43|41)\d{6,14})?$/, mussText: "E.164 aus DE/AT/CH, z. B. +4915112345678 — oder leer.", setzer: KI, leser: "fiaon-aras-nachbereitung.ts:probeanruf", dienst: "aras", geheim: true },
   { schluessel: "aras_lernen_an", gruppe: "aras", label: "Wochen-Lernvorschlag", satz: "Sonntags ein Vorschlag zur Stundenverteilung — nur Anzeige.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-aras-plan.ts:lernvorschlag", dienst: "aras" },
   { schluessel: "aras_caller_id_at", gruppe: "aras", label: "Absendernummer AT", satz: "Leer = die deutsche Nummer (ARAS_CALLER_ID).", typ: "text", vorgabe: "", maxZeichen: 20, muss: /^(?:\+43\d{6,14})?$/, mussText: "E.164 aus AT oder leer.", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras" },
   { schluessel: "aras_caller_id_ch", gruppe: "aras", label: "Absendernummer CH", satz: "Nur eine im Schweizer Verzeichnis eingetragene Nummer (UWG).", typ: "text", vorgabe: "", maxZeichen: 20, muss: /^(?:\+41\d{6,14})?$/, mussText: "E.164 aus CH oder leer.", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras" },
   { schluessel: "aras_tag_euro", gruppe: "kasse", label: "Deckel Aras", satz: "KI + Telefon je Tag in Euro — davor wählt Aras nicht mehr.", typ: "zahl", vorgabe: "60", min: 0, max: 300, setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras" },
 ];
 
+/**
+ * DER NOT-AUS (E-409 Funde 2 + 9, 20.10.2026): ALLE Wege, auf denen Mara selbst handelt — „Mara anhalten“ stellt sie
+ * in einem Zug auf „aus“, „Wieder an“ stellt GENAU den Stand von vorher her (server/lib/fiaon-ki-einstellungen.ts).
+ * vorgabeAn = was gilt, wenn der Schlüssel fehlt.
+ */
+export const NOTAUS_SCHALTER: readonly { schluessel: string; label: string; vorgabeAn: boolean }[] = [
+  { schluessel: "mara_aktion_an", label: "Mail-Aktion", vorgabeAn: true },
+  { schluessel: "mara_wa_an", label: "WhatsApp-Antworten", vorgabeAn: true },
+  { schluessel: "postmeister_an", label: "Postfach", vorgabeAn: true },
+  { schluessel: "mara_wa_nachfass", label: "WhatsApp-Nachfassen", vorgabeAn: true },
+  { schluessel: "mara_nicht_erreicht_mail", label: "Nachfass-Mail nach 2× nicht erreicht", vorgabeAn: true },
+  { schluessel: "mara_rate_erinnerung", label: "Raten-Mail (frisch fällig)", vorgabeAn: true },
+  { schluessel: "mara_anliegen", label: "Anliegen beantworten", vorgabeAn: true },
+  { schluessel: "mara_nacharbeit_mail", label: "Zusammenfassung nach dem Anruf", vorgabeAn: true },
+  { schluessel: "mara_kyc_nachfordern", label: "Unterlagen nachfordern", vorgabeAn: true },
+  { schluessel: "unterlagen_umhaengen", label: "Prüf-Aufgaben umhängen", vorgabeAn: false },
+];
+
 /** Die Schlüssel, die POST /chef/ki/einstellung SELBST schreibt (ohne ARAS — die gehen über die Anbindung). */
 export const KI_SCHLUESSEL: readonly string[] = REGISTER.filter((e) => e.setzer.route === KI.route && e.dienst !== "aras").map((e) => e.schluessel);
 /** Alle aras_*-Schlüssel — gesetzt über einstellungSetzen (Team 1), erreicht über POST /chef/ki/einstellung. */
 export const ARAS_SCHLUESSEL: readonly string[] = REGISTER.filter((e) => e.dienst === "aras").map((e) => e.schluessel);
+
+/** E-409 Fund 11: eine Nummer verdecken — nur die letzten 3 Ziffern („••• 678“). Leer bleibt leer. Rein. */
+export function nummerMaskiert(n: string | null | undefined): string {
+  const ziffern = String(n ?? "").replace(/\D/g, "");
+  return ziffern ? `••• ${ziffern.slice(-3)}` : "";
+}
+
+/** Der Wert, wie er in Anzeige, Chef-Protokoll und Log stehen darf (geheime Schlüssel verdeckt). Rein. */
+export function wertOeffentlich(schluessel: string, wert: string | null | undefined): string {
+  const e = REGISTER.find((x) => x.schluessel === schluessel);
+  return e?.geheim ? nummerMaskiert(wert) : String(wert ?? "");
+}
 
 export function registerEintrag(schluessel: string): RegisterEintrag | null {
   return REGISTER.find((e) => e.schluessel === schluessel) ?? null;

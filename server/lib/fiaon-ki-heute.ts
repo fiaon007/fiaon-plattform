@@ -71,24 +71,42 @@ export async function kiKostenVerlauf(tage: number): Promise<{ tag: string; ki: 
   return Array.from(aus.values());
 }
 
-/** Die Heute-Seite — alles aus bestehenden Quellen, nichts geschätzt außer dem Telefonpreis. */
-export async function kiHeute(opt: { karten?: number } = {}): Promise<KiHeute> {
+/** Name in einem Text verdecken („Herr Müller“ → „Herr …“) — für die Leitung (Vertrag § 9, wie auf „Qualität“). Rein. */
+export function namenVerdecken(text: string): string {
+  return String(text ?? "").replace(/\b(Herr|Frau|Herrn)\s+[A-ZÄÖÜ][\wäöüßÄÖÜ-]+(?:\s+[A-ZÄÖÜ][\wäöüßÄÖÜ-]+)?/g, (_m: string, a: string) => `${a} …`);
+}
+
+/** Eine Karte für die Leitung: kein Name, keine Zitate, Namen im Text verdeckt — entscheiden darf sie ohnehin nicht. Rein. */
+export function karteFuerLeitung<T extends Record<string, any>>(k: T): T {
+  return { ...k, name: null, text: namenVerdecken(String(k.text ?? "")), titel: namenVerdecken(String(k.titel ?? "")), belege: [] };
+}
+
+/**
+ * Die Heute-Seite. E-409 × E-406 (Funde 1 + 3, 20.10.2026): Maras Zahlen kommen aus DERSELBEN Quelle wie das Lagezimmer
+ * (maraHeuteLesen, server/lib/fiaon-mara-heute.ts — Maras eigene Handlungen, nicht „alle Zeilen der Tabelle“), dazu der
+ * Not-Aus über alle Wege. `nameZeigen` = Inhaber/Geschäftsführung; die Leitung sieht keine Kundennamen (Fund 11).
+ */
+export async function kiHeute(opt: { karten?: number; nameZeigen?: boolean; entscheiden?: boolean } = {}): Promise<KiHeute> {
   const tag = berlinTag();
-  const [mt, entsch, pause, wa, kosten, pr, schalter, termine, gelb] = await Promise.all([
-    import("./fiaon-mara-auftrag").then((m) => m.maraTag(tag)).catch(() => null),
+  const zeig = opt.nameZeigen === true;
+  const [mh, entsch, pause, wa, kosten, pr, notaus, auf] = await Promise.all([
+    import("./fiaon-mara-heute").then((m) => m.maraHeuteLesen()).catch((e) => { console.error("[KI-HEUTE] Mara heute:", String((e as Error)?.message ?? e).slice(0, 160)); return null; }),
     import("./fiaon-mara-entscheidungen").then((m) => m.entscheidungenStand({ warten: 0 })).catch(() => null),
     import("./fiaon-ki-pause").then((m) => m.kiPauseLesen()).catch(() => null),
     import("./fiaon-wa-bremse").then((m) => m.waBremseLage()).catch(() => null),
     kiKostenJeDienst(tag).catch(() => [] as KostenDienst[]),
     import("./fiaon-ki-pruefung").then((m) => m.pruefungStand()).catch(() => ({ heute: 0, auffaellig: 0, offenKarten: 0 })),
-    sqlPool`SELECT key, value FROM fiaon_settings WHERE key IN ('mara_aktion_an','mara_wa_an','postmeister_an')`.catch(() => [] as any[]),
-    sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_termine WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date AND (herkunft ILIKE 'mara%' OR herkunft ILIKE 'aras%' OR quelle = 'auto')`.catch(() => [{ n: 0 }]),
-    sqlPool`SELECT am, kanal, text, person_id FROM fiaon_mara_protokoll WHERE art = 'ampel_gelb' AND am > NOW() - INTERVAL '24 hours' ORDER BY am DESC LIMIT 20`.catch(() => [] as any[]),
+    import("./fiaon-ki-einstellungen").then((m) => m.maraNotausStand()).catch(() => null),
+    sqlPool`
+      SELECT COUNT(*) FILTER (WHERE status IN ('fertig','teilweise'))::int AS gelaufen,
+             COUNT(*) FILTER (WHERE status IN ('entwurf','rueckfrage'))::int AS wartend
+        FROM fiaon_mara_auftrag
+       WHERE erstellt_am >= (${tag}::date::timestamp AT TIME ZONE 'Europe/Berlin')`.catch(() => [{ gelaufen: 0, wartend: 0 }]),
   ]);
-  const s = new Map<string, string>((schalter as any[]).map((z) => [String(z.key), String(z.value ?? "")]));
-  const an = (k: string) => (s.get(k) ?? "an") !== "aus";
+  const weg = (k: string) => notaus?.wege.find((w) => w.schluessel === k)?.an ?? true;
   const offen = (entsch as any)?.offen ?? [];
-  const karten = Array.isArray(offen) ? offen.slice(0, Math.max(1, Math.min(12, opt.karten ?? 6))) : [];
+  const kartenRoh = Array.isArray(offen) ? offen.slice(0, Math.max(1, Math.min(12, opt.karten ?? 6))) : [];
+  const karten = zeig ? kartenRoh : kartenRoh.map((k: any) => karteFuerLeitung(k));
   let arasTeil: KiHeute["aras"] = null;
   const a = aras();
   if (arasVerbunden() && a?.plan) {
@@ -106,16 +124,24 @@ export async function kiHeute(opt: { karten?: number } = {}): Promise<KiHeute> {
       arasTeil = { verbunden: true, an: false, notaus: false, gewaehlt: 0, erreicht: 0, gespraeche: 0, zusagen: 0, euro: 0, laufend: 0 };
     }
   }
+  const k = mh?.kennzahlen;
   return {
     tag,
+    darf: { namen: zeig, entscheiden: opt.entscheiden === true, rueckgaengig: opt.entscheiden === true, notaus: opt.entscheiden === true },
     mara: {
-      mails: { geschrieben: Number((mt as any)?.mails?.geschrieben ?? 0), entwuerfe: Number((mt as any)?.mails?.entwuerfe ?? 0), reinHeute: Number((mt as any)?.mails?.rein ?? 0) },
-      whatsapps: { raus: Number((mt as any)?.whatsapp?.raus ?? 0), rein: Number((mt as any)?.whatsapp?.rein ?? 0), menschen: Number((mt as any)?.whatsapp?.menschen ?? 0) },
-      termine: Number((termine as any[])[0]?.n ?? 0),
-      auftraege: { gelaufen: Number((mt as any)?.auftraege?.gelaufen ?? 0), wartend: Number((mt as any)?.auftraege?.wartend ?? 0) },
+      mails: { geschrieben: k?.mails.geschrieben ?? 0, entwuerfe: k?.mails.entwuerfe ?? 0, reinHeute: k?.mails.rein ?? 0 },
+      whatsapps: { raus: k?.whatsapps.raus ?? 0, rein: k?.whatsapps.rein ?? 0, menschen: k?.whatsapps.menschen ?? 0 },
+      termine: k?.termine ?? 0,
+      auftraege: { gelaufen: Number((auf as any[])[0]?.gelaufen ?? 0), wartend: Number((auf as any[])[0]?.wartend ?? 0) },
       entscheidungen: { offen: Number((entsch as any)?.zaehler?.offen ?? offen.length ?? 0), geldRecht: Number((entsch as any)?.zaehler?.geldRecht ?? 0) },
-      an: { aktion: an("mara_aktion_an"), whatsapp: an("mara_wa_an"), postfach: an("postmeister_an") },
-      gelb: (gelb as any[]).map((z) => ({ am: new Date(z.am).toISOString(), kanal: String(z.kanal), text: String(z.text), personId: z.person_id ?? null })),
+      an: { aktion: weg("mara_aktion_an"), whatsapp: weg("mara_wa_an"), postfach: weg("postmeister_an") },
+      notaus: notaus ?? { aktiv: false, seit: null, von: null, wege: [] },
+      erledigt: mh?.erledigt ?? 0,
+      zeilen: mh?.zeilen ?? [],
+      geld: mh?.geld ?? null,
+      aufraeumen: mh?.aufraeumen ?? [],
+      haengt: mh?.haengt ?? [],
+      gelb: (mh?.gelb ?? []).map((g) => (zeig ? g : { ...g, name: null, text: namenVerdecken(g.text) })),
     },
     aras: arasTeil,
     karten,

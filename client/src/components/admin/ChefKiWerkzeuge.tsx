@@ -1,10 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /chef/s/ki-werkzeuge — DIE WERKZEUG-AMPEL (E-409, 19.10.2026)
+// /chef/s/ki-werkzeuge — DIE EINE WERKZEUG-AMPEL (E-409, 19.10.2026; E-409 × E-406, 20.10.2026)
 //
-// Je Werkzeug eine Zeile: grün (macht es allein) · gelb (macht es, steht in
-// „Heute“) · rot (nur per Karte). Nur Stufen, die der Server durchsetzt, sind
-// klickbar; feste Zeilen (Geld, Erstattung, Storno, Vertrag, Lastschrift) sind
-// rot und bleiben es. Aras-Werkzeuge erscheinen, sobald der Kern angebunden ist.
+// Je Werkzeug eine Zeile (echte Werkzeugnamen aus dem Code): grün (macht es allein) ·
+// gelb (macht es, steht danach in „Heute“) · rot (macht es nicht selbst — die Zeile sagt
+// ehrlich, was dann passiert: Karte an dich oder weggelassen). Nur Stufen, die der Server
+// durchsetzt, sind klickbar; feste Zeilen sind Garantien (Kündigung annehmen, Werbesperre,
+// Geld, Erstattung …). Das Mara-Steuerpult verlinkt nur hierher. Aras-Werkzeuge erscheinen,
+// sobald der Kern angebunden ist.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { AMPEL_TEXT, type AmpelStufe, type AmpelZeile } from "@shared/fiaon-ki-team";
@@ -31,8 +33,12 @@ function Zeile({ z, wer, busy, onStufe }: { z: AmpelZeile; wer: "mara" | "aras";
           </button>
         ))}
       </div>
-      <span className="ki-zeile-satz">{z.satz}</span>
-      <input type="hidden" value={wer} readOnly />
+      <span className="ki-zeile-satz" data-ki-wer={wer}>
+        {z.satz}
+        {z.stufe === "rot" && z.rot ? <><br /><span className="ki-leise">Rot: {z.rot}</span></> : null}
+        {z.stufe === "gelb" && z.gelb ? <><br /><span className="ki-leise">Gelb: {z.gelb}</span></> : null}
+        {z.hinweis ? <><br />{z.hinweis}</> : null}
+      </span>
     </li>
   );
 }
@@ -42,7 +48,7 @@ export default function ChefKiWerkzeuge() {
   const [busy, setBusy] = useState(false);
   const meld = useMeldung();
   const setzen = (wer: "mara" | "aras") => async (z: AmpelZeile, stufe: AmpelStufe) => {
-    if (stufe === "rot" && !window.confirm(`„${z.label}“ auf rot? ${wer === "mara" ? "Mara" : "Aras"} nutzt es dann nicht mehr — nur noch per Karte an dich.`)) return;
+    if (stufe === "rot" && !window.confirm(`„${z.label}“ auf rot?\n\n${z.rot ?? `${wer === "mara" ? "Mara" : "Aras"} macht es dann nicht mehr selbst.`}`)) return;
     setBusy(true);
     try { await senden(`/chef/ki/werkzeug/${encodeURIComponent(z.key)}`, { stufe, wer }); meld.gut(`${z.label}: ${STUFE_KURZ[stufe]}.`); neu(); }
     catch (e) { meld.fehler((e as Error).message); } finally { setBusy(false); }
@@ -58,8 +64,8 @@ export default function ChefKiWerkzeuge() {
       <section className="ki-buehne" data-ki="buehne" aria-label="Die drei Stufen">
         <div className="ki-raster drei">
           <div><span className="ki-punkt gruen" aria-hidden="true" /> <b className="ki-leise">Grün</b><p className="ki-still ki-klein">Macht es allein. Prüf-Mara schaut trotzdem hin.</p></div>
-          <div><span className="ki-punkt gelb" aria-hidden="true" /> <b className="ki-leise">Gelb</b><p className="ki-still ki-klein">Macht es — und es steht in „Heute“, damit du es siehst.</p></div>
-          <div><span className="ki-punkt rot" aria-hidden="true" /> <b className="ki-leise">Rot</b><p className="ki-still ki-klein">Nur per Karte an dich. Geld und Erstattung sind immer rot.</p></div>
+          <div><span className="ki-punkt gelb" aria-hidden="true" /> <b className="ki-leise">Gelb</b><p className="ki-still ki-klein">Macht es — und steht danach in „Heute“, damit du es siehst.</p></div>
+          <div><span className="ki-punkt rot" aria-hidden="true" /> <b className="ki-leise">Rot</b><p className="ki-still ki-klein">Macht es nicht selbst — die Zeile sagt, was dann passiert. Geld und Erstattung sind immer rot.</p></div>
         </div>
         <Meldung m={meld.m} />
       </section>

@@ -1819,19 +1819,16 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     ziel: ".mara-kopf",
     titel: "Oben: gilt für alle Reiter.",
     // E-260 (29.09.2026): vier Reiter — dazu „Termine". E-294 (06.10.2026): fünf — dazu „Social". E-370 (15.10.2026): sechs — dazu „Entscheidungen".
-    // E-406 B3 (19.10.2026): dazu der Chip „Ampel“.
-    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand, „Mara anweisen“ (dort auch Maras Ton) und die Ampel — das gilt für alle sechs Reiter.",
+    // E-406 B3 (19.10.2026): dazu der Chip „Ampel“. E-409 × E-406 (20.10.2026): er führt in KI-Team › Werkzeuge.
+    text: "Oben stehen der KI-Zustand, der WhatsApp-Zustand, „Mara anweisen“ (dort auch Maras Ton) und „Ampel“ — das gilt für alle sechs Reiter.",
   },
-  // E-406 B3 (19.10.2026), Vorschlag 3 „Mara führt den Betrieb“: die Ampel je Werkzeug.
+  // E-409 × E-406 (20.10.2026): EINE Ampel — sie steht in KI-Team › Werkzeuge; der Chip hier ist nur der Weg dorthin.
   {
-    ziel: "[aria-controls=\"mara-p-ampel\"]",
-    titel: "Der Chip „Ampel“: was Mara allein darf.",
-    text: "Je Werkzeug drei Stufen. Grün: Mara macht es allein. Gelb: Mara macht es, es steht im Lagezimmer unter „Mara heute“, "
-      + "und du nimmst es 24 Stunden lang mit einem Klick zurück (Termin absagen, Anschrift zurück, Mail-Entwurf „Nicht senden“). "
-      + "Rot: nur als Karte unter „Entscheidungen“. Wählbar ist nur, was der Server wirklich kann — grau heißt: gibt es hier nicht, "
-      + "der Grund steht beim Darüberfahren. Geld buchen und Erstattung sind fest rot.",
-    tipp: "Gestartet ist alles so, wie Mara heute arbeitet. Daneben steht die Stichprobe der Trainerin: Erst nach 4 Wochen "
-      + "unter 2 % Fehlern schlägt das System „auf Grün“ vor — umstellen tust immer du.",
+    ziel: "[data-mara=\"ampel-link\"]",
+    titel: "„Ampel“: was Mara allein darf.",
+    text: "Der Chip führt zu KI-Team › Werkzeuge — dort steht die eine Ampel je Werkzeug: grün, gelb oder rot. "
+      + "Jede Zeile sagt, was Rot dort wirklich tut.",
+    tipp: "Mitarbeiter prüfen nichts gegen — die Qualität prüft Prüf-Mara automatisch (KI-Team › Qualität).",
   },
   // E-261 (29.09.2026): die WhatsApp-Bremse — der Chip steht immer da (grün, gelb oder rot).
   {
@@ -1999,7 +1996,7 @@ export const RUNDGANG_MARA_ENTSCHEIDUNGEN: RundgangSchritt[] = [
     text: "Mara legt dir Aufräum-Arbeit selbst vor — zum Beispiel alte Zahlungsmeldungen (über 14 Tage, kein Eingang) als eine "
       + "Sammelkarte. „Ja, im Bankbuch nachsehen“ sucht die Überweisungen; was sie findet, liegt danach als „Geld eingegangen“ "
       + "zum Buchen da. Sie bucht nichts, schreibt dem Kunden nichts und storniert nichts. „Nein, so lassen“ schließt die "
-      + "angehakten Fälle. Steht ein Werkzeug auf Rot (Chip „Ampel“), kommt seine Arbeit ebenfalls hierher — etwa „Termin "
+      + "angehakten Fälle. Steht ein Werkzeug auf Rot (KI-Team › Werkzeuge), kommt seine Arbeit ebenfalls hierher — etwa „Termin "
       + "eintragen?“ mit dem Knopf „Eintragen“.",
   },
   {
@@ -2636,63 +2633,21 @@ export const RUNDGANG_SOCIAL_VORSCHAU: RundgangSchritt[] = [
 ];
 
 // ── /chef (Lagezimmer) — „Mara heute“ und „Aufgaben & Ampel“ (E-406 B3, 19.10.2026) ─────────────────────
-// Vorschlag 3: „Karte ‚Mara heute‘ — nur Auffälliges, kein langer Bericht.“ Ziele: .mh-block, .mh-chips, .mh-geld,
-// .al-block (E-397). Die gelbe Liste steht nur, wenn ein Werkzeug auf Gelb steht — deshalb ohne Ziel.
+// E-409 × E-406 (20.10.2026): „Mara heute“ ist im Lagezimmer eine kurze Zusammenfassung — alles Weitere (Chips,
+// Gelb mit Rückgängig, wo jemand hängt) steht in KI-Team › Heute. Ziele: .mh-block, .al-block (E-397).
 export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
   {
     ziel: ".mh-block",
-    titel: "„Mara heute“: was Mara heute selbst erledigt hat.",
-    text: "Oben die Zahl: alles, was Mara heute ohne einen Menschen geschafft hat. Darunter je Art ein Chip — Mails, WhatsApp, "
-      + "Termine, Kartenlinks, Kündigungen … Jeder Chip führt in den Raum, in dem du es nachsiehst.",
-  },
-  {
-    ziel: ".mh-geld",
-    titel: "Geld, Karten, wo es hängt, KI.",
-    text: "Geld heute kommt aus derselben Quelle wie überall im Chefbüro (gebucht, nicht gemeldet). Dann: wie viele "
-      + "Entscheidungen auf dich warten, Maras Aufräum-Vorschläge, wo jemand im Team hängt (Termine ohne Ergebnis, überfällige "
-      + "Aufträge) und was die KI heute gekostet hat.",
-    tipp: "„nach Maras Kontakt“ heißt: Die Zahlung kam in den 14 Tagen nach einer Nachricht von Mara — eine zeitliche Folge, kein Beweis.",
-  },
-  {
-    titel: "Gelb: 24 Stunden mit einem Klick zurück.",
-    text: "Stellst du im Mara-Steuerpult (Chip „Ampel“) ein Werkzeug auf Gelb, steht hier jede seiner Handlungen einzeln — mit "
-      + "„Termin absagen“, „Zurück auf alt“ oder bei Mails „Jetzt senden“ und „Nicht senden“. Wo Zurücknehmen nicht sicher geht "
-      + "(die Mail ist schon raus), steht das ehrlich daneben. Ein gelber Mail-Entwurf, den Mara nicht von selbst senden würde "
-      + "(alte Mail, Sperre, schon einmal neu geschrieben), sagt das hier und kommt als Karte unter „Entscheidungen“.",
+    titel: "„Mara heute“ in einer Zeile.",
+    text: "Was Mara heute selbst erledigt hat, Geld heute, offene Entscheidungen und Gelbes. "
+      + "„Mehr“ führt zu KI-Team › Heute — dort stehen die Einzelheiten und „Rückgängig“.",
+    tipp: "Geld heute kommt aus derselben Quelle wie überall im Chefbüro (gebucht, nicht gemeldet).",
   },
   {
     ziel: ".al-block",
     titel: "Aufgaben & Ampel.",
     text: "System-Alarme und Termintreue als Ampel, „heikel neu“ und Woche für Woche: neu gegen erledigt. Meldungen sind keine "
       + "Aufgaben mehr — sie gehen von selbst aus, wenn alles wieder gut ist.",
-  },
-];
-
-// ── /agent/schulung — die Mara-Stichprobe (E-406 B3, 19.10.2026) ────────────────────────────────────────
-// Für Trainerin und Vertriebsleitung. Ziele: #mara-stichprobe, [data-fiaon="stichprobe-fall"], [data-fiaon="stichprobe-quoten"].
-export const RUNDGANG_SCHULUNG: RundgangSchritt[] = [
-  {
-    ziel: "#mara-stichprobe",
-    titel: "Die Mara-Stichprobe: 10 Minuten pro Woche.",
-    text: "Jeden Montag liegen hier 20 Dinge, die Mara in der Woche davor getan hat — Mails, WhatsApp, Termine, Kartenlinks, "
-      + "Nachfassen. Du liest, was der Kunde schrieb und was Mara tat.",
-  },
-  {
-    ziel: "[data-fiaon=\"stichprobe-fall\"]",
-    titel: "ok oder nicht ok.",
-    text: "Passt es, tippe „ok“. Passt es nicht, tippe „nicht ok“ und schreib in einem Satz, was falsch war (falscher Name, "
-      + "falsches Datum, zu viel Verkauf …) — dann „Speichern“. Ändern geht jederzeit.",
-    tipp: "Ein kurzer, genauer Grund hilft am meisten: „hat Vornamen des Kollegen genannt“ statt „schlecht“.",
-  },
-  {
-    ziel: "[data-fiaon=\"stichprobe-quoten\"]",
-    titel: "Die Fehlerquote je Werkzeug.",
-    text: "Daraus entsteht die Fehlerquote je Werkzeug. Liegt ein Werkzeug 4 Wochen hintereinander unter 2 %, bekommt Justin "
-      + "den Vorschlag, Mara dort mehr zu erlauben. Entscheiden tut immer Justin.",
-  },
-  {
-    titel: "Schulung und Freigabe.",
-    text: "Stehen oben neue Kollegen „in Schulung“, bekommen sie noch keine Kunden. „Freigeben“ heißt: ab jetzt eigenständig.",
   },
 ];
 
@@ -2706,8 +2661,8 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"buehne\"]",
     titel: "Mara und Aras — ein Tag.",
-    text: "Links Mara (Mails, WhatsApps, Termine, offene Entscheidungen), rechts Aras (gewählt, Gespräche, Zusagen, Kosten). Der Not-Aus hält Mara in einem Zug an: Mail-Aktion, WhatsApp-Antworten, Postfach.",
-    tipp: "„Wieder an“ stellt alle drei zurück — Laufendes endet immer normal.",
+    text: "Links Mara (selbst erledigt, Mails, WhatsApps, offene Entscheidungen), rechts Aras (gewählt, Gespräche, Zusagen, Kosten). Der Not-Aus hält ALLE Mara-Wege in einem Zug an — auch Nachfassen, Raten-Mail, Anliegen, Nacharbeit und Unterlagen.",
+    tipp: "„Wieder an“ fragt vorher und stellt genau den Stand von vor dem Not-Aus her — was vorher aus war, bleibt aus.",
   },
   {
     titel: "Aras erscheint, sobald er verbunden ist.",
@@ -2725,9 +2680,15 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
     tipp: "Deckel ändern: Einstellungen & Kasse.",
   },
   {
+    ziel: "[data-ki=\"mara-heute\"]",
+    titel: "Mara heute — dieselben Zahlen wie im Lagezimmer.",
+    text: "Je Art ein Chip mit Link, Maras Aufräum-Vorschläge und wo im Team etwas hängt. Darunter „Gelb — 24 Stunden“: Termine, Angaben und Mail-Entwürfe nimmst du mit einem Klick zurück.",
+    tipp: "Wo Zurücknehmen nicht sicher geht (die Nachricht ist raus), steht das ehrlich daneben.",
+  },
+  {
     ziel: "[data-ki=\"pruef\"]",
-    titel: "Prüf-Mara und gelbe Werkzeuge.",
-    text: "Wie viele Stichproben die zweite KI heute geprüft hat und was auffiel. Darunter jedes gelbe Werkzeug der letzten 24 Stunden — gelb heißt: Mara macht es, du siehst es hier.",
+    titel: "Prüf-Mara.",
+    text: "Wie viele Stichproben die zweite KI heute geprüft hat und was auffiel — Mitarbeiter prüfen nichts gegen.",
   },
 ];
 
@@ -2777,14 +2738,15 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
 export const RUNDGANG_KI_WERKZEUGE: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"buehne\"]",
-    titel: "Drei Stufen, eine Regel.",
-    text: "Grün: macht es allein. Gelb: macht es, und es steht in „Heute“. Rot: nur per Karte an dich. Geld, Erstattung, Storno, Vertrag, Lastschrift sind fest rot.",
+    titel: "Drei Stufen, eine Ampel.",
+    text: "Grün: macht es allein. Gelb: macht es, und es steht danach in „Heute“. Rot: macht es nicht selbst — jede Zeile sagt, was dann passiert (Karte an dich oder weggelassen). Geld, Erstattung, Storno, Vertrag, Lastschrift sind fest rot.",
+    tipp: "Das ist die einzige Ampel — der Chip „Ampel“ im Mara-Steuerpult führt hierher.",
   },
   {
     ziel: "[data-ki=\"mara\"]",
     titel: "Maras Werkzeuge.",
-    text: "Je Werkzeug klickst du die Stufe — nur Stufen, die der Server wirklich durchsetzt, sind klickbar. Rot wirkt sofort beim nächsten Werkzeug-Ruf (WhatsApp, Postfach, Aufträge).",
-    tipp: "Eine Ampel macht nichts freier, als der Code heute ist — „Konto freischalten“ braucht immer einen Menschen.",
+    text: "Je Werkzeug klickst du die Stufe — nur Stufen, die der Server wirklich durchsetzt, sind klickbar. Rot wirkt beim nächsten Werkzeug-Ruf (WhatsApp, Postfach, Aufträge). Kündigung annehmen und Werbesperre sind fest grün.",
+    tipp: "Ist die Ampel einmal nicht lesbar, gilt die strengste Stufe — nie „grün aus Versehen“.",
   },
   {
     ziel: "[data-ki=\"aras\"]",
@@ -2842,9 +2804,8 @@ export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
 ];
 
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
-  // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“) und Schulung (Mara-Stichprobe).
+  // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“). Die Schulung-Stichprobe ist weg (E-409 × E-406, 20.10.2026).
   lagezimmer:  { titel: "Lagezimmer", schritte: RUNDGANG_LAGEZIMMER },
-  schulung:    { titel: "Schulung", schritte: RUNDGANG_SCHULUNG },
   auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },
   auskunftBeschaffung: { titel: "Auskunft-Beschaffung", schritte: RUNDGANG_AUSKUNFT_BESCHAFFUNG },
   waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },

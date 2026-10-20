@@ -5,41 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
-## 19.10.2026 — E-406 B3 (Nachbesserung): Kein gelber Mail-Entwurf bleibt still liegen
-- **Was:** Steht „Mails beantworten“ auf Gelb, wartet eine Antwort nur noch dann als gelber Entwurf (ohne Karte), wenn die
-  24-Stunden-Regel sie später WIRKLICH neu schreibt und sendet. Ließe die Regel sie liegen — alter Entwurf ohne Merker (etwa nach
-  „Neu schreiben lassen“), schon einmal neu geschrieben, Testkonto oder Vertriebssperre, Kundenmail zur Fälligkeit über 7 Tage alt,
-  Widerruf/Recht —, wird sie gleich eine normale Karte „Ampel gelb — Maras Antwort senden?“ mit dem Grund. Wird ein gelber Entwurf
-  erst später zum Hänger (Sperre kommt dazu, Mail altert in der KI-Pause), legt der Sammler die Karte an. „Mara heute“ sagt je
-  Entwurf ehrlich „schreibt frühestens … neu und sendet“ (mit Versandfenster) oder „geht NICHT von selbst raus (Grund)“; über 200
-  Entwürfe steht „und N weitere“ statt stillem Abschneiden bei 40.
-- **Warum:** Prüfer-Fund: Solche Entwürfe gingen nie raus und bekamen keine Karte — der Kunde hätte nie eine Antwort bekommen.
-- **Wo:** shared/fiaon-entwurf-frist.ts (fristLaesstLiegen, fristFaellig — dieselbe fristUrteil), shared/fiaon-mara-ampel.ts
-  („Ampel gelb, als Karte“, Satz für „Mara heute“), server/lib/fiaon-postmeister-frist.ts (gelbLiegenLesen), fiaon-postmeister-lauf.ts,
-  fiaon-postmeister-entscheidungen.ts, fiaon-mara-heute.ts. Prüfstände scripts/pruef-e406-b3-mara-heute(-db).ts (Rot-Probe: 13 schlecht ohne Korrektur).
-
-## 19.10.2026 — E-406 B3: „Mara heute“ im Lagezimmer, Ampel je Mara-Werkzeug, Wochen-Stichprobe, Maras Aufräum-Vorschläge
-- **Was:** (1) **Lagezimmer › „Mara heute“** (keine neue Seite): was Mara heute selbst erledigt hat (je Art ein Chip mit Link),
-  Geld heute aus der EINEN Quelle (Maras Bilanz auf UMSATZ_QUELLE_SQL), offene Entscheidungen, Aufräum-Vorschläge, wo jemand im Team
-  hängt (Termine ohne Ergebnis, überfällige Aufträge), KI-Kosten heute. (2) **Mara-Steuerpult › Chip „Ampel“:** je Werkzeug grün /
-  gelb / rot — nur, was der Server wirklich durchsetzt; Startwerte = heutiges Verhalten (nichts verschärft oder gelockert). Gelb steht
-  einzeln in „Mara heute“ und ist 24 h mit einem Klick zurück: Termin absagen (Kunde bekommt die Absage mit Link), Anschrift/Telefon
-  zurück auf alt, Mail-Entwurf „Nicht senden“ / „Jetzt senden“ (gelbe Mails gehen sonst nach 24 h über die 24-Stunden-Regel raus).
-  Rot: Mails nur noch als Karte, Termine nicht eingetragen (genannter Termin → Karte „Termin eintragen?“), Ratenpause als Karte
-  „Pause setzen“. Geld buchen und Erstattung fest rot. (3) **Schulung › Mara-Stichprobe:** jede Woche 20 zufällige Handlungen der
-  Vorwoche (gleichmäßig über die Werkzeuge) für Trainerin und Vertriebsleitung: ok / nicht ok mit Grund, Fehlerquote je Werkzeug;
-  Vorschlag „auf Grün“ erst nach 4 Wochen unter 2 % — nie automatisch. (4) **Maras Aufräum-Vorschlag:** alte Zahlungsmeldungen
-  (14–75 Tage, kein Eingang) als E-397-Sammelkarte „Ja, im Bankbuch nachsehen / Nein, so lassen“ — sucht über zahlung_suchen, bucht
-  nichts, schreibt dem Kunden nichts.
-- **Warum:** Justin 19.10.2026, Vorschlag 3 „Mara führt den Betrieb“: sehen, was Mara tut, ihr Schritt für Schritt mehr zutrauen —
-  mit einem Menschen, der stichprobenartig prüft, und ohne neue Seiten.
-- **Wo:** shared/fiaon-mara-ampel.ts (Regeln), server/lib/fiaon-mara-ampel.ts, fiaon-mara-heute.ts, fiaon-mara-stichprobe.ts,
-  fiaon-mara-aufraeumen.ts, server/routes/fiaon-mara-heute.ts; Weichen in fiaon-postmeister-lauf.ts (+ frist, entscheidungen),
-  fiaon-whatsapp-mara.ts (Rückruf, Ratenpause), fiaon-postmeister-werkzeuge.ts (Rückruf-Termin), fiaon-mara-genannter-termin.ts;
-  Oberfläche ChefMaraHeute.tsx, ChefMaraAmpel.tsx, components/agent/MaraStichprobe.tsx. Prüfstände scripts/pruef-e406-b3-mara-heute(-db).ts.
-
-## 19.10.2026 — E-406 C2: Nacharbeit nach dem Anruf — ein Klick, Mara schickt die Zusammenfassung
-- **Was:** Beim Gesprächsergebnis (Kundenkarte und Akte) steht das Häkchen **„Mara schickt die Zusammenfassung“** mit einer Zeile
+## 20.10.2026 — E-409 Raum „KI-Team“ + E-406 Welle 2 (C2 Nacharbeit, B2 Unterlagen, B3 „Mara heute“) — zusammengeführt, EINE Ampel
+- **Was:** **(E-409) Raum „KI-Team“ im Chefbüro** (Menü-Gruppe nach „Heute“, /chef/ki): **Heute** (Mara und Aras in Zahlen,
+  Entscheidungskarten, „Mara heute“ mit Gelb und „Rückgängig“, Kosten, Prüf-Mara, Not-Aus), **Aras** (zeigt „noch nicht
+  verbunden“, bis der Telefon-Kern E-408 sich über arasAnbinden anmeldet), **Mara** (das Steuerpult, Adresse bleibt),
+  **Werkzeuge** (DIE eine Ampel grün/gelb/rot je Werkzeug), **Qualität** (Prüf-Mara: eine zweite KI prüft Stichproben von
+  Maras Mails/WhatsApps und jeden Aras-Anruf, Karten nur bei Auffälligem — keine Pflicht für Mitarbeiter), **Einstellungen &
+  Kasse** (nur Schalter, die wirklich wirken; Kosten je Dienst).
+  **(C2) Nacharbeit nach dem Anruf:** Beim Gesprächsergebnis (Kundenkarte und Akte) steht das Häkchen **„Mara schickt die Zusammenfassung“** mit einer Zeile
   Vorschau. Bleibt es an, schickt Mara dem Kunden eine kurze Mail: „Zahlt sofort/am …“ → Betrag, Tag, Verwendungszweck und Knopf zu
   seiner Zahlungsseite; „Rückruf vereinbart“ → Tag, Uhrzeit, wer anruft; „Erreicht – Sonstiges“ → zwei, drei Sätze aus der Notiz (von
   Mara geschrieben, vom Server mit Wortwand, E-393, Ton/Nennform und ohne Bank-Satz geprüft, einmal neu geschrieben, sonst nichts);
@@ -47,17 +20,36 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   frühestens 3 Minuten nach dem Klick (ein anderes Ergebnis nimmt die Mail zurück), höchstens eine je Kunde in 12 Stunden. Nie bei
   „nicht erreicht“, FIAON Global, Test, Werbe-/Vertriebssperre, Kündigung, heiklem Thema (Notiz oder offener Auftrag), ohne Adresse.
   Vermerk in der Akte. Schalter und Zahlen: Chefbüro › Mara › Termine.
-- **Warum:** Justin, Vorschlag 3 „Mara führt den Betrieb“: „Nach dem Anruf genügt ein Klick auf das Ergebnis. Die Nacharbeit macht
-  Mara.“ Gemessen 05.–19.10.: 115 Gespräche mit Zusage, Rückruf oder Absprache — der Kunde bekam danach nichts Schriftliches.
-- **Wo:** shared/fiaon-mara-nacharbeit.ts (Regel), shared/fiaon-mara-nacharbeit-text.ts (Prüfung, Auftrag an Mara),
-  server/lib/fiaon-mara-nacharbeit.ts (vormerken, Takt „mara_nacharbeit_mail“, Stand), server/mail/vorlagen/nacharbeit.ts,
-  client/src/components/agent/MaraNacharbeitHaken.tsx; Prüfstände scripts/pruef-mara-nacharbeit.ts und -db.ts.
-- **Nachbesserung (Prüfer-Funde, 19.10.2026):** (1) Wäre die Mail bis zum nächsten Versand überholt — „Zahlt sofort“ ab ca. 19:57
-  (morgen früh ist „heute“ vorbei), ein Rückruf, der dann keine Stunde mehr entfernt ist —, schickt Mara keine und sagt es gleich
-  („Mara schickt keine Mail: sie schreibt erst ab 8 Uhr wieder, dann ist der zugesagte Tag vorbei.“); die Vorschau zeigt dann kein
-  Häkchen. Wird ein Merker im Takt „erledigt“, steht der Grund in der Akte. (2) Rückgängig nimmt wirklich zurück: „Irrtümlich?“ am
-  Verlaufseintrag (der Merker kennt seinen Eintrag, `ergebnisNachbereiten` gibt `logId` zurück; der Takt prüft ihn beim Senden
-  noch einmal), dasselbe Ergebnis mit bewusst abgewähltem Häkchen und jede heikle Notiz — jeweils mit Satz an den Mitarbeiter.
+  **(B2) Unterlagen:** Mara erinnert bei laufenden Privat-Paketen selbst an fehlenden Ausweis oder Kontoauszug (Upload-Link, höchstens
+  2×, 4 Tage Abstand, 08–20 Uhr, nie bei Kündigung, Global, Test, Sperre), schreibt zu jeder neuen Unterlage eine Vorprüfung (ohne
+  KI, nie ein Ausweisbild) und schickt „Unterlagen eingegangen“ an die prüfende Person aus der Leitung statt an Justin — „Geprüft“
+  klickt weiter ein Mensch. Alte Prüf-Aufgaben umhängen nur mit Schalter (Standard aus), 30 Tage „Zurückholen“.
+  **(B3) „Mara heute“:** was Mara heute selbst erledigt hat (auch Raten-Mail, Anliegen, Nacharbeit, KYC), Geld heute aus der einen
+  Quelle, offene Entscheidungen, Aufräum-Vorschläge (alte Zahlungsmeldungen: „Im Bankbuch nachsehen“ — bucht nie), wo im Team etwas
+  hängt; Gelbes 24 h mit einem Klick zurück (Termin absagen, Anschrift zurück, Mail-Entwurf „Nicht senden“/„Jetzt senden“). Im
+  Lagezimmer als EINE Zeile mit Link in KI-Team › Heute — dieselbe Server-Quelle.
+  **Zusammenführung (Prüfer-Funde):** Es gibt EINE Ampel (ein Speicher-Schlüssel, echte Werkzeugnamen aus dem Code, bedient nur in
+  KI-Team › Werkzeuge; der Chip im Mara-Steuerpult ist ein Link dorthin). Die Wochen-Stichprobe für die Trainerin ist ganz weg.
+  Rot tut, was die Zeile sagt: eine echte Karte an Justin oder Mara lässt das Werkzeug weg; Kündigung aufnehmen/vormerken fest grün;
+  Gelb steht erst nach einem echten Lauf in „Heute“; ist die Ampel nicht lesbar, gilt die strengste Stufe. Der Not-Aus hält ALLE
+  Mara-Wege an (Mail-Aktion, WhatsApp, Postfach, beide Nachfass-Wege, Raten-Mail, Anliegen, Nacharbeit, KYC, Umhängen, auch
+  Daueraufträge) und „Wieder an“ fragt vorher und stellt genau den Stand von vorher her. „Mails geschrieben“ zählt Maras eigene
+  Mails (vorher immer 0), „Mara anweisen“ trifft bei Aktionsmails die richtige Anweisung, Link-Knöpfe auf Karten bleiben Links,
+  „Widerruf annehmen“ fragt nach, die Leitung sieht auf „Heute“ keine Kundennamen, die Probe-Nummer steht überall nur mit den
+  letzten 3 Ziffern, kein Gold im KI-Team, ruhige Hülle auch für /chef/ki.
+- **Warum:** Justin, 19.10.2026: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter — mit allen Sachen, die auch wirklich
+  funktionieren“; Vorschlag 3 „Mara führt den Betrieb“ („Nach dem Anruf genügt ein Klick“, „KYC selbst und nicht mehr bei Justin“,
+  „sehen, was Mara tut“); zur Stichprobe: „warum Diana? … Die ist ja gar nicht Thema“ — Qualität prüft Prüf-Mara automatisch.
+  Gemessen vorher: 115 Gespräche mit Zusage/Rückruf ohne schriftliche Nachricht (05.–19.10.), 222 „Unterlagen eingegangen“ alle bei
+  Justin, 225 laufende Privat-Pakete ohne Ausweis oder Kontoauszug.
+- **Wo:** E-409: shared/fiaon-ki-team.ts (EINE Ampel MARA_AMPEL, Formen), shared/fiaon-ki-schalter.ts (Register, NOTAUS_SCHALTER),
+  shared/fiaon-ki-pruefung-regeln.ts, server/lib/fiaon-ki-{ampel,einstellungen,heute,pruefung,aras-anbindung}.ts,
+  server/routes/fiaon-chef-ki.ts, client/src/components/admin/ChefKi*.tsx + aras/*, styles/chef-ki.css. C2: shared/fiaon-mara-nacharbeit(-text).ts,
+  server/lib/fiaon-mara-nacharbeit.ts, server/mail/vorlagen/nacharbeit.ts, components/agent/MaraNacharbeitHaken.tsx. B2:
+  shared/fiaon-kyc-nachfordern.ts, shared/fiaon-unterlagen-vorpruefung.ts, server/lib/fiaon-mara-kyc.ts, fiaon-unterlagen-pruefer.ts,
+  ChefMaraUnterlagen.tsx. B3: shared/fiaon-mara-ampel.ts (Mails Gelb/Rot, Arten, Aufräumen), server/lib/fiaon-mara-heute.ts (die eine
+  Quelle), fiaon-mara-aufraeumen.ts, server/routes/fiaon-mara-heute.ts, ChefMaraHeute.tsx. Prüfstände: pruef-ki-schalter, pruef-ki-pruefung,
+  pruef-e409-db, pruef-e409-funde(-db), pruef-mara-nacharbeit(-db), pruef-mara-kyc(-db), pruef-e406-b3-mara-heute(-db).
 
 ## 19.10.2026 — E-406 Welle 1 „Mara führt den Betrieb“: Heute dran (A), Mara-Inkasso erste Stufe (B1), Mara beantwortet Anliegen (C1) — abgenommen
 - **Was:** **(A) „Heute dran“** — jeder Mitarbeiter sieht auf /agent/start eine Liste mit höchstens 25 Einträgen aus allen Orten mit Arbeit

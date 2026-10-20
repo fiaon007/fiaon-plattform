@@ -10,7 +10,7 @@
 // ARAS-Schlüssel gehen über die Anbindung an einstellungSetzen (Team 1).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, registerEintrag, wertPruefen, wertAnzeige, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
+import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, NOTAUS_SCHALTER, registerEintrag, wertPruefen, wertAnzeige, wertOeffentlich, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
 import { aras, arasVerbunden, NICHT_VERBUNDEN } from "./fiaon-ki-aras-anbindung";
 
 /** Schlüssel, die bis zum Eintrag in fiaon_settings aus der Umgebung kommen. */
@@ -34,7 +34,8 @@ export async function einstellungenLesen(): Promise<EinstellungenSicht> {
     let w = roh.get(e.schluessel);
     if ((w == null || w === "") && ENV_ERSATZ[e.schluessel] && process.env[ENV_ERSATZ[e.schluessel]]) w = String(process.env[ENV_ERSATZ[e.schluessel]]);
     gesetzt[e.schluessel] = roh.has(e.schluessel);
-    werte[e.schluessel] = w == null ? e.vorgabe : wertAnzeige(e, w);
+    // E-409 Fund 11: Justins Probe-Nummer verlässt den Server nur verdeckt (die letzten 3 Ziffern).
+    werte[e.schluessel] = e.geheim ? wertOeffentlich(e.schluessel, w ?? "") : (w == null ? e.vorgabe : wertAnzeige(e, w));
   }
   return {
     register: REGISTER.map(({ jsonPruefen: _j, muss, ...rest }) => ({ ...rest, ...(muss ? { muss: muss.source } : {}) })),
@@ -61,14 +62,14 @@ export async function einstellungSetzen(schluessel: string, wert: unknown, von: 
     } catch (err) {
       return { ok: false, status: 400, fehler: String((err as Error)?.message ?? err).slice(0, 200) };
     }
-    console.log(`[KI-EINSTELLUNG] ${schluessel} = ${p.wert.slice(0, 60)} (${von}, über Aras)`);
+    console.log(`[KI-EINSTELLUNG] ${schluessel} = ${wertOeffentlich(schluessel, p.wert).slice(0, 60)} (${von}, über Aras)`);
     return { ok: true, schluessel, wert: p.wert };
   }
   if (!KI_SCHLUESSEL.includes(schluessel)) return { ok: false, status: 409, fehler: `Setzer ist ${e.setzer.route}` };
   await sqlPool`
     INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${schluessel}, ${p.wert}, NOW())
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
-  console.log(`[KI-EINSTELLUNG] ${schluessel} = ${p.wert.slice(0, 60)} (${von})`);
+  console.log(`[KI-EINSTELLUNG] ${schluessel} = ${wertOeffentlich(schluessel, p.wert).slice(0, 60)} (${von})`);
   return { ok: true, schluessel, wert: p.wert };
 }
 
@@ -94,16 +95,105 @@ export async function registerWert(schluessel: string): Promise<string> {
   } catch { return e?.vorgabe ?? ""; }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NOT-AUS MARA (KI-Team › Heute) — ALLE Mara-Wege in einem Zug, „Wieder an“ stellt GENAU den Stand von vorher her
+//
+// E-409 Funde 2 + 9 (20.10.2026): Bis heute hielt der Not-Aus nur Mail-Aktion, WhatsApp-Antworten und Postfach an —
+// WhatsApp-Nachfassen, die Nachfass-Mail nach 2× nicht erreicht und die Wege aus E-406 (B1 Raten-Mail, B2 KYC +
+// Umhängen, C1 Anliegen, C2 Nacharbeit) liefen weiter. Und „Wieder an“ schaltete alles AN — auch, was Justin vorher
+// bewusst aus hatte. Jetzt: vor dem Anhalten wird der Stand jedes Schalters gemerkt (fiaon_settings.mara_notaus_vorher,
+// „fehlt“ = Vorgabe), „Wieder an“ stellt genau diesen Stand her und löscht den Merker. Zweimal anhalten überschreibt
+// den Merker nie. Solange der Merker steht, laufen auch Maras Daueraufträge nicht (fiaon-mara-auftrag.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+export const NOTAUS_VORHER = "mara_notaus_vorher";
+type LaufPool = typeof sqlPool;
+
+/** Ist ein roher Wert „an“? (Vorgabe, wenn er fehlt.) Rein. */
+export function notausWertAn(roh: string | null | undefined, vorgabeAn: boolean): boolean {
+  const w = String(roh ?? "").trim().toLowerCase();
+  if (!w) return vorgabeAn;
+  return !["aus", "0", "nein", "false", "off"].includes(w);
+}
+
+export interface NotausStand {
+  aktiv: boolean; seit: string | null; von: string | null;
+  /** Je Weg: jetzt an/aus — und (wenn angehalten) wie er VOR dem Not-Aus stand. */
+  wege: { schluessel: string; label: string; an: boolean; vorherAn: boolean | null }[];
+}
+
+function merkerLesen(roh: unknown): { am: string | null; von: string | null; werte: Record<string, string | null> } | null {
+  let o: any = roh;
+  if (typeof o === "string") { try { o = JSON.parse(o); } catch { return null; } }
+  if (!o || typeof o !== "object" || !o.werte || typeof o.werte !== "object") return null;
+  return { am: o.am ?? null, von: o.von ?? null, werte: o.werte };
+}
+
+export async function maraNotausStand(lauf: LaufPool = sqlPool): Promise<NotausStand> {
+  const schluessel = [...NOTAUS_SCHALTER.map((n) => n.schluessel), NOTAUS_VORHER];
+  const zeilen = (await lauf`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schluessel})`) as any[];
+  const roh = new Map<string, string>(zeilen.map((z) => [String(z.key), String(z.value ?? "")]));
+  const merker = roh.has(NOTAUS_VORHER) ? merkerLesen(roh.get(NOTAUS_VORHER)) : null;
+  return {
+    aktiv: !!merker, seit: merker?.am ?? null, von: merker?.von ?? null,
+    wege: NOTAUS_SCHALTER.map((n) => ({
+      schluessel: n.schluessel, label: n.label, an: notausWertAn(roh.get(n.schluessel), n.vorgabeAn),
+      vorherAn: merker ? notausWertAn(merker.werte[n.schluessel] ?? null, n.vorgabeAn) : null,
+    })),
+  };
+}
+
+/** Steht Maras Not-Aus gerade? (Daueraufträge warten dann.) Lesefehler = ja (lieber nichts tun). */
+export async function maraNotausAktiv(lauf: LaufPool = sqlPool): Promise<boolean> {
+  try {
+    const [z] = (await lauf`SELECT 1 AS da FROM fiaon_settings WHERE key = ${NOTAUS_VORHER}`) as any[];
+    return !!z;
+  } catch { return true; }
+}
+
+export type NotausErgebnis =
+  | { ok: true; aktiv: boolean; geaendert: { schluessel: string; label: string; vorher: string | null; nachher: string | null }[] }
+  | { ok: false; status: 409; fehler: string };
+
 /**
- * NOT-AUS MARA (Heute-Seite): Mail-Aktion, WhatsApp-Antworten und Postfach in einem Zug anhalten
- * — über dieselben Schlüssel, die die drei Läufe lesen. „start“ stellt an. Jeder Schritt im Log.
+ * an = true: anhalten (Stand merken, alle Wege aus). an = false: „Wieder an“ — genau den gemerkten Stand zurück.
+ * In EINER Transaktion mit Zeilensperre auf dem Merker: zwei Klicks gleichzeitig verlieren nichts.
  */
-export async function maraNotaus(an: boolean, von: string): Promise<{ aktion: string; whatsapp: string; postfach: string }> {
-  const wert = an ? "aus" : "an";
-  const { einstellungSetzen: aktionSetzen } = await import("./fiaon-mara-aktion");
-  await aktionSetzen("mara_aktion_an", wert);
-  await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES ('mara_wa_an', ${wert}, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
-  await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES ('postmeister_an', ${wert}, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
-  console.log(`[KI-EINSTELLUNG] Mara ${an ? "NOT-AUS" : "wieder an"} (${von}): Aktion, WhatsApp, Postfach = ${wert}`);
-  return { aktion: wert, whatsapp: wert, postfach: wert };
+export async function maraNotaus(an: boolean, von: string, lauf: LaufPool = sqlPool): Promise<NotausErgebnis> {
+  const schluessel = NOTAUS_SCHALTER.map((n) => n.schluessel);
+  const erg = await lauf.begin(async (tx: any) => {
+    // Eine Sperre nur für diesen Not-Aus (bis zum Ende der Transaktion) — zwei Klicks gleichzeitig laufen nacheinander.
+    await tx`SELECT pg_advisory_xact_lock(409406001)`;
+    const [m] = (await tx`SELECT value FROM fiaon_settings WHERE key = ${NOTAUS_VORHER}`) as any[];
+    const merker = m ? merkerLesen(m.value) : null;
+    const jetzt = new Map<string, string | null>(((await tx`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schluessel})`) as any[]).map((z) => [String(z.key), z.value == null ? null : String(z.value)]));
+    const geaendert: { schluessel: string; label: string; vorher: string | null; nachher: string | null }[] = [];
+    if (an) {
+      if (!merker) {
+        const werte: Record<string, string | null> = {};
+        for (const k of schluessel) werte[k] = jetzt.get(k) ?? null;
+        await tx`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${NOTAUS_VORHER}, ${JSON.stringify({ am: new Date().toISOString(), von: String(von).slice(0, 120), werte })}, NOW())
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+      }
+      for (const n of NOTAUS_SCHALTER) {
+        if ((jetzt.get(n.schluessel) ?? null) === "aus") continue;
+        await tx`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${n.schluessel}, 'aus', NOW())
+                 ON CONFLICT (key) DO UPDATE SET value = 'aus', updated_at = NOW()`;
+        geaendert.push({ schluessel: n.schluessel, label: n.label, vorher: jetzt.get(n.schluessel) ?? null, nachher: "aus" });
+      }
+      return { ok: true as const, aktiv: true, geaendert };
+    }
+    if (!merker) return { ok: false as const, status: 409 as const, fehler: "Mara ist nicht angehalten — es gibt keinen Stand zum Zurückstellen." };
+    for (const n of NOTAUS_SCHALTER) {
+      if (!(n.schluessel in merker.werte)) continue;
+      const alt = merker.werte[n.schluessel];
+      if (alt == null) await tx`DELETE FROM fiaon_settings WHERE key = ${n.schluessel}`;
+      else await tx`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${n.schluessel}, ${String(alt)}, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+      if ((jetzt.get(n.schluessel) ?? null) !== alt) geaendert.push({ schluessel: n.schluessel, label: n.label, vorher: jetzt.get(n.schluessel) ?? null, nachher: alt });
+    }
+    await tx`DELETE FROM fiaon_settings WHERE key = ${NOTAUS_VORHER}`;
+    return { ok: true as const, aktiv: false, geaendert };
+  });
+  if (erg.ok) console.log(`[KI-EINSTELLUNG] Mara ${an ? "NOT-AUS" : "wieder an (Stand von vorher)"} (${von}): ${erg.geaendert.map((g) => `${g.schluessel} ${g.vorher ?? "Vorgabe"} → ${g.nachher ?? "Vorgabe"}`).join(", ") || "nichts zu ändern"}`);
+  return erg as NotausErgebnis;
 }

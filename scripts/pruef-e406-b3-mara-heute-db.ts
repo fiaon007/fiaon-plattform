@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PRÜFSTAND E-406 B3 (19.10.2026), DATENBANK: „Mara heute“, die Ampel je Mara-Werkzeug, die Stichprobe und Maras
+// PRÜFSTAND E-406 B3 (19.10.2026), DATENBANK: „Mara heute“, die Ampel je Mara-Werkzeug (seit E-409 × E-406 die EINE Ampel
+// aus server/lib/fiaon-ki-ampel.ts mit echten Werkzeugnamen — keine Stichprobe für Mitarbeiter mehr) und Maras
 // Aufräum-Vorschläge — gegen eine LOKALE Prüfdatenbank, mit erfundenen Testkunden (Marke Q406). Gmail und das Modell
 // sind Attrappen (fetch abgefangen), alles andere Netz ist gesperrt. Gefahren wird der ECHTE Code: mailBearbeiten
 // (Weiche der Ampel), die 24-Stunden-Regel, die Karten (entscheiden, Sammelkarte), WhatsApp-Werkzeuge, der genannte
@@ -99,9 +100,9 @@ async function main() {
   const lauf = await import("../server/lib/fiaon-postmeister-lauf");
   const F = await import("../server/lib/fiaon-postmeister-frist");
   const N = await import("../shared/fiaon-nicht-erreicht-nachfass");
-  const A = await import("../server/lib/fiaon-mara-ampel");
+  const A = await import("../server/lib/fiaon-ki-ampel");
+  const KT = await import("../shared/fiaon-ki-team");
   const HE = await import("../server/lib/fiaon-mara-heute");
-  const ST = await import("../server/lib/fiaon-mara-stichprobe");
   const E = await import("../server/lib/fiaon-mara-entscheidungen");
   const AUF = await import("../server/lib/fiaon-mara-aufraeumen");
   const WA = await import("../server/lib/fiaon-whatsapp-mara");
@@ -116,7 +117,7 @@ async function main() {
   await aktionTabellen();
   await AN.angabenTabelle();
 
-  const EIN = ["ki_pause", "postmeister_an", "postmeister_v2", "postmeister_modus_support", "postmeister_modus_welcome", R.AMPEL_SCHALTER];
+  const EIN = ["ki_pause", "postmeister_an", "postmeister_v2", "postmeister_modus_support", "postmeister_modus_welcome", KT.MARA_AMPEL_SCHALTER];
   const vorher = (await sql`SELECT key, value FROM fiaon_settings WHERE key = ANY(${EIN})`) as any[];
   const setzen = async (k: string, v: string | null) => {
     await sql`DELETE FROM fiaon_settings WHERE key = ${k}`;
@@ -126,7 +127,12 @@ async function main() {
   await setzen("postmeister_an", "an");
   await setzen("postmeister_modus_support", "auto");
   (kp as any).kiPauseZwischenspeicherLeeren?.();
-  const ampel = async (key: R.AmpelKey, stufe: R.AmpelStufe) => { await A.ampelSpeichern(key, stufe, "Prüfstand Q406"); };
+  // E-409 × E-406: die alten B3-Namen auf die echten Werkzeugnamen der EINEN Ampel („Termine eintragen“ = Rückruf + genannter Termin).
+  const NAMEN: Record<string, string[]> = { termin_eintragen: ["rueckruf_eintragen", "vereinbarten_termin_eintragen"], mail_antworten: ["antwort_senden"], ratenpause: ["ratenpause_setzen"], angaben_aendern: ["angaben_aendern"] };
+  const ampel = async (key: string, stufe: "gruen" | "gelb" | "rot") => {
+    for (const k of NAMEN[key] ?? [key]) { const r = await A.ampelSetzen("mara", k, stufe, "Prüfstand Q406"); if (!r.ok) throw new Error(r.fehler); }
+  };
+  const ampelStand = () => A.ampelStand("mara", true);
 
   async function aufraeumen() {
     const personen = ((await sql`SELECT id FROM fiaon_persons WHERE person_ref LIKE ${`PR-${M}-%`}`) as any[]).map((r) => Number(r.id));
@@ -239,23 +245,21 @@ async function main() {
 
   try {
     // ═════════════════════════════════════════════════════════════════════
-    console.log("── 1 · Die Ampel in der Datenbank: Startwerte, Setzen, Verlauf, fest rot");
+    console.log("── 1 · Die EINE Ampel in der Datenbank: Vorgaben, Setzen, Verlauf, fest rot, keine Zeile überschreibt eine andere");
     {
       A.ampelZwischenspeicherLeeren();
-      const s0 = await A.ampelStand({ frisch: true });
-      ok(JSON.stringify(s0) === JSON.stringify(R.ampelVorgabe()), "ohne Eintrag: die Startwerte (= heutiges Verhalten)");
+      ok((await A.ampelStufe("mara", "rueckruf_eintragen")) === "gruen" && (await A.ampelStufe("mara", "antwort_senden")) === "gruen", "ohne Eintrag: die Vorgaben (= heutiges Verhalten)");
       await ampel("termin_eintragen", "gelb");
-      const s1 = await A.ampelLesenMitVerlauf();
-      ok(s1.stand.termin_eintragen === "gelb" && s1.verlauf[0]?.wer === "Prüfstand Q406" && s1.verlauf[0]?.von === "gruen", "gesetzt, mit Verlauf (wer, von → nach)", s1.verlauf[0]);
-      ok((await A.ampelStufe("termin_eintragen")) === "gelb", "der Zwischenspeicher ist nach dem Setzen leer — die neue Stufe gilt sofort hier");
-      let warf = "";
-      try { await A.ampelSpeichern("erstattung", "gruen", "x"); } catch (e: any) { warf = String(e?.message ?? e); }
-      ok(/nie automatisch|Fest rot/.test(warf) && (await A.ampelStufe("erstattung")) === "rot", "Erstattung lässt sich nicht lockern", warf);
-      await sql`UPDATE fiaon_settings SET value = ${JSON.stringify({ stufen: { geld_buchen: "gruen", mail_antworten: "rot" } })} WHERE key = ${R.AMPEL_SCHALTER}`;
+      const s1 = await A.ampelStand("mara", true);
+      const letzter = s1.verlauf[s1.verlauf.length - 1];
+      ok(s1.stufen.rueckruf_eintragen === "gelb" && s1.stufen.vereinbarten_termin_eintragen === "gelb" && letzter?.wer === "Prüfstand Q406" && letzter?.von === "gruen", "gesetzt, mit Verlauf (wer, von → nach)", letzter);
+      ok((await A.ampelStufe("mara", "rueckruf_eintragen")) === "gelb", "der Zwischenspeicher ist nach dem Setzen leer — die neue Stufe gilt sofort hier");
+      const f = await A.ampelSetzen("mara", "erstattung", "gruen", "x");
+      ok(!f.ok && (await A.ampelStufe("mara", "erstattung")) === "rot", "Erstattung lässt sich nicht lockern", f);
+      await sql`UPDATE fiaon_settings SET value = ${JSON.stringify({ stufen: { geld_buchen: "gruen", antwort_senden: "rot" } })} WHERE key = ${KT.MARA_AMPEL_SCHALTER}`;
       A.ampelZwischenspeicherLeeren();
-      const s2 = await A.ampelStand();
-      ok(s2.geld_buchen === "rot" && s2.mail_antworten === "rot", "von Hand eingetragenes „Geld buchen: grün“ gilt nie");
-      await setzen(R.AMPEL_SCHALTER, null);
+      ok((await A.ampelStufe("mara", "geld_buchen")) === "rot" && (await A.ampelStufe("mara", "antwort_senden")) === "rot", "von Hand eingetragenes „Geld buchen: grün“ gilt nie");
+      await setzen(KT.MARA_AMPEL_SCHALTER, null);
       A.ampelZwischenspeicherLeeren();
     }
 
@@ -275,7 +279,7 @@ async function main() {
       ok((await karteZu(Number(y.z.id))).length === 0, "Gelb: KEINE Karte für Justin");
       await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
       ok((await karteZu(Number(y.z.id))).length === 0, "auch der Sammler legt für den gelben Entwurf keine Karte an");
-      const gelb1 = await HE.gelbListe(await A.ampelStand(), {});
+      const gelb1 = await HE.gelbListe(await ampelStand(), {});
       const eintrag = gelb1.find((x) => x.art === "mail_nicht_senden" && x.id === String(y.z.id));
       ok(!!eintrag && eintrag.knoepfe.map((k) => k.label).join("|") === "Jetzt senden|Nicht senden", "„Mara heute“: der Entwurf mit „Jetzt senden“ und „Nicht senden“", eintrag);
       // Nach 24 h: die 24-Stunden-Regel schreibt einmal neu und SENDET (zweiter Anlauf, ampelFrist).
@@ -308,7 +312,7 @@ async function main() {
       ok(rr.z?.aktion === "entwurf" && rr.gesendet === 0 && R.istAmpelRotEntwurf(rr.z?.begruendung), "Rot: nichts gesendet, Begründung „Ampel rot: …“", { aktion: rr.z?.aktion, b: rr.z?.begruendung });
       const kr = await karteZu(Number(rr.z.id));
       ok(kr.length === 1 && /Ampel rot/.test(kr[0].titel) && kr[0].empfehlung === "senden", "Rot: eine Karte „Ampel rot — Maras Antwort senden?“, Empfehlung senden", kr[0]?.titel);
-      const gelbRot = await HE.gelbListe(await A.ampelStand(), {});
+      const gelbRot = await HE.gelbListe(await ampelStand(), {});
       ok(!gelbRot.some((x) => x.id === String(rr.z.id)), "ein roter Entwurf steht nicht in der gelben Liste");
       await altern(Number(rr.z.id));
       const fr = await fristLauf([Number(rr.z.id)]);
@@ -405,12 +409,12 @@ async function main() {
       ok(R.istAmpelGelbEntwurf(e.z?.begruendung) && (await karteZu(Number(e.z.id))).length === 0, "(E) Ausgang: gelber Entwurf, keine Karte");
       await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
       ok((await karteZu(Number(e.z.id))).length === 0, "(E) der Sammler lässt einen gelben Entwurf, den die Regel sendet, in Ruhe");
-      const gE0 = (await HE.gelbListe(await A.ampelStand(), {})).find((x) => x.id === String(e.z.id));
+      const gE0 = (await HE.gelbListe(await ampelStand(), {})).find((x) => x.id === String(e.z.id));
       ok(!!gE0 && /frühestens/.test(gE0.text) && /Karte/.test(gE0.text) && !/wenn sie darf/.test(gE0.text), "(E) „Mara heute“: „schreibt frühestens … neu und sendet“", gE0?.text);
       await sql`UPDATE fiaon_persons SET ist_test_am = NOW() WHERE id = ${KE.pid}`;
       await E.entscheidungenSammeln({ nur: ["postmeister_entwurf"] });
       ok((await istKarte(Number(e.z.id), /Testkonto/)).ok, "(E) Sperre kam danach: der Sammler legt die Karte an (Grund Testkonto)", (await istKarte(Number(e.z.id), /Testkonto/)).k);
-      const gE1 = (await HE.gelbListe(await A.ampelStand(), {})).find((x) => x.id === String(e.z.id));
+      const gE1 = (await HE.gelbListe(await ampelStand(), {})).find((x) => x.id === String(e.z.id));
       ok(!!gE1 && /NICHT von selbst/.test(gE1.text) && /Testkonto/.test(gE1.text) && !/frühestens/.test(gE1.text), "(E) „Mara heute“ sagt es ehrlich: geht NICHT von selbst raus (Testkonto)", gE1?.text);
       await altern(Number(e.z.id));
       const fe = await fristLauf([Number(e.z.id)]);
@@ -425,7 +429,7 @@ async function main() {
 
       // (G) „Mara heute“ schneidet nicht still ab: Deckel 1 → „und N weitere“.
       const [{ n: gelbeN }] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_postmeister WHERE begruendung LIKE ${`${R.AMPEL_GELB_KOPF}%`} AND aktion = 'entwurf' AND gesendet_am IS NULL`) as any[];
-      const gD = await HE.gelbListe(await A.ampelStand(), { mailDeckel: 1 });
+      const gD = await HE.gelbListe(await ampelStand(), { mailDeckel: 1 });
       const weiter = gD.find((x) => x.id === "mail_weitere");
       ok(gelbeN >= 2 && gD.filter((x) => x.art === "mail_nicht_senden").length === 1 && !!weiter && weiter.text.includes(`und ${gelbeN - 1} weitere`),
         "(G) „Mara heute“: über dem Deckel steht „und N weitere“ — kein stilles Abschneiden", { gelbeN, weiter: weiter?.text });
@@ -453,7 +457,7 @@ async function main() {
       await ampel("termin_eintragen", "gelb");
       const tLink = await termin(T1, "mara_whatsapp_link");
       const tAlt = await termin(T1, "mara_mail_genannt", 30);
-      const liste = await HE.gelbListe(await A.ampelStand(), {});
+      const liste = await HE.gelbListe(await ampelStand(), {});
       const e1 = liste.find((x) => x.art === "termin" && x.id === String(t1));
       ok(!!e1 && e1.knoepfe[0]?.label === "Termin absagen", "Gelb: Maras Termin steht in „Mara heute“ mit „Termin absagen“", e1);
       ok(!liste.some((x) => x.id === String(tLink)), "ein Termin, den der Kunde über Maras Link selbst gebucht hat, steht nicht da");
@@ -465,7 +469,7 @@ async function main() {
       ok(v1.length === 1, "Vermerk in der Akte", v1);
       const r1b = await HE.rueckgaengigMachen("termin", String(t1), "Prüfstand Q406");
       ok(!r1b.ok, "zweimal absagen geht nicht", r1b);
-      const liste2 = await HE.gelbListe(await A.ampelStand(), {});
+      const liste2 = await HE.gelbListe(await ampelStand(), {});
       ok(!!liste2.find((x) => x.id === String(t1))?.erledigt, "die Liste zeigt danach „erledigt“ mit Ergebnis");
       const rAlt = await HE.rueckgaengigMachen("termin", String(tAlt), "x");
       ok(!rAlt.ok && /24 Stunden/.test(rAlt.text), "nach 24 Stunden: nicht mehr mit einem Klick", rAlt);
@@ -540,7 +544,7 @@ async function main() {
       const A1 = await kunde("A1", { adresse: { strasse: "Neue Straße 7", plz: "20095", ort: "Hamburg" } });
       const g1 = await angabe(A1, "anschrift", "Alte Gasse 1, 10115 Berlin", "Neue Straße 7, 20095 Hamburg", [
         "Straße korrigiert durch Mara (Mail): Alte Gasse 1 → Neue Straße 7", "PLZ korrigiert durch Mara (Mail): 10115 → 20095", "Ort korrigiert durch Mara (Mail): Berlin → Hamburg"]);
-      const liste = await HE.gelbListe(await A.ampelStand(), {});
+      const liste = await HE.gelbListe(await ampelStand(), {});
       ok(liste.find((x) => x.art === "angaben" && x.id === String(g1))?.knoepfe[0]?.label === "Zurück auf alt", "Gelb: die Änderung steht mit „Zurück auf alt“");
       const r1 = await HE.rueckgaengigMachen("angaben", String(g1), "Prüfstand Q406");
       const [a1] = (await sql`SELECT street, zip, city FROM fiaon_applications WHERE ref = ${A1.ref}`) as any[];
@@ -740,61 +744,8 @@ async function main() {
       ok((await HE.aufraeumenLesen()).every((a) => a.anzahl >= 0), "„Mara heute“ liest die offenen Aufräum-Vorschläge");
     }
 
-    // ═════════════════════════════════════════════════════════════════════
-    console.log("── 8 · Die Stichprobe: 20 je Woche, gleichmäßig, Bewerten, Quote, Vorschlag");
-    {
-      const S = await kunde("S1");
-      const S2 = await kunde("S2");
-      const woche = "2030-01-07";
-      const amVor = (tag: number, std: number) => `2030-01-0${tag}T${String(std).padStart(2, "0")}:00:00Z`;
-      for (let i = 0; i < 30; i++) {
-        await sql`INSERT INTO fiaon_mara_aktion (person_id, ref, stufe, schritt, status, betreff, text, gesendet_am, created_at)
-                  VALUES (${i % 2 ? S.pid : S2.pid}, ${S.ref}, 'B', 1, 'gesendet', ${`Aktion ${i}`}, ${`Text der Aktion ${i}`}, ${amVor(1 + (i % 5), 9 + (i % 8))}, ${amVor(1, 8)})`;
-      }
-      for (let i = 0; i < 3; i++) await MT.protokollieren({ art: "termin_gebucht", personId: S.pid, text: `Rückruf ${i} eingetragen`, nummer: "+4915100406005" });
-      await sql`UPDATE fiaon_mara_protokoll SET am = ${amVor(3, 11)} WHERE person_id = ${S.pid}`;
-      await MT.protokollieren({ art: "ratenpause", personId: S2.pid, text: "Ratenpause gesetzt", nummer: "+4915100406006" });
-      await sql`UPDATE fiaon_mara_protokoll SET am = ${amVor(4, 12)} WHERE person_id = ${S2.pid} AND art = 'ratenpause'`;
-      for (let i = 0; i < 5; i++) {
-        await sql`INSERT INTO fiaon_whatsapp (wa_id, richtung, nummer, person_id, typ, text, von, status, gesendet_am, created_at)
-                  VALUES (${`q406-st-${i}`}, 'raus', '+4915100406007', ${S.pid}, 'text', ${`Antwort ${i}`}, 'Mara Lindner', 'read', ${amVor(2, 10 + i)}, ${amVor(2, 10 + i)})`;
-      }
-      let saat = 11;
-      const zufall = () => { saat = (saat * 16807) % 2147483647; return (saat - 1) / 2147483646; };
-      const jetzt = new Date("2030-01-08T09:00:00Z");
-      const z1 = await ST.stichprobeZiehenWennFaellig({ jetzt, zufall });
-      const faelle = await ST.stichprobeLesen(woche);
-      const je = (w: string) => faelle.filter((f) => f.werkzeug === w).length;
-      ok(z1.woche === woche && z1.neu === 20 && faelle.length === 20, "20 Fälle aus der Vorwoche gezogen", z1);
-      ok(je("termin_eintragen") === 3 && je("ratenpause") === 1 && je("aktion_mails") <= 11, "gleichmäßig: alle 3 Termine und die Ratenpause sind dabei", { t: je("termin_eintragen"), r: je("ratenpause"), a: je("aktion_mails"), w: je("whatsapp_antworten") });
-      ok(faelle.every((f) => f.urteil === null) && faelle.some((f) => f.maraText), "unbewertet, mit Maras Text");
-      const z2 = await ST.stichprobeZiehenWennFaellig({ jetzt, zufall });
-      ok(z2.neu === 0 && z2.gesamt === 20, "ein zweites Ziehen in derselben Woche zieht nichts", z2);
-      const f0 = faelle.find((f) => f.werkzeug === "termin_eintragen")!;
-      const b0 = await ST.stichprobeBewerten(f0.id, "nicht_ok", "", { name: "Diana Prüf", id: null });
-      ok(!b0.ok && b0.status === 400, "„nicht ok“ ohne Grund: abgelehnt", b0);
-      const b1 = await ST.stichprobeBewerten(f0.id, "nicht_ok", "Falsche Uhrzeit bestätigt", { name: "Diana Prüf", id: null });
-      ok(b1.ok && b1.fall?.urteil === "nicht_ok" && b1.fall?.bewertetVon === "Diana Prüf", "„nicht ok“ mit Grund: gespeichert, mit Namen", b1.fall);
-      for (const f of faelle.filter((x) => x.werkzeug === "termin_eintragen" && x.id !== f0.id)) await ST.stichprobeBewerten(f.id, "ok", "", { name: "Diana Prüf", id: null });
-      const q = await ST.quotenLesen({ jetzt: new Date("2030-01-15T09:00:00Z") });
-      const qt = q.quoten.find((x) => x.werkzeug === "termin_eintragen");
-      ok(q.wochen[0] === woche && qt && qt.n === 3 && qt.nichtOk === 1, "Fehlerquote je Werkzeug (die Woche ist jetzt voll)", qt);
-      const stand = { ...R.ampelVorgabe(), termin_eintragen: "gelb" as const };
-      const as = await ST.ampelStichprobe(stand, { jetzt: new Date("2030-01-15T09:00:00Z") });
-      const at = as.find((x) => x.werkzeug === "termin_eintragen");
-      ok(at && !at.aufstieg.vorschlag && /1 von 4 Wochen/.test(at.aufstieg.grund), "Gelb → Grün: nach einer Woche kein Vorschlag (nie automatisch)", at);
-      const [{ n: stufeGeaendert }] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_settings WHERE key = ${R.AMPEL_SCHALTER} AND value LIKE '%Diana%'`) as any[];
-      ok(stufeGeaendert === 0, "kein Eintrag in der Ampel von der Stichprobe");
-      // Datensparsam: keine Abschrift von Kunden- oder Mara-Texten in der Stichprobe.
-      const spalten = ((await sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'fiaon_mara_stichprobe'`) as any[]).map((r) => String(r.column_name));
-      ok(!spalten.some((c) => /text|titel|antwort/.test(c)), "die Stichprobe speichert keine Texte (nur Quelle und Nummer)", spalten);
-      const aktionFall = faelle.find((f) => f.quelle === "aktion")!;
-      await sql`DELETE FROM fiaon_mara_aktion WHERE id = ${Number(aktionFall.quelleId)}`;
-      const nachLoeschen = (await ST.stichprobeLesen(woche)).find((f) => f.id === aktionFall.id);
-      ok(nachLoeschen?.maraText === "(nicht mehr vorhanden)", "ist die Quelle gelöscht, steht „nicht mehr vorhanden“ — kein Text bleibt zurück", nachLoeschen?.maraText);
-    }
   } finally {
-    await setzen(R.AMPEL_SCHALTER, null);
+    await setzen(KT.MARA_AMPEL_SCHALTER, null);
     A.ampelZwischenspeicherLeeren();
     await aufraeumen();
     await sql`DELETE FROM fiaon_settings WHERE key = ANY(${EIN})`;

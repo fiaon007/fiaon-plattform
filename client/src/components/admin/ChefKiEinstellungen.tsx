@@ -8,7 +8,7 @@
 // wer hat was geschaltet (fiaon_admin_log) und Maras/Aras’ Ereignisse.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";
-import { GRUPPEN, setzerKoerper, wertPruefen, grenzeText, type RegisterEintrag, type SchalterGruppe } from "@shared/fiaon-ki-schalter";
+import { GRUPPEN, setzerKoerper, wertPruefen, grenzeText, rueckfrageFuer, type RegisterEintrag, type SchalterGruppe } from "@shared/fiaon-ki-schalter";
 import type { KostenDienst } from "@shared/fiaon-ki-team";
 import { Kopf, KiRundgang, NichtVerbunden, Fehler, Stand, Meldung, useMeldung, useTakt, senden, euro, tagZeit } from "./ki-teile";
 
@@ -27,7 +27,9 @@ export function Feld({ e, wert, gesetzt, busy, onSpeichern }: { e: Eintrag; wert
   // Dieselbe Grenze wie auf dem Server — hier nur zur Anzeige (muss als Quelltext, kein RegExp-Objekt nach JSON).
   const pruef = useMemo(() => wertPruefen({ ...(e as any), muss: e.muss ? new RegExp(e.muss) : undefined } as RegisterEintrag, w), [e, w]);
   const titel = grenzeText({ ...(e as any), muss: undefined } as RegisterEintrag);
-  const speichern = () => { if (pruef.ok) void onSpeichern(e, pruef.wert); };
+  // E-409 Fund 17: folgenreiche Schalter (Aras wählt, Runde „jetzt“, alte Entwürfe ablegen) fragen VOR dem Speichern nach.
+  const fragen = (neu: string) => { const f = rueckfrageFuer(e, neu); return !f || window.confirm(f); };
+  const speichern = () => { if (pruef.ok && fragen(pruef.wert)) void onSpeichern(e, pruef.wert); };
   const an = e.typ === "an_aus" ? w === "an" : w === "1";
   return (
     <div className={`ki-feld${geaendert ? " geaendert" : ""}`} data-ki-schalter={e.schluessel}>
@@ -36,11 +38,11 @@ export function Feld({ e, wert, gesetzt, busy, onSpeichern }: { e: Eintrag; wert
       <div className="ki-eingabe">
         {e.typ === "an_aus" || e.typ === "eins_null" ? (
           <button id={`ks-${e.schluessel}`} type="button" className={`ki-schalter${an ? " an" : ""}`} aria-pressed={an} disabled={busy} title={titel}
-            onClick={() => { const neu = e.typ === "an_aus" ? (an ? "aus" : "an") : (an ? "0" : "1"); setW(neu); void onSpeichern(e, neu); }}>
+            onClick={() => { const neu = e.typ === "an_aus" ? (an ? "aus" : "an") : (an ? "0" : "1"); if (!fragen(neu)) return; setW(neu); void onSpeichern(e, neu); }}>
             <span className="bahn" aria-hidden="true" /><span>{an ? "an" : "aus"}</span>
           </button>
         ) : e.typ === "enum" ? (
-          <select id={`ks-${e.schluessel}`} value={w} disabled={busy} onChange={(ev) => { setW(ev.target.value); void onSpeichern(e, ev.target.value); }}>
+          <select id={`ks-${e.schluessel}`} value={w} disabled={busy} onChange={(ev) => { const neu = ev.target.value; if (!fragen(neu)) return; setW(neu); void onSpeichern(e, neu); }}>
             {(e.enum ?? []).map((o) => <option key={o} value={o}>{e.enumText?.[o] ?? o}</option>)}
           </select>
         ) : e.typ === "zahl" ? (
@@ -85,7 +87,7 @@ export default function ChefKiEinstellungen() {
   return (
     <div className="ki ki-einstellungen">
       <KiRundgang schluessel="kiEinstellungen" raum="ki-einstellungen" />
-      <Kopf titel="Einstellungen & Kasse" satz="Jeder Schalter hier wirkt — Vorgabe und Grenze im Tooltip." kinder={<><Meldung m={meld.m} /><Stand am={geladenAm} neu={neu} /></>} />
+      <Kopf titel="Einstellungen & Kasse" satz="Jeder Schalter hier wirkt — Vorgabe und Grenze im Tooltip." kinder={<><Meldung m={meld.m} /><Stand am={geladenAm} neu={neu} fehler={fehler} /></>} />
       {fehler && !daten ? <Fehler text={fehler} erneut={neu} /> : null}
       <section className="ki-buehne" id="kasse" data-ki="kasse" aria-label="Kasse">
         <h2>Kasse <span className="ki-still ki-klein">· heute {euro(summe)} · Anbieter {kosten.daten?.anbieter === "claude" ? "Anthropic (Rückweg)" : "OpenAI"} · <a href="/chef/s/mara">KI-Pause</a></span></h2>

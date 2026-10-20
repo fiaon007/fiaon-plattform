@@ -35,12 +35,17 @@ async function deckelLesen(): Promise<Record<string, number | null>> {
 
 /** Kosten je Dienst an einem Berliner Tag — KI aus fiaon_ki_nutzung, Telefon geschätzt. */
 export async function kiKostenJeDienst(tag: string = berlinTag()): Promise<KostenDienst[]> {
+  // E-409 Fund 13: der Berliner Tag als Zeitraum (ab ≤ x < bis) statt (x AT TIME ZONE …)::date = … — die Bedingung rechnet
+  // nicht mehr je Zeile um und kann einen Zeit-Index nutzen, sobald es einen gibt (gemessen 20.10.: fiaon_ki_nutzung 16.566,
+  // fiaon_calls 4.089 Zeilen — klein genug, dass ein eigener Index heute nichts bringt).
   const ki = (await sqlPool`
-    SELECT dienst, COALESCE(SUM(kosten_cents), 0)::float AS cents FROM fiaon_ki_nutzung
-     WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date GROUP BY dienst`.catch(() => [])) as any[];
+    WITH t AS (SELECT (${tag}::date::timestamp AT TIME ZONE 'Europe/Berlin') AS ab, ((${tag}::date + 1)::timestamp AT TIME ZONE 'Europe/Berlin') AS bis)
+    SELECT dienst, COALESCE(SUM(kosten_cents), 0)::float AS cents FROM fiaon_ki_nutzung, t
+     WHERE created_at >= t.ab AND created_at < t.bis GROUP BY dienst`.catch(() => [])) as any[];
   const [tel] = (await sqlPool`
-    SELECT COALESCE(SUM(dauer_sek), 0)::float AS sek FROM fiaon_calls
-     WHERE (COALESCE(beginn, created_at) AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date`.catch(() => [{ sek: 0 }])) as any[];
+    WITH t AS (SELECT (${tag}::date::timestamp AT TIME ZONE 'Europe/Berlin') AS ab, ((${tag}::date + 1)::timestamp AT TIME ZONE 'Europe/Berlin') AS bis)
+    SELECT COALESCE(SUM(dauer_sek), 0)::float AS sek FROM fiaon_calls, t
+     WHERE COALESCE(beginn, created_at) >= t.ab AND COALESCE(beginn, created_at) < t.bis`.catch(() => [{ sek: 0 }])) as any[];
   // Aras-Anrufe stehen mit ihren Sekunden ebenfalls in fiaon_calls (eine Anruf-Tabelle, Vertrag § 2) — darum keine
   // zweite Zählung aus fiaon_aras_anruf.kosten_telefon_cents; sobald Team 1 dort Ist-Preise schreibt, wird hier umgestellt.
   const telefonCents = (Number(tel?.sek ?? 0) / 60) * TWILIO_MIN_CENTS;

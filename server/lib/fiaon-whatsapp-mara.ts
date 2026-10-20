@@ -101,6 +101,7 @@ import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { waSenden, sendePruefung, fensterOffen, empfaengerNamen } from "./fiaon-whatsapp";
 import { anweisungBlock } from "./fiaon-mara-anweisung";
+import { zahlLesen } from "@shared/fiaon-ki-schalter";
 import { gedaechtnisText, gedaechtnisMerken } from "./fiaon-mara-gedaechtnis";
 import { wissenFakten } from "@shared/fiaon-wissen";
 import { paketPreisCents, PAKETE } from "@shared/fiaon-pakete";
@@ -3084,7 +3085,7 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const letzteVorlage = lv ? { name: String(lv.vorlage), text: lv.text ?? null } : null;
     const lage = await lageFuer(personId ? Number(personId) : null, leadId ? Number(leadId) : null, letzteVorlage, String(neuesteRein?.text ?? ""));
 
-    const deckel = Number(await einstellung("mara_wa_tag_euro", "30")) || 30; // E-280: Claude-Preise (Justin 03.10.: 30 €)
+    const deckel = zahlLesen(await einstellung("mara_wa_tag_euro", "30"), 30, 0, 200); // E-280: Claude-Preise (Justin 03.10.: 30 €); E-409 Fund 14: 0 heißt 0
     const heute = await kostenHeute(DIENST_WA).catch(() => 0);
     if (heute >= deckel) {
       const schluessel = `${nummer}-${new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })}`;
@@ -5958,7 +5959,7 @@ export async function nachholLauf(): Promise<{ angestossen: number }> {
   const stunde = stundeBerlin();
   const nacht = stunde >= 22 || stunde < 7;
   // Kostendeckel erreicht? Dann gar nicht erst anstoßen — die Aufgaben sind schon angelegt.
-  const deckel = Number(await einstellung("mara_wa_tag_euro", "30")) || 30; // E-280: Claude-Preise (Justin 03.10.: 30 €)
+  const deckel = zahlLesen(await einstellung("mara_wa_tag_euro", "30"), 30, 0, 200); // E-280: Claude-Preise (Justin 03.10.: 30 €); E-409 Fund 14: 0 heißt 0
   if ((await kostenHeute(DIENST_WA).catch(() => 0)) >= deckel) return { angestossen: 0 };
   // E-236 (Prüfung 24.09.): 200 holen und nur die echten Anstöße deckeln — sonst belegten gedrosselte
   // oder übersprungene Gespräche die 20 Plätze, und ein neuer Kunde kam nie dran.

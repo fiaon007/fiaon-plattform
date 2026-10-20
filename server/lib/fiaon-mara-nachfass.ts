@@ -32,6 +32,7 @@
 //     Mara und findet ihn wieder.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { zahlLesen } from "@shared/fiaon-ki-schalter";
 import { AKTIVIERUNG_AUFRUF, NACH_DEM_EINGANG, mitAntragLuecke, tonPruefung, type LinkStufe } from "@shared/fiaon-mara-ton";
 import { WA_STOPP_ZEILE_SQL, menschSperre, werbungVerboten } from "./fiaon-mail-frequenz";
 
@@ -141,7 +142,8 @@ export async function nachfassLauf(opt: { trocken?: boolean; jetzt?: Date; /** n
     if (/^(aus|0|nein|false)$/i.test(String(schalter?.value ?? "").trim())) { weg("schalter_aus"); return erg; }
     if (!opt.trocken && !nachfassZeitOk(jetzt)) { weg("uhrzeit"); return erg; }
     const [deckelZeile] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${NACHFASS_TAG_SCHLUESSEL}`.catch(() => [])) as any[];
-    const deckel = Math.max(0, Math.min(500, Number(deckelZeile?.value) || NACHFASS_TAG_VORGABE));
+    // E-409 Fund 14 (20.10.2026): „0 je Tag“ heißt 0 — vorher machte `|| 40` daraus wieder 40.
+    const deckel = zahlLesen(deckelZeile?.value, NACHFASS_TAG_VORGABE, 0, 500);
     const [heute] = (await sqlPool`
       SELECT count(*)::int AS n FROM fiaon_whatsapp
        WHERE richtung = 'raus' AND COALESCE(von, '') LIKE ${"%" + NACHFASS_MARKE}

@@ -252,6 +252,24 @@ export async function einstellungenLesen(): Promise<AktionEinstellungen> {
   };
 }
 
+/**
+ * Die Grenzen der Mail-Aktion — EINE Stelle für das Steuerpult (POST /chef/mara/einstellung) und Maras Auftrag
+ * (einstellung_setzen, E-409 Fund 15: der Auftrag schrieb an diesen Grenzen vorbei, z. B. jedes Absender-Postfach). Rein.
+ */
+export function aktionWertPruefen(schluessel: string, roh: unknown): { ok: true; wert: string } | { ok: false; fehler: string } {
+  if (!AKTION_SCHLUESSEL.includes(schluessel)) return { ok: false, fehler: "Diese Einstellung gibt es nicht." };
+  let wert = String(roh ?? "").trim();
+  if (schluessel === "mara_aktion_an" || schluessel === "mara_aktion_emojis") wert = wert === "an" ? "an" : "aus";
+  // 22.09.2026 (Justin): kein Anlauf, kein 50er-Deckel mehr — die Grenzen sind dieselben wie oben (500 € am Tag).
+  // Mara-Topsales 08.10.2026 (Prüfung): je Stunde höchstens AKTION_HOECHSTENS_JE_STUNDE (60) — am 03.10. führten 300 je
+  // Stunde zur Sperre beim KI-Anbieter; der Lauf klemmt ohnehin darauf, gespeichert wird, was gilt.
+  if (schluessel === "mara_aktion_je_stunde") wert = String(Math.max(0, Math.min(AKTION_HOECHSTENS_JE_STUNDE, Math.round(Number(wert) || 0))));
+  if (schluessel === "mara_aktion_tag_euro") wert = String(Math.max(0, Math.min(500, Math.round(Number(wert) || 0))));
+  if (schluessel === "mara_aktion_stufen") wert = wert.toUpperCase().split(",").map((x) => x.trim()).filter((x) => x === "A" || x === "B").join(",");
+  if (schluessel === "mara_aktion_postfach" && !["support@fiaon.com", "welcome@fiaon.com"].includes(wert)) return { ok: false, fehler: "Nur support@ oder welcome@." };
+  return { ok: true, wert };
+}
+
 export async function einstellungSetzen(schluessel: string, wert: string): Promise<void> {
   if (!AKTION_SCHLUESSEL.includes(schluessel)) throw new Error("Unbekannte Einstellung.");
   // E-276 (02.10.2026): die Runde — „jetzt“ (oder „an“) setzt den Zeitpunkt des Speicherns, „aus“/leer beendet sie,

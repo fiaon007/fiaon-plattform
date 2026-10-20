@@ -42,7 +42,14 @@ export async function senden<T = any>(pfad: string, body: unknown = {}): Promise
   return j as T;
 }
 
-/** Holt Daten im Takt — nur bei sichtbarem Tab; `neu()` lädt sofort. Der alte Stand bleibt beim Neuladen stehen. */
+/**
+ * Holt Daten im Takt — nur bei sichtbarem Tab; `neu()` lädt sofort. Der alte Stand bleibt beim Neuladen stehen.
+ *
+ * E-409 Fund 12 (20.10.2026): Eine Fehlerantwort ({ ok: false, fehler } — auch „Anmeldung abgelaufen“) wird NIE als Daten
+ * übernommen; vorher landete sie in `daten`, und die Seiten stürzten bei d.mara.an / d.stand.heute ab. Die Seite behält den
+ * letzten guten Stand und zeigt den Fehler (Stand-Zeile). Fund 13: Die Hintergrund-Bremse liest einen Ref — vorher stand im
+ * Abschluss immer das `geladenAm` vom ersten Rendern (null), und ein versteckter Tab fragte trotzdem alle 30 s.
+ */
 export function useTakt<T = any>(pfad: string | null, ms = 30_000, abhaengig: unknown[] = []): { daten: T | null; fehler: string | null; status: number | null; laedt: boolean; neu: () => void; geladenAm: number | null } {
   const [daten, setDaten] = useState<T | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -51,21 +58,23 @@ export function useTakt<T = any>(pfad: string | null, ms = 30_000, abhaengig: un
   const [geladenAm, setGeladenAm] = useState<number | null>(null);
   const [runde, setRunde] = useState(0);
   const weg = useRef(false);
+  const geladenRef = useRef<number | null>(null);
   useEffect(() => {
     weg.current = false;
     if (pfad === null) { setLaedt(false); return; }
     let uhrId = 0;
     const laden = async () => {
-      if (document.visibilityState !== "visible" && geladenAm) return;
+      // Versteckter Tab: nicht nachladen, sobald einmal etwas da ist (beim Zurückkommen lädt „visibilitychange“ sofort).
+      if (document.visibilityState !== "visible" && geladenRef.current) return;
       try {
         const j = await holen<T>(pfad);
         if (weg.current) return;
-        setDaten(j); setFehler(null); setStatus(200); setGeladenAm(Date.now());
+        geladenRef.current = Date.now();
+        setDaten(j); setFehler(null); setStatus(200); setGeladenAm(geladenRef.current);
       } catch (e) {
         if (weg.current) return;
         const f = e as RouteFehler;
         setFehler(f.message); setStatus(f.status ?? 0);
-        if (f.daten && typeof f.daten === "object") setDaten(f.daten as T);
       } finally { if (!weg.current) setLaedt(false); }
     };
     void laden();
@@ -126,7 +135,13 @@ export function Fehler({ text, erneut }: { text: string; erneut?: () => void }) 
   return <div className="ki-leer" role="alert"><b>{text}</b>{erneut ? <button type="button" className="ki-knopf klein" onClick={erneut}>Nochmal</button> : null}</div>;
 }
 
-/** Zeile „Stand von …“ mit Neu-Knopf. */
-export function Stand({ am, neu }: { am: number | null; neu: () => void }) {
-  return <span className="ki-still ki-klein">{am ? `Stand ${new Date(am).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "lädt …"} · <button type="button" className="ki-knopf text ki-klein" onClick={neu}>neu laden</button></span>;
+/** Zeile „Stand von …“ mit Neu-Knopf — mit `fehler` sagt sie, dass der gezeigte Stand nicht mehr frisch ist (Fund 12). */
+export function Stand({ am, neu, fehler }: { am: number | null; neu: () => void; fehler?: string | null }) {
+  return (
+    <span className="ki-still ki-klein">
+      {am ? `Stand ${new Date(am).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "lädt …"}
+      {fehler && am ? <span className="ki-krit-t" role="alert"> · nicht aktuell: {fehler}</span> : null}
+      {" · "}<button type="button" className="ki-knopf text ki-klein" onClick={neu}>neu laden</button>
+    </span>
+  );
 }

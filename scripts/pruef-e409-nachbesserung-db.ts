@@ -45,7 +45,9 @@ async function main() {
   await (await import("../server/lib/fiaon-postmeister-schema")).postmeisterSchema();
   await (await import("../server/lib/fiaon-aras-schema")).arasSchema();
 
-  const PRUEF_KEYS = ["pruef_mara_an", "pruef_mara_quote", "pruef_mara_tag_euro"];
+  const PRUEF_KEYS = ["pruef_mara_an", "pruef_mara_quote", "pruef_mara_tag_euro",
+    // Funde 14, 15, 17: Schlüssel, die die Abschnitte setzen — vorher gemerkt, danach zurück.
+    "mara_wa_nachfass_tag", "mara_aktion_runde_seit", "mara_aktion_postfach", "postmeister_modus_support", "mara_rate_erinnerung", "aras_spielarten", "ki_lexr_freigabe"];
   const vorher = (await sql`SELECT key, value FROM fiaon_settings WHERE key = ANY(${[...NOTAUS, ...ARAS_KEYS, ...PRUEF_KEYS, "mara_ampel"]})`) as any[];
   const pruefAufraeumen = async () => {
     const personen = ((await sql`SELECT id FROM fiaon_persons WHERE person_ref LIKE 'PR-Q419-%'`) as any[]).map((r) => Number(r.id));
@@ -299,6 +301,50 @@ async function main() {
       const h1 = await P.pruefungTaktFuerHistorie();
       const h2 = await P.pruefungTaktFuerHistorie();
       ok(h1 === true && h2 === false, "Historie: eine Zeile beim ersten Lauf (Lebenszeichen), keine für den leeren Lauf gleich danach", { h1, h2 });
+    });
+
+    // ═════════════════════════════════════════════════════════════════════
+    console.log("── Fund 14 · „0 je Tag“ heißt 0; leer heißt Vorgabe");
+    await abschnitt("Fund 14", async () => {
+      await arasSetzen("mara_wa_nachfass_tag", "0");
+      const NF = await import("../server/lib/fiaon-mara-nachfass");
+      const nf = await NF.nachfassLauf({ trocken: true });
+      ok((nf.uebersprungen.tagesdeckel ?? 0) === 1 && nf.kandidaten === 0, "Nachfassen mit Deckel 0: kein Lauf (vorher wurden daraus 40)", nf.uebersprungen);
+      await arasSetzen("pruef_mara_tag_euro", "");
+      ok((await E.registerZahl("pruef_mara_tag_euro")) === 10, "leerer Eintrag → Vorgabe 10 € (vorher 0)");
+      await arasSetzen("pruef_mara_tag_euro", "0");
+      ok((await E.registerZahl("pruef_mara_tag_euro")) === 0, "eingetragene 0 bleibt 0");
+      await sql`DELETE FROM fiaon_settings WHERE key = ANY(${["mara_wa_nachfass_tag", "pruef_mara_tag_euro"]})`;
+    });
+
+    console.log("── Fund 15 · Maras Auftrag stellt Schalter über DENSELBEN Weg wie der Knopf");
+    await abschnitt("Fund 15", async () => {
+      const AUF = await import("../server/lib/fiaon-mara-auftrag");
+      const w = AUF.werkzeugFinden("einstellung_setzen")!;
+      const r1 = await w.ausfuehren({ schluessel: "mara_aktion_runde_seit", wert: "jetzt" } as any, "Prüfstand Q419");
+      const runde = await wert("mara_aktion_runde_seit");
+      ok(r1.ok && !!runde && runde !== "jetzt" && Number.isFinite(Date.parse(runde)), "Runde „jetzt“ → ein Zeitpunkt (vorher stand das Wort „jetzt“ da)", { r1, runde });
+      const r2 = await w.ausfuehren({ schluessel: "mara_aktion_postfach", wert: "fremd@example.com" } as any, "Prüfstand Q419");
+      ok(!r2.ok && (await wert("mara_aktion_postfach")) !== "fremd@example.com", "ein fremdes Absender-Postfach geht nicht (Grenze des Steuerpults)", r2);
+      const r3 = await w.ausfuehren({ schluessel: "postmeister_modus_support", wert: "aus" } as any, "Prüfstand Q419");
+      ok(!r3.ok && /eigenen Weg/.test(String(r3.text)) && (await wert("postmeister_modus_support")) !== "aus", "Postfach-Modus: Mara schreibt nicht vorbei, sondern sagt, wo der Schalter steht", r3);
+      const r4 = await w.ausfuehren({ schluessel: "mara_rate_erinnerung", wert: "aus" } as any, "Prüfstand Q419");
+      ok(r4.ok && (await wert("mara_rate_erinnerung")) === "aus", "Raten-Mail aus: über den Schalter der Raten-Mail", { r4, w: await wert("mara_rate_erinnerung") });
+    });
+
+    console.log("── Fund 17 · Werbe-Anrufe (lead, stufe_b, rueckholung) nur mit LEXR-Vermerk — auf dem Server");
+    await abschnitt("Fund 17", async () => {
+      anbinden();
+      const s1 = await E.einstellungSetzen("aras_spielarten", JSON.stringify({ lead: "an" }), "Prüfstand Q419");
+      ok(!s1.ok && (s1 as any).status === 400 && !(await wert("aras_spielarten")), "ohne Vermerk: lead lässt sich nicht einschalten (vorher ging es durch)", s1);
+      const s2 = await E.einstellungSetzen("ki_lexr_freigabe", "LEXR-Freigabe am 25.10.2026 (Prüfstand)", "Prüfstand Q419");
+      const s3 = await E.einstellungSetzen("aras_spielarten", JSON.stringify({ lead: "an" }), "Prüfstand Q419");
+      ok(s2.ok && s3.ok && /"lead":"an"/.test(String(await wert("aras_spielarten"))), "mit Vermerk: geht — über Teams 1 Setzer", { s2, s3 });
+      const s4 = await E.einstellungSetzen("ki_lexr_freigabe", "", "Prüfstand Q419");
+      ok(!s4.ok && (s4 as any).status === 409, "den Vermerk löschen, solange lead an ist: nein", s4);
+      const s5 = await E.einstellungSetzen("aras_spielarten", JSON.stringify({ lead: "aus" }), "Prüfstand Q419");
+      const s6 = await E.einstellungSetzen("ki_lexr_freigabe", "", "Prüfstand Q419");
+      ok(s5.ok && s6.ok, "lead aus → dann lässt sich der Vermerk löschen", { s5, s6 });
     });
   } finally {
     await aufraeumen();

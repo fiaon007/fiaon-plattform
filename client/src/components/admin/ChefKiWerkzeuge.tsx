@@ -59,7 +59,7 @@ export default function ChefKiWerkzeuge() {
   return (
     <div className="ki ki-werkzeuge">
       <KiRundgang schluessel="kiWerkzeuge" raum="ki-werkzeuge" />
-      <Kopf titel="Werkzeuge" satz="Was Mara und Aras allein tun dürfen — grün, gelb, rot." kinder={<><span className="ki-pille" title="So viele Werkzeuge stehen auf gelb bzw. rot.">{gelb} gelb · {rot} rot</span><Stand am={geladenAm} neu={neu} /></>} />
+      <Kopf titel="Werkzeuge" satz="Was Mara und Aras allein tun dürfen — grün, gelb, rot." kinder={<><span className="ki-pille" title="So viele Werkzeuge stehen auf gelb bzw. rot.">{gelb} gelb · {rot} rot</span><Stand am={geladenAm} neu={neu} fehler={fehler} /></>} />
       {fehler && !daten ? <Fehler text={fehler} erneut={neu} /> : null}
       <section className="ki-buehne" data-ki="buehne" aria-label="Die drei Stufen">
         <div className="ki-raster drei">

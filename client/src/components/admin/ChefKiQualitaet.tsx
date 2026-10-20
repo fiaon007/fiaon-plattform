@@ -48,7 +48,7 @@ export default function ChefKiQualitaet() {
         <>
           <button type="button" className="ki-knopf klein" data-ki="jetzt" disabled={busy === "jetzt"} onClick={jetzt} title="Einen Prüf-Lauf jetzt starten (sonst alle 2 Minuten).">Jetzt prüfen</button>
           <a className="ki-pille" href="/chef/s/ki-einstellungen#leitplanken" title="Prüfquote je Kanal und Deckel stehen in den Einstellungen.">Quote & Deckel</a>
-          <Stand am={geladenAm} neu={neu} />
+          <Stand am={geladenAm} neu={neu} fehler={fehler} />
         </>
       } />
       {fehler && !daten ? <Fehler text={fehler} erneut={neu} /> : null}
@@ -56,13 +56,13 @@ export default function ChefKiQualitaet() {
         <div className="ki-zahlen">
           <div><span className={`ki-zahl${g && g.quote >= 5 ? " ki-warn-t" : ""}`}>{g ? `${g.quote.toLocaleString("de-DE")} %` : "—"}</span><small>auffällig ({tage} Tage)</small></div>
           <div><span className="ki-zahl">{zahl(g?.n)}</span><small>geprüft</small></div>
-          <div><span className="ki-zahl">{zahl(daten?.stand.heute)}</span><small>heute geprüft</small></div>
-          <div><span className={`ki-zahl${daten?.stand.offenKarten ? " ki-warn-t" : ""}`}>{zahl(daten?.stand.offenKarten)}</span><small>Karten offen</small></div>
+          <div><span className="ki-zahl">{zahl(daten?.stand?.heute)}</span><small>heute geprüft</small></div>
+          <div><span className={`ki-zahl${daten?.stand?.offenKarten ? " ki-warn-t" : ""}`}>{zahl(daten?.stand?.offenKarten)}</span><small>Karten offen</small></div>
         </div>
         <p className="ki-still ki-klein ki-abstand">
           {daten?.stand?.letzterLauf ? `Letzter Lauf ${tagZeit(daten.stand.letzterLauf.am)}: ${laufSatz(daten.stand.letzterLauf)}.` : "Seit dem Start noch kein Lauf — alle 2 Minuten."}
         </p>
-        {q?.vorschlaege.length ? <ul className="ki-liste ki-abstand">{q.vorschlaege.map((v, i) => <li key={i} className="ki-zeile"><span><span className="ki-punkt gruen" aria-hidden="true" /> {v} <a href="/chef/s/ki-werkzeuge">Werkzeuge</a></span></li>)}</ul> : null}
+        {q?.vorschlaege?.length ? <ul className="ki-liste ki-abstand">{q.vorschlaege.map((v, i) => <li key={i} className="ki-zeile"><span><span className="ki-punkt gruen" aria-hidden="true" /> {v} <a href="/chef/s/ki-werkzeuge">Werkzeuge</a></span></li>)}</ul> : null}
         <Meldung m={meld.m} />
       </section>
       <div className="ki-raster zwei ki-abstand">
@@ -71,7 +71,7 @@ export default function ChefKiQualitaet() {
           <div className="ki-segment" role="group" aria-label="Zeitraum">
             {[7, 28, 90].map((t) => <button key={t} type="button" className={tage === t ? "an" : ""} onClick={() => setTage(t)}>{t} Tage</button>)}
           </div>
-          {!q?.je.length ? <p className="ki-still ki-abstand">Noch keine Prüfungen in diesem Zeitraum.</p> : (
+          {!q?.je?.length ? <p className="ki-still ki-abstand">Noch keine Prüfungen in diesem Zeitraum.</p> : (
             <ul className="ki-liste ki-abstand">
               {q.je.slice(0, 20).map((z, i) => (
                 <li key={i} className="ki-zeile ki-zeile-rechts">
@@ -93,7 +93,7 @@ export default function ChefKiQualitaet() {
               {["", "auffaellig", "fehler"].map((u) => <button key={u || "alle"} type="button" className={urteil === u ? "an" : ""} onClick={() => setUrteil(u)}>{u ? URTEIL[u].text : "alle Urteile"}</button>)}
             </div>
           </div>
-          {!daten?.liste.length ? <p className="ki-still ki-abstand">Keine Befunde.</p> : (
+          {!daten?.liste?.length ? <p className="ki-still ki-abstand">Keine Befunde.</p> : (
             <ul className="ki-liste ki-abstand">
               {daten.liste.map((z) => {
                 const u = URTEIL[z.urteil] ?? URTEIL.ok;

@@ -52,6 +52,13 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   der erste Reiter „Probe“ in KI-Team › Aras — dieselbe Ansicht, dieselben Routen /chef/aras/probe/*. /chef/s/aras-probe leitet
   dorthin weiter (alte Links und Alarm-Links gehen weiter), die Kachel im Vertrieb und die doppelten KI-Team-Reiter „Stimme“ und
   „Probeanruf“ sind weg.
+  **Oberfläche und Schalter:** Die KI-Seiten stürzen bei einem Fehler oder abgelaufener Anmeldung nicht mehr ab (der letzte Stand
+  bleibt, daneben „nicht aktuell: …“), versteckte Tabs fragen nicht nach, „Heute“ lädt alle 60 s. Ein Deckel von 0 heißt 0
+  (WhatsApp-Kosten, Nachfassen je Tag). „Aras wählt“, die Runde „jetzt“ und „Alte Entwürfe ablegen“ fragen vor dem Speichern;
+  Werbe-Anrufe (lead, stufe_b, rueckholung) lassen sich nur mit dem Vermerk „LEXR-Freigabe am …“ (Einstellungen › Leitplanken)
+  einschalten — der Server prüft das. Maras Auftrag stellt Schalter über denselben Weg wie die Knöpfe (die Runde „jetzt“ wird
+  ein Zeitpunkt, kein fremdes Absender-Postfach) und schreibt an keiner Grenze vorbei. Die Team-Neuigkeit zum KI-Team sagt ehrlich,
+  wer umstellt (nur Justin), was Rot tut und dass Aras noch niemanden anruft; die Team-Neuigkeiten stehen wieder neueste zuerst.
 - **Warum:** Justin, 19.10.2026: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter — mit allen Sachen, die auch wirklich
   funktionieren“; Vorschlag 3 „Mara führt den Betrieb“ („Nach dem Anruf genügt ein Klick“, „KYC selbst und nicht mehr bei Justin“,
   „sehen, was Mara tut“); zur Stichprobe: „warum Diana? … Die ist ja gar nicht Thema“ — Qualität prüft Prüf-Mara automatisch.

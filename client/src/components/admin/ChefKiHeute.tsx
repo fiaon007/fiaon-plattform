@@ -38,7 +38,7 @@ function mussNachfragen(o: Option, empfehlung: string | null): boolean {
 const LEER: KiHeute["mara"]["notaus"] = { aktiv: false, seit: null, von: null, wege: [] };
 
 export default function ChefKiHeute() {
-  const { daten, fehler, laedt, neu, geladenAm } = useTakt<KiHeute & { ok: boolean }>("/chef/ki/heute", 30_000);
+  const { daten, fehler, laedt, neu, geladenAm } = useTakt<KiHeute & { ok: boolean }>("/chef/ki/heute", 60_000); // E-409 Fund 13: alle 60 s (viele Quellen je Abruf), versteckt gar nicht
   const [busy, setBusy] = useState<string | null>(null);
   const meld = useMeldung();
   const d = daten && daten.mara ? daten : null;
@@ -98,7 +98,7 @@ export default function ChefKiHeute() {
         <>
           {d?.kiBand?.an ? <a className="ki-pille krit" href="/chef/s/mara" title="Die KI ist pausiert — im Mara-Steuerpult wieder aktivieren.">KI pausiert</a> : <span className="ki-pille gut" title={`Anbieter: ${d?.kiBand?.anbieter ?? "—"}`}>KI läuft</span>}
           {d?.waBremse?.pause ? <a className="ki-pille krit" href="/chef/s/mara" title={d.waBremse.satz ?? ""}>WhatsApp pausiert</a> : d?.waBremse?.qualitaet === "RED" ? <span className="ki-pille krit" title={d.waBremse.satz ?? ""}>Meta ROT</span> : d?.waBremse?.qualitaet === "YELLOW" ? <span className="ki-pille"><span className="ki-punkt gelb" aria-hidden="true" />Meta GELB</span> : null}
-          <Stand am={geladenAm} neu={neu} />
+          <Stand am={geladenAm} neu={neu} fehler={fehler} />
         </>
       } />
       {fehler && !d ? <Fehler text={fehler} erneut={neu} /> : null}

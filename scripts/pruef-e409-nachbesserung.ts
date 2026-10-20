@@ -114,6 +114,60 @@ async function main() {
     ok(/ziel: "\[data-ki-reiter=\\"probe\\"\]"/.test(aras.slice(0, 200)) && !/data-ki-reiter=\\"stimme\\"/.test(aras), "Rundgang KI-Team › Aras: zuerst die Probe, kein Schritt für den alten Reiter „Stimme“");
   });
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("── Fund 12 + 13 · Seiten stürzen bei Fehler nicht ab; im Hintergrund kein Nachladen; günstigere Abfragen");
+  await abschnitt("Fund 12 + 13", () => {
+    const teile = datei("client/src/components/admin/ki-teile.tsx");
+    const takt = teile.slice(teile.indexOf("export function useTakt"), teile.indexOf("/** Rückmeldung am Auslöser"));
+    ok(takt.length > 100 && !/setDaten\(f\.daten/.test(takt), "eine Fehlerantwort (auch „Anmeldung abgelaufen“) wird nie als Daten übernommen");
+    ok(/visibilityState !== "visible" && geladenRef\.current\) return;/.test(takt) && /geladenRef\.current = Date\.now\(\)/.test(takt), "Hintergrund-Bremse über einen Ref (vorher immer null im Abschluss)");
+    ok(/export function Stand\(\{ am, neu, fehler \}/.test(teile) && /nicht aktuell: \{fehler\}/.test(teile), "die Stand-Zeile sagt, wenn der gezeigte Stand nicht mehr frisch ist");
+    const seiten = ["ChefKiHeute", "ChefKiQualitaet", "ChefKiWerkzeuge", "ChefKiEinstellungen", "ChefKiAras"].map((n) => datei(`client/src/components/admin/${n}.tsx`));
+    ok(seiten.every((q) => /<Stand am=\{geladenAm\} neu=\{neu\} fehler=\{fehler\} \/>/.test(q)), "alle fünf KI-Seiten zeigen den Fehler neben dem alten Stand");
+    ok(/useTakt<KiHeute & \{ ok: boolean \}>\("\/chef\/ki\/heute", 60_000\)/.test(seiten[0]), "„Heute“ fragt alle 60 s statt alle 30 s");
+    const heute = datei("server/lib/fiaon-ki-heute.ts");
+    const kosten = heute.slice(heute.indexOf("export async function kiKostenJeDienst"), heute.indexOf("/** Verlauf:"));
+    ok(kosten.length > 100 && !/AT TIME ZONE 'Europe\/Berlin'\)::date = \$\{tag\}/.test(kosten) && /created_at >= t\.ab AND created_at < t\.bis/.test(kosten), "Kosten je Tag: Zeitraum statt Umrechnung je Zeile");
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("── Fund 14 · ein Deckel von 0 heißt 0");
+  await abschnitt("Fund 14", async () => {
+    const S: any = await import("../shared/fiaon-ki-schalter");
+    ok(S.zahlLesen("0", 30) === 0 && S.zahlLesen(0, 30) === 0, "„0“ bleibt 0 (vorher: `|| 30` → 30)");
+    ok(S.zahlLesen(null, 30) === 30 && S.zahlLesen(undefined, 40) === 40 && S.zahlLesen("", 30) === 30 && S.zahlLesen("  ", 30) === 30 && S.zahlLesen("abc", 30) === 30, "fehlt/leer/kaputt → Vorgabe");
+    ok(S.zahlLesen("12,5", 0) === 12.5 && S.zahlLesen("900", 40, 0, 500) === 500 && S.zahlLesen("-3", 40, 0, 500) === 0, "Komma geht, Grenzen gelten");
+    const wa = datei("server/lib/fiaon-whatsapp-mara.ts");
+    ok((wa.match(/zahlLesen\(await einstellung\("mara_wa_tag_euro", "30"\), 30, 0, 200\)/g) ?? []).length === 2 && !/mara_wa_tag_euro", "30"\)\) \|\| 30/.test(wa), "WhatsApp-Deckel an beiden Stellen");
+    const nf = datei("server/lib/fiaon-mara-nachfass.ts");
+    ok(/zahlLesen\(deckelZeile\?\.value, NACHFASS_TAG_VORGABE, 0, 500\)/.test(nf) && !/\|\| NACHFASS_TAG_VORGABE/.test(nf), "Nachfassen je Tag");
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("── Fund 17 · folgenreiche Schalter fragen nach; Werbe-Anrufe nur mit LEXR-Vermerk");
+  await abschnitt("Fund 17", async () => {
+    const S: any = await import("../shared/fiaon-ki-schalter");
+    const e = (k: string) => S.REGISTER.find((x: any) => x.schluessel === k);
+    ok(!!S.rueckfrageFuer(e("aras_an"), "an") && S.rueckfrageFuer(e("aras_an"), "aus") === null, "„Aras wählt“ an → Rückfrage; aus → keine");
+    ok(!!S.rueckfrageFuer(e("mara_aktion_runde_seit"), "Jetzt") && S.rueckfrageFuer(e("mara_aktion_runde_seit"), "aus") === null, "Runde „jetzt“ → Rückfrage");
+    ok(!!S.rueckfrageFuer(e("postmeister_altbestand_ablegen"), "an"), "alte Entwürfe ablegen → Rückfrage");
+    const lexr = e("ki_lexr_freigabe");
+    ok(!!lexr && S.wertPruefen(lexr, "").ok && S.wertPruefen(lexr, "LEXR-Freigabe am 25.10.2026 (Az. 12)").ok && !S.wertPruefen(lexr, "ok").ok, "Register: LEXR-Vermerk „LEXR-Freigabe am TT.MM.JJJJ“ oder leer");
+    ok(JSON.stringify(S.lexrSpielartenAn('{"lead":"an","rate":"an","rueckholung":true}')) === '["lead","rueckholung"]' && S.lexrSpielartenAn("kaputt").length === 0, "welche Werbe-Spielarten ein Wert einschaltet");
+    const feld = datei("client/src/components/admin/ChefKiEinstellungen.tsx");
+    ok(/if \(!fragen\(neu\)\) return; setW\(neu\); void onSpeichern\(e, neu\);/.test(feld) && /pruef\.ok && fragen\(pruef\.wert\)/.test(feld), "die Einstellungen-Seite fragt VOR dem Speichern (Knopf, Auswahl, Feld)");
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("── Fund 19 · Team-Neuigkeit ehrlich");
+  await abschnitt("Fund 19", () => {
+    const up = datei("client/src/pages/agent/updates-data.ts");
+    const eintrag = up.slice(up.indexOf('id: "2026-10-19-ki-team"'), up.indexOf('id: "2026-10-19-mara-unterlagen"'));
+    ok(eintrag.length > 100 && !/Die Leitung kann Maras Werkzeuge/.test(eintrag) && /Justin stellt ein/.test(eintrag), "umstellen darf nur Justin (nicht „die Leitung“)");
+    ok(!/ein Mensch entscheidet per Karte/.test(eintrag) && /Karte, oder Mara lässt es weg/.test(eintrag), "Rot: Karte ODER weglassen — je nach Werkzeug");
+    ok(!/zählt bei „Versuche je Person“ mit dir zusammen/.test(eintrag) && /ruft noch keine Kunden an/.test(eintrag), "keine Aras-Zählregel, die noch nicht gilt");
+  });
+
   console.log(`\n${gut} gut, ${schlecht} schlecht`);
   process.exit(schlecht ? 1 : 0);
 }

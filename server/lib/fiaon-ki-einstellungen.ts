@@ -10,7 +10,7 @@
 // ARAS-Schlüssel gehen über die Anbindung an einstellungSetzen (Team 1).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, NOTAUS_SCHALTER, ARAS_NOTAUS, registerEintrag, wertPruefen, wertAnzeige, wertOeffentlich, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
+import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, NOTAUS_SCHALTER, ARAS_NOTAUS, zahlLesen, lexrSpielartenAn, lexrVermerkGueltig, registerEintrag, wertPruefen, wertAnzeige, wertOeffentlich, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
 import { aras, arasVerbunden, NICHT_VERBUNDEN } from "./fiaon-ki-aras-anbindung";
 
 /** Schlüssel, die bis zum Eintrag in fiaon_settings aus der Umgebung kommen. */
@@ -54,6 +54,8 @@ export async function einstellungSetzen(schluessel: string, wert: unknown, von: 
   if (!e) return { ok: false, status: 404, fehler: "Diesen Schalter gibt es nicht im Register." };
   const p = wertPruefen(e, wert);
   if (!p.ok) return { ok: false, status: 400, fehler: p.fehler };
+  const lexr = await lexrPruefen(schluessel, p.wert);
+  if (lexr) return lexr;
   if (ARAS_SCHLUESSEL.includes(schluessel)) {
     const a = aras();
     if (!a?.plan?.einstellungSetzen) return { ok: false, status: 404, fehler: NICHT_VERBUNDEN };
@@ -73,15 +75,39 @@ export async function einstellungSetzen(schluessel: string, wert: unknown, von: 
   return { ok: true, schluessel, wert: p.wert };
 }
 
+/**
+ * E-409 Fund 17 (20.10.2026, SCHNITTSTELLE § 15 Abnahme 7): Werbe-Anrufe (aras_spielarten lead, stufe_b, rueckholung) erst
+ * mit dem Register-Vermerk ki_lexr_freigabe („LEXR-Freigabe am …“) — hier, auf dem Server, nicht nur als Hinweis im Satz.
+ * Umgekehrt lässt sich der Vermerk nicht löschen, solange eine dieser Spielarten an ist. null = in Ordnung.
+ */
+export async function lexrPruefen(schluessel: string, wert: string): Promise<SetzErgebnis | null> {
+  const lesen = async (k: string) => {
+    const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${k}`) as any[];
+    return z?.value == null ? null : String(z.value);
+  };
+  if (schluessel === "aras_spielarten") {
+    const an = lexrSpielartenAn(wert);
+    if (!an.length) return null;
+    // Lesefehler = kein Vermerk (lieber nein als ein Werbe-Anruf ohne Freigabe).
+    const vermerk = await lesen("ki_lexr_freigabe").catch(() => null);
+    if (lexrVermerkGueltig(vermerk)) return null;
+    return { ok: false, status: 400, fehler: `${an.join(", ")} erst nach der LEXR-Freigabe — trag sie unter Einstellungen › Leitplanken ein („LEXR-Freigabe am …“).` };
+  }
+  if (schluessel === "ki_lexr_freigabe" && !lexrVermerkGueltig(wert)) {
+    const aktiv = lexrSpielartenAn(await lesen("aras_spielarten").catch(() => null));
+    if (aktiv.length) return { ok: false, status: 409, fehler: `Erst ${aktiv.join(", ")} in den Aras-Spielarten ausschalten — dann lässt sich der Vermerk löschen.` };
+  }
+  return null;
+}
+
 /** Einen Zahlenwert lesen, mit Vorgabe und Grenze des Registers — für Leser wie den Prüf-Takt. */
 export async function registerZahl(schluessel: string): Promise<number> {
   const e = registerEintrag(schluessel);
   const vorgabe = Number(e?.vorgabe ?? 0) || 0;
   try {
     const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${schluessel}`) as any[];
-    const n = Number(z?.value);
-    if (!Number.isFinite(n)) return vorgabe;
-    return Math.max(e?.min ?? -Infinity, Math.min(e?.max ?? Infinity, n));
+    // E-409 Fund 14: leer = Vorgabe (vorher wurde „“ zu 0), eine eingetragene 0 bleibt 0.
+    return zahlLesen(z?.value, vorgabe, e?.min ?? Number.NEGATIVE_INFINITY, e?.max ?? Number.POSITIVE_INFINITY);
   } catch { return vorgabe; }
 }
 

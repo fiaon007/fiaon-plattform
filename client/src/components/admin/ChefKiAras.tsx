@@ -69,7 +69,7 @@ export default function ChefKiAras() {
     navigate(`${location.split("?")[0]}?${q.toString()}`, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reiter]);
-  const { daten, neu, geladenAm } = useTakt<ArasLage & { ok: boolean; hinweis?: string }>("/chef/aras/lage", 15_000);
+  const { daten, neu, geladenAm, fehler } = useTakt<ArasLage & { ok: boolean; hinweis?: string }>("/chef/aras/lage", 15_000);
   const [busy, setBusy] = useState<string | null>(null);
   const meld = useMeldung();
   const verbunden = !!daten?.verbunden;
@@ -96,7 +96,7 @@ export default function ChefKiAras() {
             </>
           ) : <span className="ki-pille">noch nicht verbunden</span>}
           <Meldung m={meld.m} />
-          <Stand am={geladenAm} neu={neu} />
+          <Stand am={geladenAm} neu={neu} fehler={fehler} />
         </>
       } />
       {verbunden && h ? (

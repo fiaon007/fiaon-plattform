@@ -62,6 +62,11 @@ export interface RegisterEintrag {
   jsonPruefen?: (o: unknown) => string | null;
   /** E-409 Fund 11: eine persönliche Telefonnummer — überall nur die letzten 3 Ziffern (Anzeige, Protokoll, Logs). */
   geheim?: boolean;
+  /**
+   * E-409 Fund 17: folgenreiche Schalter fragen VOR dem Speichern nach (Einstellungen-Seite) — `bei` = die neuen Werte, die
+   * fragen (klein geschrieben verglichen), `text` = die Frage.
+   */
+  rueckfrage?: { bei: readonly string[]; text: string };
 }
 
 const KI: Setzer = { route: "/chef/ki/einstellung", form: "schluessel_wert", mindest: "inhaber" };
@@ -135,7 +140,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "mara_aktion_stufen", gruppe: "mara_mail", label: "Stufen", satz: "Wen die Aktion anschreibt: A (gemeldet), B (Antrag offen).", typ: "enum", vorgabe: "A,B", enum: ["A,B", "A", "B"], setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
   { schluessel: "mara_aktion_emojis", gruppe: "mara_mail", label: "Emojis", satz: "Darf die Aktion Emojis nutzen?", typ: "an_aus", vorgabe: "aus", setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
   { schluessel: "mara_aktion_postfach", gruppe: "mara_mail", label: "Absender-Postfach", satz: "Von welcher Adresse die Aktion schreibt.", typ: "text", vorgabe: "support@fiaon.com", maxZeichen: 80, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
-  { schluessel: "mara_aktion_runde_seit", gruppe: "mara_mail", label: "Runde", satz: "„jetzt“ startet eine Runde an alle offenen Erstzahler, „aus“ beendet sie.", typ: "text", vorgabe: "", maxZeichen: 40, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:rundeAktiv", dienst: "mara" },
+  { schluessel: "mara_aktion_runde_seit", gruppe: "mara_mail", label: "Runde", satz: "„jetzt“ startet eine Runde an alle offenen Erstzahler, „aus“ beendet sie.", typ: "text", vorgabe: "", maxZeichen: 40, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:rundeAktiv", dienst: "mara", rueckfrage: { bei: ["jetzt", "an"], text: "Eine Runde an ALLE offenen Erstzahler starten? Mara schreibt jedem eine persönliche Mail — höchstens so viele je Stunde, wie unter „Mails je Stunde“ steht." } },
   { schluessel: "mara_nicht_erreicht_mail", gruppe: "mara_mail", label: "Nachfassen nach 2× nicht erreicht", satz: "Nach dem zweiten Fehlversuch eine Mail mit Terminlink.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/nicht-erreicht", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-nicht-erreicht.ts:schalterLesen", dienst: "mara" },
   // E-409 × E-406 (20.10.2026): die Wege aus Welle 1 und 2 — derselbe Schalter wie im Mara-Steuerpult (dessen Route).
   { schluessel: "mara_rate_erinnerung", gruppe: "mara_mail", label: "Raten-Mail (frisch fällig)", satz: "Tag 1–3 nach der Fälligkeit: eine persönliche Mail je Rate.", typ: "an_aus", vorgabe: "an", setzer: { route: "/chef/mara/raten-erinnerung", form: "an_boolean", mindest: "inhaber" }, leser: "fiaon-mara-rate-erinnerung.ts:schalterLesen", dienst: "mara" },
@@ -149,7 +154,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "postmeister_nachname", gruppe: "mara_mail", label: "Nachname in Mails", satz: "Der Nachname unter der Mail.", typ: "text", vorgabe: "Lindner", maxZeichen: 40, setzer: POSTMEISTER, leser: "fiaon-postmeister-agent.ts:agentNamen", dienst: "mara" },
   { schluessel: "postmeister_aufhol_ordnen", gruppe: "mara_mail", label: "Rückstand: Ordnen je Lauf", satz: "Wie viele alte Mails ein Aufhol-Lauf einordnet.", typ: "zahl", vorgabe: "60", min: 0, max: 300, setzer: KI, leser: "fiaon-postmeister-aufholen.ts:aufholDeckel", dienst: "mara" },
   { schluessel: "postmeister_aufhol_antworten", gruppe: "mara_mail", label: "Rückstand: Antworten je Lauf", satz: "Wie viele alte Mails ein Aufhol-Lauf beantwortet.", typ: "zahl", vorgabe: "20", min: 0, max: 100, setzer: KI, leser: "fiaon-postmeister-aufholen.ts:aufholDeckel", dienst: "mara" },
-  { schluessel: "postmeister_altbestand_ablegen", gruppe: "mara_mail", label: "Alte Entwürfe ablegen", satz: "Entwürfe, die nicht mehr nötig sind, legt Mara ab (nie senden).", typ: "an_aus", vorgabe: "aus", setzer: { route: "/admin/postmeister/frist", form: "altbestand_boolean", mindest: "inhaber" }, leser: "fiaon-postmeister-frist.ts:altbestandSchalterLesen", dienst: "mara" },
+  { schluessel: "postmeister_altbestand_ablegen", gruppe: "mara_mail", label: "Alte Entwürfe ablegen", satz: "Entwürfe, die nicht mehr nötig sind, legt Mara ab (nie senden).", typ: "an_aus", vorgabe: "aus", setzer: { route: "/admin/postmeister/frist", form: "altbestand_boolean", mindest: "inhaber" }, leser: "fiaon-postmeister-frist.ts:altbestandSchalterLesen", dienst: "mara", rueckfrage: { bei: ["an"], text: "Mara legt alte Entwürfe ab, die nicht mehr nötig sind — sie sendet nie etwas davon. Einschalten?" } },
   { schluessel: "auskunft_verkauf_an", gruppe: "mara_mail", label: "Auskunft-Verkauf", satz: "Der Takt verkauft die Bonitätsauskunft per Mail.", typ: "eins_null", vorgabe: "0", setzer: AUSKUNFT, leser: "fiaon-auskunft-verkauf.ts:verkaufEinstellungen", dienst: "mara" },
   { schluessel: "auskunft_verkauf_kreis", gruppe: "mara_mail", label: "Auskunft: Kreis", satz: "uwg = nur mit Einwilligung, alle = jeder im Bestand.", typ: "enum", vorgabe: "uwg", enum: ["uwg", "alle"], setzer: AUSKUNFT, leser: "fiaon-auskunft-verkauf.ts:verkaufEinstellungen", dienst: "mara" },
   { schluessel: "auskunft_verkauf_mails_pro_tag", gruppe: "mara_mail", label: "Auskunft: Mails je Tag", satz: "Deckel der Auskunft-Mails je Tag.", typ: "zahl", vorgabe: "500", min: 0, max: 500, setzer: AUSKUNFT, leser: "fiaon-auskunft-verkauf.ts:verkaufEinstellungen", dienst: "mara" },
@@ -172,6 +177,9 @@ export const REGISTER: readonly RegisterEintrag[] = [
   // ── Leitplanken ───────────────────────────────────────────────────────────
   { schluessel: "pruef_mara_an", gruppe: "leitplanken", label: "Prüf-Mara", satz: "Eine zweite KI prüft Maras und Aras’ Arbeit — Karten nur bei Auffälligem.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-ki-pruefung.ts:pruefungTakt", dienst: "pruef" },
   { schluessel: "pruef_mara_quote", gruppe: "leitplanken", label: "Prüfquote je Kanal", satz: "Anteil in %: Telefon 100, Mail 20, WhatsApp 20 (Stichprobe).", typ: "json", vorgabe: JSON.stringify({ telefon: 100, mail: 20, whatsapp: 20 }), setzer: KI, leser: "fiaon-ki-pruefung.ts:pruefungTakt", dienst: "pruef", jsonPruefen: quoteJson },
+  // E-409 Fund 17 (20.10.2026, SCHNITTSTELLE § 15 Abnahme 7): lead, stufe_b und rueckholung (Werbe-Anrufe) lassen sich bei
+  // aras_spielarten nur mit diesem Vermerk einschalten — der Server prüft das (fiaon-ki-einstellungen.ts lexrPruefen).
+  { schluessel: "ki_lexr_freigabe", gruppe: "leitplanken", label: "LEXR-Freigabe (Aras-Werbeanrufe)", satz: "Erst mit diesem Vermerk lassen sich lead, stufe_b, rueckholung einschalten.", typ: "text", vorgabe: "", maxZeichen: 160, muss: /^(?:|.*\bLEXR\b.*\b\d{1,2}\.\d{1,2}\.\d{4}\b.*)$/, mussText: "So: „LEXR-Freigabe am 25.10.2026 …“ — oder leer.", setzer: KI, leser: "fiaon-ki-einstellungen.ts:lexrPruefen", dienst: "pruef" },
   { schluessel: "frequenzbremse_an", gruppe: "leitplanken", label: "Empfänger-Bremse", satz: "Höchstens so viele Mails je Empfänger (Tag/Woche/Monat).", typ: "eins_null", vorgabe: "1", setzer: RUECKHOLUNG, leser: "fiaon-mail-frequenz.ts:bremseAn", dienst: "mara" },
   { schluessel: "frequenz_pro_tag", gruppe: "leitplanken", label: "Mails je Empfänger und Tag", satz: "Deckel je Empfänger und Tag.", typ: "zahl", vorgabe: "2", min: 0, max: 20, setzer: RUECKHOLUNG, leser: "fiaon-mail-frequenz.ts", dienst: "mara" },
   { schluessel: "frequenz_pro_woche", gruppe: "leitplanken", label: "Mails je Empfänger und Woche", satz: "Deckel je Empfänger und Woche.", typ: "zahl", vorgabe: "4", min: 0, max: 50, setzer: RUECKHOLUNG, leser: "fiaon-mail-frequenz.ts", dienst: "mara" },
@@ -186,7 +194,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "postmeister_tag_euro", gruppe: "kasse", label: "Deckel Postfach", satz: "KI-Kosten der Postfach-Antworten je Tag in Euro.", typ: "zahl", vorgabe: "35", min: 0, max: 200, setzer: KI, leser: "fiaon-postmeister-agent.ts:postmeisterTagEuro", dienst: "mara" },
   { schluessel: "pruef_mara_tag_euro", gruppe: "kasse", label: "Deckel Prüf-Mara", satz: "KI-Kosten der Prüfung je Tag in Euro.", typ: "zahl", vorgabe: "10", min: 0, max: 100, setzer: KI, leser: "fiaon-ki-pruefung.ts:pruefungTakt", dienst: "pruef" },
   // ── Aras · Telefon (Vertrag § 3) — Setzer POST /chef/ki/einstellung → einstellungSetzen (Team 1, über die Anbindung) ──
-  { schluessel: "aras_an", gruppe: "aras", label: "Aras wählt", satz: "Ohne „an“ wählt Aras nicht (Probeanrufe gehen trotzdem).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras" },
+  { schluessel: "aras_an", gruppe: "aras", label: "Aras wählt", satz: "Ohne „an“ wählt Aras nicht (Probeanrufe gehen trotzdem).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras", rueckfrage: { bei: ["an"], text: "Aras ruft dann echte Kunden an — nach Plan, nur in den Zeitfenstern, mit Tagesdeckel. Erst einschalten, wenn dein Ohr beim Probeanruf Ja sagt. Einschalten?" } },
   { schluessel: "aras_leerlauf", gruppe: "aras", label: "Leerlauf", satz: "Kein neues Wählen, laufende Gespräche enden normal (vor jedem Deploy).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras" },
   { schluessel: "aras_adapter", gruppe: "aras", label: "Stimm-Technik", satz: "Welcher Anbieter spricht: openai_live (Standard) oder Rückfall.", typ: "enum", vorgabe: "openai_live", enum: ["openai_live", "openai_realtime", "kaskade_sonic", "attrappe"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_delegation", gruppe: "aras", label: "Werkzeug-Weg", satz: "responses = Hintergrund-Modell entscheidet, unser Code führt aus.", typ: "enum", vorgabe: "responses", enum: ["responses", "client"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
@@ -254,6 +262,39 @@ export const ARAS_NOTAUS = "aras_notaus";
 export const KI_SCHLUESSEL: readonly string[] = REGISTER.filter((e) => e.setzer.route === KI.route && e.dienst !== "aras").map((e) => e.schluessel);
 /** Alle aras_*-Schlüssel — gesetzt über einstellungSetzen (Team 1), erreicht über POST /chef/ki/einstellung. */
 export const ARAS_SCHLUESSEL: readonly string[] = REGISTER.filter((e) => e.dienst === "aras").map((e) => e.schluessel);
+
+/**
+ * Eine Zahl aus fiaon_settings lesen (E-409 Fund 14): fehlt/leer/kaputt → Vorgabe; eine eingetragene 0 BLEIBT 0
+ * (vorher machte `Number(…) || 30` aus „Deckel 0“ wieder 30). Komma als Dezimalzeichen geht auch; Grenzen optional. Rein.
+ */
+export function zahlLesen(roh: unknown, vorgabe: number, min = Number.NEGATIVE_INFINITY, max = Number.POSITIVE_INFINITY): number {
+  if (roh == null) return vorgabe;
+  const t = String(roh).trim().replace(",", ".");
+  if (t === "") return vorgabe;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return vorgabe;
+  return Math.max(min, Math.min(max, n));
+}
+
+/** E-409 Fund 17: Fragt dieser neue Wert vor dem Speichern nach? Rein. */
+export function rueckfrageFuer(e: Pick<RegisterEintrag, "rueckfrage">, wert: string): string | null {
+  const w = String(wert ?? "").trim().toLowerCase();
+  return e.rueckfrage && e.rueckfrage.bei.includes(w) ? e.rueckfrage.text : null;
+}
+
+/** Die Spielarten, die erst nach der LEXR-Freigabe laufen dürfen (Werbe-Anrufe). */
+export const LEXR_SPIELARTEN = ["lead", "stufe_b", "rueckholung"] as const;
+/** Welche LEXR-Spielarten schaltet dieser aras_spielarten-Wert ein? (an/true) Rein. */
+export function lexrSpielartenAn(roh: unknown): string[] {
+  let o: any = roh;
+  if (typeof o === "string") { try { o = JSON.parse(o); } catch { return []; } }
+  if (!o || typeof o !== "object") return [];
+  return LEXR_SPIELARTEN.filter((k) => o[k] === "an" || o[k] === true);
+}
+/** Ist der LEXR-Vermerk gültig („LEXR … TT.MM.JJJJ“)? Rein. */
+export function lexrVermerkGueltig(roh: unknown): boolean {
+  return /\bLEXR\b.*\b\d{1,2}\.\d{1,2}\.\d{4}\b/.test(String(roh ?? ""));
+}
 
 /** E-409 Fund 11: eine Nummer verdecken — nur die letzten 3 Ziffern („••• 678“). Leer bleibt leer. Rein. */
 export function nummerMaskiert(n: string | null | undefined): string {

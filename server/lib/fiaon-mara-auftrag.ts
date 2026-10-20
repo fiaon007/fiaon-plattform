@@ -169,15 +169,48 @@ export const WERKZEUGE: AuftragWerkzeug[] = [
         // E-409 Fund 11: geheime Werte (Probe-Nummer) nur verdeckt im Auftrags-Ergebnis.
         return r.ok ? { ok: true, text: `Einstellung „${k}“ = ${(await import("@shared/fiaon-ki-schalter")).wertOeffentlich(k, r.wert).slice(0, 60)}.` } : { ok: false, text: r.fehler };
       }
-      // Schlüssel mit eigenem Setzer (Mail-Aktion, Postmeister, Rückholung, Auskunft): derselbe Wert, dieselbe Zeile.
-      await sqlPool`
-        INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${k}, ${g.wert}, NOW())
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
-      console.log(`[MARA-AUFTRAG] Einstellung ${k} = ${g.wert.slice(0, 60)} (${von}).`);
-      return { ok: true, text: `Einstellung „${k}“ = ${g.wert.slice(0, 60)}.` };
+      // E-409 Fund 15 (20.10.2026): Schlüssel mit eigenem Setzer gehen über DENSELBEN Weg wie der Knopf — vorher schrieb
+      // der Auftrag sie direkt (an den Grenzen vorbei: „jetzt“ blieb als Wort stehen, jedes Absender-Postfach ging).
+      const l = await AUFTRAG_SETZER[k]?.(g.wert);
+      if (l) {
+        if (!l.ok) return { ok: false, text: `„${k}“: ${l.text}` };
+        console.log(`[MARA-AUFTRAG] Einstellung ${k} = ${l.text.slice(0, 60)} (${von}, über ${e.setzer.route}).`);
+        return { ok: true, text: `Einstellung „${k}“ = ${l.text.slice(0, 60)}.` };
+      }
+      // Postfach-Zentrale, Rückholung, Auskunft, Altbestand: Diese Setzer prüfen mehr, als der Auftrag kennt — Mara
+      // schreibt nicht an ihnen vorbei, sondern sagt, wo der Schalter steht.
+      return { ok: false, text: `„${k}“ hat einen eigenen Weg (${e.setzer.route}) — stell ihn in KI-Team › Einstellungen & Kasse ein; Mara schreibt ihn nicht an seinen Grenzen vorbei.` };
     },
   },
 ];
+
+/**
+ * Die Setzer, die der Auftrag selbst gehen darf — dieselben Lib-Funktionen wie die Knöpfe im Steuerpult (E-409 Fund 15).
+ * Ergebnis: ok + der gespeicherte Wert, oder der Fehlersatz des Setzers.
+ */
+const AUFTRAG_SETZER: Record<string, (wert: string) => Promise<{ ok: boolean; text: string }>> = (() => {
+  const schalter = (laden: () => Promise<(an: boolean) => Promise<void>>) => async (wert: string) => {
+    await (await laden())(wert === "an");
+    return { ok: true, text: wert === "an" ? "an" : "aus" };
+  };
+  const aktion = async (schluessel: string, wert: string) => {
+    const A = await import("./fiaon-mara-aktion");
+    const p = A.aktionWertPruefen(schluessel, wert);
+    if (!p.ok) return { ok: false, text: p.fehler };
+    try { await A.einstellungSetzen(schluessel, p.wert); } catch (err) { return { ok: false, text: String((err as Error)?.message ?? err).slice(0, 160) }; }
+    const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${schluessel}`.catch(() => [])) as any[];
+    return { ok: true, text: String(z?.value ?? p.wert) || "aus" };
+  };
+  return {
+    mara_nicht_erreicht_mail: schalter(async () => (await import("./fiaon-mara-nicht-erreicht")).schalterSetzen),
+    mara_rate_erinnerung: schalter(async () => (await import("./fiaon-mara-rate-erinnerung")).schalterSetzen),
+    mara_anliegen: schalter(async () => { const m = await import("./fiaon-mara-anliegen"); return (an: boolean) => m.anliegenSchalterSetzen(an); }),
+    mara_nacharbeit_mail: schalter(async () => (await import("./fiaon-mara-nacharbeit")).schalterSetzen),
+    mara_kyc_nachfordern: schalter(async () => (await import("./fiaon-mara-kyc")).kycSchalterSetzen),
+    ...Object.fromEntries(["mara_aktion_an", "mara_aktion_je_stunde", "mara_aktion_stufen", "mara_aktion_emojis", "mara_aktion_postfach", "mara_aktion_runde_seit", "mara_aktion_tag_euro"]
+      .map((k) => [k, (wert: string) => aktion(k, wert)])),
+  };
+})();
 
 export function werkzeugFinden(n: string): AuftragWerkzeug | null {
   return WERKZEUGE.find((w) => w.name === n) ?? null;

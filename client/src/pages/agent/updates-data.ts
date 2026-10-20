@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
+    id: "2026-10-20-aras-probe",
+    date: "2026-10-20",
+    category: "Hintergrund",
+    title: "Aras, unser KI-Kollege am Telefon, wird getestet",
+    summary:
+      "Aras ist ein digitaler Assistent, der später Kunden anruft — zum Beispiel wegen einer fälligen Rate. "
+      + "Gerade ruft er nur Justin an, zum Testen. Kunden ruft er noch nicht an.",
+    changes: [
+      "Aras sagt im ersten Satz, dass er eine KI ist. Aufnehmen darf er nur, wenn der Kunde Ja sagt.",
+      "Für dich ändert sich heute nichts.",
+    ],
+    howto: [
+      "Sagt ein Kunde, „Aras“ habe ihn angerufen: Das ist unser digitaler Assistent. Sobald er Kunden anruft, steht jedes Gespräch in der Akte wie ein normaler Anruf.",
+    ],
+  },
+  {
     // E-409 (19.10.2026): der KI-Raum im Chefbüro — Mara und Aras; Prüf-Mara prüft automatisch (keine Pflicht fürs Team).
     id: "2026-10-19-ki-team",
     date: "2026-10-19",
@@ -91,11 +108,12 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     title: "Mara bekommt Kontrolle von einer zweiten KI — nicht von dir",
     summary:
       "Im Chefbüro gibt es den Raum „KI-Team“: Mara und bald Aras (der Kollege am Telefon) an einem Ort. "
-      + "Eine zweite KI, „Prüf-Mara“, liest Stichproben von Maras Mails und WhatsApps und meldet nur Auffälliges an die Leitung. Für dich ändert sich nichts.",
+      + "Eine zweite KI, „Prüf-Mara“, liest Stichproben von Maras Mails und WhatsApps und meldet Regelverstöße an Justin. Für dich ändert sich nichts.",
     changes: [
       "Niemand im Team muss Maras Texte gegenlesen — das macht Prüf-Mara alle zwei Minuten.",
-      "Die Leitung kann Maras Werkzeuge auf grün, gelb oder rot stellen. Rot heißt: Mara macht es nicht, ein Mensch entscheidet per Karte.",
-      "Aras ruft später Kunden an (Raten, Zahlungen, Rückrufe). Er sagt im ersten Satz, dass er eine KI ist, und zählt bei „Versuche je Person“ mit dir zusammen — eine Person bekommt am Tag höchstens einen Anruf.",
+      // E-409 Fund 19 (20.10.2026): ehrlich — umstellen darf nur Justin; Rot heißt je Werkzeug Karte oder weglassen; Aras ruft noch niemanden an.
+      "Justin stellt ein, was Mara allein darf (grün, gelb, rot). Bei Rot macht Mara es nicht selbst — je nach Werkzeug bekommt Justin eine Karte, oder Mara lässt es weg.",
+      "Aras, unser KI-Kollege am Telefon, ruft noch keine Kunden an — gerade testet Justin ihn. Wenn er startet, sagt er im ersten Satz, dass er eine KI ist; was dann für deine Anrufe gilt, steht in einem eigenen Update.",
     ],
     howto: [
       "Sagt ein Kunde am Telefon, er habe schon mit „Aras“ gesprochen: Das ist unser digitaler Assistent — in der Akte steht sein Gespräch wie jeder andere Anruf.",
@@ -142,23 +160,6 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Akte oder Kundenkarte öffnen, Ergebnis wählen. Unter den Knöpfen steht „Mara schickt die Zusammenfassung · …“.",
       "Passt es nicht: Häkchen raus, dann speichern. Falsch geklickt? „Irrtümlich?“ am Eintrag, dasselbe Ergebnis ohne Häkchen oder ein anderes Ergebnis in den nächsten Minuten nimmt die wartende Mail zurück.",
       "Schreib die Notiz bei „Sonstiges“ so, dass der Kunde sie verstehen darf — Mara macht daraus zwei, drei freundliche Sätze.",
-    ],
-  },
-  {
-    // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
-    id: "2026-10-20-aras-probe",
-    date: "2026-10-20",
-    category: "Hintergrund",
-    title: "Aras, unser KI-Kollege am Telefon, wird getestet",
-    summary:
-      "Aras ist ein digitaler Assistent, der später Kunden anruft — zum Beispiel wegen einer fälligen Rate. "
-      + "Gerade ruft er nur Justin an, zum Testen. Kunden ruft er noch nicht an.",
-    changes: [
-      "Aras sagt im ersten Satz, dass er eine KI ist. Aufnehmen darf er nur, wenn der Kunde Ja sagt.",
-      "Für dich ändert sich heute nichts.",
-    ],
-    howto: [
-      "Sagt ein Kunde, „Aras“ habe ihn angerufen: Das ist unser digitaler Assistent. Sobald er Kunden anruft, steht jedes Gespräch in der Akte wie ein normaler Anruf.",
     ],
   },
   {

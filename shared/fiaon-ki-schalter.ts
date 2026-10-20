@@ -15,7 +15,7 @@
 // Server anwendet — eine Wahrheit für Oberfläche und Route.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { ARAS_SCHLUESSEL as ARAS_KERN_SCHLUESSEL } from "./fiaon-aras";
+import { ARAS_SCHLUESSEL as ARAS_KERN_SCHLUESSEL, SPIELARTEN_VORGABE as ARAS_KERN_SPIELARTEN, FENSTER_VORGABE as ARAS_KERN_FENSTER, fensterPruefen as arasFensterPruefen } from "./fiaon-aras";
 
 export type SchalterGruppe = "mara_mail" | "mara_whatsapp" | "aras" | "leitplanken" | "kasse";
 export const GRUPPEN: { key: SchalterGruppe; label: string; satz: string }[] = [
@@ -83,8 +83,10 @@ const MODUS_TEXT = { auto: "antwortet selbst", hybrid: "Entwurf bei Unsicherheit
 // gespeichert ist — sonst zeigte der KI-Raum einen anderen Satz (mit Platzhalter „[Nachname]“), als Aras sagt.
 export const ARAS_KI_HINWEIS_VORGABE = String(ARAS_KERN_SCHLUESSEL.aras_ki_hinweis_satz.vorgabe);
 export const ARAS_AUFNAHME_FRAGE_VORGABE = String(ARAS_KERN_SCHLUESSEL.aras_aufnahme_frage.vorgabe);
-export const ARAS_SPIELARTEN_VORGABE = { termin: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", probe: "an", lead: "aus", stufe_b: "aus", rueckholung: "aus", eingehend: "aus" };
-export const ARAS_FENSTER_VORGABE = { verkauf: { "1-5": ["09:00", "19:00"], "6": ["10:00", "16:00"] }, rate: { "1-5": ["09:00", "19:00"] } };
+// Go-live (20.10.2026): Spielarten und Fenster kommen aus dem ARAS-Kern (EINE Quelle) — sonst kannte der KI-Raum „Willkommen“
+// nicht und lehnte 21:00 ab, obwohl ARAS genau das kann.
+export const ARAS_SPIELARTEN_VORGABE: Record<string, "an" | "aus"> = { ...ARAS_KERN_SPIELARTEN };
+export const ARAS_FENSTER_VORGABE = ARAS_KERN_FENSTER;
 
 const jsonObjekt = (o: unknown) => (o && typeof o === "object" && !Array.isArray(o) ? null : "Erwartet wird ein Objekt { … }.");
 const quoteJson = (o: unknown): string | null => {
@@ -106,17 +108,10 @@ const spielartenJson = (o: unknown): string | null => {
 const zeit = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const fensterJson = (o: unknown): string | null => {
   const f = jsonObjekt(o); if (f) return f;
-  for (const [art, tage] of Object.entries(o as Record<string, unknown>)) {
-    if (art !== "verkauf" && art !== "rate") return `Unbekannt: „${art}“ (verkauf, rate).`;
-    const g = jsonObjekt(tage); if (g) return g;
-    for (const [tag, zeiten] of Object.entries(tage as Record<string, unknown>)) {
-      if (tag === "0") return "Sonntag (0) ist nie erlaubt.";
-      if (!/^[1-6](?:-[1-6])?$/.test(tag)) return `Tag „${tag}“: 1–6 oder 1-5.`;
-      if (!Array.isArray(zeiten) || zeiten.length !== 2 || !zeit.test(String(zeiten[0])) || !zeit.test(String(zeiten[1]))) return `${tag}: ["HH:MM","HH:MM"].`;
-      if (String(zeiten[0]) < "08:00" || String(zeiten[1]) > "20:00") return `${tag}: nur zwischen 08:00 und 20:00.`;
-    }
+  for (const tage of Object.values(o as Record<string, unknown>)) {
+    if (tage && typeof tage === "object" && Object.keys(tage as object).some((k) => /(^|-)0$|^0-/.test(k))) return "Sonntag heißt „7“ — „0“ gibt es nicht.";
   }
-  return null;
+  return arasFensterPruefen(JSON.stringify(o));
 };
 const taktJson = (o: unknown): string | null => {
   if (!Array.isArray(o) || !o.length || o.length > 4) return "Liste mit 1–4 Tagen, z. B. [3,10,20].";
@@ -197,7 +192,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_an", gruppe: "aras", label: "Aras wählt", satz: "Ohne „an“ wählt Aras nicht (Probeanrufe gehen trotzdem).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras", rueckfrage: { bei: ["an"], text: "Aras ruft dann echte Kunden an — nach Plan, nur in den Zeitfenstern, mit Tagesdeckel. Erst einschalten, wenn dein Ohr beim Probeanruf Ja sagt. Einschalten?" } },
   // E-408 Scheibe 3 (20.10.2026): die Ausbaustufe — Wähler UND Planfüller setzen sie HART durch (Stufe 0 ruft nie einen Kunden an,
   // auch nicht mit „Aras wählt: an“). Es gilt immer das Engere aus Stufe und den Schaltern darunter.
-  { schluessel: "aras_stufe", gruppe: "aras", label: "Ausbaustufe", satz: "0 nur du · 1 Test 20/Tag, 15 € · 2 Leise 150/Tag, 60 € · 3 Voll 430/Tag, 150 €.", typ: "zahl", vorgabe: "0", min: 0, max: 3, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["1", "2", "3"], text: "Ab Stufe 1 ruft Aras echte Kunden an (zusammen mit „Aras wählt: an“) — Stufe 1 heißt höchstens 20 am Tag, einer gleichzeitig, 15 € Tagesdeckel, nur Rückrufe, Aufträge aus der Akte, Stufe A und Raten Tag 1–3. Wirklich einschalten?" } },
+  { schluessel: "aras_stufe", gruppe: "aras", label: "Ausbaustufe", satz: "0 nur du · 1 Test 40/Tag, 20 € · 2 Leise 150/Tag, 60 € · 3 Voll 430/Tag, 150 €.", typ: "zahl", vorgabe: "0", min: 0, max: 3, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["1", "2", "3"], text: "Ab Stufe 1 ruft ARAS echte Kunden an (zusammen mit „ARAS wählt: an“) — Stufe 1 heißt höchstens 40 am Tag, eine gleichzeitig, 20 € Tagesdeckel, nur Rückrufe, Willkommen nach Antrag, Aufträge aus der Akte, Stufe A und Raten Tag 1–3. Wirklich einschalten?" } },
   // E-408 Scheibe 3 Teil 2 (20.10.2026): die Stufen-Automatik (server/lib/fiaon-aras-stufe.ts liest sie über einstellungenAnwenden).
   // Rot → eine Stufe zurück + Karte; 3 (Stufe 1) bzw. 5 (Stufe 2) grüne, abgeschlossene Tage → eine hoch. Nie aus 0, nie über 3.
   { schluessel: "aras_stufe_auto", gruppe: "aras", label: "Stufe automatisch", satz: "Rot: eine Stufe zurück + Karte. Grün 3/5 Tage: eine hoch. Nie aus 0, nie über 3.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["aus"], text: "Ohne Automatik geht Aras bei Rot NICHT mehr von selbst eine Stufe zurück — du bekommst dann nur die Karte und musst selbst zurückschalten. Wirklich ausschalten?" } },
@@ -206,20 +201,20 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_delegation", gruppe: "aras", label: "Werkzeug-Weg", satz: "responses = Hintergrund-Modell entscheidet, unser Code führt aus.", typ: "enum", vorgabe: "responses", enum: ["responses", "client"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_modell_stimme", gruppe: "aras", label: "Modell Stimme", satz: "Das Telefon-Modell (gpt-live-1).", typ: "text", vorgabe: "gpt-live-1", maxZeichen: 60, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_modell_gehirn", gruppe: "aras", label: "Modell Gehirn", satz: "Hintergrund-Modell für Werkzeuge; leer = Maras Modell.", typ: "text", vorgabe: "", maxZeichen: 60, setzer: KI, leser: "fiaon-aras-adapter-openai-live.ts", dienst: "aras" },
-  { schluessel: "aras_stimme", gruppe: "aras", label: "Stimme", satz: "flitz (männlich), nuri, juni (weiblich) oder eigene:<name>.", typ: "text", vorgabe: "flitz", maxZeichen: 60, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  { schluessel: "aras_stimme", gruppe: "aras", label: "Stimme", satz: "juni (Vorgabe, weiblich), nuri (weiblich), flitz (männlich) oder eigene:<name>.", typ: "text", vorgabe: "juni", maxZeichen: 60, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_stimme_beschreibung", gruppe: "aras", label: "Stimme beschreiben", satz: "Freitext für eine eigene Stimme (nur ohne EU-Region).", typ: "text", vorgabe: "", maxZeichen: 400, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
-  { schluessel: "aras_name", gruppe: "aras", label: "Vorname", satz: "So stellt er sich vor: „Aras von FIAON“.", typ: "text", vorgabe: "Aras", maxZeichen: 40, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  { schluessel: "aras_name", gruppe: "aras", label: "Vorname", satz: "So stellt sie sich vor: „ARAS, die digitale Mitarbeiterin von FIAON“.", typ: "text", vorgabe: "ARAS", maxZeichen: 40, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_nachname", gruppe: "aras", label: "Nachname", satz: "Leer = keiner (eine KI braucht keinen).", typ: "text", vorgabe: "", maxZeichen: 40, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_fuellwoerter", gruppe: "aras", label: "Füllwörter", satz: "„hm“, „also“, „genau“ — sparsam, normal oder viel.", typ: "enum", vorgabe: "normal", enum: ["sparsam", "normal", "viel"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_lachen", gruppe: "aras", label: "Kurzes Lachen", satz: "Nur als Antwort auf etwas Lustiges, nie als Einstieg.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
-  { schluessel: "aras_tempo", gruppe: "aras", label: "Tempo", satz: "Sprechtempo: ruhig, normal, zügig.", typ: "enum", vorgabe: "normal", enum: ["ruhig", "normal", "zuegig"], enumText: { zuegig: "zügig" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  { schluessel: "aras_tempo", gruppe: "aras", label: "Tempo", satz: "Sprechtempo: ruhig, normal, zügig (Vorgabe).", typ: "enum", vorgabe: "zuegig", enum: ["ruhig", "normal", "zuegig"], enumText: { zuegig: "zügig" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_zuhoerlaute", gruppe: "aras", label: "Zuhör-Laute", satz: "„mhm“, „ja“ während der Kunde spricht.", typ: "enum", vorgabe: "normal", enum: ["sparsam", "normal"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // E-409 × E-408 (20.10.2026): die zwei Ton-Regler aus Aras Teil 1 (shared/fiaon-aras.ts ARAS_SCHLUESSEL, Nachtrag
   // „Persona & Skalierung“) — derselbe Schlüssel wie auf der Probe-Seite, dieselben Werte; gesetzt über Team 1s Setzer.
   { schluessel: "aras_energie", gruppe: "aras", label: "Energie", satz: "Wie viel Schwung: ruhig, lebendig oder Vollgas — erst nach dem Test.", typ: "enum", vorgabe: "lebendig", enum: ["ruhig", "lebendig", "vollgas"], enumText: { vollgas: "Vollgas" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_abschluss", gruppe: "aras", label: "Nachfragen nach einem Nein", satz: "sanft 0, klar 1, hartnäckig 2 — nie 3.", typ: "enum", vorgabe: "klar", enum: ["sanft", "klar", "hartnaeckig"], enumText: { hartnaeckig: "hartnäckig" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // E-408 (20.10.2026, Justin: „eine Stimme mit Dialekt, also vielleicht Österreichisch“) — Akzent + ein paar Wörter, nie tiefer Dialekt.
-  { schluessel: "aras_dialekt", gruppe: "aras", label: "Dialekt", satz: "Hochdeutsch, leicht österreichisch oder deutlich Wienerisch — gut verständlich.", typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], enumText: { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  { schluessel: "aras_dialekt", gruppe: "aras", label: "Dialekt", satz: "Hochdeutsch, leicht, deutlich oder ultra Wienerisch — Beträge immer klar.", typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch", "oesterreichisch_stark"], enumText: { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch", oesterreichisch_stark: "Wien ultra" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // E-408 (20.10.2026, Justin: „ein paar Hintergrundgeräusche“) — Büro-Atmosphäre unter der Stimme, selbst erzeugt (fiaon-aras-atmo.ts).
   { schluessel: "aras_hintergrund", gruppe: "aras", label: "Hintergrund", satz: "Büro-Atmosphäre unter der Stimme: aus, leise oder deutlicher.", typ: "enum", vorgabe: "aus", enum: ["aus", "buero_leise", "buero"], enumText: { aus: "aus", buero_leise: "Büro leise", buero: "Büro" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // E-408 (20.10.2026, Justins Test: „Also...“ mitten in seine Denkpause) — GPT-Live hat keinen Zuhör-Schalter: Anweisung + Geduld-Tor der Brücke.
@@ -230,10 +225,10 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_ki_hinweis_satz", gruppe: "aras", label: "Erster Satz (KI-Hinweis)", satz: "Pflicht nach KI-VO Art. 50 — muss „KI“ oder „digitale“ enthalten.", typ: "text", vorgabe: ARAS_KI_HINWEIS_VORGABE, maxZeichen: 400, muss: /\b(?:KI|digitale)\b/, mussText: "Der Satz muss „KI“ oder „digitale“ enthalten.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   // Justins Test 20.10. (Anruf 6): „Ein kurzes Ja reicht.“ als zweiter Teil klang wie Drängeln — EIN Satz, der fragt; das Ja wertet die Brücke.
   { schluessel: "aras_aufnahme_frage", gruppe: "aras", label: "Aufnahme-Frage", satz: "EIN Satz, der nach der Aufzeichnung fragt — aufgenommen wird nur nach einem Ja.", typ: "text", vorgabe: ARAS_AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, muss: /(?:aufzeichn|aufnehm|aufnahme)[^?]*\?\s*$/i, mussText: "EIN Satz, der nach der Aufzeichnung fragt und mit „?“ endet.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
-  { schluessel: "aras_spielarten", gruppe: "aras", label: "Spielarten", satz: "Welche Gesprächsarten Aras führt (lead/stufe_b/rueckholung erst nach LEXR).", typ: "json", vorgabe: JSON.stringify(ARAS_SPIELARTEN_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: spielartenJson },
+  { schluessel: "aras_spielarten", gruppe: "aras", label: "Spielarten", satz: "Welche Gesprächsarten ARAS führt (lead/stufe_b/rueckholung erst nach LEXR).", typ: "json", vorgabe: JSON.stringify(ARAS_SPIELARTEN_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: spielartenJson },
   { schluessel: "aras_parallel", gruppe: "aras", label: "Gleichzeitig", satz: "Höchstens so viele Gespräche zugleich (1–5).", typ: "zahl", vorgabe: "2", min: 1, max: 5, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_je_stunde", gruppe: "aras", label: "Wählversuche je Stunde", satz: "Deckel der Wählversuche je Stunde.", typ: "zahl", vorgabe: "40", min: 1, max: 120, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
-  { schluessel: "aras_fenster", gruppe: "aras", label: "Zeitfenster", satz: "Mo–Fr 09–19, Sa 10–16 (Verkauf); Raten Mo–Fr. Nie Sonntag.", typ: "json", vorgabe: JSON.stringify(ARAS_FENSTER_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: fensterJson },
+  { schluessel: "aras_fenster", gruppe: "aras", label: "Zeitfenster", satz: "Mo–Sa 09:30–21:00; Sonntag/Feiertag nur gebuchte Rückrufe (7 = Sonntag).", typ: "json", vorgabe: JSON.stringify(ARAS_FENSTER_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: fensterJson },
   { schluessel: "aras_raten_takte", gruppe: "aras", label: "Raten-Takte", satz: "Tage nach Fälligkeit, an denen Aras anruft: [3,10,20].", typ: "json", vorgabe: JSON.stringify([3, 10, 20]), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: taktJson },
   { schluessel: "aras_je_person_tag", gruppe: "aras", label: "Versuche je Person und Tag", satz: "Mensch und Aras zusammen gezählt.", typ: "zahl", vorgabe: "1", min: 1, max: 2, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_je_person_woche", gruppe: "aras", label: "Versuche je Person und Woche", satz: "Mensch und Aras zusammen gezählt.", typ: "zahl", vorgabe: "3", min: 1, max: 5, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },

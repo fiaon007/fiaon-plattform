@@ -291,11 +291,11 @@ export interface Fehlerquote {
 }
 
 /** ARAS-Formen (Vertrag § 5) — strukturgleich zu shared/fiaon-aras.ts (Team 1). */
-export type ArasSpielart = "termin" | "lead" | "zuruf" | "stufe_b" | "stufe_a" | "rate" | "zusage" | "rueckholung" | "eingehend" | "probe";
-export const ARAS_SPIELARTEN: readonly ArasSpielart[] = ["termin", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "eingehend", "probe"];
+export type ArasSpielart = "termin" | "willkommen" | "lead" | "zuruf" | "stufe_b" | "stufe_a" | "rate" | "zusage" | "rueckholung" | "auftrag" | "eingehend" | "probe";
+export const ARAS_SPIELARTEN: readonly ArasSpielart[] = ["termin", "willkommen", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"];
 export const SPIELART_TEXT: Record<ArasSpielart, string> = {
-  termin: "Rückruf/Termin", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Stufe B kalt", stufe_a: "Zahlung gemeldet",
-  rate: "Rate fällig", zusage: "Zusage nachfassen", rueckholung: "Rückholung", eingehend: "Eingehend", probe: "Probe",
+  termin: "Termin bei ARAS", willkommen: "Willkommen nach Antrag", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Stufe B kalt", stufe_a: "Zahlung gemeldet",
+  rate: "Rate offen", zusage: "Zusage nachfassen", rueckholung: "Rückholung", auftrag: "Auftrag vom Team", eingehend: "Eingehend", probe: "Probe",
 };
 export interface LiveSitzung { callId: number; personId: number | null; spielart: ArasSpielart; seitSek: number; zustand: string; letzteZeilen: { wer: "kunde" | "aras"; text: string }[] }
 export interface PlanZeile { id: number; personId: number | null; name: string | null; spielart: ArasSpielart; prioritaet: number; grund: string; fruehAb: string; spaetBis: string; status: string; versuchNr: number; rechtsgrund: string }

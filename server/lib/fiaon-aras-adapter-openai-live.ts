@@ -202,7 +202,7 @@ export class LiveSitzung implements Sitzung {
 
   /** Stimme: Name aus der Liste oder eigene Stimme (`eigene:<id>` → { id }). */
   private stimmeFeld(): unknown {
-    const s = String(this.e.stimme || "flitz");
+    const s = String(this.e.stimme || "juni"); // Go-live 20.10.2026: Juni ist die feste Stimme
     const m = /^eigene:(.+)$/.exec(s);
     return m ? { id: m[1] } : s;
   }

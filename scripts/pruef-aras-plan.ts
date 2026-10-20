@@ -47,11 +47,12 @@ titel("2. BERLINER ZEIT (formatToParts, keine NaN-Falle)");
 
 titel("3. FENSTER");
 ok("Rate Di 10:30 offen", fensterOffen("rate", "DE", berlin("2026-10-20 10:30")).offen);
-ok("Rate Di 08:30 zu (vor 09:00)", fensterOffen("rate", "DE", berlin("2026-10-20 08:30")).grund === "ausserhalb_fenster");
-ok("Rate Di 19:00 zu (ab 19:00)", fensterOffen("rate", "DE", berlin("2026-10-20 19:00")).grund === "ausserhalb_fenster");
-ok("Rate Sa zu (kein Fenster)", fensterOffen("rate", "DE", berlin("2026-10-24 11:00")).grund === "kein_fenster_heute");
+// Go-live (Justin 20.10.2026): „jeden Tag von 09:30 Uhr bis 21:00 Uhr“ — Mo–Sa; Sonntag/Feiertag nur gebuchte Rückrufe.
+ok("Rate Di 09:29 zu, 09:30 offen (Go-live: ab 09:30)", fensterOffen("rate", "DE", berlin("2026-10-20 09:29")).grund === "ausserhalb_fenster" && fensterOffen("rate", "DE", berlin("2026-10-20 09:30")).offen);
+ok("Rate Di 20:59 offen, 21:00 zu (bis 21:00)", fensterOffen("rate", "DE", berlin("2026-10-20 20:59")).offen && fensterOffen("rate", "DE", berlin("2026-10-20 21:00")).grund === "ausserhalb_fenster");
+ok("Rate Sa 11:00 offen (Mo–Sa)", fensterOffen("rate", "DE", berlin("2026-10-24 11:00")).offen);
 ok("Verkauf (zuruf) Sa 11:00 offen", fensterOffen("zuruf", "DE", berlin("2026-10-24 11:00")).offen);
-ok("Verkauf Sa 16:00 zu", fensterOffen("zuruf", "DE", berlin("2026-10-24 16:00")).grund === "ausserhalb_fenster");
+ok("Verkauf Sa 20:59 offen, 21:00 zu", fensterOffen("zuruf", "DE", berlin("2026-10-24 20:59")).offen && fensterOffen("zuruf", "DE", berlin("2026-10-24 21:00")).grund === "ausserhalb_fenster");
 ok("Sonntag: alles zu", fensterOffen("zuruf", "DE", berlin("2026-10-25 11:00", "+01:00")).grund === "sonntag");
 ok("Feiertag AT 26.10. zu, DE am selben Tag offen",
   fensterOffen("zuruf", "AT", berlin("2026-10-26 11:00", "+01:00")).grund === "feiertag" && fensterOffen("zuruf", "DE", berlin("2026-10-26 11:00", "+01:00")).offen);
@@ -122,12 +123,12 @@ ok("Rotprobe: „Ja, aber um was geht's dabei?“ und „Ja?“ sind KEIN Ja (§
 titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Leise · 3 Voll — immer das Engere aus Stufe und Schalter");
 {
   const { STUFEN, stufenGrenzen, rateTagErlaubt, kundenAnrufeAn } = await import("../shared/fiaon-aras");
-  const alle = { termin: true, zuruf: true, stufe_a: true, rate: true, zusage: true, lead: true, stufe_b: true, rueckholung: true, auftrag: true } as any;
+  const alle = { termin: true, willkommen: true, zuruf: true, stufe_a: true, rate: true, zusage: true, lead: true, stufe_b: true, rueckholung: true, auftrag: true } as any;
   const g0 = stufenGrenzen({ stufe: 0, parallel: 5, tagEuro: 300, spielarten: alle });
-  ok("ROT-PROBE Stufe 0: keine Gesprächsart außer Probe, Gleichzeitig 0, Deckel 0 €, 0 je Tag — auch mit allen Schaltern an", ["termin", "zuruf", "stufe_a", "rate", "zusage", "lead", "auftrag"].every((x) => !g0.spielartErlaubt(x as any)) && g0.spielartErlaubt("probe") && g0.parallel === 0 && g0.tagEuro === 0 && g0.versucheJeTag === 0);
+  ok("ROT-PROBE Stufe 0: keine Gesprächsart außer Probe, Gleichzeitig 0, Deckel 0 €, 0 je Tag — auch mit allen Schaltern an", ["termin", "willkommen", "zuruf", "stufe_a", "rate", "zusage", "lead", "auftrag"].every((x) => !g0.spielartErlaubt(x as any)) && g0.spielartErlaubt("probe") && g0.parallel === 0 && g0.tagEuro === 0 && g0.versucheJeTag === 0);
   ok("ROT-PROBE kundenAnrufeAn: Stufe 0 + an = nein; Stufe 1 + an = ja; Not-Aus = nein", !kundenAnrufeAn({ an: true, stufe: 0, notaus: false }) && kundenAnrufeAn({ an: true, stufe: 1, notaus: false }) && !kundenAnrufeAn({ an: true, stufe: 3, notaus: true }));
   const g1 = stufenGrenzen({ stufe: 1, parallel: 3, tagEuro: 60, spielarten: alle });
-  ok("Stufe 1: 20 je Tag, Gleichzeitig 1, Deckel 15 €, nur Termin/Auftrag/Stufe A/Rate", g1.versucheJeTag === 20 && g1.parallel === 1 && g1.tagEuro === 15 && ["termin", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
+  ok("Stufe 1 (Go-live): 40 je Tag, Gleichzeitig 1, Deckel 20 €, nur Termin/Willkommen/Auftrag/Stufe A/Rate", g1.versucheJeTag === 40 && g1.parallel === 1 && g1.tagEuro === 20 && ["termin", "willkommen", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
   ok("Stufe 1: Rate nur Tag 1–3 nach Fälligkeit; Stufe 2/3 ohne diese Grenze", [1, 2, 3].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 5) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20));
   const g2 = stufenGrenzen({ stufe: 2, parallel: 5, tagEuro: 300, spielarten: alle });
   ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 €, Zuruf nur per Nachricht, kein Lead", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zuruf") && g2.regel.zurufNurNachricht && !g2.spielartErlaubt("lead"));
@@ -192,7 +193,7 @@ ok("Aufnahme-Frage als EIN Satz mit „?“ → ok", einstellungPruefen("aras_au
 ok("Aufnahme-Frage mit Nachsatz („… ? Ein kurzes Ja reicht.“) → wirft", wirft("aras_aufnahme_frage", "Darf ich aufzeichnen? Ein kurzes Ja reicht."));
 ok("Aufnahme-Frage ohne Frage nach der Aufzeichnung → wirft", wirft("aras_aufnahme_frage", "Passt das für Sie?") && wirft("aras_aufnahme_frage", "Ich zeichne jetzt auf."));
 ok("aras_zuhoeren: geduldig/normal/flott ok, „hektisch“ → wirft", einstellungPruefen("aras_zuhoeren", "flott") === "flott" && wirft("aras_zuhoeren", "hektisch"));
-ok("Fenster mit Sonntag → wirft", wirft("aras_fenster", JSON.stringify({ verkauf: { "7": ["10:00", "12:00"] }, rate: {} })));
+ok("Fenster mit „0“ → wirft; Sonntag nur als „7“ (Justin: änderbar), nie nach 21:00", wirft("aras_fenster", JSON.stringify({ verkauf: { "0": ["10:00", "12:00"] }, rate: {} })) && !wirft("aras_fenster", JSON.stringify({ verkauf: { "7": ["10:00", "12:00"] }, rate: {} })) && wirft("aras_fenster", JSON.stringify({ rate: { "1-6": ["09:30", "21:30"] } })));
 ok("Fenster vor 08:00 → wirft", wirft("aras_fenster", JSON.stringify({ verkauf: { "1-5": ["07:00", "12:00"] }, rate: { "1-5": ["09:00", "19:00"] } })));
 ok("Raten-Takte [3,10,20,25,30] (5 Werte) → wirft", wirft("aras_raten_takte", "[3,10,20,25,30]"));
 ok("Probe-Nummer +1… → wirft, +49… → ok", wirft("aras_probe_nummer", "+12125551234") && einstellungPruefen("aras_probe_nummer", "+491701234567") === "+491701234567");
@@ -200,7 +201,7 @@ ok("Unbekannter Schlüssel → wirft", wirft("mara_aktion_an", "an"));
 ok("Spielarten mit fremdem Namen → wirft", wirft("aras_spielarten", JSON.stringify({ kaltakquise: true })));
 {
   const e = einstellungenAnwenden({});
-  ok("Leere Tabelle → Vorgaben: aus, openai_live, flitz, parallel 2, Deckel 60, Spielarten leise", !e.an && e.adapter === "openai_live" && e.stimme === "flitz" && e.parallel === 2 && e.tagEuro === 60
+  ok("Leere Tabelle → Vorgaben: aus, openai_live, juni, parallel 2, Deckel 60, Spielarten leise (Willkommen an)", !e.an && e.adapter === "openai_live" && e.stimme === "juni" && e.parallel === 2 && e.tagEuro === 60 && e.spielarten.willkommen
     && e.spielarten.termin && e.spielarten.rate && e.spielarten.zusage && e.spielarten.stufe_a && e.spielarten.zuruf && e.spielarten.probe
     && !e.spielarten.lead && !e.spielarten.stufe_b && !e.spielarten.rueckholung && !e.spielarten.eingehend);
   const f = einstellungenAnwenden({ aras_parallel: "99", aras_an: "an", aras_ampel: JSON.stringify({ stufen: { zahlungslink_senden: "rot", aufnahme_starten: "rot" } }) });
@@ -232,7 +233,7 @@ titel("8b. HARTE TELEFON-REGELN (Nachbereitung ohne Aufnahme-Ja)");
 }
 
 titel("9. KATALOGE");
-ok("13 Werkzeuge (12 + probe_feedback_merken, nur im Probeanruf), 11 Spielarten (mit „auftrag“ aus der Akte)", WERKZEUGE.length === 13 && WERKZEUGE.includes("probe_feedback_merken") && SPIELARTEN.length === 11);
+ok("13 Werkzeuge (12 + probe_feedback_merken, nur im Probeanruf), 12 Spielarten (mit „auftrag“ aus der Akte und „willkommen“)", WERKZEUGE.length === 13 && WERKZEUGE.includes("probe_feedback_merken") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));
 ok("Geld buchen / Erstattung / Storno / Kündigung sind KEIN Werkzeug", !(WERKZEUGE as readonly string[]).some((w) => /^(geld_buchen|erstattung|raten_storno|kuendigung_buchen|vertrag_schliessen|lastschrift)/.test(w)));
 ok("Werbe-Spielarten brauchen Einwilligung, Vertragssache nicht", istWerbeSpielart("zuruf") && istWerbeSpielart("lead") && !istWerbeSpielart("rate") && !istWerbeSpielart("stufe_a") && RECHTSGRUND.zusage === "vertrag");

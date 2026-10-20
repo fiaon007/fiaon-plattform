@@ -61,6 +61,9 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   tageslauf("aras_nachbereitung", async () => (await haengendeSchliessen()) > 0, 60_000, { beimStartNach: 90_000, nurMitErgebnis: true });
   // Scheibe 3 Teil 2: die Stufen-Ampel (Rot → eine Stufe zurück + Karte; Grün über Tage → eine hoch), alle 30 Minuten.
   tageslauf("aras_stufe_ampel", async () => (await (await import("./fiaon-aras-stufe")).stufeAutomatik()).geaendert, 30 * 60_000, { beimStartNach: 150_000, nurMitErgebnis: true });
+  // Go-live (Koordination 20.10.2026 abends): EINMAL ab 21.10.2026 09:30 Berlin — setzt Stufe 1, Willkommen + Rate offen, Juni,
+  // Wienerisch ultra, Fenster Mo–Sa 09:30–21:00 und ARAS an; danach nie wieder (Merker aras_golive_21_10).
+  tageslauf("aras_golive", async () => await (await import("./fiaon-aras-golive")).golivePruefen(), 60_000, { beimStartNach: 30_000, nurMitErgebnis: true });
 
   console.log("[ARAS] Kern gestartet: Twilio-Rückrufe, Ton-Strom, Probe-Routen, Takte registriert.");
 }

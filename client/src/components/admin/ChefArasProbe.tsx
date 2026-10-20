@@ -38,19 +38,20 @@ interface Hoerprobe { id: number; stimme: string; text: string; dauerMs: number 
 
 const STIMME_TEXT: Record<string, string> = { flitz: "Flitz · männlich", nuri: "Nuri · weiblich", juni: "Juni · weiblich" };
 const stimmeName = (s: string | null | undefined) => (s ? (STIMME_TEXT[s] ?? (s.startsWith("eigene:") ? "eigene Stimme" : s)).split(" ·")[0] : "—");
-const PROBE_ARTEN: Spielart[] = ["zuruf", "rate", "stufe_a", "zusage", "termin", "auftrag", "lead"];
+// Go-live (Justin 20.10.2026): die zwei Szenarien zuerst — „Willkommen nach Antrag“ und „Rate offen“.
+const PROBE_ARTEN: Spielart[] = ["willkommen", "rate", "zuruf", "stufe_a", "zusage", "termin", "auftrag", "lead"];
 const GRUENDE = ["klingt nach KI", "zu langsam", "zu schnell", "zu viele Füllwörter", "wiederholt sich", "fällt mir ins Wort", "Unterbrechen hakt", "versteht schlecht", "zu aufdringlich", "Begrüßung holprig", "Schluss zu abrupt"];
 /** Die Ton-Regler — zwei ruhige Gruppen (wie er klingt · wie er führt). Schlüssel = PROBE_TON_SCHLUESSEL des Kerns. */
 const TON: { gruppe: string; key: string; label: string; werte: { w: string; t: string }[] }[] = [
-  { gruppe: "Wie er klingt", key: "aras_dialekt", label: "Dialekt", werte: [{ w: "hochdeutsch", t: "Hochdeutsch" }, { w: "oesterreichisch_leicht", t: "leicht österr." }, { w: "oesterreichisch", t: "österreichisch" }] },
-  { gruppe: "Wie er klingt", key: "aras_energie", label: "Energie", werte: [{ w: "ruhig", t: "ruhig" }, { w: "lebendig", t: "lebendig" }, { w: "vollgas", t: "Vollgas" }] },
-  { gruppe: "Wie er klingt", key: "aras_tempo", label: "Tempo", werte: [{ w: "ruhig", t: "ruhig" }, { w: "normal", t: "normal" }, { w: "zuegig", t: "zügig" }] },
-  { gruppe: "Wie er klingt", key: "aras_hintergrund", label: "Hintergrund", werte: [{ w: "aus", t: "aus" }, { w: "buero_leise", t: "Büro leise" }, { w: "buero", t: "Büro" }] },
-  { gruppe: "Wie er klingt", key: "aras_lachen", label: "Kurzes Lachen", werte: [{ w: "aus", t: "aus" }, { w: "an", t: "an" }] },
-  { gruppe: "Wie er führt", key: "aras_fuellwoerter", label: "Füllwörter", werte: [{ w: "sparsam", t: "sparsam" }, { w: "normal", t: "normal" }, { w: "viel", t: "viel" }] },
-  { gruppe: "Wie er führt", key: "aras_zuhoeren", label: "Zuhören", werte: [{ w: "geduldig", t: "geduldig" }, { w: "normal", t: "normal" }, { w: "flott", t: "flott" }] },
-  { gruppe: "Wie er führt", key: "aras_zuhoerlaute", label: "Zuhör-Laute", werte: [{ w: "sparsam", t: "wenige" }, { w: "normal", t: "normal" }] },
-  { gruppe: "Wie er führt", key: "aras_abschluss", label: "Nachfragen", werte: [{ w: "sanft", t: "sanft" }, { w: "klar", t: "klar" }, { w: "hartnaeckig", t: "hartnäckig" }] },
+  { gruppe: "Wie sie klingt", key: "aras_dialekt", label: "Dialekt", werte: [{ w: "hochdeutsch", t: "Hochdeutsch" }, { w: "oesterreichisch_leicht", t: "leicht österr." }, { w: "oesterreichisch", t: "österreichisch" }, { w: "oesterreichisch_stark", t: "Wien ultra" }] },
+  { gruppe: "Wie sie klingt", key: "aras_energie", label: "Energie", werte: [{ w: "ruhig", t: "ruhig" }, { w: "lebendig", t: "lebendig" }, { w: "vollgas", t: "Vollgas" }] },
+  { gruppe: "Wie sie klingt", key: "aras_tempo", label: "Tempo", werte: [{ w: "ruhig", t: "ruhig" }, { w: "normal", t: "normal" }, { w: "zuegig", t: "zügig" }] },
+  { gruppe: "Wie sie klingt", key: "aras_hintergrund", label: "Hintergrund", werte: [{ w: "aus", t: "aus" }, { w: "buero_leise", t: "Büro leise" }, { w: "buero", t: "Büro" }] },
+  { gruppe: "Wie sie klingt", key: "aras_lachen", label: "Kurzes Lachen", werte: [{ w: "aus", t: "aus" }, { w: "an", t: "an" }] },
+  { gruppe: "Wie sie führt", key: "aras_fuellwoerter", label: "Füllwörter", werte: [{ w: "sparsam", t: "sparsam" }, { w: "normal", t: "normal" }, { w: "viel", t: "viel" }] },
+  { gruppe: "Wie sie führt", key: "aras_zuhoeren", label: "Zuhören", werte: [{ w: "geduldig", t: "geduldig" }, { w: "normal", t: "normal" }, { w: "flott", t: "flott" }] },
+  { gruppe: "Wie sie führt", key: "aras_zuhoerlaute", label: "Zuhör-Laute", werte: [{ w: "sparsam", t: "wenige" }, { w: "normal", t: "normal" }] },
+  { gruppe: "Wie sie führt", key: "aras_abschluss", label: "Nachfragen", werte: [{ w: "sanft", t: "sanft" }, { w: "klar", t: "klar" }, { w: "hartnaeckig", t: "hartnäckig" }] },
 ];
 const seitText = (am: string) => {
   const min = Math.round((Date.now() - new Date(am).getTime()) / 60_000);
@@ -75,7 +76,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   const testpersonen = useTakt<{ ok: boolean; zeilen: { id: number; name: string }[] }>("/chef/aras/probe/testpersonen", 0);
   const hinweis = useHinweis();
   const [busy, setBusy] = useState<string | null>(null);
-  const [spielart, setSpielart] = useState<Spielart>("zuruf");
+  const [spielart, setSpielart] = useState<Spielart>("willkommen");
   const [stimme, setStimme] = useState("");
   const [testperson, setTestperson] = useState("");
   const [nummer, setNummer] = useState("");
@@ -128,13 +129,13 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
     setAktiv(r.callId);
     seitenLive?.beschleunigen();
     stand.neu();
-    hinweis.gut("Aras wählt — dein Handy klingelt gleich. Das Gespräch siehst du oben live.");
+    hinweis.gut("ARAS wählt — dein Handy klingelt gleich. Das Gespräch siehst du oben live.");
     if (eingebettet) document.querySelector("[data-ki='cockpit']")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   const nummerSpeichern = () => tun("nummer", async () => {
     const r = await senden<{ ok: boolean; nummer: string }>("/chef/aras/probe/nummer", { nummer });
     setNummer(""); setNummerOffen(false); stand.neu();
-    hinweis.gut(`Gespeichert (${r.nummer}) — nur diese Nummer ruft Aras im Test an.`);
+    hinweis.gut(`Gespeichert (${r.nummer}) — nur diese Nummer ruft ARAS im Test an.`);
   });
   const urteilen = (d: "hoch" | "runter") => tun(`urteil-${d}`, async () => {
     if (!letzter) return;
@@ -154,7 +155,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
       <input type="tel" inputMode="tel" placeholder="+49 151 …" value={nummer} onChange={(e) => setNummer(e.target.value)} aria-label="Deine Handynummer" />
       <button type="button" className="ar-knopf klein haupt" disabled={busy === "nummer" || nummer.replace(/\D/g, "").length < 8} onClick={() => void nummerSpeichern()}>Speichern</button>
       {nummerOffen ? <button type="button" className="ar-knopf-text" onClick={() => { setNummerOffen(false); setNummer(""); }}>abbrechen</button> : null}
-      <span className="ar-leise">Einmal eintragen — nur diese Nummer ruft Aras im Test an.</span>
+      <span className="ar-leise">Einmal eintragen — nur diese Nummer ruft ARAS im Test an.</span>
     </span>
   ));
 
@@ -166,7 +167,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
       {!s && !stand.fehler ? <div className="ar-karte" aria-busy="true"><div className="ar-zeile-lade" /><div className="ar-zeile-lade" /></div> : null}
 
       {s ? (
-        <Karte klasse="ar-anrufen" data="mich-anrufen" titel="Mich anrufen" satz="Aras ruft nur deine Nummer an — so hörst du, wie er klingt."
+        <Karte klasse="ar-anrufen" data="mich-anrufen" titel="Mich anrufen" satz="ARAS ruft nur deine Nummer an — so hörst du, wie sie klingt."
           rechts={(
             <span className="ar-bereit" data-ap="kopf">
               <span title={s.bereit.stimme.ok ? "Die Stimme ist eingestellt." : s.bereit.stimme.grund ?? ""}><Punkt klasse={s.bereit.stimme.ok ? "gut" : "krit"} />Stimme</span>
@@ -184,7 +185,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
               <Segment label="Stimme für diesen Anruf" wert={stimme} onWahl={setStimme} klein werte={[{ w: "", t: `${stimmeName(s.stimme)} (gewählt)` }, ...s.stimmen.filter((x) => x !== s.stimme).map((x) => ({ w: x, t: stimmeName(x) }))]} />
             </div>
             {(testpersonen.daten?.zeilen.length ?? 0) > 0 ? (
-              <label className="ar-feld" title="Mit der Akte einer Testperson laufen Aras' Werkzeuge echt (Link, Zusage, Termin) — gewählt wird trotzdem nur deine Nummer.">Mit Akte von
+              <label className="ar-feld" title="Mit der Akte einer Testperson laufen ARAS' Werkzeuge echt (Link, Zusage, Termin) — gewählt wird trotzdem nur deine Nummer.">Mit Akte von
                 <select className="ar-wahl" value={testperson} onChange={(e) => setTestperson(e.target.value)}>
                   <option value="">Probe-Daten</option>
                   {testpersonen.daten!.zeilen.map((t) => <option key={t.id} value={t.id}>{t.name} (Testperson)</option>)}
@@ -194,7 +195,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
           </div>
           <div className="ar-anrufen-los">
             <button type="button" className="ar-knopf gross haupt" data-ap="mich-anrufen-knopf" disabled={!!busy || !s.nummer || !bereit || gesperrt || deckelVoll || laeuft || !!aktiv} onClick={() => void anrufen()}>
-              <Zeichen art="telefon" groesse={18} />{laeuft || aktiv ? "Aras ruft dich an …" : busy === "anrufen" ? "wählt …" : "Mich anrufen"}
+              <Zeichen art="telefon" groesse={18} />{laeuft || aktiv ? "ARAS ruft dich an …" : busy === "anrufen" ? "wählt …" : "Mich anrufen"}
             </button>
             {laeuft || aktiv ? <span className="ar-leise">{ohneSchalter ? "Das Gespräch steht oben live — dort auch „Auflegen“." : "Das Gespräch steht direkt darunter."}</span>
               : warum ? <span className="ar-leise">{warum}</span> : <span className="ar-leise">Teste: unterbrich ihn · schweig drei Sekunden · sag „Nein“ zur Aufzeichnung · frag „Sind Sie ein Mensch?“</span>}
@@ -205,8 +206,8 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
               {rueckfall.sitzungen.length ? <LiveKaesten live={rueckfall} /> : null}
               <div className="ar-zeile-knopf">
                 {s.schalter.notaus
-                  ? <FrageKnopf klasse="haupt" frage="Aras wieder wählen lassen?" ja="Wieder an" onJa={() => void tun("start", async () => { await senden("/chef/aras/probe/wieder-an"); stand.neu(); hinweis.gut("Not-Aus aufgehoben."); })}>Wieder an</FrageKnopf>
-                  : <FrageKnopf klasse="rot" frage="Aras sofort stoppen?" ja="Stoppen" onJa={() => void tun("notaus", async () => { await senden("/chef/aras/probe/notaus", { grund: "Knopf auf der Probe-Seite" }); stand.neu(); hinweis.gut("Not-Aus ist an."); })}>Not-Aus</FrageKnopf>}
+                  ? <FrageKnopf klasse="haupt" frage="ARAS wieder wählen lassen?" ja="Wieder an" onJa={() => void tun("start", async () => { await senden("/chef/aras/probe/wieder-an"); stand.neu(); hinweis.gut("Not-Aus aufgehoben."); })}>Wieder an</FrageKnopf>
+                  : <FrageKnopf klasse="rot" frage="ARAS sofort stoppen?" ja="Stoppen" onJa={() => void tun("notaus", async () => { await senden("/chef/aras/probe/notaus", { grund: "Knopf auf der Probe-Seite" }); stand.neu(); hinweis.gut("Not-Aus ist an."); })}>Not-Aus</FrageKnopf>}
                 <button type="button" className={`ar-knopf klein${s.schalter.leerlauf ? " an" : ""}`} disabled={!!busy} onClick={() => void tun("leerlauf", async () => { await senden("/chef/aras/probe/leerlauf", { an: !s.schalter.leerlauf }); stand.neu(); })}>{s.schalter.leerlauf ? "Leerlauf aus" : "Leerlauf"}</button>
               </div>
             </div>
@@ -306,8 +307,8 @@ function StimmenStudio({ stand: s, proben, busy, tun, hinweis, onNeu }: {
     hinweis.gut("Alle drei sind da — hör sie dir nebeneinander an.");
   });
   return (
-    <Karte titel="Stimme" satz={`Aras spricht mit ${stimmeName(s.stimme)} — hör die drei nebeneinander und nimm eine.`} data="studio">
-      <div className="ar-ton-zeile"><span title="Nur für die Hörprobe hier — Aras' Dialekt im Gespräch stellst du links unter „Ton“ ein.">Akzent</span>
+    <Karte titel="Stimme" satz={`ARAS spricht mit ${stimmeName(s.stimme)} — hör die drei nebeneinander und nimm eine.`} data="studio">
+      <div className="ar-ton-zeile"><span title="Nur für die Hörprobe hier — ARAS' Dialekt im Gespräch stellst du links unter „Ton“ ein.">Akzent</span>
         <Segment label="Akzent der Hörprobe" klein wert={dialekt} werte={DIALEKTE.map((d) => ({ w: d, t: d === "oesterreichisch_leicht" ? "leicht österr." : DIALEKT_TEXT[d] }))}
           onWahl={(d) => { setDialekt(d); if (!satz.trim() || Object.values(HOERPROBE_SAETZE).includes(satz)) setSatz(HOERPROBE_SAETZE[d]); }} />
       </div>
@@ -330,9 +331,9 @@ function StimmenStudio({ stand: s, proben, busy, tun, hinweis, onNeu }: {
             <li key={st} className={gewaehlt ? "gewaehlt" : ""} data-ap-hoerprobe={h?.id ?? ""}>
               <div className="ar-stimme-kopf">
                 <b>{STIMME_TEXT[st] ?? st}</b>
-                {gewaehlt ? <span className="ar-marke gut"><Punkt klasse="gut" />Aras spricht so</span> : h ? (
+                {gewaehlt ? <span className="ar-marke gut"><Punkt klasse="gut" />ARAS spricht so</span> : h ? (
                   <button type="button" className="ar-knopf klein" disabled={!!busy} data-ar="diese-nehmen"
-                    onClick={() => void tun(`nehmen-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/waehlen`); proben.neu(); onNeu(); hinweis.gut(`Aras spricht ab jetzt mit ${stimmeName(h.stimme)}${h.dialekt && h.dialekt !== "hochdeutsch" ? `, ${DIALEKT_TEXT[h.dialekt]}` : ""}.`); })}>Diese nehmen</button>
+                    onClick={() => void tun(`nehmen-${h.id}`, async () => { await senden(`/chef/aras/probe/hoerprobe/${h.id}/waehlen`); proben.neu(); onNeu(); hinweis.gut(`ARAS spricht ab jetzt mit ${stimmeName(h.stimme)}${h.dialekt && h.dialekt !== "hochdeutsch" ? `, ${DIALEKT_TEXT[h.dialekt]}` : ""}.`); })}>Diese nehmen</button>
                 ) : null}
               </div>
               {h?.hatAudio ? <audio key={`${h.id}-${atmo}`} controls preload="none" src={`/api/fiaon/chef/aras/probe/hoerprobe/${h.id}/audio${atmo !== "aus" ? `?atmo=${atmo}` : ""}`} /> : <p className="ar-leise">Noch keine Hörprobe in diesem Akzent.</p>}

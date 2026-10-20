@@ -102,6 +102,14 @@ const fen = REGISTER.find((e) => e.schluessel === "aras_fenster")!;
 ok(!wertPruefen(fen, '{"verkauf":{"0":["09:00","12:00"]}}').ok, "Fenster: Sonntag verboten");
 ok(!wertPruefen(fen, '{"verkauf":{"1-5":["07:00","19:00"]}}').ok, "Fenster: vor 08:00 verboten");
 ok(wertPruefen(fen, fen.vorgabe).ok, "Fenster: Vorgabe gültig");
+// Go-live (20.10.2026): Mo–Sa 09:30–21:00, Sonntag als „7“ möglich (Justin: änderbar), nach 21:00 nie; Register = ARAS-Kern
+ok(wertPruefen(fen, '{"rate":{"1-6":["09:30","21:00"]}}').ok && wertPruefen(fen, '{"verkauf":{"1-7":["09:30","21:00"]}}').ok && !wertPruefen(fen, '{"rate":{"1-6":["09:30","21:30"]}}').ok, "Fenster: bis 21:00 und Sonntag (7) möglich, 21:30 nie");
+const sp = REGISTER.find((e) => e.schluessel === "aras_spielarten")!;
+ok(wertPruefen(sp, '{"willkommen":"an","rate":"an","termin":"aus"}').ok && JSON.parse(sp.vorgabe).willkommen === "an", "Spielarten: „willkommen“ ist bekannt (Vorgabe an)");
+const dia = REGISTER.find((e) => e.schluessel === "aras_dialekt")!;
+ok(wertPruefen(dia, "oesterreichisch_stark").ok && dia.enumText?.oesterreichisch_stark === "Wien ultra", "Dialekt: „Wien ultra“ wählbar");
+const vg = (k: string) => REGISTER.find((e) => e.schluessel === k)!.vorgabe;
+ok(vg("aras_stimme") === "juni" && vg("aras_name") === "ARAS" && vg("aras_tempo") === "zuegig", "Vorgaben im KI-Raum = ARAS-Kern (Juni, ARAS, zügig)");
 const nr = REGISTER.find((e) => e.schluessel === "aras_probe_nummer")!;
 ok(wertPruefen(nr, "+4915112345678").ok && wertPruefen(nr, "").ok && !wertPruefen(nr, "+1555123").ok, "Probe-Nummer: DACH oder leer");
 ok(JSON.stringify(setzerKoerper(REGISTER.find((e) => e.schluessel === "rueckhol_pro_tag")!, "5")) === '{"key":"rueckhol_pro_tag","value":"5"}', "Setzer-Körper key/value");

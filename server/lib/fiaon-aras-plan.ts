@@ -146,6 +146,22 @@ export async function vertragsKunde(personId: number, lauf: Lauf = sqlPool): Pro
   return !!z;
 }
 
+/**
+ * Go-live (20.10.2026, Koordination): „Willkommen nach Antrag“ nur nach dem UNTERSCHRIEBENEN Antrag — eine Vertragsannahme
+ * (/antrag-neu „Zahlungspflichtig annehmen“) oder consent_contract (/vertrag-bestaetigen). Nie für Leads, nie nach Kündigung.
+ * Fehlt die Tabelle der Vertragsannahmen, gilt nur consent_contract.
+ */
+export async function willkommenBereit(personId: number, lauf: Lauf = sqlPool): Promise<boolean> {
+  const sql = (mitAnnahme: boolean) => lauf.unsafe(`
+    SELECT 1 FROM fiaon_applications a
+     WHERE a.person_id = ${Number(personId)} AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL AND a.archived_at IS NULL
+       AND a.gekuendigt_am IS NULL AND COALESCE(a.payment_status, '') NOT IN ('cancelled', 'refunded', 'superseded')
+       AND (a.consent_contract IS TRUE${mitAnnahme ? " OR EXISTS (SELECT 1 FROM fiaon_vertragsannahmen v WHERE v.ref = a.ref)" : ""})
+     LIMIT 1`);
+  const z = ((await sql(true).catch(() => null)) ?? (await sql(false).catch(() => []))) as any[];
+  return z.length > 0;
+}
+
 /** Die wählbare Nummer einer Person (primary_phone, Land) — E.164 oder null. */
 export async function personNummer(personId: number, lauf: Lauf = sqlPool): Promise<string | null> {
   const [p] = (await lauf`SELECT primary_phone, country FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
@@ -176,7 +192,9 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
       rechtsgrund = (await vertragsKunde(e.personId, lauf)) ? "vertrag" : "einwilligung";
       if (rechtsgrund === "einwilligung" && g?.werbesperre) return { ok: false, grund: "Werbesperre — ohne Vertrag ruft Aras hier nicht an." };
     }
+    if (e.spielart === "willkommen" && !(await willkommenBereit(e.personId, lauf))) return { ok: false, grund: "Willkommen nur nach dem unterschriebenen Antrag." };
   } else if (e.spielart === "auftrag") return { ok: false, grund: "Ein Auftrag braucht einen Kunden." };
+  else if (e.spielart === "willkommen") return { ok: false, grund: "Willkommen braucht einen Kunden mit unterschriebenem Antrag." };
   let einwilligungId = e.einwilligungId ?? null;
   if (rechtsgrund === "einwilligung") {
     if (!einwilligungId) {
@@ -273,7 +291,7 @@ function fensterEnde(spielart: Spielart, einst: ArasEinstellungen): Date {
   const wt = berlinTeile(new Date()).wochentag;
   let bis = "19:00";
   for (const [tage, zeit] of Object.entries(f)) {
-    const m = /^([1-6])(?:-([1-6]))?$/.exec(tage);
+    const m = /^([1-7])(?:-([1-7]))?$/.exec(tage);
     if (m && wt >= Number(m[1]) && wt <= Number(m[2] ?? m[1])) bis = zeit[1];
   }
   return heuteUm(Number(bis.slice(0, 2)), Number(bis.slice(3)));

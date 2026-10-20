@@ -194,7 +194,7 @@ router.post("/chef/aras/probe/hoerprobe", wache, async (req: ChefRequest, res: R
     // Je Akzent ein eigener Probesatz (Justin 20.10. abends), wenn die Seite keinen eigenen Text schickt.
     const roh: unknown = req.body?.dialekt;
     const dialekt = istDialekt(roh) ? roh : null;
-    const r = await hoerprobeErzeugen({ adapter: "openai_live", stimme: String(req.body?.stimme ?? "flitz"), text: String(req.body?.text ?? (dialekt ? HOERPROBE_SAETZE[dialekt] : HOERPROBE_SATZ_VORGABE)), dialekt });
+    const r = await hoerprobeErzeugen({ adapter: "openai_live", stimme: String(req.body?.stimme ?? "juni"), text: String(req.body?.text ?? (dialekt ? HOERPROBE_SAETZE[dialekt] : HOERPROBE_SATZ_VORGABE)), dialekt });
     res.json({ ok: true, id: r.id });
   } catch (e) { fehler(res, 400, text(e)); }
 });

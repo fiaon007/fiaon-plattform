@@ -17,13 +17,14 @@ export const ARAS_VERSION = "1.0-2026-10-19";
 // ── Spielarten ─────────────────────────────────────────────────────────────
 // E-408 Scheibe 2 (20.10.2026): „auftrag“ = ein Auftrag aus der Akte („Aras anrufen lassen“, „Offenes an Aras abgeben“) —
 // der Betreuer sagt, worum es geht; Rechtsgrund Vertrag (Kunde) oder seine Einwilligung (sonst kein Anruf).
-export const SPIELARTEN = ["termin", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"] as const;
+// E-408 Go-live (Justin 20.10.2026 abends): „willkommen“ = der Willkommens-Anruf 20 Minuten nach dem unterschriebenen Antrag.
+export const SPIELARTEN = ["termin", "willkommen", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"] as const;
 export type Spielart = (typeof SPIELARTEN)[number];
 export function istSpielart(v: unknown): v is Spielart { return typeof v === "string" && (SPIELARTEN as readonly string[]).includes(v); }
 
 export const SPIELART_TEXT: Record<Spielart, string> = {
-  termin: "Termin bei Aras", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Antrag unbezahlt",
-  stufe_a: "Zahlung gemeldet", rate: "Rate fällig", zusage: "Zusage nachfassen", rueckholung: "Rückholung",
+  termin: "Termin bei ARAS", willkommen: "Willkommen nach Antrag", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Antrag unbezahlt",
+  stufe_a: "Zahlung gemeldet", rate: "Rate offen", zusage: "Zusage nachfassen", rueckholung: "Rückholung",
   auftrag: "Auftrag vom Team", eingehend: "Eingehend", probe: "Probeanruf",
 };
 
@@ -32,15 +33,19 @@ export type Rechtsgrund = "vertrag" | "einwilligung" | "kunde_ruft" | "intern";
 export const RECHTSGRUND: Record<Spielart, Rechtsgrund> = {
   termin: "einwilligung", lead: "einwilligung", zuruf: "einwilligung", stufe_b: "einwilligung",
   stufe_a: "vertrag", rate: "vertrag", zusage: "vertrag", rueckholung: "einwilligung", eingehend: "kunde_ruft", probe: "intern",
+  // Willkommen (Koordination 20.10.2026 abends): Vertragsabwicklung, keine Werbung — nur wenn der Vertrag UNTERSCHRIEBEN ist
+  // (consent_contract), und nur Onboarding: Willkommen, Kundenkonto, Aktivierung = erste Monatsrate mit Betrag, Kartenversand,
+  // Betreuer. Keine anderen Produkte, kein Upgrade. Darum braucht es hier kein LEXR-Tor (anders als Lead/Stufe B kalt).
+  willkommen: "vertrag",
   // Auftrag aus der Akte: Vorgabe Vertrag — planEinreihen setzt „einwilligung“, wenn der Kontakt (noch) kein Kunde ist und ein Ja vorliegt.
   auftrag: "vertrag",
 };
 export function istWerbeSpielart(s: Spielart): boolean { return RECHTSGRUND[s] === "einwilligung"; }
 /** Vertragssachen (Rate, Zusage, Zahlung gemeldet, Auftrag aus der Akte) wählen im Raten-Fenster, alles andere im Verkaufs-Fenster. */
-export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag"; }
+export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag" || s === "willkommen"; }
 
 /** Priorität in der Warteschlange (1 = zuerst; 0 = außerhalb der Reihung). */
-export const PRIORITAET: Record<Spielart, number> = { termin: 1, lead: 2, zuruf: 2, auftrag: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
+export const PRIORITAET: Record<Spielart, number> = { termin: 1, willkommen: 2, lead: 2, zuruf: 2, auftrag: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
 /** Stufe B frisch (< 4 h nach Absenden, Einwilligung antrag_kaestchen/antrag_knopf) läuft als `zuruf` mit grund "antrag_frisch". */
 export const STUFE_B_FRISCH_STUNDEN = 4;
 
@@ -153,11 +158,14 @@ export interface ArasEreignis {
 
 // ── Fenster, Grenzen, Preise ───────────────────────────────────────────────
 export type Fenster = Record<string, [string, string]>;             // "1-5": ["09:00","19:00"], "6": [...]
+// Go-live (Justin 20.10.2026: „jeden Tag von 09:30 bis 21:00“): Mo–Sa 09:30–21:00. Sonntag und Feiertag nur für Rückrufe, die
+// der Kunde selbst gebucht hat (Sonntagsruhe: genervte Kunden und Belästigungs-Risiko nach § 7 UWG) — als Einstellung
+// änderbar: steht „7“ im Fenster, wählt ARAS auch sonntags.
 export const FENSTER_VORGABE: { verkauf: Fenster; rate: Fenster } = {
-  verkauf: { "1-5": ["09:00", "19:00"], "6": ["10:00", "16:00"] },
-  rate: { "1-5": ["09:00", "19:00"] },
+  verkauf: { "1-6": ["09:30", "21:00"] },
+  rate: { "1-6": ["09:30", "21:00"] },
 };
-export const FENSTER_FRUEHESTENS = "08:00", FENSTER_SPAETESTENS = "20:00";
+export const FENSTER_FRUEHESTENS = "08:00", FENSTER_SPAETESTENS = "21:00";
 /** Probeanrufe (nur an die hinterlegte eigene Nummer): 07–23 Uhr. */
 export const PROBE_FRUEHESTENS = "07:00", PROBE_SPAETESTENS = "23:00";
 export const RATEN_TAKTE_VORGABE = [3, 10, 20];
@@ -196,7 +204,9 @@ export interface SchluesselDef {
 // Justin 20.10.2026 (14:30, Anruf 12): „sprich FIAON richtig aus“ — FIAON steht mitten im Satz („von FIAON aus dem Kundenteam“),
 // nie allein vor einer Pause oder einem Gedankenstrich (dort zerfällt es in „Fi-a-on“). Rauchtest mit Spracherkennung: von fünf
 // Schreibweisen kam „FIAON“ (Großbuchstaben, mitten im Satz) dem Wort „Fiaon“ am nächsten; getrennt geschrieben zerfiel es.
-export const KI_HINWEIS_VORGABE = "Hallo, hier ist Aras von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
+// Go-live (Justin 20.10.2026 abends): ARAS ist eine Frau, ohne Artikel („ARAS spricht hier“, nie „der ARAS“), stellt sich als „die
+// digitale Mitarbeiterin von FIAON“ vor — der KI-Hinweis bleibt trotzdem ausdrücklich im ersten Satz (KI-VO Art. 50).
+export const KI_HINWEIS_VORGABE = "Ich grüße Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
 // Probe 20.10.2026 (Justin): die alte Frage war zu lang und steif (10 s, Internetadresse vorgelesen). Kurz, eine Frage, kein Link —
 // Speicherdauer und Datenschutzerklärung nennt Aras nur, wenn der Kunde nachfragt (shared/fiaon-aras-prompt.ts, AUFZEICHNUNG).
 // Justins Test 20.10. (Anruf 6): „Ein kurzes Ja reicht.“ klang wie Drängeln — die Frage ist jetzt EIN Satz. Ob er Ja sagt,
@@ -218,7 +228,7 @@ export function aufnahmeFrageFehler(w: string): string | null {
 
 /** Vertrag § 3: JSON { spielart: "an" | "aus" } — lead, stufe_b, rueckholung erst nach LEXR. Fehlende Spielarten = Vorgabe. */
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
-  termin: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
+  termin: "an", willkommen: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
   lead: "aus", stufe_b: "aus", rueckholung: "aus", eingehend: "aus",
 };
 /** „an“, true, 1 → an. */
@@ -231,7 +241,8 @@ function jsonLesen(wert: string): unknown {
   try { return JSON.parse(wert); } catch { return undefined; }
 }
 
-function fensterPruefen(wert: string): string | null {
+/** Prüft das Anruf-Fenster (JSON als Text). Auch das Register im KI-Raum nimmt genau diese Grenze (EINE Wahrheit). */
+export function fensterPruefen(wert: string): string | null {
   const j = jsonLesen(wert) as any;
   if (!j || typeof j !== "object" || Array.isArray(j)) return "Fenster: JSON wie { verkauf: { \"1-5\": [\"09:00\",\"19:00\"] }, rate: { … } }.";
   for (const k of Object.keys(j)) if (k !== "verkauf" && k !== "rate") return `Fenster: „${k}“ gibt es nicht (verkauf, rate).`;
@@ -240,7 +251,7 @@ function fensterPruefen(wert: string): string | null {
     if (f == null) continue; // fehlender Teil = Vorgabe
     if (typeof f !== "object") return `Fenster: „${teil}“ ist kein Objekt.`;
     for (const [tage, zeit] of Object.entries(f)) {
-      if (!/^([1-6])(-([1-6]))?$/.test(tage)) return `Fenster: Tage „${tage}“ — erlaubt 1–6 (Mo–Sa), nie 7 (So).`;
+      if (!/^([1-7])(-([1-7]))?$/.test(tage)) return `Fenster: Tage „${tage}“ — 1–7 (Mo–So; Sonntag nur, wenn ausdrücklich eingetragen).`;
       if (!Array.isArray(zeit) || zeit.length !== 2) return `Fenster: „${tage}“ braucht [von, bis].`;
       const [von, bis] = zeit as string[];
       if (!/^\d{2}:\d{2}$/.test(von) || !/^\d{2}:\d{2}$/.test(bis)) return `Fenster: Zeiten als HH:MM.`;
@@ -258,19 +269,20 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   aras_delegation: { typ: "enum", vorgabe: "responses", enum: DELEGATION, satz: "Wie GPT-Live Werkzeuge aufruft (Scheibe 1: responses)." },
   aras_modell_stimme: { typ: "text", vorgabe: "gpt-live-1", maxZeichen: 60, satz: "Das Sprachmodell." },
   aras_modell_gehirn: { typ: "text", vorgabe: "", maxZeichen: 60, satz: "Hintergrund-Modell für Werkzeuge (leer = Hausmodell)." },
-  aras_stimme: { typ: "text", vorgabe: "flitz", maxZeichen: 48, satz: "Die Stimme (flitz, nuri, juni oder eigene:<name>).", pruefen: (w) => (stimmeGueltig(w) ? null : "Stimme: flitz, nuri, juni oder eigene:<name>.") },
+  // Go-live (Justin 20.10.2026): „Wir nehmen Juni als feste Stimme“ — ARAS ist eine Frau. Die Probe darf andere Stimmen wählen.
+  aras_stimme: { typ: "text", vorgabe: "juni", maxZeichen: 48, satz: "Die Stimme (flitz, nuri, juni oder eigene:<name>).", pruefen: (w) => (stimmeGueltig(w) ? null : "Stimme: flitz, nuri, juni oder eigene:<name>.") },
   aras_stimme_beschreibung: { typ: "text", vorgabe: "", maxZeichen: 400, satz: "Eigene Stimme in Worten (nur ohne EU-Region)." },
-  aras_name: { typ: "text", vorgabe: "Aras", maxZeichen: 40, satz: "Wie er sich vorstellt.", pruefen: (w) => (w.trim() ? null : "Name darf nicht leer sein.") },
+  aras_name: { typ: "text", vorgabe: "ARAS", maxZeichen: 40, satz: "Wie sie sich vorstellt — ARAS, ohne Artikel.", pruefen: (w) => (w.trim() ? null : "Name darf nicht leer sein.") },
   aras_nachname: { typ: "text", vorgabe: "", maxZeichen: 40, satz: "Nachname — Vorgabe leer (eine KI braucht keinen)." },
   aras_fuellwoerter: { typ: "enum", vorgabe: "normal", enum: ["sparsam", "normal", "viel"], satz: "Wie viele „hm“, „also“, „genau“." },
   aras_lachen: { typ: "schalter", vorgabe: "an", satz: "Kurzes Lachen als Antwort auf etwas Lustiges." },
-  aras_tempo: { typ: "enum", vorgabe: "normal", enum: ["ruhig", "normal", "zuegig"], satz: "Sprechtempo." },
+  aras_tempo: { typ: "enum", vorgabe: "zuegig", enum: ["ruhig", "normal", "zuegig"], satz: "Sprechtempo (Vorgabe zügig — Justin 20.10.: „bisschen schneller“)." },
   aras_zuhoerlaute: { typ: "enum", vorgabe: "normal", enum: ["sparsam", "normal"], satz: "„mhm“, „ja“ beim Zuhören." },
   // Ton-Regler aus dem Nachtrag „Persona & Skalierung“ (Justin 19.10.2026): Energie und Abschluss-Härte.
   aras_energie: { typ: "enum", vorgabe: "lebendig", enum: ["ruhig", "lebendig", "vollgas"], satz: "Wie viel Schwung: ruhig, lebendig (Vorgabe) oder Vollgas — erst nach dem Test." },
   aras_abschluss: { typ: "enum", vorgabe: "klar", enum: ["sanft", "klar", "hartnaeckig"], satz: "Wie oft er nach einem Nein nachfragt: sanft 0, klar 1, hartnäckig 2 — nie 3." },
   // Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent und ein paar Wörter, die jeder versteht, nie tiefer Dialekt.
-  aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], satz: "Akzent: Hochdeutsch, leicht österreichisch oder deutlich wienerisch — immer verständlich." },
+  aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch", "oesterreichisch_stark"], satz: "Akzent: Hochdeutsch, leicht, deutlich oder ultra wienerisch — Beträge und Pflichtsätze immer klar." },
   // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — Büro-Atmosphäre unter Aras' Stimme (server/lib/fiaon-aras-atmo.ts).
   aras_hintergrund: { typ: "enum", vorgabe: "aus", enum: ["aus", "buero_leise", "buero"], satz: "Büro-Atmosphäre unter der Stimme: aus, leise oder deutlicher." },
   // Justins Test 20.10. (Anruf 5): „Also...“ mitten in seine Denkpause. GPT-Live hat keinen Schalter für das Zuhören (voll-duplex) —
@@ -295,7 +307,7 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   aras_parallel: { typ: "zahl", vorgabe: "2", min: 1, max: PARALLEL_HOECHSTENS, satz: "Gespräche gleichzeitig." },
   aras_je_stunde: { typ: "zahl", vorgabe: "40", min: 1, max: JE_STUNDE_HOECHSTENS, satz: "Wählversuche je Stunde." },
   aras_tag_euro: { typ: "zahl", vorgabe: "60", min: 0, max: TAG_EURO_HOECHSTENS, satz: "Kosten-Deckel je Tag (KI + Telefon)." },
-  aras_fenster: { typ: "json", vorgabe: JSON.stringify(FENSTER_VORGABE), satz: "Anruf-Fenster je Wochentag (08–20 Uhr, nie So).", pruefen: fensterPruefen },
+  aras_fenster: { typ: "json", vorgabe: JSON.stringify(FENSTER_VORGABE), satz: "Anruf-Fenster je Wochentag (08–21 Uhr; Sonntag nur, wenn eingetragen).", pruefen: fensterPruefen },
   aras_raten_takte: { typ: "json", vorgabe: JSON.stringify(RATEN_TAKTE_VORGABE), satz: "Tage nach Fälligkeit, an denen ARAS anruft.", pruefen: (w) => {
     const j = jsonLesen(w);
     if (!Array.isArray(j) || j.length === 0 || j.length > 4) return "Raten-Takte: 1–4 Zahlen, z. B. [3,10,20].";
@@ -315,7 +327,7 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   aras_probe_nummer: { typ: "text", vorgabe: "", maxZeichen: 20, satz: "Die EINE Nummer für Probeanrufe (nur DACH).", pruefen: (w) => (!w || (E164.test(w) && DACH_VORWAHL.test(w)) ? null : "Probe-Nummer: +49/+43/+41 in internationaler Schreibweise.") },
   aras_ausweis_agent_id: { typ: "zahl", vorgabe: "0", min: 0, max: 999999, satz: "Der ARAS-Ausweis in fiaon_agents (art = ki) — setzt der Erstlauf." },
   // Stufenplan (Nachtrag Persona & Skalierung): 0 Probe · 1 Test · 2 Leise · 3 Voll. Vorgabe 0 = nur Probeanrufe.
-  aras_stufe: { typ: "zahl", vorgabe: "0", min: 0, max: 3, satz: "Ausbaustufe: 0 nur Probe · 1 Test (20/Tag) · 2 Leise (150/Tag) · 3 Voll (430/Tag)." },
+  aras_stufe: { typ: "zahl", vorgabe: "0", min: 0, max: 3, satz: "Ausbaustufe: 0 nur Probe · 1 Test (40/Tag) · 2 Leise (150/Tag) · 3 Voll (430/Tag)." },
   aras_stufe_auto: { typ: "schalter", vorgabe: "an", satz: "Stufe nach den Ampel-Werten: bei Rot eine Stufe zurück, bei Grün über Tage eine hoch (nie über 3, nie aus 0)." },
   aras_lernen_an: { typ: "schalter", vorgabe: "an", satz: "Wochen-Lernvorschlag für den Stundenplan (nur Anzeige)." },
   aras_caller_id_at: { typ: "text", vorgabe: "", maxZeichen: 20, satz: "Absendernummer für Österreich (leer = ARAS_CALLER_ID).", pruefen: (w) => (!w || E164.test(w) ? null : "Nummer in internationaler Schreibweise.") },
@@ -367,10 +379,11 @@ export const HINTERGRUENDE = ["aus", "buero_leise", "buero"] as const;
 export type Hintergrund = (typeof HINTERGRUENDE)[number];
 export function istHintergrund(v: unknown): v is Hintergrund { return typeof v === "string" && (HINTERGRUENDE as readonly string[]).includes(v); }
 export const HINTERGRUND_TEXT: Record<Hintergrund, string> = { aus: "aus", buero_leise: "Büro leise", buero: "Büro" };
-export const DIALEKTE = ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"] as const;
+// Go-live (Justin 20.10.2026 abends): „im ultra Österreich Slang, also mehr Österreichisch“ — die oberste Stufe.
+export const DIALEKTE = ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch", "oesterreichisch_stark"] as const;
 export type Dialekt = (typeof DIALEKTE)[number];
 export function istDialekt(v: unknown): v is Dialekt { return typeof v === "string" && (DIALEKTE as readonly string[]).includes(v); }
-export const DIALEKT_TEXT: Record<Dialekt, string> = { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch" };
+export const DIALEKT_TEXT: Record<Dialekt, string> = { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch", oesterreichisch_stark: "Wienerisch ultra" };
 /** Wie geduldig Aras zuhört (aras_zuhoeren, Justins Test 20.10.: „Also...“ in seine Denkpause). */
 export const ZUHOEREN = ["geduldig", "normal", "flott"] as const;
 export type Zuhoeren = (typeof ZUHOEREN)[number];
@@ -396,7 +409,7 @@ export interface Regie {
   /** Menschliche Momente (aras_menschlich) — fehlt es, gilt „normal“. */
   menschlich?: Menschlich;
 }
-export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "normal", menschlich: "normal" };
+export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "zuegig", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "normal", menschlich: "normal" };
 export type Stufe = 0 | 1 | 2 | 3;
 
 // ── Stufenplan (Nachtrag Persona & Skalierung; Koordinator 20.10.2026: HART durchsetzen) ──────────────────
@@ -415,10 +428,11 @@ export interface StufenRegel {
 }
 export const STUFEN: Record<Stufe, StufenRegel> = {
   0: { stufe: 0, name: "Probe", versucheJeTag: 0, parallel: 0, tagEuro: 0, spielarten: [], rateTage: null, zurufNurNachricht: true },
-  // Stufe 1 „Test“: nur Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Stufe A und Raten an Tag 1–3 (Koordination 20.10.).
-  1: { stufe: 1, name: "Test", versucheJeTag: 20, parallel: 1, tagEuro: 15, spielarten: ["termin", "auftrag", "stufe_a", "rate"], rateTage: [1, 2, 3], zurufNurNachricht: true },
-  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "auftrag", "stufe_a", "rate", "zuruf", "zusage"], rateTage: null, zurufNurNachricht: true },
-  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "auftrag", "stufe_a", "rate", "zuruf", "zusage", "lead", "stufe_b", "rueckholung"], rateTage: null, zurufNurNachricht: false },
+  // Stufe 1 „Test“: Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Willkommen, Stufe A und Raten an Tag 1–3 (Koordination 20.10.).
+  // Go-live 21.10.2026 (Koordination): 40 Anrufe am Tag, einer gleichzeitig, 20 € am Tag — damit beide Szenarien hineinpassen.
+  1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: [1, 2, 3], zurufNurNachricht: true },
+  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zuruf", "zusage"], rateTage: null, zurufNurNachricht: true },
+  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zuruf", "zusage", "lead", "stufe_b", "rueckholung"], rateTage: null, zurufNurNachricht: false },
 };
 /** Die wirksamen Grenzen: immer das Engere aus Stufe und Schalter. Rein. */
 export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: number; spielarten: Partial<Record<Spielart, boolean>> }): {
@@ -534,7 +548,7 @@ export function berlinTeile(jetzt: Date): { datum: string; wochentag: number; hh
 
 function fensterZeile(f: Fenster, wochentag: number): [string, string] | null {
   for (const [tage, zeit] of Object.entries(f)) {
-    const m = /^([1-6])(?:-([1-6]))?$/.exec(tage);
+    const m = /^([1-7])(?:-([1-7]))?$/.exec(tage);
     if (!m) continue;
     const von = Number(m[1]), bis = m[2] ? Number(m[2]) : von;
     if (wochentag >= von && wochentag <= bis) return zeit;
@@ -561,13 +575,15 @@ export function fensterOffen(
     if (b.hhmm < FENSTER_FRUEHESTENS || b.hhmm >= FENSTER_SPAETESTENS) return { offen: false, grund: "nachtruhe" };
     return { offen: true, grund: null };
   }
-  if (b.wochentag === 7) return { offen: false, grund: "sonntag" };
-  if (feiertag) return { offen: false, grund: "feiertag" };
+  // Selbst gebuchte Rückrufe gelten an jedem Tag (auch Sonntag und Feiertag) — er hat die Zeit gewählt; nur die Nacht bleibt frei.
   if (spielart === "termin") {
     if (b.hhmm < FENSTER_FRUEHESTENS || b.hhmm >= FENSTER_SPAETESTENS) return { offen: false, grund: "nachtruhe" };
     return { offen: true, grund: null };
   }
   const f = opt.fenster ?? FENSTER_VORGABE;
+  // Sonntag nur, wenn im Fenster ausdrücklich eingetragen (Vorgabe: nie); Feiertag nie.
+  if (b.wochentag === 7 && !fensterZeile(istVertragsFenster(spielart) ? f.rate : f.verkauf, 7)) return { offen: false, grund: "sonntag" };
+  if (feiertag) return { offen: false, grund: "feiertag" };
   const zeile = fensterZeile(istVertragsFenster(spielart) ? f.rate : f.verkauf, b.wochentag);
   if (!zeile) return { offen: false, grund: "kein_fenster_heute" };
   if (b.hhmm < zeile[0] || b.hhmm >= zeile[1]) return { offen: false, grund: "ausserhalb_fenster" };
@@ -773,15 +789,16 @@ export interface HoerprobeZeile {
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
 export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren", "aras_menschlich"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
-export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Haben Sie einen kurzen Moment?";
+export const HOERPROBE_SATZ_VORGABE = "Ich grüße Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ich ruf wegen Ihrem Kreditkartenantrag an — haben Sie einen kurzen Moment?";
 /**
  * Justin 20.10.2026 (abends): „KI mehr Dialekt“ — im Stimmen-Studio je Akzent ein eigener Probesatz, damit er den
  * Unterschied sofort hört. Der KI-Hinweis steht in jedem (KI-VO Art. 50); nach „… nette.“ lacht Aras kurz (Hörprobe).
  */
 export const HOERPROBE_SAETZE: Record<Dialekt, string> = {
   hochdeutsch: HOERPROBE_SATZ_VORGABE,
-  oesterreichisch_leicht: "Grüß Gott, hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Passt's Ihnen grad a bissl, gell?",
-  oesterreichisch: "Grüß Gott, hier is der Aras von FIAON aus dem Kundenteam — i ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: I bin a KI, aber a sehr a nette. Schaun's, des geht ganz schnell, passt eh — ham's grad a bissl Zeit, gell?",
+  oesterreichisch_leicht: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ich ruf wegen Ihrem Kreditkartenantrag an — passt's Ihnen grad a bissl, gell?",
+  oesterreichisch: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a sehr a nette. I ruf wegen Ihrem Kreditkartenantrag an — ham's grad a bissl Zeit, gell?",
+  oesterreichisch_stark: "Grüß Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a nette. I ruf wegen Ihrem Kreditkartenantrag an — habens an Moment?",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

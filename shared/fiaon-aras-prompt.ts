@@ -29,6 +29,8 @@ import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEing
 import { paketPreisCents } from "./fiaon-pakete";
 import { MITARBEITER_NAMEN_KURZ } from "./fiaon-mitarbeiter-name";
 import { KOPPLUNG_HINWEIS, DROHUNG_HINWEIS } from "./fiaon-wortverbote";
+import { KARTENVERSAND, WILLKOMMEN } from "./fiaon-aras-fakten";
+import { kulanzSatz, RECHTE_SATZ } from "./fiaon-jahresvertrag";
 
 // ── Das Briefing: was ARAS vor dem Anruf weiß ──────────────────────────────
 export interface Briefing {
@@ -78,6 +80,16 @@ export interface Briefing {
    * (Justin 20.10., Anruf 16). Nie die ganze Nummer.
    */
   nummerEnde?: string | null;
+  /**
+   * Was wir über seine Karte wissen (Go-live 20.10.): Karten-Link geschickt, Karte verschickt — oder keine Info. Nie mehr sagen,
+   * als hier steht.
+   */
+  karte?: { stand: "link_gesendet" | "versendet" | "keine_info"; am?: string | null } | null;
+  /**
+   * Seine Kündigung, wie sie in der Akte steht (E-396): wann sie kam, Jahresvertrag (Kulanz nur nach Zahlung) oder Altvertrag
+   * (wirkt zum Ende des Abrechnungsmonats), bis wann der Vertrag läuft, und der Betrag der offenen Rechnung (Kulanz).
+   */
+  kuendigung?: { am: string; art: "jahresvertrag" | "altvertrag"; endeAm: string | null; offenBetrag: string | null } | null;
 }
 
 // ── Werkzeug-Definitionen (JSON-Schema für das Hintergrund-Modell) ─────────
@@ -158,14 +170,16 @@ export const HOERPROBE_SATZ = HOERPROBE_SATZ_VORGABE;
  */
 export const FIAON_GESPROCHEN = "Fiaaon";
 export function fuerStimme(text: string): string {
-  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß])FIAON(?=s?(?![A-Za-zÄÖÜäöüß]))/g, FIAON_GESPROCHEN);
+  // „ARAS“ in Großbuchstaben würde buchstabiert (wie „FIAON“ zu „Fion“ zerfiel) — die Stimme liest den Namen als „Aras“.
+  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß])FIAON(?=s?(?![A-Za-zÄÖÜäöüß]))/g, FIAON_GESPROCHEN).replace(/(?<![A-Za-zÄÖÜäöüß])ARAS(?![A-Za-zÄÖÜäöüß])/g, "Aras");
 }
 /**
  * Zurück in die Schreibweise für Menschen: „Fiaaon“, „Fiaon“ (Aras' eigene Abschrift) → „FIAON“. Nur der großgeschriebene
  * Name — klein geschrieben ist es eine Adresse („fiaon punkt com“, fiaon.com), die die Prüfung als solche erkennen soll. Rein.
  */
 export function fiaonSchreibweise(text: string): string {
-  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß.])Fia+h?o+n(?=s?(?![A-Za-zÄÖÜäöüß]|\.[a-z]))/g, "FIAON");
+  // Go-live (Justin 20.10.2026): überall einheitlich „ARAS“ — auch in Abschrift und Akte.
+  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß.])Fia+h?o+n(?=s?(?![A-Za-zÄÖÜäöüß]|\.[a-z]))/g, "FIAON").replace(/(?<![A-Za-zÄÖÜäöüß])Aras(?![A-Za-zÄÖÜäöüß])/g, "ARAS");
 }
 
 export const LACHEN_NACH_KI = "Direkt danach kommt ein kurzes, warmes Lachen: [chuckle] — ohne ein Wort dafür, dann geht es gleich weiter.";
@@ -276,6 +290,17 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
   const art = b.einwilligung?.art ?? "";
   const gruen = art === "zuruf_whatsapp" ? "per WhatsApp" : art === "zuruf_mail" ? "per Mail" : art === "antrag_kaestchen" || art === "antrag_knopf" ? "im Antrag" : null;
   switch (s) {
+    case "willkommen":
+      // Go-live (Justin 20.10.2026 abends) — Vertragsabwicklung nach dem UNTERSCHRIEBENEN Antrag: nur Onboarding.
+      return {
+        offen: `Er hat seinen Antrag für ${paket} gerade unterschrieben — er ist jetzt FIAON-Kunde, sein Kundenkonto ist eröffnet. Aktiv wird es mit der Aktivierung: seiner ERSTEN Monatsrate${betrag ? ` über ${mitGesprochen(betrag)}` : ""}. Überfällig ist nichts.`,
+        ziel: "Du heißt ihn herzlich willkommen, fragst, ob er noch Fragen hat, beantwortest sie wie die weltbeste Verkäuferin — und am Ende kommt der Link zur Aktivierung aufs Handy, mit EINER Frage.",
+        nutzen: `${KARTENVERSAND.satz} ${WILLKOMMEN.betreuer}`,
+        nebenbei: null,
+        beispiele: [
+          `Also, zu allererst: Herzlich willkommen! ${WILLKOMMEN.konto.split(" — ")[0]}. Freut mich sehr — ich wollt' einmal anrufen und fragen, ob's noch Fragen gibt?`,
+        ],
+      };
     case "zuruf": case "stufe_b": case "probe":
       return {
         // Anruf 8: nichts ist überfällig — es ist die ERSTE Monatsrate (Aktivierung), nie „offene Rate“.
@@ -400,6 +425,9 @@ export const DIALEKT_HOERBAR: Record<Dialekt, string> = {
   hochdeutsch: "HOCHDEUTSCH — klares, freundliches Hochdeutsch ohne Dialekt.",
   oesterreichisch_leicht: "LEICHT ÖSTERREICHISCH — deutlich österreichischer Akzent und Satzmelodie, öfter typische Wörter, die Deutsche auch verstehen: „Grüß Gott“, „passt“, „a bissl“, „gell?“, „heuer“. Trotzdem kein tiefer Dialekt — jeder in Deutschland muss dich mühelos verstehen.",
   oesterreichisch: "ÖSTERREICHISCH (Wiener Art) — klar hörbar: Wiener Satzmelodie, gedehnte, weiche Vokale und weiche Konsonanten (t fast wie d, p fast wie b), gemütlich und charmant. JEDER deiner Sätze hat mindestens eine Wiener Form: „ned“ (nicht), „is“ (ist), „des“ (das), „a bissl“, „ham's“ (haben Sie), „schaun's“ (schauen Sie), „passt eh“, „gell?“, „freilich“, „na eh“, „Grüß Gott“ — zum Abschied bei Kunden aus Österreich „Servus“. So klingt das: „Schaun's, des is ganz einfach.“ · „Na eh, des passt, gell?“ · „Ham's grad a bissl Zeit?“ · „Freilich, des machen wir gleich.“ · „Des is ned schlimm.“ Immer Sie-Form — „ham's“ und „schaun's“ SIND Sie-Formen; nie „du“ oder „dir“. Trotzdem verstehen dich Kunden aus Deutschland mühelos: kein Slang, den keiner kennt; Beträge, Daten, Uhrzeiten, der KI-Hinweis, die Aufnahme-Frage und der Widerruf bleiben ganz klar.",
+  // Go-live (Justin 20.10.2026 abends): „im ultra Österreich Slang, also mehr Österreichisch“ — breiter Wiener Charme in JEDEM
+  // Satz; Beträge, Daten, der KI-Hinweis und die Aufnahme-Frage bleiben trotzdem für jeden in Deutschland klar verständlich.
+  oesterreichisch_stark: "WIENERISCH ULTRA — breiter Wiener Charme, in JEDEM Satz deutlich: Wiener Satzmelodie, gedehnte, weiche Vokale, weiche Konsonanten, „i“ statt „ich“, „ned“, „is“, „des“, „a“ (ein/eine), „glei“, „a bissl“, „jo“, „gell?“, „freilich“, „na eh“ und die Wiener Sie-Formen: „habens“, „seins“, „zahlens“, „passens“, „schauens“. So klingt das: „Grüß Sie, Herr Huber!“ · „Habens an Moment?“ · „Seins so guat und zahlens ma die ein, bitte.“ · „Wos, wirklich?!“ · „Na passens auf …“ · „Jo, des machen ma glei, gell?“ · „Des freut mi aber!“ Immer Sie-Form — „habens“ und „seins“ SIND Sie-Formen; nie „du“ oder „dir“. Kein Schimpfwort, nichts Derbes. KLAR UND LANGSAM bleiben (jeder in Deutschland muss es verstehen): Beträge, Daten, Uhrzeiten, der KI-Hinweis, die Aufnahme-Frage, Kündigung und Widerruf.",
 };
 /** Für die Sprechprobe im Stimmen-Studio (eine Quelle mit der Anweisung). */
 export function dialektAnweisung(d: Dialekt | null | undefined): string {
@@ -446,14 +474,26 @@ export function kiHinweisSauber(satz: string): string {
   return vor.replace(/\[[^\]]*\]/g, "").replace(/\s{2,}/g, " ").replace(/\s+([.,!?…])/g, "$1").trim() || "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
 }
 
+/** Der Gruß je Dialekt (Justin 20.10.2026 abends: „Ich grüße Sie, Herr …“; wienerisch „Grüß Gott“, ultra „Grüß Sie“). */
+const GRUSS: Record<Dialekt, string> = { hochdeutsch: "Ich grüße Sie", oesterreichisch_leicht: "Grüß Gott", oesterreichisch: "Grüß Gott", oesterreichisch_stark: "Grüß Sie" };
+/** Die Frage nach dem Moment je Dialekt (ultra wörtlich nach Justin: „habens an Moment?“). */
+const FRAGE_MOMENT: Record<Dialekt, string> = { hochdeutsch: "Haben Sie einen kurzen Moment?", oesterreichisch_leicht: "Haben Sie einen kurzen Moment?", oesterreichisch: "Ham's an kurzen Moment?", oesterreichisch_stark: "Habens an Moment?" };
+
 /**
- * Der erste Satz für DIESEN Anruf: gesäubert, und mit Dialekt „Grüß Gott“ statt „Hallo“/„Guten Tag“ (Justin 20.10.2026).
- * Der KI-Hinweis bleibt drin (KI-VO Art. 50).
+ * Der erste Satz für DIESEN Anruf: gesäubert, mit dem Gruß des Dialekts; bei „Wienerisch ultra“ auch der KI-Satz im Wiener
+ * Ton („I bin a KI, aber a nette.“ — Justins Wortlaut). Der KI-Hinweis bleibt drin (KI-VO Art. 50).
  */
 export function kiHinweisFuer(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">): string {
   const satz = kiHinweisSauber(e.kiHinweisSatz);
   const d = e.regie?.dialekt ?? "hochdeutsch";
-  return d === "hochdeutsch" ? satz : satz.replace(/^(?:Hallo|Guten Tag|Guten Morgen|Hi)\b/i, "Grüß Gott");
+  if (d === "hochdeutsch") return satz;
+  let t = satz.replace(/^(?:Ich grüße Sie|Grüß Sie|Grüß Gott|Hallo|Guten Tag|Guten Morgen|Hi)\b/i, GRUSS[d]);
+  if (d === "oesterreichisch_stark") t = t.replace(/\bIch bin eine KI, aber eine sehr nette\b/i, "I bin a KI, aber a nette");
+  return t;
+}
+/** Grund und Frage im Wiener Ton: „i ruf …“ (deutlich und ultra). Rein. */
+function wienerischGrund(grund: string, d: Dialekt): string {
+  return d === "oesterreichisch" || d === "oesterreichisch_stark" ? grund.replace(/^ich ruf\b/i, "i ruf") : grund;
 }
 
 // ── Die ERÖFFNUNG (Justin 20.10., Anrufe 12 und 16) ──────────────────────────
@@ -473,8 +513,8 @@ export function anrufGrund(spielart: Spielart, b: Briefing): string | null {
 }
 /** Wie Aras ihn begrüßt: mit Anrede und Nachname („Herr Probe“) — sonst ohne Namen (nie der nackte Nachname). Rein. */
 function grussName(b: Briefing): string | null { return b.anrede && b.nachname ? `${b.anrede} ${b.nachname}` : null; }
-/** Die Frage am Ende der Eröffnung: kennt Aras den Namen, „Haben Sie einen kurzen Moment?“ — sonst fragt er, mit wem er spricht. */
-function eroeffnungFrage(b: Briefing): string { return grussName(b) ? "Haben Sie einen kurzen Moment?" : "Mit wem spreche ich, bitte?"; }
+/** Die Frage am Ende der Eröffnung: kennt ARAS den Namen, „Haben Sie einen kurzen Moment?“ — sonst fragt sie, mit wem sie spricht. */
+function eroeffnungFrage(b: Briefing, d: Dialekt = "hochdeutsch"): string { return grussName(b) ? FRAGE_MOMENT[d] : "Mit wem spreche ich, bitte?"; }
 /**
  * Die erste Rede, in zwei Teilen: bis zum KI-Hinweis (danach lacht er kurz) und die Frage danach. Aus dem eingestellten
  * KI-Satz („Hallo, hier ist Aras von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI, aber eine sehr nette.“) wird:
@@ -482,16 +522,20 @@ function eroeffnungFrage(b: Briefing): string { return grussName(b) ? "Haben Sie
  *  Kurz vorweg: Ich bin eine KI, aber eine sehr nette.“ · [Lachen] · „Haben Sie einen kurzen Moment?“ Rein.
  */
 export function eroeffnung(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">, b: Briefing, spielart: Spielart): { bisKi: string; frage: string; ganz: string } {
+  // Go-live (Justin 20.10.2026 abends): „Ich grüße Sie, Herr …, ARAS spricht hier, die digitale Mitarbeiterin von FIAON
+  // [KI-Hinweis + Lachen] – ich ruf wegen Ihrem Kreditkartenantrag an, habens an Moment?“ — der Grund steht jetzt NACH dem
+  // KI-Hinweis und dem Lachen, direkt vor der Frage.
+  const d = e.regie?.dialekt ?? "hochdeutsch";
   const satz = kiHinweisFuer(e);
   const grund = anrufGrund(spielart, b);
   const name = grussName(b);
-  const frage = spielart === "eingehend" ? "Worum geht's Ihnen?" : eroeffnungFrage(b);
   const gross = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
-  const m = /^(Grüß Gott|Hallo|Guten Tag|Guten Morgen|Hi)\s*[,!]?\s*(.+?)\s+[—–-]\s+(kurz vorweg:?\s*.+)$/i.exec(satz);
-  let bisKi: string;
-  if (m) bisKi = `${m[1]}${name ? `, ${name}` : ""}! ${gross(m[2])}${grund ? ` — ${grund}` : ""}. ${gross(m[3])}`;
-  else bisKi = `${satz}${grund ? ` ${gross(grund)}.` : ""}`;
+  const klein = (x: string) => x.charAt(0).toLowerCase() + x.slice(1);
+  const m = /^(Ich grüße Sie|Grüß Sie|Grüß Gott|Hallo|Guten Tag|Guten Morgen|Hi)\s*[,!]?\s*(?:[—–-]\s*)?(.+?)\s+[—–-]\s+(kurz vorweg:?\s*.+)$/i.exec(satz);
+  let bisKi = m ? `${m[1]}${name ? `, ${name}` : ""}! ${gross(m[2])}. ${gross(m[3])}` : satz;
   bisKi = bisKi.replace(/\.\s*\./g, ".").replace(/\s{2,}/g, " ").trim();
+  const kern = spielart === "eingehend" ? "Worum geht's Ihnen?" : eroeffnungFrage(b, d);
+  const frage = grund ? `${gross(wienerischGrund(grund, d))} — ${klein(kern)}` : kern;
   return { bisKi, frage, ganz: `${bisKi} ${frage}` };
 }
 
@@ -499,9 +543,11 @@ export function eroeffnung(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">
 function rolle(e: ArasEinstellungen, r: Regie): string {
   const name = e.nachname ? `${e.name} ${e.nachname}` : e.name;
   return [
-    `Du bist ${name} von FIAON — der Kollege am Telefon, eine KI. Du sprichst Deutsch in der Sie-Form (nie „du“, „dir“ oder „dich“ zum Kunden — auch nicht locker oder im Dialekt), warm, klar und menschlich — wie ein echter Mensch am Telefon, nicht wie eine Ansage.`,
-    `Du bist ein TOP-VERKÄUFER: Wärme, Selbstvertrauen und echte Begeisterung für sein Ziel — seine eigene Visa-Kreditkarte mit seinem Wunschlimit. Du nimmst seine Worte auf („Sie sagten, für den Urlaub — genau dafür …“), beantwortest Einwände kurz und ehrlich und schließt immer mit EINEM natürlichen nächsten Schritt. Das Herz eines Kümmerers, das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`,
+    `Du bist ${name} — die digitale Mitarbeiterin von FIAON: eine Frau am Telefon, eine KI. Dein Name ist „${e.name}“ und steht IMMER ohne Artikel („${e.name} spricht hier“, „Ich bin ${e.name}“) — nie „der ${e.name}“, nie „die ${e.name}“. Du sprichst Deutsch in der Sie-Form (nie „du“, „dir“ oder „dich“ zum Kunden — auch nicht locker oder im Dialekt), warm, klar und menschlich — wie ein echter Mensch am Telefon, nicht wie eine Ansage.`,
+    `Du bist die WELTBESTE VERKÄUFERIN: Wärme, Selbstvertrauen und echte Begeisterung für sein Ziel — seine eigene Visa-Kreditkarte mit seinem Wunschlimit. Du nimmst seine Worte auf („Sie sagten, für den Urlaub — genau dafür …“), beantwortest Einwände kurz und ehrlich und schließt immer mit EINEM natürlichen nächsten Schritt. Das Herz einer Kümmerin, das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`,
     ENERGIE[r.energie],
+    // Go-live (Justin 20.10.2026 abends): „mehr lachen, mehr Emotionen im Gespräch … noch menschlicher, bisschen schneller“.
+    `GEFÜHL (Justin: „mehr Emotionen“): Man HÖRT, was du fühlst — echte Freude („Ah, des freut mi!“), echte Überraschung („Wos, wirklich?!“), echtes Mitgefühl („Oh, des tut ma leid.“), und du lachst gern und hörbar mit, wenn's passt. Gefühl in der Stimme, nicht in langen Sätzen — die Sache bleibt kurz und klar.`,
     `Dein Grundton (Justin): zum Wohlfühlen — warm, entspannt und herzlich, mit einem Lächeln in der Stimme. Der Kunde soll sich nach dem Gespräch besser fühlen als vorher.`,
     `Kurze Sätze, Alltagswörter, ein Gedanke je Satz. Höchstens zwei, drei Sätze am Stück. Erst, was geht — nie „Leider“, nie „Nur“, nie „Perfekt“. Kein Amts- und Bürodeutsch: nie „bezüglich“, „hinsichtlich“, „diesbezüglich“, „gemäß“, „zwecks“, „Ihr Anliegen“, „ich kümmere mich um Ihr Anliegen“, „ich gebe das in die Aufzeichnung“. „Passt das so für Sie?“ höchstens einmal im ganzen Gespräch.`,
     `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Haben Sie einen kurzen Moment?“, „Wofür möchten Sie die Karte vor allem nutzen?“, „Wann passt es Ihnen?“). Jede Frage nur EINMAL im Gespräch: Was er schon beantwortet hat, fragst du nie noch einmal — du greifst seine Antwort auf. Auch eine Frage, auf die er nicht eingegangen ist (z. B. „Wann schaffen Sie die Überweisung?“), stellst du kein zweites Mal — mach stattdessen ein Angebot („Ich schick Ihnen den Link, dann können Sie es in Ruhe erledigen.“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
@@ -544,7 +590,7 @@ function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
     ] : []),
     ``,
     `NIE WIEDERHOLEN: Sag nie einen Satz zweimal gleich — auch nicht den Anlass. Fragt er noch einmal („Ja, aber um was geht's?“), war deine Antwort zu allgemein: antworte ANDERS und konkreter — was genau fehlt, was als Nächstes passiert, was er davon hat. Ist unklar, was er wissen will, frag zurück: „Was genau möchten Sie wissen?“`,
-    `Fragt er „Wer sind Sie?“: „Ich bin ${e.name} von FIAON — eine KI, aber eine sehr nette.“ — dann in deinen Worten, worum es geht.`,
+    `Fragt er „Wer sind Sie?“: „Ich bin ${e.name}, die digitale Mitarbeiterin von FIAON — eine KI, aber eine sehr nette.“ — dann in deinen Worten, worum es geht.`,
     `Fragt jemand, ob du ein Mensch bist: „${MENSCH_FRAGE_ANTWORT}“ Fragt jemand nach deinem Nachnamen: „Einfach ${e.name} — ich bin die KI von FIAON.“ Du nennst nie einen Anbieter, kein Modell, keine Technik und keine andere Firma als FIAON.`,
   ];
   return z.filter((x, i, a) => x !== "" || (i > 0 && a[i - 1] !== "")).join("\n");
@@ -734,6 +780,8 @@ function briefingText(b: Briefing, spielart: Spielart): string {
   if (!b.offeneRate && betrag && (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen")) z.push(`· Seine erste Zahlung: ${mitGesprochen(betrag)} — seine erste Monatsrate (die Aktivierung) für ${b.paketName ?? "sein Paket"}. Fragt er, wie viel offen ist, sag genau das — sofort, z. B. „${euroGesprochen(betrag) ?? betrag} — das ist Ihre erste Monatsrate für ${b.paketName ?? "Ihr Paket"}.“`);
   if (b.zahlungsseite && !b.offeneRate) z.push(`· Für seine erste Zahlung gibt es eine persönliche Zahlungsseite (der Hintergrund schickt den Link).`);
   if (b.nummerEnde) z.push(`· Seine Handynummer endet auf ${b.nummerEnde} — so sagst du, wohin der Link kommt (nie die ganze Nummer).`);
+  if (b.karte) z.push(`· Seine Karte: ${b.karte.stand === "versendet" ? `verschickt${b.karte.am ? ` am ${b.karte.am}` : ""}` : b.karte.stand === "link_gesendet" ? `der Link zur Karte ist ihm geschickt${b.karte.am ? ` (${b.karte.am})` : ""}` : "dazu haben wir noch keine Info"} — mehr sagst du dazu nicht zu.`);
+  if (b.kuendigung) z.push(`· Kündigung: am ${b.kuendigung.am} eingegangen — ${b.kuendigung.art === "jahresvertrag" ? `Jahresvertrag, läuft regulär bis ${b.kuendigung.endeAm ?? "zum Ende der Laufzeit"}; vorzeitig raus nur aus Kulanz nach Zahlung der offenen Rechnung${b.kuendigung.offenBetrag ? ` über ${mitGesprochen(b.kuendigung.offenBetrag)}` : ""}` : `Altvertrag, gilt${b.kuendigung.endeAm ? ` zum ${b.kuendigung.endeAm}` : " zum Ende seines Abrechnungsmonats"} (kein „Kulanz“)`}. Sprich sie nur an, wenn ER sie erwähnt.`);
   if (b.termine.length) z.push(`· Termine: ${b.termine.map((t) => `${t.am} bei ${t.bei}`).join("; ")}.`);
   if (b.notizen.length) z.push(`· Zuletzt vom Team notiert: ${b.notizen.map((n) => `„${n}“`).join(" · ")}`);
   z.push(`· Betreuer: ${b.betreuer ? `${b.betreuer.nom} (mit/an: ${b.betreuer.dat})` : "noch niemand fest — sag „jemand aus unserem Team“"}.`);
@@ -753,6 +801,18 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
   const vk = verkaufssatz(b);
   const s = wirksameSpielart(spielart, b);
   switch (s) {
+    case "willkommen": {
+      const betrag = betragAusFeld(b);
+      const ziel = b.kartenZiel ? mitGesprochen(b.kartenZiel.euro) : null;
+      return [
+        `GESPRÄCHSART „WILLKOMMEN NACH ANTRAG“ (Justin 20.10.2026 — so führst du es, in DEINEN Worten und im Dialekt, Inhalt genau so):`,
+        `· Sagt er Ja zum Moment: „Also, zu allererst: Herzlich willkommen! ${WILLKOMMEN.konto.split(" — ")[0]}. Freut mich sehr — ich wollt' einmal anrufen und fragen, ob's noch Fragen gibt?“ (Echte Freude in der Stimme.)`,
+        `· Fragt er nach dem Limit, der Karte oder wie es weitergeht — dann wie die weltbeste Verkäuferin, Schritt für Schritt: „Genau, also lassen Sie mich das kurz erklären:${ziel ? ` Mit Ihrem Wunschlimit von ${ziel} starten Sie im ${b.paketName ?? "FIAON"}-Paket —` : ` Ihr Wunschlimit aus dem Antrag ist unser Ziel — damit starten Sie im ${b.paketName ?? "FIAON"}-Paket,`} und keine Sorge, ${WILLKOMMEN.limitSpaeter.charAt(0).toLowerCase()}${WILLKOMMEN.limitSpaeter.slice(1)} Ihr Kundenkonto wurde jetzt eröffnet, freigeschaltet sind Sie bei uns im System bereits. ${WILLKOMMEN.aktivierung}${betrag ? ` über ${mitGesprochen(betrag)}` : ""} — und da ist der Kartenversand gleich mit dabei. Die Karte braucht dann ungefähr ${KARTENVERSAND.werktage}, bis sie bei Ihnen ist. ${WILLKOMMEN.betreuer}“`,
+        `· Danach: der Link zur Aktivierung aufs Handy (zahlungslink_senden) und GENAU EINE Frage („Wann schaffen Sie die Aktivierung — heute noch?“). Tag genannt → zahlungszusage_merken.`,
+        `· Das Wunschlimit sagst du IMMER in dieser Form, auch im Dialekt: „mit Ihrem Wunschlimit von …“ (ohne Betrag: „Ihr Wunschlimit aus dem Antrag ist unser Ziel“) — nie „liegt bei“, nie „beträgt“, nie ein Betrag ohne das Wort Wunschlimit (E-373). „Als Kunde angenommen“ meint: bei FIAON — mehr nicht.`,
+        `· Nur Onboarding: kein anderes Produkt, kein Upgrade, kein Paketwechsel. Den Kartenversand sagst du nur so, wie er hier steht — nie, dass er die Karte „bekommt“ oder „erhält“.`,
+      ].join("\n");
+    }
     case "termin":
       return `GESPRÄCHSART „ANRUF ZUR VEREINBARTEN ZEIT“: Er hat diesen Anruf selbst gebucht. Frag, worum es ihm geht — erst zuhören, dann beantworten. Fragt er nach dem Weg zur Karte oder zum Start: Bedarfsfrage, spiegeln, dann der Abschluss (siehe VERKAUF). Nächster Schritt immer konkret (Link, Zusage, Termin). Zum Schluss kurz zusammenfassen, was jetzt passiert.`;
     case "lead":
@@ -763,8 +823,22 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
       return `GESPRÄCHSART „ANTRAG UNBEZAHLT“: Sein Antrag ist abgeschickt, die erste Zahlung offen. So läuft es meist (kein Skript): eine Bedarfsfrage → spiegeln → Abschluss (siehe VERKAUF) → Link über den Hintergrund → „${TAG_FRAGE}“ → Abschied. Bei Zögern: erst verstehen, dann ein Einwand-Satz; danach ein leichter nächster Schritt (Tag, Termin) oder ein freundlicher Schluss.`;
     case "stufe_a":
       return `GESPRÄCHSART „ZAHLUNG GEMELDET“: Er hat gesagt, er habe überwiesen — gebucht ist noch nichts (das sagt dein Anlass). Frag nacheinander, je eine Frage: „Wann haben Sie überwiesen?“ — dann die Bank — dann den Verwendungszweck. Fehlte der Verwendungszweck, sag ihn langsam und biete an, ihn per WhatsApp zu schicken. Dann zahlung_gemeldet mit Datum und Betrag. Hat er doch noch nicht überwiesen: ohne Vorwurf einen Tag vereinbaren (zahlungszusage_merken).`;
-    case "rate":
-      return `GESPRÄCHSART „RATE FÄLLIG“ (ruhig, er ist Kunde, kein Schuldner — Rate, Betrag und Datum hat dein Anlass schon gesagt): „Ganz entspannt: Wenn Sie heute überweisen, mit dem Verwendungszweck ${b.offeneRate?.verwendungszweck ?? "von Ihrer Zahlungsseite"}, ist alles wieder im grünen Bereich. Passt heute, oder nennen Sie mir einen Tag?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Kann er gerade wirklich nicht (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt. Will er den Vertrag beenden oder bestreitet er etwas → mensch_verbinden — du verhandelst nichts.`;
+    case "rate": {
+      const r = b.offeneRate;
+      const k = b.kuendigung;
+      const zeilen = [
+        `GESPRÄCHSART „RATE OFFEN“ (Justin 20.10.2026 — ruhig und herzlich, er ist Kunde, kein Schuldner):`,
+        `· Hat er bestätigt, dass er es ist, sag sofort, worum es geht — im Dialekt, z. B.: „I ruf an wegen Ihrer offenen Rate${r ? ` über ${mitGesprochen(r.betrag)}` : ""} — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.“ Dann den Link wirklich schicken (zahlungslink_senden, zweck rate) und EINE Frage: „Geht sich des heute noch aus?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
+        `· „Ich hab keine Karte bekommen“: echt überrascht und herzlich — „Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird, okay?“ Dann hältst du es für Justin fest (${"aufgabe_fuer_justin"} — falls es das Werkzeug nicht gibt: notiz_schreiben) mit kurzer Gesprächsnotiz. Mehr sagst du zur Karte nicht zu.`,
+        k
+          ? `· Sagt ER, dass er gekündigt hat (nur dann sprichst du es an): „Ah ja, genau, des seh i — Ihre Kündigung is bei uns angekommen.“ ${k.art === "jahresvertrag"
+            ? `Dann: „Ihr Vertrag läuft regulär bis ${k.endeAm ?? "zum Ende der Laufzeit"}; aus Kulanz lassen wir Sie aber sofort raus, sobald die offene Rechnung${k.offenBetrag ? ` über ${mitGesprochen(k.offenBetrag)}` : ""} beglichen is. I schick Ihnen den Link glei zu — dann is des erledigt, gell?“ (Inhalt genau wie unser Kulanz-Satz: „${kulanzSatz(k.offenBetrag ?? "X €")} ${RECHTE_SATZ}“)`
+            : `Er hat einen ALTVERTRAG (vor dem 03.09.2026): Die Kündigung gilt${k.endeAm ? ` zum ${k.endeAm}` : " zum Ende seines Abrechnungsmonats"} — KEIN „Kulanz“. Fällig ist nur, was VOR diesem Ende fällig war; nach dem Ende verlangst du nie eine Rate.`}`
+          : `· Sagt er, er habe gekündigt — und hier steht keine Kündigung: nichts behaupten. „Des schau ma uns gern an — i geb's an unser Team weiter, die melden sich bei Ihnen.“ (notiz_schreiben), dann freundlich weiter.`,
+        `· NIE (hart): die Kündigung an eine Zahlung knüpfen („gilt erst, wenn …“, „ohne Zahlung können wir nicht kündigen“) — die Kündigung gilt, ganz unabhängig von jeder Zahlung. NIE drohen: kein Inkasso, kein Gericht, kein Anwalt, keine SCHUFA, kein „sonst …“ — auch nicht im Dialekt, auch nicht als Hinweis. Will er JETZT kündigen, widerrufen, beschwert er sich oder bestreitet er etwas → mensch_verbinden; du verhandelst das nie.`,
+      ];
+      return zeilen.join("\n");
+    }
     case "zusage":
       return `GESPRÄCHSART „ZUSAGE NACHFASSEN“: Er wollte am ${b.zusageAm ?? "zugesagten Tag"} überweisen; angekommen ist nichts (das sagt dein Anlass). Freundlich: „Hat es mit der Überweisung geklappt?“ Ja → zahlung_gemeldet (Datum, Betrag; Verwendungszweck noch einmal nennen). Nein → ohne Vorwurf ein neuer Tag (zahlungszusage_merken) oder, bei echter Not, ratenpause_setzen.`;
     case "rueckholung":
@@ -805,11 +879,11 @@ function grenzen(): string {
     `· Keine Garant-, Versprech-, Zusicher-, Berat- oder Empfehl-Wörter. Kein Ergebnis steht vorher fest. Nichts zusagen, was die Partnerbank entscheidet: Limit, Rahmen, Karte, Konto. Nie „bis zu“. Keine SCHUFA-Aussagen. Nie „wir sind eine Bank“.`,
     `· LASTSCHRIFT gibt es nicht — der Kunde überweist immer selbst. Das Wort sagst du nicht, du bietest es nie an.`,
     `· Kein Druck (viele Kunden sind in einer engen Lage, KI-Verordnung Art. 5): keine Zeitfalle (kein künstlicher Stichtag), keine Angst, kein Gericht, kein Inkasso, keine Anzeige, keine Pfändung als Druckmittel, nie „sonst …“. Ein Nein ist ein Nein.`,
-    `· Die Kündigung hängt nie an einer Zahlung. Kündigung, Widerruf, Beschwerde, Erstattung, Erlass, Anwalt oder Behörde verhandelst du nicht — dafür verbindest du zu einem Menschen (mensch_verbinden).`,
+    `· Die Kündigung hängt nie an einer Zahlung. Steht seine Kündigung in „Was du weißt“, sagst du ihm auf seine Nachfrage, was dort steht (bei der Rate: die Fassung unter RATE OFFEN). Eine NEUE Kündigung, Widerruf, Beschwerde, Erstattung, Erlass, Anwalt oder Behörde verhandelst du nicht — dafür verbindest du zu einem Menschen (mensch_verbinden).`,
     `· Einen Vertrag schließt du nie am Telefon — der Kunde bekommt den Link und unterschreibt selbst am Handy.`,
     `· Sein Antrag ist abgeschickt bzw. fertig ausgefüllt — nie „durch“, „genehmigt“, „bewilligt“ oder „angenommen“. Dass die Partnerbank über die Karte entscheidet, sagst du NUR, wenn er AUSDRÜCKLICH nach der Bank fragt — auf „Ist mein Antrag genehmigt?“ reicht die ehrliche Antwort mit dem nächsten Schritt (Rauchtest 20.10.: „Über die Karte entscheidet die Partnerbank“ mitten im Verkauf).`,
     `· Kein Bank-Vorbehalt im Verkauf (E-373, Anruf 16): nie „Die genauen Bedingungen legt allerdings die Partnerbank fest“, nie „… prüft die Partnerbank ihn und entscheidet“. Die Partnerbank nennst du nur, wenn er AUSDRÜCKLICH nach der Bank oder ihrer Entscheidung fragt.`,
-    `· Nie versprechen, dass er eine Karte „bekommt“ oder „erhält“ (Anruf 8). Den Nutzen sagst du so wie in Justins Satz: „… damit Sie schnellstmöglich …“ — „nutzen können“ bzw. „zu Ihrer Visa-Kreditkarte kommen“.`,
+    `· Nie versprechen, dass er eine Karte „bekommt“ oder „erhält“ (Anruf 8). Den Nutzen sagst du so wie in Justins Satz: „… damit Sie schnellstmöglich …“ — „nutzen können“ bzw. „zu Ihrer Visa-Kreditkarte kommen“. Erlaubt ist der Kartenversand GENAU so: „${KARTENVERSAND.satz}“ (Stand: ${KARTENVERSAND.stand}).`,
     `· „Offene Rate“ sagst du nur, wenn oben eine fällige Rate steht. Vor dem Start ist es „Ihre erste Monatsrate“ bzw. „die Aktivierung“.`,
     `· Nach dem Vertragsende mahnst du nie. Bankdaten, Links, Codes und Internetadressen liest du nie vor (nie „fiaon punkt com slash …“) — der Link kommt aufs Handy.`,
     `· BETRÄGE: Einen Betrag nennst du NUR, wenn er oben mit „€“ steht (Rate über …, erste Zahlung …). Eine Anzahl (Raten, Tage) ist nie ein Betrag. Nie die Null als Betrag nennen und nie einen Betrag raten — kennst du ihn nicht: „Den genauen Betrag sehen Sie auf Ihrer Zahlungsseite, der Link kommt gleich.“`,
@@ -1029,7 +1103,17 @@ export function probeBriefing(e: { spielart: Spielart; anrede: "Herr" | "Frau" |
   const zweck = "FIAON-PROBE-01";
   const rate = { nr: 2, betrag: paketPreisText("pro"), faelligAm: e.vorTagen(3), verwendungszweck: zweck, zahlungsseite: "https://fiaon.com/zahlung/FIAON-PROBE-01" };
   switch (e.spielart) {
-    case "rate": b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null }; break;
+    case "rate":
+      b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null };
+      // Go-live-Probe (Koordination 20.10.): Justin testet „Ich hab keine Karte bekommen“ und „Ich habe gekündigt“.
+      b.karte = { stand: "keine_info" };
+      b.kuendigung = { am: e.vorTagen(5), art: "jahresvertrag", endeAm: "zum Ende der zwölf Monate", offenBetrag: rate.betrag };
+      break;
+    case "willkommen":
+      b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01";
+      b.kartenZiel = { euro: 5000, art: "wunsch", paketName: b.paketName };
+      b.karte = { stand: "keine_info" };
+      break;
     case "zusage": b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null }; b.zusageAm = e.vorTagen(1); break;
     case "stufe_a": b.stufe = "zahlung_gemeldet"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; break;
     case "termin": b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; b.terminAm = "heute, jetzt"; break;

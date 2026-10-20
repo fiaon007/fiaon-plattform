@@ -4,7 +4,7 @@
 // Vorher: ein Textfeld „Tag JJJJ-MM-TT“, Zeilen wie „Probe Probe nicht erreicht … Prüf-Mara: entfaellt“, im Detail
 // „aufnahme_abgelehnt · 21 ms“ und ein leeres „Prüf-Mara:“ (die Liste kennt nur den Status, das Detail las ein Objekt).
 // Jetzt: Kalender mit ‹ › und „Heute“, Filter (Alle · Probe · Kunden · Daumen runter), Zeilen wie
-// „Probe · Rate fällig · 14:27 · 1:30 Min · 0,16 € · beendet von dir“. Detail: Zusammenfassung, Gespräch als
+// „Probe · Rate offen · 14:27 · 1:30 Min · 0,16 € · beendet von dir“. Detail: Zusammenfassung, Gespräch als
 // Sprechblasen (nur nach Aufnahme-Ja gespeichert), was Aras erledigt hat, dein Daumen, Prüf-Mara in Klartext.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";

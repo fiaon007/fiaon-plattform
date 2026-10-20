@@ -484,7 +484,7 @@ router.post("/chef/aras/hoerprobe", wache, async (req: ChefRequest, res: Respons
   const text = String(req.body?.text ?? "").trim().slice(0, 400);
   if (text.length < 5) return fehler(res, 400, "Bitte einen Satz zum Vorsprechen.");
   try {
-    const r = await a.hoerprobe.hoerprobeErzeugen({ adapter: String(req.body?.adapter ?? "openai_live"), stimme: String(req.body?.stimme ?? "flitz"), beschreibung: req.body?.beschreibung ? String(req.body.beschreibung).slice(0, 400) : undefined, text });
+    const r = await a.hoerprobe.hoerprobeErzeugen({ adapter: String(req.body?.adapter ?? "openai_live"), stimme: String(req.body?.stimme ?? "juni"), beschreibung: req.body?.beschreibung ? String(req.body.beschreibung).slice(0, 400) : undefined, text });
     res.json({ ok: true, id: r.id });
   } catch (e) { fehler(res, 500, String((e as Error)?.message ?? e).slice(0, 200)); }
 });

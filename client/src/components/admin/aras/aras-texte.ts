@@ -18,7 +18,7 @@ export const COCKPIT_SCHLUESSEL: readonly string[] = ["aras_leerlauf", "aras_not
 /** Ein Systemwort lesbar machen, wenn es (noch) keine Übersetzung hat: „neue_regel“ → „neue Regel“. */
 export const lesbar = (w: string | null | undefined): string => String(w ?? "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
 
-/** Gesprächsart in Worten („rate“ → „Rate fällig“). Eine Quelle: der Kern (shared/fiaon-aras.ts). */
+/** Gesprächsart in Worten („rate“ → „Rate offen“). Eine Quelle: der Kern (shared/fiaon-aras.ts). */
 export function spielartText(s: string | null | undefined): string {
   if (!s) return "";
   return (KERN_SPIELART_TEXT as Record<string, string>)[s] ?? lesbar(s);

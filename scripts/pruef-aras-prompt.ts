@@ -25,9 +25,14 @@ import {
 import { nachDemEingang } from "../shared/fiaon-mara-ton";
 import { kiHinweisFuer, dialektAnweisung } from "../shared/fiaon-aras-prompt";
 import { akteVorlesen } from "../shared/fiaon-aras-prompt";
-import { wandPruefen } from "../shared/fiaon-wortverbote";
+import { wandPruefen, kopplungFinden, drohungFinden } from "../shared/fiaon-wortverbote";
+import { fensterOffen, STUFEN, FENSTER_VORGABE, SPIELART_TEXT, RECHTSGRUND } from "../shared/fiaon-aras";
+import { KARTENVERSAND, WILLKOMMEN } from "../shared/fiaon-aras-fakten";
+import { kulanzSatz } from "../shared/fiaon-jahresvertrag";
+import { DIALEKT_HOERBAR } from "../shared/fiaon-aras-prompt";
 import { mitarbeiterVornameFunde, type MitarbeiterEintrag } from "../shared/fiaon-mitarbeiter-name";
 import { limitZusage } from "../shared/fiaon-mara-ton";
+import { identitaetGefragt } from "../shared/fiaon-ki-pruefung-regeln";
 
 let gut = 0, schlecht = 0;
 const log = (s = "") => console.log(s);
@@ -66,7 +71,7 @@ for (const spielart of SPIELARTEN) {
   if (spielart !== "eingehend") {
     // Justin 20.10. (Anruf 16): „sagt bitte in Zukunft, dass es auch um die Kreditkarte geht, wenn du anrufst“ — in JEDER Art.
     const er = eroeffnung(einstellungen, briefing, spielart);
-    ok(`${spielart}: Eröffnung nennt die Kreditkarte, FIAON mitten im Satz, KI-Hinweis, eine Frage am Schluss`, /Kreditkarte/.test(er.bisKi) && /von FIAON aus dem/.test(er.bisKi) && /\bKI\b/.test(er.bisKi) && /\?$/.test(er.frage), er.ganz);
+    ok(`${spielart}: Eröffnung — ARAS (ohne Artikel), die digitale Mitarbeiterin, FIAON mitten im Satz, KI-Hinweis; danach die Kreditkarte und EINE Frage`, /ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem/.test(er.bisKi) && !/\b(?:der|die) ARAS\b/.test(er.ganz) && /\bKI\b/.test(er.bisKi) && /Kreditkarte/.test(er.frage) && /\?$/.test(er.frage) && (er.frage.match(/\?/g) ?? []).length === 1, er.ganz);
     ok(`${spielart}: der Angerufene spricht zuerst — die Eröffnung kommt erst nach seinem „Hallo?“ (vorab gesprochen, die Technik spielt sie danach ab)`, /meldet sich ZUERST/.test(a.bausteine["2_anfang"]) && /die Technik spielt deine Eröffnung erst nach seinem „Hallo“ ab, du fällst ihm also nie ins Wort/.test(a.bausteine["2_anfang"]) && /Der Angerufene hat sich gerade gemeldet\. Sag jetzt sofort/.test(a.begruessung));
   }
   ok(`${spielart}: GPT-Live-Überschriften da`, ["Backchannel policy:", "Interruption policy:", "Delegation policy:", "Backend tools:", "Delegate to the backend when:", "Do not delegate to the backend when:"].every((h) => a.text.includes(h)));
@@ -125,7 +130,7 @@ titel("4. TON-REGLER WIRKEN IM TEXT");
   ok("viel/zügig/Lachen — „viel“ heißt locker, höchstens jeder dritte Satz", /höchstens in jedem dritten Satz/.test(viel.text) && !/fast (?:jeder|in jedem) zweite/.test(viel.text) && /zügig und lebendig/.test(viel.text) && /kurzes, warmes Lachen/.test(viel.text));
   ok("Verschiedene Regie → verschiedene Version", sparsam.version !== viel.version);
   const mitName = anweisungBauen({ spielart: "rate", briefing, einstellungen: { ...einstellungen, nachname: "Lindner" }, hausanweisung: null });
-  ok("Nachname-Schalter wirkt", /Du bist Aras Lindner von FIAON/.test(mitName.text));
+  ok("Nachname-Schalter wirkt", /Du bist ARAS Lindner — die digitale Mitarbeiterin von FIAON/.test(mitName.text));
   const haus = anweisungBauen({ spielart: "rate", briefing, einstellungen, hausanweisung: "Sag heute allen einen schönen Herbst." });
   ok("Hausanweisung steht zuletzt und hebt nichts auf", haus.text.endsWith("Sag heute allen einen schönen Herbst.") && /hebt die Grenzen oben nie auf/.test(haus.text));
   const kaputt = einstellungenAnwenden({ aras_energie: "laut", aras_abschluss: "drei" });
@@ -139,7 +144,7 @@ titel("5. KI-HINWEIS-SATZ, BEGRÜSSUNG, HINTERGRUND, PROBE");
   ok("kiHinweisSauber: leer → sicherer Satz mit KI", /\bKI\b/.test(kiHinweisSauber("")));
   ok("kiHinweisSauber: schneidet auch „Bin ich richtig bei …“ ab", kiHinweisSauber("Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI. Bin ich richtig bei Herrn [Nachname]?") === "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI.");
   const a = anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null });
-  ok("Begrüßung: grüßt „Frau Musterfrau“ mit Namen, fragt nach einem kurzen Moment und hört zu", /, Frau Musterfrau!/.test(a.begruessung) && /Haben Sie einen kurzen Moment\?/.test(a.begruessung) && /hör zu/.test(a.begruessung));
+  ok("Begrüßung: grüßt „Frau Musterfrau“ mit Namen, fragt nach einem kurzen Moment und hört zu", /, Frau Musterfrau!/.test(a.begruessung) && /haben Sie einen kurzen Moment\?/i.test(a.begruessung) && /hör zu/.test(a.begruessung));
   const herr = anweisungBauen({ spielart: "rate", briefing: { ...briefing, anrede: "Herr", nachname: "Muster" }, einstellungen, hausanweisung: null });
   ok("Begrüßung: „Herr Muster“ (mit Anrede, nie der nackte Nachname)", /, Herr Muster!/.test(herr.begruessung) && !/, Muster!/.test(herr.begruessung));
   const ein = anweisungBauen({ spielart: "eingehend", briefing, einstellungen, hausanweisung: null });
@@ -153,12 +158,12 @@ titel("5. KI-HINWEIS-SATZ, BEGRÜSSUNG, HINTERGRUND, PROBE");
   ok("Probe ohne Person baut sich (Name unbekannt → nachfragen)", /Name unbekannt/.test(leer.text) && /PROBEANRUF/.test(leer.text));
   const pb = probeBriefing({ spielart: "rate", anrede: "Herr", nachname: "Probe", heute: briefing.heute, vorTagen: () => "17.10.2026" });
   const pa = anweisungBauen({ spielart: "probe", briefing: pb, einstellungen, hausanweisung: null });
-  ok("Probe-Briefing (Rate): erfundene Rate FIAON-PROBE-01, Gesprächsart Rate", /FIAON-PROBE-01/.test(pa.text) && /RATE FÄLLIG/.test(pa.text) && pb.probe === true);
+  ok("Probe-Briefing (Rate): erfundene Rate FIAON-PROBE-01, Gesprächsart „Rate offen“ (mit „keine Karte“ und Kündigung)", /FIAON-PROBE-01/.test(pa.text) && /RATE OFFEN/.test(pa.text) && /Wos — wirklich!/.test(pa.text) && /Kündigung: am .* eingegangen — Jahresvertrag/.test(pa.text) && pb.probe === true);
   ok("Probe-Briefing: Wortwand frei", hart(pa.text).length === 0 && hart(pa.backend).length === 0);
   ok("Probe: Hintergrund weiß, dass die Werkzeuge im Probebetrieb laufen", /Probebetrieb/.test(pa.backend));
   const at = anweisungBauen({ spielart: "rate", briefing: { ...briefing, land: "AT" }, einstellungen, hausanweisung: null });
   ok("AT: Hinweis „nie SCHUFA“", /sag nie „SCHUFA“/.test(at.text));
-  ok("Hörprobe-Satz: die neue Eröffnung (Kreditkartenantrag, KI-Hinweis, kurzer Moment), Wortwand frei", /\bKI\b/.test(HOERPROBE_SATZ) && /Kreditkartenantrag/.test(HOERPROBE_SATZ) && /von FIAON aus dem Kundenteam/.test(HOERPROBE_SATZ) && hart(HOERPROBE_SATZ).length === 0);
+  ok("Hörprobe-Satz: die neue Eröffnung (ARAS, digitale Mitarbeiterin, KI-Hinweis, Kreditkartenantrag, kurzer Moment), Wortwand frei", /KI/.test(HOERPROBE_SATZ) && /Kreditkartenantrag/.test(HOERPROBE_SATZ) && /ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam/.test(HOERPROBE_SATZ) && hart(HOERPROBE_SATZ).length === 0);
   ok("gesprochen: Links raus, zwei Sätze", gesprochen("Erster Satz mit https://fiaon.com/a/x/w drin. Zweiter Satz. Dritter Satz.") === "Erster Satz mit drin. Zweiter Satz.");
   const auftrag = anweisungBauen({ spielart: "rate", briefing: { ...briefing, auftrag: { text: "Bitte sagen, dass er seinen Kontoauszug hochladen soll.", von: "Herr Stripling" }, arasNotiz: "Nur abends erreichbar.", offenes: ["Rate 2 über 59,99 €", "Kontoauszug fehlt"] }, einstellungen, hausanweisung: null });
   ok("Auftrag, Notiz und Offenes stehen im Briefing", /AUFTRAG von Herr Stripling/.test(auftrag.text) && /Nur abends erreichbar/.test(auftrag.text) && /1\. Rate 2 über 59,99 €/.test(auftrag.text));
@@ -244,7 +249,7 @@ titel("6. PROBE 20.10.2026 (Justins erster Anruf): Wahrheit, Anlass, Aufzeichnun
   // e) Justins Regie ist hörbar: Vollgas · viel · zügig stehen ganz oben, konkret
   {
     const a = anweisungBauen({ spielart: "zuruf", briefing, einstellungen: justin, hausanweisung: null });
-    ok("Regie steht ganz oben (vor der Rolle)", a.text.startsWith("DEINE STIMME") && a.text.indexOf("VOLLGAS") < a.text.indexOf("Du bist Aras"));
+    ok("Regie steht ganz oben (vor der Rolle)", a.text.startsWith("DEINE STIMME") && a.text.indexOf("VOLLGAS") < a.text.indexOf("Du bist ARAS"));
     ok("Vollgas · viel · zügig konkret beschrieben („viel“ = locker, nicht mehr Füllwörter)", /VOLLGAS — hörbare Begeisterung/.test(a.text) && /VIEL heißt LOCKER, nicht mehr Füllwörter/.test(a.text) && /ZÜGIG — flott und spritzig/.test(a.text));
     const ruhig = anweisungBauen({ spielart: "zuruf", briefing, einstellungen: einstellungenAnwenden({ aras_energie: "ruhig", aras_fuellwoerter: "sparsam", aras_tempo: "ruhig" }), hausanweisung: null });
     ok("Rot-Probe: ruhig/sparsam/ruhig sagt NICHT Vollgas", !/VOLLGAS/.test(ruhig.text) && /RUHIG — gelassen/.test(ruhig.text) && /SPARSAM/.test(ruhig.text));
@@ -258,10 +263,10 @@ titel("6b. JUSTIN 20.10. (nach seinen Tests): kein Dranbleiben, menschliche Wör
     const alles = `${a.text}\n${a.backend}\n${a.begruessung}`;
     ok(`${art}: kein „ich bleibe dran, während Sie überweisen“`, !/ich bleibe? (?:gern )?dran|dranbleib|während Sie überweisen/i.test(alles), (alles.match(/.{30}(?:ich bleibe? (?:gern )?dran|dranbleib|während Sie überweisen).{30}/i) ?? [""])[0]);
     ok(`${art}: keine Bürowörter als Vorlage (bezüglich, „ich kümmere mich wirklich um Ihr Anliegen“)`, !/\bbezüglich\b(?![“"]?,)/i.test(a.text.replace(/nie „bezüglich“[^\n]*/g, "")) && !/kümmere mich wirklich um Ihr Anliegen/.test(alles));
-    ok(`${art}: Fragen wie ein Mensch („Haben Sie einen kurzen Moment?“), jede Frage nur einmal, kein „Bin ich richtig bei …?“ mehr`, art === "eingehend" || (/Haben Sie einen kurzen Moment\?/.test(a.text) && /Jede Frage nur EINMAL/.test(a.text) && !/Bin ich richtig bei/.test(a.text) && !/Haben Sie kurz zwei Minuten/.test(a.text)));
-    ok(`${art}: Top-Verkäufer — Begeisterung für sein Ziel, seine Worte aufnehmen, EIN nächster Schritt`, /TOP-VERKÄUFER/.test(a.text) && /seine Worte auf/.test(a.text) && /EINEM natürlichen nächsten Schritt/.test(a.text));
+    ok(`${art}: Fragen wie ein Mensch („Haben Sie einen kurzen Moment?“), jede Frage nur einmal, kein „Bin ich richtig bei …?“ mehr`, art === "eingehend" || (/haben Sie einen kurzen Moment\?/i.test(a.text) && /Jede Frage nur EINMAL/.test(a.text) && !/Bin ich richtig bei/.test(a.text) && !/Haben Sie kurz zwei Minuten/.test(a.text)));
+    ok(`${art}: die weltbeste Verkäuferin (ARAS ohne Artikel) — Begeisterung für sein Ziel, seine Worte aufnehmen, EIN nächster Schritt, Gefühl hörbar`, /die WELTBESTE VERKÄUFERIN/.test(a.text) && /IMMER ohne Artikel/.test(a.text) && /nie „der ARAS“/.test(a.text) && /seine Worte auf/.test(a.text) && /EINEM natürlichen nächsten Schritt/.test(a.text) && /GEFÜHL/.test(a.text));
   }
-  ok("KI-Hinweis: leicht und charmant, sagt „KI“, keine Belehrung — FIAON mitten im Satz (Anruf 12: Aussprache)", /Ich bin eine KI, aber eine sehr nette\./.test(KI_HINWEIS_VORGABE) && /von FIAON aus dem Kundenteam/.test(KI_HINWEIS_VORGABE) && !/FIAON\s*[—–-]/.test(KI_HINWEIS_VORGABE) && !/kümmere mich/.test(KI_HINWEIS_VORGABE) && KI_HINWEIS_VORGABE.length <= 110, KI_HINWEIS_VORGABE);
+  ok("KI-Hinweis: ARAS, die digitale Mitarbeiterin, sagt „KI“, leicht und charmant — FIAON mitten im Satz (Anruf 12: Aussprache)", /Ich bin eine KI, aber eine sehr nette\./.test(KI_HINWEIS_VORGABE) && /ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam/.test(KI_HINWEIS_VORGABE) && !/FIAON\s*[—–-]/.test(KI_HINWEIS_VORGABE) && !/kümmere mich/.test(KI_HINWEIS_VORGABE) && KI_HINWEIS_VORGABE.length <= 150, KI_HINWEIS_VORGABE);
   ok("Abschluss: Link anbieten, dann den Tag nennen lassen, herzlich bestätigen", /zahlungslink_senden/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text) && /Wann schaffen Sie die Überweisung — heute noch\?/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text));
   ok("Rot-Probe: der alte Dranbleib-Satz würde erkannt", /ich bleibe? (?:gern )?dran|während Sie überweisen/i.test("Ich bleibe gern dran, während Sie überweisen."));
   ok("Mensch-Frage: ehrlich KI, ohne Belehrung", /ich bin eine KI/i.test(MENSCH_FRAGE_ANTWORT) && MENSCH_FRAGE_ANTWORT.length < 140);
@@ -270,10 +275,10 @@ titel("6b. JUSTIN 20.10. (nach seinen Tests): kein Dranbleiben, menschliche Wör
 titel("6c. DIALEKT (aras_dialekt, Justin 20.10.): Hochdeutsch als Vorgabe, Österreichisch leicht oder deutlich — nie tiefer Dialekt");
 {
   const hd = einstellungenAnwenden({});
-  ok("Vorgabe: Hochdeutsch, „Hallo“, kein „Grüß Gott“", hd.regie.dialekt === "hochdeutsch" && /^Hallo, hier ist Aras/.test(kiHinweisFuer(hd)) && dialektAnweisung("hochdeutsch") === "");
+  ok("Vorgabe: Hochdeutsch, „Ich grüße Sie“, kein „Grüß Gott“", hd.regie.dialekt === "hochdeutsch" && /^Ich grüße Sie — ARAS spricht hier/.test(kiHinweisFuer(hd)) && dialektAnweisung("hochdeutsch") === "");
   const leicht = einstellungenAnwenden({ aras_dialekt: "oesterreichisch_leicht" });
   const a = anweisungBauen({ spielart: "rate", briefing, einstellungen: leicht, hausanweisung: null });
-  ok("Leicht österreichisch: „Grüß Gott“ statt „Hallo“, KI-Hinweis bleibt (Art. 50)", /^Grüß Gott, hier ist Aras von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI/.test(kiHinweisFuer(leicht)) && a.begruessung.includes("Grüß Gott") && /\bKI\b/.test(a.begruessung));
+  ok("Leicht österreichisch: „Grüß Gott“ statt „Ich grüße Sie“, KI-Hinweis bleibt (Art. 50)", /^Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI/.test(kiHinweisFuer(leicht)) && a.begruessung.includes("Grüß Gott") && /KI/.test(a.begruessung));
   ok("Leicht österreichisch (= das bisherige „österreichisch“): Akzent + Wörter, die jeder versteht, nie tiefer Dialekt", /LEICHT ÖSTERREICHISCH — deutlich österreichischer Akzent/.test(a.text) && /a bissl/.test(a.text) && /heuer/.test(a.text) && /jeder in Deutschland muss dich mühelos verstehen/.test(a.text));
   ok("„Servus“ nur zum Abschied und nur für Kunden aus Österreich", /„Servus“ sagst du nur zum Abschied und nur zu Kunden aus Österreich/.test(a.text) && !/Servus/.test(anweisungBauen({ spielart: "rate", briefing, einstellungen: hd, hausanweisung: null }).text));
   const voll = einstellungenAnwenden({ aras_dialekt: "oesterreichisch" });
@@ -361,7 +366,7 @@ titel("9. JUSTIN 20.10. ABENDS + ANRUF 8: Lachen nach dem KI-Hinweis, mehr Diale
   const pb = probeBriefing({ spielart: "zuruf", anrede: "Herr", nachname: "Probe", heute, vorTagen: () => "17.10.2026" });
   const a = anweisungBauen({ spielart: "probe", briefing: pb, einstellungen: wien, hausanweisung: null });
   // Lachen
-  const iKi = a.begruessung.indexOf("aber eine sehr nette.“"), iLachen = a.begruessung.indexOf(LACHEN_NACH_KI), iName = a.begruessung.indexOf("Haben Sie einen kurzen Moment?");
+  const iKi = a.begruessung.indexOf("aber eine sehr nette.“"), iLachen = a.begruessung.indexOf(LACHEN_NACH_KI), iName = a.begruessung.indexOf("Dann gleich: „");
   ok("Lachen: in der Begrüßung direkt nach dem KI-Hinweis und vor der Frage", iKi > 0 && iLachen > iKi && iName > iLachen, a.begruessung.slice(0, 260));
   ok("Lachen: auch in Pflicht 1 — und nach einer Unterbrechung erst nach dem vollständigen KI-Hinweis", /Direkt danach lachst du kurz, warm und hörbar/.test(a.bausteine["2_anfang"]) && /und erst dann kommt das Lachen/.test(a.bausteine["2_anfang"]));
   ok("Lachen: nie als Wort — kein Lach-Wort irgendwo in Stimme, Hintergrund oder Begrüßung", !/\b(?:ha){2,}\b|\bhehe\b|\bhihi\b/i.test(`${a.text}\n${a.backend}\n${a.begruessung}`));
@@ -380,14 +385,14 @@ titel("9. JUSTIN 20.10. ABENDS + ANRUF 8: Lachen nach dem KI-Hinweis, mehr Diale
   ok("Rot-Probe: „leicht österreichisch“ bleibt leicht — keine Pflicht je Satz, kein „ned“/„ham's“", !/JEDER deiner Sätze/.test(DIALEKT_HOERBAR.oesterreichisch_leicht) && !/„ned“|„ham's“|„schaun's“/.test(DIALEKT_HOERBAR.oesterreichisch_leicht));
   ok("Aufnahme-Frage beim zweiten Mal: dieselbe Frage mit „aufzeichnen“, auch im Dialekt (Rauchtest: „mitschneiden“)", /dieselbe Frage, ruhig wörtlich — immer mit dem Wort „aufzeichnen“, auch im Dialekt/.test(a.bausteine["3_aufzeichnung"]));
   ok("Rot-Probe: Hochdeutsch hat keine Wiener Formen", !/„ned“|„ham's“|„schaun's“/.test(anweisungBauen({ spielart: "probe", briefing: pb, einstellungen: einstellungenAnwenden({}), hausanweisung: null }).text));
-  ok("Stimmen-Studio: je Akzent ein eigener Probesatz, jeder mit KI-Hinweis und „nette.“ (dort lacht er), Wortwand frei", DIALEKTE.every((d) => /\bKI\b/.test(HOERPROBE_SAETZE[d]) && /nette\./.test(HOERPROBE_SAETZE[d]) && hart(HOERPROBE_SAETZE[d]).length === 0) && new Set(Object.values(HOERPROBE_SAETZE)).size === 3);
-  ok("Probesatz Österreichisch zeigt den Dialekt („is“, „a bissl“, „ham's“, „schaun's“, „passt eh“, „gell“)", ["is der Aras", "a bissl", "ham's", "Schaun's", "passt eh", "gell"].every((w) => HOERPROBE_SAETZE.oesterreichisch.includes(w)));
+  ok("Stimmen-Studio: je Akzent ein eigener Probesatz, jeder mit KI-Hinweis und „nette.“ (dort lacht sie), Wortwand frei", DIALEKTE.every((d) => /KI/.test(HOERPROBE_SAETZE[d]) && /nette\./.test(HOERPROBE_SAETZE[d]) && hart(HOERPROBE_SAETZE[d]).length === 0) && new Set(Object.values(HOERPROBE_SAETZE)).size === DIALEKTE.length);
+  ok("Probesatz Österreichisch zeigt den Dialekt („I bin a KI“, „a bissl“, „ham's“, „gell“) — Wien ultra noch breiter („Grüß Sie“, „habens an Moment?“)", ["I bin a KI", "a bissl", "ham's", "gell"].every((w) => HOERPROBE_SAETZE.oesterreichisch.includes(w)) && ["Grüß Sie", "I bin a KI, aber a nette", "habens an Moment?"].every((w) => HOERPROBE_SAETZE.oesterreichisch_stark.includes(w)));
   // Anrede (Anruf 8: „Bin ich richtig bei <Nachname>?“ — nackter Nachname; hier mit erfundenem Namen)
   const ohneAnrede = { ...pb, anrede: null, vorname: "Max" } as Briefing;
-  ok("Anrede: mit Herr → „Grüß Gott, Herr Probe!“; ohne Anrede → ohne Namen und „Mit wem spreche ich, bitte?“, nie der nackte Nachname", /Grüß Gott, Herr Probe!/.test(begruessungText(wien, pb, "probe")) && nennformDativ(pb) === "Herrn Probe" && !/Probe!/.test(begruessungText(wien, ohneAnrede, "probe")) && /Mit wem spreche ich, bitte\?/.test(begruessungText(wien, ohneAnrede, "probe")));
+  ok("Anrede: mit Herr → „Grüß Gott, Herr Probe!“; ohne Anrede → ohne Namen und „Mit wem spreche ich, bitte?“, nie der nackte Nachname", /Grüß Gott, Herr Probe!/.test(begruessungText(wien, pb, "probe")) && nennformDativ(pb) === "Herrn Probe" && !/Probe!/.test(begruessungText(wien, ohneAnrede, "probe")) && /mit wem spreche ich, bitte\?/i.test(begruessungText(wien, ohneAnrede, "probe")));
   const nackt = { ...pb, anrede: null, vorname: null } as Briefing;
   const nacktA = anweisungBauen({ spielart: "probe", briefing: nackt, einstellungen: wien, hausanweisung: null });
-  ok("Rot-Probe: ohne Anrede und Vorname nie der nackte Nachname — dann fragt er, mit wem er spricht", !/(?:Gott|Hallo), Probe!|richtig bei Probe\?/.test(`${nacktA.text}\n${nacktA.begruessung}`) && /Mit wem spreche ich, bitte\?/.test(nacktA.begruessung) && /sag nie den nackten Nachnamen/.test(nacktA.text));
+  ok("Rot-Probe: ohne Anrede und Vorname nie der nackte Nachname — dann fragt er, mit wem er spricht", !/(?:Gott|Hallo), Probe!|richtig bei Probe\?/.test(`${nacktA.text}\n${nacktA.begruessung}`) && /mit wem spreche ich, bitte\?/i.test(nacktA.begruessung) && /sag nie den nackten Nachnamen/.test(nacktA.text));
   // Anlass passt zu den Daten (Anruf 8: Probe „Rate“ mit Testperson ohne Rate, Stand Interessent)
   const leadRate = { ...leeresBriefing("DE", true), anrede: "Herr", nachname: "Probe", probeSpielart: "rate", stufe: "lead" } as Briefing;
   const aLead = anweisungBauen({ spielart: "probe", briefing: leadRate, einstellungen: wien, hausanweisung: null });
@@ -413,8 +418,11 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
   const a = anweisungBauen({ spielart: "probe", briefing: pb, einstellungen: wien, hausanweisung: null });
   // Eröffnung (Anruf 16, Justin wörtlich: „… Ich rufe wegen Ihrem Kreditkartenantrag an. Haben Sie einen kurzen Moment?“)
   const er = eroeffnung(wien, pb, "probe");
-  ok("Eröffnung: „Grüß Gott, Herr Probe! Hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: … KI …“ + „Haben Sie einen kurzen Moment?“",
-    /^Grüß Gott, Herr Probe! Hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an\. Kurz vorweg: Ich bin eine KI, aber eine sehr nette\.$/.test(er.bisKi) && er.frage === "Haben Sie einen kurzen Moment?", er.ganz);
+  ok("Eröffnung (Justin 20.10. abends): „Grüß Gott, Herr Probe! ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: … KI …“ [Lachen] „I ruf wegen Ihrem Kreditkartenantrag an — ham's an kurzen Moment?“",
+    /^Grüß Gott, Herr Probe! ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam\. Kurz vorweg: Ich bin eine KI, aber eine sehr nette\.$/.test(er.bisKi) && er.frage === "I ruf wegen Ihrem Kreditkartenantrag an — ham's an kurzen Moment?", er.ganz);
+  const ultra = einstellungenAnwenden({ aras_dialekt: "oesterreichisch_stark" });
+  const erU = eroeffnung(ultra, pb, "willkommen");
+  ok("Wien ultra (Justin wörtlich): „Grüß Sie, Herr Probe! … I bin a KI, aber a nette.“ + „I ruf wegen Ihrem Kreditkartenantrag an — habens an Moment?“", erU.bisKi === "Grüß Sie, Herr Probe! ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a nette." && erU.frage === "I ruf wegen Ihrem Kreditkartenantrag an — habens an Moment?", erU.ganz);
   ok("Kreditkarte in JEDER Art: Interessent „Anfrage zur Kreditkarte“, Kunde „Kreditkartenpaket“, Termin „wie vereinbart“", anrufGrund("lead", { ...pb, stufe: "lead" }) === "ich ruf wegen Ihrer Anfrage zur Kreditkarte an" && anrufGrund("rate", { ...pb, stufe: "kunde" }) === "ich ruf wegen Ihrem Kreditkartenpaket an" && /wie vereinbart/.test(String(anrufGrund("termin", pb))) && anrufGrund("eingehend", pb) === null);
   ok("FIAON nie vor einer Pause/einem Gedankenstrich (Aussprache): in Eröffnung, KI-Satz und allen Probesätzen mitten im Satz", !/FIAON\s*[—–,.!?]/.test(er.ganz) && Object.values(HOERPROBE_SAETZE).every((x) => /von FIAON aus dem Kundenteam/.test(x) && !/FIAON\s*[—–,.!?]/.test(x)));
   ok("Aussprache-Regel in der Stimme: ein Wort, fließend, mitten im Satz, nie buchstabiert", /FIAON sprichst du als EIN Wort, fließend und mitten im Satz/.test(a.bausteine["4_klang"]) && /nie buchstabiert, nie in Silben zerlegt/.test(a.bausteine["4_klang"]));
@@ -444,6 +452,53 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
   ok("Wink der Brücke: wechselt die Art (nie zweimal dieselbe hintereinander), alle vier Arten kommen vor, nie bei Beträgen/Daten/Aufnahme-Frage/Kündigung/Widerruf", winks.every((w, i) => i === 0 || w.art !== winks[i - 1].art) && MENSCH_ARTEN.every((a) => winks.some((w) => w.art === a)) && winks.every((w) => /Geht es in dieser Antwort um Geld, ein Datum, eine Uhrzeit, die Aufzeichnung, Kündigung oder Widerruf: dann lass ihn weg/.test(w.text) && /^Menschlicher Moment — in deiner nächsten Antwort, genau einer/.test(w.text)), winks.map((w) => w.art).join(","));
   ok("Rot-Probe: aras_lachen = aus → nie ein Lach-Wink", Array.from({ length: 12 }, (_, i) => menschHinweis({ lachen: false, zuletzt: null, nr: i })).every((w) => w.art !== "lachen" && !/\[chuckle\]/.test(w.text)));
   ok("Abstand je Stufe: wenig 6–9, normal 3–5, viel 2–3 Beiträge", MENSCH_ABSTAND.wenig[0] === 6 && MENSCH_ABSTAND.normal[0] === 3 && MENSCH_ABSTAND.normal[1] === 5 && MENSCH_ABSTAND.viel[1] === 3);
+  // GO-LIVE (Justin 20.10.2026 abends): ARAS weiblich, Wien ultra, Willkommen + Rate offen, Fenster, Stufe 1
+  {
+    const ultra = einstellungenAnwenden({ aras_dialekt: "oesterreichisch_stark", aras_energie: "vollgas" });
+    const wb = { ...probeBriefing({ spielart: "willkommen", anrede: "Herr", nachname: "Probe", heute, vorTagen: () => "17.10.2026" }), nummerEnde: "neunundneunzig" } as Briefing;
+    const w = anweisungBauen({ spielart: "probe", briefing: wb, einstellungen: ultra, hausanweisung: null });
+    ok("Willkommen: Gesprächsart „Willkommen nach Antrag“, Vertrag (kein Werbe-Anruf)", SPIELART_TEXT.willkommen === "Willkommen nach Antrag" && RECHTSGRUND.willkommen === "vertrag" && SPIELART_TEXT.rate === "Rate offen");
+    ok("Willkommen (Justin wörtlich): „Herzlich willkommen!“, als Kunde angenommen, Kundenkonto eröffnet, Fragen?", /Also, zu allererst: Herzlich willkommen!/.test(w.text) && /als Kunde angenommen/.test(w.text) && /ob's noch Fragen gibt\?/.test(w.text));
+    ok("Willkommen: Limit = sein WUNSCHLIMIT (fünftausend Euro), Paket, „lässt sich später erhöhen“ — nie „Ihr Limit beträgt“ (Korrektur 1)", /Mit Ihrem Wunschlimit von 5\.000 € \(gesprochen: „fünftausend Euro“\) starten Sie im FIAON Pro-Paket/.test(w.text) && /lässt sich später erhöhen/.test(w.text) && /„mit Ihrem Wunschlimit von …“/.test(w.text) && /nie „liegt bei“, nie „beträgt“/.test(w.text) && limitZusage(w.bausteine["9_leitfaden"]) === null && bankVorbehaltFinden(w.bausteine["9_leitfaden"]) === null, (limitZusage(w.bausteine["9_leitfaden"]) ?? bankVorbehaltFinden(w.bausteine["9_leitfaden"]) ?? "") as string);
+    // Was ARAS wörtlich sagt, muss durch die Live-Prüfung nach dem Gespräch (telefonRegeln) — sonst wäre jedes Gespräch „rot“.
+    const gesagt = (block: string) => Array.from(block.matchAll(/„((?:[^„“]|„[^„“]*“)+)“/g)).map((m) => m[1].replace(/[0-9.,]+ € \(gesprochen: „([^“]+)“\)/g, "$1")).filter((x) => x.length > 40);
+    const wSaetze = gesagt(w.bausteine["9_leitfaden"]);
+    const wHart = wSaetze.flatMap((x) => telefonRegeln(x).filter((p) => p.schwere === "hart").map((p) => `${p.regel}: ${p.treffer}`));
+    ok(`Willkommen: Justins Sätze (${wSaetze.length}) bestehen die Live-Prüfung ohne harten Befund (Limit nur als „mit Ihrem Wunschlimit von …“)`, wSaetze.length >= 2 && wHart.length === 0, wHart.join(" | "));
+    ok("Rot-Probe: „Ihr Wunschlimit liegt bei fünftausend Euro“ wäre hart (Freigabe) — darum steht es so nicht im Skript", telefonRegeln("Ihr Wunschlimit liegt bei fünftausend Euro — damit starten Sie im FIAON Pro-Paket.").some((p) => p.regel === "limit_freigabe" && p.schwere === "hart"));
+    ok("Willkommen: Aktivierung = erste Monatsrate MIT Betrag, Kartenversand dabei (3 bis 5 Werktage, EINE Quelle: Fakten-Datei), Betreuer automatisch, Link + EINE Frage", /Aktivierung, also Ihre erste Monatsrate über [0-9.,]+ € \(gesprochen: „[^“]+“\)/.test(w.text) && w.text.includes(KARTENVERSAND.werktage) && KARTENVERSAND.stand === "Justin 20.10.2026, DKB-Absprache" && w.text.includes(WILLKOMMEN.betreuer) && /GENAU EINE Frage/.test(w.text));
+    ok("Willkommen: nur Onboarding (kein anderes Produkt, kein Upgrade), Wortwand frei", /Nur Onboarding: kein anderes Produkt, kein Upgrade/.test(w.text) && hart(w.text).length === 0, hart(w.text).map((x) => x.treffer).join(" | "));
+    const rb = { ...probeBriefing({ spielart: "rate", anrede: "Herr", nachname: "Probe", heute, vorTagen: () => "17.10.2026" }), nummerEnde: "neunundneunzig" } as Briefing;
+    const r = anweisungBauen({ spielart: "probe", briefing: rb, einstellungen: ultra, hausanweisung: null });
+    ok("Rate offen (Justin wörtlich): „i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte“ + Link wirklich schicken", /i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte/.test(r.text) && /zahlungslink_senden, zweck rate/.test(r.text));
+    ok("Rate offen: „Ich hab keine Karte bekommen“ → „Wos — wirklich! Na passens auf …“ und für Justin festhalten", /Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird/.test(r.text) && /aufgabe_fuer_justin|notiz_schreiben/.test(r.text));
+    const jv = /„Ihr Vertrag läuft regulär bis [^“]+“/.exec(r.text)?.[0] ?? "";
+    ok("Gekündigt (Korrektur 2, E-396): Jahresvertrag — Kündigung angekommen, läuft bis Laufzeitende, Kulanz nach Zahlung; KEINE Kopplung, KEINE Drohung", /Ihre Kündigung is bei uns angekommen/.test(r.text) && /aus Kulanz lassen wir Sie aber sofort raus/.test(jv) && kopplungFinden(jv) === null && drohungFinden(jv) === null && r.text.includes(kulanzSatz(rb.offeneRate!.betrag)), jv);
+    const alt = { ...rb, kuendigung: { am: "01.10.2026", art: "altvertrag" as const, endeAm: "31.10.2026", offenBetrag: null } };
+    const ra = anweisungBauen({ spielart: "probe", briefing: alt, einstellungen: ultra, hausanweisung: null });
+    ok("Gekündigt, Altvertrag: gilt zum Ende des Abrechnungsmonats, KEIN „Kulanz“, nach dem Ende nie eine Rate", /ALTVERTRAG/.test(ra.text) && /KEIN „Kulanz“/.test(ra.text) && /nach dem Ende verlangst du nie eine Rate/.test(ra.text));
+    ok("Rot-Probe (Justins Rohfassung): „Die Kündigung ist erst gültig, wenn die offene Rechnung bezahlt ist“ = Kopplung, „sonst Inkasso und Gericht“ = Drohung — beides würde erkannt", kopplungFinden("Die Kündigung ist erst gültig, wenn die offene Rechnung bezahlt ist.") !== null && drohungFinden("Wenn Sie gekündigt haben und nicht zahlen, kommt sonst Inkasso und Gericht.") !== null);
+    ok("… und die Anweisung verbietet beides ausdrücklich, auch im Dialekt", /NIE \(hart\): die Kündigung an eine Zahlung knüpfen/.test(r.text) && /NIE drohen: kein Inkasso, kein Gericht, kein Anwalt, keine SCHUFA/.test(r.text) && /auch nicht im Dialekt/.test(r.text));
+    ok("Wien ultra: Justins Formen („Grüß Sie“, „habens an Moment?“, „seins so guat“, „zahlens ma die ein“, „Wos, wirklich?!“, „passens auf“), Sie-Form, Beträge/KI-Hinweis/Aufnahme klar", ["Grüß Sie", "Habens an Moment?", "Seins so guat und zahlens ma die ein", "Wos, wirklich?!", "passens auf"].every((x) => DIALEKT_HOERBAR.oesterreichisch_stark.includes(x)) && /nie „du“ oder „dir“/.test(DIALEKT_HOERBAR.oesterreichisch_stark) && /KLAR UND LANGSAM bleiben/.test(DIALEKT_HOERBAR.oesterreichisch_stark));
+    // Fenster (E): Mo–Sa 09:30–21:00; Sonntag/Feiertag nur gebuchte Rückrufe
+    const um = (iso: string) => new Date(iso);
+    ok("Fenster: Montag 09:29 zu, 09:30 auf, 20:59 auf, 21:00 zu (Rate und Willkommen)", !fensterOffen("rate", "DE", um("2026-10-26T09:29:00+01:00")).offen && fensterOffen("rate", "DE", um("2026-10-26T09:30:00+01:00")).offen && fensterOffen("willkommen", "DE", um("2026-10-26T20:59:00+01:00")).offen && !fensterOffen("willkommen", "DE", um("2026-10-26T21:00:00+01:00")).offen);
+    ok("Fenster: Samstag auf; Sonntag zu — außer dem selbst gebuchten Rückruf (termin)", fensterOffen("rate", "DE", um("2026-10-24T12:00:00+02:00")).offen && !fensterOffen("rate", "DE", um("2026-10-25T12:00:00+01:00")).offen && fensterOffen("termin", "DE", um("2026-10-25T12:00:00+01:00")).offen);
+    ok("Fenster: Feiertag (Weihnachten) zu — außer termin; mit „7“ im Fenster wählt ARAS auch sonntags (änderbar)", !fensterOffen("rate", "DE", um("2026-12-25T12:00:00+01:00")).offen && fensterOffen("termin", "DE", um("2026-12-25T12:00:00+01:00")).offen && fensterOffen("rate", "DE", um("2026-10-25T12:00:00+01:00"), { fenster: { verkauf: FENSTER_VORGABE.verkauf, rate: { "1-7": ["09:30", "21:00"] } } }).offen);
+    ok("Stufe 1 (Go-live): 40 Anrufe am Tag, 1 gleichzeitig, 20 € am Tag, mit Willkommen und Rate", STUFEN[1].versucheJeTag === 40 && STUFEN[1].parallel === 1 && STUFEN[1].tagEuro === 20 && STUFEN[1].spielarten.includes("willkommen") && STUFEN[1].spielarten.includes("rate"));
+    ok("Vorgaben: Stimme Juni, Name ARAS, Tempo zügig", einstellungenAnwenden({}).stimme === "juni" && einstellungenAnwenden({}).name === "ARAS" && einstellungenAnwenden({}).regie.tempo === "zuegig");
+    // Die neue Begrüßung („Ich grüße Sie, Herr …“ / „Grüß Sie, Herr …“) muss als Frage nach der Person zählen — sonst wäre
+    // nach dem „Ja“ des Kunden jede Rate „vor der Identität“ genannt (harter Befund in jedem Gespräch).
+    const ohneId: string[] = [];
+    for (const d of DIALEKTE) for (const sp of ["willkommen", "rate", "termin", "stufe_a", "zusage", "auftrag", "lead"] as const) {
+      const bb = probeBriefing({ spielart: sp, anrede: "Frau", nachname: "Probe", heute, vorTagen: () => "17.10.2026" }) as Briefing;
+      const o = eroeffnung(einstellungenAnwenden({ aras_dialekt: d }), bb, sp);
+      const z = [{ t: 0, wer: "kunde" as const, text: "Hallo?" }, { t: 1, wer: "aras" as const, text: o.ganz }, { t: 6, wer: "kunde" as const, text: "Ja, worum geht's?" }, { t: 8, wer: "aras" as const, text: "I ruf an wegen Ihrer offenen Rate über neunundfünfzig Euro neunundneunzig." }];
+      if (!identitaetGefragt(o.ganz) || anliegenVorIdentitaet(z) !== null) ohneId.push(`${d}/${sp}: ${o.ganz.slice(0, 40)}`);
+    }
+    ok("Jede Eröffnung (alle Dialekte, alle Gesprächsarten) fragt nach der Person — „Ja, worum geht's?“ danach bestätigt, die Rate danach ist in Ordnung", ohneId.length === 0, ohneId.join(" | "));
+    ok("Rot-Probe: ohne Namen in der Begrüßung zählt das „Ja“ nicht — Rate danach = Treffer", anliegenVorIdentitaet([{ t: 0, wer: "kunde", text: "Hallo?" }, { t: 1, wer: "aras", text: "Grüß Sie! ARAS spricht hier, I bin a KI." }, { t: 4, wer: "kunde", text: "Ja?" }, { t: 6, wer: "aras", text: "Es geht um Ihre offene Rate." }]) !== null);
+  }
   // Quittungs-Laute (Koordination 20.10. abends: Schnelligkeit)
   {
     const da = new Set<string>(QUITTUNGEN);

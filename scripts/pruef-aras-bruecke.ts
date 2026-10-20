@@ -87,7 +87,8 @@ async function main(): Promise<void> {
   await einstellungSetzen("aras_an", "an", "pruefstand");
   await einstellungSetzen("aras_parallel", "3", "pruefstand");
   await einstellungSetzen("aras_probe_nummer", "+491700000099", "pruefstand");
-  await einstellungSetzen("aras_fenster", JSON.stringify({ verkauf: { "1-6": ["08:00", "20:00"] }, rate: { "1-6": ["08:00", "20:00"] } }), "pruefstand");
+  // So weit wie erlaubt (Go-live: bis 21:00, Sonntag als „7“), damit der Prüfstand zu möglichst jeder Tageszeit wählen kann.
+  await einstellungSetzen("aras_fenster", JSON.stringify({ verkauf: { "1-7": ["08:00", "21:00"] }, rate: { "1-7": ["08:00", "21:00"] } }), "pruefstand");
   // Die Attrappe antwortet ohne menschliche Pausen (der „Kunde“ redet, bevor Aras' Ton gespielt ist). Für die Abschnitte 1–13
   // darum ohne Geduld-Tor; das Tor selbst prüft Abschnitt 14 mit echten Pausen (geduldig, Vorgabe).
   await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
@@ -723,8 +724,12 @@ async function main(): Promise<void> {
       const g = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
       await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 6000);
       const gruss = g.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
-      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): Name → Kreditkarte → KI-Hinweis → kurzes Lachen → „Haben Sie einen kurzen Moment?“",
-        !!gruss && gruss.art === "vorlesen" && /, Herr Prüfkunde\d+!/.test(gruss.text) && /Kreditkarten/.test(gruss.text) && gruss.text.indexOf(LACHEN_NACH_KI) > gruss.text.indexOf("KI") && gruss.text.indexOf("Haben Sie einen kurzen Moment?") > gruss.text.indexOf(LACHEN_NACH_KI), gruss?.text.slice(0, 260) ?? "—");
+      // Go-live (Justin 20.10. abends): „Ich grüße Sie, Herr …, ARAS spricht hier, die digitale Mitarbeiterin von FIAON [KI-Hinweis + Lachen] –
+      // ich ruf wegen Ihrem Kreditkartenantrag an, haben Sie einen Moment?“ — der Grund steht NACH dem Lachen, direkt vor der Frage.
+      const gt = gruss?.text ?? "";
+      const iKi = gt.indexOf("KI"), iLachen = gt.indexOf(LACHEN_NACH_KI), iGrund = gt.search(/Kreditkarten/), iFrage = gt.search(/haben Sie einen kurzen Moment\?/i);
+      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): Name → „die digitale Mitarbeiterin“ → KI-Hinweis → kurzes Lachen → Kreditkarte → „haben Sie einen kurzen Moment?“",
+        !!gruss && gruss.art === "vorlesen" && /, Herr Prüfkunde\d+!/.test(gt) && /die digitale Mitarbeiterin von FIAON/.test(gt) && iKi > 0 && iLachen > iKi && iGrund > iLachen && iFrage > iGrund, gt.slice(0, 420) || "—");
       await fertig(g);
       await einstellungSetzen("aras_lachen", "aus", "pruefstand");
       const g2 = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
@@ -936,11 +941,11 @@ async function main(): Promise<void> {
       if (pr.callId) { await sqlPool`UPDATE fiaon_calls SET status = 'beendet' WHERE id = ${pr.callId}`; }
     }
 
-    // b) Stufe 1 „Test“: Gleichzeitig 1, Deckel 15 €, 20 je Tag, nur Rückrufe/Auftrag/Stufe A/Rate an Tag 1–3
+    // b) Stufe 1 „Test“ (Go-live): Gleichzeitig 1, Deckel 20 €, 40 je Tag, nur Rückrufe/Willkommen/Auftrag/Stufe A/Rate an Tag 1–3
     await einstellungSetzen("aras_stufe", "1", "pruefstand");
     const g1 = stufenGrenzen(await arasEinstellungenLesen(true));
-    ok("Stufe 1: das Engere gilt — Gleichzeitig 1 (Schalter 3), Deckel 15 € (Schalter 60), 20 Versuche je Tag", g1.parallel === 1 && g1.tagEuro === 15 && g1.versucheJeTag === 20, JSON.stringify({ p: g1.parallel, e: g1.tagEuro, v: g1.versucheJeTag }));
-    ok("Stufe 1: Zuruf, Zusage, Lead nicht erlaubt; Termin, Auftrag, Stufe A, Rate erlaubt", !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage") && !g1.spielartErlaubt("lead") && ["termin", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)));
+    ok("Stufe 1 (Go-live): das Engere gilt — Gleichzeitig 1 (Schalter 3), Deckel 20 € (Schalter 60), 40 Versuche je Tag", g1.parallel === 1 && g1.tagEuro === 20 && g1.versucheJeTag === 40, JSON.stringify({ p: g1.parallel, e: g1.tagEuro, v: g1.versucheJeTag }));
+    ok("Stufe 1: Zuruf, Zusage, Lead nicht erlaubt; Termin, Willkommen, Auftrag, Stufe A, Rate erlaubt", !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage") && !g1.spielartErlaubt("lead") && ["termin", "willkommen", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)));
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const f1 = await planFuellen();
     const plan1 = (await sqlPool`SELECT person_id, spielart FROM fiaon_aras_plan WHERE status = 'wartet'`) as any[];
@@ -962,17 +967,19 @@ async function main(): Promise<void> {
     if (fenster1) ok("Außerhalb des Fensters: nichts gewählt", t1p.gewaehlt === 0);
     else ok("Stufe 1 (Takt): zwei erlaubte Raten warten — höchstens EIN Anruf gleichzeitig", t1p.gewaehlt === 1, JSON.stringify(t1p));
     await aufraeumen();
-    // Tagesmenge 20 voll → kein Wählen
-    await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von) SELECT ${pR2}, ${ausweis}, '+491700000061', 'raus', 'beendet', NOW(), 'aras' FROM generate_series(1, 20)`;
+    // Tagesmenge 40 voll → kein Wählen (der Stunden-Deckel — Vorgabe 40 — darf hier nicht zuerst greifen)
+    await einstellungSetzen("aras_je_stunde", "120", "pruefstand");
+    await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von) SELECT ${pR2}, ${ausweis}, '+491700000061', 'raus', 'beendet', NOW(), 'aras' FROM generate_series(1, 40)`;
     await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version) SELECT c.id, 'rate', '{}'::jsonb, 'attrappe', 'flitz', 'pruefstand' FROM fiaon_calls c WHERE c.gefuehrt_von = 'aras' AND c.status = 'beendet' AND c.person_id = ${pR2} AND NOT EXISTS (SELECT 1 FROM fiaon_aras_anruf x WHERE x.call_id = c.id)`;
     const t1m = await waehlerTakt();
-    ok("Stufe 1: nach 20 Kundenanrufen heute ist Schluss (Grund stufe_tagesmenge:20)", t1m.gewaehlt === 0 && t1m.ausgelassen.some((a) => a.grund === "stufe_tagesmenge:20"), JSON.stringify(t1m));
+    ok("Stufe 1: nach 40 Kundenanrufen heute ist Schluss (Grund stufe_tagesmenge:40)", t1m.gewaehlt === 0 && t1m.ausgelassen.some((a) => a.grund === "stufe_tagesmenge:40"), JSON.stringify(t1m));
+    await einstellungSetzen("aras_je_stunde", "40", "pruefstand");
     await sqlPool`DELETE FROM fiaon_aras_anruf WHERE call_id IN (SELECT id FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND person_id = ${pR2} AND status = 'beendet')`;
     await sqlPool`DELETE FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND person_id = ${pR2} AND status = 'beendet'`;
-    // Deckel 15 € (auch wenn der Schalter 60 € sagt)
-    await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) VALUES ('aras-stimme', 'attrappe-stufe', 0, 0, 0, 0, 1600, TRUE)`;
+    // Deckel 20 € (auch wenn der Schalter 60 € sagt)
+    await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) VALUES ('aras-stimme', 'attrappe-stufe', 0, 0, 0, 0, 2100, TRUE)`;
     const t1d = await waehlerTakt();
-    ok("Stufe 1: Deckel 15 € greift, obwohl der Schalter 60 € erlaubt (Grund deckel)", t1d.gewaehlt === 0 && t1d.ausgelassen.some((a) => a.grund === "deckel"), JSON.stringify(t1d));
+    ok("Stufe 1: Deckel 20 € greift, obwohl der Schalter 60 € erlaubt (Grund deckel)", t1d.gewaehlt === 0 && t1d.ausgelassen.some((a) => a.grund === "deckel"), JSON.stringify(t1d));
     await sqlPool`DELETE FROM fiaon_ki_nutzung WHERE modell = 'attrappe-stufe'`;
 
     // c) Stufe 2 „Leise“: Zuruf nur mit JA per Nachricht — das Antrag-Kästchen erst ab Stufe 3
@@ -1650,6 +1657,41 @@ async function main(): Promise<void> {
       const a2 = await anruf(w.callId);
       ok("Beim Klingeln vorbereitet, nie abgenommen: „Auflegen“ beendet die Sitzung und bricht bei Twilio ab (canceled), Ergebnis „nicht erreicht“", auftraege.some((a) => a.sid === "CA-pruef-klingelt-2" && a.status === "canceled") && a2?.ergebnis === "nicht_erreicht" && !a2?.angenommen_am, JSON.stringify({ auftraege, e: a2?.ergebnis, ang: a2?.angenommen_am }));
     } finally { twilioClientSetzen(null); await einstellungSetzen("aras_stufe", "0", "pruefstand"); }
+  }
+
+  titel("22. GO-LIVE (Justin 20.10. abends: „stelle sie live … jeden Tag von 09:30 bis 21:00“) — EINMAL am 21.10. ab 09:30, Not-Aus bleibt unberührt");
+  {
+    const { golivePruefen, GOLIVE_MERKER, GOLIVE_AB } = await import("../server/lib/fiaon-aras-golive");
+    const wert = async (k: string) => (((await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${k}`) as any[])[0]?.value ?? null) as string | null;
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = ${GOLIVE_MERKER}`;
+    await einstellungSetzen("aras_an", "aus", "pruefstand"); await einstellungSetzen("aras_stufe", "0", "pruefstand");
+    await einstellungSetzen("aras_parallel", "3", "pruefstand");
+    try {
+      ok("Start ist morgen 21.10.2026 09:30 Berlin (Sommerzeit)", GOLIVE_AB === "2026-10-21T09:30:00+02:00");
+      const vorher = await golivePruefen(sqlPool, new Date("2026-10-21T09:29:00+02:00"));
+      ok("Rot-Probe: 09:29 — nichts passiert (kein Merker, ARAS wählt nicht)", !vorher && (await wert(GOLIVE_MERKER)) === null && (await wert("aras_an")) === "aus" && (await wert("aras_stufe")) === "0");
+      // Not-Aus steht (Justin hat gestoppt) — der Go-live setzt ihn NIE zurück
+      await notaus("pruefstand", "Probe vor dem Go-live");
+      const jetzt = new Date("2026-10-21T09:30:30+02:00");
+      const [a, b] = await Promise.all([golivePruefen(sqlPool, jetzt), golivePruefen(sqlPool, jetzt)]);
+      ok("09:30 — genau EIN Lauf setzt (auch bei zwei gleichzeitigen Takten), Merker steht", [a, b].filter(Boolean).length === 1 && (await wert(GOLIVE_MERKER)) !== null, JSON.stringify([a, b]));
+      arasEinstellungenVergessen();
+      const e = await arasEinstellungenLesen(true);
+      ok("Danach: Stufe 1, ARAS wählt an, eine gleichzeitig, 20 € am Tag", e.an && e.stufe === 1 && e.parallel === 1 && e.tagEuro === 20, JSON.stringify({ an: e.an, stufe: e.stufe, parallel: e.parallel, tagEuro: e.tagEuro }));
+      ok("Nur „Willkommen nach Antrag“ und „Rate offen“ (+ die Rückrufe, die Kunden darin bei ARAS buchen; Probe bleibt) — Verkauf, Zusage, Stufe A, Auftrag aus", e.spielarten.willkommen && e.spielarten.rate && e.spielarten.termin && e.spielarten.probe && !e.spielarten.zuruf && !e.spielarten.zusage && !e.spielarten.stufe_a && !e.spielarten.lead && !e.spielarten.auftrag && !e.spielarten.stufe_b && !e.spielarten.rueckholung);
+      ok("Juni, Wien ultra, zügig, viel menschlich, Lachen an, Fenster Mo–Sa 09:30–21:00", e.stimme === "juni" && e.regie.dialekt === "oesterreichisch_stark" && e.regie.tempo === "zuegig" && (await wert("aras_menschlich")) === "viel" && (await wert("aras_lachen")) === "an" && JSON.parse(String(await wert("aras_fenster"))).rate["1-6"][1] === "21:00");
+      ok("Not-Aus bleibt AN (der Go-live hebt ihn nie auf) — ohne Justins „Wieder an“ wählt ARAS nicht", e.notaus && (await waehlerTakt()).ausgelassen.some((x) => x.grund === "notaus"));
+      // Justin ändert danach etwas — der Go-live überschreibt es nie wieder
+      await einstellungSetzen("aras_parallel", "2", "pruefstand");
+      const nochmal = await golivePruefen(sqlPool, new Date("2026-10-21T10:15:00+02:00"));
+      ok("Zweiter Lauf: nichts mehr (Merker) — Justins spätere Änderung bleibt", !nochmal && (await wert("aras_parallel")) === "2");
+      ok("Protokoll: jede Einstellung „go-live 21.10.2026“", ((await sqlPool`SELECT 1 FROM fiaon_mara_protokoll WHERE text LIKE '%(go-live 21.10.2026)%'`) as any[]).length >= 10);
+    } finally {
+      await start("pruefstand");
+      await einstellungSetzen("aras_an", "aus", "pruefstand"); await einstellungSetzen("aras_stufe", "0", "pruefstand");
+      await sqlPool`DELETE FROM fiaon_settings WHERE key = ${GOLIVE_MERKER}`;
+      arasEinstellungenVergessen();
+    }
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

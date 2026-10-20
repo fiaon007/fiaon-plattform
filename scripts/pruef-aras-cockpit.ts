@@ -111,9 +111,9 @@ async function main() {
   console.log("── 3 · Die Wörter: Klartext statt Systemwörter");
   {
     const zeile = { id: 1, callId: 34, am: "2026-10-20T12:27:00.000Z", spielart: "probe", personId: null, name: "Probe", ergebnis: "nicht_erreicht", dauerSek: 90, kostenCents: 16, pruefung: "entfaellt", uebergabe: null, endeGrund: "kunde_aufgelegt", angenommen: true, probeUrteil: null, gespielt: "rate" };
-    ok(T.anrufSatz(zeile) === "Probe · Rate fällig · 14:27 · 1:30 Min · 0,16 € · beendet von dir", "die Zeile als Satz: „Probe · Rate fällig · 14:27 · 1:30 Min · 0,16 € · beendet von dir“", T.anrufSatz(zeile));
+    ok(T.anrufSatz(zeile) === "Probe · Rate offen · 14:27 · 1:30 Min · 0,16 € · beendet von dir", "die Zeile als Satz: „Probe · Rate offen · 14:27 · 1:30 Min · 0,16 € · beendet von dir“", T.anrufSatz(zeile));
     ok(!/Probe · Probe|Probe Probe/.test(T.werText({ spielart: "probe", name: "Probe" })), "nie „Probe Probe“");
-    ok(T.werText({ spielart: "rate", name: "Mila Muster" }) === "Mila Muster · Rate fällig", "Kunde: „Mila Muster · Rate fällig“");
+    ok(T.werText({ spielart: "rate", name: "Mila Muster" }) === "Mila Muster · Rate offen", "Kunde: „Mila Muster · Rate offen“");
     ok(T.ausgangText({ ...zeile, angenommen: false, dauerSek: 0, endeGrund: "nicht_erreicht" }) === "nicht abgenommen", "Probe nicht abgenommen → „nicht abgenommen“");
     ok(T.ausgangText({ ...zeile, spielart: "rate", ergebnis: "erreicht_zahlt_am" }) === "Zusage", "Kunde mit Zusage → „Zusage“");
     ok(T.ausgangText({ ...zeile, uebergabe: "angenommen" }) === "ans Team übergeben", "Übergabe → „ans Team übergeben“");

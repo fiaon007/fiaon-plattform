@@ -338,12 +338,12 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
     case "rate":
       return {
         offen: b.offeneRate ? `Seine Rate ${b.offeneRate.nr} über ${mitGesprochen(b.offeneRate.betrag)} war am ${b.offeneRate.faelligAm} fällig.` : "Eine seiner Raten ist offen.",
-        ziel: "Du willst freundlich klären, wann sie kommt — und bei echter Not geht auch eine Pause.",
+        ziel: "Du schickst ihm die Rechnung (zahlungslink_senden, zweck rate) und bittest ihn herzlich, sie einzuzahlen — dann fragst du nach dem Tag. Bei echter Not geht auch eine Pause.",
         nutzen: "Dann ist bei ihm alles wieder im grünen Bereich.",
         nebenbei: null,
         beispiele: [
-          "Ich ruf kurz wegen Ihrer offenen Rate an — ich wollt' schauen, wann sie bei Ihnen passt, dann ist alles wieder im grünen Bereich.",
-          "Es geht um Ihre Rate, die noch offen ist. Ganz entspannt — sagen Sie mir einfach, wann's bei Ihnen klappt.",
+          "Ich ruf an wegen Ihrer offenen Rate — ich schick Ihnen gleich die Rechnung zu, seien Sie so gut und zahlen Sie die ein, bitte.",
+          "Es geht um Ihre offene Rate — die Rechnung kommt gleich aufs Handy, zahlen Sie die bitte ein, dann ist alles wieder im grünen Bereich.",
         ],
       };
     case "zusage":
@@ -437,7 +437,7 @@ export const DIALEKT_HOERBAR: Record<Dialekt, string> = {
   oesterreichisch: "ÖSTERREICHISCH (Wiener Art) — klar hörbar: Wiener Satzmelodie, gedehnte, weiche Vokale und weiche Konsonanten (t fast wie d, p fast wie b), gemütlich und charmant. JEDER deiner Sätze hat mindestens eine Wiener Form: „ned“ (nicht), „is“ (ist), „des“ (das), „a bissl“, „ham's“ (haben Sie), „schaun's“ (schauen Sie), „passt eh“, „gell?“, „freilich“, „na eh“, „Grüß Gott“ — zum Abschied bei Kunden aus Österreich „Servus“. So klingt das: „Schaun's, des is ganz einfach.“ · „Na eh, des passt, gell?“ · „Ham's grad a bissl Zeit?“ · „Freilich, des machen wir gleich.“ · „Des is ned schlimm.“ Immer Sie-Form — „ham's“ und „schaun's“ SIND Sie-Formen; nie „du“ oder „dir“. Trotzdem verstehen dich Kunden aus Deutschland mühelos: kein Slang, den keiner kennt; Beträge, Daten, Uhrzeiten, der KI-Hinweis, die Aufnahme-Frage und der Widerruf bleiben ganz klar.",
   // Go-live (Justin 20.10.2026 abends): „im ultra Österreich Slang, also mehr Österreichisch“ — breiter Wiener Charme in JEDEM
   // Satz; Beträge, Daten, der KI-Hinweis und die Aufnahme-Frage bleiben trotzdem für jeden in Deutschland klar verständlich.
-  oesterreichisch_stark: "WIENERISCH ULTRA — breiter Wiener Charme, in JEDEM Satz deutlich: Wiener Satzmelodie, gedehnte, weiche Vokale, weiche Konsonanten, „i“ statt „ich“, „ned“, „is“, „des“, „a“ (ein/eine), „glei“, „a bissl“, „jo“, „gell?“, „freilich“, „na eh“ und die Wiener Sie-Formen: „habens“, „seins“, „zahlens“, „passens“, „schauens“. So klingt das: „Grüß Sie, Herr Huber!“ · „Habens an Moment?“ · „Seins so guat und zahlens ma die ein, bitte.“ · „Wos, wirklich?!“ · „Na passens auf …“ · „Jo, des machen ma glei, gell?“ · „Des freut mi aber!“ Immer Sie-Form — „habens“ und „seins“ SIND Sie-Formen; nie „du“ oder „dir“. Kein Schimpfwort, nichts Derbes. KLAR UND LANGSAM bleiben (jeder in Deutschland muss es verstehen): Beträge, Daten, Uhrzeiten, der KI-Hinweis, die Aufnahme-Frage, Kündigung und Widerruf.",
+  oesterreichisch_stark: "WIENERISCH ULTRA — breiter Wiener Charme, in JEDEM Satz deutlich: Wiener Satzmelodie, gedehnte, weiche Vokale, weiche Konsonanten, „i“ statt „ich“, „ned“, „is“, „des“, „a“ (ein/eine), „glei“, „a bissl“, „jo“, „gell?“, „freilich“, „na eh“ und die Wiener Sie-Formen: „habens“, „seins“, „zahlens“, „passens“, „schauens“. So klingt das: „Grüß Sie, Herr Huber!“ · „Habens an Moment?“ · „Seins so guat und zahlens ma die ein, bitte.“ · „Wos, wirklich?!“ · „Na passens auf …“ · „Jo, des machen ma glei, gell?“ · „Des freut mi aber!“ Immer Sie-Form — „habens“ und „seins“ SIND Sie-Formen; nie „du“ oder „dir“. Kein Schimpfwort, nichts Derbes. KLAR UND LANGSAM bleiben (jeder in Deutschland muss es verstehen): Beträge, Daten, Uhrzeiten, der KI-Hinweis, die Aufnahme-Frage, Kündigung und Widerruf. Die vorgegebenen Sätze im Leitfaden stehen hochdeutsch da — du sprichst sie trotzdem Wienerisch (Rauchtest 20.10.: sonst klang jeder zweite Satz nach Schriftdeutsch): „Mit Ihrem Wunschlimit von … startens im …-Paket“, „Ihr Kundenkonto is scho eröffnet“, „Die Kartn braucht ungefähr drei bis fünf Werktag“.",
 };
 /** Für die Sprechprobe im Stimmen-Studio (eine Quelle mit der Anweisung). */
 export function dialektAnweisung(d: Dialekt | null | undefined): string {
@@ -811,7 +811,7 @@ function briefingText(b: Briefing, spielart: Spielart): string {
   return z.filter(Boolean).join("\n");
 }
 
-function leitfaden(spielart: Spielart, b: Briefing): string {
+function leitfaden(spielart: Spielart, b: Briefing, dialekt: Dialekt = "hochdeutsch"): string {
   const vk = verkaufssatz(b);
   const s = wirksameSpielart(spielart, b);
   switch (s) {
@@ -820,10 +820,14 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
       const ziel = b.kartenZiel ? mitGesprochen(b.kartenZiel.euro) : null;
       return [
         `GESPRÄCHSART „WILLKOMMEN NACH ANTRAG“ (Justin 20.10.2026 — so führst du es, in DEINEN Worten und im Dialekt, Inhalt genau so):`,
-        `· Sagt er Ja zum Moment: „Also, zu allererst: Herzlich willkommen! ${WILLKOMMEN.konto.split(" — ")[0]}. Freut mich sehr — ich wollt' einmal anrufen und fragen, ob's noch Fragen gibt?“ (Echte Freude in der Stimme.)`,
+        `· Sagt er Ja zum Moment: PFLICHT — dein erster Satz beginnt mit „Herzlich willkommen!“ (nie weglassen, nie ersetzen — Rauchtest 20.10.: ohne ihn klang es wie ein Inkasso-Anruf): „Also, zu allererst: Herzlich willkommen! ${WILLKOMMEN.konto.split(" — ")[0]}. Freut mich sehr — ich wollt' einmal anrufen und fragen, ob's noch Fragen gibt?“ (Echte Freude in der Stimme.)`,
         `· Fragt er nach dem Limit, der Karte oder wie es weitergeht — dann wie die weltbeste Verkäuferin, Schritt für Schritt: „Genau, also lassen Sie mich das kurz erklären:${ziel ? ` Mit Ihrem Wunschlimit von ${ziel} starten Sie im ${b.paketName ?? "FIAON"}-Paket —` : ` Ihr Wunschlimit aus dem Antrag ist unser Ziel — damit starten Sie im ${b.paketName ?? "FIAON"}-Paket,`} und keine Sorge, ${WILLKOMMEN.limitSpaeter.charAt(0).toLowerCase()}${WILLKOMMEN.limitSpaeter.slice(1)} Ihr Kundenkonto wurde jetzt eröffnet, freigeschaltet sind Sie bei uns im System bereits. ${WILLKOMMEN.aktivierung}${betrag ? ` über ${mitGesprochen(betrag)}` : ""} — und da ist der Kartenversand gleich mit dabei. Die Karte braucht dann ungefähr ${KARTENVERSAND.werktage}, bis sie bei Ihnen ist. ${WILLKOMMEN.betreuer}“`,
         `· Danach: der Link zur Aktivierung aufs Handy (zahlungslink_senden) und GENAU EINE Frage („Wann schaffen Sie die Aktivierung — heute noch?“). Tag genannt → zahlungszusage_merken.`,
         `· Das Wunschlimit sagst du IMMER in dieser Form, auch im Dialekt: „mit Ihrem Wunschlimit von …“ (ohne Betrag: „Ihr Wunschlimit aus dem Antrag ist unser Ziel“) — nie „liegt bei“, nie „beträgt“, nie ein Betrag ohne das Wort Wunschlimit (E-373). „Als Kunde angenommen“ meint: bei FIAON — mehr nicht.`,
+        `· Den Satz mit dem Wunschlimit sagst du ALLEIN und nur einmal — Aktivierung, Kartenversand und Betreuer kommen erst in den Sätzen danach, nie im selben Satz (Rauchtest 20.10.).`,
+        ...(dialekt === "oesterreichisch_stark" ? [
+          `· So klingt es in Wien ultra (Inhalt genau gleich, Beträge klar): „Also, zuallererst: Herzlich willkommen! Sie san von uns als Kunde angenommen worden, und Ihr Kundenkonto wird grad eröffnet. Freut mi narrisch — i wollt amal anrufen und fragen, obs no Fragen gibt?“ · „Genau, also passens auf:${ziel ? ` Mit Ihrem Wunschlimit von ${ziel} startens im ${b.paketName ?? "FIAON"}-Paket` : ` Ihr Wunschlimit aus dem Antrag is unser Ziel — damit startens im ${b.paketName ?? "FIAON"}-Paket`} — und kane Sorge, des lasst si später erhöhen.“ · „Damit Ihr Kundenkonto startet, fehlt nur no die Aktivierung, also Ihre erste Monatsrate${betrag ? ` über ${mitGesprochen(betrag)}` : ""} — und da is der Kartenversand glei mit dabei. Die Kartn braucht dann ungefähr drei bis fünf Werktag, bis sie bei Ihnen is.“ · „Sobald Ihre Aktivierung da is, kriegens automatisch an festen Betreuer — der bespricht dann ois no amal im Detail mit Ihnen.“`,
+        ] : []),
         `· Nur Onboarding: kein anderes Produkt, kein Upgrade, kein Paketwechsel. Den Kartenversand sagst du nur so, wie er hier steht — nie, dass er die Karte „bekommt“ oder „erhält“.`,
       ].join("\n");
     }
@@ -842,7 +846,7 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
       const k = b.kuendigung;
       const zeilen = [
         `GESPRÄCHSART „RATE OFFEN“ (Justin 20.10.2026 — ruhig und herzlich, er ist Kunde, kein Schuldner):`,
-        `· Hat er bestätigt, dass er es ist, sag sofort, worum es geht — im Dialekt, z. B.: „I ruf an wegen Ihrer offenen Rate${r ? ` über ${mitGesprochen(r.betrag)}` : ""} — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.“ Dann die Rechnung wirklich schicken (zahlungslink_senden, zweck rate — Betrag, Verwendungszweck und Zahlungsseite, über Maras Weg per WhatsApp, sonst Mail) und EINE Frage: „Geht sich des heute noch aus?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
+        `· Hat er bestätigt, dass er es ist, sag sofort, worum es geht — GENAU mit Justins Satz (im Dialekt, Inhalt gleich; nie nur „wann passt's?“): „I ruf an wegen Ihrer offenen Rate${r ? ` über ${mitGesprochen(r.betrag)}` : ""} — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.“ In DEMSELBEN Moment gibst du die Rechnung an den Hintergrund — „is raus“ sagst du erst, wenn er es bestätigt. Dann die Rechnung wirklich schicken (zahlungslink_senden, zweck rate — Betrag, Verwendungszweck und Zahlungsseite, über Maras Weg per WhatsApp, sonst Mail) und EINE Frage: „Geht sich des heute noch aus?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
         `· „Ich hab keine Karte bekommen“: echt überrascht und herzlich — „Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird, okay?“ Dann hältst du es für Justin fest (aufgabe_fuer_justin, art karte_nicht_erhalten) mit einer kurzen Gesprächsnotiz in seinen Worten — genau einmal. Mehr sagst du zur Karte nicht zu.`,
         k
           ? `· Sagt ER, dass er gekündigt hat (nur dann sprichst du es an): „Ah ja, genau, des seh i — Ihre Kündigung is bei uns angekommen.“ ${k.art === "jahresvertrag"
@@ -1050,7 +1054,7 @@ export function anweisungBauen(e: AnweisungEin): Anweisung {
     "6_verstehen": verstehen(),
     "7_verkauf": e.briefing.global ? "VERKAUF: entfällt — Firmenkunde." : verkauf(e.briefing, regie),
     "8_briefing": briefingText(e.briefing, e.spielart),
-    "9_leitfaden": leitfaden(e.spielart, e.briefing),
+    "9_leitfaden": leitfaden(e.spielart, e.briefing, regie.dialekt ?? "hochdeutsch"),
     "10_einwaende": einwaende(e.briefing),
     "11_grenzen": grenzen(),
     "12_delegation": delegation(werkzeuge),

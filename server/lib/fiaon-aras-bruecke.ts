@@ -65,6 +65,12 @@ import {
 import { wiederholtSich, ABSCHIED_RE, ABSCHIED_AT_RE, WIEDERHOLUNG_HINWEIS } from "../../shared/fiaon-aras-regeln";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import { lauteLaden, lauteSicherstellen } from "./fiaon-aras-laute";
+import {
+  kundeWillZusendung, arasKuendigtZusendungAn, arasBehauptetZusendung, karteNichtBekommen, arasBehauptetNotiert, zahltagAusKunde, arasBietetZusendungAn, kurzesJa, kurzesNein,
+  KORREKTUR_LINK_FEHLER, KORREKTUR_ZUSAGE, WORT_WARTEN_MS,
+} from "../../shared/fiaon-aras-wort";
+import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
+import type { Werkzeug } from "../../shared/fiaon-aras";
 
 export const STREAM_PFAD = "/api/fiaon/aras/stream";
 const START_FRIST_MS = 5000;
@@ -173,6 +179,12 @@ interface Lauf {
   gehalten: number; verworfen: number;
   /** Wiederholungs-Wache und Abschied-Wache. */
   wiederholHinweise: number; abschiedEingefordert: number | null;
+  /**
+   * ARAS hält ihr Wort (Rauchtest 20.10. nachts): welche Werkzeuge in diesem Gespräch ok/fehlgeschlagen/gerade laufen, welche
+   * Wege der Link schon nahm, was die Brücke noch selbst erledigen will (Name → Zeitgeber + Lauf) und was sie schon tat.
+   */
+  werkzeugOk: Map<string, number>; werkzeugFehl: Map<string, number>; werkzeugLaeuft: Set<string>; linkWege: Set<string>;
+  wort: Map<string, { timer: NodeJS.Timeout; lauf: () => Promise<void> }>; wortErledigt: Set<string>; linkBehauptet: boolean; zusageKorrigiert: boolean;
   fertig: Promise<void>; fertigMelden: () => void;
 }
 
@@ -378,6 +390,7 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
     atmo: einstellungen.hintergrund && einstellungen.hintergrund !== "aus" ? einstellungen.hintergrund : null,
     kundePegelAm: 0, kundeTextAm: 0, frageAm: 0, halten: null, halte: [], halteFragen: null, offen: { aufnahme: false, frage: false, abschied: false }, gehalten: 0, verworfen: 0,
     wiederholHinweise: 0, abschiedEingefordert: null,
+    werkzeugOk: new Map(), werkzeugFehl: new Map(), werkzeugLaeuft: new Set(), linkWege: new Set(), wort: new Map(), wortErledigt: new Set(), linkBehauptet: false, zusageKorrigiert: false,
     fertig, fertigMelden,
   };
   const quelle = tonQuelle();
@@ -425,7 +438,7 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
       werkzeuge: anweisung.werkzeuge, audio: { rein: "pcmu_8k", raus: "pcmu_8k" }, quelle, regie: einstellungen.regie,
       fortsetzung: e.fortsetzung === "uebergabe_gescheitert" || e.fortsetzung === "wiederaufbau" ? e.fortsetzung : undefined,
       ereignis: (ev) => adapterEreignis(lauf, ev),
-      werkzeugAusfuehren: (name, eingabe, aufrufId) => werkzeugAusfuehren(lauf.ctx!, name, eingabe, aufrufId),
+      werkzeugAusfuehren: (name, eingabe, aufrufId) => werkzeugMitWort(lauf, name, eingabe, aufrufId),
     });
   } catch (err) {
     LAUFENDE.delete(lauf.callId);
@@ -642,6 +655,117 @@ function zeileAnhaengen(l: Lauf, ev: { wer: "kunde" | "aras"; text: string; t: n
   if (l.zeilen.length > 600) l.zeilen.splice(0, l.zeilen.length - 600);
 }
 
+// ── ARAS hält ihr Wort (Koordination 20.10.2026 nachts, nach dem Rauchtest) ──────────────────────────────────────────────
+/**
+ * Jedes Werkzeug der Sitzung (Modell UND Brücke) läuft hier durch: Erfolg/Fehler je Gespräch merken; der Link geht je Weg nur
+ * EINMAL raus (sagt der Kunde zweimal „schicken Sie's“, oder kommt die Brücke dem Modell zuvor, schickt nichts doppelt).
+ */
+async function werkzeugMitWort(l: Lauf, name: Werkzeug, eingabe: unknown, aufrufId: string): Promise<WerkzeugErgebnis> {
+  const weg = name === "zahlungslink_senden" ? ((eingabe as any)?.weg === "mail" ? "mail" : "whatsapp") : "";
+  if (name === "zahlungslink_senden" && (l.linkWege.has(weg) || (!(eingabe as any)?.weg && l.linkWege.size > 0))) {
+    return { ok: true, vorlesen: "", still: "Der Link ist in diesem Gespräch schon raus." };
+  }
+  // Rauchtest 21.10.: die Brücke legte die Aufgabe nach 6 s an, das Modell 10 s später noch einmal — dieselbe Sache nur einmal.
+  if (name === "aufgabe_fuer_justin" && l.werkzeugOk.has(`aufgabe_fuer_justin:${String((eingabe as any)?.art ?? "")}`)) {
+    return { ok: true, vorlesen: "", still: "Diese Aufgabe für Justin steht schon." };
+  }
+  l.werkzeugLaeuft.add(name);
+  let erg: WerkzeugErgebnis;
+  try { erg = await werkzeugAusfuehren(l.ctx!, name, eingabe, aufrufId); }
+  catch (err) { erg = { ok: false, vorlesen: "", fehler: String((err as Error)?.message ?? err).slice(0, 200) }; }
+  finally { l.werkzeugLaeuft.delete(name); }
+  if (erg.ok) {
+    l.werkzeugOk.set(name, Date.now());
+    if (name === "aufgabe_fuer_justin") l.werkzeugOk.set(`aufgabe_fuer_justin:${String((eingabe as any)?.art ?? "")}`, Date.now());
+    if (name === "zahlungslink_senden") l.linkWege.add(weg);
+    // Kam das Modell der Brücke zuvor: die geplante Nachholung entfällt.
+    const art = (eingabe as any)?.art;
+    for (const k of [name, `${name}:${art ?? ""}`]) { const w = l.wort.get(k); if (w) { clearTimeout(w.timer); l.wort.delete(k); } }
+  } else {
+    l.werkzeugFehl.set(name, Date.now());
+    // Hatte ARAS schon „ist raus“ gesagt: still korrigieren — ehrlich, und das Team schickt nach (Notiz in der Akte).
+    if (name === "zahlungslink_senden" && l.linkBehauptet && !l.beendet) l.sitzung?.textEinschieben(KORREKTUR_LINK_FEHLER, "anweisung");
+    if (name === "zahlungslink_senden" && l.ctx && !l.ctx.trocken && !l.wortErledigt.has("notiz:link")) {
+      l.wortErledigt.add("notiz:link");
+      void werkzeugAusfuehren(l.ctx, "notiz_schreiben", { text: "ARAS: Link/Rechnung ging im Gespräch NICHT raus — bitte heute nachsenden." }, `bruecke_notiz_${l.callId}_${Date.now()}`).catch(() => null);
+    }
+  }
+  return erg;
+}
+
+/** Die Brücke erledigt es selbst, wenn das Modell es nach `ms` nicht getan hat (ein Mal je Gespräch und Sache). */
+function wortPlanen(l: Lauf, name: Werkzeug, eingabe: Record<string, unknown>, ms: number, grund: string): void {
+  const schl = name === "aufgabe_fuer_justin" ? `${name}:${String(eingabe.art ?? "")}` : name;
+  // Schon erledigt, schon geplant — oder schon versucht und gescheitert (dann hat werkzeugMitWort korrigiert und das Team informiert).
+  if (!l.ctx || l.werkzeugOk.has(name) || l.werkzeugFehl.has(name) || l.wort.has(schl) || l.wortErledigt.has(schl)) return;
+  const lauf = async () => {
+    l.wort.delete(schl);
+    if (l.werkzeugOk.has(name) || l.werkzeugFehl.has(name) || l.werkzeugLaeuft.has(name) || l.wortErledigt.has(schl)) return;
+    l.wortErledigt.add(schl);
+    const erg = await werkzeugMitWort(l, name, eingabe, `bruecke_wort_${name}_${l.callId}_${Date.now()}`);
+    void arasEreignis({ art: "aras_werkzeug", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart,
+      text: `ARAS hält ihr Wort: ${name} (${grund}) — ${erg.ok ? "erledigt" : "fehlgeschlagen"}`, daten: { werkzeug: name, von: "bruecke", grund, ok: erg.ok } });
+  };
+  const timer = setTimeout(() => { void lauf(); }, ms);
+  l.wort.set(schl, { timer, lauf });
+}
+/** Sofort statt später (ARAS hat es gerade schon als erledigt bestätigt). */
+function wortJetzt(l: Lauf, name: Werkzeug, eingabe: Record<string, unknown>, grund: string): void {
+  const schl = name === "aufgabe_fuer_justin" ? `${name}:${String(eingabe.art ?? "")}` : name;
+  const w = l.wort.get(schl);
+  if (w) { clearTimeout(w.timer); void w.lauf(); return; }
+  wortPlanen(l, name, eingabe, 0, grund);
+}
+/** Am Gesprächsende: alles, was noch offen ist, jetzt erledigen (auch nach dem Auflegen — es war zugesagt). */
+async function wortAbschliessen(l: Lauf): Promise<void> {
+  const offen = Array.from(l.wort.values());
+  for (const w of offen) clearTimeout(w.timer);
+  await Promise.all(offen.map((w) => w.lauf().catch(() => null)));
+}
+const heuteBerlinIso = (): string => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+/** Hat ARAS gerade nach dem Zahltag gefragt? („Wann schaffen Sie die Überweisung — heute noch?“, „Geht sich des heute noch aus?“) */
+function fragteNachTag(l: Lauf): boolean {
+  const a = [...l.zeilen].reverse().find((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim());
+  return !!a && Date.now() - a.am < 45_000 && /(?:heute\s+noch\?|wann\s+(?:schaffen|passt|geht|zahlen|überweisen|klappt)|welchen\s+Tag|bis\s+wann|aus\?)/i.test(a.text);
+}
+/** Die Wort-Wache: klare Aussagen des Kunden und Zusagen von ARAS → das Werkzeug läuft, notfalls von der Brücke selbst. */
+function wortHalten(l: Lauf, z: TranskriptZeile): void {
+  if (!l.ctx || l.spielart === "eingehend") return;
+  const text = z.text;
+  if (z.wer === "kunde") {
+    // „Keine Karte bekommen“ zählt nur bei Kunden, die schon zahlen (Rate, Auftrag, Termin …) — beim Willkommen fehlt die Karte,
+    // weil die Aktivierung noch aussteht (das ist kein Fall für Justin).
+    const zahlt = l.spielart !== "willkommen" && (l.spielart === "rate" || l.briefing.raten.gezahlt > 0 || l.briefing.stufe === "kunde");
+    if (zahlt && karteNichtBekommen(text)) wortPlanen(l, "aufgabe_fuer_justin", { art: "karte_nicht_erhalten", text: `Kunde am Telefon: „${text.slice(0, 180)}“` }, WORT_WARTEN_MS.aufgabe, "keine Karte bekommen");
+    const angebot = [...l.zeilen].reverse().find((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim() && Date.now() - x.am < 30_000);
+    const nachAngebot = !!angebot && arasBietetZusendungAn(angebot.text);
+    if (kundeWillZusendung(text) || (nachAngebot && kurzesJa(text))) wortPlanen(l, "zahlungslink_senden", {}, WORT_WARTEN_MS.link, "der Kunde will den Link");
+    else if (nachAngebot && kurzesNein(text)) { const w = l.wort.get("zahlungslink_senden"); if (w) { clearTimeout(w.timer); l.wort.delete("zahlungslink_senden"); } }
+    const tag = fragteNachTag(l) ? zahltagAusKunde(text, heuteBerlinIso()) : null;
+    if (tag) wortPlanen(l, "zahlungszusage_merken", { datum: tag }, WORT_WARTEN_MS.zusage, `Zahltag ${tag}`);
+    return;
+  }
+  if (z.wer !== "aras" || z.verworfen) return;
+  if (arasKuendigtZusendungAn(text)) wortPlanen(l, "zahlungslink_senden", {}, WORT_WARTEN_MS.link, "ARAS kündigt Link/Rechnung an");
+  if (arasBehauptetZusendung(text) && !l.werkzeugOk.has("zahlungslink_senden")) {
+    l.linkBehauptet = true;
+    // Läuft das Werkzeug des Modells gerade, wartet die Brücke auf sein Ergebnis (scheitert es, korrigiert werkzeugMitWort).
+    if (!l.werkzeugLaeuft.has("zahlungslink_senden")) {
+      if (l.werkzeugFehl.has("zahlungslink_senden")) l.sitzung?.textEinschieben(KORREKTUR_LINK_FEHLER, "anweisung");
+      else wortJetzt(l, "zahlungslink_senden", {}, "ARAS sagte „ist raus“");
+    }
+  }
+  if (arasBehauptetNotiert(text) && !l.werkzeugOk.has("zahlungszusage_merken") && !l.werkzeugLaeuft.has("zahlungszusage_merken")) {
+    const kunde = [...l.zeilen].reverse().filter((x) => x.wer === "kunde" && x.text.trim() && Date.now() - x.am < 60_000).slice(0, 3);
+    // Rauchtest 21.10.: Der Kunde sagte „Ich zahl das heute noch“, die Abschrift hatte nur „Ich zahl das“ — ARAS hörte „heute“
+    // und bestätigte „dann notier ich mir heute“. Will er zahlen, gilt der Tag aus ARAS' hörbarer Bestätigung.
+    const zahltWill = kunde.some((x) => /\b(?:zahl|überweis|ueberweis|mach\s+(?:i|ich)|passt|erledig)/i.test(x.text) && !/\b(?:nein|nicht|ned|kein)\b/i.test(x.text));
+    const tag = kunde.map((x) => zahltagAusKunde(x.text, heuteBerlinIso())).find(Boolean) ?? (zahltWill ? zahltagAusKunde(text, heuteBerlinIso()) : null);
+    if (tag) wortJetzt(l, "zahlungszusage_merken", { datum: tag }, `ARAS sagte „notiert“ (${tag})`);
+    else if (!l.zusageKorrigiert) { l.zusageKorrigiert = true; l.sitzung?.textEinschieben(KORREKTUR_ZUSAGE, "anweisung"); }
+  }
+}
+
 function zeileFertig(l: Lauf, z: TranskriptZeile): void {
   if (z.final) return;
   z.final = true;
@@ -651,6 +775,7 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
   if (z.wer === "aras") z.text = fiaonSchreibweise(z.text);
   if (!z.text) return;
   transkriptMelden({ callId: l.callId, wer: z.wer, text: z.text, final: true, t: z.t });
+  wortHalten(l, z);
   if (z.wer === "aras") {
     if (!l.kiHinweisAm && !l.kiHinweisWartet && /\bKI\b|digitale[nr]?\s+Assistent|künstliche\s+Intelligenz|\bAI\b|digital assistant/i.test(z.text)) {
       // Vorab gesprochen und noch gehalten: er zählt, wenn der Kunde ihn hört (eroeffnungFrei) — nie früher.
@@ -1170,6 +1295,9 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   if (l.halten) { clearInterval(l.halten.takt); l.halten = null; }
   if (l.pruefUnterbrechen) clearTimeout(l.pruefUnterbrechen);
   for (const z of l.zeilen) if (!z.final) zeileFertig(l, z);
+  // ARAS hält ihr Wort: was noch offen ist (Link, Aufgabe, Zahltag), JETZT erledigen — erst nach dem Aufräumen der Takte,
+  // damit das Ende selbst gleich bleibt (Abschnitt 19: EIN Ende, danach nichts mehr).
+  await wortAbschliessen(l);
   let sekunden = l.sekunden, kostenCents = l.kostenCents;
   try { if (l.sitzung) { const k = await l.sitzung.beenden(grund); sekunden = Math.max(sekunden, k.sekunden); kostenCents = Math.max(kostenCents, k.kostenCents); } } catch { /* Ende ist Ende */ }
   const wanduhr = Math.round((Date.now() - l.seit) / 1000);

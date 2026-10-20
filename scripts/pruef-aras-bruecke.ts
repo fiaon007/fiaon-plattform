@@ -102,8 +102,10 @@ async function main(): Promise<void> {
   ok("gelesen: attrappe, an, parallel 3", e1.adapter === "attrappe" && e1.an && e1.parallel === 3);
 
   titel("2. TESTDATEN (erfunden) UND WARTESCHLANGE");
-  const heute = new Date(); const yyyy = (d: Date) => d.toISOString().slice(0, 10);
-  const vor = (tage: number) => { const d = new Date(); d.setDate(d.getDate() - tage); return yyyy(d); };
+  // Tage immer in BERLIN (Koordination 21.10.: der Prüfstand muss zu jeder Uhrzeit grün sein — zwischen 00:00 und 02:00 war
+  // „gestern“ in UTC noch vorgestern in Berlin).
+  const heute = new Date(); const yyyy = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const vor = (tage: number) => { const d = new Date(`${yyyy(new Date())}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - tage); return d.toISOString().slice(0, 10); };
   async function person(n: number, extra: Record<string, unknown> = {}): Promise<number> {
     const nummer = `+4917000000${String(n).padStart(2, "0")}`;
     const [p] = (await sqlPool`
@@ -189,7 +191,7 @@ async function main(): Promise<void> {
   ok("Notaus → Grund notaus", t.ausgelassen.some((a) => a.grund === "notaus"));
   await einstellungSetzen("aras_notaus", "aus", "pruefstand");
   // Versuche je Person: P2 hatte heute schon einen Mitarbeiter-Anruf
-  await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, twilio_sid, gefuehrt_von) VALUES (${p2}, ${ausweis}, '+491700000002', 'raus', 'beendet', NOW() - INTERVAL '3 hours', 'CA-pruef-mensch', 'mensch')`;
+  await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, twilio_sid, gefuehrt_von) VALUES (${p2}, ${ausweis}, '+491700000002', 'raus', 'beendet', GREATEST(NOW() - INTERVAL '3 hours', (date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 minute') AT TIME ZONE 'Europe/Berlin'), 'CA-pruef-mensch', 'mensch')`;
   const v2 = await versucheHeute(p2);
   ok("versucheHeute zählt den Mitarbeiter-Anruf (Mensch + ARAS zusammen)", v2.heute === 1 && v2.woche === 1, JSON.stringify(v2));
   await einstellungSetzen("aras_parallel", "1", "pruefstand");
@@ -1818,7 +1820,8 @@ async function main(): Promise<void> {
       const todos = (await sqlPool`SELECT id, titel, link, zustaendig_art, status, person_id FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:justin:karte_nicht_erhalten:${pK}`}`) as any[];
       ok("„Karte nicht erhalten“ zweimal im Gespräch → GENAU EINE Aufgabe, bei Justin (nicht beim Betreuer), mit Akte-Link", todos.length === 1 && /Karte nicht erhalten/.test(String(todos[0]?.titel)) && todos[0]?.zustaendig_art !== "agent" && String(todos[0]?.link ?? "").includes(rK) && Number(todos[0]?.person_id) === pK, JSON.stringify(todos));
       const wz = (await sqlPool`SELECT werkzeug, ok FROM fiaon_aras_werkzeug w JOIN fiaon_aras_anruf a ON a.id = w.aras_anruf_id WHERE a.call_id = ${callId} AND w.werkzeug = 'aufgabe_fuer_justin'`) as any[];
-      ok("Beide Werkzeug-Aufrufe stehen im Protokoll (der zweite hängt nur an)", wz.length === 2 && wz.every((x) => x.ok), JSON.stringify(wz));
+      // Seit „ARAS hält ihr Wort“ (21.10.): derselbe Aufruf im selben Gespräch läuft nur EINMAL (die Brücke fängt den zweiten ab).
+      ok("Der zweite Aufruf im selben Gespräch läuft nicht noch einmal (genau EINE Zeile im Protokoll)", wz.length === 1 && wz.every((x) => x.ok), JSON.stringify(wz));
       // Ein neuer Anruf zur selben Sache: immer noch EINE Aufgabe
       const e2 = await planEinreihen({ personId: pK, nummer: "+4917000000441", spielart: "rate", grund: "Prüfstand Rate Tag 12 (2)", erzeugtVon: "chef", rateId: Number(rate.id), anlassAm: new Date(`${vor(12)}T10:00:00Z`) });
       if (e2.ok && e2.id) {
@@ -1894,6 +1897,144 @@ async function main(): Promise<void> {
     ok("Jede Zahl trägt ihre Anrufe (für die Gespräche dazu) — Willkommen und Rate stehen zuerst", rate!.zellen.anrufe.ids.includes(a1) && rate!.zellen.anrufe.ids.includes(a2) && rate!.zellen.zahlungen.ids.join() === String(a1) && wk!.zellen.beschwerde.ids.join() === String(a3) && e.zeilen[0].spielart === "willkommen" && e.zeilen[1].spielart === "rate");
     ok("Probeanrufe zählen nur auf Wunsch — dann unter der gespielten Art (Rate: 3 Anrufe), zusammen 4", !e.zeilen.some((z) => z.zellen.anrufe.ids.includes(a4)) && e.summe.zellen.anrufe.n === 3 && (await ergebnisseTag(TAG, { mitProbe: true })).zeilen.find((z) => z.spielart === "rate")?.zellen.anrufe.n === 3 && (await ergebnisseTag(TAG, { mitProbe: true })).summe.zellen.anrufe.n === 4);
     ok("Ein anderer Tag: leer (nichts doppelt gezählt)", (await ergebnisseTag("2026-01-14")).zeilen.length === 0);
+  }
+
+  titel("27. ARAS HÄLT IHR WORT (Rauchtest 20.10. nachts): bestätigt nur, was wirklich passiert ist — sonst handelt die Brücke selbst oder korrigiert still");
+  {
+    const W = await import("../shared/fiaon-aras-wort");
+    await einstellungSetzen("aras_stufe", "3", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand"); await start("pruefstand");
+    await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+    const wz = async (callId: number, name: string) => (await sqlPool`SELECT w.ok, w.aufruf_id FROM fiaon_aras_werkzeug w JOIN fiaon_aras_anruf a ON a.id = w.aras_anruf_id WHERE a.call_id = ${callId} AND w.werkzeug = ${name} ORDER BY w.id`) as any[];
+    const kunde = async (n: number) => { const pid = await person(n); const ref = await antrag(pid, n, { payment_status: "paid" });
+      const [r] = (await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${ref}, 2, ${`${ref}-2`}, 5999, ${vor(4)}::date, 'offen') RETURNING id`) as any[];
+      const e = await planEinreihen({ personId: pid, ref, nummer: `+4917000000${n}`, spielart: "rate", grund: "Prüfstand Wort", erzeugtVon: "chef", rateId: Number(r.id), anlassAm: new Date(`${vor(4)}T10:00:00Z`) });
+      if (!e.ok || !e.id) throw new Error(`einreihen: ${e.grund}`); return { pid, ref, planId: Number(e.id) }; };
+    // Erkenner (rein)
+    ok("Erkenner: „Schicken Sie's mir“ / „ja bitte per WhatsApp“ = will den Link; „Nein, nicht schicken“ nie", W.kundeWillZusendung("Ja, schicken Sie's mir bitte.") && W.kundeWillZusendung("Ja gerne, per WhatsApp.") && !W.kundeWillZusendung("Nein, bitte nichts schicken."));
+    ok("Erkenner: „Der Link ist gleich per WhatsApp bei Ihnen“ / „Hab Ihnen die Rechnung geschickt“ = behauptet erledigt; „I schick Ihnen glei die Rechnung zu“ = kündigt an",
+      W.arasBehauptetZusendung("Der Link ist gleich per WhatsApp bei Ihnen.") && W.arasBehauptetZusendung("Hab Ihnen die Rechnung grad geschickt.") && !W.arasBehauptetZusendung("I schick Ihnen glei die Rechnung zu.") && W.arasKuendigtZusendungAn("I schick Ihnen glei die Rechnung zu, seins so guat."));
+    ok("Erkenner: ein ANGEBOT („Ich schick Ihnen den Link gleich aufs Handy … — passt das?“) ist keine Zusage — erst sein „Ja, passt.“ zählt; „Nein“ nie; „heute noch nicht“ ist kein Zahltag",
+      !W.arasKuendigtZusendungAn("Ich schick Ihnen den Link gleich aufs Handy, mit allen Infos — passt das?") && W.arasBietetZusendungAn("Ich schick Ihnen den Link gleich aufs Handy, mit allen Infos — passt das?") && W.kurzesJa("Ja, passt.") && !W.kurzesJa("Ja, aber nicht heute.") && W.kurzesNein("Nein, brauch ich nicht.") && W.zahltagAusKunde("Heute noch nicht.", "2026-10-21") === null);
+    ok("Erkenner: „Ich hab nie eine Karte bekommen“, „Die Karte ist noch nicht da“ = keine Karte; „Danke für die Karte“ nie", W.karteNichtBekommen("Ich hab übrigens nie eine Karte bekommen.") && W.karteNichtBekommen("Die Karte ist noch nicht da.") && !W.karteNichtBekommen("Danke, die Karte ist super."));
+    ok("Erkenner: „dann notier i mir heute“ / „das hab ich notiert“ = behauptet notiert; Zahltag nur aus „heute“/„morgen“", W.arasBehauptetNotiert("Super, dann notier i mir heute.") && W.arasBehauptetNotiert("Alles klar, das hab ich notiert.") && W.zahltagAusKunde("Ja, heute noch.", "2026-10-21") === "2026-10-21" && W.zahltagAusKunde("Morgen", "2026-10-21") === "2026-10-22" && W.zahltagAusKunde("Weiß ich noch nicht", "2026-10-21") === null);
+
+    // A) ARAS sagt „Der Link ist raus“, ohne Werkzeug → die Brücke schickt SOFORT selbst; scheitert es (hier ohne Versand-
+    //    schlüssel), korrigiert sie still und das Team bekommt eine Notiz. Die Ankündigung davor löst nichts doppelt aus.
+    const kA = await kunde(447);
+    const gA = await gespraech(kA.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "I ruf an wegen Ihrer offenen Rate — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.", ms: 500 }, { warteMs: 600 },
+      { aras: "Der Link ist schon raus.", ms: 300 }, { warteMs: 3000 },
+    ] });
+    await warten(async () => (await wz(gA.callId, "zahlungslink_senden")).length > 0, 6000);
+    await warten(() => gA.att.spur.eingeschoben.some((x) => x.text === W.KORREKTUR_LINK_FEHLER), 4000);
+    const linkA = await wz(gA.callId, "zahlungslink_senden");
+    ok("„ist raus“ ohne Werkzeug → die Brücke schickt selbst (genau EIN Versuch, keine doppelte Rechnung)", linkA.length === 1 && String(linkA[0].aufruf_id).startsWith("bruecke_wort_zahlungslink_senden"), JSON.stringify(linkA));
+    ok("Ging es nicht raus → stille Korrektur an die Stimme (nie „ist raus“ stehen lassen)", !linkA[0]?.ok && gA.att.spur.eingeschoben.some((x) => x.art === "anweisung" && x.text === W.KORREKTUR_LINK_FEHLER), JSON.stringify(gA.att.spur.eingeschoben.map((x) => x.text.slice(0, 40))));
+    gA.tw.aufhaengen(); await warten(async () => !!(await anruf(gA.callId))?.nachbereitet_am, 10_000);
+    ok("… und das Team bekommt eine Notiz zum Nachsenden (Akte)", ((await sqlPool`SELECT 1 FROM fiaon_contact_log WHERE person_id = ${kA.pid} AND note LIKE '%nicht raus%'`) as any[]).length >= 1 || (await wz(gA.callId, "notiz_schreiben")).length >= 1);
+
+    // B) „Ich hab nie eine Karte bekommen“ — das Modell legt keine Aufgabe an → die Brücke legt GENAU EINE an (spätestens beim Auflegen)
+    const kB = await kunde(448);
+    const gB = await gespraech(kB.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { kunde: "Ich hab übrigens nie eine Karte bekommen.", nachMs: 200 }, { warteMs: 500 },
+      { aras: "Wos — wirklich! Na passens auf: i kümmer mi drum.", ms: 400 }, { warteMs: 1500 },
+    ] });
+    await schlafen(1800);
+    gB.tw.aufhaengen(); await warten(async () => !!(await anruf(gB.callId))?.nachbereitet_am, 12_000);
+    const aufgB = await wz(gB.callId, "aufgabe_fuer_justin");
+    const todoB = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:justin:karte_nicht_erhalten:${kB.pid}`}`) as any[])[0]?.n;
+    ok("„keine Karte“ ohne Werkzeug des Modells → die Brücke legt die Aufgabe an (auch wenn er gleich auflegt) — GENAU EINE", aufgB.length === 1 && aufgB[0].ok && Number(todoB) === 1, `${JSON.stringify(aufgB)} · Aufgaben ${todoB}`);
+
+    // C) Das Modell legt sie selbst an → die Brücke tut nichts doppelt
+    const kC = await kunde(449);
+    const gC = await gespraech(kC.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { kunde: "Die Karte ist noch nicht da.", nachMs: 200 },
+      { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "karte_nicht_erhalten", text: "Kunde: Karte noch nicht da." } }, { warteMs: 9000 },
+    ] });
+    // Das Modell legt sie gleich an — die Brücke wartet 6 s und tut dann nichts mehr (erst danach auflegen).
+    await warten(async () => (await wz(gC.callId, "aufgabe_fuer_justin")).length > 0, 8000); await schlafen(7000);
+    gC.tw.aufhaengen(); await warten(async () => !!(await anruf(gC.callId))?.nachbereitet_am, 12_000);
+    const aufgC = await wz(gC.callId, "aufgabe_fuer_justin");
+    ok("Rot-Probe: legt das Modell die Aufgabe selbst an, macht die Brücke nichts doppelt (1 Aufruf, nicht von der Brücke)", aufgC.length === 1 && !String(aufgC[0].aufruf_id).startsWith("bruecke_"), JSON.stringify(aufgC));
+    // C2) Umgekehrt (Rauchtest 21.10.): die Brücke war schneller, das Modell ruft danach noch einmal → kein zweiter Lauf
+    const kC2 = await kunde(456);
+    const gC2 = await gespraech(kC2.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { kunde: "Ich hab nie eine Karte bekommen.", nachMs: 200 }, { warteMs: 7500 },
+      { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "karte_nicht_erhalten", text: "Kunde: nie eine Karte." } }, { warteMs: 1500 },
+    ] });
+    await warten(async () => gC2.att.spur.werkzeuge.some((x) => x.name === "aufgabe_fuer_justin"), 14_000);
+    gC2.tw.aufhaengen(); await warten(async () => !!(await anruf(gC2.callId))?.nachbereitet_am, 10_000);
+    const aufgC2 = await wz(gC2.callId, "aufgabe_fuer_justin");
+    ok("Rot-Probe: die Brücke legte die Aufgabe an, das Modell ruft danach noch einmal → genau EIN echter Lauf", aufgC2.length === 1 && String(aufgC2[0].aufruf_id).startsWith("bruecke_wort_") && gC2.att.spur.werkzeuge.find((x) => x.name === "aufgabe_fuer_justin")?.ergebnis.ok === true, JSON.stringify(aufgC2));
+
+    // D) „heute noch?“ → „Ja, heute noch.“ → „dann notier i mir heute“ ohne Werkzeug → die Brücke trägt den Tag ein
+    const kD = await kunde(450);
+    const gD = await gespraech(kD.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "Wann schaffen Sie die Überweisung — heute noch?", ms: 400 }, { warteMs: 700 },
+      { kunde: "Ja, heute noch.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "Super, dann notier i mir heute.", ms: 300 }, { warteMs: 2500 },
+    ] });
+    await warten(async () => (await wz(gD.callId, "zahlungszusage_merken")).length > 0, 6000);
+    const zuD = await wz(gD.callId, "zahlungszusage_merken");
+    ok("„notier i mir heute“ ohne Werkzeug → die Brücke trägt den Zahltag ein (heute)", zuD.length === 1 && zuD[0].ok, JSON.stringify(zuD));
+    gD.tw.aufhaengen(); await warten(async () => !!(await anruf(gD.callId))?.nachbereitet_am, 10_000);
+
+    // E) „Hab ich notiert“ ohne einen Tag vom Kunden → stille Korrektur (nach dem Tag fragen)
+    const kE = await kunde(451);
+    const gE = await gespraech(kE.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "Alles klar, das hab ich notiert.", ms: 300 }, { warteMs: 2000 },
+    ] });
+    await warten(() => gE.att.spur.eingeschoben.some((x) => x.text === W.KORREKTUR_ZUSAGE), 4000);
+    ok("Rot-Probe: „notiert“ ohne Tag → stille Korrektur (frag nach dem Tag), nichts eingetragen", gE.att.spur.eingeschoben.some((x) => x.art === "anweisung" && x.text === W.KORREKTUR_ZUSAGE) && (await wz(gE.callId, "zahlungszusage_merken")).length === 0);
+    gE.tw.aufhaengen(); await warten(async () => !!(await anruf(gE.callId))?.nachbereitet_am, 10_000);
+    // H) Rauchtest 21.10.: die Abschrift schnitt „heute noch“ ab („Okay, passt. Ich zahl das“) — ARAS bestätigte „dann notier ich
+    //    mir heute“ → der Tag aus ihrer hörbaren Bestätigung; I) scheitert das Werkzeug des Modells, wiederholt die Brücke nicht blind
+    const kH = await kunde(454);
+    const gH = await gespraech(kH.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { kunde: "Okay, passt. Ich zahl das", nachMs: 200 }, { warteMs: 300 },
+      { aras: "Sehr gut, dann notier ich mir heute.", ms: 300 }, { warteMs: 2500 },
+    ] });
+    await warten(async () => (await wz(gH.callId, "zahlungszusage_merken")).length > 0, 6000);
+    ok("Abschrift ohne Tag, aber er will zahlen und ARAS bestätigt „heute“ → Zahltag heute eingetragen (keine Korrektur nötig)", (await wz(gH.callId, "zahlungszusage_merken")).length === 1 && !gH.att.spur.eingeschoben.some((x) => x.text === W.KORREKTUR_ZUSAGE));
+    gH.tw.aufhaengen(); await warten(async () => !!(await anruf(gH.callId))?.nachbereitet_am, 10_000);
+    const kI = await kunde(455);
+    const gI = await gespraech(kI.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "I ruf an wegen Ihrer offenen Rate — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.", ms: 500 },
+      { werkzeug: "zahlungslink_senden", eingabe: { weg: "whatsapp", zweck: "rate" } }, { warteMs: 10_000 },
+    ] });
+    await warten(async () => (await wz(gI.callId, "zahlungslink_senden")).length > 0, 6000); await schlafen(9000);
+    gI.tw.aufhaengen(); await warten(async () => !!(await anruf(gI.callId))?.nachbereitet_am, 10_000);
+    const linkI = await wz(gI.callId, "zahlungslink_senden"), notizI = await wz(gI.callId, "notiz_schreiben");
+    ok("Rot-Probe: scheitert der Link des Modells, versucht die Brücke es nicht blind noch einmal — EINE Notiz fürs Team", linkI.length === 1 && !String(linkI[0].aufruf_id).startsWith("bruecke_") && notizI.length === 1, `${JSON.stringify(linkI)} · Notizen ${notizI.length}`);
+
+    // F) Angebot „… passt das?“ + „Ja, passt.“ → die Brücke schickt; G) Angebot + „Nein, brauch ich nicht.“ → nichts
+    const kF = await kunde(452);
+    const gF = await gespraech(kF.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "Ich schick Ihnen den Link gleich aufs Handy, mit allen Infos — passt das?", ms: 400 }, { warteMs: 700 },
+      { kunde: "Ja, passt.", nachMs: 200 }, { warteMs: 10_000 },
+    ] });
+    await warten(async () => (await wz(gF.callId, "zahlungslink_senden")).length > 0, 14_000);
+    ok("Angebot + „Ja, passt.“ ohne Werkzeug des Modells → die Brücke schickt den Link (ein Versuch)", (await wz(gF.callId, "zahlungslink_senden")).length === 1);
+    gF.tw.aufhaengen(); await warten(async () => !!(await anruf(gF.callId))?.nachbereitet_am, 10_000);
+    const kG = await kunde(453);
+    const gG = await gespraech(kG.planId, { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 200 }, { warteMs: 400 },
+      { aras: "Ich schick Ihnen den Link gleich aufs Handy, mit allen Infos — passt das?", ms: 400 }, { warteMs: 700 },
+      { kunde: "Nein, brauch ich nicht.", nachMs: 200 }, { warteMs: 1500 },
+    ] });
+    await schlafen(3000); gG.tw.aufhaengen(); await warten(async () => !!(await anruf(gG.callId))?.nachbereitet_am, 10_000);
+    ok("Rot-Probe: Angebot + „Nein“ → kein Link (auch nicht beim Auflegen)", (await wz(gG.callId, "zahlungslink_senden")).length === 0);
+    await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

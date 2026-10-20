@@ -16,6 +16,8 @@ const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lese = (p: string) => fs.readFileSync(path.join(WURZEL, p), "utf8");
 const dateien = (dir: string): string[] => fs.readdirSync(path.join(WURZEL, dir)).filter((f) => f.endsWith(".ts")).map((f) => `${dir}/${f}`);
 const serverCode = [...dateien("server/routes"), ...dateien("server/lib"), "server/routes.ts"].map((p) => ({ p, t: lese(p) }));
+// Aras liest einen Teil seiner Schalter im geteilten Kern (shared/fiaon-aras.ts: einstellungenAnwenden).
+const geteilterCode = dateien("shared").map((p) => ({ p, t: lese(p) }));
 
 // Setzer-Route → Datei mit ihrer Erlaubnisliste
 const SETZER_DATEI: Record<string, string[]> = {
@@ -66,7 +68,12 @@ console.log("── 3 · Leser: Datei vorhanden, Schlüssel wird gelesen");
 for (const e of REGISTER) {
   const [datei, fn] = e.leser.split(":");
   const treffer = serverCode.find(({ p }) => p.endsWith(`/${datei}`));
-  if (e.dienst === "aras") { if (!treffer) warte(`${e.schluessel}: Leser ${datei}`); else ok(true, `${e.schluessel}: Leser ${datei} da`); continue; }
+  if (e.dienst === "aras") {
+    // Seit E-408 Scheibe 1 auf main: der Leser muss da sein UND den Schlüssel wirklich lesen (kein „wartet“ mehr).
+    const t2 = treffer ?? geteilterCode.find(({ p }) => p.endsWith(`/${datei}`));
+    ok(!!t2 && t2.t.includes(e.schluessel), `${e.schluessel}: Leser ${datei} liest ihn`, t2 ? "Schlüssel fehlt im Leser" : "Leser-Datei fehlt");
+    continue;
+  }
   ok(!!treffer, `${e.schluessel}: Leser-Datei ${datei} existiert`);
   if (!treffer) continue;
   const liest = treffer.t.includes(e.schluessel) || (/^postmeister_modus_/.test(e.schluessel) && treffer.t.includes("postmeister_modus_"))

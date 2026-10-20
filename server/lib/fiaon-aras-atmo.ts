@@ -16,10 +16,13 @@
 export type AtmoArt = "buero_leise" | "buero";
 export const ATMO_ARTEN: readonly AtmoArt[] = ["buero_leise", "buero"];
 export const ATMO_RATE = 8000;
-/** Ungefähre Lautheit (RMS in dBFS) je Art — Sprache am Telefon liegt bei etwa −16 dBFS (Prüfstand: ±2,5 dB). */
-export const ATMO_PEGEL_DBFS: Record<AtmoArt, number> = { buero_leise: -43, buero: -37 };
-/** Höchste Spitze je Art (dBFS) — ein Tastenklick bleibt deutlich unter Aras' Stimme. */
-export const ATMO_SPITZE_DBFS: Record<AtmoArt, number> = { buero_leise: -26, buero: -21 };
+/**
+ * Ungefähre Lautheit (RMS in dBFS) je Art — Sprache am Telefon liegt bei etwa −16 dBFS (Prüfstand: ±2,5 dB).
+ * Justin 20.10.2026 (abends): „Büro leiser“ — jede Art 6 dB leiser als zuerst (−43/−37 → −49/−43).
+ */
+export const ATMO_PEGEL_DBFS: Record<AtmoArt, number> = { buero_leise: -49, buero: -43 };
+/** Höchste Spitze je Art (dBFS) — ein Tastenklick bleibt deutlich unter Aras' Stimme (ebenfalls 6 dB leiser). */
+export const ATMO_SPITZE_DBFS: Record<AtmoArt, number> = { buero_leise: -32, buero: -27 };
 /** Länge der Schleife in Sekunden (lang genug, dass sich nichts hörbar wiederholt). */
 export const ATMO_SEKUNDEN = 75;
 
@@ -170,9 +173,10 @@ const aufRms = (a: Float32Array, dbfs: number) => { const z = 10 ** (dbfs / 20),
 const aufSpitze = (a: Float32Array, dbfs: number) => { const z = 10 ** (dbfs / 20), ist = spitzeVon(a) || 1; for (let i = 0; i < a.length; i++) a[i] *= z / ist; return a; };
 
 /** Pegel je Schicht in dBFS (RMS bzw. Spitze) — Sprache am Telefon: ca. −16 dBFS RMS, Spitzen um −3 dBFS. */
+// Justin 20.10.2026 (abends): jede Schicht 6 dB leiser („Büro leiser“); die Zahl der Stimmen im Gemurmel bleibt.
 const SCHICHT_PEGEL: Record<AtmoArt, { raum: number; lueftung: number; murmel: number; tippen: number; papier: number; stimmen: number }> = {
-  buero_leise: { raum: -48, lueftung: -52, murmel: -46, tippen: -31, papier: -36, stimmen: 2 },
-  buero:       { raum: -44, lueftung: -49, murmel: -39, tippen: -26, papier: -31, stimmen: 4 },
+  buero_leise: { raum: -54, lueftung: -58, murmel: -52, tippen: -37, papier: -42, stimmen: 2 },
+  buero:       { raum: -50, lueftung: -55, murmel: -45, tippen: -32, papier: -37, stimmen: 4 },
 };
 
 /**

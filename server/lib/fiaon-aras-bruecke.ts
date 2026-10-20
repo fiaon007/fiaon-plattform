@@ -53,12 +53,12 @@ import { arasEinstellungenLesen } from "./fiaon-aras-plan";
 import { werkzeugAusfuehren, type WerkzeugKontext } from "./fiaon-aras-werkzeuge";
 import { arasEreignis, transkriptMelden } from "./fiaon-aras-ereignis";
 import { streamTokenPruefen, twilioClient, arasCallerId, rueckrufUrl, twimlUebergabe } from "./fiaon-aras-twilio-client";
-import { anweisungBauen, kiHinweisFuer, NOTAUS_SATZ, ABSCHIED_EINFORDERN, type Briefing } from "../../shared/fiaon-aras-prompt";
+import { anweisungBauen, begruessungText, NOTAUS_SATZ, ABSCHIED_EINFORDERN, type Briefing } from "../../shared/fiaon-aras-prompt";
 import {
   ANRUF_ZEITLIMIT_SEK, telefonKostenCents, istAufnahmeJa, istAufnahmeNein, GEDULD_MS,
   type AdapterName, type Spielart, type Land, type LiveSitzung, type ArasEinstellungen, type ArasErgebnis,
 } from "../../shared/fiaon-aras";
-import { wiederholtSich, abschiedGesagt, WIEDERHOLUNG_HINWEIS } from "../../shared/fiaon-aras-regeln";
+import { wiederholtSich, ABSCHIED_RE, ABSCHIED_AT_RE, WIEDERHOLUNG_HINWEIS } from "../../shared/fiaon-aras-regeln";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 
 export const STREAM_PFAD = "/api/fiaon/aras/stream";
@@ -496,7 +496,8 @@ function zeileAnhaengen(l: Lauf, ev: { wer: "kunde" | "aras"; text: string; t: n
 function zeileFertig(l: Lauf, z: TranskriptZeile): void {
   if (z.final) return;
   z.final = true;
-  z.text = z.text.replace(/\s+/g, " ").trim();
+  // GPT-Live schreibt ein Lachen als Laut-Marke („[chuckle]“, „[laugh]“) in seine Abschrift — für Mensch und Akte: „(lacht)“.
+  z.text = z.text.replace(/\[(?:laugh|laughs|laughing|laughter|chuckle|chuckles|chuckling|giggle|giggles)\]/gi, "(lacht)").replace(/\s+/g, " ").trim();
   if (!z.text) return;
   transkriptMelden({ callId: l.callId, wer: z.wer, text: z.text, final: true, t: z.t });
   if (z.wer === "aras") {
@@ -506,11 +507,13 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
       void arasEreignis({ art: "aras_ki_hinweis", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `KI-Hinweis nach ${Math.round((Date.now() - (l.bereitAm ?? l.seit)) / 1000)} s` });
     }
     if (z.verworfen) return;
-    const aufnahmeFrage = /aufzeichn|aufnehmen|recorded|record\b/i.test(z.text) && !l.aufnahmeJa && !l.aufnahmeNein;
+    // Rauchtest 20.10. (Wienerisch): einmal „Darf ich dafür kurz mitschneiden …?“ statt „aufzeichnen“ — auch das ist die Aufnahme-Frage.
+    const aufnahmeFrage = /aufzeichn|aufnehmen|aufnehma\b|mitschneid|mitschnitt|recorded|record\b/i.test(z.text) && !l.aufnahmeJa && !l.aufnahmeNein;
     // Eine Frage von Aras: bis er antwortet, gilt das Geduld-Tor (kein „Also...“ in seine Antwort-Pause).
     const frage = /\?["“”»]?\s*$/.test(z.text);
     // Der Abschied („… einen schönen Tag“, „auf Wiederhören“): danach legt Aras nach kurzer Ruhe selbst auf.
-    const abschied = abschiedGesagt(z.text);
+    // „Servus“ & Co. (Wiener Abschied) erst, wenn das Gespräch schon läuft — am Anfang kann „Servus“ auch ein Gruß sein.
+    const abschied = ABSCHIED_RE.test(z.text) || (ABSCHIED_AT_RE.test(z.text) && Date.now() - (l.bereitAm ?? l.seit) > 20_000);
     if (l.halten && z.am >= l.halten.seit - 300) {
       // Noch zurückgehalten: Frage und Abschied zählen erst, wenn der Kunde sie hört (Freigabe) — werden sie verworfen, nie.
       const m = l.halteFragen ?? { aufnahme: false, frage: false, abschied: false };
@@ -544,12 +547,15 @@ function wachen(l: Lauf): void {
   // Begrüßung nachschieben: GPT-Live spricht laut Doku nicht garantiert zuerst.
   if (!l.grussNachgeschoben && !l.arasErsteRedeAm && !l.kundeHatGesprochen && seitBereit > GRUSS_NACH_MS && l.ws) {
     l.grussNachgeschoben = true;
-    l.sitzung?.textEinschieben(`Begrüße den Angerufenen jetzt sofort mit genau diesem Satz: „${kiHinweisFuer(l.einstellungen)}“ und frag dann, ob du mit der richtigen Person sprichst.`, "anweisung");
+    // Derselbe Text wie am Anfang (KI-Hinweis, kurzes Lachen, Frage nach dem Namen mit Anrede) — eine Quelle. Als
+    // „vorlesen“ (commentary): Rauchtest 20.10. — eine Anweisung (instructions) brachte eine stumme Sitzung oft NICHT
+    // zum Sprechen (1 von 2), „vorlesen“ jedes Mal binnen ~0,7 s (3 von 3), mit vollständigem KI-Hinweis.
+    l.sitzung?.textEinschieben(begruessungText(l.einstellungen, l.briefing, l.spielart), "vorlesen");
   }
   // KI-Hinweis nachschieben, wenn Aras schon 12 s redet und ihn noch nicht gesagt hat (Pflicht, Art. 50 KI-VO).
   if (!l.kiHinweisAm && !l.hinweisNachgeschoben && l.arasErsteRedeAm && jetzt - l.arasErsteRedeAm > 12_000) {
     l.hinweisNachgeschoben = true;
-    l.sitzung?.textEinschieben("Sag jetzt kurz und freundlich, dass du der digitale Assistent von FIAON bist, also eine KI — in einem halben Satz, dann weiter im Gespräch.", "anweisung");
+    l.sitzung?.textEinschieben(`Sag jetzt kurz und freundlich, dass du der digitale Assistent von FIAON bist, also eine KI — in einem halben Satz${l.einstellungen.regie?.lachen !== false ? ", mit einem kurzen, warmen, hörbaren Lachen (kein Wort dafür)" : ""} —, dann weiter im Gespräch.`, "anweisung");
   }
   // Nach dem Abschied: 2,5 s Ruhe auf beiden Seiten → auflegen (das Werkzeug anruf_beenden kann es auch, ist aber langsamer).
   if (l.abschiedAm && !l.spricht && !l.halten && l.pufferBytes === 0 && jetzt - l.zuletztSprache > 2500 && jetzt - l.zuletztRede > 2500 && jetzt - l.abschiedAm > 1500) {

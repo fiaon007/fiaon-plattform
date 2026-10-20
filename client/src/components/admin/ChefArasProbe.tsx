@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { API, Geruest, Fehlermeldung, useDaten, seit } from "./chef-teile";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGANG_ARAS_PROBE } from "@/pages/agent/rundgaenge";
-import { SPIELART_TEXT, DIALEKTE, DIALEKT_TEXT, HINTERGRUENDE, HINTERGRUND_TEXT, type HoerprobeZeile, type Spielart, type Dialekt, type Hintergrund } from "@shared/fiaon-aras";
+import { SPIELART_TEXT, DIALEKTE, DIALEKT_TEXT, HINTERGRUENDE, HINTERGRUND_TEXT, HOERPROBE_SAETZE, type HoerprobeZeile, type Spielart, type Dialekt, type Hintergrund } from "@shared/fiaon-aras";
 import "@/styles/office-rundgang.css";
 import "@/styles/chef-aras-probe.css";
 
@@ -338,12 +338,13 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
         <div className="ap-raster">
           <section className="ap-tafel" data-ap="studio">
             <h2>Stimmen-Studio</h2>
-            <label className="ap-feld">Derselbe Satz für jede Stimme
+            <label className="ap-feld">Derselbe Satz für jede Stimme — je Akzent ein eigener Vorschlag
               <textarea value={satz} onChange={(e) => setSatz(e.target.value)} maxLength={400} />
             </label>
             <div className="ap-feld">Akzent der Sprechprobe
               <div className="ap-segment" role="group" aria-label="Akzent der Sprechprobe">
-                {DIALEKTE.map((d) => <button key={d} type="button" className={studioDialekt === d ? "an" : ""} onClick={() => setStudioDialekt(d)}>{DIALEKT_TEXT[d]}</button>)}
+                {/* Justin 20.10. (abends): je Akzent ein eigener Probesatz — hat er den Satz nicht selbst geändert, wechselt er mit. */}
+                {DIALEKTE.map((d) => <button key={d} type="button" className={studioDialekt === d ? "an" : ""} onClick={() => { setStudioDialekt(d); if (!satz.trim() || Object.values(HOERPROBE_SAETZE).includes(satz) || satz === s?.satzVorgabe) setSatz(HOERPROBE_SAETZE[d]); }}>{DIALEKT_TEXT[d]}</button>)}
               </div>
             </div>
             <div className="ap-feld">Beim Anhören mit Hintergrund

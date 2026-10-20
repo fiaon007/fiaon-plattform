@@ -53,6 +53,13 @@ console.log("── Mischen");
   ok(atmoMischen(null, 160, "buero_leise", -5).pos === 155, "negative Position wird in die Schleife gelegt");
 }
 
+// Justin 20.10.2026 (abends): „Büro leiser“ — jede Art 6 dB leiser als zuerst (−43/−37 → −49/−43 dBFS, Spitzen −32/−27)
+ok(ATMO_PEGEL_DBFS.buero_leise === -49 && ATMO_PEGEL_DBFS.buero === -43 && ATMO_SPITZE_DBFS.buero_leise === -32 && ATMO_SPITZE_DBFS.buero === -27, "Justin 20.10. abends: jede Art 6 dB leiser (−49 / −43 dBFS, Spitzen −32 / −27)");
+{
+  const alt = atmoErzeugen("buero").map((v) => Math.max(-32767, Math.min(32767, v * 2))) as Int16Array; // +6 dB = die alte Lautstärke
+  ok(Math.abs(rmsDb(alt) - ATMO_PEGEL_DBFS.buero) > 2.5, "Rot-Probe: die alte Lautstärke (+6 dB) fällt im Pegel-Test auf", `${rmsDb(alt).toFixed(1)} dBFS`);
+}
+
 // Rot-Probe: eine absichtlich zu laute Atmo würde den Pegel-Test reißen
 {
   const zuLaut = atmoErzeugen("buero").map((v) => Math.max(-32767, Math.min(32767, v * 8))) as Int16Array;

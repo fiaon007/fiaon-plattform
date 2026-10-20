@@ -133,7 +133,27 @@ export function fuellwortQuote(zeilen: readonly RegelZeile[] | null | undefined)
 export const FUELLWORT_QUOTE_HOECHSTENS = 0.34;
 /** Ein Abschied („… einen schönen Tag noch“, „auf Wiederhören“) — die Brücke legt erst danach auf. */
 export const ABSCHIED_RE = /sch(?:ö|oe)nen (?:tag|abend|nachmittag|vormittag|feierabend)|sch(?:ö|oe)ne(?:s)? (?:woche|wochenende)|auf wiederh(?:ö|oe)ren|auf wiederschauen|tsch(?:ü|ue)ss|alles gute|have a (?:lovely|nice|good) (?:day|evening)|goodbye/i;
-export function abschiedGesagt(text: string): boolean { return ABSCHIED_RE.test(String(text ?? "")); }
+export function abschiedGesagt(text: string): boolean { return ABSCHIED_RE.test(String(text ?? "")) || ABSCHIED_AT_RE.test(String(text ?? "")); }
+/**
+ * Österreichische Abschiede (stärkerer Dialekt, 20.10. abends: „Servus“ zum Abschied bei Kunden aus Österreich).
+ * „Servus“ kann auch ein Gruß sein — die Brücke zählt diese Wörter darum erst, wenn das Gespräch schon läuft (nach 20 s).
+ */
+export const ABSCHIED_AT_RE = /\b(?:servus|baba|pfiat (?:di|eana|ihna|enk))\b/i;
+
+/**
+ * Eine Karte als sicher versprochen (Anruf 8, 20.10.: „… damit Sie schnellstmöglich Ihre eigene Visa-Kreditkarte
+ * bekommen“) — über die Karte entscheidet die Partnerbank; E-373 sagt „… nutzen können“ / „… zu Ihrer Karte kommen“.
+ * Ein Satz, der die Partnerbank oder ihre Entscheidung nennt, ist kein Versprechen. Rein.
+ */
+export function karteVersprochenFinden(text: string): string | null {
+  const saetze = String(text ?? "").split(/(?<=[.!?…])\s+/);
+  for (const satz of saetze) {
+    if (/entscheid|partnerbank|\bob\s+sie\b/i.test(satz)) continue;
+    const m = /\b(?:bekommen|erhalten|kriegen)\s+(?:sie\s+)?(?:dann\s+|direkt\s+|sofort\s+|auch\s+|garantiert\s+)?(?:ihre|die|eine)\s+(?:eigene\s+)?(?:visa[- ]?)?(?:kredit)?karte\b|\b(?:ihre|die|eine)\s+(?:eigene\s+)?(?:visa[- ]?)?(?:kredit)?karte\s+(?:\S+\s+){0,4}?(?:bekommen|erhalten|kriegen)\b/i.exec(satz);
+    if (m) return m[0];
+  }
+  return null;
+}
 
 /**
  * Der Antrag als „durch“/„genehmigt“ dargestellt (Rauchtest 20.10.: „Ihr Antrag ist bei uns schon durch“) — er ist nur
@@ -157,6 +177,7 @@ export function telefonRegeln(text: string, tel: ArasTelefonLage | null = null):
   const nb = nullBetragFinden(t); if (nb) zusatz.push({ regel: "betrag_null", schwere: "hart", treffer: nb.slice(0, 160), hinweis: "„Null Euro“ / „0 €“ gesagt — ein Betrag nur aus einem Betragsfeld, eine Anzahl ist nie ein Betrag." });
   const url = urlFinden(t); if (url) zusatz.push({ regel: "url_vorgelesen", schwere: "weich", treffer: url.slice(0, 160), hinweis: "Internetadresse vorgelesen — der Link kommt aufs Handy." });
   const durch = antragDurchFinden(t); if (durch) zusatz.push({ regel: "antrag_durch", schwere: "hart", treffer: durch.slice(0, 160), hinweis: "Antrag als „durch/genehmigt“ dargestellt — er ist abgeschickt; über die Karte entscheidet die Partnerbank." });
+  const karte = karteVersprochenFinden(t); if (karte) zusatz.push({ regel: "karte_versprochen", schwere: "hart", treffer: karte.slice(0, 160), hinweis: "Karte versprochen („bekommen/erhalten“) — E-373: „… nutzen können“; über die Karte entscheidet die Partnerbank." });
   const zeilen = tel?.transkript ?? null;
   if (zeilen?.length) {
     const w = wiederholungFinden(zeilen);

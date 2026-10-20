@@ -235,7 +235,7 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   aras_energie: { typ: "enum", vorgabe: "lebendig", enum: ["ruhig", "lebendig", "vollgas"], satz: "Wie viel Schwung: ruhig, lebendig (Vorgabe) oder Vollgas — erst nach dem Test." },
   aras_abschluss: { typ: "enum", vorgabe: "klar", enum: ["sanft", "klar", "hartnaeckig"], satz: "Wie oft er nach einem Nein nachfragt: sanft 0, klar 1, hartnäckig 2 — nie 3." },
   // Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent und ein paar Wörter, die jeder versteht, nie tiefer Dialekt.
-  aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], satz: "Akzent: Hochdeutsch, leicht österreichisch oder österreichisch — nie ein starker Dialekt." },
+  aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], satz: "Akzent: Hochdeutsch, leicht österreichisch oder deutlich wienerisch — immer verständlich." },
   // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — Büro-Atmosphäre unter Aras' Stimme (server/lib/fiaon-aras-atmo.ts).
   aras_hintergrund: { typ: "enum", vorgabe: "aus", enum: ["aus", "buero_leise", "buero"], satz: "Büro-Atmosphäre unter der Stimme: aus, leise oder deutlicher." },
   // Justins Test 20.10. (Anruf 5): „Also...“ mitten in seine Denkpause. GPT-Live hat keinen Schalter für das Zuhören (voll-duplex) —
@@ -658,6 +658,15 @@ export interface HoerprobeZeile {
 export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
 export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";
+/**
+ * Justin 20.10.2026 (abends): „KI mehr Dialekt“ — im Stimmen-Studio je Akzent ein eigener Probesatz, damit er den
+ * Unterschied sofort hört. Der KI-Hinweis steht in jedem (KI-VO Art. 50); nach „… nette.“ lacht Aras kurz (Hörprobe).
+ */
+export const HOERPROBE_SAETZE: Record<Dialekt, string> = {
+  hochdeutsch: HOERPROBE_SATZ_VORGABE,
+  oesterreichisch_leicht: "Grüß Gott, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Passt's Ihnen grad a bissl, gell?",
+  oesterreichisch: "Grüß Gott, hier is der Aras von FIAON — kurz vorweg: I bin a KI, aber a sehr a nette. Schaun's, des geht ganz schnell, passt eh — ham's grad a bissl Zeit, gell?",
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AKTE & ALLTAG (E-408 Scheibe 2, Nachtrag Akte-Steuerung 19.10.2026)

@@ -40,7 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import WebSocket from "ws";
 import type { StimmAdapter, Sitzung, SitzungStart, SitzungEreignis, HoerprobeEin, HoerprobeAus } from "./fiaon-aras-adapter";
-import { dialektAnweisung } from "../../shared/fiaon-aras-prompt";
+import { dialektAnweisung, LACHEN_NACH_KI } from "../../shared/fiaon-aras-prompt";
 import { mulawAlsWav, stille, pegel } from "./fiaon-aras-adapter";
 import { kiSchluessel, kiBereit, pausieren, abrechnungsFehler, istKiPause, istProduktionsdienst } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
@@ -445,6 +445,8 @@ export function openaiLiveAdapter(): StimmAdapter {
           e.beschreibung ? `Stimme und Art: ${e.beschreibung.slice(0, 300)}` : "",
           dialektAnweisung(e.dialekt ?? null),
           "Du sagst den vorgegebenen Satz genau einmal, wörtlich und vollständig. Danach schweigst du.",
+          // Justin 20.10.2026 (abends): nach „… aber eine sehr nette.“ ein kurzes, warmes Lachen — auch in der Hörprobe.
+          /nette\./.test(satz) ? LACHEN_NACH_KI : "",
         ].filter(Boolean).join("\n"),
         begruessung: `Sag jetzt sofort, genau einmal und wörtlich: „${satz}“ Danach sagst du nichts mehr.`,
         hintergrundAnweisung: "", stimme: e.stimme, modell: e.modell || "gpt-live-1", modellGehirn: "",

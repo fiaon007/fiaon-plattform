@@ -272,12 +272,13 @@ export async function probeanruf(e: { spielart: string; personId?: number | null
 
 /** Das Probe-Briefing mit Justins Namen aus seinem Ausweis (nie Kundendaten, außer er wählt eine Person). */
 export async function probeBriefingBauen(spielart: Spielart, agentId: number, lauf: Lauf = sqlPool) {
-  const [a] = (await lauf`SELECT anrede, last_name FROM fiaon_agents WHERE id = ${agentId}`.catch(() => [])) as any[];
+  const [a] = (await lauf`SELECT anrede, last_name, first_name FROM fiaon_agents WHERE id = ${agentId}`.catch(() => [])) as any[];
   const anredeRoh = String(a?.anrede ?? "").toLowerCase();
   const b = berlinTeile(new Date());
   const wochentag = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" }).format(new Date());
   return probeBriefing({
     spielart, anrede: /^h/.test(anredeRoh) ? "Herr" : /^f/.test(anredeRoh) ? "Frau" : null, nachname: a?.last_name ? String(a.last_name) : null,
+    vorname: a?.first_name ? String(a.first_name) : null,
     heute: { datum: b.datum.split("-").reverse().join("."), wochentag, uhrzeit: b.hhmm },
     vorTagen: (n: number) => new Date(Date.now() - n * 86_400_000).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }),
   });

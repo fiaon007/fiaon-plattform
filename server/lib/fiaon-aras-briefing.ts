@@ -161,7 +161,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   }
 
   return {
-    anrede, nachname: p.last_name ? String(p.last_name).trim() : null,
+    anrede, nachname: p.last_name ? String(p.last_name).trim() : null, vorname: p.first_name ? String(p.first_name).trim() : null,
     land: (String(p.country ?? "").toUpperCase() === "AT" || String(p.country ?? "").toUpperCase() === "CH") ? (String(p.country).toUpperCase() as Land) : land,
     sprache: String(p.sprache ?? "").toLowerCase().startsWith("en") ? "en" : "de",
     heute: heuteBerlin(),

@@ -518,6 +518,9 @@ async function main(): Promise<void> {
     // a) Pegel nach µ-law: reine Atmo (8 s) liegt bei ihrer festen Lautheit (±3 dB), auch nach Kodieren/Dekodieren
     const atmoLeise = mulawZuPcm16(pcm16ZuMulaw(atmoMischen(null, 64000, "buero_leise", 0).pcm));
     ok("Atmo „Büro leise“ nach µ-law: Lautheit wie festgelegt (±3 dB)", Math.abs(dbfs(atmoLeise) - ATMO_PEGEL_DBFS.buero_leise) < 3, `${dbfs(atmoLeise).toFixed(1)} dBFS`);
+    // Justin 20.10. (abends): „Büro leiser“ — beide Arten 6 dB leiser; auch „Büro“ hält seine Lautheit nach µ-law.
+    const atmoBuero = mulawZuPcm16(pcm16ZuMulaw(atmoMischen(null, 64000, "buero", 0).pcm));
+    ok("Atmo „Büro“ nach µ-law: Lautheit wie festgelegt (±3 dB), beide 6 dB leiser als zuerst (−49 / −43 dBFS)", Math.abs(dbfs(atmoBuero) - ATMO_PEGEL_DBFS.buero) < 3 && ATMO_PEGEL_DBFS.buero_leise === -49 && ATMO_PEGEL_DBFS.buero === -43, `${dbfs(atmoBuero).toFixed(1)} dBFS`);
     // b) Reine Atmo gilt NIE als „Aras redet“ (Rede-Erkennung liest den ungemischten Rahmen; die Schwelle bleibt frei)
     const rahmen = pcm16ZuMulaw(atmoMischen(null, 800, "buero", 1234).pcm);
     ok("Reine Atmo liegt unter der Rede-Schwelle (0,012)", pegel(rahmen) < 0.012, pegel(rahmen).toFixed(4));
@@ -702,6 +705,24 @@ async function main(): Promise<void> {
       delete process.env.ARAS_ABSCHIED_FRIST_MS;
     }
 
+    // f3) Begrüßung nachschieben (GPT-Live spricht nicht garantiert zuerst): derselbe Text wie am Anfang — mit dem kurzen
+    //     Lachen nach dem KI-Hinweis (Justin 20.10. abends) und der Frage mit Anrede („Herrn …“, nie der nackte Nachname)
+    {
+      const { LACHEN_NACH_KI } = await import("../shared/fiaon-aras-prompt");
+      const g = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
+      await warten(() => g.att.spur.eingeschoben.some((x) => /Begrüße jetzt sofort/.test(x.text)), 6000);
+      const gruss = g.att.spur.eingeschoben.find((x) => /Begrüße jetzt sofort/.test(x.text));
+      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): KI-Hinweis → kurzes Lachen → „Bin ich richtig bei Herrn …?“", !!gruss && gruss.art === "vorlesen" && gruss.text.indexOf(LACHEN_NACH_KI) > gruss.text.indexOf("KI") && /Bin ich richtig bei Herrn Prüfkunde\d+\?/.test(gruss.text), gruss?.text.slice(0, 200) ?? "—");
+      await fertig(g);
+      await einstellungSetzen("aras_lachen", "aus", "pruefstand");
+      const g2 = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
+      await warten(() => g2.att.spur.eingeschoben.some((x) => /Begrüße jetzt sofort/.test(x.text)), 6000);
+      const gruss2 = g2.att.spur.eingeschoben.find((x) => /Begrüße jetzt sofort/.test(x.text));
+      ok("Rot-Probe: aras_lachen = aus → die nachgeschobene Begrüßung hat kein Lachen", !!gruss2 && !gruss2.text.includes(LACHEN_NACH_KI), gruss2?.text.slice(0, 160) ?? "—");
+      await fertig(g2);
+      await einstellungSetzen("aras_lachen", "an", "pruefstand");
+    }
+
     // g) Zögern bei der Aufnahme (Anruf 6: „hm“): kein Nein, kein Drängeln; nach der ruhigen Nachfrage zählt sein Ja
     {
       const g = await neuerAnruf({ schritte: [
@@ -727,6 +748,24 @@ async function main(): Promise<void> {
       const w = g2.att.spur.werkzeuge.find((x) => x.name === "aufnahme_starten");
       ok("Rot-Probe: ein Ja, bevor die Frage zu hören war, startet KEINE Aufnahme", !laufZahlen(g2.callId)?.aufnahmeJa && w?.ergebnis.ok === false && w?.ergebnis.fehler === "kein_ja", JSON.stringify({ z: laufZahlen(g2.callId), w: w?.ergebnis }));
       await fertig(g2);
+      // g3) Wienerisch umschrieben (echter GPT-Live-Lauf 20.10.: „Darf ich dafür kurz mitschneiden …?“) — auch das ist die Aufnahme-Frage
+      const g3 = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 100 }, { warteMs: 500 },
+        { aras: "Darf ich dafür kurz mitschneiden, damit es ordentlich festgehalten is?", ms: 400 }, { warteMs: 1200 },
+        { kunde: "Ja, passt.", nachMs: 100 }, { warteMs: 2500 },
+      ] });
+      await warten(() => !!laufZahlen(g3.callId)?.aufnahmeJa, 6500);
+      ok("Wienerisch umschrieben („mitschneiden“) ist auch die Aufnahme-Frage — sein Ja startet die Aufnahme", !!laufZahlen(g3.callId)?.aufnahmeJa, JSON.stringify(laufZahlen(g3.callId)));
+      await fertig(g3);
+      // g4) Rot-Probe: ein Ja auf eine ANDERE Frage („Ham's grad a bissl Zeit, gell?“) startet keine Aufnahme
+      const g4 = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 100 }, { warteMs: 500 },
+        { aras: "Ham's grad a bissl Zeit, gell?", ms: 400 }, { warteMs: 1200 },
+        { kunde: "Ja, passt.", nachMs: 100 }, { warteMs: 2500 },
+      ] });
+      await schlafen(4500);
+      ok("Rot-Probe: ein Ja auf eine andere Frage startet KEINE Aufnahme", !laufZahlen(g4.callId)?.aufnahmeJa, JSON.stringify(laufZahlen(g4.callId)));
+      await fertig(g4);
     }
   }
 

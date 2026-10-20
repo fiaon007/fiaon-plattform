@@ -35,7 +35,7 @@ import { twilioBereit } from "../lib/fiaon-aras-twilio-client";
 import { laeuft, sitzungBeenden } from "../lib/fiaon-aras-bruecke";
 import { ereignisBus } from "../lib/fiaon-aras-ereignis";
 import { sqlPool } from "../lib/db-pool";
-import { HOERPROBE_SATZ_VORGABE, STIMMEN_OPENAI, SPIELARTEN, istSpielart, nummerLand, PROBE_TON_SCHLUESSEL, istDialekt } from "../../shared/fiaon-aras";
+import { HOERPROBE_SATZ_VORGABE, HOERPROBE_SAETZE, STIMMEN_OPENAI, SPIELARTEN, istSpielart, nummerLand, PROBE_TON_SCHLUESSEL, istDialekt } from "../../shared/fiaon-aras";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -62,7 +62,7 @@ router.get("/chef/aras/probe/stand", wache, async (_req: ChefRequest, res: Respo
       bereit: { stimme: adapter, telefon: { ok: twilio.ok, fehlt: twilio.fehlt } },
       schalter: { notaus: einst.notaus, leerlauf: einst.leerlauf, an: einst.an, stufe: einst.stufe, tagEuro: einst.tagEuro },
       kosten,
-      stimme: einst.stimme, stimmen: STIMMEN_OPENAI, satzVorgabe: HOERPROBE_SATZ_VORGABE, arten: PROBE_ARTEN,
+      stimme: einst.stimme, stimmen: STIMMEN_OPENAI, satzVorgabe: HOERPROBE_SAETZE[r.dialekt ?? "hochdeutsch"] ?? HOERPROBE_SATZ_VORGABE, saetze: HOERPROBE_SAETZE, arten: PROBE_ARTEN,
       ton: {
         aras_energie: r.energie, aras_fuellwoerter: r.fuellwoerter, aras_lachen: r.lachen ? "an" : "aus", aras_tempo: r.tempo,
         aras_zuhoerlaute: r.zuhoerlaute, aras_abschluss: r.abschluss, aras_dialekt: r.dialekt ?? "hochdeutsch", aras_hintergrund: einst.hintergrund ?? "aus",
@@ -174,8 +174,10 @@ router.get("/chef/aras/probe/hoerproben", wache, async (_req: ChefRequest, res: 
 });
 router.post("/chef/aras/probe/hoerprobe", wache, async (req: ChefRequest, res: Response) => {
   try {
-    const r = await hoerprobeErzeugen({ adapter: "openai_live", stimme: String(req.body?.stimme ?? "flitz"), text: String(req.body?.text ?? HOERPROBE_SATZ_VORGABE),
-      dialekt: istDialekt(req.body?.dialekt) ? req.body.dialekt : null });
+    // Je Akzent ein eigener Probesatz (Justin 20.10. abends), wenn die Seite keinen eigenen Text schickt.
+    const roh: unknown = req.body?.dialekt;
+    const dialekt = istDialekt(roh) ? roh : null;
+    const r = await hoerprobeErzeugen({ adapter: "openai_live", stimme: String(req.body?.stimme ?? "flitz"), text: String(req.body?.text ?? (dialekt ? HOERPROBE_SAETZE[dialekt] : HOERPROBE_SATZ_VORGABE)), dialekt });
     res.json({ ok: true, id: r.id });
   } catch (e) { fehler(res, 400, text(e)); }
 });

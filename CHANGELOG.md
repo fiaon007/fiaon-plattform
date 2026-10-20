@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.10.2026 — WhatsApp-Raum neu: sieht aus wie WhatsApp, nur in FIAON-Blau
+- **Was:** Der Raum ist neu gebaut wie WhatsApp Web: EIN Rahmen mit Liste · Chat · Kontaktinfo. **Liste:** rundes Bild mit
+  Initialen (grüner Punkt = 24-Stunden-Fenster offen), Name mit Stufe, Zeit, eine Zeile Vorschau mit Häkchen und Absender,
+  rechts ✦ (Mara antwortet) oder Person (ein Mensch) und die Ungelesen-Zahl; oben „WhatsApp“, Stift (neues Gespräch) und ⋮
+  (Schrift größer, Liste schmal, Maras Schritte, Rundgang) statt einer Knopfwand; die Filter als EINE Reihe: Mit Antwort ·
+  Alle · Ungelesen · **Wartet** (neu: der Kunde schrieb zuletzt, niemand antwortete) · Fenster offen. **Chat:** Muster-Grund
+  in FIAON-Blau, Blasen mit Zipfel (Kunde links, Team hellblau, Mara tiefblau mit „KI“), Zeit und Häkchen in der Blase
+  (✓ / ✓✓ / ✓✓ hell = gelesen / ! = nicht zugestellt), Tagesstreifen, beim Öffnen „2 ungelesene Nachrichten“; Vorlagen wie beim
+  Kunden mit Kopfbild/Kopfzeile, Fuß und Knöpfen; Fotos, Sprachnachrichten, Dokumente, Standort, Kontakt direkt im Verlauf
+  (neu ab diesem Update — der Server merkt sich die Datei-Kennung in `fiaon_wa_medien` und holt die Datei erst beim Hinsehen
+  bei Meta), Reaktionen (👍) an der Blase; Maras interne Schritte als leise Zeile. **Eingabe:** Enter sendet, Umschalt+Enter
+  neue Zeile, nichts doppelt; scheitert das Senden, steht der Grund rot über dem Feld und der Text bleibt; ist das Fenster zu,
+  wird das Feld zum Riegel „Nur eine freigegebene Vorlage geht“. **Kontaktinfo** über das (i) oder den Namen: Anrufen, Akte
+  (jetzt über die EINE Adresse /akte/…), Zahlung, Fakten, Mara-Schalter, Ergebnis buchen, Notiz. „liest mit“ nur noch, solange
+  es stimmt (zwei Minuten), mit Namen. **Chefbüro:** Die Glas-Schicht hatte die Vollfläche ausgehebelt (flow-root gegen flex) —
+  der Raum wuchs über den Fensterrand und das Eingabefeld lag außer Sicht; jetzt reicht er wieder genau bis zum Rand.
+- **Warum:** Justin, 20.10.2026: „die WhatsApp Darstellung … ist beschissen – mach das bitte neu und richtig – das es schön,
+  cleanes WhatsApp ist, wie man es kennt nur eben ein wenig in FIAON CI – aber viel übersichtlicher und schau das ALLES 100%
+  funktioniert!“
+- **Wo:** Chefbüro › Kommunikation › WhatsApp (/chef/s/whatsapp) und Office › WhatsApp (/agent/whatsapp). Code:
+  `client/src/components/whatsapp/*`, `client/src/styles/whatsapp-raum.css`, `server/lib/fiaon-wa-medien.ts`,
+  `server/routes/fiaon-whatsapp-postfach.ts`. Prüfstände: `scripts/pruef-wa-neubau.ts`, `scripts/pruef-it-h.ts`.
+
+
 ## 20.10.2026 — E-409 Raum „KI-Team“ + E-406 Welle 2 (C2 Nacharbeit, B2 Unterlagen, B3 „Mara heute“) — zusammengeführt, EINE Ampel
 - **Was:** **(E-409) Raum „KI-Team“ im Chefbüro** (Menü-Gruppe nach „Heute“, /chef/ki): **Heute** (Mara und Aras in Zahlen,
   Entscheidungskarten, „Mara heute“ mit Gelb und „Rückgängig“, Kosten, Prüf-Mara, Not-Aus), **Aras** (zeigt „noch nicht

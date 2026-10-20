@@ -27,12 +27,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Filter der Gesprächsliste ───────────────────────────────────────────────
-export type ListenFilter = "antwort" | "alle" | "ungelesen" | "offen";
+// 20.10.2026 (Neubau wie WhatsApp): EINE Reihe Chips statt 2 × 2 Knöpfen, dazu „Wartet" — die LETZTE Nachricht kam
+// vom Kunden (keine Autoantwort, keine bloße Reaktion), und seitdem hat niemand geantwortet. Das ist die Arbeitsliste.
+export type ListenFilter = "antwort" | "alle" | "ungelesen" | "offen" | "wartet";
 
 export const LISTEN_FILTER: readonly { wert: ListenFilter; text: string; titel: string }[] = [
   { wert: "antwort", text: "Mit Antwort", titel: "Gespräche, in denen der Kunde selbst geschrieben hat" },
+  // Justin, 08.10.2026: „Alle“ ist ein Klick — deshalb direkt an zweiter Stelle, auch wenn die Reihe schmal wird.
   { wert: "alle", text: "Alle", titel: "Auch Gespräche, in denen bisher nur wir geschrieben haben (z. B. Maras Vorlagen)" },
   { wert: "ungelesen", text: "Ungelesen", titel: "Gespräche mit Nachrichten des Kunden, die noch niemand geöffnet hat" },
+  { wert: "wartet", text: "Wartet", titel: "Der Kunde hat zuletzt geschrieben und noch keine Antwort bekommen" },
   { wert: "offen", text: "Fenster offen", titel: "Der Kunde hat in den letzten 24 Stunden geschrieben — frei schreiben ist möglich" },
 ];
 
@@ -46,7 +50,23 @@ export const STANDARD_FILTER: ListenFilter = "antwort";
  */
 export function filterLesen(roh: unknown): ListenFilter {
   const f = String(roh ?? "").trim();
-  return f === "antwort" || f === "ungelesen" || f === "offen" ? f : "alle";
+  return f === "antwort" || f === "ungelesen" || f === "offen" || f === "wartet" ? f : "alle";
+}
+
+// ── Wer sitzt gerade dran? ──────────────────────────────────────────────────
+/**
+ * 20.10.2026: „liest mit" nur, solange es stimmt. Wer ein Gespräch offen hat, meldet sich im 8-Sekunden-Takt
+ * (bearbeiter_seit). Vorher stand „jemand liest mit" an jedem Gespräch, das irgendwann ein Kollege geöffnet hatte —
+ * auch Tage später. Jetzt: ein ANDERER, und zuletzt vor höchstens zwei Minuten.
+ */
+export const LIEST_MIT_MS = 2 * 60_000;
+
+export function liestMit(bearbeiter: { id: number | null | undefined; seit: string | Date | null | undefined } | null | undefined,
+  ich: number | null | undefined, jetzt: number = Date.now()): boolean {
+  if (!bearbeiter || bearbeiter.id == null) return false;
+  if (ich != null && Number(bearbeiter.id) === Number(ich)) return false;
+  const seit = bearbeiter.seit ? new Date(bearbeiter.seit).getTime() : Number.NaN;
+  return Number.isFinite(seit) && jetzt - seit <= LIEST_MIT_MS && seit - jetzt <= LIEST_MIT_MS;
 }
 
 /**

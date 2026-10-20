@@ -32,6 +32,8 @@ import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 // E-IT-H (08.10.2026, Punkt 15): Filter, Grenze und Suche der Liste — eine Quelle für Raum und Server.
 import { listenGrenze, sucheZerlegen, vorschauKuerzen, wirksamerFilter } from "../../shared/fiaon-wa-raum";
 import type { BetreuerMenge } from "../lib/fiaon-abwesenheit";
+// 20.10.2026: Bilder, Sprachnachrichten, Dokumente — gemerkt bei waEingang, abgeholt erst beim Hinsehen.
+import { auslieferung, medienFuerZeilen, medienLaden, medienTabelle } from "../lib/fiaon-wa-medien";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS DIE OBERFLÄCHE ZUSÄTZLICH BRAUCHT (28.09.2026, E-248)
@@ -94,8 +96,34 @@ export function absenderVon(richtung: string, von: string | null | undefined): R
   return !v || /^mara\b/i.test(v) ? "mara" : "mensch";
 }
 
-/** Verlauf (chronologisch) → dieselben Zeilen plus absender/auto/vorlageName/vorlageText. */
-export function verlaufFuerRaum(verlauf: any[]): any[] {
+// ── 20.10.2026: Vorlagen wie bei WhatsApp — Kopf, Kopfbild, Fuß und Knöpfe aus dem Register ──
+// Der Raum zeigt die Vorlage so, wie der Kunde sie sah: Kopfbild bzw. Kopfzeile, Text, Fußzeile, darunter die Knöpfe.
+// Alles kommt unverändert aus WA_VORLAGEN (dem Wortlaut, den Meta freigegeben hat) — hier wird nichts umformuliert.
+export interface VorlageAnzeige {
+  kopf: string | null;
+  /** Kopfbild als Adresse auf derselben Seite (/wa/fiaon-….png). */
+  bild: string | null;
+  fuss: string | null;
+  knoepfe: { art: "link" | "antwort"; text: string }[];
+}
+export function vorlageAnzeige(name: string | null | undefined): VorlageAnzeige | null {
+  if (!name) return null;
+  const n = String(name);
+  const v = WA_VORLAGEN.find((x) => x.name === n) ?? WA_VORLAGEN.find((x) => x.name === vorlageStamm(n));
+  if (!v) return null;
+  return {
+    kopf: v.kopf ?? null,
+    bild: v.kopfBild ? `/wa/fiaon-${v.kopfBild}.png` : null,
+    fuss: v.fuss ?? null,
+    knoepfe: (v.knoepfe ?? []).map((k) => ({ art: k.typ === "URL" ? "link" as const : "antwort" as const, text: k.text })),
+  };
+}
+
+/**
+ * Verlauf (chronologisch) → dieselben Zeilen plus absender/auto/vorlageName/vorlageText,
+ * seit 20.10.2026 auch `vorlageAnzeige` (Kopf, Bild, Fuß, Knöpfe) und `medien` (Bild, Ton, Dokument …).
+ */
+export function verlaufFuerRaum(verlauf: any[], medien: Map<number, unknown> = new Map()): any[] {
   let letzteRaus: number | null = null;
   return verlauf.map((v) => {
     const am = new Date(v.empfangen_am ?? v.gesendet_am ?? v.created_at).getTime();
@@ -111,6 +139,8 @@ export function verlaufFuerRaum(verlauf: any[]): any[] {
       ...v, absender, auto,
       vorlageName: vorlageKlartext(v.vorlage),
       vorlageText: v.vorlage && !v.text ? vorlageRegisterText(v.vorlage) : null,
+      vorlageAnzeige: v.vorlage ? vorlageAnzeige(v.vorlage) : null,
+      medien: medien.get(Number(v.id)) ?? null,
     };
   });
 }
@@ -288,6 +318,8 @@ function gespraechTabelle(): Promise<void> {
 async function bereit(): Promise<void> {
   await waTabellen();
   await gespraechTabelle();
+  // 20.10.2026: Die Liste zeigt „Foto · Bildunterschrift“ — dafür muss es die Medien-Tabelle geben (leer ist sie harmlos).
+  await medienTabelle();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -354,11 +386,13 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
   const zeilen = (await sqlPool`
     WITH letzte AS (
       SELECT DISTINCT ON (w.nummer) w.nummer, w.id, w.richtung, w.text, w.vorlage, w.status, w.von, w.typ, w.auto_antwort,
+             -- 20.10.2026: Häkchen in der Vorschau (✓ / ✓✓ / gelesen) wie bei WhatsApp.
+             w.zugestellt_am, w.gelesen_am,
              COALESCE(w.empfangen_am, w.gesendet_am, w.created_at) AS am, w.person_id, w.lead_id
         FROM fiaon_whatsapp w ORDER BY w.nummer, w.id DESC
     ), auswahl AS (
       SELECT l.*,
-             g.mara_an, g.gelesen_bis, g.bearbeiter_id, g.bearbeiter_seit, g.notiz,
+             g.mara_an, g.mara_aus_grund, g.gelesen_bis, g.bearbeiter_id, g.bearbeiter_seit, g.notiz,
              p.id AS p_id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS p_name,
              p.assigned_agent_id,
              le.id AS l_id, TRIM(COALESCE(le.vorname,'') || ' ' || COALESCE(le.nachname,'')) AS l_name, le.assigned_agent_id AS lead_agent,
@@ -380,6 +414,9 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
                WHERE x.nummer = l.nummer AND x.richtung = 'rein' AND x.id > COALESCE(g.gelesen_bis, 0)))
          AND (${filter !== "offen"} OR EXISTS (SELECT 1 FROM fiaon_whatsapp x
                WHERE x.nummer = l.nummer AND x.richtung = 'rein' AND x.empfangen_am > NOW() - INTERVAL '24 hours'))
+         -- 20.10.2026 „Wartet": Die LETZTE Nachricht kam vom Kunden — keine Autoantwort, keine bloße Reaktion (👍).
+         -- Seitdem hat niemand geantwortet, weder Mara noch das Team.
+         AND (${filter !== "wartet"} OR (l.richtung = 'rein' AND l.auto_antwort IS NOT TRUE AND COALESCE(l.typ, 'text') <> 'reaction'))
     ), treffer AS (
       SELECT * FROM auswahl a
        WHERE (${s.muster === null} OR a.namenstreffer
@@ -405,9 +442,14 @@ async function gespraecheLaden(blick: Blick, opts: { suche?: string; filter?: st
                      WHEN bool_or(${sqlPool.unsafe(abgeschicktSql("a"))}) THEN 'B'
                      ELSE 'C' END
               FROM fiaon_applications a WHERE a.person_id = t.p_id AND a.merged_into IS NULL) AS p_stufe,
-           ag.name AS betreuer
+           ag.name AS betreuer,
+           -- 20.10.2026: wer das Gespräch zuletzt offen hatte (für „Florentine liest mit"), und was die letzte Nachricht trug.
+           bg.name AS bearbeiter_name,
+           md.art AS medien_art, md.titel AS medien_titel, (md.daten->>'sprache') = 'true' AS medien_sprache
       FROM treffer t
       LEFT JOIN fiaon_agents ag ON ag.id = t.betreuer_id
+      LEFT JOIN fiaon_agents bg ON bg.id = t.bearbeiter_id
+      LEFT JOIN fiaon_wa_medien md ON md.zeile_id = t.id
      ORDER BY t.namenstreffer DESC, t.am DESC NULLS LAST, t.id DESC`) as any[];
 
   // Gegenprobe mit der alten, unabhängigen Regel — nie einen fremden Kunden zeigen.
@@ -441,11 +483,16 @@ function zeileAlsGespraech(z: any) {
       absender: absenderVon(String(z.richtung), z.von),
       typ: z.typ ?? null,
       auto: z.richtung === "rein" && (z.auto_antwort === true || istAutoantwort(String(z.text ?? ""))),
+      // 20.10.2026: Häkchen und Medien in der Vorschau („✓✓ Mara: …", „Foto · Hier mein Beleg").
+      zugestellt: !!z.zugestellt_am, gelesen: !!z.gelesen_am,
+      medien: z.medien_art ? { art: String(z.medien_art), titel: z.medien_titel ? vorschauKuerzen(z.medien_titel) : null, sprache: z.medien_sprache === true } : null,
     },
     ungelesen: Number(z.ungelesen || 0),
     maraAn: z.mara_an !== false,
+    // 20.10.2026: „schalter" (bewusst aus) oder „mensch" (pausiert, weil jemand schreibt) — für das Zeichen in der Liste.
+    maraAusGrund: z.mara_an === false ? (z.mara_aus_grund ?? "mensch") : null,
     fensterBis: fensterBis > Date.now() ? new Date(fensterBis).toISOString() : null,
-    bearbeiter: z.bearbeiter_id ? { id: Number(z.bearbeiter_id), seit: z.bearbeiter_seit } : null,
+    bearbeiter: z.bearbeiter_id ? { id: Number(z.bearbeiter_id), seit: z.bearbeiter_seit, name: z.bearbeiter_name ?? null } : null,
     notiz: z.notiz ?? null,
   };
 }
@@ -542,6 +589,10 @@ function routen(hole: (req: any) => Blick) {
       const verlauf = (await waVerlauf({ nummer, hoechstens: 120 })).reverse();
       const [g] = (await sqlPool`SELECT * FROM fiaon_whatsapp_gespraech WHERE nummer = ${nummer}`) as any[];
       const letzteId = verlauf.length ? Number(verlauf[verlauf.length - 1].id) : 0;
+      // 20.10.2026: Wie viele Nachrichten des Kunden waren ungelesen, BEVOR dieses Öffnen sie als gelesen merkt?
+      // Der Raum setzt davor den Streifen „2 ungelesene Nachrichten" (auch beim Direktsprung über ?nummer=).
+      const gelesenBisVorher = Number(g?.gelesen_bis ?? 0);
+      const ungelesenVorher = verlauf.filter((v: any) => v.richtung === "rein" && v.typ !== "reaction" && Number(v.id) > gelesenBisVorher).length;
       // Als gelesen merken — und wer gerade dransitzt.
       await sqlPool`
         INSERT INTO fiaon_whatsapp_gespraech (nummer, gelesen_bis, gelesen_von, bearbeiter_id, bearbeiter_seit, updated_at)
@@ -651,14 +702,26 @@ function routen(hole: (req: any) => Blick) {
         id: Number(p.id), am: p.am, art: String(p.art), ok: p.ok !== false, text: String(p.text),
         terminId: p.termin_id ?? null, pruefungOk: p.pruefung_ok ?? null, pruefung: p.pruefung_text ?? null,
       }));
+      // 20.10.2026: Bilder, Sprachnachrichten, Dokumente … — fehlt die Tabelle oder scheitert die Abfrage, bleibt es beim Platzhalter.
+      const medien = await medienFuerZeilen(verlauf.map((v: any) => Number(v.id))).catch((e) => {
+        console.error("[WHATSAPP-RAUM] Medien:", e);
+        return new Map();
+      });
+      // 20.10.2026: „Florentine liest mit" statt „Jemand liest mit" — der Name dessen, der das Gespräch vor mir offen hatte.
+      const [vorMir] = g?.bearbeiter_id && Number(g.bearbeiter_id) !== Number(blick.agentId ?? 0)
+        ? (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${Number(g.bearbeiter_id)}`) as any[]
+        : [];
       res.json({
-        ok: true, nummer, verlauf: verlaufFuerRaum(verlauf), lage, links, ereignisse,
+        ok: true, nummer, verlauf: verlaufFuerRaum(verlauf, medien), lage, links, ereignisse,
         fensterOffen: await fensterOffen(nummer),
         maraAn: g?.mara_an !== false,
         // E-230: „mensch" = pausiert, weil jemand schreibt (läuft ab); „schalter" = aus.
         maraAusGrund: g?.mara_an === false ? (g?.mara_aus_grund ?? "mensch") : null,
         notiz: g?.notiz ?? null,
         bearbeiter: g?.bearbeiter_id ?? null,
+        bearbeiterSeit: g?.bearbeiter_seit ?? null,
+        bearbeiterName: vorMir?.name ?? null,
+        ungelesenVorher,
         ich: blick.agentId,
         vorlagen: vorlagen.map((v: any) => ({ ...v, klartext: vorlageKlartext(v.name) })),
         // E-218: Die Ergebnisse, die aus einem Chat heraus Sinn ergeben.
@@ -989,6 +1052,59 @@ function routen(hole: (req: any) => Blick) {
       res.json({ ok: true, an });
     } catch (err) {
       res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+    }
+  });
+
+  /**
+   * 20.10.2026: Die Datei zu einer Nachricht (Bild, Sprachnachricht, Video, Dokument). Erst beim Hinsehen bei Meta
+   * abgeholt und nur durchgereicht — gespeichert wird bei uns nichts. Dieselbe Sicht wie das Gespräch (darfAnNummer).
+   * Bild, Ton und Video gehen mit festem Typ „inline", alles andere als Download; nie HTML oder SVG.
+   * Safari spielt Ton und Video nur mit Teilabrufen (Range) — deshalb antwortet die Route auch mit 206.
+   */
+  r.get("/medien/:zeile", async (req: any, res: Response) => {
+    try {
+      await bereit();
+      const blick = hole(req);
+      const zeile = Number(req.params.zeile);
+      if (!Number.isSafeInteger(zeile) || zeile <= 0) return res.status(400).json({ ok: false, error: "Ungültige Nachricht." });
+      const [z] = (await sqlPool`
+        SELECT w.nummer, m.media_id, m.mime, m.name FROM fiaon_whatsapp w
+          LEFT JOIN fiaon_wa_medien m ON m.zeile_id = w.id
+         WHERE w.id = ${zeile}`) as any[];
+      if (!z) return res.status(404).json({ ok: false, error: "Diese Nachricht gibt es nicht." });
+      if (!(await darfAnNummer(blick, String(z.nummer)))) return res.status(403).json({ ok: false, error: "Dieses Gespräch gehört einem anderen Betreuer." });
+      if (!z.media_id) return res.status(404).json({ ok: false, error: "Zu dieser Nachricht gibt es keine Datei." });
+      const erg = await medienLaden(String(z.media_id));
+      if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.grund });
+      const a = auslieferung(erg.mime ?? z.mime, z.name);
+      const ganz = erg.daten.length;
+      const bereich = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? "").trim());
+      let von = 0;
+      let bis = ganz - 1;
+      if (bereich && (bereich[1] || bereich[2])) {
+        von = bereich[1] ? Number(bereich[1]) : Math.max(0, ganz - Number(bereich[2]));
+        bis = bereich[1] && bereich[2] ? Math.min(Number(bereich[2]), ganz - 1) : ganz - 1;
+        if (!Number.isFinite(von) || von > bis || von >= ganz) {
+          res.setHeader("Content-Range", `bytes */${ganz}`);
+          return res.status(416).end();
+        }
+      }
+      res.setHeader("Content-Type", a.typ);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Content-Disposition", `${a.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(a.dateiname)}`);
+      if (bereich && (bereich[1] || bereich[2])) {
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${von}-${bis}/${ganz}`);
+      }
+      const teil = erg.daten.subarray(von, bis + 1);
+      res.setHeader("Content-Length", String(teil.length));
+      res.end(teil);
+    } catch (err) {
+      console.error("[WHATSAPP-RAUM] medien:", err);
+      res.status(500).json({ ok: false, error: "Die Datei ließ sich nicht laden." });
     }
   });
 

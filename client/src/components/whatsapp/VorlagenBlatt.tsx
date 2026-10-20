@@ -14,6 +14,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { vorlageNameRoh, type RaumLinks, type Vorlage } from "./wr-format";
+import { ZLink, ZSchliessen, ZSuche } from "./Symbole";
+// 20.10.2026 (Neubau wie WhatsApp): dasselbe Blatt im neuen Kleid — Suche mit Lupe, × zum Schließen,
+// die Vorlagen als Karten. Ablauf unverändert: erst „Ansehen", dann „Diese Vorlage senden".
 
 const LINK_TEXT: Record<"antrag" | "zahlung" | "termin" | "bereich", { knopf: string; hilfe: string }> = {
   antrag: { knopf: "Antragslink", hilfe: "persönlicher Code — führt in den eigenen Antrag" },
@@ -77,8 +80,11 @@ export function VorlagenBlatt({ vorlagen, links, name, fensterOffen, sendet, onV
     <div className="wr-blatt" ref={blatt} role="dialog" aria-label="Vorlagen und Links">
       <div className="wr-blatt-griff" aria-hidden="true" />
       <div className="wr-blatt-kopf">
-        <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Vorlage suchen" aria-label="Vorlage suchen" />
-        <button type="button" className="wr-klein" onClick={onZu}>Schließen</button>
+        <div className="wr-blatt-suche">
+          <ZSuche g={16} className="wr-such-lupe" />
+          <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Vorlage suchen" aria-label="Vorlage suchen" />
+        </div>
+        <button type="button" className="wr-ikon" onClick={onZu} aria-label="Schließen" title="Schließen"><ZSchliessen g={18} /></button>
       </div>
 
       {fensterOffen && (linkReihe.length > 0 || links?.terminHinweis) && (
@@ -88,7 +94,7 @@ export function VorlagenBlatt({ vorlagen, links, name, fensterOffen, sendet, onV
             {linkReihe.map((k) => (
               <button key={k} type="button" className={k === links?.empfohlen ? "empfohlen" : ""} title={`${LINK_TEXT[k].hilfe}: ${links?.[k]}`}
                 onClick={() => onLink(String(links?.[k]))}>
-                {LINK_TEXT[k].knopf}{k === links?.empfohlen && <span> · passt zur Lage</span>}
+                <ZLink g={14} />{LINK_TEXT[k].knopf}{k === links?.empfohlen && <span> · passt zur Lage</span>}
               </button>
             ))}
           </div>

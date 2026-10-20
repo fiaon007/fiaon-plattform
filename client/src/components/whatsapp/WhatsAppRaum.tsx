@@ -22,7 +22,8 @@
 // dem Bildschirmrand, halb unter dem Telefonknopf. Dieser Rahmen hält jetzt
 // nur noch Zustand, Laden, Takt und Maße; die Teile stehen daneben:
 //   Gespraechsliste · ChatKopf · Verlauf · InterneSchritte · Eingabe ·
-//   VorlagenBlatt · FallSpalte · NeuesGespraech · wr-format
+//   VorlagenBlatt · FallSpalte · NeuesGespraech · Medien · Avatar · Symbole ·
+//   wr-format
 //
 // MASSE: Die Breite entscheidet der PLATZ im Raum, nicht das Fenster
 // (Container Queries in whatsapp-raum.css; dieselben Schwellen hier im
@@ -40,8 +41,6 @@
 // · Liste und Fall lassen sich einklappen (Liste als Schiene, Fall über das
 //   (i) im Chat-Kopf); „Schrift größer" je Mitarbeiter. Der Browser merkt
 //   sich alle drei (fiaon_wa_ansicht, nur Ansicht, keine Personendaten).
-// · Der Rundgang startet über den Chip im Kopf — kein fester Knopf klebt
-//   mehr über dem Raum; nur der Telefonknopf hält seine Ecke frei.
 // · Die Liste startet mit „Mit Antwort", lädt 200 und auf Wunsch je 200
 //   ältere; Sicht, Filter und Suche laufen auf dem Server VOR der Grenze.
 // · Direktsprung: ?nummer=… öffnet das Gespräch (Akte, Aufgaben, Maras
@@ -52,16 +51,37 @@
 //   ?nummer=B sprang (gleicher Pfad → keine neue Seite), und Zurück im Browser
 //   tat nichts. Jetzt öffnet jede neue Adresse ihr Gespräch; eine Adresse ohne
 //   Nummer (Zurück, „WhatsApp" im Menü) führt zur Liste.
+//
+// ── NEUBAU 20.10.2026: WIE WHATSAPP, NUR IN FIAON ─────────────────────────
+// Justin: „die WhatsApp Darstellung … ist beschissen – mach das bitte neu und
+// richtig – das es schön, cleanes WhatsApp ist, wie man es kennt nur eben ein
+// wenig in FIAON CI – aber viel übersichtlicher und schau das ALLES 100%
+// funktioniert!"
+// · EIN Rahmen wie WhatsApp Web: Liste · Chat · Kontaktinfo, durch feine
+//   Linien getrennt; kein Seitenkopf mehr — „WhatsApp", Stift und ⋮ stehen
+//   oben in der Liste (Schrift größer, Liste schmal, Maras Schritte und
+//   Rundgang im ⋮-Menü statt als Knopfwand).
+// · Blasen mit Zipfel, Zeit und Häkchen in der Blase, Hintergrund wie bei
+//   WhatsApp in FIAON-Blau, Vorlagen mit Kopf/Bild/Knöpfen, Fotos und
+//   Sprachnachrichten direkt im Verlauf, Reaktionen an der Blase.
+// · Beim Öffnen „2 ungelesene Nachrichten" vor den neuen (die Zahl aus der
+//   Liste, bevor der Server sie als gelesen merkt).
+// · Scheitert das Senden, steht der Grund rot über dem Feld (nicht nur acht
+//   Sekunden oben) und der Text bleibt — kein Schein-Erfolg.
+// · Akte über die EINE Adresse /akte/<Kennung> (E-315).
+// · Alles andere (Takt, Adresse, Sperre gegen Doppelversand, Entwurf je
+//   Nummer, Handy-Vollfläche, Telefonknopf-Ecke) ist unverändert übernommen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearch } from "wouter";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
+import { akteLink } from "@/lib/akte-link";
 import "@/styles/office-rundgang.css";
 import "@/styles/whatsapp-raum.css";
 import {
-  ANSICHT_SCHLUESSEL, LISTE_GRENZE, STANDARD_FILTER, ansichtLesen, listenEnde, nummerAusAdresse, raumAufteilung,
+  ANSICHT_SCHLUESSEL, LIEST_MIT_MS, LISTE_GRENZE, STANDARD_FILTER, ansichtLesen, liestMit, listenEnde, nummerAusAdresse, raumAufteilung,
   type ListenFilter, type RaumAnsicht,
 } from "@shared/fiaon-wa-raum";
 import { Gespraechsliste } from "./Gespraechsliste";
@@ -70,6 +90,7 @@ import { Verlauf } from "./Verlauf";
 import { Eingabe, TEXT_GRENZE } from "./Eingabe";
 import { FallSpalte } from "./FallSpalte";
 import { NeuesGespraech } from "./NeuesGespraech";
+import { ZAuge, ZFunke, ZPerson, ZSchloss } from "./Symbole";
 import { eintraegeBauen, restZeit, type ChatDaten, type Gespraech, type Vorlage } from "./wr-format";
 
 const ENTWURF_SCHLUESSEL = "fiaon_wa_entwuerfe";
@@ -112,6 +133,8 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const [sendet, setSendet] = useState(false);
   const sperre = useRef(false);
   const [meldung, setMeldung] = useState<string | null>(null);
+  // 20.10.2026: Warum das Senden scheiterte — gehört der Nummer, steht über dem Feld, bis erneut gesendet oder weggeklickt.
+  const [sendeFehler, setSendeFehler] = useState<{ nummer: string; text: string } | null>(null);
   const [blattOffen, setBlattOffen] = useState(false);
   const [neuOffen, setNeuOffen] = useState(false);
   const [alleSchritte, setAlleSchritte] = useState<boolean>(() => lesen(SCHRITTE_SCHLUESSEL, false));
@@ -123,6 +146,11 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const rundgangStart = useRef<(() => void) | null>(null);
   // E-261 (29.09.2026): Steht die WhatsApp-Bremse (Pause oder Meta ROT)? Nur Anzeige — aktivieren kann nur der Inhaber im Chefbüro.
   const [bremse, setBremse] = useState<{ pause: boolean; art?: string | null; allesGestoppt: boolean; werbungGestoppt: boolean; qualitaet: string | null; satz: string | null } | null>(null);
+  // 20.10.2026: „2 ungelesene Nachrichten" — die Zahl aus der Liste beim Öffnen (danach merkt der Server sie als gelesen).
+  const [ungelesenBeimOeffnen, setUngelesenBeimOeffnen] = useState<{ nummer: string; anzahl: number } | null>(null);
+  // 20.10.2026: „Tom liest mit" — einmal gesehen, gilt es zwei Minuten (sitzen zwei im selben Gespräch, meldet
+  // der Server abwechselnd den einen und den anderen; ohne dieses Merken flackerte die Zeile im 8-Sekunden-Takt).
+  const [fremdSicht, setFremdSicht] = useState<{ nummer: string; name: string; am: number } | null>(null);
   const wrRef = useRef<HTMLDivElement>(null);
   const gewaehltRef = useRef<string | null>(null);
   gewaehltRef.current = gewaehlt;
@@ -155,10 +183,18 @@ export default function WhatsAppRaum({ basis, telefon }: {
           nummer,
           verlauf: j.verlauf, lage: j.lage, links: j.links ?? null, fensterOffen: j.fensterOffen, maraAn: j.maraAn, maraAusGrund: j.maraAusGrund ?? null,
           notiz: j.notiz, bearbeiter: j.bearbeiter ?? null, ich: j.ich ?? null,
+          bearbeiterSeit: j.bearbeiterSeit ?? null, bearbeiterName: j.bearbeiterName ?? null,
           vorlagen: j.vorlagen ?? [], ergebnisse: j.ergebnisse ?? [],
           ereignisse: Array.isArray(j.ereignisse) ? j.ereignisse : [],
         });
-        if (!leise) { setNotizEntwurf(j.notiz ?? ""); setFokus((f) => f + 1); }
+        if (liestMit({ id: j.bearbeiter ?? null, seit: j.bearbeiterSeit ?? null }, j.ich ?? null)) {
+          setFremdSicht({ nummer, name: String(j.bearbeiterName ?? "").trim().split(/\s+/)[0] || "Jemand", am: Date.now() });
+        }
+        if (!leise) {
+          setNotizEntwurf(j.notiz ?? ""); setFokus((f) => f + 1);
+          // „2 ungelesene Nachrichten": was VOR diesem Öffnen ungelesen war (der Server zählt es, bevor er es als gelesen merkt).
+          if (typeof j.ungelesenVorher === "number") setUngelesenBeimOeffnen({ nummer, anzahl: j.ungelesenVorher });
+        }
       } else {
         melden(j?.error || "Das Gespräch ließ sich nicht laden.");
         // E-IT-H: Gehört das Gespräch einem anderen oder gibt es noch keins (Direktsprung aus Akte
@@ -199,13 +235,16 @@ export default function WhatsAppRaum({ basis, telefon }: {
   }, [listeLaden, chatLaden]);
   useEffect(() => {
     setBlattOffen(false); setErgebnisOffen(false);
+    // 20.10.2026: Der Streifen „N ungelesene Nachrichten" gilt je Öffnen — die Zahl liefert der Server (ungelesenVorher).
+    setUngelesenBeimOeffnen(null);
     if (gewaehlt) void chatLaden(gewaehlt); else setChat(null);
   }, [gewaehlt, chatLaden]);
 
   useEffect(() => { const id = window.setTimeout(() => schreiben(ENTWURF_SCHLUESSEL, entwuerfe), 300); return () => window.clearTimeout(id); }, [entwuerfe]);
   useEffect(() => { schreiben(SCHRITTE_SCHLUESSEL, alleSchritte); }, [alleSchritte]);
 
-  const eintraege = useMemo(() => (chat ? eintraegeBauen(chat.verlauf, chat.ereignisse) : []), [chat]);
+  const ungelesenHier = ungelesenBeimOeffnen && ungelesenBeimOeffnen.nummer === chat?.nummer ? ungelesenBeimOeffnen.anzahl : 0;
+  const eintraege = useMemo(() => (chat ? eintraegeBauen(chat.verlauf, chat.ereignisse, new Date(), { ungelesen: ungelesenHier }) : []), [chat, ungelesenHier]);
   const aktuell = useMemo(() => liste?.find((g) => g.nummer === gewaehlt) ?? null, [liste, gewaehlt]);
   const chatDa = !!chat && chat.nummer === gewaehlt;
   const name = (chatDa ? chat!.lage?.name : null) || aktuell?.name || (gewaehlt ? `+${gewaehlt}` : "");
@@ -289,20 +328,26 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const senden = async (inhalt: { text?: string; vorlage?: string; werte?: string[] }) => {
     const nummer = gewaehlt;
     if (!nummer || sperre.current) return;
-    sperre.current = true; setSendet(true);
+    sperre.current = true; setSendet(true); setSendeFehler(null);
     try {
       const r = await fetch(`${API}/senden`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nummer, ...inhalt }),
       });
       const j = await r.json().catch(() => null);
-      if (!j?.ok) { melden(j?.error || "Das ging nicht raus."); return; }
+      if (!j?.ok) {
+        // 20.10.2026: ehrlich und sichtbar — der Grund steht über dem Feld, der Text bleibt drin.
+        setSendeFehler({ nummer, text: j?.error || `Das ging nicht raus (Fehler ${r.status}).` });
+        return;
+      }
       // Nur löschen, was gesendet wurde — wer inzwischen weitergetippt hat, behält den Rest.
       if (inhalt.text) entwurfSetzen(nummer, (alt) => (alt.trim() === inhalt.text ? "" : alt));
       setBlattOffen(false);
       setZumEnde((z) => z + 1); setFokus((f) => f + 1);
       await chatLaden(nummer, true); await listeLaden();
-    } catch { melden("Keine Verbindung."); } finally { sperre.current = false; setSendet(false); }
+    } catch {
+      setSendeFehler({ nummer, text: "Keine Verbindung — nichts wurde gesendet. Bitte gleich noch einmal." });
+    } finally { sperre.current = false; setSendet(false); }
   };
 
   const vorlageSenden = (v: Vorlage) => void senden({ vorlage: v.name, werte: [aktuell?.name ?? chat?.lage?.name ?? "und willkommen"] });
@@ -330,6 +375,7 @@ export default function WhatsAppRaum({ basis, telefon }: {
       const r = await fetch(`${API}/gespraech/${encodeURIComponent(gewaehlt)}/uebernehmen`, { method: "POST", credentials: "include" });
       const j = await r.json();
       if (!j?.ok) { melden(j?.error || "Das ließ sich nicht übernehmen."); return; }
+      setFremdSicht(null);
       melden("Du bearbeitest dieses Gespräch.");
       await chatLaden(gewaehlt, true);
     } catch { melden("Keine Verbindung."); }
@@ -352,7 +398,9 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const maraSchalten = async (an: boolean) => {
     if (!gewaehlt) return;
     try {
-      await fetch(`${API}/mara`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nummer: gewaehlt, an }) });
+      const r = await fetch(`${API}/mara`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nummer: gewaehlt, an }) });
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) { melden(j?.error || "Der Schalter ging nicht."); return; }
       melden(an ? "Mara antwortet hier wieder." : "Mara hält sich hier heraus.");
       await chatLaden(gewaehlt, true); await listeLaden();
     } catch { melden("Der Schalter ging nicht."); }
@@ -373,28 +421,38 @@ export default function WhatsAppRaum({ basis, telefon }: {
   const waehlen = (nummer: string) => { setFallOffen(false); setGewaehlt(nummer); };
   const zurueck = () => { setFallOffen(false); setGewaehlt(null); };
 
-  // Die Zeile über dem Feld: Fenster, Mara, wer mitliest.
+  // Die EINE Akte (E-315): Person → /akte/<id>, Interessent → /akte/lead-<id>; ohne Menschen keine Akte.
+  const lage = chatDa ? chat!.lage : null;
+  const akte = lage?.id ? akteLink(lage.istLead ? `lead-${lage.id}` : lage.id) : null;
+  const maraAn = chatDa ? chat!.maraAn : !!aktuell?.maraAn;
+  const maraAusGrund = chatDa ? chat!.maraAusGrund : aktuell?.maraAusGrund ?? null;
+
+  // Die Zeile über dem Feld: Fenster, Mara, wer mitliest — ruhig, ein Punkt Farbe.
   const rest = restZeit(aktuell?.fensterBis ?? null);
-  const fremdLiest = chatDa && chat!.bearbeiter != null && chat!.ich != null && chat!.bearbeiter !== chat!.ich;
+  const fremd = chatDa && fremdSicht && fremdSicht.nummer === gewaehlt && Date.now() - fremdSicht.am <= LIEST_MIT_MS ? fremdSicht.name : null;
   const lageZeile = chatDa ? (
     <>
-      <span className={chat!.fensterOffen ? "wr-lage-offen" : "wr-lage-zu"}>
-        {chat!.fensterOffen ? <>Fenster offen{rest ? ` · ${rest}` : ""}</> : "Fenster zu"}
+      <span className={chat!.fensterOffen ? "wr-lage-offen" : "wr-lage-zu"} title={chat!.fensterOffen
+        ? "Der Kunde hat in den letzten 24 Stunden geschrieben — du darfst frei schreiben."
+        : "Seit über 24 Stunden keine Nachricht vom Kunden — nur freigegebene Vorlagen."}>
+        {chat!.fensterOffen ? <><i className="wr-lage-punkt" aria-hidden="true" />Fenster offen{rest ? ` · ${rest}` : ""}</> : <><ZSchloss g={13} />Fenster zu</>}
       </span>
       <span className="wr-lage-rechts">
-        {fremdLiest && <><span>Jemand liest mit</span><button type="button" className="wr-textknopf" onClick={() => void uebernehmen()}>Übernehmen</button></>}
-        {!fremdLiest && (chat!.maraAn ? <span className="wr-lage-mara">Mara antwortet hier</span>
-          : <span>{chat!.maraAusGrund === "schalter" ? "Mara ist hier aus" : "Mara pausiert — übernimmt nach 15 Min. ohne Antwort"}</span>)}
+        {fremd && <><span className="wr-lage-liest"><ZAuge g={13} />{fremd} liest mit</span><button type="button" className="wr-textknopf" onClick={() => void uebernehmen()}>Übernehmen</button></>}
+        {!fremd && (maraAn ? <span className="wr-lage-mara"><ZFunke g={13} />Mara antwortet<span className="wr-lang"> hier</span></span>
+          : <span><ZPerson g={13} />{maraAusGrund === "schalter" ? "Mara ist hier aus" : <>Mara pausiert<span className="wr-lang"> — übernimmt nach 15 Min. ohne Antwort</span></>}</span>)}
       </span>
     </>
   ) : null;
 
   const fallAlsSchublade = !fallSpalte;
-  const fall = chatDa && chat!.lage ? (
-    <FallSpalte chat={chat!} name={name} schublade={fallAlsSchublade} onZu={() => setFallOffen(false)}
-      onAnrufen={anrufen} anrufenMoeglich={!!telefonNummer} sendet={sendet}
+  const fallZu = () => (fallAlsSchublade ? setFallOffen(false) : setAnsicht((a) => ({ ...a, fall: false })));
+  const fall = chatDa && chat!.lage && gewaehlt ? (
+    <FallSpalte chat={chat!} name={name} nummer={gewaehlt} schublade={fallAlsSchublade} onZu={fallZu}
+      onAnrufen={anrufen} anrufenMoeglich={!!telefonNummer} sendet={sendet} akteLink={akte}
       ergebnisOffen={ergebnisOffen} setErgebnisOffen={setErgebnisOffen} onErgebnis={(w) => void ergebnisBuchen(w)}
       notizEntwurf={notizEntwurf} setNotizEntwurf={setNotizEntwurf} onNotiz={() => void notizSpeichern()}
+      maraAn={maraAn} maraAusGrund={maraAusGrund} onMara={() => void maraSchalten(!maraAn)}
       schrittSchalter={modus === "schmal"} alleSchritte={alleSchritte} onAlleSchritte={() => setAlleSchritte(!alleSchritte)} />
   ) : null;
 
@@ -402,31 +460,39 @@ export default function WhatsAppRaum({ basis, telefon }: {
     <section className={`wr-chat${gewaehlt ? "" : " leer"}`} aria-label="Verlauf">
       {!gewaehlt ? (
         <div className="wr-nichts">
-          <p>Links ein Gespräch wählen.</p>
-          <p className="wr-still">Frei schreiben darfst du, solange der Mensch in den letzten 24 Stunden geschrieben hat. Danach nur noch mit einer freigegebenen Vorlage — der Raum sagt dir, was gerade gilt.</p>
+          <div className="wr-nichts-bild" aria-hidden="true">
+            <svg width="64" height="64" viewBox="0 0 64 64"><defs><linearGradient id="wr-nb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#288dfa" /><stop offset="1" stopColor="#1d4ed8" /></linearGradient></defs>
+              <path d="M32 8C18.2 8 7 17.6 7 29.5c0 6.6 3.5 12.5 9 16.4L13.5 56l11.4-5.7c2.2.5 4.6.8 7.1.8 13.8 0 25-9.6 25-21.5S45.8 8 32 8z" fill="url(#wr-nb)" opacity=".9" />
+              <path d="M22 30.5l6.5 6.5L42 23.5" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+          <p className="wr-nichts-titel">WhatsApp im Team</p>
+          <p className="wr-still">Wähle links ein Gespräch.</p>
+          <p className="wr-still wr-nichts-regel">Frei schreiben geht 24 Stunden nach der letzten Nachricht des Kunden — danach nur freigegebene Vorlagen. Der Raum zeigt dir, was gerade gilt.</p>
         </div>
       ) : (
         <>
           <ChatKopf
-            name={name} stufe={chatDa ? chat!.lage?.stufe ?? aktuell?.stufe ?? null : aktuell?.stufe ?? null}
+            name={name} nummer={gewaehlt}
+            stufe={chatDa ? chat!.lage?.stufe ?? aktuell?.stufe ?? null : aktuell?.stufe ?? null}
             betreuer={chatDa ? chat!.lage?.betreuer ?? aktuell?.betreuer ?? null : aktuell?.betreuer ?? null}
             termin={chatDa ? chat!.lage?.termin ?? null : null} terminMitarbeiter={chatDa ? chat!.lage?.termin_mitarbeiter ?? null : null}
-            maraAn={chatDa ? chat!.maraAn : !!aktuell?.maraAn} maraAusGrund={chatDa ? chat!.maraAusGrund : null}
-            onMara={() => void maraSchalten(!(chatDa ? chat!.maraAn : aktuell?.maraAn))}
+            maraAn={maraAn} maraAusGrund={maraAusGrund}
+            onMara={() => void maraSchalten(!maraAn)}
             zurueck={modus === "schmal"} onZurueck={zurueck}
             onAnrufen={anrufen} anrufenMoeglich={!!telefonNummer}
+            akteLink={akte}
             fallKnopf={chatDa && !!chat!.lage}
             fallOffen={modus === "breit" ? fallSpalte : fallOffen}
             onFall={() => (modus === "breit" ? setAnsicht((a) => ({ ...a, fall: !fallSpalte })) : setFallOffen(!fallOffen))}
-            schrittKnopf={modus !== "schmal"} alleSchritte={alleSchritte} onAlleSchritte={() => setAlleSchritte(!alleSchritte)}
           />
-          <Verlauf nummer={gewaehlt} eintraege={chatDa ? eintraege : []} geladen={chatDa} alleSchritte={alleSchritte} zumEnde={zumEnde} />
+          <Verlauf nummer={gewaehlt} eintraege={chatDa ? eintraege : []} geladen={chatDa} alleSchritte={alleSchritte} zumEnde={zumEnde} api={API} />
           {chatDa && (
             <Eingabe
               nummer={gewaehlt} name={name && !name.startsWith("+") ? name : null} fensterOffen={chat!.fensterOffen} lage={lageZeile}
               wert={entwurf} setWert={(t) => entwurfSetzen(gewaehlt, t)} onSenden={(t) => void senden({ text: t })} sendet={sendet}
               vorlagen={chat!.vorlagen} links={chat!.links} onVorlage={vorlageSenden}
               blattOffen={blattOffen} setBlattOffen={setBlattOffen} fokus={fokus}
+              fehler={sendeFehler && sendeFehler.nummer === gewaehlt ? sendeFehler.text : null} onFehlerZu={() => setSendeFehler(null)}
             />
           )}
           {fallAlsSchublade && fallOffen && fall}
@@ -440,35 +506,17 @@ export default function WhatsAppRaum({ basis, telefon }: {
 
   return (
     <div ref={wrRef} className={`wr wr-${modus}${gewaehlt ? " wr-chat-offen" : ""}${schriftKlasse}`}>
-      {/* E-IT-H: kein fester Knopf unten rechts mehr — der Chip „Rundgang" im Kopf startet ihn. */}
+      {/* E-IT-H: kein fester Knopf unten rechts mehr — „Rundgang" steht im ⋮-Menü der Liste. */}
       <Rundgang raum="whatsapp" titel={RUNDGAENGE.whatsapp.titel} schritte={RUNDGAENGE.whatsapp.schritte} knopf="keiner" startRef={rundgangStart} />
-      <header className="wr-kopf">
-        <h1>WhatsApp</h1>
-        <p className="wr-still">
-          {kopf?.bereit
-            ? <>Unsere Nummer <b>{kopf?.nummer ?? "—"}</b> · {kopf?.alles ? "alle Gespräche" : "die Gespräche deiner Kunden"}</>
-            : kopf ? "Noch nicht eingerichtet — die Zugangswerte fehlen." : " "}
+      {bremse && (bremse.pause || bremse.werbungGestoppt) ? (
+        <p className="wr-bremse" role="status">
+          {bremse.allesGestoppt
+            ? `WhatsApp pausiert — ${bremse.art === "zugang" ? "der Meta-Zugang ist abgelaufen" : "Meta hat das Konto gesperrt"}. Gerade geht nichts raus, auch keine Antworten. Bitte anrufen statt schreiben.`
+            : bremse.pause
+              ? "WhatsApp pausiert — Vorlagen gehen gerade nicht raus, Antworten im offenen Fenster schon. Wer keine offene Nachricht hat: anrufen."
+              : "Meta-Qualität ROT — Werbe-Vorlagen gehen gerade nicht raus; Monatsrate, Termin und Antworten im offenen Fenster schon."}
         </p>
-        <div className="wr-kopf-knoepfe">
-          <button type="button" className="wr-klein wr-schrift-knopf" aria-pressed={ansicht.schrift === "gross"}
-            title="Schrift und Blasen im ganzen Raum größer oder wieder normal — der Browser merkt es sich"
-            onClick={() => setAnsicht((a) => ({ ...a, schrift: a.schrift === "gross" ? "normal" : "gross" }))}>
-            {ansicht.schrift === "gross" ? "Schrift normal" : "Schrift größer"}
-          </button>
-          <button type="button" className="wr-klein wr-rundgang-knopf" onClick={() => rundgangStart.current?.()} title="Der Raum erklärt sich Schritt für Schritt">
-            Rundgang
-          </button>
-        </div>
-        {bremse && (bremse.pause || bremse.werbungGestoppt) ? (
-          <p className="wr-bremse" role="status">
-            {bremse.allesGestoppt
-              ? `WhatsApp pausiert — ${bremse.art === "zugang" ? "der Meta-Zugang ist abgelaufen" : "Meta hat das Konto gesperrt"}. Gerade geht nichts raus, auch keine Antworten. Bitte anrufen statt schreiben.`
-              : bremse.pause
-                ? "WhatsApp pausiert — Vorlagen gehen gerade nicht raus, Antworten im offenen Fenster schon. Wer keine offene Nachricht hat: anrufen."
-                : "Meta-Qualität ROT — Werbe-Vorlagen gehen gerade nicht raus; Monatsrate, Termin und Antworten im offenen Fenster schon."}
-          </p>
-        ) : null}
-      </header>
+      ) : null}
 
       <div className={`wr-raum${listeSchmal ? " liste-schmal" : ""}${mitFall ? " mit-fall" : ""}`}>
         <Gespraechsliste liste={liste} gewaehlt={gewaehlt} onWaehlen={waehlen} suche={suche} setSuche={setSuche}
@@ -476,9 +524,16 @@ export default function WhatsAppRaum({ basis, telefon }: {
           schmal={listeSchmal}
           onSchmal={modus === "schmal" ? undefined : (an) => setAnsicht((a) => ({ ...a, liste: an ? "schmal" : "voll" }))}
           mehr={listenEnde(mehr, grenze) === "mehr"} gekappt={listenEnde(mehr, grenze) === "gekappt"}
-          onMehr={() => setGrenze((g) => Math.min(LISTE_GRENZE.max, g + LISTE_GRENZE.schritt))} />
+          onMehr={() => setGrenze((g) => Math.min(LISTE_GRENZE.max, g + LISTE_GRENZE.schritt))}
+          kopf={kopf}
+          menue={{
+            schriftGross: ansicht.schrift === "gross",
+            onSchrift: () => setAnsicht((a) => ({ ...a, schrift: a.schrift === "gross" ? "normal" : "gross" })),
+            alleSchritte, onAlleSchritte: () => setAlleSchritte(!alleSchritte),
+            onRundgang: () => rundgangStart.current?.(),
+          }} />
         {modus !== "schmal" && chatFlaeche}
-        {mitFall && (chatDa && chat!.lage ? fall : <aside className="wr-person" aria-label="Der Fall"><p className="wr-leer">Lädt …</p></aside>)}
+        {mitFall && (chatDa && chat!.lage ? fall : <aside className="wr-person" aria-label="Kontaktinfo"><p className="wr-leer">Lädt …</p></aside>)}
       </div>
 
       {/* Am Handy ist der offene Chat eine eigene Vollfläche am Dokument — so
@@ -495,4 +550,3 @@ export default function WhatsAppRaum({ basis, telefon }: {
     </div>
   );
 }
-

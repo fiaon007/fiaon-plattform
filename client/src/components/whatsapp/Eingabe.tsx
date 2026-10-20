@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE EINGABE (E-248)
+// DIE EINGABE (E-248 · Neubau 20.10.2026) — die Leiste unten wie bei WhatsApp
 //
 // GEMESSEN am 28.09.: Im Office war das Feld 23 px breit (Handy 26 px) — die
 // Knopfleiste daneben nahm ihm den Platz, der Platzhalter stand senkrecht
@@ -7,23 +7,28 @@
 // und am Handy unbrauchbar), drei schnelle ⌘+Enter schickten DREI Nachrichten,
 // und der Entwurf für Kunde A stand nach dem Wechsel im Feld von Kunde B.
 //
-// Jetzt:
-// · [+] · Feld · Senden in einem Raster — das Feld hat immer den Rest (min. 60 %).
+// Jetzt (und seit 20.10.2026 im WhatsApp-Kleid):
+// · [Vorlagen] · Feld · [Senden] in einem Raster — das Feld hat immer den Rest.
+// · Darüber EINE leise Zeile: Fenster (● offen · noch 5 h) und wer antwortet.
 // · Das Feld wächst von 1 bis 6 Zeilen, dann scrollt es. 16 px (iOS zoomt sonst).
 //   E-IT-H (08.10.2026, Punkt 15): Die Höchsthöhe ist 36 % der Chathöhe,
-//   höchstens 320 px (am großen Bildschirm rund zwölf Zeilen) — eine Quelle in
-//   shared/fiaon-wa-raum.ts; ohne Chathöhe bleibt es bei sechs Zeilen.
+//   höchstens 320 px — eine Quelle in shared/fiaon-wa-raum.ts.
 // · Rechner: Enter sendet, Umschalt+Enter neue Zeile. Touch: Enter ist eine
 //   neue Zeile, der Knopf sendet. Während einer Wortbildung (IME) nie senden.
 // · Die Sperre gegen Doppelversand sitzt im Rahmen (ein Ref, kein State —
 //   State wäre bei drei Tastendrücken im selben Takt noch nicht gesetzt).
 // · Der Entwurf gehört der Nummer (der Rahmen hält ihn je Nummer).
+// · Scheitert das Senden, bleibt der Text im Feld und darüber steht der Grund
+//   (rot, bis man es erneut versucht oder ihn wegklickt) — kein Schein-Erfolg.
+// · Fenster zu: statt des Felds ein ruhiger Riegel „Nur Vorlagen" — ein Klick
+//   öffnet die freigegebenen Vorlagen.
 // · Höchstens 4.096 Zeichen (Meta), Zähler ab 3.500.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { FELD_ANTEIL_CHAT, FELD_HOECHSTENS_PX } from "@shared/fiaon-wa-raum";
 import { VorlagenBlatt } from "./VorlagenBlatt";
 import type { RaumLinks, Vorlage } from "./wr-format";
+import { ZSchliessen, ZSchloss, ZSenden, ZVorlage, ZWarnung } from "./Symbole";
 
 export const TEXT_GRENZE = 4096;
 const ZAEHLER_AB = 3500;
@@ -37,7 +42,7 @@ export function istTouch(): boolean {
 
 export function Eingabe({
   nummer, name, fensterOffen, lage, wert, setWert, onSenden, sendet,
-  vorlagen, links, onVorlage, blattOffen, setBlattOffen, fokus,
+  vorlagen, links, onVorlage, blattOffen, setBlattOffen, fokus, fehler, onFehlerZu,
 }: {
   nummer: string; name: string | null; fensterOffen: boolean;
   /** Die Zeile über dem Feld: Fenster, Mara, wer mitliest. */
@@ -48,6 +53,8 @@ export function Eingabe({
   blattOffen: boolean; setBlattOffen: (auf: boolean) => void;
   /** Steigt der Zähler, bekommt das Feld den Fokus (Gespräch geöffnet, gesendet). */
   fokus: number;
+  /** Warum das letzte Senden scheiterte — bleibt stehen, bis erneut gesendet oder weggeklickt. */
+  fehler: string | null; onFehlerZu: () => void;
 }) {
   const feld = useRef<HTMLTextAreaElement>(null);
 
@@ -113,14 +120,21 @@ export function Eingabe({
         <VorlagenBlatt vorlagen={vorlagen} links={links} name={name} fensterOffen={fensterOffen} sendet={sendet}
           onVorlage={onVorlage} onLink={linkEinsetzen} onZu={() => setBlattOffen(false)} />
       )}
+      {fehler && (
+        <div className="wr-sende-fehler" role="alert">
+          <ZWarnung g={16} />
+          <span><b>Nicht gesendet.</b> {fehler}</span>
+          <button type="button" className="wr-ikon klein" onClick={onFehlerZu} aria-label="Hinweis schließen" title="Hinweis schließen"><ZSchliessen g={15} /></button>
+        </div>
+      )}
       <div className="wr-lage">{lage}</div>
       {fensterOffen ? (
-        <>
-          <div className="wr-zeile-eingabe">
-            <button type="button" className={`wr-plus${blattOffen ? " an" : ""}`} aria-label="Vorlagen und persönliche Links" aria-expanded={blattOffen}
-              title="Vorlagen und persönliche Links" onClick={() => setBlattOffen(!blattOffen)}>
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 3.5v11M3.5 9h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-            </button>
+        <div className="wr-zeile-eingabe">
+          <button type="button" className={`wr-plus${blattOffen ? " an" : ""}`} aria-label="Vorlagen und persönliche Links" aria-expanded={blattOffen}
+            title="Vorlagen und persönliche Links" onClick={() => setBlattOffen(!blattOffen)}>
+            <ZVorlage g={20} />
+          </button>
+          <div className="wr-feld-rahmen">
             <textarea
               ref={feld}
               className="wr-feld-text"
@@ -135,26 +149,24 @@ export function Eingabe({
               autoComplete="off"
               spellCheck
             />
-            {/* Der Knopf nimmt dem Feld den Fokus nicht: Sonst schließt am Handy die
-                Tastatur zwischen Berühren und Loslassen, der Knopf rutscht unter dem
-                Finger weg und der Tipp geht ins Leere (so im Prüfstand gemessen). */}
-            <button type="button" className="wr-senden" aria-label={sendet ? "Sendet …" : "Senden"} title="Senden"
-              disabled={sendet || !wert.trim()} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={absenden}>
-              {sendet
-                ? <span className="wr-senden-dreht" aria-hidden="true" />
-                : <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6v6.4l12.6 2-12.6 2z" fill="currentColor" /></svg>}
-            </button>
+            {zaehler && <span className={`wr-zaehler${wert.length > TEXT_GRENZE - 96 ? " knapp" : ""}`} aria-live="polite">{zaehler}</span>}
           </div>
-          <div className="wr-hilfe">
-            <span className="wr-tasten">Enter sendet · Umschalt + Enter neue Zeile</span>
-            <span className={`wr-zaehler${wert.length > TEXT_GRENZE - 96 ? " knapp" : ""}`} aria-live="polite">{zaehler}</span>
-          </div>
-        </>
+          {/* Der Knopf nimmt dem Feld den Fokus nicht: Sonst schließt am Handy die
+              Tastatur zwischen Berühren und Loslassen, der Knopf rutscht unter dem
+              Finger weg und der Tipp geht ins Leere (so im Prüfstand gemessen). */}
+          <button type="button" className="wr-senden" aria-label={sendet ? "Sendet …" : "Senden"}
+            title={istTouch() ? "Senden" : "Senden (Enter) — neue Zeile mit Umschalt + Enter"}
+            disabled={sendet || !wert.trim()} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={absenden}>
+            {sendet ? <span className="wr-senden-dreht" aria-hidden="true" /> : <ZSenden g={20} />}
+          </button>
+        </div>
       ) : (
         <div className="wr-zu-zeile">
-          <p>Jetzt geht nur eine <b>freigegebene Vorlage</b> — antwortet der Mensch, ist freies Schreiben wieder offen.</p>
-          <button type="button" className="wr-knopf voll" aria-expanded={blattOffen} onClick={() => setBlattOffen(!blattOffen)}>
-            {blattOffen ? "Schließen" : `Vorlage wählen${vorlagen.length ? ` (${vorlagen.length})` : ""}`}
+          <span className="wr-zu-schloss" aria-hidden="true"><ZSchloss g={18} /></span>
+          <button type="button" className="wr-zu-feld" aria-expanded={blattOffen} onClick={() => setBlattOffen(!blattOffen)}
+            title="Das 24-Stunden-Fenster ist zu — jetzt geht nur eine von Meta freigegebene Vorlage. Antwortet der Kunde, ist freies Schreiben wieder offen.">
+            <span>Nur eine <b>freigegebene Vorlage</b> geht — bis der Kunde wieder schreibt</span>
+            <em>{blattOffen ? "Schließen" : `Vorlage wählen${vorlagen.length ? ` (${vorlagen.length})` : ""}`}</em>
           </button>
         </div>
       )}

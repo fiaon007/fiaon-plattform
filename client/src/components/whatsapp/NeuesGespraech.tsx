@@ -4,9 +4,14 @@
 // Wer nie geschrieben hat, darf nur eine von Meta freigegebene Vorlage
 // bekommen. Justin (E-220): „auch nur eine Nummer frei eintippen und
 // schreiben" — eine getippte Nummer ist ein gültiges Ziel.
+//
+// 20.10.2026 (Neubau wie WhatsApp): dasselbe Fenster im neuen Kleid — Suche mit
+// Lupe, Treffer mit rundem Bild, × zum Schließen. Ablauf und Regeln unverändert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { vorlageNameRoh, type Vorlage } from "./wr-format";
+import { Avatar } from "./Avatar";
+import { ZSchliessen, ZSuche } from "./Symbole";
 
 type Ziel = { art: string; id: number; name: string; nummer: string };
 
@@ -80,11 +85,14 @@ export function NeuesGespraech({ api, onZu, onGestartet, melden }: {
             <h2>Neues Gespräch</h2>
             <p className="wr-still">Wer nie geschrieben hat, darf nur eine von Meta freigegebene Vorlage bekommen. Antwortet er darauf, könnt ihr 24 Stunden frei schreiben.</p>
           </div>
-          <button type="button" className="wr-klein" onClick={onZu}>Schließen</button>
+          <button type="button" className="wr-ikon" onClick={onZu} aria-label="Schließen" title="Schließen"><ZSchliessen g={18} /></button>
         </div>
         {!ziel ? (
           <>
-            <input className="wr-feld" autoFocus value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail oder Nummer" aria-label="Menschen suchen" />
+            <div className="wr-blatt-suche gross">
+              <ZSuche g={17} className="wr-such-lupe" />
+              <input className="wr-feld" autoFocus value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail oder Nummer" aria-label="Menschen suchen" />
+            </div>
             {freieNummer && (
               <button type="button" className="wr-treffer-zeile wr-frei" onClick={() => setZiel({ art: "frei", id: 0, name: freieNummer, nummer: freieNummer })}>
                 <span><b>+{freieNummer}</b> <span className="wr-still">frei eingetippt</span></span>
@@ -95,9 +103,12 @@ export function NeuesGespraech({ api, onZu, onGestartet, melden }: {
               {suche.trim().length < 2 ? <p className="wr-still">Tippe einen Namen, eine E-Mail oder eine Nummer. Eine Nummer geht auch ohne Datensatz.</p>
                 : treffer.length === 0 && !freieNummer ? <p className="wr-still">Niemand gefunden. Tippe die Nummer mit Landesvorwahl, dann geht es trotzdem.</p>
                   : treffer.map((t) => (
-                    <button key={`${t.art}-${t.id}`} type="button" className="wr-treffer-zeile" onClick={() => setZiel(t)}>
-                      <span><b>{t.name}</b> <span className="wr-still">+{t.nummer}</span></span>
-                      <span className="wr-still">{t.art === "lead" ? "Interessent" : "Kunde"}{t.betreuer ? ` · ${t.betreuer}` : ""}</span>
+                    <button key={`${t.art}-${t.id}`} type="button" className="wr-treffer-zeile mit-bild" onClick={() => setZiel(t)}>
+                      <Avatar name={t.name} schluessel={t.nummer} groesse="s" />
+                      <span className="wr-treffer-text">
+                        <span><b>{t.name}</b> <span className="wr-still">+{t.nummer}</span></span>
+                        <span className="wr-still">{t.art === "lead" ? "Interessent" : "Kunde"}{t.betreuer ? ` · ${t.betreuer}` : ""}</span>
+                      </span>
                     </button>
                   ))}
             </div>

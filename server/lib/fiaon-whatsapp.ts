@@ -30,6 +30,7 @@ import { geburtsdatumLesen } from "../../shared/fiaon-geburtsdatum";
 import { waFehlerText, waFehlerCode, WA_CODE_WERBUNG_ABBESTELLT } from "./fiaon-wa-unzustellbar";
 import { waBremse, kontofehlerMelden } from "./fiaon-wa-bremse";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
+import { medienAusMeldung, medienMerken } from "./fiaon-wa-medien";
 
 type Lauf = typeof sqlPool;
 
@@ -1324,6 +1325,10 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
       ON CONFLICT (wa_id) DO NOTHING RETURNING id`) as any[];
     if (zeilen.length) {
       neu++;
+      // 20.10.2026: Bild, Sprachnachricht, Dokument, Standort, Kontakt, Reaktion — was die Nachricht trug, steht in
+      // einer eigenen Tabelle (fiaon-wa-medien.ts), damit der WhatsApp-Raum es zeigen kann. Wirft nie; an der Zeile
+      // in fiaon_whatsapp und an Maras Eingabe ändert sich nichts.
+      await medienMerken(Number(zeilen[0].id), nummer, medienAusMeldung(m), lauf);
       // E-214: Was der Mensch von selbst nennt, wird am Lead nachgetragen.
       await angabeNachtragen(gehoert.leadId, gehoert.personId, text, lauf);
       // Mara antwortet — im Hintergrund, damit der Webhook in Millisekunden

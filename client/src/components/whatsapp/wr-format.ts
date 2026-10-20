@@ -8,9 +8,31 @@
 //
 // Zeiten immer in Berlin — und nie über Number(Intl.format()): das liefert
 // NaN (Gedächtnis „Zeit-Falle Berlin-Stunde"). Deshalb formatToParts.
+//
+// 20.10.2026 (Neubau wie WhatsApp): dazu Initialen und Farbe der runden
+// Bilder, Häkchen und Medien in der Vorschau, Reaktionen an der Blase, der
+// Streifen „2 ungelesene Nachrichten". Alle neuen Felder sind optional — eine
+// ältere Server-Antwort während eines Deploys bricht nichts.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type Absender = "kunde" | "mara" | "mensch";
+
+export type MedienArt = "bild" | "sticker" | "audio" | "video" | "dokument" | "standort" | "kontakt" | "reaktion";
+
+/** Was eine Nachricht an Datei, Ort, Kontakt oder Reaktion trug (server/lib/fiaon-wa-medien.ts, medienAnzeige). */
+export interface MedienAnzeige {
+  art: MedienArt; mime: string | null; name: string | null; titel: string | null;
+  /** Die Datei liegt bei Meta und lässt sich über …/medien/<id> holen. */
+  datei: boolean;
+  sprache: boolean; lat: number | null; lng: number | null; ort: string | null;
+  kontakte: { name: string; nummer: string | null }[] | null; emoji: string | null; auf: string | null;
+}
+
+/** Eine Vorlage, wie der Kunde sie sah — Kopf, Kopfbild, Fuß, Knöpfe (unverändert aus dem Register). */
+export interface VorlageAnzeige {
+  kopf: string | null; bild: string | null; fuss: string | null;
+  knoepfe: { art: "link" | "antwort"; text: string }[];
+}
 
 export interface Gespraech {
   nummer: string; name: string | null; personId: number | null; leadId: number | null;
@@ -18,17 +40,26 @@ export interface Gespraech {
   letzte: {
     text: string; richtung: string; am: string; status: string;
     von?: string | null; absender?: Absender; vorlage?: string | null; vorlageName?: string | null; typ?: string | null; auto?: boolean;
+    /** 20.10.2026: Häkchen und Medien in der Vorschau. */
+    zugestellt?: boolean; gelesen?: boolean;
+    medien?: { art: string; titel: string | null; sprache?: boolean } | null;
   };
   ungelesen: number; maraAn: boolean; fensterBis: string | null;
-  bearbeiter: { id: number; seit: string } | null; notiz: string | null;
+  /** 20.10.2026: „schalter" (bewusst aus) oder „mensch" (pausiert, weil jemand schreibt). */
+  maraAusGrund?: string | null;
+  bearbeiter: { id: number; seit: string; name?: string | null } | null; notiz: string | null;
 }
 
 export interface Nachricht {
   id: number; richtung: string; text: string | null; vorlage: string | null; knopf: string | null;
   status: string; fehler: string | null; von: string | null; typ?: string | null;
   empfangen_am: string | null; gesendet_am: string | null; zugestellt_am: string | null; gelesen_am: string | null; created_at: string;
+  /** Metas Kennung — Reaktionen zeigen darauf. */
+  wa_id?: string | null;
   /** E-248, vom Server: wer schrieb, Autoantwort, Klartext der Vorlage. Ältere Antworten ohne die Felder brechen nichts. */
   absender?: Absender; auto?: boolean; vorlageName?: string | null; vorlageText?: string | null;
+  /** 20.10.2026, vom Server: die Vorlage wie beim Kunden und die Medien der Nachricht. */
+  vorlageAnzeige?: VorlageAnzeige | null; medien?: MedienAnzeige | null;
 }
 
 export interface Vorlage { name: string; status: string; text?: string; zweck?: string; klartext?: string | null; beispiele?: string[] }
@@ -52,8 +83,70 @@ export interface RaumLinks {
 export interface ChatDaten {
   verlauf: Nachricht[]; lage: any; links: RaumLinks | null; fensterOffen: boolean; maraAn: boolean; maraAusGrund?: string | null;
   notiz: string | null; bearbeiter: number | null; ich: number | null;
+  /** 20.10.2026: seit wann und wer — „Florentine liest mit" nur, solange es stimmt. */
+  bearbeiterSeit?: string | null; bearbeiterName?: string | null;
   vorlagen: Vorlage[]; ergebnisse: { wert: string; text: string }[];
   ereignisse: MaraEreignis[];
+}
+
+// ── Das runde Bild: Initialen und eine Farbe aus dem Blau-Paar ──────────────
+/** „Lena Sommer" → „LS", „Mara" → „M", nur Nummer → "" (dann zeigt das Bild eine Silhouette). */
+export function initialen(name: string | null | undefined): string {
+  // Nur Wörter, die mit einem Buchstaben beginnen (Groß ≠ klein — gilt für alle Alphabete mit Großbuchstaben).
+  const istBuchstabe = (z: string) => z.toUpperCase() !== z.toLowerCase();
+  const teile = String(name ?? "").trim().split(/\s+/).filter((t) => t && istBuchstabe(t.charAt(0)));
+  if (!teile.length) return "";
+  const a = teile[0].charAt(0);
+  const b = teile.length > 1 ? teile[teile.length - 1].charAt(0) : "";
+  return `${a}${b}`.toUpperCase();
+}
+
+/** Fünf Töne aus dem Blau-Paar (kein Gold, kein Grün) — derselbe Mensch hat immer dieselbe Farbe. */
+export const AVATAR_TOENE = 5;
+export function avatarTon(schluessel: string | null | undefined): number {
+  const s = String(schluessel ?? "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % AVATAR_TOENE;
+}
+
+/** Medien in Worten, wie WhatsApp sie in Liste und Blase nennt. */
+export function medienText(art: string | null | undefined, sprache = false): string | null {
+  switch (String(art ?? "")) {
+    case "bild": return "Foto";
+    case "sticker": return "Sticker";
+    case "audio": return sprache ? "Sprachnachricht" : "Audio";
+    case "video": return "Video";
+    case "dokument": return "Dokument";
+    case "standort": return "Standort";
+    case "kontakt": return "Kontakt";
+    case "reaktion": return "Reaktion";
+    default: return null;
+  }
+}
+
+/** Die Art aus dem WhatsApp-Typ der Zeile (für Nachrichten ohne gemerkte Medien). */
+export function artAusTyp(typ: string | null | undefined): MedienArt | null {
+  switch (String(typ ?? "")) {
+    case "image": return "bild";
+    case "sticker": return "sticker";
+    case "audio": case "voice": return "audio";
+    case "video": return "video";
+    case "document": return "dokument";
+    case "location": return "standort";
+    case "contacts": return "kontakt";
+    case "reaction": return "reaktion";
+    default: return null;
+  }
+}
+
+/** Häkchen-Stufe einer eigenen Nachricht: gesendet ✓, zugestellt ✓✓, gelesen ✓✓ (hell), Fehler. */
+export type HakenStufe = "gesendet" | "zugestellt" | "gelesen" | "fehler";
+export function hakenStufe(n: { status?: string | null; zugestellt_am?: string | null; gelesen_am?: string | null; zugestellt?: boolean; gelesen?: boolean }): HakenStufe {
+  if (n.status === "fehler" || n.status === "failed") return "fehler";
+  if (n.gelesen_am || n.gelesen || n.status === "read") return "gelesen";
+  if (n.zugestellt_am || n.zugestellt || n.status === "delivered") return "zugestellt";
+  return "gesendet";
 }
 
 // ── Zeit ────────────────────────────────────────────────────────────────────
@@ -158,15 +251,25 @@ export function vorname(von: string | null | undefined): string {
   return v ? v.split(/\s+/)[0] : "Team";
 }
 
-/** Vorschau in der Liste: „Mara: …", „Florentine: …", „Automatische Antwort · …". */
-export function listenVorschau(g: Gespraech): { wer: string | null; text: string } {
+/**
+ * Vorschau in der Liste: „Mara: …", „Florentine: …", „Automatische Antwort · …".
+ * 20.10.2026: Medien wie bei WhatsApp — Zeichen + „Foto" bzw. die Bildunterschrift; Vorlage mit Klartextnamen.
+ */
+export function listenVorschau(g: Gespraech): { wer: string | null; text: string; medien: MedienArt | null; vorlage: boolean } {
   const l = g.letzte;
   const abs = absenderVon(l);
   const wer = abs === "mara" ? "Mara" : abs === "mensch" ? vorname(l.von) : l.auto ? "Automatische Antwort" : null;
   let text = l.text?.trim() || "";
-  if (l.vorlage) text = `Vorlage · ${l.vorlageName ?? vorlageNameRoh(l.vorlage)}`;
-  else if (!text) text = typText(l.typ) ?? "—";
-  return { wer, text: text.replace(/\s+/g, " ") };
+  let medien: MedienArt | null = null;
+  if (l.vorlage) {
+    text = `Vorlage · ${l.vorlageName ?? vorlageNameRoh(l.vorlage)}`;
+  } else {
+    const art = (l.medien?.art as MedienArt | undefined) ?? artAusTyp(l.typ);
+    if (art === "reaktion") text = "hat auf eine Nachricht reagiert";
+    else if (art) { medien = art; text = l.medien?.titel?.trim() || text || medienText(art, !!l.medien?.sprache) || ""; }
+    else if (!text) text = typText(l.typ) ?? "—";
+  }
+  return { wer, text: text.replace(/\s+/g, " "), medien, vorlage: !!l.vorlage };
 }
 
 export function vorlageNameRoh(name: string | null | undefined): string {
@@ -302,10 +405,19 @@ export function pruefTeile(text: string | null): { gut: boolean; text: string }[
 // ── Der Verlauf als Anzeige-Einträge ────────────────────────────────────────
 export type Eintrag =
   | { art: "tag"; key: string; text: string }
-  | { art: "nachricht"; key: string; n: Nachricht; absender: Absender; gruppeNeu: boolean; gruppeEnde: boolean }
-  | { art: "schritte"; key: string; liste: MaraEreignis[] };
+  | { art: "nachricht"; key: string; n: Nachricht; absender: Absender; gruppeNeu: boolean; gruppeEnde: boolean; reaktionen: string[] }
+  | { art: "schritte"; key: string; liste: MaraEreignis[] }
+  /** 20.10.2026: „2 ungelesene Nachrichten" — wie bei WhatsApp beim Öffnen. */
+  | { art: "ungelesen"; key: string; anzahl: number }
+  /** 20.10.2026: leise Zeile in der Mitte (z. B. eine Reaktion auf eine ältere Nachricht). */
+  | { art: "hinweis"; key: string; text: string };
 
 const msVon = (s: string | null | undefined) => (s ? new Date(s).getTime() : Number.NaN);
+
+/** Ist die Zeile eine Reaktion (👍 auf eine Nachricht) statt einer eigenen Nachricht? */
+export function istReaktion(n: Nachricht): boolean {
+  return n.medien?.art === "reaktion" || n.typ === "reaction";
+}
 
 /**
  * Nachrichten und Maras Handlungen nach Zeit mischen, Tagesstreifen setzen,
@@ -314,13 +426,43 @@ const msVon = (s: string | null | undefined) => (s ? new Date(s).getTime() : Num
  * Die Reihenfolge der Nachrichten bleibt, wie der Server sie liefert; eine
  * Handlung steht vor der ersten Nachricht, die später kam (Gleichstand:
  * erst die Nachricht).
+ *
+ * 20.10.2026: Reaktionen hängen als kleines Zeichen an der Blase, auf die sie
+ * zeigen (wie bei WhatsApp); fehlt diese im geladenen Verlauf, steht eine leise
+ * Zeile da. `ungelesen` setzt den Streifen „N ungelesene Nachrichten" vor die
+ * N-letzte Nachricht des Kunden.
  */
-export function eintraegeBauen(verlauf: Nachricht[], ereignisse: MaraEreignis[], jetzt: Date = new Date()): Eintrag[] {
+export function eintraegeBauen(verlauf: Nachricht[], ereignisse: MaraEreignis[], jetzt: Date = new Date(), opts: { ungelesen?: number } = {}): Eintrag[] {
   const spaet = (s: string) => { const t = msVon(s); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
   const ev = ereignisse
     .filter((e) => e && e.id != null && typeof e.text === "string")
     .slice()
     .sort((a, b) => (spaet(a.am) - spaet(b.am)) || Number(a.id) - Number(b.id));
+
+  // Reaktionen an ihr Ziel hängen (wa_id), statt eine eigene Blase zu bauen.
+  const nachWaId = new Map<string, Nachricht>();
+  for (const n of verlauf) if (n.wa_id) nachWaId.set(String(n.wa_id), n);
+  // Wie bei WhatsApp: eine Reaktion je Nachricht — die letzte gilt, eine leere nimmt sie zurück.
+  const letzte = new Map<number, string | null>();
+  const ohneZiel = new Set<number>();
+  for (const n of verlauf) {
+    if (!istReaktion(n)) continue;
+    const ziel = n.medien?.auf ? nachWaId.get(String(n.medien.auf)) : undefined;
+    if (ziel) { letzte.set(ziel.id, n.medien?.emoji || null); continue; }
+    if (n.medien?.emoji || !n.medien) ohneZiel.add(n.id);
+  }
+  const reaktionen = new Map<number, string[]>();
+  letzte.forEach((z, id) => { if (z) reaktionen.set(id, [z]); });
+
+  // Der Streifen „N ungelesene Nachrichten" vor der N-letzten Kundennachricht (ohne Reaktionen).
+  let streifenVor: number | null = null;
+  const neu = Math.max(0, Math.floor(Number(opts.ungelesen) || 0));
+  if (neu > 0) {
+    const kunde = verlauf.filter((n) => n.richtung !== "raus" && !istReaktion(n));
+    const ziel = kunde[Math.max(0, kunde.length - neu)];
+    if (ziel) streifenVor = ziel.id;
+  }
+
   type Roh = { art: "n"; n: Nachricht; am: string } | { art: "e"; e: MaraEreignis; am: string };
   const roh: Roh[] = [];
   let i = 0;
@@ -340,7 +482,15 @@ export function eintraegeBauen(verlauf: Nachricht[], ereignisse: MaraEreignis[],
     if (k && k !== tag) { buendelZu(); tag = k; aus.push({ art: "tag", key: `t-${k}`, text: tagStreifen(r.am, jetzt) }); }
     if (r.art === "e") { (buendel ??= []).push(r.e); continue; }
     buendelZu();
-    aus.push({ art: "nachricht", key: `n-${r.n.id}`, n: r.n, absender: absenderVon(r.n), gruppeNeu: true, gruppeEnde: true });
+    if (istReaktion(r.n)) {
+      if (ohneZiel.has(r.n.id)) {
+        const z = r.n.medien?.emoji;
+        aus.push({ art: "hinweis", key: `h-${r.n.id}`, text: z ? `Kunde hat mit ${z} auf eine ältere Nachricht reagiert` : "Kunde hat auf eine Nachricht reagiert" });
+      }
+      continue;
+    }
+    if (streifenVor === r.n.id) aus.push({ art: "ungelesen", key: `u-${r.n.id}`, anzahl: neu });
+    aus.push({ art: "nachricht", key: `n-${r.n.id}`, n: r.n, absender: absenderVon(r.n), gruppeNeu: true, gruppeEnde: true, reaktionen: reaktionen.get(r.n.id) ?? [] });
   }
   buendelZu();
 

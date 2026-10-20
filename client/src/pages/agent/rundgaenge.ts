@@ -2097,31 +2097,31 @@ export const RUNDGANG_MARA_TERMINE: RundgangSchritt[] = [
 
 // E-210 (22.09.2026): Der Lead-Motor — die Facebook-Leads direkt von Meta, ohne Make.
 export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
+  // Neubau 20.10.2026 (Justin: „schön, cleanes WhatsApp, wie man es kennt"): Der Rundgang folgt dem neuen Raum.
   {
     titel: "Hier schreibst du mit deinen Kunden.",
-    text: "Alles läuft über eine Nummer des Hauses (+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, "
-      + "hin wie zurück, steht in der Akte des Menschen. Du musst nichts abtippen und nichts weiterleiten.",
-    // E-IT-H (08.10.2026): Der Raum füllt jetzt den ganzen Bildschirm; der Rundgang hat keinen festen Knopf mehr.
-    tipp: "Diesen Rundgang startest du jederzeit wieder über „Rundgang“ oben rechts im Raum.",
+    text: "Der Raum sieht aus wie WhatsApp: links die Gespräche, rechts der Chat. Alles läuft über eine Nummer des Hauses "
+      + "(+49 1511 0761284) — nie über dein privates Telefon. Jede Nachricht, hin wie zurück, steht in der Akte des Menschen. "
+      + "Du musst nichts abtippen und nichts weiterleiten.",
+    tipp: "Diesen Rundgang startest du jederzeit wieder über die drei Punkte ⋮ oben in der Liste → „Rundgang“.",
   },
-  // E-IT-H (08.10.2026, Punkt 15): Ansicht je Mitarbeiter — die Knöpfe stehen im Kopf, in jeder Breite.
+  // Neubau 20.10.2026: Schrift, Liste schmal, Maras Schritte und Rundgang stehen im ⋮-Menü statt als Knopfwand.
   {
-    ziel: ".wr-kopf-knoepfe",
-    titel: "Schrift größer — und der Rundgang.",
-    text: "„Schrift größer“ macht Nachrichten, Liste und Fall im ganzen Raum größer; ein zweiter Klick („Schrift normal“) "
-      + "nimmt es zurück. Der Raum ist ohnehin größer gesetzt als der Rest des Office. Daneben startet „Rundgang“ diese "
-      + "Erklärung neu.",
-    tipp: "Dein Browser merkt sich die Einstellung — auch nach dem Neuladen gilt sie wieder, nur für dich.",
+    ziel: ".wr-menue-knopf",
+    titel: "Die drei Punkte: Schrift, Liste, Rundgang.",
+    text: "„Schrift größer“ macht Nachrichten, Liste und Kontaktinfo im ganzen Raum größer; ein zweiter Klick nimmt es "
+      + "zurück. „Liste schmal“ zeigt nur noch die runden Bilder. „Maras Schritte zeigen“ klappt alle internen Schritte "
+      + "auf. „Rundgang“ startet diese Erklärung neu. Daneben beginnt der Stift ein neues Gespräch.",
+    tipp: "Dein Browser merkt sich Schrift und Liste — auch nach dem Neuladen, nur für dich.",
   },
   // E-IT-H: « und (i) gibt es am Handy nicht — deshalb ohne Ziel (Rundgang-Regel 2).
   {
     titel: "Mehr Platz für den Chat.",
-    text: "Der Raum füllt den ganzen Bildschirm, nur der Verlauf, die Liste und der Fall rollen. Das « oben in der Liste "
-      + "macht sie zur schmalen Leiste mit Bild, Ungelesen-Zahl und grünem Punkt, solange das Fenster offen ist (» klappt "
-      + "sie wieder auf). Das (i) rechts im Chat-Kopf blendet den Fall ein und aus — auf großen Bildschirmen steht er als "
-      + "eigene Spalte rechts, sonst als Schublade über dem Verlauf. Dein Browser merkt sich beides.",
-    tipp: "Am Laptop lohnt sich: Liste schmal und Fall aus — dann hat der Chat fast die ganze Breite. „Ergebnis buchen“ "
-      + "und die Notiz holst du dir mit dem (i) zurück.",
+    text: "Der Raum füllt den ganzen Bildschirm, nur Liste, Verlauf und Kontaktinfo rollen. „Liste schmal“ « im Menü macht "
+      + "die Liste zur Leiste mit Bild, Ungelesen-Zahl und grünem Punkt (» oben in der Leiste klappt sie wieder auf). Das (i) "
+      + "rechts im Chat-Kopf — oder ein Klick auf Name oder Bild — öffnet die Kontaktinfo: Stufe, Paket, Zahlung, Termin, "
+      + "Akte, Ergebnis buchen, Notiz. Auf großen Bildschirmen steht sie als Spalte rechts, sonst über dem Chat. Das × schließt sie.",
+    tipp: "Am Laptop lohnt sich: Liste schmal und Kontaktinfo zu — dann hat der Chat fast die ganze Breite.",
   },
   // E-261 (29.09.2026): Der Hinweis erscheint nur, solange die Bremse greift — deshalb ohne Ziel (Rundgang-Regel 2).
   {
@@ -2131,21 +2131,22 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
       + "„Meta-Qualität ROT“, gehen nur die Werbe-Vorlagen nicht raus.",
     tipp: "Wer keine offene Nachricht hat, bekommt in der Zeit einen Anruf statt einer Vorlage. Dasselbe sagt die Akte, wenn du dort eine Vorlage schicken willst.",
   },
-  // 28.09.2026 (E-248): Liste mit Absender in der Vorschau, eine Stufenfarbe, Autoantworten markiert.
+  // Neubau 20.10.2026: Zeilen wie bei WhatsApp — Bild, Name mit Stufe, Zeit, Häkchen, Vorschau, Zeichen, Zahl.
   {
     ziel: ".wr-liste",
-    titel: "Links stehen die Gespräche.",
-    text: "Die Liste startet mit „Mit Antwort“: nur Gespräche, in denen der Kunde selbst geschrieben hat. „Alle“ zeigt mit "
-      + "einem Klick auch die, in denen bisher nur wir geschrieben haben (z. B. Maras Vorlagen). Der blaue Punkt zählt "
-      + "ungelesene Nachrichten. Die Vorschau sagt, wer zuletzt geschrieben hat: „Mara:“, der Name "
-      + "aus dem Team — oder gelb „Automatische Antwort“, wenn nur ein Anrufbeantworter geantwortet hat. „Fenster offen“ heißt: "
-      + "Du darfst gerade frei schreiben. „Mara aus“ heißt: Hier antwortet die digitale Assistentin gerade nicht selbst.",
+    titel: "Links stehen die Gespräche — wie bei WhatsApp.",
+    text: "Die Chips oben filtern: „Mit Antwort“ (Start — nur Gespräche, in denen der Kunde selbst geschrieben hat), "
+      + "„Alle“ (auch die, in denen bisher nur wir geschrieben haben, z. B. Maras Vorlagen), „Ungelesen“, „Wartet“ (der Kunde "
+      + "hat zuletzt geschrieben, noch niemand hat geantwortet) und „Fenster offen“. Jede Zeile: rundes Bild — der grüne "
+      + "Punkt heißt, du darfst gerade frei schreiben —, Name mit Stufe, Zeit, darunter die letzte Nachricht mit Häkchen und "
+      + "wer sie schrieb („Mara:“, der Name aus dem Team, „Automatische Antwort“). Rechts: ✦ = Mara antwortet hier, die "
+      + "Person = ein Mensch antwortet, die blaue Zahl = ungelesen.",
     // E-IT-H (Gegenprüfung 08.10.2026): Beim Suchen gilt „Mit Antwort“ nicht — die Suche läuft über alle eigenen Gespräche.
     tipp: "Die Suche findet Name und Nummer, ab vier Zeichen auch Wörter aus allen Nachrichten — und zwar in ALLEN deinen "
       + "Gesprächen, auch in denen ohne Antwort und nicht nur in den geladenen. Solange du suchst, steht der Filter deshalb "
       + "auf „Alle“. Findest du jemanden nicht, beginne erst dann ein neues Gespräch. Ganz unten holt „Ältere Gespräche "
-      + "laden“ weitere, bis 1.000 — noch ältere findest du über die Suche. Hat jemand aus dem Team ein Gespräch offen, steht „jemand liest mit“ daran — dann antwortet ihr "
-      + "nicht doppelt.",
+      + "laden“ weitere, bis 1.000 — noch ältere findest du über die Suche. Ein kleines Auge an der Zeile heißt: Jemand aus "
+      + "dem Team hat das Gespräch gerade offen — dann antwortet ihr nicht doppelt.",
   },
   // E-IT-H: Direktsprung aus Akte und Aufgaben — ohne Ziel, der Knopf steht in der Akte.
   {
@@ -2159,12 +2160,12 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
     ziel: ".wr-eingabe",
     titel: "Schreiben wie im Handy — nur mit Sicherheitsnetz.",
     text: "Am Rechner sendet Enter, Umschalt+Enter macht eine neue Zeile; am Handy sendet nur der runde Knopf. Das Feld "
-      + "wächst mit, bis gut ein Drittel der Chathöhe — längere Antworten siehst du beim Schreiben ganz. Ein Doppelklick "
-      + "schickt nichts doppelt, und dein Entwurf bleibt beim Kunden, für den du ihn geschrieben hast — wechselst du das "
-      + "Gespräch, wandert er nicht mit. Über dem Feld steht, wie lange das 24-Stunden-Fenster noch läuft. Ist es zu, "
-      + "geht nur eine von Meta freigegebene Vorlage.",
-    tipp: "Das Plus links öffnet Vorlagen und die PERSÖNLICHEN Links dieses Kunden: Antragslink mit seinem Code, seine "
-      + "Zahlungsseite, sein Terminlink. Der Link, der zu seiner Lage passt, steht vorn. Einen nackten fiaon.com/antrag "
+      + "wächst mit, bis gut ein Drittel der Chathöhe. Ein Doppelklick schickt nichts doppelt, und dein Entwurf bleibt beim "
+      + "Kunden, für den du ihn geschrieben hast. Über dem Feld steht leise, wie lange das 24-Stunden-Fenster noch offen ist. "
+      + "Ist es zu, wird das Feld zum Riegel „Nur eine freigegebene Vorlage geht“ — ein Klick zeigt die Vorlagen. Geht etwas "
+      + "nicht raus, steht der Grund rot über dem Feld, und dein Text bleibt drin.",
+    tipp: "Das Zeichen links neben dem Feld öffnet Vorlagen und die PERSÖNLICHEN Links dieses Kunden: Antragslink mit seinem Code, "
+      + "seine Zahlungsseite, sein Terminlink. Der Link, der zu seiner Lage passt, steht vorn. Einen nackten fiaon.com/antrag "
       + "gibt es hier nicht — nur der persönliche Link führt den Kunden genau an seine Stelle. Vorlagen, die zu seiner Lage "
       + "passen, stehen oben; die anderen sind grau („passt nicht zu seiner Lage“). Eine Vorlage geht in zwei Schritten raus: "
       + "„Ansehen“, dann „Diese Vorlage senden“.",
@@ -2177,15 +2178,26 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
   {
     ziel: ".wr-schalter",
     titel: "Mara und du am selben Tisch.",
-    text: "Der Schalter sagt, ob Mara in diesem Gespräch selbst antwortet. Sobald du hier schreibst, pausiert sie "
-      + "automatisch — du hast das letzte Wort. Im Verlauf erkennst du jeden Absender: Kunde links, Mara rechts in "
-      + "Navy mit dem Zeichen „KI“, das Team rechts in Blau mit Namen. "
+    text: "Der kleine Schalter im Chat-Kopf sagt, ob Mara in diesem Gespräch selbst antwortet (blau = an). Sobald du hier "
+      + "schreibst, pausiert sie automatisch — du hast das letzte Wort. Im Verlauf erkennst du jeden Absender: Kunde links, "
+      + "Mara rechts im tiefen Blau mit dem Zeichen „KI“, das Team rechts im hellen Blau mit Namen. Die Häkchen wie bei "
+      + "WhatsApp: ✓ gesendet, ✓✓ zugestellt, ✓✓ hell = gelesen, ! = nicht zugestellt. Vorlagen tragen oben „Vorlage · …“ "
+      + "und darunter die Knöpfe, die der Kunde sieht. "
       // 24.09.2026 (E-236) · 28.09.2026 (E-248): Maras Handlungen gebündelt statt als Kastenflut.
       + "Was Mara intern getan hat — Zeiten geholt, Rückruf eingetragen, an einen Menschen übergeben, eine Antwort "
-      + "verworfen — steht als EINE leise Zeile zwischen den Nachrichten („Mara · 3 interne Schritte“). Ein Klick klappt "
-      + "sie auf; ein roter Punkt heißt: Da ist etwas schiefgegangen, schau hin. Im Kopf steht der Termin aus dem Kalender.",
-    tipp: "Das Listen-Zeichen neben dem Schalter klappt alle internen Schritte auf einmal auf. Bei eingetragenen Terminen "
+      + "verworfen — steht als EINE leise Zeile zwischen den Nachrichten („Mara · 3 Schritte“). Ein Klick klappt sie auf; "
+      + "ein roter Punkt heißt: Da ist etwas schiefgegangen, schau hin. Im Kopf steht der Termin aus dem Kalender.",
+    tipp: "„Maras Schritte zeigen“ im ⋮-Menü klappt alle internen Schritte auf einmal auf. Bei eingetragenen Terminen "
       + "zeigt eine Marke, ob die Nachprüfung stimmt („geprüft“) oder was fehlt.",
+  },
+  // Neubau 20.10.2026: Fotos, Sprachnachrichten und Dokumente stehen direkt im Verlauf.
+  {
+    titel: "Fotos, Sprachnachrichten, Dokumente.",
+    text: "Schickt ein Kunde ein Foto, eine Sprachnachricht oder ein PDF, siehst du es direkt im Verlauf: Ein Klick öffnet "
+      + "das Foto groß, das Dokument lädt herunter, die Sprachnachricht spielt ab. Standort und Kontaktkarte stehen als kleine "
+      + "Karte da, eine Reaktion (👍) hängt an der Nachricht, auf die sie zeigt.",
+    tipp: "Dateien von vor dem 20.10.2026 und solche, die WhatsApp nicht mehr herausgibt, stehen als Platzhalter da — dann "
+      + "den Kunden bitten, sie noch einmal zu schicken, oder anrufen.",
   },
   // E-248 (28.09.2026): Was Mara auf WhatsApp selbst tut — und wann sie dir etwas gibt.
   {

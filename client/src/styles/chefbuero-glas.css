@@ -27,6 +27,10 @@
 /* Der Abstand über der schwebenden Kopfleiste (margin-top) fiel sonst durch die Hülle hindurch und legte oben einen
    14 px hellen Streifen der Seite frei — flow-root hält ihn in der Hülle. */
 .cb.cb-glas { display: flow-root; }
+/* 20.10.2026 (WhatsApp-Neubau): Die Vollfläche (.cb-voll, chefbuero.css: Spalte bis zum Fensterrand) braucht flex.
+   „flow-root" oben gewann gegen .cb.cb-voll (gleiche Spezifität, später geladen) — die WhatsApp-Seite wuchs mit ihrem
+   Verlauf über den Fensterrand, das Eingabefeld lag unten außer Sicht. flex hält den Kopfleisten-Abstand ebenso. */
+.cb.cb-glas.cb-voll { display: flex; }
 /* Die alte Foto-Bühne tritt zurück — das Kristall trägt. */
 .cb.cb-glas .cb-buehne { display: none; }
 
@@ -154,13 +158,13 @@
   .cb.cb-glas * { animation: none !important; }
 }
 
-/* ── WhatsApp-Raum im Chefbüro: Liste und Chat als dunkles Glas (Lesbarkeit vor Durchsicht) ── */
-.cb.cb-glas .wr { --wr-flaeche: rgba(9, 16, 32, .64); --wr-linie: rgba(156, 203, 255, .14); }
-.cb.cb-glas .wr-liste,
-.cb.cb-glas .wr-chat {
+/* ── WhatsApp-Raum im Chefbüro (Neubau 20.10.2026): EIN Rahmen wie WhatsApp Web — außen die Glaskante des Chefbüros,
+   innen dunkel und deckend (Lesbarkeit vor Durchsicht). Vorher trugen Liste und Chat je eine eigene Glaskarte mit
+   halbdurchsichtiger Fläche; im neuen Rahmen schien darüber der Chat-Kopf durch die Kontaktinfo. ── */
+.cb.cb-glas .wr { --wr-linie: rgba(156, 203, 255, .14); }
+.cb.cb-glas .wr-raum {
   border-radius: 20px; border-color: var(--gl-kante);
   box-shadow: var(--gl-licht), var(--gl-tiefe);
-  -webkit-backdrop-filter: blur(26px) saturate(150%); backdrop-filter: blur(26px) saturate(150%);
 }
 
 /* ── Akte als eigene Seite (/chef/s/akte): „Nächster Schritt“ und „fehlt“ trugen Inline-Farben für Weiß

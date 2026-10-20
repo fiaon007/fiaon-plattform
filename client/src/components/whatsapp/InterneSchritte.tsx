@@ -11,9 +11,15 @@
 // Aufgeklappt: Zeit, Zeichen, Klartext — der Rohtext klein darunter, die
 // Nachprüfung eingetragener Termine als Marke mit ihren Punkten.
 // Nie eine Blase: Es sind keine Nachrichten, der Kunde hat sie nie gesehen.
+//
+// 20.10.2026 (Neubau wie WhatsApp): noch leiser — eine kleine Zeile wie die
+// Systemhinweise bei WhatsApp („✦ Mara · 2 Schritte · Rückruf eingetragen"),
+// ohne Rahmen. Nur wenn etwas schiefging, trägt sie einen roten Punkt.
+// Aufklappen wie bisher; „Maras Schritte zeigen" im ⋮-Menü klappt alle auf.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { pruefTeile, schrittKlartext, uhr, type MaraEreignis } from "./wr-format";
+import { ZFunke } from "./Symbole";
 
 export function InterneSchritte({ liste, offen, onUmschalten }: {
   liste: MaraEreignis[]; offen: boolean; onUmschalten: () => void;
@@ -28,7 +34,7 @@ export function InterneSchritte({ liste, offen, onUmschalten }: {
   // Ein einzelner Schritt sagt direkt, was er war; mehrere werden gezählt.
   const kopf = schritte.length === 1
     ? schritte[0].k.titel
-    : `${schritte.length} interne Schritte`;
+    : `${schritte.length} Schritte`;
   const zusatz = [
     rot ? `${rot} verworfen oder fehlerhaft` : null,
     !rot && warn ? `${warn} Hinweis${warn > 1 ? "e" : ""}` : null,
@@ -39,6 +45,7 @@ export function InterneSchritte({ liste, offen, onUmschalten }: {
     <div className={`wr-intern${rot ? " rot" : warn ? " warn" : gut ? " gut" : ""}`}>
       <button type="button" className="wr-intern-kopf" aria-expanded={offen} aria-controls={offen ? listenId : undefined} onClick={onUmschalten}>
         {rot > 0 && <i className="wr-intern-punkt" aria-hidden="true" />}
+        <ZFunke g={13} className="wr-intern-funke" />
         <span className="wr-intern-wer">Mara</span>
         <span className="wr-intern-text">{kopf}{zusatz.length ? ` · ${zusatz.join(" · ")}` : ""}</span>
         <svg className="wr-intern-pfeil" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>

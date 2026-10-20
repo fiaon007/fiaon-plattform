@@ -84,6 +84,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // 20.10.2026: Der WhatsApp-Raum neu gebaut — sieht aus wie WhatsApp, nur in FIAON-Blau (Justins Auftrag vom 20.10.).
+    id: "2026-10-20-whatsapp-neu",
+    date: "2026-10-20",
+    category: "Verbessert",
+    title: "WhatsApp-Raum neu: sieht aus wie WhatsApp — nur in FIAON-Blau",
+    summary:
+      "Links die Gespräche mit rundem Bild, rechts der Chat mit Sprechblasen, Häkchen und Tagesstreifen — wie du es vom Handy kennst. "
+      + "Alles, was der Raum vorher konnte, kann er weiter.",
+    changes: [
+      "Filter als eine Reihe: Mit Antwort · Alle · Ungelesen · Wartet · Fenster offen. „Wartet“ zeigt, wer zuletzt geschrieben und noch keine Antwort hat.",
+      "Grüner Punkt am Bild = das 24-Stunden-Fenster ist offen. ✦ = Mara antwortet, Person = ein Mensch antwortet.",
+      "Fotos, Sprachnachrichten und Dokumente von Kunden stehen direkt im Verlauf (neu ab diesem Update; ältere als Platzhalter).",
+      "Vorlagen zeigen Bild, Text und die Knöpfe, die der Kunde sieht. Beim Öffnen steht „2 ungelesene Nachrichten“ vor den neuen.",
+      "Geht eine Nachricht nicht raus, steht der Grund rot über dem Feld — dein Text bleibt drin.",
+      "„Schrift größer“, „Liste schmal“ und „Rundgang“ findest du jetzt hinter den drei Punkten ⋮ oben in der Liste.",
+    ],
+    howto: [
+      "Gespräch links anklicken, unten schreiben, Enter sendet (Umschalt+Enter = neue Zeile).",
+      "Kontaktinfo (Stufe, Zahlung, Akte, Ergebnis buchen, Notiz): auf das (i) oder den Namen oben im Chat klicken.",
+    ],
+    link: { href: "/agent/whatsapp", label: "WhatsApp-Raum öffnen" },
+    important: true,
+  },
+  {
     // E-408 Scheibe 2 (20.10.2026): die Karte „Aras“ in der Akte — sichtbar ab sofort, anrufen erst, wenn Aras freigeschaltet ist.
     id: "2026-10-20-aras-akte",
     date: "2026-10-20",

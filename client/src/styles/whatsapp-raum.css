@@ -1,58 +1,65 @@
-/* ═══ Der WhatsApp-Raum (23.09.2026, E-210 · neu 28.09.2026, E-248) — Präfix .wr- ═══
+/* ═══ Der WhatsApp-Raum (E-210 · E-248 · E-IT-H · Neubau 20.10.2026) — Präfix .wr- ═══
+   Justin, 20.10.2026: „schön, cleanes WhatsApp, wie man es kennt, nur eben ein
+   wenig in FIAON CI — aber viel übersichtlicher". Deshalb jetzt wie WhatsApp Web:
+   EIN Rahmen (Liste · Chat · Kontaktinfo, durch feine Linien getrennt), Blasen
+   mit Zipfel, Zeit und Häkchen in der Blase, der bekannte Muster-Hintergrund —
+   in FIAON-Blau statt Beige, ausgehend im Blau-Paar statt Grün.
+
    Läuft in zwei dunklen Häusern (Office mit dunkel(true) und Chefbüro), deshalb
-   bringt er seine eigenen Farben mit. Justins Linie: dünne Schrift (Inter 300),
+   bringt er seine eigenen Farben mit. Justins Linie: dünne Schrift (Inter 300/400),
    matte Flächen, Glas nur an EINER Stelle (dem Chat-Kopf), das Blau-Paar
-   #288DFA / #1D4ED8 als einziger Akzent, keine klebenden Leisten über Inhalt.
+   #288DFA / #1D4ED8 als Akzent, KEIN Gold, keine klebenden Leisten über Inhalt,
+   der Grund hinter dem Glas ist statisch (keine Dauer-Animation).
 
    Die Aufteilung richtet sich nach dem PLATZ des Raums, nicht nach dem Fenster
    (Container Queries, Name „wr"; dieselben Schwellen in shared/fiaon-wa-raum.ts):
      ab 1500 px   wie ab 1100, Schrift × 1,06
-     ab 1100 px   Liste · Chat · Fall-Spalte (von selbst an ab 1400, sonst aus;
+     ab 1100 px   Liste · Chat · Kontaktinfo (von selbst an ab 1400, sonst aus;
                   die Wahl des Mitarbeiters gilt — (i) im Chat-Kopf)
-     ab  760 px   Liste · Chat, der Fall als Schublade im Chat
+     ab  760 px   Liste · Chat, die Kontaktinfo liegt über dem Chat
      darunter     Liste; ein offener Chat ist eine eigene Vollfläche (.wr-vollflaeche)
    Die Liste lässt sich ab 760 px zur Schiene einklappen (.liste-schmal, 76 px).
 
-   E-IT-H (08.10.2026, Punkt 15) — DER RAUM FÜLLT DEN BILDSCHIRM:
-   · Keine gemessene Höhe mehr (--wr-hoehe ist weg): Die Hülle liefert die volle
-     Fläche (.of.voll im Office, .cb-voll im Chefbüro), der Raum füllt sie.
-   · Größere Grundschrift — im Office (87,5 %) steht die Blase mit 14 px am
-     Bildschirm (vorher 12,7, Uhrzeiten 9,2): alle Größen laufen über --wr-f
-     (Breite × Wahl „Schrift größer" × 1,15). Justin, 08.10.: Die
-     Office-Verkleinerung bleibt, der Raum gleicht über die Schrift aus.
-   · Der Telefonknopf (58 px unten rechts) bekommt eine freie Ecke
-     (--wr-knopf-zone) statt eines Höhenstreifens über die ganze Breite; ein
-     laufendes Gespräch (Pille) reserviert unten Platz (--wr-unten-zone).
-   · Der Rundgang hat keinen festen Knopf mehr — der Chip „Rundgang" im Kopf.
+   E-IT-H (08.10.2026, Punkt 15) bleibt: Der Raum füllt die Fläche der Hülle (keine
+   gemessene Höhe), alle Schriftgrößen laufen über --wr-f (Breite × „Schrift größer"
+   × 1,15), der Telefonknopf bekommt eine freie Ecke (--wr-knopf-zone), ein laufendes
+   Gespräch (Pille) reserviert unten Platz (--wr-unten-zone).
 
-   Rundgang-Ziele bleiben: .wr-liste, .wr-eingabe, .wr-schalter; neu .wr-kopf-knoepfe, .wr-fall-knopf. */
+   Rundgang-Ziele: .wr-liste, .wr-filter, .wr-eingabe, .wr-schalter, .wr-menue-knopf, .wr-fall-knopf. */
 
 .wr, .wr-tokens {
   --wr-blau: #288dfa;
   --wr-blau-tief: #1d4ed8;
   --wr-blau-hell: #9cc8ff;
   --wr-buehne: #070d19;
-  --wr-flaeche: #0b1424;
-  --wr-flaeche-2: #111c31;
-  --wr-flaeche-3: #16233b;
-  --wr-linie: rgba(148, 163, 184, .13);
-  --wr-text: #e8eef7;
-  --wr-text-2: #b6c2d4;
-  --wr-leise: #8292a8;
-  --wr-still: #62728a;
-  --wr-kunde: #1a263c;
-  --wr-mara: #122648;
+  --wr-rahmen: #0a1322;
+  --wr-flaeche: #0b1526;
+  --wr-flaeche-2: #121e34;
+  --wr-flaeche-3: #17253e;
+  --wr-linie: rgba(148, 163, 184, .12);
+  --wr-text: #e9eef6;
+  --wr-text-2: #b9c5d6;
+  --wr-leise: #8696ab;
+  --wr-still: #66778e;
   --wr-gut: #6ee7b7;
-  --wr-warn: #fcd34d;
+  --wr-offen: #34d399;
+  --wr-warn: #f0b3bd;
   --wr-rot: #fda4af;
+  /* Blasen: Kunde hell-navy, Team FIAON-Blau, Mara tiefes Blau */
+  --wr-b-kunde: #18243a;
+  --wr-b-team: #1d5ad6;
+  --wr-b-mara: #13305e;
+  --wr-b-fehler: #371722;
+  --wr-b-auto: #131c2c;
+  --wr-gelesen: #8be3ff;
   color: var(--wr-text-2);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 300;
+  font-weight: 400;
   color-scheme: dark;
 }
 .wr {
   container: wr / inline-size;
-  display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0;
   /* In der vollen Hülle (Office .of.voll, Chefbüro .cb-voll) füllt der Raum die Restfläche. */
   flex: 1 1 auto;
 }
@@ -64,35 +71,36 @@
 .wr h1, .wr h2 { margin: 0; color: var(--wr-text); }
 .wr p { margin: 0; }
 .wr button, .wr input, .wr textarea { font-family: inherit; }
+.wr button { -webkit-tap-highlight-color: transparent; }
+.wr svg { flex: none; }
 .wr-still { color: var(--wr-still); font-size: calc(13px * var(--wr-f, 1)); }
-.wr-leer { padding: 18px; font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-leise); }
+.wr-leer { padding: 22px 18px; font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-leise); line-height: 1.5; }
 .wr-leise { color: var(--wr-leise); }
 .wr-gut { color: var(--wr-gut) !important; }
 
-/* ── Kopf der Seite: eine Zeile, kein Kasten ───────────────────────────── */
-.wr-kopf { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; padding: 0 2px; }
-.wr-kopf h1 { font-size: 26px; font-weight: 300; letter-spacing: -.02em; }
-.wr-kopf p { font-size: calc(13px * var(--wr-f, 1)); color: var(--wr-leise); }
-.wr-kopf b { color: var(--wr-text-2); font-weight: 400; font-variant-numeric: tabular-nums; }
 /* E-261: der schmale Hinweis, solange die WhatsApp-Bremse steht (Pause oder Meta ROT). Kein Knopf. */
-.wr-kopf-knoepfe { margin-left: auto; display: flex; gap: 8px; align-self: center; }
-.wr-kopf .wr-bremse { flex: 1 1 100%; margin: 2px 0 0; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(253, 164, 175, .35);
-  background: rgba(127, 29, 29, .28); color: var(--wr-rot); font-size: calc(13px * var(--wr-f, 1)); font-weight: 300; line-height: 1.45; }
+.wr .wr-bremse {
+  flex: none; margin: 0; padding: 9px 14px; border-radius: 12px; border: 1px solid rgba(253, 164, 175, .3);
+  background: rgba(127, 29, 29, .26); color: var(--wr-rot); font-size: calc(13.5px * var(--wr-f, 1)); line-height: 1.45;
+}
 
-/* ── Der Raum ──────────────────────────────────────────────────────────── */
-/* E-IT-H: Spalten wachsen mit dem Platz (Liste 280–380, Fall 280–360 px), der
-   Chat bekommt den Rest. Ohne gewähltes Gespräch gibt es KEINE leere dritte Spur
-   mehr — die Fall-Spalte steht nur mit .mit-fall da. */
+/* ── Der Rahmen: Liste · Chat · Kontaktinfo wie WhatsApp Web ───────────────
+   Spalten wachsen mit dem Platz (Liste 290–400, Kontaktinfo 300–380 px), der
+   Chat bekommt den Rest; ohne gewähltes Gespräch gibt es KEINE leere dritte Spur. */
 .wr-raum {
-  --wr-liste-b: clamp(280px, 21cqi, 380px);
-  --wr-fall-b: clamp(280px, 20cqi, 360px);
-  display: grid; gap: 12px; min-width: 0; min-height: 320px;
+  --wr-liste-b: clamp(290px, 24cqi, 400px);
+  --wr-fall-b: clamp(300px, 22cqi, 380px);
+  flex: 1 1 auto;
+  display: grid; gap: 0; min-width: 0; min-height: 320px;
   grid-template-columns: var(--wr-liste-b) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   /* Rückfall, falls der Raum einmal ohne volle Hülle steht; in der Hülle füllt er sie. */
   height: clamp(420px, 78vh, 1000px);
+  border-radius: 16px; border: 1px solid var(--wr-linie); overflow: hidden;
+  background: var(--wr-rahmen);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, .45), 0 1px 0 rgba(255, 255, 255, .03) inset;
   /* Läuft ein Gespräch am Telefon (Pille unten rechts), bleibt unten Platz. */
-  padding-bottom: var(--wr-unten-zone, 0px);
+  margin-bottom: var(--wr-unten-zone, 0px);
 }
 :is(.of.voll, .cb.cb-voll) .wr-raum { height: auto; }
 .wr-raum.mit-fall { grid-template-columns: var(--wr-liste-b) minmax(0, 1fr) var(--wr-fall-b); }
@@ -101,253 +109,432 @@
   .wr-raum { --wr-s: 1.06; }
 }
 @container wr (max-width: 759.98px) {
-  .wr-raum { grid-template-columns: minmax(0, 1fr); }
-  .wr-kopf h1 { font-size: 22px; }
+  .wr-raum { grid-template-columns: minmax(0, 1fr); border-radius: 14px; }
 }
 
 /* Der Telefonknopf (Softphone.tsx: rechts 16, unten 12, 58 × 58 px) liegt über
    der rechten unteren Ecke des Raums. Statt eines Streifens über die volle
-   Breite hält nur die Spalte darunter Abstand: mit Fall-Spalte deren Ende,
+   Breite hält nur die Spalte darunter Abstand: mit Kontaktinfo deren Ende,
    sonst die Eingabezeile (der Senden-Knopf liegt nie darunter). */
 html.wr-telefon .wr { --wr-knopf-zone: 78px; }
 html.wr-telefon:has(.fi-tel-pille) .wr { --wr-unten-zone: 80px; }
-.wr-raum.mit-fall > .wr-person { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px)); }
+.wr-raum.mit-fall > .wr-person .wr-person-inhalt { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px)); }
 .wr-raum:not(.mit-fall) .wr-eingabe { padding-right: calc(12px + var(--wr-knopf-zone, 0px)); }
+
+/* ── Das runde Bild ─────────────────────────────────────────────────────── */
+.wr-avatar {
+  position: relative; flex: none; display: grid; place-items: center; border-radius: 50%;
+  width: 40px; height: 40px; color: #fff; font-size: calc(15px * var(--wr-f, 1)); font-weight: 400; letter-spacing: .02em;
+  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .12) inset;
+}
+.wr-avatar.g-s { width: 34px; height: 34px; font-size: calc(13px * var(--wr-f, 1)); }
+.wr-avatar.g-l { width: 48px; height: 48px; font-size: calc(17px * var(--wr-f, 1)); }
+.wr-avatar.g-xl { width: 96px; height: 96px; font-size: calc(32px * var(--wr-f, 1)); font-weight: 300; }
+.wr-avatar.ton-0 { background: linear-gradient(135deg, #1d4ed8, #288dfa); }
+.wr-avatar.ton-1 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+.wr-avatar.ton-2 { background: linear-gradient(135deg, #0e6382, #27b3dc); }
+.wr-avatar.ton-3 { background: linear-gradient(135deg, #343096, #6a73f2); }
+.wr-avatar.ton-4 { background: linear-gradient(135deg, #0f4777, #4aa3ea); }
+.wr-avatar.ton-leer { background: #26344b; color: #9aaabf; }
+.wr-avatar-text { line-height: 1; }
+/* Der grüne Punkt: das 24-Stunden-Fenster ist offen (frei schreiben). */
+.wr-offen-punkt {
+  position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--wr-offen); box-shadow: 0 0 0 2.5px var(--wr-flaeche);
+}
+.wr-avatar.g-s .wr-offen-punkt { width: 10px; height: 10px; }
 
 /* ── Liste ─────────────────────────────────────────────────────────────── */
 .wr-liste {
-  display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; min-width: 0;
-  border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
+  display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; min-width: 0;
+  background: var(--wr-flaeche); border-right: 1px solid var(--wr-linie);
 }
-.wr-suchfeld { padding: 12px 12px 8px; display: flex; gap: 8px; align-items: center; }
-.wr-suchfeld input, .wr-feld, .wr-blatt-kopf input {
-  width: 100%; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--wr-linie);
-  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); font-weight: 300;
+@container wr (max-width: 759.98px) { .wr-liste { border-right: 0; } }
+.wr-liste-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 10px 8px 18px; min-height: 62px; }
+.wr-liste-titel { display: grid; gap: 1px; min-width: 0; }
+.wr-liste-kopf h1 { font-size: calc(21px * var(--wr-f, 1)); font-weight: 400; letter-spacing: -.01em; }
+.wr-liste-titel small { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.wr-kopf-knoepfe { display: flex; gap: 2px; align-items: center; flex: none; }
+
+.wr-suchfeld { position: relative; padding: 2px 12px 8px; }
+.wr-such-lupe { position: absolute; left: 24px; top: 50%; transform: translateY(calc(-50% - 3px)); color: var(--wr-still); pointer-events: none; }
+.wr-suchfeld input, .wr-feld, .wr-blatt-suche input {
+  width: 100%; min-width: 0; padding: 9px 36px 9px 40px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); font-weight: 400;
+  -webkit-appearance: none; appearance: none;
 }
-.wr-suchfeld input:focus, .wr-feld:focus, .wr-blatt-kopf input:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
-.wr-neu {
-  width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid rgba(40, 141, 250, .4);
-  background: rgba(40, 141, 250, .12); color: var(--wr-blau-hell); display: grid; place-items: center; cursor: pointer;
+.wr-suchfeld input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.wr-suchfeld input::placeholder, .wr-feld::placeholder, .wr-blatt-suche input::placeholder { color: var(--wr-still); }
+.wr-suchfeld input:focus, .wr-feld:focus, .wr-blatt-suche input:focus { outline: none; border-color: rgba(40, 141, 250, .5); background: #14223b; }
+.wr-such-weg {
+  position: absolute; right: 18px; top: 50%; transform: translateY(calc(-50% - 3px)); width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; border: 0; background: transparent; color: var(--wr-leise); cursor: pointer;
 }
-/* E-IT-H: vier Filter als ruhiges 2 × 2 in der Listenspalte (statt eines einzeln gedehnten Knopfs in
-   Zeile zwei); am Handy, wo die Liste die ganze Breite hat, in einer Reihe. */
-.wr-filter { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 12px 10px; }
-@container wr (max-width: 759.98px) { .wr-filter { display: flex; flex-wrap: wrap; } }
-.wr-filter button {
-  flex: 1 1 auto; padding: 6px 8px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
+
+/* Filter: EINE Reihe Chips wie bei WhatsApp — rollt seitlich, wenn der Platz nicht reicht. */
+.wr-filter { padding: 0 0 8px; min-width: 0; }
+.wr-chips { display: flex; gap: 5px; overflow-x: auto; padding: 0 12px 2px; scrollbar-width: none; -ms-overflow-style: none; }
+.wr-chips::-webkit-scrollbar { display: none; }
+.wr-chips button {
+  flex: none; padding: 6px 11px; border-radius: 99px; border: 1px solid transparent; background: var(--wr-flaeche-2);
   color: var(--wr-leise); font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s;
 }
-.wr-filter button.an { background: rgba(40, 141, 250, .14); border-color: rgba(40, 141, 250, .45); color: #dbeafe; }
-/* E-IT-H (Gegenprüfung): Beim Suchen gilt „Mit Antwort" nicht — der Knopf ruht, eine Zeile sagt warum. */
-.wr-filter button:disabled { opacity: .45; cursor: default; }
-.wr-filter-hinweis { grid-column: 1 / -1; flex: 1 1 100%; margin: 2px 2px 0; line-height: 1.45; }
+.wr-chips button.an { background: rgba(40, 141, 250, .18); border-color: rgba(40, 141, 250, .38); color: #d8e9ff; }
+/* E-IT-H (Gegenprüfung): Beim Suchen gilt „Mit Antwort" nicht — der Chip ruht, eine Zeile sagt warum. */
+.wr-chips button:disabled { opacity: .42; cursor: default; }
+.wr-filter-hinweis { margin: 6px 16px 0; line-height: 1.45; font-size: calc(12.5px * var(--wr-f, 1)); }
 .wr-zeilen { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
 @container wr (max-width: 759.98px) {
   /* Am Handy liegt der Telefonknopf unten rechts — die letzte Zeile muss darüber scrollen können. */
   .wr-zeilen { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px) + env(safe-area-inset-bottom, 0px)); }
 }
-.wr-leer-knopf { margin-top: 10px; }
-.wr-mehr-zeile { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--wr-linie); }
-.wr-ende { padding: 12px 16px 16px; text-align: center; line-height: 1.5; border-top: 1px solid var(--wr-linie); }
-.wr-liste-klapp { width: 36px; height: 36px; }
+.wr-leer-knopf { margin-top: 12px; }
+.wr-mehr-zeile { display: flex; justify-content: center; padding: 14px; }
+.wr-ende { padding: 14px 18px 18px; text-align: center; line-height: 1.5; }
+
+/* Ladegerüst statt „Lädt …" — ruhig, ohne Dauerbewegung. */
+.wr-geruest { display: grid; }
+.wr-geruest-zeile { display: flex; gap: 12px; align-items: center; padding: 12px 14px; }
+.wr-geruest-zeile > span:first-child { width: 48px; height: 48px; border-radius: 50%; background: var(--wr-flaeche-2); flex: none; }
+.wr-geruest-zeile > span:last-child { flex: 1; display: grid; gap: 8px; }
+.wr-geruest-zeile i { display: block; height: 10px; border-radius: 5px; background: var(--wr-flaeche-2); }
+.wr-geruest-zeile i:first-child { width: 55%; }
+.wr-geruest-zeile i:last-child { width: 80%; opacity: .7; }
+
+/* Eine Zeile: Bild · Name, Stufe, Zeit · Vorschau, Zeichen, Zahl — zwei Zeilen wie bei WhatsApp. */
+.wr-zeile {
+  display: flex; gap: 12px; align-items: center; width: 100%; padding: 0 12px 0 14px; border: 0;
+  background: transparent; text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.wr-zeile .wr-avatar { width: 48px; height: 48px; font-size: calc(17px * var(--wr-f, 1)); }
+.wr-zeile.an { background: rgba(40, 141, 250, .13); }
+.wr-zeile-text { display: grid; gap: 3px; min-width: 0; flex: 1; padding: 12px 0 12px; border-bottom: 1px solid var(--wr-linie); }
+.wr-zeile:last-of-type .wr-zeile-text { border-bottom-color: transparent; }
+.wr-zeile-kopf, .wr-zeile-unten { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.wr-zeile-name { font-size: calc(16px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wr-zeile.ungelesen .wr-zeile-name { font-weight: 500; color: #fff; }
+.wr-zeile-zeit { margin-left: auto; padding-left: 6px; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; }
+.wr-zeile.ungelesen .wr-zeile-zeit { color: #5aa9ff; }
+.wr-vorschau {
+  display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1;
+  font-size: calc(14.5px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden;
+}
+.wr-vorschau em { font-style: normal; color: var(--wr-text-2); flex: none; }
+.wr-vorschau.auto em { color: var(--wr-leise); font-style: italic; }
+.wr-vorschau-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wr-zeile.ungelesen .wr-vorschau { color: var(--wr-text-2); }
+.wr-vz { color: var(--wr-leise); }
+.wr-vz.fehler { color: var(--wr-rot); }
+.wr-vz-haken { color: var(--wr-leise); }
+.wr-vz-haken.gelesen { color: #5aa9ff; }
+.wr-liest { display: inline-flex; color: #9cc8ff; }
+.wr-zeile-zeichen { display: flex; align-items: center; gap: 6px; flex: none; margin-left: 6px; }
+.wr-wer-antwortet { display: inline-flex; }
+.wr-wer-antwortet.mara { color: rgba(156, 200, 255, .62); }
+.wr-wer-antwortet.mensch { color: rgba(148, 163, 184, .62); }
+.wr-punkt {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--wr-blau); color: #fff;
+  font-size: calc(12px * var(--wr-f, 1)); font-weight: 500; display: grid; place-items: center; flex: none; font-variant-numeric: tabular-nums;
+}
+/* Die Stufe: ein kleines Zeichen am Namen — Farbe nur als Ton, nie als Fläche. */
+.wr-stufe {
+  flex: none; font-size: calc(10.5px * var(--wr-f, 1)); font-weight: 500; letter-spacing: .04em; line-height: 1;
+  padding: 3px 5px; border-radius: 5px; border: 1px solid rgba(148, 163, 184, .28); color: var(--wr-leise);
+}
+.wr-stufe.stufe-kunde { color: #8fe0c6; border-color: rgba(110, 231, 183, .32); }
+.wr-stufe.stufe-a { color: #8cc6ff; border-color: rgba(40, 141, 250, .5); }
+.wr-stufe.stufe-b { color: #b3c7ff; border-color: rgba(129, 140, 248, .4); }
+.wr-stufe.stufe-c { color: var(--wr-leise); }
 
 /* ── Die Schiene: die Liste eingeklappt (E-IT-H) ─────────────────────────
    Nur Bild, Ungelesen-Zahl und grüner Fenster-Punkt; Name und Vorschau im Titel. */
 .wr-liste.schmal { grid-template-rows: auto minmax(0, 1fr); }
-.wr-schiene-kopf { display: grid; justify-items: center; gap: 8px; padding: 10px 0 10px; border-bottom: 1px solid var(--wr-linie); }
-.wr-liste.schmal .wr-zeilen { display: grid; justify-items: center; align-content: start; gap: 6px; padding: 8px 0 12px; }
+.wr-schiene-kopf { display: grid; justify-items: center; gap: 6px; padding: 12px 0 10px; border-bottom: 1px solid var(--wr-linie); }
+.wr-liste.schmal .wr-zeilen { display: grid; justify-items: center; align-content: start; gap: 4px; padding: 8px 0 12px; }
 .wr-rund {
-  position: relative; width: 52px; height: 52px; border-radius: 16px; border: 0; background: transparent;
+  position: relative; width: 56px; height: 56px; border-radius: 16px; border: 0; background: transparent;
   display: grid; place-items: center; cursor: pointer; flex: none; padding: 0;
 }
-.wr-rund.an { background: rgba(40, 141, 250, .14); box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .5); }
-.wr-rund .wr-punkt { position: absolute; top: 1px; right: 1px; }
-.wr-offen-punkt {
-  position: absolute; bottom: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%;
-  background: var(--wr-gut); box-shadow: 0 0 0 2px var(--wr-flaeche);
-}
+.wr-rund .wr-avatar { width: 44px; height: 44px; font-size: calc(16px * var(--wr-f, 1)); }
+.wr-rund.an { background: rgba(40, 141, 250, .14); box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .45); }
+.wr-rund > .wr-punkt { position: absolute; top: 2px; right: 2px; }
 .wr-mehr-rund { margin-top: 4px; }
 
-.wr-zeile {
-  display: flex; gap: 11px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--wr-linie);
-  background: transparent; text-align: left; cursor: pointer; color: inherit; font: inherit;
+/* ── Das ⋮-Menü ─────────────────────────────────────────────────────────── */
+.wr-menue-halter { position: relative; }
+.wr-menue {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 236px; padding: 6px;
+  border-radius: 12px; border: 1px solid var(--wr-linie); background: #12203a; box-shadow: 0 18px 44px rgba(2, 6, 23, .55);
+  display: grid; gap: 2px;
 }
-.wr-zeile.an { background: rgba(40, 141, 250, .1); box-shadow: inset 2px 0 0 var(--wr-blau); }
-.wr-avatar {
-  width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; font-size: calc(16px * var(--wr-f, 1)); font-weight: 400;
+.wr-liste.schmal .wr-menue { right: auto; left: 0; }
+.wr-menue-punkt {
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--wr-text-2); font-size: calc(14px * var(--wr-f, 1)); text-align: left; cursor: pointer;
 }
-.wr-zeile-text { display: grid; gap: 3px; min-width: 0; flex: 1; }
-.wr-zeile-kopf, .wr-zeile-unten { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; min-width: 0; }
-.wr-zeile-unten { align-items: center; }
-.wr-zeile-kopf b { font-size: calc(15.5px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wr-zeile.ungelesen .wr-zeile-kopf b { font-weight: 500; }
-.wr-zeile-zeit { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; flex: none; font-variant-numeric: tabular-nums; }
-.wr-zeile.ungelesen .wr-zeile-zeit { color: var(--wr-blau); }
-.wr-vorschau { font-size: calc(13.5px * var(--wr-f, 1)); color: var(--wr-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.wr-vorschau em { font-style: normal; color: var(--wr-text-2); }
-.wr-vorschau.auto em { color: var(--wr-warn); }
-.wr-punkt {
-  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--wr-blau); color: #fff;
-  font-size: calc(12px * var(--wr-f, 1)); font-weight: 500; display: grid; place-items: center; flex: none;
-}
-.wr-marken { display: flex; gap: 5px; flex-wrap: wrap; }
-.wr-marke {
-  font-size: calc(11.5px * var(--wr-f, 1)); font-weight: 400; line-height: 1; letter-spacing: .02em; padding: 4px 8px; border-radius: 99px;
-  border: 1px solid rgba(148, 163, 184, .2); color: var(--wr-leise); white-space: nowrap;
-}
-.wr-marke.offen { color: var(--wr-gut); border-color: rgba(110, 231, 183, .3); }
-.wr-marke.warn { color: var(--wr-warn); border-color: rgba(252, 211, 77, .3); }
-/* EINE Stufen-Palette — Liste und Fall gleich (vorher A links grün, rechts rot). */
-.wr-marke.stufe-kunde { color: var(--wr-gut); border-color: rgba(110, 231, 183, .32); }
-.wr-marke.stufe-a { color: #7cc0ff; border-color: rgba(40, 141, 250, .45); }
-.wr-marke.stufe-b { color: var(--wr-warn); border-color: rgba(252, 211, 77, .3); }
-.wr-marke.stufe-c { color: var(--wr-leise); }
+.wr-menue-punkt svg { color: var(--wr-leise); }
+.wr-haekchen { margin-left: auto; font-style: normal; color: var(--wr-blau-hell); }
 
 /* ── Chat ──────────────────────────────────────────────────────────────── */
 .wr-chat {
   /* Größen-Container: Das Vorlagenblatt richtet seine Höhe nach dem Chat. */
   container: wrchat / size;
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
-  min-height: 0; min-width: 0; border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overflow: hidden;
+  min-height: 0; min-width: 0; background: #08111f; overflow: hidden;
 }
 .wr-chat > .wr-chat-kopf { grid-row: 1; grid-column: 1; }
 .wr-chat > .wr-verlauf-rahmen { grid-row: 2; grid-column: 1; }
 .wr-chat > .wr-eingabe { grid-row: 3; grid-column: 1; }
-.wr-chat > .wr-person.schublade { grid-row: 2 / 4; grid-column: 1; z-index: 9; }
+.wr-chat > .wr-person.schublade { grid-row: 1 / 4; grid-column: 1; z-index: 9; }
 .wr-chat.leer { grid-template-rows: minmax(0, 1fr); }
-.wr-nichts { display: grid; place-content: center; gap: 8px; text-align: center; padding: 40px; }
-.wr-nichts p:first-child { font-size: calc(16px * var(--wr-f, 1)); color: var(--wr-text-2); }
-.wr-nichts .wr-still { max-width: 46ch; line-height: 1.6; }
+
+/* Ohne gewähltes Gespräch: ruhig, wie die Startfläche von WhatsApp Web. */
+.wr-nichts {
+  display: grid; place-content: center; justify-items: center; gap: 8px; text-align: center; padding: 40px;
+  background: radial-gradient(ellipse at 50% 38%, rgba(40, 141, 250, .1), transparent 62%), #0a1424;
+}
+.wr-nichts-bild { width: 112px; height: 112px; border-radius: 30px; display: grid; place-items: center; margin-bottom: 10px;
+  background: rgba(40, 141, 250, .08); box-shadow: inset 0 0 0 1px rgba(156, 200, 255, .12), 0 20px 50px rgba(29, 78, 216, .18); }
+.wr-nichts-titel { font-size: calc(22px * var(--wr-f, 1)); font-weight: 300; color: var(--wr-text); letter-spacing: -.01em; }
+.wr-nichts .wr-still { font-size: calc(14px * var(--wr-f, 1)); max-width: 44ch; line-height: 1.6; }
+.wr-nichts-regel { margin-top: 6px !important; font-size: calc(13px * var(--wr-f, 1)) !important; }
 
 /* Der Chat-Kopf — die EINE Glasstelle des Raums. */
 .wr-chat-kopf {
-  display: flex; align-items: center; gap: 10px; padding: 9px 12px 9px 14px; min-width: 0;
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 12px; min-height: 62px; min-width: 0;
   border-bottom: 1px solid var(--wr-linie);
-  background: rgba(16, 30, 58, .72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  background: rgba(15, 28, 52, .78); -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
 }
-.wr-chat-kopf .wr-avatar { width: 40px; height: 40px; font-size: calc(15px * var(--wr-f, 1)); }
-.wr-chat-wer { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.wr-chat-wer b { font-size: calc(17px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wr-chat-wer small { font-size: calc(13px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-chat-person {
+  display: flex; align-items: center; gap: 11px; min-width: 120px; flex: 1 1 180px; padding: 4px 6px; margin: -4px 0;
+  border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left;
+}
+button.wr-chat-person { cursor: pointer; }
+.wr-chat-wer { min-width: 0; display: grid; gap: 1px; }
+.wr-chat-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.wr-chat-wer b { font-size: calc(16.5px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-chat-wer small { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .wr-termin-kurz { display: none; color: var(--wr-gut); }
+.wr-termin-kurz svg { display: inline-block; vertical-align: -2px; margin-right: 4px; }
 .wr-termin-chip {
-  flex: none; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-gut); border: 1px solid rgba(110, 231, 183, .3);
-  border-radius: 99px; padding: 4px 10px; white-space: nowrap;
+  flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-text-2);
+  border: 1px solid rgba(110, 231, 183, .26); background: rgba(16, 185, 129, .07); border-radius: 99px; padding: 5px 11px; white-space: nowrap;
 }
-.wr-chat-knoepfe { display: flex; gap: 6px; align-items: center; flex: none; }
+.wr-termin-chip svg { color: var(--wr-gut); }
+.wr-chat-knoepfe { display: flex; gap: 2px; align-items: center; flex: none; }
 .wr-zurueck {
-  display: grid; place-items: center; width: 32px; height: 36px; margin-left: -6px; flex: none;
+  display: grid; place-items: center; width: 34px; height: 40px; margin-left: -6px; flex: none;
   border: 0; background: transparent; color: var(--wr-blau-hell); cursor: pointer;
 }
 .wr-ikon {
-  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--wr-linie); background: transparent;
-  display: grid; place-items: center; color: var(--wr-text-2); cursor: pointer; flex: none;
+  width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent;
+  display: grid; place-items: center; color: var(--wr-text-2); cursor: pointer; flex: none; text-decoration: none;
+  transition: background .15s, color .15s;
 }
-.wr-ikon.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .14); }
+.wr-ikon.klein { width: 30px; height: 30px; }
+.wr-ikon.an { color: #dbeafe; background: rgba(40, 141, 250, .18); }
+/* Mara-Schalter: klein, mit Bahn — an (blau), pausiert (halb), aus (grau). */
 .wr-schalter {
-  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border-radius: 99px;
-  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 8px 0 10px; margin-right: 4px; border-radius: 99px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-leise); font-size: calc(13px * var(--wr-f, 1)); cursor: pointer; white-space: nowrap;
 }
-.wr-schalter span { width: 7px; height: 7px; border-radius: 50%; background: var(--wr-still); }
-.wr-schalter em { font-style: normal; color: var(--wr-still); }
-.wr-schalter.an { color: var(--wr-blau-hell); border-color: rgba(40, 141, 250, .45); }
-.wr-schalter.an span { background: #10b981; }
-/* Der Chip braucht Platz — ist der CHAT schmal (Office mit drei Spalten, Handy),
-   steht der Termin in der Unterzeile, und der Name bleibt lesbar. */
-@container wrchat (max-width: 619.98px) {
+.wr-schalter-wort em { font-style: normal; color: var(--wr-still); }
+.wr-schalter.an { color: var(--wr-blau-hell); border-color: rgba(40, 141, 250, .35); }
+.wr-schalter-bahn { position: relative; width: 28px; height: 16px; border-radius: 99px; background: #2a3850; flex: none; transition: background .15s; }
+.wr-schalter-bahn i { position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #9aa9be; transition: transform .15s, background .15s; }
+.an > .wr-schalter-bahn { background: var(--wr-blau); }
+.an > .wr-schalter-bahn i { transform: translateX(12px); background: #fff; }
+.pause > .wr-schalter-bahn { background: rgba(40, 141, 250, .32); }
+.pause > .wr-schalter-bahn i { transform: translateX(6px); }
+/* Ist der CHAT schmal, rückt der Termin in die Unterzeile und der Schalter wird kurz — der Name bleibt lesbar. */
+@container wrchat (max-width: 759.98px) {
   .wr-termin-chip { display: none; }
   .wr-termin-kurz { display: inline; }
 }
-@container wr (max-width: 759.98px) {
-  .wr-chat-kopf { padding: 8px 10px; gap: 8px; }
-  .wr-schalter { padding: 0 10px 0 9px; }
-  .wr-schalter em { display: none; }
+@container wrchat (max-width: 619.98px) {
+  .wr-schalter-wort em { display: none; }
+}
+@container wrchat (max-width: 479.98px) {
+  /* Wie die WhatsApp-App: der Name hat Vorrang. Der Schalter wird klein, die Akte steht in der Kontaktinfo. */
+  .wr-schalter-wort { display: none; }
+  .wr-schalter { padding: 0 4px; gap: 4px; border-color: transparent; margin-right: 0; }
+  .wr-akte-knopf { display: none; }
+  .wr-chat-kopf { gap: 4px; padding-right: 6px; }
+  .wr-chat-person { gap: 9px; padding-inline: 2px; }
+  .wr-ikon { width: 36px; height: 36px; }
+  .wr-lang { display: none; }
 }
 
-/* ── Verlauf ───────────────────────────────────────────────────────────── */
+/* ── Verlauf: der bekannte Muster-Grund, in FIAON-Blau ─────────────────── */
 .wr-verlauf-rahmen { position: relative; display: grid; min-height: 0; min-width: 0; }
 .wr-verlauf {
-  overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 10px 16px 12px;
-  display: flex; flex-direction: column;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(148, 163, 184, .05) 1px, transparent 0) 0 0 / 22px 22px,
-    #0a1221;
+  overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 12px 6% 14px;
+  background-color: #08111f;
+  background-image:
+    radial-gradient(ellipse at 50% -10%, rgba(40, 141, 250, .08), transparent 55%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><g fill='none' stroke='%237fb2ff' stroke-opacity='.05' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M28 30h30a7 7 0 0 1 7 7v16a7 7 0 0 1-7 7H44l-9 8v-8h-7a7 7 0 0 1-7-7V37a7 7 0 0 1 7-7z'/><rect x='118' y='22' width='44' height='28' rx='5'/><path d='M118 31h44M126 42h10'/><path d='M244 26c1.2 8.5 5.5 12.8 14 14-8.5 1.2-12.8 5.5-14 14-1.2-8.5-5.5-12.8-14-14 8.5-1.2 12.8-5.5 14-14z'/><path d='M62 118h7l3.5 9.5-4.5 3a25 25 0 0 0 12.5 12.5l3-4.5 9.5 3.5v7a4.5 4.5 0 0 1-5 4.5A37.5 37.5 0 0 1 57.5 123a4.5 4.5 0 0 1 4.5-5z'/><path d='M150 128l8 8 16-16M166 136l16-16'/><path d='M252 104h18l9 9v26a4 4 0 0 1-4 4h-23a4 4 0 0 1-4-4v-31a4 4 0 0 1 4-4z'/><path d='M268 104v10h11M256 124h16M256 132h11'/><rect x='34' y='214' width='38' height='32' rx='5'/><path d='M34 225h38M44 208v10M62 208v10'/><rect x='140' y='220' width='30' height='24' rx='5'/><path d='M145 220v-6a10 10 0 0 1 20 0v6'/><path d='M250 206l20 7v13c0 12-8.5 19-20 23-11.5-4-20-11-20-23v-13z'/><path d='M244 228l5 5 9-9'/><circle cx='104' cy='176' r='2.2'/><circle cx='214' cy='170' r='2.2'/><circle cx='300' cy='70' r='2.2'/><circle cx='12' cy='160' r='2.2'/><circle cx='190' cy='290' r='2.2'/><circle cx='96' cy='292' r='2.2'/><path d='M206 74c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6zM118 268c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6z'/></g></svg>");
+  background-size: 100% 100%, 320px 320px;
 }
-@container wr (max-width: 759.98px) { .wr-verlauf { padding: 8px 10px 10px; } }
-.wr-tag { display: flex; justify-content: center; margin: 14px 0 6px; }
-.wr-tag span {
-  font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-leise); padding: 3px 12px; border-radius: 99px; background: var(--wr-flaeche-3);
-}
+.wr-verlauf-innen { display: flex; flex-direction: column; min-height: 100%; justify-content: flex-end; }
+@container wr (max-width: 759.98px) { .wr-verlauf { padding: 8px 10px 12px; } }
+.wr-verlauf-laedt { align-self: center; margin: auto; display: flex; gap: 6px; padding: 30px; }
+.wr-verlauf-laedt span { width: 8px; height: 8px; border-radius: 50%; background: rgba(156, 200, 255, .35); animation: wr-punkte 1.2s ease-in-out infinite; }
+.wr-verlauf-laedt span:nth-child(2) { animation-delay: .15s; }
+.wr-verlauf-laedt span:nth-child(3) { animation-delay: .3s; }
+@keyframes wr-punkte { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 
+.wr-tag { display: flex; justify-content: center; margin: 14px 0 8px; }
+.wr-tag span, .wr-hinweis-zeile span {
+  font-size: calc(12.5px * var(--wr-f, 1)); color: #a7b5c8; padding: 5px 12px; border-radius: 8px;
+  background: #142036; box-shadow: 0 1px 1px rgba(0, 0, 0, .25);
+}
+.wr-hinweis-zeile { display: flex; justify-content: center; margin: 8px 0; text-align: center; }
+.wr-hinweis-zeile span { color: var(--wr-leise); max-width: 90%; }
+/* „2 ungelesene Nachrichten" — wie bei WhatsApp ein Band über die ganze Breite. */
+.wr-ungelesen-streifen { display: flex; justify-content: center; margin: 12px 0 8px; padding: 5px 0; border-radius: 10px; background: rgba(40, 141, 250, .07); }
+.wr-ungelesen-streifen span { font-size: calc(12.5px * var(--wr-f, 1)); color: #b9d8ff; padding: 4px 14px; border-radius: 99px; background: #11233f; }
+
+/* ── Blasen ─────────────────────────────────────────────────────────────── */
 .wr-reihe { display: flex; margin-top: 2px; min-width: 0; }
 .wr-reihe.neu { margin-top: 10px; }
 .wr-reihe.rein { justify-content: flex-start; }
 .wr-reihe.raus { justify-content: flex-end; }
+/* Der Stapel trägt die Breite (bis 72 %, höchstens 44 Zeichenbreiten); Vorlagen-Knöpfe sind so breit wie die Blase. */
+.wr-stapel { display: grid; justify-items: start; max-width: min(72%, 44em); min-width: 0; font-size: calc(16px * var(--wr-f, 1)); }
+.wr-reihe.raus .wr-stapel { justify-items: end; }
+.wr-reihe .wr-stapel.mit-knoepfen { justify-items: stretch; }
+@container wr (max-width: 759.98px) { .wr-stapel { max-width: 86%; } }
 .wr-blase {
-  /* E-IT-H: 16 statt 14,5 (im Office 14 px am Bildschirm), breiter bis 44 Zeichenbreiten statt 560 px. */
-  display: grid; gap: 2px; max-width: min(76%, 44em); min-width: 0; padding: 8px 12px 6px; border-radius: 14px;
-  color: #eef3fb; font-size: calc(16px * var(--wr-f, 1)); line-height: 1.5; font-weight: 400;
+  --b: var(--wr-b-kunde);
+  position: relative; display: block; max-width: 100%; min-width: 0; padding: 6px 9px 8px 10px; border-radius: 10px;
+  background: var(--b); color: #edf2f9; font-size: calc(16px * var(--wr-f, 1)); line-height: 1.45; font-weight: 400;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .3);
 }
-@container wr (max-width: 759.98px) { .wr-blase { max-width: 86%; } }
-.wr-reihe.rein.neu .wr-blase { border-top-left-radius: 5px; }
-.wr-reihe.raus.neu .wr-blase { border-top-right-radius: 5px; }
-.wr-blase.kunde { background: var(--wr-kunde); }
-.wr-blase.mara { background: var(--wr-mara); box-shadow: inset 0 0 0 1px rgba(40, 141, 250, .3); }
-.wr-blase.mensch { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); }
-.wr-blase.fehler { background: #331722; box-shadow: inset 0 0 0 1px rgba(253, 164, 175, .35); }
-.wr-blase.auto { background: #161f2f; color: #c3ccd9; box-shadow: inset 0 0 0 1px rgba(252, 211, 77, .18); }
-.wr-blase p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.wr-absender { display: flex; align-items: center; gap: 6px; font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 500; color: var(--wr-blau-hell); }
-.wr-blase.mensch .wr-absender { color: #e3edff; }
+.wr-blase.kunde { --b: var(--wr-b-kunde); }
+.wr-blase.mensch { --b: var(--wr-b-team); color: #fff; }
+.wr-blase.mara { --b: var(--wr-b-mara); color: #e8f0ff; box-shadow: 0 1px 1px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(96, 165, 250, .16); }
+.wr-blase.fehler { --b: var(--wr-b-fehler); box-shadow: inset 0 0 0 1px rgba(253, 164, 175, .35); }
+.wr-blase.auto { --b: var(--wr-b-auto); color: #b8c2d1; }
+/* Der Zipfel an der ersten Blase einer Gruppe — links beim Kunden, rechts bei uns. */
+.wr-blase.zipfel::before { content: ""; position: absolute; top: 0; width: 8px; height: 13px; background: var(--b); }
+.wr-reihe.rein .wr-blase.zipfel { border-top-left-radius: 0; }
+.wr-reihe.rein .wr-blase.zipfel::before { left: -7px; clip-path: polygon(100% 0, 0 0, 100% 100%); }
+.wr-reihe.raus .wr-blase.zipfel { border-top-right-radius: 0; }
+.wr-reihe.raus .wr-blase.zipfel::before { right: -7px; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.wr-blase.mara.zipfel::before { box-shadow: none; }
+
+.wr-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wr-text.gekuerzt { display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
+.wr-blase.vorlage .wr-text.gekuerzt { -webkit-line-clamp: 6; }
+/* Platzhalter am Textende: hält die Zeit frei — wie bei WhatsApp steht sie neben der letzten Zeile oder darunter. */
+.wr-platz { display: inline-block; width: 2.6em; height: 1px; }
+.wr-reihe.raus .wr-platz { width: 4em; }
+.wr-fuss {
+  position: absolute; right: 9px; bottom: 4px; display: inline-flex; align-items: center; gap: 3px;
+  font-size: calc(11.5px * var(--wr-f, 1)); color: rgba(206, 216, 230, .62); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap;
+}
+.wr-blase.mensch .wr-fuss { color: rgba(255, 255, 255, .72); }
+.wr-haken { display: inline-flex; color: rgba(206, 216, 230, .62); }
+.wr-blase.mensch .wr-haken { color: rgba(255, 255, 255, .75); }
+.wr-haken.gelesen, .wr-blase.mensch .wr-haken.gelesen { color: var(--wr-gelesen); }
+.wr-haken.fehler { color: var(--wr-rot); }
+.wr-fehlertext { display: block; margin-top: 4px; padding-right: 3.6em; font-size: calc(12.5px * var(--wr-f, 1)); color: #ffc9d1; }
+
+.wr-absender { display: flex; align-items: center; gap: 6px; margin-bottom: 1px; font-size: calc(13px * var(--wr-f, 1)); font-weight: 500; color: var(--wr-blau-hell); }
+.wr-blase.mensch .wr-absender { color: #dbe8ff; }
 .wr-ki {
-  font-size: calc(10.5px * var(--wr-f, 1)); font-weight: 500; letter-spacing: .06em; line-height: 15px; padding: 0 5px; border-radius: 5px;
+  font-size: calc(10px * var(--wr-f, 1)); font-weight: 500; letter-spacing: .06em; line-height: 15px; padding: 0 5px; border-radius: 5px;
   border: 1px solid rgba(156, 200, 255, .45); color: var(--wr-blau-hell);
 }
-.wr-automarke, .wr-knopfmarke { font-size: calc(12px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-warn); }
-.wr-knopfmarke { color: var(--wr-leise); }
-.wr-medien { font-style: italic; color: var(--wr-text-2); }
-.wr-medien small { display: block; font-style: normal; font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-leise); margin-top: 2px; }
-.wr-fuss {
-  justify-self: end; display: flex; align-items: center; gap: 4px; margin-top: 1px;
-  font-size: calc(11.5px * var(--wr-f, 1)); color: rgba(226, 232, 240, .55); font-variant-numeric: tabular-nums;
+.wr-automarke, .wr-knopfmarke, .wr-vorlage-marke {
+  display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: calc(12px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-leise);
 }
-.wr-haken { color: rgba(226, 232, 240, .6); flex: none; }
-.wr-haken.gelesen { color: var(--wr-blau); }
-.wr-haken.fehler { color: var(--wr-rot); }
-.wr-blase.mensch .wr-fuss, .wr-blase.mensch .wr-haken { color: rgba(255, 255, 255, .78); }
-.wr-blase.mensch .wr-haken.gelesen { color: #fff; }
-.wr-fehlertext { font-size: calc(12.5px * var(--wr-f, 1)); color: #ffc9d1; }
+.wr-vorlage-marke { color: rgba(156, 200, 255, .82); letter-spacing: .01em; }
+.wr-automarke { font-style: italic; }
+.wr-mehr { display: block; margin-top: 2px; border: 0; background: none; color: var(--wr-blau-hell); font-size: calc(13.5px * var(--wr-f, 1)); padding: 2px 0; cursor: pointer; }
+.wr-blase.mensch .wr-mehr { color: #e3edff; }
 
-.wr-vorlagekarte { display: grid; gap: 2px; border-left: 2px solid rgba(156, 200, 255, .5); padding-left: 9px; margin: 1px 0 2px; }
-.wr-vorlagekarte small { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-blau-hell); letter-spacing: .02em; }
-.wr-vorlagekarte p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.wr-vorlagekarte.auf p { display: block; }
-.wr-mehr { justify-self: start; border: 0; background: none; color: var(--wr-blau-hell); font-size: calc(13px * var(--wr-f, 1)); padding: 2px 0; cursor: pointer; }
+/* Vorlagen wie beim Kunden: Kopfbild bzw. Kopfzeile, Text, Fußzeile — darunter die Knöpfe. */
+.wr-vorlage-bild { display: block; width: 100%; max-width: 340px; aspect-ratio: 1.91 / 1; object-fit: cover; border-radius: 7px; margin: 3px 0 7px; background: rgba(255, 255, 255, .04); }
+.wr-vorlage-kopf { display: block; margin: 2px 0 3px; font-weight: 600; font-size: calc(15.5px * var(--wr-f, 1)); color: #fff; }
+.wr-vorlage-fuss { display: block; margin-top: 5px; font-size: calc(12.5px * var(--wr-f, 1)); color: rgba(206, 216, 230, .6); }
+.wr-vk-liste { display: grid; gap: 2px; margin-top: 2px; }
+.wr-vk {
+  display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; border-radius: 9px;
+  background: var(--wr-b-mara); color: var(--wr-blau-hell); font-size: calc(14.5px * var(--wr-f, 1)); line-height: 1.25; text-align: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .3);
+}
+.wr-reihe[data-absender="mensch"] .wr-vk { background: var(--wr-b-team); color: #e9f2ff; }
+
+/* Medien in der Blase: Foto, Sticker, Ton, Video, Dokument, Standort, Kontakt — oder ein sauberer Platzhalter. */
+.wr-blase.mit-medien { padding: 4px 4px 8px; }
+.wr-blase.mit-medien > .wr-text, .wr-blase.mit-medien > .wr-mehr, .wr-blase.mit-medien > .wr-absender,
+.wr-blase.mit-medien > .wr-automarke, .wr-blase.mit-medien > .wr-knopfmarke { padding: 0 6px; }
+.wr-blase.mit-medien > .wr-text { margin-top: 4px; }
+.wr-blase.nur-bild { padding: 4px; }
+/* Ton, Dokument, Ort, Kontakt ohne Text: die Zeit steht UNTER der Karte, nicht darauf. */
+.wr-blase.mit-medien.ohne-text:not(.nur-bild):not(.sticker) { padding-bottom: 22px; }
+.wr-blase.nur-bild .wr-fuss { right: 10px; bottom: 9px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
+.wr-blase.sticker { background: transparent; box-shadow: none; padding: 0; }
+.wr-blase.sticker::before { display: none; }
+.wr-foto { display: block; line-height: 0; border-radius: 7px; overflow: hidden; background: rgba(255, 255, 255, .04); }
+.wr-foto img { display: block; width: auto; max-width: min(330px, 100%); max-height: 360px; min-width: 120px; min-height: 80px; object-fit: cover; }
+.wr-sticker { display: block; line-height: 0; }
+.wr-sticker img { width: 150px; height: 150px; object-fit: contain; }
+.wr-video { display: block; width: min(320px, 100%); max-height: 360px; border-radius: 7px; background: #000; }
+.wr-ton { display: flex; align-items: center; gap: 10px; padding: 6px 6px 2px; min-width: min(280px, 100%); }
+.wr-ton-zeichen { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; background: rgba(156, 200, 255, .12); color: var(--wr-blau-hell); }
+.wr-ton-teil { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.wr-ton-teil small { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-leise); }
+.wr-ton audio { width: 100%; min-width: 200px; height: 34px; }
+.wr-medien-platz, .wr-dok-karte {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; min-width: min(240px, 100%);
+  background: rgba(0, 0, 0, .18); color: inherit;
+}
+.wr-medien-zeichen { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; flex: none; background: rgba(156, 200, 255, .1); color: var(--wr-blau-hell); }
+.wr-medien-wort { display: grid; gap: 1px; min-width: 0; }
+.wr-medien-wort b { font-weight: 500; font-size: calc(14.5px * var(--wr-f, 1)); color: var(--wr-text); overflow-wrap: anywhere; }
+.wr-medien-wort small { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-leise); }
+.wr-medien-wort a { font-size: calc(13px * var(--wr-f, 1)); color: var(--wr-blau-hell); text-decoration: none; }
+.wr-dok { display: grid; gap: 4px; }
+.wr-dok-karte { width: 100%; border: 0; text-align: left; font: inherit; cursor: pointer; }
+.wr-dok-karte:disabled { cursor: progress; opacity: .8; }
+.wr-dok-laden { margin-left: auto; color: var(--wr-leise); padding-left: 8px; }
+.wr-medien-fehler { display: flex; align-items: center; gap: 5px; padding: 0 6px; font-size: calc(12.5px * var(--wr-f, 1)); color: #ffc9d1; }
+.wr-medien-platz .wr-textknopf { margin-left: auto; }
+.wr-blase.mensch .wr-medien-platz, .wr-blase.mensch .wr-dok-karte { background: rgba(0, 0, 0, .14); }
+
+/* Reaktion (👍) an der Blase, wie bei WhatsApp unten am Rand. */
+.wr-blase.mit-reaktion { margin-bottom: 14px; }
+.wr-reaktion {
+  position: absolute; bottom: -15px; left: 10px; padding: 1px 7px; border-radius: 99px; font-size: calc(14px * var(--wr-f, 1)); line-height: 20px;
+  background: #1b2944; box-shadow: 0 0 0 2px #08111f;
+}
 
 .wr-neu-pille {
-  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 4;
-  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 99px;
-  border: 1px solid rgba(40, 141, 250, .5); background: #10203d; color: #dbeafe; font-size: calc(13px * var(--wr-f, 1)); font-weight: 400; cursor: pointer;
-  box-shadow: 0 8px 22px rgba(2, 6, 23, .45);
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4;
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 99px;
+  border: 1px solid rgba(40, 141, 250, .45); background: #10203d; color: #dbeafe; font-size: calc(13px * var(--wr-f, 1)); cursor: pointer;
+  box-shadow: 0 8px 22px rgba(2, 6, 23, .5);
 }
 
-/* ── Maras interne Schritte: gebündelt, randlos, einklappbar ──────────── */
+/* ── Maras interne Schritte: eine leise Zeile wie ein Systemhinweis ────── */
 .wr-intern { align-self: center; margin: 7px 0; max-width: min(94%, 640px); min-width: 0; text-align: center; }
 .wr-intern-kopf {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: 8px;
-  border: 0; background: transparent; color: var(--wr-leise); font-size: calc(12.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 11px; border-radius: 8px;
+  border: 0; background: rgba(14, 24, 42, .72); color: #7d8ea6; font-size: calc(12.5px * var(--wr-f, 1)); cursor: pointer;
 }
-.wr-intern-wer { color: var(--wr-text-2); font-weight: 500; flex: none; }
+.wr-intern-funke { color: rgba(156, 200, 255, .55); }
+.wr-intern-wer { color: #9fb0c6; font-weight: 500; flex: none; }
 .wr-intern-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.wr-intern.warn .wr-intern-text { color: #d9c27a; }
-.wr-intern.rot .wr-intern-text { color: #e8a3ae; }
-.wr-intern.gut .wr-intern-text { color: #9fd9c2; }
+.wr-intern.rot .wr-intern-text { color: #e7a6b0; }
 .wr-intern-punkt { width: 6px; height: 6px; border-radius: 50%; background: var(--wr-rot); flex: none; }
 .wr-intern-pfeil { flex: none; transition: transform .15s; }
 .wr-intern-kopf[aria-expanded="true"] .wr-intern-pfeil { transform: rotate(180deg); }
 .wr-intern-liste {
-  list-style: none; margin: 4px 0 0; padding: 9px 11px; border-radius: 10px; background: var(--wr-flaeche-2);
+  list-style: none; margin: 4px 0 0; padding: 10px 12px; border-radius: 10px; background: #0f1b30;
   text-align: left; display: grid; gap: 7px; font-size: calc(13px * var(--wr-f, 1)); line-height: 1.45;
 }
 .wr-intern-liste > li { display: grid; grid-template-columns: 40px 14px minmax(0, 1fr); gap: 4px; color: var(--wr-text-2); }
@@ -375,80 +562,105 @@ button.wr-pruefmarke { cursor: pointer; }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* ── Eingabe: feste Grid-Zeile, verdeckt nichts ───────────────────────── */
+/* ── Eingabe: die Leiste unten wie bei WhatsApp ────────────────────────── */
 .wr-eingabe {
-  position: relative; min-width: 0; border-top: 1px solid var(--wr-linie); background: var(--wr-flaeche);
-  padding: 7px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  position: relative; min-width: 0; background: #0d182b; border-top: 1px solid var(--wr-linie);
+  padding: 6px 12px calc(10px + env(safe-area-inset-bottom, 0px));
 }
-.wr-lage { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding: 0 4px 6px; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); }
-.wr-lage > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.wr-lage-offen { color: var(--wr-gut); }
-.wr-lage-zu { color: var(--wr-warn); }
+.wr-sende-fehler {
+  display: flex; align-items: center; gap: 9px; margin: 2px 0 8px; padding: 8px 8px 8px 12px; border-radius: 10px;
+  border: 1px solid rgba(253, 164, 175, .35); background: rgba(127, 29, 29, .28); color: #ffd3da; font-size: calc(13.5px * var(--wr-f, 1)); line-height: 1.4;
+}
+.wr-sende-fehler > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wr-sende-fehler b { font-weight: 500; color: #fff; }
+.wr-sende-fehler .wr-ikon { color: #ffd3da; }
+.wr-lage { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding: 0 6px 7px; font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); }
+.wr-lage > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wr-lage-rechts > span { display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; }
+.wr-lage-punkt { width: 7px; height: 7px; border-radius: 50%; background: var(--wr-offen); box-shadow: 0 0 0 3px rgba(52, 211, 153, .15); flex: none; }
+.wr-lage-offen { color: #9ad9c1; }
+.wr-lage-zu { color: var(--wr-leise); }
 .wr-lage-rechts { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
-.wr-lage-mara { color: var(--wr-blau-hell); }
+.wr-lage-mara { color: rgba(156, 200, 255, .8); }
+.wr-lage-liest { color: #cfe3ff; }
 .wr-textknopf { border: 0; background: none; padding: 0; color: var(--wr-blau-hell); font-size: inherit; font-weight: 500; cursor: pointer; }
-.wr-zeile-eingabe { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 8px; align-items: end; }
+.wr-zeile-eingabe { display: grid; grid-template-columns: 42px minmax(0, 1fr) 44px; gap: 8px; align-items: end; }
 .wr-plus, .wr-senden {
-  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none;
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none;
 }
-.wr-plus { border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2); color: var(--wr-text-2); }
-.wr-plus.an { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .16); }
+.wr-plus { border: 0; background: transparent; color: var(--wr-leise); }
+.wr-plus.an { color: #dbeafe; background: rgba(40, 141, 250, .18); }
+.wr-feld-rahmen { position: relative; min-width: 0; }
 .wr-feld-text {
   /* E-IT-H: wächst bis 36 % der Chathöhe, höchstens 320 px (am großen Schirm rund zwölf Zeilen) — dieselben Zahlen
      rechnet Eingabe.tsx (FELD_ANTEIL_CHAT/FELD_HOECHSTENS_PX in shared/fiaon-wa-raum.ts). */
-  display: block; width: 100%; min-width: 0; min-height: 40px; max-height: 150px; max-height: min(36cqh, 320px); resize: none; overflow-y: hidden;
-  padding: 9px 14px; border-radius: 20px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche-2);
-  color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.45; font-weight: 400;
+  display: block; width: 100%; min-width: 0; min-height: 42px; max-height: 150px; max-height: min(36cqh, 320px); resize: none; overflow-y: hidden;
+  padding: 10px 16px; border-radius: 21px; border: 1px solid transparent; background: #17253d;
+  color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.4; font-weight: 400;
 }
 .wr-feld-text::placeholder { color: var(--wr-still); }
-.wr-feld-text:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
-.wr-senden { border: 0; background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff; }
-.wr-senden:disabled { opacity: .38; cursor: default; }
-.wr-senden-dreht { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: wr-dreh .8s linear infinite; }
-@keyframes wr-dreh { to { transform: rotate(360deg); } }
-.wr-hilfe { display: flex; justify-content: space-between; gap: 8px; padding: 4px 52px 0; font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); min-height: 19px; }
-.wr-zaehler { margin-left: auto; font-variant-numeric: tabular-nums; }
+.wr-feld-text:focus { outline: none; border-color: rgba(40, 141, 250, .45); }
+.wr-zaehler { position: absolute; right: 14px; top: -18px; font-size: calc(11.5px * var(--wr-f, 1)); color: var(--wr-still); font-variant-numeric: tabular-nums; }
 .wr-zaehler.knapp { color: var(--wr-warn); }
-@media (hover: none) and (pointer: coarse) {
-  /* Touch: Enter ist eine neue Zeile — die Tastenhilfe wäre falsch. */
-  .wr-tasten { display: none; }
-  .wr-hilfe:has(.wr-zaehler:empty) { display: none; }
+.wr-senden { border: 0; width: 44px; height: 44px; background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); color: #fff;
+  box-shadow: 0 6px 16px rgba(29, 78, 216, .35); transition: opacity .15s, transform .1s; }
+.wr-senden:disabled { opacity: .35; cursor: default; box-shadow: none; }
+.wr-senden:not(:disabled):active { transform: scale(.94); }
+.wr-senden-dreht { width: 17px; height: 17px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: wr-dreh .8s linear infinite; }
+@keyframes wr-dreh { to { transform: rotate(360deg); } }
+/* Fenster zu: statt des Felds ein ruhiger Riegel — ein Klick öffnet die Vorlagen. */
+.wr-zu-zeile { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; align-items: center; }
+.wr-zu-schloss { width: 42px; height: 42px; display: grid; place-items: center; color: var(--wr-leise); }
+.wr-zu-feld {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 6px 6px 6px 16px;
+  border-radius: 22px; border: 1px dashed rgba(148, 163, 184, .28); background: #111d31; color: var(--wr-leise);
+  font-size: calc(14px * var(--wr-f, 1)); text-align: left; cursor: pointer; min-width: 0;
 }
-.wr-zu-zeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 4px 2px; }
-.wr-zu-zeile p { flex: 1 1 240px; font-size: calc(13.5px * var(--wr-f, 1)); line-height: 1.5; color: var(--wr-leise); }
-.wr-zu-zeile b { color: var(--wr-warn); font-weight: 500; }
+.wr-zu-feld > span { min-width: 0; line-height: 1.35; }
+.wr-zu-feld b { font-weight: 500; color: var(--wr-text-2); }
+.wr-zu-feld em {
+  flex: none; font-style: normal; color: #fff; padding: 8px 14px; border-radius: 99px; white-space: nowrap;
+  background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); font-size: calc(13.5px * var(--wr-f, 1));
+}
 
-/* ── Das „+"-Blatt: liegt ÜBER dem Verlauf, schrumpft ihn nicht ───────── */
+/* ── Das Vorlagen-Blatt: liegt ÜBER dem Verlauf, schrumpft ihn nicht ───── */
 .wr-blatt {
   position: absolute; left: 10px; right: 10px; bottom: calc(100% + 6px); z-index: 8;
-  display: flex; flex-direction: column; max-height: max(220px, min(470px, calc(100cqh - 190px)));
-  border-radius: 14px; border: 1px solid var(--wr-linie); background: #0f1a2e; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); overflow: hidden;
+  display: flex; flex-direction: column; max-height: max(220px, min(480px, calc(100cqh - 190px)));
+  border-radius: 14px; border: 1px solid var(--wr-linie); background: #0f1b30; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); overflow: hidden;
 }
 .wr-blatt-griff { display: none; width: 36px; height: 4px; border-radius: 2px; background: rgba(148, 163, 184, .35); margin: 8px auto 0; flex: none; }
-.wr-blatt-kopf { display: flex; gap: 8px; padding: 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
-.wr-blatt-titel { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); margin: 2px 4px 6px; letter-spacing: .02em; }
+.wr-blatt-kopf { display: flex; gap: 6px; align-items: center; padding: 10px 8px 10px 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
+.wr-blatt-suche { position: relative; flex: 1; min-width: 0; }
+.wr-blatt-suche .wr-such-lupe { left: 13px; transform: translateY(-50%); }
+.wr-blatt-suche.gross { flex: none; }
+.wr-blatt-titel { font-size: calc(12px * var(--wr-f, 1)); color: var(--wr-still); margin: 2px 6px 6px; letter-spacing: .02em; }
 .wr-blatt-links { padding: 8px 10px 10px; border-bottom: 1px solid var(--wr-linie); flex: none; }
 .wr-blatt-links .wr-still { margin: 6px 4px 0; }
 .wr-blatt-linkreihe { display: flex; gap: 6px; flex-wrap: wrap; }
 .wr-blatt-linkreihe button {
-  padding: 6px 12px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
-  color: var(--wr-text-2); font-size: calc(13.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--wr-linie); background: transparent;
+  color: var(--wr-text-2); font-size: calc(13.5px * var(--wr-f, 1)); cursor: pointer; white-space: nowrap;
 }
 .wr-blatt-linkreihe button span { color: var(--wr-blau-hell); }
-.wr-blatt-linkreihe button.empfohlen { border-color: rgba(40, 141, 250, .55); background: rgba(40, 141, 250, .14); color: #dbeafe; }
+.wr-blatt-linkreihe button.empfohlen { border-color: rgba(40, 141, 250, .5); background: rgba(40, 141, 250, .14); color: #dbeafe; }
 .wr-blatt-liste { overflow-y: auto; min-height: 0; padding: 8px 6px 6px; overscroll-behavior: contain; }
-.wr-karte { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.wr-karte { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 10px; }
 .wr-karte + .wr-karte { border-top: 1px solid var(--wr-linie); }
 .wr-karte-inhalt { display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .wr-karte-inhalt b { font-size: calc(15px * var(--wr-f, 1)); font-weight: 400; color: var(--wr-text); }
 .wr-karte-zweck { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wr-karte-text { font-size: calc(13.5px * var(--wr-f, 1)); color: var(--wr-still); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wr-karte.auf .wr-karte-text, .wr-karte-text.lang { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--wr-text-2); line-height: 1.5; }
+.wr-karte.auf .wr-karte-text, .wr-karte-text.lang {
+  white-space: pre-wrap; overflow-wrap: anywhere; color: #e8f0ff; line-height: 1.5; margin-top: 6px; padding: 8px 11px;
+  border-radius: 10px 0 10px 10px; background: var(--wr-b-mara);
+}
 .wr-karte.auf .wr-karte-zweck { white-space: normal; }
 .wr-karte-senden {
-  padding: 6px 13px; border-radius: 99px; border: 1px solid rgba(40, 141, 250, .5); background: transparent;
-  color: var(--wr-blau-hell); font-size: calc(13.5px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; white-space: nowrap;
+  padding: 7px 14px; border-radius: 99px; border: 1px solid rgba(40, 141, 250, .5); background: transparent;
+  color: var(--wr-blau-hell); font-size: calc(13.5px * var(--wr-f, 1)); cursor: pointer; white-space: nowrap;
 }
+.wr-karte.auf .wr-karte-senden:not(.wr-karte-ansehen) { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); border-color: transparent; color: #fff; }
 .wr-karte-senden:disabled { opacity: .5; cursor: default; }
 /* Nachbesserung E-248: passt nicht zur Lage — grau, aber nutzbar; „Ansehen" vor „Diese Vorlage senden". */
 .wr-karte.passt-nicht .wr-karte-inhalt b { color: var(--wr-leise); }
@@ -459,40 +671,71 @@ button.wr-pruefmarke { cursor: pointer; }
   .wr-blatt-griff { display: block; }
 }
 
-/* ── Der Fall ──────────────────────────────────────────────────────────── */
+/* ── Kontaktinfo (der Fall) ────────────────────────────────────────────── */
 .wr-person {
-  display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; min-height: 0; min-width: 0;
-  border-radius: 16px; border: 1px solid var(--wr-linie); background: var(--wr-flaeche); overscroll-behavior: contain;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0;
+  background: var(--wr-flaeche); border-left: 1px solid var(--wr-linie);
 }
-.wr-person.schublade { border-radius: 0; border: 0; background: #0b1424; padding-bottom: calc(16px + var(--wr-knopf-zone, 0px) + env(safe-area-inset-bottom, 0px)); }
-.wr-person-kopf { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.wr-person h2 { font-size: calc(18px * var(--wr-f, 1)); font-weight: 400; }
-.wr-person dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin: 0; font-size: calc(14px * var(--wr-f, 1)); }
+.wr-person.schublade { border-left: 0; }
+.wr-person-leiste { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 62px; border-bottom: 1px solid var(--wr-linie); }
+.wr-person-leiste b { font-weight: 400; font-size: calc(16px * var(--wr-f, 1)); color: var(--wr-text); }
+.wr-person-inhalt { overflow-y: auto; min-height: 0; overscroll-behavior: contain; background: #08111f; }
+.wr-person.schublade .wr-person-inhalt { padding-bottom: calc(16px + var(--wr-knopf-zone, 0px) + env(safe-area-inset-bottom, 0px)); }
+.wr-person-kopf { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 24px 16px 18px; background: var(--wr-flaeche); }
+.wr-person-kopf h2 { margin-top: 8px; font-size: calc(20px * var(--wr-f, 1)); font-weight: 400; overflow-wrap: anywhere; }
+.wr-person-nummer { font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-leise); font-variant-numeric: tabular-nums; }
+.wr-person-kopf .wr-marken { justify-content: center; margin-top: 4px; }
+.wr-person-aktionen { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.wr-aktion {
+  display: grid; justify-items: center; gap: 6px; min-width: 74px; padding: 10px 8px 8px; border-radius: 12px;
+  border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-blau-hell); font-size: calc(13px * var(--wr-f, 1)); cursor: pointer; text-decoration: none;
+}
+.wr-aktion span { color: var(--wr-text-2); }
+.wr-person-block { padding: 14px 18px; margin-top: 8px; background: var(--wr-flaeche); }
+.wr-person dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 0; font-size: calc(14px * var(--wr-f, 1)); }
 .wr-person dt { color: var(--wr-still); }
 .wr-person dd { margin: 0; color: var(--wr-text-2); overflow-wrap: anywhere; }
-.wr-person-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
-.wr-hinweis { line-height: 1.55; border-top: 1px solid var(--wr-linie); padding-top: 10px; }
-.wr-ergebnis { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--wr-linie); }
+.wr-marken { display: flex; gap: 5px; flex-wrap: wrap; }
+.wr-marke {
+  font-size: calc(11.5px * var(--wr-f, 1)); line-height: 1; letter-spacing: .02em; padding: 4px 8px; border-radius: 99px;
+  border: 1px solid rgba(148, 163, 184, .22); color: var(--wr-leise); white-space: nowrap;
+}
+.wr-marke.warn { color: var(--wr-warn); border-color: rgba(240, 179, 189, .3); }
+.wr-marke.stufe-kunde { color: #8fe0c6; border-color: rgba(110, 231, 183, .32); }
+.wr-marke.stufe-a { color: #8cc6ff; border-color: rgba(40, 141, 250, .5); }
+.wr-marke.stufe-b { color: #b3c7ff; border-color: rgba(129, 140, 248, .4); }
+.wr-marke.stufe-c { color: var(--wr-leise); }
+.wr-mara-zeile {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 2px 0; border: 0; background: transparent;
+  color: var(--wr-text-2); font-size: calc(14px * var(--wr-f, 1)); text-align: left; cursor: pointer;
+}
+.wr-mara-zeile > span:not(.wr-schalter-bahn) { flex: 1; min-width: 0; }
+.wr-mara-zeile > svg { color: var(--wr-leise); }
+.wr-mara-zeile.an > svg { color: var(--wr-blau-hell); }
+.wr-mara-zeile.pause > svg { color: rgba(156, 200, 255, .55); }
+.wr-person-mara .wr-schrittschalter { margin-top: 12px; }
+.wr-hinweis { line-height: 1.55; padding: 14px 18px 18px; }
+.wr-ergebnis { display: grid; gap: 8px; }
 .wr-ergebnis-liste { display: grid; gap: 5px; }
 .wr-ergebnis-liste .wr-klein { text-align: left; justify-content: flex-start; }
-.wr-notiz { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--wr-linie); }
+.wr-notiz { display: grid; gap: 6px; }
 .wr-notiz label { font-size: calc(12.5px * var(--wr-f, 1)); color: var(--wr-still); }
 .wr-notiz textarea {
   width: 100%; padding: 9px 11px; border-radius: 10px; resize: vertical; border: 1px solid var(--wr-linie);
-  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.45; font-weight: 300;
+  background: var(--wr-flaeche-2); color: var(--wr-text); font-size: max(16px, calc(16px * var(--wr-f, 1))); line-height: 1.45; font-weight: 400;
 }
-.wr-notiz textarea:focus { outline: none; border-color: rgba(40, 141, 250, .55); }
+.wr-notiz textarea:focus { outline: none; border-color: rgba(40, 141, 250, .5); }
 .wr-notiz .wr-klein { justify-self: start; }
 .wr-schrittschalter { display: flex; gap: 8px; align-items: center; font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-text-2); }
 .wr-schrittschalter input { width: 18px; height: 18px; accent-color: var(--wr-blau); }
 
 /* ── Knöpfe ────────────────────────────────────────────────────────────── */
 .wr-knopf, .wr-klein {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 99px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 15px; border-radius: 99px;
   border: 1px solid var(--wr-linie); background: transparent; color: var(--wr-text-2);
-  font-size: calc(14px * var(--wr-f, 1)); font-weight: 400; cursor: pointer; text-decoration: none; white-space: nowrap;
+  font-size: calc(14px * var(--wr-f, 1)); cursor: pointer; text-decoration: none; white-space: nowrap;
 }
-.wr-klein { padding: 6px 12px; font-size: calc(13px * var(--wr-f, 1)); }
+.wr-klein { padding: 6px 13px; font-size: calc(13px * var(--wr-f, 1)); }
 .wr-knopf.voll { background: linear-gradient(135deg, var(--wr-blau-tief), var(--wr-blau)); border-color: transparent; color: #fff; }
 .wr-knopf:disabled, .wr-klein:disabled { opacity: .5; cursor: default; }
 .wr-klein[aria-pressed="true"] { border-color: rgba(40, 141, 250, .55); color: #dbeafe; background: rgba(40, 141, 250, .14); }
@@ -510,24 +753,26 @@ button.wr-pruefmarke { cursor: pointer; }
 }
 .wr-meldung {
   pointer-events: auto; max-width: 620px; padding: 10px 16px; border-radius: 12px;
-  border: 1px solid rgba(40, 141, 250, .35); background: #11203a; color: var(--wr-text); font-size: calc(14px * var(--wr-f, 1)); font-weight: 400;
+  border: 1px solid rgba(40, 141, 250, .35); background: #11203a; color: var(--wr-text); font-size: calc(14px * var(--wr-f, 1));
   box-shadow: 0 12px 30px rgba(2, 6, 23, .5);
 }
 
 /* ── Neues Gespräch (Schleier matt, kein zweites Glas) ────────────────── */
-.wr-schleier { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(3, 7, 18, .82); }
+.wr-schleier { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(3, 7, 18, .78); }
 .wr-fenster {
   width: min(560px, 100%); max-height: min(86vh, 86dvh); overflow-y: auto; display: grid; gap: 14px; padding: 20px;
-  border-radius: 16px; border: 1px solid var(--wr-linie); background: #0c1322;
+  border-radius: 18px; border: 1px solid var(--wr-linie); background: #0d1626; box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
 }
 .wr-fenster-kopf { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-.wr-fenster-kopf h2 { font-size: calc(18px * var(--wr-f, 1)); font-weight: 400; }
+.wr-fenster-kopf h2 { font-size: calc(19px * var(--wr-f, 1)); font-weight: 400; }
 .wr-fenster-kopf p { margin-top: 4px; line-height: 1.5; max-width: 52ch; }
 .wr-treffer { display: grid; gap: 2px; max-height: 320px; overflow-y: auto; }
 .wr-treffer-zeile {
   display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: 10px;
   background: transparent; color: var(--wr-text-2); font-size: calc(14px * var(--wr-f, 1)); cursor: pointer;
 }
+.wr-treffer-zeile.mit-bild { display: flex; align-items: center; gap: 12px; }
+.wr-treffer-text { display: grid; gap: 2px; min-width: 0; }
 .wr-treffer-zeile b { color: var(--wr-text); font-weight: 400; }
 .wr-treffer-zeile.wr-frei { border: 1px dashed rgba(40, 141, 250, .45); border-radius: 12px; background: rgba(40, 141, 250, .08); }
 .wr-ziel { font-size: calc(14px * var(--wr-f, 1)); color: var(--wr-text-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -543,6 +788,7 @@ button.wr-pruefmarke { cursor: pointer; }
 }
 .wr-vollflaeche > .wr-chat { height: 100%; border: 0; border-radius: 0; }
 .wr-vollflaeche .wr-chat-kopf { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+.wr-vollflaeche .wr-person-leiste { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
 html.wr-vollbild, html.wr-vollbild body { overflow: hidden; overscroll-behavior: none; }
 /* Telefon- und Rundgangknopf lagen am Handy über dem Eingabefeld — im offenen
    Chat ruht beides; angerufen wird über den Kopf, ein laufendes Gespräch
@@ -550,15 +796,20 @@ html.wr-vollbild, html.wr-vollbild body { overflow: hidden; overscroll-behavior:
 html.wr-vollbild .fi-telefonknopf,
 html.wr-vollbild .ru-knopf { display: none !important; }
 
-
 @media (hover: hover) {
-  .wr-zeile:hover { background: rgba(148, 163, 184, .06); }
-  .wr-zeile.an:hover { background: rgba(40, 141, 250, .12); }
-  .wr-knopf:hover, .wr-klein:hover, .wr-schalter:hover, .wr-ikon:hover, .wr-plus:hover,
+  .wr-zeile:hover { background: rgba(148, 163, 184, .055); }
+  .wr-zeile.an:hover { background: rgba(40, 141, 250, .15); }
+  .wr-ikon:hover, .wr-plus:hover, .wr-such-weg:hover { background: rgba(148, 163, 184, .1); color: var(--wr-text); }
+  .wr-chips button:not(.an):not(:disabled):hover { background: #172741; color: var(--wr-text-2); }
+  .wr-menue-punkt:hover { background: rgba(40, 141, 250, .1); color: var(--wr-text); }
+  button.wr-chat-person:hover { background: rgba(148, 163, 184, .06); }
+  .wr-knopf:hover, .wr-klein:hover, .wr-schalter:hover, .wr-aktion:hover,
   .wr-blatt-linkreihe button:hover, .wr-karte-senden:hover { border-color: rgba(40, 141, 250, .55); }
-  .wr-karte:hover { background: rgba(40, 141, 250, .07); }
-  .wr-intern-kopf:hover { background: var(--wr-flaeche-2); }
+  .wr-karte:hover { background: rgba(40, 141, 250, .06); }
+  .wr-intern-kopf:hover { background: rgba(20, 33, 57, .9); color: #9fb0c6; }
   .wr-treffer-zeile:hover { background: rgba(148, 163, 184, .08); }
+  .wr-zu-feld:hover { border-color: rgba(40, 141, 250, .45); }
+  .wr-dok-karte:hover { background: rgba(0, 0, 0, .26); }
 }
 .wr :focus-visible { outline: 2px solid var(--wr-blau); outline-offset: 2px; }
 .wr .wr-feld-text:focus-visible, .wr input:focus-visible { outline: none; }

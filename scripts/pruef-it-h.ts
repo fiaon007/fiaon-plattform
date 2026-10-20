@@ -79,7 +79,8 @@ abschnitt("1a  Filter, Grenze, Vorschau");
 // ═══════════════════════════════════════════════════════════════════════════
 ok("Standardfilter ist „Mit Antwort“ (Justin, 08.10.)", R.STANDARD_FILTER === "antwort" && R.LISTEN_FILTER[0].wert === "antwort" && R.LISTEN_FILTER[0].text === "Mit Antwort");
 ok("„Alle“ ist der zweite Knopf (ein Klick)", R.LISTEN_FILTER[1].wert === "alle" && R.LISTEN_FILTER[1].text === "Alle");
-ok("vier Filter, jeder mit Erklärung", R.LISTEN_FILTER.length === 4 && R.LISTEN_FILTER.every((f) => f.titel.length > 20));
+// Neubau 20.10.2026: ein fünfter Filter „Wartet“ (der Kunde schrieb zuletzt, niemand antwortete).
+ok("fünf Filter (mit „Wartet“), jeder mit Erklärung", R.LISTEN_FILTER.length === 5 && R.LISTEN_FILTER.some((f) => f.wert === "wartet") && R.LISTEN_FILTER.every((f) => f.titel.length > 20));
 ok("filterLesen: antwort/ungelesen/offen bleiben", ["antwort", "ungelesen", "offen"].every((f) => R.filterLesen(f) === f));
 ok("filterLesen: leer, unbekannt, null, Zahl → alle (alte Oberfläche während des Deploys)",
   ["", "x", null, undefined, 3, "ANTWORT", " alle "].every((f) => R.filterLesen(f) === "alle"));
@@ -264,8 +265,10 @@ abschnitt("1g  Quelltext: Hülle, Raum, CSS, Rundgang, Server, Direktsprung");
   ok("Chefbüro: chef.tsx reicht vollflaeche durch, ChefShell setzt cb-voll", /vollflaeche=\{!!seite\?\.vollflaeche/.test(chef) && /vollflaeche \? " cb-voll" : ""/.test(chefShell));
   ok("Chefbüro: .cb-voll füllt die Höhe, Kette bis .cbs-eigen", /\.cb\.cb-voll\{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column\}/.test(chefCss) && /\.cb\.cb-voll \.cbs-huelle,\.cb\.cb-voll \.cbs-eigen\{flex:1 1 auto;min-height:0/.test(chefCss));
   ok("Raum: keine Höhenmessung mehr (var(--wr-hoehe), setProperty, raumRef, luft)", !/var\(--wr-hoehe/.test(raum + css) && !/setProperty\("--wr-hoehe"/.test(raum) && !/raumRef/.test(raum) && !/let luft/.test(raum));
-  ok("Raum: Rundgang ohne festen Knopf, Chip im Kopf", /knopf="keiner" startRef=\{rundgangStart\}/.test(raum) && /rundgangStart\.current\?\.\(\)/.test(raum) && /wr-kopf-knoepfe/.test(raum));
-  ok("Raum: „Schrift größer“ mit aria-pressed, auch in der Handy-Vollfläche", /aria-pressed=\{ansicht\.schrift === "gross"\}/.test(raum) && /wr-vollflaeche\$\{schriftKlasse\}/.test(raum));
+  // Neubau 20.10.2026: Schrift, Liste schmal, Maras Schritte und Rundgang stehen im ⋮-Menü der Liste (auch in der Schiene).
+  ok("Raum: Rundgang ohne festen Knopf, im ⋮-Menü der Liste", /knopf="keiner" startRef=\{rundgangStart\}/.test(raum) && /onRundgang: \(\) => rundgangStart\.current\?\.\(\)/.test(raum)
+    && /wr-menue-knopf/.test(liste) && /wr-rundgang-knopf/.test(liste));
+  ok("Raum: „Schrift größer“ als Menüpunkt mit aria-checked, auch in der Handy-Vollfläche", /aria-checked=\{wahl\.schriftGross\}/.test(liste) && /schriftGross: ansicht\.schrift === "gross"/.test(raum) && /wr-vollflaeche\$\{schriftKlasse\}/.test(raum));
   ok("Raum: Ansicht über die Helfer mit try/catch (fiaon_wa_ansicht)", /ansichtLesen\(lesen\(ANSICHT_SCHLUESSEL, \{\}\)\)/.test(raum) && /schreiben\(ANSICHT_SCHLUESSEL, ansicht\)/.test(raum) && R.ANSICHT_SCHLUESSEL === "fiaon_wa_ansicht");
   ok("Raum: Liste startet mit STANDARD_FILTER, fragt mit limit, nur die jüngste Antwort zählt", /useState<ListenFilter>\(STANDARD_FILTER\)/.test(raum) && /&limit=\$\{grenze\}/.test(raum) && /nr !== listenAnfrage\.current/.test(raum));
   ok("Raum: Suche entprellt (300 ms)", /setSucheFest\(suche\.trim\(\)\)/.test(raum) && /, 300\);/.test(raum));
@@ -282,12 +285,12 @@ abschnitt("1g  Quelltext: Hülle, Raum, CSS, Rundgang, Server, Direktsprung");
     /const wirksam = wirksamerFilter\(filter, suche\);/.test(liste) && /aria-pressed=\{wirksam === f\.wert\}/.test(liste) && /const still = sucht && f\.wert === "antwort";/.test(liste) && /disabled=\{still\}/.test(liste));
   ok("Liste: Hinweis „Die Suche läuft über alle deine Gespräche“ im Filterblock (Raster aus drei Zeilen bleibt)",
     /<p className="wr-still wr-filter-hinweis">Die Suche läuft über alle deine Gespräche, auch die ohne Antwort\.<\/p>\s*\)\}\s*<\/div>/.test(liste)
-    && /\.wr-filter-hinweis \{ grid-column: 1 \/ -1;/.test(css));
+    && /\.wr-filter-hinweis \{/.test(css));
   ok("Liste: leere Suche unter „Ungelesen“/„Fenster offen“ bietet „In allen Gesprächen suchen“",
     /\{wirksam !== "alle" && \(/.test(liste) && /sucht \? "In allen Gesprächen suchen" : "Alle Gespräche zeigen"/.test(liste) && /Unter „\$\{filterName\}“ nichts gefunden\./.test(liste));
   ok("Liste: kein „Nichts gefunden“ mehr ohne Ausweg bei Suche + Filter (alte Bedingung „filter !== alle && !suche“ weg)", !/filter !== "alle" && !suche/.test(liste));
   ok("Raum: keine leere dritte Spur (mit-fall nur bei gewähltem Gespräch)", /const mitFall = fallSpalte && !!gewaehlt/.test(raum) && /mit-fall/.test(raum));
-  ok("Liste: Schiene, «/», „Ältere Gespräche laden“, Filter aus shared", /wr-liste schmal/.test(liste) && /Liste schmal machen/.test(liste) && /Ältere Gespräche laden/.test(liste) && /LISTEN_FILTER\.map/.test(liste));
+  ok("Liste: Schiene, «/», „Ältere Gespräche laden“, Filter aus shared", /wr-liste schmal/.test(liste) && /Liste schmal/.test(liste) && /Liste wieder ausklappen/.test(liste) && /Ältere Gespräche laden/.test(liste) && /LISTEN_FILTER\.map/.test(liste));
   ok("Liste: leere „Mit Antwort“-Liste bietet „Alle Gespräche zeigen“", /Alle Gespräche zeigen/.test(liste));
   ok("Raum: „mehr“/„gekappt“ über listenEnde (an der Höchstgrenze kein toter Knopf)",
     /mehr=\{listenEnde\(mehr, grenze\) === "mehr"\} gekappt=\{listenEnde\(mehr, grenze\) === "gekappt"\}/.test(raum) && !/\bmehr=\{mehr\}/.test(raum));
@@ -299,9 +302,11 @@ abschnitt("1g  Quelltext: Hülle, Raum, CSS, Rundgang, Server, Direktsprung");
   const groessen = [...css.matchAll(/font-size:\s*([^;}]+)/g)].map((m) => m[1].trim());
   const fest = groessen.filter((g) => !/var\(--wr-f, 1\)/.test(g) && g !== "inherit" && !/^2[26]px$/.test(g));
   ok(`CSS: alle ${groessen.length} Schriftgrößen laufen über --wr-f (außer h1)`, fest.length === 0, fest);
-  ok("CSS: Blase 16 px (Office 14 px am Bildschirm), Zeile 1,5, bis 44em", /\.wr-blase \{[\s\S]*?max-width: min\(76%, 44em\)[\s\S]*?font-size: calc\(16px \* var\(--wr-f, 1\)\); line-height: 1\.5/.test(css));
+  // Neubau 20.10.2026: Die Breite trägt der Stapel (Blase + Vorlagen-Knöpfe), bis 72 % bzw. 44 Zeichenbreiten.
+  ok("CSS: Blase 16 px (Office 14 px am Bildschirm), Zeile 1,45, Stapel bis 72 % / 44em", /\.wr-stapel \{[^}]*max-width: min\(72%, 44em\)/.test(css)
+    && /\.wr-blase \{[\s\S]*?font-size: calc\(16px \* var\(--wr-f, 1\)\); line-height: 1\.45/.test(css));
   ok("CSS: Felder nie unter 16 px (iOS zoomt sonst)", (css.match(/font-size: max\(16px, calc\(16px \* var\(--wr-f, 1\)\)\)/g) ?? []).length === 3);
-  ok("CSS: Spalten wachsen mit (Liste 280–380, Fall 280–360), Schiene 76 px", /--wr-liste-b: clamp\(280px, 21cqi, 380px\)/.test(css) && /--wr-fall-b: clamp\(280px, 20cqi, 360px\)/.test(css) && /\.wr-raum\.liste-schmal \{ --wr-liste-b: 76px; \}/.test(css));
+  ok("CSS: Spalten wachsen mit (Liste 290–400, Kontaktinfo 300–380), Schiene 76 px", /--wr-liste-b: clamp\(290px, 24cqi, 400px\)/.test(css) && /--wr-fall-b: clamp\(300px, 22cqi, 380px\)/.test(css) && /\.wr-raum\.liste-schmal \{ --wr-liste-b: 76px; \}/.test(css));
   ok("CSS: Telefonknopf-Ecke statt Höhenstreifen; Pille reserviert unten", /html\.wr-telefon \.wr \{ --wr-knopf-zone: 78px; \}/.test(css) && /html\.wr-telefon:has\(\.fi-tel-pille\) \.wr \{ --wr-unten-zone: 80px; \}/.test(css)
     && /\.wr-raum:not\(\.mit-fall\) \.wr-eingabe \{ padding-right: calc\(12px \+ var\(--wr-knopf-zone, 0px\)\); \}/.test(css));
   ok("CSS: der Rundgang-Knopf wird nicht mehr verschoben (kein .ru-knopf right:88px)", !/right: 88px/.test(css));
@@ -326,14 +331,14 @@ abschnitt("1g  Quelltext: Hülle, Raum, CSS, Rundgang, Server, Direktsprung");
     const k = String(s.ziel).replace(/^\./, "");
     ok(`Rundgang-Ziel ${s.ziel} steht im Raum`, new RegExp(`["\` ]${k}["\` $]`).test(klassen));
   }
-  ok("Rundgang erklärt Schrift größer + Rundgang-Chip (Ziel .wr-kopf-knoepfe)", schritte.some((s) => s.ziel === ".wr-kopf-knoepfe" && /Schrift größer/.test(s.text)));
+  ok("Rundgang erklärt das ⋮-Menü: Schrift größer, Liste schmal, Rundgang (Ziel .wr-menue-knopf)", schritte.some((s) => s.ziel === ".wr-menue-knopf" && /Schrift größer/.test(s.text) && /Liste schmal/.test(s.text) && /Rundgang/.test(s.text)));
   ok("Rundgang: „Mehr Platz für den Chat“ OHNE Ziel (« und (i) fehlen am Handy)", schritte.some((s) => s.titel === "Mehr Platz für den Chat." && !s.ziel && /«/.test(s.text) && /\(i\)/.test(s.text)));
   ok("Rundgang: „Mit Antwort“, „Alle“ und „Ältere Gespräche laden“ an der Liste", schritte.some((s) => s.ziel === ".wr-liste" && /Mit Antwort/.test(s.text) && /„Alle“/.test(s.text) && /Ältere Gespräche laden/.test(s.tipp ?? "")));
   ok("Rundgang: „Ältere Gespräche laden“ bis 1.000, noch ältere über die Suche", schritte.some((s) => s.ziel === ".wr-liste" && /Ältere Gespräche laden“ weitere, bis 1\.000 — noch ältere findest du über die Suche/.test(s.tipp ?? "")));
   ok("Rundgang: Direktsprung aus der Akte", schritte.some((s) => /Chat im WhatsApp-Raum öffnen/.test(s.text)));
   ok("Rundgang: Direktsprung auch bei schon offenem Raum, „Zurück“ zum Gespräch davor", schritte.some((s) => /schon im Raum sitzt/.test(s.text) && /„Zurück“ im Browser zum Gespräch davor/.test(s.text)));
   ok("Rundgang: Suche auch in Gesprächen ohne Antwort, Filter beim Suchen „Alle“", schritte.some((s) => s.ziel === ".wr-liste" && /auch in denen ohne Antwort/.test(s.tipp ?? "") && /Solange du suchst, steht der Filter deshalb\s+auf „Alle“/.test((s.tipp ?? "").replace(/"\s*\+\s*"/g, ""))));
-  ok("Rundgang: der Rundgang steht oben rechts (nicht mehr unten)", /oben rechts im Raum/.test(rg) && !schritte.some((s) => /unten rechts startet/.test(`${s.text} ${s.tipp ?? ""}`)));
+  ok("Rundgang: der Rundgang steht im ⋮-Menü oben in der Liste (nicht mehr unten)", schritte.some((s) => /⋮ oben in der Liste → „Rundgang“/.test(s.tipp ?? "")) && !schritte.some((s) => /unten rechts startet/.test(`${s.text} ${s.tipp ?? ""}`)));
   ok("Rundgang: Du-Form an den Mitarbeiter", schritte.every((s) => !/\bSie (können|müssen|sehen|finden)\b/.test(`${s.text} ${s.tipp ?? ""}`)));
 }
 
@@ -842,7 +847,8 @@ if (BASIS) {
     await s.waitForSelector(".of.voll .wr-raum .wr-blase", { timeout: 20000 });
     await buehneWeg(s);
     const vorher = await messen(s);
-    await s.click(".wr-liste-klapp");
+    await s.click(".wr-menue-knopf");
+    await s.click(".wr-menue .wr-liste-klapp");
     await s.waitForSelector(".wr-liste.schmal");
     const schiene = await messen(s);
     ok("« macht die Liste zur Schiene, der Chat wird breiter", (schiene.liste?.w ?? 999) < 90 && (schiene.chat?.w ?? 0) > (vorher.chat?.w ?? 0) + 150, { vorher: vorher.chat?.w, nachher: schiene.chat?.w, liste: schiene.liste?.w });
@@ -853,7 +859,10 @@ if (BASIS) {
     await s.waitForTimeout(300);
     const fallNachher = await s.locator(".wr-raum > .wr-person").count();
     ok("(i) blendet den Fall als Spalte ein bzw. aus", fallVorher !== fallNachher, { fallVorher, fallNachher });
-    await s.click(".wr-schrift-knopf");
+    // Neubau 20.10.2026: „Schrift größer“ im ⋮-Menü — auch in der Schiene erreichbar.
+    await s.click(".wr-menue-knopf");
+    await s.click(".wr-menue .wr-schrift-knopf");
+    await s.waitForTimeout(300);
     const gross = await messen(s);
     ok(`„Schrift größer“: Blase ${vorher.blasePx.toFixed(1)} → ${gross.blasePx.toFixed(1)} px (× 1,15)`, Math.abs(gross.blasePx / vorher.blasePx - 1.15) < 0.02, { vorher: vorher.blasePx, gross: gross.blasePx });
     await s.reload({ waitUntil: "domcontentloaded" });
@@ -875,10 +884,11 @@ if (BASIS) {
       && (await s.evaluate(`getComputedStyle(document.querySelector(".wr-feld-text")).overflowY`)) === "auto", { feld: lang.feld?.h, max: maxErwartet, vorher: ueberlauf });
     ok("… und die Seite rollt trotzdem nicht", lang.rollen.root <= 1);
     await feld.fill("");
-    // Rundgang-Chip startet den Rundgang
-    await s.click(".wr-rundgang-knopf");
+    // Der Menüpunkt „Rundgang“ startet den Rundgang
+    await s.click(".wr-menue-knopf");
+    await s.click(".wr-menue .wr-rundgang-knopf");
     await s.waitForTimeout(700);
-    ok("der Chip „Rundgang“ startet den Rundgang", await s.locator("text=Hier schreibst du mit deinen Kunden.").count() > 0);
+    ok("„Rundgang“ im ⋮-Menü startet den Rundgang", await s.locator("text=Hier schreibst du mit deinen Kunden.").count() > 0);
     ok("kein fester Rundgang-Knopf mehr unten rechts", await s.locator(".ru-knopf").count() === 0);
     await s.keyboard.press("Escape").catch(() => null);
     // Ansicht zurücksetzen

@@ -165,6 +165,10 @@ export const HERKUENFTE = {
   individualangebot: "Nach Annahme eines Individualangebots vom System gebucht (Startgespräch FIAON Global)",
   // 05.10.2026 (E-283): der Bildschirm „Limit-Erhöhung anfragen" im Kundenbereich (/app/mehr/limit).
   kundenbereich_limit: "Im Kundenbereich gebucht (Limit-Gespräch)",
+  // E-408 (19.10.2026): ARAS, der KI-Kollege am Telefon — ein im Gespräch vereinbarter Anruf (bei Aras oder beim Betreuer)
+  // und ein Termin, den Mara „bei Aras“ anbietet. Termine bei Aras = fiaon_termine.agent_id = ARAS-Ausweis (art = 'ki').
+  aras_telefon: "Von Aras im Telefonat vereinbart (Rückruf)",
+  mara_bei_aras: "Von Mara angeboten — Aras ruft an",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 

@@ -60,6 +60,8 @@ const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
 const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"));
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
+// E-408 (20.10.2026): Aras — Probeanruf, Stimmen-Studio, Ton. Eigene Seite, bis der Raum „KI-Team“ (E-409) auf main ist.
+const ArasProbe = lazy(() => import("@/components/admin/ChefArasProbe"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
 // 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — seit 26.09.2026 (E-243) der Reiter „Bonitätsauskunft"
 // im Mara-Steuerpult (Justin: „nicht schon wieder eine neue eigene Seite"). Die alte Adresse führt dorthin.
@@ -197,6 +199,9 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "lead-motor", label: "Lead-Motor", satz: "Facebook-Leads direkt von Meta.", Seite: LeadMotor, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
   { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass: Sendefenster, Versand, Verteilung.", Seite: LeadAutomatik, raum: "vertrieb" },
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat zum Nachfassen.", Seite: Kunden, raum: "vertrieb", suche: "stufe=C", auch: "vorrat kalt" },
+  // E-408 (20.10.2026): Aras, der KI-Kollege am Telefon — Justin hört ihn hier („Mich anrufen“ nur an die eigene Nummer).
+  // Justin hat „keine neuen Chef-Seiten“ für Aras ausdrücklich aufgehoben (fiaon-aras-telefon). Zieht nach E-409 in den Raum „KI-Team“.
+  { slug: "aras-probe", label: "Aras", kurz: "Aras", satz: "Mich anrufen, Stimmen hören, Ton einstellen.", Seite: ArasProbe, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "aras telefon anruf probeanruf mich anrufen stimme stimmen hörprobe hoerprobe studio flitz nuri juni ton tempo energie füllwörter fuellwoerter notaus not-aus leerlauf deckel ki kollege" },
   // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
   // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
   { slug: "firmen-radar", label: "Firmen-Radar", satz: "50 passende Firmen am Tag — Scan und erste Mail.", Seite: FirmenRadar, raum: "global", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },

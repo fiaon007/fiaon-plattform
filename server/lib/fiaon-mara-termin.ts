@@ -105,6 +105,8 @@ export type ProtokollArt =
   | "abstreiten" | "loeschwunsch"
   // E-265 (29.09.2026): Mara nimmt eine klare Kündigung auf WhatsApp selbst auf (kuendigung_aufnehmen).
   | "kuendigung"
+  // E-408 (19.10.2026): ARAS am Telefon — jedes Ereignis der Brücke (Kanal 'telefon'), Liste in shared/fiaon-aras.ts.
+  | import("../../shared/fiaon-aras").EreignisArt
   // E-395 (19.10.2026): Ein Termin, den der Kunde mit uns hat, aus seiner Mail eingetragen (fiaon-mara-genannter-termin.ts).
   // Bewusst NICHT „termin_gebucht“: maraTermineNachpruefen prüft Maras eigene Rückrufe (Arbeitszeit, Uhrzeit per WhatsApp) —
   // ein vereinbarter Termin darf außerhalb der Arbeitszeit liegen, und die Uhrzeit hat der Kunde selbst genannt.

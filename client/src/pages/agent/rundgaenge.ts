@@ -2208,6 +2208,40 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/aras-probe (20.10.2026, E-408 Scheibe 1) — Aras: Probeanruf, Stimmen-Studio, Ton ──
+// Justin hört Aras NUR hier. Ein Satz je Schritt; Ziele über data-ap (ChefArasProbe.tsx).
+export const RUNDGANG_ARAS_PROBE: RundgangSchritt[] = [
+  {
+    titel: "Aras — dein KI-Kollege am Telefon.",
+    text: "Hier rufst du dich selbst an und hörst, wie Aras klingt. Kunden ruft er noch nicht an — das schaltest du erst frei, wenn dein Ohr Ja sagt.",
+  },
+  {
+    ziel: "[data-ap='kopf']",
+    titel: "Oben: läuft alles?",
+    text: "„Stimme“ und „Telefon“ grün heißt: Aras kann sprechen und wählen. Daneben die Kosten von heute und der Deckel je Tag. "
+      + "„Not-Aus“ hält Aras sofort an, „Leerlauf“ lässt nur kein neues Gespräch mehr zu.",
+    tipp: "Vor einem Deploy: Leerlauf an — ein laufendes Gespräch endet dann ganz normal.",
+  },
+  {
+    ziel: "[data-ap='mich-anrufen']",
+    titel: "Mich anrufen.",
+    text: "Deine Nummer trägst du einmal ein — nur sie ruft Aras im Test an, jede andere lehnt der Server ab. Wähle eine Gesprächsart "
+      + "(zum Beispiel „Rate fällig“), drück „Mich anrufen“, und unten laufen die Sätze live mit. Danach gibst du Daumen hoch oder runter.",
+    tipp: "Teste die schweren Fälle: unterbrich ihn, schweig drei Sekunden, sag „Nein“ zur Aufzeichnung, frag „Sind Sie ein Mensch?“.",
+  },
+  {
+    ziel: "[data-ap='studio']",
+    titel: "Stimmen-Studio: derselbe Satz, jede Stimme.",
+    text: "Ein Klick, und Flitz, Nuri und Juni sprechen denselben Satz — in Telefon-Qualität. „Diese nehmen“ macht sie zu Aras' Stimme ab dem nächsten Anruf.",
+  },
+  {
+    ziel: "[data-ap='ton']",
+    titel: "Der Ton.",
+    text: "Energie, Füllwörter, Lachen, Tempo, Zuhör-Laute und wie oft er nach einem Nein nachfragt — jede Änderung gilt ab dem nächsten Anruf. "
+      + "Fest eingebaut und ohne Schalter: KI-Hinweis im ersten Satz, Aufnahme nur nach Ja, kein Druck, keine Lastschrift.",
+  },
+];
+
 // WhatsApp-Zentrale (23.09.2026, E-229) — Maras Versand an Kundengruppen.
 // E-252 (28.09.2026): ein Satz je Schritt (Entwurf E-250). Meta steht jetzt links in der
 // Statuszeile (.wz-status), die Wirkung als Kette (.wz-kette); Rechnung und Stufe stehen

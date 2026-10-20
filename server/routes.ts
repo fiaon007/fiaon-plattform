@@ -6381,5 +6381,17 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
     }
   });
 
+  // ══════════════════════════════════════════════════════════════════════
+  // E-408 (20.10.2026): ARAS — der KI-Kollege am Telefon (server/lib/fiaon-aras-start.ts)
+  //   · Twilio-Rückrufe + Ton-Strom (WebSocket am HTTP-Server, Pfad /api/fiaon/aras/stream)
+  //   · arasAnbinden(…) — der KI-Raum (E-409, /chef/ki, /chef/s/aras) zeigt ab jetzt den echten Kern
+  //   · Takte aras_plan_fuellen / aras_waehler / aras_nachbereitung (Standard AUS: aras_an = aus, Stufe 0 → kein Kunde)
+  // ══════════════════════════════════════════════════════════════════════
+  try {
+    await (await import('./lib/fiaon-aras-start')).arasStarten(app, httpServer);
+  } catch (e) {
+    console.error('[ARAS] Start fehlgeschlagen:', String((e as Error)?.message ?? e).slice(0, 300));
+  }
+
   return httpServer;
-} 
+}

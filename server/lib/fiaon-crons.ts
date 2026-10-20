@@ -570,6 +570,22 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Menschen mit fertigem Antrag und offener erster Rate bekommen keine persönliche Mail mehr — der größte Geldhebel steht.",
     fenster: 2,
   },
+  // ── E-408 (19.10.2026): ARAS, der KI-Kollege am Telefon ─────────────────
+  "aras_plan_fuellen": {
+    zweck: "ARAS: Warteschlange aus der Akte füllen (Termine bei Aras, Zuruf-JA, Zahlung gemeldet, Rate fällig, Zusage nachfassen)",
+    folge: "ARAS hat niemanden zum Anrufen — Raten bleiben unangesprochen, Zusagen werden nicht nachgefasst.",
+    fenster: 24,
+  },
+  "aras_waehler": {
+    zweck: "ARAS: alle 20 s wählen, was wartet — mit allen Wänden (an, Notaus, Deckel, Fenster, Sperre, Einwilligung, Versuche je Person)",
+    folge: "Kein ARAS-Anruf. Solange aras_an = aus ist, ist das gewollt (eine Zeile nur bei Wahl).",
+    fenster: 24,
+  },
+  "aras_nachbereitung": {
+    zweck: "ARAS: hängende Wählversuche schließen (Twilio hat nie zurückgemeldet)",
+    folge: "Geister in fiaon_calls — die Deploy-Wache hält den Push, Versuche werden doppelt gezählt.",
+    fenster: 24,
+  },
   wa_zentrale_takt: {
     zweck: "WhatsApp-Automatik: Vorlagen an die freigegebenen Gruppen, bei ROT nur die Monatsrate (Service)",
     folge: "Fällige Monatsraten werden nicht per WhatsApp erinnert, neue Leads nicht begrüßt.",

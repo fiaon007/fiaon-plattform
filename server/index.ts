@@ -692,8 +692,10 @@ async function seedSubscriptionPlans() {
     console.log(`[HERUNTERFAHREN] SIGTERM ${new Date().toISOString()} — WhatsApp-Versand wird übergeben`);
     const notaus = setTimeout(() => process.exit(0), 20_000);
     notaus.unref();
+    // E-408 (20.10.2026): laufende Aras-Gespräche enden mit einem Abschiedssatz statt mitten im Wort (höchstens ~9 s).
+    const aras = import("./lib/fiaon-aras-start").then((m) => m.arasHerunterfahren()).catch(() => 0);
     void import("./lib/fiaon-wa-zentrale")
-      .then((m) => m.laufUebergeben(15_000))
+      .then(async (m) => { const [r] = await Promise.all([m.laufUebergeben(15_000), aras]); return r; })
       .then((r) => console.log(`[HERUNTERFAHREN] ${r.uebergeben ? `${r.uebergeben} Versand übergeben` : "kein Versand offen"} — Ende.`))
       .catch((e) => console.error("[HERUNTERFAHREN]", e))
       .finally(() => { clearTimeout(notaus); process.exit(0); });

@@ -18,13 +18,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 
-export type Bereich = "postfach" | "aktion" | "whatsapp";
-export const BEREICHE: Bereich[] = ["postfach", "aktion", "whatsapp"];
+// E-408 (19.10.2026): „telefon“ — die Hausanweisung für Aras am Telefon (letzter Baustein der Sitzungsanweisung).
+export type Bereich = "postfach" | "aktion" | "whatsapp" | "telefon";
+export const BEREICHE: Bereich[] = ["postfach", "aktion", "whatsapp", "telefon"];
 
 export const BEREICH_TEXT: Record<Bereich, string> = {
   postfach: "Antworten im Postfach",
   aktion: "Nachfassen per Mail",
   whatsapp: "WhatsApp (sobald die Nummer steht)",
+  telefon: "Aras am Telefon",
 };
 
 /** Höchstlänge — lang genug für jede Anweisung, kurz genug, um den Auftrag nicht zu sprengen. */

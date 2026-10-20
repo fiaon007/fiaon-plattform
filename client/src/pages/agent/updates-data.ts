@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
+    id: "2026-10-20-aras-probe",
+    date: "2026-10-20",
+    category: "Hintergrund",
+    title: "Aras, unser KI-Kollege am Telefon, wird getestet",
+    summary:
+      "Aras ist ein digitaler Assistent, der später Kunden anruft — zum Beispiel wegen einer fälligen Rate. "
+      + "Gerade ruft er nur Justin an, zum Testen. Kunden ruft er noch nicht an.",
+    changes: [
+      "Aras sagt im ersten Satz, dass er eine KI ist. Aufnehmen darf er nur, wenn der Kunde Ja sagt.",
+      "Für dich ändert sich heute nichts.",
+    ],
+    howto: [
+      "Sagt ein Kunde, „Aras“ habe ihn angerufen: Das ist unser digitaler Assistent. Sobald er Kunden anruft, steht jedes Gespräch in der Akte wie ein normaler Anruf.",
+    ],
+  },
+  {
     // E-406 A (19.10.2026, Vorschlag 3 „Mara führt den Betrieb“, Etappe A): „Heute dran“ auf dem Schreibtisch —
     // shared/fiaon-heute-dran.ts (Regeln), server/lib/fiaon-heute-dran.ts (Quellen), GET /agent/heute-dran.
     id: "2026-10-19-heute-dran",

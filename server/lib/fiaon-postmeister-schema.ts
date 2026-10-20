@@ -151,6 +151,9 @@ const PREIS: Record<string, { ein: number; aus: number }> = {
   "gpt-5.4": { ein: 0.125, aus: 1.0 },
   "gpt-4.1-mini": { ein: 0.04, aus: 0.16 },
 };
+// E-408 (19.10.2026): Stimme wird je SEKUNDE bezahlt, nicht je Token — Listenpreise je Minute in USD (shared/fiaon-aras.ts,
+// stimmKostenCents rechnet mit USD_EUR). Hier nur zur Dokumentation; nutzungMerken nimmt `sekunden` + `kostenCents` direkt.
+export const PREIS_JE_MINUTE_USD: Record<string, number> = { "gpt-live-1": 0.05, "gpt-realtime-2.1-mini": 0.08 };
 
 /**
  * E-279: Claude-Kosten — aus Claudes eigener Zählung (_anbieter: "claude"), oder, wenn ein Modul seine Zählung
@@ -175,18 +178,30 @@ export function kostenCentsAus(modell: string, usage: any): number {
 
 export async function nutzungMerken(ein: {
   dienst: string; modell: string; usage?: any; dauerMs: number; ok: boolean; fehler?: string | null;
+  /** E-408: Sekunden-Abrechnung (Stimme) — mit `kostenCents` als fertige Hausrechnung statt Token. */
+  sekunden?: number | null; kostenCents?: number | null;
 }): Promise<void> {
   const p = PREIS[ein.modell] ?? PREIS[ein.modell.replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? { ein: 0.1, aus: 0.8 };
   const pt = Number(ein.usage?.prompt_tokens || 0);
   const ct = Number(ein.usage?.completion_tokens || 0);
   const rt = Number(ein.usage?.completion_tokens_details?.reasoning_tokens || 0);
   // E-279: Claude-Preis (mit Cache-Anteilen), und in der Tabelle steht das Modell, das wirklich lief.
-  const kosten = claudeKosten(ein.modell, ein.usage, ein.dienst) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
+  // E-408: Eine fertige Sekunden-Rechnung (Stimme) hat Vorrang vor der Token-Rechnung.
+  const kosten = ein.kostenCents != null && Number.isFinite(Number(ein.kostenCents))
+    ? Number(ein.kostenCents)
+    : claudeKosten(ein.modell, ein.usage, ein.dienst) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
   ein = { ...ein, modell: String(ein.usage?._modell ?? nutzungsModell(ein.modell, ein.dienst)) };
+  const sekunden = ein.sekunden != null && Number.isFinite(Number(ein.sekunden)) ? Math.round(Number(ein.sekunden)) : null;
   await sqlPool`
-    INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
-    VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})
-  `.catch(() => {});
+    INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler, sekunden)
+    VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null}, ${sekunden})
+  `.catch(async () => {
+    // Die Spalte `sekunden` legt arasSchema() an — läuft der Postmeister vor ARAS, fehlt sie noch: dann ohne sie.
+    await sqlPool`
+      INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
+      VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})
+    `.catch(() => {});
+  });
 }
 
 /** Tagesausgaben in Euro — für den Kostendeckel. */

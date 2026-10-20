@@ -4,6 +4,7 @@
 // Akte (requireAgent + darfAnKunde — wer den Kunden betreut, und die Leitung):
 //   GET  /agent/kunden/:personId/aras                         Lage: offen, bleibt bei dir, geplant, Verlauf, Sperre, Notiz, „geht/warum nicht“
 //   POST /agent/kunden/:personId/aras/auftrag                 { punkte[], auftrag, wann, ab, benachrichtigen, abgeben } — reiht EINEN Anruf ein
+//   …/aras/briefing*  der Auftrags-Chat („ARAS anrufen lassen“) — server/routes/fiaon-aras-briefing-chat.ts, unten eingehängt
 //   POST /agent/kunden/:personId/aras/plan/:planId/zuruecknehmen
 //   POST /agent/kunden/:personId/aras/schalter                { aus: boolean, grund } — „Aras für diesen Kunden aus“
 //   POST /agent/kunden/:personId/aras/notiz                   { text } — „Was Aras wissen muss“
@@ -21,6 +22,8 @@ import { arasAkteLage, arasAuftragGeben, arasAuftragZuruecknehmen, arasFuerPerso
 import { praesenzMelden } from "../lib/fiaon-softphone-praesenz";
 import { laufendeSitzungen } from "../lib/fiaon-aras-bruecke";
 import { AUFTRAG_WANN, type AuftragWann } from "../../shared/fiaon-aras";
+// Der Auftrags-Chat („ARAS anrufen lassen“ öffnet einen kurzen Chat statt der Maske) — eigene Datei, dieselben Türen.
+import briefingChat from "./fiaon-aras-briefing-chat";
 
 const router = Router();
 const fehler = (res: Response, status: number, text: string, extra: Record<string, unknown> = {}) => res.status(status).json({ ok: false, error: text, ...extra });
@@ -128,5 +131,7 @@ router.get("/agent/aras/uebergabe/:callId", requireAgent, async (req: AgentReque
     });
   } catch (e) { fehler(res, 500, text(e)); }
 });
+
+router.use(briefingChat);
 
 export default router;

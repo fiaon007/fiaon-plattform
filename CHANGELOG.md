@@ -5,6 +5,36 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.10.2026 — Akte › ARAS: „ARAS anrufen lassen“ öffnet einen kurzen Auftrags-Chat
+- **Was:** Statt der Maske (Anliegen, Freitext, Zeit) öffnet sich IN der Karte „ARAS“ ein kleiner Chat. ARAS kennt die Akte
+  (Name, Paket, Stand, offene Punkte mit Betrag und Tagen, letzte Kontakte, „Was ARAS wissen muss“) und macht EINEN Vorschlag
+  mit Knöpfen („Bei Herrn … ist die Rate 2 über 59,99 € seit 5 Tagen offen. Soll ich ihn deswegen anrufen, oder geht's um was
+  anderes?“ · „Ja, wegen der Rate“ · „Alles Offene“ · „Etwas anderes“). Höchstens drei Rückfragen (worum · was genau · worauf
+  achten), dann die **Auftragskarte**: Ziel · Sagen · Fragen · Nicht versprechen · Achten auf · Wann (so bald wie möglich, heute
+  ab, morgen ab — „morgen ab 17 Uhr“ rückt den Eintrag auf 17 Uhr). „Passt – ARAS anrufen lassen“ gibt genau diesen Text über
+  den bestehenden Weg (arasAuftragGeben, ≤ 500 Zeichen, Wortwand) als EINEN Anruf in die Warteschlange; „Ändern“ macht die Karte
+  zum Formular. **Wand im Chat:** Was ARAS nicht sagen darf (Druck/Drohung, auch „wenn er nicht zahlt, geht's ans Inkasso“,
+  Limit- oder Kartenzusage, Bank-Vorbehalt, Kopplung, Lastschrift, Vertrag am Telefon), beantwortet sie mit „Das darf ich so ned
+  sagen — wie wär's mit: „…“?“ und „Ja, so“; Kündigung/Widerruf/Erstattung/Rechtliches bleiben beim Mitarbeiter. „Versprich ihm
+  kein Limit“ ist ein Verbot, kein Versprechen („Ein Limit sag ich eh nie zu — das ist bei mir fix.“). **Geht Anrufen nicht**
+  (Grund unverändert aus der Lage): EIN Satz und „Soll Mara stattdessen schreiben?“ — Mara nutzt nur bestehende Wege: Upload-Link
+  (Unterlagen fehlen), Zahlungsdaten (erste Rate offen), WhatsApp-Rückfrage (Mara übernimmt die Antwort) oder Terminlink; dazu,
+  wo es passt, „Geplanten Anruf zurücknehmen“ bzw. „ARAS wieder einschalten“. Nie ein grauer Knopf. **Verlauf:** Unter „Geplant“
+  und „Was ARAS gemacht hat“ steht bei jedem Auftrag aus dem Chat, wer was angewiesen hat (Karte + „Chat nachlesen“), auch für
+  die Wiederholungsversuche. **KI:** Freitext darf ein Modell in die Karte sortieren und die Antwort natürlicher machen — über
+  denselben Weg wie Prüf-Mara (openaiFetch mit KI-Pause und Weiche, nutzungMerken, Dienst „aras-briefing“, Tagesdeckel
+  ARAS_BRIEFING_TAG_EURO, Vorgabe 5 €). Jede KI-Antwort wird geprüft (Form, Wand, keine Beträge oder Tage, die nicht in der Akte
+  oder deinen Nachrichten stehen); sonst und ohne Schlüssel gilt der Leitfaden — der Chat geht immer. Die Karte „ARAS“ spricht
+  jetzt von „ihr“ (KI-Kollegin), wie ARAS seit dem Go-live heißt.
+- **Warum:** Justin, 20.10.2026: „wenn man ARAS in der Akte öffnet muss man ARAS ja genau anweisen können was sie den Kunden
+  fragen bzw. sagen soll – am besten öffnet sich so ein kurzer Chat wo genau abgefragt wird damit ARAS perfekt arbeiten kann“.
+- **Wo:** Office-Akte und Chefbüro-Akte → Überblick → Karte „ARAS“. Code: `shared/fiaon-aras-briefing-chat.ts` (Leitfaden, Wand,
+  Karte, KI-Prüfung — rein), `server/lib/fiaon-aras-briefing-chat.ts` (Akte, Speichern, KI, Auftrag, Mara; neue Tabelle
+  `fiaon_aras_briefing`), `server/routes/fiaon-aras-briefing-chat.ts` (eingehängt in `fiaon-aras-akte.ts`),
+  `client/src/components/agent/ArasBriefingChat.tsx`, `ArasKarte.tsx`, `client/src/styles/office-aras.css` (Block „DER
+  AUFTRAGS-CHAT“). Prüfstand `scripts/pruef-aras-briefing-chat.ts` (rein + lokale DB, mit Rot-Probe). Fotos:
+  `~/Desktop/FIAON/10_Nacharbeit/aras-briefing/`.
+
 ## 20.10.2026 — /business „Pakete und Preise“: die vier Etappen ohne 3D, als ruhige Karten zum Aufklappen
 - **Was:** Die vier Karten I–IV über den Pakettafeln (Gründung und Dokumente · Die erste Firmenkarte · Die Kartenleiter ·
   Das Bankdarlehen) haben keine 3D-Objekte mehr (Urkunde, Karte, Treppe, Tresor, Schatten-Ellipsen sind weg; three.js wird

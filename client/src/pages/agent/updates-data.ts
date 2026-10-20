@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-408 (Akte-Steuerung, 20.10.2026): „ARAS anrufen lassen“ öffnet einen kurzen Chat — Justin: „… am besten öffnet sich
+    // so ein kurzer Chat wo genau abgefragt wird damit ARAS perfekt arbeiten kann“.
+    id: "2026-10-20-aras-chat",
+    date: "2026-10-20",
+    category: "Neu",
+    title: "ARAS anrufen lassen: ein kurzer Chat statt Formular",
+    summary:
+      "Klick in der Akte auf „ARAS anrufen lassen“ — ARAS kennt die Akte, macht dir einen Vorschlag und fragt höchstens dreimal nach. "
+      + "Dann zeigt sie dir den Auftrag als Karte, und mit „Passt“ ruft sie an.",
+    changes: [
+      "ARAS schlägt selbst vor, worum es geht — z. B. „Bei Herrn … ist die Rate 2 über 59,99 € seit 5 Tagen offen. Soll ich ihn deswegen anrufen?“ Du antwortest mit einem Knopf oder in eigenen Worten.",
+      "Die Auftragskarte zeigt Ziel · Sagen · Fragen · Nicht versprechen · Achten auf · Wann. Genau dieser Text geht an ARAS. „Ändern“ macht die Karte zum Formular.",
+      "Schreibst du etwas, das ARAS nicht sagen darf (Druck, Drohung, Limit-Zusage, Lastschrift …), schlägt sie dir direkt eine bessere Formulierung vor.",
+      "Geht Anrufen gerade nicht, sagt der Chat in einem Satz warum — und bietet an, dass Mara stattdessen schreibt.",
+      "Unter „Geplant“ und „Was ARAS gemacht hat“ steht bei jedem Auftrag, wer was angewiesen hat — mit „Chat nachlesen“.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → Karte „ARAS“ → „ARAS anrufen lassen“.",
+      "Vorschlag mit einem Knopf bestätigen oder kurz schreiben, was ARAS sagen oder fragen soll.",
+      "Karte prüfen, „Wann“ wählen → „Passt – ARAS anrufen lassen“. Zurücknehmen kannst du ihn unten unter „Geplant“.",
+    ],
+  },
+  {
     // 20.10.2026: Der WhatsApp-Raum neu gebaut — sieht aus wie WhatsApp, nur in FIAON-Blau (Justins Auftrag vom 20.10.).
     id: "2026-10-20-whatsapp-neu",
     date: "2026-10-20",

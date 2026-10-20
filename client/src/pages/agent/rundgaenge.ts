@@ -234,12 +234,14 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
-    // E-408 Scheibe 2 (20.10.2026): die Karte „Aras“ im Überblick der Akte. Ohne `ziel` — sie steht nur in der geöffneten Akte.
-    titel: "Aras ruft für dich an.",
-    text: "Unten im Überblick steht die Karte „Aras“ — unser KI-Kollege am Telefon. „Aras anrufen lassen“: Anliegen wählen, in einem Satz sagen, "
-      + "was er erledigen soll, Zeit wählen. „Offenes an Aras abgeben“: alles Offene in einem Anruf. Danach steht das Ergebnis in der Akte, "
-      + "und du bekommst eine Nachricht. Geht es gerade nicht, steht in einem Satz, warum.",
-    tipp: "Kündigung, Widerruf, Beschwerde und Erstattung klärt Aras nie — da verbindet er zu dir. Unter „Was Aras wissen muss“ notierst du z. B. „nur abends erreichbar“.",
+    // E-408 Scheibe 2 (20.10.2026): die Karte „ARAS“ im Überblick der Akte. Ohne `ziel` — sie steht nur in der geöffneten Akte.
+    // Akte-Steuerung (20.10.2026 abends): „ARAS anrufen lassen“ öffnet einen kurzen Chat statt der Maske.
+    titel: "ARAS ruft für dich an.",
+    text: "Unten im Überblick steht die Karte „ARAS“ — unsere KI-Kollegin am Telefon. „ARAS anrufen lassen“ öffnet einen kurzen Chat: "
+      + "ARAS schlägt aus der Akte vor, worum es geht, fragt höchstens dreimal nach und zeigt dir den Auftrag als Karte (Ziel · Sagen · "
+      + "Fragen · Nicht versprechen · Achten auf · Wann). „Passt“ plant den Anruf ein. Geht es gerade nicht, sagt der Chat in einem Satz "
+      + "warum und bietet an, dass Mara schreibt. „Offenes an ARAS abgeben“: alles Offene in einem Anruf.",
+    tipp: "Schreibst du etwas, das ARAS nicht sagen darf, schlägt sie dir eine bessere Formulierung vor. Kündigung, Widerruf, Beschwerde und Erstattung klärt sie nie — da verbindet sie zu dir.",
   },
   {
     // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht

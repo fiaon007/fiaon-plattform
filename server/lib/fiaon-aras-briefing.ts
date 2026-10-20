@@ -9,8 +9,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { nennform } from "../../shared/fiaon-mitarbeiter-name";
-import { stufeAusAntrag, euroGanz, type KartenZiel } from "../../shared/fiaon-mara-ton";
-import { paket, paketPreisCents } from "../../shared/fiaon-pakete";
+import { stufeAusAntrag, type KartenZiel } from "../../shared/fiaon-mara-ton";
+import { paket } from "../../shared/fiaon-pakete";
 import { euroText } from "../../shared/fiaon-auskunft";
 import { nummerLand, berlinTeile, type Land, type Spielart } from "../../shared/fiaon-aras";
 import type { Briefing } from "../../shared/fiaon-aras-prompt";
@@ -167,18 +167,5 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   };
 }
 
-/** Kurzer Vorlese-Text zu einem Bereich der Akte — für das Werkzeug akte_nachsehen (≤ 400 Zeichen, keine Systemwörter). */
-export function akteVorlesen(b: Briefing, bereich: "zahlungen" | "termine" | "notizen" | "vertrag"): string {
-  switch (bereich) {
-    case "zahlungen":
-      return b.offeneRate
-        ? `Offen ist die Rate ${b.offeneRate.nr} über ${b.offeneRate.betrag}, fällig am ${b.offeneRate.faelligAm}. ${b.raten.gezahlt} Raten sind bezahlt.`
-        : `${b.raten.gezahlt} Raten bezahlt, ${b.raten.offen} offen${b.raten.naechsteAm ? `, die nächste am ${b.raten.naechsteAm}` : ""}.`;
-    case "termine":
-      return b.termine.length ? `Termine: ${b.termine.map((t) => `${t.am} bei ${t.bei}`).join("; ")}.` : "Es steht kein Termin.";
-    case "notizen":
-      return b.notizen.length ? `Zuletzt notiert: ${b.notizen.join(" · ")}` : "Es gibt keine Notizen.";
-    case "vertrag":
-      return `${b.paketName ? `Paket ${b.paketName}` : "Kein Paket"}${b.paketKey ? `, ${euroText(paketPreisCents(b.paketKey))} im Monat, zwölf Monatsraten` : ""}. ${b.kartenZiel ? `Wunschlimit ${euroGanz(b.kartenZiel.euro)}.` : ""}`.trim().slice(0, 400);
-  }
-}
+/** Kurzer Vorlese-Text zu einem Bereich der Akte — rein, darum in shared/fiaon-aras-prompt.ts (offline prüfbar). */
+export { akteVorlesen } from "../../shared/fiaon-aras-prompt";

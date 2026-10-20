@@ -273,7 +273,7 @@ async function main(): Promise<void> {
     ok("Prüfstatus „offen“ — Prüf-Mara (E-409) prüft das Gespräch mit Transkript", a?.pruefung_status === "offen", String(a?.pruefung_status));
     ok("Voraus-Takt: nie mehr als 5 Marken (500 ms) bei Twilio offen", tz.maxOffen <= 5, String(tz.maxOffen));
     const zeilenBus = busZeilen.filter((z) => z.callId === callId);
-    ok("Live-Strom: ganze Sätze (keine Fetzen) — Kunde und Aras", zeilenBus.some((z) => z.wer === "kunde" && /Ja, am Apparat/.test(z.text)) && zeilenBus.some((z) => z.wer === "aras" && /also eine KI/.test(z.text)), zeilenBus.map((z) => `${z.wer}:${z.text.slice(0, 20)}`).join(" | "));
+    ok("Live-Strom: ganze Sätze (keine Fetzen) — Kunde und Aras", zeilenBus.some((z) => z.wer === "kunde" && /Ja, am Apparat/.test(z.text)) && zeilenBus.some((z) => z.wer === "aras" && /\bKI\b/.test(z.text)), zeilenBus.map((z) => `${z.wer}:${z.text.slice(0, 20)}`).join(" | "));
     const liste = await anrufListe({});
     const det = await anrufDetail(a.id);
     ok("anrufListe + anrufDetail liefern den Anruf mit Werkzeugen und Transkript", liste.some((z) => z.callId === callId) && det?.werkzeuge.length === 6 && Array.isArray(det?.transkript));

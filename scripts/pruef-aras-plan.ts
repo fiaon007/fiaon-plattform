@@ -149,7 +149,7 @@ ok("Spielarten mit fremdem Namen → wirft", wirft("aras_spielarten", JSON.strin
 titel("8b. HARTE TELEFON-REGELN (Nachbereitung ohne Aufnahme-Ja)");
 {
   const sauber = [
-    { t: 0, wer: "aras" as const, text: "Hallo, hier ist Aras von FIAON — ich bin der digitale Assistent, also eine KI. Spreche ich mit Herrn Probe?" },
+    { t: 0, wer: "aras" as const, text: "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Bin ich richtig bei Herrn Probe?" },
     { t: 4, wer: "kunde" as const, text: "Ja, am Apparat." },
     { t: 6, wer: "aras" as const, text: "Schön! Es geht um Ihre zweite Rate — schaffen Sie die Überweisung heute noch?" },
   ];

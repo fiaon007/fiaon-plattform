@@ -153,8 +153,12 @@ export interface SchluesselDef {
   pruefen?: (wert: string) => string | null;
 }
 
-export const KI_HINWEIS_VORGABE = "Guten Tag, hier ist Aras von FIAON — ich bin der digitale Assistent, also eine KI, und ich kümmere mich wirklich um Ihr Anliegen.";
-export const AUFNAHME_FRAGE_VORGABE = "Eine Sache noch: Ich würde unser Gespräch gern aufzeichnen, damit alles sauber dokumentiert ist — wir speichern es 90 Tage, Details stehen unter fiaon.com/privacy. Ist das für Sie in Ordnung? Dann sagen Sie bitte einfach „Ja“.";
+// Justin 20.10.2026 nach seinen Probeanrufen: „zu viel nach KI … menschlicher sprechen“. Der KI-Hinweis bleibt der erste Satz
+// (KI-VO Art. 50), aber leicht und charmant statt Belehrung — „Grüß Gott“ statt „Hallo“ setzt der Dialekt (aras_dialekt).
+export const KI_HINWEIS_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
+// Probe 20.10.2026 (Justin): die alte Frage war zu lang und steif (10 s, Internetadresse vorgelesen). Kurz, eine Frage, kein Link —
+// Speicherdauer und Datenschutzerklärung nennt Aras nur, wenn der Kunde nachfragt (shared/fiaon-aras-prompt.ts, AUFZEICHNUNG).
+export const AUFNAHME_FRAGE_VORGABE = "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist? Ein kurzes Ja reicht.";
 
 /** Vertrag § 3: JSON { spielart: "an" | "aus" } — lead, stufe_b, rueckholung erst nach LEXR. Fehlende Spielarten = Vorgabe. */
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
@@ -552,4 +556,4 @@ export interface HoerprobeZeile {
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
 export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
-export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — ich bin der digitale Assistent, also eine KI. Ähm, ich wollte nur kurz fragen: Sind Sie mit Ihrem Antrag gut weitergekommen?";
+export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";

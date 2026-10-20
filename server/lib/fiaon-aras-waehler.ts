@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema, arasAusweisId } from "./fiaon-aras-schema";
-import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson } from "./fiaon-aras-plan";
+import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson, willkommenEntfaellt } from "./fiaon-aras-plan";
 import { laufendeSitzungen, notausAlle, vorbereiten } from "./fiaon-aras-bruecke";
 import { briefingBauen } from "./fiaon-aras-briefing";
 import { adapterFuer } from "./fiaon-aras-adapter";
@@ -107,6 +107,12 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       // Bis Stufe 2 nur mit „JA per Nachricht“ — ohne nachweisbares Ja (Kennung) gar nicht.
       const [ew] = z.einwilligung_id ? ((await lauf`SELECT art FROM fiaon_telefon_einwilligung WHERE id = ${z.einwilligung_id}`) as any[]) : [];
       if (!["zuruf_whatsapp", "zuruf_mail"].includes(String(ew?.art ?? ""))) { merken("stufe:zuruf_kaestchen"); continue; }
+    }
+    // Willkommen: vor dem Fenster noch einmal dieselbe Prüfung wie beim Planen (inzwischen bezahlt, angerufen, gekündigt …?) —
+    // was nicht mehr passt, fällt sofort aus der Reihe (auch nachts), statt bis zum nächsten Fenster zu warten.
+    if (k.spielart === "willkommen") {
+      const nein = await willkommenEntfaellt(z.ref, lauf);
+      if (nein) { merken(`willkommen:${nein.slice(0, 30)}`); await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = ${`Willkommen entfällt: ${nein}`.slice(0, 200)}, updated_at = NOW() WHERE id = ${k.id}`; continue; }
     }
     const f = fensterOffen(k.spielart, land, new Date(), { fenster: einst.fenster });
     if (!f.offen) { merken(`fenster:${f.grund}`); continue; }

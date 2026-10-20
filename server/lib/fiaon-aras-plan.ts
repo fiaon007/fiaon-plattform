@@ -162,6 +162,46 @@ export async function willkommenBereit(personId: number, lauf: Lauf = sqlPool): 
   return z.length > 0;
 }
 
+// ── Willkommen nach Antrag (Go-live 20.10.2026, Koordination) ──────────────────────────────────────────────────
+/** 20 Minuten nach der Unterschrift, höchstens 24 h danach — später nie. */
+export const WILLKOMMEN_AB_MINUTEN = 20, WILLKOMMEN_BIS_STUNDEN = 24;
+/**
+ * EINE Quelle für Planer und Wähler: jede Vertragsannahme mit den Gründen, warum ARAS NICHT anruft. Angerufen wird nur, wenn
+ * alle false sind: unterschrieben (Vertragsannahme, kein Prüfstand), Aktivierung offen (nichts bezahlt, nichts gemeldet),
+ * Vertrag nicht beendet, keine Werbe- oder Vertriebssperre, keine Testperson, kein FIAON Global, KEIN Anruf mit ihm in den
+ * letzten 24 h (Mensch oder ARAS, rein oder raus), die Unterschrift 20 Minuten bis 24 h alt.
+ */
+function willkommenSql(): string {
+  return `
+    SELECT v.ref, v.angenommen_am, ${PERSON_NUMMER_SQL},
+           (COALESCE(a.payment_status, '') IN ('paid', 'completed', 'claimed_paid') OR a.claimed_paid_at IS NOT NULL) AS bezahlt,
+           (a.gekuendigt_am IS NOT NULL OR a.abo_gestoppt_am IS NOT NULL OR COALESCE(a.payment_status, '') IN ('cancelled', 'refunded', 'superseded')) AS beendet,
+           (COALESCE(p.is_blocked, FALSE) OR p.werbung_gesperrt_am IS NOT NULL) AS gesperrt,
+           NOT (${echtePersonSql("p")}) AS test,
+           ${globalKundeSql("p.id")} AS global,
+           EXISTS (SELECT 1 FROM fiaon_calls c WHERE c.person_id = p.id AND c.beginn > NOW() - INTERVAL '24 hours') AS anruf_24h,
+           (v.angenommen_am < NOW() - make_interval(hours => ${WILLKOMMEN_BIS_STUNDEN})) AS zu_alt,
+           (v.angenommen_am > NOW() - make_interval(mins => ${WILLKOMMEN_AB_MINUTEN})) AS zu_frisch,
+           (COALESCE(v.weg, '') LIKE '%pruefstand%') AS pruefstand
+      FROM fiaon_vertragsannahmen v
+      JOIN fiaon_applications a ON a.ref = v.ref AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL AND a.archived_at IS NULL
+      JOIN fiaon_persons p ON p.id = a.person_id`;
+}
+const WILLKOMMEN_NEIN: [string, string][] = [
+  ["pruefstand", "Prüfstand-Annahme"], ["bezahlt", "Aktivierung schon da"], ["beendet", "Vertrag beendet"], ["gesperrt", "Werbe- oder Vertriebssperre"],
+  ["test", "Testperson"], ["global", "FIAON Global"], ["anruf_24h", "Anruf in den letzten 24 h"], ["zu_alt", "Unterschrift älter als 24 h"],
+  ["zu_frisch", "Unterschrift jünger als 20 Minuten"],
+];
+/** Darf ARAS zu diesem Vertrag JETZT „Willkommen“ anrufen? null = ja, sonst der Grund (für Warteschlange und Protokoll). */
+export async function willkommenEntfaellt(ref: string | null | undefined, lauf: Lauf = sqlPool): Promise<string | null> {
+  if (!ref) return "ohne Antrag";
+  await globalKundeBereit();
+  const [w] = (await lauf.unsafe(`${willkommenSql()} WHERE v.ref = $1 LIMIT 1`, [String(ref)]).catch(() => [])) as any[];
+  if (!w) return "kein unterschriebener Antrag";
+  for (const [k, text] of WILLKOMMEN_NEIN) if (w[k]) return text;
+  return null;
+}
+
 /** Die wählbare Nummer einer Person (primary_phone, Land) — E.164 oder null. */
 export async function personNummer(personId: number, lauf: Lauf = sqlPool): Promise<string | null> {
   const [p] = (await lauf`SELECT primary_phone, country FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[];
@@ -338,6 +378,27 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
         erzeugtVon: "takt", fruehAb: new Date(beginn.getTime() - 60_000), spaetBis: new Date(beginn.getTime() + 30 * 60_000), terminId: Number(z.termin_id), einwilligungId: ew.id, anlassAm: beginn,
       }, lauf));
     }
+  }
+
+  // 1b. Willkommen nach Antrag (Go-live 20.10.2026): EINMAL je Vertrag, 20 Minuten nach der Unterschrift (im Fenster), sonst zum
+  //     nächsten Fensterbeginn — höchstens 24 h danach, später nie (spaet_bis). Vertragsabwicklung: nur Onboarding, kein LEXR-Tor.
+  if (an("willkommen")) {
+    try {
+      const zeilen = (await lauf.unsafe(`
+        SELECT * FROM (${willkommenSql()}) w
+         WHERE NOT (w.${WILLKOMMEN_NEIN.map(([k]) => k).join(" OR w.")})
+           AND NOT EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.spielart = 'willkommen' AND x.ref = w.ref)
+         ORDER BY w.angenommen_am LIMIT 100`)) as any[];
+      for (const z of zeilen) {
+        const nummer = nummerVon(z);
+        if (!nummer) { zaehl("willkommen", { ok: false, grund: "keine Nummer" }); continue; }
+        const am = new Date(z.angenommen_am);
+        zaehl("willkommen", await planEinreihen({
+          personId: Number(z.person_id), ref: z.ref, nummer, spielart: "willkommen", grund: "Antrag unterschrieben — Willkommen", erzeugtVon: "takt",
+          fruehAb: new Date(Math.max(Date.now(), am.getTime() + WILLKOMMEN_AB_MINUTEN * 60_000)), spaetBis: new Date(am.getTime() + WILLKOMMEN_BIS_STUNDEN * 3600_000), anlassAm: am,
+        }, lauf));
+      }
+    } catch (e) { zaehl("willkommen", { ok: false, grund: `Fehler: ${String((e as Error)?.message ?? e).slice(0, 30)}` }); }
   }
 
   // 2. Zuruf-JA / Antrag-Kästchen / Antrag-Knopf / Meta-Kästchen: frische Einwilligung + Antrag abgeschickt, unbezahlt

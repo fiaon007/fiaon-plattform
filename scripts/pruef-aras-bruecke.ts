@@ -1694,6 +1694,74 @@ async function main(): Promise<void> {
     }
   }
 
+  titel("23. WILLKOMMEN NACH ANTRAG (Go-live): 20 Minuten nach der Unterschrift, EINMAL je Vertrag, höchstens 24 h — nie bei Zahlung, Anruf in 24 h, Sperre, Test, Kündigung");
+  {
+    const { willkommenEntfaellt } = await import("../server/lib/fiaon-aras-plan");
+    await einstellungSetzen("aras_stufe", "1", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ willkommen: "an", rate: "an", termin: "an", probe: "an" }), "pruefstand");
+    await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+    // Reste der Abschnitte davor (klingelnde Prüf-Anrufe) zählen sonst als „gleichzeitig“ (Stufe 1: einer)
+    await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+    try {
+      const fall = async (n: number, o: { vorMin: number; bezahlt?: boolean; anruf?: boolean; werbesperre?: boolean; blocked?: boolean; test?: boolean; weg?: string; gekuendigt?: boolean; ohneAnnahme?: boolean }) => {
+        const pid = await person(n, { werbesperre: o.werbesperre, is_blocked: o.blocked, test: o.test });
+        const ref = await antrag(pid, n, { payment_status: o.bezahlt ? "paid" : "pending_payment" });
+        if (o.gekuendigt) await sqlPool`UPDATE fiaon_applications SET gekuendigt_am = NOW() WHERE ref = ${ref}`;
+        if (!o.ohneAnnahme) await sqlPool`
+          INSERT INTO fiaon_vertragsannahmen (ref, person_id, weg, angenommen_am, paket, rate_cents, gesamt_cents, vertrag_fassung, leistung_fassung, agb_fassung, knopf_text, haken, sofort_beginn, vertrag_html, vertrag_sha256)
+          VALUES (${ref}, ${pid}, ${o.weg ?? "neu"}, NOW() - make_interval(mins => ${o.vorMin}), 'plus', 5999, 71988, 'PV-test', 'L-test', 'AGB-test', 'Zahlungspflichtig annehmen', '{}'::jsonb, FALSE, '<p>Test</p>', 'test')`;
+        if (o.anruf) await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von) VALUES (${pid}, ${ausweis}, ${`+4917000000${n}`}, 'raus', 'beendet', NOW() - INTERVAL '2 hours', 'mensch')`;
+        return { pid, ref };
+      };
+      const gut1 = await fall(201, { vorMin: 30 });
+      const frisch = await fall(202, { vorMin: 10 });
+      const bezahlt = await fall(203, { vorMin: 30, bezahlt: true });
+      const angerufen = await fall(204, { vorMin: 30, anruf: true });
+      const werbe = await fall(205, { vorMin: 30, werbesperre: true });
+      const blockiert = await fall(206, { vorMin: 30, blocked: true });
+      const test = await fall(207, { vorMin: 30, test: true });
+      const pruef = await fall(208, { vorMin: 30, weg: "neu-pruefstand" });
+      const alt = await fall(209, { vorMin: 25 * 60 });
+      const gekuendigt = await fall(210, { vorMin: 30, gekuendigt: true });
+      const lead = await fall(211, { vorMin: 30, ohneAnnahme: true });
+      const f = await planFuellen();
+      const plaene = (await sqlPool`SELECT person_id, ref, frueh_ab, spaet_bis, rechtsgrund, prioritaet FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND status = 'wartet'`) as any[];
+      const p1 = plaene.find((z) => z.ref === gut1.ref);
+      ok("Unterschrift vor 30 Minuten, Aktivierung offen → eingereiht (Vertrag, Vorrang 2)", !!p1 && p1.rechtsgrund === "vertrag" && Number(p1.prioritaet) === 2, JSON.stringify({ f, plaene: plaene.map((z) => z.ref) }));
+      const annahmeAm = Date.now() - 30 * 60_000;
+      ok("Zeit: ab sofort (20 Minuten sind um), spätestens 24 h nach der Unterschrift — danach nie", !!p1 && Math.abs(new Date(p1.frueh_ab).getTime() - Date.now()) < 120_000 && Math.abs(new Date(p1.spaet_bis).getTime() - (annahmeAm + 24 * 3600_000)) < 120_000, p1 ? `${new Date(p1.frueh_ab).toISOString()} → ${new Date(p1.spaet_bis).toISOString()}` : "—");
+      const nicht = [frisch, bezahlt, angerufen, werbe, blockiert, test, pruef, alt, gekuendigt, lead].filter((x) => plaene.some((z) => z.ref === x.ref)).map((x) => x.ref);
+      ok("Rot-Proben: unter 20 Minuten, bezahlt, Anruf in 24 h, Werbesperre, Vertriebssperre, Testperson, Prüfstand, älter als 24 h, gekündigt, ohne Unterschrift → NIE eingereiht", nicht.length === 0, nicht.join(", "));
+      ok("Die Gründe in Worten (EINE Prüfung für Planer und Wähler)", (await willkommenEntfaellt(frisch.ref)) === "Unterschrift jünger als 20 Minuten" && (await willkommenEntfaellt(bezahlt.ref)) === "Aktivierung schon da" && (await willkommenEntfaellt(angerufen.ref)) === "Anruf in den letzten 24 h"
+        && (await willkommenEntfaellt(werbe.ref)) === "Werbe- oder Vertriebssperre" && (await willkommenEntfaellt(test.ref)) === "Testperson" && (await willkommenEntfaellt(alt.ref)) === "Unterschrift älter als 24 h"
+        && (await willkommenEntfaellt(gekuendigt.ref)) === "Vertrag beendet" && (await willkommenEntfaellt(lead.ref)) === "kein unterschriebener Antrag" && (await willkommenEntfaellt(gut1.ref)) === null);
+      await planFuellen();
+      const zweimal = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND ref = ${gut1.ref}`) as any[])[0]?.n;
+      ok("EINMAL je Vertrag: der zweite Planer-Lauf reiht nichts mehr ein", Number(zweimal) === 1, String(zweimal));
+      const vonHand = await planEinreihen({ personId: lead.pid, nummer: "+4917000000211", spielart: "willkommen", grund: "Prüfstand von Hand", erzeugtVon: "chef" });
+      ok("Rot-Probe: von Hand ohne unterschriebenen Antrag → abgelehnt", !vonHand.ok && /unterschriebenen Antrag/.test(vonHand.grund ?? ""), vonHand.grund ?? "");
+      // Vor dem Wählen: inzwischen bezahlt → fällt aus der Reihe (auch nachts), kein Anruf
+      await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid' WHERE ref = ${gut1.ref}`;
+      const vorher = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE person_id = ${gut1.pid}`) as any[])[0]?.n;
+      const t = await waehlerTakt();
+      const [pz] = (await sqlPool`SELECT status, verschoben_grund FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND ref = ${gut1.ref}`) as any[];
+      const nachher = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE person_id = ${gut1.pid}`) as any[])[0]?.n;
+      ok("Vor dem Wählen bezahlt → „Willkommen entfällt: Aktivierung schon da“, kein Anruf", pz?.status === "verfallen" && /Aktivierung schon da/.test(String(pz?.verschoben_grund)) && Number(nachher) === Number(vorher), JSON.stringify({ t, pz }));
+      // Im Fenster wählt der Takt den gültigen Willkommens-Anruf (außerhalb: wartet)
+      const gut2 = await fall(212, { vorMin: 40 });
+      await planFuellen();
+      const t2 = await waehlerTakt();
+      const fenster = t2.ausgelassen.some((a) => a.grund.startsWith("fenster:"));
+      if (fenster) ok("Außerhalb des Fensters: der Willkommens-Anruf wartet (wird nicht verworfen)", ((await sqlPool`SELECT status FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND ref = ${gut2.ref}`) as any[])[0]?.status === "wartet");
+      else ok("Im Fenster: der Takt wählt den Willkommens-Anruf", t2.gewaehlt >= 1 && ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_aras_anruf an JOIN fiaon_calls c ON c.id = an.call_id WHERE an.spielart = 'willkommen' AND c.person_id = ${gut2.pid}`) as any[])[0]?.n >= 1, JSON.stringify(t2));
+    } finally {
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', call_id = NULL WHERE status IN ('gewaehlt', 'wartet', 'verschoben')`;
+      await sqlPool`DELETE FROM fiaon_aras_anruf WHERE call_id IN (SELECT id FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt')`;
+      await sqlPool`DELETE FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt'`;
+      await einstellungSetzen("aras_stufe", "0", "pruefstand");
+    }
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

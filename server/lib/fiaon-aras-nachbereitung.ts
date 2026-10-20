@@ -27,7 +27,7 @@ import { nutzungMerken } from "./fiaon-postmeister-schema";
 import { ERGEBNISSE } from "../../shared/fiaon-kontakt-ergebnis-liste";
 import { telefonRegeln, type RegelZeile as PruefZeileT } from "../../shared/fiaon-aras-regeln";
 import {
-  istArasErgebnis, istSpielart, nummerLand, fensterOffen, berlinTeile, ARAS_DIENSTE, PROBE_AGENT_VORGABE, STIMMEN_OPENAI, stimmeGueltig,
+  istArasErgebnis, istSpielart, nummerLand, fensterOffen, berlinTeile, ARAS_DIENSTE, PROBE_AGENT_VORGABE, STIMMEN_OPENAI, stimmeGueltig, feedbackAusGrund,
   type ArasErgebnis, type Spielart, type AnrufZeile, type AnrufDetail, type Werkzeug,
 } from "../../shared/fiaon-aras";
 import { probeBriefing } from "../../shared/fiaon-aras-prompt";
@@ -62,7 +62,8 @@ async function zusammenfassung(l: NachbereitungLage, spielart: Spielart): Promis
   const ausTools = l.ausgefuehrt.filter((x) => x.werkzeug !== "akte_nachsehen").map((x) => `${x.werkzeug}${x.ok ? "" : " (fehlgeschlagen)"}`);
   const fallback = `Gespräch „${spielart}“, ${l.sekunden} s, Ende: ${l.endeGrund}.${ausTools.length ? ` Werkzeuge: ${ausTools.join(", ")}.` : ""}${l.aufnahmeJa ? "" : " Ohne Aufzeichnung."}`.slice(0, 600);
   // Ohne Aufnahme-Ja nur die letzten drei Zeilen (wie die Notiz eines Menschen) — nie den Volltext an ein Modell.
-  const zeilen = (l.aufnahmeJa ? l.zeilen : l.zeilen.slice(-3)).filter((z) => z.text.trim());
+  // Probeanruf (Justin ruft sich selbst an): das ganze Gespräch — dafür wird es gespeichert (Punkt 5).
+  const zeilen = (l.aufnahmeJa || l.probe ? l.zeilen : l.zeilen.slice(-3)).filter((z) => z.text.trim());
   if (!l.kundeHatGesprochen || zeilen.length < 2 || !process.env.OPENAI_API_KEY) return fallback;
   const text = zeilen.map((z) => `${z.wer === "kunde" ? "Kunde" : "Aras"}: ${z.text.trim()}`).join("\n").slice(0, 12_000);
   const t0 = Date.now();
@@ -293,8 +294,73 @@ export async function probeUrteil(e: { callId: number; daumen: "hoch" | "runter"
            probe_urteil_am = NOW(), probe_urteil_von = ${e.von.slice(0, 80)}, updated_at = NOW()
      WHERE call_id = ${e.callId} RETURNING id, spielart`) as any[];
   if (!r.length) return { ok: false, grund: "Diesen Anruf gibt es nicht." };
+  // Die Gründe zum Daumen („zu langsam · Begrüßung holprig“) landen als Punkte in „Dein Feedback aus Probeanrufen“ — mit der
+  // Regel, die beim Übernehmen in die Hausanweisung käme. Ein zweiter Klick auf denselben Anruf legt nichts doppelt an.
+  if (r[0].spielart === "probe") {
+    for (const f of feedbackAusGrund(e.grund)) {
+      await lauf`INSERT INTO fiaon_aras_feedback (aras_anruf_id, call_id, text, regel, art, quelle, daumen)
+                 SELECT ${Number(r[0].id)}, ${e.callId}, ${f.text}, ${f.regel}, ${f.art}, 'daumen', ${e.daumen}
+                  WHERE NOT EXISTS (SELECT 1 FROM fiaon_aras_feedback WHERE aras_anruf_id = ${Number(r[0].id)} AND lower(text) = lower(${f.text}))`;
+    }
+  }
   await arasEreignis({ art: "aras_pruefung", callId: e.callId, arasAnrufId: Number(r[0].id), spielart: r[0].spielart, ok: e.daumen === "hoch",
     text: `Urteil von ${e.von}: Daumen ${e.daumen}${e.grund ? ` — ${String(e.grund).slice(0, 120)}` : ""}`, daten: { daumen: e.daumen } });
+  return { ok: true };
+}
+
+/**
+ * Ein Punkt in „Dein Feedback aus Probeanrufen“ — Vertrag mit der Oberfläche (ArasFeedback, Koordination 20.10.):
+ * { id, text, vorschlag?, am?, status: offen | uebernommen | verworfen, daumen?, anzahl? }.
+ */
+export interface FeedbackZeile {
+  id: number; text: string; vorschlag: string | null; am: string; status: "offen" | "uebernommen" | "verworfen";
+  daumen: "hoch" | "runter" | null; anzahl: number; art: string; quelle: "telefon" | "daumen"; callId: number | null; entschiedenAm: string | null;
+}
+/** Das Feedback aus Probeanrufen. Derselbe Punkt aus mehreren Probeanrufen steht EINMAL da (der jüngste); anzahl = in wie vielen er kam. */
+export async function feedbackListe(lauf: Lauf = sqlPool): Promise<FeedbackZeile[]> {
+  await arasSchema(lauf);
+  const zeilen = (await lauf`
+    SELECT * FROM (
+      SELECT DISTINCT ON (lower(f.text), f.status) f.id, f.text, f.regel, f.art, f.quelle, f.status, f.erstellt_am, f.entschieden_am, f.call_id,
+             COALESCE(f.daumen, aa.probe_urteil) AS daumen,
+             (SELECT COUNT(DISTINCT g.aras_anruf_id)::int FROM fiaon_aras_feedback g WHERE lower(g.text) = lower(f.text) AND g.status = f.status) AS anzahl
+        FROM fiaon_aras_feedback f LEFT JOIN fiaon_aras_anruf aa ON aa.id = f.aras_anruf_id
+       ORDER BY lower(f.text), f.status, f.id DESC
+    ) x ORDER BY (x.status = 'offen') DESC, x.id DESC LIMIT 100`) as any[];
+  return zeilen.map((z) => ({
+    id: Number(z.id), text: String(z.text),
+    // So stünde es in der Hausanweisung „Aras am Telefon“, wenn Justin es übernimmt (ohne Regel: seine Worte).
+    vorschlag: z.regel ? String(z.regel) : null,
+    am: new Date(z.erstellt_am).toISOString(),
+    status: (["offen", "uebernommen", "verworfen"].includes(String(z.status)) ? String(z.status) : "offen") as FeedbackZeile["status"],
+    daumen: z.daumen === "hoch" || z.daumen === "runter" ? z.daumen : null,
+    anzahl: Number(z.anzahl ?? 1), art: String(z.art ?? "sonstiges"), quelle: z.quelle === "daumen" ? "daumen" : "telefon",
+    callId: z.call_id != null ? Number(z.call_id) : null, entschiedenAm: z.entschieden_am ? new Date(z.entschieden_am).toISOString() : null,
+  }));
+}
+/**
+ * Übernehmen (die Regel als neue Zeile an die Hausanweisung „telefon“ — eine neue Fassung, die alte bleibt) oder verwerfen.
+ * Gilt für denselben Punkt aus allen Probeanrufen (die Liste zeigt ihn einmal).
+ */
+export async function feedbackEntscheiden(e: { id: number; was: string; von: string }, lauf: Lauf = sqlPool): Promise<{ ok: true } | { ok: false; status: number; fehler: string }> {
+  if (!Number.isInteger(e.id) || e.id <= 0) return { ok: false, status: 400, fehler: "Ungültiges Feedback." };
+  if (e.was !== "uebernehmen" && e.was !== "verwerfen") return { ok: false, status: 404, fehler: "Nur übernehmen oder verwerfen." };
+  await arasSchema(lauf);
+  const [f] = (await lauf`SELECT id, text, regel, status FROM fiaon_aras_feedback WHERE id = ${e.id}`) as any[];
+  if (!f) return { ok: false, status: 404, fehler: "Dieses Feedback gibt es nicht." };
+  if (f.status !== "offen") return { ok: false, status: 409, fehler: `Schon ${f.status === "uebernommen" ? "übernommen" : "verworfen"}.` };
+  if (e.was === "uebernehmen") {
+    const { anweisungLesen, anweisungSetzen, MAX_ZEICHEN } = await import("./fiaon-mara-anweisung");
+    const alt = String((await anweisungLesen("telefon")) ?? "");
+    const zeile = `· ${String(f.regel || f.text).trim()}`;
+    if (!alt.split("\n").some((z) => z.trim() === zeile)) {
+      const neu = alt.trim() ? `${alt.trimEnd()}\n${zeile}` : `Aus Justins Probeanrufen:\n${zeile}`;
+      if (neu.length > MAX_ZEICHEN) return { ok: false, status: 400, fehler: `Die Hausanweisung „Aras am Telefon“ wäre zu lang (höchstens ${MAX_ZEICHEN} Zeichen) — bitte dort erst kürzen.` };
+      await anweisungSetzen("telefon", neu, e.von);
+    }
+  }
+  await lauf`UPDATE fiaon_aras_feedback SET status = ${e.was === "uebernehmen" ? "uebernommen" : "verworfen"}, entschieden_am = NOW(), entschieden_von = ${e.von.slice(0, 80)}
+              WHERE status = 'offen' AND lower(text) = lower(${String(f.text)})`;
   return { ok: true };
 }
 

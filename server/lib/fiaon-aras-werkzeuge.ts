@@ -31,7 +31,7 @@ import { telefonSperren, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungWiderrufen } from "./fiaon-telefon-einwilligung";
 import { praesent } from "./fiaon-softphone-praesenz";
 import { planEinreihen } from "./fiaon-aras-plan";
-import { istWerkzeug, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
+import { istWerkzeug, FEEDBACK_ARTEN, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
 import type { Briefing } from "../../shared/fiaon-aras-prompt";
 import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
 import { berlinToday } from "./fiaon-time";
@@ -314,6 +314,19 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     return { ok: false, vorlesen: satz, fehler: "kein_ziel" };
   },
 
+  /** Nur im Probeanruf: Justins Feedback („sprich FIAON richtig aus“) für „Dein Feedback aus Probeanrufen“ (übernehmen → Hausanweisung). */
+  async probe_feedback_merken(ctx, e, lauf) {
+    if (ctx.spielart !== "probe" && !ctx.briefing.probe) return { ok: false, vorlesen: "", fehler: "nur_probe" };
+    const text = kurz(String(e?.text ?? ""), 400);
+    if (text.length < 3) return { ok: false, vorlesen: "", fehler: "leer" };
+    const regel = kurz(String(e?.regel ?? ""), 240) || null;
+    const art = (FEEDBACK_ARTEN as readonly string[]).includes(String(e?.art)) ? String(e.art) : "sonstiges";
+    // Dasselbe Feedback im selben Anruf nur einmal (das Hintergrund-Modell ruft gelegentlich doppelt).
+    const [schon] = (await lauf`SELECT id FROM fiaon_aras_feedback WHERE aras_anruf_id = ${ctx.arasAnrufId} AND lower(text) = lower(${text})`) as any[];
+    if (!schon) await lauf`INSERT INTO fiaon_aras_feedback (aras_anruf_id, call_id, text, regel, art, quelle) VALUES (${ctx.arasAnrufId}, ${ctx.callId}, ${text}, ${regel}, ${art}, 'telefon')`;
+    return { ok: true, vorlesen: "", still: "Feedback festgehalten — setz es sofort um und mach ganz normal weiter (keine Weiterleitung)." };
+  },
+
   async anruf_beenden(ctx, e) {
     const ergebnis: ArasErgebnis = istArasErgebnis(e?.ergebnis) ? e.ergebnis : "erreicht_sonstiges";
     const notiz = kurz(String(e?.notiz ?? ""), 400);
@@ -347,7 +360,7 @@ export async function werkzeugAusfuehren(ctx: WerkzeugKontext, name: Werkzeug, e
   const stufe = istWerkzeug(name) ? await ampelFuer(ctx, name) : "gruen";
   if (!istWerkzeug(name)) erg = { ok: false, vorlesen: "", fehler: `Unbekanntes Werkzeug „${String(name).slice(0, 40)}“.` };
   else if (stufe === "rot") erg = { ok: false, vorlesen: "Das klärt ein Kollege — ich notiere es.", fehler: "ampel_rot" };
-  else if (ctx.trocken && !["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "anruf_beenden"].includes(name)) erg = trockenErgebnis(name, eingabe);
+  else if (ctx.trocken && !["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "anruf_beenden", "probe_feedback_merken"].includes(name)) erg = trockenErgebnis(name, eingabe);
   else {
     try { erg = await WERKZEUG[name](ctx, eingabe ?? {}, lauf); }
     catch (err) { erg = { ok: false, vorlesen: "Das hat gerade nicht geklappt — ich notiere es.", fehler: String((err as Error)?.message ?? err).slice(0, 300) }; }

@@ -12,6 +12,8 @@
 //   GET  /chef/aras/probe/testpersonen       Testpersonen (ist_test_am) — mit ihrer Akte laufen die Werkzeuge ECHT (Abnahme Scheibe 2)
 //   POST /chef/aras/probe/:callId/auflegen   den laufenden Probeanruf beenden
 //   POST /chef/aras/probe/:callId/urteil     Justins Daumen nach dem Probeanruf (hoch/runter + Grund)
+//   GET  /chef/aras/probe/feedback           „Dein Feedback aus Probeanrufen“ (Aras am Telefon + Daumen-Gründe; gleiche Punkte zusammen)
+//   POST /chef/aras/probe/feedback/:id/uebernehmen | /verwerfen   übernehmen = Regel an die Hausanweisung „telefon“ anhängen
 //   GET  /chef/aras/probe/live?callId=N      Live-Strom (SSE) EINES Probeanrufs: Sätze + Zustand
 //   GET  /chef/aras/probe/hoerproben         Stimmen-Studio: die Hörproben
 //   POST /chef/aras/probe/hoerprobe          eine Hörprobe erzeugen (Stimme + Satz)
@@ -28,7 +30,7 @@ import { Router, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { arasEinstellungenLesen, einstellungSetzen, planFuellen, arasKostenHeute } from "../lib/fiaon-aras-plan";
 import { waehlerTakt, notaus, start, leerlauf } from "../lib/fiaon-aras-waehler";
-import { probeZiel, probeanruf, probeUrteil, letzterProbeanruf } from "../lib/fiaon-aras-nachbereitung";
+import { probeZiel, probeanruf, probeUrteil, letzterProbeanruf, feedbackListe, feedbackEntscheiden } from "../lib/fiaon-aras-nachbereitung";
 import { hoerprobeErzeugen, hoerprobenListe, hoerprobeAudio, hoerprobeWaehlen, hoerprobeBewerten } from "../lib/fiaon-aras-hoerprobe";
 import { adapterFuer } from "../lib/fiaon-aras-adapter";
 import { twilioBereit } from "../lib/fiaon-aras-twilio-client";
@@ -135,6 +137,21 @@ router.post("/chef/aras/probe/:callId/urteil", wache, async (req: ChefRequest, r
   try {
     const r = await probeUrteil({ callId, daumen, grund: req.body?.grund ? String(req.body.grund) : null, von: wer(req) });
     if (!r.ok) return fehler(res, 400, r.grund ?? "Nicht gespeichert.");
+    res.json({ ok: true });
+  } catch (e) { fehler(res, 500, text(e)); }
+});
+
+// ── Feedback aus Probeanrufen (Justin 20.10., Anruf 12: Er sagte Aras am Telefon, was besser werden soll) ──────────
+router.get("/chef/aras/probe/feedback", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, zeilen: await feedbackListe() });
+  } catch (e) { fehler(res, 500, text(e)); }
+});
+router.post("/chef/aras/probe/feedback/:id/:was", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const r = await feedbackEntscheiden({ id: Number(req.params.id), was: String(req.params.was), von: wer(req) });
+    if (!r.ok) return fehler(res, r.status, r.fehler);
     res.json({ ok: true });
   } catch (e) { fehler(res, 500, text(e)); }
 });

@@ -50,7 +50,38 @@ export type EinwilligungArt = (typeof EINWILLIGUNG_ARTEN)[number];
 
 // ── Werkzeuge ──────────────────────────────────────────────────────────────
 export const WERKZEUGE = ["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "zahlungslink_senden", "zahlungszusage_merken", "zahlung_gemeldet",
-  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden"] as const;
+  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken"] as const;
+/** Nur im Probeanruf (Justin 20.10., Anruf 12: Er gab Aras am Telefon Feedback — das soll in die Hausanweisung können). */
+export const WERKZEUGE_NUR_PROBE: readonly string[] = ["probe_feedback_merken"];
+/** Arten von Probe-Feedback (für „Dein Feedback aus Probeanrufen“). */
+export const FEEDBACK_ARTEN = ["aussprache", "einstieg", "ton", "tempo", "inhalt", "sonstiges"] as const;
+export type FeedbackArt = (typeof FEEDBACK_ARTEN)[number];
+/**
+ * Justins Daumen-Gründe nach dem Probeanruf (die Knöpfe im KI-Team › Aras) als Regel für die Hausanweisung „Aras am
+ * Telefon“ — so steht es dort, wenn er den Punkt übernimmt. Ein Grund ohne Eintrag (frei getippt) bleibt in seinen Worten.
+ */
+export const FEEDBACK_REGEL_AUS_GRUND: Record<string, { art: FeedbackArt; regel: string }> = {
+  "klingt nach KI": { art: "ton", regel: "Klinge wie ein Mensch: kurze, lockere Sätze, kleine Pausen — nie vorgelesen." },
+  "zu langsam": { art: "tempo", regel: "Antworte schneller: ohne Anlauf, gleich mit der Sache." },
+  "zu schnell": { art: "tempo", regel: "Sprich etwas ruhiger und mach kleine Pausen zwischen den Gedanken." },
+  "zu viele Füllwörter": { art: "ton", regel: "Weniger Füllwörter — höchstens eins in drei Sätzen." },
+  "wiederholt sich": { art: "inhalt", regel: "Sag nichts zweimal — greif seine Antwort auf, statt dich zu wiederholen." },
+  "fällt mir ins Wort": { art: "tempo", regel: "Lass ihn ausreden — warte, bis er wirklich fertig ist." },
+  "Unterbrechen hakt": { art: "tempo", regel: "Unterbricht er dich: sofort still, zuhören, dann auf ihn eingehen." },
+  "versteht schlecht": { art: "inhalt", regel: "Ist etwas unklar, frag kurz nach, statt zu raten." },
+  "zu aufdringlich": { art: "ton", regel: "Weniger Druck: ein klares Angebot, dann seine Entscheidung." },
+  "Begrüßung holprig": { art: "einstieg", regel: "Die Eröffnung in einem Zug: Gruß, Name, Grund, KI-Hinweis, Frage." },
+  "Schluss zu abrupt": { art: "inhalt", regel: "Zum Schluss: kurz zusammenfassen, nächster Schritt, warm verabschieden." },
+};
+/** Die Gründe eines Daumens („zu langsam · Begrüßung holprig“) als einzelne Feedback-Punkte. Rein. */
+export function feedbackAusGrund(grund: string | null | undefined): { text: string; art: FeedbackArt; regel: string | null }[] {
+  const teile = String(grund ?? "").split(/\s*[·•;\n]\s*/).map((t) => t.replace(/\s+/g, " ").trim()).filter((t) => t.length >= 3).slice(0, 12);
+  const gesehen = new Set<string>();
+  return teile.filter((t) => { const k = t.toLowerCase(); if (gesehen.has(k)) return false; gesehen.add(k); return true; }).map((t) => {
+    const r = Object.entries(FEEDBACK_REGEL_AUS_GRUND).find(([k]) => k.toLowerCase() === t.toLowerCase())?.[1];
+    return { text: t.slice(0, 400), art: r?.art ?? "sonstiges", regel: r?.regel ?? null };
+  });
+}
 export type Werkzeug = (typeof WERKZEUGE)[number];
 export function istWerkzeug(v: unknown): v is Werkzeug { return typeof v === "string" && (WERKZEUGE as readonly string[]).includes(v); }
 
@@ -74,6 +105,7 @@ export const ARAS_AMPEL: readonly ArasAmpelWerkzeug[] = [
   { key: "nicht_mehr_anrufen", label: "Nicht mehr anrufen", satz: "Dauerhafte Telefonsperre — sofort.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "mensch_verbinden", label: "Mensch verbinden", satz: "Ins Softphone des Zuständigen, sonst Anruf eintragen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "anruf_beenden", label: "Anruf beenden", satz: "Ergebnis in die Akte, auflegen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
+  { key: "probe_feedback_merken", label: "Probe-Feedback merken", satz: "Nur im Probeanruf: dein Feedback für „Dein Feedback aus Probeanrufen“.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
 ];
 export const ARAS_AMPEL_SCHALTER = "aras_ampel";
 export const DELEGATION = ["responses", "client"] as const;

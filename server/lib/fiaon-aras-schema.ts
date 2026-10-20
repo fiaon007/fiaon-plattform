@@ -102,6 +102,26 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS ton JSONB`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS antwort_ms_median INTEGER`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS antwort_ms_max INTEGER`;
+      // Probeanruf (Justin 20.10., Punkt 5): das Transkript wird IMMER gespeichert (er ruft sich selbst an) — gekennzeichnet.
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS transkript_grund TEXT`;
+      // Feedback aus Probeanrufen (Punkt 4): von Aras am Telefon (quelle telefon) oder aus Justins Daumen-Gründen (quelle daumen).
+      // „Übernehmen“ hängt die Regel an die Hausanweisung „telefon“; status offen | uebernommen | verworfen.
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_aras_feedback (
+          id BIGSERIAL PRIMARY KEY,
+          aras_anruf_id BIGINT,
+          call_id INTEGER,
+          text TEXT NOT NULL,
+          regel TEXT,
+          art TEXT NOT NULL DEFAULT 'sonstiges',
+          quelle TEXT NOT NULL DEFAULT 'telefon',
+          daumen TEXT,
+          status TEXT NOT NULL DEFAULT 'offen',
+          erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          entschieden_am TIMESTAMPTZ,
+          entschieden_von TEXT
+        )`;
+      await lauf`CREATE INDEX IF NOT EXISTS fiaon_aras_feedback_status ON fiaon_aras_feedback (status, id DESC)`;
       // Scheibe 2 (Akte): je Kunde „Was Aras wissen muss“ und der Schalter „Aras für diesen Kunden aus“ (wirkt sofort auf die
       // Warteschlange). Anders als fiaon_telefon_sperre („nicht mehr anrufen“ = niemand ruft an) gilt das nur für Aras.
       await lauf`

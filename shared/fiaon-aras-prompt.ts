@@ -22,7 +22,7 @@
 // hier als Stämme mit Bindestrich („Garant-“), nicht als ganze Wörter.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
-  ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE,
+  ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, WERKZEUGE_NUR_PROBE, FEEDBACK_ARTEN, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE,
   type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt, type Zuhoeren, type Menschlich,
 } from "./fiaon-aras";
 import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEingang, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
@@ -107,12 +107,15 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
     schema: O({ grund: { type: "string", enum: ["wunsch", "kuendigung", "widerruf", "beschwerde", "recht", "erstattung", "erlass", "global", "unklar"] } }, ["grund"]) },
   { name: "anruf_beenden", beschreibung: "Beendet das Gespräch mit Ergebnis und kurzer Notiz — erst NACHDEM Aras sich hörbar verabschiedet hat (nie direkt nach „Moment“).",
     schema: O({ ergebnis: { type: "string", enum: [...ARAS_ERGEBNISSE] }, notiz: { type: "string", maxLength: 400 } }, ["ergebnis", "notiz"]) },
+  { name: "probe_feedback_merken", beschreibung: "NUR im Probeanruf: Justin (Inhaber) sagt, wie Aras sprechen oder es machen soll (Aussprache, Einstieg, Ton, Tempo, Inhalt). Hält es fest — in Justins Worten (text) und als kurze Regel für Aras (regel, ein Satz in der Befehlsform, z. B. „Sprich FIAON als ein Wort, mitten im Satz.“). Justin kann sie später in die Hausanweisung übernehmen.",
+    schema: O({ text: { type: "string", minLength: 3, maxLength: 400 }, regel: { type: "string", minLength: 3, maxLength: 240 }, art: { type: "string", enum: [...FEEDBACK_ARTEN] } }, ["text", "regel", "art"]) },
 ];
 
-/** Welche Werkzeuge diese Sitzung bekommt: Global nur fünf, rote Ampel raus. */
-export function werkzeugeFuer(e: { global: boolean; isBlocked: boolean; ampel: Record<string, AmpelStufe>; spielart: Spielart }): WerkzeugDef[] {
+/** Welche Werkzeuge diese Sitzung bekommt: Global nur fünf, rote Ampel raus, Probe-Feedback nur im Probeanruf. */
+export function werkzeugeFuer(e: { global: boolean; isBlocked: boolean; ampel: Record<string, AmpelStufe>; spielart: Spielart; probe?: boolean }): WerkzeugDef[] {
   const erlaubt = new Set<Werkzeug>(e.global ? WERKZEUGE_GLOBAL : WERKZEUGE);
-  return WERKZEUG_DEFS.filter((d) => erlaubt.has(d.name) && e.ampel[d.name] !== "rot");
+  const probe = e.probe === true || e.spielart === "probe";
+  return WERKZEUG_DEFS.filter((d) => erlaubt.has(d.name) && e.ampel[d.name] !== "rot" && (probe || !WERKZEUGE_NUR_PROBE.includes(d.name)));
 }
 
 // ── Gesprochen: Links raus, höchstens zwei Sätze ───────────────────────────
@@ -828,6 +831,7 @@ function delegation(defs: WerkzeugDef[]): string {
     hat("nicht_mehr_anrufen") ? "- Sperre: keine Anrufe mehr." : "",
     hat("mensch_verbinden") ? "- Mensch: zu jemandem aus dem Team verbinden — oder einen Anruf zu fester Zeit eintragen." : "",
     hat("anruf_beenden") ? "- Ende: das Gespräch mit Ergebnis festhalten und auflegen." : "",
+    hat("probe_feedback_merken") ? "- Feedback (nur Probeanruf): Justins Wunsch, wie du sprechen oder es machen sollst, festhalten." : "",
   ].filter(Boolean);
   return [
     `Delegation policy:`,
@@ -838,6 +842,7 @@ function delegation(defs: WerkzeugDef[]): string {
     `- Ein Link geschickt, ein Zahltag oder Termin eingetragen, eine Zahlung vermerkt, eine Ratenpause gesetzt werden soll — auch ein „Ja“ auf „heute noch?“ ist ein Zahltag (heute), der eingetragen wird.`,
     `- Du Daten brauchst, die nicht oben stehen (Zahlungen, Termine, Notizen).`,
     `- Er nicht mehr angerufen werden will oder einen Menschen sprechen möchte.`,
+    ...(hat("probe_feedback_merken") ? [`- Justin (Probeanruf) dir Feedback gibt, wie du sprechen oder es machen sollst — festhalten (probe_feedback_merken) und gleich umsetzen.`] : []),
     `- Das Gespräch vorbei ist (nach deiner Verabschiedung) — dann wird es festgehalten und beendet.`,
     ``,
     `Do not delegate to the backend when:`,
@@ -883,6 +888,7 @@ function hintergrund(b: Briefing, spielart: Spielart, defs: WerkzeugDef[]): stri
     `· anruf_beenden immer zuletzt — ERST wenn Aras sich in der Abschrift hörbar verabschiedet hat (z. B. „einen schönen Tag noch“); nie direkt nach „Moment“. Mit ehrlichem Ergebnis: erreicht_zahlt_gleich (überweist jetzt/heute), erreicht_zahlt_am (Tag zugesagt), rueckruf_termin (Anruf zur festen Zeit), erreicht_abgelehnt (klares Nein), erreicht_sonstiges, uebergeben, mailbox, nummer_falsch, nicht_erreicht.`,
     `· Nie ohne Anlass ein Werkzeug. Nie dasselbe Werkzeug zweimal für dieselbe Sache.`,
     spielart === "probe" || b.probe ? `· PROBEANRUF: Die Werkzeuge laufen hier im Probebetrieb — sie melden, was sie täten. Gib das ganz normal an Aras zurück.` : "",
+    spielart === "probe" || b.probe ? `· probe_feedback_merken, sobald Justin sagt, wie Aras sprechen oder es machen soll („sprich FIAON richtig aus“, „sei direkter“, „das klingt komisch“): text = sein Wunsch in seinen Worten, regel = derselbe Wunsch als kurze Regel für Aras in der Befehlsform, art = aussprache, einstieg, ton, tempo, inhalt oder sonstiges. Bei Feedback im Probeanruf nie mensch_verbinden — Justin will, dass Aras es selbst umsetzt.` : "",
     ``,
     `## Was über den Kunden bekannt ist`,
     briefingText(b, spielart).split("\n").slice(1).join("\n"),
@@ -942,7 +948,7 @@ export function textKennung(text: string): string {
 /** Die ganze Sitzungsanweisung — Reihenfolge fest (Vertrag § 10, angepasst an die GPT-Live-Struktur). */
 export function anweisungBauen(e: AnweisungEin): Anweisung {
   const regie: Regie = { ...REGIE_VORGABE, ...(e.einstellungen.regie ?? {}) };
-  const werkzeuge = werkzeugeFuer({ global: e.briefing.global, isBlocked: e.briefing.isBlocked, ampel: e.einstellungen.ampel, spielart: e.spielart });
+  const werkzeuge = werkzeugeFuer({ global: e.briefing.global, isBlocked: e.briefing.isBlocked, ampel: e.einstellungen.ampel, spielart: e.spielart, probe: e.briefing.probe === true });
   const bausteine: Record<string, string> = {
     "0_stimme": stimmeHeute(regie),
     "1_rolle": rolle(e.einstellungen, regie),

@@ -1509,6 +1509,109 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 
+  titel("20. FEEDBACK AUS PROBEANRUFEN (Justin 20.10., Punkte 4 und 5) — Aras hält es fest, Daumen-Gründe kommen dazu, „übernehmen“ hängt die Regel an die Hausanweisung; Probe-Transkript immer");
+  {
+    const { berlinTeile } = await import("../shared/fiaon-aras");
+    const { werkzeugeFuer } = await import("../shared/fiaon-aras-prompt");
+    const { feedbackListe, feedbackEntscheiden } = await import("../server/lib/fiaon-aras-nachbereitung");
+    const { anweisungLesen, anweisungSetzen } = await import("../server/lib/fiaon-mara-anweisung");
+    const nacht = (() => { const h = berlinTeile(new Date()).hhmm; return h < "07:00" || h >= "23:00"; })();
+    process.env.ARAS_EROEFFNUNG_SOFORT = "1";
+    await einstellungSetzen("aras_stufe", "3", "pruefstand");
+    const hausVorher = await anweisungLesen("telefon");
+    const hat = (w: { name: string }[]) => w.some((x) => x.name === "probe_feedback_merken");
+    ok("Werkzeug nur im Probeanruf: im Kundenanruf fehlt probe_feedback_merken, im Probeanruf ist es da",
+      !hat(werkzeugeFuer({ global: false, isBlocked: false, ampel: {}, spielart: "zuruf" })) && hat(werkzeugeFuer({ global: false, isBlocked: false, ampel: {}, spielart: "probe" })) && hat(werkzeugeFuer({ global: false, isBlocked: false, ampel: {}, spielart: "zuruf", probe: true })));
+    if (nacht) ok("Nachts (vor 7 / ab 23 Uhr): Probeanruf-Teil übersprungen (Probeanrufe nur 7–23 Uhr)", true);
+    else {
+      const att = attrappeMitSkript({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 200 }, { kunde: "Sprich FIAON bitte richtig aus und sei direkter." },
+        { werkzeug: "probe_feedback_merken", eingabe: { text: "FIAON richtig aussprechen und direkter sein", regel: "Sprich FIAON als ein Wort, mitten im Satz — und komm gleich zur Sache.", art: "aussprache" } },
+        { werkzeug: "probe_feedback_merken", eingabe: { text: "FIAON richtig aussprechen und direkter sein", regel: "doppelt", art: "aussprache" } },
+        { aras: "Ah, guter Punkt — danke, merk ich mir!", ms: 200 },
+        { kunde: "Und sag weniger oft Super." },
+        { werkzeug: "probe_feedback_merken", eingabe: { text: "Weniger oft Super sagen", regel: "Sag „Super“ höchstens zweimal im Gespräch.", art: "ton" } },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Probe Feedback" } },
+      ] });
+      adapterSetzen("attrappe", att);
+      const r = await probeanruf({ spielart: "zuruf", von: "pruefstand" });
+      ok("Probeanruf gewählt", r.ok && !!r.callId, r.grund);
+      if (r.callId) {
+        const tw = new TwilioAttrappe({ url: wsUrl, anrufId: r.callId, t: streamToken(r.callId) });
+        await tw.start();
+        await warten(async () => !!(await anruf(r.callId!))?.nachbereitet_am, 12_000);
+        tw.aufhaengen();
+        const a = await anruf(r.callId);
+        const fb = (await sqlPool`SELECT text, regel, art, quelle, status FROM fiaon_aras_feedback WHERE aras_anruf_id = ${a.id} ORDER BY id`) as any[];
+        ok("probe_feedback_merken: zwei Punkte (derselbe doppelt → einmal), in Justins Worten, mit Regel und Art, offen",
+          fb.length === 2 && fb[0].art === "aussprache" && /Sprich FIAON als ein Wort/.test(String(fb[0].regel)) && fb[1].art === "ton" && fb.every((f) => f.quelle === "telefon" && f.status === "offen"), JSON.stringify(fb).slice(0, 220));
+        ok("Probe-Transkript gespeichert — ohne Aufzeichnung, gekennzeichnet „probe“ (Punkt 5)",
+          Array.isArray(a.transkript) && a.transkript.length >= 3 && a.transkript_grund === "probe" && !a.aufnahme_gestartet_am, `${a.transkript?.length} Zeilen · ${a.transkript_grund}`);
+        const u = await probeUrteil({ callId: r.callId, daumen: "runter", grund: "zu langsam · Begrüßung holprig · wiederholt sich", von: "pruefstand" });
+        await probeUrteil({ callId: r.callId, daumen: "runter", grund: "zu langsam", von: "pruefstand" });
+        const fd = (await sqlPool`SELECT text, regel, art, daumen FROM fiaon_aras_feedback WHERE aras_anruf_id = ${a.id} AND quelle = 'daumen' ORDER BY id`) as any[];
+        ok("Daumen-Gründe → je ein Punkt mit Regel („zu langsam“ → „Antworte schneller …“); ein zweiter Klick legt nichts doppelt an",
+          u.ok && fd.length === 3 && fd.every((f) => f.daumen === "runter") && /Antworte schneller/.test(String(fd.find((f) => f.text === "zu langsam")?.regel ?? "")) && /Sag nichts zweimal/.test(String(fd.find((f) => /wiederholt/i.test(f.text))?.regel ?? "")), JSON.stringify(fd).slice(0, 240));
+        // Liste (GET /chef/aras/probe/feedback) — der Vertrag mit der Oberfläche (ArasFeedback)
+        const l1 = await feedbackListe();
+        const vertrag = l1.every((z) => Number.isInteger(z.id) && typeof z.text === "string" && !!z.text && ["offen", "uebernommen", "verworfen"].includes(z.status)
+          && (z.vorschlag === null || typeof z.vorschlag === "string") && typeof z.anzahl === "number" && (z.daumen === null || z.daumen === "hoch" || z.daumen === "runter") && typeof z.am === "string");
+        ok("Liste: Vertrag { id, text, vorschlag, am, status, daumen, anzahl } — fünf Punkte offen, „Daumen runter“ dabei",
+          vertrag && l1.filter((z) => z.status === "offen").length >= 5 && l1.some((z) => z.daumen === "runter"), `${l1.length} Zeilen`);
+        // … und so, wie die Oberfläche sie liest (ArasFeedback › feedbackLesen): alle Punkte, Text, Vorschlag, Status, Daumen, Anrufe
+        const { feedbackLesen } = await import("../client/src/components/admin/aras/aras-texte");
+        const ui = feedbackLesen({ ok: true, zeilen: l1 });
+        const fiaonUi = ui.find((p) => /FIAON richtig/.test(p.text));
+        ok("Die Oberfläche liest die Liste vollständig (feedbackLesen): Text + Vorschlag (Regel), offen, Daumen, Zahl der Probeanrufe",
+          ui.length === l1.length && !!fiaonUi && /Sprich FIAON als ein Wort/.test(fiaonUi.vorschlag ?? "") && fiaonUi.status === "offen" && ui.some((p) => p.daumen === "runter" && (p.anrufe ?? 0) >= 1), JSON.stringify(fiaonUi));
+        // Derselbe Punkt aus einem weiteren Probeanruf: EINE Zeile, anzahl + 1 (je Probeanruf einmal gezählt)
+        const vorher = (await feedbackListe()).find((z) => z.text === "zu langsam" && z.status === "offen")?.anzahl ?? 0;
+        await sqlPool`INSERT INTO fiaon_aras_feedback (aras_anruf_id, call_id, text, regel, art, quelle, daumen) VALUES (${Number(a.id) + 900_000}, ${r.callId}, 'zu langsam', 'Antworte schneller: ohne Anlauf, gleich mit der Sache.', 'tempo', 'daumen', 'runter')`;
+        const l2 = await feedbackListe();
+        const langsam = l2.filter((z) => z.text === "zu langsam" && z.status === "offen");
+        ok("Derselbe Punkt aus einem weiteren Probeanruf: einmal in der Liste, anzahl eins mehr", vorher >= 1 && langsam.length === 1 && langsam[0].anzahl === vorher + 1, JSON.stringify({ vorher, langsam }));
+        // Übernehmen → Regel an die Hausanweisung „telefon“; verwerfen → die Anweisung bleibt
+        const fiaonZ = l2.find((z) => /FIAON richtig/.test(z.text));
+        const ue = fiaonZ ? await feedbackEntscheiden({ id: fiaonZ.id, was: "uebernehmen", von: "pruefstand" }) : { ok: false as const, status: 0, fehler: "fehlt" };
+        const haus1 = await anweisungLesen("telefon");
+        ok("Übernehmen: die Regel steht als neue Zeile in der Hausanweisung „Aras am Telefon“ (was vorher drin stand, bleibt)",
+          ue.ok && haus1.includes("· Sprich FIAON als ein Wort, mitten im Satz — und komm gleich zur Sache.") && haus1.includes(hausVorher.trim()), haus1.slice(-160));
+        const nochmal = fiaonZ ? await feedbackEntscheiden({ id: fiaonZ.id, was: "uebernehmen", von: "pruefstand" }) : null;
+        ok("… ein zweites Übernehmen: 409 „Schon übernommen“ — nichts doppelt in der Anweisung",
+          !!nochmal && !nochmal.ok && nochmal.status === 409 && (await anweisungLesen("telefon")).split("Sprich FIAON als ein Wort").length === 2, JSON.stringify(nochmal));
+        const vw = await feedbackEntscheiden({ id: langsam[0]?.id ?? 0, was: "verwerfen", von: "pruefstand" });
+        const l3 = await feedbackListe();
+        ok("Verwerfen: „zu langsam“ aus allen Probeanrufen verworfen (eine Zeile, dieselbe anzahl), die Hausanweisung unverändert",
+          vw.ok && l3.some((z) => z.text === "zu langsam" && z.status === "verworfen" && z.anzahl === vorher + 1) && !l3.some((z) => z.text === "zu langsam" && z.status === "offen") && (await anweisungLesen("telefon")) === haus1, JSON.stringify(l3.filter((z) => z.text === "zu langsam")));
+        const quatsch = await feedbackEntscheiden({ id: fiaonZ?.id ?? 1, was: "loeschen", von: "pruefstand" });
+        const nix = await feedbackEntscheiden({ id: 99_999_999, was: "verwerfen", von: "pruefstand" });
+        const krumm = await feedbackEntscheiden({ id: -1, was: "verwerfen", von: "pruefstand" });
+        ok("Rot-Probe: anderes Wort → 404, unbekannte Nummer → 404, krumme Nummer → 400",
+          !quatsch.ok && quatsch.status === 404 && !nix.ok && nix.status === 404 && !krumm.ok && krumm.status === 400);
+      }
+    }
+    // Rot-Probe Kundenanruf: Ruft das Modell das Werkzeug trotzdem, wird es abgewiesen (nur_probe) — kein Punkt; ohne Ja kein Transkript
+    {
+      const pid = await person(140); await antrag(pid, 140, { payment_status: "paid" });
+      const e = await planEinreihen({ personId: pid, nummer: "+4917000000140", spielart: "zusage", grund: "Prüfstand Feedback Kunde", erzeugtVon: "chef" });
+      if (!e.ok) throw new Error(`einreihen: ${e.grund}`);
+      const g = await gespraech(Number(e.id), { schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 200 }, { kunde: "Sprich bitte langsamer." },
+        { werkzeug: "probe_feedback_merken", eingabe: { text: "Langsamer sprechen", regel: "Sprich langsamer.", art: "tempo" } },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Kunde" } },
+      ] });
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 12_000);
+      g.tw.aufhaengen();
+      const a = await anruf(g.callId);
+      const w = g.att.spur.werkzeuge.find((x) => x.name === "probe_feedback_merken");
+      const n = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_aras_feedback WHERE aras_anruf_id = ${a.id}`) as any[])[0]?.n ?? 0);
+      ok("Rot-Probe Kundenanruf: probe_feedback_merken abgewiesen (nur_probe), kein Punkt — und ohne Ja kein Transkript",
+        !!w && !w.ergebnis.ok && w.ergebnis.fehler === "nur_probe" && n === 0 && a.transkript == null && a.transkript_grund == null, `${JSON.stringify(w?.ergebnis)} · ${n} · ${a.transkript_grund}`);
+    }
+    if ((await anweisungLesen("telefon")) !== hausVorher) await anweisungSetzen("telefon", hausVorher, "pruefstand");
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

@@ -12,7 +12,7 @@ import {
   LACHEN_NACH_KI, begruessungText, nennformDativ, wirksameSpielart, DIALEKT_HOERBAR, eroeffnung, anrufGrund, nummerEndeGesprochen, menschHinweis, MENSCH_ABSTAND, MENSCH_ARTEN,
   fuerStimme, fiaonSchreibweise, FIAON_GESPROCHEN, type Briefing,
 } from "../shared/fiaon-aras-prompt";
-import { HOERPROBE_SAETZE, DIALEKTE, QUITTUNGEN, QUITTUNG_NACH_MS, quittungErlaubt, istKundenFrage, quittungWaehlen } from "../shared/fiaon-aras";
+import { HOERPROBE_SAETZE, DIALEKTE, QUITTUNGEN, QUITTUNG_NACH_MS, quittungErlaubt, istKundenFrage, quittungWaehlen, feedbackAusGrund, FEEDBACK_REGEL_AUS_GRUND } from "../shared/fiaon-aras";
 import {
   einstellungenAnwenden, SPIELARTEN, WERKZEUGE, WERKZEUGE_GLOBAL, druckFinden, REGIE_VORGABE, AUFNAHME_FRAGE_VORGABE, KI_HINWEIS_VORGABE,
   aufnahmeFrageSauber, aufnahmeFrageFehler, GEDULD_MS,
@@ -102,7 +102,7 @@ titel("2. VERKAUFSSATZ (E-373): Wunsch ohne Bank-Vorbehalt, keine Limit-Zusage")
 titel("3. WERKZEUGE JE LAGE");
 {
   const alle = werkzeugeFuer({ global: false, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
-  ok("Normal: alle 12 Werkzeuge", alle.length === 12 && WERKZEUGE.every((w) => alle.includes(w)));
+  ok("Normal: alle 12 Kunden-Werkzeuge (probe_feedback_merken gibt es nur im Probeanruf)", alle.length === 12 && WERKZEUGE.filter((w) => w !== "probe_feedback_merken").every((w) => alle.includes(w)) && !alle.includes("probe_feedback_merken"));
   const global = werkzeugeFuer({ global: true, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
   ok("Global-Kunde: nur 5 (Akte, Notiz, Mensch, Sperre, Ende)", global.length === 5 && WERKZEUGE_GLOBAL.every((w) => global.includes(w)) && !global.includes("zahlungslink_senden"));
   const rot = werkzeugeFuer({ global: false, isBlocked: false, ampel: { ...einstellungen.ampel, ratenpause_setzen: "rot" }, spielart: "rate" }).map((d) => d.name);
@@ -454,6 +454,15 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
     ok("Nie zweimal derselbe Laut hintereinander; nach einer Frage nie „Okay,“ (klänge schief)", folge.every((w, i) => i === 0 || w !== folge[i - 1]) && [0, 3, 6].every((i) => ["Mhm,", "Hm,"].includes(folge[i])), folge.join(" "));
     ok("Ohne Bibliothek kein Laut", quittungWaehlen({ frage: false, zuletzt: null, da: new Set(), nr: 1 }) === null);
     ok("Anweisung: Lief schon ein Laut, fängt die Stimme nicht noch einmal damit an", /Manchmal sagt die Technik für dich schon einen kurzen Laut/.test(a.text) && /Fang deine Antwort dann NICHT noch einmal mit diesem Laut an/.test(a.text));
+  }
+  // Feedback aus Probeanrufen (Punkt 4): Werkzeug nur im Probeanruf, Daumen-Gründe als Regeln
+  {
+    const def = WERKZEUG_DEFS.find((d) => d.name === "probe_feedback_merken");
+    ok("probe_feedback_merken: nur im Probeanruf, mit text (seine Worte), regel (Befehlsform) und art", !!def && /NUR im Probeanruf/.test(def!.beschreibung) && JSON.stringify(def!.schema).includes("regel") && !werkzeugeFuer({ global: false, isBlocked: false, ampel: {}, spielart: "zuruf" }).some((w) => w.name === "probe_feedback_merken") && werkzeugeFuer({ global: false, isBlocked: false, ampel: {}, spielart: "probe" }).some((w) => w.name === "probe_feedback_merken"));
+    const hp = hintergrundAnweisung(anweisungBauen({ spielart: "probe", briefing: { ...pb, probe: true } as Briefing, einstellungen: einstellungenAnwenden({}), hausanweisung: null }));
+    ok("Hintergrund im Probeanruf: Feedback festhalten, nie weiterleiten", /probe_feedback_merken, sobald Justin sagt/.test(hp) && /Bei Feedback im Probeanruf nie mensch_verbinden/.test(hp), hp.slice(0, 120));
+    const g = feedbackAusGrund("zu langsam · Begrüßung holprig · Zu langsam · eigener Wunsch hier");
+    ok("Daumen-Gründe → Punkte: bekannte mit Regel, doppelte einmal, eigene in seinen Worten", g.length === 3 && /Antworte schneller/.test(g[0].regel ?? "") && g[0].art === "tempo" && g[1].art === "einstieg" && g[2].regel === null && g[2].text === "eigener Wunsch hier" && Object.keys(FEEDBACK_REGEL_AUS_GRUND).length === 11, JSON.stringify(g));
   }
   // FIAON für die Stimme (Punkt 1 — Spracherkennung 20.10.: „FIAON“ wurde zu „Fion“, „Fiaaon“ behält das a)
   const st = fuerStimme("Hier ist Aras von FIAON aus dem Kundenteam — FIAON Pro, die FIAON-Kreditkarte, FIAONs Team, fiaon.com, FIAONX");

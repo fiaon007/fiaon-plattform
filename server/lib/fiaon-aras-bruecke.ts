@@ -1164,7 +1164,10 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
     // Nie abgenommen (beim Klingeln vorbereitet): „canceled“ — „completed“ beendet nur ein laufendes Gespräch.
     try { const c = await twilioClient(); if (!l.stromAm) await c.calls(l.twilioSid).update({ status: "canceled" }).catch(() => c.calls(l.twilioSid).update({ status: "completed" })); else await c.calls(l.twilioSid).update({ status: "completed" }); } catch { /* schon beendet */ }
   }
-  let transkript: unknown[] | null = l.aufnahmeJa ? l.zeilen.filter((z) => z.text.trim()).map((z) => ({ t: z.t, wer: z.wer, text: z.text, abgebrochen: z.abgebrochen === true, ...(z.verworfen ? { verworfen: true } : {}) })) : null;
+  // Kunde: nur nach einem Ja. Probeanruf (Justin ruft sich selbst an, nur an die eine Inhaber-Nummer): IMMER — gekennzeichnet
+  // (transkript_grund „probe“), damit aus seinen Anrufen gelernt werden kann; die Ton-Aufnahme bleibt beim Ja (Punkt 5).
+  const transkriptGrund = l.aufnahmeJa ? "aufnahme_ja" : l.probe ? "probe" : null;
+  let transkript: unknown[] | null = transkriptGrund ? l.zeilen.filter((z) => z.text.trim()).map((z) => ({ t: z.t, wer: z.wer, text: z.text, abgebrochen: z.abgebrochen === true, ...(z.verworfen ? { verworfen: true } : {}) })) : null;
   // Ton-Messung (Anruf 16): Pegel, Lücken, Vorrat, Lieferung, Unterbrechungen, Antwortzeit.
   const antwort = [...l.antwortMs].sort((a, b) => a - b);
   let ton: Record<string, unknown> = {
@@ -1187,6 +1190,7 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
            ergebnis = COALESCE(ergebnis, ${l.ergebnis}), ergebnis_notiz = COALESCE(ergebnis_notiz, ${l.ergebnisNotiz}),
            uebergabe_status = CASE WHEN uebergabe_status = 'laeuft' AND ${grund} <> 'uebergabe' THEN 'nicht_angenommen' ELSE uebergabe_status END,
            ton = ${sqlPool.json(ton as any)}, antwort_ms_median = ${(ton.antwortMs as any).median}, antwort_ms_max = ${(ton.antwortMs as any).max},
+           transkript_grund = COALESCE(${transkript ? transkriptGrund : null}::text, transkript_grund),
            updated_at = NOW()
      WHERE id = ${l.arasAnrufId}`.catch((e) => console.error("[ARAS] Ende:", String(e).slice(0, 200)));
   await sqlPool`UPDATE fiaon_calls SET ende = COALESCE(ende, NOW()), dauer_sek = COALESCE(dauer_sek, ${wanduhr}),

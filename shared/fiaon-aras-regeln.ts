@@ -5,10 +5,12 @@
 // dem Ja und „Anliegen erst nach der Identität“ (über das ganze Gespräch) kommen aus shared/fiaon-ki-pruefung-regeln.ts
 // — diese Datei leitet sie nur weiter. Damit prüft die Live-Nachbereitung (fiaon-aras-nachbereitung.ts) genauso wie
 // Prüf-Mara. Hier stehen nur Arasʼ eigene Zusatzregeln aus Justins Probeanrufen (20.10.): nie „null Euro“, keine
-// vorgelesene Internetadresse, keine Anzahl ohne ihr Wort, eine Frage je Redebeitrag.
-// Geprüft in scripts/pruef-aras-plan.ts und scripts/pruef-aras-prompt.ts (mit Rot-Proben).
+// vorgelesene Internetadresse, keine Anzahl ohne ihr Wort, eine Frage je Redebeitrag — und aus Justins Tests am
+// 20.10. (Anrufe 5 und 6): kein Satz zweimal gleich, kein Füllwort als eigener Redebeitrag, nicht jeder Satz mit „Also“,
+// nie Schluss ohne Abschied. Die Brücke nutzt dieselben Funktionen live (Wiederholungs- und Abschied-Wache).
+// Geprüft in scripts/pruef-aras-plan.ts, scripts/pruef-aras-prompt.ts und scripts/pruef-aras-bruecke.ts (mit Rot-Proben).
 // ═══════════════════════════════════════════════════════════════════════════
-import { telefonRegeln as pruefTelefonRegeln, punkteZusammen, type RegelPunkt, type TelefonLage } from "./fiaon-ki-pruefung-regeln";
+import { telefonRegeln as pruefTelefonRegeln, punkteZusammen, type RegelPunkt, type TelefonLage, type RegelZeile } from "./fiaon-ki-pruefung-regeln";
 
 export {
   druckFinden, lastschriftFinden, vertragZusageFinden, anliegenGenannt, anliegenVorIdentitaet, kiHinweisGesagt, KI_HINWEIS_SPAETESTENS_SEK,
@@ -47,18 +49,121 @@ export function fragenImBeitrag(text: string): string | null {
   return null;
 }
 
+// ── Justins Tests 20.10. (Anrufe 5 und 6): menschlich statt Schleife ─────────────────────────────────────────
+// Anruf 5: dreimal wortgleich derselbe Anlass-Satz auf „Um was geht's?“ — und ein „Also...“ mitten in seine Denkpause.
+// Anruf 6: fast jeder Satz begann mit „Also/ähm“, Verkauf ohne eine Frage nach seinem Bedarf, aufgelegt ohne Abschied.
+
+/** Wörter, die für den Vergleich zweier Sätze nichts zählen (Füllwörter, Zustimmungslaute). */
+const VERGLEICH_RAUS = new Set(["also", "ähm", "ähmm", "äh", "ehm", "hm", "hmm", "mhm", "ach", "so", "na", "ja", "tja", "okay", "ok", "genau", "gut", "super"]);
+/** Füllwörter, mit denen ein Mensch zum Reden ansetzt — als eigener Redebeitrag ein abgebrochener Ansatz („Also...“). „Hm“/„Mhm“ sind Zuhör-Laute. */
+const ANSATZ = /^(?:also|ähm+|äh+|ehm|ach so|na ja|naja|tja|so|okay also|ja also)$/;
+/** Füllwörter am Satzanfang (in den ersten drei Wörtern eines Redebeitrags). */
+const FUELL_ANFANG = /^(?:also|ähm+|äh+|ehm|hm+|hmm|tja)$/;
+
+/** Die Wörter eines Satzes, klein, ohne Satzzeichen und ohne Füllwörter — für den Vergleich. Rein. */
+export function satzWoerter(text: string): string[] {
+  return String(text ?? "").toLowerCase().replace(/[^a-zäöüß0-9]+/gi, " ").split(" ").filter((w) => w && !VERGLEICH_RAUS.has(w));
+}
+/** Wie ähnlich zwei Sätze sind (0–1): 1 − Wort-Abstand / Länge des längeren. Rein. */
+export function satzAehnlichkeit(a: string | readonly string[], b: string | readonly string[]): number {
+  const x = typeof a === "string" ? satzWoerter(a) : a, y = typeof b === "string" ? satzWoerter(b) : b;
+  if (!x.length || !y.length) return 0;
+  let vor = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    const jetzt = [i];
+    for (let j = 1; j <= y.length; j++) jetzt[j] = Math.min(vor[j] + 1, jetzt[j - 1] + 1, vor[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+    vor = jetzt;
+  }
+  return 1 - vor[y.length] / Math.max(x.length, y.length);
+}
+/** Ab dieser Ähnlichkeit (normalisierter Text) gilt ein Redebeitrag als Wiederholung (Koordination 20.10.: ≥ 80 %). */
+export const WIEDERHOLUNG_AB = 0.8;
+/** Kürzere Sätze („Super, passt.“) zählen nicht — die darf ein Mensch zweimal sagen. */
+export const WIEDERHOLUNG_MIN_WOERTER = 6;
+/** Laufender Satz: erst ab so vielen Wörtern vergleichen (Anfang gegen den gleich langen Anfang der früheren Sätze). */
+export const WIEDERHOLUNG_LAUFEND_WOERTER = 8;
+/** Der versteckte Hinweis an die Stimme, wenn sie sich wiederholt (Wortlaut aus der Koordination, 20.10.2026). */
+export const WIEDERHOLUNG_HINWEIS = "Du hast dich gerade wiederholt. Sag es anders, konkreter, und frag, was er genau wissen will.";
+
 /**
- * Alle harten Regeln auf das, was ARAS gesagt hat (+ Zeiten des Gesprächs). Rein.
- * Gespeichert wird nur der Befund (Schlüssel + Schwere), nie der Wortlaut ohne Aufnahme-Ja.
+ * Wiederholt sich Aras? `neu` gegen seine letzten drei Redebeiträge (`frueher`, ältester zuerst). `laufend`: der Satz ist
+ * noch nicht fertig — dann zählt der gleich lange Anfang der früheren Sätze. Liefert die Ähnlichkeit oder null. Rein.
  */
+export function wiederholtSich(neu: string, frueher: readonly string[], laufend = false): number | null {
+  const w = satzWoerter(neu);
+  if (w.length < (laufend ? WIEDERHOLUNG_LAUFEND_WOERTER : WIEDERHOLUNG_MIN_WOERTER)) return null;
+  for (const f of frueher.slice(-3)) {
+    const v = satzWoerter(f);
+    if (v.length < WIEDERHOLUNG_MIN_WOERTER) continue;
+    const q = satzAehnlichkeit(w, laufend ? v.slice(0, w.length) : v);
+    if (q >= WIEDERHOLUNG_AB) return Math.round(q * 100) / 100;
+  }
+  return null;
+}
+/** Der erste Aras-Redebeitrag, der einen seiner drei vorigen wiederholt (Transkript). Rein. */
+export function wiederholungFinden(zeilen: readonly RegelZeile[] | null | undefined): string | null {
+  const aras = (zeilen ?? []).filter((z) => z.wer === "aras" && String(z.text ?? "").trim()).map((z) => String(z.text));
+  for (let i = 1; i < aras.length; i++) if (wiederholtSich(aras[i], aras.slice(Math.max(0, i - 3), i)) !== null) return aras[i].slice(0, 160);
+  return null;
+}
+/** Ein Redebeitrag, der NUR ein Ansatz-Füllwort ist („Also...“, „Ähm“) — ein abgebrochener Anlauf. „Mhm“ beim Zuhören zählt nicht. Rein. */
+export function nurFuellwort(text: string): boolean {
+  const t = String(text ?? "").toLowerCase().replace(/[^a-zäöüß ]+/gi, " ").replace(/\s+/g, " ").trim();
+  return !!t && ANSATZ.test(t);
+}
+/** Beginnt der Redebeitrag mit einem Füllwort (in den ersten drei Wörtern: „Also, …“, „Super. Ähm, also …“)? Rein. */
+export function beginntMitFuellwort(text: string): boolean {
+  const w = String(text ?? "").toLowerCase().replace(/[^a-zäöüß ]+/gi, " ").split(/\s+/).filter(Boolean).slice(0, 3);
+  return w.some((x) => FUELL_ANFANG.test(x)) || /^ach so\b/i.test(String(text ?? "").trim());
+}
+/**
+ * Wie viele Aras-Redebeiträge mit einem Füllwort beginnen (ohne den ersten Satz mit dem KI-Hinweis, ohne Zuhör-Laute).
+ * Koordination 20.10.: höchstens jeder dritte — auch bei „viel“ (viel = lockerer, nicht mehr Füllwörter). Rein.
+ */
+export function fuellwortQuote(zeilen: readonly RegelZeile[] | null | undefined): { mit: number; von: number; quote: number } {
+  const aras = (zeilen ?? []).filter((z) => z.wer === "aras" && satzWoerter(z.text).length >= 3).slice(1);
+  const mit = aras.filter((z) => beginntMitFuellwort(z.text)).length;
+  return { mit, von: aras.length, quote: aras.length ? Math.round((mit / aras.length) * 100) / 100 : 0 };
+}
+/** Höchstens jeder dritte Redebeitrag darf mit einem Füllwort beginnen (ab vier Redebeiträgen geprüft). */
+export const FUELLWORT_QUOTE_HOECHSTENS = 0.34;
+/** Ein Abschied („… einen schönen Tag noch“, „auf Wiederhören“) — die Brücke legt erst danach auf. */
+export const ABSCHIED_RE = /sch(?:ö|oe)nen (?:tag|abend|nachmittag|vormittag|feierabend)|sch(?:ö|oe)ne(?:s)? (?:woche|wochenende)|auf wiederh(?:ö|oe)ren|auf wiederschauen|tsch(?:ü|ue)ss|alles gute|have a (?:lovely|nice|good) (?:day|evening)|goodbye/i;
+export function abschiedGesagt(text: string): boolean { return ABSCHIED_RE.test(String(text ?? "")); }
+
+/**
+ * Der Antrag als „durch“/„genehmigt“ dargestellt (Rauchtest 20.10.: „Ihr Antrag ist bei uns schon durch“) — er ist nur
+ * abgeschickt; über die Karte entscheidet die Partnerbank. „durch die Partnerbank“ zählt nicht. Rein.
+ */
+export function antragDurchFinden(text: string): string | null {
+  const m = /\b(?:antrag|der|er)\b[^.!?]{0,60}?\b(?:ist|sei|wäre|wurde|wird)\b[^.!?]{0,25}?\b(?:durch(?!\s+(?:die|den|das|der|dem|uns|unsere\w*|ihre\w*|eine\w*)\b)|genehmigt|bewilligt|angenommen|freigegeben)\b/i.exec(String(text ?? ""));
+  return m ? m[0] : null;
+}
+
+/** Für die Nachbereitung: wie das Gespräch endete — „Aras hat beendet“ ohne Abschied ist ein Befund. */
+export type ArasTelefonLage = TelefonLage & { arasBeendet?: boolean };
+
 /**
  * Alle harten Telefon-Regeln auf das, was ARAS gesagt hat (+ Zeiten des Gesprächs): die von Prüf-Mara (eine Quelle)
  * und Arasʼ Zusatzregeln. Rein. Gespeichert wird nur der Befund (Schlüssel + Schwere), nie der Wortlaut ohne Aufnahme-Ja.
  */
-export function telefonRegeln(text: string, tel: TelefonLage | null = null): RegelPunkt[] {
+export function telefonRegeln(text: string, tel: ArasTelefonLage | null = null): RegelPunkt[] {
   const zusatz: RegelPunkt[] = [];
   const t = String(text ?? "");
   const nb = nullBetragFinden(t); if (nb) zusatz.push({ regel: "betrag_null", schwere: "hart", treffer: nb.slice(0, 160), hinweis: "„Null Euro“ / „0 €“ gesagt — ein Betrag nur aus einem Betragsfeld, eine Anzahl ist nie ein Betrag." });
   const url = urlFinden(t); if (url) zusatz.push({ regel: "url_vorgelesen", schwere: "weich", treffer: url.slice(0, 160), hinweis: "Internetadresse vorgelesen — der Link kommt aufs Handy." });
+  const durch = antragDurchFinden(t); if (durch) zusatz.push({ regel: "antrag_durch", schwere: "hart", treffer: durch.slice(0, 160), hinweis: "Antrag als „durch/genehmigt“ dargestellt — er ist abgeschickt; über die Karte entscheidet die Partnerbank." });
+  const zeilen = tel?.transkript ?? null;
+  if (zeilen?.length) {
+    const w = wiederholungFinden(zeilen);
+    if (w) zusatz.push({ regel: "wiederholung", schwere: "weich", treffer: w, hinweis: "Einen Satz wortgleich wiederholt — auf eine Nachfrage anders und konkreter antworten." });
+    const allein = zeilen.find((z) => z.wer === "aras" && nurFuellwort(z.text));
+    if (allein) zusatz.push({ regel: "fuellwort_allein", schwere: "weich", treffer: String(allein.text).slice(0, 160), hinweis: "Ein Füllwort als eigener Redebeitrag („Also...“) — ins Wort gefallen statt ausreden lassen." });
+    const q = fuellwortQuote(zeilen);
+    if (q.von >= 4 && q.quote > FUELLWORT_QUOTE_HOECHSTENS) zusatz.push({ regel: "fuellwort_satzanfang", schwere: "weich", treffer: `${q.mit} von ${q.von}`, hinweis: "Zu viele Sätze beginnen mit „Also/Ähm“ — Füllwörter nur, wo ein Mensch nachdenkt." });
+    if (tel?.arasBeendet && !zeilen.filter((z) => z.wer === "aras").slice(-3).some((z) => abschiedGesagt(z.text))) {
+      zusatz.push({ regel: "abschied_fehlt", schwere: "weich", treffer: "", hinweis: "Aufgelegt ohne Abschied — erst bestätigen, nächster Schritt, Abschied mit Namen." });
+    }
+  }
   return punkteZusammen(pruefTelefonRegeln(t, tel), zusatz);
 }

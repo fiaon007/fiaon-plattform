@@ -43,7 +43,12 @@ export class TwilioAttrappe {
       });
       ws.on("message", (roh) => {
         let m: any; try { m = JSON.parse(roh.toString()); } catch { return; }
-        if (m?.event === "media") this.zaehler.media += 1;
+        if (m?.event === "media") {
+          this.zaehler.media += 1;
+          // Rede (nicht µ-law-Stille 0xff/0x7f) — wann der Kunde Aras' Stimme hört (Geduld-Tor, E-408 20.10.2026).
+          const b = Buffer.from(String(m?.media?.payload ?? ""), "base64");
+          if (b.some((x) => x !== 0xff && x !== 0x7f)) this.lautEmpfangen.push(Date.now());
+        }
         else if (m?.event === "clear") {
           this.zaehler.clear += 1;
           // Twilio: nach clear kommen alle offenen Marken sofort zurück (der Ton davor wurde verworfen)
@@ -81,5 +86,10 @@ export class TwilioAttrappe {
   gesendet(): { media: number; clear: number; mark: number; offen: number; maxOffen: number } { return { ...this.zaehler }; }
   /** Der Kunde spricht: laute Rahmen (µ-law) für n Millisekunden statt Stille — für die Lautstärke-Erkennung der Brücke. */
   laut(ms: number): void { this.lautBis = Date.now() + ms; }
+  /** Bis wann der Kunde zuletzt laut war (Uhrzeit). */
+  lautEnde(): number { return this.lautBis; }
+  /** Wann Rede-Rahmen von Aras bei „Twilio“ ankamen (Uhrzeiten) — ohne Atmo ist alles andere Stille. */
+  lautAngekommen(): number[] { return [...this.lautEmpfangen]; }
   private lautBis = 0;
+  private lautEmpfangen: number[] = [];
 }

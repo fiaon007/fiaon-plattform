@@ -27,9 +27,17 @@ export type Schritt =
   | { unterbrechen: true }
   | { auflegen: true }
   | { fehler: { code: string; text?: string; fatal: boolean } }
-  | { warteMs: number };
+  | { warteMs: number }
+  /** Wartet, bis der Kunde laut war (Ton von „Twilio“) und jetzt so lange still ist — wie GPT-Live nach seinem Satz (höchstens 8 s). */
+  | { nachKundeStillMs: number }
+  /** Wartet auf seine Stimme (Ton von „Twilio“) und liefert dann seine Worte als Transkript — wie GPT-Lives Abschrift (höchstens 8 s). */
+  | { beiKundenStimme: string };
 
-export interface Skript { schritte: Schritt[]; name?: string }
+export interface Skript {
+  schritte: Schritt[]; name?: string;
+  /** Folgt die Stimme der Abschied-Einforderung der Brücke („verabschiede dich …“)? Vorgabe ja — wie GPT-Live. */
+  abschiedIgnorieren?: boolean;
+}
 
 export interface AttrappeSpur { werkzeuge: { name: Werkzeug; ergebnis: WerkzeugErgebnis }[]; eingeschoben: { text: string; art: string }[]; unterbrochen: number; beendet: string | null; audioReinBytes: number }
 
@@ -46,6 +54,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
       const start = Date.now();
       let beendet = false;
       let aktiv = false;
+      let zuletztLautRein = 0;
       const t = () => Date.now() - start;
       const emit = (ev: SitzungEreignis) => { if (!beendet) e.ereignis(ev); };
       const schlafen = (ms: number) => new Promise<void>((l) => setTimeout(l, ms));
@@ -65,6 +74,18 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
         for (const schritt of s.schritte) {
           if (beendet) break;
           if ("warteMs" in schritt) { await schlafen(schritt.warteMs); continue; }
+          if ("beiKundenStimme" in schritt) {
+            const t0 = Date.now();
+            while (!beendet && Date.now() - t0 < 8000 && !(zuletztLautRein > 0 && Date.now() - zuletztLautRein < 100)) await schlafen(10);
+            emit({ art: "kunde_spricht" });
+            emit({ art: "transkript", wer: "kunde", text: schritt.beiKundenStimme, final: true, t: t() });
+            continue;
+          }
+          if ("nachKundeStillMs" in schritt) {
+            const t0 = Date.now();
+            while (!beendet && Date.now() - t0 < 8000 && !(zuletztLautRein > 0 && Date.now() - zuletztLautRein >= schritt.nachKundeStillMs)) await schlafen(10);
+            continue;
+          }
           if ("aras" in schritt) { await arasSagt(schritt.aras, schritt.ms); continue; }
           if ("kunde" in schritt) {
             await schlafen(schritt.nachMs ?? 60);
@@ -98,12 +119,14 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
       })();
       void lauf.catch((err) => console.error("[ATTRAPPE]", err));
       return {
-        audioRein(chunk) { spur.audioReinBytes += chunk.length; },
+        audioRein(chunk) { spur.audioReinBytes += chunk.length; if (chunk.some((x) => x !== 0xff && x !== 0x7f)) zuletztLautRein = Date.now(); },
         unterbrechen() { /* der Ton stoppt — die Brücke zählt das clear */ },
         textEinschieben(text, art) {
           spur.eingeschoben.push({ text, art });
           // Eine Anweisung mit genauem Wortlaut (Notaus, Übergabe) spricht die Attrappe kurz — wie GPT-Live.
           if (art === "anweisung" && /genau diesen Satz|Sag sofort/.test(text) && !beendet) void (async () => { await schlafen(30); await arasSagt(text.slice(0, 120), 300); })();
+          // Abschied-Wache der Brücke: die Stimme verabschiedet sich (wie GPT-Live) — außer das Skript spielt eine, die es ignoriert.
+          if (art === "anweisung" && /verabschiede dich/i.test(text) && !s.abschiedIgnorieren && !beendet) void (async () => { await schlafen(300); await arasSagt("Super, dann ist alles notiert — danke Ihnen, und einen schönen Tag noch!", 400); })();
         },
         async beenden(grund) { beendet = true; aktiv = false; clearInterval(stilleTakt); spur.beendet = grund; fertigMelden(); return { sekunden: Math.round(t() / 1000), kostenCents: 0 }; },
       } satisfies Sitzung & { [k: string]: unknown } as Sitzung;

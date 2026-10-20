@@ -121,7 +121,8 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
       const sek = (t: unknown) => (t && z.angenommen_am ? Math.max(0, (new Date(t as string).getTime() - new Date(z.angenommen_am).getTime()) / 1000) : null);
       const zeilen: PruefZeileT[] = l.zeilen.filter((x) => x.text.trim()).map((x) => ({ t: x.t, wer: x.wer, text: x.text }));
       const text = zeilen.filter((x) => x.wer === "aras").map((x) => x.text).join("\n");
-      const punkte = telefonRegeln(text, { kiHinweisSek: l.kiHinweisSek ?? sek(z.ki_hinweis_am), aufnahmeJaSek: sek(z.aufnahme_ja_am), aufnahmeGestartetSek: sek(z.aufnahme_gestartet_am), aufnahmeNeinSek: sek(z.aufnahme_nein_am), transkript: zeilen });
+      // arasBeendet: Aras hat aufgelegt — ohne hörbaren Abschied ist das ein Befund (Justins Test 20.10., Anruf 6).
+      const punkte = telefonRegeln(text, { kiHinweisSek: l.kiHinweisSek ?? sek(z.ki_hinweis_am), aufnahmeJaSek: sek(z.aufnahme_ja_am), aufnahmeGestartetSek: sek(z.aufnahme_gestartet_am), aufnahmeNeinSek: sek(z.aufnahme_nein_am), transkript: zeilen, arasBeendet: l.endeGrund === "aras_beendet" });
       befund = { live: true, punkte: punkte.map((p) => ({ regel: p.regel, schwere: p.schwere })) };
     } catch (e) { console.error("[ARAS-NACHBEREITUNG] Live-Regeln:", String((e as Error)?.message ?? e).slice(0, 160)); }
   }

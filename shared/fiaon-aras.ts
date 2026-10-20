@@ -158,7 +158,22 @@ export interface SchluesselDef {
 export const KI_HINWEIS_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
 // Probe 20.10.2026 (Justin): die alte Frage war zu lang und steif (10 s, Internetadresse vorgelesen). Kurz, eine Frage, kein Link —
 // Speicherdauer und Datenschutzerklärung nennt Aras nur, wenn der Kunde nachfragt (shared/fiaon-aras-prompt.ts, AUFZEICHNUNG).
-export const AUFNAHME_FRAGE_VORGABE = "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist? Ein kurzes Ja reicht.";
+// Justins Test 20.10. (Anruf 6): „Ein kurzes Ja reicht.“ klang wie Drängeln — die Frage ist jetzt EIN Satz. Ob er Ja sagt,
+// wertet die Brücke aus seiner Antwort (istAufnahmeJa); bei Zögern erklärt Aras ruhig und fragt einmal klar nach.
+export const AUFNAHME_FRAGE_VORGABE = "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist?";
+/** Die gespeicherte Aufnahme-Frage, gesäubert: angehängtes Drängeln („Ein kurzes Ja reicht.“) fällt weg. Rein. */
+export function aufnahmeFrageSauber(satz: string): string {
+  const t = String(satz ?? "").replace(/\s*(?:Ein kurzes Ja reicht|Ein Ja reicht|Sagen Sie (?:bitte )?(?:einfach )?Ja|Dann sagen Sie bitte einfach Ja)[.!]?\s*$/i, "").trim();
+  return t || AUFNAHME_FRAGE_VORGABE;
+}
+/** Eine Aufnahme-Frage: EIN Satz, der nach der Aufzeichnung fragt und mit „?“ endet. Gibt den Grund zurück oder null. Rein. */
+export function aufnahmeFrageFehler(w: string): string | null {
+  const t = String(w ?? "").trim();
+  if (!/aufzeichn|aufnehm|aufnahme|record/i.test(t)) return "Die Aufnahme-Frage muss nach der Aufzeichnung fragen.";
+  if (!/\?\s*$/.test(t)) return "Die Aufnahme-Frage endet mit einem Fragezeichen (EIN Satz, keine Nachsätze).";
+  if ((t.match(/\?/g) ?? []).length > 1) return "Die Aufnahme-Frage ist EINE Frage.";
+  return null;
+}
 
 /** Vertrag § 3: JSON { spielart: "an" | "aus" } — lead, stufe_b, rueckholung erst nach LEXR. Fehlende Spielarten = Vorgabe. */
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
@@ -217,8 +232,11 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   aras_dialekt: { typ: "enum", vorgabe: "hochdeutsch", enum: ["hochdeutsch", "oesterreichisch_leicht", "oesterreichisch"], satz: "Akzent: Hochdeutsch, leicht österreichisch oder österreichisch — nie ein starker Dialekt." },
   // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — Büro-Atmosphäre unter Aras' Stimme (server/lib/fiaon-aras-atmo.ts).
   aras_hintergrund: { typ: "enum", vorgabe: "aus", enum: ["aus", "buero_leise", "buero"], satz: "Büro-Atmosphäre unter der Stimme: aus, leise oder deutlicher." },
+  // Justins Test 20.10. (Anruf 5): „Also...“ mitten in seine Denkpause. GPT-Live hat keinen Schalter für das Zuhören (voll-duplex) —
+  // darum zwei Hebel: die Anweisung (Interruption policy) und das Geduld-Tor der Brücke (GEDULD_MS). Vorgabe: geduldig.
+  aras_zuhoeren: { typ: "enum", vorgabe: "geduldig", enum: ["geduldig", "normal", "flott"], satz: "Wie lange Aras nach einer Pause wartet: geduldig (Vorgabe), normal oder flott." },
   aras_ki_hinweis_satz: { typ: "text", vorgabe: KI_HINWEIS_VORGABE, maxZeichen: 400, satz: "Der erste Satz — muss „KI“ oder „digitale“ enthalten.", pruefen: (w) => (/\bKI\b|digitale/i.test(w) ? null : "Der KI-Hinweis muss „KI“ oder „digitale“ enthalten.") },
-  aras_aufnahme_frage: { typ: "text", vorgabe: AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, satz: "Die Frage vor der Aufnahme — muss „Ja“ enthalten.", pruefen: (w) => (/\bJa\b/.test(w) ? null : "Die Aufnahme-Frage muss „Ja“ enthalten.") },
+  aras_aufnahme_frage: { typ: "text", vorgabe: AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, satz: "Die Frage vor der Aufnahme — EIN Satz mit „?“, aufgenommen wird nur nach einem Ja.", pruefen: aufnahmeFrageFehler },
   aras_spielarten: { typ: "json", vorgabe: JSON.stringify(SPIELARTEN_VORGABE), satz: "Welche Gesprächsarten ARAS führt.", pruefen: (w) => {
     const j = jsonLesen(w) as any;
     if (!j || typeof j !== "object" || Array.isArray(j)) return "Spielarten: JSON { spielart: \"an\" | \"aus\" }.";
@@ -307,13 +325,26 @@ export const DIALEKTE = ["hochdeutsch", "oesterreichisch_leicht", "oesterreichis
 export type Dialekt = (typeof DIALEKTE)[number];
 export function istDialekt(v: unknown): v is Dialekt { return typeof v === "string" && (DIALEKTE as readonly string[]).includes(v); }
 export const DIALEKT_TEXT: Record<Dialekt, string> = { hochdeutsch: "Hochdeutsch", oesterreichisch_leicht: "leicht österreichisch", oesterreichisch: "österreichisch" };
+/** Wie geduldig Aras zuhört (aras_zuhoeren, Justins Test 20.10.: „Also...“ in seine Denkpause). */
+export const ZUHOEREN = ["geduldig", "normal", "flott"] as const;
+export type Zuhoeren = (typeof ZUHOEREN)[number];
+export function istZuhoeren(v: unknown): v is Zuhoeren { return typeof v === "string" && (ZUHOEREN as readonly string[]).includes(v); }
+export const ZUHOEREN_TEXT: Record<Zuhoeren, string> = { geduldig: "geduldig", normal: "normal", flott: "flott" };
+/**
+ * Das Geduld-Tor der Brücke: so lange muss der Kunde still sein, bevor Aras' neuer Redebeitrag zu hören ist. Fängt Aras
+ * früher an (der Kunde holt nur Luft) und der Kunde redet weiter, hört der Kunde den Ansatz nie („Also...“ fällt weg).
+ * flott = 0: kein Tor.
+ */
+export const GEDULD_MS: Record<Zuhoeren, number> = { geduldig: 700, normal: 400, flott: 0 };
 export interface Regie {
   fuellwoerter: "sparsam" | "normal" | "viel"; lachen: boolean; tempo: "ruhig" | "normal" | "zuegig"; zuhoerlaute: "sparsam" | "normal";
   energie: "ruhig" | "lebendig" | "vollgas"; abschluss: "sanft" | "klar" | "hartnaeckig";
   /** Akzent (Justin 20.10.2026) — Vorgabe Hochdeutsch, bis er wählt. */
   dialekt: Dialekt;
+  /** Zuhören (aras_zuhoeren) — fehlt es (alte Proben), gilt „geduldig“. */
+  zuhoeren?: Zuhoeren;
 }
-export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch" };
+export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "geduldig" };
 export type Stufe = 0 | 1 | 2 | 3;
 
 export interface ArasEinstellungen {
@@ -365,9 +396,10 @@ export function einstellungenAnwenden(roh: Record<string, string | null | undefi
       fuellwoerter: w("aras_fuellwoerter") as Regie["fuellwoerter"], lachen: an("aras_lachen"), tempo: w("aras_tempo") as Regie["tempo"],
       zuhoerlaute: w("aras_zuhoerlaute") as Regie["zuhoerlaute"], energie: w("aras_energie") as Regie["energie"], abschluss: w("aras_abschluss") as Regie["abschluss"],
       dialekt: (istDialekt(w("aras_dialekt")) ? w("aras_dialekt") : "hochdeutsch") as Dialekt,
+      zuhoeren: (istZuhoeren(w("aras_zuhoeren")) ? w("aras_zuhoeren") : "geduldig") as Zuhoeren,
     },
     hintergrund: (istHintergrund(w("aras_hintergrund")) ? w("aras_hintergrund") : "aus") as Hintergrund,
-    kiHinweisSatz: w("aras_ki_hinweis_satz"), aufnahmeFrage: w("aras_aufnahme_frage"),
+    kiHinweisSatz: w("aras_ki_hinweis_satz"), aufnahmeFrage: aufnahmeFrageSauber(w("aras_aufnahme_frage")),
     spielarten,
     parallel: zahl("aras_parallel"), jeStunde: zahl("aras_je_stunde"), tagEuro: zahl("aras_tag_euro"),
     fenster: (() => { const f = json<any>("aras_fenster", FENSTER_VORGABE); return { verkauf: f?.verkauf ?? FENSTER_VORGABE.verkauf, rate: f?.rate ?? FENSTER_VORGABE.rate }; })(),
@@ -520,6 +552,8 @@ export function istAufnahmeJa(text: string): boolean {
   const t = String(text ?? "").trim().toLowerCase();
   if (!t) return false;
   if (/\b(nein|nicht|kein|lieber nicht|ohne)\b/.test(t)) return false;
+  // Rauchtest 20.10.: „Ja, aber um was geht's dabei?“ ist kein klares Ja — ein Vorbehalt oder eine Gegenfrage heißt: nachfragen.
+  if (/\baber\b|\?\s*$/.test(t)) return false;
   return /\b(ja|jawohl|klar|gerne|gern|in ordnung|okay|ok|passt|einverstanden|von mir aus|machen sie)\b/.test(t);
 }
 export function istAufnahmeNein(text: string): boolean {
@@ -574,6 +608,6 @@ export interface HoerprobeZeile {
   dialekt?: Dialekt | null;
 }
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
-export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund"] as const;
+export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
 export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";

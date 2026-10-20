@@ -23,7 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE,
-  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt,
+  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt, type Zuhoeren,
 } from "./fiaon-aras";
 import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEingang, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
 import { paketPreisCents } from "./fiaon-pakete";
@@ -96,7 +96,7 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
   { name: "nicht_mehr_anrufen", beschreibung: "Der Kunde will keine Anrufe mehr. Sperrt die Nummer sofort und dauerhaft.", schema: O({}) },
   { name: "mensch_verbinden", beschreibung: "Verbindet zu einem Menschen aus dem Team — bei Wunsch, Kündigung, Widerruf, Beschwerde, Anwalt/Behörde, Erstattung, Erlass. Ist niemand frei, wird ein Anruf zu fester Zeit eingetragen.",
     schema: O({ grund: { type: "string", enum: ["wunsch", "kuendigung", "widerruf", "beschwerde", "recht", "erstattung", "erlass", "global", "unklar"] } }, ["grund"]) },
-  { name: "anruf_beenden", beschreibung: "Beendet das Gespräch mit Ergebnis und kurzer Notiz — erst NACH der Verabschiedung.",
+  { name: "anruf_beenden", beschreibung: "Beendet das Gespräch mit Ergebnis und kurzer Notiz — erst NACHDEM Aras sich hörbar verabschiedet hat (nie direkt nach „Moment“).",
     schema: O({ ergebnis: { type: "string", enum: [...ARAS_ERGEBNISSE] }, notiz: { type: "string", maxLength: 400 } }, ["ergebnis", "notiz"]) },
 ];
 
@@ -119,9 +119,15 @@ export const ABSCHIED = "Dann einen schönen Tag noch — und wenn was ist, schr
 export const NOTAUS_SATZ = "Entschuldigen Sie, ich muss unser Gespräch hier kurz beenden — jemand aus dem Team meldet sich bei Ihnen. Einen schönen Tag!";
 // Justin 20.10.2026: „nicht sagen ‚ich bleib bei der Überweisung so lange am Telefon‘, das ist total aufdringlich“ — gestrichen.
 // Stattdessen schließt Aras wie ein Top-Verkäufer: Link aufs Handy, den Tag nennt der Kunde, herzlich bestätigen.
-export const LINK_ANGEBOT = "Ich schick Ihnen den Link gleich aufs Handy, passt das?";
+// Justins Test 20.10. (Anruf 6): „Im Link steht alles drin, Preis, Laufzeit und Widerruf“ klang abgelesen. Den Widerruf nennt
+// Aras einmal vor dem Abschluss, kurz und natürlich im Link-Angebot; Preis und Laufzeit, wenn er fragt.
+export const LINK_ANGEBOT = "Ich schick Ihnen den Link gleich aufs Handy, mit allen Infos, auch zum Widerruf — passt das?";
 export const TAG_FRAGE = "Wann schaffen Sie die Überweisung — heute noch?";
 export const AUFNAHME_NEIN_SATZ = "Alles klar, dann ohne Aufzeichnung — kein Problem.";
+/** Er zögert bei der Aufzeichnung („hm“): ruhig erklären, ihm die Wahl lassen, EINE klare Frage (Justins Test 20.10., Anruf 6 — nie drängeln). */
+export const AUFNAHME_ZOEGERN_SATZ = "Ist nur für unsere Unterlagen — wenn Sie lieber nicht möchten, ist das auch völlig okay. Darf ich aufzeichnen?";
+/** Die Brücke verlangt den Abschied, wenn das Hintergrund-Modell auflegen will, bevor Aras sich verabschiedet hat (Anruf 6). */
+export const ABSCHIED_EINFORDERN = "Bevor aufgelegt wird: Bestätige kurz und herzlich, was vereinbart ist, sag den nächsten Schritt und verabschiede dich mit seinem Namen und guten Wünschen. Danach sagst du nichts mehr.";
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026): derselbe Satz in jeder deutschen Stimme. */
 export const HOERPROBE_SATZ = HOERPROBE_SATZ_VORGABE;
 
@@ -136,42 +142,138 @@ export function betragAusFeld(b: Briefing): string | null {
   return cents > 0 && b.paketKey ? paketPreisText(b.paketKey) : null;
 }
 
-/**
- * Justins Verkaufssatz (E-373) — EINE Quelle mit Mara: nachDemEingang („Nach Ihrer Zahlung mit Ihrem Verwendungszweck
- * schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich … nutzen können“; wahr, E-276), gesprochen um den
- * Betrag aus dem Betragsfeld ergänzt. Dann der Link und genau EINE Frage am Schluss (Probe 20.10.: nach der Frage kam
- * noch ein Satz).
- */
-export function verkaufssatz(b: Briefing): string {
-  const betrag = betragAusFeld(b);
-  const kern = nachDemEingang({ anfang: true, ziel: b.kartenZiel ?? null });
-  const gesprochen = betrag ? kern.replace(/^Nach Ihrer Zahlung/, `Nach Ihrer Zahlung über ${betrag}`) : kern;
-  return `${gesprochen}. Im Link steht alles drin, Preis, Laufzeit und Widerruf. ${LINK_ANGEBOT}`;
+// ── Beträge wie ein Mensch (Justins Test 20.10., Anruf 6: „neunundfünfzig neunundneunzig“ — ohne „Euro“) ────────────────
+const EINER = ["null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn"];
+const ZEHNER = ["", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig", "neunzig"];
+/** Eine ganze Zahl als Wort („neunundfünfzig“, „fünftausend“, „zweitausendfünfhundert“). Rein. */
+export function zahlWort(zahl: number): string {
+  const n = Math.floor(Math.abs(zahl));
+  if (n < 20) return EINER[n];
+  if (n < 100) { const e = n % 10, z = Math.floor(n / 10); return e ? `${e === 1 ? "ein" : EINER[e]}und${ZEHNER[z]}` : ZEHNER[z]; }
+  if (n < 1000) { const h = Math.floor(n / 100), r = n % 100; return `${h === 1 ? "" : EINER[h]}hundert${r ? zahlWort(r) : ""}`; }
+  if (n < 1_000_000) { const t = Math.floor(n / 1000), r = n % 1000; return `${t === 1 ? "" : zahlWort(t)}tausend${r ? zahlWort(r) : ""}`; }
+  return String(n);
+}
+/** Ein Betrag, wie ein Mensch ihn sagt: „59,99 €“ → „neunundfünfzig Euro neunundneunzig“, 5000 → „fünftausend Euro“. Null/unbekannt → null. Rein. */
+export function euroGesprochen(betrag: string | number | null | undefined): string | null {
+  let euro = 0, cent = 0;
+  if (typeof betrag === "number") {
+    if (!Number.isFinite(betrag) || betrag <= 0) return null;
+    euro = Math.floor(betrag); cent = Math.round((betrag - euro) * 100);
+  } else {
+    const m = /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?\s*(?:€|euro\b)/i.exec(String(betrag ?? ""));
+    if (!m) return null;
+    euro = Number(m[1].replace(/\./g, "")); cent = m[2] ? Number(m[2].padEnd(2, "0")) : 0;
+  }
+  if (!euro && !cent) return null;
+  if (!euro) return `${zahlWort(cent)} Cent`;
+  return `${euro === 1 ? "ein" : zahlWort(euro)} Euro${cent ? ` ${zahlWort(cent)}` : ""}`;
+}
+/** „59,99 € (gesprochen: „neunundfünfzig Euro neunundneunzig“)“ — für das Briefing. Rein. */
+function mitGesprochen(betrag: string | number): string {
+  const text = typeof betrag === "number" ? euroGanz(betrag) : betrag;
+  const w = euroGesprochen(betrag);
+  return w ? `${text} (gesprochen: „${w}“)` : text;
 }
 
 /**
- * Der Anlass in EINEM Satz — direkt nach der Bestätigung des Namens, und immer die Antwort auf „Worum geht's?“
- * (Probe 20.10.: Justin fragte zweimal und bekam keine klare Antwort).
+ * Justins Verkaufssatz (E-373) — EINE Quelle mit Mara: nachDemEingang („Nach Ihrer Zahlung … schalten wir umgehend Ihren
+ * Account frei, damit Sie schnellstmöglich …“; wahr, E-276), gesprochen um den Betrag aus dem Betragsfeld ergänzt — und am
+ * Telefon OHNE „mit Ihrem Verwendungszweck“ (Justins Test 20.10., Anruf 6: ohne Zusammenhang unverständlich; er steht im
+ * Link). Dann das Link-Angebot mit dem Widerruf und genau EINE Frage am Schluss.
  */
-export function anlassSatz(spielart: Spielart, b: Briefing): string {
+export function verkaufssatz(b: Briefing): string {
+  const betrag = betragAusFeld(b);
+  const kern = nachDemEingang({ anfang: true, ziel: b.kartenZiel ?? null }).replace(/ mit Ihrem Verwendungszweck\b/, "");
+  const gesprochen = betrag ? kern.replace(/^Nach Ihrer Zahlung/, `Nach Ihrer Zahlung über ${betrag}`) : kern;
+  return `${gesprochen}. ${LINK_ANGEBOT}`;
+}
+
+/** WORUM ES GEHT — die Fakten, aus denen Aras selbst formuliert. */
+export interface AnlassFakten { offen: string; ziel: string; nutzen: string; nebenbei: string | null; beispiele: string[] }
+/**
+ * Der Anlass als FAKTEN, nicht als Vorlesesatz (Justins Test 20.10., Anruf 5: auf „Um was geht's?“ dreimal wortgleich
+ * derselbe Satz — und der sagte nur, WARUM Aras anrufen darf, nicht WAS er will). Was offen ist, was Aras will, was der
+ * Kunde davon hat; Aras sagt es in eigenen Worten. Die Beispiele zeigen den Ton — nie zum Vorlesen. Null: er ruft an. Rein.
+ */
+export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | null {
   const s = spielart === "probe" ? (b.probeSpielart ?? "probe") : spielart;
-  const paket = b.paketName ? `für ${b.paketName}` : "bei FIAON";
+  const paket = b.paketName ?? "FIAON";
+  const betrag = betragAusFeld(b);
   const art = b.einwilligung?.art ?? "";
-  const kanal = art === "zuruf_whatsapp" ? "per WhatsApp " : art === "zuruf_mail" ? "per Mail " : "";
+  const gruen = art === "zuruf_whatsapp" ? "per WhatsApp" : art === "zuruf_mail" ? "per Mail" : art === "antrag_kaestchen" || art === "antrag_knopf" ? "im Antrag" : null;
   switch (s) {
-    case "zuruf":
-      return art === "antrag_kaestchen" || art === "antrag_knopf"
-        ? `Es geht um Ihren Antrag ${paket} — Sie hatten sich dort einen Anruf von uns gewünscht.`
-        : `Es geht um Ihren Antrag ${paket} — Sie hatten uns ${kanal}mit Ja geantwortet, dass ich Sie anrufen darf.`;
-    case "stufe_b": return `Es geht um Ihren Antrag ${paket} — Sie sind schon fast am Ziel.`;
-    case "stufe_a": return `Es geht um Ihre Überweisung ${paket} — ich helfe, dass sie schnell zugeordnet wird.`;
-    case "rate": return b.offeneRate ? `Es geht um Ihre Rate ${b.offeneRate.nr} über ${b.offeneRate.betrag}, die am ${b.offeneRate.faelligAm} fällig war.` : `Es geht um Ihre offene Rate bei FIAON.`;
-    case "zusage": return `Es geht um Ihre Überweisung, die Sie ${b.zusageAm ? `für den ${b.zusageAm} ` : ""}geplant hatten.`;
-    case "termin": return `Sie hatten sich für jetzt einen Anruf von uns gewünscht.`;
-    case "lead": return `Sie haben sich eben bei FIAON gemeldet — ich melde mich direkt, damit es schnell geht.`;
-    case "rueckholung": return `Sie hatten Interesse, wieder bei FIAON einzusteigen.`;
-    case "eingehend": return `Sie haben bei FIAON angerufen.`;
-    default: return `Es geht um Ihren Antrag ${paket}.`;
+    case "zuruf": case "stufe_b": case "probe":
+      return {
+        offen: `Sein Antrag für ${paket} ist abgeschickt — es fehlt nur noch die erste Zahlung${betrag ? ` über ${mitGesprochen(betrag)}` : ""}.`,
+        ziel: "Du willst ihm helfen, heute zu starten: erst kurz hören, wofür er die Karte will, dann den Link aufs Handy, und er sagt, wann er überweist.",
+        nutzen: "Danach geht's los Richtung seine eigene Visa-Kreditkarte mit seinem Wunschlimit.",
+        nebenbei: s === "zuruf" && gruen ? `Er hat ${gruen} Ja zu diesem Anruf gesagt — das erwähnst du höchstens EINMAL und nur nebenbei („Sie hatten uns ja grünes Licht gegeben“), nie als Begründung für den Anruf.` : null,
+        beispiele: [
+          `Ihr Antrag für ${paket} ist fertig — es fehlt nur noch die erste Zahlung, dann geht's los Richtung eigene Visa-Karte mit Ihrem Wunschlimit. Ich wollt' kurz schauen, ob ich Ihnen dabei helfen kann.`,
+          `Ich ruf wegen Ihrer Karte an: Ihr Antrag liegt fertig bei uns, nur die erste Zahlung fehlt noch. Ich helf Ihnen gern, dass Sie heute noch starten.`,
+          `Kurz zu Ihrem Antrag für ${paket}${s === "zuruf" && gruen ? " — Sie hatten uns ja grünes Licht gegeben" : ""}: Bis zum Start fehlt nur noch ein Schritt, und den wollt' ich mit Ihnen gemeinsam machen.`,
+        ],
+      };
+    case "stufe_a":
+      return {
+        offen: "Er hat gesagt, dass er überwiesen hat — zugeordnet ist die Zahlung bei uns noch nicht.",
+        ziel: "Du willst kurz klären, wann und von welcher Bank er überwiesen hat und mit welchem Verwendungszweck — damit sie schnell zugeordnet wird.",
+        nutzen: "Dann geht es für ihn ohne Verzögerung weiter.",
+        nebenbei: null,
+        beispiele: [
+          "Ich ruf wegen Ihrer Überweisung an — danke schon mal! Bei uns ist sie noch nicht zugeordnet, und mit zwei kurzen Angaben von Ihnen klappt das ganz schnell.",
+          "Es geht um Ihre Zahlung: Damit's ohne Verzögerung weitergeht, bräucht' ich kurz zwei Angaben von Ihnen.",
+        ],
+      };
+    case "rate":
+      return {
+        offen: b.offeneRate ? `Seine Rate ${b.offeneRate.nr} über ${mitGesprochen(b.offeneRate.betrag)} war am ${b.offeneRate.faelligAm} fällig.` : "Eine seiner Raten ist offen.",
+        ziel: "Du willst freundlich klären, wann sie kommt — und bei echter Not geht auch eine Pause.",
+        nutzen: "Dann ist bei ihm alles wieder im grünen Bereich.",
+        nebenbei: null,
+        beispiele: [
+          "Ich ruf kurz wegen Ihrer offenen Rate an — ich wollt' schauen, wann sie bei Ihnen passt, dann ist alles wieder im grünen Bereich.",
+          "Es geht um Ihre Rate, die noch offen ist. Ganz entspannt — sagen Sie mir einfach, wann's bei Ihnen klappt.",
+        ],
+      };
+    case "zusage":
+      return {
+        offen: `Er wollte ${b.zusageAm ? `am ${b.zusageAm} ` : ""}überweisen; angekommen ist bisher nichts.`,
+        ziel: "Du willst freundlich nachfragen, ob es geklappt hat — sonst findet ihr einen neuen Tag.",
+        nutzen: "Damit nichts liegen bleibt und es für ihn weitergeht.",
+        nebenbei: null,
+        beispiele: [
+          "Ich ruf kurz wegen der Überweisung an, die Sie geplant hatten — bei uns ist noch nichts angekommen. Hat's geklappt?",
+          "Es geht um Ihre Überweisung: Ich wollt' nur schauen, ob alles geklappt hat, damit bei Ihnen nichts liegen bleibt.",
+        ],
+      };
+    case "termin":
+      return {
+        offen: `Er hat diesen Anruf selbst gebucht${b.terminAm ? ` (${b.terminAm})` : ""}.`,
+        ziel: "Du willst hören, worum es ihm geht, und ihm direkt helfen.",
+        nutzen: "Er bekommt seine Antworten sofort, ohne Warten.",
+        nebenbei: null,
+        beispiele: ["Sie hatten sich für jetzt einen Anruf gewünscht — schön, dass es klappt! Worum geht's Ihnen?"],
+      };
+    case "lead":
+      return {
+        offen: "Er hat sich gerade bei FIAON gemeldet — einen Antrag gibt es noch nicht.",
+        ziel: "Du willst kurz erklären, was FIAON macht, nach seinem Ziel fragen und ihm den Antrag als Link schicken.",
+        nutzen: "Seine eigene Visa-Kreditkarte bei unserer Partnerbank — wir bereiten den Antrag mit ihm vor.",
+        nebenbei: null,
+        beispiele: ["Sie hatten sich gerade bei uns gemeldet — ich ruf gleich zurück, damit Sie nicht warten müssen. Wofür hätten Sie die Karte denn gern?"],
+      };
+    case "rueckholung":
+      return {
+        offen: "Sein Vertrag ist beendet; er hatte Interesse, wieder einzusteigen.",
+        ziel: "Du willst kurz erklären, wie es jetzt ginge, und ihm den Antrag als Link schicken.",
+        nutzen: "Er kommt wieder auf den Weg zu seiner eigenen Karte.",
+        nebenbei: null,
+        beispiele: ["Sie hatten Interesse, wieder bei FIAON einzusteigen — ich erzähl Ihnen kurz, wie das jetzt ganz einfach geht."],
+      };
+    default:
+      return null;
   }
 }
 
@@ -183,10 +285,12 @@ const ENERGIE_HOERBAR: Record<Regie["energie"], string> = {
   lebendig: "LEBENDIG — positiv und locker, man hört dein Lächeln; freundliche Melodie, ab und zu ein „Super“.",
   vollgas: "VOLLGAS — hörbare Begeisterung: lebhafte Melodie, ein breites Lächeln in der Stimme, kräftige Betonung auf dem Wichtigen, knackige kurze Sätze, gern ein „Super!“ oder „Sehr gut!“ — wie der beste Verkäufer im Raum. Nie laut, nie hektisch, nie aufdringlich.",
 };
+// Justins Test 20.10. (Anruf 6): fast jeder Satz begann mit „Also/ähm/Ach so“ — „klingt wie eine Parodie“. Füllwörter nur, wo ein
+// Mensch nachdenkt; „viel“ heißt lockerer, nicht mehr Füllwörter je Satz (höchstens jeder dritte Satz, wie bei „normal“).
 const FUELL_HOERBAR: Record<Regie["fuellwoerter"], string> = {
-  sparsam: "SPARSAM — nur selten ein „hm“ oder „also“.",
-  normal: "NORMAL — etwa jeder dritte Satz hat ein „hm“, „also“ oder „genau“.",
-  viel: "VIEL — fast jeder zweite Satz beginnt locker mit „Also“, „Ähm“, „Na ja“ oder „Okay“ oder hat ein „hm“, „genau“, „ach so“ drin — wie ein entspannter Mensch; nie zwei Füllwörter hintereinander.",
+  sparsam: "SPARSAM — kaum Füllwörter; höchstens mal ein „hm“, wenn du wirklich kurz nachdenkst.",
+  normal: "NORMAL — ab und zu ein „hm“ oder „also“, dort wo ein Mensch nachdenkt — höchstens in jedem dritten Satz, nie als Satzanfang aus Gewohnheit.",
+  viel: "VIEL heißt LOCKER, nicht mehr Füllwörter: lockere Alltagssprache („passt“, „na klar“, „schauen wir mal“), ein „hm“ oder „also“ höchstens in jedem dritten Satz — nur wo ein Mensch nachdenkt, nie zwei hintereinander, nie als Satzanfang aus Gewohnheit.",
 };
 /** Justin 20.10.2026: „eine Stimme mit Dialekt, also vielleicht Österreichisch“ — Akzent und ein paar Wörter, die jeder versteht. */
 export const DIALEKT_HOERBAR: Record<Dialekt, string> = {
@@ -210,8 +314,14 @@ const ENERGIE: Record<Regie["energie"], string> = {
 };
 const FUELL: Record<Regie["fuellwoerter"], string> = {
   sparsam: "selten — höchstens alle paar Sätze eines",
-  normal: "natürlich dosiert — etwa in jedem dritten Satz eines",
-  viel: "wie ein lockerer Mensch — fast in jedem zweiten Satz eines, aber nie zwei hintereinander",
+  normal: "sparsam — höchstens in jedem dritten Satz eines",
+  viel: "locker, aber höchstens in jedem dritten Satz eines („viel“ heißt lockere Sprache, nicht mehr Füllwörter)",
+};
+/** Zuhören (aras_zuhoeren) — GPT-Live hat dafür keinen Schalter; die Anweisung sagt es, das Geduld-Tor der Brücke sichert es ab. */
+const ZUHOEREN_HOERBAR: Record<Zuhoeren, string> = {
+  geduldig: "GEDULDIG — du lässt ihn immer ausreden. Eine kurze Pause heißt meistens: Er denkt nach oder holt Luft — dann wartest du. Du fängst erst an, wenn er wirklich fertig ist (Frage gestellt, Satz zu Ende, klares Ja oder Nein).",
+  normal: "NORMAL — du lässt ihn ausreden; bei einer kurzen Denkpause wartest du einen Moment, dann antwortest du.",
+  flott: "FLOTT — du antwortest zügig, sobald er fertig ist — aber du fällst ihm nie ins Wort.",
 };
 const TEMPO: Record<Regie["tempo"], string> = {
   ruhig: "ruhig, mit kleinen Pausen zwischen den Gedanken",
@@ -251,36 +361,53 @@ function rolle(e: ArasEinstellungen, r: Regie): string {
     `Du bist ein TOP-VERKÄUFER: Wärme, Selbstvertrauen und echte Begeisterung für sein Ziel — seine eigene Visa-Kreditkarte mit seinem Wunschlimit. Du nimmst seine Worte auf („Sie sagten, für den Urlaub — genau dafür …“), beantwortest Einwände kurz und ehrlich und schließt immer mit EINEM natürlichen nächsten Schritt. Das Herz eines Kümmerers, das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`,
     ENERGIE[r.energie],
     `Kurze Sätze, Alltagswörter, ein Gedanke je Satz. Höchstens zwei, drei Sätze am Stück. Erst, was geht — nie „Leider“, nie „Nur“, nie „Perfekt“. Kein Amts- und Bürodeutsch: nie „bezüglich“, „hinsichtlich“, „diesbezüglich“, „gemäß“, „zwecks“, „Ihr Anliegen“, „ich kümmere mich um Ihr Anliegen“, „ich gebe das in die Aufzeichnung“. „Passt das so für Sie?“ höchstens einmal im ganzen Gespräch.`,
-    `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Bin ich richtig bei Herrn …?“, „Haben Sie kurz zwei Minuten?“, „Wann passt es Ihnen?“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
+    `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Bin ich richtig bei Herrn …?“, „Passt's gerade kurz?“, „Wann passt es Ihnen?“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
     `EINE FRAGE PRO REDEBEITRAG: Stell höchstens eine Frage — sie kommt ganz zum Schluss. Danach hörst du SOFORT auf zu sprechen und wartest auf seine Antwort. Nie zwei Fragen hintereinander, nie nach der Frage noch einen Satz anhängen.`,
   ].join("\n");
 }
 
 function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
   const wer = b.nachname ? `${b.anrede ? `${b.anrede === "Herr" ? "Herrn" : "Frau"} ` : ""}${b.nachname}` : null;
-  const anlass = anlassSatz(spielart, b);
+  const f = anlassFakten(spielart, b);
+  // Justins Tests 20.10. (Anrufe 5 und 6): weniger Skript. Pflicht sind nur drei Dinge; alles andere ist Orientierung mit Beispielen.
   const z = [
-    `DER ANFANG (Pflicht, in dieser Reihenfolge — jeder Schritt ist EIN Redebeitrag, danach hörst du zu):`,
-    `1. Dein erster Satz ist immer dieser (so oder fast wörtlich): „${kiHinweisFuer(e)}“`,
+    `DREI PFLICHTEN — die einzigen festen Regeln:`,
+    `1. Dein erster Satz enthält den KI-Hinweis: „${kiHinweisFuer(e)}“ (so oder fast wörtlich).`,
     spielart === "eingehend"
-      ? `2. Dann fragst du, worum es geht, und wer dran ist.`
-      : `2. Dann: „Bin ich richtig bei ${wer ?? "…"}?“${wer ? "" : " (Den Namen kennst du nicht — frag locker, mit wem du sprichst.)"} Erst wenn der Kunde bestätigt, dass er selbst dran ist, nennst du den Anlass — nie Rate, Antrag, Paket oder Betrag vorher.`,
+      ? `2. Einzelheiten zu Vertrag, Rate oder Antrag erst, wenn du weißt, wer dran ist.`
+      : `2. Einzelheiten erst, wenn er bestätigt hat, dass er selbst dran ist — nie Rate, Antrag, Paket oder Betrag vorher. ${wer ? `Frag locker: „Bin ich richtig bei ${wer}?“` : "Den Namen kennst du nicht — frag locker, mit wem du sprichst."}`,
+    `3. Aufgezeichnet wird nur nach einem klaren Ja (siehe AUFZEICHNUNG).`,
+    ``,
+    `ALLES ANDERE IST ORIENTIERUNG — ein echtes Gespräch schlägt jede Checkliste. Kein Ablauf zum Abhaken: Hör zu und antworte auf das, was er gerade sagt.`,
     spielart === "eingehend"
-      ? `3. Hast du sein Anliegen verstanden, sag in einem Satz, wie du ihm hilfst — und frag erst danach nach der Aufzeichnung.`
-      : `3. Sofort nach seiner Bestätigung der ANLASS in EINEM Satz, dann eine kurze Frage: „${anlass} Haben Sie kurz zwei Minuten?“ Hat er keine Zeit: locker einen festen Zeitpunkt für einen neuen Anruf anbieten.`,
-    `4. Erst DANACH die Frage nach der Aufzeichnung (siehe AUFZEICHNUNG) — dann das Anliegen.`,
-    `Fragt er „Worum geht's?“, „Was wollen Sie?“ oder „Um was geht's?“ — egal wann —, ist deine NÄCHSTE Antwort genau der Anlass in einem Satz: „${anlass}“ Nichts davor, keine Gegenfrage, keine Aufzeichnung vorher. Fragt er „Wer sind Sie?“: „Ich bin ${e.name} von FIAON — eine KI, aber eine sehr nette.“ und dann der Anlass.`,
+      ? `· Er ruft an: frag, worum es ihm geht, hör zu und sag in einem Satz, wie du hilfst.`
+      : `· Hat er bestätigt, sag in DEINEN Worten, worum es geht — kurz, konkret, mit seinem Nutzen (Fakten unten). Ob es gerade passt, fragst du nur, wenn es natürlich passt („Passt's gerade kurz?“) — nie als Anhängsel hinter dem Anlass. Fragt er schon „Worum geht's?“, beantworte zuerst genau das. Hat er keine Zeit: locker einen festen Zeitpunkt für einen neuen Anruf anbieten.`,
+    `· Die Frage nach der Aufzeichnung kommt früh — sobald er weiß, worum es geht, bevor ihr ins Detail geht.`,
+    ...(f ? [
+      ``,
+      `WORUM ES GEHT — die Fakten (sag es in DEINEN Worten, jedes Mal anders, nie vorgelesen):`,
+      `· Offen: ${f.offen}`,
+      `· Was du willst: ${f.ziel}`,
+      `· Was er davon hat: ${f.nutzen}`,
+      ...(f.nebenbei ? [`· Nebenbei: ${f.nebenbei}`] : []),
+      `So könnte es klingen — nur Beispiele für den Ton, nie wörtlich, jedes Gespräch anders:`,
+      ...f.beispiele.map((x) => `· „${x}“`),
+    ] : []),
+    ``,
+    `NIE WIEDERHOLEN: Sag nie einen Satz zweimal gleich — auch nicht den Anlass. Fragt er noch einmal („Ja, aber um was geht's?“), war deine Antwort zu allgemein: antworte ANDERS und konkreter — was genau fehlt, was als Nächstes passiert, was er davon hat. Ist unklar, was er wissen will, frag zurück: „Was genau möchten Sie wissen?“`,
+    `Fragt er „Wer sind Sie?“: „Ich bin ${e.name} von FIAON — eine KI, aber eine sehr nette.“ — dann in deinen Worten, worum es geht.`,
     `Ist jemand anderes dran: nur „Ach so, alles klar — dann richten Sie bitte aus, dass FIAON angerufen hat. Danke Ihnen!“ Nichts über Vertrag, Rate oder Antrag.`,
     `Fragt jemand, ob du ein Mensch bist: „${MENSCH_FRAGE_ANTWORT}“ Fragt jemand nach deinem Nachnamen: „Einfach ${e.name} — ich bin die KI von FIAON.“ Du nennst nie einen Anbieter, kein Modell, keine Technik und keine andere Firma als FIAON.`,
   ];
-  return z.join("\n");
+  return z.filter((x, i, a) => x !== "" || (i > 0 && a[i - 1] !== "")).join("\n");
 }
 
 function aufzeichnung(e: ArasEinstellungen, b: Briefing): string {
   return [
-    `AUFZEICHNUNG (erst NACH dem Anlass, vor den Inhalten): Frag kurz und locker: „${e.aufnahmeFrage}“ Dann still — warte auf seine Antwort.`,
-    `Sagt er Ja: Die Aufzeichnung startet von selbst. Du sagst dazu NICHTS — kein „Moment“, kein „ich gebe das weiter“, kein zweites „Danke“ — und du gibst dafür KEINE Arbeit an den Hintergrund ab. Mach sofort natürlich mit dem Anliegen weiter (ein kurzes „Super.“ davor reicht).`,
-    `Sagt er Nein, zögert er oder ist es unklar: „${AUFNAHME_NEIN_SATZ}“ — und weiter mit dem Anliegen. Ohne Ja gibt es nie eine Aufzeichnung.`,
+    `AUFZEICHNUNG (früh, sobald er weiß, worum es geht): Frag in EINEM Satz, locker: „${e.aufnahmeFrage}“ Dann still — warte auf seine Antwort.`,
+    `Sagt er Ja: Die Aufzeichnung startet von selbst. Du sagst dazu NICHTS — kein „Moment“, kein „ich gebe das weiter“, kein zweites „Danke“ — und du gibst dafür KEINE Arbeit an den Hintergrund ab. Mach sofort natürlich weiter (ein kurzes „Super.“ davor reicht).`,
+    `Zögert er („hm“, „äh“, Schweigen, eine Rückfrage): nie drängeln, nie nach einem Ja verlangen. Ganz ruhig: „${AUFNAHME_ZOEGERN_SATZ}“ Sagt er dann Ja: wie oben.`,
+    `Sagt er Nein oder bleibt es unklar: „${AUFNAHME_NEIN_SATZ}“ — und weiter mit dem Gespräch. Ohne klares Ja gibt es nie eine Aufzeichnung.`,
     `Fragt er nach Details (wie lange, wofür): „Wir speichern es neunzig Tage, nur zur Dokumentation — alles Weitere steht in unserer Datenschutzerklärung.“ Eine Internetadresse liest du nie vor.`,
     b.aufnahmeFrueherAbgelehnt ? `Er hat früher schon einmal Nein gesagt — frag trotzdem kurz und freundlich, ohne zu drängen.` : "",
   ].filter(Boolean).join("\n");
@@ -295,29 +422,31 @@ function stimmeHeute(r: Regie): string {
     `· Tempo: ${TEMPO_HOERBAR[r.tempo]}`,
     `· Sprache: ${DIALEKT_HOERBAR[r.dialekt ?? "hochdeutsch"]}${r.dialekt && r.dialekt !== "hochdeutsch" ? " „Servus“ sagst du nur zum Abschied und nur zu Kunden aus Österreich." : ""}`,
     r.lachen ? `· Lachen: ein kurzes, warmes Lachen ist erlaubt, wenn der Kunde etwas Lustiges sagt.` : `· Lachen: keins.`,
+    `· Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "geduldig"].split(" — ")[0]} — Einzelheiten unter „Interruption policy“.`,
   ].join("\n");
 }
 
 function klang(r: Regie): string {
   return [
     `SO KLINGST DU (das Wichtigste: wie ein Mensch, nicht wie ein Vorleser):`,
-    `· Tempo: ${TEMPO[r.tempo]}. Kleine Denkpausen sind erlaubt („Moment … ja, genau.“). Ist der Kunde fertig, antwortest du ohne lange Pause — wie in einem echten Gespräch; brauchst du einen Moment, sag kurz „Hm, Moment …“ statt still zu sein.`,
-    `· Füllwörter ${FUELL[r.fuellwoerter]}: „hm“, „also“, „genau“, „ach so“, „ähm“, „okay“ — echt eingestreut, nie als Floskel, nie am Satzende gestapelt.`,
+    `· Tempo: ${TEMPO[r.tempo]}. Ist der Kunde fertig, antwortest du ohne lange Pause — wie in einem echten Gespräch.`,
+    `· Füllwörter ${FUELL[r.fuellwoerter]} — und NUR da, wo ein Mensch nachdenkt: vor der Antwort auf eine knifflige Frage oder beim Nachsehen („Hm, Moment …“). NIE am Anfang jedes Satzes, nie zwei hintereinander, nie als eigener Redebeitrag: Ein Füllwort steht immer IN einem Satz mit Inhalt — nie erst „Also …“ und dann Pause. „Ach so“ nur, wenn du gerade wirklich etwas Neues erfährst.`,
     r.lachen
       ? `· Ein kurzes, warmes Lachen („haha, ja“) nur als Antwort auf etwas Lustiges oder Herzliches vom Kunden — nie als Einstieg, nie über ihn, nie bei Geldsorgen.`
       : `· Kein Lachen.`,
-    `· Zeiten und Beträge wie ein Mensch: „morgen um halb zehn“, „am Freitag“, „neunundfünfzig neunundneunzig“. Einen Verwendungszweck sagst du langsam in kleinen Gruppen — und bietest an, ihn per WhatsApp zu schicken.`,
+    `· Beträge und Zeiten wie ein Mensch: „neunundfünfzig Euro neunundneunzig“ (immer mit „Euro“), „morgen um halb zehn“, „am Freitag“. Den Verwendungszweck nennst du nur, wenn er gebraucht wird (Rate, Zuordnung) oder er danach fragt — dann langsam in kleinen Gruppen, und du bietest an, ihn per WhatsApp zu schicken.`,
     `· FIAON sprichst du als ein Wort, eingebettet in den Satz. Mitarbeiter nennst du nur mit Herr/Frau und Nachname. ${MITARBEITER_NAMEN_KURZ}`,
     `· ${MARA_PERSONA.nieSystemsprache[0]} Keine internen Wörter (Akte, Status, Stufe, Lead, System, Vorgang, Ticket).`,
-    `· Du wiederholst nicht wortwörtlich, was der Kunde gerade gesagt hat, und du hältst keine Vorträge.`,
+    `· Du wiederholst nicht wortwörtlich, was der Kunde gerade gesagt hat — und dich selbst auch nicht. Keine Vorträge.`,
   ].join("\n");
 }
 
 function zuhoeren(r: Regie): string {
   return [
     `Backchannel policy: ${r.zuhoerlaute === "sparsam" ? "Wenige" : "Mäßige"} kurze Zuhör-Laute („mhm“, „ja“, „verstehe“), während der Kunde erzählt — natürlich, ohne mit seiner Rede zu konkurrieren.`,
-    `Interruption policy: Unterbricht dich der Kunde, hörst du sofort auf zu sprechen und hörst zu. Danach gehst du auf das ein, was er gesagt hat — nicht auf deinen alten Satz. Ein kurzes „mhm“ von ihm ist kein Unterbrechen.`,
-    `Pausen: Denkt der Kunde nach oder sucht er etwas, wartest du ruhig. Husten, Musik oder ein Gespräch im Hintergrund sind keine neue Frage.`,
+    `Interruption policy: Unterbricht dich der Kunde, hörst du sofort auf zu sprechen und hörst zu. Danach gehst du auf das ein, was er gesagt hat — nicht auf deinen alten Satz. Ein kurzes „mhm“ von ihm ist kein Unterbrechen. Du fällst ihm nie ins Wort und fängst nie in seine Denkpause hinein an.`,
+    `Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "geduldig"]}`,
+    `Pausen: Denkt der Kunde nach, holt er Luft oder sucht er etwas, wartest du ruhig — eine kurze Pause ist kein Ende. Husten, Musik oder ein Gespräch im Hintergrund sind keine neue Frage.`,
   ].join("\n");
 }
 
@@ -333,11 +462,17 @@ function verstehen(): string {
 
 function verkauf(b: Briefing, r: Regie): string {
   const h = ABSCHLUSS_HAERTE[r.abschluss];
+  const wunsch = b.kartenZiel ? euroGesprochen(b.kartenZiel.euro) : null;
+  // Justins Test 20.10. (Anruf 6): direkt nach dem Ja kam ein Monolog. Ein Top-Verkäufer fragt erst EINMAL nach dem Bedarf,
+  // spiegelt — und schließt dann ab.
   return [
-    `VERKAUF UND ABSCHLUSS (wie ein Top-Verkäufer — und die Wahrheit ist dein stärkstes Argument):`,
-    `· Du verkaufst den Wunsch des Kunden, nicht den Vertrag. Justins Satz, wenn die erste Zahlung offen ist: „${verkaufssatz(b)}“`,
-    `· Sagt er ja: Link an den Hintergrund geben (zahlungslink_senden), dann EINE Frage: „${TAG_FRAGE}“ Nennt er einen Tag: eintragen (zahlungszusage_merken) und herzlich bestätigen („Super, dann passt das — Sie sind richtig gut unterwegs.“). Sagt er „ist schon raus“: an den Hintergrund melden (zahlung_gemeldet).`,
-    `· Du bleibst NICHT am Telefon, während er überweist, und du drängst nicht — nach dem Tag ist der Abschluss gemacht.`,
+    `VERKAUF UND ABSCHLUSS (wie ein Top-Verkäufer — erst ein Gespräch, dann der Abschluss; die Wahrheit ist dein stärkstes Argument):`,
+    `· Kein Monolog. Erst EINE Bedarfsfrage, z. B. „Wofür möchten Sie die Karte vor allem nutzen?“ — weißt du es schon (Notiz), greif es auf, statt zu fragen („Sie hatten ja gesagt, für den Urlaub …“).`,
+    `· Dann spiegeln — seine Worte und sein Wunsch, z. B. „Ah, super — gerade für Reisen ist Ihr Wunschlimit${wunsch ? ` von ${wunsch}` : ""} ideal.“`,
+    `· Erst DANN der Abschluss. Du verkaufst seinen Wunsch, nicht den Vertrag — Justins Satz, wenn die erste Zahlung offen ist: „${verkaufssatz(b)}“`,
+    `· Fragt er, was im Link steht: „Da steht alles drin — Preis, Laufzeit und Widerruf.“ Fragt er, wohin der Link kommt: „Per WhatsApp auf Ihre Handynummer — in ein paar Sekunden ist er da.“`,
+    `· Sagt er ja: Link an den Hintergrund geben (zahlungslink_senden), dann EINE Frage: „${TAG_FRAGE}“ Nennt er einen Tag — auch ein „Ja“ auf „heute noch?“ ist ein Tag (heute) —, gibst du ihn SOFORT an den Hintergrund (zahlungszusage_merken) und bestätigst warm („Super, dann notier ich mir heute — Sie sind richtig gut unterwegs.“). Sagt er „ist schon raus“: an den Hintergrund melden (zahlung_gemeldet).`,
+    `· Du bleibst NICHT am Telefon, während er überweist, und du drängst nicht — nach dem Tag ist der Abschluss gemacht, dann kommt der Abschied (siehe ABSCHLUSS).`,
     `· Dringlichkeit nur, wenn sie wahr ist: eine fällige Rate, „je früher die Zahlung, desto früher geht es weiter“. Nie eine erfundene Frist, keine künstliche Eile, nie Druck.`,
     `· ${h.satz}`,
     `· Ist die Antwort ein klares Nein oder will er nicht mehr angerufen werden: freundlich annehmen, Schluss.`,
@@ -372,13 +507,13 @@ function briefingText(b: Briefing, spielart: Spielart): string {
     b.heute ? `· Heute ist ${b.heute.wochentag}, der ${b.heute.datum}, ${b.heute.uhrzeit} Uhr.` : "",
     `· Stand: ${stufeText(b.stufe)}${b.paketName ? ` — Paket ${b.paketName}${b.paketKey && paketPreisCents(b.paketKey) > 0 ? ` (${paketPreisText(b.paketKey)} im Monat, zwölf Monate Laufzeit)` : ""}` : ""}.`,
   ];
-  if (b.kartenZiel) z.push(`· Sein Wunschlimit aus dem Antrag: ${euroGanz(b.kartenZiel.euro)} — das ist sein Wunsch. Über den Rahmen entscheidet die Partnerbank; das sagst du nur auf seine direkte Frage.`);
-  if (b.offeneRate) z.push(`· Offene Rate ${b.offeneRate.nr} über ${b.offeneRate.betrag}, fällig am ${b.offeneRate.faelligAm}, Verwendungszweck ${b.offeneRate.verwendungszweck}. Den Link zur Zahlungsseite schickt der Hintergrund — nie vorlesen.`);
+  if (b.kartenZiel) z.push(`· Sein Wunschlimit aus dem Antrag: ${mitGesprochen(b.kartenZiel.euro)} — das ist sein Wunsch. Über den Rahmen entscheidet die Partnerbank; das sagst du nur auf seine direkte Frage.`);
+  if (b.offeneRate) z.push(`· Offene Rate ${b.offeneRate.nr} über ${mitGesprochen(b.offeneRate.betrag)}, fällig am ${b.offeneRate.faelligAm}, Verwendungszweck ${b.offeneRate.verwendungszweck}. Den Link zur Zahlungsseite schickt der Hintergrund — nie vorlesen.`);
   // Probe 20.10.2026: „offen: 0“ wurde zu „die erste Rate beträgt null Euro“ — eine ANZAHL steht nie ohne ihr Wort da.
   const rt = ratenText(b);
   if (rt) z.push(rt);
   const betrag = betragAusFeld(b);
-  if (!b.offeneRate && betrag && (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen")) z.push(`· Seine erste Zahlung: ${betrag} (Monatsbeitrag seines Pakets).`);
+  if (!b.offeneRate && betrag && (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen")) z.push(`· Seine erste Zahlung: ${mitGesprochen(betrag)} — der Monatsbeitrag seines Pakets.`);
   if (b.zahlungsseite && !b.offeneRate) z.push(`· Für seine erste Zahlung gibt es eine persönliche Zahlungsseite (der Hintergrund schickt den Link).`);
   if (b.termine.length) z.push(`· Termine: ${b.termine.map((t) => `${t.am} bei ${t.bei}`).join("; ")}.`);
   if (b.notizen.length) z.push(`· Zuletzt vom Team notiert: ${b.notizen.map((n) => `„${n}“`).join(" · ")}`);
@@ -400,13 +535,13 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
   const s = spielart === "probe" ? (b.probeSpielart ?? "probe") : spielart;
   switch (s) {
     case "termin":
-      return `GESPRÄCHSART „ANRUF ZUR VEREINBARTEN ZEIT“: Er hat diesen Anruf selbst gebucht (das sagt dein Anlass). Danach: „Worum geht es Ihnen?“ Erst zuhören, dann beantworten. Fragt er nach dem Weg zur Karte oder zum Start, verkaufst du: „${vk}“ Nächster Schritt immer konkret (Link, Zusage, Termin). Zum Schluss kurz zusammenfassen, was jetzt passiert.`;
+      return `GESPRÄCHSART „ANRUF ZUR VEREINBARTEN ZEIT“: Er hat diesen Anruf selbst gebucht. Frag, worum es ihm geht — erst zuhören, dann beantworten. Fragt er nach dem Weg zur Karte oder zum Start: Bedarfsfrage, spiegeln, dann der Abschluss (siehe VERKAUF). Nächster Schritt immer konkret (Link, Zusage, Termin). Zum Schluss kurz zusammenfassen, was jetzt passiert.`;
     case "lead":
-      return `GESPRÄCHSART „GERADE ANGEFRAGT“: Er hat eben ein Formular ausgefüllt und um den Anruf gebeten (das sagt dein Anlass). Erkläre in zwei Sätzen, was FIAON tut (wir bringen ihn zu seiner eigenen Kreditkarte bei unserer Partnerbank und bereiten seinen Antrag vor) und frag nach seinem Ziel (Urlaub, Auto, Miete, Online-Einkauf). Dann: „${vk}“ Den Antrag schickt der Hintergrund als Link. Bei Nein: freundlich, seine Angaben bleiben gespeichert.`;
+      return `GESPRÄCHSART „GERADE ANGEFRAGT“: Er hat eben ein Formular ausgefüllt und um den Anruf gebeten. Erkläre in zwei Sätzen, was FIAON tut (wir bringen ihn zu seiner eigenen Kreditkarte bei unserer Partnerbank und bereiten seinen Antrag vor), frag nach seinem Ziel (Urlaub, Auto, Miete, Online-Einkauf) und spiegle es. Dann: „${vk}“ Den Antrag schickt der Hintergrund als Link. Bei Nein: freundlich, seine Angaben bleiben gespeichert.`;
     case "zuruf":
-      return `GESPRÄCHSART „VERKAUF NACH SEINEM JA“: Er hat Ja geschrieben, dass du anrufen darfst; sein Antrag ist abgeschickt, die erste Zahlung offen (das sagt dein Anlass — wiederhol es nicht). Ziel: der Start heute — mit echter Vorfreude auf seine Karte. Sag: „${vk}“ Ja → Link über den Hintergrund, dann: „${TAG_FRAGE}“ Ein Tag genannt → zahlungszusage_merken und herzlich bestätigen. „Ist schon raus“ → zahlung_gemeldet. Zögert er → erst verstehen (seine Worte aufnehmen), dann ein ehrlicher Einwand-Satz, kein Druck.`;
+      return `GESPRÄCHSART „VERKAUF NACH SEINEM JA“: Er hat Ja gesagt, dass du anrufen darfst; sein Antrag ist abgeschickt, die erste Zahlung offen. Ziel: der Start heute — mit echter Vorfreude auf seine Karte. So läuft es meist (kein Skript): eine Bedarfsfrage → spiegeln → Abschluss (siehe VERKAUF) → Link über den Hintergrund → „${TAG_FRAGE}“ → Tag eintragen und warm bestätigen → Abschied. „Ist schon raus“ → zahlung_gemeldet. Zögert er → erst verstehen (seine Worte aufnehmen), dann ein ehrlicher Einwand-Satz, kein Druck.`;
     case "stufe_b":
-      return `GESPRÄCHSART „ANTRAG UNBEZAHLT“: Sein Antrag ist abgeschickt, die erste Zahlung offen (das sagt dein Anlass). Dann: „${vk}“ Ja → Link über den Hintergrund, dann: „${TAG_FRAGE}“ Bei Zögern: erst verstehen, dann ein Einwand-Satz; danach ein leichter nächster Schritt (Tag, Termin) oder ein freundlicher Schluss.`;
+      return `GESPRÄCHSART „ANTRAG UNBEZAHLT“: Sein Antrag ist abgeschickt, die erste Zahlung offen. So läuft es meist (kein Skript): eine Bedarfsfrage → spiegeln → Abschluss (siehe VERKAUF) → Link über den Hintergrund → „${TAG_FRAGE}“ → Abschied. Bei Zögern: erst verstehen, dann ein Einwand-Satz; danach ein leichter nächster Schritt (Tag, Termin) oder ein freundlicher Schluss.`;
     case "stufe_a":
       return `GESPRÄCHSART „ZAHLUNG GEMELDET“: Er hat gesagt, er habe überwiesen — gebucht ist noch nichts (das sagt dein Anlass). Frag nacheinander, je eine Frage: „Wann haben Sie überwiesen?“ — dann die Bank — dann den Verwendungszweck. Fehlte der Verwendungszweck, sag ihn langsam und biete an, ihn per WhatsApp zu schicken. Dann zahlung_gemeldet mit Datum und Betrag. Hat er doch noch nicht überwiesen: ohne Vorwurf einen Tag vereinbaren (zahlungszusage_merken).`;
     case "rate":
@@ -451,6 +586,7 @@ function grenzen(): string {
     `· Kein Druck (viele Kunden sind in einer engen Lage, KI-Verordnung Art. 5): keine Zeitfalle (kein künstlicher Stichtag), keine Angst, kein Gericht, kein Inkasso, keine Anzeige, keine Pfändung als Druckmittel, nie „sonst …“. Ein Nein ist ein Nein.`,
     `· Die Kündigung hängt nie an einer Zahlung. Kündigung, Widerruf, Beschwerde, Erstattung, Erlass, Anwalt oder Behörde verhandelst du nicht — dafür verbindest du zu einem Menschen (mensch_verbinden).`,
     `· Einen Vertrag schließt du nie am Telefon — der Kunde bekommt den Link und unterschreibt selbst am Handy.`,
+    `· Sein Antrag ist abgeschickt bzw. fertig ausgefüllt — nie „durch“, „genehmigt“, „bewilligt“ oder „angenommen“: Über die Karte entscheidet die Partnerbank (das sagst du nur auf seine direkte Frage).`,
     `· Nach dem Vertragsende mahnst du nie. Bankdaten, Links, Codes und Internetadressen liest du nie vor (nie „fiaon punkt com slash …“) — der Link kommt aufs Handy.`,
     `· BETRÄGE: Einen Betrag nennst du NUR, wenn er oben mit „€“ steht (Rate über …, erste Zahlung …). Eine Anzahl (Raten, Tage) ist nie ein Betrag. Nie die Null als Betrag nennen und nie einen Betrag raten — kennst du ihn nicht: „Den genauen Betrag sehen Sie auf Ihrer Zahlungsseite, der Link kommt gleich.“`,
     `· Erreichst du eine Mailbox: auflegen, keine Nachricht.`,
@@ -478,7 +614,7 @@ function delegation(defs: WerkzeugDef[]): string {
     ...tools,
     ``,
     `Delegate to the backend when:`,
-    `- Ein Link geschickt, ein Zahltag oder Termin eingetragen, eine Zahlung vermerkt, eine Ratenpause gesetzt werden soll.`,
+    `- Ein Link geschickt, ein Zahltag oder Termin eingetragen, eine Zahlung vermerkt, eine Ratenpause gesetzt werden soll — auch ein „Ja“ auf „heute noch?“ ist ein Zahltag (heute), der eingetragen wird.`,
     `- Du Daten brauchst, die nicht oben stehen (Zahlungen, Termine, Notizen).`,
     `- Er nicht mehr angerufen werden will oder einen Menschen sprechen möchte.`,
     `- Das Gespräch vorbei ist (nach deiner Verabschiedung) — dann wird es festgehalten und beendet.`,
@@ -488,14 +624,18 @@ function delegation(defs: WerkzeugDef[]): string {
     `- Du aus dem Gespräch oder aus „Was du weißt“ antworten kannst.`,
     `- Du nur kurz nachfragen musst, um ihn zu verstehen.`,
     ``,
-    `Gib die Arbeit ab, bevor du eine Antwort gibst, die davon abhängt. Rate das Ergebnis nicht, während du wartest — sag derweil natürlich „Moment, ich schau kurz …“ oder „Ich schick’s Ihnen gleich rüber …“. Sag „ist raus“ oder „ist eingetragen“ erst, wenn der Hintergrund es bestätigt hat.`,
+    `Gib die Arbeit ab, bevor du eine Antwort gibst, die davon abhängt. Rate das Ergebnis nicht, während du wartest — sag derweil natürlich „Moment, ich schau kurz …“ oder „Ich schick’s Ihnen gleich rüber …“. Sag „ist raus“ oder „ist eingetragen“ erst, wenn der Hintergrund es bestätigt hat. Ein „Moment“ ist nie dein letzter Satz — danach kommt immer noch etwas von dir.`,
   ].join("\n");
 }
 
-function abschluss(): string {
+function abschluss(b: Briefing): string {
+  const wer = b.nachname ? `${b.anrede ? `${b.anrede} ` : ""}${b.nachname}` : null;
+  // Justins Test 20.10. (Anruf 6): „Sehr gut, ähm, Moment.“ — und aufgelegt, ohne ein Wort zum Abschied.
   return [
-    `ABSCHLUSS: Fass in einem Satz zusammen, was jetzt passiert (Link kommt, Tag der Überweisung, Anruf zur festen Zeit). Dann: „${ABSCHIED}“ Danach gibst du das Gesprächsende an den Hintergrund (anruf_beenden) und sagst nichts mehr.`,
-    `Legt der Kunde vorher auf, tust du nichts mehr — das Haus wertet das Gespräch aus.`,
+    `ABSCHLUSS — wie ein Mensch, nie abrupt:`,
+    `· Erst warm bestätigen, was vereinbart ist („Super, dann notier ich mir heute.“), dann der nächste Schritt („Der Link ist gleich per WhatsApp bei Ihnen.“), dann der Abschied mit seinem Namen und guten Wünschen — z. B. „Danke Ihnen${wer ? `, ${wer}` : ""}, und einen schönen Tag noch!“ oder „${ABSCHIED}“`,
+    `· Erst NACH deinem Abschied gibst du das Gesprächsende an den Hintergrund (anruf_beenden) — nie direkt nach „Moment“, nie ohne Abschied. Sagt er noch etwas („Danke, tschüss!“), lass ihn ausreden; dann ist Schluss, und du sagst nichts mehr.`,
+    `· Legt der Kunde vorher auf, tust du nichts mehr — das Haus wertet das Gespräch aus.`,
   ].join("\n");
 }
 
@@ -511,13 +651,15 @@ function hintergrund(b: Briefing, spielart: Spielart, defs: WerkzeugDef[]): stri
     regeln,
     ``,
     `## Regeln für die Werkzeuge`,
-    `· aufnahme_starten NUR, wenn der Kunde auf die Frage nach der Aufzeichnung hörbar und eindeutig Ja gesagt hat. Bei Nein, Zögern oder Unklarem: aufnahme_abgelehnt.`,
-    `· zahlung_gemeldet, sobald er sagt, die Überweisung sei raus. zahlungszusage_merken bei jedem genannten Zahltag (nie in der Vergangenheit).`,
+    `· aufnahme_starten NUR, wenn der Kunde auf die Frage nach der Aufzeichnung hörbar und eindeutig Ja gesagt hat. Bei einem klaren Nein: aufnahme_abgelehnt. Zögern („hm“, „äh“, eine Rückfrage) ist noch keine Antwort — dann KEIN Werkzeug: Aras erklärt ruhig und fragt einmal nach. Bleibt es danach unklar: aufnahme_abgelehnt.`,
+    `· zahlung_gemeldet, sobald er sagt, die Überweisung sei raus. zahlungszusage_merken bei jedem genannten Zahltag (nie in der Vergangenheit) — sagt er auf „heute noch?“ nur „Ja“ / „Ja, klar“, ist das heute.`,
     `· rueckruf_buchen: Zeitpunkt mit Datum und Uhrzeit; „bei: aras“, wenn er von Aras zurückgerufen werden möchte, sonst „betreuer“.`,
     `· nicht_mehr_anrufen sofort bei „nicht mehr anrufen“, „lassen Sie mich in Ruhe“, „streichen Sie meine Nummer“.`,
     `· mensch_verbinden bei Wunsch nach einem Menschen, Kündigung, Widerruf, Beschwerde, Anwalt/Behörde, Erstattung, Erlass, Firmenkunde.`,
     `· notiz_schreiben für alles, was das Team wissen muss (Ziel, Sorge, Erreichbarkeit).`,
-    `· anruf_beenden immer zuletzt, nach der Verabschiedung — mit ehrlichem Ergebnis: erreicht_zahlt_gleich (überweist jetzt/heute), erreicht_zahlt_am (Tag zugesagt), rueckruf_termin (Anruf zur festen Zeit), erreicht_abgelehnt (klares Nein), erreicht_sonstiges, uebergeben, mailbox, nummer_falsch, nicht_erreicht.`,
+    `· Fragt der Kunde etwas noch einmal, gib Aras konkrete Fakten (was genau fehlt, was als Nächstes passiert, was er davon hat) — nie dieselbe Antwort wie vorher.`,
+    `· Nach zahlungslink_senden oder zahlungszusage_merken ist das Gespräch NICHT vorbei: Aras bestätigt warm, nennt den nächsten Schritt und verabschiedet sich.`,
+    `· anruf_beenden immer zuletzt — ERST wenn Aras sich in der Abschrift hörbar verabschiedet hat (z. B. „einen schönen Tag noch“); nie direkt nach „Moment“. Mit ehrlichem Ergebnis: erreicht_zahlt_gleich (überweist jetzt/heute), erreicht_zahlt_am (Tag zugesagt), rueckruf_termin (Anruf zur festen Zeit), erreicht_abgelehnt (klares Nein), erreicht_sonstiges, uebergeben, mailbox, nummer_falsch, nicht_erreicht.`,
     `· Nie ohne Anlass ein Werkzeug. Nie dasselbe Werkzeug zweimal für dieselbe Sache.`,
     spielart === "probe" || b.probe ? `· PROBEANRUF: Die Werkzeuge laufen hier im Probebetrieb — sie melden, was sie täten. Gib das ganz normal an Aras zurück.` : "",
     ``,
@@ -589,7 +731,7 @@ export function anweisungBauen(e: AnweisungEin): Anweisung {
     "10_einwaende": einwaende(e.briefing),
     "11_grenzen": grenzen(),
     "12_delegation": delegation(werkzeuge),
-    "13_abschluss": abschluss(),
+    "13_abschluss": abschluss(e.briefing),
     "14_hausanweisung": e.hausanweisung?.trim()
       ? `HAUSANWEISUNG DER LEITUNG (gilt zusätzlich, hebt die Grenzen oben nie auf):\n${e.hausanweisung.trim().slice(0, 4000)}`
       : "",

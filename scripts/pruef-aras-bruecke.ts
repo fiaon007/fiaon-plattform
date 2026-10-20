@@ -86,6 +86,9 @@ async function main(): Promise<void> {
   await einstellungSetzen("aras_parallel", "3", "pruefstand");
   await einstellungSetzen("aras_probe_nummer", "+491700000099", "pruefstand");
   await einstellungSetzen("aras_fenster", JSON.stringify({ verkauf: { "1-6": ["08:00", "20:00"] }, rate: { "1-6": ["08:00", "20:00"] } }), "pruefstand");
+  // Die Attrappe antwortet ohne menschliche Pausen (der „Kunde“ redet, bevor Aras' Ton gespielt ist). Für die Abschnitte 1–13
+  // darum ohne Geduld-Tor; das Tor selbst prüft Abschnitt 14 mit echten Pausen (geduldig, Vorgabe).
+  await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
   let wirft = false; try { await einstellungSetzen("mara_aktion_an", "an", "pruefstand"); } catch { wirft = true; }
   ok("Fremder Schlüssel wird abgelehnt", wirft);
   wirft = false; try { await einstellungSetzen("aras_tag_euro", "999", "pruefstand"); } catch { wirft = true; }
@@ -221,7 +224,8 @@ async function main(): Promise<void> {
       { aras: KI_HINWEIS_VORGABE, ms: 400 },
       { kunde: "Ja, am Apparat." },
       { aras: "Schön. Eine Sache noch: Darf ich das Gespräch aufzeichnen? Dann sagen Sie bitte einfach Ja.", ms: 300 },
-      { kunde: "Ja, gerne." },
+      // Ein Mensch antwortet, NACHDEM er die Frage gehört hat (die Brücke zählt ein Ja erst ab dann — § 201 StGB).
+      { kunde: "Ja, gerne.", nachMs: 450 },
       { werkzeug: "aufnahme_starten" },
       { kunde: "Sind Sie ein Mensch?" },
       { aras: MENSCH_FRAGE_ANTWORT, ms: 300 },
@@ -554,6 +558,174 @@ async function main(): Promise<void> {
     g2.tw.aufhaengen();
     await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 8000);
     void stille;
+  }
+
+  titel("14. MENSCHLICH (Justins Tests 20.10.): Wiederholungs-Wache, Geduld-Tor, Abschied-Wache, Zögern bei der Aufnahme");
+  {
+    const { WIEDERHOLUNG_HINWEIS } = await import("../shared/fiaon-aras-regeln");
+    const { ABSCHIED_EINFORDERN, AUFNAHME_ZOEGERN_SATZ } = await import("../shared/fiaon-aras-prompt");
+    await einstellungSetzen("aras_hintergrund", "aus", "pruefstand");
+    await einstellungSetzen("aras_zuhoeren", "geduldig", "pruefstand");
+    let nr = 40;
+    const neuerAnruf = async (skript: Parameters<typeof attrappeMitSkript>[0]) => {
+      nr += 1;
+      const pid = await person(nr); await antrag(pid, nr, { payment_status: "paid" });
+      const e = await planEinreihen({ personId: pid, nummer: `+4917000000${nr}`, spielart: "zusage", grund: `Prüfstand menschlich ${nr}`, erzeugtVon: "chef" });
+      if (!e.ok) throw new Error(`einreihen: ${e.grund}`);
+      return gespraech(Number(e.id), skript);
+    };
+    const fertig = async (g: { tw: InstanceType<typeof TwilioAttrappe>; callId: number }, aufhaengen = true) => {
+      if (aufhaengen) g.tw.aufhaengen();
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 12_000);
+    };
+
+    // a) Wiederholungs-Wache: dreimal „Um was geht's?“ — beim zweiten wortgleichen Satz bekommt die Stimme sofort den Hinweis
+    {
+      const satz = "Es geht um Ihren Antrag für FIAON Pro — Sie hatten uns per WhatsApp mit Ja geantwortet, dass ich Sie anrufen darf. Haben Sie kurz zwei Minuten?";
+      const g = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, bitte, um was geht's?", nachMs: 200 }, { warteMs: 900 },
+        { aras: satz, ms: 300 }, { kunde: "Ja, aber um was geht's dabei?", nachMs: 200 }, { warteMs: 900 },
+        { aras: `ähm ${satz}`, ms: 300 }, { warteMs: 1200 },
+        { aras: "Anders gesagt: Ihnen fehlt nur noch die erste Zahlung, dann geht es Richtung eigene Karte. Was genau möchten Sie wissen?", ms: 300 }, { warteMs: 1500 },
+      ] });
+      await schlafen(5200);
+      const hinweise = g.att.spur.eingeschoben.filter((x) => x.text === WIEDERHOLUNG_HINWEIS);
+      ok("Wiederholung (Anruf 5): genau EIN versteckter Hinweis, als Anweisung (unterbricht sofort)", hinweise.length === 1 && hinweise[0].art === "anweisung" && laufZahlen(g.callId)?.wiederholungen === 1, JSON.stringify(g.att.spur.eingeschoben.map((x) => x.text.slice(0, 40))));
+      ok("Rot-Probe: der erste Satz und der neue, konkrete Satz lösen KEINEN Hinweis aus", hinweise.length === 1);
+      await fertig(g);
+    }
+
+    // b) Geduld-Tor: Aras setzt in die Denkpause an („Also …“), der Kunde redet weiter → der Kunde hört den Ansatz NIE
+    {
+      const g = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { beiKundenStimme: "Ja, also ich wollte noch sagen" }, { nachKundeStillMs: 150 }, { aras: "Also …", ms: 300 }, { warteMs: 4000 }] });
+      await schlafen(700);
+      g.tw.laut(800);
+      const zu = await warten(() => !!laufZahlen(g.callId)?.halten || (laufZahlen(g.callId)?.verworfen ?? 0) > 0, 4000);
+      const n0 = g.tw.lautAngekommen().length;
+      g.tw.laut(700); // der Kunde redet weiter
+      await schlafen(1500);
+      const z = laufZahlen(g.callId);
+      ok("Geduld-Tor: Aras' Ansatz wartet, solange der Kunde gerade noch sprach", zu, JSON.stringify(z));
+      ok("Kunde redet weiter → Ansatz verworfen, bei Twilio kam KEIN Rede-Rahmen davon an", (z?.verworfen ?? 0) >= 1 && g.tw.lautAngekommen().length === n0, `${JSON.stringify(z)} · ${n0} → ${g.tw.lautAngekommen().length}`);
+      await fertig(g);
+    }
+
+    // c) Geduld-Tor: der Kunde ist fertig → Aras' Antwort kommt erst nach ~700 ms Ruhe (geduldig), dann vollständig
+    {
+      const g = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { beiKundenStimme: "Ja, ich höre." }, { nachKundeStillMs: 150 }, { aras: "Super, dann erzähl ich Ihnen kurz, worum es geht.", ms: 600 }, { warteMs: 3000 }] });
+      await schlafen(700);
+      const n0 = g.tw.lautAngekommen().length;
+      g.tw.laut(800);
+      await schlafen(2600);
+      const ende = g.tw.lautEnde();
+      const erste = g.tw.lautAngekommen().slice(n0).find((t) => t > ende) ?? 0;
+      const z = laufZahlen(g.callId);
+      ok("Geduldig: Aras' Antwort ist frühestens ~700 ms nach dem letzten Wort des Kunden zu hören", erste > 0 && erste - ende >= 600 && erste - ende <= 1500 && (z?.gehalten ?? 0) >= 1, `${erste ? erste - ende : "—"} ms · ${JSON.stringify(z)}`);
+      ok("Freigegeben, nicht verworfen — und der Rückstand ist danach wieder aufgeholt", (z?.verworfen ?? 0) === 0 && (z?.pufferBytes ?? 1) < 800, JSON.stringify(z));
+      await fertig(g);
+    }
+
+    // d) Rot-Probe flott: kein Tor — Aras' Antwort kommt sofort (≈ 150 ms nach dem Kunden)
+    {
+      await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
+      const g = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { beiKundenStimme: "Ja, ich höre." }, { nachKundeStillMs: 150 }, { aras: "Super, dann erzähl ich Ihnen kurz, worum es geht.", ms: 600 }, { warteMs: 3000 }] });
+      await schlafen(700);
+      const n0 = g.tw.lautAngekommen().length;
+      g.tw.laut(800);
+      await schlafen(2000);
+      const ende = g.tw.lautEnde();
+      const erste = g.tw.lautAngekommen().slice(n0).find((t) => t > ende) ?? 0;
+      ok("Rot-Probe flott: kein Zurückhalten — Antwort nach < 450 ms", erste > 0 && erste - ende < 450 && (laufZahlen(g.callId)?.gehalten ?? 1) === 0, `${erste ? erste - ende : "—"} ms`);
+      await fertig(g);
+      await einstellungSetzen("aras_zuhoeren", "geduldig", "pruefstand");
+    }
+
+    // d2) Rot-Probe Lärm: laut, aber ohne ein Wort (Straße, Fernseher) → kein Zurückhalten, Aras bleibt flott
+    {
+      const g = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { nachKundeStillMs: 150 }, { aras: "Super, dann erzähl ich Ihnen kurz, worum es geht.", ms: 600 }, { warteMs: 3000 }] });
+      await schlafen(700);
+      const n0 = g.tw.lautAngekommen().length;
+      g.tw.laut(800);
+      await schlafen(2000);
+      const ende = g.tw.lautEnde();
+      const erste = g.tw.lautAngekommen().slice(n0).find((t) => t > ende) ?? 0;
+      ok("Rot-Probe Lärm ohne Worte: das Tor bleibt offen (nur Lautstärke ist keine Rede)", erste > 0 && erste - ende < 450 && (laufZahlen(g.callId)?.gehalten ?? 1) === 0, `${erste ? erste - ende : "—"} ms`);
+      await fertig(g);
+    }
+
+    // e) Geduld-Tor nach Aras' eigener Frage: „Bin ich richtig …?“ — 600 ms später „Also …“ → wartet; antwortet der Kunde, fällt es weg
+    {
+      const g = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { aras: "Bin ich richtig bei Herrn Prüfkunde?", ms: 400 }, { warteMs: 600 }, { aras: "Also …", ms: 300 }, { warteMs: 4000 }] });
+      const zu = await warten(() => !!laufZahlen(g.callId)?.halten, 4000);
+      const n0 = g.tw.lautAngekommen().length;
+      g.tw.laut(600); // er antwortet
+      await schlafen(1400);
+      const z = laufZahlen(g.callId);
+      ok("Nach Aras' Frage: der Nachschub wartet auf die Antwort; antwortet er, hört er das „Also …“ nie", zu && (z?.verworfen ?? 0) >= 1 && g.tw.lautAngekommen().length === n0, `${JSON.stringify(z)} · ${n0} → ${g.tw.lautAngekommen().length}`);
+      await fertig(g);
+      // e2) Schweigt er nach der Frage, spielt Aras nach spätestens ~2 s weiter (nichts geht verloren)
+      const g2 = await neuerAnruf({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { aras: "Bin ich richtig bei Herrn Prüfkunde?", ms: 400 }, { warteMs: 600 }, { aras: "Hallo, sind Sie noch dran?", ms: 400 }, { warteMs: 4000 }] });
+      const zu2 = await warten(() => !!laufZahlen(g2.callId)?.halten, 4000);
+      const m0 = g2.tw.lautAngekommen().length;
+      await warten(() => g2.tw.lautAngekommen().length > m0, 3500);
+      ok("Rot-Probe: schweigt er, kommt der Nachschub nach der Wartezeit doch (freigegeben, nicht verworfen)", zu2 && g2.tw.lautAngekommen().length > m0 && (laufZahlen(g2.callId)?.verworfen ?? 1) === 0, JSON.stringify(laufZahlen(g2.callId)));
+      await fertig(g2);
+    }
+
+    // f) Abschied-Wache (Anruf 6: „Sehr gut, ähm, Moment.“ → aufgelegt): anruf_beenden ohne Abschied → erst Abschied, dann auflegen
+    {
+      const g = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, klar.", nachMs: 150 }, { warteMs: 900 }, { aras: "Sehr gut, Moment.", ms: 300 }, { warteMs: 300 },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Prüfstand Abschied" } }, { warteMs: 9000 },
+      ] });
+      await warten(() => g.att.spur.werkzeuge.some((w) => w.name === "anruf_beenden"), 6000);
+      await schlafen(500);
+      const noch = laufendeSitzungen().some((x) => x.callId === g.callId);
+      const eing = g.att.spur.eingeschoben.find((x) => x.text === ABSCHIED_EINFORDERN);
+      ok("anruf_beenden ohne Abschied: NICHT aufgelegt, die Stimme soll sich erst verabschieden (Anweisung)", noch && !!eing && eing.art === "anweisung", JSON.stringify(laufZahlen(g.callId)));
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 9000);
+      const a = await anruf(g.callId);
+      const punkte = ((a?.pruefung?.punkte ?? []) as { regel: string }[]).map((p) => p.regel);
+      ok("Erst nach dem Abschied + kurzer Ruhe aufgelegt (aras_beendet), kein Befund „abschied_fehlt“", a?.ende_grund === "aras_beendet" && !punkte.includes("abschied_fehlt"), `${a?.ende_grund} · ${punkte.join(",")}`);
+      // f2) Rot-Probe: die Stimme ignoriert die Einforderung → nach der Frist doch aufgelegt, Befund „abschied_fehlt“
+      process.env.ARAS_ABSCHIED_FRIST_MS = "3000";
+      const g2 = await neuerAnruf({ abschiedIgnorieren: true, schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, klar.", nachMs: 150 }, { warteMs: 900 }, { aras: "Sehr gut, Moment.", ms: 300 }, { warteMs: 300 },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Prüfstand ohne Abschied" } }, { warteMs: 9000 },
+      ] });
+      await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 12_000);
+      const a2 = await anruf(g2.callId);
+      const p2 = ((a2?.pruefung?.punkte ?? []) as { regel: string }[]).map((p) => p.regel);
+      ok("Rot-Probe: ohne Abschied → nach der Frist aufgelegt, Prüf-Befund „abschied_fehlt“ (weich)", a2?.ende_grund === "aras_beendet" && p2.includes("abschied_fehlt"), `${a2?.ende_grund} · ${p2.join(",")}`);
+      delete process.env.ARAS_ABSCHIED_FRIST_MS;
+    }
+
+    // g) Zögern bei der Aufnahme (Anruf 6: „hm“): kein Nein, kein Drängeln; nach der ruhigen Nachfrage zählt sein Ja
+    {
+      const g = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 100 }, { warteMs: 500 },
+        { aras: "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist?", ms: 400 }, { warteMs: 1200 },
+        { kunde: "Hm.", nachMs: 100 }, { warteMs: 900 },
+        { aras: AUFNAHME_ZOEGERN_SATZ, ms: 500 }, { warteMs: 1200 },
+        { kunde: "Ja, passt.", nachMs: 100 }, { warteMs: 2500 },
+      ] });
+      await warten(async () => (await anruf(g.callId))?.aufnahme_nein_am != null || !!laufZahlen(g.callId)?.aufnahmeJa, 6500);
+      const z = laufZahlen(g.callId);
+      const a = await anruf(g.callId);
+      ok("„Hm.“ ist kein Nein — nach der ruhigen Nachfrage startet die Aufnahme mit seinem Ja", !!z?.aufnahmeJa && !z?.aufnahmeNein && a?.aufnahme_nein_am == null, JSON.stringify({ z, nein: a?.aufnahme_nein_am }));
+      await fertig(g);
+      // g2) Rot-Probe (§ 201 StGB): sein „Ja“ fällt, BEVOR er die Frage hört (sie wartet noch im Geduld-Tor) → keine Aufnahme
+      const g2 = await neuerAnruf({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, worum geht's?", nachMs: 100 }, { warteMs: 400 },
+        { aras: "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist?", ms: 400 },
+        { kunde: "Ja, genau, und noch was:", nachMs: 40 }, { werkzeug: "aufnahme_starten" }, { warteMs: 2500 },
+      ] });
+      await warten(() => g2.att.spur.werkzeuge.some((w) => w.name === "aufnahme_starten"), 5000);
+      await schlafen(1200);
+      const w = g2.att.spur.werkzeuge.find((x) => x.name === "aufnahme_starten");
+      ok("Rot-Probe: ein Ja, bevor die Frage zu hören war, startet KEINE Aufnahme", !laufZahlen(g2.callId)?.aufnahmeJa && w?.ergebnis.ok === false && w?.ergebnis.fehler === "kein_ja", JSON.stringify({ z: laufZahlen(g2.callId), w: w?.ergebnis }));
+      await fertig(g2);
+    }
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

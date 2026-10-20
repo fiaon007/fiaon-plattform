@@ -45,7 +45,7 @@ const STIMME_TEXT: Record<string, string> = { flitz: "Flitz · männlich", nuri:
 const stimmeText = (s: string | null | undefined) => (s ? STIMME_TEXT[s] ?? (s.startsWith("eigene:") ? "eigene Stimme" : s) : "—");
 const stimmeName = (s: string | null | undefined) => stimmeText(s).split(" ·")[0];
 const PROBE_ARTEN: Spielart[] = ["zuruf", "rate", "stufe_a", "zusage", "termin", "lead"];
-const GRUENDE = ["klingt nach KI", "zu langsam", "zu schnell", "zu viele Füllwörter", "Unterbrechen hakt", "versteht schlecht", "zu aufdringlich", "Begrüßung holprig"];
+const GRUENDE = ["klingt nach KI", "zu langsam", "zu schnell", "zu viele Füllwörter", "wiederholt sich", "fällt mir ins Wort", "Unterbrechen hakt", "versteht schlecht", "zu aufdringlich", "Begrüßung holprig", "Schluss zu abrupt"];
 const TON: { key: string; label: string; werte: { w: string; t: string }[] }[] = [
   { key: "aras_energie", label: "Energie", werte: [{ w: "ruhig", t: "ruhig" }, { w: "lebendig", t: "lebendig" }, { w: "vollgas", t: "Vollgas" }] },
   { key: "aras_fuellwoerter", label: "Füllwörter", werte: [{ w: "sparsam", t: "sparsam" }, { w: "normal", t: "normal" }, { w: "viel", t: "viel" }] },
@@ -57,6 +57,8 @@ const TON: { key: string; label: string; werte: { w: string; t: string }[] }[] =
   { key: "aras_dialekt", label: "Dialekt", werte: [{ w: "hochdeutsch", t: "Hochdeutsch" }, { w: "oesterreichisch_leicht", t: "leicht österreichisch" }, { w: "oesterreichisch", t: "österreichisch" }] },
   // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — leise Büro-Atmosphäre unter der Stimme (im echten Anruf).
   { key: "aras_hintergrund", label: "Hintergrund", werte: [{ w: "aus", t: "aus" }, { w: "buero_leise", t: "Büro leise" }, { w: "buero", t: "Büro" }] },
+  // Justins Test 20.10.: „Also...“ mitten in seine Denkpause — wie lange Aras wartet, bevor er nach einer Pause spricht.
+  { key: "aras_zuhoeren", label: "Zuhören", werte: [{ w: "geduldig", t: "geduldig" }, { w: "normal", t: "normal" }, { w: "flott", t: "flott" }] },
 ];
 const ZUSTAND_TEXT: Record<string, string> = {
   hallo: "verbunden", gewaehlt: "wählt …", angenommen: "du bist dran", ki_hinweis: "KI-Hinweis gesagt", aufnahme_ja: "Aufnahme: Ja", aufnahme_nein: "Aufnahme: Nein",

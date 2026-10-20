@@ -64,6 +64,7 @@ router.get("/chef/aras/probe/stand", wache, async (_req: ChefRequest, res: Respo
       ton: {
         aras_energie: r.energie, aras_fuellwoerter: r.fuellwoerter, aras_lachen: r.lachen ? "an" : "aus", aras_tempo: r.tempo,
         aras_zuhoerlaute: r.zuhoerlaute, aras_abschluss: r.abschluss, aras_dialekt: r.dialekt ?? "hochdeutsch", aras_hintergrund: einst.hintergrund ?? "aus",
+        aras_zuhoeren: r.zuhoeren ?? "geduldig",
       },
       letzter: letzter ? { ...letzter, laeuft: laeuft(letzter.callId) || ["gewaehlt", "laeuft"].includes(letzter.status) } : null,
     });

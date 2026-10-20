@@ -129,7 +129,11 @@ ok("aras_an „vielleicht“ → wirft", wirft("aras_an", "vielleicht"));
 ok("aras_adapter „retell“ → wirft", wirft("aras_adapter", "retell"));
 ok("aras_stimme „eigene:warm-mann“ → ok, „alexa“ → wirft", einstellungPruefen("aras_stimme", "eigene:warm-mann") === "eigene:warm-mann" && wirft("aras_stimme", "alexa"));
 ok("KI-Hinweis ohne „KI“/„digitale“ → wirft", wirft("aras_ki_hinweis_satz", "Guten Tag, hier ist Aras von FIAON."));
-ok("Aufnahme-Frage ohne „Ja“ → wirft", wirft("aras_aufnahme_frage", "Darf ich aufzeichnen?"));
+// Justins Test 20.10. (Anruf 6): EIN Satz, der fragt — „Ein kurzes Ja reicht.“ als Nachsatz klang wie Drängeln.
+ok("Aufnahme-Frage als EIN Satz mit „?“ → ok", einstellungPruefen("aras_aufnahme_frage", "Darf ich aufzeichnen?") === "Darf ich aufzeichnen?");
+ok("Aufnahme-Frage mit Nachsatz („… ? Ein kurzes Ja reicht.“) → wirft", wirft("aras_aufnahme_frage", "Darf ich aufzeichnen? Ein kurzes Ja reicht."));
+ok("Aufnahme-Frage ohne Frage nach der Aufzeichnung → wirft", wirft("aras_aufnahme_frage", "Passt das für Sie?") && wirft("aras_aufnahme_frage", "Ich zeichne jetzt auf."));
+ok("aras_zuhoeren: geduldig/normal/flott ok, „hektisch“ → wirft", einstellungPruefen("aras_zuhoeren", "flott") === "flott" && wirft("aras_zuhoeren", "hektisch"));
 ok("Fenster mit Sonntag → wirft", wirft("aras_fenster", JSON.stringify({ verkauf: { "7": ["10:00", "12:00"] }, rate: {} })));
 ok("Fenster vor 08:00 → wirft", wirft("aras_fenster", JSON.stringify({ verkauf: { "1-5": ["07:00", "12:00"] }, rate: { "1-5": ["09:00", "19:00"] } })));
 ok("Raten-Takte [3,10,20,25,30] (5 Werte) → wirft", wirft("aras_raten_takte", "[3,10,20,25,30]"));

@@ -23,6 +23,17 @@
 //     die nächste Antwort des Kunden selbst (eindeutiges Ja → Aufnahme, Nein →
 //     ohne Band). Unklares bleibt ohne Aufnahme. Das Werkzeug kann es zusätzlich.
 //   · Transkript nur nach Ja in die Datenbank; live nur über den Bus (SSE).
+//   · MENSCHLICH (Justins Tests 20.10., Anrufe 5 und 6):
+//     – Geduld-Tor (aras_zuhoeren): Fängt Aras an, während der Kunde gerade noch
+//       sprach (oder kurz nach Aras' eigener Frage, die noch unbeantwortet ist),
+//       hält die Brücke den Ton zurück, bis der Kunde lange genug still ist. Redet
+//       der Kunde weiter und GPT-Live hört auf, hört der Kunde den Ansatz nie
+//       („Also...“ fällt weg, die Zeile heißt „verworfen“). Danach holt die Brücke
+//       den Rückstand in der nächsten Pause auf (Stille-Rahmen fallen weg).
+//     – Wiederholungs-Wache: Ist ein Satz ≥ 80 % gleich einem der letzten drei,
+//       bekommt die Stimme sofort den versteckten Hinweis, es anders zu sagen.
+//     – Abschied-Wache: anruf_beenden ohne hörbaren Abschied → kein Auflegen; die
+//       Stimme verabschiedet sich erst, dann seine Antwort oder kurze Ruhe.
 //   · Ende: Kunde legt auf / Aras beendet / Mailbox / Notaus / Stille / Fehler /
 //     Übergabe (dann ist Twilios `stop` KEIN Auflegen) / Zeitlimit — danach
 //     die Nachbereitung (fiaon-aras-nachbereitung.ts).
@@ -42,11 +53,12 @@ import { arasEinstellungenLesen } from "./fiaon-aras-plan";
 import { werkzeugAusfuehren, type WerkzeugKontext } from "./fiaon-aras-werkzeuge";
 import { arasEreignis, transkriptMelden } from "./fiaon-aras-ereignis";
 import { streamTokenPruefen, twilioClient, arasCallerId, rueckrufUrl, twimlUebergabe } from "./fiaon-aras-twilio-client";
-import { anweisungBauen, kiHinweisFuer, NOTAUS_SATZ, type Briefing } from "../../shared/fiaon-aras-prompt";
+import { anweisungBauen, kiHinweisFuer, NOTAUS_SATZ, ABSCHIED_EINFORDERN, type Briefing } from "../../shared/fiaon-aras-prompt";
 import {
-  ANRUF_ZEITLIMIT_SEK, telefonKostenCents, istAufnahmeJa, istAufnahmeNein,
+  ANRUF_ZEITLIMIT_SEK, telefonKostenCents, istAufnahmeJa, istAufnahmeNein, GEDULD_MS,
   type AdapterName, type Spielart, type Land, type LiveSitzung, type ArasEinstellungen, type ArasErgebnis,
 } from "../../shared/fiaon-aras";
+import { wiederholtSich, abschiedGesagt, WIEDERHOLUNG_HINWEIS } from "../../shared/fiaon-aras-regeln";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 
 export const STREAM_PFAD = "/api/fiaon/aras/stream";
@@ -64,8 +76,26 @@ const STILLE_OHNE_KUNDE_MS = 20_000;
 const STILLE_ENDE_MS = 45_000;
 /** Vorbereitete Sitzung ohne Ton-Strom: so lange warten, dann aufgeben. */
 const VORBEREITET_FRIST_MS = 12_000;
+/** Geduld-Tor: Aras' Rede nach so langer eigener Stille gilt als NEUER Redebeitrag (nur dessen Anfang wird geprüft). */
+const NEUER_BEITRAG_MS = 350;
+/** Geduld-Tor: länger hält die Brücke nie zurück (dann spielt sie ab — lieber spät als verloren). */
+const HALTEN_HOECHSTENS_MS = 3000;
+/** Die Lautstärke des Kunden zählt fürs Tor nur, wenn er so kurz vorher auch WORTE gesagt hat (Straßenlärm, Fernseher ≠ Rede). */
+const PEGEL_NUR_MIT_TEXT_MS = 2500;
+/** Rückstand nach dem Halten: Stille-Rahmen fallen erst weg, wenn Aras so lange still ist (keine Pausen IM Satz kürzen). */
+const AUFHOLEN_NACH_MS = 250;
+/** Abschied-Wache: so lange wartet die Brücke nach anruf_beenden auf den Abschied, dann legt sie trotzdem auf. */
+const abschiedFristMs = () => Number(process.env.ARAS_ABSCHIED_FRIST_MS || 15_000);
 
-export interface TranskriptZeile { t: number; wer: "kunde" | "aras"; text: string; final: boolean; abgebrochen?: boolean; am: number }
+export interface TranskriptZeile {
+  t: number; wer: "kunde" | "aras"; text: string; final: boolean; abgebrochen?: boolean; am: number;
+  /** Wann das erste Bruchstück kam (Uhrzeit) — ein Ja zur Aufnahme zählt nur aus einer Zeile, die NACH der Frage begann. */
+  beginn?: number;
+  /** Aras-Zeile, die der Kunde nie gehört hat (Geduld-Tor: verworfen, weil er weiterredete). */
+  verworfen?: boolean;
+  /** Wiederholungs-Wache hat für diese Zeile schon angeschlagen. */
+  wiederholt?: boolean;
+}
 
 interface Lauf {
   callId: number; arasAnrufId: number; personId: number | null; ref: string | null; nummer: string; land: Land; spielart: Spielart;
@@ -84,6 +114,18 @@ interface Lauf {
   ctx: WerkzeugKontext | null; timer: NodeJS.Timeout[]; takt: NodeJS.Timeout | null;
   /** Büro-Atmosphäre (aras_hintergrund): Art, Position in der Schleife, Füll-Takt, gesendete reine Atmo-Stücke. */
   atmo: AtmoArt | null; atmoPos: number; atmoTakt: NodeJS.Timeout | null; atmoStuecke: number;
+  /** Geduld-Tor: zuletzt Kundenstimme (Pegel, Transkript), Aras' letzte Frage, der zurückgehaltene Ton, der Rückstand. */
+  kundePegelAm: number; kundeTextAm: number; frageAm: number; halten: { seit: number; takt: NodeJS.Timeout } | null; halte: Buffer[]; halteBytes: number;
+  /** Fragen in zurückgehaltenen Zeilen: gelten erst, wenn der Kunde sie hört (Freigabe) — verworfen nie. */
+  halteFragen: { aufnahme: boolean; frage: boolean; abschied: boolean } | null;
+  /**
+   * Erkannt, aber noch nicht gehört: Der Text kommt oft VOR dem Ton. Eine Frage (Aufnahme-Frage, Abschied) gilt erst, wenn
+   * Aras' Redebeitrag zu Ende gespielt ist — sonst zählte ein „Ja“, bevor der Kunde die Frage überhaupt hören konnte.
+   */
+  offen: { aufnahme: boolean; frage: boolean; abschied: boolean };
+  aufholenBytes: number; gehalten: number; verworfen: number;
+  /** Wiederholungs-Wache und Abschied-Wache. */
+  wiederholHinweise: number; abschiedEingefordert: number | null;
   fertig: Promise<void>; fertigMelden: () => void;
 }
 
@@ -102,9 +144,15 @@ export function laeuft(callId: number): boolean { return LAUFENDE.has(callId); }
 export function kundeSprachSchon(callId: number): boolean { return LAUFENDE.get(callId)?.kundeHatGesprochen === true; }
 export function uebergabeLaeuft(callId: number): boolean { return LAUFENDE.get(callId)?.uebergabeLaeuft === true; }
 /** Für Prüfstände: Kennzahlen eines laufenden Gesprächs. */
-export function laufZahlen(callId: number): { clears: number; offeneMarks: number; pufferBytes: number; aufnahmeJa: boolean; kiHinweis: boolean; atmo: string | null; atmoStuecke: number } | null {
+export function laufZahlen(callId: number): {
+  clears: number; offeneMarks: number; pufferBytes: number; aufnahmeJa: boolean; aufnahmeNein: boolean; kiHinweis: boolean; atmo: string | null; atmoStuecke: number;
+  halten: boolean; gehalten: number; verworfen: number; wiederholungen: number; abschiedEingefordert: boolean; abschied: boolean;
+} | null {
   const l = LAUFENDE.get(callId);
-  return l ? { clears: l.clears, offeneMarks: l.offeneMarks, pufferBytes: l.pufferBytes, aufnahmeJa: l.aufnahmeJa, kiHinweis: !!l.kiHinweisAm, atmo: l.atmo, atmoStuecke: l.atmoStuecke } : null;
+  return l ? {
+    clears: l.clears, offeneMarks: l.offeneMarks, pufferBytes: l.pufferBytes, aufnahmeJa: l.aufnahmeJa, aufnahmeNein: l.aufnahmeNein, kiHinweis: !!l.kiHinweisAm, atmo: l.atmo, atmoStuecke: l.atmoStuecke,
+    halten: !!l.halten, gehalten: l.gehalten, verworfen: l.verworfen, wiederholungen: l.wiederholHinweise, abschiedEingefordert: !!l.abschiedEingefordert, abschied: !!l.abschiedAm,
+  } : null;
 }
 
 // ── WebSocket-Anbindung ────────────────────────────────────────────────────
@@ -259,6 +307,8 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
     uebergabeLaeuft: false, notaus: false, beendet: false, endeGrund: null, ergebnis: null, ergebnisNotiz: null,
     sekunden: 0, kostenCents: 0, ctx: null, timer: [], takt: null,
     atmo: einstellungen.hintergrund && einstellungen.hintergrund !== "aus" ? einstellungen.hintergrund : null, atmoPos: 0, atmoTakt: null, atmoStuecke: 0,
+    kundePegelAm: 0, kundeTextAm: 0, frageAm: 0, halten: null, halte: [], halteBytes: 0, halteFragen: null, offen: { aufnahme: false, frage: false, abschied: false }, aufholenBytes: 0, gehalten: 0, verworfen: 0,
+    wiederholHinweise: 0, abschiedEingefordert: null,
     fertig, fertigMelden,
   };
   lauf.ctx = kontextFuer(lauf);
@@ -338,13 +388,23 @@ function kontextFuer(l: Lauf): WerkzeugKontext {
     uebergabe: (agentId, grund) => uebergabeStarten(l, agentId, grund),
     beenden: async (ergebnis, notiz) => {
       l.ergebnis = ergebnis; l.ergebnisNotiz = notiz; l.endeGrund = "aras_beendet";
-      // Erst ausreden lassen (der Abschied läuft noch), dann auflegen — höchstens 10 s.
+      // Abschied-Wache (Justins Test 20.10., Anruf 6: „Sehr gut, ähm, Moment.“ — und aufgelegt): ohne hörbaren Abschied wird
+      // nicht aufgelegt. Die Stimme verabschiedet sich erst; danach seine Antwort oder kurze Ruhe auf beiden Seiten.
+      if (!l.abschiedAm && !l.abschiedEingefordert) {
+        l.abschiedEingefordert = Date.now();
+        l.sitzung?.textEinschieben(ABSCHIED_EINFORDERN, "anweisung");
+      }
       const t0 = Date.now();
+      const frist = l.abschiedEingefordert ? abschiedFristMs() : 10_000;
       const warten = () => {
         if (l.beendet) return;
-        const still = !l.spricht && Date.now() - l.zuletztSprache > 1100;
-        if ((still && Date.now() - t0 > 1200) || Date.now() - t0 > 10_000) void sitzungEnde(l, "aras_beendet");
-        else l.timer.push(setTimeout(warten, 250));
+        const jetzt = Date.now();
+        const ausgespielt = !l.halten && l.pufferBytes === 0;
+        const ruhe = !l.spricht && jetzt - l.zuletztSprache > 1100 && jetzt - l.zuletztRede > 1500 && ausgespielt;
+        if ((l.abschiedAm && ruhe && jetzt - l.abschiedAm > 1200) || jetzt - t0 > frist) {
+          if (!l.abschiedAm) console.log(`[ARAS] call ${l.callId}: aufgelegt ohne Abschied (Frist ${Math.round(frist / 1000)} s) — steht als Befund in der Prüfung.`);
+          void sitzungEnde(l, "aras_beendet");
+        } else l.timer.push(setTimeout(warten, 250));
       };
       l.timer.push(setTimeout(warten, 800));
     },
@@ -353,8 +413,11 @@ function kontextFuer(l: Lauf): WerkzeugKontext {
 
 /** Hat der Kunde auf die Frage nach der Aufzeichnung eindeutig Ja gesagt (in den letzten 40 s)? */
 function kundeSagteJaZurAufnahme(l: Lauf): boolean {
-  const ab = l.aufnahmeFrageAm ?? 0;
-  const kunden = l.zeilen.filter((z) => z.wer === "kunde" && z.am >= ab - 1000 && Date.now() - z.am < 40_000);
+  // Ohne GEHÖRTE Frage keine Zustimmung (§ 201 StGB) — auch nicht, solange die Frage noch im Geduld-Tor wartet.
+  const ab = l.aufnahmeFrageAm;
+  if (!ab) return false;
+  // Nur eine Antwort, die NACH der (gehörten) Frage begann — ein Satz, der schon vorher lief, ist keine Zustimmung.
+  const kunden = l.zeilen.filter((z) => z.wer === "kunde" && z.am >= ab - 1000 && (z.beginn ?? z.am) >= ab - 1000 && Date.now() - z.am < 40_000);
   return kunden.some((z) => istAufnahmeJa(z.text));
 }
 
@@ -366,23 +429,31 @@ function adapterEreignis(l: Lauf, ev: SitzungEreignis): void {
       void sqlPool`UPDATE fiaon_aras_anruf SET sitzung_id = ${ev.sitzungId}, updated_at = NOW() WHERE id = ${l.arasAnrufId}`.catch(() => null);
       return;
     case "audio": {
-      // Mit Büro-Atmosphäre: unter jeden Rahmen mischen (die Rede-Erkennung unten liest den ungemischten Rahmen).
-      const raus = l.atmo ? atmoUnter(l, ev.chunk) : ev.chunk;
-      l.puffer.push(raus); l.pufferBytes += raus.length; l.zuletztAusgabe = Date.now();
+      const jetzt = Date.now();
       // GPT-Live schickt auch Stille durchgehend — „Aras redet“ heißt: dieser Rahmen trägt Rede.
       const sprache = ev.sprache ?? pegel(ev.chunk) > 0.012;
-      if (sprache) { l.zuletztSprache = Date.now(); l.zuletztRede = Date.now(); if (!l.arasErsteRedeAm) l.arasErsteRedeAm = Date.now(); }
+      // Geduld-Tor: ein NEUER Redebeitrag, während der Kunde gerade noch sprach (oder seine Antwort auf Aras' Frage aussteht)?
+      if (sprache && !l.halten && jetzt - l.zuletztSprache > NEUER_BEITRAG_MS && geduldNoetig(l, jetzt)) haltenBeginnen(l, jetzt);
+      if (sprache) { l.zuletztSprache = jetzt; l.zuletztRede = jetzt; if (!l.arasErsteRedeAm) l.arasErsteRedeAm = jetzt; }
+      else if (jetzt - l.zuletztSprache > 150) beitragEnde(l);
+      l.zuletztAusgabe = jetzt;
+      if (l.halten) { l.halte.push(ev.chunk); l.halteBytes += ev.chunk.length; return; }
+      // Rückstand nach dem Halten aufholen: Stille-Rahmen in einer echten Pause fallen weg, bis die Brücke wieder in Echtzeit ist.
+      if (l.aufholenBytes > 0 && !sprache && jetzt - l.zuletztSprache > AUFHOLEN_NACH_MS) { l.aufholenBytes -= ev.chunk.length; pumpen(l); return; }
+      // Mit Büro-Atmosphäre: unter jeden Rahmen mischen (die Rede-Erkennung oben liest den ungemischten Rahmen).
+      const raus = l.atmo ? atmoUnter(l, ev.chunk) : ev.chunk;
+      l.puffer.push(raus); l.pufferBytes += raus.length;
       pumpen(l);
       return;
     }
     case "spricht_an": l.spricht = true; l.zustand = "spricht"; return;
     case "spricht_aus": l.spricht = false; if (l.zustand === "spricht") l.zustand = "hoert"; l.lautFrames = 0; return;
     case "kunde_spricht":
-      l.kundeHatGesprochen = true; l.zuletztRede = Date.now();
+      l.kundeHatGesprochen = true; l.zuletztRede = Date.now(); l.kundeTextAm = Date.now();
       if (l.spricht || Date.now() - l.zuletztSprache < 700) unterbrechenPruefen(l, "transkript");
       return;
     case "transkript": {
-      if (ev.wer === "kunde" && ev.text.trim()) { l.kundeHatGesprochen = true; l.zuletztRede = Date.now(); }
+      if (ev.wer === "kunde" && ev.text.trim()) { l.kundeHatGesprochen = true; l.zuletztRede = Date.now(); l.kundeTextAm = Date.now(); }
       zeileAnhaengen(l, ev);
       return;
     }
@@ -413,9 +484,11 @@ function zeileAnhaengen(l: Lauf, ev: { wer: "kunde" | "aras"; text: string; t: n
     offen.text = `${offen.text}${ev.text}`.slice(0, 2000); offen.am = jetzt;
   } else {
     if (offen) zeileFertig(l, offen);
-    l.zeilen.push({ t: ev.t, wer: ev.wer, text: ev.text.trimStart().slice(0, 2000), final: false, am: jetzt });
+    l.zeilen.push({ t: ev.t, wer: ev.wer, text: ev.text.trimStart().slice(0, 2000), final: false, am: jetzt, beginn: jetzt });
   }
   const aktuell = [...l.zeilen].reverse().find((z) => z.wer === ev.wer && !z.final);
+  // Wiederholungs-Wache schon im laufenden Satz (ab acht Wörtern): je früher der Hinweis, desto weniger hört der Kunde doppelt.
+  if (aktuell && aktuell.wer === "aras") wiederholungPruefen(l, aktuell, true);
   if (aktuell && /[.!?…]["“”»]?\s*$/.test(aktuell.text) && aktuell.text.trim().length > 2) zeileFertig(l, aktuell);
   if (l.zeilen.length > 600) l.zeilen.splice(0, l.zeilen.length - 600);
 }
@@ -432,9 +505,21 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
       void sqlPool`UPDATE fiaon_aras_anruf SET ki_hinweis_am = NOW(), updated_at = NOW() WHERE id = ${l.arasAnrufId} AND ki_hinweis_am IS NULL`.catch(() => null);
       void arasEreignis({ art: "aras_ki_hinweis", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `KI-Hinweis nach ${Math.round((Date.now() - (l.bereitAm ?? l.seit)) / 1000)} s` });
     }
-    if (/aufzeichn|aufnehmen|recorded|record\b/i.test(z.text) && !l.aufnahmeJa && !l.aufnahmeNein) l.aufnahmeFrageAm = Date.now();
+    if (z.verworfen) return;
+    const aufnahmeFrage = /aufzeichn|aufnehmen|recorded|record\b/i.test(z.text) && !l.aufnahmeJa && !l.aufnahmeNein;
+    // Eine Frage von Aras: bis er antwortet, gilt das Geduld-Tor (kein „Also...“ in seine Antwort-Pause).
+    const frage = /\?["“”»]?\s*$/.test(z.text);
     // Der Abschied („… einen schönen Tag“, „auf Wiederhören“): danach legt Aras nach kurzer Ruhe selbst auf.
-    if (/sch(ö|oe)nen (tag|abend|nachmittag|vormittag|abend noch)|auf wiederh(ö|oe)ren|tsch(ü|ue)ss|have a (lovely|nice|good) (day|evening)|goodbye/i.test(z.text)) l.abschiedAm = Date.now();
+    const abschied = abschiedGesagt(z.text);
+    if (l.halten && z.am >= l.halten.seit - 300) {
+      // Noch zurückgehalten: Frage und Abschied zählen erst, wenn der Kunde sie hört (Freigabe) — werden sie verworfen, nie.
+      const m = l.halteFragen ?? { aufnahme: false, frage: false, abschied: false };
+      l.halteFragen = { aufnahme: m.aufnahme || aufnahmeFrage, frage: m.frage || frage, abschied: m.abschied || abschied };
+    } else {
+      // Der Text ist oft schneller als der Ton: gilt erst, wenn dieser Redebeitrag zu Ende gespielt ist (beitragEnde).
+      l.offen = { aufnahme: l.offen.aufnahme || aufnahmeFrage, frage: l.offen.frage || frage, abschied: l.offen.abschied || abschied };
+    }
+    wiederholungPruefen(l, z, false);
   } else if (l.abschiedAm && !/tsch(ü|ue)ss|wiederh(ö|oe)ren|ciao|bye|danke|ebenso|gleichfalls|ihnen auch|schönen tag|servus|ade/i.test(z.text) && z.text.trim().length > 3) {
     // Der Kunde redet nach dem Abschied weiter (eine Frage) — dann ist es noch kein Abschied.
     l.abschiedAm = null;
@@ -442,7 +527,7 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
     l.ergebnis = "mailbox"; l.endeGrund = "mailbox";
     void arasEreignis({ art: "aras_mailbox", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: "Mailbox-Ansage erkannt — aufgelegt, keine Nachricht" });
     void sitzungEnde(l, "mailbox");
-  } else if (l.aufnahmeFrageAm && !l.aufnahmeJa && !l.aufnahmeNein && Date.now() - l.aufnahmeFrageAm < 25_000) {
+  } else if (l.aufnahmeFrageAm && !l.aufnahmeJa && !l.aufnahmeNein && Date.now() - l.aufnahmeFrageAm < 25_000 && (z.beginn ?? z.am) >= l.aufnahmeFrageAm - 1000) {
     // Die Antwort auf die Aufnahme-Frage — eindeutig Ja startet, eindeutig Nein vermerkt; Unklares bleibt ohne Band.
     if (istAufnahmeJa(z.text)) void werkzeugAusfuehren(l.ctx!, "aufnahme_starten", {}, `bruecke_ja_${l.callId}`);
     else if (istAufnahmeNein(z.text)) void werkzeugAusfuehren(l.ctx!, "aufnahme_abgelehnt", {}, `bruecke_nein_${l.callId}`);
@@ -454,6 +539,7 @@ function wachen(l: Lauf): void {
   if (l.beendet || !l.bereitAm) return;
   const jetzt = Date.now();
   for (const z of l.zeilen) if (!z.final && jetzt - z.am > 900) zeileFertig(l, z);
+  if (jetzt - l.zuletztSprache > 300) beitragEnde(l);
   const seitBereit = jetzt - l.bereitAm;
   // Begrüßung nachschieben: GPT-Live spricht laut Doku nicht garantiert zuerst.
   if (!l.grussNachgeschoben && !l.arasErsteRedeAm && !l.kundeHatGesprochen && seitBereit > GRUSS_NACH_MS && l.ws) {
@@ -466,7 +552,7 @@ function wachen(l: Lauf): void {
     l.sitzung?.textEinschieben("Sag jetzt kurz und freundlich, dass du der digitale Assistent von FIAON bist, also eine KI — in einem halben Satz, dann weiter im Gespräch.", "anweisung");
   }
   // Nach dem Abschied: 2,5 s Ruhe auf beiden Seiten → auflegen (das Werkzeug anruf_beenden kann es auch, ist aber langsamer).
-  if (l.abschiedAm && !l.spricht && jetzt - l.zuletztSprache > 2500 && jetzt - l.zuletztRede > 2500 && jetzt - l.abschiedAm > 1500) {
+  if (l.abschiedAm && !l.spricht && !l.halten && l.pufferBytes === 0 && jetzt - l.zuletztSprache > 2500 && jetzt - l.zuletztRede > 2500 && jetzt - l.abschiedAm > 1500) {
     l.endeGrund = l.endeGrund ?? "aras_beendet"; void sitzungEnde(l, "aras_beendet"); return;
   }
   // Stille: niemand hat abgenommen (oder eine Mailbox ohne Erkennung) — oder beide schweigen lange.
@@ -543,6 +629,92 @@ function atmoFuellen(l: Lauf, ausTakt = true): void {
   }
 }
 
+// ── Geduld-Tor (aras_zuhoeren, Justins Test 20.10., Anruf 5: „Also...“ mitten in seine Denkpause) ───────────────────
+// GPT-Live hat keinen Schalter für das Zuhören (voll-duplex, kein turn_detection in session.start — Doku 20.10.2026). Die Doku
+// empfiehlt für so etwas die Wiedergabe in der Brücke zu steuern („Control playback when needed“): Ton zurückhalten, und
+// was GPT-Live selbst abbricht, nie abspielen. Entscheiden tut GPT-Live (hört es auf, weil der Kunde weiterredet, war es
+// ein Ansatz); die Brücke wartet nur, bis der Kunde lange genug still ist.
+function geduldMs(l: Lauf): number { return GEDULD_MS[l.einstellungen.regie?.zuhoeren ?? "geduldig"] ?? 0; }
+/** Wann der Kunde zuletzt geredet hat: seine Worte (Transkript) — die Lautstärke nur, wenn kurz vorher auch Worte kamen. */
+function kundeStimmeAm(l: Lauf, jetzt: number): number {
+  return Math.max(l.kundeTextAm, l.kundeTextAm && jetzt - l.kundeTextAm < PEGEL_NUR_MIT_TEXT_MS ? l.kundePegelAm : 0);
+}
+function geduldNoetig(l: Lauf, jetzt: number): boolean {
+  const g = geduldMs(l);
+  // Der erste Satz mit dem KI-Hinweis geht immer sofort raus (KI-VO Art. 50) — das Tor gilt erst danach.
+  if (!g || !l.kiHinweisAm || l.notaus || l.uebergabeLaeuft || !l.ws) return false;
+  const stimme = kundeStimmeAm(l, jetzt);
+  if (stimme && jetzt - stimme < g) return true;
+  // Aras hat gefragt, der Kunde hat noch nicht geantwortet: ihm Zeit für die Antwort lassen.
+  return !!l.frageAm && stimme < l.frageAm && jetzt - l.frageAm < 2 * g + 600;
+}
+function haltenBeginnen(l: Lauf, jetzt: number): void {
+  const takt = setInterval(() => haltenPruefen(l), 40);
+  l.halten = { seit: jetzt, takt }; l.halte = []; l.halteBytes = 0;
+  if (process.env.ARAS_DEBUG) console.log(`[ARAS] Geduld-Tor zu (call ${l.callId}): Kunde vor ${jetzt - kundeStimmeAm(l, jetzt)} ms`);
+}
+function haltenPruefen(l: Lauf): void {
+  if (!l.halten || l.beendet) return;
+  const jetzt = Date.now();
+  if (!geduldNoetig(l, jetzt) || jetzt - l.halten.seit > HALTEN_HOECHSTENS_MS) haltenFreigeben(l);
+}
+/** Der Kunde ist still genug: das Gehaltene abspielen (mit Atmo), den Rückstand in der nächsten Pause aufholen. */
+function haltenFreigeben(l: Lauf): void {
+  if (!l.halten) return;
+  clearInterval(l.halten.takt); l.halten = null; l.gehalten += 1;
+  const stuecke = l.halte; l.halte = [];
+  for (const k of stuecke) { const raus = l.atmo ? atmoUnter(l, k) : k; l.puffer.push(raus); l.pufferBytes += raus.length; }
+  l.aufholenBytes += l.halteBytes; l.halteBytes = 0;
+  // Fragen aus dem Gehaltenen gelten ab jetzt (wenn der Kunde sie hört).
+  if (l.halteFragen?.aufnahme && !l.aufnahmeJa && !l.aufnahmeNein) l.aufnahmeFrageAm = gehoertAm(l);
+  if (l.halteFragen?.frage) l.frageAm = gehoertAm(l);
+  if (l.halteFragen?.abschied) l.abschiedAm = gehoertAm(l);
+  l.halteFragen = null;
+  pumpen(l);
+}
+/** Wann der Kunde den Ton hört, der jetzt in der Brücke wartet (grob: alles im Puffer, in Echtzeit). */
+function gehoertAm(l: Lauf): number { return Date.now() + Math.round(l.pufferBytes / 8); }
+/**
+ * Aras' Redebeitrag ist zu Ende (Stille nach Rede): was darin gefragt wurde, gilt ab dem Moment, in dem der Kunde es hört.
+ * Wird der Beitrag gerade zurückgehalten, wandert es zum Gehaltenen (gilt bei Freigabe, fällt beim Verwerfen weg).
+ */
+function beitragEnde(l: Lauf): void {
+  const o = l.offen;
+  if (!o.aufnahme && !o.frage && !o.abschied) return;
+  l.offen = { aufnahme: false, frage: false, abschied: false };
+  if (l.halten) {
+    const m = l.halteFragen ?? { aufnahme: false, frage: false, abschied: false };
+    l.halteFragen = { aufnahme: m.aufnahme || o.aufnahme, frage: m.frage || o.frage, abschied: m.abschied || o.abschied };
+    return;
+  }
+  if (o.aufnahme && !l.aufnahmeJa && !l.aufnahmeNein) l.aufnahmeFrageAm = gehoertAm(l);
+  if (o.frage) l.frageAm = gehoertAm(l);
+  if (o.abschied) l.abschiedAm = gehoertAm(l);
+}
+/** Der Kunde redete weiter und GPT-Live hörte auf: der Ansatz wird nie abgespielt; die Zeile heißt „verworfen“. */
+function haltenVerwerfen(l: Lauf): void {
+  if (!l.halten) return;
+  const seit = l.halten.seit;
+  clearInterval(l.halten.takt); l.halten = null; l.halte = []; l.halteBytes = 0; l.halteFragen = null; l.verworfen += 1;
+  // Was im verworfenen Beitrag gefragt wurde, hat der Kunde nie gehört — es zählt nie (auch kein Aufnahme-Ja darauf).
+  l.offen = { aufnahme: false, frage: false, abschied: false };
+  for (const z of l.zeilen) if (z.wer === "aras" && z.am >= seit - 300 && z.text.trim()) { z.verworfen = true; if (!z.final) zeileFertig(l, z); }
+  if (process.env.ARAS_DEBUG) console.log(`[ARAS] Geduld-Tor: Ansatz verworfen (call ${l.callId})`);
+}
+
+// ── Wiederholungs-Wache (Justins Test 20.10., Anruf 5: dreimal wortgleich derselbe Satz auf „Um was geht's?“) ─────────
+function wiederholungPruefen(l: Lauf, z: TranskriptZeile, laufend: boolean): void {
+  if (z.wer !== "aras" || z.wiederholt || z.verworfen || l.wiederholHinweise >= 3 || l.beendet) return;
+  const frueher = l.zeilen.filter((x) => x.wer === "aras" && x !== z && x.final && !x.verworfen && x.text.trim()).slice(-3).map((x) => x.text);
+  if (!frueher.length) return;
+  const quote = wiederholtSich(z.text, frueher, laufend);
+  if (quote === null) return;
+  z.wiederholt = true; l.wiederholHinweise += 1;
+  // Versteckter Hinweis (instructions dürfen die laufende Rede unterbrechen) — sofort, nicht erst beim nächsten Satz.
+  l.sitzung?.textEinschieben(WIEDERHOLUNG_HINWEIS, "anweisung");
+  console.log(`[ARAS] call ${l.callId}: Wiederholung erkannt (${Math.round(quote * 100)} % gleich) — Hinweis an die Stimme.`);
+}
+
 // ── Unterbrechen ───────────────────────────────────────────────────────────
 /** Eigene Lautstärke-Erkennung auf dem Kunden-Ton: 3 laute Rahmen (60 ms) über dem Grundrauschen. */
 function kundenPegel(l: Lauf, chunk: Buffer): void {
@@ -553,7 +725,7 @@ function kundenPegel(l: Lauf, chunk: Buffer): void {
   if (p > schwelle) {
     l.lautFrames += 1;
     if (l.lautFrames >= 3) {
-      l.zuletztRede = Date.now(); l.kundeLaut = true;
+      l.zuletztRede = Date.now(); l.kundeLaut = true; l.kundePegelAm = Date.now();
       if (l.spricht || Date.now() - l.zuletztSprache < 700) unterbrechenPruefen(l, "pegel");
     }
   } else l.lautFrames = 0;
@@ -582,6 +754,11 @@ function unterbrechenPruefen(l: Lauf, ausloeser: string): void {
 }
 
 function unterbrechen(l: Lauf, ausloeser: string): void {
+  // Was das Geduld-Tor noch zurückhielt, hat der Kunde nie gehört — es fällt weg (der „Also...“-Ansatz).
+  if (l.halten) haltenVerwerfen(l);
+  l.aufholenBytes = 0;
+  // Ein unterbrochener Beitrag: eine darin nur halb gehörte Frage (Aufzeichnung!) zählt nicht.
+  l.offen = { aufnahme: false, frage: false, abschied: false };
   l.puffer = []; l.pufferBytes = 0; l.offeneMarks = 0; l.markGen += 1; l.lautFrames = 0; l.clears += 1;
   l.clearSprache = l.zuletztSprache; l.pruefNochmal = false;
   l.sitzung?.unterbrechen();
@@ -609,7 +786,7 @@ async function uebergabeStarten(l: Lauf, agentId: number, grund: string): Promis
     const t0 = Date.now();
     const umleiten = async () => {
       if (l.beendet) return;
-      if (Date.now() - t0 < 5000 && (Date.now() - t0 < 1200 || l.spricht || Date.now() - l.zuletztSprache < 900)) { l.timer.push(setTimeout(umleiten, 200)); return; }
+      if (Date.now() - t0 < 5000 && (Date.now() - t0 < 1200 || l.spricht || Date.now() - l.zuletztSprache < 900 || !!l.halten || l.pufferBytes > 0)) { l.timer.push(setTimeout(umleiten, 200)); return; }
       await c.calls(l.twilioSid!).update({ twiml }).catch((e: unknown) => console.error("[ARAS] Übergabe:", String(e).slice(0, 200)));
     };
     l.timer.push(setTimeout(umleiten, 400));
@@ -650,6 +827,8 @@ export async function sitzungBeenden(callId: number, grund: string): Promise<voi
   l.endeGrund = grund;
   if (grund === "notaus" || grund === "deploy") {
     l.notaus = grund === "notaus";
+    // Der Abschiedssatz kommt sofort — was das Geduld-Tor noch hielt, fällt weg.
+    if (l.halten) haltenVerwerfen(l);
     // Ein Abschiedssatz in genauem Wortlaut (instructions dürfen laufende Rede unterbrechen), dann Ende — höchstens 6 s.
     l.sitzung?.textEinschieben(`Unterbrich dich jetzt und sag sofort genau diesen Satz: „${NOTAUS_SATZ}“ Danach sagst du nichts mehr.`, "anweisung");
     const t0 = Date.now();
@@ -685,6 +864,7 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   for (const t of l.timer) clearTimeout(t);
   if (l.takt) clearInterval(l.takt);
   if (l.atmoTakt) clearInterval(l.atmoTakt);
+  if (l.halten) { clearInterval(l.halten.takt); l.halten = null; }
   if (l.pruefUnterbrechen) clearTimeout(l.pruefUnterbrechen);
   for (const z of l.zeilen) if (!z.final) zeileFertig(l, z);
   let sekunden = l.sekunden, kostenCents = l.kostenCents;
@@ -696,7 +876,7 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   if (l.twilioSid && !l.twilioSid.startsWith("ATTRAPPE") && !["kunde_aufgelegt", "uebergabe", "uebergabe_gescheitert_neu"].includes(grund)) {
     try { const c = await twilioClient(); await c.calls(l.twilioSid).update({ status: "completed" }); } catch { /* schon beendet */ }
   }
-  const transkript = l.aufnahmeJa ? l.zeilen.filter((z) => z.text.trim()).map((z) => ({ t: z.t, wer: z.wer, text: z.text, abgebrochen: z.abgebrochen === true })) : null;
+  const transkript = l.aufnahmeJa ? l.zeilen.filter((z) => z.text.trim()).map((z) => ({ t: z.t, wer: z.wer, text: z.text, abgebrochen: z.abgebrochen === true, ...(z.verworfen ? { verworfen: true } : {}) })) : null;
   await sqlPool`
     UPDATE fiaon_aras_anruf SET ende_grund = ${grund}, sekunden_sitzung = ${sekunden}, kosten_ki_cents = ${kostenCents},
            kosten_telefon_cents = ${telefonKostenCents(wanduhr)}, transkript = ${transkript ? sqlPool.json(transkript as any) : null},
@@ -707,11 +887,11 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   await sqlPool`UPDATE fiaon_calls SET ende = COALESCE(ende, NOW()), dauer_sek = COALESCE(dauer_sek, ${wanduhr}),
                  status = CASE WHEN ${grund} IN ('mailbox', 'stille') AND NOT ${l.kundeHatGesprochen} THEN 'niemand_erreicht' WHEN status IN ('gewaehlt', 'laeuft') THEN 'beendet' ELSE status END, updated_at = NOW()
                WHERE id = ${l.callId}`.catch(() => null);
-  await arasEreignis({ art: "aras_ende", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `Ende: ${grund} nach ${wanduhr} s`, daten: { grund, sekunden, kostenCents, aufnahme: l.aufnahmeJa, clears: l.clears } });
+  await arasEreignis({ art: "aras_ende", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `Ende: ${grund} nach ${wanduhr} s`, daten: { grund, sekunden, kostenCents, aufnahme: l.aufnahmeJa, clears: l.clears, gehalten: l.gehalten, verworfen: l.verworfen, wiederholungen: l.wiederholHinweise, abschiedEingefordert: !!l.abschiedEingefordert, abschied: !!l.abschiedAm } });
   try {
     const { nachbereiten } = await import("./fiaon-aras-nachbereitung");
     await nachbereiten(l.arasAnrufId, {
-      zeilen: l.zeilen, ausgefuehrt: l.ctx?.ausgefuehrt ?? [], endeGrund: grund, sekunden: wanduhr, aufnahmeJa: l.aufnahmeJa,
+      zeilen: l.zeilen.filter((z) => !z.verworfen), ausgefuehrt: l.ctx?.ausgefuehrt ?? [], endeGrund: grund, sekunden: wanduhr, aufnahmeJa: l.aufnahmeJa,
       ergebnis: l.ergebnis, ergebnisNotiz: l.ergebnisNotiz, ergebnisGesetzt: l.ctx?.ergebnisGesetzt === true, kundeHatGesprochen: l.kundeHatGesprochen,
       probe: l.probe, kiHinweisSek: l.kiHinweisAm && l.bereitAm ? (l.kiHinweisAm - l.bereitAm) / 1000 : null,
     });

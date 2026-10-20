@@ -10,7 +10,7 @@
 // ARAS-Schlüssel gehen über die Anbindung an einstellungSetzen (Team 1).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, NOTAUS_SCHALTER, registerEintrag, wertPruefen, wertAnzeige, wertOeffentlich, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
+import { REGISTER, KI_SCHLUESSEL, ARAS_SCHLUESSEL, NOTAUS_SCHALTER, ARAS_NOTAUS, registerEintrag, wertPruefen, wertAnzeige, wertOeffentlich, type RegisterEintrag } from "@shared/fiaon-ki-schalter";
 import { aras, arasVerbunden, NICHT_VERBUNDEN } from "./fiaon-ki-aras-anbindung";
 
 /** Schlüssel, die bis zum Eintrag in fiaon_settings aus der Umgebung kommen. */
@@ -119,6 +119,8 @@ export interface NotausStand {
   aktiv: boolean; seit: string | null; von: string | null;
   /** Je Weg: jetzt an/aus — und (wenn angehalten) wie er VOR dem Not-Aus stand. */
   wege: { schluessel: string; label: string; an: boolean; vorherAn: boolean | null }[];
+  /** Aras im selben Not-Aus (sein EINER Schlüssel aras_notaus, an = angehalten). null = Aras gibt es hier nicht. */
+  aras: { verbunden: boolean; angehalten: boolean; vorherAngehalten: boolean | null } | null;
 }
 
 function merkerLesen(roh: unknown): { am: string | null; von: string | null; werte: Record<string, string | null> } | null {
@@ -128,17 +130,35 @@ function merkerLesen(roh: unknown): { am: string | null; von: string | null; wer
   return { am: o.am ?? null, von: o.von ?? null, werte: o.werte };
 }
 
+// ── ARAS IM SELBEN NOT-AUS (E-409 × E-408, 20.10.2026) ─────────────────────────────────────────────────────────
+// Der Not-Aus im KI-Team hält auch Aras an — mit SEINEM einen Schlüssel und SEINEN Funktionen (Team 1, über die
+// Anbindung): waehler.notaus(von, grund) setzt aras_notaus = an und beendet laufende Gespräche mit dem Abschiedssatz
+// (notausAlle in fiaon-aras-bruecke.ts); waehler.start(von) setzt aras_notaus = aus. Kein zweiter Not-Aus-Schlüssel für
+// Aras, kein direktes Schreiben in aras_*, und aras_an (der Betriebsschalter) bleibt unberührt. Der Merker
+// mara_notaus_vorher merkt sich aras_notaus wie jeden Mara-Weg: „Wieder an“ startet Aras nur, wenn er VOR dem Not-Aus
+// nicht schon angehalten war. Ist Aras nicht verbunden, fasst der Not-Aus ihn nicht an (und sagt das).
+function arasWaehler(): { notaus: (von: string, grund: string) => Promise<{ beendet: number }>; start: (von: string) => Promise<void> } | null {
+  const w = aras()?.waehler;
+  return w && typeof w.notaus === "function" && typeof w.start === "function" ? w : null;
+}
+const arasAngehalten = (roh: string | null | undefined) => String(roh ?? "").trim().toLowerCase() === "an";
+
 export async function maraNotausStand(lauf: LaufPool = sqlPool): Promise<NotausStand> {
-  const schluessel = [...NOTAUS_SCHALTER.map((n) => n.schluessel), NOTAUS_VORHER];
+  const schluessel = [...NOTAUS_SCHALTER.map((n) => n.schluessel), NOTAUS_VORHER, ARAS_NOTAUS];
   const zeilen = (await lauf`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schluessel})`) as any[];
   const roh = new Map<string, string>(zeilen.map((z) => [String(z.key), String(z.value ?? "")]));
   const merker = roh.has(NOTAUS_VORHER) ? merkerLesen(roh.get(NOTAUS_VORHER)) : null;
+  const arasImMerker = !!merker && ARAS_NOTAUS in merker.werte;
+  const verbunden = !!arasWaehler();
   return {
     aktiv: !!merker, seit: merker?.am ?? null, von: merker?.von ?? null,
     wege: NOTAUS_SCHALTER.map((n) => ({
       schluessel: n.schluessel, label: n.label, an: notausWertAn(roh.get(n.schluessel), n.vorgabeAn),
       vorherAn: merker ? notausWertAn(merker.werte[n.schluessel] ?? null, n.vorgabeAn) : null,
     })),
+    aras: verbunden || roh.has(ARAS_NOTAUS) || arasImMerker
+      ? { verbunden, angehalten: arasAngehalten(roh.get(ARAS_NOTAUS)), vorherAngehalten: arasImMerker ? arasAngehalten(merker!.werte[ARAS_NOTAUS]) : null }
+      : null,
   };
 }
 
@@ -150,29 +170,40 @@ export async function maraNotausAktiv(lauf: LaufPool = sqlPool): Promise<boolean
   } catch { return true; }
 }
 
+export interface NotausAras { verbunden: boolean; angehalten: boolean; beendet?: number; text: string; fehler?: string }
 export type NotausErgebnis =
-  | { ok: true; aktiv: boolean; geaendert: { schluessel: string; label: string; vorher: string | null; nachher: string | null }[] }
+  | { ok: true; aktiv: boolean; geaendert: { schluessel: string; label: string; vorher: string | null; nachher: string | null }[]; aras: NotausAras | null }
   | { ok: false; status: 409; fehler: string };
 
+const ARAS_LABEL = "Aras (Telefon)";
+
 /**
- * an = true: anhalten (Stand merken, alle Wege aus). an = false: „Wieder an“ — genau den gemerkten Stand zurück.
- * In EINER Transaktion mit Zeilensperre auf dem Merker: zwei Klicks gleichzeitig verlieren nichts.
+ * an = true: anhalten (Stand merken, alle Wege aus, Aras über seinen Not-Aus). an = false: „Wieder an“ — genau den
+ * gemerkten Stand zurück. In EINER Transaktion mit Sperre auf dem Merker: zwei Klicks gleichzeitig verlieren nichts.
+ * Aras läuft NACH der Transaktion (Team 1 schreibt über seinen eigenen Setzer; ein Gespräch zu beenden dauert Sekunden).
  */
 export async function maraNotaus(an: boolean, von: string, lauf: LaufPool = sqlPool): Promise<NotausErgebnis> {
   const schluessel = NOTAUS_SCHALTER.map((n) => n.schluessel);
+  const w = arasWaehler();
   const erg = await lauf.begin(async (tx: any) => {
     // Eine Sperre nur für diesen Not-Aus (bis zum Ende der Transaktion) — zwei Klicks gleichzeitig laufen nacheinander.
     await tx`SELECT pg_advisory_xact_lock(409406001)`;
     const [m] = (await tx`SELECT value FROM fiaon_settings WHERE key = ${NOTAUS_VORHER}`) as any[];
     const merker = m ? merkerLesen(m.value) : null;
-    const jetzt = new Map<string, string | null>(((await tx`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schluessel})`) as any[]).map((z) => [String(z.key), z.value == null ? null : String(z.value)]));
+    const jetzt = new Map<string, string | null>(((await tx`SELECT key, value FROM fiaon_settings WHERE key = ANY(${[...schluessel, ARAS_NOTAUS]})`) as any[]).map((z) => [String(z.key), z.value == null ? null : String(z.value)]));
+    const arasJetzt = jetzt.get(ARAS_NOTAUS) ?? null;
     const geaendert: { schluessel: string; label: string; vorher: string | null; nachher: string | null }[] = [];
     if (an) {
       if (!merker) {
         const werte: Record<string, string | null> = {};
         for (const k of schluessel) werte[k] = jetzt.get(k) ?? null;
+        if (w) werte[ARAS_NOTAUS] = arasJetzt;
         await tx`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${NOTAUS_VORHER}, ${JSON.stringify({ am: new Date().toISOString(), von: String(von).slice(0, 120), werte })}, NOW())
                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+      } else if (w && !(ARAS_NOTAUS in merker.werte)) {
+        // Aras kam erst nach dem ersten Klick dazu: nur SEINEN Stand nachtragen — der Rest des Merkers bleibt, wie er war.
+        await tx`UPDATE fiaon_settings SET value = ${JSON.stringify({ am: merker.am, von: merker.von, werte: { ...merker.werte, [ARAS_NOTAUS]: arasJetzt } })}, updated_at = NOW()
+                  WHERE key = ${NOTAUS_VORHER}`;
       }
       for (const n of NOTAUS_SCHALTER) {
         if ((jetzt.get(n.schluessel) ?? null) === "aus") continue;
@@ -180,7 +211,7 @@ export async function maraNotaus(an: boolean, von: string, lauf: LaufPool = sqlP
                  ON CONFLICT (key) DO UPDATE SET value = 'aus', updated_at = NOW()`;
         geaendert.push({ schluessel: n.schluessel, label: n.label, vorher: jetzt.get(n.schluessel) ?? null, nachher: "aus" });
       }
-      return { ok: true as const, aktiv: true, geaendert };
+      return { ok: true as const, aktiv: true, geaendert, arasJetzt, arasZiel: undefined as string | null | undefined };
     }
     if (!merker) return { ok: false as const, status: 409 as const, fehler: "Mara ist nicht angehalten — es gibt keinen Stand zum Zurückstellen." };
     for (const n of NOTAUS_SCHALTER) {
@@ -192,8 +223,45 @@ export async function maraNotaus(an: boolean, von: string, lauf: LaufPool = sqlP
       if ((jetzt.get(n.schluessel) ?? null) !== alt) geaendert.push({ schluessel: n.schluessel, label: n.label, vorher: jetzt.get(n.schluessel) ?? null, nachher: alt });
     }
     await tx`DELETE FROM fiaon_settings WHERE key = ${NOTAUS_VORHER}`;
-    return { ok: true as const, aktiv: false, geaendert };
+    return { ok: true as const, aktiv: false, geaendert, arasJetzt, arasZiel: ARAS_NOTAUS in merker.werte ? merker.werte[ARAS_NOTAUS] ?? null : undefined };
   });
-  if (erg.ok) console.log(`[KI-EINSTELLUNG] Mara ${an ? "NOT-AUS" : "wieder an (Stand von vorher)"} (${von}): ${erg.geaendert.map((g) => `${g.schluessel} ${g.vorher ?? "Vorgabe"} → ${g.nachher ?? "Vorgabe"}`).join(", ") || "nichts zu ändern"}`);
-  return erg as NotausErgebnis;
+  if (!erg.ok) return erg;
+
+  // ── Aras — über SEINE Funktionen, nach dem Commit ────────────────────────────────────────────────────────────
+  let arasTeil: NotausAras | null = null;
+  if (an) {
+    if (w) {
+      try {
+        const r = await w.notaus(von, "Not-Aus im KI-Team");
+        if (!arasAngehalten(erg.arasJetzt)) erg.geaendert.push({ schluessel: ARAS_NOTAUS, label: ARAS_LABEL, vorher: erg.arasJetzt, nachher: "an" });
+        const n = Number(r?.beendet ?? 0);
+        arasTeil = { verbunden: true, angehalten: true, beendet: n, text: n ? `Aras angehalten — ${n === 1 ? "ein Gespräch endet" : `${n} Gespräche enden`} mit dem Abschiedssatz.` : "Aras angehalten — er wählt nicht mehr." };
+      } catch (e) {
+        const f = String((e as Error)?.message ?? e).slice(0, 160);
+        console.error("[KI-EINSTELLUNG] Not-Aus Aras:", f);
+        arasTeil = { verbunden: true, angehalten: false, text: "Aras ließ sich NICHT anhalten — bitte in KI-Team › Aras den Not-Aus drücken.", fehler: f };
+      }
+    } else if (erg.arasJetzt != null) {
+      arasTeil = { verbunden: false, angehalten: arasAngehalten(erg.arasJetzt), text: "Aras ist nicht verbunden — der Not-Aus fasst ihn nicht an." };
+    }
+  } else if (erg.arasZiel !== undefined) {
+    if (arasAngehalten(erg.arasZiel)) {
+      arasTeil = { verbunden: !!w, angehalten: true, text: "Aras war schon vor dem Not-Aus angehalten — er bleibt es." };
+    } else if (w) {
+      try {
+        await w.start(von);
+        if (arasAngehalten(erg.arasJetzt)) erg.geaendert.push({ schluessel: ARAS_NOTAUS, label: ARAS_LABEL, vorher: erg.arasJetzt, nachher: "aus" });
+        arasTeil = { verbunden: true, angehalten: false, text: "Aras ist wieder frei (sein Schalter „Aras wählt“ gilt wie vorher)." };
+      } catch (e) {
+        const f = String((e as Error)?.message ?? e).slice(0, 160);
+        console.error("[KI-EINSTELLUNG] Wieder an Aras:", f);
+        arasTeil = { verbunden: true, angehalten: true, text: "Aras ließ sich NICHT wieder starten — bitte in KI-Team › Aras „Wieder an“ drücken.", fehler: f };
+      }
+    } else {
+      arasTeil = { verbunden: false, angehalten: arasAngehalten(erg.arasJetzt), text: "Aras ist nicht verbunden — sein Not-Aus bleibt, bis du ihn in KI-Team › Aras löst." };
+    }
+  }
+  const ergebnis: NotausErgebnis = { ok: true, aktiv: erg.aktiv, geaendert: erg.geaendert, aras: arasTeil };
+  console.log(`[KI-EINSTELLUNG] Mara ${an ? "NOT-AUS" : "wieder an (Stand von vorher)"} (${von}): ${ergebnis.geaendert.map((g) => `${g.schluessel} ${g.vorher ?? "Vorgabe"} → ${g.nachher ?? "Vorgabe"}`).join(", ") || "nichts zu ändern"}${arasTeil ? ` · ${arasTeil.text}` : ""}`);
+  return ergebnis;
 }

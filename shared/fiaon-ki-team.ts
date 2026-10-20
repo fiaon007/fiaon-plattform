@@ -251,7 +251,11 @@ export interface KiHeute {
     entscheidungen: { offen: number; geldRecht: number };
     an: { aktion: boolean; whatsapp: boolean; postfach: boolean };
     /** Not-Aus über ALLE Mara-Wege — und was „Wieder an“ genau zurückstellt (E-409 Funde 2 + 9). */
-    notaus: { aktiv: boolean; seit: string | null; von: string | null; wege: { schluessel: string; label: string; an: boolean; vorherAn: boolean | null }[] };
+    notaus: {
+      aktiv: boolean; seit: string | null; von: string | null; wege: { schluessel: string; label: string; an: boolean; vorherAn: boolean | null }[];
+      /** E-409 × E-408: Aras im selben Not-Aus — sein EINER Schlüssel aras_notaus (an = angehalten); null = Aras gibt es hier nicht. */
+      aras?: { verbunden: boolean; angehalten: boolean; vorherAngehalten: boolean | null } | null;
+    };
     /** Aus derselben Quelle wie das Lagezimmer (maraHeuteLesen): selbst erledigt, je Art, Geld, Aufräumen, wo es hängt, KI. */
     erledigt: number;
     zeilen: { art: string; n: number; text: string; link: string; werkzeug: string | null }[];

@@ -45,18 +45,22 @@ export default function ChefKiHeute() {
   const notaus = d?.mara.notaus ?? LEER;
   const darf = d?.darf ?? { namen: false, entscheiden: false, rueckgaengig: false, notaus: false };
 
+  // E-409 × E-408: EIN Not-Aus für das ganze KI-Team — alle Mara-Wege UND Aras (über seinen eigenen Not-Aus, aras_notaus).
   const maraAnhalten = async () => {
-    const wege = notaus.wege.filter((w) => w.an).map((w) => `· ${w.label}`).join("\n");
-    if (!window.confirm(`Mara anhalten? Diese Wege stoppen sofort:\n${wege || "· (alle schon aus)"}\n\nLaufendes endet normal. „Wieder an“ stellt danach genau diesen Stand her.`)) return;
+    const wege = notaus.wege.filter((w) => w.an).map((w) => `· ${w.label}`);
+    if (notaus.aras?.verbunden && !notaus.aras.angehalten) wege.push("· Aras (Telefon) — laufende Gespräche enden mit einem Abschiedssatz");
+    if (!window.confirm(`Not-Aus? Das stoppt sofort:\n${wege.join("\n") || "· (alles schon aus)"}\n\nMails und WhatsApps, die gerade entstehen, laufen zu Ende. „Wieder an“ stellt danach genau diesen Stand her.`)) return;
     setBusy("mara");
-    try { await senden("/chef/ki/mara/notaus", { an: true }); meld.gut("Mara angehalten — alle Wege."); neu(); }
+    try { const r = await senden<{ aras: { text: string } | null }>("/chef/ki/mara/notaus", { an: true }); meld.gut(`Angehalten — alle Mara-Wege.${r.aras ? ` ${r.aras.text}` : ""}`); neu(); }
     catch (e) { meld.fehler((e as Error).message); } finally { setBusy(null); }
   };
   const maraWiederAn = async () => {
-    const zurueck = notaus.wege.map((w) => `· ${w.label}: ${w.vorherAn === false ? "bleibt aus" : "wieder an"}`).join("\n");
-    if (!window.confirm(`Mara wieder starten?\n\nEs gilt genau der Stand von vor dem Not-Aus${notaus.seit ? ` (${tagZeit(notaus.seit)})` : ""}:\n${zurueck}`)) return;
+    const zurueck = notaus.wege.map((w) => `· ${w.label}: ${w.vorherAn === false ? "bleibt aus" : "wieder an"}`);
+    const a = notaus.aras;
+    if (a && a.vorherAngehalten !== null) zurueck.push(`· Aras (Telefon): ${a.vorherAngehalten ? "bleibt angehalten (war es schon vorher)" : a.verbunden ? "wieder frei" : "nicht verbunden — bleibt angehalten"}`);
+    if (!window.confirm(`Wieder starten?\n\nEs gilt genau der Stand von vor dem Not-Aus${notaus.seit ? ` (${tagZeit(notaus.seit)})` : ""}:\n${zurueck.join("\n")}`)) return;
     setBusy("mara");
-    try { await senden("/chef/ki/mara/notaus", { an: false }); meld.gut("Mara läuft wieder — wie vor dem Not-Aus."); neu(); }
+    try { const r = await senden<{ aras: { text: string } | null }>("/chef/ki/mara/notaus", { an: false }); meld.gut(`Läuft wieder — wie vor dem Not-Aus.${r.aras ? ` ${r.aras.text}` : ""}`); neu(); }
     catch (e) { meld.fehler((e as Error).message); } finally { setBusy(null); }
   };
   const arasSchalten = async (stop: boolean) => {
@@ -112,7 +116,7 @@ export default function ChefKiHeute() {
                   {darf.notaus ? (
                     notaus.aktiv
                       ? <button type="button" className="ki-knopf klein haupt" data-ki="mara-wieder-an" disabled={busy === "mara"} onClick={maraWiederAn} title="Stellt genau den Stand von vor dem Not-Aus her — fragt vorher.">Wieder an</button>
-                      : <button type="button" className="ki-knopf klein krit" data-ki="mara-notaus" disabled={busy === "mara"} onClick={maraAnhalten} title="Hält ALLE Mara-Wege in einem Zug an — fragt vorher.">Not-Aus</button>
+                      : <button type="button" className="ki-knopf klein krit" data-ki="mara-notaus" disabled={busy === "mara"} onClick={maraAnhalten} title="Hält ALLE Mara-Wege und Aras in einem Zug an — fragt vorher.">Not-Aus</button>
                   ) : null}
                 </div>
                 <div className="ki-zahlen">

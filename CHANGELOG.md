@@ -37,6 +37,10 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   Mails (vorher immer 0), „Mara anweisen“ trifft bei Aktionsmails die richtige Anweisung, Link-Knöpfe auf Karten bleiben Links,
   „Widerruf annehmen“ fragt nach, die Leitung sieht auf „Heute“ keine Kundennamen, die Probe-Nummer steht überall nur mit den
   letzten 3 Ziffern, kein Gold im KI-Team, ruhige Hülle auch für /chef/ki.
+  **Brücke zu Aras (E-408 Teil 1):** Der Not-Aus auf „Heute“ hält auch Aras an — über SEINEN einen Schlüssel aras_notaus und seine
+  Funktionen (laufende Gespräche enden mit dem Abschiedssatz); aras_an bleibt unberührt, „Wieder an“ startet Aras nur, wenn er vorher
+  lief. Die Ampel in KI-Team › Werkzeuge schreibt aras_ampel — derselbe Schlüssel, den Aras beim Anrufbeginn liest. Die Ton-Regler
+  „Energie“ und „Nachfragen nach einem Nein“ stehen auch in Einstellungen › Aras.
 - **Warum:** Justin, 19.10.2026: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter — mit allen Sachen, die auch wirklich
   funktionieren“; Vorschlag 3 „Mara führt den Betrieb“ („Nach dem Anruf genügt ein Klick“, „KYC selbst und nicht mehr bei Justin“,
   „sehen, was Mara tut“); zur Stichprobe: „warum Diana? … Die ist ja gar nicht Thema“ — Qualität prüft Prüf-Mara automatisch.
@@ -49,7 +53,8 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   shared/fiaon-kyc-nachfordern.ts, shared/fiaon-unterlagen-vorpruefung.ts, server/lib/fiaon-mara-kyc.ts, fiaon-unterlagen-pruefer.ts,
   ChefMaraUnterlagen.tsx. B3: shared/fiaon-mara-ampel.ts (Mails Gelb/Rot, Arten, Aufräumen), server/lib/fiaon-mara-heute.ts (die eine
   Quelle), fiaon-mara-aufraeumen.ts, server/routes/fiaon-mara-heute.ts, ChefMaraHeute.tsx. Prüfstände: pruef-ki-schalter, pruef-ki-pruefung,
-  pruef-e409-db, pruef-e409-funde(-db), pruef-mara-nacharbeit(-db), pruef-mara-kyc(-db), pruef-e406-b3-mara-heute(-db).
+  pruef-e409-db, pruef-e409-funde(-db), pruef-e409-nachbesserung(-db), pruef-mara-nacharbeit(-db), pruef-mara-kyc(-db),
+  pruef-e406-b3-mara-heute(-db).
 
 ## 19.10.2026 — E-406 Welle 1 „Mara führt den Betrieb“: Heute dran (A), Mara-Inkasso erste Stufe (B1), Mara beantwortet Anliegen (C1) — abgenommen
 - **Was:** **(A) „Heute dran“** — jeder Mitarbeiter sieht auf /agent/start eine Liste mit höchstens 25 Einträgen aus allen Orten mit Arbeit

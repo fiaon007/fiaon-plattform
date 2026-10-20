@@ -200,6 +200,10 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_lachen", gruppe: "aras", label: "Kurzes Lachen", satz: "Nur als Antwort auf etwas Lustiges, nie als Einstieg.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_tempo", gruppe: "aras", label: "Tempo", satz: "Sprechtempo: ruhig, normal, zügig.", typ: "enum", vorgabe: "normal", enum: ["ruhig", "normal", "zuegig"], enumText: { zuegig: "zügig" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_zuhoerlaute", gruppe: "aras", label: "Zuhör-Laute", satz: "„mhm“, „ja“ während der Kunde spricht.", typ: "enum", vorgabe: "normal", enum: ["sparsam", "normal"], setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  // E-409 × E-408 (20.10.2026): die zwei Ton-Regler aus Aras Teil 1 (shared/fiaon-aras.ts ARAS_SCHLUESSEL, Nachtrag
+  // „Persona & Skalierung“) — derselbe Schlüssel wie auf der Probe-Seite, dieselben Werte; gesetzt über Team 1s Setzer.
+  { schluessel: "aras_energie", gruppe: "aras", label: "Energie", satz: "Wie viel Schwung: ruhig, lebendig oder Vollgas — erst nach dem Test.", typ: "enum", vorgabe: "lebendig", enum: ["ruhig", "lebendig", "vollgas"], enumText: { vollgas: "Vollgas" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
+  { schluessel: "aras_abschluss", gruppe: "aras", label: "Nachfragen nach einem Nein", satz: "sanft 0, klar 1, hartnäckig 2 — nie 3.", typ: "enum", vorgabe: "klar", enum: ["sanft", "klar", "hartnaeckig"], enumText: { hartnaeckig: "hartnäckig" }, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_ki_hinweis_satz", gruppe: "aras", label: "Erster Satz (KI-Hinweis)", satz: "Pflicht nach KI-VO Art. 50 — muss „KI“ oder „digitale“ enthalten.", typ: "text", vorgabe: ARAS_KI_HINWEIS_VORGABE, maxZeichen: 400, muss: /\b(?:KI|digitale)\b/, mussText: "Der Satz muss „KI“ oder „digitale“ enthalten.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_aufnahme_frage", gruppe: "aras", label: "Aufnahme-Frage", satz: "Aufnahme nur nach hörbarem Ja — der Satz muss „Ja“ enthalten.", typ: "text", vorgabe: ARAS_AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, muss: /\bJa\b/, mussText: "Der Satz muss „Ja“ enthalten.", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_spielarten", gruppe: "aras", label: "Spielarten", satz: "Welche Gesprächsarten Aras führt (lead/stufe_b/rueckholung erst nach LEXR).", typ: "json", vorgabe: JSON.stringify(ARAS_SPIELARTEN_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: spielartenJson },
@@ -237,6 +241,14 @@ export const NOTAUS_SCHALTER: readonly { schluessel: string; label: string; vorg
   { schluessel: "mara_kyc_nachfordern", label: "Unterlagen nachfordern", vorgabeAn: true },
   { schluessel: "unterlagen_umhaengen", label: "Prüf-Aufgaben umhängen", vorgabeAn: false },
 ];
+
+/**
+ * ARAS IM SELBEN NOT-AUS (E-409 × E-408, 20.10.2026): Aras hat GENAU EINEN Not-Aus-Schlüssel — aras_notaus aus seinem
+ * Kern (an = angehalten). Der KI-Team-Not-Aus schreibt ihn nicht selbst, sondern ruft Team 1s waehler.notaus / .start
+ * über die Anbindung (laufende Gespräche enden mit dem Abschiedssatz, notausAlle). aras_an ist der Betriebsschalter —
+ * den fasst der Not-Aus nicht an. Darum steht aras_notaus auch NICHT im Register (kein zweiter Knopf für denselben Schlüssel).
+ */
+export const ARAS_NOTAUS = "aras_notaus";
 
 /** Die Schlüssel, die POST /chef/ki/einstellung SELBST schreibt (ohne ARAS — die gehen über die Anbindung). */
 export const KI_SCHLUESSEL: readonly string[] = REGISTER.filter((e) => e.setzer.route === KI.route && e.dienst !== "aras").map((e) => e.schluessel);

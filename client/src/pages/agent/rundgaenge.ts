@@ -1944,7 +1944,7 @@ export const RUNDGANG_MARA: RundgangSchritt[] = [
     text: "Dieses Steuerpult ist jetzt eine Seite im Raum „KI-Team“ (Menü, direkt nach „Heute“). Dort stehen auch „Heute“ (Mara und Aras an einem Tag), "
       + "„Werkzeuge“ (grün/gelb/rot — was Mara allein darf), „Qualität“ (Prüf-Mara prüft jede Stichprobe automatisch) und „Einstellungen & Kasse“ "
       + "(jeder Schalter, der wirkt: WhatsApp an/aus, Nachfassen, Postfach-Modus, Deckel je Dienst).",
-    tipp: "Mara anhalten in einem Zug (Mail-Aktion, WhatsApp, Postfach): KI-Team › Heute › Not-Aus.",
+    tipp: "Alles anhalten in einem Zug (alle Mara-Wege und Aras): KI-Team › Heute › Not-Aus.",
   },
 ];
 
@@ -2661,8 +2661,8 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"buehne\"]",
     titel: "Mara und Aras — ein Tag.",
-    text: "Links Mara (selbst erledigt, Mails, WhatsApps, offene Entscheidungen), rechts Aras (gewählt, Gespräche, Zusagen, Kosten). Der Not-Aus hält ALLE Mara-Wege in einem Zug an — auch Nachfassen, Raten-Mail, Anliegen, Nacharbeit und Unterlagen.",
-    tipp: "„Wieder an“ fragt vorher und stellt genau den Stand von vor dem Not-Aus her — was vorher aus war, bleibt aus.",
+    text: "Links Mara (selbst erledigt, Mails, WhatsApps, offene Entscheidungen), rechts Aras (gewählt, Gespräche, Zusagen, Kosten). Der Not-Aus hält ALLE Mara-Wege in einem Zug an — auch Nachfassen, Raten-Mail, Anliegen, Nacharbeit und Unterlagen — und Aras mit seinem eigenen Not-Aus (laufende Gespräche enden mit einem Abschiedssatz).",
+    tipp: "„Wieder an“ fragt vorher und stellt genau den Stand von vor dem Not-Aus her — was vorher aus war, bleibt aus, auch bei Aras.",
   },
   {
     titel: "Aras erscheint, sobald er verbunden ist.",

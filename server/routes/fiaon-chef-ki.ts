@@ -44,12 +44,13 @@ router.get("/chef/ki/heute", lesen, async (req: ChefRequest, res: Response) => {
 
 router.post("/chef/ki/mara/notaus", wache, async (req: ChefRequest, res: Response) => {
   try {
-    // { an: true } = Mara anhalten (alle Wege, Stand wird gemerkt) · { an: false } = „Wieder an“ (genau der Stand von vorher).
+    // { an: true } = anhalten: alle Mara-Wege (Stand wird gemerkt) UND Aras über seinen eigenen Not-Aus (aras_notaus,
+    // laufende Gespräche enden mit Abschiedssatz) · { an: false } = „Wieder an“ (genau der Stand von vorher, auch bei Aras).
     const an = req.body?.an !== false;
     const r = await maraNotaus(an, wer(req));
     if (!r.ok) return fehler(res, r.status, r.fehler);
-    void chefProtokoll(req, "mara_notaus", `${an ? "an" : "aus (Stand von vorher)"}: ${r.geaendert.map((g) => g.schluessel).join(", ") || "nichts geändert"}`.slice(0, 300));
-    res.json({ ok: true, aktiv: r.aktiv, geaendert: r.geaendert });
+    void chefProtokoll(req, "mara_notaus", `${an ? "an" : "aus (Stand von vorher)"}: ${r.geaendert.map((g) => g.schluessel).join(", ") || "nichts geändert"}${r.aras ? ` · ${r.aras.text}` : ""}`.slice(0, 300));
+    res.json({ ok: true, aktiv: r.aktiv, geaendert: r.geaendert, aras: r.aras });
   } catch (e) {
     console.error("[CHEF-KI] mara/notaus:", e);
     fehler(res, 500, "Der Not-Aus ließ sich nicht schalten.");

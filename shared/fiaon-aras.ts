@@ -353,6 +353,47 @@ export interface Regie {
 export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "geduldig" };
 export type Stufe = 0 | 1 | 2 | 3;
 
+// ── Stufenplan (Nachtrag Persona & Skalierung; Koordinator 20.10.2026: HART durchsetzen) ──────────────────
+// Stufe 0 = nur Probeanrufe, NIE ein Kunde — auch nicht mit aras_an = an. Jede Stufe hat feste Obergrenzen; es gilt
+// immer das Engere aus Stufe und Schalter (aras_parallel, aras_tag_euro, aras_spielarten).
+export interface StufenRegel {
+  stufe: Stufe; name: string;
+  /** Wählversuche bei Kunden je Tag (ohne Probe). */
+  versucheJeTag: number;
+  parallel: number; tagEuro: number;
+  spielarten: readonly Spielart[];
+  /** Nur Stufe 1: Rate nur an diesen Tagen nach Fälligkeit (Tag 1–3). null = die Raten-Takte gelten. */
+  rateTage: readonly number[] | null;
+  /** Zuruf nur mit „JA per Nachricht“ (zuruf_whatsapp/zuruf_mail); Antrag-/Lead-Kästchen (Stufe B frisch, Leads) erst ab Stufe 3. */
+  zurufNurNachricht: boolean;
+}
+export const STUFEN: Record<Stufe, StufenRegel> = {
+  0: { stufe: 0, name: "Probe", versucheJeTag: 0, parallel: 0, tagEuro: 0, spielarten: [], rateTage: null, zurufNurNachricht: true },
+  // Stufe 1 „Test“: nur Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Stufe A und Raten an Tag 1–3 (Koordination 20.10.).
+  1: { stufe: 1, name: "Test", versucheJeTag: 20, parallel: 1, tagEuro: 15, spielarten: ["termin", "auftrag", "stufe_a", "rate"], rateTage: [1, 2, 3], zurufNurNachricht: true },
+  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "auftrag", "stufe_a", "rate", "zuruf", "zusage"], rateTage: null, zurufNurNachricht: true },
+  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "auftrag", "stufe_a", "rate", "zuruf", "zusage", "lead", "stufe_b", "rueckholung"], rateTage: null, zurufNurNachricht: false },
+};
+/** Die wirksamen Grenzen: immer das Engere aus Stufe und Schalter. Rein. */
+export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: number; spielarten: Partial<Record<Spielart, boolean>> }): {
+  stufe: Stufe; regel: StufenRegel; parallel: number; tagEuro: number; versucheJeTag: number; spielartErlaubt: (s: Spielart) => boolean;
+} {
+  const stufe = (Math.max(0, Math.min(3, Math.round(Number(e.stufe) || 0)))) as Stufe;
+  const regel = STUFEN[stufe];
+  return {
+    stufe, regel,
+    parallel: Math.max(0, Math.min(Number(e.parallel) || 0, regel.parallel)),
+    tagEuro: Math.max(0, Math.min(Number(e.tagEuro) || 0, regel.tagEuro)),
+    versucheJeTag: regel.versucheJeTag,
+    spielartErlaubt: (s) => s === "probe" || (!!e.spielarten[s] && regel.spielarten.includes(s)),
+  };
+}
+/** Stufe 1: eine Rate nur an Tag 1–3 nach Fälligkeit. Sonst gelten die Raten-Takte. Rein. */
+export function rateTagErlaubt(stufe: number, tageNachFaelligkeit: number): boolean {
+  const tage = STUFEN[(Math.max(0, Math.min(3, Math.round(stufe))) as Stufe)].rateTage;
+  return !tage || tage.includes(tageNachFaelligkeit);
+}
+
 export interface ArasEinstellungen {
   an: boolean; notaus: boolean; leerlauf: boolean;
   adapter: AdapterName; delegation: (typeof DELEGATION)[number];

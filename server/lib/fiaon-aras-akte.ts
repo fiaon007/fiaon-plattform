@@ -30,7 +30,7 @@ import { stufeAusAntrag } from "../../shared/fiaon-mara-ton";
 import { ERGEBNIS_TEXT, istErgebnis } from "../../shared/fiaon-kontakt-ergebnis-liste";
 import { auftragPruefen } from "../../shared/fiaon-aras-regeln";
 import {
-  SPIELART_TEXT, BLEIBT_BEI_DIR, AUFTRAG_GUELTIG_STUNDEN, AUFTRAG_VERSUCHE, ARAS_NOTIZ_MAX_ZEICHEN, berlinTeile, istSpielart, kundenAnrufeAn, offenReihen,
+  SPIELART_TEXT, BLEIBT_BEI_DIR, AUFTRAG_GUELTIG_STUNDEN, AUFTRAG_VERSUCHE, ARAS_NOTIZ_MAX_ZEICHEN, berlinTeile, istSpielart, kundenAnrufeAn, offenReihen, stufenGrenzen,
   auftragSaubern, istOffenArt, type OffenPunkt, type OffenArt, type AuftragWann,
 } from "../../shared/fiaon-aras";
 
@@ -169,7 +169,8 @@ export async function arasAkteLage(personId: number, agentId: number | null, lei
     else if (v.heute >= einst.jePersonTag) hinweis = "Heute wurde er schon angerufen — Aras ruft frühestens morgen an.";
     else if (v.woche > 0) hinweis = `Diese Woche ${v.woche} von ${einst.jePersonWoche} Anrufversuchen (Team und Aras zusammen).`;
     const kosten = await arasKostenHeute(lauf).catch(() => null);
-    if (!grund && kosten && kosten.euro >= einst.tagEuro) grund = "Aras' Tagesbudget ist für heute aufgebraucht — morgen geht es wieder.";
+    // Der Deckel der Stufe gilt (Stufe 1: 15 €), auch wenn der Schalter mehr erlaubt.
+    if (!grund && kosten && kosten.euro >= stufenGrenzen(einst).tagEuro) grund = "Aras' Tagesbudget ist für heute aufgebraucht — morgen geht es wieder.";
   }
 
   const geplantRoh = (await lauf`

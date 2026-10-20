@@ -25,7 +25,7 @@ import { twilioBereit, twilioClient, arasCallerId, rueckrufUrl, streamToken } fr
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { anweisungBauen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
-import { fensterOffen, darfVersuch, istWerbeSpielart, ANRUF_ZEITLIMIT_SEK, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
+import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
 
 type Lauf = typeof sqlPool;
 export { versucheHeute };
@@ -55,22 +55,28 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
   await lauf`UPDATE fiaon_aras_plan p SET status = 'wartet', updated_at = NOW()
               WHERE p.status = 'verschoben' AND p.frueh_ab <= NOW() AND p.spaet_bis >= NOW() AND p.spielart <> 'probe'
                 AND NOT EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.person_id = p.person_id AND x.spielart = p.spielart AND x.status = 'wartet')`.catch(() => null);
+  // Stufenplan (hart): Stufe 0 = nur Probeanrufe — NIE ein Kunde, auch mit aras_an = an. Darüber gilt je Stufe das Engere
+  // aus Stufe und Schalter (Gleichzeitig, Deckel, Gesprächsarten) und die Tagesmenge der Stufe.
+  const grenzen = stufenGrenzen(einst);
+  if (grenzen.stufe === 0) { merken("stufe_0"); return fertig(0, true); }
   const adapter = adapterFuer(einst.adapter);
   const bereit = await adapter.bereit();
   if (!bereit.ok) { merken(`adapter:${(bereit.grund ?? "nicht bereit").slice(0, 40)}`); return fertig(0); }
   if (einst.adapter !== "attrappe") { const t = twilioBereit(); if (!t.ok) { merken(`twilio_fehlt:${t.fehlt.join(",")}`); return fertig(0); } }
   const kosten = await arasKostenHeute(lauf);
-  if (kosten.euro >= einst.tagEuro) {
+  if (kosten.euro >= grenzen.tagEuro) {
     merken("deckel");
     const { alarmMelden } = await import("./fiaon-system-alarme");
-    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${einst.tagEuro} € — kein neues Wählen heute.`, stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
+    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${grenzen.tagEuro} € (Stufe ${grenzen.stufe}) — kein neues Wählen heute.`, stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
     return fertig(0);
   }
   const laufend = laufendeSitzungen().length + Number(((await lauf`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt' AND beginn > NOW() - INTERVAL '2 minutes'`) as any[])[0]?.n ?? 0);
-  let frei = einst.parallel - laufend;
+  let frei = grenzen.parallel - laufend;
   if (frei <= 0) { merken("parallel_voll"); return fertig(0); }
   const [stunde] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_aras_anruf WHERE created_at > NOW() - INTERVAL '1 hour' AND spielart <> 'probe'`) as any[];
   if (Number(stunde?.n ?? 0) >= einst.jeStunde) { merken("je_stunde_voll"); return fertig(0); }
+  const [heute] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_aras_anruf WHERE spielart <> 'probe' AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`) as any[];
+  if (Number(heute?.n ?? 0) >= grenzen.versucheJeTag) { merken(`stufe_tagesmenge:${grenzen.versucheJeTag}`); return fertig(0); }
 
   const roh = (await lauf`
     SELECT * FROM fiaon_aras_plan WHERE status = 'wartet' AND frueh_ab <= NOW() AND spaet_bis >= NOW() AND spielart <> 'probe'
@@ -85,6 +91,20 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
     const z = k.zeile;
     const land = (z.land as Land) || "DE";
     if (!einst.spielarten[k.spielart]) { merken(`spielart_aus:${k.spielart}`); continue; }
+    if (!grenzen.spielartErlaubt(k.spielart)) { merken(`stufe:${k.spielart}`); continue; }
+    if (k.spielart === "rate" && grenzen.regel.rateTage) {
+      // Stufe 1: nur Tag 1–3 nach Fälligkeit — ohne bekanntes Fälligkeitsdatum gar nicht (hart, auch für Einträge von Hand).
+      let faellig: Date | null = z.anlass_am ? new Date(z.anlass_am) : null;
+      if (!faellig && z.rate_id) { const [r] = (await lauf`SELECT faellig_am FROM fiaon_abo_raten WHERE id = ${z.rate_id}`) as any[]; faellig = r?.faellig_am ? new Date(r.faellig_am) : null; }
+      if (!faellig) { merken("stufe:rate_ohne_datum"); continue; }
+      const tage = Math.round((Date.parse(`${berlinTeile(new Date()).datum}T12:00:00Z`) - Date.parse(`${berlinTeile(faellig).datum}T12:00:00Z`)) / 86_400_000);
+      if (!rateTagErlaubt(grenzen.stufe, tage)) { merken("stufe:rate_tag"); continue; }
+    }
+    if (k.spielart === "zuruf" && grenzen.regel.zurufNurNachricht) {
+      // Bis Stufe 2 nur mit „JA per Nachricht“ — ohne nachweisbares Ja (Kennung) gar nicht.
+      const [ew] = z.einwilligung_id ? ((await lauf`SELECT art FROM fiaon_telefon_einwilligung WHERE id = ${z.einwilligung_id}`) as any[]) : [];
+      if (!["zuruf_whatsapp", "zuruf_mail"].includes(String(ew?.art ?? ""))) { merken("stufe:zuruf_kaestchen"); continue; }
+    }
     const f = fensterOffen(k.spielart, land, new Date(), { fenster: einst.fenster });
     if (!f.offen) { merken(`fenster:${f.grund}`); continue; }
     const personId = z.person_id != null ? Number(z.person_id) : null;
@@ -134,6 +154,12 @@ export async function waehlen(planId: number, opt: { probe?: boolean; spielartFu
       return { ok: false, grund: "Probeanrufe gehen nur an die hinterlegte Probe-Nummer — diese Nummer ist es nicht." };
     }
   } else if (!einst.an) return { ok: false, grund: "ARAS ist aus." };
+  else {
+    // Stufenplan (hart, auch hier — nicht nur im Takt): Stufe 0 wählt NIE einen Kunden; darüber nur die Arten der Stufe.
+    const g = stufenGrenzen(einst);
+    if (g.stufe === 0) return { ok: false, grund: "Stufe 0: Aras führt nur Probeanrufe — keine Kunden." };
+    if (!g.spielartErlaubt(z.spielart as Spielart)) return { ok: false, grund: `Stufe ${g.stufe}: „${z.spielart}“ ist in dieser Stufe noch nicht erlaubt.` };
+  }
   const adapter = adapterFuer(einst.adapter);
   const bereit = await adapter.bereit();
   if (!bereit.ok) return { ok: false, grund: bereit.grund };

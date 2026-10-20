@@ -24,7 +24,7 @@ import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwill
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
-  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster,
+  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -295,9 +295,13 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   const nummerVon = (z: any) => waehlbareNummer([{ nummer: z.nummer }], z.country).waehlbar;
   const verfallenR = (await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW() WHERE status = 'wartet' AND spaet_bis < NOW() RETURNING id`) as any[];
   const heute = berlinToday();
+  // Stufenplan (hart): Stufe 0 reiht keinen Kunden ein; darüber nur die Gesprächsarten der Stufe (und des Schalters).
+  const grenzen = stufenGrenzen(einst);
+  if (grenzen.stufe === 0) return { eingereiht, uebersprungen: { stufe_0: 1 }, verfallen: verfallenR.length };
+  const an = (s: Spielart) => grenzen.spielartErlaubt(s);
 
   // 1. Termine bei Aras (Minute genau; die Buchung ist die Einwilligung)
-  if (einst.spielarten.termin) {
+  if (an("termin")) {
     const ausweis = await arasAusweisId(lauf);
     const zeilen = (await lauf`
       SELECT t.id AS termin_id, t.beginn, t.person_id, ${lauf.unsafe(PERSON_NUMMER_SQL)}
@@ -319,7 +323,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   }
 
   // 2. Zuruf-JA / Antrag-Kästchen / Antrag-Knopf / Meta-Kästchen: frische Einwilligung + Antrag abgeschickt, unbezahlt
-  if (einst.spielarten.zuruf) {
+  if (an("zuruf")) {
     const zeilen = (await lauf`
       SELECT e.id AS einwilligung_id, e.art, e.erteilt_am, e.person_id, ${lauf.unsafe(PERSON_NUMMER_SQL)}, a.ref, a.created_at AS antrag_am
         FROM fiaon_telefon_einwilligung e
@@ -327,7 +331,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
         JOIN LATERAL (SELECT a.ref, a.created_at FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
                         AND ${lauf.unsafe(abgeschicktSql("a"))} AND COALESCE(a.payment_status, '') IN ('pending_payment', 'pending', 'unpaid', '', 'expired') AND a.claimed_paid_at IS NULL
                       ORDER BY a.created_at DESC LIMIT 1) a ON TRUE
-       WHERE e.widerrufen_am IS NULL AND e.art IN ('zuruf_whatsapp', 'zuruf_mail', 'antrag_kaestchen', 'antrag_knopf', 'meta_kaestchen')
+       WHERE e.widerrufen_am IS NULL AND e.art = ANY(${grenzen.regel.zurufNurNachricht ? ["zuruf_whatsapp", "zuruf_mail"] : ["zuruf_whatsapp", "zuruf_mail", "antrag_kaestchen", "antrag_knopf", "meta_kaestchen"]})
          AND e.erteilt_am > NOW() - INTERVAL '24 hours'
          AND ${lauf.unsafe(echtePersonSql("p"))} AND NOT ${lauf.unsafe(globalKundeSql("p.id"))} AND NOT COALESCE(p.is_blocked, FALSE)
          AND NOT EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.einwilligung_id = e.id)`) as any[];
@@ -344,7 +348,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   }
 
   // 3. Stufe A — Zahlung gemeldet, nicht gebucht (frischeste zuerst, höchstens 14 Tage alt)
-  if (einst.spielarten.stufe_a) {
+  if (an("stufe_a")) {
     const zeilen = (await lauf`
       SELECT a.ref, a.claimed_paid_at, ${lauf.unsafe(PERSON_NUMMER_SQL)}
         FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
@@ -364,8 +368,9 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   }
 
   // 4. Rate fällig — heute/morgen und Tag 3/10/20 nach Fälligkeit; nie nach Vertragsende, nie bei Abo-/Mahnstopp
-  if (einst.spielarten.rate) {
-    const takte = einst.ratenTakte;
+  if (an("rate")) {
+    // Stufe 1: nur Tag 1–3 nach Fälligkeit; sonst morgen/heute fällig und die Raten-Takte.
+    const tage = grenzen.regel.rateTage ? [...grenzen.regel.rateTage] : [-1, 0, ...einst.ratenTakte.map(Number)];
     const zeilen = (await lauf.unsafe(`
       SELECT r.id AS rate_id, r.rate_nr, r.betrag_cents, r.faellig_am::date::text AS faellig, a.ref, ${PERSON_NUMMER_SQL},
              (CURRENT_DATE - r.faellig_am::date)::int AS tage
@@ -375,7 +380,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
        WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
          AND ${ERINNERBARE_BESTELLUNG_SQL("a")} AND a.abo_gestoppt_am IS NULL AND a.mahnstopp_am IS NULL
          AND NOT ${RATE_NACH_ENDE_SQL_FUER("a", "r")}
-         AND ((CURRENT_DATE - r.faellig_am::date) IN (-1, 0) OR (CURRENT_DATE - r.faellig_am::date) IN (${takte.map(Number).join(",") || "3"}))
+         AND (CURRENT_DATE - r.faellig_am::date) IN (${tage.filter((x) => Number.isFinite(x)).join(",") || "3"})
          AND ${echtePersonSql("p")} AND NOT ${globalKundeSql("p.id")}
        ORDER BY r.betrag_cents DESC LIMIT 300`)) as any[];
     for (const z of zeilen) {
@@ -391,7 +396,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   }
 
   // 5. Zusage nachfassen — Tag nach dem zugesagten Datum, nur ohne Buchung
-  if (einst.spielarten.zusage) {
+  if (an("zusage")) {
     const zeilen = (await lauf`
       SELECT cl.promised_date, cl.ref, ${lauf.unsafe(PERSON_NUMMER_SQL)}
         FROM fiaon_contact_log cl
@@ -414,7 +419,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   }
 
   // 6. Stufe B kalt, Lead frisch, Rückholung — nur eingeschaltet (LEXR) und nur mit gültiger Einwilligung (planEinreihen prüft)
-  if (einst.spielarten.stufe_b) {
+  if (an("stufe_b")) {
     const zeilen = (await lauf`
       SELECT a.ref, a.created_at AS antrag_am, ${lauf.unsafe(PERSON_NUMMER_SQL)}
         FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id

@@ -117,6 +117,25 @@ ok("Aufnahme-Ja erkannt („Ja, gerne“, „in Ordnung“)", istAufnahmeJa("Ja,
 ok("Aufnahme-Nein erkannt („Nein, lieber nicht“)", istAufnahmeNein("Nein, lieber nicht.") && !istAufnahmeJa("Nein, lieber nicht."));
 ok("Rotprobe: „Ja, aber nicht aufzeichnen“ ist KEIN Ja", !istAufnahmeJa("Ja, aber bitte nicht aufzeichnen."));
 
+titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Leise · 3 Voll — immer das Engere aus Stufe und Schalter");
+{
+  const { STUFEN, stufenGrenzen, rateTagErlaubt, kundenAnrufeAn } = await import("../shared/fiaon-aras");
+  const alle = { termin: true, zuruf: true, stufe_a: true, rate: true, zusage: true, lead: true, stufe_b: true, rueckholung: true, auftrag: true } as any;
+  const g0 = stufenGrenzen({ stufe: 0, parallel: 5, tagEuro: 300, spielarten: alle });
+  ok("ROT-PROBE Stufe 0: keine Gesprächsart außer Probe, Gleichzeitig 0, Deckel 0 €, 0 je Tag — auch mit allen Schaltern an", ["termin", "zuruf", "stufe_a", "rate", "zusage", "lead", "auftrag"].every((x) => !g0.spielartErlaubt(x as any)) && g0.spielartErlaubt("probe") && g0.parallel === 0 && g0.tagEuro === 0 && g0.versucheJeTag === 0);
+  ok("ROT-PROBE kundenAnrufeAn: Stufe 0 + an = nein; Stufe 1 + an = ja; Not-Aus = nein", !kundenAnrufeAn({ an: true, stufe: 0, notaus: false }) && kundenAnrufeAn({ an: true, stufe: 1, notaus: false }) && !kundenAnrufeAn({ an: true, stufe: 3, notaus: true }));
+  const g1 = stufenGrenzen({ stufe: 1, parallel: 3, tagEuro: 60, spielarten: alle });
+  ok("Stufe 1: 20 je Tag, Gleichzeitig 1, Deckel 15 €, nur Termin/Auftrag/Stufe A/Rate", g1.versucheJeTag === 20 && g1.parallel === 1 && g1.tagEuro === 15 && ["termin", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
+  ok("Stufe 1: Rate nur Tag 1–3 nach Fälligkeit; Stufe 2/3 ohne diese Grenze", [1, 2, 3].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 5) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20));
+  const g2 = stufenGrenzen({ stufe: 2, parallel: 5, tagEuro: 300, spielarten: alle });
+  ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 €, Zuruf nur per Nachricht, kein Lead", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zuruf") && g2.regel.zurufNurNachricht && !g2.spielartErlaubt("lead"));
+  const g3 = stufenGrenzen({ stufe: 3, parallel: 9, tagEuro: 999, spielarten: alle });
+  ok("Stufe 3: 430 je Tag, Gleichzeitig höchstens 5, Deckel höchstens 150 € — nie mehr, auch wenn der Schalter mehr will", g3.versucheJeTag === 430 && g3.parallel === 5 && g3.tagEuro === 150 && STUFEN[3].zurufNurNachricht === false);
+  ok("Das Engere gilt: Schalter kleiner als die Stufe → der Schalter", stufenGrenzen({ stufe: 3, parallel: 2, tagEuro: 40, spielarten: alle }).parallel === 2 && stufenGrenzen({ stufe: 3, parallel: 2, tagEuro: 40, spielarten: alle }).tagEuro === 40);
+  ok("Ausgeschaltete Spielart bleibt aus, auch in Stufe 3", !stufenGrenzen({ stufe: 3, parallel: 3, tagEuro: 60, spielarten: { ...alle, zuruf: false } }).spielartErlaubt("zuruf"));
+  ok("Unsinnige Stufe (7, -1, „x“) → nie mehr als 3, nie weniger als 0", stufenGrenzen({ stufe: 7, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 3 && stufenGrenzen({ stufe: -1, parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0 && stufenGrenzen({ stufe: Number("x"), parallel: 3, tagEuro: 60, spielarten: alle }).stufe === 0);
+}
+
 titel("8. EINSTELLUNGEN: VORGABE, GRENZE, ERLAUBNISLISTE");
 ok("Jeder Schlüssel hat Vorgabe und Satz", Object.entries(ARAS_SCHLUESSEL).every(([, d]) => typeof d.vorgabe === "string" && d.satz.length > 0 && d.satz.length <= 120));
 ok("Jede Vorgabe besteht ihre eigene Prüfung", Object.keys(ARAS_SCHLUESSEL).every((k) => { try { einstellungPruefen(k, ARAS_SCHLUESSEL[k].vorgabe); return true; } catch (e) { log(`        ${k}: ${(e as Error).message}`); return false; } }));

@@ -80,8 +80,11 @@ export function satzAehnlichkeit(a: string | readonly string[], b: string | read
   }
   return 1 - vor[y.length] / Math.max(x.length, y.length);
 }
-/** Ab dieser Ähnlichkeit (normalisierter Text) gilt ein Redebeitrag als Wiederholung (Koordination 20.10.: ≥ 80 %). */
-export const WIEDERHOLUNG_AB = 0.8;
+/** Ab dieser Ähnlichkeit (normalisierter Text) gilt ein Redebeitrag als Wiederholung (Koordination 20.10.: ≥ 80 %; nach Justins
+ *  Anruf 11 „wiederholt sich“ und Anruf 16 — „Wofür … die Karte?“ zweimal — strenger: ≥ 70 % gegen die letzten FÜNF). */
+export const WIEDERHOLUNG_AB = 0.7;
+/** So viele frühere Redebeiträge zählen für die Wiederholungs-Wache. */
+export const WIEDERHOLUNG_FENSTER = 5;
 /** Kürzere Sätze („Super, passt.“) zählen nicht — die darf ein Mensch zweimal sagen. */
 export const WIEDERHOLUNG_MIN_WOERTER = 6;
 /** Laufender Satz: erst ab so vielen Wörtern vergleichen (Anfang gegen den gleich langen Anfang der früheren Sätze). */
@@ -94,9 +97,11 @@ export const WIEDERHOLUNG_HINWEIS = "Du hast dich gerade wiederholt. Sag es ande
  * noch nicht fertig — dann zählt der gleich lange Anfang der früheren Sätze. Liefert die Ähnlichkeit oder null. Rein.
  */
 export function wiederholtSich(neu: string, frueher: readonly string[], laufend = false): number | null {
+  // Die Aufnahme-Frage darf Aras wörtlich noch einmal stellen (nach einer Gegenfrage) — das ist keine Schleife.
+  if (/aufzeichn|aufnehm|mitschneid/i.test(neu)) return null;
   const w = satzWoerter(neu);
   if (w.length < (laufend ? WIEDERHOLUNG_LAUFEND_WOERTER : WIEDERHOLUNG_MIN_WOERTER)) return null;
-  for (const f of frueher.slice(-3)) {
+  for (const f of frueher.slice(-WIEDERHOLUNG_FENSTER)) {
     const v = satzWoerter(f);
     if (v.length < WIEDERHOLUNG_MIN_WOERTER) continue;
     const q = satzAehnlichkeit(w, laufend ? v.slice(0, w.length) : v);
@@ -107,7 +112,7 @@ export function wiederholtSich(neu: string, frueher: readonly string[], laufend 
 /** Der erste Aras-Redebeitrag, der einen seiner drei vorigen wiederholt (Transkript). Rein. */
 export function wiederholungFinden(zeilen: readonly RegelZeile[] | null | undefined): string | null {
   const aras = (zeilen ?? []).filter((z) => z.wer === "aras" && String(z.text ?? "").trim()).map((z) => String(z.text));
-  for (let i = 1; i < aras.length; i++) if (wiederholtSich(aras[i], aras.slice(Math.max(0, i - 3), i)) !== null) return aras[i].slice(0, 160);
+  for (let i = 1; i < aras.length; i++) if (wiederholtSich(aras[i], aras.slice(Math.max(0, i - WIEDERHOLUNG_FENSTER), i)) !== null) return aras[i].slice(0, 160);
   return null;
 }
 /** Ein Redebeitrag, der NUR ein Ansatz-Füllwort ist („Also...“, „Ähm“) — ein abgebrochener Anlauf. „Mhm“ beim Zuhören zählt nicht. Rein. */
@@ -164,6 +169,24 @@ export function antragDurchFinden(text: string): string | null {
   return m ? m[0] : null;
 }
 
+// ── Justin 20.10. (Anruf 16): Wortwahl ──────────────────────────────────────────────────────────────────────
+/** „Super“ kam fünfmal — höchstens zweimal im ganzen Gespräch. Liefert die Anzahl. Rein. */
+export function superZaehlen(text: string): number { return (String(text ?? "").match(/(?<![a-zäöüß])super(?![a-zäöüß])/gi) ?? []).length; }
+export const SUPER_HOECHSTENS = 2;
+/**
+ * Bank-Vorbehalt im Verkauf (E-373, Anruf 16: „Die genauen Bedingungen legt allerdings die Partnerbank fest“, „… prüft die
+ * Partnerbank ihn und entscheidet“) — die Partnerbank nur auf seine ausdrückliche Frage. Rein.
+ */
+export function bankVorbehaltFinden(text: string): string | null {
+  const m = /\b(?:die\s+)?(?:genauen\s+)?bedingungen\s+legt\s+(?:allerdings\s+|aber\s+)?die\s+partnerbank\b[^.!?]*|\b(?:prüft|prueft)\s+(?:die|unsere)\s+partnerbank\b[^.!?]*|\bpartnerbank\s+(?:prüft|prueft)\b[^.!?]*/i.exec(String(text ?? ""));
+  return m ? m[0].slice(0, 160) : null;
+}
+/** Leersätze („Schauen wir uns an, wie ich das am besten erkläre.“) — Füllung statt Inhalt. Rein. */
+export function leersatzFinden(text: string): string | null {
+  const m = /\bschauen\s+wir\s+(?:uns\s+)?(?:mal\s+)?an,?\s+wie\s+ich\s+das\s+(?:am\s+besten\s+)?erkläre\b|\blassen\s+sie\s+mich\s+(?:kurz\s+)?(?:überlegen|ueberlegen|nachdenken|erklären)\b|\bgute\s+frage\b/i.exec(String(text ?? ""));
+  return m ? m[0] : null;
+}
+
 /** Für die Nachbereitung: wie das Gespräch endete — „Aras hat beendet“ ohne Abschied ist ein Befund. */
 export type ArasTelefonLage = TelefonLage & { arasBeendet?: boolean };
 
@@ -178,6 +201,9 @@ export function telefonRegeln(text: string, tel: ArasTelefonLage | null = null):
   const url = urlFinden(t); if (url) zusatz.push({ regel: "url_vorgelesen", schwere: "weich", treffer: url.slice(0, 160), hinweis: "Internetadresse vorgelesen — der Link kommt aufs Handy." });
   const durch = antragDurchFinden(t); if (durch) zusatz.push({ regel: "antrag_durch", schwere: "hart", treffer: durch.slice(0, 160), hinweis: "Antrag als „durch/genehmigt“ dargestellt — er ist abgeschickt; über die Karte entscheidet die Partnerbank." });
   const karte = karteVersprochenFinden(t); if (karte) zusatz.push({ regel: "karte_versprochen", schwere: "hart", treffer: karte.slice(0, 160), hinweis: "Karte versprochen („bekommen/erhalten“) — E-373: „… nutzen können“; über die Karte entscheidet die Partnerbank." });
+  const bank = bankVorbehaltFinden(t); if (bank) zusatz.push({ regel: "bank_vorbehalt_verkauf", schwere: "weich", treffer: bank, hinweis: "Bank-Vorbehalt im Verkauf (E-373) — die Partnerbank nur auf seine ausdrückliche Frage." });
+  const supers = superZaehlen(t); if (supers > SUPER_HOECHSTENS) zusatz.push({ regel: "super_zu_oft", schwere: "weich", treffer: `${supers}×`, hinweis: "„Super“ höchstens zweimal im Gespräch — sonst „Sehr gut“, „Prima“, „Schön“." });
+  const leer = leersatzFinden(t); if (leer) zusatz.push({ regel: "leersatz", schwere: "weich", treffer: leer, hinweis: "Leersatz statt Inhalt — direkt die Sache sagen." });
   const zeilen = tel?.transkript ?? null;
   if (zeilen?.length) {
     const w = wiederholungFinden(zeilen);

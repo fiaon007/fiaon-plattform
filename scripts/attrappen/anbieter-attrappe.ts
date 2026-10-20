@@ -67,10 +67,10 @@ export interface Skript {
   abschiedIgnorieren?: boolean;
 }
 
-export interface AttrappeSpur { werkzeuge: { name: Werkzeug; ergebnis: WerkzeugErgebnis }[]; eingeschoben: { text: string; art: string }[]; unterbrochen: number; beendet: string | null; audioReinBytes: number }
+export interface AttrappeSpur { werkzeuge: { name: Werkzeug; ergebnis: WerkzeugErgebnis }[]; eingeschoben: { text: string; art: string; am?: number }[]; /** Wann der Kunde jeweils zu reden begann (Transkript). */ kundeAm?: number[]; unterbrochen: number; beendet: string | null; audioReinBytes: number; /** Was die Brücke als Begrüßung (developer-Nachricht) mitgab — ausgehend: keine. */ begruessung?: string | null }
 
 export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpur; fertig: Promise<void> } {
-  const spur: AttrappeSpur = { werkzeuge: [], eingeschoben: [], unterbrochen: 0, beendet: null, audioReinBytes: 0 };
+  const spur: AttrappeSpur = { werkzeuge: [], eingeschoben: [], kundeAm: [], unterbrochen: 0, beendet: null, audioReinBytes: 0 };
   let fertigMelden: () => void = () => {};
   const fertig = new Promise<void>((l) => { fertigMelden = l; });
   return {
@@ -79,6 +79,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
     async bereit() { return { ok: true }; },
     async hoerprobe(e) { const roh = stille(1200); return { mime: "audio/wav", bytes: Buffer.concat([Buffer.from("RIFF"), roh]), dauerMs: 1200, kostenCents: 0 }; },
     async sitzungStarten(e: SitzungStart): Promise<Sitzung> {
+      spur.begruessung = e.begruessung ?? null;
       const start = Date.now();
       let beendet = false;
       let aktiv = false;
@@ -129,6 +130,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
             const t0 = Date.now();
             while (!beendet && Date.now() - t0 < 8000 && !(zuletztLautRein > 0 && Date.now() - zuletztLautRein < 100)) await schlafen(10);
             emit({ art: "kunde_spricht" });
+            spur.kundeAm!.push(Date.now());
             emit({ art: "transkript", wer: "kunde", text: schritt.beiKundenStimme, final: true, t: t() });
             continue;
           }
@@ -141,6 +143,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
           if ("kunde" in schritt) {
             await schlafen(schritt.nachMs ?? 60);
             emit({ art: "kunde_spricht" });
+            spur.kundeAm!.push(Date.now());
             emit({ art: "transkript", wer: "kunde", text: schritt.kunde, final: true, t: t() });
             continue;
           }
@@ -173,7 +176,7 @@ export function attrappeMitSkript(s: Skript): StimmAdapter & { spur: AttrappeSpu
         audioRein(chunk) { spur.audioReinBytes += chunk.length; if (chunk.some((x) => x !== 0xff && x !== 0x7f)) zuletztLautRein = Date.now(); },
         unterbrechen() { /* der Ton stoppt — die Brücke zählt das clear */ },
         textEinschieben(text, art) {
-          spur.eingeschoben.push({ text, art });
+          spur.eingeschoben.push({ text, art, am: Date.now() });
           // Eine Anweisung mit genauem Wortlaut (Notaus, Übergabe) spricht die Attrappe kurz — wie GPT-Live.
           if (art === "anweisung" && /genau diesen Satz|Sag sofort/.test(text) && !beendet) void (async () => { await schlafen(30); await arasSagt(text.slice(0, 120), 300); })();
           // Abschied-Wache der Brücke: die Stimme verabschiedet sich (wie GPT-Live) — außer das Skript spielt eine, die es ignoriert.

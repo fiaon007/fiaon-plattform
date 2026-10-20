@@ -297,7 +297,8 @@ router.get("/chef/aras/live", lesen, (req: ChefRequest, res: Response) => {
   const zeig = nameZeigen(req);
   const bus = aras()?.bruecke?.ereignisBus?.() ?? null;
   // Leitung sieht keine Nachnamen im Live-Text (Vertrag § 9): „Herr Müller“ → „Herr …“.
-  const hoerer = (e: any) => senden(zeig ? e : { ...e, text: e?.text ? String(e.text).replace(/\b(Herr|Frau)\s+\S+/g, (_m: string, a: string) => `${a} …`) : e?.text });
+  // Nach dem Ende eines Anrufs (Ereignis „ende“) nichts mehr zu diesem Anruf — sonst legt die Karte den Kasten neu an (E-408, 20.10.).
+  const hoerer = (e: any) => { if (e?.nachEnde) return; senden(zeig ? e : { ...e, text: e?.text ? String(e.text).replace(/\b(Herr|Frau)\s+\S+/g, (_m: string, a: string) => `${a} …`) : e?.text }); };
   if (bus) bus.on("aras", hoerer);
   senden({ art: bus ? "verbunden" : "nicht_verbunden", am: new Date().toISOString(), text: bus ? "Live-Strom verbunden." : NICHT_VERBUNDEN });
   const herz = setInterval(() => senden({ art: "herzschlag", am: new Date().toISOString(), laufend: aras()?.waehler?.laufendeSitzungen?.()?.length ?? 0, verbunden: !!aras()?.bruecke }), 15_000);

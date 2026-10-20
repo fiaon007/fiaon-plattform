@@ -128,9 +128,12 @@ const IDENTITAET_FRAGE = new RegExp([
   "\\b(?:darf|kann|könnte|koennte)\\s+ich\\s+(?:kurz\\s+|bitte\\s+)?mit\\s+(?:herrn?|frau)\\b",
   "\\b(?:möchte|moechte|würde|wuerde)\\s+(?:gerne?\\s+)?(?:mit\\s+)?(?:herrn?|frau)\\s+[\\wäöüß-]+\\s+sprechen\\b",
   "\\b(?:bestätigen|bestaetigen)\\s+sie\\s+(?:mir\\s+)?(?:kurz\\s+|bitte\\s+)?ihr(?:en)?\\s+(?:namen|geburtsdatum)\\b",
+  // E-408 (Justin 20.10., Anruf 16): die Eröffnung grüßt mit Namen („Grüß Gott, Herr Probe! Hier ist Aras …“) — das IST die
+  // Frage, ob er es ist: Antwortet er, ist er es; ist es jemand anderes, sagt er es.
+  "^\\s*(?:grüß\\s+gott|gruess\\s+gott|guten\\s+(?:tag|morgen|abend)|hallo|hi|servus)\\s*,?\\s+(?:herr|frau)\\s+[\\wäöüß-]+\\s*[!?.,]",
 ].join("|"), "i");
 /** Sagt der Kunde „ja, ich bin es“? (nur NACH der Identitätsfrage gezählt) */
-const BESTAETIGT = /^\s*(?:ja\b|jawohl\b|jap\b|jep\b|genau\b|richtig\b|korrekt\b|stimmt\b|selbst\b|persönlich\b|persoenlich\b|am\s+apparat\b|das\s+bin\s+ich\b|ich\s+bin(?:'s|s|\s+es|\s+das)\b|hier\s+ist\b)|\b(?:am\s+apparat|das\s+bin\s+ich|ich\s+bin(?:'s|s)\b)/i;
+const BESTAETIGT = /^\s*(?:ja\b|jawohl\b|jap\b|jep\b|genau\b|richtig\b|korrekt\b|stimmt\b|selbst\b|persönlich\b|persoenlich\b|am\s+apparat\b|das\s+bin\s+ich\b|ich\s+bin(?:'s|s|\s+es|\s+das)\b|hier\s+ist\b|passt\b|gerne?\b|klar\b|freilich\b|(?:worum|um\s+was)\s+geht'?s\b|was\s+gibt'?s\b)|\b(?:am\s+apparat|das\s+bin\s+ich|ich\s+bin(?:'s|s)\b)/i;
 /** … oder „nein“ / „hier ist seine Frau“ — dann ist NICHT bestätigt. */
 const VERNEINT = /\b(?:nein|nee|falsch\s+verbunden|nicht\s+(?:da|zu\s+sprechen|zu\s*hause|erreichbar|im\s+haus)|bin\s+(?:ich\s+)?nicht|(?:seine|ihre)\s+(?:frau|mann|tochter|sohn|mutter|vater|partnerin|partner|schwester|bruder|freundin|freund)|ich\s+bin\s+(?:die|der)\s+(?:frau|mann|tochter|sohn|mutter|vater))\b/i;
 const ANFANG_ARAS = /\bhier\s+ist\b|\bvon\s+fiaon\b|\bmein\s+name\s+ist\b/i;

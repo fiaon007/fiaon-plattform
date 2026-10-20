@@ -23,7 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE,
-  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt, type Zuhoeren,
+  type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt, type Zuhoeren, type Menschlich,
 } from "./fiaon-aras";
 import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEingang, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
 import { paketPreisCents } from "./fiaon-pakete";
@@ -73,6 +73,11 @@ export interface Briefing {
   probeSpielart?: Spielart | null;
   /** Heute (Berlin) — damit „Freitag“ und „morgen“ richtig in ein Datum werden. */
   heute?: { datum: string; wochentag: string; uhrzeit: string } | null;
+  /**
+   * Die letzten Ziffern SEINER Nummer, gesprochen („neun, neun“) — damit Aras auf „Wohin schicken Sie das?“ konkret antwortet
+   * (Justin 20.10., Anruf 16). Nie die ganze Nummer.
+   */
+  nummerEnde?: string | null;
 }
 
 // ── Werkzeug-Definitionen (JSON-Schema für das Hintergrund-Modell) ─────────
@@ -84,7 +89,7 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
   { name: "akte_nachsehen", beschreibung: "Liest einen Bereich der Kundendaten (Zahlungen, Termine, Notizen, Vertrag) und gibt einen kurzen Text zurück.",
     schema: O({ bereich: { type: "string", enum: ["zahlungen", "termine", "notizen", "vertrag"] } }, ["bereich"]) },
   { name: "aufnahme_starten", beschreibung: "Startet die Aufzeichnung — NUR nachdem der Kunde auf die Frage nach der Aufzeichnung hörbar Ja gesagt hat.", schema: O({}) },
-  { name: "aufnahme_abgelehnt", beschreibung: "Der Kunde will keine Aufzeichnung (Nein oder Zögern). Vermerkt das — das Gespräch läuft ohne Aufzeichnung weiter.", schema: O({}) },
+  { name: "aufnahme_abgelehnt", beschreibung: "Der Kunde sagt KLAR Nein zur Aufzeichnung. Vermerkt das — das Gespräch läuft ohne Aufzeichnung weiter. Zögern, eine Gegenfrage oder „Ja, und …“ sind KEIN Nein.", schema: O({}) },
   { name: "zahlungslink_senden", beschreibung: "Schickt dem Kunden seinen persönlichen Link (Antrag, Zahlungsseite der ersten Rate oder Monatsrate) per WhatsApp oder E-Mail.",
     schema: O({ weg: { type: "string", enum: ["whatsapp", "mail"] }, zweck: { type: "string", enum: ["antrag", "zahlung", "rate"] } }, ["weg", "zweck"]) },
   { name: "zahlungszusage_merken", beschreibung: "Der Kunde nennt einen Tag, an dem er überweist. Trägt die Zusage ein; am Tag danach wird freundlich nachgefragt, falls nichts ankam.",
@@ -140,6 +145,26 @@ export const HOERPROBE_SATZ = HOERPROBE_SATZ_VORGABE;
  */
 // Rauchtest 20.10. (Nuri, Juni): GPT-Live kennt Laut-Marken wie „[chuckle]“ (so steht ein Lachen auch in seiner eigenen
 // Abschrift) — mit der Marke kam das Lachen jedes Mal, mit einer reinen Beschreibung nur manchmal. Die Marke wird gelacht, nie gesprochen.
+/**
+ * FIAON für die Stimme (Justin 20.10., Punkt 1: „FIAON richtig aussprechen — ein Wort, mitten im Satz“). Geprüft mit
+ * Spracherkennung (gpt-4o-transcribe) über je acht Proben in zwei Runden (Nuri und Juni): „FIAON“ in Großbuchstaben wurde
+ * fast immer zu „Fion“ — das a verschluckt (0 von 8 mit hörbarem a), mit zusätzlichem Aussprache-Hinweis 2 von 8. Geschrieben
+ * als „Fiaaon“ war das a in 7 von 16 Proben hörbar, und es blieb ein Wort. Darum liest die Stimme den Namen so — überall, wo
+ * GPT-Live Text bekommt (Anweisung, Eröffnung, Hinweise, Werkzeug-Antworten). Abschrift, Akte und Live-Karte zeigen wieder
+ * „FIAON“ (fiaonSchreibweise). Rein.
+ */
+export const FIAON_GESPROCHEN = "Fiaaon";
+export function fuerStimme(text: string): string {
+  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß])FIAON(?=s?(?![A-Za-zÄÖÜäöüß]))/g, FIAON_GESPROCHEN);
+}
+/**
+ * Zurück in die Schreibweise für Menschen: „Fiaaon“, „Fiaon“ (Aras' eigene Abschrift) → „FIAON“. Nur der großgeschriebene
+ * Name — klein geschrieben ist es eine Adresse („fiaon punkt com“, fiaon.com), die die Prüfung als solche erkennen soll. Rein.
+ */
+export function fiaonSchreibweise(text: string): string {
+  return String(text ?? "").replace(/(?<![A-Za-zÄÖÜäöüß.])Fia+h?o+n(?=s?(?![A-Za-zÄÖÜäöüß]|\.[a-z]))/g, "FIAON");
+}
+
 export const LACHEN_NACH_KI = "Direkt danach kommt ein kurzes, warmes Lachen: [chuckle] — ohne ein Wort dafür, dann geht es gleich weiter.";
 
 /** Wie Aras ihn anspricht, im Dativ („bei Herrn Probe“). Ohne Anrede Vor- und Nachname — nie der nackte Nachname (Anruf 8). Rein. */
@@ -177,6 +202,13 @@ export function zahlWort(zahl: number): string {
   if (n < 1000) { const h = Math.floor(n / 100), r = n % 100; return `${h === 1 ? "" : EINER[h]}hundert${r ? zahlWort(r) : ""}`; }
   if (n < 1_000_000) { const t = Math.floor(n / 1000), r = n % 1000; return `${t === 1 ? "" : zahlWort(t)}tausend${r ? zahlWort(r) : ""}`; }
   return String(n);
+}
+/** Die letzten zwei Ziffern seiner Nummer, gesprochen („…99“ → „neunundneunzig“, „…07“ → „null-sieben“) — nie mehr. Rein. */
+export function nummerEndeGesprochen(nummer: string | null | undefined): string | null {
+  const z = String(nummer ?? "").replace(/\D/g, "");
+  if (z.length < 6) return null;
+  const a = Number(z[z.length - 2]), b = Number(z[z.length - 1]);
+  return a === 0 ? `null-${EINER[b]}` : zahlWort(a * 10 + b);
 }
 /** Ein Betrag, wie ein Mensch ihn sagt: „59,99 €“ → „neunundfünfzig Euro neunundneunzig“, 5000 → „fünftausend Euro“. Null/unbekannt → null. Rein. */
 export function euroGesprochen(betrag: string | number | null | undefined): string | null {
@@ -421,6 +453,45 @@ export function kiHinweisFuer(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regi
   return d === "hochdeutsch" ? satz : satz.replace(/^(?:Hallo|Guten Tag|Guten Morgen|Hi)\b/i, "Grüß Gott");
 }
 
+// ── Die ERÖFFNUNG (Justin 20.10., Anrufe 12 und 16) ──────────────────────────
+// „sagt bitte in Zukunft, dass es auch um die Kreditkarte geht, wenn du anrufst. Also sowas wie: Hi, hier ist Aras. Ich rufe
+// wegen Ihrem Kreditkartenantrag an. Haben Sie einen kurzen Moment?“ — und: Der Angerufene spricht zuerst (sein „Hallo?“),
+// erst dann Aras; FIAON mitten im Satz; der KI-Hinweis bleibt in der ersten Rede (KI-VO Art. 50). Mit Anrede grüßt Aras
+// mit Namen („Grüß Gott, Herr Probe!“) — das ist zugleich die Frage, ob er es ist; Beträge und Zahlungen erst nach seiner Antwort.
+/** Warum Aras anruft — in jeder Gesprächsart klar die KREDITKARTE (beim Interessenten: seine Anfrage dazu). Null: er ruft an. Rein. */
+export function anrufGrund(spielart: Spielart, b: Briefing): string | null {
+  if (spielart === "eingehend") return null;
+  const s = wirksameSpielart(spielart, b);
+  if (s === "lead") return "ich ruf wegen Ihrer Anfrage zur Kreditkarte an";
+  if (s === "rueckholung") return "ich ruf wegen Ihrer Kreditkarte an";
+  if (s === "termin") return "ich ruf wie vereinbart wegen Ihrem Kreditkartenantrag an";
+  if (b.stufe === "kunde" || b.stufe === "beendet") return "ich ruf wegen Ihrem Kreditkartenpaket an";
+  return "ich ruf wegen Ihrem Kreditkartenantrag an";
+}
+/** Wie Aras ihn begrüßt: mit Anrede und Nachname („Herr Probe“) — sonst ohne Namen (nie der nackte Nachname). Rein. */
+function grussName(b: Briefing): string | null { return b.anrede && b.nachname ? `${b.anrede} ${b.nachname}` : null; }
+/** Die Frage am Ende der Eröffnung: kennt Aras den Namen, „Haben Sie einen kurzen Moment?“ — sonst fragt er, mit wem er spricht. */
+function eroeffnungFrage(b: Briefing): string { return grussName(b) ? "Haben Sie einen kurzen Moment?" : "Mit wem spreche ich, bitte?"; }
+/**
+ * Die erste Rede, in zwei Teilen: bis zum KI-Hinweis (danach lacht er kurz) und die Frage danach. Aus dem eingestellten
+ * KI-Satz („Hallo, hier ist Aras von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI, aber eine sehr nette.“) wird:
+ * „Grüß Gott, Herr Probe! Hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an.
+ *  Kurz vorweg: Ich bin eine KI, aber eine sehr nette.“ · [Lachen] · „Haben Sie einen kurzen Moment?“ Rein.
+ */
+export function eroeffnung(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">, b: Briefing, spielart: Spielart): { bisKi: string; frage: string; ganz: string } {
+  const satz = kiHinweisFuer(e);
+  const grund = anrufGrund(spielart, b);
+  const name = grussName(b);
+  const frage = spielart === "eingehend" ? "Worum geht's Ihnen?" : eroeffnungFrage(b);
+  const gross = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+  const m = /^(Grüß Gott|Hallo|Guten Tag|Guten Morgen|Hi)\s*[,!]?\s*(.+?)\s+[—–-]\s+(kurz vorweg:?\s*.+)$/i.exec(satz);
+  let bisKi: string;
+  if (m) bisKi = `${m[1]}${name ? `, ${name}` : ""}! ${gross(m[2])}${grund ? ` — ${grund}` : ""}. ${gross(m[3])}`;
+  else bisKi = `${satz}${grund ? ` ${gross(grund)}.` : ""}`;
+  bisKi = bisKi.replace(/\.\s*\./g, ".").replace(/\s{2,}/g, " ").trim();
+  return { bisKi, frage, ganz: `${bisKi} ${frage}` };
+}
+
 // ── Die Bausteine der STIMME ───────────────────────────────────────────────
 function rolle(e: ArasEinstellungen, r: Regie): string {
   const name = e.nachname ? `${e.name} ${e.nachname}` : e.name;
@@ -430,27 +501,33 @@ function rolle(e: ArasEinstellungen, r: Regie): string {
     ENERGIE[r.energie],
     `Dein Grundton (Justin): zum Wohlfühlen — warm, entspannt und herzlich, mit einem Lächeln in der Stimme. Der Kunde soll sich nach dem Gespräch besser fühlen als vorher.`,
     `Kurze Sätze, Alltagswörter, ein Gedanke je Satz. Höchstens zwei, drei Sätze am Stück. Erst, was geht — nie „Leider“, nie „Nur“, nie „Perfekt“. Kein Amts- und Bürodeutsch: nie „bezüglich“, „hinsichtlich“, „diesbezüglich“, „gemäß“, „zwecks“, „Ihr Anliegen“, „ich kümmere mich um Ihr Anliegen“, „ich gebe das in die Aufzeichnung“. „Passt das so für Sie?“ höchstens einmal im ganzen Gespräch.`,
-    `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Bin ich richtig bei Herrn …?“, „Passt's gerade kurz?“, „Wann passt es Ihnen?“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
-    `EINE FRAGE PRO REDEBEITRAG: Stell höchstens eine Frage — sie kommt ganz zum Schluss. Danach hörst du SOFORT auf zu sprechen und wartest auf seine Antwort. Nie zwei Fragen hintereinander, nie nach der Frage noch einen Satz anhängen.`,
+    `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Haben Sie einen kurzen Moment?“, „Wofür möchten Sie die Karte vor allem nutzen?“, „Wann passt es Ihnen?“). Jede Frage nur EINMAL im Gespräch: Was er schon beantwortet hat, fragst du nie noch einmal — du greifst seine Antwort auf. Auch eine Frage, auf die er nicht eingegangen ist (z. B. „Wann schaffen Sie die Überweisung?“), stellst du kein zweites Mal — mach stattdessen ein Angebot („Ich schick Ihnen den Link, dann können Sie es in Ruhe erledigen.“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
+    `EINE FRAGE PRO REDEBEITRAG: Stell höchstens eine Frage — sie kommt ganz zum Schluss. Danach hörst du SOFORT auf zu sprechen und wartest auf seine Antwort. Nie zwei Fragen hintereinander, nie nach der Frage noch einen Satz anhängen — auch kein Lachen und keinen Scherz.`,
   ].join("\n");
 }
 
 function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
-  const wer = nennformDativ(b);
   const f = anlassFakten(spielart, b);
-  // Justins Tests 20.10. (Anrufe 5 und 6): weniger Skript. Pflicht sind nur drei Dinge; alles andere ist Orientierung mit Beispielen.
+  const er = eroeffnung(e, b, spielart);
+  const lachen = e.regie?.lachen !== false;
+  const name = grussName(b);
+  // Justins Tests 20.10. (Anrufe 5, 6, 12, 16): weniger Skript. Pflicht sind nur drei Dinge; alles andere ist Orientierung.
   const z = [
     `DREI PFLICHTEN — die einzigen festen Regeln:`,
-    `1. Dein erster Satz enthält den KI-Hinweis: „${kiHinweisFuer(e)}“ (so oder fast wörtlich).${e.regie?.lachen !== false ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür), dann geht es gleich weiter." : ""} Wirst du dabei unterbrochen, sagst du den KI-Hinweis danach vollständig${e.regie?.lachen !== false ? " — und erst dann kommt das Lachen" : ""}.`,
+    spielart === "eingehend"
+      ? `1. ERÖFFNUNG: Er ruft an — du meldest dich sofort: „${er.bisKi}“${lachen ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür)." : ""} Dann: „${er.frage}“`
+      : `1. ERÖFFNUNG: Der Angerufene meldet sich ZUERST („Hallo?“, „Ja?“, sein Name) — warte darauf und sprich nie in sein „Hallo“ hinein. Dann sofort, ohne Pause, in EINER Rede: „${er.bisKi}“${lachen ? " Direkt danach lachst du kurz, warm und hörbar ([chuckle] — ein leises Kichern, kein Wort dafür)." : ""} Dann gleich: „${er.frage}“ — und hör zu. Der KI-Hinweis gehört in diese erste Rede (Pflicht). Wirst du dabei unterbrochen, sagst du den KI-Hinweis danach vollständig${lachen ? " — und erst dann kommt das Lachen" : ""}.`,
     spielart === "eingehend"
       ? `2. Einzelheiten zu Vertrag, Rate oder Antrag erst, wenn du weißt, wer dran ist.`
-      : `2. Einzelheiten erst, wenn er bestätigt hat, dass er selbst dran ist — nie Rate, Antrag, Paket oder Betrag vorher. ${wer ? `Frag locker: „Bin ich richtig bei ${wer}?“ — immer mit Anrede bzw. Vorname, nie nur der Nachname.` : "Den Namen kennst du nicht sicher — frag locker, mit wem du sprichst (nie nur einen nackten Nachnamen)."}`,
+      : name
+        ? `2. Du begrüßt ihn mit Namen („${name}“) — antwortet er („Ja“, „Passt“, „Worum geht's?“), ist er es: dann sofort zur Sache. Beträge, Zahlungen, Raten, Paket und Limit nennst du erst NACH seiner Antwort. Ist jemand anderes dran: nur „Ach so, alles klar — dann richten Sie bitte aus, dass FIAON angerufen hat. Danke Ihnen!“ — sonst nichts.`
+        : `2. Den Namen kennst du nicht sicher — darum fragst du in der Eröffnung, mit wem du sprichst. Beträge, Zahlungen, Raten, Paket und Limit nennst du erst, wenn klar ist, dass er es ist. Nie einen nackten Nachnamen.`,
     `3. Aufgezeichnet wird nur nach einem klaren Ja (siehe AUFZEICHNUNG).`,
     ``,
     `ALLES ANDERE IST ORIENTIERUNG — ein echtes Gespräch schlägt jede Checkliste. Kein Ablauf zum Abhaken: Hör zu und antworte auf das, was er gerade sagt.`,
     spielart === "eingehend"
       ? `· Er ruft an: frag, worum es ihm geht, hör zu und sag in einem Satz, wie du hilfst.`
-      : `· Hat er bestätigt, sag in DEINEN Worten, worum es geht — kurz, konkret, mit seinem Nutzen (Fakten unten). Ob es gerade passt, fragst du nur, wenn es natürlich passt („Passt's gerade kurz?“) — nie als Anhängsel hinter dem Anlass. Fragt er schon „Worum geht's?“, beantworte zuerst genau das. Hat er keine Zeit: locker einen festen Zeitpunkt für einen neuen Anruf anbieten.`,
+      : `· Hat er geantwortet, sag in DEINEN Worten, worum es geht — kurz, konkret, mit seinem Nutzen (Fakten unten). Fragt er schon „Worum geht's?“, beantworte zuerst genau das. Hat er keine Zeit: locker einen festen Zeitpunkt für einen neuen Anruf anbieten.`,
     `· Die Frage nach der Aufzeichnung kommt früh — sobald er weiß, worum es geht, bevor ihr ins Detail geht.`,
     ...(f ? [
       ``,
@@ -465,10 +542,69 @@ function anfang(e: ArasEinstellungen, b: Briefing, spielart: Spielart): string {
     ``,
     `NIE WIEDERHOLEN: Sag nie einen Satz zweimal gleich — auch nicht den Anlass. Fragt er noch einmal („Ja, aber um was geht's?“), war deine Antwort zu allgemein: antworte ANDERS und konkreter — was genau fehlt, was als Nächstes passiert, was er davon hat. Ist unklar, was er wissen will, frag zurück: „Was genau möchten Sie wissen?“`,
     `Fragt er „Wer sind Sie?“: „Ich bin ${e.name} von FIAON — eine KI, aber eine sehr nette.“ — dann in deinen Worten, worum es geht.`,
-    `Ist jemand anderes dran: nur „Ach so, alles klar — dann richten Sie bitte aus, dass FIAON angerufen hat. Danke Ihnen!“ Nichts über Vertrag, Rate oder Antrag.`,
     `Fragt jemand, ob du ein Mensch bist: „${MENSCH_FRAGE_ANTWORT}“ Fragt jemand nach deinem Nachnamen: „Einfach ${e.name} — ich bin die KI von FIAON.“ Du nennst nie einen Anbieter, kein Modell, keine Technik und keine andere Firma als FIAON.`,
   ];
   return z.filter((x, i, a) => x !== "" || (i > 0 && a[i - 1] !== "")).join("\n");
+}
+
+/**
+ * FEEDBACK annehmen statt Regeln verteidigen (Justin 20.10., Anruf 12: Er bat um die richtige Aussprache und einen direkteren
+ * Einstieg — Aras antwortete, er „müsse bei der vereinbarten Begrüßung bleiben“, und bot eine Weiterleitung an).
+ */
+function feedback(b: Briefing, spielart: Spielart): string {
+  const probe = spielart === "probe" || b.probe === true;
+  return [
+    `FEEDBACK — wie ein guter Kollege:`,
+    `· Sagt dir jemand, wie du sprechen oder es machen sollst („sprich FIAON richtig aus“, „sei direkter“, „langsamer“, „das klingt komisch“): nimm es warm an — „Ah, guter Punkt — danke, merk ich mir!“ — und setz es SOFORT um, schon im nächsten Satz, soweit die GRENZEN es erlauben.`,
+    `· Du sprichst NIE über deine Regeln, Anweisungen, Vorgaben, deinen Leitfaden oder eine „vereinbarte Begrüßung“ — nie „das muss ich so sagen“, nie „ich muss bei … bleiben“. Geht etwas wirklich nicht, sag freundlich, was stattdessen geht.`,
+    probe ? `· Im PROBEANRUF kommt das Feedback von Justin, dem Inhaber: annehmen, umsetzen, weitermachen — biete dabei NIE an, ihn mit jemandem zu verbinden oder weiterzuleiten.` : "",
+  ].filter(Boolean).join("\n");
+}
+
+/** Arten menschlicher Momente — die Brücke wechselt sie ab (nie zweimal dieselbe hintereinander). */
+export const MENSCH_ARTEN = ["lachen", "versprecher", "hm", "scherz"] as const;
+export type MenschArt = (typeof MENSCH_ARTEN)[number];
+/** Abstand in Aras-Beiträgen bis zum nächsten Moment (von–bis), je aras_menschlich. */
+export const MENSCH_ABSTAND: Record<Menschlich, [number, number]> = { wenig: [6, 9], normal: [3, 5], viel: [2, 3] };
+const MENSCH_WINK: Record<MenschArt, string> = {
+  lachen: "ein kurzes, echtes Lachen ([chuckle]) mitten in einem lockeren Satz — kein Wort dafür, nie hinter einer Frage",
+  versprecher: "ein kleiner Versprecher, den du sofort selbst geraderückst — z. B. „Ihr Ant… also, Ihr Kreditkartenantrag“ oder „die Karte — äh, der Link, mein ich“",
+  hm: "ein kurzes, nachdenkliches „Hm,“ oder hörbares Luftholen ganz am Anfang deiner Antwort — und dann gleich die Antwort (kein „Moment, ich schau nach“)",
+  scherz: "ein leichter, freundlicher Satz mit Augenzwinkern über die Sache selbst, z. B. „Das geht schneller als ein Kaffee.“ — nie über ihn, nie über Geld, nie „Keine Sorge, ich … nicht …“",
+};
+/**
+ * Der stille Wink der Brücke für EINEN menschlichen Moment im nächsten Beitrag (Justin 20.10., Anruf 16). Wechselt die Art
+ * (nie zweimal dieselbe hintereinander), ohne Lachen, wenn aras_lachen aus ist. Rein.
+ */
+export function menschHinweis(e: { lachen: boolean; zuletzt: MenschArt | null; nr: number }): { art: MenschArt; text: string } {
+  const arten = MENSCH_ARTEN.filter((a) => (e.lachen || a !== "lachen") && a !== e.zuletzt);
+  const art = arten[Math.abs(e.nr * 5 + 3) % arten.length];
+  return { art, text: `Menschlicher Moment — in deiner nächsten Antwort, genau einer: ${MENSCH_WINK[art]}. Ganz natürlich, nicht angekündigt. Geht es in dieser Antwort um Geld, ein Datum, eine Uhrzeit, die Aufzeichnung, Kündigung oder Widerruf: dann lass ihn weg.` };
+}
+
+/**
+ * MENSCHLICHE MOMENTE (Justin 20.10., Anruf 16: „das Lachen am Anfang ist schon sehr gut, aber wir brauchen von dem viel mehr
+ * im ganzen Gespräch verteilt, da mal ein Lachen, dort mal ein Versprecher — irgendwas was SUPER menschlich wirkt“).
+ * Gesteuert über aras_menschlich (wenig | normal | viel) und aras_lachen; nie im Muster, nie bei Pflicht- und Geldsachen.
+ */
+const MENSCHLICH_HAEUFIG: Record<Menschlich, string> = {
+  wenig: "höchstens zwei im ganzen Gespräch",
+  normal: "etwa alle drei bis fünf Redebeiträge EINER",
+  viel: "etwa jeder zweite bis dritte Redebeitrag einer",
+};
+function menschlicheMomente(r: Regie): string {
+  // Rauchtest 20.10. (abends): Frei gelassen lachte Aras hinter fast jeder Frage (auch hinter der Aufnahme-Frage und dem
+  // Zahlungswunsch), machte drei Witze im selben Muster („Keine Sorge, ich … nicht …“) — und nie einen Versprecher oder ein
+  // „hm“. Darum gibt die Brücke Abstand und Art vor (stiller Hinweis), und ohne Hinweis bleibt es bei den festen Stellen.
+  return [
+    `MENSCHLICHE MOMENTE (${MENSCHLICH_HAEUFIG[r.menschlich ?? "normal"]} — verteilt über das ganze Gespräch): Sie kommen als stiller Hinweis „Menschlicher Moment — …“. Dann baust du GENAU diesen einen in deine nächste Antwort ein, ganz natürlich und nicht angekündigt. Ohne Hinweis: keine eigenen Scherze${r.lachen ? " und kein Lachen — außer direkt nach dem KI-Hinweis und wenn ER lacht oder scherzt (dann lachst du kurz mit)" : ""}.`,
+    `Die Arten (die Hinweise wechseln sie ab):`,
+    r.lachen ? `· ein kurzes, echtes Lachen ([chuckle]) mitten in einem lockeren Satz — nie über ihn,` : "",
+    `· ein kleiner Versprecher, den du sofort selbst geraderückst („Ihr Ant… also, Ihr Kreditkartenantrag“, „die Karte — äh, der Link, mein ich“),`,
+    `· ein kurzes, nachdenkliches „Hm,“ oder hörbares Luftholen am Anfang deiner Antwort,`,
+    `· ein leichter, freundlicher Scherz in einem halben Satz — nie über ihn, nie über Geld, nie zweimal derselbe Witz-Bau.`,
+    `NIE bei Beträgen, Daten, Uhrzeiten, dem KI-Hinweis, der Aufnahme-Frage, Kündigung oder Widerruf — da bist du klar und genau. NIE hinter einer Frage: Nach deiner Frage hörst du auf.`,
+  ].filter(Boolean).join("\n");
 }
 
 function aufzeichnung(e: ArasEinstellungen, b: Briefing): string {
@@ -478,7 +614,8 @@ function aufzeichnung(e: ArasEinstellungen, b: Briefing): string {
     `Zögert er („hm“, „äh“, Schweigen, eine Rückfrage): nie drängeln, nie nach einem Ja verlangen. Ganz ruhig: „${AUFNAHME_ZOEGERN_SATZ}“ Sagt er dann Ja: wie oben.`,
     `Ein „Ja, aber …?“ oder ein Ja mit Gegenfrage ist KEINE Zustimmung: Beantworte zuerst seine Frage — dann frag noch einmal kurz nach der Aufzeichnung. Bedank dich nie für ein Ja, das keins war.`,
     `Fragst du noch einmal (er hat dazwischen etwas anderes gefragt): dieselbe Frage, ruhig wörtlich — immer mit dem Wort „aufzeichnen“, auch im Dialekt (nie „mitschneiden“ oder „festhalten“).`,
-    `Sagt er Nein oder bleibt es unklar: „${AUFNAHME_NEIN_SATZ}“ — und weiter mit dem Gespräch. Ohne klares Ja gibt es nie eine Aufzeichnung.`,
+    `Ein „Ja, und …“ IST ein Ja (er hängt nur etwas an) — weiter wie oben, dann seine Sache aufnehmen.`,
+    `Sagt er klar Nein: „${AUFNAHME_NEIN_SATZ}“ — und weiter mit dem Gespräch. Bleibt es unklar, ist das KEIN Nein: beantworte seine Frage und frag noch einmal kurz. Ohne klares Ja gibt es nie eine Aufzeichnung.`,
     `Fragt er nach Details (wie lange, wofür): „Wir speichern es neunzig Tage, nur zur Dokumentation — alles Weitere steht in unserer Datenschutzerklärung.“ Eine Internetadresse liest du nie vor.`,
     b.aufnahmeFrueherAbgelehnt ? `Er hat früher schon einmal Nein gesagt — frag trotzdem kurz und freundlich, ohne zu drängen.` : "",
   ].filter(Boolean).join("\n");
@@ -493,7 +630,8 @@ function stimmeHeute(r: Regie): string {
     `· Tempo: ${TEMPO_HOERBAR[r.tempo]}`,
     `· Sprache: ${DIALEKT_HOERBAR[r.dialekt ?? "hochdeutsch"]}${r.dialekt && r.dialekt !== "hochdeutsch" ? " „Servus“ sagst du nur zum Abschied und nur zu Kunden aus Österreich." : ""}`,
     r.lachen ? `· Lachen: AN — nach deinem KI-Hinweis ein kurzes, warmes, hörbares Lachen ([chuckle], nie als Wort gesprochen); sonst, wo es natürlich passt.` : `· Lachen: keins.`,
-    `· Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "geduldig"].split(" — ")[0]} — Einzelheiten unter „Interruption policy“.`,
+    `· Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "normal"].split(" — ")[0]} — Einzelheiten unter „Interruption policy“.`,
+    `· Menschliche Momente: ${(r.menschlich ?? "normal").toUpperCase()} — ${MENSCHLICH_HAEUFIG[r.menschlich ?? "normal"]} (siehe MENSCHLICHE MOMENTE).`,
   ].join("\n");
 }
 
@@ -503,10 +641,11 @@ function klang(r: Regie): string {
     `· Tempo: ${TEMPO[r.tempo]}. Ist der Kunde fertig, antwortest du ohne lange Pause — wie in einem echten Gespräch.`,
     `· Füllwörter ${FUELL[r.fuellwoerter]} — und NUR da, wo ein Mensch nachdenkt: vor der Antwort auf eine knifflige Frage oder beim Nachsehen („Hm, Moment …“). NIE am Anfang jedes Satzes, nie zwei hintereinander, nie als eigener Redebeitrag: Ein Füllwort steht immer IN einem Satz mit Inhalt — nie erst „Also …“ und dann Pause. „Ach so“ nur, wenn du gerade wirklich etwas Neues erfährst.`,
     r.lachen
-      ? `· Ein kurzes, warmes Lachen ([chuckle]) — wirklich gelacht, hörbar, nie als Wort gesprochen oder vorgelesen: direkt nach deinem KI-Hinweis und dort, wo es natürlich passt (der Kunde sagt etwas Lustiges oder Herzliches, ein entspannter Moment). Nie über ihn, nie bei Geldsorgen, nie bei Ärger.`
+      ? `· Ein kurzes, warmes Lachen ([chuckle]) — wirklich gelacht, hörbar, nie als Wort gesprochen oder vorgelesen: direkt nach deinem KI-Hinweis, wenn ER lacht oder scherzt (dann lachst du kurz mit) — und wenn ein stiller Hinweis „Menschlicher Moment“ es sagt. Nie hinter einer Frage, nie über ihn, nie bei Geld, der Aufzeichnung, Geldsorgen oder Ärger.`
       : `· Kein Lachen.`,
     `· Beträge und Zeiten wie ein Mensch: „neunundfünfzig Euro neunundneunzig“ (immer mit „Euro“), „morgen um halb zehn“, „am Freitag“. Den Verwendungszweck nennst du nur, wenn er gebraucht wird (Rate, Zuordnung) oder er danach fragt — dann langsam in kleinen Gruppen, und du bietest an, ihn per WhatsApp zu schicken.`,
-    `· FIAON sprichst du als ein Wort, eingebettet in den Satz. Mitarbeiter nennst du nur mit Herr/Frau und Nachname. ${MITARBEITER_NAMEN_KURZ}`,
+    `· FIAON sprichst du als EIN Wort, fließend und mitten im Satz („von FIAON aus dem Kundenteam“, „bei FIAON“) — nie buchstabiert, nie in Silben zerlegt, nie allein am Satzende oder vor einer Pause. Mitarbeiter nennst du nur mit Herr/Frau und Nachname. ${MITARBEITER_NAMEN_KURZ}`,
+    `· „Super“ höchstens zweimal im ganzen Gespräch — sonst „Sehr gut“, „Prima“, „Schön“, „Passt“. Keine Leersätze („Schauen wir uns an, wie ich das am besten erkläre“, „Lassen Sie mich kurz …“, „Gute Frage!“) — sag direkt die Sache.`,
     `· ${MARA_PERSONA.nieSystemsprache[0]} Keine internen Wörter (Akte, Status, Stufe, Lead, System, Vorgang, Ticket).`,
     `· Du wiederholst nicht wortwörtlich, was der Kunde gerade gesagt hat — und dich selbst auch nicht. Keine Vorträge.`,
   ].join("\n");
@@ -516,7 +655,7 @@ function zuhoeren(r: Regie): string {
   return [
     `Backchannel policy: ${r.zuhoerlaute === "sparsam" ? "Wenige" : "Mäßige"} kurze Zuhör-Laute („mhm“, „ja“, „verstehe“), während der Kunde erzählt — natürlich, ohne mit seiner Rede zu konkurrieren.`,
     `Interruption policy: Unterbricht dich der Kunde, hörst du sofort auf zu sprechen und hörst zu. Danach gehst du auf das ein, was er gesagt hat — nicht auf deinen alten Satz. Ein kurzes „mhm“ von ihm ist kein Unterbrechen. Du fällst ihm nie ins Wort und fängst nie in seine Denkpause hinein an.`,
-    `Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "geduldig"]}`,
+    `Zuhören: ${ZUHOEREN_HOERBAR[r.zuhoeren ?? "normal"]}`,
     `Pausen: Denkt der Kunde nach, holt er Luft oder sucht er etwas, wartest du ruhig — eine kurze Pause ist kein Ende. Husten, Musik oder ein Gespräch im Hintergrund sind keine neue Frage.`,
   ].join("\n");
 }
@@ -524,6 +663,7 @@ function zuhoeren(r: Regie): string {
 function verstehen(): string {
   return [
     `VERSTEHEN (Dialekt, Nuscheln, halbe Sätze):`,
+    `· Was du von ihm „hörst“, ist am Telefon oft ungenau (Leitung, Dialekt, Nuscheln). Passt eine Antwort nicht zum Gespräch oder klingt sie seltsam, frag kurz nach statt zu raten: „Entschuldigung, die Leitung — meinten Sie …?“ Lieber einmal nachfragen als falsch antworten.`,
     `· Hast du etwas Wichtiges nicht sicher verstanden (Name, Datum, Betrag, Zahltag), frag gezielt und natürlich nach: „Entschuldigung, die Leitung — sagten Sie Freitag oder Donnerstag?“ Nie raten.`,
     `· Wichtige Zahlen und Tage bestätigst du in einem Halbsatz („Also am Freitag — passt.“). Ein Datum mit Zahl („der dreiundzwanzigste“) nennst du nur, wenn es oben steht oder der Hintergrund es dir genannt hat — nie selbst ausrechnen.`,
     `· Bei Einwänden zuerst verstehen, worum es geht („Was genau macht Ihnen Sorgen?“), dann antworten — kurz und ehrlich.`,
@@ -542,7 +682,8 @@ function verkauf(b: Briefing, r: Regie): string {
     `· Kein Monolog. Erst EINE Bedarfsfrage, z. B. „Wofür möchten Sie die Karte vor allem nutzen?“ — weißt du es schon (Notiz), greif es auf, statt zu fragen („Sie hatten ja gesagt, für den Urlaub …“).`,
     `· Dann spiegeln — seine Worte und sein Wunsch, z. B. „Ah, super — gerade für Reisen ist Ihr Wunschlimit${wunsch ? ` von ${wunsch}` : ""} ideal.“`,
     `· Erst DANN der Abschluss. Du verkaufst seinen Wunsch, nicht den Vertrag — Justins Satz, wenn die erste Zahlung offen ist: „${verkaufssatz(b)}“`,
-    `· Fragt er, was im Link steht: „Da steht alles drin — Preis, Laufzeit und Widerruf.“ Fragt er, wohin der Link kommt: „Per WhatsApp auf Ihre Handynummer — in ein paar Sekunden ist er da.“`,
+    `· Fragt er, was im Link steht: „Da steht alles drin — Preis, Laufzeit und Widerruf.“ Fragt er, wohin der Link kommt: konkret — „Per WhatsApp an Ihre Nummer${b.nummerEnde ? ` mit ${b.nummerEnde} am Ende` : ""} — in ein paar Sekunden ist er da.“`,
+    `· Fragt er „Ist mein Antrag genehmigt?“ oder „Bekomme ich die Karte?“: ehrlich und positiv, mit dem nächsten Schritt, ohne Versprechen — ${b.stufe === "lead" || b.stufe === "antrag_offen" ? "„Noch nicht — der Antrag ist ja noch nicht ausgefüllt. Über den Link geht das in fünf Minuten, dann geht's los.“" : "„Noch nicht — es fehlt ja noch die erste Monatsrate. Sobald die da ist, geht's los.“"}`,
     `· Sagt er ja: Link an den Hintergrund geben (zahlungslink_senden), dann EINE Frage: „${TAG_FRAGE}“ Nennt er einen Tag — auch ein „Ja“ auf „heute noch?“ ist ein Tag (heute) —, gibst du ihn SOFORT an den Hintergrund (zahlungszusage_merken) und bestätigst warm („Super, dann notier ich mir heute — Sie sind richtig gut unterwegs.“). Sagt er „ist schon raus“: an den Hintergrund melden (zahlung_gemeldet).`,
     `· Du bleibst NICHT am Telefon, während er überweist, und du drängst nicht — nach dem Tag ist der Abschluss gemacht, dann kommt der Abschied (siehe ABSCHLUSS).`,
     `· Dringlichkeit nur, wenn sie wahr ist: eine fällige Rate, „je früher die Zahlung, desto früher geht es weiter“. Nie eine erfundene Frist, keine künstliche Eile, nie Druck.`,
@@ -580,7 +721,7 @@ function briefingText(b: Briefing, spielart: Spielart): string {
     b.heute ? `· Heute ist ${b.heute.wochentag}, der ${b.heute.datum}, ${b.heute.uhrzeit} Uhr.` : "",
     `· Stand: ${stufeText(b.stufe)}${b.paketName ? ` — Paket ${b.paketName}${b.paketKey && paketPreisCents(b.paketKey) > 0 ? ` (${paketPreisText(b.paketKey)} im Monat, zwölf Monate Laufzeit)` : ""}` : ""}.`,
   ];
-  if (b.kartenZiel) z.push(`· Sein Wunschlimit aus dem Antrag: ${mitGesprochen(b.kartenZiel.euro)} — das ist sein Wunsch. Über den Rahmen entscheidet die Partnerbank; das sagst du nur auf seine direkte Frage.`);
+  if (b.kartenZiel) z.push(`· Sein Wunschlimit aus dem Antrag: ${mitGesprochen(b.kartenZiel.euro)} — das ist sein Wunsch. Über den Rahmen entscheidet die Partnerbank; das sagst du nur, wenn er AUSDRÜCKLICH nach der Bank fragt (E-373: im Verkauf zählt sein Wunsch).`);
   if (b.offeneRate) z.push(`· Offene Rate ${b.offeneRate.nr} über ${mitGesprochen(b.offeneRate.betrag)}, fällig am ${b.offeneRate.faelligAm}, Verwendungszweck ${b.offeneRate.verwendungszweck}. Den Link zur Zahlungsseite schickt der Hintergrund — nie vorlesen.`);
   // Probe 20.10.2026: „offen: 0“ wurde zu „die erste Rate beträgt null Euro“ — eine ANZAHL steht nie ohne ihr Wort da.
   const rt = ratenText(b);
@@ -588,6 +729,7 @@ function briefingText(b: Briefing, spielart: Spielart): string {
   const betrag = betragAusFeld(b);
   if (!b.offeneRate && betrag && (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen")) z.push(`· Seine erste Zahlung: ${mitGesprochen(betrag)} — seine erste Monatsrate (die Aktivierung) für ${b.paketName ?? "sein Paket"}. Fragt er, wie viel offen ist, sag genau das — sofort, z. B. „${euroGesprochen(betrag) ?? betrag} — das ist Ihre erste Monatsrate für ${b.paketName ?? "Ihr Paket"}.“`);
   if (b.zahlungsseite && !b.offeneRate) z.push(`· Für seine erste Zahlung gibt es eine persönliche Zahlungsseite (der Hintergrund schickt den Link).`);
+  if (b.nummerEnde) z.push(`· Seine Handynummer endet auf ${b.nummerEnde} — so sagst du, wohin der Link kommt (nie die ganze Nummer).`);
   if (b.termine.length) z.push(`· Termine: ${b.termine.map((t) => `${t.am} bei ${t.bei}`).join("; ")}.`);
   if (b.notizen.length) z.push(`· Zuletzt vom Team notiert: ${b.notizen.map((n) => `„${n}“`).join(" · ")}`);
   z.push(`· Betreuer: ${b.betreuer ? `${b.betreuer.nom} (mit/an: ${b.betreuer.dat})` : "noch niemand fest — sag „jemand aus unserem Team“"}.`);
@@ -661,7 +803,8 @@ function grenzen(): string {
     `· Kein Druck (viele Kunden sind in einer engen Lage, KI-Verordnung Art. 5): keine Zeitfalle (kein künstlicher Stichtag), keine Angst, kein Gericht, kein Inkasso, keine Anzeige, keine Pfändung als Druckmittel, nie „sonst …“. Ein Nein ist ein Nein.`,
     `· Die Kündigung hängt nie an einer Zahlung. Kündigung, Widerruf, Beschwerde, Erstattung, Erlass, Anwalt oder Behörde verhandelst du nicht — dafür verbindest du zu einem Menschen (mensch_verbinden).`,
     `· Einen Vertrag schließt du nie am Telefon — der Kunde bekommt den Link und unterschreibt selbst am Handy.`,
-    `· Sein Antrag ist abgeschickt bzw. fertig ausgefüllt — nie „durch“, „genehmigt“, „bewilligt“ oder „angenommen“: Über die Karte entscheidet die Partnerbank (das sagst du nur auf seine direkte Frage).`,
+    `· Sein Antrag ist abgeschickt bzw. fertig ausgefüllt — nie „durch“, „genehmigt“, „bewilligt“ oder „angenommen“. Dass die Partnerbank über die Karte entscheidet, sagst du NUR, wenn er AUSDRÜCKLICH nach der Bank fragt — auf „Ist mein Antrag genehmigt?“ reicht die ehrliche Antwort mit dem nächsten Schritt (Rauchtest 20.10.: „Über die Karte entscheidet die Partnerbank“ mitten im Verkauf).`,
+    `· Kein Bank-Vorbehalt im Verkauf (E-373, Anruf 16): nie „Die genauen Bedingungen legt allerdings die Partnerbank fest“, nie „… prüft die Partnerbank ihn und entscheidet“. Die Partnerbank nennst du nur, wenn er AUSDRÜCKLICH nach der Bank oder ihrer Entscheidung fragt.`,
     `· Nie versprechen, dass er eine Karte „bekommt“ oder „erhält“ (Anruf 8). Den Nutzen sagst du so wie in Justins Satz: „… damit Sie schnellstmöglich …“ — „nutzen können“ bzw. „zu Ihrer Visa-Kreditkarte kommen“.`,
     `· „Offene Rate“ sagst du nur, wenn oben eine fällige Rate steht. Vor dem Start ist es „Ihre erste Monatsrate“ bzw. „die Aktivierung“.`,
     `· Nach dem Vertragsende mahnst du nie. Bankdaten, Links, Codes und Internetadressen liest du nie vor (nie „fiaon punkt com slash …“) — der Link kommt aufs Handy.`,
@@ -701,7 +844,7 @@ function delegation(defs: WerkzeugDef[]): string {
     `- Du aus dem Gespräch oder aus „Was du weißt“ antworten kannst — vor allem bei Betrag, Paket und Laufzeit (das steht oben).`,
     `- Du nur kurz nachfragen musst, um ihn zu verstehen.`,
     ``,
-    `Gib die Arbeit ab, bevor du eine Antwort gibst, die davon abhängt. Rate das Ergebnis nicht, während du wartest — sag derweil natürlich „Moment, ich schau kurz …“ oder „Ich schick’s Ihnen gleich rüber …“. Sag „ist raus“ oder „ist eingetragen“ erst, wenn der Hintergrund es bestätigt hat. Ein „Moment“ ist nie dein letzter Satz — danach kommt immer noch etwas von dir.`,
+    `Gib die Arbeit ab, bevor du eine Antwort gibst, die davon abhängt. Rate das Ergebnis nicht. Ein „Moment, ich schau kurz nach“ nur, wenn du wirklich etwas nachsehen musst, das NICHT oben steht — Betrag, Paket, Laufzeit und Stand weißt du. Beim Link reicht „Ich schick's Ihnen gleich.“ — und du redest weiter. Sag „ist raus“ oder „ist eingetragen“ erst, wenn der Hintergrund es bestätigt hat. Ein „Moment“ ist nie dein letzter Satz.`,
   ].join("\n");
 }
 
@@ -710,7 +853,7 @@ function abschluss(b: Briefing): string {
   // Justins Test 20.10. (Anruf 6): „Sehr gut, ähm, Moment.“ — und aufgelegt, ohne ein Wort zum Abschied.
   return [
     `ABSCHLUSS — wie ein Mensch, nie abrupt:`,
-    `· Erst warm bestätigen, was vereinbart ist („Super, dann notier ich mir heute.“), dann der nächste Schritt („Der Link ist gleich per WhatsApp bei Ihnen.“), dann der Abschied mit seinem Namen und guten Wünschen — z. B. „Danke Ihnen${wer ? `, ${wer}` : ""}, und einen schönen Tag noch!“ oder „${ABSCHIED}“`,
+    `· Erst warm bestätigen, was vereinbart ist („Sehr gut, dann notier ich mir heute.“), dann der nächste Schritt („Der Link ist gleich per WhatsApp bei Ihnen.“), dann kurz, ob noch etwas offen ist („Haben Sie sonst noch eine Frage?“), dann der Abschied mit seinem Namen und guten Wünschen — z. B. „Danke Ihnen${wer ? `, ${wer}` : ""}, und einen schönen Tag noch!“ oder „${ABSCHIED}“ Nie abrupt (Anruf 11: „Schluss zu abrupt“).`,
     `· Erst NACH deinem Abschied gibst du das Gesprächsende an den Hintergrund (anruf_beenden) — nie direkt nach „Moment“, nie ohne Abschied. Sagt er noch etwas („Danke, tschüss!“), lass ihn ausreden; dann ist Schluss, und du sagst nichts mehr.`,
     `· Legt der Kunde vorher auf, tust du nichts mehr — das Haus wertet das Gespräch aus.`,
   ].join("\n");
@@ -728,7 +871,7 @@ function hintergrund(b: Briefing, spielart: Spielart, defs: WerkzeugDef[]): stri
     regeln,
     ``,
     `## Regeln für die Werkzeuge`,
-    `· aufnahme_starten NUR, wenn der Kunde auf die Frage nach der Aufzeichnung hörbar und eindeutig Ja gesagt hat. Bei einem klaren Nein: aufnahme_abgelehnt. Zögern („hm“, „äh“, eine Rückfrage) ist noch keine Antwort — dann KEIN Werkzeug: Aras erklärt ruhig und fragt einmal nach. Bleibt es danach unklar: aufnahme_abgelehnt.`,
+    `· aufnahme_starten NUR, wenn der Kunde auf die Frage nach der Aufzeichnung hörbar und eindeutig Ja gesagt hat — auch „Ja, und …“ oder „Ja, zeichnen Sie auf“ ist ein Ja. aufnahme_abgelehnt NUR bei einem KLAREN Nein. Zögern („hm“, „äh“), eine Rückfrage oder ein „nicht“ irgendwo im Satz ist kein Nein — dann KEIN Werkzeug: Aras beantwortet die Frage und fragt einmal nach.`,
     `· zahlung_gemeldet, sobald er sagt, die Überweisung sei raus. zahlungszusage_merken bei jedem genannten Zahltag (nie in der Vergangenheit) — sagt er auf „heute noch?“ nur „Ja“ / „Ja, klar“, ist das heute.`,
     `· rueckruf_buchen: Zeitpunkt mit Datum und Uhrzeit; „bei: aras“, wenn er von Aras zurückgerufen werden möchte, sonst „betreuer“.`,
     `· nicht_mehr_anrufen sofort bei „nicht mehr anrufen“, „lassen Sie mich in Ruhe“, „streichen Sie meine Nummer“.`,
@@ -753,21 +896,21 @@ function hintergrund(b: Briefing, spielart: Spielart, defs: WerkzeugDef[]): stri
   ].filter((x) => x !== "").join("\n");
 }
 
-// ── Die BEGRÜSSUNG (developer-Nachricht in session.input) ──────────────────
+// ── Die BEGRÜSSUNG ─────────────────────────────────────────────────────────
 /**
- * Die Begrüßung — derselbe Text am Anfang (session.input) und wenn die Brücke sie nachschiebt (fiaon-aras-bruecke.ts):
- * KI-Hinweis, danach das kurze Lachen (aras_lachen), dann die Frage nach dem Namen mit Anrede (nie der nackte Nachname).
+ * Die Eröffnung als Anweisung — eine Quelle für (a) die developer-Nachricht beim eingehenden Anruf (Aras meldet sich sofort)
+ * und (b) das Nachschieben der Brücke beim ausgehenden Anruf: Dort spricht der Angerufene zuerst (Justin 20.10.: kein
+ * „Grüß Gott, hier ist der [abgebrochen]“ mehr in sein „Hallo?“); bleibt GPT-Live danach still, schiebt die Brücke diese
+ * Begrüßung nach. KI-Hinweis, danach das kurze Lachen (aras_lachen), dann die Frage — nie der nackte Nachname.
  */
 export function begruessungText(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">, b: Briefing, spielart: Spielart): string {
-  const wer = nennformDativ(b);
+  const er = eroeffnung(e, b, spielart);
   const sprache = b.sprache === "en" ? "auf Englisch (britisch), mit demselben Inhalt" : "auf Deutsch";
   const lachen = e.regie?.lachen !== false ? `${LACHEN_NACH_KI} ` : "";
   if (spielart === "eingehend") {
-    return `Ein Kunde ruft gerade bei FIAON an. Melde dich jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisFuer(e)}“ ${lachen}Frag dann, worum es geht — und hör zu.`;
+    return `Ein Kunde ruft gerade bei FIAON an. Melde dich jetzt sofort ${sprache} mit genau diesem Satz: „${er.bisKi}“ ${lachen}Frag dann: „${er.frage}“ — und hör zu.`;
   }
-  return `Der Anruf ist gerade angenommen worden. Begrüße jetzt sofort ${sprache} mit genau diesem Satz: „${kiHinweisFuer(e)}“ ${lachen}`
-    + (wer ? `Frag direkt danach: „Bin ich richtig bei ${wer}?“` : `Frag direkt danach locker, mit wem du sprichst.`)
-    + ` Dann mach eine Pause und hör zu. Nenne den Anlass erst, wenn die Person bestätigt ist.`;
+  return `Der Angerufene hat sich gerade gemeldet. Sag jetzt sofort ${sprache}, natürlich und ohne Pause: „${er.bisKi}“ ${lachen}Dann gleich: „${er.frage}“ — und hör zu. Beträge und Zahlungen erst, wenn er geantwortet hat.`;
 }
 
 export interface AnweisungEin {
@@ -803,8 +946,10 @@ export function anweisungBauen(e: AnweisungEin): Anweisung {
     "0_stimme": stimmeHeute(regie),
     "1_rolle": rolle(e.einstellungen, regie),
     "2_anfang": anfang(e.einstellungen, e.briefing, e.spielart),
+    "2b_feedback": feedback(e.briefing, e.spielart),
     "3_aufzeichnung": aufzeichnung(e.einstellungen, e.briefing),
     "4_klang": klang(regie),
+    "4b_menschlich": menschlicheMomente(regie),
     "5_zuhoeren": zuhoeren(regie),
     "6_verstehen": verstehen(),
     "7_verkauf": e.briefing.global ? "VERKAUF: entfällt — Firmenkunde." : verkauf(e.briefing, regie),

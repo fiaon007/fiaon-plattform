@@ -23,7 +23,7 @@ import { telefonGesperrt, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungGueltig } from "./fiaon-telefon-einwilligung";
 import { twilioBereit, twilioClient, arasCallerId, rueckrufUrl, streamToken } from "./fiaon-aras-twilio-client";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
-import { anweisungBauen } from "../../shared/fiaon-aras-prompt";
+import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
 
@@ -185,6 +185,8 @@ export async function waehlen(planId: number, opt: { probe?: boolean; spielartFu
     briefing = await briefingBauen({ personId, nummer: z.nummer, spielart: briefingSpielart, rateId: z.rate_id ?? null, terminId: z.termin_id ?? null, zusageAm: spielart === "zusage" && z.anlass_am ? new Date(z.anlass_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : null, probe: opt.probe === true, planId }, lauf);
     if (opt.probe) briefing = { ...briefing, probe: true, probeSpielart: briefingSpielart };
   }
+  // Justin 20.10. (Anruf 16): „Wo schicken Sie mir das hin?“ → konkret „an Ihre Nummer mit … am Ende“ (nur die letzten zwei Ziffern).
+  briefing = { ...briefing, nummerEnde: nummerEndeGesprochen(z.nummer) };
   const hausanweisung = await anweisungLesen("telefon" as any).catch(() => "");
   const anweisung = anweisungBauen({ spielart, briefing, einstellungen: einst, hausanweisung: hausanweisung || null });
   const [aa] = (await lauf`

@@ -40,7 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import WebSocket from "ws";
 import type { StimmAdapter, Sitzung, SitzungStart, SitzungEreignis, HoerprobeEin, HoerprobeAus } from "./fiaon-aras-adapter";
-import { dialektAnweisung, LACHEN_NACH_KI } from "../../shared/fiaon-aras-prompt";
+import { dialektAnweisung, LACHEN_NACH_KI, fuerStimme } from "../../shared/fiaon-aras-prompt";
 import { mulawAlsWav, stille, mulawZuPcm16, pcm16ZuMulaw } from "./fiaon-aras-adapter";
 import { tonQuelle, Abwaerts24zu8, Aufwaerts8zu24, pcmAusPuffer, pcmAlsPuffer, Lieferstatistik, Pegelwerk, Begrenzer, RAHMEN, type TonQuelle } from "./fiaon-aras-ton";
 import { alsWav } from "./fiaon-aras-atmo";
@@ -154,19 +154,20 @@ export class LiveSitzung implements Sitzung {
       ws.on("open", () => {
         const session: Record<string, unknown> = {
           model: this.modell,
-          instructions: this.e.anweisung,
+          // Den Namen liest die Stimme als „Fiaaon“ (Spracherkennung 20.10.: „FIAON“ wurde zu „Fion“) — siehe fuerStimme.
+          instructions: fuerStimme(this.e.anweisung),
           audio: { format: this.quelle === "pcm24k" ? { type: "audio/pcm", rate: 24000 } : { type: "audio/pcmu", rate: 8000 }, output: { voice: this.stimmeFeld() } },
           store: false,
         };
         if (this.e.begruessung) {
-          session.input = [{ type: "message", role: "developer", content: [{ type: "input_text", text: this.e.begruessung }] }];
+          session.input = [{ type: "message", role: "developer", content: [{ type: "input_text", text: fuerStimme(this.e.begruessung) }] }];
         }
         if (this.e.werkzeuge.length) {
           session.delegation = {
             type: "responses",
             responses: {
               model: this.modellGehirn,
-              instructions: this.e.hintergrundAnweisung,
+              instructions: fuerStimme(this.e.hintergrundAnweisung),
               tools: this.e.werkzeuge.map((w) => ({ type: "function", name: w.name, description: w.beschreibung, parameters: w.schema })),
               tool_choice: "auto",
               parallel_tool_calls: false,
@@ -334,7 +335,7 @@ export class LiveSitzung implements Sitzung {
       if (offen.size === 0) { this.offeneAufrufe.delete(antwortId); this.senden({ type: "response.create", event_id: `weiter_${callId}`.slice(0, 60) }); }
     };
     void this.e.werkzeugAusfuehren(name as any, eingabe, callId)
-      .then((erg) => antworten({ ok: erg.ok, ergebnis: erg.vorlesen || null, hinweis: erg.still ?? null, fehler: erg.fehler ?? null }))
+      .then((erg) => antworten({ ok: erg.ok, ergebnis: erg.vorlesen ? fuerStimme(erg.vorlesen) : null, hinweis: erg.still ? fuerStimme(erg.still) : null, fehler: erg.fehler ?? null }))
       .catch((err) => antworten({ ok: false, fehler: String((err as Error)?.message ?? err).slice(0, 200) }));
   }
 
@@ -379,7 +380,7 @@ export class LiveSitzung implements Sitzung {
   }
 
   textEinschieben(text: string, art: "vorlesen" | "still" | "anweisung"): void {
-    const t = String(text ?? "").replace(/\s+/g, " ").trim().slice(0, 1800);
+    const t = fuerStimme(String(text ?? "").replace(/\s+/g, " ").trim().slice(0, 1800));
     if (!t) return;
     const typ = art === "anweisung" ? "session.instructions.append" : art === "vorlesen" ? "session.commentary.append" : "session.thinking.append";
     this.senden({ type: typ, delegation_id: null, content: t });

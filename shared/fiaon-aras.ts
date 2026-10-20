@@ -161,7 +161,10 @@ export interface SchluesselDef {
 
 // Justin 20.10.2026 nach seinen Probeanrufen: „zu viel nach KI … menschlicher sprechen“. Der KI-Hinweis bleibt der erste Satz
 // (KI-VO Art. 50), aber leicht und charmant statt Belehrung — „Grüß Gott“ statt „Hallo“ setzt der Dialekt (aras_dialekt).
-export const KI_HINWEIS_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
+// Justin 20.10.2026 (14:30, Anruf 12): „sprich FIAON richtig aus“ — FIAON steht mitten im Satz („von FIAON aus dem Kundenteam“),
+// nie allein vor einer Pause oder einem Gedankenstrich (dort zerfällt es in „Fi-a-on“). Rauchtest mit Spracherkennung: von fünf
+// Schreibweisen kam „FIAON“ (Großbuchstaben, mitten im Satz) dem Wort „Fiaon“ am nächsten; getrennt geschrieben zerfiel es.
+export const KI_HINWEIS_VORGABE = "Hallo, hier ist Aras von FIAON aus dem Kundenteam — kurz vorweg: Ich bin eine KI, aber eine sehr nette.";
 // Probe 20.10.2026 (Justin): die alte Frage war zu lang und steif (10 s, Internetadresse vorgelesen). Kurz, eine Frage, kein Link —
 // Speicherdauer und Datenschutzerklärung nennt Aras nur, wenn der Kunde nachfragt (shared/fiaon-aras-prompt.ts, AUFZEICHNUNG).
 // Justins Test 20.10. (Anruf 6): „Ein kurzes Ja reicht.“ klang wie Drängeln — die Frage ist jetzt EIN Satz. Ob er Ja sagt,
@@ -239,8 +242,12 @@ export const ARAS_SCHLUESSEL: Record<string, SchluesselDef> = {
   // Justin 20.10.2026: „ein paar Hintergrundgeräusche“ — Büro-Atmosphäre unter Aras' Stimme (server/lib/fiaon-aras-atmo.ts).
   aras_hintergrund: { typ: "enum", vorgabe: "aus", enum: ["aus", "buero_leise", "buero"], satz: "Büro-Atmosphäre unter der Stimme: aus, leise oder deutlicher." },
   // Justins Test 20.10. (Anruf 5): „Also...“ mitten in seine Denkpause. GPT-Live hat keinen Schalter für das Zuhören (voll-duplex) —
-  // darum zwei Hebel: die Anweisung (Interruption policy) und das Geduld-Tor der Brücke (GEDULD_MS). Vorgabe: geduldig.
-  aras_zuhoeren: { typ: "enum", vorgabe: "geduldig", enum: ["geduldig", "normal", "flott"], satz: "Wie lange Aras nach einer Pause wartet: geduldig (Vorgabe), normal oder flott." },
+  // darum zwei Hebel: die Anweisung (Interruption policy) und das Geduld-Tor der Brücke (GEDULD_MS). Justin 20.10. (14:30, Anruf 11:
+  // „zu langsam“): Vorgabe normal (400 ms statt 700 ms).
+  aras_zuhoeren: { typ: "enum", vorgabe: "normal", enum: ["geduldig", "normal", "flott"], satz: "Wie lange Aras nach einer Pause wartet: geduldig, normal (Vorgabe) oder flott." },
+  // Justin 20.10. (Anruf 16): „das Lachen am Anfang ist schon sehr gut, aber wir brauchen von dem viel mehr im ganzen Gespräch
+  // verteilt, da mal ein Lachen, dort mal ein Versprecher“ — menschliche Momente, gesteuert und nie im Muster.
+  aras_menschlich: { typ: "enum", vorgabe: "normal", enum: ["wenig", "normal", "viel"], satz: "Menschliche Momente (Lachen, kleiner Versprecher, kurzes „hm“): wenig, normal oder viel." },
   aras_ki_hinweis_satz: { typ: "text", vorgabe: KI_HINWEIS_VORGABE, maxZeichen: 400, satz: "Der erste Satz — muss „KI“ oder „digitale“ enthalten.", pruefen: (w) => (/\bKI\b|digitale/i.test(w) ? null : "Der KI-Hinweis muss „KI“ oder „digitale“ enthalten.") },
   aras_aufnahme_frage: { typ: "text", vorgabe: AUFNAHME_FRAGE_VORGABE, maxZeichen: 400, satz: "Die Frage vor der Aufnahme — EIN Satz mit „?“, aufgenommen wird nur nach einem Ja.", pruefen: aufnahmeFrageFehler },
   aras_spielarten: { typ: "json", vorgabe: JSON.stringify(SPIELARTEN_VORGABE), satz: "Welche Gesprächsarten ARAS führt.", pruefen: (w) => {
@@ -336,6 +343,10 @@ export const ZUHOEREN = ["geduldig", "normal", "flott"] as const;
 export type Zuhoeren = (typeof ZUHOEREN)[number];
 export function istZuhoeren(v: unknown): v is Zuhoeren { return typeof v === "string" && (ZUHOEREN as readonly string[]).includes(v); }
 export const ZUHOEREN_TEXT: Record<Zuhoeren, string> = { geduldig: "geduldig", normal: "normal", flott: "flott" };
+/** Menschliche Momente im Gespräch (aras_menschlich, Justin 20.10. Anruf 16). */
+export const MENSCHLICH = ["wenig", "normal", "viel"] as const;
+export type Menschlich = (typeof MENSCHLICH)[number];
+export function istMenschlich(v: unknown): v is Menschlich { return typeof v === "string" && (MENSCHLICH as readonly string[]).includes(v); }
 /**
  * Das Geduld-Tor der Brücke: so lange muss der Kunde still sein, bevor Aras' neuer Redebeitrag zu hören ist. Fängt Aras
  * früher an (der Kunde holt nur Luft) und der Kunde redet weiter, hört der Kunde den Ansatz nie („Also...“ fällt weg).
@@ -347,10 +358,12 @@ export interface Regie {
   energie: "ruhig" | "lebendig" | "vollgas"; abschluss: "sanft" | "klar" | "hartnaeckig";
   /** Akzent (Justin 20.10.2026) — Vorgabe Hochdeutsch, bis er wählt. */
   dialekt: Dialekt;
-  /** Zuhören (aras_zuhoeren) — fehlt es (alte Proben), gilt „geduldig“. */
+  /** Zuhören (aras_zuhoeren) — fehlt es (alte Proben), gilt „normal“ (Justin 20.10.: „zu langsam“). */
   zuhoeren?: Zuhoeren;
+  /** Menschliche Momente (aras_menschlich) — fehlt es, gilt „normal“. */
+  menschlich?: Menschlich;
 }
-export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "geduldig" };
+export const REGIE_VORGABE: Regie = { fuellwoerter: "normal", lachen: true, tempo: "normal", zuhoerlaute: "normal", energie: "lebendig", abschluss: "klar", dialekt: "hochdeutsch", zuhoeren: "normal", menschlich: "normal" };
 export type Stufe = 0 | 1 | 2 | 3;
 
 // ── Stufenplan (Nachtrag Persona & Skalierung; Koordinator 20.10.2026: HART durchsetzen) ──────────────────
@@ -443,7 +456,8 @@ export function einstellungenAnwenden(roh: Record<string, string | null | undefi
       fuellwoerter: w("aras_fuellwoerter") as Regie["fuellwoerter"], lachen: an("aras_lachen"), tempo: w("aras_tempo") as Regie["tempo"],
       zuhoerlaute: w("aras_zuhoerlaute") as Regie["zuhoerlaute"], energie: w("aras_energie") as Regie["energie"], abschluss: w("aras_abschluss") as Regie["abschluss"],
       dialekt: (istDialekt(w("aras_dialekt")) ? w("aras_dialekt") : "hochdeutsch") as Dialekt,
-      zuhoeren: (istZuhoeren(w("aras_zuhoeren")) ? w("aras_zuhoeren") : "geduldig") as Zuhoeren,
+      zuhoeren: (istZuhoeren(w("aras_zuhoeren")) ? w("aras_zuhoeren") : "normal") as Zuhoeren,
+      menschlich: (istMenschlich(w("aras_menschlich")) ? w("aras_menschlich") : "normal") as Menschlich,
     },
     hintergrund: (istHintergrund(w("aras_hintergrund")) ? w("aras_hintergrund") : "aus") as Hintergrund,
     kiHinweisSatz: w("aras_ki_hinweis_satz"), aufnahmeFrage: aufnahmeFrageSauber(w("aras_aufnahme_frage")),
@@ -610,11 +624,15 @@ export function istAufnahmeJa(text: string): boolean {
   const t = String(text ?? "").trim().toLowerCase().replace(/[’`´]/g, "'").replace(/^(?:(?:m+|hm+|mhm|ä+h*m*|eh+m*|ehm|also)(?![a-zäöüß])[\s,.…]*)+/, "").trim();
   if (!t || istAufnahmeNein(t)) return false;
   if (JA_AUSDRUECKLICH.test(t)) return true;
-  const m = /^([^,.;:!?—–-]+)([,.;:!?—–-]?)([\s\S]*)$/.exec(t);
+  // Rauchtest 20.10. (Nuri): Die Abschrift lässt das Komma oft weg — „Ja und ein weiteres Feedback …“. Ein „und“/„aber“
+  // direkt nach dem Ja-Wort trennt wie ein Komma (sonst zählte der ganze erste Teil und das Ja ging verloren).
+  const u = t.replace(/^((?:ja|jo|jap|jep|jawohl|klar|gerne?|okay|ok|passt|sicher|freilich)(?:\s+(?:klar|gerne?|sicher|freilich|passt|okay|ok|bitte|natürlich|doch|eh|schon|ja))*)\s+(und|aber)(?![a-zäöüß])/, "$1, $2");
+  const m = /^([^,.;:!?—–-]+)([,.;:!?—–-]?)([\s\S]*)$/.exec(u);
   if (!m || !JA_ANFANG.test(m[1].trim())) return false;
   if (m[2] === "?") return false;                                   // „Ja?“ — eine Rückfrage
   const rest = m[3].trim();
   if (/^aber(?![a-zäöüß])/.test(rest)) return false;                // „Ja, aber …“ — ein Vorbehalt
+  if (/^und\s*[?.!…]*\s*$/.test(rest)) return false;                 // „Ja und?“ — eine Gegenfrage, kein Ja
   // Ein Ja mit Gegenfrage („Ja, worum geht's?“) ist unklar — außer er hängt mit „und“ nur etwas an („Ja, und was kostet das?“).
   if (/\?\s*$/.test(rest) && !/^und(?![a-zäöüß])/.test(rest)) return false;
   return true;
@@ -681,17 +699,17 @@ export interface HoerprobeZeile {
   dialekt?: Dialekt | null;
 }
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
-export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren"] as const;
+export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren", "aras_menschlich"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
-export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";
+export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Haben Sie einen kurzen Moment?";
 /**
  * Justin 20.10.2026 (abends): „KI mehr Dialekt“ — im Stimmen-Studio je Akzent ein eigener Probesatz, damit er den
  * Unterschied sofort hört. Der KI-Hinweis steht in jedem (KI-VO Art. 50); nach „… nette.“ lacht Aras kurz (Hörprobe).
  */
 export const HOERPROBE_SAETZE: Record<Dialekt, string> = {
   hochdeutsch: HOERPROBE_SATZ_VORGABE,
-  oesterreichisch_leicht: "Grüß Gott, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Passt's Ihnen grad a bissl, gell?",
-  oesterreichisch: "Grüß Gott, hier is der Aras von FIAON — kurz vorweg: I bin a KI, aber a sehr a nette. Schaun's, des geht ganz schnell, passt eh — ham's grad a bissl Zeit, gell?",
+  oesterreichisch_leicht: "Grüß Gott, hier ist Aras von FIAON aus dem Kundenteam — ich ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Passt's Ihnen grad a bissl, gell?",
+  oesterreichisch: "Grüß Gott, hier is der Aras von FIAON aus dem Kundenteam — i ruf wegen Ihrem Kreditkartenantrag an. Kurz vorweg: I bin a KI, aber a sehr a nette. Schaun's, des geht ganz schnell, passt eh — ham's grad a bissl Zeit, gell?",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -20,6 +20,8 @@ import express from "express";
 process.env.NODE_ENV = process.env.NODE_ENV || "test";
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || "pruefstand-geheimnis-e408";
 process.env.TWILIO_AUTH_TOKEN = "pruefstand-twilio-token";
+// Die Abschnitte 1–18 spielen Aras zuerst (wie vor dem 20.10.). Das Eröffnungs-Tor — der Angerufene spricht zuerst — prüft Abschnitt 19.
+process.env.ARAS_EROEFFNUNG_SOFORT = "1";
 delete process.env.OPENAI_API_KEY; delete process.env.BREVO_API_KEY; delete process.env.TWILIO_ACCOUNT_SID;
 
 let gut = 0, schlecht = 0;
@@ -604,7 +606,7 @@ async function main(): Promise<void> {
       ] });
       await schlafen(5200);
       const hinweise = g.att.spur.eingeschoben.filter((x) => x.text === WIEDERHOLUNG_HINWEIS);
-      ok("Wiederholung (Anruf 5): genau EIN versteckter Hinweis, als Anweisung (unterbricht sofort)", hinweise.length === 1 && hinweise[0].art === "anweisung" && laufZahlen(g.callId)?.wiederholungen === 1, JSON.stringify(g.att.spur.eingeschoben.map((x) => x.text.slice(0, 40))));
+      ok("Wiederholung (Anruf 5): genau EIN versteckter Hinweis — still (Anruf 16: eine Anweisung bräche die laufende Rede ab)", hinweise.length === 1 && hinweise[0].art === "still" && laufZahlen(g.callId)?.wiederholungen === 1, JSON.stringify(g.att.spur.eingeschoben.map((x) => `${x.art}:${x.text.slice(0, 30)}`)));
       ok("Rot-Probe: der erste Satz und der neue, konkrete Satz lösen KEINEN Hinweis aus", hinweise.length === 1);
       await fertig(g);
     }
@@ -719,14 +721,15 @@ async function main(): Promise<void> {
     {
       const { LACHEN_NACH_KI } = await import("../shared/fiaon-aras-prompt");
       const g = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
-      await warten(() => g.att.spur.eingeschoben.some((x) => /Begrüße jetzt sofort/.test(x.text)), 6000);
-      const gruss = g.att.spur.eingeschoben.find((x) => /Begrüße jetzt sofort/.test(x.text));
-      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): KI-Hinweis → kurzes Lachen → „Bin ich richtig bei Herrn …?“", !!gruss && gruss.art === "vorlesen" && gruss.text.indexOf(LACHEN_NACH_KI) > gruss.text.indexOf("KI") && /Bin ich richtig bei Herrn Prüfkunde\d+\?/.test(gruss.text), gruss?.text.slice(0, 200) ?? "—");
+      await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 6000);
+      const gruss = g.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
+      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): Name → Kreditkarte → KI-Hinweis → kurzes Lachen → „Haben Sie einen kurzen Moment?“",
+        !!gruss && gruss.art === "vorlesen" && /, Herr Prüfkunde\d+!/.test(gruss.text) && /Kreditkarten/.test(gruss.text) && gruss.text.indexOf(LACHEN_NACH_KI) > gruss.text.indexOf("KI") && gruss.text.indexOf("Haben Sie einen kurzen Moment?") > gruss.text.indexOf(LACHEN_NACH_KI), gruss?.text.slice(0, 260) ?? "—");
       await fertig(g);
       await einstellungSetzen("aras_lachen", "aus", "pruefstand");
       const g2 = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
-      await warten(() => g2.att.spur.eingeschoben.some((x) => /Begrüße jetzt sofort/.test(x.text)), 6000);
-      const gruss2 = g2.att.spur.eingeschoben.find((x) => /Begrüße jetzt sofort/.test(x.text));
+      await warten(() => g2.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 6000);
+      const gruss2 = g2.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
       ok("Rot-Probe: aras_lachen = aus → die nachgeschobene Begrüßung hat kein Lachen", !!gruss2 && !gruss2.text.includes(LACHEN_NACH_KI), gruss2?.text.slice(0, 160) ?? "—");
       await fertig(g2);
       await einstellungSetzen("aras_lachen", "an", "pruefstand");
@@ -1222,6 +1225,151 @@ async function main(): Promise<void> {
       const a = await anruf(g.callId);
       ok("Rot-Probe: ohne ein Wort des Kunden bleibt es „nicht_erreicht“", a?.ergebnis === "nicht_erreicht", `${a?.ergebnis} · ${a?.ergebnis_notiz}`);
     }
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
+  titel("19. ERÖFFNUNG (Justin 20.10., Anruf 8: „Grüß Gott, hier ist der [abgebrochen]“) — der Angerufene spricht zuerst; LIVE-KARTE: EIN Ende, danach nichts mehr");
+  {
+    delete process.env.ARAS_EROEFFNUNG_SOFORT;
+    await einstellungSetzen("aras_stufe", "3", "pruefstand");
+    await einstellungSetzen("aras_zuhoeren", "normal", "pruefstand");
+    let nr = 120;
+    const anruf19 = async (skript: Parameters<typeof attrappeMitSkript>[0]) => {
+      nr += 1;
+      const pid = await person(nr); await antrag(pid, nr, { payment_status: "paid" });
+      const e = await planEinreihen({ personId: pid, nummer: `+4917000000${nr}`, spielart: "zusage", grund: `Prüfstand Eröffnung ${nr}`, erzeugtVon: "chef" });
+      if (!e.ok) throw new Error(`einreihen: ${e.grund}`);
+      return gespraech(Number(e.id), skript);
+    };
+    const ende19 = async (g: { tw: InstanceType<typeof TwilioAttrappe>; callId: number }) => {
+      g.tw.aufhaengen();
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 12_000);
+    };
+    // a) GPT-Live spricht (gegen die Anweisung) sofort los — der Kunde sagt nach 1 s „Hallo?“: Aras' Ton wartet; redet der Kunde
+    //    hinein, fällt der Ansatz weg (wie Anruf 8: „hier ist der [abgebrochen]“ — nur hört der Kunde ihn jetzt nie), und GPT-Live
+    //    antwortet auf sein „Hallo?“.
+    {
+      const t0 = Date.now();
+      const g = await anruf19({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 1500, ton: { dbfs: -24 } }, { beiKundenStimme: "Hallo?" }, { nachKundeStillMs: 400 }, { aras: KI_HINWEIS_VORGABE, ms: 1500, ton: { dbfs: -24 } }, { warteMs: 3000 }] });
+      ok("Ausgehend: keine Begrüßung vorab (der Angerufene spricht zuerst)", g.att.spur.begruessung === null, String(g.att.spur.begruessung).slice(0, 60));
+      await schlafen(Math.max(0, 1000 - (Date.now() - t0)));
+      g.tw.laut(600);
+      const halloEnde = g.tw.lautEnde();
+      await schlafen(3500);
+      const ersteRede = g.tw.gespielt().filter((r) => TwilioAttrappe.dbfs(r.pcm) > -45).sort((x, y) => x.start - y.start)[0]?.start ?? 0;
+      ok("Kein „Grüß Gott, hier ist der [abgebrochen]“: Aras ist erst NACH seinem „Hallo?“ zu hören", ersteRede > 0 && ersteRede >= halloEnde, `${ersteRede ? Math.round(ersteRede - halloEnde) : "—"} ms nach seinem Hallo`);
+      const waehrend = g.tw.gespielt().filter((r) => TwilioAttrappe.dbfs(r.pcm) > -45 && r.start < halloEnde).length;
+      ok("… während seines „Hallo?“ war nichts von Aras zu hören (der zu frühe Ansatz fiel weg)", waehrend === 0, `${waehrend} Rede-Rahmen · ${JSON.stringify({ v: laufZahlen(g.callId)?.verworfen, clear: g.tw.gesendet().clear })}`);
+      await ende19(g);
+    }
+    // b) Er sagt nichts: nach 2 s Stille beginnt Aras (Eröffnung von der Brücke nachgeschoben, wenn GPT-Live schweigt)
+    {
+      const g = await anruf19({ schritte: [{ warteMs: 5000 }] });
+      const t0 = Date.now();
+      await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 4000);
+      const dauer = Date.now() - t0;
+      const gruss = g.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
+      ok("Er schweigt: nach ~2 s kommt die Eröffnung (als „vorlesen“, mit Kreditkarte und KI-Hinweis)", !!gruss && gruss.art === "vorlesen" && dauer >= 1500 && dauer <= 3200 && /Kreditkarten/.test(gruss.text) && /\bKI\b/.test(gruss.text), `${dauer} ms · ${gruss?.text.slice(0, 80) ?? "—"}`);
+      await ende19(g);
+    }
+    // c) Er sagt „Hallo?“, GPT-Live schweigt → die Brücke schiebt die Eröffnung ~0,6 s nach seinem Hallo nach (nicht schon währenddessen;
+    //    Rauchtest 20.10. abends: GPT-Live spricht ausgehend nie von selbst — mit 1,2 s hörte er Aras erst 2,2–2,6 s nach dem Hallo)
+    {
+      const g = await anruf19({ schritte: [{ beiKundenStimme: "Hallo?" }, { warteMs: 5000 }] });
+      await schlafen(500);
+      g.tw.laut(500);
+      const halloEnde = g.tw.lautEnde();
+      await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 4000);
+      const am = Date.now();
+      ok("Nach seinem „Hallo?“ und Schweigen von GPT-Live: Eröffnung ~0,6 s danach (nie in sein Hallo hinein, nie später als 1,3 s)", am - halloEnde >= 500 && am - halloEnde <= 1300, `${am - halloEnde} ms nach seinem Hallo`);
+      await ende19(g);
+    }
+    // d) Rot-Probe eingehend: Aras meldet sich sofort (Begrüßung als developer-Nachricht, kein Warten)
+    {
+      const { sitzungStarten } = await import("../server/lib/fiaon-aras-bruecke");
+      void sitzungStarten;
+      const { eroeffnung } = await import("../shared/fiaon-aras-prompt");
+      const er = eroeffnung({ kiHinweisSatz: KI_HINWEIS_VORGABE, regie: (await arasEinstellungenLesen(true)).regie }, { anrede: "Herr", nachname: "Probe" } as any, "eingehend");
+      ok("Rot-Probe eingehend: Aras meldet sich selbst (KI-Hinweis, „Worum geht's Ihnen?“) — dort wartet er nicht", /\bKI\b/.test(er.bisKi) && er.frage === "Worum geht's Ihnen?" && !/Kreditkarte/.test(er.bisKi));
+    }
+    // e) Live-Karte (Justin: „wenn ich auflege, läuft der Kasten mit ‚übernehmen‘ dennoch weiter“)
+    {
+      const { liveStromZeigen } = await import("../server/lib/fiaon-aras-ereignis");
+      const strom: any[] = [];
+      const hoerer = (e: any) => strom.push(e);
+      ereignisBus().on("aras", hoerer);
+      const g = await anruf19({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 300 }, { warteMs: 4000 }] });
+      await schlafen(2500);
+      g.tw.aufhaengen();
+      await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 12_000);
+      await probeUrteil({ callId: g.callId, daumen: "runter", grund: "klingt nach KI", von: "Prüfstand" }).catch(() => null);
+      await schlafen(300);
+      ereignisBus().off("aras", hoerer);
+      const meine = strom.filter((e) => Number(e.callId) === g.callId);
+      const iEnde = meine.findIndex((e) => e.art === "ende");
+      const danach = meine.slice(iEnde + 1);
+      ok("Beim Ende genau EIN „ende“ mit callId — vor „aras_ende“", meine.filter((e) => e.art === "ende").length === 1 && iEnde >= 0 && meine[iEnde + 1]?.art === "aras_ende", meine.map((e) => e.art).join(","));
+      ok("Danach (Prüfung, Daumen) nur noch mit nachEnde — der Live-Strom des KI-Raums lässt sie weg (kein neuer Kasten)", danach.slice(1).length > 0 && danach.slice(1).every((e) => e.nachEnde === true && !liveStromZeigen(e)), danach.map((e) => `${e.art}:${e.nachEnde}`).join(","));
+      ok("Rot-Probe: während des Gesprächs zeigt der Live-Strom alles (kein nachEnde vor dem Ende)", meine.slice(0, iEnde).every((e) => liveStromZeigen(e)) && meine.slice(0, iEnde).length > 0);
+      ok("Laufende Gespräche: der beendete Anruf ist weg", !laufendeSitzungen().some((l) => l.callId === g.callId));
+    }
+    // f) Aufnahme-Frage über zwei Zeilen (Rauchtest 20.10., Juni: „… dokumentiert“ — Pause — „is?“): zählt trotzdem
+    {
+      process.env.ARAS_EROEFFNUNG_SOFORT = "1";
+      const g = await anruf19({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 600 }, { warteMs: 300 },
+        { aras: "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert", ms: 400 }, { warteMs: 1200 }, { aras: "is?", ms: 200 }, { warteMs: 1200 },
+        { kunde: "Ja, passt.", nachMs: 100 }, { warteMs: 2000 },
+      ] });
+      await warten(() => !!laufZahlen(g.callId)?.aufnahmeJa, 7000);
+      ok("Aufnahme-Frage über zwei Zeilen („… dokumentiert“ + „is?“) gilt — sein Ja startet die Aufnahme", !!laufZahlen(g.callId)?.aufnahmeJa, JSON.stringify({ ja: laufZahlen(g.callId)?.aufnahmeJa }));
+      await ende19(g);
+      const g2 = await anruf19({ schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja.", nachMs: 600 }, { warteMs: 300 },
+        { aras: "Alles klar, dann ohne Aufzeichnung — kein Problem", ms: 400 }, { warteMs: 1200 }, { aras: "Wofür möchten Sie die Karte vor allem nutzen?", ms: 300 }, { warteMs: 1200 },
+        { kunde: "Ja, für Reisen.", nachMs: 100 }, { warteMs: 2000 },
+      ] });
+      await schlafen(6000);
+      ok("Rot-Probe: „… ohne Aufzeichnung“ + eine andere Frage ist keine Aufnahme-Frage — sein „Ja“ startet nichts", !laufZahlen(g2.callId)?.aufnahmeJa);
+      await ende19(g2);
+    }
+    // g) Menschliche Momente (Anruf 16: „da mal ein Lachen, dort mal ein Versprecher“): still gewinkt, verteilt, wechselnd —
+    //    und erst, wenn der KUNDE zu reden beginnt (Rauchtest 20.10. abends: mitten in Aras' Rede hängte GPT-Live das Lachen
+    //    sofort hinter seine Frage). Rot-Probe: Geht es in Aras' letzter Zeile um Geld, kommt kein Wink.
+    {
+      process.env.ARAS_EROEFFNUNG_SOFORT = "1";
+      const skript = (satz: (i: number) => string, mitAufnahme = true) => {
+        const schritte: any[] = [{ aras: KI_HINWEIS_VORGABE, ms: 300 }];
+        // Die Aufnahme-Frage kommt früh — erst danach winkt die Brücke (Rauchtest: Lachen direkt vor der Aufnahme-Frage).
+        if (mitAufnahme) schritte.push({ aras: "Darf ich unser Gespräch kurz aufzeichnen, damit alles sauber dokumentiert ist?", ms: 300 }, { warteMs: 400 }, { kunde: "Ja, gerne.", nachMs: 300 }, { warteMs: 500 });
+        for (let i = 0; i < 11; i++) schritte.push({ kunde: `Antwort ${i + 1}.`, nachMs: 400 }, { warteMs: 300 }, { aras: satz(i + 1), ms: 300 }, { warteMs: 500 });
+        return schritte;
+      };
+      const zaehle = async (menschlich: string, lachen: string, satz: (i: number) => string = (i) => `Das ist mein Beitrag Nummer ${i} — ganz normal weiter.`, mitAufnahme = true) => {
+        await einstellungSetzen("aras_menschlich", menschlich, "pruefstand");
+        await einstellungSetzen("aras_lachen", lachen, "pruefstand");
+        const g = await anruf19({ schritte: [...skript(satz, mitAufnahme), { warteMs: 1500 }] });
+        await warten(() => false, 19_000);
+        const winks = g.att.spur.eingeschoben.filter((x) => /^Menschlicher Moment/.test(x.text));
+        const kundeAm = g.att.spur.kundeAm ?? [];
+        await ende19(g);
+        return { winks, kundeAm };
+      };
+      const { winks: normal, kundeAm } = await zaehle("normal", "an");
+      const arten = normal.map((w) => /Lachen/.test(w.text) ? "lachen" : /Versprecher/.test(w.text) ? "versprecher" : /„Hm,“/.test(w.text) ? "hm" : "scherz");
+      ok("normal: in zwölf Beiträgen zwei bis vier stille Winks (etwa alle drei bis fünf), still statt Anweisung", normal.length >= 2 && normal.length <= 4 && normal.every((w) => w.art === "still"), `${normal.length} Winks: ${arten.join(", ")}`);
+      ok("… nie zweimal dieselbe Art hintereinander", arten.every((a, i) => i === 0 || a !== arten[i - 1]), arten.join(", "));
+      ok("… jeder Wink kommt, wenn der Kunde zu reden beginnt (≤ 50 ms danach) — nie mitten in Aras' Rede", normal.every((w) => kundeAm.some((k) => (w.am ?? 0) >= k && (w.am ?? 0) - k <= 50)), normal.map((w) => Math.min(...kundeAm.map((k) => Math.abs((w.am ?? 0) - k)))).join(", ") + " ms");
+      const wenig = (await zaehle("wenig", "aus")).winks;
+      ok("Rot-Probe wenig + Lachen aus: höchstens ein Wink, nie ein Lachen", wenig.length <= 1 && wenig.every((w) => !/Lachen/.test(w.text)), `${wenig.length} Winks`);
+      const geld = (await zaehle("viel", "an", (i) => `Es sind neunundfünfzig Euro neunundneunzig — Nummer ${i}.`)).winks;
+      ok("Rot-Probe: Geht es in Aras' letzter Zeile um Geld (Euro), kommt auch bei „viel“ kein Wink", geld.length === 0, `${geld.length} Winks`);
+      const ohneFrage = (await zaehle("viel", "an", undefined, false)).winks;
+      ok("Rot-Probe: Solange die Aufnahme-Frage noch aussteht (erste Minute), kommt kein Wink — auch bei „viel“", ohneFrage.length === 0, `${ohneFrage.length} Winks`);
+      await einstellungSetzen("aras_menschlich", "normal", "pruefstand");
+      await einstellungSetzen("aras_lachen", "an", "pruefstand");
+    }
+    process.env.ARAS_EROEFFNUNG_SOFORT = "1";
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 

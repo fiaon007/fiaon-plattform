@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { nennform } from "../../shared/fiaon-mitarbeiter-name";
+import { istJahresvertrag } from "../../shared/fiaon-antrag-stand";
 import { stufeAusAntrag, type KartenZiel } from "../../shared/fiaon-mara-ton";
 import { paket } from "../../shared/fiaon-pakete";
 import { euroText } from "../../shared/fiaon-auskunft";
@@ -67,7 +68,8 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   if (!p) return leer;
 
   const [antrag] = (await lauf`
-    SELECT ref, status, payment_status, current_step, submitted_at, gekuendigt_am, abo_gestoppt_am, pack_key, pack_name, payment_reference, wanted_limit, created_at
+    SELECT ref, status, payment_status, current_step, submitted_at, gekuendigt_am, abo_gestoppt_am, pack_key, pack_name, payment_reference, wanted_limit, created_at,
+           vertrag_ende_am, agb_stand
       FROM fiaon_applications
      WHERE person_id = ${e.personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL AND archived_at IS NULL
        AND COALESCE(ist_entwurf, FALSE) = FALSE AND COALESCE(type, '') <> 'schufa' AND COALESCE(ref, '') NOT LIKE 'FIAON-SCHUFA-%'
@@ -100,6 +102,55 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
       };
     }
   }
+
+  // ── Einsicht (D, Go-live 20.10.2026): Unterschrift, alle offenen Rechnungen, Kündigung (Vertragsart), Karte, letzte Kontakte,
+  //    Notiz zum WhatsApp-Gespräch. Jede Quelle einzeln abgesichert — fehlt eine Tabelle, fehlt nur diese Zeile.
+  let unterschriebenAm: string | null = null;
+  let offeneRechnungen: Briefing["offeneRechnungen"] = null;
+  let kuendigung: Briefing["kuendigung"] = null;
+  if (antrag?.ref) {
+    const [va] = (await lauf`SELECT MIN(angenommen_am) AS am FROM fiaon_vertragsannahmen WHERE ref = ${antrag.ref} AND COALESCE(weg, '') NOT LIKE '%pruefstand%'`.catch(() => [])) as any[];
+    unterschriebenAm = tag(va?.am);
+    const offen = (await lauf`
+      SELECT rate_nr, betrag_cents, faellig_am FROM fiaon_abo_raten
+       WHERE ref = ${antrag.ref} AND status = 'offen' AND storniert_am IS NULL AND bezahlt_am IS NULL AND faellig_am <= CURRENT_DATE
+       ORDER BY faellig_am, rate_nr`.catch(() => [])) as any[];
+    offeneRechnungen = offen.length ? offen.slice(0, 3).map((r: any) => ({ nr: Number(r.rate_nr), betrag: euroText(Number(r.betrag_cents ?? 0)), faelligAm: tag(r.faellig_am) ?? "" })) : null;
+    if (antrag.gekuendigt_am) {
+      // E-396: Jahresvertrag (AGB ab 03.09.2026) läuft bis zum Laufzeitende, Kulanz nach Zahlung ALLER offenen Rechnungen;
+      // Altvertrag wirkt zum Ende des Abrechnungsmonats (vertrag_ende_am), danach nie eine Rate (E-391/E-394).
+      const summe = offen.reduce((x: number, r: any) => x + Number(r.betrag_cents ?? 0), 0);
+      kuendigung = { am: tag(antrag.gekuendigt_am) ?? "", art: istJahresvertrag(antrag.agb_stand) ? "jahresvertrag" : "altvertrag", endeAm: tag(antrag.vertrag_ende_am), offenBetrag: summe > 0 ? euroText(summe) : null };
+    }
+  }
+  let karte: Briefing["karte"] = { stand: "keine_info" };
+  const [kk] = (await lauf`
+    SELECT gesendet_am, kanal, bestaetigt_am, gemeldet_am FROM fiaon_konto_karte WHERE person_id = ${e.personId}
+     ORDER BY COALESCE(bestaetigt_am, gemeldet_am, gesendet_am) DESC NULLS LAST LIMIT 1`.catch(() => [])) as any[];
+  if (kk?.bestaetigt_am || kk?.gemeldet_am || kk?.kanal === "gemeldet") karte = { stand: "konto_eroeffnet", am: tag(kk.bestaetigt_am ?? kk.gemeldet_am ?? kk.gesendet_am) };
+  else if (kk?.gesendet_am) karte = { stand: "link_gesendet", am: tag(kk.gesendet_am) };
+  const kontaktZeilen = (await lauf`
+    SELECT am, art, text FROM (
+      SELECT c.beginn AS am, 'anruf' AS art,
+             CONCAT(CASE WHEN c.richtung IN ('eingehend', 'rein') THEN 'Anruf von ihm' WHEN c.gefuehrt_von = 'aras' THEN 'Anruf von ARAS' ELSE 'Anruf vom Team' END,
+                    CASE WHEN c.ergebnis IS NOT NULL THEN ' — ' || c.ergebnis ELSE '' END) AS text
+        FROM fiaon_calls c WHERE c.person_id = ${e.personId} AND c.beginn > NOW() - INTERVAL '30 days'
+      UNION ALL
+      SELECT m.created_at, 'mail', CONCAT('Mail ', m.event) FROM fiaon_mail_log m
+       WHERE m.person_id = ${e.personId} AND m.created_at > NOW() - INTERVAL '30 days' AND COALESCE(m.status, '') IN ('versandt', 'gesendet')
+      UNION ALL
+      SELECT w.created_at, 'whatsapp', CASE WHEN w.richtung = 'rein' THEN 'WhatsApp von ihm' ELSE 'WhatsApp an ihn' END FROM fiaon_whatsapp w
+       WHERE w.person_id = ${e.personId} AND w.created_at > NOW() - INTERVAL '30 days'
+    ) k ORDER BY am DESC LIMIT 4`.catch(() => [])) as any[];
+  const ERGEBNIS_WORT: Record<string, string> = { nicht_erreicht: "nicht erreicht", mailbox: "Mailbox", erreicht_zahlt_am: "Zahlungszusage", erreicht_zahlt_gleich: "zahlt sofort",
+    erreicht_abgelehnt: "abgelehnt", erreicht_sonstiges: "erreicht", rueckruf_termin: "Rückruf vereinbart", rueckruf: "Rückruf gewünscht", abgebrochen: "abgebrochen" };
+  const kontakte = kontaktZeilen.map((k: any) => {
+    const t = String(k.text ?? "").replace(/ — ([a-z_]+)$/, (_m, w: string) => ` — ${ERGEBNIS_WORT[w] ?? w.replace(/_/g, " ")}`)
+      .replace(/^Mail ([a-z_]+)$/, (_m, ev: string) => `Mail (${ev === "abo_payment_reminder" || ev === "mara_rate_erinnerung" ? "Raten-Erinnerung" : ev === "payment_reminder" ? "Zahlungserinnerung" : ev.replace(/_/g, " ")})`);
+    return `${tag(k.am)?.slice(0, 6) ?? ""} ${t}`.trim();
+  });
+  const [wg] = (await lauf`SELECT notiz FROM fiaon_whatsapp_gespraech WHERE person_id = ${e.personId} AND notiz IS NOT NULL AND LENGTH(TRIM(notiz)) > 3 ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch(() => [])) as any[];
+  const maraNotiz = wg?.notiz ? notizSauber(wg.notiz).slice(0, 200) || null : null;
 
   const termine = (await lauf`
     SELECT t.beginn, ag.name, ag.first_name, ag.last_name, ag.anrede, COALESCE(ag.art, 'mensch') AS art
@@ -182,6 +233,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
     zusageAm: e.zusageAm ?? null,
     terminAm,
     auftrag, offenes, offenArten, arasNotiz,
+    unterschriebenAm, offeneRechnungen, kuendigung, karte, kontakte: kontakte.length ? kontakte : null, maraNotiz,
     probe: e.probe === true,
   };
 }

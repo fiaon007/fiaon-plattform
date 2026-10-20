@@ -81,10 +81,18 @@ export interface Briefing {
    */
   nummerEnde?: string | null;
   /**
-   * Was wir über seine Karte wissen (Go-live 20.10.): Karten-Link geschickt, Karte verschickt — oder keine Info. Nie mehr sagen,
-   * als hier steht.
+   * Was wir über seine Karte wissen (Go-live 20.10., aus fiaon_konto_karte): der Link zu Konto und Karte ist geschickt, sein Konto
+   * bei der Partnerbank ist eröffnet — oder keine Info. Nie mehr sagen, als hier steht.
    */
-  karte?: { stand: "link_gesendet" | "versendet" | "keine_info"; am?: string | null } | null;
+  karte?: { stand: "link_gesendet" | "konto_eroeffnet" | "keine_info"; am?: string | null } | null;
+  /** Einsicht (D, 20.10.): wann er den Antrag unterschrieben hat (Vertragsannahme). */
+  unterschriebenAm?: string | null;
+  /** Einsicht (D): ALLE offenen, fälligen Rechnungen (höchstens drei) — die erste ist offeneRate. */
+  offeneRechnungen?: { nr: number; betrag: string; faelligAm: string }[] | null;
+  /** Einsicht (D): die letzten Kontakte (höchstens vier, 30 Tage) in einem kurzen Satz je Kontakt — nie vorlesen. */
+  kontakte?: string[] | null;
+  /** Einsicht (D): die Notiz am WhatsApp-Gespräch (Mara/Team) — gekürzt. */
+  maraNotiz?: string | null;
   /**
    * Seine Kündigung, wie sie in der Akte steht (E-396): wann sie kam, Jahresvertrag (Kulanz nur nach Zahlung) oder Altvertrag
    * (wirkt zum Ende des Abrechnungsmonats), bis wann der Vertrag läuft, und der Betrag der offenen Rechnung (Kulanz).
@@ -782,10 +790,14 @@ function briefingText(b: Briefing, spielart: Spielart): string {
   if (!b.offeneRate && betrag && (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen")) z.push(`· Seine erste Zahlung: ${mitGesprochen(betrag)} — seine erste Monatsrate (die Aktivierung) für ${b.paketName ?? "sein Paket"}. Fragt er, wie viel offen ist, sag genau das — sofort, z. B. „${euroGesprochen(betrag) ?? betrag} — das ist Ihre erste Monatsrate für ${b.paketName ?? "Ihr Paket"}.“`);
   if (b.zahlungsseite && !b.offeneRate) z.push(`· Für seine erste Zahlung gibt es eine persönliche Zahlungsseite (der Hintergrund schickt den Link).`);
   if (b.nummerEnde) z.push(`· Seine Handynummer endet auf ${b.nummerEnde} — so sagst du, wohin der Link kommt (nie die ganze Nummer).`);
-  if (b.karte) z.push(`· Seine Karte: ${b.karte.stand === "versendet" ? `verschickt${b.karte.am ? ` am ${b.karte.am}` : ""}` : b.karte.stand === "link_gesendet" ? `der Link zur Karte ist ihm geschickt${b.karte.am ? ` (${b.karte.am})` : ""}` : "dazu haben wir noch keine Info"} — mehr sagst du dazu nicht zu.`);
+  if (b.unterschriebenAm) z.push(`· Antrag unterschrieben am ${b.unterschriebenAm}.`);
+  if (b.offeneRechnungen && b.offeneRechnungen.length > 1) z.push(`· Offen sind ${b.offeneRechnungen.length} Rechnungen: ${b.offeneRechnungen.map((r) => `Rate ${r.nr} über ${mitGesprochen(r.betrag)} (fällig am ${r.faelligAm})`).join("; ")} — nenn sie nur, wenn er fragt, was insgesamt offen ist.`);
+  if (b.karte) z.push(`· Seine Karte: ${b.karte.stand === "konto_eroeffnet" ? `sein Konto bei der Partnerbank ist eröffnet${b.karte.am ? ` (${b.karte.am})` : ""} — die Karte schickt die Bank` : b.karte.stand === "link_gesendet" ? `der Link zu Konto und Karte ist ihm geschickt${b.karte.am ? ` (${b.karte.am})` : ""}` : "dazu haben wir noch keine Info"} — mehr sagst du dazu nicht zu.`);
   if (b.kuendigung) z.push(`· Kündigung: am ${b.kuendigung.am} eingegangen — ${b.kuendigung.art === "jahresvertrag" ? `Jahresvertrag, läuft regulär bis ${b.kuendigung.endeAm ?? "zum Ende der Laufzeit"}; vorzeitig raus nur aus Kulanz nach Zahlung der offenen Rechnung${b.kuendigung.offenBetrag ? ` über ${mitGesprochen(b.kuendigung.offenBetrag)}` : ""}` : `Altvertrag, gilt${b.kuendigung.endeAm ? ` zum ${b.kuendigung.endeAm}` : " zum Ende seines Abrechnungsmonats"} (kein „Kulanz“)`}. Sprich sie nur an, wenn ER sie erwähnt.`);
   if (b.termine.length) z.push(`· Termine: ${b.termine.map((t) => `${t.am} bei ${t.bei}`).join("; ")}.`);
   if (b.notizen.length) z.push(`· Zuletzt vom Team notiert: ${b.notizen.map((n) => `„${n}“`).join(" · ")}`);
+  if (b.maraNotiz) z.push(`· Notiz zum WhatsApp-Gespräch: „${b.maraNotiz.slice(0, 200)}“`);
+  if (b.kontakte?.length) z.push(`· Letzte Kontakte (nur zum Wissen, nie vorlesen): ${b.kontakte.slice(0, 4).join(" · ")}.`);
   z.push(`· Betreuer: ${b.betreuer ? `${b.betreuer.nom} (mit/an: ${b.betreuer.dat})` : "noch niemand fest — sag „jemand aus unserem Team“"}.`);
   if (b.einwilligung) z.push(`· Er hat am ${b.einwilligung.am} ausdrücklich um diesen Anruf gebeten.`);
   if (b.zusageAm) z.push(`· Er wollte am ${b.zusageAm} überweisen; angekommen ist bisher nichts.`);
@@ -1111,11 +1123,15 @@ export function probeBriefing(e: { spielart: Spielart; anrede: "Herr" | "Frau" |
       // Go-live-Probe (Koordination 20.10.): Justin testet „Ich hab keine Karte bekommen“ und „Ich habe gekündigt“.
       b.karte = { stand: "keine_info" };
       b.kuendigung = { am: e.vorTagen(5), art: "jahresvertrag", endeAm: "zum Ende der zwölf Monate", offenBetrag: rate.betrag };
+      // Einsicht (D): wie ein echter Kunde — die Rechnung, die letzten Kontakte
+      b.offeneRechnungen = [{ nr: rate.nr, betrag: rate.betrag, faelligAm: rate.faelligAm }];
+      b.kontakte = [`${e.vorTagen(2).slice(0, 6)} Mail (Raten-Erinnerung)`, `${e.vorTagen(1).slice(0, 6)} Anruf vom Team — nicht erreicht`];
       break;
     case "willkommen":
       b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01";
       b.kartenZiel = { euro: 5000, art: "wunsch", paketName: b.paketName };
       b.karte = { stand: "keine_info" };
+      b.unterschriebenAm = e.vorTagen(0);
       break;
     case "zusage": b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null }; b.zusageAm = e.vorTagen(1); break;
     case "stufe_a": b.stufe = "zahlung_gemeldet"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; break;

@@ -1835,6 +1835,37 @@ async function main(): Promise<void> {
     }
   }
 
+  titel("25. EINSICHT IM BRIEFING (Go-live D): Unterschrift, alle offenen Rechnungen, Kündigung mit Vertragsart, Karte, letzte Kontakte, WhatsApp-Notiz");
+  {
+    const { briefingBauen } = await import("../server/lib/fiaon-aras-briefing");
+    const pE = await person(442); const rE = await antrag(pE, 442, { payment_status: "paid" });
+    // Jahresvertrag (AGB ab 03.09.2026), gekündigt, Vertrag bis 30.09.2027; zwei offene Rechnungen; Karten-Link geschickt
+    await sqlPool`UPDATE fiaon_applications SET agb_stand = DATE '2026-09-20', gekuendigt_am = NOW() - INTERVAL '4 days', vertrag_ende_am = DATE '2027-09-30', wanted_limit = 3000 WHERE ref = ${rE}`;
+    await sqlPool`INSERT INTO fiaon_vertragsannahmen (ref, person_id, weg, angenommen_am, paket, rate_cents, gesamt_cents, vertrag_fassung, leistung_fassung, agb_fassung, knopf_text, haken, sofort_beginn, vertrag_html, vertrag_sha256)
+                  VALUES (${rE}, ${pE}, 'neu', TIMESTAMPTZ '2026-09-22 10:00:00+02', 'plus', 5999, 71988, 'PV-test', 'L-test', 'AGB-test', 'Zahlungspflichtig annehmen', '{}'::jsonb, FALSE, '<p>Test</p>', 'test')`;
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rE}, 2, ${`${rE}-2`}, 5999, ${vor(25)}::date, 'offen'), (${rE}, 3, ${`${rE}-3`}, 5999, ${vor(3)}::date, 'offen')`;
+    await sqlPool`INSERT INTO fiaon_konto_karte (person_id, gesendet_am, kanal, status) VALUES (${pE}, NOW() - INTERVAL '10 days', 'mail', 'gesendet')`.catch(() => null);
+    await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ergebnis) VALUES (${pE}, ${ausweis}, '+4917000000442', 'raus', 'beendet', NOW() - INTERVAL '2 days', 'mensch', 'nicht_erreicht')`;
+    await sqlPool`INSERT INTO fiaon_mail_log (event, person_id, status, created_at) VALUES ('abo_payment_reminder', ${pE}, 'versandt', NOW() - INTERVAL '3 days')`;
+    await sqlPool`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, typ, text, status, created_at) VALUES ('rein', '+4917000000442', ${pE}, 'text', 'Wo bleibt meine Karte?', 'offen', NOW() - INTERVAL '1 day')`;
+    await sqlPool`INSERT INTO fiaon_whatsapp_gespraech (nummer, person_id, notiz) VALUES ('+4917000000442', ${pE}, 'Fragt nach der Karte, freundlich.') ON CONFLICT DO NOTHING`.catch(() => null);
+    const b = await briefingBauen({ personId: pE, nummer: "+4917000000442", spielart: "rate" });
+    ok("Unterschrieben am 22.09.2026 (Vertragsannahme)", b.unterschriebenAm === "22.09.2026", String(b.unterschriebenAm));
+    ok("ALLE offenen, fälligen Rechnungen (Rate 2 und 3, älteste zuerst)", b.offeneRechnungen?.length === 2 && b.offeneRechnungen[0].nr === 2 && b.offeneRechnungen[1].nr === 3 && /59,99/.test(b.offeneRechnungen[0].betrag), JSON.stringify(b.offeneRechnungen));
+    ok("Kündigung: Jahresvertrag (AGB ab 03.09.), läuft bis 30.09.2027, Kulanz-Betrag = Summe ALLER offenen Rechnungen (119,98 €)", b.kuendigung?.art === "jahresvertrag" && b.kuendigung.endeAm === "30.09.2027" && /119,98/.test(String(b.kuendigung.offenBetrag)), JSON.stringify(b.kuendigung));
+    ok("Karte: Link zu Konto und Karte geschickt (mit Datum)", b.karte?.stand === "link_gesendet" && !!b.karte.am, JSON.stringify(b.karte));
+    ok("Letzte Kontakte in Worten (neueste zuerst): WhatsApp von ihm · Anruf vom Team — nicht erreicht · Mail (Raten-Erinnerung)", (b.kontakte ?? []).length === 3 && /WhatsApp von ihm/.test(b.kontakte![0]) && /Anruf vom Team — nicht erreicht/.test(b.kontakte![1]) && /Mail \(Raten-Erinnerung\)/.test(b.kontakte![2]), JSON.stringify(b.kontakte));
+    ok("Notiz zum WhatsApp-Gespräch dabei", /Fragt nach der Karte/.test(String(b.maraNotiz ?? "")), String(b.maraNotiz));
+    // Altvertrag: gilt zum Ende des Abrechnungsmonats, kein Kulanz-Weg
+    await sqlPool`UPDATE fiaon_applications SET agb_stand = DATE '2026-08-20', vertrag_ende_am = DATE '2026-10-31' WHERE ref = ${rE}`;
+    const b2 = await briefingBauen({ personId: pE, nummer: "+4917000000442", spielart: "rate" });
+    ok("Altvertrag (AGB vor dem 03.09.): art altvertrag, Ende 31.10.2026", b2.kuendigung?.art === "altvertrag" && b2.kuendigung.endeAm === "31.10.2026", JSON.stringify(b2.kuendigung));
+    // Konto eröffnet gemeldet → „konto_eroeffnet“
+    await sqlPool`UPDATE fiaon_konto_karte SET bestaetigt_am = NOW() - INTERVAL '1 day' WHERE person_id = ${pE}`.catch(() => null);
+    const b3 = await briefingBauen({ personId: pE, nummer: "+4917000000442", spielart: "rate" });
+    ok("Konto bei der Partnerbank bestätigt → Karte „konto_eroeffnet“", b3.karte?.stand === "konto_eroeffnet", JSON.stringify(b3.karte));
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

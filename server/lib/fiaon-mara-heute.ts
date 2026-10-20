@@ -12,6 +12,8 @@
 //   (fiaon_mara_aktion) · Termine, Kartenlink, Ratenpause, Zahlungszusage, Kündigung, Angaben, Übergaben
 //   (fiaon_mara_protokoll) · Angaben per Mail (fiaon_mara_angaben, E-401) · Zahlung gefunden (fiaon_mara_zahlung_funde)
 //   · Nachfass-Mail (fiaon_nicht_erreicht_nachfass) · alte Entwürfe abgelegt (24-Stunden-Regel) · Karten für Justin.
+//   E-406 Welle 2 (Integration): dazu Raten-Mail (B1), beantwortete Anliegen (C1), Zusammenfassung nach dem Anruf (C2)
+//   und KYC-Erinnerung (B2) — je nur, was wirklich rausging.
 // Tabellen, die es noch nicht gibt (sie entstehen erst beim ersten Gebrauch), fallen einfach heraus.
 //
 // ── GELD, KARTEN, HÄNGT, KI ─────────────────────────────────────────────────
@@ -40,14 +42,22 @@ type Lauf = typeof sqlPool;
 export const HANDLUNG_TABELLEN = [
   "fiaon_postmeister", "fiaon_whatsapp", "fiaon_mara_protokoll", "fiaon_mara_aktion", "fiaon_mara_angaben",
   "fiaon_mara_zahlung_funde", "fiaon_nicht_erreicht_nachfass", "fiaon_mara_entscheidungen", "fiaon_termine",
+  // E-406 Welle 2 (Integration, 20.10.2026): B1 Raten-Mail, C2 Nacharbeit, B2 KYC — entstehen erst beim ersten Gebrauch.
+  "fiaon_mara_rate_erinnerung", "fiaon_mara_nacharbeit", "fiaon_mara_kyc",
 ] as const;
-export type TabellenDa = Record<(typeof HANDLUNG_TABELLEN)[number], boolean>;
+export type TabellenDa = Record<(typeof HANDLUNG_TABELLEN)[number], boolean> & {
+  /** C1: fiaon_tickets mit Maras Spalten (anliegenSchema) — die Tabelle selbst gibt es länger. */
+  fiaon_tickets_mara: boolean;
+};
 
 /** Welche Tabellen es gibt (to_regclass sperrt nichts). */
 export async function tabellenDa(lauf: Lauf = sqlPool): Promise<TabellenDa> {
-  const [z] = (await lauf.unsafe(`SELECT ${HANDLUNG_TABELLEN.map((n) => `to_regclass('public.${n}') IS NOT NULL AS ${n}`).join(", ")}`)) as any[];
+  const [z] = (await lauf.unsafe(`SELECT ${HANDLUNG_TABELLEN.map((n) => `to_regclass('public.${n}') IS NOT NULL AS ${n}`).join(", ")},
+    EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'fiaon_tickets'
+             AND column_name = 'beantwortet_durch') AS fiaon_tickets_mara`)) as any[];
   const aus = {} as TabellenDa;
   for (const n of HANDLUNG_TABELLEN) aus[n] = z?.[n] === true;
+  aus.fiaon_tickets_mara = z?.fiaon_tickets_mara === true;
   return aus;
 }
 
@@ -154,6 +164,40 @@ export function handlungenSql(da: TabellenDa, o: { mitText: boolean }): string {
              'mail'::text, 'Nach 2× nicht erreicht'::text, NULL::text, ${T("n.grund", 600)}, NULL::int
         FROM fiaon_nicht_erreicht_nachfass n
        WHERE n.status = 'versandt' AND n.bearbeitet_am >= $1 AND n.bearbeitet_am < $2`);
+  }
+  // ── E-406 Welle 2 (Integration, 20.10.2026): die Wege aus Welle 1 und 2 — was wirklich rausging ──
+  if (da.fiaon_mara_rate_erinnerung) {
+    // B1: Maras persönliche Mail zur frisch fälligen Rate (Merker „versandt“).
+    teile.push(`
+      SELECT NULL::text, 'rate_mail'::text, 'rate_erinnerung'::text, r.rate_id::text, r.person_id::int, r.versandt_am::timestamptz,
+             'mail'::text, ${T("'Rate ' || COALESCE(r.rate_nr::text, '?')", 40)}, NULL::text, ${T("r.grund", 300)}, NULL::int
+        FROM fiaon_mara_rate_erinnerung r
+       WHERE r.status = 'versandt' AND r.versandt_am >= $1 AND r.versandt_am < $2`);
+  }
+  if (da.fiaon_tickets_mara) {
+    // C1: ein Anliegen aus dem Kundenbereich, das Mara selbst beantwortet hat (ohne „mitbeantwortet“ — eine Antwort je Anliegen).
+    teile.push(`
+      SELECT NULL::text, 'anliegen_antwort'::text, 'anliegen'::text, t.id::text, t.person_id::int, t.beantwortet_am::timestamptz,
+             'anliegen'::text, ${T("t.betreff", 200)}, ${T("t.text", 1500)}, ${T("t.antwort", 2500)}, NULL::int
+        FROM fiaon_tickets t
+       WHERE t.beantwortet_durch = 'mara' AND COALESCE(t.mara_grund, '') NOT LIKE 'mitbeantwortet%'
+         AND t.beantwortet_am >= $1 AND t.beantwortet_am < $2`);
+  }
+  if (da.fiaon_mara_nacharbeit) {
+    // C2: Maras Zusammenfassung nach dem Anruf (Merker „versandt“).
+    teile.push(`
+      SELECT NULL::text, 'nacharbeit_mail'::text, 'nacharbeit'::text, n.id::text, n.person_id::int, n.erledigt_am::timestamptz,
+             'mail'::text, ${T("n.art", 40)}, NULL::text, ${T("n.text", 2500)}, NULL::int
+        FROM fiaon_mara_nacharbeit n
+       WHERE n.status = 'versandt' AND n.erledigt_am >= $1 AND n.erledigt_am < $2`);
+  }
+  if (da.fiaon_mara_kyc) {
+    // B2: Maras Erinnerung an fehlende KYC-Unterlagen (nur sicher gesendete — „unklar“ zählt beim Deckel, nicht hier).
+    teile.push(`
+      SELECT NULL::text, 'kyc_mail'::text, 'kyc'::text, k.id::text, k.person_id::int, k.am::timestamptz,
+             'mail'::text, NULL::text, NULL::text, ${T("array_to_string(k.arten, ', ')", 200)}, NULL::int
+        FROM fiaon_mara_kyc k
+       WHERE k.ergebnis = 'gesendet' AND k.am >= $1 AND k.am < $2`);
   }
   if (da.fiaon_mara_entscheidungen) {
     teile.push(`

@@ -156,6 +156,11 @@ async function main() {
       await sql`DELETE FROM fiaon_whatsapp WHERE person_id = ANY(${personen})`.catch(() => {});
       await sql`DELETE FROM fiaon_mara_stichprobe WHERE person_id = ANY(${personen})`.catch(() => {});
       await sql`DELETE FROM fiaon_mara_rueckgaengig WHERE person_id = ANY(${personen})`.catch(() => {});
+      // E-406 Welle 2 (Integration): die Zeilen der Wege aus Welle 1 und 2 (Abschnitt 6b).
+      await sql`DELETE FROM fiaon_mara_rate_erinnerung WHERE person_id = ANY(${personen})`.catch(() => {});
+      await sql`DELETE FROM fiaon_tickets WHERE person_id = ANY(${personen})`.catch(() => {});
+      await sql`DELETE FROM fiaon_mara_nacharbeit WHERE person_id = ANY(${personen})`.catch(() => {});
+      await sql`DELETE FROM fiaon_mara_kyc WHERE person_id = ANY(${personen})`.catch(() => {});
       await sql`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${personen})`.catch(() => {});
       await sql`DELETE FROM fiaon_person_aliases WHERE person_id = ANY(${personen})`.catch(() => {});
     }
@@ -634,6 +639,46 @@ async function main() {
       ok(mh.karten != null && mh.ki != null, "Karten und KI sind da");
       const mitGeld = await HE.maraHeuteLesen();
       ok(mitGeld.geld === null || typeof mitGeld.geld.heuteCents === "number", "mit Geld (Maras Bilanz, EINE Quelle): rechnet oder fehlt ehrlich", mitGeld.geld);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    console.log("── 6b · „Mara heute“ zählt auch die Wege aus Welle 1 und 2 (B1, C1, C2, B2) — nur, was wirklich rausging");
+    {
+      const [t] = (await sql.unsafe(`SELECT date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin' AS ab`)) as any[];
+      const ab = new Date(t.ab), bis = () => new Date(Date.now() + 60_000);
+      await (await import("../server/lib/fiaon-mara-rate-erinnerung")).merkerTabelle();
+      await (await import("../server/lib/fiaon-mara-anliegen")).anliegenSchema();
+      await (await import("../server/lib/fiaon-mara-nacharbeit")).nacharbeitTabelle();
+      await (await import("../server/lib/fiaon-mara-kyc")).kycTabelle();
+      const vorher = await HE.handlungenZaehlen(ab, bis());
+      const W = await kunde("V9");
+      const WT = await kunde("VT", { test: true });
+      const heuteTag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+      await sql`INSERT INTO fiaon_mara_rate_erinnerung (rate_id, person_id, ref, rate_nr, betrag_cents, faellig_am, status, versandt_am)
+                VALUES (99406001, ${W.pid}, ${W.ref}, 2, 5999, ${heuteTag}::date - 2, 'versandt', NOW() - INTERVAL '5 minutes'),
+                       (99406002, ${W.pid}, ${W.ref}, 3, 5999, ${heuteTag}::date - 1, 'vorgemerkt', NULL),
+                       (99406003, ${WT.pid}, ${WT.ref}, 2, 5999, ${heuteTag}::date - 2, 'versandt', NOW() - INTERVAL '5 minutes')`;
+      await sql`INSERT INTO fiaon_tickets (ref, person_id, betreff, text, status, antwort, beantwortet_am, beantwortet_durch, mara_grund)
+                VALUES (${W.ref}, ${W.pid}, 'Frage zur Rate', 'Wann ist meine Rate fällig?', 'beantwortet', 'Ihre Rate ist am 1. fällig.', NOW() - INTERVAL '4 minutes', 'mara', NULL),
+                       (${W.ref}, ${W.pid}, 'Noch eine', 'Und die nächste?', 'beantwortet', 'Siehe oben.', NOW() - INTERVAL '4 minutes', 'mara', 'mitbeantwortet mit #1'),
+                       (${W.ref}, ${W.pid}, 'Vom Team', 'Danke', 'beantwortet', 'Gern.', NOW() - INTERVAL '4 minutes', 'mensch', NULL)`;
+      await sql`INSERT INTO fiaon_mara_nacharbeit (person_id, ref, art, ergebnis, status, erledigt_am, text)
+                VALUES (${W.pid}, ${W.ref}, 'zahlung', 'erreicht_zahlt_am', 'versandt', NOW() - INTERVAL '3 minutes', 'Wie besprochen …'),
+                       (${W.pid}, ${W.ref}, 'rueckruf', 'rueckruf', 'ausgelassen', NOW() - INTERVAL '3 minutes', NULL)`;
+      await sql`INSERT INTO fiaon_mara_kyc (person_id, ergebnis, nummer, arten, am)
+                VALUES (${W.pid}, 'gesendet', 1, '{ausweis,kontoauszug}', NOW() - INTERVAL '2 minutes'),
+                       (${W.pid}, 'unklar', 2, '{ausweis}', NOW() - INTERVAL '2 minutes')`;
+      const nachher = await HE.handlungenZaehlen(ab, bis());
+      const d = (art: string) => (nachher[art] ?? 0) - (vorher[art] ?? 0);
+      ok(d("rate_mail") === 1, "B1: die versandte Raten-Mail zählt — vorgemerkt und Testperson nicht", d("rate_mail"));
+      ok(d("anliegen_antwort") === 1, "C1: das von Mara beantwortete Anliegen zählt einmal — „mitbeantwortet“ und Mensch nicht", d("anliegen_antwort"));
+      ok(d("nacharbeit_mail") === 1, "C2: die versandte Zusammenfassung zählt — ausgelassen nicht", d("nacharbeit_mail"));
+      ok(d("kyc_mail") === 1, "B2: die gesendete Unterlagen-Erinnerung zählt — „unklar“ nicht", d("kyc_mail"));
+      const mh = await HE.maraHeuteLesen({ ohneGeld: true });
+      ok(["rate_mail", "anliegen_antwort", "nacharbeit_mail", "kyc_mail"].every((a) => mh.zeilen.some((z) => z.art === a && z.n >= 1)), "„Mara heute“ zeigt je Weg einen Chip", mh.zeilen.map((z) => z.art));
+      const h = await HE.handlungenLesen(ab, bis(), { mitText: true });
+      const an = h.find((x) => x.art === "anliegen_antwort" && x.personId === W.pid);
+      ok(an?.kunde === "Wann ist meine Rate fällig?" && /am 1\. fällig/.test(String(an?.mara)), "mit Text: Anliegen und Maras Antwort", an);
     }
 
     // ═════════════════════════════════════════════════════════════════════

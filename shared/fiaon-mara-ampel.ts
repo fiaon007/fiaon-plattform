@@ -304,6 +304,9 @@ export function editZeileLesen(note: string): { feld: string; vorher: string; na
 export type HandlungArt =
   | "mail_beantwortet" | "wa_antwort" | "aktion_mail" | "termin" | "karte_link" | "ratenpause" | "zahlungszusage"
   | "kuendigung" | "werbesperre" | "angaben" | "zahlung_fund" | "nachfass_mail" | "nachfass_wa" | "entwurf_abgelegt"
+  // E-406 Welle 2 (Integration, 20.10.2026): auch die neuen Wege aus Welle 1 und 2 zählen in „Mara heute“ —
+  // B1 Raten-Mail, C1 Anliegen beantwortet, C2 Zusammenfassung nach dem Anruf, B2 KYC-Erinnerung.
+  | "rate_mail" | "anliegen_antwort" | "nacharbeit_mail" | "kyc_mail"
   | "karte_vorgelegt" | "uebergabe";
 
 export interface HandlungArtInfo {
@@ -331,6 +334,11 @@ export const HANDLUNG_ARTEN: Record<HandlungArt, HandlungArtInfo> = {
   nachfass_mail: { werkzeug: "nachfassen", eins: "Nachfass-Mail", viele: "Nachfass-Mails", link: "/chef/s/mara?reiter=termine", stichprobe: true },
   nachfass_wa: { werkzeug: "nachfassen", eins: "WhatsApp-Nachfassen", viele: "WhatsApp-Nachfassen", link: "/chef/s/mara?reiter=whatsapp", stichprobe: true },
   entwurf_abgelegt: { werkzeug: "mail_antworten", eins: "alter Entwurf abgelegt", viele: "alte Entwürfe abgelegt", link: "/chef/s/postmeister", stichprobe: true },
+  // E-406 Welle 2 (Integration): die Wege aus Welle 1 und 2 — ohne eigene Ampel (an/aus über ihre Schalter im Mara-Steuerpult).
+  rate_mail: { werkzeug: null, eins: "Raten-Mail (frisch fällig)", viele: "Raten-Mails (frisch fällig)", link: "/chef/s/mara?reiter=mail", stichprobe: false },
+  anliegen_antwort: { werkzeug: null, eins: "Anliegen beantwortet", viele: "Anliegen beantwortet", link: "/chef/s/mara?reiter=mail", stichprobe: false },
+  nacharbeit_mail: { werkzeug: null, eins: "Zusammenfassung nach dem Anruf", viele: "Zusammenfassungen nach dem Anruf", link: "/chef/s/mara?reiter=termine", stichprobe: false },
+  kyc_mail: { werkzeug: null, eins: "Unterlagen-Erinnerung", viele: "Unterlagen-Erinnerungen", link: "/chef/s/mara?reiter=auskunft", stichprobe: false },
   karte_vorgelegt: { werkzeug: null, eins: "Karte für dich", viele: "Karten für dich", link: "/chef/s/mara?reiter=entscheidungen", stichprobe: false },
   uebergabe: { werkzeug: null, eins: "Übergabe ans Team", viele: "Übergaben ans Team", link: "/chef/s/mara?reiter=whatsapp", stichprobe: false },
 };

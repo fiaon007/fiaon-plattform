@@ -273,9 +273,11 @@ async function main() {
   // ═════════════════════════════════════════════════════════════════════════
   console.log("\n12. Die Liste der Handlungen (SQL-Bau)");
   const heute = await import("../server/lib/fiaon-mara-heute");
-  const alle = Object.fromEntries(heute.HANDLUNG_TABELLEN.map((t) => [t, true])) as any;
+  // E-406 Welle 2 (Integration): dazu B1, C1 (fiaon_tickets mit Maras Spalten), C2, B2 — 15 Teile.
+  const alle = { ...Object.fromEntries(heute.HANDLUNG_TABELLEN.map((t) => [t, true])), fiaon_tickets_mara: true } as any;
   const sql = heute.handlungenSql(alle, { mitText: true });
-  ok((sql.match(/UNION ALL/g) ?? []).length === 10, "elf Teile, wenn alle Tabellen da sind", (sql.match(/UNION ALL/g) ?? []).length);
+  ok((sql.match(/UNION ALL/g) ?? []).length === 14, "fünfzehn Teile, wenn alle Tabellen da sind", (sql.match(/UNION ALL/g) ?? []).length);
+  ok(["'rate_mail'", "'anliegen_antwort'", "'nacharbeit_mail'", "'kyc_mail'"].every((a) => sql.includes(a)), "die Wege aus Welle 1 und 2 stehen in der Liste");
   ok(/w\.von LIKE 'Mara%' AND w\.von NOT LIKE '%\(Nachfass\)%'/.test(sql) && /w\.vorlage IS NULL/.test(sql), "WhatsApp: nur Maras eigene Antworten (keine Vorlagen der Strecken)");
   ok(/pm\.aktion = 'auto_beantwortet'/.test(sql), "Mails: nur, was Mara selbst gesendet hat");
   ok(/g\.kanal = 'mail'/.test(sql), "Angaben per WhatsApp nicht doppelt (stehen schon im Protokoll)");
@@ -309,7 +311,7 @@ async function main() {
   const gen = quelle("server/lib/fiaon-mara-genannter-termin.ts");
   ok(/ampelRot\("termin_eintragen"/.test(gen) && /terminRotKarteAnlegen/.test(gen), "Genannter Termin: bei Rot die Karte „Termin eintragen?“");
   ok(/import\("\.\/fiaon-mara-aufraeumen"\)/.test(quelle("server/lib/fiaon-mara-entscheidungen.ts")), "Aufräumen wird mit den Karten geladen");
-  ok(/kanal: "meldung"/.test(quelle("server/lib/fiaon-mara-aufraeumen.ts")) && /"mail" \| "whatsapp" \| "meldung"/.test(quelle("server/lib/fiaon-mara-zahlung-suchen.ts")), "Aufräumen: zahlung_suchen mit Kanal „Meldung“");
+  ok(/kanal: "meldung"/.test(quelle("server/lib/fiaon-mara-aufraeumen.ts")) && /"mail" \| "whatsapp" (?:\| "anliegen" )?\| "meldung"/.test(quelle("server/lib/fiaon-mara-zahlung-suchen.ts")), "Aufräumen: zahlung_suchen mit Kanal „Meldung“");
   const auf2 = quelle("server/lib/fiaon-mara-aufraeumen.ts");
   ok(!/bankeingangBuchen|ratenStornieren|erstattung|kuendigung_buchen|antragBuchen/.test(auf2.replace(/\/\/.*$/gm, "")), "Aufräumen ruft nie Buchen, Storno, Erstattung oder Kündigung");
   const routen = quelle("server/routes/fiaon-mara-heute.ts");

@@ -142,6 +142,9 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Akte oder Kundenkarte öffnen, Ergebnis wählen. Unter den Knöpfen steht „Mara schickt die Zusammenfassung · …“.",
       "Passt es nicht: Häkchen raus, dann speichern. Falsch geklickt? „Irrtümlich?“ am Eintrag, dasselbe Ergebnis ohne Häkchen oder ein anderes Ergebnis in den nächsten Minuten nimmt die wartende Mail zurück.",
       "Schreib die Notiz bei „Sonstiges“ so, dass der Kunde sie verstehen darf — Mara macht daraus zwei, drei freundliche Sätze.",
+    ],
+  },
+  {
     // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
     id: "2026-10-20-aras-probe",
     date: "2026-10-20",

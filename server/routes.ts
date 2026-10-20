@@ -1139,7 +1139,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    antworten „noch nicht verbunden“, bis Team 1 (E-408) den Kern anmeldet. Prüf-Mara alle 2 Minuten.
   app.use('/api/fiaon', (await import('./routes/fiaon-chef-ki')).default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('ki_pruefung', async () => await (await import('./lib/fiaon-ki-pruefung')).pruefungTakt(), 2 * 60 * 1000, { beimStartNach: 150_000 });
+    // E-409 Fund 16 (20.10.2026): eine Historienzeile nur, wenn geprüft wurde — sonst einmal je Stunde (vorher 720 am Tag).
+    tageslauf('ki_pruefung', async () => await (await import('./lib/fiaon-ki-pruefung')).pruefungTaktFuerHistorie(), 2 * 60 * 1000, { beimStartNach: 150_000, nurMitErgebnis: true });
   });
 
   // 🛠 Chefbüro-Werkzeuge: Wahrheits-Check, Maschinenraum, Freigabestapel,

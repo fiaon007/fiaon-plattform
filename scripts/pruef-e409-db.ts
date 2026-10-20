@@ -51,9 +51,12 @@ async function main() {
   await sql`INSERT INTO fiaon_settings (key, value) VALUES ('pruef_mara_quote', '{"telefon":100,"mail":100,"whatsapp":100}')`;
   let modellRufe = 0;
   P.pruefModellSetzen(async ({ text }) => { modellRufe++; return { urteil: { urteil: /Inkasso/.test(text) ? "fehler" : "ok", punkte: [], begruendung: "Attrappe" }, modell: "attrappe", kostenCents: 0.1 }; });
+  // E-409 Fund 16 (20.10.2026): höchstens 2 Modell-Fragen je Lauf — der dritte Fall wartet ungebucht auf den nächsten Lauf.
   const r1 = await P.pruefungTakt();
-  ok(r1.geprueft === 3 && r1.auffaellig === 1, `3 geprüft, 1 auffällig (${JSON.stringify(r1)})`);
-  ok(modellRufe === 3, `Attrappe dreimal gefragt (${modellRufe})`);
+  ok(r1.geprueft === 2 && r1.auffaellig === 1 && r1.wartet === 1 && r1.grund === "modell_takt", `Lauf 1: 2 geprüft, 1 auffällig, 1 wartet (${JSON.stringify(r1)})`);
+  ok(modellRufe === 2, `Attrappe zweimal gefragt (${modellRufe})`);
+  const r1b = await P.pruefungTakt();
+  ok(r1b.geprueft === 1 && modellRufe === 3, `Lauf 2 prüft den wartenden Fall (${JSON.stringify(r1b)})`);
   const z = (await sql`SELECT * FROM fiaon_ki_pruefung WHERE person_id = ${pid} ORDER BY id`) as any[];
   const zGut = z.find((x) => Number(x.bezug_id) === gutId && x.bezug_art === "postmeister"), zSchl = z.find((x) => Number(x.bezug_id) === schlechtId), zWa = z.find((x) => x.bezug_art === "whatsapp");
   ok(zGut?.urteil === "ok" && !zGut.karte_schluessel, "saubere Mail: ok, keine Karte");
@@ -85,7 +88,7 @@ async function main() {
   modellRufe = 0;
   const r3 = await P.pruefungTakt();
   const [z3] = (await sql`SELECT urteil, modell FROM fiaon_ki_pruefung WHERE bezug_id = ${id3} AND bezug_art = 'postmeister'`) as any[];
-  ok(r3.geprueft === 1 && modellRufe === 0 && z3?.modell === "deckel" && z3?.urteil === "fehler", `Deckel erreicht: Regeln ja, Modell nein (${z3?.modell}/${z3?.urteil})`);
+  ok(r3.geprueft === 1 && modellRufe === 0 && z3?.modell === "regeln" && z3?.urteil === "fehler", `Deckel erreicht: die harte Regel entscheidet ohne Modell — Spalte modell „regeln“ (${z3?.modell}/${z3?.urteil})`);
   await sql`UPDATE fiaon_settings SET value = '10' WHERE key = 'pruef_mara_tag_euro'`;
   await sql`INSERT INTO fiaon_settings (key, value) VALUES ('pruef_mara_an', 'aus')`;
   const r4 = await P.pruefungTakt();

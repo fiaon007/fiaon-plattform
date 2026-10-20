@@ -12,19 +12,26 @@ import { Kopf, KiRundgang, Fehler, Stand, Meldung, useMeldung, useTakt, senden, 
 
 const KANAL: Record<string, string> = { telefon: "Telefon", mail: "Mail", whatsapp: "WhatsApp" };
 const URTEIL: Record<string, { text: string; ton: string }> = { ok: { text: "ok", ton: "gut" }, auffaellig: { text: "auffällig", ton: "warn" }, fehler: { text: "Regelverstoß", ton: "krit" } };
+// E-409 Fund 16: warum Fälle warten (nie als „ok“ gebucht) — und was „regeln“ in der Spalte Modell heißt.
+const GRUND: Record<string, string> = {
+  ki_pause: "KI-Pause", deckel: "Tagesdeckel erreicht", modell_takt: "höchstens 2 Modell-Fragen je Lauf, 60 je Stunde",
+  modell_fehler: "das Modell gab keine Antwort", schalter_aus: "Prüf-Mara ist AUS", laeuft_schon: "ein Lauf läuft gerade",
+};
+type Lauf = { am: string; geprueft: number; auffaellig: number; wartet?: number; grund?: string };
+const laufSatz = (l: Lauf) => `${l.geprueft} geprüft, ${l.auffaellig} auffällig${l.wartet ? ` · ${l.wartet} warten${l.grund && GRUND[l.grund] ? ` (${GRUND[l.grund]})` : ""}` : l.grund && GRUND[l.grund] ? ` · ${GRUND[l.grund]}` : ""}`;
 
 export default function ChefKiQualitaet() {
   const [tage, setTage] = useState(7);
   const [kanal, setKanal] = useState<string>("");
   const [urteil, setUrteil] = useState<string>("");
   const pfad = `/chef/ki/qualitaet?tage=${tage}${kanal ? `&kanal=${kanal}` : ""}${urteil ? `&urteil=${urteil}` : ""}`;
-  const { daten, fehler, neu, geladenAm } = useTakt<{ ok: boolean; quote: Fehlerquote; liste: PruefZeile[]; stand: { heute: number; auffaellig: number; offenKarten: number; letzterLauf: { am: string; geprueft: number; auffaellig: number; grund?: string } | null } }>(pfad, 60_000);
+  const { daten, fehler, neu, geladenAm } = useTakt<{ ok: boolean; quote: Fehlerquote; liste: PruefZeile[]; stand: { heute: number; auffaellig: number; offenKarten: number; letzterLauf: Lauf | null } }>(pfad, 60_000);
   const [busy, setBusy] = useState<string | null>(null);
   const [offen, setOffen] = useState<number | null>(null);
   const meld = useMeldung();
   const jetzt = async () => {
     setBusy("jetzt");
-    try { const r = await senden<{ geprueft: number; auffaellig: number; grund?: string }>("/chef/ki/pruefung/jetzt"); meld.gut(r.grund === "schalter_aus" ? "Prüf-Mara ist ausgeschaltet (Einstellungen › Leitplanken)." : `${r.geprueft} geprüft, ${r.auffaellig} auffällig.`); neu(); }
+    try { const r = await senden<Lauf>("/chef/ki/pruefung/jetzt"); meld.gut(r.grund === "schalter_aus" ? "Prüf-Mara ist ausgeschaltet (Einstellungen › Leitplanken)." : `${laufSatz(r)}.`); neu(); }
     catch (e) { meld.fehler((e as Error).message); } finally { setBusy(null); }
   };
   const entscheiden = async (z: PruefZeile, was: "in_ordnung" | "anweisen" | "sperren") => {
@@ -53,7 +60,7 @@ export default function ChefKiQualitaet() {
           <div><span className={`ki-zahl${daten?.stand.offenKarten ? " ki-warn-t" : ""}`}>{zahl(daten?.stand.offenKarten)}</span><small>Karten offen</small></div>
         </div>
         <p className="ki-still ki-klein ki-abstand">
-          {daten?.stand.letzterLauf ? `Letzter Lauf ${tagZeit(daten.stand.letzterLauf.am)}: ${daten.stand.letzterLauf.geprueft} geprüft${daten.stand.letzterLauf.grund === "schalter_aus" ? " · Prüf-Mara ist AUS" : ""}.` : "Seit dem Start noch kein Lauf — alle 2 Minuten."}
+          {daten?.stand?.letzterLauf ? `Letzter Lauf ${tagZeit(daten.stand.letzterLauf.am)}: ${laufSatz(daten.stand.letzterLauf)}.` : "Seit dem Start noch kein Lauf — alle 2 Minuten."}
         </p>
         {q?.vorschlaege.length ? <ul className="ki-liste ki-abstand">{q.vorschlaege.map((v, i) => <li key={i} className="ki-zeile"><span><span className="ki-punkt gruen" aria-hidden="true" /> {v} <a href="/chef/s/ki-werkzeuge">Werkzeuge</a></span></li>)}</ul> : null}
         <Meldung m={meld.m} />
@@ -106,7 +113,7 @@ export default function ChefKiQualitaet() {
                       <div className="ki-zeile-satz">
                         {z.punkte.length ? <ul className="ki-liste">{z.punkte.map((p, i) => <li key={i}><span className={`ki-punkt ${p.schwere === "hart" ? "rot" : "gelb"}`} aria-hidden="true" /> <b className="ki-leise">{p.regel.replace(/_/g, " ")}</b>: {p.hinweis}{p.treffer ? <span className="ki-still"> — „{p.treffer}“</span> : null}</li>)}</ul> : <span>Keine Punkte.</span>}
                         {z.begruendung ? <p className="ki-still">{z.begruendung}</p> : null}
-                        <p className="ki-still ki-klein">Modell: {z.modell ?? "—"} · {(z.kostenCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
+                        <p className="ki-still ki-klein">Modell: {z.modell === "regeln" ? "keins — nur die festen Regeln" : z.modell ?? "—"} · {(z.kostenCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
                         {z.urteil !== "ok" && !z.entschieden ? (
                           <div className="ki-chips" style={{ marginTop: 6 }}>
                             <button type="button" className="ki-knopf klein" disabled={busy === `p${z.id}`} onClick={() => entscheiden(z, "in_ordnung")}>In Ordnung</button>

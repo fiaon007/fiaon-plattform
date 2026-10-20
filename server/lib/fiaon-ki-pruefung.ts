@@ -18,14 +18,28 @@
 //      entscheidungAnlegen (Schlüssel pruefung:<id>, Optionen in Ordnung ·
 //      anweisen · Person für Aras sperren). Ohne Aufnahme-Ja kein Ausschnitt.
 // Keine Mitarbeiter-Aufgabe, nie fiaon_betreiber_todos an Mitarbeiter.
+//
+// E-409 Nachbesserung (20.10.2026, Prüfer-Funde 7, 8, 10, 16):
+//   · Telefon: die Textregeln lesen nur Aras’ Zeilen; ohne Transkript (kein Aufnahme-Ja) gibt es keinen Wortlaut —
+//     dann zählen nur die Zeiten und Teams 1 Live-Befund (fiaon_aras_anruf.pruefung), und kein Modell liest eine
+//     Zusammenfassung. Das Modell bekommt das Transkript mit Sprecher-Marken und die Anweisung, nur ARAS zu bewerten.
+//   · Kein Kreisel: ein Anruf mit Prüfzeile kommt nie wieder in die Auswahl (NOT EXISTS); vor dem Modell wird die Zeile
+//     VORGEMERKT (wer sie nicht bekommt, fragt kein Modell); Status-Fehler stehen im Log; dieselbe Stelle nach drei
+//     Modell-Fehlern bis zum Neustart nicht mehr.
+//   · Kosten: höchstens 2 Modell-Fragen je Lauf und 60 je Stunde (Hausregel); in KI-Pause, über dem Deckel oder am
+//     Stundendeckel wird NICHTS als „ok“ gebucht — der Fall wartet (eine harte Regel entscheidet auch ohne Modell, dann
+//     steht „regeln“ in der Spalte modell). Die Spalte modell nennt ein Modell nur, wenn es wirklich geurteilt hat.
+//   · „gelb → grün“: je Prüfung die Werkzeuge, die dabei unter Gelb liefen (Protokoll ampel_gelb) — die Quote je
+//     Werkzeug ist die Grundlage des Vorschlags. Historie: eine Zeile nur bei Arbeit, sonst einmal je Stunde.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
   harteRegeln, urteilBilden, modellUrteilLesen, karteNoetig, KARTEN_JE_TAG, empfehlungFuer, inStichprobe, quotenLesen,
-  fehlerquoteRechnen, ausschnittFuerKarte, type ModellUrteil, type PruefKontext, type PruefKanal, type TranskriptZeile,
+  fehlerquoteRechnen, ausschnittFuerKarte, arasText, transkriptText, liveBefundPunkte, punkteZusammen,
+  type ModellUrteil, type PruefKontext, type PruefKanal, type TranskriptZeile,
 } from "@shared/fiaon-ki-pruefung-regeln";
 import type { PruefPunkt, PruefZeile, Fehlerquote } from "@shared/fiaon-ki-team";
-import { MARA_AMPEL, ampelStufeAus } from "@shared/fiaon-ki-team";
+import { MARA_AMPEL, ampelStufeAus, type AmpelWerkzeug } from "@shared/fiaon-ki-team";
 import { registerZahl, registerWert } from "./fiaon-ki-einstellungen";
 import { aras } from "./fiaon-ki-aras-anbindung";
 
@@ -33,6 +47,14 @@ type Lauf = any;
 export const DIENST = "pruef-mara";
 const JE_LAUF = 20;
 const RUECKBLICK_TAGE = 3;
+/** E-409 Fund 16: höchstens 2 Modell-Fragen je Lauf (Takt alle 2 Min. → höchstens 60 je Stunde) … */
+export const MODELL_JE_LAUF = 2;
+/** … und höchstens 60 je Stunde, gezählt in fiaon_ki_nutzung (auch „Jetzt prüfen“ zählt mit). Hausregel. */
+export const MODELL_JE_STUNDE = 60;
+/** Dieselbe Stelle nach so vielen Modell-Fehlern nicht mehr fragen (bis zum Neustart) — kein Kreisel mit Kosten. */
+const FEHLVERSUCHE_HOECHSTENS = 3;
+/** Die Vormerkung einer Prüfung, solange das Modell noch fragt (Spalte modell) — nach 10 Minuten verwaist und frei. */
+const VORMERKUNG = "laeuft";
 
 // ── Tabelle (Vertrag § 2.3 — auch Team 1s Migration 119 legt sie IF NOT EXISTS an) ──
 let bereit: Promise<void> | null = null;
@@ -56,12 +78,15 @@ export function pruefungTabellen(lauf: Lauf = sqlPool): Promise<void> {
       // E-409: der Schlüssel für die Fehlerquote (Werkzeug, Spielart, Postfach) und ein Riegel gegen Doppelprüfung.
       await lauf`ALTER TABLE fiaon_ki_pruefung ADD COLUMN IF NOT EXISTS schluessel TEXT`;
       await lauf`CREATE UNIQUE INDEX IF NOT EXISTS ki_pruef_bezug_uq ON fiaon_ki_pruefung (bezug_art, bezug_id)`;
+      // E-409 Fund 16: welche Werkzeuge in diesem Fall unter Gelb liefen — die Quote je Werkzeug für „gelb → grün“.
+      await lauf`ALTER TABLE fiaon_ki_pruefung ADD COLUMN IF NOT EXISTS werkzeuge TEXT[]`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
 }
 
 // ── Modell (mit Attrappe für den Prüfstand) ────────────────────────────────
+/** Das Modell: urteil null = keine verwertbare Antwort (dann zählt modell NICHT als Prüfer). */
 export type PruefModell = (ein: { text: string; kanal: PruefKanal; personId: number | null }) => Promise<{ urteil: ModellUrteil | null; modell: string; kostenCents: number }>;
 let modellErsatz: PruefModell | null = null;
 /** Prüfstand: das Modell durch eine Attrappe ersetzen (null = echtes Modell). */
@@ -76,12 +101,15 @@ const SYSTEM = [
   "Länge, Absätze und Satzzeichen beurteilst du nicht (das prüft der Code). Ein Telefon-Transkript ist gesprochene Sprache.",
   "Antworte NUR als JSON: {\"urteil\":\"ok\"|\"auffaellig\"|\"fehler\",\"punkte\":[{\"regel\":\"kurzer_schluessel\",\"schwere\":\"hart\"|\"weich\",\"treffer\":\"wörtliche Stelle\",\"hinweis\":\"ein Satz\"}],\"begruendung\":\"ein bis zwei Sätze\"}.",
   "„fehler“ nur bei einem klaren Regelverstoß, „auffaellig“ bei Ton- oder Wahrheitsproblemen, sonst „ok“ mit leerer Punkteliste. Erfinde nichts; wenn der Text in Ordnung ist, sag ok.",
+  // E-409 Funde 7 + 8: am Telefon zählt nur, was Aras sagt — und ein Transkript ab dem Aufnahme-Ja hat keinen Anfang.
+  "Am Telefon steht vor jeder Zeile, wer spricht (ARAS: oder KUNDE:). Bewerte NUR die ARAS-Zeilen. KUNDE-Zeilen sind Zusammenhang: Was der Kunde sagt (z. B. „sonst gehe ich zum Anwalt“), ist nie ein Fehler von Aras.",
+  "Beginnt das Transkript erst mitten im Gespräch (z. B. ab der Zustimmung zur Aufnahme), fehlen Begrüßung, KI-Hinweis und Identitätsfrage im Text — das ist dann kein Fehler.",
 ].join(" ");
 
 async function modellFragen(ein: { text: string; kanal: PruefKanal; personId: number | null }): Promise<{ urteil: ModellUrteil | null; modell: string; kostenCents: number }> {
   if (modellErsatz) return modellErsatz(ein);
   const { openaiFetch, kiLesenMoeglich } = await import("./fiaon-ki-pause");
-  if (!kiLesenMoeglich()) return { urteil: null, modell: "regeln", kostenCents: 0 };
+  if (!kiLesenMoeglich()) return { urteil: null, modell: "ki_pause", kostenCents: 0 };
   const { maraModell } = await import("./fiaon-ki-claude");
   const { nutzungMerken, kostenCentsAus } = await import("./fiaon-postmeister-schema");
   const modell = maraModell(ein.personId, process.env.PRUEF_MARA_MODELL || process.env.OPENAI_MODEL || "gpt-4.1-mini");
@@ -116,7 +144,18 @@ async function modellFragen(ein: { text: string; kanal: PruefKanal; personId: nu
 // ── Kandidaten ─────────────────────────────────────────────────────────────
 interface Kandidat {
   kanal: PruefKanal; bezugArt: "postmeister" | "mara_aktion" | "whatsapp" | "aras_anruf"; bezugId: number;
-  personId: number | null; text: string; schluessel: string | null;
+  personId: number | null;
+  /** Der Text für die Karte (Ausschnitt): Mail/WhatsApp wörtlich, Telefon mit Sprecher-Marken. */
+  text: string;
+  /** Was die Textregeln lesen (Telefon: nur Aras; ohne Transkript nichts). */
+  regelText: string;
+  /** Was das Modell liest — leer = kein Modell (zu kurz, Telefon ohne Transkript). */
+  modellText: string;
+  /** Teams 1 Live-Befund (Anruf ohne Aufnahme-Ja: nur Schlüssel + Schwere). */
+  live: PruefPunkt[];
+  /** Wann es geschah (für die Werkzeuge unter Gelb). */
+  am: Date | null;
+  schluessel: string | null;
   telefon?: PruefKontext["telefon"]; aufnahmeJa?: boolean;
 }
 
@@ -124,47 +163,36 @@ async function tabelleDa(name: string): Promise<boolean> {
   const [z] = (await sqlPool`SELECT to_regclass(${`public.${name}`}) AS r`.catch(() => [{ r: null }])) as any[];
   return !!z?.r;
 }
+const datum = (v: unknown): Date | null => { if (!v) return null; const d = new Date(v as string); return Number.isNaN(d.getTime()) ? null : d; };
 
 async function kandidaten(quote: { telefon: number; mail: number; whatsapp: number }): Promise<Kandidat[]> {
   const aus: Kandidat[] = [];
   const seit = new Date(Date.now() - RUECKBLICK_TAGE * 86_400_000);
-  // Postfach-Antworten
-  const post = (await sqlPool`
-    SELECT p.id, p.person_id, p.antwort, p.postfach FROM fiaon_postmeister p
-     WHERE p.gesendet_am IS NOT NULL AND p.gesendet_am > ${seit} AND COALESCE(p.antwort, '') <> ''
-       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'postmeister' AND k.bezug_id = p.id)
-     ORDER BY p.gesendet_am DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
-  for (const z of post) if (inStichprobe(Number(z.id), quote.mail)) aus.push({ kanal: "mail", bezugArt: "postmeister", bezugId: Number(z.id), personId: z.person_id ?? null, text: String(z.antwort), schluessel: `postfach:${String(z.postfach ?? "").split("@")[0] || "?"}` });
-  // Aktionsmails
-  const aktion = (await sqlPool`
-    SELECT a.id, a.person_id, a.text, a.stufe FROM fiaon_mara_aktion a
-     WHERE a.status = 'gesendet' AND a.gesendet_am > ${seit} AND COALESCE(a.text, '') <> ''
-       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'mara_aktion' AND k.bezug_id = a.id)
-     ORDER BY a.gesendet_am DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
-  for (const z of aktion) if (inStichprobe(Number(z.id), quote.mail)) aus.push({ kanal: "mail", bezugArt: "mara_aktion", bezugId: Number(z.id), personId: z.person_id ?? null, text: String(z.text), schluessel: `aktion:${z.stufe ?? "?"}` });
-  // WhatsApp raus (Mara)
-  const wa = (await sqlPool`
-    SELECT w.id, w.person_id, w.text, w.vorlage FROM fiaon_whatsapp w
-     WHERE w.richtung = 'raus' AND w.created_at > ${seit} AND COALESCE(w.text, '') <> '' AND COALESCE(w.status, '') <> 'fehler'
-       AND (w.von ILIKE 'mara%' OR w.auto_antwort = TRUE)
-       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'whatsapp' AND k.bezug_id = w.id)
-     ORDER BY w.id DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
-  for (const z of wa) if (inStichprobe(Number(z.id), quote.whatsapp)) aus.push({ kanal: "whatsapp", bezugArt: "whatsapp", bezugId: Number(z.id), personId: z.person_id ?? null, text: String(z.text), schluessel: z.vorlage ? `vorlage:${z.vorlage}` : "antwort" });
-  // Aras-Anrufe (Tabelle von Team 1 — bis dahin leer)
+  // Aras-Anrufe ZUERST (Telefon 100 %, Pflichten des Vertrags) — Tabelle von Team 1, bis dahin leer.
   if (quote.telefon > 0 && await tabelleDa("fiaon_aras_anruf")) {
+    // E-409 Fund 10: NOT EXISTS — ein Anruf mit Prüfzeile kommt nie wieder in die Auswahl, auch wenn sein Status hängt.
+    // Teams 1 Live-Befund über to_jsonb (die Spalte „pruefung“ legt Team 1 an; fehlt sie, kommt null statt eines Fehlers).
     const anrufe = (await sqlPool`
       SELECT a.id, a.spielart, a.transkript, a.angenommen_am, a.ki_hinweis_am, a.aufnahme_ja_am, a.aufnahme_nein_am, a.aufnahme_gestartet_am,
-             a.zusammenfassung, a.ende_grund, c.person_id,
+             a.zusammenfassung, a.ende_grund, a.created_at, c.person_id, to_jsonb(a) -> 'pruefung' AS live_befund,
              EXISTS (SELECT 1 FROM fiaon_mara_protokoll p WHERE p.kanal = 'telefon' AND p.art = 'aras_amd_widerspruch' AND (p.daten->>'callId')::int = a.call_id) AS amd_widerspruch
         FROM fiaon_aras_anruf a JOIN fiaon_calls c ON c.id = a.call_id
        WHERE a.pruefung_status = 'offen' AND (a.ende_grund IS NOT NULL OR a.ergebnis IS NOT NULL) AND a.updated_at < NOW() - INTERVAL '2 minutes'
-       ORDER BY a.id LIMIT ${JE_LAUF}`.catch(() => [])) as any[];
+         AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'aras_anruf' AND k.bezug_id = a.id)
+       ORDER BY a.id LIMIT ${JE_LAUF}`.catch((e) => { console.error("[PRUEF-MARA] Anrufe lesen:", String(e?.message ?? e).slice(0, 160)); return []; })) as any[];
     for (const z of anrufe) {
       const sek = (t: unknown) => (t && z.angenommen_am ? Math.max(0, (new Date(t as string).getTime() - new Date(z.angenommen_am).getTime()) / 1000) : null);
-      const zeilen: TranskriptZeile[] | null = Array.isArray(z.transkript) ? z.transkript.map((t: any) => ({ t: t?.t, wer: t?.wer === "kunde" ? "kunde" : "aras", text: String(t?.text ?? "") })) : null;
-      const text = zeilen ? zeilen.map((t) => `${t.wer === "kunde" ? "KUNDE" : "ARAS"}: ${t.text}`).join("\n") : String(z.zusammenfassung ?? "");
+      const zeilen: TranskriptZeile[] | null = Array.isArray(z.transkript) && z.transkript.length
+        ? z.transkript.map((t: any) => ({ t: t?.t, wer: t?.wer === "kunde" ? "kunde" : "aras", text: String(t?.text ?? "") }))
+        : null;
+      // E-409 Fund 7: Mit Transkript lesen die Regeln nur Aras’ Zeilen, das Modell das ganze Gespräch mit Sprecher-Marken.
+      // Ohne Transkript (kein Aufnahme-Ja) gibt es keinen Wortlaut — eine Zusammenfassung ist keiner: keine Textregeln,
+      // kein Modell; es zählen die Zeiten und Teams 1 Live-Befund.
+      const text = zeilen ? transkriptText(zeilen) : String(z.zusammenfassung ?? "");
       aus.push({
-        kanal: "telefon", bezugArt: "aras_anruf", bezugId: Number(z.id), personId: z.person_id ?? null, text, schluessel: `spielart:${z.spielart ?? "?"}`,
+        kanal: "telefon", bezugArt: "aras_anruf", bezugId: Number(z.id), personId: z.person_id ?? null, text,
+        regelText: zeilen ? arasText(text) : "", modellText: zeilen ? text : "", live: zeilen ? [] : liveBefundPunkte(z.live_befund),
+        am: datum(z.angenommen_am) ?? datum(z.created_at), schluessel: `spielart:${z.spielart ?? "?"}`,
         aufnahmeJa: !!z.aufnahme_ja_am,
         telefon: {
           kiHinweisSek: sek(z.ki_hinweis_am), aufnahmeJaSek: sek(z.aufnahme_ja_am), aufnahmeGestartetSek: sek(z.aufnahme_gestartet_am), aufnahmeNeinSek: sek(z.aufnahme_nein_am),
@@ -173,7 +201,50 @@ async function kandidaten(quote: { telefon: number; mail: number; whatsapp: numb
       });
     }
   }
+  const schrift = (kanal: PruefKanal, bezugArt: Kandidat["bezugArt"], z: any, text: string, am: unknown, schluessel: string): Kandidat =>
+    ({ kanal, bezugArt, bezugId: Number(z.id), personId: z.person_id ?? null, text, regelText: text, modellText: text, live: [], am: datum(am), schluessel });
+  // Postfach-Antworten
+  const post = (await sqlPool`
+    SELECT p.id, p.person_id, p.antwort, p.postfach, p.gesendet_am FROM fiaon_postmeister p
+     WHERE p.gesendet_am IS NOT NULL AND p.gesendet_am > ${seit} AND COALESCE(p.antwort, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'postmeister' AND k.bezug_id = p.id)
+     ORDER BY p.gesendet_am DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
+  for (const z of post) if (inStichprobe(Number(z.id), quote.mail)) aus.push(schrift("mail", "postmeister", z, String(z.antwort), z.gesendet_am, `postfach:${String(z.postfach ?? "").split("@")[0] || "?"}`));
+  // Aktionsmails
+  const aktion = (await sqlPool`
+    SELECT a.id, a.person_id, a.text, a.stufe, a.gesendet_am FROM fiaon_mara_aktion a
+     WHERE a.status = 'gesendet' AND a.gesendet_am > ${seit} AND COALESCE(a.text, '') <> ''
+       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'mara_aktion' AND k.bezug_id = a.id)
+     ORDER BY a.gesendet_am DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
+  for (const z of aktion) if (inStichprobe(Number(z.id), quote.mail)) aus.push(schrift("mail", "mara_aktion", z, String(z.text), z.gesendet_am, `aktion:${z.stufe ?? "?"}`));
+  // WhatsApp raus (Mara)
+  const wa = (await sqlPool`
+    SELECT w.id, w.person_id, w.text, w.vorlage, w.created_at FROM fiaon_whatsapp w
+     WHERE w.richtung = 'raus' AND w.created_at > ${seit} AND COALESCE(w.text, '') <> '' AND COALESCE(w.status, '') <> 'fehler'
+       AND (w.von ILIKE 'mara%' OR w.auto_antwort = TRUE)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_ki_pruefung k WHERE k.bezug_art = 'whatsapp' AND k.bezug_id = w.id)
+     ORDER BY w.id DESC LIMIT ${JE_LAUF * 3}`.catch(() => [])) as any[];
+  for (const z of wa) if (inStichprobe(Number(z.id), quote.whatsapp)) aus.push(schrift("whatsapp", "whatsapp", z, String(z.text), z.created_at, z.vorlage ? `vorlage:${z.vorlage}` : "antwort"));
   return aus.slice(0, JE_LAUF);
+}
+
+/** Welche Werkzeuge bei diesem Fall unter Gelb liefen (Protokoll ampel_gelb derselben Person, kurz davor). */
+const GELB_KANAL: Record<PruefKanal, string[]> = { mail: ["mail", "anliegen"], whatsapp: ["whatsapp"], telefon: ["telefon"] };
+async function gelbeWerkzeugeUm(k: Kandidat): Promise<string[]> {
+  if (!k.personId || !k.am) return [];
+  const von = new Date(k.am.getTime() - 30 * 60_000);
+  const bis = new Date(k.am.getTime() + (k.kanal === "telefon" ? 20 : 2) * 60_000);
+  const z = (await sqlPool`
+    SELECT DISTINCT daten->>'werkzeug' AS w FROM fiaon_mara_protokoll
+     WHERE art = 'ampel_gelb' AND person_id = ${k.personId} AND kanal = ANY(${GELB_KANAL[k.kanal]}) AND am BETWEEN ${von} AND ${bis}
+       AND COALESCE(daten->>'werkzeug', '') <> ''`) as any[];
+  return z.map((r) => String(r.w)).filter(Boolean).slice(0, 12);
+}
+
+/** Modell-Fragen der letzten Stunde (fiaon_ki_nutzung, Dienst pruef-mara). Lesefehler = Deckel voll (lieber warten). */
+async function modellFragenLetzteStunde(): Promise<number> {
+  const [z] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_ki_nutzung WHERE dienst = ${DIENST} AND created_at > NOW() - INTERVAL '1 hour'`.catch(() => [{ n: MODELL_JE_STUNDE }])) as any[];
+  return Number(z?.n ?? MODELL_JE_STUNDE);
 }
 
 // ── Karte ──────────────────────────────────────────────────────────────────
@@ -275,60 +346,157 @@ async function kartenHeute(): Promise<number> {
 }
 
 // ── Der Takt ───────────────────────────────────────────────────────────────
-let letzterLauf: { am: string; geprueft: number; auffaellig: number; uebersprungen: number; grund?: string } | null = null;
+export interface TaktErgebnis {
+  geprueft: number; auffaellig: number; uebersprungen: number;
+  /** Fälle, die auf das Modell warten (KI-Pause, Deckel, Stundendeckel, Modell-Fehler) — NICHT als „ok“ gebucht. */
+  wartet: number;
+  grund?: string;
+}
+let letzterLauf: ({ am: string } & TaktErgebnis) | null = null;
 export function pruefungLetzterLauf() { return letzterLauf; }
+const fehlversuche = new Map<string, number>();
+let taktLaeuft = false;
 
-export async function pruefungTakt(): Promise<{ geprueft: number; auffaellig: number; uebersprungen: number; grund?: string }> {
+/** Nur für Prüfstände: die Merker des Prozesses vergessen. */
+export function pruefungZwischenspeicherLeeren(): void { fehlversuche.clear(); letzterLauf = null; letzteHistorie = 0; }
+
+export async function pruefungTakt(): Promise<TaktErgebnis> {
+  // „Jetzt prüfen“ und der Takt laufen nie gleichzeitig im selben Prozess.
+  if (taktLaeuft) return { geprueft: 0, auffaellig: 0, uebersprungen: 0, wartet: 0, grund: "laeuft_schon" };
+  taktLaeuft = true;
+  try { return await taktKern(); } finally { taktLaeuft = false; }
+}
+
+/** Den Anruf-Status nachziehen — Fehler stehen im Log (E-409 Fund 10: vorher still verschluckt). */
+async function anrufStatus(id: number, urteil: string): Promise<void> {
+  await sqlPool`UPDATE fiaon_aras_anruf SET pruefung_status = ${urteil}, updated_at = NOW() WHERE id = ${id}`
+    .catch((e) => console.error(`[PRUEF-MARA] Status Anruf #${id}:`, String(e?.message ?? e).slice(0, 160)));
+}
+
+async function taktKern(): Promise<TaktErgebnis> {
   await pruefungTabellen();
+  // Live-Nachjustierung (20.10.2026): alte Karten der ersten Läufe einmal neu bewerten (siehe altKartenNeuBewerten).
   await altKartenNeuBewerten().catch((e) => console.error("[PRUEF-MARA] Neubewertung:", String((e as Error)?.message ?? e).slice(0, 160)));
-  const erg = { geprueft: 0, auffaellig: 0, uebersprungen: 0 } as { geprueft: number; auffaellig: number; uebersprungen: number; grund?: string };
-  if ((await registerWert("pruef_mara_an")) !== "an") { erg.grund = "schalter_aus"; letzterLauf = { am: new Date().toISOString(), ...erg }; return erg; }
+  const erg: TaktErgebnis = { geprueft: 0, auffaellig: 0, uebersprungen: 0, wartet: 0 };
+  const fertig = () => { letzterLauf = { am: new Date().toISOString(), ...erg }; return erg; };
+  if ((await registerWert("pruef_mara_an")) !== "an") { erg.grund = "schalter_aus"; return fertig(); }
+  // Eine Vormerkung, die ein abgebrochener Lauf hinterließ, gibt ihren Fall nach 10 Minuten wieder frei.
+  await sqlPool`DELETE FROM fiaon_ki_pruefung WHERE modell = ${VORMERKUNG} AND created_at < NOW() - INTERVAL '10 minutes'`
+    .catch((e) => console.error("[PRUEF-MARA] Vormerkungen:", String(e?.message ?? e).slice(0, 160)));
+  // Ein Anruf mit Prüfzeile, dessen Status „offen“ hängen blieb: nachziehen — ohne Modell (vorher fragte jeder Lauf neu).
+  if (await tabelleDa("fiaon_aras_anruf")) {
+    await sqlPool`
+      UPDATE fiaon_aras_anruf a SET pruefung_status = k.urteil, updated_at = NOW() FROM fiaon_ki_pruefung k
+       WHERE a.pruefung_status = 'offen' AND k.bezug_art = 'aras_anruf' AND k.bezug_id = a.id AND k.modell IS DISTINCT FROM ${VORMERKUNG}`
+      .catch((e) => console.error("[PRUEF-MARA] Anruf-Status nachziehen:", String(e?.message ?? e).slice(0, 160)));
+  }
   const quote = quotenLesen(await registerWert("pruef_mara_quote"));
   const deckel = await registerZahl("pruef_mara_tag_euro");
   const { kostenHeute } = await import("./fiaon-postmeister-schema");
-  let heuteEuro = await kostenHeute(DIENST).catch(() => 0);
+  let heuteEuro = await kostenHeute(DIENST).catch(() => Number.POSITIVE_INFINITY);
+  const kiDa = modellErsatz ? true : (await import("./fiaon-ki-pause")).kiLesenMoeglich();
+  let stunde = await modellFragenLetzteStunde();
+  let imLauf = 0;
   const liste = await kandidaten(quote);
   let mitarbeiter: any[] = [];
   try { mitarbeiter = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe(); } catch { /* ohne Liste prüft die Wand wie vor E-265 */ }
   for (const k of liste) {
+    const fallId = `${k.bezugArt}:${k.bezugId}`;
+    if ((fehlversuche.get(fallId) ?? 0) >= FEHLVERSUCHE_HOECHSTENS) { erg.wartet++; continue; }
+    let vorgemerkt: number | null = null;
     try {
       let kundeNamen: (string | null)[] = [];
       if (k.personId) {
         const [p] = (await sqlPool`SELECT first_name, last_name FROM fiaon_persons WHERE id = ${k.personId}`.catch(() => [])) as any[];
         kundeNamen = [p?.first_name ?? null, p?.last_name ?? null];
       }
-      const harte = harteRegeln(k.text, { kanal: k.kanal, mitarbeiter, kundeNamen, telefon: k.telefon ?? null });
-      // Modell: am Telefon immer (Quote 100), sonst nach Stichprobe — und nur unter dem Deckel.
+      const harte = punkteZusammen(harteRegeln(k.regelText, { kanal: k.kanal, mitarbeiter, kundeNamen, telefon: k.telefon ?? null }), k.live);
+      const hart = harte.some((p) => p.schwere === "hart");
+      // Braucht der Fall ein Modell? Nicht bei kurzen Texten und nicht am Telefon ohne Wortlaut (dann urteilen die Regeln).
+      const braucht = k.modellText.trim().length >= 20;
+      let warum: "ki_pause" | "deckel" | "modell_takt" | null = null;
+      if (braucht) {
+        if (!kiDa) warum = "ki_pause";
+        else if (heuteEuro >= deckel) warum = "deckel";
+        else if (imLauf >= MODELL_JE_LAUF || stunde >= MODELL_JE_STUNDE) warum = "modell_takt";
+      }
+      // E-409 Fund 16: ohne Modell NIE „ok“ — der Fall wartet; nur eine harte Regel entscheidet auch ohne Modell.
+      if (warum && !hart) { erg.wartet++; erg.grund = erg.grund ?? warum; continue; }
+      const werkzeuge = await gelbeWerkzeugeUm(k).catch(() => [] as string[]);
+      // E-409 Fund 10: VORMERKEN, bevor das Modell fragt — wer die Zeile nicht bekommt, fragt nicht (kein Fall doppelt bezahlt).
+      const vor = urteilBilden(harte, null);
+      const [z] = (await sqlPool`
+        INSERT INTO fiaon_ki_pruefung (kanal, bezug_art, bezug_id, person_id, urteil, punkte, begruendung, modell, kosten_cents, schluessel, werkzeuge)
+        VALUES (${k.kanal}, ${k.bezugArt}, ${k.bezugId}, ${k.personId ?? null}, ${vor.urteil}, ${JSON.stringify(vor.punkte)}::text::jsonb,
+                NULL, ${VORMERKUNG}, 0, ${k.schluessel}, ${werkzeuge})
+        ON CONFLICT (bezug_art, bezug_id) DO NOTHING RETURNING id`) as any[];
+      if (!z) {
+        erg.uebersprungen++;
+        // Schon geprüft (ein zweiter Lauf war schneller): den Anruf-Status nachziehen, damit er nicht „offen“ hängt.
+        if (k.bezugArt === "aras_anruf") {
+          await sqlPool`UPDATE fiaon_aras_anruf a SET pruefung_status = k.urteil, updated_at = NOW() FROM fiaon_ki_pruefung k
+                         WHERE a.id = ${k.bezugId} AND a.pruefung_status = 'offen' AND k.bezug_art = 'aras_anruf' AND k.bezug_id = a.id AND k.modell IS DISTINCT FROM ${VORMERKUNG}`
+            .catch((e) => console.error(`[PRUEF-MARA] Status Anruf #${k.bezugId}:`, String(e?.message ?? e).slice(0, 160)));
+        }
+        continue;
+      }
+      vorgemerkt = Number(z.id);
       let modell: { urteil: ModellUrteil | null; modell: string; kostenCents: number } = { urteil: null, modell: "regeln", kostenCents: 0 };
-      if (k.text.trim().length >= 20) {
-        if (heuteEuro < deckel) { modell = await modellFragen({ text: k.text, kanal: k.kanal, personId: k.personId }); heuteEuro += modell.kostenCents / 100; }
-        else modell = { urteil: null, modell: "deckel", kostenCents: 0 };
+      if (braucht && !warum) {
+        imLauf++; stunde++;
+        modell = await modellFragen({ text: k.modellText, kanal: k.kanal, personId: k.personId });
+        heuteEuro += modell.kostenCents / 100;
+        if (!modell.urteil) {
+          fehlversuche.set(fallId, (fehlversuche.get(fallId) ?? 0) + 1);
+          if (!hart) {
+            // Keine verwertbare Antwort und keine harte Regel: NICHT „ok“ — die Vormerkung fällt weg, der nächste Lauf fragt neu.
+            await sqlPool`DELETE FROM fiaon_ki_pruefung WHERE id = ${vorgemerkt} AND modell = ${VORMERKUNG}`;
+            vorgemerkt = null;
+            erg.wartet++; erg.grund = erg.grund ?? "modell_fehler";
+            continue;
+          }
+        }
       }
       const u = urteilBilden(harte, modell.urteil);
-      const [z] = (await sqlPool`
-        INSERT INTO fiaon_ki_pruefung (kanal, bezug_art, bezug_id, person_id, urteil, punkte, begruendung, modell, kosten_cents, schluessel)
-        VALUES (${k.kanal}, ${k.bezugArt}, ${k.bezugId}, ${k.personId ?? null}, ${u.urteil}, ${JSON.stringify(u.punkte)}::text::jsonb,
-                ${modell.urteil?.begruendung ?? null}, ${modell.modell}, ${modell.kostenCents}, ${k.schluessel})
-        ON CONFLICT (bezug_art, bezug_id) DO NOTHING RETURNING id`) as any[];
-      if (!z) { erg.uebersprungen++; continue; }
+      // Die Spalte modell nennt ein Modell nur, wenn es wirklich geurteilt hat — sonst „regeln“ (Wortwand & Co. allein).
+      await sqlPool`
+        UPDATE fiaon_ki_pruefung SET urteil = ${u.urteil}, punkte = ${JSON.stringify(u.punkte)}::text::jsonb, begruendung = ${modell.urteil?.begruendung ?? null},
+               modell = ${modell.urteil ? modell.modell : "regeln"}, kosten_cents = ${modell.kostenCents}
+         WHERE id = ${vorgemerkt}`;
+      const id = vorgemerkt;
+      vorgemerkt = null;
       erg.geprueft++;
-      let karte: string | null = null;
+      fehlversuche.delete(fallId);
+      // Live-Nachjustierung (20.10.2026): „auffällig“ zählt still in der Statistik; eine Karte nur bei einem Regelverstoß
+      // und höchstens KARTEN_JE_TAG am Tag.
       if (u.urteil !== "ok") erg.auffaellig++;
       if (karteNoetig(u.urteil) && (await kartenHeute()) < KARTEN_JE_TAG) {
-        karte = await karteAnlegen(Number(z.id), k, u.urteil as "auffaellig" | "fehler", u.punkte, modell.urteil?.begruendung ?? "", mitarbeiter).catch((e) => { console.error("[PRUEF-MARA] Karte:", String(e?.message ?? e).slice(0, 160)); return null; });
-        if (karte) await sqlPool`UPDATE fiaon_ki_pruefung SET karte_schluessel = ${karte} WHERE id = ${Number(z.id)}`;
+        const karte = await karteAnlegen(id, k, u.urteil as "auffaellig" | "fehler", u.punkte, modell.urteil?.begruendung ?? "", mitarbeiter).catch((e) => { console.error("[PRUEF-MARA] Karte:", String(e?.message ?? e).slice(0, 160)); return null; });
+        if (karte) await sqlPool`UPDATE fiaon_ki_pruefung SET karte_schluessel = ${karte} WHERE id = ${id}`;
       }
-      if (k.bezugArt === "aras_anruf") {
-        await sqlPool`UPDATE fiaon_aras_anruf SET pruefung_status = ${u.urteil === "ok" ? "ok" : u.urteil}, updated_at = NOW() WHERE id = ${k.bezugId}`.catch(() => {});
-      }
+      if (k.bezugArt === "aras_anruf") await anrufStatus(k.bezugId, u.urteil);
     } catch (e) {
-      console.error(`[PRUEF-MARA] ${k.bezugArt} #${k.bezugId}:`, String((e as Error)?.message ?? e).slice(0, 200));
-      if (k.bezugArt === "aras_anruf") await sqlPool`UPDATE fiaon_aras_anruf SET pruefung_status = 'fehler', updated_at = NOW() WHERE id = ${k.bezugId}`.catch(() => {});
+      console.error(`[PRUEF-MARA] ${fallId}:`, String((e as Error)?.message ?? e).slice(0, 200));
+      fehlversuche.set(fallId, (fehlversuche.get(fallId) ?? 0) + 1);
+      // Eine halbe Prüfung bleibt nicht als Vormerkung liegen; der Anruf bleibt „offen“ (ein technischer Fehler ist kein Regelverstoß).
+      if (vorgemerkt != null) await sqlPool`DELETE FROM fiaon_ki_pruefung WHERE id = ${vorgemerkt} AND modell = ${VORMERKUNG}`.catch(() => {});
     }
   }
-  letzterLauf = { am: new Date().toISOString(), ...erg };
-  if (erg.geprueft) console.log(`[PRUEF-MARA] ${erg.geprueft} geprüft, ${erg.auffaellig} auffällig, Kosten heute ${heuteEuro.toFixed(2)} € (Deckel ${deckel} €).`);
+  fertig();
+  if (erg.geprueft || erg.wartet) console.log(`[PRUEF-MARA] ${erg.geprueft} geprüft, ${erg.auffaellig} auffällig, ${erg.wartet} warten${erg.grund ? ` (${erg.grund})` : ""} · Kosten heute ${Number.isFinite(heuteEuro) ? heuteEuro.toFixed(2) : "?"} € (Deckel ${deckel} €), Modell ${stunde}/${MODELL_JE_STUNDE} in der Stunde.`);
   return erg;
+}
+
+let letzteHistorie = 0;
+/**
+ * Für den Takt (tageslauf mit nurMitErgebnis, E-409 Fund 16): eine Zeile in fiaon_lauf_historie, wenn geprüft wurde —
+ * sonst höchstens einmal je Stunde als Lebenszeichen (die Lauf-Ampel bleibt ehrlich, statt 720 Zeilen am Tag).
+ */
+export async function pruefungTaktFuerHistorie(): Promise<boolean> {
+  const e = await pruefungTakt();
+  const jetzt = Date.now();
+  if (e.geprueft > 0 || jetzt - letzteHistorie >= 3_600_000) { letzteHistorie = jetzt; return true; }
+  return false;
 }
 
 // ── Lesen ──────────────────────────────────────────────────────────────────
@@ -349,7 +517,7 @@ export async function pruefungen(f: { kanal?: string; urteil?: string; tage?: nu
   const urteil = ["ok", "auffaellig", "fehler"].includes(String(f.urteil)) ? String(f.urteil) : null;
   const zeilen = (await sqlPool`
     SELECT k.*, p.last_name FROM fiaon_ki_pruefung k LEFT JOIN fiaon_persons p ON p.id = k.person_id
-     WHERE k.created_at > NOW() - (${tage} || ' days')::interval
+     WHERE k.created_at > NOW() - (${tage} || ' days')::interval AND k.modell IS DISTINCT FROM ${VORMERKUNG}
        AND (${kanal}::text IS NULL OR k.kanal = ${kanal}) AND (${urteil}::text IS NULL OR k.urteil = ${urteil})
      ORDER BY k.id DESC LIMIT 60 OFFSET ${seite * 60}`) as any[];
   return zeilen.map((z) => zeile(z, f.nameZeigen !== false));
@@ -361,11 +529,23 @@ export async function fehlerquote(tage: number): Promise<Fehlerquote> {
   const zeilen = (await sqlPool`
     SELECT kanal, schluessel, COUNT(*)::int AS n,
            COUNT(*) FILTER (WHERE urteil <> 'ok' AND COALESCE(entschieden, '') <> 'in_ordnung')::int AS auffaellig
-      FROM fiaon_ki_pruefung WHERE created_at > NOW() - (${t} || ' days')::interval
+      FROM fiaon_ki_pruefung WHERE created_at > NOW() - (${t} || ' days')::interval AND modell IS DISTINCT FROM ${VORMERKUNG}
      GROUP BY kanal, schluessel`) as any[];
-  const stand = await (await import("./fiaon-ki-ampel")).ampelStand("mara").catch(() => ({ stufen: {}, verlauf: [] }));
-  const gelb = MARA_AMPEL.filter((w) => !w.fest && ampelStufeAus(MARA_AMPEL, stand, w.key) === "gelb").map((w) => w.key);
-  const r = fehlerquoteRechnen(zeilen, { tage: t, gelb });
+  // E-409 Fund 16: die Quote je Werkzeug, das in den geprüften Fällen unter Gelb lief — die Grundlage für „gelb → grün“.
+  const werkzeuge = (await sqlPool`
+    SELECT w AS schluessel, COUNT(*)::int AS n,
+           COUNT(*) FILTER (WHERE urteil <> 'ok' AND COALESCE(entschieden, '') <> 'in_ordnung')::int AS auffaellig
+      FROM fiaon_ki_pruefung, unnest(COALESCE(werkzeuge, ARRAY[]::text[])) AS w
+     WHERE created_at > NOW() - (${t} || ' days')::interval AND modell IS DISTINCT FROM ${VORMERKUNG}
+     GROUP BY w`.catch(() => [])) as any[];
+  const A = await import("./fiaon-ki-ampel");
+  const gelbVon = async (wer: "mara" | "aras", liste: readonly AmpelWerkzeug[]) => {
+    if (!liste.length) return [] as string[];
+    const stand = await A.ampelStand(wer).catch(() => ({ stufen: {}, verlauf: [] }));
+    return liste.filter((w) => !w.fest && ampelStufeAus(liste, stand, w.key) === "gelb").map((w) => w.key);
+  };
+  const gelb = Array.from(new Set([...(await gelbVon("mara", MARA_AMPEL)), ...(await gelbVon("aras", A.ampelListe("aras")))]));
+  const r = fehlerquoteRechnen(zeilen, { tage: t, gelb, werkzeuge });
   return { tage: t, ...r };
 }
 
@@ -375,7 +555,7 @@ export async function pruefungStand(): Promise<{ heute: number; auffaellig: numb
     SELECT COUNT(*) FILTER (WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute,
            COUNT(*) FILTER (WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date AND urteil <> 'ok')::int AS auffaellig,
            COUNT(*) FILTER (WHERE karte_schluessel IS NOT NULL AND entschieden IS NULL)::int AS offen
-      FROM fiaon_ki_pruefung WHERE created_at > NOW() - INTERVAL '30 days'`.catch(() => [{ heute: 0, auffaellig: 0, offen: 0 }])) as any[];
+      FROM fiaon_ki_pruefung WHERE created_at > NOW() - INTERVAL '30 days' AND modell IS DISTINCT FROM ${VORMERKUNG}`.catch(() => [{ heute: 0, auffaellig: 0, offen: 0 }])) as any[];
   return { heute: Number(z?.heute ?? 0), auffaellig: Number(z?.auffaellig ?? 0), offenKarten: Number(z?.offen ?? 0), letzterLauf };
 }
 

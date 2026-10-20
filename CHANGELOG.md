@@ -41,6 +41,13 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   Funktionen (laufende Gespräche enden mit dem Abschiedssatz); aras_an bleibt unberührt, „Wieder an“ startet Aras nur, wenn er vorher
   lief. Die Ampel in KI-Team › Werkzeuge schreibt aras_ampel — derselbe Schlüssel, den Aras beim Anrufbeginn liest. Die Ton-Regler
   „Energie“ und „Nachfragen nach einem Nein“ stehen auch in Einstellungen › Aras.
+  **Prüf-Mara nachgeschärft:** Am Telefon prüft sie nur, was Aras sagt („sonst gehe ich zum Anwalt“ vom Kunden ist kein Fehler
+  von Aras); ohne Aufnahme-Ja liest sie keine Zusammenfassung, sondern zählt Arasʼ Live-Befund. „Anliegen erst nach Identität“ gilt
+  über das ganze Gespräch (ein „Hallo?“ bestätigt nichts, „hier ist seine Frau“ auch nicht) — und beginnt das Transkript erst nach
+  dem Aufnahme-Ja, wird daraus kein Fehler. Höchstens 2 Modell-Fragen je Lauf und 60 je Stunde; was ohne Modell bleiben müsste
+  (KI-Pause, Deckel), wartet statt als „ok“ zu zählen; die Spalte Modell nennt nur ein Modell, das wirklich geurteilt hat. Kein
+  Kreisel mehr (geprüfte Anrufe kommen nie wieder ins Modell, Vormerkung vor dem Modell), „gelb → grün“ je Werkzeug, eine
+  Historienzeile nur bei Arbeit (sonst einmal je Stunde).
 - **Warum:** Justin, 19.10.2026: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter — mit allen Sachen, die auch wirklich
   funktionieren“; Vorschlag 3 „Mara führt den Betrieb“ („Nach dem Anruf genügt ein Klick“, „KYC selbst und nicht mehr bei Justin“,
   „sehen, was Mara tut“); zur Stichprobe: „warum Diana? … Die ist ja gar nicht Thema“ — Qualität prüft Prüf-Mara automatisch.

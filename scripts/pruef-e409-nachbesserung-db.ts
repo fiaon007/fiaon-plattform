@@ -39,15 +39,40 @@ async function main() {
   const E = await import("../server/lib/fiaon-ki-einstellungen");
   const AB = await import("../server/lib/fiaon-ki-aras-anbindung");
   const MT = await import("../server/lib/fiaon-mara-termin");
+  const P = await import("../server/lib/fiaon-ki-pruefung");
   await MT.protokollTabelle();
+  await P.pruefungTabellen();
+  await (await import("../server/lib/fiaon-postmeister-schema")).postmeisterSchema();
+  await (await import("../server/lib/fiaon-aras-schema")).arasSchema();
 
-  const vorher = (await sql`SELECT key, value FROM fiaon_settings WHERE key = ANY(${[...NOTAUS, ...ARAS_KEYS, "mara_ampel"]})`) as any[];
+  const PRUEF_KEYS = ["pruef_mara_an", "pruef_mara_quote", "pruef_mara_tag_euro"];
+  const vorher = (await sql`SELECT key, value FROM fiaon_settings WHERE key = ANY(${[...NOTAUS, ...ARAS_KEYS, ...PRUEF_KEYS, "mara_ampel"]})`) as any[];
+  const pruefAufraeumen = async () => {
+    const personen = ((await sql`SELECT id FROM fiaon_persons WHERE person_ref LIKE 'PR-Q419-%'`) as any[]).map((r) => Number(r.id));
+    const anrufe = ((await sql`SELECT a.id, a.call_id FROM fiaon_aras_anruf a WHERE a.prompt_version = 'q419'`.catch(() => [])) as any[]);
+    await sql`DELETE FROM fiaon_ki_pruefung WHERE bezug_art = 'q419_test' OR person_id = ANY(${personen}) OR (bezug_art = 'aras_anruf' AND bezug_id = ANY(${anrufe.map((a) => Number(a.id))}))`.catch(() => {});
+    if (anrufe.length) {
+      await sql`DELETE FROM fiaon_aras_anruf WHERE prompt_version = 'q419'`.catch(() => {});
+      await sql`DELETE FROM fiaon_calls WHERE id = ANY(${anrufe.map((a) => Number(a.call_id))})`.catch(() => {});
+    }
+    await sql`DELETE FROM fiaon_postmeister WHERE gmail_id LIKE 'q419-%'`.catch(() => {});
+    await sql`DELETE FROM fiaon_whatsapp WHERE wa_id LIKE 'q419-%'`.catch(() => {});
+    await sql`DELETE FROM fiaon_mara_protokoll WHERE person_id = ANY(${personen})`.catch(() => {});
+    await sql`DELETE FROM fiaon_ki_nutzung WHERE modell = 'q419-attrappe'`.catch(() => {});
+    P.pruefungZwischenspeicherLeeren?.();
+  };
   const aufraeumen = async () => {
-    await sql`DELETE FROM fiaon_settings WHERE key = ANY(${[...NOTAUS, ...ARAS_KEYS, "mara_ampel"]})`;
+    await pruefAufraeumen();
+    await sql`DELETE FROM fiaon_persons WHERE person_ref LIKE 'PR-Q419-%'`.catch(() => {});
+    await sql`DELETE FROM fiaon_settings WHERE key = ANY(${[...NOTAUS, ...ARAS_KEYS, ...PRUEF_KEYS, "mara_ampel"]})`;
     A.ampelZwischenspeicherLeeren();
     AB.arasAnbindungLoesen();
+    P.pruefModellSetzen(null);
   };
   await aufraeumen();
+  const [person] = (await sql`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email) VALUES ('PR-Q419-1', 'Erika', 'Q419muster', 'q419@test.invalid') RETURNING id`) as any[];
+  const pid = Number(person.id);
+  const [agent] = (await sql`SELECT id FROM fiaon_agents ORDER BY id LIMIT 1`) as any[];
 
   // ── Die Aras-Attrappe: Team 1s Funktionen mit Team 1s Schlüssel (einstellungSetzen schreibt aras_* wie der Kern) ──
   const rufe: string[] = [];
@@ -146,6 +171,134 @@ async function main() {
       ok(JSON.parse(String(await wert("mara_ampel")))?.stufen?.antwort_senden === "gelb" && !JSON.parse(String(await wert("mara_ampel")))?.stufen?.zahlungslink_senden, "Maras Ampel bleibt unberührt — zwei Listen, je EIN Schlüssel");
       const zeilen = await A.ampelZeilenLesen("aras");
       ok(zeilen.length === ARAS_AMPEL_ATTRAPPE.length && zeilen.find((z: any) => z.key === "zahlungslink_senden")?.stufe === "rot", "KI-Team › Werkzeuge zeigt Arasʼ Liste aus seiner Anbindung", zeilen.map((z: any) => `${z.key}:${z.stufe}`));
+    });
+
+    // ═════════════════════════════════════════════════════════════════════
+    // Prüf-Mara mit einer Modell-Attrappe: sie merkt sich, was sie lesen musste, und sieht in die Tabelle (Vormerkung).
+    const fragen: string[] = [];
+    const gesehen: string[] = [];
+    let antwort: (text: string) => { urteil: any; modell: string; kostenCents: number } = () => ({ urteil: { urteil: "ok", punkte: [], begruendung: "Q419 ok" }, modell: "q419-modell", kostenCents: 0 });
+    P.pruefModellSetzen(async (ein: { text: string }) => {
+      fragen.push(ein.text);
+      const m = /Q419-(M\d+)/.exec(ein.text);
+      if (m) {
+        const [z] = (await sql`SELECT k.modell FROM fiaon_ki_pruefung k JOIN fiaon_postmeister p ON p.id = k.bezug_id WHERE k.bezug_art = 'postmeister' AND p.gmail_id = ${`q419-${m[1]}`}`) as any[];
+        gesehen.push(`${m[1]}:${z?.modell ?? "keine Zeile"}`);
+      }
+      return antwort(ein.text);
+    });
+    await arasSetzen("pruef_mara_quote", JSON.stringify({ telefon: 100, mail: 100, whatsapp: 100 }));
+    const anruf = async (marke: string, o: { transkript?: any[] | null; ja?: boolean; zusammenfassung?: string; live?: any }) => {
+      const [c] = (await sql`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, gefuehrt_von) VALUES (${pid}, ${Number(agent.id)}, '+4915100419001', 'raus', 'beendet', 'aras') RETURNING id`) as any[];
+      const [a] = (await sql`
+        INSERT INTO fiaon_aras_anruf (call_id, spielart, adapter, prompt_version, briefing, angenommen_am, ki_hinweis_am, aufnahme_ja_am, aufnahme_nein_am, aufnahme_gestartet_am,
+                                      transkript, zusammenfassung, ende_grund, pruefung, pruefung_status, updated_at)
+        VALUES (${Number(c.id)}, 'rate', 'attrappe', 'q419', ${sql.json({ marke })}, NOW() - INTERVAL '10 minutes', NOW() - INTERVAL '10 minutes' + INTERVAL '3 seconds',
+                ${o.ja ? sql`NOW() - INTERVAL '10 minutes' + INTERVAL '20 seconds'` : null}, ${o.ja ? null : sql`NOW() - INTERVAL '10 minutes' + INTERVAL '20 seconds'`},
+                ${o.ja ? sql`NOW() - INTERVAL '10 minutes' + INTERVAL '21 seconds'` : null},
+                ${o.transkript ? sql.json(o.transkript) : null}, ${o.zusammenfassung ?? null}, 'aras_beendet', ${o.live ? sql.json(o.live) : null}, 'offen', NOW() - INTERVAL '5 minutes')
+        RETURNING id`) as any[];
+      return Number(a.id);
+    };
+    const pruefZeile = async (art: string, id: number) => ((await sql`SELECT * FROM fiaon_ki_pruefung WHERE bezug_art = ${art} AND bezug_id = ${id}`) as any[])[0] ?? null;
+    const anrufStatus = async (id: number) => String(((await sql`SELECT pruefung_status FROM fiaon_aras_anruf WHERE id = ${id}`) as any[])[0]?.pruefung_status ?? "");
+    let mNr = 0;
+    const mail = async (antwortText: string) => {
+      mNr++;
+      const marke = `M${mNr}`;
+      const [z] = (await sql`
+        INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, person_id, aktion, betreff, text, antwort, gesendet_am, empfangen_am, created_at)
+        VALUES ('support@fiaon.com', ${`q419-${marke}`}, ${`t-q419-${marke}`}, ${pid}, 'auto_beantwortet', 'Frage', 'Wie ist der Stand?', ${`${antwortText} (Q419-${marke})`},
+                NOW() - INTERVAL '5 minutes', NOW() - INTERVAL '10 minutes', NOW() - INTERVAL '10 minutes') RETURNING id`) as any[];
+      return { id: Number(z.id), marke };
+    };
+
+    console.log("── Fund 7 + 8 (Server) · Telefon: Regeln nur auf Aras, ohne Transkript kein Modell, Teams 1 Live-Befund zählt");
+    await abschnitt("Fund 7 Server", async () => {
+      await pruefAufraeumen(); fragen.length = 0;
+      const mitJa = await anruf("A1", { ja: true, transkript: [
+        { t: 0, wer: "kunde", text: "Hallo?" },
+        { t: 1, wer: "aras", text: "Guten Tag, hier ist Aras von FIAON, ich bin der digitale Assistent, also eine KI. Spreche ich mit Frau Q419muster?" },
+        { t: 2, wer: "kunde", text: "Ja. Aber hören Sie auf, sonst gehe ich zum Anwalt!" },
+        { t: 3, wer: "aras", text: "Das verstehe ich gut. Ich trage ein, dass wir Sie nicht mehr anrufen. Einen schönen Tag noch." },
+      ] });
+      const ohneJaLive = await anruf("A2", { ja: false, zusammenfassung: "Kundin wollte nicht reden (Q419-A2).", live: { live: true, punkte: [{ regel: "anliegen_vor_identitaet", schwere: "hart" }] } });
+      const ohneJa = await anruf("A3", { ja: false, zusammenfassung: "Kundin sagte: sonst gehe ich zum Anwalt (Q419-A3)." });
+      const e = await P.pruefungTakt();
+      const z1 = await pruefZeile("aras_anruf", mitJa), z2 = await pruefZeile("aras_anruf", ohneJaLive), z3 = await pruefZeile("aras_anruf", ohneJa);
+      ok(z1?.urteil === "ok" && !(z1?.punkte ?? []).some((p: any) => ["druck", "drohung"].includes(p.regel)), "mit Aufnahme: „sonst gehe ich zum Anwalt“ der KUNDIN ist kein Fehler von Aras", z1?.punkte);
+      ok(await anrufStatus(mitJa) === "ok", "… und der Anruf steht auf „ok“");
+      ok(z3?.urteil === "ok" && z3?.modell === "regeln", "ohne Aufnahme: die Zusammenfassung ist kein Wortlaut — kein Regelverstoß aus dem Text", z3);
+      ok(!fragen.some((t) => /Q419-A[23]/.test(t)) && fragen.filter((t) => /Q419muster\?/.test(t)).length === 1, "das Modell liest nur das Gespräch mit Aufnahme, nie eine Zusammenfassung", fragen.map((t) => t.slice(0, 60)));
+      ok(z2?.urteil === "fehler" && (z2?.punkte ?? []).some((p: any) => p.regel === "anliegen_vor_identitaet" && /Live-Prüfung ohne Aufnahme/.test(p.hinweis)) && z2?.modell === "regeln", "Teams 1 Live-Befund (ohne Wortlaut) zählt wie eine harte Regel", z2);
+      ok(e.geprueft === 3 && await anrufStatus(ohneJaLive) === "fehler", "alle drei geprüft, Status gesetzt", e);
+    });
+
+    console.log("── Fund 10 · kein Kreisel: ein Anruf mit Prüfzeile kommt nie wieder ins Modell; Vormerkung VOR dem Modell");
+    await abschnitt("Fund 10", async () => {
+      await pruefAufraeumen(); fragen.length = 0; gesehen.length = 0;
+      const haengt = await anruf("A4", { ja: true, transkript: [{ t: 0, wer: "aras", text: "Guten Tag, hier ist Aras von FIAON, eine KI. Spreche ich mit Frau Q419muster? (Q419-A4)" }, { t: 1, wer: "kunde", text: "Ja." }] });
+      await sql`INSERT INTO fiaon_ki_pruefung (kanal, bezug_art, bezug_id, person_id, urteil, punkte, modell, kosten_cents) VALUES ('telefon', 'aras_anruf', ${haengt}, ${pid}, 'auffaellig', '[]'::jsonb, 'q419-modell', 0)`;
+      const m = await mail("Guten Tag, Ihre Zahlung ist eingegangen, alles ist im grünen Bereich. Freundliche Grüße");
+      await P.pruefungTakt();
+      ok(!fragen.some((t) => /Q419-A4/.test(t)), "der Anruf mit Prüfzeile (Status hing auf „offen“) fragt kein Modell mehr", fragen.map((t) => t.slice(0, 50)));
+      ok(await anrufStatus(haengt) === "auffaellig", "… sein Status wird aus der Prüfzeile nachgezogen");
+      ok(gesehen.includes(`${m.marke}:laeuft`), "während das Modell fragt, ist der Fall schon vorgemerkt (ein zweiter Lauf fragt nicht)", gesehen);
+      ok((await pruefZeile("postmeister", m.id))?.modell === "q419-modell", "danach steht das Modell, das wirklich geurteilt hat");
+    });
+
+    console.log("── Fund 16 · höchstens 2 Modell-Fragen je Lauf, 60 je Stunde; ohne Modell nie „ok“; die Spalte modell ist ehrlich");
+    await abschnitt("Fund 16 Deckel", async () => {
+      await pruefAufraeumen(); fragen.length = 0;
+      const fuenf = [];
+      for (let i = 0; i < 5; i++) fuenf.push(await mail(`Guten Tag, danke für Ihre Nachricht Nummer ${i + 1}. Wir melden uns morgen mit allem. Freundliche Grüße`));
+      const e1 = await P.pruefungTakt();
+      ok(fragen.length === 2 && e1.geprueft === 2 && e1.wartet === 3 && e1.grund === "modell_takt", "fünf Fälle: zwei fragt das Modell, drei warten auf den nächsten Lauf", { fragen: fragen.length, e1 });
+      const ohneZeile = (await Promise.all(fuenf.map((m) => pruefZeile("postmeister", m.id)))).filter((z) => !z).length;
+      ok(ohneZeile === 3, "die wartenden haben KEINE Zeile — nichts als „ok“ gebucht", ohneZeile);
+      await sql.unsafe(`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) SELECT 'pruef-mara', 'q419-attrappe', 0, 0, 0, 1, 0, TRUE FROM generate_series(1, 60)`);
+      fragen.length = 0;
+      const e2 = await P.pruefungTakt();
+      ok(fragen.length === 0 && e2.wartet === 3 && e2.geprueft === 0, "60 Modell-Fragen in der letzten Stunde: der Lauf fragt keins mehr", { fragen: fragen.length, e2 });
+      await sql`DELETE FROM fiaon_ki_nutzung WHERE modell = 'q419-attrappe'`;
+      await arasSetzen("pruef_mara_tag_euro", "0");
+      await pruefAufraeumen(); fragen.length = 0;
+      const sauber = await mail("Guten Tag, wir haben alles notiert und melden uns morgen. Freundliche Grüße");
+      const lastschrift = await mail("Guten Tag, wir buchen das dann bequem per Lastschrift ab. Freundliche Grüße");
+      const e3 = await P.pruefungTakt();
+      const zs = await pruefZeile("postmeister", sauber.id), zl = await pruefZeile("postmeister", lastschrift.id);
+      ok(!zs && e3.grund === "deckel", "über dem Tagesdeckel: der saubere Fall wartet (vorher: „ok“ mit Modell „deckel“)", { zs, e3 });
+      ok(zl?.urteil === "fehler" && zl?.modell === "regeln" && fragen.length === 0, "… eine harte Regel entscheidet auch ohne Modell — Spalte modell: „regeln“", zl);
+      await arasSetzen("pruef_mara_tag_euro", "10");
+    });
+
+    console.log("── Fund 16 · Modell ohne Antwort: kein „ok“, und nach drei Fehlern keine weiteren Kosten");
+    await abschnitt("Fund 16 Fehler", async () => {
+      await pruefAufraeumen(); fragen.length = 0;
+      antwort = () => ({ urteil: null, modell: "q419-modell", kostenCents: 0 });
+      const m = await mail("Guten Tag, danke für Ihre Geduld. Wir prüfen das und melden uns. Freundliche Grüße");
+      for (let i = 0; i < 4; i++) await P.pruefungTakt();
+      ok(!(await pruefZeile("postmeister", m.id)), "keine Antwort vom Modell: der Fall bleibt ungebucht (vorher „ok“ mit Modellnamen)");
+      ok(fragen.length === 3, "nach drei Fehlern fragt Prüf-Mara diese Stelle nicht mehr (bis zum Neustart)", fragen.length);
+      antwort = () => ({ urteil: { urteil: "ok", punkte: [], begruendung: "Q419 ok" }, modell: "q419-modell", kostenCents: 0 });
+    });
+
+    console.log("── Fund 16 · „gelb → grün“ je Werkzeug, Historie nur bei Arbeit");
+    await abschnitt("Fund 16 Werkzeuge", async () => {
+      await pruefAufraeumen(); fragen.length = 0;
+      await sql`INSERT INTO fiaon_mara_protokoll (am, kanal, person_id, art, ok, text, daten) VALUES (NOW() - INTERVAL '8 minutes', 'whatsapp', ${pid}, 'ampel_gelb', TRUE, 'Ratenpause — lief (Ampel gelb).', ${sql.json({ werkzeug: "ratenpause_setzen", stufe: "gelb" })})`;
+      const [w] = (await sql`INSERT INTO fiaon_whatsapp (wa_id, richtung, nummer, person_id, typ, text, von, status, gesendet_am, created_at)
+                             VALUES ('q419-w1', 'raus', '+4915100419001', ${pid}, 'text', 'Gern, die Rate ist um einen Monat verschoben. Alles Gute! (Q419-W1)', 'Mara Lindner', 'delivered', NOW() - INTERVAL '4 minutes', NOW() - INTERVAL '4 minutes') RETURNING id`) as any[];
+      await P.pruefungTakt();
+      const zw = await pruefZeile("whatsapp", Number(w.id));
+      ok(Array.isArray(zw?.werkzeuge) && zw.werkzeuge.includes("ratenpause_setzen"), "die Prüfung kennt das Werkzeug, das dabei unter Gelb lief", zw?.werkzeuge);
+      for (let i = 1; i <= 20; i++) await sql`INSERT INTO fiaon_ki_pruefung (kanal, bezug_art, bezug_id, person_id, urteil, punkte, modell, kosten_cents, werkzeuge, created_at) VALUES ('whatsapp', 'q419_test', ${i}, NULL, 'ok', '[]'::jsonb, 'q419-modell', 0, ${["ratenpause_setzen"]}, NOW() - INTERVAL '2 days')`;
+      const fq = await P.fehlerquote(28);
+      ok(fq.vorschlaege.some((v: string) => v.includes("ratenpause_setzen")), "nach 4 Wochen unter 2 %: Vorschlag „gelb → grün“ (vorher nie möglich)", fq.vorschlaege);
+      P.pruefungZwischenspeicherLeeren();
+      const h1 = await P.pruefungTaktFuerHistorie();
+      const h2 = await P.pruefungTaktFuerHistorie();
+      ok(h1 === true && h2 === false, "Historie: eine Zeile beim ersten Lauf (Lebenszeichen), keine für den leeren Lauf gleich danach", { h1, h2 });
     });
   } finally {
     await aufraeumen();

@@ -93,6 +93,27 @@ async function main() {
     ok(/tageslauf\('ki_pruefung',[^\n]*pruefungTaktFuerHistorie\(\)[^\n]*nurMitErgebnis: true/.test(routes), "Takt mit nurMitErgebnis (keine 720 Historienzeilen am Tag)");
   });
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("── Aras an EINEM Ort (Justin 20.10.): Probe im KI-Team, alte Adresse leitet weiter, keine Vertrieb-Kachel");
+  await abschnitt("Aras ein Ort", () => {
+    const seiten = datei("client/src/components/admin/chef-seiten.tsx");
+    const probeZeile = (seiten.split("\n").find((z) => /slug: "aras-probe"/.test(z)) ?? "");
+    ok(/raum: ""/.test(probeZeile) && /Seite: ArasProbeUmzug/.test(probeZeile), "/chef/s/aras-probe: keine Kachel mehr (Raum leer), nur Weiterleitung", probeZeile.slice(0, 160));
+    ok(/ArasProbeUmzug = \(\) => <Umzug nach="\/chef\/s\/aras#probe"/.test(seiten), "… nach /chef/s/aras#probe (mit replace — der Zurück-Knopf springt nicht hin und her)");
+    ok(!seiten.split("\n").some((z) => /slug: "aras-probe"/.test(z) && /raum: "vertrieb"/.test(z)), "keine Aras-Kachel im Raum „Vertrieb“");
+    const kiAras = datei("client/src/components/admin/ChefKiAras.tsx");
+    ok(/lazy\(\(\) => import\("\.\/ChefArasProbe"\)\)/.test(kiAras) && /reiter === "probe" \? <ArasProbe eingebettet ohneSchalter=\{verbunden\} \/>/.test(kiAras), "KI-Team › Aras zeigt die Probe aus Teil 1 (dieselbe Komponente)");
+    ok(/\{ key: "probe", label: "Probe" \}, \{ key: "plan"/.test(kiAras) && !/key: "stimme"/.test(kiAras), "Reiter „Probe“ zuerst, kein doppelter Reiter „Stimme“");
+    ok(/if \(\/\^#probe\\b\/\.test\(hash\)\) return "probe";/.test(kiAras), "#probe öffnet den Reiter „Probe“ (Ziel der Weiterleitung)");
+    ok(!existsSync("client/src/components/admin/aras/ArasStimme.tsx") && !existsSync("client/src/components/admin/aras/ArasProbe.tsx"), "die doppelten KI-Team-Teile „Stimme“/„Probeanruf“ sind weg");
+    const probe = datei("client/src/components/admin/ChefArasProbe.tsx");
+    ok(/"\/chef\/aras\/probe\/anrufen"/.test(probe) && /"\/chef\/aras\/probe\/stand"/.test(probe) && /\/chef\/aras\/probe\/live\?callId=/.test(probe), "„Mich anrufen“ unverändert über /chef/aras/probe/*");
+    ok(/\{ eingebettet = false, ohneSchalter = false \}/.test(probe) && /ohneSchalter \? \(/.test(probe), "eingebettet: kein zweiter Not-Aus/Leerlauf, wenn der Seitenkopf sie hat");
+    const rg = datei("client/src/pages/agent/rundgaenge.ts");
+    const aras = rg.slice(rg.indexOf("export const RUNDGANG_ARAS: RundgangSchritt[]"), rg.indexOf("export const RUNDGANG_KI_WERKZEUGE"));
+    ok(/ziel: "\[data-ki-reiter=\\"probe\\"\]"/.test(aras.slice(0, 200)) && !/data-ki-reiter=\\"stimme\\"/.test(aras), "Rundgang KI-Team › Aras: zuerst die Probe, kein Schritt für den alten Reiter „Stimme“");
+  });
+
   console.log(`\n${gut} gut, ${schlecht} schlecht`);
   process.exit(schlecht ? 1 : 0);
 }

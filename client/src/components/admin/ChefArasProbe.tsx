@@ -12,6 +12,11 @@
 //   3. Stimmen-Studio: derselbe Satz in jeder deutschen Stimme — hören, eine nehmen.
 //   4. Ton: Energie, Füllwörter, Lachen, Tempo, Zuhör-Laute, Nachfragen; Tagesdeckel.
 // Im Kopf: Technik bereit?, Kosten heute, Not-Aus / Wieder an, Leerlauf.
+//
+// E-409 × E-408 (20.10.2026, Justin: EIN Ort für Aras): Diese Ansicht wohnt jetzt im Raum „KI-Team“ als Reiter
+// „Probe“ von /chef/s/aras (ChefKiAras.tsx, `eingebettet`); /chef/s/aras-probe leitet dorthin weiter (#probe).
+// Dieselben Routen /chef/aras/probe/*, „Mich anrufen“ unverändert. Eingebettet ohne eigenen Titel und Rundgang
+// (die Seite zeigt den Probe-Rundgang im Reiter); Not-Aus/Leerlauf nur hier, wenn der Seitenkopf sie nicht hat.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { API, Geruest, Fehlermeldung, useDaten, seit } from "./chef-teile";
@@ -98,7 +103,7 @@ function useLive(callId: number | null, beimEnde: () => void) {
   return { zeilen, zustand };
 }
 
-export default function ChefArasProbe() {
+export default function ChefArasProbe({ eingebettet = false, ohneSchalter = false }: { eingebettet?: boolean; ohneSchalter?: boolean } = {}) {
   const stand = useDaten<Stand>("/chef/aras/probe/stand");
   const proben = useDaten<{ zeilen: HoerprobeZeile[] }>("/chef/aras/probe/hoerproben");
   const [meldung, setMeldung] = useState<{ text: string; rot?: boolean } | null>(null);
@@ -193,23 +198,34 @@ export default function ChefArasProbe() {
 
   return (
     <div className="ap">
-      <Rundgang raum="aras-probe" titel="Aras · Probe" schritte={RUNDGANG_ARAS_PROBE} />
+      {eingebettet ? null : <Rundgang raum="aras-probe" titel="Aras · Probe" schritte={RUNDGANG_ARAS_PROBE} />}
       <header className="ap-kopf" data-ap="kopf">
-        <div>
-          <h1>Aras</h1>
-          <p>Dein KI-Kollege am Telefon. Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. Kunden ruft er noch nicht an.</p>
-        </div>
+        {eingebettet ? (
+          <div><p className="ap-still">Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. Kunden ruft er noch nicht an.</p></div>
+        ) : (
+          <div>
+            <h1>Aras</h1>
+            <p>Dein KI-Kollege am Telefon. Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. Kunden ruft er noch nicht an.</p>
+          </div>
+        )}
         {s && (
           <div className="ap-chips">
             <span className={`ap-chip ${s.bereit.stimme.ok ? "gruen" : "rot"}`} title={s.bereit.stimme.ok ? "GPT-Live ist eingestellt." : s.bereit.stimme.grund ?? ""}><i />Stimme</span>
             <span className={`ap-chip ${s.bereit.telefon.ok ? "gruen" : "rot"}`} title={s.bereit.telefon.ok ? "Twilio und Absendernummer sind da." : `Fehlt: ${s.bereit.telefon.fehlt.join(", ")}`}><i />Telefon</span>
             <span className={`ap-chip ${deckelVoll ? "rot" : "gruen"}`} title="Kosten heute (Stimme + Telefon) und der Deckel je Tag."><i />{euro(s.kosten.euro)} von {euro(s.schalter.tagEuro)}</span>
-            {s.schalter.notaus
-              ? <button type="button" className="ap-chip knopf gruen" disabled={!!busy} onClick={wiederAn}><i />Not-Aus aufheben</button>
-              : <button type="button" className="ap-chip knopf rot" disabled={!!busy} onClick={notaus}><i />Not-Aus</button>}
-            <button type="button" className={`ap-chip knopf${s.schalter.leerlauf ? " gelb" : ""}`} disabled={!!busy} onClick={() => leerlauf(!s.schalter.leerlauf)} title="Leerlauf: kein neuer Anruf, ein laufendes Gespräch endet normal (vor jedem Deploy).">
-              <i />{s.schalter.leerlauf ? "Leerlauf an" : "Leerlauf aus"}
-            </button>
+            {ohneSchalter ? (
+              // Eingebettet im KI-Team: Not-Aus und Leerlauf stehen im Seitenkopf — hier nur der Stand, kein zweiter Knopf.
+              s.schalter.notaus || s.schalter.leerlauf ? <span className="ap-chip rot"><i />{s.schalter.notaus ? "Not-Aus ist an" : "Leerlauf ist an"}</span> : null
+            ) : (
+              <>
+                {s.schalter.notaus
+                  ? <button type="button" className="ap-chip knopf gruen" disabled={!!busy} onClick={wiederAn}><i />Not-Aus aufheben</button>
+                  : <button type="button" className="ap-chip knopf rot" disabled={!!busy} onClick={notaus}><i />Not-Aus</button>}
+                <button type="button" className={`ap-chip knopf${s.schalter.leerlauf ? " gelb" : ""}`} disabled={!!busy} onClick={() => leerlauf(!s.schalter.leerlauf)} title="Leerlauf: kein neuer Anruf, ein laufendes Gespräch endet normal (vor jedem Deploy).">
+                  <i />{s.schalter.leerlauf ? "Leerlauf an" : "Leerlauf aus"}
+                </button>
+              </>
+            )}
           </div>
         )}
       </header>

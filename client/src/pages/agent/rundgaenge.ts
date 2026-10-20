@@ -2279,8 +2279,10 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
   },
 ];
 
-// ── /chef/s/aras-probe (20.10.2026, E-408 Scheibe 1) — Aras: Probeanruf, Stimmen-Studio, Ton ──
+// ── Aras · Probe (20.10.2026, E-408 Scheibe 1) — Probeanruf, Stimmen-Studio, Ton ──
 // Justin hört Aras NUR hier. Ein Satz je Schritt; Ziele über data-ap (ChefArasProbe.tsx).
+// E-409 × E-408 (20.10.2026): wohnt jetzt im Reiter „Probe“ von KI-Team › Aras (/chef/s/aras-probe leitet dorthin) —
+// derselbe Merker (raum "aras-probe"), wer ihn gesehen hat, sieht ihn nicht noch einmal.
 export const RUNDGANG_ARAS_PROBE: RundgangSchritt[] = [
   {
     titel: "Aras — dein KI-Kollege am Telefon.",
@@ -2290,7 +2292,7 @@ export const RUNDGANG_ARAS_PROBE: RundgangSchritt[] = [
     ziel: "[data-ap='kopf']",
     titel: "Oben: läuft alles?",
     text: "„Stimme“ und „Telefon“ grün heißt: Aras kann sprechen und wählen. Daneben die Kosten von heute und der Deckel je Tag. "
-      + "„Not-Aus“ hält Aras sofort an, „Leerlauf“ lässt nur kein neues Gespräch mehr zu.",
+      + "„Not-Aus“ (oben rechts auf der Seite) hält Aras sofort an, „Leerlauf“ lässt nur kein neues Gespräch mehr zu.",
     tipp: "Vor einem Deploy: Leerlauf an — ein laufendes Gespräch endet dann ganz normal.",
   },
   {
@@ -2694,6 +2696,12 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
 
 export const RUNDGANG_ARAS: RundgangSchritt[] = [
   {
+    ziel: "[data-ki-reiter=\"probe\"]",
+    titel: "Probe: hier hörst du Aras.",
+    text: "Deine Nummer, „Mich anrufen“, live mitlesen, danach Daumen hoch oder runter — dazu das Stimmen-Studio und der Ton. Früher war das eine eigene Seite im Vertrieb; jetzt steht Aras an EINEM Ort.",
+    tipp: "Kunden ruft er erst an, wenn du „Aras wählt“ einschaltest.",
+  },
+  {
     ziel: "[data-ki=\"live\"]",
     titel: "Die Live-Karte.",
     text: "Jedes laufende Gespräch als Welle, das Transkript tickt mit. „Übernehmen“ holt den Kunden in dein Softphone, „Beenden“ lässt Aras sich verabschieden.",
@@ -2718,20 +2726,9 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     text: "Spielart, Ergebnis, Dauer, Kosten — im Detail Transkript (nur nach Aufnahme-Ja), Werkzeuge, Prüf-Urteil und die Aufnahme.",
   },
   {
-    ziel: "[data-ki-reiter=\"stimme\"]",
-    titel: "Stimme: dein Ohr entscheidet.",
-    text: "Derselbe Satz mit mehreren Stimmen nebeneinander — Sterne vergeben, „Diese nehmen“. Darunter die Regie: Füllwörter, Lachen, Tempo, Zuhör-Laute.",
-    tipp: "Flitz ist die Vorgabe (männlich). Es gibt keinen unabhängigen deutschen Hörtest — du hörst, bevor ein Kunde hört.",
-  },
-  {
-    ziel: "[data-ki-reiter=\"probe\"]",
-    titel: "Probeanruf: nur deine Nummer.",
-    text: "„Mich anrufen“ ruft deine Nummer an — reden, unterbrechen, drei Sekunden schweigen, „Nein“ zur Aufnahme sagen. Eine andere Nummer ist nicht möglich.",
-  },
-  {
     ziel: "[data-ki-reiter=\"einstellungen\"]",
-    titel: "Einstellungen: alle Aras-Schalter.",
-    text: "Spielarten (lead, stufe_b, rueckholung erst nach LEXR), Zeitfenster, Mengen, Deckel, Übergabe, KI-Hinweis-Satz, Aufnahme-Frage — jeder mit Vorgabe und Grenze.",
+    titel: "Einstellungen: die übrigen Aras-Schalter.",
+    text: "Spielarten (lead, stufe_b, rueckholung erst nach LEXR), Zeitfenster, Mengen, Übergabe, KI-Hinweis-Satz, Aufnahme-Frage — jeder mit Vorgabe und Grenze. Ton, Stimme, deine Nummer und den Tagesdeckel stellst du im Reiter „Probe“ ein.",
   },
 ];
 

@@ -48,6 +48,10 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   (KI-Pause, Deckel), wartet statt als „ok“ zu zählen; die Spalte Modell nennt nur ein Modell, das wirklich geurteilt hat. Kein
   Kreisel mehr (geprüfte Anrufe kommen nie wieder ins Modell, Vormerkung vor dem Modell), „gelb → grün“ je Werkzeug, eine
   Historienzeile nur bei Arbeit (sonst einmal je Stunde).
+  **Aras an EINEM Ort:** Die Probe aus Aras Teil 1 (deine Nummer, „Mich anrufen“, live mitlesen, Daumen, Stimmen-Studio, Ton) ist
+  der erste Reiter „Probe“ in KI-Team › Aras — dieselbe Ansicht, dieselben Routen /chef/aras/probe/*. /chef/s/aras-probe leitet
+  dorthin weiter (alte Links und Alarm-Links gehen weiter), die Kachel im Vertrieb und die doppelten KI-Team-Reiter „Stimme“ und
+  „Probeanruf“ sind weg.
 - **Warum:** Justin, 19.10.2026: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter — mit allen Sachen, die auch wirklich
   funktionieren“; Vorschlag 3 „Mara führt den Betrieb“ („Nach dem Anruf genügt ein Klick“, „KYC selbst und nicht mehr bei Justin“,
   „sehen, was Mara tut“); zur Stichprobe: „warum Diana? … Die ist ja gar nicht Thema“ — Qualität prüft Prüf-Mara automatisch.

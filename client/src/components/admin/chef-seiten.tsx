@@ -67,8 +67,6 @@ const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
 const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"));
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
 const Mara = lazy(() => import("@/components/admin/ChefMara"));
-// E-408 (20.10.2026): Aras — Probeanruf, Stimmen-Studio, Ton. Eigene Seite, bis der Raum „KI-Team“ (E-409) auf main ist.
-const ArasProbe = lazy(() => import("@/components/admin/ChefArasProbe"));
 const LeadMotor = lazy(() => import("@/components/admin/ChefLeadMotor"));
 // 24.09.2026 (E-240): Die Bonitätsauskunft verkaufen — seit 26.09.2026 (E-243) der Reiter „Bonitätsauskunft"
 // im Mara-Steuerpult (Justin: „nicht schon wieder eine neue eigene Seite"). Die alte Adresse führt dorthin.
@@ -78,6 +76,10 @@ function Umzug({ nach, wohin }: { nach: string; wohin: string }) {
   return <div className="cb-hinweis" role="status"><b>Umgezogen.</b><p>Das steht jetzt im <a href={nach}>{wohin}</a>.</p></div>;
 }
 const AuskunftUmzug = () => <Umzug nach="/chef/s/mara?reiter=auskunft" wohin="Mara-Steuerpult, Reiter „Bonitätsauskunft“" />;
+// E-409 × E-408 (20.10.2026, Justin: EIN Ort für Aras): Die Probe-Seite aus Aras Teil 1 (Mich anrufen, Stimmen-Studio, Ton,
+// Daumen) ist jetzt der Reiter „Probe“ in KI-Team › Aras. Die alte Adresse /chef/s/aras-probe (Lesezeichen, Alarm-Links)
+// leitet dorthin weiter — keine Kachel mehr im Raum „Vertrieb“, nichts doppelt.
+const ArasProbeUmzug = () => <Umzug nach="/chef/s/aras#probe" wohin="KI-Team › Aras, Reiter „Probe“" />;
 // 25.09.2026 (E-241): „Bis zur API kaufen wir sie selbst" — der Arbeitsplatz der Beschaffung.
 const AuskunftBeschaffung = lazy(() => import("@/components/admin/ChefAuskunftBeschaffung"));
 const Provisionen = lazy(() => import("@/components/admin/ChefProvisionen"));
@@ -204,7 +206,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // E-294 (06.10.2026): fünfter Reiter „Social" (Social-Studio, ?reiter=social) — Seite bleibt Inhaber, die Studio-API ist ab Geschäftsführung offen.
   // ── KI-Team (E-409, 19.10.2026) — Raum „ki“: Mara und Aras an einem Ort ──
   { slug: "ki-heute", label: "KI-Team · Heute", kurz: "Heute", satz: "Mara und Aras heute — Zahlen, Karten, Not-Aus.", Seite: KiHeute, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki team heute mara aras karten entscheidungen notaus not-aus kosten prüf-mara pruef-mara gelb" },
-  { slug: "aras", label: "Aras", kurz: "Aras", volltext: true, satz: "Der Kollege am Telefon — Plan, Live, Stimme, Probe.", Seite: KiAras, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "aras telefon anruf anrufe stimme hörprobe hoerprobe stimmen-studio warteschlange live transkript probeanruf mich anrufen plan spielart rate zusage zuruf notaus leerlauf" },
+  { slug: "aras", label: "Aras", kurz: "Aras", volltext: true, satz: "Der Kollege am Telefon — Probe, Plan, Anrufe.", Seite: KiAras, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "aras telefon anruf anrufe stimme stimmen hörprobe hoerprobe stimmen-studio studio flitz nuri juni ton tempo energie füllwörter fuellwoerter daumen deckel warteschlange live transkript probe probeanruf mich anrufen plan spielart rate zusage zuruf notaus not-aus leerlauf ki kollege" },
   // E-409: Das Mara-Steuerpult zieht in den Raum „ki“ um (Adresse /chef/s/mara bleibt — alte Links gehen weiter).
   { slug: "mara", label: "Mara-Steuerpult", kurz: "Mara", volltext: true, satz: "WhatsApp, Mail-Aktion, Auskunft, Termine, Social.", Seite: Mara, raum: "ki", mindest: "inhaber", eigenesDesign: true, ruhig: true, auch: "mara lindner aktion email ki agent steuerpult gedaechtnis gedächtnis a b zahlung rechnung whatsapp zentrale starten versand automatik vorlage gruppe leads abbrecher auskunft bonitaetsauskunft bonitätsauskunft schufa ksv crif verkauf scharf angebot ziel 150 trichter kreis liefermodus einkauf beschaffung protokoll steuerung termine termin rückruf rueckruf kalender abwesenheit abwesend urlaub vertreter vertretung anrufen social studio instagram facebook linkedin tiktok youtube shorts reel reels karussell post posts beitrag content inhalte freigabe redaktion caption hashtag profil raster" },
   { slug: "ki-werkzeuge", label: "Werkzeuge", kurz: "Werkzeuge", satz: "Was Mara und Aras allein dürfen: grün, gelb, rot.", Seite: KiWerkzeuge, raum: "ki", eigenesDesign: true, ruhig: true, auch: "ki werkzeuge ampel grün gelb rot mara aras erlaubnis freigabe geld erstattung storno" },
@@ -213,9 +215,9 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "lead-motor", label: "Lead-Motor", satz: "Facebook-Leads direkt von Meta.", Seite: LeadMotor, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "lead leads meta facebook instagram webhook formular kampagne anzeige make superchat whatsapp begrüßung begruessung willkommen link werbekosten kosten ausgaben cac zahlender kunde" },
   { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass: Sendefenster, Versand, Verteilung.", Seite: LeadAutomatik, raum: "vertrieb" },
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat zum Nachfassen.", Seite: Kunden, raum: "vertrieb", suche: "stufe=C", auch: "vorrat kalt" },
-  // E-408 (20.10.2026): Aras, der KI-Kollege am Telefon — Justin hört ihn hier („Mich anrufen“ nur an die eigene Nummer).
-  // Justin hat „keine neuen Chef-Seiten“ für Aras ausdrücklich aufgehoben (fiaon-aras-telefon). Zieht nach E-409 in den Raum „KI-Team“.
-  { slug: "aras-probe", label: "Aras", kurz: "Aras", satz: "Mich anrufen, Stimmen hören, Ton einstellen.", Seite: ArasProbe, raum: "vertrieb", mindest: "inhaber", eigenesDesign: true, auch: "aras telefon anruf probeanruf mich anrufen stimme stimmen hörprobe hoerprobe studio flitz nuri juni ton tempo energie füllwörter fuellwoerter notaus not-aus leerlauf deckel ki kollege" },
+  // E-408 (20.10.2026) → E-409 × E-408: Aras’ Probe wohnt jetzt in KI-Team › Aras (Reiter „Probe“). Die alte Adresse leitet
+  // weiter (raum "" = keine Kachel, kein Reiter — wie „auskunft“ oben).
+  { slug: "aras-probe", label: "Aras-Probe (jetzt in KI-Team › Aras)", satz: "Umgezogen in den Raum „KI-Team“.", Seite: ArasProbeUmzug, raum: "", mindest: "inhaber", eigenesDesign: true },
   // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
   // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
   { slug: "firmen-radar", label: "Firmen-Radar", satz: "50 passende Firmen am Tag — Scan und erste Mail.", Seite: FirmenRadar, raum: "global", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },

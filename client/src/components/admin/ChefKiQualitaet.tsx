@@ -99,7 +99,7 @@ export default function ChefKiQualitaet() {
                       <b>{u.text}</b>
                       <span className="ki-still ki-klein">{KANAL[z.kanal] ?? z.kanal} · {tagZeit(z.am)}{z.schluessel ? ` · ${z.schluessel.replace(/^(postfach|aktion|vorlage|spielart):/, "")}` : ""}</span>
                       {link ? <a href={link}>{z.name || "Akte"}</a> : null}
-                      {z.entschieden ? <span className="ki-pille">{z.entschieden === "in_ordnung" ? "in Ordnung" : z.entschieden === "anweisen" ? "angewiesen" : "gesperrt"}</span> : null}
+                      {z.entschieden ? <span className="ki-pille">{z.entschieden === "in_ordnung" ? "in Ordnung" : z.entschieden === "anweisen" ? "angewiesen" : z.entschieden === "neu_bewertet" ? "neu bewertet" : "gesperrt"}</span> : null}
                     </div>
                     <button type="button" className="ki-knopf text ki-klein" onClick={() => setOffen(auf ? null : z.id)}>{auf ? "weniger" : `${z.punkte.length} Punkt${z.punkte.length === 1 ? "" : "e"}`}</button>
                     {auf ? (

@@ -112,7 +112,9 @@ export function harteRegeln(text: string, k: PruefKontext): PruefPunkt[] {
 
   for (const w of wandPruefen(t)) push(`wand_${w.art}`, w.art === "floskel" ? "weich" : "hart", w.treffer, w.hinweis);
   const kanal: MaraKanal = k.kanal === "mail" ? "mail" : "whatsapp";
-  for (const b of tonPruefung(t, { kanal, land: k.land ?? null, mitarbeiter: k.mitarbeiter ?? null, kundeNamen: k.kundeNamen })) {
+  // Die Ton-Prüfung gilt GESCHRIEBENEN Texten (Länge, Ausrufezeichen, Anrede-Form). Ein Telefon-Transkript ist gesprochen —
+  // dort sind 1.000+ Zeichen normal; den Ton am Telefon beurteilt das Modell (20.10.2026, erste Live-Läufe).
+  for (const b of k.kanal === "telefon" ? [] : tonPruefung(t, { kanal, land: k.land ?? null, mitarbeiter: k.mitarbeiter ?? null, kundeNamen: k.kundeNamen })) {
     // Zwei Ton-Regeln gelten dem MODELLTEXT vor dem Versand (der Server setzt die Anrede selbst) — eine gesendete
     // Mail trägt sie zu Recht. Für die Prüfung des Gesendeten sind sie kein Befund.
     if (TON_NUR_BEIM_SCHREIBEN.has(b.id)) continue;
@@ -173,7 +175,11 @@ export function urteilBilden(harte: PruefPunkt[], modell: ModellUrteil | null): 
 }
 
 /** Karte nur bei Auffälligem — und die Empfehlung dazu (Vertrag § 11). */
-export function karteNoetig(urteil: PruefUrteil): boolean { return urteil !== "ok"; }
+// Karte nur bei einem Regelverstoß („fehler“). „Auffällig“ zählt still in KI-Team › Qualität — keine Aufgabe für Justin
+// (20.10.2026: in den ersten 5 Minuten 26 Karten, fast alle Hinweise auf Justins eigenen Verkaufssatz E-373).
+export function karteNoetig(urteil: PruefUrteil): boolean { return urteil === "fehler"; }
+/** Höchstens so viele neue Prüf-Mara-Karten je Tag (Berlin) — mehr zählt nur in der Statistik. */
+export const KARTEN_JE_TAG = 5;
 export function empfehlungFuer(urteil: PruefUrteil): "in_ordnung" | "anweisen" { return urteil === "fehler" ? "anweisen" : "in_ordnung"; }
 
 /**

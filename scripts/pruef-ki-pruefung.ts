@@ -2,7 +2,7 @@
 // Offline, ohne Datenbank:  npx tsx scripts/pruef-ki-pruefung.ts
 import {
   harteRegeln, druckFinden, lastschriftFinden, vertragZusageFinden, anliegenVorIdentitaet, kiHinweisGesagt, urteilBilden,
-  modellUrteilLesen, inStichprobe, quotenLesen, fehlerquoteRechnen, ausschnittFuerKarte, empfehlungFuer, karteNoetig,
+  modellUrteilLesen, inStichprobe, quotenLesen, fehlerquoteRechnen, ausschnittFuerKarte, empfehlungFuer, karteNoetig, KARTEN_JE_TAG,
 } from "../shared/fiaon-ki-pruefung-regeln";
 
 let gut = 0, schlecht = 0;
@@ -62,7 +62,8 @@ ok(urteilBilden([weich, { ...weich, regel: "ton_x" }], null).urteil === "auffael
 ok(urteilBilden([], { urteil: "auffaellig", punkte: [], begruendung: "" }).urteil === "auffaellig", "Modell sagt auffällig → auffällig");
 ok(urteilBilden([], { urteil: "fehler", punkte: [], begruendung: "" }).urteil === "fehler", "Modell sagt fehler → fehler");
 ok(urteilBilden([], { urteil: "ok", punkte: [], begruendung: "" }).urteil === "ok", "alles sauber → ok");
-ok(karteNoetig("ok") === false && karteNoetig("auffaellig") && karteNoetig("fehler"), "Karte nur bei Auffälligem");
+ok(karteNoetig("ok") === false && karteNoetig("auffaellig") === false && karteNoetig("fehler") === true, "Karte nur bei Regelverstoß (auffällig zählt still)");
+ok(KARTEN_JE_TAG >= 1 && KARTEN_JE_TAG <= 10, `Tagesdeckel für Karten (${KARTEN_JE_TAG})`);
 ok(empfehlungFuer("fehler") === "anweisen" && empfehlungFuer("auffaellig") === "in_ordnung", "Empfehlung je Urteil");
 const m = modellUrteilLesen('{"urteil":"fehler","punkte":[{"regel":"Druck!!","schwere":"hart","treffer":"nur heute","hinweis":"Zeitfalle"}],"begruendung":"x"}');
 ok(m?.urteil === "fehler" && m.punkte[0].regel === "modell_druck__" && m.punkte[0].schwere === "hart", "Modell-Antwort sicher gelesen");
@@ -84,6 +85,40 @@ const a = ausschnittFuerKarte("Hallo. Daniel ruft Sie morgen an. Das gilt nur he
 ok(a === "Das gilt nur heute, sonst wird es teuer." , `Ausschnitt = der eine Satz (${a})`);
 ok(ausschnittFuerKarte("Daniel meldet sich.", "", MA) === "Herr Beispielmann meldet sich.", "Vorname → Nennform");
 ok(ausschnittFuerKarte("x".repeat(400), "", null).length <= 300, "≤ 300 Zeichen");
+
+console.log("── 20.10.2026 · Erste Live-Läufe: Telefon ohne Schreib-Regeln, Justins Verkaufssatz kein Befund");
+{
+  // Ein langes, sauberes Telefon-Transkript: gesprochen sind 1.000+ Zeichen normal — keine WhatsApp-Länge, keine Ausrufezeichen-Regel.
+  const lang = "Aras: Guten Tag, hier ist Aras von FIAON, ich bin eine KI! Schön, dass Sie Zeit haben! Kunde: Ja, gerne. ".repeat(14);
+  const r = regeln(lang, "telefon");
+  ok(lang.length > 1100 && !r.some((x) => x.startsWith("ton_")), "Telefon-Transkript: keine Ton-Regeln für geschriebene Texte", r.join(","));
+  const w = regeln("Hallo! Super!! ".repeat(120), "whatsapp");
+  ok(w.some((x) => x.startsWith("ton_")), "WhatsApp: Länge/Ausrufezeichen werden weiter geprüft (Rot-Probe der Ausnahme)", w.join(","));
+  // Justins Verkaufssatz (E-373) — keine feste Regel darf ihn treffen.
+  // Der Satz kommt aus derselben Quelle wie Maras Mails (nachDemEingang, E-373) — nicht nachgetippt.
+  const { nachDemEingang } = await import("../shared/fiaon-mara-ton");
+  const verkauf = `Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über 59,99 € — ${nachDemEingang({ ref: "FIAON-AB12CD", ziel: { euro: 5000, art: "wunsch", paketName: "FIAON Plus" } as any })}.`;
+  const rv = harteRegeln(verkauf, { kanal: "mail" }).filter((p) => p.schwere === "hart").map((p) => p.regel);
+  ok(rv.length === 0, "E-373-Verkaufssatz: kein harter Treffer einer festen Regel", rv.join(","));
+}
+{
+  const { karteBleibtNachNeubewertung } = await import("../server/lib/fiaon-ki-pruefung");
+  const start = new Date("2026-10-20T08:20:00Z");
+  const vorher = "2026-10-20T08:00:00Z", nachher = "2026-10-20T08:25:00Z";
+  const modellHart = [{ regel: "modell_wahrheit", schwere: "hart", treffer: "Wunschlimit", hinweis: "x" }];
+  const festHart = [{ regel: "drohung", schwere: "hart", treffer: "Inkasso", hinweis: "x" }];
+  const telLaenge = [{ regel: "ton_laenge", schwere: "hart", treffer: "1378 Zeichen", hinweis: "x" }];
+  ok(!karteBleibtNachNeubewertung({ kanal: "mail", urteil: "auffaellig", punkte: [], created_at: nachher }, start), "Neubewertung: jede „auffällig“-Karte wird geschlossen");
+  ok(!karteBleibtNachNeubewertung({ kanal: "mail", urteil: "fehler", punkte: modellHart, created_at: vorher }, start), "Neubewertung: alter Modell-Fehler (E-373) wird geschlossen");
+  ok(!karteBleibtNachNeubewertung({ kanal: "telefon", urteil: "fehler", punkte: telLaenge, created_at: vorher }, start), "Neubewertung: Telefon mit WhatsApp-Länge wird geschlossen");
+  ok(karteBleibtNachNeubewertung({ kanal: "mail", urteil: "fehler", punkte: festHart, created_at: vorher }, start), "Neubewertung: fester Regelverstoß (Drohung) bleibt offen");
+  ok(karteBleibtNachNeubewertung({ kanal: "mail", urteil: "fehler", punkte: modellHart, created_at: nachher }, start), "Neubewertung: Fehler-Karte der neuen Fassung bleibt offen");
+}
+{
+  const quelle = (await import("node:fs")).readFileSync(new URL("../server/lib/fiaon-ki-pruefung.ts", import.meta.url), "utf8");
+  ok(/E-373/.test(quelle) && /NICHT verlangt/.test(quelle) && /Wunschlimit/.test(quelle), "Modell-Anweisung kennt Justins Verkaufsregel E-373 (kein Bank-Vorbehalt verlangt)");
+  ok(/Länge, Absätze und Satzzeichen beurteilst du nicht/.test(quelle), "Modell beurteilt keine Länge/Satzzeichen");
+}
 
 console.log(`\n${gut} Prüfungen bestanden, ${schlecht} rot.`);
 process.exit(schlecht ? 1 : 0);

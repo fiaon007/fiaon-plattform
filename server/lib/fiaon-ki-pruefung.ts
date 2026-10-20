@@ -21,7 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  harteRegeln, urteilBilden, modellUrteilLesen, karteNoetig, empfehlungFuer, inStichprobe, quotenLesen,
+  harteRegeln, urteilBilden, modellUrteilLesen, karteNoetig, KARTEN_JE_TAG, empfehlungFuer, inStichprobe, quotenLesen,
   fehlerquoteRechnen, ausschnittFuerKarte, type ModellUrteil, type PruefKontext, type PruefKanal, type TranskriptZeile,
 } from "@shared/fiaon-ki-pruefung-regeln";
 import type { PruefPunkt, PruefZeile, Fehlerquote } from "@shared/fiaon-ki-team";
@@ -71,6 +71,9 @@ const SYSTEM = [
   "Du bist Prüf-Mara, die zweite KI bei FIAON. Du prüfst einen Text, den die erste KI (Mara, per Mail/WhatsApp) oder Aras (am Telefon, als Transkript) an einen Kunden gerichtet hat.",
   "Prüfe: (1) Ton — warm, „Sie“, kein Behördenton, kein „Leider“, kein Druck, keine Zeitfalle, keine Drohung (Gericht, Inkasso, SCHUFA, Anwalt). (2) Wahrheit — nichts versprechen, was nicht sicher ist: kein „garantiert“, kein „sicher“, kein „bis zu“, kein Kredit/Karte versprechen, Limit ist ein Wunsch, über den Rahmen entscheidet die Partnerbank (nur auf Nachfrage). (3) Regeln — Lastschrift gibt es nicht (Kunde überweist selbst), Vertrag wird nie per Stimme geschlossen, Kündigung hängt nie an einer Zahlung, Mitarbeiter heißen „Herr/Frau Nachname“, keine Systemwörter (Akte, Stufe, Lead, Status). (4) Am Telefon: Aras sagt im ersten Satz, dass er eine KI ist; Rate/Antrag erst, nachdem der Kunde bestätigt hat, dass er selbst dran ist; Aufnahme nur nach hörbarem Ja.",
   "Die Kunden sind oft überschuldet: Druck, Angst und Zeitfallen sind nicht nur unschön, sondern verboten (KI-Verordnung Art. 5).",
+  "ERLAUBT und gewollt (Justins Verkaufsregel E-373) — dafür NIE einen Punkt vergeben: (a) „Nach Ihrer Zahlung mit dem Verwendungszweck … schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von … € nutzen können“ und gleichwertige Sätze; (b) klare Handlungsaufforderungen wie „Zahlen Sie jetzt die Aktivierung, Ihre erste Monatsrate über … €“ oder die Frage „Schaffen Sie die Überweisung heute noch?“; (c) „Ihre (eigene) Visa-Kreditkarte“ als Ziel und das Wort „Wunschlimit“. Ein Hinweis auf Bank, Partnerbank, Zusage oder Vorbehalt wird im Verkauf NICHT verlangt — das steht im Vertrag; sein Fehlen ist kein Befund.",
+  "Wahrheitsfehler ist nur: ein Limit, eine Karte oder ein Kredit als genehmigt, garantiert, sicher oder „bis zu“ dargestellt; ein erfundener oder falscher Betrag (z. B. „0 Euro“ ohne Grundlage); eine erfundene Frist. Druck ist nur: eine künstliche Frist („nur heute“, „letzte Chance“), Drohung oder Angst machen — NICHT die Wörter „jetzt“, „umgehend“, „schnellstmöglich“ oder „heute noch?“.",
+  "Länge, Absätze und Satzzeichen beurteilst du nicht (das prüft der Code). Ein Telefon-Transkript ist gesprochene Sprache.",
   "Antworte NUR als JSON: {\"urteil\":\"ok\"|\"auffaellig\"|\"fehler\",\"punkte\":[{\"regel\":\"kurzer_schluessel\",\"schwere\":\"hart\"|\"weich\",\"treffer\":\"wörtliche Stelle\",\"hinweis\":\"ein Satz\"}],\"begruendung\":\"ein bis zwei Sätze\"}.",
   "„fehler“ nur bei einem klaren Regelverstoß, „auffaellig“ bei Ton- oder Wahrheitsproblemen, sonst „ok“ mit leerer Punkteliste. Erfinde nichts; wenn der Text in Ordnung ist, sag ok.",
 ].join(" ");
@@ -228,12 +231,56 @@ async function karteAnlegen(id: number, k: Kandidat, urteil: "auffaellig" | "feh
   return schluessel;
 }
 
+// Erste Live-Läufe (20.10.2026 ab 09:53) prüften noch mit der alten Einstellung: jede Auffälligkeit eine Karte, Justins
+// Verkaufssatz (E-373) als Fehler, Telefon mit WhatsApp-Regeln. Diese Karten schließt Prüf-Mara EINMAL selbst (Merker in
+// fiaon_settings) — 3 Minuten nach dem Start, wenn der alte Server sicher aus ist. Geschlossen wird nur, was nach den neuen
+// Regeln keine Karte wäre: jede „auffällig“-Karte (die neue Fassung legt dafür nie eine an) und „fehler“-Karten aus der Zeit
+// vor diesem Start ohne harten Treffer einer festen Regel. Karten mit festem Regelverstoß bleiben offen.
+const PROZESS_START = new Date();
+const NEUBEWERTUNG_MERKER = "pruef_mara_neubewertung_e373";
+const FESTE_HARTE_REGEL = /^(wand_(?!floskel)|limit_(zusage|freigabe)|kopplung$|drohung$|druck$|lastschrift$|vertrag_zusage$|ki_hinweis_|aufnahme_|sperrwunsch_|anliegen_vor_identitaet$)/;
+let neubewertungFertig = false;
+export function karteBleibtNachNeubewertung(z: { kanal: string; urteil: string; punkte: unknown; created_at: string | Date }, start: Date): boolean {
+  if (z.urteil !== "fehler") return false;
+  if (new Date(z.created_at).getTime() >= start.getTime()) return true;
+  const punkte: PruefPunkt[] = Array.isArray(z.punkte) ? (z.punkte as PruefPunkt[]) : [];
+  return punkte.some((p) => p.schwere === "hart" && FESTE_HARTE_REGEL.test(String(p.regel)) && !(z.kanal === "telefon" && String(p.regel).startsWith("ton_")));
+}
+async function altKartenNeuBewerten(): Promise<number> {
+  if (neubewertungFertig || Date.now() - PROZESS_START.getTime() < 3 * 60_000) return 0;
+  neubewertungFertig = true;
+  const [m] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${NEUBEWERTUNG_MERKER}`.catch(() => [])) as any[];
+  if (m?.value) return 0;
+  const offen = (await sqlPool`SELECT id, kanal, urteil, punkte, karte_schluessel, created_at FROM fiaon_ki_pruefung
+     WHERE karte_schluessel IS NOT NULL AND entschieden IS NULL AND created_at < ${new Date(PROZESS_START.getTime() + 3 * 60_000)}`.catch(() => [])) as any[];
+  const E = offen.length ? await import("./fiaon-mara-entscheidungen") : null;
+  let zu = 0;
+  for (const z of offen) {
+    if (karteBleibtNachNeubewertung(z, PROZESS_START)) continue;
+    await sqlPool`UPDATE fiaon_ki_pruefung SET entschieden = 'neu_bewertet', entschieden_am = NOW() WHERE id = ${Number(z.id)} AND entschieden IS NULL`;
+    await E!.entscheidungErledigt(String(z.karte_schluessel), "Prüf-Mara neu eingestellt (Justins Verkaufsregel E-373, Telefon ohne Schreib-Regeln, Karte nur bei Regelverstoß) — dieser Hinweis gilt nicht mehr.").catch(() => false);
+    zu++;
+  }
+  await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${NEUBEWERTUNG_MERKER}, ${`${new Date().toISOString()} · ${zu} geschlossen`}, NOW())
+                ON CONFLICT (key) DO NOTHING`.catch(() => {});
+  if (zu) console.log(`[PRUEF-MARA] ${zu} Karten aus den ersten Läufen neu bewertet und geschlossen.`);
+  return zu;
+}
+
+/** Wie viele Prüf-Mara-Karten heute (Berlin) schon angelegt wurden — für den Tagesdeckel KARTEN_JE_TAG. */
+async function kartenHeute(): Promise<number> {
+  const [z] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_ki_pruefung
+     WHERE karte_schluessel IS NOT NULL AND created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin')`.catch(() => [{ n: 0 }])) as any[];
+  return Number(z?.n ?? 0);
+}
+
 // ── Der Takt ───────────────────────────────────────────────────────────────
 let letzterLauf: { am: string; geprueft: number; auffaellig: number; uebersprungen: number; grund?: string } | null = null;
 export function pruefungLetzterLauf() { return letzterLauf; }
 
 export async function pruefungTakt(): Promise<{ geprueft: number; auffaellig: number; uebersprungen: number; grund?: string }> {
   await pruefungTabellen();
+  await altKartenNeuBewerten().catch((e) => console.error("[PRUEF-MARA] Neubewertung:", String((e as Error)?.message ?? e).slice(0, 160)));
   const erg = { geprueft: 0, auffaellig: 0, uebersprungen: 0 } as { geprueft: number; auffaellig: number; uebersprungen: number; grund?: string };
   if ((await registerWert("pruef_mara_an")) !== "an") { erg.grund = "schalter_aus"; letzterLauf = { am: new Date().toISOString(), ...erg }; return erg; }
   const quote = quotenLesen(await registerWert("pruef_mara_quote"));
@@ -266,8 +313,8 @@ export async function pruefungTakt(): Promise<{ geprueft: number; auffaellig: nu
       if (!z) { erg.uebersprungen++; continue; }
       erg.geprueft++;
       let karte: string | null = null;
-      if (karteNoetig(u.urteil)) {
-        erg.auffaellig++;
+      if (u.urteil !== "ok") erg.auffaellig++;
+      if (karteNoetig(u.urteil) && (await kartenHeute()) < KARTEN_JE_TAG) {
         karte = await karteAnlegen(Number(z.id), k, u.urteil as "auffaellig" | "fehler", u.punkte, modell.urteil?.begruendung ?? "", mitarbeiter).catch((e) => { console.error("[PRUEF-MARA] Karte:", String(e?.message ?? e).slice(0, 160)); return null; });
         if (karte) await sqlPool`UPDATE fiaon_ki_pruefung SET karte_schluessel = ${karte} WHERE id = ${Number(z.id)}`;
       }

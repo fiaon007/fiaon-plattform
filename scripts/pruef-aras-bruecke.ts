@@ -1612,6 +1612,46 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 
+  let nr19b = 150;
+  titel("21. AUFLEGEN, WÄHREND ES KLINGELT (Koordination 20.10.) — Twilio bricht ab („canceled“), statt weiterzuklingeln");
+  {
+    const { twilioClientSetzen } = await import("../server/lib/fiaon-aras-twilio-client");
+    const { sitzungBeenden, vorbereiten } = await import("../server/lib/fiaon-aras-bruecke");
+    const auftraege: { sid: string; status: string }[] = [];
+    twilioClientSetzen({ calls: (sid: string) => ({ update: async (o: { status: string }) => { auftraege.push({ sid, status: o.status }); return {}; } }) });
+    try {
+      // a) Keine Sitzung (aras_vorbereiten = abheben): Justin drückt „Auflegen“ → canceled
+      const [c1] = (await sqlPool`INSERT INTO fiaon_calls (agent_id, nummer, richtung, status, beginn, twilio_sid, gefuehrt_von) VALUES (${ausweis}, '+491700000141', 'raus', 'gewaehlt', NOW(), 'CA-pruef-klingelt-1', 'aras') RETURNING id`) as any[];
+      if (c1?.id) {
+        await sitzungBeenden(Number(c1.id), "Chefbüro");
+        ok("Keine Sitzung, es klingelt: „Auflegen“ bricht den Anruf bei Twilio ab (canceled)", auftraege.some((a) => a.sid === "CA-pruef-klingelt-1" && a.status === "canceled"), JSON.stringify(auftraege));
+        const vorher = auftraege.length;
+        await sitzungBeenden(Number(c1.id), "kunde_aufgelegt");
+        ok("Rot-Probe: ein anderer Grund (Twilio meldet selbst das Ende) bricht nichts ab", auftraege.length === vorher, JSON.stringify(auftraege));
+        await sqlPool`UPDATE fiaon_calls SET ende = NOW() WHERE id = ${Number(c1.id)}`;
+        await sitzungBeenden(Number(c1.id), "chef");
+        ok("Rot-Probe: ein schon beendeter Anruf wird nie noch einmal abgebrochen", auftraege.length === vorher, JSON.stringify(auftraege));
+      } else ok("(fiaon_calls-Zeile für den Abbruch-Test nicht anlegbar — übersprungen)", true);
+      // b) Beim Klingeln vorbereitet, nie abgenommen: „Auflegen“ beendet die Sitzung UND bricht bei Twilio ab
+      await einstellungSetzen("aras_stufe", "3", "pruefstand");
+      nr19b += 1;
+      const pid = await person(nr19b); await antrag(pid, nr19b, { payment_status: "paid" });
+      const e = await planEinreihen({ personId: pid, nummer: `+4917000000${nr19b}`, spielart: "zusage", grund: "Prüfstand Abbruch beim Klingeln", erzeugtVon: "chef" });
+      if (!e.ok) throw new Error(`einreihen: ${e.grund}`);
+      const att = attrappeMitSkript({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 800, ton: { dbfs: -24 } }, { warteMs: 8000 }] });
+      adapterSetzen("attrappe", att);
+      const w = await waehlen(Number(e.id), {});
+      if (!w.ok || !w.callId) throw new Error(`waehlen: ${w.grund}`);
+      await sqlPool`UPDATE fiaon_calls SET twilio_sid = 'CA-pruef-klingelt-2' WHERE id = ${w.callId}`;
+      vorbereiten(w.callId, undefined, 45_000);
+      await schlafen(1500);
+      await sitzungBeenden(w.callId, "chef");
+      await warten(async () => !!(await anruf(w.callId!))?.nachbereitet_am, 6000);
+      const a2 = await anruf(w.callId);
+      ok("Beim Klingeln vorbereitet, nie abgenommen: „Auflegen“ beendet die Sitzung und bricht bei Twilio ab (canceled), Ergebnis „nicht erreicht“", auftraege.some((a) => a.sid === "CA-pruef-klingelt-2" && a.status === "canceled") && a2?.ergebnis === "nicht_erreicht" && !a2?.angenommen_am, JSON.stringify({ auftraege, e: a2?.ergebnis, ang: a2?.angenommen_am }));
+    } finally { twilioClientSetzen(null); await einstellungSetzen("aras_stufe", "0", "pruefstand"); }
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

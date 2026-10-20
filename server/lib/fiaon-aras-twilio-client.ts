@@ -30,6 +30,8 @@ export function arasCallerId(land: Land, eigene: { at?: string; ch?: string } = 
 }
 
 let client: any = null;
+/** Nur Prüfstände: einen nachgebauten Twilio-Client einhängen (null = wieder der echte). In Produktion wirkungslos. */
+export function twilioClientSetzen(c: any): void { if (process.env.NODE_ENV !== "production") client = c; }
 export async function twilioClient(): Promise<any> {
   if (client) return client;
   const sid = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN;

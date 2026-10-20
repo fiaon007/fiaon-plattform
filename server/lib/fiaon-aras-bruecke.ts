@@ -1103,12 +1103,28 @@ export async function mailboxErkannt(callId: number): Promise<"aufgelegt" | "wei
 /** „Chefbüro“ (Live-Karte im KI-Raum) und „chef“ (Probe-Seite) sind derselbe Grund — in der Auswertung EIN Wort. Rein. */
 export function endeGrundEinheitlich(grund: string): string { return /^chef(?:büro|buero)?$/i.test(String(grund ?? "").trim()) ? "chef" : String(grund ?? ""); }
 
+/**
+ * Justin drückt „Auflegen“, während es noch klingelt und es noch KEINE Sitzung gibt (aras_vorbereiten = abheben; Koordination
+ * 20.10.): den Anruf bei Twilio abbrechen — sonst klingelt das Telefon weiter. (Eine beim Klingeln vorbereitete Sitzung bricht
+ * sitzungEnde selbst ab.) „canceled“ geht nur, solange es klingelt; hat er schon abgenommen,
+ * „completed“. Das Ende meldet danach Twilios Status-Rückruf wie immer (ohne Gespräch → Live-Karte weg).
+ */
+async function klingelndAbbrechen(callId: number): Promise<void> {
+  try {
+    const [c] = (await sqlPool`SELECT twilio_sid FROM fiaon_calls WHERE id = ${callId} AND ende IS NULL`) as any[];
+    const sid = String(c?.twilio_sid ?? "");
+    if (!sid || sid.startsWith("ATTRAPPE")) return;
+    const t = await twilioClient();
+    await t.calls(sid).update({ status: "canceled" }).catch(() => t.calls(sid).update({ status: "completed" }));
+  } catch (e) { console.error("[ARAS] Abbrechen beim Klingeln:", String((e as Error)?.message ?? e).slice(0, 160)); }
+}
+
 export async function sitzungBeenden(callId: number, grundRoh: string): Promise<void> {
   const grund = endeGrundEinheitlich(grundRoh);
   const vor = VORBEREITUNG.get(callId);
   if (vor) { VORBEREITUNG.delete(callId); const l = await vor; if (l && !l.beendet) await sitzungEnde(l, grund); return; }
   const l = LAUFENDE.get(callId);
-  if (!l) return;
+  if (!l) { if (grund === "chef") await klingelndAbbrechen(callId); return; }
   l.endeGrund = grund;
   if (grund === "notaus" || grund === "deploy") {
     l.notaus = grund === "notaus";

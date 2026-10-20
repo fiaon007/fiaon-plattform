@@ -63,6 +63,10 @@ export const GLOBAL_EN_PFADE: Record<string, string> = {
   "/business/wissen/us-firmenkarte-beantragen": "/en/business/knowledge/us-business-credit-card",
   "/business/wissen/llc-steuererklaerung": "/en/business/knowledge/llc-tax-returns",
   "/business/wissen/tochter-oder-zweigniederlassung": "/en/business/knowledge/subsidiary-or-branch",
+  // 20.10.2026 (E-416): Anschrift und Telefon, US-Immobilie, Finanzierungswege.
+  "/business/wissen/us-adresse-und-telefon": "/en/business/knowledge/us-address-and-phone",
+  "/business/wissen/us-immobilie-finanzieren": "/en/business/knowledge/financing-us-property",
+  "/business/wissen/finanzierungswege-usa": "/en/business/knowledge/us-financing-routes",
   // Standorte
   "/business/partner": "/en/business/partners",
   // Impressum, Datenschutz und Cookie-Einstellungen gibt es nur deutsch — englische Seiten verlinken sie

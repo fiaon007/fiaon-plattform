@@ -34,7 +34,7 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "hub",
     seo: {
       titel: "US LLC guide: formation, EIN, bank account — FIAON Global",
-      beschreibung: "16 articles on US companies: LLC formation, EIN and ITIN, registered agent, bank account, credit score, business credit cards, tax — honest, with sources.",
+      beschreibung: "19 articles on US companies: LLC, EIN and ITIN, address, bank account, credit score, business credit cards, financing, tax — honest, with sources.",
     },
     stand: S,
     erschienen: S,
@@ -44,7 +44,7 @@ export const WISSEN_EN: GlobalSeite[] = [
     h1b: "Explained honestly, with sources.",
     lead: "What business owners from Germany, Austria and Switzerland should know about a US company: formation, EIN and ITIN, US presence, bank account, cards, tax returns and structure. Every article cites its sources, states its as-of date and also says what a US company cannot do.",
     ziffern: [
-      { wert: "16 articles", label: "Formation, tax numbers, account, cards, tax" },
+      { wert: "19 articles", label: "Formation, tax numbers, account, cards, financing, tax" },
       { wert: "3 states", label: "Florida, Delaware, Wyoming" },
       { wert: FAKTEN_STAND_EN, label: "all figures as of this date" },
     ],
@@ -52,7 +52,7 @@ export const WISSEN_EN: GlobalSeite[] = [
       ["Formation", "The ten-step guide, state, legal form, structure"],
       ["Tax numbers", "EIN without an SSN, ITIN with Form W-7"],
       ["US presence", "Registered agent, business address, phone number"],
-      ["Account and cards", "Documents, credit score, business credit, business credit cards"],
+      ["Account and cards", "Documents, credit score, business credit, business credit cards, financing, property"],
       ["Tax", "Tax model or not, Form 5472, the US tax return"],
       ["Providers", "How to recognise reputable support"],
       ["Editorial team", "FIAON Global — sources at the end of every article"],
@@ -76,15 +76,18 @@ export const WISSEN_EN: GlobalSeite[] = [
           { pfad: "/en/business/knowledge/applying-for-an-ein", tag: "Tax number" },
           { pfad: "/en/business/knowledge/applying-for-an-itin", tag: "Tax number" },
           { pfad: "/en/business/knowledge/registered-agent-address", tag: "US presence" },
+          { pfad: "/en/business/knowledge/us-address-and-phone", tag: "US presence" },
         ],
       },
       {
-        typ: "verzeichnis", id: "konto-karten", h2: "Account, credit history and cards",
+        typ: "verzeichnis", id: "konto-karten", h2: "Account, credit history, cards and financing",
         eintraege: [
           { pfad: "/en/business/knowledge/us-bank-account-documents", tag: "Account" },
           { pfad: "/en/business/knowledge/building-us-credit", tag: "Credit history" },
           { pfad: "/en/business/knowledge/us-business-credit", tag: "Business credit" },
           { pfad: "/en/business/knowledge/us-business-credit-card", tag: "Business credit cards" },
+          { pfad: "/en/business/knowledge/us-financing-routes", tag: "Financing" },
+          { pfad: "/en/business/knowledge/financing-us-property", tag: "Property" },
         ],
       },
       {

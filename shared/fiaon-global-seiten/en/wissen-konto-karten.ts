@@ -224,7 +224,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       {
         typ: "text", id: "einsicht", h2: "Checking your US file yourself",
         absaetze: [
-          "Each of the three credit bureaus shows you your file free of charge via AnnualCreditReport.com, their joint service — by law once a year, and now permanently every week. The prerequisite is that a file exists: with an SSN or ITIN and a US address.",
+          "Each of the three credit bureaus shows you your file free of charge via AnnualCreditReport.com, their joint service — by law once a year, and now permanently every week. Online, this only works with an SSN. With an ITIN, you request your file in writing by post from each bureau: with a copy of your passport, proof of address and a clear note that your number is an ITIN, not an SSN.",
           "If you find an error — someone else’s account, an incorrect late payment, an old address — have it corrected directly with the credit bureau. This costs nothing and requires no service provider.",
         ],
       },

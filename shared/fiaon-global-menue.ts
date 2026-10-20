@@ -51,7 +51,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 7, en: { titel: "Questions and answers", text: "Every answer in one place" } },
 
   // 23.09.2026 (E-232): drei der zehn Praxis-Beiträge im Menü — zehn Einträge, fünf Reihen im Panel.
-  { gruppe: "wissen", pfad: "/business/wissen", titel: "Alle Beiträge", text: "16 Beiträge, von der Gründung bis zur Steuer", reihe: 1, en: { titel: "All articles", text: "16 articles, from formation to tax" } },
+  { gruppe: "wissen", pfad: "/business/wissen", titel: "Alle Beiträge", text: "19 Beiträge, von der Gründung bis zur Finanzierung", reihe: 1, en: { titel: "All articles", text: "19 articles, from formation to financing" } },
   { gruppe: "wissen", pfad: "/business/wissen/llc-gruenden", titel: "LLC gründen: die Anleitung", text: "Zehn Schritte, aus Deutschland", reihe: 2, en: { titel: "Form a US LLC: the guide", text: "Ten steps, from Germany" } },
   { gruppe: "wissen", pfad: "/business/wissen/us-llc-steuern", titel: "Steuern, ehrlich erklärt", text: "Ist eine US-LLC ein Steuermodell?", reihe: 3, en: { titel: "Tax, explained honestly", text: "Is a US LLC a way to pay no tax?" } },
   { gruppe: "wissen", pfad: "/business/wissen/bundesstaat-waehlen", titel: "Welcher Bundesstaat?", text: "Florida, Delaware oder Wyoming", reihe: 4, en: { titel: "Which state?", text: "Florida, Delaware or Wyoming" } },

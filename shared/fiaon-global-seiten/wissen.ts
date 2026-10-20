@@ -31,7 +31,7 @@ export const WISSEN: GlobalSeite[] = [
     art: "hub",
     seo: {
       titel: "Ratgeber US-Gesellschaft: LLC, EIN, Konto — FIAON Global",
-      beschreibung: "16 Beiträge zur US-Gesellschaft: LLC gründen, EIN und ITIN, Registered Agent, Konto, Credit Score, Firmenkarten, Steuern — ehrlich erklärt, mit Quellen.",
+      beschreibung: "19 Beiträge zur US-Gesellschaft: LLC, EIN und ITIN, Anschrift, Konto, Credit Score, Firmenkarten, Finanzierung, Steuern — ehrlich erklärt, mit Quellen.",
     },
     // 23.09.2026 (E-232): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
     stand: "2026-09-23",
@@ -41,7 +41,7 @@ export const WISSEN: GlobalSeite[] = [
     h1b: "Ehrlich erklärt, mit Quellen.",
     lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz über eine US-Gesellschaft wissen sollten: Gründung, EIN und ITIN, US-Präsenz, Konto, Karten, Steuererklärung und Struktur. Jeder Beitrag nennt seine Quellen und seinen Stand und sagt auch, was eine US-Gesellschaft nicht kann.",
     ziffern: [
-      { wert: "16 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Steuern" },
+      { wert: "19 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Finanzierung, Steuern" },
       { wert: "3 Staaten", label: "Florida, Delaware, Wyoming" },
       { wert: FAKTEN_STAND, label: "Stand aller Zahlen" },
     ],
@@ -49,7 +49,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Gründung", "Die Anleitung in zehn Schritten, Bundesstaat, Rechtsform, Struktur"],
       ["Steuernummern", "EIN ohne SSN, ITIN mit Form W-7"],
       ["US-Präsenz", "Registered Agent, Geschäftsadresse, Telefonnummer"],
-      ["Konto und Karten", "Unterlagen, Credit Score, Business Credit, Firmenkarten"],
+      ["Konto und Karten", "Unterlagen, Credit Score, Business Credit, Firmenkarten, Finanzierung, Immobilien"],
       ["Steuern", "Steuermodell oder nicht, Form 5472, die US-Steuererklärung"],
       ["Anbieter", "Woran Sie seriöse Begleitung erkennen"],
       ["Redaktion", "FIAON Global — Quellen am Ende jedes Beitrags"],
@@ -73,15 +73,18 @@ export const WISSEN: GlobalSeite[] = [
           { pfad: "/business/wissen/ein-beantragen", tag: "Steuernummer" },
           { pfad: "/business/wissen/itin-beantragen", tag: "Steuernummer" },
           { pfad: "/business/wissen/registered-agent-adresse", tag: "US-Präsenz" },
+          { pfad: "/business/wissen/us-adresse-und-telefon", tag: "US-Präsenz" },
         ],
       },
       {
-        typ: "verzeichnis", id: "konto-karten", h2: "Konto, Bonität und Karten",
+        typ: "verzeichnis", id: "konto-karten", h2: "Konto, Bonität, Karten und Finanzierung",
         eintraege: [
           { pfad: "/business/wissen/us-bankkonto-unterlagen", tag: "Konto" },
           { pfad: "/business/wissen/us-bonitaet-aufbauen", tag: "Bonität" },
           { pfad: "/business/wissen/business-credit-usa", tag: "Firmenbonität" },
           { pfad: "/business/wissen/us-firmenkarte-beantragen", tag: "Firmenkarten" },
+          { pfad: "/business/wissen/finanzierungswege-usa", tag: "Finanzierung" },
+          { pfad: "/business/wissen/us-immobilie-finanzieren", tag: "Immobilien" },
         ],
       },
       {

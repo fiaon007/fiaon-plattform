@@ -49,9 +49,10 @@ const { STAATEN } = await import("../shared/fiaon-global-seiten/staaten");
 const { WISSEN } = await import("../shared/fiaon-global-seiten/wissen");
 const { WISSEN_GRUENDUNG } = await import("../shared/fiaon-global-seiten/wissen-gruendung");
 const { WISSEN_KONTO_KARTEN } = await import("../shared/fiaon-global-seiten/wissen-konto-karten");
+const { WISSEN_FINANZIERUNG } = await import("../shared/fiaon-global-seiten/wissen-finanzierung");
 const { PARTNER_SEITE } = await import("../shared/fiaon-global-seiten/partner");
 const { PRIVAT_SEITE } = await import("../shared/fiaon-global-seiten/privat");
-const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, PARTNER_SEITE];
+const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, PARTNER_SEITE];
 const DE = new Map(DEUTSCH.map((s) => [s.pfad, s]));
 
 // Die englischen Seiten: aus den genannten Dateien oder aus allen in en/.

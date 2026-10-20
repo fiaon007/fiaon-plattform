@@ -212,7 +212,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       {
         typ: "text", id: "einsicht", h2: "Ihre US-Akte selbst prüfen",
         absaetze: [
-          "Jede der drei Auskunfteien zeigt Ihnen Ihre Akte kostenlos — gesetzlich einmal im Jahr, über AnnualCreditReport.com, die gemeinsame Stelle der drei, inzwischen dauerhaft jede Woche. Voraussetzung ist, dass es eine Akte gibt: mit SSN oder ITIN und einer US-Anschrift.",
+          "Jede der drei Auskunfteien zeigt Ihnen Ihre Akte kostenlos — gesetzlich einmal im Jahr, über AnnualCreditReport.com, die gemeinsame Stelle der drei, inzwischen dauerhaft jede Woche. Online geht das nur mit SSN. Mit ITIN fordern Sie die Akte schriftlich per Post bei jeder Auskunftei an: mit Kopie des Reisepasses, einem Adressnachweis und dem ausdrücklichen Hinweis, dass Ihre Nummer eine ITIN ist und keine SSN.",
           "Finden Sie einen Fehler — ein fremdes Konto, einen falschen Verzug, eine alte Anschrift —, lassen Sie ihn direkt bei der Auskunftei berichtigen. Das kostet nichts und braucht keinen Dienstleister.",
         ],
       },

@@ -35,13 +35,13 @@ export async function arasEreignis(e: {
   if (e.art === "aras_fehler" && e.daten?.fatal === true) {
     try {
       const { alarmMelden } = await import("./fiaon-system-alarme");
-      await alarmMelden("aras:fehler", { quelle: "aras", titel: "ARAS: Anruf mit schwerem Fehler", text: (e.text ?? "").slice(0, 300), stufe: "gelb", link: "/chef/s/aras-probe", endetNachStunden: 6, anhaengen: true });
+      await alarmMelden("aras:fehler", { quelle: "aras", titel: "ARAS: Anruf mit schwerem Fehler", text: (e.text ?? "").slice(0, 300), stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 6, anhaengen: true });
     } catch { /* Alarm ist Komfort */ }
   }
   if (e.art === "aras_notaus") {
     try {
       const { alarmMelden } = await import("./fiaon-system-alarme");
-      await alarmMelden("aras:notaus", { quelle: "aras", titel: "ARAS: Notaus gezogen", text: (e.text ?? "").slice(0, 300), stufe: "rot", link: "/chef/s/aras-probe", endetNachStunden: 24, neueEpisode: true });
+      await alarmMelden("aras:notaus", { quelle: "aras", titel: "ARAS: Notaus gezogen", text: (e.text ?? "").slice(0, 300), stufe: "rot", link: "/chef/s/aras?reiter=probe", endetNachStunden: 24, neueEpisode: true });
     } catch { /* Alarm ist Komfort */ }
   }
 }

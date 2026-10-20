@@ -58,7 +58,7 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
   if (kosten.euro >= einst.tagEuro) {
     merken("deckel");
     const { alarmMelden } = await import("./fiaon-system-alarme");
-    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${einst.tagEuro} € — kein neues Wählen heute.`, stufe: "gelb", link: "/chef/s/aras-probe", endetNachStunden: 12 }).catch(() => null);
+    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${einst.tagEuro} € — kein neues Wählen heute.`, stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
     return fertig(0);
   }
   const laufend = laufendeSitzungen().length + Number(((await lauf`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt' AND beginn > NOW() - INTERVAL '2 minutes'`) as any[])[0]?.n ?? 0);

@@ -1,0 +1,47 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARAS IN DER AKTE (E-408 Scheibe 2, 20.10.2026). Präfix .ak- — dunkle Bühne wie die Akte (.pi-*),
+   Glasblau, Haarlinien; Farbe nur für „geht nicht“ (rot) und Hinweis (gelb). Kein Gold.
+   Reihenfolge: Kopf mit zwei Knöpfen, ein Satz warum (nicht), Maske, Geplant, Verlauf, Notiz + Schalter.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ak{display:grid;gap:12px;padding:18px 20px;border-radius:18px;background:rgba(37,99,235,.10);border:1px solid rgba(96,165,250,.28)}
+.ak-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ak-kopf b{font:500 15px/1.35 'Inter',sans-serif;color:#fff}
+.ak-kopf p{margin:2px 0 0;font:300 12.5px/1.55 'Inter',sans-serif;color:#cbd5e1;max-width:560px}
+.ak-knoepfe{display:flex;gap:8px;flex-wrap:wrap}
+.ak-still{font:300 12px/1.5 'Inter',sans-serif;color:#9ca3af}
+.ak-link{background:none;border:none;padding:0;margin-top:4px;font:400 12px/1.4 'Inter',sans-serif;color:#93c5fd;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.ak-schritte{margin:6px 0 0;padding-left:18px;display:grid;gap:3px;font:300 12.5px/1.55 'Inter',sans-serif;color:#e2e8f0}
+.ak-grund{margin:0;padding:10px 13px;border-radius:12px;background:rgba(220,38,38,.10);border:1px solid rgba(248,113,113,.30);font:300 12.5px/1.55 'Inter',sans-serif;color:#fecaca}
+.ak-hinweis{margin:0;padding:10px 13px;border-radius:12px;background:rgba(217,119,6,.10);border:1px solid rgba(251,191,36,.28);font:300 12.5px/1.55 'Inter',sans-serif;color:#fde68a}
+.ak-maske{display:grid;gap:12px;padding:14px 16px;border-radius:14px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.12)}
+.ak-feld{display:grid;gap:6px;font:500 12.5px/1.4 'Inter',sans-serif;color:#e5e7eb}
+.ak-feld small{font:300 11.5px/1.4 'Inter',sans-serif;color:#9ca3af}
+.ak-feld select,.ak-feld textarea,.ak-feld input{width:100%;max-width:100%}
+.ak-text{min-height:64px;resize:vertical;padding:10px 12px;line-height:1.5}
+.ak-wahl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ak-wahl button{padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.16);background:transparent;color:#cbd5e1;font:400 12.5px/1.2 'Inter',sans-serif;cursor:pointer}
+.ak-wahl button.an{background:rgba(59,130,246,.28);border-color:rgba(147,197,253,.55);color:#fff}
+.ak-uhr{width:110px !important}
+.ak-haken{display:flex;align-items:flex-start;gap:9px;font:300 12.5px/1.5 'Inter',sans-serif;color:#e5e7eb;cursor:pointer}
+.ak-haken input{margin-top:3px;accent-color:#3b82f6}
+.ak-satz{margin:0;font:300 12.5px/1.55 'Inter',sans-serif;color:#e2e8f0}
+.ak-satz b{font-weight:600;color:#fff}
+.ak-bleibt{margin:0;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font:300 12px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.ak-bleibt b{font-weight:500;color:#fff}
+.ak-warnliste{margin:0;padding:10px 14px 10px 28px;border-radius:12px;background:rgba(220,38,38,.10);border:1px solid rgba(248,113,113,.30);font:300 12.5px/1.55 'Inter',sans-serif;color:#fecaca;display:grid;gap:4px}
+.ak-tun{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ak-block{display:grid;gap:6px}
+.ak-block h4{margin:0;font:500 11px/1.2 'Inter',sans-serif;letter-spacing:.07em;text-transform:uppercase;color:#93c5fd}
+.ak-liste{margin:0;padding:0;list-style:none;display:grid;gap:2px}
+.ak-liste li{display:grid;gap:3px;padding:8px 0;border-top:1px solid rgba(255,255,255,.07);font:300 12.5px/1.5 'Inter',sans-serif;color:#cbd5e1}
+.ak-liste li b{font-weight:500;color:#fff}
+.ak-liste em{font-style:normal;color:#e2e8f0}
+.ak-zeile{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;width:100%;padding:0;background:none;border:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.ak-zeile small{color:#9ca3af}
+.ak-detail{display:grid;gap:6px;padding:8px 0 2px}
+.ak-detail p{margin:0}
+.ak-transkript summary{cursor:pointer;color:#93c5fd;font-size:12px}
+.ak-transkript p{margin:4px 0 0;font-size:12.5px}
+.ak-grundfeld{flex:1 1 180px;min-width:0}
+.ak-zwei{grid-template-columns:1fr;gap:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07)}
+@media (min-width:760px){.ak-zwei{grid-template-columns:1fr 1fr}}

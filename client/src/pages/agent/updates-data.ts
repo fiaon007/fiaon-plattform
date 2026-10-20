@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-408 Scheibe 2 (20.10.2026): die Karte „Aras“ in der Akte — sichtbar ab sofort, anrufen erst, wenn Aras freigeschaltet ist.
+    id: "2026-10-20-aras-akte",
+    date: "2026-10-20",
+    category: "Neu",
+    title: "Neu in der Akte: die Karte „Aras“",
+    summary:
+      "In jeder Akte steht im Überblick die Karte „Aras“. Damit gibst du Aras einen Anruf auf — oder alles, was beim Kunden offen ist. "
+      + "Solange Aras noch getestet wird, steht dort, dass er noch keine Kunden anruft.",
+    changes: [
+      "„Aras anrufen lassen“: Anliegen wählen, in einem Satz sagen, was er erledigen soll (z. B. „Kontoauszug hochladen“), Zeit wählen.",
+      "„Offenes an Aras abgeben“: offene Rate, gemeldete Zahlung, fehlende Unterlagen, Rückruf-Wunsch — alles in einem Anruf.",
+      "Nach dem Anruf steht das Ergebnis in der Akte, und du bekommst eine Nachricht im Office.",
+      "„Was Aras wissen muss“ (z. B. „nur abends erreichbar“) und „Aras für diesen Kunden aus“ stellst du direkt in der Karte ein.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → Karte „Aras“.",
+      "Kündigung, Widerruf, Beschwerde und Erstattung bleiben bei dir — da verbindet Aras zu dir oder bucht einen Rückruf.",
+    ],
+  },
+  {
     // E-408 Scheibe 1 (20.10.2026): Aras, der KI-Kollege am Telefon — erst nur Probeanrufe an Justin, noch kein Kunde.
     id: "2026-10-20-aras-probe",
     date: "2026-10-20",

@@ -10,7 +10,11 @@
 // nie Schluss ohne Abschied. Die Brücke nutzt dieselben Funktionen live (Wiederholungs- und Abschied-Wache).
 // Geprüft in scripts/pruef-aras-plan.ts, scripts/pruef-aras-prompt.ts und scripts/pruef-aras-bruecke.ts (mit Rot-Proben).
 // ═══════════════════════════════════════════════════════════════════════════
-import { telefonRegeln as pruefTelefonRegeln, punkteZusammen, type RegelPunkt, type TelefonLage, type RegelZeile } from "./fiaon-ki-pruefung-regeln";
+import {
+  telefonRegeln as pruefTelefonRegeln, punkteZusammen, druckFinden, lastschriftFinden, vertragZusageFinden, type RegelPunkt, type TelefonLage, type RegelZeile,
+} from "./fiaon-ki-pruefung-regeln";
+import { wandPruefen, kopplungFinden, drohungFinden } from "./fiaon-wortverbote";
+import { limitPruefen, BANK_SATZ_MUSTER } from "./fiaon-mara-ton";
 
 export {
   druckFinden, lastschriftFinden, vertragZusageFinden, anliegenGenannt, anliegenVorIdentitaet, kiHinweisGesagt, KI_HINWEIS_SPAETESTENS_SEK,
@@ -166,4 +170,30 @@ export function telefonRegeln(text: string, tel: ArasTelefonLage | null = null):
     }
   }
   return punkteZusammen(pruefTelefonRegeln(t, tel), zusatz);
+}
+
+// ── Der Freitext-Auftrag aus der Akte (Nachtrag Akte-Steuerung, Punkt 2) ─────────────────────────────────
+// „Was soll Aras sagen oder erledigen?“ — geht als Abschnitt „Auftrag des Betreuers“ ins Briefing. Darum dieselbe
+// Wand wie für alles, was Aras sagt: keine Limit-Zusage, kein Bank-Vorbehalt im Verkauf (E-373), keine Drohung,
+// kein Druck, keine Lastschrift, kein Vertrag per Stimme — und nichts, was beim Menschen bleibt.
+const BLEIBT_BEIM_MENSCHEN = /\b(?:kündig\w*|kuendig\w*|widerruf\w*|erstatt\w*|rückerstatt\w*|beschwerde\w*|anwalt\w*|rechtsanwalt\w*|behörde\w*|verbraucherzentrale)\b/i;
+
+/** Prüft den Freitext-Auftrag. Rein. `hinweise` sind ganze Sätze für den Betreuer (warum es so nicht geht und was stattdessen). */
+export function auftragPruefen(text: string): { ok: boolean; hinweise: string[] } {
+  const t = String(text ?? "");
+  const h: string[] = [];
+  if (!t.trim()) return { ok: true, hinweise: [] };
+  for (const l of limitPruefen(t)) {
+    if (l.art === "zusage") h.push("Kein Limit zusagen — das Wunschlimit ist sein Wunsch; was er bekommt, steht in seiner Bestätigung.");
+    if (l.art === "freigabe") h.push("Keine Freigabe versprechen — über den Rahmen entscheidet die Partnerbank, das sagt Aras nur auf direkte Frage.");
+  }
+  if (BANK_SATZ_MUSTER.test(t) || /\bwir\s+sind\s+(?:keine|nicht\s+die)\s+bank\b/i.test(t)) h.push("Kein Bank-Vorbehalt im Gespräch (E-373) — Aras verkauft den Wunsch, nicht den Vorbehalt.");
+  if (drohungFinden(t) || druckFinden(t)) h.push("Kein Druck und keine Drohung (kein Gericht, kein Inkasso, keine SCHUFA, keine erfundene Frist) — Aras bleibt ruhig und freundlich.");
+  if (kopplungFinden(t)) h.push("Die Kündigung hängt nie an einer Zahlung — bitte so nicht an Aras geben.");
+  if (lastschriftFinden(t)) h.push("Lastschrift gibt es nicht — der Kunde überweist selbst.");
+  if (vertragZusageFinden(t)) h.push("Einen Vertrag schließt Aras nie am Telefon — er schickt den Link zum Unterschreiben.");
+  if (BLEIBT_BEIM_MENSCHEN.test(t)) h.push("Kündigung, Widerruf, Erstattung, Beschwerde und Rechtliches bleiben bei dir — Aras verbindet dann zu dir oder bucht einen Rückruf.");
+  for (const w of wandPruefen(t)) if (w.art !== "floskel") h.push(`„${w.treffer}“: ${w.hinweis}`.slice(0, 240));
+  const eindeutig = Array.from(new Set(h));
+  return { ok: eindeutig.length === 0, hinweise: eindeutig.slice(0, 4) };
 }

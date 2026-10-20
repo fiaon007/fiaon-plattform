@@ -140,6 +140,8 @@ import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
 import { PartnerTerminKarte } from "@/components/agent/PartnerTerminKarte";
 import { KontoKarteAkte, KontoKarteKurz } from "@/components/agent/KontoKarteAkte";
+// E-408 Scheibe 2 (20.10.2026): Aras in der Akte — anrufen lassen, Offenes abgeben, Verlauf, Sperre, Notiz.
+import { ArasKarte } from "@/components/agent/ArasKarte";
 import { BoniAmpelAkte } from "@/components/BoniAmpel";
 import FinanzTiefe from "@/components/finanzen/FinanzTiefe";
 // E-IT-D (08.10.2026, 4a/4b/4c): Auswertung + Anforderung in der Akte, Stufensätze der Auskunft aus EINER Quelle.
@@ -3349,6 +3351,7 @@ function AkteEinesMenschen({ k, onZu, onWeg, onNeu, onErledigt, onZaehler, alsSe
           {/* E-386 (16.10.2026): Partner-Termin (Kooperationsvertrag) — nur sichtbar, wenn es einen angenommenen Partner gibt. */}
           <PartnerTerminKarte personId={k.personId} melden={melden} />
           <KundenbereichKarte personId={k.personId} />
+          <ArasKarte personId={k.personId} melden={melden} />
         </>}
 
         {/* ═══ ZAHLUNGEN & RATEN ═══ */}

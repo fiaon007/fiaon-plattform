@@ -24,7 +24,7 @@ import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwill
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
-  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart,
+  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -106,7 +106,7 @@ export async function versucheHeute(personId: number, lauf: Lauf = sqlPool): Pro
 export interface EinreihenEin {
   personId: number | null; leadId?: number | null; ref?: string | null;
   nummer: string; spielart: Spielart; grund: string;
-  erzeugtVon: "takt" | "mara" | "lead_motor" | "antrag" | "chef" | "kunde" | "probe";
+  erzeugtVon: "takt" | "mara" | "lead_motor" | "antrag" | "chef" | "kunde" | "probe" | "akte";
   fruehAb?: Date; spaetBis?: Date;
   terminId?: number | null; rateId?: number | null; erinnerungId?: number | null; einwilligungId?: number | null;
   betragCents?: number | null; anlassAm?: Date | null; fehlFolge?: number;
@@ -114,12 +114,36 @@ export interface EinreihenEin {
   einmalProTag?: boolean;
   /** Wer von Hand eingereiht hat (Betreuer-Name, „Chef #928“, „Mara“) — die Warteschlange zeigt es. */
   auftragVon?: string | null;
+  /** Derselbe im Dativ („Herrn Krause“) — für Aras' Satz „ich rufe im Auftrag von …“. */
+  auftragVonDat?: string | null;
+  /** Der Mitarbeiter, der den Auftrag gegeben hat (Akte). */
+  auftragAgentId?: number | null;
   /** Freitext-Auftrag aus der Akte („teile dem Kunden mit …“) — schon durch die Wortwand. */
   auftragText?: string | null;
-  /** „Offenes an Aras abgeben“: die Punkte in Reihenfolge. */
-  offenes?: string[] | null;
+  /** „Offenes an Aras abgeben“ / „Aras anrufen lassen“: die Punkte in Reihenfolge (art, label für die Akte, satz für Aras). */
+  offenes?: { art: string; label: string; satz: string }[] | null;
+  /** Der wievielte Versuch dieses Auftrags (Akte: nicht erreicht → am nächsten Tag noch einmal, höchstens AUFTRAG_VERSUCHE). */
+  versuchNr?: number;
   /** Nach dem Anruf diesen Mitarbeiter benachrichtigen. */
   benachrichtigenAgentId?: number | null;
+}
+
+/** „Aras für diesen Kunden aus“ (fiaon_aras_person.aus_am) — gilt nur für Aras, das Team ruft weiter an. */
+export async function arasAusFuerPerson(personId: number, lauf: Lauf = sqlPool): Promise<boolean> {
+  await arasSchema(lauf);
+  const [z] = (await lauf`SELECT aus_am FROM fiaon_aras_person WHERE person_id = ${personId}`) as any[];
+  return !!z?.aus_am;
+}
+
+/** Hat die Person einen Vertrag (bezahlt, Zahlung gemeldet, nicht beendet)? Dann ist ein Auftrag aus der Akte Vertragssache. */
+export async function vertragsKunde(personId: number, lauf: Lauf = sqlPool): Promise<boolean> {
+  const [z] = (await lauf`
+    SELECT 1 FROM fiaon_applications a
+     WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL AND a.archived_at IS NULL
+       AND (a.payment_status IN ('paid', 'claimed_paid') OR a.claimed_paid_at IS NOT NULL)
+       AND a.gekuendigt_am IS NULL AND a.abo_gestoppt_am IS NULL AND COALESCE(a.payment_status, '') NOT IN ('cancelled', 'refunded', 'superseded')
+     LIMIT 1`.catch(() => [])) as any[];
+  return !!z;
 }
 
 /** Die wählbare Nummer einer Person (primary_phone, Land) — E.164 oder null. */
@@ -139,18 +163,25 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
   const land: Land = nummerLand(nummer) ?? "DE";
   const kern = nummerKern(nummer);
   if (e.spielart !== "probe" && await telefonGesperrt(kern, e.personId, lauf)) return { ok: false, grund: "Telefonsperre (nicht mehr anrufen)." };
+  if (e.personId && e.spielart !== "probe" && await arasAusFuerPerson(e.personId, lauf)) return { ok: false, grund: "Aras ist für diesen Kunden aus." };
+  let rechtsgrund = RECHTSGRUND[e.spielart];
   if (e.personId && e.spielart !== "probe") {
     await globalKundeBereit();
     const [g] = (await lauf.unsafe(`SELECT ${globalKundeSql("p.id")} AS global, p.ist_test_am IS NOT NULL AS test, p.werbung_gesperrt_am IS NOT NULL AS werbesperre FROM fiaon_persons p WHERE p.id = ${Number(e.personId)}`)) as any[];
     if (g?.global) return { ok: false, grund: "Firmenkunde (FIAON Global) — ARAS ruft nicht an." };
     if (g?.test) return { ok: false, grund: "Testperson." };
     if (g?.werbesperre && istWerbeSpielart(e.spielart)) return { ok: false, grund: "Werbesperre — keine Werbe-Spielart." };
-  }
+    // Auftrag aus der Akte: Kunde mit Vertrag (bezahlt oder Zahlung gemeldet) = Vertragssache, sonst nur mit seinem Ja.
+    if (e.spielart === "auftrag") {
+      rechtsgrund = (await vertragsKunde(e.personId, lauf)) ? "vertrag" : "einwilligung";
+      if (rechtsgrund === "einwilligung" && g?.werbesperre) return { ok: false, grund: "Werbesperre — ohne Vertrag ruft Aras hier nicht an." };
+    }
+  } else if (e.spielart === "auftrag") return { ok: false, grund: "Ein Auftrag braucht einen Kunden." };
   let einwilligungId = e.einwilligungId ?? null;
-  if (istWerbeSpielart(e.spielart)) {
+  if (rechtsgrund === "einwilligung") {
     if (!einwilligungId) {
       const ew = await einwilligungGueltig(kern, e.personId, lauf);
-      if (!ew) return { ok: false, grund: "Keine gültige Telefon-Einwilligung (§ 7a UWG) — Werbe-Spielart ohne Ja." };
+      if (!ew) return { ok: false, grund: e.spielart === "auftrag" ? "Für diesen Kontakt braucht Aras ein Ja zum Anruf (Kästchen im Antrag, JA per Nachricht oder ein gebuchter Anruf) — bis dahin schreibt Mara." : "Keine gültige Telefon-Einwilligung (§ 7a UWG) — Werbe-Spielart ohne Ja." };
       einwilligungId = ew.id;
     }
     if (land === "CH" && !einst.callerIdCh) return { ok: false, grund: "Schweiz: keine eingetragene CH-Nummer (UWG lit. v) — keine Werbe-Spielart." };
@@ -166,11 +197,12 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
   const [z] = (await lauf`
     INSERT INTO fiaon_aras_plan (person_id, lead_id, ref, nummer, land, spielart, prioritaet, grund, rechtsgrund, einwilligung_id,
                                  termin_id, rate_id, erinnerung_id, frueh_ab, spaet_bis, erzeugt_von, betrag_cents, anlass_am, fehl_folge,
-                                 auftrag_von, auftrag_text, auftrag_offenes, benachrichtigen_agent_id)
+                                 auftrag_von, auftrag_text, auftrag_offenes, benachrichtigen_agent_id, versuch_nr, auftrag_von_dat, auftrag_agent_id)
     VALUES (${e.personId}, ${e.leadId ?? null}, ${e.ref ?? null}, ${nummer}, ${land}, ${e.spielart}, ${PRIORITAET[e.spielart]}, ${e.grund.slice(0, 200)},
-            ${RECHTSGRUND[e.spielart]}, ${einwilligungId}, ${e.terminId ?? null}, ${e.rateId ?? null}, ${e.erinnerungId ?? null},
+            ${rechtsgrund}, ${einwilligungId}, ${e.terminId ?? null}, ${e.rateId ?? null}, ${e.erinnerungId ?? null},
             ${fruehAb}, ${spaetBis}, ${e.erzeugtVon}, ${e.betragCents ?? null}, ${e.anlassAm ?? null}, ${e.fehlFolge ?? 0},
-            ${e.auftragVon ?? null}, ${e.auftragText ?? null}, ${e.offenes?.length ? lauf.json(e.offenes as any) : null}, ${e.benachrichtigenAgentId ?? null})
+            ${e.auftragVon ?? null}, ${e.auftragText ?? null}, ${e.offenes?.length ? lauf.json(e.offenes as any) : null}, ${e.benachrichtigenAgentId ?? null}, ${Math.max(1, Math.min(9, e.versuchNr ?? 1))},
+            ${e.auftragVonDat ?? null}, ${e.auftragAgentId ?? null})
     ON CONFLICT (person_id, spielart) WHERE status = 'wartet' AND person_id IS NOT NULL DO NOTHING
     RETURNING id`) as any[];
   if (!z) return { ok: false, grund: "Wartet schon (ein offener Eintrag je Person und Spielart)." };
@@ -237,7 +269,7 @@ function heuteUm(h: number, min = 0): Date {
   return new Date(utc.getTime() - versatz * 60_000);
 }
 function fensterEnde(spielart: Spielart, einst: ArasEinstellungen): Date {
-  const f = spielart === "rate" || spielart === "zusage" || spielart === "stufe_a" ? einst.fenster.rate : einst.fenster.verkauf;
+  const f = istVertragsFenster(spielart) ? einst.fenster.rate : einst.fenster.verkauf;
   const wt = berlinTeile(new Date()).wochentag;
   let bis = "19:00";
   for (const [tage, zeit] of Object.entries(f)) {

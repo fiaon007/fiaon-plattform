@@ -8,7 +8,8 @@
 //   GET  /chef/aras/probe/stand              Probe-Nummer (maskiert), Technik bereit?, Schalter, Kosten, Ton, letzter Probeanruf
 //   POST /chef/aras/probe/nummer             Justins Nummer einmal eintragen (nur DACH, E.164) — die EINE Nummer für Probeanrufe
 //   POST /chef/aras/probe/einstellung        Ton-Regler, Stimme, Tagesdeckel (nur diese Schlüssel)
-//   POST /chef/aras/probe/anrufen            „Mich anrufen“ (Gesprächsart, Stimme nur für diesen Anruf)
+//   POST /chef/aras/probe/anrufen            „Mich anrufen“ (Gesprächsart, Stimme nur für diesen Anruf, optional mit der Akte einer Testperson)
+//   GET  /chef/aras/probe/testpersonen       Testpersonen (ist_test_am) — mit ihrer Akte laufen die Werkzeuge ECHT (Abnahme Scheibe 2)
 //   POST /chef/aras/probe/:callId/auflegen   den laufenden Probeanruf beenden
 //   POST /chef/aras/probe/:callId/urteil     Justins Daumen nach dem Probeanruf (hoch/runter + Grund)
 //   GET  /chef/aras/probe/live?callId=N      Live-Strom (SSE) EINES Probeanrufs: Sätze + Zustand
@@ -33,6 +34,7 @@ import { adapterFuer } from "../lib/fiaon-aras-adapter";
 import { twilioBereit } from "../lib/fiaon-aras-twilio-client";
 import { laeuft, sitzungBeenden } from "../lib/fiaon-aras-bruecke";
 import { ereignisBus } from "../lib/fiaon-aras-ereignis";
+import { sqlPool } from "../lib/db-pool";
 import { HOERPROBE_SATZ_VORGABE, STIMMEN_OPENAI, SPIELARTEN, istSpielart, nummerLand, PROBE_TON_SCHLUESSEL, istDialekt } from "../../shared/fiaon-aras";
 
 const router = Router();
@@ -96,7 +98,15 @@ router.post("/chef/aras/probe/anrufen", wache, async (req: ChefRequest, res: Res
   try {
     const spielart = String(req.body?.spielart ?? "probe");
     const stimme = typeof req.body?.stimme === "string" && req.body.stimme ? String(req.body.stimme) : null;
-    const r = await probeanruf({ spielart: istSpielart(spielart) ? spielart : "probe", von: wer(req), stimme });
+    // Mit der Akte einer TESTPERSON (nie eines echten Kunden): Briefing aus ihrer Akte, Werkzeuge echt — gewählt wird trotzdem nur deine Nummer.
+    let personId: number | null = null;
+    if (req.body?.testpersonId != null && req.body.testpersonId !== "") {
+      const id = Number(req.body.testpersonId);
+      const [t] = (await sqlPool`SELECT id FROM fiaon_persons WHERE id = ${Number.isInteger(id) ? id : 0} AND ist_test_am IS NOT NULL`) as any[];
+      if (!t) return fehler(res, 400, "Das ist keine Testperson — Probeanrufe laufen nur mit Probe-Daten oder einer Testperson.");
+      personId = Number(t.id);
+    }
+    const r = await probeanruf({ spielart: istSpielart(spielart) ? spielart : "probe", von: wer(req), stimme, personId });
     if (!r.ok) return fehler(res, 409, r.grund ?? "Der Probeanruf ging nicht raus.");
     res.json({ ok: true, callId: r.callId });
   } catch (e) { fehler(res, 500, text(e)); }
@@ -117,6 +127,15 @@ router.post("/chef/aras/probe/:callId/urteil", wache, async (req: ChefRequest, r
     const r = await probeUrteil({ callId, daumen, grund: req.body?.grund ? String(req.body.grund) : null, von: wer(req) });
     if (!r.ok) return fehler(res, 400, r.grund ?? "Nicht gespeichert.");
     res.json({ ok: true });
+  } catch (e) { fehler(res, 500, text(e)); }
+});
+
+router.get("/chef/aras/probe/testpersonen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const zeilen = (await sqlPool`
+      SELECT id, COALESCE(NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), ''), company_name, 'Testperson') AS name
+        FROM fiaon_persons WHERE ist_test_am IS NOT NULL ORDER BY ist_test_am DESC LIMIT 20`) as any[];
+    res.json({ ok: true, zeilen: zeilen.map((z) => ({ id: Number(z.id), name: String(z.name) })) });
   } catch (e) { fehler(res, 500, text(e)); }
 });
 

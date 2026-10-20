@@ -234,6 +234,14 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
+    // E-408 Scheibe 2 (20.10.2026): die Karte „Aras“ im Überblick der Akte. Ohne `ziel` — sie steht nur in der geöffneten Akte.
+    titel: "Aras ruft für dich an.",
+    text: "Unten im Überblick steht die Karte „Aras“ — unser KI-Kollege am Telefon. „Aras anrufen lassen“: Anliegen wählen, in einem Satz sagen, "
+      + "was er erledigen soll, Zeit wählen. „Offenes an Aras abgeben“: alles Offene in einem Anruf. Danach steht das Ergebnis in der Akte, "
+      + "und du bekommst eine Nachricht. Geht es gerade nicht, steht in einem Satz, warum.",
+    tipp: "Kündigung, Widerruf, Beschwerde und Erstattung klärt Aras nie — da verbindet er zu dir. Unter „Was Aras wissen muss“ notierst du z. B. „nur abends erreichbar“.",
+  },
+  {
     // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht
     // nur bei Kunden mit bezahlter Buchung und nur in der geöffneten Akte.
     // 14.10.2026 (Justin): „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“

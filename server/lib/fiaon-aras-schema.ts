@@ -59,6 +59,8 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
       await lauf`ALTER TABLE fiaon_aras_plan ADD COLUMN IF NOT EXISTS auftrag_text TEXT`;
       await lauf`ALTER TABLE fiaon_aras_plan ADD COLUMN IF NOT EXISTS auftrag_offenes JSONB`;
       await lauf`ALTER TABLE fiaon_aras_plan ADD COLUMN IF NOT EXISTS benachrichtigen_agent_id INTEGER`;
+      await lauf`ALTER TABLE fiaon_aras_plan ADD COLUMN IF NOT EXISTS auftrag_von_dat TEXT`;
+      await lauf`ALTER TABLE fiaon_aras_plan ADD COLUMN IF NOT EXISTS auftrag_agent_id INTEGER`;
       await lauf`CREATE INDEX IF NOT EXISTS aras_plan_takt_idx ON fiaon_aras_plan (status, prioritaet, frueh_ab)`;
 
       await lauf`
@@ -90,6 +92,20 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS probe_urteil_grund TEXT`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS probe_urteil_am TIMESTAMPTZ`;
       await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS probe_urteil_von TEXT`;
+      // Scheibe 2 (Akte): der Daumen des Betreuers zu einem Kundenanruf — fließt später in Prüf-Mara.
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil TEXT`;
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_grund TEXT`;
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_am TIMESTAMPTZ`;
+      await lauf`ALTER TABLE fiaon_aras_anruf ADD COLUMN IF NOT EXISTS team_urteil_von TEXT`;
+      // Scheibe 2 (Akte): je Kunde „Was Aras wissen muss“ und der Schalter „Aras für diesen Kunden aus“ (wirkt sofort auf die
+      // Warteschlange). Anders als fiaon_telefon_sperre („nicht mehr anrufen“ = niemand ruft an) gilt das nur für Aras.
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_aras_person (
+          person_id INTEGER PRIMARY KEY,
+          notiz TEXT, notiz_von TEXT, notiz_am TIMESTAMPTZ,
+          aus_am TIMESTAMPTZ, aus_grund TEXT, aus_von TEXT,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
 
       await lauf`
         CREATE TABLE IF NOT EXISTS fiaon_aras_werkzeug (

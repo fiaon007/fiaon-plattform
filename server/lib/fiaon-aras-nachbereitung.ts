@@ -142,6 +142,13 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
       if (m?.nacharbeitNachErgebnis) await m.nacharbeitNachErgebnis({ personId: Number(z.person_id), ref: z.ref, ergebnis, notiz: zusammen, akteur: "aras", callId: Number(z.call_id) });
     } catch (e) { console.error("[ARAS-NACHBEREITUNG] Nacharbeit (C2):", String((e as Error)?.message ?? e).slice(0, 200)); }
   }
+  // Scheibe 2 (Akte): Auftrag des Betreuers — Upload-Link, noch ein Versuch, Nachricht an den Mitarbeiter (nie bei Probe).
+  if (!probe && z.plan_id) {
+    try {
+      const { auftragNachbereiten } = await import("./fiaon-aras-akte");
+      await auftragNachbereiten(Number(z.plan_id), { ergebnis, zusammenfassung: zusammen, personId: z.person_id != null ? Number(z.person_id) : null }, lauf);
+    } catch (e) { console.error("[ARAS-NACHBEREITUNG] Auftrag:", String((e as Error)?.message ?? e).slice(0, 200)); }
+  }
   return { ergebnis, pruefung: status };
 }
 

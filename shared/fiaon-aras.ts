@@ -15,14 +15,16 @@ import { istFeiertag, type FeiertagLand } from "./fiaon-feiertage";
 export const ARAS_VERSION = "1.0-2026-10-19";
 
 // ── Spielarten ─────────────────────────────────────────────────────────────
-export const SPIELARTEN = ["termin", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "eingehend", "probe"] as const;
+// E-408 Scheibe 2 (20.10.2026): „auftrag“ = ein Auftrag aus der Akte („Aras anrufen lassen“, „Offenes an Aras abgeben“) —
+// der Betreuer sagt, worum es geht; Rechtsgrund Vertrag (Kunde) oder seine Einwilligung (sonst kein Anruf).
+export const SPIELARTEN = ["termin", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"] as const;
 export type Spielart = (typeof SPIELARTEN)[number];
 export function istSpielart(v: unknown): v is Spielart { return typeof v === "string" && (SPIELARTEN as readonly string[]).includes(v); }
 
 export const SPIELART_TEXT: Record<Spielart, string> = {
   termin: "Termin bei Aras", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Antrag unbezahlt",
   stufe_a: "Zahlung gemeldet", rate: "Rate fällig", zusage: "Zusage nachfassen", rueckholung: "Rückholung",
-  eingehend: "Eingehend", probe: "Probeanruf",
+  auftrag: "Auftrag vom Team", eingehend: "Eingehend", probe: "Probeanruf",
 };
 
 /** Rechtsgrund je Spielart — Werbung braucht eine Zeile in fiaon_telefon_einwilligung. */
@@ -30,11 +32,15 @@ export type Rechtsgrund = "vertrag" | "einwilligung" | "kunde_ruft" | "intern";
 export const RECHTSGRUND: Record<Spielart, Rechtsgrund> = {
   termin: "einwilligung", lead: "einwilligung", zuruf: "einwilligung", stufe_b: "einwilligung",
   stufe_a: "vertrag", rate: "vertrag", zusage: "vertrag", rueckholung: "einwilligung", eingehend: "kunde_ruft", probe: "intern",
+  // Auftrag aus der Akte: Vorgabe Vertrag — planEinreihen setzt „einwilligung“, wenn der Kontakt (noch) kein Kunde ist und ein Ja vorliegt.
+  auftrag: "vertrag",
 };
 export function istWerbeSpielart(s: Spielart): boolean { return RECHTSGRUND[s] === "einwilligung"; }
+/** Vertragssachen (Rate, Zusage, Zahlung gemeldet, Auftrag aus der Akte) wählen im Raten-Fenster, alles andere im Verkaufs-Fenster. */
+export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag"; }
 
 /** Priorität in der Warteschlange (1 = zuerst; 0 = außerhalb der Reihung). */
-export const PRIORITAET: Record<Spielart, number> = { termin: 1, lead: 2, zuruf: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
+export const PRIORITAET: Record<Spielart, number> = { termin: 1, lead: 2, zuruf: 2, auftrag: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
 /** Stufe B frisch (< 4 h nach Absenden, Einwilligung antrag_kaestchen/antrag_knopf) läuft als `zuruf` mit grund "antrag_frisch". */
 export const STUFE_B_FRISCH_STUNDEN = 4;
 
@@ -177,7 +183,7 @@ export function aufnahmeFrageFehler(w: string): string | null {
 
 /** Vertrag § 3: JSON { spielart: "an" | "aus" } — lead, stufe_b, rueckholung erst nach LEXR. Fehlende Spielarten = Vorgabe. */
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
-  termin: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", probe: "an",
+  termin: "an", zuruf: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
   lead: "aus", stufe_b: "aus", rueckholung: "aus", eingehend: "aus",
 };
 /** „an“, true, 1 → an. */
@@ -471,7 +477,7 @@ export function fensterOffen(
     return { offen: true, grund: null };
   }
   const f = opt.fenster ?? FENSTER_VORGABE;
-  const zeile = fensterZeile(spielart === "rate" || spielart === "zusage" || spielart === "stufe_a" ? f.rate : f.verkauf, b.wochentag);
+  const zeile = fensterZeile(istVertragsFenster(spielart) ? f.rate : f.verkauf, b.wochentag);
   if (!zeile) return { offen: false, grund: "kein_fenster_heute" };
   if (b.hhmm < zeile[0] || b.hhmm >= zeile[1]) return { offen: false, grund: "ausserhalb_fenster" };
   return { offen: true, grund: null };
@@ -525,7 +531,7 @@ export function reihen<T extends Kandidat>(kandidaten: readonly T[]): T[] {
 
 /** Welche Stunde (0–23) ist für diese Spielart die beste? Aus gemessenen Erreicht-Quoten je Stunde, sonst Vorgabe 9 / 17. */
 export function stundeFuer(spielart: Spielart, erreichtJeStunde: Record<number, number> | null | undefined): number {
-  const vorgabe = spielart === "rate" || spielart === "stufe_a" || spielart === "zusage" ? 9 : 17;
+  const vorgabe = istVertragsFenster(spielart) ? 9 : 17;
   if (!erreichtJeStunde) return vorgabe;
   let beste = vorgabe, quote = -1;
   for (const [h, q] of Object.entries(erreichtJeStunde)) {
@@ -611,3 +617,41 @@ export interface HoerprobeZeile {
 export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren"] as const;
 /** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
 export const HOERPROBE_SATZ_VORGABE = "Hallo, hier ist Aras von FIAON — kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ähm, haben Sie kurz zwei Minuten?";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AKTE & ALLTAG (E-408 Scheibe 2, Nachtrag Akte-Steuerung 19.10.2026)
+// „Aras anrufen lassen“ und „Offenes an Aras abgeben“ — beide reihen nur EINEN
+// Anruf ein (Spielart `auftrag`). Was bei einem Kunden offen ist, kommt aus der
+// Akte (server/lib/fiaon-aras-akte.ts); hier stehen nur Namen, Reihenfolge und
+// die Grenzen. Kündigung, Widerruf, Beschwerde, Erstattung, Rechtliches klärt
+// Aras nie — das bleibt beim Menschen (er verbindet oder bucht einen Rückruf).
+// ═══════════════════════════════════════════════════════════════════════════
+export const OFFEN_ARTEN = ["zahlung_gemeldet", "rate", "zusage", "erste_rate", "unterlagen", "rueckruf"] as const;
+export type OffenArt = (typeof OFFEN_ARTEN)[number];
+export function istOffenArt(v: unknown): v is OffenArt { return typeof v === "string" && (OFFEN_ARTEN as readonly string[]).includes(v); }
+/** Ein offener Punkt: `label` für den Menschen in der Akte, `satz` für Aras (Briefing, ohne Systemwörter). */
+export interface OffenPunkt { art: OffenArt; label: string; satz: string }
+/** Reihenfolge in EINEM Gespräch: erst was schon unterwegs ist, dann Geld, dann Unterlagen, dann der Rückruf-Wunsch. */
+export const OFFEN_REIHENFOLGE: Record<OffenArt, number> = { zahlung_gemeldet: 1, rate: 2, zusage: 3, erste_rate: 4, unterlagen: 5, rueckruf: 6 };
+export function offenReihen<T extends { art: OffenArt }>(punkte: readonly T[]): T[] {
+  return [...punkte].sort((a, b) => OFFEN_REIHENFOLGE[a.art] - OFFEN_REIHENFOLGE[b.art]);
+}
+/** Was Aras am Telefon nie erledigt — steht in der Akte sichtbar als „bleibt bei dir“. */
+export const BLEIBT_BEI_DIR = ["Kündigung", "Widerruf", "Beschwerde", "Erstattung", "Rechtliches (Anwalt, Behörde)"] as const;
+export const AUFTRAG_MAX_ZEICHEN = 500;
+export const ARAS_NOTIZ_MAX_ZEICHEN = 300;
+/** Wann Aras anrufen soll: so bald wie möglich (im Fenster), heute ab einer Uhrzeit, morgen. */
+export const AUFTRAG_WANN = ["bald", "heute_ab", "morgen"] as const;
+export type AuftragWann = (typeof AUFTRAG_WANN)[number];
+/** Ein Auftrag aus der Akte bleibt 48 Stunden in der Warteschlange; nicht erreicht → höchstens drei Versuche (je ein Tag später). */
+export const AUFTRAG_GUELTIG_STUNDEN = 48, AUFTRAG_VERSUCHE = 3;
+
+/** Der Freitext des Betreuers: Leerraum glätten, auf 500 Zeichen kürzen. Rein. */
+export function auftragSaubern(text: unknown): string {
+  return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, AUFTRAG_MAX_ZEICHEN);
+}
+
+/** Ausbaustufe → darf Aras Kunden anrufen? Stufe 0 = nur Probeanrufe (Nachtrag Persona & Skalierung). */
+export function kundenAnrufeAn(e: { an: boolean; stufe: number; notaus: boolean }): boolean {
+  return e.an && !e.notaus && e.stufe >= 1;
+}

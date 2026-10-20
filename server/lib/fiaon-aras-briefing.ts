@@ -136,6 +136,24 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   const anrede: Briefing["anrede"] = /^(herr|herrn|hr)/.test(anredeRoh) ? "Herr" : /^(frau|fr)/.test(anredeRoh) ? "Frau" : null;
   const betreuer = p.agent_id && p.agent_aktiv ? nennform({ name: p.agent_name, first_name: p.agent_vorname, last_name: p.agent_nachname, anrede: p.agent_anrede }) : null;
 
+  // Scheibe 2 (Akte): der Auftrag des Betreuers und das Offene aus dem Plan-Eintrag, dazu „Was Aras wissen muss“ (je Kunde).
+  let auftrag: Briefing["auftrag"] = null;
+  let offenes: string[] | null = null;
+  let offenArten: string[] | null = null;
+  if (e.planId) {
+    const [pl] = (await lauf`SELECT auftrag_von, auftrag_von_dat, auftrag_text, auftrag_offenes FROM fiaon_aras_plan WHERE id = ${e.planId}`.catch(() => [])) as any[];
+    if (pl?.auftrag_text) auftrag = { text: String(pl.auftrag_text).slice(0, 500), von: String(pl.auftrag_von ?? "das Team"), vonDat: pl.auftrag_von_dat ? String(pl.auftrag_von_dat) : null };
+    if (Array.isArray(pl?.auftrag_offenes)) {
+      offenes = (pl.auftrag_offenes as unknown[]).map((o: any) => (typeof o === "string" ? o : String(o?.satz ?? ""))).map((x) => x.trim()).filter(Boolean).slice(0, 8);
+      if (!offenes.length) offenes = null;
+      offenArten = (pl.auftrag_offenes as unknown[]).map((o: any) => String(o?.art ?? "")).filter(Boolean).slice(0, 8);
+    }
+    // Ohne Freitext, aber mit Auftraggeber: der Name trägt die Begrüßung („im Auftrag von …“).
+    if (!auftrag && pl?.auftrag_von && offenes) auftrag = { text: "Bitte die offenen Punkte unten klären.", von: String(pl.auftrag_von), vonDat: pl.auftrag_von_dat ? String(pl.auftrag_von_dat) : null };
+  }
+  const [ap] = (await lauf`SELECT notiz FROM fiaon_aras_person WHERE person_id = ${e.personId}`.catch(() => [])) as any[];
+  const arasNotiz = ap?.notiz ? String(ap.notiz).replace(/\s+/g, " ").trim().slice(0, 300) || null : null;
+
   let terminAm: string | null = null;
   if (e.terminId) {
     const [t] = (await lauf`SELECT beginn FROM fiaon_termine WHERE id = ${e.terminId}`) as any[];
@@ -163,6 +181,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
     kartenZiel,
     zusageAm: e.zusageAm ?? null,
     terminAm,
+    auftrag, offenes, offenArten, arasNotiz,
     probe: e.probe === true,
   };
 }

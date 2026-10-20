@@ -41,8 +41,9 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   const arasTwilio = await import("../routes/fiaon-aras-twilio");
   app.use("/api/fiaon", arasTwilio.default);
   arasTwilio.arasStreamAnbinden(httpServer);
-  // 2. Eigene Chef-Routen (nur was der Vertrag nicht kennt)
+  // 2. Eigene Chef-Routen (nur was der Vertrag nicht kennt) + Akte und Softphone (Scheibe 2)
   app.use("/api/fiaon", (await import("../routes/fiaon-aras-chef")).default);
+  app.use("/api/fiaon", (await import("../routes/fiaon-aras-akte")).default);
 
   // 3. Anbindung an den KI-Raum (E-409) — Signaturen wie SCHNITTSTELLE § 4 (weich, siehe Kopf)
   const anbindung = arasAnbindungsObjekt();

@@ -58,11 +58,13 @@ export interface Briefing {
   /** Bei Spielart termin: wann der Kunde den Anruf gebucht hat. */
   terminAm?: string | null;
   /** Auftrag eines Betreuers aus der Akte („Was soll Aras sagen oder erledigen?“) — schon durch die Wortwand. */
-  auftrag?: { text: string; von: string } | null;
+  auftrag?: { text: string; von: string; /** Dativ („im Auftrag von Herrn Krause“) — sonst der Betreuer. */ vonDat?: string | null } | null;
   /** „Was Aras wissen muss“ — Notiz je Kunde (nur abends erreichbar, spricht wenig Deutsch …). */
   arasNotiz?: string | null;
   /** Was bei diesem Kunden offen ist (Offenes an Aras abgeben) — in sinnvoller Reihenfolge. */
   offenes?: string[] | null;
+  /** Dieselben Punkte als Arten (rate, unterlagen …) — für den Anlass in einem Satz („es geht um Ihre Rate und Ihre Unterlagen“). */
+  offenArten?: string[] | null;
   /** Probeanruf: Justin testet; keine Wirkung nach außen (Werkzeuge trocken), Daten können erfunden sein. */
   probe?: boolean;
   /** Bei Probe: welche Gesprächsart gespielt wird. */
@@ -272,6 +274,25 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
         nebenbei: null,
         beispiele: ["Sie hatten Interesse, wieder bei FIAON einzusteigen — ich erzähl Ihnen kurz, wie das jetzt ganz einfach geht."],
       };
+    case "auftrag": {
+      // Scheibe 2 (Akte: „Offenes an Aras abgeben“) — dieselben Fakten-Regeln: was offen ist, was Aras will, was er davon hat.
+      const SIE: Record<string, string> = { zahlung_gemeldet: "Ihre Überweisung", rate: "Ihre Rate", zusage: "Ihre geplante Überweisung", erste_rate: "Ihren Start bei FIAON", unterlagen: "Ihre Unterlagen", rueckruf: "Ihre Anfrage" };
+      const ER: Record<string, string> = { zahlung_gemeldet: "seine gemeldete Überweisung (zuordnen)", rate: "seine offene Rate", zusage: "seine geplante Überweisung", erste_rate: "sein Start (erste Zahlung)", unterlagen: "fehlende Unterlagen", rueckruf: "seine Bitte um Rückruf" };
+      const arten = Array.from(new Set(b.offenArten ?? []));
+      const er = arten.map((x) => ER[x]).filter(Boolean).slice(0, 3);
+      const sie = arten.map((x) => SIE[x]).filter(Boolean).slice(0, 2);
+      const von = b.auftrag?.vonDat ?? b.betreuer?.dat ?? "unserem Team";
+      return {
+        offen: er.length ? `${er.join(", ")} — Einzelheiten unter „Offen bei ihm“.` : "Eine kurze Sache aus seinem Auftrag (siehe AUFTRAG).",
+        ziel: `Du rufst im Auftrag von ${von} an und erledigst das Offene in EINEM Gespräch, Punkt für Punkt.`,
+        nutzen: "Danach ist bei ihm alles erledigt — ohne dass er selbst hinterhertelefonieren muss.",
+        nebenbei: null,
+        beispiele: [
+          `Ich ruf im Auftrag von ${von} an — es geht um ${sie.length ? sie.join(" und ") : "eine kurze Sache"}. Das haben wir gleich zusammen erledigt.`,
+          `Kurz im Auftrag von ${von}: Es geht um ${sie[0] ?? "eine kleine Sache"} — und das klären wir am besten gleich zusammen.`,
+        ],
+      };
+    }
     default:
       return null;
   }
@@ -550,6 +571,8 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
       return `GESPRÄCHSART „ZUSAGE NACHFASSEN“: Er wollte am ${b.zusageAm ?? "zugesagten Tag"} überweisen; angekommen ist nichts (das sagt dein Anlass). Freundlich: „Hat es mit der Überweisung geklappt?“ Ja → zahlung_gemeldet (Datum, Betrag; Verwendungszweck noch einmal nennen). Nein → ohne Vorwurf ein neuer Tag (zahlungszusage_merken) oder, bei echter Not, ratenpause_setzen.`;
     case "rueckholung":
       return `GESPRÄCHSART „WIEDER EINSTEIGEN“: Sein Vertrag ist beendet; er hat um den Anruf gebeten (das sagt dein Anlass). Erklär kurz, wie es jetzt ginge. Ziel: ein neuer Antrag per Link. Bei Nein: freundlicher Schluss, keine zweite Runde.`;
+    case "auftrag":
+      return `GESPRÄCHSART „AUFTRAG VOM TEAM“: ${b.auftrag?.von ?? b.betreuer?.nom ?? "Jemand aus dem Team"} hat dich gebeten, ihn anzurufen (das sagt dein Anlass). Arbeite den Auftrag und die offenen Punkte der Reihe nach ab, je Punkt EIN konkreter nächster Schritt und EINE Frage: offene Rate → ruhig wie bei einer fälligen Rate (Tag genannt → zahlungszusage_merken, „ist schon raus“ → zahlung_gemeldet); gemeldete Zahlung → Datum, Bank und Verwendungszweck klären, eins nach dem anderen (zahlung_gemeldet); fehlende Unterlagen → sag genau, was fehlt, und dass der Link zum Hochladen gleich per Mail kommt; hat er um einen Anruf gebeten → erst fragen, worum es geht, dann beantworten. Kündigung, Widerruf, Beschwerde, Erstattung, Rechtliches → mensch_verbinden, du klärst das nie selbst. Zum Schluss kurz zusammenfassen, was jetzt passiert, und notiz_schreiben für ${b.betreuer?.dat ?? "das Team"}.`;
     case "eingehend":
       return `GESPRÄCHSART „ER RUFT AN“: Der Kunde ruft FIAON an. Nach dem ersten Satz: „Worum geht es Ihnen?“ Beantworte aus dem, was du weißt; Rate, Termin oder Link über den Hintergrund; auf Wunsch verbinden. Kennst du die Nummer nicht: Name und Anliegen aufnehmen, Notiz, Termin anbieten.`;
     default:
@@ -796,6 +819,12 @@ export function probeBriefing(e: { spielart: Spielart; anrede: "Herr" | "Frau" |
     case "stufe_a": b.stufe = "zahlung_gemeldet"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; break;
     case "termin": b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; b.terminAm = "heute, jetzt"; break;
     case "lead": b.stufe = "lead"; b.paketKey = null; b.paketName = null; break;
+    case "auftrag":
+      b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null };
+      b.auftrag = { text: "Bitte sag ihm, dass sein Kontoauszug noch fehlt — er kann ihn bequem über den Link hochladen.", von: "Herr Probe", vonDat: "Herrn Probe" };
+      b.offenes = [`Offene Rate 2 über ${rate.betrag}, fällig am ${rate.faelligAm} — ruhig ansprechen.`, "Unterlagen fehlen: Kontoauszüge der letzten drei Monate — der Link zum Hochladen kommt nach dem Gespräch per Mail."];
+      b.offenArten = ["rate", "unterlagen"];
+      break;
     default:
       b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; b.kartenZiel = { euro: 5000, art: "wunsch", paketName: b.paketName };
       if (e.spielart === "zuruf") b.einwilligung = { art: "zuruf_whatsapp", am: e.heute?.datum ?? "" };

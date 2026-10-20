@@ -44,7 +44,7 @@ type Zeile = { wer: "kunde" | "aras" | "info"; text: string };
 const STIMME_TEXT: Record<string, string> = { flitz: "Flitz · männlich", nuri: "Nuri · weiblich", juni: "Juni · weiblich" };
 const stimmeText = (s: string | null | undefined) => (s ? STIMME_TEXT[s] ?? (s.startsWith("eigene:") ? "eigene Stimme" : s) : "—");
 const stimmeName = (s: string | null | undefined) => stimmeText(s).split(" ·")[0];
-const PROBE_ARTEN: Spielart[] = ["zuruf", "rate", "stufe_a", "zusage", "termin", "lead"];
+const PROBE_ARTEN: Spielart[] = ["zuruf", "rate", "stufe_a", "zusage", "termin", "auftrag", "lead"];
 const GRUENDE = ["klingt nach KI", "zu langsam", "zu schnell", "zu viele Füllwörter", "wiederholt sich", "fällt mir ins Wort", "Unterbrechen hakt", "versteht schlecht", "zu aufdringlich", "Begrüßung holprig", "Schluss zu abrupt"];
 const TON: { key: string; label: string; werte: { w: string; t: string }[] }[] = [
   { key: "aras_energie", label: "Energie", werte: [{ w: "ruhig", t: "ruhig" }, { w: "lebendig", t: "lebendig" }, { w: "vollgas", t: "Vollgas" }] },
@@ -112,6 +112,8 @@ function useLive(callId: number | null, beimEnde: () => void) {
 export default function ChefArasProbe({ eingebettet = false, ohneSchalter = false }: { eingebettet?: boolean; ohneSchalter?: boolean } = {}) {
   const stand = useDaten<Stand>("/chef/aras/probe/stand");
   const proben = useDaten<{ zeilen: HoerprobeZeile[] }>("/chef/aras/probe/hoerproben");
+  const testpersonen = useDaten<{ zeilen: { id: number; name: string }[] }>("/chef/aras/probe/testpersonen");
+  const [testperson, setTestperson] = useState("");
   const [meldung, setMeldung] = useState<{ text: string; rot?: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [spielart, setSpielart] = useState<Spielart>("zuruf");
@@ -165,7 +167,7 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   });
   const anrufen = () => tun("anrufen", async () => {
     if (!window.confirm(`Aras ruft jetzt ${s?.nummer ?? "deine Nummer"} an — als „${SPIELART_TEXT[spielart]}“${stimme ? ` mit ${stimmeName(stimme)}` : ""}. Handy bereit?`)) return;
-    const r = await senden<{ ok: boolean; callId: number }>("/chef/aras/probe/anrufen", { spielart, stimme: stimme || undefined });
+    const r = await senden<{ ok: boolean; callId: number }>("/chef/aras/probe/anrufen", { spielart, stimme: stimme || undefined, testpersonId: testperson || undefined });
     setAktiv(r.callId); setGruende([]); setFreitext(""); stand.neu();
     melden("Aras wählt … Rede mit ihm, unterbrich ihn, schweig mal drei Sekunden, sag „Nein“ zur Aufzeichnung.");
   });
@@ -266,6 +268,14 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
                 {PROBE_ARTEN.map((a) => <option key={a} value={a}>{SPIELART_TEXT[a]}</option>)}
               </select>
             </label>
+            {(testpersonen.daten?.zeilen.length ?? 0) > 0 && (
+              <label className="ap-feld" title="Mit der Akte einer Testperson laufen Aras' Werkzeuge echt (Link, Zusage, Termin) — gewählt wird trotzdem nur deine Nummer.">Mit Akte von
+                <select value={testperson} onChange={(e) => setTestperson(e.target.value)}>
+                  <option value="">Probe-Daten (Werkzeuge nur zum Schein)</option>
+                  {testpersonen.daten!.zeilen.map((t) => <option key={t.id} value={t.id}>{t.name} · Testperson #{t.id} (Werkzeuge echt)</option>)}
+                </select>
+              </label>
+            )}
             <div className="ap-feld">Stimme für diesen Anruf
               <div className="ap-segment" role="group" aria-label="Stimme für diesen Anruf">
                 <button type="button" className={stimme === "" ? "an" : ""} onClick={() => setStimme("")}>gewählte ({stimmeName(s.stimme)})</button>

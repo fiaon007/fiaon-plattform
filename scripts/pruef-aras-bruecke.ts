@@ -728,6 +728,110 @@ async function main(): Promise<void> {
     }
   }
 
+  titel("15. AKTE (Scheibe 2): Aras anrufen lassen, Offenes abgeben, Sperre je Kunde, Notiz, Nachricht, noch ein Versuch");
+  {
+    // Die Attrappe antwortet ohne menschliche Pausen — hier wieder ohne Geduld-Tor (das prüft Abschnitt 14).
+    await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
+    const { arasAkteLage, arasAuftragGeben, arasAuftragZuruecknehmen, arasFuerPersonSchalten, arasNotizSetzen, arasAnrufUrteil, auftragZeit } = await import("../server/lib/fiaon-aras-akte");
+    const { briefingBauen } = await import("../server/lib/fiaon-aras-briefing");
+    const { anweisungBauen } = await import("../shared/fiaon-aras-prompt");
+    const { berlinTeile } = await import("../shared/fiaon-aras");
+    const neuerAgent = async (n: number, anrede: string, vor: string, nach: string, rolle = "agent") => Number(((await sqlPool`
+      INSERT INTO fiaon_agents (name, email, active, first_name, last_name, anrede, rolle, is_test_account)
+      VALUES (${`${vor} ${nach}`}, ${`pruef-e408-agent${n}@example.invalid`}, TRUE, ${vor}, ${nach}, ${anrede}, ${rolle}, TRUE) RETURNING id`) as any[])[0].id);
+    const betreuer = await neuerAgent(1, "frau", "Mia", "Prüfer");
+    const kollege = await neuerAgent(2, "herr", "Tom", "Andere");
+    // P20: Kunde (bezahlt) mit offener Rate — Vertragssache
+    const p20 = await person(30); const r20 = await antrag(p20, 30, { payment_status: "paid" });
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${r20}, 3, ${`${r20}-3`}, 5999, ${vor(2)}::date, 'offen')`;
+    await sqlPool`UPDATE fiaon_persons SET assigned_agent_id = ${betreuer} WHERE id = ${p20}`;
+    // P22: Lead ohne Antrag und ohne Ja
+    const p22 = await person(32);
+
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+    let lage = await arasAkteLage(p20, betreuer);
+    ok("Stufe 0 (Testphase): Knopf grau mit einem Satz warum", lage?.geht.ok === false && /Testphase/.test(lage?.geht.grund ?? ""), lage?.geht.grund ?? "");
+    const r0 = await arasAuftragGeben(p20, { auftrag: "Bitte nach der Rate fragen." }, betreuer);
+    ok("Rotprobe: in Stufe 0 wird nichts eingeplant", !r0.ok, r0.grund ?? "");
+    await einstellungSetzen("aras_stufe", "1", "pruefstand");
+    lage = await arasAkteLage(p20, betreuer);
+    ok("Stufe 1: Aras kann anrufen, offen = Rate", lage?.geht.ok === true && lage.offen.some((x) => x.art === "rate"), JSON.stringify({ g: lage?.geht, o: lage?.offen.map((x) => x.art) }));
+    ok("„Bleibt bei dir“: Kündigung, Widerruf, Beschwerde, Erstattung stehen da", ["Kündigung", "Widerruf", "Beschwerde", "Erstattung"].every((w) => (lage?.bleibtBeiDir ?? []).some((b) => b.startsWith(w))));
+    const lage22 = await arasAkteLage(p22, betreuer);
+    ok("Lead ohne Ja: ein Satz warum nicht (braucht ein Ja)", lage22?.geht.ok === false && /Ja zum Anruf/.test(lage22?.geht.grund ?? ""), lage22?.geht.grund ?? "");
+
+    const boese = await arasAuftragGeben(p20, { auftrag: "Sag ihm, sonst geht das ans Inkasso und sein Limit ist sicher." }, betreuer);
+    ok("Rotprobe: Freitext mit Drohung und Limit-Zusage wird abgelehnt — mit Hinweisen", !boese.ok && (boese.hinweise ?? []).length >= 2, JSON.stringify(boese.hinweise));
+    const nn = await arasNotizSetzen(p20, "Nur abends erreichbar, bitte langsam sprechen.", "Mia Prüfer");
+    ok("„Was Aras wissen muss“ gespeichert", nn.ok);
+    const gut1 = await arasAuftragGeben(p20, { punkte: ["rate"], auftrag: "Teile ihm mit, dass er seinen Kontoauszug hochladen soll.", wann: "bald", benachrichtigen: true }, betreuer);
+    ok("Aras anrufen lassen → EIN Eintrag (Spielart auftrag)", gut1.ok && !!gut1.id, gut1.grund ?? "");
+    const [pl20] = (await sqlPool`SELECT * FROM fiaon_aras_plan WHERE id = ${gut1.id ?? 0}`) as any[];
+    ok("Eintrag: Vertragssache, Freitext, Rate als Punkt, Auftraggeber in Nennform, Benachrichtigung", pl20?.spielart === "auftrag" && pl20.rechtsgrund === "vertrag" && /Kontoauszug/.test(pl20.auftrag_text ?? "")
+      && Array.isArray(pl20.auftrag_offenes) && pl20.auftrag_offenes[0]?.art === "rate" && pl20.auftrag_von === "Frau Prüfer" && pl20.auftrag_von_dat === "Frau Prüfer" && Number(pl20.benachrichtigen_agent_id) === betreuer,
+      JSON.stringify({ r: pl20?.rechtsgrund, v: pl20?.auftrag_von, d: pl20?.auftrag_von_dat, o: pl20?.auftrag_offenes }));
+    const doppelt = await arasAuftragGeben(p20, { auftrag: "Noch etwas." }, betreuer);
+    ok("Zweiter Auftrag, solange einer wartet: abgelehnt mit Satz", !doppelt.ok && /schon einen Anruf geplant/.test(doppelt.grund ?? ""), doppelt.grund ?? "");
+    const fremd = await arasAuftragZuruecknehmen(p20, Number(gut1.id), kollege, false);
+    ok("Rotprobe: ein Kollege (ohne Leitung) nimmt fremde Aufträge nicht zurück", !fremd.ok);
+    const b = await briefingBauen({ personId: p20, nummer: "+491700000030", spielart: "auftrag", planId: Number(gut1.id) });
+    ok("Briefing: Auftrag, Rate-Satz und Notiz sind drin", /Kontoauszug/.test(b.auftrag?.text ?? "") && (b.offenes ?? []).some((x) => /Rate 3/.test(x)) && /abends/.test(b.arasNotiz ?? ""), JSON.stringify({ a: b.auftrag, o: b.offenes, n: b.arasNotiz }));
+    const anw = anweisungBauen({ spielart: "auftrag", briefing: b, einstellungen: await arasEinstellungenLesen(true), hausanweisung: null });
+    ok("Anweisung: „im Auftrag von Frau Prüfer“, AUFTRAG und offene Punkte", /im Auftrag von Frau Prüfer/.test(anw.text) && /AUFTRAG von Frau Prüfer/.test(anw.text) && /Offen bei ihm/.test(anw.text), anw.text.slice(0, 120));
+
+    // Gespräch: erreicht, Zusage → Nachricht an Mia im Office
+    const g = await gespraech(Number(gut1.id), { schritte: [
+      { aras: KI_HINWEIS_VORGABE, ms: 300 },
+      { kunde: "Ja, am Apparat." },
+      { aras: "Ich rufe im Auftrag von Frau Prüfer an — es geht um Ihre dritte Rate.", ms: 300 },
+      { kunde: "Ich überweise morgen." },
+      { werkzeug: "zahlungszusage_merken", eingabe: { datum: morgen } },
+      { aras: "Prima, dann einen schönen Tag!", ms: 200 },
+      { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_zahlt_am", notiz: "Zahlt morgen." } },
+    ] });
+    await Promise.race([sitzungFertig(g.callId) ?? Promise.resolve(), schlafen(15000)]);
+    await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 10_000);
+    const nachricht = await warten(async () => ((await sqlPool`SELECT 1 FROM fiaon_team_nachrichten WHERE agent_id = ${betreuer} AND text LIKE 'Aras hat%'`) as any[]).length > 0, 6000);
+    ok("Nach dem Gespräch: Nachricht an Frau Prüfer im Office („Aras hat … angerufen“)", nachricht);
+    lage = await arasAkteLage(p20, betreuer);
+    ok("Verlauf in der Akte: der Anruf mit Ergebnis", (lage?.verlauf ?? []).some((v) => v.callId === g.callId && v.ergebnis === "erreicht_zahlt_am"), JSON.stringify(lage?.verlauf.map((v) => [v.callId, v.ergebnis])));
+    const az = (lage?.verlauf ?? []).find((v) => v.callId === g.callId);
+    ok("Ohne Aufnahme-Ja: kein Transkript in der Akte", az?.transkript === null);
+    const u = await arasAnrufUrteil(p20, Number(az?.arasAnrufId ?? 0), "hoch", null, "Mia Prüfer");
+    const [uu] = (await sqlPool`SELECT team_urteil FROM fiaon_aras_anruf WHERE id = ${Number(az?.arasAnrufId ?? 0)}`) as any[];
+    ok("Daumen des Betreuers gespeichert", u.ok && uu?.team_urteil === "hoch");
+
+    // Nicht erreicht (Mailbox) → morgen noch ein Versuch, gleicher Auftrag
+    const p21 = await person(31); const r21 = await antrag(p21, 31, { payment_status: "paid" });
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${r21}, 2, ${`${r21}-2`}, 5999, ${vor(1)}::date, 'offen')`;
+    const gab = await arasAuftragGeben(p21, { punkte: ["rate"], abgeben: true }, betreuer);
+    ok("Offenes an Aras abgeben → EIN Eintrag", gab.ok, gab.grund ?? "");
+    const g2 = await gespraech(Number(gab.id), { schritte: [{ kunde: "Hallo, dies ist die Mailbox von 0170. Bitte hinterlassen Sie eine Nachricht nach dem Signalton.", nachMs: 100 }, { warteMs: 4000 }] });
+    await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 10_000);
+    const neu = await warten(async () => ((await sqlPool`SELECT 1 FROM fiaon_aras_plan WHERE person_id = ${p21} AND spielart = 'auftrag' AND status = 'wartet' AND versuch_nr = 2`) as any[]).length > 0, 6000);
+    ok("Mailbox → morgen noch ein Versuch (Versuch 2, gleicher Auftrag)", neu);
+    const [v2z] = (await sqlPool`SELECT frueh_ab, auftrag_offenes FROM fiaon_aras_plan WHERE person_id = ${p21} AND status = 'wartet' AND versuch_nr = 2`) as any[];
+    ok("Versuch 2 frühestens morgen, Punkte übernommen", !!v2z && new Date(v2z.frueh_ab).getTime() > Date.now() + 6 * 3600_000 && v2z.auftrag_offenes?.[0]?.art === "rate");
+
+    // Aras für diesen Kunden aus → Wartendes gesperrt, neue Aufträge abgelehnt, Takt wählt ihn nicht
+    await arasFuerPersonSchalten(p21, true, "Kunde möchte lieber mit Frau Prüfer sprechen", betreuer, "Mia Prüfer");
+    const [gesp] = (await sqlPool`SELECT COUNT(*) FILTER (WHERE status = 'wartet')::int AS w, COUNT(*) FILTER (WHERE status = 'gesperrt')::int AS g FROM fiaon_aras_plan WHERE person_id = ${p21}`) as any[];
+    ok("Aras aus: Wartendes sofort gesperrt", Number(gesp?.w) === 0 && Number(gesp?.g) >= 1, JSON.stringify(gesp));
+    const r21b = await planEinreihen({ personId: p21, nummer: "+491700000031", spielart: "rate", grund: "Prüfstand", erzeugtVon: "chef" });
+    ok("Rotprobe: auch der Takt reiht ihn nicht mehr ein", !r21b.ok && /für diesen Kunden aus/.test(r21b.grund ?? ""), r21b.grund ?? "");
+    const lage21 = await arasAkteLage(p21, betreuer);
+    ok("Akte zeigt den Schalter und den Grund", lage21?.sperre.aus === true && /für diesen Kunden aus/.test(lage21?.geht.grund ?? ""));
+    await arasFuerPersonSchalten(p21, false, null, betreuer, "Mia Prüfer");
+    ok("Wieder an", (await arasAkteLage(p21, betreuer))?.sperre.aus === false);
+
+    // Zeitpunkt
+    const z1 = auftragZeit("morgen", null);
+    ok("„Morgen“ = 9 Uhr Berlin am nächsten Tag", berlinTeile(z1.fruehAb).hhmm === "09:00" && z1.fruehAb.getTime() > Date.now(), berlinTeile(z1.fruehAb).hhmm);
+    const z2 = auftragZeit("heute_ab", "23:59");
+    ok("„Heute ab 23:59“ = heute 23:59 (oder jetzt, wenn schon vorbei)", berlinTeile(z2.fruehAb).hhmm === "23:59" || z2.fruehAb.getTime() <= Date.now() + 1000);
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
   server.close();
   await sqlPool.end({ timeout: 2 }).catch(() => {});

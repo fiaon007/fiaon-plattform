@@ -174,7 +174,7 @@ titel("8b. HARTE TELEFON-REGELN (Nachbereitung ohne Aufnahme-Ja)");
 }
 
 titel("9. KATALOGE");
-ok("12 Werkzeuge, 10 Spielarten", WERKZEUGE.length === 12 && SPIELARTEN.length === 10);
+ok("12 Werkzeuge, 11 Spielarten (mit „auftrag“ aus der Akte)", WERKZEUGE.length === 12 && SPIELARTEN.length === 11);
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));
 ok("Geld buchen / Erstattung / Storno / Kündigung sind KEIN Werkzeug", !(WERKZEUGE as readonly string[]).some((w) => /^(geld_buchen|erstattung|raten_storno|kuendigung_buchen|vertrag_schliessen|lastschrift)/.test(w)));
 ok("Werbe-Spielarten brauchen Einwilligung, Vertragssache nicht", istWerbeSpielart("zuruf") && istWerbeSpielart("lead") && !istWerbeSpielart("rate") && !istWerbeSpielart("stufe_a") && RECHTSGRUND.zusage === "vertrag");

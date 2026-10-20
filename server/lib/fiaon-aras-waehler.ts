@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema, arasAusweisId } from "./fiaon-aras-schema";
-import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute } from "./fiaon-aras-plan";
+import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson } from "./fiaon-aras-plan";
 import { laufendeSitzungen, notausAlle } from "./fiaon-aras-bruecke";
 import { briefingBauen } from "./fiaon-aras-briefing";
 import { adapterFuer } from "./fiaon-aras-adapter";
@@ -50,6 +50,11 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
   if (!einst.an) { merken("aras_aus"); return fertig(0, true); }
   if (einst.notaus) { merken("notaus"); return fertig(0, true); }
   if (einst.leerlauf) { merken("leerlauf"); return fertig(0, true); }
+  // Verschobene Einträge (je Person/Tag voll, Twilio-Fehler, hängender Versuch) kommen zur neuen Zeit zurück in die Reihe —
+  // sonst blieben sie für immer liegen (ein Auftrag aus der Akte ginge verloren). Nie zwei wartende je Person und Spielart.
+  await lauf`UPDATE fiaon_aras_plan p SET status = 'wartet', updated_at = NOW()
+              WHERE p.status = 'verschoben' AND p.frueh_ab <= NOW() AND p.spaet_bis >= NOW() AND p.spielart <> 'probe'
+                AND NOT EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.person_id = p.person_id AND x.spielart = p.spielart AND x.status = 'wartet')`.catch(() => null);
   const adapter = adapterFuer(einst.adapter);
   const bereit = await adapter.bereit();
   if (!bereit.ok) { merken(`adapter:${(bereit.grund ?? "nicht bereit").slice(0, 40)}`); return fertig(0); }
@@ -84,7 +89,8 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
     if (!f.offen) { merken(`fenster:${f.grund}`); continue; }
     const personId = z.person_id != null ? Number(z.person_id) : null;
     if (await telefonGesperrt(nummerKern(z.nummer), personId, lauf)) { merken("sperre"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', updated_at = NOW() WHERE id = ${k.id}`; continue; }
-    if (istWerbeSpielart(k.spielart)) {
+    if (personId && await arasAusFuerPerson(personId, lauf)) { merken("aras_aus_person"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Aras für diesen Kunden aus', updated_at = NOW() WHERE id = ${k.id}`; continue; }
+    if (istWerbeSpielart(k.spielart) || z.rechtsgrund === "einwilligung") {
       const ew = await einwilligungGueltig(nummerKern(z.nummer), personId, lauf);
       if (!ew) { merken("ohne_einwilligung"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'keine Einwilligung', updated_at = NOW() WHERE id = ${k.id}`; continue; }
       if (land === "CH" && !einst.callerIdCh) { merken("ch_ohne_nummer"); continue; }
@@ -100,7 +106,7 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       if (!d.ok) {
         merken(d.grund ?? "versuch");
         if (d.grund === "versuche_ende") await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = 'Versuche aufgebraucht', updated_at = NOW() WHERE id = ${k.id}`;
-        else if (d.grund === "je_person_tag" || d.grund === "je_person_woche" || d.grund === "pause_nach_fehl") await lauf`UPDATE fiaon_aras_plan SET status = 'verschoben', frueh_ab = NOW() + INTERVAL '1 day', verschoben_grund = ${d.grund}, updated_at = NOW() WHERE id = ${k.id}`;
+        else if (d.grund === "je_person_tag" || d.grund === "je_person_woche" || d.grund === "pause_nach_fehl") await lauf`UPDATE fiaon_aras_plan SET status = 'verschoben', frueh_ab = NOW() + INTERVAL '1 day', spaet_bis = GREATEST(spaet_bis, NOW() + INTERVAL '36 hours'), verschoben_grund = ${d.grund}, updated_at = NOW() WHERE id = ${k.id}`;
         continue;
       }
     }

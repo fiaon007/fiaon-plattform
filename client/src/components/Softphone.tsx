@@ -267,6 +267,12 @@ function RichtlinienTafel({
 // Die Styles der Tafel (.fi-ri-*) liegen in styles/softphone.css — seit dem
 // 24.08.2026 mit der dunklen Office-Fassung unter `.fi-ri-ueber-geraet`.
 
+// E-408: Warum Aras übergibt (mensch_verbinden) — in Klartext fürs Klingelfenster.
+const ARAS_GRUND: Record<string, string> = {
+  wunsch: "der Kunde möchte mit dir sprechen", kuendigung: "Kündigung", widerruf: "Widerruf", beschwerde: "Beschwerde", recht: "Anwalt oder Behörde",
+  erstattung: "Erstattung", erlass: "Erlass", global: "Firmenkunde", unklar: "das klärst besser du", chef: "die Leitung übernimmt",
+};
+
 export function Softphone() {
   const [stand, setStand] = useState<Stand | null>(null);
   const [offen, setOffen] = useState(false);
@@ -458,7 +464,20 @@ export function Softphone() {
     kunde: { id: number; name: string; paket: string | null; tageOffen: number | null; offenCents: number } | null;
     grund: string | null;
     fuerMich: boolean | null;
+    /** E-408: Aras übergibt ein laufendes Gespräch (customParameters von=aras) — nach dem Annehmen öffnet sich die Akte. */
+    aras?: boolean;
   } | null>(null);
+  // ── E-408 (Scheibe 2): HERZSCHLAG FÜR ARAS ─────────────────────────────
+  // Aras verbindet einen Kunden nur in ein Softphone, das gerade erreichbar ist
+  // (sonst bucht er einen Rückruf). Solange Twilio diesen Browser kennt, meldet
+  // er sich alle 60 s: POST /telefon/herzschlag (fiaon_softphone_praesenz).
+  useEffect(() => {
+    if (!erreichbar) return;
+    const schlagen = () => { void fetch("/api/fiaon/telefon/herzschlag", { method: "POST", credentials: "include" }).catch(() => null); };
+    schlagen();
+    const t = window.setInterval(schlagen, 60_000);
+    return () => window.clearInterval(t);
+  }, [erreichbar]);
   const [gelesen, setGelesen] = useState(false);
   const [ohneAufnahme, setOhneAufnahme] = useState(false);
   // ── DIE KUNDENDATEN FÜRS GESPRÄCH ──────────────────────────────────────
@@ -1578,10 +1597,31 @@ export function Softphone() {
       // ein Lautsprecher im Büro.
       d.on("incoming", (ruf: any) => {
         const von = String(ruf?.parameters?.From || "");
-        setEingehend({ ruf, von, kunde: null, grund: null, fuerMich: null });
+        // ── E-408 (Scheibe 2): ÜBERGABE VON ARAS ────────────────────────
+        // `From` ist hier Aras' Nummer, nicht der Kunde. Wer dran ist, steht in
+        // den <Parameter> der Übergabe (personId, anruf, grund) — die Karte zeigt
+        // die Person und die letzten Sätze, nach dem Annehmen öffnet sich die Akte.
+        const cp = ruf?.customParameters as Map<string, string> | undefined;
+        const vonAras = cp?.get?.("von") === "aras";
+        const arasGrund = String(cp?.get?.("grund") ?? "");
+        setEingehend({ ruf, von, kunde: null, grund: vonAras ? `Übergabe von Aras${arasGrund && arasGrund !== "wunsch" ? ` (${ARAS_GRUND[arasGrund] ?? arasGrund})` : " — der Kunde möchte mit dir sprechen"}` : null, fuerMich: vonAras ? true : null, aras: vonAras });
+        if (vonAras) {
+          void fetch(`/api/fiaon/agent/aras/uebergabe/${encodeURIComponent(String(cp?.get?.("anruf") ?? ""))}`, { credentials: "include" })
+            .then((r) => r.json())
+            .then((j) => {
+              if (!j?.ok) return;
+              const zuletzt = Array.isArray(j.zeilen) && j.zeilen.length
+                ? ` — zuletzt: ${j.zeilen.map((z: { wer: string; text: string }) => `${z.wer === "kunde" ? "Kunde" : "Aras"}: ${z.text}`).join(" / ")}` : "";
+              setEingehend((v) => v && v.ruf === ruf ? {
+                ...v, von: j.nummer ? String(j.nummer) : v.von, grund: `${v.grund ?? "Übergabe von Aras"}${zuletzt}`.slice(0, 400),
+                kunde: j.personId ? { id: Number(j.personId), name: String(j.name ?? "Kunde"), paket: null, tageOffen: null, offenCents: 0 } : v.kunde,
+              } : v);
+            })
+            .catch(() => null);
+        }
         // Wer ist das? Die Antwort kommt in Millisekunden und steht dann im
         // Klingelfenster — der Mensch weiß beim Abnehmen schon, worum es geht.
-        void fetch(`/api/fiaon/telefon/eingehend/wer-ist-zustaendig?von=${encodeURIComponent(von)}`,
+        if (!vonAras) void fetch(`/api/fiaon/telefon/eingehend/wer-ist-zustaendig?von=${encodeURIComponent(von)}`,
           { credentials: "include" })
           .then((r) => r.json())
           .then((j) => {
@@ -2088,6 +2128,8 @@ export function Softphone() {
                         // Der Kunde ist damit gesetzt: Ergebnis festhalten,
                         // Notiz und Akte beziehen sich auf ihn.
                         setKunde({ personId: eingehend.kunde.id, name: eingehend.kunde.name });
+                        // E-408: Übergabe von Aras — die Akte geht gleich auf (wer übernimmt, braucht sie sofort).
+                        if (eingehend.aras) navigiere(`/agent/kunden?person=${eingehend.kunde.id}`);
                       }
                       setEingehend(null);
                     }}>

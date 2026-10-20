@@ -69,7 +69,13 @@ export type EinwilligungArt = (typeof EINWILLIGUNG_ARTEN)[number];
 
 // ── Werkzeuge ──────────────────────────────────────────────────────────────
 export const WERKZEUGE = ["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "zahlungslink_senden", "zahlungszusage_merken", "zahlung_gemeldet",
-  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken"] as const;
+  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "aufgabe_fuer_justin", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken"] as const;
+/** Go-live (Koordination 20.10.2026): Probleme, die Justin selbst klärt — je Kunde und Art GENAU EINE Aufgabe (TODO-Board). */
+export const JUSTIN_AUFGABE_ARTEN = ["karte_nicht_erhalten", "sonstiges"] as const;
+export type JustinAufgabeArt = (typeof JUSTIN_AUFGABE_ARTEN)[number];
+export const JUSTIN_AUFGABE_TITEL: Record<JustinAufgabeArt, string> = { karte_nicht_erhalten: "Karte nicht erhalten", sonstiges: "Für Justin aus einem ARAS-Anruf" };
+/** Der eine Schlüssel je Kunde und Art — ein zweiter Anruf zur selben Sache legt nichts Neues an. */
+export function justinAufgabeSchluessel(personId: number, art: JustinAufgabeArt): string { return `aras:justin:${art}:${personId}`; }
 /** Nur im Probeanruf (Justin 20.10., Anruf 12: Er gab Aras am Telefon Feedback — das soll in die Hausanweisung können). */
 export const WERKZEUGE_NUR_PROBE: readonly string[] = ["probe_feedback_merken"];
 /** Arten von Probe-Feedback (für „Dein Feedback aus Probeanrufen“). */
@@ -121,6 +127,7 @@ export const ARAS_AMPEL: readonly ArasAmpelWerkzeug[] = [
   { key: "ratenpause_setzen", label: "Ratenpause", satz: "Kette rückt — steht in „Heute“, 24 h rückgängig.", stufen: ["gelb", "rot"], vorgabe: "gelb", kanal: "alle" },
   { key: "rueckruf_buchen", label: "Anruf eintragen", satz: "Termin bei Aras oder beim Betreuer.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
   { key: "notiz_schreiben", label: "Notiz", satz: "Ein Satz in den Verlauf der Akte.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
+  { key: "aufgabe_fuer_justin", label: "Aufgabe für Justin", satz: "Z. B. „Karte nicht erhalten“ — je Kunde und Sache genau eine Aufgabe auf Justins Board.", stufen: ["gruen", "rot"], vorgabe: "gruen", kanal: "alle" },
   { key: "nicht_mehr_anrufen", label: "Nicht mehr anrufen", satz: "Dauerhafte Telefonsperre — sofort.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "mensch_verbinden", label: "Mensch verbinden", satz: "Ins Softphone des Zuständigen, sonst Anruf eintragen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "anruf_beenden", label: "Anruf beenden", satz: "Ergebnis in die Akte, auflegen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
@@ -436,16 +443,23 @@ export interface StufenRegel {
   versucheJeTag: number;
   parallel: number; tagEuro: number;
   spielarten: readonly Spielart[];
-  /** Nur Stufe 1: Rate nur an diesen Tagen nach Fälligkeit (Tag 1–3). null = die Raten-Takte gelten. */
+  /** Stufe 1: Rate nur an diesen Tagen nach Fälligkeit (Tag 1–45, nie vorher). null = dazu auch „heute/morgen fällig“ (bis Tag 45). */
   rateTage: readonly number[] | null;
   /** Zuruf nur mit „JA per Nachricht“ (zuruf_whatsapp/zuruf_mail); Antrag-/Lead-Kästchen (Stufe B frisch, Leads) erst ab Stufe 3. */
   zurufNurNachricht: boolean;
 }
+/**
+ * „Rate offen“ (Koordination 20.10.2026, Go-live C): ARAS ruft zu JEDER überfälligen Rate an — Tag 1 bis 45 nach der Fälligkeit —
+ * mit den bestehenden Grenzen (1 Versuch am Tag, 3 in der Woche je Person — Team und ARAS zusammen —, Tagesmenge der Stufe,
+ * nie nach Vertragsende, nie bei Abo- oder Mahnstopp). Danach übernimmt das Team.
+ */
+export const RATE_TAGE_BIS = 45;
+const RATE_TAGE_1_BIS_45: readonly number[] = Array.from({ length: RATE_TAGE_BIS }, (_, i) => i + 1);
 export const STUFEN: Record<Stufe, StufenRegel> = {
   0: { stufe: 0, name: "Probe", versucheJeTag: 0, parallel: 0, tagEuro: 0, spielarten: [], rateTage: null, zurufNurNachricht: true },
-  // Stufe 1 „Test“: Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Willkommen, Stufe A und Raten an Tag 1–3 (Koordination 20.10.).
+  // Stufe 1 „Test“: Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Willkommen, Stufe A und Raten an Tag 1–45 (Koordination 20.10.).
   // Go-live 21.10.2026 (Koordination): 40 Anrufe am Tag, einer gleichzeitig, 20 € am Tag — damit beide Szenarien hineinpassen.
-  1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: [1, 2, 3], zurufNurNachricht: true },
+  1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
   // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): Stufe 2/3 bringen nur MEHR MENGE — nie Interessenten (Zuruf, Lead,
   // Stufe B, Rückholung sind im Code gesperrt, GESPERRTE_SPIELARTEN).
   2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: null, zurufNurNachricht: true },
@@ -465,8 +479,9 @@ export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: num
     spielartErlaubt: (s) => s === "probe" || (!istGesperrteSpielart(s) && !!e.spielarten[s] && regel.spielarten.includes(s)),
   };
 }
-/** Stufe 1: eine Rate nur an Tag 1–3 nach Fälligkeit. Sonst gelten die Raten-Takte. Rein. */
+/** Rate: höchstens Tag 45 nach Fälligkeit; Stufe 1 nur Tag 1–45 (nie vorher). Rein. */
 export function rateTagErlaubt(stufe: number, tageNachFaelligkeit: number): boolean {
+  if (tageNachFaelligkeit > RATE_TAGE_BIS) return false;
   const tage = STUFEN[(Math.max(0, Math.min(3, Math.round(stufe))) as Stufe)].rateTage;
   return !tage || tage.includes(tageNachFaelligkeit);
 }

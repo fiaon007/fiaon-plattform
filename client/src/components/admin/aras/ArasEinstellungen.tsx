@@ -14,7 +14,7 @@ import { Hinweis, Karte, Leer, useHinweis } from "./aras-teile";
 
 const GRUPPEN: { titel: string; satz: string; schluessel: string[]; zu?: boolean }[] = [
   { titel: "An und aus", satz: "Ob Aras Kunden anruft — und wie weit er schon darf.", schluessel: ["aras_an", "aras_stufe", "aras_stufe_auto"] },
-  { titel: "Wen und wann", satz: "Gesprächsarten, Zeiten, Mengen und wie oft je Person.", schluessel: ["aras_spielarten", "aras_fenster", "aras_raten_takte", "aras_je_person_tag", "aras_je_person_woche", "aras_versuche_ende", "aras_parallel", "aras_je_stunde", "aras_lernen_an"] },
+  { titel: "Wen und wann", satz: "Gesprächsarten, Zeiten, Mengen und wie oft je Person.", schluessel: ["aras_spielarten", "aras_fenster", "aras_je_person_tag", "aras_je_person_woche", "aras_versuche_ende", "aras_parallel", "aras_je_stunde", "aras_lernen_an"] },
   { titel: "Was Aras sagt", satz: "Name, erster Satz, Aufnahme-Frage, Mailbox und Übergabe.", schluessel: ["aras_name", "aras_nachname", "aras_ki_hinweis_satz", "aras_aufnahme_frage", "aras_mailbox_nachricht", "aras_eingehend_modus", "aras_uebergabe"] },
   { titel: "Technik", satz: "Selten nötig: Anbieter, Modelle, Absendernummern.", zu: true, schluessel: ["aras_adapter", "aras_delegation", "aras_modell_stimme", "aras_modell_gehirn", "aras_stimme_beschreibung", "aras_caller_id_at", "aras_caller_id_ch"] },
 ];

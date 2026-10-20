@@ -31,7 +31,7 @@ import { telefonSperren, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungWiderrufen } from "./fiaon-telefon-einwilligung";
 import { praesent } from "./fiaon-softphone-praesenz";
 import { planEinreihen } from "./fiaon-aras-plan";
-import { istWerkzeug, FEEDBACK_ARTEN, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
+import { istWerkzeug, FEEDBACK_ARTEN, JUSTIN_AUFGABE_ARTEN, JUSTIN_AUFGABE_TITEL, justinAufgabeSchluessel, type JustinAufgabeArt, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
 import type { Briefing } from "../../shared/fiaon-aras-prompt";
 import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
 import { berlinToday } from "./fiaon-time";
@@ -261,6 +261,27 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     return { ok: true, vorlesen: "", still: "Notiz geschrieben." };
   },
 
+  // Go-live C (Koordination 20.10.2026): „Ich hab keine Karte bekommen“ → GENAU EINE Aufgabe für Justin je Kunde und Sache —
+  // auf seinem Board (bleibt bei ihm, nicht beim Betreuer), mit Link zur Akte. Ein zweiter Anruf zur selben Sache hängt nur still an.
+  async aufgabe_fuer_justin(ctx, e, lauf) {
+    if (!ctx.personId) return { ok: false, vorlesen: "", fehler: "ohne_person" };
+    const art: JustinAufgabeArt = (JUSTIN_AUFGABE_ARTEN as readonly string[]).includes(e?.art) ? e.art : "sonstiges";
+    const text = kurz(String(e?.text ?? ""), 400);
+    if (text.length < 5) return { ok: false, vorlesen: "", fehler: "leer" };
+    const wer = ctx.briefing.nachname ? `${ctx.briefing.anrede ?? ""} ${ctx.briefing.nachname}`.trim() : "Kunde";
+    // Die Akte hängt am Antrag: ohne Kennung im Plan die aktuelle Bestellung des Kunden (wie im Briefing).
+    const ref = ctx.ref ?? ((await lauf`SELECT ref FROM fiaon_applications WHERE person_id = ${ctx.personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL
+                                       ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`.catch(() => [])) as any[])[0]?.ref ?? null;
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const r = await auftragFuerKunden({
+      personId: ctx.personId, ref, titel: `${JUSTIN_AUFGABE_TITEL[art]} — ${wer}`.slice(0, 160),
+      text: `ARAS am Telefon (${berlinToday().split("-").reverse().join(".")}): ${text}`, schluessel: justinAufgabeSchluessel(ctx.personId, art),
+      anBetreiber: true, anlass: "zustand", still: true, quelle: "aras", autorName: "ARAS", anlageText: "Angelegt von ARAS aus einem Kundenanruf",
+    });
+    await arasEreignis({ art: "aras_werkzeug", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart, text: `Aufgabe für Justin: ${JUSTIN_AUFGABE_TITEL[art]}`, daten: { werkzeug: "aufgabe_fuer_justin", art, todoId: r.id } });
+    return { ok: true, vorlesen: "", still: "Aufgabe für Justin angelegt.", daten: { todoId: r.id } };
+  },
+
   async nicht_mehr_anrufen(ctx, _e, lauf) {
     await telefonSperren({ nummerKern: nummerKern(ctx.nummer), personId: ctx.personId, quelle: "aras", grund: "Kunde am Telefon: nicht mehr anrufen", callId: ctx.callId }, lauf);
     await einwilligungWiderrufen({ nummerKern: nummerKern(ctx.nummer), personId: ctx.personId, quelle: "aras_telefon" }, lauf).catch(() => 0);
@@ -347,6 +368,7 @@ function trockenErgebnis(name: Werkzeug, e: any): WerkzeugErgebnis {
     case "ratenpause_setzen": return { ok: true, vorlesen: "Ich habe Ihre Raten um einen Monat nach hinten geschoben. Die Leitung bestätigt das noch.", still: "Probe: keine Rate verschoben." };
     case "rueckruf_buchen": return { ok: true, vorlesen: `Eingetragen — ${e?.bei === "aras" ? "ich rufe Sie dann an" : "jemand aus dem Team ruft Sie dann an"}.`, still: "Probe: kein Termin gebucht." };
     case "notiz_schreiben": return { ok: true, vorlesen: "", still: "Probe: Notiz nicht gespeichert." };
+    case "aufgabe_fuer_justin": return { ok: true, vorlesen: "", still: "Probe: keine Aufgabe für Justin angelegt." };
     case "nicht_mehr_anrufen": return { ok: true, vorlesen: "Verstanden — Sie bekommen von uns keine Anrufe mehr. Alles Weitere nur noch schriftlich.", still: "Probe: keine Sperre gesetzt." };
     case "mensch_verbinden": return { ok: false, vorlesen: "Gerade ist niemand aus dem Team frei — jemand ruft Sie zurück.", still: "Probe: niemand wurde verbunden.", fehler: "probe" };
     case "akte_nachsehen": return { ok: true, vorlesen: "" };

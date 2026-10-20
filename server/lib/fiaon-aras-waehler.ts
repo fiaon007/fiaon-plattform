@@ -97,13 +97,16 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
     if (istGesperrteSpielart(k.spielart)) { merken(`gesperrt:${k.spielart}`); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = ${GESPERRT_TEXT}, updated_at = NOW() WHERE id = ${k.id}`; continue; }
     if (!einst.spielarten[k.spielart]) { merken(`spielart_aus:${k.spielart}`); continue; }
     if (!grenzen.spielartErlaubt(k.spielart)) { merken(`stufe:${k.spielart}`); continue; }
-    if (k.spielart === "rate" && grenzen.regel.rateTage) {
-      // Stufe 1: nur Tag 1–3 nach Fälligkeit — ohne bekanntes Fälligkeitsdatum gar nicht (hart, auch für Einträge von Hand).
+    if (k.spielart === "rate") {
+      // Rate offen: Tag 1–45 nach Fälligkeit (Stufe 1 nie vorher) — ohne bekanntes Fälligkeitsdatum in Stufe 1 gar nicht (hart,
+      // auch für Einträge von Hand); in jeder Stufe nie nach Tag 45 (danach übernimmt das Team).
       let faellig: Date | null = z.anlass_am ? new Date(z.anlass_am) : null;
       if (!faellig && z.rate_id) { const [r] = (await lauf`SELECT faellig_am FROM fiaon_abo_raten WHERE id = ${z.rate_id}`) as any[]; faellig = r?.faellig_am ? new Date(r.faellig_am) : null; }
-      if (!faellig) { merken("stufe:rate_ohne_datum"); continue; }
-      const tage = Math.round((Date.parse(`${berlinTeile(new Date()).datum}T12:00:00Z`) - Date.parse(`${berlinTeile(faellig).datum}T12:00:00Z`)) / 86_400_000);
-      if (!rateTagErlaubt(grenzen.stufe, tage)) { merken("stufe:rate_tag"); continue; }
+      if (!faellig && grenzen.regel.rateTage) { merken("stufe:rate_ohne_datum"); continue; }
+      if (faellig) {
+        const tage = Math.round((Date.parse(`${berlinTeile(new Date()).datum}T12:00:00Z`) - Date.parse(`${berlinTeile(faellig).datum}T12:00:00Z`)) / 86_400_000);
+        if (!rateTagErlaubt(grenzen.stufe, tage)) { merken("stufe:rate_tag"); continue; }
+      }
     }
     if (k.spielart === "zuruf" && grenzen.regel.zurufNurNachricht) {
       // Bis Stufe 2 nur mit „JA per Nachricht“ — ohne nachweisbares Ja (Kennung) gar nicht.

@@ -932,7 +932,10 @@ async function main(): Promise<void> {
     const pR2 = await person(61); const rR2 = await antrag(pR2, 61, { payment_status: "paid" });
     await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rR2}, 2, ${`${rR2}-2`}, 5999, ${vor(2)}::date, 'offen')`;
     const pR5 = await person(62); const rR5 = await antrag(pR5, 62, { payment_status: "paid" });
-    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rR5}, 2, ${`${rR5}-2`}, 5999, ${vor(5)}::date, 'offen')`;
+    // Go-live C (20.10.2026): Rate offen Tag 1–45 — Tag 20 wird eingereiht, Tag 50 nie (danach übernimmt das Team).
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rR5}, 2, ${`${rR5}-2`}, 5999, ${vor(50)}::date, 'offen')`;
+    const pR20 = await person(468); const rR20 = await antrag(pR20, 468, { payment_status: "paid" });
+    await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rR20}, 2, ${`${rR20}-2`}, 5999, ${vor(20)}::date, 'offen')`;
     const pZw = await person(63); await antrag(pZw, 63, { payment_status: "pending_payment" });
     await einwilligungMerken({ personId: pZw, nummer: "+491700000063", art: "zuruf_whatsapp", wortlaut: "JA", quelleArt: "whatsapp", quelleId: "pruef63" });
     const pZk = await person(64); await antrag(pZk, 64, { payment_status: "pending_payment" });
@@ -967,7 +970,7 @@ async function main(): Promise<void> {
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const f1 = await planFuellen();
     const plan1 = (await sqlPool`SELECT person_id, spielart FROM fiaon_aras_plan WHERE status = 'wartet'`) as any[];
-    ok("Stufe 1 (Füller): Rate Tag 2 ja, Rate Tag 5 nein, kein Zuruf", plan1.some((z) => Number(z.person_id) === pR2 && z.spielart === "rate") && !plan1.some((z) => Number(z.person_id) === pR5) && !plan1.some((z) => z.spielart === "zuruf"), `Tag 2 = ${pR2}, Tag 5 = ${pR5} · ${JSON.stringify(f1)} · ${JSON.stringify(plan1.map((z) => `${z.person_id}:${z.spielart}`))}`);
+    ok("Stufe 1 (Füller): Rate Tag 2 ja, Tag 20 ja (Tag 1–45), Tag 50 nein, kein Zuruf", plan1.some((z) => Number(z.person_id) === pR2 && z.spielart === "rate") && plan1.some((z) => Number(z.person_id) === pR20 && z.spielart === "rate") && !plan1.some((z) => Number(z.person_id) === pR5) && !plan1.some((z) => z.spielart === "zuruf"), `Tag 2 = ${pR2}, Tag 20 = ${pR20}, Tag 50 = ${pR5} · ${JSON.stringify(f1)} · ${JSON.stringify(plan1.map((z) => `${z.person_id}:${z.spielart}`))}`);
     // Takt: Zuruf und Rate Tag 5 bleiben liegen — auch wenn ein Mensch sie von Hand eingereiht hat
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const zuVonHand = await planEinreihen({ personId: pZw, nummer: "+491700000063", spielart: "zuruf", grund: "Prüfstand Stufe 1 Zuruf", erzeugtVon: "chef" });
@@ -975,10 +978,10 @@ async function main(): Promise<void> {
     // Ein alter Zuruf-Eintrag (von vor der Sperre) fällt beim Takt aus der Reihe — nie gewählt
     await sqlPool`INSERT INTO fiaon_aras_plan (person_id, nummer, land, spielart, prioritaet, grund, rechtsgrund, frueh_ab, spaet_bis, erzeugt_von)
                   VALUES (${pZw}, '+491700000063', 'DE', 'zuruf', 2, 'Altlast vor der Sperre', 'einwilligung', NOW() - INTERVAL '1 minute', NOW() + INTERVAL '4 hours', 'chef')`;
-    await planEinreihen({ personId: pR5, nummer: "+491700000062", spielart: "rate", grund: "Prüfstand Stufe 1 Tag 5", erzeugtVon: "chef", anlassAm: new Date(`${vor(5)}T10:00:00Z`) });
+    await planEinreihen({ personId: pR5, nummer: "+491700000062", spielart: "rate", grund: "Prüfstand Stufe 1 Tag 50", erzeugtVon: "chef", anlassAm: new Date(`${vor(50)}T10:00:00Z`) });
     const t1 = await waehlerTakt();
     const [alt1] = (await sqlPool`SELECT status, verschoben_grund FROM fiaon_aras_plan WHERE person_id = ${pZw} AND spielart = 'zuruf' ORDER BY id DESC LIMIT 1`) as any[];
-    ok("Stufe 1 (Takt): alter Zuruf → „gesperrt“ (nie gewählt), Rate Tag 5 bleibt liegen (stufe:rate_tag) — 0 gewählt", t1.gewaehlt === 0 && t1.ausgelassen.some((a) => a.grund === "gesperrt:zuruf") && t1.ausgelassen.some((a) => a.grund === "stufe:rate_tag") && alt1?.status === "gesperrt" && /nur Vertragskunden/.test(String(alt1?.verschoben_grund)), JSON.stringify({ t1, alt1 }));
+    ok("Stufe 1 (Takt): alter Zuruf → „gesperrt“ (nie gewählt), Rate Tag 50 bleibt liegen (stufe:rate_tag) — 0 gewählt", t1.gewaehlt === 0 && t1.ausgelassen.some((a) => a.grund === "gesperrt:zuruf") && t1.ausgelassen.some((a) => a.grund === "stufe:rate_tag") && alt1?.status === "gesperrt" && /nur Vertragskunden/.test(String(alt1?.verschoben_grund)), JSON.stringify({ t1, alt1 }));
     // Gleichzeitig 1: zwei erlaubte Raten (Tag 2) warten — der Takt wählt höchstens EINE
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     const pR1 = await person(65); const rR1 = await antrag(pR1, 65, { payment_status: "paid" });
@@ -1788,6 +1791,46 @@ async function main(): Promise<void> {
       await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', call_id = NULL WHERE status IN ('gewaehlt', 'wartet', 'verschoben')`;
       await sqlPool`DELETE FROM fiaon_aras_anruf WHERE call_id IN (SELECT id FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt')`;
       await sqlPool`DELETE FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt'`;
+      await einstellungSetzen("aras_stufe", "0", "pruefstand");
+    }
+  }
+
+  titel("24. RATE OFFEN (Go-live C): Tag 1–45, „Karte nicht erhalten“ → GENAU EINE Aufgabe für Justin (bei ihm, nicht beim Betreuer)");
+  {
+    await einstellungSetzen("aras_stufe", "3", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand");
+    await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+    try {
+      const pK = await person(441); const rK = await antrag(pK, 441, { payment_status: "paid" });
+      const [rate] = (await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${rK}, 2, ${`${rK}-2`}, 5999, ${vor(12)}::date, 'offen') RETURNING id`) as any[];
+      const e = await planEinreihen({ personId: pK, nummer: "+4917000000441", spielart: "rate", grund: "Prüfstand Rate Tag 12", erzeugtVon: "chef", rateId: Number(rate.id), anlassAm: new Date(`${vor(12)}T10:00:00Z`) });
+      if (!e.ok || !e.id) throw new Error(`einreihen: ${e.grund}`);
+      const { callId } = await gespraech(Number(e.id), { schritte: [
+        { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja, am Apparat." },
+        { kunde: "Ich hab übrigens nie eine Karte bekommen." },
+        { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "karte_nicht_erhalten", text: "Kunde sagt, er hat nie eine Karte bekommen." } },
+        { kunde: "Wirklich, nie angekommen." },
+        { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "karte_nicht_erhalten", text: "Kunde sagt es noch einmal: keine Karte angekommen." } },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Rate offen, Karte nicht erhalten" } },
+      ] });
+      await warten(async () => !!(await anruf(callId))?.nachbereitet_am, 12_000);
+      const todos = (await sqlPool`SELECT id, titel, link, zustaendig_art, status, person_id FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:justin:karte_nicht_erhalten:${pK}`}`) as any[];
+      ok("„Karte nicht erhalten“ zweimal im Gespräch → GENAU EINE Aufgabe, bei Justin (nicht beim Betreuer), mit Akte-Link", todos.length === 1 && /Karte nicht erhalten/.test(String(todos[0]?.titel)) && todos[0]?.zustaendig_art !== "agent" && String(todos[0]?.link ?? "").includes(rK) && Number(todos[0]?.person_id) === pK, JSON.stringify(todos));
+      const wz = (await sqlPool`SELECT werkzeug, ok FROM fiaon_aras_werkzeug w JOIN fiaon_aras_anruf a ON a.id = w.aras_anruf_id WHERE a.call_id = ${callId} AND w.werkzeug = 'aufgabe_fuer_justin'`) as any[];
+      ok("Beide Werkzeug-Aufrufe stehen im Protokoll (der zweite hängt nur an)", wz.length === 2 && wz.every((x) => x.ok), JSON.stringify(wz));
+      // Ein neuer Anruf zur selben Sache: immer noch EINE Aufgabe
+      const e2 = await planEinreihen({ personId: pK, nummer: "+4917000000441", spielart: "rate", grund: "Prüfstand Rate Tag 12 (2)", erzeugtVon: "chef", rateId: Number(rate.id), anlassAm: new Date(`${vor(12)}T10:00:00Z`) });
+      if (e2.ok && e2.id) {
+        const g2 = await gespraech(Number(e2.id), { schritte: [
+          { aras: KI_HINWEIS_VORGABE, ms: 300 }, { kunde: "Ja?" },
+          { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "karte_nicht_erhalten", text: "Wieder: keine Karte." } },
+          { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Karte" } },
+        ] });
+        await warten(async () => !!(await anruf(g2.callId))?.nachbereitet_am, 12_000);
+      }
+      const n2 = ((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:justin:karte_nicht_erhalten:${pK}`}`) as any[])[0]?.n;
+      ok("Zweiter Anruf, dieselbe Sache → weiter GENAU EINE Aufgabe je Kunde und Problem", Number(n2) === 1, String(n2));
+    } finally {
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', call_id = NULL WHERE status IN ('gewaehlt', 'wartet', 'verschoben')`;
       await einstellungSetzen("aras_stufe", "0", "pruefstand");
     }
   }

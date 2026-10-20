@@ -107,11 +107,11 @@ titel("2. VERKAUFSSATZ (E-373): Wunsch ohne Bank-Vorbehalt, keine Limit-Zusage")
 titel("3. WERKZEUGE JE LAGE");
 {
   const alle = werkzeugeFuer({ global: false, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
-  ok("Normal: alle 12 Kunden-Werkzeuge (probe_feedback_merken gibt es nur im Probeanruf)", alle.length === 12 && WERKZEUGE.filter((w) => w !== "probe_feedback_merken").every((w) => alle.includes(w)) && !alle.includes("probe_feedback_merken"));
+  ok("Normal: alle 13 Kunden-Werkzeuge (mit aufgabe_fuer_justin; probe_feedback_merken gibt es nur im Probeanruf)", alle.length === 13 && alle.includes("aufgabe_fuer_justin") && WERKZEUGE.filter((w) => w !== "probe_feedback_merken").every((w) => alle.includes(w)) && !alle.includes("probe_feedback_merken"));
   const global = werkzeugeFuer({ global: true, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
   ok("Global-Kunde: nur 5 (Akte, Notiz, Mensch, Sperre, Ende)", global.length === 5 && WERKZEUGE_GLOBAL.every((w) => global.includes(w)) && !global.includes("zahlungslink_senden"));
   const rot = werkzeugeFuer({ global: false, isBlocked: false, ampel: { ...einstellungen.ampel, ratenpause_setzen: "rot" }, spielart: "rate" }).map((d) => d.name);
-  ok("Rote Ampel nimmt das Werkzeug aus der Sitzung", !rot.includes("ratenpause_setzen") && rot.length === 11);
+  ok("Rote Ampel nimmt das Werkzeug aus der Sitzung", !rot.includes("ratenpause_setzen") && rot.length === 12);
   ok("Jede Definition hat ein Objekt-Schema ohne Zusatzfelder", WERKZEUG_DEFS.every((d) => (d.schema as any).type === "object" && (d.schema as any).additionalProperties === false));
   const a = anweisungBauen({ spielart: "rate", briefing: { ...briefing, global: true }, einstellungen, hausanweisung: null });
   ok("Global: Einwände + Verkauf entfallen, Briefing nennt Firmenkunde", a.bausteine["10_einwaende"].includes("entfällt") && a.bausteine["7_verkauf"].includes("entfällt") && a.bausteine["8_briefing"].includes("FIRMENKUNDE"));
@@ -471,6 +471,10 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
     const rb = { ...probeBriefing({ spielart: "rate", anrede: "Herr", nachname: "Probe", heute, vorTagen: () => "17.10.2026" }), nummerEnde: "neunundneunzig" } as Briefing;
     const r = anweisungBauen({ spielart: "probe", briefing: rb, einstellungen: ultra, hausanweisung: null });
     ok("Rate offen (Justin wörtlich): „i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte“ + Link wirklich schicken", /i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte/.test(r.text) && /zahlungslink_senden, zweck rate/.test(r.text));
+    const aufg = WERKZEUG_DEFS.find((d) => d.name === "aufgabe_fuer_justin");
+    ok("Werkzeug aufgabe_fuer_justin (Go-live C): art karte_nicht_erhalten | sonstiges, GENAU EINE Aufgabe je Kunde und Sache; der Leitfaden nutzt es ohne Ausweg auf eine Notiz",
+      !!aufg && JSON.stringify(aufg.schema).includes("karte_nicht_erhalten") && /GENAU EINE Aufgabe/.test(aufg.beschreibung) && /aufgabe_fuer_justin, art karte_nicht_erhalten/.test(r.text) && !/falls es das Werkzeug nicht gibt/.test(r.text) && /aufgabe_fuer_justin/.test(hintergrundAnweisung(r)));
+    ok("Rate offen: „Rechnung wirklich schicken“ = zahlungslink_senden, zweck rate (Betrag, Verwendungszweck, Zahlungsseite — Maras Weg)", /die Rechnung wirklich schicken \(zahlungslink_senden, zweck rate — Betrag, Verwendungszweck und Zahlungsseite, über Maras Weg/.test(r.text));
     ok("Rate offen: „Ich hab keine Karte bekommen“ → „Wos — wirklich! Na passens auf …“ und für Justin festhalten", /Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird/.test(r.text) && /aufgabe_fuer_justin|notiz_schreiben/.test(r.text));
     const jv = /„Ihr Vertrag läuft regulär bis [^“]+“/.exec(r.text)?.[0] ?? "";
     ok("Gekündigt (Korrektur 2, E-396): Jahresvertrag — Kündigung angekommen, läuft bis Laufzeitende, Kulanz nach Zahlung; KEINE Kopplung, KEINE Drohung", /Ihre Kündigung is bei uns angekommen/.test(r.text) && /aus Kulanz lassen wir Sie aber sofort raus/.test(jv) && kopplungFinden(jv) === null && drohungFinden(jv) === null && r.text.includes(kulanzSatz(rb.offeneRate!.betrag)), jv);

@@ -114,11 +114,6 @@ const fensterJson = (o: unknown): string | null => {
   }
   return arasFensterPruefen(JSON.stringify(o));
 };
-const taktJson = (o: unknown): string | null => {
-  if (!Array.isArray(o) || !o.length || o.length > 4) return "Liste mit 1–4 Tagen, z. B. [3,10,20].";
-  for (const n of o) if (!Number.isInteger(n) || n < 1 || n > 30) return "Jeder Takt 1–30 Tage.";
-  return null;
-};
 const uebergabeJson = (o: unknown): string | null => {
   const f = jsonObjekt(o); if (f) return f;
   for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
@@ -193,7 +188,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_an", gruppe: "aras", label: "Aras wählt", satz: "Ohne „an“ wählt Aras nicht (Probeanrufe gehen trotzdem).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras", rueckfrage: { bei: ["an"], text: "Aras ruft dann echte Kunden an — nach Plan, nur in den Zeitfenstern, mit Tagesdeckel. Erst einschalten, wenn dein Ohr beim Probeanruf Ja sagt. Einschalten?" } },
   // E-408 Scheibe 3 (20.10.2026): die Ausbaustufe — Wähler UND Planfüller setzen sie HART durch (Stufe 0 ruft nie einen Kunden an,
   // auch nicht mit „Aras wählt: an“). Es gilt immer das Engere aus Stufe und den Schaltern darunter.
-  { schluessel: "aras_stufe", gruppe: "aras", label: "Ausbaustufe", satz: "0 nur du · 1 Test 40/Tag, 20 € · 2 Leise 150/Tag, 60 € · 3 Voll 430/Tag, 150 €.", typ: "zahl", vorgabe: "0", min: 0, max: 3, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["1", "2", "3"], text: "Ab Stufe 1 ruft ARAS echte Kunden an (zusammen mit „ARAS wählt: an“) — Stufe 1 heißt höchstens 40 am Tag, eine gleichzeitig, 20 € Tagesdeckel, nur Rückrufe, Willkommen nach Antrag, Aufträge aus der Akte, Stufe A und Raten Tag 1–3. Wirklich einschalten?" } },
+  { schluessel: "aras_stufe", gruppe: "aras", label: "Ausbaustufe", satz: "0 nur du · 1 Test 40/Tag, 20 € · 2 Leise 150/Tag, 60 € · 3 Voll 430/Tag, 150 €.", typ: "zahl", vorgabe: "0", min: 0, max: 3, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["1", "2", "3"], text: "Ab Stufe 1 ruft ARAS echte Kunden an (zusammen mit „ARAS wählt: an“) — Stufe 1 heißt höchstens 40 am Tag, eine gleichzeitig, 20 € Tagesdeckel, nur Kunden mit Vertrag: Rückrufe, Willkommen nach Antrag, Aufträge aus der Akte, Stufe A und offene Raten (Tag 1–45). Wirklich einschalten?" } },
   // E-408 Scheibe 3 Teil 2 (20.10.2026): die Stufen-Automatik (server/lib/fiaon-aras-stufe.ts liest sie über einstellungenAnwenden).
   // Rot → eine Stufe zurück + Karte; 3 (Stufe 1) bzw. 5 (Stufe 2) grüne, abgeschlossene Tage → eine hoch. Nie aus 0, nie über 3.
   { schluessel: "aras_stufe_auto", gruppe: "aras", label: "Stufe automatisch", satz: "Rot: eine Stufe zurück + Karte. Grün 3/5 Tage: eine hoch. Nie aus 0, nie über 3.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", rueckfrage: { bei: ["aus"], text: "Ohne Automatik geht Aras bei Rot NICHT mehr von selbst eine Stufe zurück — du bekommst dann nur die Karte und musst selbst zurückschalten. Wirklich ausschalten?" } },
@@ -230,7 +225,7 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "aras_parallel", gruppe: "aras", label: "Gleichzeitig", satz: "Höchstens so viele Gespräche zugleich (1–5).", typ: "zahl", vorgabe: "2", min: 1, max: 5, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_je_stunde", gruppe: "aras", label: "Wählversuche je Stunde", satz: "Deckel der Wählversuche je Stunde.", typ: "zahl", vorgabe: "40", min: 1, max: 120, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_fenster", gruppe: "aras", label: "Zeitfenster", satz: "Mo–Sa 09:30–21:00; Sonntag/Feiertag nur gebuchte Rückrufe (7 = Sonntag).", typ: "json", vorgabe: JSON.stringify(ARAS_FENSTER_VORGABE), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: fensterJson },
-  { schluessel: "aras_raten_takte", gruppe: "aras", label: "Raten-Takte", satz: "Tage nach Fälligkeit, an denen Aras anruft: [3,10,20].", typ: "json", vorgabe: JSON.stringify([3, 10, 20]), setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras", jsonPruefen: taktJson },
+  // aras_raten_takte (Tag 3/10/20) entfällt seit dem Go-live (20.10.2026): ARAS ruft zu jeder offenen Rate Tag 1–45 an — kein toter Schalter.
   { schluessel: "aras_je_person_tag", gruppe: "aras", label: "Versuche je Person und Tag", satz: "Mensch und Aras zusammen gezählt.", typ: "zahl", vorgabe: "1", min: 1, max: 2, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_je_person_woche", gruppe: "aras", label: "Versuche je Person und Woche", satz: "Mensch und Aras zusammen gezählt.", typ: "zahl", vorgabe: "3", min: 1, max: 5, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },
   { schluessel: "aras_versuche_ende", gruppe: "aras", label: "Serie ohne Erreichen", satz: "Nach so vielen Fehlversuchen: 7 Tage Pause, anderer Kanal.", typ: "zahl", vorgabe: "6", min: 1, max: 10, setzer: KI, leser: "fiaon-aras.ts:einstellungenAnwenden", dienst: "aras" },

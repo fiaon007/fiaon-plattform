@@ -114,6 +114,8 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
     schema: O({ zeitpunkt: { type: "string", description: "ISO 8601 mit Datum und Uhrzeit, Europe/Berlin" }, bei: { type: "string", enum: ["betreuer", "aras"] } }, ["zeitpunkt", "bei"]) },
   { name: "notiz_schreiben", beschreibung: "Ein Satz für das Team — was der Kunde gesagt hat (Ziel, Sorge, Zahltag, Erreichbarkeit).",
     schema: O({ text: { type: "string", maxLength: 400 } }, ["text"]) },
+  { name: "aufgabe_fuer_justin", beschreibung: "Ein Problem, das Justin selbst klärt — vor allem „Karte nicht erhalten“. Legt GENAU EINE Aufgabe auf Justins Board an (dieselbe Sache beim selben Kunden: kein Doppel). text = kurze Gesprächsnotiz in den Worten des Kunden.",
+    schema: O({ art: { type: "string", enum: ["karte_nicht_erhalten", "sonstiges"] }, text: { type: "string", minLength: 5, maxLength: 400 } }, ["art", "text"]) },
   { name: "nicht_mehr_anrufen", beschreibung: "Der Kunde will keine Anrufe mehr. Sperrt die Nummer sofort und dauerhaft.", schema: O({}) },
   { name: "mensch_verbinden", beschreibung: "Verbindet zu einem Menschen aus dem Team — bei Wunsch, Kündigung, Widerruf, Beschwerde, Anwalt/Behörde, Erstattung, Erlass. Ist niemand frei, wird ein Anruf zu fester Zeit eingetragen.",
     schema: O({ grund: { type: "string", enum: ["wunsch", "kuendigung", "widerruf", "beschwerde", "recht", "erstattung", "erlass", "global", "unklar"] } }, ["grund"]) },
@@ -828,8 +830,8 @@ function leitfaden(spielart: Spielart, b: Briefing): string {
       const k = b.kuendigung;
       const zeilen = [
         `GESPRÄCHSART „RATE OFFEN“ (Justin 20.10.2026 — ruhig und herzlich, er ist Kunde, kein Schuldner):`,
-        `· Hat er bestätigt, dass er es ist, sag sofort, worum es geht — im Dialekt, z. B.: „I ruf an wegen Ihrer offenen Rate${r ? ` über ${mitGesprochen(r.betrag)}` : ""} — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.“ Dann den Link wirklich schicken (zahlungslink_senden, zweck rate) und EINE Frage: „Geht sich des heute noch aus?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
-        `· „Ich hab keine Karte bekommen“: echt überrascht und herzlich — „Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird, okay?“ Dann hältst du es für Justin fest (${"aufgabe_fuer_justin"} — falls es das Werkzeug nicht gibt: notiz_schreiben) mit kurzer Gesprächsnotiz. Mehr sagst du zur Karte nicht zu.`,
+        `· Hat er bestätigt, dass er es ist, sag sofort, worum es geht — im Dialekt, z. B.: „I ruf an wegen Ihrer offenen Rate${r ? ` über ${mitGesprochen(r.betrag)}` : ""} — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.“ Dann die Rechnung wirklich schicken (zahlungslink_senden, zweck rate — Betrag, Verwendungszweck und Zahlungsseite, über Maras Weg per WhatsApp, sonst Mail) und EINE Frage: „Geht sich des heute noch aus?“ Tag genannt → zahlungszusage_merken. „Ist schon raus“ → zahlung_gemeldet. Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
+        `· „Ich hab keine Karte bekommen“: echt überrascht und herzlich — „Wos — wirklich! Na passens auf: Sie zahlen ma bitte die Rate ein, und i kümmer mi drum, dass die Kartn verschickt wird, okay?“ Dann hältst du es für Justin fest (aufgabe_fuer_justin, art karte_nicht_erhalten) mit einer kurzen Gesprächsnotiz in seinen Worten — genau einmal. Mehr sagst du zur Karte nicht zu.`,
         k
           ? `· Sagt ER, dass er gekündigt hat (nur dann sprichst du es an): „Ah ja, genau, des seh i — Ihre Kündigung is bei uns angekommen.“ ${k.art === "jahresvertrag"
             ? `Dann: „Ihr Vertrag läuft regulär bis ${k.endeAm ?? "zum Ende der Laufzeit"}; aus Kulanz lassen wir Sie aber sofort raus, sobald die offene Rechnung${k.offenBetrag ? ` über ${mitGesprochen(k.offenBetrag)}` : ""} beglichen is. I schick Ihnen den Link glei zu — dann is des erledigt, gell?“ (Inhalt genau wie unser Kulanz-Satz: „${kulanzSatz(k.offenBetrag ?? "X €")} ${RECHTE_SATZ}“)`
@@ -902,6 +904,7 @@ function delegation(defs: WerkzeugDef[]): string {
     hat("ratenpause_setzen") ? "- Ratenpause: Raten nach hinten schieben (bei echter Not)." : "",
     hat("rueckruf_buchen") ? "- Termin: einen Anruf zu fester Zeit eintragen (bei dir oder beim Betreuer)." : "",
     hat("notiz_schreiben") ? "- Notiz: einen Satz fürs Team festhalten." : "",
+    hat("aufgabe_fuer_justin") ? "- Aufgabe für Justin: ein Problem, das Justin selbst klärt (z. B. „Karte nicht erhalten“) — genau eine je Kunde und Sache." : "",
     hat("nicht_mehr_anrufen") ? "- Sperre: keine Anrufe mehr." : "",
     hat("mensch_verbinden") ? "- Mensch: zu jemandem aus dem Team verbinden — oder einen Anruf zu fester Zeit eintragen." : "",
     hat("anruf_beenden") ? "- Ende: das Gespräch mit Ergebnis festhalten und auflegen." : "",

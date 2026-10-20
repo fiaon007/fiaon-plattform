@@ -129,7 +129,8 @@ titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Le
   ok("ROT-PROBE kundenAnrufeAn: Stufe 0 + an = nein; Stufe 1 + an = ja; Not-Aus = nein", !kundenAnrufeAn({ an: true, stufe: 0, notaus: false }) && kundenAnrufeAn({ an: true, stufe: 1, notaus: false }) && !kundenAnrufeAn({ an: true, stufe: 3, notaus: true }));
   const g1 = stufenGrenzen({ stufe: 1, parallel: 3, tagEuro: 60, spielarten: alle });
   ok("Stufe 1 (Go-live): 40 je Tag, Gleichzeitig 1, Deckel 20 €, nur Termin/Willkommen/Auftrag/Stufe A/Rate", g1.versucheJeTag === 40 && g1.parallel === 1 && g1.tagEuro === 20 && ["termin", "willkommen", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
-  ok("Stufe 1: Rate nur Tag 1–3 nach Fälligkeit; Stufe 2/3 ohne diese Grenze", [1, 2, 3].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 5) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20));
+  // Go-live C (Koordination 20.10.2026): „Rate offen“ zu JEDER überfälligen Rate, Tag 1–45 — danach übernimmt das Team.
+  ok("Rate offen: Stufe 1 Tag 1–45 (nie Tag 0, nie Tag 46); Stufe 2/3 auch heute/morgen fällig, aber nie nach Tag 45", [1, 2, 3, 5, 20, 45].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 46) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20) && rateTagErlaubt(2, 0) && !rateTagErlaubt(2, 46) && !rateTagErlaubt(3, 60));
   const g2 = stufenGrenzen({ stufe: 2, parallel: 5, tagEuro: 300, spielarten: alle });
   ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 € — nur mehr Menge (Zusage dazu), KEIN Zuruf, kein Lead (nur Vertragskunden)", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zusage") && !g2.spielartErlaubt("zuruf") && !g2.spielartErlaubt("lead"));
   const g3 = stufenGrenzen({ stufe: 3, parallel: 9, tagEuro: 999, spielarten: alle });
@@ -242,7 +243,7 @@ titel("8b. HARTE TELEFON-REGELN (Nachbereitung ohne Aufnahme-Ja)");
 }
 
 titel("9. KATALOGE");
-ok("13 Werkzeuge (12 + probe_feedback_merken, nur im Probeanruf), 12 Spielarten (mit „auftrag“ aus der Akte und „willkommen“)", WERKZEUGE.length === 13 && WERKZEUGE.includes("probe_feedback_merken") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
+ok("14 Werkzeuge (13 + probe_feedback_merken, nur im Probeanruf; neu: aufgabe_fuer_justin), 12 Spielarten (mit „auftrag“ und „willkommen“)", WERKZEUGE.length === 14 && WERKZEUGE.includes("probe_feedback_merken") && WERKZEUGE.includes("aufgabe_fuer_justin") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));
 ok("Geld buchen / Erstattung / Storno / Kündigung sind KEIN Werkzeug", !(WERKZEUGE as readonly string[]).some((w) => /^(geld_buchen|erstattung|raten_storno|kuendigung_buchen|vertrag_schliessen|lastschrift)/.test(w)));
 ok("Werbe-Spielarten brauchen Einwilligung, Vertragssache nicht", istWerbeSpielart("zuruf") && istWerbeSpielart("lead") && !istWerbeSpielart("rate") && !istWerbeSpielart("stufe_a") && RECHTSGRUND.zusage === "vertrag");

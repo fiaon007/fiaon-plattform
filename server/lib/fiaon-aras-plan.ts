@@ -24,7 +24,7 @@ import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwill
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
-  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT,
+  PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT, RATE_TAGE_BIS,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -473,10 +473,10 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
     }
   }
 
-  // 4. Rate fällig — heute/morgen und Tag 3/10/20 nach Fälligkeit; nie nach Vertragsende, nie bei Abo-/Mahnstopp
+  // 4. Rate offen (Go-live C, 20.10.2026): JEDE überfällige Rate, Tag 1 bis 45 nach Fälligkeit (Stufe 2/3 dazu heute/morgen fällig)
+  //    — mit den bestehenden Grenzen (1/Tag, 3/Woche je Person, Tagesmenge); nie nach Vertragsende, nie bei Abo-/Mahnstopp.
   if (an("rate")) {
-    // Stufe 1: nur Tag 1–3 nach Fälligkeit; sonst morgen/heute fällig und die Raten-Takte.
-    const tage = grenzen.regel.rateTage ? [...grenzen.regel.rateTage] : [-1, 0, ...einst.ratenTakte.map(Number)];
+    const tage = grenzen.regel.rateTage ? [...grenzen.regel.rateTage] : [-1, 0, ...Array.from({ length: RATE_TAGE_BIS }, (_, i) => i + 1)];
     const zeilen = (await lauf.unsafe(`
       SELECT r.id AS rate_id, r.rate_nr, r.betrag_cents, r.faellig_am::date::text AS faellig, a.ref, ${PERSON_NUMMER_SQL},
              (CURRENT_DATE - r.faellig_am::date)::int AS tage

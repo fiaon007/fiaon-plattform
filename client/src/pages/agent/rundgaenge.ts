@@ -2707,7 +2707,7 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"probe\"]",
     titel: "Probe: hier hörst du Aras.",
     text: "Deine Nummer, „Mich anrufen“, live mitlesen, danach Daumen hoch oder runter — dazu das Stimmen-Studio und der Ton. Früher war das eine eigene Seite im Vertrieb; jetzt steht Aras an EINEM Ort.",
-    tipp: "Kunden ruft er erst an, wenn du „Aras wählt“ einschaltest.",
+    tipp: "Kunden ruft er erst an, wenn du „Aras wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist.",
   },
   {
     ziel: "[data-ki=\"live\"]",
@@ -2732,6 +2732,12 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"anrufe\"]",
     titel: "Anrufe: jedes Gespräch mit Ergebnis.",
     text: "Spielart, Ergebnis, Dauer, Kosten — im Detail Transkript (nur nach Aufnahme-Ja), Werkzeuge, Prüf-Urteil und die Aufnahme.",
+  },
+  {
+    ziel: "[data-ki-reiter=\"stufe\"]",
+    titel: "Stufe: wie Aras wächst — und wann er bremst.",
+    text: "Die Ampel der letzten 14 Tage: erreicht, Zahlungen binnen 48 h, Kosten je Zahlung, Abbrüche, Prüf-Fehler. Nach 3 (Stufe 1) bzw. 5 (Stufe 2) grünen Tagen geht er von selbst eine Stufe hoch; bei Rot sofort eine zurück, und du bekommst eine Karte.",
+    tipp: "Aus Stufe 0 schaltest nur du — im Reiter „Einstellungen“ (Ausbaustufe).",
   },
   {
     ziel: "[data-ki-reiter=\"einstellungen\"]",

@@ -209,16 +209,18 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
     if (h) jeStimme.push(h);
   }
 
+  // Stimmt immer: mit „Aras wählt“ UND Stufe ≥ 1 ruft er Kunden an (Scheibe 3) — sonst nur dich.
+  const kundenSatz = s && s.schalter.an && Number(s.schalter.stufe) >= 1 ? `Kunden ruft er gerade in Stufe ${s.schalter.stufe} an.` : "Kunden ruft er noch nicht an.";
   return (
     <div className="ap">
       {eingebettet ? null : <Rundgang raum="aras-probe" titel="Aras · Probe" schritte={RUNDGANG_ARAS_PROBE} />}
       <header className="ap-kopf" data-ap="kopf">
         {eingebettet ? (
-          <div><p className="ap-still">Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. Kunden ruft er noch nicht an.</p></div>
+          <div><p className="ap-still">Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. {kundenSatz} Wann er mehr Kunden anruft — und wann er von selbst bremst —, zeigt dir die Ampel im Reiter „Stufe“.</p></div>
         ) : (
           <div>
             <h1>Aras</h1>
-            <p>Dein KI-Kollege am Telefon. Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. Kunden ruft er noch nicht an.</p>
+            <p>Dein KI-Kollege am Telefon. Hier rufst du dich selbst an, hörst seine Stimmen und stellst seinen Ton ein. {kundenSatz} Wann er mehr Kunden anruft — und wann er von selbst bremst —, zeigt dir die Ampel im Reiter „Stufe“.</p>
           </div>
         )}
         {s && (

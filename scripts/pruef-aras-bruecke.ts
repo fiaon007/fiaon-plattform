@@ -953,7 +953,7 @@ async function main(): Promise<void> {
 
   titel("17. STUFEN-AMPEL (Teil 2): Rot → eine Stufe zurück + EINE Karte; 3 grüne Tage → hoch; nie aus 0, nie über 3");
   {
-    const { stufeAutomatik } = await import("../server/lib/fiaon-aras-stufe");
+    const { stufeAutomatik, stufeLage } = await import("../server/lib/fiaon-aras-stufe");
     const { berlinTeile } = await import("../shared/fiaon-aras");
     const { tagMinus } = await import("../shared/fiaon-aras-stufe");
     const heute = berlinTeile(new Date()).datum;
@@ -1001,6 +1001,8 @@ async function main(): Promise<void> {
     const a2 = await stufeAutomatik(sqlPool);
     const karten = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_system_alarme WHERE schluessel LIKE 'aras:stufe:%'`) as any[])[0]?.n ?? 0);
     ok("Zweiter Lauf am selben Tag: keine zweite Änderung, keine zweite Karte", !a2.geaendert && !a2.karte && karten === 1, `${a2.grund} · Karten ${karten}`);
+    const lage = await stufeLage();
+    ok("Anzeige (GET /chef/aras/stufe): Stufe 2, die Tage mit Farbe, die Entscheidung „Stufe 1 → 2“ und was bis Stufe 3 fehlt", lage.stufe === 2 && lage.tage.length >= 4 && lage.tage.some((t) => /Stufe 1 → 2/.test(t.entscheidung ?? "")) && lage.tage.filter((t) => t.farbe === "gruen").length >= 3 && /von 5 grünen Tagen/.test(lage.naechste), JSON.stringify({ s: lage.stufe, n: lage.naechste, t: lage.tage.map((t) => `${t.tag}:${t.farbe}`) }));
 
     // b) ROT-PROBE: am nächsten Tag zwei „nicht mehr anrufen“ seit der neuen Stufe → eine Stufe zurück + EINE Karte
     const morgen0 = new Date(Date.now() + 24 * 3600_000);

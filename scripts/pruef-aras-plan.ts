@@ -116,6 +116,8 @@ ok("Rotprobe: „rufen Sie mich morgen an“ ist kein Sperrwunsch", !sperrwunsch
 ok("Aufnahme-Ja erkannt („Ja, gerne“, „in Ordnung“)", istAufnahmeJa("Ja, gerne.") && istAufnahmeJa("Das ist in Ordnung."));
 ok("Aufnahme-Nein erkannt („Nein, lieber nicht“)", istAufnahmeNein("Nein, lieber nicht.") && !istAufnahmeJa("Nein, lieber nicht."));
 ok("Rotprobe: „Ja, aber nicht aufzeichnen“ ist KEIN Ja", !istAufnahmeJa("Ja, aber bitte nicht aufzeichnen."));
+// Rauchtest 20.10.: „Ja, aber um was geht's dabei?“ auf die Aufnahme-Frage — ein Vorbehalt oder eine Gegenfrage ist kein klares Ja.
+ok("Rotprobe: „Ja, aber um was geht's dabei?“ und „Ja?“ sind KEIN Ja (§ 201 StGB: nur ein klares Ja)", !istAufnahmeJa("Ja, aber um was geht's dabei?") && !istAufnahmeJa("Ja?") && istAufnahmeJa("Ja klar.") && istAufnahmeJa("Mm … Ja"));
 
 titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Leise · 3 Voll — immer das Engere aus Stufe und Schalter");
 {

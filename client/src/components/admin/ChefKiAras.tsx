@@ -26,12 +26,13 @@ import ArasLive from "./aras/ArasLive";
 const ArasPlan = lazy(() => import("./aras/ArasPlan"));
 const ArasWarteschlange = lazy(() => import("./aras/ArasWarteschlange"));
 const ArasAnrufe = lazy(() => import("./aras/ArasAnrufe"));
+const ArasStufe = lazy(() => import("./aras/ArasStufe"));
 const ArasProbe = lazy(() => import("./ChefArasProbe"));
 
-type Reiter = "probe" | "plan" | "warteschlange" | "anrufe" | "einstellungen";
+type Reiter = "probe" | "plan" | "warteschlange" | "anrufe" | "stufe" | "einstellungen";
 const REITER: { key: Reiter; label: string }[] = [
   { key: "probe", label: "Probe" }, { key: "plan", label: "Plan" }, { key: "warteschlange", label: "Warteschlange" },
-  { key: "anrufe", label: "Anrufe" }, { key: "einstellungen", label: "Einstellungen" },
+  { key: "anrufe", label: "Anrufe" }, { key: "stufe", label: "Stufe" }, { key: "einstellungen", label: "Einstellungen" },
 ];
 /** Was der Reiter „Probe“ selbst einstellt (Ton, Stimme, Probe-Nummer, Deckel) — im Reiter „Einstellungen“ nicht noch einmal. */
 export const IM_PROBE_REITER: readonly string[] = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_stimme", "aras_probe_nummer", "aras_tag_euro"];
@@ -116,6 +117,7 @@ export default function ChefKiAras() {
           : reiter === "plan" ? <ArasPlan verbunden={verbunden} />
           : reiter === "warteschlange" ? <ArasWarteschlange verbunden={verbunden} />
           : reiter === "anrufe" ? <ArasAnrufe verbunden={verbunden} />
+          : reiter === "stufe" ? <ArasStufe verbunden={verbunden} />
           : <ArasEinstellungen verbunden={verbunden} />}
       </Suspense>
     </div>

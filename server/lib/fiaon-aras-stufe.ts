@@ -101,10 +101,14 @@ export async function stufeAutomatik(lauf: Lauf = sqlPool, jetzt = new Date()): 
     if (tag > stufeSeitTag) tage.push({ tag, stufe: tagStufe, farbe: a.farbe, versuche: w.versuche, abgeschlossen: tagAbgeschlossen(tag, heute) });
   }
 
-  // 2. ROT jetzt? Nur Anrufe seit der Stufen-Änderung und im Fenster der Stufe (inkl. heute bis jetzt).
+  // 2. ROT jetzt? Nur Anrufe seit der Stufen-Änderung und im Fenster der Stufe (inkl. heute bis jetzt). „Jetzt“ ist das
+  // Spätere aus Prozess- und Datenbank-Uhr (+1 s): created_at setzt die Datenbank — eine Uhr-Abweichung von ein paar
+  // Millisekunden darf einen gerade geschriebenen Anruf nicht aus dem Fenster fallen lassen (Prüfstand 20.10.: 1 von 3 rot).
   const fensterVon = await berlinMitternacht(tagMinus(heute, fensterTage(stufe) - 1), lauf);
   const seit = new Date(Math.max(fensterVon.getTime(), stufeSeit.getTime()));
-  const imFenster = await werteImZeitraum({ tag: `${berlinTeile(seit).datum}…${heute}`, stufe, von: seit, bis: jetzt, messbar: false }, lauf);
+  const [db] = (await lauf`SELECT NOW() AS t`) as any[];
+  const bisJetzt = new Date(Math.max(jetzt.getTime(), new Date(db.t).getTime()) + 1000);
+  const imFenster = await werteImZeitraum({ tag: `${berlinTeile(seit).datum}…${heute}`, stufe, von: seit, bis: bisJetzt, messbar: false }, lauf);
   const ampelJetzt = tagesAmpel(imFenster);
   const rotJetzt = ampelJetzt.farbe === "rot";
 
@@ -143,12 +147,18 @@ async function karteMelden(heute: string, lauf: Lauf, k: { stufe: "rot" | "gelb"
   return true;
 }
 
-/** Für die Anzeige (Chefbüro/KI-Team): die letzten 14 Tage, die jetzige Stufe, was bis zur nächsten fehlt. */
-export async function stufeLage(lauf: Lauf = sqlPool): Promise<{ stufe: number; auto: boolean; tage: { tag: string; stufe: number; farbe: string; entscheidung: string | null; punkte: AmpelPunkt[] }[]; ziele: typeof STUFEN_ZIELE }> {
+/** Für die Anzeige (KI-Team › Aras › Stufe): die letzten 14 Tage, die jetzige Stufe und was bis zur nächsten fehlt. */
+export async function stufeLage(lauf: Lauf = sqlPool): Promise<{ stufe: number; auto: boolean; naechste: string; tage: { tag: string; stufe: number; farbe: string; entscheidung: string | null; punkte: AmpelPunkt[] }[]; ziele: typeof STUFEN_ZIELE }> {
   await arasSchema(lauf);
-  const einst = await arasEinstellungenLesen(false, lauf);
-  const zeilen = (await lauf`SELECT tag::text AS tag, stufe, farbe, entscheidung, punkte FROM fiaon_aras_stufe_tag ORDER BY tag DESC LIMIT 14`) as any[];
-  return { stufe: einst.stufe, auto: einst.stufeAuto, ziele: STUFEN_ZIELE, tage: zeilen.map((z) => ({ tag: String(z.tag), stufe: Number(z.stufe), farbe: String(z.farbe), entscheidung: z.entscheidung ?? null, punkte: (z.punkte ?? []) as AmpelPunkt[] })) };
+  const einst = await arasEinstellungenLesen(true, lauf);
+  const zeilen = (await lauf`SELECT tag::text AS tag, stufe, farbe, entscheidung, punkte, (werte->>'versuche')::int AS versuche FROM fiaon_aras_stufe_tag ORDER BY tag DESC LIMIT 14`) as any[];
+  // Dieselbe Regel wie die Automatik: grüne, abgeschlossene Tage IN der Stufe, nach der letzten Änderung.
+  const [st] = (await lauf`SELECT updated_at FROM fiaon_settings WHERE key = 'aras_stufe'`.catch(() => [])) as any[];
+  const seitTag = berlinTeile(st?.updated_at ? new Date(st.updated_at) : new Date(0)).datum;
+  const heute = berlinTeile(new Date()).datum;
+  const tage: TagEintrag[] = zeilen.filter((z) => String(z.tag) > seitTag).map((z) => ({ tag: String(z.tag), stufe: Number(z.stufe), farbe: String(z.farbe) as AmpelFarbe, versuche: Number(z.versuche ?? 0), abgeschlossen: tagAbgeschlossen(String(z.tag), heute) }));
+  const naechste = einst.stufe === 0 ? "Aus Stufe 0 schaltest nur du (Einstellungen › Ausbaustufe)." : einst.stufe >= 3 ? "Höchste Stufe." : stufenEntscheidung({ stufe: einst.stufe, auto: true, rotJetzt: false, tage }).grund;
+  return { stufe: einst.stufe, auto: einst.stufeAuto, naechste, ziele: STUFEN_ZIELE, tage: zeilen.map((z) => ({ tag: String(z.tag), stufe: Number(z.stufe), farbe: String(z.farbe), entscheidung: z.entscheidung ?? null, punkte: (z.punkte ?? []) as AmpelPunkt[] })) };
 }
 
 export type { Stufe };

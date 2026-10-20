@@ -428,6 +428,7 @@ function aufzeichnung(e: ArasEinstellungen, b: Briefing): string {
     `AUFZEICHNUNG (früh, sobald er weiß, worum es geht): Frag in EINEM Satz, locker: „${e.aufnahmeFrage}“ Dann still — warte auf seine Antwort.`,
     `Sagt er Ja: Die Aufzeichnung startet von selbst. Du sagst dazu NICHTS — kein „Moment“, kein „ich gebe das weiter“, kein zweites „Danke“ — und du gibst dafür KEINE Arbeit an den Hintergrund ab. Mach sofort natürlich weiter (ein kurzes „Super.“ davor reicht).`,
     `Zögert er („hm“, „äh“, Schweigen, eine Rückfrage): nie drängeln, nie nach einem Ja verlangen. Ganz ruhig: „${AUFNAHME_ZOEGERN_SATZ}“ Sagt er dann Ja: wie oben.`,
+    `Ein „Ja, aber …?“ oder ein Ja mit Gegenfrage ist KEINE Zustimmung: Beantworte zuerst seine Frage — dann frag noch einmal kurz nach der Aufzeichnung. Bedank dich nie für ein Ja, das keins war.`,
     `Sagt er Nein oder bleibt es unklar: „${AUFNAHME_NEIN_SATZ}“ — und weiter mit dem Gespräch. Ohne klares Ja gibt es nie eine Aufzeichnung.`,
     `Fragt er nach Details (wie lange, wofür): „Wir speichern es neunzig Tage, nur zur Dokumentation — alles Weitere steht in unserer Datenschutzerklärung.“ Eine Internetadresse liest du nie vor.`,
     b.aufnahmeFrueherAbgelehnt ? `Er hat früher schon einmal Nein gesagt — frag trotzdem kurz und freundlich, ohne zu drängen.` : "",

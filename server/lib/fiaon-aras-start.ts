@@ -64,6 +64,9 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   // Go-live (Koordination 20.10.2026 abends): EINMAL ab 21.10.2026 09:30 Berlin — setzt Stufe 1, Willkommen + Rate offen, Juni,
   // Wienerisch ultra, Fenster Mo–Sa 09:30–21:00 und ARAS an; danach nie wieder (Merker aras_golive_21_10).
   tageslauf("aras_golive", async () => await (await import("./fiaon-aras-golive")).golivePruefen(), 60_000, { beimStartNach: 30_000, nurMitErgebnis: true });
+  // Justin 22.10.2026: „alle whatsapp raus schicken die ARAS angekündigt hat“ — EINMAL, tagsüber: was ARAS vor e09a0ffe
+  // angekündigt, aber nicht getan hat (Link, Aufgabe für Justin, Rückruf), wird nachgeholt (Merker aras_nachholen_22_10).
+  tageslauf("aras_nachholen", async () => await (await import("./fiaon-aras-nachholen")).nachholenPruefen(), 60_000, { beimStartNach: 120_000, nurMitErgebnis: true });
 
   console.log("[ARAS] Kern gestartet: Twilio-Rückrufe, Ton-Strom, Probe-Routen, Takte registriert.");
 }

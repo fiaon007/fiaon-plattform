@@ -8,6 +8,8 @@
 // vorgelesene Internetadresse, keine Anzahl ohne ihr Wort, eine Frage je Redebeitrag — und aus Justins Tests am
 // 20.10. (Anrufe 5 und 6): kein Satz zweimal gleich, kein Füllwort als eigener Redebeitrag, nicht jeder Satz mit „Also“,
 // nie Schluss ohne Abschied. Die Brücke nutzt dieselben Funktionen live (Wiederholungs- und Abschied-Wache).
+// E-409 Kalibrierung (22.10.2026): die Live-Prüfung kennt den erwarteten Kunden (TelefonLage.kunde — sein Name bestätigt die
+// Identität) und prüft das Limit gesprochen (limitTelefonPruefen: Wunschlimit erlaubt, nur echte Zusagen hart).
 // Geprüft in scripts/pruef-aras-plan.ts, scripts/pruef-aras-prompt.ts und scripts/pruef-aras-bruecke.ts (mit Rot-Proben).
 // ═══════════════════════════════════════════════════════════════════════════
 import {
@@ -18,7 +20,8 @@ import { limitPruefen, BANK_SATZ_MUSTER } from "./fiaon-mara-ton";
 
 export {
   druckFinden, lastschriftFinden, vertragZusageFinden, anliegenGenannt, anliegenVorIdentitaet, kiHinweisGesagt, KI_HINWEIS_SPAETESTENS_SEK,
-  type RegelZeile, type RegelPunkt, type TelefonLage,
+  limitTelefonPruefen, PRUEF_REGEL_STAND,
+  type RegelZeile, type RegelPunkt, type TelefonLage, type ErwarteterKunde,
 } from "./fiaon-ki-pruefung-regeln";
 
 // ── Probe 20.10.2026 (Justins erster Anruf): Wahrheit und Ton am Telefon ─────────────────────────────────

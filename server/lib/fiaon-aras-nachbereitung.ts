@@ -25,7 +25,7 @@ import { arasEinstellungenLesen, planEinreihen, arasKostenHeute } from "./fiaon-
 import { openaiFetch, istKiPause } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
 import { ERGEBNISSE } from "../../shared/fiaon-kontakt-ergebnis-liste";
-import { telefonRegeln, type RegelZeile as PruefZeileT } from "../../shared/fiaon-aras-regeln";
+import { telefonRegeln, PRUEF_REGEL_STAND, type RegelZeile as PruefZeileT } from "../../shared/fiaon-aras-regeln";
 import {
   istArasErgebnis, istSpielart, nummerLand, fensterOffen, berlinTeile, ARAS_DIENSTE, PROBE_AGENT_VORGABE, STIMMEN_OPENAI, stimmeGueltig, feedbackAusGrund,
   type ArasErgebnis, type Spielart, type AnrufZeile, type AnrufDetail, type Werkzeug,
@@ -93,8 +93,9 @@ async function zusammenfassung(l: NachbereitungLage, spielart: Spielart): Promis
 export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, lauf: Lauf = sqlPool): Promise<{ ergebnis: ArasErgebnis; pruefung: string }> {
   await arasSchema(lauf);
   const [z] = (await lauf`SELECT aa.spielart, aa.call_id, aa.plan_id, aa.nachbereitet_am, aa.ki_hinweis_am, aa.angenommen_am, aa.aufnahme_ja_am, aa.aufnahme_nein_am, aa.aufnahme_gestartet_am,
-                                 c.person_id, c.ref, c.nummer
-                            FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id WHERE aa.id = ${arasAnrufId}`) as any[];
+                                 c.person_id, c.ref, c.nummer,
+                                 aa.briefing->>'nachname' AS b_nachname, aa.briefing->>'vorname' AS b_vorname, aa.briefing->>'anrede' AS b_anrede, pe.last_name AS p_nachname, pe.first_name AS p_vorname
+                            FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id LEFT JOIN fiaon_persons pe ON pe.id = c.person_id WHERE aa.id = ${arasAnrufId}`) as any[];
   if (!z) throw new Error(`ARAS-Anruf ${arasAnrufId} fehlt.`);
   if (z.nachbereitet_am) return { ergebnis: (l.ergebnis ?? "erreicht_sonstiges"), pruefung: "schon" };
   const spielart = z.spielart as Spielart;
@@ -116,15 +117,18 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
   const gesprochen = l.kundeHatGesprochen && l.zeilen.some((x) => x.wer === "aras" && x.text.trim());
   const status = gesprochen ? "offen" : "entfaellt";
   // Ohne Aufnahme-Ja: die harten Regeln auf dem Live-Transkript im Speicher — gespeichert wird nur der Befund, kein Wortlaut.
-  let befund: { live: boolean; punkte: { regel: string; schwere: string }[] } | null = null;
+  // E-409 Kalibrierung (22.10.2026): mit dem erwarteten Kunden (sein Name ist die Identitäts-Bestätigung) und dem Regelstand
+  // (stand) — ein Befund ohne stand stammt aus der alten Fassung (liveBefundPunkte). Der Name steht nie im Befund.
+  let befund: { live: boolean; stand: string; punkte: { regel: string; schwere: string }[] } | null = null;
   if (gesprochen && !l.aufnahmeJa) {
     try {
       const sek = (t: unknown) => (t && z.angenommen_am ? Math.max(0, (new Date(t as string).getTime() - new Date(z.angenommen_am).getTime()) / 1000) : null);
       const zeilen: PruefZeileT[] = l.zeilen.filter((x) => x.text.trim()).map((x) => ({ t: x.t, wer: x.wer, text: x.text }));
       const text = zeilen.filter((x) => x.wer === "aras").map((x) => x.text).join("\n");
+      const kunde = { nachname: z.b_nachname || z.p_nachname || null, vorname: z.b_vorname || z.p_vorname || null, anrede: z.b_anrede || null };
       // arasBeendet: Aras hat aufgelegt — ohne hörbaren Abschied ist das ein Befund (Justins Test 20.10., Anruf 6).
-      const punkte = telefonRegeln(text, { kiHinweisSek: l.kiHinweisSek ?? sek(z.ki_hinweis_am), aufnahmeJaSek: sek(z.aufnahme_ja_am), aufnahmeGestartetSek: sek(z.aufnahme_gestartet_am), aufnahmeNeinSek: sek(z.aufnahme_nein_am), transkript: zeilen, arasBeendet: l.endeGrund === "aras_beendet" });
-      befund = { live: true, punkte: punkte.map((p) => ({ regel: p.regel, schwere: p.schwere })) };
+      const punkte = telefonRegeln(text, { kiHinweisSek: l.kiHinweisSek ?? sek(z.ki_hinweis_am), aufnahmeJaSek: sek(z.aufnahme_ja_am), aufnahmeGestartetSek: sek(z.aufnahme_gestartet_am), aufnahmeNeinSek: sek(z.aufnahme_nein_am), transkript: zeilen, kunde, arasBeendet: l.endeGrund === "aras_beendet" });
+      befund = { live: true, stand: PRUEF_REGEL_STAND, punkte: punkte.map((p) => ({ regel: p.regel, schwere: p.schwere })) };
     } catch (e) { console.error("[ARAS-NACHBEREITUNG] Live-Regeln:", String((e as Error)?.message ?? e).slice(0, 160)); }
   }
   await lauf`UPDATE fiaon_aras_anruf SET ergebnis = COALESCE(ergebnis, ${ergebnis}), ergebnis_notiz = COALESCE(ergebnis_notiz, ${notiz || null}),

@@ -162,7 +162,8 @@ titel("7c. STUFEN-AMPEL (Scheibe 3 Teil 2): Werte mit Rot-Probe, hoch nur nach 3
   ok("Ein guter Tag ist grün (Erreicht ≥ 25 %, Zahlung ≥ 20/30 %, 2 € je Zahlung, 3 Minuten, wenig Übergaben)", gruen.farbe === "gruen", JSON.stringify(gruen.punkte.filter((x) => x.farbe !== "gruen")));
   ok("ROT-PROBE: zwei Abbrüche / „nicht mehr anrufen“ (≥ 3 %) → rot", tagesAmpel(tag({ abbrueche: 2 })).farbe === "rot");
   ok("Ein einzelner Abbruch ist noch nicht rot (erst ab zwei Fällen)", tagesAmpel(tag({ abbrueche: 1 })).farbe !== "rot");
-  ok("ROT-PROBE: ein harter Prüf-Fehler bei 8 Gesprächen (≥ 2 %) → rot", tagesAmpel(tag({ pruefFehler: 1 })).farbe === "rot");
+  ok("ROT-PROBE: zwei harte Prüf-Fehler bei 8 Gesprächen (≥ 2 %) → rot", tagesAmpel(tag({ pruefFehler: 2 })).farbe === "rot");
+  ok("E-409 (22.10.): ein einzelner harter Prüf-Fehler an einem kleinen Tag ist gelb, nicht rot (erst ab zwei Fällen, wie bei den Abbrüchen)", tagesAmpel(tag({ pruefFehler: 1 })).farbe === "gelb");
   ok("Gelb: Erreicht-Quote Rate unter 25 %", tagesAmpel(tag({ je: { rate: { versuche: 12, erreicht: 2, zahlungen48: 1 }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: 2 } } })).farbe === "gelb");
   ok("Gelb: Zahlung binnen 48 h bei Stufe A unter 30 %", tagesAmpel(tag({ je: { rate: { versuche: 12, erreicht: 4, zahlungen48: 1 }, stufe_a: { versuche: 8, erreicht: 4, zahlungen48: 1 } } })).farbe === "gelb");
   ok("Gelb: Übergaben ab 30 %", tagesAmpel(tag({ uebergaben: 3 })).farbe === "gelb");

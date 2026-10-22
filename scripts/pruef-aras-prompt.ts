@@ -428,7 +428,12 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
   ok("Aussprache-Regel in der Stimme: ein Wort, fließend, mitten im Satz, nie buchstabiert", /FIAON sprichst du als EIN Wort, fließend und mitten im Satz/.test(a.bausteine["4_klang"]) && /nie buchstabiert, nie in Silben zerlegt/.test(a.bausteine["4_klang"]));
   // Identität: Name in der Begrüßung = Frage; Kreditkarte vorab erlaubt, Beträge erst nach seiner Antwort
   const A = (text: string) => ({ t: 0, wer: "aras" as const, text }), K = (text: string) => ({ t: 0, wer: "kunde" as const, text });
-  ok("Prüf-Regel: Namens-Begrüßung + „Ja, passt“ → danach Betrag erlaubt (kein Befund)", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, passt. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")]) === null);
+  // E-409 Kalibrierung (22.10.2026): Auf „… ham's an kurzen Moment?“ beantwortet „Ja, passt“ den Moment, nicht die Identität —
+  // bestätigt ist sie mit seinem Namen oder „am Apparat / bin ich“.
+  ok("Prüf-Regel (E-409, 22.10.): Namens-Begrüßung + „Ja, am Apparat“ bzw. sein Name → danach Betrag erlaubt (kein Befund)",
+    anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, am Apparat. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")]) === null
+    && anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, Probe hier, passt."), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")], { nachname: "Probe", anrede: "Herr" }) === null);
+  ok("Rot-Probe (E-409, 22.10.): Namens-Begrüßung + „Moment?“ + nur „Ja, passt“ → ein Betrag danach ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, passt. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")], { nachname: "Probe", anrede: "Herr" }) !== null);
   ok("Rot-Probe: die Frau geht ran („Nein, hier ist seine Frau“) → ein Betrag danach ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Nein, hier ist seine Frau."), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro.")]) !== null);
   ok("Rot-Probe: ein Betrag schon in der Eröffnung ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(`${er.bisKi} Es fehlen noch neunundfünfzig Euro.`)]) !== null);
   // Feedback (Anruf 12: „müsse bei der vereinbarten Begrüßung bleiben“ + Weiterleitung angeboten)
@@ -465,7 +470,10 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
     const wSaetze = gesagt(w.bausteine["9_leitfaden"]);
     const wHart = wSaetze.flatMap((x) => telefonRegeln(x).filter((p) => p.schwere === "hart").map((p) => `${p.regel}: ${p.treffer}`));
     ok(`Willkommen: Justins Sätze (${wSaetze.length}) bestehen die Live-Prüfung ohne harten Befund (Limit nur als „mit Ihrem Wunschlimit von …“)`, wSaetze.length >= 2 && wHart.length === 0, wHart.join(" | "));
-    ok("Rot-Probe: „Ihr Wunschlimit liegt bei fünftausend Euro“ wäre hart (Freigabe) — darum steht es so nicht im Skript", telefonRegeln("Ihr Wunschlimit liegt bei fünftausend Euro — damit starten Sie im FIAON Pro-Paket.").some((p) => p.regel === "limit_freigabe" && p.schwere === "hart"));
+    // E-409 Kalibrierung (22.10.2026): am Telefon wird das Wunschlimit verkauft (E-373) — hart bleibt das Limit als Tatsache (Korrektur 1).
+    ok("E-409 (22.10.): „Ihr Wunschlimit liegt bei fünftausend Euro“ ist am Telefon kein Befund — „Ihr Limit beträgt fünftausend Euro“ bleibt hart (Korrektur 1)",
+      !telefonRegeln("Ihr Wunschlimit liegt bei fünftausend Euro — damit starten Sie im FIAON Pro-Paket.").some((p) => p.schwere === "hart")
+      && telefonRegeln("Ihr Limit beträgt fünftausend Euro — damit starten Sie im FIAON Pro-Paket.").some((p) => p.regel === "limit_freigabe" && p.schwere === "hart"));
     ok("Willkommen: Aktivierung = erste Monatsrate MIT Betrag, Kartenversand dabei (3 bis 5 Werktage, EINE Quelle: Fakten-Datei), Betreuer automatisch, Link + EINE Frage", /Aktivierung, also Ihre erste Monatsrate über [0-9.,]+ € \(gesprochen: „[^“]+“\)/.test(w.text) && w.text.includes(KARTENVERSAND.werktage) && KARTENVERSAND.stand === "Justin 20.10.2026, DKB-Absprache" && w.text.includes(WILLKOMMEN.betreuer) && /GENAU EINE Frage/.test(w.text));
     // Rauchtest 20.10. nachts (echtes GPT-Live, Juni, Wien ultra): „Herzlich willkommen“ fehlte, das Wunschlimit landete mit
     // „aktiviert“/„bekommen“ in einem Satz (limit_zusage), und die Leitfaden-Sätze kamen schriftdeutsch.
@@ -506,16 +514,20 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
     ok("Fenster: Feiertag (Weihnachten) zu — außer termin; mit „7“ im Fenster wählt ARAS auch sonntags (änderbar)", !fensterOffen("rate", "DE", um("2026-12-25T12:00:00+01:00")).offen && fensterOffen("termin", "DE", um("2026-12-25T12:00:00+01:00")).offen && fensterOffen("rate", "DE", um("2026-10-25T12:00:00+01:00"), { fenster: { verkauf: FENSTER_VORGABE.verkauf, rate: { "1-7": ["09:30", "21:00"] } } }).offen);
     ok("Stufe 1 (Go-live): 40 Anrufe am Tag, 1 gleichzeitig, 20 € am Tag, mit Willkommen und Rate", STUFEN[1].versucheJeTag === 40 && STUFEN[1].parallel === 1 && STUFEN[1].tagEuro === 20 && STUFEN[1].spielarten.includes("willkommen") && STUFEN[1].spielarten.includes("rate"));
     ok("Vorgaben: Stimme Juni, Name ARAS, Tempo zügig", einstellungenAnwenden({}).stimme === "juni" && einstellungenAnwenden({}).name === "ARAS" && einstellungenAnwenden({}).regie.tempo === "zuegig");
-    // Die neue Begrüßung („Ich grüße Sie, Herr …“ / „Grüß Sie, Herr …“) muss als Frage nach der Person zählen — sonst wäre
-    // nach dem „Ja“ des Kunden jede Rate „vor der Identität“ genannt (harter Befund in jedem Gespräch).
-    const ohneId: string[] = [];
+    // Die Begrüßung („Ich grüße Sie, Herr …“ / „Grüß Sie, Herr …“) zählt als Frage nach der Person. E-409 Kalibrierung (22.10.2026):
+    // Endet die Eröffnung mit „… habens an Moment?“, beantwortet ein bloßes „Ja, worum geht's?“ den Moment — bestätigt ist die
+    // Identität erst mit seinem Namen oder „am Apparat / bin ich“ (sonst ist die Rate danach ein harter Befund).
+    const ohneId: string[] = [], nurJa: string[] = [];
     for (const d of DIALEKTE) for (const sp of ["willkommen", "rate", "termin", "stufe_a", "zusage", "auftrag", "lead"] as const) {
       const bb = probeBriefing({ spielart: sp, anrede: "Frau", nachname: "Probe", heute, vorTagen: () => "17.10.2026" }) as Briefing;
       const o = eroeffnung(einstellungenAnwenden({ aras_dialekt: d }), bb, sp);
-      const z = [{ t: 0, wer: "kunde" as const, text: "Hallo?" }, { t: 1, wer: "aras" as const, text: o.ganz }, { t: 6, wer: "kunde" as const, text: "Ja, worum geht's?" }, { t: 8, wer: "aras" as const, text: "I ruf an wegen Ihrer offenen Rate über neunundfünfzig Euro neunundneunzig." }];
-      if (!identitaetGefragt(o.ganz) || anliegenVorIdentitaet(z) !== null) ohneId.push(`${d}/${sp}: ${o.ganz.slice(0, 40)}`);
+      const z = (antwort: string) => [{ t: 0, wer: "kunde" as const, text: "Hallo?" }, { t: 1, wer: "aras" as const, text: o.ganz }, { t: 6, wer: "kunde" as const, text: antwort }, { t: 8, wer: "aras" as const, text: "I ruf an wegen Ihrer offenen Rate über neunundfünfzig Euro neunundneunzig." }];
+      const kunde = { nachname: "Probe", anrede: "Frau" };
+      if (!identitaetGefragt(o.ganz) || anliegenVorIdentitaet(z("Ja, Probe, worum geht's?"), kunde) !== null || anliegenVorIdentitaet(z("Ja, am Apparat."), kunde) !== null) ohneId.push(`${d}/${sp}: ${o.ganz.slice(0, 40)}`);
+      if (anliegenVorIdentitaet(z("Ja, worum geht's?"), kunde) === null) nurJa.push(`${d}/${sp}`);
     }
-    ok("Jede Eröffnung (alle Dialekte, alle Gesprächsarten) fragt nach der Person — „Ja, worum geht's?“ danach bestätigt, die Rate danach ist in Ordnung", ohneId.length === 0, ohneId.join(" | "));
+    ok("Jede Eröffnung (alle Dialekte, alle Gesprächsarten) fragt nach der Person — sein Name oder „am Apparat“ danach bestätigt, die Rate danach ist in Ordnung", ohneId.length === 0, ohneId.join(" | "));
+    ok("Rot-Probe (E-409, 22.10.): nur „Ja, worum geht's?“ auf „… Moment?“ bestätigt in keiner Eröffnung die Identität — die Rate danach ist ein Treffer", nurJa.length === 0, nurJa.join(" | "));
     ok("Rot-Probe: ohne Namen in der Begrüßung zählt das „Ja“ nicht — Rate danach = Treffer", anliegenVorIdentitaet([{ t: 0, wer: "kunde", text: "Hallo?" }, { t: 1, wer: "aras", text: "Grüß Sie! ARAS spricht hier, I bin a KI." }, { t: 4, wer: "kunde", text: "Ja?" }, { t: 6, wer: "aras", text: "Es geht um Ihre offene Rate." }]) !== null);
   }
   // Quittungs-Laute (Koordination 20.10. abends: Schnelligkeit)

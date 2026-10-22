@@ -2,7 +2,8 @@
 // ARAS — die Stufen-Automatik (E-408 Scheibe 3 Teil 2; Nachtrag „Persona & Skalierung“ § 2)
 //
 // Takt „aras_stufe_ampel“ (alle 30 Min., fiaon-aras-start.ts). Je Lauf:
-//   1. die Werte der letzten Tage aus fiaon_aras_anruf (+ Zahlungen binnen 48 h, Werkzeuge, Prüf-Befunde) —
+//   0. (E-409 Kalibrierung, 22.10.2026) einmal die alten Prüf-Mara-Zeilen seit dem Go-live mit den neuen Regeln neu rechnen;
+//   1. die Werte der letzten Tage aus fiaon_aras_anruf (+ Zahlungen binnen 48 h, Werkzeuge, Prüf-Befunde mit Bestand) —
 //      je Tag eine Zeile in fiaon_aras_stufe_tag (Farbe, Punkte, die Stufe des Tages);
 //   2. ROT im Fenster der Stufe (nur Anrufe SEIT der letzten Stufen-Änderung — sonst ginge es nach einem
 //      roten Tag jeden Tag eine Stufe weiter runter) → mit Automatik (aras_stufe_auto) eine Stufe zurück;
@@ -18,6 +19,7 @@ import { berlinTeile, STUFEN, type Spielart, type Stufe } from "../../shared/fia
 import {
   tagesAmpel, stufenEntscheidung, fensterTage, tagMinus, tagAbgeschlossen, STUFEN_ZIELE, type TagesWerte, type AmpelFarbe, type AmpelPunkt, type TagEintrag, type SpielartWerte,
 } from "../../shared/fiaon-aras-stufe";
+import { anrufZaehltAlsPruefFehler } from "../../shared/fiaon-ki-pruefung-regeln";
 
 type Lauf = typeof sqlPool;
 
@@ -32,8 +34,11 @@ export async function werteImZeitraum(e: { tag: string; stufe: number; von: Date
            (c.ref IS NOT NULL AND (
               EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = c.ref AND r.bezahlt_am >= COALESCE(c.beginn, aa.created_at) AND r.bezahlt_am < COALESCE(c.beginn, aa.created_at) + INTERVAL '48 hours')
               OR EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.ref = c.ref AND a.paid_at >= COALESCE(c.beginn, aa.created_at) AND a.paid_at < COALESCE(c.beginn, aa.created_at) + INTERVAL '48 hours')
-           )) AS zahlung48
+           )) AS zahlung48,
+           k.punkte AS k_punkte, k.entschieden AS k_entschieden
       FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id
+      LEFT JOIN LATERAL (SELECT punkte, entschieden FROM fiaon_ki_pruefung kp
+                          WHERE kp.bezug_art = 'aras_anruf' AND kp.bezug_id = aa.id AND kp.modell IS DISTINCT FROM 'laeuft' ORDER BY kp.id DESC LIMIT 1) k ON TRUE
      WHERE aa.spielart <> 'probe' AND aa.created_at >= ${e.von} AND aa.created_at < ${e.bis}`) as any[];
   const w: TagesWerte = { tag: e.tag, stufe: e.stufe, versuche: 0, gespraeche: 0, je: {}, kostenEuro: 0, zahlungen48: e.messbar ? 0 : null, sekundenGespraeche: 0, abbrueche: 0, uebergaben: 0, pruefFehler: 0 };
   for (const z of zeilen) {
@@ -48,8 +53,9 @@ export async function werteImZeitraum(e: { tag: string; stufe: number; von: Date
     // Abbruch: „nicht mehr anrufen“, Beschwerde, oder er legte in den ersten 30 Sekunden auf
     if (z.sperrwunsch || z.beschwerde || (z.ende_grund === "kunde_aufgelegt" && Number(z.sekunden_sitzung ?? 0) < 30)) w.abbrueche += 1;
     if (z.ergebnis === "uebergeben") w.uebergaben += 1;
-    const hartLive = Array.isArray(z.pruefung?.punkte) && z.pruefung.punkte.some((p: any) => p?.schwere === "hart");
-    if (z.pruefung_status === "fehler" || hartLive) w.pruefFehler += 1;
+    // E-409 Kalibrierung (22.10.2026): nur ein harter Punkt, der Bestand hat — aus Prüf-Maras Zeile, sonst aus dem Live-Befund.
+    // Ein „fehler“ ohne solchen Punkt (alte Fehlalarme, Modell-Urteil ohne Regel) zählt nicht; „In Ordnung“ von Justin nie.
+    if (anrufZaehltAlsPruefFehler({ status: z.pruefung_status, punkte: z.k_punkte, entschieden: z.k_entschieden, live: z.pruefung })) w.pruefFehler += 1;
   }
   w.kostenEuro = Math.round(w.kostenEuro * 100) / 100;
   return w;
@@ -72,6 +78,10 @@ export interface StufenLauf {
  */
 export async function stufeAutomatik(lauf: Lauf = sqlPool, jetzt = new Date()): Promise<StufenLauf> {
   await arasSchema(lauf);
+  // E-409 Kalibrierung (22.10.2026): erst die alten Prüf-Mara-Zeilen mit den neuen Regeln (einmal, sonst sofort zurück) — die
+  // Ampel rechnet nie mit Fehlalarmen der alten Fassung, auch nicht im ersten Lauf nach dem Deploy.
+  await (await import("./fiaon-ki-pruefung")).arasPruefungenNeuBewerten({ sofort: true })
+    .catch((e) => console.error("[ARAS-STUFE] Neubewertung Prüf-Mara:", String((e as Error)?.message ?? e).slice(0, 160)));
   const einst = await arasEinstellungenLesen(true, lauf);
   const heute = berlinTeile(jetzt).datum;
   const stufe = einst.stufe as number;

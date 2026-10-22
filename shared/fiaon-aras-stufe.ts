@@ -5,7 +5,10 @@
 // Kundenanrufe, je Wert eine Ampel, und daraus die Entscheidung:
 //   · ROT (Abbrüche/Beschwerden/„nicht mehr anrufen“ ab 3 %, Prüf-Mara-Fehler ab 2 %) → sofort eine Stufe
 //     zurück + Karte an Justin. Gemessen über das Fenster der Stufe (Stufe 1: 3 Tage, sonst 5), damit ein
-//     einzelner Tag mit drei Gesprächen nicht alles umwirft — bei den Abbrüchen erst ab zwei Fällen.
+//     einzelner Tag mit drei Gesprächen nicht alles umwirft — bei den Abbrüchen erst ab zwei Fällen, und
+//     (E-409 Kalibrierung, 22.10.2026) bei den Prüf-Fehlern genauso: ein einzelner Fall an einem kleinen Tag ist
+//     gelb, nicht rot. Als Prüf-Fehler zählt nur ein harter Punkt, der nach den Regeln Bestand hat
+//     (shared/fiaon-ki-pruefung-regeln.ts anrufZaehltAlsPruefFehler) — ein „fehler“ ohne solchen Punkt nicht.
 //   · GRÜN an 3 abgeschlossenen Tagen in Stufe 1 → Stufe 2; an 5 Tagen in Stufe 2 → Stufe 3. „Abgeschlossen“
 //     heißt: 48 h vorbei, die Zahlungen sind messbar. Nie aus Stufe 0 (die schaltet Justin), nie über 3.
 // REIN — die Zahlen holt server/lib/fiaon-aras-stufe.ts aus der Datenbank; geprüft in scripts/pruef-aras-plan.ts.
@@ -35,7 +38,7 @@ export interface TagesWerte {
   /** Früh aufgelegt, „nicht mehr anrufen“, Beschwerde. */
   abbrueche: number;
   uebergaben: number;
-  /** Gespräche mit einem harten Prüf-Befund (Prüf-Mara „fehler“ oder harter Live-Befund). */
+  /** Gespräche mit einem harten Prüf-Befund, der Bestand hat (Prüfzeile, sonst Live-Befund — anrufZaehltAlsPruefFehler). */
   pruefFehler: number;
 }
 export interface AmpelPunkt { schluessel: string; name: string; wert: string; ziel: string; farbe: AmpelFarbe }
@@ -49,6 +52,8 @@ export const STUFEN_ZIELE = {
   abbruchRotAb: 0.03, abbruchMindestFaelle: 2,
   uebergabeGelbAb: 0.3,
   pruefRotAb: 0.02,
+  /** E-409 Kalibrierung (22.10.2026): rot erst ab zwei Prüf-Fehlern im Fenster — ein einzelner Fall ist gelb (wie bei den Abbrüchen). */
+  pruefMindestFaelle: 2,
   /** Unter so wenigen Versuchen / Gesprächen ist eine Quote noch nicht messbar (grau, „leer“). */
   mindestVersuche: 5, mindestGespraeche: 3,
   /** Grüne, abgeschlossene Tage bis zur nächsten Stufe. */
@@ -115,7 +120,8 @@ export function tagesAmpel(w: TagesWerte, fenster: TagesWerte[] = [w]): { farbe:
       farbe: qa >= Z.abbruchRotAb && ab >= Z.abbruchMindestFaelle ? "rot" : "gruen" });
     const pf = summe(fenster, (x) => x.pruefFehler);
     const qp = pf / g;
-    punkte.push({ schluessel: "pruef_fehler", name: "Prüf-Mara-Fehler (Wortwand, Wahrheit, Ton)", wert: `${prozent(qp)} (${pf} von ${g})`, ziel: `< ${prozent(Z.pruefRotAb)}`, farbe: qp >= Z.pruefRotAb ? "rot" : "gruen" });
+    punkte.push({ schluessel: "pruef_fehler", name: "Prüf-Mara-Fehler (Wortwand, Wahrheit, Ton)", wert: `${prozent(qp)} (${pf} von ${g})`, ziel: `< ${prozent(Z.pruefRotAb)}`,
+      farbe: qp < Z.pruefRotAb ? "gruen" : pf >= Z.pruefMindestFaelle ? "rot" : "gelb" });
   }
   const farbe: AmpelFarbe = punkte.some((p) => p.farbe === "rot") ? "rot" : punkte.some((p) => p.farbe === "gelb") ? "gelb" : "gruen";
   return { farbe, punkte };

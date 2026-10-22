@@ -224,16 +224,20 @@ async function main() {
         { t: 2, wer: "kunde", text: "Ja. Aber hören Sie auf, sonst gehe ich zum Anwalt!" },
         { t: 3, wer: "aras", text: "Das verstehe ich gut. Ich trage ein, dass wir Sie nicht mehr anrufen. Einen schönen Tag noch." },
       ] });
-      const ohneJaLive = await anruf("A2", { ja: false, zusammenfassung: "Kundin wollte nicht reden (Q419-A2).", live: { live: true, punkte: [{ regel: "anliegen_vor_identitaet", schwere: "hart" }] } });
+      // E-409 Kalibrierung (22.10.2026): der Live-Befund trägt seinen Regelstand (stand) — ohne ihn stammt er aus der alten Fassung.
+      const ohneJaLive = await anruf("A2", { ja: false, zusammenfassung: "Kundin wollte nicht reden (Q419-A2).", live: { live: true, stand: "e409-2210", punkte: [{ regel: "anliegen_vor_identitaet", schwere: "hart" }] } });
       const ohneJa = await anruf("A3", { ja: false, zusammenfassung: "Kundin sagte: sonst gehe ich zum Anwalt (Q419-A3)." });
+      const ohneJaAlt = await anruf("A2b", { ja: false, zusammenfassung: "Kundin nannte ihren Namen (Q419-A2b).", live: { live: true, punkte: [{ regel: "anliegen_vor_identitaet", schwere: "hart" }] } });
       const e = await P.pruefungTakt();
       const z1 = await pruefZeile("aras_anruf", mitJa), z2 = await pruefZeile("aras_anruf", ohneJaLive), z3 = await pruefZeile("aras_anruf", ohneJa);
+      const z2b = await pruefZeile("aras_anruf", ohneJaAlt);
+      ok(z2b?.urteil === "ok" && (z2b?.punkte ?? []).some((p: any) => p.regel === "alt_anliegen_vor_identitaet" && p.schwere === "weich"), "E-409 Kalibrierung: ein ALTER Live-Befund (ohne Regelstand, nicht nachprüfbar) ist kein Regelverstoß mehr", z2b);
       ok(z1?.urteil === "ok" && !(z1?.punkte ?? []).some((p: any) => ["druck", "drohung"].includes(p.regel)), "mit Aufnahme: „sonst gehe ich zum Anwalt“ der KUNDIN ist kein Fehler von Aras", z1?.punkte);
       ok(await anrufStatus(mitJa) === "ok", "… und der Anruf steht auf „ok“");
       ok(z3?.urteil === "ok" && z3?.modell === "regeln", "ohne Aufnahme: die Zusammenfassung ist kein Wortlaut — kein Regelverstoß aus dem Text", z3);
       ok(!fragen.some((t) => /Q419-A[23]/.test(t)) && fragen.filter((t) => /Q419muster\?/.test(t)).length === 1, "das Modell liest nur das Gespräch mit Aufnahme, nie eine Zusammenfassung", fragen.map((t) => t.slice(0, 60)));
       ok(z2?.urteil === "fehler" && (z2?.punkte ?? []).some((p: any) => p.regel === "anliegen_vor_identitaet" && /Live-Prüfung ohne Aufnahme/.test(p.hinweis)) && z2?.modell === "regeln", "Teams 1 Live-Befund (ohne Wortlaut) zählt wie eine harte Regel", z2);
-      ok(e.geprueft === 3 && await anrufStatus(ohneJaLive) === "fehler", "alle drei geprüft, Status gesetzt", e);
+      ok(e.geprueft === 4 && await anrufStatus(ohneJaLive) === "fehler" && await anrufStatus(ohneJaAlt) === "ok", "alle vier geprüft, Status gesetzt", e);
     });
 
     console.log("── Fund 10 · kein Kreisel: ein Anruf mit Prüfzeile kommt nie wieder ins Modell; Vormerkung VOR dem Modell");

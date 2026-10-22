@@ -622,7 +622,8 @@ titel("9. Angebot-Aufrufe — reine Regeln (01.10.2026)");
   const st = streckeFuer({ schluessel: AU.aufrufAufgabeSchluessel("FIAON-IA-PRUEF1"), bereich: "konten", link: AU.AUFRUF_CHEF_PFAD, titel: AU.meldungTitel(lage, jetztT) });
   ok(!st.some((x) => /Zahlung|Bankbuch/.test(x)) && st.some((x) => /Reiter „Angebote“/.test(x)), "Strecke der Aufgabe: Reiter und Nachfassen, keine Zahlungsschritte", st);
   // Datenschutz: der Satz auf der Kundenseite — wörtlich, außerhalb des Vertrags, Prüfsumme unverändert.
-  ok(S.ANGEBOT_AUFRUF_HINWEIS === "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.", "Hinweis wörtlich wie bestellt");
+  // E-410 (19.10.2026, Lesebericht): Seit die Seite misst, welcher Abschnitt wie lange gelesen wird, nennt der Satz das mit.
+  ok(S.ANGEBOT_AUFRUF_HINWEIS === "Aufrufe dieses persönlichen Links werden protokolliert (Zeitpunkt, Gerät, ungefähre Region, gelesene Abschnitte; IP-Adresse gekürzt) — zur Dokumentation des Vertragswegs und damit Ihr Ansprechpartner sieht, wann er Sie beim nächsten Schritt begleiten kann. Löschung 90 Tage nach Abschluss.", "Hinweis wörtlich wie bestellt");
   for (const sch of ALLE_SCHALTER) ok(!V.angebotText(D, sch).includes("protokolliert") && !V.angebotVorschauHtml(D, sch).includes(S.ANGEBOT_AUFRUF_HINWEIS), `Hinweis steht nicht im Vertragstext (Schalter ${JSON.stringify(sch)})`);
   // Prüfsumme des Prüf-Angebots, gemessen mit dem Stand vor dem Nachtrag (Commit b9a79d2d) — der Nachtrag ändert sie nicht.
   // Ändert jemand später bewusst den Vertragstext, ist dieser Wert mit zu ändern.

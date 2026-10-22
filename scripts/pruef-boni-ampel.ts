@@ -309,7 +309,8 @@ abschnitt("Einsatzort Prüfbericht (E-268)");
 {
   const textQuelle = lies("shared/fiaon-global-angebot.ts");
   ok(textQuelle.includes("export function pruefberichtBoniText(") && /Annahme/.test(textQuelle), "Prüfbericht-Text an EINER Stelle, mit Kennzeichnung „Annahme“");
-  ok(/keine Kreditwürdigkeitsprüfung, kein Score im Sinne von § 31 BDSG/.test(textQuelle), "Prüfbericht sagt, was die Ampel NICHT ist");
+  // E-271 Nachtrag (01.10.2026): „… keine Kreditwürdigkeitsprüfung und kein Score …“ (vorher mit Komma und dem Satz über das Institut).
+  ok(/keine Kreditwürdigkeitsprüfung(?:,| und) kein Score im Sinne von § 31 BDSG/.test(textQuelle), "Prüfbericht sagt, was die Ampel NICHT ist");
   ok(!/Die Angaben sprechen für den Antrag/.test(textQuelle), "der Satz zur Privatkarte steht nicht im Prüfbericht");
   ok(/boniAmpelFuerPerson\(/.test(lies("server/lib/fiaon-global-angebot.ts")), "Teil IV wird aus der einen Rechnung gerechnet, nicht getippt");
   ok(/pruefbericht: _nieAusDemFormular/.test(lies("server/routes/fiaon-global-angebot.ts")), "das Formular der Leitung kann keinen Prüfbericht setzen");
@@ -323,7 +324,8 @@ abschnitt("Einsatzort Prüfbericht (E-268)");
 // Ausdrückliche Ausnahme von „nie für Kunden" — aber nur so: gerechnet und EINGEFROREN auf dem Server
 // (shared/fiaon-finanzauswertung.ts, server/lib/fiaon-finanzauswertung.ts), das Portal zeigt nur den
 // freigegebenen Datensatz; kein BoniAmpel-Bauteil; Wert und Ampel nie in Mail- oder WhatsApp-Texten;
-// keine Route an Dritte; das Karten-Tor liest die Auswertung nie (sie ist keine Bonitätsauskunft).
+// keine Route an Dritte; das Karten-Tor liest nie Wert oder Ampel (sie ist keine Bonitätsauskunft) — seit E-363 fragt es nur,
+// OB die Auswertung beim Kunden liegt.
 abschnitt("Einsatzort Finanzauswertung (E-IT-D)");
 {
   const regeln = lies("shared/fiaon-finanzauswertung.ts");
@@ -336,8 +338,12 @@ abschnitt("Einsatzort Finanzauswertung (E-IT-D)");
   const vorlage = ohneKommentar(lies("server/mail/vorlagen/finanzauswertung.ts"));
   ok(!/finanzwert|ampel|\{\{params\.(wert|band|gesamt|score)/i.test(vorlage.replace(/FIAON Finanz- und Bonitätsauswertung/g, "")), "Mail nennt keinen Wert, keine Ampel");
   ok(!/finanzwert|ampel/i.test(lies("shared/fiaon-unterlagen-anfrage.ts")), "WhatsApp-Text nennt keinen Wert, keine Ampel");
-  ok(!/finanzauswertung/i.test(lies("server/lib/fiaon-konto-karte.ts")), "Karten-Tor liest die Finanzauswertung nie");
-  // Wer liest die Tabelle? Nur der eine Ablauf (und der Prüfstand).
+  // E-363 (14.10.2026, Justin: „Kartenlink erst nach Bonität“): Das Tor fragt, OB eine Auswertung freigegeben ist — nie nach dem Inhalt.
+  const karte = lies("server/lib/fiaon-konto-karte.ts");
+  ok(/BONITAET_DA_SQL = \(p: string\): string => `EXISTS \(SELECT 1 FROM fiaon_finanzauswertungen ka_b\s+WHERE ka_b\.status IN \('freigegeben', 'ersetzt'\)/.test(karte)
+    && !/finanzwert|ka_b\.(gesamt|band|inhalt|eingaben)\b/.test(karte), "Karten-Tor fragt nur, OB die Auswertung freigegeben ist — nie Wert oder Ampel (E-363)");
+  // Wer liest die Tabelle? Wert und Ampel nur drei Stellen; alle anderen fragen nur nach dem Stand — und jede neue Stelle
+  // bleibt rot, bis sie hier mit ihrem Beschluss steht.
   const leser: string[] = [];
   const lauf = (dir: string) => {
     for (const f of fs.readdirSync(path.join(wurzel, dir), { withFileTypes: true })) {
@@ -348,8 +354,31 @@ abschnitt("Einsatzort Finanzauswertung (E-IT-D)");
   };
   lauf("server");
   // E-328 (12.10.2026): „Alle Daten“ der EINEN Akte listet jede Kundentabelle (nur Geschäftsführung, Inhalte lesend) — erlaubt.
-  const erlaubt = new Set(["server/lib/fiaon-finanzauswertung.ts", "server/lib/fiaon-akte-datensaetze.ts"]);
-  ok(leser.length > 0 && leser.every((x) => erlaubt.has(x)), `fiaon_finanzauswertungen nur im Ablauf (und in „Alle Daten“) gelesen (gefunden: ${leser.join(", ") || "—"})`);
+  // E-364 (14.10.2026): die Arbeitsliste hinter requireChef("geschaeftsfuehrung") zeigt Stand, Ampel und Wert.
+  const mitWert = new Set(["server/lib/fiaon-finanzauswertung.ts", "server/lib/fiaon-akte-datensaetze.ts", "server/lib/fiaon-bonitaet-arbeitsliste.ts"]);
+  // Nur der Stand (gibt es eine, freigegeben/Entwurf/läuft, Fassung, Datum):
+  const nurStand = new Set([
+    "server/lib/fiaon-konto-karte.ts",          // E-363 Kartenlink erst nach Bonität
+    "server/lib/fiaon-auskunft-lieferung.ts",   // E-355 übergebene Auswertung schließt den Beschaffungsauftrag
+    "server/lib/fiaon-kundenstufe.ts",          // E-356 Station „Bonität“
+    "server/routes/fiaon-kunde-bereich.ts",     // E-356 Station „Bonität“ im Kundenbereich
+    "server/lib/fiaon-unterlagen.ts",           // E-362 Bonitätspflicht im Team sichtbar
+    "server/lib/fiaon-auskunft.ts",             // E-365 Bonitätsauswertung als Ablauf
+    "server/lib/fiaon-bonitaet-ablauf.ts",      // E-365 Bonitätsauswertung als Ablauf
+    "server/lib/fiaon-heute-dran.ts",           // E-406 „Heute dran“: Auswertung gestartet
+  ]);
+  const neu = leser.filter((x) => !mitWert.has(x) && !nurStand.has(x));
+  ok(leser.length > 0 && neu.length === 0, `fiaon_finanzauswertungen nur an beschlossenen Stellen gelesen (neu: ${neu.join(", ") || "—"})`);
+  // Die Stand-Leser: in keiner Abfrage auf die Tabelle eine Wert- oder Ampel-Spalte (je SQL-Vorlage, Kommentare weg).
+  const wertLeser = new Set<string>();
+  for (const p of leser.filter((x) => nurStand.has(x))) {
+    const code = lies(p).split("\n").filter((z) => !/^\s*(\/\/|\*|\/\*)/.test(z)).map((z) => z.replace(/\s\/\/\s.*$/, "")).join("\n");
+    for (let i = code.indexOf("fiaon_finanzauswertungen"); i >= 0; i = code.indexOf("fiaon_finanzauswertungen", i + 1)) {
+      const ende = code.indexOf("`", i);
+      if (/\b(finanzwert|gesamt|band|inhalt|eingaben)\b/i.test(code.slice(code.lastIndexOf("`", i) + 1, ende < 0 ? undefined : ende))) wertLeser.add(p);
+    }
+  }
+  ok(wertLeser.size === 0, `Stand-Leser lesen weder Wert noch Ampel (gefunden: ${[...wertLeser].join(", ") || "—"})`);
   const routen = lies("server/routes/fiaon-finanzauswertung.ts");
   ok(/router\.get\("\/kunde\/:ref\/finanzauswertung", requireKunde/.test(routen), "Kunde sieht nur seine eigene Auswertung (requireKunde)");
   ok(/requireAgent/.test(routen) && /darfAnKunde/.test(routen), "Akte: nur wer den Kunden betreut, und die Leitung");

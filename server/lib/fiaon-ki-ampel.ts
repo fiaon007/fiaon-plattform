@@ -149,3 +149,6 @@ async function protokoll(art: "ampel_rot" | "ampel_gelb", ein: { kanal: string; 
 
 /** Nur für Prüfstände. */
 export function ampelZwischenspeicherLeeren(): void { speicher.clear(); }
+
+/** Nur für Prüfstände ohne Datenbank: ein Stand, als wäre er gerade gelesen (ohne Angabe: die Vorgaben der Liste). */
+export function ampelZwischenspeicherSetzen(wer: Wer, stand: AmpelStand = LEER): void { speicher.set(wer, { bis: Date.now() + HALT_MS, stand }); }

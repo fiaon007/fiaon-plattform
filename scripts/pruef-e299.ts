@@ -17,8 +17,12 @@ async function main() {
   const bL = nf.nachfassText({ stufe: "zahlung_offen", link: "https://fiaon.com/zahlung/FIAON-E299AA", betrag: "59,99 €", luecke: ["Geburtsdatum"] });
   const c = nf.nachfassText({ stufe: "antrag_offen", link: "https://fiaon.com/a/Ab3dEf7hJk/w" });
   const l = nf.nachfassText({ stufe: "lead", link: "https://fiaon.com/a/Ab3dEf7hJk/w" });
-  ok(b.includes(ton.AKTIVIERUNG_AUFRUF) && b.includes("59,99 €") && b.includes("FIAON-E299AA") && b.includes("direkt den fertigen Link unserer Partnerbank"), "B: Aktivierung, Betrag, Link, Justins Nutzen-Satz");
-  ok(!bL.includes("direkt den fertigen Link") && bL.includes("es fehlt noch: Geburtsdatum"), "B mit Antragslücke: kein „direkt der Link“, sondern was fehlt");
+  // E-373 (15.10.2026): Justins Verkaufssatz statt „… direkt den fertigen Link unserer Partnerbank“ — den verspricht seit
+  // E-363 (Kartenlink erst nach Bonität) kein Text mehr nach der Zahlung.
+  ok(b.includes(ton.AKTIVIERUNG_AUFRUF) && b.includes("59,99 €") && b.includes("FIAON-E299AA") && b.includes(ton.NACH_DEM_EINGANG) && !b.includes("direkt den fertigen Link"),
+    "B: Aktivierung, Betrag, Link, Justins Verkaufssatz (E-373) — kein „direkt der Link“ (E-363)");
+  ok(!bL.includes("direkt den fertigen Link") && !bL.includes(ton.NACH_DEM_EINGANG) && bL.includes("fehlt in Ihrem Antrag nur noch: Geburtsdatum"),
+    "B mit Antragslücke: Freischaltung, und was für sein Ziel noch fehlt (E-373)");
   ok(c.includes("fünf Minuten") && c.includes("/a/Ab3dEf7hJk/w") && !/monatsrate|überweis/i.test(c), "C (Antrag offen): Antrag, Link, kein Wort zur Zahlung (E-264)");
   ok(l.includes("Visa-Kreditkarte") && /Wollen wir starten\?$/.test(l), "Lead: Karte, Link, eine Frage");
   for (const [n, t] of [["B", b], ["B Lücke", bL], ["C", c], ["Lead", l]] as const) {

@@ -314,8 +314,13 @@ pruef("E241 Lead: das Angebot ist keine „Hürde“ (Verkaufsprüfung still)", 
   pruef("E241 Lead: Kauflink signiert und gehört ihm (art privat)", urteil.ok === true && (urteil as any).personId === 9101 && (urteil as any).art === "privat", `${link} → ${JSON.stringify(urteil)}`);
 }
 // Das Werkzeug prüft selbst: ohne Antwort/Frage kein Angebot an einen Lead — auch wenn das Modell es ruft.
+// E-409 (20.10.2026): Davor steht die Werkzeug-Ampel. Ohne Datenbank gilt dort die strengste Stufe (rot, sein eigener
+// Prüfstand pruef-e409-funde) — hier gilt der Stand mit den Vorgaben (Auskunft anbieten = grün), wie im Betrieb.
 {
+  const ampel = await import("../server/lib/fiaon-ki-ampel");
+  ampel.ampelZwischenspeicherSetzen("mara");
   const r0 = await werkzeugAusfuehren("auskunft_anbieten", {}, { personId: 9101, leadId: null, nummer: "49159000009101", kunde: "Wann kommt meine Karte?", letzteDu: "", auskunft: { ...LEAD_AUSKUNFT, jetzt: false } });
+  ampel.ampelZwischenspeicherLeeren();
   pruef("E241 Werkzeug: Lead ohne Antwort/Frage → abgelehnt, kein Link", r0.ergebnis.ok === false && /weder auf unser Angebot/.test(String(r0.ergebnis.grund)) && !r0.aktion.link, JSON.stringify(r0.ergebnis));
 }
 // 2. Lead fragt ungefragt nach der Karte → kein Wort Bonität

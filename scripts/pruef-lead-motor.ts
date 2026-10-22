@@ -313,9 +313,13 @@ abschnitt("Maras Anweisung und Denkprotokoll");
     ok(rt.includes(r), `Route ${r} vorhanden`);
   }
   ok(/mp-feld-gross/.test(ui) && /Speichern — gilt sofort/.test(ui), "Im Steuerpult gibt es das Feld und den Knopf");
-  ok(/Ihr ganzer Auftragstext/.test(ui), "Der ganze Auftrag ist im Trockenlauf lesbar");
-  ok(/Denkprotokoll — was sie wusste/.test(ui), "Jede Mail hat ihr Denkprotokoll");
-  ok(/Math\.min\(500/.test(rt), "Der Takt-Regler wird nicht mehr bei 50 abgeschnitten");
+  // E-342 (12.10.2026, „weniger Text“): kürzere Beschriftungen — der ganze Text und das Protokoll bleiben aufklappbar.
+  ok(/<summary>Auftragstext \(/.test(ui) && /<pre className="mp-mail-text">\{p\.auftrag\}<\/pre>/.test(ui), "Der ganze Auftrag ist im Trockenlauf lesbar");
+  ok(/<summary title="Was sie wusste und was geprüft wurde">Denkprotokoll<\/summary>/.test(ui) && /<Denkprotokoll id=\{m\.id\} \/>/.test(ui), "Jede Mail hat ihr Denkprotokoll");
+  // E-409 Fund 15 (20.10.2026): Die Grenzen stehen EINMAL in fiaon-mara-aktion.ts (aktionWertPruefen) — die Route nutzt sie.
+  const { aktionWertPruefen } = await import("../server/lib/fiaon-mara-aktion");
+  const tagEuro = (w: string) => { const p = aktionWertPruefen("mara_aktion_tag_euro", w); return p.ok ? p.wert : null; };
+  ok(/aktionWertPruefen\(schluessel, req\.body\?\.wert\)/.test(rt) && tagEuro("300") === "300" && tagEuro("900") === "500", "Der Takt-Regler wird nicht mehr bei 50 abgeschnitten");
 }
 
 // ── 8f. Der WhatsApp-Kanal ─────────────────────────────────────────────────

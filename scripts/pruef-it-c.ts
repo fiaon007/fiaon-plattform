@@ -19,14 +19,16 @@
 //
 //   env -i HOME=… PATH=… DATABASE_URL=postgresql://fiaon@127.0.0.1:54329/fiaon_it_c?sslmode=require \
 //     node_modules/.bin/tsx scripts/pruef-it-c.ts
-// Ohne lokale DATABASE_URL läuft nur Teil 1.
+// Ohne lokale DATABASE_URL läuft nur Teil 1 — ebenso mit den Leer-Adressen „…/x“ und „…/keine“ (Aufruf ohne Datenbank).
+// Teil 1 braucht @neslinesli93/qpdf-wasm und heic-convert (package.json); fehlen sie im node_modules, bricht er mit
+// „Cannot find module“ ab.
 // ═══════════════════════════════════════════════════════════════════════════
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const echteDb = /@(127\.0\.0\.1|localhost):\d+\//.test(String(process.env.DATABASE_URL || "")) && !/:1\/x$/.test(String(process.env.DATABASE_URL || ""));
+const echteDb = /@(127\.0\.0\.1|localhost):\d+\//.test(String(process.env.DATABASE_URL || "")) && !/\/(x|keine)(\?|$)/.test(String(process.env.DATABASE_URL || ""));
 process.env.DATABASE_URL ||= "postgresql://pruefstand@127.0.0.1:1/x";
 process.env.SESSION_SECRET ||= "pruefstand-it-c";
 // Keine Schlüssel: nichts darf an eine KI gehen (die OCR-Wand wird mit Platzhaltern geprüft, ohne Netz).

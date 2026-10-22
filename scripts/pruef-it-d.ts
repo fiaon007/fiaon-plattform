@@ -529,9 +529,14 @@ abschnitt("A8d · Querprüfung 08.10.: Löschung, Wache, Arten, Texte, Datenschu
   ok(/Anthropic PBC oder OpenAI, L\.L\.C\./.test(FA.DATENSCHUTZ_ABSATZ) && /USA/.test(FA.DATENSCHUTZ_ABSATZ) && /Art\. 46 Abs\. 2 lit\. c DSGVO/.test(FA.DATENSCHUTZ_ABSATZ) && /Art\. 22 DSGVO/.test(FA.DATENSCHUTZ_ABSATZ)
     && /Abschnitt IV a/.test(FA.DATENSCHUTZ_ABSATZ), "Querprüfung: PDF-Datenschutz nennt Anbieter, Drittland mit Garantie, Art. 22 und den Abschnitt der Erklärung");
   const priv = lies("client/src/pages/privacy.tsx");
+  // E-398 Teil B (19.10.2026, live auf Justins „go“): V a „Refinanzierung“ kam dazu, der Stand rückte auf den 19.10. —
+  // geprüft wird, dass er nicht vor IV a (08.10.2026) liegt.
+  const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const stand = priv.match(/hat den Stand (\d{1,2})\. (\S+) (\d{4})\./);
+  const standIso = stand && MONATE.includes(stand[2]) ? `${stand[3]}-${String(MONATE.indexOf(stand[2]) + 1).padStart(2, "0")}-${stand[1].padStart(2, "0")}` : "";
   ok(/id="unterlagen"/.test(priv) && /IV a\. Unterlagen, Auslesen mit KI/.test(priv) && /Anthropic PBC oder OpenAI/.test(priv) && /Standardvertragsklauseln/.test(priv) && /Art\. 22 DSGVO/.test(priv)
-    && /Profiling/.test(priv) && /Upload-Link ohne Anmeldung/.test(priv) && !/Ein Transfer dieser spezifischen Analysedaten in Drittländer findet nicht statt/.test(priv) && /Stand 8\. Oktober 2026/.test(priv),
-    "Querprüfung: Datenschutzerklärung IV a (Unterlagen, Upload-Link, KI-Anbieter, Drittland, Art. 9, Profiling ohne Art. 22, Speicherdauer), Stand 08.10.");
+    && /Profiling/.test(priv) && /Upload-Link ohne Anmeldung/.test(priv) && !/Ein Transfer dieser spezifischen Analysedaten in Drittländer findet nicht statt/.test(priv) && standIso >= "2026-10-08",
+    `Querprüfung: Datenschutzerklärung IV a (Unterlagen, Upload-Link, KI-Anbieter, Drittland, Art. 9, Profiling ohne Art. 22, Speicherdauer), Stand ab 08.10. (${standIso || "kein Stand"})`);
   const link = lies("client/src/pages/unterlagen-link.tsx");
   ok(/href="\/datenschutz#unterlagen"/.test(link) && /href="\/impressum"/.test(link) && /KI-Dienstleister in unserem Auftrag/.test(link), "Querprüfung: Upload-Seite nennt die KI-Lesung und hat Datenschutz und Impressum in der Fußzeile");
   for (const [n, t] of [["Datenschutz-Absatz", FA.DATENSCHUTZ_ABSATZ], ["Haken Datenkopie", hk], ["Datenkopie-Vorzeile", dk.preheader]] as [string, string][]) {

@@ -381,7 +381,9 @@ abschnitt("Wände im Quelltext");
   ok(mb.length > 500 && mb.includes("/mail/vorschau`") && mb.includes("/mail`") && !/\/ergebnis|whatsapp-/.test(mb), "Blatt „E-Mail“: Vorschau und Senden, kein Ergebnis-, kein WhatsApp-Weg");
   ok(mb.includes("Zahlungsdaten neu senden") && mb.includes("mailZahlungsdaten(") && mb.includes("Rechnung als PDF anhängen") && /\{zahlung && \(/.test(mb),
     "Schnellwahl und Anhang nur mit offener Zahlung");
-  ok(mb.includes("tk-mail-anrede") && mb.includes("Die Anrede steht automatisch davor"), "Die Anrede steht sichtbar vor dem Text");
+  // E-342 (12.10.2026, „weniger Text“): Der Hinweis heißt jetzt „Anrede, Kopf, Fuß und Pflichtangaben setzt das System.“
+  ok(/<span className="tk-mail-anrede"[^>]*>\{anrede /.test(mb) && mb.indexOf('className="tk-mail-anrede"') < mb.indexOf("<textarea id={`tk-mail-text-")
+    && mb.includes("Anrede, Kopf, Fuß und Pflichtangaben setzt das System."), "Die Anrede steht sichtbar vor dem Text");
   ok(/anhangReferenz: zahlung\.referenz/.test(mb) && mb.includes("wandPruefen("), "Browser schickt nur die Referenz der offenen Zahlung; die Wand zeigt vorher, was aufhält");
   ok(/addEventListener\("keydown", taste, true\)/.test(mb) && mb.includes("e.stopPropagation()"), "Esc schließt nur das Blatt (auch über dem Akte-Fenster)");
   ok(mb.includes("Gesendet an") || /fertig\.meldung/.test(mb), "Nach dem Senden: „Gesendet an <Adresse>“");

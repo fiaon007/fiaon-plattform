@@ -45,6 +45,23 @@ function kundenDateien(): string[] {
 // Dateien, die die ALTE Fassung beschreiben dürfen (Bestandskunden, Vertragstext).
 const AUSGENOMMEN = new Set(["client/src/pages/agb.tsx"]);
 
+// Sätze über FREMDE Verträge — nicht FIAONs Privatvertrag (AGB § 6): je Datei der wörtliche Satz und sein Beschluss.
+// Nur genau diese Stellen sind frei; jeder weitere Fund in denselben Dateien bleibt rot.
+const FREMDER_VERTRAG: { datei: string; satz: string }[] = [
+  // E-359 (14.10.2026): die Visa Kreditkarte der DKB — Kondition der Partnerbank (shared/fiaon-partnerbank-dkb.ts).
+  { datei: "client/src/i18n/partnerbank-dkb.ts", satz: "Optional, ohne Mindestlaufzeit" },
+  { datei: "client/src/i18n/partnerbank-dkb.ts", satz: "Optional, no minimum term" },
+  // E-388 (16.10.2026): der Partnerplatz für Kanzleien — Mindestlaufzeit drei Monate, danach monatlich kündbar.
+  { datei: "client/src/i18n/partnernetz.ts", satz: "Ein Preis im Monat, monatlich kündbar nach drei Monaten." },
+  { datei: "client/src/i18n/partnernetz.ts", satz: "Ein Preis im Monat, nach drei Monaten monatlich kündbar." },
+];
+const imFremdenVertrag = (datei: string, text: string, i: number): boolean =>
+  FREMDER_VERTRAG.some(({ datei: d, satz }) => {
+    if (d !== datei) return false;
+    for (let k = text.indexOf(satz); k >= 0; k = text.indexOf(satz, k + 1)) if (i >= k && i < k + satz.length) return true;
+    return false;
+  });
+
 // ── 1. Kein blankes „monatlich kündbar“ ────────────────────────────────────
 abschnitt("Kein „monatlich kündbar“ ohne die Laufzeit");
 const VORLAUF = 70; // Zeichen davor, in denen die Laufzeit stehen muss
@@ -58,6 +75,7 @@ for (const datei of kundenDateien()) {
     // Kommentare, die die Streichung dokumentieren, sind erlaubt.
     const zeilenAnfang = text.lastIndexOf("\n", i) + 1;
     if (/^\s*(\/\/|\*)/.test(text.slice(zeilenAnfang, i))) continue;
+    if (imFremdenVertrag(datei, text, i)) continue;
     const danach = text.slice(i + m[0].length, i + m[0].length + 20);
     const zeile = text.slice(0, i).split("\n").length;
     ok(QUALIFIZIERT.test(davor) || /thereafter/i.test(danach),
@@ -82,13 +100,16 @@ for (const datei of kundenDateien()) {
   if (AUSGENOMMEN.has(datei)) continue;
   const text = lies(datei);
   for (const [muster, name] of VERBOTEN) {
-    const m = text.match(muster);
-    if (!m) { geprueft++; continue; }
-    // Kommentare, die die Streichung dokumentieren, sind erlaubt.
-    const i = text.indexOf(m[0]);
-    const zeilenAnfang = text.lastIndexOf("\n", i) + 1;
-    const istKommentar = /^\s*(\/\/|\*)/.test(text.slice(zeilenAnfang, i));
-    ok(istKommentar, `${datei} — „${name}“ steht noch im Kundentext`);
+    // Jeder Treffer, nicht nur der erste — sonst verdeckt eine erlaubte Stelle eine verbotene dahinter.
+    const treffer = [...text.matchAll(new RegExp(muster.source, `${muster.flags}g`))];
+    if (!treffer.length) { geprueft++; continue; }
+    for (const m of treffer) {
+      // Kommentare, die die Streichung dokumentieren, sind erlaubt — und die Sätze über fremde Verträge.
+      const i = m.index ?? 0;
+      const zeilenAnfang = text.lastIndexOf("\n", i) + 1;
+      const istKommentar = /^\s*(\/\/|\*)/.test(text.slice(zeilenAnfang, i));
+      ok(istKommentar || imFremdenVertrag(datei, text, i), `${datei}:${text.slice(0, i).split("\n").length} — „${name}“ steht noch im Kundentext`);
+    }
   }
 }
 

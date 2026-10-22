@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — Prüfstände: zehn rote Offline-Prüfstände an den freigegebenen Stand gezogen
+- **Was:** Zehn Prüfstände ohne Datenbank meldeten auf main Rot, obwohl die Plattform richtig arbeitet: Freigegebene
+  Änderungen hatten Texte, Orte oder Regeln geändert, die Prüfstände kannten noch den alten Stand. Je Prüfstand:
+  `pruef-boni-ampel` — der Prüfbericht sagt seit E-271 „keine Kreditwürdigkeitsprüfung und kein Score …“; seit E-363
+  fragt das Karten-Tor, OB eine Bonitätsauswertung freigegeben ist, und sieben Stellen (E-355 bis E-406) lesen ihren
+  Stand. Neu geprüft: Wert und Ampel lesen nur drei Stellen (Ablauf, „Alle Daten“, Arbeitsliste der Geschäftsführung),
+  alle anderen nur den Stand, jede neue Stelle bleibt rot. `pruef-individualangebot` (und damit `pruef-angebot-firma`) —
+  der Datenschutz-Hinweis nennt seit E-410 „gelesene Abschnitte“ mit. `pruef-e299` — der Nachfass-Text „B“ trägt seit
+  E-373 Justins Verkaufssatz; dass kein Text mehr „direkt den fertigen Link“ verspricht (E-363), prüft er jetzt mit.
+  `pruef-it-c` — hielt die Leer-Adresse „…/keine“ für eine lokale Datenbank und brach in Teil 2 ab (jetzt wie
+  `pruef-e391-unterlagen`). `pruef-it-d` — die Datenschutzerklärung hat seit E-398 den Stand 19. Oktober; geprüft wird
+  „nicht vor dem 08.10.“ (Abschnitt IV a). `pruef-lead-motor` — zwei Beschriftungen wurden mit E-342 kürzer; die Grenze
+  des Mara-Takts steht seit E-409 in `aktionWertPruefen` und wird jetzt echt aufgerufen (300 bleibt 300, 900 wird 500).
+  `pruef-mara-verkauf` — seit E-409 steht vor jedem Mara-Werkzeug die Ampel, ohne Datenbank gilt dort Rot; der Prüfstand
+  setzt für seinen Fall den Stand mit den Vorgaben. `pruef-telefonkartei` — der Hinweis heißt seit E-342 „Anrede, Kopf,
+  Fuß und Pflichtangaben setzt das System.“ `pruef-laufzeit` — die DKB-Karte („ohne Mindestlaufzeit“, E-359) und der
+  Partnerplatz für Kanzleien („nach drei Monaten monatlich kündbar“, E-388) sind fremde Verträge, nicht FIAONs
+  Privatvertrag: genau diese vier Sätze stehen jetzt mit Beschluss in einer Liste; dazu zählt die Wand jeden Treffer je
+  Datei, nicht nur den ersten.
+- **Warum:** Rote Prüfstände, an die sich alle gewöhnen, verdecken echte Fehler. Keine Prüfung wurde abgeschwächt: Jede
+  angepasste Prüfung wurde mit einem absichtlich eingebauten Rückfall wieder rot (Rotprobe).
+- **Wo:** `scripts/pruef-*.ts` (neun Dateien) und `server/lib/fiaon-ki-ampel.ts` (neue Prüfstand-Hilfe
+  `ampelZwischenspeicherSetzen`, im Betrieb ungenutzt). Für Kunden und Team ändert sich nichts.
+
 ## 22.10.2026 — Antrag: freiwilliges Kästchen „FIAON darf mich anrufen, auch ARAS“ (E-408, Scheibe 3)
 - **Was:** Auf der Unterschrift-Seite von /antrag-neu steht ein neues Kästchen in eigener Zeile — unter dem Haken zum
   Sofortbeginn, vor dem E-Mail-Hinweis: „Ja, FIAON darf mich telefonisch zu meinem Antrag und zu passenden

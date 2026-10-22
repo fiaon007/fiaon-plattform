@@ -198,7 +198,8 @@ export default function PortalNav<K extends string>({ gruppen, seite, geh, marke
       {mobil && (
         <div id="gpn-mobil" ref={mobilRef} className="gpn-mobil" role="dialog" aria-modal="true" aria-label={texte.navTitel}>
           <div className="gpn-mobil-kopf">
-            {marke}
+            {/* Die Marke führt zur Übersicht — im Menü schließt der Klick es zugleich. */}
+            <span onClickCapture={() => setMobil(false)}>{marke}</span>
             <button type="button" className="gpn-mobil-zu" onClick={() => { setMobil(false); menueKnopf.current?.focus(); }}>{texte.schliessen}<span aria-hidden="true" className="gpn-kreuz" /></button>
           </div>
           <div className="gpn-mobil-rumpf">

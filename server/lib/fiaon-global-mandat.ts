@@ -683,6 +683,13 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
         hinweis = EXCLUDED.hinweis, intern = EXCLUDED.intern, geaendert_von = EXCLUDED.geaendert_von, updated_at = NOW()`;
   }
 
+  // 22.10.2026 (erster Begleitvertrag): „Name geprüft“ erledigt → der bei der Annahme nur vorgemerkte Name (geprueft: false, E-399)
+  // gilt als geprüft. Sonst nannte die Zahlungsseite ihn weiter „vorgemerkt“, während Portal und Station „erledigt“ sagten.
+  if (v.schluessel === "name" && status === "erledigt") {
+    await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = jsonb_set(gesellschaft, '{geprueft}', 'true'::jsonb), updated_at = NOW()
+                   WHERE ref = ${ref} AND gesellschaft IS NOT NULL AND gesellschaft->>'geprueft' = 'false'`;
+  }
+
   // 5 · VERLAUF — der Kunde liest das Neue, das Team alles
   const titelDe = globalSchrittTitel(v.schluessel, "de");
   for (const satz of stationVerlaufSaetze(gesetzt, l.sprache)) await verlaufSchreiben(ref, { art: "station", text: satz, sichtbar: true, agentId: agent.id });

@@ -50,6 +50,11 @@ export interface StationFeld {
 }
 
 export const GLOBAL_STATION_FELDER: Record<string, StationFeld[]> = {
+  // 22.10.2026 (erster Begleitvertrag): Ist der Wunschname vergeben, gilt der erste freie Ausweichname (Ziffer 3 des Vertrags) — das Team
+  // trägt den GEPRÜFTEN Namen hier ein; „erledigt“ nimmt dem Namen den Vermerk „vorgemerkt“ (globalStationSpeichern).
+  name: [
+    { feld: "name", ort: "grund", art: "text", titel: "Geprüfter Name der Gesellschaft", platzhalter: "MUSTER HOLDINGS LLC", max: 160, hilfe: "Ist der Wunschname vergeben, hier den freien Ausweichnamen eintragen." },
+  ],
   eingetragen: [
     { feld: "name", ort: "grund", art: "text", titel: "Name der Gesellschaft", platzhalter: "MUSTER HOLDINGS LLC", max: 160 },
     { feld: "form", ort: "grund", art: "form", titel: "Rechtsform" },

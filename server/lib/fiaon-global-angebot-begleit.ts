@@ -39,7 +39,7 @@ import {
   BEGLEIT_FASSUNG, BEGLEIT_FASSUNGEN, BEGLEIT_GUELTIG_TAGE, BEGLEIT_KNOPF, BEGLEIT_ANNAHME,
   begleitParameterAus, begleitParameterFehler, begleitPflichtFehlen, begleitSeite, begleitBestellUebersicht, begleitAnnahmeTexte,
   begleitAnsprechpartner, begleitKundeAnrede, begleitKundeName, begleitVertragTitel, begleitVertragUnterzeile, begleitRumpfHtml,
-  begleitHashEingabe, begleitEur, begleitUsd, begleitProzent, begleitTag, llcWahlPruefen,
+  begleitHashEingabe, begleitEur, begleitUsd, begleitProzent, begleitTag, llcWahlPruefen, BEGLEIT_PORTAL,
   type BegleitDaten, type BegleitKunde, type BegleitParameter, type BegleitLand, type BegleitAnnahmeVermerk, type BegleitWahl,
   type BegleitUnterschriftVermerk, type BegleitKundenSicht,
 } from "@shared/fiaon-global-angebot-begleit";
@@ -93,6 +93,34 @@ export function begleitWahlAus(z: AngebotZeile): (BegleitWahl & { unterschrift: 
     llc: { wunsch: String(s.llc.wunsch ?? ""), alternative1: String(s.llc.alternative1 ?? ""), alternative2: String(s.llc.alternative2 ?? "") },
     sofortBeginn: s.sofortBeginn === true, jahresbetreuung: s.jahresbetreuung === true,
     unterschrift: s.unterschrift && typeof s.unterschrift === "object" ? (s.unterschrift as BegleitUnterschriftVermerk) : null,
+  };
+}
+
+/**
+ * Der Name der Gesellschaft aus dem Titel einer Gründungs- oder Fast-Track-Rechnung („Gründung MUSTER LLC (Florida)“,
+ * E-316/E-318). Die Leitung stellt diese Rechnungen erst, wenn der Name im Register geprüft ist — der Titel trägt also den
+ * GEPRÜFTEN Namen (beim vergebenen Wunschnamen den Ausweichnamen). Nur Großbuchstaben, Ziffern und Satzzeichen vor „LLC“.
+ */
+export function begleitLlcAusRechnung(titel: unknown): string | null {
+  return String(titel ?? "").match(/([A-Z0-9][A-Z0-9 &,.'-]* LLC)\b/)?.[1]?.trim() ?? null;
+}
+/** Die Pakete, deren Rechnungstitel den geprüften Namen trägt (nicht `llc_paket` — „GLOBAL LLC Package“ ist kein Name). */
+export const BEGLEIT_NAMENS_RECHNUNGEN = ["llc_gruendung", "llc_gruendung_halb", "llc_fasttrack"] as const;
+
+/**
+ * „Mein Auftrag“ im Portal (22.10.2026): Ein Begleitvertrag hat keine Teile, keine Frist, keine Garantie und keine Bürgin —
+ * sonst zeigte das Portal die Sätze des Individualangebots. Statt dessen der Vertrag mit seinen Worten (BEGLEIT_PORTAL).
+ * Die Rechnungen (Gründung, Fast-Track) stehen im Portal ohnehin unter „Alle Rechnungen“. Nur lesen.
+ */
+export async function begleitSichtZurAkte(z: AngebotZeile): Promise<Record<string, unknown>> {
+  const d = begleitDatenAus(z);
+  const w = begleitWahlAus(z);
+  return {
+    art: "begleit", ref: d.ref, titel: BEGLEIT_PORTAL.titel, teile: [], summeCents: 0,
+    garantieSatz: BEGLEIT_PORTAL.satz(d.parameter),
+    jahresZeile: w?.jahresbetreuung ? BEGLEIT_PORTAL.jahresGewaehlt : null,
+    seiteHinweis: BEGLEIT_PORTAL.seiteHinweis,
+    startgespraech: null,
   };
 }
 
@@ -387,7 +415,7 @@ export async function begleitZahlungsKontext(a: { ref?: unknown; person_id?: unk
   const { signInvoiceUrl } = await import("../fiaon-invoice");
   const zweck = String(a.payment_reference ?? "");
   const paketName = String(a.pack_name ?? "");
-  const gesellschaft = paketName.match(/([A-Z0-9][A-Z0-9 &,.'-]* LLC)\b/)?.[1] ?? null;
+  const gesellschaft = begleitLlcAusRechnung(paketName);
   const gruendung = ["llc_gruendung", "llc_gruendung_halb"].includes(String(a.pack_key ?? ""));
   // E-322: Gründung in zwei Hälften — die jeweils andere Hälfte derselben Person (Betrag, Fälligkeit, signierte Rechnung).
   const halb = String(a.pack_key ?? "") === "llc_gruendung_halb";

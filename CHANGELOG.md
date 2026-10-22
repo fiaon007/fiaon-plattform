@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.10.2026 — FIAON Global (E-429): Kundenportal im Apple-Glas, Begleitvertrag mit seinen eigenen Worten, geprüfter Name aus der Gründungsrechnung
+- **Was (Aussehen):** Die Übersicht des Kundenportals ist jetzt ein Sperrbildschirm wie beim iPhone: Datum, EINE große dünne Zahl
+  (Fortschritt), „Phase I von IV“, Gruß, Name der Gesellschaft, zwei Glaspillen — darunter drei Glas-Widgets „Als Nächstes“, „Ihr Weg“
+  (vier Phasen als Liste) und der Ansprechpartner. Unter der blauen Bühne helles Milchglas: „Für Sie zu tun“, „Ihr Büro“ (am Telefon zwei
+  Spalten, je Kachel eine Zeile), „Zuletzt passiert“ (drei Zeilen). Schrift wie bei Apple, Knöpfe als Glasblau-Pillen. Das FIAON-Logo
+  führt zur Übersicht des Portals (vorher auf die Website, wo man nicht angemeldet war). Das Banner „Zugang einrichten“ ist dunkel statt
+  ein heller Streifen. Neue Datei `client/src/styles/global-portal-glas.css` (Schicht über `global-portal.css`, Klasse `.gp-glas`).
+- **Was (Daten):** Eine Akte aus einem Begleitvertrag hängt am Paket des Individualangebots. Das Portal zeigte deshalb „Individualangebot“,
+  Garantie, Frist, Bürgin und die Etappen-Texte des Individualangebots. Jetzt: Name „Begleitvertrag“, die vier Phasen in den Worten von
+  „Ihr Weg“ aus dem Vertrag (`BEGLEIT_PORTAL` in `shared/fiaon-global-angebot-begleit.ts`), unter „Vertrag & Zahlung“ das Erfolgshonorar
+  (Ziffer 7), die Entscheidung der Institute (Ziffer 6) und die gewählte Jahresbetreuung (Ziffer 8) — `begleitSichtZurAkte`.
+  Ohne eingetragene zuständige Person nennt das Portal den ersten Ansprechpartner des Angebots (nur lesen, keine Aufgabe, keine Mail).
+- **Was (Name):** Ist der Wunschname im Register vergeben, gilt der Ausweichname — die Leitung stellt die Gründungsrechnung erst nach der
+  Prüfung, ihr Titel trägt den geprüften Namen. Neuer Lauf `global_begleit_name` (halbstündlich, ohne Mail): übernimmt diesen Namen in die
+  Akte, nimmt den Vermerk „vorgemerkt“ weg und erledigt die Station „Name geprüft“ (Datum der ersten Rechnung). Im Stationen-Editor hat
+  „Name geprüft“ jetzt ein Feld für den geprüften Namen; „erledigt“ nimmt den Vermerk „vorgemerkt“ immer weg.
+- **Was („Als Nächstes“):** Ohne eingetragenen nächsten Schritt nennt die Bühne den Satz der nächsten offenen Station (`naechster` in
+  `GLOBAL_FAHRPLAN`, `globalNaechsterSchritt`) statt „Wir melden uns mit dem nächsten Schritt.“
+- **Warum:** Justin: „Bei [dem ersten Begleitvertrags-Kunden] im neuen Portal passt garnichts — unordentlich am Handy, falsche Daten (sein
+  LLC-Name wurde bereits geprüft), überladen, das Logo führt raus … Apple Design mit Glas (Glas wie im Screenshot!)“.
+- **Wo:** fiaon.com/business/auftrag/<Ref> (Kunde) bzw. Vorschau aus Chefbüro › Global; Lauf in der Lauf-Ampel als `global_begleit_name`.
+
 ## 22.10.2026 — FIAON Global: SS-4 von Hand unterschreiben, Global-Akte für Begleitverträge, Angebotsnamen im Chefbüro
 - **Was (von Hand):** Jedes „Dokument zur Unterschrift“ hat jetzt einen Modus — `digital` (Unterschrift-Dialog im Portal) oder
   `handschriftlich`. IRS SS-4 und IRS 8821 sind immer handschriftlich (unser Registered-Agent-Partner verlangt für das SS-4 eine

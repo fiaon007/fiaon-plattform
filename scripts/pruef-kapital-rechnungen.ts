@@ -128,7 +128,7 @@ const vermG = S.kapitalTeilBezahltVermerk({ angebotRef: "FIAON-IA-CTEST", titel:
 ok(/Bürgschaftsgebühr .* bezahlt \(499 €, Z2\)/.test(verm) && /bleibt beim 16\.12\.2026/.test(verm) && /zu erstatten/.test(vermG), "Vermerk Teil 2/3: bezahlt, Frist bleibt; nach Garantiefall „zu erstatten“", [verm, vermG]);
 // E-417: Kundenfragen — Konditionen, Ausweis, Betreibungsauszug nach abgeschlossener Due Diligence
 const parK = S.kapitalParameterAus({ zinsBasisBp: 180, zinsAufschlagBp: 50, zinsBasisJahre: 5, laufzeitMaxJahre: 15, kartenMax: 12, ddAbgeschlossen: true });
-ok(S.kapitalMitKonditionen(parK) && S.kapitalKonditionenSatz(parK) === "Laufzeit nach Wahl der Auftraggeberin, längstens fünfzehn Jahre; effektiver Jahreszins 1,8 % bei einer Laufzeit bis fünf Jahre, für jedes weitere Laufzeitjahr 0,5 Prozentpunkte mehr",
+ok(S.kapitalMitKonditionen(parK) && S.kapitalKonditionenSatz(parK) === "Laufzeit nach Wahl der Auftraggeberin, längstens fünfzehn Jahre; effektiver Jahreszins 1,8 % bei einer Laufzeit bis fünf Jahre, für jedes weitere Laufzeitjahr 0,5 Prozentpunkte mehr; eine Risiko-Lebensversicherung ist in der Finanzierung enthalten",
   "E-417: Konditionen-Satz (1,8 %, +0,5 je Jahr, bis fünfzehn Jahre)", S.kapitalKonditionenSatz(parK));
 ok(!S.kapitalMitKonditionen(S.kapitalParameterAus({})) && S.kapitalParameterAus({}).ddAbgeschlossen === false, "E-417: ohne Angaben keine Konditionen, Betreibungsauszug bleibt verlangt");
 ok(!S.kapitalUnterlagen(parK).join(" ").includes("Betreibung") && S.kapitalUnterlagen(S.kapitalParameterAus({})).join(" ").includes("Betreibung") && /Identitätskarte/.test(S.kapitalUnterlagen(parK)[0]),

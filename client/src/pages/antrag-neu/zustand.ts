@@ -31,6 +31,11 @@ export interface Zustand extends AntragNeuDaten {
   ag1: boolean; ag3: boolean; ag4: boolean;
   /** E-284: Der gemeinsame Haken (AGB + Bestellung geprüft) wurde in DIESEM Stand gesetzt. */
   hakenKombi: boolean;
+  /**
+   * E-408: das freiwillige Kästchen „FIAON darf mich anrufen, auch ARAS“ (ANTRAG_NEU_ANRUF_TEXT). Vorgabe leer — nur
+   * ein Tipp des Kunden setzt es (ein Neuladen behält SEINEN Haken); keine Bedingung für die Annahme.
+   */
+  anrufJa: boolean;
   angenommenAm: string | null;
   sofortBeginn: boolean | null;
   paymentReference: string | null;
@@ -67,7 +72,7 @@ export interface Zustand extends AntragNeuDaten {
 export const ZUSTAND_LEER: Zustand = {
   ...ANTRAG_NEU_LEER,
   ref: null, adresseOffen: false, geprueftAm: null, pruefPunkte: null, doppelt: false, pinGesetzt: false,
-  ag1: false, ag3: false, ag4: false, hakenKombi: false, angenommenAm: null, sofortBeginn: null,
+  ag1: false, ag3: false, ag4: false, hakenKombi: false, anrufJa: false, angenommenAm: null, sofortBeginn: null,
   paymentReference: null, betrag: null, faellig: null, verknuepft: false, zahlungGemeldet: false, zahlungGemeldetAm: null, bezahlt: false,
   rueckZu: "", auskunft: "", auskunftVorab: "", ak1: false, ak2: false, termin: null, rueckruf: null, passwort: false,
   einstiegThema: "", einstiegArtikel: "", einstiegTitel: "",

@@ -43,7 +43,7 @@ import { pinErstmalsSetzen } from "../lib/fiaon-kunden-pin";
 import { antragGeraet } from "../lib/fiaon-antrag-weiche";
 import { antragBesuchVerknuepfen } from "../lib/fiaon-besuch";
 import {
-  ANTRAG_NEU_BERUF_SPALTE, ANTRAG_NEU_HAKEN_GEPRUEFT, antragNeuHakenKombi, ANTRAG_NEU_LEER, ANTRAG_NEU_LEISTUNG_FASSUNG,
+  ANTRAG_NEU_ANRUF_TEXT, ANTRAG_NEU_BERUF_SPALTE, ANTRAG_NEU_HAKEN_GEPRUEFT, antragNeuHakenKombi, ANTRAG_NEU_LEER, ANTRAG_NEU_LEISTUNG_FASSUNG,
   ANTRAG_NEU_SOFORT_TEXT, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WOHNEN_SPALTE, BERUF_MIT_ARBEITGEBER,
   EINTRAG_TEXT, LANDNAME, OHNE_ABFRAGE, SEIT_TEXT, ZWECK_TEXT, agbDatum, antragNeuDatenSauber, antragNeuLuecke,
   antragNeuPaket, emailGueltig, geburtPruefen, geburtText, limitErlaubt, staatAnzeige, telefonZiffern,
@@ -53,7 +53,7 @@ import { antragNeuVertragHtml } from "@shared/fiaon-antrag-neu-vertrag";
 import { AGB_FASSUNG } from "@shared/fiaon-vertrag-paket";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
-import { istAuslandsnummer } from "@shared/fiaon-dach-telefon";
+import { istAuslandsnummer, telefonE164 } from "@shared/fiaon-dach-telefon";
 import { KNOPF_ZAHLUNGSPFLICHTIG } from "../../client/src/components/antrag/bestelluebersicht-daten";
 
 const router = Router();
@@ -589,7 +589,8 @@ router.get("/antrag-neu/:ref/vertrag", async (req: Request, res: Response) => {
 //
 // Was gilt, wird gespeichert, bevor irgendetwas anderes passiert: Vertragstext
 // (mit Zeitpunkt), Prüfsumme, Unterschrift, die Haken im Wortlaut, Knopftext,
-// Gerät. Erst danach Antragszeile (Schritt 8), Bestellung, Bestätigungsmail.
+// Gerät. Erst danach Antragszeile (Schritt 8), Bestellung, Bestätigungsmail —
+// und nur mit dem freiwilligen Anruf-Kästchen die Telefon-Einwilligung (E-408).
 // Ein Roboter kann nicht annehmen (lib/fiaon-vertrieb-zusage.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 const PNG_KOPF = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -615,6 +616,42 @@ async function zahlungsAntwort(ref: string, annahme: { angenommen_am: Date; sofo
 function einstufenNachAnnahme(ref: string): void {
   import("../lib/tier").then((m) => m.personTierAktualisieren(sqlPool, { ref }))
     .catch((e) => console.error(`[ANTRAG-NEU] ${ref}: Einstufung nach der Annahme:`, e));
+}
+
+/**
+ * E-408 (Scheibe 3, 22.10.2026): das freiwillige Kästchen „FIAON darf mich anrufen, auch ARAS“ (nie vorangekreuzt,
+ * keine Bedingung für den Vertrag). Mit Haken entsteht GENAU EINE Zeile in fiaon_telefon_einwilligung — der Nachweis
+ * nach § 7a UWG: Art „antrag_kaestchen“, Person, die Nummer aus diesem Antrag, der Wortlaut (ANTRAG_NEU_ANRUF_TEXT),
+ * Quelle = dieser Antrag, Zeitpunkt = die Annahme. Ohne Haken ruft die Annahme diese Funktion gar nicht.
+ *
+ * Gerufen NACH Annahme und annahmeAbschliessen: Dann ist die Antragszeile gespeichert und an ihre Person gebunden
+ * (/application → bindePersonAnAntrag). Genau einmal je Antrag, weil nur der Aufruf hierher kommt, dessen INSERT in
+ * fiaon_vertragsannahmen gegriffen hat (ON CONFLICT (ref) DO NOTHING) — ein zweiter Klick nimmt den Weg „vorher“.
+ * Gespeichert wird nur der Satz DIESES Servers, und nur, wenn der Browser denselben zeigte: Ein Stand von vor einer
+ * Textänderung speichert nichts statt eines Satzes, den der Kunde nie gesehen hat.
+ * Im Hintergrund, wirft nie: Eine Einwilligung hält keinen Vertrag auf — ein Fehler steht im Protokoll.
+ * Angerufen wird damit heute niemand (Werbe-Gesprächsarten im Code gesperrt, shared/fiaon-aras.ts).
+ */
+function anrufEinwilligungMerken(ref: string, d: AntragNeuDaten, am: Date,
+  o: { wortlautBrowser: unknown; ip: string; ua: string; pruefstand: boolean }): void {
+  if (o.wortlautBrowser !== ANTRAG_NEU_ANRUF_TEXT) {
+    console.warn(`[ANTRAG-NEU] ${ref}: Anruf-Kästchen angehakt, aber der Satz im Browser ist nicht der dieses Servers (Stand von vor einer Textänderung?) — KEINE Telefon-Einwilligung gespeichert.`);
+    return;
+  }
+  void (async () => {
+    const [a] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    const personId = a?.person_id != null ? Number(a.person_id) : null;
+    const { einwilligungMerken } = await import("../lib/fiaon-telefon-einwilligung");
+    const { id } = await einwilligungMerken({
+      personId, nummer: telefonE164(d.vorwahl, d.telefon), art: "antrag_kaestchen", wortlaut: ANTRAG_NEU_ANRUF_TEXT,
+      quelleArt: "antrag", quelleId: ref, erteiltAm: am,
+      beleg: {
+        seite: "/antrag-neu", bildschirm: "unterschrift", kaestchen: "eigene Zeile, nicht vorangekreuzt, freiwillig",
+        ip: o.ip.slice(0, 80), userAgent: o.ua.slice(0, 300), ...(o.pruefstand ? { pruefstand: true } : {}),
+      },
+    });
+    console.log(`[ANTRAG-NEU] ${ref}: Telefon-Einwilligung aus dem Kästchen gespeichert (Nr. ${id}${personId ? `, Person ${personId}` : ", noch ohne Person"}).`);
+  })().catch((e) => console.error(`[ANTRAG-NEU] ${ref}: Telefon-Einwilligung aus dem Kästchen NICHT gespeichert — der Vertrag gilt trotzdem:`, e));
 }
 
 /**
@@ -707,6 +744,9 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     if (!kombi && h.agb !== true) return res.status(400).json({ ok: false, feld: "agb", error: "Bitte bestätigen Sie die AGB." });
     if (!kombi && h.geprueft !== true) return res.status(400).json({ ok: false, feld: "geprueft", error: "Bitte bestätigen Sie, dass Sie die Bestellung geprüft haben." });
     const sofort = h.sofort === true;
+    // E-408: das freiwillige Anruf-Kästchen — nur ein echtes true zählt. Es ist KEINE Bedingung: Fehlt es, läuft die Annahme
+    // genauso; es landet auch nicht in den Vertrags-Haken unten (eigene Erklärung, eigener Nachweis).
+    const anrufJa = h.anruf === true;
     if (String(req.body?.knopf || "") !== KNOPF_ZAHLUNGSPFLICHTIG) return res.status(400).json({ ok: false, error: "Bitte nutzen Sie den Knopf „Zahlungspflichtig annehmen“." });
     // 05.10.2026, E-283: Angenommen wird, was der Kunde gesehen hat. Gespeichert werden unten die
     // Fassungen des Servers — der Browser schickt die mit, die sein Stand zeigt (AGB, Vertrag,
@@ -758,6 +798,10 @@ router.post("/antrag-neu/:ref/annehmen", async (req: Request, res: Response) => 
     // Dann die Bestellung (Verwendungszweck, Rechnung, Fälligkeit, Zahlungsmail) — wie im alten Weg,
     // aber immer zu DIESEM Vertrag.
     await annahmeAbschliessen(req, ref, d, leadLink, messAus(req));
+
+    // E-408: Mit Haken die Telefon-Einwilligung (§ 7a UWG) — erst hier, wo Annahme, Antragszeile und Person feststehen.
+    // Im Hintergrund und ohne Wurf; ohne Haken entsteht nichts.
+    if (anrufJa) anrufEinwilligungMerken(ref, d, am, { wortlautBrowser: req.body?.anrufWortlaut, ip, ua, pruefstand });
 
     // Für die Akte: was nur der neue Weg fragt — damit der Mitarbeiter es am Telefon vor sich hat.
     const notiz = [

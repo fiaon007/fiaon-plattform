@@ -5,6 +5,31 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — Antrag: freiwilliges Kästchen „FIAON darf mich anrufen, auch ARAS“ (E-408, Scheibe 3)
+- **Was:** Auf der Unterschrift-Seite von /antrag-neu steht ein neues Kästchen in eigener Zeile — unter dem Haken zum
+  Sofortbeginn, vor dem E-Mail-Hinweis: „Ja, FIAON darf mich telefonisch zu meinem Antrag und zu passenden
+  FIAON-Angeboten anrufen – auch ARAS, die digitale Mitarbeiterin von FIAON (eine KI). Freiwillig und jederzeit
+  widerrufbar: Ein kurzer Satz am Telefon oder eine Nachricht genügt.“ Es ist **nie vorangekreuzt**, **freiwillig**
+  (die Annahme klappt genauso ohne) und **keine Sammel-Zustimmung** (eigener Haken, nicht mit AGB oder Datenschutz
+  verbunden, nicht in den Vertrags-Haken des Vertrags-PDFs). **Mit Haken** legt „Zahlungspflichtig annehmen“ genau
+  EINE Telefon-Einwilligung an (Tabelle `fiaon_telefon_einwilligung`, Art `antrag_kaestchen`): Person des Antrags,
+  Nummer aus dem Antrag, der Wortlaut, Quelle = der Antrag, Zeitpunkt = die Annahme, dazu ein Beleg (Seite, Adresse,
+  Browser). Gespeichert wird nur der Satz, den die Seite gezeigt hat — ein Stand von vor einer Textänderung speichert
+  lieber nichts. **Ohne Haken** entsteht nichts. Ein Fehler beim Speichern hält den Vertrag nie auf (steht im
+  Protokoll). **Angerufen wird damit heute niemand:** „Verkauf nach JA“ und die anderen Werbe-Gesprächsarten bleiben im
+  Code gesperrt (ARAS ruft nur Vertragskunden an).
+- **Warum:** Justin hat „ja“ gesagt: Der Antrag soll schon jetzt die ausdrückliche Telefon-Einwilligung sammeln — für
+  später. Werbeanrufe brauchen eine vorherige ausdrückliche Einwilligung (§ 7 Abs. 2 Nr. 1 UWG), die dokumentiert und
+  fünf Jahre aufbewahrt wird (§ 7a UWG); dass ARAS eine KI ist, sagt schon der Satz (KI-VO Art. 50).
+- **Wo:** /antrag-neu → Bildschirm „Unterschrift“ (Kästchen `#an-anruf`). Code: `shared/fiaon-antrag-neu.ts`
+  (`ANTRAG_NEU_ANRUF_TEXT` — der eine Wortlaut für Anzeige und Nachweis), `client/src/pages/antrag-neu/schritte-abschluss.tsx`,
+  `client/src/pages/antrag-neu/zustand.ts` (`anrufJa`, Vorgabe leer), `server/routes/fiaon-antrag-neu.ts` (Annahme →
+  `anrufEinwilligungMerken` → `einwilligungMerken`). Prüfstand `scripts/pruef-antrag-kaestchen.ts` (rein; lokaler Server
+  über HTTP; Browser am Handy und am Rechner) — 75 von 75 grün (27 rein, 26 Server, 22 Browser) gegen eine lokale
+  Prüfdatenbank. Rot-Proben: Kästchen vorangekreuzt → 12 rot; Speichern ohne echten Haken → 3 rot; anderer Wortlaut
+  gespeichert und Satz-Abgleich aus → 5 rot. Fotos: `~/Desktop/FIAON/10_Nacharbeit/aras-e408/antrag-kaestchen/`.
+  /start ist unverändert; eine englische Fassung des Antrags gibt es nicht (kein /en/-Text nötig).
+
 ## 20.10.2026 — Akte › ARAS: „ARAS anrufen lassen“ öffnet einen kurzen Auftrags-Chat
 - **Was:** Statt der Maske (Anliegen, Freitext, Zeit) öffnet sich IN der Karte „ARAS“ ein kleiner Chat. ARAS kennt die Akte
   (Name, Paket, Stand, offene Punkte mit Betrag und Tagen, letzte Kontakte, „Was ARAS wissen muss“) und macht EINEN Vorschlag

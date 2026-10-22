@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ANTRAG_NEU_HAKEN_KOMBI_NACH, ANTRAG_NEU_HAKEN_KOMBI_VOR, ANTRAG_NEU_KURZ, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
+  ANTRAG_NEU_ANRUF_TEXT, ANTRAG_NEU_HAKEN_KOMBI_NACH, ANTRAG_NEU_HAKEN_KOMBI_VOR, ANTRAG_NEU_KURZ, ANTRAG_NEU_LEISTUNG_FASSUNG, ANTRAG_NEU_PAKETE, ANTRAG_NEU_VERTRAG_FASSUNG, ANTRAG_NEU_WERBE_HINWEIS, ANTRAG_NEU_SOFORT_OHNE, ANTRAG_NEU_SOFORT_TEXT, OHNE_ABFRAGE, ZWECK_TEXT,
   agbDatum, antragNeuLuecke, geburtText, type Zweck,
 } from "@shared/fiaon-antrag-neu";
 import { paketPreisCents } from "@shared/fiaon-pakete";
@@ -629,7 +629,10 @@ export function SchrittUnterschrift() {
       daten: datenAus(S), sitzung, knopf: KNOPF_ZAHLUNGSPFLICHTIG,
       // agbGeprueft nur, wenn der Kunde DIESEN Haken gesetzt hat — zwei alte Haken aus einem früheren Stand
       // (Sitzungsspeicher) gehen als die zwei Texte in den Nachweis, die er damals gesehen hat.
-      haken: { agb: S.ag1, geprueft: S.ag3, agbGeprueft: S.ag1 && S.ag3 && S.hakenKombi, sofort: S.ag4 },
+      haken: { agb: S.ag1, geprueft: S.ag3, agbGeprueft: S.ag1 && S.ag3 && S.hakenKombi, sofort: S.ag4, anruf: S.anrufJa },
+      // E-408: der Satz neben dem Anruf-Kästchen, wie DIESE Seite ihn zeigt — der Server speichert die Einwilligung nur,
+      // wenn er seinem Wortlaut gleicht (sonst keine, nie eine andere). Ohne Haken geht nichts mit.
+      ...(S.anrufJa ? { anrufWortlaut: ANTRAG_NEU_ANRUF_TEXT } : {}),
       unterschrift: { png, getippt: sig.getippt }, messung: messungsDaten(),
       // E-283: die Fassungen, die diese Seite zeigt — weichen sie vom Server ab, nimmt er nicht an (409).
       fassungen: { agb: AGB_FASSUNG, vertrag: ANTRAG_NEU_VERTRAG_FASSUNG, leistung: ANTRAG_NEU_LEISTUNG_FASSUNG },
@@ -692,6 +695,9 @@ export function SchrittUnterschrift() {
       </Haken>
       <Haken id="an-ag4" an={S.ag4} onClick={() => setze({ ag4: !S.ag4 })}>{ANTRAG_NEU_SOFORT_TEXT}</Haken>
       <p className="an-klein" style={{ margin: "-4px 0 0 36px" }}>{ANTRAG_NEU_SOFORT_OHNE}</p>
+      {/* E-408: das freiwillige Kästchen „FIAON darf mich anrufen, auch ARAS“ — eigene Zeile, nie vorangekreuzt, keine
+          Bedingung für die Annahme (annehmen() prüft es nicht). Der Satz kommt aus shared/ und ist der gespeicherte Nachweis. */}
+      <Haken id="an-anruf" an={S.anrufJa} onClick={() => setze({ anrufJa: !S.anrufJa })}>{ANTRAG_NEU_ANRUF_TEXT}</Haken>
       <p className="an-klein" style={{ margin: 0 }}>{ANTRAG_NEU_WERBE_HINWEIS}</p>
       {fehler ? <Fehlerkasten text={fehler} knopf={neuLaden ? "Seite neu laden" : undefined} onKnopf={neuLaden ? () => window.location.reload() : undefined} /> : null}
       <div className="an-knoepfe">

@@ -467,6 +467,21 @@ export const ANTRAG_NEU_WERBE_HINWEIS =
 
 export const ANTRAG_NEU_SOFORT_OHNE = "Freiwillig. Ohne diesen Haken beginnen wir mit den Leistungen nach Ablauf der Widerrufsfrist; Ihren Kundenbereich öffnen wir trotzdem gleich nach Zahlungseingang.";
 
+// ── DAS KÄSTCHEN „FIAON DARF MICH ANRUFEN, AUCH ARAS“ (22.10.2026, E-408 Scheibe 3) ──
+// Justin hat „ja“ gesagt: Der Antrag sammelt schon jetzt die ausdrückliche Telefon-Einwilligung — für später. Heute ruft
+// ARAS nur Vertragskunden an; die Werbe-Gesprächsarten bleiben im Code gesperrt (GESPERRTE_SPIELARTEN in
+// shared/fiaon-aras.ts, Justin 20.10.2026: „nur Vertragskunden“). Eine gespeicherte Einwilligung allein wählt also nie.
+// Recht: Werbeanrufe brauchen eine VORHERIGE AUSDRÜCKLICHE Einwilligung (§ 7 Abs. 2 Nr. 1 UWG), dokumentiert und fünf
+// Jahre aufbewahrt (§ 7a UWG); eine KI am Telefon sagt offen, dass sie eine KI ist (KI-VO Art. 50) — der Satz nennt es
+// schon hier. Darum: eigenes Kästchen in eigener Zeile (keine Sammel-Zustimmung mit AGB oder Datenschutz), nie
+// vorangekreuzt, freiwillig — die Annahme verlangt es nicht.
+// EIN Wortlaut für Anzeige UND Nachweis: Die Seite zeigt diese Konstante, der Server speichert genau sie in
+// fiaon_telefon_einwilligung (Art „antrag_kaestchen“, server/routes/fiaon-antrag-neu.ts) — und nur, wenn der Browser
+// denselben Satz zurückschickt (ein Stand von vor einer Textänderung speichert nichts statt eines anderen Satzes).
+// Freigegebener Wortlaut: ändern nur hier, mit derselben Freigabe; der Prüfstand hält ihn buchstabengetreu
+// (scripts/pruef-antrag-kaestchen.ts).
+export const ANTRAG_NEU_ANRUF_TEXT = "Ja, FIAON darf mich telefonisch zu meinem Antrag und zu passenden FIAON-Angeboten anrufen – auch ARAS, die digitale Mitarbeiterin von FIAON (eine KI). Freiwillig und jederzeit widerrufbar: Ein kurzer Satz am Telefon oder eine Nachricht genügt.";
+
 /** Die Abschriften für die Spalten der Antragszeile (Akte, Listen, Mails lesen sie). */
 export const ANTRAG_NEU_BERUF_SPALTE: Record<Beruf, string> = {
   angestellt: "Angestellt", beamt: "Beamter/in", selbst: "Selbstständig", rente: "Rentner/in",

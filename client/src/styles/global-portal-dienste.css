@@ -77,3 +77,8 @@
   .gpd-kachel { opacity: 1 !important; transform: none !important; animation: none !important; }
   .gpd-kachel::after, .gpd-mehr, .gpd-punkte i { transition: none !important; }
 }
+
+/* Freigabe je Dienst (22.10.2026): Nur die Vorschau der Leitung zeigt Nicht-Freigegebenes — leiser, mit Marke. */
+.gpd-kachel.gesperrt { background: rgba(255,255,255,.5); border-style: dashed; }
+.gpd-kachel.gesperrt .gpd-kachel-titel, .gpd-kachel.gesperrt .gpd-kachel-kurz { opacity: .7; }
+.gpd-marke-leise { align-self: flex-start; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--linie-2); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--leise); }

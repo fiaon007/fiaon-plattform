@@ -1574,7 +1574,7 @@ export const RUNDGANG_GLOBAL: RundgangSchritt[] = [
 export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
   {
     titel: "Eine Akte, zwei Spalten: links arbeitest du, rechts liest du nach.",
-    text: "Links liegen vier Reiter — Stand, Gesellschaft & Pflichten, Dokumente, Verlauf. Rechts stehen Kontakt, Firmendaten, "
+    text: "Links liegen fünf Reiter — Stand, Fahrplan & Werte, Gesellschaft & Pflichten, Dokumente, Verlauf. Rechts stehen Kontakt, Firmendaten, "
       + "Vertrag und Rechnung. Alles, was du hier für den Kunden sichtbar speicherst, steht Sekunden später auf seiner Seite "
       + "„Mein Auftrag“ — wörtlich.",
     tipp: "Schreibst du an den Kunden, liest das Werkzeug mit: Steht unter dem Feld ein gelber Hinweis, prüf den Satz, bevor du speicherst.",
@@ -1605,6 +1605,30 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     text: "Im Startgespräch vereinbart ihr, bis wann Gesellschaft und EIN stehen. An diesem Tag hängt die Geld-zurück-Zusage aus "
       + "Ziffer 6 des Auftrags. Mit dem Haken bekommt der Kunde den Tag sofort per E-Mail — der Auftrag sagt ihm diese Mitteilung zu.",
     tipp: "Trag nur ein, was besprochen ist. Die Zusage gilt für Gesellschaft und EIN — nie für eine Entscheidung einer Bank.",
+  },
+  {
+    // 22.10.2026 (Stationen-Editor): derselbe Editor wie im Chefbüro.
+    ziel: '[data-reiter="fahrplan"]',
+    titel: "Fahrplan & Werte: jede Station mit Status UND echtem Wert.",
+    text: "Je Station eine Karte — Gesellschaft, Registered Agent, Nummer und Adressen, EIN, Operating Agreement, ITIN, Konto, "
+      + "D-U-N-S, Karten, Kreditrahmen. Klick auf die Karte öffnet sie: oben der Status (offen, in Arbeit, beantragt, erledigt, "
+      + "entfällt) mit „Beantragt am“ und „Erledigt am“, darunter die Felder der Station. Die EIN schreibst du als 12-3456789, die "
+      + "ITIN als 9XX-XX-XXXX, die D-U-N-S mit neun Ziffern, die US-Nummer mit +1 — verlässt du ein Feld, prüft die Karte sofort "
+      + "und formatiert schön. „Speichern“ schickt alles in einem Zug; der Kunde sieht die Werte sofort in seinem Portal und "
+      + "beim ersten Eintragen einen Satz im Verlauf („Ihre EIN ist da.“).",
+    tipp: "Die ITIN wird verschlüsselt gespeichert und überall maskiert gezeigt (•••-••-1234). „Anzeigen“ zeigt sie dir 20 Sekunden "
+      + "lang — das steht intern im Verlauf. Felder mit „intern“ (Kontoinstitut, Anbieter des Registered Agent) sieht der Kunde nie; "
+      + "in die Adresse des Agents gehört nur die Anschrift, kein Anbietername.",
+  },
+  {
+    // Ohne `ziel`: Karten und Rahmen stehen nur in den Stationen „Erste Firmenkarte“, „Weitere Firmenkarten“, „Kreditrahmen“.
+    titel: "Karten und Kreditrahmen: je Eintrag eine Zeile.",
+    text: "In den Karten-Stationen legst du mit „+ Karte“ jede Karte an: Produkt und Institut (beides intern), Firma oder privat, "
+      + "Status (beantragt, genehmigt, aktiv …), Limit wenn bekannt, Daten. Der Kunde liest nur „Firmenkarte · Genehmigt · 14.10.2026“ — "
+      + "nie einen Banknamen, und einen Betrag erst ab „Genehmigt“. Unter dem Kreditrahmen steht für ihn: Über Kreditrahmen und Darlehen "
+      + "entscheidet allein das Institut.",
+    tipp: "Zum Schreiben der Bank, zur EIN-Bestätigung oder zum ITIN-Bescheid lädst du die Datei direkt an der Station hoch — sie liegt "
+      + "dann im Tresor des Kunden (ohne Mail).",
   },
   {
     ziel: '[data-reiter="gesellschaft"]',

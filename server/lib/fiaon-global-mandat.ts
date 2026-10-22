@@ -41,6 +41,7 @@ import {
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
   globalTresorKategorie, type GlobalGesellschaftPlus,
 } from "@shared/fiaon-global-mandat";
+import { GLOBAL_STATION_FELDER, globalPlusFuerKunde, globalPlusFuerTeam, stationVerlaufSaetze, stationWertePruefen } from "@shared/fiaon-global-stationen";
 import { GLOBAL_DATEI_MAX_BYTES, GLOBAL_DOKUMENTE_MAX, globalDateiTyp, globalDateiname } from "./fiaon-global-bereich-regeln";
 import { globalMeinAuftragUrl, globalTokenErzeugen } from "./fiaon-global-auftrag";
 
@@ -93,8 +94,9 @@ export function ensureGlobalMandat(): Promise<void> {
           id BIGSERIAL PRIMARY KEY,
           ref VARCHAR NOT NULL,
           schluessel TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'offen' CHECK (status IN ('offen', 'in_arbeit', 'erledigt', 'entfaellt')),
+          status TEXT NOT NULL DEFAULT 'offen' CHECK (status IN ('offen', 'in_arbeit', 'beantragt', 'erledigt', 'entfaellt')),
           datum DATE,
+          beantragt_am DATE,
           hinweis TEXT,
           intern TEXT,
           geaendert_von TEXT,
@@ -121,6 +123,8 @@ export function ensureGlobalMandat(): Promise<void> {
           geloescht_am TIMESTAMPTZ
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_kapital_ref_idx ON fiaon_global_kapital (ref) WHERE geloescht_am IS NULL`;
+      // Stationen-Editor (22.10.2026, Migration 121): „beantragt“ als Status, Antragsdatum, Karte privat/Firma.
+      await stationenSchemaSichern();
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_global_nachrichten (
           id BIGSERIAL PRIMARY KEY,
@@ -153,19 +157,39 @@ export function ensureGlobalMandat(): Promise<void> {
   return bereit;
 }
 
+/**
+ * Migration 121 zur Laufzeit: Spalten dazu (IF NOT EXISTS, keine Sperre auf Daten) und die Status-Wand WEITER machen —
+ * nur, wenn sie „beantragt“ noch nicht kennt (pg_constraint lesen, dann EIN ALTER mit NOT VALID, ohne Tabellen-Scan).
+ * Muster: firmaTeileCheckSichern (fiaon-global-angebot.ts).
+ */
+async function stationenSchemaSichern(): Promise<void> {
+  await sqlPool.begin(async (tx: any) => {
+    await tx`SET LOCAL lock_timeout = '3s'`;
+    await tx`ALTER TABLE fiaon_global_schritte ADD COLUMN IF NOT EXISTS beantragt_am DATE`;
+    await tx`ALTER TABLE fiaon_global_kapital ADD COLUMN IF NOT EXISTS inhaber TEXT`;
+    const [c] = (await tx`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'fiaon_global_schritte_status_check' LIMIT 1`) as any[];
+    if (!c || !/'beantragt'/.test(String(c.def))) {
+      await tx`
+        ALTER TABLE fiaon_global_schritte
+          DROP CONSTRAINT IF EXISTS fiaon_global_schritte_status_check,
+          ADD CONSTRAINT fiaon_global_schritte_status_check CHECK (status IN ('offen', 'in_arbeit', 'beantragt', 'erledigt', 'entfaellt')) NOT VALID`;
+    }
+  });
+}
+
 // ── LESEN ────────────────────────────────────────────────────────────────────
-interface SchrittZeile { schluessel: string; etappe: number; titel: string; text: string; status: string; datum: string | null; hinweis: string | null; intern?: string | null; geaendertVon?: string | null; geaendertAm?: string | null }
+interface SchrittZeile { schluessel: string; etappe: number; titel: string; text: string; status: string; datum: string | null; beantragtAm: string | null; hinweis: string | null; intern?: string | null; geaendertVon?: string | null; geaendertAm?: string | null }
 
 async function schritteLesen(ref: string, sprache: BereichSprache, fuer: "kunde" | "chef"): Promise<SchrittZeile[]> {
   const zeilen = (await sqlPool`
-    SELECT schluessel, status, datum, hinweis, intern, geaendert_von, updated_at FROM fiaon_global_schritte WHERE ref = ${ref}`) as any[];
+    SELECT schluessel, status, datum, beantragt_am, hinweis, intern, geaendert_von, updated_at FROM fiaon_global_schritte WHERE ref = ${ref}`) as any[];
   const nach = new Map(zeilen.map((z) => [String(z.schluessel), z]));
   return GLOBAL_FAHRPLAN.map((v) => {
     const z = nach.get(v.schluessel);
     return {
       schluessel: v.schluessel, etappe: v.etappe,
       titel: globalSchrittTitel(v.schluessel, sprache), text: globalSchrittText(v.schluessel, sprache),
-      status: z ? String(z.status) : "offen", datum: z ? tag(z.datum) : null, hinweis: z?.hinweis ? String(z.hinweis) : null,
+      status: z ? String(z.status) : "offen", datum: z ? tag(z.datum) : null, beantragtAm: z ? tag(z.beantragt_am) : null, hinweis: z?.hinweis ? String(z.hinweis) : null,
       ...(fuer === "chef" ? { intern: z?.intern ? String(z.intern) : null, geaendertVon: z?.geaendert_von ?? null, geaendertAm: iso(z?.updated_at) } : {}),
     };
   }).filter((s) => fuer === "chef" || s.status !== "entfaellt");
@@ -173,14 +197,18 @@ async function schritteLesen(ref: string, sprache: BereichSprache, fuer: "kunde"
 
 async function kapitalLesen(ref: string, sprache: BereichSprache, fuer: "kunde" | "chef"): Promise<Record<string, unknown>[]> {
   const zeilen = (await sqlPool`
-    SELECT id, art, institut, produkt, status, betrag_cents, beantragt_am, entschieden_am, hinweis, intern, sichtbar, geaendert_von, updated_at
+    SELECT id, art, institut, produkt, inhaber, status, betrag_cents, beantragt_am, entschieden_am, hinweis, intern, sichtbar, geaendert_von, updated_at
       FROM fiaon_global_kapital WHERE ref = ${ref} AND geloescht_am IS NULL
      ORDER BY COALESCE(beantragt_am, created_at::date) ASC, id ASC`) as any[];
-  return zeilen.filter((z) => fuer === "chef" || z.sichtbar).map((z) => ({
+  // 22.10.2026 (Stationen-Editor): Der Kunde sieht nie Institut oder Produktnamen (keine Banknamen) und einen Betrag
+  // erst, wenn er zugesagt bzw. aktiv ist — über Konto, Karte und Rahmen entscheidet das Institut.
+  const kunde = fuer === "kunde";
+  return zeilen.filter((z) => !kunde || z.sichtbar).map((z) => ({
     id: Number(z.id), art: String(z.art), artText: globalKapitalArtTitel(String(z.art), sprache),
-    institut: z.institut ? String(z.institut) : null, produkt: z.produkt ? String(z.produkt) : null,
+    institut: !kunde && z.institut ? String(z.institut) : null, produkt: !kunde && z.produkt ? String(z.produkt) : null,
+    inhaber: z.inhaber === "privat" || z.inhaber === "firma" ? String(z.inhaber) : null,
     status: String(z.status), statusText: globalKapitalStatusTitel(String(z.status), sprache),
-    betragCents: z.betrag_cents != null ? Number(z.betrag_cents) : null,
+    betragCents: z.betrag_cents != null && (!kunde || z.status === "zugesagt" || z.status === "aktiv") ? Number(z.betrag_cents) : null,
     beantragtAm: tag(z.beantragt_am), entschiedenAm: tag(z.entschieden_am), hinweis: z.hinweis ? String(z.hinweis) : null,
     ...(fuer === "chef" ? { intern: z.intern ? String(z.intern) : null, sichtbar: !!z.sichtbar, geaendertVon: z.geaendert_von ?? null, geaendertAm: iso(z.updated_at) } : {}),
   }));
@@ -225,6 +253,10 @@ function dokumentZusatz(z: any): Record<string, unknown> {
 function gesellschaftPlusLesen(akte: any): GlobalGesellschaftPlus {
   return json<GlobalGesellschaftPlus>(akte?.gesellschaft_plus, {});
 }
+async function plusRoh(ref: string): Promise<GlobalGesellschaftPlus> {
+  const [z] = (await sqlPool`SELECT gesellschaft_plus FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
+  return gesellschaftPlusLesen(z);
+}
 
 async function mandatZeile(ref: string): Promise<any | null> {
   await ensureGlobalMandat();
@@ -250,8 +282,9 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
     schritteLesen(ref, sprache, "kunde"), kapitalLesen(ref, sprache, "kunde"), nachrichtenLesen(ref, "kunde"), dokumentZusatzLesen(ref),
     // Scheibe 1 „Ihr US-Büro“: gebuchte Zusatzdienste und was der Auftrag schon enthält (Texte liest die Seite aus shared/).
     // Ein Fehler hier leert nur den Bereich „Ihr Büro erweitern“ — das Portal lädt trotzdem.
-    import("./fiaon-global-zusatz").then(async (m) => ({ gebucht: await m.zusatzKundenSicht(ref, token, vorschau), enthalten: await m.zusatzEnthalten(ref) }))
-      .catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Zusatzdienste nicht gelesen:`, e); return { gebucht: [], enthalten: [], fehler: true }; }),
+    // Freigabe je Dienst: Der Kunde bekommt nur die freigegebenen; die Vorschau der Leitung alle (die Seite markiert den Rest).
+    import("./fiaon-global-zusatz").then(async (m) => ({ gebucht: await m.zusatzKundenSicht(ref, token, vorschau), enthalten: await m.zusatzEnthalten(ref), freigegeben: await m.zusatzFreigabeLesen() }))
+      .catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Zusatzdienste nicht gelesen:`, e); return { gebucht: [], enthalten: [], freigegeben: [] as string[], fehler: true }; }),
   ]);
   // Die Anrede für den Gruß („Guten Abend, Herr Hildbrand“) — nur Anrede und Nachname, nichts sonst.
   const [akte] = (await sqlPool`SELECT ansprechpartner FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
@@ -265,7 +298,8 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
     },
     ...(vorschau ? { vorschau: true } : {}),
     schritte, kapital, nachrichten, dienste,
-    gesellschaftPlus: gesellschaftPlusLesen(z),
+    // Nur freigegebene Felder; die ITIN als Maske (Klartext nur über „Anzeigen“ → /itin).
+    gesellschaftPlus: globalPlusFuerKunde(gesellschaftPlusLesen(z)),
     dokumentZusatz: Object.fromEntries(Array.from(zusatz.entries()).map(([id, d]) => [String(id), dokumentZusatz(d)])),
   };
 }
@@ -369,7 +403,7 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
     vertragUrl: office.vertragUrl ? `/api/fiaon/admin/global/auftraege/${r}/vertrag.pdf` : null,
     rechnungUrl: office.rechnungUrl ? `/api/fiaon/admin/global/auftraege/${r}/rechnung.pdf` : null,
     schritte, kapital, nachrichten, zugesagtCents,
-    gesellschaftPlus: gesellschaftPlusLesen(z),
+    gesellschaftPlus: globalPlusFuerTeam(gesellschaftPlusLesen(z)),
     person,
     test: !!z?.ist_test_am,
     portal: { neu: !!z?.portal_neu_am, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
@@ -432,11 +466,16 @@ export async function globalGesellschaftPlusSetzen(ref: string, ein: Record<stri
     const f = g.fristen;
     if (f.neu || f.geaendert || f.entfernt) fristen = ` Pflichtenkalender: ${f.neu} neu, ${f.geaendert} geändert, ${f.entfernt} entfernt.`;
   }
-  const plus: GlobalGesellschaftPlus = {};
+  // 22.10.2026: Die Felder des Stationen-Editors (ITIN, D-U-N-S, Konto, Adressen …) bleiben stehen, und von den sechs
+  // Feldern dieses Formulars ändert sich nur, was MITGESCHICKT wird (leer = leeren). Vorher ersetzte es das ganze JSON
+  // und hätte die ITIN gelöscht.
+  const plus: GlobalGesellschaftPlus = { ...(await plusRoh(ref)) };
   const roh = ein.plus && typeof ein.plus === "object" ? (ein.plus as Record<string, unknown>) : {};
   for (const f of GLOBAL_GESELLSCHAFT_PLUS_FELDER) {
+    if (!(f.feld in roh)) continue;
     // Adresse und Hinweis behalten ihre Zeilen (Straße / Ort), alles andere ist eine Zeile.
     const w = f.feld === "hinweis" || f.feld === "usAdresse" ? absatz(roh[f.feld], f.max) : knapp(roh[f.feld], f.max);
+    delete (plus as any)[f.feld];
     if (!w) continue;
     if (f.feld === "ein") {
       const e = globalEinFormat(w);
@@ -446,7 +485,7 @@ export async function globalGesellschaftPlusSetzen(ref: string, ein: Record<stri
   }
   if (plus.hinweis) { const f = kundensatz(plus.hinweis); if (f) return nein(400, f); }
   await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft_plus = ${sqlPool.json(plus as any)}, updated_at = NOW() WHERE ref = ${ref}`;
-  await verlaufSchreiben(ref, { art: "gesellschaft", text: `Gesellschaftsdaten aktualisiert (${Object.keys(plus).join(", ") || "leer"}).`, sichtbar: false, agentId: agent.id });
+  await verlaufSchreiben(ref, { art: "gesellschaft", text: `Gesellschaftsdaten aktualisiert (${GLOBAL_GESELLSCHAFT_PLUS_FELDER.map((f) => f.feld).filter((k) => (plus as any)[k]).join(", ") || "leer"}).`, sichtbar: false, agentId: agent.id });
   return { ok: true, meldung: `Gesellschaftsdaten gespeichert.${fristen}` };
 }
 
@@ -465,21 +504,28 @@ export async function globalKapitalSpeichern(ref: string, ein: Record<string, un
   if (hinweis) { const f = kundensatz(hinweis); if (f) return nein(400, f); }
   const institut = knapp(ein.institut, 120) || null;
   const produkt = knapp(ein.produkt, 120) || null;
+  // Je Karte: Firmenkarte oder private Karte (Score-Aufbau). Nur bei Karten.
+  const inhaberRoh = String(ein.inhaber ?? "").trim();
+  if (inhaberRoh && !["firma", "privat"].includes(inhaberRoh)) return nein(400, "Karte: bitte Firma oder privat wählen.");
+  const inhaber = art === "karte" ? (inhaberRoh || "firma") : null;
+  if (entschieden && entschieden > berlinToday()) return nein(400, "„Entschieden am“ liegt in der Zukunft.");
+  if (beantragt && beantragt > berlinToday()) return nein(400, "„Beantragt am“ liegt in der Zukunft.");
+  if (betragCents != null && (status === "abgelehnt")) return nein(400, "Ein abgelehnter Antrag hat keinen Betrag — bitte das Feld leeren.");
   const intern = absatz(ein.intern, 1200) || null;
   const sichtbar = ein.sichtbar !== false;
   const id = Number(ein.id);
   let neu: any;
   if (Number.isInteger(id) && id > 0) {
     [neu] = (await sqlPool`
-      UPDATE fiaon_global_kapital SET art = ${art}, institut = ${institut}, produkt = ${produkt}, status = ${status}, betrag_cents = ${betragCents},
+      UPDATE fiaon_global_kapital SET art = ${art}, institut = ${institut}, produkt = ${produkt}, inhaber = ${inhaber}, status = ${status}, betrag_cents = ${betragCents},
              beantragt_am = ${beantragt}, entschieden_am = ${entschieden}, hinweis = ${hinweis}, intern = ${intern}, sichtbar = ${sichtbar},
              geaendert_von = ${agent.name}, updated_at = NOW()
        WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL RETURNING id`) as any[];
     if (!neu) return nein(404, "Diesen Eintrag gibt es nicht (mehr).");
   } else {
     [neu] = (await sqlPool`
-      INSERT INTO fiaon_global_kapital (ref, art, institut, produkt, status, betrag_cents, beantragt_am, entschieden_am, hinweis, intern, sichtbar, geaendert_von)
-      VALUES (${ref}, ${art}, ${institut}, ${produkt}, ${status}, ${betragCents}, ${beantragt}, ${entschieden}, ${hinweis}, ${intern}, ${sichtbar}, ${agent.name})
+      INSERT INTO fiaon_global_kapital (ref, art, institut, produkt, inhaber, status, betrag_cents, beantragt_am, entschieden_am, hinweis, intern, sichtbar, geaendert_von)
+      VALUES (${ref}, ${art}, ${institut}, ${produkt}, ${inhaber}, ${status}, ${betragCents}, ${beantragt}, ${entschieden}, ${hinweis}, ${intern}, ${sichtbar}, ${agent.name})
       RETURNING id`) as any[];
   }
   const was = `${globalKapitalArtTitel(art, "de")}${institut ? ` (${institut})` : ""} — ${globalKapitalStatusTitel(status, "de")}`;
@@ -500,6 +546,155 @@ export async function globalKapitalEntfernen(ref: string, idRoh: unknown, agent:
   if (!d) return nein(404, "Diesen Eintrag gibt es nicht (mehr).");
   await verlaufSchreiben(ref, { art: "kapital", text: `Banken & Kapital: Eintrag (${globalKapitalArtTitel(String(d.art), "de")}) entfernt.`, sichtbar: false, agentId: agent.id });
   return { ok: true, meldung: "Eintrag entfernt." };
+}
+
+// ── STATIONEN-EDITOR (22.10.2026) ────────────────────────────────────────────
+// Justin: „Die Schritte wie ITIN, D-U-N-S, EIN … wir müssen die echten Werte eintragen können — 100 % funktional.“
+// EIN Weg für Chefbüro und Office: Status mit Datum UND die Werte der Station. Erst wird ALLES geprüft
+// (stationWertePruefen, shared/fiaon-global-stationen.ts), dann geschrieben: Grunddaten über globalGesellschaftSetzen
+// (setzt die Fristen), die übrigen Werte in gesellschaft_plus (die ITIN verschlüsselt), der Status in
+// fiaon_global_schritte. Der Kunde liest beim ERSTEN Eintragen einen Satz im Verlauf („Ihre ITIN ist da.“), das Team
+// eine interne Zeile mit Namen. Nie steht die ITIN im Verlauf, im Protokoll oder in einer Antwort.
+const FELD_TITEL = new Map(Object.values(GLOBAL_STATION_FELDER).flat().map((f) => [f.feld, f.titel]));
+const leerWert = (v: unknown) => v == null || String(v).trim() === "";
+
+export async function globalStationSpeichern(ref: string, ein: Record<string, unknown>, agent: BereichAgent, opts: { vorZahlung?: boolean } = {}): Promise<Erg<{ meldung: string; gesellschaftPlus: Record<string, unknown> }>> {
+  const l = await lageOder404(ref);
+  if ("fehler" in l) return l.fehler;
+  if (l.status === "storniert") return nein(409, "Der Auftrag ist storniert.");
+  const v = globalSchrittVorlage(ein.schluessel);
+  if (!v) return nein(400, "Diese Station gibt es nicht.");
+  const heute = berlinToday();
+  // 1 · PRÜFEN — bevor irgendetwas geschrieben wird
+  const statusNeu = ein.status === undefined ? undefined : globalSchrittStatus(ein.status);
+  if (statusNeu === null) return nein(400, "Diesen Status gibt es nicht (offen, in Arbeit, beantragt, erledigt, entfällt).");
+  const datumPruefen = (roh: unknown, was: string): string | null | { fehler: string } => {
+    const d = String(roh ?? "").trim();
+    if (!d) return null;
+    if (!istIsoTag(d)) return { fehler: `${was}: bitte ein gültiges Datum wählen.` };
+    if (d > heute) return { fehler: `${was}: Das Datum liegt in der Zukunft.` };
+    return d;
+  };
+  const datumRoh = ein.datum === undefined ? undefined : datumPruefen(ein.datum, "Erledigt am");
+  const beantragtRoh = ein.beantragtAm === undefined ? undefined : datumPruefen(ein.beantragtAm, "Beantragt am");
+  for (const d of [datumRoh, beantragtRoh]) if (d && typeof d === "object") return nein(400, d.fehler);
+  const datum = datumRoh as string | null | undefined;
+  const beantragtAm = beantragtRoh as string | null | undefined;
+  const hinweis = ein.hinweis === undefined ? undefined : (absatz(ein.hinweis, 600) || null);
+  if (hinweis) { const f = kundensatz(hinweis); if (f) return nein(400, f); }
+  const intern = ein.intern === undefined ? undefined : (absatz(ein.intern, 1200) || null);
+  const werteRoh = ein.werte && typeof ein.werte === "object" ? (ein.werte as Record<string, unknown>) : {};
+  const p = stationWertePruefen(v.schluessel, werteRoh, heute);
+  // `feld` reist mit: Der Editor rahmt das Feld rot, an dem es hängt.
+  if (!p.ok) return { ok: false as const, status: 400, error: p.error, feld: p.feld } as ReturnType<typeof nein>;
+
+  // 2 · GRUNDDATEN (Name, Form, Bundesstaat, Gründungstag) über den bestehenden Weg — er setzt die Pflichtfristen
+  const g = l.gesellschaft ?? {};
+  const grund: Record<string, unknown> = {};
+  for (const [k, w] of Object.entries(p.werte.grund)) if ((w ?? null) !== ((g as any)[k] ?? null)) grund[k] = w ?? "";
+  // Die alten Merker ziehen mit: EIN da → einVorhanden; ITIN da → itinStand „vorhanden“, beantragt → „beantragt“.
+  if ("ein" in p.werte.plus && !!p.werte.plus.ein !== !!g.einVorhanden) grund.einVorhanden = !!p.werte.plus.ein;
+  if (v.schluessel === "itin") {
+    const itinDa = "itin" in p.werte.plus ? !!p.werte.plus.itin : !!(await plusRoh(ref)).itinEnc;
+    let stand: string | null = g.itinStand ?? null;
+    if (itinDa) stand = "vorhanden";
+    else if (statusNeu === "beantragt") stand = "beantragt";
+    else if (stand === "vorhanden") stand = "offen"; // die ITIN wurde geleert
+    if (stand !== (g.itinStand ?? null)) grund.itinStand = stand ?? "";
+  }
+  let fristen = "";
+  if (Object.keys(grund).length) {
+    const r = await globalGesellschaftSetzen(ref, grund, agent, { vorZahlung: opts.vorZahlung === true });
+    if (!r.ok) return r;
+    const f = r.fristen;
+    if (f.neu || f.geaendert || f.entfernt) fristen = ` Pflichtenkalender: ${f.neu} neu, ${f.geaendert} geändert, ${f.entfernt} entfernt.`;
+  }
+
+  // 3 · WERTE in gesellschaft_plus (die ITIN nur verschlüsselt)
+  const vorher = await plusRoh(ref);
+  const neu: Record<string, unknown> = { ...vorher };
+  const gesetzt: string[] = []; const geaendert: string[] = []; const geleert: string[] = [];
+  for (const [k, w] of Object.entries(p.werte.plus)) {
+    if (k === "itin") {
+      const { encryptSecret, decryptSecret } = await import("../routes/fiaon-agent");
+      const alt = vorher.itinEnc ? decryptSecret(vorher.itinEnc) : null;
+      if (!w) { if (vorher.itinEnc) { delete neu.itinEnc; delete neu.itinEnde; geleert.push(k); } continue; }
+      if (alt === w) continue;
+      neu.itinEnc = encryptSecret(w); neu.itinEnde = w.replace(/\D/g, "").slice(-4);
+      (vorher.itinEnc ? geaendert : gesetzt).push(k);
+      continue;
+    }
+    const alt = (vorher as Record<string, unknown>)[k];
+    if (!w) { if (!leerWert(alt)) { delete neu[k]; geleert.push(k); } continue; }
+    if (alt === w) continue;
+    neu[k] = w;
+    (leerWert(alt) ? gesetzt : geaendert).push(k);
+  }
+  if (gesetzt.length || geaendert.length || geleert.length) {
+    await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft_plus = ${sqlPool.json(neu as any)}, updated_at = NOW() WHERE ref = ${ref}`;
+  }
+
+  // 4 · STATUS der Station
+  const [alt] = (await sqlPool`SELECT status, datum, beantragt_am, hinweis, intern FROM fiaon_global_schritte WHERE ref = ${ref} AND schluessel = ${v.schluessel}`) as any[];
+  const altStatus = alt ? String(alt.status) : "offen";
+  const status = statusNeu ?? altStatus;
+  const wechsel = status !== altStatus;
+  // „Erledigt am“: gesetzt oder — beim Wechsel auf erledigt ohne Datum — heute; bei einem anderen Wechsel leer.
+  const datumWert = datum !== undefined ? datum : wechsel ? (status === "erledigt" ? heute : null) : tag(alt?.datum);
+  const beantragtWert = beantragtAm !== undefined ? beantragtAm : (wechsel && status === "beantragt" && !alt?.beantragt_am ? heute : tag(alt?.beantragt_am));
+  const hinweisWert = hinweis !== undefined ? hinweis : (alt?.hinweis ?? null);
+  const internWert = intern !== undefined ? intern : (alt?.intern ?? null);
+  const schrittAnders = !alt || wechsel || datumWert !== tag(alt.datum) || beantragtWert !== tag(alt.beantragt_am) || hinweisWert !== (alt.hinweis ?? null) || internWert !== (alt.intern ?? null);
+  if (schrittAnders) {
+    await sqlPool`
+      INSERT INTO fiaon_global_schritte (ref, schluessel, status, datum, beantragt_am, hinweis, intern, geaendert_von, updated_at)
+      VALUES (${ref}, ${v.schluessel}, ${status}, ${datumWert}, ${beantragtWert}, ${hinweisWert}, ${internWert}, ${agent.name}, NOW())
+      ON CONFLICT (ref, schluessel) DO UPDATE SET status = EXCLUDED.status, datum = EXCLUDED.datum, beantragt_am = EXCLUDED.beantragt_am,
+        hinweis = EXCLUDED.hinweis, intern = EXCLUDED.intern, geaendert_von = EXCLUDED.geaendert_von, updated_at = NOW()`;
+  }
+
+  // 5 · VERLAUF — der Kunde liest das Neue, das Team alles
+  const titelDe = globalSchrittTitel(v.schluessel, "de");
+  for (const satz of stationVerlaufSaetze(gesetzt, l.sprache)) await verlaufSchreiben(ref, { art: "station", text: satz, sichtbar: true, agentId: agent.id });
+  if (wechsel && (status === "erledigt" || status === "beantragt")) {
+    const titel = globalSchrittTitel(v.schluessel, l.sprache);
+    const satz = status === "erledigt" ? t(l.sprache, `Erledigt: ${titel}.`, `Done: ${titel}.`) : t(l.sprache, `Beantragt: ${titel}.`, `Applied for: ${titel}.`);
+    await verlaufSchreiben(ref, { art: "schritt", text: satz, sichtbar: true, agentId: agent.id });
+  }
+  const teile: string[] = [];
+  if (wechsel) teile.push(`Status ${altStatus} → ${status}`);
+  const benenne = (liste: string[], wie: string) => { if (liste.length) teile.push(`${liste.map((k) => FELD_TITEL.get(k) ?? k).join(", ")} ${wie}`); };
+  benenne(gesetzt, "eingetragen"); benenne(geaendert, "geändert"); benenne(geleert, "geleert");
+  if (!wechsel && schrittAnders && alt) teile.push("Datum/Hinweis angepasst");
+  if (teile.length) await verlaufSchreiben(ref, { art: "station", text: `Station „${titelDe}“: ${teile.join("; ")} (${agent.name}).`, sichtbar: false, agentId: agent.id });
+  const kundeSieht = stationVerlaufSaetze(gesetzt, l.sprache).length > 0 || (wechsel && (status === "erledigt" || status === "beantragt"));
+  return {
+    ok: true,
+    gesellschaftPlus: globalPlusFuerTeam(neu as GlobalGesellschaftPlus),
+    meldung: teile.length
+      ? `„${titelDe}“ gespeichert${kundeSieht ? " — der Kunde sieht es jetzt in seinem Portal" : ""}.${fristen}`
+      : `„${titelDe}“: nichts geändert.`,
+  };
+}
+
+/** Die ITIN im Klartext — nur für „Anzeigen“ (Kunde im eigenen Portal, Team im Editor). Das Team hinterlässt eine interne Zeile. */
+export async function globalItinKlartext(ref: string, wer: { team: BereichAgent | null }): Promise<string | null> {
+  await ensureGlobalMandat();
+  const p = await plusRoh(ref);
+  if (!p.itinEnc) return null;
+  const { decryptSecret } = await import("../routes/fiaon-agent");
+  const klar = decryptSecret(p.itinEnc);
+  if (klar && wer.team) await verlaufSchreiben(ref, { art: "station", text: `ITIN im Klartext angezeigt (${wer.team.name}).`, sichtbar: false, agentId: wer.team.id || null });
+  return klar;
+}
+
+/** Für das Office (/agent/global/:ref): Stationen, Grunddaten, Werte (ITIN maskiert) und Karten/Rahmen — wie im Chefbüro. */
+export async function globalStationenSicht(ref: string): Promise<Record<string, unknown> | null> {
+  await ensureGlobalMandat();
+  const l = await lageLesen(ref);
+  if (!l) return null;
+  const [schritte, kapital, plus] = await Promise.all([schritteLesen(ref, "de", "chef"), kapitalLesen(ref, "de", "chef"), plusRoh(ref)]);
+  return { status: l.status, gesellschaft: l.gesellschaft, gesellschaftPlus: globalPlusFuerTeam(plus), schritte, kapital };
 }
 
 /**

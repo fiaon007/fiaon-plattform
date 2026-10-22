@@ -235,11 +235,43 @@ ok(/"\/chef\/global\/mandate\/:ref\/zusatz\/:id\/status", requireChef\("leitung"
 const cg = datei("client/src/components/admin/ChefGlobal.tsx");
 ok(/key: "leistungen", titel: "Leistungen"/.test(cg) && /reiter === "leistungen" && <Leistungen/.test(cg), "Chefbüro: Reiter „Leistungen“ mit Inhalt");
 const gp = datei("client/src/pages/global-portal.tsx");
-ok(/"dienste"/.test(gp.slice(gp.indexOf("const SEITEN"), gp.indexOf("const NAV_GRUPPEN"))) && /seite === "dienste" && \(/.test(gp), "Portal: Seite „dienste“ mit Inhalt");
+{
+  const seiten = gp.slice(gp.indexOf("const SEITEN"), gp.indexOf("];", gp.indexOf("const SEITEN")));
+  const gruppen = gp.slice(gp.indexOf("const GRUPPEN"), gp.indexOf("];", gp.indexOf("const GRUPPEN")));
+  ok(/"dienste"/.test(seiten) && /"dienste"/.test(gruppen) && /seite === "dienste" && \(/.test(gp), "Portal: Seite „dienste“ in Seiten, Navigation und mit Inhalt");
+}
 ok(/ZUSATZ_WOERTER\[s\]\.tunTitel/.test(gp), "Portal: offene Rechnung unter „Für Sie zu tun“");
 {
   const css = datei("client/src/styles/global-portal-dienste.css").replace(/\/\*[\s\S]*?\*\//g, "");
   ok(/prefers-reduced-motion/.test(css) && !/gold|#c9a|#d4af|#b8860b|#daa520/i.test(css), "CSS: Bewegung abschaltbar, kein Gold");
+}
+
+// ═══ 8b FREIGABE JE DIENST (22.10.2026, „sicher starten“) ════════════════════
+abschnitt("8b Freigabe je Dienst");
+gleich(Z.GLOBAL_ZUSATZ_FREIGABE_VORGABE, ["domain"], "Vorgabe: nur „Ihre Domain & E-Mail“");
+gleich(Z.zusatzFreigabeAus(null), ["domain"], "kein Eintrag → Vorgabe");
+gleich(Z.zusatzFreigabeAus(""), ["domain"], "leerer Eintrag → Vorgabe");
+gleich(Z.zusatzFreigabeAus("{kaputt"), ["domain"], "unlesbar → Vorgabe, nie „alles frei“");
+gleich(Z.zusatzFreigabeAus("{\"a\":1}"), ["domain"], "kein Array → Vorgabe");
+gleich(Z.zusatzFreigabeAus("[]"), [], "leere Liste = bewusst nichts frei");
+gleich(Z.zusatzFreigabeAus(JSON.stringify(["website", "WEBSITE", "gibtsnicht", " domain "])), ["website", "domain"], "unbekannte fallen weg, Groß/klein und Leerzeichen egal, doppelt einmal");
+ok(Z.zusatzFreigegeben("domain", ["domain"]) && !Z.zusatzFreigegeben("website", ["domain"]) && !Z.zusatzFreigegeben("gibtsnicht", ["gibtsnicht"]), "zusatzFreigegeben: nur bekannte, buchbare, freigegebene");
+ok(Z.ZUSATZ_WOERTER.de.nochNichtVerfuegbar.length > 10 && Z.ZUSATZ_WOERTER.en.nochNichtVerfuegbar.length > 10 && !!Z.ZUSATZ_WOERTER.de.nichtFreigegeben, "Texte: „noch nicht verfügbar“ (Server) und Marke der Vorschau");
+{
+  const b = lib.slice(lib.indexOf("async function buchen("));
+  const wand = b.indexOf("zusatzFreigegeben(z.key, await zusatzFreigabeLesen())");
+  ok(wand > 0 && wand < b.indexOf("vorhandenLesen") && /nein\(409, W\.nochNichtVerfuegbar/.test(b), "Server: Freigabe-Wand (409) VOR jeder Buchung");
+  const lesen = lib.slice(lib.indexOf("export async function zusatzFreigabeLesen"), lib.indexOf("export async function zusatzFreigabeSetzen"));
+  ok(/zusatzFreigabeAus\(z\?\.value\)/.test(lesen) && /\.catch\(/.test(lesen), "Lesefehler → Vorgabe (zusatzFreigabeAus(undefined))");
+  ok(/GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL/.test(lib) && /ON CONFLICT \(key\) DO UPDATE/.test(lib.slice(lib.indexOf("export async function zusatzFreigabeSetzen"))), "Speichern in fiaon_settings wie die anderen Global-Einstellungen");
+  ok(/"\/chef\/global\/zusatz-freigabe", requireChef\("leitung"\)/.test(chef) && /typeof req\.body\?\.an !== "boolean"/.test(chef), "Chef-Route: Leitung, an/aus ausdrücklich");
+  const mandat = datei("server/lib/fiaon-global-mandat.ts");
+  ok(/freigegeben: await m\.zusatzFreigabeLesen\(\)/.test(mandat), "Portal bekommt die Freigabe mit");
+  const dienste = datei("client/src/pages/global-portal-dienste.tsx");
+  ok(/buchbareZusatzdienste\(\)\.filter\(\(z\) => vorschau \|\| frei\(z\)\)/.test(dienste), "Portal: Kunde sieht nur Freigegebenes, Vorschau alles");
+  ok(/W\.nichtFreigegeben/.test(dienste), "Portal: Vorschau markiert Nicht-Freigegebenes");
+  const einst = datei("client/src/components/admin/ChefGlobalEinstellungen.tsx");
+  ok(/role="switch"/.test(einst) && /\/api\/fiaon\/chef\/global\/zusatz-freigabe/.test(einst), "Chefbüro: Schalter je Dienst im Global-Raum");
 }
 
 // ═══ 9 GEGENPROBE ═══════════════════════════════════════════════════════════
@@ -248,6 +280,7 @@ for (const [satz, was] of [["Bis zu 3 Nummern", "bis zu"], ["Eingerichtet binnen
 for (const satz of ["Bank-taugliche Nummer", "Premium-Website", "Partner TruResidence", "Adresse geprüft", "kein Postfach"]) ok(JUSTIN_VERBOTEN.test(satz), `Justins Liste erkennt „${satz}“`);
 ok(globalWortPruefenEn("We recommend this").length > 0 && globalWortPruefenEn("set up within 3 days").length > 0, "englische Wand erkennt recommend / Frist mit Ziffer");
 ok(Z.zusatzKlickEntscheidung({ status: "gebucht", bestellRef: "R", rechnungSteht: true }) !== "neu", "Idempotenz: eine bestehende Buchung ergibt nie „neu“");
+ok(!Z.zusatzFreigegeben("website", Z.zusatzFreigabeAus("kaputt")), "Gegenprobe Freigabe: Unlesbares gibt die Website NICHT frei");
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 ok(netz.length === 0, "kein Netzzugriff", netz.join(", "));

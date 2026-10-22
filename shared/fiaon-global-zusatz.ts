@@ -249,6 +249,28 @@ export function buchbareZusatzdienste(): GlobalZusatz[] {
   return GLOBAL_ZUSATZ.filter((z) => z.buchbar);
 }
 
+// ── FREIGABE JE DIENST (Justin, 22.10.2026: „sicher starten“) ────────────────
+// Ein Dienst erscheint beim Kunden erst, wenn die Leitung ihn im Chefbüro freigibt (Global-Raum, Leiste oben).
+// Gespeichert in fiaon_settings unter GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL als JSON-Liste der Schlüssel. Fehlt der
+// Eintrag (oder ist er kaputt), gilt die Vorgabe: NUR „Ihre Domain & E-Mail“. Nicht Freigegebenes sieht der Kunde
+// nicht, und der Server lehnt es ab (409 „noch nicht verfügbar“); die Vorschau der Leitung zeigt alles mit Marke.
+export const GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL = "global_zusatz_freigabe";
+export const GLOBAL_ZUSATZ_FREIGABE_VORGABE: readonly string[] = ["domain"];
+/** Liest den gespeicherten Wert (Text aus fiaon_settings) — unbekannte Schlüssel fallen weg, Unlesbares → Vorgabe. */
+export function zusatzFreigabeAus(wert: unknown): string[] {
+  if (wert == null || String(wert).trim() === "") return [...GLOBAL_ZUSATZ_FREIGABE_VORGABE];
+  let liste: unknown;
+  try { liste = typeof wert === "string" ? JSON.parse(wert) : wert; } catch { return [...GLOBAL_ZUSATZ_FREIGABE_VORGABE]; }
+  if (!Array.isArray(liste)) return [...GLOBAL_ZUSATZ_FREIGABE_VORGABE];
+  const bekannt = new Set(GLOBAL_ZUSATZ.map((z) => z.key));
+  return Array.from(new Set(liste.map((x) => String(x ?? "").trim().toLowerCase()).filter((k) => bekannt.has(k))));
+}
+/** Ist der Dienst für Kunden freigegeben? */
+export function zusatzFreigegeben(key: unknown, freigabe: readonly string[]): boolean {
+  const z = globalZusatz(key);
+  return !!z && z.buchbar && freigabe.includes(z.key);
+}
+
 // ── WAS DER AUFTRAG SCHON ENTHÄLT (Justin, 22.10.2026) ───────────────────────
 // Nie anbieten oder berechnen, was zum Paket oder zum individuellen Angebot des Kunden schon gehört.
 // Gelesen aus den Leistungstexten (Stand 22.10.2026):
@@ -383,6 +405,8 @@ export const ZUSATZ_WOERTER = {
     tunTitel: (titel: string) => `Rechnung offen: ${titel}`,
     tunText: "Mit dem Zahlungseingang richten wir den Dienst ein.",
     vorschau: "Vorschau — hinzufügen kann hier nur der Kunde.",
+    nichtFreigegeben: "nicht freigegeben",
+    nochNichtVerfuegbar: "Dieser Dienst ist noch nicht verfügbar.",
     angabeFehlt: (label: string) => `Bitte geben Sie „${label}“ an.`,
     angabeDomain: "Bitte geben Sie die Domain in der Form „name.com“ an.",
     // Antworten des Servers
@@ -426,6 +450,8 @@ export const ZUSATZ_WOERTER = {
     tunTitel: (titel: string) => `Invoice open: ${titel}`,
     tunText: "We set up the service once your payment has arrived.",
     vorschau: "Preview — only the client can add services here.",
+    nichtFreigegeben: "not released",
+    nochNichtVerfuegbar: "This service is not available yet.",
     angabeFehlt: (label: string) => `Please enter “${label}”.`,
     angabeDomain: "Please enter the domain in the form “name.com”.",
     unbekannt: "This service does not exist.",

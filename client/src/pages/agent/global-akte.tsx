@@ -55,13 +55,15 @@ import {
   tagText, zeitText, fristLage, groesseText, euroText, berlinTag, tageBis, dateiPruefen, UPLOAD_ERLAUBT,
   US_STAATEN, staatName, FIRMA_FELDER, LAND_NAME, VERLAUF_ART, telLink,
 } from "./global-logik";
+import GlobalStationen, { type StationenDaten } from "@/components/global/GlobalStationen";
 import "@/styles/office-pipeline.css";
 import "@/styles/office-rundgang.css";
 import "@/styles/office-global.css";
 
 type Zustand = "laedt" | "ok" | "kein_zugriff" | "nicht_da" | "fehler";
-type Reiter = "stand" | "gesellschaft" | "dokumente" | "verlauf";
-const REITER: [Reiter, string][] = [["stand", "Stand"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["verlauf", "Verlauf"]];
+// 22.10.2026: „Fahrplan & Werte“ — der Stationen-Editor des Chefbüros (EIN, ITIN, D-U-N-S, Telefon, Adressen, Konto, Karten).
+type Reiter = "stand" | "fahrplan" | "gesellschaft" | "dokumente" | "verlauf";
+const REITER: [Reiter, string][] = [["stand", "Stand"], ["fahrplan", "Fahrplan & Werte"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["verlauf", "Verlauf"]];
 
 interface TunWahl { method?: "POST" | "DELETE"; body?: unknown; gut: string; gutText?: string; lokal?: (a: GlobalAkte) => GlobalAkte }
 type Tun = (schluessel: string, pfad: string, wahl: TunWahl) => Promise<boolean>;
@@ -192,7 +194,7 @@ function AkteInnen() {
   const offeneUnterlagen = akte.unterlagen.filter((u) => !u.vorhanden).length;
   const offeneFristen = akte.fristen.filter((f) => !f.erledigt).length;
   const marke: Record<Reiter, string> = {
-    stand: "", gesellschaft: offeneFristen ? String(offeneFristen) : "", dokumente: offeneUnterlagen ? `${offeneUnterlagen} fehlen` : "",
+    stand: "", fahrplan: "", gesellschaft: offeneFristen ? String(offeneFristen) : "", dokumente: offeneUnterlagen ? `${offeneUnterlagen} fehlen` : "",
     verlauf: "",
   };
 
@@ -212,6 +214,9 @@ function AkteInnen() {
             <EtappenAbschnitt {...werk} /><SchrittAbschnitt {...werk} />
             {/* E-268: Ein Individualangebot hat keinen Stichtag, sondern Teile und eine Frist mit Erstattungszusage. */}
             {akte.angebot ? <AngebotAbschnitt {...werk} /> : <StichtagAbschnitt {...werk} />}
+          </div>
+          <div className="gl-panel" role="tabpanel" id="gl-panel-fahrplan" aria-labelledby="gl-reiter-fahrplan" hidden={reiter !== "fahrplan"}>
+            {reiter === "fahrplan" && <FahrplanAbschnitt basis={basis} akte={akte} frisch={() => void laden(true)} />}
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-gesellschaft" aria-labelledby="gl-reiter-gesellschaft" hidden={reiter !== "gesellschaft"}>
             <GesellschaftAbschnitt {...werk} /><FristenAbschnitt {...werk} />
@@ -859,5 +864,34 @@ function Kontext({ akte, tun, laeuft }: Werk) {
           </div>
         </ConfirmDialog>, document.body)}
     </aside>
+  );
+}
+
+// ── Fahrplan & Werte (22.10.2026) ────────────────────────────────────────────
+// Derselbe Editor wie im Chefbüro, über die Office-Wege (/agent/global/auftraege/<ref>/stationen|station|itin|kapital).
+// Eigener Lader mit Zeitgrenze und Fehlerweg — „lädt noch“ und „hat nicht geklappt“ sind zwei Zustände.
+function FahrplanAbschnitt({ basis, akte, frisch }: { basis: string; akte: GlobalAkte; frisch: () => void }) {
+  const [daten, setDaten] = useState<StationenDaten | null>(null);
+  const [fehler, setFehler] = useState("");
+  const [runde, setRunde] = useState(0);
+  useEffect(() => {
+    let aus = false;
+    const ab = new AbortController();
+    const uhr = window.setTimeout(() => ab.abort(), 15_000);
+    setFehler("");
+    fetch(`/api/fiaon${basis}/stationen`, { credentials: "include", signal: ab.signal })
+      .then(async (r) => { const j = await r.json().catch(() => null); if (!r.ok || !j?.ok) throw new Error(j?.error || `Fehler ${r.status}`); return j; })
+      .then((j) => { if (!aus) setDaten({ schritte: j.schritte, gesellschaft: j.gesellschaft, gesellschaftPlus: j.gesellschaftPlus, kapital: j.kapital }); })
+      .catch((e) => { if (!aus) setFehler(e?.name === "AbortError" ? "Der Server antwortet gerade nicht." : String(e?.message || e)); })
+      .finally(() => window.clearTimeout(uhr));
+    return () => { aus = true; ab.abort(); window.clearTimeout(uhr); };
+  }, [basis, runde]);
+  if (fehler) return <div className="gl-glas gl-still" role="alert"><b>Der Fahrplan lässt sich gerade nicht laden.</b><p>{fehler}</p><button type="button" className="pi-knopf" onClick={() => setRunde((x) => x + 1)}>Noch einmal laden</button></div>;
+  if (!daten) return <div className="gl-liste" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="gl-skelett" />)}</div>;
+  return (
+    <div className="gl-ab gl-ab-fahrplan">
+      <GlobalStationen basis={`/api/fiaon${basis}`} ton="hell" onGespeichert={() => { setRunde((x) => x + 1); frisch(); }}
+        daten={{ ...daten, dokumente: akte.dokumente.map((d) => ({ id: d.id, art: d.art, name: d.name, url: `/api/fiaon${basis}/dokument/${encodeURIComponent(d.id)}` })) }} />
+    </div>
   );
 }

@@ -26,8 +26,9 @@ import { randomBytes } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
-  GLOBAL_ZUSATZ, ZUSATZ_WOERTER, buchbareZusatzdienste, globalZusatz, globalZusatzVerfuegbar, globalZusatzZuPaket, zusatzAngabePruefen, zusatzKlickEntscheidung, zusatzPreisText,
-  zusatzWechselErlaubt, type GlobalZusatz, type ZusatzAuftrag, type ZusatzSprache, type ZusatzStatus,
+  GLOBAL_ZUSATZ, GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL, ZUSATZ_WOERTER, buchbareZusatzdienste, globalZusatz, globalZusatzVerfuegbar, globalZusatzZuPaket, zusatzAngabePruefen,
+  zusatzFreigabeAus, zusatzFreigegeben, zusatzKlickEntscheidung, zusatzPreisText, zusatzWechselErlaubt,
+  type GlobalZusatz, type ZusatzAuftrag, type ZusatzSprache, type ZusatzStatus,
 } from "@shared/fiaon-global-zusatz";
 
 type Erg = { status: number; body: Record<string, unknown> };
@@ -95,6 +96,29 @@ async function zeileLesen(id: number): Promise<ZusatzZeile | null> {
       FROM fiaon_global_zusatz z LEFT JOIN fiaon_applications a ON a.ref = z.bestell_ref
      WHERE z.id = ${id} LIMIT 1`) as any[];
   return z ?? null;
+}
+
+// ── FREIGABE JE DIENST (fiaon_settings, Vorgabe: nur Domain & E-Mail) ─────────
+/** Welche Dienste Kunden sehen und buchen dürfen. Ein Lesefehler ergibt die Vorgabe — nie „alles frei“. */
+export async function zusatzFreigabeLesen(): Promise<string[]> {
+  const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL} LIMIT 1`.catch((e) => {
+    console.error("[GLOBAL-ZUSATZ] Freigabe nicht gelesen — es gilt die Vorgabe:", e); return [];
+  })) as any[];
+  return zusatzFreigabeAus(z?.value);
+}
+/** Die Leitung schaltet einen Dienst frei oder zurück. Gibt die neue Liste zurück. */
+export async function zusatzFreigabeSetzen(keyRoh: unknown, an: boolean, wer: string): Promise<{ ok: true; freigabe: string[]; meldung: string } | { ok: false; status: number; error: string }> {
+  const z = globalZusatz(keyRoh);
+  if (!z || !z.buchbar) return { ok: false, status: 400, error: "Diesen Dienst gibt es nicht." };
+  const vorher = await zusatzFreigabeLesen();
+  const neu = an ? Array.from(new Set([...vorher, z.key])) : vorher.filter((k) => k !== z.key);
+  const ordnung = GLOBAL_ZUSATZ.map((x) => x.key);
+  neu.sort((a, b) => ordnung.indexOf(a) - ordnung.indexOf(b));
+  await sqlPool`
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${GLOBAL_ZUSATZ_FREIGABE_SCHLUESSEL}, ${JSON.stringify(neu)}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
+  console.log(`[GLOBAL-ZUSATZ] Freigabe ${z.key} → ${an ? "frei" : "zurück"} (${wer}); jetzt: ${neu.join(", ") || "keiner"}`);
+  return { ok: true, freigabe: neu, meldung: an ? `„${z.de.titel}“ ist für Kunden freigegeben.` : `„${z.de.titel}“ ist für Kunden nicht mehr sichtbar. Bestehende Buchungen laufen weiter.` };
 }
 
 /** Paket und verbundenes Angebot des Mandats — für globalZusatzVerfuegbar (was der Auftrag schon enthält). */
@@ -174,6 +198,8 @@ async function buchen(ref: string, ein: { key: unknown; angabe?: unknown }, kont
   if (!l) return nein(404, s === "en" ? "We cannot find an order for this link." : "Wir finden zu diesem Link keinen Auftrag.");
   const z = globalZusatz(ein.key);
   if (!z || !z.buchbar) return nein(404, W.unbekannt);
+  // Freigabe je Dienst: Was die Leitung nicht freigegeben hat, nimmt der Server nicht an — auch nicht über einen alten Link.
+  if (!zusatzFreigegeben(z.key, await zusatzFreigabeLesen())) return nein(409, W.nochNichtVerfuegbar, { code: "NICHT_FREIGEGEBEN" });
   if (l.status === "storniert") return nein(409, W.storniert);
   // Schon Teil des Pakets oder des Angebots (z. B. Website im Firmenangebot) → keine Rechnung.
   if (globalZusatzVerfuegbar(await zusatzAuftragLesen(ref), z.key).grund === "enthalten") return nein(409, W.schonEnthalten, { code: "ENTHALTEN" });
@@ -425,7 +451,10 @@ export async function zusatzZahlungGemeldet(bestellRef: string): Promise<void> {
 export async function zusatzChefListe(ref: string): Promise<Record<string, unknown>> {
   const zeilen = await zeilenLesen(ref);
   return {
-    katalog: GLOBAL_ZUSATZ.map((z) => ({ key: z.key, titel: z.de.titel, preis: zusatzPreisText(z, "de"), buchbar: z.buchbar, intern: z.intern })),
+    katalog: await (async () => {
+      const frei = await zusatzFreigabeLesen();
+      return GLOBAL_ZUSATZ.map((z) => ({ key: z.key, titel: z.de.titel, preis: zusatzPreisText(z, "de"), buchbar: z.buchbar, freigegeben: zusatzFreigegeben(z.key, frei), intern: z.intern }));
+    })(),
     buchungen: zeilen.map((z) => {
       const k = globalZusatz(z.zusatz_key);
       return {

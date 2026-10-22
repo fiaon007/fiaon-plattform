@@ -22,7 +22,7 @@ import {
 import {
   globalMandateListe, globalMandatChefSicht, globalSchrittSetzen, globalGesellschaftPlusSetzen, globalKapitalSpeichern, globalKapitalEntfernen,
   globalMandatDokument, globalMandatDokumentAendern, globalMandatAntwort, globalMandatAnfragenGelesen, globalMandatTest, globalMandatPortal,
-  globalVorschauLink, globalKundenLink,
+  globalVorschauLink, globalKundenLink, globalStationSpeichern, globalItinKlartext,
 } from "../lib/fiaon-global-mandat";
 import { GLOBAL_DATEI_MAX_BYTES, globalDateinameKopf, globalMimeAuslieferbar } from "../lib/fiaon-global-bereich-regeln";
 
@@ -40,7 +40,7 @@ async function wer(req: Request): Promise<BereichAgent> {
 const ref = (req: Request) => String(req.params.ref || "").trim().toUpperCase();
 
 function antwort(res: Response, erg: { ok: boolean; status?: number; error?: string } & Record<string, unknown>) {
-  if (!erg.ok) return res.status(Number(erg.status) || 400).json({ ok: false, error: erg.error });
+  if (!erg.ok) return res.status(Number(erg.status) || 400).json({ ok: false, error: erg.error, ...(typeof erg.feld === "string" ? { feld: erg.feld } : {}) });
   const { ok: _ok, ...rest } = erg;
   return res.json({ ok: true, ...rest });
 }
@@ -141,6 +141,21 @@ router.post("/chef/global/mandate/:ref/schritt", requireChef("leitung"), async (
   catch (e) { fehler(res, "schritt", e); }
 });
 
+// ── Stationen-Editor (22.10.2026): Status mit Datum + die Werte der Station in EINEM Aufruf ──
+router.post("/chef/global/mandate/:ref/station", requireChef("leitung"), async (req, res) => {
+  try { antwort(res, await globalStationSpeichern(ref(req), req.body ?? {}, await wer(req), { vorZahlung: true })); }
+  catch (e) { fehler(res, "station", e); }
+});
+// Die ITIN im Klartext — nur auf Klick, nie zwischengespeichert; der Verlauf vermerkt intern, wer sie ansah.
+router.post("/chef/global/mandate/:ref/itin", requireChef("leitung"), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const itin = await globalItinKlartext(ref(req), { team: await wer(req) });
+    if (!itin) return res.status(404).json({ ok: false, error: "Für diesen Auftrag ist keine ITIN hinterlegt." });
+    res.json({ ok: true, itin });
+  } catch (e) { fehler(res, "itin", e); }
+});
+
 // ── Banken & Kapital ─────────────────────────────────────────────────────────
 router.post("/chef/global/mandate/:ref/kapital", requireChef("leitung"), async (req, res) => {
   try { antwort(res, await globalKapitalSpeichern(ref(req), req.body ?? {}, await wer(req))); }
@@ -230,6 +245,26 @@ router.post("/chef/global/mandate/:ref/zusatz/:id/status", requireChef("leitung"
     const { zusatzStatusSetzen } = await import("../lib/fiaon-global-zusatz");
     antwort(res, await zusatzStatusSetzen(ref(req), req.params.id, req.body?.status, req.body?.notiz, await wer(req)));
   } catch (e) { fehler(res, "zusatz status", e); }
+});
+
+// ── FREIGABE JE ZUSATZDIENST (22.10.2026, Justin: „sicher starten“) ──────────
+// Vorgabe: nur „Ihre Domain & E-Mail“. Die Leitung schaltet jeden weiteren Dienst einzeln frei — erst dann sieht ihn der
+// Kunde und der Server nimmt die Buchung an. Zurückschalten blendet ihn aus; bestehende Buchungen laufen weiter.
+router.get("/chef/global/zusatz-freigabe", requireChef("leitung"), async (_req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { zusatzFreigabeLesen } = await import("../lib/fiaon-global-zusatz");
+    const { GLOBAL_ZUSATZ, zusatzPreisText } = await import("@shared/fiaon-global-zusatz");
+    const frei = await zusatzFreigabeLesen();
+    res.json({ ok: true, dienste: GLOBAL_ZUSATZ.filter((z) => z.buchbar).map((z) => ({ key: z.key, titel: z.de.titel, preis: zusatzPreisText(z, "de"), freigegeben: frei.includes(z.key) })) });
+  } catch (e) { fehler(res, "zusatz freigabe lesen", e); }
+});
+router.post("/chef/global/zusatz-freigabe", requireChef("leitung"), async (req, res) => {
+  try {
+    if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "Bitte freigeben oder zurücknehmen (an: true/false)." });
+    const { zusatzFreigabeSetzen } = await import("../lib/fiaon-global-zusatz");
+    antwort(res, await zusatzFreigabeSetzen(req.body?.key, req.body.an, (await wer(req)).name));
+  } catch (e) { fehler(res, "zusatz freigabe", e); }
 });
 
 router.post("/chef/global/mandate/:ref/test", requireChef("geschaeftsfuehrung"), async (req, res) => {

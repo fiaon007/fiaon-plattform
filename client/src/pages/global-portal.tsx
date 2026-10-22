@@ -32,33 +32,35 @@ import WellenFeld from "@/components/site/WellenFeld";
 import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
+import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-bereich";
+// 22.10.2026: die Werte der Stationen (EIN, ITIN-Maske, D-U-N-S, Telefon, Adressen, Konto) — eine Quelle mit dem Editor.
+import { stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
+// 22.10.2026: die neue Navigation — Glasleiste mit Themen und Panel, am Telefon ein ganzseitiges Menü.
+import PortalNav, { type NavGruppe } from "./global-portal-nav";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
 const GlobalFach = lazy(() => import("./global-portal-fach"));
 // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Zusatzdienste per Klick — Texte und Preise aus shared/fiaon-global-zusatz.ts.
 const GlobalDienste = lazy(() => import("./global-portal-dienste"));
-import { ZUSATZ_WOERTER, globalZusatz } from "@shared/fiaon-global-zusatz";
+import { ZUSATZ_WOERTER, globalZusatz, zusatzFreigegeben } from "@shared/fiaon-global-zusatz";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-portal.css";
 
 type T = Record<string, any>;
 
 // ── Die Seiten des Portals (E-341): Adresse #<seite>, Zurück-Taste funktioniert. ──
-export type PortalSeite = "uebersicht" | "fahrplan" | "tresor" | "post" | "anfragen" | "kapital" | "vertrag" | "dienste" | "strategie" | "recht" | "steuern";
-const SEITEN: PortalSeite[] = ["uebersicht", "fahrplan", "tresor", "post", "anfragen", "kapital", "vertrag", "dienste", "strategie", "recht", "steuern"];
-const NAV_GRUPPEN: { key: "auftrag" | "fach"; seiten: { key: PortalSeite; Icon: any }[] }[] = [
-  { key: "auftrag", seiten: [
-    { key: "uebersicht", Icon: LayoutGrid }, { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
-    { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
-    { key: "dienste", Icon: Layers },
-  ] },
-  { key: "fach", seiten: [{ key: "strategie", Icon: Compass }, { key: "recht", Icon: Scale }, { key: "steuern", Icon: Calculator }] },
+// 22.10.2026: dazu „gesellschaft“ (die Stammdaten) und „adressen“ (Nummer & Adressen) — beide aus den Werten der Stationen.
+export type PortalSeite = "uebersicht" | "fahrplan" | "gesellschaft" | "tresor" | "post" | "adressen" | "anfragen" | "kapital" | "vertrag" | "dienste" | "strategie" | "recht" | "steuern";
+const SEITEN: PortalSeite[] = ["uebersicht", "fahrplan", "gesellschaft", "tresor", "post", "adressen", "anfragen", "kapital", "vertrag", "dienste", "strategie", "recht", "steuern"];
+// Die Gruppen der Navigation (22.10.2026). Ein Thema mit `direkt` führt sofort auf seine Seite; die anderen öffnen ein Panel.
+const GRUPPEN: { key: "uebersicht" | "weg" | "buero" | "kapital" | "vertrag" | "fach"; direkt?: PortalSeite; seiten: PortalSeite[] }[] = [
+  { key: "uebersicht", direkt: "uebersicht", seiten: ["uebersicht"] },
+  { key: "weg", seiten: ["fahrplan", "gesellschaft"] },
+  { key: "buero", seiten: ["post", "tresor", "adressen", "anfragen", "dienste"] },
+  { key: "kapital", direkt: "kapital", seiten: ["kapital"] },
+  { key: "vertrag", direkt: "vertrag", seiten: ["vertrag"] },
+  { key: "fach", seiten: ["strategie", "recht", "steuern"] },
 ];
-const KACHELN: { key: PortalSeite; Icon: any; fach?: boolean }[] = [
-  { key: "strategie", Icon: Compass, fach: true }, { key: "recht", Icon: Scale, fach: true }, { key: "steuern", Icon: Calculator, fach: true },
-  { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
-  { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
-  { key: "dienste", Icon: Layers },
-];
+const ROEMISCH = ["", "I", "II", "III", "IV"];
 const seiteAusHash = (): PortalSeite => {
   const h = (typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "") as PortalSeite;
   return SEITEN.includes(h) ? h : "uebersicht";
@@ -68,8 +70,24 @@ const seiteAusHash = (): PortalSeite => {
 const W = {
   de: {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
-    navTitel: "Bereiche Ihres Portals", nav: { auftrag: "Ihr Auftrag", fach: "Fachbereiche" } as Record<string, string>,
-    seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan & Gesellschaft", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    navTitel: "Bereiche Ihres Portals", buero: "Ihr US-Büro", menue: "Menü",
+    gruppen: { uebersicht: "Übersicht", weg: "Ihr Weg", buero: "Ihr Büro", kapital: "Kapital", vertrag: "Vertrag & Zahlung", fach: "Fachbereiche" } as Record<string, string>,
+    seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan", gesellschaft: "Ihre Gesellschaft", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    phase: (r: string) => `Phase ${r} von IV`, vorStart: "Vor dem Start", abgeschlossen: "Abgeschlossen", stationen: (a: number, b: number) => `${a} von ${b} Stationen`,
+    chip: { seit: (f: string, d: string) => `${f} seit ${d}`, ein: "EIN erteilt", itin: "ITIN erteilt", duns: "D-U-N-S vorhanden", konto: "Geschäftskonto eröffnet" },
+    rolle: "Ihr Ansprechpartner", nachricht: "Nachricht", meilenstein: "Nächster Schritt",
+    karteWeg: { auge: "Ihr Fortschritt", text: (a: number, b: number) => `${a} von ${b} Stationen erledigt — jede mit Datum und Wert.`, knopf: "Zum Fahrplan" },
+    karteBuero: { auge: "Ihr Briefkasten", neu: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, leer: "Alles gelesen", text: "Jeder Brief für Ihre Gesellschaft wird für Sie eingescannt.", knopf: "Zur Post" },
+    karteFach: { auge: "Fachbereiche", titel: "Antworten für Ihre Gesellschaft", text: "Sparring, Vorlagen und Fristen — jederzeit, auf Ihre Gesellschaft bezogen." },
+    zuletzt: "Zuletzt passiert", bueroTitel: "Ihr Büro", bueroLead: "Nummer, Adressen, Post, Konto und Fristen — ein Klick öffnet jedes Detail.",
+    kachel: { nummer: "Ihre US-Nummer", konto: "Konto & Karten", adressen: "Adressen & Post", fristen: "Fristen", dokumente: "Dokumente", dienste: "Ihre Dienste" },
+    kontoEroeffnet: (d: string) => `Geschäftskonto eröffnet am ${d}`, kontoFolgt: "Das Geschäftskonto folgt im Fahrplan.", kartenLeer: "Karten erscheinen hier mit ihrem Stand.",
+    karte: { firma: "Firmenkarte", privat: "Private Karte" } as Record<string, string>, limit: (b: string) => `Rahmen ${b}`,
+    geschaeft: "Geschäftsadresse", privat: "Private Adresse", agentPost: "Anschrift für Behördenpost", adresseFolgt: "folgt", postZahl: (n: number, neu: number) => neu ? `${neu} neu von ${n}` : n === 1 ? "1 Brief" : `${n} Briefe`,
+    fristenLeer: "Keine Frist in Sicht.", dokumenteLeer: "Noch keine Dokumente.", diensteLeer: "Was Sie dazunehmen, erscheint hier.", oeffnenPfeil: "Öffnen",
+    anzeigen: "Anzeigen", verbergen: "Verbergen", itinFehler: "Die ITIN ließ sich gerade nicht anzeigen — bitte gleich noch einmal.",
+    adressenLeer: "Ihre US-Nummer und Ihre Adressen erscheinen hier, sobald sie eingerichtet sind.", anrufen: "Anrufen",
+    stammTitel: "Die Daten Ihrer Gesellschaft", stammLead: "Nummern, Adressen und Daten — zum Nachschlagen und Kopieren.", zumFahrplan: "Zum Fahrplan",
     // Leer = die Seite trägt ihren einen Satz im Abschnitt darunter (keine Doppelung).
     seitenSatz: {
       fahrplan: "",
@@ -94,7 +112,7 @@ const W = {
     unterlagenTitel: (n: number) => n === 1 ? "Eine Unterlage fehlt noch" : `${n} Unterlagen fehlen noch`, unterlagenText: "Bitte im Tresor hochladen.", zumTresor: "Zum Tresor",
     termin: "Ihr Startgespräch",
     fahrplanTitel: "Ihr Fahrplan", fahrplanLead: "Alle Schritte zu Gesellschaft, Konto und Kapital — mit Datum, sobald erledigt.",
-    stand: { offen: "offen", in_arbeit: "in Arbeit", erledigt: "erledigt" } as Record<string, string>,
+    stand: { offen: "offen", in_arbeit: "in Arbeit", beantragt: "beantragt", erledigt: "erledigt" } as Record<string, string>,
     etappeStand: { fertig: "abgeschlossen", jetzt: "aktuell", arbeit: "in Arbeit", offen: "folgt" } as Record<string, string>,
     tresorTitel: "Ihr Tresor", tresorLead: "Alle Dokumente vertraulich an einem Ort — unterschreiben direkt hier.", alle: "Alle",
     nachweise: "Nachweise und Sicherheiten", vertragRechnungen: "Vertrag und Rechnungen", neu: "Neu", leerMappe: "Noch leer.",
@@ -118,8 +136,24 @@ const W = {
   },
   en: {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
-    navTitel: "Areas of your portal", nav: { auftrag: "Your order", fach: "Expert areas" } as Record<string, string>,
-    seiten: { uebersicht: "Overview", fahrplan: "Roadmap & company", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    navTitel: "Areas of your portal", buero: "Your US office", menue: "Menu",
+    gruppen: { uebersicht: "Overview", weg: "Your path", buero: "Your office", kapital: "Capital", vertrag: "Contract & payment", fach: "Expert areas" } as Record<string, string>,
+    seiten: { uebersicht: "Overview", fahrplan: "Roadmap", gesellschaft: "Your company", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    phase: (r: string) => `Phase ${r} of IV`, vorStart: "Before the start", abgeschlossen: "Completed", stationen: (a: number, b: number) => `${a} of ${b} stations`,
+    chip: { seit: (f: string, d: string) => `${f} since ${d}`, ein: "EIN issued", itin: "ITIN issued", duns: "D-U-N-S on file", konto: "Business account open" },
+    rolle: "Your contact", nachricht: "Message", meilenstein: "Next step",
+    karteWeg: { auge: "Your progress", text: (a: number, b: number) => `${a} of ${b} stations done — each with its date and value.`, knopf: "To the roadmap" },
+    karteBuero: { auge: "Your mailbox", neu: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, leer: "All read", text: "Every letter for your company is scanned for you.", knopf: "To your mail" },
+    karteFach: { auge: "Expert areas", titel: "Answers for your company", text: "Sparring, templates and deadlines — any time, tailored to your company." },
+    zuletzt: "Recently", bueroTitel: "Your office", bueroLead: "Number, addresses, mail, account and deadlines — one click opens every detail.",
+    kachel: { nummer: "Your US number", konto: "Account & cards", adressen: "Addresses & mail", fristen: "Deadlines", dokumente: "Documents", dienste: "Your services" },
+    kontoEroeffnet: (d: string) => `Business account opened on ${d}`, kontoFolgt: "The business account follows on the roadmap.", kartenLeer: "Cards appear here with their status.",
+    karte: { firma: "Business card", privat: "Personal card" } as Record<string, string>, limit: (b: string) => `Limit ${b}`,
+    geschaeft: "Business address", privat: "Private address", agentPost: "Address for official mail", adresseFolgt: "to follow", postZahl: (n: number, neu: number) => neu ? `${neu} new of ${n}` : n === 1 ? "1 letter" : `${n} letters`,
+    fristenLeer: "No deadline in sight.", dokumenteLeer: "No documents yet.", diensteLeer: "What you add appears here.", oeffnenPfeil: "Open",
+    anzeigen: "Show", verbergen: "Hide", itinFehler: "The ITIN could not be shown just now — please try again shortly.",
+    adressenLeer: "Your US number and your addresses appear here once they are set up.", anrufen: "Call",
+    stammTitel: "Your company's details", stammLead: "Numbers, addresses and dates — to look up and copy.", zumFahrplan: "To the roadmap",
     seitenSatz: {
       fahrplan: "",
       tresor: "",
@@ -143,7 +177,7 @@ const W = {
     unterlagenTitel: (n: number) => n === 1 ? "One document is still missing" : `${n} documents are still missing`, unterlagenText: "Please upload to your vault.", zumTresor: "Go to the vault",
     termin: "Your kick-off call",
     fahrplanTitel: "Your roadmap", fahrplanLead: "Every step to company, account and capital — dated once done.",
-    stand: { offen: "open", in_arbeit: "in progress", erledigt: "done" } as Record<string, string>,
+    stand: { offen: "open", in_arbeit: "in progress", beantragt: "applied for", erledigt: "done" } as Record<string, string>,
     etappeStand: { fertig: "completed", jetzt: "current", arbeit: "in progress", offen: "upcoming" } as Record<string, string>,
     tresorTitel: "Your vault", tresorLead: "Every document, confidential and in one place — sign right here.", alle: "All",
     nachweise: "Evidence and collateral", vertragRechnungen: "Contract and invoices", neu: "New", leerMappe: "Empty for now.",
@@ -316,15 +350,18 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const kb = (n?: number) => !n ? "" : n > 1024 * 1024 ? `${(n / 1024 / 1024).toLocaleString(loc, { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
   // ── Seiten (E-341) ──
   const [seite, setSeite] = useState<PortalSeite>(seiteAusHash);
+  // 22.10.2026: Die Seite gleitet in die Richtung, in der sie im Menü steht (vor = weiter rechts/unten, zurück = davor).
+  const [richtung, setRichtung] = useState<"vor" | "zurueck">("vor");
+  const wechsel = (z: PortalSeite) => setSeite((alt) => { setRichtung(SEITEN.indexOf(z) >= SEITEN.indexOf(alt) ? "vor" : "zurueck"); return z; });
   useEffect(() => {
-    const neu = () => setSeite(seiteAusHash());
+    const neu = () => wechsel(seiteAusHash());
     window.addEventListener("hashchange", neu);
     return () => window.removeEventListener("hashchange", neu);
   }, []);
   const geh = (ziel: PortalSeite | string) => {
     const z = (SEITEN.includes(ziel as PortalSeite) ? ziel : "uebersicht") as PortalSeite;
     if (window.location.hash !== `#${z}`) window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${z}`);
-    setSeite(z);
+    wechsel(z);
     window.scrollTo({ top: 0, behavior: ruhig() ? "auto" : "smooth" });
   };
   useAuftauchen(`${a.ref}:${seite}`);
@@ -357,7 +394,19 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const ap = a.ansprechpartner as T | undefined;
   const apVorname = ap?.vorname || ap?.name?.split(" ")[0] || (s === "en" ? "your contact" : "Ihrem Ansprechpartner");
   const g = a.gesellschaft ?? {};
-  const gp = a.gesellschaftPlus ?? {};
+  const gp: GlobalPlusKunde = a.gesellschaftPlus ?? {};
+  // Die ITIN im Klartext — nur nach „Anzeigen“, für 20 Sekunden (der Server liefert sonst nur die Maske).
+  const [itinKlar, setItinKlar] = useState<string | null>(null);
+  const [itinFehler, setItinFehler] = useState("");
+  useEffect(() => { if (!itinKlar) return; const u = window.setTimeout(() => setItinKlar(null), 20_000); return () => window.clearTimeout(u); }, [itinKlar]);
+  const itinAnzeigen = async () => {
+    setItinFehler("");
+    try {
+      const r = await fetch(mitToken("/itin"), { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) setItinKlar(String(j.itin)); else setItinFehler(j.error || w.itinFehler);
+    } catch { setItinFehler(w.itinFehler); }
+  };
   const kapital: T[] = a.kapital ?? [];
   const zugesagtCents = kapital.filter((k) => (k.status === "zugesagt" || k.status === "aktiv") && ["karte", "kreditrahmen", "darlehen"].includes(k.art)).reduce((x, k) => x + Number(k.betragCents || 0), 0);
   const J = GLOBAL_JAHRESBETREUUNG[s];
@@ -474,7 +523,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const kachelSatz = (k: PortalSeite): string => {
     const de = s !== "en";
     switch (k) {
-      case "fahrplan": return de ? `${erledigt} von ${gesamt} Schritten erledigt` : `${erledigt} of ${gesamt} steps done`;
+      case "uebersicht": return de ? "Ihr Stand auf einen Blick" : "Your status at a glance";
+      case "fahrplan": return de ? `${erledigt} von ${gesamt} Stationen erledigt` : `${erledigt} of ${gesamt} stations done`;
+      case "gesellschaft": return [g.name, gp.ein ? `EIN ${gp.ein}` : "", gp.duns ? "D-U-N-S" : ""].filter(Boolean).join(" · ") || (de ? "Name, Nummern und Daten" : "Name, numbers and dates");
+      case "adressen": return [gp.usTelefon ? stationTelefonText(gp.usTelefon) : "", gp.usAdresse ? (de ? "Geschäftsadresse" : "Business address") : "", gp.privatAdresse ? (de ? "private Adresse" : "private address") : ""].filter(Boolean).join(" · ") || (de ? "Folgt mit der Einrichtung" : "Follows with the set-up");
       case "tresor": return de ? `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} Dokumente${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} zur Unterschrift` : ""}` : `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} documents${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} to sign` : ""}`;
       case "post": return postNeu.length ? (de ? `${postNeu.length} ungelesen` : `${postNeu.length} unread`) : (de ? `${post.length} Briefe` : `${post.length} letters`);
       case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : (de ? `${nachrichten.length} Nachrichten` : `${nachrichten.length} messages`);
@@ -490,6 +542,58 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       default: return "";
     }
   };
+
+  // ── „Ihr US-Büro“ (22.10.2026): Phasen, Ring, Navigation ──
+  const erstePhaseOffen = erledigt > 0 ? ([1, 2, 3, 4].find((nr) => sichtbareSchritte.some((x) => x.etappe === nr && x.status !== "erledigt")) ?? 0) : 0;
+  const phasen = [1, 2, 3, 4].map((nr) => {
+    const e = (a.etappen ?? []).find((x: T) => x.nr === nr) ?? { nr, titel: "", stand: "offen" };
+    const liste = sichtbareSchritte.filter((x) => x.etappe === nr);
+    return { nr, titel: String(e.titel ?? ""), stand: standAnzeige(e), jetzt: e.stand === "jetzt" || (e.stand !== "fertig" && !(a.etappen ?? []).some((x: T) => x.stand === "jetzt" && x.nr >= 1 && x.nr <= 4) && nr === erstePhaseOffen), imPaket: e.imPaket !== false, fertig: liste.filter((x) => x.status === "erledigt").length, gesamt: liste.length };
+  });
+  // Die Phase der Bühne: die Etappe des Servers; steht sie noch auf „Auftrag angelegt“, obwohl der Fahrplan schon läuft,
+  // die erste Phase mit offener Station (die Seite widerspricht sich nicht).
+  const etappeServer = Number((a.etappen ?? []).find((x: T) => x.stand === "jetzt")?.nr ?? (a.etappe ?? 0));
+  const etappeJetzt = etappeServer >= 1 ? etappeServer : erledigt > 0 ? (phasen.find((ph) => ph.gesamt > 0 && ph.fertig < ph.gesamt)?.nr ?? 4) : 0;
+  const phaseZeile = etappeJetzt >= 1 && etappeJetzt <= 4 ? `${w.phase(ROEMISCH[etappeJetzt])} · ${phasen[etappeJetzt - 1].titel}` : etappeJetzt >= 5 ? w.abgeschlossen : w.vorStart;
+  const chips: string[] = [
+    g.gegruendetAm ? w.chip.seit(g.form || "LLC", tagKurz(g.gegruendetAm)) : "",
+    gp.ein ? w.chip.ein : "", gp.itinVorhanden ? w.chip.itin : "", gp.duns ? w.chip.duns : "", gp.kontoEroeffnetAm ? w.chip.konto : "",
+  ].filter(Boolean);
+  const freigabe: string[] = a.dienste?.freigegeben ?? [];
+  const dienstFrei = (k: string) => vorschau || zusatzFreigegeben(k, freigabe);
+  const gebuchteDienste = ((a.dienste?.gebucht ?? []) as T[]).filter((x) => globalZusatz(x.key));
+  const hatAdressen = !!(gp.usTelefon || gp.usAdresse || gp.privatAdresse || gp.agentAdresse);
+  const karten = kapital.filter((k) => k.art === "karte");
+  const naechsteFristen = ((a.fristen ?? []) as T[]).filter((f) => !f.erledigt && f.faelligAm >= heuteIso).slice(0, 2);
+  const tageBis = (iso: string) => Math.round((new Date(iso + "T12:00:00").getTime() - new Date(new Date().toDateString()).getTime() - 12 * 3600_000) / 86_400_000);
+  const zahlFuer = (k: PortalSeite) => k === "anfragen" ? ungeleseneAntworten.length : k === "post" ? postNeu.length : k === "tresor" ? zuUnterschreiben.length : 0;
+  const navGruppen: NavGruppe<PortalSeite>[] = GRUPPEN.map((gr) => ({
+    key: gr.key, titel: w.gruppen[gr.key], direkt: gr.direkt,
+    // „Nummer & Adressen“ erscheint, sobald es etwas zu zeigen gibt; die Adresse #adressen geht trotzdem immer.
+    eintraege: gr.seiten.filter((k) => k !== "adressen" || hatAdressen || seite === "adressen").map((k) => ({ key: k, titel: w.seiten[k], satz: kachelSatz(k), zahl: zahlFuer(k) })),
+    karte: gr.key === "weg" ? { auge: w.karteWeg.auge, titel: `${prozent} %`, text: w.karteWeg.text(erledigt, gesamt), ziel: "fahrplan" as PortalSeite, knopf: w.karteWeg.knopf }
+      : gr.key === "buero" ? { auge: w.karteBuero.auge, titel: postNeu.length ? w.karteBuero.neu(postNeu.length) : w.karteBuero.leer, text: w.karteBuero.text, ziel: "post" as PortalSeite, knopf: w.karteBuero.knopf }
+      : gr.key === "fach" ? { auge: w.karteFach.auge, titel: w.karteFach.titel, text: w.karteFach.text } : undefined,
+  }));
+  const gruppeVon = (k: PortalSeite) => GRUPPEN.find((gr) => gr.seiten.includes(k))?.key ?? "uebersicht";
+  // Die Zeilen unter einer Station: Werte aus den Stationen; Karten und Rahmen aus Banken & Kapital.
+  const kapitalZeile = (k: T) => [k.art === "karte" ? w.karte[k.inhaber === "privat" ? "privat" : "firma"] : k.artText, k.statusText, k.betragCents != null ? w.limit(globalUsd(k.betragCents, s)) : "", k.entschiedenAm ? tagKurz(k.entschiedenAm) : k.beantragtAm ? w.beantragt(tagKurz(k.beantragtAm)) : ""].filter(Boolean).join(" · ");
+  const stationWerte = (schluessel: string): { zeilen: StationZeile[]; kapital: T[] } => ({
+    zeilen: stationZeilen(schluessel, g, gp, s, tag, (c) => usBundesstaatName(c)),
+    kapital: schluessel === "karte_1" ? karten.slice(0, 1) : schluessel === "kartenleiter" ? karten.slice(1) : schluessel === "kreditrahmen" ? kapital.filter((k) => k.art === "kreditrahmen" || k.art === "darlehen") : [],
+  });
+  const WertZeile = ({ z }: { z: StationZeile }) => (
+    <div className="gp-wert">
+      <dt>{z.titel}</dt>
+      <dd>
+        <span className={z.geheim ? "gp-geheim" : undefined}>{z.geheim === "itin" && itinKlar ? itinKlar : z.wert}</span>
+        {z.geheim === "itin" && (itinKlar
+          ? <button type="button" className="gp-kopie" onClick={() => setItinKlar(null)}>{w.verbergen}</button>
+          : <button type="button" className="gp-kopie" onClick={() => void itinAnzeigen()} data-fiaon="itin-anzeigen">{w.anzeigen}</button>)}
+        {z.kopie && <button type="button" className="gp-kopie" onClick={() => kopieren(z.kopie!, z.key)} aria-label={`${z.titel} kopieren`}>{kopiert === z.key ? <><Check size={12} /> {w.kopiert}</> : <Copy size={12} />}</button>}
+      </dd>
+    </div>
+  );
 
   // ── Mappen-Inhalt ──
   const zeilenVertrag = () => (
@@ -514,96 +618,59 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     <div className="gp">
       {vorschau && <div className="gp-vorschau" role="note"><Sparkles size={14} /> {w.vorschau(vollerName || name || "der Kunde")}</div>}
 
-      {/* ── Leiste ── */}
-      <header className="gp-leiste">
-        <a className="gp-logo" href={s === "en" ? "/en/business" : "/business"} aria-label="FIAON Global"><FiaonWortmarke variante="global" hoehe="22px" /></a>
-        <span className="gp-leiste-trenner" aria-hidden="true" />
-        <span className="gp-leiste-titel">{w.meinAuftrag}</span>
-        <span className="gp-leiste-sicher"><Lock size={12} /> {w.sicher}</span>
-        {ap && (
-          <button type="button" className="gp-leiste-person" onClick={() => zu("gp-anfragen")} title={w.schreiben}>
-            {ap.bild ? <img src={ap.bild} alt="" /> : <span>{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
-            <b>{ap.name}</b>
-          </button>
-        )}
-      </header>
+      {/* ── Navigation (22.10.2026): schwebende Glasleiste mit Themen und Panel; am Telefon ein ganzseitiges Menü ── */}
+      <PortalNav gruppen={navGruppen} seite={seite} geh={geh} titel={w.buero} aktuellTitel={w.seiten[seite]}
+        marke={<a className="gp-logo" href={s === "en" ? "/en/business" : "/business"} aria-label="FIAON Global"><FiaonWortmarke variante="global" hoehe="22px" /></a>}
+        person={ap ? { name: String(ap.name ?? apVorname), rolle: w.rolle, bild: ap.bild ?? null, onKlick: () => geh("anfragen") } : null}
+        texte={{ navTitel: w.navTitel, menue: w.menue, schliessen: w.schliessen, sicher: w.sicher, schreiben: w.schreiben }} />
 
       <div className="gp-app">
-        {/* ── Navigation: zwei Gruppen, am Handy eine wischbare Leiste (klebt nicht über dem Inhalt) ── */}
-        <nav className="gp-nav" aria-label={w.navTitel}>
-          {NAV_GRUPPEN.map((gr) => (
-            <div key={gr.key} className="gp-nav-gruppe">
-              <span className="gp-nav-titel">{w.nav[gr.key]}</span>
-              {gr.seiten.map((x) => {
-                const zahl = x.key === "anfragen" ? ungeleseneAntworten.length : x.key === "post" ? postNeu.length : x.key === "tresor" ? zuUnterschreiben.length : 0;
-                return (
-                  <a key={x.key} href={`#${x.key}`} className={`gp-nav-punkt${seite === x.key ? " an" : ""}${gr.key === "fach" ? " fach" : ""}`} aria-current={seite === x.key ? "page" : undefined}
-                     onClick={(e) => { e.preventDefault(); geh(x.key); }}>
-                    <span className="gp-nav-icon"><x.Icon size={17} strokeWidth={1.6} /></span>
-                    <span className="gp-nav-text">{w.seiten[x.key]}</span>
-                    {zahl > 0 && <i>{zahl}</i>}
-                  </a>
-                );
-              })}
-            </div>
-          ))}
-          {ap && (
-            <button type="button" className="gp-nav-person" onClick={() => geh("anfragen")}>
-              {ap.bild ? <img src={ap.bild} alt="" /> : <span>{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
-              <div><small>{w.kontaktTitel}</small><b>{ap.name}</b></div>
-            </button>
-          )}
-        </nav>
-
-        <div className="gp-seiteninhalt" key={seite}>
+        <div className="gp-seiteninhalt" key={seite} data-richtung={richtung} data-fiaon={`portal-seite-${seite}`}>
           {seite === "uebersicht" ? (
             <>
-              {/* ── Die Bühne (die EINE dunkle Stelle) ── */}
+              {/* ── Die Bühne (die EINE dunkle Stelle): Gesellschaft, Phase, Ring über vier Phasen, nächster Schritt, Kontakt ── */}
       <section className="gp-buehne" aria-label={w.ihreGesellschaft}>
         <div className="gp-licht a" aria-hidden="true" /><div className="gp-licht b" aria-hidden="true" />
         <div className="gp-buehne-innen">
           <div className="gp-buehne-links">
             <p className="gp-gruss">{hallo}{name ? `, ${name}` : ""}.</p>
-            <span className="gp-auge hell">{g.name ? w.ihreGesellschaft : (a.firma?.name || w.ihreGesellschaft)}</span>
-            <h1 className="gp-llc">{g.name || w.gesellschaftOhneName}</h1>
-            <p className="gp-llc-zeile">
-              {[g.form, g.bundesstaat, g.gegruendetAm ? `${w.felder.gegruendet} ${tag(g.gegruendetAm)}` : w.inGruendung].filter(Boolean).join(" · ")}
-            </p>
+            <span className="gp-auge hell">{w.buero} · {a.paketName}</span>
+            <h1 className="gp-llc">{g.name || a.firma?.name || w.gesellschaftOhneName}</h1>
+            <p className="gp-llc-zeile">{phaseZeile}</p>
             <div className="gp-pillen">
               <span className={`gp-pille st-${a.status}`}>{t.status?.[a.status] ?? a.status}</span>
-              <span className="gp-pille leise">{a.paketName}</span>
-              <span className="gp-pille leise">{a.ref}</span>
+              {chips.map((c) => <span key={c} className="gp-pille">{c}</span>)}
             </div>
+            {ap && (
+              <div className="gp-kontakt-glas">
+                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-kontakt-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
+                <div><b>{ap.name}</b><small>{w.rolle}</small></div>
+                <button type="button" className="gp-glas-knopf" onClick={() => geh("anfragen")}>{w.nachricht}</button>
+              </div>
+            )}
           </div>
           <div className="gp-buehne-rechts">
-            <div className="gp-ring-karte">
-              <svg className="gp-ring" viewBox="0 0 120 120" aria-hidden="true">
-                <defs><linearGradient id="gpRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7fb6ff" /><stop offset="1" stopColor="#288dfa" /></linearGradient></defs>
-                <circle cx="60" cy="60" r="52" className="gp-ring-grund" />
-                <circle cx="60" cy="60" r="52" className="gp-ring-wert" style={{ ["--gp-p" as any]: prozent }} />
-              </svg>
-              <div className="gp-ring-mitte"><b><Zaehler ziel={prozent} />%</b><small>{w.fortschritt}</small></div>
-              <p className="gp-ring-satz">{w.schritte(erledigt, gesamt)}</p>
-            </div>
-            <div className="gp-naechster">
-              <span className="gp-auge hell"><ArrowRight size={12} /> {w.naechster}</span>
+            <PhasenRing phasen={phasen} prozent={prozent} zeile={w.stationen(erledigt, gesamt)} titel={w.fortschritt} />
+            <button type="button" className="gp-naechster" onClick={() => geh("fahrplan")}>
+              <span className="gp-auge hell">{w.meilenstein}</span>
               <p>{a.naechsterSchritt?.text || w.naechsterLeer}</p>
               {a.naechsterSchritt?.bis && <small>{t.schrittBis(tag(a.naechsterSchritt.bis))}</small>}
-            </div>
+            </button>
           </div>
         </div>
-        <ol className="gp-etappen" aria-label={t.wegTitel}>
-          {(a.etappen ?? []).map((e: T, i: number) => (
-            <li key={e.nr} data-stand={standAnzeige(e)} style={{ ["--i" as any]: i }} aria-current={e.stand === "jetzt" ? "step" : undefined}>
-              <span className="gp-etappe-punkt">{standAnzeige(e) === "fertig" ? <Check size={12} strokeWidth={3} /> : e.nr}</span>
-              <b>{e.titel}</b>
-              <small>{w.etappeStand[standAnzeige(e)]}</small>
+        <ol className="gp-phasen" aria-label={t.wegTitel}>
+          {phasen.map((ph, i) => (
+            <li key={ph.nr} style={{ ["--i" as any]: i }}>
+              <button type="button" className={`gp-phase st-${ph.stand}${ph.jetzt ? " jetzt" : ""}${ph.imPaket ? "" : " ausserhalb"}`} onClick={() => geh("fahrplan")} aria-current={ph.jetzt ? "step" : undefined}>
+                <span className="gp-phase-kopf"><i>{ph.stand === "fertig" ? <Check size={12} strokeWidth={3} /> : ROEMISCH[ph.nr]}</i><b>{ph.titel}</b></span>
+                <small>{ph.gesamt ? `${ph.fertig} ${s === "en" ? "of" : "von"} ${ph.gesamt}` : ""}{ph.gesamt ? " · " : ""}{w.etappeStand[ph.stand]}</small>
+                <span className="gp-phase-balken" aria-hidden="true"><i style={{ width: `${ph.gesamt ? Math.round((ph.fertig / ph.gesamt) * 100) : ph.stand === "fertig" ? 100 : 0}%` }} /></span>
+              </button>
             </li>
           ))}
         </ol>
         <WellenFeld unten className="gp-welle" />
       </section>
-
 
               <div className="gp-spalten">
                 <main className="gp-haupt">
@@ -637,57 +704,68 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             )}
             {sg && !sg.zeile && sg.satz && <p className="gp-leise">{sg.satz}</p>}
           </section>
-
-
-                  <section className="gp-abschnitt gp-auftauchen">
-                    <h2 className="gp-h2">{w.alleBereiche}</h2>
-                    <div className="gp-kacheln">
-                      {KACHELN.map((x, i) => (
-                        <a key={x.key} href={`#${x.key}`} className={`gp-kachel${x.fach ? " fach" : ""}`} style={{ ["--i" as any]: i }} onClick={(e) => { e.preventDefault(); geh(x.key); }}>
-                          <span className="gp-kachel-icon"><x.Icon size={20} strokeWidth={1.5} /></span>
-                          <b>{w.seiten[x.key]}</b>
-                          <small>{kachelSatz(x.key)}</small>
-                          <ArrowRight size={16} className="gp-kachel-pfeil" />
-                        </a>
-                      ))}
-                    </div>
-                  </section>
-          {/* ── Verlauf ── */}
-          <section className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2">{w.verlaufTitel}</h2>
-            {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
-              <>
-                <ol className="gp-verlauf">
-                  {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 6).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
-                </ol>
-                {(a.verlauf as T[]).length > 6 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
-              </>
-            )}
-          </section>
                 </main>
                 <aside className="gp-seite">
+          {/* ── Zuletzt passiert ── */}
           <div className="gp-karte gp-auftauchen">
-            <span className="gp-auge">{w.kontaktTitel}</span>
-            {ap ? (
-              <div className="gp-person">
-                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-person-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
-                <div>
-                  <b>{ap.name}</b>
-                  {ap.email && <a href={`mailto:${ap.email}`}><Mail size={13} /> {ap.email}</a>}
-                  {ap.telefon && <a href={`tel:${String(ap.telefon).replace(/\s/g, "")}`}><Phone size={13} /> {ap.telefon}</a>}
-                </div>
-              </div>
-            ) : <p className="gp-leise">{t.seiteAnsprechLeer}</p>}
-            <button type="button" className="gp-knopf leise breit" onClick={() => zu("gp-anfragen")}><MessageSquare size={15} /> {w.schreiben}</button>
+            <span className="gp-auge">{w.zuletzt}</span>
+            {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
+              <>
+                <ol className="gp-verlauf kurz">
+                  {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 5).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
+                </ol>
+                {(a.verlauf as T[]).length > 5 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
+              </>
+            )}
           </div>
-
                 </aside>
               </div>
+
+              {/* ── Ihr Büro: Nummer, Konto & Karten, Adressen & Post, Fristen, Dokumente, Dienste — jede Kachel klickbar ── */}
+              <section className="gp-abschnitt gp-auftauchen gp-buero" aria-label={w.bueroTitel}>
+                <h2 className="gp-h2">{w.bueroTitel}</h2>
+                <p className="gp-lead">{w.bueroLead}</p>
+                <div className="gp-buero-raster">
+                  <button type="button" className="gp-buero-kachel nummer" onClick={() => geh("adressen")} data-fiaon="buero-nummer">
+                    <span className="gp-auge">{w.kachel.nummer}</span>
+                    {gp.usTelefon ? <b className="gp-nummer">{stationTelefonText(gp.usTelefon)}</b> : <span className="gp-leise">{w.adresseFolgt}</span>}
+                    <span className="gp-buero-fuss">{w.seiten.adressen} <ArrowRight size={14} /></span>
+                  </button>
+                  <button type="button" className="gp-buero-kachel" onClick={() => geh("kapital")} data-fiaon="buero-konto">
+                    <span className="gp-auge">{w.kachel.konto}</span>
+                    <span className="gp-buero-zeile">{gp.kontoEroeffnetAm ? w.kontoEroeffnet(tagKurz(gp.kontoEroeffnetAm)) : w.kontoFolgt}</span>
+                    {karten.length ? <ul className="gp-buero-liste">{karten.slice(0, 3).map((k) => <li key={k.id}>{kapitalZeile(k)}</li>)}</ul> : <span className="gp-leise">{w.kartenLeer}</span>}
+                    <span className="gp-buero-fuss">{w.seiten.kapital} <ArrowRight size={14} /></span>
+                  </button>
+                  <button type="button" className="gp-buero-kachel" onClick={() => geh(hatAdressen ? "adressen" : "post")} data-fiaon="buero-adressen">
+                    <span className="gp-auge">{w.kachel.adressen}</span>
+                    <span className="gp-buero-zeile"><small>{w.geschaeft}</small>{gp.usAdresse ? String(gp.usAdresse).split("\n")[0] : w.adresseFolgt}</span>
+                    {gp.privatAdresse && <span className="gp-buero-zeile"><small>{w.privat}</small>{String(gp.privatAdresse).split("\n")[0]}</span>}
+                    <span className="gp-buero-zeile"><small>{w.seiten.post}</small>{w.postZahl(post.length, postNeu.length)}</span>
+                    <span className="gp-buero-fuss">{w.oeffnenPfeil} <ArrowRight size={14} /></span>
+                  </button>
+                  <button type="button" className="gp-buero-kachel" onClick={() => geh("steuern")} data-fiaon="buero-fristen">
+                    <span className="gp-auge">{w.kachel.fristen}</span>
+                    {naechsteFristen.length ? <ul className="gp-buero-liste">{naechsteFristen.map((f) => <li key={f.id}><span>{f.titel}</span><em>{w.inTagen(tageBis(f.faelligAm))}</em></li>)}</ul> : <span className="gp-leise">{a.status === "offen" ? w.fristenNachZahlung : w.fristenLeer}</span>}
+                    <span className="gp-buero-fuss">{w.seiten.steuern} <ArrowRight size={14} /></span>
+                  </button>
+                  <button type="button" className="gp-buero-kachel" onClick={() => geh("tresor")} data-fiaon="buero-dokumente">
+                    <span className="gp-auge">{w.kachel.dokumente}</span>
+                    {tresorDoks.length ? <ul className="gp-buero-liste">{tresorDoks.slice(0, 3).map((d) => <li key={d.id}><span>{d.titel || d.artText || d.name}</span><em>{tagKurz(d.am)}</em></li>)}</ul> : <span className="gp-leise">{w.dokumenteLeer}</span>}
+                    <span className="gp-buero-fuss">{w.seiten.tresor} <ArrowRight size={14} /></span>
+                  </button>
+                  <button type="button" className="gp-buero-kachel" onClick={() => geh("dienste")} data-fiaon="buero-dienste">
+                    <span className="gp-auge">{w.kachel.dienste}</span>
+                    {gebuchteDienste.length ? <ul className="gp-buero-liste">{gebuchteDienste.slice(0, 3).map((d) => <li key={d.id}><span>{globalZusatz(d.key)![s].titel}</span><em>{ZUSATZ_WOERTER[s].statusKurz[d.status as keyof typeof ZUSATZ_WOERTER.de.statusKurz]}</em></li>)}</ul> : <span className="gp-leise">{w.diensteLeer}</span>}
+                    <span className="gp-buero-fuss">{ZUSATZ_WOERTER[s].titel} <ArrowRight size={14} /></span>
+                  </button>
+                </div>
+              </section>
             </>
           ) : (
             <>
               <header className="gp-seitenkopf">
-                <span className="gp-auge">{g.name || a.firma?.name || w.meinAuftrag}</span>
+                <span className="gp-auge">{w.gruppen[gruppeVon(seite)]} · {g.name || a.firma?.name || w.meinAuftrag}</span>
                 <h1>{seite === "dienste" ? ZUSATZ_WOERTER[s].titel : w.seiten[seite]}</h1>
                 {w.seitenSatz[seite] && <p>{w.seitenSatz[seite]}</p>}
               </header>
@@ -716,12 +794,25 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                         <li key={x.schluessel} className={`gp-schritt ${x.status}`} style={{ ["--i" as any]: i }}>
                           <span className="gp-schritt-zeichen" aria-hidden="true">
                             {x.status === "erledigt" ? <svg className="gp-haken" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" /><path d="M7 12.5 l3.2 3.2 L17 9" /></svg>
-                              : x.status === "in_arbeit" ? <span className="gp-puls" /> : <CircleDashed size={18} strokeWidth={1.4} />}
+                              : x.status === "in_arbeit" || x.status === "beantragt" ? <span className="gp-puls" /> : <CircleDashed size={18} strokeWidth={1.4} />}
                           </span>
                           <div>
                             <b>{x.titel}</b>
                             <small>{w.stand[x.status] ?? x.status}{x.datum ? ` · ${tagKurz(x.datum)}` : ""}</small>
                             {x.hinweis ? <p className="gp-schritt-hinweis">{x.hinweis}</p> : <p className="gp-schritt-text">{x.text}</p>}
+                            {(() => {
+                              // 22.10.2026: die echten Werte der Station — EIN, ITIN (maskiert, „Anzeigen“), D-U-N-S, Nummer, Adressen, Konto, Karten.
+                              const sw = stationWerte(x.schluessel);
+                              if (!sw.zeilen.length && !sw.kapital.length) return null;
+                              return (
+                                <dl className="gp-werte" data-fiaon={`station-werte-${x.schluessel}`}>
+                                  {sw.zeilen.map((z) => <WertZeile key={z.key} z={z} />)}
+                                  {sw.kapital.map((k) => <div key={k.id} className="gp-wert"><dt>{k.art === "karte" ? w.karte[k.inhaber === "privat" ? "privat" : "firma"] : k.artText}</dt><dd><span>{kapitalZeile(k)}</span></dd></div>)}
+                                  {x.schluessel === "itin" && itinFehler && <p className="gp-meldung schlecht" role="alert">{itinFehler}</p>}
+                                </dl>
+                              );
+                            })()}
+                            {x.schluessel === "kreditrahmen" && !a.angebot && stationWerte("kreditrahmen").kapital.length > 0 && <p className="gp-schritt-text">{GLOBAL_ETAPPE_FUSSNOTE[s]}</p>}
                           </div>
                         </li>
                       ))}
@@ -734,25 +825,83 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
 
                   </main>
                   <aside className="gp-seite">
-          <div className="gp-karte gp-auftauchen">
+          <button type="button" className="gp-karte gp-auftauchen gp-karte-klick" onClick={() => geh("gesellschaft")}>
             <span className="gp-auge">{w.gesellschaftTitel}</span>
-            <dl className="gp-daten">
-              <Zeile k={w.felder.name} v={g.name} />
-              <Zeile k={w.felder.form} v={g.form} />
-              <Zeile k={w.felder.bundesstaat} v={g.bundesstaat} />
-              <Zeile k={w.felder.gegruendet} v={g.gegruendetAm ? tag(g.gegruendetAm) : null} />
-              <Zeile k={w.felder.aktenzeichen} v={gp.aktenzeichen} kopie={() => kopieren(gp.aktenzeichen, "akz")} kopiert={kopiert === "akz"} w={w} />
-              <Zeile k={w.felder.ein} v={gp.ein} kopie={() => kopieren(gp.ein, "ein")} kopiert={kopiert === "ein"} w={w} />
-              <Zeile k={w.felder.registeredAgent} v={gp.registeredAgent} />
-              <Zeile k={w.felder.usAdresse} v={gp.usAdresse} />
-              <Zeile k={w.felder.usTelefon} v={gp.usTelefon} />
-              <Zeile k={w.felder.itin} v={g.itinStand ? w.itin[g.itinStand] : null} />
-            </dl>
-            {!g.name && !gp.ein && <p className="gp-leise">{w.gesellschaftLeer}</p>}
-            {gp.hinweis && <p className="gp-satz klein">{gp.hinweis}</p>}
-          </div>
+            <b className="gp-karte-gross">{g.name || w.gesellschaftOhneName}</b>
+            <span className="gp-leise">{kachelSatz("gesellschaft")}</span>
+            <span className="gp-buero-fuss">{w.seiten.gesellschaft} <ArrowRight size={14} /></span>
+          </button>
+          {hatAdressen && (
+            <button type="button" className="gp-karte gp-auftauchen gp-karte-klick" onClick={() => geh("adressen")}>
+              <span className="gp-auge">{w.seiten.adressen}</span>
+              <span className="gp-leise">{kachelSatz("adressen")}</span>
+              <span className="gp-buero-fuss">{w.oeffnenPfeil} <ArrowRight size={14} /></span>
+            </button>
+          )}
 
                   </aside>
+                </div>
+              )}
+              {seite === "gesellschaft" && (
+                <div className="gp-spalten">
+                  <main className="gp-haupt">
+                    <section className="gp-abschnitt gp-auftauchen" data-fiaon="portal-gesellschaft">
+                      <h2 className="gp-h2">{w.stammTitel}</h2>
+                      <p className="gp-lead">{w.stammLead}</p>
+                      <dl className="gp-werte gross">
+                        {(["eingetragen", "ein", "itin", "duns", "agent"] as const).flatMap((k) => stationWerte(k).zeilen).map((z) => <WertZeile key={z.key} z={z} />)}
+                        {g.form && <WertZeile z={{ key: "form", titel: w.felder.form, wert: g.form }} />}
+                        {!gp.itinVorhanden && g.itinStand && <WertZeile z={{ key: "itinstand", titel: w.felder.itin, wert: w.itin[g.itinStand] ?? g.itinStand }} />}
+                      </dl>
+                      {itinFehler && <p className="gp-meldung schlecht" role="alert">{itinFehler}</p>}
+                      {!g.name && !gp.ein && <p className="gp-leise">{w.gesellschaftLeer}</p>}
+                      {gp.hinweis && <p className="gp-satz klein">{gp.hinweis}</p>}
+                    </section>
+                  </main>
+                  <aside className="gp-seite">
+                    <button type="button" className="gp-karte gp-auftauchen gp-karte-klick" onClick={() => geh("fahrplan")}>
+                      <span className="gp-auge">{w.fahrplanTitel}</span>
+                      <b className="gp-karte-gross">{prozent} %</b>
+                      <span className="gp-leise">{w.stationen(erledigt, gesamt)}</span>
+                      <span className="gp-buero-fuss">{w.zumFahrplan} <ArrowRight size={14} /></span>
+                    </button>
+                  </aside>
+                </div>
+              )}
+              {seite === "adressen" && (
+                <div className="gp-haupt">
+                  <section className="gp-abschnitt gp-auftauchen" data-fiaon="portal-adressen">
+                    {!hatAdressen ? (
+                      <div className="gp-leer-karte"><Building2 size={22} strokeWidth={1.3} /><p>{w.adressenLeer}</p></div>
+                    ) : (
+                      <div className="gp-adressen">
+                        {gp.usTelefon && (
+                          <div className="gp-adresse nummer">
+                            <span className="gp-auge">{w.kachel.nummer}</span>
+                            <b className="gp-nummer">{stationTelefonText(gp.usTelefon)}</b>
+                            <div className="gp-adresse-wege">
+                              <a className="gp-knopf leise" href={`tel:${gp.usTelefon}`}>{w.anrufen}</a>
+                              <button type="button" className="gp-kopie" onClick={() => kopieren(gp.usTelefon!, "tel")}>{kopiert === "tel" ? <><Check size={12} /> {w.kopiert}</> : <Copy size={12} />}</button>
+                            </div>
+                          </div>
+                        )}
+                        {([["usAdresse", w.geschaeft], ["privatAdresse", w.privat], ["agentAdresse", w.agentPost]] as const).map(([k, titel]) => gp[k] ? (
+                          <div key={k} className="gp-adresse">
+                            <span className="gp-auge">{titel}</span>
+                            <address>{gp[k]}</address>
+                            <button type="button" className="gp-kopie" onClick={() => kopieren(String(gp[k]), k)} aria-label={`${titel} kopieren`}>{kopiert === k ? <><Check size={12} /> {w.kopiert}</> : <Copy size={12} />}</button>
+                          </div>
+                        ) : null)}
+                        {!gp.privatAdresse && dienstFrei("wohnadresse") && (
+                          <button type="button" className="gp-adresse leer" onClick={() => geh("dienste")}>
+                            <span className="gp-auge">{w.privat}</span>
+                            <span className="gp-leise">{globalZusatz("wohnadresse")![s].kurz}</span>
+                            <span className="gp-buero-fuss">{ZUSATZ_WOERTER[s].titel} <ArrowRight size={14} /></span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </section>
                 </div>
               )}
               {seite === "tresor" && <div className="gp-haupt">
@@ -1023,6 +1172,31 @@ function Zeile({ k, v, kopie, kopiert, w }: { k: string; v?: string | null; kopi
         <span>{v}</span>
         {kopie && <button type="button" className="gp-kopie" onClick={kopie} aria-label={`${k} kopieren`}>{kopiert ? <><Check size={12} /> {w?.kopiert}</> : <Copy size={12} />}</button>}
       </dd>
+    </div>
+  );
+}
+
+/** Der Ring der Bühne: vier Bögen, je Phase einer, gefüllt nach erledigten Stationen — in der Mitte der Gesamtstand. */
+function PhasenRing({ phasen, prozent, zeile, titel }: { phasen: { nr: number; fertig: number; gesamt: number; stand: string; jetzt: boolean }[]; prozent: number; zeile: string; titel: string }) {
+  const U = 2 * Math.PI * 52; const luecke = 7; const bogen = U / 4 - luecke;
+  return (
+    <div className="gp-ring-karte">
+      <svg className="gp-ring" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="gpRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7fb6ff" /><stop offset="1" stopColor="#288dfa" /></linearGradient></defs>
+        {phasen.map((p, i) => {
+          const anteil = p.gesamt ? p.fertig / p.gesamt : p.stand === "fertig" ? 1 : 0;
+          const versatz = -(i * (U / 4) + luecke / 2);
+          return (
+            <g key={p.nr}>
+              <circle cx="60" cy="60" r="52" className={`gp-ring-grund${p.jetzt ? " jetzt" : ""}`} strokeDasharray={`${bogen} ${U - bogen}`} strokeDashoffset={versatz} />
+              {anteil > 0 && <circle cx="60" cy="60" r="52" className="gp-ring-bogen" style={{ ["--i" as any]: i }} strokeDasharray={`${bogen * anteil} ${U - bogen * anteil}`} strokeDashoffset={versatz} />}
+            </g>
+          );
+        })}
+      </svg>
+      {["I", "II", "III", "IV"].map((r, i) => <span key={r} className={`gp-ring-roemisch r${i}${phasen[i]?.jetzt ? " jetzt" : ""}`} aria-hidden="true">{r}</span>)}
+      <div className="gp-ring-mitte"><b><Zaehler ziel={prozent} />%</b><small>{titel}</small></div>
+      <p className="gp-ring-satz">{zeile}</p>
     </div>
   );
 }

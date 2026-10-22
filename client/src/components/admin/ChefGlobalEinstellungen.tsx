@@ -6,9 +6,13 @@
 // Eine Leiste im Arbeitsraum: der Tagesdeckel (eine Einstellung für /business
 // und das Startgespräch), wer die Website-Gespräche führt, und ob die Termine
 // direkt in Google stehen (fiaon-google-kalender.ts).
+//
+// 22.10.2026 (Scheibe 1 „Ihr US-Büro“, Justin: „sicher starten“): dazu die Freigabe je
+// Zusatzdienst. Nur Freigegebenes sieht der Kunde in „Ihr Büro erweitern“, und nur das
+// nimmt der Server an. Vorgabe: allein „Ihre Domain & E-Mail“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { CalendarCheck2, CalendarClock, Copy, RefreshCw, UserRound } from "lucide-react";
+import { CalendarCheck2, CalendarClock, Copy, Layers, RefreshCw, UserRound } from "lucide-react";
 
 interface GoogleStand {
   freigabe: "ok" | "fehlt" | "fehler" | "aus" | "kein_konto";
@@ -41,7 +45,18 @@ export default function ChefGlobalEinstellungen() {
   const [hilfe, setHilfe] = useState(false);
 
   const laden = () => json("/api/fiaon/chef/global/einstellungen").then(setS).catch((e) => setMeldung({ text: e.message, gut: false }));
-  useEffect(() => { void laden(); }, []);
+  const [dienste, setDienste] = useState<{ key: string; titel: string; preis: string; freigegeben: boolean }[] | null>(null);
+  const [dienstLaeuft, setDienstLaeuft] = useState<string | null>(null);
+  const dienstLaden = () => json("/api/fiaon/chef/global/zusatz-freigabe").then((j) => setDienste(j.dienste)).catch((e) => setMeldung({ text: `Freigabe der Zusatzdienste: ${e.message}`, gut: false }));
+  useEffect(() => { void laden(); void dienstLaden(); }, []);
+  const freigeben = async (key: string, an: boolean) => {
+    setDienstLaeuft(key); setMeldung(null);
+    // Optimistisch umschalten — bei einem Fehler zurück, und die Meldung bleibt stehen.
+    setDienste((d) => d && d.map((x) => (x.key === key ? { ...x, freigegeben: an } : x)));
+    try { const j = await json("/api/fiaon/chef/global/zusatz-freigabe", { key, an }); setDienste((d) => d && d.map((x) => ({ ...x, freigegeben: (j.freigabe as string[]).includes(x.key) }))); setMeldung({ text: j.meldung, gut: true }); }
+    catch (e: any) { setDienste((d) => d && d.map((x) => (x.key === key ? { ...x, freigegeben: !an } : x))); setMeldung({ text: e.message, gut: false }); }
+    finally { setDienstLaeuft(null); }
+  };
 
   const deckel = async (n: number) => {
     setMeldung(null);
@@ -102,6 +117,22 @@ export default function ChefGlobalEinstellungen() {
             <button type="button" className="cge-knopf leise" onClick={() => void google({ an: !g.an })}>{g.an ? "Ausschalten" : "Einschalten"}</button>
           )}
         </div>
+      </div>
+
+      <div className="cge-feld breit cge-dienste" data-fiaon="zusatz-freigabe">
+        <span className="cge-titel"><Layers size={15} strokeWidth={1.75} /> Zusatzdienste für Kunden</span>
+        {!dienste ? <small>Lädt …</small> : (
+          <div className="cge-schalterreihe" role="group" aria-label="Freigabe der Zusatzdienste">
+            {dienste.map((d) => (
+              <button key={d.key} type="button" role="switch" aria-checked={d.freigegeben} disabled={dienstLaeuft === d.key}
+                className={`cge-schalter${d.freigegeben ? " an" : ""}`} onClick={() => void freigeben(d.key, !d.freigegeben)}
+                title={d.freigegeben ? "Freigegeben — der Kunde sieht und bucht ihn. Klick nimmt die Freigabe zurück." : "Nicht freigegeben — der Kunde sieht ihn nicht. Klick gibt ihn frei."}>
+                <i aria-hidden="true" />{d.titel}<small>{d.preis}</small>
+              </button>
+            ))}
+          </div>
+        )}
+        <small>Nur Freigegebenes sieht der Kunde in „Ihr Büro erweitern“; alles andere lehnt der Server ab. Die Vorschau zeigt alle mit Marke.</small>
       </div>
 
       {hilfe && g.clientId && (

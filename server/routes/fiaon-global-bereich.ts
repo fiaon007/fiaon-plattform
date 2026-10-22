@@ -358,6 +358,27 @@ router.get("/global/mein-auftrag/:ref/zusatz/:id/rechnung.pdf", async (req: Requ
   }
 });
 
+// Stationen-Editor (22.10.2026): Die ITIN des Kunden im Klartext — nur auf seinen Klick „Anzeigen“ im eigenen Portal
+// (derselbe Zutritt wie das Portal), nie zwischengespeichert, gedrosselt. Die Seite zeigt sonst nur die Maske.
+const itinJeRef = fensterDrossel(10, 10 * 60_000);
+router.post("/global/mein-auftrag/:ref/itin", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    if (itinJeRef(ref) || itinJeRef(`ip:${clientIp(req)}`)) return res.status(429).json({ ok: false, error: "Bitte einen Moment warten und dann noch einmal." });
+    const { globalPortalNeuFrei, globalItinKlartext } = await import("../lib/fiaon-global-mandat");
+    if (!istVorschau(req) && !(await globalPortalNeuFrei(ref))) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
+    const itin = await globalItinKlartext(ref, { team: null });
+    if (!itin) return res.status(404).json({ ok: false, error: "Für Ihre Gesellschaft ist noch keine ITIN hinterlegt." });
+    res.json({ ok: true, itin });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] itin:", err);
+    res.status(500).json({ ok: false, error: "Das hat gerade nicht geklappt — bitte gleich noch einmal." });
+  }
+});
+
 router.post("/global/mein-auftrag/:ref/nachricht", async (req: Request, res: Response) => {
   try {
     const ref = zutritt(req, res);
@@ -464,6 +485,50 @@ router.post("/agent/global/auftraege/:ref/gesellschaft", requireAgent, aktion("g
 router.post("/agent/global/auftraege/:ref/frist", requireAgent, aktion("frist", (ref, b, agent) => globalFristAnlegen(ref, { titel: b.titel, faelligAm: b.faelligAm, hinweis: b.hinweis }, agent)));
 router.post("/agent/global/auftraege/:ref/frist/:id", requireAgent, aktion("frist ändern", (ref, b, agent, req) => globalFristAendern(ref, req.params.id, b, agent)));
 router.delete("/agent/global/auftraege/:ref/frist/:id", requireAgent, aktion("frist löschen", (ref, _b, agent, req) => globalFristLoeschen(ref, req.params.id, agent)));
+// ── Stationen-Editor (22.10.2026): dieselben Wege wie im Chefbüro (fiaon-global-mandat.ts) — Status, Werte, Karten ──
+router.get("/agent/global/auftraege/:ref/stationen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await office(req, res, false);
+    if (!z) return;
+    const { globalStationenSicht } = await import("../lib/fiaon-global-mandat");
+    const sicht = await globalStationenSicht(z.ref);
+    if (!sicht) return res.status(404).json({ ok: false, error: "Diesen Auftrag gibt es nicht." });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ok: true, ...sicht });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] office stationen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/agent/global/auftraege/:ref/station", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await office(req, res, true);
+    if (!z) return;
+    const { globalStationSpeichern } = await import("../lib/fiaon-global-mandat");
+    const erg = await globalStationSpeichern(z.ref, req.body ?? {}, z.agent);
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error, ...(typeof (erg as any).feld === "string" ? { feld: (erg as any).feld } : {}) });
+    res.json(erg);
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] office station:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/agent/global/auftraege/:ref/itin", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await office(req, res, false);
+    if (!z) return;
+    const { globalItinKlartext } = await import("../lib/fiaon-global-mandat");
+    res.setHeader("Cache-Control", "private, no-store");
+    const itin = await globalItinKlartext(z.ref, { team: z.agent });
+    if (!itin) return res.status(404).json({ ok: false, error: "Für diesen Auftrag ist keine ITIN hinterlegt." });
+    res.json({ ok: true, itin });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] office itin:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/agent/global/auftraege/:ref/kapital", requireAgent, aktion("kapital", async (ref, b, agent) => (await import("../lib/fiaon-global-mandat")).globalKapitalSpeichern(ref, b, agent)));
+router.delete("/agent/global/auftraege/:ref/kapital/:id", requireAgent, aktion("kapital entfernen", async (ref, _b, agent, req) => (await import("../lib/fiaon-global-mandat")).globalKapitalEntfernen(ref, req.params.id, agent)));
 router.post("/agent/global/auftraege/:ref/notiz", requireAgent, aktion("notiz", (ref, b, agent) => globalNotizSchreiben(ref, { text: b.text, sichtbar: b.sichtbar }, agent)));
 router.post("/agent/global/auftraege/:ref/zugang-senden", requireAgent, aktion("zugang-senden", (ref, _b, agent) => globalZugangSenden(ref, agent)));
 router.post("/agent/global/auftraege/:ref/abschliessen", requireAgent, aktion("abschliessen", (ref, b, agent) => globalAbschliessen(ref, { text: b.text, mitteilen: b.mitteilen }, agent)));

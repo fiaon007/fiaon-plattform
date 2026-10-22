@@ -5,6 +5,37 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — FIAON Global „Ihr US-Büro“: Freigabe je Dienst, neue Portal-Navigation, Stationen-Editor
+- **Was (A, Freigabe):** Jeder Zusatzdienst braucht jetzt die Freigabe der Leitung. Vorgabe: **nur „Ihre Domain &
+  E-Mail“**. Schalter je Dienst im Chefbüro › Global (Leiste oben, „Zusatzdienste für Kunden“). Nicht Freigegebenes sieht
+  der Kunde nicht, und der Server lehnt es ab (409 „Dieser Dienst ist noch nicht verfügbar.“). Die Vorschau der Leitung
+  zeigt alle Dienste, nicht freigegebene mit leiser Marke. Bestehende Buchungen laufen beim Zurücknehmen weiter.
+- **Was (B, Portal):** Statt der Liste links eine schwebende Glasleiste oben wie auf fiaon.com/business: Übersicht · Ihr
+  Weg (Fahrplan, Ihre Gesellschaft) · Ihr Büro (Post, Tresor, Nummer & Adressen, Anfragen, Dienste) · Kapital · Vertrag &
+  Zahlung · Fachbereiche. Themen mit Panel (Einträge mit Live-Stand + Karte zur Gruppe), Lichtschieber unter dem aktiven
+  Thema, am Telefon ein ganzseitiges Menü. Adressen #seite bleiben. Die Übersicht ist die Bühne aus dem Entwurf: Phase,
+  Ring über vier Phasen, nächster Schritt, Kontakt im Glas, vier Phasenkarten; darunter „Zuletzt passiert“ und „Ihr Büro“
+  (Nummer, Konto & Karten, Adressen & Post, Fristen, Dokumente, Dienste — alles klickbar). Neue Seiten „Ihre Gesellschaft“
+  und „Nummer & Adressen“.
+- **Was (C, Stationen):** Je Station eine Karte mit Status (offen · in Arbeit · **beantragt** · erledigt · entfällt),
+  „Beantragt am“/„Erledigt am“ und den eigenen Feldern: Gesellschaft (Name, Form, Staat, Gründung, File Number), Registered
+  Agent (Anschrift ohne Anbieternamen, Kontaktperson), Nummer & Adressen (US-Nummer E.164, Geschäfts- und Privatadresse),
+  EIN (12-3456789, Datum des IRS-Schreibens), ITIN (9XX-XX-XXXX, **verschlüsselt**, überall maskiert), Konto (Institut
+  intern, Eröffnungstag), **neue Station D-U-N-S** (nach dem Konto), Karten (je Karte eine Zeile: Firma/privat, Status,
+  Limit) und Kreditrahmen. Prüfung am Server und schon beim Tippen, optimistisches Speichern mit Zustand, Dokument zur
+  Station hochladen. Der Kunde sieht die Werte sofort unter der Station und liest beim ersten Eintragen einen Satz im
+  Verlauf („Ihre ITIN ist da.“); das Team bekommt eine interne Zeile. Kunden sehen in Banken & Kapital nie Institut oder
+  Produkt und einen Betrag erst ab „Zugesagt“. Der Editor steht im Chefbüro (Mandat › „Fahrplan & Werte“) und im Office
+  (Global-Akte › „Fahrplan & Werte“).
+- **Warum:** Justin hat Scheibe 1 freigegeben („JA, es GEHT“) mit drei Wünschen: sicher starten, ein schöneres Menü,
+  Stationen 100 % funktional mit echten Werten.
+- **Wo:** `shared/fiaon-global-zusatz.ts` (Freigabe), `shared/fiaon-global-stationen.ts` (Felder, Prüfung, Kundensicht),
+  `shared/fiaon-global-mandat.ts` (Status, D-U-N-S), `server/lib/fiaon-global-mandat.ts` (`globalStationSpeichern`,
+  `globalItinKlartext`), Migration 121, Routen `/api/fiaon/chef/global/zusatz-freigabe`, `…/mandate/:ref/station|itin`,
+  `/api/fiaon/agent/global/auftraege/:ref/stationen|station|itin|kapital`, `/api/fiaon/global/mein-auftrag/:ref/itin`,
+  `client/src/components/global/GlobalStationen.tsx`, `client/src/pages/global-portal-nav.tsx`, Prüfstände
+  `scripts/pruef-global-stationen.ts` und `scripts/pruef-global-zusatz.ts` (8b).
+
 ## 22.10.2026 — FIAON Global: Zusatzdienste per Klick („Ihr Büro erweitern“, Scheibe 1 „Ihr US-Büro“)
 - **Was:** Global-Kunden sehen im neuen Portal den Bereich **„Ihr Büro erweitern“** (Navigation „Dienste“): sieben
   Dienste als ruhige Kacheln — Ihre US-Mobilnummer (149 € einmalig), Telefonassistenz rund um die Uhr (149 € im Monat),

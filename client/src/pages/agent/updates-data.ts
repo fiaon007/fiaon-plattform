@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // 22.10.2026: Stationen-Editor im Office (Global-Akte › „Fahrplan & Werte“) und im Chefbüro.
+    id: "2026-10-22-global-stationen",
+    date: "2026-10-22",
+    category: "Neu",
+    title: "FIAON Global: EIN, ITIN, D-U-N-S und Co. direkt an der Station eintragen",
+    summary:
+      "In der Global-Akte gibt es den Reiter „Fahrplan & Werte“. Jede Station hat jetzt ihre eigenen Felder — nicht nur einen Status. "
+      + "Was du speicherst, sieht der Kunde sofort schön formatiert in seinem Portal.",
+    changes: [
+      "Neuer Status „beantragt“ mit Datum — z. B. wenn die ITIN bei der Behörde liegt.",
+      "Neue Station „D-U-N-S-Nummer“ nach dem Geschäftskonto.",
+      "Die ITIN wird verschlüsselt gespeichert und nur maskiert gezeigt; „Anzeigen“ steht intern im Verlauf.",
+      "Karten und Kreditrahmen: je Karte eine Zeile (Firma/privat, Status, Limit). Der Kunde sieht nie einen Banknamen.",
+      "Das passende Dokument (EIN-Bestätigung, ITIN-Bescheid …) lädst du direkt an der Station hoch.",
+    ],
+    howto: [
+      "Global-Akte öffnen → Reiter „Fahrplan & Werte“ → Station anklicken.",
+      "Status wählen, Wert eintragen (die Karte prüft das Format sofort) → „Speichern“.",
+    ],
+  },
+  {
     // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Global-Kunden fügen Zusatzdienste im Portal per Klick hinzu.
     id: "2026-10-22-global-zusatzdienste",
     date: "2026-10-22",
@@ -96,6 +117,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Nach dem Klick entsteht sofort eine eigene Rechnung mit Nummer; der Kunde bekommt sie per E-Mail (beim Firmenangebot nicht automatisch — dann steht es in deiner Aufgabe).",
       "Sobald die Zahlung gebucht ist, bekommst du die Aufgabe „Zusatzdienst einrichten“.",
       "Was schon im Angebot des Kunden enthalten ist, kann er nicht noch einmal buchen.",
+      "Zum Start ist nur „Ihre Domain & E-Mail“ freigegeben — jeden weiteren Dienst schaltet die Leitung im Chefbüro einzeln frei.",
     ],
     howto: [
       "Aufgabe öffnen → Dienst einrichten.",

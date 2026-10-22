@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Loader2, X } from "lucide-react";
 import {
-  GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER, buchbareZusatzdienste, globalZusatz, zusatzAngabePruefen, zusatzPreisText, zusatzZeitraumText,
+  GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER, buchbareZusatzdienste, globalZusatz, zusatzAngabePruefen, zusatzFreigegeben, zusatzPreisText, zusatzZeitraumText,
   type GlobalZusatz, type ZusatzStatus,
 } from "@shared/fiaon-global-zusatz";
 import "@/styles/global-portal-dienste.css";
@@ -63,7 +63,10 @@ export default function GlobalDienste({ a, s, mitToken, vorschau, laden }: {
     } catch { setMeldung(W.technisch); setStand("bereit"); }
   };
 
-  const katalog = buchbareZusatzdienste();
+  // Freigabe je Dienst (Chefbüro): Der Kunde sieht nur Freigegebenes; die Vorschau der Leitung alles — mit leiser Marke.
+  const freigabe: string[] = a.dienste?.freigegeben ?? [];
+  const frei = (z: GlobalZusatz) => zusatzFreigegeben(z.key, freigabe);
+  const katalog = buchbareZusatzdienste().filter((z) => vorschau || frei(z));
   const gebuchtSichtbar = gebucht.filter((g) => globalZusatz(g.key));
 
   return (
@@ -109,8 +112,9 @@ export default function GlobalDienste({ a, s, mitToken, vorschau, laden }: {
                 const g = nachKey.get(z.key);
                 const drin = enthalten.includes(z.key);
                 return (
-                  <button key={z.key} type="button" className={`gpd-kachel${g ? " gebucht" : ""}${drin ? " enthalten" : ""}`} style={{ ["--i" as any]: i }}
+                  <button key={z.key} type="button" className={`gpd-kachel${g ? " gebucht" : ""}${drin ? " enthalten" : ""}${frei(z) ? "" : " gesperrt"}`} style={{ ["--i" as any]: i }}
                     onClick={() => oeffnen(z)} data-fiaon={`dienst-${z.key}`}>
+                    {!frei(z) && <span className="gpd-marke-leise">{W.nichtFreigegeben}</span>}
                     <b className="gpd-kachel-titel">{z[s].titel}</b>
                     <span className="gpd-kachel-kurz">{z[s].kurz}</span>
                     <span className="gpd-kachel-fuss">
@@ -170,7 +174,7 @@ export default function GlobalDienste({ a, s, mitToken, vorschau, laden }: {
                         <small>{W.rechnungHinweis}{offen.abrechnung !== "einmalig" ? ` ${W.ersterZeitraum(zusatzZeitraumText(offen.abrechnung, s))}` : ""}</small>
                       </div>
                       {meldung && <p className="gp-meldung schlecht" role="alert">{meldung}</p>}
-                      {vorschau && <p className="gp-meldung" role="note">{W.vorschau}</p>}
+                      {vorschau && <p className="gp-meldung" role="note">{frei(offen) ? W.vorschau : `${W.vorschau} · ${W.nichtFreigegeben}`}</p>}
                       <button ref={knopfRef} type="button" className="gp-knopf gross" disabled={vorschau || stand === "laeuft"} onClick={() => void hinzufuegen()} data-fiaon="dienst-hinzufuegen">
                         {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> {W.laeuft}</> : W.hinzufuegen}
                       </button>

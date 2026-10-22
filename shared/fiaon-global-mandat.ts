@@ -29,11 +29,14 @@ type Paar = { de: string; en: string };
 const t = (p: Paar, s: BereichSprache) => (s === "en" ? p.en : p.de);
 
 // ── DER FAHRPLAN ─────────────────────────────────────────────────────────────
-export type GlobalSchrittStatus = "offen" | "in_arbeit" | "erledigt" | "entfaellt";
-export const GLOBAL_SCHRITT_STATUS: GlobalSchrittStatus[] = ["offen", "in_arbeit", "erledigt", "entfaellt"];
+// 22.10.2026 (Stationen-Editor): „beantragt“ dazu — eine Behörde oder ein Institut hat den Antrag und
+// entscheidet in eigener Frist (ITIN, EIN, Konto). Die Datenbank kennt den Wert seit Migration 121.
+export type GlobalSchrittStatus = "offen" | "in_arbeit" | "beantragt" | "erledigt" | "entfaellt";
+export const GLOBAL_SCHRITT_STATUS: GlobalSchrittStatus[] = ["offen", "in_arbeit", "beantragt", "erledigt", "entfaellt"];
 export const GLOBAL_SCHRITT_STATUS_TEXT: Record<GlobalSchrittStatus, Paar> = {
   offen: { de: "Offen", en: "Open" },
   in_arbeit: { de: "In Arbeit", en: "In progress" },
+  beantragt: { de: "Beantragt", en: "Applied for" },
   erledigt: { de: "Erledigt", en: "Done" },
   entfaellt: { de: "Entfällt", en: "Not needed" },
 };
@@ -68,6 +71,9 @@ export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
     text: { de: "Die persönliche US-Steuernummer, wenn sie gebraucht wird. Die Behörde vergibt sie in eigener Frist.", en: "The personal US tax number, where it is needed. The authority issues it on its own timeline." } },
   { schluessel: "konto", etappe: 1, titel: { de: "US-Geschäftskonto", en: "US business account" },
     text: { de: "Das Geschäftskonto Ihrer Gesellschaft — beantragt, geprüft, eröffnet.", en: "Your company's business account — applied for, reviewed, opened." } },
+  // 22.10.2026 (Stationen-Editor): nach dem Konto, vor den Karten — die Nummer im Firmenverzeichnis.
+  { schluessel: "duns", etappe: 1, titel: { de: "D-U-N-S-Nummer", en: "D-U-N-S number" },
+    text: { de: "Die Nummer Ihrer Gesellschaft im Firmenverzeichnis — die Grundlage für ein Firmenprofil in den USA.", en: "Your company's number in the business directory — the basis for a company profile in the US." }, feld: "duns" },
   { schluessel: "karte_1", etappe: 2, titel: { de: "Erste Firmenkarte", en: "First business card" },
     text: { de: "Der erste Kartenantrag Ihrer Gesellschaft — vorbereitet, gestellt, entschieden.", en: "Your company's first card application — prepared, submitted, decided." } },
   { schluessel: "kartenleiter", etappe: 3, titel: { de: "Weitere Firmenkarten", en: "Further business cards" },
@@ -106,6 +112,27 @@ export interface GlobalGesellschaftPlus {
   usTelefon?: string | null;
   /** Freier Satz für den Kunden, z. B. „Annual Report bis 1. Mai fällig“. */
   hinweis?: string | null;
+  // ── Stationen-Editor (22.10.2026) — alles optional, alte Akten bleiben lesbar ──
+  /** Datum des Bestätigungsschreibens der IRS zur EIN (CP 575), YYYY-MM-DD. */
+  einBriefAm?: string | null;
+  /** Anschrift des Registered Agent — NUR die Adresse; der Name des Anbieters steht nie beim Kunden. */
+  agentAdresse?: string | null;
+  /** Kontaktperson der Gesellschaft im Bundesstaat (Name). */
+  kontaktperson?: string | null;
+  /** Private US-Adresse des Kunden (mehrzeilig). */
+  privatAdresse?: string | null;
+  /** ITIN — NUR verschlüsselt (encryptSecret, v1:…). Geht nie an den Kunden oder in eine Liste. */
+  itinEnc?: string | null;
+  /** Die letzten vier Ziffern der ITIN — für die Maske •••-••-1234 ohne Entschlüsseln. */
+  itinEnde?: string | null;
+  /** Datum des IRS-Bescheids zur ITIN (CP 565), YYYY-MM-DD. */
+  itinBescheidAm?: string | null;
+  /** D-U-N-S-Nummer, neun Ziffern, geschrieben 12-345-6789. */
+  duns?: string | null;
+  /** Institut des Geschäftskontos — NUR intern (der Kunde sieht „Geschäftskonto eröffnet“). */
+  kontoInstitut?: string | null;
+  /** Tag der Kontoeröffnung, YYYY-MM-DD. */
+  kontoEroeffnetAm?: string | null;
 }
 export const GLOBAL_GESELLSCHAFT_PLUS_FELDER: { feld: keyof GlobalGesellschaftPlus; titel: Paar; max: number }[] = [
   { feld: "aktenzeichen", titel: { de: "Registernummer (Document Number)", en: "Register number (document number)" }, max: 40 },

@@ -1,0 +1,142 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER STATIONEN-EDITOR — Fahrplan mit echten Werten (22.10.2026)
+   Klassen .gst-. Ein Bauteil in zwei Räumen: .dunkel (Chefbüro › Global, Navy-Raum)
+   und .hell (Office › Global-Akte, Papier). Nur Farben wechseln — Abstände,
+   Typografie und Bewegung sind dieselben. Blau-Paar #288dfa / #1d4ed8, kein Gold.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gst { --gst-text: #e2e8f0; --gst-stark: #f8fafc; --gst-leise: #8193ad; --gst-still: #64748b; --gst-linie: rgba(255,255,255,.09);
+  --gst-flaeche: rgba(2,6,23,.32); --gst-karte: rgba(15,23,42,.5); --gst-eingabe: rgba(2,6,23,.5); --gst-hell: #7fb6ff; --gst-licht: #288dfa; --gst-blau: #1d4ed8;
+  --gst-gruen: #34d399; --gst-gruen-flaeche: rgba(16,185,129,.14); --gst-rot: #f87171; --gst-rot-flaeche: rgba(220,38,38,.12); --gst-blau-flaeche: rgba(40,141,250,.16);
+  --gst-kurve: cubic-bezier(.22, 1, .36, 1);
+  display: flex; flex-direction: column; gap: 18px; color: var(--gst-text); font-family: 'Inter', system-ui, sans-serif; }
+.gst.hell { --gst-text: #3b4658; --gst-stark: #0c1a2e; --gst-leise: #6b7587; --gst-still: #8a93a3; --gst-linie: #e3e7ee;
+  --gst-flaeche: #f5f7fa; --gst-karte: #ffffff; --gst-eingabe: #ffffff; --gst-hell: #1d4ed8; --gst-gruen: #0f7a55; --gst-gruen-flaeche: #e6f6ee;
+  --gst-rot: #b42318; --gst-rot-flaeche: #fdecea; --gst-blau-flaeche: #eef3fe; }
+
+/* ── Kopf: Fortschritt als Segmentleiste ── */
+.gst-kopf { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 22px; align-items: end; padding: 16px 18px; border-radius: 16px; background: var(--gst-flaeche); border: 1px solid var(--gst-linie); }
+.gst-auge { display: block; font: 600 10px/1 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--gst-leise); }
+.gst-kopf-zahl { margin: 8px 0 0; font: 400 14px/1.2 'Inter', sans-serif; color: var(--gst-leise); }
+.gst-kopf-zahl b { font: 300 30px/1 'Inter', sans-serif; color: var(--gst-stark); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.gst-balken { display: flex; gap: 3px; height: 8px; align-self: center; }
+.gst-balken i { flex: 1; border-radius: 4px; background: var(--gst-linie); transition: background .4s var(--gst-kurve); }
+.gst-balken i.st-in_arbeit, .gst-balken i.st-beantragt { background: linear-gradient(90deg, rgba(40,141,250,.45), rgba(40,141,250,.25)); }
+.gst-balken i.st-erledigt { background: linear-gradient(90deg, var(--gst-licht), var(--gst-blau)); }
+.gst-kopf .gst-leise { grid-column: 1 / -1; margin: 0; }
+.gst-leise { font: 400 12px/1.5 'Inter', sans-serif; color: var(--gst-still); margin: 0; }
+
+/* ── Etappen ── */
+.gst-etappe h4 { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; font: 500 13px/1.3 'Inter', sans-serif; color: var(--gst-stark); }
+.gst-etappe h4 span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--gst-linie); font: 500 11px/1 'Inter', sans-serif; color: var(--gst-leise); }
+.gst-liste { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Die Karte einer Station ── */
+.gst-karte { border-radius: 14px; background: var(--gst-karte); border: 1px solid var(--gst-linie); overflow: hidden;
+  animation: gst-hoch .45s var(--gst-kurve) both; animation-delay: calc(var(--i, 0) * 35ms);
+  transition: border-color .25s, box-shadow .25s; }
+.gst-karte:hover { border-color: rgba(127,182,255,.28); }
+.gst.hell .gst-karte:hover { border-color: #c9d6ee; box-shadow: 0 10px 26px -20px rgba(12,26,46,.35); }
+.gst-karte.auf { border-color: rgba(127,182,255,.4); box-shadow: 0 18px 40px -26px rgba(29,78,216,.55); }
+.gst-karte.geaendert { border-style: dashed; border-color: rgba(96,165,250,.55); }
+.gst-karte-kopf { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.gst-karte-kopf:focus-visible { outline: 2px solid var(--gst-licht); outline-offset: -2px; border-radius: 14px; }
+.gst-punkt { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid rgba(148,163,184,.5); display: grid; place-items: center; }
+.gst-punkt svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.gst-karte.st-in_arbeit .gst-punkt, .gst-karte.st-beantragt .gst-punkt { border-color: var(--gst-licht); background: var(--gst-blau-flaeche); box-shadow: 0 0 0 4px rgba(40,141,250,.12); }
+.gst-karte.st-beantragt .gst-punkt { border-style: dashed; }
+.gst-karte.st-erledigt .gst-punkt { border-color: transparent; background: linear-gradient(145deg, var(--gst-licht), var(--gst-blau)); }
+.gst-karte.st-entfaellt { opacity: .55; }
+.gst-titel { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gst-titel b { font: 500 14px/1.3 'Inter', sans-serif; color: var(--gst-stark); }
+.gst-titel small { font: 400 12px/1.4 'Inter', sans-serif; color: var(--gst-leise); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.gst-titel small em { font-style: normal; color: var(--gst-still); }
+.gst-pille { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; font: 500 11px/1 'Inter', sans-serif; border: 1px solid var(--gst-linie); color: var(--gst-leise); white-space: nowrap; }
+.gst-pille.blau { color: var(--gst-hell); border-color: rgba(96,165,250,.35); background: var(--gst-blau-flaeche); }
+.gst-pille.gruen { color: var(--gst-gruen); border-color: rgba(52,211,153,.35); background: var(--gst-gruen-flaeche); }
+.gst-pille.rot { color: var(--gst-rot); border-color: rgba(248,113,113,.35); background: var(--gst-rot-flaeche); }
+.gst-zustand { font: 400 11px/1 'Inter', sans-serif; color: var(--gst-leise); }
+.gst-zustand.gut { color: var(--gst-gruen); }
+.gst-winkel { flex: 0 0 10px; width: 10px; height: 10px; border-right: 1.5px solid var(--gst-still); border-bottom: 1.5px solid var(--gst-still); transform: rotate(45deg) translate(-2px, -2px); transition: transform .3s var(--gst-kurve); }
+.gst-karte.auf .gst-winkel { transform: rotate(225deg) translate(-2px, -2px); }
+
+.gst-inhalt { padding: 2px 16px 16px 44px; display: flex; flex-direction: column; gap: 14px; animation: gst-auf .35s var(--gst-kurve) both; }
+.gst-satz { margin: 0; font: 400 12.5px/1.55 'Inter', sans-serif; color: var(--gst-leise); max-width: 70ch; }
+.gst-reihe { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+
+.gst-segment { display: inline-flex; flex-wrap: wrap; padding: 3px; gap: 2px; border-radius: 11px; background: var(--gst-eingabe); border: 1px solid var(--gst-linie); }
+.gst-segment button { padding: 7px 11px; border: 0; border-radius: 8px; background: transparent; color: var(--gst-leise); font: 500 12px/1 'Inter', sans-serif; cursor: pointer; transition: background .2s, color .2s; }
+.gst-segment button:hover { color: var(--gst-stark); }
+.gst-segment button.an { background: var(--gst-blau-flaeche); color: var(--gst-stark); box-shadow: inset 0 0 0 1px rgba(96,165,250,.4); }
+.gst-segment button.an.st-erledigt { background: var(--gst-gruen-flaeche); box-shadow: inset 0 0 0 1px rgba(52,211,153,.4); }
+.gst-segment button:focus-visible { outline: 2px solid var(--gst-licht); outline-offset: 1px; }
+.gst-segment.klein button { padding: 6px 12px; }
+
+.gst-felder { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.gst-felder.zwei { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.gst-feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gst-feld.breit, .gst-felder .breit { grid-column: 1 / -1; }
+.gst-feld.klein { width: 150px; }
+.gst-label, .gst-feld.klein { font: 500 11px/1.3 'Inter', sans-serif; color: var(--gst-leise); letter-spacing: .01em; }
+.gst-label { display: inline-flex; align-items: center; gap: 6px; }
+.gst-intern { font-style: normal; padding: 2px 6px; border-radius: 999px; border: 1px dashed var(--gst-linie); font: 500 9.5px/1 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--gst-still); }
+.gst-feld input, .gst-feld select, .gst-feld textarea, .gst-dokument input[type="file"] {
+  width: 100%; min-height: 38px; padding: 8px 11px; border-radius: 10px; border: 1px solid var(--gst-linie); background: var(--gst-eingabe); color: var(--gst-stark);
+  font: 400 14px/1.4 'Inter', sans-serif; font-variant-numeric: tabular-nums; transition: border-color .2s, box-shadow .2s; }
+.gst-feld textarea { resize: vertical; min-height: 76px; }
+.gst-feld input:focus, .gst-feld select:focus, .gst-feld textarea:focus { outline: none; border-color: var(--gst-licht); box-shadow: 0 0 0 3px rgba(40,141,250,.18); }
+.gst-feld.intern input, .gst-feld.intern textarea { border-style: dashed; }
+.gst-feld small { font: 400 11.5px/1.4 'Inter', sans-serif; color: var(--gst-still); }
+.gst-feld.fehler input, .gst-feld.fehler textarea, .gst-feld.fehler select { border-color: var(--gst-rot); box-shadow: 0 0 0 3px var(--gst-rot-flaeche); }
+.gst-fehlertext { color: var(--gst-rot) !important; }
+.gst-geheim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 38px; }
+.gst-geheim code { padding: 7px 11px; border-radius: 10px; background: var(--gst-eingabe); border: 1px solid var(--gst-linie); font: 500 14px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; color: var(--gst-stark); }
+.gst-geheim button, .gst-mini button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--gst-linie); background: transparent; color: var(--gst-hell); font: 500 12px/1 'Inter', sans-serif; cursor: pointer; }
+.gst-geheim button:hover, .gst-mini button:hover { border-color: rgba(96,165,250,.45); }
+
+/* ── Karten / Rahmen ── */
+.gst-kapital, .gst-dokument { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--gst-linie); background: var(--gst-flaeche); }
+.gst-kapital-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gst-kapital-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gst-kapital-liste li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--gst-karte); border: 1px solid var(--gst-linie); }
+.gst-kapital-liste b { display: block; font: 500 13.5px/1.3 'Inter', sans-serif; color: var(--gst-stark); }
+.gst-kapital-liste small { font: 400 11.5px/1.4 'Inter', sans-serif; color: var(--gst-leise); }
+.gst-betrag { font: 400 15px/1 'Inter', sans-serif; color: var(--gst-stark); font-variant-numeric: tabular-nums; }
+.gst-mini { display: inline-flex; gap: 6px; }
+.gst-kapital-form { padding-top: 4px; }
+.gst-haken { display: inline-flex; align-items: center; gap: 8px; font: 400 12.5px/1.3 'Inter', sans-serif; color: var(--gst-leise); grid-column: 1 / -1; }
+.gst-dokument ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.gst-dokument a { font: 500 12.5px/1.4 'Inter', sans-serif; color: var(--gst-hell); text-decoration: none; }
+.gst-dokument a:hover { text-decoration: underline; }
+.gst-dokument-zeile { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gst-dokument-zeile input[type="file"] { flex: 1 1 240px; width: auto; padding: 6px 8px; font-size: 12.5px; }
+
+/* ── Fuß: Speichern mit Zustand ── */
+.gst-fuss { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--gst-linie); }
+.gst-knoepfe { display: flex; gap: 8px; margin-left: auto; }
+.gst-knoepfe.breit { grid-column: 1 / -1; justify-content: flex-end; }
+.gst-knopf { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 16px; border-radius: 10px; border: 1px solid transparent; cursor: pointer;
+  background: linear-gradient(180deg, var(--gst-licht), var(--gst-blau)); color: #fff; font: 500 13px/1 'Inter', sans-serif; box-shadow: 0 8px 20px -12px rgba(29,78,216,.7); transition: transform .2s var(--gst-kurve), box-shadow .2s, opacity .2s; }
+.gst-knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 26px -12px rgba(29,78,216,.8); }
+.gst-knopf:disabled { opacity: .45; cursor: default; box-shadow: none; }
+.gst-knopf.leise { background: transparent; color: var(--gst-hell); border-color: var(--gst-linie); box-shadow: none; }
+.gst-knopf:focus-visible { outline: 2px solid var(--gst-licht); outline-offset: 2px; }
+.gst-meldung { margin: 0; flex: 1 1 260px; font: 400 12.5px/1.45 'Inter', sans-serif; }
+.gst-meldung.gut { color: var(--gst-gruen); }
+.gst-meldung.schlecht { color: var(--gst-rot); }
+
+@keyframes gst-hoch { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes gst-auf { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 760px) {
+  .gst-kopf { grid-template-columns: 1fr; }
+  .gst-inhalt { padding: 2px 12px 14px; }
+  .gst-felder, .gst-felder.zwei { grid-template-columns: 1fr; }
+  .gst-feld.klein { width: calc(50% - 7px); }
+  .gst-kapital-liste li { grid-template-columns: minmax(0, 1fr) auto; }
+  .gst-kapital-liste .gst-mini { grid-column: 1 / -1; }
+  .gst-karte-kopf { flex-wrap: wrap; }
+  .gst-titel { flex-basis: calc(100% - 60px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gst *, .gst *::before, .gst *::after { animation: none !important; transition: none !important; }
+}

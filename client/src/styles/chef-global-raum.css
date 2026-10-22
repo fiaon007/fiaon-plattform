@@ -314,6 +314,20 @@ em.st-leise { color: var(--cgr-still); }
 .cge-hilfe button { margin-left: 4px; padding: 3px; border: 0; border-radius: 6px; background: rgba(255,255,255,.06); color: var(--cgr-leise); cursor: pointer; vertical-align: middle; }
 .cge-meldung { grid-column: 1 / -1; margin: 0; font: 400 12.5px/1.4 'Inter', sans-serif; color: var(--cgr-rot); }
 .cge-meldung.gut { color: var(--cgr-gruen); }
+/* Freigabe je Zusatzdienst (22.10.2026): Schalter als ruhige Pillen, „an“ im Blau-Paar. */
+.cge-dienste { grid-column: 1 / -1; }
+.cge-schalterreihe { display: flex; flex-wrap: wrap; gap: 6px; }
+.cge-schalter { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--cgr-linie); background: rgba(2,6,23,.35); color: var(--cgr-leise); font: 500 12px/1 'Inter', sans-serif; transition: background .2s, color .2s, border-color .2s; }
+.cge-schalter i { position: relative; width: 26px; height: 15px; border-radius: 999px; background: rgba(148,163,184,.28); transition: background .2s; }
+.cge-schalter i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #cbd5e1; transition: transform .25s cubic-bezier(.22,1,.36,1); }
+.cge-schalter small { font: 400 11px/1 'Inter', sans-serif; color: var(--cgr-still); }
+.cge-schalter.an { color: #f8fafc; border-color: rgba(96,165,250,.45); background: rgba(40,141,250,.14); }
+.cge-schalter.an i { background: linear-gradient(90deg, #288dfa, #1d4ed8); }
+.cge-schalter.an i::after { transform: translateX(11px); background: #fff; }
+.cge-schalter:disabled { opacity: .6; cursor: default; }
+.cge-schalter:focus-visible { outline: 2px solid var(--cgr-hell); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cge-schalter, .cge-schalter i, .cge-schalter i::after { transition: none; } }
 @media (max-width: 900px) { .cge { grid-template-columns: 1fr 1fr; } .cge-feld.breit { grid-column: 1 / -1; } }
 @media (max-width: 520px) { .cge { grid-template-columns: 1fr; padding: 14px; } }
 @media (prefers-reduced-motion: reduce) { .cge-knopf .dreht { animation: none; } }

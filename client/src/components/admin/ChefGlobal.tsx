@@ -17,14 +17,16 @@ import {
   Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
-import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN, US_BUNDESSTAATEN } from "@shared/fiaon-global-bereich";
+import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN } from "@shared/fiaon-global-bereich";
 import {
-  GLOBAL_FAHRPLAN, GLOBAL_GESELLSCHAFT_PLUS_FELDER, GLOBAL_KAPITAL_ARTEN, GLOBAL_KAPITAL_STATUS, GLOBAL_SCHRITT_STATUS, GLOBAL_SCHRITT_STATUS_TEXT,
+  GLOBAL_KAPITAL_ARTEN, GLOBAL_KAPITAL_STATUS,
   GLOBAL_TRESOR, globalTresorKategorie, globalUsd, type GlobalTresorKategorie,
 } from "@shared/fiaon-global-mandat";
 import "@/styles/chef-global-raum.css";
 // E-342: Gespräche je Tag + Google-Kalender als Leiste im Raum.
 import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
+// 22.10.2026: der Stationen-Editor (auch im Office).
+import GlobalStationen from "@/components/global/GlobalStationen";
 
 // ── Typen (so, wie der Server sie schickt) ───────────────────────────────────
 interface MandatZeile {
@@ -199,7 +201,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
   const post = (m.dokumente as any[]).filter((d) => d.art === "post");
   const REITER: { key: Reiter; titel: string; Icon: any; zahl?: number }[] = [
     { key: "ueberblick", titel: "Überblick", Icon: Sparkles },
-    { key: "gesellschaft", titel: "Gesellschaft & Fahrplan", Icon: Building2 },
+    { key: "gesellschaft", titel: "Fahrplan & Werte", Icon: Building2 },
     { key: "kapital", titel: "Banken & Kapital", Icon: Landmark, zahl: (m.kapital as any[]).length || undefined },
     { key: "tresor", titel: "Tresor", Icon: FileText, zahl: (m.dokumente as any[]).filter((d) => d.art !== "post").length || undefined },
     { key: "post", titel: "Post", Icon: Inbox, zahl: post.length || undefined },
@@ -255,7 +257,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
 
       <div className="cgr-reiter-inhalt" key={reiter}>
         {reiter === "ueberblick" && <Ueberblick m={m} tun={tun} setReiter={setReiter} />}
-        {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} />}
+        {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} gref={gref} onGespeichert={() => { neu(); onGeaendert(); }} />}
         {reiter === "kapital" && <Kapital m={m} tun={tun} />}
         {reiter === "tresor" && <Tresor m={m} tun={tun} gref={gref} />}
         {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}
@@ -415,98 +417,33 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
 }
 
 // ── Gesellschaft & Fahrplan ──────────────────────────────────────────────────
-function Gesellschaft({ m, tun }: { m: any; tun: Tun }) {
-  const g = m.gesellschaft ?? {};
-  const p = m.gesellschaftPlus ?? {};
-  const [grund, setGrund] = useState({
-    name: g.name ?? "", form: g.form ?? "LLC", bundesstaat: g.bundesstaat ?? "", gegruendetAm: g.gegruendetAm ?? "",
-    einVorhanden: g.einVorhanden ?? false, itinStand: g.itinStand ?? "",
-  });
-  const [plus, setPlus] = useState<Record<string, string>>(Object.fromEntries(GLOBAL_GESELLSCHAFT_PLUS_FELDER.map((f) => [f.feld, String(p[f.feld] ?? "")])));
-  const [offen, setOffen] = useState<string | null>(null);
-
-  const speichern = () => tun("/gesellschaft", "POST", {
-    grund: { ...grund, einVorhanden: grund.einVorhanden || !!plus.ein, itinStand: grund.itinStand || null, bundesstaat: grund.bundesstaat || null, gegruendetAm: grund.gegruendetAm || null },
-    plus,
-  });
-
+// 22.10.2026 (Stationen-Editor): Je Station eine Karte mit Status, Datum und den echten Werten — EIN, ITIN (verschlüsselt),
+// D-U-N-S, Telefon, Adressen, Konto, Karten, Kreditrahmen. Dasselbe Bauteil steht im Office (Global-Akte › Fahrplan & Werte).
+// Das alte Gesellschafts-Formular ging darin auf; übrig bleibt der freie Hinweis für den Kunden.
+function Gesellschaft({ m, tun, gref, onGespeichert }: { m: any; tun: Tun; gref: string; onGespeichert: () => void }) {
+  const [hinweis, setHinweis] = useState(String(m.gesellschaftPlus?.hinweis ?? ""));
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <h3>Die US-Gesellschaft <small>(sieht der Kunde)</small></h3>
-        <div className="cgr-felder">
-          <label>Name<input value={grund.name} onChange={(e) => setGrund({ ...grund, name: e.target.value })} placeholder="MUSTER LLC" /></label>
-          <label>Form<select value={grund.form} onChange={(e) => setGrund({ ...grund, form: e.target.value })}><option>LLC</option><option>Corporation</option></select></label>
-          <label>Bundesstaat<select value={grund.bundesstaat} onChange={(e) => setGrund({ ...grund, bundesstaat: e.target.value })}>
-            <option value="">—</option>
-            {Object.entries(US_BUNDESSTAATEN).map(([code, n]) => <option key={code} value={code}>{n}</option>)}
-          </select></label>
-          <label>Gegründet am<input type="date" value={grund.gegruendetAm} onChange={(e) => setGrund({ ...grund, gegruendetAm: e.target.value })} /></label>
-          <label>ITIN<select value={grund.itinStand} onChange={(e) => setGrund({ ...grund, itinStand: e.target.value })}>
-            <option value="">—</option><option value="offen">offen</option><option value="beantragt">beantragt</option><option value="vorhanden">vorhanden</option>
-          </select></label>
-          {GLOBAL_GESELLSCHAFT_PLUS_FELDER.map((f) => (
-            <label key={f.feld} className={f.feld === "usAdresse" || f.feld === "hinweis" ? "breit" : ""}>
-              {f.titel.de}
-              {f.feld === "usAdresse" || f.feld === "hinweis"
-                ? <textarea rows={2} value={plus[f.feld]} onChange={(e) => setPlus({ ...plus, [f.feld]: e.target.value })} />
-                : <input value={plus[f.feld]} onChange={(e) => setPlus({ ...plus, [f.feld]: e.target.value })} placeholder={f.feld === "ein" ? "12-3456789" : ""} />}
-            </label>
-          ))}
-        </div>
-        <div className="cgr-form zeile"><button type="button" className="cw-knopf cgr-haupt" onClick={speichern}>Gesellschaft speichern</button>
-          <span className="cgr-leise" title="Annual Report, Form 5472/1120">Bundesstaat + Gründungstag erzeugen die Pflichtfristen.</span></div>
+        <GlobalStationen basis={`${API}/chef/global/mandate/${encodeURIComponent(gref)}`} ton="dunkel" onGespeichert={onGespeichert}
+          daten={{
+            schritte: m.schritte, gesellschaft: m.gesellschaft, gesellschaftPlus: m.gesellschaftPlus, kapital: m.kapital,
+            dokumente: (m.dokumente as any[]).map((d) => ({ id: d.id, art: d.art, name: d.name, titel: d.titel, url: d.url })),
+          }} />
       </section>
-
       <section className="cgr-block breit">
-        <h3>Fahrplan <small>(sieht der Kunde; „Entfällt“ blendet aus)</small></h3>
-        {[1, 2, 3, 4].map((etappe) => (
-          <div key={etappe} className="cgr-fahrplan-etappe">
-            <h4>Etappe {etappe} · {GLOBAL_ETAPPEN.find((e) => e.nr === etappe)?.de.titel}</h4>
-            {(m.schritte as any[]).filter((s) => s.etappe === etappe).map((s) => (
-              <SchrittZeile key={s.schluessel} s={s} offen={offen === s.schluessel} umschalten={() => setOffen(offen === s.schluessel ? null : s.schluessel)} tun={tun} />
-            ))}
-          </div>
-        ))}
+        <h3>Hinweis zur Gesellschaft <small>(sieht der Kunde unter „Ihre US-Gesellschaft“)</small></h3>
+        <div className="cgr-form zeile">
+          <input value={hinweis} maxLength={400} onChange={(e) => setHinweis(e.target.value)} placeholder="z. B. Der Annual Report ist bis 1. Mai fällig — wir erinnern Sie rechtzeitig." />
+          <button type="button" className="cw-knopf" disabled={hinweis === String(m.gesellschaftPlus?.hinweis ?? "")} onClick={() => void tun("/gesellschaft", "POST", { plus: { hinweis } })}>Speichern</button>
+        </div>
       </section>
-    </div>
-  );
-}
-
-function SchrittZeile({ s, offen, umschalten, tun }: { s: any; offen: boolean; umschalten: () => void; tun: Tun }) {
-  const [hinweis, setHinweis] = useState(s.hinweis ?? "");
-  const [intern, setIntern] = useState(s.intern ?? "");
-  const [datumWert, setDatum] = useState(s.datum ?? "");
-  const setzen = (status: string) => tun("/schritt", "POST", { schluessel: s.schluessel, status, datum: datumWert || null, hinweis, intern });
-  return (
-    <div className={`cgr-schritt ${s.status}`}>
-      <div className="cgr-schritt-zeile">
-        <span className="cgr-schritt-punkt" aria-hidden="true" />
-        <button type="button" className="cgr-schritt-titel" onClick={umschalten}>
-          <b>{s.titel}</b>
-          <small>{s.datum ? datum(s.datum) : ""}{s.hinweis ? ` · „${s.hinweis}“` : ""}</small>
-        </button>
-        <div className="cgr-segment" role="group" aria-label={`Status ${s.titel}`}>
-          {GLOBAL_SCHRITT_STATUS.map((st) => (
-            <button key={st} type="button" className={s.status === st ? "an" : ""} onClick={() => setzen(st)}>{GLOBAL_SCHRITT_STATUS_TEXT[st].de}</button>
-          ))}
-        </div>
-      </div>
-      {offen && (
-        <div className="cgr-form cgr-schritt-mehr">
-          <p className="cgr-leise">{s.text}</p>
-          <label>Datum<input type="date" value={datumWert} onChange={(e) => setDatum(e.target.value)} /></label>
-          <label>Hinweis für den Kunden<input value={hinweis} onChange={(e) => setHinweis(e.target.value)} placeholder="z. B. Eingereicht am 14.10., Bearbeitung beim Staat läuft." /></label>
-          <label>Interne Notiz<input value={intern} onChange={(e) => setIntern(e.target.value)} /></label>
-          <button type="button" className="cw-knopf" onClick={() => setzen(s.status)}>Speichern</button>
-        </div>
-      )}
     </div>
   );
 }
 
 // ── Banken & Kapital ─────────────────────────────────────────────────────────
-const LEER_KAPITAL = { id: 0, art: "konto", institut: "", produkt: "", status: "vorbereitung", betragUsd: "", beantragtAm: "", entschiedenAm: "", hinweis: "", intern: "", sichtbar: true };
+const LEER_KAPITAL = { id: 0, art: "konto", institut: "", produkt: "", inhaber: "firma", status: "vorbereitung", betragUsd: "", beantragtAm: "", entschiedenAm: "", hinweis: "", intern: "", sichtbar: true };
 function Kapital({ m, tun }: { m: any; tun: Tun }) {
   const [form, setForm] = useState<typeof LEER_KAPITAL | null>(null);
   const liste = m.kapital as any[];
@@ -519,6 +456,7 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
           <h3>Banken &amp; Kapital <small>Konto, Karten, Kreditrahmen, Darlehen</small></h3>
           <button type="button" className="cw-knopf cgr-haupt" onClick={() => setForm({ ...LEER_KAPITAL })}><Plus size={14} /> Eintrag</button>
         </div>
+        <p className="cgr-leise">Der Kunde sieht Art, Status, Datum und Hinweis — nie Institut oder Produkt, einen Betrag erst ab „Zugesagt“. Karten und Kreditrahmen pflegst du auch direkt an der Station im Reiter „Fahrplan &amp; Werte“.</p>
         <div className="cgr-summe">
           <span>Zugesagt / aktiv</span><b>{globalUsd(m.zugesagtCents)}</b>
           {ziel && <small>Garantieziel laut Vertrag: {String(ziel)}</small>}
@@ -528,6 +466,7 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
             <label>Art<select value={form.art} onChange={(e) => setForm({ ...form, art: e.target.value })}>{GLOBAL_KAPITAL_ARTEN.map((a) => <option key={a.art} value={a.art}>{a.titel.de}</option>)}</select></label>
             <label>Institut<input value={form.institut} onChange={(e) => setForm({ ...form, institut: e.target.value })} /></label>
             <label>Produkt<input value={form.produkt} onChange={(e) => setForm({ ...form, produkt: e.target.value })} /></label>
+            {form.art === "karte" && <label>Karte für<select value={form.inhaber} onChange={(e) => setForm({ ...form, inhaber: e.target.value })}><option value="firma">Firma</option><option value="privat">Privat</option></select></label>}
             <label>Status<select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{GLOBAL_KAPITAL_STATUS.map((a) => <option key={a.status} value={a.status}>{a.titel.de}</option>)}</select></label>
             <label>Betrag / Limit (USD)<input inputMode="numeric" value={form.betragUsd} onChange={(e) => setForm({ ...form, betragUsd: e.target.value })} placeholder="25000" /></label>
             <label>Beantragt am<input type="date" value={form.beantragtAm} onChange={(e) => setForm({ ...form, beantragtAm: e.target.value })} /></label>
@@ -557,7 +496,7 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
                   {!k.sichtbar ? " · nur intern" : ""}{k.hinweis ? ` · „${k.hinweis}“` : ""}
                 </small>
                 <div className="cgr-mini">
-                  <button type="button" onClick={() => setForm({ id: k.id, art: k.art, institut: k.institut ?? "", produkt: k.produkt ?? "", status: k.status, betragUsd: k.betragCents != null ? String(k.betragCents / 100) : "", beantragtAm: k.beantragtAm ?? "", entschiedenAm: k.entschiedenAm ?? "", hinweis: k.hinweis ?? "", intern: k.intern ?? "", sichtbar: !!k.sichtbar })}>Bearbeiten</button>
+                  <button type="button" onClick={() => setForm({ id: k.id, art: k.art, institut: k.institut ?? "", produkt: k.produkt ?? "", inhaber: k.inhaber ?? "firma", status: k.status, betragUsd: k.betragCents != null ? String(k.betragCents / 100) : "", beantragtAm: k.beantragtAm ?? "", entschiedenAm: k.entschiedenAm ?? "", hinweis: k.hinweis ?? "", intern: k.intern ?? "", sichtbar: !!k.sichtbar })}>Bearbeiten</button>
                   <button type="button" onClick={() => { if (window.confirm("Diesen Eintrag entfernen?")) void tun(`/kapital/${k.id}`, "DELETE"); }}>Entfernen</button>
                 </div>
               </div>
@@ -858,7 +797,7 @@ function Leistungen({ gref, tun }: { gref: string; tun: Tun }) {
       <section className="cgr-block breit">
         <h3>Katalog <small>Preise und Texte: shared/fiaon-global-zusatz.ts</small></h3>
         <ul className="cgr-verlauf">
-          {daten.katalog.map((k) => <li key={k.key}><small>{k.preis}{k.buchbar ? "" : " · noch nicht buchbar"}</small><p><b>{k.titel}</b> — {k.intern}</p></li>)}
+          {daten.katalog.map((k) => <li key={k.key}><small>{k.preis}{k.buchbar ? (k.freigegeben ? " · für Kunden freigegeben" : " · nicht freigegeben (Schalter oben im Raum)") : " · noch nicht buchbar"}</small><p><b>{k.titel}</b> — {k.intern}</p></li>)}
         </ul>
       </section>
     </div>

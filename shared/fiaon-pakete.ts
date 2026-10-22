@@ -137,6 +137,11 @@ export const PAKETE: Paket[] = [
   // voraus und er gibt sie uns nach der Gründung“. Hälfte 2 fällig mit dem ersten Geldeingang, spätestens zum Datum an der Bestellung.
   { key: "llc_gruendung_halb",  label: "Gründung US-Gesellschaft (LLC), halbe Rechnung", preisCents: 19900, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Anmeldung beim Bundesstaat Florida (Sunbiz), Registered Agent und Geschäftsadresse im ersten Jahr — zum Selbstkostenpreis, ohne Aufschlag", zeitraum: "einmalig" }, zahlungsseite: "global" },
+  // E-419 (22.10.2026): Fast-Track der Gründung (CHEHADE LLC) — Justin: „599 $ … nur eine Position, die wir weiterrechnen“, der
+  // Partner hat bestätigt. Fremdkosten ohne Aufschlag: 599,00 USD zum EZB-Referenzkurs vom 21.10.2026 (1 € = 1,1234 USD) = 533,20 €.
+  // Einmalkauf, Art privat (kein Global-Start), Zahlungsseite global (keine Privat-Erinnerung, kein Ablösen der Schwesterbestellungen).
+  { key: "llc_fasttrack",       label: "Fast-Track Gründung US-Gesellschaft", preisCents: 53320, art: "privat", abo: false, eingestellt: true,
+    rechnung: { beschreibung: "Fast-Track: beschleunigte Bearbeitung der Gründung Ihrer US-Gesellschaft — 599,00 USD zum EZB-Referenzkurs vom 21.10.2026 (1 € = 1,1234 USD), Fremdkosten ohne Aufschlag weiterberechnet", zeitraum: "einmalig" }, zahlungsseite: "global" },
   // ── MONATSRECHNUNG DER PARTNER-KOOPERATION (16.10.2026, E-386) ─────────────
   // Der Kooperationsvertrag (E-384) rechnet je übermitteltem Kontakt zum Monatsende ab — der Betrag steht im Vertrag
   // (Preis je Kontakt × Anzahl, abzüglich Gutschriften) und nie im Katalog: `preisJeAngebot` (keine Preis-Abschrift, die

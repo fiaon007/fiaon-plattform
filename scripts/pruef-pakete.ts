@@ -104,7 +104,12 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // 16.10.2026 (E-386): dazu „koop_kontakte" (Monatsrechnung der Partner-Kooperation, kein Abo, Betrag aus dem Vertrag).
 gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "koop_kontakte"].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "koop_kontakte"].sort());
+// E-419: Fast-Track der Gründung — Einmalkauf privat, 533,20 € (599 USD zum EZB-Kurs vom 21.10.2026), Zahlungsseite global, nicht verkaufbar.
+{
+  const ft = paket("llc_fasttrack");
+  ok("llc_fasttrack: privat, kein Abo, eingestellt, 533,20 €, Zahlungsseite global, Rechnungstext mit USD und Kurs", ft?.art === "privat" && ft.abo === false && ft.eingestellt === true && ft.preisCents === 53320 && ft.zahlungsseite === "global" && /599,00 USD/.test(ft.rechnung?.beschreibung ?? "") && /1,1234/.test(ft.rechnung?.beschreibung ?? "") && !istGlobalPaket("llc_fasttrack") && !verkaufbarePakete().some((p) => p.key === "llc_fasttrack"));
+}
 // E-314: Das LLC-Paket ist ein Einmalkauf der Art „privat“ (nie Global-Start), nie verkaufbar, mit eigenem Rechnungstext.
 {
   const llc = paket("llc_paket");

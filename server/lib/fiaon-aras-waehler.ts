@@ -13,6 +13,10 @@
 //     Stufe 0, Fenster/Nachtruhe und Sperren gelten auch für ihn.
 //   · Die übrigen Anrufe verteilen sich über das Fenster (Freigabe = Deckel × verstrichener Anteil + 2, Mindestabstand) und
 //     kommen nach einem Fehlversuch bevorzugt in einem anderen Tagesabschnitt dran.
+// Scheibe 3, Kunden mit Vertrag (Koordination 22.10.2026):
+//   · Beste Uhrzeit: Hat er früher abgenommen (Mensch oder ARAS), kommt ein Rate-Anruf bevorzugt im selben Tagesabschnitt
+//     (abschnittWahlBeste) — erst NACH allen Wänden geprüft, verschiebt also nur, nie gegen Fenster, Grenzen oder Vorrang.
+//   · Zusage nachfassen: vor dem Wählen noch einmal prüfen (zusageEntfaellt) — bezahlt, zurückgenommen, neue Zusage → verfallen.
 // Das Protokoll „ausgelassen“ sagt je Grund, wie viele hängen blieben — der
 // Labs-Bereich zeigt es. Standard: aras_an = aus — ARAS wählt keinen Kunden,
 // bis Justin ihn einschaltet. Der Probeanruf geht an der Wand vorbei, aber nur
@@ -20,7 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema, arasAusweisId } from "./fiaon-aras-schema";
-import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson, willkommenEntfaellt, rateEntfaellt } from "./fiaon-aras-plan";
+import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson, willkommenEntfaellt, rateEntfaellt, zusageEntfaellt } from "./fiaon-aras-plan";
 import { laufendeSitzungen, notausAlle, vorbereiten } from "./fiaon-aras-bruecke";
 import { briefingBauen } from "./fiaon-aras-briefing";
 import { adapterFuer } from "./fiaon-aras-adapter";
@@ -33,7 +37,7 @@ import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-pr
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import {
   fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT,
-  VORRANG_SPIELARTEN, VORRANG_FREI_MINUTEN, TAG_EURO_HOECHSTENS, istVorrang, tagesFreigabe, mindestAbstandMs, abschnittWahl, type Spielart, type Land, type Kandidat,
+  VORRANG_SPIELARTEN, VORRANG_FREI_MINUTEN, TAG_EURO_HOECHSTENS, istVorrang, tagesFreigabe, mindestAbstandMs, abschnittWahlBeste, type Spielart, type Land, type Kandidat,
 } from "../../shared/fiaon-aras";
 
 /** Eine beim Klingeln vorbereitete Sitzung endet spätestens so lange danach (Twilio klingelt 30 s). */
@@ -155,6 +159,11 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       const weg = await rateEntfaellt({ id: k.id, person_id: z.person_id, rate_id: z.rate_id, erzeugt_von: z.erzeugt_von, auftrag_von: z.auftrag_von }, einst, lauf);
       if (weg) { merken(weg.status === "verschoben" ? "rate:zahlungszusage" : `rate:${weg.grund.slice(0, 30)}`); continue; }
     }
+    if (k.spielart === "zusage") {
+      // Zusage nachfassen (Scheibe 3): zwischen Planen und Wählen inzwischen bezahlt, zurückgenommen oder ein neuer Zahltag → raus.
+      const weg = await zusageEntfaellt({ id: k.id, person_id: z.person_id, nummer: z.nummer, erzeugt_von: z.erzeugt_von, auftrag_von: z.auftrag_von }, einst, lauf);
+      if (weg) { merken(`zusage:${weg.grund.slice(0, 30)}`); continue; }
+    }
     if (k.spielart === "zuruf" && grenzen.regel.zurufNurNachricht) {
       // Bis Stufe 2 nur mit „JA per Nachricht“ — ohne nachweisbares Ja (Kennung) gar nicht.
       const [ew] = z.einwilligung_id ? ((await lauf`SELECT art FROM fiaon_telefon_einwilligung WHERE id = ${z.einwilligung_id}`) as any[]) : [];
@@ -196,10 +205,12 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       }
       // Nach einem Fehlversuch bevorzugt ein ANDERER Tagesabschnitt (Vormittag/Mittag/Abend) als beim letzten Versuch: kommt heute
       // noch einer, wartet der Eintrag; ist es der letzte des Tages, kommt er nur dran, wenn sonst niemand den Platz braucht.
+      // Scheibe 3: Hat er früher abgenommen, bevorzugt ein Rate-Anruf SEINEN Abschnitt von damals (Grund beste_zeit:…).
       if (!k.notfalls) {
-        const wahl = abschnittWahl({ spielart: k.spielart, fehlFolge: v.fehlFolge, letzterVersuchAm: v.letzterVersuchAm, jetzt, fenster: einst.fenster });
-        if (wahl === "spaeter") { merken("abschnitt:spaeter"); continue; }
-        if (wahl === "notfalls") { merken("abschnitt:notfalls"); reihe.push({ ...k, notfalls: true }); continue; }
+        const b = abschnittWahlBeste({ spielart: k.spielart, fehlFolge: v.fehlFolge, letzterVersuchAm: v.letzterVersuchAm, erreichtAm: v.erreichtAm, jetzt, fenster: einst.fenster });
+        const marke = b.grund === "beste_zeit" ? "beste_zeit" : "abschnitt";
+        if (b.wahl === "spaeter") { merken(`${marke}:spaeter`); continue; }
+        if (b.wahl === "notfalls") { merken(`${marke}:notfalls`); reihe.push({ ...k, notfalls: true }); continue; }
       }
     }
     const w = await waehlen(k.id, {}, lauf);

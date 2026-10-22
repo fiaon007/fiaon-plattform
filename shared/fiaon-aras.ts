@@ -802,6 +802,67 @@ export function zusageSchwelle(heute: string): string {
   return d;
 }
 
+// ── Nach den 168 Anrufen (Koordination 22.10.2026, Scheibe 3 „Kunden mit Vertrag“): ARAS hält ihr Wort zur richtigen Zeit ──────
+/**
+ * Der Tag, an dem ARAS eine Zahlungszusage nachfasst: der erste Tag ab `wiederAb` (zugesagter Tag + zwei Bank-Werktage + 1) mit
+ * Raten-Fenster — der Wochentag steht im Fenster, und im Land ist kein Feiertag. Vorher hält der Rate-Planer still (zusagePause);
+ * „am Tag danach“ rief ARAS mitten in die laufende Überweisung hinein. Rein.
+ */
+export function zusageNachfassTag(zusageTag: string, opt: { land?: Land; fenster?: { verkauf: Fenster; rate: Fenster }; feiertag?: (land: Land, datum: string) => boolean } = {}): string {
+  const ab = zusagePause(zusageTag).wiederAb;
+  let d = ab;
+  for (let n = 0; n < 14; n++) {
+    if (rateFensterTag(d, opt)) return d;
+    d = tagPlus(d, 1);
+  }
+  return ab;
+}
+/** Hat dieser Kalendertag („JJJJ-MM-TT“) ein Raten-Fenster — Wochentag im Fenster eingetragen, kein Feiertag im Land? Rein. */
+export function rateFensterTag(datum: string, opt: { land?: Land; fenster?: { verkauf: Fenster; rate: Fenster }; feiertag?: (land: Land, datum: string) => boolean } = {}): boolean {
+  const f = opt.fenster ?? FENSTER_VORGABE;
+  const feiertag = opt.feiertag ?? ((l: Land, d: string) => istFeiertag(l as FeiertagLand, d));
+  const wt = new Date(`${datum.slice(0, 10)}T12:00:00Z`).getUTCDay() || 7;
+  return !!fensterZeile(f.rate, wt) && !feiertag(opt.land ?? "DE", datum.slice(0, 10));
+}
+/**
+ * Was ARAS nach zahlungszusage_merken sagt — EHRLICH (Koordination 22.10.2026): Vor dem Ende der Überweisungszeit (zugesagter Tag
+ * + zwei Bank-Werktage) ruft niemand wegen der Rate an; das Datum im zweiten Satz ist `wiederAb`, der erste Tag danach. Rein.
+ */
+export function zusageNotiertSatz(zusageTag: string): string {
+  // „TT.MM.“ — der Punkt nach dem Monat gehört zum Datum (am Satzende steht kein zweiter).
+  const tm = (iso: string) => `${iso.slice(0, 10).split("-").reverse().slice(0, 2).join(".")}.`;
+  return `Notiert: Sie überweisen am ${tm(zusageTag)} Falls bis ${tm(zusagePause(zusageTag).wiederAb)} nichts angekommen ist, melde ich mich kurz.`;
+}
+
+/**
+ * Beste Uhrzeit je Kunde (Koordination 22.10.2026): Hat er bei einem früheren Anruf abgenommen (Mensch oder ARAS), kommt ein
+ * Rate-Anruf bevorzugt im SELBEN Tagesabschnitt (Vormittag/Mittag/Abend) wie damals:
+ *   „jetzt“    — wir sind in seinem Abschnitt (oder: keine Vorliebe → die Regel nach einem Fehlversuch, abschnittWahl)
+ *   „spaeter“  — sein Abschnitt kommt heute im Fenster noch → warten
+ *   „notfalls“ — sein Abschnitt ist heute vorbei oder liegt außerhalb des Fensters → nur, wenn sonst niemand den Platz braucht
+ * Ein Fehlversuch NACH dem Abnehmen im selben Abschnitt lässt die Vorliebe ruhen (dann ein anderer Abschnitt, abschnittWahl).
+ * Nur „rate“; Vorrang und Probe gehen immer sofort. Die Vorliebe verschiebt nur — sie wählt nie gegen Fenster, Grenzen oder
+ * Vorrang (der Wähler prüft sie erst, wenn alle Wände durch sind). Rein.
+ */
+export function abschnittWahlBeste(e: {
+  spielart: Spielart; fehlFolge: number; letzterVersuchAm: Date | null; erreichtAm: Date | null; jetzt: Date; fenster: { verkauf: Fenster; rate: Fenster };
+}): { wahl: "jetzt" | "spaeter" | "notfalls"; grund: "vorrang" | "beste_zeit" | "abschnitt" } {
+  if (istVorrang(e.spielart) || e.spielart === "probe") return { wahl: "jetzt", grund: "vorrang" };
+  if (e.spielart === "rate" && e.erreichtAm) {
+    const beste = tagesabschnitt(e.erreichtAm);
+    const fehlDanach = e.fehlFolge > 0 && !!e.letzterVersuchAm && e.letzterVersuchAm.getTime() > e.erreichtAm.getTime() && tagesabschnitt(e.letzterVersuchAm) === beste;
+    if (!fehlDanach) {
+      const jetzt = tagesabschnitt(e.jetzt);
+      if (jetzt === beste) return { wahl: "jetzt", grund: "beste_zeit" };
+      const f = fensterAmWochentag(e.fenster, berlinTeile(e.jetzt).wochentag);
+      const i = TAGESABSCHNITTE.findIndex((a) => a.name === jetzt), j = TAGESABSCHNITTE.findIndex((a) => a.name === beste);
+      const kommtNoch = j > i && !!f && TAGESABSCHNITTE[j].ab < f.bis;
+      return { wahl: kommtNoch ? "spaeter" : "notfalls", grund: "beste_zeit" };
+    }
+  }
+  return { wahl: abschnittWahl(e), grund: "abschnitt" };
+}
+
 /**
  * Druck-Muster (KI-VO Art. 5 Abs. 1 lit. b — wirtschaftliche Lage): EINE Quelle — die harten Telefon-Regeln
  * (shared/fiaon-aras-regeln.ts, wortgleich mit Prüf-Mara E-409). Hier nur weitergereicht (Vertrag § 1).

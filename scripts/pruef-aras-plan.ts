@@ -273,6 +273,27 @@ titel("8c. DER PLANER HÄLT SEINE VERSPRECHEN (Koordination 22.10.): Vorrang, Ve
   ok("Montag 26.10.: die Zusage vom Do 22.10. pausiert noch (bis 26.10.), die vom Mi 21.10. nicht; eine Zusage für nächste Woche immer", zusageSchwelle("2026-10-26") === "2026-10-22" && "2026-10-30" >= zusageSchwelle("2026-10-26"), zusageSchwelle("2026-10-26"));
 }
 
+titel("8d. SCHEIBE 3, KUNDEN MIT VERTRAG (Koordination 22.10.): Zusage nachfassen nach der Überweisungszeit, der ehrliche Satz, beste Uhrzeit");
+{
+  const { zusageNachfassTag, zusageNotiertSatz, rateFensterTag, abschnittWahlBeste, abschnittWahl, zusagePause } = await import("../shared/fiaon-aras");
+  const F = FENSTER_VORGABE;
+  ok("Nachfassen = erster Fenstertag ab wiederAb: Zusage Mi 21.10. → Sa 24.10., Do 22.10. → Di 27.10., Fr 23.10. → Mi 28.10.",
+    zusageNachfassTag("2026-10-21", { fenster: F }) === "2026-10-24" && zusageNachfassTag("2026-10-22", { fenster: F }) === "2026-10-27" && zusageNachfassTag("2026-10-23", { fenster: F }) === "2026-10-28");
+  ok("ROT-PROBE (alte Regel „am Tag danach“): Zusage 21.10. nie am 22.10. — während der Überweisungszeit ruft ARAS nicht", zusageNachfassTag("2026-10-21", { fenster: F }) > zusagePause("2026-10-21").bis);
+  ok("Feiertag: wiederAb Fr 01.05.2026 (Tag der Arbeit) → Nachfassen Sa 02.05.; Sonntag ohne „7“ nie ein Fenstertag",
+    zusageNachfassTag("2026-04-28", { fenster: F }) === "2026-05-02" && !rateFensterTag("2026-10-25", { fenster: F }));
+  ok("Der Satz nach zahlungszusage_merken: „Notiert: Sie überweisen am 23.10. Falls bis 28.10. nichts angekommen ist, melde ich mich kurz.“",
+    zusageNotiertSatz("2026-10-23") === "Notiert: Sie überweisen am 23.10. Falls bis 28.10. nichts angekommen ist, melde ich mich kurz.", zusageNotiertSatz("2026-10-23"));
+  const b = (erreicht: string | null, jetzt: string, o: { spielart?: Kandidat["spielart"]; fenster?: typeof F; letzter?: string; fehl?: number } = {}) =>
+    abschnittWahlBeste({ spielart: o.spielart ?? "rate", fehlFolge: o.fehl ?? 0, letzterVersuchAm: o.letzter ? berlin(o.letzter) : (erreicht ? berlin(erreicht) : null), erreichtAm: erreicht ? berlin(erreicht) : null, jetzt: berlin(jetzt), fenster: o.fenster ?? F });
+  ok("Beste Uhrzeit: abends abgenommen → vormittags „später“, abends „jetzt“; vormittags abgenommen → mittags nur notfalls",
+    b("2026-10-20 18:30", "2026-10-22 10:00").wahl === "spaeter" && b("2026-10-20 18:30", "2026-10-22 18:00").wahl === "jetzt" && b("2026-10-20 10:00", "2026-10-22 13:00").wahl === "notfalls");
+  ok("ROT-PROBE Fenster/Vorrang: Samstag bis 14:00 → nie auf den Abend warten (notfalls); Zusage-Nachfassen geht immer sofort",
+    b("2026-10-20 18:30", "2026-10-24 10:00", { fenster: { verkauf: { "6": ["09:30", "14:00"] }, rate: { "6": ["09:30", "14:00"] } } }).wahl === "notfalls" && b("2026-10-20 18:30", "2026-10-22 10:00", { spielart: "zusage" }).wahl === "jetzt");
+  ok("Nie abgenommen → unverändert die Regel nach einem Fehlversuch (abschnittWahl)",
+    b(null, "2026-10-22 09:40", { letzter: "2026-10-21 09:35", fehl: 1 }).wahl === abschnittWahl({ spielart: "rate", fehlFolge: 1, letzterVersuchAm: berlin("2026-10-21 09:35"), jetzt: berlin("2026-10-22 09:40"), fenster: F }));
+}
+
 titel("9. KATALOGE");
 ok("14 Werkzeuge (13 + probe_feedback_merken, nur im Probeanruf; neu: aufgabe_fuer_justin), 12 Spielarten (mit „auftrag“ und „willkommen“)", WERKZEUGE.length === 14 && WERKZEUGE.includes("probe_feedback_merken") && WERKZEUGE.includes("aufgabe_fuer_justin") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));

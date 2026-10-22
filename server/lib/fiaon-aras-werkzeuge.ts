@@ -30,8 +30,7 @@ import { akteVorlesen } from "./fiaon-aras-briefing";
 import { telefonSperren, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungWiderrufen } from "./fiaon-telefon-einwilligung";
 import { praesent } from "./fiaon-softphone-praesenz";
-import { planEinreihen } from "./fiaon-aras-plan";
-import { istWerkzeug, FEEDBACK_ARTEN, JUSTIN_AUFGABE_ARTEN, JUSTIN_AUFGABE_TITEL, justinAufgabeSchluessel, type JustinAufgabeArt, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
+import { istWerkzeug, FEEDBACK_ARTEN, JUSTIN_AUFGABE_ARTEN, JUSTIN_AUFGABE_TITEL, justinAufgabeSchluessel, zusagePause, zusageNotiertSatz, type JustinAufgabeArt, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
 import type { Briefing } from "../../shared/fiaon-aras-prompt";
 import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
 import { berlinToday } from "./fiaon-time";
@@ -177,17 +176,24 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     }
   },
 
-  async zahlungszusage_merken(ctx, e) {
+  // Koordination 22.10.2026 (Scheibe 3, „ARAS sagt die Wahrheit“): Bis zum zugesagten Tag plus zwei Bank-Werktage ruft niemand
+  // wegen der Rate an (zusagePause) — darum fasst ARAS erst am ersten Tag nach dieser Pause nach (Planer, Abschnitt 5:
+  // zusageNachfassTag), und genau das sagt sie: „Falls bis <wiederAb> nichts angekommen ist, melde ich mich kurz.“ Den Eintrag
+  // „am Tag danach“ gibt es nicht mehr — der Planer liest die Zusage aus der Akte (dort hält auch der Rate-Planer still). Darum
+  // muss sie in die Akte: ohne Kennung im Plan (z. B. ein gebuchter Rückruf) die aktuelle Bestellung des Kunden.
+  async zahlungszusage_merken(ctx, e, lauf) {
     const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(e?.datum ?? "")) ? String(e.datum) : null;
     if (!datum) return { ok: false, vorlesen: "Welcher Tag genau — nennen Sie mir bitte das Datum.", fehler: "datum" };
     if (datum < berlinToday()) return { ok: false, vorlesen: "Der Tag liegt in der Vergangenheit — welcher Tag passt Ihnen?", fehler: "vergangenheit" };
-    const meldung = await ergebnisInDieAkte(ctx, "erreicht_zahlt_am", `Zusage für den ${tagDe(datum)}`, { zusageDatum: datum });
-    if (ctx.personId) {
-      const tagDanach = new Date(`${datum}T09:00:00+02:00`); tagDanach.setDate(tagDanach.getDate() + 1);
-      await planEinreihen({ personId: ctx.personId, ref: ctx.ref, nummer: ctx.nummer, spielart: "zusage", grund: `Zusage vom ${tagDe(datum)} nachfassen`, erzeugtVon: "takt", fruehAb: tagDanach, spaetBis: new Date(tagDanach.getTime() + 10 * 3600_000), anlassAm: new Date() }).catch(() => null);
-    }
-    await arasEreignis({ art: "aras_zusage", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart, text: `Zahlungszusage ${tagDe(datum)}`, daten: { datum, meldung } });
-    return { ok: true, vorlesen: `Notiert: Sie überweisen am ${tagDe(datum)}. Am Tag danach melde ich mich kurz, falls nichts angekommen ist.` };
+    const ref = ctx.ref ?? (ctx.personId ? ((await lauf`SELECT ref FROM fiaon_applications WHERE person_id = ${ctx.personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL
+                                                         ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`.catch(() => [])) as any[])[0]?.ref ?? null : null);
+    const meldung = await ergebnisInDieAkte(ref === ctx.ref ? ctx : { ...ctx, ref }, "erreicht_zahlt_am", `Zusage für den ${tagDe(datum)}`, { zusageDatum: datum });
+    if (ref && ctx.personId) ctx.ergebnisGesetzt = true;
+    const p = zusagePause(datum);
+    await arasEreignis({ art: "aras_zusage", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart,
+      text: `Zahlungszusage ${tagDe(datum)} — kein Rate-Anruf bis ${tagDe(p.bis)}, Nachfassen ab ${tagDe(p.wiederAb)}`, daten: { datum, bis: p.bis, wiederAb: p.wiederAb, akte: !!(ref && ctx.personId), meldung } });
+    // Steht sie nicht in der Akte (kein Vertrag), fasst niemand nach — dann verspricht ARAS das auch nicht.
+    return { ok: true, vorlesen: ref && ctx.personId ? zusageNotiertSatz(datum) : `Notiert: Sie überweisen am ${tagDe(datum).slice(0, 5)}.` };
   },
 
   async zahlung_gemeldet(ctx, e, lauf) {
@@ -363,7 +369,7 @@ function trockenErgebnis(name: Werkzeug, e: any): WerkzeugErgebnis {
   const tag = (d: unknown) => (/^\d{4}-\d{2}-\d{2}/.test(String(d ?? "")) ? tagDe(String(d).slice(0, 10)) : "dem genannten Tag");
   switch (name) {
     case "zahlungslink_senden": return { ok: true, vorlesen: `Der Link ist raus — per ${e?.weg === "mail" ? "E-Mail" : "WhatsApp"}.`, still: "Probe: nichts wirklich verschickt." };
-    case "zahlungszusage_merken": return { ok: true, vorlesen: `Notiert: Sie überweisen am ${tag(e?.datum)}. Am Tag danach melde ich mich kurz, falls nichts angekommen ist.`, still: "Probe: nichts eingetragen." };
+    case "zahlungszusage_merken": return { ok: true, vorlesen: /^\d{4}-\d{2}-\d{2}/.test(String(e?.datum ?? "")) ? zusageNotiertSatz(String(e.datum).slice(0, 10)) : "Notiert. Falls nach der Überweisungszeit nichts angekommen ist, melde ich mich kurz.", still: "Probe: nichts eingetragen." };
     case "zahlung_gemeldet": return { ok: true, vorlesen: "Danke — die Überweisung ist vermerkt. Sobald sie gebucht ist, geht es automatisch weiter.", still: "Probe: nichts vermerkt." };
     case "ratenpause_setzen": return { ok: true, vorlesen: "Ich habe Ihre Raten um einen Monat nach hinten geschoben. Die Leitung bestätigt das noch.", still: "Probe: keine Rate verschoben." };
     case "rueckruf_buchen": return { ok: true, vorlesen: `Eingetragen — ${e?.bei === "aras" ? "ich rufe Sie dann an" : "jemand aus dem Team ruft Sie dann an"}.`, still: "Probe: kein Termin gebucht." };

@@ -591,6 +591,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Rote Werte (Abbrüche, Prüf-Fehler) bremsen Aras nicht mehr von selbst; grüne Tage schalten nicht hoch.",
     fenster: 24,
   },
+  // E-408 Scheibe 3 (22.10.2026). aras_zahltag steht bewusst NICHT hier: Er schreibt nur an Tagen mit Zusage eine Zeile — die
+  // Ampel meldete sonst jeden Tag „ausgeblieben“ (eine Bremse, die falsch auslöst, ist gefährlicher als keine).
+  "aras_aufbewahrung": {
+    zweck: "ARAS: Aufnahmen (bei Twilio) und Abschriften von ARAS-Gesprächen nach 90 Tagen löschen — außer Streitfall oder Beschwerde offen",
+    folge: "Aufnahmen und Abschriften von ARAS-Gesprächen bleiben über die 90 Tage hinaus liegen — ein Datenschutzverstoß, der wächst.",
+    fenster: 24,
+  },
   wa_zentrale_takt: {
     zweck: "WhatsApp-Automatik: Vorlagen an die freigegebenen Gruppen, bei ROT nur die Monatsrate (Service)",
     folge: "Fällige Monatsraten werden nicht per WhatsApp erinnert, neue Leads nicht begrüßt.",

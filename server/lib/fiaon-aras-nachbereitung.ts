@@ -140,6 +140,15 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
                pruefung = COALESCE(${befund ? lauf.json(befund as any) : null}, pruefung), nachbereitet_am = NOW(), updated_at = NOW()
              WHERE id = ${arasAnrufId}`;
   if (z.plan_id) await lauf`UPDATE fiaon_aras_plan SET status = 'fertig', updated_at = NOW() WHERE id = ${z.plan_id} AND status IN ('gewaehlt', 'laeuft', 'wartet')`.catch(() => null);
+  // Scheibe 3 (Koordination 22.10.2026 — 41 % der 168 Anrufe landeten auf der Mailbox): ein Rate-Anruf ohne Gespräch → die
+  // Raten-Erinnerung über denselben Weg wie im Gespräch (WhatsApp fiaon_kk_rate, sonst Mail), mit allen Bremsen
+  // (fiaon-aras-erinnerung.ts). Nie bei Probe; die Entscheidung hängt am Gespräch (Cockpit, Protokoll).
+  if (!probe && spielart === "rate" && (ergebnis === "mailbox" || ergebnis === "nicht_erreicht")) {
+    try {
+      const { nachMailboxErinnern } = await import("./fiaon-aras-erinnerung");
+      await nachMailboxErinnern({ arasAnrufId, ergebnis, endeGrund: l.endeGrund }, lauf);
+    } catch (e) { console.error("[ARAS-NACHBEREITUNG] Erinnerung nach der Mailbox:", String((e as Error)?.message ?? e).slice(0, 200)); }
+  }
   if (befund?.punkte.some((p) => p.schwere === "hart")) {
     await arasEreignis({ art: "aras_pruefung", callId: Number(z.call_id), arasAnrufId, personId: z.person_id != null ? Number(z.person_id) : null, spielart, ok: false,
       text: `Harte Regel im Gespräch: ${befund.punkte.filter((p) => p.schwere === "hart").map((p) => p.regel).join(", ")}`, daten: { punkte: befund.punkte } });
@@ -193,7 +202,7 @@ export async function anrufListe(f: { tag?: string; spielart?: string; ergebnis?
 export async function anrufDetail(arasAnrufId: number, lauf: Lauf = sqlPool, maskiert = false): Promise<AnrufDetail | null> {
   await arasSchema(lauf);
   const [z] = (await lauf`
-    SELECT aa.*, c.person_id, p.last_name, p.company_name, c.recording_sid FROM fiaon_aras_anruf aa
+    SELECT aa.*, c.person_id, p.last_name, p.company_name, c.recording_sid, c.aufnahme_geloescht_am FROM fiaon_aras_anruf aa
       JOIN fiaon_calls c ON c.id = aa.call_id LEFT JOIN fiaon_persons p ON p.id = c.person_id WHERE aa.id = ${arasAnrufId}`) as any[];
   if (!z) return null;
   const werkzeuge = (await lauf`SELECT werkzeug, eingabe, ergebnis, ok, dauer_ms, created_at FROM fiaon_aras_werkzeug WHERE aras_anruf_id = ${arasAnrufId} ORDER BY created_at`) as any[];
@@ -204,8 +213,9 @@ export async function anrufDetail(arasAnrufId: number, lauf: Lauf = sqlPool, mas
     transkript: maskiert ? null : (Array.isArray(transkript) ? transkript : null),
     zusammenfassung: z.zusammenfassung ?? null, ergebnisNotiz: z.ergebnis_notiz ?? null,
     werkzeuge: werkzeuge.map((w) => ({ werkzeug: String(w.werkzeug), eingabe: w.eingabe, ergebnis: w.ergebnis, ok: w.ok ?? null, dauerMs: w.dauer_ms != null ? Number(w.dauer_ms) : null, am: new Date(w.created_at).toISOString() })),
-    // Die Aufnahme läuft über denselben Weg wie beim Team (GET /telefon/:id/aufnahme, Mitarbeiter-Anmeldung).
-    aufnahmeUrl: z.recording_sid ? `/api/fiaon/telefon/${Number(z.call_id)}/aufnahme` : null,
+    // Die Aufnahme läuft über denselben Weg wie beim Team (GET /telefon/:id/aufnahme, Mitarbeiter-Anmeldung) — nach 90 Tagen
+    // gelöscht (fiaon-aras-aufbewahrung.ts) gibt es keinen Abspieler mehr.
+    aufnahmeUrl: z.recording_sid && !z.aufnahme_geloescht_am ? `/api/fiaon/telefon/${Number(z.call_id)}/aufnahme` : null,
     kiHinweisAm: z.ki_hinweis_am ? new Date(z.ki_hinweis_am).toISOString() : null,
     aufnahmeJaAm: z.aufnahme_ja_am ? new Date(z.aufnahme_ja_am).toISOString() : null,
     aufnahmeNeinAm: z.aufnahme_nein_am ? new Date(z.aufnahme_nein_am).toISOString() : null,

@@ -25,7 +25,7 @@ import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
   PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT, RATE_TAGE_BIS,
-  VORRANG_SPIELARTEN, istVorrang, fensterAmWochentag, zusagePause, zusageSchwelle, SPIELART_TEXT,
+  VORRANG_SPIELARTEN, istVorrang, fensterAmWochentag, zusagePause, zusageSchwelle, zusageNachfassTag, SPIELART_TEXT,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -80,7 +80,7 @@ export async function arasKostenHeute(lauf: Lauf = sqlPool): Promise<{ ki: numbe
 }
 
 // ── Versuche je Person (Mensch + ARAS zusammen) ────────────────────────────
-export async function versucheHeute(personId: number, lauf: Lauf = sqlPool): Promise<{ heute: number; woche: number; fehlFolge: number; letzterVersuchAm: Date | null }> {
+export async function versucheHeute(personId: number, lauf: Lauf = sqlPool): Promise<{ heute: number; woche: number; fehlFolge: number; letzterVersuchAm: Date | null; erreichtAm: Date | null }> {
   const [z] = (await lauf`
     WITH v AS (
       SELECT c.beginn, c.ergebnis, c.status,
@@ -100,7 +100,14 @@ export async function versucheHeute(personId: number, lauf: Lauf = sqlPool): Pro
      WHERE c.person_id = ${personId} AND c.richtung = 'raus'
        AND c.beginn > COALESCE((SELECT MAX(beginn) FROM fiaon_calls WHERE person_id = ${personId} AND richtung = 'raus'
                                   AND (ergebnis LIKE 'erreicht%' OR ergebnis = 'rueckruf_termin' OR status = 'beendet' AND dauer_sek >= 30)), '1970-01-01')`) as any[];
-  return { heute: Number(z?.heute ?? 0), woche: Number(z?.woche ?? 0), fehlFolge: Number(f?.fehl ?? 0), letzterVersuchAm: z?.letzter ? new Date(z.letzter) : null };
+  // Beste Uhrzeit je Kunde (Koordination 22.10.2026): wann er zuletzt ABGENOMMEN hat (Mensch oder ARAS, raus, 120 Tage) — nur ein
+  // ausdrückliches Ergebnis zählt (erreicht, Rückruf vereinbart, übergeben, abgebrochen nach seinen Worten). Eine Mailbox-Nachricht
+  // von 30 Sekunden ist kein Abnehmen; die Fehlversuchs-Serie oben bleibt bei ihrer eigenen, älteren Lesart.
+  const [e] = (await lauf`
+    SELECT MAX(beginn) AS am FROM fiaon_calls
+     WHERE person_id = ${personId} AND richtung = 'raus' AND beginn > NOW() - INTERVAL '120 days'
+       AND (ergebnis LIKE 'erreicht%' OR ergebnis IN ('rueckruf_termin', 'uebergeben', 'abgebrochen'))`) as any[];
+  return { heute: Number(z?.heute ?? 0), woche: Number(z?.woche ?? 0), fehlFolge: Number(f?.fehl ?? 0), letzterVersuchAm: z?.letzter ? new Date(z.letzter) : null, erreichtAm: e?.am ? new Date(e.am) : null };
 }
 
 // ── Einreihen ──────────────────────────────────────────────────────────────
@@ -312,6 +319,65 @@ export async function rateEntfaellt(z: { id: number; person_id?: number | null; 
     }
   }
   return null;
+}
+
+// ── Zusage nachfassen zur richtigen Zeit (Koordination 22.10.2026, Scheibe 3) ─────────────────────────────────────────────
+/** „JJJJ-MM-TT“ → „TT.MM.“ */
+const tagKurz = (iso: string) => `${iso.slice(0, 10).split("-").reverse().slice(0, 2).join(".")}.`;
+export interface ZusageNachfass { personId: number; zusageTag: string; zusageAm: Date; ref: string | null; nummer: string | null; country: string | null }
+/**
+ * Wessen Zusage steht zum Nachfassen an? Je Person die wirksame Zusage mit dem spätesten Tag (dieselbe Lesart wie zusageTagSql:
+ * nicht zurückgenommen, seit ihr keine Rate des Vertrags bezahlt) — und an DIESER Bestellung ist noch etwas offen: die erste
+ * Zahlung (weder bezahlt noch beendet) oder eine offene, fällige Rate eines erinnerbaren Vertrags (kein Abo-/Mahnstopp, nicht
+ * nach dem Vertragsende). Keine Testperson, kein Global-Kunde. `tagBis` = spätester zugesagter Tag (Planer: gestern — der Tag
+ * selbst entscheidet zusageNachfassTag; Wähler: auch künftige, damit eine NEUE Zusage den alten Eintrag ablöst).
+ * EINE Quelle für Planer (Abschnitt 5) und Wähler (zusageEntfaellt).
+ */
+export async function zusageNachfassKandidaten(heute: string, lauf: Lauf = sqlPool, opt: { personId?: number; tagBis?: string } = {}): Promise<ZusageNachfass[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(heute)) throw new Error(`Berliner Datum „${heute}“ unlesbar.`);
+  const tagBis = opt.tagBis ?? null;
+  if (tagBis && !/^\d{4}-\d{2}-\d{2}$/.test(tagBis)) throw new Error(`Datum „${tagBis}“ unlesbar.`);
+  await globalKundeBereit();
+  const rows = (await lauf.unsafe(`
+    SELECT z.person_id, z.tag::text AS zusage_tag, z.zusage_am, z.ref, p.primary_phone AS nummer, p.country
+      FROM (SELECT DISTINCT ON (za.person_id) za.person_id, (zl.promised_date AT TIME ZONE 'Europe/Berlin')::date AS tag, zl.created_at AS zusage_am, za.ref
+              FROM fiaon_applications za JOIN fiaon_contact_log zl ON zl.ref = za.ref
+             WHERE zl.type = 'result' AND zl.outcome = 'erreicht_zahlt_am' AND zl.voided_at IS NULL AND zl.promised_date IS NOT NULL
+               AND za.merged_into IS NULL AND za.gdpr_deleted_at IS NULL AND ($1::int IS NULL OR za.person_id = $1::int)
+               AND zl.created_at > DATE '${heute}' - 60
+               AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten zr WHERE zr.ref = zl.ref AND zr.bezahlt_am > zl.created_at)
+             ORDER BY za.person_id, (zl.promised_date AT TIME ZONE 'Europe/Berlin')::date DESC, zl.created_at DESC) z
+      JOIN fiaon_persons p ON p.id = z.person_id
+     WHERE z.tag >= DATE '${heute}' - 30 AND z.tag <= COALESCE($2::date, DATE '${heute}' - 1)
+       AND ${echtePersonSql("p")} AND NOT ${globalKundeSql("p.id")}
+       AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.ref = z.ref AND a.archived_at IS NULL
+                     AND ((COALESCE(a.payment_status, '') NOT IN ('paid', 'completed', 'cancelled', 'refunded', 'superseded')
+                           AND COALESCE(a.ist_entwurf, FALSE) = FALSE AND a.gekuendigt_am IS NULL AND a.abo_gestoppt_am IS NULL)
+                          OR EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
+                                       AND r.faellig_am::date <= DATE '${heute}' AND ${ERINNERBARE_BESTELLUNG_SQL("a")} AND a.abo_gestoppt_am IS NULL
+                                       AND a.mahnstopp_am IS NULL AND NOT ${RATE_NACH_ENDE_SQL_FUER("a", "r")})))
+     ORDER BY z.tag, z.person_id LIMIT 300`, [opt.personId ?? null, tagBis])) as any[];
+  return rows.map((r) => ({ personId: Number(r.person_id), zusageTag: String(r.zusage_tag), zusageAm: new Date(r.zusage_am), ref: r.ref ?? null, nummer: r.nummer ?? null, country: r.country ?? null }));
+}
+
+/**
+ * Zusage nachfassen — vor dem Wählen noch einmal (zwischen Planen um 00:04 und Wählen liegen Stunden): inzwischen bezahlt, die
+ * Zusage zurückgenommen oder nichts mehr offen → „verfallen“; eine NEUE Zusage (späterer Tag) → „verfallen“, der Planer fasst
+ * zum neuen Tag nach. Gilt für Einträge des Planers — was ein Mensch von Hand einreiht, ruft ARAS wie gewünscht an. null = anrufen.
+ */
+export async function zusageEntfaellt(z: { id: number; person_id?: number | null; nummer?: string | null; erzeugt_von?: string | null; auftrag_von?: string | null },
+  einst: ArasEinstellungen, lauf: Lauf = sqlPool, heute: string = berlinToday()): Promise<{ status: "verfallen"; grund: string } | null> {
+  if (z.erzeugt_von !== "takt" || z.auftrag_von || !z.person_id) return null;
+  const [k] = await zusageNachfassKandidaten(heute, lauf, { personId: Number(z.person_id), tagBis: "2099-12-31" });
+  let grund: string | null = null;
+  if (!k) grund = "Zusage erledigt — bezahlt, zurückgenommen oder nichts mehr offen";
+  else {
+    const tag = zusageNachfassTag(k.zusageTag, { land: nummerLand(z.nummer ?? "") ?? "DE", fenster: einst.fenster });
+    if (tag > heute) grund = `neue Zusage für den ${tagKurz(k.zusageTag)} — Nachfassen am ${tagKurz(tag)}`;
+  }
+  if (!grund) return null;
+  await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = ${grund.slice(0, 200)}, updated_at = NOW() WHERE id = ${z.id} AND status = 'wartet'`;
+  return { status: "verfallen", grund };
 }
 
 /** Die wählbare Nummer einer Person (primary_phone, Land) — E.164 oder null. */
@@ -697,25 +763,22 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
     }
   }
 
-  // 5. Zusage nachfassen — Tag nach dem zugesagten Datum, nur ohne Buchung
+  // 5. Zusage nachfassen (Koordination 22.10.2026, Scheibe 3) — NICHT mehr am Tag nach dem zugesagten Datum: Dann läuft die
+  //    Überweisung noch, und der Rate-Planer hält ohnehin still (zusagePause). Sondern am ersten Tag nach dieser Pause mit
+  //    Raten-Fenster (zusageNachfassTag: zugesagter Tag + zwei Bank-Werktage + 1; Sonntag/Feiertag → der nächste Fenstertag),
+  //    nur wenn seit der Zusage nichts bezahlt und noch etwas offen ist (zusageNachfassKandidaten — dieselbe Quelle prüft der
+  //    Wähler vor dem Wählen noch einmal: zusageEntfaellt). ARAS nennt beim Eintragen genau diesen Tag (zusageNotiertSatz).
   if (an("zusage")) {
-    const zeilen = (await lauf`
-      SELECT cl.promised_date, cl.ref, ${lauf.unsafe(PERSON_NUMMER_SQL)}
-        FROM fiaon_contact_log cl
-        JOIN fiaon_applications a ON a.ref = cl.ref AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
-        JOIN fiaon_persons p ON p.id = a.person_id
-       WHERE cl.type = 'result' AND cl.outcome = 'erreicht_zahlt_am' AND cl.voided_at IS NULL
-         AND (cl.promised_date AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date - 1
-         AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.bezahlt_am > cl.created_at)
-         AND (COALESCE(a.payment_status, '') <> 'paid' OR EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= ${heute}::date))
-         AND ${lauf.unsafe(echtePersonSql("p"))} AND NOT ${lauf.unsafe(globalKundeSql("p.id"))}
-       ORDER BY cl.created_at DESC LIMIT 200`) as any[];
-    for (const z of zeilen) {
+    for (const z of await zusageNachfassKandidaten(heute, lauf)) {
       const nummer = nummerVon(z);
-      if (!nummer) continue;
+      if (!nummer) { zaehl("zusage", { ok: false, grund: "keine Nummer" }); continue; }
+      if (zusageNachfassTag(z.zusageTag, { land: nummerLand(nummer) ?? "DE", fenster: einst.fenster }) !== heute) continue;
+      const tag = tagMitFenster(heute, einst);
+      if (tag.tag !== heute || tag.bis.getTime() <= Date.now()) { zaehl("zusage", { ok: false, grund: "Fenster heute vorbei" }); continue; }
       zaehl("zusage", await planEinreihen({
-        personId: Number(z.person_id), ref: z.ref, nummer, spielart: "zusage", grund: "Zusage von gestern nachfassen", erzeugtVon: "takt",
-        fruehAb: abBesterStunde("zusage"), spaetBis: fensterEnde("zusage", einst), anlassAm: new Date(z.promised_date), einmalProTag: true,
+        personId: z.personId, ref: z.ref, nummer, spielart: "zusage", erzeugtVon: "takt",
+        grund: `Zusage für den ${tagKurz(z.zusageTag)} nachfassen (Überweisungszeit bis ${tagKurz(zusagePause(z.zusageTag).bis)})`,
+        fruehAb: tag.ab, spaetBis: tag.bis, anlassAm: berlinZeitpunkt(z.zusageTag, 0), einmalProTag: true,
       }, lauf));
     }
   }

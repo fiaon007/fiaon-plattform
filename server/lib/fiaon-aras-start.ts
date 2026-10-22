@@ -11,7 +11,8 @@
 //      sie da ist, und ohne sie fängt der Start das „nicht gefunden“ ab. Kein
 //      Handgriff beim Zusammenführen; die Probe-Bedienung (/chef/s/aras-probe) läuft
 //      ohne den Raum über die eigenen Routen /chef/aras/probe/*.
-//   4. die Takte: aras_plan_fuellen (5 Min.), aras_waehler (20 s), aras_nachbereitung (1 Min.), aras_stufe_ampel (30 Min.)
+//   4. die Takte: aras_plan_fuellen (5 Min.), aras_waehler (20 s), aras_nachbereitung (1 Min.), aras_stufe_ampel (30 Min.),
+//      aras_zahltag (5 Min., wirkt 09–10 Uhr), aras_aufbewahrung (einmal am Tag)
 //      Standard AUS: ohne aras_an = an und Stufe ≥ 1 wählt der Takt keinen Kunden.
 // Dazu der geordnete Abschied beim Herunterfahren (Deploy): laufende Gespräche
 // enden mit einem Satz statt mitten im Wort (alleSauberBeenden).
@@ -69,6 +70,11 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   // Justin 22.10.2026 („Stufe 2“): EINMAL ab Fr 23.10. 09:30 Berlin — Stufe 2 (150/Tag, 2 gleichzeitig, 60 €), nur aus Stufe 1.
   tageslauf("aras_stufe2", async () => await (await import("./fiaon-aras-golive")).stufe2Pruefen(), 60_000, { beimStartNach: 40_000, nurMitErgebnis: true });
   tageslauf("aras_nachholen", async () => await (await import("./fiaon-aras-nachholen")).nachholenPruefen(), 60_000, { beimStartNach: 120_000, nurMitErgebnis: true });
+  // Scheibe 3, Kunden mit Vertrag (Koordination 22.10.2026): am zugesagten Zahltag 09:00–10:00 Berlin die Raten-Erinnerung — je
+  // Zusage genau einmal (fiaon-aras-erinnerung.ts; die Erinnerung nach der Mailbox ruft die Nachbereitung selbst).
+  tageslauf("aras_zahltag", async () => await (await import("./fiaon-aras-erinnerung")).zahltagErinnern(), 5 * 60_000, { beimStartNach: 75_000, nurMitErgebnis: true });
+  // … und einmal am Tag: Aufnahmen und Abschriften von ARAS-Gesprächen nach 90 Tagen löschen (außer Streitfall/Beschwerde offen).
+  tageslauf("aras_aufbewahrung", async () => await (await import("./fiaon-aras-aufbewahrung")).arasAufbewahrung(), 60 * 60_000, { beimStartNach: 10 * 60_000, alleXStunden: 20 });
 
   console.log("[ARAS] Kern gestartet: Twilio-Rückrufe, Ton-Strom, Probe-Routen, Takte registriert.");
 }

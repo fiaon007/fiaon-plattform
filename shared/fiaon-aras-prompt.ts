@@ -347,14 +347,16 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
         ],
       };
     case "zusage":
+      // Scheibe 3 (Koordination 22.10.2026): Beim Eintragen hat ARAS gesagt „Falls bis … nichts angekommen ist, melde ich mich
+      // kurz“ — dieser Anruf IST das, am ersten Tag nach der Überweisungszeit (zugesagter Tag + zwei Bank-Werktage). Ohne Vorwurf.
       return {
-        offen: `Er wollte ${b.zusageAm ? `am ${b.zusageAm} ` : ""}überweisen; angekommen ist bisher nichts.`,
-        ziel: "Du willst freundlich nachfragen, ob es geklappt hat — sonst findet ihr einen neuen Tag.",
-        nutzen: "Damit nichts liegen bleibt und es für ihn weitergeht.",
+        offen: `Er wollte ${b.zusageAm ? `am ${b.zusageAm} ` : ""}${b.offeneRate ? `seine Rate über ${mitGesprochen(b.offeneRate.betrag)} ` : ""}überweisen; angekommen ist bisher nichts.`,
+        ziel: "Du meldest dich, wie beim letzten Mal angekündigt, und fragst freundlich, ob es geklappt hat — ohne Vorwurf. Wenn nicht: ein neuer Tag, und auf Wunsch kommt die Rechnung noch einmal.",
+        nutzen: "Damit nichts liegen bleibt und bei ihm alles im grünen Bereich ist.",
         nebenbei: null,
         beispiele: [
-          "Ich ruf kurz wegen der Überweisung an, die Sie geplant hatten — bei uns ist noch nichts angekommen. Hat's geklappt?",
-          "Es geht um Ihre Überweisung: Ich wollt' nur schauen, ob alles geklappt hat, damit bei Ihnen nichts liegen bleibt.",
+          "Ich meld mich wie angekündigt kurz wegen Ihrer Überweisung — bei uns ist noch nichts angekommen, kann sich aber auch überschnitten haben. Hat's geklappt?",
+          "Es geht um die Überweisung, die Sie geplant hatten: Ich wollt' nur schauen, ob alles geklappt hat, damit bei Ihnen nichts liegen bleibt.",
         ],
       };
     case "termin":
@@ -868,7 +870,14 @@ function leitfaden(spielart: Spielart, b: Briefing, dialekt: Dialekt = "hochdeut
       return zeilen.join("\n");
     }
     case "zusage":
-      return `GESPRÄCHSART „ZUSAGE NACHFASSEN“: Er wollte am ${b.zusageAm ?? "zugesagten Tag"} überweisen; angekommen ist nichts (das sagt dein Anlass). Freundlich: „Hat es mit der Überweisung geklappt?“ Ja → zahlung_gemeldet (Datum, Betrag; Verwendungszweck noch einmal nennen). Nein → ohne Vorwurf ein neuer Tag (zahlungszusage_merken) oder, bei echter Not, ratenpause_setzen.`;
+      // Scheibe 3 (Koordination 22.10.2026): ARAS hält ihr Wort vom letzten Gespräch — freundlich, ohne Vorwurf.
+      return [
+        `GESPRÄCHSART „ZUSAGE NACHFASSEN“: Er wollte am ${b.zusageAm ?? "zugesagten Tag"} überweisen; angekommen ist bisher nichts (das sagt dein Anlass). Beim letzten Mal hast du angekündigt, dich zu melden, falls nichts ankommt — genau das tust du jetzt.`,
+        `· Hat er bestätigt, dass er es ist: „Ich meld mich wie angekündigt kurz wegen Ihrer Überweisung — bei uns ist noch nichts angekommen. Hat's geklappt?“ (im Dialekt, Inhalt gleich).`,
+        `· Nie ein Vorwurf — kein „Sie hatten doch gesagt …“, kein „schon wieder“, kein „immer noch nicht“. Eine Überweisung kann sich überschneiden oder ein, zwei Tage länger brauchen; das darfst du ruhig dazusagen.`,
+        `· „Ist raus“ → danken, Tag und Betrag erfragen und an den Hintergrund melden (zahlung_gemeldet); den Verwendungszweck noch einmal nennen, wenn er unsicher ist.`,
+        `· Noch nicht → ohne Vorwurf EINE Frage nach dem neuen Tag („Welcher Tag passt Ihnen?“), Tag genannt → zahlungszusage_merken. Möchte er die Rechnung noch einmal: zahlungslink_senden (zweck rate). Echte Not (Jobverlust, Krankheit) → ratenpause_setzen mit seinem Grund; sag, dass die Leitung es noch bestätigt.`,
+      ].join("\n");
     case "rueckholung":
       return `GESPRÄCHSART „WIEDER EINSTEIGEN“: Sein Vertrag ist beendet; er hat um den Anruf gebeten (das sagt dein Anlass). Erklär kurz, wie es jetzt ginge. Ziel: ein neuer Antrag per Link. Bei Nein: freundlicher Schluss, keine zweite Runde.`;
     case "auftrag":
@@ -1152,7 +1161,8 @@ export function probeBriefing(e: { spielart: Spielart; anrede: "Herr" | "Frau" |
       b.karte = { stand: "keine_info" };
       b.unterschriebenAm = e.vorTagen(0);
       break;
-    case "zusage": b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null }; b.zusageAm = e.vorTagen(1); break;
+    // Scheibe 3: ARAS fasst erst nach der Überweisungszeit nach (zugesagter Tag + zwei Bank-Werktage) — die Zusage liegt Tage zurück.
+    case "zusage": b.stufe = "kunde"; b.offeneRate = { ...rate, faelligAm: e.vorTagen(10) }; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null }; b.zusageAm = e.vorTagen(4); break;
     case "stufe_a": b.stufe = "zahlung_gemeldet"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; break;
     case "termin": b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; b.terminAm = "heute, jetzt"; break;
     case "lead": b.stufe = "lead"; b.paketKey = null; b.paketName = null; break;

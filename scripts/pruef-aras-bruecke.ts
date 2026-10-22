@@ -134,9 +134,16 @@ async function main(): Promise<void> {
   // P4: Antrag unbezahlt, Zuruf-JA, aber WERBESPERRE → kein Eintrag
   const p4 = await person(4, { werbesperre: true }); await antrag(p4, 4, { payment_status: "pending_payment" });
   await einwilligungMerken({ personId: p4, nummer: "+491700000004", art: "zuruf_mail", wortlaut: "JA", quelleArt: "mail", quelleId: "pruef" });
-  // P5: Zusage gestern, nichts gebucht
+  // P5: Zusage, nichts gebucht — E-408 Scheibe 3 (22.10.2026): nachgefasst wird am ersten Tag NACH der Überweisungszeit (zugesagter
+  // Tag + zwei Bank-Werktage, zusageNachfassTag), nicht mehr am Tag danach. Der Prüfstand sucht den zugesagten Tag, dessen
+  // Nachfassen auf heute fällt (Fenster hier: jeden Tag 08–21 Uhr). An einem Sonntag oder Montag gibt es keinen — dann eine Zusage
+  // von gestern (läuft noch, Rot-Probe) und der Eintrag von Hand, damit die Abschnitte 3 und 6 ihren Zusage-Eintrag haben.
+  const { zusageNachfassTag } = await import("../shared/fiaon-aras");
+  const fensterP5 = (await arasEinstellungenLesen(true)).fenster;
+  let zusageTagP5: string | null = null;
+  for (let n = 1; n <= 20 && !zusageTagP5; n++) if (zusageNachfassTag(vor(n), { land: "DE", fenster: fensterP5 }) === yyyy(new Date())) zusageTagP5 = vor(n);
   const p5 = await person(5); const r5 = await antrag(p5, 5, { payment_status: "pending_payment" });
-  await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, note, promised_date, created_at) VALUES (${r5}, ${p5}, ${ausweis}, 'Prüfstand', 'result', 'erreicht_zahlt_am', 'zahlt morgen', ${`${vor(1)}T12:00:00+02:00`}::timestamptz, NOW() - INTERVAL '1 day')`;
+  await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, note, promised_date, created_at) VALUES (${r5}, ${p5}, ${ausweis}, 'Prüfstand', 'result', 'erreicht_zahlt_am', 'zahlt am', ${`${zusageTagP5 ?? vor(1)}T12:00:00+02:00`}::timestamptz, ${`${zusageTagP5 ?? vor(1)}T08:00:00Z`}::timestamptz - INTERVAL '1 day')`;
   // P6: Testperson mit Rate → nie
   const p6 = await person(6, { test: true }); const r6 = await antrag(p6, 6, { payment_status: "paid" });
   await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${r6}, 2, ${`${r6}-2`}, 5999, ${vor(3)}::date, 'offen')`;
@@ -161,7 +168,13 @@ async function main(): Promise<void> {
   // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): ein Interessent mit Ja per WhatsApp wird trotzdem NIE eingereiht.
   ok("P3 (Interessent mit Ja per WhatsApp) NICHT eingereiht — Zuruf ist im Code gesperrt (nur Vertragskunden)", !plan.some((z) => Number(z.person_id) === p3));
   ok("P4 (Werbesperre) NICHT eingereiht", !hat(p4, "zuruf"));
-  ok("P5 Zusage nachfassen eingereiht", hat(p5, "zusage"));
+  if (zusageTagP5) ok(`P5 Zusage für den ${zusageTagP5} → heute nachfassen eingereiht (erster Tag nach der Überweisungszeit)`, hat(p5, "zusage"));
+  else {
+    ok("P5 Zusage von gestern → heute NICHT nachgefasst (die Überweisung läuft noch; heute ist Sonntag/Montag)", !hat(p5, "zusage"));
+    const vonHand = await planEinreihen({ personId: p5, ref: r5, nummer: "+491700000005", spielart: "zusage", grund: "Prüfstand: Zusage nachfassen", erzeugtVon: "chef" });
+    if (!vonHand.ok) throw new Error(`P5 von Hand: ${vonHand.grund}`);
+    plan.push({ person_id: p5, spielart: "zusage", status: "wartet" });
+  }
   ok("P6 (Testperson) NICHT eingereiht", !plan.some((z) => Number(z.person_id) === p6));
   ok("P7 (CH ohne eingetragene Nummer) NICHT eingereiht", !plan.some((z) => Number(z.person_id) === p7));
   ok("P8 (Rate nach Vertragsende) NICHT eingereiht", !plan.some((z) => Number(z.person_id) === p8));
@@ -277,8 +290,10 @@ async function main(): Promise<void> {
     const [cl] = (await sqlPool`SELECT outcome, promised_date, agent_name FROM fiaon_contact_log WHERE ref = ${r1} AND type = 'result' ORDER BY id DESC LIMIT 1`) as any[];
     ok("Akte: Ergebnis erreicht_zahlt_am mit Zusage-Datum, Akteur Aras", cl?.outcome === "erreicht_zahlt_am" && !!cl?.promised_date && cl?.agent_name === "Aras", JSON.stringify(cl));
     ok("Telefonsperre gesetzt + Werbesperre an der Person", (await telefonGesperrt("700000001", p1)) && !!((await sqlPool`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${p1}`) as any[])[0].werbung_gesperrt_am);
+    // E-408 Scheibe 3 (22.10.2026): Zusage merken reiht kein Nachfassen „am Tag danach“ mehr ein — der Planer fasst am ersten Tag
+    // nach der Überweisungszeit nach (aus der Akte), und ARAS sagt genau das (zusageNotiertSatz).
     const [zus] = (await sqlPool`SELECT status FROM fiaon_aras_plan WHERE person_id = ${p1} AND spielart = 'zusage'`) as any[];
-    ok("Zusage-Nachfassen eingereiht — und durch die Sperre auf gesperrt", zus?.status === "gesperrt", zus?.status);
+    ok("Zusage merken reiht kein Nachfassen „am Tag danach“ mehr ein (das macht der Planer nach der Überweisungszeit)", !zus, zus?.status);
     const [plFertig] = (await sqlPool`SELECT status FROM fiaon_aras_plan WHERE id = ${Number(pl.id)}`) as any[];
     ok("Plan-Eintrag fertig", plFertig?.status === "fertig", plFertig?.status);
     const proto = (await sqlPool`SELECT art FROM fiaon_mara_protokoll WHERE kanal = 'telefon' AND (daten->>'callId')::int = ${callId} ORDER BY id`) as any[];
@@ -2500,7 +2515,11 @@ async function main(): Promise<void> {
       ok("Anruf-Assistent („Nennen Sie bitte Ihren Namen und den Grund Ihres Anrufs“) → aufgelegt, Ergebnis mailbox, keine Prüfung nötig", aB?.ende_grund === "mailbox" && aB?.ergebnis === "mailbox" && aB?.pruefung_status === "entfaellt", `${aB?.ende_grund}/${aB?.ergebnis}/${aB?.pruefung_status}`);
       ok("Rot-Probe: ein bestätigter Mensch erzählt von seiner Mailbox („nach dem Ton …“) → KEIN Auflegen", laufZahlen(gC.callId)?.ansage === null && laufendeSitzungen().some((x) => x.callId === gC.callId), JSON.stringify(laufZahlen(gC.callId)?.ansage));
       ok("Ansage noch offen beim Auflegen → beim Ende erkannt: Ergebnis mailbox (Ende kunde_aufgelegt), fiaon_calls „niemand_erreicht“", aE?.ende_grund === "kunde_aufgelegt" && aE?.ergebnis === "mailbox" && aE?.call_status === "niemand_erreicht", `${aE?.ende_grund}/${aE?.ergebnis}/${aE?.call_status}`);
-      ok("Rot-Probe: die Rechnung, die ARAS einer Ansage ankündigte, wird nicht geschickt (an eine Maschine gibt es kein Wort zu halten)", aF?.ergebnis === "mailbox" && (await wz(gF.callId, "zahlungslink_senden")).length === 0);
+      // E-408 Scheibe 3 (22.10.2026): Nach einer Mailbox schickt die NACHBEREITUNG ihre eigene Raten-Erinnerung (aufruf „mailbox-…“,
+      // mit allen Bremsen, fiaon-aras-erinnerung.ts) — die Brücke hält einer Maschine gegenüber weiter kein Wort.
+      const fLinks = await wz(gF.callId, "zahlungslink_senden");
+      ok("Rot-Probe: die Rechnung, die ARAS einer Ansage ankündigte, schickt die Brücke nicht (an eine Maschine gibt es kein Wort zu halten) — nur die Erinnerung nach der Mailbox (Nachbereitung)",
+        aF?.ergebnis === "mailbox" && fLinks.every((w: any) => /^mailbox-\d+/.test(String(w.aufruf_id)) && w.eingabe?.anlass === "mailbox"), fLinks.map((w: any) => w.aufruf_id).join(","));
       await fertig(gC); await fertig(gD);
     }
 

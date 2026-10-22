@@ -798,10 +798,16 @@ export async function aufnahmenAufraeumen(nurZeigen = false): Promise<{
   const frist = await aufnahmeFrist();
   const hinweise: string[] = [];
 
+  // E-408 Scheibe 3 (22.10.2026): Gespräche von ARAS löscht ihr eigener Lauf (fiaon-aras-aufbewahrung.ts) — mit Abschrift und
+  // mit der Ausnahme „Streitfall oder Beschwerde offen“. Hier nur noch die Gespräche des Teams. Die Spalte gefuehrt_von legt
+  // das ARAS-Schema an (einmal je Prozess).
+  const { arasSchema } = await import("./fiaon-aras-schema");
+  await arasSchema().catch(() => {});
   const faellig = (await sqlPool`
     SELECT id, recording_sid, beginn FROM fiaon_calls
     WHERE recording_url IS NOT NULL
       AND aufnahme_geloescht_am IS NULL
+      AND COALESCE(gefuehrt_von, 'mensch') <> 'aras'
       AND beginn < NOW() - (${frist} || ' days')::interval
     ORDER BY beginn
     LIMIT 500

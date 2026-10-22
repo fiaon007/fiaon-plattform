@@ -153,6 +153,22 @@ export function arasSchema(lauf: Lauf = sqlPool): Promise<void> {
         )`;
       await lauf`CREATE INDEX IF NOT EXISTS aras_werkzeug_anruf_idx ON fiaon_aras_werkzeug (aras_anruf_id, created_at)`;
 
+      // Scheibe 3, Kunden mit Vertrag (Koordination 22.10.2026): die Raten-Erinnerung nach der Mailbox und am Zahltag — je Anlass
+      // GENAU EINE Zeile (schluessel, auch über zwei Instanzen), mit Ausgang: gesendet, fehlgeschlagen oder ausgelassen (+ Grund).
+      // Der Versand selbst steht wie jedes Werkzeug in fiaon_aras_werkzeug am Gespräch (sichtbar im Cockpit).
+      await lauf`
+        CREATE TABLE IF NOT EXISTS fiaon_aras_erinnerung (
+          id BIGSERIAL PRIMARY KEY,
+          schluessel TEXT NOT NULL UNIQUE,
+          art TEXT NOT NULL,
+          person_id INTEGER, rate_id INTEGER, aras_anruf_id BIGINT, call_id INTEGER,
+          zusage_tag DATE,
+          status TEXT NOT NULL DEFAULT 'laeuft',
+          weg TEXT, grund TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`;
+      await lauf`CREATE INDEX IF NOT EXISTS aras_erinnerung_rate_idx ON fiaon_aras_erinnerung (rate_id, created_at DESC)`;
+
       await lauf`
         CREATE TABLE IF NOT EXISTS fiaon_aras_hoerprobe (
           id BIGSERIAL PRIMARY KEY,

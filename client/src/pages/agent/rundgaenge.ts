@@ -1618,7 +1618,7 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "beim ersten Eintragen einen Satz im Verlauf („Ihre EIN ist da.“).",
     tipp: "Kontaktperson (Station Registered Agent): immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. "
       + "Sie ist aus dem Auftrag vorbelegt; die Wohnanschrift darf kein Postfach, kein virtuelles Büro und keine Agent-Adresse sein (die Karte warnt). "
-      + "EIN ohne SSN/ITIN: Status „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“; das SS-4 lädst du an der Station zur Unterschrift hoch. "
+      + "EIN ohne SSN/ITIN: Status „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“; das SS-4 erzeugst du im Reiter „Unterschriften“ (vorausgefüllt aus der Akte). "
       + "Das SS-4 (und IRS 8821) unterschreibt der Kunde VON HAND: ausdrucken, unterschreiben, datieren, als PDF scannen, hochladen — "
       + "schickt er es dir per Mail, lädst du den Scan an der Station „im Namen des Kunden“ hoch (nur PDF). Dann kommt die Aufgabe, "
       + "das SS-4 an das Ablageteam des Registered Agent zurückzuschicken. "
@@ -1658,6 +1658,19 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "hoch: Art wählen, Datei wählen (PDF, JPG, PNG, HEIC bis 15 MB), entscheiden, ob der Kunde es sieht. Im Dokumentenraum "
       + "liegen beide Richtungen; „Ansehen“ öffnet, „Löschen“ blendet aus und steht im Verlauf.",
     tipp: "Gründungsdokument, EIN-Bestätigung, Operating Agreement: immer „für den Kunden sichtbar“ — das ist der Dokumentenraum, den er gekauft hat.",
+  },
+  {
+    // 22.10.2026: Dokumente & Unterschriften (GlobalFormulare) — derselbe Editor wie im Chefbüro.
+    ziel: '[data-reiter="unterschriften"]',
+    titel: "Unterschriften: jedes Formular vollständig — der Kunde unterschreibt nur.",
+    text: "Fünf Dokumente je Mandat: die Ergänzung „Befugnisse für FIAON“ (nur Kunden mit älterem Vertrag — sie legt sich selbst an), "
+      + "Statement of Organizer, Operating Agreement, IRS SS-4 und IRS 8821. Fehlt eine Angabe, steht sie rot in der Karte, und "
+      + "„Formular erzeugen“ und „Zur Unterschrift bereitstellen“ bleiben zu. Unten trägst du ein, was nur das Team weiß: Mitglieder "
+      + "und Anteile, County, Art des Geschäfts, Tätigkeit, Empfänger des 8821. Dann: „Vorschau“ ansehen → „Formular erzeugen“ → "
+      + "beim Statement erst „FIAON unterschreibt“ → „Zur Unterschrift bereitstellen“. Der Kunde sieht es unter „Für Sie zu tun“.",
+    tipp: "Digital (Ergänzung, Statement, Operating Agreement): Zustimmung, Name, Code per E-Mail — danach liegt die unterschriebene Fassung mit "
+      + "Zertifikatsseite im Tresor, und du bekommst eine Aufgabe. „Prüfen“ rechnet die Prüfsumme nach und zeigt das Siegel. "
+      + "SS-4 und 8821 nie digital: Der Kunde druckt, unterschreibt, datiert, scannt. Ändern sich Daten nach dem Erzeugen, steht „neu erzeugen“ da.",
   },
   {
     ziel: '[data-reiter="verlauf"]',

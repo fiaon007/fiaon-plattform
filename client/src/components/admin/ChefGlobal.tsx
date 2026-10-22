@@ -27,6 +27,7 @@ import "@/styles/chef-global-raum.css";
 import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
 // 22.10.2026: der Stationen-Editor (auch im Office).
 import GlobalStationen from "@/components/global/GlobalStationen";
+import GlobalFormulare from "@/components/global/GlobalFormulare";
 // E-423: Kundenzugänge (persönlicher Zugang) — „Zugang einladen“ / „Einladung erneut senden“.
 import ChefGlobalZugaenge from "./ChefGlobalZugaenge";
 
@@ -192,7 +193,7 @@ export default function ChefGlobal() {
 }
 
 // ── Ein Mandat ───────────────────────────────────────────────────────────────
-type Reiter = "ueberblick" | "gesellschaft" | "akte" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
+type Reiter = "ueberblick" | "gesellschaft" | "akte" | "unterschriften" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
   const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
@@ -226,6 +227,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
     { key: "gesellschaft", titel: "Fahrplan & Werte", Icon: Building2 },
     // 22.10.2026: die vollständige Akte — alle Rechnungen der Person, Verträge, Dokumente zur Unterschrift mit Vollständigkeit, ZIP.
     { key: "akte", titel: "Akte komplett", Icon: ShieldCheck },
+    // 22.10.2026: Formulare erzeugen (vollständig oder gesperrt), FIAON unterschreibt, bereitstellen, prüfen.
+    { key: "unterschriften", titel: "Dokumente & Unterschriften", Icon: PenLine },
     { key: "kapital", titel: "Banken & Kapital", Icon: Landmark, zahl: (m.kapital as any[]).length || undefined },
     { key: "tresor", titel: "Tresor", Icon: FileText, zahl: (m.dokumente as any[]).filter((d) => d.art !== "post").length || undefined },
     { key: "post", titel: "Post", Icon: Inbox, zahl: post.length || undefined },
@@ -283,6 +286,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
         {reiter === "ueberblick" && <Ueberblick m={m} tun={tun} setReiter={setReiter} />}
         {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} gref={gref} onGespeichert={() => { neu(); onGeaendert(); }} />}
         {reiter === "akte" && <AkteKomplett gref={gref} tun={tun} />}
+        {reiter === "unterschriften" && <GlobalFormulare basis={`/api/fiaon/chef/global/mandate/${r}`} ton="dunkel" onGeaendert={() => { neu(); onGeaendert(); }} />}
         {reiter === "kapital" && <Kapital m={m} tun={tun} />}
         {reiter === "tresor" && <Tresor m={m} tun={tun} gref={gref} />}
         {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}

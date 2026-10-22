@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // 22.10.2026: Dokumente & Unterschriften je Global-Mandat — eigenes digitales Unterschreiben, Formulare vorausgefüllt.
+    id: "2026-10-22-global-unterschriften",
+    date: "2026-10-22",
+    category: "Neu",
+    title: "Global-Akte: Reiter „Unterschriften“ — jedes Formular vollständig, der Kunde unterschreibt nur",
+    summary: "Ergänzung „Befugnisse für FIAON“, Statement of Organizer, Operating Agreement (digital im Portal) und IRS SS-4/8821 (von Hand) — vorausgefüllt aus der Akte, gesperrt, solange etwas fehlt.",
+    changes: [
+      "Neuer Reiter „Unterschriften“ in der Global-Akte (Office) und „Dokumente & Unterschriften“ im Chefbüro.",
+      "Je Dokument: was fehlt (rot), Vorschau, „Formular erzeugen“, beim Statement „FIAON unterschreibt“, „Zur Unterschrift bereitstellen“, „Prüfen“.",
+      "Der Kunde unterschreibt digital mit Zustimmung, Namen und Code per E-Mail — die unterschriebene Fassung mit Zertifikat liegt danach im Tresor.",
+      "IRS SS-4 und 8821 bleiben von Hand (ausdrucken, unterschreiben, Scan als PDF).",
+    ],
+    howto: [
+      "Global-Akte öffnen → Reiter „Unterschriften“.",
+      "Unten fehlende Angaben eintragen (Mitglieder, County, Art des Geschäfts, Tätigkeit) → „Angaben speichern“.",
+      "„Vorschau“ ansehen → „Formular erzeugen“ → „Zur Unterschrift bereitstellen“. Hat der Kunde unterschrieben, kommt eine Aufgabe.",
+    ],
+    important: true,
+  },
+  {
     // 22.10.2026: Stationen-Editor im Office (Global-Akte › „Fahrplan & Werte“) und im Chefbüro.
     id: "2026-10-22-global-stationen",
     date: "2026-10-22",

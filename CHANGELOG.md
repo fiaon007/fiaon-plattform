@@ -5,6 +5,18 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.10.2026 — FIAON Global: Oberfläche für Dokumente & Unterschriften (Portal, Chefbüro, Office)
+- **Kunde (Portal):** Unter „Für Sie zu tun“ erscheinen die Dokumente in sinnvoller Reihenfolge (Ergänzung, Statement,
+  Operating Agreement, IRS-Formulare). „Jetzt unterschreiben“ öffnet ein ruhiges Fenster (am Handy als Blatt von unten):
+  Lesen → Zustimmen (Hinweis aufklappbar) → Name (vorbelegt, „/s/ Name“-Vorschau) → Code aus der E-Mail → „Unterschrieben“.
+  `client/src/pages/global-portal-unterschrift.tsx`. Von Hand (SS-4/8821) bleibt der Vier-Schritte-Weg mit Scan.
+- **Team:** Chefbüro › Global › Mandat › Reiter **„Dokumente & Unterschriften“** und Office › Global-Akte › Reiter
+  **„Unterschriften“** (ein Bauteil: `client/src/components/global/GlobalFormulare.tsx`): je Dokument Stand, rote Liste
+  „Es fehlt noch“, Vorschau, „Formular erzeugen“, „FIAON unterschreibt“ (Statement), „Zur Unterschrift bereitstellen“
+  (gesperrt, solange etwas fehlt oder die Daten seit dem Erzeugen geändert sind), „Prüfen“, „Welche Felder woher“ (IRS);
+  darunter die Angaben, die nur das Team kennt (Mitglieder und Anteile, County, Geschäftsart, Tätigkeit, 8821-Empfänger).
+- **Rundgang** der Global-Akte und **Update-Hinweis** für das Team nachgezogen.
+
 ## 23.10.2026 — FIAON Global: Dokumente & Unterschriften — eigenes digitales Unterschreiben, Formulare vollständig vorausgefüllt
 - **Was:** Je Mandat fünf Dokumente, alle aus der Akte erzeugt und erst VOLLSTÄNDIG zum Kunden (fehlt etwas, nennt der Server
   die Liste und lehnt „erzeugen“/„bereitstellen“ ab — der Kunde füllt nichts aus, er unterschreibt nur):

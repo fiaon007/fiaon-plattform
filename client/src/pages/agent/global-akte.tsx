@@ -56,14 +56,16 @@ import {
   US_STAATEN, staatName, FIRMA_FELDER, LAND_NAME, VERLAUF_ART, telLink,
 } from "./global-logik";
 import GlobalStationen, { type StationenDaten } from "@/components/global/GlobalStationen";
+import GlobalFormulare from "@/components/global/GlobalFormulare";
 import "@/styles/office-pipeline.css";
 import "@/styles/office-rundgang.css";
 import "@/styles/office-global.css";
 
 type Zustand = "laedt" | "ok" | "kein_zugriff" | "nicht_da" | "fehler";
 // 22.10.2026: „Fahrplan & Werte“ — der Stationen-Editor des Chefbüros (EIN, ITIN, D-U-N-S, Telefon, Adressen, Konto, Karten).
-type Reiter = "stand" | "fahrplan" | "gesellschaft" | "dokumente" | "verlauf";
-const REITER: [Reiter, string][] = [["stand", "Stand"], ["fahrplan", "Fahrplan & Werte"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["verlauf", "Verlauf"]];
+// 22.10.2026: + „Unterschriften“ — Dokumente & Unterschriften je Mandat (GlobalFormulare, dieselben Wege wie das Chefbüro).
+type Reiter = "stand" | "fahrplan" | "gesellschaft" | "dokumente" | "unterschriften" | "verlauf";
+const REITER: [Reiter, string][] = [["stand", "Stand"], ["fahrplan", "Fahrplan & Werte"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["unterschriften", "Unterschriften"], ["verlauf", "Verlauf"]];
 
 interface TunWahl { method?: "POST" | "DELETE"; body?: unknown; gut: string; gutText?: string; lokal?: (a: GlobalAkte) => GlobalAkte }
 type Tun = (schluessel: string, pfad: string, wahl: TunWahl) => Promise<boolean>;
@@ -195,7 +197,7 @@ function AkteInnen() {
   const offeneFristen = akte.fristen.filter((f) => !f.erledigt).length;
   const marke: Record<Reiter, string> = {
     stand: "", fahrplan: "", gesellschaft: offeneFristen ? String(offeneFristen) : "", dokumente: offeneUnterlagen ? `${offeneUnterlagen} fehlen` : "",
-    verlauf: "",
+    unterschriften: "", verlauf: "",
   };
 
   return (
@@ -223,6 +225,9 @@ function AkteInnen() {
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-dokumente" aria-labelledby="gl-reiter-dokumente" hidden={reiter !== "dokumente"}>
             <DokumenteAbschnitt {...werk} basis={basis} />
+          </div>
+          <div className="gl-panel" role="tabpanel" id="gl-panel-unterschriften" aria-labelledby="gl-reiter-unterschriften" hidden={reiter !== "unterschriften"}>
+            {reiter === "unterschriften" && <GlobalFormulare basis={`/api/fiaon${basis}`} ton="hell" onGeaendert={() => void laden(true)} />}
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-verlauf" aria-labelledby="gl-reiter-verlauf" hidden={reiter !== "verlauf"}>
             <VerlaufAbschnitt {...werk} />

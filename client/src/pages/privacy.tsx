@@ -70,8 +70,9 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { ANTRAG_NEU_ANRUF_TEXT } from "@shared/fiaon-antrag-neu";
 
-// VII c Nr. 4: Aufnahmen und Abschriften von ARAS-Gesprächen. Eine feste Frist steht erst hier, wenn der Lösch-Lauf sie umsetzt.
-const TELEFON_SPEICHERDAUER = "Aufnahmen und Abschriften bewahren wir nur so lange auf, wie wir sie für den Nachweis des Vereinbarten, die Klärung eines konkreten Anliegens oder die Qualitätssicherung brauchen.";
+// VII c Nr. 4: Aufnahmen und Abschriften von ARAS-Gesprächen — 90 Tage, umgesetzt vom täglichen Lauf aras_aufbewahrung
+// (server/lib/fiaon-aras-aufbewahrung.ts: Twilio-Aufnahme löschen, dann Abschriften leeren; offener Streitfall/Beschwerde → behalten).
+const TELEFON_SPEICHERDAUER = "Aufnahmen und Abschriften von Gesprächen mit ARAS löschen wir nach 90 Tagen — außer, zu Ihrem Vertrag ist gerade eine Beschwerde oder ein Streit offen; dann löschen wir sie, sobald er geklärt ist.";
 
 // Öffnet die Cookie-Auswahl (components/site/EinwilligungsHinweis.tsx hört auf dieses Ereignis).
 const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"));

@@ -7,7 +7,7 @@
 //   2  UNTERSCHRIFT Formulare SS-4/8821 ab Gründung, weitere Dokumente, Stand (fehlt · vorbereitet · wartet ·
 //                  unterschrieben), Vollständigkeit
 //   3  ZIP         Dateinamen ASCII, ohne Pfad, eindeutig
-//   4  VERDRAHTUNG Routen mit Zutritt (Token/Chef/Office), Bindung an das Mandat, Migration 122,
+//   4  VERDRAHTUNG Routen mit Zutritt (Token/Chef/Office), Bindung an das Mandat, Migration 124,
 //                  Portal und Chefbüro zeigen alles
 //   5  GEGENPROBE
 //
@@ -103,8 +103,8 @@ ok(/zipJeRef\(ref\)/.test(bereich), "Kunden-ZIP gedrosselt");
 ok(/"\/agent\/global\/auftraege\/:ref\/akte\.zip", requireAgent/.test(bereich) && /await office\(req, res, false\)/.test(bereich.slice(bereich.indexOf('"/agent/global/auftraege/:ref/akte.zip"'))), "Office-ZIP: Zuständigkeit wie die Akte");
 for (const r of ["/akte\"", "/akte.zip\"", "/dokument/:id/pflicht\"", "/rechnung/:bestell\"", "/vertrag/:id\""]) ok(chef.includes(`"/chef/global/mandate/:ref${r}, requireChef("leitung")`), `Chef-Route ${r.replace(/"/g, "")}`);
 ok(/if \(b\.pflichtKey && !pflicht\) return res\.status\(400\)/.test(chef), "unbekanntes Formular beim Hochladen abgelehnt");
-const mig = datei("db/migrations/122_global_pflicht_unterlagen.sql");
-ok(/ADD COLUMN IF NOT EXISTS pflicht_key TEXT/.test(mig) && /ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB/.test(mig) && /pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB/.test(lib), "Migration 122 = Laufzeit");
+const mig = datei("db/migrations/124_global_pflicht_unterlagen.sql");
+ok(/ADD COLUMN IF NOT EXISTS pflicht_key TEXT/.test(mig) && /ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB/.test(mig) && /pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB/.test(lib), "Migration 124 = Laufzeit");
 const portal = datei("client/src/pages/global-portal.tsx");
 ok(/data-fiaon="portal-rechnungen"/.test(portal) && /data-fiaon="portal-vertraege"/.test(portal) && /data-fiaon="portal-pflicht"/.test(portal) && /data-fiaon="portal-zip"/.test(portal) && /data-fiaon="portal-einzelleistungen"/.test(portal), "Portal: Rechnungen, Verträge, Vollmachten, ZIP, weitere Leistungen");
 ok(/w\.pflichtTun\(p\.titel\)/.test(portal) && /setDialog\(d\)/.test(portal), "Portal: Pflichtunterlage unter „Für Sie zu tun“ → Unterschrift im Dialog");

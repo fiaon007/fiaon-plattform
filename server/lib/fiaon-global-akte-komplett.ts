@@ -35,7 +35,7 @@ const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString()
 const nein = (status: number, error: string) => ({ ok: false as const, status, error });
 const cents = (eur: unknown) => Math.round(Number(eur ?? 0) * 100);
 
-// ── SCHEMA: pflicht_key + unterschrift_nachweis am Dokument (Migration 122) ──
+// ── SCHEMA: pflicht_key + unterschrift_nachweis am Dokument (Migration 124) ──
 let bereit: Promise<void> | null = null;
 export function ensureAkteKomplett(): Promise<void> {
   if (!bereit) {
@@ -79,7 +79,8 @@ async function rechnungenRoh(m: Mandat): Promise<RechnungZeile[]> {
      WHERE merged_into IS NULL AND archived_at IS NULL
        AND (${m.personId}::int IS NOT NULL AND person_id = ${m.personId}::int
             OR ${m.email}::text IS NOT NULL AND lower(trim(email)) = ${m.email}::text)
-       AND (invoice_number IS NOT NULL OR payment_reference IS NOT NULL)
+       -- Nur Rechnungen MIT Nummer: rechnungAlsPdf vergibt sonst beim ersten Abruf eine neue Nummer (Lücken, Nummern für Stornos).
+       AND invoice_number IS NOT NULL
      ORDER BY COALESCE(invoice_date, created_at) DESC, ref DESC`) as any[];
   return zeilen.filter((z) => globalAkteRechnungGehoertDazu(z.pack_key)).map((z) => {
     const status = globalAkteRechnungStatus(z.payment_status, z.cancelled_at, z.refunded_at);
@@ -107,7 +108,7 @@ export async function globalAkteRechnungPdf(ref: string, bestellRef: string): Pr
   const m = await mandatLesen(ref);
   if (!m) return null;
   const r = (await rechnungenRoh(m)).find((x) => x.bestellRef === bestellRef);
-  if (!r?.zahlungsReferenz) return null;
+  if (!r?.zahlungsReferenz || !r.nummer) return null;
   const { rechnungAlsPdf } = await import("./fiaon-rechnung-pdf");
   const pdf = await rechnungAlsPdf(r.zahlungsReferenz);
   return pdf ? { pdf: pdf.pdf, dateiname: pdf.dateiname } : null;

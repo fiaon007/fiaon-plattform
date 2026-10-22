@@ -125,7 +125,7 @@ export function ensureGlobalMandat(): Promise<void> {
           geloescht_am TIMESTAMPTZ
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_kapital_ref_idx ON fiaon_global_kapital (ref) WHERE geloescht_am IS NULL`;
-      // Stationen-Editor (22.10.2026, Migration 121): „beantragt“ als Status, Antragsdatum, Karte privat/Firma.
+      // Stationen-Editor (22.10.2026, Migration 123): „beantragt“ als Status, Antragsdatum, Karte privat/Firma.
       await stationenSchemaSichern();
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_global_nachrichten (
@@ -160,7 +160,7 @@ export function ensureGlobalMandat(): Promise<void> {
 }
 
 /**
- * Migration 121 zur Laufzeit: Spalten dazu (IF NOT EXISTS, keine Sperre auf Daten) und die Status-Wand WEITER machen —
+ * Migration 123 zur Laufzeit: Spalten dazu (IF NOT EXISTS, keine Sperre auf Daten) und die Status-Wand WEITER machen —
  * nur, wenn sie „beantragt“ noch nicht kennt (pg_constraint lesen, dann EIN ALTER mit NOT VALID, ohne Tabellen-Scan).
  * Muster: firmaTeileCheckSichern (fiaon-global-angebot.ts).
  */
@@ -169,7 +169,7 @@ async function stationenSchemaSichern(): Promise<void> {
     await tx`SET LOCAL lock_timeout = '3s'`;
     await tx`ALTER TABLE fiaon_global_schritte ADD COLUMN IF NOT EXISTS beantragt_am DATE`;
     await tx`ALTER TABLE fiaon_global_kapital ADD COLUMN IF NOT EXISTS inhaber TEXT`;
-    // Migration 122 (die vollständige Akte): Pflichtunterlage je Dokument — hier mit, weil dokumentZusatzLesen sie liest.
+    // Migration 124 (die vollständige Akte): Pflichtunterlage je Dokument — hier mit, weil dokumentZusatzLesen sie liest.
     await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB`;
     const [c] = (await tx`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'fiaon_global_schritte_status_check' LIMIT 1`) as any[];
     if (!c || !/'beantragt'/.test(String(c.def))) {

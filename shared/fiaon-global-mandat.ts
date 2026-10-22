@@ -30,7 +30,7 @@ const t = (p: Paar, s: BereichSprache) => (s === "en" ? p.en : p.de);
 
 // ── DER FAHRPLAN ─────────────────────────────────────────────────────────────
 // 22.10.2026 (Stationen-Editor): „beantragt“ dazu — eine Behörde oder ein Institut hat den Antrag und
-// entscheidet in eigener Frist (ITIN, EIN, Konto). Die Datenbank kennt den Wert seit Migration 121.
+// entscheidet in eigener Frist (ITIN, EIN, Konto). Die Datenbank kennt den Wert seit Migration 123.
 export type GlobalSchrittStatus = "offen" | "in_arbeit" | "beantragt" | "erledigt" | "entfaellt";
 export const GLOBAL_SCHRITT_STATUS: GlobalSchrittStatus[] = ["offen", "in_arbeit", "beantragt", "erledigt", "entfaellt"];
 export const GLOBAL_SCHRITT_STATUS_TEXT: Record<GlobalSchrittStatus, Paar> = {

@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- 121 · STATIONEN DES GLOBAL-FAHRPLANS (22.10.2026, Stationen-Editor)
+-- 123 · STATIONEN DES GLOBAL-FAHRPLANS (22.10.2026, Stationen-Editor)
 -- Der Server macht dasselbe beim ersten Gebrauch (server/lib/fiaon-global-mandat.ts, ensureGlobalMandat).
 --   · fiaon_global_schritte: Status „beantragt“ zusätzlich erlaubt (die Wand wird WEITER, nicht enger —
 --     jede bestehende Zeile bleibt gültig) und das Datum des Antrags (beantragt_am).

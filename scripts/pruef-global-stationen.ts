@@ -8,7 +8,7 @@
 //   4  KUNDENSICHT globalPlusFuerKunde: keine verschlüsselte ITIN, kein Institut, kein Anbieter; Maske
 //   5  ITIN        encryptSecret/decryptSecret: Rundweg, nie Klartext im JSON
 //   6  WORTWAHL    Verlauf- und Anzeigesätze de/en durch die Wände
-//   7  VERDRAHTUNG Migration 121 = Laufzeit, Routen (Chef, Office, Kunde), Portal zeigt Werte, Kapital für Kunden
+//   7  VERDRAHTUNG Migration 123 = Laufzeit, Routen (Chef, Office, Kunde), Portal zeigt Werte, Kapital für Kunden
 //   8  GEGENPROBE  jede Wand schlägt an
 //
 //   env -i HOME=$HOME PATH=$PATH npx tsx scripts/pruef-global-stationen.ts     (Exit 1 bei ROT)
@@ -156,7 +156,7 @@ gleich(S.stationVerlaufSaetze(["itin", "kontoInstitut", "ein"], "de"), ["Ihre IT
 
 // ═══ 7 VERDRAHTUNG ═══════════════════════════════════════════════════════════
 abschnitt("7 Verdrahtung");
-const mig = datei("db/migrations/121_global_stationen.sql");
+const mig = datei("db/migrations/123_global_stationen.sql");
 const lib = datei("server/lib/fiaon-global-mandat.ts");
 ok(/ADD COLUMN IF NOT EXISTS beantragt_am DATE/.test(mig) && /ADD COLUMN IF NOT EXISTS beantragt_am DATE/.test(lib), "beantragt_am: Migration und Laufzeit");
 ok(/ADD COLUMN IF NOT EXISTS inhaber TEXT/.test(mig) && /ADD COLUMN IF NOT EXISTS inhaber TEXT/.test(lib), "inhaber: Migration und Laufzeit");

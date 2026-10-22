@@ -13,7 +13,7 @@
 // „up to", kein Bankname, kein „broker", kein Steuerversprechen; über jede
 // Finanzierung entscheidet das Institut. Prüfstand: scripts/pruef-global-en.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPlanungText, globalPreisText, type GlobalSchluessel } from "../../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPlanungText, globalPreisText, type GlobalSchluessel } from "../../fiaon-global";
 import { GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { QUELLEN_RECHT_EN } from "../fakten-en";
@@ -153,6 +153,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         typ: "hinweis", id: "steuern", h2: "What selling in the US involves",
         punkte: [
           "Sales tax: in the US the states levy their own sales taxes with their own thresholds. Whether and where your company has to register is something you check with a US CPA — this is not part of the packages.",
+          `${GLOBAL_AGENT.en.anschrift} Parcels cannot be accepted there.`,
           GLOBAL_PFLICHTHINWEIS.en[0],
           GLOBAL_PFLICHTHINWEIS.en[1],
         ],

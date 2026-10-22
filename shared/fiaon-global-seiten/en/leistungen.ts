@@ -165,7 +165,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["EIN", "Tax number of the company — Form SS-4, free of charge at the IRS"],
       ["ITIN", "Personal tax number — Form W-7 with a verified passport"],
       ["ITIN requirement", "A tax reason that the IRS recognises — we check it before applying"],
-      ["Your passport", "Verified at an appointment with a Certifying Acceptance Agent — the original stays with you"],
+      ["Your passport", "Checked by our certified acceptance agent partner in the DACH region — in person or in a video appointment"],
       ["IRS processing time", "EIN by fax about four working days · ITIN seven weeks, from abroad nine to eleven weeks"],
       ["In the package", `From ${STRUKTUR}, at no extra charge`],
     ],
@@ -196,7 +196,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         absaetze: [
           "The ITIN is intended for people who have to be registered for tax in the US but cannot obtain a Social Security number. It is not a work permit and not a residence permit, but solely a tax number.",
           "It matters for US business credit cards because, where the owner gives a personal guarantee, an issuer assesses the person — and needs a US tax number to do so. The IRS, however, only issues the ITIN where there is a tax reason: as a rule it is applied for together with a US tax return, or under one of the exceptions the IRS allows. Before applying, we clarify with our US CPA whether a reason applies in your case, and which one; we do not file an application without a sound reason.",
-          "You do not have to send your passport to the US: a Certifying Acceptance Agent verifies it at an appointment and files the application — the original stays with you.",
+          "You do not have to send your passport to the US: our certified acceptance agent partner in the DACH region checks it in person or in a video appointment and files the application.",
         ],
       },
       {
@@ -223,7 +223,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       { f: "How much does the IRS charge for an EIN?", a: "Nothing. The IRS charges no fee for the EIN. At FIAON Global, preparation and filing are included in the fixed price of every package." },
       { f: "What do I need an ITIN for?", a: "For personal tax obligations in the US — and so that a US issuer can assess you as a person if you give a personal guarantee for a business credit card. The IRS only issues the ITIN where there is a tax reason." },
       { f: "Will I automatically get a credit card with an ITIN?", a: "No. The ITIN is a tax number. Whether an issuer issues a card, and with what limit, is decided by the issuer itself under its own rules." },
-      { f: "Do I have to send my passport to the US?", a: "No. A Certifying Acceptance Agent verifies your passport at an appointment and files the application. The original stays with you." },
+      { f: "Do I have to send my passport to the US?", a: "No. Our certified acceptance agent partner in the DACH region checks your passport in person or in a video appointment and files the application." },
       { f: "How long does it take to get an ITIN?", a: "According to the IRS, about seven weeks; between mid-January and the end of April and for applications from abroad, nine to eleven weeks. FIAON cannot speed this up — we make sure the application is complete, because incomplete applications are the most common reason for delays." },
     ],
     paket: "global_struktur",

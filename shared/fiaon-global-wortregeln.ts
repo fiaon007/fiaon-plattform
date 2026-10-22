@@ -33,6 +33,7 @@ import { wandPruefen } from "./fiaon-wortverbote";
 export interface GlobalWortregel { muster: RegExp; grund: string }
 
 export const GLOBAL_SCHAERFER: GlobalWortregel[] = [
+  { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
   { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "kein Bankname als Versprechen (BGH I ZR 170/08)" },
   { muster: /\b(innerhalb|binnen)\s+(von\s+)?\d+\s*(wochen|monaten|tagen|werktagen)\b/i, grund: "keine Frist mit Ziffer" },
@@ -80,6 +81,7 @@ export function globalWortPruefen(text: string, gedeckt: string[] = []): GlobalW
 // VIP-Zahl, wie globalKapital("global_vip", "en") sie schreibt.
 // ═══════════════════════════════════════════════════════════════════════════
 export const GLOBAL_SCHAERFER_EN: GlobalWortregel[] = [
+  { muster: /\bnorthwest\b/i, grund: "never name our registered agent partner publicly (confidential partner agreement, E-422)" },
   { muster: /\bup to\b/i, grund: "“up to” is a peak-value promise (only the VIP figure may use it)" },
   { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "no bank names (and no “chase”/“ramp” as verbs — say “follow up”, “increase”)" },
   { muster: /\b(within|in)\s+\d+\s*(–|-|to)?\s*\d*\s*(working\s+|business\s+|calendar\s+)?(hours?|days?|weeks?|months?)\b/i, grund: "no deadline with digits (write the number as a word or give a date)" },

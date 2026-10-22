@@ -141,7 +141,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["EIN", "Steuernummer der Gesellschaft — Formular SS-4, bei der IRS kostenlos"],
       ["ITIN", "Persönliche Steuernummer — Formular W-7 mit geprüftem Pass"],
       ["Voraussetzung ITIN", "Ein steuerlicher Grund, den die IRS anerkennt — wir prüfen ihn vor dem Antrag"],
-      ["Ihr Pass", "Prüfung im Termin bei einem Certifying Acceptance Agent — das Original bleibt bei Ihnen"],
+      ["Ihr Pass", "Prüfung durch unseren zertifizierten Acceptance-Agent-Partner im DACH-Raum — persönlich oder im Videotermin"],
       ["Dauer laut IRS", "EIN per Fax etwa vier Werktage · ITIN sieben, aus dem Ausland neun bis elf Wochen"],
       ["Im Paket", "Ab Global Struktur, ohne Aufpreis"],
     ],
@@ -172,7 +172,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         absaetze: [
           "Die ITIN ist für Menschen gedacht, die in den USA steuerlich erfasst werden müssen, aber keine Sozialversicherungsnummer erhalten können. Sie ist keine Arbeitserlaubnis und kein Aufenthaltstitel, sondern allein eine Steuernummer.",
           "Für US-Firmenkarten zählt sie, weil ein Herausgeber bei der persönlichen Haftung des Inhabers die Person prüft — und dafür eine US-Steuernummer braucht. Die IRS vergibt die ITIN aber nur mit einem steuerlichen Grund: In der Regel wird sie zusammen mit einer US-Steuererklärung beantragt oder über eine der Ausnahmen, die die IRS zulässt. Ob und welcher Grund in Ihrem Fall vorliegt, klären wir vor dem Antrag mit unserem US-CPA; einen Antrag ohne tragfähigen Grund stellen wir nicht.",
-          "Ihren Pass müssen Sie nicht in die USA schicken: Ein Certifying Acceptance Agent prüft ihn im Termin und reicht den Antrag ein — das Original bleibt bei Ihnen.",
+          "Ihren Pass müssen Sie nicht in die USA schicken: Unser zertifizierter Acceptance-Agent-Partner im DACH-Raum prüft ihn persönlich oder im Videotermin und reicht den Antrag ein.",
         ],
       },
       {
@@ -181,7 +181,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
           { titel: "Gesellschaft gegründet", text: "Die EIN kann erst beantragt werden, wenn die Gesellschaft beim Bundesstaat eingetragen ist." },
           { titel: "SS-4 vorbereitet und eingereicht", text: "Wir füllen das Formular aus, Sie unterschreiben, wir reichen ein. Die Bestätigung der IRS liegt danach in Ihrem Dokumentenraum." },
           { titel: "Grund für die ITIN geprüft", text: "Unser US-CPA prüft, welcher steuerliche Grund vorliegt. Ohne tragfähigen Grund stellen wir keinen Antrag — statt ihn ins Leere laufen zu lassen." },
-          { titel: "W-7 mit geprüftem Pass", text: "Der Certifying Acceptance Agent prüft Ihren Pass im Termin; der Antrag geht mit den nötigen Anlagen an die IRS, und wir verfolgen ihn bis zum Bescheid." },
+          { titel: "W-7 mit geprüftem Pass", text: "Unser zertifizierter Acceptance-Agent-Partner prüft Ihren Pass; der Antrag geht mit den nötigen Anlagen an die IRS, und wir verfolgen ihn bis zum Bescheid." },
         ],
       },
       {
@@ -199,7 +199,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Was kostet die EIN bei der IRS?", a: "Nichts. Die IRS erhebt für die EIN keine Gebühr. Bei FIAON Global sind Vorbereitung und Einreichung im Festpreis jedes Pakets enthalten." },
       { f: "Wozu brauche ich eine ITIN?", a: "Für persönliche Steuerpflichten in den USA — und damit ein US-Herausgeber Sie als Person prüfen kann, wenn Sie für eine Firmenkarte persönlich haften. Die IRS vergibt die ITIN nur mit einem steuerlichen Grund." },
       { f: "Bekomme ich mit der ITIN automatisch eine Kreditkarte?", a: "Nein. Die ITIN ist eine Steuernummer. Ob ein Herausgeber eine Karte ausgibt und mit welchem Rahmen, entscheidet er selbst nach seinen Regeln." },
-      { f: "Muss ich meinen Pass in die USA schicken?", a: "Nein. Ein Certifying Acceptance Agent prüft Ihren Pass im Termin und reicht den Antrag ein. Das Original bleibt bei Ihnen." },
+      { f: "Muss ich meinen Pass in die USA schicken?", a: "Nein. Unser zertifizierter Acceptance-Agent-Partner im DACH-Raum prüft Ihren Pass persönlich oder im Videotermin und reicht den Antrag ein." },
       { f: "Wie lange dauert die ITIN?", a: "Nach Angabe der IRS etwa sieben Wochen; zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen. FIAON kann das nicht beschleunigen — wir sorgen dafür, dass der Antrag vollständig ist, denn unvollständige Anträge sind der häufigste Grund für Verzögerungen." },
     ],
     paket: "global_struktur",

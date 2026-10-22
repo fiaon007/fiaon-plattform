@@ -156,7 +156,8 @@ const D: FirmaDaten = { ref: "FIAON-IA-FPRUEF1", fassung: S.FIRMA_FASSUNG, kunde
  *     des Wachstumsbudgets sechs Monate nach der Annahme, es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu
  *     vertreten hat (Punkt 5). Die Fassung steht in der Prüfsumme (firmaHashEingabe). Anlage 1 unverändert (Prüfung unten).
  */
-const PRUEFSUMME_FIRMA_D = "a819be482a28db13e6932e275be3299ca07d02adb07abbb533b0792b1e948f22";
+// 22.10.2026 bewusst geändert (E-422, Fassung IA-FIRMA-2026-10-22): Nutzung der US-Anschrift (Ziffer 14) und Freistellung (Ziffer 18). Davor: a819be48….
+const PRUEFSUMME_FIRMA_D = "1cc2592373419ed4312a70d6ec2e26169d7b5ac74bc7db615347b6ab73327004";
 /** Die Prüfsumme der Anlage 1 der Testfirma — Runde 2 darf sie NICHT ändern (das unterschriebene Original bleibt gültig). */
 const PRUEFSUMME_ANLAGE1_D = "ce6bfc306ea38af67f3ec958145381fd7bdd3d200c193ed6dffe158f8b685a8a"; // = Stand vor Runde 2 (aus main 50cde08d nachgerechnet)
 
@@ -552,7 +553,7 @@ titel("8. Hildbrand: Individualangebot unverändert");
   ok(code === 0, "scripts/pruef-individualangebot.ts (ohne DB) grün", aus.split("\n").filter((x) => /FEHLER/.test(x)).slice(0, 5));
   ok(!/FEHLER\s+Prüfsumme \(text_hash\) unverändert/.test(aus), "PRUEFSUMME_D_VORHER unverändert");
   if (zahl) console.log(`  (Individualangebot: ${zahl[0]})`);
-  ok(SA.ANGEBOT_FASSUNG === "IA-2026-10-01-KG" && !S.istFirmenFassung(SA.ANGEBOT_FASSUNG) && S.istFirmenFassung(S.FIRMA_FASSUNG), "Fassungen getrennt (IA-… vs. IA-FIRMA-…)");
+  ok(SA.ANGEBOT_FASSUNG === "IA-2026-10-22" && !S.istFirmenFassung(SA.ANGEBOT_FASSUNG) && S.istFirmenFassung(S.FIRMA_FASSUNG), "Fassungen getrennt (IA-… vs. IA-FIRMA-…)");
   void V;
 }
 
@@ -730,7 +731,7 @@ titel("10. Runde 2 (Justin 08.10.2026): Garantie ab Annahme, Wachstumsbudget ab 
   const rumpf = S.htmlZuText(F.firmaRumpf({ ...D, compliance: null }));
   // ── Punkt 3: Garantiefrist ab Annahme, Empfängerin die US-Gesellschaft, Ruhen bei fehlender Mitwirkung ──
   // Runde 3: Fassung D folgt auf C — die Garantiefrist läuft weiter ab der Annahme.
-  ok(S.FIRMA_FASSUNG === "IA-FIRMA-2026-10-08-D" && S.garantieAbAnnahme(S.FIRMA_FASSUNG) && S.garantieAbAnnahme("IA-FIRMA-2026-10-08-C") && !S.garantieAbAnnahme("IA-FIRMA-2026-10-07-B") && !S.garantieAbAnnahme("IA-2026-10-01-KG"), "Firmen-Fassung D (nach C); ab C zählt die Garantiefrist ab der Annahme");
+  ok(S.FIRMA_FASSUNG === "IA-FIRMA-2026-10-22" && S.garantieAbAnnahme(S.FIRMA_FASSUNG) && S.garantieAbAnnahme("IA-FIRMA-2026-10-08-D") && S.garantieAbAnnahme("IA-FIRMA-2026-10-08-C") && !S.garantieAbAnnahme("IA-FIRMA-2026-10-07-B") && !S.garantieAbAnnahme("IA-2026-10-01-KG"), "Firmen-Fassung D (nach C); ab C zählt die Garantiefrist ab der Annahme");
   ok(G.vertragGarantie.includes("an die US-Gesellschaft der Auftraggeberin (Ziffer 1 Absatz 3) innerhalb von drei Monaten nach dem Tag, an dem die Auftraggeberin diesen Vertrag angenommen hat (Tag der Annahme), eine erste Finanzierungsrunde über 250.000 US-Dollar ausgezahlt wird") && G.vertragGarantie.includes("Empfängerin der Auszahlung ist allein die US-Gesellschaft"), "Ziffer 7 Absatz 1: Auszahlung binnen drei Monaten ab dem Tag der Annahme, Empfängerin die US-Gesellschaft", G.vertragGarantie);
   ok(G.vertragBeginn.startsWith("Die Frist der Garantie beginnt mit dem Tag der Annahme; sie hängt nicht davon ab, wann die Bedingungen der Bürgschaft") && !/Solange die Bedingungen nach Ziffer 8 Absatz 4 nicht erfüllt sind, beginnt die Frist nicht/.test(rumpf), "Ziffer 7 Absatz 3: Beginn mit der Annahme — nicht mehr mit den erfüllten Bedingungen");
   ok(G.vertragRuhen.includes("insbesondere die Unterlagen für die Bedingungen nach Ziffer 8 Absatz 4") && G.vertragRuhen.includes("mit einer Frist von mindestens sieben Tagen angefordert") && G.vertragRuhen.includes("Verzögerungen bei Instituten, Behörden, der Bürgin oder Partnern von FIAON lassen die Frist weiterlaufen"), "Ziffer 7 Absatz 4: Ruhen nur bei fehlender Mitwirkung (Unterlagen) nach Aufforderung mit mindestens sieben Tagen");
@@ -848,7 +849,7 @@ titel("11. Runde 3 (Justin 08.10.2026, Endfassung): Kapital vorne, Gründungskos
   ok(!/gaf-team-ki|KI-Symbolbild/.test(fs.readFileSync("client/src/pages/business-angebot-firma.tsx", "utf8")) && S.firmaBildnachweis(kiPar).includes("Teamfotos teils Symbolbilder") && !S.firmaBildnachweis(PARAMETER).includes("Symbolbild"), "Team: kein Hinweis unter den Fotos (Justin 08.10. abends), leise im Bildnachweis");
   ok(/Porträt mit KI erstellt/.test(S.firmaBildnachweis(PARAMETER)) && !/Porträt mit KI erstellt/.test(texteAus(S.firmaTeam(PARAMETER)).join(" ")), "KI-Hinweis zu Porträts einmal im Bildnachweis, nicht im Team");
   // ── Punkt 7: Fassung und Anlage 1 ──
-  ok(S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-C" as any) && S.FIRMA_FASSUNGEN[S.FIRMA_FASSUNGEN.length - 1] === "IA-FIRMA-2026-10-08-D" && S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Fassungen: D aktuell, C bleibt lesbar; Anlage 1 unverändert (Fassung D der Anlage)");
+  ok(S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-C" as any) && S.FIRMA_FASSUNGEN.includes("IA-FIRMA-2026-10-08-D" as any) && S.FIRMA_FASSUNGEN[S.FIRMA_FASSUNGEN.length - 1] === "IA-FIRMA-2026-10-22" && S.ANLAGE1_FIRMA_FASSUNG === "IA-FIRMA-ANLAGE1-2026-10-08-D", "Fassungen: D aktuell, C bleibt lesbar; Anlage 1 unverändert (Fassung D der Anlage)");
 }
 
 titel("13. Annahme meldet sich per Mail an Justin (08.10.2026, Hildbrand)");

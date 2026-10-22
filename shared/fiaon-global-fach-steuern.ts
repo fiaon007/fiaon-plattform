@@ -589,7 +589,7 @@ export const FACH_STEUERN_KAPITEL: FachKapitel[] = [
           "15. Juni: Termin für eine eigene US-Erklärung des Inhabers auf Form 1040-NR, falls eine solche Pflicht besteht und keine US-Löhne mit Steuerabzug bezogen werden",
           "Im Lauf des Jahres: Steuererklärung im Wohnsitzland, in Deutschland im Gründungsjahr mit der Mitteilung nach § 138 AO — Fristen je nach Land und danach, ob eine Steuerkanzlei die Erklärung erstellt",
           "15. Oktober: verlängerte Frist für Form 5472 mit Pro-forma-Form 1120, wenn Form 7004 rechtzeitig eingereicht wurde; ebenso für das FBAR",
-          "Jahrestag der Gründung: Verlängerung des Registered Agent — den genauen Termin nennt Ihr Registered Agent",
+          "Jahrestag der Gründung: Verlängerung des Registered Agent — bei FIAON Global erledigen wir sie für Sie",
           "Dezember: Jahressummen je US-Dienstleister prüfen, fehlende W-9 anfordern, Belege des Jahres vollständig ablegen",
         ],
       },

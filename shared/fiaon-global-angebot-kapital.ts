@@ -30,6 +30,7 @@
 // DATENSCHUTZ: Das Repo ist öffentlich (E-242) — hier stehen KEINE Kundendaten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
+import { globalAgentVertrag } from "./fiaon-global";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
 import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung, FirmaSonderfreigabe } from "./fiaon-global-angebot-firma-typen";
@@ -44,8 +45,8 @@ import { plusWerktage } from "./fiaon-wiedervorlage";
 export const KAPITAL_FASSUNG_PRAEFIX = "IA-KAPITAL-";
 // B (19.10.2026, E-400, Justin): Garantie „Finanzierung binnen acht Wochen — sonst alles zurück“, Bürgschaftsgebühr und Vergütung bei
 // Auszahlung, Zeitplan in Wochen, Sonderfreigabe trotz offener Punkte im Prüfbericht, Kreditkarten dazu.
-export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-19-B";
-export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", KAPITAL_FASSUNG] as const;
+export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-22";
+export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", "IA-KAPITAL-2026-10-19-B", KAPITAL_FASSUNG] as const;
 export function istKapitalFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(KAPITAL_FASSUNG_PRAEFIX);
 }
@@ -300,6 +301,7 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
     { nr: 7, titel: "Mitwirkung der Auftraggeberin", absaetze: [
       liste(kapitalUnterlagen(par), "Die Auftraggeberin stellt FIAON binnen vierzehn Tagen nach der Annahme bereit:"),
       p("Die Auftraggeberin macht wahre und vollständige Angaben, unterschreibt die vorbereiteten Unterlagen nach Prüfung und teilt Änderungen, die für die Gesellschaft, die Finanzierung oder die Bürgschaft erheblich sind, unverzüglich in Textform mit."),
+      p(globalAgentVertrag("nutzung", true)),
     ] },
     { nr: 8, titel: "Pflichthinweise", absaetze: [
       liste([...ANGEBOT_PFLICHTHINWEIS, KAPITAL_PFLICHT_ZUSATZ], "Die Auftraggeberin nimmt die folgenden Hinweise zur Kenntnis:"),
@@ -311,6 +313,7 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
     ] },
     { nr: 10, titel: "Haftung", absaetze: [
       p("FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen von Behörden haftet FIAON nicht; für das Ergebnis der Finanzierung gilt allein die Garantie nach Ziffer 4; für die Leistungen der Partner haften diese aus ihrem eigenen Mandat."),
+      p(globalAgentVertrag("haftung", true)),
     ] },
     { nr: 11, titel: "Vertraulichkeit und Datenschutz", absaetze: [
       p("Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich, auch nach dem Ende des Vertrags. FIAON gibt Unterlagen nur weiter, soweit es die Leistung erfordert: an Behörden, an den Registered Agent, an die Partner aus Ziffer 3, an die Bürgin und an Institute, bei denen ein Antrag gestellt wird."),

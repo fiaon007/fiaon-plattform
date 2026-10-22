@@ -97,7 +97,7 @@
 //
 // Diese Datei fasst keine Datenbank an — Server, Oberfläche und Prüfstand lesen sie.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI } from "./fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalAgentVertrag } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { geburtsdatumIso } from "./fiaon-geburtsdatum";
 
@@ -106,9 +106,10 @@ export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
  * Die Fassung des Wortlauts. Eine neue Fassung = neuer Eintrag hier; ANGENOMMENE Angebote behalten ihre.
  * Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut und damit die aktuelle Fassung (angebotDatenAus).
  * IA-2026-10-01-KG (01.10.2026 abends, E-271): Kreditgarantie. Am 01.10.2026 war kein Angebot angenommen.
+ * IA-2026-10-22 (E-422): Registered Agent über unseren Partner — Nutzung der US-Anschrift (Ziffer 10) und Freistellung (Ziffer 12).
  */
-export const ANGEBOT_FASSUNG = "IA-2026-10-01-KG";
-export const ANGEBOT_FASSUNGEN = ["IA-2026-10-01", ANGEBOT_FASSUNG] as const;
+export const ANGEBOT_FASSUNG = "IA-2026-10-22";
+export const ANGEBOT_FASSUNGEN = ["IA-2026-10-01", "IA-2026-10-01-KG", ANGEBOT_FASSUNG] as const;
 /**
  * Anlage 1 (Bürgschaftszusage) hat ihren EIGENEN Fassungsstand: Ihr Wortlaut ist seit IA-2026-10-01 unverändert,
  * und ihre Prüfsumme steht auf dem eigenhändig unterschriebenen Original (§ 766 BGB). Ändert sich der Wortlaut
@@ -666,6 +667,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
       p("Der Auftraggeber kann den Vertrag jederzeit in Textform beenden. " + G.vertragKuendigung + " Für Teil 1 steht FIAON die Vergütung dann nur für die bis dahin erbrachten Leistungen zu (§ 628 BGB); ein darüber hinaus gezahlter Betrag wird erstattet."),
       p("FIAON kann den Vertrag nur aus wichtigem Grund beenden. Ein wichtiger Grund liegt insbesondere vor, wenn der Auftraggeber vorsätzlich falsche Angaben macht oder wenn der Auftraggeber oder die Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. Beendet FIAON den Vertrag vor dem Ende der Frist nach Ziffer 6 aus einem Grund, den der Auftraggeber nicht zu vertreten hat, erstattet FIAON dem Auftraggeber alles, was er an FIAON gezahlt hat, vollständig."),
       p("Das Recht beider Parteien zur Beendigung aus wichtigem Grund und das Widerrufsrecht nach Ziffer 11 bleiben unberührt."),
+      p(globalAgentVertrag("nutzung")),
     ] },
 
     { nr: 11, titel: "Widerrufsrecht", absaetze: [
@@ -679,6 +681,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
 
     { nr: 12, titel: "Haftung", absaetze: [
       p(`FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. ${G.vertragHaftung}`),
+      p(globalAgentVertrag("haftung")),
       p(G.vertragHaftungUnberuehrt),
     ] },
 

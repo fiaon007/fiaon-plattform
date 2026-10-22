@@ -119,7 +119,9 @@ const ohneGarantie = (t: string) => [...S.ANGEBOT_GARANTIE_ETIKETTEN].reduce((x,
 // und die neue Fassung IA-2026-10-01-KG. Davor: 09b00bbd… (Knopf), davor 6d18a0f9….
 // Danach (Gegenprüfung, ebenfalls 01.10.2026 abends): ausschließliche Folge, Definitionen, Ablehnung, Verzug Teil 2, Kündigung, Bürgschaftsfenster.
 // Danach (01.10.2026, 21:30): Anlage 2 ohne „Entscheidung eines Instituts/prüfen nach eigenen Maßstäben/keine Zusage eines Instituts“.
-const PRUEFSUMME_D_VORHER = "049f39d7531287975a73cd0132256f5276b72e2352b07b289941233d32f1b4e3";
+// 22.10.2026 bewusst geändert (E-422, Fassung IA-2026-10-22): Registered Agent über unseren Partner — Nutzung der US-Anschrift
+// (Ziffer 10) und Freistellung (Ziffer 12). Davor: 049f39d7….
+const PRUEFSUMME_D_VORHER = "cf0a5c6efef4f7b3ed2600b08b239c21f1271f02eac762f4cf7d6c064c46e80c";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");
@@ -201,7 +203,7 @@ titel("2b. „Kredit garantiert“ (E-271, Justin 01.10.2026 abends) und „Ihre
   ok(S.ANGEBOT_ZIFFER_TITEL[2] === G.vertragTitel3 && S.ANGEBOT_ZIFFER_TITEL[5] === G.vertragTitel6 && /Kreditgarantie/.test(G.vertragTitel3) && /Garantie/.test(G.vertragTitel6), "Ziffer 3 und 6 tragen die Garantie im Titel");
   ok(S.angebotVertragUnterzeile(D).includes("Kredit garantiert"), "Unterzeile: „Kredit garantiert“ (der Titel bleibt — er ist Teil der Anlage 1)");
   // Anlage 1 bleibt: ihr eigener Fassungsstand, Prüfsumme unabhängig von der Vertragsfassung.
-  ok(S.ANGEBOT_FASSUNG === "IA-2026-10-01-KG" && (S.ANGEBOT_FASSUNGEN as readonly string[]).includes("IA-2026-10-01") && S.ANLAGE1_FASSUNG === "IA-2026-10-01", "Fassung IA-2026-10-01-KG; Anlage 1 bleibt IA-2026-10-01");
+  ok(S.ANGEBOT_FASSUNG === "IA-2026-10-22" && (S.ANGEBOT_FASSUNGEN as readonly string[]).includes("IA-2026-10-01") && (S.ANGEBOT_FASSUNGEN as readonly string[]).includes("IA-2026-10-01-KG") && S.ANLAGE1_FASSUNG === "IA-2026-10-01", "Fassung IA-2026-10-22 (davor KG lesbar); Anlage 1 bleibt IA-2026-10-01");
   ok(V.buergschaftPruefsumme(D) === V.buergschaftPruefsumme({ ...D, fassung: "IA-2026-10-01" }), "Anlage 1: Prüfsumme hängt nicht an der Vertragsfassung — ein unterschriebenes Original bleibt gültig");
   // Gegenproben: die Hausregel bleibt scharf, die übrigen Global-Texte bleiben ohne Garantie.
   ok(wandPruefen("Ihr Kredit ist garantiert.").length >= 1 && wandPruefen("Wir garantieren Ihnen die Karte.").length >= 1, "Hauswortwand unverändert: „garantiert/garantieren“ bleibt verboten");

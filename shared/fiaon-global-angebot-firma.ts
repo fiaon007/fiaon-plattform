@@ -40,7 +40,7 @@
 // Diese Datei fasst keine Datenbank an und importiert nichts aus Node — die Seite darf sie laden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
-import { GLOBAL_ROLLEN } from "./fiaon-global";
+import { GLOBAL_ROLLEN, globalAgentVertrag } from "./fiaon-global";
 import {
   ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, BUERGIN_VORGABE, BUERGIN_FELDER, angebotVersandSperre, buerginOhneNummer,
   type AngebotBuergin, type AngebotZiffer, type AngebotAbsatz,
@@ -86,8 +86,8 @@ export { FIRMA_FASSUNG_PRAEFIX, istFirmenFassung };
  *     nach der Annahme, es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat (budgetSpaetestensMonate).
  *   Anlage 1 bleibt Wort für Wort (Fassung D der Anlage, Prüfsumme gleich): Sie verweist nur auf Ziffer 7 und Ziffer 8 Absatz 5/6.
  */
-export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`;
-export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`, FIRMA_FASSUNG] as const;
+export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-22`;
+export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`, FIRMA_FASSUNG] as const;
 /**
  * Fassung D: Zählt für die Garantie nur die Auszahlung (keine verbindliche Zusage)? Und gilt der späteste Starttag des Wachstumsbudgets
  * (Ziffer 10 Absatz 2)? Ein angenommenes Angebot behält seine Fassung; ein offenes zeigt immer die aktuelle.
@@ -1385,6 +1385,7 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
       p(`Die Mindestlaufzeit beträgt ${monateWort(par.mindestMonate)} ab dem Starttag. Danach verlängert sich der Vertrag um jeweils ${monateWort(par.verlaengerungMonate)}, wenn ihn keine Partei spätestens ${monateWort(par.kuendigungMonate)} vor Ablauf in Textform kündigt.`),
       p(`Das Recht beider Parteien zur Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund für FIAON liegt insbesondere vor, wenn die Auftraggeberin vorsätzlich falsche Angaben macht, mit drei Monatsanteilen in Verzug ist oder sie oder die US-Gesellschaft auf einer Sanktionsliste der Europäischen Union, der Vereinten Nationen, des Vereinigten Königreichs oder der USA geführt wird. ${G.vertragKuendigung}`),
       p("Mit dem Ende des Vertrags übergibt FIAON alle Zugänge, Konten und Unterlagen. Die US-Gesellschaft bleibt bei ihrer Gesellschafterin. Dienste in den USA, die FIAON für die US-Gesellschaft erbringt (Geschäftsadresse, Telefon, Registered Agent, U.S. Agent), enden mit dem Vertrag; FIAON unterstützt den Wechsel zu einem neuen Anbieter während der letzten drei Monate der Laufzeit. Die Bürgschaft besteht nach ihren Bedingungen fort; für die Umsatzbeteiligung gilt Ziffer 11 Absatz 8, für die Verkaufsbeteiligung Ziffer 12 Absatz 3."),
+      p(globalAgentVertrag("nutzung", true)),
     ] },
     { nr: 15, titel: "Mitwirkung und Reporting", absaetze: [
       liste([
@@ -1412,6 +1413,7 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
     { nr: 19, titel: "Pflichthinweise", absaetze: [
       liste([...ANGEBOT_PFLICHTHINWEIS], "Die Auftraggeberin nimmt die folgenden Hinweise zur Kenntnis:"),
       p(`Die Bürgschaft der ${buergin} ersetzt eine von einem Institut verlangte persönliche Haftung nur, wenn das Institut dem zustimmt.`),
+      p(globalAgentVertrag("haftung", true)),
       p("Während der Laufzeit sind die staatlichen Jahresgebühren und die Kosten des Registered Agent der US-Gesellschaft nach Ziffer 3 in der Vergütung enthalten."),
     ] },
     { nr: 20, titel: "Recht, Gerichtsstand und Schlussbestimmungen", absaetze: [

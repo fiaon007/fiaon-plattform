@@ -9,7 +9,7 @@
 // US-Eigennamen bleiben amerikanisch: Articles of Organization, Certificate of
 // Formation, License Tax, Franchise Tax, Authorized Shares Method.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, globalPaket, globalPreisText } from "../../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPreisText } from "../../fiaon-global";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
 import type { GlobalBlock, GlobalSeite } from "../typen";
@@ -245,6 +245,7 @@ export const STAATEN_EN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           `The annual report is due in the month of formation; ${STAAT_EN.wyoming.jahrVerzug}. The deadline is in your compliance calendar.`,
+          GLOBAL_AGENT.en.kontakt,
           GLOBAL_PFLICHTHINWEIS.en[0],
           `Regardless of the state, the IRS requires Form 5472 with Form 1120 every year; failure to file can result in a penalty of ${IRS_EN.strafe5472}.`,
         ],

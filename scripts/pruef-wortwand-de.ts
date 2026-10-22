@@ -40,6 +40,7 @@ import { ZUGANG_UEBERGABE_TEXTE } from "../shared/fiaon-zugang-uebergabe";
 import { RADAR_BRIEF_TEXTE, RADAR_KERNSATZ } from "../shared/fiaon-radar";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
+  { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
   { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "kein Bankname als Versprechen (BGH I ZR 170/08)" },
   { muster: /\b(innerhalb|binnen)\s+(von\s+)?\d+\s*(wochen|monaten|tagen|werktagen)\b/i, grund: "keine Frist mit Ziffer" },

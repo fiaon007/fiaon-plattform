@@ -11,7 +11,7 @@
 // (Bau und Immobilien), steht seit 19.09.2026 dazu, dass es nicht an die USA
 // gebunden ist (GLOBAL_KAPITAL_FREI, Justin).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPreisText, globalPlanungText } from "../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPreisText, globalPlanungText } from "../fiaon-global";
 import type { GlobalSeite } from "./typen";
 
 const S = "2026-09-19";
@@ -137,6 +137,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         typ: "hinweis", id: "steuern", h2: "Was der Verkauf in den USA mit sich bringt",
         punkte: [
           "Umsatzsteuer: In den USA erheben die Bundesstaaten eigene Umsatzsteuern mit eigenen Schwellen. Ob und wo Ihre Gesellschaft sich registrieren muss, prüfen Sie mit einem US-CPA — das ist nicht Teil der Pakete.",
+          `${GLOBAL_AGENT.de.anschrift} Pakete nimmt sie nicht an.`,
           GLOBAL_PFLICHTHINWEIS.de[0],
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],

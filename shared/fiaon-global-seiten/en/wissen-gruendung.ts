@@ -379,7 +379,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
     fragen: [
       { f: "Do I need an ITIN for my LLC?", a: "Not for the company’s EIN. You need an ITIN personally if you have to file a tax return in the US or if one of the IRS exceptions applies." },
       { f: "How long does an ITIN application take?", a: `${gross(IRS_EN.itinDauer)}.` },
-      { f: "Do I have to send my original passport to get an ITIN?", a: "Not necessarily. Instead of the original, a copy certified by the issuing authority will do, or a Certifying Acceptance Agent checks the passport and returns it immediately." },
+      { f: "Do I have to send my original passport to get an ITIN?", a: "You do not have to send it to the US. Instead of the original, a copy certified by the issuing authority will do — or our certified acceptance agent partner in the DACH region checks your passport in person or in a video appointment." },
       { f: "Can I apply for an ITIN just for a credit card?", a: "No. The IRS issues ITINs only for tax purposes; the application needs a tax return or an exception. Some card issuers ask for the ITIN — they still decide on the card themselves." },
       { f: "Does an ITIN expire?", a: "Yes, if it does not appear on any US tax return for three consecutive tax years — on 31 December of the third year. It is renewed with Form W-7." },
     ],
@@ -472,7 +472,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles your US presence",
         absaetze: [
-          "With FIAON Global, the US presence is part of the package: registered agent, US business address and US phone number are included in the fixed price for the first year — provided by our team on the ground and aligned from the outset with the documents for the account and cards. Official mail and deadlines land in your document room and in your company’s compliance calendar.",
+          "With FIAON Global, the US presence is part of the package: registered agent, US business address and US phone number are included in the fixed price for the first year — provided by our team on the ground and aligned from the outset with the documents for the account and cards. Service of process and official mail are usually scanned into your document room within one day, and the deadlines appear in your company’s compliance calendar.",
           GLOBAL_LAUFEND.en,
         ],
       },

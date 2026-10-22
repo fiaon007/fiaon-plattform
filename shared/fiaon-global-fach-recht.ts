@@ -195,7 +195,7 @@ export const FACH_RECHT_KAPITEL: FachKapitel[] = [
           "Eine Zustellung an den Registered Agent gilt als Zustellung an die LLC. Eine Frist beginnt mit dieser Zustellung — auch wenn Sie selbst erst später davon erfahren. Wer Post vom Agenten liegen lässt, riskiert im schlimmsten Fall ein Versäumnisurteil gegen die LLC.",
           "Hat die LLC über längere Zeit keinen Registered Agent oder keine gültige Anschrift für ihn, kann der Staat sie administrativ auflösen (§ 605.0714).",
         ],
-        merke: "Die Anschrift des Registered Agent ist in der Regel nicht Ihre Geschäftsadresse. Sie dient der Zustellung — nicht als Sitz, Lager oder Kundenadresse.",
+        merke: "Die Anschrift des Registered Agent ist die Anschrift Ihrer Gesellschaft in den Unterlagen beim Staat — nicht Ihr Lager, Ihre Kunden- oder Shop-Adresse und nicht Ihre persönliche Anschrift.",
       },
       {
         titel: "Amtliche Post richtig behandeln",
@@ -225,7 +225,7 @@ export const FACH_RECHT_KAPITEL: FachKapitel[] = [
     ],
     umsetzen: [
       "Prüfen Sie auf Sunbiz, welcher Registered Agent für Ihre LLC eingetragen ist.",
-      "Klären Sie, wie der Agent eingehende Post an Sie meldet — per Scan, E-Mail oder Portal.",
+      "Bei FIAON Global liegen Zustellungen und Behördenpost in der Regel innerhalb eines Tages eingescannt in Ihrem Tresor unter „Eingegangene Post“.",
       "Hinterlegen Sie bei Sunbiz eine E-Mail-Adresse, die Sie täglich lesen.",
       "Legen Sie Zustellungen und Behördenpost sofort im Tresor unter „Eingegangene Post“ ab.",
       "Notieren Sie Fristen aus Schreiben noch am selben Tag.",

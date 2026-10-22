@@ -20,7 +20,7 @@
 // DATENSCHUTZ: Das Repo ist öffentlich (E-242) — hier stehen KEINE Kundendaten. Kunde und Parameter liegen nur in der
 // Datenbank (fiaon_global_angebote) und kommen über den persönlichen Link.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_JAHRESBETREUUNG } from "./fiaon-global";
+import { GLOBAL_JAHRESBETREUUNG, globalAgentVertrag } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANNAHME, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
@@ -32,8 +32,8 @@ import type { FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnt
 // ═══════════════════════════════════════════════════════════════════════════
 export const BEGLEIT_FASSUNG_PRAEFIX = "IA-BEGLEIT-";
 /** Eine neue Fassung = neuer Eintrag. ANGENOMMENE Angebote behalten ihre; ein OFFENES zeigt immer die aktuelle. */
-export const BEGLEIT_FASSUNG = "IA-BEGLEIT-2026-10-08-A";
-export const BEGLEIT_FASSUNGEN = [BEGLEIT_FASSUNG] as const;
+export const BEGLEIT_FASSUNG = "IA-BEGLEIT-2026-10-22";
+export const BEGLEIT_FASSUNGEN = ["IA-BEGLEIT-2026-10-08-A", BEGLEIT_FASSUNG] as const;
 export function istBegleitFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(BEGLEIT_FASSUNG_PRAEFIX);
 }
@@ -284,6 +284,7 @@ export function begleitZiffern(d: BegleitDaten): AngebotZiffer[] {
         "die Gründungsunterlagen in digitaler Form und ein Pflichtenkalender für das erste Jahr",
       ], "Die Gründung umfasst:"),
       p("Die Mitwirkung des Auftraggebers beschränkt sich darauf, seinen gültigen Reisepass und, soweit verlangt, einen Adressnachweis bereitzustellen, wahre und vollständige Angaben zu machen und die von FIAON vorbereiteten Unterlagen nach Prüfung zu unterschreiben. FIAON reicht die Anmeldung binnen fünf Werktagen ein, nachdem diese Unterlagen vorliegen."),
+      p(globalAgentVertrag("nutzung")),
     ] },
     { nr: 4, titel: "Gründungskosten zum Selbstkostenpreis", absaetze: [
       p(`Für die Gründung zahlt der Auftraggeber allein die Kosten, die FIAON dafür an Dritte zahlt (Gebühren des Bundesstaats, Registered Agent und Geschäftsadresse für das erste Jahr, Kosten der EIN-Beantragung und der Unterlagen) — ohne Aufschlag und ohne Vergütung für FIAON. Nach dem heutigen Stand betragen sie insgesamt zwischen ${begleitEur(par.gruendungVonCents)} und ${begleitEur(par.gruendungBisCents)}.`),
@@ -331,6 +332,7 @@ export function begleitZiffern(d: BegleitDaten): AngebotZiffer[] {
     ] },
     { nr: 12, titel: "Haftung", absaetze: [
       p("FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen der Institute und Behörden haftet FIAON nicht."),
+      p(globalAgentVertrag("haftung")),
     ] },
     { nr: 13, titel: "Vertraulichkeit und Datenschutz", absaetze: [
       p("Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich, auch nach dem Ende des Vertrags. FIAON gibt Unterlagen nur weiter, soweit es die Leistung erfordert: an Behörden, an den Registered Agent, an den US-CPA aus dem Partnernetz von FIAON und an Institute, bei denen die Gesellschaft einen Antrag stellt."),

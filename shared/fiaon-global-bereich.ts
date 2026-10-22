@@ -66,7 +66,7 @@
 // übliche Jahresabrechnung ab Gründung — der Hinweis sagt das.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { globalPaket } from "./fiaon-global";
+import { GLOBAL_AGENT, globalPaket } from "./fiaon-global";
 
 export type BereichSprache = "de" | "en";
 
@@ -464,8 +464,8 @@ const REGEL_TEXTE = {
     en: { titel: "Annual report of the State of Florida", hinweis: "Florida accepts the annual report from the start of the year; the date shown is the last day without a late fee." },
   },
   agent: {
-    de: { titel: "Verlängerung des Registered Agent", hinweis: "Der Registered Agent wird üblicherweise jährlich ab dem Gründungstag abgerechnet; den genauen Termin nennt Ihr Registered Agent. Eine US-Gesellschaft braucht durchgehend einen Registered Agent." },
-    en: { titel: "Renewal of the registered agent", hinweis: "The registered agent is usually billed annually from the formation date; your registered agent states the exact date. A US company needs a registered agent at all times." },
+    de: { titel: "Verlängerung des Registered Agent", hinweis: GLOBAL_AGENT.de.verlaengerung },
+    en: { titel: "Renewal of the registered agent", hinweis: GLOBAL_AGENT.en.verlaengerung },
   },
 } satisfies Record<string, Record<BereichSprache, RegelText>>;
 

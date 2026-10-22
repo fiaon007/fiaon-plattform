@@ -369,7 +369,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     fragen: [
       { f: "Brauche ich eine ITIN für meine LLC?", a: "Für die EIN der Gesellschaft nicht. Eine ITIN brauchen Sie persönlich, wenn Sie in den USA eine Steuererklärung abgeben müssen oder eine der Ausnahmen der IRS greift." },
       { f: "Wie lange dauert es, eine ITIN zu bekommen?", a: `${gross(IRS.itinDauer)}.` },
-      { f: "Muss ich für die ITIN meinen Pass aus der Hand geben?", a: "Nicht zwingend. Statt des Originals geht eine von der ausstellenden Behörde beglaubigte Kopie, oder ein Certifying Acceptance Agent prüft den Pass und gibt ihn sofort zurück." },
+      { f: "Muss ich für die ITIN meinen Pass aus der Hand geben?", a: "In die USA schicken müssen Sie ihn nicht. Statt des Originals geht eine von der ausstellenden Behörde beglaubigte Kopie — oder unser zertifizierter Acceptance-Agent-Partner im DACH-Raum prüft Ihren Pass persönlich oder im Videotermin." },
       { f: "Kann ich eine ITIN nur für eine Kreditkarte beantragen?", a: "Nein. Die IRS vergibt ITINs nur für steuerliche Zwecke; der Antrag braucht eine Steuererklärung oder eine Ausnahme. Manche Kartenherausgeber fragen nach der ITIN — über die Karte entscheiden sie trotzdem selbst." },
       { f: "Verfällt eine ITIN?", a: "Ja, wenn sie drei Steuerjahre in Folge auf keiner US-Steuererklärung steht — zum 31. Dezember des dritten Jahres. Erneuert wird sie mit Form W-7." },
     ],
@@ -460,7 +460,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "So löst FIAON Global die US-Präsenz",
         absaetze: [
-          "Bei FIAON Global gehört die US-Präsenz zum Paket: Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr im Festpreis enthalten — gestellt von unserem Team vor Ort und von Anfang an abgestimmt auf die Unterlagen für Konto und Karten. Amtliche Post und Fristen landen in Ihrem Dokumentenraum und im Pflichtenkalender Ihrer Gesellschaft.",
+          "Bei FIAON Global gehört die US-Präsenz zum Paket: Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr im Festpreis enthalten — gestellt von unserem Team vor Ort und von Anfang an abgestimmt auf die Unterlagen für Konto und Karten. Zustellungen und Behördenpost liegen in der Regel innerhalb eines Tages eingescannt in Ihrem Dokumentenraum, die Fristen im Pflichtenkalender Ihrer Gesellschaft.",
           GLOBAL_LAUFEND.de,
         ],
       },

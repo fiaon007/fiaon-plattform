@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import WellenFeld from "@/components/site/WellenFeld";
-import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
@@ -94,7 +94,7 @@ const W = {
     nachweise: "Nachweise und Sicherheiten", vertragRechnungen: "Vertrag und Rechnungen", neu: "Neu", leerMappe: "Noch leer.",
     hochladenTitel: "Unterlage hochladen", hochladenFeld: "Datei hierher ziehen oder auswählen", hochladenKlein: "PDF, JPG, PNG oder HEIC · bis 15 MB", art: "Was laden Sie hoch?", hochladen: "Hochladen", laedt: "Wird hochgeladen …",
     unterschrieben: (d: string) => `unterschrieben am ${d}`, wartet: "wartet auf Ihre Unterschrift",
-    postFachTitel: "Ihr Briefkasten", postLead: "Briefe an Ihre Gesellschaft, für Sie eingescannt.", postLeer: "Noch keine Post — neue Briefe erscheinen hier.", absender: "Absender", eingang: "Eingang",
+    postFachTitel: "Ihr Briefkasten", postLead: GLOBAL_AGENT.de.post as string, postLeer: "Noch keine Post — neue Briefe erscheinen hier.", absender: "Absender", eingang: "Eingang",
     anfragenTitel: "Ihre Anfragen", anfragenLead: (n: string) => `Schreiben Sie ${n} — die Antwort lesen Sie hier.`, anfragenLeer: "Noch keine Anfrage.", sie: "Sie", platzhalter: "Ihre Nachricht …", senden: "Senden", sendet: "Wird gesendet …",
     kapitalTitel: "Banken & Kapital", kapitalLead: "Konto, Firmenkarten und Kreditrahmen — mit dem Stand jedes Antrags.", kapitalLeer: "Noch kein Antrag — jeder Schritt erscheint hier.", zugesagt: "Zugesagt und aktiv", beantragt: (d: string) => `beantragt ${d}`,
     fristenNachZahlung: "Der Kalender startet mit Ihrem Zahlungseingang.",
@@ -142,7 +142,7 @@ const W = {
     nachweise: "Evidence and collateral", vertragRechnungen: "Contract and invoices", neu: "New", leerMappe: "Empty for now.",
     hochladenTitel: "Upload a document", hochladenFeld: "Drop a file here or choose one", hochladenKlein: "PDF, JPG, PNG or HEIC · max. 15 MB", art: "What are you uploading?", hochladen: "Upload", laedt: "Uploading …",
     unterschrieben: (d: string) => `signed on ${d}`, wartet: "awaiting your signature",
-    postFachTitel: "Your mailbox", postLead: "Letters to your company, scanned for you.", postLeer: "No mail yet — new letters appear here.", absender: "Sender", eingang: "Received",
+    postFachTitel: "Your mailbox", postLead: GLOBAL_AGENT.en.post as string, postLeer: "No mail yet — new letters appear here.", absender: "Sender", eingang: "Received",
     anfragenTitel: "Your requests", anfragenLead: (n: string) => `Write to ${n} — you read the reply here.`, anfragenLeer: "No requests yet.", sie: "You", platzhalter: "Your message …", senden: "Send", sendet: "Sending …",
     kapitalTitel: "Banking & capital", kapitalLead: "Account, business cards and credit lines — with the status of every application.", kapitalLeer: "No application yet — every step appears here.", zugesagt: "Approved and active", beantragt: (d: string) => `applied for ${d}`,
     fristenNachZahlung: "The calendar starts once your payment has arrived.",

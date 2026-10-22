@@ -47,7 +47,7 @@ export const FACH_STRATEGIE_KAPITEL: FachKapitel[] = [
       {
         titel: "Adresse, Telefon und Auftritt",
         absaetze: [
-          "Die Anschrift Ihres Registered Agent dient dem Empfang amtlicher Post und Zustellungen. Als Geschäftsadresse gegenüber Kunden, Banken und Lieferanten eignet sie sich nur, wenn Ihr Vertrag mit dem Agenten das ausdrücklich erlaubt. Bewährt hat sich eine eigene Geschäftsanschrift mit Postdienst, der eingehende Briefe einscannt.",
+          "Die Anschrift Ihres Registered Agent steht beim Bundesstaat als Sitz- und Postanschrift Ihrer Gesellschaft; Zustellungen und Behördenpost kommen dort an. Für Kunden, Lieferanten oder als Shop-Adresse (etwa bei Amazon oder Google) ist sie nicht gedacht — dafür nutzen Sie eine eigene Geschäftsanschrift, und bei FIAON Global helfen wir Ihnen dabei.",
           "Eine US-Telefonnummer, eine Domain mit eigener E-Mail-Adresse und ein schlichter Webauftritt gehören zur Grundausstattung. Name, Anschrift und Telefonnummer müssen überall identisch sein: im Register, bei der Bank, auf der Website, auf Rechnungen und später bei den Auskunfteien.",
         ],
         merke: "Eine Schreibweise, eine Anschrift, eine Telefonnummer — überall. Was im Register steht, ist der Maßstab.",
@@ -64,7 +64,7 @@ export const FACH_STRATEGIE_KAPITEL: FachKapitel[] = [
         titel: "Meldepflichten und Termine im Blick",
         absaetze: [
           "Die Meldung der wirtschaftlich Berechtigten an FinCEN (Beneficial Ownership Information) wurde im März 2025 per Übergangsregel für in den USA gegründete Gesellschaften ausgesetzt; meldepflichtig blieben ausländische Gesellschaften, die in den USA registriert sind. Diese Lage kann sich ändern — prüfen Sie den aktuellen Stand auf fincen.gov oder fragen Sie uns.",
-          "Tragen Sie die wiederkehrenden Termine sofort in Ihren Kalender ein: den jährlichen Annual Report im Bundesstaat, die Bundesformulare in Zusammenarbeit mit Ihrer Steuerkanzlei und die Verlängerung des Registered-Agent-Vertrags. Der Bereich „Pflichten“ im Portal zeigt die Termine Ihrer LLC.",
+          "Tragen Sie die wiederkehrenden Termine sofort in Ihren Kalender ein: den jährlichen Annual Report im Bundesstaat, die Bundesformulare in Zusammenarbeit mit Ihrer Steuerkanzlei und die jährliche Verlängerung des Registered Agent (bei FIAON Global erledigen wir sie für Sie). Der Bereich „Pflichten“ im Portal zeigt die Termine Ihrer LLC.",
         ],
       },
     ],
@@ -831,7 +831,7 @@ export const FACH_STRATEGIE_KAPITEL: FachKapitel[] = [
         titel: "Pflichten gegenüber dem Bundesstaat",
         absaetze: [
           "In Florida ist der Annual Report jedes Jahr zwischen dem 1. Januar und dem 1. Mai über Sunbiz einzureichen. Wird er nach dem 1. Mai eingereicht, fällt für LLCs eine Verspätungsgebühr von 400 US-Dollar an; bleibt er ganz aus, löst der Staat die LLC im Herbst behördlich auf. Prüfen Sie dabei Anschrift, Manager und Registered Agent — der Annual Report ist zugleich die Gelegenheit, Angaben zu aktualisieren.",
-          "Der Registered Agent muss durchgehend bestellt sein. Prüfen Sie Laufzeit und Verlängerung des Vertrags und ob Post, die dort eingeht, zuverlässig bei Ihnen ankommt. Viele Städte und Countys in Florida verlangen zudem eine jährlich zu erneuernde Gewerbesteuerquittung (Local Business Tax Receipt), die bis zum 30. September zu verlängern ist — sofern Ihr Standort eine verlangt.",
+          "Der Registered Agent muss durchgehend bestellt sein. Bei FIAON Global verlängern wir ihn jedes Jahr für Sie, und Zustellungen liegen in der Regel innerhalb eines Tages eingescannt in Ihrem Tresor. Viele Städte und Countys in Florida verlangen zudem eine jährlich zu erneuernde Gewerbesteuerquittung (Local Business Tax Receipt), die bis zum 30. September zu verlängern ist — sofern Ihr Standort eine verlangt.",
         ],
       },
       {
@@ -869,7 +869,7 @@ export const FACH_STRATEGIE_KAPITEL: FachKapitel[] = [
     umsetzen: [
       "Den Annual Report als wiederkehrenden Termin mit Erinnerung Anfang Januar eintragen, spätestens zum 1. Mai erledigen.",
       "Die Termine für Form 5472 und die Pro-forma-1120 mit der Steuerkanzlei festlegen, einschließlich einer möglichen Verlängerung.",
-      "Laufzeit des Registered-Agent-Vertrags und, falls nötig, die Local Business Tax Receipt prüfen.",
+      "Verlängerung des Registered Agent im Blick behalten (bei FIAON Global erledigen wir sie) und, falls nötig, die Local Business Tax Receipt prüfen.",
       "Die Prüfliste zum Jahresende abarbeiten und das Ergebnis im Tresor ablegen.",
       "Einen halben Tag für das Jahresgespräch mit sich selbst im Kalender blocken.",
       "Drei bis fünf messbare Jahresziele festlegen und in den Liquiditätsplan übertragen.",

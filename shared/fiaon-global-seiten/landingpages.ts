@@ -76,14 +76,14 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
     lead: `Die EIN für Ihre US-Gesellschaft, die ITIN für Sie persönlich: Wir klären den steuerlichen Grund, bereiten beide Anträge vor, reichen sie bei der IRS ein und verfolgen sie bis zum Bescheid. In jedem Paket enthalten, ${ab}.`,
     vorteile: [
       "EIN ohne US-Sozialversicherungsnummer, schriftlich mit Formular SS-4",
-      "ITIN mit Formular W-7 — Ihr Pass bleibt bei Ihnen",
+      "ITIN mit Formular W-7 — Ihr Pass muss nicht in die USA",
       "Steuerlicher Grund vorab durch unseren US-CPA geprüft",
       "Zusammen mit Gründung und Registered Agent zum Festpreis",
     ],
     paket: "global_struktur",
     fragen: [
       { f: "Brauche ich eine US-Sozialversicherungsnummer für die EIN?", a: "Nein. Ohne US-Steuernummer wird die EIN schriftlich mit Formular SS-4 beantragt — das übernehmen wir." },
-      { f: "Muss ich meinen Pass in die USA schicken?", a: "Nein. Ein Certifying Acceptance Agent beglaubigt die Kopie Ihres Passes; das Original bleibt bei Ihnen." },
+      { f: "Muss ich meinen Pass in die USA schicken?", a: "Nein. Unser zertifizierter Acceptance-Agent-Partner im DACH-Raum prüft Ihren Pass persönlich oder im Videotermin." },
       ...GRUND_FRAGEN,
     ],
   },

@@ -6,7 +6,7 @@
 // Welcher Staat passt, hängt vom Vorhaben ab — die Seiten sagen, wann welcher
 // passt, und nennen die Kehrseite.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, globalPreisText } from "../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS, globalPreisText } from "../fiaon-global";
 import { FAKTEN_STAND, IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
 import type { GlobalBlock, GlobalSeite } from "./typen";
 
@@ -230,6 +230,7 @@ export const STAATEN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           `Der Annual Report ist im Gründungsmonat fällig; ${STAAT.wyoming.jahrVerzug}. Die Frist steht in Ihrem Pflichtenkalender.`,
+          GLOBAL_AGENT.de.kontakt,
           GLOBAL_PFLICHTHINWEIS.de[0],
           `Unabhängig vom Staat verlangt die IRS jährlich Form 5472 mit Form 1120; bei Versäumnis drohen ${IRS.strafe5472}.`,
         ],

@@ -297,6 +297,41 @@ export const GLOBAL_ROLLEN = {
   },
 } as const;
 
+/**
+ * Registered Agent, US-Anschrift der Gesellschaft und Post — EINE Quelle für Verträge, Portal und Seiten (E-422, 22.10.2026).
+ * Grundlage: der Partnervertrag mit unserem Registered Agent (vertraulich — sein Name steht nirgends öffentlich, Wortregel).
+ * Alles läuft über FIAON (Justin 22.10.2026: „Ich will das ALLES über uns geht“): Der Kunde spricht nie mit dem Agenten, und die
+ * Kontaktperson, die Wyoming verlangt (W.S. 17-28-107), stellt FIAON selbst — der Partnervertrag erlaubt das, solange FIAON eine
+ * natürliche Person nennt. Fristen in Worten (Wortregel „keine Frist mit Ziffer“).
+ */
+export const GLOBAL_AGENT = {
+  de: {
+    kontakt: "Wyoming verlangt für jede Gesellschaft eine Kontaktperson mit Anschrift und Telefonnummer. Bei FIAON Global übernehmen wir das für Sie — Sie müssen dafür nichts tun.",
+    nutzung: "Die US-Anschrift des Registered Agent nutzt der Auftraggeber als Anschrift der Gesellschaft in den Unterlagen beim Bundesstaat, nicht als persönliche Anschrift. Endet der Registered-Agent-Dienst, nutzt er die Anschrift ab diesem Tag nicht mehr und richtet dafür keinen Nachsendeauftrag ein. Die gesetzlich vorgeschriebene Kontaktperson der Gesellschaft stellt FIAON.",
+    haftung: "Registered Agent und US-Anschrift stellt FIAON über einen spezialisierten Partner bereit. Folgen einer Nutzung der Anschrift nach Ende des Dienstes trägt der Auftraggeber; er stellt FIAON von Ansprüchen Dritter daraus frei.",
+    post: "Zustellungen und Behördenpost liegen in der Regel innerhalb eines Tages eingescannt in Ihrem Tresor; dazu kommen fünf weitere Geschäftsbriefe je Jahr. Pakete nimmt die Anschrift nicht an.",
+    verlaengerung: "Der Registered Agent verlängert sich jedes Jahr zum Jahrestag der Gründung — mit der Jahresbetreuung kümmern wir uns darum. Möchten Sie ihn nicht fortführen, sagen Sie uns das spätestens sechs Wochen vorher: Eine US-Gesellschaft braucht durchgehend einen Registered Agent.",
+    anschrift: "Die US-Anschrift Ihrer Gesellschaft steht in den Unterlagen beim Bundesstaat. Als Shop- oder Händleradresse, etwa für die Prüfung bei Amazon oder Google, ist sie nicht gedacht — dafür nutzen Sie eine eigene Geschäftsanschrift, und wir helfen Ihnen dabei.",
+    pass: "Ihren Reisepass prüft unser zertifizierter Acceptance-Agent-Partner im DACH-Raum, persönlich oder im Videotermin — in die USA schicken müssen Sie ihn nicht.",
+  },
+  en: {
+    kontakt: "Wyoming requires a contact person with address and phone number for every company. With FIAON Global we take care of this for you — there is nothing you need to do.",
+    nutzung: "The Client uses the registered agent’s US address as the company’s address in its state filings, not as a personal address. When the registered agent service ends, the Client stops using the address from that day and sets up no mail forwarding for it. FIAON provides the company’s contact person required by law.",
+    haftung: "FIAON provides the registered agent and the US address through a specialist partner. The Client bears the consequences of using the address after the service has ended and indemnifies FIAON against third-party claims arising from this.",
+    post: "Service of process and official mail are usually scanned into your vault within one day; five further business letters a year are included as well. Parcels cannot be accepted at this address.",
+    verlaengerung: "The registered agent renews every year on the anniversary of formation — with the annual care plan we take care of this. If you do not wish to continue, let us know at least six weeks beforehand: a US company needs a registered agent at all times.",
+    anschrift: "Your company’s US address appears in its state filings. It is not meant as a shop or seller address, for example for verification with Amazon or Google — for that you use a business address of your own, and we help you set it up.",
+    pass: "Our certified acceptance agent partner in the DACH region checks your passport, in person or in a video appointment — you do not have to send it to the US.",
+  },
+} as const;
+/** Ein Vertragssatz aus GLOBAL_AGENT.de in der Form des Vertrags — „Auftraggeberin“ für die Firmen-Angebote (Kapital, Firma). */
+export function globalAgentVertrag(teil: "nutzung" | "haftung", weiblich = false): string {
+  const t = GLOBAL_AGENT.de[teil];
+  return weiblich
+    ? t.replace(/Der Auftraggeber/g, "Die Auftraggeberin").replace(/der Auftraggeber/g, "die Auftraggeberin").replace(/nutzt er/g, "nutzt sie").replace(/; er stellt/g, "; sie stellt")
+    : t;
+}
+
 // ── ALLES INKLUSIVE (18.09.2026) ────────────────────────────────────────────
 // Was der Festpreis im Einzelnen abdeckt — die Seite, der Auftrag und das Office
 // zeigen diese Liste. Sie gilt für alle vier Pakete; die Pakete darüber hinaus
@@ -685,7 +720,7 @@ export const GLOBAL_BUERGSCHAFT_SEITE = {
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte.
  *  2026-09-24 (E-234, Justin): englischer Pflichthinweis „US business credit cards" statt „US business cards"
  *  (britisch = Visitenkarte) und „German Fiscal Code, AO" statt „Fiscal Code". Deutscher Text unverändert. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-24";
+export const GLOBAL_VERTRAG_VERSION = "2026-10-22";
 
 // ── FIAON IST IMMER DIE GEGENSEITE (19.09.2026, Florentines Fund) ─────────────
 // Im Bestellweg ließ sich als eigenes Unternehmen „FIAON LTD" mit einer Anschrift

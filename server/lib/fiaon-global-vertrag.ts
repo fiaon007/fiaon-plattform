@@ -69,7 +69,7 @@ import { globalWiderrufsbelehrung } from "@shared/fiaon-global-widerruf";
 import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
-  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
+  GLOBAL_AGENT, GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
   GLOBAL_JAHRESBETREUUNG, globalPaket, globalKapital, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 
@@ -323,8 +323,8 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
 
     // 4 — Mitwirkung des Auftraggebers
     (en
-      ? `<p>The Client provides complete and truthful information and supplies the documents required. Applications to authorities and institutions are made by the Client in its own name; FIAON prepares them. The Client does not give false address or residence details to institutions or authorities. If the Client’s cooperation is delayed, agreed dates move accordingly.</p>`
-      : `<p>Der Auftraggeber macht vollständige und wahre Angaben und stellt die benötigten Unterlagen bereit. Anträge bei Behörden und Instituten stellt der Auftraggeber im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben. Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend.</p>`),
+      ? `<p>The Client provides complete and truthful information and supplies the documents required. Applications to authorities and institutions are made by the Client in its own name; FIAON prepares them. The Client does not give false address or residence details to institutions or authorities. If the Client’s cooperation is delayed, agreed dates move accordingly.</p><p>${e(GLOBAL_AGENT.en.nutzung)}</p>`
+      : `<p>Der Auftraggeber macht vollständige und wahre Angaben und stellt die benötigten Unterlagen bereit. Anträge bei Behörden und Instituten stellt der Auftraggeber im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben. Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend.</p><p>${e(GLOBAL_AGENT.de.nutzung)}</p>`),
 
     // 5 — Vergütung
     // E-196: Mit der Jahresbetreuung deckt der Festpreis „die Leistungen des Pakets"; an die Stelle des Satzes
@@ -371,10 +371,14 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
     privat
       ? (en
         ? `<p>FIAON is liable without limitation for intent and gross negligence and for injury to life, body or health. In the event of a slightly negligent breach of essential contractual duties, FIAON’s liability is limited to the typical damage foreseeable at the time the contract was concluded; otherwise liability for slight negligence is excluded. FIAON is not liable for decisions of third parties — in particular authorities, banks, card issuers, tax advisers and lawyers.</p>`
-        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`)
+          + `<p>${e(GLOBAL_AGENT.en.haftung)}</p>`
+        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`
+          + `<p>${e(GLOBAL_AGENT.de.haftung)}</p>`)
       : (en
         ? `<p>FIAON is liable without limitation for intent and gross negligence and for injury to life, body or health. Otherwise FIAON is liable only for the breach of essential contractual duties, limited in amount to the package price. FIAON is not liable for decisions of third parties — in particular authorities, banks, card issuers, tax advisers and lawyers.</p>`
-        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Im Übrigen haftet FIAON nur bei der Verletzung wesentlicher Vertragspflichten und der Höhe nach begrenzt auf den Paketpreis. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`),
+          + `<p>${e(GLOBAL_AGENT.en.haftung)}</p>`
+        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Im Übrigen haftet FIAON nur bei der Verletzung wesentlicher Vertragspflichten und der Höhe nach begrenzt auf den Paketpreis. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`
+          + `<p>${e(GLOBAL_AGENT.de.haftung)}</p>`),
 
     // 10 — Vertraulichkeit und Datenschutz
     (en

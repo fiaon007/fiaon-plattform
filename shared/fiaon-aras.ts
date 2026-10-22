@@ -466,8 +466,10 @@ export const STUFEN: Record<Stufe, StufenRegel> = {
   1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
   // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): Stufe 2/3 bringen nur MEHR MENGE — nie Interessenten (Zuruf, Lead,
   // Stufe B, Rückholung sind im Code gesperrt, GESPERRTE_SPIELARTEN).
-  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: null, zurufNurNachricht: true },
-  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: null, zurufNurNachricht: false },
+  // Justin 22.10.2026 („Stufe 2“): auch in Stufe 2 und 3 nur ÜBERFÄLLIGE Raten (Tag 1–45). Die Rate-Anweisung sagt „Ihre Rate … war
+  // am … fällig“ — vor oder am Fälligkeitstag wäre das falsch. Eine Erinnerung vorher braucht eigene, ehrliche Worte.
+  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
+  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: false },
 };
 /** Die wirksamen Grenzen: immer das Engere aus Stufe und Schalter. Rein. */
 export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: number; spielarten: Partial<Record<Spielart, boolean>> }): {

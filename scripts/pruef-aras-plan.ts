@@ -130,7 +130,8 @@ titel("7b. STUFENPLAN (hart, Koordination 20.10.): 0 nur Probe · 1 Test · 2 Le
   const g1 = stufenGrenzen({ stufe: 1, parallel: 3, tagEuro: 60, spielarten: alle });
   ok("Stufe 1 (Go-live): 40 je Tag, Gleichzeitig 1, Deckel 20 €, nur Termin/Willkommen/Auftrag/Stufe A/Rate", g1.versucheJeTag === 40 && g1.parallel === 1 && g1.tagEuro === 20 && ["termin", "willkommen", "auftrag", "stufe_a", "rate"].every((x) => g1.spielartErlaubt(x as any)) && !g1.spielartErlaubt("zuruf") && !g1.spielartErlaubt("zusage"));
   // Go-live C (Koordination 20.10.2026): „Rate offen“ zu JEDER überfälligen Rate, Tag 1–45 — danach übernimmt das Team.
-  ok("Rate offen: Stufe 1 Tag 1–45 (nie Tag 0, nie Tag 46); Stufe 2/3 auch heute/morgen fällig, aber nie nach Tag 45", [1, 2, 3, 5, 20, 45].every((t) => rateTagErlaubt(1, t)) && !rateTagErlaubt(1, 0) && !rateTagErlaubt(1, 46) && rateTagErlaubt(2, 10) && rateTagErlaubt(3, 20) && rateTagErlaubt(2, 0) && !rateTagErlaubt(2, 46) && !rateTagErlaubt(3, 60));
+  // Justin 22.10.2026 („Stufe 2“): auch Stufe 2/3 nur überfällige Raten — „war am … fällig“ stimmt vor der Fälligkeit nicht.
+  ok("Rate offen: Stufe 1–3 nur Tag 1–45 (nie heute/morgen fällig, nie Tag 46)", [1, 2, 3].every((st) => [1, 2, 3, 5, 20, 45].every((t) => rateTagErlaubt(st, t)) && !rateTagErlaubt(st, 0) && !rateTagErlaubt(st, -1) && !rateTagErlaubt(st, 46)) && !rateTagErlaubt(3, 60));
   const g2 = stufenGrenzen({ stufe: 2, parallel: 5, tagEuro: 300, spielarten: alle });
   ok("Stufe 2: 150 je Tag, Gleichzeitig 2, Deckel 60 € — nur mehr Menge (Zusage dazu), KEIN Zuruf, kein Lead (nur Vertragskunden)", g2.versucheJeTag === 150 && g2.parallel === 2 && g2.tagEuro === 60 && g2.spielartErlaubt("zusage") && !g2.spielartErlaubt("zuruf") && !g2.spielartErlaubt("lead"));
   const g3 = stufenGrenzen({ stufe: 3, parallel: 9, tagEuro: 999, spielarten: alle });

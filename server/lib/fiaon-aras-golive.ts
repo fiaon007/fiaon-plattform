@@ -58,3 +58,34 @@ export async function golivePruefen(lauf: Lauf = sqlPool, jetzt: Date = new Date
   console.log("[ARAS] Go-live: Stufe 1, Willkommen + Rate offen (+ gebuchte Rückrufe), Juni, Wienerisch ultra, Mo–Sa 09:30–21:00 — ARAS wählt.");
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Stufe 2 (Justin 22.10.2026, abends: „Stufe 2“) — ab Fr 23.10.2026 09:30 Berlin: 150 Anrufe am Tag, 2 gleichzeitig, 60 € am Tag,
+// verteilt über das Fenster (Planer seit 20c090db). Derselbe Einmal-Schalter wie der Go-live: Merker zuerst, dann die Werte über
+// einstellungSetzen. Nur aus Stufe 1 — steht sie dann auf 0 (Not-Aus der Ampel, oder jemand hat sie angehalten) oder schon höher,
+// bleibt alles, wie es ist, und das Protokoll sagt es.
+// ═══════════════════════════════════════════════════════════════════════════
+export const STUFE2_AB = "2026-10-23T09:30:00+02:00";
+export const STUFE2_MERKER = "aras_stufe2_23_10";
+export const STUFE2_WERTE: Readonly<Record<string, string>> = { aras_parallel: "2", aras_tag_euro: "60", aras_stufe: "2" };
+
+/** Einmal-Schalter Stufe 2. Liefert true, wenn er JETZT gelaufen ist (auch wenn er bewusst nichts geändert hat). */
+export async function stufe2Pruefen(lauf: Lauf = sqlPool, jetzt: Date = new Date()): Promise<boolean> {
+  if (jetzt.getTime() < Date.parse(STUFE2_AB)) return false;
+  const gesetzt = (await lauf`
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${STUFE2_MERKER}, ${jetzt.toISOString()}, NOW())
+    ON CONFLICT (key) DO NOTHING RETURNING key`) as any[];
+  if (!gesetzt.length) return false;
+  const [st] = (await lauf`SELECT value FROM fiaon_settings WHERE key = 'aras_stufe'`) as any[];
+  const jetzige = Number(st?.value ?? 0);
+  const { protokollieren } = await import("./fiaon-mara-termin");
+  if (jetzige !== 1) {
+    await protokollieren({ kanal: "telefon", art: "aras_werkzeug" as any, text: `Stufe 2 (Justin 22.10.) NICHT geschaltet: ARAS stand auf Stufe ${jetzige} — bleibt so.`, daten: { merker: STUFE2_MERKER, stufe: jetzige }, ok: false }, lauf).catch(() => null);
+    console.log(`[ARAS] Stufe 2 nicht geschaltet — Stufe ${jetzige} bleibt.`);
+    return true;
+  }
+  for (const [k, v] of Object.entries(STUFE2_WERTE)) await einstellungSetzen(k, v, "Justin 22.10.2026: Stufe 2 ab 23.10. 09:30", lauf);
+  arasEinstellungenVergessen();
+  console.log("[ARAS] Stufe 2: 150 Anrufe am Tag, 2 gleichzeitig, 60 € am Tag — verteilt über das Fenster.");
+  return true;
+}

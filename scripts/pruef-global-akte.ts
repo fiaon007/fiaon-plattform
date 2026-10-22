@@ -51,28 +51,31 @@ gleich(A.globalAkteRechnungTitel("global_individuell", "FIAON Global – Firmena
 
 // ═══ 2 DOKUMENTE ZUR UNTERSCHRIFT ═════════════════════════════════════════════
 abschnitt("2 Dokumente zur Unterschrift");
-gleich(A.GLOBAL_PFLICHT_UNTERLAGEN.map((p) => p.key), ["irs_ss4", "irs_8821"], "Formulare: IRS SS-4 und IRS 8821 — keine eigene Vollmacht (rechtliche Prüfung)");
+// 22.10.2026 abends (Option A) bewusst erweitert: dazu die digital unterschriebenen eigenen Dokumente — die Ergänzung „Befugnisse
+// von FIAON“ (nur bei älterer Vertragsfassung), Statement of Organizer und Operating Agreement (nach der Gründung). Davor: nur SS-4/8821.
+// Weiter gilt: KEINE eigene „Umfassende Vollmacht“ (die Befugnisse stehen im Vertrag bzw. in der Ergänzung).
+gleich(A.GLOBAL_PFLICHT_UNTERLAGEN.map((p) => p.key), ["irs_ss4", "irs_8821", "fiaon_befugnisse", "us_organizer", "us_operating_agreement"], "Formulare: IRS SS-4/8821 + Ergänzung, Statement of Organizer, Operating Agreement — keine eigene Vollmacht");
 ok(!JSON.stringify(A.GLOBAL_PFLICHT_UNTERLAGEN).toLowerCase().includes("umfassende vollmacht"), "keine „Umfassende Vollmacht“ mehr");
-ok(A.GLOBAL_PFLICHT_UNTERLAGEN.every((p) => p.abGruendung), "beide Formulare erst nach der Gründung");
-gleich(A.globalPflichtFuer(null, { gegruendet: false, bereit: [] }).length, 0, "vor der Gründung: nichts");
-gleich(A.globalPflichtFuer(null, { gegruendet: true, bereit: [] }).map((p) => p.key), ["irs_ss4", "irs_8821"], "nach der Gründung: beide");
+ok(A.GLOBAL_PFLICHT_UNTERLAGEN.every((p) => p.abGruendung || p.nurErgaenzung), "jedes Formular erst nach der Gründung — die Ergänzung nur bei älterer Fassung");
+gleich(A.globalPflichtFuer(null, { gegruendet: false, bereit: [] }).length, 0, "vor der Gründung (ohne Ergänzung): nichts");
+gleich(A.globalPflichtFuer(null, { gegruendet: true, bereit: [] }).map((p) => p.key), ["irs_ss4", "irs_8821", "us_organizer", "us_operating_agreement"], "nach der Gründung: SS-4, 8821, Statement, Operating Agreement");
 gleich(A.globalPflichtFuer(null, { gegruendet: false, bereit: ["irs_8821"] }).map((p) => p.key), ["irs_8821"], "vor der Gründung, aber vom Team abgelegt: dieses");
 const L = A.GLOBAL_PFLICHT_UNTERLAGEN;
 const st = (doks: Parameters<typeof A.globalPflichtStand>[1]) => A.globalPflichtStand(L, doks);
-gleich(st([]).eintraege.map((e) => e.stand), ["fehlt", "fehlt"], "nichts da: alles fehlt");
+gleich(st([]).eintraege.map((e) => e.stand), L.map(() => "fehlt"), "nichts da: alles fehlt");
 gleich(st([{ id: 1, pflichtKey: "irs_8821", unterschriftGefordert: true, unterschrieben: false, sichtbar: true }]).eintraege[1].stand, "wartet", "zur Unterschrift: wartet");
 gleich(st([{ id: 1, pflichtKey: "irs_8821", unterschriftGefordert: false, unterschrieben: false, sichtbar: false }]).eintraege[1].stand, "vorbereitet", "intern abgelegt: vorbereitet");
 gleich(st([{ id: 1, pflichtKey: "irs_8821", unterschriftGefordert: true, unterschrieben: true, sichtbar: true }]).eintraege[1], { key: "irs_8821", stand: "unterschrieben", dokumentId: 1 }, "Original unterschrieben");
 gleich(st([{ id: 9, pflichtKey: "irs_8821", unterschriftGefordert: false, unterschrieben: true, sichtbar: true, vonId: 1 }]).eintraege[1].stand, "fehlt", "die unterschriebene KOPIE zählt nicht als Original");
 const weitere = st([{ id: 5, pflichtKey: null, unterschriftGefordert: true, unterschrieben: false, sichtbar: true, titel: "Bankformular" }]);
-gleich(weitere.eintraege[2], { key: "dok-5", stand: "wartet", dokumentId: 5, titel: "Bankformular" }, "jedes andere Dokument „zur Unterschrift“ kommt dazu");
+gleich(weitere.eintraege[L.length], { key: "dok-5", stand: "wartet", dokumentId: 5, titel: "Bankformular" }, "jedes andere Dokument „zur Unterschrift“ kommt dazu");
 const alle = L.map((p, i) => ({ id: i + 1, pflichtKey: p.key, unterschriftGefordert: true, unterschrieben: true, sichtbar: true }));
 gleich([st(alle).vollstaendig, st(alle).offen], [true, 0], "alles unterschrieben: vollständig (grün)");
 gleich(A.globalPflichtStand([], []).vollstaendig, false, "nichts zu unterschreiben ist nie „vollständig“");
 
 // ═══ 2b VON HAND UNTERSCHREIBEN (SS-4, 8821) ══════════════════════════════════
 abschnitt("2b Von Hand unterschreiben");
-ok(A.GLOBAL_PFLICHT_UNTERLAGEN.every((p) => p.modus === "handschriftlich"), "IRS SS-4 und 8821: immer von Hand (Tinte, Registered Agent)");
+ok(A.GLOBAL_PFLICHT_UNTERLAGEN.filter((p) => p.key.startsWith("irs_")).every((p) => p.modus === "handschriftlich") && A.GLOBAL_PFLICHT_UNTERLAGEN.filter((p) => !p.key.startsWith("irs_")).every((p) => p.modus === "digital"), "IRS SS-4 und 8821: immer von Hand (Tinte, Registered Agent); eigene Dokumente digital");
 gleich([A.unterschriftModus("irs_ss4", "digital"), A.unterschriftModus(null, "handschriftlich"), A.unterschriftModus(null, null), A.unterschriftModus(null, "quatsch")], ["handschriftlich", "handschriftlich", "digital", "digital"], "Modus: Formular gewinnt immer, sonst gespeichert, Vorgabe digital");
 const pdfKopf = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37];
 ok(A.istPdfInhalt(pdfKopf) && !A.istPdfInhalt([0xff, 0xd8, 0xff, 0xe0, 0, 0]) && !A.istPdfInhalt([]) && !A.istPdfInhalt(null), "nur ein PDF-Kopf (%PDF-) zählt");
@@ -158,8 +161,11 @@ ok(!/vollmacht-freigabe/.test(datei("client/src/components/admin/ChefGlobalEinst
 
 {
   const mlib = datei("server/lib/fiaon-global-mandat.ts");
-  const kunde = mlib.slice(mlib.indexOf("export async function globalKundeUnterschreibt"));
-  ok(kunde.indexOf("=== \"handschriftlich\") return nein(409") > 0 && kunde.indexOf("=== \"handschriftlich\") return nein(409") < kunde.indexOf("PDFDocument.load"), "Zeichenfeld-Weg lehnt von Hand zu unterschreibende Formulare ab");
+  // 22.10.2026 abends: Das Zeichenfeld ist ersetzt durch das eigene digitale Unterschreiben (fiaon-global-unterschrift.ts). Die Wand
+  // „von Hand bleibt von Hand“ steht dort VOR jedem Code (scripts/pruef-global-unterschrift.ts prüft die Reihenfolge).
+  const ulib = datei("server/lib/fiaon-global-unterschrift.ts");
+  const start = ulib.slice(ulib.indexOf("export async function unterschriftStarten"));
+  ok(start.indexOf('d.unterschrift_art === "handschriftlich") return nein(409') > 0 && start.indexOf('d.unterschrift_art === "handschriftlich") return nein(409') < start.indexOf("kontoVorgangErzeugen"), "digitaler Weg lehnt von Hand zu unterschreibende Formulare ab");
   const scan = lib.slice(lib.indexOf("export async function globalScanHochladen"));
   ok(scan.indexOf("!== \"handschriftlich\"") > 0 && scan.indexOf("istPdfInhalt(") > 0 && scan.indexOf("istPdfInhalt(") < scan.indexOf("dokumentSpeichern("), "Scan: nur handschriftliche Dokumente, nur PDF — geprüft VOR dem Speichern");
   ok(/SS-4 unterschrieben – an den Registered Agent \(Ablageteam\) per E-Mail zurücksenden/.test(scan) && /unterschrift_nachweis = \$\{sqlPool\.json\(nachweis/.test(scan), "Scan: Aufgabe SS-4 an das Ablageteam, Nachweis gespeichert");
@@ -172,7 +178,7 @@ ok(!/vollmacht-freigabe/.test(datei("client/src/components/admin/ChefGlobalEinst
   ok(!/UPDATE fiaon_global_angebote SET auftrag_ref/.test(anlegen), "auftrag_ref am Begleit-Angebot bleibt leer (kein Stundenlauf/Startgespräch des Individualangebots)");
   ok(/NOT EXISTS \(SELECT 1 FROM fiaon_global_auftraege g WHERE g\.angebot_id = a\.id\)/.test(mlib), "mit Akte steht das Angebot nicht mehr unter „Angebote in Arbeit“");
   const portalQ = datei("client/src/pages/global-portal.tsx");
-  ok(/dialog\.unterschrift\?\.modus === "handschriftlich" && \(\s*<HandschriftDialog/.test(portalQ) && /dialog\.unterschrift\?\.modus !== "handschriftlich" && \(\s*<UnterschriftDialog/.test(portalQ), "Portal: von Hand → vier Schritte, nie das Zeichenfeld");
+  ok(/dialog\.unterschrift\?\.modus === "handschriftlich" && \(\s*<HandschriftDialog/.test(portalQ) && /dialog\.unterschrift\?\.modus !== "handschriftlich" && \(\s*<UnterschriftDigital/.test(portalQ), "Portal: von Hand → vier Schritte; digital → Zustimmung, Name, Code (nie ein Zeichenfeld)");
   const hd = datei("client/src/pages/global-portal-handschrift.tsx");
   ok(/accept="application\/pdf,\.pdf"/.test(hd) && /istPdfInhalt\(kopf\)/.test(hd) && !/canvas|Zeichenfeld/.test(hd.replace(/\/\/.*$/gm, "")), "Fenster: nur PDF, Kopf geprüft, kein Zeichenfeld");
 }

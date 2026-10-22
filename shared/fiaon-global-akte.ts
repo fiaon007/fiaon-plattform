@@ -63,12 +63,12 @@ export function globalAkteRechnungTitel(packKey: unknown, packName: unknown, s: 
 
 // ── 3 DOKUMENTE ZUR UNTERSCHRIFT ─────────────────────────────────────────────
 // Nach der rechtlichen Prüfung (22.10.2026): KEINE eigene „Umfassende Vollmacht“ — was FIAON für den Kunden tun darf,
-// steht im Vertrag, den er ohnehin annimmt. Zur Unterschrift kommen nach der Gründung der LLC die vorausgefüllten
-// amtlichen Formulare: IRS Form SS-4 (FIAON als Third Party Designee) und, wo nötig, IRS Form 8821. Dazu jedes Dokument,
-// das das Team „zur Unterschrift“ stellt. Das Statement of Organizer unterschreibt FIAON selbst (Tresor, keine Pflicht
-// für den Kunden). Das eigene, E-SIGN-konforme Unterschreiben baut eine spätere Scheibe — hier steht nur das Datenmodell:
-// Art (pflicht_key), Stand vorbereitet → zur Unterschrift → unterschrieben, Zeitpunkt (unterschrieben_am) und ein
-// leerer JSON-Nachweis (unterschrift_nachweis) für den Prüfbericht der Unterschrift.
+// steht im Vertrag (Ziffer „Befugnisse von FIAON“, shared/fiaon-global-befugnisse.ts) bzw. für ältere Fassungen in der
+// Ergänzung, die der Kunde digital unterschreibt. Nach der Gründung der LLC: die vorausgefüllten amtlichen Formulare
+// IRS SS-4 (FIAON als Third Party Designee) und, wo nötig, IRS 8821 (von Hand), dazu Statement of Organizer (FIAON
+// unterschreibt als Organizer, das Mitglied bestätigt) und Operating Agreement (digital). Das eigene, E-SIGN-konforme
+// Unterschreiben steht in shared/fiaon-global-unterschrift.ts und server/lib/fiaon-global-unterschrift.ts (seit 22.10.2026
+// abends): Nachweis je Unterschrift in unterschrift_nachweis, Zertifikatsseite, Siegel.
 /**
  * Wie unterschrieben wird (22.10.2026): `digital` = der Unterschrift-Dialog im Portal; `handschriftlich` = ausdrucken, von
  * Hand unterschreiben und datieren, als PDF scannen, hochladen. Unser Registered-Agent-Partner verlangt für das IRS-Formular
@@ -88,18 +88,32 @@ export interface PflichtUnterlage {
   titel: Paar;
   text: Paar;
   /** Dokumentart im Tresor. */
-  art: "steuer" | "vollmacht";
+  art: "steuer" | "vollmacht" | "gruendungsurkunde" | "operating_agreement";
   /** Erscheint erst, wenn die LLC gegründet ist (Gründungstag steht) — oder das Team das Formular schon abgelegt hat. */
   abGruendung: boolean;
   nurAngebot?: RegExp;
+  /** 22.10.2026: nur, wenn der angenommene Vertrag die Ziffer „Befugnisse von FIAON“ noch nicht trägt (Ergänzung). */
+  nurErgaenzung?: boolean;
+  /** 22.10.2026: nur, wenn das Mandat das Formular braucht (8821 im Mandat abschaltbar). */
+  abschaltbar?: boolean;
 }
 export const GLOBAL_PFLICHT_UNTERLAGEN: PflichtUnterlage[] = [
   { key: "irs_ss4", art: "steuer", abGruendung: true, modus: "handschriftlich",
     titel: { de: "IRS Form SS-4 (EIN)", en: "IRS Form SS-4 (EIN)" },
     text: { de: "Der Antrag auf die EIN Ihrer Gesellschaft — vorausgefüllt, mit FIAON als Third Party Designee.", en: "The application for your company's EIN — prefilled, with FIAON as third party designee." } },
-  { key: "irs_8821", art: "steuer", abGruendung: true, modus: "handschriftlich",
+  { key: "irs_8821", art: "steuer", abGruendung: true, modus: "handschriftlich", abschaltbar: true,
     titel: { de: "IRS Form 8821 (Steuerauskunft)", en: "IRS Form 8821 (tax information authorization)" },
     text: { de: "Erlaubt uns, bei der US-Steuerbehörde Auskunft zu Ihrer Gesellschaft einzuholen.", en: "Allows us to obtain information about your company from the US tax authority." } },
+  // 22.10.2026 (Option A): digital im Portal unterschrieben — eigener E-SIGN-Weg (shared/fiaon-global-unterschrift.ts).
+  { key: "fiaon_befugnisse", art: "vollmacht", abGruendung: false, modus: "digital", nurErgaenzung: true,
+    titel: { de: "Ergänzung zu Ihrem Auftrag – Ihre Befugnisse für FIAON", en: "Addendum to your engagement – your authority for FIAON" },
+    text: { de: "Was FIAON für Sie und Ihre Gesellschaft erledigen darf — einmal digital bestätigen.", en: "What FIAON may handle for you and your company — confirm it once, digitally." } },
+  { key: "us_organizer", art: "gruendungsurkunde", abGruendung: true, modus: "digital",
+    titel: { de: "Statement of Organizer (Bestätigung)", en: "Statement of Organizer (acknowledgement)" },
+    text: { de: "FIAON übergibt Ihnen die gegründete Gesellschaft — Sie bestätigen die Übernahme digital.", en: "FIAON hands the formed company over to you — you acknowledge it digitally." } },
+  { key: "us_operating_agreement", art: "operating_agreement", abGruendung: true, modus: "digital",
+    titel: { de: "Operating Agreement", en: "Operating Agreement" },
+    text: { de: "Der Gesellschaftsvertrag Ihrer LLC — vollständig vorbereitet, Sie unterschreiben digital.", en: "Your LLC's operating agreement — fully prepared, you sign digitally." } },
 ];
 export function globalPflichtUnterlage(key: unknown): PflichtUnterlage | null {
   return GLOBAL_PFLICHT_UNTERLAGEN.find((p) => p.key === String(key ?? "").trim()) ?? null;
@@ -108,10 +122,14 @@ export function globalPflichtUnterlage(key: unknown): PflichtUnterlage | null {
  * Welche Formulare gelten für dieses Mandat? Erst nach der Gründung (gegruendet) — vorher nur, was das Team schon
  * abgelegt und damit bereit gemeldet hat (`bereit`: pflicht_key vorhandener Dokumente). `nurAngebot` begrenzt auf eine Fassung.
  */
-export function globalPflichtFuer(angebotFassung: unknown, lage: { gegruendet: boolean; bereit: Iterable<string> } = { gegruendet: false, bereit: [] }): PflichtUnterlage[] {
+export function globalPflichtFuer(angebotFassung: unknown, lage: { gegruendet: boolean; bereit: Iterable<string>; ergaenzung?: boolean; aus?: Iterable<string> } = { gegruendet: false, bereit: [] }): PflichtUnterlage[] {
   const f = String(angebotFassung ?? "").toUpperCase();
   const bereit = new Set(Array.from(lage.bereit));
-  return GLOBAL_PFLICHT_UNTERLAGEN.filter((p) => (!p.nurAngebot || p.nurAngebot.test(f)) && (!p.abGruendung || lage.gegruendet || bereit.has(p.key)));
+  const aus = new Set(Array.from(lage.aus ?? []));
+  return GLOBAL_PFLICHT_UNTERLAGEN.filter((p) => (!p.nurAngebot || p.nurAngebot.test(f))
+    && (!p.abGruendung || lage.gegruendet || bereit.has(p.key))
+    && (!p.nurErgaenzung || lage.ergaenzung === true || bereit.has(p.key))
+    && (!p.abschaltbar || !aus.has(p.key) || bereit.has(p.key)));
 }
 export type PflichtStand = "fehlt" | "vorbereitet" | "wartet" | "unterschrieben";
 export interface PflichtDok { id: number; pflichtKey: string | null; unterschriftGefordert: boolean; unterschrieben: boolean; sichtbar: boolean; vonId?: number | null; titel?: string | null }

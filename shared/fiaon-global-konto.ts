@@ -169,5 +169,6 @@ export function emailMaske(email: string, sprache: KontoSprache = "de"): string 
 // Transaktional: Sie gehen IMMER raus — auch an die Kundin eines Firmenangebots hinter der Automatik-Wand
 // (server/lib/fiaon-global-firma-post.ts, E-301/E-272), auch an eine Werbesperre und ohne Frequenzbremse
 // (server/lib/fiaon-mail-frequenz.ts). Ein Code, der nicht ankommt, ist eine verschlossene Tür.
-export const KONTO_MAILS = ["global_zugang_einladung", "global_login_code", "global_passwort_neu"] as const;
+// 22.10.2026: + der Code zum digitalen Unterschreiben im Portal (fordert der Kunde selbst an — transaktional wie die Anmeldung).
+export const KONTO_MAILS = ["global_zugang_einladung", "global_login_code", "global_passwort_neu", "global_unterschrift_code"] as const;
 export type KontoMail = typeof KONTO_MAILS[number];

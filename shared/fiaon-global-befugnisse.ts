@@ -86,7 +86,7 @@ function befugnisseAbsaetzeEn(): AngebotAbsatz[] {
   return [
     { art: "liste", einleitung: "The Client instructs and authorises FIAON, in the Client’s name and — once it exists — in the name of the Client’s US company (the “Company”), to make and receive all declarations and to take all actions that are necessary or useful to perform this engagement, in particular:", zeilen: [
       "formation: to check and reserve the Company’s name, to prepare the formation documents (Articles of Organization), to sign them as organizer, to file them with the state and to pay the related fees;",
-      "registered agent and contact person: to appoint, change and remove a registered agent and to designate the Company’s statutory contact person — the Client or another member or manager designated by the Client — and to keep their details up to date;",
+      "registered agent and contact person: to appoint, change and remove a registered agent and to designate the Company’s statutory contact person — the Client or another member or manager designated by the Client — and to keep their details current;",
       "mail and service: to receive documents, notices and service for the Client and the Company and to make them available in the client portal;",
       "Employer Identification Number (EIN): to prepare the application (IRS Form SS-4), to file it after the Client has signed it, to act as Third Party Designee towards the Internal Revenue Service, to obtain information on the application and to receive the confirmation;",
       "Individual Taxpayer Identification Number (ITIN): to prepare the application (IRS Form W-7), to arrange the appointment with a Certifying Acceptance Agent and to transmit the documents to it;",

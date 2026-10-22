@@ -341,19 +341,69 @@ router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan", async (req: Reque
   }
 });
 
+// 22.10.2026: DIGITAL UNTERSCHREIBEN — eigener, E-SIGN-konformer Weg (server/lib/fiaon-global-unterschrift.ts), ohne
+// Fremdanbieter: Zustimmung + getippter Name → Code per E-Mail → Unterschrift mit Nachweis, Zertifikat und Siegel.
+// Ersetzt das Zeichenfeld. IRS-Formulare nie (Wand am Server). Reihenfolge je Route: Zutritt → Vorschau → Drossel → Arbeit.
+function zutrittInfo(req: Request): { weg: "sitzung" | "token" | "vorschau"; kontoEmail: string | null } {
+  const z = (req as any).globalZutritt as import("../lib/fiaon-global-konto").PortalZutritt | undefined;
+  return { weg: istVorschau(req) ? "vorschau" : (z?.weg ?? "token"), kontoEmail: z?.weg === "sitzung" ? (z.sitzung?.email ?? null) : null };
+}
+const signaturJeIp = fensterDrossel(20, 10 * 60_000);
+router.get("/global/mein-auftrag/:ref/unterschrift/:id/ansicht", async (req: Request, res: Response) => {
+  try {
+    const ref = await zutritt(req, res);
+    if (!ref) return;
+    const { unterschriftAnsicht } = await import("../lib/fiaon-global-unterschrift");
+    const d = await unterschriftAnsicht(ref, req.params.id);
+    if (!d) return res.status(404).json({ ok: false, error: "Dieses Dokument gibt es nicht." });
+    pdfSenden(res, d.inhalt, d.dateiname);
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] unterschrift ansicht:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Das Dokument lässt sich gerade nicht laden." });
+  }
+});
+router.post("/global/mein-auftrag/:ref/unterschrift/:id/start", async (req: Request, res: Response) => {
+  try {
+    const ref = await zutritt(req, res);
+    if (!ref) return;
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hier unterschreibt nur der Kunde." });
+    if (unterschriftJeRef(ref) || signaturJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { unterschriftStarten } = await import("../lib/fiaon-global-unterschrift");
+    const erg = await unterschriftStarten(ref, req.params.id, { zustimmung: req.body?.zustimmung, name: req.body?.name }, zutrittInfo(req),
+      { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300) });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, vorgang: erg.vorgang, maske: erg.maske });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] unterschrift start:", err);
+    res.status(500).json({ ok: false, error: "Das Unterschreiben ließ sich gerade nicht starten. Bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+router.post("/global/mein-auftrag/:ref/unterschrift/:id/code-neu", async (req: Request, res: Response) => {
+  try {
+    const ref = await zutritt(req, res);
+    if (!ref) return;
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hier unterschreibt nur der Kunde." });
+    if (signaturJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { unterschriftCodeNeu } = await import("../lib/fiaon-global-unterschrift");
+    const erg = await unterschriftCodeNeu(ref, req.params.id, { vorgang: req.body?.vorgang });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: erg.meldung });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] unterschrift code neu:", err);
+    res.status(500).json({ ok: false, error: "Der Code ließ sich gerade nicht senden." });
+  }
+});
 router.post("/global/mein-auftrag/:ref/unterschrift/:id", async (req: Request, res: Response) => {
   try {
     const ref = await zutritt(req, res);
     if (!ref) return;
     if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hier unterschreibt nur der Kunde." });
-    if (unterschriftJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
-    const { globalKundeUnterschreibt } = await import("../lib/fiaon-global-mandat");
-    const erg = await globalKundeUnterschreibt(ref, req.params.id, {
-      name: req.body?.name, bild: req.body?.bild, zustimmung: req.body?.zustimmung,
-      ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
-    });
+    if (signaturJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+    const { unterschriftAbschliessen } = await import("../lib/fiaon-global-unterschrift");
+    const erg = await unterschriftAbschliessen(ref, req.params.id, { vorgang: req.body?.vorgang, code: req.body?.code }, zutrittInfo(req),
+      { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300) });
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
-    res.json({ ok: true, meldung: erg.meldung, id: erg.id });
+    res.json({ ok: true, meldung: erg.meldung, id: erg.id, vollstaendig: erg.vollstaendig });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] unterschrift:", err);
     res.status(500).json({ ok: false, error: "Ihre Unterschrift konnte gerade nicht gespeichert werden. Bitte versuchen Sie es gleich noch einmal." });

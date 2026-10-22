@@ -5,6 +5,31 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.10.2026 — FIAON Global: Dokumente & Unterschriften — eigenes digitales Unterschreiben, Formulare vollständig vorausgefüllt
+- **Was:** Je Mandat fünf Dokumente, alle aus der Akte erzeugt und erst VOLLSTÄNDIG zum Kunden (fehlt etwas, nennt der Server
+  die Liste und lehnt „erzeugen“/„bereitstellen“ ab — der Kunde füllt nichts aus, er unterschreibt nur):
+  1. **Ergänzung „Befugnisse für FIAON“** (FIAON-CI) für Kunden mit älterer Vertragsfassung — legt sich selbst an und steht
+     unter „Für Sie zu tun“; Text wörtlich aus `shared/fiaon-global-befugnisse.ts`.
+  2. **Statement of Organizer** (US-Format: Letter, Times, 2,5 Zoll frei oben, „Page X of Y“, Doc-ID) — FIAON unterschreibt
+     als Organizer (Team-Knopf, Nachweis), danach bestätigt das Mitglied digital. Organizer im Mandat überschreibbar.
+  3. **Operating Agreement** (ein Mitglied = Vorlage aus „Recht & Verträge“, mehrere Mitglieder = neuer Text daneben,
+     manager-managed wählbar) — die Mitglieder unterschreiben digital; danach Station „Operating Agreement“ erledigt.
+  4. **IRS SS-4** und 5. **IRS 8821** — die amtlichen PDFs (server/assets/irs, Rev. 12-2025 bzw. 01-2021) mit pdf-lib
+     gefüllt und flach; Unterschrift und Datum bleiben für die Hand. Nie digital (Wand am Server).
+- **Digital unterschreiben (E-SIGN, ohne Fremdanbieter):** Zustimmung mit Verbraucher-Hinweis → getippter Name (muss passen)
+  → sechsstelliger Code per E-Mail (an das angemeldete Konto, sonst an die Adresse des Mandats; weitere Mitglieder an ihre
+  eigene) → unterschriebene Fassung mit „/s/ Name“ und Vermerk, Zertifikatsseite (Code-Zeitpunkte, IP, Gerät, Prüfsumme
+  vorher, Zustimmungsfassung) und **Siegel** (PAdES, eigener CMS-Bau ohne neues Paket; ohne Schlüssel „ausstehend“, die
+  Prüfsumme steht im Nachweis — das Unterschreiben scheitert nie daran). Roboter-Wand wie bei Zusagen. Prüfen im Team:
+  Prüfsumme neu gerechnet + Siegel geprüft. Neue Mail „Code zum Unterschreiben“ (transaktional, de/en). Das Zeichenfeld ist abgelöst.
+- **Speicher:** Migration 125 (`formular_angaben`, `formular_daten`, `fiaon_global_unterschrift_codes`); Nachweis in `unterschrift_nachweis`.
+  Das Team-ZIP enthält zu jeder Endfassung den Nachweis als JSON.
+- **Wo:** `shared/fiaon-global-us-dokumente.ts`, `shared/fiaon-global-irs.ts`, `shared/fiaon-global-unterschrift.ts`,
+  `server/lib/fiaon-global-unterschrift.ts`, `server/lib/fiaon-global-pdf-satz.ts`, `server/lib/fiaon-global-siegel.ts`,
+  `server/lib/fiaon-global-irs.ts`, Routen `server/routes/fiaon-global-unterschrift.ts` (Chefbüro + Office) und
+  `/api/fiaon/global/mein-auftrag/:ref/unterschrift/:id/{ansicht,start,code-neu}`. Prüfstand `scripts/pruef-global-unterschrift.ts`.
+- **Umgebung (Render):** `FIAON_SIGN_CERT_PEM` + `FIAON_SIGN_KEY_PEM` (+ `FIAON_SIGN_KEY_PASS`) fürs Siegel, `FIAON_GLOBAL_FAX` für den Designee.
+
 ## 22.10.2026 — FIAON Global: „Befugnisse von FIAON“ als Ziffer in jedem Global-Vertrag (Option A)
 - **Was:** Statt einer eigenen Vollmacht gegenüber US-Behörden steht jetzt IM Vertrag, was FIAON für den Kunden tun darf —
   eine Quelle für alle Vertragsarten (`shared/fiaon-global-befugnisse.ts`): Gründung (als Organizer), Registered Agent und

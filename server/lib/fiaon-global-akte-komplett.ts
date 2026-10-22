@@ -165,7 +165,11 @@ export async function globalPflichtSicht(ref: string, fuer: Fuer): Promise<Recor
     SELECT id, pflicht_key, titel, dateiname, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, unterschrift_von_id, unterschrift_art
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL AND (pflicht_key IS NOT NULL OR unterschrift_gefordert)`) as any[];
   const modusVon = new Map(doks.map((d) => [Number(d.id), unterschriftModus(d.pflicht_key, d.unterschrift_art)]));
-  const liste = globalPflichtFuer(m.fassung, { gegruendet: m.gegruendet, bereit: doks.map((d) => String(d.pflicht_key ?? "")).filter(Boolean) });
+  // 22.10.2026: die Ergänzung „Befugnisse von FIAON“ nur für ältere Vertragsfassungen; das 8821 im Mandat abschaltbar.
+  const U = await import("./fiaon-global-unterschrift");
+  const [fa] = (await sqlPool`SELECT formular_angaben FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  const aus = fa?.formular_angaben?.irs8821?.aktiv === false ? ["irs_8821"] : [];
+  const liste = globalPflichtFuer(m.fassung, { gegruendet: m.gegruendet, bereit: doks.map((d) => String(d.pflicht_key ?? "")).filter(Boolean), ergaenzung: await U.ergaenzungFuer(ref).catch(() => false), aus });
   const stand = globalPflichtStand(liste, doks
     .filter((d) => fuer === "team" || d.sichtbar_fuer_kunde)
     .map((d) => ({
@@ -234,7 +238,7 @@ async function eintraegeSammeln(ref: string, fuer: Fuer): Promise<Eintrag[]> {
   }
   // Tresor (Kunde: was er sieht; Team: alles), Vollmachten in eigenem Ordner
   const doks = (await sqlPool`
-    SELECT id, art, titel, dateiname, sichtbar_fuer_kunde, von, pflicht_key, unterschrift_gefordert, unterschrift_von_id, unterschrieben_am FROM fiaon_global_dokumente
+    SELECT id, art, titel, dateiname, sichtbar_fuer_kunde, von, pflicht_key, unterschrift_gefordert, unterschrift_von_id, unterschrieben_am, unterschrift_nachweis FROM fiaon_global_dokumente
      WHERE ref = ${ref} AND geloescht_am IS NULL ORDER BY created_at ASC, id ASC`) as any[];
   const { globalDokumentLesen } = await import("./fiaon-global-bereich");
   for (const d of doks) {
@@ -244,6 +248,13 @@ async function eintraegeSammeln(ref: string, fuer: Fuer): Promise<Eintrag[]> {
       ordner: vollmacht ? AKTE_ORDNER.vollmachten : AKTE_ORDNER.tresor, name: String(d.dateiname), titel: String(d.titel || d.dateiname),
       laden: async () => (await globalDokumentLesen(ref, d.id, fuer === "kunde" ? "kunde" : "office"))?.inhalt ?? null,
     });
+    // 22.10.2026: zu jeder digital unterschriebenen Endfassung der Nachweis als Datei (das Zertifikat steht zusätzlich als
+    // letzte Seite im PDF) — für das Team: Prüfsummen, Code-Zeitpunkte, IP, Gerät, Zustimmungsfassung.
+    const akte = d.unterschrift_nachweis && typeof d.unterschrift_nachweis === "object" ? d.unterschrift_nachweis : null;
+    if (fuer === "team" && d.unterschrift_von_id != null && akte?.art === "digital" && Number(akte.endfassungId) === Number(d.id)) {
+      liste.push({ ordner: AKTE_ORDNER.vollmachten, name: `Nachweis_${String(akte.docId || d.id)}.json`, titel: `Nachweis der Unterschrift ${String(akte.docId || "")}`,
+        laden: async () => Buffer.from(JSON.stringify(akte, null, 2), "utf8") });
+    }
   }
   // Nachweise aus dem Angebot
   const { unterlagenFuerAuftrag, unterlageDateiFuerAuftrag } = await import("./fiaon-global-angebot-unterlagen");

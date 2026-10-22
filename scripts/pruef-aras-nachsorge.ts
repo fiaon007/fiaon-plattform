@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   titel("A4. DIE BREMSEN DER ERINNERUNG (rein)");
   const frei: import("../server/lib/fiaon-aras-erinnerung").ErinnerungFakten = {
     notaus: false, rateOffen: true, rateFaellig: true, erinnerbar: true, test: false, global: false, telefonsperre: false, werbesperre: false,
-    arasAus: false, streitOffen: false, rateWaKuerzlich: false, rateMailKuerzlich: false, arasErinnerungKuerzlich: false,
+    kuendigungUngebucht: false, arasAus: false, streitOffen: false, rateWaKuerzlich: false, arasErinnerungKuerzlich: false, rateWaHeute: false, arasErinnerungHeute: false,
   };
   const mb = (x: Partial<typeof frei> & { spielart?: string; ergebnis?: string | null; endeGrund?: string | null; probe?: boolean } = {}) => E.mailboxUrteil({ ...frei, spielart: "rate", ergebnis: "mailbox", endeGrund: "mailbox", ...x });
   ok("Mailbox nach Rate-Anruf, alles frei → senden", mb().senden === true);
@@ -89,14 +89,20 @@ async function main(): Promise<void> {
     [{ notaus: true }, /Not-Aus/], [{ rateOffen: false }, /bezahlt oder storniert/], [{ rateFaellig: false }, /nicht fällig/], [{ erinnerbar: false }, /nicht erinnerbar/],
     [{ test: true }, /Testperson/], [{ global: true }, /Global/], [{ telefonsperre: true }, /Telefonsperre/], [{ werbesperre: true }, /Werbesperre/],
     [{ streitOffen: true }, /Streitfall oder Beschwerde/], [{ arasAus: true }, /ARAS für ihn aus/],
-    [{ arasErinnerungKuerzlich: true }, /schon erinnert/], [{ rateWaKuerzlich: true }, /Raten-WhatsApp/], [{ rateMailKuerzlich: true }, /Raten-Mail/],
+    [{ arasErinnerungKuerzlich: true }, /schon erinnert/], [{ rateWaKuerzlich: true }, /Raten-WhatsApp/], [{ kuendigungUngebucht: true }, /Kündigung eingegangen, noch nicht gebucht/],
   ];
   const durch = bremsen.filter(([x, re]) => { const u = mb(x); return u.senden || !re.test(u.grund); });
   ok(`ROT-PROBEN: jede der ${bremsen.length} Bremsen hält einzeln (mit ihrem Grund)`, durch.length === 0, durch.map(([x]) => JSON.stringify(x)).join(" | "));
   const zt = (x: Partial<typeof frei> & { zusageGilt?: boolean; seitherBezahlt?: boolean; fensterTag?: boolean } = {}) => E.zahltagUrteil({ ...frei, zusageGilt: true, seitherBezahlt: false, fensterTag: true, ...x });
   ok("Zahltag, alles frei → senden", zt().senden === true);
-  ok("ROT-PROBEN Zahltag: zurückgenommen/neuer Tag, seither bezahlt, Sonntag/Feiertag, Raten-Mail in 3 Tagen → nicht senden",
-    !zt({ zusageGilt: false }).senden && /zurückgenommen/.test(zt({ zusageGilt: false }).grund) && !zt({ seitherBezahlt: true }).senden && !zt({ fensterTag: false }).senden && !zt({ rateMailKuerzlich: true }).senden);
+  ok("ROT-PROBEN Zahltag: zurückgenommen/neuer Tag, seither bezahlt, Sonntag/Feiertag, Kündigung ungebucht → nicht senden",
+    !zt({ zusageGilt: false }).senden && /zurückgenommen/.test(zt({ zusageGilt: false }).grund) && !zt({ seitherBezahlt: true }).senden && !zt({ fensterTag: false }).senden && !zt({ kuendigungUngebucht: true }).senden);
+  ok("Zahltag-Bremse NUR „heute“: heute schon eine Raten-WhatsApp oder heute schon von ARAS erinnert → nicht senden",
+    /heute schon eine Raten-WhatsApp/.test(zt({ rateWaHeute: true, rateWaKuerzlich: true }).grund) && !zt({ rateWaHeute: true, rateWaKuerzlich: true }).senden && /heute schon erinnert/.test(zt({ arasErinnerungHeute: true }).grund));
+  ok("ROT-PROBE Zahltag: der Link kam 1–2 Tage vorher (Raten-WhatsApp in 3 Tagen, ARAS-Erinnerung zur Rate in 3 Tagen) → trotzdem senden — die Erinnerung am Zahltag ist der Sinn",
+    zt({ rateWaKuerzlich: true }).senden && zt({ arasErinnerungKuerzlich: true }).senden);
+  ok("ROT-PROBE Mailbox: die automatischen Raten-Mails sind KEINE Bremse mehr (es gibt keine Mail-Tatsache); nur WhatsApp und ARAS' eigene zählen",
+    !("rateMailKuerzlich" in frei) && mb().senden && !mb({ rateWaKuerzlich: true }).senden);
   ok("Zahltag-Fenster 09:00–10:00 Berlin: 08:59 nein, 09:00 ja, 09:59 ja, 10:00 nein",
     !E.imZahltagFenster(berlin("2026-10-23 08:59")) && E.imZahltagFenster(berlin("2026-10-23 09:00")) && E.imZahltagFenster(berlin("2026-10-23 09:59")) && !E.imZahltagFenster(berlin("2026-10-23 10:00")));
   ok("Ein Streitfall-Ausdruck für Erinnerung UND Aufbewahrung (streitOffenSql): Streitfall-Aufgabe, Beschwerde, ARAS aus wegen Betrug/Anzeige",
@@ -134,10 +140,11 @@ async function main(): Promise<void> {
   const heute = berlinToday();
   const plusTage = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const nummerVon = (n: number) => `+4917000000${n}`;
-  async function person(n: number, x: { werbesperre?: boolean; test?: boolean } = {}): Promise<number> {
+  async function person(n: number, x: { werbesperre?: boolean; werbesperreQuelle?: string; test?: boolean } = {}): Promise<number> {
     const nummer = nummerVon(n);
-    const [p] = (await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_phone, phone_key9, country, is_blocked, anrede, werbung_gesperrt_am, ist_test_am)
-      VALUES (${`PRUEF-E408-${n}`}, 'Test', ${`Prüfkunde${n}`}, ${nummer}, ${nummer.replace(/\D/g, "").slice(-9)}, 'DE', FALSE, 'herr', ${x.werbesperre ? new Date() : null}, ${x.test ? new Date() : null}) RETURNING id`) as any[];
+    const [p] = (await sqlPool`INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_phone, phone_key9, country, is_blocked, anrede, werbung_gesperrt_am, werbesperre_quelle, ist_test_am, primary_email)
+      VALUES (${`PRUEF-E408-${n}`}, 'Test', ${`Prüfkunde${n}`}, ${nummer}, ${nummer.replace(/\D/g, "").slice(-9)}, 'DE', FALSE, 'herr', ${x.werbesperre ? new Date() : null}, ${x.werbesperreQuelle ?? null},
+              ${x.test ? new Date() : null}, ${`pruef-e408-${n}@example.invalid`}) RETURNING id`) as any[];
     return Number(p.id);
   }
   async function vertrag(pid: number, n: number, x: { faellig?: string; bezahlt?: boolean; aboStopp?: boolean } = {}): Promise<{ ref: string; rateId: number }> {
@@ -209,11 +216,13 @@ async function main(): Promise<void> {
   const m802 = await mailbox(802, waVor(4));
   ok("ROT-PROBE: … vor 4 Tagen → außerhalb der 3 Tage → gesendet", m802.r.status === "gesendet", JSON.stringify(m802.r));
   const m803 = await mailbox(803, mailVor(1));
-  ok("Raten-Mail (abo_payment_reminder, versandt) gestern → ausgelassen", m803.r.status === "ausgelassen" && /Raten-Mail/.test(m803.r.grund), JSON.stringify(m803.r));
+  ok("ROT-PROBE (Nachtrag 22.10.): die automatische Raten-Mail von gestern (abo_payment_reminder) bremst NICHT mehr → gesendet", m803.r.status === "gesendet", JSON.stringify(m803.r));
   const m803b = await mailbox(830, mailVor(1, "versandt", "mara_rate_erinnerung"));
-  ok("Maras Raten-Mail (mara_rate_erinnerung) gestern → ausgelassen", m803b.r.status === "ausgelassen" && /Raten-Mail/.test(m803b.r.grund), JSON.stringify(m803b.r));
-  const m804 = await mailbox(804, mailVor(1, "fehlgeschlagen"));
-  ok("ROT-PROBE: eine FEHLGESCHLAGENE Raten-Mail bremst nicht → gesendet", m804.r.status === "gesendet", JSON.stringify(m804.r));
+  ok("… auch Maras Raten-Mail von gestern nicht → gesendet", m803b.r.status === "gesendet", JSON.stringify(m803b.r));
+  const m804 = await mailbox(804, waVor(1, "aras", "fiaon_kk_rate"));
+  ok("Raten-WhatsApp von ARAS selbst gestern (aus einem Gespräch) → ausgelassen (jeder Absender zählt)", m804.r.status === "ausgelassen" && /Raten-WhatsApp/.test(m804.r.grund), JSON.stringify(m804.r));
+  const m804b = await mailbox(833, async (pid) => { await sqlPool`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, vorlage, status, von, created_at) VALUES ('raus', '+491700000000', ${pid}, 'fiaon_kkb_rate', 'fehler', 'Mara', NOW() - INTERVAL '1 day')`; });
+  ok("ROT-PROBE: eine GESCHEITERTE Raten-WhatsApp (Status fehler) bremst nicht → gesendet", m804b.r.status === "gesendet", JSON.stringify(m804b.r));
   const m805 = await mailbox(805, async (pid) => { await sqlPool`INSERT INTO fiaon_aras_person (person_id, aus_am, aus_grund, aus_von) VALUES (${pid}, NOW(), 'Streitfall am Telefon: Betrug, Anzeige', 'ARAS (Streitfall)')`; });
   ok("Streitfall (ARAS aus nach Betrug/Anzeige) → ausgelassen", m805.r.status === "ausgelassen" && /Streitfall oder Beschwerde/.test(m805.r.grund), JSON.stringify(m805.r));
   const m806 = await mailbox(806, async (pid) => { await sqlPool`INSERT INTO fiaon_aras_person (person_id, aus_am, aus_grund, aus_von) VALUES (${pid}, NOW(), 'Kunde möchte nur Post', 'Betreuer')`; });
@@ -224,8 +233,15 @@ async function main(): Promise<void> {
   ok("ROT-PROBE: Beschwerde ERLEDIGT → gesendet", m808.r.status === "gesendet", JSON.stringify(m808.r));
   const m809 = await mailbox(809, async (pid) => { await sqlPool`INSERT INTO fiaon_telefon_sperre (nummer_kern, person_id, quelle, grund) VALUES (${nummerVon(809).replace(/\D/g, "").slice(-9)}, ${pid}, 'pruefstand', 'nicht mehr anrufen')`; });
   ok("Telefonsperre → ausgelassen", m809.r.status === "ausgelassen" && /Telefonsperre/.test(m809.r.grund), JSON.stringify(m809.r));
-  const m810 = await mailbox(810, undefined, { personX: { werbesperre: true } });
-  ok("Werbesperre → ausgelassen", m810.r.status === "ausgelassen" && /Werbesperre/.test(m810.r.grund), JSON.stringify(m810.r));
+  const m810 = await mailbox(810, undefined, { personX: { werbesperre: true, werbesperreQuelle: "mensch" } });
+  ok("„Echte“ Werbesperre (ein Mensch wollte keine Werbung) → ausgelassen — wie die WhatsApp-Zentrale", m810.r.status === "ausgelassen" && /Werbesperre/.test(m810.r.grund), JSON.stringify(m810.r));
+  const m810b = await mailbox(831, undefined, { personX: { werbesperre: true, werbesperreQuelle: "zahlungspost_freigabe" } });
+  ok("ROT-PROBE: Werbesperre aus der Zahlungspost-Freigabe → die Monatsrate geht trotzdem (Vertragspost, wie die Zentrale) → gesendet", m810b.r.status === "gesendet", JSON.stringify(m810b.r));
+  const kuendigung = (status: string) => async (pid: number, v: { ref: string }) => { await sqlPool`INSERT INTO cancellation_requests (ref, first_name, last_name, email, status, reason) VALUES (${v.ref}, 'Test', ${`Prüfkunde${pid}`}, ${`pruef-e408-k${pid}@example.invalid`}, ${status}, 'Prüfstand')`; };
+  const m832 = await mailbox(832, kuendigung("pending"));
+  ok("Kündigung eingegangen, noch nicht gebucht (E-391, KUENDIGUNG_UNGEBUCHT_SQL) → ausgelassen", m832.r.status === "ausgelassen" && /Kündigung eingegangen, noch nicht gebucht/.test(m832.r.grund), JSON.stringify(m832.r));
+  const m834 = await mailbox(834, kuendigung("rejected"));
+  ok("ROT-PROBE: Kündigungsantrag abgelehnt (nicht offen) → gesendet", m834.r.status === "gesendet", JSON.stringify(m834.r));
   const m811 = await mailbox(811, undefined, { personX: { test: true } });
   ok("Testperson → ausgelassen", m811.r.status === "ausgelassen" && /Testperson/.test(m811.r.grund), JSON.stringify(m811.r));
   const m812 = await mailbox(812, undefined, { vertragX: { bezahlt: true } });
@@ -284,7 +300,9 @@ async function main(): Promise<void> {
   const k824 = await zusageAnAras(824);
   await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am) VALUES (${k824.ref}, 1, ${`${k824.ref}-1`}, 5999, '2026-09-30', 'bezahlt', ${um("20:00", "2026-11-03")})`;
   const k825 = await zusageAnAras(825);
-  await waVor(1)(k825.pid);
+  await sqlPool`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, vorlage, status, von, created_at) VALUES ('raus', '+491700000000', ${k825.pid}, 'fiaon_kkb_rate', 'read', 'Mara', ${um("08:05")})`;
+  const k829 = await zusageAnAras(829);   // der Link kam gestern im Zusage-Gespräch — heute trotzdem erinnern
+  await sqlPool`INSERT INTO fiaon_whatsapp (richtung, nummer, person_id, vorlage, status, von, created_at) VALUES ('raus', '+491700000000', ${k829.pid}, 'fiaon_kk_rate', 'read', 'aras', ${um("15:02", "2026-11-03")})`;
   const k826 = await zusageAnAras(826);
   await sqlPool`INSERT INTO fiaon_telefon_sperre (nummer_kern, person_id, quelle, grund) VALUES (${nummerVon(826).replace(/\D/g, "").slice(-9)}, ${k826.pid}, 'pruefstand', 'nicht mehr anrufen')`;
 
@@ -294,13 +312,15 @@ async function main(): Promise<void> {
   const neuZ = spur.slice(vorZ);
   const z820 = await zeile(`zahltag:${k820.pid}:${ZT}`);
   ok("09:15: Zusage für heute (gestern an ARAS gegeben), Rate offen → Raten-Erinnerung per WhatsApp, am Gespräch der Zusage", lief === true && z820?.status === "gesendet" && neuZ.some((s) => s.personId === k820.pid && s.aufruf === `zahltag-${k820.pid}-${ZT}` && s.arasAnrufId === k820.arasAnrufId && s.eingabe?.anlass === "zahltag"), JSON.stringify(z820));
-  ok("Nur die eine: genau EIN Versand an diesem Morgen (alle anderen Fälle halten)", neuZ.length === 1, neuZ.map((s) => s.personId).join(","));
+  ok("Genau ZWEI Versände an diesem Morgen (820 und 829 — der Link von gestern hält die Erinnerung nicht auf), alle anderen Fälle halten",
+    neuZ.length === 2 && neuZ.some((s) => s.personId === k820.pid) && neuZ.some((s) => s.personId === k829.pid), neuZ.map((s) => s.personId).join(","));
+  ok("ROT-PROBE (Nachtrag 22.10.): Raten-WhatsApp gestern im Zusage-Gespräch → am Zahltag TROTZDEM die Erinnerung (Bremse nur „heute“)", (await zeile(`zahltag:${k829.pid}:${ZT}`))?.status === "gesendet", JSON.stringify(await zeile(`zahltag:${k829.pid}:${ZT}`)));
   ok("ROT-PROBE: Zusage erst heute früh gegeben → keine Erinnerung (gar keine Zeile)", !(await zeile(`zahltag:${k821.pid}:${ZT}`)));
   const g = async (k: { pid: number }) => String((await zeile(`zahltag:${k.pid}:${ZT}`))?.grund ?? "—");
   ok("Zusage in der Akte zurückgenommen → ausgelassen", /zurückgenommen/.test(await g(k822)), await g(k822));
   ok("Danach ein neuer Tag mit dem Team vereinbart → ausgelassen", /zurückgenommen oder neuer Tag/.test(await g(k823)), await g(k823));
   ok("Seit der Zusage eine Rate bezahlt → ausgelassen", /seit der Zusage bezahlt/.test(await g(k824)), await g(k824));
-  ok("Raten-WhatsApp in den letzten 3 Tagen → ausgelassen (gleiche Bremse)", /Raten-WhatsApp/.test(await g(k825)), await g(k825));
+  ok("HEUTE früh schon eine Raten-WhatsApp (Zentrale) → ausgelassen", /heute schon eine Raten-WhatsApp/.test(await g(k825)), await g(k825));
   ok("Telefonsperre → ausgelassen (gleiche Bremse)", /Telefonsperre/.test(await g(k826)), await g(k826));
   const nachZ = spur.length;
   ok("09:20, zweiter Takt → nichts Neues (je Zusage genau einmal)", (await E.zahltagErinnern(sqlPool, um("09:20"), attrappe)) === false && spur.length === nachZ);
@@ -375,9 +395,9 @@ async function main(): Promise<void> {
   const p842 = await person(842); const v842 = await vertrag(p842, 842);
   const a842 = await arasAnruf(p842, 842, null, v842.rateId, { ergebnis: null });
   const datum = plusTage(heute, 2);
-  const ctx = (pid: number, a: { callId: number; arasAnrufId: number }, n: number, ref: string | null) => ({
+  const ctx = (pid: number, a: { callId: number; arasAnrufId: number }, n: number, ref: string | null, einstellungen = einst) => ({
     callId: a.callId, arasAnrufId: a.arasAnrufId, personId: pid, ref, nummer: nummerVon(n), land: "DE" as const, spielart: "termin" as const,
-    briefing: { offeneRate: null } as any, einstellungen: einst, ergebnisGesetzt: false, ausgefuehrt: [] as any[],
+    briefing: { offeneRate: null } as any, einstellungen, ergebnisGesetzt: false, ausgefuehrt: [] as any[],
     letzteKundenZeile: () => null, aufnahmeStarten: async () => ({ ok: false }), uebergabe: async () => ({ ok: false }), beenden: async () => {},
   });
   const c842 = ctx(p842, a842, 842, null);
@@ -394,6 +414,49 @@ async function main(): Promise<void> {
   ok("ROT-PROBE: ohne Vertrag (keine Akte, niemand fasst nach) verspricht ARAS auch kein Melden", r843.ok && !/melde ich mich/.test(r843.vorlesen) && /^Notiert: Sie überweisen am \d{2}\.\d{2}\.$/.test(r843.vorlesen), r843.vorlesen);
   const tr = await werkzeugAusfuehren({ ...ctx(p843, a843, 843, null), trocken: true } as any, "zahlungszusage_merken", { datum }, "pruef-843-probe");
   ok("Probeanruf (trocken): derselbe ehrliche Satz, nichts eingetragen", tr.vorlesen === S.zusageNotiertSatz(datum));
+
+  titel("B3b. SPIELART „ZUSAGE“ AUS (wie in der Produktion): nach der Pause rufen die normalen Rate-Anrufe wieder an — so stimmt ARAS' Satz");
+  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "aus", stufe_a: "an", auftrag: "an", probe: "an" }));
+  const einstAus = await P.arasEinstellungenLesen(true);
+  // Die Zusage, deren Pause genau gestern endete (wiederAb = heute); gibt es heute keine (So/Mo), die jüngste schon beendete.
+  let dEnde: string | null = null;
+  for (let n = 1; n <= 20 && !dEnde; n++) { const d = plusTage(heute, -n); if (S.zusagePause(d).wiederAb === heute) dEnde = d; }
+  const genauHeute = !!dEnde;
+  for (let n = 1; n <= 30 && !dEnde; n++) { const d = plusTage(heute, -n); if (S.zusagePause(d).wiederAb <= heute) dEnde = d; }
+  const kEnde = await zusageAkte(848, dEnde!);
+  const fAus = await P.planFuellen();
+  await sqlPool`UPDATE fiaon_aras_plan SET spaet_bis = GREATEST(spaet_bis, NOW() + INTERVAL '2 hours') WHERE status = 'wartet'`;
+  const rateWartet = async (pid: number) => ((await sqlPool`SELECT id, erzeugt_von, rate_id FROM fiaon_aras_plan WHERE person_id = ${pid} AND spielart = 'rate' AND status = 'wartet' ORDER BY id DESC LIMIT 1`) as any[])[0] ?? null;
+  const eEnde = await rateWartet(kEnde.pid);
+  ok(`Zusage für den ${dEnde}: Pause bis ${S.zusagePause(dEnde!).bis}, ${genauHeute ? "wiederAb = HEUTE" : "schon vorbei (heute So/Mo)"} → heute wieder ein Rate-Anruf in der Reihe (Planer, Spielart „Zusage“ aus)`,
+    !!eEnde && eEnde.erzeugt_von === "takt" && Number(eEnde.rate_id) === kEnde.rateId, JSON.stringify(fAus.eingereiht));
+  ok("… und der Wähler lässt ihn durch (rateEntfaellt: keine Zusage-Pause mehr)",
+    !!eEnde && (await P.rateEntfaellt({ id: Number(eEnde.id), person_id: kEnde.pid, rate_id: Number(eEnde.rate_id), erzeugt_von: "takt", auftrag_von: null }, einstAus)) === null);
+  ok("Spielart „Zusage“ aus → kein Nachfass-Eintrag, die Rate-Anrufe übernehmen", !(await zusageEintrag(kEnde.pid)));
+  ok("ROT-PROBE: Zusage für gestern (die Pause läuft noch) → KEIN Rate-Anruf", !(await rateWartet(k836.pid)) && Object.keys(fAus.uebersprungen).some((x) => x.startsWith("rate:Zahlungszusage")), JSON.stringify(fAus.uebersprungen));
+  const e836 = await P.planEinreihen({ personId: k836.pid, ref: k836.ref, nummer: nummerVon(836), spielart: "rate", grund: "Prüfstand: schon eingereiht", erzeugtVon: "takt", rateId: k836.rateId });
+  const w836 = e836.id ? await P.rateEntfaellt({ id: Number(e836.id), person_id: k836.pid, rate_id: k836.rateId, erzeugt_von: "takt", auftrag_von: null }, einstAus) : null;
+  const s836 = ((await sqlPool`SELECT status, frueh_ab FROM fiaon_aras_plan WHERE id = ${Number(e836.id ?? 0)}`) as any[])[0];
+  ok("ROT-PROBE Wähler: ein schon eingereihter Rate-Eintrag während der Pause → verschoben, zurück erst am ersten Tag danach (wiederAb)",
+    w836?.status === "verschoben" && s836?.status === "verschoben" && S.berlinTeile(new Date(s836.frueh_ab)).datum === S.zusagePause(plusTage(heute, -1)).wiederAb, JSON.stringify(s836));
+  // Der Satz: „… melde ich mich kurz“ nur, wenn danach wirklich ein Anruf kommt.
+  const datumAus = plusTage(heute, 2);
+  const a842b = await arasAnruf(p842, 842, null, v842.rateId, { ergebnis: null });
+  const r842b = await werkzeugAusfuehren(ctx(p842, a842b, 842, null, einstAus) as any, "zahlungszusage_merken", { datum: datumAus }, "pruef-842b");
+  ok("Zusage aus, offene Rate → „Falls bis <wiederAb> nichts angekommen ist, melde ich mich kurz.“ (die Rate-Anrufe kommen ab wiederAb)", r842b.vorlesen === S.zusageNotiertSatz(datumAus), r842b.vorlesen);
+  const p849 = await person(849);
+  const ref849 = "PRUEF-E408-A849";
+  await sqlPool`INSERT INTO fiaon_applications (ref, payment_reference, person_id, payment_status, status, current_step, submitted_at, pack_key, pack_name, type, ist_entwurf, created_at)
+    VALUES (${ref849}, ${`${ref849}-Z`}, ${p849}, 'pending_payment', 'approved', 9, NOW() - INTERVAL '1 hour', 'plus', 'Plus', 'privat', FALSE, NOW() - INTERVAL '1 hour')`;
+  const a849 = await arasAnruf(p849, 849, ref849, null, { spielart: "willkommen", ergebnis: null });
+  const r849 = await werkzeugAusfuehren(ctx(p849, a849, 849, ref849, einstAus) as any, "zahlungszusage_merken", { datum: datumAus }, "pruef-849");
+  ok("ROT-PROBE: Zusage zur ERSTEN Zahlung (Willkommen, noch keine Rate), Spielart „Zusage“ aus → KEIN „melde ich mich“ — danach ruft ARAS nicht an",
+    r849.ok && /^Notiert: Sie überweisen am \d{2}\.\d{2}\.$/.test(r849.vorlesen), r849.vorlesen);
+  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "an", stufe_a: "an", auftrag: "an", probe: "an" }));
+  const einstAn = await P.arasEinstellungenLesen(true);
+  const a849b = await arasAnruf(p849, 849, ref849, null, { spielart: "willkommen", ergebnis: null });
+  const r849b = await werkzeugAusfuehren(ctx(p849, a849b, 849, ref849, einstAn) as any, "zahlungszusage_merken", { datum: datumAus }, "pruef-849b");
+  ok("… mit Spielart „Zusage“ an (der Nachfass-Anruf folgt) → der Satz mit „melde ich mich kurz“", r849b.vorlesen === S.zusageNotiertSatz(datumAus), r849b.vorlesen);
 
   titel("B4. BESTE UHRZEIT: wann er zuletzt abgenommen hat (versucheHeute.erreichtAm)");
   const p844 = await person(844);
@@ -423,12 +486,12 @@ async function main(): Promise<void> {
   }
   const zustand = async (callId: number) => ((await sqlPool`SELECT c.recording_url, c.recording_sid, c.transkript, c.aufnahme_geloescht_am, c.zusammenfassung, aa.transkript AS aa_transkript, aa.aufnahme_ja_text, aa.zusammenfassung AS aa_zus
       FROM fiaon_calls c LEFT JOIN fiaon_aras_anruf aa ON aa.call_id = c.id WHERE c.id = ${callId}`) as any[])[0];
-  const p846 = await person(846), p847 = await person(847), p848 = await person(848), p849 = await person(849);
+  const p846 = await person(846), p847 = await person(847);
   await sqlPool`INSERT INTO fiaon_aras_person (person_id, aus_am, aus_grund, aus_von) VALUES (${p847}, NOW(), 'Streitfall am Telefon: Anwalt', 'ARAS (Streitfall)')`;
   const g846 = await altesGespraech(p846, 846);
   const g847 = await altesGespraech(p847, 847);
-  const g848 = await altesGespraech(p848, 848);
-  const g849 = await altesGespraech(p849, 849);
+  const g848 = await altesGespraech(p846, 846);   // eigene Gespräche desselben Kunden: Twilio antwortet je Aufnahme anders
+  const g849 = await altesGespraech(p846, 846);
   const gTeam = await altesGespraech(p846, 846, { team: true });
   const gJung = await altesGespraech(p846, 846, { tage: 80 });
   const gProbe = await altesGespraech(null, 899, { aufnahme: false, probe: true });

@@ -112,7 +112,7 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
   { name: "aufnahme_abgelehnt", beschreibung: "Der Kunde sagt KLAR Nein zur Aufzeichnung. Vermerkt das — das Gespräch läuft ohne Aufzeichnung weiter. Zögern, eine Gegenfrage oder „Ja, und …“ sind KEIN Nein.", schema: O({}) },
   { name: "zahlungslink_senden", beschreibung: "Schickt dem Kunden seinen persönlichen Link (Antrag, Zahlungsseite der ersten Rate oder Monatsrate) per WhatsApp oder E-Mail.",
     schema: O({ weg: { type: "string", enum: ["whatsapp", "mail"] }, zweck: { type: "string", enum: ["antrag", "zahlung", "rate"] } }, ["weg", "zweck"]) },
-  { name: "zahlungszusage_merken", beschreibung: "Der Kunde nennt einen Tag, an dem er überweist. Trägt die Zusage ein; am Tag danach wird freundlich nachgefragt, falls nichts ankam.",
+  { name: "zahlungszusage_merken", beschreibung: "Der Kunde nennt einen Tag, an dem er überweist. Trägt die Zusage ein; nachgefasst wird erst nach der Überweisungszeit (zugesagter Tag + 2 Bank-Werktage) — freundlich, falls nichts ankam.",
     schema: O({ datum: { type: "string", description: "JJJJ-MM-TT (aus „Freitag“, „morgen“ … mit dem heutigen Datum aus den Anweisungen ausrechnen)" } }, ["datum"]) },
   { name: "zahlung_gemeldet", beschreibung: "Der Kunde sagt, die Überweisung ist raus. Vermerkt die Zahlung — sie wird im Bankbuch gesucht.",
     schema: O({ betrag_cents: { type: "integer" }, am: { type: "string", description: "JJJJ-MM-TT" } }) },
@@ -937,7 +937,7 @@ function delegation(defs: WerkzeugDef[]): string {
   const tools = [
     hat("akte_nachsehen") ? "- Akte: Zahlungen, Raten, Termine, Notizen, Vertrag nachsehen." : "",
     hat("zahlungslink_senden") ? "- Link: seinen persönlichen Antrag-, Zahlungs- oder Raten-Link per WhatsApp oder E-Mail schicken." : "",
-    hat("zahlungszusage_merken") ? "- Zusage: einen Zahltag eintragen (Nachfassen am Tag danach)." : "",
+    hat("zahlungszusage_merken") ? "- Zusage: einen Zahltag eintragen (Nachfassen nach der Überweisungszeit: zugesagter Tag + 2 Bank-Werktage)." : "",
     hat("zahlung_gemeldet") ? "- Zahlung gemeldet: „ist überwiesen“ vermerken, damit sie im Bankbuch gesucht wird." : "",
     hat("ratenpause_setzen") ? "- Ratenpause: Raten nach hinten schieben (bei echter Not)." : "",
     hat("rueckruf_buchen") ? "- Termin: einen Anruf zu fester Zeit eintragen (bei dir oder beim Betreuer)." : "",

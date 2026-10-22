@@ -9,10 +9,14 @@
 //   2. AM ZAHLTAG: Wer ARAS einen Tag zugesagt hat (vor heute), bekommt an diesem Tag zwischen 09:00 und 10:00 (Berlin) die
 //      Raten-Erinnerung (zahltagErinnern, Takt aras_zahltag) — nur, wenn die Rate noch offen ist und seit der Zusage nichts
 //      bezahlt wurde. Höchstens einmal je Zusage.
-// Die Bremsen (beide): nie, wenn seit 3 Tagen schon eine Raten-WhatsApp (fiaon_kk_rate/fiaon_kkb_rate — auch von der
-// WhatsApp-Zentrale) oder eine Raten-Mail (abo_payment_reminder, mara_rate_erinnerung) an ihn ging; nie bei Streitfall/Betrug oder
-// offener Beschwerde (ARAS für ihn aus), Telefon- oder Werbesperre, Global-Kunde, Testperson; nie bei Not-Aus; nie gegen die
-// Werkzeug-Ampel (zahlungslink_senden auf Rot = nichts).
+// Die Bremsen (beide): nie bei Streitfall/Betrug oder offener Beschwerde (ARAS für ihn aus), Telefonsperre, Global-Kunde,
+// Testperson, Not-Aus; nie gegen die Werkzeug-Ampel (zahlungslink_senden auf Rot = nichts). Wie die WhatsApp-Zentrale bei der
+// Monatsrate (Koordination 22.10.2026, Nachtrag): Die Monatsrate ist Vertragspost — sperrt nur die „echte“ Werbesperre, nicht die
+// aus der Zahlungspost-Freigabe (WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL), und nie bei gekündigt-aber-nicht-gebucht (E-391,
+// KUENDIGUNG_UNGEBUCHT_SQL) — dieselben SQL-Bausteine wie dort.
+// „Kürzlich erinnert“ zählen NUR Raten-WhatsApps (fiaon_kk_rate/fiaon_kkb_rate, jeder Absender, auch die Zentrale) und ARAS' eigene
+// Erinnerung — nie die automatischen Raten-Mails (die laufen ohnehin nach Mahnstufe): nach der Mailbox 3 Tage, am Zahltag nur
+// „heute schon“ (die Erinnerung am Zahltag ist der Sinn, auch wenn der Link 1–2 Tage vorher kam).
 // Jeder Anlass hat GENAU EINE Zeile in fiaon_aras_erinnerung (schluessel — auch über zwei Instanzen), mit Ausgang und Grund. Der
 // Versand hängt als Werkzeug-Zeile am Gespräch (fiaon_aras_werkzeug, aufruf_id „mailbox-…“ / „zahltag-…“) und steht im
 // Protokoll (Kanal telefon) — sichtbar im Cockpit unter „Was ARAS erledigt hat“.
@@ -27,15 +31,15 @@ import { telefonGesperrt, nummerKern } from "./fiaon-aras-sperre";
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { ERINNERBARE_BESTELLUNG_SQL, RATE_NACH_ENDE_SQL_FUER } from "./fiaon-raten-storno";
 import { berlinZeitpunkt } from "./fiaon-time";
+import { KOPF_SQL, WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL } from "./fiaon-mail-frequenz";
+import { KUENDIGUNG_UNGEBUCHT_SQL } from "../../shared/fiaon-kuendigung-regel";
 import { berlinTeile, nummerLand, kundenAnrufeAn, rateFensterTag, type ArasEinstellungen, type Spielart } from "../../shared/fiaon-aras";
 
 type Lauf = typeof sqlPool;
 type Senden = typeof werkzeugAusfuehren;
 
-/** Die Bremse: so viele Tage zurück zählt eine Raten-WhatsApp, eine Raten-Mail oder eine Erinnerung von ARAS. */
+/** Nach der Mailbox: so viele Tage zurück zählt eine Raten-WhatsApp oder eine Erinnerung von ARAS zu dieser Rate. */
 export const ERINNERUNG_BREMSE_TAGE = 3;
-/** Die Raten-Mails des Hauses (Abo-Motor, Mahnmotor, Inkasso, Sende-Menü — alle als abo_payment_reminder — und Maras eigene). */
-export const RATEN_MAIL_EVENTS: readonly string[] = ["abo_payment_reminder", "mara_rate_erinnerung"];
 /** Die Raten-WhatsApps (Text- und Bildfassung, auch die Nachfolger …_v2) — dieselbe Lesart wie Maras Kontaktzählung. */
 export const RATEN_WA_MUSTER = "^fiaon_kkb?_rate(_v[0-9]+)?$";
 /** Zahltag-Erinnerung: zwischen 09:00 und 10:00 Berlin. */
@@ -67,49 +71,67 @@ export interface ErinnerungFakten {
   notaus: boolean;
   /** Die Rate: offen (nicht bezahlt, nicht storniert), fällig (≤ heute Berlin), Vertrag erinnerbar (kein Abo-/Mahnstopp, nicht nach dem Ende). */
   rateOffen: boolean; rateFaellig: boolean; erinnerbar: boolean;
-  test: boolean; global: boolean; telefonsperre: boolean; werbesperre: boolean;
+  test: boolean; global: boolean; telefonsperre: boolean;
+  /** Die „echte“ Werbesperre (nicht die aus der Zahlungspost-Freigabe) — wie die WhatsApp-Zentrale bei der Monatsrate. */
+  werbesperre: boolean;
+  /** Kündigung eingegangen, aber noch nicht gebucht (E-391) — dann keine Raten-Post, wie Zentrale und Mahnmotor. */
+  kuendigungUngebucht: boolean;
   /** „Aras für diesen Kunden aus“ (Streitfall/Betrug setzt das selbst, ein Mensch kann es auch). */
   arasAus: boolean;
   /** Offener Streitfall oder offene Beschwerde (streitOffenSql). */
   streitOffen: boolean;
-  /** In den letzten 3 Tagen an ihn: eine Raten-WhatsApp (auch Zentrale), eine Raten-Mail, eine Erinnerung von ARAS zu DIESER Rate. */
-  rateWaKuerzlich: boolean; rateMailKuerzlich: boolean; arasErinnerungKuerzlich: boolean;
+  /** Nach der Mailbox: in den letzten 3 Tagen eine Raten-WhatsApp an ihn (jeder Absender) / eine Erinnerung von ARAS zu DIESER Rate. */
+  rateWaKuerzlich: boolean; arasErinnerungKuerzlich: boolean;
+  /** Am Zahltag: HEUTE (Berlin) schon eine Raten-WhatsApp an ihn / heute schon eine Erinnerung von ARAS an ihn. */
+  rateWaHeute: boolean; arasErinnerungHeute: boolean;
 }
 export interface Urteil { senden: boolean; grund: string }
 
-/** Was für BEIDE Erinnerungen gilt, in dieser Reihenfolge — der erste Grund, der hält. Rein. */
-export function bremsenUrteil(f: ErinnerungFakten): Urteil {
+/** Was für BEIDE Erinnerungen gilt (Person, Vertrag, Sperren), in dieser Reihenfolge — der erste Grund, der hält; null = frei. Rein. */
+export function grundBremsen(f: ErinnerungFakten): Urteil | null {
   if (f.notaus) return { senden: false, grund: "Not-Aus ist an" };
   if (!f.rateOffen) return { senden: false, grund: "Rate bezahlt oder storniert" };
   if (!f.rateFaellig) return { senden: false, grund: "Rate noch nicht fällig" };
   if (!f.erinnerbar) return { senden: false, grund: "Vertrag nicht erinnerbar (Abo-/Mahnstopp, Vertragsende)" };
+  if (f.kuendigungUngebucht) return { senden: false, grund: "Kündigung eingegangen, noch nicht gebucht" };
   if (f.test) return { senden: false, grund: "Testperson" };
   if (f.global) return { senden: false, grund: "Global-Kunde" };
   if (f.telefonsperre) return { senden: false, grund: "Telefonsperre" };
   if (f.werbesperre) return { senden: false, grund: "Werbesperre" };
   if (f.streitOffen) return { senden: false, grund: "Streitfall oder Beschwerde offen" };
   if (f.arasAus) return { senden: false, grund: "ARAS für ihn aus" };
-  if (f.arasErinnerungKuerzlich) return { senden: false, grund: `ARAS hat zu dieser Rate in ${ERINNERUNG_BREMSE_TAGE} Tagen schon erinnert` };
-  if (f.rateWaKuerzlich) return { senden: false, grund: `Raten-WhatsApp in den letzten ${ERINNERUNG_BREMSE_TAGE} Tagen` };
-  if (f.rateMailKuerzlich) return { senden: false, grund: `Raten-Mail in den letzten ${ERINNERUNG_BREMSE_TAGE} Tagen` };
-  return { senden: true, grund: "alle Bremsen frei" };
+  return null;
 }
 
-/** 1. Nach der Mailbox: nur ein Rate-Anruf, nur „mailbox“/„nicht erreicht“, nie nach einem Ende, das wir verursacht haben. Rein. */
+/**
+ * 1. Nach der Mailbox: nur ein Rate-Anruf, nur „mailbox“/„nicht erreicht“, nie nach einem Ende, das wir verursacht haben; dann
+ * die Grund-Bremsen; „kürzlich“ = 3 Tage Raten-WhatsApp (jeder Absender) oder ARAS' eigene Erinnerung zu dieser Rate. Rein.
+ */
 export function mailboxUrteil(f: ErinnerungFakten & { spielart: string; ergebnis: string | null; endeGrund: string | null; probe?: boolean }): Urteil {
   if (f.probe || f.spielart === "probe") return { senden: false, grund: "Probeanruf" };
   if (f.spielart !== "rate") return { senden: false, grund: "kein Rate-Anruf" };
   if (f.ergebnis !== "mailbox" && f.ergebnis !== "nicht_erreicht") return { senden: false, grund: "erreicht" };
   if (f.endeGrund && TECHNIK_ENDE.includes(f.endeGrund)) return { senden: false, grund: `Ende durch uns (${f.endeGrund})` };
-  return bremsenUrteil(f);
+  const g = grundBremsen(f);
+  if (g) return g;
+  if (f.arasErinnerungKuerzlich) return { senden: false, grund: `ARAS hat zu dieser Rate in ${ERINNERUNG_BREMSE_TAGE} Tagen schon erinnert` };
+  if (f.rateWaKuerzlich) return { senden: false, grund: `Raten-WhatsApp in den letzten ${ERINNERUNG_BREMSE_TAGE} Tagen` };
+  return { senden: true, grund: "alle Bremsen frei" };
 }
 
-/** 2. Am Zahltag: die Zusage gilt noch (nicht zurückgenommen, kein neuer Tag), seit ihr nichts bezahlt, heute Fenstertag. Rein. */
+/**
+ * 2. Am Zahltag: die Zusage gilt noch (nicht zurückgenommen, kein neuer Tag), seit ihr nichts bezahlt, heute Fenstertag; dann die
+ * Grund-Bremsen; „kürzlich“ = NUR heute (eine Raten-WhatsApp oder ARAS' eigene Erinnerung heute). Rein.
+ */
 export function zahltagUrteil(f: ErinnerungFakten & { zusageGilt: boolean; seitherBezahlt: boolean; fensterTag: boolean }): Urteil {
   if (!f.zusageGilt) return { senden: false, grund: "Zusage zurückgenommen oder neuer Tag" };
   if (f.seitherBezahlt) return { senden: false, grund: "seit der Zusage bezahlt" };
   if (!f.fensterTag) return { senden: false, grund: "Sonntag oder Feiertag" };
-  return bremsenUrteil(f);
+  const g = grundBremsen(f);
+  if (g) return g;
+  if (f.arasErinnerungHeute) return { senden: false, grund: "ARAS hat ihn heute schon erinnert" };
+  if (f.rateWaHeute) return { senden: false, grund: "heute schon eine Raten-WhatsApp" };
+  return { senden: true, grund: "alle Bremsen frei" };
 }
 
 /** Liegt `jetzt` im Zahltag-Fenster (09:00–10:00 Berlin)? Rein. */
@@ -129,27 +151,33 @@ export async function faktenLaden(e: { personId: number; rateId: number | null; 
            (a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL AND ${ERINNERBARE_BESTELLUNG_SQL("a")} AND a.abo_gestoppt_am IS NULL
             AND a.mahnstopp_am IS NULL AND NOT ${RATE_NACH_ENDE_SQL_FUER("a", "r")}) AS erinnerbar
       FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref WHERE r.id = $1`, [Number(e.rateId), e.heute])) as any[]) : [null];
+  // Werbesperre und Kündigung: dieselben Bausteine wie die WhatsApp-Zentrale bei der Monatsrate (fiaon-wa-zentrale.ts, BASIS und
+  // gruppenBedingung „rate_offen“) — die Werbesperre am Kopf der Familie, ohne die aus der Zahlungspost-Freigabe.
+  const rateWa = (seit: string) => `EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.person_id = p.id AND w.richtung = 'raus'
+                     AND COALESCE(w.status, '') <> 'fehler' AND w.vorlage ~ '${RATEN_WA_MUSTER}' AND ${seit})`;
   const [p] = (await lauf.unsafe(`
     SELECT (p.ist_test_am IS NOT NULL OR p.merged_into_person_id IS NOT NULL) AS test,
            ${globalKundeSql("p.id")} AS global,
-           (p.werbung_gesperrt_am IS NOT NULL) AS werbesperre,
+           (${KOPF_SQL("p.id")} IN ${WERBESPERRE_KOEPFE_OHNE_FREIGABE_SQL}) AS werbesperre,
+           ${KUENDIGUNG_UNGEBUCHT_SQL("p.id")} AS kuendigung_ungebucht,
            EXISTS (SELECT 1 FROM fiaon_aras_person ap WHERE ap.person_id = p.id AND ap.aus_am IS NOT NULL) AS aras_aus,
            ${streitOffenSql("p.id")} AS streit_offen,
-           EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.person_id = p.id AND w.richtung = 'raus' AND COALESCE(w.status, '') <> 'fehler'
-                     AND w.vorlage ~ '${RATEN_WA_MUSTER}' AND w.created_at > NOW() - make_interval(days => ${ERINNERUNG_BREMSE_TAGE})) AS wa,
-           EXISTS (SELECT 1 FROM fiaon_mail_log m WHERE m.person_id = p.id AND m.event IN ('${RATEN_MAIL_EVENTS.join("', '")}')
-                     AND m.status = 'versandt' AND COALESCE(m.art, 'echt') = 'echt' AND m.created_at > NOW() - make_interval(days => ${ERINNERUNG_BREMSE_TAGE})) AS mail,
+           ${rateWa(`w.created_at > NOW() - make_interval(days => ${ERINNERUNG_BREMSE_TAGE})`)} AS wa_kuerzlich,
+           ${rateWa(`(w.created_at AT TIME ZONE 'Europe/Berlin')::date = $3::date`)} AS wa_heute,
            EXISTS (SELECT 1 FROM fiaon_aras_erinnerung ae WHERE ae.rate_id = $2 AND ae.status = 'gesendet'
-                     AND ae.created_at > NOW() - make_interval(days => ${ERINNERUNG_BREMSE_TAGE})) AS aras_kuerzlich
-      FROM fiaon_persons p WHERE p.id = $1`, [Number(e.personId), e.rateId != null ? Number(e.rateId) : null])) as any[];
+                     AND ae.created_at > NOW() - make_interval(days => ${ERINNERUNG_BREMSE_TAGE})) AS aras_kuerzlich,
+           EXISTS (SELECT 1 FROM fiaon_aras_erinnerung ah WHERE ah.person_id = p.id AND ah.status = 'gesendet'
+                     AND (ah.updated_at AT TIME ZONE 'Europe/Berlin')::date = $3::date) AS aras_heute
+      FROM fiaon_persons p WHERE p.id = $1`, [Number(e.personId), e.rateId != null ? Number(e.rateId) : null, e.heute])) as any[];
   if (!p) throw new Error(`Person ${e.personId} fehlt.`);
   return {
     notaus: e.notaus,
     rateOffen: r?.offen === true, rateFaellig: r?.faellig === true, erinnerbar: r?.erinnerbar === true,
-    test: p.test === true, global: p.global === true, werbesperre: p.werbesperre === true,
+    test: p.test === true, global: p.global === true, werbesperre: p.werbesperre === true, kuendigungUngebucht: p.kuendigung_ungebucht === true,
     telefonsperre: await telefonGesperrt(nummerKern(e.nummer), e.personId, lauf),
     arasAus: p.aras_aus === true, streitOffen: p.streit_offen === true,
-    rateWaKuerzlich: p.wa === true, rateMailKuerzlich: p.mail === true, arasErinnerungKuerzlich: p.aras_kuerzlich === true,
+    rateWaKuerzlich: p.wa_kuerzlich === true, arasErinnerungKuerzlich: p.aras_kuerzlich === true,
+    rateWaHeute: p.wa_heute === true, arasErinnerungHeute: p.aras_heute === true,
   };
 }
 

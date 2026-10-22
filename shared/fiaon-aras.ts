@@ -126,7 +126,7 @@ export const ARAS_AMPEL: readonly ArasAmpelWerkzeug[] = [
   { key: "aufnahme_starten", label: "Aufnahme starten", satz: "Nur nach hörbarem Ja des Kunden.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "aufnahme_abgelehnt", label: "Aufnahme abgelehnt", satz: "Kein Band, kein Volltext — nur Notiz.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "zahlungslink_senden", label: "Zahlungslink senden", satz: "WhatsApp oder Mail mit seinem persönlichen Link.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
-  { key: "zahlungszusage_merken", label: "Zusage merken", satz: "Zahl-Datum in die Akte, Nachfassen am Tag danach.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
+  { key: "zahlungszusage_merken", label: "Zusage merken", satz: "Zahl-Datum in die Akte, Nachfassen nach der Überweisungszeit (zugesagter Tag + 2 Bank-Werktage).", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
   { key: "zahlung_gemeldet", label: "Zahlung gemeldet", satz: "„Ist überwiesen“ → Stufe A, Mara sucht im Bankbuch.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
   { key: "ratenpause_setzen", label: "Ratenpause", satz: "Kette rückt — steht in „Heute“, 24 h rückgängig.", stufen: ["gelb", "rot"], vorgabe: "gelb", kanal: "alle" },
   { key: "rueckruf_buchen", label: "Anruf eintragen", satz: "Termin bei Aras oder beim Betreuer.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
@@ -692,8 +692,8 @@ export function stundeFuer(spielart: Spielart, erreichtJeStunde: Record<number, 
 }
 
 // ── Der Planer hält seine Versprechen (Koordination 22.10.2026, Auswertung von 168 echten Anrufen am 21./22.10.) ──────────
-// 1. Vorrang: Ein Rückruf, den der Kunde selbst gebucht hat (termin), und ARAS' eigenes Wort „am Tag danach melde ich mich“
-//    (zusage) scheitern nie am Tagesdeckel (Anrufe oder Euro) oder am Stundendeckel — sie zählen dort nicht mit, und kurz vor
+// 1. Vorrang: Ein Rückruf, den der Kunde selbst gebucht hat (termin), und ARAS' eigenes Wort „… melde ich mich kurz“ (zusage —
+//    seit Scheibe 3 nach der Überweisungszeit, zusageNachfassTag) scheitern nie am Tagesdeckel (Anrufe oder Euro) oder am Stundendeckel — sie zählen dort nicht mit, und kurz vor
 //    ihrer Zeit bleibt eine Leitung frei. Not-Aus, Leerlauf, Stufe 0, Nachtruhe und jede Sperre gelten weiter. (22.10.: der
 //    gebuchte Rückruf um 11:00 verfiel, weil die 40 Anrufe des Tages um 10:07 verbraucht waren.)
 // 2. Verteilung: Der Tagesdeckel verteilt sich über das Fenster (21./22.10.: alle 40 Anrufe ab 09:30 im Minutentakt, dieselben

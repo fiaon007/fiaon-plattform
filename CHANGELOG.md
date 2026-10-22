@@ -11,23 +11,33 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   1. **Mailbox → Raten-Erinnerung.** Endet ein Rate-Anruf auf der Mailbox oder „nicht erreicht“ und ist die Rate noch offen
      und fällig, schickt die Nachbereitung dem Kunden sofort die Raten-Erinnerung — derselbe Weg wie im Gespräch
      (WhatsApp-Vorlage „Ihre Monatsrate“, sonst die Raten-Mail). Höchstens einmal je Rate in 3 Tagen; nie, wenn in den
-     letzten 3 Tagen schon eine Raten-WhatsApp (auch von der WhatsApp-Zentrale) oder eine Raten-Mail an ihn ging; nie bei
-     Streitfall/Betrug oder offener Beschwerde (ARAS für ihn aus), Telefon- oder Werbesperre, Global-Kunde, Testperson,
+     letzten 3 Tagen schon eine Raten-WhatsApp an ihn ging (jeder Absender, auch die WhatsApp-Zentrale; die automatischen
+     Raten-Mails zählen NICHT — die laufen ohnehin nach Mahnstufe); nie bei Streitfall/Betrug oder offener Beschwerde (ARAS
+     für ihn aus), Telefonsperre, „echter“ Werbesperre, Kündigung eingegangen-aber-nicht-gebucht, Global-Kunde, Testperson,
      Not-Aus, nach einem Abbruch durch uns (Not-Aus, Deploy, Technik) oder wenn die Werkzeug-Ampel „Zahlungslink“ auf Rot
-     steht. Die Entscheidung steht am Gespräch: im Cockpit unter „Was ARAS erledigt hat“ und im Protokoll (mit Grund,
-     auch wenn nichts rausging).
+     steht. Werbesperre und Kündigung wie die WhatsApp-Zentrale bei der Monatsrate (dieselben SQL-Bausteine): Die Monatsrate
+     ist Vertragspost — die Werbesperre aus der Zahlungspost-Freigabe lässt sie durch. Gemessen an den 126 Rate-Anrufen
+     ohne Gespräch seit dem Go-live (nur gelesen): 51 hätten eine Erinnerung bekommen (51 Menschen); 42 hielt eine
+     Raten-WhatsApp der letzten 3 Tage auf, 11 eine echte Werbesperre, 6 ein offener Streitfall oder eine Beschwerde,
+     4 ein Abbruch durch uns. Die Entscheidung steht am Gespräch: im Cockpit unter „Was ARAS erledigt hat“ und im
+     Protokoll (mit Grund, auch wenn nichts rausging).
   2. **Zahltag-Erinnerung am Morgen.** Wer ARAS einen Zahltag zugesagt hat (an einem früheren Tag), bekommt an diesem Tag
-     zwischen 09:00 und 10:00 die Raten-Erinnerung — gleicher Weg, gleiche Bremsen, nur wenn die Rate noch offen ist, seit
-     der Zusage nichts bezahlt wurde und die Zusage in der Akte noch gilt (nicht zurückgenommen, kein neuer Tag). Je Zusage
-     genau einmal; sonntags, an Feiertagen und wenn ARAS aus ist nie.
+     zwischen 09:00 und 10:00 die Raten-Erinnerung — gleicher Weg, gleiche Sperren, nur wenn die Rate noch offen ist, seit
+     der Zusage nichts bezahlt wurde und die Zusage in der Akte noch gilt (nicht zurückgenommen, kein neuer Tag). Die Bremse
+     ist hier nur „heute schon eine Raten-WhatsApp an ihn“ — die Erinnerung am Zahltag ist der Sinn, auch wenn der Link 1–2
+     Tage vorher kam. Je Zusage genau einmal; sonntags, an Feiertagen und wenn ARAS aus ist nie.
   3. **Zusage nachfassen zur richtigen Zeit — und ARAS sagt die Wahrheit.** Bisher sagte ARAS „Am Tag danach melde ich mich
      kurz“ — mitten in der Überweisungszeit, in der der Planer ohnehin keinen Rate-Anruf macht. Jetzt: „Notiert: Sie
-     überweisen am 23.10. Falls bis 28.10. nichts angekommen ist, melde ich mich kurz.“ — und genau dann (am ersten Tag nach
-     zugesagtem Tag + zwei Bank-Werktagen, im Raten-Fenster; Sonntag/Feiertag → der nächste Fenstertag) ruft ARAS wegen der
-     Zusage an, nur wenn bis dahin nichts bezahlt ist; vor dem Wählen wird das noch einmal geprüft (inzwischen bezahlt,
-     zurückgenommen oder ein neuer Tag → kein Anruf). Der Anruf ist freundlich und ohne Vorwurf („Ich meld mich wie
-     angekündigt …“). Eine Zusage aus einem gebuchten Rückruf landet jetzt auch in der Akte (an der aktuellen Bestellung);
-     ohne Vertrag verspricht ARAS kein Melden.
+     überweisen am 23.10. Falls bis 28.10. nichts angekommen ist, melde ich mich kurz.“ Ab diesem Tag (zugesagter Tag + zwei
+     Bank-Werktage + 1) endet die Rate-Pause, und die normalen Rate-Anrufe rufen wieder an — so hält ARAS den Satz, auch
+     solange die Gesprächsart „Zusage nachfassen“ aus ist (so bleibt es vorerst). Ist sie an, kommt an diesem Tag
+     (Sonntag/Feiertag → der nächste Fenstertag) der eigene Nachfass-Anruf, nur wenn bis dahin nichts bezahlt ist; vor dem
+     Wählen wird das noch einmal geprüft (inzwischen bezahlt, zurückgenommen oder ein neuer Tag → kein Anruf). Der Anruf ist
+     freundlich und ohne Vorwurf („Ich meld mich wie angekündigt …“). Eine Zusage aus einem gebuchten Rückruf landet jetzt
+     auch in der Akte (an der aktuellen Bestellung). „Melde ich mich“ sagt ARAS nur, wenn danach wirklich ein Anruf kommt:
+     ohne Vertrag nie, und bei einer Zusage zur ersten Zahlung (Willkommen, noch keine Rate) nur, wenn „Zusage nachfassen“
+     an ist. Auch die Beschreibung des Werkzeugs, die Hintergrund-Anweisung und die Ampel im KI-Raum sagen jetzt „Nachfassen
+     nach der Überweisungszeit (zugesagter Tag + 2 Bank-Werktage)“ statt „am Tag danach“.
   4. **Beste Uhrzeit je Kunde.** Hat jemand früher abgenommen (Team oder ARAS), kommt ein Rate-Anruf bevorzugt im selben
      Tagesabschnitt (Vormittag/Mittag/Abend). Das verschiebt nur — nie gegen Fenster, Grenzen oder Vorrang.
   5. **Aufnahmen und Abschriften nach 90 Tagen löschen.** Täglich: Für ARAS-Gespräche älter als 90 Tage wird die Aufnahme bei
@@ -42,12 +52,12 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   (ruft die Mailbox-Erinnerung; kein Abspieler mehr nach dem Löschen), `server/lib/fiaon-aras-plan.ts` (Abschnitt 5 „Zusage
   nachfassen“, `zusageNachfassKandidaten`, `zusageEntfaellt`, `versucheHeute.erreichtAm`), `server/lib/fiaon-aras-waehler.ts`,
   `server/lib/fiaon-aras-werkzeuge.ts` (`zahlungszusage_merken`), `shared/fiaon-aras.ts` (neu: `zusageNachfassTag`,
-  `rateFensterTag`, `zusageNotiertSatz`, `abschnittWahlBeste`), `shared/fiaon-aras-prompt.ts` (nur Gesprächsart „Zusage
-  nachfassen“), `server/lib/fiaon-aras-start.ts` (Takte `aras_zahltag`, `aras_aufbewahrung`), `server/lib/fiaon-softphone.ts`
+  `rateFensterTag`, `zusageNotiertSatz`, `abschnittWahlBeste`; Ampel-Satz „Zusage merken“), `shared/fiaon-aras-prompt.ts`
+  (Gesprächsart „Zusage nachfassen“, Werkzeug-Beschreibung, Hintergrund-Anweisung), `server/lib/fiaon-aras-start.ts` (Takte `aras_zahltag`, `aras_aufbewahrung`), `server/lib/fiaon-softphone.ts`
   (Team-Löschlauf ohne ARAS-Gespräche). Prüfstände: `scripts/pruef-aras-nachsorge.ts` (neu, Teil A rein + Teil B lokale
   Prüf-DB mit Versand- und Twilio-Attrappe), `scripts/pruef-aras-plan.ts` (8d), `scripts/pruef-aras-bruecke.ts` (P5 und
-  Abschnitt 4 an das neue Nachfassen angepasst). Die Erinnerungen wirken, sobald ARAS an ist; den Nachfass-Anruf gibt es
-  erst, wenn die Gesprächsart „Zusage nachfassen“ an ist (schaltet ein anderer Strang am 23.10. ein).
+  Abschnitt 4 an das neue Nachfassen angepasst). Die Erinnerungen wirken, sobald ARAS an ist; den eigenen Nachfass-Anruf
+  gibt es erst, wenn die Gesprächsart „Zusage nachfassen“ an ist — bis dahin übernehmen die Rate-Anrufe nach der Pause.
 
 ## 22.10.2026 — Prüfstände: zehn rote Offline-Prüfstände an den freigegebenen Stand gezogen
 - **Was:** Zehn Prüfstände ohne Datenbank meldeten auf main Rot, obwohl die Plattform richtig arbeitet: Freigegebene

@@ -30,7 +30,7 @@ import { akteVorlesen } from "./fiaon-aras-briefing";
 import { telefonSperren, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungWiderrufen } from "./fiaon-telefon-einwilligung";
 import { praesent } from "./fiaon-softphone-praesenz";
-import { istWerkzeug, FEEDBACK_ARTEN, JUSTIN_AUFGABE_ARTEN, JUSTIN_AUFGABE_TITEL, justinAufgabeSchluessel, zusagePause, zusageNotiertSatz, type JustinAufgabeArt, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
+import { istWerkzeug, FEEDBACK_ARTEN, JUSTIN_AUFGABE_ARTEN, JUSTIN_AUFGABE_TITEL, justinAufgabeSchluessel, zusagePause, zusageNotiertSatz, stufenGrenzen, type JustinAufgabeArt, type Werkzeug, type Spielart, type Land, type ArasEinstellungen, type ArasErgebnis, istArasErgebnis } from "../../shared/fiaon-aras";
 import type { Briefing } from "../../shared/fiaon-aras-prompt";
 import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
 import { berlinToday } from "./fiaon-time";
@@ -177,10 +177,11 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
   },
 
   // Koordination 22.10.2026 (Scheibe 3, „ARAS sagt die Wahrheit“): Bis zum zugesagten Tag plus zwei Bank-Werktage ruft niemand
-  // wegen der Rate an (zusagePause) — darum fasst ARAS erst am ersten Tag nach dieser Pause nach (Planer, Abschnitt 5:
-  // zusageNachfassTag), und genau das sagt sie: „Falls bis <wiederAb> nichts angekommen ist, melde ich mich kurz.“ Den Eintrag
-  // „am Tag danach“ gibt es nicht mehr — der Planer liest die Zusage aus der Akte (dort hält auch der Rate-Planer still). Darum
-  // muss sie in die Akte: ohne Kennung im Plan (z. B. ein gebuchter Rückruf) die aktuelle Bestellung des Kunden.
+  // wegen der Rate an (zusagePause) — darum meldet sich ARAS erst danach: über die normalen Rate-Anrufe, die mit wiederAb wieder
+  // beginnen, oder (wenn „Zusage nachfassen“ an ist) mit dem Nachfass-Anruf des Planers (Abschnitt 5, zusageNachfassTag). Genau
+  // das sagt sie: „Falls bis <wiederAb> nichts angekommen ist, melde ich mich kurz.“ Den Eintrag „am Tag danach“ gibt es nicht
+  // mehr — Planer und Rate-Pause lesen die Zusage aus der Akte. Darum muss sie in die Akte: ohne Kennung im Plan (z. B. ein
+  // gebuchter Rückruf) die aktuelle Bestellung des Kunden.
   async zahlungszusage_merken(ctx, e, lauf) {
     const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(e?.datum ?? "")) ? String(e.datum) : null;
     if (!datum) return { ok: false, vorlesen: "Welcher Tag genau — nennen Sie mir bitte das Datum.", fehler: "datum" };
@@ -190,10 +191,20 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     const meldung = await ergebnisInDieAkte(ref === ctx.ref ? ctx : { ...ctx, ref }, "erreicht_zahlt_am", `Zusage für den ${tagDe(datum)}`, { zusageDatum: datum });
     if (ref && ctx.personId) ctx.ergebnisGesetzt = true;
     const p = zusagePause(datum);
+    // Wer meldet sich nach der Überweisungszeit? Ist „Zusage nachfassen“ an, der Nachfass-Anruf (Planer Abschnitt 5). Sonst
+    // (Koordination 22.10.2026: die Spielart bleibt aus) die normalen Rate-Anrufe — die Pause endet mit wiederAb. Das setzt eine
+    // OFFENE RATE voraus: Bei einer Zusage zur ersten Zahlung (Willkommen, noch keine Rate) ruft ARAS danach nicht an — dann
+    // verspricht sie das auch nicht. Ohne Akte (kein Vertrag) fasst ohnehin niemand nach.
+    const g = stufenGrenzen(ctx.einstellungen);
+    const offeneRate = !!ctx.personId && ((await lauf`
+      SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+       WHERE a.person_id = ${ctx.personId} AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+         AND r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL LIMIT 1`.catch(() => [])) as any[]).length > 0;
+    const nachfassen = !!(ref && ctx.personId) && (g.spielartErlaubt("zusage") || (g.spielartErlaubt("rate") && offeneRate));
     await arasEreignis({ art: "aras_zusage", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart,
-      text: `Zahlungszusage ${tagDe(datum)} — kein Rate-Anruf bis ${tagDe(p.bis)}, Nachfassen ab ${tagDe(p.wiederAb)}`, daten: { datum, bis: p.bis, wiederAb: p.wiederAb, akte: !!(ref && ctx.personId), meldung } });
-    // Steht sie nicht in der Akte (kein Vertrag), fasst niemand nach — dann verspricht ARAS das auch nicht.
-    return { ok: true, vorlesen: ref && ctx.personId ? zusageNotiertSatz(datum) : `Notiert: Sie überweisen am ${tagDe(datum).slice(0, 5)}.` };
+      text: `Zahlungszusage ${tagDe(datum)} — kein Rate-Anruf bis ${tagDe(p.bis)}, ${nachfassen ? `ARAS meldet sich ab ${tagDe(p.wiederAb)}, falls nichts ankam` : "kein Nachfassen durch ARAS (keine offene Rate) — die Wiedervorlage hat das Team"}`,
+      daten: { datum, bis: p.bis, wiederAb: p.wiederAb, akte: !!(ref && ctx.personId), nachfassen, meldung } });
+    return { ok: true, vorlesen: nachfassen ? zusageNotiertSatz(datum) : `Notiert: Sie überweisen am ${tagDe(datum).slice(0, 5)}.` };
   },
 
   async zahlung_gemeldet(ctx, e, lauf) {

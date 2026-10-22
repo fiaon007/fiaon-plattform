@@ -122,7 +122,7 @@ export function stationStatusName(schluessel: string, status: string, s: Bereich
 }
 /** Weitere Dokumente an einer Station, die zur Unterschrift bereitgestellt werden (mit Pflichtunterlage). */
 export const GLOBAL_STATION_UNTERSCHRIFT: Record<string, { art: string; pflichtKey: string; titel: string }> = {
-  ein: { art: "steuer", pflichtKey: "irs_ss4", titel: "IRS Form SS-4 zur Unterschrift (FIAON als Third Party Designee)" },
+  ein: { art: "steuer", pflichtKey: "irs_ss4", titel: "IRS Form SS-4 zur Unterschrift — von Hand, Scan als PDF (FIAON als Third Party Designee)" },
 };
 
 // ── FORMATE ──────────────────────────────────────────────────────────────────

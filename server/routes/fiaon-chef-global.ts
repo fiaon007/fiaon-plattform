@@ -156,6 +156,14 @@ router.post("/chef/global/mandate/:ref/itin", requireChef("leitung"), async (req
   } catch (e) { fehler(res, "itin", e); }
 });
 
+// ── Global-Akte für ein angenommenes Begleit-Angebot (22.10.2026): ein Klick, wiederholbar ──
+router.post("/chef/global/angebote/:id/akte", requireChef("leitung"), async (req, res) => {
+  try {
+    const { globalBegleitAkteAnlegen } = await import("../lib/fiaon-global-akte-komplett");
+    antwort(res, await globalBegleitAkteAnlegen(Number(req.params.id), await wer(req)));
+  } catch (e) { fehler(res, "begleit akte", e); }
+});
+
 // ── DIE VOLLSTÄNDIGE AKTE (22.10.2026): Rechnungen der Person, Verträge, Dokumente zur Unterschrift, ZIP ──
 router.get("/chef/global/mandate/:ref/akte", requireChef("leitung"), async (req, res) => {
   try {
@@ -229,8 +237,20 @@ router.post("/chef/global/mandate/:ref/dokument", requireChef("leitung"), dateiA
       const { globalPflichtZuordnen } = await import("../lib/fiaon-global-akte-komplett");
       await globalPflichtZuordnen(ref(req), erg.id, pflicht.key);
     }
+    // Wie unterschrieben wird: IRS-Formulare immer von Hand; sonst die Wahl beim Hochladen (Vorgabe digital).
+    if (erg.ok && wahr(b.unterschrift)) {
+      const art = pflicht ? pflicht.modus : (String(b.unterschriftArt ?? "") === "handschriftlich" ? "handschriftlich" : "digital");
+      await sqlPool`UPDATE fiaon_global_dokumente SET unterschrift_art = ${art} WHERE id = ${erg.id} AND ref = ${ref(req)}`;
+    }
     antwort(res, erg);
   } catch (e) { fehler(res, "dokument ablegen", e); }
+});
+// 22.10.2026: den von Hand unterschriebenen Scan im Namen des Kunden hochladen (nur PDF).
+router.post("/chef/global/mandate/:ref/dokument/:id/scan", requireChef("leitung"), dateiAnnehmen, async (req, res) => {
+  try {
+    const { globalScanHochladen } = await import("../lib/fiaon-global-akte-komplett");
+    antwort(res, await globalScanHochladen(ref(req), req.params.id, dateiAus(req), { team: await wer(req) }));
+  } catch (e) { fehler(res, "scan", e); }
 });
 router.post("/chef/global/mandate/:ref/dokument/:id", requireChef("leitung"), async (req, res) => {
   try { antwort(res, await globalMandatDokumentAendern(ref(req), req.params.id, req.body ?? {}, await wer(req))); }

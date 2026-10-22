@@ -36,10 +36,11 @@ import {
   type BereichAgent, type DateiEin, type Erg, type Lage,
 } from "./fiaon-global-bereich";
 import { globalDokumentArt, globalDokumentArtText, istIsoTag, type BereichSprache } from "@shared/fiaon-global-bereich";
+import { HANDSCHRIFT_WOERTER, unterschriftModus } from "@shared/fiaon-global-akte";
 import {
   GLOBAL_FAHRPLAN, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
-  globalTresorKategorie, type GlobalGesellschaftPlus,
+  globalTresorKategorie, globalAngebotKundeAnzeige, type GlobalGesellschaftPlus,
 } from "@shared/fiaon-global-mandat";
 import {
   GLOBAL_STATION_FELDER, globalPlusFuerKunde, globalPlusFuerTeam, stationKontaktWarnungen, stationStatusName, stationTelefonInt, stationVerlaufSaetze, stationWertePruefen,
@@ -170,7 +171,7 @@ async function stationenSchemaSichern(): Promise<void> {
     await tx`ALTER TABLE fiaon_global_schritte ADD COLUMN IF NOT EXISTS beantragt_am DATE`;
     await tx`ALTER TABLE fiaon_global_kapital ADD COLUMN IF NOT EXISTS inhaber TEXT`;
     // Migration 124 (die vollständige Akte): Pflichtunterlage je Dokument — hier mit, weil dokumentZusatzLesen sie liest.
-    await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB`;
+    await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB, ADD COLUMN IF NOT EXISTS unterschrift_art TEXT`;
     const [c] = (await tx`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'fiaon_global_schritte_status_check' LIMIT 1`) as any[];
     if (!c || !/'beantragt'/.test(String(c.def))) {
       await tx`
@@ -236,7 +237,7 @@ async function nachrichtenLesen(ref: string, fuer: "kunde" | "chef"): Promise<Re
 async function dokumentZusatzLesen(ref: string): Promise<Map<number, any>> {
   const zeilen = (await sqlPool`
     SELECT id, art, titel, kunde_gelesen_am, fiaon_gesehen_am, post_absender, post_eingang_am, unterschrift_gefordert, unterschrieben_am,
-           unterschrift_name, unterschrift_von_id, mime, pflicht_key
+           unterschrift_name, unterschrift_von_id, mime, pflicht_key, unterschrift_art
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
   return new Map(zeilen.map((z) => [Number(z.id), z]));
 }
@@ -248,7 +249,7 @@ function dokumentZusatz(z: any): Record<string, unknown> {
     ...(z.titel ? { titel: String(z.titel) } : {}),
     gelesen: !!z.kunde_gelesen_am,
     ...(String(z.art) === "post" ? { post: { absender: z.post_absender ? String(z.post_absender) : null, eingangAm: tag(z.post_eingang_am) } } : {}),
-    ...(z.unterschrift_gefordert ? { unterschrift: { gefordert: true, unterschrieben: !!z.unterschrieben_am, am: iso(z.unterschrieben_am), name: z.unterschrift_name ?? null } } : {}),
+    ...(z.unterschrift_gefordert ? { unterschrift: { gefordert: true, unterschrieben: !!z.unterschrieben_am, am: iso(z.unterschrieben_am), name: z.unterschrift_name ?? null, modus: unterschriftModus(z.pflicht_key, z.unterschrift_art) } } : {}),
     ...(z.unterschrift_von_id ? { unterschriebeneFassungVon: Number(z.unterschrift_von_id) } : {}),
     istPdf: String(z.mime) === "application/pdf",
     ...(z.pflicht_key ? { pflichtKey: String(z.pflicht_key) } : {}),
@@ -362,6 +363,8 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
     SELECT a.id, a.angebot_ref, a.fassung, a.status, a.kunde, a.gueltig_bis, a.angenommen_am, a.person_id, a.created_at
       FROM fiaon_global_angebote a
      WHERE a.auftrag_ref IS NULL AND a.status IN ('offen', 'angenommen')
+       -- 22.10.2026: ein Begleitvertrag mit Akte (per Knopf, verbunden über angebot_id) ist kein „Angebot in Arbeit“ mehr.
+       AND NOT EXISTS (SELECT 1 FROM fiaon_global_auftraege g WHERE g.angebot_id = a.id)
      ORDER BY a.created_at DESC`) as any[];
   const echt = mandate.filter((m) => !m.test && m.status !== "storniert");
   const heute = berlinToday();
@@ -369,13 +372,14 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
   return {
     mandate,
     angebote: angebote.map((a) => {
-      const k = json<Record<string, any>>(a.kunde, {});
+      // „[object Object]“ in der Leiste (22.10.2026): Firmen-/Kapitalangebote tragen firma als Objekt — eine Auflösung in shared/.
+      const k = globalAngebotKundeAnzeige(a.kunde);
       const fassung = String(a.fassung || "");
       return {
         id: Number(a.id), angebotRef: String(a.angebot_ref), status: String(a.status),
         art: fassung.startsWith("IA-FIRMA") ? "firma" : fassung.startsWith("IA-BEGLEIT") ? "begleit" : fassung.startsWith("IA-KOOP") ? "koop" : fassung.startsWith("IA-KAPITAL") ? "kapital" : "individuell",
-        kunde: String(k.name || [k.vorname, k.nachname].filter(Boolean).join(" ") || k.firma || "—"),
-        firma: k.firma ? String(k.firma) : null,
+        kunde: k.name,
+        firma: k.firma,
         gueltigBis: tag(a.gueltig_bis), angenommenAm: iso(a.angenommen_am), personId: a.person_id != null ? Number(a.person_id) : null,
       };
     }),
@@ -904,9 +908,11 @@ export async function globalKundeUnterschreibt(ref: string, idRoh: unknown, ein:
   const s = l.sprache;
   const id = Number(idRoh);
   const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
-    SELECT id, art, titel, dateiname, mime, inhalt, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde
+    SELECT id, art, titel, dateiname, mime, inhalt, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, pflicht_key, unterschrift_art
       FROM fiaon_global_dokumente WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL`) as any[]) : [];
   if (!d || !d.unterschrift_gefordert || !d.sichtbar_fuer_kunde) return nein(404, t(s, "Dieses Dokument wartet nicht auf Ihre Unterschrift.", "This document is not waiting for your signature."));
+  // 22.10.2026: Was von Hand unterschrieben wird (IRS-Formulare), bekommt NIE eine gezeichnete Unterschrift.
+  if (unterschriftModus(d.pflicht_key, d.unterschrift_art) === "handschriftlich") return nein(409, HANDSCHRIFT_WOERTER[s].nurHandschrift);
   if (d.unterschrieben_am) return nein(409, t(s, "Dieses Dokument haben Sie bereits unterschrieben.", "You have already signed this document."));
   if (ein.zustimmung !== true) return nein(400, t(s, "Bitte bestätigen Sie, dass Sie das Dokument gelesen haben und unterschreiben möchten.", "Please confirm that you have read the document and wish to sign it."));
   const name = knapp(ein.name, 120);

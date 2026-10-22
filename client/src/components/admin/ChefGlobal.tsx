@@ -35,11 +35,11 @@ interface MandatZeile {
   naechsterSchritt: string | null; stichtag: string | null; naechsteFrist: string | null; zustaendig: string | null;
   anfragenNeu: number; uploadsNeu: number; unterschriftenOffen: number; postUngelesen: number; test: boolean; portalNeu: boolean; angelegtAm: string;
 }
-interface AngebotZeile { id: number; angebotRef: string; status: string; art: "firma" | "begleit" | "individuell"; kunde: string; firma: string | null; gueltigBis: string | null; angenommenAm: string | null; personId: number | null }
+interface AngebotZeile { id: number; angebotRef: string; status: string; art: "firma" | "begleit" | "individuell" | "kapital" | "koop"; kunde: string; firma: string | null; gueltigBis: string | null; angenommenAm: string | null; personId: number | null }
 interface Liste { mandate: MandatZeile[]; angebote: AngebotZeile[]; kennzahlen: Record<string, number> }
 
 const STATUS_TEXT: Record<string, string> = { offen: "Zahlung offen", bezahlt: "Bezahlt", gestartet: "In Arbeit", abgeschlossen: "Abgeschlossen", storniert: "Storniert" };
-const ANGEBOT_ART: Record<string, string> = { firma: "Firmenangebot", begleit: "Begleitvertrag", individuell: "Individualangebot" };
+const ANGEBOT_ART: Record<string, string> = { firma: "Firmenangebot", begleit: "Begleitvertrag", individuell: "Individualangebot", kapital: "Kapital-Angebot", koop: "Kooperation" };
 
 async function senden(pfad: string, methode: "POST" | "DELETE", body?: unknown): Promise<{ ok: boolean; meldung?: string; error?: string; [k: string]: unknown }> {
   try {
@@ -64,6 +64,16 @@ export default function ChefGlobal() {
   const gewaehlt = (() => { try { return new URLSearchParams(adresse).get("mandat"); } catch { return null; } })();
   const { daten, laedt, fehler, neu } = useDaten<Liste & { ok: true }>("/chef/global/mandate");
   const [testZeigen, setTestZeigen] = useState(false);
+  // 22.10.2026: „Global-Akte anlegen“ für ein angenommenes Begleit-Angebot — Ergebnis bleibt stehen (Erfolg mit Nummer, Fehler rot).
+  const [akteLaeuft, setAkteLaeuft] = useState<number | null>(null);
+  const [akteMeldung, setAkteMeldung] = useState<{ id: number; text: string; gut: boolean } | null>(null);
+  const akteAnlegen = async (id: number) => {
+    setAkteLaeuft(id); setAkteMeldung(null);
+    const j = await senden(`/chef/global/angebote/${id}/akte`, "POST");
+    setAkteLaeuft(null);
+    setAkteMeldung({ id, text: j.ok ? String(j.meldung) : String(j.error), gut: j.ok });
+    if (j.ok) { neu(); if (j.ref) navigate(`/chef/global?mandat=${encodeURIComponent(String(j.ref))}`); }
+  };
   const mandate = daten?.mandate ?? [];
   const sichtbar = mandate.filter((m) => testZeigen || !m.test);
   const k = daten?.kennzahlen ?? {};
@@ -146,14 +156,23 @@ export default function ChefGlobal() {
             <>
               <div className="cgr-liste-kopf zwei"><b>Angebote in Arbeit</b></div>
               {daten.angebote.map((a) => (
-                <a key={a.id} className="cgr-angebot" href="/chef/s/global-auftraege?reiter=angebote">
-                  <span className="cgr-angebot-art">{ANGEBOT_ART[a.art]}</span>
-                  <b>{a.firma || a.kunde}</b>
-                  <small>
-                    {a.status === "angenommen" ? `angenommen ${a.angenommenAm ? datum(a.angenommenAm) : ""}` : `offen · gültig bis ${datum(a.gueltigBis)}`}
-                    {a.art === "begleit" && a.status === "angenommen" ? " · noch ohne Global-Akte" : ""}
-                  </small>
-                </a>
+                <div key={a.id} className="cgr-angebot-huelle">
+                  <a className="cgr-angebot" href="/chef/s/global-auftraege?reiter=angebote">
+                    <span className="cgr-angebot-art">{ANGEBOT_ART[a.art] ?? "Angebot"}</span>
+                    <b>{a.firma && a.firma !== a.kunde ? `${a.kunde} · ${a.firma}` : a.kunde}</b>
+                    <small>
+                      {a.status === "angenommen" ? `angenommen ${a.angenommenAm ? datum(a.angenommenAm) : ""}` : `offen · gültig bis ${datum(a.gueltigBis)}`}
+                      {a.art === "begleit" && a.status === "angenommen" ? " · noch ohne Global-Akte" : ""}
+                    </small>
+                  </a>
+                  {/* 22.10.2026: Der Begleitvertrag legt bei der Annahme nichts an — die Akte entsteht hier mit einem Klick (wiederholbar). */}
+                  {a.art === "begleit" && a.status === "angenommen" && (
+                    <button type="button" className="cgr-angebot-knopf" disabled={akteLaeuft === a.id} data-fiaon="begleit-akte-anlegen" onClick={() => void akteAnlegen(a.id)}>
+                      {akteLaeuft === a.id ? "Legt an …" : "Global-Akte anlegen"}
+                    </button>
+                  )}
+                  {akteMeldung?.id === a.id && <small className={`cgr-angebot-meldung${akteMeldung.gut ? " gut" : ""}`} role={akteMeldung.gut ? "status" : "alert"}>{akteMeldung.text}</small>}
+                </div>
               ))}
             </>
           )}
@@ -522,7 +541,7 @@ const EURO = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFracti
 const STAND_TEXT: Record<string, string> = { fehlt: "noch nicht abgelegt", vorbereitet: "vorbereitet (intern)", wartet: "zur Unterschrift", unterschrieben: "unterschrieben" };
 function AkteKomplett({ gref, tun }: { gref: string; tun: Tun }) {
   const { daten, fehler, neu } = useDaten<{ ok: true; rechnungen: any[]; vertraege: any[]; pflicht: any; zipUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}/akte`);
-  const [hoch, setHoch] = useState<{ key: string; titel: string; datei: File | null } | null>(null);
+  const [hoch, setHoch] = useState<{ key: string; titel: string; datei: File | null; modus: "digital" | "handschriftlich"; scanFuer?: number } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;
   if (!daten) return <Geruest zeilen={6} />;
@@ -530,10 +549,19 @@ function AkteKomplett({ gref, tun }: { gref: string; tun: Tun }) {
   const hochladen = async () => {
     if (!hoch?.datei) return;
     const fd = new FormData();
+    // Der unterschriebene Scan im Namen des Kunden (nur PDF) — legt die unterschriebene Fassung ab und die Aufgabe an.
+    if (hoch.scanFuer) {
+      fd.append("datei", hoch.datei);
+      setLaeuft(true);
+      if (await tun(`/dokument/${hoch.scanFuer}/scan`, "POST", fd)) { setHoch(null); neu(); }
+      setLaeuft(false);
+      return;
+    }
     const formular = hoch.key !== "weitere";
     fd.append("art", formular ? (p?.eintraege?.find((e: any) => e.key === hoch.key)?.art ?? "steuer") : "sonstiges");
     fd.append("datei", hoch.datei); fd.append("sichtbar", "true"); fd.append("unterschrift", "true"); fd.append("mitteilen", "false");
     if (formular) fd.append("pflichtKey", hoch.key); else if (hoch.titel.trim()) fd.append("titel", hoch.titel.trim());
+    fd.append("unterschriftArt", hoch.modus);
     setLaeuft(true);
     if (await tun("/dokument", "POST", fd)) { setHoch(null); neu(); }
     setLaeuft(false);
@@ -552,22 +580,28 @@ function AkteKomplett({ gref, tun }: { gref: string; tun: Tun }) {
           {(p?.eintraege ?? []).map((e: any) => (
             <li key={e.key} className={`st-${e.stand}`}>
               <span className="cgr-schritt-punkt" aria-hidden="true" />
-              <div><b>{e.titel}</b><small>{e.text || "vom Team zur Unterschrift gestellt"}{e.formular ? " · vorausgefülltes Formular als PDF hochladen" : ""}</small></div>
+              <div><b>{e.titel}</b><small>{e.text || "vom Team zur Unterschrift gestellt"}{e.modus === "handschriftlich" ? " · von Hand (Kunde druckt, unterschreibt, scannt als PDF)" : " · digital im Portal"}</small></div>
               <span className={`cgr-pille ${e.stand === "unterschrieben" ? "gruen" : e.stand === "wartet" ? "blau" : ""}`}>{STAND_TEXT[e.stand] ?? e.stand}</span>
               <span className="cgr-mini">
-                {e.formular && e.stand !== "unterschrieben" && <button type="button" onClick={() => setHoch({ key: e.key, titel: e.titel, datei: null })}>{e.stand === "fehlt" ? "Zur Unterschrift hochladen" : "Neue Fassung hochladen"}</button>}
+                {e.formular && e.stand !== "unterschrieben" && <button type="button" onClick={() => setHoch({ key: e.key, titel: e.titel, datei: null, modus: e.modus })}>{e.stand === "fehlt" ? "Zur Unterschrift hochladen" : "Neue Fassung hochladen"}</button>}
+                {e.stand === "wartet" && e.modus === "handschriftlich" && e.dokumentId && <button type="button" data-fiaon="chef-scan-im-namen" onClick={() => setHoch({ key: e.key, titel: e.titel, datei: null, modus: "handschriftlich", scanFuer: e.dokumentId })}>Unterschriebenen Scan hochladen</button>}
               </span>
             </li>
           ))}
         </ul>
-        {!hoch && <div className="cgr-form zeile"><button type="button" className="cw-knopf" onClick={() => setHoch({ key: "weitere", titel: "", datei: null })}><Plus size={14} /> Weiteres Dokument zur Unterschrift</button></div>}
+        {!hoch && <div className="cgr-form zeile"><button type="button" className="cw-knopf" onClick={() => setHoch({ key: "weitere", titel: "", datei: null, modus: "digital" })}><Plus size={14} /> Weiteres Dokument zur Unterschrift</button></div>}
         {hoch && (
           <div className="cgr-form zeile">
-            {hoch.key === "weitere"
-              ? <input value={hoch.titel} onChange={(e) => setHoch({ ...hoch, titel: e.target.value })} placeholder="Titel für den Kunden, z. B. Bankformular" />
-              : <span className="cgr-leise">{hoch.titel} — PDF:</span>}
+            {hoch.key === "weitere" && !hoch.scanFuer
+              ? <>
+                  <input value={hoch.titel} onChange={(e) => setHoch({ ...hoch, titel: e.target.value })} placeholder="Titel für den Kunden, z. B. Bankformular" />
+                  <select value={hoch.modus} onChange={(e) => setHoch({ ...hoch, modus: e.target.value as "digital" | "handschriftlich" })} aria-label="Wie unterschreibt der Kunde?">
+                    <option value="digital">digital im Portal</option><option value="handschriftlich">von Hand (Scan als PDF)</option>
+                  </select>
+                </>
+              : <span className="cgr-leise">{hoch.titel} — {hoch.scanFuer ? "unterschriebener Scan (nur PDF)" : "PDF"}:</span>}
             <input type="file" accept="application/pdf,.pdf" onChange={(e) => setHoch({ ...hoch, datei: e.target.files?.[0] ?? null })} />
-            <button type="button" className="cw-knopf cgr-haupt" disabled={!hoch.datei || laeuft} onClick={() => void hochladen()}>{laeuft ? "Lädt …" : "Zur Unterschrift bereitstellen"}</button>
+            <button type="button" className="cw-knopf cgr-haupt" disabled={!hoch.datei || laeuft} onClick={() => void hochladen()}>{laeuft ? "Lädt …" : hoch.scanFuer ? "Als unterschrieben ablegen" : "Zur Unterschrift bereitstellen"}</button>
             <button type="button" className="cw-knopf" onClick={() => setHoch(null)}>Abbrechen</button>
           </div>
         )}

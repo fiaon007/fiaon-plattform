@@ -9,3 +9,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT;
 ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB;
+-- unterschrift_art: 'digital' (Unterschrift-Dialog im Portal) oder 'handschriftlich' (ausdrucken, von Hand unterschreiben,
+-- als PDF scannen, hochladen — die IRS-Formulare immer). Leer = digital.
+ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS unterschrift_art TEXT;

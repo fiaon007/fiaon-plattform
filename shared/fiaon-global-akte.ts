@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { istGlobalEinzelrechnung, istGlobalPaket, istKoopRechnung, paket } from "./fiaon-pakete";
 import { globalZusatzZuPaket } from "./fiaon-global-zusatz";
+import { usBundesstaatCode } from "./fiaon-global-bereich";
 
 type Paar = { de: string; en: string };
 export type AkteSprache = "de" | "en";
@@ -68,8 +69,22 @@ export function globalAkteRechnungTitel(packKey: unknown, packName: unknown, s: 
 // für den Kunden). Das eigene, E-SIGN-konforme Unterschreiben baut eine spätere Scheibe — hier steht nur das Datenmodell:
 // Art (pflicht_key), Stand vorbereitet → zur Unterschrift → unterschrieben, Zeitpunkt (unterschrieben_am) und ein
 // leerer JSON-Nachweis (unterschrift_nachweis) für den Prüfbericht der Unterschrift.
+/**
+ * Wie unterschrieben wird (22.10.2026): `digital` = der Unterschrift-Dialog im Portal; `handschriftlich` = ausdrucken, von
+ * Hand unterschreiben und datieren, als PDF scannen, hochladen. Unser Registered-Agent-Partner verlangt für das IRS-Formular
+ * SS-4 (Kunden ohne SSN/ITIN) eine Unterschrift mit Tinte — deshalb sind die IRS-Formulare immer handschriftlich, und für sie
+ * wird NIE eine gezeichnete Unterschrift angeboten.
+ */
+export type UnterschriftModus = "digital" | "handschriftlich";
+export function unterschriftModus(pflichtKey: unknown, gespeichert: unknown): UnterschriftModus {
+  const p = globalPflichtUnterlage(pflichtKey);
+  if (p) return p.modus;
+  return String(gespeichert ?? "") === "handschriftlich" ? "handschriftlich" : "digital";
+}
 export interface PflichtUnterlage {
   key: string;
+  /** Wie der Kunde unterschreibt — die IRS-Formulare immer von Hand. */
+  modus: UnterschriftModus;
   titel: Paar;
   text: Paar;
   /** Dokumentart im Tresor. */
@@ -79,10 +94,10 @@ export interface PflichtUnterlage {
   nurAngebot?: RegExp;
 }
 export const GLOBAL_PFLICHT_UNTERLAGEN: PflichtUnterlage[] = [
-  { key: "irs_ss4", art: "steuer", abGruendung: true,
+  { key: "irs_ss4", art: "steuer", abGruendung: true, modus: "handschriftlich",
     titel: { de: "IRS Form SS-4 (EIN)", en: "IRS Form SS-4 (EIN)" },
     text: { de: "Der Antrag auf die EIN Ihrer Gesellschaft — vorausgefüllt, mit FIAON als Third Party Designee.", en: "The application for your company's EIN — prefilled, with FIAON as third party designee." } },
-  { key: "irs_8821", art: "steuer", abGruendung: true,
+  { key: "irs_8821", art: "steuer", abGruendung: true, modus: "handschriftlich",
     titel: { de: "IRS Form 8821 (Steuerauskunft)", en: "IRS Form 8821 (tax information authorization)" },
     text: { de: "Erlaubt uns, bei der US-Steuerbehörde Auskunft zu Ihrer Gesellschaft einzuholen.", en: "Allows us to obtain information about your company from the US tax authority." } },
 ];
@@ -126,6 +141,87 @@ export function globalPflichtStand(liste: PflichtUnterlage[], doks: PflichtDok[]
   const offen = eintraege.filter((e) => e.stand !== "unterschrieben").length;
   return { eintraege, vollstaendig: eintraege.length > 0 && offen === 0, offen };
 }
+/** Ein Scan zur Unterschrift ist nur ein PDF — geprüft am Inhalt (Kopf %PDF-), nicht an der Endung. */
+export function istPdfInhalt(kopf: Uint8Array | ArrayLike<number> | null | undefined): boolean {
+  if (!kopf || (kopf as ArrayLike<number>).length < 5) return false;
+  const k = kopf as ArrayLike<number>;
+  return k[0] === 0x25 && k[1] === 0x50 && k[2] === 0x44 && k[3] === 0x46 && k[4] === 0x2d;
+}
+/** Bildformate, die als „Foto statt Scan“ erkannt werden (für die freundliche Meldung). */
+export function istBildInhalt(kopf: ArrayLike<number> | null | undefined): boolean {
+  if (!kopf || kopf.length < 4) return false;
+  const jpg = kopf[0] === 0xff && kopf[1] === 0xd8;
+  const png = kopf[0] === 0x89 && kopf[1] === 0x50 && kopf[2] === 0x4e && kopf[3] === 0x47;
+  const heic = kopf.length >= 12 && kopf[4] === 0x66 && kopf[5] === 0x74 && kopf[6] === 0x79 && kopf[7] === 0x70;
+  return jpg || png || heic;
+}
+
+// ── DIE WÖRTER DER HANDSCHRIFTLICHEN UNTERSCHRIFT (Portal, Server) ───────────
+// Vier Schritte, mobil zuerst. Die Hilfe zum Scannen verlinkt die Anleitungen von Apple (iPhone, Notizen-App) und für
+// Android — ein Foto ist kein Scan und wird nicht angenommen.
+export const HANDSCHRIFT_SCAN_HILFE = {
+  iphone: "https://support.apple.com/en-us/108963",
+  android: "https://www.howtogeek.com/166610/who-needs-a-scanner-scan-a-document-to-pdf-with-your-android-phone/",
+} as const;
+export const HANDSCHRIFT_WOERTER = {
+  de: {
+    titel: "Von Hand unterschreiben",
+    lead: "Dieses Formular verlangt Ihre Unterschrift mit Stift auf Papier. So geht es in vier Schritten:",
+    schritte: [
+      { titel: "Herunterladen und prüfen", text: "Öffnen Sie das Formular und prüfen Sie Ihre Angaben." },
+      { titel: "Ausdrucken, unterschreiben, datieren", text: "Unterschreiben Sie von Hand und tragen Sie das Datum ein." },
+      { titel: "Mit dem Handy als PDF scannen", text: "Bitte als Scan, nicht als Foto." },
+      { titel: "Hier hochladen", text: "Wir prüfen das Formular und reichen es für Sie ein." },
+    ],
+    herunterladen: "Formular öffnen",
+    hilfeIphone: "Anleitung iPhone",
+    hilfeAndroid: "Anleitung Android",
+    waehlen: "PDF auswählen",
+    hochladen: "Unterschriebenes PDF hochladen",
+    laeuft: "Wird hochgeladen …",
+    nurPdf: "Bitte als PDF scannen – Fotos werden nicht angenommen.",
+    zuGross: "Die Datei ist größer als 15 MB. Bitte mit geringerer Auflösung scannen.",
+    fertigTitel: "Danke — angekommen",
+    fertigText: "Ihr unterschriebenes Formular liegt in Ihrem Tresor. Wir kümmern uns um alles Weitere.",
+    knopf: "Von Hand unterschreiben",
+    marke: "von Hand unterschreiben",
+    vorschau: "Vorschau — hochladen kann hier nur der Kunde.",
+    schonUnterschrieben: "Dieses Formular liegt bereits unterschrieben vor.",
+    nichtHandschrift: "Dieses Dokument wird im Portal unterschrieben, nicht als Scan.",
+    nurHandschrift: "Dieses Formular wird von Hand unterschrieben — bitte drucken Sie es aus und laden Sie den Scan als PDF hoch.",
+    verlauf: (titel: string) => `Unterschrieben zurückgegeben: ${titel}.`,
+    verlaufTeam: (titel: string) => `Unterschriebener Scan für den Kunden hochgeladen: ${titel}.`,
+  },
+  en: {
+    titel: "Sign by hand",
+    lead: "This form needs your signature in pen on paper. Here is how, in four steps:",
+    schritte: [
+      { titel: "Download and check", text: "Open the form and check your details." },
+      { titel: "Print, sign and date", text: "Sign by hand and add the date." },
+      { titel: "Scan it as a PDF with your phone", text: "Please as a scan, not a photo." },
+      { titel: "Upload it here", text: "We check the form and file it for you." },
+    ],
+    herunterladen: "Open the form",
+    hilfeIphone: "iPhone guide",
+    hilfeAndroid: "Android guide",
+    waehlen: "Choose PDF",
+    hochladen: "Upload signed PDF",
+    laeuft: "Uploading …",
+    nurPdf: "Please scan it as a PDF – photos cannot be accepted.",
+    zuGross: "The file is larger than 15 MB. Please scan at a lower resolution.",
+    fertigTitel: "Thank you — received",
+    fertigText: "Your signed form is in your vault. We take care of everything else.",
+    knopf: "Sign by hand",
+    marke: "sign by hand",
+    vorschau: "Preview — only the client can upload here.",
+    schonUnterschrieben: "This form has already been signed.",
+    nichtHandschrift: "This document is signed in the portal, not as a scan.",
+    nurHandschrift: "This form is signed by hand — please print it and upload the scan as a PDF.",
+    verlauf: (titel: string) => `Returned signed: ${titel}.`,
+    verlaufTeam: (titel: string) => `Signed scan uploaded for the client: ${titel}.`,
+  },
+};
+
 export const PFLICHT_STAND_TEXT: Record<PflichtStand, Paar> = {
   fehlt: { de: "Wird vorbereitet", en: "Being prepared" },
   vorbereitet: { de: "Wird vorbereitet", en: "Being prepared" },
@@ -149,3 +245,34 @@ export function akteEindeutig(namen: Set<string>, name: string): string {
   for (let i = 2; ; i++) { const n = `${stamm} (${i})${endung}`; if (!namen.has(n)) { namen.add(n); return n; } }
 }
 export const AKTE_ORDNER = { vertraege: "01 Vertraege", rechnungen: "02 Rechnungen", vollmachten: "03 Unterschriften", tresor: "04 Tresor", nachweise: "05 Nachweise aus dem Angebot" } as const;
+
+// ── 5 DIE GLOBAL-AKTE FÜR EIN ANGENOMMENES BEGLEIT-ANGEBOT (22.10.2026) ─────
+// Der Begleitvertrag (IA-BEGLEIT-…, E-312) legt bei der Annahme bewusst nichts an — keine Bestellzeile, keine Rechnung,
+// keine Akte. Die Rechnungen (Unterlagen-Paket, LLC-Gründung, Fast-Track) stellt die Leitung von Hand. Damit Portal,
+// Stationen, Tresor und Rechnungen trotzdem laufen, legt die Leitung die Akte mit einem Klick an („Global-Akte anlegen“).
+// Eine Akte braucht eine Bestellzeile mit derselben Nummer (lageLesen) — der ANKER ist deshalb die älteste nicht
+// stornierte Einzelrechnung der Global-Welt derselben Person (llc_paket, llc_gruendung*, llc_fasttrack). Ohne eine
+// solche Rechnung gibt es noch keine Akte. auftrag_ref am Angebot bleibt leer (der Begleitvertrag soll nie in den
+// Stundenlauf, das Startgespräch oder die Bestätigungsmail des Individualangebots fallen) — verbunden ist über angebot_id.
+export interface AnkerKandidat { ref: string; packKey: string; createdAt: string; paymentStatus: string; cancelled: boolean; merged: boolean; archived: boolean }
+export function begleitAkteAnker(zeilen: AnkerKandidat[]): string | null {
+  const ok = zeilen.filter((z) => !z.merged && !z.archived && !z.cancelled && !["cancelled", "superseded"].includes(String(z.paymentStatus))
+    && globalAkteRechnungGehoertDazu(z.packKey) && globalAkteRechnungArt(z.packKey) === "einzel");
+  ok.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.ref < b.ref ? -1 : 1));
+  return ok[0]?.ref ?? null;
+}
+/** Die Spalten der Akte aus dem Begleit-Angebot — rein, damit der Prüfstand sie nachrechnen kann. */
+export function begleitAkteDaten(a: { fassung: string; kunde: Record<string, any>; parameter: Record<string, any>; schalter: Record<string, any> }): {
+  land: string; firma: Record<string, unknown>; ansprechpartner: Record<string, unknown>; gesellschaft: Record<string, unknown> | null; email: string; name: string;
+} {
+  const k = a.kunde ?? {};
+  const name = [k.vorname, k.nachname].map((x: unknown) => String(x ?? "").trim()).filter(Boolean).join(" ");
+  const land = String(k.land ?? "").trim().toUpperCase() || "DE";
+  const wunsch = String(a.schalter?.llc?.wunsch ?? "").trim();
+  return {
+    land, name, email: String(k.email ?? "").trim().toLowerCase(),
+    firma: { art: "privat", land, name, rechtsform: "", registergericht: null, registernummer: null, strasse: String(k.strasse ?? ""), plz: String(k.plz ?? ""), ort: String(k.ort ?? ""), ustId: null, website: null, quelleRegister: null },
+    ansprechpartner: { anrede: k.anrede ?? "", vorname: String(k.vorname ?? ""), nachname: String(k.nachname ?? ""), funktion: "", email: String(k.email ?? "").trim().toLowerCase(), telefon: String(k.telefon ?? "") },
+    gesellschaft: wunsch ? { name: wunsch, bundesstaat: usBundesstaatCode(a.parameter?.bundesstaat) ?? null, geprueft: false } : null,
+  };
+}

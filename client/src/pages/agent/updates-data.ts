@@ -100,6 +100,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Das passende Dokument (EIN-Bestätigung, ITIN-Bescheid …) lädst du direkt an der Station hoch.",
       "Kontaktperson der Gesellschaft: immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. Vorbelegt aus dem Auftrag, vertraulich.",
       "EIN per Fax (Kunde ohne SSN/ITIN): „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“. Das SS-4 lädst du an der Station zur Unterschrift hoch.",
+      "SS-4 und IRS 8821 unterschreibt der Kunde von Hand (Tinte, Vorgabe des Registered Agent): er druckt, unterschreibt, scannt als PDF und lädt hoch. Fotos nimmt das Portal nicht an. Kommt der Scan per Mail, lädst du ihn an der Station im Namen des Kunden hoch.",
       "„Akte als ZIP“ oben in der Akte: Verträge, alle Rechnungen der Person, unterschriebene Dokumente, Tresor — mit Inhaltsverzeichnis.",
     ],
     howto: [

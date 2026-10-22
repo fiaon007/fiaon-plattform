@@ -95,8 +95,8 @@ abschnitt("3b Kontaktperson (E-424) und EIN per Fax");
 gleich(S.stationTelefonInt("+41 79 123 45 67"), "+41791234567", "internationale Nummer → E.164");
 gleich(S.stationTelefonInt("0041 79 123 45 67"), "+41791234567", "00 statt + erlaubt");
 for (const x of ["079 123 45 67", "+0 123", "+1234567", ""]) ok(S.stationTelefonInt(x) === null, `ohne Landesvorwahl/zu kurz abgelehnt: „${x}“`);
-gleich(S.stationWertePruefen("agent", { kontaktperson: "Simon Widmer", kontaktRolle: "inhaber", kontaktEmail: " Simon@Example.com ", kontaktTelefon: "+41 79 123 45 67" }, HEUTE),
-  { ok: true, werte: { grund: {}, plus: { kontaktperson: "Simon Widmer", kontaktRolle: "inhaber", kontaktEmail: "simon@example.com", kontaktTelefon: "+41791234567" } } }, "Kontaktperson mit Rolle, E-Mail, Telefon");
+gleich(S.stationWertePruefen("agent", { kontaktperson: "Erika Muster", kontaktRolle: "inhaber", kontaktEmail: " Erika@Example.com ", kontaktTelefon: "+41 79 123 45 67" }, HEUTE),
+  { ok: true, werte: { grund: {}, plus: { kontaktperson: "Erika Muster", kontaktRolle: "inhaber", kontaktEmail: "erika@example.com", kontaktTelefon: "+41791234567" } } }, "Kontaktperson mit Rolle, E-Mail, Telefon");
 ok(!S.stationWertePruefen("agent", { kontaktRolle: "fiaon" }, HEUTE).ok && !S.stationWertePruefen("agent", { kontaktEmail: "kein-at" }, HEUTE).ok, "Rolle nur aus der Liste, E-Mail geprüft");
 ok(S.stationKontaktWarnungen("PO Box 12\nZürich", "").length === 1, "Warnung: Postfach");
 ok(S.stationKontaktWarnungen("Regus Virtual Office, Bahnhofstr. 1", "").length >= 1, "Warnung: virtuelles Büro");

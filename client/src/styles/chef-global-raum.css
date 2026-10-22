@@ -344,3 +344,11 @@ em.st-leise { color: var(--cgr-still); }
 .cgr-pflicht li.st-wartet .cgr-schritt-punkt { border-color: var(--cgr-licht); background: rgba(40,141,250,.3); }
 @media (max-width: 760px) { .cgr-pflicht li { grid-template-columns: 12px minmax(0, 1fr); } .cgr-pflicht li > :nth-child(n+3) { grid-column: 2; justify-self: start; } }
 .cgr-pflicht .cgr-mini .cgr-link, .cgr-pflicht .cgr-mini .cgr-leise { font: 500 12px/1 'Inter', sans-serif; }
+
+/* Global-Akte für ein Begleit-Angebot (22.10.2026) */
+.cgr-angebot-huelle { display: flex; flex-direction: column; gap: 6px; }
+.cgr-angebot-knopf { align-self: flex-start; margin: -2px 0 4px 12px; padding: 6px 11px; border-radius: 999px; border: 1px solid rgba(96,165,250,.45); background: rgba(40,141,250,.14); color: #e2e8f0; font: 500 11.5px/1 'Inter', sans-serif; cursor: pointer; }
+.cgr-angebot-knopf:hover { background: rgba(40,141,250,.24); }
+.cgr-angebot-knopf:disabled { opacity: .6; cursor: default; }
+.cgr-angebot-meldung { margin: 0 0 6px 12px; font: 400 11.5px/1.4 'Inter', sans-serif; color: var(--cgr-rot); }
+.cgr-angebot-meldung.gut { color: var(--cgr-gruen); }

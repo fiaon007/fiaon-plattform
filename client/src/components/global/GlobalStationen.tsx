@@ -31,7 +31,7 @@ type T = Record<string, any>;
 export interface StationenDaten {
   schritte: T[]; gesellschaft: T | null; gesellschaftPlus: T | null; kapital: T[];
   /** Dokumente der Akte (für „Dokument zur Station“): id, art, name, url. */
-  dokumente?: { id: number | string; art: string; name?: string; titel?: string; url: string; unterschrift?: { gefordert: boolean; unterschrieben: boolean } }[];
+  dokumente?: { id: number | string; art: string; name?: string; titel?: string; url: string; unterschrift?: { gefordert: boolean; unterschrieben: boolean; modus?: string } }[];
   /** E-424: der Kunde selbst als Kontaktperson — aus dem Auftrag vorbelegt. */
   kontaktVorschlag?: { name: string; email: string; telefon: string; adresse: string; rolle: string } | null;
 }
@@ -456,6 +456,15 @@ function StationDokument({ basis, art, dokumente, onGespeichert, titel, pflichtK
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
   const eingabe = useRef<HTMLInputElement>(null);
+  const scanHochladen = async (id: number | string, f: File | null) => {
+    if (!f) return;
+    const fd = new FormData(); fd.append("datei", f);
+    setLaeuft(true); setMeldung(null);
+    const j = await senden(`${basis}/dokument/${encodeURIComponent(String(id))}/scan`, "POST", fd);
+    setLaeuft(false);
+    setMeldung({ text: j.ok ? "Unterschriebener Scan abgelegt — die Aufgabe ans Team ist angelegt." : String(j.error), gut: j.ok });
+    if (j.ok) onGespeichert();
+  };
   const hochladen = async () => {
     if (!datei) return;
     if (datei.size > 15 * 1024 * 1024) { setMeldung({ text: "Die Datei ist größer als 15 MB.", gut: false }); return; }
@@ -477,7 +486,16 @@ function StationDokument({ basis, art, dokumente, onGespeichert, titel, pflichtK
     <div className="gst-dokument">
       <span className="gst-label">{titel ?? `Dokument · ${globalDokumentArtText(art, "de")}`}</span>
       {dokumente.length > 0 && (
-        <ul>{dokumente.map((d) => <li key={String(d.id)}><a href={d.url} target="_blank" rel="noopener noreferrer">{d.titel || d.name || globalDokumentArtText(art, "de")}</a>{d.unterschrift?.gefordert ? <em className="gst-leise"> · {d.unterschrift.unterschrieben ? "unterschrieben" : "wartet auf Unterschrift"}</em> : null}</li>)}</ul>
+        <ul>{dokumente.map((d) => (
+          <li key={String(d.id)}>
+            <a href={d.url} target="_blank" rel="noopener noreferrer">{d.titel || d.name || globalDokumentArtText(art, "de")}</a>
+            {d.unterschrift?.gefordert ? <em className="gst-leise"> · {d.unterschrift.unterschrieben ? "unterschrieben" : d.unterschrift.modus === "handschriftlich" ? "wartet auf den Scan (von Hand)" : "wartet auf Unterschrift"}</em> : null}
+            {/* Der Kunde hat per Post oder Mail zurückgeschickt: den unterschriebenen Scan in seinem Namen ablegen (nur PDF). */}
+            {d.unterschrift?.gefordert && !d.unterschrift.unterschrieben && d.unterschrift.modus === "handschriftlich" && (
+              <label className="gst-scan">Scan im Namen des Kunden<input type="file" accept="application/pdf,.pdf" onChange={(e) => void scanHochladen(d.id, e.target.files?.[0] ?? null)} /></label>
+            )}
+          </li>
+        ))}</ul>
       )}
       <div className="gst-dokument-zeile">
         <input ref={eingabe} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/jpeg,image/png,image/heic" onChange={(e) => setDatei(e.target.files?.[0] ?? null)} aria-label={`${globalDokumentArtText(art, "de")} hochladen`} />

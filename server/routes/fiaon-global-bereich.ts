@@ -303,6 +303,25 @@ router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Respo
 });
 
 // E-338: Der Kunde unterschreibt ein angefordertes PDF (Vollmacht u. a.). In der Vorschau der Leitung nie.
+// 22.10.2026: Von Hand unterschrieben — der Scan als PDF (IRS SS-4/8821). Zutritt → Vorschau-Wand → Drossel → Körper → nur PDF.
+router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan", (req: Request, res: Response, next: NextFunction) => {
+  const ref = zutritt(req, res);
+  if (!ref) return;
+  if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hochladen kann hier nur der Kunde." });
+  if (uploadJeRef(ref) || uploadJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
+  next();
+}, dateiAnnehmen("sie"), async (req: Request, res: Response) => {
+  try {
+    const { globalScanHochladen } = await import("../lib/fiaon-global-akte-komplett");
+    const erg = await globalScanHochladen(String(req.params.ref).trim(), req.params.id, dateiAus(req), { kunde: { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300) } });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: erg.meldung, id: erg.id });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] scan hochladen:", err);
+    res.status(500).json({ ok: false, error: "Das Formular konnte gerade nicht gespeichert werden. Bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+
 router.post("/global/mein-auftrag/:ref/unterschrift/:id", async (req: Request, res: Response) => {
   try {
     const ref = zutritt(req, res);
@@ -591,6 +610,23 @@ router.get("/agent/global/auftraege/:ref/akte.zip", requireAgent, async (req: Ag
     if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+// Den von Hand unterschriebenen Scan im Namen des Kunden hochladen (nur PDF).
+router.post("/agent/global/auftraege/:ref/dokument/:id/scan", requireAgent, async (req: AgentRequest, res: Response, next: NextFunction) => {
+  try {
+    const z = await office(req, res, true);
+    if (!z) return;
+    (req as any).globalOffice = z;
+    next();
+  } catch (err) { console.error("[GLOBAL-BEREICH] office scan (Zugriff):", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+}, dateiAnnehmen("du"), async (req: AgentRequest, res: Response) => {
+  try {
+    const z = (req as any).globalOffice as { ref: string; agent: BereichAgent };
+    const { globalScanHochladen } = await import("../lib/fiaon-global-akte-komplett");
+    const erg = await globalScanHochladen(z.ref, req.params.id, dateiAus(req), { team: z.agent });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json(erg);
+  } catch (err) { console.error("[GLOBAL-BEREICH] office scan:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
 router.post("/agent/global/auftraege/:ref/kapital", requireAgent, aktion("kapital", async (ref, b, agent) => (await import("../lib/fiaon-global-mandat")).globalKapitalSpeichern(ref, b, agent)));
 router.delete("/agent/global/auftraege/:ref/kapital/:id", requireAgent, aktion("kapital entfernen", async (ref, _b, agent, req) => (await import("../lib/fiaon-global-mandat")).globalKapitalEntfernen(ref, req.params.id, agent)));
 router.post("/agent/global/auftraege/:ref/notiz", requireAgent, aktion("notiz", (ref, b, agent) => globalNotizSchreiben(ref, { text: b.text, sichtbar: b.sichtbar }, agent)));
@@ -627,7 +663,7 @@ router.post("/agent/global/auftraege/:ref/dokument", requireAgent, async (req: A
     if (wahr(req.body?.unterschrift) || req.body?.pflichtKey) {
       const { globalDokumentZurUnterschrift } = await import("../lib/fiaon-global-akte-komplett");
       const id = Number((erg as any).dokument?.id);
-      const u = Number.isInteger(id) && id > 0 ? await globalDokumentZurUnterschrift(z.ref, id, req.body?.pflichtKey || null, z.agent) : { ok: false as const, status: 500, error: "Dokument ohne Nummer." };
+      const u = Number.isInteger(id) && id > 0 ? await globalDokumentZurUnterschrift(z.ref, id, req.body?.pflichtKey || null, z.agent, req.body?.unterschriftArt) : { ok: false as const, status: 500, error: "Dokument ohne Nummer." };
       if (!u.ok) return res.status(u.status).json({ ok: false, error: `Abgelegt — aber nicht zur Unterschrift gestellt: ${u.error}` });
     }
     res.json(erg);

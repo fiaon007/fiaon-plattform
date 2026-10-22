@@ -1619,6 +1619,9 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     tipp: "Kontaktperson (Station Registered Agent): immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. "
       + "Sie ist aus dem Auftrag vorbelegt; die Wohnanschrift darf kein Postfach, kein virtuelles Büro und keine Agent-Adresse sein (die Karte warnt). "
       + "EIN ohne SSN/ITIN: Status „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“; das SS-4 lädst du an der Station zur Unterschrift hoch. "
+      + "Das SS-4 (und IRS 8821) unterschreibt der Kunde VON HAND: ausdrucken, unterschreiben, datieren, als PDF scannen, hochladen — "
+      + "schickt er es dir per Mail, lädst du den Scan an der Station „im Namen des Kunden“ hoch (nur PDF). Dann kommt die Aufgabe, "
+      + "das SS-4 an das Ablageteam des Registered Agent zurückzuschicken. "
       + "Die ITIN wird verschlüsselt gespeichert und überall maskiert gezeigt (•••-••-1234). „Anzeigen“ zeigt sie dir 20 Sekunden "
       + "lang — das steht intern im Verlauf. Felder mit „intern“ (Kontoinstitut, Anbieter des Registered Agent) sieht der Kunde nie; "
       + "in die Adresse des Agents gehört nur die Anschrift, kein Anbietername.",

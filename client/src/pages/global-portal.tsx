@@ -37,6 +37,9 @@ import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-
 import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
 // 22.10.2026: die neue Navigation — Glasleiste mit Themen und Panel, am Telefon ein ganzseitiges Menü.
 import PortalNav, { type NavGruppe } from "./global-portal-nav";
+// 22.10.2026: von Hand unterschreiben (IRS-Formulare) — ausdrucken, unterschreiben, als PDF scannen, hochladen.
+import HandschriftDialog from "./global-portal-handschrift";
+import { HANDSCHRIFT_WOERTER } from "@shared/fiaon-global-akte";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
 const GlobalFach = lazy(() => import("./global-portal-fach"));
 // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Zusatzdienste per Klick — Texte und Preise aus shared/fiaon-global-zusatz.ts.
@@ -511,7 +514,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   if (a.status === "offen" && a.zahlung?.zahlungsseite) tun.push({ key: "zahlung", Icon: Landmark, ton: "navy", titel: t.zahlungOffenTitel, text: t.zahlungOffenText, knopf: t.zurZahlung, href: a.zahlung.zahlungsseite });
   for (const d of zuUnterschreiben) {
     const p = ((pflicht?.eintraege ?? []) as T[]).find((e) => e.dokumentId === d.id);
-    tun.push({ key: `u${d.id}`, Icon: FileSignature, ton: "blau", titel: p ? w.pflichtTun(p.titel) : w.unterschriftTitel(d.titel || d.artText), text: p?.text || w.unterschriftText, knopf: w.unterschreiben, aktion: () => setDialog(d) });
+    tun.push({ key: `u${d.id}`, Icon: FileSignature, ton: "blau", titel: p ? w.pflichtTun(p.titel) : w.unterschriftTitel(d.titel || d.artText), text: p?.text || w.unterschriftText, knopf: d.unterschrift?.modus === "handschriftlich" ? HANDSCHRIFT_WOERTER[s].knopf : w.unterschreiben, aktion: () => setDialog(d) });
   }
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
@@ -638,7 +641,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       unter={[d.titel ? d.name : (d.artText ? d.name : ""), d.von === "kunde" ? t.vonIhnen : t.vonFiaon, tagKurz(d.am), kb(d.groesse)].filter(Boolean).join(" · ")}
       href={mitToken(`/dokument/${encodeURIComponent(String(d.id))}`)}
       marke={d.unterschrift?.gefordert ? (d.unterschrift.unterschrieben ? { text: w.unterschrieben(tagKurz(d.unterschrift.am)), ton: "gruen" } : { text: w.wartet, ton: "blau" }) : (d.von !== "kunde" && !d.gelesen ? { text: w.neu, ton: "blau" } : undefined)}
-      aktion={d.unterschrift?.gefordert && !d.unterschrift.unterschrieben ? { text: w.unterschreiben, los: () => setDialog(d) } : undefined} />
+      aktion={d.unterschrift?.gefordert && !d.unterschrift.unterschrieben ? { text: d.unterschrift.modus === "handschriftlich" ? HANDSCHRIFT_WOERTER[s].knopf : w.unterschreiben, los: () => setDialog(d) } : undefined} />
   ));
 
   return (
@@ -1148,7 +1151,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                     <li key={e.key} className={`st-${e.stand}`}>
                       <span className="gp-pflicht-punkt" aria-hidden="true">{e.stand === "unterschrieben" ? <Check size={13} strokeWidth={2.6} /> : null}</span>
                       <div><b>{e.titel}</b>{e.text && <small>{e.text}</small>}</div>
-                      {e.stand === "wartet" && d ? <button type="button" className="gp-knopf klein" onClick={() => setDialog(d)}><PenLine size={13} /> {w.unterschreiben}</button>
+                      {e.stand === "wartet" && d ? <button type="button" className="gp-knopf klein" onClick={() => setDialog(d)}><PenLine size={13} /> {e.modus === "handschriftlich" ? HANDSCHRIFT_WOERTER[s].knopf : w.unterschreiben}</button>
                         : <span className={`gp-marke ${e.stand === "unterschrieben" ? "gruen" : ""}`}>{e.stand === "unterschrieben" ? (s === "en" ? "Signed" : "Unterschrieben") : (s === "en" ? "Being prepared" : "Wird vorbereitet")}</span>}
                     </li>
                   );
@@ -1241,7 +1244,15 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
 
       <footer className="gp-fuss"><Lock size={12} /> {w.fusszeile}</footer>
 
-      {dialog && (
+      {/* 22.10.2026: Von Hand zu unterschreibende Formulare (IRS SS-4/8821) bekommen NIE ein Zeichenfeld — vier Schritte bis zum PDF-Scan. */}
+      {dialog && dialog.unterschrift?.modus === "handschriftlich" && (
+        <HandschriftDialog dok={dialog} s={s} vorschau={vorschau}
+          titel={((pflicht?.eintraege ?? []) as T[]).find((e) => e.dokumentId === dialog.id)?.titel ?? (dialog.titel || dialog.artText)}
+          oeffnenUrl={mitToken(`/dokument/${encodeURIComponent(String(dialog.id))}`)}
+          sendenUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}/scan`)}
+          onFertig={() => void laden()} onZu={() => setDialog(null)} />
+      )}
+      {dialog && dialog.unterschrift?.modus !== "handschriftlich" && (
         <UnterschriftDialog dok={dialog} s={s} vorschau={vorschau} gruss={vollerName}
           url={mitToken(`/dokument/${encodeURIComponent(String(dialog.id))}`)}
           sendenUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}`)}

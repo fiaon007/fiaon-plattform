@@ -27,8 +27,10 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { sqlPool } from "./db-pool";
 import {
   AKTE_ORDNER, AKTE_STATUS_TEXT, akteDateiname, akteEindeutig, globalAkteRechnungArt, globalAkteRechnungGehoertDazu, globalAkteRechnungStatus,
-  globalAkteRechnungTitel, globalPflichtFuer, globalPflichtStand, globalPflichtUnterlage, type AkteSprache,
+  globalAkteRechnungTitel, globalPflichtFuer, globalPflichtStand, globalPflichtUnterlage, begleitAkteAnker, begleitAkteDaten, type AkteSprache,
+  HANDSCHRIFT_WOERTER, istBildInhalt, istPdfInhalt, unterschriftModus, type UnterschriftModus,
 } from "@shared/fiaon-global-akte";
+import { createHash } from "node:crypto";
 
 type Fuer = "kunde" | "team";
 const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString() : null);
@@ -44,18 +46,18 @@ export function ensureAkteKomplett(): Promise<void> {
       await ensureGlobalMandat();
       await sqlPool.begin(async (tx: any) => {
         await tx`SET LOCAL lock_timeout = '3s'`;
-        await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB`;
+        await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB, ADD COLUMN IF NOT EXISTS unterschrift_art TEXT`;
       });
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
 }
 
-interface Mandat { ref: string; personId: number | null; email: string | null; sprache: AkteSprache; fassung: string | null; name: string; gesellschaft: string; vertrag: boolean; gegruendet: boolean }
+interface Mandat { ref: string; personId: number | null; email: string | null; sprache: AkteSprache; fassung: string | null; name: string; gesellschaft: string; vertrag: boolean; gegruendet: boolean; angebotId: number | null }
 async function mandatLesen(ref: string): Promise<Mandat | null> {
   await ensureAkteKomplett();
   const [g] = (await sqlPool`
-    SELECT g.ref, g.person_id, g.email, g.vertrag_sprache, g.ansprechpartner, g.gesellschaft, g.firma_name, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag, a.fassung
+    SELECT g.ref, g.person_id, g.email, g.vertrag_sprache, g.ansprechpartner, g.gesellschaft, g.firma_name, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag, a.fassung, g.angebot_id
       FROM fiaon_global_auftraege g LEFT JOIN fiaon_global_angebote a ON a.id = g.angebot_id
      WHERE g.ref = ${ref} LIMIT 1`) as any[];
   if (!g) return null;
@@ -66,6 +68,7 @@ async function mandatLesen(ref: string): Promise<Mandat | null> {
     sprache: String(g.vertrag_sprache ?? "").toLowerCase() === "en" ? "en" : "de", fassung: g.fassung ? String(g.fassung) : null,
     name: [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || String(ap.name ?? g.firma_name ?? "").trim(),
     gesellschaft: String(ges.name ?? g.firma_name ?? "").trim(), vertrag: !!g.hat_vertrag, gegruendet: !!ges.gegruendetAm,
+    angebotId: g.angebot_id != null ? Number(g.angebot_id) : null,
   };
 }
 
@@ -123,7 +126,8 @@ async function angeboteRoh(m: Mandat): Promise<{ id: number; angebotRef: string;
        AND (auftrag_ref = ${m.ref} OR (${m.personId}::int IS NOT NULL AND person_id = ${m.personId}::int))
      ORDER BY angenommen_am ASC NULLS LAST, id ASC`) as any[];
   // Kooperationsverträge gehören zum Geschäftspartner, nicht zur Kundenakte (E-423).
-  return zeilen.filter((z) => !/^IA-KOOP/i.test(String(z.fassung ?? ""))).map((z) => ({ id: Number(z.id), angebotRef: String(z.angebot_ref), fassung: String(z.fassung ?? ""), angenommenAm: iso(z.angenommen_am) }));
+  // Das Angebot der Akte selbst steht schon als „Ihr Auftrag (Vertrag)“ da (dasselbe PDF) — nicht doppelt.
+  return zeilen.filter((z) => !/^IA-KOOP/i.test(String(z.fassung ?? "")) && !(m.vertrag && m.angebotId === Number(z.id))).map((z) => ({ id: Number(z.id), angebotRef: String(z.angebot_ref), fassung: String(z.fassung ?? ""), angenommenAm: iso(z.angenommen_am) }));
 }
 export async function globalAkteVertraege(ref: string, url: (art: "auftrag" | number) => string): Promise<Record<string, unknown>[]> {
   const m = await mandatLesen(ref);
@@ -158,8 +162,9 @@ export async function globalPflichtSicht(ref: string, fuer: Fuer): Promise<Recor
   const m = await mandatLesen(ref);
   if (!m) return null;
   const doks = (await sqlPool`
-    SELECT id, pflicht_key, titel, dateiname, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, unterschrift_von_id
+    SELECT id, pflicht_key, titel, dateiname, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, unterschrift_von_id, unterschrift_art
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL AND (pflicht_key IS NOT NULL OR unterschrift_gefordert)`) as any[];
+  const modusVon = new Map(doks.map((d) => [Number(d.id), unterschriftModus(d.pflicht_key, d.unterschrift_art)]));
   const liste = globalPflichtFuer(m.fassung, { gegruendet: m.gegruendet, bereit: doks.map((d) => String(d.pflicht_key ?? "")).filter(Boolean) });
   const stand = globalPflichtStand(liste, doks
     .filter((d) => fuer === "team" || d.sichtbar_fuer_kunde)
@@ -172,7 +177,8 @@ export async function globalPflichtSicht(ref: string, fuer: Fuer): Promise<Recor
     vollstaendig: stand.vollstaendig, offen: stand.offen, ...(fuer === "team" ? { gegruendet: m.gegruendet } : {}),
     eintraege: stand.eintraege.map((e) => {
       const p = globalPflichtUnterlage(e.key);
-      return { key: e.key, titel: p ? p.titel[m.sprache] : (e.titel || (m.sprache === "en" ? "Document" : "Dokument")), text: p ? p.text[m.sprache] : "", art: p?.art ?? null, formular: !!p, stand: e.stand, dokumentId: e.dokumentId };
+      return { key: e.key, titel: p ? p.titel[m.sprache] : (e.titel || (m.sprache === "en" ? "Document" : "Dokument")), text: p ? p.text[m.sprache] : "", art: p?.art ?? null, formular: !!p, stand: e.stand, dokumentId: e.dokumentId,
+        modus: p ? p.modus : (e.dokumentId != null ? modusVon.get(e.dokumentId) ?? "digital" : "digital") };
     }),
   };
 }
@@ -186,7 +192,7 @@ export async function globalPflichtZuordnen(ref: string, dokumentId: number, key
   await ensureAkteKomplett();
   const p = keyRoh ? globalPflichtUnterlage(keyRoh) : null;
   if (keyRoh && !p) return nein(400, "Dieses Formular gibt es nicht.");
-  await sqlPool`UPDATE fiaon_global_dokumente SET pflicht_key = ${p?.key ?? null} WHERE id = ${dokumentId} AND ref = ${ref}`;
+  await sqlPool`UPDATE fiaon_global_dokumente SET pflicht_key = ${p?.key ?? null}, unterschrift_art = COALESCE(${p?.modus ?? null}, unterschrift_art) WHERE id = ${dokumentId} AND ref = ${ref}`;
   return { ok: true };
 }
 
@@ -194,12 +200,13 @@ export async function globalPflichtZuordnen(ref: string, dokumentId: number, key
  * Ein abgelegtes PDF zur Unterschrift stellen (Office-Weg; das Chefbüro kann das beim Hochladen selbst) und optional einer
  * Pflichtunterlage zuordnen — z. B. das Formular SS-4 an der Station EIN. Der Kunde sieht es unter „Für Sie zu tun“.
  */
-export async function globalDokumentZurUnterschrift(ref: string, dokumentId: number, pflichtKeyRoh: unknown, agent: { id: number; name: string }): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+export async function globalDokumentZurUnterschrift(ref: string, dokumentId: number, pflichtKeyRoh: unknown, agent: { id: number; name: string }, modusRoh?: unknown): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   await ensureAkteKomplett();
   const p = pflichtKeyRoh ? globalPflichtUnterlage(pflichtKeyRoh) : null;
   if (pflichtKeyRoh && !p) return nein(400, "Dieses Formular gibt es nicht.");
   const [d] = (await sqlPool`
-    UPDATE fiaon_global_dokumente SET unterschrift_gefordert = TRUE, sichtbar_fuer_kunde = TRUE, pflicht_key = COALESCE(${p?.key ?? null}, pflicht_key)
+    UPDATE fiaon_global_dokumente SET unterschrift_gefordert = TRUE, sichtbar_fuer_kunde = TRUE, pflicht_key = COALESCE(${p?.key ?? null}, pflicht_key),
+           unterschrift_art = ${p ? p.modus : (String(modusRoh ?? "") === "handschriftlich" ? "handschriftlich" : "digital")}
      WHERE id = ${dokumentId} AND ref = ${ref} AND geloescht_am IS NULL AND mime = 'application/pdf' RETURNING titel, art, dateiname`) as any[];
   if (!d) return nein(400, "Eine Unterschrift lässt sich nur für ein PDF anfordern.");
   const m = await mandatLesen(ref);
@@ -309,4 +316,115 @@ export async function globalAkteZip(ref: string, fuer: Fuer, res: Response, wer:
     const { verlaufSchreiben } = await import("./fiaon-global-bereich");
     await verlaufSchreiben(ref, { art: "akte_zip", text: `${fuer === "kunde" ? "Kunde hat im Portal alle Unterlagen" : `Akte komplett (${wer.name})`} als ZIP heruntergeladen — ${verzeichnis.length} Dateien${fehlend.length ? `, ${fehlend.length} nicht lesbar` : ""}.`, sichtbar: false, agentId: wer.agentId });
   }
+}
+
+// ── 5 GLOBAL-AKTE FÜR EIN ANGENOMMENES BEGLEIT-ANGEBOT (Chef-Knopf, wiederholbar) ──
+function jsonLesen(v: unknown): Record<string, any> {
+  if (v && typeof v === "object" && !Buffer.isBuffer(v)) return v as Record<string, any>;
+  try { const x = JSON.parse(String(v ?? "")); return (typeof x === "string" ? JSON.parse(x) : x) ?? {}; } catch { return {}; }
+}
+export async function globalBegleitAkteAnlegen(angebotId: number, agent: { id: number; name: string }): Promise<{ ok: true; ref: string; schon: boolean; meldung: string } | { ok: false; status: number; error: string }> {
+  await ensureAkteKomplett();
+  const [a] = (await sqlPool`
+    SELECT id, angebot_ref, fassung, status, person_id, kunde, parameter, schalter, vertrag_pdf, text_hash, angenommen_am, ip, user_agent
+      FROM fiaon_global_angebote WHERE id = ${angebotId} LIMIT 1`) as any[];
+  if (!a) return nein(404, "Dieses Angebot gibt es nicht.");
+  if (!/^IA-BEGLEIT-/i.test(String(a.fassung ?? ""))) return nein(400, "Nur für Begleitverträge — die anderen Angebote legen ihre Akte bei der Annahme selbst an.");
+  if (String(a.status) !== "angenommen") return nein(409, "Das Angebot ist noch nicht angenommen.");
+  const [da] = (await sqlPool`SELECT ref FROM fiaon_global_auftraege WHERE angebot_id = ${angebotId} LIMIT 1`) as any[];
+  if (da) return { ok: true, ref: String(da.ref), schon: true, meldung: `Die Global-Akte gibt es schon (${da.ref}).` };
+  const daten = begleitAkteDaten({ fassung: String(a.fassung), kunde: jsonLesen(a.kunde), parameter: jsonLesen(a.parameter), schalter: jsonLesen(a.schalter) });
+  const personId = a.person_id != null ? Number(a.person_id) : null;
+  const kandidaten = (await sqlPool`
+    SELECT ref, pack_key, created_at, payment_status, cancelled_at, merged_into, archived_at FROM fiaon_applications
+     WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int) OR (${daten.email || null}::text IS NOT NULL AND lower(trim(email)) = ${daten.email || null}::text)`) as any[];
+  const anker = begleitAkteAnker(kandidaten.map((z) => ({
+    ref: String(z.ref), packKey: String(z.pack_key ?? ""), createdAt: new Date(z.created_at).toISOString(), paymentStatus: String(z.payment_status ?? ""),
+    cancelled: !!z.cancelled_at, merged: !!z.merged_into, archived: !!z.archived_at,
+  })));
+  if (!anker) return nein(409, "Für diesen Kunden gibt es noch keine Rechnung zum Begleitvertrag (Unterlagen-Paket, LLC-Gründung oder Fast-Track). Die Akte hängt an einer solchen Rechnung — bitte zuerst die Rechnung anlegen.");
+  const [besetzt] = (await sqlPool`SELECT ref, angebot_id FROM fiaon_global_auftraege WHERE ref = ${anker} LIMIT 1`) as any[];
+  if (besetzt) return nein(409, `Die Rechnung ${anker} trägt schon eine Global-Akte (Angebot ${besetzt.angebot_id ?? "—"}). Bitte im Chefbüro prüfen.`);
+  const { ANGEBOT_PAKET_KEY } = await import("./fiaon-global-angebot");
+  const sch = jsonLesen(a.schalter);
+  const bestaetigungen = { annahme: "Auftrag zahlungspflichtig erteilen", begleitvertrag: true, am: a.angenommen_am ? new Date(a.angenommen_am).toISOString() : null,
+    sofortBeginn: sch.sofortBeginn === true, jahresbetreuungGewaehlt: sch.jahresbetreuung === true, aktePerKnopf: { von: agent.name, am: new Date().toISOString() } };
+  // Status „gestartet“: Der Begleitvertrag läuft (Justin führt den Kunden persönlich) — keine Zahlungserinnerung des
+  // Global-Wegs an einer Einzelrechnung, keine Startmail. Jahresbetreuung bleibt aus (ihre Rechnung stellt die Leitung von Hand).
+  await sqlPool`
+    INSERT INTO fiaon_global_auftraege
+      (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_pdf, vertrag_version, vertrag_sprache, unterschrieben_am, ip, user_agent,
+       quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, angebot_id, person_id, gesellschaft)
+    VALUES
+      (${anker}, ${ANGEBOT_PAKET_KEY}, ${daten.land}, ${sqlPool.json(daten.firma as any)}, ${sqlPool.json(daten.ansprechpartner as any)}, ${sqlPool.json(bestaetigungen as any)},
+       ${a.vertrag_pdf ?? null}, ${String(a.fassung)}, 'de', ${a.angenommen_am ?? null}, ${a.ip ?? null}, ${a.user_agent ?? null},
+       'individualangebot', 'gestartet', ${a.text_hash ?? null}, ${daten.name || null}, ${daten.email || null}, 'none', ${angebotId}, ${personId},
+       ${daten.gesellschaft ? sqlPool.json(daten.gesellschaft as any) : null})
+    ON CONFLICT (ref) DO NOTHING`;
+  const [neu] = (await sqlPool`SELECT ref, angebot_id FROM fiaon_global_auftraege WHERE ref = ${anker} LIMIT 1`) as any[];
+  if (!neu || Number(neu.angebot_id) !== angebotId) return nein(409, "Die Akte ließ sich nicht anlegen — die Rechnung wurde gerade anders vergeben. Bitte neu laden.");
+  const { verlaufSchreiben } = await import("./fiaon-global-bereich");
+  await verlaufSchreiben(anker, { art: "akte", text: `Global-Akte zum Begleitvertrag ${a.angebot_ref} angelegt (${agent.name}); Anker: Rechnung ${anker}.`, sichtbar: false, agentId: agent.id || null });
+  console.log(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Akte ${anker} angelegt (${agent.name})`);
+  return { ok: true, ref: anker, schon: false, meldung: `Global-Akte ${anker} angelegt. Das neue Portal schaltet der Inhaber im Mandat frei.` };
+}
+
+// ── 6 VON HAND UNTERSCHRIEBEN: DER SCAN ALS PDF (22.10.2026) ─────────────────
+// Unser Registered-Agent-Partner verlangt für das IRS-Formular SS-4 (Kunden ohne SSN/ITIN) eine Unterschrift mit Tinte.
+// Der Kunde druckt, unterschreibt und datiert von Hand, scannt als PDF und lädt hoch — oder das Team lädt den Scan in
+// seinem Namen hoch. Angenommen wird NUR ein PDF (Kopf %PDF-, nicht die Endung); ein Foto bekommt einen freundlichen Satz.
+// Der Scan wird die unterschriebene Fassung (unterschrift_von_id → Original), das Original gilt als unterschrieben, der
+// Nachweis steht in unterschrift_nachweis. Verlauf für den Kunden, Aufgabe ans Team (SS-4: an den Registered Agent zurück).
+export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { buffer: Buffer; originalname: string } | null,
+  wer: { kunde: { ip: string; userAgent: string } } | { team: { id: number; name: string } }): Promise<{ ok: true; meldung: string; id: number } | { ok: false; status: number; error: string }> {
+  await ensureAkteKomplett();
+  const { lageLesen, dokumentSpeichern, verlaufSchreiben } = await import("./fiaon-global-bereich");
+  const l = await lageLesen(ref);
+  if (!l) return nein(404, "Diesen Auftrag gibt es nicht.");
+  const s = l.sprache === "en" ? "en" : "de"; const W = HANDSCHRIFT_WOERTER[s];
+  const id = Number(idRoh);
+  const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
+    SELECT id, art, titel, dateiname, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, pflicht_key, unterschrift_art
+      FROM fiaon_global_dokumente WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL LIMIT 1`) as any[]) : [];
+  if (!d || !d.unterschrift_gefordert || !d.sichtbar_fuer_kunde) return nein(404, s === "en" ? "This document is not waiting for your signature." : "Dieses Dokument wartet nicht auf Ihre Unterschrift.");
+  if (unterschriftModus(d.pflicht_key, d.unterschrift_art) !== "handschriftlich") return nein(409, W.nichtHandschrift);
+  if (d.unterschrieben_am) return nein(409, W.schonUnterschrieben);
+  if (!datei?.buffer?.length) return nein(400, W.nurPdf);
+  if (datei.buffer.length > 15 * 1024 * 1024) return nein(400, W.zuGross);
+  // Ein Foto (JPEG, PNG, HEIC) oder sonst etwas, das kein PDF ist: derselbe freundliche Satz — „als PDF scannen“.
+  if (!istPdfInhalt(datei.buffer.subarray(0, 8))) {
+    if (istBildInhalt(datei.buffer.subarray(0, 16))) console.log(`[GLOBAL-AKTE] ${ref}: Foto statt PDF-Scan abgelehnt (Dokument ${id}).`);
+    return nein(400, W.nurPdf);
+  }
+  const p = globalPflichtUnterlage(d.pflicht_key);
+  const titel = p ? p.titel[s] : String(d.titel || d.dateiname);
+  const kunde = "kunde" in wer;
+  const basis = String(d.dateiname).replace(/\.pdf$/i, "");
+  const neu = await dokumentSpeichern({ ref, von: kunde ? "kunde" : "fiaon", art: String(d.art), dateiname: `${basis}_${s === "en" ? "signed" : "unterschrieben"}.pdf`, mime: "application/pdf", inhalt: datei.buffer, sichtbar: true, agentId: kunde ? null : (wer as any).team.id || null });
+  const nachweis = {
+    art: "handschriftlich_scan", hochgeladen_von: kunde ? "kunde" : "team", ...(kunde ? { ip: (wer as any).kunde.ip, user_agent: (wer as any).kunde.userAgent } : { mitarbeiter: (wer as any).team.name }),
+    sha256: createHash("sha256").update(datei.buffer).digest("hex"), am: new Date().toISOString(), original_id: id, dateiname_hochgeladen: String(datei.originalname || "").slice(0, 160),
+  };
+  await sqlPool`UPDATE fiaon_global_dokumente SET titel = ${`${titel} — ${s === "en" ? "signed (scan)" : "unterschrieben (Scan)"}`}, unterschrift_von_id = ${id}, unterschrieben_am = NOW(),
+                       unterschrift_art = 'handschriftlich', kunde_gelesen_am = NOW(), unterschrift_nachweis = ${sqlPool.json(nachweis as any)} WHERE id = ${neu.id} AND ref = ${ref}`;
+  const [gesetzt] = (await sqlPool`UPDATE fiaon_global_dokumente SET unterschrieben_am = NOW(), unterschrift_nachweis = ${sqlPool.json(nachweis as any)}
+                       WHERE id = ${id} AND ref = ${ref} AND unterschrieben_am IS NULL RETURNING id`) as any[];
+  if (!gesetzt) return nein(409, W.schonUnterschrieben);
+  await verlaufSchreiben(ref, { art: "unterschrift", text: kunde ? W.verlauf(titel) : W.verlaufTeam(titel), sichtbar: true, von: kunde ? "kunde" : "fiaon", agentId: kunde ? null : (wer as any).team.id || null });
+  // Die Aufgabe ans Team: beim SS-4 der Weg zurück an das Ablageteam unseres Registered-Agent-Partners.
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const { globalEinstellungen } = await import("./fiaon-global-auftrag");
+    const ss4 = d.pflicht_key === "irs_ss4";
+    await auftragFuerKunden({
+      personId: l.b?.person_id != null ? Number(l.b.person_id) : null, ref,
+      titel: ss4 ? `SS-4 unterschrieben – an den Registered Agent (Ablageteam) per E-Mail zurücksenden — ${l.akte.firma_name || ref}` : `${p ? p.titel.de : "Dokument"} unterschrieben zurück — ${l.akte.firma_name || ref}`,
+      text: `${kunde ? "Der Kunde hat" : "Im Namen des Kunden wurde"} „${p ? p.titel.de : String(d.titel || d.dateiname)}“ von Hand unterschrieben als PDF hochgeladen. Der Scan liegt im Tresor (Akte komplett).${ss4 ? " Bitte das unterschriebene SS-4 per E-Mail an das Ablageteam des Registered Agent zurückschicken; danach Station EIN auf „Eingereicht (Fax)“ setzen." : " Bitte prüfen."}`,
+      schluessel: `global:${ref}:scan:${id}`, bereich: "konten", quelle: "global", autorName: "FIAON Global", dringend: ss4,
+      link: `/chef/global?mandat=${encodeURIComponent(ref)}`,
+      agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      anlageText: "Unterschriebener Scan im Portal hochgeladen.",
+    });
+  } catch (e) { console.error(`[GLOBAL-AKTE] ${ref}: Aufgabe zum Scan nicht angelegt:`, e); }
+  return { ok: true, id: neu.id, meldung: kunde ? W.fertigText : "Scan als unterschriebene Fassung abgelegt — Aufgabe ist angelegt." };
 }

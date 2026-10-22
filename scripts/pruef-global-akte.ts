@@ -70,6 +70,49 @@ const alle = L.map((p, i) => ({ id: i + 1, pflichtKey: p.key, unterschriftGeford
 gleich([st(alle).vollstaendig, st(alle).offen], [true, 0], "alles unterschrieben: vollständig (grün)");
 gleich(A.globalPflichtStand([], []).vollstaendig, false, "nichts zu unterschreiben ist nie „vollständig“");
 
+// ═══ 2b VON HAND UNTERSCHREIBEN (SS-4, 8821) ══════════════════════════════════
+abschnitt("2b Von Hand unterschreiben");
+ok(A.GLOBAL_PFLICHT_UNTERLAGEN.every((p) => p.modus === "handschriftlich"), "IRS SS-4 und 8821: immer von Hand (Tinte, Registered Agent)");
+gleich([A.unterschriftModus("irs_ss4", "digital"), A.unterschriftModus(null, "handschriftlich"), A.unterschriftModus(null, null), A.unterschriftModus(null, "quatsch")], ["handschriftlich", "handschriftlich", "digital", "digital"], "Modus: Formular gewinnt immer, sonst gespeichert, Vorgabe digital");
+const pdfKopf = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37];
+ok(A.istPdfInhalt(pdfKopf) && !A.istPdfInhalt([0xff, 0xd8, 0xff, 0xe0, 0, 0]) && !A.istPdfInhalt([]) && !A.istPdfInhalt(null), "nur ein PDF-Kopf (%PDF-) zählt");
+ok(A.istBildInhalt([0xff, 0xd8, 0xff, 0xe0]) && A.istBildInhalt([0x89, 0x50, 0x4e, 0x47]) && A.istBildInhalt([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]) && !A.istBildInhalt(pdfKopf), "JPEG, PNG, HEIC als Foto erkannt");
+for (const sp of ["de", "en"] as const) {
+  const W = A.HANDSCHRIFT_WOERTER[sp];
+  ok(W.schritte.length === 4, `${sp}: vier Schritte`);
+  ok(sp === "de" ? W.nurPdf === "Bitte als PDF scannen – Fotos werden nicht angenommen." : /PDF/.test(W.nurPdf), `${sp}: der Satz für Fotos`);
+}
+{
+  const { wandPruefen } = await import("../shared/fiaon-wortverbote");
+  const { GLOBAL_SCHAERFER, globalWortPruefenEn } = await import("../shared/fiaon-global-wortregeln");
+  const sammeln = (o: unknown, aus: string[]) => { if (typeof o === "string") aus.push(o); else if (typeof o === "function") aus.push(String((o as (x: string) => string)("Formular"))); else if (o && typeof o === "object") Object.values(o).forEach((x) => sammeln(x, aus)); };
+  const de: string[] = []; const en: string[] = []; sammeln(A.HANDSCHRIFT_WOERTER.de, de); sammeln(A.HANDSCHRIFT_WOERTER.en, en);
+  for (const t of de) { const f = [...wandPruefen(t, ["aufgabe_an_betreuer"]).map((x) => x.hinweis), ...GLOBAL_SCHAERFER.filter((r) => r.muster.test(t)).map((r) => r.grund)]; ok(f.length === 0, `Wortwahl de: „${t.slice(0, 50)}“`, f.join("; ")); ok(!/\b(du|dein|dich|dir)\b/i.test(t), `Sie-Form: „${t.slice(0, 40)}“`); }
+  for (const t of en) { const f = globalWortPruefenEn(t); ok(f.length === 0, `Wortwahl en: „${t.slice(0, 50)}“`, f.map((x) => x.hinweis).join("; ")); }
+  ok(/^https:\/\/support\.apple\.com\//.test(A.HANDSCHRIFT_SCAN_HILFE.iphone) && /^https:\/\/www\.howtogeek\.com\//.test(A.HANDSCHRIFT_SCAN_HILFE.android), "Scan-Hilfe: Apple und Android");
+}
+
+// ═══ 2c BEGLEIT-AKTE UND ANGEBOTS-NAMEN ════════════════════════════════════════
+abschnitt("2c Begleit-Akte, Angebots-Namen");
+const kz = (ref: string, packKey: string, createdAt: string, extra: Partial<Parameters<typeof A.begleitAkteAnker>[0][number]> = {}) => ({ ref, packKey, createdAt, paymentStatus: "pending_payment", cancelled: false, merged: false, archived: false, ...extra });
+gleich(A.begleitAkteAnker([kz("B", "llc_gruendung_halb", "2026-10-09T10:00:00Z"), kz("A", "llc_paket", "2026-10-08T10:00:00Z"), kz("C", "llc_fasttrack", "2026-10-22T10:00:00Z")]), "A", "Anker: die älteste Einzelrechnung");
+gleich(A.begleitAkteAnker([kz("A", "llc_paket", "2026-10-08T10:00:00Z", { cancelled: true }), kz("B", "llc_gruendung_halb", "2026-10-09T10:00:00Z", { paymentStatus: "superseded" }), kz("C", "llc_fasttrack", "2026-10-22T10:00:00Z")]), "C", "stornierte/abgelöste Zeilen sind kein Anker");
+gleich(A.begleitAkteAnker([kz("P", "pro", "2026-01-01T00:00:00Z"), kz("G", "global_struktur", "2026-01-02T00:00:00Z"), kz("K", "koop_kontakte", "2026-01-03T00:00:00Z")]), null, "Privat-Abo, Paket und Kooperation sind nie Anker");
+gleich(A.begleitAkteAnker([kz("A", "llc_paket", "2026-10-08T10:00:00Z", { merged: true }), kz("B", "llc_paket", "2026-10-08T10:00:00Z", { archived: true })]), null, "zusammengeführt/archiviert: kein Anker");
+{
+  const d = A.begleitAkteDaten({ fassung: "IA-BEGLEIT-2026-10", kunde: { art: "privat", anrede: "Herr", vorname: "Max", nachname: "Muster", email: " M@Example.com ", strasse: "Weg 1", plz: "8000", ort: "Zürich", land: "ch", telefon: "+41 79" }, parameter: { bundesstaat: "Florida" }, schalter: { llc: { wunsch: "MUSTER LLC" } } });
+  gleich([d.name, d.email, d.land, (d.firma as any).art, (d.ansprechpartner as any).nachname, d.gesellschaft], ["Max Muster", "m@example.com", "CH", "privat", "Muster", { name: "MUSTER LLC", bundesstaat: "FL", geprueft: false }], "Akte-Daten aus dem Begleit-Angebot (Privatperson, Wunschname, Staat)");
+  gleich(A.begleitAkteDaten({ fassung: "x", kunde: {}, parameter: {}, schalter: {} }).gesellschaft, null, "ohne Wunschname keine Gesellschaft");
+}
+{
+  const M = await import("../shared/fiaon-global-mandat");
+  gleich(M.globalAngebotKundeAnzeige({ art: "firma", firma: { name: "Muster Agentur GmbH", marke: "Muster" }, vertretung: { vorname: "Erika", nachname: "Muster" } }), { name: "Erika Muster", firma: "Muster Agentur GmbH" }, "Firmenangebot: Person + Firma (kein [object Object])");
+  gleich(M.globalAngebotKundeAnzeige(JSON.stringify(JSON.stringify({ vorname: "Max", nachname: "Beispiel" }))), { name: "Max Beispiel", firma: null }, "doppelt kodierter Text wird gelesen");
+  gleich(M.globalAngebotKundeAnzeige({ firma: "Partner AG", vorname: "", nachname: "" }), { name: "Partner AG", firma: "Partner AG" }, "nur Firma: Firma als Name");
+  gleich(M.globalAngebotKundeAnzeige(null), { name: "—", firma: null }, "leer: Gedankenstrich");
+  ok(!/\[object Object\]/.test(JSON.stringify(M.globalAngebotKundeAnzeige({ firma: { foo: 1 }, name: { x: 1 } }))), "nie „[object Object]“");
+}
+
 // ═══ 3 ZIP ═══════════════════════════════════════════════════════════════════
 abschnitt("3 ZIP");
 gleich(A.akteDateiname("FIAON Global – Gründung Ä/ö:x?.pdf"), "FIAON Global - Gruendung Ae_oe_x_.pdf", "Dateiname: ASCII, Umlaute ausgeschrieben, keine Pfadzeichen");
@@ -112,6 +155,27 @@ const cg = datei("client/src/components/admin/ChefGlobal.tsx");
 ok(/key: "akte", titel: "Akte komplett"/.test(cg) && /reiter === "akte" && <AkteKomplett/.test(cg) && /data-fiaon="chef-akte-zip"/.test(cg), "Chefbüro: Reiter „Akte komplett“ mit ZIP");
 ok(/data-fiaon="office-akte-zip"/.test(datei("client/src/pages/agent/global-akte.tsx")), "Office: „Akte als ZIP“");
 ok(!/vollmacht-freigabe/.test(datei("client/src/components/admin/ChefGlobalEinstellungen.tsx")), "Chefbüro: kein Vollmacht-Schalter");
+
+{
+  const mlib = datei("server/lib/fiaon-global-mandat.ts");
+  const kunde = mlib.slice(mlib.indexOf("export async function globalKundeUnterschreibt"));
+  ok(kunde.indexOf("=== \"handschriftlich\") return nein(409") > 0 && kunde.indexOf("=== \"handschriftlich\") return nein(409") < kunde.indexOf("PDFDocument.load"), "Zeichenfeld-Weg lehnt von Hand zu unterschreibende Formulare ab");
+  const scan = lib.slice(lib.indexOf("export async function globalScanHochladen"));
+  ok(scan.indexOf("!== \"handschriftlich\"") > 0 && scan.indexOf("istPdfInhalt(") > 0 && scan.indexOf("istPdfInhalt(") < scan.indexOf("dokumentSpeichern("), "Scan: nur handschriftliche Dokumente, nur PDF — geprüft VOR dem Speichern");
+  ok(/SS-4 unterschrieben – an den Registered Agent \(Ablageteam\) per E-Mail zurücksenden/.test(scan) && /unterschrift_nachweis = \$\{sqlPool\.json\(nachweis/.test(scan), "Scan: Aufgabe SS-4 an das Ablageteam, Nachweis gespeichert");
+  const r = bereich.slice(bereich.indexOf('router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan"'));
+  ok(r.indexOf("zutritt(req, res)") > 0 && r.indexOf("zutritt(req, res)") < r.indexOf("istVorschau(req)") && r.indexOf("istVorschau(req)") < r.indexOf("uploadJeRef(ref)") && r.indexOf("uploadJeRef(ref)") < r.indexOf("dateiAnnehmen"), "Kunden-Scan: Token → Vorschau → Drossel → Körper");
+  ok(bereich.includes('"/agent/global/auftraege/:ref/dokument/:id/scan", requireAgent') && chef.includes('"/chef/global/mandate/:ref/dokument/:id/scan", requireChef("leitung")'), "Team lädt den Scan im Namen des Kunden hoch (Chefbüro, Office)");
+  ok(chef.includes('"/chef/global/angebote/:id/akte", requireChef("leitung")') && /globalBegleitAkteAnlegen/.test(lib), "Chef-Knopf „Global-Akte anlegen“ (Begleit)");
+  const anlegen = lib.slice(lib.indexOf("export async function globalBegleitAkteAnlegen"));
+  ok(anlegen.indexOf("WHERE angebot_id = ${angebotId}") > 0 && anlegen.indexOf("WHERE angebot_id = ${angebotId}") < anlegen.indexOf("INSERT INTO fiaon_global_auftraege") && /ON CONFLICT \(ref\) DO NOTHING/.test(anlegen), "Begleit-Akte wiederholbar (erst prüfen, ON CONFLICT)");
+  ok(!/UPDATE fiaon_global_angebote SET auftrag_ref/.test(anlegen), "auftrag_ref am Begleit-Angebot bleibt leer (kein Stundenlauf/Startgespräch des Individualangebots)");
+  ok(/NOT EXISTS \(SELECT 1 FROM fiaon_global_auftraege g WHERE g\.angebot_id = a\.id\)/.test(mlib), "mit Akte steht das Angebot nicht mehr unter „Angebote in Arbeit“");
+  const portalQ = datei("client/src/pages/global-portal.tsx");
+  ok(/dialog\.unterschrift\?\.modus === "handschriftlich" && \(\s*<HandschriftDialog/.test(portalQ) && /dialog\.unterschrift\?\.modus !== "handschriftlich" && \(\s*<UnterschriftDialog/.test(portalQ), "Portal: von Hand → vier Schritte, nie das Zeichenfeld");
+  const hd = datei("client/src/pages/global-portal-handschrift.tsx");
+  ok(/accept="application\/pdf,\.pdf"/.test(hd) && /istPdfInhalt\(kopf\)/.test(hd) && !/canvas|Zeichenfeld/.test(hd.replace(/\/\/.*$/gm, "")), "Fenster: nur PDF, Kopf geprüft, kein Zeichenfeld");
+}
 
 // ═══ 4b LOKAL (nur lesend) ═══════════════════════════════════════════════════
 if (LOKAL_REF) {

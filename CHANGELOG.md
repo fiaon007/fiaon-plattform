@@ -5,6 +5,28 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — FIAON Global: SS-4 von Hand unterschreiben, Global-Akte für Begleitverträge, Angebotsnamen im Chefbüro
+- **Was (von Hand):** Jedes „Dokument zur Unterschrift“ hat jetzt einen Modus — `digital` (Unterschrift-Dialog im Portal) oder
+  `handschriftlich`. IRS SS-4 und IRS 8821 sind immer handschriftlich (unser Registered-Agent-Partner verlangt für das SS-4 eine
+  Unterschrift mit Tinte); für sie gibt es NIE ein Zeichenfeld. Der Kunde sieht vier Schritte (mobil als Blatt von unten):
+  Herunterladen & prüfen → Ausdrucken, unterschreiben, datieren → mit dem Handy als PDF scannen (Anleitungen iPhone/Android)
+  → hier hochladen. Angenommen wird nur ein PDF (Dateikopf geprüft, im Browser und am Server); ein Foto bekommt „Bitte als
+  PDF scannen – Fotos werden nicht angenommen.“ Der Scan wird die unterschriebene Fassung (Original „unterschrieben“, Nachweis
+  in `unterschrift_nachweis`), Verlauf für den Kunden, Aufgabe ans Team — beim SS-4 „SS-4 unterschrieben – an den Registered
+  Agent (Ablageteam) per E-Mail zurücksenden“. Das Team kann den Scan im Namen des Kunden hochladen (Chefbüro › Akte komplett,
+  Station EIN im Chefbüro und Office). Neue Spalte `unterschrift_art` (Migration 124).
+- **Was (Begleitvertrag):** Ein angenommener Begleitvertrag (IA-BEGLEIT-…) legt bei der Annahme bewusst nichts an. Neu im
+  Chefbüro › Global unter „Angebote in Arbeit“: Knopf **„Global-Akte anlegen“** (wiederholbar). Die Akte hängt an der ältesten
+  nicht stornierten Einzelrechnung der Person (Unterlagen-Paket, LLC-Gründung, Fast-Track), Status „in Arbeit“, Vertrag aus
+  dem Angebot, Wunschname der LLC; `auftrag_ref` am Angebot bleibt leer (kein Stundenlauf/Startgespräch des
+  Individualangebots). Danach laufen Portal, Stationen, Tresor und „Akte komplett“ mit allen Rechnungen.
+- **Behoben:** „[object Object]“ als Titel in „Angebote in Arbeit“ — Firmen- und Kapitalangebote speichern die Firma als Objekt.
+  Eine Auflösung in `shared/fiaon-global-mandat.ts` (`globalAngebotKundeAnzeige`) zeigt Person und Firma.
+- **Wo:** `shared/fiaon-global-akte.ts` (Modus, PDF-Prüfung, HANDSCHRIFT_WOERTER, Begleit-Anker), `server/lib/fiaon-global-akte-komplett.ts`
+  (`globalScanHochladen`, `globalBegleitAkteAnlegen`), Routen `/api/fiaon/global/mein-auftrag/:ref/unterschrift/:id/scan`,
+  `/api/fiaon/chef/global/mandate/:ref/dokument/:id/scan`, `/api/fiaon/agent/global/auftraege/:ref/dokument/:id/scan`,
+  `/api/fiaon/chef/global/angebote/:id/akte`, `client/src/pages/global-portal-handschrift.tsx`, Prüfstand `scripts/pruef-global-akte.ts`.
+
 ## 22.10.2026 — FIAON Global: die vollständige Akte (alle Rechnungen, Verträge, Unterschriften, ZIP) + Kontaktperson (E-424) + EIN per Fax
 - **Was:** Portal („Vertrag & Zahlung“), Chefbüro (Mandat › neuer Reiter **„Akte komplett“**) und Office (Global-Akte, Knopf
   „Akte als ZIP“) zeigen die GANZE Akte: **alle Rechnungen der Person** (person_id, sonst E-Mail) aus der Global-Welt — Paket,

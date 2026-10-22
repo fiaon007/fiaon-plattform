@@ -231,3 +231,19 @@ export function globalUsd(cents: number | null | undefined, s: BereichSprache = 
   const n = Math.round(Number(cents || 0) / 100);
   return s === "en" ? `$${n.toLocaleString("en-GB")}` : `$ ${n.toLocaleString("de-DE")}`;
 }
+
+// ── DER NAME EINES ANGEBOTS-KUNDEN (22.10.2026) ──────────────────────────────
+// Die Angebote speichern `kunde` je Art verschieden: Individual-/Begleitangebot mit vorname/nachname, Firmen- und
+// Kapitalangebot mit `firma: { name, marke }` und `vertretung: { anrede, vorname, nachname }`, die Kooperation mit
+// `firma` als Text — und ältere Zeilen als doppelt kodierten JSON-Text. Die Leiste „Angebote in Arbeit“ schrieb
+// String(k.firma) und zeigte „[object Object]“. Hier die EINE Auflösung: Person (Name) und Firma (Text).
+export function globalAngebotKundeAnzeige(roh: unknown): { name: string; firma: string | null } {
+  let k: unknown = roh;
+  for (let i = 0; i < 2 && typeof k === "string"; i++) { try { k = JSON.parse(k); } catch { break; } }
+  const o = k && typeof k === "object" ? (k as Record<string, any>) : {};
+  const text = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).replace(/\s+/g, " ").trim() : "");
+  const v = o.vertretung && typeof o.vertretung === "object" ? o.vertretung : null;
+  const person = [v?.vorname ?? o.vorname, v?.nachname ?? o.nachname].map(text).filter(Boolean).join(" ") || text(o.name);
+  const firma = o.firma && typeof o.firma === "object" ? text(o.firma.name) || text(o.firma.marke) : text(o.firma);
+  return { name: person || firma || "—", firma: firma || null };
+}

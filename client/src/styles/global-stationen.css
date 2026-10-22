@@ -142,3 +142,5 @@
 @media (prefers-reduced-motion: reduce) {
   .gst *, .gst *::before, .gst *::after { animation: none !important; transition: none !important; }
 }
+.gst-scan { position: relative; display: inline-flex; margin-left: 8px; padding: 4px 9px; border-radius: 8px; border: 1px dashed var(--gst-linie); font: 500 11.5px/1.2 'Inter', sans-serif; color: var(--gst-hell); cursor: pointer; }
+.gst-scan input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

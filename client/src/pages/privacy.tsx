@@ -57,10 +57,21 @@
 // einem Antrag, Art. 6 Abs. 1 lit. f, 400 Tage, Widerspruch über GPC/DNT (der Server hält sich daran).
 // ANWALT: ob das Lesen von document.referrer durch das Skript unter § 25 Abs. 1 TDDDG fällt (strenge Lesart
 // EDSA-Leitlinien 2/2023) — Fensterbreite und Sprache liest das Skript bewusst NICHT, sie kommen aus den Kopfzeilen.
+//
+// 22.10.2026 (E-408, Justin „mach alles fertig und go“): VII c neu — Telefonate, ARAS (KI) und Gesprächsaufzeichnung. Die Seite
+// nannte Telefonate gar nicht. Beschrieben ist, was der Code tut: Vertragskunden zu ihrem Vertrag; alle anderen nur mit
+// dokumentierter Einwilligung (fiaon_telefon_einwilligung, § 7a UWG: Nachweis fünf Jahre); KI-Hinweis zu Beginn; Twilio + OpenAI
+// (gpt-live, store: false); Aufnahme und Abschrift nur nach hörbarem Ja; ohne Ja nur Zeiten, Ergebnis und eine Notiz aus den letzten
+// Sätzen; automatische Qualitätsprüfung (Prüf-Mara, OpenAI); „nicht mehr anrufen“ sperrt sofort. Der Kästchen-Satz kommt aus
+// ANTRAG_NEU_ANRUF_TEXT (dieselbe Konstante wie im Antrag). ANWALT: Rechtsträger von OpenAI für API-Kunden im EWR, Drittland-Garantien.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { ANTRAG_NEU_ANRUF_TEXT } from "@shared/fiaon-antrag-neu";
+
+// VII c Nr. 4: Aufnahmen und Abschriften von ARAS-Gesprächen. Eine feste Frist steht erst hier, wenn der Lösch-Lauf sie umsetzt.
+const TELEFON_SPEICHERDAUER = "Aufnahmen und Abschriften bewahren wir nur so lange auf, wie wir sie für den Nachweis des Vereinbarten, die Klärung eines konkreten Anliegens oder die Qualitätssicherung brauchen.";
 
 // Öffnet die Cookie-Auswahl (components/site/EinwilligungsHinweis.tsx hört auf dieses Ereignis).
 const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"));
@@ -529,6 +540,45 @@ export default function PrivacyPage() {
               </div>
             </div>
 
+            {/* VII c. Telefonate, ARAS (KI) und Gesprächsaufzeichnung (E-408, 22.10.2026) */}
+            {/* LEGAL REVIEW REQUIRED: Rechtsträger von OpenAI für API-Kunden im EWR, Garantien der Drittlandübermittlung (Twilio, OpenAI), Speicherdauer. */}
+            <div id="telefon" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII c. Telefonate, ARAS (KI) und Gesprächsaufzeichnung</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Wer anruft und warum</h3>
+                    <p className="text-sm">Kunden mit Vertrag rufen wir zu ihrem Vertrag an: zur Begrüßung nach dem unterschriebenen Antrag, zu offenen oder zugesagten Raten, zu Rückrufen, die Sie selbst gebucht haben, und zu Anliegen aus Ihrer Akte. Alle anderen — etwa Interessenten oder Antragsteller ohne Vertrag — rufen wir nur an, wenn sie vorher ausdrücklich eingewilligt haben, zum Beispiel mit dem Kästchen im Antrag, mit „JA“ in einer WhatsApp-Nachricht oder im Gespräch mit unserem Team. Neben unserem Team ruft auch ARAS an, die digitale Mitarbeiterin von FIAON — eine künstliche Intelligenz. ARAS sagt das zu Beginn jedes Gesprächs. Rechtsgrundlage ist bei Kunden Art. 6 Abs. 1 lit. b DSGVO (Vertrag), bei Anrufen auf Grund Ihrer Einwilligung Art. 6 Abs. 1 lit. a DSGVO und § 7 Abs. 2 Nr. 1 UWG.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Technik und Dienstleister</h3>
+                    <p className="text-sm">Die Telefonverbindung stellt Twilio her (Twilio Ireland Limited, Dublin; Muttergesellschaft Twilio Inc., USA). Damit ARAS sprechen und verstehen kann, gehen Ihre Stimme und der Gesprächsinhalt in Echtzeit an OpenAI (OpenAI Ireland Limited, Dublin, bzw. OpenAI, L.L.C., USA) — zusammen mit den Angaben, die ARAS für das Gespräch braucht: Ihr Name, Ihr Paket, offene Beträge und Fälligkeiten, gebuchte Termine und kurze Hinweise aus Ihrer Akte. Wir lassen die Sitzung bei OpenAI nicht speichern; nach den Bedingungen von OpenAI können Inhalte zur Erkennung von Missbrauch für begrenzte Zeit vorgehalten werden. Beide Anbieter arbeiten in unserem Auftrag (Art. 28 DSGVO). Übermittlungen in die USA stützen wir auf die Standardvertragsklauseln der EU-Kommission (Art. 46 Abs. 2 lit. c DSGVO) und, soweit der Anbieter zertifiziert ist, auf das EU-U.S. Data Privacy Framework (Art. 45 DSGVO).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Aufzeichnung nur mit Ihrem Ja</h3>
+                    <p className="text-sm">ARAS fragt, ob das Gespräch aufgezeichnet werden darf. Nur nach Ihrem ausdrücklichen Ja zeichnen wir den Ton auf und speichern die Abschrift. Ohne Ja gibt es keine Aufnahme und keine Abschrift; wir speichern dann nur Zeitpunkt, Dauer, das Ergebnis und eine kurze Gesprächsnotiz — wie sie auch ein Mitarbeiter schreiben würde —, die aus den letzten Sätzen des Gesprächs entsteht. Zweck der Aufzeichnung: der Nachweis dessen, was vereinbart wurde, die Qualitätssicherung und die Schulung. Jedes Gespräch prüfen wir zusätzlich automatisch darauf, ob unsere Gesprächsregeln eingehalten wurden (etwa der KI-Hinweis, keine Drohung, kein Druck); dafür geht der gespeicherte Text an einen KI-Dienst (OpenAI). Rechtsgrundlage der Aufzeichnung ist Ihre Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), die Sie jederzeit widerrufen können; die Prüfung stützen wir auf Art. 6 Abs. 1 lit. f DSGVO (unser berechtigtes Interesse an fairen, regelkonformen Gesprächen).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Speicherdauer</h3>
+                    <p className="text-sm">{TELEFON_SPEICHERDAUER} Nachweise Ihrer Einwilligung in Anrufe (Wortlaut, Zeitpunkt, Telefonnummer, Quelle) bewahren wir fünf Jahre nach der Erteilung und nach jeder Verwendung auf (§ 7a Abs. 2 UWG). Zeitpunkt, Dauer und Ergebnis eines Anrufs bleiben in Ihrer Akte, solange Ihr Vertrag läuft, und danach so lange, wie wir sie für Nachweise und gesetzliche Aufbewahrungspflichten brauchen (siehe Abschnitt II Nr. 3).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">5. Ihre Rechte</h3>
+                    <p className="text-sm">Sagen Sie im Gespräch „nicht mehr anrufen“, sperren wir Ihre Nummer sofort für alle Anrufe — von ARAS und von unserem Team. Die Aufzeichnung können Sie jederzeit ablehnen. Eine Einwilligung widerrufen Sie jederzeit: im Gespräch, per WhatsApp oder per E-Mail an <a href="mailto:support@fiaon.com" className="text-blue-600 hover:text-blue-700 underline">support@fiaon.com</a>. Ihr Widerspruchsrecht nach Art. 21 DSGVO bleibt unberührt.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">6. Das Kästchen im Antrag</h3>
+                    <p className="text-sm">Im Antrag können Sie freiwillig ankreuzen: „{ANTRAG_NEU_ANRUF_TEXT}“ Das Kästchen ist nie vorangekreuzt und keine Bedingung für den Vertrag. Kreuzen Sie es an, speichern wir den Wortlaut, den Zeitpunkt, die Antragsnummer und Ihre Telefonnummer als Nachweis (Art. 6 Abs. 1 lit. a DSGVO, § 7 Abs. 2 Nr. 1 UWG). Widerrufen können Sie wie unter Nr. 5 beschrieben.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* VIII. Datensicherheit */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-blue-200/50">
               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
@@ -610,7 +660,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 19. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 22. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

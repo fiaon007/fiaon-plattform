@@ -179,6 +179,9 @@ import { zahlungAntwortFunde, type ZsErgebnis } from "@shared/fiaon-zahlung-such
 // E-401 (4/6, 19.10.2026): Anschrift, E-Mail, Telefon ändert der Server selbst (fiaon-mara-angaben-aendern.ts).
 import { angabenAntwortFunde, angabenWunsch, type AngabenLageRein, type AngabeFeld } from "@shared/fiaon-angaben-aendern";
 import type { GenanntLage } from "./fiaon-mara-genannter-termin";
+// E-408 (Scheibe 3, 22.10.2026): Ja zum Anruf — Mara fragt (angehängter eigener Satz) und dankt für ein klares JA.
+import { jaImGespraech, jaFrageZumAnhaengen } from "./fiaon-ja-zum-anruf";
+import { JA_DANKE_WA, jaHinweisFuerMara } from "@shared/fiaon-ja-zum-anruf";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -2886,6 +2889,28 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       return { gesendet: false, grund: "STOPP bestätigt (liegt bereit)." };
     }
 
+    // ── E-408 (Scheibe 3, 22.10.2026): SEINE ANTWORT AUF DIE FRAGE NACH DEM JA ZUM ANRUF ───────────────────────────
+    // Gespeichert (oder zurückgenommen) hat es schon der Eingang (waEingang → jaAusWhatsApp, fiaon-ja-zum-anruf.ts). Ist
+    // ALLES, was er offen geschrieben hat, genau dieses klare JA, dankt Mara mit dem festen Satz (JA_DANKE_WA, ohne
+    // Modell — also auch in der KI-Pause): kein Zeitpunkt, kein Versprechen. Sonst bekommt das Modell EINEN Satz für
+    // JETZT BEACHTEN (jaHinweisFuerMara: gespeichert / zurückgenommen / die Frage stand da, aber kein klares Ja).
+    let jaHinweis: string | null = null;
+    let jaFrageZuletzt = false;
+    {
+      const autoIds = new Set(urteil.autoIds);
+      const echteIds = offeneRein.filter((v) => !autoIds.has(Number(v.id))).map((v) => Number(v.id));
+      const ja = await jaImGespraech({ nummer, offeneIds: echteIds, ersteOffeneId: Number(ersteOffene.id) })
+        .catch((e) => { console.warn(`[MARA-WA] ${nummer.slice(-4)}: Ja zum Anruf nicht lesbar:`, String(e?.message ?? e).slice(0, 160)); return null; });
+      if (ja && echteIds.length > 0 && echteIds.every((id) => ja.gespeichertIds.includes(id))) {
+        const seinJa = offeneRein.filter((v) => echteIds.includes(Number(v.id))).map((v) => String(v.text || v.knopf || "")).reverse().join("\n");
+        await vorbereiten(nummer, JA_DANKE_WA, Number(neuesteRein.id), seinJa, { kunde: seinJa, handlung: "Ja zum Anruf gespeichert (E-408) — kurzer Dank" });
+        await protokolliere({ art: "ja_zum_anruf", ok: true, nummer, personId, leadId, text: `Ja zum Anruf gespeichert — kurzer Dank: ${JA_DANKE_WA}`, daten: { auf_id: Number(neuesteRein.id) } });
+        return { gesendet: false, grund: "Ja zum Anruf gespeichert — kurzer Dank liegt bereit." };
+      }
+      jaFrageZuletzt = !!ja?.frageOffen;
+      jaHinweis = ja ? jaHinweisFuerMara({ jaGespeichert: ja.gespeichertIds.length > 0, zurueckgenommen: ja.zurueckIds.length > 0, frageOffen: ja.frageOffen }) : null;
+    }
+
     // ── E-264: ABSTREITEN, IRRTUM, DATENFRAGE, LÖSCHWUNSCH (fester Satz, ohne Modell) ──
     // Fall 29.09.2026: „Hab nix beantragt 🤢🤮😡😤😠" → „Sehr gern — nach der Zahlung ist Ihr Account
     // aktiv … Ihre Zahlungsseite". Wie STOPP ein fester Satz — also auch in der KI-Pause.
@@ -3516,7 +3541,12 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         ...(genannt?.hinweis ? [genannt.hinweis] : []),
         // E-401 (4/6): was der Server mit seinem Änderungswunsch (Anschrift, E-Mail, Telefon) getan hat.
         ...(angabenLage ? [angabenLage.hinweis] : []),
-        ...urteil.hinweise, ...(herkunftHinweis ? [herkunftHinweis] : []),
+        // E-408 (Scheibe 3): War Maras letzte Nachricht die Frage nach dem Ja zum Anruf, ist sein „Ok“ KEINE Zustimmung
+        // zu einem Schritt, den sie angeboten hat (die Frage hängt nur an Antworten ohne eigene Frage) — dafür der
+        // Satz aus jaHinweisFuerMara.
+        ...(jaFrageZuletzt ? urteil.hinweise.filter((h) => !/es ist seine Zustimmung/.test(h)) : urteil.hinweise),
+        ...(jaHinweis ? [jaHinweis] : []),
+        ...(herkunftHinweis ? [herkunftHinweis] : []),
         // E-265 Schluss-Nachbesserung (f06): vom Server schon eingetragen — nicht noch einmal fragen oder buchen.
         ...(vorabGebucht ? [`SCHON EINGETRAGEN: Er hat die angebotene Zeit bestätigt, der Rückruf steht im Kalender — „${vorabGebucht}" Frag NICHT noch einmal und ruf rueckruf_eintragen nicht erneut. Bestätige den Termin in einem Satz und schließ mit deinem Abschluss (Betrag, Zahlungsseite) ab.`] : []),
         // E-275 (02.10.2026): der Link der Partnerbank ist vom Server schon geschickt — sag es ihm, kein Kollege, kein Termin.
@@ -3881,6 +3911,26 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       antwort = `Hier ist ${namen.voll.split(" ")[0]}, die digitale Assistentin von FIAON. ${antwort}`;
     }
 
+    // ── E-408 (Scheibe 3, 22.10.2026): MARA FRAGT NACH DEM JA ZUM ANRUF ────────────────────────────────────────────
+    // EIN eigener Satz als eigener Absatz am Ende (JA_FRAGE_WA) — Maras Antwort bleibt Wort für Wort. Ob er darf, sagt
+    // jaFrageZumAnhaengen (fiaon-ja-zum-anruf.ts): offenes Fenster (er hat gerade geschrieben), noch kein gültiges Ja,
+    // keine Sperre, höchstens einmal in 30 Tagen, Maras Antwort fragt selbst nichts, Schalter im KI-Raum an. Und nicht,
+    // wenn es gerade um etwas anderes gehen muss — die Gründe hier (jeder einzelne hält die Frage an).
+    const jaRuhe: string[] = [
+      ...(!ohneRueckfall || sicher ? ["kein freier Entwurf (Rückfall- oder sicherer Satz)"] : []),
+      ...(mensch || (weg && weg.weg !== "selbst") ? ["Übergabe an einen Menschen"] : []),
+      ...(heikel || heikelJetzt || ruhe24 || kuendigungJetzt || kuendigungThema ? ["heikles Anliegen oder Kündigung"] : []),
+      ...(zusageSatz ? ["offene Zusage"] : []),
+      ...(terminDa || anrufGewuenscht || rueckrufWunsch ? ["ein Telefonat ist schon Thema"] : []),
+      ...(genannt || abstArtJetzt || herkunftHinweis || entscheidungsFall || offeneKarten.length ? ["eine andere Sache liegt offen"] : []),
+      ...(kannNichtZahlen(offenerText) || WUT_EMOJI.test(offenerText) ? ["Not oder Ärger"] : []),
+      ...(jaFrageZuletzt ? ["gerade erst gefragt"] : []),
+      ...(lage.werbesperre || lage.vertriebssperre ? ["Sperre"] : []),
+    ];
+    const jaFrage = await jaFrageZumAnhaengen({ nummer, personId: personId ? Number(personId) : null, antwort, ruhe: jaRuhe })
+      .catch((err) => { console.warn(`[MARA-WA] ${nummer.slice(-4)}: Frage nach dem Ja nicht geprüft — keine Frage:`, String(err?.message ?? err).slice(0, 160)); return null; });
+    if (jaFrage) antwort = `${antwort}\n\n${jaFrage}`;
+
     // E-240: Was Mara getan hat — für den Aktenvermerk, der beim Versand entsteht (versandLauf).
     const handlung = [
       ...e.aktionen.filter((x) => x.ok).map((x) => x.werkzeug === "rueckruf_eintragen" && x.termin ? `Rückruf eingetragen (${x.termin.text}, ${x.termin.vorname})`
@@ -3902,6 +3952,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       // E-372: wohin — eine Karte für Justin, der Betreuer (nur Rückruf/Technik) oder nichts (Mara hat es erledigt).
       ...(weg?.weg === "karte" ? [`Karte für Justin (${weg.fall}): ${weg.grund}`] : weg?.weg === "betreuer" ? [`an ${lage.anrufer ?? "das Team"} übergeben: ${(wegGrund || weg.grund).slice(0, 140)}`] : []),
       ...(String(roh?.gemerkt ?? "").trim() ? [`gemerkt: ${String(roh.gemerkt).trim().slice(0, 140)}`] : []),
+      // E-408 (Scheibe 3): die angehängte Frage nach dem Ja zum Anruf.
+      ...(jaFrage ? ["nach dem Ja zum Anruf gefragt (auch ARAS)"] : []),
     ].join("; ") || "keine";
     await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage, { kunde, handlung });
 

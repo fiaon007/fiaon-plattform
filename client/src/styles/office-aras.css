@@ -125,3 +125,17 @@
 }
 .akc-voll{flex-basis:100%}
 .ak-liste .pi-link{justify-self:start}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   JA ZUM ANRUF (E-408 Scheibe 3, 22.10.2026). Ein Block in der Karte: EINE Zeile, was gilt (Glasblau-Punkt, wenn ein
+   Ja gilt), darunter die Knöpfe. Der Grund, warum Mara gerade nicht fragen kann, steht als Text darunter — nie nur
+   als Tooltip. Kein Grün, kein Gold: Glasblau-CI.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ak-ja{gap:8px;padding:12px 14px;border-radius:14px;background:rgba(15,23,42,.45);border:1px solid rgba(147,197,253,.18)}
+.ak-ja-zeile{margin:0;font:400 13px/1.45 'Inter',sans-serif;color:#cbd5e1}
+.ak-ja-zeile.gilt{color:#fff}
+.ak-ja-zeile.gilt::before{content:"";display:inline-block;width:8px;height:8px;margin:0 8px 1px 0;border-radius:50%;background:#288DFA;box-shadow:0 0 0 3px rgba(40,141,250,.22);vertical-align:middle}
+.ak-ja-warum{display:block;max-width:560px}
+@media (max-width:640px){
+  .ak-ja .ak-tun .pi-knopf{flex:1 1 auto}
+}

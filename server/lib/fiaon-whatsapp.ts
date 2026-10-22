@@ -1331,6 +1331,18 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
       await medienMerken(Number(zeilen[0].id), nummer, medienAusMeldung(m), lauf);
       // E-214: Was der Mensch von selbst nennt, wird am Lead nachgetragen.
       await angabeNachtragen(gehoert.leadId, gehoert.personId, text, lauf);
+      // E-408 (Scheibe 3, 22.10.2026): JA ZUM ANRUF — VOR Maras Antwort. Ein klares JA auf Maras Frage („Dürfen wir Sie
+      // dazu auch kurz anrufen …?“) wird hier zur Einwilligung „zuruf_whatsapp“; „bitte nicht mehr anrufen“ nimmt jedes
+      // Ja zurück (fiaon-ja-zum-anruf.ts). Hier und nur hier — jede Nachricht kommt genau einmal durch diese Stelle.
+      // Ein Fehler hält weder den Webhook noch Maras Antwort auf (Protokoll).
+      try {
+        const { jaAusWhatsApp } = await import("./fiaon-ja-zum-anruf");
+        const ja = await jaAusWhatsApp({ nummer, nachrichtId: Number(zeilen[0].id), text, personId: gehoert.personId, leadId: gehoert.leadId,
+          am: m?.timestamp ? new Date(Number(m.timestamp) * 1000) : null }, lauf);
+        if (ja.ja || ja.widerrufen) console.log(`[JA-ZUM-ANRUF] ${nummer.slice(-4)}: ${ja.ja ? `Ja gespeichert (Nr. ${ja.id})` : `${ja.widerrufen} Ja widerrufen`}.`);
+      } catch (e) {
+        console.error(`[JA-ZUM-ANRUF] ${nummer.slice(-4)}: Ja/Widerruf aus WhatsApp NICHT gespeichert:`, e);
+      }
       // Mara antwortet — im Hintergrund, damit der Webhook in Millisekunden
       // fertig ist (Meta wiederholt sonst die Meldung). Sie prüft selbst, ob
       // sie darf: Schalter am Gespräch, Fenster, Kostendeckel, Wortwand.

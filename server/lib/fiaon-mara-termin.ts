@@ -107,6 +107,9 @@ export type ProtokollArt =
   | "kuendigung"
   // E-408 (19.10.2026): ARAS am Telefon — jedes Ereignis der Brücke (Kanal 'telefon'), Liste in shared/fiaon-aras.ts.
   | import("../../shared/fiaon-aras").EreignisArt
+  // E-408 Scheibe 3 (22.10.2026): Ja zum Anruf — eingetragen, per WhatsApp gegeben oder zurückgenommen, Frage geschickt
+  // (fiaon-ja-zum-anruf.ts).
+  | "ja_zum_anruf"
   // E-395 (19.10.2026): Ein Termin, den der Kunde mit uns hat, aus seiner Mail eingetragen (fiaon-mara-genannter-termin.ts).
   // Bewusst NICHT „termin_gebucht“: maraTermineNachpruefen prüft Maras eigene Rückrufe (Arbeitszeit, Uhrzeit per WhatsApp) —
   // ein vereinbarter Termin darf außerhalb der Arbeitszeit liegen, und die Uhrzeit hat der Kunde selbst genannt.

@@ -3,8 +3,11 @@
 //
 // Jede Werbe-Spielart (termin, lead, zuruf, stufe_b, rueckholung) braucht eine
 // gültige Zeile hier — sonst wählt der Takt nicht. Fünf Jahre, nie gelöscht,
-// nur widerrufen. Keine Art entsteht per Stimme: ARAS holt nie eine Werbe-
-// Einwilligung am Telefon ein (dafür bräuchte es ein Voicefile).
+// nur widerrufen. ARAS holt nie eine Werbe-Einwilligung am Telefon ein (dafür
+// bräuchte es ein Voicefile). E-408 Scheibe 3 (22.10.2026): Ein MENSCH aus dem
+// Team darf das Ja aus SEINEM Gespräch eintragen (Art „chef“, Akte) — nur mit
+// der Pflicht-Bestätigung, mit Mitarbeiter, Zeitpunkt und Gespräch als Beleg.
+// Die Wege (Akte, Mara per WhatsApp, Meta-Formular): fiaon-ja-zum-anruf.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema } from "./fiaon-aras-schema";

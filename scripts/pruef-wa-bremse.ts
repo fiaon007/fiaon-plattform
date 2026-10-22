@@ -1003,6 +1003,8 @@ try {
     "server/routes/fiaon-whatsapp-postfach.ts": 2,
     // E-IT-D (08.10.2026, Punkt 4c): „Unterlagen anfordern“ — Freitext nur im offenen 24-Stunden-Fenster, über waSenden (Bremse inklusive).
     "server/lib/fiaon-unterlagen-link.ts": 1,
+    // E-408 Scheibe 3 (22.10.2026): „Mara fragt nach dem Ja“ (Knopf in der Akte) — über waSenden, also durch die Bremse.
+    "server/lib/fiaon-ja-zum-anruf.ts": 1,
   };
   const gefunden: Record<string, number> = {};
   for (const f of dateien) {

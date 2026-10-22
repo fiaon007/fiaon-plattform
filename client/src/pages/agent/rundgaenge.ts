@@ -244,6 +244,16 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Schreibst du etwas, das ARAS nicht sagen darf, schlägt sie dir eine bessere Formulierung vor. Kündigung, Widerruf, Beschwerde und Erstattung klärt sie nie — da verbindet sie zu dir.",
   },
   {
+    // E-408 Scheibe 3 (22.10.2026): der Block „Ja zum Anruf“ in der Karte „ARAS“. Ohne `ziel` — er steht nur in der geöffneten Akte.
+    titel: "Darf FIAON ihn anrufen?",
+    text: "In der Karte „ARAS“ steht der Block „Ja zum Anruf“: ob er uns das Anrufen erlaubt hat, seit wann und woher — "
+      + "Antrag-Kästchen, WhatsApp oder im Gespräch mit einem Kollegen. Sagt er es dir am Telefon, trägst du es mit "
+      + "„Ja zum Anruf eintragen“ ein: Häkchen „Der Kunde hat mir gerade im Gespräch gesagt …“, dann „Eintragen“. "
+      + "„Mara fragt nach dem Ja“ lässt Mara ihn per WhatsApp fragen — nur, wenn er in den letzten 24 Stunden geschrieben "
+      + "hat; sonst steht darunter, warum nicht. „Ja widerrufen“ nimmt es zurück.",
+    tipp: "Nur eintragen, was er dir wirklich selbst gesagt hat — der Eintrag ist der Nachweis, mit dem FIAON und ARAS ihn anrufen dürfen.",
+  },
+  {
     // 12.10.2026 (E-330): die Karte „FIAON Bonitätsauswertung“ im Überblick der Akte. Ohne `ziel` — sie steht
     // nur bei Kunden mit bezahlter Buchung und nur in der geöffneten Akte.
     // 14.10.2026 (Justin): „Die Bonitätsauskunft ist IMMER Pflicht, bevor es für den Kunden weitergeht!“
@@ -2214,7 +2224,10 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
       // E-401 (4/6, 19.10.2026) mitgezogen: angaben_aendern auf WhatsApp.
       + "Schreibt er von seiner gespeicherten Nummer eine neue Anschrift oder Nummer, trägt Mara sie selbst ein; eine neue "
       + "E-Mail-Adresse gilt erst nach dem Bestätigungslink. Ein Nummernwechsel von einer fremden Nummer und Name, Geburtsdatum, "
-      + "Bank oder Ausweis landen als Karte bei der Geschäftsführung.",
+      + "Bank oder Ausweis landen als Karte bei der Geschäftsführung. "
+      // E-408 Scheibe 3 (22.10.2026) mitgezogen: die Frage nach dem Ja zum Anruf.
+      + "Höchstens einmal in 30 Tagen hängt sie an eine Antwort die Frage, ob wir ihn kurz anrufen dürfen (auch ARAS). "
+      + "Sein „Ja“ steht sofort in der Akte unter „Ja zum Anruf“; „bitte nicht mehr anrufen“ nimmt es zurück.",
     tipp: "Auf eine echte Autoantwort (Firma, Abwesenheit) und ein reines „Ok“ nach erledigter Sache schweigt sie. Hast "
       + "DU zuletzt eine Frage gestellt und der Kunde antwortet „Ok passt“, schweigt Mara ebenfalls — aber du bekommst "
       + "eine Aufgabe „Kunde hat zugestimmt“, und das Gespräch bleibt in der Warteliste. Schreibt ein Mensch „bitte "

@@ -28,6 +28,8 @@ import {
   graph, graphAlle, metaKonfig, seitenToken, pruefToken, MetaFehler, PFLICHT_RECHTE, RECHT_ZWECK,
 } from "./fiaon-meta";
 import { absoluteUrl } from "../fiaon-base-url";
+// E-408 (Scheibe 3, 22.10.2026): „Ja zum Anruf“ aus dem Formular — derselbe JA-Erkenner wie auf WhatsApp.
+import { istKlaresJa } from "../../shared/fiaon-ja-zum-anruf";
 
 type Lauf = typeof sqlPool;
 
@@ -203,6 +205,89 @@ export function leadAusMeta(roh: MetaRohLead, einwilligungSchluessel?: string | 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// JA ZUM ANRUF AUS DEM FORMULAR (E-408 Scheibe 3, 22.10.2026) — rein, ohne Datenbank (Prüfstand)
+//
+// Fragt ein Lead-Formular AUSDRÜCKLICH nach dem Ja zum Anruf — als Kästchen im benutzerdefinierten Hinweis
+// (custom_disclaimer) oder als eigene Frage — und hat er Ja gesagt, entsteht beim Einspielen EINE Einwilligung der Art
+// „meta_kaestchen“ (fiaon_telefon_einwilligung) mit dem Wortlaut der Frage. Erkannt an Schlüssel ODER Text: „anruf/
+// telefon“ UND „einwillig/zustimm/ja“. Nie daraus: ein Pflicht-Kästchen (nicht freiwillig, DSGVO Art. 7 Abs. 4), ein
+// nicht angehaktes Kästchen, eine Antwort, die kein klares Ja ist — und der Hinweistext ohne Kästchen („Mit dem Absenden
+// erlauben Sie …“): Ein Hinweis ist keine Einwilligung.
+// Gemessen am 22.10.2026 (Produktion, nur lesend, nur Feldnamen): Die drei Formulare fragen Name, E-Mail und Telefon
+// (eines dazu „inbox_url“), KEIN Kästchen, keine eigene Frage — heute entsteht hier also nichts. Was ergänzt werden
+// müsste: ein freiwilliges Kästchen mit dem Schlüssel „anruf_einwilligung“ (Bericht E-408).
+// ═══════════════════════════════════════════════════════════════════════════
+export const META_ANRUF_WORT = /anruf|telefon/i;
+export const META_JA_WORT = new RegExp("einwillig|willige|zustimm|stimme\\s+zu|(?:^|[^\\p{L}])ja(?:$|[^\\p{L}])", "iu");
+
+export interface MetaAnrufJa { wortlaut: string; schluessel: string; weg: "kaestchen" | "frage"; antwort: string }
+export interface MetaFormularTeile {
+  fragen?: { key?: string; label?: string; type?: string }[] | null;
+  kaestchen?: { key?: string; text?: string; is_required?: boolean }[] | null;
+}
+
+/** Hat dieser Lead im Formular Ja zum Anruf gesagt? Dann Wortlaut, Schlüssel, Weg und Antwort — sonst null. */
+export function anrufJaAusMeta(roh: MetaRohLead, formular: MetaFormularTeile | null): MetaAnrufJa | null {
+  const passt = (...teile: (string | null | undefined)[]) => {
+    const t = teile.filter(Boolean).join(" ");
+    return META_ANRUF_WORT.test(t) && META_JA_WORT.test(t);
+  };
+  for (const c of roh.custom_disclaimer_responses ?? []) {
+    const key = String(c?.checkbox_key ?? "").trim();
+    if (!key) continue;
+    const def = (formular?.kaestchen ?? []).find((k) => String(k?.key ?? "").trim() === key);
+    if (!passt(key, def?.text) || def?.is_required === true || !ja(c?.is_checked)) continue;
+    const text = String(def?.text ?? "").replace(/\s+/g, " ").trim();
+    return { wortlaut: text || `Kästchen „${key}“ (Text nicht geladen)`, schluessel: key, weg: "kaestchen", antwort: "angehakt" };
+  }
+  const telefonFelder = new Set(FELD.telefon);
+  for (const f of roh.field_data ?? []) {
+    const key = String(f?.name ?? "").trim().toLowerCase();
+    if (!key || telefonFelder.has(key)) continue;
+    const def = (formular?.fragen ?? []).find((q) => String(q?.key ?? "").trim().toLowerCase() === key);
+    if (!passt(key, def?.label)) continue;
+    const wert = String(f?.values?.[0] ?? "").trim();
+    if (!(ja(wert) || istKlaresJa(wert))) continue;
+    const label = String(def?.label ?? "").replace(/\s+/g, " ").trim();
+    return { wortlaut: label || key, schluessel: key, weg: "frage", antwort: wert.slice(0, 120) };
+  }
+  return null;
+}
+
+/**
+ * Nach dem Einspielen: Ja zum Anruf aus dem Formular → Einwilligung „meta_kaestchen“ (genau einmal je Meta-Lead,
+ * Quelle meta_lead + Meta-Lead-ID, Zeitpunkt = sein Absenden). Ohne Kästchen-Antwort und ohne eigene Frage (heute jeder
+ * Lead) keine Abfrage. Wirft nie — ein Lead wird nie wegen der Einwilligung nicht angelegt.
+ */
+export async function anrufJaAusMetaMerken(roh: MetaRohLead, f: MetaLeadFelder, erg: { leadId: number | null; personId: number | null }, weg: string, lauf: Lauf = sqlPool): Promise<number | null> {
+  try {
+    if (!(roh.custom_disclaimer_responses ?? []).length && !Object.keys(f.fragen).length) return null;
+    const [fd] = roh.form_id ? ((await lauf`SELECT fragen, kaestchen FROM fiaon_meta_formulare WHERE id = ${roh.form_id}`) as any[]) : [];
+    const treffer = anrufJaAusMeta(roh, fd ? { fragen: Array.isArray(fd.fragen) ? fd.fragen : [], kaestchen: Array.isArray(fd.kaestchen) ? fd.kaestchen : [] } : null);
+    if (!treffer) return null;
+    if (!f.telefon) { console.warn(`[META-LEADS] ${roh.id}: Ja zum Anruf im Formular, aber keine Telefonnummer — nichts gespeichert.`); return null; }
+    const { arasSchema } = await import("./fiaon-aras-schema");
+    await arasSchema(lauf);
+    const [schon] = (await lauf`SELECT id FROM fiaon_telefon_einwilligung WHERE art = 'meta_kaestchen' AND quelle_art = 'meta_lead' AND quelle_id = ${String(roh.id)} LIMIT 1`) as any[];
+    if (schon) return Number(schon.id);
+    const { waehlbareNummer } = await import("./fiaon-telefon");
+    const { einwilligungMerken } = await import("./fiaon-telefon-einwilligung");
+    const abgeschickt = roh.created_time && Number.isFinite(Date.parse(roh.created_time)) ? new Date(roh.created_time) : new Date();
+    const { id } = await einwilligungMerken({
+      personId: erg.personId, leadId: erg.leadId, nummer: waehlbareNummer([{ nummer: f.telefon }], f.land).waehlbar ?? f.telefon,
+      art: "meta_kaestchen", wortlaut: treffer.wortlaut, quelleArt: "meta_lead", quelleId: String(roh.id), erteiltAm: abgeschickt,
+      beleg: { formularId: roh.form_id ?? null, schluessel: treffer.schluessel, weg: treffer.weg, antwort: treffer.antwort,
+        plattform: f.plattform, anzeigeId: roh.ad_id ?? null, kampagneId: roh.campaign_id ?? null, eingang: weg },
+    }, lauf);
+    console.log(`[META-LEADS] ${roh.id}: Ja zum Anruf aus dem Formular gespeichert (Nr. ${id}).`);
+    return id;
+  } catch (e) {
+    console.error(`[META-LEADS] ${roh.id}: Ja zum Anruf aus dem Formular NICHT gespeichert — der Lead ist trotzdem angelegt:`, e);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // EINSPIELEN — idempotent über die Meta-Lead-ID
 // ═══════════════════════════════════════════════════════════════════════════
 export type EinspielErgebnis = { status: "neu" | "dublette" | "ungueltig" | "test"; leadId: number | null; grund?: string };
@@ -302,6 +387,8 @@ export async function metaLeadEinspielen(
     INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
     VALUES (${String(roh.id)}, ${erg.id}, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
     ON CONFLICT (meta_lead_id) DO NOTHING`;
+  // E-408 (Scheibe 3): Hat das Formular nach dem Ja zum Anruf gefragt und er Ja gesagt → meta_kaestchen. Wirft nie.
+  await anrufJaAusMetaMerken(roh, f, { leadId: erg.id, personId: erg.personId ?? null }, weg, lauf);
   return { status: erg.deduped ? "dublette" : "neu", leadId: erg.id };
 }
 

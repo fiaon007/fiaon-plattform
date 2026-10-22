@@ -59,6 +59,56 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   Abschnitt 4 an das neue Nachfassen angepasst). Die Erinnerungen wirken, sobald ARAS an ist; den eigenen Nachfass-Anruf
   gibt es erst, wenn die Gesprächsart „Zusage nachfassen“ an ist — bis dahin übernehmen die Rate-Anrufe nach der Pause.
 
+## 22.10.2026 — Ja zum Anruf einsammeln: Akte, Mara per WhatsApp, Meta-Formular (E-408, Scheibe 3)
+- **Was:** Drei Wege, auf denen ein Mensch FIAON das Anrufen erlaubt (auch durch ARAS). Jeder legt den Nachweis in
+  `fiaon_telefon_einwilligung` an — mit Wortlaut, Zeitpunkt, Art und Beleg (§ 7a UWG):
+  1. **Akte › Karte „ARAS“ › Block „Ja zum Anruf“.** Eine Zeile sagt, was gilt: „Ja zum Anruf: seit 22.10. (WhatsApp)“,
+     „(Antrag-Kästchen)“, „(im Gespräch mit …)“, „… · Widerrufen am …“ oder „Noch kein Ja zum Anruf“. Knopf
+     **„Ja zum Anruf eintragen“** öffnet einen Dialog mit der Pflicht-Bestätigung „Der Kunde hat mir gerade im Gespräch
+     gesagt, dass FIAON ihn anrufen darf, auch ARAS (KI)“ — ohne Häkchen bleibt „Eintragen“ grau, und der Server nimmt
+     nur ein echtes Ja an. Gespeichert: Art „chef“, dieser Satz, Mitarbeiter (Kennung und Name), Zeitpunkt und das
+     laufende oder letzte Gespräch des Mitarbeiters mit ihm (letzte 2 Stunden, mit „Aufnahme ja/nein“). Bei
+     „nicht mehr anrufen“ (Telefonsperre) oder ohne Telefonnummer geht es nicht — mit Satz, warum. Knopf
+     **„Ja widerrufen“** (mit Rückfrage). Knopf **„Mara fragt nach dem Ja“**: Mara schickt die Frage sofort per
+     WhatsApp — nur, wenn er in den letzten 24 Stunden geschrieben hat und keine Nachricht von ihm mehr auf Antwort
+     wartet; sonst ist der Knopf grau und der Grund steht als Text darunter.
+  2. **Mara auf WhatsApp.** Mara hängt an eine Antwort EINEN eigenen Satz als eigenen Absatz an: „Dürfen wir Sie dazu
+     auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA.“ Ihr Text
+     davor bleibt Wort für Wort, keine Vorlage wird umgetextet. Nur im offenen Fenster (er hat selbst geschrieben), nur
+     ohne gültiges Ja, ohne Telefon-, Werbe- oder Vertriebssperre und ohne „Stopp“, nie bei FIAON Global, höchstens
+     einmal in 30 Tagen, nie, wenn Maras Antwort selbst etwas fragt (sonst wüsste niemand, worauf „Ja“ antwortet), und
+     nicht, wenn es gerade um anderes gehen muss (Kündigung, Beschwerde, Übergabe, Termin, er will ohnehin telefonieren,
+     Rückfallsatz). Antwortet er klar mit JA („Ja“, „Ja gerne“, „Ja, passt“ — nie „ja, aber nicht anrufen“, „Ja?“,
+     „Ok“), entsteht Art „zuruf_whatsapp“: Wortlaut = die gestellte Frage, Beleg = beide Nachrichten (unsere und Metas
+     Kennung, Text, Zeit). Mara dankt mit einem festen Satz ohne Modell: „Vielen Dank, das ist notiert. Sie können es
+     jederzeit mit einer kurzen Nachricht zurücknehmen.“ Ist seine Antwort kein klares Ja, sagt Mara nicht, dass wir
+     anrufen. Schreibt jemand „bitte nicht mehr anrufen“, ist jedes Ja sofort widerrufen. Neuer Schalter im KI-Raum:
+     „Nach dem Ja zum Anruf fragen“ (an).
+  3. **Meta-Lead-Formular.** Fragt ein Formular nach dem Ja zum Anruf (Kästchen oder eigene Frage; Schlüssel oder Text
+     mit „anruf/telefon“ und „einwillig/zustimm/ja“), entsteht beim Import Art „meta_kaestchen“ mit dem Wortlaut.
+     Ein Pflicht-Kästchen zählt nie (nicht freiwillig), ein Hinweistext ohne Kästchen auch nicht. Gemessen am 22.10.
+     (Produktion, nur Feldnamen): Die drei Formulare fragen nur Name, E-Mail, Telefon (eines dazu „inbox_url“) —
+     **dort muss ein freiwilliges Kästchen ergänzt werden** (Schlüssel „anruf_einwilligung“), dann greift der Weg.
+- **Warum:** Ab Fr 23.10. darf ARAS jeden anrufen, der eingewilligt hat — am 22.10. gab es drei gültige Einwilligungen.
+  Recht: vorher, ausdrücklich, freiwillig, dokumentiert (§ 7 Abs. 2 Nr. 1 und § 7a UWG; DSGVO Art. 7). Eine Frage per
+  WhatsApp an jemanden, der uns nicht selbst geschrieben hat, wäre selbst Werbung — darum nur im offenen Fenster. Im
+  Zweifel kein Ja: Ein verpasstes Ja kostet einen Anruf, ein falsch erkanntes das Recht.
+- **Wo:** Akte › Überblick › Karte „ARAS“ › „Ja zum Anruf“. Code: `shared/fiaon-ja-zum-anruf.ts` (die Sätze, der
+  JA- und der Widerrufs-Erkenner, das Urteil „darf Mara fragen?“, die Zeile der Akte), `server/lib/fiaon-ja-zum-anruf.ts`,
+  `server/routes/fiaon-ja-zum-anruf.ts` (eingehängt in `server/routes/fiaon-aras-akte.ts`),
+  `client/src/components/agent/ArasJaZumAnruf.tsx`; WhatsApp-Eingang `server/lib/fiaon-whatsapp.ts` (waEingang), Mara
+  `server/lib/fiaon-whatsapp-mara.ts`, Meta `server/lib/fiaon-meta-leads.ts`, Schalter `shared/fiaon-ki-schalter.ts`.
+  Prüfstand `scripts/pruef-aras-einwilligung-wege.ts` — 144 von 144 grün gegen eine frische lokale Prüfdatenbank (60
+  rein, 66 Datenbank inkl. echtem WhatsApp-Eingang und Maras Antwort mit Modell-Attrappe, 18 Browser am Rechner und am
+  Handy). Rot-Proben: zwölf absichtlich eingebaute Fehler (ohne Bestätigung eintragen, Fenster egal, „schon ein Ja“
+  egal, jedes Wort zählt als Ja, Meta-Haken fehlt, kein Widerruf per WhatsApp, Dank per Modell, Frage nicht angehängt,
+  Frage an Antworten mit Frage, Ja ohne Frage davor, Ja nach anderer Nachricht, Klage = Widerruf) — jeder macht ihn rot.
+  Die berührten Prüfstände (Mara auf WhatsApp, WhatsApp-Bremse, ARAS-Brücke, Auftrags-Chat, Antrag-Kästchen) zeigen
+  dieselben Ergebnisse wie vor der Änderung (ihre schon vorher roten Stellen sind unverändert und gehören zu anderen
+  Strängen); die Bremse kennt den neuen Sendeweg; KI-Schalter 939 von 939 grün. Fotos:
+  `~/Desktop/FIAON/10_Nacharbeit/aras-e408/ja-zum-anruf/`. Wer heute angerufen wird, ändert sich dadurch nicht — die
+  Werbe-Gesprächsarten gibt ein anderer Strang frei.
+
 ## 22.10.2026 — Prüfstände: zehn rote Offline-Prüfstände an den freigegebenen Stand gezogen
 - **Was:** Zehn Prüfstände ohne Datenbank meldeten auf main Rot, obwohl die Plattform richtig arbeitet: Freigegebene
   Änderungen hatten Texte, Orte oder Regeln geändert, die Prüfstände kannten noch den alten Stand. Je Prüfstand:

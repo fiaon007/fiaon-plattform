@@ -5,6 +5,7 @@
 //   GET  /agent/kunden/:personId/aras                         Lage: offen, bleibt bei dir, geplant, Verlauf, Sperre, Notiz, „geht/warum nicht“
 //   POST /agent/kunden/:personId/aras/auftrag                 { punkte[], auftrag, wann, ab, benachrichtigen, abgeben } — reiht EINEN Anruf ein
 //   …/aras/briefing*  der Auftrags-Chat („ARAS anrufen lassen“) — server/routes/fiaon-aras-briefing-chat.ts, unten eingehängt
+//   …/aras/ja*        „Ja zum Anruf“ (eintragen, widerrufen, Mara fragt) — server/routes/fiaon-ja-zum-anruf.ts, unten eingehängt (E-408 Scheibe 3)
 //   POST /agent/kunden/:personId/aras/plan/:planId/zuruecknehmen
 //   POST /agent/kunden/:personId/aras/schalter                { aus: boolean, grund } — „Aras für diesen Kunden aus“
 //   POST /agent/kunden/:personId/aras/notiz                   { text } — „Was Aras wissen muss“
@@ -24,6 +25,8 @@ import { laufendeSitzungen } from "../lib/fiaon-aras-bruecke";
 import { AUFTRAG_WANN, type AuftragWann } from "../../shared/fiaon-aras";
 // Der Auftrags-Chat („ARAS anrufen lassen“ öffnet einen kurzen Chat statt der Maske) — eigene Datei, dieselben Türen.
 import briefingChat from "./fiaon-aras-briefing-chat";
+// „Ja zum Anruf“ in der Karte (E-408 Scheibe 3, 22.10.2026) — eigene Datei, dieselben Türen.
+import jaZumAnruf from "./fiaon-ja-zum-anruf";
 
 const router = Router();
 const fehler = (res: Response, status: number, text: string, extra: Record<string, unknown> = {}) => res.status(status).json({ ok: false, error: text, ...extra });
@@ -133,5 +136,6 @@ router.get("/agent/aras/uebergabe/:callId", requireAgent, async (req: AgentReque
 });
 
 router.use(briefingChat);
+router.use(jaZumAnruf);
 
 export default router;

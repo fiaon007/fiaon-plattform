@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-408 Scheibe 3 (22.10.2026): „Ja zum Anruf“ in der Karte „ARAS“ — sehen, eintragen, Mara fragen lassen, widerrufen.
+    id: "2026-10-22-ja-zum-anruf",
+    date: "2026-10-22",
+    category: "Neu",
+    title: "Ja zum Anruf: sehen, eintragen, Mara fragen lassen",
+    summary:
+      "In der Karte „ARAS“ steht jetzt, ob der Kunde uns das Anrufen erlaubt hat — und seit wann. "
+      + "Sagt er es dir am Telefon, trägst du es mit einem Klick ein.",
+    changes: [
+      "Die Zeile zeigt zum Beispiel „Ja zum Anruf: seit 22.10. (WhatsApp)“, „(Antrag-Kästchen)“ oder „(im Gespräch mit …)“ — sonst „Noch kein Ja zum Anruf“.",
+      "„Ja zum Anruf eintragen“: nur, wenn er es dir gerade im Gespräch selbst gesagt hat. Häkchen setzen, „Eintragen“. Gespeichert werden dein Name, die Uhrzeit und dein Gespräch.",
+      "„Mara fragt nach dem Ja“: Mara fragt ihn per WhatsApp, ob wir anrufen dürfen (auch ARAS). Das geht nur, wenn er in den letzten 24 Stunden geschrieben hat — sonst steht darunter, warum nicht.",
+      "Mara fragt auch von selbst — höchstens einmal in 30 Tagen, angehängt an eine Antwort. Schreibt er „Ja“, steht es sofort in der Akte.",
+      "„Ja widerrufen“, wenn er es sich anders überlegt. Schreibt er Mara „bitte nicht mehr anrufen“, passiert das von allein.",
+    ],
+    howto: [
+      "Akte öffnen → Überblick → Karte „ARAS“ → Block „Ja zum Anruf“.",
+      "Er sagt am Telefon „Ja, Sie dürfen mich anrufen“ → „Ja zum Anruf eintragen“ → Häkchen → „Eintragen“.",
+      "Nie eintragen, wenn er es nicht selbst gesagt hat — der Eintrag ist ein Nachweis.",
+    ],
+  },
+  {
     // E-408 (Akte-Steuerung, 20.10.2026): „ARAS anrufen lassen“ öffnet einen kurzen Chat — Justin: „… am besten öffnet sich
     // so ein kurzer Chat wo genau abgefragt wird damit ARAS perfekt arbeiten kann“.
     id: "2026-10-20-aras-chat",

@@ -13,12 +13,14 @@
 //   · Geplant (zurücknehmen) · Was ARAS gemacht hat (Ergebnis, Aufnahme nur nach Ja, Daumen) — mit dem Auftrag aus dem
 //     Chat: wer hat was angewiesen, Chat nachlesen.
 //   · Was ARAS wissen muss · ARAS für diesen Kunden aus
+//   · Ja zum Anruf (E-408 Scheibe 3) — eigene Komponente ArasJaZumAnruf: was gilt, eintragen, Mara fragt, widerrufen.
 // Server: server/routes/fiaon-aras-akte.ts (+ fiaon-aras-briefing-chat.ts) · Lage: server/lib/fiaon-aras-akte.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/pages/agent/shared";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { ArasBriefingChat, BriefingKurz } from "@/components/agent/ArasBriefingChat";
+import { ArasJaZumAnruf } from "@/components/agent/ArasJaZumAnruf";
 import type { BriefingSicht } from "@shared/fiaon-aras-briefing-chat";
 import "@/styles/office-aras.css";
 
@@ -115,6 +117,9 @@ export function ArasKarte({ personId, melden }: { personId: number; melden: Meld
       </div>
       {!chat && !l.geht.ok && l.geht.grund && <p className="ak-grund">{l.geht.grund}</p>}
       {!chat && l.geht.ok && l.hinweis && <p className="ak-hinweis">{l.hinweis}</p>}
+
+      {/* E-408 Scheibe 3 (22.10.2026): Ja zum Anruf — was gilt, eintragen, Mara fragen lassen, widerrufen. */}
+      <ArasJaZumAnruf personId={personId} melden={melden} />
 
       {chat && <ArasBriefingChat personId={personId} melden={melden} onZu={() => setChat(false)} onGeaendert={() => void laden()} />}
 

@@ -51,6 +51,9 @@ async function main() {
     "Ihre Kündigung wird erst wirksam, wenn die Rate bezahlt ist.",
     "Ohne Zahlung kein Vertragsende.",
     "We cannot cancel your contract until the outstanding payment is received.",
+    // 22.10.2026 (Prüf-Mara-Kalibrierung, Nebenfund): „gilt erst, wenn …“ und „bestätigen die Kündigung, sobald …“
+    "Die Kündigung gilt erst, wenn die offene Rate bezahlt ist.",
+    "Wir bestätigen die Kündigung, sobald die Rate da ist.",
   ];
   for (const s of kopplungen) ok(kopplungFinden(s), `Kopplung: „${s.slice(0, 80)}“`);
   ok(kopplungFinden("Ihre Kündigung ist vermerkt. Das geht aber erst nach der Zahlung der Rate 2."), "„Das geht erst nach der Zahlung“ mit der Kündigung im Satz davor");
@@ -76,6 +79,8 @@ async function main() {
     "Möchten Sie, dass ich Ihren Vertrag jetzt kündige? Ein kurzes Ja genügt.",
     "Your cancellation is effective regardless of payment; the instalment due before then remains payable.",
     "Settled claim three years from settlement; contract data deleted on termination; open claims have no period until settlement.",
+    "Die Kündigung gilt, sobald sie bei uns eingegangen ist.",
+    "Wir bestätigen Ihre Kündigung zum 31.12. Die offene Rate bitten wir trotzdem zu überweisen.",
   ];
   for (const s of frei) ok(!kopplungFinden(s), `frei: „${s.slice(0, 80)}“`);
 

@@ -97,7 +97,8 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "„Ja zum Anruf eintragen“: nur, wenn er es dir gerade im Gespräch selbst gesagt hat. Häkchen setzen, „Eintragen“. Gespeichert werden dein Name, die Uhrzeit und dein Gespräch.",
       "„Mara fragt nach dem Ja“: Mara fragt ihn per WhatsApp, ob wir anrufen dürfen (auch ARAS). Das geht nur, wenn er in den letzten 24 Stunden geschrieben hat — sonst steht darunter, warum nicht.",
       "Mara fragt auch von selbst — höchstens einmal in 30 Tagen, angehängt an eine Antwort. Schreibt er „Ja“, steht es sofort in der Akte.",
-      "„Ja widerrufen“, wenn er es sich anders überlegt. Schreibt er Mara „bitte nicht mehr anrufen“, passiert das von allein.",
+      "„Ja widerrufen“, wenn er es sich anders überlegt. Schreibt er Mara „bitte nicht anrufen“, passiert das von allein.",
+      "Schreibt er klar „nicht mehr anrufen“ oder „keine Anrufe mehr“, setzt das zusätzlich die Telefonsperre: ARAS ruft ihn nicht mehr an, und in der Akte steht „Die Sperre gilt für alle“ — dann rufst auch du ihn bitte nicht mehr an.",
     ],
     howto: [
       "Akte öffnen → Überblick → Karte „ARAS“ → Block „Ja zum Anruf“.",

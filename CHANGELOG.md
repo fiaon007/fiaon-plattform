@@ -59,6 +59,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   Abschnitt 4 an das neue Nachfassen angepasst). Die Erinnerungen wirken, sobald ARAS an ist; den eigenen Nachfass-Anruf
   gibt es erst, wenn die Gesprächsart „Zusage nachfassen“ an ist — bis dahin übernehmen die Rate-Anrufe nach der Pause.
 
+## 22.10.2026 — Ja zum Anruf: Widerruf steht vor dem Ja, „nicht mehr anrufen“ setzt die Telefonsperre (E-408, Scheibe 3)
+- **Was:** Zwei Nachbesserungen am selben Tag, vor dem ersten Einsatz:
+  1. **Maras Frage nennt den Widerruf jetzt VOR dem Ja:** „Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere
+     digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA. Sie können es jederzeit mit einer kurzen Nachricht
+     zurücknehmen.“ Die erste Fassung (ohne den letzten Satz) bleibt dahinter in der Liste der Fassungen stehen: Ein Ja
+     auf die alte UND auf die neue Frage zählt — gespeichert wird genau der Wortlaut, den er gelesen hat —, und beide
+     zählen für „höchstens einmal in 30 Tagen“.
+  2. **„Nicht mehr anrufen“ per WhatsApp setzt die echte Telefonsperre.** Bei klaren Sätzen („nicht mehr anrufen“,
+     „keine Anrufe mehr“, „rufen Sie mich nie wieder an“, „hören Sie auf anzurufen“) läuft derselbe Weg wie bei ARAS'
+     Werkzeug „nicht mehr anrufen“: Telefonsperre (Quelle „whatsapp“, gilt für Nummer und Person; ARAS wählt nicht mehr,
+     wartende ARAS-Anrufe sind gesperrt, wie dort auch die Werbesperre) und Widerruf jedes Ja. Mara antwortet mit dem
+     festen Satz „Verstanden – wir rufen Sie nicht mehr an.“ (ohne Modell); schreibt er noch eine Frage dazu, antwortet
+     das Modell und weiß, dass wir ihn nicht mehr anrufen. Weiche Sätze („Bitte nicht anrufen, bin auf Arbeit“, „bitte
+     jetzt nicht anrufen“) nehmen wie bisher nur das Ja zurück, ohne Sperre. Nie eine Sperre bei einer Frage („Können
+     Sie mich nicht mehr anrufen?“), bei „Warum rufen Sie mich nicht an?“ (das nimmt auch kein Ja mehr zurück), bei
+     einer Klage über die Vergangenheit oder bei „Sie müssen mich nicht mehr anrufen“.
+- **Warum:** DSGVO Art. 7 Abs. 3 verlangt den Hinweis auf den Widerruf vor der Einwilligung. Und wer klar sagt, dass er
+  keine Anrufe mehr will, bekommt keine — auch keine von ARAS zu offenen Raten. (Freigabe: Koordination E-408, 22.10.)
+- **Wo:** `shared/fiaon-ja-zum-anruf.ts` (`JA_FRAGE_WA`, `JA_FRAGE_FASSUNGEN`, `ANRUF_SPERRE_WA`, `istAnrufSperreWunsch`),
+  `server/lib/fiaon-ja-zum-anruf.ts` (`jaAusWhatsApp` → `telefonSperren` + `einwilligungWiderrufen`), Maras Antwort
+  `server/lib/fiaon-whatsapp-mara.ts`, Rundgang und Neuigkeiten im Office. Prüfstand `scripts/pruef-aras-einwilligung-wege.ts`
+  — jetzt 170 von 170 grün auf einer frischen lokalen Prüfdatenbank (70 rein, 82 Datenbank, 18 Browser): u. a. ein Ja
+  auf die alte und auf die neue Fassung (je mit ihrem Wortlaut), die alte Fassung zählt für die 30 Tage, „Nein, rufen Sie
+  mich nie wieder an!“ über den echten WhatsApp-Eingang → Sperre und Maras fester Satz, „bitte jetzt nicht anrufen“ →
+  nur Widerruf und Maras Antwort wie bisher, Sperre plus Frage → Modell mit Hinweis. Rot-Proben: 20 absichtlich
+  eingebaute Fehler, jeder macht ihn rot (neu u. a.: keine Sperre, Sperre auch bei weichen Sätzen, Sperr-Satz per
+  Modell, alte Fassung zuerst oder vergessen, Frage ohne Widerrufs-Hinweis, „Warum …?“ als Widerruf, Sperre bei Fragen).
+
 ## 22.10.2026 — Ja zum Anruf einsammeln: Akte, Mara per WhatsApp, Meta-Formular (E-408, Scheibe 3)
 - **Was:** Drei Wege, auf denen ein Mensch FIAON das Anrufen erlaubt (auch durch ARAS). Jeder legt den Nachweis in
   `fiaon_telefon_einwilligung` an — mit Wortlaut, Zeitpunkt, Art und Beleg (§ 7a UWG):

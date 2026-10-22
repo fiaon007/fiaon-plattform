@@ -11,7 +11,7 @@
 //   · jaWiderrufen         „Ja widerrufen“ (Akte)
 //   · maraFragtNachDemJa   der Knopf in der Akte: Mara schickt die Frage jetzt (nur bei offenem Fenster)
 //   · jaAusWhatsApp        jede eingehende WhatsApp (waEingang): ein klares JA auf Maras Frage → „zuruf_whatsapp“;
-//                          „bitte nicht mehr anrufen“ → Widerruf
+//                          „bitte nicht anrufen“ → Widerruf; klares „nicht mehr anrufen“ → dazu die Telefonsperre
 //   · jaImGespraech        für Maras Antwort: Ja gespeichert? zurückgenommen? stand die Frage zuletzt da?
 //   · jaFrageZumAnhaengen  für Maras Antwort: darf die Frage jetzt an diese Antwort? (sonst null)
 //
@@ -20,7 +20,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema } from "./fiaon-aras-schema";
-import { nummerKern, telefonGesperrt } from "./fiaon-aras-sperre";
+import { nummerKern, telefonGesperrt, telefonSperren } from "./fiaon-aras-sperre";
 import { einwilligungMerken, einwilligungWiderrufen } from "./fiaon-telefon-einwilligung";
 import { waehlbareNummer } from "./fiaon-telefon";
 import { KOPF_SQL, FAMILIE_SQL, menschSperre, werbungVerboten } from "./fiaon-mail-frequenz";
@@ -29,7 +29,7 @@ import { istGlobalKunde } from "./fiaon-global-kunde";
 import { fensterOffen } from "./fiaon-whatsapp";
 import {
   JA_FRAGE_WA, JA_FRAGE_FASSUNGEN, JA_AKTE_BESTAETIGUNG, JA_FRAGE_MARKE, JA_FRAGE_ABSTAND_TAGE, JA_ANTWORT_GILT_TAGE, JA_GESPRAECH_STUNDEN,
-  istKlaresJa, istNeinZumAnruf, jaFrageIn, antwortOhneFrage, jaFrageUrteil, jaZeile,
+  istKlaresJa, istNeinZumAnruf, istAnrufSperreWunsch, jaFrageIn, antwortOhneFrage, jaFrageUrteil, jaZeile,
   type JaEintrag, type JaFrageFakten, type JaFrageUrteil,
 } from "../../shared/fiaon-ja-zum-anruf";
 import { EINWILLIGUNG_JAHRE } from "../../shared/fiaon-aras";
@@ -302,7 +302,7 @@ export async function maraFragtNachDemJa(ein: { personId: number; agentId: numbe
 // ═══════════════════════════════════════════════════════════════════════════
 // WHATSAPP
 // ═══════════════════════════════════════════════════════════════════════════
-export interface JaAusWhatsApp { ja: boolean; nein: boolean; id?: number; neu?: boolean; widerrufen?: number; grund?: string }
+export interface JaAusWhatsApp { ja: boolean; nein: boolean; id?: number; neu?: boolean; widerrufen?: number; gesperrt?: boolean; grund?: string }
 
 /**
  * Jede eingehende WhatsApp (waEingang, VOR Maras Antwort). Wirft nur bei Datenbankfehlern — der Aufrufer fängt.
@@ -310,25 +310,38 @@ export interface JaAusWhatsApp { ja: boolean; nein: boolean; id?: number; neu?: 
  *     Kundennachricht dazwischen, höchstens 7 Tage danach) → genau EINE Einwilligung „zuruf_whatsapp“: Wortlaut = die
  *     gestellte Frage (die Fassung, die er gelesen hat), Zeitpunkt = sein Ja, Quelle = seine Nachricht, Beleg = beide
  *     Nachrichten (unsere Kennung und die von Meta, Text, Zeit, Absender).
- *   · „Bitte nicht mehr anrufen“ (istNeinZumAnruf) → jedes gültige Ja dieser Nummer und dieses Menschen ist widerrufen.
+ *   · „Bitte nicht anrufen“ (istNeinZumAnruf) → jedes gültige Ja dieser Nummer und dieses Menschen ist widerrufen.
+ *   · Klares „nicht mehr anrufen“ / „keine Anrufe mehr“ / „rufen Sie mich nie wieder an“ / „hören Sie auf anzurufen“
+ *     (istAnrufSperreWunsch) → zusätzlich die Telefonsperre: derselbe Weg wie ARAS' Werkzeug nicht_mehr_anrufen
+ *     (fiaon-aras-werkzeuge.ts: telefonSperren + einwilligungWiderrufen), Quelle „whatsapp“. Wie dort setzt
+ *     telefonSperren auch die Werbesperre der Person und sperrt ihre wartenden ARAS-Anrufe.
  */
 export async function jaAusWhatsApp(ein: { nummer: string; nachrichtId: number; text: string; personId: number | null; leadId: number | null; am?: Date | string | null }, lauf: Lauf = sqlPool): Promise<JaAusWhatsApp> {
   const ja = istKlaresJa(ein.text);
-  const nein = !ja && istNeinZumAnruf(ein.text);
+  const sperre = !ja && istAnrufSperreWunsch(ein.text);
+  const nein = !ja && (sperre || istNeinZumAnruf(ein.text));
   if (!ja && !nein) return { ja: false, nein: false };
   await arasSchema(lauf);
   const fam = ein.personId ? await familie(ein.personId, lauf) : null;
   const kern = nummerKern(ein.nummer);
 
   if (nein) {
+    const sein = ein.text.replace(/\s+/g, " ").slice(0, 160);
+    if (sperre) {
+      // Derselbe Weg wie ARAS' Werkzeug nicht_mehr_anrufen — die Sperre gilt für alle (Nummer UND Person).
+      await telefonSperren({ nummerKern: kern, personId: fam?.kopf ?? null, quelle: "whatsapp", grund: `Kunde per WhatsApp (Nachricht ${ein.nachrichtId}): „${sein.slice(0, 140)}“` }, lauf);
+    }
     const quelle = `whatsapp:${ein.nachrichtId}`;
     let widerrufen = kern ? await einwilligungWiderrufen({ nummerKern: kern, quelle }, lauf) : 0;
     for (const pid of fam?.ids ?? []) widerrufen += await einwilligungWiderrufen({ personId: pid, quelle }, lauf);
-    if (widerrufen) {
-      await aktenvermerk(fam?.kopf ?? null, `Ja zum Anruf zurückgenommen (WhatsApp): „${ein.text.replace(/\s+/g, " ").slice(0, 160)}“ — gespeichert, ohne neues Ja keine Werbeanrufe mehr.`, { id: null, name: "Mara" }, lauf);
+    if (sperre) {
+      await aktenvermerk(fam?.kopf ?? null, `Nicht mehr anrufen (WhatsApp): „${sein}“ — Telefonsperre gesetzt (gilt für alle, auch ARAS), Werbesperre gesetzt${widerrufen ? ", Ja zum Anruf widerrufen" : ""}.`, { id: null, name: "Mara" }, lauf);
+      await protokoll({ text: "Telefonsperre per WhatsApp (nicht mehr anrufen)", personId: fam?.kopf ?? null, leadId: ein.leadId, nummer: ein.nummer, daten: { nachrichtId: ein.nachrichtId, widerrufen } }, lauf);
+    } else if (widerrufen) {
+      await aktenvermerk(fam?.kopf ?? null, `Ja zum Anruf zurückgenommen (WhatsApp): „${sein}“ — gespeichert, ohne neues Ja keine Werbeanrufe mehr.`, { id: null, name: "Mara" }, lauf);
       await protokoll({ text: "Ja zum Anruf per WhatsApp zurückgenommen", personId: fam?.kopf ?? null, leadId: ein.leadId, nummer: ein.nummer, daten: { nachrichtId: ein.nachrichtId, anzahl: widerrufen } }, lauf);
     }
-    return { ja: false, nein: true, widerrufen };
+    return { ja: false, nein: true, gesperrt: sperre, widerrufen };
   }
 
   const [frage] = (await lauf`
@@ -362,12 +375,17 @@ export async function jaAusWhatsApp(ein: { nummer: string; nachrichtId: number; 
   return { ja: true, nein: false, id, neu: true };
 }
 
-/** Für Maras Antwort: welche offenen Nachrichten ein gespeichertes Ja bzw. einen Widerruf sind — und ob die Frage zuletzt dastand. */
-export async function jaImGespraech(ein: { nummer: string; offeneIds: number[]; ersteOffeneId: number }, lauf: Lauf = sqlPool): Promise<{ gespeichertIds: number[]; zurueckIds: number[]; frageOffen: boolean }> {
-  const leer = { gespeichertIds: [] as number[], zurueckIds: [] as number[], frageOffen: false };
-  if (!ein.offeneIds.length) return leer;
+/**
+ * Für Maras Antwort: welche offenen Nachrichten ein gespeichertes Ja, ein Widerruf oder eine Telefonsperre sind — und ob
+ * die Frage zuletzt dastand. Sperre = die Nachricht verlangt sie (istAnrufSperreWunsch) UND sie steht für diese Nummer.
+ */
+export async function jaImGespraech(ein: { nummer: string; offene: { id: number; text: string }[]; ersteOffeneId: number }, lauf: Lauf = sqlPool): Promise<{ gespeichertIds: number[]; zurueckIds: number[]; sperreIds: number[]; frageOffen: boolean }> {
+  const leer = { gespeichertIds: [] as number[], zurueckIds: [] as number[], sperreIds: [] as number[], frageOffen: false };
+  if (!ein.offene.length) return leer;
   await arasSchema(lauf);
-  const ids = ein.offeneIds.map(String);
+  const ids = ein.offene.map((o) => String(o.id));
+  const wollenSperre = ein.offene.filter((o) => istAnrufSperreWunsch(o.text));
+  const gesperrt = wollenSperre.length > 0 && await telefonGesperrt(nummerKern(ein.nummer), null, lauf);
   const ja = (await lauf`
     SELECT quelle_id FROM fiaon_telefon_einwilligung WHERE art = 'zuruf_whatsapp' AND quelle_art = 'whatsapp' AND quelle_id = ANY(${ids})`) as any[];
   const zurueck = (await lauf`
@@ -378,6 +396,7 @@ export async function jaImGespraech(ein: { nummer: string; offeneIds: number[]; 
   return {
     gespeichertIds: ja.map((z) => Number(z.quelle_id)),
     zurueckIds: zurueck.map((z) => Number(String(z.widerruf_quelle).slice("whatsapp:".length))),
+    sperreIds: gesperrt ? wollenSperre.map((o) => o.id) : [],
     frageOffen: !!vorher && !!jaFrageIn(vorher.text),
   };
 }

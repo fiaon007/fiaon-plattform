@@ -9,6 +9,7 @@
 //   2. WHATSAPP  Mara hängt an eine Antwort EINEN eigenen Satz an (JA_FRAGE_WA) — ihre Antwort bleibt Wort für Wort.
 //                Antwortet er klar mit JA (istKlaresJa), entsteht „zuruf_whatsapp“: Wortlaut = die gestellte Frage,
 //                Beleg = beide Nachrichten. In der Akte dazu „Mara fragt nach dem Ja“ (nur bei offenem Fenster).
+//                „Bitte nicht anrufen“ nimmt das Ja zurück; ein klares „nicht mehr anrufen“ setzt dazu die Telefonsperre.
 //   3. META      fragt ein Lead-Formular nach dem Ja zum Anruf (Kästchen oder Frage), entsteht „meta_kaestchen“.
 //
 // Recht (hart): vorher, ausdrücklich, freiwillig, dokumentiert (§ 7 Abs. 2 Nr. 1 und § 7a UWG; DSGVO Art. 7). Eine
@@ -23,19 +24,30 @@
 import type { EinwilligungArt } from "./fiaon-aras";
 
 // ── Die freigegebenen Sätze (Wortlaut ändern nur hier, mit derselben Freigabe) ─────────────────────────────────────
-/** Die Frage, die Mara an eine Antwort anhängen darf (Auftrag E-408 vom 22.10.2026) — ein eigener Satz am Ende. */
-export const JA_FRAGE_WA = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA.";
 /**
- * Jede Fassung der Frage, die je rausging — neueste zuerst. Der JA-Erkenner und die 30-Tage-Grenze lesen ALLE: Eine
- * neue Fassung kommt vorn dazu, alte bleiben stehen (sonst zählte ein Ja auf die alte Frage nicht mehr, und Mara
- * fragte vor Ablauf der 30 Tage noch einmal).
+ * Die Frage, die Mara an eine Antwort anhängt (und der Knopf „Mara fragt nach dem Ja“ schickt) — ein eigener Satz am Ende.
+ * Fassung 2, freigegeben 22.10.2026 (Koordination E-408): Der Widerruf steht VOR dem Ja (DSGVO Art. 7 Abs. 3 Satz 3).
  */
-export const JA_FRAGE_FASSUNGEN: readonly string[] = [JA_FRAGE_WA];
+export const JA_FRAGE_WA = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA. Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.";
+/** Fassung 1 (Auftrag E-408 vom 22.10.2026, ohne den Widerrufs-Hinweis) — geht nicht mehr raus, ein Ja darauf zählt weiter. */
+export const JA_FRAGE_WA_FASSUNG_1 = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA.";
+/**
+ * Jede Fassung der Frage, die je rausging — NEUESTE ZUERST. Der JA-Erkenner und die 30-Tage-Grenze lesen ALLE: Eine
+ * neue Fassung kommt vorn dazu, alte bleiben stehen (sonst zählte ein Ja auf die alte Frage nicht mehr, und Mara
+ * fragte vor Ablauf der 30 Tage noch einmal). Die Reihenfolge trägt: Fassung 1 steckt wörtlich in Fassung 2 — wer
+ * hinten anfinge, hielte jede neue Frage für die alte (und speicherte den falschen Wortlaut).
+ */
+export const JA_FRAGE_FASSUNGEN: readonly string[] = [JA_FRAGE_WA, JA_FRAGE_WA_FASSUNG_1];
 /**
  * Maras Dank auf ein klares JA — ein fester Satz ohne Modell. Er sagt nur, was stimmt: Es ist notiert, und er kann es
  * zurücknehmen (DSGVO Art. 7 Abs. 3). Kein Zeitpunkt, kein Versprechen eines Anrufs.
  */
 export const JA_DANKE_WA = "Vielen Dank, das ist notiert. Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.";
+/**
+ * Maras Antwort auf ein klares „nicht mehr anrufen“ (Telefonsperre gesetzt) — ein fester Satz ohne Modell. Er stimmt: Die
+ * Sperre gilt für alle (ARAS wählt nicht, die Akte zeigt sie dem Team). Freigegeben 22.10.2026 (Koordination E-408).
+ */
+export const ANRUF_SPERRE_WA = "Verstanden – wir rufen Sie nicht mehr an.";
 /** Die Pflicht-Bestätigung im Dialog der Akte — und genau dieser Satz ist der Wortlaut des Nachweises (Art „chef“). */
 export const JA_AKTE_BESTAETIGUNG = "Der Kunde hat mir gerade im Gespräch gesagt, dass FIAON ihn anrufen darf, auch ARAS (KI)";
 /** Marke hinter Maras Namen, wenn der Knopf „Mara fragt nach dem Ja“ die Frage schickt (wie „(Nachfass)“). */
@@ -97,14 +109,19 @@ export function istKlaresJa(text: unknown): boolean {
   return true;
 }
 
-// ── Der Widerrufs-Erkenner („bitte nicht mehr anrufen“) ─────────────────────────────────────────────────────────
-// Mara sagt nach dem Ja: „Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.“ Und der Antrag verspricht
-// dasselbe („eine Nachricht genügt“). Darum nimmt eine solche Nachricht auf WhatsApp das Ja sofort zurück. Lieber
-// einmal zu viel zurückgenommen (ein Mensch trägt es neu ein) als einen Widerruf überhört — ein Anruf danach wäre
-// unerlaubt. Was über die VERGANGENHEIT klagt („Sie haben mich nicht angerufen“), nimmt nichts zurück.
+// ── Der Widerrufs-Erkenner („bitte nicht anrufen“) und die Telefonsperre („nicht mehr anrufen“) ───────────────────
+// Mara sagt bei der Frage und nach dem Ja: „Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.“ Und der
+// Antrag verspricht dasselbe („eine Nachricht genügt“). Darum nimmt eine solche Nachricht auf WhatsApp das Ja sofort
+// zurück. Lieber einmal zu viel zurückgenommen (ein Mensch trägt es neu ein) als einen Widerruf überhört — ein Anruf
+// danach wäre unerlaubt. Was über die VERGANGENHEIT klagt („Sie haben mich nicht angerufen“) oder nach dem Warum fragt
+// („Warum rufen Sie mich nicht an?“), nimmt nichts zurück.
+// ZWEI STUFEN (Koordination E-408, 22.10.2026):
+//   · weich („Bitte nicht anrufen, bin auf Arbeit“, „bitte jetzt nicht anrufen“) → nur das Ja zurück (istNeinZumAnruf);
+//   · klar („nicht mehr anrufen“, „keine Anrufe mehr“, „rufen Sie mich nie wieder an“, „hören Sie auf anzurufen“) →
+//     zusätzlich eine echte Telefonsperre, derselbe Weg wie ARAS' Werkzeug nicht_mehr_anrufen (istAnrufSperreWunsch).
 const WIDERRUF_MUSTER: RegExp[] = [
   new RegExp("\\bnicht\\s+mehr\\s+(?:an)?(?:ge)?ruf", "i"),
-  new RegExp("\\b(?:bitte|lieber|besser)\\s+(?:nicht|keine?n?)\\s+(?:mehr\\s+)?(?:an)?(?:ge)?ruf", "i"),
+  new RegExp("\\b(?:bitte|lieber|besser)\\s+(?:\\S+\\s+){0,2}?(?:nicht|keine?n?)\\s+(?:mehr\\s+)?(?:an)?(?:ge)?ruf", "i"),
   new RegExp("\\b(?:will|möchte|moechte|wünsche|wuensche|mag)\\s+(?:\\S+\\s+){0,3}?(?:nicht|keine?n?)\\s+(?:mehr\\s+)?(?:an)?(?:ge)?ruf", "i"),
   new RegExp("\\bruf\\w*\\s+(?:sie\\s+|ihr\\s+|du\\s+)?(?:mich|uns)\\s+(?:\\S+\\s+){0,3}?(?:nicht|nie)\\b", "i"),
   new RegExp("\\bkeine\\s+(?:weiteren\\s+)?anrufe\\b(?![^.!?\\n]{0,30}\\b(?:bekommen|erhalten|gehabt|bekam|gekommen))", "i"),
@@ -112,13 +129,46 @@ const WIDERRUF_MUSTER: RegExp[] = [
   new RegExp("\\bwiderruf\\w*\\b[^.!?\\n]{0,60}\\b(?:anruf\\w*|telefon\\w*)", "i"),
   new RegExp("\\b(?:anruf\\w*|telefon\\w*)\\b[^.!?\\n]{0,60}\\bwiderruf\\w*", "i"),
   new RegExp("\\b(?:nehme|ziehe)\\b[^.!?\\n]{0,40}\\b(?:ja|anruf\\w*|einwilligung)\\b[^.!?\\n]{0,40}\\bzur(?:ü|ue)ck\\b", "i"),
+  new RegExp("\\bh(?:ö|oe)r\\w*\\b[^.!?;\\n]{0,30}\\bauf\\b[^.!?;\\n]{0,30}\\b(?:anzurufen|anrufe\\w*)\\b", "i"),
+];
+/** Klare Sätze, die JEDEN Anruf beenden sollen — dann auch die Telefonsperre (enger als WIDERRUF_MUSTER). */
+const SPERRE_MUSTER: RegExp[] = [
+  new RegExp("\\bnicht\\s+mehr\\s+(?:an)?(?:ge)?ruf", "i"),
+  new RegExp("\\bnie\\s+(?:wieder|mehr)\\s+(?:an)?(?:ge)?ruf", "i"),
+  new RegExp("\\bruf\\w*\\s+(?:sie\\s+|ihr\\s+|du\\s+)?(?:mich|uns)\\s+(?:\\S+\\s+){0,3}?(?:nicht\\s+mehr|nie\\s+wieder|nie\\s+mehr|nimmer)\\b", "i"),
+  new RegExp("\\bkeine\\s+(?:weiteren\\s+)?anrufe\\s+mehr\\b", "i"),
+  new RegExp("\\bkeine\\s+weiteren\\s+anrufe\\b", "i"),
+  new RegExp("\\bh(?:ö|oe)r\\w*\\b[^.!?;\\n]{0,30}\\bauf\\b[^.!?;\\n]{0,30}\\b(?:anzurufen|anrufe\\w*)\\b", "i"),
 ];
 const VERGANGENHEIT = new RegExp("\\b(?:habe|hat|haben|hatte|hatten|wurde|wurden|bin|ist|war)\\b[^.!?;,\\n]{0,40}\\b(?:nicht|keine?n?|nie)\\b[^.!?;,\\n]{0,15}\\b(?:angerufen|anruf\\b|anrufe\\b)", "i");
+/** „Warum rufen Sie mich nicht an?“ will einen Anruf — das ist nie ein Widerruf. */
+const WARUM = new RegExp("\\b(?:warum|wieso|weshalb|weswegen)\\b", "i");
+/** „Sie müssen mich nicht mehr anrufen, ich habe bezahlt“ — kein Bedarf, keine Sperre (das Ja geht trotzdem zurück). */
+const KEIN_BEDARF = new RegExp("\\b(?:müssen|muessen|musst|müsst|muss|brauchen|braucht|brauchst)\\b", "i");
 
-/** Nimmt diese Nachricht das Ja zum Anruf zurück? Je Satzteil geprüft — die Klage über die Vergangenheit zählt nicht. */
+/**
+ * Nimmt diese Nachricht das Ja zum Anruf zurück? Je Satzteil geprüft — Klage über die Vergangenheit und Warum zählen
+ * nicht. Wer die Sperre verlangt (istAnrufSperreWunsch), nimmt das Ja immer auch zurück.
+ */
 export function istNeinZumAnruf(text: unknown): boolean {
+  if (istAnrufSperreWunsch(text)) return true;
   const teile = String(text ?? "").split(/[.!?;,\n]+/).map((s) => s.trim()).filter(Boolean);
-  return teile.some((s) => WIDERRUF_MUSTER.some((m) => m.test(s)) && !VERGANGENHEIT.test(s));
+  return teile.some((s) => WIDERRUF_MUSTER.some((m) => m.test(s)) && !VERGANGENHEIT.test(s) && !WARUM.test(s));
+}
+
+/**
+ * Will er GAR KEINE Anrufe mehr („nicht mehr anrufen“, „keine Anrufe mehr“, „rufen Sie mich nie wieder an“, „hören Sie
+ * auf anzurufen“)? Dann Telefonsperre + Widerruf. Je ganzem Satz geprüft (ein Komma trennt „hören Sie auf, mich
+ * anzurufen“ nicht). Nie bei einer Frage („Können Sie mich nicht mehr anrufen?“), einem Warum, der Vergangenheit oder
+ * „müssen/brauchen nicht mehr“ — dort reicht der Widerruf; eine Sperre hält auch die Raten-Anrufe an.
+ */
+export function istAnrufSperreWunsch(text: unknown): boolean {
+  const saetze = String(text ?? "").match(/[^.!?;\n]+[.!?;\n]*/g) ?? [];
+  return saetze.some((satz) => {
+    const s = satz.trim();
+    if (!s || s.includes("?") || WARUM.test(s) || VERGANGENHEIT.test(s) || KEIN_BEDARF.test(s)) return false;
+    return SPERRE_MUSTER.some((m) => m.test(s));
+  });
 }
 
 // ── Die Frage im Verlauf ─────────────────────────────────────────────────────────────────────────────────────────
@@ -186,7 +236,9 @@ export function jaFrageUrteil(f: JaFrageFakten): JaFrageUrteil {
 }
 
 /** Was Mara (Modell) zu seiner Antwort auf die Frage wissen muss — oder null. Ein Satz für JETZT BEACHTEN. */
-export function jaHinweisFuerMara(s: { jaGespeichert: boolean; zurueckgenommen: boolean; frageOffen: boolean }): string | null {
+export function jaHinweisFuerMara(s: { jaGespeichert: boolean; zurueckgenommen: boolean; frageOffen: boolean; gesperrt?: boolean }): string | null {
+  // Nach einer Telefonsperre: der Satz muss stimmen — wir rufen ihn nicht mehr an (auch kein Rückruf-Angebot).
+  if (s.gesperrt) return "ER WILL NICHT MEHR ANGERUFEN WERDEN (Telefonsperre gesetzt): Sag ihm in einem kurzen Satz, dass wir ihn nicht mehr anrufen. Biete keinen Anruf und keinen Rückruf an. Beantworte dann, was er sonst schreibt.";
   if (s.zurueckgenommen) return "SEIN JA ZUM ANRUF IST ZURÜCKGENOMMEN (eben gespeichert): Bestätige kurz, dass es notiert ist – ohne weitere Zusage.";
   if (s.jaGespeichert) return "ER HAT JA ZUM ANRUF GESAGT (gespeichert): Danke ihm dafür in einem kurzen Halbsatz. Nenn keinen Zeitpunkt und versprich keinen Anruf – beantworte dann, was er sonst schreibt.";
   if (s.frageOffen) return "DEINE LETZTE NACHRICHT FRAGTE, OB WIR IHN ANRUFEN DÜRFEN (auch ARAS). Seine Antwort ist KEIN klares JA: Sag nicht, dass wir ihn anrufen oder dass etwas notiert ist, und frag nicht noch einmal danach. Ein Nein nimmst du freundlich an. Beantworte, was er schreibt.";

@@ -2227,7 +2227,9 @@ export const RUNDGANG_WHATSAPP: RundgangSchritt[] = [
       + "Bank oder Ausweis landen als Karte bei der Geschäftsführung. "
       // E-408 Scheibe 3 (22.10.2026) mitgezogen: die Frage nach dem Ja zum Anruf.
       + "Höchstens einmal in 30 Tagen hängt sie an eine Antwort die Frage, ob wir ihn kurz anrufen dürfen (auch ARAS). "
-      + "Sein „Ja“ steht sofort in der Akte unter „Ja zum Anruf“; „bitte nicht mehr anrufen“ nimmt es zurück.",
+      + "Sein „Ja“ steht sofort in der Akte unter „Ja zum Anruf“; „bitte nicht anrufen“ nimmt es zurück. Schreibt er klar "
+      + "„nicht mehr anrufen“, setzt das zusätzlich die Telefonsperre (ARAS wählt nicht mehr, die Akte sagt es allen), und Mara "
+      + "bestätigt ihm in einem festen Satz, dass wir ihn nicht mehr anrufen.",
     tipp: "Auf eine echte Autoantwort (Firma, Abwesenheit) und ein reines „Ok“ nach erledigter Sache schweigt sie. Hast "
       + "DU zuletzt eine Frage gestellt und der Kunde antwortet „Ok passt“, schweigt Mara ebenfalls — aber du bekommst "
       + "eine Aufgabe „Kunde hat zugestimmt“, und das Gespräch bleibt in der Warteliste. Schreibt ein Mensch „bitte "

@@ -181,7 +181,7 @@ import { angabenAntwortFunde, angabenWunsch, type AngabenLageRein, type AngabeFe
 import type { GenanntLage } from "./fiaon-mara-genannter-termin";
 // E-408 (Scheibe 3, 22.10.2026): Ja zum Anruf — Mara fragt (angehängter eigener Satz) und dankt für ein klares JA.
 import { jaImGespraech, jaFrageZumAnhaengen } from "./fiaon-ja-zum-anruf";
-import { JA_DANKE_WA, jaHinweisFuerMara } from "@shared/fiaon-ja-zum-anruf";
+import { JA_DANKE_WA, ANRUF_SPERRE_WA, jaHinweisFuerMara } from "@shared/fiaon-ja-zum-anruf";
 
 export const DIENST_WA = "mara-whatsapp";
 
@@ -2890,25 +2890,33 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     }
 
     // ── E-408 (Scheibe 3, 22.10.2026): SEINE ANTWORT AUF DIE FRAGE NACH DEM JA ZUM ANRUF ───────────────────────────
-    // Gespeichert (oder zurückgenommen) hat es schon der Eingang (waEingang → jaAusWhatsApp, fiaon-ja-zum-anruf.ts). Ist
-    // ALLES, was er offen geschrieben hat, genau dieses klare JA, dankt Mara mit dem festen Satz (JA_DANKE_WA, ohne
-    // Modell — also auch in der KI-Pause): kein Zeitpunkt, kein Versprechen. Sonst bekommt das Modell EINEN Satz für
-    // JETZT BEACHTEN (jaHinweisFuerMara: gespeichert / zurückgenommen / die Frage stand da, aber kein klares Ja).
+    // Gespeichert (oder zurückgenommen, oder die Telefonsperre gesetzt) hat es schon der Eingang (waEingang →
+    // jaAusWhatsApp, fiaon-ja-zum-anruf.ts). Feste Sätze ohne Modell — also auch in der KI-Pause:
+    //   · ist ALLES, was er offen geschrieben hat, genau dieses klare JA → JA_DANKE_WA (kein Zeitpunkt, kein Versprechen);
+    //   · verlangt alles Offene die Sperre („nicht mehr anrufen“, ohne weitere Frage) → ANRUF_SPERRE_WA.
+    // Sonst bekommt das Modell EINEN Satz für JETZT BEACHTEN (jaHinweisFuerMara: gesperrt / zurückgenommen /
+    // gespeichert / die Frage stand da, aber kein klares Ja). Ein bloßer Widerruf läuft wie bisher übers Modell.
     let jaHinweis: string | null = null;
     let jaFrageZuletzt = false;
     {
       const autoIds = new Set(urteil.autoIds);
-      const echteIds = offeneRein.filter((v) => !autoIds.has(Number(v.id))).map((v) => Number(v.id));
-      const ja = await jaImGespraech({ nummer, offeneIds: echteIds, ersteOffeneId: Number(ersteOffene.id) })
+      const echteOffeneJa = offeneRein.filter((v) => !autoIds.has(Number(v.id)));
+      const echteIds = echteOffeneJa.map((v) => Number(v.id));
+      const ja = await jaImGespraech({ nummer, offene: echteOffeneJa.map((v) => ({ id: Number(v.id), text: String(v.text || v.knopf || "") })), ersteOffeneId: Number(ersteOffene.id) })
         .catch((e) => { console.warn(`[MARA-WA] ${nummer.slice(-4)}: Ja zum Anruf nicht lesbar:`, String(e?.message ?? e).slice(0, 160)); return null; });
+      const seineWorte = echteOffeneJa.map((v) => String(v.text || v.knopf || "")).reverse().join("\n");
       if (ja && echteIds.length > 0 && echteIds.every((id) => ja.gespeichertIds.includes(id))) {
-        const seinJa = offeneRein.filter((v) => echteIds.includes(Number(v.id))).map((v) => String(v.text || v.knopf || "")).reverse().join("\n");
-        await vorbereiten(nummer, JA_DANKE_WA, Number(neuesteRein.id), seinJa, { kunde: seinJa, handlung: "Ja zum Anruf gespeichert (E-408) — kurzer Dank" });
+        await vorbereiten(nummer, JA_DANKE_WA, Number(neuesteRein.id), seineWorte, { kunde: seineWorte, handlung: "Ja zum Anruf gespeichert (E-408) — kurzer Dank" });
         await protokolliere({ art: "ja_zum_anruf", ok: true, nummer, personId, leadId, text: `Ja zum Anruf gespeichert — kurzer Dank: ${JA_DANKE_WA}`, daten: { auf_id: Number(neuesteRein.id) } });
         return { gesendet: false, grund: "Ja zum Anruf gespeichert — kurzer Dank liegt bereit." };
       }
+      if (ja && echteIds.length > 0 && echteIds.every((id) => ja.sperreIds.includes(id)) && !seineWorte.includes("?")) {
+        await vorbereiten(nummer, ANRUF_SPERRE_WA, Number(neuesteRein.id), seineWorte, { kunde: seineWorte, handlung: "Nicht mehr anrufen — Telefonsperre gesetzt (E-408)" });
+        await protokolliere({ art: "ja_zum_anruf", ok: true, nummer, personId, leadId, text: `Telefonsperre — fester Satz: ${ANRUF_SPERRE_WA}`, daten: { auf_id: Number(neuesteRein.id) } });
+        return { gesendet: false, grund: "Telefonsperre gesetzt — fester Satz liegt bereit." };
+      }
       jaFrageZuletzt = !!ja?.frageOffen;
-      jaHinweis = ja ? jaHinweisFuerMara({ jaGespeichert: ja.gespeichertIds.length > 0, zurueckgenommen: ja.zurueckIds.length > 0, frageOffen: ja.frageOffen }) : null;
+      jaHinweis = ja ? jaHinweisFuerMara({ jaGespeichert: ja.gespeichertIds.length > 0, zurueckgenommen: ja.zurueckIds.length > 0, gesperrt: ja.sperreIds.length > 0, frageOffen: ja.frageOffen }) : null;
     }
 
     // ── E-264: ABSTREITEN, IRRTUM, DATENFRAGE, LÖSCHWUNSCH (fester Satz, ohne Modell) ──

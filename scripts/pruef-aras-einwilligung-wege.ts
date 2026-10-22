@@ -65,7 +65,11 @@ function ausschnitt(t: string, von: string, bis: string): string {
 const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Die freigegebenen Sätze, AUSGESCHRIEBEN — nicht aus der Konstante gelesen (sonst prüfte sie sich selbst).
-const FRAGE = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA.";
+/** Fassung 2 (freigegeben 22.10.2026, Koordination): der Widerruf steht VOR dem Ja. */
+const FRAGE = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA. Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.";
+/** Fassung 1 (Auftrag 22.10.2026) — geht nicht mehr raus, ein Ja darauf zählt weiter. */
+const FRAGE_ALT = "Dürfen wir Sie dazu auch kurz anrufen – auch ARAS, unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA.";
+const SPERRE_SATZ = "Verstanden – wir rufen Sie nicht mehr an.";
 const DANKE = "Vielen Dank, das ist notiert. Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen.";
 const BESTAETIGUNG = "Der Kunde hat mir gerade im Gespräch gesagt, dass FIAON ihn anrufen darf, auch ARAS (KI)";
 
@@ -77,14 +81,17 @@ async function teilA() {
   const J = await import("../shared/fiaon-ja-zum-anruf");
 
   console.log("── A1 · Die Sätze (buchstabengetreu wie im Auftrag)");
-  ok(J.JA_FRAGE_WA === FRAGE, "die Frage, die Mara anhängt", J.JA_FRAGE_WA);
-  ok(J.JA_FRAGE_FASSUNGEN[0] === FRAGE && J.JA_FRAGE_FASSUNGEN.every((f) => f.length > 40), "jede je gesendete Fassung bleibt erkennbar — die neueste vorn");
+  ok(J.JA_FRAGE_WA === FRAGE, "die Frage, die Mara anhängt (Fassung 2)", J.JA_FRAGE_WA);
+  ok(/\? Antworten Sie einfach mit JA\. Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen\.$/.test(J.JA_FRAGE_WA), "der Widerruf steht VOR dem Ja — in der Frage selbst (DSGVO Art. 7 Abs. 3)");
+  ok(J.JA_FRAGE_FASSUNGEN.length === 2 && J.JA_FRAGE_FASSUNGEN[0] === FRAGE && J.JA_FRAGE_FASSUNGEN[1] === FRAGE_ALT, "beide Fassungen bleiben erkennbar — die neueste vorn, die alte dahinter");
+  ok(J.jaFrageIn(`Gerne.\n\n${FRAGE}`) === FRAGE && J.jaFrageIn(`Gerne.\n\n${FRAGE_ALT}`) === FRAGE_ALT, "der Erkenner nennt die Fassung, die er gelesen hat (die alte steckt in der neuen — die neue gewinnt)");
+  ok(J.ANRUF_SPERRE_WA === SPERRE_SATZ, "Maras Satz nach „nicht mehr anrufen“", J.ANRUF_SPERRE_WA);
   ok(J.JA_AKTE_BESTAETIGUNG === BESTAETIGUNG, "die Pflicht-Bestätigung im Dialog der Akte", J.JA_AKTE_BESTAETIGUNG);
   ok(J.JA_DANKE_WA === DANKE && !/\b(?:gleich|heute|morgen|sofort|rufen\s+sie|ruft\s+sie|melden\s+uns)\b/i.test(J.JA_DANKE_WA), "Maras Dank: notiert, jederzeit zurückzunehmen — kein Zeitpunkt, kein Anruf-Versprechen");
   ok(/ARAS/.test(FRAGE) && /\(eine KI\)/.test(FRAGE), "die Frage nennt ARAS als KI (KI-VO Art. 50)");
   const { sendePruefung, inkassoVerdacht } = await import("../server/lib/fiaon-whatsapp");
   ok(sendePruefung(FRAGE).length === 0 && !inkassoVerdacht(FRAGE), "die Frage geht durch die Wand von waSenden (Wortwand, Du-Form, Inkasso)", sendePruefung(FRAGE));
-  ok(sendePruefung(DANKE).length === 0, "der Dank geht durch dieselbe Wand", sendePruefung(DANKE));
+  ok(sendePruefung(DANKE).length === 0 && sendePruefung(SPERRE_SATZ).length === 0, "der Dank und der Sperr-Satz gehen durch dieselbe Wand", [sendePruefung(DANKE), sendePruefung(SPERRE_SATZ)]);
   ok(sendePruefung(`Gerne, hier ist Ihr Link: https://www.fiaon.com/a/abc\n\n${FRAGE}`).length === 0, "eine Antwort mit angehängter Frage geht durch die Wand");
 
   console.log("── A2 · Ein Satz, ein Ort");
@@ -98,7 +105,7 @@ async function teilA() {
     }
     return Array.from(f);
   };
-  for (const [name, s] of [["die Frage", "unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA"], ["der Dank", "Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen"], ["die Bestätigung", "dass FIAON ihn anrufen darf, auch ARAS (KI)"]] as const) {
+  for (const [name, s] of [["die Frage", "unsere digitale Mitarbeiterin (eine KI)? Antworten Sie einfach mit JA"], ["der Dank", "Sie können es jederzeit mit einer kurzen Nachricht zurücknehmen"], ["die Bestätigung", "dass FIAON ihn anrufen darf, auch ARAS (KI)"], ["der Sperr-Satz", "wir rufen Sie nicht mehr an"]] as const) {
     const orte = fundorte(s);
     ok(orte.length === 1 && orte[0] === "shared/fiaon-ja-zum-anruf.ts", `${name} steht genau einmal im Code — in shared/fiaon-ja-zum-anruf.ts`, orte);
   }
@@ -116,7 +123,7 @@ async function teilA() {
   const rotFalsch = rot.filter((t) => J.istKlaresJa(t));
   ok(rotFalsch.length === 0, `Rot-Proben: ${rot.length} Antworten, die KEIN klares Ja sind („nein“, „ja, aber nicht anrufen“, „Ja?“, „Ok“, „jaja“ …)`, rotFalsch);
 
-  console.log("── A4 · Der Widerrufs-Erkenner („bitte nicht mehr anrufen“)");
+  console.log("── A4 · Widerruf („bitte nicht anrufen“) und Telefonsperre („nicht mehr anrufen“)");
   const weg = ["Bitte nicht mehr anrufen", "Rufen Sie mich bitte nicht mehr an", "Ich möchte keine Anrufe", "Ich will nicht angerufen werden",
     "Keine Anrufe mehr bitte", "Bitte keine Anrufe", "Ich widerrufe meine Einwilligung zu Anrufen", "Ich nehme mein Ja zum Anruf zurück",
     "Nicht telefonisch, nur WhatsApp", "Hallo, ich habe gesagt, Sie sollen mich nicht mehr anrufen.", "ruft mich nicht an!",
@@ -127,6 +134,20 @@ async function teilA() {
     "Ja gerne, rufen Sie mich an", "Ich ziehe die Kündigung zurück", "Ich widerrufe den Vertrag", "Rückruf bitte morgen", "Ja"];
   const bleibtFalsch = bleibt.filter((t) => J.istNeinZumAnruf(t));
   ok(bleibtFalsch.length === 0, `Rot-Proben: ${bleibt.length} Sätze nehmen nichts zurück (Klage über die Vergangenheit, Vertrag, Rückruf-Wunsch)`, bleibtFalsch);
+  const warum = ["Warum rufen Sie mich nicht an?", "Wieso ruft ihr mich nicht mehr an", "Weshalb rufen Sie mich nie zurück?"];
+  ok(warum.every((t) => !J.istNeinZumAnruf(t) && !J.istAnrufSperreWunsch(t)), "Rot-Probe: „Warum rufen Sie mich nicht an?“ will einen Anruf — weder Widerruf noch Sperre", warum.filter((t) => J.istNeinZumAnruf(t) || J.istAnrufSperreWunsch(t)));
+  const sperre = ["Bitte nicht mehr anrufen", "Keine Anrufe mehr!", "Rufen Sie mich nie wieder an.", "Hören Sie auf anzurufen", "Hören Sie auf, mich anzurufen.",
+    "Ich will nicht mehr angerufen werden", "Keine weiteren Anrufe bitte", "Rufen Sie mich bitte nicht mehr an", "Nein, rufen Sie mich nie wieder an!", "Bitte rufen Sie mich doch nicht mehr an.",
+    "Hört endlich auf mit den Anrufen"];
+  const sperreFalsch = sperre.filter((t) => !J.istAnrufSperreWunsch(t) || !J.istNeinZumAnruf(t));
+  ok(sperreFalsch.length === 0, `${sperre.length} klare Sätze → Telefonsperre (und Widerruf)`, sperreFalsch);
+  const weich = ["Bitte nicht anrufen, bin auf Arbeit", "bitte jetzt nicht anrufen", "Ich möchte keine Anrufe", "Rufen Sie mich nicht vor 18 Uhr an", "Bitte keine Anrufe heute"];
+  const weichFalsch = weich.filter((t) => J.istAnrufSperreWunsch(t) || !J.istNeinZumAnruf(t));
+  ok(weichFalsch.length === 0, `${weich.length} weiche Sätze → nur das Ja zurück, KEINE Sperre`, weichFalsch);
+  const keineSperre = ["Können Sie mich nicht mehr anrufen?", "Sie müssen mich nicht mehr anrufen, ich habe schon bezahlt", "Warum haben Sie mich nicht mehr angerufen",
+    "Sie haben mich nie wieder angerufen", "Rufen Sie mich nie wieder an?"];
+  const keineSperreFalsch = keineSperre.filter((t) => J.istAnrufSperreWunsch(t));
+  ok(keineSperreFalsch.length === 0, `Rot-Proben: ${keineSperre.length} Sätze ohne Sperre (Frage, „müssen nicht“, Vergangenheit)`, keineSperreFalsch);
 
   console.log("── A5 · Darf Mara fragen? (das Urteil)");
   const jetzt = new Date("2026-10-22T12:00:00Z");
@@ -155,6 +176,7 @@ async function teilA() {
     && /gespeichert/.test(String(J.jaHinweisFuerMara({ jaGespeichert: true, zurueckgenommen: false, frageOffen: true })))
     && /ZURÜCKGENOMMEN/.test(String(J.jaHinweisFuerMara({ jaGespeichert: false, zurueckgenommen: true, frageOffen: false })))
     && J.jaHinweisFuerMara({ jaGespeichert: false, zurueckgenommen: false, frageOffen: false }) === null, "Maras Hinweis: kein klares Ja / gespeichert / zurückgenommen / nichts");
+  ok(/NICHT MEHR ANGERUFEN/.test(String(J.jaHinweisFuerMara({ jaGespeichert: false, zurueckgenommen: true, frageOffen: true, gesperrt: true }))), "Maras Hinweis nach einer Sperre: „wir rufen ihn nicht mehr an“ geht vor allem anderen");
 
   console.log("── A6 · Die Zeile der Akte");
   const seit = "2026-10-22T09:15:00Z", weg2 = "2026-10-23T08:00:00Z";
@@ -198,6 +220,7 @@ async function teilA() {
   const iStopp = antwortet.indexOf("if (istStopp(neuesteRein.text, neuesteRein.knopf))"), iJaZweig = antwortet.indexOf("jaImGespraech("), iAbst = antwortet.indexOf("let herkunftHinweis");
   ok(iStopp > 0 && iJaZweig > iStopp && iAbst > iJaZweig, "Maras Dank auf ein klares JA: nach STOPP, vor allem anderen (fester Satz, ohne Modell)");
   ok(/await vorbereiten\(nummer, JA_DANKE_WA,/.test(antwortet), "der Dank ist der feste Satz aus shared/ (JA_DANKE_WA)");
+  ok(/await vorbereiten\(nummer, ANRUF_SPERRE_WA,/.test(antwortet) && !/wir rufen Sie nicht mehr an/.test(antwortet), "nach einer Sperre der feste Satz aus shared/ (ANRUF_SPERRE_WA)");
   const iAnhang = antwortet.indexOf("const jaFrage = await jaFrageZumAnhaengen("), iVor = antwortet.indexOf("await vorbereiten(nummer, antwort, Number(neuesteRein.id), frage, { kunde, handlung });"), iKi = antwortet.indexOf("die digitale Assistentin von FIAON. ${antwort}");
   ok(iKi > 0 && iAnhang > iKi && iVor > iAnhang, "die Frage kommt zuletzt dran — nach allem, was Maras Antwort prüft und ergänzt, direkt vor dem Vorbereiten");
   ok((antwortet.match(/antwort = `\$\{antwort\}\\n\\n\$\{jaFrage\}`/g) ?? []).length === 1 && !/JA_FRAGE_WA/.test(antwortet), "angehängt wird genau EINMAL, als eigener Absatz — Maras Antwort davor bleibt Wort für Wort");
@@ -366,7 +389,7 @@ async function teilB() {
   ok(z4.nummer === `+${nummerFuer(4)}` && Number(z4.person_id) === p4, "Nummer (E.164) und Person", { n: z4.nummer, p: z4.person_id });
   const nochmal = await L.jaAusWhatsApp({ nummer: nummerFuer(4), nachrichtId: ja4.id, text: "Ja gerne", personId: p4, leadId: null });
   ok(nochmal.ja && nochmal.neu === false && nochmal.id === Number(z4.id) && (await einw(p4)).length === 1, "dieselbe Nachricht zweimal → bleibt eine (idempotent)");
-  const im = await L.jaImGespraech({ nummer: nummerFuer(4), offeneIds: [ja4.id], ersteOffeneId: ja4.id });
+  const im = await L.jaImGespraech({ nummer: nummerFuer(4), offene: [{ id: ja4.id, text: "Ja gerne" }], ersteOffeneId: ja4.id });
   ok(im.gespeichertIds.includes(ja4.id) && im.frageOffen, "für Maras Antwort: alles Offene ist das gespeicherte Ja → fester Dank, kein Modell", im);
   const lage4 = await L.jaLage(p4, AGENT);
   ok(lage4?.zeile === `Ja zum Anruf: seit ${J.tagKurz(new Date())} (WhatsApp)` && lage4.frage.darf === false, "Akte: „Ja zum Anruf: seit TT.MM. (WhatsApp)“; Mara fragt nicht noch einmal", lage4);
@@ -384,6 +407,16 @@ async function teilB() {
   await rotProbe(8, "„Ja“, aber vorher schrieb er schon etwas anderes", "Ja", async (pid) => { await mitFrage(pid, 8); await rein(8, pid, "Was kostet das?", 10); });
   await rotProbe(9, "„Ja“ acht Tage nach der Frage", "Ja", async (pid) => { await rein(9, pid, "Hallo", 8 * 24 * 60 + 30); await raus(9, pid, `Gerne.\n\n${FRAGE}`, 8 * 24 * 60 + 20); });
   await rotProbe(10, "„Ja“ auf eine Vorlage, die nach der Frage kam", "Ja", async (pid) => { await mitFrage(pid, 10); await raus(10, pid, "Ihr Antrag wartet noch — möchten Sie weitermachen?", 5, "Mara", "fiaon_kk_erinnerung"); });
+  {
+    // Fassung 1 ging am 22.10. schon raus: ein Ja darauf zählt — mit genau DEM Wortlaut, den er gelesen hat.
+    const p5a = await person(50);
+    await rein(50, p5a, "Und wie geht es jetzt weiter?", 40);
+    const alteFrage = await raus(50, p5a, `Sie bekommen den Link per Mail.\n\n${FRAGE_ALT}`, 39);
+    const jaAlt = await eingang(50, p5a, "Ja, gerne");
+    const zAlt = (await einw(p5a))[0] ?? {};
+    ok(jaAlt.r.ja && zAlt.art === "zuruf_whatsapp" && zAlt.wortlaut === FRAGE_ALT && zAlt.beleg?.frage?.nachrichtId === alteFrage, "ein Ja auf die ALTE Fassung zählt — Wortlaut = die alte Frage", { r: jaAlt.r, w: zAlt.wortlaut });
+    ok(z4.wortlaut === FRAGE && z4.wortlaut !== FRAGE_ALT, "ein Ja auf die NEUE Fassung speichert die neue (nicht die darin steckende alte)", z4.wortlaut);
+  }
 
   console.log("── B4 · „Mara fragt nach dem Ja“ (Knopf) — Attrappe statt waSenden");
   const gesendet: { an: string; text: string; von: string | null }[] = [];
@@ -436,6 +469,16 @@ async function teilB() {
   const lage15 = await L.jaLage(p15, AGENT);
   ok(lage15?.frage.darf === false && /Werbesperre/.test(String(lage15?.frage.grund)), "Rot-Probe: Werbesperre → keine Frage", lage15?.frage);
 
+  {
+    const p51 = await person(51);
+    await rein(51, p51, "Hallo, ich hätte noch eine Frage.", 10 * 24 * 60 + 5);
+    await raus(51, p51, `Gerne.\n\n${FRAGE_ALT}`, 10 * 24 * 60);
+    await rein(51, p51, "Danke, ich melde mich.", 10);
+    await raus(51, p51, "Sehr gern!", 9);
+    const lage51 = await L.jaLage(p51, AGENT);
+    ok(lage51?.frage.darf === false && /schon gefragt – wieder ab/.test(String(lage51?.frage.grund)), "die ALTE Fassung vor 10 Tagen zählt für die 30 Tage — keine neue Frage", lage51?.frage);
+  }
+
   console.log("── B5 · Mara hängt die Frage an ihre Antwort (jaFrageZumAnhaengen)");
   const a14 = await L.jaFrageZumAnhaengen({ nummer: nummerFuer(14), personId: p14, antwort: "Die Karte kostet 59,99 € im Monat.", ruhe: [] });
   ok(a14 === FRAGE, "Mara antwortet ihm gerade (Fenster offen, kein Ja, nie gefragt) → die Frage darf dran", a14);
@@ -450,13 +493,46 @@ async function teilB() {
   ok(aus14 === null && !ausKnopf.ok && /KI-Raum ausgeschaltet/.test((ausKnopf as any).grund) && gesendet.length === 1, "Schalter „Nach dem Ja zum Anruf fragen“ aus → Mara fragt nicht, der Knopf auch nicht", { aus14, ausKnopf });
   await sql`UPDATE fiaon_settings SET value = 'an' WHERE key = 'mara_wa_ja_frage'`;
 
-  console.log("── B6 · Widerruf per WhatsApp („bitte nicht mehr anrufen“)");
+  console.log("── B6 · Per WhatsApp: „nicht mehr anrufen“ → Telefonsperre + Widerruf; „bitte jetzt nicht anrufen“ → nur Widerruf");
   const nein4 = await eingang(4, p4, "Bitte rufen Sie mich doch nicht mehr an.");
   const z4w = (await einw(p4))[0] ?? {};
   ok(nein4.r.nein && Number(nein4.r.widerrufen) >= 1 && z4w.widerrufen_am && z4w.widerruf_quelle === `whatsapp:${nein4.id}`, "sein Ja ist widerrufen — Quelle = seine Nachricht", { r: nein4.r, q: z4w.widerruf_quelle });
+  const [sp4] = (await sql`SELECT quelle, person_id, grund, aufgehoben_am FROM fiaon_telefon_sperre WHERE nummer_kern = ${nummerFuer(4).slice(-9)}`) as any[];
+  const [pp4] = (await sql`SELECT werbung_gesperrt_am, werbesperre_quelle FROM fiaon_persons WHERE id = ${p4}`) as any[];
+  ok(nein4.r.gesperrt === true && sp4?.quelle === "whatsapp" && Number(sp4?.person_id) === p4 && sp4?.aufgehoben_am == null && new RegExp(`Nachricht ${nein4.id}`).test(String(sp4?.grund)),
+    "klar („nicht mehr anrufen“) → echte Telefonsperre, Quelle whatsapp, Person, die Nachricht im Grund", sp4);
+  ok(!!pp4?.werbung_gesperrt_am && pp4?.werbesperre_quelle === "whatsapp", "wie bei ARAS' Werkzeug: auch die Werbesperre der Person (Quelle whatsapp)", pp4);
+  const { telefonGesperrt } = await import("../server/lib/fiaon-aras-sperre");
+  ok(await telefonGesperrt(nummerKern(`+${nummerFuer(4)}`), p4), "telefonGesperrt (Planer und Wähler fragen hier) sagt: gesperrt");
+  const lage4s = await L.jaLage(p4, AGENT);
+  ok(lage4s?.frage.darf === false && /Telefonsperre/.test(String(lage4s?.frage.grund)), "Akte: Mara fragt nicht mehr (Telefonsperre)", lage4s?.frage);
+  const ein4s = await L.jaEintragen({ personId: p4, agentId: AGENT, agentName: AGENT_NAME, bestaetigt: true });
+  ok(!ein4s.ok && /Telefonsperre/.test((ein4s as any).grund), "Akte: ein Ja lässt sich nicht eintragen, solange die Sperre steht", ein4s);
+  const weichFall = async (nr: number, text: string) => {
+    const pid = await person(nr);
+    await E.einwilligungMerken({ personId: pid, nummer: `+${nummerFuer(nr)}`, art: "antrag_kaestchen", wortlaut: "Prüfstand: Antrag-Kästchen", quelleArt: "antrag", quelleId: `PRUEF-${LAUF}-${nr}` });
+    const e = await eingang(nr, pid, text);
+    const [sp] = (await sql`SELECT 1 FROM fiaon_telefon_sperre WHERE nummer_kern = ${nummerFuer(nr).slice(-9)}`) as any[];
+    const [pp] = (await sql`SELECT werbung_gesperrt_am FROM fiaon_persons WHERE id = ${pid}`) as any[];
+    ok(e.r.nein && !e.r.gesperrt && Number(e.r.widerrufen) >= 1 && !sp && !pp?.werbung_gesperrt_am && (await E.einwilligungGueltig(nummerKern(`+${nummerFuer(nr)}`), pid)) === null,
+      `weich („${text}“) → nur das Ja zurück, KEINE Telefonsperre, keine Werbesperre`, { r: e.r, sperre: !!sp });
+  };
+  await weichFall(17, "Bitte nicht anrufen, bin auf Arbeit");
+  await weichFall(18, "bitte jetzt nicht anrufen");
+  {
+    const p19 = await person(19);
+    await E.einwilligungMerken({ personId: p19, nummer: `+${nummerFuer(19)}`, art: "antrag_kaestchen", wortlaut: "Prüfstand: Antrag-Kästchen", quelleArt: "antrag", quelleId: `PRUEF-${LAUF}-19` });
+    const e = await eingang(19, p19, "Warum rufen Sie mich nicht an?");
+    const [sp] = (await sql`SELECT 1 FROM fiaon_telefon_sperre WHERE nummer_kern = ${nummerFuer(19).slice(-9)}`) as any[];
+    ok(!e.r.nein && !sp && (await E.einwilligungGueltig(nummerKern(`+${nummerFuer(19)}`), p19)) !== null, "Rot-Probe: „Warum rufen Sie mich nicht an?“ — das Ja bleibt, keine Sperre", e.r);
+    const p20 = await person(20);
+    const e20 = await eingang(20, p20, "Hören Sie auf, mich anzurufen.");
+    const [sp20] = (await sql`SELECT quelle FROM fiaon_telefon_sperre WHERE nummer_kern = ${nummerFuer(20).slice(-9)}`) as any[];
+    ok(e20.r.gesperrt === true && sp20?.quelle === "whatsapp", "auch ohne vorheriges Ja: „Hören Sie auf, mich anzurufen“ → Telefonsperre", { r: e20.r, sp20 });
+  }
   ok((await E.einwilligungGueltig(nummerKern(`+${nummerFuer(4)}`), p4)) === null, "einwilligungGueltig findet nichts mehr");
-  const im4 = await L.jaImGespraech({ nummer: nummerFuer(4), offeneIds: [nein4.id], ersteOffeneId: nein4.id });
-  ok(im4.zurueckIds.includes(nein4.id), "für Maras Antwort: „zurückgenommen“ (sie bestätigt nur kurz)", im4);
+  const im4 = await L.jaImGespraech({ nummer: nummerFuer(4), offene: [{ id: nein4.id, text: "Bitte rufen Sie mich doch nicht mehr an." }], ersteOffeneId: nein4.id });
+  ok(im4.zurueckIds.includes(nein4.id) && im4.sperreIds.includes(nein4.id), "für Maras Antwort: zurückgenommen UND gesperrt (fester Sperr-Satz)", im4);
   const p16 = await person(16);
   await E.einwilligungMerken({ personId: p16, nummer: `+${nummerFuer(16)}`, art: "antrag_kaestchen", wortlaut: "Prüfstand: Antrag-Kästchen", quelleArt: "antrag", quelleId: `PRUEF-${LAUF}-16` });
   const klage = await eingang(16, p16, "Sie haben mich gestern nicht angerufen, obwohl es ausgemacht war!");
@@ -485,6 +561,25 @@ async function teilB() {
     const [prot] = (await sql`SELECT text FROM fiaon_mara_protokoll WHERE art = 'ja_zum_anruf' AND nummer = ${nummerFuer(30)} ORDER BY id DESC LIMIT 1`) as any[];
     ok(/kurzer Dank/.test(String(prot?.text)), "Protokoll „ja_zum_anruf“ (Maras Dank)", prot);
     await sql`UPDATE fiaon_whatsapp_gespraech SET antwort_text = NULL, antwort_faellig_am = NULL WHERE nummer = ${nummerFuer(30)}`;
+  }
+
+  console.log("── B8b · Der echte Eingang: „Nein, rufen Sie mich nie wieder an!“ → Sperre, danach Maras fester Sperr-Satz (ohne Modell)");
+  {
+    const W = await import("../server/lib/fiaon-whatsapp");
+    const p34 = await person(34);
+    await rein(34, p34, "Was kostet die Karte?", 12);
+    await raus(34, p34, `Die Karte kostet 59,99 € im Monat.\n\n${FRAGE}`, 11);
+    await W.waEingang({ messages: [{ from: nummerFuer(34), id: `wamid.PRUEFJA.${LAUF}.b8b`, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: "Nein, rufen Sie mich nie wieder an!" } }] });
+    const [sp34] = (await sql`SELECT quelle FROM fiaon_telefon_sperre WHERE nummer_kern = ${nummerFuer(34).slice(-9)} AND aufgehoben_am IS NULL`) as any[];
+    ok(sp34?.quelle === "whatsapp" && (await einw(p34)).length === 0, "der Webhook-Eingang setzt die Telefonsperre (und legt kein Ja an)", sp34);
+    let vorb: any = null;
+    for (let i = 0; i < 80; i++) {
+      [vorb] = (await sql`SELECT antwort_text, antwort_handlung FROM fiaon_whatsapp_gespraech WHERE nummer = ${nummerFuer(34)}`) as any[];
+      if (vorb?.antwort_text) break;
+      await warte(250);
+    }
+    ok(vorb?.antwort_text === SPERRE_SATZ && /Telefonsperre gesetzt/.test(String(vorb?.antwort_handlung)), "Mara: „Verstanden – wir rufen Sie nicht mehr an.“ (fester Satz, kein Modell)", vorb);
+    await sql`UPDATE fiaon_whatsapp_gespraech SET antwort_text = NULL, antwort_faellig_am = NULL WHERE nummer = ${nummerFuer(34)}`;
   }
 
   console.log("── B9 · Maras echte Antwort (maraAntwortet, Attrappe für das Modell): die Frage hängt als eigener Absatz dran");
@@ -559,6 +654,29 @@ async function teilB() {
       ok(a31b.text.length > 0 && !a31b.text.includes(FRAGE), "Rot-Probe: gerade gefragt (30 Tage) → keine zweite Frage", a31b.text);
       ok(/KEIN klares JA/.test(sys) && !/es ist seine Zustimmung/.test(sys), "„Ok“ auf die Frage ist kein Ja: Mara bekommt den Hinweis, nichts zu versprechen — nicht „Zustimmung“", sys.slice(0, 200));
       ok((await einw(p31)).length === 0, "„Ok“ legt keine Einwilligung an");
+
+      // Ein bloßer Widerruf („bitte jetzt nicht anrufen“) läuft wie bisher über das Modell — mit dem Hinweis „zurückgenommen“.
+      const p35 = await zahlender(35, "Wie lange dauert es nach der Zusage der Bank, bis ich die Karte habe?");
+      await E.einwilligungMerken({ personId: p35, nummer: `+${nummerFuer(35)}`, art: "antrag_kaestchen", wortlaut: "Prüfstand: Antrag-Kästchen", quelleArt: "antrag", quelleId: `PRUEF-${LAUF}-35` });
+      await sql`UPDATE fiaon_whatsapp SET empfangen_am = NOW() - INTERVAL '30 seconds', created_at = NOW() - INTERVAL '30 seconds' WHERE nummer = ${nummerFuer(35)} AND richtung = 'rein'`;
+      await raus(35, p35, SACH, 0.4, "Mara Lindner");
+      const w35 = await eingang(35, p35, "Bitte jetzt nicht anrufen, ich bin im Meeting", 0.1);
+      plan.antworten = ["Alles klar, ist notiert."];
+      const a35 = await antworten(35);
+      const sys35 = a35.modell[0]?.system ?? "";
+      ok(w35.r.nein && !w35.r.gesperrt && a35.modell.length >= 1 && a35.text === "Alles klar, ist notiert." && /ZURÜCKGENOMMEN/.test(sys35) && !/NICHT MEHR ANGERUFEN/.test(sys35),
+        "weicher Widerruf: Maras Antwort wie bisher (Modell mit „zurückgenommen“), kein Sperr-Satz", { r: w35.r, text: a35.text });
+
+      // Sperre UND eine Frage dazu: das Modell antwortet — mit dem Hinweis, dass wir ihn nicht mehr anrufen.
+      const p36 = await zahlender(36, "Wie lange dauert es nach der Zusage der Bank, bis ich die Karte habe?");
+      await sql`UPDATE fiaon_whatsapp SET empfangen_am = NOW() - INTERVAL '30 seconds', created_at = NOW() - INTERVAL '30 seconds' WHERE nummer = ${nummerFuer(36)} AND richtung = 'rein'`;
+      await raus(36, p36, SACH, 0.4, "Mara Lindner");
+      const s36 = await eingang(36, p36, "Rufen Sie mich nicht mehr an! Wann kommt denn jetzt meine Karte?", 0.1);
+      plan.antworten = ["Verstanden, wir rufen Sie nicht mehr an. Ihre Karte kommt nach der Zusage der Bank in 2–5 Werktagen."];
+      const a36 = await antworten(36);
+      const sys36 = a36.modell[0]?.system ?? "";
+      ok(s36.r.gesperrt === true && a36.modell.length >= 1 && /NICHT MEHR ANGERUFEN/.test(sys36) && a36.text.includes("Ihre Karte kommt") && !a36.text.includes(FRAGE),
+        "Sperre mit einer Frage dazu: das Modell antwortet auf beides (Hinweis „nicht mehr anrufen“), keine Frage nach dem Ja", { r: s36.r, text: a36.text });
     } finally {
       globalThis.fetch = echt;
       delete (globalThis as any).__kiRohFetch;

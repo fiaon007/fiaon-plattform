@@ -2506,19 +2506,19 @@ async function main(): Promise<void> {
 
     // ── 5. WORT HALTEN BIS ZUM SCHLUSS (die echten Sätze; Ende: aufgelegt, Stille, ARAS beendet) ──
     {
-      const [kA, kB, kC, kE, kF] = [await kunde(500), await kunde(501), await kunde(502), await kunde(504), await kunde(505)];
+      const [kA, kB, kC, kE, kF] = [await kunde(540), await kunde(541), await kunde(542), await kunde(544), await kunde(545)];
       // a) Koordination 22.10.: „Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?“ — eine Zusage, keine Angebots-Frage
-      const gA = await anrufMit(kA, [...bestaetigt(500), { aras: "Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?", ms: 400 }, { warteMs: 11_000 }]);
+      const gA = await anrufMit(kA, [...bestaetigt(540), { aras: "Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?", ms: 400 }, { warteMs: 11_000 }]);
       // b) Echtgespräch: „Dann schick i Ihnen den Link gleich rüber …“ · „Passt es, wenn i's Ihnen jetzt schick?“ — „Ja, per E-Mail, bitte“ → per Mail
-      const gB = await anrufMit(kB, [...bestaetigt(501), { aras: "Dann schick i Ihnen den Link gleich rüber, damit Sie es in Ruhe erledigen können.", ms: 400 }, { warteMs: 300 },
+      const gB = await anrufMit(kB, [...bestaetigt(541), { aras: "Dann schick i Ihnen den Link gleich rüber, damit Sie es in Ruhe erledigen können.", ms: 400 }, { warteMs: 300 },
         { aras: "Passt es, wenn i's Ihnen jetzt schick?", ms: 300 }, { warteMs: 700 }, { kunde: "Ja, per E-Mail, bitte", nachMs: 200 }, { warteMs: 11_000 }]);
       // c) Er legt gleich nach der Ankündigung auf (vor den 8 s) → beim Auflegen geschickt
-      const gC = await anrufMit(kC, [...bestaetigt(502), { aras: "i schick Ihnen die Rechnung schnell per WhatsApp rüber", ms: 400 }, { warteMs: 6000 }]);
+      const gC = await anrufMit(kC, [...bestaetigt(542), { aras: "i schick Ihnen die Rechnung schnell per WhatsApp rüber", ms: 400 }, { warteMs: 6000 }]);
       // e) ARAS verabschiedet sich und beendet, bevor die 8 s um sind → beim Ende geschickt
-      const gE = await anrufMit(kE, [...bestaetigt(504), { aras: "I schick's Ihnen glei aufs Handy.", ms: 300 }, { warteMs: 300 }, { aras: "Danke Ihnen, und einen schönen Tag noch!", ms: 300 }, { warteMs: 200 },
+      const gE = await anrufMit(kE, [...bestaetigt(544), { aras: "I schick's Ihnen glei aufs Handy.", ms: 300 }, { warteMs: 300 }, { aras: "Danke Ihnen, und einen schönen Tag noch!", ms: 300 }, { warteMs: 200 },
         { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Rechnung angekündigt." } }, { warteMs: 6000 }]);
       // f) Rot-Probe: Angebot im selben Satz („I schick Ihnen glei den Link — passt des?“) + „Nein, brauch ich nicht.“ → nichts
-      const gF = await anrufMit(kF, [...bestaetigt(505), { aras: "I schick Ihnen glei den Link — passt des?", ms: 300 }, { warteMs: 700 }, { kunde: "Nein, brauch ich nicht.", nachMs: 200 }, { warteMs: 3000 }]);
+      const gF = await anrufMit(kF, [...bestaetigt(545), { aras: "I schick Ihnen glei den Link — passt des?", ms: 300 }, { warteMs: 700 }, { kunde: "Nein, brauch ich nicht.", nachMs: 200 }, { warteMs: 3000 }]);
       await schlafen(1500); gC.tw.aufhaengen();
       await warten(async () => (await wz(gA.callId, "zahlungslink_senden")).length > 0 && (await wz(gB.callId, "zahlungslink_senden")).length > 0, 16_000);
       const lA = await wz(gA.callId, "zahlungslink_senden"), lB = await wz(gB.callId, "zahlungslink_senden");
@@ -2531,8 +2531,8 @@ async function main(): Promise<void> {
       await fertig(gA); await fertig(gB);
       // d) Ende „stille“: „I schick Ihnen glei an Link … — geht sich des heute noch aus?“ und dann Stille (im Prüfstand nach 3 s) → beim Ende geschickt
       process.env.ARAS_STILLE_ENDE_MS = "3000";
-      const kD = await kunde(503);
-      const gD = await anrufMit(kD, [...bestaetigt(503), { aras: "I schick Ihnen glei an Link, damit Sie's bequem erledigen können — geht sich des heute noch aus?", ms: 400 }, { warteMs: 9000 }]);
+      const kD = await kunde(543);
+      const gD = await anrufMit(kD, [...bestaetigt(543), { aras: "I schick Ihnen glei an Link, damit Sie's bequem erledigen können — geht sich des heute noch aus?", ms: 400 }, { warteMs: 9000 }]);
       await warten(async () => !!(await anruf(gD.callId))?.nachbereitet_am, 12_000);
       const aD = await anruf(gD.callId);
       delete process.env.ARAS_STILLE_ENDE_MS;

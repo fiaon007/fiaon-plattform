@@ -155,7 +155,8 @@ type KoopAngebot = {
 type KoopEmpfehlung = { id: number; name: string; telefon: string | null; email: string | null; notiz: string | null; quelle: string; personId: number | null;
   gemeldetText: string; bisText: string; standText: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; ausgezahltCents: number };
 type KoopEmpfehlungen = { prozent: number | null; berechnungAusgesetzt: boolean; monate: number; liste: KoopEmpfehlung[];
-  summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string } };
+  summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string };
+  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string }[]; bank?: { inhaber: string; maske: string } | null };
 function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string | null; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
   const e = a.empfehlungen;
   const [prozent, setProzent] = useState<string>(e?.prozent != null ? String(e.prozent).replace(".", ",") : "");
@@ -197,6 +198,7 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
           <tfoot><tr><td colSpan={4}><b>Summe</b></td><td>{e.summe.umsatz}</td><td><b>{e.summe.provision}</b></td><td>{e.summe.ausgezahlt}</td><td><b>{e.summe.offen}</b></td><td></td></tr></tfoot>
         </table></div>
       )}
+      <p className="cm-klartext"><b>Gutschriften</b> (automatisch zum 3. des Folgemonats, Mail an den Partner, Zahlungsauftrag im Banking): {e?.gutschriften?.length ? e.gutschriften.map((g) => <span key={g.id}> <a href={`${API}${basis}/gutschrift/${g.id}.pdf`} target="_blank" rel="noreferrer">{g.nummer}</a> {g.monatText} · {g.betrag} · {g.stand};</span>) : " noch keine"} · Bankverbindung: {e?.bank ? `${e.bank.inhaber} · ${e.bank.maske}` : "noch nicht hinterlegt (trägt der Partner selbst ein)"}</p>
       <div className="cg-form cg-form-breit" data-form="koop-empfehlung">
         <label>Name (Person oder Firma)<input value={neu.name} onChange={(ev) => setNeu({ ...neu, name: ev.target.value })} /></label>
         <label>Telefon (freiwillig)<input value={neu.telefon} onChange={(ev) => setNeu({ ...neu, telefon: ev.target.value })} /></label>

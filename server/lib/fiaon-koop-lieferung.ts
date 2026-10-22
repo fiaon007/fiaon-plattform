@@ -1004,6 +1004,8 @@ export async function koopLieferLauf(jetzt = new Date()): Promise<{ uebermittelt
     ].join("\n\n"), { anrede: `${koopPartnerAnrede(d.partner)},`, absender: "accounting", event: "koop_rechnung_erinnerung", personId: z.person_id != null ? Number(z.person_id) : null });
     if (res.ok) { await sqlPool`UPDATE fiaon_koop_rechnungen SET erinnert_am = NOW() WHERE id = ${Number(r.id)}`; erinnerungen++; }
   }
+  // E-420: Provision der Empfehlungen — Gutschrift zum 3. des Folgemonats, Mail, Banking-Auftrag, Aufgabe.
+  await import("./fiaon-koop-empfehlung").then((m) => m.koopGutschriftenLauf(jetzt)).catch((e) => console.error("[KOOP] Gutschriften:", e));
   return { uebermittelt, partnerMails, rechnungen, rechnungMails, erinnerungen };
 }
 

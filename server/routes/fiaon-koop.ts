@@ -151,6 +151,29 @@ router.post("/koop/partner/:token/empfehlung", async (req: Request, res: Respons
     return r.ok ? res.json(r) : res.status(r.status ?? 400).json(r);
   } catch (err) { console.error("[KOOP] Empfehlung:", err); res.status(500).json({ ok: false, error: "Ihre Empfehlung ließ sich gerade nicht speichern." }); }
 });
+// E-420: Bankverbindung für Provisionen (vom Partner selbst) und die Gutschriften als PDF.
+router.post("/koop/partner/:token/bank", async (req: Request, res: Response) => {
+  try {
+    const z = await partner(req, res); if (!z) return;
+    const { koopBankSetzen } = await import("../lib/fiaon-koop-empfehlung");
+    const r = await koopBankSetzen(z, req.body, wer(z));
+    return r.ok ? res.json(r) : res.status(r.status ?? 400).json(r);
+  } catch (err) { console.error("[KOOP] Bank:", err); res.status(500).json({ ok: false, error: "Ihre Bankverbindung ließ sich gerade nicht speichern." }); }
+});
+router.get("/koop/partner/:token/gutschrift/:gid.pdf", async (req: Request, res: Response) => {
+  try {
+    const z = await partner(req, res); if (!z) return;
+    const { koopGutschriftPdf, ensureGutschriftTabelle } = await import("../lib/fiaon-koop-empfehlung");
+    await ensureGutschriftTabelle();
+    const { sqlPool } = await import("../lib/db-pool");
+    const [g] = (await sqlPool`SELECT id FROM fiaon_koop_gutschriften WHERE id = ${Number(req.params.gid)} AND angebot_id = ${Number(z.id)}`) as any[];
+    const p = g ? await koopGutschriftPdf(Number(g.id)) : null;
+    if (!p) return res.status(404).json({ ok: false, error: "Diese Gutschrift gibt es nicht." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${p.dateiname}"`);
+    res.send(p.pdf);
+  } catch (err) { console.error("[KOOP] Gutschrift-PDF:", err); res.status(500).json({ ok: false, error: "Die Gutschrift ließ sich gerade nicht laden." }); }
+});
 router.post("/koop/partner/:token/wunsch", async (req: Request, res: Response) => {
   try {
     const z = await partner(req, res); if (!z) return;

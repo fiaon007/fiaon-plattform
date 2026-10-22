@@ -66,5 +66,9 @@ export const KOOP_EMPFEHLUNG_TEXTE = {
   meldenTitel: "Jemanden empfehlen",
   meldenHinweis: "Bitte nur mit Einverständnis der Person: Wir rufen sie an bzw. schreiben ihr. Ihre Empfehlung steht sofort hier in der Liste.",
   einverstanden: "Die Person ist einverstanden, dass FIAON sie kontaktiert.",
-  fein: "Provision auf gebuchte Zahlungen; Auszahlung zum Monatsende für die im Vormonat eingegangenen Zahlungen. Muss FIAON eine Zahlung erstatten, entfällt die Provision daran.",
+  fein: "Provision auf gebuchte Zahlungen. Zum Monatsanfang rechnen wir die Zahlungen des Vormonats automatisch per Gutschrift ab und überweisen binnen vierzehn Tagen. Muss FIAON eine Zahlung erstatten, entfällt die Provision daran.",
+  auszahlTitel: "Ihre Auszahlungen",
+  auszahlSub: "Jeden Monat erstellen wir Ihre Gutschrift automatisch und schicken sie Ihnen per E-Mail. Hinterlegen Sie dafür einmal Ihre Bankverbindung.",
+  bankFehlt: "Noch keine Bankverbindung hinterlegt — ohne sie können wir nicht überweisen.",
+  keineGutschrift: "Die erste Gutschrift kommt zum Monatsanfang, sobald ein empfohlener Kunde gezahlt hat.",
 } as const;

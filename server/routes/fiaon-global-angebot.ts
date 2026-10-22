@@ -310,6 +310,19 @@ router.post("/admin/global/angebote/:id/koop/empfehlung/:eid", requireChef("leit
     return r.ok ? res.json({ ...r, meldung: "Gespeichert." }) : res.status(r.status ?? 400).json(r);
   } catch (err) { console.error("[FIAON-ANGEBOT] koop/empfehlung ändern:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
+router.get("/admin/global/angebote/:id/koop/gutschrift/:gid.pdf", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const z = await koopZeile(req, res); if (!z) return;
+    const { koopGutschriftPdf, ensureGutschriftTabelle } = await import("../lib/fiaon-koop-empfehlung");
+    await ensureGutschriftTabelle();
+    const [g] = (await sqlPool`SELECT id FROM fiaon_koop_gutschriften WHERE id = ${Number(req.params.gid)} AND angebot_id = ${Number(z.id)}`) as any[];
+    const p = g ? await koopGutschriftPdf(Number(g.id)) : null;
+    if (!p) return res.status(404).json({ ok: false, error: "Gutschrift nicht gefunden." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${p.dateiname}"`);
+    res.send(p.pdf);
+  } catch (err) { console.error("[FIAON-ANGEBOT] koop/gutschrift:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
 router.post("/admin/global/angebote/:id/koop/provision", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
     const z = await koopZeile(req, res); if (!z) return;

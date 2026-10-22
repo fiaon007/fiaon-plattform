@@ -37,6 +37,54 @@ interface Empfehlungen {
   prozent: number | null; monate: number;
   liste: { id: number; name: string; gemeldetText: string; bisText: string; standText: string; stand: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; quelle: string }[];
   summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string };
+  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string }[];
+  bank?: { inhaber: string; maske: string } | null;
+}
+/** E-420: Ihre Auszahlungen — Gutschriften (automatisch zum Monatsanfang) und die Bankverbindung für die Überweisung. */
+function IhreAuszahlungen({ e, token, laeuft, senden }: { e: Empfehlungen; token: string; laeuft: string | null; senden: (was: string, pfad: string, body: unknown) => Promise<any> }) {
+  const [bank, setBank] = useState({ inhaber: "", iban: "" });
+  const [aendern, setAendern] = useState(!e.bank);
+  const T = KOOP_EMPFEHLUNG_TEXTE;
+  const gs = e.gutschriften ?? [];
+  return (
+    <section className="kpb-karte kpb-empf" aria-label={T.auszahlTitel}>
+      <h2>{T.auszahlTitel}{gs.length > 0 && <span className="kpb-zahl-marke">{gs.length}</span>}</h2>
+      <p className="kpb-fein">{T.auszahlSub}</p>
+      {gs.length === 0 ? <p className="kpb-fein">{T.keineGutschrift}</p> : (
+        <ul className="kpb-rechnungen">
+          {gs.map((g) => (
+            <li key={g.id}>
+              <span><b>{g.monatText}</b> · {g.nummer}</span>
+              <span>{g.betrag} · <em className={g.stand === "ausgezahlt" ? "gut" : "offen"}>{g.stand}</em></span>
+              <span className="kpb-reihe"><a href={`/api/fiaon/koop/partner/${encodeURIComponent(token)}/gutschrift/${g.id}.pdf`} target="_blank" rel="noreferrer">PDF</a></span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="kpb-empf-form">
+        <h3>Ihre Bankverbindung</h3>
+        {e.bank && !aendern ? (
+          <div className="kpb-tun"><span>{e.bank.inhaber} · IBAN {e.bank.maske}</span><button type="button" className="kpb-knopf still klein" onClick={() => setAendern(true)}>Ändern</button></div>
+        ) : (
+          <>
+            {!e.bank && <p className="kpb-fein">{T.bankFehlt}</p>}
+            <div className="kpb-felder">
+              <label>Kontoinhaber<input value={bank.inhaber} autoComplete="name" onChange={(ev) => setBank({ ...bank, inhaber: ev.target.value })} /></label>
+              <label>IBAN<input value={bank.iban} autoComplete="off" inputMode="text" placeholder="DE…" onChange={(ev) => setBank({ ...bank, iban: ev.target.value })} /></label>
+            </div>
+            <div className="kpb-tun">
+              <button type="button" className="kpb-knopf" disabled={laeuft === "bank" || bank.inhaber.trim().length < 3 || bank.iban.replace(/\s/g, "").length < 15}
+                onClick={() => void senden("bank", "/bank", bank).then((j) => { if (j) { setBank({ inhaber: "", iban: "" }); setAendern(false); } })}>
+                {laeuft === "bank" ? "Speichert …" : "Bankverbindung speichern"}
+              </button>
+              {e.bank && <button type="button" className="kpb-knopf still" onClick={() => setAendern(false)}>Abbrechen</button>}
+            </div>
+            <p className="kpb-fein">Wird verschlüsselt gespeichert und nur für Ihre Provisionen genutzt.</p>
+          </>
+        )}
+      </div>
+    </section>
+  );
 }
 /** E-419: Ihre Empfehlungen an FIAON — wer von Ihnen kam, was er gezahlt hat und Ihre Provision; dazu „Jemanden empfehlen“. */
 function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: string | null; senden: (was: string, pfad: string, body: unknown) => Promise<any> }) {
@@ -190,6 +238,7 @@ export default function KoopPartnerPage() {
         {meldung && <p className="kpb-meldung" role="status">{meldung}</p>}
 
         {sicht.empfehlungen && <IhreEmpfehlungen e={sicht.empfehlungen} laeuft={laeuft} senden={async (was, pfad, body) => { const j = await senden(was, pfad, body); if (j) setMeldung("Danke — Ihre Empfehlung steht in Ihrer Liste. Wir melden uns bei der Person."); return j; }} />}
+        {sicht.empfehlungen && sicht.empfehlungen.prozent != null && <IhreAuszahlungen e={sicht.empfehlungen} token={token} laeuft={laeuft} senden={async (was, pfad, body) => { const j = await senden(was, pfad, body); if (j) setMeldung(`Gespeichert: ${j.maske}. Ihre Provisionen überweisen wir auf dieses Konto.`); return j; }} />}
 
         {sicht.verlauf && sicht.verlauf.length > 0 && <JahrInZahlen v={sicht.verlauf} einheit={einheit} platz={!!sicht.demoWorte?.platz || sicht.modell === "platz"} />}
 

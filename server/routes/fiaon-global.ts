@@ -44,13 +44,18 @@ function pdfSenden(res: Response, pdf: Buffer, dateiname: string) {
   res.end(pdf);
 }
 
-/** Token aus `?t=` prüfen — und bei einem Fehler gleich die Antwort schreiben. */
-function zutritt(req: Request, res: Response): string | null {
-  const ref = String(req.params.ref || "").trim();
-  const urteil = globalTokenPruefen(ref, req.query.t);
-  if (!urteil) { res.status(403).json({ ok: false, error: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus Ihrer Auftragsbestätigung." }); return null; }
-  if (urteil === "abgelaufen") { res.status(410).json({ ok: false, error: "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com — Sie erhalten Vertrag und Rechnung dann erneut." }); return null; }
-  return ref;
+/**
+ * Token aus `?t=` prüfen ODER die Sitzung des persönlichen Zugangs (E-423) — und bei einem Fehler gleich die Antwort
+ * schreiben. Ist zur Akte ein Zugang eingerichtet, genügt der Link allein nicht mehr (globalPortalZutritt, eine Regel).
+ */
+async function zutritt(req: Request, res: Response): Promise<string | null> {
+  const { globalPortalZutritt } = await import("../lib/fiaon-global-konto");
+  const z = await globalPortalZutritt(req, res, {
+    vorschau: false,
+    ungueltig: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus Ihrer Auftragsbestätigung.",
+    abgelaufen: "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com — Sie erhalten Vertrag und Rechnung dann erneut.",
+  });
+  return z ? z.ref : null;
 }
 
 // ── Messung (19.09.2026, E-191) — die Kennungen aus Render, sonst null ──────
@@ -115,7 +120,7 @@ router.post("/global/auftrag", async (req: Request, res: Response) => {
 
 router.get("/global/auftrag/:ref", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const sicht = await globalAuftragSicht(ref, String(req.query.t));
     if (!sicht) return res.status(404).json({ ok: false, error: "Wir finden zu diesem Link keinen Auftrag." });
@@ -129,7 +134,7 @@ router.get("/global/auftrag/:ref", async (req: Request, res: Response) => {
 
 router.get("/global/auftrag/:ref/vertrag.pdf", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const pdf = await globalVertragPdfLesen(ref);
     if (!pdf) return res.status(404).json({ ok: false, error: "Zu diesem Auftrag liegt kein Vertrag vor." });
@@ -142,7 +147,7 @@ router.get("/global/auftrag/:ref/vertrag.pdf", async (req: Request, res: Respons
 
 router.get("/global/auftrag/:ref/rechnung.pdf", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const r = await globalRechnungPdf(ref);
     if (!r) return res.status(404).json({ ok: false, error: "Zu diesem Auftrag liegt noch keine Rechnung vor." });

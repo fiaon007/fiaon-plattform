@@ -92,6 +92,8 @@ export const PFLICHTMAILS = new Set<string>([
   // angefordert (auch mit Werbesperre). Wer ihn NICHT bekommt, entscheidet die Route (fiaon-auskunft-kauf.ts).
   "auskunft_kundenpreis",
   "global_zugang",           // E-188: dasselbe für Firmenkunden — der Link zu „Mein Auftrag" ist ihr einziger Zugang.
+  // E-423: der persönliche Zugang — Code und Passwort-Link fordert der Kunde selbst an, die Einladung folgt seiner Annahme.
+  "global_zugang_einladung", "global_login_code", "global_passwort_neu",
   // Betriebsmeldungen an die Hausleitung, nie an Kunden — dürfen nie stocken.
   "kritisch", "warnung", "info",
 ]);

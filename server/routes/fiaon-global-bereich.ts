@@ -52,14 +52,22 @@ function clientIp(req: Request): string {
 }
 
 // ── Zutritt des Kunden ───────────────────────────────────────────────────────
-/** Token aus `?t=` prüfen — und bei einem Fehler gleich die Antwort schreiben. `code` sagt der Seite, was sie anbieten soll. */
-function zutritt(req: Request, res: Response): string | null {
-  const ref = String(req.params.ref || "").trim();
-  const urteil = globalTokenPruefen(ref, req.query.t);
-  res.setHeader("Cache-Control", "private, no-store");
-  if (!urteil) { res.status(403).json({ ok: false, code: "ungueltig", error: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus Ihrer letzten E-Mail von FIAON Global — oder fordern Sie mit Ihrer E-Mail-Adresse einen neuen an." }); return null; }
-  if (urteil === "abgelaufen") { res.status(410).json({ ok: false, code: "abgelaufen", error: "Dieser Link ist abgelaufen. Fordern Sie mit Ihrer E-Mail-Adresse einen neuen an — er kommt sofort per E-Mail." }); return null; }
-  return ref;
+/**
+ * Sitzung des persönlichen Zugangs (E-423) ODER Token aus `?t=` — und bei einem Fehler gleich die Antwort schreiben.
+ * `code` sagt der Seite, was sie anbieten soll (ungueltig/abgelaufen → neuer Link, anmelden → Anmeldeseite).
+ * Die Regel steht EINMAL in globalPortalZutritt (server/lib/fiaon-global-konto.ts): Ist zur Akte ein Zugang
+ * eingerichtet, öffnet der Link das Portal nicht mehr — er führt zur Anmeldung. Die Vorschau der Leitung bleibt.
+ */
+async function zutritt(req: Request, res: Response): Promise<string | null> {
+  const { globalPortalZutritt } = await import("../lib/fiaon-global-konto");
+  const z = await globalPortalZutritt(req, res, {
+    vorschau: istVorschau(req),
+    ungueltig: "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus Ihrer letzten E-Mail von FIAON Global — oder fordern Sie mit Ihrer E-Mail-Adresse einen neuen an.",
+    abgelaufen: "Dieser Link ist abgelaufen. Fordern Sie mit Ihrer E-Mail-Adresse einen neuen an — er kommt sofort per E-Mail.",
+  });
+  if (!z) return null;
+  (req as any).globalZutritt = z;
+  return z.ref;
 }
 
 // ── Drosseln (im Arbeitsspeicher der Instanz, wie jede Drossel im Haus) ──────
@@ -124,22 +132,33 @@ function pdfSenden(res: Response, pdf: Buffer, dateiname: string) {
 // ═══ DER KUNDE ═══════════════════════════════════════════════════════════════
 router.get("/global/mein-auftrag/:ref", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     // E-332: Läuft der Link in weniger als GLOBAL_PORTAL_ERNEUERN_TAGE ab, gibt der Besuch einen frischen (ein Jahr) aus —
     // die Seite setzt ihn in die Adresse. So bleibt das Portal offen, solange der Kunde es wenigstens alle paar Monate öffnet.
     const tag = 24 * 60 * 60 * 1000;
+    const z = (req as any).globalZutritt as import("../lib/fiaon-global-konto").PortalZutritt;
+    // E-423: Mit SITZUNG gibt es keinen Link in der Adresse. Die Adressen in der Antwort (Vertrag, Rechnung, Dokumente)
+    // tragen dann ein kurzes Token für diese Seite — es öffnet allein nichts mehr (eingerichteter Zugang ⇒ Anmeldung),
+    // die Tür ist die Sitzung. Es geht NICHT in die Adresszeile (sitzungZugang statt zugang).
+    const sitzungZugang = z?.weg === "sitzung" ? globalTokenErzeugen(ref, tag) : null;
     const exp = Number(String(req.query.t ?? "").split(".")[0]);
-    const zugang = Number.isFinite(exp) && exp - Date.now() < GLOBAL_PORTAL_ERNEUERN_TAGE * tag ? globalTokenErzeugen(ref, GLOBAL_PORTAL_TAGE * tag) : null;
-    const auftrag = await globalBereichKundenSicht(ref, zugang ?? String(req.query.t));
+    const zugang = !sitzungZugang && Number.isFinite(exp) && exp - Date.now() < GLOBAL_PORTAL_ERNEUERN_TAGE * tag ? globalTokenErzeugen(ref, GLOBAL_PORTAL_TAGE * tag) : null;
+    const token = sitzungZugang ?? zugang ?? String(req.query.t);
+    const auftrag = await globalBereichKundenSicht(ref, token);
     if (!auftrag) return res.status(404).json({ ok: false, error: "Wir finden zu diesem Link keinen Auftrag." });
     // E-338: das NEUE Portal — für diesen Kunden freigeschaltet, oder die Leitung sieht die Vorschau (?vorschau=neu + Chefbüro-Anmeldung).
     const vorschau = istVorschau(req);
     const { globalPortalNeuFrei, globalMandatKundenZusatz } = await import("../lib/fiaon-global-mandat");
     if (vorschau || await globalPortalNeuFrei(ref)) {
-      Object.assign(auftrag, await globalMandatKundenZusatz(ref, zugang ?? String(req.query.t), (auftrag.sprache as "de" | "en") ?? "de", vorschau));
+      Object.assign(auftrag, await globalMandatKundenZusatz(ref, token, (auftrag.sprache as "de" | "en") ?? "de", vorschau));
     }
-    res.json({ ok: true, auftrag, ...(zugang && !vorschau ? { zugang } : {}) });
+    res.json({
+      ok: true, auftrag, ...(zugang && !vorschau ? { zugang } : {}),
+      // E-423: angemeldet → wer (für die Leiste „Angemeldet als … · Abmelden“); mit Link und ohne Zugang → das Banner „Zugang einrichten“.
+      ...(z?.weg === "sitzung" && z.sitzung ? { sitzungZugang, konto: { email: z.sitzung.email, name: z.sitzung.name } } : {}),
+      ...(z?.weg === "token" && !vorschau ? { zugangEinrichten: true } : {}),
+    });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] mein-auftrag:", err);
     res.status(500).json({ ok: false, error: "Ihr Auftrag lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
@@ -149,7 +168,7 @@ router.get("/global/mein-auftrag/:ref", async (req: Request, res: Response) => {
 // E-332: eine Unterlage aus dem Individualangebot — derselbe Zutritt wie das Portal, nie zwischengespeichert, nie indexiert.
 router.get("/global/mein-auftrag/:ref/unterlage/:id", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -170,9 +189,9 @@ router.get("/global/mein-auftrag/:ref/unterlage/:id", async (req: Request, res: 
   }
 });
 
-router.post("/global/mein-auftrag/:ref/dokument", (req: Request, res: Response, next: NextFunction) => {
+router.post("/global/mein-auftrag/:ref/dokument", async (req: Request, res: Response, next: NextFunction) => {
   // Erst der Zutritt, dann die Drossel, DANN der Körper.
-  const ref = zutritt(req, res);
+  const ref = await zutritt(req, res).catch((e) => { console.error("[GLOBAL-BEREICH] dokument (Zutritt):", e); if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" }); return null; });
   if (!ref) return;
   if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hochladen kann hier nur der Kunde." });
   if (uploadJeRef(ref) || uploadJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
@@ -190,7 +209,7 @@ router.post("/global/mein-auftrag/:ref/dokument", (req: Request, res: Response, 
 
 router.get("/global/mein-auftrag/:ref/dokument/:id", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const d = await globalDokumentLesen(ref, req.params.id, "kunde");
     if (!d) return res.status(404).json({ ok: false, error: "Dieses Dokument gibt es nicht." });
@@ -210,7 +229,7 @@ router.get("/global/mein-auftrag/:ref/dokument/:id", async (req: Request, res: R
 const fachJeIp = fensterDrossel(40, 10 * 60_000);
 router.get("/global/mein-auftrag/:ref/fach", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const v = istVorschau(req);
     const F = await import("../lib/fiaon-global-fach");
@@ -225,7 +244,7 @@ router.get("/global/mein-auftrag/:ref/fach", async (req: Request, res: Response)
 });
 router.post("/global/mein-auftrag/:ref/fach/chat", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
     const { fachChat } = await import("../lib/fiaon-global-fach");
@@ -240,7 +259,7 @@ router.post("/global/mein-auftrag/:ref/fach/chat", async (req: Request, res: Res
 /** Vorlage → PDF. Kunde: in den Tresor (JSON). Vorschau der Leitung: das PDF selbst, nichts wird abgelegt. */
 router.post("/global/mein-auftrag/:ref/fach/vorlage", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
     const vorschau = istVorschau(req);
@@ -256,7 +275,7 @@ router.post("/global/mein-auftrag/:ref/fach/vorlage", async (req: Request, res: 
 });
 router.post("/global/mein-auftrag/:ref/fach/expose", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (fachJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
     const vorschau = istVorschau(req);
@@ -272,7 +291,7 @@ router.post("/global/mein-auftrag/:ref/fach/expose", async (req: Request, res: R
 });
 router.post("/global/mein-auftrag/:ref/fach/einzelfall", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — Anfragen schickt hier nur der Kunde." });
     if (nachrichtJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
@@ -289,7 +308,7 @@ router.post("/global/mein-auftrag/:ref/fach/einzelfall", async (req: Request, re
 // E-338: Der Kunde hat die Antworten im Faden gesehen (nie in der Vorschau der Leitung).
 router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (!istVorschau(req)) {
       const { globalKundeHatGelesen } = await import("../lib/fiaon-global-mandat");
@@ -324,7 +343,7 @@ router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan", (req: Request, re
 
 router.post("/global/mein-auftrag/:ref/unterschrift/:id", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hier unterschreibt nur der Kunde." });
     if (unterschriftJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
@@ -452,7 +471,7 @@ router.post("/global/mein-auftrag/:ref/itin", async (req: Request, res: Response
 
 router.post("/global/mein-auftrag/:ref/nachricht", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — Nachrichten schreibt hier nur der Kunde." });
     if (nachrichtJeRef(ref) || nachrichtJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });

@@ -50,6 +50,8 @@ import { GLOBAL_VORLAGEN, GLOBAL_VORLAGEN_EN } from "./vorlagen/global";
 import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/global-bereich";
 // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Rechnung eines im Portal hinzugefügten Zusatzdienstes.
 import { GLOBAL_ZUSATZ_VORLAGEN, GLOBAL_ZUSATZ_VORLAGEN_EN } from "./vorlagen/global-zusatz";
+// E-423 (22.10.2026): der persönliche Zugang zu FIAON Global — Einladung, Anmeldecode, neues Passwort.
+import { GLOBAL_KONTO_VORLAGEN, GLOBAL_KONTO_VORLAGEN_EN } from "./vorlagen/global-konto";
 // 01.10.2026 (E-268): das Individualangebot von FIAON Global (Bestätigung, Start, Teil 2, Erstattung).
 import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/global-angebot";
 // 05.10.2026 (E-282): die Vertragsbestätigung des neuen Antrags /antrag-neu (mit Vertrags-PDF als Anhang).
@@ -76,6 +78,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...GLOBAL_VORLAGEN,
   ...GLOBAL_BEREICH_VORLAGEN,
   ...GLOBAL_ZUSATZ_VORLAGEN,
+  ...GLOBAL_KONTO_VORLAGEN,
   ...GLOBAL_ANGEBOT_VORLAGEN,
   ...VERTRAG_VORLAGEN,
   ...FINANZAUSWERTUNG_VORLAGEN,
@@ -97,6 +100,7 @@ export const VORLAGEN_EN: Record<string, MailBaustein> = {
   // „Mein Auftrag" (Etappe, Frist, Dokument, Zugang) — Merge 18.09.2026.
   ...GLOBAL_BEREICH_VORLAGEN_EN,
   ...GLOBAL_ZUSATZ_VORLAGEN_EN,
+  ...GLOBAL_KONTO_VORLAGEN_EN,
   ...GLOBAL_TERMIN_EN,
 };
 

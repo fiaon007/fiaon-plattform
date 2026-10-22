@@ -117,6 +117,11 @@ export type MakeEventType =
   | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
   | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
   | "global_nachricht"       // E-338: FIAON hat im Gesprächsfaden geantwortet (Inhalt nur im Portal)
+  // ── Der persönliche Zugang (E-423, 22.10.2026) — nur Direktversand (server/mail/vorlagen/global-konto.ts,
+  //    Auslöser in server/lib/fiaon-global-konto.ts), je deutsch und englisch, transaktional.
+  | "global_zugang_einladung" // „Zugang einrichten“ — nach der Annahme oder von Hand (Link 7 Tage, einmal)
+  | "global_login_code"       // der sechsstellige Code bei Anmeldung, Einrichtung und neuem Passwort (10 Minuten)
+  | "global_passwort_neu"     // „Passwort vergessen“ — Link 60 Minuten, einmal
   | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
   // ── Die Bonitätsauskunft (E-240, 24.09.2026): seit heute automatisch aus dem
   //    Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts), die Namen bleiben.

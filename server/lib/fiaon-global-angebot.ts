@@ -806,6 +806,18 @@ export async function angebotAnnehmen(token: string, body: any, kontext: Annahme
   if (schon) return schon;
   const lauf = annehmen(t, body, kontext).finally(() => laufend.delete(t.ref));
   laufend.set(t.ref, lauf);
+  // E-423 (22.10.2026): der persönliche Zugang — EINE Stelle für alle Annahmewege (Individual-, Begleit-, Firmen-,
+  // Kapital-Angebot; die Kooperation hat ihren eigenen Partnerbereich und wird dort übersprungen). Erst nach einer
+  // ECHTEN neuen Annahme (nicht beim Doppelklick „schon“) und 20 Sekunden hinter der Antwort, damit Vertrag und
+  // Bestätigung zuerst ankommen. Ist der Zugang schon eingerichtet, wird nur verknüpft. Wirft nie.
+  void lauf.then((erg) => {
+    if (erg.status >= 300 || !(erg.body as any)?.ok || (erg.body as any)?.schon) return;
+    setTimeout(() => {
+      void import("./fiaon-global-konto").then((K) => K.globalKontoNachAnnahme({ angebotRef: t.ref }))
+        .then((z) => { if (z.ergebnis === "fehler") console.error(`[FIAON-ANGEBOT] ${t.ref}: Einladung zum persönlichen Zugang nicht versandt: ${z.grund}`); })
+        .catch((e) => console.error(`[FIAON-ANGEBOT] ${t.ref}: Einladung zum persönlichen Zugang:`, e));
+    }, 20_000).unref?.();
+  }).catch(() => { /* die Annahme meldet ihren Fehler selbst */ });
   return lauf;
 }
 

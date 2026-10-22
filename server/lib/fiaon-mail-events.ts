@@ -303,6 +303,22 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false,
     klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ (30 Tage) — Firmenkunden haben kein Passwort.",
   },
+  // E-423 (22.10.2026): der persönliche Zugang — nur über die eigenen Auslöser (Konto, Code, Link), nie aus dem Sende-Menü.
+  global_zugang_einladung: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: Einladung „Zugang einrichten“ — nach der Annahme eines Vertrags oder aus Chefbüro › Global › Kundenzugänge. Link sieben Tage, einmal.",
+  },
+  global_login_code: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: sechsstelliger Code bei jeder Anmeldung, beim Einrichten und nach einem neuen Passwort — zehn Minuten gültig.",
+  },
+  global_passwort_neu: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: „Passwort vergessen“ — Link zum Festlegen eines neuen Passworts, 60 Minuten, einmal.",
+  },
   // E-282 (05.10.2026): Die Vertragsbestätigung des neuen Antrags entsteht aus der Vertragsannahme und trägt
   // das Vertrags-PDF — aus einer Kundenakte oder dem Sende-Menü wäre sie eine Bestätigung ohne Vertrag. Die
   // Pflichtfelder kennt nur ihr eigener Weg (vertragBestaetigungSenden); jeder andere Weg lehnt damit ab.

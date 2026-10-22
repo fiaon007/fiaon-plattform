@@ -502,6 +502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    und die Office-Routen dazu unter /agent/global (zuständige Person, Vertriebsleitung, Chef).
   const fiaonGlobalBereichRoutes = await import('./routes/fiaon-global-bereich');
   app.use('/api/fiaon', fiaonGlobalBereichRoutes.default);
+  // 🔐 FIAON Global — der persönliche Zugang (E-423, 22.10.2026): Anmeldung mit E-Mail, Passwort und Code per Mail,
+  //    Einladung nach der Annahme, „Passwort vergessen“, Kundenzugänge im Chefbüro. Ganz getrennt vom Privatkunden-Login.
+  const fiaonGlobalKontoRoutes = await import('./routes/fiaon-global-konto');
+  app.use('/api/fiaon', fiaonGlobalKontoRoutes.default);
   // 🛰️ Firmen-Radar (19.09.2026): täglich 50 passende Firmen, Scan der Website, persönliche erste Mail —
   //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
   const fiaonRadarRoutes = await import('./routes/fiaon-radar');
@@ -954,7 +958,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
   // E-386: der Partnerbereich der Kooperation (/partner/<signierter Link>) — wie die Angebotsseiten nie im Index, kein Referrer.
-  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*', '/partner/*'], (_req, res, next) => {
+  // E-423: die Seiten des persönlichen Zugangs (Anmeldung, Code, Zugang einrichten, Übersicht) — ebenso nie im Index.
+  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*', '/partner/*',
+    '/business/login', '/business/passwort-vergessen', '/business/zugang', '/business/konto',
+    '/en/business/login', '/en/business/forgot-password', '/en/business/access', '/en/business/account'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');

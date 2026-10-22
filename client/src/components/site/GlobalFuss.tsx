@@ -53,7 +53,7 @@ export default function GlobalFuss() {
               <span aria-hidden="true">·</span>
               <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a>
               <span aria-hidden="true">·</span>
-              <a href={en ? "/en/business/auftrag" : "/business/auftrag"}>{w.auftrag}</a>
+              <a href={en ? "/en/business/login" : "/business/login"}>{w.auftrag}</a>
             </p>
             <SozialeLinks en={en} className="gf-sozial" />
           </div>

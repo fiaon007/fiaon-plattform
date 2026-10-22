@@ -40,6 +40,9 @@ import { ZUGANG_UEBERGABE_TEXTE } from "../shared/fiaon-zugang-uebergabe";
 import { RADAR_BRIEF_TEXTE, RADAR_KERNSATZ } from "../shared/fiaon-radar";
 // 22.10.2026 (Scheibe 1 „Ihr US-Büro“): Katalog, Fenster und Verlauf der Zusatzdienste — nur die deutschen Kundentexte (nie `intern`).
 import { GLOBAL_ZUSATZ, GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER } from "../shared/fiaon-global-zusatz";
+// E-423 (22.10.2026): der persönliche Zugang — Anmeldung, Code, Zugang einrichten, Übersicht, Banner; dazu die Sätze des Servers.
+import { GLOBAL_KONTO_WOERTER } from "../client/src/i18n/global-konto";
+import { KONTO_SAETZE } from "../shared/fiaon-global-konto";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
@@ -103,6 +106,8 @@ sammle(STARTGESPRAECH_TEXTE, "startgespraech", texte);
 sammle(SOZIAL_WOERTER.de, "i18n/sozial", texte);
 sammle(GEBURT_TEXTE, "geburtsdatum", texte);
 sammle(ZUGANG_UEBERGABE_TEXTE, "zugang-uebergabe", texte);
+sammle(GLOBAL_KONTO_WOERTER.de, "global-konto", texte);
+sammle(KONTO_SAETZE.de, "global-konto-server", texte);
 sammle(RADAR_BRIEF_TEXTE, "radar-brief", texte);
 sammle(RADAR_KERNSATZ, "radar-kernsatz", texte);
 for (const z of GLOBAL_ZUSATZ) sammle({ ...z.de, angabe: z.angabe?.de ?? null }, `zusatz/${z.key}`, texte);

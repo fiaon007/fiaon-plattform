@@ -126,7 +126,8 @@ export default function GlobalNav() {
     return ziel + (/\/business\/(start|auftrag)(\/|$)/.test(ziel) ? (loc?.search ?? "") : "") + (loc?.hash ?? "");
   })();
   const gespraechHref = en ? "/en/business#gespraech" : "/business#gespraech";
-  const auftragHref = en ? "/en/business/auftrag" : "/business/auftrag";
+  // E-423: „Mein Auftrag“ führt zur Anmeldung — dort steht auch der Weg ohne Zugang (Link anfordern).
+  const auftragHref = en ? "/en/business/login" : "/business/login";
   // Auf der Übersicht selbst gleitet „Gespräch vereinbaren" zum Kalender statt neu zu laden.
   const zumGespraech = (e: React.MouseEvent) => {
     const ziel = document.getElementById("gespraech");

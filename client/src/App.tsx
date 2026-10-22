@@ -244,6 +244,8 @@ const GlobalLandingPage = lazy(() => import("@/pages/site/global-lp"));
 const GlobalWiderrufPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalWiderrufsbelehrungSeite })));
 const GlobalMustervertragPage = lazy(() => import("@/pages/site/global-recht").then((m) => ({ default: m.GlobalMustervertragSeite })));
 const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
+// E-423 (22.10.2026): der persönliche Zugang — Anmeldung mit Code, Zugang einrichten, Passwort vergessen, Übersicht.
+const BusinessKontoPage = lazy(() => import("@/pages/business-konto"));
 // 01.10.2026 (E-268): das persönliche Individualangebot — signierter Link, Annahme per Knopf.
 const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
 // E-386 (16.10.2026): Partnerbereich der Kooperation — signierter Link ohne Anmeldung.
@@ -421,6 +423,10 @@ function Router() {
       <Route path="/en/business" component={BusinessPage} />
       <Route path="/en/business/start" component={BusinessStartPage} />
       <Route path="/en/business/auftrag/:ref?" component={BusinessAuftragPage} />
+      <Route path="/en/business/login" component={BusinessKontoPage} />
+      <Route path="/en/business/forgot-password" component={BusinessKontoPage} />
+      <Route path="/en/business/access" component={BusinessKontoPage} />
+      <Route path="/en/business/account" component={BusinessKontoPage} />
       <Route path="/en/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
       <Route path="/en/business/mustervertrag" component={GlobalMustervertragPage} />
       {/* 24.09.2026 (E-234): die englischen Unterseiten — NACH start/auftrag/widerrufsbelehrung/mustervertrag, sonst schluckt :slug sie. */}
@@ -541,6 +547,10 @@ function Router() {
       <Route path="/business" component={BusinessPage} />
       <Route path="/business/start" component={BusinessStartPage} />
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
+      <Route path="/business/login" component={BusinessKontoPage} />
+      <Route path="/business/passwort-vergessen" component={BusinessKontoPage} />
+      <Route path="/business/zugang" component={BusinessKontoPage} />
+      <Route path="/business/konto" component={BusinessKontoPage} />
       <Route path="/business/angebot/:token" component={BusinessAngebotPage} />
       <Route path="/partner/:token" component={KoopPartnerPage} />
       <Route path="/partnernetzwerk" component={SitePartnerNetz} />

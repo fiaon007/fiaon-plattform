@@ -18,12 +18,21 @@
 // angebot_id eines Firmenangebots) und an der AKTE (bestaetigungen.firmenangebot = true). Bei einer Störung der
 // Abfrage lassen die Wände durch wie die übrigen Wände an diesen Türen — und schreiben es ins Log.
 // ═══════════════════════════════════════════════════════════════════════════
+import { KONTO_MAILS } from "@shared/fiaon-global-konto";
 // Die Datenbank wird erst in der Abfrage geladen — istFirmenAkte und globalAutomatik bleiben rein (Prüfstände ohne DB,
 // der Zahlungstakt importiert diese Datei).
 
 export const FIRMA_KEINE_AUTOMATIK = "Firmenangebot (E-301): keine automatische Mail an die Kundin — Vertrag, Rechnungen, Termine und Fristen schickt der Ansprechpartner von Hand.";
-/** Mails, die die Kundin selbst anfordert — sie bleiben frei. */
-export const FIRMA_ANGEFORDERT: ReadonlySet<string> = new Set(["global_zugang"]);
+/**
+ * Mails, die die Kundin selbst anfordert — sie bleiben frei.
+ *
+ * E-423 (22.10.2026, persönlicher Zugang): AUSDRÜCKLICH AUSGENOMMEN sind auch die drei Mails des Zugangs
+ * (KONTO_MAILS in shared/fiaon-global-konto.ts): der Anmeldecode und der Link „Passwort vergessen“ (beide fordert sie
+ * selbst an, ohne sie kommt sie nicht in ihren Bereich) und die Einladung „Zugang einrichten“ nach IHRER Annahme
+ * (Justin: „Sobald ein Kunde einen Vertrag angenommen hat, soll er sein Passwort erstellen“). Transaktional, keine
+ * Werbung, keine Erinnerung — sie müssen IMMER ankommen. scripts/pruef-global-login.ts hält diese Ausnahme fest.
+ */
+export const FIRMA_ANGEFORDERT: ReadonlySet<string> = new Set(["global_zugang", ...KONTO_MAILS]);
 
 /** Löst eine Automatik die Global-Mail aus? Leer, „System …“ und „Tageslauf …“ = Automatik; ein Name = ein Mensch. */
 export function globalAutomatik(ausgeloestVon: string | null | undefined): boolean {
@@ -61,10 +70,10 @@ export async function firmaKundinAdresse(email: string): Promise<boolean> {
 }
 
 // ── E-350 (14.10.2026): AUCH MARA ANTWORTET NIE AUTOMATISCH ─────────────────
-// Justin (Fall ULRIKA'S): „wenn sie arbeitet darf Mara nicht automatisiert antworten bei ihr, bitte drauf achten“.
+// Justin (Fall einer Firmenkundin, Oktober 2026): „wenn sie arbeitet darf Mara nicht automatisiert antworten bei ihr, bitte drauf achten“.
 // Die Global-Regel des Postmeisters (E-272/E-275) hängt an der PERSON — ein Firmenangebot wird aber
-// ohne Person angelegt, und die Kundin schreibt von einer anderen Adresse der Firma (ulrika@ im Angebot, ulrikae@ in
-// der Mail). Deshalb erkennt der Postmeister die Kundin am ABSENDER: dieselbe Adresse wie firmaKundinAdresse ODER
+// ohne Person angelegt, und die Kundin schreibt von einer anderen Adresse der Firma (eine Adresse im Angebot, eine leicht
+// abweichende in der Mail). Deshalb erkennt der Postmeister die Kundin am ABSENDER: dieselbe Adresse wie firmaKundinAdresse ODER
 // dieselbe Firmen-Domäne wie die Adresse eines Firmenangebots/einer Firmenakte. Freemail-Domänen zählen nie als Firma
 // (sonst schwiege Mara für alle gmail.com-Kunden).
 const FREEMAIL_DOMAENEN: ReadonlySet<string> = new Set([

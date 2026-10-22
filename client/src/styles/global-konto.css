@@ -1,0 +1,162 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON GLOBAL — DER PERSÖNLICHE ZUGANG (E-423, 22.10.2026)
+   Klassen .gko-. Dieselbe Welt wie das Portal (global-portal.css): Papierweiß,
+   Stein, Navy #12284a, Blau #1d4ed8, Licht #288dfa, Newsreader (dünn) für die
+   eine große Zeile, Inter für alles andere. Glas an GENAU einer Stelle: der
+   Karte. Kein Gold, kein Dark Mode, wenige Zeichen (selbst gezeichnet, 1,5 px).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gko {
+  --papier: #ffffff; --stein: #f5f7fa; --linie: #e3e7ee; --linie-2: #cdd5e0; --tinte: #0c1a2e; --text: #3b4658; --leise: #6b7587;
+  --navy: #12284a; --blau: #1d4ed8; --licht: #288dfa; --blau-hell: #eef3fe; --rot: #b42318; --rot-hell: #fef3f2; --gruen: #0f7a55;
+  --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif; --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --kurve: cubic-bezier(.22, 1, .36, 1);
+  color-scheme: light only; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(900px 520px at 85% -10%, rgba(40,141,250,.16), rgba(40,141,250,0) 60%),
+    radial-gradient(760px 480px at -10% 110%, rgba(29,78,216,.10), rgba(29,78,216,0) 60%),
+    var(--stein);
+  padding: 0 24px 32px;
+}
+.gko *, .gko *::before, .gko *::after { box-sizing: border-box; }
+.gko :focus-visible { outline: 2px solid var(--licht); outline-offset: 3px; border-radius: 10px; }
+.gko a { color: var(--blau); text-decoration: none; }
+.gko a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.gko-kopf { width: 100%; max-width: 1120px; margin: 0 auto; height: 76px; display: flex; align-items: center; justify-content: space-between; }
+.gko-kopf .gko-logo { display: inline-flex; color: var(--navy); }
+.gko-kopf .gko-logo:hover { text-decoration: none; }
+.gko-kopf-rechts { font: 400 13px/1 var(--sans); color: var(--leise); }
+.gko-kopf-rechts a { color: var(--leise); }
+
+.gko-mitte { flex: 1; display: grid; place-items: center; padding: 12px 0 28px; }
+
+/* ── Die Karte (die EINE Glasfläche) ── */
+.gko-karte {
+  position: relative; width: 100%; max-width: 448px; padding: 36px 36px 30px; border-radius: 26px;
+  background: rgba(255,255,255,.78); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255,255,255,.95);
+  box-shadow: 0 0 0 1px rgba(205,213,224,.55), 0 50px 90px -48px rgba(12,26,46,.45), 0 18px 36px -24px rgba(29,78,216,.18), 0 1px 0 rgba(255,255,255,.7) inset;
+  animation: gko-ein .7s var(--kurve) both;
+}
+.gko-karte.breit { max-width: 720px; }
+.gko-auge { display: inline-flex; align-items: center; gap: 8px; font: 500 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--blau); }
+.gko-auge::before { content: ""; width: 18px; height: 1px; background: currentColor; opacity: .6; }
+.gko h1 { margin: 14px 0 0; font: 300 36px/1.08 var(--serif); letter-spacing: -.01em; color: var(--navy); text-wrap: balance; }
+.gko-lead { margin: 12px 0 0; font: 400 15px/1.55 var(--sans); color: var(--text); text-wrap: pretty; }
+
+.gko-form { display: grid; gap: 16px; margin-top: 26px; }
+.gko-feld { display: grid; gap: 7px; }
+.gko-feld > span { font: 500 12.5px/1 var(--sans); color: var(--tinte); letter-spacing: .01em; display: flex; justify-content: space-between; align-items: baseline; }
+.gko-feld > span a, .gko-feld > span button { font-weight: 400; }
+.gko-eingabe { position: relative; }
+.gko-eingabe input, .gko-feld > input {
+  width: 100%; height: 50px; padding: 0 16px; border-radius: 13px; border: 1px solid var(--linie-2); background: var(--papier);
+  font: 400 16px/1 var(--sans); color: var(--tinte); transition: border-color .2s, box-shadow .2s;
+}
+.gko-eingabe input { padding-right: 84px; }
+.gko-eingabe input:focus, .gko-feld > input:focus { outline: none; border-color: var(--licht); box-shadow: 0 0 0 4px rgba(40,141,250,.16); }
+.gko-zeigen { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); height: 34px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--leise); font: 500 12.5px/1 var(--sans); cursor: pointer; }
+.gko-zeigen:hover { background: var(--stein); color: var(--tinte); }
+.gko-textknopf { border: 0; background: none; padding: 0; color: var(--blau); font: inherit; cursor: pointer; }
+.gko-textknopf:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gko-textknopf:disabled { color: var(--leise); cursor: default; text-decoration: none; }
+
+.gko-haken { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; cursor: pointer; user-select: none; }
+.gko-haken input { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; margin: 1px 0 0; border-radius: 6px; border: 1px solid var(--linie-2); background: var(--papier);
+  display: grid; place-items: center; cursor: pointer; transition: background .2s, border-color .2s; }
+.gko-haken input:checked { background: var(--blau); border-color: var(--blau); }
+.gko-haken input:checked::after { content: ""; width: 10px; height: 5px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.gko-haken b { display: block; font: 500 14px/1.4 var(--sans); color: var(--tinte); }
+.gko-haken small { display: block; margin-top: 2px; font: 400 12.5px/1.4 var(--sans); color: var(--leise); }
+
+.gko-knopf {
+  height: 52px; width: 100%; border: 0; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: linear-gradient(135deg, #2457e6 0%, var(--blau) 42%, var(--navy) 100%); color: #fff; font: 500 15.5px/1 var(--sans); letter-spacing: .01em;
+  box-shadow: 0 16px 30px -18px rgba(29,78,216,.75), 0 1px 0 rgba(255,255,255,.18) inset; transition: transform .2s var(--kurve), box-shadow .2s, opacity .2s;
+}
+.gko-knopf:hover { transform: translateY(-1px); box-shadow: 0 22px 36px -18px rgba(29,78,216,.8), 0 1px 0 rgba(255,255,255,.18) inset; }
+.gko-knopf:disabled { opacity: .55; cursor: default; transform: none; }
+.gko-knopf.leise { background: var(--papier); color: var(--navy); border: 1px solid var(--linie-2); box-shadow: none; }
+.gko-knopf.leise:hover { border-color: var(--licht); }
+
+.gko-meldung { margin: 0; padding: 12px 14px; border-radius: 12px; font: 400 13.5px/1.5 var(--sans); }
+.gko-meldung.fehler { background: var(--rot-hell); color: var(--rot); border: 1px solid #fecdca; }
+.gko-meldung.gut { background: #ecfdf3; color: var(--gruen); border: 1px solid #c6f0da; }
+.gko-meldung.info { background: var(--blau-hell); color: var(--navy); border: 1px solid #d6e2fb; }
+
+.gko-fuss { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--linie); display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; font: 400 13px/1.5 var(--sans); color: var(--leise); }
+.gko-sicher { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px auto 0; font: 400 12px/1.4 var(--sans); color: var(--leise); text-align: center; }
+.gko-sicher svg { flex: none; }
+
+/* ── Der Code: sechs Felder ── */
+.gko-code { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.gko-code input {
+  width: 100%; height: 62px; text-align: center; border-radius: 14px; border: 1px solid var(--linie-2); background: var(--papier);
+  font: 400 26px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--navy); caret-color: var(--licht); transition: border-color .2s, box-shadow .2s, transform .2s;
+}
+.gko-code input:focus { outline: none; border-color: var(--licht); box-shadow: 0 0 0 4px rgba(40,141,250,.16); transform: translateY(-1px); }
+.gko-code input.voll { border-color: #9db8f2; }
+.gko-code.falsch input { border-color: #f4a6a0; animation: gko-wackeln .35s ease; }
+.gko-code-neu { display: flex; justify-content: space-between; align-items: center; gap: 12px; font: 400 13px/1.4 var(--sans); color: var(--leise); }
+
+/* ── Passwortstärke ── */
+.gko-staerke { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 2px; }
+.gko-staerke i { height: 4px; border-radius: 4px; background: var(--linie); transition: background .3s; }
+.gko-staerke[data-s="1"] i:nth-child(-n+1) { background: #f59e0b; }
+.gko-staerke[data-s="2"] i:nth-child(-n+2) { background: var(--licht); }
+.gko-staerke[data-s="3"] i:nth-child(-n+3) { background: var(--blau); }
+.gko-staerke[data-s="4"] i { background: var(--gruen); }
+.gko-staerke-text { display: flex; justify-content: space-between; font: 400 12px/1.4 var(--sans); color: var(--leise); }
+.gko-staerke-text b { font-weight: 500; color: var(--tinte); }
+
+.gko-wer { display: grid; gap: 10px; margin-top: 22px; padding: 14px 16px; border-radius: 14px; background: rgba(238,243,254,.7); border: 1px solid #dbe6fb; }
+.gko-wer div { display: flex; justify-content: space-between; gap: 12px; font: 400 13.5px/1.4 var(--sans); }
+.gko-wer span { color: var(--leise); }
+.gko-wer b { font-weight: 500; color: var(--tinte); text-align: right; overflow-wrap: anywhere; }
+
+/* ── Übersicht „Ihre Aufträge“ ── */
+.gko-liste { display: grid; gap: 12px; margin-top: 26px; }
+.gko-zeile { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 18px 20px; border-radius: 18px; background: var(--papier);
+  border: 1px solid var(--linie); transition: border-color .2s, box-shadow .2s, transform .2s var(--kurve); }
+a.gko-zeile:hover { text-decoration: none; border-color: #c9d8f7; box-shadow: 0 18px 34px -26px rgba(12,26,46,.45); transform: translateY(-1px); }
+.gko-zeile small { display: block; font: 500 11px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--leise); }
+.gko-zeile b { display: block; margin-top: 7px; font: 400 21px/1.2 var(--serif); color: var(--navy); }
+.gko-zeile em { display: block; margin-top: 6px; font: normal 400 13px/1.4 var(--sans); color: var(--text); }
+.gko-zeile .gko-pfeil { font: 500 14px/1 var(--sans); color: var(--blau); white-space: nowrap; }
+.gko-marke { display: inline-block; margin-left: 8px; padding: 4px 8px; border-radius: 999px; font: 500 11px/1 var(--sans); background: var(--blau-hell); color: var(--blau); vertical-align: 2px; }
+.gko-kopfzeile { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: center; margin-top: 8px; font: 400 13px/1.4 var(--sans); color: var(--leise); }
+
+/* ── Die Leiste über „Mein Auftrag“ (angemeldet) und das Banner (noch ohne Zugang) ── */
+.gko-leiste { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 16px;
+  padding: 9px 16px; background: #0b1c36; color: #c9d8f0; font-size: 12.5px; line-height: 1.4; }
+.gko-leiste a, .gko-leiste button { color: #fff; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: none; }
+.gko-leiste a:hover, .gko-leiste button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gko-leiste .trenner { width: 1px; height: 12px; background: rgba(255,255,255,.22); }
+.gko-banner { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 18px;
+  padding: 12px 16px; background: linear-gradient(90deg, #eef3fe, #f5f8ff 50%, #eef3fe); border-bottom: 1px solid #d6e2fb; color: #12284a; font-size: 13.5px; line-height: 1.45; text-align: center; }
+.gko-banner button { height: 34px; padding: 0 16px; border-radius: 10px; border: 0; cursor: pointer; background: #12284a; color: #fff; font: 500 13px/1 'Inter', sans-serif;
+  box-shadow: 0 10px 20px -14px rgba(18,40,74,.9); transition: transform .2s; }
+.gko-banner button:hover { transform: translateY(-1px); }
+.gko-banner button:disabled { opacity: .6; }
+.gko-banner small { color: #b42318; }
+
+@keyframes gko-ein { from { opacity: 0; transform: translateY(10px) scale(.995); } to { opacity: 1; transform: none; } }
+@keyframes gko-wackeln { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@media (prefers-reduced-motion: reduce) { .gko-karte, .gko-code.falsch input { animation: none; } .gko-knopf, .gko-zeile { transition: none; } }
+
+@media (max-width: 560px) {
+  .gko { padding: 0 16px 24px; }
+  .gko-kopf { height: 64px; }
+  .gko-kopf-rechts { display: none; }
+  .gko-mitte { place-items: start center; padding-top: 4px; }
+  .gko-karte { padding: 28px 22px 24px; border-radius: 22px; }
+  .gko h1 { font-size: 31px; }
+  .gko-code { gap: 7px; }
+  .gko-code input { height: 56px; font-size: 23px; border-radius: 12px; }
+  .gko-zeile { grid-template-columns: 1fr; }
+  .gko-wer div { flex-direction: column; gap: 2px; }
+  .gko-wer b { text-align: left; }
+  .gko-leiste { justify-content: space-between; }
+}

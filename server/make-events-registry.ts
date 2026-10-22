@@ -903,6 +903,40 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
     },
   },
+  // ── Der persönliche Zugang (E-423, 22.10.2026) — Einladung, Code, neues Passwort. Direktversand über den Motor,
+  // transaktional (auch hinter der Automatik-Wand des Firmenangebots, ohne Frequenzbremse). Code und Links stehen
+  // nie im Klartext im Protokoll. Englische Fassung über `sprache: "en"`.
+  {
+    type: "global_zugang_einladung",
+    label: "FIAON Global: Einladung „Zugang einrichten“ (Firmenkunde)",
+    description: "Geht automatisch nach der Annahme eines Vertrags (Paketauftrag, Individual-, Begleit-, Firmen-, Kapital-Angebot) und von Hand aus Chefbüro › Global › Kundenzugänge. Der Link (sieben Tage, einmal) führt zu /business/zugang: Passwort festlegen, Code bestätigen, fertig.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", sprache: "de", anrede_zeile: "Guten Tag Herr Muster", kunde: "Muster GmbH",
+      einrichten_url: "https://www.fiaon.com/business/zugang#e=e.1.1760000000000.Abc123Abc123Abc123Ab.0123456789abcdef0123456789abcdef",
+      email_anzeige: "m.muster@muster-gmbh.example", gueltig_text: "Donnerstag, 29. Oktober 2026",
+    },
+  },
+  {
+    type: "global_login_code",
+    label: "FIAON Global: Anmeldecode (Firmenkunde)",
+    description: "Der sechsstellige Code bei jeder Anmeldung auf /business/login, beim Einrichten des Zugangs und nach einem neuen Passwort. Zehn Minuten gültig, höchstens fünf Versuche. Kein Code im Betreff.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", sprache: "de", anrede_zeile: "Guten Tag Herr Muster", kunde: "Muster GmbH",
+      login_code: "482913", code_anlass: "für die Anmeldung",
+    },
+  },
+  {
+    type: "global_passwort_neu",
+    label: "FIAON Global: neues Passwort festlegen (Firmenkunde)",
+    description: "„Passwort vergessen“ auf /business/login: Link zum Festlegen eines neuen Passworts (60 Minuten, einmal). Die Seite antwortet für jede Adresse gleich; die Mail geht nur an eine Adresse mit Zugang.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", sprache: "de", anrede_zeile: "Guten Tag Herr Muster", kunde: "Muster GmbH",
+      passwort_url: "https://www.fiaon.com/business/zugang#p=p.1.1760000000000.Abc123Abc123Abc123Ab.0123456789abcdef0123456789abcdef",
+    },
+  },
   {
     // E-338 (12.10.2026): Antwort im Gesprächsfaden — der Inhalt reist nicht mit, der Knopf führt ins Portal.
     type: "global_nachricht",

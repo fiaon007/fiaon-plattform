@@ -27,6 +27,8 @@ import "@/styles/chef-global-raum.css";
 import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
 // 22.10.2026: der Stationen-Editor (auch im Office).
 import GlobalStationen from "@/components/global/GlobalStationen";
+// E-423: Kundenzugänge (persönlicher Zugang) — „Zugang einladen“ / „Einladung erneut senden“.
+import ChefGlobalZugaenge from "./ChefGlobalZugaenge";
 
 // ── Typen (so, wie der Server sie schickt) ───────────────────────────────────
 interface MandatZeile {
@@ -116,6 +118,7 @@ export default function ChefGlobal() {
       </section>
 
       <ChefGlobalEinstellungen />
+      <ChefGlobalZugaenge />
 
       {fehler && <Fehlermeldung text={fehler} erneut={neu} />}
 

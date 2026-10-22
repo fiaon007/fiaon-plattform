@@ -32,6 +32,9 @@ import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_AUFTRAG_WOERTER } from "@/i18n/global-auftrag";
 import { GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
+// E-423 (22.10.2026): der persönliche Zugang — Leiste „Angemeldet als …“ bzw. Banner „Zugang einrichten“ über dem Portal.
+import GlobalKontoLeiste, { zurGlobalAnmeldung } from "@/components/site/GlobalKontoLeiste";
+import { GLOBAL_KONTO_WOERTER } from "@/i18n/global-konto";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
 // E-338: das neue Portal — nur, wenn der Server `portalNeu` meldet (für diesen Kunden freigeschaltet oder Vorschau der Leitung).
@@ -90,19 +93,28 @@ export default function BusinessAuftrag() {
   const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get("t") || "");
 
   const [auftrag, setAuftrag] = useState<Auftrag | null>(null);
-  const [stand, setStand] = useState<"laedt" | "da" | "zugang">(ref && token ? "laedt" : "zugang");
+  // E-423: Auch OHNE Link wird geladen — mit der Sitzung des persönlichen Zugangs öffnet der Auftrag ohne ?t=.
+  const [stand, setStand] = useState<"laedt" | "da" | "zugang">(ref ? "laedt" : "zugang");
+  const [konto, setKonto] = useState<{ email: string; name?: string | null } | null>(null);
+  const [zugangEinrichten, setZugangEinrichten] = useState(false);
+  const kw = GLOBAL_KONTO_WOERTER[s];
   const basis = `/api/fiaon/global/mein-auftrag/${encodeURIComponent(ref)}`;
   const mitToken = (pfad: string) => `${basis}${pfad}?t=${encodeURIComponent(token)}`;
 
   const laden = useCallback(async () => {
-    if (!ref || !token) return;
+    if (!ref) return;
     try {
       // E-338: Die Vorschau der Leitung (?vorschau=neu aus dem Chefbüro) reist mit — der Server prüft die Anmeldung.
       const vorschau = new URLSearchParams(window.location.search).get("vorschau");
       const r = await fetch(`${mitToken("")}${vorschau ? `&vorschau=${encodeURIComponent(vorschau)}` : ""}`);
       const j = await r.json().catch(() => ({}));
+      // E-423: Zur Akte ist ein persönlicher Zugang eingerichtet → der Link führt zur Anmeldung (Adresse vorbelegt).
+      if (r.status === 401 && j?.code === "anmelden") { zurGlobalAnmeldung(s, ref, j.email); return; }
       if (r.ok && j.ok && j.auftrag) {
         setAuftrag(j.auftrag); setStand("da");
+        setKonto(j.konto ?? null); setZugangEinrichten(!!j.zugangEinrichten);
+        // Angemeldet: ein kurzes Token für die Adressen dieser Seite — nur im Speicher, nie in der Adresszeile.
+        if (!token && typeof j.sitzungZugang === "string" && j.sitzungZugang) setToken(j.sitzungZugang);
         if (typeof j.zugang === "string" && j.zugang && j.zugang !== token) {
           try { const u = new URL(window.location.href); u.searchParams.set("t", j.zugang); window.history.replaceState(window.history.state, "", u.toString()); } catch { /* Adresse bleibt */ }
           setToken(j.zugang);
@@ -182,14 +194,18 @@ export default function BusinessAuftrag() {
   // E-338: Das neue Portal hat seinen eigenen Rahmen (Leiste, Bühne, Fuß) — ohne die dunkle Seitenbühne.
   if (stand === "da" && a && (a as any).portalNeu) {
     return (
-      <Suspense fallback={<div style={{ minHeight: "100vh", background: "#f5f7fa" }} />}>
-        <GlobalPortal a={a as any} gref={ref} token={token} s={s} t={t as any} laden={laden} />
-      </Suspense>
+      <>
+        <GlobalKontoLeiste s={s} konto={konto} einrichten={zugangEinrichten && token ? { ref, token } : null} />
+        <Suspense fallback={<div style={{ minHeight: "100vh", background: "#f5f7fa" }} />}>
+          <GlobalPortal a={a as any} gref={ref} token={token} s={s} t={t as any} laden={laden} />
+        </Suspense>
+      </>
     );
   }
 
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      {stand === "da" && <GlobalKontoLeiste s={s} konto={konto} einrichten={zugangEinrichten && token ? { ref, token } : null} />}
       <div className="gs">
         <div className="dk-rahmen">
           <header className="gs-kopf">
@@ -210,6 +226,8 @@ export default function BusinessAuftrag() {
                     <button type="submit" className="gs-knopf" disabled={zugangStand === "sendet" || !email.trim()}>{zugangStand === "sendet" ? t.zugangSendet : t.zugangKnopf}</button>
                   </form>
                 )}
+                {/* E-423: Wer seinen persönlichen Zugang eingerichtet hat, meldet sich an — der Link wird dann nicht mehr gebraucht. */}
+                <p className="lead" style={{ marginTop: 18 }}>{kw.mitZugang} <a href={s === "en" ? "/en/business/login" : "/business/login"}>{kw.anmelden}</a></p>
                 <div className="gs-fuss"><a className="gs-zurueck" href={inSprache("/business", sprache)}>{t.zurSeite}</a><span /></div>
               </div>
             </div>

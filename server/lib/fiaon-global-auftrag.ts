@@ -1028,6 +1028,13 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
   // ── Die eine Mail an den Kunden ────────────────────────────────────────────
   const mail = await auftragsMailSenden(ref).catch((e) => ({ ok: false, grund: String(e) }));
   if (!mail.ok) console.error(`[FIAON-GLOBAL] ${ref}: Auftragsmail nicht versandt: ${mail.grund}`);
+
+  // ── E-423 (22.10.2026): der persönliche Zugang — Justin: „Sobald ein Kunde einen Vertrag angenommen hat, soll er
+  // sein Passwort erstellen.“ NACH der Auftragsmail (Vertrag und Rechnung kommen zuerst an). Ist der Zugang zu dieser
+  // Adresse schon eingerichtet, wird der neue Auftrag nur verknüpft. Wirft nie.
+  const { globalKontoNachAnnahme } = await import("./fiaon-global-konto");
+  const zugang = await globalKontoNachAnnahme({ auftragRef: ref });
+  if (zugang.ergebnis === "fehler") console.error(`[FIAON-GLOBAL] ${ref}: Einladung zum persönlichen Zugang nicht versandt: ${zugang.grund}`);
 }
 
 // ── Eine Global-Bestellung, die NICHT über den Bestellweg kam ────────────────

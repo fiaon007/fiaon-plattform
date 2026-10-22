@@ -105,6 +105,38 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   (Migration 120), Kundenroute `POST /api/fiaon/global/mein-auftrag/:ref/zusatz`, Chef-Routen
   `/api/fiaon/chef/global/mandate/:ref/zusatz…`, Portal `client/src/pages/global-portal-dienste.tsx`, Prüfstand
   `scripts/pruef-global-zusatz.ts`.
+## 22.10.2026 — FIAON Global: persönlicher Zugang mit Passwort und Code per E-Mail (E-423)
+- **Was:** Firmenkunden von FIAON Global bekommen einen eigenen Zugang statt nur des Links aus der Mail.
+  1. **Anmeldung** unter `fiaon.com/business/login` (englisch `/en/business/login`): E-Mail-Adresse + Passwort →
+     wir schicken einen sechsstelligen Code per E-Mail (10 Minuten gültig, höchstens 5 Versuche, „Code neu senden“
+     nach 60 Sekunden, höchstens dreimal) → angemeldet. „Auf diesem Gerät angemeldet bleiben“ = 30 Tage (verlängert
+     sich bei jeder Nutzung), sonst bis der Browser schließt. „Passwort vergessen“ schickt einen Link (60 Minuten).
+  2. **Einladung „Zugang einrichten“** (Link 7 Tage, einmal verwendbar): geht automatisch, sobald ein Kunde einen
+     Vertrag annimmt (Paketauftrag, Individual-, Begleit-, Firmen-, Kapital-Angebot — nicht der Kooperationsvertrag)
+     und von Hand über **Chefbüro › Global › Kundenzugänge** („Zugang einladen“ / „Einladung erneut senden“). Dort
+     steht auch, wer eingeladen ist, wer eingerichtet hat und wann er sich zuletzt angemeldet hat. Für Bestandskunden
+     gibt es zusätzlich `scripts/global-zugang-einladen.ts` (Trockenlauf ist Vorgabe).
+  3. **Portal:** Wer seinen Zugang eingerichtet hat, öffnet „Mein Auftrag“ nur noch angemeldet — der alte Link führt
+     zur Anmeldung (Adresse vorbelegt). Wer noch keinen Zugang hat, öffnet das Portal weiter mit dem Link und sieht
+     oben ein ruhiges Banner „Richten Sie Ihren persönlichen Zugang ein“. Die Vorschau der Leitung bleibt wie sie ist.
+     Angemeldet steht oben „Angemeldet als … · Ihre Aufträge · Abmelden“. Wer mehrere Aufträge/Verträge hat, sieht
+     nach der Anmeldung die Übersicht `fiaon.com/business/konto` (Begleitvertrag ohne Akte: Vertrag als PDF).
+     „Mein Auftrag“ in Kopf und Fuß der Business-Seiten führt jetzt zur Anmeldung.
+- **Warum:** Justin: „Der Kunde soll seinen eigenen Zugang bekommen, wo er sich anmeldet — mit E-Mail-Authentifizierung,
+  also wir senden einen Code, das fühlt sich einfach besser an.“
+- **Sicherheit:** Passwörter mit dem Verfahren des Hauses (scrypt), Code und Sitzung nur als Hash gespeichert; falsche
+  Adresse und falsches Passwort bekommen denselben Satz; nach 5 Fehlversuchen 15 Minuten Pause (für jede Adresse gleich);
+  jede Anmeldung und jeder Fehlversuch steht im Anmeldeprotokoll. Code und Links stehen nie im Klartext im Mailprotokoll.
+  Ganz getrennt vom Privatkunden-Login (eigene Tabellen, eigenes Cookie) — Global-Kunden kommen in keinen Privat-Ablauf.
+  Die drei neuen Mails (Einladung, Code, neues Passwort) sind ausdrücklich von der Automatik-Sperre für Firmenkundinnen
+  (E-301) ausgenommen — sie müssen immer ankommen.
+- **Wo:** `server/lib/fiaon-global-konto.ts` (Ablauf), `server/routes/fiaon-global-konto.ts` (Routen),
+  `client/src/pages/business-konto.tsx` (Seiten), `server/mail/vorlagen/global-konto.ts` (Mails de/en),
+  `client/src/components/admin/ChefGlobalZugaenge.tsx` (Chefbüro), Migration `db/migrations/122_global_konten.sql`,
+  Prüfstände `scripts/pruef-global-login.ts` (ohne Datenbank) und `scripts/pruef-global-login-lokal.ts` (lokal, mit Browser).
+
+---
+
 ## 22.10.2026 — Geschäftspartner-CRM im Reiter „Geschäftspartner“ (E-425)
 - **Was:** Im Chefbüro › Global-Aufträge › Reiter „Geschäftspartner“ steht jetzt oben ein vollständiges Partner-CRM (keine
   neue Seite): Partner (Lieferant/Dienstleister, Kooperationspartner, Bank/Finanzpartner, Kanzlei/Steuer, Sonstige) mit
@@ -129,6 +161,9 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   `server/routes/fiaon-partner-crm.ts` (requireChef „leitung“), Migration `db/migrations/121_partner_crm.sql`. Erste Akte per
   `scripts/partner-crm-anlegen.ts <private.json>` (Vorschau; `--schreiben` nur lokal, `--produktion` nur mit Justins Go).
   Prüfstand `scripts/pruef-partner-crm.ts` (ohne DB, mit `--rot-probe`). Rundgang Global-Aufträge um einen Schritt ergänzt.
+
+---
+
 ## 22.10.2026 — ARAS nach dem Anruf: Erinnerung nach der Mailbox, Zahltag-Erinnerung, ehrliches Nachfassen, beste Uhrzeit, 90-Tage-Löschung (E-408, Scheibe 3)
 - **Was:** Fünf Abläufe rund um Kunden mit Vertrag nach Anrufen von ARAS (Auswertung von 168 echten Anrufen: 41 % Mailbox,
   fünf Zahltag-Zusagen):

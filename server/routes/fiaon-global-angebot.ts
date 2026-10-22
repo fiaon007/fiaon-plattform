@@ -323,6 +323,21 @@ router.get("/admin/global/angebote/:id/koop/gutschrift/:gid.pdf", requireChef("l
     res.send(p.pdf);
   } catch (err) { console.error("[FIAON-ANGEBOT] koop/gutschrift:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
+// E-421: Vorschau des Monatsberichts (ohne Versand) — ?monat=JJJJ-MM, Vorgabe der laufende Monat bis heute.
+router.get("/admin/global/angebote/:id/koop/monatsbericht.html", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const z = await koopZeile(req, res); if (!z) return;
+    const roh = String(req.query.monat ?? "");
+    const monat = /^\d{4}-(0[1-9]|1[0-2])$/.test(roh) ? roh : new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    const { koopMonatsberichtBauen, koopMonatsberichtBaustein, gsMonatText } = await import("../lib/fiaon-koop-empfehlung");
+    const bau = await koopMonatsberichtBauen(z, monat);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    if (!bau) return res.send(`<p style="font:15px system-ui;padding:24px">Für ${gsMonatText(monat)} gibt es keinen Monatsbericht: Provision nicht gesetzt oder in diesem Monat zählt keine Empfehlung.</p>`);
+    const { freitextRendern } = await import("../mail/motor");
+    const m = freitextRendern({ betreff: bau.bericht.betreff, text: bau.bericht.text, absender: bau.gutschrift ? "accounting" : "welcome", baustein: koopMonatsberichtBaustein(bau.bericht, gsMonatText(monat)) });
+    res.send(m.html);
+  } catch (err) { console.error("[FIAON-ANGEBOT] koop/monatsbericht:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
 router.post("/admin/global/angebote/:id/koop/provision", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
     const z = await koopZeile(req, res); if (!z) return;

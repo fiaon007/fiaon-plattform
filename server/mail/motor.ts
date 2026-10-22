@@ -499,8 +499,9 @@ export function freitextBaustein(ein: { betreff: string; text: string; anrede?: 
 }
 
 /** Freitext rendern — für die Vorschau in der Akte. */
-export function freitextRendern(ein: { betreff: string; text: string; anrede?: string | null; absender?: AbsenderRolle }): GerenderteMail {
-  const b = freitextBaustein(ein);
+export function freitextRendern(ein: { betreff: string; text: string; anrede?: string | null; absender?: AbsenderRolle; baustein?: Partial<MailBaustein> }): GerenderteMail {
+  // E-421: Wer mehr braucht als Absätze (Eckdaten-Kasten, Knöpfe, eigener Kopf), gibt Teile des Bausteins mit — ohne Angabe bleibt jede Mail, wie sie war.
+  const b = ein.baustein ? { ...freitextBaustein(ein), ...ein.baustein } : freitextBaustein(ein);
   return {
     betreff: b.betreff,
     html: mailHtml(b),
@@ -520,6 +521,8 @@ export async function freitextSenden(ein: {
   anhaenge?: { name: string; inhalt: Buffer }[];
   /** E-185: Absenderrolle (welcome | accounting | legal | team); Vorgabe welcome. */
   absender?: AbsenderRolle;
+  /** E-421: Teile des Bausteins (siehe freitextRendern). */
+  baustein?: Partial<MailBaustein>;
 }): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   if (!adresseSiehtGueltigAus(String(ein.an || "").trim())) {
     return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${ein.an}“ — bitte in der Akte korrigieren.` };

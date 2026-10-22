@@ -110,7 +110,7 @@ function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: stri
           ))}
         </ul>
       )}
-      <div className="kpb-empf-form">
+      <div className="kpb-empf-form" id="empfehlen">
         <h3>{T.meldenTitel}</h3>
         <p className="kpb-fein">{T.meldenHinweis}</p>
         <div className="kpb-felder">

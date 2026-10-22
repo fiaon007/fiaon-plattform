@@ -12,7 +12,7 @@ import { sqlPool } from "./db-pool";
 import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import {
   KOOP_DURCHLAUF_SCHLUESSEL, KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, koopProvisionAus, koopProvisionCents, koopEmpfehlungAus,
-  koopBerechnungAusgesetzt, type KoopEmpfehlungStand,
+  koopBerechnungAusgesetzt, koopMonatsbericht, type KoopEmpfehlungStand,
 } from "@shared/fiaon-koop-empfehlung";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -62,6 +62,8 @@ export interface KoopEmpfehlungSicht {
   /** E-420: Monatsabrechnungen per Gutschrift und die (maskierte) Bankverbindung des Partners. */
   gutschriften: { id: number; nummer: string; monatText: string; betrag: string; stand: string }[];
   bank: { inhaber: string; maske: string } | null;
+  /** E-421: der zuletzt verschickte Monatsbericht. */
+  letzterBericht: { monatText: string; am: string } | null;
 }
 
 /** Die Liste mit Umsatz und Provision je Meldung — für Partnerbereich und Chefbüro. */
@@ -109,6 +111,7 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }): Promise<Koop
     summe: { umsatz: eur(s.u), provision: eur(s.p), ausgezahlt: eur(s.z), offen: eur(s.o), provisionCents: s.p, offenCents: s.o },
     gutschriften: gs.map((g) => ({ id: g.id, nummer: g.nummer, monatText: g.monatText, betrag: g.betrag, stand: g.stand })),
     bank: koopBankMaske(schalter),
+    letzterBericht: await koopLetzterBericht(Number(z.id)).catch(() => null),
   };
 }
 
@@ -375,6 +378,14 @@ export async function koopGutschriftenLauf(jetzt = new Date()): Promise<{ angele
         if (await koopGutschriftAnlegen(z, m).catch((e) => { console.error(`[KOOP] Gutschrift ${z.angebot_ref} ${m}:`, e); return null; })) angelegt++;
       }
     }
+    // E-421: Erst der Monatsbericht — er trägt die Gutschrift des Monats als Anhang (dann keine zweite Mail).
+    {
+      const { angebotLesen } = await import("./fiaon-global-angebot");
+      for (const roh of partner) {
+        const z = await angebotLesen({ id: Number(roh.id) }).catch(() => null);
+        if (z) await koopMonatsberichtSenden(z, bis).catch((e) => console.error(`[KOOP] Monatsbericht ${roh.angebot_ref} ${bis}:`, e));
+      }
+    }
     // Versand, Banking-Auftrag und Aufgabe — auch für Gutschriften, deren Bankverbindung erst später kam.
     const offen = (await sqlPool`SELECT * FROM fiaon_koop_gutschriften WHERE mail_am IS NULL OR auftrag_id IS NULL OR aufgabe_am IS NULL ORDER BY id LIMIT 50`) as any[];
     const { koopDatenAus } = await import("./fiaon-global-angebot-koop");
@@ -444,4 +455,109 @@ export async function koopGutschriftenListe(angebotId: number): Promise<{ id: nu
 export function koopBankMaske(schalter: unknown): { inhaber: string; maske: string } | null {
   const b = bankAus(schalter);
   return b ? { inhaber: b.inhaber, maske: b.maske } : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MONATSBERICHT AN DEN PARTNER (E-421) — Texte: koopMonatsbericht in shared/fiaon-koop-empfehlung.ts.
+// Einmal je Partner und Monat (Tabelle fiaon_koop_monatsberichte, Migration 119), ab dem 3. für den Vormonat, nur solange
+// mindestens eine Empfehlung im Monat zählt. Höchstens drei Versuche; die Gutschrift des Monats hängt an.
+// ═══════════════════════════════════════════════════════════════════════════
+let mbBereit: Promise<void> | null = null;
+export function ensureMonatsberichtTabelle(): Promise<void> {
+  if (!mbBereit) {
+    mbBereit = (async () => {
+      await sqlPool`
+        CREATE TABLE IF NOT EXISTS fiaon_koop_monatsberichte (
+          id BIGSERIAL PRIMARY KEY,
+          angebot_id INTEGER NOT NULL,
+          monat VARCHAR(7) NOT NULL,
+          versuche INTEGER NOT NULL DEFAULT 1,
+          gesendet_am TIMESTAMPTZ,
+          ergebnis TEXT,
+          gutschrift_id BIGINT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE (angebot_id, monat)
+        )`;
+    })().catch((e) => { mbBereit = null; throw e; });
+  }
+  return mbBereit;
+}
+
+async function koopLetzterBericht(angebotId: number): Promise<{ monatText: string; am: string } | null> {
+  await ensureMonatsberichtTabelle();
+  const [r] = (await sqlPool`SELECT monat, gesendet_am FROM fiaon_koop_monatsberichte WHERE angebot_id = ${angebotId} AND gesendet_am IS NOT NULL ORDER BY monat DESC LIMIT 1`) as any[];
+  return r ? { monatText: gsMonatText(String(r.monat)), am: tag(r.gesendet_am) } : null;
+}
+
+/** Der Bericht eines Monats — für Versand und Vorschau im Chefbüro. null = in diesem Monat zählt keine Empfehlung. */
+export async function koopMonatsberichtBauen(z: { [k: string]: any }, monat: string) {
+  await ensureEmpfehlungTabelle(); await ensureGutschriftTabelle();
+  const prov = koopProvisionAus(json<Record<string, unknown>>(z.schalter, {}));
+  if (!prov) return null;
+  const zaehlt = (await sqlPool`
+    SELECT id, to_char(gemeldet_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM') AS m FROM fiaon_koop_empfehlungen
+     WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL
+       AND to_char(gemeldet_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM') <= ${monat}
+       AND to_char((gemeldet_am + make_interval(months => ${KOOP_PROVISION_MONATE})) AT TIME ZONE 'Europe/Berlin', 'YYYY-MM') >= ${monat}`) as any[];
+  if (!zaehlt.length) return null;
+  const neuIds = new Set(zaehlt.filter((x) => x.m === monat).map((x) => Number(x.id)));
+  const sicht = await koopEmpfehlungSicht(z);
+  const [g] = (await sqlPool`SELECT * FROM fiaon_koop_gutschriften WHERE angebot_id = ${Number(z.id)} AND monat = ${monat}`) as any[];
+  const posten = g ? [] : await koopGutschriftPosten(Number(z.id), monat, prov.prozent);
+  const { koopDatenAus } = await import("./fiaon-global-angebot-koop");
+  const { koopPartnerAnrede } = await import("@shared/fiaon-global-angebot-koop");
+  const { koopPartnerLink } = await import("./fiaon-koop-lieferung");
+  const d = koopDatenAus(z as any);
+  const bericht = koopMonatsbericht({
+    monatText: gsMonatText(monat), anrede: `${koopPartnerAnrede(d.partner)},`, prozent: prov.prozent, link: koopPartnerLink(z as any),
+    liste: sicht.liste.map((x) => ({ name: x.name, standText: x.standText, provision: x.provision, neu: neuIds.has(x.id) })),
+    zahlen: {
+      gesamt: sicht.liste.length, kunden: sicht.liste.filter((x) => x.stand === "kunde").length, neu: neuIds.size,
+      monatProvision: eur(posten.reduce((a, p) => a + p.provisionCents, 0)), verdient: sicht.summe.provision, ausgezahlt: sicht.summe.ausgezahlt, offen: sicht.summe.offen,
+    },
+    gutschrift: g ? { nummer: String(g.nummer), betrag: eur(Number(g.betrag_cents)) } : null,
+    bank: sicht.bank ? { maske: sicht.bank.maske } : null,
+  });
+  return { bericht, gutschrift: g ?? null, an: String(d.partner.email ?? "") };
+}
+
+/** Der Baustein-Teil für den Mail-Motor (FIAON-Partner-Kopf, eigener Fuß). */
+export function koopMonatsberichtBaustein(b: ReturnType<typeof koopMonatsbericht>, monatText: string) {
+  return {
+    absaetze: b.absaetze, daten: b.daten, knopf: b.knopf, knopf2: b.knopf2, fussnote: b.fussnote, anhang: b.anhang,
+    preheader: `Ihr Überblick für ${monatText}: Empfehlungen, Stand und Provision.`, persoenlich: false,
+    bereich: "business" as const, kopfSatz: "FIAON Partner", rechtsSatz: "Diese Übersicht gehört zu Ihrer Tippgeber-Vereinbarung mit FIAON.",
+  };
+}
+
+/** Schickt den Bericht eines Monats genau einmal (höchstens drei Versuche). Wirft nicht nach außen über den Lauf hinaus. */
+export async function koopMonatsberichtSenden(z: { [k: string]: any }, monat: string): Promise<boolean> {
+  await ensureMonatsberichtTabelle();
+  const [schon] = (await sqlPool`SELECT gesendet_am, versuche FROM fiaon_koop_monatsberichte WHERE angebot_id = ${Number(z.id)} AND monat = ${monat}`) as any[];
+  if (schon && (schon.gesendet_am || Number(schon.versuche) >= 3)) return false;
+  const bau = await koopMonatsberichtBauen(z, monat);
+  if (!bau) return false;
+  // Platz nehmen (atomar): neu anlegen oder einen offenen Versuch hochzählen — ein zweiter Lauf bekommt keine Zeile zurück.
+  const [platz] = (await sqlPool`
+    INSERT INTO fiaon_koop_monatsberichte (angebot_id, monat) VALUES (${Number(z.id)}, ${monat})
+    ON CONFLICT (angebot_id, monat) DO UPDATE SET versuche = fiaon_koop_monatsberichte.versuche + 1
+     WHERE fiaon_koop_monatsberichte.gesendet_am IS NULL AND fiaon_koop_monatsberichte.versuche < 3 AND fiaon_koop_monatsberichte.ergebnis IS NOT NULL
+    RETURNING id`) as any[];
+  if (!platz) return false;
+  const g = bau.gutschrift;
+  const pdf = g ? await koopGutschriftPdf(Number(g.id)) : null;
+  const { freitextSenden } = await import("../mail/motor");
+  const r = await freitextSenden({
+    an: bau.an, betreff: bau.bericht.betreff, text: bau.bericht.text, absender: g ? "accounting" : "welcome",
+    anhaenge: pdf ? [{ name: pdf.dateiname, inhalt: pdf.pdf }] : [], baustein: koopMonatsberichtBaustein(bau.bericht, gsMonatText(monat)),
+  });
+  const { mailProtokoll } = await import("./fiaon-mail-log");
+  await mailProtokoll({ event: "koop_monatsbericht", personId: z.person_id != null ? Number(z.person_id) : null, empfaenger: bau.an, status: r.ok ? "versandt" : "fehlgeschlagen", grund: r.grund ?? null, payload: { betreff: bau.bericht.betreff }, ausgeloestVon: "Kooperation (Automatik)", brevoMessageId: r.messageId }).catch(() => {});
+  await sqlPool`UPDATE fiaon_koop_monatsberichte SET gesendet_am = ${r.ok ? new Date() : null}, ergebnis = ${r.ok ? "versandt" : String(r.grund ?? "fehlgeschlagen").slice(0, 300)}, gutschrift_id = ${g ? Number(g.id) : null} WHERE id = ${Number(platz.id)}`;
+  if (r.ok && g) await sqlPool`UPDATE fiaon_koop_gutschriften SET mail_am = NOW(), mail_ergebnis = 'im Monatsbericht' WHERE id = ${Number(g.id)} AND mail_am IS NULL`;
+  if (r.ok) {
+    const { verlaufAngebot } = await import("./fiaon-global-angebot");
+    await verlaufAngebot(Number(z.id), "Kooperation (Automatik)", `Monatsbericht ${gsMonatText(monat)} an den Partner${g ? ` (mit Gutschrift ${g.nummer})` : ""}`).catch(() => {});
+  }
+  return r.ok;
 }

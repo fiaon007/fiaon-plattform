@@ -72,3 +72,57 @@ export const KOOP_EMPFEHLUNG_TEXTE = {
   bankFehlt: "Noch keine Bankverbindung hinterlegt — ohne sie können wir nicht überweisen.",
   keineGutschrift: "Die erste Gutschrift kommt zum Monatsanfang, sobald ein empfohlener Kunde gezahlt hat.",
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER MONATSBERICHT AN DEN PARTNER (Register E-421, 22.10.2026)
+// Justin: „ja bau die Monats-Mail mit den Empfehlungen“. Einmal im Monat (ab dem 3., für den Vormonat) bekommt jeder Partner mit
+// Provision einen Überblick: neue Empfehlungen, Stand je Empfehlung, Provision des Monats und gesamt — und die Gutschrift liegt,
+// wenn es eine gibt, direkt bei (dann keine zweite Mail). Rein — Versand und Daten in server/lib/fiaon-koop-empfehlung.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+export const KOOP_BERICHT_LISTE_MAX = 12;
+export interface KoopMonatsberichtEin {
+  monatText: string; anrede: string; prozent: number; link: string;
+  liste: { name: string; standText: string; provision: string; neu: boolean }[];
+  zahlen: { gesamt: number; kunden: number; neu: number; monatProvision: string; verdient: string; ausgezahlt: string; offen: string };
+  gutschrift: { nummer: string; betrag: string } | null;
+  bank: { maske: string } | null;
+}
+export interface KoopMonatsbericht {
+  betreff: string; text: string; absaetze: string[]; daten: { label: string; wert: string }[];
+  knopf: { text: string; url: string }; knopf2: { text: string; url: string }; fussnote: string; anhang: { titel: string; absaetze: string[] }[];
+}
+const htmlSicher = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const pz = (p: number) => String(p).replace(".", ",");
+
+/** Baut den Monatsbericht. Absätze sind fertiges, sicheres HTML (nur <b>/<br>); `text` ist die Fassung ohne Tags. */
+export function koopMonatsbericht(e: KoopMonatsberichtEin): KoopMonatsbericht {
+  const z = e.zahlen; const m = htmlSicher(e.monatText);
+  const betreff = e.gutschrift ? `Ihr Partner-Monat ${e.monatText}: ${e.gutschrift.betrag} Provision` : `Ihr Partner-Monat ${e.monatText} bei FIAON`;
+  const absaetze = [
+    htmlSicher(e.anrede),
+    z.neu > 0 ? `vielen Dank für ${z.neu === 1 ? "Ihre neue Empfehlung" : `Ihre ${z.neu} neuen Empfehlungen`} im ${m}! Hier ist Ihr Überblick.` : `hier ist Ihr Überblick für ${m}.`,
+    e.gutschrift
+      ? `<b>Ihre Gutschrift ${htmlSicher(e.gutschrift.nummer)} über ${htmlSicher(e.gutschrift.betrag)} liegt bei.</b> ${e.bank ? `Wir überweisen den Betrag binnen vierzehn Tagen auf Ihr Konto ${htmlSicher(e.bank.maske)}.` : "Damit wir überweisen können, hinterlegen Sie bitte einmal Ihre Bankverbindung in Ihrem Partnerbereich unter „Ihre Auszahlungen“."}`
+      : `Im ${m} ist noch keine Zahlung eines empfohlenen Kunden eingegangen. Sobald einer zahlt, kommt Ihre Gutschrift automatisch zum Monatsanfang – eine Rechnung brauchen Sie nie.`,
+    `Kennen Sie jemanden, dem wir helfen können? Nennen Sie ihn uns mit einem Klick – für jeden neuen Kunden erhalten Sie ${pz(e.prozent)} % von dem, was er in den ersten ${KOOP_PROVISION_MONATE} Monaten an FIAON zahlt.`,
+  ];
+  const daten = [
+    { label: "Ihre Empfehlungen", wert: `${z.gesamt}${z.kunden > 0 ? ` (davon ${z.kunden} ${z.kunden === 1 ? "Kunde" : "Kunden"})` : ""}` },
+    { label: `Neu im ${e.monatText}`, wert: String(z.neu) },
+    { label: `Provision ${e.monatText}`, wert: e.gutschrift?.betrag ?? z.monatProvision },
+    { label: "Provision gesamt", wert: z.verdient },
+    { label: "Ausgezahlt", wert: z.ausgezahlt },
+    { label: "Noch offen", wert: z.offen },
+  ].map((d) => ({ label: htmlSicher(d.label), wert: htmlSicher(d.wert) }));
+  const zeilen = e.liste.slice(0, KOOP_BERICHT_LISTE_MAX).map((x) => `${htmlSicher(x.name)} · ${htmlSicher(x.standText)} · Provision bisher ${htmlSicher(x.provision)}${x.neu ? " · <b>neu</b>" : ""}`);
+  if (e.liste.length > KOOP_BERICHT_LISTE_MAX) zeilen.push(`… und ${e.liste.length - KOOP_BERICHT_LISTE_MAX} weitere – alle in Ihrem Partnerbereich.`);
+  const fussnote = `Provision ${pz(e.prozent)} % auf gebuchte Zahlungen Ihrer empfohlenen Kunden in den ersten ${KOOP_PROVISION_MONATE} Monaten ab Ihrer Meldung, ohne durchlaufende Fremdkosten. Muss FIAON eine Zahlung erstatten, entfällt die Provision daran.`;
+  const anhang = [{ titel: "Ihre Empfehlungen", absaetze: zeilen.length ? zeilen : ["Noch keine Empfehlung."] }];
+  const ohne = (s: string) => s.replace(/<br\s*\/?>/g, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const text = [...absaetze.slice(1).map(ohne), "", ...daten.map((d) => `${ohne(d.label)}: ${ohne(d.wert)}`), "", `Ihr Partnerbereich: ${e.link}`, "", "IHRE EMPFEHLUNGEN", ...zeilen.map(ohne)].join("\n\n").replace(/\n{3,}/g, "\n\n");
+  return {
+    betreff, text, absaetze, daten,
+    knopf: { text: "Partnerbereich öffnen", url: e.link }, knopf2: { text: "Jemanden empfehlen", url: `${e.link}#empfehlen` },
+    fussnote, anhang,
+  };
+}

@@ -50,36 +50,51 @@ export interface GlobalSchrittVorlage {
   text: Paar;
   /** Wird beim Erledigen ein Wert erfasst (z. B. die EIN)? Dann steht er in den Gesellschaftsdaten. */
   feld?: keyof GlobalGesellschaftPlus;
+  /** 22.10.2026: Ein Satz für die Bühne des Portals, solange diese Station die nächste offene ist („Als Nächstes“). */
+  naechster?: Paar;
 }
 
 export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
   { schluessel: "name", etappe: 1, titel: { de: "Name geprüft", en: "Name checked" },
-    text: { de: "Der Wunschname ist im Register des Bundesstaats frei und für Ihre Gesellschaft vorgesehen.", en: "The preferred name is available in the state register and set aside for your company." } },
+    text: { de: "Der Name Ihrer Gesellschaft ist im Register des Bundesstaats frei und für Sie vorgesehen.", en: "Your company name is available in the state register and set aside for you." },
+    naechster: { de: "Wir prüfen Ihren Wunschnamen im Register des Bundesstaats.", en: "We check your preferred name in the state register." } },
   { schluessel: "articles", etappe: 1, titel: { de: "Gründung eingereicht", en: "Formation filed" },
-    text: { de: "Die Gründungsunterlagen (Articles of Organization) liegen beim Bundesstaat.", en: "The formation documents (Articles of Organization) have been filed with the state." } },
+    text: { de: "Die Gründungsunterlagen (Articles of Organization) liegen beim Bundesstaat.", en: "The formation documents (Articles of Organization) have been filed with the state." },
+    naechster: { de: "Wir reichen die Gründung Ihrer Gesellschaft beim Bundesstaat ein.", en: "We file your company's formation with the state." } },
   { schluessel: "eingetragen", etappe: 1, titel: { de: "Gesellschaft eingetragen", en: "Company registered" },
-    text: { de: "Ihre Gesellschaft ist im Register eingetragen und aktiv.", en: "Your company is entered in the register and active." }, feld: "aktenzeichen" },
+    text: { de: "Ihre Gesellschaft ist im Register eingetragen und aktiv.", en: "Your company is entered in the register and active." },
+    naechster: { de: "Der Bundesstaat trägt Ihre Gesellschaft ein — wir melden uns, sobald sie aktiv ist.", en: "The state registers your company — we will let you know once it is active." }, feld: "aktenzeichen" },
   { schluessel: "agent", etappe: 1, titel: { de: "Registered Agent bestellt", en: "Registered agent appointed" },
-    text: { de: "Der Registered Agent nimmt amtliche Post für Ihre Gesellschaft im Bundesstaat entgegen.", en: "The registered agent receives official mail for your company in the state." }, feld: "registeredAgent" },
+    text: { de: "Der Registered Agent nimmt amtliche Post für Ihre Gesellschaft im Bundesstaat entgegen.", en: "The registered agent receives official mail for your company in the state." },
+    naechster: { de: "Wir bestellen den Registered Agent Ihrer Gesellschaft.", en: "We appoint your company's registered agent." }, feld: "registeredAgent" },
   { schluessel: "adresse", etappe: 1, titel: { de: "US-Adresse und Telefonnummer", en: "US address and phone number" },
-    text: { de: "Ihre Gesellschaft hat eine Geschäftsadresse und eine Telefonnummer in den USA.", en: "Your company has a business address and a phone number in the US." }, feld: "usAdresse" },
+    text: { de: "Ihre Gesellschaft hat eine Geschäftsadresse und eine Telefonnummer in den USA.", en: "Your company has a business address and a phone number in the US." },
+    naechster: { de: "Wir richten US-Adresse und Telefonnummer Ihrer Gesellschaft ein.", en: "We set up your company's US address and phone number." }, feld: "usAdresse" },
   { schluessel: "ein", etappe: 1, titel: { de: "EIN der Gesellschaft", en: "Company EIN" },
-    text: { de: "Die US-Steuerbehörde hat Ihrer Gesellschaft die Steuernummer (EIN) erteilt.", en: "The US tax authority has issued your company's tax number (EIN)." }, feld: "ein" },
+    text: { de: "Die US-Steuerbehörde hat Ihrer Gesellschaft die Steuernummer (EIN) erteilt.", en: "The US tax authority has issued your company's tax number (EIN)." },
+    naechster: { de: "Wir bereiten den Antrag auf die Steuernummer (EIN) Ihrer Gesellschaft vor.", en: "We prepare the application for your company's tax number (EIN)." }, feld: "ein" },
   { schluessel: "operating_agreement", etappe: 1, titel: { de: "Operating Agreement unterschrieben", en: "Operating agreement signed" },
-    text: { de: "Der Gesellschaftsvertrag Ihrer LLC ist unterschrieben und liegt in Ihrem Tresor.", en: "Your LLC's operating agreement is signed and stored in your vault." } },
+    text: { de: "Der Gesellschaftsvertrag Ihrer LLC ist unterschrieben und liegt in Ihrem Tresor.", en: "Your LLC's operating agreement is signed and stored in your vault." },
+    naechster: { de: "Wir bereiten das Operating Agreement Ihrer LLC zur Unterschrift vor.", en: "We prepare your LLC's operating agreement for signature." } },
   { schluessel: "itin", etappe: 1, titel: { de: "ITIN", en: "ITIN" },
-    text: { de: "Die persönliche US-Steuernummer, wenn sie gebraucht wird. Die Behörde vergibt sie in eigener Frist.", en: "The personal US tax number, where it is needed. The authority issues it on its own timeline." } },
+    text: { de: "Die persönliche US-Steuernummer, wenn sie gebraucht wird. Die Behörde vergibt sie in eigener Frist.", en: "The personal US tax number, where it is needed. The authority issues it on its own timeline." },
+    naechster: { de: "Wir bereiten Ihre persönliche US-Steuernummer (ITIN) vor.", en: "We prepare your personal US tax number (ITIN)." } },
   { schluessel: "konto", etappe: 1, titel: { de: "US-Geschäftskonto", en: "US business account" },
-    text: { de: "Das Geschäftskonto Ihrer Gesellschaft — beantragt, geprüft, eröffnet.", en: "Your company's business account — applied for, reviewed, opened." } },
+    text: { de: "Das Geschäftskonto Ihrer Gesellschaft — beantragt, geprüft, eröffnet.", en: "Your company's business account — applied for, reviewed, opened." },
+    naechster: { de: "Wir bereiten die Eröffnung Ihres US-Geschäftskontos vor.", en: "We prepare the opening of your US business account." } },
   // 22.10.2026 (Stationen-Editor): nach dem Konto, vor den Karten — die Nummer im Firmenverzeichnis.
   { schluessel: "duns", etappe: 1, titel: { de: "D-U-N-S-Nummer", en: "D-U-N-S number" },
-    text: { de: "Die Nummer Ihrer Gesellschaft im Firmenverzeichnis — die Grundlage für ein Firmenprofil in den USA.", en: "Your company's number in the business directory — the basis for a company profile in the US." }, feld: "duns" },
+    text: { de: "Die Nummer Ihrer Gesellschaft im Firmenverzeichnis — die Grundlage für ein Firmenprofil in den USA.", en: "Your company's number in the business directory — the basis for a company profile in the US." },
+    naechster: { de: "Wir tragen Ihre Gesellschaft ins Firmenverzeichnis ein (D-U-N-S).", en: "We list your company in the business directory (D-U-N-S)." }, feld: "duns" },
   { schluessel: "karte_1", etappe: 2, titel: { de: "Erste Firmenkarte", en: "First business card" },
-    text: { de: "Der erste Kartenantrag Ihrer Gesellschaft — vorbereitet, gestellt, entschieden.", en: "Your company's first card application — prepared, submitted, decided." } },
+    text: { de: "Der erste Kartenantrag Ihrer Gesellschaft — vorbereitet, gestellt, entschieden.", en: "Your company's first card application — prepared, submitted, decided." },
+    naechster: { de: "Wir bereiten den ersten Kartenantrag Ihrer Gesellschaft vor.", en: "We prepare your company's first card application." } },
   { schluessel: "kartenleiter", etappe: 3, titel: { de: "Weitere Firmenkarten", en: "Further business cards" },
-    text: { de: "Die weiteren Kartenanträge in abgestimmter Reihenfolge.", en: "The further card applications in a coordinated order." } },
+    text: { de: "Die weiteren Kartenanträge in abgestimmter Reihenfolge.", en: "The further card applications in a coordinated order." },
+    naechster: { de: "Wir planen die nächsten Kartenanträge in abgestimmter Reihenfolge.", en: "We plan the next card applications in a coordinated order." } },
   { schluessel: "kreditrahmen", etappe: 4, titel: { de: "Kreditrahmen und Darlehen", en: "Credit line and loan" },
-    text: { de: "Die Anträge für Kreditrahmen und Darlehen — vorbereitet und begleitet bis zur Entscheidung.", en: "The applications for credit lines and loans — prepared and supported until the decision." } },
+    text: { de: "Die Anträge für Kreditrahmen und Darlehen — vorbereitet und begleitet bis zur Entscheidung.", en: "The applications for credit lines and loans — prepared and supported until the decision." },
+    naechster: { de: "Wir bereiten die Anträge für Kreditrahmen und Darlehen vor.", en: "We prepare the applications for credit lines and loans." } },
 ];
 const SCHRITT_NACH_KEY = new Map(GLOBAL_FAHRPLAN.map((s) => [s.schluessel, s]));
 export function globalSchrittVorlage(schluessel: unknown): GlobalSchrittVorlage | null {
@@ -96,6 +111,15 @@ export function globalSchrittTitel(schluessel: string, s: BereichSprache = "de")
 export function globalSchrittText(schluessel: string, s: BereichSprache = "de"): string {
   const v = SCHRITT_NACH_KEY.get(schluessel);
   return v ? t(v.text, s) : "";
+}
+/**
+ * 22.10.2026: „Als Nächstes“ auf der Bühne des Portals, wenn das Team keinen eigenen nächsten Schritt eingetragen hat —
+ * der Satz der ersten Station des Fahrplans, die weder erledigt ist noch entfällt. Alles erledigt → null.
+ */
+export function globalNaechsterSchritt(schritte: ReadonlyArray<{ schluessel?: unknown; status?: unknown }>, s: BereichSprache = "de"): string | null {
+  const stand = new Map(schritte.map((x) => [String(x.schluessel ?? ""), String(x.status ?? "offen")]));
+  const v = GLOBAL_FAHRPLAN.find((x) => { const st = stand.get(x.schluessel) ?? "offen"; return st !== "erledigt" && st !== "entfaellt"; });
+  return v?.naechster ? t(v.naechster, s) : null;
 }
 
 // ── DIE GESELLSCHAFT, ERWEITERT ──────────────────────────────────────────────

@@ -1,0 +1,267 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS GLOBAL-PORTAL IM APPLE-GLAS (22.10.2026) — Schicht über global-portal.css,
+   aktiv mit .gp-glas an der Hülle (.gp-start = die Übersicht).
+
+   Justin: „Im neuen Portal passt garnichts — es ist überall viel zu
+   unordentlich am Handy — unübersichtlich … alles viel zu überladen … ich sagte
+   Apple Design mit Glas (Glas wie im Screenshot!)“
+
+   Vorlage ist die Startseite des Chefbüros (chefbuero-apple.css): ein Sperr-
+   bildschirm — Datum, EINE riesige dünne Zahl mit Glasschimmer, wenige Glas-
+   pillen, darunter Widgets aus Milchglas. Hier auf FIAON-Glasblau statt Video.
+   Regeln: die blaue Welt nur auf der Bühne der Übersicht (eine Stelle); alles
+   andere helles Milchglas auf ruhigem, STATISCHEM Blaugrund (keine Dauer-
+   Animation unter backdrop-filter); dünne Schrift; nichts klebt; mobil zuerst;
+   kein Gold, Farbe nur als kleiner Punkt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gp.gp-glas {
+  --ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --sans: var(--ap);
+  --glas: rgba(255, 255, 255, .64);
+  --glas-kante: rgba(255, 255, 255, .86);
+  --glas-licht: inset 0 1px 0 rgba(255, 255, 255, .95);
+  --glas-schatten: 0 1px 2px rgba(18, 40, 74, .05), 0 24px 52px -34px rgba(18, 40, 74, .42);
+  --glas-blur: blur(26px) saturate(170%);
+  /* Höhe des Kopfs über der Bühne: Abstand oben + Leiste (global-portal-nav.css). Die Bühne liegt darunter. */
+  --gp-kopf: 78px;
+  position: relative; isolation: isolate;
+  overflow-x: hidden; overflow-x: clip;
+  background: #eef3fc;
+}
+/* Der Grund liegt NUR hinter dem Portal (absolute): fest am Fenster deckte er die Leiste darüber (Zugang einrichten) zu. */
+.gp.gp-glas::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(70vmax 46vmax at 105% -6%, rgba(40, 141, 250, .20), rgba(40, 141, 250, 0) 62%),
+    radial-gradient(60vmax 44vmax at -10% 55%, rgba(29, 78, 216, .12), rgba(29, 78, 216, 0) 62%),
+    radial-gradient(50vmax 36vmax at 85% 105%, rgba(127, 182, 255, .24), rgba(127, 182, 255, 0) 60%),
+    linear-gradient(180deg, #f4f8ff 0%, #eaf1fd 100%);
+}
+.gp-glas.gp-start .gp-app { margin-top: 0; }
+
+/* ── Der Kopf über der Bühne: klares Glas, weiße Schrift ─────────────────── */
+.gp-glas.gp-start .gpn-leiste {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .08)), rgba(8, 24, 64, .10);
+  border-color: rgba(255, 255, 255, .26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .36), 0 18px 40px -28px rgba(3, 10, 30, .55);
+}
+.gp-glas.gp-start .gpn-links .gp-logo, .gp-glas.gp-start .gpn-titel { color: #fff; }
+.gp-glas.gp-start .gpn-trenner { background: rgba(255, 255, 255, .3); }
+.gp-glas.gp-start .gpn-themen-innen { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .22); }
+.gp-glas.gp-start .gpn-thema { color: rgba(255, 255, 255, .84); }
+.gp-glas.gp-start .gpn-thema.an { color: var(--tinte); }
+.gp-glas.gp-start .gpn-winkel { color: rgba(255, 255, 255, .6); }
+.gp-glas.gp-start .gpn-person, .gp-glas.gp-start .gpn-menue {
+  background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .28); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+.gp-glas.gp-start .gpn-menue-text small { color: rgba(255, 255, 255, .7); }
+.gp-glas.gp-start .gpn-menue-striche i { background: #fff; }
+.gp-glas .gpn-menue { border-radius: 999px; padding: 8px 12px 8px 16px; }
+
+/* ═══ DIE BÜHNE: wie der Sperrbildschirm ═════════════════════════════════════ */
+.gp-glas .gp-sperr {
+  position: relative; isolation: isolate; overflow: hidden; color: #fff; text-align: center;
+  width: 100vw; margin: calc(-1 * var(--gp-kopf)) 0 0 calc(50% - 50vw);
+  padding: calc(var(--gp-kopf) + 46px) max(16px, calc(50vw - 600px)) 34px;
+  border-radius: 0 0 38px 38px;
+  background:
+    radial-gradient(70% 50% at 84% 0%, rgba(166, 210, 255, .55), rgba(166, 210, 255, 0) 64%),
+    radial-gradient(60% 55% at 4% 40%, rgba(40, 141, 250, .55), rgba(40, 141, 250, 0) 66%),
+    radial-gradient(90% 50% at 50% 112%, rgba(127, 182, 255, .72), rgba(127, 182, 255, 0) 62%),
+    linear-gradient(180deg, #0b2150 0%, #13377f 34%, #1f5bd0 70%, #4f91f6 100%);
+  box-shadow: 0 40px 80px -52px rgba(12, 32, 80, .7);
+}
+.gp-glas .gp-sperr-kopf { display: flex; flex-direction: column; align-items: center; max-width: 760px; margin: 0 auto; }
+.gp-glas .gp-sperr-datum {
+  margin: 0; font: 600 17px/1.2 var(--ap); letter-spacing: .005em; color: rgba(255, 255, 255, .92);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, .18); animation: gp-ein .9s var(--kurve) both;
+}
+.gp-glas .gp-sperr-zahl {
+  margin: 2px 0 0; display: inline-flex; align-items: flex-start;
+  font: 200 clamp(96px, 27vw, 164px)/.94 var(--ap); letter-spacing: -.05em; font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .98) 10%, rgba(226, 238, 255, .82) 58%, rgba(205, 224, 255, .62) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 10px 34px rgba(4, 16, 48, .3));
+  animation: gp-titel 1.1s var(--kurve) .05s both;
+}
+.gp-glas .gp-sperr-zahl span { margin: .2em 0 0 .04em; font-size: .4em; letter-spacing: 0; }
+.gp-glas .gp-sperr-label {
+  margin: 12px 0 0; font: 500 11.5px/1.3 var(--ap); letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .76);
+  animation: gp-ein .9s var(--kurve) .15s both;
+}
+.gp-glas .gp-sperr-gruss { margin: 28px 0 0; font: 400 15px/1.4 var(--ap); color: rgba(255, 255, 255, .86); animation: gp-ein .9s var(--kurve) .2s both; }
+.gp-glas .gp-sperr-llc {
+  margin: 6px 0 0; font: 300 clamp(27px, 7.6vw, 42px)/1.12 var(--ap); letter-spacing: .01em; color: #fff;
+  text-wrap: balance; overflow-wrap: anywhere; animation: gp-ein .9s var(--kurve) .25s both;
+}
+.gp-glas .gp-sperr-unter { margin: 6px 0 0; font: 400 13px/1.45 var(--ap); color: rgba(255, 255, 255, .68); animation: gp-ein .9s var(--kurve) .3s both; }
+.gp-glas .gp-sperr-pillen { margin-top: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; animation: gp-ein .9s var(--kurve) .35s both; }
+.gp-glas .gp-glaspille {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px;
+  font: 400 12.5px/1 var(--ap); letter-spacing: .01em; color: rgba(255, 255, 255, .94);
+  background: linear-gradient(160deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .08));
+  border: 1px solid rgba(255, 255, 255, .28); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
+  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+}
+/* Farbe nur als kleiner Punkt: läuft = grün, wartet auf Zahlung = gelb. */
+.gp-glas .gp-glaspille[class*="st-"]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .8); }
+.gp-glas .gp-glaspille.st-gestartet::before, .gp-glas .gp-glaspille.st-bezahlt::before { background: #7cf0b9; box-shadow: 0 0 8px rgba(124, 240, 185, .8); }
+.gp-glas .gp-glaspille.st-offen::before { background: #fcd34d; }
+
+/* ── Die Widgets: Milchglas auf Blau ── */
+.gp-glas .gp-widgets {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px;
+  max-width: 1160px; margin: 30px auto 0; text-align: left;
+}
+.gp-glas .gp-widget {
+  position: relative; display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 0; padding: 18px; border-radius: 24px;
+  color: #fff; font: inherit; text-align: left;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .19) 0%, rgba(255, 255, 255, .08) 55%, rgba(255, 255, 255, .06) 100%), rgba(8, 26, 72, .12);
+  border: 1px solid rgba(255, 255, 255, .24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .36), 0 24px 50px -34px rgba(3, 12, 40, .65);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  animation: gp-hoch .8s var(--kurve) both;
+}
+.gp-glas .gp-widget:nth-child(2) { animation-delay: .08s; }
+.gp-glas .gp-widget:nth-child(3) { animation-delay: .16s; }
+.gp-glas button.gp-widget { cursor: pointer; transition: transform .3s var(--kurve), background .3s; }
+.gp-glas button.gp-widget:hover { transform: translateY(-2px); background: linear-gradient(160deg, rgba(255, 255, 255, .25), rgba(255, 255, 255, .1)), rgba(8, 26, 72, .12); }
+.gp-glas .gp-widget-auge { font: 600 11px/1 var(--ap); letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .66); }
+.gp-glas .gp-w-naechst p { margin: 0; padding-right: 40px; font: 400 16.5px/1.42 var(--ap); color: #fff; }
+.gp-glas .gp-w-naechst small { font: 400 12.5px/1.3 var(--ap); color: rgba(255, 255, 255, .72); }
+.gp-glas .gp-widget-pfeil {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .26); color: #fff;
+}
+
+.gp-glas .gp-weg { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; }
+.gp-glas .gp-weg li + li .gp-weg-zeile { border-top: 1px solid rgba(255, 255, 255, .13); }
+.gp-glas .gp-weg-zeile {
+  width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) 52px; align-items: center; gap: 12px; padding: 11px 0;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.gp-glas .gp-weg-zeile:focus-visible { outline: 2px solid rgba(255, 255, 255, .8); outline-offset: 2px; border-radius: 10px; }
+.gp-glas .gp-weg-zeile i {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 500 11px/1 var(--ap); font-style: normal;
+  color: rgba(255, 255, 255, .82); border: 1px solid rgba(255, 255, 255, .3);
+}
+.gp-glas .gp-weg-zeile.jetzt i { background: #fff; color: #13377f; border-color: #fff; box-shadow: 0 0 0 5px rgba(255, 255, 255, .14), 0 0 22px rgba(160, 205, 255, .8); }
+.gp-glas .gp-weg-zeile.st-fertig i { background: linear-gradient(145deg, #cfe5ff, #7fb6ff); border-color: transparent; color: #0b2150; }
+.gp-glas .gp-weg-text { min-width: 0; }
+.gp-glas .gp-weg-text b { display: block; font: 500 14.5px/1.3 var(--ap); color: #fff; }
+.gp-glas .gp-weg-text small { display: block; margin-top: 3px; font: 400 12px/1.3 var(--ap); color: rgba(255, 255, 255, .66); }
+.gp-glas .gp-weg-zeile.st-offen:not(.jetzt) .gp-weg-text b { color: rgba(255, 255, 255, .8); }
+.gp-glas .gp-weg-zeile.ausserhalb { opacity: .55; }
+.gp-glas .gp-weg-balken { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .16); overflow: hidden; }
+.gp-glas .gp-weg-balken em { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #cfe5ff, #fff); box-shadow: 0 0 10px rgba(200, 225, 255, .8); transition: width 1s var(--kurve); }
+
+.gp-glas .gp-w-kontakt { flex-direction: row; align-items: center; gap: 12px; }
+.gp-glas .gp-w-kontakt img, .gp-glas .gp-w-mono { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.gp-glas .gp-w-mono {
+  display: grid; place-items: center; font: 300 19px/1 var(--ap); color: #fff;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .42), rgba(255, 255, 255, .12)); border: 1px solid rgba(255, 255, 255, .36);
+}
+.gp-glas .gp-w-kontakt > div { flex: 1; min-width: 0; }
+.gp-glas .gp-w-kontakt b { display: block; font: 500 15px/1.25 var(--ap); color: #fff; overflow-wrap: anywhere; }
+.gp-glas .gp-w-kontakt small { display: block; margin-top: 3px; font: 400 12.5px/1.3 var(--ap); color: rgba(255, 255, 255, .68); }
+.gp-glas .gp-w-knopf {
+  flex: 0 0 auto; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .34);
+  background: rgba(255, 255, 255, .2); color: #fff; font: 500 13.5px/1 var(--ap); cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .42); transition: background .2s;
+}
+.gp-glas .gp-w-knopf:hover { background: rgba(255, 255, 255, .3); }
+
+/* ═══ UNTER DER BÜHNE: helles Milchglas ══════════════════════════════════════ */
+.gp-glas .gp-abschnitt, .gp-glas .gp-karte {
+  background: var(--glas); border: 1px solid var(--glas-kante); border-radius: 26px;
+  box-shadow: var(--glas-licht), var(--glas-schatten);
+  -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur);
+}
+.gp-glas .gp-h2 { font: 500 22px/1.2 var(--ap); letter-spacing: -.012em; color: var(--tinte); }
+.gp-glas .gp-h2 svg { color: var(--licht); }
+.gp-glas .gp-lead { font: 400 14px/1.55 var(--ap); }
+.gp-glas .gp-auge { font-family: var(--ap); font-weight: 600; letter-spacing: .14em; color: var(--blau); }
+
+.gp-glas .gp-tun { gap: 10px; }
+.gp-glas .gp-tun-karte {
+  background: rgba(255, 255, 255, .74); border: 1px solid rgba(255, 255, 255, .95); border-radius: 20px;
+  box-shadow: var(--glas-licht), 0 14px 30px -24px rgba(18, 40, 74, .4);
+}
+.gp-glas .gp-tun-karte.blau, .gp-glas .gp-tun-karte.navy { background: linear-gradient(180deg, rgba(240, 246, 255, .92), rgba(255, 255, 255, .8)); border-color: rgba(214, 226, 251, .95); }
+.gp-glas .gp-tun-icon { border-radius: 50%; background: linear-gradient(145deg, #eaf3ff, #d9e8ff); color: var(--blau); }
+.gp-glas .gp-tun-karte.navy .gp-tun-icon { background: linear-gradient(145deg, var(--licht), var(--blau)); color: #fff; }
+.gp-glas .gp-alles-gut { border-radius: 18px; background: rgba(255, 255, 255, .6); border: 1px solid rgba(255, 255, 255, .9); }
+
+/* Knöpfe: Glasblau statt Navy-Block — rund wie bei Apple. */
+.gp-glas .gp-knopf {
+  border-radius: 999px; border: 1px solid transparent; font-family: var(--ap); font-weight: 500;
+  background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 24px -14px rgba(29, 78, 216, .75);
+}
+.gp-glas .gp-knopf:hover { background: linear-gradient(180deg, #2f80f8 0%, #1a55d4 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 16px 30px -14px rgba(29, 78, 216, .85); }
+.gp-glas .gp-knopf.leise { background: rgba(255, 255, 255, .8); border-color: rgba(205, 213, 224, .9); color: var(--navy) !important; box-shadow: var(--glas-licht); }
+.gp-glas .gp-knopf.leise:hover { background: #fff; }
+
+/* ── Ihr Büro: Kacheln aus Glas ── */
+.gp-glas .gp-buero-kachel {
+  background: rgba(255, 255, 255, .72); border: 1px solid rgba(255, 255, 255, .95); border-radius: 22px;
+  box-shadow: var(--glas-licht), 0 16px 34px -26px rgba(18, 40, 74, .42);
+}
+.gp-glas .gp-buero-kachel.nummer { background: linear-gradient(180deg, rgba(240, 246, 255, .95), rgba(255, 255, 255, .78)); }
+.gp-glas .gp-buero-kachel:hover, .gp-glas .gp-karte-klick:hover { border-color: rgba(214, 226, 251, 1); }
+
+/* ── Vertrag: die Nummer leise unter dem Titel (sie brach sonst mitten im Titel um) ── */
+.gp-glas .gp-ref-zeile { margin: 6px 0 0; font: 400 12.5px/1.3 var(--ap); letter-spacing: .04em; color: var(--leise); font-variant-numeric: tabular-nums; }
+/* ── Fahrplan: Kapitel in der Apple-Schrift ── */
+.gp-glas .gp-kapitel-kopf b { font: 500 18px/1.3 var(--ap); letter-spacing: -.01em; }
+/* ── Menü am Telefon: dieselbe Schrift, Knopf in Glasblau ── */
+.gp-glas .gpn-mobil-gruppe a b { font: 400 21px/1.2 var(--ap); letter-spacing: -.01em; }
+.gp-glas .gpn-mobil-knopf { border-radius: 999px; background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 24px -14px rgba(29, 78, 216, .75); }
+
+/* ── Seitenkopf der Unterseiten: großer, dünner Titel ── */
+.gp-glas .gp-seitenkopf h1 { font: 300 clamp(32px, 4vw, 46px)/1.08 var(--ap); letter-spacing: -.02em; }
+.gp-glas .gp-seitenkopf p { font-family: var(--ap); }
+
+/* ═══ TELEFON ═════════════════════════════════════════════════════════════════ */
+@media (max-width: 720px) {
+  .gp.gp-glas { --gp-kopf: 68px; padding: 0 16px 34px; }
+  .gp-glas .gp-vorschau { margin: 0 -16px; padding: 10px 16px; }
+  .gp-glas .gp-sperr { padding: calc(var(--gp-kopf) + 34px) 16px 22px; border-radius: 0 0 32px 32px; }
+  .gp-glas .gp-sperr-gruss { margin-top: 22px; }
+  .gp-glas .gp-widgets { margin-top: 24px; gap: 10px; }
+  .gp-glas .gp-widget { padding: 16px; border-radius: 22px; }
+  .gp-glas .gp-seiteninhalt { gap: 14px; }
+  .gp-glas .gp-abschnitt { padding: 20px 16px; border-radius: 24px; }
+  .gp-glas .gp-h2 { font-size: 20px; }
+  .gp-glas .gp-lead { margin-top: 6px; font-size: 13.5px; }
+  .gp-glas .gp-tun { margin-top: 14px; }
+  .gp-glas .gp-tun-karte { padding: 14px; gap: 12px; }
+  .gp-glas .gp-tun-icon { width: 38px; height: 38px; }
+  /* Ihr Büro: zwei Spalten, je Kachel der Titel und EINE Zeile — das Detail liegt eine Seite tiefer. */
+  .gp-glas .gp-buero .gp-lead { display: none; }
+  .gp-glas .gp-buero-raster { margin-top: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gp-glas .gp-buero-kachel { min-height: 104px; padding: 14px; gap: 8px; border-radius: 20px; }
+  .gp-glas .gp-buero-kachel .gp-auge { font-size: 10px; letter-spacing: .12em; }
+  .gp-glas .gp-buero-fuss { display: none; }
+  .gp-glas .gp-buero-zeile + .gp-buero-zeile, .gp-glas .gp-buero-liste li:nth-child(n+2) { display: none; }
+  .gp-glas .gp-buero-zeile small { display: none; }
+  .gp-glas .gp-buero-zeile ~ .gp-leise { display: none; }
+  .gp-glas .gp-buero-zeile, .gp-glas .gp-buero-liste li, .gp-glas .gp-buero-kachel .gp-leise { font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+  .gp-glas .gp-nummer { font-size: 16px; }
+  .gp-glas .gp-seitenkopf { padding: 10px 2px 0; }
+  /* Der Menü-Knopf passt neben die Marke: kürzere Zeile für die aktuelle Seite. */
+  .gp-glas .gpn-leiste { gap: 8px; }
+  .gp-glas .gpn-menue { gap: 10px; padding: 7px 11px 7px 13px; }
+  .gp-glas .gpn-menue-text small { max-width: 84px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gp-glas .gp-sperr *, .gp-glas .gp-widget { animation: none !important; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gp-glas .gp-widget { background: rgba(14, 42, 104, .55); }
+  .gp-glas .gp-abschnitt, .gp-glas .gp-karte { background: rgba(255, 255, 255, .92); }
+}
+@media print {
+  .gp.gp-glas::before { display: none; }
+  .gp-glas .gp-sperr { width: auto; margin: 0; padding: 24px; border-radius: 0; background: #12284a; }
+}

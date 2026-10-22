@@ -77,12 +77,17 @@ interface Zeile {
   jahresbetreuung?: boolean; jahresbetreuungPreisCents?: number | null;
   /** E-268: Die Akte gehört zu einem Individualangebot — Frist statt Stichtag (Reiter „Individualangebote"). */
   angebotId?: number | null;
+  /** E-428 Nachtrag: welche Art Angebot hinter der Akte steht; beim Begleitvertrag die Summe seiner Einzelrechnungen. */
+  angebotArt?: "individual" | "begleit" | "kapital" | "firma" | null; angebotRef?: string | null;
+  rechnungenAnzahl?: number | null; rechnungenOffenCents?: number | null;
 }
 interface Antwort {
   ok: boolean; zeilen: Zeile[];
   mitarbeiter: { id: number; name: string; rolle: string }[];
   einstellungen: { zustaendigAgentId: number | null; provisionProzent: number; ustModus: string };
 }
+
+const ANGEBOT_ART_TEXT: Record<"individual" | "begleit" | "kapital" | "firma", string> = { individual: "Individualangebot", begleit: "Begleitvertrag", kapital: "Kapital-Angebot", firma: "Firmenangebot" };
 
 const STATUS_TEXT: Record<Status, string> = { offen: "Wartet auf Zahlung", bezahlt: "Bezahlt, nicht gestartet", gestartet: "Gestartet", storniert: "Storniert" };
 
@@ -157,7 +162,7 @@ function AuftraegeListe() {
         {/* E-338: Der Arbeitsraum je Firmenkunde (Tresor, Post, Anfragen, Kapital, Kundenportal-Vorschau). */}
         <header>
           <h2>Global-Aufträge</h2>
-          <p title="Start = Aufgabe „US-Struktur starten“ an die zuständige Person, danach Startmail an den Kunden.">Unterschrieben auf /business/start — startet mit dem Zahlungseingang von selbst.</p>
+          <p title="Pakete starten mit dem Zahlungseingang von selbst (Aufgabe „US-Struktur starten“, danach Startmail).">Pakete von /business/start, Individualangebote und Begleitverträge — jede Akte an einer Stelle.</p>
         </header>
         <div className="cg-zahlen">
           <div><b>{zaehler.offen}</b><span>offen · {eur(offenerWert)}</span></div>
@@ -194,18 +199,22 @@ function AuftraegeListe() {
                   </td>
                   <td>
                     <b>{z.paketName.replace(/^FIAON /, "")}</b>
-                    <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>
+                    {z.angebotArt === "begleit"
+                      ? <span className="cm-klartext cm-zahl">{eur(z.betragCents)} · {z.rechnungenAnzahl ?? 0} {z.rechnungenAnzahl === 1 ? "Rechnung" : "Rechnungen"}{z.rechnungenOffenCents ? ` · ${eur(z.rechnungenOffenCents)} offen` : " · alle bezahlt"}</span>
+                      : <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>}
                     {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor Buchung klären.</span>}
                     {z.ustHinweis && <span className="cm-klartext cg-rot">USt-IdNr. fehlt — Rechnung ohne Steuerausweis.</span>}
                     {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}
-                    {z.angebotId != null && <span className="cm-klartext cg-jahr" title="Teil 2, Frist und Erstattung im Reiter „Individualangebote“">Individualangebot</span>}
+                    {z.angebotId != null && <span className="cm-klartext cg-jahr" title="Angebot, Vertrag und Teile im Reiter „Individualangebote“">{ANGEBOT_ART_TEXT[z.angebotArt ?? "individual"]}{z.angebotRef && z.angebotArt !== "begleit" ? ` · ${z.angebotRef}` : ""}</span>}
                   </td>
                   <td>
                     <span className={`cg-marke cg-marke-${z.status}`}>{STATUS_TEXT[z.status]}</span>
                     <span className="cm-klartext">
                       {z.status === "offen" && <>seit {z.alterTage === 0 ? "heute" : `${z.alterTage} ${z.alterTage === 1 ? "Tag" : "Tagen"}`}{z.faelligAm ? ` · zahlbar bis ${datum(z.faelligAm)}` : ""}{z.zahlungGemeldetAm ? ` · Überweisung gemeldet ${datum(z.zahlungGemeldetAm)}` : ""}</>}
                       {z.status === "bezahlt" && <>bezahlt am {datum(z.bezahltAm)} — Aufgabe oder Startmail fehlt</>}
-                      {z.status === "gestartet" && <>bezahlt am {datum(z.bezahltAm)} · gestartet am {datum(z.gestartetAm)}</>}
+                      {z.status === "gestartet" && (z.angebotArt === "begleit"
+                        ? <>Begleitvertrag seit {datum(z.unterschriebenAm)}{z.gestartetAm ? ` · Akte seit ${datum(z.gestartetAm)}` : ""}</>
+                        : <>bezahlt am {datum(z.bezahltAm)} · gestartet am {datum(z.gestartetAm)}</>)}
                       {z.status === "storniert" && <>angelegt am {datum(z.erstelltAm)}{z.storniertAm ? ` · storniert am ${datum(z.storniertAm)}${z.storniertVon ? ` von ${z.storniertVon}` : ""}` : ""}</>}
                     </span>
                     {z.status === "storniert" && z.stornoGrund && <span className="cm-klartext">Grund: {z.stornoGrund}{z.stornoErstattung ? " · Erstattung: Aufgabe bei Justin" : z.bezahltAm ? " · ohne Erstattung" : ""}</span>}
@@ -220,7 +229,7 @@ function AuftraegeListe() {
                     {z.startMailFehler && !z.startMailAm && <span className="cm-klartext cg-rot">Startmail ging nicht raus: {z.startMailFehler}</span>}
                   </td>
                   <td>
-                    {z.zustaendig ? <b>{z.zustaendig.name}</b> : <span className="cg-rot">niemand</span>}
+                    {z.zustaendig ? <b>{z.zustaendig.name}</b> : z.angebotArt === "begleit" ? <b title="Den Begleitvertrag führt die Leitung persönlich.">Leitung</b> : <span className="cg-rot">niemand</span>}
                     {z.betreuer && z.betreuer !== z.zustaendig?.name && <span className="cm-klartext">Betreuer: {z.betreuer}</span>}
                   </td>
                   <td>
@@ -239,7 +248,8 @@ function AuftraegeListe() {
                     <div className="cg-knoepfe">
                       {/* Der Grund steht als TEXT da, nicht im Tooltip (AGENTS.md: ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel). */}
                       {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext" title="Wird im Startgespräch festgelegt.">Stichtag erst nach Zahlungseingang.</span>}
-                      {z.angebotId != null && <span className="cm-klartext" title="Frist mit Kreditgarantie (sonst alles zurück).">Kein Stichtag — hier gilt die Frist.</span>}
+                      {z.angebotId != null && z.angebotArt !== "begleit" && <span className="cm-klartext" title="Frist mit Kreditgarantie (sonst alles zurück).">Kein Stichtag — hier gilt die Frist.</span>}
+                      {z.angebotArt === "begleit" && <span className="cm-klartext" title="Der Begleitvertrag hat keinen Stichtag.">Begleitvertrag — kein Stichtag.</span>}
                       {!z.ohneAuftrag && z.angebotId == null && (z.status === "bezahlt" || z.status === "gestartet") && (
                         <button type="button" className="cg-knopf cg-knopf-stichtag"
                           onClick={() => { setOffen({ ref: z.ref, art: "stichtag" }); setWert(z.stichtag ?? ""); setMitteilen(true); }}>

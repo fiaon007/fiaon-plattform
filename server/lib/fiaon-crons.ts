@@ -510,6 +510,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   },
   // E-188 (17.09.2026): Der Lauf tickt halbstündlich und arbeitet nur im Sendefenster (Berlin 8–20 Uhr,
   // Mo–Sa) — außerhalb kehrt er sofort zurück und zählt trotzdem als gelaufen. Steht er, steht der Takt.
+  // 22.10.2026 (erster Begleitvertrag): Läuft halbstündlich, ohne Sendefenster (schreibt keine Mail, nur Akte und Verlauf).
+  global_begleit_name: {
+    zweck: "FIAON Global: den geprüften Namen eines Begleitvertrags aus der Gründungs- bzw. Fast-Track-Rechnung in die Akte übernehmen und die Station „Name geprüft“ erledigen",
+    folge: "Das Kundenportal zeigt weiter den vorgemerkten Wunschnamen — auch wenn er im Register vergeben war — und „Vor dem Start“: Der Kunde sieht falsche Daten.",
+    fenster: 2,
+  },
   global_zahlung_takt: {
     zweck: "FIAON Global: offene Firmenaufträge am 3. und 7. Tag ruhig an die Überweisung erinnern, am 10. Tag eine dringende Aufgabe „anrufen“ an die zuständige Person",
     folge: "Ein unterschriebener Firmenauftrag über 2.499 € und mehr bleibt ohne Zahlung liegen, und niemand fasst nach — "

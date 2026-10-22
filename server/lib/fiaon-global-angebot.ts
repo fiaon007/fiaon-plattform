@@ -2122,6 +2122,8 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaSichtZurAkte(z); }
   // E-407: Kapital-Angebot — drei Teile (Gründungskosten, Bürgschaftsgebühr, Vergütung bei Auszahlung) und die Garantie aus Ziffer 4.
   if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalSichtZurAkte(z); }
+  // 22.10.2026: Begleitvertrag — ohne Teile, Frist, Garantie und Bürgin des Individualangebots (BEGLEIT_PORTAL).
+  if (/^IA-BEGLEIT-/.test(String(z.fassung ?? ""))) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitSichtZurAkte(z); }
   const d = angebotDatenAus(z);
   const teile = await Promise.all((z.teile as any[]).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;

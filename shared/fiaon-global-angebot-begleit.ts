@@ -698,3 +698,29 @@ export interface BegleitKundenSicht {
   textHash: string;
   vertragPdf: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IM PORTAL („Mein Auftrag“, 22.10.2026)
+//
+// Justin: „Im neuen Portal passt garnichts … falsche Daten.“ Die Akte eines Begleitvertrags hängt am Paket des
+// Individualangebots (global_individuell) — ohne diese Sätze erzählte das Portal von Garantie, Frist, Bürgin und Kartenleiter.
+// Hier spricht der Begleitvertrag mit SEINEN Worten: die Etappen aus „Ihr Weg“ (Ziffer 5, ohne Beträge), das Erfolgshonorar
+// (Ziffer 7), die Entscheidung der Institute (Ziffer 6) und die Jahresbetreuung (Ziffer 8). Nur deutsch, wie die Fassung.
+// ═══════════════════════════════════════════════════════════════════════════
+export const BEGLEIT_PORTAL = {
+  /** Der Name des Auftrags im Portal (Bühne, Vertragskarte) — „für Bestandskunden“ ist Innensprache. */
+  name: { de: "Begleitvertrag", en: "Support agreement" },
+  titel: "Ihr Begleitvertrag",
+  /** Die vier Phasen des Portals in den Worten von „Ihr Weg“: Etappe 1 und 2 der Seite (LLC, Konto) sind hier Phase I. */
+  etappen: {
+    1: { titel: "Ihre LLC und Ihr Konto", text: "Anmeldung Ihrer Gesellschaft, Registered Agent, US-Adresse und Steuernummer (EIN) — danach bereiten wir die Eröffnung Ihres US-Geschäftskontos vor und begleiten sie." },
+    2: { titel: "Erste Business-Karten", text: "Zum Start kleinere Rahmen. Wir bereiten jeden Antrag vollständig vor; Sie unterschreiben ihn." },
+    3: { titel: "Weitere Karten und Kreditlinien", text: "Mit wachsender Kredithistorie Ihrer Gesellschaft folgen höhere Rahmen und erste Kreditlinien." },
+    4: { titel: "Größere Finanzierungen", text: "Schritt für Schritt zum gemeinsamen Plan — jeder Antrag vollständig vorbereitet und begleitet bis zur Entscheidung." },
+  } as Record<1 | 2 | 3 | 4, { titel: string; text: string }>,
+  /** Der Satz unter „Ihr Begleitvertrag“ (statt Frist und Garantie des Individualangebots). */
+  satz: (par: Pick<BegleitParameter, "begleitMonate" | "honorarProzent">): string =>
+    `Begleitung ${monateWort(par.begleitMonate)} ab der Eintragung Ihrer Gesellschaft — ohne Monatsbeitrag und ohne Grundvergütung. FIAON erhält allein ${begleitProzent(par.honorarProzent)} Erfolgshonorar auf jede Finanzierung, die Ihre Gesellschaft durch die Begleitung erhält, fällig erst nach der Einräumung (Ziffer 7). Über jede Finanzierung entscheidet allein das jeweilige Institut (Ziffer 6).`,
+  jahresGewaehlt: `Bei der Annahme gewählt — ${GLOBAL_JAHRESBETREUUNG.de.preisZeile}, ab dem zweiten Jahr (Ziffer 8).`,
+  seiteHinweis: "Ihr Vertrag mit allen Anlagen liegt als PDF unter „Verträge und Vereinbarungen“.",
+} as const;

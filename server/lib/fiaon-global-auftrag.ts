@@ -73,7 +73,7 @@ import { signaturPruefen, isoTag } from "./fiaon-kuendigung-mitarbeiter";
 import { absoluteUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
-import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket, istAngebotsPaket, PAKETE } from "@shared/fiaon-pakete";
+import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket, istAngebotsPaket, istGlobalEinzelrechnung, PAKETE } from "@shared/fiaon-pakete";
 import { GLOBAL_VERTRAG_VERSION, GLOBAL_JAHRESBETREUUNG, globalPaket, istFiaonSelbst, type GlobalSchluessel } from "@shared/fiaon-global";
 import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
@@ -1300,15 +1300,19 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
            g.stichtag_mail_am, g.vertrag_sprache, g.quelle, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag,
            g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.zahlung_takt_hinweis,
            g.storniert_am, g.storniert_von, g.storno_grund, g.storno_erstattung,
-           g.jahresbetreuung, g.jahresbetreuung_preis_cents, g.angebot_id,
+           g.jahresbetreuung, g.jahresbetreuung_preis_cents, g.angebot_id, o.fassung AS angebot_fassung, o.angebot_ref AS angebot_ref,
            z.name AS zustaendig_name, bt.name AS betreuer_name,
            (SELECT t.id FROM fiaon_betreiber_todos t WHERE t.schluessel = 'global:' || a.ref || ':start' LIMIT 1) AS start_aufgabe_id
       FROM fiaon_applications a
       LEFT JOIN fiaon_global_auftraege g ON g.ref = a.ref
+      LEFT JOIN fiaon_global_angebote o ON o.id = g.angebot_id
       LEFT JOIN fiaon_agents z ON z.id = g.zustaendig_agent_id
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
       LEFT JOIN fiaon_agents bt ON bt.id = p.assigned_agent_id
-     WHERE a.pack_key = ANY(${AUFTRAG_SCHLUESSEL}) AND a.merged_into IS NULL
+     WHERE a.merged_into IS NULL
+       -- Global-Pakete und Individualangebote — UND jede Akte zu einem Angebot, deren Anker eine Einzelrechnung ist
+       -- (Begleitvertrag: die Akte hängt an der LLC-Rechnung, E-428 Nachtrag 22.10.2026 — sonst fehlte der Kunde hier).
+       AND (a.pack_key = ANY(${AUFTRAG_SCHLUESSEL}) OR (g.id IS NOT NULL AND g.angebot_id IS NOT NULL))
        AND NOT (a.pack_key = 'global_individuell' AND g.id IS NULL)
      ORDER BY a.created_at DESC
      LIMIT 300`) as any[];
@@ -1322,8 +1326,30 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
     const e = (await sqlPool`SELECT ref, etappe, abgeschlossen_am FROM fiaon_global_auftraege`) as any[];
     for (const z of e) bereich.set(String(z.ref), { etappe: Number(z.etappe || 0), abgeschlossenAm: z.abgeschlossen_am ? new Date(z.abgeschlossen_am).toISOString() : null });
   } catch (e) { console.error("[FIAON-GLOBAL] Liste: Etappen nicht gelesen:", e); }
+  // Begleitverträge: Statt der einen Anker-Rechnung zählen alle Einzelrechnungen der Person (Gründung, Fast-Track …).
+  const begleitSumme = new Map<string, { cents: number; offenCents: number; anzahl: number }>();
+  try {
+    // Kundenseite: Einzelrechnungen und Zusatzdienste — nie die Monatsrechnungen einer Partner-Kooperation (koop_kontakte).
+    const einzel = PAKETE.filter((p) => istGlobalEinzelrechnung(p.key) && p.key !== "koop_kontakte").map((p) => p.key);
+    for (const r of rows) {
+      if (!String(r.angebot_fassung ?? "").startsWith("IA-BEGLEIT-")) continue;
+      const [s] = (await sqlPool`
+        SELECT COUNT(*)::int AS n, COALESCE(SUM(amount_due), 0) AS summe,
+               COALESCE(SUM(amount_due) FILTER (WHERE COALESCE(payment_status, '') <> 'paid'), 0) AS offen
+          FROM fiaon_applications
+         WHERE merged_into IS NULL AND pack_key = ANY(${einzel})
+           AND COALESCE(payment_status, '') NOT IN ('cancelled', 'superseded', 'refunded')
+           AND (${r.person_id != null ? Number(r.person_id) : null}::int IS NOT NULL AND person_id = ${r.person_id != null ? Number(r.person_id) : null}::int
+                OR lower(trim(email)) = ${String(r.email ?? "").trim().toLowerCase()})`) as any[];
+      begleitSumme.set(String(r.ref), { cents: Math.round(Number(s?.summe || 0) * 100), offenCents: Math.round(Number(s?.offen || 0) * 100), anzahl: Number(s?.n || 0) });
+    }
+  } catch (e) { console.error("[FIAON-GLOBAL] Liste: Begleit-Rechnungen nicht gelesen:", e); }
   const zeilen = rows.map((r) => {
     const firma = json<Partial<GlobalFirma>>(r.firma, {});
+    const fassung = String(r.angebot_fassung ?? "");
+    const angebotArt: "individual" | "begleit" | "kapital" | "firma" | null = r.angebot_id == null ? null
+      : fassung.startsWith("IA-BEGLEIT-") ? "begleit" : fassung.startsWith("IA-KAPITAL-") ? "kapital" : fassung.startsWith("IA-FIRMA-") ? "firma" : "individual";
+    const begleit = angebotArt === "begleit" ? begleitSumme.get(String(r.ref)) ?? null : null;
     const ap = json<Partial<GlobalAnsprechpartner>>(r.ansprechpartner, {});
     const kat = katalogPaket(r.pack_key);
     const erstellt = new Date(r.created_at);
@@ -1336,8 +1362,13 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       firma: String(firma.name || r.company_name || "—"), ort: String(firma.ort || r.city || ""), land: firma.land ?? null,
       ansprechpartner: [ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ") || String(r.contact_name || ""),
       funktion: ap.funktion ?? null, email: r.email ?? null, telefon: ap.telefon ?? null,
-      paket: String(r.pack_key), paketName: (kat?.preisJeAngebot ? String(r.pack_name || "") : "") || kat?.label || String(r.pack_name || r.pack_key),
-      betragCents: Math.round(Number(r.amount_due || 0) * 100), katalogCents: kat && !kat.preisJeAngebot ? kat.preisCents : null,
+      paket: String(r.pack_key),
+      paketName: angebotArt === "begleit" ? `Begleitvertrag · ${String(r.angebot_ref || "")}`.replace(/ · $/, "")
+        : (kat?.preisJeAngebot ? String(r.pack_name || "") : "") || kat?.label || String(r.pack_name || r.pack_key),
+      betragCents: begleit ? begleit.cents : Math.round(Number(r.amount_due || 0) * 100),
+      katalogCents: begleit ? null : kat && !kat.preisJeAngebot ? kat.preisCents : null,
+      angebotArt, angebotRef: r.angebot_ref ? String(r.angebot_ref) : null,
+      rechnungenAnzahl: begleit ? begleit.anzahl : null, rechnungenOffenCents: begleit ? begleit.offenCents : null,
       // E-268: Diese Akte gehört zu einem Individualangebot (Teil 1) — Stichtag gibt es dort nicht, sondern eine Frist.
       angebotId: r.angebot_id != null ? Number(r.angebot_id) : null,
       erstelltAm: erstellt.toISOString(), alterTage: Math.max(0, Math.floor((Date.now() - erstellt.getTime()) / 86_400_000)),

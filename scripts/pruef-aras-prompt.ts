@@ -437,7 +437,7 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
   ok("Prüf-Regel (E-409, 22.10.): Namens-Begrüßung + „Ja, am Apparat“ bzw. sein Name → danach Betrag erlaubt (kein Befund)",
     anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, am Apparat. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")]) === null
     && anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, Probe hier, passt."), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")], { nachname: "Probe", anrede: "Herr" }) === null);
-  ok("Rot-Probe (E-409, 22.10.): Namens-Begrüßung + „Moment?“ + nur „Ja, passt“ → ein Betrag danach ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Ja, passt. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")], { nachname: "Probe", anrede: "Herr" }) !== null);
+  ok("Rot-Probe (E-409, 22.10.): Namens-Begrüßung + „Moment?“ + nur „Ja, passt“ → ein Betrag danach ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A("Habens an kurzen Moment?"), K("Ja, passt. Worum geht's?"), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro neunundneunzig.")], { nachname: "Probe", anrede: "Herr" }) !== null);
   ok("Rot-Probe: die Frau geht ran („Nein, hier ist seine Frau“) → ein Betrag danach ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(er.bisKi), A(er.frage), K("Nein, hier ist seine Frau."), A("Es fehlt nur noch die erste Monatsrate über neunundfünfzig Euro.")]) !== null);
   ok("Rot-Probe: ein Betrag schon in der Eröffnung ist ein harter Befund", anliegenVorIdentitaet([K("Hallo?"), A(`${er.bisKi} Es fehlen noch neunundfünfzig Euro.`)]) !== null);
   // Feedback (Anruf 12: „müsse bei der vereinbarten Begrüßung bleiben“ + Weiterleitung angeboten)
@@ -528,10 +528,14 @@ titel("10. JUSTIN 20.10. 14:30–15:00 (Anrufe 11, 12, 16): Eröffnung mit Kredi
       const z = (antwort: string) => [{ t: 0, wer: "kunde" as const, text: "Hallo?" }, { t: 1, wer: "aras" as const, text: o.ganz }, { t: 6, wer: "kunde" as const, text: antwort }, { t: 8, wer: "aras" as const, text: "I ruf an wegen Ihrer offenen Rate über neunundfünfzig Euro neunundneunzig." }];
       const kunde = { nachname: "Probe", anrede: "Frau" };
       if (!identitaetGefragt(o.ganz) || anliegenVorIdentitaet(z("Ja, Probe, worum geht's?"), kunde) !== null || anliegenVorIdentitaet(z("Ja, am Apparat."), kunde) !== null) ohneId.push(`${d}/${sp}: ${o.ganz.slice(0, 40)}`);
-      if (anliegenVorIdentitaet(z("Ja, worum geht's?"), kunde) === null) nurJa.push(`${d}/${sp}`);
+      // Seit 22.10. endet jede Eröffnung mit der Frage nach der Person („Spreche ich mit Frau Probe selbst?“) — ein klares „Ja“
+      // darauf bestätigt. Die alte Form („… habens an Moment?“) bleibt die Rot-Probe: dort bestätigt dasselbe „Ja“ nichts.
+      if (anliegenVorIdentitaet(z("Ja, worum geht's?"), kunde) !== null) nurJa.push(`${d}/${sp}: Ja auf die Frage nach der Person zählt nicht`);
+      const zAlt = (antwort: string) => z(antwort).map((x) => x.wer === "aras" && x.text === o.ganz ? { ...x, text: o.ganz.replace(o.frage, "Habens an kurzen Moment?") } : x);
+      if (anliegenVorIdentitaet(zAlt("Ja, worum geht's?"), kunde) === null) nurJa.push(`${d}/${sp}: alte Moment-Frage + Ja ohne Befund`);
     }
     ok("Jede Eröffnung (alle Dialekte, alle Gesprächsarten) fragt nach der Person — sein Name oder „am Apparat“ danach bestätigt, die Rate danach ist in Ordnung", ohneId.length === 0, ohneId.join(" | "));
-    ok("Rot-Probe (E-409, 22.10.): nur „Ja, worum geht's?“ auf „… Moment?“ bestätigt in keiner Eröffnung die Identität — die Rate danach ist ein Treffer", nurJa.length === 0, nurJa.join(" | "));
+    ok("Jede Eröffnung endet mit der Frage nach der Person: ein klares „Ja“ darauf bestätigt — Rot-Probe: mit der alten Moment-Frage bestätigt dasselbe „Ja“ nie (die Rate danach ist ein Treffer)", nurJa.length === 0, nurJa.join(" | "));
     ok("Rot-Probe: ohne Namen in der Begrüßung zählt das „Ja“ nicht — Rate danach = Treffer", anliegenVorIdentitaet([{ t: 0, wer: "kunde", text: "Hallo?" }, { t: 1, wer: "aras", text: "Grüß Sie! ARAS spricht hier, I bin a KI." }, { t: 4, wer: "kunde", text: "Ja?" }, { t: 6, wer: "aras", text: "Es geht um Ihre offene Rate." }]) !== null);
   }
   // Quittungs-Laute (Koordination 20.10. abends: Schnelligkeit)

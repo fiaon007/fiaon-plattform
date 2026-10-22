@@ -351,15 +351,18 @@ export async function globalBegleitAkteAnlegen(angebotId: number, agent: { id: n
     sofortBeginn: sch.sofortBeginn === true, jahresbetreuungGewaehlt: sch.jahresbetreuung === true, aktePerKnopf: { von: agent.name, am: new Date().toISOString() } };
   // Status „gestartet“: Der Begleitvertrag läuft (Justin führt den Kunden persönlich) — keine Zahlungserinnerung des
   // Global-Wegs an einer Einzelrechnung, keine Startmail. Jahresbetreuung bleibt aus (ihre Rechnung stellt die Leitung von Hand).
+  // Zuständig: wer die Akte anlegt (beim Begleitvertrag führt die Leitung den Kunden persönlich); sonst die Vorgabe „Neue an …“.
+  const { globalEinstellungen } = await import("./fiaon-global-auftrag");
+  const zustaendigVorgabe = agent.id ? agent.id : (await globalEinstellungen().catch(() => null))?.zustaendigAgentId ?? null;
   await sqlPool`
     INSERT INTO fiaon_global_auftraege
       (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_pdf, vertrag_version, vertrag_sprache, unterschrieben_am, ip, user_agent,
-       quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, angebot_id, person_id, gesellschaft)
+       quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, angebot_id, person_id, gesellschaft, zustaendig_agent_id, gestartet_am)
     VALUES
       (${anker}, ${ANGEBOT_PAKET_KEY}, ${daten.land}, ${sqlPool.json(daten.firma as any)}, ${sqlPool.json(daten.ansprechpartner as any)}, ${sqlPool.json(bestaetigungen as any)},
        ${a.vertrag_pdf ?? null}, ${String(a.fassung)}, 'de', ${a.angenommen_am ?? null}, ${a.ip ?? null}, ${a.user_agent ?? null},
        'individualangebot', 'gestartet', ${a.text_hash ?? null}, ${daten.name || null}, ${daten.email || null}, 'none', ${angebotId}, ${personId},
-       ${daten.gesellschaft ? sqlPool.json(daten.gesellschaft as any) : null})
+       ${daten.gesellschaft ? sqlPool.json(daten.gesellschaft as any) : null}, ${zustaendigVorgabe}, NOW())
     ON CONFLICT (ref) DO NOTHING`;
   const [neu] = (await sqlPool`SELECT ref, angebot_id FROM fiaon_global_auftraege WHERE ref = ${anker} LIMIT 1`) as any[];
   if (!neu || Number(neu.angebot_id) !== angebotId) return nein(409, "Die Akte ließ sich nicht anlegen — die Rechnung wurde gerade anders vergeben. Bitte neu laden.");

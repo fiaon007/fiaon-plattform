@@ -40,12 +40,16 @@ export interface NachbereitungLage {
   endeGrund: string; sekunden: number; aufnahmeJa: boolean;
   ergebnis: ArasErgebnis | null; ergebnisNotiz: string | null; ergebnisGesetzt: boolean; kundeHatGesprochen: boolean;
   probe?: boolean; kiHinweisSek?: number | null;
+  /** Streitfall im Gespräch (Betrug, Anzeige, Anwalt …) — was er gesagt hat, kurz; dann gab es keine Zusage, aber eine Aufgabe für Justin. */
+  streit?: string | null;
 }
 
 function ergebnisAbleiten(l: NachbereitungLage): { ergebnis: ArasErgebnis; notiz: string } {
   if (l.ergebnis) return { ergebnis: l.ergebnis, notiz: l.ergebnisNotiz ?? "" };
   const ok = (w: Werkzeug) => l.ausgefuehrt.some((x) => x.werkzeug === w && x.ok);
   if (ok("nicht_mehr_anrufen")) return { ergebnis: "erreicht_abgelehnt", notiz: "Kunde möchte keine Anrufe mehr (Telefonsperre gesetzt)." };
+  // Auswertung 21./22.10.: ein Streitfall (Betrug, Anzeige, Anwalt …) — kein Zahlungs-Ergebnis, sondern: ein Mensch meldet sich.
+  if (l.streit) return { ergebnis: "erreicht_sonstiges", notiz: `Streitfall am Telefon (${l.streit}) — Aufgabe für Justin angelegt, ARAS für diese Person aus.` };
   if (ok("zahlung_gemeldet")) return { ergebnis: "erreicht_zahlt_gleich", notiz: "Kunde meldet die Überweisung als erledigt." };
   if (ok("zahlungszusage_merken")) return { ergebnis: "erreicht_zahlt_am", notiz: "Kunde hat einen Zahltag zugesagt." };
   if (ok("mensch_verbinden") && l.endeGrund === "uebergabe") return { ergebnis: "uebergeben", notiz: "An einen Menschen aus dem Team verbunden." };

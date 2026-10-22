@@ -56,7 +56,7 @@ import { arasEinstellungenLesen } from "./fiaon-aras-plan";
 import { werkzeugAusfuehren, type WerkzeugKontext } from "./fiaon-aras-werkzeuge";
 import { arasEreignis, transkriptMelden } from "./fiaon-aras-ereignis";
 import { streamTokenPruefen, twilioClient, arasCallerId, rueckrufUrl, twimlUebergabe } from "./fiaon-aras-twilio-client";
-import { anweisungBauen, begruessungText, NOTAUS_SATZ, ABSCHIED_EINFORDERN, menschHinweis, MENSCH_ABSTAND, fiaonSchreibweise, type Briefing, type MenschArt } from "../../shared/fiaon-aras-prompt";
+import { anweisungBauen, begruessungText, NOTAUS_SATZ, ABSCHIED_EINFORDERN, menschHinweis, MENSCH_ABSTAND, fiaonSchreibweise, identitaetsFrage, type Briefing, type MenschArt } from "../../shared/fiaon-aras-prompt";
 import {
   ANRUF_ZEITLIMIT_SEK, telefonKostenCents, istAufnahmeJa, istAufnahmeNein, GEDULD_MS,
   QUITTUNGEN, QUITTUNG_NACH_MS, QUITTUNG_SPAETESTENS_MS, quittungErlaubt, istKundenFrage, quittungWaehlen, type Quittung,
@@ -66,8 +66,9 @@ import { wiederholtSich, ABSCHIED_RE, ABSCHIED_AT_RE, WIEDERHOLUNG_HINWEIS } fro
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import { lauteLaden, lauteSicherstellen } from "./fiaon-aras-laute";
 import {
-  kundeWillZusendung, arasKuendigtZusendungAn, arasBehauptetZusendung, karteNichtBekommen, arasBehauptetNotiert, zahltagAusKunde, arasBietetZusendungAn, kurzesJa, kurzesNein,
-  KORREKTUR_LINK_FEHLER, KORREKTUR_ZUSAGE, WORT_WARTEN_MS,
+  kundeWillZusendung, kundeWunschWeg, arasKuendigtZusendungAn, arasBehauptetZusendung, karteNichtBekommen, arasBehauptetNotiert, zahltagAusKunde, arasBietetZusendungAn, kurzesJa, kurzesNein,
+  arasFragtNachZahltag, arasFragtIdentitaet, identitaetAntwort, arasNenntAnliegen, korrekturIdentitaet, streitFall, streitAufgabeText, istAnsage, ansageWort,
+  KORREKTUR_LINK_FEHLER, KORREKTUR_ZUSAGE, HINWEIS_STREITFALL, STREIT_TEXT, WORT_WARTEN_MS, type StreitArt,
 } from "../../shared/fiaon-aras-wort";
 import type { WerkzeugErgebnis } from "./fiaon-aras-adapter";
 import type { Werkzeug } from "../../shared/fiaon-aras";
@@ -108,6 +109,13 @@ const EROEFFNUNG_HALTEN_MAX_MS = 12_000;
 const PEGEL_NUR_MIT_TEXT_MS = 2500;
 /** Abschied-Wache: so lange wartet die Brücke nach anruf_beenden auf den Abschied, dann legt sie trotzdem auf. */
 const abschiedFristMs = () => Number(process.env.ARAS_ABSCHIED_FRIST_MS || 15_000);
+/** Niemand sagt etwas: so lange, dann „stille“ (STILLE_ENDE_MS) — im Prüfstand kürzer einstellbar. */
+const stilleEndeMs = () => Number(process.env.ARAS_STILLE_ENDE_MS || STILLE_ENDE_MS);
+/** Ansage statt Mensch (Auswertung 21./22.10.): nur in den ersten Kundenzeilen — so lange ab dem Abheben. */
+const ANSAGE_FENSTER_MS = 45_000;
+/** Die Fragen eines Redebeitrags, die erst gelten, wenn er sie hört (Aufnahme, Frage, Abschied, Person). */
+type OffeneFragen = { aufnahme: boolean; frage: boolean; abschied: boolean; identitaet: boolean };
+const keineFragen = (): OffeneFragen => ({ aufnahme: false, frage: false, abschied: false, identitaet: false });
 
 export interface TranskriptZeile {
   t: number; wer: "kunde" | "aras"; text: string; final: boolean; abgebrochen?: boolean; am: number;
@@ -117,6 +125,8 @@ export interface TranskriptZeile {
   verworfen?: boolean;
   /** Wiederholungs-Wache hat für diese Zeile schon angeschlagen. */
   wiederholt?: boolean;
+  /** Identität (Auswertung 21./22.10.): Aras-Zeile schon still korrigiert · Kundenzeile schon als Antwort auf die Frage nach der Person gelesen. */
+  identKorrigiert?: boolean; identGelesen?: boolean;
 }
 
 interface Lauf {
@@ -170,12 +180,12 @@ interface Lauf {
   /** Geduld-Tor: zuletzt Kundenstimme (Pegel, Transkript), Aras' letzte Frage, der zurückgehaltene Ton, der Rückstand. */
   kundePegelAm: number; kundeTextAm: number; frageAm: number; halten: { seit: number; takt: NodeJS.Timeout } | null; halte: Int16Array[];
   /** Fragen in zurückgehaltenen Zeilen: gelten erst, wenn der Kunde sie hört (Freigabe) — verworfen nie. */
-  halteFragen: { aufnahme: boolean; frage: boolean; abschied: boolean } | null;
+  halteFragen: OffeneFragen | null;
   /**
    * Erkannt, aber noch nicht gehört: Der Text kommt oft VOR dem Ton. Eine Frage (Aufnahme-Frage, Abschied) gilt erst, wenn
    * Aras' Redebeitrag zu Ende gespielt ist — sonst zählte ein „Ja“, bevor der Kunde die Frage überhaupt hören konnte.
    */
-  offen: { aufnahme: boolean; frage: boolean; abschied: boolean };
+  offen: OffeneFragen;
   gehalten: number; verworfen: number;
   /** Wiederholungs-Wache und Abschied-Wache. */
   wiederholHinweise: number; abschiedEingefordert: number | null;
@@ -184,7 +194,18 @@ interface Lauf {
    * Wege der Link schon nahm, was die Brücke noch selbst erledigen will (Name → Zeitgeber + Lauf) und was sie schon tat.
    */
   werkzeugOk: Map<string, number>; werkzeugFehl: Map<string, number>; werkzeugLaeuft: Set<string>; linkWege: Set<string>;
-  wort: Map<string, { timer: NodeJS.Timeout; lauf: () => Promise<void> }>; wortErledigt: Set<string>; linkBehauptet: boolean; zusageKorrigiert: boolean;
+  wort: Map<string, { timer: NodeJS.Timeout; lauf: () => Promise<void>; eingabe: Record<string, unknown> }>; wortErledigt: Set<string>; linkBehauptet: boolean; zusageKorrigiert: boolean;
+  /**
+   * Identität vor dem Anliegen (Auswertung 21./22.10.): pflicht = ausgehend mit bekanntem Namen; frageAm = wann die Frage nach der
+   * Person bei ihm ankam (gehört — nie schon beim Abheben, die vorab gesprochene Eröffnung ist dann noch gehalten); frageTextAm =
+   * wann ihr Text fertig war (nach der Eröffnung); bestaetigtAm/wie = sein Ja oder sein Name; verneintAm = „hier ist seine Frau“;
+   * korrekturen = stille Korrekturen, weil ARAS zu früh zur Sache kam.
+   */
+  ident: { pflicht: boolean; frageAm: number | null; frageTextAm: number | null; bestaetigtAm: number | null; wie: "ja" | "name" | null; verneintAm: number | null; korrekturen: number; wartend: TranskriptZeile | null };
+  /** Streitfall (Betrug, Anzeige, Anwalt …): ab dann kein Zahlungsdruck, keine Links/Zusagen, EINE Aufgabe für Justin, ARAS für die Person aus. */
+  streit: { art: StreitArt; wort: string; am: number } | null; streitLauf: Promise<void> | null;
+  /** Eine Ansage statt eines Menschen (Mailbox, Anrufbeantworter, Anruf-Assistent) — was erkannt wurde; nie „erreicht“. */
+  ansage: string | null;
   fertig: Promise<void>; fertigMelden: () => void;
 }
 
@@ -221,6 +242,7 @@ export function laufZahlen(callId: number): {
   vorratMs: number; wartendMs: number; ton: ReturnType<Tonwerk["statistik"]>;
   halten: boolean; gehalten: number; verworfen: number; wiederholungen: number; abschiedEingefordert: boolean; abschied: boolean;
   quittungen: number; quittungWort: string | null; antwortMs: number[]; gefuehltMs: number[]; eingangStumm: boolean; eroeffnetAm: number | null; kiHinweisAm: number | null;
+  identitaet: { pflicht: boolean; frage: boolean; bestaetigt: boolean; wie: "ja" | "name" | null; verneint: boolean; korrekturen: number }; streit: string | null; ansage: string | null;
 } | null {
   const l = LAUFENDE.get(callId);
   return l ? {
@@ -228,6 +250,8 @@ export function laufZahlen(callId: number): {
     atmoStuecke: l.ton.statistik().fuellRahmen, vorratMs: l.ton.vorratMs(), wartendMs: l.ton.wartendMs(), ton: l.ton.statistik(),
     halten: !!l.halten, gehalten: l.gehalten, verworfen: l.verworfen, wiederholungen: l.wiederholHinweise, abschiedEingefordert: !!l.abschiedEingefordert, abschied: !!l.abschiedAm,
     quittungen: l.quittungen, quittungWort: l.quittungWort, antwortMs: [...l.antwortMs], gefuehltMs: [...l.gefuehltMs], eingangStumm: l.eingangStumm, eroeffnetAm: l.eroeffnetAm, kiHinweisAm: l.kiHinweisAm,
+    identitaet: { pflicht: l.ident.pflicht, frage: !!l.ident.frageAm, bestaetigt: !!l.ident.bestaetigtAm, wie: l.ident.wie, verneint: !!l.ident.verneintAm, korrekturen: l.ident.korrekturen },
+    streit: l.streit?.art ?? null, ansage: l.ansage,
   } : null;
 }
 
@@ -388,9 +412,12 @@ async function sitzungAufbauen(e: { callId: number; ws: WebSocket | null; stream
     uebergabeLaeuft: false, notaus: false, beendet: false, endeGrund: null, ergebnis: null, ergebnisNotiz: null,
     sekunden: 0, kostenCents: 0, ctx: null, timer: [], takt: null,
     atmo: einstellungen.hintergrund && einstellungen.hintergrund !== "aus" ? einstellungen.hintergrund : null,
-    kundePegelAm: 0, kundeTextAm: 0, frageAm: 0, halten: null, halte: [], halteFragen: null, offen: { aufnahme: false, frage: false, abschied: false }, gehalten: 0, verworfen: 0,
+    kundePegelAm: 0, kundeTextAm: 0, frageAm: 0, halten: null, halte: [], halteFragen: null, offen: keineFragen(), gehalten: 0, verworfen: 0,
     wiederholHinweise: 0, abschiedEingefordert: null,
     werkzeugOk: new Map(), werkzeugFehl: new Map(), werkzeugLaeuft: new Set(), linkWege: new Set(), wort: new Map(), wortErledigt: new Set(), linkBehauptet: false, zusageKorrigiert: false,
+    // Eingehend ruft er selbst an; eine Fortsetzung (nach gescheiterter Übergabe) kennt ihn schon; ohne Namen gibt es nichts zu prüfen.
+    ident: { pflicht: spielart !== "eingehend" && !e.fortsetzung && !!briefing.nachname, frageAm: null, frageTextAm: null, bestaetigtAm: null, wie: null, verneintAm: null, korrekturen: 0, wartend: null },
+    streit: null, streitLauf: null, ansage: null,
     fertig, fertigMelden,
   };
   const quelle = tonQuelle();
@@ -651,6 +678,8 @@ function zeileAnhaengen(l: Lauf, ev: { wer: "kunde" | "aras"; text: string; t: n
   const aktuell = [...l.zeilen].reverse().find((z) => z.wer === ev.wer && !z.final);
   // Wiederholungs-Wache schon im laufenden Satz (ab acht Wörtern): je früher der Hinweis, desto weniger hört der Kunde doppelt.
   if (aktuell && aktuell.wer === "aras") wiederholungPruefen(l, aktuell, true);
+  // Identität vor dem Anliegen: schon im laufenden Satz — je früher die Korrektur, desto weniger hört ein Angehöriger.
+  if (aktuell && aktuell.wer === "aras") identitaetWache(l, aktuell);
   if (aktuell && /[.!?…]["“”»]?\s*$/.test(aktuell.text) && aktuell.text.trim().length > 2) zeileFertig(l, aktuell);
   if (l.zeilen.length > 600) l.zeilen.splice(0, l.zeilen.length - 600);
 }
@@ -661,6 +690,13 @@ function zeileAnhaengen(l: Lauf, ev: { wer: "kunde" | "aras"; text: string; t: n
  * EINMAL raus (sagt der Kunde zweimal „schicken Sie's“, oder kommt die Brücke dem Modell zuvor, schickt nichts doppelt).
  */
 async function werkzeugMitWort(l: Lauf, name: Werkzeug, eingabe: unknown, aufrufId: string): Promise<WerkzeugErgebnis> {
+  // Streitfall (Auswertung 21./22.10.): kein Link, keine Zusage mehr — und nur die EINE Aufgabe für Justin (die der Brücke).
+  if (l.streit && (name === "zahlungslink_senden" || name === "zahlungszusage_merken")) {
+    return { ok: false, vorlesen: "", still: "Streitfall: kein Link, keine Zusage — sag nur ruhig, dass sich jemand aus dem Team persönlich bei ihm meldet.", fehler: "streitfall" };
+  }
+  if (l.streit && name === "aufgabe_fuer_justin" && String((eingabe as any)?.art ?? "") !== "streitfall") {
+    return { ok: true, vorlesen: "", still: "Die Aufgabe für Justin zu diesem Streitfall steht schon — nicht noch einmal." };
+  }
   const weg = name === "zahlungslink_senden" ? ((eingabe as any)?.weg === "mail" ? "mail" : "whatsapp") : "";
   if (name === "zahlungslink_senden" && (l.linkWege.has(weg) || (!(eingabe as any)?.weg && l.linkWege.size > 0))) {
     return { ok: true, vorlesen: "", still: "Der Link ist in diesem Gespräch schon raus." };
@@ -683,6 +719,7 @@ async function werkzeugMitWort(l: Lauf, name: Werkzeug, eingabe: unknown, aufruf
     for (const k of [name, `${name}:${art ?? ""}`]) { const w = l.wort.get(k); if (w) { clearTimeout(w.timer); l.wort.delete(k); } }
   } else {
     l.werkzeugFehl.set(name, Date.now());
+    if (name === "aufgabe_fuer_justin") l.werkzeugFehl.set(`aufgabe_fuer_justin:${String((eingabe as any)?.art ?? "")}`, Date.now());
     // Hatte ARAS schon „ist raus“ gesagt: still korrigieren — ehrlich, und das Team schickt nach (Notiz in der Akte).
     if (name === "zahlungslink_senden" && l.linkBehauptet && !l.beendet) l.sitzung?.textEinschieben(KORREKTUR_LINK_FEHLER, "anweisung");
     if (name === "zahlungslink_senden" && l.ctx && !l.ctx.trocken && !l.wortErledigt.has("notiz:link")) {
@@ -693,66 +730,101 @@ async function werkzeugMitWort(l: Lauf, name: Werkzeug, eingabe: unknown, aufruf
   return erg;
 }
 
-/** Die Brücke erledigt es selbst, wenn das Modell es nach `ms` nicht getan hat (ein Mal je Gespräch und Sache). */
+/** Der Schlüssel einer Sache: die Aufgabe je Art, sonst das Werkzeug (der Link ist EINE Sache — sein Weg kann sich noch ändern). */
+const wortSchluessel = (name: Werkzeug, eingabe: Record<string, unknown>): string => (name === "aufgabe_fuer_justin" ? `${name}:${String(eingabe.art ?? "")}` : name);
+/** Schon erledigt — oder schon versucht und gescheitert (dann hat werkzeugMitWort korrigiert und das Team informiert)? Der Link je Weg. */
+function wortSchonGetan(l: Lauf, name: Werkzeug, eingabe: Record<string, unknown>): boolean {
+  if (name === "aufgabe_fuer_justin") { const k = wortSchluessel(name, eingabe); return l.werkzeugOk.has(k) || l.werkzeugFehl.has(k); }
+  if (name === "zahlungslink_senden") return (eingabe.weg ? l.linkWege.has(String(eingabe.weg)) : l.linkWege.size > 0) || l.werkzeugFehl.has(name);
+  return l.werkzeugOk.has(name) || l.werkzeugFehl.has(name);
+}
+/**
+ * Die Brücke erledigt es selbst, wenn das Modell es nach `ms` nicht getan hat (ein Mal je Gespräch und Sache). Ist der Link schon
+ * geplant und nennt er erst jetzt den Weg („Ja, per E-Mail, bitte“ — Echtgespräch 22.10.), gilt sein Weg.
+ */
 function wortPlanen(l: Lauf, name: Werkzeug, eingabe: Record<string, unknown>, ms: number, grund: string): void {
-  const schl = name === "aufgabe_fuer_justin" ? `${name}:${String(eingabe.art ?? "")}` : name;
-  // Schon erledigt, schon geplant — oder schon versucht und gescheitert (dann hat werkzeugMitWort korrigiert und das Team informiert).
-  if (!l.ctx || l.werkzeugOk.has(name) || l.werkzeugFehl.has(name) || l.wort.has(schl) || l.wortErledigt.has(schl)) return;
-  const lauf = async () => {
+  const schl = wortSchluessel(name, eingabe);
+  if (!l.ctx || l.ansage || wortSchonGetan(l, name, eingabe) || l.wortErledigt.has(schl)) return;
+  const geplant = l.wort.get(schl);
+  if (geplant) { if (name === "zahlungslink_senden" && eingabe.weg) geplant.eingabe = { ...geplant.eingabe, weg: eingabe.weg }; return; }
+  const eintrag = { timer: null as unknown as NodeJS.Timeout, eingabe: { ...eingabe }, lauf: async () => {
     l.wort.delete(schl);
-    if (l.werkzeugOk.has(name) || l.werkzeugFehl.has(name) || l.werkzeugLaeuft.has(name) || l.wortErledigt.has(schl)) return;
+    if (l.ansage || wortSchonGetan(l, name, eintrag.eingabe) || l.werkzeugLaeuft.has(name) || l.wortErledigt.has(schl)) return;
     l.wortErledigt.add(schl);
-    const erg = await werkzeugMitWort(l, name, eingabe, `bruecke_wort_${name}_${l.callId}_${Date.now()}`);
+    const erg = await werkzeugMitWort(l, name, eintrag.eingabe, `bruecke_wort_${name}_${l.callId}_${Date.now()}`);
     void arasEreignis({ art: "aras_werkzeug", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart,
-      text: `ARAS hält ihr Wort: ${name} (${grund}) — ${erg.ok ? "erledigt" : "fehlgeschlagen"}`, daten: { werkzeug: name, von: "bruecke", grund, ok: erg.ok } });
-  };
-  const timer = setTimeout(() => { void lauf(); }, ms);
-  l.wort.set(schl, { timer, lauf });
+      text: `ARAS hält ihr Wort: ${name} (${grund}) — ${erg.ok ? "erledigt" : "fehlgeschlagen"}`, daten: { werkzeug: name, von: "bruecke", grund, ok: erg.ok, eingabe: eintrag.eingabe } });
+  } };
+  eintrag.timer = setTimeout(() => { void eintrag.lauf(); }, ms);
+  l.wort.set(schl, eintrag);
 }
 /** Sofort statt später (ARAS hat es gerade schon als erledigt bestätigt). */
 function wortJetzt(l: Lauf, name: Werkzeug, eingabe: Record<string, unknown>, grund: string): void {
-  const schl = name === "aufgabe_fuer_justin" ? `${name}:${String(eingabe.art ?? "")}` : name;
-  const w = l.wort.get(schl);
-  if (w) { clearTimeout(w.timer); void w.lauf(); return; }
+  const w = l.wort.get(wortSchluessel(name, eingabe));
+  if (w) { clearTimeout(w.timer); if (name === "zahlungslink_senden" && eingabe.weg) w.eingabe = { ...w.eingabe, weg: eingabe.weg }; void w.lauf(); return; }
   wortPlanen(l, name, eingabe, 0, grund);
 }
-/** Am Gesprächsende: alles, was noch offen ist, jetzt erledigen (auch nach dem Auflegen — es war zugesagt). */
+/**
+ * Am Gesprächsende: alles, was noch offen ist, jetzt erledigen (auch nach dem Auflegen — es war zugesagt). Eine Ansage (Mailbox,
+ * Anrufbeantworter) hat niemandem etwas zugesagt: dann fällt das Geplante weg.
+ */
 async function wortAbschliessen(l: Lauf): Promise<void> {
   const offen = Array.from(l.wort.values());
   for (const w of offen) clearTimeout(w.timer);
+  if (l.ansage) { l.wort.clear(); return; }
   await Promise.all(offen.map((w) => w.lauf().catch(() => null)));
 }
 const heuteBerlinIso = (): string => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
-/** Hat ARAS gerade nach dem Zahltag gefragt? („Wann schaffen Sie die Überweisung — heute noch?“, „Geht sich des heute noch aus?“) */
-function fragteNachTag(l: Lauf): boolean {
-  const a = [...l.zeilen].reverse().find((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim());
-  return !!a && Date.now() - a.am < 45_000 && /(?:heute\s+noch\?|wann\s+(?:schaffen|passt|geht|zahlen|überweisen|klappt)|welchen\s+Tag|bis\s+wann|aus\?)/i.test(a.text);
+/**
+ * Hat ARAS gerade nach dem Zahltag gefragt? („Wann schaffen Sie die Überweisung — heute noch?“, „Geht sich des heute noch aus?“,
+ * „wann's bei Ihnen passt“) — nie nach der Zeit für einen Rückruf. Die letzten zwei Aras-Zeilen (≤ 45 s): die Frage zerfällt in
+ * der Abschrift oft in zwei („Geht“ · „sich des heute noch aus?“). Gibt den Fragetext zurück, sonst null.
+ */
+function fragteNachTag(l: Lauf): string | null {
+  const zeilen = l.zeilen.filter((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim() && Date.now() - x.am < 45_000).slice(-2);
+  const text = zeilen.map((x) => x.text).join(" ");
+  return zeilen.length && arasFragtNachZahltag(text) ? text : null;
 }
 /** Die Wort-Wache: klare Aussagen des Kunden und Zusagen von ARAS → das Werkzeug läuft, notfalls von der Brücke selbst. */
 function wortHalten(l: Lauf, z: TranskriptZeile): void {
-  if (!l.ctx || l.spielart === "eingehend") return;
+  if (!l.ctx || l.spielart === "eingehend" || l.ansage) return;
   const text = z.text;
   if (z.wer === "kunde") {
+    // Streitfall (Auswertung 21./22.10.: „Betrugsanzeige erstattet“ — ARAS kündigte trotzdem die Rechnung an): ab sofort nichts
+    // mehr fordern, EINE Aufgabe für Justin, ARAS für diese Person aus.
+    const streit = l.streit ? null : streitFall(text);
+    if (streit) { streitfallBeginnen(l, text, streit); return; }
+    if (l.streit) return;
     // „Keine Karte bekommen“ zählt nur bei Kunden, die schon zahlen (Rate, Auftrag, Termin …) — beim Willkommen fehlt die Karte,
     // weil die Aktivierung noch aussteht (das ist kein Fall für Justin).
     const zahlt = l.spielart !== "willkommen" && (l.spielart === "rate" || l.briefing.raten.gezahlt > 0 || l.briefing.stufe === "kunde");
     if (zahlt && karteNichtBekommen(text)) wortPlanen(l, "aufgabe_fuer_justin", { art: "karte_nicht_erhalten", text: `Kunde am Telefon: „${text.slice(0, 180)}“` }, WORT_WARTEN_MS.aufgabe, "keine Karte bekommen");
-    const angebot = [...l.zeilen].reverse().find((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim() && Date.now() - x.am < 30_000);
-    const nachAngebot = !!angebot && arasBietetZusendungAn(angebot.text);
-    if (kundeWillZusendung(text) || (nachAngebot && kurzesJa(text))) wortPlanen(l, "zahlungslink_senden", {}, WORT_WARTEN_MS.link, "der Kunde will den Link");
+    // Das Angebot kommt oft in zwei Zeilen (Echtgespräch 22.10.: „Dann schick i Ihnen den Link gleich rüber …“ · „Passt es, wenn
+    // i's Ihnen jetzt schick?“) — und sein Weg zählt („Ja, per E-Mail, bitte“: sonst ging der Link per WhatsApp).
+    const aras = l.zeilen.filter((x) => x.wer === "aras" && x.final && !x.verworfen && x.text.trim() && Date.now() - x.am < 30_000);
+    const angebot = aras[aras.length - 1], vorher = aras[aras.length - 2];
+    const nachAngebot = !!angebot && arasBietetZusendungAn(angebot.text, vorher?.text ?? null);
+    const weg = kundeWunschWeg(text);
+    if (kundeWillZusendung(text) || (nachAngebot && (kurzesJa(text) || (!!weg && !kurzesNein(text))))) wortPlanen(l, "zahlungslink_senden", weg ? { weg } : {}, WORT_WARTEN_MS.link, "der Kunde will den Link");
     else if (nachAngebot && kurzesNein(text)) { const w = l.wort.get("zahlungslink_senden"); if (w) { clearTimeout(w.timer); l.wort.delete("zahlungslink_senden"); } }
-    const tag = fragteNachTag(l) ? zahltagAusKunde(text, heuteBerlinIso()) : null;
+    else if (weg && !kurzesNein(text) && text.trim().split(/\s+/).length <= 6) { const w = l.wort.get("zahlungslink_senden"); if (w) w.eingabe = { ...w.eingabe, weg }; }
+    // Der Zahltag aus seiner Antwort („am Ersten“, „nächsten Dienstag“ …) — und auf „Geht sich des heute noch aus?“ ist ein „Ja.“ heute.
+    const frage = fragteNachTag(l);
+    let tag = frage ? zahltagAusKunde(text, heuteBerlinIso()) : null;
+    if (!tag && frage && /(?<![a-zäöüß])heut(?:e)?(?![a-zäöüß])/i.test(frage) && kurzesJa(text)) tag = heuteBerlinIso();
     if (tag) wortPlanen(l, "zahlungszusage_merken", { datum: tag }, WORT_WARTEN_MS.zusage, `Zahltag ${tag}`);
     return;
   }
-  if (z.wer !== "aras" || z.verworfen) return;
-  if (arasKuendigtZusendungAn(text)) wortPlanen(l, "zahlungslink_senden", {}, WORT_WARTEN_MS.link, "ARAS kündigt Link/Rechnung an");
+  if (z.wer !== "aras" || z.verworfen || l.streit) return;
+  // Nennt ARAS den Weg selbst („das schick i ihm per Mail“), geht es diesen Weg.
+  const wegAras = kundeWunschWeg(text);
+  if (arasKuendigtZusendungAn(text)) wortPlanen(l, "zahlungslink_senden", wegAras ? { weg: wegAras } : {}, WORT_WARTEN_MS.link, "ARAS kündigt Link/Rechnung an");
   if (arasBehauptetZusendung(text) && !l.werkzeugOk.has("zahlungslink_senden")) {
     l.linkBehauptet = true;
     // Läuft das Werkzeug des Modells gerade, wartet die Brücke auf sein Ergebnis (scheitert es, korrigiert werkzeugMitWort).
     if (!l.werkzeugLaeuft.has("zahlungslink_senden")) {
       if (l.werkzeugFehl.has("zahlungslink_senden")) l.sitzung?.textEinschieben(KORREKTUR_LINK_FEHLER, "anweisung");
-      else wortJetzt(l, "zahlungslink_senden", {}, "ARAS sagte „ist raus“");
+      else wortJetzt(l, "zahlungslink_senden", wegAras ? { weg: wegAras } : {}, "ARAS sagte „ist raus“");
     }
   }
   if (arasBehauptetNotiert(text) && !l.werkzeugOk.has("zahlungszusage_merken") && !l.werkzeugLaeuft.has("zahlungszusage_merken")) {
@@ -766,6 +838,34 @@ function wortHalten(l: Lauf, z: TranskriptZeile): void {
   }
 }
 
+/**
+ * Streitfall (Auswertung 21./22.10.): ab sofort kein Zahlungsdruck — nichts Geplantes mehr (Link, Zusage, Karte), still der
+ * Hinweis an die Stimme, GENAU EINE Aufgabe für Justin mit seinen Worten, und ARAS ist für diese Person aus (dieselbe Tabelle wie
+ * „Aras für diesen Kunden aus“ in der Akte), bis ein Mensch es zurücknimmt. Im Probeanruf ohne Testperson: alles trocken.
+ */
+function streitfallBeginnen(l: Lauf, text: string, s: { art: StreitArt; wort: string }): void {
+  if (l.streit || !l.ctx) return;
+  l.streit = { ...s, am: Date.now() };
+  for (const [k, w] of Array.from(l.wort.entries())) { clearTimeout(w.timer); l.wort.delete(k); l.wortErledigt.add(k); }
+  for (const k of ["zahlungslink_senden", "zahlungszusage_merken", "aufgabe_fuer_justin:karte_nicht_erhalten", "aufgabe_fuer_justin:streitfall"]) l.wortErledigt.add(k);
+  if (!l.beendet) l.sitzung?.textEinschieben(HINWEIS_STREITFALL, "anweisung");
+  console.log(`[ARAS] call ${l.callId}: Streitfall (${s.art}) — kein Zahlungsdruck mehr, Aufgabe für Justin, ARAS für diese Person aus.`);
+  l.streitLauf = (async () => {
+    const erg = await werkzeugMitWort(l, "aufgabe_fuer_justin", { art: "streitfall", text: streitAufgabeText(text, s.art) }, `bruecke_streit_${l.callId}_${Date.now()}`);
+    let aus = false;
+    if (l.personId && !l.trocken) {
+      try {
+        const { arasFuerPersonSchalten } = await import("./fiaon-aras-akte");
+        await arasFuerPersonSchalten(l.personId, true, `Streitfall am Telefon: ${STREIT_TEXT[s.art]}`, null, "ARAS (Streitfall)");
+        aus = true;
+      } catch (e) { console.error("[ARAS] Streitfall — ARAS aus:", String((e as Error)?.message ?? e).slice(0, 200)); }
+    }
+    await arasEreignis({ art: "aras_werkzeug", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, ok: erg.ok,
+      text: `Streitfall (${STREIT_TEXT[s.art]}): Aufgabe für Justin ${erg.ok ? "angelegt" : "fehlgeschlagen"}${aus ? ", ARAS für diese Person aus" : ""}`,
+      daten: { werkzeug: "aufgabe_fuer_justin", art: "streitfall", streit: s.art, von: "bruecke", ok: erg.ok, arasAus: aus } }).catch(() => null);
+  })().catch((e) => console.error("[ARAS] Streitfall:", String((e as Error)?.message ?? e).slice(0, 200)));
+}
+
 function zeileFertig(l: Lauf, z: TranskriptZeile): void {
   if (z.final) return;
   z.final = true;
@@ -775,7 +875,10 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
   if (z.wer === "aras") z.text = fiaonSchreibweise(z.text);
   if (!z.text) return;
   transkriptMelden({ callId: l.callId, wer: z.wer, text: z.text, final: true, t: z.t });
+  // Ansage statt Mensch (Mailbox, Anrufbeantworter, Anruf-Assistent) — in den ersten Kundenzeilen: auflegen, nie „erreicht“.
+  if (z.wer === "kunde" && ansagePruefen(l, z)) return;
   wortHalten(l, z);
+  if (z.wer === "kunde") identitaetNachsehen(l);
   if (z.wer === "aras") {
     if (!l.kiHinweisAm && !l.kiHinweisWartet && /\bKI\b|digitale[nr]?\s+Assistent|künstliche\s+Intelligenz|\bAI\b|digital assistant/i.test(z.text)) {
       // Vorab gesprochen und noch gehalten: er zählt, wenn der Kunde ihn hört (eroeffnungFrei) — nie früher.
@@ -795,6 +898,12 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
     const zusammen = !!vorige && z.am - vorige.am < 3000 && !/[.!?…]["“”»]?\s*$/.test(vorige.text) && /^[a-zäöüß]/.test(z.text.trim()) && istAufnahmeFrage(`${vorige.text} ${z.text}`);
     const aufnahmeFrage = (istAufnahmeFrage(z.text) || zusammen) && !l.aufnahmeJa;
     if (aufnahmeFrage) l.aufnahmeFrageTextAm = z.am;
+    // Identität vor dem Anliegen (Auswertung 21./22.10.): nennt ARAS zu früh Rate, Betrag oder Antrag → still die Korrektur. Die Frage
+    // nach der Person gilt wie die Aufnahme-Frage erst, wenn er sie hört (auch über zwei Zeilen: „Spreche ich mit Herrn …“ · „selbst?“).
+    identitaetWache(l, z);
+    const identFrage = l.ident.pflicht && !l.ident.bestaetigtAm
+      && (arasFragtIdentitaet(z.text) || (!!vorige && z.am - vorige.am < 3000 && !/[.!?…]["“”»]?\s*$/.test(vorige.text) && arasFragtIdentitaet(`${vorige.text} ${z.text}`)));
+    if (identFrage && l.eroeffnetAm) l.ident.frageTextAm = z.am;
     // Eine Frage von Aras: bis er antwortet, gilt das Geduld-Tor (kein „Also...“ in seine Antwort-Pause).
     const frage = /\?["“”»]?\s*$/.test(z.text);
     // Der Abschied („… einen schönen Tag“, „auf Wiederhören“): danach legt Aras nach kurzer Ruhe selbst auf.
@@ -802,26 +911,97 @@ function zeileFertig(l: Lauf, z: TranskriptZeile): void {
     const abschied = (ABSCHIED_RE.test(z.text) || (ABSCHIED_AT_RE.test(z.text) && Date.now() - (l.stromAm ?? l.bereitAm ?? l.seit) > 20_000)) && !frage;
     if (l.halten && z.am >= l.halten.seit - 300) {
       // Noch zurückgehalten: Frage und Abschied zählen erst, wenn der Kunde sie hört (Freigabe) — werden sie verworfen, nie.
-      const m = l.halteFragen ?? { aufnahme: false, frage: false, abschied: false };
-      l.halteFragen = { aufnahme: m.aufnahme || aufnahmeFrage, frage: m.frage || frage, abschied: m.abschied || abschied };
+      const m = l.halteFragen ?? keineFragen();
+      l.halteFragen = { aufnahme: m.aufnahme || aufnahmeFrage, frage: m.frage || frage, abschied: m.abschied || abschied, identitaet: m.identitaet || identFrage };
     } else {
       // Der Text ist oft schneller als der Ton: gilt erst, wenn dieser Redebeitrag zu Ende gespielt ist (beitragEnde).
-      l.offen = { aufnahme: l.offen.aufnahme || aufnahmeFrage, frage: l.offen.frage || frage, abschied: l.offen.abschied || abschied };
+      l.offen = { aufnahme: l.offen.aufnahme || aufnahmeFrage, frage: l.offen.frage || frage, abschied: l.offen.abschied || abschied, identitaet: l.offen.identitaet || identFrage };
     }
     wiederholungPruefen(l, z, false);
   } else if (l.abschiedAm && !/tsch(ü|ue)ss|wiederh(ö|oe)ren|ciao|bye|danke|ebenso|gleichfalls|ihnen auch|schönen tag|servus|ade/i.test(z.text) && z.text.trim().length > 3) {
     // Der Kunde redet nach dem Abschied weiter (eine Frage) — dann ist es noch kein Abschied.
     l.abschiedAm = null;
-  } else if (l.bereitAm && Date.now() - (l.stromAm ?? l.bereitAm) < 30_000 && istMailboxAnsage(z.text) && !l.zeilen.some((x) => x.wer === "kunde" && x !== z && x.text.trim().length > 25 && !istMailboxAnsage(x.text))) {
-    l.ergebnis = "mailbox"; l.endeGrund = "mailbox";
-    void arasEreignis({ art: "aras_mailbox", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: "Mailbox-Ansage erkannt — aufgelegt, keine Nachricht" });
-    void sitzungEnde(l, "mailbox");
   } else if (l.aufnahmeFrageAm && !l.aufnahmeJa && Date.now() - l.aufnahmeFrageAm < 25_000 && (z.beginn ?? z.am) >= l.aufnahmeFrageAm - 1000) {
     // Die Antwort auf die Aufnahme-Frage — eindeutig Ja startet, eindeutig Nein vermerkt; Unklares bleibt ohne Band
     // (Aras beantwortet seine Frage und fragt noch einmal — Anruf 11: „unsicher“ ist kein Nein).
     if (istAufnahmeJa(z.text)) void werkzeugAusfuehren(l.ctx!, "aufnahme_starten", {}, `bruecke_ja_${l.callId}_${Date.now()}`);
     else if (!l.aufnahmeNein && istAufnahmeNein(z.text)) void werkzeugAusfuehren(l.ctx!, "aufnahme_abgelehnt", {}, `bruecke_nein_${l.callId}`);
   }
+}
+
+// ── Identität vor dem Anliegen, Ansage statt Mensch (Auswertung der echten Gespräche 21./22.10.) ──────────────────────────
+/**
+ * ARAS nennt das Anliegen (Rate, Betrag, Antrag …), bevor er bestätigt hat, dass er selbst dran ist: still die Korrektur an die
+ * Stimme (je Zeile einmal, höchstens dreimal im Gespräch) — Muster wie die anderen Korrekturen. Auch im laufenden Satz.
+ */
+function identitaetWache(l: Lauf, z: TranskriptZeile): void {
+  if (!l.ident.pflicht || l.ident.bestaetigtAm || z.wer !== "aras" || z.verworfen || z.identKorrigiert || l.beendet || l.streit || l.ansage) return;
+  const wort = arasNenntAnliegen(z.text);
+  if (!wort) return;
+  // Seine Antwort auf die gehörte Frage läuft noch (die Abschrift kommt in Stücken, Aras antwortet oft schon davor): erst seine
+  // Zeile lesen — sonst käme die Korrektur gleich nach seinem „Ja, am Apparat“. identitaetNachsehen entscheidet danach.
+  if (antwortLaeuft(l)) { l.ident.wartend = z; return; }
+  z.identKorrigiert = true;
+  if (l.ident.korrekturen >= 3) return;
+  l.ident.korrekturen += 1;
+  l.sitzung?.textEinschieben(korrekturIdentitaet(identitaetsFrage(l.briefing)), "anweisung");
+  console.log(`[ARAS] call ${l.callId}: Identität noch offen — ARAS nannte „${wort}“ zu früh, stille Korrektur.`);
+  void arasEreignis({ art: "aras_werkzeug", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, ok: false,
+    text: `Identität noch offen — ARAS nannte „${wort}“ zu früh: stille Korrektur`, daten: { regel: "anliegen_vor_identitaet", wort, von: "bruecke" } });
+}
+/** Läuft seine Antwort auf die gehörte Frage nach der Person noch? (eine offene Kundenzeile, die nach der Frage begann) */
+function antwortLaeuft(l: Lauf): boolean {
+  const ab = l.ident.frageAm;
+  return !!ab && l.zeilen.some((x) => x.wer === "kunde" && !x.final && !!x.text.trim() && (x.beginn ?? x.am) >= ab - 1000);
+}
+/**
+ * Seine Antwort auf die Frage nach der Person: nur Zeilen, die NACH der gehörten Frage begannen (sein „Ja?“ beim Abheben zählt
+ * nie — die vorab gesprochene Eröffnung hört er erst danach). „Ja“ oder sein Name bestätigt; „Nein, hier ist seine Frau“
+ * nicht (kurz nach einem Ja nimmt es das Ja zurück). Die Abschrift zerreißt Namen („Hier ist“ · „- Holler“): die Zeile davor zählt mit.
+ */
+function identitaetNachsehen(l: Lauf): void {
+  const id = l.ident;
+  if (!id.pflicht || !id.frageAm) return;
+  const p = { anrede: l.briefing.anrede, nachname: l.briefing.nachname, vorname: l.briefing.vorname ?? null };
+  const kunden = l.zeilen.filter((x) => x.wer === "kunde" && x.final && x.text.trim() && (x.beginn ?? x.am) >= id.frageAm! - 1000);
+  kunden.forEach((x, i) => {
+    if (x.identGelesen) return;
+    x.identGelesen = true;
+    let a = identitaetAntwort(x.text, p);
+    if (!a && i > 0) { const z = identitaetAntwort(`${kunden[i - 1].text} ${x.text}`, p); if (z === "name") a = z; }
+    if (a === "nein") {
+      id.verneintAm = Date.now();
+      if (id.bestaetigtAm && Date.now() - id.bestaetigtAm < 20_000) { id.bestaetigtAm = null; id.wie = null; }
+    } else if ((a === "ja" || a === "name") && !id.bestaetigtAm) {
+      id.bestaetigtAm = Date.now(); id.wie = a;
+      if (process.env.ARAS_DEBUG) console.log(`[ARAS] call ${l.callId}: Identität bestätigt (${a}).`);
+    }
+  });
+  // Wartete eine Aras-Zeile mit dem Anliegen auf seine Antwort: jetzt entscheiden (bestätigt → nichts, sonst still die Korrektur).
+  const w = id.wartend;
+  if (w && !antwortLaeuft(l)) { id.wartend = null; identitaetWache(l, w); }
+}
+/** Ist ein Mensch belegt? (Identität bestätigt, Antwort auf die Aufnahme-Frage, ein Werkzeug auf seine Worte, Streitfall) */
+function menschBelegt(l: Lauf): boolean {
+  return !!l.ident.bestaetigtAm || l.aufnahmeJa || l.aufnahmeNein || !!l.streit
+    || (l.ctx?.ausgefuehrt ?? []).some((x) => x.ok && ["zahlungszusage_merken", "zahlung_gemeldet", "rueckruf_buchen", "nicht_mehr_anrufen", "ratenpause_setzen", "aufnahme_starten", "aufnahme_abgelehnt", "mensch_verbinden"].includes(x.werkzeug));
+}
+/**
+ * Ansage statt Mensch (Auswertung 21./22.10.: 38–95 s gegen „hinterlassen Sie eine Nachricht nach dem Ton“, Anruf-Assistenten,
+ * eine vorgelesene Rufnummer — gezählt als „erreicht“): in den ersten Kundenzeilen (auch zusammen, die Abschrift zerreißt die
+ * Ansage) → sofort auflegen, Ergebnis mailbox, keine Nachricht. Nie, wenn ein Mensch belegt ist.
+ */
+function ansagePruefen(l: Lauf, z: TranskriptZeile): boolean {
+  if (l.ansage || l.beendet || !l.bereitAm || menschBelegt(l)) return false;
+  const ab = l.stromAm ?? l.bereitAm;
+  if (Date.now() - ab > ANSAGE_FENSTER_MS) return false;
+  const frueh = l.zeilen.filter((x) => x.wer === "kunde" && x.text.trim() && x.am - ab < ANSAGE_FENSTER_MS).slice(-3).map((x) => x.text).join(" ");
+  const wort = ansageWort(z.text) ?? ansageWort(frueh);
+  if (!wort) return false;
+  l.ansage = wort; l.ergebnis = "mailbox"; l.endeGrund = "mailbox";
+  void arasEreignis({ art: "aras_mailbox", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `Ansage erkannt („${wort}“) — aufgelegt, keine Nachricht`, daten: { ansage: wort } });
+  void sitzungEnde(l, "mailbox");
+  return true;
 }
 
 /** Die Eröffnung nachschieben, wenn sie fällig ist (wachen + eigener 50-ms-Takt in der Eröffnung). */
@@ -879,7 +1059,7 @@ function wachen(l: Lauf): void {
   // Stille: niemand hat abgenommen (oder eine Mailbox ohne Erkennung) — oder beide schweigen lange.
   // Stille Leitung — ab dem Abheben gezählt (beim Klingeln vorbereitet gibt es noch niemanden, der schweigen könnte).
   if (!l.kundeHatGesprochen && !l.kundeLaut && l.stromAm && jetzt - l.stromAm > STILLE_OHNE_KUNDE_MS && !l.spricht) { l.ergebnis = l.ergebnis ?? "nicht_erreicht"; void sitzungEnde(l, "stille"); return; }
-  if (jetzt - l.zuletztRede > STILLE_ENDE_MS && !l.spricht) { void sitzungEnde(l, "stille"); return; }
+  if (jetzt - l.zuletztRede > stilleEndeMs() && !l.spricht) { void sitzungEnde(l, "stille"); return; }
 }
 
 // ── Ton an Twilio: das Ton-Werk (fiaon-aras-ton.ts) — 10-ms-Takt, solange der Strom steht ─────────────────
@@ -894,7 +1074,7 @@ function menschAbstand(l: Lauf): number {
   return l.beitraege + von + streu;
 }
 /** Heikel — dann keinen menschlichen Moment: bei ihm (Sorgen, Ärger, Kündigung) oder in Aras' letzter Zeile (Geld, Datum, Aufzeichnung). */
-const MENSCH_HEIKEL_KUNDE = /kündig|kuendig|widerruf|beschwerd|anwalt|krank|arbeitslos|gestorben|\btod\b|schulden|pleite|ärger|aerger|sorge/i;
+const MENSCH_HEIKEL_KUNDE = /kündig|kuendig|widerruf|beschwerd|anwalt|krank|arbeitslos|gestorben|\btod\b|schulden|pleite|ärger|aerger|sorge|betrug|betrüg|anzeige|polizei|verbraucher|abzock/i;
 const MENSCH_HEIKEL_ARAS = /euro|überweis|ueberweis|zahl|rate\b|raten\b|betrag|\buhr\b|datum|aufzeichn|aufnehm|mitschneid|kündig|kuendig|widerruf/i;
 /**
  * Der Kunde beginnt zu reden: Ist es Zeit (aras_menschlich), bekommt die Stimme still einen Wink für EINEN menschlichen Moment
@@ -903,6 +1083,7 @@ const MENSCH_HEIKEL_ARAS = /euro|überweis|ueberweis|zahl|rate\b|raten\b|betrag|
  * beim Abschied, nicht während seine Antwort auf die Aufnahme-Frage aussteht, nicht bei heiklen Themen (dann beim nächsten Mal).
  */
 function menschWink(l: Lauf): void {
+  if (l.streit) return;
   if (!l.eroeffnetAm || !l.kiHinweisAm || l.abschiedAm || l.notaus || l.uebergabeLaeuft || l.beitraege < 2 || l.beitraege < l.menschNaechster) return;
   if (l.aufnahmeFrageAm && !l.aufnahmeJa && !l.aufnahmeNein && Date.now() - l.aufnahmeFrageAm < 25_000) return;
   // Die Aufnahme-Frage kommt früh und steht noch aus (Rauchtest 20.10. abends, beide Stimmen: „(lacht) Darf ich unser Gespräch
@@ -1012,7 +1193,7 @@ function geduldNoetig(l: Lauf, jetzt: number): boolean {
   const stimme = kundeStimmeAm(l, jetzt);
   if (stimme && jetzt - stimme < g) return true;
   // Aras hat gefragt, der Kunde hat noch nicht geantwortet: ihm Zeit für die Antwort lassen. Die Frage der vorab gesprochenen
-  // Eröffnung („Haben Sie einen kurzen Moment?“) hört er Sekunden später, als GPT-Live sie sprach — GPT-Live redete dann schon
+  // Eröffnung (seit 22.10. „Spreche ich mit Herrn … selbst?“) hört er Sekunden später, als GPT-Live sie sprach — GPT-Live redete dann schon
   // weiter (Rauchtest 20.10. abends). Darum hier 3 s: Antwortet er, fällt dieser Ansatz weg; schweigt er, kommt er danach.
   const eroeffnungsFrage = l.eroeffnungVorab && !!l.eroeffnetAm && l.frageAm - l.eroeffnetAm < 15_000;
   return !!l.frageAm && stimme < l.frageAm && jetzt - l.frageAm < (eroeffnungsFrage ? HALTEN_HOECHSTENS_MS : 2 * g + 600);
@@ -1064,7 +1245,10 @@ function haltenFreigeben(l: Lauf): void {
   if (l.halteFragen?.aufnahme && !l.aufnahmeJa) l.aufnahmeFrageAm = gehoertAm(l);
   if (l.halteFragen?.frage) l.frageAm = gehoertAm(l);
   if (l.halteFragen?.abschied) l.abschiedAm = gehoertAm(l);
+  // Die Frage nach der Person (oft in der vorab gesprochenen Eröffnung): gilt ab jetzt — wenn er sie gehört hat.
+  if (l.halteFragen?.identitaet && !l.ident.bestaetigtAm) l.ident.frageAm = gehoertAm(l);
   l.halteFragen = null;
+  identitaetNachsehen(l);
   tonTakt(l);
 }
 /** Wann der Kunde das bisher Gesagte gehört hat (Ton-Werk: Vorrat bei Twilio + was hier noch wartet). */
@@ -1075,16 +1259,21 @@ function gehoertAm(l: Lauf): number { return l.ton.redeGehoertBis(); }
  */
 function beitragEnde(l: Lauf): void {
   const o = l.offen;
-  if (!o.aufnahme && !o.frage && !o.abschied) return;
-  l.offen = { aufnahme: false, frage: false, abschied: false };
+  if (!o.aufnahme && !o.frage && !o.abschied && !o.identitaet) return;
   if (l.halten) {
-    const m = l.halteFragen ?? { aufnahme: false, frage: false, abschied: false };
-    l.halteFragen = { aufnahme: m.aufnahme || o.aufnahme, frage: m.frage || o.frage, abschied: m.abschied || o.abschied };
+    l.offen = keineFragen();
+    const m = l.halteFragen ?? keineFragen();
+    l.halteFragen = { aufnahme: m.aufnahme || o.aufnahme, frage: m.frage || o.frage, abschied: m.abschied || o.abschied, identitaet: m.identitaet || o.identitaet };
     return;
   }
+  // Vorab gesprochen, aber noch nicht zu hören (sein Ton kam noch nicht, die Eröffnung ist nicht frei): die Frage nach der Person
+  // wartet — sonst zählte sein „Ja?“ beim Abheben als Antwort (Eröffnung beim Klingeln vorbereitet, aras_vorbereiten).
+  const identWartet = o.identitaet && l.eroeffnungVorab && !l.eroeffnetAm;
+  l.offen = { ...keineFragen(), identitaet: identWartet };
   if (o.aufnahme && !l.aufnahmeJa) l.aufnahmeFrageAm = gehoertAm(l);
   if (o.frage) l.frageAm = gehoertAm(l);
   if (o.abschied) l.abschiedAm = gehoertAm(l);
+  if (o.identitaet && !identWartet && !l.ident.bestaetigtAm) { l.ident.frageAm = gehoertAm(l); identitaetNachsehen(l); }
 }
 /** Der Kunde redete weiter und GPT-Live hörte auf: der Ansatz wird nie abgespielt; die Zeile heißt „verworfen“. */
 function haltenVerwerfen(l: Lauf): void {
@@ -1092,7 +1281,7 @@ function haltenVerwerfen(l: Lauf): void {
   const seit = l.halten.seit;
   clearInterval(l.halten.takt); l.halten = null; l.halte = []; l.halteFragen = null; l.verworfen += 1;
   // Was im verworfenen Beitrag gefragt wurde, hat der Kunde nie gehört — es zählt nie (auch kein Aufnahme-Ja darauf).
-  l.offen = { aufnahme: false, frage: false, abschied: false };
+  l.offen = keineFragen();
   for (const z of l.zeilen) if (z.wer === "aras" && z.am >= seit - 300 && z.text.trim()) { z.verworfen = true; if (!z.final) zeileFertig(l, z); }
   if (process.env.ARAS_DEBUG) console.log(`[ARAS] Geduld-Tor: Ansatz verworfen (call ${l.callId})`);
 }
@@ -1152,8 +1341,10 @@ function unterbrechenPruefen(l: Lauf, ausloeser: string): void {
 function unterbrechen(l: Lauf, ausloeser: string): void {
   // Was das Geduld-Tor noch zurückhielt, hat der Kunde nie gehört — es fällt weg (der „Also...“-Ansatz).
   if (l.halten) haltenVerwerfen(l);
-  // Ein unterbrochener Beitrag: eine darin nur halb gehörte Frage (Aufzeichnung!) zählt nicht.
-  l.offen = { aufnahme: false, frage: false, abschied: false };
+  // Ein unterbrochener Beitrag: eine darin nur halb gehörte Frage (Aufzeichnung!) zählt nicht. Die Frage nach der Person schon:
+  // fällt er ihr mit „Ja, am Apparat!“ ins Wort, hat er sie gehört (ihr Anfang trägt den Namen) — sein Ja zählt ab ihrem Text.
+  if (l.offen.identitaet && l.ident.frageTextAm && !l.ident.bestaetigtAm) l.ident.frageAm = l.ident.frageTextAm;
+  l.offen = keineFragen();
   l.lautFrames = 0; l.clears += 1;
   if (ausloeser === "pegel") l.clearsPegel += 1; else l.clearsTranskript += 1;
   l.clearSprache = l.zuletztSprache; l.pruefNochmal = false;
@@ -1204,9 +1395,12 @@ export function istAufnahmeFrage(text: string): boolean {
   return saetze.some((x) => /\?["“”»]?\s*$/.test(x.trim()) && /aufzeichn|aufnehmen|aufnehma(?![a-zäöüß])|mitschneid|mitschnitt|recorded|record(?![a-z])/i.test(x));
 }
 
-/** Klingt das wie eine Mailbox-Ansage? (deutsch/englisch, die üblichen Sätze der Netze) — rein. */
+/**
+ * Klingt das wie eine Mailbox-Ansage? Eine Quelle: istAnsage (shared/fiaon-aras-wort.ts — Mailbox, Mobilbox, Combox, Anruf-
+ * beantworter, „nach dem Ton“, „nicht erreichbar“, Anruf-Assistenten, vorgelesene Rufnummer; deutsch/englisch). Rein.
+ */
 export function istMailboxAnsage(text: string): boolean {
-  return /\b(mailbox|sprachbox|sprachnachricht|anrufbeantworter|nach dem (signal|piep)ton|signalton|hinterlassen sie (bitte )?(eine|ihre) nachricht|der gewünschte gesprächspartner|ist (zur zeit|derzeit|momentan) nicht erreichbar|voicemail|leave (a|your) message|after the (tone|beep)|is not available)\b/i.test(String(text ?? ""));
+  return istAnsage(text);
 }
 
 /** AMD meldet „Maschine“: auflegen, außer der Kunde redet nachweislich MIT Aras (Fehlerkennung) — eine Ansage zählt nicht als Gespräch. */
@@ -1216,11 +1410,11 @@ export async function mailboxErkannt(callId: number): Promise<"aufgelegt" | "wei
   const kunde = l.zeilen.filter((z) => z.wer === "kunde").map((z) => z.text).join(" ");
   // Ein Mensch ist es, wenn er NACH Aras' erstem Satz geantwortet hat (Gespräch) — und keine Ansage-Wörter fallen.
   const dialog = !!l.arasErsteRedeAm && l.zeilen.some((z) => z.wer === "kunde" && z.text.trim() && z.am > (l.arasErsteRedeAm ?? 0) + 800);
-  if (l.kundeHatGesprochen && !istMailboxAnsage(kunde) && dialog) {
+  if ((l.kundeHatGesprochen && !istMailboxAnsage(kunde) && dialog) || menschBelegt(l)) {
     await arasEreignis({ art: "aras_amd_widerspruch", callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: "Mailbox-Erkennung trotz Kundenstimme — Gespräch läuft weiter" });
     return "weiter";
   }
-  l.ergebnis = "mailbox"; l.endeGrund = "mailbox";
+  l.ergebnis = "mailbox"; l.endeGrund = "mailbox"; l.ansage = l.ansage ?? "Anrufbeantworter (Twilio)";
   await sitzungEnde(l, "mailbox");
   return "aufgelegt";
 }
@@ -1295,9 +1489,21 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
   if (l.halten) { clearInterval(l.halten.takt); l.halten = null; }
   if (l.pruefUnterbrechen) clearTimeout(l.pruefUnterbrechen);
   for (const z of l.zeilen) if (!z.final) zeileFertig(l, z);
+  // Ansage statt Mensch, die live nicht erkannt wurde (Auswertung 21./22.10.: Ende „stille“ nach 38–95 s, gezählt als „erreicht“):
+  // stehen in den ersten Kundenzeilen Ansage-Sätze und ist kein Mensch belegt, ist das Ergebnis mailbox — nie „erreicht“.
+  if (!l.ansage && grund !== "uebergabe" && !menschBelegt(l) && (!l.ergebnis || l.ergebnis === "erreicht_sonstiges" || l.ergebnis === "nicht_erreicht")) {
+    const ab = l.stromAm ?? l.bereitAm ?? l.seit;
+    const frueh = l.zeilen.filter((x) => x.wer === "kunde" && x.text.trim() && x.am - ab < ANSAGE_FENSTER_MS).map((x) => x.text).join(" ");
+    const wort = frueh ? ansageWort(frueh) : null;
+    if (wort) {
+      l.ansage = wort; l.ergebnis = "mailbox";
+      void arasEreignis({ art: "aras_mailbox", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `Ansage im Gespräch („${wort}“) — Ergebnis mailbox`, daten: { ansage: wort, nachher: true } });
+    }
+  }
   // ARAS hält ihr Wort: was noch offen ist (Link, Aufgabe, Zahltag), JETZT erledigen — erst nach dem Aufräumen der Takte,
-  // damit das Ende selbst gleich bleibt (Abschnitt 19: EIN Ende, danach nichts mehr).
+  // damit das Ende selbst gleich bleibt (Abschnitt 19: EIN Ende, danach nichts mehr). Ein Streitfall wird ganz abgeschlossen.
   await wortAbschliessen(l);
+  if (l.streitLauf) await l.streitLauf;
   let sekunden = l.sekunden, kostenCents = l.kostenCents;
   try { if (l.sitzung) { const k = await l.sitzung.beenden(grund); sekunden = Math.max(sekunden, k.sekunden); kostenCents = Math.max(kostenCents, k.kostenCents); } } catch { /* Ende ist Ende */ }
   const wanduhr = Math.round((Date.now() - l.seit) / 1000);
@@ -1338,18 +1544,21 @@ async function sitzungEnde(l: Lauf, grund: string): Promise<void> {
            updated_at = NOW()
      WHERE id = ${l.arasAnrufId}`.catch((e) => console.error("[ARAS] Ende:", String(e).slice(0, 200)));
   await sqlPool`UPDATE fiaon_calls SET ende = COALESCE(ende, NOW()), dauer_sek = COALESCE(dauer_sek, ${wanduhr}),
-                 status = CASE WHEN ${grund} IN ('mailbox', 'stille') AND NOT ${l.kundeHatGesprochen} THEN 'niemand_erreicht' WHEN status IN ('gewaehlt', 'laeuft') THEN 'beendet' ELSE status END, updated_at = NOW()
+                 status = CASE WHEN ${!!l.ansage} OR (${grund} IN ('mailbox', 'stille') AND NOT ${l.kundeHatGesprochen}) THEN 'niemand_erreicht' WHEN status IN ('gewaehlt', 'laeuft') THEN 'beendet' ELSE status END, updated_at = NOW()
                WHERE id = ${l.callId}`.catch(() => null);
   await arasEreignis({ art: "aras_ende", callId: l.callId, arasAnrufId: l.arasAnrufId, personId: l.personId, spielart: l.spielart, text: `Ende: ${grund} nach ${wanduhr} s`, daten: {
     grund, sekunden, kostenCents, aufnahme: l.aufnahmeJa, clears: l.clears, gehalten: l.gehalten, verworfen: l.verworfen, wiederholungen: l.wiederholHinweise, abschiedEingefordert: !!l.abschiedEingefordert, abschied: !!l.abschiedAm,
     menschHinweise: l.menschHinweise, menschArten: l.menschArten, beitraege: l.beitraege,
+    identitaet: { pflicht: l.ident.pflicht, bestaetigt: !!l.ident.bestaetigtAm, wie: l.ident.wie, verneint: !!l.ident.verneintAm, korrekturen: l.ident.korrekturen }, streit: l.streit?.art ?? null, ansage: l.ansage,
     ton: { pegelDbfs: (ton.rede as any)?.rmsDbfs ?? null, luecken: (ton.luecken as any)?.anzahl ?? 0, vorratMedianMs: (ton.vorrat as any)?.medianMs ?? null, antwortMedianMs: (ton.antwortMs as any).median, gefuehltMedianMs: (ton.gefuehltMs as any).median, quittungen: l.quittungen, quelle: ton.quelle },
   } });
   try {
     const { nachbereiten } = await import("./fiaon-aras-nachbereitung");
     await nachbereiten(l.arasAnrufId, {
       zeilen: l.zeilen.filter((z) => !z.verworfen), ausgefuehrt: l.ctx?.ausgefuehrt ?? [], endeGrund: grund, sekunden: wanduhr, aufnahmeJa: l.aufnahmeJa,
-      ergebnis: l.ergebnis, ergebnisNotiz: l.ergebnisNotiz, ergebnisGesetzt: l.ctx?.ergebnisGesetzt === true, kundeHatGesprochen: l.kundeHatGesprochen,
+      // Eine Ansage ist kein Mensch: dann hat „der Kunde“ nie gesprochen (Prüfung entfällt, Ergebnis mailbox).
+      ergebnis: l.ergebnis, ergebnisNotiz: l.ergebnisNotiz, ergebnisGesetzt: l.ctx?.ergebnisGesetzt === true, kundeHatGesprochen: l.kundeHatGesprochen && !l.ansage,
+      streit: l.streit ? STREIT_TEXT[l.streit.art] : null,
       probe: l.probe, kiHinweisSek: l.kiHinweisAm && (l.stromAm ?? l.bereitAm) ? (l.kiHinweisAm - (l.stromAm ?? l.bereitAm)!) / 1000 : null,
     });
   } catch (e) { console.error("[ARAS] Nachbereitung:", String((e as Error)?.message ?? e).slice(0, 300)); }

@@ -4,7 +4,8 @@
 // Justin (20.10.2026): „… und natürlich auch dass wir eine Übersicht haben zu den Gesprächen, zu den Ergebnissen, das muss
 // alles clean dargestellt werden.“ Je Gesprächsart (Willkommen, Rate offen, Termin …) für EINEN Tag (Berlin):
 //   Anrufe · erreicht · Zusagen · Zahlungen binnen 48 h (in €) · Aufgaben für Justin · Kündigungsfälle · Beschwerden/„nicht
-//   mehr anrufen“ — und zu JEDER Zahl die Anrufe (fiaon_aras_anruf.id), damit die Oberfläche die Gespräche dazu öffnet.
+//   mehr anrufen“/Streitfall (Betrug, Anzeige, Anwalt — Auswertung 21./22.10.) — und zu JEDER Zahl die Anrufe
+//   (fiaon_aras_anruf.id), damit die Oberfläche die Gespräche dazu öffnet.
 // Rein lesend. Probeanrufe zählen nur auf Wunsch (dann unter der gespielten Gesprächsart).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
@@ -42,7 +43,8 @@ export async function ergebnisseTag(tag: string, opt: { mitProbe?: boolean } = {
            EXISTS (SELECT 1 FROM fiaon_aras_werkzeug w WHERE w.aras_anruf_id = a.id AND w.werkzeug = 'zahlungszusage_merken' AND w.ok) AS zusage_wz,
            EXISTS (SELECT 1 FROM fiaon_aras_werkzeug w WHERE w.aras_anruf_id = a.id AND w.werkzeug = 'aufgabe_fuer_justin' AND w.ok) AS aufgabe,
            EXISTS (SELECT 1 FROM fiaon_aras_werkzeug w WHERE w.aras_anruf_id = a.id AND (w.werkzeug = 'nicht_mehr_anrufen' AND w.ok
-                     OR w.werkzeug = 'mensch_verbinden' AND COALESCE(w.eingabe->>'grund', '') ~* 'beschwer')) AS beschwerde,
+                     OR w.werkzeug = 'mensch_verbinden' AND COALESCE(w.eingabe->>'grund', '') ~* 'beschwer'
+                     OR w.werkzeug = 'aufgabe_fuer_justin' AND w.ok AND COALESCE(w.eingabe->>'art', '') = 'streitfall')) AS beschwerde,
            (jsonb_typeof(a.briefing->'kuendigung') = 'object'
              OR EXISTS (SELECT 1 FROM fiaon_aras_werkzeug w WHERE w.aras_anruf_id = a.id AND w.werkzeug = 'mensch_verbinden'
                           AND COALESCE(w.eingabe->>'grund', '') ~* '(kuendig|kündig|widerruf)')) AS kuendigung,

@@ -735,12 +735,12 @@ async function main(): Promise<void> {
       const g = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
       await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 6000);
       const gruss = g.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
-      // Go-live (Justin 20.10. abends): „Ich grüße Sie, Herr …, ARAS spricht hier, die digitale Mitarbeiterin von FIAON [KI-Hinweis + Lachen] –
-      // ich ruf wegen Ihrem Kreditkartenantrag an, haben Sie einen Moment?“ — der Grund steht NACH dem Lachen, direkt vor der Frage.
+      // Go-live (Justin 20.10. abends): „Ich grüße Sie, Herr …, ARAS spricht hier, die digitale Mitarbeiterin von FIAON [KI-Hinweis + Lachen] …“ —
+      // Auswertung 21./22.10.: danach die Frage nach der PERSON; der Grund (Kreditkarte) erst nach seinem Ja.
       const gt = gruss?.text ?? "";
-      const iKi = gt.indexOf("KI"), iLachen = gt.indexOf(LACHEN_NACH_KI), iGrund = gt.search(/Kreditkarten/), iFrage = gt.search(/haben Sie einen kurzen Moment\?/i);
-      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): Name → „die digitale Mitarbeiterin“ → KI-Hinweis → kurzes Lachen → Kreditkarte → „haben Sie einen kurzen Moment?“",
-        !!gruss && gruss.art === "vorlesen" && /, Herr Prüfkunde\d+!/.test(gt) && /die digitale Mitarbeiterin von FIAON/.test(gt) && iKi > 0 && iLachen > iKi && iGrund > iLachen && iFrage > iGrund, gt.slice(0, 420) || "—");
+      const iKi = gt.indexOf("KI"), iLachen = gt.indexOf(LACHEN_NACH_KI), iFrage = gt.search(/Spreche ich mit Herrn Prüfkunde\d+ selbst\?/);
+      ok("Begrüßung nachgeschoben (als „vorlesen“ — bringt eine stumme Sitzung sicher zum Sprechen): Name → „die digitale Mitarbeiterin“ → KI-Hinweis → kurzes Lachen → „Spreche ich mit Herrn … selbst?“ (kein Anliegen davor)",
+        !!gruss && gruss.art === "vorlesen" && /, Herr Prüfkunde\d+!/.test(gt) && /die digitale Mitarbeiterin von FIAON/.test(gt) && iKi > 0 && iLachen > iKi && iFrage > iLachen && !/Kreditkarten/.test(gt), gt.slice(0, 420) || "—");
       await fertig(g);
       await einstellungSetzen("aras_lachen", "aus", "pruefstand");
       const g2 = await neuerAnruf({ schritte: [{ warteMs: 6000 }] });
@@ -1319,7 +1319,7 @@ async function main(): Promise<void> {
       const t0 = Date.now();
       const g = await anruf19({ schritte: [{ aras: KI_HINWEIS_VORGABE, ms: 1500, ton: { dbfs: -24 } }, { warteMs: 5000 }] });
       const vorab = g.att.spur.eingeschoben.find((x) => x.art === "vorlesen" && /hat sich gerade gemeldet/.test(x.text));
-      ok("Vorab: die Eröffnung gleich beim Start als „vorlesen“ (Kreditkarte, KI-Hinweis) — keine developer-Nachricht, Eingang stumm", !!vorab && /Kreditkarten/.test(vorab.text) && /\bKI\b/.test(vorab.text) && (vorab.am ?? 0) - t0 < 900 && g.att.spur.begruessung === null && g.att.spur.stumm === true, `${vorab ? (vorab.am ?? 0) - t0 : "—"} ms nach Start · ${vorab?.text.slice(0, 60) ?? "—"}`);
+      ok("Vorab: die Eröffnung gleich beim Start als „vorlesen“ (KI-Hinweis, Frage nach der Person) — keine developer-Nachricht, Eingang stumm", !!vorab && /Spreche ich mit Herrn Prüfkunde\d+ selbst\?/.test(vorab.text) && /\bKI\b/.test(vorab.text) && (vorab.am ?? 0) - t0 < 900 && g.att.spur.begruessung === null && g.att.spur.stumm === true, `${vorab ? (vorab.am ?? 0) - t0 : "—"} ms nach Start · ${vorab?.text.slice(0, 60) ?? "—"}`);
       await schlafen(Math.max(0, 1000 - (Date.now() - t0)));
       g.tw.laut(600);
       const halloEnde = g.tw.lautEnde();
@@ -1377,7 +1377,7 @@ async function main(): Promise<void> {
       await warten(() => g.att.spur.eingeschoben.some((x) => /hat sich gerade gemeldet/.test(x.text)), 4000);
       const dauer = Date.now() - t0;
       const gruss = g.att.spur.eingeschoben.find((x) => /hat sich gerade gemeldet/.test(x.text));
-      ok("Er schweigt: nach ~2 s kommt die Eröffnung (als „vorlesen“, mit Kreditkarte und KI-Hinweis)", !!gruss && gruss.art === "vorlesen" && dauer >= 1500 && dauer <= 3200 && /Kreditkarten/.test(gruss.text) && /\bKI\b/.test(gruss.text), `${dauer} ms · ${gruss?.text.slice(0, 80) ?? "—"}`);
+      ok("Er schweigt: nach ~2 s kommt die Eröffnung (als „vorlesen“, mit KI-Hinweis und der Frage nach der Person)", !!gruss && gruss.art === "vorlesen" && dauer >= 1500 && dauer <= 3200 && /Spreche ich mit Herrn Prüfkunde\d+ selbst\?/.test(gruss.text) && /\bKI\b/.test(gruss.text), `${dauer} ms · ${gruss?.text.slice(0, 80) ?? "—"}`);
       await ende19(g);
     }
     // c) Er sagt „Hallo?“, GPT-Live schweigt → die Brücke schiebt die Eröffnung ~0,6 s nach seinem Hallo nach (nicht schon währenddessen;
@@ -2325,6 +2325,223 @@ async function main(): Promise<void> {
       await einstellungSetzen("aras_je_stunde", "40", "pruefstand");
       await einstellungSetzen("aras_stufe", "0", "pruefstand");
     }
+  }
+
+  titel("29. AUSWERTUNG 21./22.10. (Scheibe 3): Identität vor dem Anliegen · Zahltag-Sätze · Streitfall · Ansage statt Mensch · Wort halten bis zum Schluss");
+  {
+    await einstellungSetzen("aras_stufe", "3", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand"); await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand"); await start("pruefstand");
+    await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+    const { HINWEIS_STREITFALL, KORREKTUR_ZUSAGE } = await import("../shared/fiaon-aras-wort");
+    const { ergebnisseTag } = await import("../server/lib/fiaon-aras-ergebnisse");
+    const wz = async (callId: number, name: string) => (await sqlPool`SELECT w.ok, w.aufruf_id, w.eingabe FROM fiaon_aras_werkzeug w JOIN fiaon_aras_anruf a ON a.id = w.aras_anruf_id WHERE a.call_id = ${callId} AND w.werkzeug = ${name} ORDER BY w.id`) as any[];
+    const kunde = async (n: number) => { const pid = await person(n); const ref = await antrag(pid, n, { payment_status: "paid" });
+      const [r] = (await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${ref}, 2, ${`${ref}-2`}, 5999, ${vor(4)}::date, 'offen') RETURNING id`) as any[];
+      const e = await planEinreihen({ personId: pid, ref, nummer: `+4917000000${n}`, spielart: "rate", grund: "Prüfstand Scheibe 3", erzeugtVon: "chef", rateId: Number(r.id), anlassAm: new Date(`${vor(4)}T10:00:00Z`) });
+      if (!e.ok || !e.id) throw new Error(`einreihen: ${e.grund}`); return { pid, ref, planId: Number(e.id), n }; };
+    type K = Awaited<ReturnType<typeof kunde>>;
+    const anrufMit = async (k: K, schritte: Parameters<typeof attrappeMitSkript>[0]["schritte"]) => gespraech(k.planId, { schritte });
+    const fertig = async (g: { tw: InstanceType<typeof TwilioAttrappe>; callId: number }) => { if (!g.tw.istZu()) g.tw.aufhaengen(); await warten(async () => !!(await anruf(g.callId))?.nachbereitet_am, 15_000); return anruf(g.callId); };
+    /** Die neue Eröffnung: KI-Hinweis, dann die Frage nach der Person — und sein Ja, nachdem er sie gehört hat. */
+    const frageNachPerson = (n: number) => `${KI_HINWEIS_VORGABE} Spreche ich mit Herrn Prüfkunde${n} selbst?`;
+    const bestaetigt = (n: number): any[] => [{ aras: frageNachPerson(n), ms: 300 }, { kunde: "Ja, am Apparat.", nachMs: 600 }, { warteMs: 400 }];
+    const korrekturen = (g: { att: { spur: { eingeschoben: { text: string; art: string }[] } } }) => g.att.spur.eingeschoben.filter((x) => /Er hat noch NICHT bestätigt, dass er selbst dran ist/.test(x.text));
+    const rate = "I ruf an wegen Ihrer offenen Rate über neunundfünfzig Euro neunundneunzig.";
+    const heute = yyyy(new Date());
+    const plusTage = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const [hj, hm, ht] = heute.split("-").map(Number);
+    const naechsterErster = ht === 1 ? heute : `${hm === 12 ? hj + 1 : hj}-${String(hm === 12 ? 1 : hm + 1).padStart(2, "0")}-01`;
+    const wtHeute = new Date(`${heute}T12:00:00Z`).getUTCDay() || 7;
+    const dienstagNaechsteWoche = plusTage(heute, 7 - wtHeute + 2);
+
+    // ── 1. IDENTITÄT VOR DEM ANLIEGEN ──
+    {
+      const [k1, k2, k3, k3b, k4] = [await kunde(460), await kunde(461), await kunde(462), await kunde(463), await kunde(464)];
+      // a) Rot-Probe (Auswertung + Abstimmung mit der Prüf-Regel 22.10.): mit Namen begrüßt, „… habens an Moment?“ — nur „Ja.“ —
+      //    „Ihre Rate über …“ → der Gruß ist keine Frage nach der Person: still die Korrektur, genau eine (je Zeile)
+      const g1 = await anrufMit(k1, [{ aras: "Grüß Sie, Herr Prüfkunde460! ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a nette. Habens an Moment?", ms: 300 },
+        { kunde: "Ja.", nachMs: 600 }, { warteMs: 400 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      // b) „Spreche ich mit Herrn … selbst?“ — „Ja, am Apparat.“ — dann die Rate: keine Korrektur
+      const g2 = await anrufMit(k2, [...bestaetigt(461), { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      // c) „Mit wem spreche ich, bitte?“ — er nennt seinen Namen (c2: zerrissen in der Abschrift: „Hier ist“ · „- Prüfkun“)
+      const g3 = await anrufMit(k3, [{ aras: `${KI_HINWEIS_VORGABE} Mit wem spreche ich, bitte?`, ms: 300 }, { kunde: "Prüfkunde462, hallo.", nachMs: 600 }, { warteMs: 400 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      const g3b = await anrufMit(k3b, [{ aras: `${KI_HINWEIS_VORGABE} Mit wem spreche ich, bitte?`, ms: 300 }, { kunde: "Hier ist", nachMs: 600 }, { warteMs: 1300 }, { kunde: "- Prüfkun", nachMs: 100 }, { warteMs: 1300 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      // d) Rot-Probe: die Frau geht ran — „Nein, hier ist seine Frau.“ → die Rate danach: Korrektur
+      const g4 = await anrufMit(k4, [{ aras: frageNachPerson(464), ms: 300 }, { kunde: "Nein, hier ist seine Frau.", nachMs: 600 }, { warteMs: 400 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      await schlafen(4500);
+      const z1 = laufZahlen(g1.callId), z2 = laufZahlen(g2.callId), z3 = laufZahlen(g3.callId), z3b = laufZahlen(g3b.callId), z4 = laufZahlen(g4.callId);
+      const k1t = korrekturen(g1);
+      ok("Identität (Rot-Probe Auswertung): mit Namen begrüßt, nur „Ja.“ auf „habens an Moment?“, dann der Betrag → KEINE Bestätigung: still GENAU EINE Korrektur mit der Frage nach der Person",
+        !z1?.identitaet.bestaetigt && k1t.length === 1 && k1t[0].art === "anweisung" && /„Entschuldigung — spreche ich mit Herrn Prüfkunde460 selbst\?“/.test(k1t[0].text) && z1?.identitaet.korrekturen === 1, JSON.stringify({ id: z1?.identitaet, n: k1t.length }));
+      ok("Identität: „Spreche ich mit Herrn … selbst?“ — „Ja, am Apparat.“ → bestätigt (Ja), die Rate danach ohne Korrektur", !!z2?.identitaet.bestaetigt && z2.identitaet.wie === "ja" && korrekturen(g2).length === 0, JSON.stringify(z2?.identitaet));
+      ok("Identität: „Mit wem spreche ich, bitte?“ — er nennt seinen Nachnamen (auch zerrissen: „Hier ist“ · „- Prüfkun“) → bestätigt (Name), keine Korrektur",
+        z3?.identitaet.wie === "name" && korrekturen(g3).length === 0 && z3b?.identitaet.wie === "name" && korrekturen(g3b).length === 0, JSON.stringify({ c: z3?.identitaet, c2: z3b?.identitaet }));
+      ok("Identität (Rot-Probe): „Nein, hier ist seine Frau.“ → verneint, nicht bestätigt — die Rate danach wird still korrigiert", !!z4?.identitaet.verneint && !z4.identitaet.bestaetigt && korrekturen(g4).length === 1, JSON.stringify(z4?.identitaet));
+      for (const g of [g1, g2, g3, g3b, g4]) await fertig(g);
+      const proto = (await sqlPool`SELECT text FROM fiaon_mara_protokoll WHERE kanal = 'telefon' AND (daten->>'callId')::int = ${g1.callId} AND daten->>'regel' = 'anliegen_vor_identitaet'`) as any[];
+      ok("… die Korrektur steht im Protokoll („Identität noch offen — ARAS nannte „Rate“ zu früh“), ohne Wortlaut des Kunden", proto.length === 1 && /Identität noch offen — ARAS nannte „Rate“ zu früh/.test(proto[0].text), JSON.stringify(proto));
+
+      // e) Eröffnung vorab (beim Klingeln/Abheben vorbereitet): sein „Ja, hallo?“ beim ABHEBEN ist keine Antwort — die Frage hört er erst danach
+      delete process.env.ARAS_EROEFFNUNG_SOFORT;
+      const [k5, k6] = [await kunde(465), await kunde(466)];
+      const g5 = await anrufMit(k5, [{ aras: frageNachPerson(465), ms: 1500, ton: { dbfs: -24 } }, { beiKundenStimme: "Ja, hallo?" }, { nachKundeStillMs: 3200 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      await schlafen(1000); g5.tw.laut(600);
+      await schlafen(6500);
+      const z5 = laufZahlen(g5.callId);
+      ok("Identität (Rot-Probe beim Klingeln vorbereitet): sein „Ja, hallo?“ beim Abheben zählt NIE — die Frage kam erst danach bei ihm an; die Rate danach wird still korrigiert",
+        !!z5?.identitaet.frage && !z5.identitaet.bestaetigt && korrekturen(g5).length === 1, JSON.stringify(z5?.identitaet));
+      await fertig(g5);
+      const g6 = await anrufMit(k6, [{ aras: frageNachPerson(466), ms: 1500, ton: { dbfs: -24 } }, { beiKundenStimme: "Hallo?" }, { nachKundeStillMs: 2800 }, { kunde: "Ja, am Apparat.", nachMs: 100 }, { warteMs: 700 }, { aras: rate, ms: 400 }, { warteMs: 1500 }]);
+      await schlafen(1000); g6.tw.laut(600);
+      await schlafen(7000);
+      const z6 = laufZahlen(g6.callId);
+      ok("Identität beim Klingeln vorbereitet: sein Ja NACH der gehörten Frage bestätigt — die Rate danach ohne Korrektur", !!z6?.identitaet.bestaetigt && korrekturen(g6).length === 0, JSON.stringify(z6?.identitaet));
+      await fertig(g6);
+      process.env.ARAS_EROEFFNUNG_SOFORT = "1";
+
+      // f) Seine Antwort ist noch nicht fertig abgeschrieben (Zeile offen, kein Satzzeichen), da nennt ARAS schon die Rate: erst seine
+      //    Zeile lesen — „Ja am Apparat“ bestätigt, KEINE Korrektur; g) Rot-Probe: „Nein hier ist seine Frau“ → die Korrektur kommt danach
+      const [k7, k9] = [await kunde(467), await kunde(469)];
+      const g7 = await anrufMit(k7, [{ aras: frageNachPerson(467), ms: 300 }, { kunde: "Ja am Apparat", nachMs: 600 }, { warteMs: 150 }, { aras: rate, ms: 400 }, { warteMs: 2000 }]);
+      const g9 = await anrufMit(k9, [{ aras: frageNachPerson(469), ms: 300 }, { kunde: "Nein hier ist seine Frau", nachMs: 600 }, { warteMs: 150 }, { aras: rate, ms: 400 }, { warteMs: 2000 }]);
+      await schlafen(4000);
+      const z7 = laufZahlen(g7.callId), z9 = laufZahlen(g9.callId);
+      ok("Identität: seine Antwort noch offen in der Abschrift („Ja am Apparat“ ohne Satzzeichen), ARAS nennt schon die Rate → erst seine Zeile lesen: bestätigt, KEINE Korrektur",
+        !!z7?.identitaet.bestaetigt && z7.identitaet.wie === "ja" && korrekturen(g7).length === 0, JSON.stringify(z7?.identitaet));
+      ok("Identität (Rot-Probe): „Nein hier ist seine Frau“ noch offen, ARAS nennt schon die Rate → nach seiner Zeile still GENAU EINE Korrektur",
+        !!z9?.identitaet.verneint && !z9.identitaet.bestaetigt && korrekturen(g9).length === 1, JSON.stringify(z9?.identitaet));
+      for (const g of [g7, g9]) await fertig(g);
+    }
+
+    // ── 2. ZAHLTAG-SÄTZE ──
+    {
+      const [kA, kB, kC, kD, kE] = [await kunde(470), await kunde(471), await kunde(472), await kunde(473), await kunde(474)];
+      const frage = { aras: "Geht sich des heute noch aus?", ms: 300 };
+      // a) Echtgespräch 22.10.: „es geht immer am Ersten bei mir“ — das Modell trägt nichts ein → die Brücke trägt den nächsten Ersten ein
+      const gA = await anrufMit(kA, [...bestaetigt(470), frage, { warteMs: 700 }, { kunde: "Na, es geht immer am Ersten bei mir.", nachMs: 200 }, { warteMs: 12_000 }]);
+      // b) „Nein, erst nächsten Dienstag.“ + „Alles klar, dann notiere ich mir den Dienstag.“ → sofort: Dienstag der nächsten Kalenderwoche
+      const gB = await anrufMit(kB, [...bestaetigt(471), frage, { warteMs: 700 }, { kunde: "Nein, erst nächsten Dienstag.", nachMs: 200 }, { warteMs: 400 }, { aras: "Alles klar, dann notiere ich mir den Dienstag.", ms: 300 }, { warteMs: 3000 }]);
+      // c) Rot-Probe: Unklares („Mitte nächster Woche, wenn das Gehalt kommt“) + „Des merk i mir.“ → nichts eingetragen, still die Rückfrage
+      const gC = await anrufMit(kC, [...bestaetigt(472), frage, { warteMs: 700 }, { kunde: "Mitte nächster Woche, wenn das Gehalt kommt.", nachMs: 200 }, { warteMs: 400 }, { aras: "Des merk i mir.", ms: 300 }, { warteMs: 12_000 }]);
+      // d) Rot-Probe: die Zeit für einen Rückruf ist kein Zahltag
+      const gD = await anrufMit(kD, [...bestaetigt(473), { aras: "Wann passt es Ihnen für einen Rückruf?", ms: 300 }, { warteMs: 700 }, { kunde: "Morgen um zehn.", nachMs: 200 }, { warteMs: 12_000 }]);
+      // e) „Geht sich des heute noch aus?“ — „Ja.“ → heute (die Anweisung sagt es der Stimme genauso)
+      const gE = await anrufMit(kE, [...bestaetigt(474), frage, { warteMs: 700 }, { kunde: "Ja.", nachMs: 200 }, { warteMs: 12_000 }]);
+      await warten(async () => (await wz(gA.callId, "zahlungszusage_merken")).length > 0 && (await wz(gE.callId, "zahlungszusage_merken")).length > 0, 16_000);
+      await schlafen(1500);
+      const zA = await wz(gA.callId, "zahlungszusage_merken"), zB = await wz(gB.callId, "zahlungszusage_merken"), zC = await wz(gC.callId, "zahlungszusage_merken"), zD = await wz(gD.callId, "zahlungszusage_merken"), zE = await wz(gE.callId, "zahlungszusage_merken");
+      ok(`Zahltag „am Ersten“ (Echtgespräch 22.10.) → die Brücke trägt den nächsten Ersten ein (${naechsterErster})`, zA.length === 1 && zA[0].ok && zA[0].eingabe?.datum === naechsterErster && String(zA[0].aufruf_id).startsWith("bruecke_wort_"), JSON.stringify(zA));
+      ok(`Zahltag „erst nächsten Dienstag“ + ARAS „notiere ich mir den Dienstag“ → sofort eingetragen: Dienstag der nächsten Kalenderwoche (${dienstagNaechsteWoche}), keine Rückfrage`, zB.length === 1 && zB[0].ok && zB[0].eingabe?.datum === dienstagNaechsteWoche && !gB.att.spur.eingeschoben.some((x) => x.text === KORREKTUR_ZUSAGE), JSON.stringify(zB));
+      ok("Rot-Probe: Unklares („Mitte nächster Woche, wenn das Gehalt kommt“) + „Des merk i mir.“ → nichts eingetragen, still die Rückfrage nach dem Tag", zC.length === 0 && gC.att.spur.eingeschoben.some((x) => x.art === "anweisung" && x.text === KORREKTUR_ZUSAGE), JSON.stringify(zC));
+      ok("Rot-Probe: „Wann passt es Ihnen für einen Rückruf?“ — „Morgen um zehn.“ ist kein Zahltag → keine Zusage", zD.length === 0, JSON.stringify(zD));
+      ok("„Geht sich des heute noch aus?“ — „Ja.“ → Zahltag heute eingetragen", zE.length === 1 && zE[0].ok && zE[0].eingabe?.datum === heute, JSON.stringify(zE));
+      for (const g of [gA, gB, gC, gD, gE]) await fertig(g);
+    }
+
+    // ── 3. STREITFALL ──
+    {
+      const [kS, kN] = [await kunde(480), await kunde(481)];
+      const gS = await anrufMit(kS, [...bestaetigt(480),
+        { aras: "I ruf an wegen Ihrer offenen Rate — i schick Ihnen glei die Rechnung zu, seins so guat und zahlens ma die ein, bitte.", ms: 500 }, { warteMs: 700 },
+        { kunde: "Ich hab eine Betrugsanzeige erstattet, das ist Abzocke.", nachMs: 200 }, { warteMs: 800 },
+        { aras: "Der Link kommt gleich per WhatsApp an.", ms: 300 }, { warteMs: 300 },
+        { werkzeug: "zahlungslink_senden", eingabe: { weg: "whatsapp", zweck: "rate" } },
+        { werkzeug: "aufgabe_fuer_justin", eingabe: { art: "sonstiges", text: "Kunde spricht von Betrug und Anzeige." } },
+        { werkzeug: "zahlungszusage_merken", eingabe: { datum: morgen } },
+        { warteMs: 11_000 },
+      ]);
+      // Rot-Probe: „Anzeige auf Instagram“ ist Werbung, kein Streitfall
+      const gN = await anrufMit(kN, [...bestaetigt(481), { kunde: "Ich hab Sie über eine Anzeige auf Instagram gefunden.", nachMs: 200 }, { warteMs: 2500 }]);
+      await warten(() => gS.att.spur.werkzeuge.length >= 3, 12_000);
+      await schlafen(10_500);
+      const zS = laufZahlen(gS.callId);
+      const w = (n: string) => gS.att.spur.werkzeuge.find((x) => x.name === n)?.ergebnis;
+      ok("Streitfall („Betrugsanzeige erstattet … Abzocke“): still der Hinweis an die Stimme — ab sofort nichts fordern, ein Mensch meldet sich", zS?.streit === "anzeige" && gS.att.spur.eingeschoben.some((x) => x.art === "anweisung" && x.text === HINWEIS_STREITFALL), JSON.stringify({ streit: zS?.streit }));
+      ok("… kein Link: die schon geplante Rechnung fällt weg, „Der Link kommt gleich“ plant nichts, und das Modell wird abgewiesen (streitfall) — 0 Versand-Zeilen",
+        (await wz(gS.callId, "zahlungslink_senden")).length === 0 && w("zahlungslink_senden")?.ok === false && w("zahlungslink_senden")?.fehler === "streitfall", JSON.stringify(w("zahlungslink_senden")));
+      ok("… keine Zusage (auch das Modell nicht)", (await wz(gS.callId, "zahlungszusage_merken")).length === 0 && w("zahlungszusage_merken")?.ok === false);
+      const aufg = await wz(gS.callId, "aufgabe_fuer_justin");
+      const [todo] = (await sqlPool`SELECT COUNT(*)::int AS n, MAX(titel) AS titel FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:justin:streitfall:${kS.pid}`}`) as any[];
+      ok("… GENAU EINE Aufgabe für Justin (Art streitfall, von der Brücke, mit seinen Worten) — die zweite des Modells („sonstiges“) wird nicht angelegt",
+        aufg.length === 1 && aufg[0].ok && aufg[0].eingabe?.art === "streitfall" && String(aufg[0].aufruf_id).startsWith("bruecke_streit_") && /Betrugsanzeige erstattet/.test(String(aufg[0].eingabe?.text)) && Number(todo?.n) === 1 && w("aufgabe_fuer_justin")?.ok === true,
+        `${JSON.stringify(aufg.map((x) => [x.aufruf_id, x.eingabe?.art]))} · Aufgaben ${todo?.n} · ${todo?.titel}`);
+      const [ap] = (await sqlPool`SELECT aus_am, aus_grund FROM fiaon_aras_person WHERE person_id = ${kS.pid}`) as any[];
+      const nochmal = await planEinreihen({ personId: kS.pid, nummer: `+4917000000${kS.n}`, spielart: "rate", grund: "Prüfstand", erzeugtVon: "chef" });
+      ok("… ARAS ist für diese Person aus (wie „Aras für diesen Kunden aus“ in der Akte) — der Planer reiht sie nicht mehr ein", !!ap?.aus_am && /Streitfall/.test(String(ap?.aus_grund)) && !nochmal.ok && /für diesen Kunden aus/.test(nochmal.grund ?? ""), JSON.stringify({ ap, nochmal }));
+      const aS = await fertig(gS);
+      ok("… Ergebnis „erreicht_sonstiges“ mit Notiz „Streitfall …“ (nie eine Zusage)", aS?.ergebnis === "erreicht_sonstiges" && /Streitfall/.test(String(aS?.ergebnis_notiz)), `${aS?.ergebnis} · ${aS?.ergebnis_notiz}`);
+      const e = await ergebnisseTag(heute);
+      ok("… in den Ergebnissen zählt der Streitfall unter „Beschwerde“ (und als Aufgabe)", !!e.zeilen.find((z) => z.spielart === "rate")?.zellen.beschwerde.ids.includes(Number(aS?.id)) && !!e.zeilen.find((z) => z.spielart === "rate")?.zellen.aufgaben.ids.includes(Number(aS?.id)));
+      ok("Rot-Probe: „Anzeige auf Instagram“ ist kein Streitfall — ARAS bleibt für ihn an", laufZahlen(gN.callId)?.streit === null && !((await sqlPool`SELECT aus_am FROM fiaon_aras_person WHERE person_id = ${kN.pid} AND aus_am IS NOT NULL`) as any[]).length);
+      await fertig(gN);
+    }
+
+    // ── 4. ANSAGE STATT MENSCH ──
+    {
+      const [kA, kB, kC, kD, kE, kF] = [await kunde(490), await kunde(491), await kunde(492), await kunde(493), await kunde(494), await kunde(495)];
+      // a) Die Ansage zerrissen über drei Zeilen — die erste (lang, ohne Ansage-Wort) hielt die alte Erkennung auf
+      const gA = await anrufMit(kA, [{ kunde: "Hallo, hier ist der Anschluss von Familie Prüfkunde.", nachMs: 100 }, { warteMs: 300 }, { kunde: "Bitte hinterlassen Sie uns eine", nachMs: 100 }, { warteMs: 1300 }, { kunde: "Nachricht, wir rufen zurück.", nachMs: 100 }, { warteMs: 4000 }]);
+      // b) Anruf-Assistent (Anruffilter): „Nennen Sie bitte Ihren Namen und den Grund Ihres Anrufs.“
+      const gB = await anrufMit(kB, [{ aras: frageNachPerson(491), ms: 300 }, { kunde: "Hallo, die Person, die Sie anrufen, nutzt einen Filterdienst. Nennen Sie bitte Ihren Namen und den Grund Ihres Anrufs.", nachMs: 400 }, { warteMs: 4000 }]);
+      // c) Rot-Probe: ein Mensch (bestätigt) erzählt von seiner Mailbox — „nach dem Ton“ ist dann keine Ansage
+      const gC = await anrufMit(kC, [...bestaetigt(492), { kunde: "Ich hab Ihre Nachricht auf meiner Mailbox gehört, nach dem Ton war's aber leise.", nachMs: 200 }, { warteMs: 6000 }]);
+      // f) Rot-Probe: ARAS kündigte der Maschine die Rechnung an — an eine Ansage wird nichts geschickt
+      const gF = await anrufMit(kF, [{ aras: "I schick Ihnen glei die Rechnung zu.", ms: 300 }, { kunde: "Der Teilnehmer ist zurzeit nicht erreichbar. Bitte sprechen Sie nach dem Ton.", nachMs: 300 }, { warteMs: 4000 }]);
+      // e) Die Ansage ist noch nicht zu Ende geschrieben, da wird aufgelegt → beim Ende: Ergebnis mailbox (nicht „erreicht“)
+      const gE = await anrufMit(kE, [{ kunde: "Bitte hinterlassen Sie eine Nachricht nach dem Signalton", nachMs: 100 }, { warteMs: 3000 }]);
+      await schlafen(250); gE.tw.aufhaengen();
+      await schlafen(3000);
+      const gD = await anrufMit(kD, [...bestaetigt(493), { warteMs: 5000 }]);
+      await schlafen(1500);
+      const rD = await mailboxErkannt(gD.callId);
+      ok("AMD meldet Maschine, aber die Identität ist bestätigt → ein Mensch: das Gespräch läuft weiter (Widerspruch bleibt heil)", rD === "weiter" && laufendeSitzungen().some((x) => x.callId === gD.callId), rD);
+      const aA = await fertig(gA), aB = await fertig(gB), aE = await fertig(gE), aF = await fertig(gF);
+      ok("Ansage über drei Zeilen (Anschluss … „hinterlassen Sie uns eine“ · „Nachricht“) → aufgelegt, Ergebnis mailbox, fiaon_calls „niemand_erreicht“ — nie „erreicht“",
+        aA?.ende_grund === "mailbox" && aA?.ergebnis === "mailbox" && aA?.call_status === "niemand_erreicht", `${aA?.ende_grund}/${aA?.ergebnis}/${aA?.call_status}`);
+      ok("Anruf-Assistent („Nennen Sie bitte Ihren Namen und den Grund Ihres Anrufs“) → aufgelegt, Ergebnis mailbox, keine Prüfung nötig", aB?.ende_grund === "mailbox" && aB?.ergebnis === "mailbox" && aB?.pruefung_status === "entfaellt", `${aB?.ende_grund}/${aB?.ergebnis}/${aB?.pruefung_status}`);
+      ok("Rot-Probe: ein bestätigter Mensch erzählt von seiner Mailbox („nach dem Ton …“) → KEIN Auflegen", laufZahlen(gC.callId)?.ansage === null && laufendeSitzungen().some((x) => x.callId === gC.callId), JSON.stringify(laufZahlen(gC.callId)?.ansage));
+      ok("Ansage noch offen beim Auflegen → beim Ende erkannt: Ergebnis mailbox (Ende kunde_aufgelegt), fiaon_calls „niemand_erreicht“", aE?.ende_grund === "kunde_aufgelegt" && aE?.ergebnis === "mailbox" && aE?.call_status === "niemand_erreicht", `${aE?.ende_grund}/${aE?.ergebnis}/${aE?.call_status}`);
+      ok("Rot-Probe: die Rechnung, die ARAS einer Ansage ankündigte, wird nicht geschickt (an eine Maschine gibt es kein Wort zu halten)", aF?.ergebnis === "mailbox" && (await wz(gF.callId, "zahlungslink_senden")).length === 0);
+      await fertig(gC); await fertig(gD);
+    }
+
+    // ── 5. WORT HALTEN BIS ZUM SCHLUSS (die echten Sätze; Ende: aufgelegt, Stille, ARAS beendet) ──
+    {
+      const [kA, kB, kC, kE, kF] = [await kunde(500), await kunde(501), await kunde(502), await kunde(504), await kunde(505)];
+      // a) Koordination 22.10.: „Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?“ — eine Zusage, keine Angebots-Frage
+      const gA = await anrufMit(kA, [...bestaetigt(500), { aras: "Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?", ms: 400 }, { warteMs: 11_000 }]);
+      // b) Echtgespräch: „Dann schick i Ihnen den Link gleich rüber …“ · „Passt es, wenn i's Ihnen jetzt schick?“ — „Ja, per E-Mail, bitte“ → per Mail
+      const gB = await anrufMit(kB, [...bestaetigt(501), { aras: "Dann schick i Ihnen den Link gleich rüber, damit Sie es in Ruhe erledigen können.", ms: 400 }, { warteMs: 300 },
+        { aras: "Passt es, wenn i's Ihnen jetzt schick?", ms: 300 }, { warteMs: 700 }, { kunde: "Ja, per E-Mail, bitte", nachMs: 200 }, { warteMs: 11_000 }]);
+      // c) Er legt gleich nach der Ankündigung auf (vor den 8 s) → beim Auflegen geschickt
+      const gC = await anrufMit(kC, [...bestaetigt(502), { aras: "i schick Ihnen die Rechnung schnell per WhatsApp rüber", ms: 400 }, { warteMs: 6000 }]);
+      // e) ARAS verabschiedet sich und beendet, bevor die 8 s um sind → beim Ende geschickt
+      const gE = await anrufMit(kE, [...bestaetigt(504), { aras: "I schick's Ihnen glei aufs Handy.", ms: 300 }, { warteMs: 300 }, { aras: "Danke Ihnen, und einen schönen Tag noch!", ms: 300 }, { warteMs: 200 },
+        { werkzeug: "anruf_beenden", eingabe: { ergebnis: "erreicht_sonstiges", notiz: "Rechnung angekündigt." } }, { warteMs: 6000 }]);
+      // f) Rot-Probe: Angebot im selben Satz („I schick Ihnen glei den Link — passt des?“) + „Nein, brauch ich nicht.“ → nichts
+      const gF = await anrufMit(kF, [...bestaetigt(505), { aras: "I schick Ihnen glei den Link — passt des?", ms: 300 }, { warteMs: 700 }, { kunde: "Nein, brauch ich nicht.", nachMs: 200 }, { warteMs: 3000 }]);
+      await schlafen(1500); gC.tw.aufhaengen();
+      await warten(async () => (await wz(gA.callId, "zahlungslink_senden")).length > 0 && (await wz(gB.callId, "zahlungslink_senden")).length > 0, 16_000);
+      const lA = await wz(gA.callId, "zahlungslink_senden"), lB = await wz(gB.callId, "zahlungslink_senden");
+      ok("Wort halten (Koordination 22.10.): „Der Link kommt gleich per WhatsApp an — habens sonst noch a Frage?“ ist eine Zusage → die Brücke schickt (ein Versuch)", lA.length === 1 && String(lA[0].aufruf_id).startsWith("bruecke_wort_"), JSON.stringify(lA));
+      ok("Wort halten (Echtgespräch): Angebot über zwei Zeilen + „Ja, per E-Mail, bitte“ → per MAIL (sein Weg, nicht WhatsApp)", lB.length === 1 && lB[0].eingabe?.weg === "mail", JSON.stringify(lB));
+      const aC = await fertig(gC), aE = await fertig(gE), aF = await fertig(gF);
+      ok("Ende „kunde_aufgelegt“ vor den 8 s: die angekündigte Rechnung geht beim Auflegen raus („rüber“ ohne Satzzeichen)", aC?.ende_grund === "kunde_aufgelegt" && (await wz(gC.callId, "zahlungslink_senden")).length === 1, `${aC?.ende_grund} · ${(await wz(gC.callId, "zahlungslink_senden")).length}`);
+      ok("Ende „aras_beendet“ vor den 8 s: „I schick's Ihnen glei aufs Handy.“ geht beim Ende raus", aE?.ende_grund === "aras_beendet" && (await wz(gE.callId, "zahlungslink_senden")).length === 1, `${aE?.ende_grund} · ${(await wz(gE.callId, "zahlungslink_senden")).length}`);
+      ok("Rot-Probe: „I schick Ihnen glei den Link — passt des?“ + „Nein, brauch ich nicht.“ → kein Link (auch nicht beim Ende)", (await wz(gF.callId, "zahlungslink_senden")).length === 0 && !!aF);
+      await fertig(gA); await fertig(gB);
+      // d) Ende „stille“: „I schick Ihnen glei an Link … — geht sich des heute noch aus?“ und dann Stille (im Prüfstand nach 3 s) → beim Ende geschickt
+      process.env.ARAS_STILLE_ENDE_MS = "3000";
+      const kD = await kunde(503);
+      const gD = await anrufMit(kD, [...bestaetigt(503), { aras: "I schick Ihnen glei an Link, damit Sie's bequem erledigen können — geht sich des heute noch aus?", ms: 400 }, { warteMs: 9000 }]);
+      await warten(async () => !!(await anruf(gD.callId))?.nachbereitet_am, 12_000);
+      const aD = await anruf(gD.callId);
+      delete process.env.ARAS_STILLE_ENDE_MS;
+      ok("Ende „stille“ (Echtgespräch: „Er kündigte an, ihr einen Link zu schicken“, dann still): der Link geht beim Ende raus — die Anschlussfrage macht es zu keinem Angebot",
+        aD?.ende_grund === "stille" && (await wz(gD.callId, "zahlungslink_senden")).length === 1, `${aD?.ende_grund} · ${(await wz(gD.callId, "zahlungslink_senden")).length}`);
+      await fertig(gD);
+    }
+    await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+    await einstellungSetzen("aras_stufe", "0", "pruefstand");
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

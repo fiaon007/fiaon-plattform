@@ -70,10 +70,14 @@ export type EinwilligungArt = (typeof EINWILLIGUNG_ARTEN)[number];
 // ── Werkzeuge ──────────────────────────────────────────────────────────────
 export const WERKZEUGE = ["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "zahlungslink_senden", "zahlungszusage_merken", "zahlung_gemeldet",
   "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "aufgabe_fuer_justin", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken"] as const;
-/** Go-live (Koordination 20.10.2026): Probleme, die Justin selbst klärt — je Kunde und Art GENAU EINE Aufgabe (TODO-Board). */
-export const JUSTIN_AUFGABE_ARTEN = ["karte_nicht_erhalten", "sonstiges"] as const;
+/**
+ * Go-live (Koordination 20.10.2026): Probleme, die Justin selbst klärt — je Kunde und Art GENAU EINE Aufgabe (TODO-Board).
+ * Auswertung 21./22.10.: „streitfall“ — Betrug, Anzeige, Polizei, Anwalt, Verbraucherzentrale, Abzocke, „nie unterschrieben“;
+ * die Brücke legt sie selbst an und schaltet ARAS für diese Person aus (fiaon_aras_person), bis ein Mensch es zurücknimmt.
+ */
+export const JUSTIN_AUFGABE_ARTEN = ["karte_nicht_erhalten", "streitfall", "sonstiges"] as const;
 export type JustinAufgabeArt = (typeof JUSTIN_AUFGABE_ARTEN)[number];
-export const JUSTIN_AUFGABE_TITEL: Record<JustinAufgabeArt, string> = { karte_nicht_erhalten: "Karte nicht erhalten", sonstiges: "Für Justin aus einem ARAS-Anruf" };
+export const JUSTIN_AUFGABE_TITEL: Record<JustinAufgabeArt, string> = { karte_nicht_erhalten: "Karte nicht erhalten", streitfall: "Streitfall am Telefon (ARAS aus)", sonstiges: "Für Justin aus einem ARAS-Anruf" };
 /** Der eine Schlüssel je Kunde und Art — ein zweiter Anruf zur selben Sache legt nichts Neues an. */
 export function justinAufgabeSchluessel(personId: number, art: JustinAufgabeArt): string { return `aras:justin:${art}:${personId}`; }
 /** Nur im Probeanruf (Justin 20.10., Anruf 12: Er gab Aras am Telefon Feedback — das soll in die Hausanweisung können). */
@@ -937,17 +941,21 @@ export interface HoerprobeZeile {
 }
 /** Die Ton-Regler der Probe-Seite (Regie) — dieselben Schlüssel liest einstellungenAnwenden → regie. */
 export const PROBE_TON_SCHLUESSEL = ["aras_energie", "aras_fuellwoerter", "aras_lachen", "aras_tempo", "aras_zuhoerlaute", "aras_abschluss", "aras_dialekt", "aras_hintergrund", "aras_zuhoeren", "aras_menschlich"] as const;
-/** Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. */
-export const HOERPROBE_SATZ_VORGABE = "Ich grüße Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ich ruf wegen Ihrem Kreditkartenantrag an — haben Sie einen kurzen Moment?";
+/**
+ * Der Satz für das Stimmen-Studio (Justin, 20.10.2026) — eine Quelle: shared/fiaon-aras-prompt.ts HOERPROBE_SATZ. So klingt die
+ * Eröffnung am Telefon: seit der Auswertung 21./22.10. endet sie mit der Frage nach der PERSON (Identität vor dem Anliegen) —
+ * „Herr Huber“ ist ein Beispielname.
+ */
+export const HOERPROBE_SATZ_VORGABE = "Ich grüße Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Spreche ich mit Herrn Huber selbst?";
 /**
  * Justin 20.10.2026 (abends): „KI mehr Dialekt“ — im Stimmen-Studio je Akzent ein eigener Probesatz, damit er den
  * Unterschied sofort hört. Der KI-Hinweis steht in jedem (KI-VO Art. 50); nach „… nette.“ lacht Aras kurz (Hörprobe).
  */
 export const HOERPROBE_SAETZE: Record<Dialekt, string> = {
   hochdeutsch: HOERPROBE_SATZ_VORGABE,
-  oesterreichisch_leicht: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Ich ruf wegen Ihrem Kreditkartenantrag an — passt's Ihnen grad a bissl, gell?",
-  oesterreichisch: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a sehr a nette. I ruf wegen Ihrem Kreditkartenantrag an — ham's grad a bissl Zeit, gell?",
-  oesterreichisch_stark: "Grüß Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a nette. I ruf wegen Ihrem Kreditkartenantrag an — habens an Moment?",
+  oesterreichisch_leicht: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: Ich bin eine KI, aber eine sehr nette. Spreche ich mit Herrn Huber selbst?",
+  oesterreichisch: "Grüß Gott — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a sehr a nette. Spreche ich mit Herrn Huber selbst?",
+  oesterreichisch_stark: "Grüß Sie — ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam. Kurz vorweg: I bin a KI, aber a nette. Spreche ich mit Herrn Huber selbst?",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

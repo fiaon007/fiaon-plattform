@@ -138,10 +138,14 @@ async function main(): Promise<void> {
   // Tag + zwei Bank-Werktage, zusageNachfassTag), nicht mehr am Tag danach. Der Prüfstand sucht den zugesagten Tag, dessen
   // Nachfassen auf heute fällt (Fenster hier: jeden Tag 08–21 Uhr). An einem Sonntag oder Montag gibt es keinen — dann eine Zusage
   // von gestern (läuft noch, Rot-Probe) und der Eintrag von Hand, damit die Abschnitte 3 und 6 ihren Zusage-Eintrag haben.
-  const { zusageNachfassTag } = await import("../shared/fiaon-aras");
+  const { zusageNachfassTag, fensterAmWochentag, berlinTeile: bt5 } = await import("../shared/fiaon-aras");
   const fensterP5 = (await arasEinstellungenLesen(true)).fenster;
+  // Nach Fensterende (oder davor) plant der Füller heute kein Nachfassen mehr („Fenster heute vorbei“) — dann wie am
+  // Sonntag/Montag der Weg von Hand. So ist der Prüfstand zu jeder Uhrzeit grün (Integration 22.10. um 21:20 lief er rot).
+  const jetztP5 = bt5(new Date()), fensterHeuteP5 = fensterAmWochentag(fensterP5, jetztP5.wochentag);
+  const fensterOffenP5 = !!fensterHeuteP5 && jetztP5.hhmm >= fensterHeuteP5.von && jetztP5.hhmm < fensterHeuteP5.bis;
   let zusageTagP5: string | null = null;
-  for (let n = 1; n <= 20 && !zusageTagP5; n++) if (zusageNachfassTag(vor(n), { land: "DE", fenster: fensterP5 }) === yyyy(new Date())) zusageTagP5 = vor(n);
+  for (let n = 1; n <= 20 && !zusageTagP5 && fensterOffenP5; n++) if (zusageNachfassTag(vor(n), { land: "DE", fenster: fensterP5 }) === yyyy(new Date())) zusageTagP5 = vor(n);
   const p5 = await person(5); const r5 = await antrag(p5, 5, { payment_status: "pending_payment" });
   await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, note, promised_date, created_at) VALUES (${r5}, ${p5}, ${ausweis}, 'Prüfstand', 'result', 'erreicht_zahlt_am', 'zahlt am', ${`${zusageTagP5 ?? vor(1)}T12:00:00+02:00`}::timestamptz, ${`${zusageTagP5 ?? vor(1)}T08:00:00Z`}::timestamptz - INTERVAL '1 day')`;
   // P6: Testperson mit Rate → nie
@@ -170,7 +174,7 @@ async function main(): Promise<void> {
   ok("P4 (Werbesperre) NICHT eingereiht", !hat(p4, "zuruf"));
   if (zusageTagP5) ok(`P5 Zusage für den ${zusageTagP5} → heute nachfassen eingereiht (erster Tag nach der Überweisungszeit)`, hat(p5, "zusage"));
   else {
-    ok("P5 Zusage von gestern → heute NICHT nachgefasst (die Überweisung läuft noch; heute ist Sonntag/Montag)", !hat(p5, "zusage"));
+    ok(`P5 Zusage von gestern → heute NICHT nachgefasst (die Überweisung läuft noch${fensterOffenP5 ? "; heute ist Sonntag/Montag" : "; Fenster heute zu"})`, !hat(p5, "zusage"));
     const vonHand = await planEinreihen({ personId: p5, ref: r5, nummer: "+491700000005", spielart: "zusage", grund: "Prüfstand: Zusage nachfassen", erzeugtVon: "chef" });
     if (!vonHand.ok) throw new Error(`P5 von Hand: ${vonHand.grund}`);
     plan.push({ person_id: p5, spielart: "zusage", status: "wartet" });

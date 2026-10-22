@@ -31,6 +31,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { globalAgentVertrag } from "./fiaon-global";
+import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
 import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung, FirmaSonderfreigabe } from "./fiaon-global-angebot-firma-typen";
@@ -45,8 +46,9 @@ import { plusWerktage } from "./fiaon-wiedervorlage";
 export const KAPITAL_FASSUNG_PRAEFIX = "IA-KAPITAL-";
 // B (19.10.2026, E-400, Justin): Garantie „Finanzierung binnen acht Wochen — sonst alles zurück“, Bürgschaftsgebühr und Vergütung bei
 // Auszahlung, Zeitplan in Wochen, Sonderfreigabe trotz offener Punkte im Prüfbericht, Kreditkarten dazu.
-export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-22";
-export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", "IA-KAPITAL-2026-10-19-B", KAPITAL_FASSUNG] as const;
+// Fassung 2026-10-23 (Option A): neue Ziffer 12 „Befugnisse von FIAON“, Schlussbestimmungen jetzt Ziffer 13.
+export const KAPITAL_FASSUNG = "IA-KAPITAL-2026-10-23";
+export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", "IA-KAPITAL-2026-10-19-B", "IA-KAPITAL-2026-10-22", KAPITAL_FASSUNG] as const;
 export function istKapitalFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(KAPITAL_FASSUNG_PRAEFIX);
 }
@@ -319,7 +321,8 @@ export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
       p("Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich, auch nach dem Ende des Vertrags. FIAON gibt Unterlagen nur weiter, soweit es die Leistung erfordert: an Behörden, an den Registered Agent, an die Partner aus Ziffer 3, an die Bürgin und an Institute, bei denen ein Antrag gestellt wird."),
       p("FIAON verarbeitet personenbezogene Daten, um diesen Vertrag zu erfüllen, nach der Datenschutzerklärung unter fiaon.com/datenschutz, im Einklang mit der DSGVO und dem Schweizer Datenschutzgesetz. Für Gründung und Anträge gehen Daten in die USA; die Übermittlung stützt sich darauf, dass sie für die Erfüllung dieses Vertrags erforderlich ist."),
     ] },
-    { nr: 12, titel: "Schlussbestimmungen", absaetze: [
+    { nr: 12, titel: BEFUGNISSE_TITEL.de, absaetze: befugnisseAbsaetze("auftraggeberin") },
+    { nr: 13, titel: "Schlussbestimmungen", absaetze: [
       p("Dieser Vertrag ist ein Geschäft unter Unternehmern; ein Widerrufsrecht für Verbraucher besteht nicht. Allgemeine Geschäftsbedingungen einer Partei gelten nicht. Beigefügt ist die Anlage (Prüfbericht)."),
       p("Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts; es gelten die gesetzlichen Gerichtsstände. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."),
     ] },
@@ -382,7 +385,7 @@ function annahmeBlock(d: KapitalDaten, a: KapitalAnnahmeVermerk | null): string 
     <p class="gv-leise">IP-Adresse ${escHtml(a.ip)} · Prüfsumme des Vertragstextes (SHA-256): <span class="hash">${escHtml(a.hash)}</span></p>
   </div>`;
 }
-/** Der Rumpf: Präambel, zwölf Ziffern, Annahmeblock. Die Prüfsumme läuft über den Rumpf OHNE Vermerk. */
+/** Der Rumpf: Präambel, dreizehn Ziffern (seit IA-KAPITAL-2026-10-23), Annahmeblock. Die Prüfsumme läuft über den Rumpf OHNE Vermerk. */
 export function kapitalRumpfHtml(d: KapitalDaten, annahme: KapitalAnnahmeVermerk | null = null): string {
   const ziffern = ziffernHtml(kapitalZiffern(d)).split("\n");
   const letzte = ziffern.pop() ?? "";

@@ -721,7 +721,9 @@ export const GLOBAL_BUERGSCHAFT_SEITE = {
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte.
  *  2026-09-24 (E-234, Justin): englischer Pflichthinweis „US business credit cards" statt „US business cards"
  *  (britisch = Visitenkarte) und „German Fiscal Code, AO" statt „Fiscal Code". Deutscher Text unverändert. */
-export const GLOBAL_VERTRAG_VERSION = "2026-10-22";
+/*  2026-10-23 (Option A, Justin): neue Ziffer „Befugnisse von FIAON“ vor den Schlussbestimmungen
+ *  (shared/fiaon-global-befugnisse.ts); Ziffer 4: Anträge bei Instituten stellt der Auftraggeber, gegenüber Behörden handelt FIAON. */
+export const GLOBAL_VERTRAG_VERSION = "2026-10-23";
 
 // ── FIAON IST IMMER DIE GEGENSEITE (19.09.2026, Florentines Fund) ─────────────
 // Im Bestellweg ließ sich als eigenes Unternehmen „FIAON LTD" mit einer Anschrift

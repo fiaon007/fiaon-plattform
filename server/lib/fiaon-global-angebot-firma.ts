@@ -589,7 +589,7 @@ export async function firmaBestellzeileAnlegen(ref: string, d: Pick<FirmaDaten, 
       contactFirstName: k.vertretung.vorname, contactLastName: k.vertretung.nachname,
       contactEmail: k.email, email: k.email, billingEmail: k.email, contactPhone: k.telefon || null,
       street: f.strasse, zip: f.plz, city: f.ort, country: f.land,
-      // Der Vertrag schließt die AGB aus (Ziffer 20) — keine AGB-Zustimmung, keine Bonitätsabfrage; der Vertrag ist angenommen.
+      // Der Vertrag schließt die AGB aus (seit IA-FIRMA-2026-10-23 Ziffer 21) — keine AGB-Zustimmung, keine Bonitätsabfrage; der Vertrag ist angenommen.
       ag1: false, ag2: false, ag3: true,
       webMessungAus: true, messungAus: true,
     }),

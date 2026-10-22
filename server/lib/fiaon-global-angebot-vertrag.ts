@@ -3,7 +3,7 @@
 // Individualangebot (01.10.2026), Register E-268
 //
 // Rendert, was shared/fiaon-global-angebot.ts sagt — nichts sonst. Bildschirm,
-// Prüfsumme und PDF lesen DENSELBEN Rumpf (angebotRumpfHtml): Vertrag mit fünfzehn
+// Prüfsumme und PDF lesen DENSELBEN Rumpf (angebotRumpfHtml): Vertrag mit (seit IA-2026-10-23) sechzehn
 // Ziffern, Anlage 1 (Bürgschaftszusage), Anlage 2 (Prüfbericht) und Anlage 3
 // (Widerrufsbelehrung). Die Haken des Kunden (sofortiger Beginn, Jahresbetreuung)
 // ändern den Text und damit die Prüfsumme — gewollt: angenommen ist, was gezeigt wurde.

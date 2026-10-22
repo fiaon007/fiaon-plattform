@@ -100,6 +100,7 @@
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, globalAgentVertrag } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { geburtsdatumIso } from "./fiaon-geburtsdatum";
+import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 
 export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
 /**
@@ -107,9 +108,11 @@ export const ANGEBOT_MARKE = "Individualangebot (01.10.2026)";
  * Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut und damit die aktuelle Fassung (angebotDatenAus).
  * IA-2026-10-01-KG (01.10.2026 abends, E-271): Kreditgarantie. Am 01.10.2026 war kein Angebot angenommen.
  * IA-2026-10-22 (E-422): Registered Agent über unseren Partner — Nutzung der US-Anschrift (Ziffer 10) und Freistellung (Ziffer 12).
+ * IA-2026-10-23 (Option A): neue Ziffer 15 „Befugnisse von FIAON“ (shared/fiaon-global-befugnisse.ts), Schlussbestimmungen
+ *   jetzt Ziffer 16; Ziffer 7: Anträge bei Instituten stellt die Gesellschaft, gegenüber Behörden handelt FIAON nach Ziffer 15.
  */
-export const ANGEBOT_FASSUNG = "IA-2026-10-22";
-export const ANGEBOT_FASSUNGEN = ["IA-2026-10-01", "IA-2026-10-01-KG", ANGEBOT_FASSUNG] as const;
+export const ANGEBOT_FASSUNG = "IA-2026-10-23";
+export const ANGEBOT_FASSUNGEN = ["IA-2026-10-01", "IA-2026-10-01-KG", "IA-2026-10-22", ANGEBOT_FASSUNG] as const;
 /**
  * Anlage 1 (Bürgschaftszusage) hat ihren EIGENEN Fassungsstand: Ihr Wortlaut ist seit IA-2026-10-01 unverändert,
  * und ihre Prüfsumme steht auf dem eigenhändig unterschriebenen Original (§ 766 BGB). Ändert sich der Wortlaut
@@ -542,7 +545,7 @@ export function angebotPraeambel(d: AngebotDaten): string[] {
   ];
 }
 
-/** Die fünfzehn Ziffern — Varianten nach den Haken des Kunden schon aufgelöst. */
+/** Die sechzehn Ziffern — Varianten nach den Haken des Kunden schon aufgelöst (Fassung IA-2026-10-23: + Ziffer 15 „Befugnisse von FIAON“). */
 export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiffer[] {
   const k = d.kunde; const par = d.parameter;
   const PH = ANGEBOT_PFLICHTHINWEIS;
@@ -643,7 +646,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
     ] },
 
     { nr: 7, titel: "Mitwirkung des Auftraggebers", absaetze: [
-      p("Die Mitwirkung des Auftraggebers beschränkt sich auf drei Dinge: Er unterschreibt, was FIAON ihm fertig vorbereitet vorlegt (Gründungsunterlagen, die Mandate für Partner-Steuerberater, Partner-Anwalt und US-CPA, Steuerformulare einschließlich der Meldung der Gründung an das Finanzamt nach § 138 AO, Kontoanträge, Kartenanträge und Finanzierungsverträge); er stellt seinen gültigen Reisepass für die gesetzlich vorgeschriebene Identifizierung bereit — bei FIAON und, soweit ein Institut oder eine Behörde es verlangt, auch dort, dann zusammen mit einem Adressnachweis, wenn das Institut oder die Behörde ihn für die Identifizierung verlangt; und er macht wahre und vollständige Angaben. Alles Weitere erledigt FIAON. Jede Unterschrift leistet der Auftraggeber nach Prüfung der Unterlage und frei; verlangt ein Institut eine persönliche Haftung, gilt Ziffer 8 Absatz 5. Anträge bei Behörden und Instituten stellen der Auftraggeber bzw. die Gesellschaft im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben."),
+      p("Die Mitwirkung des Auftraggebers beschränkt sich auf drei Dinge: Er unterschreibt, was FIAON ihm fertig vorbereitet vorlegt (Gründungsunterlagen, die Mandate für Partner-Steuerberater, Partner-Anwalt und US-CPA, Steuerformulare einschließlich der Meldung der Gründung an das Finanzamt nach § 138 AO, Kontoanträge, Kartenanträge und Finanzierungsverträge); er stellt seinen gültigen Reisepass für die gesetzlich vorgeschriebene Identifizierung bereit — bei FIAON und, soweit ein Institut oder eine Behörde es verlangt, auch dort, dann zusammen mit einem Adressnachweis, wenn das Institut oder die Behörde ihn für die Identifizierung verlangt; und er macht wahre und vollständige Angaben. Alles Weitere erledigt FIAON. Jede Unterschrift leistet der Auftraggeber nach Prüfung der Unterlage und frei; verlangt ein Institut eine persönliche Haftung, gilt Ziffer 8 Absatz 5. Anträge bei Instituten stellen der Auftraggeber bzw. die Gesellschaft im eigenen Namen; FIAON bereitet sie vor. Gegenüber Behörden handelt FIAON nach Ziffer 15. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben."),
       p(G.vertragEigenerAntrag),
       p("Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend; für die Frist nach Ziffer 6 gilt allein Ziffer 6 Absatz 3."),
       p("Vor Beginn der Leistungen identifiziert FIAON den Auftraggeber anhand eines gültigen Reisepasses und gleicht Name und Geburtsdatum erneut mit den Sanktionslisten ab. Der Auftraggeber erklärt, dass weder er selbst noch ein Familienmitglied oder eine ihm bekanntermaßen nahestehende Person ein wichtiges öffentliches Amt ausübt oder in den letzten zwölf Monaten ausgeübt hat (§ 1 Abs. 12 bis 14 GwG); trifft das nicht zu, teilt er es FIAON vor der Annahme in Textform mit."),
@@ -695,7 +698,9 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
       p("Der Auftraggeber kann Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit verlangen, der Verarbeitung nach Art. 6 Abs. 1 Buchst. f DSGVO widersprechen und sich bei einer Datenschutz-Aufsichtsbehörde beschweren."),
     ] },
 
-    { nr: 15, titel: "Schlussbestimmungen", absaetze: [
+    { nr: 15, titel: BEFUGNISSE_TITEL.de, absaetze: befugnisseAbsaetze("auftraggeber") },
+
+    { nr: 16, titel: "Schlussbestimmungen", absaetze: [
       p(`Dieser Vertrag ist eine Individualvereinbarung; Allgemeine Geschäftsbedingungen von FIAON gelten für ihn nicht. Beigefügt sind Anlage 1 (Bürgschaftszusage der ${buergin}), Anlage 2 (Prüfbericht von FIAON) und Anlage 3 (Widerrufsbelehrung und Muster-Widerrufsformular). ${G.vertragAnlage2}`),
       p("Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts. Ist der Auftraggeber Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz entzogen wird, den ihm die zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts gewähren. Ist der Auftraggeber Kaufmann, eine juristische Person des öffentlichen Rechts oder ein öffentlich-rechtliches Sondervermögen, ist ausschließlicher Gerichtsstand für alle Streitigkeiten aus diesem Auftrag München. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."),
     ] },
@@ -706,7 +711,7 @@ export function angebotZiffern(d: AngebotDaten, s: AngebotSchalter): AngebotZiff
 export const ANGEBOT_ZIFFER_TITEL = [
   "Parteien", "Teil 1 — Gründung", "Teil 2 — Kapital-Begleitung mit Kreditgarantie", "Partner und Abgrenzung", "Vergütung und Fälligkeit",
   "Frist, Garantie und vollständige Erstattung", "Mitwirkung des Auftraggebers", "Bürgschaft und keine Sicherheiten", "Pflichthinweise",
-  "Laufzeit und Ende", "Widerrufsrecht", "Haftung", "Vertraulichkeit", "Datenschutz", "Schlussbestimmungen",
+  "Laufzeit und Ende", "Widerrufsrecht", "Haftung", "Vertraulichkeit", "Datenschutz", "Befugnisse von FIAON", "Schlussbestimmungen",
 ] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

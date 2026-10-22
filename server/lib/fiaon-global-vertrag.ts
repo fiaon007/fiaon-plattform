@@ -60,7 +60,8 @@
 //     die Jahresbetreuung wörtlich aus shared/fiaon-global.ts (vertrag +
 //     vertragBedingungen) — beide Sätze nebeneinander widersprächen sich. Für die
 //     Privatperson ist auch dieser Preis ein Endpreis.
-// Die zwölf Ziffern und ihre Nummern bleiben. Der Preis steht nur in der Quelle.
+// Die Ziffern und ihre Nummern bleiben (seit Fassung 2026-10-23 dreizehn — + „Befugnisse von FIAON“ vor den
+// Schlussbestimmungen). Der Preis steht nur in der Quelle.
 //
 // Diese Datei fasst keine Datenbank an — der Prüfstand lädt sie ohne Netz.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -72,6 +73,7 @@ import {
   GLOBAL_AGENT, GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
   GLOBAL_JAHRESBETREUUNG, globalPaket, globalKapital, type GlobalSchluessel,
 } from "@shared/fiaon-global";
+import { befugnisseHtml } from "@shared/fiaon-global-befugnisse";
 
 export type VertragSprache = "de" | "en";
 
@@ -104,21 +106,21 @@ export interface GlobalVertragDaten {
   unterschrift?: VertragUnterschrift | null;
 }
 
-/** Die zwölf Ziffern, die kein Auftrag verlieren darf — der Prüfstand zählt sie nach. */
+/** Die dreizehn Ziffern, die kein Auftrag verlieren darf — der Prüfstand zählt sie nach (Fassung 2026-10-23: + „Befugnisse von FIAON“). */
 export const GLOBAL_VERTRAG_ZIFFERN: Record<VertragSprache, string[]> = {
   de: [
     "Parteien", "Gegenstand und Leistungen", "Partner und Abgrenzung", "Mitwirkung des Auftraggebers",
     "Vergütung", "Erstattungszusage", "Pflichthinweise", "Dauer und Beendigung", "Haftung",
-    "Vertraulichkeit und Datenschutz", "Unternehmer-Bestätigung", "Schlussbestimmungen",
+    "Vertraulichkeit und Datenschutz", "Unternehmer-Bestätigung", "Befugnisse von FIAON", "Schlussbestimmungen",
   ],
   en: [
     "Parties", "Subject matter and services", "Partners and scope", "Cooperation of the client",
     "Fee", "Refund commitment", "Mandatory notices", "Term and termination", "Liability",
-    "Confidentiality and data protection", "Business confirmation", "Final provisions",
+    "Confidentiality and data protection", "Business confirmation", "Authority of FIAON", "Final provisions",
   ],
 };
 
-/** Dieselben zwölf Ziffern im Auftrag einer Privatperson — Ziffer 11 regelt den Widerruf. */
+/** Dieselben dreizehn Ziffern im Auftrag einer Privatperson — Ziffer 11 regelt den Widerruf. */
 export const GLOBAL_VERTRAG_ZIFFERN_PRIVAT: Record<VertragSprache, string[]> = {
   de: GLOBAL_VERTRAG_ZIFFERN.de.map((z) => (z === "Unternehmer-Bestätigung" ? "Widerrufsrecht" : z)),
   en: GLOBAL_VERTRAG_ZIFFERN.en.map((z) => (z === "Business confirmation" ? "Right of withdrawal" : z)),
@@ -266,7 +268,7 @@ function unterschriftsBlock(d: GlobalVertragDaten): string {
   </div>`;
 }
 
-/** Die zwölf Ziffern — der eine Text für Bildschirm und PDF. */
+/** Die dreizehn Ziffern — der eine Text für Bildschirm und PDF. */
 function vertragsRumpf(d: GlobalVertragDaten): string {
   const en = d.sprache === "en";
   const p = globalPaket(d.paket);
@@ -278,6 +280,8 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   const titel = globalVertragZiffern(d.sprache, d.auftraggeber);
   // Die Nummer der Widerrufs-Ziffer — fällt Ziffer 6 weg (Schalter aus), rückt sie auf.
   const nrWiderruf = GLOBAL_GELD_ZURUECK.aktiv ? 11 : 10;
+  // Fassung 2026-10-23: die Befugnisse von FIAON (shared/fiaon-global-befugnisse.ts) stehen direkt vor den Schlussbestimmungen.
+  const nrBefugnisse = nrWiderruf + 1;
   const preis = globalVertragPreis(d.paket, d.sprache);
   // 18.09.2026: Die Seite nennt die Zahl „Kapitalrahmen"; beim VIP-Paket ist sie eine Obergrenze.
   const kapital = globalKapital(d.paket, d.sprache);
@@ -323,8 +327,8 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
 
     // 4 — Mitwirkung des Auftraggebers
     (en
-      ? `<p>The Client provides complete and truthful information and supplies the documents required. Applications to authorities and institutions are made by the Client in its own name; FIAON prepares them. The Client does not give false address or residence details to institutions or authorities. If the Client’s cooperation is delayed, agreed dates move accordingly.</p><p>${e(GLOBAL_AGENT.en.nutzung)}</p>`
-      : `<p>Der Auftraggeber macht vollständige und wahre Angaben und stellt die benötigten Unterlagen bereit. Anträge bei Behörden und Instituten stellt der Auftraggeber im eigenen Namen; FIAON bereitet sie vor. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben. Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend.</p><p>${e(GLOBAL_AGENT.de.nutzung)}</p>`),
+      ? `<p>The Client provides complete and truthful information and supplies the documents required. Applications to institutions are made by the Client in its own name; FIAON prepares them. Towards authorities FIAON acts under clause ${nrBefugnisse}. The Client does not give false address or residence details to institutions or authorities. If the Client’s cooperation is delayed, agreed dates move accordingly.</p><p>${e(GLOBAL_AGENT.en.nutzung)}</p>`
+      : `<p>Der Auftraggeber macht vollständige und wahre Angaben und stellt die benötigten Unterlagen bereit. Anträge bei Instituten stellt der Auftraggeber im eigenen Namen; FIAON bereitet sie vor. Gegenüber Behörden handelt FIAON nach Ziffer ${nrBefugnisse}. Gegenüber Instituten und Behörden macht der Auftraggeber keine falschen Adress- oder Wohnsitzangaben. Verzögert sich die Mitwirkung, verschieben sich vereinbarte Termine entsprechend.</p><p>${e(GLOBAL_AGENT.de.nutzung)}</p>`),
 
     // 5 — Vergütung
     // E-196: Mit der Jahresbetreuung deckt der Festpreis „die Leistungen des Pakets"; an die Stelle des Satzes
@@ -400,7 +404,10 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
         ? `<p>The Client confirms that it is acting in the course of its trade, business or profession when placing this order (entrepreneur within the meaning of section 14 of the German Civil Code). A consumer right of withdrawal therefore does not apply. The signatory confirms that he or she is authorised to represent the Client.</p>`
         : `<p>Der Auftraggeber erklärt, bei Abschluss dieses Auftrags in Ausübung seiner gewerblichen oder selbständigen beruflichen Tätigkeit zu handeln (Unternehmer im Sinne von § 14 BGB). Ein Widerrufsrecht für Verbraucher besteht deshalb nicht. Der Unterzeichner erklärt, zur Vertretung des Auftraggebers berechtigt zu sein.</p>`),
 
-    // 12 — Schlussbestimmungen (Rechtswahl und Gerichtsstand wie § 12 der AGB des Hauses)
+    // 12 — Befugnisse von FIAON (Fassung 2026-10-23, eine Quelle für alle Global-Verträge)
+    befugnisseHtml(en ? "en" : "auftraggeber", e, { vertragWort: "Auftrag" }),
+
+    // 13 — Schlussbestimmungen (Rechtswahl und Gerichtsstand wie § 12 der AGB des Hauses)
     (en
       ? `<p>Amendments and additions must be made in text form. The law of the Federal Republic of Germany applies, excluding the UN Convention on Contracts for the International Sale of Goods.${privat ? " If the Client is a consumer, this choice of law applies only insofar as it does not deprive the Client of the protection afforded by the mandatory provisions of the law of the state of the Client’s habitual residence." : ""} If the Client is a merchant, a legal entity under public law or a special fund under public law, the exclusive place of jurisdiction for all disputes arising from this engagement is Munich. Should individual provisions be or become invalid, the validity of the remainder is not affected; the statutory provisions apply in place of the invalid provision.</p>`
       : `<p>Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts.${privat ? " Ist der Auftraggeber Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz entzogen wird, den ihm die zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts gewähren." : ""} Ist der Auftraggeber Kaufmann, eine juristische Person des öffentlichen Rechts oder ein öffentlich-rechtliches Sondervermögen, ist ausschließlicher Gerichtsstand für alle Streitigkeiten aus diesem Auftrag München. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften.</p>`),
@@ -414,7 +421,7 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
     // Überschrift und erster Absatz bleiben im Druck beisammen (.gv-anfang) — keine Überschrift
     // allein am Seitenende. Der Rest darf umbrechen: Die Leistungsliste des VIP-Pakets ist
     // länger als der Platz, der auf Seite 1 bleibt.
-    const bloecke = inhalt.match(/<(p|ul)\b[\s\S]*?<\/\1>/g) ?? [inhalt];
+    const bloecke = inhalt.match(/<(p|ul|ol)\b[\s\S]*?<\/\1>/g) ?? [inhalt];
     return `<section class="gv-ziffer"><div class="gv-anfang"><h2><span class="gv-nr">${nr}</span>${e(titel[i])}</h2>${bloecke[0]}</div>${bloecke.slice(1).join("")}</section>`;
   }).filter(Boolean);
   // Die Unterschrift steht nie allein auf einer Seite: Die letzte Ziffer und der
@@ -463,6 +470,7 @@ export const GLOBAL_VERTRAG_CSS = `
   .gv p { margin: 0 0 8px; text-align: left; font-weight: 400; }
   .gv b { font-weight: 600; }
   .gv ul { margin: 4px 0 10px; padding-left: 1.2em; list-style: disc; }
+  .gv ol { margin: 4px 0 10px; padding-left: 1.5em; list-style: decimal; }
   .gv li { margin: 2px 0; }
   .gv .gv-kasten { border: 1px solid #dbe4f0; border-radius: 6px; padding: 10px 12px; background: #f7f9fc; }
   .gv .gv-leise { color: #64748b; font-size: .9em; }

@@ -5,6 +5,24 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — FIAON Global: „Befugnisse von FIAON“ als Ziffer in jedem Global-Vertrag (Option A)
+- **Was:** Statt einer eigenen Vollmacht gegenüber US-Behörden steht jetzt IM Vertrag, was FIAON für den Kunden tun darf —
+  eine Quelle für alle Vertragsarten (`shared/fiaon-global-befugnisse.ts`): Gründung (als Organizer), Registered Agent und
+  Kontaktperson (= Kunde bzw. Member/Manager), Post, EIN (SS-4, FIAON als Third Party Designee), ITIN mit Certifying
+  Acceptance Agent, Annual Reports, D-U-N-S, Domain/Telefon/Adresse, **Steuern und Recht über zugelassene Partner
+  (US-CPA, Steuerberater, Anwälte, z. B. Form 5472/1120) — FIAON beauftragt, koordiniert und zahlt sie, der Kunde spricht nur
+  mit FIAON**, Vorbereitung von Bank-/Karten-/Kreditanträgen (stellen und unterschreiben tut der Kunde). Einzige Grenzen:
+  keine Konten und kein Geld, keine Kredit-/Karten-/Finanzierungsanträge oder -verträge und keine Bürgschaften für den
+  Kunden, keine Übertragung/Belastung von Anteilen und keine Auflösung ohne Weisung in Textform. Wo das Gesetz die
+  persönliche Unterschrift verlangt, bereiten FIAON/der Partner alles vor und der Kunde unterschreibt nur. Untervollmacht,
+  Information im Portal, Widerruf in Textform, drei Monate geordnete Übergabe.
+- **Neue Fassungen:** Paketauftrag `2026-10-23` (de/en, neue Ziffer vor den Schlussbestimmungen; Ziffer 4: gegenüber Behörden
+  handelt FIAON), Individualangebot `IA-2026-10-23` (Ziffer 15, Schluss 16), Begleit `IA-BEGLEIT-2026-10-23` (Ziffer 14),
+  Kapital `IA-KAPITAL-2026-10-23` (Ziffer 12), Firma `IA-FIRMA-2026-10-23` (Ziffer 20). Angenommene Verträge behalten ihr PDF.
+- **Warum:** Justin: „Mach alles komplett fertig“ — die rechtliche Prüfung vom 22.10. hat die Umfassende Vollmacht verworfen.
+- **Wo:** `shared/fiaon-global-befugnisse.ts`, `server/lib/fiaon-global-vertrag.ts`, `shared/fiaon-global-angebot*.ts`;
+  Prüfsummen in `scripts/pruef-individualangebot.ts` und `scripts/pruef-angebot-firma.ts` mit Vermerk neu gesetzt.
+
 ## 22.10.2026 — FIAON Global: SS-4 von Hand unterschreiben, Global-Akte für Begleitverträge, Angebotsnamen im Chefbüro
 - **Was (von Hand):** Jedes „Dokument zur Unterschrift“ hat jetzt einen Modus — `digital` (Unterschrift-Dialog im Portal) oder
   `handschriftlich`. IRS SS-4 und IRS 8821 sind immer handschriftlich (unser Registered-Agent-Partner verlangt für das SS-4 eine

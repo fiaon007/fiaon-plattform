@@ -41,6 +41,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { GLOBAL_ROLLEN, globalAgentVertrag } from "./fiaon-global";
+import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import {
   ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, BUERGIN_VORGABE, BUERGIN_FELDER, angebotVersandSperre, buerginOhneNummer,
   type AngebotBuergin, type AngebotZiffer, type AngebotAbsatz,
@@ -86,8 +87,9 @@ export { FIRMA_FASSUNG_PRAEFIX, istFirmenFassung };
  *     nach der Annahme, es sei denn, die Verzögerung beruht auf Umständen, die FIAON zu vertreten hat (budgetSpaetestensMonate).
  *   Anlage 1 bleibt Wort für Wort (Fassung D der Anlage, Prüfsumme gleich): Sie verweist nur auf Ziffer 7 und Ziffer 8 Absatz 5/6.
  */
-export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-22`;
-export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`, FIRMA_FASSUNG] as const;
+// Fassung 2026-10-23 (Option A): neue Ziffer 20 „Befugnisse von FIAON“; Recht, Gerichtsstand und Schlussbestimmungen jetzt Ziffer 21.
+export const FIRMA_FASSUNG = `${FIRMA_FASSUNG_PRAEFIX}2026-10-23`;
+export const FIRMA_FASSUNGEN = [`${FIRMA_FASSUNG_PRAEFIX}2026-10-07`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-07-B`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-C`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-08-D`, `${FIRMA_FASSUNG_PRAEFIX}2026-10-22`, FIRMA_FASSUNG] as const;
 /**
  * Fassung D: Zählt für die Garantie nur die Auszahlung (keine verbindliche Zusage)? Und gilt der späteste Starttag des Wachstumsbudgets
  * (Ziffer 10 Absatz 2)? Ein angenommenes Angebot behält seine Fassung; ein offenes zeigt immer die aktuelle.
@@ -1255,7 +1257,7 @@ export const FIRMA_ZIFFER_TITEL = [
   "Leistungen — Plattform & Marketing", "Leistungen — Vertrieb und Ansprechpartner", "Erste Finanzierungsrunde und Garantie",
   "Bürgschaft und aufschiebende Bedingungen", "Partner und Abgrenzung", "Vergütung", "Umsatzbeteiligung", "Verkaufsbeteiligung",
   "Rechnungen, Zahlung und Umsatzsteuer", "Laufzeit, Verlängerung und Kündigung", "Mitwirkung und Reporting", "Vertraulichkeit",
-  "Datenschutz", "Haftung", "Pflichthinweise", "Recht, Gerichtsstand und Schlussbestimmungen",
+  "Datenschutz", "Haftung", "Pflichthinweise", "Befugnisse von FIAON", "Recht, Gerichtsstand und Schlussbestimmungen",
 ] as const;
 
 export function firmaPraeambel(d: FirmaDaten): string[] {
@@ -1416,7 +1418,8 @@ export function firmaZiffern(d: FirmaDaten): AngebotZiffer[] {
       p(globalAgentVertrag("haftung", true)),
       p("Während der Laufzeit sind die staatlichen Jahresgebühren und die Kosten des Registered Agent der US-Gesellschaft nach Ziffer 3 in der Vergütung enthalten."),
     ] },
-    { nr: 20, titel: "Recht, Gerichtsstand und Schlussbestimmungen", absaetze: [
+    { nr: 20, titel: BEFUGNISSE_TITEL.de, absaetze: befugnisseAbsaetze("auftraggeberin") },
+    { nr: 21, titel: "Recht, Gerichtsstand und Schlussbestimmungen", absaetze: [
       p(`Dieser Vertrag ist eine Individualvereinbarung; Allgemeine Geschäftsbedingungen von FIAON gelten für ihn nicht. Beigefügt sind Anlage 1 (Bürgschaftszusage der ${buergin}) und Anlage 2 (Prüfbericht von FIAON, Fassung für die Auftraggeberin). Anlage 2 gibt den Stand der Prüfung vor Vertragsschluss wieder; die Bedingungen der Bürgschaft regelt allein Ziffer 8.`),
       p("Vertragssprache ist Deutsch. Für diesen Vertrag und alle Ansprüche aus oder im Zusammenhang mit ihm gilt das Recht von England und Wales. Ausschließlicher Gerichtsstand sind die Gerichte von England und Wales in London. Rechte Dritter aus diesem Vertrag nach dem Contracts (Rights of Third Parties) Act 1999 bestehen nicht."),
       p(`Textform bedeutet eine lesbare Erklärung, die die erklärende Person nennt, insbesondere eine E-Mail. Erklärungen an FIAON, auch Kündigungen, gehen an ${FIAON_FIRMA.email} oder an den Ansprechpartner nach Ziffer 6 Absatz 2; Erklärungen an die Auftraggeberin gehen an die E-Mail-Adresse in Ziffer 1.`),

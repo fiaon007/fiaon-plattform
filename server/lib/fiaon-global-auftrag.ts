@@ -94,6 +94,8 @@ export const GLOBAL_PORTAL_ERNEUERN_TAGE = 300;
 // Individualangebot (01.10.2026, E-268): aus dem KATALOG (art „global"), nicht aus den vier Paketseiten —
 // sonst fehlte jeder Auftrag aus einem Individualangebot in der Liste der Leitung.
 export const GLOBAL_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global").map((p) => p.key);
+// Zusatzdienste (22.10.2026) sind Global-Zeilen, aber keine Aufträge — sie stehen im Chefbüro unter „Leistungen“ ihres Mandats.
+const AUFTRAG_SCHLUESSEL: string[] = PAKETE.filter((p) => p.art === "global" && !p.globalZusatz).map((p) => p.key);
 
 /**
  * Der Betrag eines Global-Auftrags in Cent. Für die vier Pakete der Katalogpreis (wie bisher),
@@ -583,7 +585,10 @@ export type GlobalMail =
   | "global_angebot_angenommen" | "global_angebot_start" | "global_angebot_teil2"
   | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung"
   // E-273 (02.10.2026): Tag und Uhrzeit des Startgesprächs, wenn das System es nach der Bestätigungsmail gebucht hat.
-  | "global_angebot_startgespraech";
+  | "global_angebot_startgespraech"
+  // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Rechnung eines im Portal hinzugefügten Zusatzdienstes, mit PDF
+  // (server/mail/vorlagen/global-zusatz.ts, Auslöser server/lib/fiaon-global-zusatz.ts).
+  | "global_zusatz";
 export type GlobalMailSprache = "de" | "en";
 
 /** In welcher Sprache der Kunde seinen Auftrag geführt hat — sie steht in der Akte (vertrag_sprache). */
@@ -1033,6 +1038,8 @@ export async function globalOhneAuftragMelden(ref: string): Promise<void> {
   if (!b || !istGlobalPaket(b.pack_key)) return;
   // E-268: Ein Teil eines Individualangebots hat seinen Vertrag im Angebot (Teil 2 bewusst ohne eigene Akte).
   if (istAngebotsPaket(b.pack_key)) return;
+  // Zusatzdienst (22.10.2026): gehört zum Mandat, an dem er gebucht wurde — kein eigener Auftrag.
+  if (katalogPaket(b.pack_key)?.globalZusatz) return;
   const einstellungen = await globalEinstellungen();
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   await auftragFuerKunden({
@@ -1052,6 +1059,11 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
   const akte = await globalAkteLesen(ref);
   const b = await bestellungLesen(ref);
   if (!b) return;
+  // Zusatzdienst (22.10.2026): Vermerk an der Aufgabe des Dienstes — kein „neuer Auftrag“.
+  if (katalogPaket(b.pack_key)?.globalZusatz) {
+    const { zusatzZahlungGemeldet } = await import("./fiaon-global-zusatz");
+    return zusatzZahlungGemeldet(ref);
+  }
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   await auftragFuerKunden({
     personId: b.person_id != null ? Number(b.person_id) : null, ref,
@@ -1132,6 +1144,13 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
   const b = await bestellungLesen(ref);
   if (!b || !istGlobalPaket(b.pack_key)) return { gestartet: false, grund: "kein Global-Auftrag" };
   if (String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
+  // ── ZUSATZDIENST (22.10.2026, Scheibe 1 „Ihr US-Büro“) ───────────────────
+  // Eine im Portal dazugebuchte Leistung startet keinen Auftrag: Status „bezahlt“, Verlauf für den Kunden,
+  // Aufgabe „einrichten“ (server/lib/fiaon-global-zusatz.ts). Keine Startmail, kein Betreuerwechsel.
+  if (katalogPaket(b.pack_key)?.globalZusatz) {
+    const { zusatzNachZahlung } = await import("./fiaon-global-zusatz");
+    return zusatzNachZahlung(ref);
+  }
   // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
   // Eigener Weg: Teil 1 startet mit Frist (zwölf Wochen, Erstattungszusage) statt Stichtag,
   // Teil 2 (Kapital-Begleitung) startet nichts — er wird nur als bezahlt vermerkt.
@@ -1282,7 +1301,7 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       LEFT JOIN fiaon_agents z ON z.id = g.zustaendig_agent_id
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
       LEFT JOIN fiaon_agents bt ON bt.id = p.assigned_agent_id
-     WHERE a.pack_key = ANY(${GLOBAL_SCHLUESSEL}) AND a.merged_into IS NULL
+     WHERE a.pack_key = ANY(${AUFTRAG_SCHLUESSEL}) AND a.merged_into IS NULL
        AND NOT (a.pack_key = 'global_individuell' AND g.id IS NULL)
      ORDER BY a.created_at DESC
      LIMIT 300`) as any[];

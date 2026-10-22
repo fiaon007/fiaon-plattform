@@ -38,6 +38,8 @@ import { GEBURT_TEXTE } from "../shared/fiaon-geburtsdatum";
 import { ZUGANG_UEBERGABE_TEXTE } from "../shared/fiaon-zugang-uebergabe";
 // E-339 (12.10.2026): die festen Sätze auf jedem Radar-Brief (QR-Karte, Widerspruch, Datenschutzhinweis).
 import { RADAR_BRIEF_TEXTE, RADAR_KERNSATZ } from "../shared/fiaon-radar";
+// 22.10.2026 (Scheibe 1 „Ihr US-Büro“): Katalog, Fenster und Verlauf der Zusatzdienste — nur die deutschen Kundentexte (nie `intern`).
+import { GLOBAL_ZUSATZ, GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER } from "../shared/fiaon-global-zusatz";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
@@ -103,6 +105,9 @@ sammle(GEBURT_TEXTE, "geburtsdatum", texte);
 sammle(ZUGANG_UEBERGABE_TEXTE, "zugang-uebergabe", texte);
 sammle(RADAR_BRIEF_TEXTE, "radar-brief", texte);
 sammle(RADAR_KERNSATZ, "radar-kernsatz", texte);
+for (const z of GLOBAL_ZUSATZ) sammle({ ...z.de, angabe: z.angabe?.de ?? null }, `zusatz/${z.key}`, texte);
+sammle(GLOBAL_ZUSATZ_GRUPPEN.map((g) => g.de), "zusatz/gruppen", texte);
+sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

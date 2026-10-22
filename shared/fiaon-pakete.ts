@@ -26,6 +26,7 @@
 // braucht, holt ihn hier. In `shared/`, weil ihn Server und Oberfläche
 // gleichermaßen brauchen — und weil zwei Kopien genau das Problem waren.
 // ═══════════════════════════════════════════════════════════════════════════
+import { GLOBAL_ZUSATZ, zusatzZeitraumText } from "./fiaon-global-zusatz";
 
 export interface Paket {
   /** Der Schlüssel in `fiaon_applications.pack_key`. */
@@ -76,6 +77,12 @@ export interface Paket {
    * Global-Paket sind (sonst Global-Start nach der Zahlung).
    */
   zahlungsseite?: "global";
+  /**
+   * Zusatzdienst von FIAON Global (22.10.2026, Scheibe 1 „Ihr US-Büro“): eine Zeile, die der Kunde im Portal per Klick
+   * dazubucht. Preis, Texte und Abrechnungsart stehen in shared/fiaon-global-zusatz.ts (GLOBAL_ZUSATZ) — von dort entstehen
+   * diese Einträge. Nie ein Global-Start nach der Zahlung (globalNachZahlung zweigt vorher ab), nie in einer Auswahl.
+   */
+  globalZusatz?: true;
 }
 
 export const PAKETE: Paket[] = [
@@ -150,6 +157,17 @@ export const PAKETE: Paket[] = [
   // Global-Start nach der Zahlung entsteht. Angelegt NUR von server/lib/fiaon-koop-lieferung.ts (koopMonatsrechnung).
   { key: "koop_kontakte",       label: "FIAON Partner-Kooperation – Kontakte", preisCents: 0, art: "privat", abo: false, eingestellt: true, preisJeAngebot: true,
     rechnung: { beschreibung: "Qualifizierte Kontakte mit Einwilligung, Wunschthema und Termin (Kooperationsvertrag) — Aufstellung als Anlage", zeitraum: "Kalendermonat" }, zahlungsseite: "global" },
+  // ── ZUSATZDIENSTE VON FIAON GLOBAL (22.10.2026, Scheibe 1 „Ihr US-Büro“) ──────────────────
+  // Erzeugt aus GLOBAL_ZUSATZ (shared/fiaon-global-zusatz.ts) — der Preis steht nur dort. Art „global“ (jede Wand der
+  // Global-Welt greift: keine Privat-Mails, kein Abo, kein Mara-Verkauf, Firmenrechnung), `zahlungsseite: "global"`
+  // (Einzelrechnung: nie als Dublette stillgelegt, auch nicht von der bezahlten Paketzeile desselben Kunden),
+  // `eingestellt` (in keiner Paketauswahl). Monatlich/jährlich: abo false — berechnet wird nur der erste Zeitraum;
+  // die laufende Abrechnung folgt in einer späteren Scheibe.
+  ...GLOBAL_ZUSATZ.map((z): Paket => ({
+    key: z.packKey, label: `FIAON Global – ${z.de.titel}`, preisCents: z.preisCents, art: "global", abo: false, eingestellt: true,
+    globalZusatz: true, zahlungsseite: "global",
+    rechnung: { beschreibung: z.de.rechnung, zeitraum: zusatzZeitraumText(z.abrechnung, "de") },
+  })),
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));

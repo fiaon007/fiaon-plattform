@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Global-Kunden fügen Zusatzdienste im Portal per Klick hinzu.
+    id: "2026-10-22-global-zusatzdienste",
+    date: "2026-10-22",
+    category: "Neu",
+    title: "FIAON Global: Kunden buchen Zusatzdienste selbst im Portal",
+    summary:
+      "Im Kundenportal gibt es „Ihr Büro erweitern“: US-Mobilnummer, Telefonassistenz, private US-Adresse, Domain & E-Mail, Website. "
+      + "Der Kunde klickt „Hinzufügen“ — die Rechnung geht automatisch raus, du bekommst eine Aufgabe.",
+    changes: [
+      "Nach dem Klick entsteht sofort eine eigene Rechnung mit Nummer; der Kunde bekommt sie per E-Mail (beim Firmenangebot nicht automatisch — dann steht es in deiner Aufgabe).",
+      "Sobald die Zahlung gebucht ist, bekommst du die Aufgabe „Zusatzdienst einrichten“.",
+      "Was schon im Angebot des Kunden enthalten ist, kann er nicht noch einmal buchen.",
+    ],
+    howto: [
+      "Aufgabe öffnen → Dienst einrichten.",
+      "Fertig? Kurz in der Aufgabe vermerken — die Leitung setzt den Dienst im Chefbüro (Mandat › „Leistungen“) auf „Aktiv“, der Kunde sieht es sofort.",
+    ],
+  },
+  {
     // E-408 Scheibe 3 (22.10.2026): „Ja zum Anruf“ in der Karte „ARAS“ — sehen, eintragen, Mara fragen lassen, widerrufen.
     id: "2026-10-22-ja-zum-anruf",
     date: "2026-10-22",

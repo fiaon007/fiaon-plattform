@@ -102,9 +102,11 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // (E-240, abo: false) fehlten hier seit dem 24.09. — die Erwartung kommt jetzt für sie aus dem Katalog.
 // 08.10.2026 (E-314): dazu „llc_paket" (Einzelrechnung Unterlagen-Paket, kein Abo).
 // 16.10.2026 (E-386): dazu „koop_kontakte" (Monatsrechnung der Partner-Kooperation, kein Abo, Betrag aus dem Vertrag).
-gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung",
+// 22.10.2026 (Scheibe 1 „Ihr US-Büro“): dazu die Zusatzdienste global_zusatz_* — kein Abo, auch die monatlichen (erster Zeitraum
+// als Einzelrechnung; die laufende Abrechnung ist eine spätere Scheibe). Geprüft im Einzelnen: scripts/pruef-global-zusatz.ts.
+gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung + Zusatzdienste",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "koop_kontakte"].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "koop_kontakte", ...PAKETE.filter((p) => p.globalZusatz).map((p) => p.key)].sort());
 // E-419: Fast-Track der Gründung — Einmalkauf privat, 533,20 € (599 USD zum EZB-Kurs vom 21.10.2026), Zahlungsseite global, nicht verkaufbar.
 {
   const ft = paket("llc_fasttrack");
@@ -115,7 +117,9 @@ gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel 
   const llc = paket("llc_paket");
   ok("llc_paket: privat, kein Abo, eingestellt, 169,70 €, eigener Rechnungstext „einmalig“", llc?.art === "privat" && llc.abo === false && llc.eingestellt === true && llc.preisCents === 16970 && llc.rechnung?.zeitraum === "einmalig");
   ok("llc_paket: nicht Global, nicht verkaufbar", !istGlobalPaket("llc_paket") && !verkaufbarePakete().some((p) => p.key === "llc_paket"));
-  ok("E-317: beide LLC-Rechnungen zeigen die Zahlungsseite im Global-CI, kein Global-Paket hat das Feld", paket("llc_paket")?.zahlungsseite === "global" && paket("llc_gruendung")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.preisCents === 19900 && paket("llc_gruendung_halb")?.abo === false && PAKETE.filter((p) => p.art === "global").every((p) => !p.zahlungsseite));
+  ok("E-317: beide LLC-Rechnungen zeigen die Zahlungsseite im Global-CI, kein Global-Paket hat das Feld", paket("llc_paket")?.zahlungsseite === "global" && paket("llc_gruendung")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.zahlungsseite === "global" && paket("llc_gruendung_halb")?.preisCents === 19900 && paket("llc_gruendung_halb")?.abo === false && PAKETE.filter((p) => p.art === "global" && !p.globalZusatz).every((p) => !p.zahlungsseite));
+  // 22.10.2026: Die Zusatzdienste sind Global UND Einzelrechnung (nie als Dublette stillgelegt) — genau sie tragen beides.
+  ok("Zusatzdienste: art global UND zahlungsseite global, eingestellt, kein Abo", PAKETE.filter((p) => p.globalZusatz).length >= 7 && PAKETE.filter((p) => p.globalZusatz).every((p) => p.art === "global" && p.zahlungsseite === "global" && p.eingestellt === true && p.abo === false));
   const gr = paket("llc_gruendung");
   ok("llc_gruendung (E-316): privat, kein Abo, eingestellt, 398 €, nicht Global, eigener Rechnungstext", gr?.art === "privat" && gr.abo === false && gr.eingestellt === true && gr.preisCents === 39800 && !istGlobalPaket("llc_gruendung") && gr.rechnung?.zeitraum === "einmalig");
 }
@@ -143,7 +147,8 @@ ok("Kein Schlüssel steht zweimal im Katalog", new Set(PAKETE.map((p) => p.key))
 // ═══════════════════════════════════════════════════════════════════════════
 titel("2. KATALOG ↔ LEISTUNGSTEXTE (shared/fiaon-global.ts)");
 // E-268: Das Individualangebot hat keine Paketseite und keine Leistungstexte hier — seine Texte stehen in shared/fiaon-global-angebot.ts.
-const katalogGlobal = PAKETE.filter((p) => p.art === "global" && !p.preisJeAngebot).map((p) => p.key).sort();
+// 22.10.2026: Die Zusatzdienste (global_zusatz_*) haben ihre Texte in shared/fiaon-global-zusatz.ts, nicht hier.
+const katalogGlobal = PAKETE.filter((p) => p.art === "global" && !p.preisJeAngebot && !p.globalZusatz).map((p) => p.key).sort();
 gleich("Jedes Global-Paket des Katalogs hat Texte — und umgekehrt", GLOBAL_PAKETE.map((g) => g.key).sort(), katalogGlobal);
 for (const g of GLOBAL_PAKETE) {
   ok(`${g.key}: globalKatalog() findet den Katalogeintrag`, globalKatalog(g.key)?.key === g.key);

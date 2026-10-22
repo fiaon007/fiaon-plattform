@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — FIAON Global: Zusatzdienste per Klick („Ihr Büro erweitern“, Scheibe 1 „Ihr US-Büro“)
+- **Was:** Global-Kunden sehen im neuen Portal den Bereich **„Ihr Büro erweitern“** (Navigation „Dienste“): sieben
+  Dienste als ruhige Kacheln — Ihre US-Mobilnummer (149 € einmalig), Telefonassistenz rund um die Uhr (149 € im Monat),
+  Persönliche Telefonassistenz (390 € im Monat), Ihre private US-Adresse (490 € einmalig), Ihre Domain & E-Mail (49 € im
+  Jahr, mit Wunschdomain), Ihre Website (1.900 € einmalig), Website-Betreuung (49 € im Monat). Klick → Fenster mit
+  „Enthalten“, „Nach der Zahlung“ und Preis → „Hinzufügen“. Dann entsteht eine eigene Bestellzeile mit Rechnungsnummer,
+  die Rechnung geht als PDF per Mail (`global_zusatz`, Mail-Wand des Firmenangebots gilt), der Kunde sieht den Schritt im
+  Verlauf, das Team bekommt eine Aufgabe. Nach der Zahlung: Status „bezahlt“ + Aufgabe „einrichten“. Das Chefbüro hat im
+  Mandat den neuen Reiter **„Leistungen“** (bezahlt von Hand · aktiv · storniert). Offene Rechnungen stehen beim Kunden
+  unter „Für Sie zu tun“. Was das Paket oder Angebot schon enthält (Firmenangebot: Telefonannahme, Domain/E-Mail,
+  Website), steht als „Im Auftrag enthalten“ und lässt sich nicht berechnen.
+- **Warum:** Konzept „Ihr US-Büro“ (Justin, 22.10.2026): Zusatzdienste mit einem Klick, Rechnung und Freischaltung
+  automatisch. Monatliche/jährliche Dienste werden vorerst für den ersten Zeitraum berechnet; die laufende Abrechnung ist
+  eine spätere Scheibe.
+- **Wo:** Katalog und alle Kundentexte `shared/fiaon-global-zusatz.ts` (Preise nur dort; `shared/fiaon-pakete.ts`
+  erzeugt daraus `global_zusatz_*`), Server `server/lib/fiaon-global-zusatz.ts`, Tabelle `fiaon_global_zusatz`
+  (Migration 120), Kundenroute `POST /api/fiaon/global/mein-auftrag/:ref/zusatz`, Chef-Routen
+  `/api/fiaon/chef/global/mandate/:ref/zusatz…`, Portal `client/src/pages/global-portal-dienste.tsx`, Prüfstand
+  `scripts/pruef-global-zusatz.ts`.
 ## 22.10.2026 — Geschäftspartner-CRM im Reiter „Geschäftspartner“ (E-425)
 - **Was:** Im Chefbüro › Global-Aufträge › Reiter „Geschäftspartner“ steht jetzt oben ein vollständiges Partner-CRM (keine
   neue Seite): Partner (Lieferant/Dienstleister, Kooperationspartner, Bank/Finanzpartner, Kanzlei/Steuer, Sonstige) mit

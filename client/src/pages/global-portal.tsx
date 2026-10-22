@@ -25,7 +25,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState, type FormEvent } 
 import {
   ArrowRight, Check, CheckCircle2, CircleDashed, Copy, Download, FileSignature, FileText, FolderLock, Inbox, Landmark, Loader2,
   Mail, MessageSquare, PenLine, Phone, Send, ShieldCheck, Sparkles, Upload, X, CalendarClock, Building2, Lock, ChevronDown,
-  LayoutGrid, Compass, Scale, Calculator,
+  LayoutGrid, Compass, Scale, Calculator, Layers,
 } from "lucide-react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import WellenFeld from "@/components/site/WellenFeld";
@@ -34,18 +34,22 @@ import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
 const GlobalFach = lazy(() => import("./global-portal-fach"));
+// Scheibe 1 „Ihr US-Büro“ (22.10.2026): Zusatzdienste per Klick — Texte und Preise aus shared/fiaon-global-zusatz.ts.
+const GlobalDienste = lazy(() => import("./global-portal-dienste"));
+import { ZUSATZ_WOERTER, globalZusatz } from "@shared/fiaon-global-zusatz";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-portal.css";
 
 type T = Record<string, any>;
 
 // ── Die Seiten des Portals (E-341): Adresse #<seite>, Zurück-Taste funktioniert. ──
-export type PortalSeite = "uebersicht" | "fahrplan" | "tresor" | "post" | "anfragen" | "kapital" | "vertrag" | "strategie" | "recht" | "steuern";
-const SEITEN: PortalSeite[] = ["uebersicht", "fahrplan", "tresor", "post", "anfragen", "kapital", "vertrag", "strategie", "recht", "steuern"];
+export type PortalSeite = "uebersicht" | "fahrplan" | "tresor" | "post" | "anfragen" | "kapital" | "vertrag" | "dienste" | "strategie" | "recht" | "steuern";
+const SEITEN: PortalSeite[] = ["uebersicht", "fahrplan", "tresor", "post", "anfragen", "kapital", "vertrag", "dienste", "strategie", "recht", "steuern"];
 const NAV_GRUPPEN: { key: "auftrag" | "fach"; seiten: { key: PortalSeite; Icon: any }[] }[] = [
   { key: "auftrag", seiten: [
     { key: "uebersicht", Icon: LayoutGrid }, { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
     { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
+    { key: "dienste", Icon: Layers },
   ] },
   { key: "fach", seiten: [{ key: "strategie", Icon: Compass }, { key: "recht", Icon: Scale }, { key: "steuern", Icon: Calculator }] },
 ];
@@ -53,6 +57,7 @@ const KACHELN: { key: PortalSeite; Icon: any; fach?: boolean }[] = [
   { key: "strategie", Icon: Compass, fach: true }, { key: "recht", Icon: Scale, fach: true }, { key: "steuern", Icon: Calculator, fach: true },
   { key: "fahrplan", Icon: Building2 }, { key: "tresor", Icon: FolderLock }, { key: "post", Icon: Inbox },
   { key: "anfragen", Icon: MessageSquare }, { key: "kapital", Icon: Landmark }, { key: "vertrag", Icon: ShieldCheck },
+  { key: "dienste", Icon: Layers },
 ];
 const seiteAusHash = (): PortalSeite => {
   const h = (typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "") as PortalSeite;
@@ -64,7 +69,7 @@ const W = {
   de: {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
     navTitel: "Bereiche Ihres Portals", nav: { auftrag: "Ihr Auftrag", fach: "Fachbereiche" } as Record<string, string>,
-    seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan & Gesellschaft", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan & Gesellschaft", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
     // Leer = die Seite trägt ihren einen Satz im Abschnitt darunter (keine Doppelung).
     seitenSatz: {
       fahrplan: "",
@@ -73,6 +78,7 @@ const W = {
       anfragen: "",
       kapital: "",
       vertrag: "Auftrag, Zahlungsplan und Rechnungen.",
+      dienste: ZUSATZ_WOERTER.de.lead,
       strategie: "Sparring, Rechner und Wissen für Wachstum und Kapital.",
       recht: "Vorlagen, Wissen und Antworten rund um Ihre Gesellschaft.",
       steuern: "Fristen, Formulare und Antworten auf Steuerfragen.",
@@ -113,7 +119,7 @@ const W = {
   en: {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
     navTitel: "Areas of your portal", nav: { auftrag: "Your order", fach: "Expert areas" } as Record<string, string>,
-    seiten: { uebersicht: "Overview", fahrplan: "Roadmap & company", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    seiten: { uebersicht: "Overview", fahrplan: "Roadmap & company", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
     seitenSatz: {
       fahrplan: "",
       tresor: "",
@@ -121,6 +127,7 @@ const W = {
       anfragen: "",
       kapital: "",
       vertrag: "Order, payment plan and invoices.",
+      dienste: ZUSATZ_WOERTER.en.lead,
       strategie: "Sparring, calculators and know-how for growth and capital.",
       recht: "Templates, know-how and answers about your company.",
       steuern: "Deadlines, forms and answers to tax questions.",
@@ -438,6 +445,11 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
   if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.titel).join(" · "), knopf: w.zumTresor, aktion: () => zu("gp-tresor") });
+  // Scheibe 1: offene Rechnung eines hinzugefügten Dienstes — mit dem Weg zur Zahlungsseite.
+  for (const d of (a.dienste?.gebucht ?? []) as T[]) {
+    const z = globalZusatz(d.key);
+    if (z && d.zahlungOffen && d.zahlungsseite) tun.push({ key: `z${d.id}`, Icon: FileText, ton: "", titel: ZUSATZ_WOERTER[s].tunTitel(z[s].titel), text: ZUSATZ_WOERTER[s].tunText, knopf: ZUSATZ_WOERTER[s].zurZahlung, href: d.zahlungsseite });
+  }
   // Pflichtfristen der nächsten dreißig Tage gehören zu „Für Sie zu tun".
   const heuteIso = new Date().toISOString().slice(0, 10);
   const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
@@ -468,6 +480,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       case "anfragen": return ungeleseneAntworten.length ? (de ? "Neue Antwort" : "New reply") : (de ? `${nachrichten.length} Nachrichten` : `${nachrichten.length} messages`);
       case "kapital": return zugesagtCents > 0 ? `${globalUsd(zugesagtCents, s)} ${de ? "zugesagt" : "approved"}` : (de ? `${kapital.length} Einträge` : `${kapital.length} entries`);
       case "vertrag": return a.status === "offen" ? (t.status?.[a.status] ?? a.status) : a.paketName;
+      case "dienste": {
+        const aktiv = ((a.dienste?.gebucht ?? []) as T[]).filter((x) => x.status === "aktiv").length;
+        return aktiv > 0 ? (de ? `${aktiv} ${aktiv === 1 ? "Dienst" : "Dienste"} aktiv` : `${aktiv} ${aktiv === 1 ? "service" : "services"} active`) : ZUSATZ_WOERTER[s].titel;
+      }
       case "strategie": return de ? "KI-Sparring · Rechner · Bank-Exposé" : "AI sparring · calculators · bank profile";
       case "recht": return de ? "Vorlagen · Verzeichnis · Rechtsfragen" : "Templates · directory · legal questions";
       case "steuern": return de ? "Fristen · Formulare · Steuerfragen" : "Deadlines · forms · tax questions";
@@ -672,7 +688,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             <>
               <header className="gp-seitenkopf">
                 <span className="gp-auge">{g.name || a.firma?.name || w.meinAuftrag}</span>
-                <h1>{w.seiten[seite]}</h1>
+                <h1>{seite === "dienste" ? ZUSATZ_WOERTER[s].titel : w.seiten[seite]}</h1>
                 {w.seitenSatz[seite] && <p>{w.seitenSatz[seite]}</p>}
               </header>
               {seite === "fahrplan" && (
@@ -930,6 +946,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             <p className="gp-leise klein">{a.angebot ? (a.angebot.seiteHinweis ?? ANGEBOT_MEIN_AUFTRAG.seiteHinweis) : t.seiteHinweis}</p>
           </div>
                   </aside>
+                </div>
+              )}
+              {seite === "dienste" && (
+                <div className="gp-haupt">
+                  <Suspense fallback={<div className="gp-abschnitt"><Loader2 size={18} className="gp-dreht" /></div>}>
+                    <GlobalDienste a={a} s={s} mitToken={mitToken} vorschau={vorschau} laden={laden} />
+                  </Suspense>
                 </div>
               )}
               {(seite === "strategie" || seite === "recht" || seite === "steuern") && (

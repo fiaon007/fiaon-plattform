@@ -31,7 +31,7 @@ import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/fiaon-termin-art";
 // E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
 // Individualangebot (01.10.2026): Teile eines Angebots melden nichts an Meta (istAngebotsPaket, onCustomerPaid).
-import { istGlobalPaket, istAngebotsPaket, istKoopRechnung } from "../../shared/fiaon-pakete";
+import { istGlobalPaket, istAngebotsPaket, istKoopRechnung, paket as katalogPaketZeile } from "../../shared/fiaon-pakete";
 import { ECHT } from "../lib/fiaon-umsatz-quelle";
 
 const router = Router();
@@ -966,6 +966,9 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
     // diesem Weg; Ziffer 14 des Vertrags nennt Meta nicht). Dieselbe Sperre wie beim Anlegen der Zeile.
     if (istAngebotsPaket(a?.pack_key)) {
       console.log(`[META-MESSUNG] ${ref}: Individualangebot — keine Meldung an Meta.`);
+    } else if (katalogPaketZeile(a?.pack_key)?.globalZusatz) {
+      // 22.10.2026: Ein Zusatzdienst aus dem Portal ist kein Werbe-Erfolg — Bestandskunde, keine Meldung an Meta.
+      console.log(`[META-MESSUNG] ${ref}: Zusatzdienst FIAON Global — keine Meldung an Meta.`);
     } else {
       const produkt = produktFuer(ref, a?.pack_key, a?.type);
       meldenUndSenden(async () => {

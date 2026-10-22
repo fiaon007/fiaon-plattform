@@ -322,6 +322,42 @@ router.post("/global/mein-auftrag/:ref/unterschrift/:id", async (req: Request, r
   }
 });
 
+// ── SCHEIBE 1 „IHR US-BÜRO“ (22.10.2026): ZUSATZDIENSTE PER KLICK ──────────────────
+// Der Kunde fügt einen Dienst hinzu: Buchung, Rechnung mit Nummer, Mail mit PDF, Verlauf, Aufgabe
+// (server/lib/fiaon-global-zusatz.ts). Wiederholbar — ein zweiter Klick gibt die bestehende Buchung zurück.
+// Erst Zutritt, dann Vorschau-Sperre, dann Drossel; in der Vorschau der Leitung entsteht nie eine Buchung.
+const zusatzJeRef = fensterDrossel(6, 10 * 60_000);
+const zusatzJeIp = fensterDrossel(12, 10 * 60_000);
+router.post("/global/mein-auftrag/:ref/zusatz", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    const { ZUSATZ_WOERTER } = await import("@shared/fiaon-global-zusatz");
+    const en = String(req.body?.sprache ?? "") === "en";
+    if (istVorschau(req)) return res.status(409).json({ ok: false, error: ZUSATZ_WOERTER[en ? "en" : "de"].vorschau });
+    if (zusatzJeRef(ref) || zusatzJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZUSATZ_WOERTER[en ? "en" : "de"].zuViel });
+    const { zusatzBuchen } = await import("../lib/fiaon-global-zusatz");
+    const erg = await zusatzBuchen(ref, { key: req.body?.key, angabe: req.body?.angabe }, { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "").slice(0, 300) });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[GLOBAL-ZUSATZ] buchen:", err);
+    res.status(500).json({ ok: false, error: "Der Dienst ließ sich gerade nicht hinzufügen. Bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+router.get("/global/mein-auftrag/:ref/zusatz/:id/rechnung.pdf", async (req: Request, res: Response) => {
+  try {
+    const ref = zutritt(req, res);
+    if (!ref) return;
+    const { zusatzRechnungPdf } = await import("../lib/fiaon-global-zusatz");
+    const r = await zusatzRechnungPdf(ref, req.params.id);
+    if (!r) return res.status(404).json({ ok: false, error: "Diese Rechnung gibt es nicht." });
+    pdfSenden(res, r.pdf, r.dateiname);
+  } catch (err) {
+    console.error("[GLOBAL-ZUSATZ] rechnung:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Die Rechnung lässt sich gerade nicht laden." });
+  }
+});
+
 router.post("/global/mein-auftrag/:ref/nachricht", async (req: Request, res: Response) => {
   try {
     const ref = zutritt(req, res);

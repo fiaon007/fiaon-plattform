@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   „IHR BÜRO ERWEITERN“ — Zusatzdienste im Global-Portal (Scheibe 1, 22.10.2026)
+   Klassen .gpd-. Nur die Tokens des Portals (.gp in global-portal.css): Papier, Stein, Navy #12284a,
+   Blau #1d4ed8, Licht #288dfa, Newsreader für Namen, Inter für alles andere. Typografie statt Symbole,
+   Haarlinien statt Kästen, der Preis leise. Kein Gold, keine Marken, kein Drängen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gpd { display: flex; flex-direction: column; gap: 8px; }
+/* Eigene, einmalige Einblendung: Der Bereich wird nachgeladen (lazy) — der Beobachter der Seite (gp-auftauchen) kennt
+   seine Elemente nicht und ließe sie unsichtbar. */
+.gpd-abschnitt { animation: gp-hoch .6s var(--kurve) both; }
+.gpd-h2 { margin: 0 0 14px; font: 400 24px/1.2 var(--serif); color: var(--tinte); letter-spacing: -.005em; }
+.gpd-gruppe-titel { margin: 0 0 14px; font: 500 11px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--leise); }
+.gpd-auge { display: block; margin-bottom: 8px; font: 500 10.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--leise); }
+
+/* ── Kacheln: ganz anklickbar, ruhig ── */
+.gpd-kacheln { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.gpd-kachel { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 196px; padding: 24px 24px 20px; text-align: left; cursor: pointer;
+  border-radius: 20px; border: 1px solid var(--linie); background: rgba(255,255,255,.82); color: inherit; font: inherit;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 1px 2px rgba(12,26,46,.04);
+  opacity: 0; transform: translateY(10px); animation: gp-hoch .7s var(--kurve) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+  transition: transform .35s var(--kurve), box-shadow .35s var(--kurve), border-color .35s; }
+.gpd-kachel:hover { transform: translateY(-3px); border-color: var(--blau-rand); box-shadow: 0 28px 50px -34px rgba(12,26,46,.55); }
+.gpd-kachel::after { content: ""; position: absolute; left: 24px; right: 24px; top: 0; height: 2px; border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, var(--licht), var(--blau)); transform: scaleX(0); transform-origin: left; transition: transform .45s var(--kurve); }
+.gpd-kachel:hover::after, .gpd-kachel:focus-visible::after { transform: scaleX(1); }
+.gpd-kachel-titel { font: 400 21px/1.2 var(--serif); color: var(--tinte); letter-spacing: -.005em; }
+.gpd-kachel-kurz { flex: 1; font: 400 13.5px/1.55 var(--sans); color: var(--text); }
+.gpd-kachel-fuss { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-top: 14px; border-top: 1px solid var(--linie); }
+.gpd-preis { font: 400 13px/1.3 var(--sans); color: var(--leise); font-variant-numeric: tabular-nums; }
+.gpd-preis.gross { font: 400 22px/1.2 var(--serif); color: var(--tinte); }
+.gpd-mehr { display: inline-flex; align-items: center; gap: 6px; font: 500 12.5px/1 var(--sans); color: var(--blau); transition: gap .3s var(--kurve); }
+.gpd-kachel:hover .gpd-mehr { gap: 10px; }
+.gpd-kachel.gebucht .gpd-preis { color: var(--blau); }
+.gpd-kachel.enthalten { background: var(--stein); }
+.gpd-kachel.enthalten .gpd-preis { color: var(--gruen); }
+
+/* ── Gebuchte Dienste: eine Liste mit Haarlinien ── */
+.gpd-liste { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linie); }
+.gpd-zeile { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 18px 2px; border-bottom: 1px solid var(--linie); }
+.gpd-zeile-text b { display: block; font: 400 18px/1.25 var(--serif); color: var(--tinte); }
+.gpd-zeile-text small { display: block; margin-top: 4px; font: 400 12.5px/1.45 var(--sans); color: var(--leise); }
+.gpd-stand { display: flex; align-items: center; gap: 10px; }
+.gpd-punkte { display: inline-flex; gap: 5px; }
+.gpd-punkte i { width: 18px; height: 3px; border-radius: 3px; background: var(--linie-2); transition: background .5s var(--kurve); }
+.gpd-punkte i.an { background: linear-gradient(90deg, var(--licht), var(--blau)); }
+.gpd-zeile.st-aktiv .gpd-punkte i.an { background: var(--gruen); }
+.gpd-stand-text { font: 400 13px/1.35 var(--sans); color: var(--text); }
+.gpd-wege { display: flex; align-items: center; gap: 14px; justify-content: flex-end; }
+.gpd-link { font: 500 12.5px/1 var(--sans); color: var(--blau) !important; text-decoration: none; border-bottom: 1px solid var(--blau-rand); padding-bottom: 2px; }
+.gpd-link:hover { border-color: var(--blau); }
+
+/* ── Fenster ── */
+.gpd-dialog { width: min(560px, 100%); gap: 18px; }
+.gpd-dialog-gruppe { font: 500 10.5px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--leise); }
+.gpd-dialog h3 { margin: -6px 0 0; font: 300 32px/1.12 var(--serif); }
+.gpd-dialog-kurz { margin: 0; font: 400 15px/1.6 var(--sans); color: var(--text); }
+.gpd-dialog-block { padding-top: 16px; border-top: 1px solid var(--linie); }
+.gpd-dialog-block p { margin: 0; font: 400 14px/1.6 var(--sans); color: var(--text); }
+.gpd-enthalten { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.gpd-enthalten li { position: relative; padding-left: 20px; font: 400 14px/1.5 var(--sans); color: var(--tinte); }
+.gpd-enthalten li::before { content: ""; position: absolute; left: 2px; top: .72em; width: 9px; height: 1px; background: var(--blau); }
+.gpd-preiszeile { display: flex; flex-direction: column; gap: 6px; padding-top: 16px; border-top: 1px solid var(--linie); }
+.gpd-preiszeile small, .gpd-klein { font: 400 12.5px/1.5 var(--sans); color: var(--leise); }
+.gpd-hinweis { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--stein); font: 400 14px/1.55 var(--sans); color: var(--text); }
+
+@media (max-width: 1000px) { .gpd-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .gpd-kacheln { grid-template-columns: 1fr; }
+  .gpd-kachel { min-height: 0; }
+  .gpd-zeile { grid-template-columns: 1fr; gap: 10px; }
+  .gpd-wege { justify-content: flex-start; }
+  .gpd-dialog h3 { font-size: 27px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpd-abschnitt { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .gpd-kachel { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .gpd-kachel::after, .gpd-mehr, .gpd-punkte i { transition: none !important; }
+}

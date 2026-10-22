@@ -573,7 +573,9 @@ export async function firmaAnnehmen(z: AngebotZeile, body: any, kontext: Annahme
 
 /** Bestellzeile anlegen — derselbe Weg wie /business/start (Loopback auf POST /api/fiaon/application), mit Firma und UID. */
 // E-399: auch vom Kapital-Angebot genutzt (liest nur d.kunde).
-export async function firmaBestellzeileAnlegen(ref: string, d: Pick<FirmaDaten, "kunde">, titel: string, kontext: { ip: string; userAgent: string }): Promise<boolean> {
+// 22.10.2026 (Zusatzdienste, server/lib/fiaon-global-zusatz.ts): `paketWahl` setzt Schlüssel und Namen der Zeile — ohne sie wie bisher
+// die Zeile eines Angebotsteils (global_individuell).
+export async function firmaBestellzeileAnlegen(ref: string, d: Pick<FirmaDaten, "kunde">, titel: string, kontext: { ip: string; userAgent: string }, paketWahl?: { packKey: string; packName: string }): Promise<boolean> {
   const k = d.kunde; const f = k.firma;
   const port = process.env.PORT || 5000;
   const antwort = await fetch(`http://127.0.0.1:${port}/api/fiaon/application`, {
@@ -581,7 +583,7 @@ export async function firmaBestellzeileAnlegen(ref: string, d: Pick<FirmaDaten, 
     headers: { "Content-Type": "application/json", "x-forwarded-for": kontext.ip || "", "user-agent": kontext.userAgent || "fiaon-global-firmenangebot" },
     body: JSON.stringify({
       ref, type: "business", status: "submitted", currentStep: 6,
-      packKey: ANGEBOT_PAKET_KEY, packName: firmaTeilPaketname(titel),
+      packKey: paketWahl?.packKey ?? ANGEBOT_PAKET_KEY, packName: paketWahl?.packName ?? firmaTeilPaketname(titel),
       companyName: f.name, legalForm: f.rechtsform, taxId: f.uid,
       firstName: k.vertretung.vorname, lastName: k.vertretung.nachname,
       contactFirstName: k.vertretung.vorname, contactLastName: k.vertretung.nachname,

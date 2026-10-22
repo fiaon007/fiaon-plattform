@@ -246,10 +246,13 @@ export async function globalPortalNeuFrei(ref: string): Promise<boolean> {
  */
 export async function globalMandatKundenZusatz(ref: string, token: string, sprache: BereichSprache, vorschau: boolean): Promise<Record<string, unknown>> {
   const z = await mandatZeile(ref);
-  const [schritte, kapital, nachrichten, zusatz] = await Promise.all([
+  const [schritte, kapital, nachrichten, zusatz, dienste] = await Promise.all([
     schritteLesen(ref, sprache, "kunde"), kapitalLesen(ref, sprache, "kunde"), nachrichtenLesen(ref, "kunde"), dokumentZusatzLesen(ref),
+    // Scheibe 1 „Ihr US-Büro“: gebuchte Zusatzdienste und was der Auftrag schon enthält (Texte liest die Seite aus shared/).
+    // Ein Fehler hier leert nur den Bereich „Ihr Büro erweitern“ — das Portal lädt trotzdem.
+    import("./fiaon-global-zusatz").then(async (m) => ({ gebucht: await m.zusatzKundenSicht(ref, token, vorschau), enthalten: await m.zusatzEnthalten(ref) }))
+      .catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Zusatzdienste nicht gelesen:`, e); return { gebucht: [], enthalten: [], fehler: true }; }),
   ]);
-  void token;
   // Die Anrede für den Gruß („Guten Abend, Herr Hildbrand“) — nur Anrede und Nachname, nichts sonst.
   const [akte] = (await sqlPool`SELECT ansprechpartner FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
   const ap = json<Record<string, any>>(akte?.ansprechpartner, {});
@@ -261,7 +264,7 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
       name: [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || (ap.name ? String(ap.name).trim() : null),
     },
     ...(vorschau ? { vorschau: true } : {}),
-    schritte, kapital, nachrichten,
+    schritte, kapital, nachrichten, dienste,
     gesellschaftPlus: gesellschaftPlusLesen(z),
     dokumentZusatz: Object.fromEntries(Array.from(zusatz.entries()).map(([id, d]) => [String(id), dokumentZusatz(d)])),
   };

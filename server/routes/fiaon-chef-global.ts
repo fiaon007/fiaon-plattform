@@ -203,6 +203,35 @@ router.post("/chef/global/mandate/:ref/zugang-senden", requireChef("leitung"), a
   try { antwort(res, await globalZugangSenden(ref(req), await wer(req))); }
   catch (e) { fehler(res, "zugang senden", e); }
 });
+// ── LEISTUNGEN: Zusatzdienste des Mandats (Scheibe 1 „Ihr US-Büro“, 22.10.2026) ──
+// Lesen, Rechnung ansehen und Status setzen (bezahlt von Hand · aktiv · storniert) — derselbe Server-Weg wie die
+// Zahlung (server/lib/fiaon-global-zusatz.ts). Der Kunde sieht jeden Schritt in „Ihr Büro erweitern“.
+router.get("/chef/global/mandate/:ref/zusatz", requireChef("leitung"), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { zusatzChefListe } = await import("../lib/fiaon-global-zusatz");
+    res.json({ ok: true, ...(await zusatzChefListe(ref(req))) });
+  } catch (e) { fehler(res, "zusatz liste", e); }
+});
+router.get("/chef/global/mandate/:ref/zusatz/:id/rechnung.pdf", requireChef("leitung"), async (req, res) => {
+  try {
+    const { zusatzRechnungPdf } = await import("../lib/fiaon-global-zusatz");
+    const r = await zusatzRechnungPdf(ref(req), req.params.id);
+    if (!r) return res.status(404).json({ ok: false, error: "Diese Rechnung gibt es nicht." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${globalDateinameKopf(r.dateiname)}"; filename*=UTF-8''${encodeURIComponent(r.dateiname)}`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.end(r.pdf);
+  } catch (e) { fehler(res, "zusatz rechnung", e); }
+});
+router.post("/chef/global/mandate/:ref/zusatz/:id/status", requireChef("leitung"), async (req, res) => {
+  try {
+    const { zusatzStatusSetzen } = await import("../lib/fiaon-global-zusatz");
+    antwort(res, await zusatzStatusSetzen(ref(req), req.params.id, req.body?.status, req.body?.notiz, await wer(req)));
+  } catch (e) { fehler(res, "zusatz status", e); }
+});
+
 router.post("/chef/global/mandate/:ref/test", requireChef("geschaeftsfuehrung"), async (req, res) => {
   try { antwort(res, await globalMandatTest(ref(req), req.body?.an === true, await wer(req))); }
   catch (e) { fehler(res, "test", e); }

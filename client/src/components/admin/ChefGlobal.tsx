@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Globe2, Building2, FileText, MessageSquare, Landmark, CalendarClock, History, Eye, Copy, Check,
-  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical,
+  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN, US_BUNDESSTAATEN } from "@shared/fiaon-global-bereich";
@@ -168,7 +168,7 @@ export default function ChefGlobal() {
 }
 
 // ── Ein Mandat ───────────────────────────────────────────────────────────────
-type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "ki" | "verlauf";
+type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
   const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
@@ -205,6 +205,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
     { key: "post", titel: "Post", Icon: Inbox, zahl: post.length || undefined },
     { key: "anfragen", titel: "Anfragen", Icon: MessageSquare, zahl: anfragenNeu || undefined },
     { key: "fristen", titel: "Fristen", Icon: CalendarClock, zahl: (m.fristen as any[]).filter((f) => !f.erledigt).length || undefined },
+    // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Zusatzdienste, die der Kunde im Portal hinzugefügt hat.
+    { key: "leistungen", titel: "Leistungen", Icon: Layers },
     { key: "ki", titel: "KI-Gespräche", Icon: Sparkles },
     { key: "verlauf", titel: "Verlauf", Icon: History },
   ];
@@ -259,6 +261,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
         {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}
         {reiter === "anfragen" && <Anfragen m={m} tun={tun} />}
         {reiter === "fristen" && <Fristen m={m} tun={tun} />}
+        {reiter === "leistungen" && <Leistungen gref={gref} tun={tun} />}
         {reiter === "ki" && <KiGespraeche gref={gref} />}
         {reiter === "verlauf" && <Verlauf m={m} tun={tun} />}
       </div>
@@ -793,6 +796,75 @@ function KiGespraeche({ gref }: { gref: string }) {
 }
 
 // ── Verlauf ──────────────────────────────────────────────────────────────────
+// ── Leistungen (Zusatzdienste) ───────────────────────────────────────────────
+// Was der Kunde in „Ihr Büro erweitern“ hinzugefügt hat. Die Zahlung setzt „bezahlt“ von selbst (Zahlungseingang);
+// hier: „bezahlt“ von Hand (Geld kam anders an — die Rechnung bleibt beim Zahlungsweg offen), „aktiv“, sobald
+// eingerichtet, „storniert“ (offene Rechnung wird storniert; bezahlt → Erstattung nur von Hand). Der Kunde sieht jeden Schritt.
+const LEISTUNG_STATUS: Record<string, { text: string; ton: string }> = {
+  gebucht: { text: "Gebucht · Rechnung offen", ton: "blau" }, bezahlt: { text: "Bezahlt · einrichten", ton: "blau" },
+  aktiv: { text: "Aktiv", ton: "gruen" }, storniert: { text: "Storniert", ton: "rot" },
+};
+function Leistungen({ gref, tun }: { gref: string; tun: Tun }) {
+  const { daten, fehler, neu } = useDaten<{ ok: true; katalog: any[]; buchungen: any[] }>(`/chef/global/mandate/${encodeURIComponent(gref)}/zusatz`);
+  const [notiz, setNotiz] = useState<Record<number, string>>({});
+  const [laeuft, setLaeuft] = useState<number | null>(null);
+  if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;
+  if (!daten) return <Geruest zeilen={4} />;
+  const setzen = async (id: number, status: string, frage: string) => {
+    if (!window.confirm(frage)) return;
+    setLaeuft(id);
+    if (await tun(`/zusatz/${id}/status`, "POST", { status, notiz: notiz[id] ?? "" })) { setNotiz((n) => ({ ...n, [id]: "" })); neu(); }
+    setLaeuft(null);
+  };
+  return (
+    <div className="cgr-gitter">
+      <section className="cgr-block breit">
+        <div className="cgr-block-kopf">
+          <h3>Leistungen <small>Zusatzdienste aus „Ihr Büro erweitern“ — der Kunde sieht jeden Schritt</small></h3>
+        </div>
+        {daten.buchungen.length === 0 && <p className="cgr-leer">Noch kein Zusatzdienst gebucht.</p>}
+        <div className="cgr-kapital">
+          {daten.buchungen.map((b) => {
+            const st = LEISTUNG_STATUS[b.status] ?? { text: b.status, ton: "leise" };
+            return (
+              <div key={b.id} className={`cgr-kapital-karte ${st.ton}`} data-fiaon="chef-leistung">
+                <div><small>{b.preis}{b.angabe ? ` · ${b.angabe}` : ""}</small><b>{b.titel}</b><em>{b.rechnungsnummer ? `Rechnung ${b.rechnungsnummer}` : "Rechnung noch nicht erstellt"}{b.verwendungszweck ? ` · ${b.verwendungszweck}` : ""}{b.zahlungsstatus ? ` · Zahlung: ${b.zahlungsstatus}` : ""}</em></div>
+                <div className="cgr-kapital-rechts">
+                  <span className={`cgr-pille ${st.ton}`}>{st.text}</span>
+                  {b.rechnungUrl && <a className="cgr-link" href={b.rechnungUrl} target="_blank" rel="noopener">Rechnung <ExternalLink size={12} /></a>}
+                </div>
+                <small className="cgr-leise">
+                  gebucht {datumZeit(b.am)}{b.bezahltAm ? ` · bezahlt ${datum(b.bezahltAm)}${b.bezahltVon ? ` (${b.bezahltVon})` : ""}` : ""}
+                  {b.aktivAm ? ` · aktiv ${datum(b.aktivAm)} (${b.aktivVon ?? "—"})` : ""}{b.storniertAm ? ` · storniert ${datum(b.storniertAm)} (${b.storniertVon ?? "—"})` : ""}
+                  {b.mailAm ? " · Rechnungsmail raus" : b.mailFehler ? ` · Rechnungsmail NICHT raus: ${b.mailFehler}` : ""}
+                  {b.notiz ? ` · Notiz: „${b.notiz}“` : ""}
+                </small>
+                {b.intern && <small className="cgr-leise">Intern: {b.intern}</small>}
+                {b.status !== "storniert" && (
+                  <div className="cgr-form zeile">
+                    <input value={notiz[b.id] ?? ""} onChange={(e) => setNotiz((n) => ({ ...n, [b.id]: e.target.value }))} placeholder="Notiz (intern, optional)" />
+                  </div>
+                )}
+                <div className="cgr-mini">
+                  {b.status === "gebucht" && <button type="button" disabled={laeuft === b.id} onClick={() => void setzen(b.id, "bezahlt", "Als bezahlt markieren? Nur, wenn das Geld sicher eingegangen ist — die Rechnung wird hier NICHT gebucht.")}>Bezahlt (von Hand)</button>}
+                  {(b.status === "gebucht" || b.status === "bezahlt") && <button type="button" disabled={laeuft === b.id} onClick={() => void setzen(b.id, "aktiv", "Ist der Dienst eingerichtet? Der Kunde sieht ihn danach als „Aktiv“.")}>Aktiv setzen</button>}
+                  {b.status !== "storniert" && <button type="button" disabled={laeuft === b.id} onClick={() => void setzen(b.id, "storniert", "Diesen Dienst stornieren? Eine offene Rechnung wird storniert; eine bezahlte erstattest du von Hand.")}>Stornieren</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <section className="cgr-block breit">
+        <h3>Katalog <small>Preise und Texte: shared/fiaon-global-zusatz.ts</small></h3>
+        <ul className="cgr-verlauf">
+          {daten.katalog.map((k) => <li key={k.key}><small>{k.preis}{k.buchbar ? "" : " · noch nicht buchbar"}</small><p><b>{k.titel}</b> — {k.intern}</p></li>)}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
 function Verlauf({ m, tun }: { m: any; tun: Tun }) {
   const [text, setText] = useState("");
   const [sichtbar, setSichtbar] = useState(false);

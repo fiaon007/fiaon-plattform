@@ -48,6 +48,8 @@ import { APP_VORLAGEN } from "./vorlagen/app";
 import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
 import { GLOBAL_VORLAGEN, GLOBAL_VORLAGEN_EN } from "./vorlagen/global";
 import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/global-bereich";
+// Scheibe 1 „Ihr US-Büro“ (22.10.2026): Rechnung eines im Portal hinzugefügten Zusatzdienstes.
+import { GLOBAL_ZUSATZ_VORLAGEN, GLOBAL_ZUSATZ_VORLAGEN_EN } from "./vorlagen/global-zusatz";
 // 01.10.2026 (E-268): das Individualangebot von FIAON Global (Bestätigung, Start, Teil 2, Erstattung).
 import { GLOBAL_ANGEBOT_VORLAGEN, GLOBAL_ANGEBOT_ABSENDER } from "./vorlagen/global-angebot";
 // 05.10.2026 (E-282): die Vertragsbestätigung des neuen Antrags /antrag-neu (mit Vertrags-PDF als Anhang).
@@ -73,6 +75,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...BEWERBUNG_VORLAGEN,
   ...GLOBAL_VORLAGEN,
   ...GLOBAL_BEREICH_VORLAGEN,
+  ...GLOBAL_ZUSATZ_VORLAGEN,
   ...GLOBAL_ANGEBOT_VORLAGEN,
   ...VERTRAG_VORLAGEN,
   ...FINANZAUSWERTUNG_VORLAGEN,
@@ -93,6 +96,7 @@ export const VORLAGEN_EN: Record<string, MailBaustein> = {
   ...GLOBAL_VORLAGEN_EN,
   // „Mein Auftrag" (Etappe, Frist, Dokument, Zugang) — Merge 18.09.2026.
   ...GLOBAL_BEREICH_VORLAGEN_EN,
+  ...GLOBAL_ZUSATZ_VORLAGEN_EN,
   ...GLOBAL_TERMIN_EN,
 };
 
@@ -130,6 +134,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   global_auftrag: "accounting",
   // … und die ruhige Erinnerung an dieselbe Rechnung ebenfalls.
   global_zahlung_erinnerung: "accounting",
+  // 22.10.2026: die Rechnung eines Zusatzdienstes (Portal „Ihr Büro erweitern“) kommt wie jede Rechnung aus der Buchhaltung.
+  global_zusatz: "accounting",
   // E-244 (26.09.2026): die Erinnerung an eine offene Bonitätsauskunft — Zahlungspost aus der Buchhaltung.
   auskunft_zahlung_erinnerung: "accounting",
   // E-268 (01.10.2026): Vertrag + Rechnung, Rechnung Teil 2 und die Erstattung eines Individualangebots.

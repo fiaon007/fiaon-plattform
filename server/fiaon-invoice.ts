@@ -50,6 +50,7 @@ import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { istGlobalPaket, istAngebotsPaket, istKoopRechnung, paket } from "@shared/fiaon-pakete";
 import { GLOBAL_JAHRESBETREUUNG } from "@shared/fiaon-global";
+import { zusatzRechnungsZeile } from "@shared/fiaon-global-zusatz";
 import type PDFKit from "pdfkit";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { markeInsPdf } from "./lib/fiaon-marke-pdf";
@@ -193,6 +194,21 @@ export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void
     return;
   }
   if (!a || !istGlobalPaket(a.pack_key) || !a.ref) return;
+  // ── ZUSATZDIENST (22.10.2026, Scheibe 1 „Ihr US-Büro“) ───────────────────
+  // Sprache des MANDATS (die Zusatzzeile hat keine eigene Akte), Beschreibung und Zeitraum aus dem Katalog
+  // (shared/fiaon-global-zusatz.ts) — „erster Monat“ statt „einmalig“, und nie „Aufbau einer US-Unternehmensstruktur“.
+  if (paket(a.pack_key)?.globalZusatz) {
+    let sprache: "de" | "en" = "de"; let angabe: string | null = null;
+    try {
+      const { zusatzRechnungKontext } = await import("./lib/fiaon-global-zusatz");
+      const k = await zusatzRechnungKontext(String(a.ref));
+      if (k) { sprache = k.sprache; angabe = k.angabe; }
+    } catch (e) { console.error(`[FIAON-INVOICE] ${a.ref}: Zusatzdienst — Sprache/Angabe nicht gelesen:`, e); }
+    if (!a.rechnung_sprache && sprache === "en") a.rechnung_sprache = "en";
+    const zeile = zusatzRechnungsZeile(a.pack_key, a.rechnung_sprache === "en" ? "en" : "de", angabe);
+    if (zeile && !a.beschreibung) { a.beschreibung = zeile.beschreibung; a.zeitraum = zeile.zeitraum; }
+    return;
+  }
   // ── INDIVIDUALANGEBOT (01.10.2026, E-268) ────────────────────────────────
   // Jeder Teil hat seine eigene Rechnung (eigene Bestellzeile). Beschreibung und Zeitraum
   // kommen aus dem Angebotsteil — über DIESEN Haken, also an allen fünf Zeichenstellen gleich.

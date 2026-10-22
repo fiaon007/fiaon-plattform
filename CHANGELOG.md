@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — FIAON Global: die vollständige Akte (alle Rechnungen, Verträge, Unterschriften, ZIP) + Kontaktperson (E-424) + EIN per Fax
+- **Was:** Portal („Vertrag & Zahlung“), Chefbüro (Mandat › neuer Reiter **„Akte komplett“**) und Office (Global-Akte, Knopf
+  „Akte als ZIP“) zeigen die GANZE Akte: **alle Rechnungen der Person** (person_id, sonst E-Mail) aus der Global-Welt — Paket,
+  Angebotsteile, Zusatzdienste, LLC-Gründung, Fast-Track — mit Nummer, Datum, Betrag, Stand (offen/bezahlt/storniert), PDF
+  und Zahlungsseite; nie Privat-Abos, nie die Kooperation. **Alle Verträge** (Auftrag + angenommene Angebote, ohne
+  Kooperationsvertrag) und die Nachweise aus dem Angebot. **Dokumente zur Unterschrift** mit Vollständigkeit je Mandat
+  (grün = alles unterschrieben): nach der Gründung der LLC die vorausgefüllten Formulare **IRS SS-4** (FIAON als Third Party
+  Designee) und **IRS 8821**, dazu jedes Dokument, das das Team „zur Unterschrift“ stellt. Beim Kunden unter „Für Sie zu
+  tun“ → Unterschrift-Dialog → unterschriebene Fassung im Tresor, Meldung ans Team. Nach der rechtlichen Prüfung gibt es
+  **keine eigene „Umfassende Vollmacht“** (der Auftrag regelt, was FIAON tun darf). Datenmodell für das spätere, eigene
+  E-SIGN-Unterschreiben steht: Formular-Art (`pflicht_key`), Stand vorbereitet → zur Unterschrift → unterschrieben,
+  Zeitpunkt, leerer Nachweis (`unterschrift_nachweis` JSONB). **„Alle Unterlagen herunterladen“**: ein gestreamtes ZIP mit
+  Inhaltsverzeichnis (Kunde: seine Unterlagen; Team: die ganze Akte), jeder Abruf steht intern im Verlauf. Einmalige
+  Leistungen (Fast-Track …) stehen auch unter „Ihre Dienste“.
+- **Was (E-424):** Kontaktperson der Gesellschaft = der Kunde selbst bzw. ein Gesellschafter/Manager — vorbelegt aus dem
+  Auftrag (Name, E-Mail, Telefon, Wohnanschrift, Rolle), vertraulich; der Server lehnt Namen aus dem FIAON-Team ab und warnt
+  bei Postfach, virtuellem Büro oder Agent-Adresse. Kundensatz aus `GLOBAL_AGENT.kontakt`.
+- **Was (EIN per Fax):** Station EIN mit eigenen Status-Namen „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN
+  erteilt“; das SS-4 liegt als Dokument zur Unterschrift an der Station (Chefbüro und Office). Station heißt jetzt „EIN der
+  Gesellschaft“.
+- **Warum:** Justin: „Denk an jedes Detail“ — der Kunde und das Team sehen die komplette Akte; Hinweis der Account Managerin
+  (E-424); EIN-Antrag per Fax über unseren Registered-Agent-Partner.
+- **Wo:** `shared/fiaon-global-akte.ts` (Regeln, Formularliste, Dateinamen), `server/lib/fiaon-global-akte-komplett.ts`,
+  Migration 122 (`pflicht_key`, `unterschrift_nachweis`), Routen `/api/fiaon/global/mein-auftrag/:ref/rechnung|vertrag|akte.zip`,
+  `/api/fiaon/chef/global/mandate/:ref/akte|akte.zip|rechnung|vertrag|dokument/:id/pflicht`,
+  `/api/fiaon/agent/global/auftraege/:ref/akte.zip`, Prüfstand
+  `scripts/pruef-global-akte.ts` (mit `--lokal <REF>` nur lesend gegen eine lokale Datenbank).
+
 ## 22.10.2026 — FIAON Global „Ihr US-Büro“: Freigabe je Dienst, neue Portal-Navigation, Stationen-Editor
 - **Was (A, Freigabe):** Jeder Zusatzdienst braucht jetzt die Freigabe der Leitung. Vorgabe: **nur „Ihre Domain &
   E-Mail“**. Schalter je Dienst im Chefbüro › Global (Leiste oben, „Zusatzdienste für Kunden“). Nicht Freigegebenes sieht

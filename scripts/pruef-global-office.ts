@@ -248,7 +248,10 @@ titel("8. Die Rundgänge zeigen nur auf Stellen, die es gibt");
       if (!s.ziel) continue;
       const klasse = s.ziel.match(/^\.([a-z0-9-]+)$/i)?.[1];
       const reiter = s.ziel.match(/^\[data-reiter="([a-z]+)"\]$/)?.[1];
-      const da = klasse ? new RegExp(`["\` ]${klasse}["\` $]`).test(quellen) : reiter ? quellen.includes(`["${reiter}", `) && quellen.includes("data-reiter={k}") : false;
+      // 22.10.2026: auch Kennzeichen (data-fiaon="…", AGENTS.md „Ein Bauteil, das ein Browsertest prüft, braucht ein Kennzeichen“).
+      const kennzeichen = s.ziel.match(/^\[data-fiaon="([a-z0-9-]+)"\]$/)?.[1];
+      const da = klasse ? new RegExp(`["\` ]${klasse}["\` $]`).test(quellen) : reiter ? quellen.includes(`["${reiter}", `) && quellen.includes("data-reiter={k}")
+        : kennzeichen ? quellen.includes(`data-fiaon="${kennzeichen}"`) : false;
       ok(`Ziel ${s.ziel} kommt in den Seiten vor`, da);
     }
     ok(`Rundgang „${schluessel}“: Du-Form, kein „Sie“ an den Mitarbeiter`, (r?.schritte ?? []).every((s) => !/\bSie (können|müssen|sehen|finden)\b/.test(`${s.text} ${s.tipp ?? ""}`)));

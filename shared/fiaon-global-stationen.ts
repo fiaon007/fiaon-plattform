@@ -32,7 +32,7 @@ import type { GlobalGesellschaftPlus } from "./fiaon-global-mandat";
 type Paar = { de: string; en: string };
 
 // ── FELDER JE STATION ────────────────────────────────────────────────────────
-export type StationFeldArt = "text" | "mehrzeilig" | "datum" | "staat" | "form" | "ein" | "itin" | "duns" | "telefon";
+export type StationFeldArt = "text" | "mehrzeilig" | "datum" | "staat" | "form" | "ein" | "itin" | "duns" | "telefon" | "telefon_int" | "email" | "rolle";
 /** Wohin ein Wert geschrieben wird: die Grunddaten der Gesellschaft (mit Fristen) oder gesellschaft_plus. */
 export type StationFeldOrt = "grund" | "plus";
 export interface StationFeld {
@@ -57,10 +57,19 @@ export const GLOBAL_STATION_FELDER: Record<string, StationFeld[]> = {
     { feld: "gegruendetAm", ort: "grund", art: "datum", titel: "Gegründet am", hilfe: "Bundesstaat und Gründungstag setzen den Pflichtenkalender." },
     { feld: "aktenzeichen", ort: "plus", art: "text", titel: "State File Number", platzhalter: "z. B. 2026-001234567", max: 40 },
   ],
+  // E-424 (22.10.2026): Die Kontaktperson, die Wyoming verlangt, ist eine NATÜRLICHE Person aus dem Kreis der
+  // Gesellschafter oder der Geschäftsführung des Kunden — in der Regel der Inhaber selbst, NIE jemand von FIAON (Wyoming
+  // hat Firmen beanstandet, bei denen Partner dieselbe Kontaktperson für viele Kunden eingetragen hatten). Vorbelegt aus
+  // dem Auftrag; vertraulich, nicht öffentlich. Ihre Anschrift ist eine Wohnanschrift — keine Agent-Adresse, kein
+  // virtuelles Büro, kein Postfach (der Editor warnt).
   agent: [
     { feld: "agentAdresse", ort: "plus", art: "mehrzeilig", titel: "Anschrift des Registered Agent", hilfe: "Nur die Adresse — der Name des Anbieters erscheint beim Kunden nie.", platzhalter: "30 N Gould St, Ste R\nSheridan, WY 82801", max: 300 },
-    { feld: "kontaktperson", ort: "plus", art: "text", titel: "Kontaktperson", platzhalter: "Vor- und Nachname", max: 120 },
     { feld: "registeredAgent", ort: "plus", art: "text", titel: "Anbieter (intern)", intern: true, max: 200 },
+    { feld: "kontaktperson", ort: "plus", art: "text", titel: "Kontaktperson der Gesellschaft — Name", hilfe: "Inhaber, Gesellschafter oder Manager des Kunden — nie jemand von FIAON.", platzhalter: "Vor- und Nachname", max: 120 },
+    { feld: "kontaktRolle", ort: "plus", art: "rolle", titel: "Rolle in der Gesellschaft", intern: true },
+    { feld: "kontaktEmail", ort: "plus", art: "email", titel: "E-Mail der Kontaktperson", intern: true, max: 160 },
+    { feld: "kontaktTelefon", ort: "plus", art: "telefon_int", titel: "Telefon der Kontaktperson", intern: true, platzhalter: "+41 79 123 45 67" },
+    { feld: "kontaktAdresse", ort: "plus", art: "mehrzeilig", titel: "Wohnanschrift der Kontaktperson", intern: true, hilfe: "Wohnanschrift — keine Agent-Adresse, kein virtuelles Büro, kein Postfach. Vertraulich, nicht öffentlich.", max: 300 },
   ],
   adresse: [
     { feld: "usTelefon", ort: "plus", art: "telefon", titel: "US-Telefonnummer", platzhalter: "+1 307 555 0148", hilfe: "Wird als +1XXXXXXXXXX gespeichert." },
@@ -93,6 +102,27 @@ export const GLOBAL_STATION_KAPITAL: Record<string, { arten: ("karte" | "kreditr
 export const GLOBAL_STATION_DOKUMENT: Record<string, string> = {
   eingetragen: "gruendungsurkunde", ein: "ein_brief", itin: "itin_bescheid", operating_agreement: "operating_agreement",
   konto: "bank_vertrag", karte_1: "karten_unterlage", kartenleiter: "karten_unterlage", kreditrahmen: "kapital_vertrag",
+};
+
+// ── STATUS-NAMEN JE STATION ──────────────────────────────────────────────────
+// Die EIN für Kunden ohne SSN/ITIN beantragt unser Registered-Agent-Partner per Fax: Sein Team schickt vorher das
+// Formular SS-4 zur Unterschrift. Die drei Schritte liegen auf den allgemeinen Status: in Arbeit = „SS-4 zur
+// Unterschrift“, beantragt = „Eingereicht (Fax)“, erledigt = „EIN erteilt“. Das SS-4 selbst liegt als Dokument zur
+// Unterschrift an der Station (Formular irs_ss4, shared/fiaon-global-akte.ts).
+export const GLOBAL_STATION_STATUS_NAME: Record<string, Partial<Record<string, Paar>>> = {
+  ein: {
+    in_arbeit: { de: "SS-4 zur Unterschrift", en: "SS-4 for signature" },
+    beantragt: { de: "Eingereicht (Fax)", en: "Filed (fax)" },
+    erledigt: { de: "EIN erteilt", en: "EIN issued" },
+  },
+};
+/** Der Name eines Status an einer Station — die eigene Bezeichnung, sonst null (dann gilt der allgemeine Name). */
+export function stationStatusName(schluessel: string, status: string, s: BereichSprache = "de"): string | null {
+  return GLOBAL_STATION_STATUS_NAME[schluessel]?.[status]?.[s] ?? null;
+}
+/** Weitere Dokumente an einer Station, die zur Unterschrift bereitgestellt werden (mit Pflichtunterlage). */
+export const GLOBAL_STATION_UNTERSCHRIFT: Record<string, { art: string; pflichtKey: string; titel: string }> = {
+  ein: { art: "steuer", pflichtKey: "irs_ss4", titel: "IRS Form SS-4 zur Unterschrift (FIAON als Third Party Designee)" },
 };
 
 // ── FORMATE ──────────────────────────────────────────────────────────────────
@@ -136,6 +166,32 @@ export function stationTelefon(roh: unknown): string | null {
   if (z.length !== 10 || !/^[2-9]\d{2}[2-9]\d{6}$/.test(z)) return null;
   return `+1${z}`;
 }
+/** Internationale Nummer (E.164): „+41 79 123 45 67“ → „+41791234567“. Ohne „+“ und Landesvorwahl → null. */
+export function stationTelefonInt(roh: unknown): string | null {
+  const t = String(roh ?? "").trim();
+  if (!/^(\+|00)/.test(t)) return null;
+  const z = t.replace(/^00/, "").replace(/\D/g, "");
+  return z.length >= 8 && z.length <= 15 && z[0] !== "0" ? `+${z}` : null;
+}
+export const STATION_ROLLEN: { wert: string; titel: string }[] = [
+  { wert: "inhaber", titel: "Inhaber" }, { wert: "gesellschafter", titel: "Gesellschafter (Member)" }, { wert: "manager", titel: "Geschäftsführung (Manager)" },
+];
+/**
+ * Warnungen (kein Fehler) zur Wohnanschrift der Kontaktperson: Agent-Adresse, virtuelles Büro oder Postfach sind in
+ * Wyoming keine Anschrift einer natürlichen Person. Gibt die Sätze zurück, die der Editor gelb … blau zeigt.
+ */
+export function stationKontaktWarnungen(adresse: unknown, agentAdresse: unknown): string[] {
+  const a = String(adresse ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!a) return [];
+  const w: string[] = [];
+  if (/\b(p\.?\s?o\.?\s?box|postfach|post office box|pmb|private mailbox)\b/.test(a)) w.push("Die Anschrift sieht nach einem Postfach aus — Wyoming verlangt die Wohnanschrift der Person.");
+  if (/virtual office|virtuelles büro|regus|davinci|opus virtual|mail ?forward|registered agent|\bc\/o\b|suite r\b/.test(a)) w.push("Die Anschrift sieht nach einem virtuellen Büro oder einer Agent-Adresse aus — bitte die Wohnanschrift eintragen.");
+  const ag = String(agentAdresse ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  const ersteZeile = (x: string) => x.split(/[,\n]/)[0].trim();
+  if (ag && ersteZeile(a) && ersteZeile(a) === ersteZeile(ag)) w.push("Die Anschrift ist die des Registered Agent — die Kontaktperson braucht ihre eigene Wohnanschrift.");
+  return w;
+}
+
 /** +13075550148 → „+1 307 555 0148“. */
 export function stationTelefonText(e164: unknown): string {
   const z = ziffern(e164);
@@ -205,6 +261,13 @@ export function stationWertePruefen(schluessel: string, roh: Record<string, unkn
         case "itin": wert = stationItin(r); if (!wert) return { ok: false, feld: f.feld, error: "Die ITIN hat neun Ziffern im Format 9XX-XX-XXXX (beginnt mit 9; Ziffern 4–5 zwischen 50 und 99)." }; break;
         case "duns": wert = stationDuns(r); if (!wert) return { ok: false, feld: f.feld, error: "Die D-U-N-S-Nummer hat neun Ziffern (12-345-6789)." }; break;
         case "telefon": wert = stationTelefon(r); if (!wert) return { ok: false, feld: f.feld, error: "Bitte eine US-Nummer mit zehn Ziffern eingeben, z. B. +1 307 555 0148." }; break;
+        case "telefon_int": wert = stationTelefonInt(r); if (!wert) return { ok: false, feld: f.feld, error: `${f.titel}: bitte mit Landesvorwahl, z. B. +41 79 123 45 67.` }; break;
+        case "email": {
+          const e = String(r).trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(e) || e.length > 160) return { ok: false, feld: f.feld, error: `${f.titel}: bitte eine gültige E-Mail-Adresse.` };
+          wert = e; break;
+        }
+        case "rolle": wert = String(r).trim(); if (!STATION_ROLLEN.some((x) => x.wert === wert)) return { ok: false, feld: f.feld, error: "Rolle: bitte Inhaber, Gesellschafter oder Geschäftsführung wählen." }; break;
       }
     }
     if (wert && !f.intern && f.art !== "itin" && stationAnbieterImText(wert)) {

@@ -156,6 +156,53 @@ router.post("/chef/global/mandate/:ref/itin", requireChef("leitung"), async (req
   } catch (e) { fehler(res, "itin", e); }
 });
 
+// ── DIE VOLLSTÄNDIGE AKTE (22.10.2026): Rechnungen der Person, Verträge, Dokumente zur Unterschrift, ZIP ──
+router.get("/chef/global/mandate/:ref/akte", requireChef("leitung"), async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const m = await import("../lib/fiaon-global-akte-komplett");
+    const r = encodeURIComponent(ref(req));
+    res.json({
+      ok: true,
+      rechnungen: await m.globalAkteRechnungen(ref(req), (b) => `/api/fiaon/chef/global/mandate/${r}/rechnung/${encodeURIComponent(b)}`),
+      vertraege: await m.globalAkteVertraege(ref(req), (a) => `/api/fiaon/chef/global/mandate/${r}/vertrag/${a}`),
+      pflicht: await m.globalPflichtSicht(ref(req), "team"),
+      zipUrl: `/api/fiaon/chef/global/mandate/${r}/akte.zip`,
+    });
+  } catch (e) { fehler(res, "akte", e); }
+});
+function pdfAus(res: Response, r: { pdf: Buffer; dateiname: string } | null, fehlt: string) {
+  if (!r) return res.status(404).json({ ok: false, error: fehlt });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${globalDateinameKopf(r.dateiname)}"; filename*=UTF-8''${encodeURIComponent(r.dateiname)}`);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.end(r.pdf);
+}
+router.get("/chef/global/mandate/:ref/rechnung/:bestell", requireChef("leitung"), async (req, res) => {
+  try { const { globalAkteRechnungPdf } = await import("../lib/fiaon-global-akte-komplett"); pdfAus(res, await globalAkteRechnungPdf(ref(req), String(req.params.bestell || "")), "Diese Rechnung gibt es nicht."); }
+  catch (e) { fehler(res, "akte rechnung", e); }
+});
+router.get("/chef/global/mandate/:ref/vertrag/:id", requireChef("leitung"), async (req, res) => {
+  try {
+    const roh = String(req.params.id || ""); const art = roh === "auftrag" ? "auftrag" as const : Number(roh);
+    if (art !== "auftrag" && !(Number.isInteger(art) && art > 0)) return res.status(404).json({ ok: false, error: "Diesen Vertrag gibt es nicht." });
+    const { globalAkteVertragPdf } = await import("../lib/fiaon-global-akte-komplett");
+    pdfAus(res, await globalAkteVertragPdf(ref(req), art), "Diesen Vertrag gibt es nicht.");
+  } catch (e) { fehler(res, "akte vertrag", e); }
+});
+router.get("/chef/global/mandate/:ref/akte.zip", requireChef("leitung"), async (req, res) => {
+  try { const w = await wer(req); const { globalAkteZip } = await import("../lib/fiaon-global-akte-komplett"); await globalAkteZip(ref(req), "team", res, { name: w.name, agentId: w.id || null }); }
+  catch (e) { fehler(res, "akte zip", e); }
+});
+router.post("/chef/global/mandate/:ref/dokument/:id/pflicht", requireChef("leitung"), async (req, res) => {
+  try {
+    const { globalPflichtZuordnen } = await import("../lib/fiaon-global-akte-komplett");
+    const erg = await globalPflichtZuordnen(ref(req), Number(req.params.id), req.body?.key || null);
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: req.body?.key ? "Als Pflichtunterlage zugeordnet." : "Zuordnung entfernt." });
+  } catch (e) { fehler(res, "pflicht", e); }
+});
 // ── Banken & Kapital ─────────────────────────────────────────────────────────
 router.post("/chef/global/mandate/:ref/kapital", requireChef("leitung"), async (req, res) => {
   try { antwort(res, await globalKapitalSpeichern(ref(req), req.body ?? {}, await wer(req))); }
@@ -170,10 +217,19 @@ router.delete("/chef/global/mandate/:ref/kapital/:id", requireChef("leitung"), a
 router.post("/chef/global/mandate/:ref/dokument", requireChef("leitung"), dateiAnnehmen, async (req, res) => {
   try {
     const b = req.body ?? {};
-    antwort(res, await globalMandatDokument(ref(req), {
+    // 22.10.2026: optional einem Formular zugeordnet (IRS SS-4 / 8821, vorausgefüllt zur Unterschrift).
+    const { globalPflichtUnterlage } = await import("@shared/fiaon-global-akte");
+    const pflicht = b.pflichtKey ? globalPflichtUnterlage(b.pflichtKey) : null;
+    if (b.pflichtKey && !pflicht) return res.status(400).json({ ok: false, error: "Dieses Formular gibt es nicht." });
+    const erg = await globalMandatDokument(ref(req), {
       art: b.art, datei: dateiAus(req), titel: b.titel, sichtbar: wahr(b.sichtbar), mitteilen: wahr(b.mitteilen), unterschrift: wahr(b.unterschrift),
       postAbsender: b.postAbsender, postEingang: b.postEingang,
-    }, await wer(req)));
+    }, await wer(req));
+    if (erg.ok && pflicht) {
+      const { globalPflichtZuordnen } = await import("../lib/fiaon-global-akte-komplett");
+      await globalPflichtZuordnen(ref(req), erg.id, pflicht.key);
+    }
+    antwort(res, erg);
   } catch (e) { fehler(res, "dokument ablegen", e); }
 });
 router.post("/chef/global/mandate/:ref/dokument/:id", requireChef("leitung"), async (req, res) => {

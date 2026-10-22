@@ -1616,7 +1616,10 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "ITIN als 9XX-XX-XXXX, die D-U-N-S mit neun Ziffern, die US-Nummer mit +1 — verlässt du ein Feld, prüft die Karte sofort "
       + "und formatiert schön. „Speichern“ schickt alles in einem Zug; der Kunde sieht die Werte sofort in seinem Portal und "
       + "beim ersten Eintragen einen Satz im Verlauf („Ihre EIN ist da.“).",
-    tipp: "Die ITIN wird verschlüsselt gespeichert und überall maskiert gezeigt (•••-••-1234). „Anzeigen“ zeigt sie dir 20 Sekunden "
+    tipp: "Kontaktperson (Station Registered Agent): immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. "
+      + "Sie ist aus dem Auftrag vorbelegt; die Wohnanschrift darf kein Postfach, kein virtuelles Büro und keine Agent-Adresse sein (die Karte warnt). "
+      + "EIN ohne SSN/ITIN: Status „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“; das SS-4 lädst du an der Station zur Unterschrift hoch. "
+      + "Die ITIN wird verschlüsselt gespeichert und überall maskiert gezeigt (•••-••-1234). „Anzeigen“ zeigt sie dir 20 Sekunden "
       + "lang — das steht intern im Verlauf. Felder mit „intern“ (Kontoinstitut, Anbieter des Registered Agent) sieht der Kunde nie; "
       + "in die Adresse des Agents gehört nur die Anschrift, kein Anbietername.",
   },
@@ -1629,6 +1632,13 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "entscheidet allein das Institut.",
     tipp: "Zum Schreiben der Bank, zur EIN-Bestätigung oder zum ITIN-Bescheid lädst du die Datei direkt an der Station hoch — sie liegt "
       + "dann im Tresor des Kunden (ohne Mail).",
+  },
+  {
+    ziel: '[data-fiaon="office-akte-zip"]',
+    titel: "Die ganze Akte mit einem Klick.",
+    text: "„Akte als ZIP“ lädt alles in einer Datei: Verträge, ALLE Rechnungen der Person (auch Fast-Track, LLC-Gründung, Zusatzdienste — "
+      + "nie Privat-Abos), unterschriebene Dokumente (IRS SS-4, 8821 …), den Tresor und ein Inhaltsverzeichnis als PDF. Der Abruf steht intern im Verlauf.",
+    tipp: "Der Kunde hat in seinem Portal (Vertrag & Zahlung) denselben Knopf für seine eigenen Unterlagen.",
   },
   {
     ziel: '[data-reiter="gesellschaft"]',

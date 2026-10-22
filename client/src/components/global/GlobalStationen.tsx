@@ -22,7 +22,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GLOBAL_ETAPPEN, US_BUNDESSTAATEN, globalDokumentArtText } from "@shared/fiaon-global-bereich";
 import { GLOBAL_FAHRPLAN, GLOBAL_KAPITAL_STATUS, GLOBAL_SCHRITT_STATUS, GLOBAL_SCHRITT_STATUS_TEXT, globalUsd, type GlobalSchrittStatus } from "@shared/fiaon-global-mandat";
 import {
-  GLOBAL_STATION_DOKUMENT, GLOBAL_STATION_FELDER, GLOBAL_STATION_KAPITAL, stationTelefonText, stationWertePruefen, type StationFeld,
+  GLOBAL_STATION_DOKUMENT, GLOBAL_STATION_FELDER, GLOBAL_STATION_KAPITAL, GLOBAL_STATION_UNTERSCHRIFT, STATION_ROLLEN, stationKontaktWarnungen, stationStatusName,
+  stationTelefonText, stationWertePruefen, type StationFeld,
 } from "@shared/fiaon-global-stationen";
 import "@/styles/global-stationen.css";
 
@@ -30,7 +31,9 @@ type T = Record<string, any>;
 export interface StationenDaten {
   schritte: T[]; gesellschaft: T | null; gesellschaftPlus: T | null; kapital: T[];
   /** Dokumente der Akte (für „Dokument zur Station“): id, art, name, url. */
-  dokumente?: { id: number | string; art: string; name?: string; titel?: string; url: string }[];
+  dokumente?: { id: number | string; art: string; name?: string; titel?: string; url: string; unterschrift?: { gefordert: boolean; unterschrieben: boolean } }[];
+  /** E-424: der Kunde selbst als Kontaktperson — aus dem Auftrag vorbelegt. */
+  kontaktVorschlag?: { name: string; email: string; telefon: string; adresse: string; rolle: string } | null;
 }
 type Antwort = { ok: boolean; error?: string; feld?: string; meldung?: string; [k: string]: unknown };
 
@@ -63,7 +66,7 @@ function kurzWerte(schluessel: string, g: T | null, p: T | null, kapital: T[]): 
   const gg = g ?? {}; const pp = p ?? {};
   switch (schluessel) {
     case "eingetragen": return [gg.name, gg.bundesstaat ? US_BUNDESSTAATEN[gg.bundesstaat] ?? gg.bundesstaat : "", gg.gegruendetAm ? `gegründet ${tagText(gg.gegruendetAm)}` : "", pp.aktenzeichen ? `File ${pp.aktenzeichen}` : ""].filter(Boolean);
-    case "agent": return [pp.kontaktperson, pp.agentAdresse ? String(pp.agentAdresse).split("\n").slice(-1)[0] : ""].filter(Boolean);
+    case "agent": return [pp.kontaktperson ? `Kontakt: ${pp.kontaktperson}` : "", pp.agentAdresse ? String(pp.agentAdresse).split("\n").slice(-1)[0] : ""].filter(Boolean);
     case "adresse": return [pp.usTelefon ? stationTelefonText(pp.usTelefon) : "", pp.usAdresse ? String(pp.usAdresse).split("\n")[0] : "", pp.privatAdresse ? "private Adresse" : ""].filter(Boolean);
     case "ein": return [pp.ein, pp.einBriefAm ? `Schreiben ${tagText(pp.einBriefAm)}` : ""].filter(Boolean);
     case "itin": return [pp.itinMaske, pp.itinBescheidAm ? `Bescheid ${tagText(pp.itinBescheidAm)}` : ""].filter(Boolean);
@@ -135,7 +138,13 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
     hinweis: String(s.hinweis ?? ""), intern: String(s.intern ?? ""),
     werte: Object.fromEntries(felder.map((f) => [f.feld, feldWert(f, g, p)])) as Record<string, string>,
   });
-  const [entwurf, setEntwurf] = useState(ausAkte);
+  // E-424: Fehlt die Kontaktperson, steht der Kunde selbst (aus dem Auftrag) vorbelegt im Entwurf — das Team prüft und speichert.
+  const vorschlag = s.schluessel === "agent" ? daten.kontaktVorschlag ?? null : null;
+  const mitVorschlag = (e: ReturnType<typeof ausAkte>) => !vorschlag || e.werte.kontaktperson ? e : {
+    ...e, werte: { ...e.werte, kontaktperson: vorschlag.name, kontaktRolle: e.werte.kontaktRolle || vorschlag.rolle, kontaktEmail: e.werte.kontaktEmail || vorschlag.email,
+      kontaktTelefon: e.werte.kontaktTelefon || vorschlag.telefon, kontaktAdresse: e.werte.kontaktAdresse || vorschlag.adresse },
+  };
+  const [entwurf, setEntwurf] = useState(() => mitVorschlag(ausAkte()));
   const [basisStand, setBasisStand] = useState(ausAkte);
   const [zustand, setZustand] = useState<"ruhe" | "speichert" | "gespeichert" | "fehler">("ruhe");
   const [fehler, setFehler] = useState<{ text: string; feld?: string } | null>(null);
@@ -152,7 +161,7 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
     const neu = ausAkte();
     const getippt = JSON.stringify(entwurf) !== JSON.stringify(basisStand);
     setBasisStand(neu);
-    if (!getippt || zustand === "gespeichert") setEntwurf(neu);
+    if (!getippt || zustand === "gespeichert") setEntwurf(mitVorschlag(neu));
     setOptimistisch(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [akteSchluessel]);
@@ -210,7 +219,8 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
       return;
     }
     setZustand("gespeichert"); setFehler(null); setFeldFehler({}); setItinNeu(false);
-    setFehler({ text: String(j.meldung ?? "Gespeichert.") });
+    const hinweise = Array.isArray(j.hinweise) ? (j.hinweise as string[]) : [];
+    setFehler({ text: [String(j.meldung ?? "Gespeichert."), ...hinweise.map((h) => `Achtung: ${h}`)].join(" ") });
     setBasisStand(entwurf);
     if (uhr.current) window.clearTimeout(uhr.current);
     uhr.current = window.setTimeout(() => { setZustand("ruhe"); setFehler(null); }, 4200);
@@ -236,7 +246,7 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
           <b>{s.titel}</b>
           <small>{kurz.length ? kurz.join(" · ") : (felder.length || kapitalArt ? "Noch keine Werte" : (vorlage ? "Status und Datum" : ""))}{datumZeile ? <em> · {datumZeile}</em> : null}</small>
         </span>
-        <span className={`gst-pille ${STATUS_TON[status] ?? "leise"}`}>{GLOBAL_SCHRITT_STATUS_TEXT[status]?.de ?? status}</span>
+        <span className={`gst-pille ${STATUS_TON[status] ?? "leise"}`}>{stationStatusName(s.schluessel, status) ?? GLOBAL_SCHRITT_STATUS_TEXT[status]?.de ?? status}</span>
         {zustand === "speichert" && <span className="gst-zustand">speichert …</span>}
         {zustand === "gespeichert" && <span className="gst-zustand gut">gespeichert</span>}
         <span className="gst-winkel" aria-hidden="true" />
@@ -250,7 +260,7 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
             <div className="gst-segment" role="radiogroup" aria-label={`Status ${s.titel}`}>
               {GLOBAL_SCHRITT_STATUS.map((st) => (
                 <button key={st} type="button" role="radio" aria-checked={entwurf.status === st} className={`${entwurf.status === st ? "an" : ""} st-${st}`} onClick={() => setzeStatus(st)}>
-                  {GLOBAL_SCHRITT_STATUS_TEXT[st].de}
+                  {stationStatusName(s.schluessel, st) ?? GLOBAL_SCHRITT_STATUS_TEXT[st].de}
                 </button>
               ))}
             </div>
@@ -299,23 +309,38 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
                           <option value="">—</option>
                           {Object.entries(US_BUNDESSTAATEN).map(([code, n]) => <option key={code} value={code}>{n}</option>)}
                         </select>
+                      ) : f.art === "rolle" ? (
+                        <select value={wert} onChange={(e) => setze(e.target.value)}><option value="">—</option>{STATION_ROLLEN.map((r) => <option key={r.wert} value={r.wert}>{r.titel}</option>)}</select>
                       ) : f.art === "form" ? (
                         <select value={wert} onChange={(e) => setze(e.target.value)}><option value="">—</option><option value="LLC">LLC</option><option value="Corporation">Corporation</option></select>
                       ) : (
                         <input value={f.art === "telefon" && wert.startsWith("+1") && /^\+1\d{10}$/.test(wert) ? stationTelefonText(wert) : wert} placeholder={f.platzhalter}
-                          inputMode={f.art === "telefon" ? "tel" : f.art === "ein" || f.art === "duns" ? "numeric" : undefined}
+                          inputMode={f.art === "telefon" || f.art === "telefon_int" ? "tel" : f.art === "ein" || f.art === "duns" ? "numeric" : f.art === "email" ? "email" : undefined}
                           autoComplete="off" spellCheck={f.art === "text"} onChange={(e) => setze(e.target.value)} onBlur={(e) => pruefeFeld(f, e.target.value)} aria-invalid={!!fehlt} />
                       )}
                     {fehlt ? <small className="gst-fehlertext" role="alert">{fehlt}</small> : f.hilfe ? <small>{f.hilfe}</small> : null}
+                    {f.feld === "kontaktAdresse" && stationKontaktWarnungen(wert, entwurf.werte.agentAdresse).map((h) => <small key={h} className="gst-warnung" role="status">{h}</small>)}
                   </label>
                 );
               })}
             </div>
           )}
 
+          {vorschlag && (
+            <div className="gst-kontakt-hinweis">
+              <span>Kontaktperson: in der Regel der Inhaber selbst — nie jemand von FIAON. Vorbelegt aus dem Auftrag; vertraulich, nicht öffentlich.</span>
+              <button type="button" className="gst-knopf leise" onClick={() => setEntwurf((e) => ({ ...e, werte: { ...e.werte, kontaktperson: vorschlag.name, kontaktRolle: vorschlag.rolle, kontaktEmail: vorschlag.email, kontaktTelefon: vorschlag.telefon, kontaktAdresse: vorschlag.adresse } }))}>Inhaber aus dem Auftrag übernehmen</button>
+            </div>
+          )}
+
           {kapitalArt && <KapitalZeilen basis={basis} arten={kapitalArt.arten} liste={(daten.kapital ?? []).filter((k) => kapitalArt.arten.includes(k.art))} onGespeichert={onGespeichert} />}
 
           {dokArt && <StationDokument basis={basis} art={dokArt} dokumente={(daten.dokumente ?? []).filter((d) => d.art === dokArt)} onGespeichert={onGespeichert} />}
+          {GLOBAL_STATION_UNTERSCHRIFT[s.schluessel] && (() => {
+            const u = GLOBAL_STATION_UNTERSCHRIFT[s.schluessel];
+            return <StationDokument basis={basis} art={u.art} titel={u.titel} pflichtKey={u.pflichtKey} zurUnterschrift
+              dokumente={(daten.dokumente ?? []).filter((d) => d.art === u.art && (d as any).pflichtKey === u.pflichtKey)} onGespeichert={onGespeichert} />;
+          })()}
 
           <div className="gst-felder zwei">
             <label className="gst-feld"><span className="gst-label">Hinweis für den Kunden</span>
@@ -422,7 +447,11 @@ function KapitalZeilen({ basis, arten, liste, onGespeichert }: { basis: string; 
 }
 
 // ── Das Dokument zur Station (EIN-Bestätigung, ITIN-Bescheid …) ──────────────
-function StationDokument({ basis, art, dokumente, onGespeichert }: { basis: string; art: string; dokumente: NonNullable<StationenDaten["dokumente"]>; onGespeichert: () => void }) {
+function StationDokument({ basis, art, dokumente, onGespeichert, titel, pflichtKey, zurUnterschrift }: {
+  basis: string; art: string; dokumente: NonNullable<StationenDaten["dokumente"]>; onGespeichert: () => void;
+  /** Eigener Titel (z. B. „Formular SS-4 zur Unterschrift“), Pflichtunterlage und „zur Unterschrift stellen“. */
+  titel?: string; pflichtKey?: string; zurUnterschrift?: boolean;
+}) {
   const [datei, setDatei] = useState<File | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
@@ -434,23 +463,25 @@ function StationDokument({ basis, art, dokumente, onGespeichert }: { basis: stri
     fd.append("art", art); fd.append("datei", datei);
     // Chefbüro und Office nennen das Feld verschieden — beide bekommen ihres. Der Kunde sieht das Dokument; eine Mail geht nicht raus.
     fd.append("sichtbar", "true"); fd.append("sichtbarFuerKunde", "true"); fd.append("mitteilen", "false");
+    if (zurUnterschrift) { fd.append("unterschrift", "true"); if (pflichtKey) fd.append("pflichtKey", pflichtKey); }
+    if (zurUnterschrift && datei.type && datei.type !== "application/pdf") { setMeldung({ text: "Zur Unterschrift geht nur ein PDF.", gut: false }); return; }
     setLaeuft(true); setMeldung(null);
     const j = await senden(`${basis}/dokument`, "POST", fd);
     setLaeuft(false);
     if (!j.ok) { setMeldung({ text: String(j.error), gut: false }); return; }
-    setMeldung({ text: "Im Tresor des Kunden abgelegt.", gut: true }); setDatei(null);
+    setMeldung({ text: zurUnterschrift ? "Liegt beim Kunden zur Unterschrift (unter „Für Sie zu tun“)." : "Im Tresor des Kunden abgelegt.", gut: true }); setDatei(null);
     if (eingabe.current) eingabe.current.value = "";
     onGespeichert();
   };
   return (
     <div className="gst-dokument">
-      <span className="gst-label">Dokument · {globalDokumentArtText(art, "de")}</span>
+      <span className="gst-label">{titel ?? `Dokument · ${globalDokumentArtText(art, "de")}`}</span>
       {dokumente.length > 0 && (
-        <ul>{dokumente.map((d) => <li key={String(d.id)}><a href={d.url} target="_blank" rel="noopener noreferrer">{d.titel || d.name || globalDokumentArtText(art, "de")}</a></li>)}</ul>
+        <ul>{dokumente.map((d) => <li key={String(d.id)}><a href={d.url} target="_blank" rel="noopener noreferrer">{d.titel || d.name || globalDokumentArtText(art, "de")}</a>{d.unterschrift?.gefordert ? <em className="gst-leise"> · {d.unterschrift.unterschrieben ? "unterschrieben" : "wartet auf Unterschrift"}</em> : null}</li>)}</ul>
       )}
       <div className="gst-dokument-zeile">
         <input ref={eingabe} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/jpeg,image/png,image/heic" onChange={(e) => setDatei(e.target.files?.[0] ?? null)} aria-label={`${globalDokumentArtText(art, "de")} hochladen`} />
-        <button type="button" className="gst-knopf leise" disabled={!datei || laeuft} onClick={() => void hochladen()}>{laeuft ? "Lädt …" : "Hochladen"}</button>
+        <button type="button" className="gst-knopf leise" disabled={!datei || laeuft} onClick={() => void hochladen()}>{laeuft ? "Lädt …" : zurUnterschrift ? "Zur Unterschrift bereitstellen" : "Hochladen"}</button>
       </div>
       {meldung && <p className={`gst-meldung ${meldung.gut ? "gut" : "schlecht"}`} role={meldung.gut ? "status" : "alert"}>{meldung.text}</p>}
     </div>

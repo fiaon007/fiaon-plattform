@@ -98,6 +98,9 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Die ITIN wird verschlüsselt gespeichert und nur maskiert gezeigt; „Anzeigen“ steht intern im Verlauf.",
       "Karten und Kreditrahmen: je Karte eine Zeile (Firma/privat, Status, Limit). Der Kunde sieht nie einen Banknamen.",
       "Das passende Dokument (EIN-Bestätigung, ITIN-Bescheid …) lädst du direkt an der Station hoch.",
+      "Kontaktperson der Gesellschaft: immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. Vorbelegt aus dem Auftrag, vertraulich.",
+      "EIN per Fax (Kunde ohne SSN/ITIN): „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“. Das SS-4 lädst du an der Station zur Unterschrift hoch.",
+      "„Akte als ZIP“ oben in der Akte: Verträge, alle Rechnungen der Person, unterschriebene Dokumente, Tresor — mit Inhaltsverzeichnis.",
     ],
     howto: [
       "Global-Akte öffnen → Reiter „Fahrplan & Werte“ → Station anklicken.",

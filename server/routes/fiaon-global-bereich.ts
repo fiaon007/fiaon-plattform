@@ -358,6 +358,58 @@ router.get("/global/mein-auftrag/:ref/zusatz/:id/rechnung.pdf", async (req: Requ
   }
 });
 
+// ── DIE VOLLSTÄNDIGE AKTE (22.10.2026): jede Rechnung, jeder Vertrag, alles als ZIP — derselbe Zutritt wie das Portal ──
+async function akteZutritt(req: Request, res: Response): Promise<string | null> {
+  const ref = zutritt(req, res);
+  if (!ref) return null;
+  const { globalPortalNeuFrei } = await import("../lib/fiaon-global-mandat");
+  if (!istVorschau(req) && !(await globalPortalNeuFrei(ref))) { res.status(404).json({ ok: false, error: "Nicht gefunden." }); return null; }
+  return ref;
+}
+const zipJeRef = fensterDrossel(6, 10 * 60_000);
+router.get("/global/mein-auftrag/:ref/rechnung/:bestell", async (req: Request, res: Response) => {
+  try {
+    const ref = await akteZutritt(req, res);
+    if (!ref) return;
+    const { globalAkteRechnungPdf } = await import("../lib/fiaon-global-akte-komplett");
+    const r = await globalAkteRechnungPdf(ref, String(req.params.bestell || ""));
+    if (!r) return res.status(404).json({ ok: false, error: "Diese Rechnung gibt es nicht." });
+    pdfSenden(res, r.pdf, r.dateiname);
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] akte rechnung:", err);
+    res.status(500).json({ ok: false, error: "Die Rechnung lässt sich gerade nicht laden." });
+  }
+});
+router.get("/global/mein-auftrag/:ref/vertrag/:id", async (req: Request, res: Response) => {
+  try {
+    const ref = await akteZutritt(req, res);
+    if (!ref) return;
+    const roh = String(req.params.id || "");
+    const art = roh === "auftrag" ? "auftrag" as const : Number(roh);
+    if (art !== "auftrag" && !(Number.isInteger(art) && art > 0)) return res.status(404).json({ ok: false, error: "Diesen Vertrag gibt es nicht." });
+    const { globalAkteVertragPdf } = await import("../lib/fiaon-global-akte-komplett");
+    const r = await globalAkteVertragPdf(ref, art);
+    if (!r) return res.status(404).json({ ok: false, error: "Diesen Vertrag gibt es nicht." });
+    pdfSenden(res, r.pdf, r.dateiname);
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] akte vertrag:", err);
+    res.status(500).json({ ok: false, error: "Der Vertrag lässt sich gerade nicht laden." });
+  }
+});
+router.get("/global/mein-auftrag/:ref/akte.zip", async (req: Request, res: Response) => {
+  try {
+    const ref = await akteZutritt(req, res);
+    if (!ref) return;
+    if (zipJeRef(ref) || zipJeRef(`ip:${clientIp(req)}`)) return res.status(429).json({ ok: false, error: "Bitte einen Moment warten und dann noch einmal." });
+    res.setHeader("Referrer-Policy", "no-referrer");
+    const { globalAkteZip } = await import("../lib/fiaon-global-akte-komplett");
+    await globalAkteZip(ref, "kunde", res, { name: "Kunde", agentId: null, vorschau: istVorschau(req) });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] akte zip:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Das hat gerade nicht geklappt — bitte gleich noch einmal." });
+  }
+});
+
 // Stationen-Editor (22.10.2026): Die ITIN des Kunden im Klartext — nur auf seinen Klick „Anzeigen“ im eigenen Portal
 // (derselbe Zutritt wie das Portal), nie zwischengespeichert, gedrosselt. Die Seite zeigt sonst nur die Maske.
 const itinJeRef = fensterDrossel(10, 10 * 60_000);
@@ -527,6 +579,18 @@ router.post("/agent/global/auftraege/:ref/itin", requireAgent, async (req: Agent
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+// Die vollständige Akte als ZIP — für die zuständige Person und die Leitung (dieselbe Wand wie die Akte).
+router.get("/agent/global/auftraege/:ref/akte.zip", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await office(req, res, false);
+    if (!z) return;
+    const { globalAkteZip } = await import("../lib/fiaon-global-akte-komplett");
+    await globalAkteZip(z.ref, "team", res, { name: z.agent.name, agentId: z.agent.id });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] office akte zip:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
 router.post("/agent/global/auftraege/:ref/kapital", requireAgent, aktion("kapital", async (ref, b, agent) => (await import("../lib/fiaon-global-mandat")).globalKapitalSpeichern(ref, b, agent)));
 router.delete("/agent/global/auftraege/:ref/kapital/:id", requireAgent, aktion("kapital entfernen", async (ref, _b, agent, req) => (await import("../lib/fiaon-global-mandat")).globalKapitalEntfernen(ref, req.params.id, agent)));
 router.post("/agent/global/auftraege/:ref/notiz", requireAgent, aktion("notiz", (ref, b, agent) => globalNotizSchreiben(ref, { text: b.text, sichtbar: b.sichtbar }, agent)));
@@ -559,6 +623,13 @@ router.post("/agent/global/auftraege/:ref/dokument", requireAgent, async (req: A
       mitteilen: sichtbar && (req.body?.mitteilen === undefined ? true : wahr(req.body?.mitteilen)),
     }, z.agent);
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    // 22.10.2026 (Stationen-Editor): direkt zur Unterschrift stellen, optional als Pflichtunterlage (z. B. SS-4 an der EIN).
+    if (wahr(req.body?.unterschrift) || req.body?.pflichtKey) {
+      const { globalDokumentZurUnterschrift } = await import("../lib/fiaon-global-akte-komplett");
+      const id = Number((erg as any).dokument?.id);
+      const u = Number.isInteger(id) && id > 0 ? await globalDokumentZurUnterschrift(z.ref, id, req.body?.pflichtKey || null, z.agent) : { ok: false as const, status: 500, error: "Dokument ohne Nummer." };
+      if (!u.ok) return res.status(u.status).json({ ok: false, error: `Abgelegt — aber nicht zur Unterschrift gestellt: ${u.error}` });
+    }
     res.json(erg);
   } catch (err) {
     console.error("[GLOBAL-BEREICH] office dokument:", err);

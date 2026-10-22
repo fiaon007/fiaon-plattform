@@ -170,7 +170,7 @@ export default function ChefGlobal() {
 }
 
 // ── Ein Mandat ───────────────────────────────────────────────────────────────
-type Reiter = "ueberblick" | "gesellschaft" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
+type Reiter = "ueberblick" | "gesellschaft" | "akte" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
   const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
@@ -202,6 +202,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
   const REITER: { key: Reiter; titel: string; Icon: any; zahl?: number }[] = [
     { key: "ueberblick", titel: "Überblick", Icon: Sparkles },
     { key: "gesellschaft", titel: "Fahrplan & Werte", Icon: Building2 },
+    // 22.10.2026: die vollständige Akte — alle Rechnungen der Person, Verträge, Dokumente zur Unterschrift mit Vollständigkeit, ZIP.
+    { key: "akte", titel: "Akte komplett", Icon: ShieldCheck },
     { key: "kapital", titel: "Banken & Kapital", Icon: Landmark, zahl: (m.kapital as any[]).length || undefined },
     { key: "tresor", titel: "Tresor", Icon: FileText, zahl: (m.dokumente as any[]).filter((d) => d.art !== "post").length || undefined },
     { key: "post", titel: "Post", Icon: Inbox, zahl: post.length || undefined },
@@ -258,6 +260,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
       <div className="cgr-reiter-inhalt" key={reiter}>
         {reiter === "ueberblick" && <Ueberblick m={m} tun={tun} setReiter={setReiter} />}
         {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} gref={gref} onGespeichert={() => { neu(); onGeaendert(); }} />}
+        {reiter === "akte" && <AkteKomplett gref={gref} tun={tun} />}
         {reiter === "kapital" && <Kapital m={m} tun={tun} />}
         {reiter === "tresor" && <Tresor m={m} tun={tun} gref={gref} />}
         {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}
@@ -428,7 +431,8 @@ function Gesellschaft({ m, tun, gref, onGespeichert }: { m: any; tun: Tun; gref:
         <GlobalStationen basis={`${API}/chef/global/mandate/${encodeURIComponent(gref)}`} ton="dunkel" onGespeichert={onGespeichert}
           daten={{
             schritte: m.schritte, gesellschaft: m.gesellschaft, gesellschaftPlus: m.gesellschaftPlus, kapital: m.kapital,
-            dokumente: (m.dokumente as any[]).map((d) => ({ id: d.id, art: d.art, name: d.name, titel: d.titel, url: d.url })),
+            dokumente: (m.dokumente as any[]).map((d) => ({ id: d.id, art: d.art, name: d.name, titel: d.titel, url: d.url, pflichtKey: d.pflichtKey, unterschrift: d.unterschrift })),
+            kontaktVorschlag: m.kontaktVorschlag ?? null,
           }} />
       </section>
       <section className="cgr-block breit">
@@ -503,6 +507,90 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
             );
           })}
         </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Akte komplett (22.10.2026) ───────────────────────────────────────────────
+// Justin: „Denk an jedes Detail." Alle Rechnungen der PERSON (Paket, Angebotsteile, Fast-Track, LLC-Gründung,
+// Zusatzdienste — nie Privat-Linie), alle Verträge, die Dokumente zur Unterschrift mit Vollständigkeit (grün = alles
+// unterschrieben) und „Akte als ZIP“. Nach der rechtlichen Prüfung KEINE eigene Vollmacht: Zur Unterschrift kommen nach
+// der Gründung die vorausgefüllten Formulare IRS SS-4 (FIAON als Third Party Designee) und IRS 8821, dazu jedes Dokument,
+// das das Team „zur Unterschrift“ stellt. Das eigene E-SIGN-Unterschreiben baut eine spätere Scheibe.
+const EURO = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const STAND_TEXT: Record<string, string> = { fehlt: "noch nicht abgelegt", vorbereitet: "vorbereitet (intern)", wartet: "zur Unterschrift", unterschrieben: "unterschrieben" };
+function AkteKomplett({ gref, tun }: { gref: string; tun: Tun }) {
+  const { daten, fehler, neu } = useDaten<{ ok: true; rechnungen: any[]; vertraege: any[]; pflicht: any; zipUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}/akte`);
+  const [hoch, setHoch] = useState<{ key: string; titel: string; datei: File | null } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;
+  if (!daten) return <Geruest zeilen={6} />;
+  const p = daten.pflicht;
+  const hochladen = async () => {
+    if (!hoch?.datei) return;
+    const fd = new FormData();
+    const formular = hoch.key !== "weitere";
+    fd.append("art", formular ? (p?.eintraege?.find((e: any) => e.key === hoch.key)?.art ?? "steuer") : "sonstiges");
+    fd.append("datei", hoch.datei); fd.append("sichtbar", "true"); fd.append("unterschrift", "true"); fd.append("mitteilen", "false");
+    if (formular) fd.append("pflichtKey", hoch.key); else if (hoch.titel.trim()) fd.append("titel", hoch.titel.trim());
+    setLaeuft(true);
+    if (await tun("/dokument", "POST", fd)) { setHoch(null); neu(); }
+    setLaeuft(false);
+  };
+  const anzahl = p?.eintraege?.length ?? 0;
+  return (
+    <div className="cgr-gitter">
+      <section className="cgr-block breit" data-fiaon="chef-akte-pflicht">
+        <div className="cgr-block-kopf">
+          <h3>Dokumente zur Unterschrift <small>{anzahl === 0 ? "noch keine" : p?.vollstaendig ? "vollständig — alles unterschrieben" : `${p?.offen ?? 0} offen`}</small></h3>
+          <a className="cw-knopf cgr-haupt" href={daten.zipUrl} data-fiaon="chef-akte-zip"><FileText size={14} /> Akte als ZIP</a>
+        </div>
+        <div className={`cgr-vollstaendig${p?.vollstaendig ? " gruen" : ""}`}><i style={{ width: `${anzahl ? Math.round(((anzahl - p.offen) / anzahl) * 100) : 0}%` }} /></div>
+        {!p?.gegruendet && <p className="cgr-leise">Die Formulare IRS SS-4 und 8821 erscheinen hier (und beim Kunden), sobald der Gründungstag der LLC eingetragen ist — oder sobald du eines schon ablegst.</p>}
+        <ul className="cgr-pflicht">
+          {(p?.eintraege ?? []).map((e: any) => (
+            <li key={e.key} className={`st-${e.stand}`}>
+              <span className="cgr-schritt-punkt" aria-hidden="true" />
+              <div><b>{e.titel}</b><small>{e.text || "vom Team zur Unterschrift gestellt"}{e.formular ? " · vorausgefülltes Formular als PDF hochladen" : ""}</small></div>
+              <span className={`cgr-pille ${e.stand === "unterschrieben" ? "gruen" : e.stand === "wartet" ? "blau" : ""}`}>{STAND_TEXT[e.stand] ?? e.stand}</span>
+              <span className="cgr-mini">
+                {e.formular && e.stand !== "unterschrieben" && <button type="button" onClick={() => setHoch({ key: e.key, titel: e.titel, datei: null })}>{e.stand === "fehlt" ? "Zur Unterschrift hochladen" : "Neue Fassung hochladen"}</button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {!hoch && <div className="cgr-form zeile"><button type="button" className="cw-knopf" onClick={() => setHoch({ key: "weitere", titel: "", datei: null })}><Plus size={14} /> Weiteres Dokument zur Unterschrift</button></div>}
+        {hoch && (
+          <div className="cgr-form zeile">
+            {hoch.key === "weitere"
+              ? <input value={hoch.titel} onChange={(e) => setHoch({ ...hoch, titel: e.target.value })} placeholder="Titel für den Kunden, z. B. Bankformular" />
+              : <span className="cgr-leise">{hoch.titel} — PDF:</span>}
+            <input type="file" accept="application/pdf,.pdf" onChange={(e) => setHoch({ ...hoch, datei: e.target.files?.[0] ?? null })} />
+            <button type="button" className="cw-knopf cgr-haupt" disabled={!hoch.datei || laeuft} onClick={() => void hochladen()}>{laeuft ? "Lädt …" : "Zur Unterschrift bereitstellen"}</button>
+            <button type="button" className="cw-knopf" onClick={() => setHoch(null)}>Abbrechen</button>
+          </div>
+        )}
+      </section>
+      <section className="cgr-block breit" data-fiaon="chef-akte-rechnungen">
+        <h3>Alle Rechnungen der Person <small>Global-Welt: Paket, Angebot, Einzelrechnungen, Zusatzdienste — nie die Privat-Linie</small></h3>
+        {daten.rechnungen.length === 0 && <p className="cgr-leer">Keine Rechnung gefunden.</p>}
+        <ul className="cgr-verlauf">
+          {daten.rechnungen.map((r) => (
+            <li key={r.bestellRef}>
+              <small>{r.nummer ?? r.bestellRef} · {r.datum ? datum(r.datum) : "—"} · {r.art}</small>
+              <p><b>{r.titel}</b> — {EURO(r.betragCents)} · <span className={`cgr-pille ${r.status === "bezahlt" ? "gruen" : r.status === "offen" ? "blau" : "rot"}`}>{r.statusText}</span>
+                {r.pdfUrl && <> · <a className="cgr-link" href={r.pdfUrl} target="_blank" rel="noopener">PDF <ExternalLink size={11} /></a></>}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="cgr-block breit">
+        <h3>Verträge und Vereinbarungen</h3>
+        {daten.vertraege.length === 0 && <p className="cgr-leer">Kein Vertrags-PDF gespeichert.</p>}
+        <ul className="cgr-verlauf">
+          {daten.vertraege.map((v) => <li key={v.key}><small>{v.unter}</small><p><a className="cgr-link" href={v.url} target="_blank" rel="noopener"><b>{v.titel}</b> <ExternalLink size={11} /></a></p></li>)}
+        </ul>
       </section>
     </div>
   );

@@ -751,3 +751,24 @@ button.gp-naechster:hover { background: rgba(255,255,255,.11); border-color: rgb
 @media (prefers-reduced-motion: reduce) {
   .gp-seiteninhalt, .gp-phasen li, .gp-ring-bogen, .gp-kontakt-glas { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
+
+/* Die vollständige Akte (22.10.2026): Rechnungen, Pflichtunterlagen, ZIP */
+.gp-rechnungen, .gp-pflicht { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; }
+.gp-rechnungen li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 14px; align-items: center; padding: 14px 4px; border-bottom: 1px solid var(--stein-2); }
+.gp-rechnungen li:last-child, .gp-pflicht li:last-child { border-bottom: 0; }
+.gp-rechnungen b, .gp-pflicht b { display: block; font: 500 14px/1.35 var(--sans); color: var(--tinte); }
+.gp-rechnungen small, .gp-pflicht small { display: block; margin-top: 3px; font: 400 12px/1.4 var(--sans); color: var(--leise); font-variant-numeric: tabular-nums; }
+.gp-rechnungen li.st-storniert { opacity: .6; }
+.gp-betrag { font: 400 15px/1 var(--sans); color: var(--tinte); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gp-rechnung-wege { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; min-width: 60px; }
+.gp-pflicht li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 4px; border-bottom: 1px solid var(--stein-2); }
+.gp-pflicht-punkt { width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--linie-2); display: grid; place-items: center; color: #fff; }
+.gp-pflicht li.st-wartet .gp-pflicht-punkt { border: 1.5px solid var(--licht); box-shadow: 0 0 0 4px rgba(40,141,250,.12); }
+.gp-pflicht li.st-unterschrieben .gp-pflicht-punkt { border: 0; background: linear-gradient(145deg, var(--licht), var(--blau)); }
+.gp-zip { text-decoration: none; }
+@media (max-width: 720px) {
+  .gp-rechnungen li { grid-template-columns: minmax(0, 1fr) auto; }
+  .gp-rechnungen .gp-marke { justify-self: start; }
+  .gp-pflicht li { grid-template-columns: 22px minmax(0, 1fr); }
+  .gp-pflicht li > :last-child { grid-column: 2; justify-self: start; }
+}

@@ -279,6 +279,8 @@ function Kopf({ akte, tun, laeuft }: Werk) {
         {k.email
           ? <a className="pi-knopf still" href={`mailto:${k.email}`}>E-Mail</a>
           : <span className="pi-knopf still" aria-disabled="true" title="Im Auftrag steht keine E-Mail-Adresse.">E-Mail</span>}
+        {/* 22.10.2026: die vollständige Akte als ZIP (Verträge, alle Rechnungen der Person, Vollmachten, Tresor, Verzeichnis). */}
+        <a className="pi-knopf still" href={`/api/fiaon/agent/global/auftraege/${encodeURIComponent(akte.ref)}/akte.zip`} data-fiaon="office-akte-zip">Akte als ZIP</a>
         {akte.kundenLink
           ? <a className="pi-knopf still" href={akte.kundenLink} target="_blank" rel="noopener noreferrer">Kundenansicht öffnen</a>
           : <span className="pi-knopf still" aria-disabled="true" title="Der Server hat keinen Link zur Kundenansicht mitgegeben.">Kundenansicht öffnen</span>}
@@ -881,7 +883,8 @@ function FahrplanAbschnitt({ basis, akte, frisch }: { basis: string; akte: Globa
     setFehler("");
     fetch(`/api/fiaon${basis}/stationen`, { credentials: "include", signal: ab.signal })
       .then(async (r) => { const j = await r.json().catch(() => null); if (!r.ok || !j?.ok) throw new Error(j?.error || `Fehler ${r.status}`); return j; })
-      .then((j) => { if (!aus) setDaten({ schritte: j.schritte, gesellschaft: j.gesellschaft, gesellschaftPlus: j.gesellschaftPlus, kapital: j.kapital }); })
+      .then((j) => { if (!aus) setDaten({ schritte: j.schritte, gesellschaft: j.gesellschaft, gesellschaftPlus: j.gesellschaftPlus, kapital: j.kapital, kontaktVorschlag: j.kontaktVorschlag ?? null,
+        dokumente: (j.dokumente ?? []).map((d: any) => ({ ...d, name: d.titel, url: `/api/fiaon${basis}/dokument/${encodeURIComponent(d.id)}` })) }); })
       .catch((e) => { if (!aus) setFehler(e?.name === "AbortError" ? "Der Server antwortet gerade nicht." : String(e?.message || e)); })
       .finally(() => window.clearTimeout(uhr));
     return () => { aus = true; ab.abort(); window.clearTimeout(uhr); };
@@ -891,7 +894,7 @@ function FahrplanAbschnitt({ basis, akte, frisch }: { basis: string; akte: Globa
   return (
     <div className="gl-ab gl-ab-fahrplan">
       <GlobalStationen basis={`/api/fiaon${basis}`} ton="hell" onGespeichert={() => { setRunde((x) => x + 1); frisch(); }}
-        daten={{ ...daten, dokumente: akte.dokumente.map((d) => ({ id: d.id, art: d.art, name: d.name, url: `/api/fiaon${basis}/dokument/${encodeURIComponent(d.id)}` })) }} />
+        daten={{ ...daten, dokumente: [...(daten.dokumente ?? []).filter((d: any) => d.pflichtKey), ...akte.dokumente.map((d) => ({ id: d.id, art: d.art, name: d.name, url: `/api/fiaon${basis}/dokument/${encodeURIComponent(d.id)}` }))] }} />
     </div>
   );
 }

@@ -46,7 +46,8 @@ for (const k of Object.keys(S.GLOBAL_STATION_KAPITAL)) ok(keys.includes(k), `Kap
 for (const k of ["eingetragen", "agent", "adresse", "ein", "itin", "konto", "duns"]) ok((S.GLOBAL_STATION_FELDER[k] ?? []).length > 0, `${k}: hat eigene Felder`);
 for (const [k, art] of Object.entries(S.GLOBAL_STATION_DOKUMENT)) ok(keys.includes(k) && /^[a-z_]+$/.test(art), `Dokument zur Station ${k}: ${art}`);
 const alleFelder = Object.values(S.GLOBAL_STATION_FELDER).flat();
-ok(alleFelder.filter((f) => f.intern).map((f) => f.feld).sort().join() === "kontoInstitut,registeredAgent", "intern sind genau Kontoinstitut und Anbieter des Agents");
+gleich(alleFelder.filter((f) => f.intern).map((f) => f.feld).sort(), ["kontaktAdresse", "kontaktEmail", "kontaktRolle", "kontaktTelefon", "kontoInstitut", "registeredAgent"], "intern: Kontoinstitut, Anbieter des Agents und die vertraulichen Angaben der Kontaktperson");
+for (const f of ["kontaktAdresse", "kontaktEmail", "kontaktTelefon", "kontaktRolle"]) ok(!(S.GLOBAL_PLUS_KUNDE as readonly string[]).includes(f), `E-424: ${f} geht nie ans Portal (vertraulich)`);
 
 // ═══ 2 FORMATE ═══════════════════════════════════════════════════════════════
 abschnitt("2 Formate");
@@ -88,6 +89,31 @@ gleich(S.stationWertePruefen("itin", { itin: "912 70 1234" }, HEUTE), { ok: true
 gleich(S.stationWertePruefen("duns", { duns: "123456789" }, HEUTE), { ok: true, werte: { grund: {}, plus: { duns: "12-345-6789" } } }, "D-U-N-S → plus");
 gleich(S.stationWertePruefen("adresse", { usTelefon: "(307) 555-0148" }, HEUTE), { ok: true, werte: { grund: {}, plus: { usTelefon: "+13075550148" } } }, "Telefon → E.164");
 gleich(S.stationWertePruefen("operating_agreement", {}, HEUTE), { ok: true, werte: { grund: {}, plus: {} } }, "Station ohne Felder: nichts");
+
+// ═══ 3b KONTAKTPERSON (E-424) UND EIN PER FAX ════════════════════════════════
+abschnitt("3b Kontaktperson (E-424) und EIN per Fax");
+gleich(S.stationTelefonInt("+41 79 123 45 67"), "+41791234567", "internationale Nummer → E.164");
+gleich(S.stationTelefonInt("0041 79 123 45 67"), "+41791234567", "00 statt + erlaubt");
+for (const x of ["079 123 45 67", "+0 123", "+1234567", ""]) ok(S.stationTelefonInt(x) === null, `ohne Landesvorwahl/zu kurz abgelehnt: „${x}“`);
+gleich(S.stationWertePruefen("agent", { kontaktperson: "Simon Widmer", kontaktRolle: "inhaber", kontaktEmail: " Simon@Example.com ", kontaktTelefon: "+41 79 123 45 67" }, HEUTE),
+  { ok: true, werte: { grund: {}, plus: { kontaktperson: "Simon Widmer", kontaktRolle: "inhaber", kontaktEmail: "simon@example.com", kontaktTelefon: "+41791234567" } } }, "Kontaktperson mit Rolle, E-Mail, Telefon");
+ok(!S.stationWertePruefen("agent", { kontaktRolle: "fiaon" }, HEUTE).ok && !S.stationWertePruefen("agent", { kontaktEmail: "kein-at" }, HEUTE).ok, "Rolle nur aus der Liste, E-Mail geprüft");
+ok(S.stationKontaktWarnungen("PO Box 12\nZürich", "").length === 1, "Warnung: Postfach");
+ok(S.stationKontaktWarnungen("Regus Virtual Office, Bahnhofstr. 1", "").length >= 1, "Warnung: virtuelles Büro");
+ok(S.stationKontaktWarnungen("30 N Gould St, Ste R\nSheridan", "30 N Gould St, Ste R\nSheridan, WY 82801").length >= 1, "Warnung: Adresse des Registered Agent");
+gleich(S.stationKontaktWarnungen("Seestrasse 4\n8001 Zürich", "30 N Gould St"), [], "eine Wohnanschrift: keine Warnung");
+gleich([S.stationStatusName("ein", "in_arbeit"), S.stationStatusName("ein", "beantragt"), S.stationStatusName("ein", "erledigt")], ["SS-4 zur Unterschrift", "Eingereicht (Fax)", "EIN erteilt"], "EIN per Fax: drei eigene Status-Namen");
+ok(S.stationStatusName("ein", "offen") === null && S.stationStatusName("itin", "beantragt") === null, "sonst gilt der allgemeine Name");
+ok(S.GLOBAL_STATION_UNTERSCHRIFT.ein?.pflichtKey === "irs_ss4", "SS-4 an der EIN ist das Formular irs_ss4");
+{
+  const g = await import("../shared/fiaon-global");
+  ok(/Inhaber/.test(g.GLOBAL_AGENT.de.kontakt) && !/übernehmen wir das für Sie/.test(g.GLOBAL_AGENT.de.kontakt), "Kundensatz aus GLOBAL_AGENT (E-424): der Inhaber, nicht FIAON");
+  const portalQuelle = datei("client/src/pages/global-portal.tsx");
+  ok(/GLOBAL_AGENT\[s\]\.kontakt/.test(portalQuelle), "Portal zeigt den Kontaktpersonen-Satz aus GLOBAL_AGENT");
+  const libQ = datei("server/lib/fiaon-global-mandat.ts");
+  ok(/FROM fiaon_agents WHERE COALESCE\(is_test_account, FALSE\) = FALSE/.test(libQ) && /jemand aus dem FIAON-Team/.test(libQ), "Server lehnt eine Kontaktperson aus dem FIAON-Team ab");
+  ok(/stationKontaktWarnungen\(neu\.kontaktAdresse, neu\.agentAdresse\)/.test(libQ) && /export async function globalKontaktVorschlag/.test(libQ), "Server: Warnungen zur Anschrift + Vorschlag aus dem Auftrag");
+}
 
 // ═══ 4 KUNDENSICHT ═══════════════════════════════════════════════════════════
 abschnitt("4 Kundensicht");

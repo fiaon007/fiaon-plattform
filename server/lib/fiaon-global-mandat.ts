@@ -41,7 +41,9 @@ import {
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
   globalTresorKategorie, type GlobalGesellschaftPlus,
 } from "@shared/fiaon-global-mandat";
-import { GLOBAL_STATION_FELDER, globalPlusFuerKunde, globalPlusFuerTeam, stationVerlaufSaetze, stationWertePruefen } from "@shared/fiaon-global-stationen";
+import {
+  GLOBAL_STATION_FELDER, globalPlusFuerKunde, globalPlusFuerTeam, stationKontaktWarnungen, stationStatusName, stationTelefonInt, stationVerlaufSaetze, stationWertePruefen,
+} from "@shared/fiaon-global-stationen";
 import { GLOBAL_DATEI_MAX_BYTES, GLOBAL_DOKUMENTE_MAX, globalDateiTyp, globalDateiname } from "./fiaon-global-bereich-regeln";
 import { globalMeinAuftragUrl, globalTokenErzeugen } from "./fiaon-global-auftrag";
 
@@ -167,6 +169,8 @@ async function stationenSchemaSichern(): Promise<void> {
     await tx`SET LOCAL lock_timeout = '3s'`;
     await tx`ALTER TABLE fiaon_global_schritte ADD COLUMN IF NOT EXISTS beantragt_am DATE`;
     await tx`ALTER TABLE fiaon_global_kapital ADD COLUMN IF NOT EXISTS inhaber TEXT`;
+    // Migration 122 (die vollständige Akte): Pflichtunterlage je Dokument — hier mit, weil dokumentZusatzLesen sie liest.
+    await tx`ALTER TABLE fiaon_global_dokumente ADD COLUMN IF NOT EXISTS pflicht_key TEXT, ADD COLUMN IF NOT EXISTS unterschrift_nachweis JSONB`;
     const [c] = (await tx`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'fiaon_global_schritte_status_check' LIMIT 1`) as any[];
     if (!c || !/'beantragt'/.test(String(c.def))) {
       await tx`
@@ -232,7 +236,7 @@ async function nachrichtenLesen(ref: string, fuer: "kunde" | "chef"): Promise<Re
 async function dokumentZusatzLesen(ref: string): Promise<Map<number, any>> {
   const zeilen = (await sqlPool`
     SELECT id, art, titel, kunde_gelesen_am, fiaon_gesehen_am, post_absender, post_eingang_am, unterschrift_gefordert, unterschrieben_am,
-           unterschrift_name, unterschrift_von_id, mime
+           unterschrift_name, unterschrift_von_id, mime, pflicht_key
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
   return new Map(zeilen.map((z) => [Number(z.id), z]));
 }
@@ -247,6 +251,7 @@ function dokumentZusatz(z: any): Record<string, unknown> {
     ...(z.unterschrift_gefordert ? { unterschrift: { gefordert: true, unterschrieben: !!z.unterschrieben_am, am: iso(z.unterschrieben_am), name: z.unterschrift_name ?? null } } : {}),
     ...(z.unterschrift_von_id ? { unterschriebeneFassungVon: Number(z.unterschrift_von_id) } : {}),
     istPdf: String(z.mime) === "application/pdf",
+    ...(z.pflicht_key ? { pflichtKey: String(z.pflicht_key) } : {}),
   };
 }
 
@@ -286,6 +291,15 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
     import("./fiaon-global-zusatz").then(async (m) => ({ gebucht: await m.zusatzKundenSicht(ref, token, vorschau), enthalten: await m.zusatzEnthalten(ref), freigegeben: await m.zusatzFreigabeLesen() }))
       .catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Zusatzdienste nicht gelesen:`, e); return { gebucht: [], enthalten: [], freigegeben: [] as string[], fehler: true }; }),
   ]);
+  // Die vollständige Akte (22.10.2026): alle Rechnungen der Person, alle Verträge, die Pflichtunterlagen, das ZIP.
+  // Ein Fehler hier leert nur diesen Teil — das Portal lädt trotzdem.
+  const r = encodeURIComponent(ref); const tk = `t=${encodeURIComponent(token)}${vorschau ? "&vorschau=1" : ""}`;
+  const akteKomplett = await import("./fiaon-global-akte-komplett").then(async (m) => ({
+    rechnungen: await m.globalAkteRechnungen(ref, (b) => `/api/fiaon/global/mein-auftrag/${r}/rechnung/${encodeURIComponent(b)}?${tk}`),
+    vertraege: await m.globalAkteVertraege(ref, (a) => `/api/fiaon/global/mein-auftrag/${r}/vertrag/${a}?${tk}`),
+    pflicht: await m.globalPflichtSicht(ref, "kunde"),
+    zipUrl: `/api/fiaon/global/mein-auftrag/${r}/akte.zip?${tk}`,
+  })).catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Akte nicht gelesen:`, e); return { rechnungen: [], vertraege: [], pflicht: null, zipUrl: null, fehler: true }; });
   // Die Anrede für den Gruß („Guten Abend, Herr Hildbrand“) — nur Anrede und Nachname, nichts sonst.
   const [akte] = (await sqlPool`SELECT ansprechpartner FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
   const ap = json<Record<string, any>>(akte?.ansprechpartner, {});
@@ -297,7 +311,7 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
       name: [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || (ap.name ? String(ap.name).trim() : null),
     },
     ...(vorschau ? { vorschau: true } : {}),
-    schritte, kapital, nachrichten, dienste,
+    schritte, kapital, nachrichten, dienste, akte: akteKomplett,
     // Nur freigegebene Felder; die ITIN als Maske (Klartext nur über „Anzeigen“ → /itin).
     gesellschaftPlus: globalPlusFuerKunde(gesellschaftPlusLesen(z)),
     dokumentZusatz: Object.fromEntries(Array.from(zusatz.entries()).map(([id, d]) => [String(id), dokumentZusatz(d)])),
@@ -404,6 +418,7 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
     rechnungUrl: office.rechnungUrl ? `/api/fiaon/admin/global/auftraege/${r}/rechnung.pdf` : null,
     schritte, kapital, nachrichten, zugesagtCents,
     gesellschaftPlus: globalPlusFuerTeam(gesellschaftPlusLesen(z)),
+    kontaktVorschlag: await globalKontaktVorschlag(ref),
     person,
     test: !!z?.ist_test_am,
     portal: { neu: !!z?.portal_neu_am, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
@@ -558,7 +573,7 @@ export async function globalKapitalEntfernen(ref: string, idRoh: unknown, agent:
 const FELD_TITEL = new Map(Object.values(GLOBAL_STATION_FELDER).flat().map((f) => [f.feld, f.titel]));
 const leerWert = (v: unknown) => v == null || String(v).trim() === "";
 
-export async function globalStationSpeichern(ref: string, ein: Record<string, unknown>, agent: BereichAgent, opts: { vorZahlung?: boolean } = {}): Promise<Erg<{ meldung: string; gesellschaftPlus: Record<string, unknown> }>> {
+export async function globalStationSpeichern(ref: string, ein: Record<string, unknown>, agent: BereichAgent, opts: { vorZahlung?: boolean } = {}): Promise<Erg<{ meldung: string; gesellschaftPlus: Record<string, unknown>; hinweise: string[] }>> {
   const l = await lageOder404(ref);
   if ("fehler" in l) return l.fehler;
   if (l.status === "storniert") return nein(409, "Der Auftrag ist storniert.");
@@ -587,6 +602,17 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
   const p = stationWertePruefen(v.schluessel, werteRoh, heute);
   // `feld` reist mit: Der Editor rahmt das Feld rot, an dem es hängt.
   if (!p.ok) return { ok: false as const, status: 400, error: p.error, feld: p.feld } as ReturnType<typeof nein>;
+
+  // E-424: Die Kontaktperson ist nie jemand von FIAON — ein Name aus dem Team wird abgelehnt (Wyoming beanstandet Partner,
+  // die dieselbe Person für viele Kunden eintragen). Abgleich mit den echten Mitarbeiterkonten (Vor- und Nachname).
+  const kontaktNeu = p.werte.plus.kontaktperson;
+  if (kontaktNeu) {
+    const norm = (x: unknown) => String(x ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+    const team = (await sqlPool`SELECT name FROM fiaon_agents WHERE COALESCE(is_test_account, FALSE) = FALSE AND name IS NOT NULL`.catch(() => [])) as any[];
+    if (team.some((a) => norm(a.name) && norm(a.name) === norm(kontaktNeu))) {
+      return { ok: false as const, status: 400, error: "Kontaktperson: Das ist jemand aus dem FIAON-Team. Wyoming verlangt eine natürliche Person aus dem Kreis der Gesellschafter oder der Geschäftsführung des Kunden — in der Regel den Inhaber.", feld: "kontaktperson" } as ReturnType<typeof nein>;
+    }
+  }
 
   // 2 · GRUNDDATEN (Name, Form, Bundesstaat, Gründungstag) über den bestehenden Weg — er setzt die Pflichtfristen
   const g = l.gesellschaft ?? {};
@@ -656,9 +682,12 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
   // 5 · VERLAUF — der Kunde liest das Neue, das Team alles
   const titelDe = globalSchrittTitel(v.schluessel, "de");
   for (const satz of stationVerlaufSaetze(gesetzt, l.sprache)) await verlaufSchreiben(ref, { art: "station", text: satz, sichtbar: true, agentId: agent.id });
-  if (wechsel && (status === "erledigt" || status === "beantragt")) {
+  const eigenerName = stationStatusName(v.schluessel, status, l.sprache);
+  if (wechsel && (status === "erledigt" || status === "beantragt" || eigenerName)) {
     const titel = globalSchrittTitel(v.schluessel, l.sprache);
-    const satz = status === "erledigt" ? t(l.sprache, `Erledigt: ${titel}.`, `Done: ${titel}.`) : t(l.sprache, `Beantragt: ${titel}.`, `Applied for: ${titel}.`);
+    // Stationen mit eigenen Status-Namen (EIN per Fax: „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“).
+    const satz = eigenerName ? (status === "erledigt" ? `${eigenerName}.` : `${titel}: ${eigenerName}.`)
+      : status === "erledigt" ? t(l.sprache, `Erledigt: ${titel}.`, `Done: ${titel}.`) : t(l.sprache, `Beantragt: ${titel}.`, `Applied for: ${titel}.`);
     await verlaufSchreiben(ref, { art: "schritt", text: satz, sichtbar: true, agentId: agent.id });
   }
   const teile: string[] = [];
@@ -667,9 +696,11 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
   benenne(gesetzt, "eingetragen"); benenne(geaendert, "geändert"); benenne(geleert, "geleert");
   if (!wechsel && schrittAnders && alt) teile.push("Datum/Hinweis angepasst");
   if (teile.length) await verlaufSchreiben(ref, { art: "station", text: `Station „${titelDe}“: ${teile.join("; ")} (${agent.name}).`, sichtbar: false, agentId: agent.id });
-  const kundeSieht = stationVerlaufSaetze(gesetzt, l.sprache).length > 0 || (wechsel && (status === "erledigt" || status === "beantragt"));
+  const kundeSieht = stationVerlaufSaetze(gesetzt, l.sprache).length > 0 || (wechsel && (status === "erledigt" || status === "beantragt" || !!eigenerName));
+  // E-424: Warnungen zur Wohnanschrift der Kontaktperson (Postfach, virtuelles Büro, Agent-Adresse) — gespeichert wird trotzdem.
+  const hinweise = v.schluessel === "agent" ? stationKontaktWarnungen(neu.kontaktAdresse, neu.agentAdresse) : [];
   return {
-    ok: true,
+    ok: true, hinweise,
     gesellschaftPlus: globalPlusFuerTeam(neu as GlobalGesellschaftPlus),
     meldung: teile.length
       ? `„${titelDe}“ gespeichert${kundeSieht ? " — der Kunde sieht es jetzt in seinem Portal" : ""}.${fristen}`
@@ -688,13 +719,29 @@ export async function globalItinKlartext(ref: string, wer: { team: BereichAgent 
   return klar;
 }
 
+/**
+ * E-424: Der Vorschlag für die Kontaktperson — der Kunde selbst, aus den Angaben des Auftrags (Ansprechpartner, und als
+ * Wohnanschrift die Anschrift aus dem Auftrag, wenn er privat beauftragt hat). Das Team prüft und speichert.
+ */
+export async function globalKontaktVorschlag(ref: string): Promise<{ name: string; email: string; telefon: string; adresse: string; rolle: string } | null> {
+  const [z] = (await sqlPool`SELECT ansprechpartner, firma FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  if (!z) return null;
+  const ap = json<Record<string, any>>(z.ansprechpartner, {});
+  const f = json<Record<string, any>>(z.firma, {});
+  const name = [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || (f.art === "privat" ? String(f.name ?? "").trim() : "");
+  if (!name) return null;
+  const adresse = f.art === "privat" ? [f.strasse, [f.plz, f.ort].filter(Boolean).join(" "), f.land].map((x) => String(x ?? "").trim()).filter(Boolean).join("\n") : "";
+  return { name, email: String(ap.email ?? "").trim().toLowerCase(), telefon: stationTelefonInt(ap.telefon) ?? "", adresse, rolle: "inhaber" };
+}
+
 /** Für das Office (/agent/global/:ref): Stationen, Grunddaten, Werte (ITIN maskiert) und Karten/Rahmen — wie im Chefbüro. */
 export async function globalStationenSicht(ref: string): Promise<Record<string, unknown> | null> {
   await ensureGlobalMandat();
   const l = await lageLesen(ref);
   if (!l) return null;
-  const [schritte, kapital, plus] = await Promise.all([schritteLesen(ref, "de", "chef"), kapitalLesen(ref, "de", "chef"), plusRoh(ref)]);
-  return { status: l.status, gesellschaft: l.gesellschaft, gesellschaftPlus: globalPlusFuerTeam(plus), schritte, kapital };
+  const [schritte, kapital, plus, zusatz] = await Promise.all([schritteLesen(ref, "de", "chef"), kapitalLesen(ref, "de", "chef"), plusRoh(ref), dokumentZusatzLesen(ref)]);
+  const dokumente = Array.from(zusatz.values()).map((d) => ({ id: Number(d.id), art: String(d.art), titel: d.titel ? String(d.titel) : null, ...dokumentZusatz(d) }));
+  return { status: l.status, gesellschaft: l.gesellschaft, gesellschaftPlus: globalPlusFuerTeam(plus), schritte, kapital, dokumente, kontaktVorschlag: await globalKontaktVorschlag(ref) };
 }
 
 /**

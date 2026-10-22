@@ -34,7 +34,7 @@ import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
 import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-bereich";
 // 22.10.2026: die Werte der Stationen (EIN, ITIN-Maske, D-U-N-S, Telefon, Adressen, Konto) — eine Quelle mit dem Editor.
-import { stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
+import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
 // 22.10.2026: die neue Navigation — Glasleiste mit Themen und Panel, am Telefon ein ganzseitiges Menü.
 import PortalNav, { type NavGruppe } from "./global-portal-nav";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
@@ -87,6 +87,12 @@ const W = {
     fristenLeer: "Keine Frist in Sicht.", dokumenteLeer: "Noch keine Dokumente.", diensteLeer: "Was Sie dazunehmen, erscheint hier.", oeffnenPfeil: "Öffnen",
     anzeigen: "Anzeigen", verbergen: "Verbergen", itinFehler: "Die ITIN ließ sich gerade nicht anzeigen — bitte gleich noch einmal.",
     adressenLeer: "Ihre US-Nummer und Ihre Adressen erscheinen hier, sobald sie eingerichtet sind.", anrufen: "Anrufen",
+    rechnungenTitel: "Alle Rechnungen", rechnungenLead: "Jede Rechnung zu Ihrem Auftrag — mit Stand, PDF und Zahlung.", rechnungenLeer: "Noch keine Rechnung.",
+    vertraegeTitel: "Verträge und Vereinbarungen", vertraegeLeer: "Der Vertrag erscheint hier mit dem Auftrag.",
+    pflichtTitel: "Ihre Unterschriften", pflichtLead: "Was wir für Ihre Gesellschaft von Ihnen unterschrieben brauchen.", pflichtVoll: "Alles unterschrieben — danke.",
+    pflichtTun: (x: string) => `Bitte unterschreiben: ${x}`,
+    allesLaden: "Alle Unterlagen herunterladen", allesLadenText: "Verträge, Rechnungen, unterschriebene Dokumente und Ihr Tresor — als eine ZIP-Datei mit Inhaltsverzeichnis.",
+    zurZahlung: "Zur Zahlung", weitereLeistungen: "Weitere Leistungen", weitereLead: "Was Sie zu Ihrem Auftrag dazugenommen haben.",
     stammTitel: "Die Daten Ihrer Gesellschaft", stammLead: "Nummern, Adressen und Daten — zum Nachschlagen und Kopieren.", zumFahrplan: "Zum Fahrplan",
     // Leer = die Seite trägt ihren einen Satz im Abschnitt darunter (keine Doppelung).
     seitenSatz: {
@@ -153,6 +159,12 @@ const W = {
     fristenLeer: "No deadline in sight.", dokumenteLeer: "No documents yet.", diensteLeer: "What you add appears here.", oeffnenPfeil: "Open",
     anzeigen: "Show", verbergen: "Hide", itinFehler: "The ITIN could not be shown just now — please try again shortly.",
     adressenLeer: "Your US number and your addresses appear here once they are set up.", anrufen: "Call",
+    rechnungenTitel: "All invoices", rechnungenLead: "Every invoice for your order — with status, PDF and payment.", rechnungenLeer: "No invoice yet.",
+    vertraegeTitel: "Contracts and agreements", vertraegeLeer: "The contract appears here with the order.",
+    pflichtTitel: "Your signatures", pflichtLead: "What we need signed by you for your company.", pflichtVoll: "Everything signed — thank you.",
+    pflichtTun: (x: string) => `Please sign: ${x}`,
+    allesLaden: "Download all documents", allesLadenText: "Contracts, invoices, signed documents and your vault — as one ZIP file with an index.",
+    zurZahlung: "Go to payment", weitereLeistungen: "Further services", weitereLead: "What you have added to your order.",
     stammTitel: "Your company's details", stammLead: "Numbers, addresses and dates — to look up and copy.", zumFahrplan: "To the roadmap",
     seitenSatz: {
       fahrplan: "",
@@ -347,6 +359,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const tag = (iso?: string | null) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" }) : "";
   const tagKurz = (iso?: string | null) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString(loc, { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
   const zeit = (iso?: string | null) => iso ? new Date(iso).toLocaleString(loc, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  const euroText = (c?: number | null) => c == null ? "" : `${(Number(c) / 100).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   const kb = (n?: number) => !n ? "" : n > 1024 * 1024 ? `${(n / 1024 / 1024).toLocaleString(loc, { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
   // ── Seiten (E-341) ──
   const [seite, setSeite] = useState<PortalSeite>(seiteAusHash);
@@ -487,10 +500,19 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const [verlaufAlle, setVerlaufAlle] = useState(false);
   const zu = (id: string) => geh(id.replace(/^gp-/, ""));
 
+  // ── Die vollständige Akte (22.10.2026): Rechnungen der Person, Verträge, Pflichtunterlagen, ZIP ──
+  const akte: T = a.akte ?? {};
+  const rechnungen: T[] = akte.rechnungen ?? [];
+  const pflicht: T | null = akte.pflicht ?? null;
+  const einzelLeistungen = rechnungen.filter((r) => r.art === "einzel");
+
   // ── „Für Sie zu tun" ──
   const tun: { key: string; Icon: any; ton: string; titel: string; text: string; knopf?: string; aktion?: () => void; href?: string }[] = [];
   if (a.status === "offen" && a.zahlung?.zahlungsseite) tun.push({ key: "zahlung", Icon: Landmark, ton: "navy", titel: t.zahlungOffenTitel, text: t.zahlungOffenText, knopf: t.zurZahlung, href: a.zahlung.zahlungsseite });
-  for (const d of zuUnterschreiben) tun.push({ key: `u${d.id}`, Icon: FileSignature, ton: "blau", titel: w.unterschriftTitel(d.titel || d.artText), text: w.unterschriftText, knopf: w.unterschreiben, aktion: () => setDialog(d) });
+  for (const d of zuUnterschreiben) {
+    const p = ((pflicht?.eintraege ?? []) as T[]).find((e) => e.dokumentId === d.id);
+    tun.push({ key: `u${d.id}`, Icon: FileSignature, ton: "blau", titel: p ? w.pflichtTun(p.titel) : w.unterschriftTitel(d.titel || d.artText), text: p?.text || w.unterschriftText, knopf: w.unterschreiben, aktion: () => setDialog(d) });
+  }
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
   if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.titel).join(" · "), knopf: w.zumTresor, aktion: () => zu("gp-tresor") });
@@ -499,6 +521,11 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     const z = globalZusatz(d.key);
     if (z && d.zahlungOffen && d.zahlungsseite) tun.push({ key: `z${d.id}`, Icon: FileText, ton: "", titel: ZUSATZ_WOERTER[s].tunTitel(z[s].titel), text: ZUSATZ_WOERTER[s].tunText, knopf: ZUSATZ_WOERTER[s].zurZahlung, href: d.zahlungsseite });
   }
+  // Offene Rechnungen der Person (Einzelrechnungen wie Fast-Track, Angebotsteile) — die Paketrechnung steht schon oben.
+  for (const r of rechnungen) {
+    if (r.zahlungsseite && r.art !== "paket" && r.art !== "zusatz" && !tun.some((x) => x.href === r.zahlungsseite)) tun.push({ key: `r${r.bestellRef}`, Icon: FileText, ton: "", titel: `${s === "en" ? "Invoice open" : "Rechnung offen"}: ${r.titel}`, text: [r.nummer, euroText(r.betragCents)].filter(Boolean).join(" · "), knopf: w.zurZahlung, href: r.zahlungsseite });
+  }
+  // Pflichtunterlagen, die schon zur Unterschrift bereitliegen, stehen über zuUnterschreiben oben; hier der Titel der Pflicht.
   // Pflichtfristen der nächsten dreißig Tage gehören zu „Für Sie zu tun".
   const heuteIso = new Date().toISOString().slice(0, 10);
   const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
@@ -798,7 +825,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                           </span>
                           <div>
                             <b>{x.titel}</b>
-                            <small>{w.stand[x.status] ?? x.status}{x.datum ? ` · ${tagKurz(x.datum)}` : ""}</small>
+                            <small>{stationStatusName(x.schluessel, x.status, s) ?? w.stand[x.status] ?? x.status}{x.datum ? ` · ${tagKurz(x.datum)}` : x.beantragtAm && x.status === "beantragt" ? ` · ${tagKurz(x.beantragtAm)}` : ""}</small>
                             {x.hinweis ? <p className="gp-schritt-hinweis">{x.hinweis}</p> : <p className="gp-schritt-text">{x.text}</p>}
                             {(() => {
                               // 22.10.2026: die echten Werte der Station — EIN, ITIN (maskiert, „Anzeigen“), D-U-N-S, Nummer, Adressen, Konto, Karten.
@@ -812,6 +839,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                                 </dl>
                               );
                             })()}
+                            {/* E-424: die Kontaktperson ist der Kunde selbst (bzw. ein Gesellschafter) — der Satz kommt aus GLOBAL_AGENT. */}
+                            {x.schluessel === "agent" && <p className="gp-schritt-text">{GLOBAL_AGENT[s].kontakt}</p>}
                             {x.schluessel === "kreditrahmen" && !a.angebot && stationWerte("kreditrahmen").kapital.length > 0 && <p className="gp-schritt-text">{GLOBAL_ETAPPE_FUSSNOTE[s]}</p>}
                           </div>
                         </li>
@@ -1079,6 +1108,55 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             {!hatAuftragsblock && <p className="gp-satz">{a.paketName} · {a.ref}</p>}
           </section>
 
+          {/* ── 22.10.2026: die vollständige Akte — alle Rechnungen, alle Verträge, Unterschriften, alles als ZIP ── */}
+          <section className="gp-abschnitt gp-auftauchen" data-fiaon="portal-rechnungen">
+            <h2 className="gp-h2">{w.rechnungenTitel}</h2>
+            <p className="gp-lead">{w.rechnungenLead}</p>
+            {rechnungen.length === 0 ? <p className="gp-leise">{w.rechnungenLeer}</p> : (
+              <ul className="gp-rechnungen">
+                {rechnungen.map((r) => (
+                  <li key={r.bestellRef} className={`st-${r.status}`}>
+                    <div><b>{r.titel}</b><small>{[r.nummer, r.datum ? tagKurz(r.datum) : ""].filter(Boolean).join(" · ")}</small></div>
+                    <span className="gp-betrag">{euroText(r.betragCents)}</span>
+                    <span className={`gp-marke ${r.status === "bezahlt" ? "gruen" : r.status === "offen" ? "blau" : ""}`}>{r.statusText}</span>
+                    <span className="gp-rechnung-wege">
+                      {r.pdfUrl && <a className="gp-link" href={r.pdfUrl} target="_blank" rel="noopener">PDF</a>}
+                      {r.zahlungsseite && <a className="gp-knopf klein" href={r.zahlungsseite}>{w.zurZahlung}</a>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="gp-abschnitt gp-auftauchen" data-fiaon="portal-vertraege">
+            <h2 className="gp-h2">{w.vertraegeTitel}</h2>
+            {((akte.vertraege ?? []) as T[]).length === 0 && (a.angebotUnterlagen ?? []).length === 0 ? <p className="gp-leise">{w.vertraegeLeer}</p> : (
+              <div className="gp-dokliste">
+                {((akte.vertraege ?? []) as T[]).map((v) => <DokZeile key={v.key} titel={v.titel} unter={v.unter} href={v.url} Icon={ShieldCheck} />)}
+                {zeilenNachweise()}
+              </div>
+            )}
+          </section>
+          {pflicht && (pflicht.eintraege ?? []).length > 0 && (
+            <section className="gp-abschnitt gp-auftauchen" data-fiaon="portal-pflicht">
+              <h2 className="gp-h2">{w.pflichtTitel}</h2>
+              <p className="gp-lead">{pflicht.vollstaendig ? w.pflichtVoll : w.pflichtLead}</p>
+              <ul className="gp-pflicht">
+                {(pflicht.eintraege as T[]).map((e) => {
+                  const d = doks.find((x) => x.id === e.dokumentId);
+                  return (
+                    <li key={e.key} className={`st-${e.stand}`}>
+                      <span className="gp-pflicht-punkt" aria-hidden="true">{e.stand === "unterschrieben" ? <Check size={13} strokeWidth={2.6} /> : null}</span>
+                      <div><b>{e.titel}</b>{e.text && <small>{e.text}</small>}</div>
+                      {e.stand === "wartet" && d ? <button type="button" className="gp-knopf klein" onClick={() => setDialog(d)}><PenLine size={13} /> {w.unterschreiben}</button>
+                        : <span className={`gp-marke ${e.stand === "unterschrieben" ? "gruen" : ""}`}>{e.stand === "unterschrieben" ? (s === "en" ? "Signed" : "Unterschrieben") : (s === "en" ? "Being prepared" : "Wird vorbereitet")}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
                   </main>
                   <aside className="gp-seite">
           <div className="gp-karte gp-auftauchen">
@@ -1094,6 +1172,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
             ) : a.status !== "storniert" && <p className="gp-leise">{t.jahrSpaeter(J.titel, J.preisZeile)}</p>}
             <p className="gp-leise klein">{a.angebot ? (a.angebot.seiteHinweis ?? ANGEBOT_MEIN_AUFTRAG.seiteHinweis) : t.seiteHinweis}</p>
           </div>
+          {akte.zipUrl && (
+            <a className="gp-karte gp-auftauchen gp-karte-klick gp-zip" href={akte.zipUrl} data-fiaon="portal-zip">
+              <span className="gp-auge">{w.allesLaden}</span>
+              <span className="gp-leise">{w.allesLadenText}</span>
+              <span className="gp-buero-fuss"><Download size={14} /> ZIP</span>
+            </a>
+          )}
                   </aside>
                 </div>
               )}
@@ -1102,6 +1187,23 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                   <Suspense fallback={<div className="gp-abschnitt"><Loader2 size={18} className="gp-dreht" /></div>}>
                     <GlobalDienste a={a} s={s} mitToken={mitToken} vorschau={vorschau} laden={laden} />
                   </Suspense>
+                  {/* 22.10.2026: einmalige Leistungen außerhalb des Katalogs (Fast-Track, LLC-Gründung …) gehören auch zu „Ihre Dienste“. */}
+                  {einzelLeistungen.length > 0 && (
+                    <section className="gp-abschnitt gpd-abschnitt" data-fiaon="portal-einzelleistungen">
+                      <h2 className="gpd-h2">{w.weitereLeistungen}</h2>
+                      <p className="gp-lead">{w.weitereLead}</p>
+                      <ul className="gp-rechnungen">
+                        {einzelLeistungen.map((r) => (
+                          <li key={r.bestellRef} className={`st-${r.status}`}>
+                            <div><b>{r.titel}</b><small>{[r.nummer, r.datum ? tagKurz(r.datum) : ""].filter(Boolean).join(" · ")}</small></div>
+                            <span className="gp-betrag">{euroText(r.betragCents)}</span>
+                            <span className={`gp-marke ${r.status === "bezahlt" ? "gruen" : r.status === "offen" ? "blau" : ""}`}>{r.statusText}</span>
+                            <span className="gp-rechnung-wege">{r.pdfUrl && <a className="gp-link" href={r.pdfUrl} target="_blank" rel="noopener">PDF</a>}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                 </div>
               )}
               {(seite === "strategie" || seite === "recht" || seite === "steuern") && (

@@ -88,6 +88,8 @@
 .gst-feld small { font: 400 11.5px/1.4 'Inter', sans-serif; color: var(--gst-still); }
 .gst-feld.fehler input, .gst-feld.fehler textarea, .gst-feld.fehler select { border-color: var(--gst-rot); box-shadow: 0 0 0 3px var(--gst-rot-flaeche); }
 .gst-fehlertext { color: var(--gst-rot) !important; }
+.gst-warnung { color: var(--gst-hell) !important; padding-left: 10px; border-left: 2px solid var(--gst-licht); }
+.gst-kontakt-hinweis { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--gst-blau-flaeche); font: 400 12.5px/1.45 'Inter', sans-serif; color: var(--gst-text); }
 .gst-geheim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 38px; }
 .gst-geheim code { padding: 7px 11px; border-radius: 10px; background: var(--gst-eingabe); border: 1px solid var(--gst-linie); font: 500 14px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; color: var(--gst-stark); }
 .gst-geheim button, .gst-mini button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--gst-linie); background: transparent; color: var(--gst-hell); font: 500 12px/1 'Inter', sans-serif; cursor: pointer; }

@@ -63,7 +63,7 @@ export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
     text: { de: "Der Registered Agent nimmt amtliche Post für Ihre Gesellschaft im Bundesstaat entgegen.", en: "The registered agent receives official mail for your company in the state." }, feld: "registeredAgent" },
   { schluessel: "adresse", etappe: 1, titel: { de: "US-Adresse und Telefonnummer", en: "US address and phone number" },
     text: { de: "Ihre Gesellschaft hat eine Geschäftsadresse und eine Telefonnummer in den USA.", en: "Your company has a business address and a phone number in the US." }, feld: "usAdresse" },
-  { schluessel: "ein", etappe: 1, titel: { de: "EIN erteilt", en: "EIN issued" },
+  { schluessel: "ein", etappe: 1, titel: { de: "EIN der Gesellschaft", en: "Company EIN" },
     text: { de: "Die US-Steuerbehörde hat Ihrer Gesellschaft die Steuernummer (EIN) erteilt.", en: "The US tax authority has issued your company's tax number (EIN)." }, feld: "ein" },
   { schluessel: "operating_agreement", etappe: 1, titel: { de: "Operating Agreement unterschrieben", en: "Operating agreement signed" },
     text: { de: "Der Gesellschaftsvertrag Ihrer LLC ist unterschrieben und liegt in Ihrem Tresor.", en: "Your LLC's operating agreement is signed and stored in your vault." } },

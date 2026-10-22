@@ -169,7 +169,7 @@ export function konditionenSauber(v: unknown): Kondition[] {
   for (const k of liste) {
     if (!k || typeof k !== "object") continue;
     const label = zeile((k as any).label ?? (k as any).titel, 120);
-    const value = zeile((k as any).value ?? (k as any).wert, 400);
+    const value = zeile((k as any).value ?? (k as any).wert, 1000);
     if (!label && !value) continue;
     aus.push({ label: label || "Kondition", value });
     if (aus.length >= 40) break;

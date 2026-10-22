@@ -46,6 +46,8 @@ import "@/styles/chef-mailwerk.css";
 import "@/styles/chef-global.css";
 
 const ChefGlobalAngebote = lazy(() => import("./ChefGlobalAngebote"));
+// E-425: das Geschäftspartner-CRM steht im Reiter „Geschäftspartner“ über den Kooperationsverträgen (keine neue Chef-Seite).
+const ChefGeschaeftspartner = lazy(() => import("./ChefGeschaeftspartner"));
 type Reiter = "auftraege" | "angebote" | "partner";
 const reiterAusAdresse = (): Reiter => {
   try { const r = new URLSearchParams(window.location.search).get("reiter"); return r === "angebote" || r === "partner" ? r : "auftraege"; } catch { return "auftraege"; }
@@ -104,7 +106,9 @@ export default function ChefGlobalAuftraege() {
       </div>
       {reiter === "auftraege"
         ? <AuftraegeListe />
-        : <Suspense fallback={<Geruest zeilen={4} />}><ChefGlobalAngebote nur={reiter === "partner" ? "partner" : "kunden"} /></Suspense>}
+        : reiter === "partner"
+          ? <Suspense fallback={<Geruest zeilen={4} />}><ChefGeschaeftspartner /><ChefGlobalAngebote nur="partner" /></Suspense>
+          : <Suspense fallback={<Geruest zeilen={4} />}><ChefGlobalAngebote nur="kunden" /></Suspense>}
     </div>
   );
 }

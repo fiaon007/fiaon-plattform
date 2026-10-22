@@ -1349,6 +1349,16 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     tipp: "Geld wird hier nicht gebucht. Der Zahlungseingang läuft über „Zahlungen verbuchen“ wie bei jedem Kunden.",
   },
   {
+    // E-425 (22.10.2026): das Geschäftspartner-CRM. Ohne „ziel“ — es steht nur im Reiter „Geschäftspartner“.
+    titel: "Geschäftspartner: jeder Partner mit allem, was dazugehört.",
+    text: "Im Reiter „Geschäftspartner“ steht oben das Partner-CRM: Lieferanten, Kooperationspartner, Banken, Kanzleien. Das Suchfeld findet "
+      + "sofort Namen, Kontakte, E-Mails, Telefonnummern, Tags und Verlaufseinträge. Ein Klick auf eine Karte öffnet die Akte: Überblick mit "
+      + "„Was steht an?“, Kontakte, Verlauf, Dokumente (Verträge mit Gültigkeit) und Aufgaben. „Aus E-Mail übernehmen“ liest eine eingefügte "
+      + "Mail oder Signatur und schlägt Partner, Kontakte, Konditionen, einen Verlaufseintrag und eine Aufgabe vor — gespeichert wird erst, "
+      + "wenn du „Übernehmen“ drückst. Beim Tippen einer Adresse kommen Vorschläge. Darunter stehen wie bisher die Kooperationsverträge.",
+    tipp: "Ist die KI aus, wertet „Aus E-Mail übernehmen“ mit festen Regeln aus (E-Mail, Telefon, Website, Adresse, Signatur) — alles andere funktioniert ohne KI.",
+  },
+  {
     ziel: ".cg-zahlen",
     titel: "Vier Zahlen, zwei davon sind Alarm.",
     text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Ohne Stichtag“ "

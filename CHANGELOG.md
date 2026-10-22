@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 22.10.2026 — Geschäftspartner-CRM im Reiter „Geschäftspartner“ (E-425)
+- **Was:** Im Chefbüro › Global-Aufträge › Reiter „Geschäftspartner“ steht jetzt oben ein vollständiges Partner-CRM (keine
+  neue Seite): Partner (Lieferant/Dienstleister, Kooperationspartner, Bank/Finanzpartner, Kanzlei/Steuer, Sonstige) mit
+  Status, Anschrift, Register- und Steuerdaten, „Was sie für uns tun“, Konditionen als Liste, Tags, Zuständigkeit und
+  Merker „vertraulich“; dazu Kontakte (auch ohne Firma als Einzelkontakt), Verlauf (Notiz, E-Mail, Anruf, Termin, Vertrag,
+  Vereinbarung, Rechnung, Aufgabe — mit Anhang), Dokumente (PDF/JPG/PNG/HEIC bis 15 MB, gültig ab/bis, Typ am Inhalt
+  erkannt) und Aufgaben mit Fälligkeit. Die Suche findet beim Tippen Namen, Kontakte, E-Mails, Telefonnummern (auch als
+  reine Ziffern), Tags, Konditionen und Verlaufseinträge und sagt, wo sie getroffen hat. „Was steht an?“ denkt mit
+  (überfällig, heute fällig, als Nächstes, Vertrag läuft aus, lange kein Kontakt, kein Hauptkontakt …) — ohne KI immer, mit
+  KI zusätzlich ein kurzer Satz. „Aus E-Mail übernehmen“ liest eine eingefügte Mail oder Signatur und schlägt Partner,
+  Kontakte (mit Durchwahl und Erreichbarkeit), Konditionen, einen Verlaufseintrag und eine Aufgabe vor; es erkennt einen
+  schon vorhandenen Partner (gleiche E-Mail, Domain oder Name) und ergänzt dort nur leere Felder. Gespeichert wird erst
+  mit „Übernehmen“. Ist die KI aus (kein Schlüssel oder Pause), werten feste Regeln aus und die Seite sagt warum.
+  Beim Tippen einer Adresse kommen Vorschläge (Photon/OpenStreetMap, ohne Schlüssel, höchstens eine Anfrage je
+  Sekunde, 24 h Zwischenspeicher). Kooperationspartner aus IA-KOOP- ohne Akte stehen oben mit „Als Partner-Akte
+  anlegen“. Nichts wird hart gelöscht (archivieren/entfernen).
+- **Warum:** Justin: Partner wie unser Registered-Agent-Anbieter müssen komplett mit Verlauf, Vertrag, Vereinbarungen und
+  allen Daten drin sein — ein CRM, über das wir alles steuern, speichern und suchen.
+- **Wo:** `client/src/components/admin/ChefGeschaeftspartner.tsx`, `client/src/styles/chef-partner-crm.css`,
+  `shared/fiaon-partner-crm.ts` (Regeln), `server/lib/fiaon-partner-crm.ts` (Datenbank), `server/lib/fiaon-partner-crm-ki.ts`
+  (KI über die eine Wand openaiFetch), `server/lib/fiaon-adresse.ts` (Adressvorschläge, Anbieter austauschbar),
+  `server/routes/fiaon-partner-crm.ts` (requireChef „leitung“), Migration `db/migrations/121_partner_crm.sql`. Erste Akte per
+  `scripts/partner-crm-anlegen.ts <private.json>` (Vorschau; `--schreiben` nur lokal, `--produktion` nur mit Justins Go).
+  Prüfstand `scripts/pruef-partner-crm.ts` (ohne DB, mit `--rot-probe`). Rundgang Global-Aufträge um einen Schritt ergänzt.
 ## 22.10.2026 — ARAS nach dem Anruf: Erinnerung nach der Mailbox, Zahltag-Erinnerung, ehrliches Nachfassen, beste Uhrzeit, 90-Tage-Löschung (E-408, Scheibe 3)
 - **Was:** Fünf Abläufe rund um Kunden mit Vertrag nach Anrufen von ARAS (Auswertung von 168 echten Anrufen: 41 % Mailbox,
   fünf Zahltag-Zusagen):

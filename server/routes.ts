@@ -1160,6 +1160,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🌐 Chefbüro › Global (E-338): der Arbeitsraum für die Firmenkunden — Mandate, Tresor, Post, Anfragen, Kapital.
   const chefGlobal = await import('./routes/fiaon-chef-global');
   app.use('/api/fiaon', chefGlobal.default);
+  // 🤝 E-425 (22.10.2026): Geschäftspartner-CRM im Reiter „Geschäftspartner“ (Global-Aufträge) — Partner, Kontakte,
+  //    Verlauf, Dokumente, Aufgaben, „Aus E-Mail übernehmen“ (KI, nie ohne Bestätigung), Adressvorschläge. requireChef("leitung").
+  const partnerCrm = await import('./routes/fiaon-partner-crm');
+  app.use('/api/fiaon', partnerCrm.default);
 
   // 📈 Microsoft Clarity im Chefbüro (27.08.2026). Liest IMMER aus dem eigenen
   // Speicher — Clarity erlaubt nur zehn Abrufe je Tag.

@@ -790,10 +790,11 @@ export default function ChefGlobalAngebote({ nur = "kunden" }: { nur?: "kunden" 
       {nur === "partner" && (
         <section className="cz-block cg-partner-kopf">
           <header>
-            <h2>Geschäftspartner</h2>
+            {/* E-425: Darüber steht das Geschäftspartner-CRM (ChefGeschaeftspartner) — hier nur noch die Verträge. */}
+            <h2>Kooperationsverträge</h2>
             <p>Kooperationen mit Partnern: Kontakte, Empfehlungen, Provision und Gutschriften. Ist ein Partner zugleich Kunde, steht sein Auftrag bei den Kunden — hier nur der Hinweis.</p>
           </header>
-          {liste.length === 0 && <p className="cg-leer">Noch kein Geschäftspartner.</p>}
+          {liste.length === 0 && <p className="cg-leer">Noch kein Kooperationsvertrag.</p>}
         </section>
       )}
       <section className="cz-block" hidden={nur === "partner"}>

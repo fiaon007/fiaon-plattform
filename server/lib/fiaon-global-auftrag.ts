@@ -1350,6 +1350,19 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       kundenLink: r.akte_id ? globalMeinAuftragUrl(String(r.ref), String(r.vertrag_sprache) === "en" ? "en" : "de") : null,
     };
   });
+  // E-423: Ist die Person zugleich Geschäftspartner (Kooperationsvertrag), steht das am Auftrag — die Kooperation selbst
+  // steht im Reiter „Geschäftspartner“.
+  try {
+    const koops = (await sqlPool`
+      SELECT angebot_ref, person_id, lower(COALESCE(kunde->>'email', '')) AS mail FROM fiaon_global_angebote
+       WHERE fassung LIKE 'IA-KOOP-%' AND status IN ('offen', 'angenommen')`) as any[];
+    zeilen.forEach((z, i) => {
+      const pid = rows[i].person_id != null ? Number(rows[i].person_id) : null;
+      const mail = String(rows[i].email ?? "").trim().toLowerCase();
+      const k = koops.find((x) => (pid != null && x.person_id != null && Number(x.person_id) === pid) || (mail && x.mail === mail));
+      (z as Record<string, unknown>).alsPartner = k ? String(k.angebot_ref) : null;
+    });
+  } catch (e) { console.error("[FIAON-GLOBAL] Liste: Geschäftspartner nicht gelesen:", e); }
   return { zeilen, mitarbeiter: await globalMitarbeiter(), einstellungen: await globalEinstellungen() };
 }
 

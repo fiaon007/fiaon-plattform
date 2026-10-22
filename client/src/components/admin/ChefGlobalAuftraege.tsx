@@ -46,15 +46,17 @@ import "@/styles/chef-mailwerk.css";
 import "@/styles/chef-global.css";
 
 const ChefGlobalAngebote = lazy(() => import("./ChefGlobalAngebote"));
-type Reiter = "auftraege" | "angebote";
+type Reiter = "auftraege" | "angebote" | "partner";
 const reiterAusAdresse = (): Reiter => {
-  try { return new URLSearchParams(window.location.search).get("reiter") === "angebote" ? "angebote" : "auftraege"; } catch { return "auftraege"; }
+  try { const r = new URLSearchParams(window.location.search).get("reiter"); return r === "angebote" || r === "partner" ? r : "auftraege"; } catch { return "auftraege"; }
 };
 
 type Status = "offen" | "bezahlt" | "gestartet" | "storniert";
 type Filter = "laufend" | "offen" | "bezahlt" | "gestartet" | "alle";
 
 interface Zeile {
+  /** E-423: dieselbe Person hat einen Kooperationsvertrag (Reiter „Geschäftspartner“). */
+  alsPartner?: string | null;
   ref: string; status: Status; ohneAuftrag: boolean;
   firma: string; ort: string; land: string | null;
   ansprechpartner: string; funktion: string | null; email: string | null; telefon: string | null;
@@ -88,7 +90,7 @@ export default function ChefGlobalAuftraege() {
     setReiter(r);
     try {
       const u = new URL(window.location.href);
-      if (r === "angebote") u.searchParams.set("reiter", "angebote"); else u.searchParams.delete("reiter");
+      if (r !== "auftraege") u.searchParams.set("reiter", r); else u.searchParams.delete("reiter");
       window.history.replaceState(null, "", u.pathname + u.search);
     } catch { /* Adresse bleibt, der Reiter wechselt trotzdem */ }
   };
@@ -98,10 +100,11 @@ export default function ChefGlobalAuftraege() {
       <div className="cg-filter cg-reiter" role="tablist" aria-label="Global-Aufträge">
         <button type="button" role="tab" aria-selected={reiter === "auftraege"} className={reiter === "auftraege" ? "aktiv" : ""} onClick={() => wechseln("auftraege")}>Aufträge</button>
         <button type="button" role="tab" aria-selected={reiter === "angebote"} className={reiter === "angebote" ? "aktiv" : ""} onClick={() => wechseln("angebote")}>Individualangebote</button>
+        <button type="button" role="tab" aria-selected={reiter === "partner"} className={reiter === "partner" ? "aktiv" : ""} onClick={() => wechseln("partner")}>Geschäftspartner</button>
       </div>
-      {reiter === "angebote"
-        ? <Suspense fallback={<Geruest zeilen={4} />}><ChefGlobalAngebote /></Suspense>
-        : <AuftraegeListe />}
+      {reiter === "auftraege"
+        ? <AuftraegeListe />
+        : <Suspense fallback={<Geruest zeilen={4} />}><ChefGlobalAngebote nur={reiter === "partner" ? "partner" : "kunden"} /></Suspense>}
     </div>
   );
 }
@@ -183,6 +186,7 @@ function AuftraegeListe() {
                     <span className="cm-klartext">{[z.ort, z.land].filter(Boolean).join(", ")}{z.ansprechpartner ? ` · ${z.ansprechpartner}${z.funktion ? `, ${z.funktion}` : ""}` : ""}</span>
                     <span className="cm-klartext">{[z.email, z.telefon].filter(Boolean).join(" · ") || "—"}</span>
                     <span className="cm-klartext cg-ref">{z.ref}{z.verwendungszweck ? ` · Verwendungszweck ${z.verwendungszweck}` : ""}</span>
+                    {z.alsPartner && <span className="cm-klartext cg-rolle">Auch Geschäftspartner · Kooperation {z.alsPartner}</span>}
                   </td>
                   <td>
                     <b>{z.paketName.replace(/^FIAON /, "")}</b>

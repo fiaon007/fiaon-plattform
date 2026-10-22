@@ -231,6 +231,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.
   { slug: "global-auftraege", label: "Global: Angebote & Aufträge", kurz: "Angebote & Aufträge", satz: "Angebote anlegen, Aufträge steuern.", Seite: GlobalAuftraege, raum: "global", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
+  { slug: "geschaeftspartner", label: "Geschäftspartner", satz: "Kooperationen, Empfehlungen, Provision und Gutschriften.", Seite: GlobalAuftraege, raum: "global", suche: "reiter=partner", auch: "partner kooperation koop tippgeber provision gutschrift empfehlung chehade" },
 
   // ── Team ────────────────────────────────────────────────────────────────
   { slug: "team", label: "Team-Zentrale", satz: "Kennzahlen, Provisionen, Nachrichten.", Seite: TeamZentrale, raum: "team" },

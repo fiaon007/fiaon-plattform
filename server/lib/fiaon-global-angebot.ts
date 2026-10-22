@@ -1916,6 +1916,28 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
       liste[i].empfehlungen = await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlungSicht(zeilen[i])).catch((e) => { console.error("[FIAON-KOOP] Empfehlungen für die Liste:", e); return null; });
     }
   }
+  // E-423: Kunde und Geschäftspartner sind zwei Rollen. Ist dieselbe Person (Personen-Nummer oder E-Mail) auf der anderen
+  // Seite vertreten, nennt die Liste es — Kooperationsverträge stehen im Reiter „Geschäftspartner“, alles andere bei den Kunden.
+  try {
+    const wer = (pid: unknown, mail: unknown) => ({ pid: pid != null ? Number(pid) : null, mail: String(mail ?? "").trim().toLowerCase() || null });
+    const gleich = (a: { pid: number | null; mail: string | null }, b: { pid: number | null; mail: string | null }) => (a.pid != null && a.pid === b.pid) || (a.mail != null && a.mail === b.mail);
+    const lebt = (st: unknown) => !["storniert", "abgelehnt", "abgelaufen", "zurueckgezogen"].includes(String(st));
+    const auftraege = (await sqlPool`
+      SELECT a.ref, a.pack_name, a.person_id, COALESCE(g.email, a.email) AS mail, g.status
+        FROM fiaon_applications a JOIN fiaon_global_auftraege g ON g.ref = a.ref
+       WHERE a.merged_into IS NULL AND COALESCE(g.status, '') <> 'storniert'`) as any[];
+    for (let i = 0; i < zeilen.length; i++) {
+      const ich = wer(zeilen[i].person_id, json<Record<string, any>>(zeilen[i].kunde, {}).email);
+      const koop = istKoopFassung(zeilen[i].fassung);
+      const rollen: { art: "partner" | "kunde" | "auftrag"; ref: string; status: string }[] = [];
+      for (let j = 0; j < zeilen.length; j++) {
+        if (j === i || istKoopFassung(zeilen[j].fassung) === koop || !lebt(zeilen[j].status)) continue;
+        if (gleich(ich, wer(zeilen[j].person_id, json<Record<string, any>>(zeilen[j].kunde, {}).email))) rollen.push({ art: koop ? "kunde" : "partner", ref: String(zeilen[j].angebot_ref), status: String(zeilen[j].status) });
+      }
+      if (koop) for (const a of auftraege) if (gleich(ich, wer(a.person_id, a.mail))) rollen.push({ art: "auftrag", ref: String(a.ref), status: String(a.status ?? "") });
+      liste[i].andereRolle = rollen;
+    }
+  } catch (e) { console.error("[FIAON-ANGEBOT] Rollen für die Liste:", e); }
   return liste;
 }
 

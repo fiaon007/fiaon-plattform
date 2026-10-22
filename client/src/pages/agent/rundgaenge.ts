@@ -1333,7 +1333,9 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     text: "FIAON Global ist der Aufbau einer US-Unternehmensstruktur — vier Pakete, 2.499 bis 35.999 €, einmalig. Ein Unternehmen "
       + "liest den Auftrag auf fiaon.com/business/start, unterschreibt auf dem Pad und bekommt Vertrag und Rechnung als PDF. "
       + "Bezahlt wird per Überweisung. Mit dem Zahlungseingang startet der Auftrag von selbst. Daneben gibt es Individual- und "
-      + "Firmenangebote mit eigenem Preis und eigenem Vertrag — sie stehen im Reiter „Individualangebote“.",
+      + "Firmenangebote mit eigenem Preis und eigenem Vertrag — sie stehen im Reiter „Individualangebote“. Kooperationen mit "
+      + "Partnern (Kontakte, Empfehlungen, Provision, Gutschriften) stehen im Reiter „Geschäftspartner“. Ist jemand beides, "
+      + "steht am Eintrag „Auch Kunde“ bzw. „Auch Geschäftspartner“.",
     tipp: "Geld wird hier nicht gebucht. Der Zahlungseingang läuft über „Zahlungen verbuchen“ wie bei jedem Kunden.",
   },
   {

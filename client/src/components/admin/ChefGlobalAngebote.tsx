@@ -33,7 +33,7 @@
 // Justins Kalender — server/lib/fiaon-global-angebot-startgespraech.ts). Die Zeile „Startgespräch" zeigt den Termin
 // oder rot „nicht gebucht — von Hand buchen" mit dem Grund; „Nachholen" versucht es noch einmal.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./chef-teile";
 import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
 // E-IT-G (08.10.2026): das Geburtsdatum im Angebot als drei Felder; der Text ist ISO (auch aus dem Antrag) oder halb getippt — der Server liest beides.
@@ -726,7 +726,15 @@ async function post(pfad: string, body: unknown, methode = "POST"): Promise<any>
     .catch(() => ({ ok: false, error: "Keine Verbindung zum Server." }));
 }
 
-export default function ChefGlobalAngebote() {
+type AndereRolle = { art: "partner" | "kunde" | "auftrag"; ref: string; status: string };
+/** E-423: Dieselbe Person in der anderen Rolle — ein Hinweis, keine Doppelung. */
+function RolleHinweis({ rollen }: { rollen?: AndereRolle[] }) {
+  if (!rollen?.length) return null;
+  const text = (r: AndereRolle) => r.art === "partner" ? `Auch Geschäftspartner · Kooperation ${r.ref}` : r.art === "auftrag" ? `Auch Kunde · Auftrag ${r.ref}` : `Auch Kunde · Angebot ${r.ref}`;
+  return <p className="cm-klartext cg-rolle">{rollen.map(text).join(" · ")}</p>;
+}
+
+export default function ChefGlobalAngebote({ nur = "kunden" }: { nur?: "kunden" | "partner" } = {}) {
   const { daten, fehler, neu } = useDaten<Antwort>("/admin/global/angebote");
   const [meldung, setMeldung] = useState<{ gut: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -750,6 +758,8 @@ export default function ChefGlobalAngebote() {
   if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;
   if (!daten) return <Geruest zeilen={4} />;
   const V = daten.vorgaben;
+  // E-423: Kunde und Geschäftspartner getrennt — Kooperationsverträge stehen im Reiter „Geschäftspartner“.
+  const liste = daten.angebote.filter((a) => ((a as unknown as { art?: string }).art === "koop") === (nur === "partner"));
 
   const vorbelegen = async () => {
     const id = Number(neuForm.personId);
@@ -777,7 +787,16 @@ export default function ChefGlobalAngebote() {
   return (
     <div className="cg-angebote" data-fiaon="global-angebote">
       {meldung && <div className={`cm-meldung ${meldung.gut ? "" : "cg-rot"}`} role="status">{meldung.text}</div>}
-      <section className="cz-block">
+      {nur === "partner" && (
+        <section className="cz-block cg-partner-kopf">
+          <header>
+            <h2>Geschäftspartner</h2>
+            <p>Kooperationen mit Partnern: Kontakte, Empfehlungen, Provision und Gutschriften. Ist ein Partner zugleich Kunde, steht sein Auftrag bei den Kunden — hier nur der Hinweis.</p>
+          </header>
+          {liste.length === 0 && <p className="cg-leer">Noch kein Geschäftspartner.</p>}
+        </section>
+      )}
+      <section className="cz-block" hidden={nur === "partner"}>
         <header>
           <h2>Individualangebote</h2>
           <p title="Mit Bürgschaftszusage. Der Kunde nimmt über einen signierten Link an; danach laufen Rechnung, Zahlungsseite und „Mein Auftrag“ wie bei jedem Global-Auftrag.">Teil 1 sofort, Teil 2 beim Meilenstein — Kreditgarantie in der Frist, sonst alles zurück. Fassung {V.fassung}.</p>
@@ -817,8 +836,8 @@ export default function ChefGlobalAngebote() {
         )}
       </section>
 
-      {daten.angebote.length === 0 && <p className="cg-leer">Noch kein Individualangebot.</p>}
-      {daten.angebote.map((a) => {
+      {nur === "kunden" && liste.length === 0 && <p className="cg-leer">Noch kein Individualangebot.</p>}
+      {liste.map((a) => <Fragment key={`rolle-${a.id}`}><RolleHinweis rollen={(a as unknown as { andereRolle?: AndereRolle[] }).andereRolle} />{((a) => {
         // E-301: Firmenangebote haben ihren eigenen Block (Teile, Garantie, Beteiligungen, Kündigung).
         // E-312: Begleitverträge für Bestandskunden — schlanker Block (LLC-Namen, Wahl, Link, Vertrag).
         if ((a as unknown as { art?: string }).art === "begleit") return <BegleitAngebotBlock key={a.id} a={a as unknown as BegleitAngebot} kopieren={kopieren} />;
@@ -1027,7 +1046,7 @@ export default function ChefGlobalAngebote() {
             )}
           </section>
         );
-      })}
+      })(a)}</Fragment>)}
     </div>
   );
 }

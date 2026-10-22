@@ -141,7 +141,7 @@ const W = {
     modalTitel: "Dokument unterschreiben", modalLesen: "In neuem Fenster öffnen", modalName: "Ihr vollständiger Name", modalZeichnen: "Unterschrift — mit Finger, Stift oder Maus", modalLoeschen: "Neu zeichnen",
     modalZustimmung: "Ich habe das Dokument gelesen und unterschreibe es elektronisch.", modalKnopf: "Verbindlich unterschreiben", modalLaeuft: "Wird unterschrieben …", modalFertig: "Unterschrieben",
     modalFertigText: "Liegt in Ihrem Tresor — Ihr Ansprechpartner ist informiert.", schliessen: "Schließen",
-    fusszeile: "FIAON Global · Vertraulich. Ihr persönlicher Link gilt ein Jahr und verlängert sich bei jedem Öffnen.",
+    fusszeile: "FIAON Global · Vertraulich · Ihr persönlicher Bereich.",
   },
   en: {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
@@ -212,7 +212,7 @@ const W = {
     modalTitel: "Sign the document", modalLesen: "Open in a new window", modalName: "Your full name", modalZeichnen: "Signature — finger, pen or mouse", modalLoeschen: "Draw again",
     modalZustimmung: "I have read the document and sign it electronically.", modalKnopf: "Sign with binding effect", modalLaeuft: "Signing …", modalFertig: "Signed",
     modalFertigText: "Now in your vault — your contact has been informed.", schliessen: "Close",
-    fusszeile: "FIAON Global · Confidential. Your personal link is valid for one year and renews each time you open it.",
+    fusszeile: "FIAON Global · Confidential · Your personal area.",
   },
 };
 

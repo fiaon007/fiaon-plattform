@@ -323,8 +323,8 @@ router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Respo
 
 // E-338: Der Kunde unterschreibt ein angefordertes PDF (Vollmacht u. a.). In der Vorschau der Leitung nie.
 // 22.10.2026: Von Hand unterschrieben — der Scan als PDF (IRS SS-4/8821). Zutritt → Vorschau-Wand → Drossel → Körper → nur PDF.
-router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan", (req: Request, res: Response, next: NextFunction) => {
-  const ref = zutritt(req, res);
+router.post("/global/mein-auftrag/:ref/unterschrift/:id/scan", async (req: Request, res: Response, next: NextFunction) => {
+  const ref = await zutritt(req, res);
   if (!ref) return;
   if (istVorschau(req)) return res.status(409).json({ ok: false, error: "Vorschau — hochladen kann hier nur der Kunde." });
   if (uploadJeRef(ref) || uploadJeIp(clientIp(req))) return res.status(429).json({ ok: false, error: ZU_VIEL });
@@ -368,7 +368,7 @@ const zusatzJeRef = fensterDrossel(6, 10 * 60_000);
 const zusatzJeIp = fensterDrossel(12, 10 * 60_000);
 router.post("/global/mein-auftrag/:ref/zusatz", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const { ZUSATZ_WOERTER } = await import("@shared/fiaon-global-zusatz");
     const en = String(req.body?.sprache ?? "") === "en";
@@ -384,7 +384,7 @@ router.post("/global/mein-auftrag/:ref/zusatz", async (req: Request, res: Respon
 });
 router.get("/global/mein-auftrag/:ref/zusatz/:id/rechnung.pdf", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     const { zusatzRechnungPdf } = await import("../lib/fiaon-global-zusatz");
     const r = await zusatzRechnungPdf(ref, req.params.id);
@@ -398,7 +398,7 @@ router.get("/global/mein-auftrag/:ref/zusatz/:id/rechnung.pdf", async (req: Requ
 
 // ── DIE VOLLSTÄNDIGE AKTE (22.10.2026): jede Rechnung, jeder Vertrag, alles als ZIP — derselbe Zutritt wie das Portal ──
 async function akteZutritt(req: Request, res: Response): Promise<string | null> {
-  const ref = zutritt(req, res);
+  const ref = await zutritt(req, res);
   if (!ref) return null;
   const { globalPortalNeuFrei } = await import("../lib/fiaon-global-mandat");
   if (!istVorschau(req) && !(await globalPortalNeuFrei(ref))) { res.status(404).json({ ok: false, error: "Nicht gefunden." }); return null; }
@@ -453,7 +453,7 @@ router.get("/global/mein-auftrag/:ref/akte.zip", async (req: Request, res: Respo
 const itinJeRef = fensterDrossel(10, 10 * 60_000);
 router.post("/global/mein-auftrag/:ref/itin", async (req: Request, res: Response) => {
   try {
-    const ref = zutritt(req, res);
+    const ref = await zutritt(req, res);
     if (!ref) return;
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("Referrer-Policy", "no-referrer");

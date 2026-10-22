@@ -67,7 +67,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       titel: "Ihr Zugang zu „Mein Auftrag“",
       absaetze: [
         "{{params.anrede_zeile}}, hier ist Ihr persönlicher Link zu „Mein Auftrag“ für <b>{{params.firma}}</b>. Dort sehen Sie den Stand Ihres Auftrags, Vertrag und Rechnung, Ihren Dokumentenraum und Ihren Pflichtenkalender.",
-        "Der Link gehört zu genau diesem Auftrag; ein Passwort brauchen Sie nicht. Er gilt dreißig Tage — danach fordern Sie auf der Seite mit Ihrer E-Mail-Adresse jederzeit einen neuen an. Bitte geben Sie ihn nur an Personen weiter, die Ihren Auftrag sehen dürfen.",
+        "Der Link gehört zu genau diesem Auftrag. Er gilt dreißig Tage — danach fordern Sie auf der Seite mit Ihrer E-Mail-Adresse jederzeit einen neuen an. Haben Sie Ihren persönlichen Zugang schon eingerichtet, melden Sie sich einfach mit E-Mail-Adresse und Passwort an. Bitte geben Sie den Link nur an Personen weiter, die Ihren Auftrag sehen dürfen.",
         "Sie haben diesen Link nicht angefordert? Dann ist nichts zu tun.",
       ],
       daten: [
@@ -84,7 +84,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       titel: "Your access to “My order”",
       absaetze: [
         "{{params.anrede_zeile}}, here is your personal link to “My order” for <b>{{params.firma}}</b>. There you can see the status of your order, the contract and the invoice, your document room and your compliance calendar.",
-        "The link belongs to this order only; you do not need a password. It is valid for thirty days — after that you can request a new one on the page at any time with your email address. Please share it only with people who are allowed to see your order.",
+        "The link belongs to this order only. It is valid for thirty days — after that you can request a new one on the page at any time with your email address. If you have already set up your personal access, simply sign in with your email address and password. Please share the link only with people who are allowed to see your order.",
         "You did not request this link? Then there is nothing to do.",
       ],
       daten: [

@@ -229,7 +229,7 @@ function AuftraegeListe() {
                     {z.startMailFehler && !z.startMailAm && <span className="cm-klartext cg-rot">Startmail ging nicht raus: {z.startMailFehler}</span>}
                   </td>
                   <td>
-                    {z.zustaendig ? <b>{z.zustaendig.name}</b> : <span className="cg-rot">niemand</span>}
+                    {z.zustaendig ? <b>{z.zustaendig.name}</b> : z.angebotArt === "begleit" ? <b title="Den Begleitvertrag führt die Leitung persönlich.">Leitung</b> : <span className="cg-rot">niemand</span>}
                     {z.betreuer && z.betreuer !== z.zustaendig?.name && <span className="cm-klartext">Betreuer: {z.betreuer}</span>}
                   </td>
                   <td>

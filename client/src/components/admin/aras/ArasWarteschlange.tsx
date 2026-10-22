@@ -13,7 +13,7 @@ import { holen, senden, useTakt, NichtVerbunden } from "../ki-teile";
 import { berlinHeute, spielartText, tagPlus, uhrzeit } from "./aras-texte";
 import { FrageKnopf, Hinweis, Karte, Leer, Segment, SpielartWahl, useHinweis } from "./aras-teile";
 
-interface PlanZeile { id: number; personId: number | null; name: string | null; spielart: string; prioritaet: number; grund: string; fruehAb: string; spaetBis: string; status: string; versuchNr: number; rechtsgrund: string }
+interface PlanZeile { id: number; personId: number | null; name: string | null; spielart: string; prioritaet: number; grund: string; fruehAb: string; spaetBis: string; status: string; versuchNr: number; rechtsgrund: string; verschobenGrund?: string | null }
 type Status = "wartet" | "verschoben" | "fertig" | "alle";
 const STATUS_TEXT: Record<string, string> = { wartet: "wartet", gewaehlt: "wird gewählt", laeuft: "läuft gerade", fertig: "erledigt", verfallen: "entfernt / verfallen", gesperrt: "gesperrt", verschoben: "verschoben" };
 const RECHT_TEXT: Record<string, string> = { vertrag: "Vertrag (laufender Kunde)", einwilligung: "Einwilligung liegt vor", kunde_ruft: "Kunde ruft an", intern: "intern" };
@@ -87,7 +87,7 @@ export default function ArasWarteschlange({ verbunden }: { verbunden: boolean })
                   <li key={z.id} className="ar-plan" data-ki-plan={z.id}>
                     <div className="ar-plan-text">
                       <div className="ar-plan-wer">{link ? <a href={link}>{name}</a> : <b>{name}</b>}<span>· {spielartText(z.spielart)}</span>{z.status !== "wartet" ? <span className="ar-marke leise">{STATUS_TEXT[z.status] ?? z.status}</span> : null}</div>
-                      <p>{z.grund}</p>
+                      <p>{z.grund}{z.status !== "wartet" && z.verschobenGrund ? ` — ${z.verschobenGrund}` : ""}</p>
                       <small title={`Rechtsgrund: ${RECHT_TEXT[z.rechtsgrund] ?? z.rechtsgrund} · Rang ${z.prioritaet} (1 = zuerst)`}>ab {wannText(z.fruehAb)} bis {uhrzeit(z.spaetBis)} · {z.versuchNr}. Versuch</small>
                     </div>
                     <div className="ar-plan-knoepfe">

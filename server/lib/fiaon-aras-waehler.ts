@@ -7,6 +7,12 @@
 //   · Werbe-Spielart ohne Einwilligung? · CH ohne eingetragene Nummer?
 //   · Versuche je Person/Tag/Woche (Mensch + ARAS zusammen)? · Mitarbeiter-
 //   Anruf < 5 Min? · Adapter bereit? · Twilio bereit?
+// Koordination 22.10.2026 („der Planer hält seine Versprechen“, shared/fiaon-aras.ts):
+//   · Vorrang (vom Kunden gebuchter Rückruf, Zusage-Nachfassen) geht an Euro-, Tages- und Stundendeckel vorbei und zählt dort
+//     nicht mit; 10 Minuten vor seiner Zeit beginnt kein anderer Anruf auf der letzten freien Leitung. Not-Aus, Leerlauf,
+//     Stufe 0, Fenster/Nachtruhe und Sperren gelten auch für ihn.
+//   · Die übrigen Anrufe verteilen sich über das Fenster (Freigabe = Deckel × verstrichener Anteil + 2, Mindestabstand) und
+//     kommen nach einem Fehlversuch bevorzugt in einem anderen Tagesabschnitt dran.
 // Das Protokoll „ausgelassen“ sagt je Grund, wie viele hängen blieben — der
 // Labs-Bereich zeigt es. Standard: aras_an = aus — ARAS wählt keinen Kunden,
 // bis Justin ihn einschaltet. Der Probeanruf geht an der Wand vorbei, aber nur
@@ -14,7 +20,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { arasSchema, arasAusweisId } from "./fiaon-aras-schema";
-import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson, willkommenEntfaellt } from "./fiaon-aras-plan";
+import { arasEinstellungenLesen, einstellungSetzen, versucheHeute, reihen, arasKostenHeute, arasAusFuerPerson, willkommenEntfaellt, rateEntfaellt } from "./fiaon-aras-plan";
 import { laufendeSitzungen, notausAlle, vorbereiten } from "./fiaon-aras-bruecke";
 import { briefingBauen } from "./fiaon-aras-briefing";
 import { adapterFuer } from "./fiaon-aras-adapter";
@@ -25,7 +31,10 @@ import { twilioBereit, twilioClient, arasCallerId, rueckrufUrl, streamToken } fr
 import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
-import { fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT, type Spielart, type Land, type Kandidat } from "../../shared/fiaon-aras";
+import {
+  fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT,
+  VORRANG_SPIELARTEN, VORRANG_FREI_MINUTEN, TAG_EURO_HOECHSTENS, istVorrang, tagesFreigabe, mindestAbstandMs, abschnittWahl, type Spielart, type Land, type Kandidat,
+} from "../../shared/fiaon-aras";
 
 /** Eine beim Klingeln vorbereitete Sitzung endet spätestens so lange danach (Twilio klingelt 30 s). */
 const KLINGELN_FRIST_MS = 45_000;
@@ -66,31 +75,65 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
   const bereit = await adapter.bereit();
   if (!bereit.ok) { merken(`adapter:${(bereit.grund ?? "nicht bereit").slice(0, 40)}`); return fertig(0); }
   if (einst.adapter !== "attrappe") { const t = twilioBereit(); if (!t.ok) { merken(`twilio_fehlt:${t.fehlt.join(",")}`); return fertig(0); } }
+  const jetzt = new Date();
   const kosten = await arasKostenHeute(lauf);
-  if (kosten.euro >= grenzen.tagEuro) {
-    merken("deckel");
+  // Notbremse über allem, auch über dem Vorrang: nie mehr als die höchste einstellbare Tagessumme (TAG_EURO_HOECHSTENS).
+  if (kosten.euro >= TAG_EURO_HOECHSTENS) {
+    merken("notbremse");
     const { alarmMelden } = await import("./fiaon-system-alarme");
-    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${grenzen.tagEuro} € (Stufe ${grenzen.stufe}) — kein neues Wählen heute.`, stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
+    await alarmMelden("aras:notbremse", { quelle: "aras", titel: "ARAS: Notbremse — höchste Tagessumme erreicht", text: `${kosten.euro.toFixed(2)} € heute — kein Anruf mehr, auch kein Rückruf.`, stufe: "rot", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
     return fertig(0);
   }
   const laufend = laufendeSitzungen().length + Number(((await lauf`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE gefuehrt_von = 'aras' AND status = 'gewaehlt' AND beginn > NOW() - INTERVAL '2 minutes'`) as any[])[0]?.n ?? 0);
   let frei = grenzen.parallel - laufend;
   if (frei <= 0) { merken("parallel_voll"); return fertig(0); }
-  const [stunde] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_aras_anruf WHERE created_at > NOW() - INTERVAL '1 hour' AND spielart <> 'probe'`) as any[];
-  if (Number(stunde?.n ?? 0) >= einst.jeStunde) { merken("je_stunde_voll"); return fertig(0); }
-  const [heute] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_aras_anruf WHERE spielart <> 'probe' AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`) as any[];
-  if (Number(heute?.n ?? 0) >= grenzen.versucheJeTag) { merken(`stufe_tagesmenge:${grenzen.versucheJeTag}`); return fertig(0); }
+  // Vorrang (vom Kunden gebuchter Rückruf, Zusage-Nachfassen) zählt bei Tagesmenge und Verteilung nicht mit (Koordination 22.10.).
+  const vorrang = [...VORRANG_SPIELARTEN] as string[];
+  const [zahl] = (await lauf`
+    SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour')::int AS stunde,
+           COUNT(*) FILTER (WHERE NOT (spielart = ANY(${vorrang})) AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute,
+           MAX(created_at) FILTER (WHERE NOT (spielart = ANY(${vorrang})) AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS letzter
+      FROM fiaon_aras_anruf WHERE spielart <> 'probe' AND created_at > NOW() - INTERVAL '30 hours'`) as any[];
+  const heuteN = Number(zahl?.heute ?? 0);
+  // Die Wand für alle anderen Anrufe — die erste, die hält. Ein Rückruf mit Vorrang geht an ihr vorbei.
+  let wand: string | null = null;
+  if (kosten.euro >= grenzen.tagEuro) {
+    wand = "deckel";
+    const { alarmMelden } = await import("./fiaon-system-alarme");
+    await alarmMelden("aras:deckel", { quelle: "aras", titel: "ARAS: Tagesdeckel erreicht", text: `${kosten.euro.toFixed(2)} € von ${grenzen.tagEuro} € (Stufe ${grenzen.stufe}) — heute nur noch gebuchte Rückrufe.`, stufe: "gelb", link: "/chef/s/aras?reiter=probe", endetNachStunden: 12 }).catch(() => null);
+  } else if (Number(zahl?.stunde ?? 0) >= einst.jeStunde) wand = "je_stunde_voll";
+  else if (heuteN >= grenzen.versucheJeTag) wand = `stufe_tagesmenge:${grenzen.versucheJeTag}`;
+  else {
+    // Über den Tag verteilt (21./22.10.: alle 40 bis 10:07 verbraucht): bis jetzt frei ist Deckel × verstrichener Anteil des
+    // Fensters + 2 — und nach einer Pause holt ARAS höchstens doppelt so schnell auf (kein Schwall nach Not-Aus oder Stufenwechsel).
+    const verteilung = { deckel: grenzen.versucheJeTag, jetzt, fenster: einst.fenster };
+    const freigabe = tagesFreigabe(verteilung);
+    if (heuteN >= freigabe) wand = `verteilt:${freigabe}/${grenzen.versucheJeTag}`;
+    else if (zahl?.letzter && jetzt.getTime() - new Date(zahl.letzter).getTime() < mindestAbstandMs(verteilung)) wand = "abstand";
+  }
 
   const roh = (await lauf`
     SELECT * FROM fiaon_aras_plan WHERE status = 'wartet' AND frueh_ab <= NOW() AND spaet_bis >= NOW() AND spielart <> 'probe'
      ORDER BY prioritaet, frueh_ab LIMIT 200`) as any[];
-  const kandidaten: (Kandidat & { zeile: any })[] = roh.map((z) => ({
+  const kandidaten: (Kandidat & { zeile: any; notfalls?: boolean })[] = roh.map((z) => ({
     id: Number(z.id), spielart: z.spielart as Spielart, prioritaet: Number(z.prioritaet), fruehAb: new Date(z.frueh_ab), fehlFolge: Number(z.fehl_folge ?? 0),
     betragCents: z.betrag_cents != null ? Number(z.betrag_cents) : null, anlassAm: z.anlass_am ? new Date(z.anlass_am) : null, zeile: z,
   }));
+  // Vorrang zuerst, dann der Rest — beides in der gewohnten Reihung.
+  const reihe = [...reihen(kandidaten.filter((k) => istVorrang(k.spielart))), ...reihen(kandidaten.filter((k) => !istVorrang(k.spielart)))];
+  if (wand) { merken(wand); if (!reihe.some((k) => istVorrang(k.spielart))) return fertig(0); }
+  // Plätze freihalten: wird ein Rückruf mit Vorrang gleich fällig, beginnt auf der letzten freien Leitung kein anderer Anruf.
+  const [bald] = (await lauf`
+    SELECT COUNT(*)::int AS n FROM fiaon_aras_plan WHERE status = 'wartet' AND spielart = ANY(${vorrang}) AND frueh_ab > NOW()
+       AND frueh_ab <= NOW() + make_interval(mins => ${VORRANG_FREI_MINUTEN}) AND spaet_bis >= NOW()`) as any[];
+  const vorrangBald = Number(bald?.n ?? 0);
   let gewaehlt = 0;
-  for (const k of reihen(kandidaten)) {
+  for (let i = 0; i < reihe.length; i++) {
+    const k = reihe[i];
     if (frei <= 0) break;
+    const istV = istVorrang(k.spielart);
+    if (!istV && wand) break;
+    if (!istV && frei <= vorrangBald) { merken("platz_fuer_rueckruf"); break; }
     const z = k.zeile;
     const land = (z.land as Land) || "DE";
     // Justin 20.10.2026 („nur Vertragskunden“): gesperrte Arten fallen aus der Reihe — nie gewählt, egal wer sie eingereiht hat.
@@ -107,6 +150,10 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
         const tage = Math.round((Date.parse(`${berlinTeile(new Date()).datum}T12:00:00Z`) - Date.parse(`${berlinTeile(faellig).datum}T12:00:00Z`)) / 86_400_000);
         if (!rateTagErlaubt(grenzen.stufe, tage)) { merken("stufe:rate_tag"); continue; }
       }
+      // Zwischen Planen und Wählen liegen jetzt Stunden: inzwischen bezahlt, storniert, Abo-/Mahnstopp → fällt aus der Reihe;
+      // inzwischen „zahle am …“ gesagt → zurück bis nach der Überweisungszeit (rateEntfaellt, dieselbe Quelle wie der Füller).
+      const weg = await rateEntfaellt({ id: k.id, person_id: z.person_id, rate_id: z.rate_id, erzeugt_von: z.erzeugt_von, auftrag_von: z.auftrag_von }, einst, lauf);
+      if (weg) { merken(weg.status === "verschoben" ? "rate:zahlungszusage" : `rate:${weg.grund.slice(0, 30)}`); continue; }
     }
     if (k.spielart === "zuruf" && grenzen.regel.zurufNurNachricht) {
       // Bis Stufe 2 nur mit „JA per Nachricht“ — ohne nachweisbares Ja (Kennung) gar nicht.
@@ -135,17 +182,28 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       if (g?.global) { merken("global"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Global-Kunde', updated_at = NOW() WHERE id = ${k.id}`; continue; }
       if (g?.test) { merken("testperson"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Testperson', updated_at = NOW() WHERE id = ${k.id}`; continue; }
       const v = await versucheHeute(personId, lauf);
+      // Der zweite Willkommens-Versuch (Koordination 22.10.: genau einer, 2,5 h nach Mailbox/nicht erreicht) zählt bei den Grenzen
+      // je Person mit — derselbe Tag darf ihn aber tragen: sein einziger Vorgänger ist der erste Versuch ohne Gespräch (jeder
+      // andere Anruf in 24 h hätte ihn schon ausgeschlossen, willkommenEntfaellt).
+      const zweiterWillkommen = k.spielart === "willkommen" && Number(z.versuch_nr ?? 1) >= 2;
       const d = darfVersuch({ versucheHeute: v.heute, versucheWoche: v.woche, fehlFolge: v.fehlFolge, letzterVersuchAm: v.letzterVersuchAm, jetzt: new Date(),
-        jePersonTag: einst.jePersonTag, jePersonWoche: einst.jePersonWoche, versucheEnde: einst.versucheEnde, spielart: k.spielart });
+        jePersonTag: einst.jePersonTag + (zweiterWillkommen ? 1 : 0), jePersonWoche: einst.jePersonWoche, versucheEnde: einst.versucheEnde, spielart: k.spielart });
       if (!d.ok) {
         merken(d.grund ?? "versuch");
         if (d.grund === "versuche_ende") await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = 'Versuche aufgebraucht', updated_at = NOW() WHERE id = ${k.id}`;
         else if (d.grund === "je_person_tag" || d.grund === "je_person_woche" || d.grund === "pause_nach_fehl") await lauf`UPDATE fiaon_aras_plan SET status = 'verschoben', frueh_ab = NOW() + INTERVAL '1 day', spaet_bis = GREATEST(spaet_bis, NOW() + INTERVAL '36 hours'), verschoben_grund = ${d.grund}, updated_at = NOW() WHERE id = ${k.id}`;
         continue;
       }
+      // Nach einem Fehlversuch bevorzugt ein ANDERER Tagesabschnitt (Vormittag/Mittag/Abend) als beim letzten Versuch: kommt heute
+      // noch einer, wartet der Eintrag; ist es der letzte des Tages, kommt er nur dran, wenn sonst niemand den Platz braucht.
+      if (!k.notfalls) {
+        const wahl = abschnittWahl({ spielart: k.spielart, fehlFolge: v.fehlFolge, letzterVersuchAm: v.letzterVersuchAm, jetzt, fenster: einst.fenster });
+        if (wahl === "spaeter") { merken("abschnitt:spaeter"); continue; }
+        if (wahl === "notfalls") { merken("abschnitt:notfalls"); reihe.push({ ...k, notfalls: true }); continue; }
+      }
     }
     const w = await waehlen(k.id, {}, lauf);
-    if (w.ok) { gewaehlt += 1; frei -= 1; } else merken(`wahl:${(w.grund ?? "").slice(0, 40)}`);
+    if (w.ok) { gewaehlt += 1; frei -= 1; if (!istV) wand = "abstand"; } else merken(`wahl:${(w.grund ?? "").slice(0, 40)}`);
   }
   return fertig(gewaehlt);
 }

@@ -242,6 +242,35 @@ titel("8b. HARTE TELEFON-REGELN (Nachbereitung ohne Aufnahme-Ja)");
   ok("Drohung über dieselbe Wortwand", telefonRegeln("Sonst geht das an das Inkasso und die SCHUFA.").some((x) => x.regel === "druck" || x.regel === "drohung"));
 }
 
+titel("8c. DER PLANER HÄLT SEINE VERSPRECHEN (Koordination 22.10.): Vorrang, Verteilung über den Tag, anderer Tagesabschnitt, Zusage-Pause");
+{
+  const { istVorrang, tagesFreigabe, mindestAbstandMs, tagesabschnitt, abschnittWahl, bankWerktag, zusagePause, zusageSchwelle, fensterAmWochentag, VERTEILUNG_VORLAUF } = await import("../shared/fiaon-aras");
+  const F = FENSTER_VORGABE;
+  ok("Vorrang: gebuchter Rückruf und Zusage-Nachfassen — Rate, Willkommen, Stufe A nicht", istVorrang("termin") && istVorrang("zusage") && !istVorrang("rate") && !istVorrang("willkommen") && !istVorrang("stufe_a"));
+  ok("Fenster eines Wochentags: Mo–Sa 09:30–21:00, Sonntag keins", JSON.stringify(fensterAmWochentag(F, 4)) === JSON.stringify({ von: "09:30", bis: "21:00" }) && fensterAmWochentag(F, 7) === null);
+  const fr = (s: string, deckel = 40, off = "+02:00") => tagesFreigabe({ deckel, jetzt: berlin(s, off), fenster: F });
+  ok("Freigabe 40/Tag: 09:30 → 2 (Vorlauf), Mitte des Fensters (15:15) → 22, 20:59 → 40, nach 21:00 → 40, nie über den Deckel",
+    fr("2026-10-22 09:30") === VERTEILUNG_VORLAUF && fr("2026-10-22 15:15") === 22 && fr("2026-10-22 20:59") === 40 && fr("2026-10-22 21:30") === 40, `${fr("2026-10-22 09:30")}/${fr("2026-10-22 15:15")}/${fr("2026-10-22 20:59")}`);
+  ok("ROT-PROBE 22.10.: um 10:07 sind höchstens 4 von 40 frei (nicht alle 40 in 37 Minuten); vor dem Fenster nur der Vorlauf", fr("2026-10-22 10:07") === 4 && fr("2026-10-22 08:00") === 2, String(fr("2026-10-22 10:07")));
+  ok("Sonntag (kein Fenster) → der Deckel (dann hält die Fenster-Wand); Stufe 3 (430) um 15:15 → 217", fr("2026-10-25 15:15", 40, "+01:00") === 40 && fr("2026-10-22 15:15", 430) === 217, `${fr("2026-10-25 15:15", 40, "+01:00")}/${fr("2026-10-22 15:15", 430)}`);
+  const ab = mindestAbstandMs({ deckel: 40, jetzt: berlin("2026-10-22 12:00"), fenster: F });
+  ok("Mindestabstand 40/Tag: 690 Minuten ÷ 40 ÷ 2 ≈ 8,6 Minuten (nach einer Pause höchstens doppelt so schnell wie gleichmäßig)", ab === 517_500, String(ab));
+  ok("Tagesabschnitte: 11:59 Vormittag, 12:00 Mittag, 16:59 Mittag, 17:00 Abend", tagesabschnitt(berlin("2026-10-22 11:59")) === "vormittag" && tagesabschnitt(berlin("2026-10-22 12:00")) === "mittag" && tagesabschnitt(berlin("2026-10-22 16:59")) === "mittag" && tagesabschnitt(berlin("2026-10-22 17:00")) === "abend");
+  const w = (letzter: string | null, jetzt: string, o: { fehl?: number; spielart?: Kandidat["spielart"]; fenster?: typeof F } = {}) =>
+    abschnittWahl({ spielart: o.spielart ?? "rate", fehlFolge: o.fehl ?? 1, letzterVersuchAm: letzter ? berlin(letzter) : null, jetzt: berlin(jetzt), fenster: o.fenster ?? F });
+  ok("ROT-PROBE (21./22.10.: dieselben Menschen zur fast gleichen Minute): gestern 09:35 nicht erreicht → heute 09:40 warten, 12:30 dran",
+    w("2026-10-21 09:35", "2026-10-22 09:40") === "spaeter" && w("2026-10-21 09:35", "2026-10-22 12:30") === "jetzt");
+  ok("Gestern 18:00 nicht erreicht → heute Vormittag dran; heute Abend nur notfalls (kein Abschnitt mehr übrig)", w("2026-10-21 18:00", "2026-10-22 10:00") === "jetzt" && w("2026-10-21 18:00", "2026-10-22 18:30") === "notfalls");
+  ok("Endet das Fenster um 16:00, ist am Mittag kein anderer Abschnitt übrig → notfalls", w("2026-10-21 13:00", "2026-10-22 13:30", { fenster: { verkauf: { "1-6": ["09:30", "16:00"] }, rate: { "1-6": ["09:30", "16:00"] } } }) === "notfalls");
+  ok("Erreicht (keine Fehlversuche), nie versucht, Rückruf mit Vorrang → sofort", w("2026-10-21 09:35", "2026-10-22 09:40", { fehl: 0 }) === "jetzt" && w(null, "2026-10-22 09:40") === "jetzt" && w("2026-10-21 09:35", "2026-10-22 09:40", { spielart: "termin" }) === "jetzt");
+  ok("Bank-Werktag: Do 22.10. ja, Sa 24.10. nein, Fr 25.12. (Feiertag) nein", bankWerktag("2026-10-22") && !bankWerktag("2026-10-24") && !bankWerktag("2026-12-25"));
+  const p = zusagePause("2026-10-21");
+  ok("Zusage Mi 21.10. („zahle heute“): Pause bis einschließlich Fr 23.10., Rate-Anruf frühestens Sa 24.10.", p.bis === "2026-10-23" && p.wiederAb === "2026-10-24", JSON.stringify(p));
+  ok("Zusage Do 24.12.: Weihnachten zählt nicht — Pause bis Di 29.12.", zusagePause("2026-12-24").bis === "2026-12-29", zusagePause("2026-12-24").bis);
+  ok("ROT-PROBE 22.10.: die Zusage vom 21.10. pausiert noch (Schwelle 20.10.) — die vom Mo 19.10. nicht mehr (Pause bis 21.10.)", zusageSchwelle("2026-10-22") === "2026-10-20" && "2026-10-21" >= zusageSchwelle("2026-10-22") && "2026-10-19" < zusageSchwelle("2026-10-22") && zusagePause("2026-10-19").bis === "2026-10-21", zusageSchwelle("2026-10-22"));
+  ok("Montag 26.10.: die Zusage vom Do 22.10. pausiert noch (bis 26.10.), die vom Mi 21.10. nicht; eine Zusage für nächste Woche immer", zusageSchwelle("2026-10-26") === "2026-10-22" && "2026-10-30" >= zusageSchwelle("2026-10-26"), zusageSchwelle("2026-10-26"));
+}
+
 titel("9. KATALOGE");
 ok("14 Werkzeuge (13 + probe_feedback_merken, nur im Probeanruf; neu: aufgabe_fuer_justin), 12 Spielarten (mit „auftrag“ und „willkommen“)", WERKZEUGE.length === 14 && WERKZEUGE.includes("probe_feedback_merken") && WERKZEUGE.includes("aufgabe_fuer_justin") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));

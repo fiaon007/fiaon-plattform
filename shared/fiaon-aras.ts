@@ -685,6 +685,117 @@ export function stundeFuer(spielart: Spielart, erreichtJeStunde: Record<number, 
   return beste;
 }
 
+// ── Der Planer hält seine Versprechen (Koordination 22.10.2026, Auswertung von 168 echten Anrufen am 21./22.10.) ──────────
+// 1. Vorrang: Ein Rückruf, den der Kunde selbst gebucht hat (termin), und ARAS' eigenes Wort „am Tag danach melde ich mich“
+//    (zusage) scheitern nie am Tagesdeckel (Anrufe oder Euro) oder am Stundendeckel — sie zählen dort nicht mit, und kurz vor
+//    ihrer Zeit bleibt eine Leitung frei. Not-Aus, Leerlauf, Stufe 0, Nachtruhe und jede Sperre gelten weiter. (22.10.: der
+//    gebuchte Rückruf um 11:00 verfiel, weil die 40 Anrufe des Tages um 10:07 verbraucht waren.)
+// 2. Verteilung: Der Tagesdeckel verteilt sich über das Fenster (21./22.10.: alle 40 Anrufe ab 09:30 im Minutentakt, dieselben
+//    Menschen an beiden Tagen zur fast gleichen Minute — überwiegend Mailbox), und wer nicht erreicht wurde, kommt in einem
+//    ANDEREN Tagesabschnitt dran als beim letzten erfolglosen Versuch.
+// 3. Zusage: Wer „ich zahle am …“ gesagt hat, bekommt bis zu diesem Tag plus zwei Bank-Werktage (die Überweisung läuft)
+//    keinen Rate-Anruf — auch nicht, wenn der Tag erst nächste Woche ist.
+export const VORRANG_SPIELARTEN: readonly Spielart[] = ["termin", "zusage"];
+export function istVorrang(s: string): boolean { return (VORRANG_SPIELARTEN as readonly string[]).includes(s); }
+/** So viele Minuten vor einem fälligen Rückruf (Vorrang) beginnt ARAS keinen anderen Anruf mehr auf der letzten freien Leitung. */
+export const VORRANG_FREI_MINUTEN = 10;
+/** Kleiner Vorlauf der Tagesverteilung: so viele Anrufe sind gleich ab Fensterbeginn frei. */
+export const VERTEILUNG_VORLAUF = 2;
+/** Nach einer Pause (Not-Aus, höhere Stufe am Mittag) holt ARAS höchstens doppelt so schnell auf wie gleichmäßig — kein Schwall. */
+export const AUFHOLEN_HOECHSTENS = 2;
+
+const minutenAus = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/** Das Fenster eines Wochentags (1 = Mo … 7 = So) über alle Gesprächsarten (frühester Beginn, spätestes Ende). null = kein Fenster. Rein. */
+export function fensterAmWochentag(f: { verkauf: Fenster; rate: Fenster }, wochentag: number): { von: string; bis: string } | null {
+  const zeilen = [fensterZeile(f.rate, wochentag), fensterZeile(f.verkauf, wochentag)].filter((z): z is [string, string] => !!z);
+  if (!zeilen.length) return null;
+  return { von: zeilen.map((z) => z[0]).sort()[0], bis: zeilen.map((z) => z[1]).sort().reverse()[0] };
+}
+
+/**
+ * Wie viele Anrufe (ohne Vorrang) sind bis JETZT freigegeben? Deckel × verstrichener Anteil des heutigen Fensters + kleiner
+ * Vorlauf, nie mehr als der Deckel. Vor dem Fenster nur der Vorlauf; ohne Fenster heute (Sonntag) der Deckel — dann hält
+ * ohnehin die Fenster-Wand. Rein.
+ */
+export function tagesFreigabe(e: { deckel: number; jetzt: Date; fenster: { verkauf: Fenster; rate: Fenster } }): number {
+  const deckel = Math.max(0, Math.floor(Number(e.deckel) || 0));
+  const b = berlinTeile(e.jetzt);
+  const f = fensterAmWochentag(e.fenster, b.wochentag);
+  if (!f || deckel === 0) return deckel;
+  const von = minutenAus(f.von), bis = minutenAus(f.bis);
+  if (bis <= von) return deckel;
+  const anteil = Math.min(1, Math.max(0, (minutenAus(b.hhmm) - von) / (bis - von)));
+  return Math.min(deckel, Math.floor(deckel * anteil) + VERTEILUNG_VORLAUF);
+}
+
+/** Mindestabstand zwischen zwei Anrufen (ohne Vorrang): das gleichmäßige Maß (Fensterlänge ÷ Deckel), höchstens doppelt so schnell. Rein. */
+export function mindestAbstandMs(e: { deckel: number; jetzt: Date; fenster: { verkauf: Fenster; rate: Fenster } }): number {
+  const deckel = Math.max(0, Math.floor(Number(e.deckel) || 0));
+  const f = fensterAmWochentag(e.fenster, berlinTeile(e.jetzt).wochentag);
+  if (!f || deckel === 0) return 0;
+  const minuten = minutenAus(f.bis) - minutenAus(f.von);
+  return minuten > 0 ? Math.round((minuten / deckel / AUFHOLEN_HOECHSTENS) * 60_000) : 0;
+}
+
+/** Tagesabschnitte (Berliner Wandzeit): Vormittag bis 12 Uhr, Mittag 12–17 Uhr, Abend ab 17 Uhr. */
+export const TAGESABSCHNITTE = [{ name: "vormittag", ab: "00:00" }, { name: "mittag", ab: "12:00" }, { name: "abend", ab: "17:00" }] as const;
+export type Tagesabschnitt = (typeof TAGESABSCHNITTE)[number]["name"];
+export function tagesabschnitt(am: Date): Tagesabschnitt {
+  const hhmm = berlinTeile(am).hhmm;
+  let name: Tagesabschnitt = "vormittag";
+  for (const a of TAGESABSCHNITTE) if (hhmm >= a.ab) name = a.name;
+  return name;
+}
+
+/**
+ * Wann darf ein Kunde, der beim letzten Versuch nicht erreicht wurde, wieder dran? Bevorzugt in einem ANDEREN Tagesabschnitt
+ * als dem des letzten erfolglosen Versuchs (Mensch oder ARAS, fiaon_calls):
+ *   „jetzt“    — erreicht, nie versucht, anderer Abschnitt, oder Vorrang (Rückruf, Zusage: eigene Zeit)
+ *   „spaeter“  — derselbe Abschnitt, und heute kommt im Fenster noch ein anderer → warten
+ *   „notfalls“ — derselbe Abschnitt, und heute kommt keiner mehr → nur, wenn sonst niemand den Platz braucht
+ * Rein.
+ */
+export function abschnittWahl(e: {
+  spielart: Spielart; fehlFolge: number; letzterVersuchAm: Date | null; jetzt: Date; fenster: { verkauf: Fenster; rate: Fenster };
+}): "jetzt" | "spaeter" | "notfalls" {
+  if (istVorrang(e.spielart) || e.spielart === "probe" || e.fehlFolge <= 0 || !e.letzterVersuchAm) return "jetzt";
+  const jetzt = tagesabschnitt(e.jetzt);
+  if (tagesabschnitt(e.letzterVersuchAm) !== jetzt) return "jetzt";
+  const f = fensterAmWochentag(e.fenster, berlinTeile(e.jetzt).wochentag);
+  const i = TAGESABSCHNITTE.findIndex((a) => a.name === jetzt);
+  const spaeter = TAGESABSCHNITTE.slice(i + 1).some((a) => !!f && a.ab < f.bis);
+  return spaeter ? "spaeter" : "notfalls";
+}
+
+/** Überweisungslaufzeit nach einer Zahlungszusage: so viele Bank-Werktage nach dem zugesagten Tag kein Rate-Anruf. */
+export const ZUSAGE_PUFFER_WERKTAGE = 2;
+const tagPlus = (iso: string, n: number): string => {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+/** Bank-Werktag (Berliner Kalender): Mo–Fr und kein Feiertag (DE) — an Feiertagen läuft keine Überweisung. Rein. */
+export function bankWerktag(iso: string): boolean {
+  const wt = new Date(`${iso.slice(0, 10)}T12:00:00Z`).getUTCDay();
+  return wt >= 1 && wt <= 5 && !istFeiertag("DE", iso.slice(0, 10));
+}
+/**
+ * Eine Zusage für `zusageTag` („JJJJ-MM-TT“) pausiert die Rate-Anrufe bis EINSCHLIESSLICH `bis` (zugesagter Tag + zwei
+ * Bank-Werktage); ab `wiederAb` darf ARAS wieder wegen der Rate anrufen. Rein.
+ */
+export function zusagePause(zusageTag: string): { zusageTag: string; bis: string; wiederAb: string } {
+  let bis = zusageTag.slice(0, 10);
+  for (let rest = ZUSAGE_PUFFER_WERKTAGE, n = 0; rest > 0 && n < 60; n++) { bis = tagPlus(bis, 1); if (bankWerktag(bis)) rest--; }
+  return { zusageTag: zusageTag.slice(0, 10), bis, wiederAb: tagPlus(bis, 1) };
+}
+/** Der früheste zugesagte Tag, der `heute` noch pausiert — für SQL: zugesagter Tag ≥ Schwelle (spätere Tage pausieren immer). Rein. */
+export function zusageSchwelle(heute: string): string {
+  let d = heute.slice(0, 10);
+  for (let n = 0; n < 30 && zusagePause(tagPlus(d, -1)).bis >= heute.slice(0, 10); n++) d = tagPlus(d, -1);
+  return d;
+}
+
 /**
  * Druck-Muster (KI-VO Art. 5 Abs. 1 lit. b — wirtschaftliche Lage): EINE Quelle — die harten Telefon-Regeln
  * (shared/fiaon-aras-regeln.ts, wortgleich mit Prüf-Mara E-409). Hier nur weitergereicht (Vertrag § 1).
@@ -780,6 +891,8 @@ export function quittungWaehlen(e: { frage: boolean; zuletzt: Quittung | null; d
 export interface PlanZeile {
   id: number; personId: number | null; name: string; spielart: Spielart; prioritaet: number; grund: string;
   fruehAb: string; spaetBis: string; status: PlanStatus; versuchNr: number; rechtsgrund: Rechtsgrund; land: string;
+  /** Warum verschoben, verfallen oder gesperrt (z. B. „Zahlungszusage für den 21.10. — kein Rate-Anruf bis …“). */
+  verschobenGrund?: string | null;
 }
 export interface PlanLage {
   jeSpielart: Record<string, Record<string, number>>;

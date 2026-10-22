@@ -183,8 +183,11 @@ async function main(): Promise<void> {
   await einstellungSetzen("aras_an", "an", "pruefstand");
   await einstellungSetzen("aras_tag_euro", "0", "pruefstand");
   await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) VALUES ('aras-stimme', 'attrappe', 0, 0, 0, 0, 1, TRUE)`;
+  // „Zusage nachfassen“ (P5) hat seit 22.10. Vorrang und ginge am Deckel vorbei — für diese Probe kurz geparkt (Abschnitt 28 prüft den Vorrang).
+  await sqlPool`UPDATE fiaon_aras_plan SET frueh_ab = frueh_ab + INTERVAL '1 day' WHERE person_id = ${p5} AND spielart = 'zusage' AND status = 'wartet'`;
   t = await waehlerTakt();
   ok("Deckel 0 € → Grund deckel", t.gewaehlt === 0 && t.ausgelassen.some((a) => a.grund === "deckel"), JSON.stringify(t.ausgelassen));
+  await sqlPool`UPDATE fiaon_aras_plan SET frueh_ab = frueh_ab - INTERVAL '1 day' WHERE person_id = ${p5} AND spielart = 'zusage' AND status = 'wartet'`;
   await einstellungSetzen("aras_tag_euro", "60", "pruefstand");
   await einstellungSetzen("aras_notaus", "an", "pruefstand");
   t = await waehlerTakt();
@@ -1739,6 +1742,9 @@ async function main(): Promise<void> {
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     // Reste der Abschnitte davor (klingelnde Prüf-Anrufe) zählen sonst als „gleichzeitig“ (Stufe 1: einer)
     await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+    // Ein „neuer Tag“ für die Verteilung über den Tag (22.10.: Freigabe je Uhrzeit, Mindestabstand) — die Kundenanrufe der
+    // Abschnitte davor zählen sonst schon gegen die Freigabe der Stufe 1 (nur in der Prüf-DB zurückdatiert, wie in Abschnitt 16).
+    await sqlPool`UPDATE fiaon_aras_anruf SET created_at = created_at - INTERVAL '3 days' WHERE spielart <> 'probe' AND created_at > NOW() - INTERVAL '3 days'`;
     try {
       const fall = async (n: number, o: { vorMin: number; bezahlt?: boolean; anruf?: boolean; werbesperre?: boolean; blocked?: boolean; test?: boolean; weg?: string; gekuendigt?: boolean; ohneAnnahme?: boolean }) => {
         const pid = await person(n, { werbesperre: o.werbesperre, is_blocked: o.blocked, test: o.test });
@@ -2035,6 +2041,290 @@ async function main(): Promise<void> {
     ok("Rot-Probe: Angebot + „Nein“ → kein Link (auch nicht beim Auflegen)", (await wz(gG.callId, "zahlungslink_senden")).length === 0);
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     await einstellungSetzen("aras_stufe", "0", "pruefstand");
+  }
+
+  titel("28. DER PLANER HÄLT SEINE VERSPRECHEN (Koordination 22.10.): Rückruf mit Vorrang, Meldung bei verpasstem Rückruf, Verteilung über den Tag, anderer Tagesabschnitt, Zahlungszusage, Berliner Datum, Willkommen 2. Versuch");
+  {
+    const { tagesFreigabe, abschnittWahl, tagesabschnitt, zusagePause, fensterOffen, berlinTeile } = await import("../shared/fiaon-aras");
+    const { zusagePauseFuer, willkommenEntfaellt, rateEntfaellt, planVerschieben } = await import("../server/lib/fiaon-aras-plan");
+    const { berlinZeitpunkt } = await import("../server/lib/fiaon-time");
+    await einstellungSetzen("aras_stufe", "1", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand"); await start("pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", probe: "an" }), "pruefstand");
+    // Abschnitt 22 (Go-live) stellt das Fenster auf Mo–Sa 09:30–21:00 — hier wieder jeden Tag 08–21 Uhr (wie Abschnitt 1).
+    await einstellungSetzen("aras_fenster", JSON.stringify({ verkauf: { "1-7": ["08:00", "21:00"] }, rate: { "1-7": ["08:00", "21:00"] } }), "pruefstand");
+    await einstellungSetzen("aras_je_stunde", "120", "pruefstand");
+    adapterSetzen("attrappe", attrappeMitSkript({ schritte: [] }));
+    const fenster = (await arasEinstellungenLesen(true)).fenster;
+    const heute = yyyy(new Date());
+    const imFenster = () => fensterOffen("rate", "DE", new Date(), { fenster }).offen;
+    const rueckrufZeit = () => fensterOffen("termin", "DE", new Date(), { fenster }).offen;
+    /** Saubere Reihe und ein „neuer Tag“ (nur in der Prüf-DB zurückdatiert, wie Abschnitt 16). */
+    const neuerTag = async () => {
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', call_id = NULL WHERE status IN ('wartet', 'verschoben', 'gewaehlt', 'laeuft')`;
+      await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
+      await sqlPool`UPDATE fiaon_aras_anruf SET created_at = created_at - INTERVAL '3 days' WHERE spielart <> 'probe' AND created_at > NOW() - INTERVAL '3 days'`;
+    };
+    const anrufeVon = async (pid: number) => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_calls WHERE person_id = ${pid} AND gefuehrt_von = 'aras' AND beginn > NOW() - INTERVAL '10 minutes'`) as any[])[0]?.n ?? 0);
+    const rateKunde = async (n: number, tage = 3) => {
+      const pid = await person(n); const ref = await antrag(pid, n, { payment_status: "paid" });
+      const [r] = (await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status) VALUES (${ref}, 2, ${`${ref}-2`}, 5999, ${vor(tage)}::date, 'offen') RETURNING id`) as any[];
+      return { pid, ref, rateId: Number(r.id), nummer: `+4917000000${n}`, tage };
+    };
+    const rateEinreihen = async (k: Awaited<ReturnType<typeof rateKunde>>, erzeugtVon: "chef" | "takt" = "chef", zeit: { fruehAb?: Date; spaetBis?: Date } = {}) => {
+      const e = await planEinreihen({ personId: k.pid, ref: k.ref, nummer: k.nummer, spielart: "rate", grund: `Prüfstand Rate Tag ${k.tage}`, erzeugtVon, rateId: k.rateId, anlassAm: new Date(`${vor(k.tage)}T10:00:00Z`), betragCents: 5999, ...zeit });
+      if (!e.ok || !e.id) throw new Error(`Rate einreihen: ${e.grund}`); return Number(e.id);
+    };
+    // Eine Zusage wie in der Produktion: an der Bestellung (fiaon_contact_log.ref), OHNE person_id; der zugesagte Tag als Berliner Mitternacht.
+    const zusage = (ref: string, tag: string, o: { voided?: boolean; vorher?: string } = {}) => sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, promised_date, created_at, voided_at)
+      VALUES (${ref}, ${ausweis}, 'Aras', 'result', 'erreicht_zahlt_am', 'Prüfstand: zahlt am', (${tag}::date)::timestamp AT TIME ZONE 'Europe/Berlin',
+              NOW() - ${o.vorher ?? "1 hour"}::interval, ${o.voided ? new Date() : null})`;
+    const rueckruf = async (n: number, fruehAb: Date, spaetBis: Date) => {
+      const pid = await person(n); await antrag(pid, n, { payment_status: "paid" });
+      await einwilligungMerken({ personId: pid, nummer: `+4917000000${n}`, art: "rueckruf_buchung", wortlaut: "Prüfstand: Rückruf bei Aras gebucht", quelleArt: "termin", quelleId: `pruef${n}` });
+      const e = await planEinreihen({ personId: pid, nummer: `+4917000000${n}`, spielart: "termin", grund: "Prüfstand: Rückruf bei Aras", erzeugtVon: "chef", fruehAb, spaetBis, anlassAm: new Date(fruehAb.getTime() + 60_000) });
+      if (!e.ok || !e.id) throw new Error(`Rückruf einreihen: ${e.grund}`); return { pid, planId: Number(e.id) };
+    };
+    /** n Kundenanrufe (ohne Vorrang) heute, vor `vorMin` Minuten (nie vor Mitternacht Berlin). */
+    const anrufeHeute = async (pid: number, n: number, vorMin = 30) => {
+      const um = sqlPool`GREATEST(NOW() - make_interval(mins => ${vorMin}), (date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 minute') AT TIME ZONE 'Europe/Berlin')`;
+      await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von) SELECT ${pid}, ${ausweis}, '+491700000099', 'raus', 'beendet', ${um}, 'aras' FROM generate_series(1, ${n})`;
+      await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, spielart, briefing, adapter, stimme, prompt_version, created_at)
+                    SELECT c.id, 'rate', '{}'::jsonb, 'attrappe', 'flitz', 'pruefstand', c.beginn FROM fiaon_calls c
+                     WHERE c.person_id = ${pid} AND c.gefuehrt_von = 'aras' AND NOT EXISTS (SELECT 1 FROM fiaon_aras_anruf x WHERE x.call_id = c.id)`;
+    };
+    const anrufeWeg = async (pid: number) => {
+      await sqlPool`DELETE FROM fiaon_aras_anruf WHERE call_id IN (SELECT id FROM fiaon_calls WHERE person_id = ${pid} AND gefuehrt_von = 'aras')`;
+      await sqlPool`DELETE FROM fiaon_calls WHERE person_id = ${pid} AND gefuehrt_von = 'aras'`;
+    };
+    const status = async (planId: number) => ((await sqlPool`SELECT status, verschoben_grund, frueh_ab, spaet_bis FROM fiaon_aras_plan WHERE id = ${planId}`) as any[])[0];
+    let fern: any = null;
+    try {
+      // ── 1. Rückruf mit Vorrang: Tagesmenge voll UND Euro-Deckel erreicht → er geht trotzdem; Not-Aus und Notbremse halten ihn ──
+      await neuerTag();
+      const kN = await rateKunde(500); await rateEinreihen(kN);
+      const rA = await rueckruf(501, new Date(Date.now() - 60_000), new Date(Date.now() + 30 * 60_000));
+      const pMenge = await person(502);
+      await anrufeHeute(pMenge, 40, 40);
+      await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) VALUES ('aras-stimme', 'attrappe-vorrang', 0, 0, 0, 0, 2100, TRUE)`;
+      await einstellungSetzen("aras_notaus", "an", "pruefstand");
+      const tNot = await waehlerTakt();
+      ok("ROT-PROBE: Not-Aus hält auch den vom Kunden gebuchten Rückruf (kein Anruf)", tNot.ausgelassen.some((a) => a.grund === "notaus") && (await anrufeVon(rA.pid)) === 0, JSON.stringify(tNot));
+      await start("pruefstand");
+      await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok) VALUES ('aras-stimme', 'attrappe-notbremse', 0, 0, 0, 0, 30000, TRUE)`;
+      const tBremse = await waehlerTakt();
+      ok("ROT-PROBE: Notbremse (300 € — die höchste einstellbare Tagessumme) hält auch den Rückruf", tBremse.gewaehlt === 0 && tBremse.ausgelassen.some((a) => a.grund === "notbremse") && (await anrufeVon(rA.pid)) === 0, JSON.stringify(tBremse));
+      await sqlPool`DELETE FROM fiaon_ki_nutzung WHERE modell = 'attrappe-notbremse'`;
+      const tV = await waehlerTakt();
+      if (rueckrufZeit()) ok("22.10., 11:00: 40 Anrufe des Tages verbraucht UND 20-€-Deckel erreicht — der vom Kunden gebuchte Rückruf geht trotzdem raus, der Rate-Anruf nicht (Grund deckel)",
+        tV.gewaehlt === 1 && (await anrufeVon(rA.pid)) === 1 && (await anrufeVon(kN.pid)) === 0 && tV.ausgelassen.some((a) => a.grund === "deckel"), JSON.stringify(tV));
+      else ok("Außerhalb 08–21 Uhr: auch der Rückruf wartet (Nachtruhe)", tV.gewaehlt === 0 && tV.ausgelassen.some((a) => a.grund.startsWith("fenster:")), JSON.stringify(tV));
+      await sqlPool`DELETE FROM fiaon_ki_nutzung WHERE modell = 'attrappe-vorrang'`;
+      await anrufeWeg(pMenge);
+
+      // ── 2. Plätze freihalten: ein Rückruf wird in 5 Minuten fällig → die letzte freie Leitung bleibt für ihn ─────────────
+      await neuerTag();
+      const kB = await rateKunde(503); await rateEinreihen(kB);
+      const rB = await rueckruf(504, new Date(Date.now() + 5 * 60_000), new Date(Date.now() + 35 * 60_000));
+      const tB = await waehlerTakt();
+      ok("Plätze freihalten: in 5 Minuten ist ein gebuchter Rückruf fällig — kein Rate-Anruf auf der letzten freien Leitung (Grund platz_fuer_rueckruf)", tB.gewaehlt === 0 && tB.ausgelassen.some((a) => a.grund === "platz_fuer_rueckruf") && (await anrufeVon(kB.pid)) === 0, JSON.stringify(tB));
+      await sqlPool`UPDATE fiaon_aras_plan SET frueh_ab = NOW() + INTERVAL '15 minutes' WHERE id = ${rB.planId}`;
+      const tB2 = await waehlerTakt();
+      if (imFenster()) ok("Rot-Probe: der Rückruf erst in 15 Minuten → der Rate-Anruf geht jetzt", tB2.gewaehlt === 1 && (await anrufeVon(kB.pid)) === 1, JSON.stringify(tB2));
+
+      // ── 3. Über den Tag verteilt: Freigabe = Deckel × verstrichener Anteil + 2, dazu der Mindestabstand ────────────────
+      await neuerTag();
+      const kC = await rateKunde(505); await rateEinreihen(kC);
+      const freigabe = tagesFreigabe({ deckel: 40, jetzt: new Date(), fenster });
+      const pMenge2 = await person(506);
+      await anrufeHeute(pMenge2, freigabe, 30);
+      const tC = await waehlerTakt();
+      const erwartet = freigabe >= 40 ? "stufe_tagesmenge:40" : `verteilt:${freigabe}/40`;
+      ok(`Verteilung (21./22.10.: alle 40 bis 10:07 weg): ${freigabe} von 40 sind bis jetzt frei und schon gewählt → kein weiterer Anruf (Grund ${erwartet})`, tC.gewaehlt === 0 && tC.ausgelassen.some((a) => a.grund === erwartet) && (await anrufeVon(kC.pid)) === 0, JSON.stringify(tC));
+      await sqlPool`DELETE FROM fiaon_aras_anruf WHERE id = (SELECT MAX(a.id) FROM fiaon_aras_anruf a JOIN fiaon_calls c ON c.id = a.call_id WHERE c.person_id = ${pMenge2})`;
+      const tC2 = await waehlerTakt();
+      if (imFenster() && freigabe < 40) ok("… einer weniger (der letzte vor 30 Minuten) → der nächste Anruf ist frei", tC2.gewaehlt === 1 && (await anrufeVon(kC.pid)) === 1, JSON.stringify(tC2));
+      await anrufeWeg(pMenge2); await neuerTag();
+      const kC3 = await rateKunde(509); await rateEinreihen(kC3);
+      await anrufeHeute(pMenge2, 1, 1);
+      const tC3 = await waehlerTakt();
+      ok("ROT-PROBE Mindestabstand: der letzte Anruf vor einer Minute → warten, auch wenn die Freigabe noch Platz hat (Grund abstand)", tC3.gewaehlt === 0 && tC3.ausgelassen.some((a) => a.grund === "abstand") && (await anrufeVon(kC3.pid)) === 0, JSON.stringify(tC3));
+      await anrufeWeg(pMenge2);
+
+      // ── 4. Anderer Tagesabschnitt: gestern zur selben Tageszeit nicht erreicht → heute erst in einem anderen Abschnitt ────
+      await neuerTag();
+      const minJetzt = (() => { const b = berlinTeile(new Date()); return Number(b.hhmm.slice(0, 2)) * 60 + Number(b.hhmm.slice(3)); })();
+      const anderer = ({ vormittag: 18 * 60, mittag: 9 * 60 + 45, abend: 13 * 60 } as const)[tagesabschnitt(new Date())];
+      const fehlversuch = (pid: number, nummer: string, am: Date) => sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ergebnis, twilio_sid)
+        VALUES (${pid}, ${ausweis}, ${nummer}, 'raus', 'niemand_erreicht', ${am}, 'aras', 'nicht_erreicht', ${`CA-pruef-abschnitt-${pid}-${am.getTime()}`})`;
+      const kD1 = await rateKunde(507); await fehlversuch(kD1.pid, kD1.nummer, berlinZeitpunkt(vor(1), minJetzt));
+      const kD2 = await rateKunde(508); await fehlversuch(kD2.pid, kD2.nummer, berlinZeitpunkt(vor(1), anderer));
+      const pl1 = await rateEinreihen(kD1); await rateEinreihen(kD2);
+      const wahl = abschnittWahl({ spielart: "rate", fehlFolge: 1, letzterVersuchAm: berlinZeitpunkt(vor(1), minJetzt), jetzt: new Date(), fenster });
+      const tD = await waehlerTakt();
+      if (imFenster()) ok(`ROT-PROBE (dieselben Menschen zur fast gleichen Minute): gestern um diese Zeit nicht erreicht → bleibt liegen (${wahl}); wer gestern in einem ANDEREN Tagesabschnitt nicht erreicht wurde, ist jetzt dran`,
+        tD.gewaehlt === 1 && (await anrufeVon(kD2.pid)) === 1 && (await anrufeVon(kD1.pid)) === 0 && tD.ausgelassen.some((a) => a.grund === `abschnitt:${wahl}`), JSON.stringify(tD));
+      await neuerTag();
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'wartet' WHERE id = ${pl1}`;
+      const tD2 = await waehlerTakt();
+      if (imFenster() && wahl === "spaeter") ok("… allein in der Reihe: heute kommt noch ein anderer Abschnitt → er wartet darauf (Grund abschnitt:spaeter, kein Anruf)", tD2.gewaehlt === 0 && tD2.ausgelassen.some((a) => a.grund === "abschnitt:spaeter") && (await anrufeVon(kD1.pid)) === 0, JSON.stringify(tD2));
+      else if (imFenster()) ok("… allein in der Reihe und heute kommt kein anderer Abschnitt mehr → notfalls doch (niemand sonst braucht den Platz)", tD2.gewaehlt === 1 && (await anrufeVon(kD1.pid)) === 1, JSON.stringify(tD2));
+
+      // ── 5. Zahlungszusage: kein Rate-Anruf bis zum zugesagten Tag + 2 Bank-Werktage ─────────────────────────────────
+      await neuerTag();
+      const z1 = await rateKunde(510); await zusage(z1.ref, vor(1));
+      const z2 = await rateKunde(511); await zusage(z2.ref, berlinTeile(new Date(Date.now() + 5 * 86_400_000)).datum);
+      const z3 = await rateKunde(512); await zusage(z3.ref, vor(10), { vorher: "11 days" });
+      const z4 = await rateKunde(513); await zusage(z4.ref, vor(1), { vorher: "2 days" });
+      await sqlPool`INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am) VALUES (${z4.ref}, 1, ${`${z4.ref}-1`}, 5999, ${vor(40)}::date, 'bezahlt', NOW() - INTERVAL '1 day')`;
+      const z5 = await rateKunde(514); await zusage(z5.ref, vor(1), { voided: true });
+      const fZ = await planFuellen();
+      const rateZeile = async (pid: number) => ((await sqlPool`SELECT id, status FROM fiaon_aras_plan WHERE person_id = ${pid} AND spielart = 'rate' AND status = 'wartet'`) as any[])[0] ?? null;
+      ok("ROT-PROBE 21./22.10.: „zahle heute“ (gestern) und eine Zusage für nächste Woche → KEIN Rate-Eintrag (Pause bis zum Tag + 2 Bank-Werktage)",
+        !(await rateZeile(z1.pid)) && !(await rateZeile(z2.pid)) && Object.keys(fZ.uebersprungen).some((k) => k.startsWith("rate:Zahlungszusage")), JSON.stringify(fZ.uebersprungen));
+      ok("Alte Zusage (Pause vorbei), seit der Zusage eine Rate bezahlt, Zusage zurückgenommen → Rate-Eintrag wie immer",
+        !!(await rateZeile(z3.pid)) && !!(await rateZeile(z4.pid)) && !!(await rateZeile(z5.pid)));
+      ok("Die Zusage hängt an der Bestellung (Akte ohne person_id, wie in der Produktion) — gefunden über die Person; Pause = zugesagter Tag + 2 Bank-Werktage",
+        (await zusagePauseFuer(z1.pid))?.bis === zusagePause(vor(1)).bis && (await zusagePauseFuer(z3.pid)) === null, JSON.stringify(await zusagePauseFuer(z1.pid)));
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status = 'wartet'`;
+      // Schon eingereiht (der Füller lief um 00:04), dann „zahle heute“ → der nächste Füller-Lauf stellt ihn zurück
+      const z6 = await rateKunde(515); const pl6 = await rateEinreihen(z6, "takt");
+      await zusage(z6.ref, heute);
+      await planFuellen();
+      const s6 = await status(pl6);
+      ok("Schon eingereiht, dann „zahle heute“ → zurückgestellt: „verschoben“ mit Grund, zurück erst am Tag nach der Pause",
+        s6?.status === "verschoben" && /Zahlungszusage/.test(String(s6?.verschoben_grund)) && berlinTeile(new Date(s6.frueh_ab)).datum === zusagePause(heute).wiederAb, JSON.stringify(s6));
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status = 'wartet'`;
+      // Vor dem Wählen: inzwischen „zahle heute“ (ohne Füller-Lauf dazwischen) → nicht wählen; Rate inzwischen bezahlt → aus der Reihe
+      const z7 = await rateKunde(516); const pl7 = await rateEinreihen(z7, "takt");
+      await zusage(z7.ref, heute);
+      const z8 = await rateKunde(517); const pl8 = await rateEinreihen(z8);
+      await sqlPool`UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = NOW() WHERE id = ${z8.rateId}`;
+      const t78 = await waehlerTakt();
+      const s7 = await status(pl7), s8 = await status(pl8);
+      ok("Vor dem Wählen: inzwischen „zahle heute“ gesagt → kein Anruf, der Eintrag wartet bis nach der Überweisungszeit", s7?.status === "verschoben" && (await anrufeVon(z7.pid)) === 0 && t78.ausgelassen.some((a) => a.grund === "rate:zahlungszusage"), JSON.stringify({ s7, t78 }));
+      ok("Vor dem Wählen: die Rate ist inzwischen bezahlt → fällt aus der Reihe, kein Anruf", s8?.status === "verfallen" && /bezahlt/.test(String(s8?.verschoben_grund)) && (await anrufeVon(z8.pid)) === 0, JSON.stringify(s8));
+      // „Wieder einreihen“ in der Warteschlange (ein Mensch entscheidet): weder Füller noch Wähler stellen den Eintrag erneut zurück
+      await planVerschieben(pl7, new Date(), "Prüfstand: trotzdem anrufen", "Chef #1");
+      await planFuellen();
+      const s7a = await status(pl7);
+      const t7b = await waehlerTakt();
+      const s7b = await status(pl7);
+      ok("Ein Mensch reiht den zurückgestellten Eintrag wieder ein → Füller und Wähler stellen ihn nicht erneut zurück (er entscheidet)",
+        s7a?.status === "wartet" && s7b?.status !== "verschoben" && !t7b.ausgelassen.some((a) => a.grund === "rate:zahlungszusage") && (!imFenster() || (await anrufeVon(z7.pid)) === 1), JSON.stringify({ s7a: s7a?.status, s7b: s7b?.status, t7b }));
+      await neuerTag();
+      const z10 = await rateKunde(523); const pl10 = await rateEinreihen(z10, "chef");
+      await zusage(z10.ref, heute);
+      const weg10 = await rateEntfaellt({ id: pl10, person_id: z10.pid, rate_id: z10.rateId, erzeugt_von: "chef" }, await arasEinstellungenLesen(true));
+      const weg10t = await rateEntfaellt({ id: pl10, person_id: z10.pid, rate_id: z10.rateId, erzeugt_von: "takt" }, await arasEinstellungenLesen(true));
+      ok("Von Hand eingereiht (Chef) ruft ARAS trotz Zusage an — der Mensch hat es so gewollt; derselbe Eintrag vom Füller würde warten", weg10 === null && weg10t?.status === "verschoben", JSON.stringify({ weg10, weg10t }));
+      // Ein neuer Eintrag des Füllers löst den alten, verschobenen derselben Person ab (nie zwei zur selben Sache)
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status = 'wartet'`;
+      const z9 = await rateKunde(518);
+      const [alt9] = (await sqlPool`INSERT INTO fiaon_aras_plan (person_id, ref, nummer, land, spielart, prioritaet, grund, rechtsgrund, frueh_ab, spaet_bis, erzeugt_von, status, rate_id, created_at)
+                                    VALUES (${z9.pid}, ${z9.ref}, ${z9.nummer}, 'DE', 'rate', 3, 'Prüfstand alt', 'vertrag', NOW() + INTERVAL '5 hours', NOW() + INTERVAL '30 hours', 'takt', 'verschoben', ${z9.rateId}, NOW() - INTERVAL '1 day') RETURNING id`) as any[];
+      await planFuellen();
+      const s9 = await status(Number(alt9.id));
+      ok("Ein neuer Eintrag des Füllers löst den alten, verschobenen derselben Person ab (nie zwei zur selben Sache)", !!(await rateZeile(z9.pid)) && s9?.status === "verfallen" && /abgelöst/.test(String(s9?.verschoben_grund)), JSON.stringify(s9));
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+
+      // ── 6. Berliner Datum: der Füller läuft um 00:04 Berlin, die DB-Sitzung in UTC — CURRENT_DATE ist dann gestern ───────
+      const postgres = (await import("postgres")).default;
+      for (const zone of ["Pacific/Pago_Pago", "Pacific/Kiritimati"]) {
+        const s = postgres(String(process.env.DATABASE_URL), { ssl: "require", max: 1, onnotice: () => {}, connection: { TimeZone: zone } as any });
+        const [d] = (await s`SELECT CURRENT_DATE::text AS d`) as any[];
+        if (d?.d !== heute) { fern = Object.assign(s, { zone }); break; }
+        await s.end({ timeout: 2 });
+      }
+      ok("Prüf-Sitzung in einer fernen Zeitzone: CURRENT_DATE ist dort ein anderer Tag als in Berlin (sonst könnte die Probe nicht rot werden)", !!fern, String(fern?.zone ?? ""));
+      if (fern) {
+        const kBd = await rateKunde(519, 1);
+        await planFuellen(fern);
+        const [rBd] = (await sqlPool`SELECT grund FROM fiaon_aras_plan WHERE person_id = ${kBd.pid} AND spielart = 'rate' ORDER BY id DESC LIMIT 1`) as any[];
+        ok(`ROT-PROBE Berliner Datum: eine gestern (Berlin) fällige Rate ist „seit gestern überfällig“ — auch wenn die DB-Sitzung in ${fern.zone} rechnet (dort wäre sie „heute fällig“ oder „seit 2 Tagen“)`, rBd?.grund === "Rate 2 seit gestern überfällig", JSON.stringify(rBd ?? null));
+        await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
+      }
+
+      // ── 7. Rückruf verpasst (z. B. Not-Aus): nie still verfallen — Aufgabe für das Team, Karte, Protokoll ─────────────────
+      await neuerTag();
+      await einstellungSetzen("aras_notaus", "an", "pruefstand");
+      const g1 = await rueckruf(520, new Date(Date.now() - 45 * 60_000), new Date(Date.now() - 2 * 60_000));
+      const g2 = await rueckruf(521, new Date(Date.now() - 45 * 60_000), new Date(Date.now() - 2 * 60_000));
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verschoben', verschoben_grund = 'Twilio: Prüfstand' WHERE id = ${g2.planId}`;
+      const g3 = await rateKunde(522); const pl3 = await rateEinreihen(g3, "chef", { fruehAb: new Date(Date.now() - 45 * 60_000), spaetBis: new Date(Date.now() - 2 * 60_000) });
+      await planFuellen();
+      const aufgabe = async (planId: number) => (await sqlPool`SELECT id, titel, text, prioritaet, person_id, status FROM fiaon_betreiber_todos WHERE schluessel = ${`aras:rueckruf_verpasst:${planId}`}`) as any[];
+      const a1 = await aufgabe(g1.planId), a2 = await aufgabe(g2.planId);
+      ok("22.10.: der Rückruf verfiel still — jetzt: Not-Aus, Zeit um → Aufgabe „Rückruf verpasst — bitte anrufen“ für das Team (dringend, am Kunden, Grund Not-Aus)",
+        a1.length === 1 && /Rückruf verpasst — bitte anrufen/.test(String(a1[0].titel)) && Number(a1[0].prioritaet) === 1 && Number(a1[0].person_id) === g1.pid && /Not-Aus/.test(String(a1[0].text)) && (await status(g1.planId))?.status === "verfallen", JSON.stringify(a1));
+      const s2 = await status(g2.planId);
+      ok("Auch ein Rückruf, der nach einem Twilio-Fehler „verschoben“ hängen blieb, bekommt die Meldung — der alte Grund bleibt hinten stehen", a2.length === 1 && s2?.status === "verfallen" && /^Rückruf verpasst .*Twilio: Prüfstand/.test(String(s2?.verschoben_grund)), JSON.stringify({ a2, s2 }));
+      const [karte] = (await sqlPool`SELECT text FROM fiaon_system_alarme WHERE schluessel = 'aras:rueckruf_verpasst' AND vorbei_am IS NULL`) as any[];
+      const proto = (await sqlPool`SELECT 1 FROM fiaon_mara_protokoll WHERE kanal = 'telefon' AND art = 'aras_termin' AND ok = FALSE AND (daten->>'planId')::bigint IN (${g1.planId}, ${g2.planId})`) as any[];
+      ok("Karte auf der Tafel (aras:rueckruf_verpasst) und je Fall ein Eintrag im ARAS-Protokoll", !!karte && /bitte anrufen|Rückruf/.test(String(karte.text)) && proto.length === 2, JSON.stringify({ karte, proto: proto.length }));
+      ok("Rot-Probe: ein abgelaufener normaler Rate-Anruf verfällt ohne Meldung", (await aufgabe(pl3)).length === 0 && (await status(pl3))?.status === "verfallen");
+      await planFuellen();
+      ok("Zweiter Füller-Lauf: weiter genau EINE Aufgabe je verpasstem Rückruf", (await aufgabe(g1.planId)).length === 1 && (await aufgabe(g2.planId)).length === 1);
+      await start("pruefstand");
+
+      // ── 8. Willkommen: genau EIN zweiter Versuch nach Mailbox / nicht erreicht (frühestens 2,5 h danach, ≤ 24 h nach der Unterschrift) ─
+      await neuerTag();
+      const andererAbschnitt = (t: Date) => tagesabschnitt(t) !== tagesabschnitt(new Date());
+      const ersterAm = [2.7, 6, 13, 20].map((h) => new Date(Date.now() - h * 3600_000)).find(andererAbschnitt) ?? new Date(Date.now() - 2.7 * 3600_000);
+      const willkommenFall = async (n: number, o: { erster: Date; ergebnis: string; unterschriftVorStd?: number; teamAnruf?: boolean; wocheVoll?: boolean }) => {
+        const pid = await person(n); const ref = await antrag(pid, n, { payment_status: "pending_payment" });
+        const nummer = `+4917000000${n}`;
+        const am = o.unterschriftVorStd ? new Date(Date.now() - o.unterschriftVorStd * 3600_000) : new Date(o.erster.getTime() - 30 * 60_000);
+        await sqlPool`
+          INSERT INTO fiaon_vertragsannahmen (ref, person_id, weg, angenommen_am, paket, rate_cents, gesamt_cents, vertrag_fassung, leistung_fassung, agb_fassung, knopf_text, haken, sofort_beginn, vertrag_html, vertrag_sha256)
+          VALUES (${ref}, ${pid}, 'neu', ${am}, 'plus', 5999, 71988, 'PV-test', 'L-test', 'AGB-test', 'Zahlungspflichtig annehmen', '{}'::jsonb, FALSE, '<p>Test</p>', 'test')`;
+        const [pl] = (await sqlPool`INSERT INTO fiaon_aras_plan (person_id, ref, nummer, land, spielart, prioritaet, grund, rechtsgrund, frueh_ab, spaet_bis, erzeugt_von, status, created_at)
+                                    VALUES (${pid}, ${ref}, ${nummer}, 'DE', 'willkommen', 2, 'Antrag unterschrieben — Willkommen', 'vertrag', ${o.erster}, ${new Date(am.getTime() + 24 * 3600_000)}, 'takt', 'fertig', ${o.erster}) RETURNING id`) as any[];
+        const [c] = (await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ergebnis, twilio_sid)
+                                   VALUES (${pid}, ${ausweis}, ${nummer}, 'raus', ${o.ergebnis.startsWith("erreicht") ? "beendet" : "niemand_erreicht"}, ${o.erster}, 'aras', ${o.ergebnis}, ${`CA-pruef-willkommen-${n}`}) RETURNING id`) as any[];
+        await sqlPool`INSERT INTO fiaon_aras_anruf (call_id, plan_id, spielart, briefing, adapter, stimme, prompt_version, ergebnis, created_at)
+                      VALUES (${c.id}, ${pl.id}, 'willkommen', '{}'::jsonb, 'attrappe', 'juni', 'pruefstand', ${o.ergebnis}, ${o.erster})`;
+        if (o.teamAnruf) await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ergebnis) VALUES (${pid}, ${ausweis}, ${nummer}, 'raus', 'beendet', NOW() - INTERVAL '1 hour', 'mensch', 'erreicht_sonstiges')`;
+        if (o.wocheVoll) await sqlPool`INSERT INTO fiaon_calls (person_id, agent_id, nummer, richtung, status, beginn, gefuehrt_von, ergebnis) VALUES (${pid}, ${ausweis}, ${nummer}, 'raus', 'beendet', NOW() - INTERVAL '3 days', 'mensch', 'erreicht_sonstiges'), (${pid}, ${ausweis}, ${nummer}, 'raus', 'beendet', NOW() - INTERVAL '4 days', 'mensch', 'erreicht_sonstiges')`;
+        return { pid, ref, am };
+      };
+      const w1 = await willkommenFall(530, { erster: ersterAm, ergebnis: "mailbox" });
+      const w2 = await willkommenFall(531, { erster: ersterAm, ergebnis: "erreicht_sonstiges" });
+      const w3 = await willkommenFall(532, { erster: ersterAm, ergebnis: "mailbox", teamAnruf: true });
+      const w4erster = new Date(Date.now() - 60 * 60_000);
+      const w4 = await willkommenFall(533, { erster: w4erster, ergebnis: "nicht_erreicht" });
+      const w5 = await willkommenFall(534, { erster: new Date(Date.now() - 23 * 3600_000), ergebnis: "mailbox", unterschriftVorStd: 25 });
+      const w6 = await willkommenFall(535, { erster: ersterAm, ergebnis: "mailbox", wocheVoll: true });
+      await planFuellen();
+      const zweiter = async (ref: string) => ((await sqlPool`SELECT id, versuch_nr, status, frueh_ab, spaet_bis FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND ref = ${ref} AND versuch_nr = 2`) as any[]);
+      const zw1 = await zweiter(w1.ref), zw4 = await zweiter(w4.ref);
+      ok("Willkommen (21.10.: alle fünf Mailbox oder nicht abgenommen, danach nichts): erster Versuch Mailbox → GENAU EIN zweiter Versuch, ab jetzt, spätestens 24 h nach der Unterschrift",
+        zw1.length === 1 && zw1[0].status === "wartet" && Math.abs(new Date(zw1[0].frueh_ab).getTime() - Math.max(Date.now(), ersterAm.getTime() + 150 * 60_000)) < 120_000 && Math.abs(new Date(zw1[0].spaet_bis).getTime() - (w1.am.getTime() + 24 * 3600_000)) < 1000, JSON.stringify(zw1));
+      ok("Nicht erreicht erst vor 1 h → der zweite Versuch steht, aber frühestens 2,5 h nach dem ersten", zw4.length === 1 && Math.abs(new Date(zw4[0].frueh_ab).getTime() - (w4erster.getTime() + 150 * 60_000)) < 1000, JSON.stringify(zw4));
+      ok("ROT-PROBEN: beim ersten erreicht, ein Anruf vom Team in den letzten 24 h, Unterschrift älter als 24 h → KEIN zweiter Versuch",
+        (await zweiter(w2.ref)).length === 0 && (await zweiter(w3.ref)).length === 0 && (await zweiter(w5.ref)).length === 0);
+      ok("ARAS' eigener erster Versuch ohne Gespräch zählt nicht als „Anruf in 24 h“ — ein Anruf vom Team schon", (await willkommenEntfaellt(w1.ref)) === null && (await willkommenEntfaellt(w3.ref)) === "Anruf in den letzten 24 h");
+      await planFuellen();
+      const jeVertrag = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_aras_plan WHERE spielart = 'willkommen' AND ref = ${w1.ref}`) as any[])[0]?.n ?? 0);
+      ok("ROT-PROBE: nie ein dritter — der nächste Füller-Lauf legt nichts nach (genau zwei Einträge je Vertrag)", jeVertrag === 2, String(jeVertrag));
+      // Wählen: der zweite Versuch zählt bei den Grenzen je Person mit (w6 hatte diese Woche schon zwei Anrufe + den ersten Versuch)
+      await sqlPool`UPDATE fiaon_aras_plan SET frueh_ab = frueh_ab + INTERVAL '1 day' WHERE spielart = 'willkommen' AND ref = ${w1.ref} AND versuch_nr = 2`;
+      const tW6 = await waehlerTakt();
+      if (imFenster()) ok("ROT-PROBE: der zweite Versuch zählt bei den Grenzen je Person mit — drei Versuche diese Woche → kein Anruf (je_person_woche)", (await anrufeVon(w6.pid)) === 0 && tW6.ausgelassen.some((a) => a.grund === "je_person_woche"), JSON.stringify(tW6));
+      await sqlPool`UPDATE fiaon_aras_plan SET frueh_ab = frueh_ab - INTERVAL '1 day' WHERE spielart = 'willkommen' AND ref = ${w1.ref} AND versuch_nr = 2`;
+      await neuerTag();
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'wartet' WHERE id = ${Number(zw1[0]?.id ?? 0)}`;
+      const tW1 = await waehlerTakt();
+      const gleicherTag = berlinTeile(ersterAm).datum === heute;
+      if (imFenster()) ok(`Der zweite Versuch wird gewählt (anderer Tagesabschnitt als der erste${gleicherTag ? "; derselbe Tag — der erste Versuch ohne Gespräch sperrt ihn nicht" : ""})`, tW1.gewaehlt === 1 && (await anrufeVon(w1.pid)) === 1, JSON.stringify(tW1));
+    } finally {
+      if (fern) await fern.end({ timeout: 2 }).catch(() => {});
+      await sqlPool`DELETE FROM fiaon_ki_nutzung WHERE modell IN ('attrappe-vorrang', 'attrappe-notbremse')`;
+      await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', call_id = NULL WHERE status IN ('gewaehlt', 'wartet', 'verschoben')`;
+      await start("pruefstand");
+      await einstellungSetzen("aras_je_stunde", "40", "pruefstand");
+      await einstellungSetzen("aras_stufe", "0", "pruefstand");
+    }
   }
 
   log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

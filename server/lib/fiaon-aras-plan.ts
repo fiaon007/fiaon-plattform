@@ -18,13 +18,14 @@ import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { abgeschicktSql } from "../../shared/fiaon-antrag-stand";
 import { ERINNERBARE_BESTELLUNG_SQL, RATE_NACH_ENDE_SQL_FUER } from "./fiaon-raten-storno";
 import { waehlbareNummer } from "./fiaon-telefon";
-import { berlinToday } from "./fiaon-time";
+import { berlinToday, berlinZeitpunkt } from "./fiaon-time";
 import { telefonGesperrt, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwilligung";
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
   ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
   PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT, RATE_TAGE_BIS,
+  VORRANG_SPIELARTEN, istVorrang, fensterAmWochentag, zusagePause, zusageSchwelle, SPIELART_TEXT,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
 } from "../../shared/fiaon-aras";
 
@@ -189,11 +190,17 @@ export async function willkommenBereit(personId: number, lauf: Lauf = sqlPool): 
 // ── Willkommen nach Antrag (Go-live 20.10.2026, Koordination) ──────────────────────────────────────────────────
 /** 20 Minuten nach der Unterschrift, höchstens 24 h danach — später nie. */
 export const WILLKOMMEN_AB_MINUTEN = 20, WILLKOMMEN_BIS_STUNDEN = 24;
+/** Koordination 22.10.2026 (21.10.: alle fünf Willkommens-Anrufe Mailbox oder nicht abgenommen, danach nichts): genau EIN
+ *  zweiter Versuch, frühestens so viele Minuten nach dem ersten — im Fenster, höchstens 24 h nach der Unterschrift. */
+export const WILLKOMMEN_ZWEITER_NACH_MINUTEN = 150;
+/** Ergebnisse, nach denen ein Willkommens-Versuch nicht zählt (niemand hat gesprochen) — dann kommt der zweite. */
+const WILLKOMMEN_OHNE_GESPRAECH = ["mailbox", "nicht_erreicht"] as const;
 /**
  * EINE Quelle für Planer und Wähler: jede Vertragsannahme mit den Gründen, warum ARAS NICHT anruft. Angerufen wird nur, wenn
  * alle false sind: unterschrieben (Vertragsannahme, kein Prüfstand), Aktivierung offen (nichts bezahlt, nichts gemeldet),
  * Vertrag nicht beendet, keine Werbe- oder Vertriebssperre, keine Testperson, kein FIAON Global, KEIN Anruf mit ihm in den
- * letzten 24 h (Mensch oder ARAS, rein oder raus), die Unterschrift 20 Minuten bis 24 h alt.
+ * letzten 24 h (Mensch oder ARAS, rein oder raus — ARAS' eigener Willkommens-Versuch ohne Gespräch zählt nicht, sonst gäbe es
+ * keinen zweiten), die Unterschrift 20 Minuten bis 24 h alt.
  */
 function willkommenSql(): string {
   return `
@@ -203,7 +210,9 @@ function willkommenSql(): string {
            (COALESCE(p.is_blocked, FALSE) OR p.werbung_gesperrt_am IS NOT NULL) AS gesperrt,
            NOT (${echtePersonSql("p")}) AS test,
            ${globalKundeSql("p.id")} AS global,
-           EXISTS (SELECT 1 FROM fiaon_calls c WHERE c.person_id = p.id AND c.beginn > NOW() - INTERVAL '24 hours') AS anruf_24h,
+           EXISTS (SELECT 1 FROM fiaon_calls c WHERE c.person_id = p.id AND c.beginn > NOW() - INTERVAL '24 hours'
+                     AND NOT EXISTS (SELECT 1 FROM fiaon_aras_anruf wa WHERE wa.call_id = c.id AND wa.spielart = 'willkommen'
+                                       AND (wa.ergebnis IN ('${WILLKOMMEN_OHNE_GESPRAECH.join("', '")}') OR c.status = 'fehlgeschlagen'))) AS anruf_24h,
            (v.angenommen_am < NOW() - make_interval(hours => ${WILLKOMMEN_BIS_STUNDEN})) AS zu_alt,
            (v.angenommen_am > NOW() - make_interval(mins => ${WILLKOMMEN_AB_MINUTEN})) AS zu_frisch,
            (COALESCE(v.weg, '') LIKE '%pruefstand%') AS pruefstand
@@ -223,6 +232,85 @@ export async function willkommenEntfaellt(ref: string | null | undefined, lauf: 
   const [w] = (await lauf.unsafe(`${willkommenSql()} WHERE v.ref = $1 LIMIT 1`, [String(ref)]).catch(() => [])) as any[];
   if (!w) return "kein unterschriebener Antrag";
   for (const [k, text] of WILLKOMMEN_NEIN) if (w[k]) return text;
+  return null;
+}
+
+// ── Zahlungszusage pausiert die Rate-Anrufe (Koordination 22.10.2026) ──────────────────────────────────────────────
+// 21.10.: „zahle heute“ (zahlungszusage_merken ok) — und am 22.10. um 09:46 rief ARAS wegen derselben Rate wieder an; ein
+// zweiter Kunde mit Zusage stand wieder auf „wartet“. Die Spielart „zusage“ ist im Go-live aus, darum hält der Rate-Planer selbst
+// still: bis zum zugesagten Tag plus zwei Bank-Werktage (die Überweisung läuft) — solange seit der Zusage keine Rate bezahlt ist.
+/**
+ * Der späteste zugesagte Tag (Berlin, als date) einer noch wirksamen Zusage der Person — oder NULL. Zusagen hängen an der
+ * Bestellung (fiaon_contact_log.ref; person_id ist dort meist leer), darum über alle Bestellungen der Person. `schwelle` =
+ * zusageSchwelle(heute) (geprüftes „JJJJ-MM-TT“). EINE Quelle für Planer, Aufräumen und Wähler.
+ */
+function zusageTagSql(personSpalte: string, schwelle: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(schwelle)) throw new Error(`Zusage-Schwelle „${schwelle}“ ist kein Datum.`);
+  return `(SELECT MAX((zl.promised_date AT TIME ZONE 'Europe/Berlin')::date)
+             FROM fiaon_applications za JOIN fiaon_contact_log zl ON zl.ref = za.ref
+            WHERE za.person_id = ${personSpalte} AND zl.type = 'result' AND zl.outcome = 'erreicht_zahlt_am' AND zl.voided_at IS NULL
+              AND zl.promised_date IS NOT NULL AND (zl.promised_date AT TIME ZONE 'Europe/Berlin')::date >= DATE '${schwelle}'
+              AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten zr WHERE zr.ref = zl.ref AND zr.bezahlt_am > zl.created_at))`;
+}
+
+/** Hat die Person eine wirksame Zahlungszusage? Dann: zugesagter Tag, Pause bis einschließlich `bis`, wieder anrufen ab `wiederAb`. */
+export async function zusagePauseFuer(personId: number, lauf: Lauf = sqlPool, heute: string = berlinToday()): Promise<{ zusageTag: string; bis: string; wiederAb: string } | null> {
+  const [z] = (await lauf.unsafe(`SELECT ${zusageTagSql(String(Number(personId)), zusageSchwelle(heute))}::text AS tag`)) as any[];
+  return z?.tag ? zusagePause(String(z.tag)) : null;
+}
+
+/** Fensterbeginn und -ende eines Kalendertags (Berlin) — gibt es an dem Tag kein Fenster, der nächste Tag mit Fenster. */
+function tagMitFenster(tag: string, einst: ArasEinstellungen): { tag: string; ab: Date; bis: Date } {
+  let t = tag;
+  for (let n = 0; n < 8; n++) {
+    const [j, m, d] = t.split("-").map(Number);
+    const wt = new Date(Date.UTC(j, m - 1, d)).getUTCDay() || 7;
+    const f = fensterAmWochentag(einst.fenster, wt);
+    if (f) return { tag: t, ab: berlinZeitpunkt(t, Number(f.von.slice(0, 2)) * 60 + Number(f.von.slice(3))), bis: berlinZeitpunkt(t, Number(f.bis.slice(0, 2)) * 60 + Number(f.bis.slice(3))) };
+    const nd = new Date(Date.UTC(j, m - 1, d + 1));
+    t = nd.toISOString().slice(0, 10);
+  }
+  return { tag, ab: berlinZeitpunkt(tag, 9 * 60 + 30), bis: berlinZeitpunkt(tag, 21 * 60) };
+}
+
+/** Einen Rate-Eintrag bis nach der Zusage-Pause zurückstellen (Status „verschoben“, mit Grund; er kommt am Tag `wiederAb` zurück). */
+async function ratePausieren(planId: number, p: { zusageTag: string; bis: string; wiederAb: string }, einst: ArasEinstellungen, lauf: Lauf): Promise<void> {
+  const wieder = tagMitFenster(p.wiederAb, einst);
+  const tagDe = (iso: string) => iso.split("-").reverse().slice(0, 2).join(".") + ".";
+  await lauf`UPDATE fiaon_aras_plan SET status = 'verschoben', frueh_ab = ${wieder.ab}, spaet_bis = GREATEST(spaet_bis, ${wieder.bis}),
+                    verschoben_grund = ${`Zahlungszusage für den ${tagDe(p.zusageTag)} — kein Rate-Anruf bis einschließlich ${tagDe(p.bis)} (Überweisung läuft)`.slice(0, 200)},
+                    updated_at = NOW()
+              WHERE id = ${planId} AND status IN ('wartet', 'verschoben')`;
+}
+
+/**
+ * Rate offen — vor dem Wählen noch einmal dieselben Bedingungen wie beim Planen (die Reihe verteilt sich jetzt über den Tag;
+ * zwischen Planen und Wählen liegen Stunden): Rate bezahlt, storniert, Vertrag nicht mehr erinnerbar (Abo-/Mahnstopp,
+ * Vertragsende, abgelöst) → „verfallen“; inzwischen „zahle am …“ gesagt → „verschoben“ bis nach der Überweisungszeit. Die
+ * Zusage-Pause gilt für Einträge des Planers — was ein Mensch von Hand einreiht, verschiebt oder wieder einreiht (auftrag_von),
+ * ruft ARAS wie gewünscht an. null = anrufen.
+ */
+export async function rateEntfaellt(z: { id: number; person_id?: number | null; rate_id?: number | null; erzeugt_von?: string | null; auftrag_von?: string | null },
+  einst: ArasEinstellungen, lauf: Lauf = sqlPool, heute: string = berlinToday()): Promise<{ status: "verfallen" | "verschoben"; grund: string } | null> {
+  if (z.rate_id) {
+    const [r] = (await lauf.unsafe(`
+      SELECT (r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL) AS offen, r.bezahlt_am IS NOT NULL AS bezahlt,
+             (a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL AND ${ERINNERBARE_BESTELLUNG_SQL("a")} AND a.abo_gestoppt_am IS NULL
+              AND a.mahnstopp_am IS NULL AND NOT ${RATE_NACH_ENDE_SQL_FUER("a", "r")}) AS erinnerbar
+        FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref WHERE r.id = $1`, [Number(z.rate_id)])) as any[];
+    const grund = !r ? "Rate nicht mehr da" : r.bezahlt ? "Rate inzwischen bezahlt" : !r.offen ? "Rate nicht mehr offen (storniert)" : !r.erinnerbar ? "Vertrag nicht mehr erinnerbar (Abo-/Mahnstopp, Vertragsende)" : null;
+    if (grund) {
+      await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = ${grund}, updated_at = NOW() WHERE id = ${z.id} AND status = 'wartet'`;
+      return { status: "verfallen", grund };
+    }
+  }
+  if (z.erzeugt_von === "takt" && !z.auftrag_von && z.person_id) {
+    const p = await zusagePauseFuer(Number(z.person_id), lauf, heute);
+    if (p) {
+      await ratePausieren(z.id, p, einst, lauf);
+      return { status: "verschoben", grund: `Zahlungszusage bis ${p.bis}` };
+    }
+  }
   return null;
 }
 
@@ -296,8 +384,11 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
 
 export async function planVerschieben(id: number, bis: Date, grund: string, von: string, lauf: Lauf = sqlPool): Promise<void> {
   await arasSchema(lauf);
+  // Wer von Hand verschiebt oder wieder einreiht, steuert den Eintrag ab jetzt selbst (auftrag_von) — eine Zahlungszusage stellt
+  // ihn dann nicht mehr still zurück (Koordination 22.10.2026; sonst spränge „Wieder einreihen“ gleich wieder auf „verschoben“).
   await lauf`UPDATE fiaon_aras_plan SET frueh_ab = ${bis}, spaet_bis = GREATEST(spaet_bis, ${bis} + INTERVAL '4 hours'), status = 'wartet',
-             verschoben_grund = ${`${grund} (${von})`.slice(0, 200)}, updated_at = NOW() WHERE id = ${id} AND status IN ('wartet', 'verschoben', 'verfallen')`;
+             verschoben_grund = ${`${grund} (${von})`.slice(0, 200)}, auftrag_von = COALESCE(auftrag_von, ${von.slice(0, 80)}), updated_at = NOW()
+              WHERE id = ${id} AND status IN ('wartet', 'verschoben', 'verfallen')`;
 }
 export async function planEntfernen(id: number, grund: string, von: string, lauf: Lauf = sqlPool): Promise<void> {
   await arasSchema(lauf);
@@ -313,6 +404,7 @@ function zeile(z: any, maskiert: boolean): PlanZeile {
     spielart: z.spielart, prioritaet: Number(z.prioritaet), grund: String(z.grund ?? ""),
     fruehAb: new Date(z.frueh_ab).toISOString(), spaetBis: new Date(z.spaet_bis).toISOString(),
     status: z.status, versuchNr: Number(z.versuch_nr ?? 1), rechtsgrund: z.rechtsgrund, land: String(z.land ?? "DE"),
+    verschobenGrund: z.verschoben_grund ? String(z.verschoben_grund) : null,
   };
 }
 
@@ -371,6 +463,54 @@ function abBesterStunde(spielart: Spielart): Date {
 
 const PERSON_NUMMER_SQL = `p.primary_phone AS nummer, p.country, p.id AS person_id, p.last_name`;
 
+/**
+ * Ein Rückruf mit Vorrang hat seine Zeit verpasst (Koordination 22.10.2026: nie still verfallen lassen — der Kunde verlässt sich
+ * darauf). „Rückruf verpasst — bitte anrufen“ auf den Wegen der anderen ARAS-Hinweise: eine Aufgabe für den Zuständigen des
+ * Kunden (dringend, heute, mit Akte — je Eintrag genau eine), die Karte auf der Tafel (aras:rueckruf_verpasst, je Fall eine
+ * Zeile) und das ARAS-Protokoll (Kanal telefon). Der Grund ist die beste Erklärung aus der Lage beim Verfallen.
+ */
+async function rueckrufVerpasst(z: any, einst: ArasEinstellungen, grenzen: ReturnType<typeof stufenGrenzen>, lauf: Lauf): Promise<void> {
+  const spielart = z.spielart as Spielart;
+  const personId = z.person_id != null ? Number(z.person_id) : null;
+  // Rückruf: die gebuchte Zeit (anlass_am = Termin-Beginn); Zusage-Nachfassen: die geplante Zeit (anlass_am ist dort die Zusage selbst).
+  const wann: Date | null = spielart === "termin" && z.anlass_am ? new Date(z.anlass_am) : z.frueh_ab ? new Date(z.frueh_ab) : null;
+  const zeit = wann ? wann.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  const grund = einst.notaus ? "Not-Aus war an" : !einst.an ? "ARAS war aus" : einst.leerlauf ? "Leerlauf (Deploy)" : grenzen.stufe === 0 ? "Stufe 0 (nur Probeanrufe)"
+    : !grenzen.spielartErlaubt(spielart) ? `„${SPIELART_TEXT[spielart]}“ ist ausgeschaltet`
+    : spielart === "termin" && wann && !fensterOffen("termin", (z.land as Land) || "DE", wann, { fenster: einst.fenster }).offen ? "die Zeit lag außerhalb 08–21 Uhr"
+    : "ARAS kam in der Zeit nicht zum Anrufen";
+  const was = spielart === "termin" ? `Rückruf bei ARAS, vom Kunden selbst gebucht${zeit ? ` für ${zeit} Uhr` : ""}` : `Nachfassen zur Zahlungszusage${zeit ? ` (${zeit} Uhr)` : ""}`;
+  // Ein früherer Grund (z. B. „Twilio: …“ bei einem hängen gebliebenen Eintrag) bleibt hinten stehen — für die Fehlersuche.
+  await lauf`UPDATE fiaon_aras_plan SET verschoben_grund = LEFT(CONCAT_WS(' · ', ${`Rückruf verpasst (${grund}) — Team informiert`}::text, NULLIF(verschoben_grund, '')), 200),
+                    updated_at = NOW() WHERE id = ${Number(z.id)}`;
+  let ref: string | null = z.ref ?? null, wer = "Kunde";
+  if (personId) {
+    const [p] = (await lauf`
+      SELECT p.anrede, p.last_name,
+             (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+               ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1) AS ref
+        FROM fiaon_persons p WHERE p.id = ${personId}`.catch(() => [])) as any[];
+    ref = ref ?? p?.ref ?? null;
+    const anrede = String(p?.anrede ?? "").toLowerCase();
+    wer = [anrede === "frau" ? "Frau" : anrede === "herr" ? "Herr" : "", p?.last_name ?? ""].join(" ").trim() || "Kunde";
+  }
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId, ref, titel: `Rückruf verpasst — bitte anrufen: ${wer}`.slice(0, 160),
+      text: `${was}: ARAS hat nicht angerufen (${grund}). Bitte ruf heute noch an.`, dringend: true, faelligAm: berlinToday(),
+      schluessel: `aras:rueckruf_verpasst:${Number(z.id)}`, quelle: "aras", autorName: "ARAS", anlageText: "Angelegt von ARAS: ein zugesagter Rückruf kam nicht zustande",
+    });
+  } catch (e) { console.error("[ARAS-PLAN] Rückruf verpasst — Aufgabe:", String((e as Error)?.message ?? e).slice(0, 200)); }
+  const { alarmMelden } = await import("./fiaon-system-alarme");
+  await alarmMelden("aras:rueckruf_verpasst", {
+    quelle: "aras", titel: "ARAS: Rückruf verpasst — bitte anrufen", text: `${was} — ${grund}${ref ? ` (Akte ${ref})` : ""}. Aufgabe für das Team ist angelegt.`,
+    stufe: "rot", link: ref ? `/akte/${ref}` : "/chef/s/aras?reiter=probe", endetNachStunden: 24, anhaengen: true,
+  }, lauf).catch(() => null);
+  const { protokollieren } = await import("./fiaon-mara-termin");
+  await protokollieren({ kanal: "telefon", art: "aras_termin", ok: false, personId, nummer: z.nummer ?? null, text: `Rückruf verpasst — bitte anrufen: ${was} (${grund}). Aufgabe für das Team angelegt.`, daten: { planId: Number(z.id), spielart, terminId: z.termin_id ?? null, grund } }, lauf);
+}
+
 export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: Record<string, number>; uebersprungen: Record<string, number>; verfallen: number }> {
   await arasSchema(lauf);
   await globalKundeBereit();
@@ -378,10 +518,19 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   const eingereiht: Record<string, number> = {}, uebersprungen: Record<string, number> = {};
   const zaehl = (s: Spielart, r: { ok: boolean; grund?: string }) => { if (r.ok) eingereiht[s] = (eingereiht[s] ?? 0) + 1; else uebersprungen[`${s}:${(r.grund ?? "").slice(0, 40)}`] = (uebersprungen[`${s}:${(r.grund ?? "").slice(0, 40)}`] ?? 0) + 1; };
   const nummerVon = (z: any) => waehlbareNummer([{ nummer: z.nummer }], z.country).waehlbar;
-  const verfallenR = (await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW() WHERE status = 'wartet' AND spaet_bis < NOW() RETURNING id`) as any[];
   const heute = berlinToday();
-  // Stufenplan (hart): Stufe 0 reiht keinen Kunden ein; darüber nur die Gesprächsarten der Stufe (und des Schalters).
   const grenzen = stufenGrenzen(einst);
+  // Abgelaufenes geht aus der Reihe. Ein Rückruf mit Vorrang (vom Kunden gebucht, ARAS' Zusage-Nachfassen) verfällt nie still
+  // (Koordination 22.10.2026) — auch keiner, der „verschoben“ hängen blieb (Twilio-Fehler, hängender Versuch): jeder bringt die
+  // Meldung „Rückruf verpasst — bitte anrufen“. Das läuft vor jeder Stufen-Prüfung (auch bei Not-Aus und Stufe 0).
+  const verfallenR = (await lauf`
+    UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW()
+     WHERE spaet_bis < NOW() AND (status = 'wartet' OR (status = 'verschoben' AND spielart = ANY(${[...VORRANG_SPIELARTEN] as string[]})))
+     RETURNING id, spielart, person_id, ref, nummer, land, anlass_am, frueh_ab, termin_id`) as any[];
+  for (const z of verfallenR) {
+    if (istVorrang(z.spielart)) await rueckrufVerpasst(z, einst, grenzen, lauf).catch((e) => console.error("[ARAS-PLAN] Rückruf verpasst — Meldung:", String((e as Error)?.message ?? e).slice(0, 200)));
+  }
+  // Stufenplan (hart): Stufe 0 reiht keinen Kunden ein; darüber nur die Gesprächsarten der Stufe (und des Schalters).
   if (grenzen.stufe === 0) return { eingereiht, uebersprungen: { stufe_0: 1 }, verfallen: verfallenR.length };
   const an = (s: Spielart) => grenzen.spielartErlaubt(s);
 
@@ -426,6 +575,32 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
         }, lauf));
       }
     } catch (e) { zaehl("willkommen", { ok: false, grund: `Fehler: ${String((e as Error)?.message ?? e).slice(0, 30)}` }); }
+    // 1c. Koordination 22.10.2026 (21.10.: alle fünf Willkommens-Anrufe Mailbox oder nicht abgenommen — danach kam nichts): genau
+    //     EIN zweiter Versuch, wenn der erste Mailbox oder „nicht erreicht“ ergab. Frühestens 2,5 h danach, im Fenster, höchstens
+    //     24 h nach der Unterschrift (dieselbe spaet_bis-Regel) — dieselben Gründe dagegen wie beim ersten (willkommenSql: bezahlt,
+    //     anderer Anruf in 24 h, Sperre …). Er zählt bei den Grenzen je Person mit; nie ein dritter (genau ein Eintrag davor).
+    try {
+      const zweite = (await lauf.unsafe(`
+        SELECT w.*, e.am AS erster_am FROM (${willkommenSql()}) w
+          JOIN LATERAL (SELECT aa.created_at AS am, aa.ergebnis FROM fiaon_aras_plan x JOIN fiaon_aras_anruf aa ON aa.plan_id = x.id
+                         WHERE x.spielart = 'willkommen' AND x.ref = w.ref ORDER BY aa.id DESC LIMIT 1) e ON TRUE
+         WHERE NOT (w.${WILLKOMMEN_NEIN.map(([k]) => k).join(" OR w.")})
+           AND e.ergebnis IN ('${WILLKOMMEN_OHNE_GESPRAECH.join("', '")}')
+           AND (SELECT COUNT(*) FROM fiaon_aras_plan y WHERE y.spielart = 'willkommen' AND y.ref = w.ref) = 1
+         ORDER BY w.angenommen_am LIMIT 100`)) as any[];
+      for (const z of zweite) {
+        const nummer = nummerVon(z);
+        if (!nummer) { zaehl("willkommen", { ok: false, grund: "keine Nummer" }); continue; }
+        const am = new Date(z.angenommen_am);
+        const fruehAb = new Date(Math.max(Date.now(), new Date(z.erster_am).getTime() + WILLKOMMEN_ZWEITER_NACH_MINUTEN * 60_000));
+        const spaetBis = new Date(am.getTime() + WILLKOMMEN_BIS_STUNDEN * 3600_000);
+        if (fruehAb.getTime() >= spaetBis.getTime()) { zaehl("willkommen", { ok: false, grund: "2. Versuch: 24 h vorbei" }); continue; }
+        zaehl("willkommen", await planEinreihen({
+          personId: Number(z.person_id), ref: z.ref, nummer, spielart: "willkommen", grund: "Willkommen — 2. Versuch (beim ersten niemand erreicht)", erzeugtVon: "takt",
+          fruehAb, spaetBis, anlassAm: am, versuchNr: 2,
+        }, lauf));
+      }
+    } catch (e) { zaehl("willkommen", { ok: false, grund: `Fehler 2. Versuch: ${String((e as Error)?.message ?? e).slice(0, 20)}` }); }
   }
 
   // 2. Zuruf-JA / Antrag-Kästchen / Antrag-Knopf / Meta-Kästchen: frische Einwilligung + Antrag abgeschickt, unbezahlt
@@ -475,29 +650,50 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
 
   // 4. Rate offen (Go-live C, 20.10.2026): JEDE überfällige Rate, Tag 1 bis 45 nach Fälligkeit (Stufe 2/3 dazu heute/morgen fällig)
   //    — mit den bestehenden Grenzen (1/Tag, 3/Woche je Person, Tagesmenge); nie nach Vertragsende, nie bei Abo-/Mahnstopp.
+  //    Koordination 22.10.2026: Die Tage zählen nach dem BERLINER Kalender — der Füller läuft ab 00:04 Berlin, die DB-Sitzung
+  //    rechnet in UTC, CURRENT_DATE war dann noch gestern („Rate 4 heute fällig“ für eine gestern fällige Rate, das Tage-Fenster
+  //    um einen Tag verschoben). Und wer „zahle am …“ gesagt hat, bekommt bis nach der Überweisungszeit keinen Rate-Anruf —
+  //    auch kein schon eingereihter Eintrag (der wird „verschoben“, mit Grund).
   if (an("rate")) {
     const tage = grenzen.regel.rateTage ? [...grenzen.regel.rateTage] : [-1, 0, ...Array.from({ length: RATE_TAGE_BIS }, (_, i) => i + 1)];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(heute)) throw new Error(`Berliner Datum „${heute}“ unlesbar.`);
+    const schwelle = zusageSchwelle(heute);
     const zeilen = (await lauf.unsafe(`
       SELECT r.id AS rate_id, r.rate_nr, r.betrag_cents, r.faellig_am::date::text AS faellig, a.ref, ${PERSON_NUMMER_SQL},
-             (CURRENT_DATE - r.faellig_am::date)::int AS tage
+             (DATE '${heute}' - r.faellig_am::date)::int AS tage, ${zusageTagSql("p.id", schwelle)}::text AS zusage_tag
         FROM fiaon_abo_raten r
         JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
         JOIN fiaon_persons p ON p.id = a.person_id
        WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
          AND ${ERINNERBARE_BESTELLUNG_SQL("a")} AND a.abo_gestoppt_am IS NULL AND a.mahnstopp_am IS NULL
          AND NOT ${RATE_NACH_ENDE_SQL_FUER("a", "r")}
-         AND (CURRENT_DATE - r.faellig_am::date) IN (${tage.filter((x) => Number.isFinite(x)).join(",") || "3"})
+         AND (DATE '${heute}' - r.faellig_am::date) IN (${tage.filter((x) => Number.isFinite(x)).join(",") || "3"})
          AND ${echtePersonSql("p")} AND NOT ${globalKundeSql("p.id")}
        ORDER BY r.betrag_cents DESC LIMIT 300`)) as any[];
     for (const z of zeilen) {
       const nummer = nummerVon(z);
       if (!nummer) continue;
+      if (z.zusage_tag) { zaehl("rate", { ok: false, grund: `Zahlungszusage (Pause bis ${zusagePause(String(z.zusage_tag)).bis})` }); continue; }
       const tage = Number(z.tage);
-      const grund = tage < 0 ? `Rate ${z.rate_nr} morgen fällig` : tage === 0 ? `Rate ${z.rate_nr} heute fällig` : `Rate ${z.rate_nr} seit ${tage} Tagen überfällig`;
-      zaehl("rate", await planEinreihen({
+      const grund = tage < 0 ? `Rate ${z.rate_nr} morgen fällig` : tage === 0 ? `Rate ${z.rate_nr} heute fällig` : tage === 1 ? `Rate ${z.rate_nr} seit gestern überfällig` : `Rate ${z.rate_nr} seit ${tage} Tagen überfällig`;
+      const r = await planEinreihen({
         personId: Number(z.person_id), ref: z.ref, nummer, spielart: "rate", grund, erzeugtVon: "takt", rateId: Number(z.rate_id),
         betragCents: Number(z.betrag_cents ?? 0), fruehAb: abBesterStunde("rate"), spaetBis: fensterEnde("rate", einst), anlassAm: new Date(`${z.faellig}T09:00:00+02:00`), einmalProTag: true,
-      }, lauf));
+      }, lauf);
+      zaehl("rate", r);
+      // Ein älterer, verschobener Rate-Eintrag derselben Person (Zusage-Pause, je Person/Tag voll, Twilio) ist damit abgelöst — sonst
+      // käme er zu seiner alten Zeit zurück und stünde neben dem neuen.
+      if (r.ok && r.id) await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = 'abgelöst durch den neuen Eintrag', updated_at = NOW()
+                                    WHERE person_id = ${Number(z.person_id)} AND spielart = 'rate' AND status = 'verschoben' AND id <> ${r.id}`;
+    }
+    // Schon eingereiht, und inzwischen „zahle am …“ gesagt (Mensch, Mara oder ARAS) → zurückstellen bis nach der Überweisungszeit.
+    const eingereihte = (await lauf.unsafe(`
+      SELECT pl.id, ${zusageTagSql("pl.person_id", schwelle)}::text AS zusage_tag FROM fiaon_aras_plan pl
+       WHERE pl.status = 'wartet' AND pl.spielart = 'rate' AND pl.erzeugt_von = 'takt' AND pl.auftrag_von IS NULL AND pl.person_id IS NOT NULL`)) as any[];
+    for (const g of eingereihte) {
+      if (!g.zusage_tag) continue;
+      await ratePausieren(Number(g.id), zusagePause(String(g.zusage_tag)), einst, lauf);
+      zaehl("rate", { ok: false, grund: "zurückgestellt: Zahlungszusage" });
     }
   }
 
@@ -511,7 +707,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
        WHERE cl.type = 'result' AND cl.outcome = 'erreicht_zahlt_am' AND cl.voided_at IS NULL
          AND (cl.promised_date AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date - 1
          AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.bezahlt_am > cl.created_at)
-         AND (COALESCE(a.payment_status, '') <> 'paid' OR EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= CURRENT_DATE))
+         AND (COALESCE(a.payment_status, '') <> 'paid' OR EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= ${heute}::date))
          AND ${lauf.unsafe(echtePersonSql("p"))} AND NOT ${lauf.unsafe(globalKundeSql("p.id"))}
        ORDER BY cl.created_at DESC LIMIT 200`) as any[];
     for (const z of zeilen) {

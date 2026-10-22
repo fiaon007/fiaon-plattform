@@ -117,7 +117,7 @@ const aufOhne = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Mu
 const aufMit = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma Beispiel GmbH", vertretung: "Frau Martina Muster", fassung: S.KAPITAL_FASSUNG, parameter: P, bezahltAm: "2026-10-21", zweck: null, frist: { beginn: "2026-10-21", ende: "2026-12-16" }, reisepassAm: "2026-10-22" });
 const aufA = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma Beispiel GmbH", vertretung: "Frau Martina Muster", fassung: "IA-KAPITAL-2026-10-19-A", parameter: P, bezahltAm: "2026-10-21", zweck: null, frist: null, reisepassAm: null });
 const INDIVIDUAL = /Individualangebot|Kreditrahmen|Widerruf|Meilenstein|Ziffer 6 Absatz 2\)|zwölf Wochen/;
-ok(/Gründungskosten bezahlt/.test(aufOhne.titel) && /Teil 1/.test(aufOhne.text) && /fünf Werktagen/.test(aufOhne.text) && /Ziffer 2/.test(aufOhne.text) && /Ziffer 7/.test(aufOhne.text) && /Reisepass fehlt noch/.test(aufOhne.text)
+ok(/Gründungskosten bezahlt/.test(aufOhne.titel) && /Teil 1/.test(aufOhne.text) && /fünf Werktagen/.test(aufOhne.text) && /Ziffer 2/.test(aufOhne.text) && /Ziffer 7/.test(aufOhne.text) && /Ausweis \(Reisepass oder Identitätskarte\) fehlt noch/.test(aufOhne.text) && /Betreibungsauszug/.test(aufOhne.text)
   && /Garantie läuft bis 16\.12\.2026/.test(aufOhne.text) && /seit dem 21\.10\.2026/.test(aufOhne.text) && /FIAON-ZWECK/.test(aufOhne.text) && !INDIVIDUAL.test(aufOhne.titel + aufOhne.text),
   "Aufgabe Teil 1 (ohne Reisepass): Ziffer 2 fünf Werktage, Ziffer 7, „Garantie läuft bis 16.12.2026“, kein Individual-Text", aufOhne);
 ok(/seit dem 22\.10\.2026/.test(aufMit.text) && /einreichen bis 29\.10\.2026/.test(aufMit.text) && /Bürgschaft zugesagt/.test(aufMit.text) && /Finanzierung ausgezahlt/.test(aufMit.text),
@@ -126,6 +126,15 @@ ok(/keine Garantie/.test(aufA.text) && !/Garantie läuft bis/.test(aufA.text) &&
 const verm = S.kapitalTeilBezahltVermerk({ angebotRef: "FIAON-IA-CTEST", titel: "Bürgschaftsgebühr", betragCents: 49_900, zweck: "Z2", fristEnde: "2026-12-16", nachGarantiefall: false });
 const vermG = S.kapitalTeilBezahltVermerk({ angebotRef: "FIAON-IA-CTEST", titel: "Bürgschaftsgebühr", betragCents: 49_900, zweck: "Z2", fristEnde: "2026-12-16", nachGarantiefall: true });
 ok(/Bürgschaftsgebühr .* bezahlt \(499 €, Z2\)/.test(verm) && /bleibt beim 16\.12\.2026/.test(verm) && /zu erstatten/.test(vermG), "Vermerk Teil 2/3: bezahlt, Frist bleibt; nach Garantiefall „zu erstatten“", [verm, vermG]);
+// E-417: Kundenfragen — Konditionen, Ausweis, Betreibungsauszug nach abgeschlossener Due Diligence
+const parK = S.kapitalParameterAus({ zinsBasisBp: 180, zinsAufschlagBp: 50, zinsBasisJahre: 5, laufzeitMaxJahre: 15, kartenMax: 12, ddAbgeschlossen: true });
+ok(S.kapitalMitKonditionen(parK) && S.kapitalKonditionenSatz(parK) === "Laufzeit nach Wahl der Auftraggeberin, längstens fünfzehn Jahre; effektiver Jahreszins 1,8 % bei einer Laufzeit bis fünf Jahre, für jedes weitere Laufzeitjahr 0,5 Prozentpunkte mehr",
+  "E-417: Konditionen-Satz (1,8 %, +0,5 je Jahr, bis fünfzehn Jahre)", S.kapitalKonditionenSatz(parK));
+ok(!S.kapitalMitKonditionen(S.kapitalParameterAus({})) && S.kapitalParameterAus({}).ddAbgeschlossen === false, "E-417: ohne Angaben keine Konditionen, Betreibungsauszug bleibt verlangt");
+ok(!S.kapitalUnterlagen(parK).join(" ").includes("Betreibung") && S.kapitalUnterlagen(S.kapitalParameterAus({})).join(" ").includes("Betreibung") && /Identitätskarte/.test(S.kapitalUnterlagen(parK)[0]),
+  "E-417: Ziffer 7 — Ausweis (Pass oder ID), Betreibungsauszug nur ohne abgeschlossene Due Diligence");
+const aufDd = S.kapitalStartAufgabe({ angebotRef: "FIAON-IA-CTEST", firma: "Musterfirma", vertretung: "Frau Muster", fassung: S.KAPITAL_FASSUNG, parameter: { ...S.KAPITAL_VORGABEN, ddAbgeschlossen: true }, bezahltAm: "2026-10-21", zweck: null, frist: null, reisepassAm: null });
+ok(/Betreibungsauszug entfällt/.test(aufDd.text), "E-417: Start-Aufgabe nennt den Verzicht auf den Betreibungsauszug", aufDd.text);
 
 // E-412: die eigene Fristwarnung des Kapital-Angebots — welcher Schritt wann, und die Texte an Justin.
 titel("1d. Fristwarnung nach Ziffer 4 ohne Datenbank (E-412)");

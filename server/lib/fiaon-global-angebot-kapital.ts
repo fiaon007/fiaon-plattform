@@ -407,7 +407,7 @@ export async function kapitalNacharbeit(id: number): Promise<void> {
     `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung auf Sunbiz prüfen (${par.bundesstaat}).`,
     `RECHNUNG: ${kapitalEur(par.preisCents)} netto${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}. Keine automatische Kundenmail (Firmenangebot) — Rechnung/Zahlungsseite bitte persönlich schicken.`,
     "STEUERBERATER: Struktur CH–USA vor der Gründung prüfen lassen (Gesellschafterin Firma oder Inhaber persönlich).",
-    `BÜRGSCHAFT: ${kapitalChf(par.buergschaftChf)}, ${par.buergschaftMonate} Monate, Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV, Auflagen des Prüfberichts (Betreibungsauszug, Jahresrechnung).`,
+    `BÜRGSCHAFT: ${kapitalChf(par.buergschaftChf)}, ${par.buergschaftMonate} Monate, Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV, ${par.ddAbgeschlossen ? "Due Diligence abgeschlossen (kein Betreibungsauszug mehr, E-417)" : "Auflagen des Prüfberichts (Betreibungsauszug, Jahresrechnung)"}.`,
     `JAHRESBETREUUNG: ${kapitalEur(par.jahresCents)} je Jahr ab dem zweiten Jahr (zum Jahrestag der Eintragung).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK}.`,
   ];

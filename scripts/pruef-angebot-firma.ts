@@ -157,7 +157,8 @@ const D: FirmaDaten = { ref: "FIAON-IA-FPRUEF1", fassung: S.FIRMA_FASSUNG, kunde
  *     vertreten hat (Punkt 5). Die Fassung steht in der Prüfsumme (firmaHashEingabe). Anlage 1 unverändert (Prüfung unten).
  */
 // 22.10.2026 bewusst geändert (E-422, Fassung IA-FIRMA-2026-10-22): Nutzung der US-Anschrift (Ziffer 14) und Freistellung (Ziffer 18). Davor: a819be48….
-const PRUEFSUMME_FIRMA_D = "1cc2592373419ed4312a70d6ec2e26169d7b5ac74bc7db615347b6ab73327004";
+// 22.10.2026 abends (E-424): Kontaktperson = Gesellschafter/Geschäftsführung statt FIAON. Davor: 1cc25923….
+const PRUEFSUMME_FIRMA_D = "c2169fd8784afccb1f8fdaf44589ecc2d0356e0c855fa9f2c1a06d49f6e77c38";
 /** Die Prüfsumme der Anlage 1 der Testfirma — Runde 2 darf sie NICHT ändern (das unterschriebene Original bleibt gültig). */
 const PRUEFSUMME_ANLAGE1_D = "ce6bfc306ea38af67f3ec958145381fd7bdd3d200c193ed6dffe158f8b685a8a"; // = Stand vor Runde 2 (aus main 50cde08d nachgerechnet)
 

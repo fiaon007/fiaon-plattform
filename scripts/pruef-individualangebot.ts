@@ -121,7 +121,8 @@ const ohneGarantie = (t: string) => [...S.ANGEBOT_GARANTIE_ETIKETTEN].reduce((x,
 // Danach (01.10.2026, 21:30): Anlage 2 ohne „Entscheidung eines Instituts/prüfen nach eigenen Maßstäben/keine Zusage eines Instituts“.
 // 22.10.2026 bewusst geändert (E-422, Fassung IA-2026-10-22): Registered Agent über unseren Partner — Nutzung der US-Anschrift
 // (Ziffer 10) und Freistellung (Ziffer 12). Davor: 049f39d7….
-const PRUEFSUMME_D_VORHER = "cf0a5c6efef4f7b3ed2600b08b239c21f1271f02eac762f4cf7d6c064c46e80c";
+// 22.10.2026 abends (E-424): Kontaktperson = Gesellschafter/Geschäftsführung statt FIAON (Fassung unverändert, kein Angebot dazwischen angenommen). Davor: cf0a5c6e….
+const PRUEFSUMME_D_VORHER = "d1d2c4501d4a72cfcca3ec517e1d98bcc5cf3f017e70a316d4aabe0da7c05cfa";
 
 // ═══ TEIL 1 ════════════════════════════════════════════════════════════════
 titel("1. Ziffern und Vertragssprache");

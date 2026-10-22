@@ -149,8 +149,68 @@ type KoopAngebot = {
   koop: { wunschWoche: number | null; zeile: string };
   lieferung?: { zeile: string; partnerLink: string } | null;
   aufrufe: Aufrufe | null;
+  empfehlungen?: KoopEmpfehlungen | null;
 };
-function KoopAngebotBlock({ a, kopieren }: { a: KoopAngebot; kopieren: (t: string) => void }) {
+// E-419: Empfehlungen des Partners an FIAON und seine Provision (der Partner sieht dieselbe Liste in seinem Partnerbereich).
+type KoopEmpfehlung = { id: number; name: string; telefon: string | null; email: string | null; notiz: string | null; quelle: string; personId: number | null;
+  gemeldetText: string; bisText: string; standText: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; ausgezahltCents: number };
+type KoopEmpfehlungen = { prozent: number | null; berechnungAusgesetzt: boolean; monate: number; liste: KoopEmpfehlung[];
+  summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string } };
+function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string | null; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
+  const e = a.empfehlungen;
+  const [prozent, setProzent] = useState<string>(e?.prozent != null ? String(e.prozent).replace(".", ",") : "");
+  const [neu, setNeu] = useState<{ name: string; telefon: string; personId: string; notiz: string }>({ name: "", telefon: "", personId: "", notiz: "" });
+  const [zeile, setZeile] = useState<Record<number, { personId: string; ausgezahlt: string }>>({});
+  const basis = `/admin/global/angebote/${a.id}/koop`;
+  const wert = (x: KoopEmpfehlung) => zeile[x.id] ?? { personId: x.personId != null ? String(x.personId) : "", ausgezahlt: (x.ausgezahltCents / 100).toFixed(2).replace(".", ",") };
+  return (
+    <div className="cg-begleit-annahme" data-koop-empfehlungen={e?.liste.length ?? 0}>
+      <p className="cm-klartext"><b>Empfehlungen an FIAON & Provision</b> · zählt {e?.monate ?? 12} Monate ab Meldung, ohne Durchlaufkosten (Gründung, Fast-Track)</p>
+      <div className="cg-form cg-form-breit">
+        <label>Provision in %<input inputMode="decimal" value={prozent} placeholder="z. B. 30" onChange={(ev) => setProzent(ev.target.value)} /></label>
+        <div className="cg-form-knoepfe">
+          <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kp${a.id}`} onClick={() => aktion(`kp${a.id}`, `${basis}/provision`, { prozent: prozent.trim() === "" ? null : prozent })}>Provision speichern</button>
+          <button type="button" className="cg-knopf" disabled={busy === `kb${a.id}`} onClick={() => aktion(`kb${a.id}`, `${basis}/provision`, { berechnungAusgesetzt: !e?.berechnungAusgesetzt })}>
+            {e?.berechnungAusgesetzt ? "Berechnung der Kontakte wieder einschalten" : "Berechnung der Kontakte aussetzen (0 €)"}
+          </button>
+        </div>
+        <span className="cm-fein">{e?.berechnungAusgesetzt ? "Ausgesetzt: übermittelte Kontakte kosten 0 €, keine Monatsrechnung, kein Start-Rahmen." : "Kontakte werden nach Vertrag berechnet."}</span>
+      </div>
+      {e && e.liste.length > 0 && (
+        <div className="cm-tab-halter"><table className="cm-tab cg-teile">
+          <thead><tr><th>Empfehlung</th><th>Gemeldet</th><th>Person</th><th>Stand</th><th>Umsatz</th><th>Provision</th><th>Ausgezahlt</th><th>Offen</th><th></th></tr></thead>
+          <tbody>
+            {e.liste.map((x) => (
+              <tr key={x.id}>
+                <td><b>{x.name}</b>{x.telefon ? ` · ${x.telefon}` : ""}{x.notiz ? <span className="cm-fein"><br />{x.notiz}</span> : null}<span className="cm-fein"><br />{x.quelle === "partner" ? "vom Partner gemeldet" : "von FIAON eingetragen"}</span></td>
+                <td>{x.gemeldetText}<span className="cm-fein"><br />zählt bis {x.bisText}</span></td>
+                <td><input style={{ width: 80 }} inputMode="numeric" value={wert(x).personId} placeholder="Nr." onChange={(ev) => setZeile({ ...zeile, [x.id]: { ...wert(x), personId: ev.target.value } })} />
+                  <button type="button" className="cg-knopf" disabled={busy === `ke${x.id}`} onClick={() => aktion(`ke${x.id}`, `${basis}/empfehlung/${x.id}`, { personId: wert(x).personId.trim() === "" ? null : Number(wert(x).personId) })}>Zuordnen</button></td>
+                <td>{x.standText}</td><td>{x.umsatz}</td><td><b>{x.provision}</b></td>
+                <td><input style={{ width: 80 }} inputMode="decimal" value={wert(x).ausgezahlt} onChange={(ev) => setZeile({ ...zeile, [x.id]: { ...wert(x), ausgezahlt: ev.target.value } })} />
+                  <button type="button" className="cg-knopf" disabled={busy === `kz${x.id}`} onClick={() => aktion(`kz${x.id}`, `${basis}/empfehlung/${x.id}`, { ausgezahltCents: Math.round(Number(wert(x).ausgezahlt.replace(/\./g, "").replace(",", ".")) * 100) })}>Speichern</button></td>
+                <td>{x.offen}</td>
+                <td><button type="button" className="cg-knopf" disabled={busy === `kx${x.id}`} onClick={() => { if (window.confirm(`Empfehlung „${x.name}“ entfernen?`)) void aktion(`kx${x.id}`, `${basis}/empfehlung/${x.id}`, { entfernen: true }); }}>Entfernen</button></td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot><tr><td colSpan={4}><b>Summe</b></td><td>{e.summe.umsatz}</td><td><b>{e.summe.provision}</b></td><td>{e.summe.ausgezahlt}</td><td><b>{e.summe.offen}</b></td><td></td></tr></tfoot>
+        </table></div>
+      )}
+      <div className="cg-form cg-form-breit" data-form="koop-empfehlung">
+        <label>Name (Person oder Firma)<input value={neu.name} onChange={(ev) => setNeu({ ...neu, name: ev.target.value })} /></label>
+        <label>Telefon (freiwillig)<input value={neu.telefon} onChange={(ev) => setNeu({ ...neu, telefon: ev.target.value })} /></label>
+        <label>Personen-Nr. (wenn schon bei uns)<input inputMode="numeric" value={neu.personId} onChange={(ev) => setNeu({ ...neu, personId: ev.target.value })} /></label>
+        <label>Notiz<input value={neu.notiz} placeholder="z. B. Selbständig, 4 Firmen, braucht Liquidität" onChange={(ev) => setNeu({ ...neu, notiz: ev.target.value })} /></label>
+        <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kn${a.id}` || neu.name.trim().length < 3} onClick={async () => {
+          const r = await aktion(`kn${a.id}`, `${basis}/empfehlung`, { name: neu.name, telefon: neu.telefon, notiz: neu.notiz, personId: neu.personId.trim() === "" ? null : Number(neu.personId) });
+          if (r.ok) setNeu({ name: "", telefon: "", personId: "", notiz: "" });
+        }}>Empfehlung eintragen</button></div>
+      </div>
+    </div>
+  );
+}
+function KoopAngebotBlock({ a, aktion, busy, kopieren }: { a: KoopAngebot; busy: string | null; kopieren: (t: string) => void; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
   return (
     <section className={`cz-block cg-angebot cg-${a.status}`} data-angebot={a.ref} data-art="koop">
       <header className="cg-angebot-kopf">
@@ -172,6 +232,7 @@ function KoopAngebotBlock({ a, kopieren }: { a: KoopAngebot; kopieren: (t: strin
           <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Kontakte halten Mitarbeiter in der Akte unter „Partner-Termin“ fest; Rechnung automatisch am Monatsersten.</p>
         </div>
       )}
+      {a.status === "angenommen" && <KoopEmpfehlungBlock a={a} aktion={aktion} busy={busy} />}
       <AufrufBlock x={a.aufrufe} />
     </section>
   );
@@ -758,7 +819,7 @@ export default function ChefGlobalAngebote() {
         // E-301: Firmenangebote haben ihren eigenen Block (Teile, Garantie, Beteiligungen, Kündigung).
         // E-312: Begleitverträge für Bestandskunden — schlanker Block (LLC-Namen, Wahl, Link, Vertrag).
         if ((a as unknown as { art?: string }).art === "begleit") return <BegleitAngebotBlock key={a.id} a={a as unknown as BegleitAngebot} kopieren={kopieren} />;
-        if ((a as unknown as { art?: string }).art === "koop") return <KoopAngebotBlock key={a.id} a={a as unknown as KoopAngebot} kopieren={kopieren} />;
+        if ((a as unknown as { art?: string }).art === "koop") return <KoopAngebotBlock key={a.id} a={a as unknown as KoopAngebot} aktion={aktion} busy={busy} kopieren={kopieren} />;
         if ((a as unknown as { art?: string }).art === "kapital") return <KapitalAngebotBlock key={a.id} a={a as unknown as KapitalAngebot} aktion={aktion} busy={busy} kopieren={kopieren} />;
         if ((a as unknown as { art?: string }).art === "firma") return <FirmaAngebotBlock key={a.id} a={a as unknown as FirmaAngebot} aktion={aktion} busy={busy} kopieren={kopieren} buerginFelder={V.buerginFelder} />;
         const t1 = a.teile.find((t) => t.nr === 1); const t2 = a.teile.find((t) => t.nr === 2);

@@ -13,6 +13,7 @@ import { useRoute } from "wouter";
 import { KOOP_TERMIN_ARTEN, KOOP_ZEITEN_DAUER, type KoopLieferStand } from "@shared/fiaon-koop-lieferung";
 import { NETZ_BEREICHE, NETZ_BEREICH_NAME, NETZ_PFAD, type NetzBereich } from "@shared/fiaon-partnernetz";
 import { demoSicht } from "@/lib/koop-partner-demo";
+import { KOOP_EMPFEHLUNG_TEXTE } from "@shared/fiaon-koop-empfehlung";
 import "@/styles/koop-partner.css";
 
 interface Kontakt {
@@ -28,7 +29,59 @@ interface Sicht {
   gruende: { key: string; text: string }[]; kontakte: Kontakt[]; rechnungen: Rechnung[];
   verlauf?: { monat: string; monatText: string; kontakte: number; reklamiert: number; betragCents: number; laufend: boolean }[];
   modell?: "kontakt" | "abschluss" | "platz"; einheit?: string; kontakteTitel?: string; sparten?: { name: string; betrag: string }[];
+  // E-419: Empfehlungen an FIAON mit Provision; „Berechnung ausgesetzt“ = Kontakte vorerst ohne Berechnung.
+  empfehlungen?: Empfehlungen | null; berechnungAusgesetzt?: boolean;
   demo?: boolean; demoBereich?: NetzBereich; demoWorte?: { kontakteTitel: string; einheit: string; partner: string; gruss: string; modell: string; platz?: boolean; ohneZeiten?: boolean };
+}
+interface Empfehlungen {
+  prozent: number | null; monate: number;
+  liste: { id: number; name: string; gemeldetText: string; bisText: string; standText: string; stand: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; quelle: string }[];
+  summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string };
+}
+/** E-419: Ihre Empfehlungen an FIAON — wer von Ihnen kam, was er gezahlt hat und Ihre Provision; dazu „Jemanden empfehlen“. */
+function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: string | null; senden: (was: string, pfad: string, body: unknown) => Promise<any> }) {
+  const [form, setForm] = useState({ name: "", telefon: "", email: "", notiz: "", einverstanden: false });
+  const T = KOOP_EMPFEHLUNG_TEXTE;
+  return (
+    <section className="kpb-karte kpb-empf" aria-label={T.titel}>
+      <h2>{T.titel}{e.liste.length > 0 && <span className="kpb-zahl-marke">{e.liste.length}</span>}</h2>
+      {e.prozent != null && <p className="kpb-fein">{T.sub(e.prozent)}</p>}
+      <div className="kpb-jahr-kacheln">
+        <div><small>Empfehlungen</small><b>{e.liste.length}</b></div>
+        <div><small>Ihre Provision</small><b>{e.summe.provision}</b></div>
+        <div><small>Davon offen</small><b>{e.summe.offen}</b></div>
+      </div>
+      {e.liste.length === 0 ? <p className="kpb-fein">{T.leer}</p> : (
+        <ul className="kpb-rechnungen kpb-empf-liste">
+          {e.liste.map((x) => (
+            <li key={x.id}>
+              <span><b>{x.name}</b> · gemeldet {x.gemeldetText}</span>
+              <span><em className={x.stand === "kunde" ? "gut" : x.stand === "im_gespraech" ? "offen" : ""}>{x.standText}</em> · Umsatz {x.umsatz}</span>
+              <span>Provision <b>{x.provision}</b>{x.ausgezahlt !== "0,00 €" ? ` · ausgezahlt ${x.ausgezahlt}` : ""}<small className="kpb-fein"> · zählt bis {x.bisText}</small></span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="kpb-empf-form">
+        <h3>{T.meldenTitel}</h3>
+        <p className="kpb-fein">{T.meldenHinweis}</p>
+        <div className="kpb-felder">
+          <label>Name (Person oder Firma)<input value={form.name} onChange={(ev) => setForm({ ...form, name: ev.target.value })} /></label>
+          <label>Telefon<input type="tel" value={form.telefon} onChange={(ev) => setForm({ ...form, telefon: ev.target.value })} /></label>
+          <label>E-Mail<input type="email" value={form.email} onChange={(ev) => setForm({ ...form, email: ev.target.value })} /></label>
+        </div>
+        <label className="kpb-voll">Worum geht es? (freiwillig)<textarea rows={2} maxLength={500} value={form.notiz} onChange={(ev) => setForm({ ...form, notiz: ev.target.value })} /></label>
+        <label className="kpb-haken"><input type="checkbox" checked={form.einverstanden} onChange={(ev) => setForm({ ...form, einverstanden: ev.target.checked })} /> {T.einverstanden}</label>
+        <div className="kpb-tun">
+          <button type="button" className="kpb-knopf" disabled={laeuft === "empf" || form.name.trim().length < 3 || !form.einverstanden}
+            onClick={() => void senden("empf", "/empfehlung", form).then((j) => { if (j) setForm({ name: "", telefon: "", email: "", notiz: "", einverstanden: false }); })}>
+            {laeuft === "empf" ? "Speichert …" : "Empfehlung senden"}
+          </button>
+        </div>
+      </div>
+      <p className="kpb-fein">{T.fein}</p>
+    </section>
+  );
 }
 const eurKurz = (c: number) => `${Math.round(c / 100).toLocaleString("de-DE")} €`;
 const MON_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
@@ -124,7 +177,7 @@ export default function KoopPartnerPage() {
         )}
         <p className="kpb-marke">FIAON · Partner-Kooperation</p>
         <h1>Willkommen in Ihrem Partnerbereich, {sicht.gruss}.</h1>
-        <p className="kpb-lead">{sicht.modell === "abschluss" || sicht.demoWorte?.ohneZeiten ? "Hier geben Sie Ihre Zeiten frei, sehen jeden Kunden und melden Abschlüsse mit einem Klick." : sicht.modell === "platz" || sicht.demoWorte?.platz ? "Hier geben Sie Ihre Zeiten frei und sehen jeden Termin und jede Rechnung." : "Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick."} {demo ? `${sicht.partner} · ${sicht.preis}` : `Vertrag ${sicht.ref} · ${sicht.preis}${sicht.modell && sicht.modell !== "kontakt" ? "" : " netto je Kontakt"}`}.</p>
+        <p className="kpb-lead">{sicht.modell === "abschluss" || sicht.demoWorte?.ohneZeiten ? "Hier geben Sie Ihre Zeiten frei, sehen jeden Kunden und melden Abschlüsse mit einem Klick." : sicht.modell === "platz" || sicht.demoWorte?.platz ? "Hier geben Sie Ihre Zeiten frei und sehen jeden Termin und jede Rechnung." : "Hier geben Sie Ihre Zeiten frei, sehen jeden Termin und reklamieren mit einem Klick."} {demo ? `${sicht.partner} · ${sicht.preis}` : sicht.berechnungAusgesetzt ? `Vertrag ${sicht.ref} · für die Zusammenarbeit berechnen wir derzeit nichts` : `Vertrag ${sicht.ref} · ${sicht.preis}${sicht.modell && sicht.modell !== "kontakt" ? "" : " netto je Kontakt"}`}.</p>
 
         <section className="kpb-stand" aria-label="Ihr Stand">
           <div><small>Diese Woche</small><b>{s.woche.geliefert} <span>von {s.woche.wunsch}</span></b></div>
@@ -135,6 +188,8 @@ export default function KoopPartnerPage() {
         </section>
 
         {meldung && <p className="kpb-meldung" role="status">{meldung}</p>}
+
+        {sicht.empfehlungen && <IhreEmpfehlungen e={sicht.empfehlungen} laeuft={laeuft} senden={async (was, pfad, body) => { const j = await senden(was, pfad, body); if (j) setMeldung("Danke — Ihre Empfehlung steht in Ihrer Liste. Wir melden uns bei der Person."); return j; }} />}
 
         {sicht.verlauf && sicht.verlauf.length > 0 && <JahrInZahlen v={sicht.verlauf} einheit={einheit} platz={!!sicht.demoWorte?.platz || sicht.modell === "platz"} />}
 
@@ -219,7 +274,7 @@ export default function KoopPartnerPage() {
 
         <section className="kpb-karte">
           <h2>Ihre Rechnungen</h2>
-          {sicht.rechnungen.length === 0 ? <p className="kpb-fein">Die erste Rechnung kommt am Ersten des Folgemonats — mit Aufstellung jedes Kontakts.</p> : (
+          {sicht.rechnungen.length === 0 ? <p className="kpb-fein">{sicht.berechnungAusgesetzt ? "Für die Zusammenarbeit berechnen wir derzeit nichts — hier erscheint keine Rechnung." : "Die erste Rechnung kommt am Ersten des Folgemonats — mit Aufstellung jedes Kontakts."}</p> : (
             <ul className="kpb-rechnungen">
               {sicht.rechnungen.map((r) => (
                 <li key={r.monat}>

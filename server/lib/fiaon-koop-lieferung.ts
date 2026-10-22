@@ -16,6 +16,7 @@
 //   bei jeder Rechnung. Reverse Charge steht an der Zeile. Keine Provision, keine Kontostufe (abschlussNachZahlung
 //   überspringt den Schlüssel), keine Privat-Zahlungsmail (payment_email_sent_at beim Anlegen gesetzt).
 // ═══════════════════════════════════════════════════════════════════════════
+import { koopBerechnungAusgesetzt } from "@shared/fiaon-koop-empfehlung";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -162,7 +163,8 @@ export async function koopLieferStand(z: AngebotZeile, l: Lauf = sqlPool, jetzt 
       COUNT(*) FILTER (WHERE ersatz_fuer_id IS NOT NULL AND status <> 'storniert')::int AS ersatz_geliefert
       FROM fiaon_koop_kontakte WHERE angebot_id = ${id}`) as any[];
   const ersatzOffen = Math.max(0, Number(c?.ersatz_anspruch ?? 0) - Number(c?.ersatz_geliefert ?? 0));
-  const startRahmen = ersteBezahlt || koopModellVon(d.parameter.bereich) === "platz" ? null : { geliefert: Number(c?.start ?? 0), deckel: d.parameter.startDeckel };
+  // E-419: Ist die Berechnung ausgesetzt, gibt es keine Rechnung, die den Start-Rahmen je lösen könnte — dann kein Start-Rahmen.
+  const startRahmen = ersteBezahlt || koopModellVon(d.parameter.bereich) === "platz" || koopBerechnungAusgesetzt(schalterAus(z)) ? null : { geliefert: Number(c?.start ?? 0), deckel: d.parameter.startDeckel };
   const wunsch = w?.wunschWoche ?? 0;
   const zeiten = zeitenAus(z);
   const aktiv = vertragAktiv(z, heute);
@@ -381,7 +383,8 @@ export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEinga
   const wortlaut = `${koopEinwilligungText(d.partner, thema, bereich)} ${KOOP_EINWILLIGUNG_FRAGE} — Antwort des Kunden: Ja.`;
   const ewFassung = koopEinwilligungFassung(bereich);
   // Je Kontakt berechnet wird nur Vorsorge; Abschlüsse bekommen ihren Preis bei der Meldung, der Partnerplatz nie je Kontakt.
-  const kontaktPreis = modell === "kontakt" ? d.parameter.preisCents : 0;
+  // E-419: „Berechnung ausgesetzt“ (Justin an Chehade 22.10.: „verrechnen tun wir einstweilen nichts“) — Kontakte kosten 0 €.
+  const kontaktPreis = modell === "kontakt" && !koopBerechnungAusgesetzt(schalterAus(z)) ? d.parameter.preisCents : 0;
 
   let ergebnis: { id: number; ersatz: boolean } | { fehler: string; status: number };
   try {
@@ -629,9 +632,13 @@ export async function koopPartnerSicht(z: AngebotZeile, jetzt = new Date()): Pro
     const x = roh.find((y) => y.m === m);
     return { monat: m, monatText: koopMonatText(m), kontakte: Number(x?.n ?? 0), reklamiert: Number(x?.r ?? 0), betragCents: Number(x?.c ?? 0), laufend: m === jetztMonat };
   }) : [];
+  // E-419: Empfehlungen des Partners an FIAON mit Provision — scheitert das Lesen, fehlt nur dieser Teil.
+  const empfehlungen = await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlungSicht(z)).catch((e) => { console.error("[KOOP] Empfehlungen:", e); return null; });
   return {
     ok: true,
     verlauf,
+    empfehlungen: empfehlungen && (empfehlungen.prozent != null || empfehlungen.liste.length) ? empfehlungen : null,
+    berechnungAusgesetzt: koopBerechnungAusgesetzt(schalterAus(z)),
     modell, bereich: d.parameter.bereich, einheit: B.einheit,
     sparten: modell === "abschluss" ? (B.sparten ?? []).map((name, i) => ({ name, betrag: koopEur(i === 0 ? d.parameter.preisCents : d.parameter.zweitCents) })) : [],
     kontakteTitel: modell === "platz" ? `Ihre ${B.einheit}` : modell === "abschluss" ? "Ihre Kunden" : "Ihre Termine",

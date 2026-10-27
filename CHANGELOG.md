@@ -5,6 +5,15 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — Chefbüro am Handy (E-430): keine Seite ist breiter als das Telefon
+- **Was:** Neue Schicht `client/src/styles/chefbuero-handy.css` (lädt zuletzt; am Rechner ändert sie nichts). Raster bekommen eine
+  Untergrenze (`minmax(0, 1fr)`), breite Tabellen werden am Handy Karten je Zeile (Klasse `.hk` mit `data-label`) oder rollen in ihrem
+  Rahmen, Reiter- und Filterleisten rollen in sich statt die Seite zu verbreitern, Knöpfe mindestens 44 px, lange Referenzen brechen um.
+  Angepasst u. a. Lagezimmer, Global-Aufträge, Seitenverzeichnis, ChefShell und die Stile von ARAS, Global, KI, Lead-Motor, Partner-CRM,
+  Postfach, Postmeister, Radar, Telefonkartei, Zahlen.
+- **Warum:** Justin (iPhone-Fotos): „Die /chef-Seiten sind nicht responsiv optimiert — auf keiner Seite passt es.“
+- **Geprüft:** 25 Chefbüro-Seiten auf dem lokalen Prüfstand bei 390 px — jede genau 390 px breit (kein seitliches Überstehen).
+
 ## 23.10.2026 — FIAON Global: Oberfläche für Dokumente & Unterschriften (Portal, Chefbüro, Office)
 - **Kunde (Portal):** Unter „Für Sie zu tun“ erscheinen die Dokumente in sinnvoller Reihenfolge (Ergänzung, Statement,
   Operating Agreement, IRS-Formulare). „Jetzt unterschreiben“ öffnet ein ruhiges Fenster (am Handy als Blatt von unten):

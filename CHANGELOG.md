@@ -5,6 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — FIAON Global (E-436): Löschung einer früheren Gesellschaft steht automatisch im Fahrplan
+- **Was:** Neue Station „Frühere Gesellschaft gelöscht“ (nur bei Bedarf — der Kunde sieht sie erst, wenn sie im Mandat angelegt ist; zählt nur
+  dann zum Fortschritt). Der halbstündliche Abgleich (`global_begleit_name` → `globalAkteAbgleich`) legt sie selbst an, sobald eine
+  Löschungsrechnung (llc_loeschung) der Person bezahlt ist — „in Arbeit“, mit der Gesellschaft aus dem Bestellnamen. „Als Nächstes“ und
+  Feld „Frühere Gesellschaft (Name · Bundesstaat · Nummer)“ im Stationen-Editor wie bei jeder Station.
+- **Warum:** Justin: „Sollte das mit der Löschung nicht automatisch dort mit eingetragen werden? Das muss ja alles 100 % synchron laufen.“
+- **Wo:** `shared/fiaon-global-mandat.ts` (GLOBAL_FAHRPLAN, nurBeiBedarf), `shared/fiaon-global-stationen.ts`, `server/lib/fiaon-global-akte-komplett.ts`.
+
 ## 27.10.2026 — FIAON Global (E-432): Rechnung „Behördliche Löschung US-Gesellschaft“ + Rechnungs-Werkzeug bucht mit
 - **Was:** Neuer Katalogeintrag `llc_loeschung` (132,63 € = 149,00 USD zum EZB-Kurs vom 26.10.2026, Fremdkosten ohne Aufschlag,
   Einmalkauf, Zahlungsseite global, keine Partner-Provision). `scripts/einzelrechnung-anlegen.ts` kann jetzt einen schon überwiesenen

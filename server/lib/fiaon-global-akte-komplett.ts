@@ -425,6 +425,40 @@ export async function begleitNamenAbgleich(): Promise<{ geprueft: number; gesetz
   return erg;
 }
 
+// ── 5c DIE LÖSCHUNG EINER FRÜHEREN GESELLSCHAFT IM FAHRPLAN (27.10.2026) ──────
+// Justin: „Sollte das mit der Löschung nicht automatisch dort mit eingetragen werden? Das muss ja alles 100 % synchron laufen.“
+// Ist eine Löschungsrechnung (llc_loeschung) der Person bezahlt, legt dieser Abgleich die Station „Frühere Gesellschaft gelöscht“
+// in ihrer Global-Akte an (in Arbeit), mit der Gesellschaft aus dem Bestellnamen („… (Name, Bundesstaat)“). Danach pflegt das
+// Team sie wie jede Station (erledigt, sobald gelöscht). Einmal angelegt, fasst der Lauf sie nie wieder an. Keine Mail.
+export async function vorgesellschaftAbgleich(): Promise<{ geprueft: number; gesetzt: string[]; fehler: number }> {
+  const erg = { geprueft: 0, gesetzt: [] as string[], fehler: 0 };
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_schritte') AS s`) as any[];
+  if (!t?.s) return erg;
+  const faelle = (await sqlPool`
+    SELECT DISTINCT ON (g.ref) g.ref, a.pack_name, a.paid_at, a.completed_at
+      FROM fiaon_global_auftraege g
+      JOIN fiaon_applications a ON a.person_id = g.person_id AND a.pack_key = 'llc_loeschung' AND a.payment_status = 'paid' AND a.merged_into IS NULL
+     WHERE g.status <> 'storniert' AND g.person_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.schluessel = 'vorgesellschaft')
+     ORDER BY g.ref, a.created_at DESC`) as any[];
+  const { globalStationSpeichern } = await import("./fiaon-global-mandat");
+  for (const f of faelle) {
+    erg.geprueft++;
+    const klammer = String(f.pack_name ?? "").match(/\(([^)]+)\)\s*$/)?.[1]?.trim() ?? "";
+    const r = await globalStationSpeichern(String(f.ref), {
+      schluessel: "vorgesellschaft", status: "in_arbeit", ...(klammer ? { werte: { vorGesellschaft: klammer.replace(/,\s*/g, " · ") } } : {}),
+    }, { id: 0, name: "Abgleich Löschungsrechnung" }).catch((e) => ({ ok: false as const, status: 500, error: String(e?.message ?? e) }));
+    if (r.ok) { erg.gesetzt.push(String(f.ref)); console.log(`[GLOBAL-AKTE] ${f.ref}: Station „Frühere Gesellschaft gelöscht“ angelegt (${klammer || "ohne Namen"})`); }
+    else { erg.fehler++; console.error(`[GLOBAL-AKTE] ${f.ref}: Löschung nicht in den Fahrplan — ${r.error}`); }
+  }
+  return erg;
+}
+
+/** Der halbstündliche Abgleich der Global-Akten (Lauf global_begleit_name): geprüfter Name und Löschung einer früheren Gesellschaft. */
+export async function globalAkteAbgleich(): Promise<{ name: Awaited<ReturnType<typeof begleitNamenAbgleich>>; loeschung: Awaited<ReturnType<typeof vorgesellschaftAbgleich>> }> {
+  return { name: await begleitNamenAbgleich(), loeschung: await vorgesellschaftAbgleich() };
+}
+
 // ── 6 VON HAND UNTERSCHRIEBEN: DER SCAN ALS PDF (22.10.2026) ─────────────────
 // Unser Registered-Agent-Partner verlangt für das IRS-Formular SS-4 (Kunden ohne SSN/ITIN) eine Unterschrift mit Tinte.
 // Der Kunde druckt, unterschreibt und datiert von Hand, scannt als PDF und lädt hoch — oder das Team lädt den Scan in

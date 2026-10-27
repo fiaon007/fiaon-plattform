@@ -21,6 +21,21 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   server/lib/fiaon-gmail.ts (nachrichtInPapierkorb), server/lib/fiaon-zustellung.ts, Texte in shared/fiaon-global-konto.ts und
   shared/fiaon-global-unterschrift.ts. Gegengeprüft von drei Prüfern mit Widerlegungsrunde.
 
+## 27.10.2026 — E-302 Scheibe 2: Die gemeinsame Person allein öffnet kein fremdes Konto mehr
+
+- **Warum:** Nach Scheibe 1 blieb ein Restweg. Wer eine Antragszeile mit der Adresse eines Menschen anlegt, BEVOR dieser selbst
+  zahlt (oder wenn sein bezahltes Konto kein Passwort trägt), hängt über den E-Mail-Alias an derselben Person — und sein
+  Passwort öffnete über diese Verbindung das bezahlte Konto.
+- **Was:** Die Login-Entscheidung (`darfKontoOeffnen` in server/fiaon-login-logic.ts) lässt eine andere Zeile nur noch öffnen,
+  wenn sie dieselbe ist, zusammengeführt wurde ODER — bei einer Verbindung nur über die Person — Nachname und Geburtsdatum der
+  beiden Zeilen übereinstimmen (das Datum aus der Zeile, nie von der gemeinsamen Person). Den Vornamen verlangen wir bewusst
+  nicht: echte Kunden schreiben ihn in zwei Anträgen auch mal verschieden.
+- **Gegen echte Daten gemessen (nur lesend):** alte gegen neue Kontoauswahl für alle Login-Familien — keine einzige echte
+  Anmeldung ändert sich; drei absichtlich untergeschobene Zeilen werden erkannt.
+- **Prüfstände:** scripts/pruef-login-familie-fremdzeile.ts (Scheibe-2-Fälle: Fremdzeile vorher, Konto mit/ohne Passwort,
+  Tippfehler im Vornamen, Zusammenführung), scripts/pruef-e302-anmeldung.ts Fall 6 (über HTTP: Fremdzeile angelegt, dann
+  zahlt der Mensch; Gegenprobe derselbe Mensch) — gegen den Stand davor rot.
+
 ## 27.10.2026 — E-302: Drei Anmelde-Lücken im Antrag/Login geschlossen (gebaut 08.10., heute auf main gebracht)
 
 - **Warum:** Eine Gegenprüfung (E-IT-G, 08.10.) fand drei Wege, ein fremdes Kundenkonto zu übernehmen. Die Reparatur war am

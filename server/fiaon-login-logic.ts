@@ -190,6 +190,9 @@ export function storedPasswordOf(row: any): string | null {
  * Eine frisch untergeschobene Zeile hat KEINE person_id (der Insert setzt
  * keine, der Kontakt-Trigger fasst null-Personen nicht an) und ist in nichts
  * zusammengeführt — sie gehört damit nur zu sich selbst.
+ * KORREKTUR 27.10.2026 (E-302): Das stimmt nur bis zum Ende von /application —
+ * dort hängt bindePersonAnAntrag die Zeile über ihren E-Mail-Alias an die
+ * Person. Die Login-Entscheidung fragt deshalb darfKontoOeffnen (unten).
  */
 export function selberKunde(a: any, b: any): boolean {
   if (!a || !b) return false;
@@ -201,6 +204,38 @@ export function selberKunde(a: any, b: any): boolean {
   if (b.merged_into && b.merged_into === a.ref) return true;
   if (a.merged_into && b.merged_into && a.merged_into === b.merged_into) return true;
   return false;
+}
+
+/**
+ * Darf das Passwort aus Zeile `treffer` die Zeile `konto` öffnen? (E-302 Scheibe 2, 27.10.2026)
+ *
+ * ── DER RESTWEG, DEN DAS SCHLIESST ────────────────────────────────────────
+ * Die person_id setzt niemand von Hand: bindePersonAnAntrag hängt jede neue
+ * Antragszeile über ihren E-Mail- oder Telefon-Alias an eine Person. Wer eine
+ * Zeile mit der Adresse eines Menschen anlegt, BEVOR dieser selbst zahlt (oder
+ * dessen bezahltes Konto kein Passwort trägt), landet an derselben Person — und
+ * sein Passwort öffnete über selberKunde das bezahlte Konto.
+ *
+ * ── DIE REGEL ─────────────────────────────────────────────────────────────
+ * Dieselbe Zeile und eine Zusammenführung (merged_into) sind bewusst gesetzt
+ * und gelten wie bisher. Hängt eine fremde Zeile NUR über die Person am Treffer,
+ * müssen beide Zeilen selbst denselben Nachnamen und dasselbe Geburtsdatum
+ * tragen — das Datum aus der ZEILE, nie von der gemeinsamen Person (die wäre
+ * bei einer untergeschobenen Zeile ja dieselbe). Den Vornamen verlangen wir
+ * nicht: Gemessen am 27.10. (alle Login-Familien, nur lesend) öffnen 27
+ * Passwort-Zeilen über die Person ein anderes Konto, alle mit gleichem Nachnamen
+ * und Geburtsdatum — zwei davon mit anders geschriebenem Vornamen.
+ */
+export function darfKontoOeffnen(konto: any, treffer: any): boolean {
+  if (!selberKunde(konto, treffer)) return false;
+  if (konto.ref && konto.ref === treffer.ref) return true;
+  if (konto.merged_into && konto.merged_into === treffer.ref) return true;
+  if (treffer.merged_into && treffer.merged_into === konto.ref) return true;
+  if (konto.merged_into && treffer.merged_into && konto.merged_into === treffer.merged_into) return true;
+  const nachname = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
+  const nk = nachname(konto.last_name);
+  const gk = birthdateKey(konto.birthdate);
+  return nk !== "" && nk === nachname(treffer.last_name) && gk !== null && gk === birthdateKey(treffer.birthdate);
 }
 
 /**
@@ -356,7 +391,9 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
   // Für echte Familien (Konto + SCHUFA-Zeile + zusammengeführte Dubletten,
   // alle dieselbe Person/Kette) ist die Auswahl Zeile für Zeile dieselbe wie
   // zuvor — belegt in scripts/pruef-login-familie-fremdzeile.ts.
-  const kontoZeilen = rows.filter((r) => selberKunde(r, matched));
+  // E-302 Scheibe 2 (27.10.2026): Über die gemeinsame Person allein öffnet das Passwort keine fremde Zeile mehr —
+  // dort müssen Nachname und Geburtsdatum der Zeilen übereinstimmen (darfKontoOeffnen).
+  const kontoZeilen = rows.filter((r) => darfKontoOeffnen(r, matched));
   const account = pickAccountRow(kontoZeilen.length ? kontoZeilen : [matched], matched) ?? matched;
 
   // ── HIER STAND DAS ZAHLUNGS-TOR (entfernt am 27.08.2026) ────────────────

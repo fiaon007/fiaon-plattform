@@ -92,5 +92,39 @@ const dubletteUrteil = decideLogin(mitDublette, "Opfer-Geheim-2026");
 ok(dubletteUrteil.granted && (dubletteUrteil as any).account?.ref === opferKonto.ref,
   `Dublette derselben Person: Passwort an der Dublette öffnet das Konto (${(dubletteUrteil as any).account?.ref})`);
 
+// ── E-302 Scheibe 2 (27.10.2026): die Fremdzeile hängt über den E-Mail-Alias an der PERSON ──
+// bindePersonAnAntrag gibt einer untergeschobenen Zeile die person_id des Menschen, dessen Adresse sie trägt —
+// angelegt, BEVOR dieser zahlt, behält sie ihr Passwort. Dann zählt sie für selberKunde zum selben Kunden.
+console.log("\n── Scheibe 2: Fremdzeile an derselben Person ────────────────────");
+const kunde = {
+  ref: "FIAON-KUNDE", email: "kunde@example.com", person_id: 777, password: passwortHashen("Kunde-Geheim-1"),
+  payment_status: "paid", account_status: "active", status: "completed", merged_into: null, type: "private",
+  pack_key: "fiaon_classic", first_name: "Karla", last_name: "Kunde", birthdate: "1985-04-12",
+};
+const vorher = {
+  ref: "FIAON-VORHER", email: "kunde@example.com", person_id: 777, password: passwortHashen("vorher-pw"),
+  payment_status: "pending", account_status: "pending", status: "started", merged_into: null, type: "private",
+  pack_key: "fiaon_classic", first_name: "Max", last_name: "Angreifer", birthdate: "1990-01-01",
+};
+const s2a = decideLogin([vorher, kunde], "vorher-pw");
+ok(s2a.granted && (s2a as any).account?.ref === vorher.ref, `vorher angelegte Fremdzeile, Konto MIT Passwort → nur eigene Zeile (${(s2a as any).account?.ref})`);
+const s2b = decideLogin([vorher, { ...kunde, password: null }], "vorher-pw");
+ok(s2b.granted && (s2b as any).account?.ref === vorher.ref, `vorher angelegte Fremdzeile, Konto OHNE Passwort → nur eigene Zeile (${(s2b as any).account?.ref})`);
+const nurPerson = { ...vorher, last_name: "Kunde", birthdate: null };
+const s2c = decideLogin([nurPerson, { ...kunde, password: null }], "vorher-pw");
+ok(s2c.granted && (s2c as any).account?.ref === vorher.ref, `gleicher Nachname, aber kein Geburtsdatum an der Zeile → nur eigene Zeile (${(s2c as any).account?.ref})`);
+const s2d = decideLogin([vorher, kunde], "Kunde-Geheim-1");
+ok(s2d.granted && (s2d as any).account?.ref === kunde.ref, `echtes Kunden-Passwort → sein Konto (${(s2d as any).account?.ref})`);
+// Echte Familien, die weiter ins bezahlte Konto führen müssen (so im Bestand gemessen):
+const antrag = { ...vorher, ref: "FIAON-ANTRAG", first_name: "Karla", last_name: "Kunde", birthdate: "1985-04-12", password: passwortHashen("antrag-pw") };
+const s2e = decideLogin([antrag, { ...kunde, password: null }], "antrag-pw");
+ok(s2e.granted && (s2e as any).account?.ref === kunde.ref, `Passwort am Antrag, bezahltes Konto ohne Passwort, gleicher Mensch → Konto (${(s2e as any).account?.ref})`);
+const tippfehler = { ...antrag, first_name: "Karl a" };
+const s2f = decideLogin([tippfehler, kunde], "antrag-pw");
+ok(s2f.granted && (s2f as any).account?.ref === kunde.ref, `Vorname anders geschrieben, Nachname + Geburtsdatum gleich → Konto (${(s2f as any).account?.ref})`);
+const kette = { ...vorher, ref: "FIAON-KETTE", merged_into: kunde.ref, first_name: "Firma", last_name: "GmbH", birthdate: null, password: passwortHashen("kette-pw") };
+const s2g = decideLogin([kette, { ...kunde, password: null }], "kette-pw");
+ok(s2g.granted && (s2g as any).account?.ref === kunde.ref, `zusammengeführte Kette mit anderem Namen → Konto wie bisher (${(s2g as any).account?.ref})`);
+
 console.log(fehler === 0 ? "\n✓ Alle Prüfungen bestanden." : `\n✗ ${fehler} Prüfung(en) fehlgeschlagen.`);
 process.exit(fehler === 0 ? 0 : 1);

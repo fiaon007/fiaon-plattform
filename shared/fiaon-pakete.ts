@@ -150,10 +150,11 @@ export const PAKETE: Paket[] = [
   { key: "llc_fasttrack",       label: "Fast-Track Gründung US-Gesellschaft", preisCents: 53320, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Fast-Track: beschleunigte Bearbeitung der Gründung Ihrer US-Gesellschaft — 599,00 USD zum EZB-Referenzkurs vom 21.10.2026 (1 € = 1,1234 USD), Fremdkosten ohne Aufschlag weiterberechnet", zeitraum: "einmalig" }, zahlungsseite: "global" },
   // E-432 (27.10.2026): Löschung einer früheren US-Gesellschaft des Kunden — sie blockierte im Behördensystem den ITIN-Antrag.
+  // Nachtrag 27.10.: Die Vor-Gesellschaft ist eine Wyoming-LLC (Articles geprüft), nicht Florida.
   // Justin: Fremdkosten 149,00 USD eins zu eins weiterberechnet, zum EZB-Referenzkurs vom 26.10.2026 (1 € = 1,1234 USD) = 132,63 €.
   // Wie llc_fasttrack: Einmalkauf, Art privat (kein Global-Start), Zahlungsseite global.
   { key: "llc_loeschung",       label: "Behördliche Löschung US-Gesellschaft", preisCents: 13263, art: "privat", abo: false, eingestellt: true,
-    rechnung: { beschreibung: "Behördliche Löschung Vor-Gesellschaft (Florida) — offizielle Abmeldung und Löschung der bestehenden US-Gesellschaft zur Bereinigung des ITIN-Antragsprozesses — 149,00 USD zum EZB-Referenzkurs vom 26.10.2026 (1 € = 1,1234 USD), Fremdkosten ohne Aufschlag weiterberechnet", zeitraum: "einmalig" }, zahlungsseite: "global" },
+    rechnung: { beschreibung: "Behördliche Löschung Vor-Gesellschaft (Wyoming) — offizielle Abmeldung und Löschung der bestehenden US-Gesellschaft zur Bereinigung des ITIN-Antragsprozesses — 149,00 USD zum EZB-Referenzkurs vom 26.10.2026 (1 € = 1,1234 USD), Fremdkosten ohne Aufschlag weiterberechnet", zeitraum: "einmalig" }, zahlungsseite: "global" },
   // ── MONATSRECHNUNG DER PARTNER-KOOPERATION (16.10.2026, E-386) ─────────────
   // Der Kooperationsvertrag (E-384) rechnet je übermitteltem Kontakt zum Monatsende ab — der Betrag steht im Vertrag
   // (Preis je Kontakt × Anzahl, abzüglich Gutschriften) und nie im Katalog: `preisJeAngebot` (keine Preis-Abschrift, die
